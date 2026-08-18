@@ -54,10 +54,10 @@
 ### I-2. 계층 식별자 ↔ 메트릭 라벨 대응 규칙 ★
 
 - **관련 요구사항**: REQ-301, REQ-702, REQ-202
-- **필요한 이유**: 우리는 Zone / Node / Entity 3단 계층으로 화면을 구성한다(F3). 관측 스택에서 오는 메트릭이 **어떤 라벨로 이 계층에 대응되는지**가 정해져야 "이 메트릭은 화면의 어느 컴포넌트 것인가"를 판정할 수 있다. 규칙이 없으면 F2 자동 프로비저닝과 F3 드릴다운이 둘 다 성립하지 않는다.
+- **필요한 이유**: 우리는 Entity / Node / Zone 공간 계층으로 화면을 구성한다(F3). **Entity와 Node는 필수, Zone은 선택**이며 Zone 미지정 시 `domain`으로 대체한다(v0.2.1). 관측 스택에서 오는 메트릭이 **어떤 라벨로 이 계층에 대응되는지**가 정해져야 "이 메트릭은 화면의 어느 컴포넌트 것인가"를 판정할 수 있다. 규칙이 없으면 F2 자동 프로비저닝과 F3 드릴다운이 둘 다 성립하지 않는다.
 - **받아야 할 항목**
   - Resource attribute / 메트릭 라벨의 **명명 규약** (예: `service.name`, `deployment.environment`, 위치·구역을 나타내는 속성 키)
-  - 우리 Zone / Node / Entity에 각각 대응하는 속성 키
+  - 우리 Entity / Node에 각각 대응하는 속성 키. Zone은 현 단계에서 `domain`으로 대체하므로 별도 요청하지 않는다
   - 메트릭 이름 규약(접두어 체계, 단위 표기)
   - 동일 대상이 여러 이름으로 나타날 수 있는지 여부 (별칭 존재 시 정규화 규칙)
 - **비고**: 나영 파트의 REQ-201(컨테이너 ID ↔ 디스크립터 ID ↔ Entity ID)과 **같은 문제의 다른 면**이다. 세 파트가 각자 정하면 어긋난다. 가능하면 대규·나영·현우 3자가 한 번에 확정하는 편이 낫다.
@@ -139,7 +139,8 @@
 | `actor.role` | string | ✔ | 발행 시점의 역할 | NFR-001과 대조 |
 | `origin.path` | enum | ✔ | **`manual` / `voice` / `llm_suggestion` / `auto`** | **REQ-908 — v0.2의 핵심 추가분** |
 | `origin.client` | string | ✔ | 발행이 일어난 화면·단말 식별자 | "어디서" |
-| `target.zone` / `target.node` / `target.entity` | string | ✔ | 명령 대상 (I-2 라벨 규약과 동일 체계) | "무엇에" |
+| `target.node` / `target.entity` | string | ✔ | 명령 대상. I-2 라벨 규약과 동일 체계 | "무엇에" |
+| `target.zone` | string | | 선택 계층. 미지정 시 `domain`으로 대체 | v0.2.1 |
 | `action.id` | string | ✔ | 선언된 제어 액션 식별자(REQ-901) | |
 | `action.params` | object | ✔ | 발행한 파라미터 값 | 사후 재현 |
 | `action.paramsValid` | bool | ✔ | 클라이언트 1차 검증 통과 여부(NFR-003) | 검증 우회 시도 탐지 |
@@ -267,10 +268,11 @@
 **MQTT 토픽** — I-2의 계층 체계를 그대로 반영한다.
 
 ```
-{domain}/{zone}/{node}/{entity}/state/{signal}     # 상태 (retained)
-{domain}/{zone}/{node}/{entity}/telemetry/{signal} # 고빈도 텔레메트리
-{domain}/{zone}/{node}/{entity}/cmd/{action}       # 제어 명령 (가시화 → 백엔드)
-{domain}/{zone}/{node}/{entity}/cmd/{action}/ack   # 명령 결과
+# 하드웨어 파트가 이미 정의한 규약을 그대로 채택한다. 우리 안은 폐기.
+{domain}/{type}/{id}/state        # 상태
+{domain}/{type}/{id}/status       # 접속 상태, LWT retained
+{domain}/{type}/{id}/cmd          # 제어 명령
+{domain}/{type}/{id}/cmd/ack      # 명령 결과
 ```
 
 **OTel 메트릭** — 나영 파트가 `ai.*` 네임스페이스를 쓰므로 우리는 `viz.*`를 쓴다.
