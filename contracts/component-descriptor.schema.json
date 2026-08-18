@@ -43,8 +43,8 @@
         },
         "type": {
           "type": "string",
-          "enum": ["number", "string", "boolean", "enum", "object", "array"],
-          "description": "필드의 데이터 타입."
+          "enum": ["number", "string", "boolean", "enum", "object", "array", "binary-stream"],
+          "description": "필드의 데이터 타입. binary-stream은 REQ-502에 따라 영상·음성 등 연속 스트림을 1급으로 선언하기 위한 타입이며, streaming=true 렌더러(F5)가 소비한다."
         },
         "required": {
           "type": "boolean",

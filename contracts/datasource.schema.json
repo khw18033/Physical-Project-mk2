@@ -24,6 +24,9 @@
     "displayName": {
       "type": "string"
     },
+    "description": {
+      "type": "string"
+    },
     "endpoint": {
       "type": "string",
       "description": "접속 주소. 구현체별 해석(HTTP URL, gRPC 대상 등)에 위임한다."

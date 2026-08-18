@@ -1,0 +1,550 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hybrid DT Framework — 가시화 레이어 프로토타입</title>
+<style>
+  :root {
+    --bg: #f6f7f9;
+    --panel: #ffffff;
+    --panel-2: #fbfcfd;
+    --border: #d9dee5;
+    --text: #1c2530;
+    --muted: #67717f;
+    --faint: #98a2b0;
+    --accent: #2f6feb;
+    --ok: #1f9254;
+    --warn: #b7791f;
+    --err: #c0392b;
+    --grid: #e6eaef;
+    --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #12161c;
+      --panel: #1a2028;
+      --panel-2: #161c23;
+      --border: #2c3542;
+      --text: #e5eaf0;
+      --muted: #9aa5b3;
+      --faint: #6b7684;
+      --accent: #5b91ff;
+      --ok: #3ecf8e;
+      --warn: #e0a33a;
+      --err: #ef6b5e;
+      --grid: #242c36;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans KR", sans-serif;
+  }
+  header {
+    padding: 18px 24px;
+    border-bottom: 1px solid var(--border);
+    background: var(--panel);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    align-items: baseline;
+    justify-content: space-between;
+  }
+  h1 { font-size: 16px; margin: 0; font-weight: 650; letter-spacing: -0.01em; }
+  .sub { color: var(--muted); font-size: 12.5px; }
+  main { padding: 20px 24px 60px; max-width: 1400px; margin: 0 auto; }
+  section { margin-bottom: 28px; }
+  h2 {
+    font-size: 12px; text-transform: uppercase; letter-spacing: 0.07em;
+    color: var(--faint); margin: 0 0 12px; font-weight: 600;
+  }
+
+  /* ---- lifecycle control strip (F2) ---- */
+  .lifecycle { display: flex; flex-wrap: wrap; gap: 10px; }
+  .lc-card {
+    border: 1px solid var(--border); border-radius: 8px; background: var(--panel);
+    padding: 10px 12px; min-width: 230px;
+  }
+  .lc-name { font-weight: 600; font-size: 13px; margin-bottom: 2px; }
+  .lc-id { font-family: var(--mono); font-size: 11px; color: var(--faint); margin-bottom: 8px; }
+  .lc-btns { display: flex; gap: 4px; }
+  .lc-btns button {
+    flex: 1; font: inherit; font-size: 11.5px; padding: 4px 6px; cursor: pointer;
+    background: var(--panel-2); color: var(--muted);
+    border: 1px solid var(--border); border-radius: 5px;
+  }
+  .lc-btns button:hover { color: var(--text); }
+  .lc-btns button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+  /* ---- dashboard grid ---- */
+  .grid { display: grid; gap: 14px; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); }
+  .panel {
+    border: 1px solid var(--border); border-radius: 10px; background: var(--panel);
+    padding: 14px; display: flex; flex-direction: column; min-height: 168px;
+  }
+  .panel.state-undeployed { border-style: dashed; background: var(--panel-2); }
+  .panel.state-failed { border-color: var(--err); }
+  .p-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 4px; }
+  .p-title { font-weight: 600; font-size: 13.5px; }
+  .p-meta { font-family: var(--mono); font-size: 10.5px; color: var(--faint); margin-bottom: 10px; }
+  .badge {
+    font-size: 10.5px; padding: 2px 7px; border-radius: 20px; white-space: nowrap;
+    border: 1px solid currentColor; font-weight: 600;
+  }
+  .badge.ok { color: var(--ok); }
+  .badge.undeployed { color: var(--faint); }
+  .badge.failed { color: var(--err); }
+  .p-body { flex: 1; display: flex; flex-direction: column; justify-content: center; }
+  .placeholder { color: var(--faint); font-size: 12.5px; text-align: center; padding: 18px 8px; }
+  .placeholder strong { display: block; color: var(--muted); font-size: 13px; margin-bottom: 4px; }
+
+  /* ---- renderers ---- */
+  .r-text { text-align: center; }
+  .r-text .val { font-size: 30px; font-weight: 650; letter-spacing: -0.02em; }
+  .r-text .val.strong { color: var(--accent); }
+  .r-text .unit { font-size: 14px; color: var(--muted); margin-left: 4px; font-weight: 400; }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  th, td { text-align: left; padding: 4px 8px; border-bottom: 1px solid var(--grid); }
+  th { color: var(--faint); font-weight: 600; font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.05em; }
+  td { font-family: var(--mono); font-size: 11.5px; }
+  .r-video {
+    background: #0b0e12; border-radius: 6px; aspect-ratio: 16/9; display: flex;
+    align-items: center; justify-content: center; flex-direction: column; gap: 6px;
+    color: #7b8794; font-size: 12px; position: relative; overflow: hidden;
+  }
+  .r-video .live {
+    position: absolute; top: 8px; left: 8px; font-size: 10px; font-weight: 700;
+    color: #ff5f56; letter-spacing: 0.08em;
+  }
+  .r-video .scan { font-family: var(--mono); font-size: 10.5px; color: #4b5563; }
+  .foot { margin-top: 8px; font-size: 10.5px; color: var(--faint); font-family: var(--mono); }
+
+  /* ---- contract load log ---- */
+  .log { font-family: var(--mono); font-size: 11.5px; color: var(--muted); }
+  .log li { margin-bottom: 2px; }
+  .err-box {
+    border: 1px solid var(--err); color: var(--err); border-radius: 8px;
+    padding: 14px 16px; background: var(--panel); font-size: 13px;
+  }
+  .err-box code { font-family: var(--mono); background: var(--panel-2); padding: 1px 5px; border-radius: 4px; }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>가시화 레이어 프로토타입</h1>
+    <div class="sub">
+      계약(Phase 0) 검증용 초안 — 백엔드 없이 <code>contracts/examples/</code>의 실제 계약 파일만 읽어 대시보드를 구성한다.
+    </div>
+  </div>
+  <div class="sub" id="clock"></div>
+</header>
+
+<main id="app">
+  <p class="sub">계약 로딩 중…</p>
+</main>
+
+<script>
+/* ============================================================
+   Hybrid DT Framework — 가시화 레이어 프로토타입
+   ------------------------------------------------------------
+   목적: Phase 0에서 확정한 계약(F1/F4/F5/F7)만으로 대시보드를
+   실제로 구성할 수 있는지 검증한다. 코어 엔진(Go)은 아직 없으므로
+   데이터 소스는 목(mock)이며, 디스크립터의 시맨틱 메타데이터
+   (unit / valueRange / samplingIntervalMs / enumValues)만으로
+   그럴듯한 값을 생성한다 — 이는 REQ-103의 메타데이터가 충분한지에
+   대한 검증이기도 하다.
+   ============================================================ */
+
+const CONTRACTS = '../contracts/examples';
+
+const MANIFEST = {
+  descriptors: [
+    'component-descriptor/valid-temperature-sensor.json',
+    'component-descriptor/valid-batch-processor.json',
+    'component-descriptor/valid-camera-stream.json',
+  ],
+  renderers: [
+    'renderer/valid-text.json',
+    'renderer/valid-table.json',
+    'renderer/valid-graph.json',
+    'renderer/valid-video-stream.json',
+  ],
+  pipelines: [
+    'pipeline/valid-direct-interpretation.json',
+    'pipeline/valid-indirect-interpretation.json',
+    'pipeline/valid-status-text.json',
+    'pipeline/valid-batch-table.json',
+    'pipeline/valid-camera-stream.json',
+  ],
+  datasources: [
+    'datasource/valid-prometheus.json',
+    'datasource/valid-stream-gateway.json',
+  ],
+};
+
+/* ---- F2: 라이프사이클 상태 (REQ-201~203) --------------------
+   active      = 컨테이너가 등록되어 정상 동작
+   undeployed  = 의도적으로 배포하지 않음
+   failed      = 배포되었으나 응답 없음(장애)
+   REQ-203은 undeployed와 failed를 반드시 구분해 표시할 것을 요구한다. */
+const LIFECYCLE = ['active', 'undeployed', 'failed'];
+const LIFECYCLE_LABEL = { active: '정상', undeployed: '미배포', failed: '장애' };
+
+const state = {
+  descriptors: new Map(),   // id -> descriptor
+  renderers: new Map(),     // type -> renderer descriptor
+  datasources: new Map(),   // id -> datasource descriptor
+  pipelines: [],
+  lifecycle: new Map(),     // componentId -> lifecycle state
+  seed: 1,
+};
+
+/* ---- 결정적 난수: 새로고침해도 그래프 모양이 유지되도록 ---- */
+function rand() {
+  state.seed = (state.seed * 1664525 + 1013904223) % 4294967296;
+  return state.seed / 4294967296;
+}
+
+async function loadJSON(rel) {
+  const res = await fetch(`${CONTRACTS}/${rel}`);
+  if (!res.ok) throw new Error(`${rel}: HTTP ${res.status}`);
+  return res.json();
+}
+
+async function boot() {
+  const app = document.getElementById('app');
+  try {
+    const [descriptors, renderers, pipelines, datasources] = await Promise.all([
+      Promise.all(MANIFEST.descriptors.map(loadJSON)),
+      Promise.all(MANIFEST.renderers.map(loadJSON)),
+      Promise.all(MANIFEST.pipelines.map(loadJSON)),
+      Promise.all(MANIFEST.datasources.map(loadJSON)),
+    ]);
+
+    descriptors.forEach(d => {
+      state.descriptors.set(d.id, d);
+      state.lifecycle.set(d.id, 'active');
+    });
+    renderers.forEach(r => state.renderers.set(r.type, r));
+    datasources.forEach(d => state.datasources.set(d.id, d));
+    state.pipelines = pipelines;
+
+    // 초기 시연: 한 컴포넌트는 미배포, 한 컴포넌트는 장애로 두어 REQ-203 구분을 바로 보여준다.
+    state.lifecycle.set('batch-processor-01', 'undeployed');
+    state.lifecycle.set('camera-01', 'failed');
+
+    // URL로 초기 상태 지정: ?lifecycle=camera-01:active,batch-processor-01:active
+    // 특정 상태의 화면을 그대로 공유하거나 캡처할 때 사용한다.
+    const q = new URLSearchParams(location.search).get('lifecycle');
+    if (q) {
+      q.split(',').forEach(pair => {
+        const [id, st] = pair.split(':').map(s => s.trim());
+        if (state.descriptors.has(id) && LIFECYCLE.includes(st)) state.lifecycle.set(id, st);
+      });
+    }
+
+    render();
+    setInterval(() => { render(); }, 3000);
+  } catch (err) {
+    app.innerHTML = `
+      <div class="err-box">
+        <strong>계약 파일을 불러오지 못했습니다.</strong><br><br>
+        ${escapeHtml(err.message)}<br><br>
+        브라우저는 <code>file://</code>로 열린 페이지의 로컬 JSON 읽기를 차단합니다.
+        저장소 루트에서 정적 서버를 띄운 뒤 접속하십시오:<br><br>
+        <code>python -m http.server 8000</code><br>
+        → <code>http://localhost:8000/web-dashboard/prototype.html</code>
+      </div>`;
+  }
+}
+
+/* ============================================================
+   F4: 파이프라인 해석 엔진
+   source → (transform…) → sink 를 edges를 따라 걸으며 실행한다.
+   transform이 없으면 직접 해석(REQ-401), 있으면 간접 해석(REQ-402).
+   ============================================================ */
+function executePipeline(pipeline) {
+  const nodes = new Map(pipeline.nodes.map(n => [n.id, n]));
+  const nextOf = new Map(pipeline.edges.map(e => [e.from, e.to]));
+
+  const sourceNode = pipeline.nodes.find(n => n.kind === 'source');
+  const sinkNode = pipeline.nodes.find(n => n.kind === 'sink');
+  if (!sourceNode || !sinkNode) return null;
+
+  const descriptor = state.descriptors.get(sinkNode.sink.componentRef);
+  if (!descriptor) return null;
+  const field = descriptor.fields.find(f => f.name === sinkNode.sink.fieldRef);
+  if (!field) return null;
+
+  // --- source 실행: 목 데이터 생성 ---
+  // 주의(프로토타입 한계): 실제 코어는 source.query(PromQL 등)를 DataSource에
+  // 넘겨 해석한다. 여기서는 질의 문법을 해석할 수 없으므로, sink가 가리키는
+  // 디스크립터 필드의 메타데이터로부터 값을 합성한다.
+  let payload = mockData(field, sourceNode.source.queryMode);
+  const applied = [];
+
+  // --- edges를 따라 transform 체인 실행 ---
+  let cursor = nextOf.get(sourceNode.id);
+  let guard = 0;
+  while (cursor && cursor !== sinkNode.id && guard++ < 32) {
+    const node = nodes.get(cursor);
+    if (!node) break;
+    if (node.kind === 'transform') {
+      payload = applyTransform(payload, node.transform);
+      applied.push(`${node.transform.operator}@${node.executionLocation}`);
+    }
+    cursor = nextOf.get(cursor);
+  }
+
+  return { payload, field, descriptor, sink: sinkNode.sink, applied,
+           sourceNode, sinkNode, pipeline };
+}
+
+function applyTransform(payload, transform) {
+  const { operator, params = {} } = transform;
+
+  if (operator === 'resample' && Array.isArray(payload.series)) {
+    const step = Math.max(1, Math.round((params.intervalMs || 5000) / 1000));
+    const out = [];
+    for (let i = 0; i < payload.series.length; i += step) {
+      const bucket = payload.series.slice(i, i + step);
+      const mean = bucket.reduce((s, p) => s + p.v, 0) / bucket.length;
+      out.push({ t: bucket[0].t, v: mean });
+    }
+    return { ...payload, series: out };
+  }
+
+  if (operator === 'unit-convert' && Array.isArray(payload.series)) {
+    const { from, to } = params;
+    if (from === 'celsius' && to === 'fahrenheit') {
+      return {
+        ...payload,
+        unit: 'fahrenheit',
+        series: payload.series.map(p => ({ t: p.t, v: p.v * 9 / 5 + 32 })),
+      };
+    }
+  }
+
+  return payload; // 미지원 연산자는 통과시키고 표시만 한다
+}
+
+/* ---- 목 데이터 생성: 디스크립터 메타데이터(REQ-103)만 사용 ---- */
+function mockData(field, queryMode) {
+  if (field.type === 'binary-stream') {
+    return { kind: 'stream', unit: field.unit };
+  }
+  if (field.type === 'enum') {
+    const vals = field.enumValues || ['unknown'];
+    return { kind: 'scalar', value: vals[Math.floor(rand() * vals.length)], unit: field.unit };
+  }
+  if (field.type === 'array') {
+    const results = ['ok', 'ok', 'ok', 'retry', 'failed'];
+    const rows = Array.from({ length: 8 }, (_, i) => ({
+      batchId: `b-${(1200 + i).toString(36)}`,
+      durationMs: Math.round(120 + rand() * 900),
+      result: results[Math.floor(rand() * results.length)],
+    }));
+    return { kind: 'rows', rows, unit: field.unit };
+  }
+  if (field.type === 'number') {
+    const min = field.valueRange?.min ?? 0;
+    const max = field.valueRange?.max ?? 100;
+    // 값 범위의 중앙 40% 대역에서 완만하게 흔들리는 계열을 만든다
+    const mid = min + (max - min) * 0.5;
+    const amp = (max - min) * 0.16;
+    if (queryMode === 'instant') {
+      return { kind: 'scalar', value: round(mid + (rand() - 0.5) * amp * 2), unit: field.unit };
+    }
+    const n = 60;
+    let v = mid;
+    const series = Array.from({ length: n }, (_, i) => {
+      v += (rand() - 0.5) * amp * 0.5;
+      v = Math.min(max, Math.max(min, v));
+      return { t: i, v: round(v) };
+    });
+    return { kind: 'series', series, unit: field.unit, min, max };
+  }
+  return { kind: 'scalar', value: '—', unit: field.unit };
+}
+
+const round = n => Math.round(n * 10) / 10;
+
+/* ============================================================
+   F5: 렌더러 카탈로그 — type 키로 조회해 표현을 만든다.
+   신규 렌더러 추가 = 이 맵에 항목 하나 추가 (코어 수정 불필요, NFR-006)
+   ============================================================ */
+const RENDERERS = {
+  text(result) {
+    const { payload, sink, field } = result;
+    const cfg = sink.rendererConfig || {};
+    const value = payload.kind === 'series'
+      ? payload.series[payload.series.length - 1].v
+      : payload.value;
+    const unit = cfg.showUnit === false ? '' : (payload.unit || field.unit || '');
+    return `<div class="r-text">
+      <div class="val ${cfg.emphasis === 'strong' ? 'strong' : ''}">${escapeHtml(String(value))}${
+        unit ? `<span class="unit">${escapeHtml(unit)}</span>` : ''}</div>
+    </div>`;
+  },
+
+  table(result) {
+    const { payload, sink } = result;
+    const cfg = sink.rendererConfig || {};
+    const rows = (payload.rows || []).slice(0, cfg.maxRows || 10);
+    const cols = cfg.columns || Object.keys(rows[0] || {});
+    return `<table>
+      <thead><tr>${cols.map(c => `<th>${escapeHtml(c)}</th>`).join('')}</tr></thead>
+      <tbody>${rows.map(r => `<tr>${
+        cols.map(c => `<td>${escapeHtml(String(r[c] ?? ''))}</td>`).join('')
+      }</tr>`).join('')}</tbody>
+    </table>`;
+  },
+
+  graph(result) {
+    const { payload, sink } = result;
+    const cfg = sink.rendererConfig || {};
+    const series = payload.series || [];
+    if (!series.length) return `<div class="placeholder">데이터 없음</div>`;
+
+    const W = 300, H = 96, PAD = 4;
+    const vals = series.map(p => p.v);
+    const lo = Math.min(...vals), hi = Math.max(...vals);
+    const span = (hi - lo) || 1;
+    const pts = series.map((p, i) => {
+      const x = PAD + (i / (series.length - 1 || 1)) * (W - PAD * 2);
+      const y = H - PAD - ((p.v - lo) / span) * (H - PAD * 2);
+      return `${x.toFixed(1)},${y.toFixed(1)}`;
+    }).join(' ');
+
+    const last = vals[vals.length - 1];
+    return `
+      <svg viewBox="0 0 ${W} ${H}" width="100%" height="${H}" preserveAspectRatio="none"
+           role="img" aria-label="시계열 그래프">
+        <line x1="0" y1="${H - PAD}" x2="${W}" y2="${H - PAD}" stroke="var(--grid)" stroke-width="1"/>
+        <line x1="0" y1="${PAD}" x2="${W}" y2="${PAD}" stroke="var(--grid)" stroke-width="1" stroke-dasharray="2 3"/>
+        <polyline points="${pts}" fill="none" stroke="var(--accent)" stroke-width="1.6"
+                  stroke-linejoin="round" stroke-linecap="round"/>
+      </svg>
+      <div class="foot">
+        ${cfg.yAxisLabel ? escapeHtml(cfg.yAxisLabel) + ' · ' : ''}min ${round(lo)} / max ${round(hi)} / now ${round(last)}
+        ${payload.unit ? ' ' + escapeHtml(payload.unit) : ''}
+      </div>`;
+  },
+
+  'video-stream'(result) {
+    const { sink } = result;
+    const cfg = sink.rendererConfig || {};
+    return `<div class="r-video">
+      <span class="live">● LIVE</span>
+      <div>영상 스트림 렌더러</div>
+      <div class="scan">codec=${escapeHtml(cfg.codec || 'n/a')} autoplay=${cfg.autoplay ? 'true' : 'false'}</div>
+    </div>`;
+  },
+};
+
+/* ============================================================
+   렌더링
+   ============================================================ */
+function render() {
+  const app = document.getElementById('app');
+  app.innerHTML = `
+    <section>
+      <h2>라이프사이클 제어 (F2 · REQ-201~203)</h2>
+      <div class="lifecycle">${state.descriptors.size ? [...state.descriptors.values()].map(lifecycleCard).join('') : ''}</div>
+    </section>
+
+    <section>
+      <h2>자동 생성된 대시보드 (F4 해석 → F5 렌더러)</h2>
+      <div class="grid">${state.pipelines.map(panelFor).join('')}</div>
+    </section>
+
+    <section>
+      <h2>로드된 계약</h2>
+      <ul class="log">
+        <li>디스크립터 ${state.descriptors.size} · 렌더러 ${state.renderers.size} · 파이프라인 ${state.pipelines.length} · 데이터소스 ${state.datasources.size}</li>
+        <li>렌더러 카탈로그: ${[...state.renderers.keys()].map(escapeHtml).join(', ')}</li>
+        <li>데이터소스: ${[...state.datasources.values()].map(d =>
+             `${escapeHtml(d.id)}(${escapeHtml(d.type)}${d.capabilities.streaming ? ', stream' : ''})`).join(', ')}</li>
+      </ul>
+    </section>`;
+
+  app.querySelectorAll('[data-lc]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      state.lifecycle.set(btn.dataset.lc, btn.dataset.to);
+      render();
+    });
+  });
+
+  document.getElementById('clock').textContent =
+    '갱신 ' + new Date().toLocaleTimeString('ko-KR');
+}
+
+function lifecycleCard(d) {
+  const cur = state.lifecycle.get(d.id);
+  return `<div class="lc-card">
+    <div class="lc-name">${escapeHtml(d.displayName || d.id)}</div>
+    <div class="lc-id">${escapeHtml(d.id)}</div>
+    <div class="lc-btns">${LIFECYCLE.map(s =>
+      `<button data-lc="${escapeHtml(d.id)}" data-to="${s}" aria-pressed="${s === cur}">${LIFECYCLE_LABEL[s]}</button>`
+    ).join('')}</div>
+  </div>`;
+}
+
+function panelFor(pipeline) {
+  const result = executePipeline(pipeline);
+  if (!result) {
+    return panelShell(pipeline.displayName || pipeline.id, pipeline.id, 'failed',
+      `<div class="placeholder"><strong>해석 실패</strong>참조 대상을 찾을 수 없습니다 (F8 validator가 잡아야 할 사례)</div>`);
+  }
+
+  const compId = result.sink.componentRef;
+  const lc = state.lifecycle.get(compId) || 'active';
+  const title = `${result.descriptor.displayName || compId} · ${result.field.name}`;
+  const meta = `${pipeline.id} → ${result.sink.rendererType}` +
+    (result.applied.length ? ` · ${result.applied.join(' → ')}` : ' · 직접 해석');
+
+  // REQ-203: 의도적 미배포와 장애를 서로 다른 화면으로 구분한다.
+  if (lc === 'undeployed') {
+    return panelShell(title, meta, 'undeployed',
+      `<div class="placeholder"><strong>의도적 미배포</strong>이 컴포넌트는 배포 대상에서 제외되었습니다. 데이터 없음이 정상입니다.</div>`);
+  }
+  if (lc === 'failed') {
+    return panelShell(title, meta, 'failed',
+      `<div class="placeholder"><strong>장애</strong>컨테이너는 등록되어 있으나 응답이 없습니다. 마지막 수신 이후 데이터가 끊겼습니다.</div>`);
+  }
+
+  const renderer = RENDERERS[result.sink.rendererType];
+  if (!renderer) {
+    return panelShell(title, meta, 'failed',
+      `<div class="placeholder"><strong>렌더러 없음</strong>카탈로그에 '${escapeHtml(result.sink.rendererType)}' 타입이 등록되지 않았습니다.</div>`);
+  }
+
+  return panelShell(title, meta, 'active', renderer(result));
+}
+
+function panelShell(title, meta, lcState, body) {
+  const badgeClass = lcState === 'active' ? 'ok' : lcState;
+  return `<div class="panel state-${lcState}">
+    <div class="p-head">
+      <span class="p-title">${escapeHtml(title)}</span>
+      <span class="badge ${badgeClass}">${LIFECYCLE_LABEL[lcState]}</span>
+    </div>
+    <div class="p-meta">${escapeHtml(meta)}</div>
+    <div class="p-body">${body}</div>
+  </div>`;
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c =>
+    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+boot();
+</script>
+</body>
+</html>
