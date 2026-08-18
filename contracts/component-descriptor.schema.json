@@ -75,7 +75,8 @@
         },
         "representationHint": {
           "type": "string",
-          "description": "F5 렌더러 카탈로그의 타입 키 참조(예: text, table, graph, image, video-stream, audio). 실제 렌더러 목록/구현은 F5에서 관리하며, 여기서는 참조용 문자열만 갖는다."
+          "pattern": "^[a-z0-9][a-z0-9-]*[a-z0-9]$",
+          "description": "F5 렌더러 카탈로그(renderer.schema.json)의 type 키 참조. 등록된 렌더러인지, 그리고 이 필드의 type을 그 렌더러가 acceptsFieldTypes로 받는지는 F8 validator가 카탈로그와 대조해 검사한다. 신규 렌더러 등록(REQ-503)을 막지 않기 위해 enum으로 닫지 않는다(NFR-006)."
         },
         "description": {
           "type": "string"
