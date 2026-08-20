@@ -5,7 +5,7 @@
  * 백엔드가 논리 구독 대신 토픽 문자열을 고르면 이 인터페이스의 구현만 바뀐다.
  */
 
-import type { ConnectionStatus, Envelope, RoleInfo, ScopeSpec, Selector } from './types.ts';
+import type { CommandRequest, ConnectionStatus, Envelope, RoleInfo, ScopeSpec, Selector } from './types.ts';
 
 export type Unsubscribe = () => void;
 
@@ -30,6 +30,29 @@ export interface Transport {
 
   /** VZ-C-01/C-04 — 현재 역할과 그 적용 범위. */
   fetchRole(): Promise<RoleInfo>;
+
+  /**
+   * VZ-O-01 — 추상 명령 발행.
+   *
+   * 이 메서드는 **논리 계약**이지 전송 방식이 아니다. 토픽 방식으로 갈아끼워도
+   * 시그니처는 그대로다. 접수 여부(만료·잠금으로 거부될 수 있다)는 반환 Promise로,
+   * 이후 진행 단계는 command_result 채널 구독으로 도착한다 — 두 경로가 다른 이유는
+   * 접수 거부는 즉답이지만 수행 결과는 물리 시간이 걸리기 때문이다.
+   */
+  publishCommand(command: CommandRequest): Promise<{ accepted: boolean; reasonCode: string | null; message: string }>;
+
+  /**
+   * VZ-U-07 — 계획 승인/거부.
+   * 판정 결과는 `plan` 채널로 되돌아온다. **승인 전에는 진행 이벤트가 없다.**
+   */
+  decidePlan(planId: string, decision: 'approve' | 'reject', reason?: string): void;
+
+  /**
+   * VZ-I-06 — 영상 패널 열기/닫기.
+   * 열린 패널만 프레임을 받는다. 전 카메라 상시 재생은 무선 대역폭과
+   * 브라우저 디코딩을 동시에 낭비한다.
+   */
+  setVideoPanel(entity: string, open: boolean): void;
 
   /**
    * 시나리오 재생 트리거. **목 게이트웨이 전용 개발 기능**이며 실제 게이트웨이에는 없다.

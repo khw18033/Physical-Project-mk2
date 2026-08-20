@@ -13,6 +13,7 @@
 import { backoffDelayMs } from './backoff.ts';
 import type { Transport, Unsubscribe } from './Transport.ts';
 import type {
+  CommandRequest,
   ConnectionState,
   ConnectionStatus,
   Envelope,
@@ -20,6 +21,8 @@ import type {
   ScopeSpec,
   Selector,
 } from './types.ts';
+
+type CommandOutcome = { accepted: boolean; reasonCode: string | null; message: string };
 
 export type WsTransportConfig = {
   /** 게이트웨이 WS 주소. **진짜 백엔드가 나오면 여기만 바꾼다.** */
@@ -41,6 +44,8 @@ export class WsTransport implements Transport {
   private readonly subs = new Map<string, Sub>();
   private readonly statusHandlers = new Set<(s: ConnectionStatus) => void>();
   private roleWaiters: Array<(r: RoleInfo) => void> = [];
+  /** command_id → 접수 응답 대기자. 진행 단계는 채널 구독으로 따로 온다. */
+  private readonly commandWaiters = new Map<string, (o: CommandOutcome) => void>();
 
   private subSeq = 0;
   private attempt = 0;
@@ -182,6 +187,18 @@ export class WsTransport implements Transport {
         return;
       }
 
+      case 'command_ack': {
+        const waiter = this.commandWaiters.get(msg.command_id as string);
+        if (waiter === undefined) return;
+        this.commandWaiters.delete(msg.command_id as string);
+        waiter({
+          accepted: msg.accepted as boolean,
+          reasonCode: (msg.reason_code as string | null) ?? null,
+          message: String(msg.message),
+        });
+        return;
+      }
+
       case 'error':
         this.setStatus({ lastError: String(msg.message) });
         return;
@@ -213,6 +230,34 @@ export class WsTransport implements Transport {
       this.roleWaiters.push(resolve);
       this.send({ type: 'role' });
     });
+  }
+
+  publishCommand(command: CommandRequest): Promise<CommandOutcome> {
+    return new Promise((resolve) => {
+      if (this.ws?.readyState !== WebSocket.OPEN) {
+        // 끊긴 상태에서 명령을 큐에 쌓지 않는다 — 나중에 한꺼번에 나가면
+        // 만료 시각의 의미가 사라지고 관제사가 의도하지 않은 시점에 장비가 움직인다.
+        resolve({ accepted: false, reasonCode: 'disconnected', message: '게이트웨이 연결 없음 — 명령을 보내지 않았다' });
+        return;
+      }
+      this.commandWaiters.set(command.command_id, resolve);
+      this.send({ type: 'command', command });
+
+      // 접수 응답 자체가 오지 않는 경우를 위한 안전장치.
+      setTimeout(() => {
+        if (!this.commandWaiters.has(command.command_id)) return;
+        this.commandWaiters.delete(command.command_id);
+        resolve({ accepted: false, reasonCode: 'timeout', message: '접수 응답 없음' });
+      }, 5000);
+    });
+  }
+
+  setVideoPanel(entity: string, open: boolean): void {
+    this.send({ type: 'video', entity, open });
+  }
+
+  decidePlan(planId: string, decision: 'approve' | 'reject', reason?: string): void {
+    this.send({ type: 'plan_decision', plan_id: planId, decision, reason });
   }
 
   /** 목 게이트웨이 전용. 실제 게이트웨이 구현에는 이 메서드가 없다. */

@@ -12,7 +12,7 @@ import {
   ACTUATOR_PHASE_LABEL,
   COMMAND_DISPLAY_LABEL,
   DISPLAY_STATUS_LABEL,
-  deriveCommandDisplay,
+  toDisplay,
   deriveDisplayStatus,
   describeActuator,
   formatAge,
@@ -73,7 +73,8 @@ export function DeviceCard({ record }: Props) {
   const domain = domainLine(record);
 
   const actuator = (record.actuator?.payload as ActuatorState | undefined) ?? null;
-  const command = deriveCommandDisplay((record.commandResult?.payload as CommandResult | undefined) ?? null);
+  const commandResult = (record.commandResult?.payload as CommandResult | undefined) ?? null;
+  const command = commandResult === null ? null : toDisplay(commandResult.status);
 
   const footer =
     status === 'not_deployed'

@@ -24,6 +24,11 @@ export type Channel =
   | 'video_meta'
   | 'actuator_state'
   | 'command_result'
+  | 'control_lock'
+  | 'plan'
+  | 'plan_progress'
+  | 'video_frame'
+  | 'detections'
   | 'metrics';
 
 /**
@@ -80,13 +85,61 @@ export type ActuatorState = {
   command_id: string | null;
 };
 
-/** REQ-903 — 본 레이어는 명령 결과를 3상태로 표시한다. */
+/**
+ * VZ-O-01 — 가시화가 발행하는 **추상 명령**.
+ * 장비 명령으로의 번역은 백엔드가 어휘집으로 수행하므로 여기에 장비 어휘가 없다.
+ */
+export type CommandRequest = {
+  /** REQ-909 — 전 파트 단일 상관 키. */
+  command_id: string;
+  entity: string;
+  action: string;
+  params: Record<string, unknown>;
+  /** REQ-909 — 만료 후 실행 금지. 검사는 **서버가 서버 시각으로** 한다. */
+  expires_at: string;
+  /**
+   * VZ-O-03 — 책임소재 필드. 필드 이름이 확정 전이라 **여기서 이름을 만들지 않는다.**
+   * 값 구성은 src/data/auditFieldMap.ts 한 곳에서만 한다.
+   */
+  audit?: Record<string, unknown>;
+};
+
+/**
+ * REQ-903 / VZ-O-02 — 명령 결과. 서버는 네 단계로 보내고 화면은 3상태로 접어 표시한다.
+ */
 export type CommandResult = {
   command_id: string;
+  entity: string;
+  action: string;
   status: 'accepted' | 'completed' | 'rejected' | 'timeout' | 'failed';
-  stage?: string;
-  detail?: string;
-  expires_at?: string;
+  stage: 'ack' | 'executing' | 'physical_state_changed' | 'settled';
+  /** 수행 중 진행률. 이게 있어야 물리 동작 구간이 "멈춘 것처럼" 보이지 않는다. */
+  progress_pct: number | null;
+  detail: string;
+  reason_code: string | null;
+  expires_at: string;
+  /** 실패 시 이전 상태로 복원했는가. */
+  restored: boolean;
+  ts: string;
+};
+
+/** VZ-O-05 — 제어 잠금. 복구되어도 재확인 전까지는 잠금이 유지된다. */
+export type ControlLock = {
+  locked: boolean;
+  phase: 'unlocked' | 'comm_lost' | 'rechecking';
+  reason: string | null;
+  safe_state_held: boolean;
+  since: string;
+};
+
+/** 서버가 내려주는 액션 목록. 화면이 액션 어휘를 하드코딩하지 않게 한다. */
+export type ActionSpec = {
+  action: string;
+  label: string;
+  targetPct: number;
+  /** 참이면 ACK가 아니라 **실제 수행 결과**로 확정 표시해야 한다 (VZ-O-02). */
+  irreversible: boolean;
+  resultingState: string;
 };
 
 /** VZ-C-04 — 역할 응답. scope는 현 단계 ['*'] 고정이지만 형태에 자리를 둔다. */

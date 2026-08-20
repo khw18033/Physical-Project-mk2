@@ -12,12 +12,22 @@ import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'reac
 import { getTransport } from '../transport/index.ts';
 import type { ConnectionStatus, RoleInfo } from '../transport/index.ts';
 import { store } from './index.ts';
+import { commandTracker, type TrackedCommand } from './commands.ts';
 import type { EntityRecord } from './store.ts';
 import { ZoneSummaryFeed, type ZoneSummary } from './summary.ts';
 
 /** 구독 결과 전체. 병합 창이 닫힐 때만 새 스냅샷이 나온다. */
 export function useEntities(): ReadonlyMap<string, EntityRecord> {
   return useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot);
+}
+
+/**
+ * 발행한 명령의 단계 이력 (VZ-O-02).
+ * store가 아니라 추적기를 보는 이유 — store는 채널별 **마지막 값**만 갖는다.
+ * 명령 결과는 네 단계가 각각 의미를 갖는 이산 이벤트라 마지막 값만으로는 부족하다.
+ */
+export function useCommands(): readonly TrackedCommand[] {
+  return useSyncExternalStore(commandTracker.subscribe, commandTracker.getSnapshot, commandTracker.getSnapshot);
 }
 
 export function useConnectionStatus(): ConnectionStatus {

@@ -9,7 +9,6 @@
  *  - 명령 발행  — 만들지 않는다. 아래 시나리오 버튼은 목 서버 안의 왕복을 트리거할 뿐이다.
  */
 
-import { useEffect } from 'react';
 import {
   DISPLAY_STATUS_LABEL,
   RENDER_MERGE_WINDOW_MS,
@@ -17,11 +16,10 @@ import {
   ZONE_BOARD_REFRESH_MS,
   guardedMean,
   playScenario,
-  startDataLayer,
   store,
   type DisplayStatus,
 } from '../data/index.ts';
-import { useConnectionStatus, useEntities, useRenderRate, useRole, useZoneSummary } from '../data/hooks.ts';
+import { useEntities, useRenderRate, useRole, useZoneSummary } from '../data/hooks.ts';
 import { DeviceCard } from './DeviceCard.tsx';
 
 /** 현재 설계 전제는 구역 1개(VZ-C-05). 구역이 늘면 이 값이 선택 상태가 된다. */
@@ -41,11 +39,10 @@ const SCENARIO_BUTTONS: Array<{ name: string; label: string }> = [
 ];
 
 export function DeviceGrid() {
-  useEffect(() => startDataLayer(ZONE_ID), []);
-
+  // 데이터 레이어 기동은 App이 앱 수명 단위로 한다 — 탭을 옮길 때마다 구독을
+  // 끊었다 붙이면 돌아왔을 때 화면이 비고, 서버 스냅샷을 매번 다시 받게 된다.
   const entities = useEntities();
   const summary = useZoneSummary(ZONE_ID);
-  const connection = useConnectionStatus();
   const role = useRole();
   const renders = useRenderRate();
 
@@ -70,7 +67,6 @@ export function DeviceGrid() {
         </div>
         <div className="board__meta">
           <span>갱신 {ZONE_BOARD_REFRESH_MS / 1000}초 · 병합 {RENDER_MERGE_WINDOW_MS}ms</span>
-          <ConnectionBadge state={connection.state} attempt={connection.attempt} />
         </div>
       </header>
 
@@ -134,18 +130,6 @@ export function DeviceGrid() {
       </section>
     </main>
   );
-}
-
-function ConnectionBadge({ state, attempt }: { state: string; attempt: number }) {
-  const label =
-    state === 'open'
-      ? '게이트웨이 연결됨'
-      : state === 'reconnecting'
-        ? '재연결 중 (' + attempt + '회)'
-        : state === 'connecting'
-          ? '연결 중'
-          : '연결 종료';
-  return <span className={'conn conn--' + state}>{label}</span>;
 }
 
 /**

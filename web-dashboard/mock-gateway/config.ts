@@ -55,11 +55,18 @@ export const INTERVALS = {
   /** 액추에이터 대기 중 상태 — 1초 (HW-A-01). */
   ACTUATOR_IDLE_MS: 1_000,
   /**
-   * 액추에이터 동작 중 진행 상태 — 100ms.
-   * ※ 미결: VZ-O-02의 "진행 상태 200ms 주기 수신"(HW-A-04)과 숫자가 어긋난다.
-   *    이번 구현은 지시받은 100ms를 따르고, 확정 시 이 상수만 고치면 된다.
+   * 액추에이터가 **자기 상태**를 내는 주기 — 동작 중 100ms.
+   * 아래 COMMAND_PROGRESS_MS(명령 진행 보고)와는 다른 축이다. 앞선 미결 24는
+   * 두 숫자가 같은 것을 가리킨다고 읽어서 생긴 혼동이었고, 실제로는 층이 다르다 —
+   * 100ms는 장치 상태 채널, 200ms는 명령 결과 채널의 진행 단계 보고다.
    */
   ACTUATOR_MOVING_MS: 100,
+
+  /**
+   * 명령 수행 중 **진행 상태 보고** 주기 — 200ms (VZ-O-02 / HW-A-04).
+   * 이게 없으면 물리 동작 구간이 화면에서 "멈춘 것처럼" 보인다.
+   */
+  COMMAND_PROGRESS_MS: 200,
 
   /** 관측 지표 수집 — 15초 (HW-C-05). 이보다 촘촘히 질의해도 새로운 점이 없다. */
   OBSERVABILITY_MS: 15_000,
@@ -127,6 +134,45 @@ export const PLACEHOLDERS = {
   ROLE: 'operator',
 } as const;
 
+/**
+ * 영상·탐지 (VZ-I-06 · VZ-I-07 · VZ-I-09).
+ *
+ * 여기 값을 바꿔가며 "프레임 참조가 없으면 얼마나 어긋나는가"를 실측한다.
+ * 특히 INFERENCE_DELAY_MS 와 INFERENCE_WIDTH/HEIGHT 가 검증의 두 축이다.
+ */
+export const VISION = {
+  /** 원본 프레임률 (HW-S-06). 이보다 자주 그려봐야 받을 프레임이 없다. */
+  FPS: 15,
+
+  /**
+   * 온디바이스 추론 지연 (AI-P-01 "0.2초 이내").
+   * 15fps에서 0.2초면 결과가 돌아왔을 때 화면은 약 3프레임 앞서 있다.
+   * 시나리오로 0.5초까지 올려 어긋남이 그만큼 커지는지 확인한다.
+   */
+  INFERENCE_DELAY_MS: 200,
+
+  /**
+   * 추론 해상도. AI가 먹는 다운스케일 프레임(HW-R-04)이 640급이라 표시 해상도와 다르다.
+   * bbox를 표시 해상도로 환산하려면 이 값이 계약에 실려 와야 한다.
+   */
+  INFERENCE_WIDTH: 640,
+  INFERENCE_HEIGHT: 360,
+
+  /** 표시 해상도 — 브라우저 canvas. 추론 해상도와 **일부러 다르게** 둔다. */
+  DISPLAY_WIDTH: 960,
+  DISPLAY_HEIGHT: 540,
+
+  /** bbox 좌표계 — normalized(0~1) 또는 absolute(픽셀). 시나리오로 바꾼다. */
+  BBOX_FORMAT: 'absolute' as 'normalized' | 'absolute',
+
+  /** 궤적 길이(프레임 수) — VZ-I-09. */
+  TRAIL_LENGTH: 24,
+
+  /** 대상 이동 속도(rad/s). 3프레임 어긋남이 눈에 보일 만큼은 움직여야 한다. */
+  PERSON_SPEED_RAD: 1.6,
+  ROBOT_SPEED_RAD: 1.1,
+} as const;
+
 /** 시나리오 타이밍 — 요구사항이 아니라 시연 연출용 값이므로 별도로 묶는다. */
 export const SCENARIO_TIMING = {
   /** sensor-02 연결 끊김 후 복구까지. */
@@ -141,4 +187,25 @@ export const SCENARIO_TIMING = {
   ACTUATOR_EXEC_GAP_MS: 400,
   /** 액추에이터 동작 총 소요 시간(0 → 100%). */
   ACTUATOR_TRAVEL_MS: 6_000,
+
+  /**
+   * 명령 기본 유효 시간 (REQ-909 expires_at).
+   * 만료된 명령은 목 서버가 거부한다 — "유통기한이 지난 명령은 실행하면 안 된다"를
+   * 화면이 말로만 주장하지 않고 서버가 실제로 막는지 확인할 수 있어야 한다.
+   */
+  COMMAND_TTL_MS: 30_000,
+
+  /**
+   * 통신 복구 후 **실제 상태 재확인**에 걸리는 시간 (VZ-O-05).
+   * 통신이 돌아왔다고 바로 제어를 열면, 끊긴 동안 실제로 무슨 일이 있었는지 모른 채
+   * 명령을 내보내게 된다. 재확인이 끝날 때까지 잠금을 유지한다.
+   */
+  CONTROL_RECHECK_MS: 6_000,
+
+  /**
+   * 계획 구간 1개의 수행 시간 (VZ-U-05 시연용).
+   * 실제 구간 길이는 임무마다 다르며 요구사항이 정하는 값이 아니다 —
+   * 여기서는 다섯 구간이 화면에서 순서대로 넘어가는 것을 볼 수 있을 정도로만 잡는다.
+   */
+  PLAN_SEGMENT_MS: 2_500,
 } as const;

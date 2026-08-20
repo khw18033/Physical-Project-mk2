@@ -9,9 +9,10 @@
  * 백엔드 책임이므로(REQ-302) 가시화도, 이 목 서버의 소비자도 변환 로직을 갖지 않는다.
  */
 
-import { INTERVALS, SCENARIO_TIMING } from './config.ts';
+import { INTERVALS } from './config.ts';
 import type { Hub } from './hub.ts';
 import type { ActuatorState } from './protocol.ts';
+import type { CommandEngine } from './commands.ts';
 
 /**
  * 주기가 도중에 바뀔 수 있는 루프. setInterval 대신 재무장 setTimeout을 쓴다.
@@ -246,15 +247,9 @@ export class CameraDevice {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export class ActuatorDevice {
-  private phase: ActuatorState['phase'] = 'idle';
-  private positionPct = 0;
-  private targetPct = 0;
-  private progressPct: number | null = null;
-  private commandId: string | null = null;
-  private travelStartedMs = 0;
-  private startPct = 0;
   private readonly hub: Hub;
   readonly id: string;
+  private engine: CommandEngine | null = null;
   private loop: Loop | null = null;
 
   constructor(hub: Hub, id: string) {
@@ -264,102 +259,48 @@ export class ActuatorDevice {
     if (rt) rt.deviceStatus = 'ok';
   }
 
+  /**
+   * 명령 수행은 CommandEngine이 소유한다. 장치는 **자기 상태를 보고할 뿐**이다.
+   * 둘을 한 클래스에 두면 "장치 상태 100ms"와 "명령 진행 200ms"가 섞여
+   * 어느 주기가 무엇을 위한 것인지 코드에서 읽히지 않는다.
+   */
+  attach(engine: CommandEngine): void {
+    this.engine = engine;
+  }
+
   private delay = (): number =>
-    this.phase === 'moving' ? INTERVALS.ACTUATOR_MOVING_MS : INTERVALS.ACTUATOR_IDLE_MS;
+    this.engine?.isBusy(this.id) ? INTERVALS.ACTUATOR_MOVING_MS : INTERVALS.ACTUATOR_IDLE_MS;
 
   private snapshot(): ActuatorState {
-    const rt = this.hub.runtime.get(this.id);
-    const locked = rt?.forcedOffline === true;
+    const engine = this.engine;
+    const lock = engine?.getLock(this.id) ?? null;
+    const busy = engine?.isBusy(this.id) ?? false;
+
+    // 잠긴 동안은 실제 상태를 확인할 수 없으므로 '확인 불가'다.
+    // 도메인 어휘(대기·동작 중·완료·오류·확인 불가)는 표준 3층과 별개다.
+    const phase: ActuatorState['phase'] = lock?.locked ? 'unverified' : busy ? 'moving' : 'idle';
+
     return {
-      phase: locked ? 'unverified' : this.phase,
-      progress_pct: this.phase === 'moving' ? this.progressPct : null,
-      position_pct: round(this.positionPct, 1),
-      // VZ-O-05 — 통신 두절 시 제어를 잠그고 사유를 함께 보여 준다.
-      control_locked: locked,
-      lock_reason: locked ? '통신 두절 — 실제 상태 재확인 전까지 잠금 유지' : null,
-      command_id: this.commandId,
+      phase,
+      progress_pct: null,
+      position_pct: engine ? round(engine.getPositionPct(this.id), 1) : null,
+      control_locked: lock?.locked ?? false,
+      lock_reason: lock?.reason ?? null,
+      command_id: null,
     };
   }
 
-  private emit(): void {
-    if (this.phase === 'moving') {
-      const elapsed = Date.now() - this.travelStartedMs;
-      const ratio = Math.min(1, elapsed / SCENARIO_TIMING.ACTUATOR_TRAVEL_MS);
-      this.progressPct = round(ratio * 100, 1);
-      this.positionPct = round(this.startPct + (this.targetPct - this.startPct) * ratio, 1);
-
-      if (ratio >= 1) {
-        this.phase = 'completed';
-        this.progressPct = 100;
-        this.positionPct = this.targetPct;
-        this.loop?.rearm(); // 동작 중 100ms → 대기 1초
-        this.hub.publish(this.id, 'actuator_state', this.snapshot());
-        // REQ-903 — 확정 판정은 백엔드가 디바이스 ack를 command.result로 승격해 내려 준다.
-        this.hub.publish(this.id, 'command_result', {
-          command_id: this.commandId,
-          status: 'completed',
-          stage: 'physical_state_changed',
-          detail: '개도율 ' + this.targetPct + '% 도달',
-        });
-        setTimeout(() => {
-          if (this.phase === 'completed') {
-            this.phase = 'idle';
-            this.progressPct = null;
-            this.hub.publish(this.id, 'actuator_state', this.snapshot());
-          }
-        }, 3000);
-        return;
-      }
-    }
-    this.hub.publish(this.id, 'actuator_state', this.snapshot());
-  }
-
   /**
-   * 명령 왕복. **목 서버 안에서만 왕복시킨다** — 실제 제어 명령 발행 경로는 만들지 않는다.
-   * ACK → 동작 중(100ms 진행) → 완료 4단계를 REQ-903의 3상태 표시로 접어 내려 준다.
+   * 대기 1초 <-> 동작 중 100ms 전환. 엔진이 명령 시작·종료 시점에 불러 준다.
+   * 루프 콜백 안에서 rearm을 부르면 이미 재무장을 예약한 타이머와 겹쳐
+   * 매 틱마다 타이머가 배로 늘어난다 — 그래서 밖에서 부른다.
    */
-  command(targetPct: number): string {
-    const commandId = 'cmd-' + Date.now().toString(36);
-    this.commandId = commandId;
-
-    // REQ-909 — command_id(전 파트 단일 상관 키)와 expires_at(만료 후 실행 금지).
-    const expiresAt = new Date(Date.now() + 30_000).toISOString();
-
-    // 1단계 — 수신 확인(ACK).
-    setTimeout(() => {
-      this.hub.publish(this.id, 'command_result', {
-        command_id: commandId,
-        status: 'accepted',
-        stage: 'ack',
-        expires_at: expiresAt,
-        detail: '수신 확인',
-      });
-    }, SCENARIO_TIMING.ACTUATOR_ACK_MS);
-
-    // 2단계 — 수행 중. ACK와 **시간상 분리**한다. 같은 순간에 내면 마지막 값만 남는
-    // 저장 방식에서는 ACK 단계가 화면에 한 번도 보이지 않는다.
-    setTimeout(() => {
-      this.startPct = this.positionPct;
-      this.targetPct = targetPct;
-      this.travelStartedMs = Date.now();
-      this.progressPct = 0;
-      this.phase = 'moving';
-      this.loop?.rearm(); // 대기 1초 → 동작 중 100ms
-      this.hub.publish(this.id, 'actuator_state', this.snapshot());
-      this.hub.publish(this.id, 'command_result', {
-        command_id: commandId,
-        status: 'accepted',
-        stage: 'executing',
-        expires_at: expiresAt,
-        detail: '수행 중',
-      });
-    }, SCENARIO_TIMING.ACTUATOR_ACK_MS + SCENARIO_TIMING.ACTUATOR_EXEC_GAP_MS);
-
-    return commandId;
+  rearm(): void {
+    this.loop?.rearm();
   }
 
   start(): Loop[] {
-    this.loop = looping(this.delay, () => this.emit());
+    this.loop = looping(this.delay, () => this.hub.publish(this.id, 'actuator_state', this.snapshot()));
     return [this.loop];
   }
 }

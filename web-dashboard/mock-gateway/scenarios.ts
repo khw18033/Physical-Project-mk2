@@ -10,13 +10,24 @@
 import { INTERVALS, SCENARIO_TIMING, THRESHOLDS } from './config.ts';
 import type { Fleet } from './devices.ts';
 import type { Hub } from './hub.ts';
+import type { CommandEngine } from './commands.ts';
+import type { PlanEngine } from './plans.ts';
+import type { VisionEmitter } from './vision.ts';
+
+export type ScenarioCtx = {
+  hub: Hub;
+  fleet: Fleet;
+  commands: CommandEngine;
+  plans: PlanEngine;
+  vision: VisionEmitter;
+};
 
 export type Scenario = {
   name: string;
   title: string;
   /** 사람이 화면에서 무엇을 봐야 하는가. */
   expect: string;
-  run(ctx: { hub: Hub; fleet: Fleet }): string;
+  run(ctx: ScenarioCtx): string;
 };
 
 const seconds = (ms: number) => Math.round(ms / 1000);
@@ -100,19 +111,122 @@ export const SCENARIOS: Scenario[] = [
     },
   },
   {
-    name: 'actuator-command',
-    title: 'actuator-01 명령 → ACK → 동작 중 → 완료',
+    name: 'command-fail',
+    title: '다음 명령 1건을 실패시킨다 (VZ-O-02)',
     expect:
-      '수문 카드가 대기 → (ACK) → 동작 중(' + INTERVALS.ACTUATOR_MOVING_MS +
-      'ms 주기로 진행률) → 완료 로 바뀐다. 표준 3층과 별개인 도메인 어휘다.',
-    run({ fleet }) {
-      const act = fleet.actuators.get('actuator-01');
-      if (!act) return 'actuator-01 없음';
-      const commandId = act.command(70);
-      return (
-        '수문 개도 70% 명령 왕복 시작 (command_id=' + commandId + '). ' +
-        '명령은 목 서버 안에서만 왕복하며 실제 제어 발행 경로는 만들지 않는다.'
+      '다음에 누르는 수문 명령이 진행 60% 지점에서 실패하고, **이전 상태로 복원**되며 ' +
+      '사유가 표시된다. 진행 중에 실패해야 복원이 눈에 보인다.',
+    run({ commands }) {
+      commands.failNext = true;
+      return '다음 명령 1건 실패 예약. 제어 패널에서 수문 명령을 눌러 확인할 것.';
+    },
+  },
+  {
+    name: 'control-lock',
+    title: 'actuator-01 통신 두절 → 제어 잠금 (VZ-O-05)',
+    expect:
+      '수문 제어 버튼이 즉시 잠기고 사유가 표시된다. 잠긴 동안 명령을 보내도 ' +
+      '서버가 거부한다 — 화면 차단은 편의이고 실제 차단은 서버가 한다.',
+    run({ commands }) {
+      commands.lockForCommLoss(
+        'actuator-01',
+        '제어노드 하트비트 ' + THRESHOLDS.HEARTBEAT_MISS_COUNT + '회 연속 미수신 — 원격 제어 차단, 안전 상태 유지',
       );
+      return 'actuator-01 제어 잠금. 해제는 scenario control-unlock.';
+    },
+  },
+  {
+    name: 'control-unlock',
+    title: 'actuator-01 통신 복구 → 재확인 후 해제 (VZ-O-05)',
+    expect:
+      '통신이 돌아와도 **바로 풀리지 않는다.** ' + seconds(SCENARIO_TIMING.CONTROL_RECHECK_MS) +
+      '초 재확인 구간을 거친 뒤에야 버튼이 열린다.',
+    run({ commands }) {
+      commands.beginRecheck('actuator-01');
+      return (
+        '통신 복구 — 실제 상태 재확인 시작. ' +
+        seconds(SCENARIO_TIMING.CONTROL_RECHECK_MS) + '초 뒤 잠금 해제.'
+      );
+    },
+  },
+  {
+    name: 'plan-propose',
+    title: '계획 하나를 승인 대기로 내려보낸다 (VZ-U-07)',
+    expect:
+      '임무 탭에 계획이 나타나고 근거(임무 → 구역 → 구간 → 검증)가 펼쳐진다. ' +
+      '**승인하기 전에는 구간이 하나도 진행되지 않는다.**',
+    run({ plans }) {
+      plans.failSegment = null;
+      const plan = plans.propose();
+      return '계획 ' + plan.plan_id + ' 승인 대기. 승인 전까지 진행 이벤트를 발행하지 않는다.';
+    },
+  },
+  {
+    name: 'plan-propose-failing',
+    title: '구간 4/5에서 실패하는 계획 (VZ-U-05)',
+    expect:
+      '승인하면 구간 1~3이 완료되고 **구간 4에서 실패**한다. 실패 노드를 펼치면 ' +
+      '하달 → ACK → 실패 시각과 사유가 나오고, 뒤 구간은 하달되지 않아 건너뜀으로 표시된다.',
+    run({ plans }) {
+      plans.failSegment = 4;
+      const plan = plans.propose();
+      return '계획 ' + plan.plan_id + ' 승인 대기 (구간 4/5 실패 예약).';
+    },
+  },
+  {
+    name: 'vision-delay-200',
+    title: '추론 지연 200ms (기본 · AI-P-01)',
+    expect: '15fps에서 0.2초면 결과가 돌아올 때 화면은 약 3프레임 앞서 있다.',
+    run({ vision }) {
+      vision.inferenceDelayMs = 200;
+      return '추론 지연 200ms. ' + vision.describe();
+    },
+  },
+  {
+    name: 'vision-delay-500',
+    title: '추론 지연 500ms — 어긋남이 커지는지 확인',
+    expect: '정합 OFF에서 뒤처진 픽셀 거리가 200ms일 때보다 뚜렷하게 커져야 한다.',
+    run({ vision }) {
+      vision.inferenceDelayMs = 500;
+      return '추론 지연 500ms. ' + vision.describe();
+    },
+  },
+  {
+    name: 'vision-bbox-normalized',
+    title: 'bbox를 정규화 좌표(0~1)로 전환',
+    expect: '좌표계가 바뀌어도 박스가 제자리에 온다. 환산 기준은 bbox_space 선언이다.',
+    run({ vision }) {
+      vision.bboxFormat = 'normalized';
+      return 'bbox 정규화 좌표. ' + vision.describe();
+    },
+  },
+  {
+    name: 'vision-bbox-absolute',
+    title: 'bbox를 픽셀 절대 좌표로 전환',
+    expect: '추론 해상도 기준 픽셀로 온다. 표시 해상도가 다르므로 환산이 필요하다.',
+    run({ vision }) {
+      vision.bboxFormat = 'absolute';
+      return 'bbox 픽셀 절대 좌표. ' + vision.describe();
+    },
+  },
+  {
+    name: 'vision-inference-320',
+    title: '추론 해상도를 320x180으로 낮춤',
+    expect: '표시 해상도(960x540)와 3배 차이가 나도 박스가 제자리여야 한다.',
+    run({ vision }) {
+      vision.inferenceWidth = 320;
+      vision.inferenceHeight = 180;
+      return '추론 해상도 320x180. ' + vision.describe();
+    },
+  },
+  {
+    name: 'vision-inference-640',
+    title: '추론 해상도를 640x360으로 되돌림',
+    expect: '기본값. 표시 해상도와 1.5배 차이.',
+    run({ vision }) {
+      vision.inferenceWidth = 640;
+      vision.inferenceHeight = 360;
+      return '추론 해상도 640x360. ' + vision.describe();
     },
   },
   {
@@ -139,7 +253,7 @@ export const SCENARIOS: Scenario[] = [
   },
 ];
 
-export function runScenario(name: string, ctx: { hub: Hub; fleet: Fleet }): { ok: boolean; message: string } {
+export function runScenario(name: string, ctx: ScenarioCtx): { ok: boolean; message: string } {
   const s = SCENARIOS.find((x) => x.name === name);
   if (!s) {
     return { ok: false, message: '알 수 없는 시나리오: ' + name + ' (사용 가능: ' + SCENARIOS.map((x) => x.name).join(', ') + ')' };

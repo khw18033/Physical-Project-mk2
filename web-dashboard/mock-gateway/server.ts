@@ -21,15 +21,32 @@ import { WebSocketServer } from 'ws';
 import { INTERVALS, PLACEHOLDERS, SCALE_ASSUMPTIONS, SERVER, THRESHOLDS } from './config.ts';
 import { Hub, loadRegistry, type ClientConn } from './hub.ts';
 import { createFleet } from './devices.ts';
+import { CommandEngine } from './commands.ts';
+import { PlanEngine } from './plans.ts';
+import { VisionEmitter } from './vision.ts';
 import { SCENARIOS, runScenario } from './scenarios.ts';
-import type { ClientMessage, ScopeSpec, Selector } from './protocol.ts';
+import type { ClientMessage, CommandRequest, ScopeSpec, Selector } from './protocol.ts';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const PROTOCOL_VERSION = 'mock-gateway/0.1';
+const PROTOCOL_VERSION = 'mock-gateway/0.2';
+
+/** 감사 조회가 몇 번 들어왔는지. 주기 폴링이 없다는 것을 숫자로 확인하기 위한 계측값. */
+let auditQueryCount = 0;
 
 const hub = new Hub(loadRegistry());
 const fleet = createFleet(hub);
+const commands = new CommandEngine(hub);
+const plans = new PlanEngine(hub);
+const vision = new VisionEmitter(hub, 'camera-02');
+
+// 명령 시작·종료 시 액추에이터 발행 주기를 대기 1초 <-> 동작 중 100ms 로 전환한다.
+commands.onActivityChange = (entity) => fleet.actuators.get(entity)?.rearm();
+for (const actuator of fleet.actuators.values()) actuator.attach(commands);
+
 hub.startLoops();
+
+// 기동 시 계획 하나를 승인 대기로 올려 둔다 — 화면을 열자마자 승인 절차를 볼 수 있게.
+plans.propose();
 
 // ── HTTP ─────────────────────────────────────────────────────────────────────
 
@@ -67,9 +84,36 @@ const http = createServer((req, res) => {
 
   if (url.pathname.startsWith('/scenario/') && (req.method === 'POST' || req.method === 'GET')) {
     const name = decodeURIComponent(url.pathname.slice('/scenario/'.length));
-    const result = runScenario(name, { hub, fleet });
+    const result = runScenario(name, { hub, fleet, commands, plans, vision });
     log((result.ok ? '시나리오 재생' : '시나리오 실패') + ' — ' + name + ': ' + result.message);
     json(result.ok ? 200 : 404, result);
+    return;
+  }
+
+  /**
+   * VZ-I-05 — 감사 이력 조회.
+   * **패널을 열 때만** 부르는 경로다. 감사는 확정된 과거 기록이라 폴링해도 새 값이 없고,
+   * 진행 중인 명령의 변화는 command_result 푸시로 이미 도달한다.
+   */
+  if (url.pathname === '/audit') {
+    const entity = url.searchParams.get('entity');
+    const limit = Number(url.searchParams.get('limit') ?? 20);
+    auditQueryCount += 1;
+    json(200, {
+      records: commands.queryAudit(entity, Math.min(100, Math.max(1, limit))),
+      // 주기 폴링이 없는지 검증할 때 쓰는 계측값. 실제 계약에는 없다.
+      _query_count: auditQueryCount,
+    });
+    return;
+  }
+
+  /**
+   * 액션 카탈로그. 화면이 액션 어휘를 하드코딩하지 않게 서버가 내려준다 —
+   * 장비가 바뀌어도 화면을 고치지 않는다는 VZ-O-01의 전제가 여기서 성립한다.
+   */
+  if (url.pathname === '/actions') {
+    const entity = url.searchParams.get('entity') ?? '';
+    json(200, { entity, actions: commands.actionsFor(entity) });
     return;
   }
 
@@ -80,13 +124,18 @@ const http = createServer((req, res) => {
       protocol: PROTOCOL_VERSION,
       clients: hub.clientCount,
       entities: hub.runtime.size,
+      audit_query_count: auditQueryCount,
+      vision: { open: vision.isOpen, config: vision.describe() },
       stale_threshold_ms: THRESHOLDS.STALE_MS,
       scale_assumptions: SCALE_ASSUMPTIONS,
     });
     return;
   }
 
-  json(404, { error: 'not found', paths: ['/registry', '/scenarios', '/scenario/:name', '/health'] });
+  json(404, {
+    error: 'not found',
+    paths: ['/registry', '/scenarios', '/scenario/:name', '/audit', '/actions', '/health'],
+  });
 });
 
 // ── WebSocket ────────────────────────────────────────────────────────────────
@@ -162,12 +211,44 @@ wss.on('connection', (ws) => {
         hub.unsubscribe(conn, msg.id);
         conn.send({ type: 'unsubscribed', id: msg.id });
         return;
+      case 'command': {
+        const cmd = msg.command as CommandRequest | undefined;
+        if (!cmd || typeof cmd.command_id !== 'string' || typeof cmd.entity !== 'string') {
+          conn.send({ type: 'error', message: '명령에는 command_id와 entity가 필요하다 (REQ-909)' });
+          return;
+        }
+        // **명령은 여기서 끝난다.** 실제 디바이스로 나가는 경로는 만들지 않는다.
+        const outcome = commands.submit(cmd);
+        conn.send({
+          type: 'command_ack',
+          command_id: cmd.command_id,
+          accepted: outcome.accepted,
+          reason_code: outcome.reasonCode,
+          message: outcome.message,
+        });
+        log('명령 ' + cmd.entity + '/' + cmd.action + ' (' + cmd.command_id + ') → ' + outcome.message);
+        return;
+      }
+      case 'plan_decision': {
+        // VZ-U-07 — **승인 전에는 계획이 실행되지 않는다.** 판정은 서버가 소유한다.
+        const outcome = plans.decide(msg.plan_id, msg.decision, msg.reason);
+        conn.send({ type: 'plan_decision', plan_id: msg.plan_id, accepted: outcome.ok, message: outcome.message });
+        log('계획 ' + msg.plan_id + ' ' + msg.decision + ' → ' + outcome.message);
+        return;
+      }
+      case 'video': {
+        // VZ-I-06 — **열린 패널만** 프레임을 받는다.
+        // 전 카메라 상시 재생은 무선 대역폭과 브라우저 디코딩을 동시에 낭비한다.
+        vision.setOpen(msg.open);
+        log('영상 패널 ' + msg.entity + ' ' + (msg.open ? '열림' : '닫힘') + ' · ' + vision.describe());
+        return;
+      }
       case 'role':
         // VZ-C-04 — 권한 범위(scope)는 이번 범위 밖이지만 **응답 형태에 자리만** 둔다.
         conn.send({ type: 'role', role: PLACEHOLDERS.ROLE, scope: [...PLACEHOLDERS.ROLE_SCOPE] });
         return;
       case 'scenario': {
-        const result = runScenario(msg.name, { hub, fleet });
+        const result = runScenario(msg.name, { hub, fleet, commands, plans, vision });
         conn.send({ type: 'scenario', name: msg.name, accepted: result.ok, message: result.message });
         log('시나리오 ' + msg.name + ': ' + result.message);
         return;

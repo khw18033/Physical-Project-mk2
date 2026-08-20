@@ -29,6 +29,11 @@ export type Channel =
   | 'video_meta'
   | 'actuator_state'
   | 'command_result'
+  | 'control_lock'
+  | 'plan'
+  | 'plan_progress'
+  | 'video_frame'
+  | 'detections'
   | 'metrics';
 
 /**
@@ -120,6 +125,75 @@ export type ActuatorState = {
   command_id: string | null;
 };
 
+// ── 제어 명령 (VZ-O-01 · VZ-O-02 · VZ-O-05) ──────────────────────────────────
+
+/**
+ * 가시화가 발행하는 **추상 명령**. 디바이스 명령(levee:open 등)으로의 번역은
+ * 백엔드가 어휘집으로 수행하므로 여기에는 장비 어휘가 없다 (VZ-O-01).
+ */
+export type CommandRequest = {
+  /** REQ-909 — 전 파트 단일 상관 키. 명령↔결과↔감사를 하나로 잇는다. */
+  command_id: string;
+  entity: string;
+  /** 추상 action. 장비 명령이 아니다. */
+  action: string;
+  params: Record<string, unknown>;
+  /** REQ-909 — 만료 후 실행 금지. 서버가 서버 시각으로 검사한다. */
+  expires_at: string;
+  /**
+   * VZ-O-03 — 책임소재 필드. **필드 이름이 확정 전이라 통째로 넘긴다.**
+   * 목 서버는 내용을 해석하지 않고 감사 저장소에 그대로 적재하며,
+   * 화면 표시용 해석은 클라이언트의 auditFieldMap 한 곳에서만 한다.
+   */
+  audit?: Record<string, unknown>;
+};
+
+/**
+ * 명령 결과. **네 단계**로 온다 (VZ-O-02).
+ *   ack → executing(200ms 진행 보고) → physical_state_changed → completed/failed
+ * 화면은 이걸 진행중·확정·실패 3종으로 접어 표시한다.
+ */
+export type CommandResult = {
+  command_id: string;
+  entity: string;
+  action: string;
+  /** REQ-903 — 5값. 백엔드가 디바이스 ack를 completed로 승격해 내려준다. */
+  status: 'accepted' | 'completed' | 'rejected' | 'timeout' | 'failed';
+  stage: 'ack' | 'executing' | 'physical_state_changed' | 'settled';
+  /** 수행 중 진행률(0~100). stage=executing일 때만. */
+  progress_pct: number | null;
+  detail: string;
+  /** 실패·거부 사유 코드. 화면이 문구를 고르는 근거. */
+  reason_code: string | null;
+  expires_at: string;
+  /** 실패 시 이전 상태로 복원했는가. */
+  restored: boolean;
+  ts: string;
+};
+
+/**
+ * 제어 잠금 (VZ-O-05).
+ * 통신이 돌아와도 **실제 상태 재확인이 끝나기 전까지는 잠금을 유지한다.**
+ */
+export type ControlLock = {
+  locked: boolean;
+  /** unlocked / comm_lost(두절) / rechecking(복구 후 재확인 중) */
+  phase: 'unlocked' | 'comm_lost' | 'rechecking';
+  reason: string | null;
+  /** 잠금 동안 안전 상태를 유지하고 있는가. */
+  safe_state_held: boolean;
+  since: string;
+};
+
+/**
+ * 감사 기록 1건 (VZ-I-05 조회용).
+ *
+ * **필드 이름이 확정 전이다.** 입력 수단·판단 주체를 두 축으로 나누는 안을
+ * 백엔드에 요청 중이라, 여기 이름이 그대로 남는다는 보장이 없다.
+ * 그래서 클라이언트는 이 타입을 직접 쓰지 않고 auditFieldMap을 거친다.
+ */
+export type AuditRecord = Record<string, unknown>;
+
 // ── 클라이언트 → 서버 ────────────────────────────────────────────────────────
 
 export type ClientMessage =
@@ -127,6 +201,12 @@ export type ClientMessage =
   | { type: 'unsubscribe'; id: string }
   | { type: 'role' }
   | { type: 'scenario'; name: string }
+  /** VZ-O-01 — 제어 명령 발행. **목 서버 안에서만 왕복한다.** */
+  | { type: 'command'; command: CommandRequest }
+  /** VZ-U-07 — 계획 승인/거부. 승인 전에는 계획이 실행되지 않는다. */
+  | { type: 'plan_decision'; plan_id: string; decision: 'approve' | 'reject'; reason?: string }
+  /** VZ-I-06 — 영상 패널 열기/닫기. 열린 패널만 프레임을 받는다. */
+  | { type: 'video'; entity: string; open: boolean }
   | { type: 'ping'; t: number };
 
 // ── 서버 → 클라이언트 ────────────────────────────────────────────────────────
@@ -142,6 +222,9 @@ export type ServerMessage =
       scope: string[];
     }
   | { type: 'scenario'; name: string; accepted: boolean; message: string }
+  /** 명령 접수 여부의 즉답. 거부(만료 등)면 accepted=false와 사유가 온다. */
+  | { type: 'command_ack'; command_id: string; accepted: boolean; reason_code: string | null; message: string }
+  | { type: 'plan_decision'; plan_id: string; accepted: boolean; message: string }
   | { type: 'pong'; t: number; server_time: string }
   | { type: 'data'; sub: string; envelope: Envelope }
   | { type: 'error'; message: string };

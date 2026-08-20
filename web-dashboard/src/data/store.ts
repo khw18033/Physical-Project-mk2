@@ -12,7 +12,9 @@
  *  4. 레지스트리에만 있고 값이 한 번도 안 온 대상도 **레코드가 존재한다.** 미배포 카드의 근거.
  */
 
-import type { ActuatorState, CommandResult, Envelope, StateLayers } from '../transport/index.ts';
+import type { ActuatorState, CommandResult, ControlLock, Envelope, StateLayers } from '../transport/index.ts';
+import { commandTracker } from './commands.ts';
+import type { Plan, PlanSegment } from './plans.ts';
 import { normalizeAggregation, type Aggregation } from './aggregation.ts';
 import { MergeScheduler } from './mergeScheduler.ts';
 import { IMMEDIATE_AVAILABILITY } from './constants.ts';
@@ -41,6 +43,12 @@ export type EntityRecord = {
   /** 표준 3층과 별개인 액추에이터 도메인 어휘 (VZ-U-01). */
   actuator: ChannelSlot<ActuatorState> | null;
   commandResult: ChannelSlot<CommandResult> | null;
+  /** VZ-O-05 — 제어 잠금. 액추에이터 도메인 어휘와 별개로 대상 단위로 온다. */
+  controlLock: ChannelSlot<ControlLock> | null;
+  /** VZ-U-07 — 계획 본문 + 근거 + 승인 상태. */
+  plan: ChannelSlot<Plan> | null;
+  /** VZ-U-05 — 구간 진행. 하달·시작·완료·실패 네 시점에만 온다. */
+  planProgress: ChannelSlot<{ plan_id: string; command_id: string | null; segments: PlanSegment[] }> | null;
   metrics: ChannelSlot | null;
   /** 이 대상에서 받은 총 봉투 수. 계측·디버깅용. */
   envelopeCount: number;
@@ -56,6 +64,9 @@ function emptyRecord(id: string, registry: RegistryEntity | null): EntityRecord 
     videoMeta: null,
     actuator: null,
     commandResult: null,
+    controlLock: null,
+    plan: null,
+    planProgress: null,
     metrics: null,
     envelopeCount: 0,
   };
@@ -152,11 +163,41 @@ export class DataStore {
       case 'actuator_state':
         rec.actuator = toSlot<ActuatorState>(env);
         break;
-      case 'command_result':
-        rec.commandResult = toSlot<CommandResult>(env);
+      case 'command_result': {
+        const slot = toSlot<CommandResult>(env);
+        rec.commandResult = slot;
+        // 명령 추적기에도 넘긴다. store는 채널별 **마지막 값**만 들고 있으므로
+        // 네 단계 이력은 여기서 놓치고, 단계 이력이 필요한 쪽은 추적기가 갖는다.
+        commandTracker.apply(slot.payload);
+        // 결과는 이산 이벤트라 병합 창에 묻히면 안 된다.
+        immediate = true;
+        break;
+      }
+      case 'control_lock': {
+        const prev = rec.controlLock?.payload.locked ?? null;
+        rec.controlLock = toSlot<ControlLock>(env);
+        // 잠금 전환이 늦게 보이면 관제사가 실행되지 않는 버튼을 계속 누른다.
+        immediate = rec.controlLock.payload.locked !== prev;
+        break;
+      }
+      case 'plan':
+        rec.plan = toSlot<Plan>(env);
+        // 승인 절차는 사용자가 기다리는 화면이다. 병합 창에 묻히면 클릭이 먹히지 않은 것처럼 보인다.
+        immediate = true;
+        break;
+      case 'plan_progress':
+        rec.planProgress = toSlot(env);
+        // 구간 전이는 이산 이벤트다 — 네 시점에만 오므로 묶을 이유가 없다.
+        immediate = true;
         break;
       case 'metrics':
         rec.metrics = toSlot(env);
+        break;
+      case 'video_frame':
+      case 'detections':
+        // **영상은 store에 넣지 않는다.** 15fps × 프레임마다 스냅샷을 갈면
+        // 100ms 병합 창의 의미가 사라지고 상태 화면까지 같이 리렌더된다.
+        // 영상 패널이 자기 버퍼로 직접 받아 자기 프레임 루프로 그린다.
         break;
       default:
         break;

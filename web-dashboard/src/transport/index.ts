@@ -15,9 +15,12 @@ import type { Transport } from './Transport.ts';
 
 export type { Transport, Unsubscribe } from './Transport.ts';
 export type {
+  ActionSpec,
   ActuatorState,
   Channel,
+  CommandRequest,
   CommandResult,
+  ControlLock,
   ConnectionState,
   ConnectionStatus,
   Envelope,
