@@ -9,6 +9,22 @@
 
 ---
 
+## 사전 조건 — Node.js
+
+**Node 22.6 이상**이 필요하다. 목 게이트웨이를 `.ts` 파일 그대로 실행하기 때문이다
+(Node의 타입 스트리핑). Node 24 LTS에서 확인했다.
+
+```bash
+node -v    # v22.6.0 이상이어야 한다
+```
+
+없다면 <https://nodejs.org> 의 LTS를 설치한다. 관리자 권한 없이 넣으려면 Windows 기준
+[zip 배포본](https://nodejs.org/dist/latest-v24.x/)을 아무 사용자 폴더
+(예: `%LOCALAPPDATA%` 아래의 `Programs\nodejs`)에 풀고, 그 경로를
+**사용자 PATH**에 추가하면 된다. 새 터미널을 열어야 반영된다.
+
+---
+
 ## 빠른 시작
 
 ```bash
@@ -27,13 +43,9 @@ npm run dev:mock     # 목 게이트웨이만 — ws://127.0.0.1:8787
 npm run dev:web      # 프런트만
 ```
 
-`npm install` 뒤 Vite가 `esbuild` 바이너리를 찾지 못하면 한 번만:
-
-```bash
-npm rebuild esbuild
-```
-
-> Node 22.6+ 필요 (목 게이트웨이를 `.ts` 그대로 실행한다). Node 24 LTS에서 확인했다.
+> npm 11부터 의존성의 설치 스크립트를 기본 차단한다. `esbuild`는 postinstall로
+> 플랫폼 바이너리를 받아야 Vite가 뜨므로 `package.json` 의 `allowScripts` 에
+> 미리 등재해 두었다. `npm install` 한 번이 경고 없이 끝나야 정상이다.
 
 ### 접속 주소 바꾸기 — 실제 게이트웨이로 전환
 
