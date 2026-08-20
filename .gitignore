@@ -1,2 +1,7 @@
 # Office 임시 잠금 파일
 ~$*
+
+# Node
+node_modules/
+dist/
+*.log
