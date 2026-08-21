@@ -8,3 +8,15 @@ dist/
 
 # TypeScript 증분 빌드 캐시
 *.tsbuildinfo
+
+# Unity (unity-twin/) — 에디터가 생성하는 것들. 스크립트와 README만 추적한다
+unity-twin/[Ll]ibrary/
+unity-twin/[Tt]emp/
+unity-twin/[Oo]bj/
+unity-twin/[Bb]uild/
+unity-twin/[Bb]uilds/
+unity-twin/[Ll]ogs/
+unity-twin/[Uu]ser[Ss]ettings/
+unity-twin/[Mm]emoryCaptures/
+unity-twin/*.csproj
+unity-twin/*.sln
