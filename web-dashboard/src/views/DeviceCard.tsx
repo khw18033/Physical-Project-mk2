@@ -107,8 +107,10 @@ export function DeviceCard({ record }: Props) {
           {domain}
           {/* VZ-C-03 — 이 값이 원본인지 요약인지가 카드에도 보여야 한다.
               표기 해석은 데이터 레이어가 끝냈고 여기서는 붙이기만 한다. */}
+          {/* 3상태를 그대로 클래스에 싣는다 — 불리언으로 접으면 '표기 불명'이
+              원본처럼 보이고, 그게 이 가드가 막으려는 실패 모드다. */}
           {valueBadge !== null && (
-            <span className={'aggbadge' + (valueBadge.aggregated ? ' aggbadge--agg' : '')} title={valueBadge.title}>
+            <span className={'aggbadge aggbadge--' + valueBadge.state} title={valueBadge.title}>
               {valueBadge.short}
             </span>
           )}

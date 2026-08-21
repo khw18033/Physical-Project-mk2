@@ -151,6 +151,49 @@ export const SCENARIOS: Scenario[] = [
     },
   },
   {
+    name: 'agg-unlabeled',
+    title: '집약 표기에서 kind를 빼고 발행한다 (VZ-C-03 가드)',
+    expect:
+      '지표 봉투가 { level: "zone", window_sec: 15 } 로, **kind 없이** 내려간다 — 필드 이름이 ' +
+      '어긋난 백엔드를 흉내 낸 것이다. 화면 뱃지가 "원본"이 아니라 **"표기 불명"** 으로 떠야 하고, ' +
+      '평균을 적용하면 계산이 수행되지 않으면서 사유가 "표기를 읽을 수 없음"으로 갈려야 한다. ' +
+      '되돌리려면 scenario agg-normal.',
+    run({ fleet }) {
+      const obs = fleet.observability.get('edge-node-a');
+      if (!obs) return 'edge-node-a 관측 노드 없음';
+      obs.malformedAggregation = 'unlabeled';
+      obs.republish();
+      return ' 집약 표기에서 kind를 제거하고 즉시 재발행했다. 지표 조회 탭에서 확인할 것.'.trim();
+    },
+  },
+  {
+    name: 'agg-odd-string',
+    title: "집약 표기를 문자열 'aggregated' 로 발행한다 (VZ-C-03 가드)",
+    expect:
+      "축약형을 'raw' 아닌 문자열로 쓰는 백엔드를 흉내 낸다. 계약이 정의한 축약형은 'raw' 하나뿐이므로 " +
+      '화면은 이 값을 **판단 불가**로 다뤄야 한다 — agg-unlabeled와 같은 결과가 나와야 한다. ' +
+      '되돌리려면 scenario agg-normal.',
+    run({ fleet }) {
+      const obs = fleet.observability.get('edge-node-a');
+      if (!obs) return 'edge-node-a 관측 노드 없음';
+      obs.malformedAggregation = 'odd-string';
+      obs.republish();
+      return "집약 표기를 문자열 'aggregated' 로 바꾸고 즉시 재발행했다.";
+    },
+  },
+  {
+    name: 'agg-normal',
+    title: '집약 표기를 정식 계약값으로 되돌린다 (VZ-C-03)',
+    expect: '뱃지가 다시 "요약 · 구역 · 15초" 로 돌아오고, 평균 적용 시 사유가 "이미 집약된 값"으로 바뀐다.',
+    run({ fleet }) {
+      const obs = fleet.observability.get('edge-node-a');
+      if (!obs) return 'edge-node-a 관측 노드 없음';
+      obs.malformedAggregation = null;
+      obs.republish();
+      return '집약 표기를 정식 계약값으로 복귀시키고 즉시 재발행했다.';
+    },
+  },
+  {
     name: 'role-narrow',
     title: '역할을 503 구역 담당으로 좁힌다 (VZ-C-04 / BE-Q-04)',
     expect:

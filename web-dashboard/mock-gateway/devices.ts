@@ -11,7 +11,7 @@
 
 import { AGGREGATION, INTERVALS, METRICS_QUERY } from './config.ts';
 import type { Hub } from './hub.ts';
-import type { ActuatorState } from './protocol.ts';
+import type { ActuatorState, AggregationSpec } from './protocol.ts';
 import type { CommandEngine } from './commands.ts';
 
 /**
@@ -338,6 +338,15 @@ export class ObservabilityEmitter {
   /** raw 보관 한도(초). 실제 엣지도 보관 기간이 유한하다. */
   private readonly rawWindowSec = 2 * 60 * 60;
 
+  /**
+   * **계약 위반 표기 주입** (검증 전용).
+   *
+   * 필드 이름이 어긋난 생산자나 축약형을 다르게 쓰는 생산자를 흉내 내, 화면의 가드가
+   * "모르는 표기"를 원본으로 오인하지 않는지 확인한다. null이면 정상 표기.
+   * 실제 계약에는 없는 경로이며 시나리오로만 켠다.
+   */
+  malformedAggregation: 'unlabeled' | 'odd-string' | null = null;
+
   constructor(hub: Hub, id: string) {
     this.hub = hub;
     this.id = id;
@@ -415,9 +424,42 @@ export class ObservabilityEmitter {
          * 표기가 없으면 화면이 이 값을 또 평균 내는 재집약 사고가 나고,
          * 그 오류는 화면상으로 드러나지 않아 발견이 늦다.
          */
-        aggregation: AGGREGATION.ZONE_SUMMARY,
+        aggregation: this.aggregationSpec(),
       },
     );
+  }
+
+  /**
+   * 발행에 실을 집약 표기.
+   *
+   * 평시에는 정식 계약값을 낸다. 시나리오가 켜져 있을 때만 **계약 밖 표기**를 낸다 —
+   * 그 주입이 여기 한 지점에서만 일어나므로 캐스팅도 여기서 끝난다.
+   */
+  private aggregationSpec(): AggregationSpec {
+    if (this.malformedAggregation === null) return AGGREGATION.ZONE_SUMMARY;
+
+    /**
+     * **여기는 계약 위반을 고의로 주입하는 자리다.**
+     *
+     * AggregationSpec 타입은 정식 계약 그대로 두고 느슨하게 만들지 않는다 —
+     * 타입을 넓히면 tsc가 잡아 주던 것을 잃는다. 대신 이 한 줄에서만 캐스팅해
+     * "계약 밖 값을 일부러 밀어 넣는 지점"을 코드에서 한눈에 보이게 한다.
+     */
+    if (this.malformedAggregation === 'unlabeled') {
+      // kind/mode 가 없다 — 필드 이름이 어긋난 백엔드를 흉내 낸다.
+      return { level: 'zone', window_sec: INTERVALS.OBSERVABILITY_MS / 1000 } as unknown as AggregationSpec;
+    }
+    // 축약형을 'raw' 아닌 문자열로 쓰는 백엔드를 흉내 낸다.
+    return 'aggregated' as unknown as AggregationSpec;
+  }
+
+  /**
+   * 지금 즉시 요약을 한 번 더 발행한다.
+   * 표기를 바꾼 시나리오가 15초를 기다리게 하면 확인이 번거로우므로 곧바로 밀어낸다.
+   * 값 자체는 정상 경로와 같다 — 바뀌는 것은 표기뿐이다.
+   */
+  republish(): void {
+    this.emitSummary();
   }
 
   /** 창 안의 raw를 평균 낸다. **집약은 엣지에서 여기서만 일어난다.** */

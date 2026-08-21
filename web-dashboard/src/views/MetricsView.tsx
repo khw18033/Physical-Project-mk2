@@ -19,14 +19,17 @@ import {
   METRICS_AUTO_REFRESH_MS,
   METRICS_MODE_LABEL,
   RANGE_OPTIONS,
+  BLOCK_REASON_LABEL,
   aggregationBadge,
   guardedMean,
   heavyQueryNotice,
+  playScenario,
   seriesExtent,
   type MetricPoint,
   type MetricsMode,
   type MetricsSeries,
 } from '../data/index.ts';
+import { getBlockLog } from '../data/index.ts';
 import { useEntities, useMetricsQuery, useReaggregationBlocks } from '../data/hooks.ts';
 
 /** 관측 지표를 내는 대상. 구역 요약의 출처다. */
@@ -195,7 +198,7 @@ function LiveSummaryCard() {
           <span className="stat__value">{payload.cpu_pct?.value.toFixed(1) ?? '—'}</span>
           <span className="stat__unit">%</span>
           <span className="stat__label">CPU 사용률</span>
-          <span className={'aggbadge' + (badge.aggregated ? ' aggbadge--agg' : '')} title={badge.title}>
+          <span className={'aggbadge aggbadge--' + badge.state} title={badge.title}>
             {badge.short}
           </span>
         </div>
@@ -203,20 +206,27 @@ function LiveSummaryCard() {
           <span className="stat__value">{payload.publish_latency_ms?.value.toFixed(1) ?? '—'}</span>
           <span className="stat__unit">ms</span>
           <span className="stat__label">발행 지연</span>
-          <span className={'aggbadge' + (badge.aggregated ? ' aggbadge--agg' : '')} title={badge.title}>
+          <span className={'aggbadge aggbadge--' + badge.state} title={badge.title}>
             {badge.short}
           </span>
         </div>
       </div>
 
-      <p className="note">
-        {badge.aggregated ? (
+      {/* 세 갈래로 갈라 쓴다. 'unknown'을 원본 쪽에 묶으면 화면이 "원본 측정값이다"라고
+          거짓을 말하게 된다 — 실은 원본인지 아닌지 모르는 상태다. */}
+      <p className={'note' + (badge.state === 'unknown' ? ' note--unknown' : '')}>
+        {badge.state === 'aggregated' && (
           <>
             이 값은 <strong>원본이 아니다.</strong> 엣지가 raw를 로컬 보관하고 구역 요약만 백엔드로 올린다(BE-S-03).
             {payload.sample_count !== undefined && <> 이 요약은 원본 {payload.sample_count}개 표본에서 나왔다.</>}
           </>
-        ) : (
-          <>원본 측정값이다.</>
+        )}
+        {badge.state === 'raw' && <>원본 측정값이다.</>}
+        {badge.state === 'unknown' && (
+          <>
+            <strong>집약 표기를 읽을 수 없다.</strong> 이 값이 원본인지 집약인지 판단할 수 없으므로 집약 연산이
+            차단된다. 생산자의 표기 형식이 계약(BE-S-06)과 어긋났다는 신호다.
+          </>
         )}
       </p>
     </section>
@@ -243,7 +253,7 @@ function SeriesChart({ series, unit, loading }: { series: MetricsSeries; unit: s
   return (
     <div className={'chart' + (loading ? ' chart--loading' : '')}>
       <div className="chart__head">
-        <span className={'aggbadge' + (series.badge.aggregated ? ' aggbadge--agg' : '')} title={series.badge.title}>
+        <span className={'aggbadge aggbadge--' + series.badge.state} title={series.badge.title}>
           {series.badge.short}
         </span>
         <span className="chart__scale">
@@ -251,7 +261,7 @@ function SeriesChart({ series, unit, loading }: { series: MetricsSeries; unit: s
         </span>
       </div>
       <svg className="chart__svg" viewBox={'0 0 ' + W + ' ' + H} preserveAspectRatio="none" role="img">
-        <path className={'chart__line' + (series.badge.aggregated ? ' chart__line--agg' : '')} d={path} />
+        <path className={'chart__line chart__line--' + series.badge.state} d={path} />
       </svg>
     </div>
   );
@@ -269,7 +279,8 @@ function SeriesMeta({ series, unit }: { series: MetricsSeries; unit: string }) {
         <dd>
           <strong>{METRICS_MODE_LABEL[series.mode]}</strong>
           {/* 원본은 계층·창이 없으므로 뱃지를 덧붙이면 같은 말이 두 번 나온다. */}
-          {series.badge.aggregated && <> · 집약 계층 {series.badge.short.replace('요약 · ', '')}</>}
+          {series.badge.state === 'aggregated' && <> · 집약 계층 {series.badge.short.replace('요약 · ', '')}</>}
+          {series.badge.state === 'unknown' && <> · <strong>표기를 읽을 수 없다</strong></>}
         </dd>
         <dt>중계 지연</dt>
         <dd>
@@ -317,9 +328,12 @@ function ReaggregationPanel() {
       [{ value, aggregation: slot.aggregation }],
       METRIC_ENTITY + '/metrics.cpu_pct',
     );
+    // 차단 사유는 데이터 레이어가 판정한다. 화면은 방금 남은 이력에서 읽어 표시만 한다.
+    const reason = getBlockLog()[0]?.reason ?? null;
     setLastResult(
       result === null
-        ? '계산이 수행되지 않았다 (반환값 null) — 재집약이 차단되었다.'
+        ? '계산이 수행되지 않았다 (반환값 null) — 차단 사유: ' +
+          (reason === null ? '알 수 없음' : BLOCK_REASON_LABEL[reason])
         : '계산 수행됨 — 평균 ' + result.toFixed(2) + ' (원본 값이라 허용된다)',
     );
   };
@@ -332,7 +346,7 @@ function ReaggregationPanel() {
       </header>
 
       <button type="button" className="btn btn--probe" onClick={probe}>
-        요약값에 평균 적용 시도
+        지금 값에 평균 적용 시도
       </button>
 
       {lastResult !== null && (
@@ -343,8 +357,11 @@ function ReaggregationPanel() {
         <>
           <h3 className="devpanel__title">차단 이력 {blocks.length}건</h3>
           <ul className="blocklist">
+            {/* 두 사유가 눈으로 갈려야 한다 — 통합 때 대응이 다르다.
+                'aggregated'는 원본 질의로 우회하면 되고, 'unknown'은 계약을 맞춰야 한다. */}
             {blocks.slice(0, 5).map((b, i) => (
-              <li key={i} className="blocklist__item">
+              <li key={i} className={'blocklist__item blocklist__item--' + b.reason}>
+                <span className={'blockreason blockreason--' + b.reason}>{BLOCK_REASON_LABEL[b.reason]}</span>
                 <code>{b.operation}</code> · {b.context}
                 <div className="muted">{b.message}</div>
               </li>
@@ -353,10 +370,30 @@ function ReaggregationPanel() {
         </>
       )}
 
+      <div className="devpanel devpanel--inline">
+        <h3 className="devpanel__title">계약 밖 표기 주입 — 가드가 실제로 도는지 확인</h3>
+        <div className="devpanel__row">
+          <button type="button" className="btn btn--small" onClick={() => playScenario('agg-unlabeled')}>
+            kind 없이 발행
+          </button>
+          <button type="button" className="btn btn--small" onClick={() => playScenario('agg-odd-string')}>
+            문자열 'aggregated' 로 발행
+          </button>
+          <button type="button" className="btn btn--small" onClick={() => playScenario('agg-normal')}>
+            정식 표기로 복귀
+          </button>
+        </div>
+        <p className="note note--dim">
+          앞의 둘은 <strong>필드 이름이 어긋난 생산자</strong>를 흉내 낸다. 뱃지가 "원본"이 아니라
+          <strong> "표기 불명"</strong> 으로 떠야 하고, 평균을 적용하면 사유가 <strong>"표기를 읽을 수 없음"</strong> 으로
+          갈려야 한다. "원본"으로 뜬다면 가드가 조용히 꺼진 것이다.
+        </p>
+      </div>
+
       <p className="note">
         집약 연산은 반드시 <code>guardedMean()</code> / <code>guardedSum()</code> 을 거치게 해서 검사를 빠뜨릴 수
         없게 만들었다. 개발 모드 여부를 보지 않는다 — <strong>운영에서만 조용히 통과하는 것</strong>이 가장 위험한
-        조합이기 때문이다.
+        조합이기 때문이다. 못 읽는 표기도 같은 이유로 막는다 — <strong>판단이 안 되는 값에 계산하지 않는다.</strong>
       </p>
     </section>
   );

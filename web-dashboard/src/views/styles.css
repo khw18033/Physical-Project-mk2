@@ -707,7 +707,15 @@ body {
   vertical-align: middle;
   cursor: help;
 }
-.aggbadge--agg { background: #fff3e0; color: #a3670c; }
+.aggbadge--raw { background: var(--normal-bg); color: var(--normal); }
+.aggbadge--aggregated { background: #fff3e0; color: #a3670c; }
+/* 표기 불명은 원본·요약 **어느 쪽과도 다르게** 보여야 한다.
+   요약처럼 보이면 "요약이구나" 하고 넘어가고, 원본처럼 보이면 가드가 무의미해진다. */
+.aggbadge--unknown {
+  background: var(--fault-bg);
+  color: var(--fault);
+  border: 1px dashed currentColor;
+}
 
 .card__frame { font-size: 12px; color: var(--muted); margin: 4px 0 0; }
 .card__frame em { font-style: normal; opacity: .75; }
@@ -729,13 +737,28 @@ body {
 .chart__scale { font-size: 12px; color: var(--muted); margin-left: auto; }
 .chart__svg { width: 100%; height: 200px; display: block; }
 .chart__line { fill: none; stroke: #2f9e44; stroke-width: 1.6; vector-effect: non-scaling-stroke; }
-.chart__line--agg { stroke: #d98b1e; }
+.chart__line--raw { stroke: #2f9e44; }
+.chart__line--aggregated { stroke: #d98b1e; }
+.chart__line--unknown { stroke: #e03131; stroke-dasharray: 4 3; }
 
 .kv--wide { grid-template-columns: 140px 1fr; }
 
 .blocklist { list-style: none; margin: 6px 0 10px; padding: 0; font-size: 13px; }
 .blocklist__item { padding: 7px 0; border-bottom: 1px solid var(--line); }
 .blocklist__item:last-child { border-bottom: none; }
+.blocklist__item--unknown { background: #fff8f8; }
+.blockreason {
+  display: inline-block;
+  border-radius: 999px;
+  padding: 1px 9px;
+  margin-right: 7px;
+  font-size: 11px;
+  font-weight: 700;
+}
+.blockreason--aggregated { background: #fff3e0; color: #a3670c; }
+.blockreason--unknown { background: var(--fault-bg); color: var(--fault); }
+
+.note--unknown { background: var(--fault-bg); color: var(--fault); }
 
 /* 승인 중계 경로 (BE-X-04) */
 .route {
