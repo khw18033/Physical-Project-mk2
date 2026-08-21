@@ -49,6 +49,25 @@ npm run dev:mock     # 목 게이트웨이만 — ws://127.0.0.1:8787
 npm run dev:web      # 프런트만
 ```
 
+### 안 켜질 때 — 포트 충돌
+
+가장 흔한 실패다. `npm run dev` 가 이렇게 끝나면:
+
+```
+[mock-gateway] 기동 실패 — 포트 8787 이 이미 사용 중이다.
+```
+
+**이전 목 게이트웨이가 안 죽고 남아 있는 것**이다. 터미널을 `Ctrl+C` 없이 닫았거나
+창을 여러 개 띄웠을 때 생긴다. PowerShell에서 정리한다:
+
+```powershell
+Get-NetTCPConnection -LocalPort 8787 -State Listen |
+  ForEach-Object { Stop-Process -Id $_.OwningProcess -Force }
+```
+
+포트를 바꿔 띄우려면 `MOCK_PORT=8788 npm run dev:mock` 이고, 이때 화면 쪽
+`.env.local` 의 `VITE_GATEWAY_WS` / `VITE_GATEWAY_HTTP` 도 같이 바꿔야 한다.
+
 > npm 11부터 의존성의 설치 스크립트를 기본 차단한다. `esbuild`는 postinstall로
 > 플랫폼 바이너리를 받아야 Vite가 뜨므로 `package.json` 의 `allowScripts` 에
 > 미리 등재해 두었다. `npm install` 한 번이 경고 없이 끝나야 정상이다.

@@ -304,6 +304,10 @@ const http = createServer((req, res) => {
 const wss = new WebSocketServer({ server: http });
 let clientSeq = 0;
 
+// 포트 충돌은 http에서 나지만 ws가 되받아 던지는 경우가 있어 양쪽에 건다.
+wss.on('error', (err) => onStartupError(err as NodeJS.ErrnoException));
+http.on('error', onStartupError);
+
 function isSelector(v: unknown): v is Selector {
   if (typeof v !== 'object' || v === null) return false;
   const s = v as Record<string, unknown>;
@@ -466,6 +470,31 @@ wss.on('connection', (ws) => {
 
 function log(line: string): void {
   process.stdout.write('[mock-gateway] ' + new Date().toISOString() + ' ' + line + '\n');
+}
+
+/**
+ * 기동 실패 안내.
+ *
+ * 가장 흔한 실패는 **이전 목 게이트웨이가 안 죽고 남아 있는 것**이다(터미널을 Ctrl+C 없이
+ * 닫았거나, 검증 스크립트가 띄운 프로세스가 남은 경우). 생 스택 트레이스만 뜨면 원인을
+ * 짐작할 수 없으므로 무엇을 하면 되는지까지 적는다.
+ *
+ * http와 wss 양쪽에 건다 — 같은 포트 오류가 어느 쪽에서 터질지는 ws 구현에 달려 있고,
+ * 한쪽만 걸어 두면 나머지 한쪽이 처리되지 않은 예외로 그대로 튀어나온다.
+ */
+function onStartupError(err: NodeJS.ErrnoException): void {
+  if (err.code === 'EADDRINUSE') {
+    log('기동 실패 — 포트 ' + SERVER.PORT + ' 이 이미 사용 중이다.');
+    log('  이전 목 게이트웨이가 살아 있을 가능성이 높다. 둘 중 하나로 해결한다:');
+    log('  1) 남은 프로세스 종료 — PowerShell:');
+    log('     Get-NetTCPConnection -LocalPort ' + SERVER.PORT + ' -State Listen |');
+    log('       ForEach-Object { Stop-Process -Id $_.OwningProcess -Force }');
+    log('  2) 다른 포트로 기동 — MOCK_PORT=8788 npm run dev:mock');
+    log('     (이때 .env.local 의 VITE_GATEWAY_WS / VITE_GATEWAY_HTTP 도 같이 바꾼다)');
+  } else {
+    log('기동 실패 — ' + err.message);
+  }
+  process.exit(1);
 }
 
 http.listen(SERVER.PORT, SERVER.HOST, () => {
