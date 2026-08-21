@@ -29,6 +29,11 @@ export type ChannelSlot<T = unknown> = {
   quality: Envelope['quality'];
   aggregation: Aggregation;
   scope: Envelope['scope'];
+  /**
+   * BE-C-04 — 이 값의 좌표 기준계. 좌표를 담지 않는 채널은 null.
+   * **읽기 전용이다.** 좌표 변환은 백엔드 단독 책임이므로 화면은 표기만 보여준다.
+   */
+  coordinateFrame: string | null;
 };
 
 export type EntityRecord = {
@@ -48,7 +53,12 @@ export type EntityRecord = {
   /** VZ-U-07 — 계획 본문 + 근거 + 승인 상태. */
   plan: ChannelSlot<Plan> | null;
   /** VZ-U-05 — 구간 진행. 하달·시작·완료·실패 네 시점에만 온다. */
-  planProgress: ChannelSlot<{ plan_id: string; command_id: string | null; segments: PlanSegment[] }> | null;
+  planProgress: ChannelSlot<{
+    plan_id: string;
+    command_id: string | null;
+    relay_stage?: string;
+    segments: PlanSegment[];
+  }> | null;
   metrics: ChannelSlot | null;
   /** 이 대상에서 받은 총 봉투 수. 계측·디버깅용. */
   envelopeCount: number;
@@ -81,6 +91,7 @@ function toSlot<T>(env: Envelope): ChannelSlot<T> {
     // VZ-C-03 — 여기서 정규화해 두면 아래 코드가 축약형/객체형을 신경 쓰지 않는다.
     aggregation: normalizeAggregation(env.aggregation),
     scope: env.scope,
+    coordinateFrame: env.coordinate_frame ?? null,
   };
 }
 

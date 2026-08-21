@@ -37,13 +37,26 @@ export type Channel =
  */
 export type ScopeSpec = 'all' | { zones?: string[]; nodes?: string[] };
 
-/** VZ-C-03 — 집약 계층 표기. 와이어에서는 축약 문자열과 객체형 둘 다 올 수 있다. */
+/**
+ * VZ-C-03 — 집약 계층 표기. 와이어에서는 축약 문자열과 객체형 둘 다 올 수 있다.
+ *
+ * **필드 이름이 확정 전이라 두 철자를 모두 받는다.** 확정된 계약 문구는
+ * `{kind, level, window_sec}` 이지만, 앞선 논의에서 `{mode, layer, window_ms}` 로
+ * 오간 적이 있어 둘 다 들어올 수 있다. 정규화는 src/data/aggregation.ts 한 곳에서만 하고,
+ * 확정되면 그 함수 하나만 좁히면 된다.
+ */
 export type WireAggregation =
   | 'raw'
   | {
-      mode: 'raw' | 'aggregated';
-      layer?: 'device' | 'edge' | 'server';
-      method?: 'mean' | 'sum' | 'max' | 'min' | 'count' | 'rate';
+      kind?: 'raw' | 'aggregated';
+      /** 확정 전 대체 철자. kind와 같은 뜻이다. */
+      mode?: 'raw' | 'aggregated';
+      level?: string;
+      /** 확정 전 대체 철자. level과 같은 뜻이다. */
+      layer?: string;
+      method?: string;
+      window_sec?: number;
+      /** 확정 전 대체 철자. 초 단위로 환산해 읽는다. */
       window_ms?: number;
     };
 
@@ -62,6 +75,12 @@ export type Envelope = {
   quality: Quality;
   aggregation: WireAggregation;
   scope: ScopeSpec;
+  /**
+   * BE-C-04 — 이 payload의 좌표가 어느 기준계인가. 좌표를 담지 않는 채널은 null.
+   * **화면은 이 값을 읽기만 한다.** 좌표 변환은 백엔드 단독 책임이므로
+   * 이 값을 근거로 무언가를 환산하는 코드는 계약 위반이다.
+   */
+  coordinate_frame: string | null;
 };
 
 /** 상태 3층 원본 (REQ-205). 단일 값으로 뭉치지 않는다. */
@@ -82,16 +101,20 @@ export type ActuatorState = {
   position_pct: number | null;
   control_locked: boolean;
   lock_reason: string | null;
+  /** BE-X-01 — **백엔드가 발급한** 상관 키. 브라우저가 붙인 요청 식별자가 아니다. */
   command_id: string | null;
 };
 
 /**
  * VZ-O-01 — 가시화가 발행하는 **추상 명령**.
  * 장비 명령으로의 번역은 백엔드가 어휘집으로 수행하므로 여기에 장비 어휘가 없다.
+ *
+ * **상관 키가 여기 없다.** BE-X-01에 따라 command_id는 백엔드가 명령 조립 단계에서
+ * 발급한다. 가시화가 붙이는 것은 자기 요청을 가리킬 client_request_id뿐이다.
  */
 export type CommandRequest = {
-  /** REQ-909 — 전 파트 단일 상관 키. */
-  command_id: string;
+  /** 가시화가 만드는 요청 식별자. 상관 키가 아니다. */
+  client_request_id: string;
   entity: string;
   action: string;
   params: Record<string, unknown>;
@@ -106,6 +129,9 @@ export type CommandRequest = {
 
 /**
  * REQ-903 / VZ-O-02 — 명령 결과. 서버는 네 단계로 보내고 화면은 3상태로 접어 표시한다.
+ *
+ * **command_id만 실려 온다.** ACK로 받은 매핑이 없으면 이 이벤트가 어느 요청의 것인지
+ * 알 수 없고, 그 매핑을 보관하는 것이 데이터 레이어의 일이다(src/data/correlation.ts).
  */
 export type CommandResult = {
   command_id: string;
@@ -121,6 +147,19 @@ export type CommandResult = {
   /** 실패 시 이전 상태로 복원했는가. */
   restored: boolean;
   ts: string;
+};
+
+/**
+ * 명령 접수 응답. **두 키가 함께 오는 유일한 지점이다.**
+ * 데이터 레이어는 이 쌍을 받아 매핑을 만들고, 그때부터 결과를 상관 키로 잇는다.
+ */
+export type CommandAck = {
+  clientRequestId: string;
+  /** 백엔드가 발급한 상관 키. 응답 자체가 오지 않으면 null이다. */
+  commandId: string | null;
+  accepted: boolean;
+  reasonCode: string | null;
+  message: string;
 };
 
 /** VZ-O-05 — 제어 잠금. 복구되어도 재확인 전까지는 잠금이 유지된다. */
@@ -142,10 +181,38 @@ export type ActionSpec = {
   resultingState: string;
 };
 
-/** VZ-C-04 — 역할 응답. scope는 현 단계 ['*'] 고정이지만 형태에 자리를 둔다. */
+/**
+ * VZ-C-04 / BE-Q-04 — 역할 **응답**. 역할만이 아니라 그 역할이 적용되는 범위가 함께 온다.
+ * `zones: ['*']` 이면 전 범위. 기준 계층은 Zone(BE-C-02)이다.
+ */
+export type RoleScope = {
+  zones: string[];
+};
+
 export type RoleInfo = {
   role: string;
-  scope: string[];
+  display_name: string;
+  scope: RoleScope;
+  /** 이 값을 언제 받았는가(서버 시각). 토큰 갱신 시 재조회하면 갱신된다. */
+  issued_at: string;
+  source: string;
+};
+
+/** VZ-I-04 / BE-Q-01 — 지표 질의 응답(와이어 형태). 정규화는 src/data/metrics.ts가 한다. */
+export type WireMetricsQuery = {
+  query: {
+    entity: string;
+    metric: string;
+    mode: 'summary' | 'raw';
+    range_min: number;
+    requested_at: string;
+  };
+  aggregation: WireAggregation;
+  route: { via: string; relay_ms: number };
+  heavy: boolean;
+  heavy_reason: string | null;
+  point_interval_sec: number;
+  points: Array<{ t: string; value: number }>;
 };
 
 export type ConnectionState = 'connecting' | 'open' | 'reconnecting' | 'closed';

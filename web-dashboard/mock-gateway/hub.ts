@@ -13,7 +13,7 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { INTERVALS, THRESHOLDS, PLACEHOLDERS } from './config.ts';
+import { AGGREGATION, INTERVALS, THRESHOLDS, PLACEHOLDERS } from './config.ts';
 import type {
   AggregationSpec,
   Channel,
@@ -189,6 +189,11 @@ export class Hub {
       quality?: Quality;
       aggregation?: AggregationSpec;
       fromDevice?: boolean;
+      /**
+       * BE-C-04 — 이 payload의 좌표가 어느 기준계인가.
+       * 좌표를 담는 채널만 넘긴다. **변환은 백엔드가 이미 끝냈고** 여기서는 표기만 붙인다.
+       */
+      coordinateFrame?: string;
     } = {},
   ): void {
     const rt = this.runtime.get(entity);
@@ -211,9 +216,12 @@ export class Hub {
       payload,
       quality: opts.quality ?? 'good',
       // VZ-C-03 — 표기가 없으면 화면이 집약값을 다시 평균 내는 사고가 난다.
-      aggregation: opts.aggregation ?? PLACEHOLDERS.DEFAULT_AGGREGATION,
+      // 기본값은 장치 원본(raw)이고, 이미 집약된 채널(지표)은 발행부가 표기를 넘긴다.
+      aggregation: opts.aggregation ?? AGGREGATION.DEVICE_RAW,
       // VZ-I-11 — 발행 시점의 기본 범위. 구독별 요청 scope로 아래에서 덮어쓴다.
       scope: PLACEHOLDERS.DEFAULT_SCOPE,
+      // BE-C-04 — 좌표를 담지 않는 채널은 null. 화면은 이 값을 **읽기만** 한다.
+      coordinate_frame: opts.coordinateFrame ?? null,
     };
 
     this.cache.set(key, env);

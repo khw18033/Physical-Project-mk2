@@ -620,3 +620,169 @@ body {
 }
 .tracklist__item:last-child { border-bottom: none; }
 .tracklist__item--uncertain { color: #9a6b13; }
+
+/* ─────────────────────────────────────────────────────────────────────────
+   백엔드 계약 반영분 (2026-08-21)
+   상관키 두 구간 · 집약 표기 · 지표 질의 · 승인 중계 · 권한 범위
+   ───────────────────────────────────────────────────────────────────────── */
+
+/* 제어 대상 선택 + 역할 표시 */
+.targetbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 10px 14px;
+  margin-bottom: 14px;
+}
+.targetbar__label { font-weight: 700; font-size: 13px; color: var(--muted); }
+.targetbar__role { margin-left: auto; display: flex; align-items: center; gap: 10px; font-size: 13px; }
+
+.btn--on { background: #2f6feb; color: #fff; border-color: #2f6feb; }
+.btn--tiny { font-size: 12px; padding: 3px 9px; }
+.btn--tiny em, .btn--small em { font-style: normal; opacity: .7; font-size: 11px; }
+.btn--raw { border-color: #7a5cd6; color: #5b3fb5; }
+.btn--raw.btn--on { background: #7a5cd6; border-color: #7a5cd6; color: #fff; }
+
+/* 잠금 사유 — 둘 이상일 수 있다(통신 두절 + 권한 범위 밖) */
+.lockbar__reason {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+  width: 100%;
+  margin-top: 4px;
+  font-size: 13px;
+}
+.lockbar__badge {
+  background: rgba(0, 0, 0, .08);
+  border-radius: 999px;
+  padding: 1px 9px;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.lockbar__reason--out_of_scope .lockbar__badge { background: #efe6ff; color: #5b3fb5; }
+
+/* 추적 키 한 개 — 화면은 지금 무엇으로 추적 중인지만 본다 */
+.trackkey { display: inline-flex; flex-direction: column; gap: 1px; }
+.trackkey em { font-style: normal; font-size: 11px; color: var(--muted); }
+.trackkey--linked em { color: #2f9e44; font-weight: 700; }
+
+.notice--busy { display: flex; align-items: center; gap: 9px; background: #eef4ff; color: #2f4d8a; }
+.notice--absorbed { background: #f2ecff; color: #4b3a8f; }
+.notice--blocked { background: var(--fault-bg); color: var(--fault); font-weight: 700; }
+
+.spinner {
+  width: 13px;
+  height: 13px;
+  border: 2px solid #b9cbf0;
+  border-top-color: #2f6feb;
+  border-radius: 50%;
+  animation: spin .7s linear infinite;
+  flex: none;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.timeline__row--local .timeline__dot { background: #9aa1a9; }
+.timeline__row--absorbed { background: #faf7ff; }
+.chip--absorbed { background: #efe6ff; color: #5b3fb5; margin-left: 7px; font-size: 11px; }
+
+.querykey { font-size: 12px; color: var(--muted); margin: 6px 0; word-break: break-all; }
+.querykey--chain { color: #2f9e44; font-weight: 700; }
+
+/* 집약 계층 표기 (VZ-C-03) — 값 옆에 항상 붙는다 */
+.aggbadge {
+  display: inline-block;
+  margin-left: 7px;
+  border-radius: 999px;
+  padding: 1px 9px;
+  font-size: 11px;
+  font-weight: 700;
+  background: var(--normal-bg);
+  color: var(--normal);
+  vertical-align: middle;
+  cursor: help;
+}
+.aggbadge--agg { background: #fff3e0; color: #a3670c; }
+
+.card__frame { font-size: 12px; color: var(--muted); margin: 4px 0 0; }
+.card__frame em { font-style: normal; opacity: .75; }
+
+/* 지표 조회 (VZ-I-04) */
+.qbar { display: flex; gap: 16px; flex-wrap: wrap; align-items: center; margin-bottom: 12px; }
+.qbar__group { display: flex; gap: 5px; align-items: center; }
+.qbar__group--mode { margin-left: auto; }
+
+.statrow { display: flex; gap: 28px; flex-wrap: wrap; margin: 4px 0 10px; }
+.stat { display: flex; align-items: baseline; gap: 5px; flex-wrap: wrap; }
+.stat__value { font-size: 30px; font-weight: 700; font-family: 'Consolas', monospace; }
+.stat__unit { font-size: 14px; color: var(--muted); }
+.stat__label { font-size: 13px; color: var(--muted); margin-left: 5px; }
+
+.chart { background: #fbfcfd; border: 1px solid var(--line); border-radius: 10px; padding: 10px; }
+.chart--loading { opacity: .45; }
+.chart__head { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+.chart__scale { font-size: 12px; color: var(--muted); margin-left: auto; }
+.chart__svg { width: 100%; height: 200px; display: block; }
+.chart__line { fill: none; stroke: #2f9e44; stroke-width: 1.6; vector-effect: non-scaling-stroke; }
+.chart__line--agg { stroke: #d98b1e; }
+
+.kv--wide { grid-template-columns: 140px 1fr; }
+
+.blocklist { list-style: none; margin: 6px 0 10px; padding: 0; font-size: 13px; }
+.blocklist__item { padding: 7px 0; border-bottom: 1px solid var(--line); }
+.blocklist__item:last-child { border-bottom: none; }
+
+/* 승인 중계 경로 (BE-X-04) */
+.route {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex-wrap: wrap;
+  background: #fbfcfd;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 9px 12px;
+  margin-bottom: 12px;
+  font-size: 12px;
+}
+.route__hop { border-radius: 999px; padding: 3px 10px; font-weight: 700; }
+.route__hop--ai { background: #e8f0ff; color: #2f4d8a; }
+.route__hop--backend { background: #efe6ff; color: #5b3fb5; }
+.route__hop--screen { background: var(--normal-bg); color: var(--normal); }
+.route__hop--device { background: var(--nodeploy-bg); color: #4b5158; }
+.route__arrow { color: var(--muted); }
+.route__stage { margin-left: auto; color: var(--muted); }
+.route__stage--dispatched { color: var(--normal); font-weight: 700; }
+.route__stage--halted { color: var(--fault); font-weight: 700; }
+
+.prov { margin: 14px 0 6px; }
+.prov__title { font-size: 14px; margin: 0 0 8px; }
+.prov__list { list-style: none; margin: 0; padding: 0; }
+.prov__row {
+  display: grid;
+  grid-template-columns: 84px 1fr auto;
+  gap: 10px;
+  align-items: baseline;
+  padding: 7px 10px;
+  border-left: 3px solid transparent;
+  border-bottom: 1px solid var(--line);
+}
+.prov__row--ai { border-left-color: #2f4d8a; background: #f7faff; }
+.prov__row--backend { border-left-color: #5b3fb5; background: #faf7ff; }
+.prov__who { border-radius: 999px; padding: 1px 8px; font-size: 11px; font-weight: 700; text-align: center; }
+.prov__who--ai { background: #e8f0ff; color: #2f4d8a; }
+.prov__who--backend { background: #efe6ff; color: #5b3fb5; }
+.prov__ref { font-size: 11px; color: var(--muted); }
+.prov__detail { font-size: 12px; color: var(--muted); }
+.prov__time { font-size: 11px; color: var(--muted); font-family: 'Consolas', monospace; }
+
+.chip--ai { background: #e8f0ff; color: #2f4d8a; margin-left: 7px; }
+.chip--backend { background: #efe6ff; color: #5b3fb5; margin-left: 7px; }
+.chip--scoped { background: #efe6ff; color: #5b3fb5; }
+
+.devpanel--inline { margin-top: 14px; padding: 12px; }

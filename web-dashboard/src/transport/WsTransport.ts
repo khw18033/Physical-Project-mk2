@@ -13,6 +13,7 @@
 import { backoffDelayMs } from './backoff.ts';
 import type { Transport, Unsubscribe } from './Transport.ts';
 import type {
+  CommandAck,
   CommandRequest,
   ConnectionState,
   ConnectionStatus,
@@ -21,8 +22,6 @@ import type {
   ScopeSpec,
   Selector,
 } from './types.ts';
-
-type CommandOutcome = { accepted: boolean; reasonCode: string | null; message: string };
 
 export type WsTransportConfig = {
   /** 게이트웨이 WS 주소. **진짜 백엔드가 나오면 여기만 바꾼다.** */
@@ -44,8 +43,14 @@ export class WsTransport implements Transport {
   private readonly subs = new Map<string, Sub>();
   private readonly statusHandlers = new Set<(s: ConnectionStatus) => void>();
   private roleWaiters: Array<(r: RoleInfo) => void> = [];
-  /** command_id → 접수 응답 대기자. 진행 단계는 채널 구독으로 따로 온다. */
-  private readonly commandWaiters = new Map<string, (o: CommandOutcome) => void>();
+  /**
+   * **client_request_id** → ACK 대기자.
+   *
+   * 상관 키(command_id)로 잡을 수 없다 — 그 키는 ACK가 도착해야 알게 되는 값이기 때문이다.
+   * 이 구간에서 확실한 것은 내가 붙인 요청 식별자뿐이고, 그것이 두 키를 나눈 이유다.
+   * 진행 단계는 이 경로가 아니라 command_result 채널 구독으로 따로 온다.
+   */
+  private readonly commandWaiters = new Map<string, (o: CommandAck) => void>();
 
   private subSeq = 0;
   private attempt = 0;
@@ -180,7 +185,14 @@ export class WsTransport implements Transport {
       }
 
       case 'role': {
-        const info: RoleInfo = { role: msg.role as string, scope: msg.scope as string[] };
+        // VZ-C-04 — 역할과 **범위**가 함께 온다. 범위 해석은 여기서 하지 않는다.
+        const info: RoleInfo = {
+          role: msg.role as string,
+          display_name: (msg.display_name as string | undefined) ?? (msg.role as string),
+          scope: (msg.scope as RoleInfo['scope'] | undefined) ?? { zones: [] },
+          issued_at: (msg.issued_at as string | undefined) ?? new Date().toISOString(),
+          source: (msg.source as string | undefined) ?? '(출처 미표기)',
+        };
         const waiters = this.roleWaiters;
         this.roleWaiters = [];
         for (const w of waiters) w(info);
@@ -188,10 +200,15 @@ export class WsTransport implements Transport {
       }
 
       case 'command_ack': {
-        const waiter = this.commandWaiters.get(msg.command_id as string);
+        // **두 키가 함께 오는 유일한 메시지.** 대기자는 요청 식별자로 찾고,
+        // 상관 키는 그대로 위로 넘긴다 — 매핑을 만드는 것은 데이터 레이어의 일이다.
+        const requestId = msg.client_request_id as string;
+        const waiter = this.commandWaiters.get(requestId);
         if (waiter === undefined) return;
-        this.commandWaiters.delete(msg.command_id as string);
+        this.commandWaiters.delete(requestId);
         waiter({
+          clientRequestId: requestId,
+          commandId: (msg.command_id as string | undefined) ?? null,
           accepted: msg.accepted as boolean,
           reasonCode: (msg.reason_code as string | null) ?? null,
           message: String(msg.message),
@@ -232,23 +249,47 @@ export class WsTransport implements Transport {
     });
   }
 
-  publishCommand(command: CommandRequest): Promise<CommandOutcome> {
+  publishCommand(command: CommandRequest): Promise<CommandAck> {
     return new Promise((resolve) => {
+      const requestId = command.client_request_id;
+
       if (this.ws?.readyState !== WebSocket.OPEN) {
         // 끊긴 상태에서 명령을 큐에 쌓지 않는다 — 나중에 한꺼번에 나가면
         // 만료 시각의 의미가 사라지고 관제사가 의도하지 않은 시점에 장비가 움직인다.
-        resolve({ accepted: false, reasonCode: 'disconnected', message: '게이트웨이 연결 없음 — 명령을 보내지 않았다' });
+        resolve({
+          clientRequestId: requestId,
+          commandId: null,
+          accepted: false,
+          reasonCode: 'disconnected',
+          message: '게이트웨이 연결 없음 — 명령을 보내지 않았다',
+        });
         return;
       }
-      this.commandWaiters.set(command.command_id, resolve);
+
+      this.commandWaiters.set(requestId, resolve);
       this.send({ type: 'command', command });
 
-      // 접수 응답 자체가 오지 않는 경우를 위한 안전장치.
+      /**
+       * ACK 자체가 오지 않는 경우를 위한 안전장치.
+       *
+       * 대기 한도를 **만료 시각에서 뽑는다.** 고정 5초로 두면 TTL이 더 긴 명령에서
+       * "접수 응답 없음"이 만료보다 먼저 떠서, 정작 화면에 보여야 할 사유(만료)를
+       * 덮어 버린다. 만료 판정 자체는 서버가 하지만 **기다림의 한도**는 만료 시각을
+       * 따라가는 것이 맞다. 여유 500ms는 서버 거부 응답이 도착할 시간이다.
+       */
+      const waitMs = Math.max(1_000, Date.parse(command.expires_at) - Date.now() + 500);
       setTimeout(() => {
-        if (!this.commandWaiters.has(command.command_id)) return;
-        this.commandWaiters.delete(command.command_id);
-        resolve({ accepted: false, reasonCode: 'timeout', message: '접수 응답 없음' });
-      }, 5000);
+        if (!this.commandWaiters.has(requestId)) return;
+        this.commandWaiters.delete(requestId);
+        resolve({
+          clientRequestId: requestId,
+          // 끝내 상관 키를 받지 못했다. 이 요청은 요청 식별자만으로 정리되어야 한다.
+          commandId: null,
+          accepted: false,
+          reasonCode: 'ack_timeout',
+          message: '접수 응답(ACK) 없음 — 상관 키를 받지 못했다',
+        });
+      }, waitMs);
     });
   }
 

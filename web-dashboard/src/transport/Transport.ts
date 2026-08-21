@@ -5,7 +5,15 @@
  * 백엔드가 논리 구독 대신 토픽 문자열을 고르면 이 인터페이스의 구현만 바뀐다.
  */
 
-import type { CommandRequest, ConnectionStatus, Envelope, RoleInfo, ScopeSpec, Selector } from './types.ts';
+import type {
+  CommandAck,
+  CommandRequest,
+  ConnectionStatus,
+  Envelope,
+  RoleInfo,
+  ScopeSpec,
+  Selector,
+} from './types.ts';
 
 export type Unsubscribe = () => void;
 
@@ -28,21 +36,33 @@ export interface Transport {
   onStatus(handler: (status: ConnectionStatus) => void): Unsubscribe;
   getStatus(): ConnectionStatus;
 
-  /** VZ-C-01/C-04 — 현재 역할과 그 적용 범위. */
+  /**
+   * VZ-C-01 / VZ-C-04 — 현재 역할과 **그 역할이 적용되는 범위**.
+   * 로그인 시 1회 + 토큰 갱신 시 재조회다. 주기 조회가 아니므로 여기에 인터벌이 없다.
+   */
   fetchRole(): Promise<RoleInfo>;
 
   /**
    * VZ-O-01 — 추상 명령 발행.
    *
    * 이 메서드는 **논리 계약**이지 전송 방식이 아니다. 토픽 방식으로 갈아끼워도
-   * 시그니처는 그대로다. 접수 여부(만료·잠금으로 거부될 수 있다)는 반환 Promise로,
-   * 이후 진행 단계는 command_result 채널 구독으로 도착한다 — 두 경로가 다른 이유는
-   * 접수 거부는 즉답이지만 수행 결과는 물리 시간이 걸리기 때문이다.
+   * 시그니처는 그대로다.
+   *
+   * 반환 Promise는 **ACK**다 — 접수 여부와 함께 백엔드가 발급한 `command_id`가 실려 온다.
+   * 이후 진행 단계는 command_result 채널 구독으로 `command_id`만 달고 도착한다.
+   * 두 경로가 다른 이유는 접수 응답은 즉답이지만 수행 결과는 물리 시간이 걸리기 때문이고,
+   * **그래서 두 키의 매핑이 필요하다.** 매핑 보관은 이 계층이 아니라 데이터 레이어의 일이다
+   * (src/data/correlation.ts) — 전송 방식을 갈아끼워도 매핑 규칙은 그대로여야 하기 때문이다.
+   *
+   * ACK 자체가 오지 않을 수 있다. 그 경우 `commandId`가 null인 결과가 돌아온다.
    */
-  publishCommand(command: CommandRequest): Promise<{ accepted: boolean; reasonCode: string | null; message: string }>;
+  publishCommand(command: CommandRequest): Promise<CommandAck>;
 
   /**
    * VZ-U-07 — 계획 승인/거부.
+   *
+   * **중계자는 백엔드다**(BE-X-04). 가시화는 AI와 직접 주고받지 않는다 —
+   * 승인도 거부도 백엔드 채널로 나가고, 승인된 계획만 백엔드가 엣지·로봇으로 발행한다.
    * 판정 결과는 `plan` 채널로 되돌아온다. **승인 전에는 진행 이벤트가 없다.**
    */
   decidePlan(planId: string, decision: 'approve' | 'reject', reason?: string): void;

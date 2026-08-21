@@ -8,8 +8,8 @@
  * 옮길 때 전부 버려지고, 그 사이 화면 코드가 "값이 항상 즉시 있다"는 가정에 물든다.
  *
  * 한 포트에서 둘을 서빙한다.
- *   - HTTP : GET /registry, GET /scenarios, POST /scenario/:name, GET /health
- *   - WS   : 구독 · 데이터 푸시 · 역할 조회 · 시나리오 트리거
+ *   - HTTP : GET /registry, /scenarios, /audit, /actions, /role, /metrics/query, /health
+ *   - WS   : 구독 · 데이터 푸시 · 역할 조회 · 명령 · 계획 승인 중계 · 시나리오 트리거
  */
 
 import { createServer } from 'node:http';
@@ -18,17 +18,35 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { WebSocketServer } from 'ws';
 
-import { INTERVALS, PLACEHOLDERS, SCALE_ASSUMPTIONS, SERVER, THRESHOLDS } from './config.ts';
+import {
+  AGGREGATION,
+  INTERVALS,
+  METRICS_QUERY,
+  PLACEHOLDERS,
+  ROLES,
+  SCALE_ASSUMPTIONS,
+  SCENARIO_TIMING,
+  SERVER,
+  THRESHOLDS,
+} from './config.ts';
+import { ackControl, roleState } from './controls.ts';
 import { Hub, loadRegistry, type ClientConn } from './hub.ts';
 import { createFleet } from './devices.ts';
-import { CommandEngine } from './commands.ts';
+import { CommandEngine, type PermissionVerdict } from './commands.ts';
 import { PlanEngine } from './plans.ts';
 import { VisionEmitter } from './vision.ts';
 import { SCENARIOS, runScenario } from './scenarios.ts';
-import type { ClientMessage, CommandRequest, ScopeSpec, Selector } from './protocol.ts';
+import type {
+  ClientMessage,
+  CommandRequest,
+  MetricsQueryResult,
+  RoleInfo,
+  ScopeSpec,
+  Selector,
+} from './protocol.ts';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const PROTOCOL_VERSION = 'mock-gateway/0.2';
+const PROTOCOL_VERSION = 'mock-gateway/0.3';
 
 /** 감사 조회가 몇 번 들어왔는지. 주기 폴링이 없다는 것을 숫자로 확인하기 위한 계측값. */
 let auditQueryCount = 0;
@@ -38,6 +56,40 @@ const fleet = createFleet(hub);
 const commands = new CommandEngine(hub);
 const plans = new PlanEngine(hub);
 const vision = new VisionEmitter(hub, 'camera-02');
+
+// ── 역할·권한 범위 (VZ-C-01 · VZ-C-04 / BE-Q-04) ──────────────────────────────
+//
+// **화면 차단은 사용자 편의이고 실제 강제는 백엔드다.** 그래서 이 값은 화면에 내려주는
+// 동시에 명령 접수 경로에서도 검사된다 — 화면을 우회해 명령을 보내도 서버가 막는다.
+
+function currentRole(): RoleInfo {
+  const mock = ROLES[roleState.key] ?? ROLES.full;
+  return {
+    role: mock.role,
+    display_name: mock.display_name,
+    scope: { zones: [...mock.scope.zones] },
+    issued_at: new Date().toISOString(),
+    source: 'mock-gateway role API (BE-Q-04 대체 구현)',
+  };
+}
+
+/** 이 대상이 현재 역할의 담당 범위 안인가. 기준 계층은 Zone(BE-C-02). */
+function checkPermission(entity: string): PermissionVerdict {
+  const role = currentRole();
+  if (role.scope.zones.includes('*')) return { allowed: true, reason: null };
+
+  const zone = hub.runtime.get(entity)?.zone ?? null;
+  if (zone !== null && role.scope.zones.includes(zone)) return { allowed: true, reason: null };
+
+  return {
+    allowed: false,
+    reason:
+      '권한 범위 밖 — 현재 역할(' + role.display_name + ')의 담당 구역은 ' +
+      role.scope.zones.join(', ') + ' 이고 이 대상은 ' + (zone ?? '구역 미지정') + ' 에 있다',
+  };
+}
+
+commands.permissionCheck = checkPermission;
 
 // 명령 시작·종료 시 액추에이터 발행 주기를 대기 1초 <-> 동작 중 100ms 로 전환한다.
 commands.onActivityChange = (entity) => fleet.actuators.get(entity)?.rearm();
@@ -55,6 +107,82 @@ const CORS = {
   'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
   'Access-Control-Allow-Headers': 'content-type',
 };
+
+/**
+ * VZ-I-04 / BE-Q-01 — 지표 질의 프록시. **두 갈래다.**
+ *
+ *  - 요약(summary) : 백엔드가 15초 페더레이션으로 이미 당겨 둔 구역 요약. 즉시 응답.
+ *  - 원본(raw)     : raw는 엣지에 남아 있으므로 프록시가 사설망 엣지로 **중계**한다(BE-T-05).
+ *                    의도적으로 느리다 — 화면이 "가져오는 중"을 그릴 이유가 여기서 생긴다.
+ */
+async function metricsQuery(params: URLSearchParams): Promise<MetricsQueryResult> {
+  const entity = params.get('entity') ?? 'edge-node-a';
+  const metric = params.get('metric') ?? 'cpu_pct';
+  const mode = params.get('mode') === 'raw' ? 'raw' : 'summary';
+  const rangeMin = Math.max(1, Math.min(360, Number(params.get('range_min') ?? 15)));
+  const requestedAt = new Date().toISOString();
+
+  const emitter = fleet.observability.get(entity) ?? null;
+  const heavy = mode === 'raw' && rangeMin > METRICS_QUERY.HEAVY_RANGE_MIN;
+
+  if (mode === 'summary') {
+    const stepSec = INTERVALS.OBSERVABILITY_MS / 1000;
+    const count = Math.min(METRICS_QUERY.MAX_POINTS, Math.floor((rangeMin * 60) / stepSec));
+    const nowMs = Date.now();
+    // 요약 시계열은 백엔드가 이미 당겨 둔 값이므로 저장소를 읽기만 한다.
+    const source = emitter?.readRaw(metric, rangeMin, METRICS_QUERY.MAX_POINTS) ?? [];
+    const points = [];
+    for (let i = count - 1; i >= 0; i -= 1) {
+      const t = nowMs - i * stepSec * 1000;
+      const window = source.filter((s) => s.t > t - stepSec * 1000 && s.t <= t);
+      const value =
+        window.length > 0
+          ? Math.round((window.reduce((a, s) => a + s.value, 0) / window.length) * 10) / 10
+          : Math.round((24 + Math.random() * 8) * 10) / 10;
+      points.push({ t: new Date(t).toISOString(), value });
+    }
+    return {
+      query: { entity, metric, mode, range_min: rangeMin, requested_at: requestedAt },
+      // 평시 조회는 구역 요약이다. 화면은 이 표기를 읽어 재집약을 막는다.
+      aggregation: AGGREGATION.ZONE_SUMMARY,
+      route: { via: '백엔드 질의 프록시 (BE-Q-01) — 페더레이션으로 이미 당겨 둔 구역 요약', relay_ms: 0 },
+      heavy: false,
+      heavy_reason: null,
+      point_interval_sec: stepSec,
+      points,
+    };
+  }
+
+  // 원본 질의 — 엣지 중계. 실제로 기다리게 만든다.
+  const relayMs =
+    METRICS_QUERY.RAW_RELAY_MIN_MS +
+    Math.round(Math.random() * (METRICS_QUERY.RAW_RELAY_MAX_MS - METRICS_QUERY.RAW_RELAY_MIN_MS)) +
+    // 범위가 넓을수록 중계도 오래 걸린다. 무거운 질의라는 것이 체감돼야 안내가 의미를 갖는다.
+    (heavy ? 400 : 0);
+  await new Promise((resolve) => setTimeout(resolve, relayMs));
+
+  const raw = emitter?.readRaw(metric, rangeMin, METRICS_QUERY.MAX_POINTS) ?? [];
+  const truncated = raw.length >= METRICS_QUERY.MAX_POINTS;
+
+  return {
+    query: { entity, metric, mode, range_min: rangeMin, requested_at: requestedAt },
+    aggregation: 'raw',
+    route: {
+      via: '백엔드 질의 프록시 (BE-Q-01) → 엣지 원본 저장소 중계 (BE-T-05)',
+      relay_ms: relayMs,
+    },
+    heavy: heavy || truncated,
+    heavy_reason: heavy
+      ? '조회 범위 ' + rangeMin + '분 — 원본은 ' + METRICS_QUERY.RAW_POINT_INTERVAL_SEC +
+        '초 간격이라 요약보다 점이 약 ' + Math.round(INTERVALS.OBSERVABILITY_MS / 1000 / METRICS_QUERY.RAW_POINT_INTERVAL_SEC) +
+        '배 많고, 엣지 중계까지 거친다'
+      : truncated
+        ? '점 개수 상한 ' + METRICS_QUERY.MAX_POINTS + '개에서 잘렸다'
+        : null,
+    point_interval_sec: METRICS_QUERY.RAW_POINT_INTERVAL_SEC,
+    points: raw.map((s) => ({ t: new Date(s.t).toISOString(), value: s.value })),
+  };
+}
 
 const http = createServer((req, res) => {
   const url = new URL(req.url ?? '/', 'http://' + (req.headers.host ?? 'localhost'));
@@ -92,15 +220,24 @@ const http = createServer((req, res) => {
 
   /**
    * VZ-I-05 — 감사 이력 조회.
+   *
+   * **command_id 조회가 1차 경로다** — 상관 키가 요청부터 감사까지 사슬을 잇는다는 것이
+   * BE-X-01의 정의이므로, 화면도 그 키로 되짚어야 계약이 검증된다.
+   * entity 조회는 "이 대상을 마지막으로 조작한 사람"을 묻는 보조 경로로 남긴다.
+   *
    * **패널을 열 때만** 부르는 경로다. 감사는 확정된 과거 기록이라 폴링해도 새 값이 없고,
    * 진행 중인 명령의 변화는 command_result 푸시로 이미 도달한다.
    */
   if (url.pathname === '/audit') {
+    const commandId = url.searchParams.get('command_id');
     const entity = url.searchParams.get('entity');
     const limit = Number(url.searchParams.get('limit') ?? 20);
     auditQueryCount += 1;
     json(200, {
-      records: commands.queryAudit(entity, Math.min(100, Math.max(1, limit))),
+      records: commands.queryAudit({ commandId, entity }, Math.min(100, Math.max(1, limit))),
+      /** 어느 키로 조회됐는지 되돌려 준다 — 화면이 "command_id로 조회했다"를 표시할 근거. */
+      queried_by: commandId ? 'command_id' : entity ? 'entity' : 'all',
+      queried_key: commandId ?? entity ?? null,
       // 주기 폴링이 없는지 검증할 때 쓰는 계측값. 실제 계약에는 없다.
       _query_count: auditQueryCount,
     });
@@ -117,6 +254,28 @@ const http = createServer((req, res) => {
     return;
   }
 
+  /** VZ-C-01 · VZ-C-04 — 역할·범위 조회. WS의 role 메시지와 같은 값을 준다. */
+  if (url.pathname === '/role') {
+    json(200, currentRole());
+    return;
+  }
+
+  /** VZ-I-04 / BE-Q-01 — 지표 질의 프록시. 요약과 원본이 서로 다른 경로다. */
+  if (url.pathname === '/metrics/query') {
+    void metricsQuery(url.searchParams).then(
+      (result) => {
+        log(
+          '지표 질의 ' + result.query.metric + ' mode=' + result.query.mode +
+          ' range=' + result.query.range_min + '분 → ' + result.points.length + '점' +
+          ' (' + result.route.relay_ms + 'ms · ' + result.route.via + ')',
+        );
+        json(200, result);
+      },
+      (e: unknown) => json(500, { error: String(e) }),
+    );
+    return;
+  }
+
   if (url.pathname === '/health') {
     json(200, {
       ok: true,
@@ -128,13 +287,15 @@ const http = createServer((req, res) => {
       vision: { open: vision.isOpen, config: vision.describe() },
       stale_threshold_ms: THRESHOLDS.STALE_MS,
       scale_assumptions: SCALE_ASSUMPTIONS,
+      role: currentRole(),
+      ack_control: { ...ackControl },
     });
     return;
   }
 
   json(404, {
     error: 'not found',
-    paths: ['/registry', '/scenarios', '/scenario/:name', '/audit', '/actions', '/health'],
+    paths: ['/registry', '/scenarios', '/scenario/:name', '/audit', '/actions', '/role', '/metrics/query', '/health'],
   });
 });
 
@@ -213,27 +374,59 @@ wss.on('connection', (ws) => {
         return;
       case 'command': {
         const cmd = msg.command as CommandRequest | undefined;
-        if (!cmd || typeof cmd.command_id !== 'string' || typeof cmd.entity !== 'string') {
-          conn.send({ type: 'error', message: '명령에는 command_id와 entity가 필요하다 (REQ-909)' });
+        if (!cmd || typeof cmd.client_request_id !== 'string' || typeof cmd.entity !== 'string') {
+          conn.send({ type: 'error', message: '명령에는 client_request_id와 entity가 필요하다 (VZ-O-01)' });
           return;
         }
+
         // **명령은 여기서 끝난다.** 실제 디바이스로 나가는 경로는 만들지 않는다.
+        // 상관 키(command_id)는 submit 안에서, 즉 **명령 조립 단계**에서 발급된다(BE-X-01).
         const outcome = commands.submit(cmd);
-        conn.send({
-          type: 'command_ack',
-          command_id: cmd.command_id,
+
+        // ACK — **두 키를 함께 내려주는 유일한 메시지.** 이게 도착해야 화면이
+        // client_request_id로 걸어 둔 낙관적 UI를 command_id 사슬에 이어 붙인다.
+        const ack = {
+          type: 'command_ack' as const,
+          client_request_id: outcome.clientRequestId,
+          command_id: outcome.commandId,
           accepted: outcome.accepted,
           reason_code: outcome.reasonCode,
           message: outcome.message,
-        });
-        log('명령 ' + cmd.entity + '/' + cmd.action + ' (' + cmd.command_id + ') → ' + outcome.message);
+        };
+
+        if (ackControl.dropNext) {
+          ackControl.dropNext = false;
+          log(
+            '명령 ' + cmd.entity + '/' + cmd.action + ' (' + outcome.commandId + ') → ' + outcome.message +
+            ' · **ACK 미발신(주입)** — 화면은 client_request_id만으로 만료 정리해야 한다',
+          );
+        } else if (ackControl.delayNextMs > 0) {
+          const delay = ackControl.delayNextMs;
+          ackControl.delayNextMs = 0;
+          setTimeout(() => conn.send(ack), delay);
+          log(
+            '명령 ' + cmd.entity + '/' + cmd.action + ' (' + outcome.commandId + ') → ' + outcome.message +
+            ' · **ACK ' + delay + 'ms 지연 발신(주입)** — 진행 이벤트가 매핑보다 먼저 도착한다',
+          );
+        } else {
+          conn.send(ack);
+          log('명령 ' + cmd.entity + '/' + cmd.action + ' (' + outcome.commandId + ') → ' + outcome.message);
+        }
         return;
       }
       case 'plan_decision': {
-        // VZ-U-07 — **승인 전에는 계획이 실행되지 않는다.** 판정은 서버가 소유한다.
+        // VZ-U-07 / BE-X-04 — **승인 왕복의 중계자는 백엔드다.**
+        // 가시화는 AI와 직접 주고받지 않는다. 승인도 거부도 이 채널로 들어와,
+        // 승인된 계획만 백엔드가 엣지·로봇으로 발행한다.
         const outcome = plans.decide(msg.plan_id, msg.decision, msg.reason);
-        conn.send({ type: 'plan_decision', plan_id: msg.plan_id, accepted: outcome.ok, message: outcome.message });
-        log('계획 ' + msg.plan_id + ' ' + msg.decision + ' → ' + outcome.message);
+        conn.send({
+          type: 'plan_decision',
+          plan_id: msg.plan_id,
+          accepted: outcome.ok,
+          message: outcome.message,
+          relayed_by: outcome.relayedBy,
+        });
+        log('계획 ' + msg.plan_id + ' ' + msg.decision + ' → ' + outcome.message + ' [' + outcome.relayedBy + ']');
         return;
       }
       case 'video': {
@@ -243,10 +436,14 @@ wss.on('connection', (ws) => {
         log('영상 패널 ' + msg.entity + ' ' + (msg.open ? '열림' : '닫힘') + ' · ' + vision.describe());
         return;
       }
-      case 'role':
-        // VZ-C-04 — 권한 범위(scope)는 이번 범위 밖이지만 **응답 형태에 자리만** 둔다.
-        conn.send({ type: 'role', role: PLACEHOLDERS.ROLE, scope: [...PLACEHOLDERS.ROLE_SCOPE] });
+      case 'role': {
+        // VZ-C-04 / BE-Q-04 — 역할과 **그 역할이 적용되는 범위**를 함께 내려준다.
+        // 로그인 시 1회 + 토큰 갱신 시 재조회이므로 주기 발행이 아니다.
+        const role = currentRole();
+        conn.send({ type: 'role', ...role });
+        log('역할 조회 ' + conn.id + ' → ' + role.display_name + ' scope=' + JSON.stringify(role.scope));
         return;
+      }
       case 'scenario': {
         const result = runScenario(msg.name, { hub, fleet, commands, plans, vision });
         conn.send({ type: 'scenario', name: msg.name, accepted: result.ok, message: result.message });
@@ -283,6 +480,14 @@ http.listen(SERVER.PORT, SERVER.HOST, () => {
   log(
     'stale 임계 ' + THRESHOLDS.STALE_MS + 'ms · 재판정 ' + INTERVALS.AVAILABILITY_SWEEP_MS +
     'ms · 상태 정기 발행 ' + INTERVALS.ZONE_STATE_REFRESH_MS + 'ms',
+  );
+  log(
+    '상관키(BE-X-01) 발급 주체 = 백엔드(이 서버). 가시화는 client_request_id만 붙여 보내고 ' +
+    'ACK로 두 키를 함께 받는다. ACK 지연 주입 ' + SCENARIO_TIMING.ACK_LATE_MS + 'ms.',
+  );
+  log(
+    '역할(BE-Q-04) ' + currentRole().display_name + ' scope=' + JSON.stringify(currentRole().scope) +
+    ' — 범위 밖 명령은 화면이 막지 못해도 서버가 out_of_scope로 거부한다',
   );
   log('시나리오: ' + SCENARIOS.map((s) => s.name).join(', '));
 });

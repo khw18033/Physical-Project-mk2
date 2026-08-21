@@ -37,3 +37,12 @@ export const IMMEDIATE_AVAILABILITY = new Set(['offline', 'stale']);
 
 /** 개발 모드에서 리렌더 횟수를 화면에 띄운다(검증 항목 2 실측용). */
 export const SHOW_RENDER_COUNTER = IS_DEV;
+
+/**
+ * 열린 그래프 패널의 **요약** 지표 자동 갱신 주기 (VZ-I-04).
+ *
+ * 백엔드가 구역 요약 시계열을 15초 주기로 당겨오므로(BE-S-03) 그보다 촘촘히 질의해도
+ * 새로운 점이 없고 부하만 는다. **원본 질의에는 이 주기를 걸지 않는다** —
+ * 원본은 엣지 중계를 거치므로 주기 갱신이 사설망 왕복을 계속 두드리는 일이 된다.
+ */
+export const METRICS_AUTO_REFRESH_MS = 15_000;

@@ -18,6 +18,7 @@ export type {
   ActionSpec,
   ActuatorState,
   Channel,
+  CommandAck,
   CommandRequest,
   CommandResult,
   ControlLock,
@@ -26,10 +27,12 @@ export type {
   Envelope,
   Quality,
   RoleInfo,
+  RoleScope,
   ScopeSpec,
   Selector,
   StateLayers,
   WireAggregation,
+  WireMetricsQuery,
 } from './types.ts';
 
 /**

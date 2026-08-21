@@ -42,11 +42,39 @@ export type PlanSegment = {
   } | null;
 };
 
+/**
+ * 근거 한 조각이 **누구의 산출물인가** (BE-X-04).
+ *
+ * AI는 계획 생성(AI-D-01)과 검증(AI-D-02)까지고, 가시화 전달·승인 수신·엣지 발행은
+ * 백엔드 중계 구간이다. 근거를 한 덩어리로 보여주면 나중에 승인이 안 먹었을 때
+ * "AI가 계획을 못 만든 것"과 "백엔드 중계가 끊긴 것"을 화면에서 가를 수 없다.
+ */
+export type ProducedBy = 'ai' | 'backend' | 'human';
+
+export const PRODUCED_BY_LABEL: Record<ProducedBy, string> = {
+  ai: 'AI 산출',
+  backend: '백엔드 중계',
+  human: '사람 판단',
+};
+
+export type ProvenanceStep = {
+  stage: string;
+  produced_by: ProducedBy;
+  /** 어느 요구사항이 이 구간의 담당을 정하는가. */
+  ref: string;
+  at: string | null;
+  detail: string;
+};
+
 export type PlanEvidence = {
   mission: { id: string; title: string; requested_by: string; created_at: string };
   zones: Array<{ zone: string; order: number; segment_count: number }>;
+  /** AI 산출물(AI-D-02). */
   validations: Array<{ rule: string; result: 'pass' | 'warn'; detail: string }>;
+  /** AI 산출물의 출처 표시. */
   generator: { name: string; version: string; context_version: string };
+  /** 어디까지가 AI 산출이고 어디부터가 백엔드 중계인가. */
+  provenance: ProvenanceStep[];
 };
 
 export type Plan = {
@@ -57,12 +85,43 @@ export type Plan = {
   reject_reason: string | null;
   evidence: PlanEvidence;
   segments: PlanSegment[];
+  /** BE-X-01 — **백엔드가 발급한** 상관 키. plan_id와의 매핑도 백엔드가 보유한다. */
   command_id: string | null;
+  /** BE-X-04 — 계획이 온 경로와 승인이 돌아가는 곳. */
+  route: {
+    generated_by: string;
+    delivered_by: string;
+    decision_returns_to: string;
+    dispatches_to: string;
+  };
+  /** 승인 수신 → 엣지·로봇 발행 사이의 중계 상태. */
+  relay_stage: 'awaiting_decision' | 'decision_received' | 'dispatched' | 'halted';
 };
 
-/** 승인/거부 발행. 승인 전에는 서버가 진행 이벤트를 내보내지 않는다. */
+export const RELAY_STAGE_LABEL: Record<Plan['relay_stage'], string> = {
+  awaiting_decision: '승인 대기 — 백엔드가 전달만 한 상태',
+  decision_received: '백엔드가 승인을 받았다 — 아직 발행 전',
+  dispatched: '백엔드가 엣지·로봇으로 발행했다',
+  halted: '거부 수신 — 발행되지 않았다',
+};
+
+/**
+ * 승인/거부 발행.
+ *
+ * **중계자는 백엔드다**(BE-X-04). 가시화는 AI와 직접 주고받지 않는다 —
+ * 승인도 거부도 백엔드 채널로 나가고, 승인된 계획만 백엔드가 엣지·로봇으로 발행한다.
+ * 승인 전에는 서버가 진행 이벤트를 내보내지 않는다.
+ */
 export function decidePlan(planId: string, decision: 'approve' | 'reject', reason?: string): void {
   getTransport().decidePlan(planId, decision, reason);
+}
+
+/** 근거를 산출 주체별로 가른다. 화면이 두 구간을 나눠 그릴 수 있게. */
+export function splitProvenance(steps: ProvenanceStep[]): { ai: ProvenanceStep[]; backend: ProvenanceStep[] } {
+  return {
+    ai: steps.filter((s) => s.produced_by === 'ai'),
+    backend: steps.filter((s) => s.produced_by !== 'ai'),
+  };
 }
 
 /** 진행률 요약 — 완료 구간 수 / 전체. */

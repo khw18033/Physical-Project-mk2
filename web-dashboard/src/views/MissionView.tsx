@@ -3,6 +3,11 @@
  *
  * VZ-U-07 계획 승인 · VZ-U-05 서브태스크 진행.
  *
+ * **중계자는 백엔드다** (BE-X-04). 계획도 백엔드 채널로 도착하고 승인·거부도 같은 채널로
+ * 돌아간다. AI는 계획의 **출처**로만 근거에 남는다 — 그래서 이 화면에는 AI와 직접
+ * 주고받는 경로가 없고, 근거에는 어디까지가 AI 산출이고 어디부터가 백엔드 중계인지가
+ * 구분되어 표시된다. 나중에 승인이 안 먹었을 때 어느 구간에서 끊겼는지 봐야 하기 때문이다.
+ *
  * **승인 화면은 목업이 없어 직접 설계했다.** 판단한 것 셋:
  *  1. 근거를 접어 두지 않고 **처음부터 펼쳐서** 보여준다. 승인은 되돌리기 어려운 조작이라
  *     "펼쳐 봐야 보이는 근거"는 안 보는 근거가 된다.
@@ -15,12 +20,16 @@
 
 import { useState } from 'react';
 import {
+  PRODUCED_BY_LABEL,
+  RELAY_STAGE_LABEL,
   SEGMENT_STATUS_LABEL,
   decidePlan,
   planProgressSummary,
   playScenario,
+  splitProvenance,
   type Plan,
   type PlanSegment,
+  type ProvenanceStep,
 } from '../data/index.ts';
 import { useEntities } from '../data/hooks.ts';
 
@@ -107,6 +116,8 @@ function ApprovalPanel({ plan }: { plan: Plan }) {
         </span>
       </header>
 
+      <RouteStrip plan={plan} />
+
       {pending && (
         <p className="notice notice--warn">
           <strong>아직 실행되지 않았다.</strong> 승인해야 구간이 하달된다. 승인 없이 자동 실행하면 사고가 났을 때
@@ -180,12 +191,15 @@ function ApprovalPanel({ plan }: { plan: Plan }) {
         </li>
       </ol>
 
+      <ProvenanceTrack steps={ev.provenance} />
+
       <p className="note note--dim">
         생성기 {ev.generator.name} {ev.generator.version} · 입력 맥락 {ev.generator.context_version}
+        <span className="chip chip--ai">AI 산출</span>
         {plan.command_id !== null && (
           <>
             <br />
-            상관키 <code>{plan.command_id}</code>
+            상관키 <code>{plan.command_id}</code> <span className="chip chip--backend">백엔드 발급 (BE-X-01)</span>
           </>
         )}
       </p>
@@ -193,7 +207,7 @@ function ApprovalPanel({ plan }: { plan: Plan }) {
       {pending && (
         <div className="approvebar">
           <button type="button" className="btn btn--action btn--approve" onClick={() => decidePlan(plan.plan_id, 'approve')}>
-            승인하고 실행
+            승인 — 백엔드로 회신
           </button>
           <button type="button" className="btn btn--action" onClick={() => setRejectOpen((v) => !v)}>
             거부
@@ -212,6 +226,8 @@ function ApprovalPanel({ plan }: { plan: Plan }) {
                 type="button"
                 className="btn"
                 // 사유 없는 거부는 다음 계획 생성에 반영할 수 없으므로 막는다.
+                // 거부도 **같은 백엔드 채널로** 돌아간다 — 승인만 백엔드를 거치면
+                // "왜 실행이 안 됐나"의 절반이 어디에도 남지 않는다.
                 disabled={reason.trim().length === 0}
                 onClick={() => {
                   decidePlan(plan.plan_id, 'reject', reason.trim());
@@ -225,6 +241,66 @@ function ApprovalPanel({ plan }: { plan: Plan }) {
           )}
         </div>
       )}
+    </section>
+  );
+}
+
+/**
+ * BE-X-04 — 이 계획이 온 경로와 승인이 돌아가는 곳.
+ *
+ * 예전 화면은 승인을 AI 쪽과 직접 주고받는 모양이었다. 확정된 계약에서는 백엔드가 중계하고
+ * **승인된 계획만** 엣지·로봇으로 발행하므로, 그 경로가 화면 위쪽에 한 줄로 보여야
+ * "내 승인이 어디로 가는가"를 사용자가 안다.
+ */
+function RouteStrip({ plan }: { plan: Plan }) {
+  return (
+    <div className="route">
+      <span className="route__hop route__hop--ai">{plan.route.generated_by}</span>
+      <span className="route__arrow">→</span>
+      <span className="route__hop route__hop--backend">{plan.route.delivered_by}</span>
+      <span className="route__arrow">→</span>
+      <span className="route__hop route__hop--screen">가시화 (이 화면)</span>
+      <span className="route__arrow">→</span>
+      <span className="route__hop route__hop--backend">{plan.route.decision_returns_to}</span>
+      <span className="route__arrow">→</span>
+      <span className="route__hop route__hop--device">{plan.route.dispatches_to}</span>
+      <span className={'route__stage route__stage--' + plan.relay_stage}>{RELAY_STAGE_LABEL[plan.relay_stage]}</span>
+    </div>
+  );
+}
+
+/**
+ * **어디까지가 AI 산출이고 어디부터가 백엔드 중계인가.**
+ *
+ * 근거를 한 덩어리로 보여주면, 나중에 승인이 안 먹었을 때 "AI가 계획을 못 만든 것"과
+ * "백엔드 중계가 끊긴 것"을 구분할 수 없다. 두 구간을 색과 라벨로 갈라 두면
+ * 어느 구간에서 끊겼는지 화면만 보고 좁힐 수 있다.
+ */
+function ProvenanceTrack({ steps }: { steps: ProvenanceStep[] }) {
+  if (steps.length === 0) return null;
+  const split = splitProvenance(steps);
+
+  return (
+    <section className="prov">
+      <h3 className="prov__title">
+        산출 경로 — AI 구간 {split.ai.length}단계 · 백엔드 중계 구간 {split.backend.length}단계
+      </h3>
+      <ol className="prov__list">
+        {steps.map((s, i) => (
+          <li key={i} className={'prov__row prov__row--' + s.produced_by}>
+            <span className={'prov__who prov__who--' + s.produced_by}>{PRODUCED_BY_LABEL[s.produced_by]}</span>
+            <div className="prov__body">
+              <strong>{s.stage}</strong> <code className="prov__ref">{s.ref}</code>
+              <div className="prov__detail">{s.detail}</div>
+            </div>
+            <time className="prov__time">{timeOf(s.at)}</time>
+          </li>
+        ))}
+      </ol>
+      <p className="note note--dim">
+        AI는 계획 <strong>생성</strong>과 <strong>검증</strong>까지다. 가시화 전달·승인 수신·엣지 발행은 백엔드
+        중계 구간이며, 승인·거부 모두 이 경로로 돌아간다.
+      </p>
     </section>
   );
 }

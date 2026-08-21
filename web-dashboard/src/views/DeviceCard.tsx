@@ -12,6 +12,7 @@ import {
   ACTUATOR_PHASE_LABEL,
   COMMAND_DISPLAY_LABEL,
   DISPLAY_STATUS_LABEL,
+  aggregationBadge,
   toDisplay,
   deriveDisplayStatus,
   describeActuator,
@@ -74,6 +75,11 @@ export function DeviceCard({ record }: Props) {
 
   const actuator = (record.actuator?.payload as ActuatorState | undefined) ?? null;
   const commandResult = (record.commandResult?.payload as CommandResult | undefined) ?? null;
+
+  // 이 카드의 도메인 값이 어느 채널에서 왔는지에 따라 집약 표기가 달라진다.
+  const valueSlot = record.metrics ?? record.telemetry ?? null;
+  const valueBadge = valueSlot === null ? null : aggregationBadge(valueSlot.aggregation);
+  const coordinateFrame = record.telemetry?.coordinateFrame ?? null;
   const command = commandResult === null ? null : toDisplay(commandResult.status);
 
   const footer =
@@ -96,7 +102,25 @@ export function DeviceCard({ record }: Props) {
       {/* 3층 원본 그대로. 뭉쳐 저장하지 않았으므로 세 층을 각각 보여줄 수 있다. */}
       <p className="card__layers">{formatLayers(layers)}</p>
 
-      {domain !== null && <p className="card__domain">{domain}</p>}
+      {domain !== null && (
+        <p className="card__domain">
+          {domain}
+          {/* VZ-C-03 — 이 값이 원본인지 요약인지가 카드에도 보여야 한다.
+              표기 해석은 데이터 레이어가 끝냈고 여기서는 붙이기만 한다. */}
+          {valueBadge !== null && (
+            <span className={'aggbadge' + (valueBadge.aggregated ? ' aggbadge--agg' : '')} title={valueBadge.title}>
+              {valueBadge.short}
+            </span>
+          )}
+        </p>
+      )}
+
+      {/* BE-C-04 — 좌표 기준계는 **읽기만** 한다. 변환은 백엔드 단독 책임이다. */}
+      {coordinateFrame !== null && (
+        <p className="card__frame">
+          좌표계 <code>{coordinateFrame}</code> <em>변환은 백엔드가 이미 끝냈다</em>
+        </p>
+      )}
 
       {/* 액추에이터는 표준 3층과 **별개인** 자기 어휘를 따로 단다. */}
       {actuator !== null && (

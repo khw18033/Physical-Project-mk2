@@ -9,6 +9,13 @@
       "display_name": "503 구역",
       "aliases": ["503", "오삼공", "503구역"],
       "nodes": ["edge-node-a"]
+    },
+    {
+      "id": "zone-504",
+      "display_name": "504 구역",
+      "aliases": ["504", "오공사", "504구역"],
+      "nodes": ["edge-node-b"],
+      "note": "권한 범위(VZ-C-04 / BE-Q-04) 검증용 인접 구역. 503 담당 역할로 로그인하면 이 구역 대상이 범위 밖이 된다."
     }
   ],
 
@@ -19,8 +26,19 @@
       "display_name": "엣지 노드 A",
       "aliases": ["A노드", "엣지A"],
       "origin": {
-        "comment": "REQ-302: Node 원점의 전역 배치. 로컬→글로벌 변환과 축 변환은 백엔드가 수행하며 가시화는 이 배치를 받아 놓기만 한다. 목 게이트웨이는 이미 변환된 전역 좌표를 발행한다.",
+        "comment": "REQ-302 / BE-C-04: Node 원점의 전역 배치. 로컬→글로벌 변환과 축 변환은 백엔드가 단독 수행하며 가시화는 이 배치를 받아 놓기만 한다. 목 게이트웨이는 이미 변환된 전역 좌표를 발행하고 봉투에 coordinate_frame을 표기한다.",
         "position": { "x": 12.0, "y": 0.0, "z": -4.5 },
+        "rotation": { "yaw_deg": 90.0, "pitch_deg": 0.0, "roll_deg": 0.0 },
+        "frame": "site-global"
+      }
+    },
+    {
+      "id": "edge-node-b",
+      "zone": "zone-504",
+      "display_name": "엣지 노드 B",
+      "aliases": ["B노드", "엣지B"],
+      "origin": {
+        "position": { "x": 41.0, "y": 0.0, "z": -4.5 },
         "rotation": { "yaw_deg": 90.0, "pitch_deg": 0.0, "roll_deg": 0.0 },
         "frame": "site-global"
       }
@@ -104,6 +122,16 @@
       "note": "표준 3층과 별개인 도메인 어휘(대기·동작 중·완료·오류·확인 불가)를 actuator_state 채널로 낸다(VZ-U-01)."
     },
     {
+      "id": "actuator-02",
+      "node": "edge-node-b",
+      "zone": "zone-504",
+      "entity_type": "actuator",
+      "display_name": "수문 02 (504 구역)",
+      "aliases": ["504 수문", "2번 게이트"],
+      "channels": ["state", "actuator_state", "command_result"],
+      "note": "권한 범위 검증용. 503 담당 역할로 로그인하면 이 대상의 제어 버튼이 잠기고, 화면을 우회해 명령을 보내도 서버가 out_of_scope로 거부한다(VZ-C-04 / BE-Q-04)."
+    },
+    {
       "id": "edge-node-a",
       "node": "edge-node-a",
       "zone": "zone-503",
@@ -111,7 +139,7 @@
       "display_name": "엣지 노드 A (자기 관측)",
       "aliases": ["A노드 지표"],
       "channels": ["metrics"],
-      "note": "노드 자신이 내는 관측 지표(15초). 집약값이므로 aggregation 표기가 'aggregated'로 내려온다."
+      "note": "구역 요약 지표(15초 페더레이션). 평시에 올라오는 것은 원본이 아니라 구역 요약이므로 aggregation 표기가 aggregated/zone으로 내려온다(BE-S-03·BE-S-06)."
     }
   ]
 }

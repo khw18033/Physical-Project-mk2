@@ -3,15 +3,18 @@
  *
  * 제어 명령 왕복 엔진 (VZ-O-01 · VZ-O-02) + 제어 잠금 (VZ-O-05) + 감사 적재 (VZ-I-05).
  *
- * **명령은 이 파일 안에서만 왕복한다.** 실제 디바이스로 나가는 경로는 만들지 않는다
- * — 백엔드 시트가 비어 있어 지금 만들면 확정 후 버려야 한다.
+ * **명령은 이 파일 안에서만 왕복한다.** 실제 디바이스로 나가는 경로는 만들지 않는다.
  *
- * 여기가 지키는 것 넷.
- *  1. **만료 검사를 서버가 한다** (REQ-909). 화면이 "만료됐다"고 말만 하는 게 아니라
+ * 여기가 지키는 것 다섯.
+ *  1. **상관 키를 여기서 발급한다** (BE-X-01). 가시화가 보낸 것은 요청 식별자일 뿐이고,
+ *     command_id는 **명령 조립 단계**인 여기서 만들어져 ACK로 내려간다. 이후의 결과·감사는
+ *     전부 이 키로만 이어진다.
+ *  2. **만료 검사를 서버가 한다** (REQ-909). 화면이 "만료됐다"고 말만 하는 게 아니라
  *     서버가 실제로 거부해야, 만료 필드가 계약에서 의미를 갖는다.
- *  2. **네 단계로 응답한다** — ack → executing(200ms 진행) → physical_state_changed → settled.
- *  3. **실패하면 이전 상태로 되돌린다.** 화면과 현실이 어긋나는 것이 관제에서 가장 위험하다.
- *  4. **잠긴 대상의 명령은 접수하지 않는다.** 화면 차단은 사용자 편의이고 실제 차단은 서버다.
+ *  3. **네 단계로 응답한다** — ack → executing(200ms 진행) → physical_state_changed → settled.
+ *  4. **실패하면 이전 상태로 되돌린다.** 화면과 현실이 어긋나는 것이 관제에서 가장 위험하다.
+ *  5. **잠긴 대상·범위 밖 대상의 명령은 접수하지 않는다.** 화면 차단은 사용자 편의이고
+ *     실제 차단은 서버다(VZ-C-04 / BE-Q-04).
  */
 
 import { INTERVALS, SCENARIO_TIMING } from './config.ts';
@@ -33,15 +36,24 @@ export type ActionSpec = {
   resultingState: string;
 };
 
+const GATE_ACTIONS: ActionSpec[] = [
+  { action: 'open_gate', label: '수문 개방', targetPct: 100, irreversible: true, resultingState: 'open' },
+  { action: 'close_gate', label: '수문 폐쇄', targetPct: 0, irreversible: true, resultingState: 'closed' },
+];
+
 export const ACTION_CATALOG: Record<string, ActionSpec[]> = {
-  'actuator-01': [
-    { action: 'open_gate', label: '수문 개방', targetPct: 100, irreversible: true, resultingState: 'open' },
-    { action: 'close_gate', label: '수문 폐쇄', targetPct: 0, irreversible: true, resultingState: 'closed' },
-  ],
+  'actuator-01': GATE_ACTIONS,
+  // zone-504의 수문. 권한 범위(VZ-C-04) 검증용으로 **다른 구역에** 있는 것이 요점이다.
+  'actuator-02': GATE_ACTIONS,
 };
+
+/** 범위·권한 검사 결과. 서버가 실제로 막는다는 것을 화면이 확인할 수 있어야 한다. */
+export type PermissionVerdict = { allowed: boolean; reason: string | null };
 
 type ActiveCommand = {
   req: CommandRequest;
+  /** BE-X-01 — 이 엔진이 발급한 상관 키. 결과·감사는 전부 이 키로 나간다. */
+  commandId: string;
   spec: ActionSpec;
   startedMs: number;
   /** 실패 시 되돌릴 값. */
@@ -52,14 +64,30 @@ type ActiveCommand = {
   failAt: number | null;
 };
 
+/** 명령 접수 결과. **두 키를 함께 돌려준다** — 이 쌍이 곧 ACK 메시지의 내용이다. */
+export type SubmitOutcome = {
+  clientRequestId: string;
+  commandId: string;
+  accepted: boolean;
+  reasonCode: string | null;
+  message: string;
+};
+
 export class CommandEngine {
   private readonly hub: Hub;
   private readonly active = new Map<string, ActiveCommand>();
   private readonly audit: AuditRecord[] = [];
   private readonly locks = new Map<string, ControlLock>();
+  private commandSeq = 0;
 
   /** 다음 명령 1건을 실패시킨다(시나리오 주입). */
   failNext = false;
+
+  /**
+   * VZ-C-04 / BE-Q-04 — 범위 밖 대상인지 묻는 훅. server.ts가 현재 역할을 근거로 채운다.
+   * 엔진이 역할 저장소를 직접 알지 않게 하려고 콜백으로 둔다.
+   */
+  permissionCheck: ((entity: string) => PermissionVerdict) | null = null;
 
   /**
    * 명령 시작·종료 시 장치 발행 주기를 다시 걸도록 알리는 훅.
@@ -74,6 +102,7 @@ export class CommandEngine {
   constructor(hub: Hub) {
     this.hub = hub;
     for (const entity of Object.keys(ACTION_CATALOG)) {
+      if (!hub.runtime.has(entity)) continue;
       this.physicalState.set(entity, 'closed');
       this.positionPct.set(entity, 0);
       this.setLock(entity, { locked: false, phase: 'unlocked', reason: null, safe_state_held: false, since: nowIso() });
@@ -127,37 +156,61 @@ export class CommandEngine {
   // ── 명령 접수 ──────────────────────────────────────────────────────────────
 
   /**
-   * 명령 접수. 거부 사유는 셋 — 만료 / 잠금 / 미지원 액션.
+   * 명령 접수.
+   *
+   * **첫 줄에서 상관 키를 발급한다** (BE-X-01 "명령 조립 단계에서 발급"). 거부하더라도
+   * 키는 발급한다 — 거부도 감사에 남고, 화면은 두 키의 매핑을 받아야 그 거부를
+   * 자기 요청에 붙일 수 있기 때문이다.
+   *
+   * 거부 사유는 넷 — 미지원 액션 / 권한 범위 밖 / 만료 / 잠금.
    * 거부도 command_result로 내려보낸다. 화면이 사유를 표시할 수 있어야 하기 때문이다.
    */
-  submit(req: CommandRequest): { accepted: boolean; reasonCode: string | null; message: string } {
+  submit(req: CommandRequest): SubmitOutcome {
+    this.commandSeq += 1;
+    // BE-X-01 — 전 파트 단일 상관 키. 가시화가 보낸 client_request_id와는 다른 키다.
+    const commandId = 'cmd-' + Date.now().toString(36) + '-' + String(this.commandSeq).padStart(3, '0');
+
     const specs = ACTION_CATALOG[req.entity] ?? [];
     const spec = specs.find((s) => s.action === req.action);
 
     if (!spec) {
-      return this.reject(req, 'unknown_action', '지원하지 않는 action: ' + req.action);
+      return this.reject(req, commandId, 'unknown_action', '지원하지 않는 action: ' + req.action);
+    }
+
+    // VZ-C-04 / BE-Q-04 — **화면이 막지 못했을 때 여기서 막힌다.**
+    // 화면 차단은 사용자 편의일 뿐이고 실제 강제는 백엔드라는 것이 계약이므로,
+    // 목 서버도 범위 밖 명령을 실제로 거부해야 그 계약이 검증된다.
+    const verdict = this.permissionCheck?.(req.entity) ?? { allowed: true, reason: null };
+    if (!verdict.allowed) {
+      return this.reject(req, commandId, 'out_of_scope', verdict.reason ?? '담당 권한 범위 밖 대상이다');
     }
 
     // REQ-909 — **서버 시각**으로 만료를 검사한다. 클라이언트 시계를 믿지 않는다.
     if (Date.parse(req.expires_at) <= Date.now()) {
-      return this.reject(req, 'expired', '만료 시각이 지난 명령이라 실행하지 않는다 (expires_at=' + req.expires_at + ')');
+      return this.reject(req, commandId, 'expired', '만료 시각이 지난 명령이라 실행하지 않는다 (expires_at=' + req.expires_at + ')');
     }
 
     const lock = this.locks.get(req.entity);
     if (lock?.locked) {
-      return this.reject(req, 'control_locked', lock.reason ?? '제어 잠금 상태');
+      return this.reject(req, commandId, 'control_locked', lock.reason ?? '제어 잠금 상태');
     }
 
     if (this.active.has(req.entity)) {
-      return this.reject(req, 'busy', '이전 명령이 아직 수행 중이다');
+      return this.reject(req, commandId, 'busy', '이전 명령이 아직 수행 중이다');
     }
 
-    this.begin(req, spec);
-    return { accepted: true, reasonCode: null, message: spec.label + ' 명령 접수' };
+    this.begin(req, commandId, spec);
+    return {
+      clientRequestId: req.client_request_id,
+      commandId,
+      accepted: true,
+      reasonCode: null,
+      message: spec.label + ' 명령 접수',
+    };
   }
 
-  private reject(req: CommandRequest, reasonCode: string, detail: string) {
-    this.emitResult(req, {
+  private reject(req: CommandRequest, commandId: string, reasonCode: string, detail: string): SubmitOutcome {
+    this.emitResult(req, commandId, {
       status: 'rejected',
       stage: 'settled',
       progress_pct: null,
@@ -165,18 +218,19 @@ export class CommandEngine {
       reason_code: reasonCode,
       restored: false,
     });
-    this.record(req, 'rejected', detail);
-    return { accepted: false, reasonCode, message: detail };
+    this.record(req, commandId, 'rejected', detail);
+    return { clientRequestId: req.client_request_id, commandId, accepted: false, reasonCode, message: detail };
   }
 
   // ── 4단계 수행 ─────────────────────────────────────────────────────────────
 
-  private begin(req: CommandRequest, spec: ActionSpec): void {
+  private begin(req: CommandRequest, commandId: string, spec: ActionSpec): void {
     const previousPct = this.positionPct.get(req.entity) ?? 0;
     const previousState = this.physicalState.get(req.entity) ?? 'unknown';
 
     const cmd: ActiveCommand = {
       req,
+      commandId,
       spec,
       startedMs: 0,
       previousPct,
@@ -193,7 +247,7 @@ export class CommandEngine {
     // 1단계 — 수신 확인(ACK). 화면은 여기서 '진행중'이 되지만 상태는 아직 안 바꾼다.
     cmd.timers.push(
       setTimeout(() => {
-        this.emitResult(req, {
+        this.emitResult(req, commandId, {
           status: 'accepted',
           stage: 'ack',
           progress_pct: null,
@@ -234,7 +288,7 @@ export class CommandEngine {
       return;
     }
 
-    this.emitResult(cmd.req, {
+    this.emitResult(cmd.req, cmd.commandId, {
       status: 'accepted',
       stage: 'executing',
       progress_pct: pct,
@@ -254,7 +308,7 @@ export class CommandEngine {
     this.positionPct.set(entity, cmd.spec.targetPct);
     this.physicalState.set(entity, cmd.spec.resultingState);
 
-    this.emitResult(cmd.req, {
+    this.emitResult(cmd.req, cmd.commandId, {
       status: 'accepted',
       stage: 'physical_state_changed',
       progress_pct: 100,
@@ -263,7 +317,7 @@ export class CommandEngine {
       restored: false,
     });
 
-    this.emitResult(cmd.req, {
+    this.emitResult(cmd.req, cmd.commandId, {
       status: 'completed',
       stage: 'settled',
       progress_pct: 100,
@@ -272,7 +326,7 @@ export class CommandEngine {
       restored: false,
     });
 
-    this.record(cmd.req, 'completed', cmd.spec.label + ' 완료');
+    this.record(cmd.req, cmd.commandId, 'completed', cmd.spec.label + ' 완료');
     this.clear(entity);
   }
 
@@ -284,7 +338,7 @@ export class CommandEngine {
     this.positionPct.set(entity, cmd.previousPct);
     this.physicalState.set(entity, cmd.previousState);
 
-    this.emitResult(cmd.req, {
+    this.emitResult(cmd.req, cmd.commandId, {
       status: 'failed',
       stage: 'settled',
       progress_pct: null,
@@ -293,7 +347,7 @@ export class CommandEngine {
       restored: true,
     });
 
-    this.record(cmd.req, 'failed', detail);
+    this.record(cmd.req, cmd.commandId, 'failed', detail);
     this.clear(entity);
   }
 
@@ -304,12 +358,19 @@ export class CommandEngine {
     this.onActivityChange?.(entity);
   }
 
+  /**
+   * 결과 발행. **command_id만 싣는다** — 요청 식별자는 여기 실리지 않는다.
+   * ACK 이후 구간의 사슬은 상관 키 하나로 이어지는 것이 BE-X-01의 정의이고,
+   * 수신 측이 ACK로 받은 매핑 없이도 짝지을 수 있게 두 키를 다 실어 주면
+   * 화면이 매핑을 신경 쓰지 않게 되어 실제 백엔드에서 그대로 깨진다.
+   */
   private emitResult(
     req: CommandRequest,
+    commandId: string,
     partial: Omit<CommandResult, 'command_id' | 'entity' | 'action' | 'expires_at' | 'ts'>,
   ): void {
     const result: CommandResult = {
-      command_id: req.command_id,
+      command_id: commandId,
       entity: req.entity,
       action: req.action,
       expires_at: req.expires_at,
@@ -322,13 +383,18 @@ export class CommandEngine {
   // ── 감사 적재 (VZ-I-05) ────────────────────────────────────────────────────
 
   /**
-   * 감사 기록은 **백엔드가 쓴다**(VZ-O-03). 목 서버가 그 역할을 대신하며,
+   * 감사 기록은 **백엔드가 쓴다**(VZ-O-03 / BE-X-02). 목 서버가 그 역할을 대신하며,
    * 조작자와 시각은 클라이언트가 보낸 값이 아니라 **서버가 주입한다** —
    * 브라우저가 직접 쓰면 조작자는 자기신고가 되고 시각은 사용자 PC 시계가 된다.
+   *
+   * 기록의 **1차 키는 command_id**다(BE-X-01의 사슬). 요청 식별자도 남기지만 그건
+   * "어느 브라우저 요청에서 시작됐나"의 참고값이지 조회 키가 아니다.
    */
-  private record(req: CommandRequest, result: string, detail: string): void {
+  private record(req: CommandRequest, commandId: string, result: string, detail: string): void {
     this.audit.unshift({
-      command_id: req.command_id,
+      command_id: commandId,
+      // 조회 키가 아니라 출처 표시. 백엔드가 두 키의 매핑을 보유한다는 계약의 흔적이다.
+      client_request_id: req.client_request_id,
       entity: req.entity,
       action: req.action,
       result,
@@ -345,8 +411,16 @@ export class CommandEngine {
     if (this.audit.length > 200) this.audit.length = 200;
   }
 
-  queryAudit(entity: string | null, limit: number): AuditRecord[] {
-    const rows = entity === null ? this.audit : this.audit.filter((r) => r.entity === entity);
+  /**
+   * 감사 조회 (VZ-I-05).
+   * **command_id 조회가 1차다** — 상관 키가 요청부터 감사까지 사슬을 잇는다는 것이
+   * BE-X-01의 정의이므로, 화면도 그 키로 되짚어야 계약이 검증된다.
+   * entity 조회는 "이 대상을 마지막으로 조작한 사람"을 묻는 보조 경로다.
+   */
+  queryAudit(filter: { commandId?: string | null; entity?: string | null }, limit: number): AuditRecord[] {
+    let rows: AuditRecord[] = this.audit;
+    if (filter.commandId) rows = rows.filter((r) => r.command_id === filter.commandId);
+    else if (filter.entity) rows = rows.filter((r) => r.entity === filter.entity);
     return rows.slice(0, limit);
   }
 
@@ -362,6 +436,11 @@ export class CommandEngine {
 
   isBusy(entity: string): boolean {
     return this.active.has(entity);
+  }
+
+  /** 수행 중인 명령의 상관 키. 액추에이터 상태 봉투가 이 키를 달고 나간다. */
+  activeCommandId(entity: string): string | null {
+    return this.active.get(entity)?.commandId ?? null;
   }
 
   /** 화면의 액션 버튼 목록. 액션 어휘를 화면에 박지 않기 위해 서버가 내려준다. */

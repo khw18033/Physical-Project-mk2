@@ -9,7 +9,7 @@
  * 백엔드 책임이므로(REQ-302) 가시화도, 이 목 서버의 소비자도 변환 로직을 갖지 않는다.
  */
 
-import { INTERVALS } from './config.ts';
+import { AGGREGATION, INTERVALS, METRICS_QUERY } from './config.ts';
 import type { Hub } from './hub.ts';
 import type { ActuatorState } from './protocol.ts';
 import type { CommandEngine } from './commands.ts';
@@ -113,6 +113,9 @@ export class RobotDevice {
 
     this.hub.publish(this.id, 'telemetry', payload, {
       quality: faulted ? 'degraded' : 'good',
+      // BE-C-04 — 변환은 백엔드가 이미 끝냈고 봉투에 기준계만 표기해 보낸다.
+      // 화면은 이 표기를 읽어 표시할 뿐 변환하지 않는다.
+      coordinateFrame: 'site-global',
     });
   }
 
@@ -286,7 +289,9 @@ export class ActuatorDevice {
       position_pct: engine ? round(engine.getPositionPct(this.id), 1) : null,
       control_locked: lock?.locked ?? false,
       lock_reason: lock?.reason ?? null,
-      command_id: null,
+      // BE-X-01 — 이 상태를 유발한 명령의 상관 키. **백엔드(이 엔진)가 발급한 키**이지
+      // 브라우저가 붙인 요청 식별자가 아니다.
+      command_id: engine?.activeCommandId(this.id) ?? null,
     };
   }
 
@@ -306,8 +311,18 @@ export class ActuatorDevice {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 관측 지표 (HW-C-05) — 15초. **집약값**이므로 aggregation 표기가 붙는다.
+// 관측 지표 (BE-S-03 · BE-S-06 · VZ-C-03) — **평시에 올라오는 것은 구역 요약이다**
+//
+// 이 클래스는 두 가지를 동시에 흉내 낸다.
+//  1. **엣지가 로컬 보관하는 raw** — 1초 간격으로 자기 안에만 쌓는다. 발행하지 않는다.
+//  2. **백엔드가 15초마다 당겨가는 구역 요약** — raw 창을 평균 내 metrics 채널로 발행한다.
+//
+// 평시 지표를 raw로 내려보내면 "언젠가 집약이 서버로 옮겨가면"이라는 미래 가정이 되는데,
+// BE-S-03은 이미 그렇게 설계돼 있다. raw는 엣지에 남고 백엔드에는 구역 요약만 올라온다.
+// 원본이 필요하면 질의 프록시가 엣지로 중계한다 — 그 경로가 server.ts의 /metrics/query다.
 // ─────────────────────────────────────────────────────────────────────────────
+
+export type RawSample = { t: number; value: number };
 
 export class ObservabilityEmitter {
   private sent = 0;
@@ -315,12 +330,68 @@ export class ObservabilityEmitter {
   private readonly hub: Hub;
   readonly id: string;
 
+  /**
+   * 엣지 로컬 raw 저장소. **여기 있는 값은 발행되지 않는다.**
+   * 질의 프록시가 엣지로 중계해 올 때만 읽힌다(BE-Q-01 → BE-T-05).
+   */
+  private readonly rawStore = new Map<string, RawSample[]>();
+  /** raw 보관 한도(초). 실제 엣지도 보관 기간이 유한하다. */
+  private readonly rawWindowSec = 2 * 60 * 60;
+
   constructor(hub: Hub, id: string) {
     this.hub = hub;
     this.id = id;
   }
 
-  private emit(): void {
+  /** 엣지가 자기 안에만 쌓는 원본 1초 샘플. */
+  private sampleRaw(): void {
+    const nowMs = Date.now();
+    this.push('cpu_pct', nowMs, round(18 + Math.random() * 22, 1));
+    this.push('publish_latency_ms', nowMs, round(8 + Math.random() * 14, 1));
+    this.push('publish_success', nowMs, 55 + Math.floor(Math.random() * 20));
+  }
+
+  private push(metric: string, t: number, value: number): void {
+    const series = this.rawStore.get(metric) ?? [];
+    series.push({ t, value });
+    const cutoff = t - this.rawWindowSec * 1000;
+    while (series.length > 0 && series[0].t < cutoff) series.shift();
+    this.rawStore.set(metric, series);
+  }
+
+  /**
+   * 엣지 로컬 raw 조회. **질의 프록시만 부른다.**
+   * 저장된 창보다 넓은 범위를 물으면 있는 만큼만 만들어 채운다(시연용 합성).
+   */
+  readRaw(metric: string, rangeMin: number, maxPoints: number): RawSample[] {
+    const nowMs = Date.now();
+    const fromMs = nowMs - rangeMin * 60_000;
+    const stored = (this.rawStore.get(metric) ?? []).filter((s) => s.t >= fromMs);
+
+    // 서버가 방금 떴다면 쌓인 raw가 짧다. 화면에서 "원본은 점이 15배 촘촘하다"를 보려면
+    // 범위만큼의 점이 있어야 하므로, 없는 구간은 마지막 값 주변으로 합성해 채운다.
+    const stepMs = METRICS_QUERY.RAW_POINT_INTERVAL_SEC * 1000;
+    const want = Math.min(maxPoints, Math.floor((rangeMin * 60_000) / stepMs));
+    if (stored.length >= want) return stored.slice(-want);
+
+    // 합성 구간의 산포를 **실제 표본에서 뽑는다.** 임의의 좁은 폭으로 채우면
+    // 그래프 왼쪽(합성)과 오른쪽(실측)이 눈에 띄게 달라져, 없는 사건이 있는 것처럼 보인다.
+    const values = stored.map((s) => s.value);
+    const lo = values.length > 0 ? Math.min(...values) : 18;
+    const hi = values.length > 0 ? Math.max(...values) : 40;
+    const filled: RawSample[] = [];
+    for (let i = want - 1; i >= stored.length; i -= 1) {
+      filled.push({ t: nowMs - i * stepMs, value: round(lo + Math.random() * (hi - lo), 1) });
+    }
+    return [...filled, ...stored];
+  }
+
+  /**
+   * 백엔드 페더레이션 pull — 15초 창의 **구역 요약**을 만들어 발행한다.
+   * 이 채널로 나가는 값에는 반드시 집약 표기가 붙는다(BE-S-06).
+   */
+  private emitSummary(): void {
+    const windowMs = INTERVALS.OBSERVABILITY_MS;
     const batchSent = 900 + Math.floor(Math.random() * 200);
     const batchFailed = Math.floor(Math.random() * 4);
     this.sent += batchSent;
@@ -330,24 +401,40 @@ export class ObservabilityEmitter {
       this.id,
       'metrics',
       {
-        cpu_pct: { value: round(18 + Math.random() * 22, 1), unit: 'percent' },
+        cpu_pct: { value: this.summarize('cpu_pct', windowMs, 24), unit: 'percent' },
         publish_success: { value: batchSent, unit: 'count' },
         publish_failure: { value: batchFailed, unit: 'count' },
-        publish_latency_ms: { value: round(8 + Math.random() * 14, 1), unit: 'millisecond' },
+        publish_latency_ms: { value: this.summarize('publish_latency_ms', windowMs, 14), unit: 'millisecond' },
         totals: { sent: this.sent, failed: this.failed },
+        /** 이 요약이 몇 개의 원본 표본에서 나왔는가. 화면이 "요약임"을 설명하는 근거. */
+        sample_count: (this.rawStore.get('cpu_pct') ?? []).filter((s) => s.t >= Date.now() - windowMs).length,
       },
       {
         /**
-         * VZ-C-03 — 이 값은 15초 창에서 이미 집약된 값이다.
-         * 표기가 없으면 화면이 이 값을 **또 평균 내는** 재집약 사고가 난다.
+         * VZ-C-03 — 이 값은 **구역 단위로 이미 집약된 요약**이다(BE-S-03).
+         * 표기가 없으면 화면이 이 값을 또 평균 내는 재집약 사고가 나고,
+         * 그 오류는 화면상으로 드러나지 않아 발견이 늦다.
          */
-        aggregation: { mode: 'aggregated', layer: 'edge', method: 'mean', window_ms: INTERVALS.OBSERVABILITY_MS },
+        aggregation: AGGREGATION.ZONE_SUMMARY,
       },
     );
   }
 
+  /** 창 안의 raw를 평균 낸다. **집약은 엣지에서 여기서만 일어난다.** */
+  private summarize(metric: string, windowMs: number, fallback: number): number {
+    const from = Date.now() - windowMs;
+    const samples = (this.rawStore.get(metric) ?? []).filter((s) => s.t >= from);
+    if (samples.length === 0) return round(fallback + (Math.random() - 0.5) * 4, 1);
+    return round(samples.reduce((a, s) => a + s.value, 0) / samples.length, 1);
+  }
+
   start(): Loop[] {
-    return [looping(() => INTERVALS.OBSERVABILITY_MS, () => this.emit())];
+    return [
+      // 엣지 로컬 raw — 1초. **발행하지 않는다.**
+      looping(() => METRICS_QUERY.RAW_POINT_INTERVAL_SEC * 1000, () => this.sampleRaw()),
+      // 백엔드 페더레이션 pull — 15초. 요약만 올라간다.
+      looping(() => INTERVALS.OBSERVABILITY_MS, () => this.emitSummary()),
+    ];
   }
 }
 
@@ -360,6 +447,8 @@ export type Fleet = {
   sensors: Map<string, SensorDevice>;
   cameras: Map<string, CameraDevice>;
   actuators: Map<string, ActuatorDevice>;
+  /** 엣지 로컬 raw 저장소를 가진 관측 노드. 질의 프록시가 원본을 물으면 여기로 중계된다. */
+  observability: Map<string, ObservabilityEmitter>;
   stopAll(): void;
 };
 
@@ -404,9 +493,15 @@ export function createFleet(hub: Hub): Fleet {
   const a1 = new ActuatorDevice(hub, 'actuator-01');
   actuators.set(a1.id, a1);
 
-  const obs = new ObservabilityEmitter(hub, 'edge-node-a');
+  // actuator-02 — **zone-504**에 있다. 권한 범위(VZ-C-04)를 화면과 서버 양쪽에서
+  // 확인하려면 담당 구역 밖에 실제 제어 대상이 하나 있어야 한다.
+  const a2 = new ActuatorDevice(hub, 'actuator-02');
+  actuators.set(a2.id, a2);
 
-  for (const d of [r1, r2, s1, s2, c2, a1, obs]) loops.push(...d.start());
+  const obs = new ObservabilityEmitter(hub, 'edge-node-a');
+  const observability = new Map<string, ObservabilityEmitter>([[obs.id, obs]]);
+
+  for (const d of [r1, r2, s1, s2, c2, a1, a2, obs]) loops.push(...d.start());
 
   // 첫 상태 3층을 즉시 한 번 조합해 캐시에 넣는다 — 첫 구독자가 빈 화면을 보지 않도록.
   // 전이 판정과 사유 문구를 한 곳에서 만들기 위해 publishAllStates가 아니라 sweep으로 낸다.
@@ -417,6 +512,7 @@ export function createFleet(hub: Hub): Fleet {
     sensors,
     cameras,
     actuators,
+    observability,
     stopAll: () => loops.forEach((l) => l.stop()),
   };
 }

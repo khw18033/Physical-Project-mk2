@@ -14,6 +14,7 @@ import { useConnectionStatus } from './data/hooks.ts';
 import { DeviceGrid } from './views/DeviceGrid.tsx';
 import { ControlPanel } from './views/ControlPanel.tsx';
 import { MissionView } from './views/MissionView.tsx';
+import { MetricsView } from './views/MetricsView.tsx';
 import { VideoOverlayView } from './views/VideoOverlayView.tsx';
 
 /** 현재 설계 전제는 구역 1개 (VZ-C-05). */
@@ -23,6 +24,7 @@ const TABS = [
   { id: 'board', label: '구역 현황판', tag: 'VZ-U-01' },
   { id: 'control', label: '제어 패널', tag: 'VZ-O-01·02·05 · I-05' },
   { id: 'mission', label: '임무 승인·진행', tag: 'VZ-U-07 · U-05' },
+  { id: 'metrics', label: '지표 조회', tag: 'VZ-I-04 · C-03' },
   { id: 'video', label: '영상 오버레이', tag: 'VZ-I-06·07·09' },
 ] as const;
 
@@ -64,6 +66,7 @@ export function App() {
       {tab === 'board' && <DeviceGrid />}
       {tab === 'control' && <ControlPanel />}
       {tab === 'mission' && <MissionView />}
+      {tab === 'metrics' && <MetricsView />}
       {/* 탭을 떠나면 언마운트되어 프레임 루프가 멈추고 서버 발행도 멈춘다 (VZ-I-06). */}
       {tab === 'video' && <VideoOverlayView />}
     </>

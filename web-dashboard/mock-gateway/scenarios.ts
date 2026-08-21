@@ -7,7 +7,8 @@
  * 실행: `npm run scenario -- camera-silence`  또는  WS로 { type: 'scenario', name: ... }
  */
 
-import { INTERVALS, SCENARIO_TIMING, THRESHOLDS } from './config.ts';
+import { INTERVALS, ROLES, SCENARIO_TIMING, THRESHOLDS } from './config.ts';
+import { ackControl, roleState } from './controls.ts';
 import type { Fleet } from './devices.ts';
 import type { Hub } from './hub.ts';
 import type { CommandEngine } from './commands.ts';
@@ -119,6 +120,58 @@ export const SCENARIOS: Scenario[] = [
     run({ commands }) {
       commands.failNext = true;
       return '다음 명령 1건 실패 예약. 제어 패널에서 수문 명령을 눌러 확인할 것.';
+    },
+  },
+  {
+    name: 'ack-late',
+    title: 'ACK를 진행 이벤트보다 늦게 보낸다 (VZ-O-01 상관키 매핑)',
+    expect:
+      '다음 명령 1건의 ACK가 ' + SCENARIO_TIMING.ACK_LATE_MS + 'ms 지연 발신되어, ' +
+      'command_id만 달고 오는 진행 이벤트가 **매핑보다 먼저** 도착한다. ' +
+      '화면은 그 이벤트를 잃지 않아야 한다 — 데이터 레이어가 보류했다가 매핑이 오면 흡수한다. ' +
+      '제어 패널 타임라인에 "보류 후 흡수 N건"이 뜨면 통과.',
+    run() {
+      ackControl.delayNextMs = SCENARIO_TIMING.ACK_LATE_MS;
+      return (
+        '다음 명령 1건의 ACK를 ' + SCENARIO_TIMING.ACK_LATE_MS + 'ms 지연 발신하도록 예약했다. ' +
+        '제어 패널에서 수문 명령을 눌러 확인할 것.'
+      );
+    },
+  },
+  {
+    name: 'ack-drop',
+    title: 'ACK를 아예 보내지 않는다 → 만료 정리 (VZ-O-01)',
+    expect:
+      '다음 명령 1건의 ACK가 오지 않아 **command_id가 끝내 도착하지 않는다.** ' +
+      '화면은 client_request_id만으로 그 요청을 정리하고 만료 사유를 표시해야 한다. ' +
+      '제어 패널의 "ACK 없이 만료시키기" 체크박스가 이 시나리오를 짧은 TTL과 함께 건다.',
+    run() {
+      ackControl.dropNext = true;
+      return '다음 명령 1건의 ACK 미발신을 예약했다. 만료 시각이 지나면 화면이 스스로 정리해야 한다.';
+    },
+  },
+  {
+    name: 'role-narrow',
+    title: '역할을 503 구역 담당으로 좁힌다 (VZ-C-04 / BE-Q-04)',
+    expect:
+      '역할을 다시 조회하면(토큰 갱신 상황) 범위가 ' + JSON.stringify(ROLES['zone-503-only'].scope.zones) +
+      ' 로 좁혀진다. zone-504의 actuator-02는 **범위 밖**이 되어 제어 버튼이 잠기고 사유가 뜬다. ' +
+      '화면 잠금을 우회해 명령을 보내도 서버가 out_of_scope로 거부한다.',
+    run() {
+      roleState.key = 'zone-503-only';
+      return (
+        '역할 → ' + ROLES['zone-503-only'].display_name + '. ' +
+        '화면에서 "역할 다시 조회"를 눌러야 반영된다 — 역할은 로그인·토큰 갱신 시점에만 조회되기 때문이다.'
+      );
+    },
+  },
+  {
+    name: 'role-full',
+    title: '역할을 전 구역으로 되돌린다 (VZ-C-04)',
+    expect: '역할을 다시 조회하면 범위가 ["*"]로 돌아오고 두 수문 모두 제어 가능해진다.',
+    run() {
+      roleState.key = 'full';
+      return '역할 → ' + ROLES.full.display_name + '. 화면에서 "역할 다시 조회"를 누를 것.';
     },
   },
   {

@@ -14,12 +14,13 @@ import {
   RENDER_MERGE_WINDOW_MS,
   SHOW_RENDER_COUNTER,
   ZONE_BOARD_REFRESH_MS,
-  guardedMean,
+  describeScope,
+  isFullScope,
   playScenario,
   store,
   type DisplayStatus,
 } from '../data/index.ts';
-import { useEntities, useRenderRate, useRole, useZoneSummary } from '../data/hooks.ts';
+import { useEntities, useRenderRate, useRole, useRoleRefresh, useZoneSummary } from '../data/hooks.ts';
 import { DeviceCard } from './DeviceCard.tsx';
 
 /** 현재 설계 전제는 구역 1개(VZ-C-05). 구역이 늘면 이 값이 선택 상태가 된다. */
@@ -33,7 +34,6 @@ const SCENARIO_BUTTONS: Array<{ name: string; label: string }> = [
   { name: 'camera-resume', label: 'camera-02 재개' },
   { name: 'sensor-offline', label: 'sensor-02 끊김 → 복구' },
   { name: 'sensor-surge', label: 'sensor-01 급변 → 이벤트 모드' },
-  { name: 'actuator-command', label: 'actuator-01 명령 왕복' },
   { name: 'robot-idle', label: 'robot-01 대기' },
   { name: 'robot-mission', label: 'robot-01 임무(20Hz)' },
 ];
@@ -44,6 +44,7 @@ export function DeviceGrid() {
   const entities = useEntities();
   const summary = useZoneSummary(ZONE_ID);
   const role = useRole();
+  const refreshRole = useRoleRefresh();
   const renders = useRenderRate();
 
   const registry = store.getRegistry();
@@ -109,17 +110,24 @@ export function DeviceGrid() {
           ))}
         </div>
 
-        <h2 className="devpanel__title">계약 자리 확인</h2>
+        <h2 className="devpanel__title">계약 확인</h2>
         <div className="devpanel__row devpanel__row--info">
-          <span className="chip">
-            역할 {role?.role ?? '조회 중'} · scope {role ? JSON.stringify(role.scope) : '—'}{' '}
-            <em>(VZ-C-04 자리 확보)</em>
+          {/* VZ-C-04 — **자리 확보가 아니라 실사용이다.** 범위가 실제 값으로 내려온다. */}
+          <span className={'chip' + (isFullScope(role) ? '' : ' chip--scoped')}>
+            역할 {role?.display_name ?? '조회 중'} · {describeScope(role)}
+            {role !== null && <em> (VZ-C-04 · {role.source})</em>}
           </span>
+          <button type="button" className="btn btn--tiny" onClick={refreshRole}>
+            역할 다시 조회 <em>(로그인 1회 + 토큰 갱신 시)</em>
+          </button>
           <span className="chip">
-            구독 scope <code>"all"</code> <em>(VZ-I-11 자리 확보)</em>
+            구독 scope <code>"all"</code> <em>(VZ-I-11 — 남은 자리 확보 항목)</em>
           </span>
-          <ReaggregationProbe />
         </div>
+        <p className="note note--dim">
+          범위 제한은 <strong>제어 패널</strong>에서 확인한다 — zone-504의 수문이 범위 밖이 되면 버튼이 잠기고
+          사유가 뜬다. 집약 표기와 재집약 차단은 <strong>지표 조회</strong> 탭으로 옮겼다.
+        </p>
 
         {SHOW_RENDER_COUNTER && (
           <p className="devpanel__metrics">
@@ -205,31 +213,5 @@ function MappingTable({ records }: { records: Array<{ id: string; state: { paylo
         나온다.
       </p>
     </section>
-  );
-}
-
-/**
- * VZ-C-03 검사 확인용. 집약값(15초 창에서 이미 평균된 CPU 지표)에 평균을 다시 적용해 본다.
- * 개발 모드에서 콘솔 경고가 뜨고 계산 결과는 null이 되어야 정상이다.
- */
-function ReaggregationProbe() {
-  const entities = useEntities();
-  const metrics = entities.get('edge-node-a')?.metrics ?? null;
-
-  const probe = () => {
-    if (metrics === null) {
-      console.info('[VZ-C-03] 아직 metrics 봉투를 받지 못했다. 15초 주기이므로 잠시 기다릴 것.');
-      return;
-    }
-    const payload = metrics.payload as { cpu_pct?: { value: number } };
-    const value = payload.cpu_pct?.value ?? 0;
-    const result = guardedMean([{ value, aggregation: metrics.aggregation }], 'edge-node-a/metrics.cpu_pct');
-    console.info('[VZ-C-03] guardedMean 결과 =', result, '(null 이면 재집약이 차단된 것)');
-  };
-
-  return (
-    <button type="button" className="btn btn--probe" onClick={probe}>
-      집약값에 평균 적용 시도 <em>(VZ-C-03 경고 확인)</em>
-    </button>
   );
 }
