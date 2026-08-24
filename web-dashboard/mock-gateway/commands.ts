@@ -18,6 +18,7 @@
  */
 
 import { INTERVALS, SCENARIO_TIMING } from './config.ts';
+import { commandLatency } from './controls.ts';
 import type { Hub } from './hub.ts';
 import type { AuditRecord, CommandRequest, CommandResult, ControlLock } from './protocol.ts';
 
@@ -244,6 +245,11 @@ export class CommandEngine {
     this.active.set(req.entity, cmd);
     this.onActivityChange?.(req.entity);
 
+    // 명령 경로 왕복 지연 주입.
+    // 하달(서버→엣지 Kafka → 브릿지 → 말단 MQTT)과 회신이 각각 한 방향씩이므로
+    // **말단 응답은 두 번 겪는다.** 0이면 지금까지의 동작 그대로다.
+    const roundTrip = commandLatency.oneWayMs * 2;
+
     // 1단계 — 수신 확인(ACK). 화면은 여기서 '진행중'이 되지만 상태는 아직 안 바꾼다.
     cmd.timers.push(
       setTimeout(() => {
@@ -255,7 +261,7 @@ export class CommandEngine {
           reason_code: null,
           restored: false,
         });
-      }, SCENARIO_TIMING.ACTUATOR_ACK_MS),
+      }, SCENARIO_TIMING.ACTUATOR_ACK_MS + roundTrip),
     );
 
     // 2단계 — 수행 중. 200ms마다 진행 보고 (VZ-O-02 / HW-A-04).
@@ -263,7 +269,7 @@ export class CommandEngine {
       setTimeout(() => {
         cmd.startedMs = Date.now();
         this.tickProgress(req.entity);
-      }, SCENARIO_TIMING.ACTUATOR_ACK_MS + SCENARIO_TIMING.ACTUATOR_EXEC_GAP_MS),
+      }, SCENARIO_TIMING.ACTUATOR_ACK_MS + SCENARIO_TIMING.ACTUATOR_EXEC_GAP_MS + roundTrip),
     );
   }
 

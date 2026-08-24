@@ -10,7 +10,8 @@
     "dev:web": "vite",
     "build": "tsc -b && vite build",
     "typecheck": "tsc -b --force && tsc -p mock-gateway/tsconfig.json",
-    "scenario": "node scripts/scenario.mjs"
+    "scenario": "node scripts/scenario.mjs",
+    "verify:cache": "node scripts/verify-reconnect-cache.mjs"
   },
   "dependencies": {
     "react": "^19.1.0",

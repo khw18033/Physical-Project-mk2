@@ -7,13 +7,15 @@
  *  1. 구독을 **계약 축 {entity, node, channel}** 로 받아 와일드카드로 매칭한다 (VZ-I-01).
  *  2. 대상별 마지막 값을 캐시했다가 **구독 즉시 1회 푸시**한다 (VZ-I-02).
  *     이게 없으면 평시 1분 주기 센서는 최대 1분간 빈 화면이 된다.
+ *     단 **캐시 대상은 채널마다 갈린다** (BE-T-06 / config.ts CACHE_POLICY) —
+ *     전 채널을 캐시하면 재접속 때 화면이 거짓말을 한다.
  *  3. **stale 판정을 서버가 한다** (REQ-205). 클라이언트가 계산하면 사용자 PC 시계에 의존한다.
  */
 
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { AGGREGATION, INTERVALS, THRESHOLDS, PLACEHOLDERS } from './config.ts';
+import { AGGREGATION, CACHE_POLICY, INTERVALS, THRESHOLDS, PLACEHOLDERS } from './config.ts';
 import type {
   AggregationSpec,
   Channel,
@@ -90,7 +92,11 @@ export class Hub {
 
   private readonly clients = new Set<ClientConn>();
   private readonly seq = new Map<string, number>();
-  /** 대상×채널별 마지막 봉투. 구독 즉시 푸시(VZ-I-02)의 재료. */
+  /**
+   * 대상×채널별 마지막 봉투. 구독 즉시 푸시(VZ-I-02)의 재료.
+   * **CACHE_POLICY가 허용한 채널만 들어온다** — 담기 전에 거르지 않으면
+   * 나중에 꺼내는 쪽에서 거를 수밖에 없고, 그러면 경로가 둘로 갈린다.
+   */
   private readonly cache = new Map<string, Envelope>();
   /** zone id → 그 zone에 속한 node id 집합. node 축의 계층 매칭에 쓴다. */
   private readonly zoneNodes = new Map<string, Set<string>>();
@@ -148,6 +154,11 @@ export class Hub {
     for (const env of this.cache.values()) {
       if (!this.matches(selector, env)) continue;
       // 캐시된 봉투의 scope는 발행 시점 값이므로, 이 구독이 요청한 scope로 덮어 보낸다.
+      //
+      // **ts는 건드리지 않는다** (BE-T-06 회신). 푸시 시점으로 다시 찍으면 stale 판정이
+      // 리셋돼 1분 전 값이 방금 값으로 보이고, 직후 서버가 stale을 내리면
+      // "방금 왔는데 판단 불가"라는 앞뒤 안 맞는 상태가 된다. 원래 발행 시각을 그대로
+      // 주면 화면은 ts만 보고 정확히 그린다 — "캐시에서 왔음" 표시는 필요 없다.
       client.send({ type: 'data', sub: id, envelope: { ...env, scope } });
       count += 1;
     }
@@ -224,7 +235,11 @@ export class Hub {
       coordinate_frame: opts.coordinateFrame ?? null,
     };
 
-    this.cache.set(key, env);
+    // BE-T-06 — **채널 단위로 갈린다.** 금지 채널(command_result·video_frame·detections)을
+    // 캐시하면 재접속 때 지난 명령 결과가 방금 온 것처럼, 옛 프레임이 현재 영상처럼,
+    // 버퍼에 없는 프레임을 가리키는 박스가 엉뚱한 자리에 뜬다.
+    if (CACHE_POLICY[channel].cache) this.cache.set(key, env);
+
     this.fanout(env);
   }
 
@@ -324,6 +339,15 @@ export class Hub {
       rt.lastAvailability = next;
       this.publishState(rt.id);
     }
+  }
+
+  /**
+   * 지금 캐시에 실제로 들어 있는 `entity|channel` 키 목록.
+   * 정책과 실물이 어긋나는지는 **선언이 아니라 실물**을 봐야 알 수 있으므로,
+   * /health와 cache-policy 시나리오가 이 값을 읽어 위반을 찾는다.
+   */
+  cachedKeys(): string[] {
+    return [...this.cache.keys()].sort();
   }
 
   startLoops(): Array<ReturnType<typeof setInterval>> {

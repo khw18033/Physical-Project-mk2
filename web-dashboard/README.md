@@ -131,6 +131,11 @@ curl -X POST http://127.0.0.1:8787/scenario/camera-silence
 | `vision-delay-200` / `vision-delay-500` | 추론 지연 전환 | 정합 OFF에서 뒤처진 픽셀이 **2.6배**로 커진다 |
 | `vision-bbox-absolute` / `vision-bbox-normalized` | bbox 좌표계 전환 | 좌표계가 바뀌어도 정합 ON이면 박스가 제자리 |
 | `vision-inference-320` / `vision-inference-640` | 추론 해상도 전환 | 표시 해상도와 3배 차이가 나도 박스가 제자리 |
+| `vision-edge-off` / `vision-edge-on` | 엣지 정밀 인지를 빼고 되돌린다 (AI-E-04 선택 기능) | 정밀 분류·추적·궤적이 사라지고 **진행영역과 접근 변화만** 남는다. 기본 인지는 끊기지 않고, 화면이 "엣지 정밀 인지 결과 없음"을 말한다 |
+| `vision-link-off` / `vision-link-on` | 다중 관측 연계를 빼고 되돌린다 (AI-S-02 선택 기능) | 같은 대상이 **소스별로 따로** 뜬다(`camera-02:trk-01` · `robot-01-cam:trk-01`). 연계 신뢰도는 **표시하지 않는다** |
+| **계약 자체 검증** | | |
+| `cache-policy-audit` | 캐시 정책 선언과 실물을 대조한다 (BE-T-06) | 캐시에 든 채널이 회신한 7개 안에만 있는지. 금지 3개가 하나라도 있으면 **위반**으로 뜬다 |
+| `command-roundtrip-slow` / `command-roundtrip-zero` | 명령 경로에 왕복 지연을 주입·해제 | ACK가 60ms, 말단 응답이 120ms 늦게 온다. 즉시 ACK를 전제로 정한 `expires_at` 임계가 견디는지 |
 
 ### 새 시나리오 재생법 — ACK 지연 · 원본 질의 · 범위 제한 역할
 
@@ -249,17 +254,21 @@ curl -X POST http://127.0.0.1:8787/scenario/camera-silence
 ```
 web-dashboard/
 ├─ mock-gateway/            별도 프로세스 · Node + ws
-│  ├─ config.ts             ★ 모든 주기 상수와 규모 가정이 여기 한 곳에
+│  ├─ config.ts             ★ 모든 주기 상수 · 규모 가정 · **캐시 정책(BE-T-06)** 이 여기 한 곳에
 │  ├─ protocol.ts           와이어 계약 (봉투 · 구독 · 명령 · 계획 메시지)
 │  ├─ registry.json         ★ 존재해야 할 목록 (미배포 대상 포함)
-│  ├─ hub.ts                구독 매칭 · 마지막 값 캐시 · 상태 3층 조합 · stale 판정
+│  ├─ hub.ts                구독 매칭 · **정책이 허용한 채널만** 캐시 · 상태 3층 조합 · stale 판정
 │  ├─ devices.ts            가짜 장치들 (요구사항이 정한 실제 주기로 발행)
-│  ├─ controls.ts           ★ 시나리오가 건드리는 주입 상태 (ACK 타이밍 · 현재 역할)
+│  ├─ controls.ts           ★ 시나리오가 건드리는 주입 상태 (ACK 타이밍 · 왕복 지연 · 현재 역할)
 │  ├─ commands.ts           ★ **상관키 발급** · 4단계 왕복 · 만료 검사 · 제어 잠금 · 권한 검사 · 감사
 │  ├─ plans.ts              계획 승인 **중계**(백엔드 역할) · 산출 경로 · 구간 순차 하달
-│  ├─ vision.ts             합성 영상 15fps + **지연된** 탐지 결과
+│  ├─ vision.ts             합성 영상 15fps + **두 출처**의 탐지 결과 (온디바이스 / 엣지 · 선택 기능 스위치)
 │  ├─ scenarios.ts          상태 전이 재생 스크립트
-│  └─ server.ts             진입점 (WS + HTTP 같은 포트)
+│  └─ server.ts             진입점 (WS + HTTP 같은 포트) · 접속 종료 시 열린 영상 패널 회수
+├─ scripts/
+│  ├─ dev-all.mjs          목 서버 + Vite 동시 기동
+│  ├─ scenario.mjs         시나리오 CLI
+│  └─ verify-reconnect-cache.mjs  ★ 재접속 캐시 검증 (두 번 접속해야 성립한다)
 └─ src/
    ├─ transport/            ★ 전송 방식을 아는 유일한 폴더
    │  ├─ index.ts           출입구 + 접속 주소. 상위는 여기서만 import
@@ -278,7 +287,7 @@ web-dashboard/
    │  ├─ auditFieldMap.ts   ★ 감사 필드 이름을 가두는 유일한 파일
    │  ├─ audit.ts           감사 조회 (열 때만 · 폴링 없음)
    │  ├─ plans.ts           계획·구간 타입과 승인 발행
-   │  ├─ vision.ts          ★ 프레임 버퍼 + 정합 계산 (뒤처짐 픽셀 계측)
+   │  ├─ vision.ts          ★ 프레임 버퍼 + **출처별** 정합 계산 (뒤처짐 픽셀 계측)
    │  ├─ aggregation.ts     ★ 집약 표기 해석 + **재집약 차단**
    │  ├─ summary.ts         구역 요약 5초 (오프라인 전이는 즉시)
    │  ├─ registry.ts        레지스트리 조회
@@ -289,7 +298,7 @@ web-dashboard/
       ├─ ControlPanel.tsx      제어 패널 (VZ-O-01·02·05 · VZ-C-04 · VZ-I-05)
       ├─ MissionView.tsx       계획 승인 + 산출 경로 + 구간 진행 (VZ-U-07 · U-05)
       ├─ MetricsView.tsx       지표 조회 — 요약/원본 전환 (VZ-I-04 · C-03)
-      └─ VideoOverlayView.tsx  영상 오버레이 정합 (VZ-I-06·07·09)
+      └─ VideoOverlayView.tsx  영상 오버레이 정합 + **인지 출처 구분** (VZ-I-06·07·09)
 ```
 
 ### 목 게이트웨이 엔드포인트
@@ -306,6 +315,79 @@ web-dashboard/
 | `GET /metrics/query?mode=summary\|raw` | 지표 질의 프록시 (VZ-I-04 / BE-Q-01) — 원본은 엣지 중계라 느리다 |
 | `GET /actions?entity=` | 액션 카탈로그 (화면이 어휘를 하드코딩하지 않게) |
 | `GET /health` | 서버 시각 · 접속 수 · stale 임계 · 규모 가정 · 영상 패널 상태 |
+
+---
+
+## 캐시 범위는 채널마다 갈린다 (BE-T-06)
+
+구독 즉시 스냅샷 1회(VZ-I-02)는 **모든 채널에 주는 것이 아니다.** 백엔드에 회신한
+판단이 `mock-gateway/config.ts` 의 `CACHE_POLICY` 한 곳에 들어 있고, 목 서버가 그것을
+그대로 지킨다 — 남에게 요구한 것을 이 서버가 어기고 있으면 그 회신은 검증되지 않은 주장이다.
+
+| 판단 | 채널 | 왜 |
+|---|---|---|
+| **캐시한다 (7)** | `state` · `telemetry` · `actuator_state` · `control_lock` · `plan` · `plan_progress` · `video_meta` | 없으면 화면이 "모른다"를 그리는데 **실제로는 서버가 알고 있다.** 센서는 평시 1분 주기라 캐시가 없으면 재접속 후 최대 1분간 빈 화면 |
+| **금지 (3)** | `command_result` · `video_frame` · `detections` | 재생되면 **화면이 거짓말을 한다** — 지난 명령 결과가 방금 온 것처럼, 옛 프레임이 현재 영상처럼, `frame_ref`가 버퍼에 없는 프레임을 가리켜 박스가 엉뚱한 자리에 |
+| **불필요 (2)** | `heartbeat` · `metrics` | 서버가 이미 `availability`로 판정해 `state`에 실어주고, 지표는 질의 프록시라는 별도 경로가 있다 |
+
+`Record<Channel, CachePolicy>` 로 선언한 이유: **채널이 새로 생기면 타입 검사가 막는다.**
+기본값을 "캐시함"으로 두면 새 채널이 조용히 캐시되고, 그게 정확히 앞서 있었던 사고다.
+
+**캐시된 값의 `ts`는 원래 발행 시각 그대로 나간다.** 푸시 시점으로 다시 찍으면 `stale`
+판정이 리셋돼 1분 전 값이 방금 값으로 보이고, 직후 서버가 `stale`을 내리면 "방금 왔는데
+판단 불가"라는 앞뒤 안 맞는 상태가 된다. 그래서 "캐시에서 왔음" 표시는 두지 않는다 —
+`ts` 하나로 충분하다.
+
+### 확인 방법
+
+```bash
+npm run verify:cache        # 두 번 접속해 재접속 스냅샷을 검사한다 (목 서버가 떠 있어야 함)
+npm run scenario -- cache-policy-audit   # 정책 선언과 캐시 실물을 대조
+curl -s http://127.0.0.1:8787/health | jq .cache   # violations 가 비어 있어야 한다
+```
+
+`verify:cache` 가 **스크립트**인 이유: 이 검증은 두 번 접속해야 성립한다. 첫 접속에서
+영상 패널을 열어 `video_frame`·`detections` 를 흘리고, 끊고 다시 붙었을 때 스냅샷에
+그 채널이 섞여 오는지를 봐야 한다. 서버 안에서 도는 시나리오는 클라이언트 재접속을
+재현할 수 없다. 스냅샷과 실시간 발행의 경계는 **시간이 아니라 메시지 순서**다 —
+서버가 캐시 스냅샷을 먼저 다 보내고 그 다음에 `subscribed` 를 보내므로, 그 앞에 온
+`data` 만 스냅샷이다.
+
+---
+
+## 인지 결과는 출처가 둘이다 (VZ-I-07 / HW-R-04)
+
+로봇 온보드는 **Raspberry Pi와 카메라뿐**이다. metric distance 센서를 전제하지 않으므로
+온디바이스는 최소 안전 판단만 하고, 정밀 분류·추적은 엣지 AI에서 온다. 두 결과가 같은
+`detections` 채널로 오지만 **급이 다르다.**
+
+| | 온디바이스 (`tier: device`) | 엣지 (`tier: edge`) |
+|---|---|---|
+| 무엇을 내는가 | 진행영역 · 접근 변화 방향 | 정밀 분류 · 추적 · 궤적 |
+| `track_id` | **없다(null)** — 프레임 단위 판단 | 있다 |
+| `class_confidence` | **없다(null)** — 의미 분류를 하지 않는다 | 있다 |
+| `approach` | `closing` / `steady` / `receding` — **거리가 아니라 방향** | null (궤적으로 표현) |
+| `corridor` | 진행영역 | null |
+| 지연 | 60ms — 엣지보다 **빠르다** | 200ms (시나리오로 변경) |
+| 필수/선택 | **필수** | **선택**(AI-E-04) — 없는 배치가 있다 |
+
+화면은 이 표기를 읽어 **색·선·라벨을 갈라** 그린다. 같은 모양으로 그리면 관제사가 거친
+판단을 정밀 판단으로 읽고, "0.9면 확실하다"를 두 결과에 똑같이 적용하게 된다.
+
+**엣지 결과가 안 오면 화면이 그 사실을 말한다.** 다만 알 수 있는 것은 "안 온다"까지이고
+**미배포인지 장애인지는 구분할 수 없다** — capability 상태(`DISABLED`/`DEGRADED`)를
+가시화까지 전달하는 경로가 계약에 없다. 화면에 `[확인 요망]`으로 남겨 두었고, 경로가
+생기면 이 추정은 서버 선언으로 대체된다.
+
+### 다중 관측 연계도 선택 기능이다 (VZ-I-09 / AI-S-02)
+
+연계가 없는 배치에서는 **관측 소스별 추적을 그대로 유지한다.** 같은 대상이 소스마다
+따로 뜨고 추적 식별자에 소스가 붙는다(`camera-02:trk-01`) — 소스를 지우면 서로 다른
+추적이 같은 id로 보인다. 그리고 **연계 신뢰도를 그리지 않는다.** 묶지 못했는데 신뢰도를
+띄우면 없는 근거를 만드는 것이다.
+
+`association: 'unavailable'`(기능 자체가 없다)과 개별 탐지의 `link: null`(기능은 있으나
+이 대상을 못 묶었다)은 **다른 뜻이다.** 둘을 섞으면 화면이 두 상황을 같게 그린다.
 
 ---
 
@@ -416,4 +498,5 @@ ACK로 두 키를 함께 받는다. **두 키의 매핑은 `src/data/correlation
 - **미확인 탐지 그룹(VZ-U-06)** — 다음 범위.
 - 트윈 3D 렌더(VZ-U-02), 추상화 계층 뷰(VZ-U-03), 노드 편집기(VZ-U-04) — 다음 범위.
 
-`prototype.html` 은 이관 전 단일 파일 프로토타입이다. 참고용으로 남겨 두었으며 코드는 재사용하지 않았다.
+이관 전 단일 파일 프로토타입(`prototype.html`)은 `_archive/prototype_260818.html` 로 옮겼다.
+코드는 재사용하지 않았고, 계약이 그 뒤로 여러 번 바뀌어 현행이 아니다.

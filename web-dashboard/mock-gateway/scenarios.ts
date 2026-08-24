@@ -7,8 +7,8 @@
  * 실행: `npm run scenario -- camera-silence`  또는  WS로 { type: 'scenario', name: ... }
  */
 
-import { INTERVALS, ROLES, SCENARIO_TIMING, THRESHOLDS } from './config.ts';
-import { ackControl, roleState } from './controls.ts';
+import { CACHE_POLICY, CACHEABLE_CHANNELS, INTERVALS, NON_CACHEABLE_CHANNELS, ROLES, SCENARIO_TIMING, THRESHOLDS } from './config.ts';
+import { ackControl, commandLatency, roleState } from './controls.ts';
 import type { Fleet } from './devices.ts';
 import type { Hub } from './hub.ts';
 import type { CommandEngine } from './commands.ts';
@@ -323,6 +323,96 @@ export const SCENARIOS: Scenario[] = [
       vision.inferenceWidth = 640;
       vision.inferenceHeight = 360;
       return '추론 해상도 640x360. ' + vision.describe();
+    },
+  },
+  {
+    name: 'vision-edge-off',
+    title: '엣지 정밀 인지를 이 배치에서 뺀다 (AI-E-04 선택 기능)',
+    expect:
+      '온디바이스 최소 안전 판단만 남는다 — **기본 인지가 멈추지 않아야 한다.** ' +
+      '화면에서 정밀 분류·추적·궤적이 사라지고 진행영역과 접근 변화만 남으며, ' +
+      '"엣지 정밀 인지 결과 없음"이 표시돼야 한다. 값이 안 오는 것을 빈 화면으로 두면 ' +
+      '관제사는 고장으로 읽는다. 되돌리려면 scenario vision-edge-on.',
+    run({ vision }) {
+      vision.edgeEnabled = false;
+      return '엣지 정밀 인지 미배포. ' + vision.describe();
+    },
+  },
+  {
+    name: 'vision-edge-on',
+    title: '엣지 정밀 인지를 되돌린다 (AI-E-04)',
+    expect: '정밀 분류·추적·궤적이 다시 온다. 온디바이스 결과는 그동안 끊기지 않았어야 한다.',
+    run({ vision }) {
+      vision.edgeEnabled = true;
+      return '엣지 정밀 인지 배치. ' + vision.describe();
+    },
+  },
+  {
+    name: 'vision-link-off',
+    title: '다중 관측 연계를 뺀다 → 소스별 추적 유지 (AI-S-02 선택 기능)',
+    expect:
+      '같은 대상이 **관측 소스마다 따로** 뜬다(추적 id가 `소스:trk-01` 형태로 갈린다). ' +
+      '연계 신뢰도는 **그리지 않는다** — 묶지 못했는데 신뢰도를 띄우면 없는 근거를 만드는 것이다. ' +
+      '화면이 "연계 없음 · 소스별 추적 유지"를 말해야 한다. 되돌리려면 scenario vision-link-on.',
+    run({ vision }) {
+      vision.associationEnabled = false;
+      return '다중 관측 연계 미배포 — 소스별 추적 유지. ' + vision.describe();
+    },
+  },
+  {
+    name: 'vision-link-on',
+    title: '다중 관측 연계를 되돌린다 (AI-S-02)',
+    expect: '두 소스가 하나로 묶이고 연계 신뢰도가 다시 표시된다. 추적 id가 소스 접두어 없이 돌아온다.',
+    run({ vision }) {
+      vision.associationEnabled = true;
+      return '다중 관측 연계 배치. ' + vision.describe();
+    },
+  },
+  {
+    name: 'cache-policy-audit',
+    title: '캐시 정책과 실물을 대조한다 (BE-T-06 회신 자체 검증)',
+    expect:
+      '지금 캐시에 실제로 들어 있는 채널이 회신한 7개 안에만 있어야 한다. ' +
+      '**금지 3개(command_result·video_frame·detections)가 하나라도 있으면 위반이다** — ' +
+      '남에게 요구한 것을 내 목 서버가 어기고 있는 상태다. 결과가 이 메시지에 그대로 나온다.',
+    run({ hub }) {
+      const keys = hub.cachedKeys();
+      const seen = [...new Set(keys.map((k) => k.split('|')[1]))].sort();
+      const violations = seen.filter((c) => CACHE_POLICY[c as keyof typeof CACHE_POLICY]?.cache !== true);
+      const lines = [
+        '캐시 키 ' + keys.length + '건 · 채널 ' + seen.join(', '),
+        '허용(회신) ' + CACHEABLE_CHANNELS.join(', '),
+        '금지·불필요 ' + NON_CACHEABLE_CHANNELS.join(', '),
+        violations.length === 0
+          ? '→ 위반 0건. 회신한 정책과 실물이 일치한다.'
+          : '→ 위반 ' + violations.length + '건: ' + violations.join(', '),
+      ];
+      return lines.join(' | ');
+    },
+  },
+  {
+    name: 'command-roundtrip-slow',
+    title: '명령 경로에 왕복 지연을 주입한다 (전송 문서 §5-6 Kafka 10~50ms)',
+    expect:
+      'ACK가 ' + SCENARIO_TIMING.COMMAND_ONE_WAY_SLOW_MS + 'ms, 말단 응답이 ' +
+      SCENARIO_TIMING.COMMAND_ONE_WAY_SLOW_MS * 2 + 'ms 늦게 온다. ' +
+      '즉시 ACK를 전제로 정한 expires_at 기본값과 "ACK 없이 만료" 임계가 ' +
+      '실제 경로에서 견디는지 확인한다. 되돌리려면 scenario command-roundtrip-zero.',
+    run() {
+      commandLatency.oneWayMs = SCENARIO_TIMING.COMMAND_ONE_WAY_SLOW_MS;
+      return (
+        '왕복 지연 주입 — 한 방향 ' + commandLatency.oneWayMs + 'ms (말단 응답 ' +
+        commandLatency.oneWayMs * 2 + 'ms). 제어 패널에서 수문 명령을 눌러 확인할 것.'
+      );
+    },
+  },
+  {
+    name: 'command-roundtrip-zero',
+    title: '왕복 지연을 되돌린다',
+    expect: 'ACK가 다시 즉시 온다. 목 서버 기본 동작.',
+    run() {
+      commandLatency.oneWayMs = 0;
+      return '왕복 지연 주입 해제.';
     },
   },
   {

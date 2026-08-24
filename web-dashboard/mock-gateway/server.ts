@@ -20,6 +20,8 @@ import { WebSocketServer } from 'ws';
 
 import {
   AGGREGATION,
+  CACHE_POLICY,
+  CACHEABLE_CHANNELS,
   INTERVALS,
   METRICS_QUERY,
   PLACEHOLDERS,
@@ -29,7 +31,7 @@ import {
   SERVER,
   THRESHOLDS,
 } from './config.ts';
-import { ackControl, roleState } from './controls.ts';
+import { ackControl, commandLatency, roleState } from './controls.ts';
 import { Hub, loadRegistry, type ClientConn } from './hub.ts';
 import { createFleet } from './devices.ts';
 import { CommandEngine, type PermissionVerdict } from './commands.ts';
@@ -289,6 +291,20 @@ const http = createServer((req, res) => {
       scale_assumptions: SCALE_ASSUMPTIONS,
       role: currentRole(),
       ack_control: { ...ackControl },
+      command_latency: { ...commandLatency },
+      /**
+       * BE-T-06 — 정책과 **실물**을 함께 낸다.
+       * 선언만 보면 지켜지는지 알 수 없다. violations가 비어 있지 않으면 그 자체가 버그다.
+       */
+      cache: {
+        policy: CACHE_POLICY,
+        cacheable_channels: CACHEABLE_CHANNELS,
+        cached_keys: hub.cachedKeys(),
+        violations: hub.cachedKeys().filter((k) => {
+          const channel = k.split('|')[1] as keyof typeof CACHE_POLICY;
+          return CACHE_POLICY[channel]?.cache !== true;
+        }),
+      },
     });
     return;
   }
@@ -332,6 +348,16 @@ wss.on('connection', (ws) => {
   };
   hub.addClient(conn);
   log('접속 ' + conn.id + ' (총 ' + hub.clientCount + ')');
+
+  /**
+   * 이 접속이 열어 둔 영상 패널.
+   *
+   * 없으면 브라우저가 `video:false`를 못 보내고 끊길 때(탭 종료·새로고침·네트워크 단절)
+   * 서버가 **아무도 안 보는 15fps를 영원히 발행한다.** 접속 0인데 프레임이 흐르는 상태는
+   * VZ-I-06("열린 패널만 받는다")의 정반대다. 같은 이유로 같은 접속이 open을 두 번
+   * 보내도 한 번만 센다 — 안 그러면 close에서 다시 못 닫는다.
+   */
+  const openVideos = new Set<string>();
 
   conn.send({
     type: 'hello',
@@ -412,6 +438,15 @@ wss.on('connection', (ws) => {
             '명령 ' + cmd.entity + '/' + cmd.action + ' (' + outcome.commandId + ') → ' + outcome.message +
             ' · **ACK ' + delay + 'ms 지연 발신(주입)** — 진행 이벤트가 매핑보다 먼저 도착한다',
           );
+        } else if (commandLatency.oneWayMs > 0) {
+          // 주입된 왕복 지연. ACK는 게이트웨이 회신이라 **한 방향**만 겪고,
+          // 말단 응답(stage=ack)은 commands.ts에서 두 방향을 겪는다.
+          setTimeout(() => conn.send(ack), commandLatency.oneWayMs);
+          log(
+            '명령 ' + cmd.entity + '/' + cmd.action + ' (' + outcome.commandId + ') → ' + outcome.message +
+            ' · 왕복 지연 주입 한 방향 ' + commandLatency.oneWayMs + 'ms (말단 응답은 ' +
+            commandLatency.oneWayMs * 2 + 'ms)',
+          );
         } else {
           conn.send(ack);
           log('명령 ' + cmd.entity + '/' + cmd.action + ' (' + outcome.commandId + ') → ' + outcome.message);
@@ -436,8 +471,14 @@ wss.on('connection', (ws) => {
       case 'video': {
         // VZ-I-06 — **열린 패널만** 프레임을 받는다.
         // 전 카메라 상시 재생은 무선 대역폭과 브라우저 디코딩을 동시에 낭비한다.
-        vision.setOpen(msg.open);
-        log('영상 패널 ' + msg.entity + ' ' + (msg.open ? '열림' : '닫힘') + ' · ' + vision.describe());
+        // 같은 접속의 중복 요청은 무시한다 — 열림 수를 접속별로 정확히 세야 닫을 수 있다.
+        const changed = msg.open ? !openVideos.has(msg.entity) : openVideos.delete(msg.entity);
+        if (msg.open && changed) openVideos.add(msg.entity);
+        if (changed) vision.setOpen(msg.open);
+        log(
+          '영상 패널 ' + msg.entity + ' ' + (msg.open ? '열림' : '닫힘') +
+          (changed ? '' : ' (중복 요청 무시)') + ' · ' + vision.describe(),
+        );
         return;
       }
       case 'role': {
@@ -464,7 +505,15 @@ wss.on('connection', (ws) => {
 
   ws.on('close', () => {
     hub.removeClient(conn);
-    log('종료 ' + conn.id + ' (총 ' + hub.clientCount + ')');
+    // **열려 있던 패널을 여기서 닫는다.** 브라우저는 탭이 닫힐 때 video:false를 보낼
+    // 기회가 없다. 이걸 빼면 접속이 0인데도 서버가 계속 프레임을 만든다.
+    const leaked = openVideos.size;
+    for (let i = 0; i < leaked; i += 1) vision.setOpen(false);
+    openVideos.clear();
+    log(
+      '종료 ' + conn.id + ' (총 ' + hub.clientCount + ')' +
+      (leaked > 0 ? ' · 열린 영상 패널 ' + leaked + '개 회수 → ' + (vision.isOpen ? '아직 열림' : '발행 중지') : ''),
+    );
   });
 });
 
@@ -517,6 +566,10 @@ http.listen(SERVER.PORT, SERVER.HOST, () => {
   log(
     '역할(BE-Q-04) ' + currentRole().display_name + ' scope=' + JSON.stringify(currentRole().scope) +
     ' — 범위 밖 명령은 화면이 막지 못해도 서버가 out_of_scope로 거부한다',
+  );
+  log(
+    '캐시 범위(BE-T-06) ' + CACHEABLE_CHANNELS.length + '개 채널만 구독 즉시 푸시 — ' +
+    CACHEABLE_CHANNELS.join(', ') + '. command_result·video_frame·detections는 캐시하지 않는다',
   );
   log('시나리오: ' + SCENARIOS.map((s) => s.name).join(', '));
 });

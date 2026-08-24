@@ -230,6 +230,35 @@ export function ControlPanel() {
               </button>
             </div>
 
+            {/*
+              전송 아키텍처 문서 대조 결과 — Kafka 지연 10~50ms에 브릿지 전환이 한 겹 더 붙고
+              왕복이니 두 번 겪는다. 즉시 ACK를 전제로 정한 expires_at 기본값과 만료 임계가
+              실제 경로에서 견디는지, 실물 백엔드에 붙기 전에 여기서 확인한다.
+            */}
+            <div className="devpanel__row">
+              <button
+                type="button"
+                className="btn btn--small btn--probe"
+                onClick={() => playScenario('command-roundtrip-slow')}
+              >
+                왕복 지연 주입 (한 방향 60ms)
+              </button>
+              <button
+                type="button"
+                className="btn btn--small"
+                onClick={() => playScenario('command-roundtrip-zero')}
+              >
+                왕복 지연 해제
+              </button>
+              <button
+                type="button"
+                className="btn btn--small"
+                onClick={() => playScenario('cache-policy-audit')}
+              >
+                캐시 정책 대조 (BE-T-06)
+              </button>
+            </div>
+
             <div className="devpanel__row">
               <button type="button" className="btn btn--small" onClick={() => { playScenario('role-narrow'); }}>
                 역할을 503 담당으로 좁히기
