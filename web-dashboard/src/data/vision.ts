@@ -163,6 +163,16 @@ export type OriginReport = {
   avgLagPx: number;
   /** 이 출처가 실어 보낸 관측 소스들. 연계가 없으면 둘 이상이 된다. */
   sourceIds: string[];
+  /**
+   * **`frame_ref`가 가리키는 프레임이 버퍼에 없다.**
+   *
+   * 정합을 켰는데도 맞출 대상이 없는 상태다. 이때 아래 계산은 현재 프레임과 비교한
+   * 값이므로 **정합된 값이 아니다.** 구분하지 않으면 "정합 ON인데 뒤처짐이 크다"가
+   * 정합 실패로 읽히고, 실제 원인(참조 프레임이 버퍼를 벗어남)이 가려진다.
+   *
+   * 재접속 직후나 추론 지연이 버퍼 길이를 넘길 때 일어난다.
+   */
+  referenceMissing: boolean;
 };
 
 export type AlignmentReport = {
@@ -267,7 +277,11 @@ function resolveOrigin(
   const scaleY = space.format === 'normalized' ? display.height : display.height / space.reference.height;
 
   // 정합 on이면 결과가 가리키는 프레임을, off면 지금 그리는 프레임을 기준으로 삼는다.
-  const referenceFrame = aligned ? (buffer.frameAt(detection.frame_ref) ?? displayFrame) : displayFrame;
+  const referenced = aligned ? buffer.frameAt(detection.frame_ref) : null;
+  const referenceFrame = referenced ?? displayFrame;
+  // 정합을 켰는데 참조 프레임이 없으면 **정합한 것이 아니다.** 조용히 현재 프레임으로
+  // 떨어지면 그 값이 정합 결과로 읽힌다.
+  const referenceMissing = aligned && referenced === null;
   const objScaleX = display.width / referenceFrame.reference.width;
   const objScaleY = display.height / referenceFrame.reference.height;
 
@@ -332,6 +346,7 @@ function resolveOrigin(
     maxLagPx: lags.length === 0 ? 0 : Math.max(...lags),
     avgLagPx: lags.length === 0 ? 0 : lags.reduce((a, b) => a + b, 0) / lags.length,
     sourceIds: [...new Set(detection.detections.map((d) => d.source_id))],
+    referenceMissing,
   };
 }
 

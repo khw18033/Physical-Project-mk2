@@ -230,6 +230,13 @@ export function VideoOverlayView() {
                   {aligned
                     ? 'frame_ref가 가리키는 프레임에 맞춰 그린다. 뒤처짐이 0에 가깝다.'
                     : '도착 순서대로 현재 프레임에 그린다. 박스가 대상이 지나간 자리에 남는다.'}
+                  {report.origins.some((o) => o.referenceMissing) && (
+                    <>
+                      {' '}
+                      <strong>참조 프레임이 버퍼에 없어</strong> 현재 프레임과 비교한 값이 섞여 있다 —
+                      정합된 수치가 아니다. 재접속 직후나 추론 지연이 버퍼 길이를 넘길 때 생긴다.
+                    </>
+                  )}
                   {device !== null && (
                     <>
                       {' '}온디바이스는 엣지보다 <strong>빠르다</strong>(
@@ -353,6 +360,12 @@ function ReportRows({ report }: { report: OriginReport }) {
       <dt>{name} frame_ref</dt>
       <dd>
         <code>#{report.detectionFrame}</code> <span className="muted">({report.frameLag}프레임 차)</span>
+        {report.referenceMissing && (
+          <>
+            {' '}
+            <span className="aggbadge aggbadge--unknown">참조 프레임 없음</span>
+          </>
+        )}
       </dd>
       <dt>{name} 뒤처짐</dt>
       <dd>
@@ -498,6 +511,10 @@ function drawScene(
     if (!alignment.edgeAvailable) {
       ctx.fillStyle = ORIGIN_COLOR.device;
       ctx.fillText('엣지 정밀 인지 결과 없음 — 온보드 최소 안전 판단만', 14, height - 34);
+    }
+    if (alignment.origins.some((o) => o.referenceMissing)) {
+      ctx.fillStyle = ORIGIN_COLOR.device;
+      ctx.fillText('참조 프레임이 버퍼에 없음 — 이 값은 정합된 수치가 아니다', 14, height - 52);
     }
   }
 }

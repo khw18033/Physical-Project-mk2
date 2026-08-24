@@ -1,7 +1,12 @@
 # 다이어그램 원본 — Mermaid
 
-> 작성 2026-08-21 · 김현우(가시화) · 캡스톤 MK2
+> 작성 2026-08-21 · **개정 2026-08-24** · 김현우(가시화) · 캡스톤 MK2
 > 기준 `피지컬팀 프로젝트 mk2 요구사항 정의서.xlsx` 김현우 시트 33건
+>
+> **2026-08-24 개정** — 상대 계약 변경 반영
+> - `AI-C-14`(데이터 유형별 경로 분리)로 **미디어가 세 번째 평면**이 됐다 → `DF-1a`·`DF-1b`
+> - `HW-C-07`이 「MAC 주소 기반」 → 「고유 `device_id` 기반」으로 바뀌었다 → `T3` 2종
+> - `HW-R-04` 재작성으로 온디바이스·엣지의 **인지 급이 갈렸다** → `DF-6` 신설
 >
 > **이 문서는 원본 소스입니다.** 아래 블록을 그대로 복사해 GitHub·Notion·mermaid.live 에 붙이면
 > 렌더됩니다. 조판된 PNG는 `reports/assets/2026-08-21_흐름_DF*.png` ·
@@ -45,20 +50,33 @@ flowchart TB
     E -.->|Agent| O
     O -.->|Gateway| B
 
+    M(["미디어 평면 · 별도 경로<br/><small>영상 픽셀 — 브로커에 싣지 않는다 (AI-C-14)</small>"])
+    D -.->|카메라 원본 RTSP 등| M
+    M -.->|미디어 어댑터 AI-C-08| E
+    M -.->|뷰어용 출력 분기 — 담당 미정| V
+
     classDef l1 fill:#f4faf6,stroke:#7fae90,stroke-width:2px,color:#1f3a2a
     classDef l2 fill:#f8f5fc,stroke:#a992d0,stroke-width:2px,color:#3a2a55
     classDef l3 fill:#f3f8fd,stroke:#7fa8d0,stroke-width:2px,color:#1c3d5c
     classDef l4 fill:#fef8f1,stroke:#d9a86a,stroke-width:2px,color:#5c3d0f
     classDef ob fill:#f7f4fc,stroke:#a08cd0,stroke-width:2px,color:#4a3570
+    classDef md fill:#fdf4f7,stroke:#c98aa4,stroke-width:2px,color:#5c1f36,stroke-dasharray: 4 3
     class D l1
     class E l2
     class B l3
     class V,G1,G2,G3,G4 l4
     class O ob
+    class M md
 ```
 
+> **미디어 평면의 점선과 「담당 미정」이 이 그림의 요점입니다.** `AI-C-14`가 영상 픽셀을
+> 업무·관측 경로에 싣지 말라고 못 박았고 `AI-C-08`이 원본 규격을 흡수하는 어댑터를 세웠지만,
+> **미디어 경로에서 뷰어로 나가는 분기는 아직 아무 파트의 것도 아닙니다.** 실제 카메라를
+> 붙이는 순간 여기서 막힙니다(회의 안건).
 
-## DF-1b · 두 평면 — 같은 사건이 둘 다에 남는 이유  *(sequence)*
+
+
+## DF-1b · 세 평면 — 같은 사건이 여러 곳에 남는 이유  *(sequence)*
 
 ```mermaid
 sequenceDiagram
@@ -66,10 +84,11 @@ sequenceDiagram
     participant E as 구역 엣지
     participant M as 업무 평면<br/>MQTT · Kafka
     participant T as 관측 평면<br/>OpenTelemetry
+    participant X as 미디어 평면<br/>별도 경로
     participant B as 백엔드
     participant V as 관제 화면
 
-    Note over D,V: 같은 사건이 두 평면에 남는 것은 중복이 아니라 역할 분담
+    Note over D,V: 같은 사건이 여러 평면에 남는 것은 중복이 아니라 역할 분담
 
     D->>E: 계측값 발행
     par 업무 평면 — 무슨 일이 있었나
@@ -82,7 +101,15 @@ sequenceDiagram
         Note right of T: Grafana · Prometheus 가<br/>표준 규격을 바로 읽는다
     end
 
-    Note over M,T: 데이터 성격이 채널을 자동으로 결정한다<br/>개발자가 채널 선택에 혼선을 겪지 않는 이유
+    rect rgb(253,244,247)
+    Note over D,X: 미디어 평면 — 영상 픽셀은 브로커에 싣지 않는다 (AI-C-14)
+    D->>X: 카메라 원본 (RTSP 등)
+    X->>E: 미디어 어댑터로 공통 영상 입력 (AI-C-08)
+    X--xV: 뷰어용 출력 분기 — 담당 파트 미정
+    Note right of X: 픽셀을 MQTT·Kafka·OTLP 에 실으면<br/>세 평면을 나눈 이유가 없어진다
+    end
+
+    Note over M,X: 데이터 성격이 경로를 자동으로 결정한다<br/>개발자가 채널 선택에 혼선을 겪지 않는 이유
 
     rect rgb(250,246,240)
     Note over V,T: 가시화도 관측 평면에 발행한다 — 유일한 예외
@@ -284,6 +311,56 @@ sequenceDiagram
 ```
 
 
+## DF-6 · 인지 결과의 두 갈래 — 급이 다르다  *(sequence)*
+
+> `HW-R-04` 재작성 반영. 로봇 온보드는 **Raspberry Pi와 카메라뿐**이라 metric distance
+> 센서를 전제하지 않는다. 그래서 온디바이스는 진행영역·접근 변화 같은 **최소 안전 판단**만
+> 하고, 정밀 분류·추적은 엣지 AI에서 온다. 화면은 두 결과를 **출처를 구분해** 그려야 한다.
+
+```mermaid
+sequenceDiagram
+    participant C as 로봇 카메라
+    participant P as 온보드 Raspberry Pi
+    participant EA as 엣지 AI 노드
+    participant V as 관제 화면
+
+    C->>P: 프레임
+    C->>EA: 다운스케일 프레임
+
+    rect rgb(253,247,238)
+    Note over P,V: ① 온디바이스 — 최소 안전 판단 (필수 · 빠르다)
+    P->>P: 진행영역 · 접근 변화
+    P-->>V: detections<br/>tier=device · track_id 없음<br/>class_confidence 없음 · approach 방향
+    Note right of V: 거리를 재지 않는다 — 방향만<br/>의미 분류에 안전을 의존시키지 않는다
+    end
+
+    rect rgb(240,246,242)
+    Note over EA,V: ② 엣지 — 정밀 분류·추적 (선택 기능 · AI-E-04)
+    EA->>EA: 분류 · 추적 · 궤적
+    EA-->>V: detections<br/>tier=edge · track_id · class_confidence · trail
+    end
+
+    rect rgb(250,244,244)
+    Note over EA,V: ③ 엣지가 없는 배치 — 기본 인지는 멈추지 않는다
+    EA--xV: 결과 없음
+    V->>V: 온디바이스 결과만으로 그린다<br/>"정밀 인지 결과 없음" 표시
+    Note right of V: 미배포인지 장애인지는 구분 못 한다<br/>capability 상태 전달 경로가 없다 [확인 요망]
+    end
+
+    rect rgb(247,244,252)
+    Note over EA,V: ④ 다중 관측 연계도 선택 기능 (AI-S-02)
+    EA-->>V: 연계 있음 — 하나로 묶인 추적 + 연계 신뢰도
+    EA-->>V: 연계 없음 — 소스별 추적 (camera-02:trk-01 · robot-01-cam:trk-01)
+    Note right of V: 묶지 못했으면 연계 신뢰도를 그리지 않는다<br/>없는 근거를 만들면 안 된다
+    end
+```
+
+> **이 그림이 막는 사고**: 두 결과를 같은 모양으로 그리면 관제사가 거친 판단을 정밀 판단으로
+> 읽는다. "0.9면 확실하다"를 두 출처에 똑같이 적용하게 되고, 온디바이스에는 애초에
+> 분류 신뢰도가 없다.
+
+---
+
 # 2. 연결 모드
 
 
@@ -443,7 +520,7 @@ sequenceDiagram
 ```
 
 
-## T3 · MAC 기반 연결 변경  *(state)*
+## T3 · `device_id` 기반 연결 변경  *(state)*
 
 ```mermaid
 stateDiagram-v2
@@ -470,11 +547,11 @@ stateDiagram-v2
 ```
 
 
-## T3 · MAC 기반 연결 변경  *(sequence)*
+## T3 · `device_id` 기반 연결 변경  *(sequence)*
 
 ```mermaid
 sequenceDiagram
-    participant D as 장치 (MAC 고정)
+    participant D as 장치 (device_id 고정)
     participant EA as 엣지 A · 구역 503
     participant EB as 엣지 B · 복도
     participant R as 서버 레지스트리
@@ -484,19 +561,19 @@ sequenceDiagram
     rect rgb(250,242,242)
     Note over D,V: ① 이탈 — 옛 노드에서 끊김
     D--xEA: 링크 끊김 (구역 이동 또는 네트워크 변경)
-    EA->>R: 이탈 보고 (MAC · 장치 ID)
+    EA->>R: 이탈 보고 (device_id · 마지막 네트워크 정보)
     R-->>G: 상태 변화
     G-->>V: availability = offline
     Note right of V: 이 시점의 화면은<br/>'장애'와 구별되지 않는다
     end
 
     rect rgb(242,246,250)
-    Note over D,R: ② 재등장 — MAC으로 동일 장치 식별
-    D->>EB: 접속 (MAC 제시)
-    EB->>EB: MAC ↔ 장치 ID ↔ 구역 매핑 조회
-    EB->>R: 등록 보고 (MAC · 장치 ID · node=복도 · 네트워크 정보)
+    Note over D,R: ② 재등장 — device_id 로 동일 장치 식별 (HW-C-07)
+    D->>EB: 접속 (device_id 제시)
+    EB->>EB: device_id ↔ 구역 매핑 조회<br/>MAC 은 현재 인터페이스 정보로만 참고
+    EB->>R: 등록 보고 (device_id · node=복도 · 네트워크 정보)
     R->>R: 레지스트리 갱신<br/>entity 유지 · node 만 변경
-    Note right of R: IP 는 도달성일 뿐<br/>정체성은 논리 식별자로 유지
+    Note right of R: MAC·IP 는 도달성일 뿐<br/>정체성은 device_id 로 유지
     end
 
     rect rgb(240,246,242)
