@@ -304,6 +304,7 @@ web-dashboard/
 ├─ scripts/
 │  ├─ dev-all.mjs          목 서버 + Vite 동시 기동
 │  ├─ scenario.mjs         시나리오 CLI
+│  ├─ verify-pipeline-editor.mjs  ★ 그래프 검증·시험 토큰·반영·되돌리기 회귀 검사
 │  └─ verify-reconnect-cache.mjs  ★ 재접속 캐시 검증 (두 번 접속해야 성립한다)
 └─ src/
    ├─ transport/            ★ 전송 방식을 아는 유일한 폴더

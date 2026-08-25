@@ -83,6 +83,7 @@
 npm.cmd run typecheck       통과
 npm.cmd run build           통과 · Vite 61 modules · JS 292.66 kB
 npm.cmd run verify:cache    통과 · 금지 채널/허용 밖 채널/위반 0건
+npm.cmd run verify:pipeline 통과 · 검증/시험 토큰/반영/되돌리기/감사
 ```
 
 파이프라인 API 실물 검증:
