@@ -75,6 +75,23 @@ class CompatibilityProfile:
             return False
         return budget.can_afford(self.cost)
 
+    def unmet_preferences(self, node_tags: set[str]) -> tuple[str, ...]:
+        """Preferred-but-absent tags. Never affects eligibility — only
+        ranking among already-compatible candidates (AI-B-04).
+        """
+        return tuple(tag for tag in self.preferred_hw_tags if tag not in node_tags)
+
+    def preference_penalty(self, node_tags: set[str]) -> int:
+        """How many preferred resources this node cannot offer.
+
+        Used as a ranking term so that, given two compatible providers of
+        equal priority, the one whose preferred resources are actually
+        present wins — and so that a provider that prefers an accelerator
+        still runs on a plain CPU node instead of being excluded
+        (AI-B-04: "선호 자원이 없으면 호환 가능한 일반 자원으로 대체").
+        """
+        return len(self.unmet_preferences(node_tags))
+
 
 @dataclass(frozen=True)
 class DeploymentProfile:

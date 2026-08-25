@@ -1,0 +1,13 @@
+{
+  "domain_id": "robot_autonomy_support",
+  "active_capability_kinds": [
+    "safety.local_judgment",
+    "perception.detect",
+    "perception.track",
+    "decision.subtask_generate",
+    "decision.subtask_validate",
+    "media.video_input"
+  ],
+  "rule_set_id": "robot_zone_rules_v1",
+  "node_tags": ["cpu", "mobile", "onboard_camera"]
+}

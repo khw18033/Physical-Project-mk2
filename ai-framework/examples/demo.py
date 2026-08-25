@@ -176,5 +176,65 @@ print(f"실제 초점거리 fx={K_true[0,0]:.1f} vs 복원된 fx={estimate.camer
 print(f"재투영 오차 RMS={estimate.reprojection_error_rms:.6f}px, stable={estimate.stable}")
 
 print("\n" + "=" * 70)
-print("데모 끝. 실제 자동 검증은 `pytest -q`로 실행하세요 (110개 테스트).")
+print("9. 가속기 비종속 실행 (AI-B-04, AI-B-08) — 이 노드에 NVIDIA 드라이버 없음")
+print("=" * 70)
+
+from ai_framework.providers.compute import (  # noqa: E402
+    TAG_CPU,
+    TAG_OPENCL,
+    CpuImageRuntimeProvider,
+    OpenClImageRuntimeProvider,
+    discover_node_tags,
+)
+
+print("런타임 자원 탐색 결과 태그:", sorted(discover_node_tags()))
+
+accel_registry = CapabilityRegistry()
+for provider, tags, prio, cost in [
+    (OpenClImageRuntimeProvider(), (TAG_OPENCL,), 10, 2),
+    (CpuImageRuntimeProvider(), (TAG_CPU,), 50, 8),
+]:
+    accel_registry.register_local(
+        ProviderRegistration(
+            capability_kind="image.smooth",
+            provider_id=provider.provider_id,
+            version="1",
+            compatibility=CompatibilityProfile(
+                required_hw_tags=tags, priority=prio, cost=ResourceCost(compute_units=cost)
+            ),
+            requirement=CapabilityRequirement(),
+        )
+    )
+
+accel_selector = CapabilitySelector(accel_registry)
+budget = ResourceBudget(compute_units=100, memory_mb=4096)
+print(
+    "가속기 태그 없음 ->",
+    accel_selector.select("image.smooth", {TAG_CPU}, budget).provider.provider_id,
+)
+print(
+    "가속기 태그 있음 ->",
+    accel_selector.select("image.smooth", {TAG_CPU, TAG_OPENCL}, budget).provider.provider_id,
+)
+print("  (호출부 코드는 동일. 벤더 이름은 어디에도 등장하지 않음)")
+
+print("\n" + "=" * 70)
+print("10. 도메인 = 데이터 (AI-C-15)")
+print("=" * 70)
+
+from pathlib import Path  # noqa: E402
+
+from ai_framework.contracts.profile_loader import is_capability_active, load_profile  # noqa: E402
+
+profile_dir = Path(__file__).resolve().parents[1] / "profiles"
+for name in ("robot", "facility", "river"):
+    profile = load_profile(profile_dir / f"{name}.json")
+    print(
+        f"{profile.domain_id:26s} 서브태스크={is_capability_active(profile, 'decision.subtask_generate')}"
+        f"  위험FSM={is_capability_active(profile, 'risk.state_machine')}"
+    )
+print("  (핵심 코드에는 도메인 이름 분기문이 하나도 없음 — 파일만 바뀜)")
+
+print("\n" + "=" * 70)
+print("데모 끝. 실제 자동 검증은 `pytest -q`로 실행하세요.")
 print("=" * 70)

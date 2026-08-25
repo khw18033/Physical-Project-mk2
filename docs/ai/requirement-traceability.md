@@ -32,7 +32,7 @@ Provider fake → 의사결정(D) → 추적/판단(S) → 위험도(R) → 실�
 |---|---|---|---|
 | AI-D-01 | 완료 | `decision/subtask.py` | `tests/test_subtask_generator.py` |
 | AI-D-02 | 완료 (`jsonschema` + 커스텀 rule) | `decision/validator.py` | `tests/test_subtask_validator.py` |
-| AI-D-03 | 미착수 (이번 순서에 미포함) | - | - |
+| AI-D-03 | 완료 | `decision/info_request.py` | `tests/test_info_request.py` |
 | AI-D-04 | 완료 | `decision/regeneration.py` | `tests/test_regeneration.py` |
 
 ## 감시·인지 (추적/판단)
@@ -59,23 +59,23 @@ Provider fake → 의사결정(D) → 추적/판단(S) → 위험도(R) → 실�
 | ID | 상태 | 구현 위치 | 테스트 |
 |---|---|---|---|
 | AI-B-01 | 완료 | `contracts/profile.py` | `tests/test_selector.py` |
-| AI-B-02 | 부분 (독립 실행 계약은 `execution/control.py`+`execution/lifecycle.py`로 커버; 실제 OCI 컨테이너 패키징은 Docker 런타임 필요 — 미착수) | `execution/control.py`, `execution/lifecycle.py` | `tests/test_control.py`, `tests/test_lifecycle.py` |
-| AI-B-03 | 완료 | `execution/control.py::LocalControlSupervisor` | `tests/test_control.py` |
-| AI-B-04 | 부분 (required/preferred hw 태그 구분은 구현; preferred 태그 가중치는 선택 로직에 아직 미반영) | `contracts/profile.py::CompatibilityProfile` | `tests/test_selector.py` |
-| AI-B-05 | 완료 | `execution/lifecycle.py::LifecycleManager` | `tests/test_lifecycle.py` |
+| AI-B-02 | 완료 (OCI 이미지 빌드 + 컨테이너 내 테스트 통과 실증; 오케스트레이터 없이도 동일 코드 실행) | `Dockerfile`, `execution/control.py`, `execution/lifecycle.py` | `tests/test_control.py`, `tests/test_lifecycle.py`, `docker run ... pytest` |
+| AI-B-03 | 완료 (standalone + K3s 두 provider가 동일 계약; audit/trace 분리 검증) | `execution/control.py`, `providers/k3s.py` | `tests/test_control.py`, `tests/test_k3s_control.py` |
+| AI-B-04 | 완료 (preferred 태그가 선택 순위에 반영되며 배제는 하지 않음) | `contracts/profile.py::CompatibilityProfile.preference_penalty`, `selection/selector.py` | `tests/test_selector.py`, `tests/test_compute_providers.py` |
+| AI-B-05 | 완료 (상태기계 + **실 K3s 클러스터 배포·기동·중지·상태조회 검증**) | `execution/lifecycle.py`, `providers/k3s.py::K3sControlProvider` | `tests/test_lifecycle.py`, `tests/test_k3s_control.py` |
 | AI-B-06 | 완료 | `selection/selector.py::CapabilitySelector.select_with_degrade` | `tests/test_selector.py`, `tests/test_risk_adjustment.py` |
-| AI-B-07 | 완료 (health 격리 + lifecycle 롤백) | `registry/capability_registry.py::ProviderRegistration.is_healthy`, `execution/lifecycle.py` | `tests/test_capability_registry.py`, `tests/test_lifecycle.py` |
-| AI-B-08 | 완료 | `providers/adapters.py::AIRuntimeProvider` + `providers/fakes.py::StubAIRuntimeProvider` | `tests/test_provider_fakes.py` |
+| AI-B-07 | 완료 (health 격리 + lifecycle 롤백 + K3s rollout undo, 오케스트레이터 부재 시 거부로 축소) | `registry/capability_registry.py`, `execution/lifecycle.py`, `providers/k3s.py` | `tests/test_capability_registry.py`, `tests/test_lifecycle.py`, `tests/test_k3s_control.py` |
+| AI-B-08 | 완료 (스텁 + **실제 CPU/OpenCL 런타임 2종 교체 실증**, 벤더명 정적 검사) | `providers/adapters.py::AIRuntimeProvider`, `providers/compute.py` | `tests/test_provider_fakes.py`, `tests/test_compute_providers.py` |
 | AI-B-09 | 완료 (conformance 하네스) | `execution/conformance.py` | `tests/test_conformance.py` |
-| AI-B-10 | 미착수 (실제 말단 하드웨어 배포 필요) | - | - |
+| AI-B-10 | 부분 (엣지에만 Bridge/K3s/Collector를 두는 배치를 코드·테스트로 표현; 실물 말단 하드웨어 검증은 미착수) | `edge/bridge.py`, `providers/k3s.py`(kubectl CLI만 사용) | `tests/test_kafka_bridge.py` |
 
 ## 관측
 
 | ID | 상태 | 구현 위치 | 테스트 |
 |---|---|---|---|
-| AI-O-01 | 완료 | `observability/metrics.py::EdgeMetricStore` | `tests/test_observability.py` |
-| AI-O-02 | 완료 | `observability/events.py::CapabilityEventReporter` | `tests/test_observability.py` |
-| AI-O-03 | 완료 | `observability/reproduction.py` | `tests/test_observability.py` |
+| AI-O-01 | 완료 (엣지 상세/요약 + **실 OTel Collector OTLP 수출 검증**) | `observability/metrics.py`, `providers/otel.py::OtlpObservabilityProvider` | `tests/test_observability.py`, `tests/test_otel_observability.py` |
+| AI-O-02 | 완료 (수집기 장애 시에도 로컬 사건 보존, metric 요약과 분리 실증) | `observability/events.py`, `providers/otel.py` | `tests/test_observability.py`, `tests/test_otel_observability.py` |
+| AI-O-03 | 완료 (+ 실 Kafka offset 기반 단기 replay 참조) | `observability/reproduction.py`, `providers/kafka.py::ReplayReference` | `tests/test_observability.py`, `tests/test_kafka_bridge.py` |
 | AI-O-04 | 완료 | `observability/availability.py` | `tests/test_observability.py` |
 
 ## 공통
@@ -83,11 +83,11 @@ Provider fake → 의사결정(D) → 추적/판단(S) → 위험도(R) → 실�
 | ID | 상태 | 구현 위치 | 테스트 |
 |---|---|---|---|
 | AI-C-01 | 미착수 (의도적 보류 — §6-8: 전체 기능 구현 후 데이터 사전 통일) | - | - |
-| AI-C-02 | 미착수 (이번 순서에 미포함) | - | - |
-| AI-C-03 | 미착수 (이번 순서에 미포함) | - | - |
+| AI-C-02 | 완료 | `common/coordinates.py` | `tests/test_coordinates.py` |
+| AI-C-03 | 완료 | `common/timing.py` | `tests/test_timing.py` |
 | AI-C-04 | 완료 | `providers/adapters.py` + `providers/fakes.py` | `tests/test_provider_fakes.py` |
 | AI-C-05 | 완료 | `contracts/capability.py` | 다수 |
-| AI-C-06 | 완료 (fake TransportProvider; 실 MQTT/Kafka/Bridge는 BE-T-01 이후) | `providers/fakes.py::InMemoryTransportProvider` | `tests/test_provider_fakes.py`, `tests/test_risk_output.py` |
+| AI-C-06 | 완료 (**실 MQTT + 실 Kafka + 엣지 양방향 Bridge 왕복 검증**) | `providers/mqtt.py`, `providers/kafka.py`, `edge/bridge.py` | `tests/test_mqtt_transport.py`, `tests/test_kafka_bridge.py` |
 | AI-C-07 | 완료 | `providers/fakes.py::JsonSerializerProvider` | `tests/test_provider_fakes.py`, `tests/test_risk_output.py` |
 | AI-C-08 | 완료 | `providers/fakes.py::SyntheticMediaSourceProvider` | `tests/test_provider_fakes.py` |
 | AI-C-09 | 완료 (AIRuntimeProvider 재사용) | `providers/adapters.py`, `perception/auxiliary.py` | `tests/test_provider_fakes.py`, `tests/test_auxiliary.py` |
@@ -95,20 +95,49 @@ Provider fake → 의사결정(D) → 추적/판단(S) → 위험도(R) → 실�
 | AI-C-11 | 완료 | `contracts/capability.py::CapabilityRequirement.evaluate` | `tests/test_local_safety.py` 등 |
 | AI-C-12 | 완료 | `providers/adapters.py` (6종 Protocol) | `tests/test_provider_fakes.py` |
 | AI-C-13 | 완료 | `selection/selector.py::CapabilitySelector.select` | `tests/test_selector.py` |
-| AI-C-14 | 미착수 (이번 순서에 미포함) | - | - |
-| AI-C-15 | 완료 (데이터 구조; 실제 도메인 프로파일 파일 로더는 미구현) | `contracts/profile.py::DeploymentProfile` | - |
+| AI-C-14 | 완료 | `common/data_plane.py` (+ `providers/mqtt.py` 적용) | `tests/test_data_plane.py`, `tests/test_mqtt_transport.py` |
+| AI-C-15 | 완료 (로더 + robot/facility/river 프로파일 + 도메인 분기 정적 검사) | `contracts/profile.py`, `contracts/profile_loader.py`, `profiles/*.json` | `tests/test_profile_loader.py` |
+
+## 시나리오 검증 (하드웨어 없이 프레임워크 특성 확인)
+
+요구사항별 단위 검증과 별개로, "범용 프레임워크가 하드웨어·기능·실행환경 변화에 견디는가"를
+15개 시나리오로 검증한다. 구현 위치·실행법·지표는
+[docs/ai/03-framework-property-scenarios.md](03-framework-property-scenarios.md) 참고.
+
+| 시나리오 | 검증 요구사항 |
+|---|---|
+| S1 새 센서 Hot Plug / S2 노드 환경 변경 | AI-B-01/04/09, AI-C-04/10/12/15 |
+| S3 자원 포화 / S4 provider 장애 | AI-B-06/07, AI-C-05/11/13, AI-O-02 |
+| S5 네트워크 단절 / S14 엣지 장애 | AI-N-01, AI-C-10/11, AI-O-04 |
+| S6 평면 불일치 / S7 데이터 경로 분리 | AI-C-06/08/14, AI-O-04 |
+| S8 명령 성공 / S9 명령 거부 | AI-B-03, AI-C-06/14, 원칙 #16 |
+| S10 구성 delta·롤백 / S11 자동 캘리브레이션 | AI-N-02, AI-B-05/07, AI-E-02/03, AI-C-02 |
+| S12 도메인 전환 / S13 도메인 사후 추가 | AI-C-15, AI-C-04/05, AI-B-09 |
+| S15 Kafka burst | AI-C-06, AI-O-03, 원칙 #17 |
 
 ## 요약
 
-- **완료: 40 / 48**
-- **부분: 2** — AI-B-02(실제 컨테이너 패키징 제외), AI-B-04(preferred 가중치 제외)
-- **미착수: 6** — AI-B-10, AI-C-01(의도적 보류), AI-C-02, AI-C-03, AI-C-14, AI-D-03
-  (뒤 4개는 Tier A로 분류돼 있었으나 이번 구현 순서에는 포함되지 않았음 — 다음 순서 후보)
-- **Tier C (타 파트/실 인프라 필요, 위 "완료" 항목도 fake provider 계약까지만 검증됨)**:
-  AI-C-06 실제 MQTT/Kafka, AI-B-02/05 실제 컨테이너·오케스트레이터, AI-B-10 실제 말단 배포,
-  AI-O-01 실제 OTel/Prometheus, AI-C-10 백엔드 가용성 연계, AI-S-02 실제 다중카메라 —
-  `docs/ai/01-standalone-implementation-plan.md` Tier C 표 참고
+- **완료: 46 / 48**, **부분: 1**(AI-B-10), **미착수: 1**(AI-C-01 — 의도적 보류)
+- **실 인프라로 승격 완료**: MQTT(mosquitto), Kafka(KRaft), 엣지 양방향 Bridge, OCI 컨테이너,
+  K3s 클러스터 제어, OpenTelemetry Collector(OTLP)
+- **시나리오 검증 완료**: 15개 시나리오 + 지표 산출 (`reports/framework-indicators.json`)
+- **남은 항목과 사유**:
+  - AI-C-01 데이터 사전 통일 — 의도적 보류 (§6-8: 전체 기능 구현 후 일괄 진행)
+  - AI-B-10 실물 말단 검증 / AI-N-01 최소 처리주기 실측 — 실제 하드웨어 필요
+  - AI-C-10 백엔드 통합 가용성 판정 — 백엔드 API 필요 (현재는 백엔드 mock으로 대역)
 
-**검증 명령**: `cd ai-framework && pytest -q` → 110 passed.
+**검증 명령**:
+
+```bash
+cd ai-framework
+PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest -q
+#   -> 249 passed, 6 skipped (인프라 기동 시; skip = OpenCL 플랫폼 + K3s API 재기동 중)
+docker run --rm ai-framework:0.1.0 python -m pytest -q
+#   -> 230 passed, 25 skipped (선택 의존성·인프라 없는 최소 컨테이너)
+PYTHONPATH=. python3 examples/scenario_demo.py    # 13단계 최종 데모
+```
+
+**선택 구성요소가 없으면 해당 테스트만 skip되고 나머지는 그대로 통과**하는 것이 AI-C-11이
+요구하는 동작 그 자체이며, 두 실행 결과의 차이가 그 증거다.
 
 **추가 요구사항 필요 여부**: 없음. 문서에 없는 기능을 임의로 추가하지 않았다.

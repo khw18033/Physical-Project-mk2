@@ -1,0 +1,43 @@
+{
+  "extensibility_core_loc_changed": {
+    "new_camera": 0,
+    "new_sensor": 0,
+    "new_ai_provider": 0,
+    "new_transport_provider": 0,
+    "new_domain": 0,
+    "domain::facility": 0,
+    "domain::river": 0,
+    "domain::robot": 0
+  },
+  "failure_isolation": {
+    "total_capabilities": 6,
+    "affected_by_one_optional_provider_loss": 1,
+    "affected_ratio": 0.1667,
+    "core_still_running": true,
+    "detection_to_degradation_latency_ms": 0.179
+  },
+  "resource_adaptation": {
+    "running_when_healthy": 6,
+    "running_when_saturated": 2,
+    "running_after_recovery": 6,
+    "degradations": 4,
+    "recoveries": 10,
+    "core_kept_during_saturation": true,
+    "max_transition_latency_ms": 0.118
+  },
+  "transport_integrity": {
+    "declared_data_kinds": 11,
+    "wrong_plane_routing_count": 0,
+    "control_kinds_with_delivery_guarantee": 4
+  },
+  "domain_generality": {
+    "domains": [
+      "facility_surveillance",
+      "river_risk_management",
+      "robot_autonomy_support"
+    ],
+    "distinct_capability_kinds": 9,
+    "kinds_shared_by_every_domain": 1,
+    "same_core_application_class": true
+  }
+}

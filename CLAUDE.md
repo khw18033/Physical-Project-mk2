@@ -1,5 +1,69 @@
 # CLAUDE.md
 
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## 0. 코드베이스 작업 가이드
+
+§1 이후는 원본 요구사항 정의서(48개 AI-* 요구사항)이며 구현 범위의 기준이다.
+이 절은 실제 저장소에서 작업할 때 필요한 정보만 요약한다.
+
+### 명령
+
+Python 패키지는 `ai-framework/`에 있다. 모든 명령은 그 디렉터리에서 실행한다.
+
+```bash
+pip install -e ".[dev]"      # 개발 설치 (Python >= 3.10, jsonschema/numpy/opencv)
+pytest -q                    # 전체 테스트 (110 passed)
+# 시스템 pytest 6.2.5 + anyio 플러그인 충돌로 collection이 깨지면:
+PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest -q
+pytest tests/test_selector.py::test_name   # 단일 테스트
+python examples/demo.py      # 구현된 기능들의 런너블 데모
+```
+
+빌드·lint 도구는 아직 설정되어 있지 않다.
+
+### 구조와 흐름
+
+핵심은 "무엇을 실행할 수 있는가"를 런타임에 정하는 3단 구조다. 상위 로직
+(perception/decision/risk/reference)은 구체 기술을 절대 import하지 않는다.
+
+1. `contracts/capability.py` — `CapabilityRequirement.evaluate(available)`이
+   required/optional 선언을 `ACTIVE / DEGRADED / DISABLED`로 환산한다.
+   optional 결손은 DEGRADED까지만 내려가고 DISABLED가 되지 않는다는 규칙이
+   프레임워크 전체의 장애 격리 근거다(AI-C-11).
+2. `contracts/profile.py` — `CompatibilityProfile`(required/preferred 태그 +
+   `ResourceCost` + `priority`), `ResourceBudget`, `DeploymentProfile`.
+   하드웨어·런타임 조건은 벤더 enum이 아니라 자유 문자열 태그다. 새 하드웨어는
+   태그+프로파일 등록으로 추가하고 이 모듈을 수정하지 않는다.
+3. `registry/capability_registry.py` — capability kind별 provider 등록부.
+   `_local`(자기 노드, 항상 authoritative)과 `_remote`(중앙 레지스트리의 마지막
+   스냅샷)를 분리해 중앙이 끊겨도 마지막 known-good로 계속 동작한다. 장치 최종
+   가용성은 백엔드 판정을 **입력으로 소비**할 뿐 여기서 재판정하지 않는다.
+4. `selection/selector.py` — 호환 후보 중 `(priority, compute_units)` 최소를
+   고른다. 후보가 없으면 예외가 아니라 `SelectionResult(provider=None, reason=...)`을
+   반환한다. 호출자는 이 None을 정상적인 축소 경로로 처리해야 한다.
+
+`providers/adapters.py`의 Protocol들(Transport/Serializer/MediaSource/AIRuntime/
+Control/Observability)이 인프라 경계다. `providers/fakes.py`가 테스트·데모용
+구현이며, 현재 저장소에 실제 MQTT/Kafka/OTel/K3s/RTSP 구현은 없다.
+
+기능 모듈은 요구사항 대분류를 그대로 따른다: `ondevice/`(AI-N), `edge/`(AI-E),
+`decision/`(AI-D), `perception/`(AI-S, AI-E-01/04), `risk/`(AI-R),
+`execution/`(AI-B), `observability/`(AI-O), `reference/`(AI-N-01 수직 슬라이스).
+
+### 코드 작성 규약
+
+- 모든 모듈·테스트 docstring 상단에 `implements: AI-X-NN` 형식으로 요구사항 ID를
+  남긴다(§7). 기존 파일들이 이 형식을 지키고 있으니 그대로 따른다.
+- 주석·docstring은 영문 설명 + 요구사항 인용은 원문 한국어를 섞어 쓰는 기존
+  스타일을 유지한다.
+- 변수·스키마 이름을 임의로 확정하지 않는다(§2-8). `AI-C-01`(공통 데이터 사전)은
+  전체 기능 구현 후 일괄 통일하기로 **의도적으로 보류**된 상태다.
+- 구현 상태는 [docs/ai/requirement-traceability.md](docs/ai/requirement-traceability.md)에
+  요구사항 ID별로 기록되어 있다. 코드를 추가하면 이 표도 갱신한다.
+  구조 설명은 [docs/ai/00-architecture.md](docs/ai/00-architecture.md).
+- 작업 단위별 보고서는 `reports/YYYY-MM-DD_HHMM_주제.md` 형식으로 남긴다.
+
 ## 1. 문서 목적
 
 이 파일은 AI·엣지 실행 프레임워크를 구현하는 AI 개발 에이전트를 위한 최상위 요구사항 문서다.

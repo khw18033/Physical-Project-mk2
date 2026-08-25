@@ -44,11 +44,17 @@ class CapabilitySelector:
         if not compatible:
             return SelectionResult(None, reason="no_compatible_provider_within_budget")
 
-        # Lower priority number wins; tie-break on lowest compute cost so
-        # resource usage stays minimal by default (AI-C-13, 절대 준수 원칙 #5).
+        # Lower priority number wins; then the provider whose *preferred*
+        # resources this node actually has (AI-B-04 — preference ranks,
+        # it never excludes); then lowest compute cost so resource usage
+        # stays minimal by default (AI-C-13, 절대 준수 원칙 #5).
         best = min(
             compatible,
-            key=lambda c: (c.compatibility.priority, c.compatibility.cost.compute_units),
+            key=lambda c: (
+                c.compatibility.priority,
+                c.compatibility.preference_penalty(node_tags),
+                c.compatibility.cost.compute_units,
+            ),
         )
         return SelectionResult(best, reason="selected")
 
