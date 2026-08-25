@@ -66,12 +66,29 @@ Concrete Hardware / Sensor / Runtime / Protocol / Infrastructure
    테이블을 분리해서 유지한다. 중앙 레지스트리가 응답하지 않으면 `merge_remote_snapshot`이
    단순히 호출되지 않을 뿐이고, 마지막으로 병합된 스냅샷이 계속 사용된다.
 
+## 추가된 기능 모듈 (하드웨어·타 파트 없이 구현·검증된 부분)
+
+`docs/ai/01-standalone-implementation-plan.md`의 권장 순서를 따라 아래 모듈을 fake
+provider와 합성 데이터로 구현·검증했다 (48개 중 40개 완료, `pytest -q` 110개 통과):
+
+| 모듈 | 요구사항 |
+|---|---|
+| `providers/fakes.py` | AI-C-04/06/07/08/09/12, AI-B-08 |
+| `decision/subtask.py`, `validator.py`, `regeneration.py` | AI-D-01/02/04 |
+| `perception/tracking.py`, `association.py`, `uncertainty.py`, `unconfirmed.py`, `info_selection.py` | AI-S-01~05 |
+| `risk/fsm.py`, `scoring.py`, `output.py`, `adjustment.py` | AI-R-01~04 |
+| `execution/control.py`, `lifecycle.py`, `conformance.py` | AI-B-03/05/09 |
+| `observability/metrics.py`, `events.py`, `reproduction.py`, `availability.py` | AI-O-01~04 |
+| `perception/detection.py`, `auxiliary.py`, `edge/calibration.py`, `calibration_profile.py`, `ondevice/config_apply.py` | AI-E-01~04, AI-N-02 |
+
 ## 아직 이 저장소에 없는 것
 
-- `ai_framework/contracts/profile.py`의 `DeploymentProfile`, `CompatibilityProfile`을 실제
-  MQTT/Kafka/K3s provider 구현에 연결하는 어댑터 (AI-C-06, AI-B-02/05, AI-B-10 등).
-- AI-N-01 이외 47개 요구사항의 구체 로직 (인지/추적/의사결정/위험분석/관측 모듈).
+- 위 fake provider를 실제 MQTT/Kafka/K3s/OTel provider 구현에 연결하는 어댑터
+  (AI-C-06 실연동, AI-B-02/05 실제 컨테이너·오케스트레이터, AI-B-10, AI-O-01 실 관측스택 등
+  — Tier C, 타 파트 산출물 필요).
+- AI-D-03, AI-C-02, AI-C-03, AI-C-14 (Tier A로 분류되었으나 이번 구현 순서에는 미포함).
 - 공통 데이터 사전 기반 변수명 통일 (AI-C-01) — CLAUDE.md §6-8 순서상 전체 기능 구현 후
-  진행 대상이므로 이번 단계에서는 의도적으로 보류함.
+  진행 대상이므로 의도적으로 보류함.
 
-전체 48개 항목별 구현 상태는 [requirement-traceability.md](requirement-traceability.md) 참고.
+전체 48개 항목별 구현 상태는 [requirement-traceability.md](requirement-traceability.md),
+표준형 없이 구현 가능한 범위 판단 기준은 [01-standalone-implementation-plan.md](01-standalone-implementation-plan.md) 참고.

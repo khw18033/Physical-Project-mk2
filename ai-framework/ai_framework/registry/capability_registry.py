@@ -97,3 +97,9 @@ class CapabilityRegistry:
 
     def has_capability(self, capability_kind: str) -> bool:
         return len(self.available_providers(capability_kind)) > 0
+
+    def known_capability_kinds(self) -> set[str]:
+        """All capability kinds this node currently knows about, local or
+        remote — used by conformance/verification harnesses, not by
+        upper-layer AI logic (AI-B-09)."""
+        return set(self._local.keys()) | set(self._remote.keys())
