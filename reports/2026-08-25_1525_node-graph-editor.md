@@ -4,6 +4,23 @@
 > 교수님이 요청한 중심 방향은 임무→Sub task→실행·영상·센서 근거를 잇는 관제 그래프였고,
 > 후속 보고서 `2026-08-25_1547_mission-control-graph.md`에서 기본 화면을 그 방향으로 수정했다.
 
+> **후속 정정 2**: 아래 "계약 재사용" 절의 서술은 **과장이었다.** 이 시점의 편집기가
+> 계약에서 빌린 것은 `kind` · `executionLocation` · `edges[]` 세 낱말뿐이고, 초안
+> 자료구조는 `{ type, label, kind, input, output, executionLocation, id, x, y }`라는
+> 편집기 고유 형식이었다. 계약의 `node`는 `additionalProperties: false`이고 kind별로
+> `source` / `transform` / `sink` 설정 객체가 필수이므로, 이 초안은
+> `pipeline.schema.json` 검증을 **통과할 수 없었다.** 좌표 `x` · `y`가 노드 객체에
+> 직접 박혀 있던 것도 REQ-1002가 못박은 "편집기 고유 정보는 계약을 오염시키지 않는
+> 별도 영역에 둔다"에 어긋났다. 즉 이 보고서가 "완료"로 읽히게 한 REQ-1002는 실제로는
+> 비어 있었다. 같은 절의 "카탈로그는 목 게이트웨이에서 내려온다"도 UI 측면만 사실이고,
+> 게이트웨이 안에서는 `NODE_CATALOG`라는 **코드 상수 배열**이라 REQ-1003이 요구한
+> "등록된 디스크립터·렌더러·데이터소스로부터 자동 구성"은 성립하지 않았다.
+> REQ-1007(역방향 관측)은 구현도 없었고 이 보고서의 "남은 경계"에도 없었다.
+>
+> 이 공백은 `reports/2026-08-25_1804_node-graph-doc-code-audit.md`가 드러냈고,
+> `reports/2026-08-25_1930_node-graph-contract-alignment.md`에서 메웠다.
+> **아래 본문은 그 시점의 기록으로 그대로 둔다.** 지금 유효한 서술은 후속 보고서 쪽이다.
+
 **직전 보고서**: `2026-08-25_1515_phase1-close-and-phase2-insight-view.md`
 **기준**: `VZ-U-04` · `REQ-1001`~`1007` · `contracts/pipeline.schema.json`
 **범위**: LLM 초안 생성(`VZ-L-04`)을 제외한 편집·검증·시험·반영·되돌리기

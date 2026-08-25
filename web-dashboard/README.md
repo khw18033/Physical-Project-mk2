@@ -298,15 +298,20 @@ web-dashboard/
 │  ├─ commands.ts           ★ **상관키 발급** · 4단계 왕복 · 만료 검사 · 제어 잠금 · 권한 검사 · 감사
 │  ├─ plans.ts              계획 승인 **중계**(백엔드 역할) · 산출 경로 · 구간 순차 하달
 │  ├─ vision.ts             합성 영상 15fps + **두 출처**의 탐지 결과 (온디바이스 / 엣지 · 선택 기능 스위치)
-│  ├─ pipeline-editor.ts    노드 카탈로그 · 그래프 검증 · 시험 토큰 · 반영/되돌리기
+│  ├─ pipeline-editor.ts    그래프 검증 · 시험 토큰 · 반영/되돌리기 · **역방향 관측**(REQ-1007)
+│  ├─ pipeline-catalog.ts   ★ 노드 카탈로그를 **등록처에서 파생**한다 (REQ-1003)
 │  ├─ scenarios.ts          상태 전이 재생 스크립트
 │  └─ server.ts             진입점 (WS + HTTP 같은 포트) · 접속 종료 시 열린 영상 패널 회수
 ├─ scripts/
 │  ├─ dev-all.mjs          목 서버 + Vite 동시 기동
 │  ├─ scenario.mjs         시나리오 CLI
-│  ├─ verify-pipeline-editor.mjs  ★ 그래프 검증·시험 토큰·반영·되돌리기 회귀 검사
+│  ├─ verify-pipeline-editor.mjs  ★ 그래프 검증·시험 토큰·반영·되돌리기·관측 회귀 검사
 │  ├─ verify-mission-graph.mjs  ★ 승인 전 실행 금지·Sub task 진행·실패 전파 검증
+│  ├─ verify-contract-roundtrip.mjs  ★ 초안↔F4 계약 무손실 왕복 · 좌표 격리 (REQ-1002)
+│  ├─ verify-catalog-derived.mjs  ★ 예시 파일 하나로 노드 하나 (REQ-1003)
 │  └─ verify-reconnect-cache.mjs  ★ 재접속 캐시 검증 (두 번 접속해야 성립한다)
+├─ shared/
+│  └─ pipeline-contract.ts  ★ F4 계약 타입과 **직렬화 한 곳** — 화면·목 게이트웨이 공용
 └─ src/
    ├─ transport/            ★ 전송 방식을 아는 유일한 폴더
    │  ├─ index.ts           출입구 + 접속 주소. 상위는 여기서만 import
@@ -323,7 +328,7 @@ web-dashboard/
    │  ├─ permissions.ts     ★ 역할·범위 + 제어 게이트 (VZ-C-04)
    │  ├─ metrics.ts         ★ 지표 질의 — 요약/원본 두 경로 (VZ-I-04)
    │  ├─ selfObservability.ts  ★ 자체 처리 지연 60초 발행 (VZ-O-04)
-   │  ├─ pipelineEditor.ts  노드 그래프 HTTP 계약과 연결 타입 사전 검사
+   │  ├─ pipelineEditor.ts  노드 그래프 HTTP 계약 · 연결 사전 검사 · 관측 조회
    │  ├─ auditFieldMap.ts   ★ 감사 필드 이름을 가두는 유일한 파일
    │  ├─ audit.ts           감사 조회 (열 때만 · 폴링 없음)
    │  ├─ plans.ts           계획·구간 타입과 승인 발행
@@ -353,8 +358,9 @@ web-dashboard/
 | `POST /scenario/:name` | 시나리오 재생 |
 | `POST /insight/:name` | 위험 단계 전이·AI 실패 이벤트 재생 |
 | `POST /observability/client-metrics` | 가시화 자체 60초 처리 지연 지표 수신 (목 OTel 경로) |
-| `GET /pipelines/catalog` · `/pipelines/state` | 노드 카탈로그와 운영/직전 그래프 상태 |
+| `GET /pipelines/catalog` · `/pipelines/state` | **파생된** 노드 카탈로그와 운영/직전 그래프(계약) + 레이아웃 |
 | `POST /pipelines/test` · `/commit` · `/rollback` | 시험 실행, 시험 토큰 기반 반영, 직전 버전 되돌리기 |
+| `GET /pipelines/observation` | 반영된 그래프의 노드별 최근 수신·건수·마지막 값 (REQ-1007) |
 | `GET /audit?command_id=` | 감사 이력 조회 (VZ-I-05 — **상관 키가 1차 조회 키**, 열 때만 부른다) |
 | `GET /audit?entity=` | 같은 경로의 보조 조회 — "이 대상을 마지막으로 조작한 사람" |
 | `GET /role` | 역할 + **적용 범위**(구역 집합) 조회 (VZ-C-04 / BE-Q-04) |
@@ -390,6 +396,16 @@ web-dashboard/
 npm run verify:cache        # 두 번 접속해 재접속 스냅샷을 검사한다 (목 서버가 떠 있어야 함)
 npm run scenario -- cache-policy-audit   # 정책 선언과 캐시 실물을 대조
 curl -s http://127.0.0.1:8787/health | jq .cache   # violations 가 비어 있어야 한다
+```
+
+노드 그래프 쪽 검증은 넷이다. 앞의 둘은 목 서버가 떠 있어야 하고, 뒤의 둘은 직렬화·파생
+함수를 직접 부르므로 서버 없이 돈다.
+
+```bash
+npm run verify:pipeline            # 검증 거부 5종 · 시험 토큰 · 반영 · 되돌리기 · 감사 · 관측
+npm run verify:mission-graph       # 승인 전 실행 금지 · Sub task 진행 · 실패 뒤 건너뜀
+npm run verify:contract-roundtrip  # 초안 → 계약 → 초안 · 좌표 격리 · 스키마 검증 (REQ-1002)
+npm run verify:catalog-derived     # 예시 파일 1개 추가 → 노드 1개 증가 (REQ-1003)
 ```
 
 `verify:cache` 가 **스크립트**인 이유: 이 검증은 두 번 접속해야 성립한다. 첫 접속에서
@@ -484,6 +500,26 @@ ACK로 두 키를 함께 받는다. **두 키의 매핑은 `src/data/correlation
 `BE-C-04`로 백엔드 단독 책임이 확정됐다. 봉투에 `coordinate_frame`이 실려 오지만
 화면은 그걸 **표시만** 한다. 이 값을 근거로 무언가를 환산하는 코드는 계약 위반이다.
 
+**10. 파이프라인 초안의 표준형은 F4 계약이고, 편집기 정보는 그 바깥에 둔다.**
+초안은 `{ pipeline: <contracts/pipeline.schema.json 그대로>, layout: { [id]: {x,y} } }`다.
+노드 객체에 `x`·`y`를 붙이는 순간 계약은 `additionalProperties: false`라 검증을 통과하지
+못하고, 백엔드 실물 계약이 왔을 때 "HTTP 어댑터만 교체"가 성립하지 않는다. 직렬화는
+`shared/pipeline-contract.ts` **한 파일에만** 있고 화면과 목 게이트웨이가 그것을 함께 쓴다.
+`npm run verify:contract-roundtrip` 이 왕복과 좌표 격리를 회귀로 잡는다.
+
+**11. 노드 목록을 코드에 적지 않는다.**
+카탈로그는 등록된 디스크립터·렌더러·데이터소스에서 **파생**한다
+(`mock-gateway/pipeline-catalog.ts`). 지금 등록처는 `contracts/examples/` 아래 파일들이다.
+포트 타입도 마찬가지로 디스크립터의 `field.type`과 렌더러의 `acceptsFieldTypes`에서
+끌어온다 — 코드에 타입 표를 다시 적으면 그 순간 REQ-1003이 깨진다. 판정 기준은 하나다:
+**예시 파일을 하나 넣었을 때 `.ts`를 한 줄도 고치지 않고 노드가 하나 늘어야 한다.**
+`npm run verify:catalog-derived` 가 그것을 확인한다.
+
+**12. 대상 id를 화면에 박지 않는다.**
+임무 대상과 근거 노드 후보는 레지스트리(와 실제 수신)에서 온다. `robot-01` 같은 id가
+`src/views/`에 나타나면 장치가 늘 때 화면이 따라가지 못하고, `VZ-C-05`가 가정한 장치 20을
+감당할 수 없다. 근거의 종류도 대상 종류가 아니라 **선언된 채널**로 판정한다.
+
 ---
 
 ## 자리 확보에서 **실사용으로 승격**된 것
@@ -546,7 +582,8 @@ ACK로 두 키를 함께 받는다. **두 키의 매핑은 `src/data/correlation
 - **미확인 탐지 그룹(VZ-U-06)** — 다음 범위.
 - **트윈 3D 렌더(VZ-U-02)** — 이 웹 앱의 범위 밖이지만 **미구현이 아니다.**
   `unity-twin/` 의 Unity 뷰어가 같은 게이트웨이 계약으로 구현했다.
-- 노드 그래프(VZ-U-04)는 **임무 관제를 기본 화면**으로 구현했다. Sub task별 진행 상태와 로봇·영상·센서·제어 근거를 잇고, 기존 데이터 파이프라인 편집기는 보조 모드로 둔다. LLM 그래프 초안 생성(VZ-L-04)은 의도 해석 계약 확정 뒤 연결한다.
+- 노드 그래프(VZ-U-04 = REQ-1001~1007)는 **임무 관제를 기본 화면**으로 구현했다. Sub task별 진행 상태와 레지스트리에서 온 근거 노드를 잇고, 데이터 파이프라인 편집기는 보조 모드로 둔다. LLM 그래프 초안 생성(VZ-L-04)은 의도 해석 계약 확정 뒤 연결한다.
+  - **카탈로그와 실행기는 목이다.** 카탈로그는 `contracts/examples/` 아래 등록 파일에서 파생하고, 시험 실행의 행 수·소요 시간은 지어낸 값이며, 역방향 관측의 하류 노드 값은 목 실행기가 상류에서 흘려보낸 것이다. 화면과 응답이 이 셋을 모두 표기한다.
 
 이관 전 단일 파일 프로토타입(`prototype.html`)은 `_archive/prototype_260818.html` 로 옮겼다.
 코드는 재사용하지 않았고, 계약이 그 뒤로 여러 번 바뀌어 현행이 아니다.

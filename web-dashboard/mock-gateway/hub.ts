@@ -38,6 +38,13 @@ export type RegistryEntity = {
   display_name: string;
   aliases: string[];
   channels: string[];
+  /**
+   * 이 대상이 구현하는 **컴포넌트 디스크립터(F1) id**.
+   * 디스크립터 스키마가 `id`를 "Zone/Node/Entity 레지스트리(F3)에서 참조되는 키"라고
+   * 정의하므로, 그 참조를 레지스트리 쪽에 적는다. 파이프라인 sink의 `componentRef`가
+   * 어느 실물 대상을 가리키는지를 이 값 하나로 풀 수 있다 (REQ-1007).
+   */
+  component?: string;
   note?: string;
 };
 
@@ -100,6 +107,12 @@ export class Hub {
   private readonly cache = new Map<string, Envelope>();
   /** zone id → 그 zone에 속한 node id 집합. node 축의 계층 매칭에 쓴다. */
   private readonly zoneNodes = new Map<string, Set<string>>();
+  /**
+   * 발행 관찰자 (REQ-1007). 반영된 파이프라인이 **지금 무엇을 받고 있는지**를 알려면
+   * 실제 발행 흐름에 붙어야 한다. 구독 팬아웃과 별개로 두는 이유는, 관찰이
+   * 클라이언트 구독 유무와 무관하게 성립해야 하기 때문이다.
+   */
+  private readonly publishListeners = new Set<(env: Envelope) => void>();
 
   constructor(registry: Registry) {
     this.registry = registry;
@@ -241,6 +254,15 @@ export class Hub {
     if (CACHE_POLICY[channel].cache) this.cache.set(key, env);
 
     this.fanout(env);
+    for (const listen of this.publishListeners) listen(env);
+  }
+
+  /** 발행 관찰 등록. 돌려주는 함수를 부르면 해제된다. */
+  onPublish(listener: (env: Envelope) => void): () => void {
+    this.publishListeners.add(listener);
+    return () => {
+      this.publishListeners.delete(listener);
+    };
   }
 
   private fanout(env: Envelope): void {

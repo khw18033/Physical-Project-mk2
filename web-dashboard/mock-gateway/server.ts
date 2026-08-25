@@ -38,7 +38,9 @@ import { CommandEngine, type PermissionVerdict } from './commands.ts';
 import { PlanEngine } from './plans.ts';
 import { VisionEmitter } from './vision.ts';
 import { SCENARIOS, runScenario } from './scenarios.ts';
-import { NODE_CATALOG, PipelineEditorEngine, validateGraph, type PipelineGraph } from './pipeline-editor.ts';
+import { PipelineEditorEngine, validateGraph, type PipelineContract } from './pipeline-editor.ts';
+import { deriveCatalog } from './pipeline-catalog.ts';
+import type { NodeLayout } from '../shared/pipeline-contract.ts';
 import type {
   ClientMessage,
   CommandRequest,
@@ -59,7 +61,8 @@ const fleet = createFleet(hub);
 const commands = new CommandEngine(hub);
 const plans = new PlanEngine(hub);
 const vision = new VisionEmitter(hub, 'camera-02');
-const pipelineEditor = new PipelineEditorEngine();
+// REQ-1007 — 허브를 넘겨 발행 흐름에 붙인다. 반영된 그래프의 실제 수신을 세기 위해서다.
+const pipelineEditor = new PipelineEditorEngine(hub);
 
 /** VZ-O-04 검증용 수신 실물. 실제 배치에서는 이 경로가 OTel Collector가 된다. */
 const clientMetrics: unknown[] = [];
@@ -265,7 +268,19 @@ const http = createServer((req, res) => {
   }
 
   if (url.pathname === '/pipelines/catalog' && req.method === 'GET') {
-    json(200, { nodes: NODE_CATALOG });
+    // REQ-1003 — 매 요청마다 등록처를 다시 읽는다. 예시 파일을 하나 넣으면 코드를
+    // 고치지 않고도 노드가 하나 늘어야 하고, 캐시하면 그 조건이 확인되지 않는다.
+    const derived = deriveCatalog();
+    json(200, {
+      nodes: derived.nodes,
+      port_types: derived.portTypes,
+      registration_sources: derived.registrationSources,
+      note: '목 등록처 — contracts/examples/ 아래 valid-*.json 에서 파생했다. 실물 레지스트리가 생기면 읽는 곳만 바뀐다.',
+    });
+    return;
+  }
+  if (url.pathname === '/pipelines/observation' && req.method === 'GET') {
+    json(200, pipelineEditor.observations());
     return;
   }
   if (url.pathname === '/pipelines/state' && req.method === 'GET') {
@@ -273,17 +288,18 @@ const http = createServer((req, res) => {
     return;
   }
   if (url.pathname === '/pipelines/validate' && req.method === 'POST') {
-    void readJsonBody(req).then((body) => json(200, { issues: validateGraph((body as { graph: PipelineGraph }).graph) }), () => json(400, { error: 'invalid json' }));
+    void readJsonBody(req).then((body) => json(200, { issues: validateGraph((body as { graph: PipelineContract }).graph) }), () => json(400, { error: 'invalid json' }));
     return;
   }
   if (url.pathname === '/pipelines/test' && req.method === 'POST') {
-    void readJsonBody(req).then((body) => json(200, pipelineEditor.test((body as { graph: PipelineGraph }).graph)), () => json(400, { error: 'invalid json' }));
+    void readJsonBody(req).then((body) => json(200, pipelineEditor.test((body as { graph: PipelineContract }).graph)), () => json(400, { error: 'invalid json' }));
     return;
   }
   if (url.pathname === '/pipelines/commit' && req.method === 'POST') {
     void readJsonBody(req).then((body) => {
-      const input = body as { graph: PipelineGraph; token: string };
-      const result = pipelineEditor.commit(input.graph, input.token);
+      // 좌표는 계약과 나란히, 계약 **바깥**으로 온다 (REQ-1002).
+      const input = body as { graph: PipelineContract; token: string; layout?: Record<string, NodeLayout> };
+      const result = pipelineEditor.commit(input.graph, input.token, input.layout);
       log('파이프라인 반영 — ' + result.message);
       json(result.ok ? 200 : 409, result);
     }, () => json(400, { error: 'invalid json' }));
@@ -423,7 +439,7 @@ const http = createServer((req, res) => {
 
   json(404, {
     error: 'not found',
-    paths: ['/registry', '/scenarios', '/scenario/:name', '/insight/:name', '/observability/client-metrics', '/pipelines/catalog', '/pipelines/state', '/pipelines/validate', '/pipelines/test', '/pipelines/commit', '/pipelines/rollback', '/audit', '/actions', '/role', '/metrics/query', '/health'],
+    paths: ['/registry', '/scenarios', '/scenario/:name', '/insight/:name', '/observability/client-metrics', '/pipelines/catalog', '/pipelines/state', '/pipelines/observation', '/pipelines/validate', '/pipelines/test', '/pipelines/commit', '/pipelines/rollback', '/audit', '/actions', '/role', '/metrics/query', '/health'],
   });
 });
 

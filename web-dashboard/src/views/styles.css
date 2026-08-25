@@ -852,6 +852,30 @@ body {
 .graphnode__port { margin-top: 8px; width: 100%; border: 1px solid var(--line); border-radius: 999px; background: #f6f8fa; font-size: 10px; cursor: pointer; }
 .graphresult { margin-top: 14px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 12px; }
 .graphresult h2 { margin: 0 0 8px; font-size: 15px; }
+.graphresult h2 small, .graphobserve h2 small { font-weight: 400; color: var(--muted); font-size: 11px; margin-left: 6px; }
+
+/* REQ-1002 — 계약 JSON 확인창. 좌표가 없다는 것을 화면에서 보는 자리. */
+.contractio { margin-top: 12px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 12px; }
+.contractio h2 { margin: 0 0 4px; font-size: 15px; }
+.contractio p { margin: 0 0 8px; color: var(--muted); font-size: 12px; }
+.contractio textarea { width: 100%; min-height: 220px; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 11px; border: 1px solid var(--line); border-radius: 8px; padding: 8px; resize: vertical; }
+
+/* REQ-1007 — 운영 그래프 관측. 시험 결과와 **다른 상자**여야 한다. */
+.graphobserve { margin-top: 14px; background: #f3f8f4; border: 1px solid #b9d6c0; border-left: 5px solid #4f8a5c; border-radius: 10px; padding: 12px; }
+.graphobserve h2 { margin: 0 0 8px; font-size: 15px; }
+.graphobserve p { margin: 6px 0; font-size: 12px; }
+.observetable { width: 100%; border-collapse: collapse; font-size: 12px; }
+.observetable th, .observetable td { text-align: left; padding: 5px 7px; border-bottom: 1px solid #cfe1d3; vertical-align: top; }
+.observetable td small { color: var(--muted); }
+.observetable td em { color: var(--muted); font-style: normal; }
+.observerow--none { color: var(--muted); }
+.observerow--mock-propagated td:first-child { opacity: .82; }
+.graphnode__live { display: block; margin-top: 4px; font-size: 10px; border-radius: 999px; padding: 1px 6px; background: #e4f0e7; color: #2f6b3d; }
+.graphnode__live--none { background: #eef1f4; color: var(--muted); }
+.graphnode__live--mock-propagated { background: #f1efe4; color: #7a6a2f; }
+.catalog__note { margin: 0 0 8px; color: var(--muted); font-size: 10px; line-height: 1.45; }
+.missionpick { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
+.missionpick select { font-size: 12px; padding: 3px 6px; border: 1px solid var(--line); border-radius: 6px; }
 @media (max-width: 850px) { .grapheditor { grid-template-columns: 1fr; } .canvas { min-height: 600px; } }
 
 /* 임무 관제 그래프 — 서브태스크 실행과 관측 근거를 한 화면에서 잇는다. */

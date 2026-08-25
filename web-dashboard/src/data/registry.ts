@@ -21,6 +21,8 @@ export type RegistryEntity = {
   display_name: string;
   aliases: string[];
   channels: string[];
+  /** 이 대상이 구현하는 컴포넌트 디스크립터(F1) id. 파이프라인 `componentRef`의 실물 대상. */
+  component?: string;
   note?: string;
 };
 

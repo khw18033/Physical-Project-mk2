@@ -125,20 +125,45 @@ else:
     p("   시트에 없는 ID 인용: 없음")
 
 # ── D. npm 스크립트 ─────────────────────────────────────────────────────────
+# 두 방향을 본다.
+#   D-1. 문서가 부르는 스크립트가 package.json에 있는가 — 없는 것을 시키지 않는가.
+#   D-2. package.json의 검증 스크립트를 **어느 문서도 부르지 않는가** — 검사 사각.
+#        검증 스크립트가 어느 문서에도 안 적히면 "무엇으로 확인했는가"가 기록에서
+#        사라진다. 실제로 verify:pipeline·verify:mission-graph가 이 사각에 있었다.
 p("\n■ D. 문서에 적힌 npm 스크립트")
 pkg = json.load(io.open("web-dashboard/package.json", encoding="utf-8"))
 scripts = set(pkg.get("scripts", {}))
-NPM_RE = re.compile(r"npm(?:\.cmd)? run ([a-z:\-]+)")
+
+# `npm run`과 `npm.cmd run`을 함께 잡는다. Windows에서 PowerShell 실행 정책을 피하려고
+# `npm.cmd`로 적는 문서가 있어서, 한쪽 표기만 보면 절반을 놓친다.
+NPM_RE = re.compile(r"npm(?:\.cmd)? run ([a-z][a-z0-9:\-]*)")
+
+# 문서가 **일부러** 잘못된 예로 드는 명령. 사유를 함께 남긴다.
+NOT_A_SCRIPT = {
+    # README가 "`npm install`이지 `npm run install`이 아니다"를 설명하는 문장에 나온다.
+    "install": "README가 쓰지 말라고 드는 반례",
+}
+
 found_scripts = set()
 for d in DOCS:
     text = io.open(d, encoding="utf-8").read()
     for m in NPM_RE.finditer(text):
         name = m.group(1)
+        if name in NOT_A_SCRIPT:
+            notes.append("npm run %s 는 검사 제외 (%s, %s)"
+                         % (name, NOT_A_SCRIPT[name], os.path.basename(d)))
+            continue
         found_scripts.add(name)
         if name not in scripts:
             problems.append("%s → package.json에 없는 스크립트: npm run %s" % (d, name))
+
+unmentioned = sorted(s for s in scripts if s.startswith("verify:") and s not in found_scripts)
+for name in unmentioned:
+    problems.append("검증 스크립트를 어느 문서도 부르지 않음: npm run %s" % name)
+
 p("   문서가 부르는 스크립트: %s" % ", ".join(sorted(found_scripts)))
 p("   package.json 스크립트: %s" % ", ".join(sorted(scripts)))
+p("   문서에 없는 검증 스크립트: %s" % (", ".join(unmentioned) if unmentioned else "없음"))
 
 # ── E. 코드 심볼 ────────────────────────────────────────────────────────────
 p("\n■ E. 문서가 이름을 든 코드 심볼")

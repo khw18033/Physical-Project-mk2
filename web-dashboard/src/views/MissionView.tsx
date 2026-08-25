@@ -32,9 +32,16 @@ import {
   type ProvenanceStep,
 } from '../data/index.ts';
 import { useEntities } from '../data/hooks.ts';
+import type { EntityRecord } from '../data/store.ts';
 
-/** 계획은 로봇에 붙는다. 대상이 늘면 목록에서 고르게 된다. */
-const PLAN_ENTITY = 'robot-01';
+/**
+ * **계획 대상을 코드에 적지 않는다.** 계획이 도착한 대상이 곧 임무 대상이고,
+ * 그 목록은 스토어(=레지스트리 + 수신)에서 나온다. 대상 id를 상수로 두면
+ * 장치가 늘 때 화면이 따라가지 못하고, 범용 프레임워크라는 전제가 화면에서만 깨진다.
+ */
+function planTargets(entities: ReadonlyMap<string, EntityRecord>): string[] {
+  return [...entities.values()].filter((r) => r.plan !== null).map((r) => r.id).sort();
+}
 
 function timeOf(iso: string | null): string {
   if (iso === null) return '—';
@@ -49,7 +56,10 @@ function timeOf(iso: string | null): string {
 
 export function MissionView() {
   const entities = useEntities();
-  const record = entities.get(PLAN_ENTITY) ?? null;
+  const targets = planTargets(entities);
+  const [picked, setPicked] = useState<string | null>(null);
+  const target = picked !== null && targets.includes(picked) ? picked : (targets[0] ?? null);
+  const record = target === null ? null : (entities.get(target) ?? null);
 
   const plan = (record?.plan?.payload as Plan | undefined) ?? null;
   // 진행은 별도 채널로 온다. 계획 본문과 갱신 시점이 다르기 때문이다.
@@ -67,6 +77,18 @@ export function MissionView() {
           </p>
         </div>
         <div className="board__meta">
+          {targets.length > 1 && (
+            <label className="missionpick">
+              임무 대상
+              <select value={target ?? ''} onChange={(e) => setPicked(e.target.value)}>
+                {targets.map((id) => (
+                  <option key={id} value={id}>
+                    {entities.get(id)?.registry?.display_name ?? id}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
           <span>VZ-U-07 · VZ-U-05</span>
         </div>
       </header>

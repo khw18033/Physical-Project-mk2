@@ -81,7 +81,8 @@
       "entity_type": "sensor",
       "display_name": "수위 센서 01",
       "aliases": ["상류 수위계", "1번 수위"],
-      "channels": ["state", "telemetry", "heartbeat"]
+      "channels": ["state", "telemetry", "heartbeat"],
+      "component": "temperature-sensor-01"
     },
     {
       "id": "sensor-02",
@@ -109,7 +110,8 @@
       "entity_type": "camera",
       "display_name": "고정 비전센서 02",
       "aliases": ["2번 카메라", "고정 카메라"],
-      "channels": ["state", "video_meta", "heartbeat"]
+      "channels": ["state", "video_meta", "heartbeat"],
+      "component": "camera-01"
     },
     {
       "id": "actuator-01",
@@ -139,6 +141,7 @@
       "display_name": "엣지 노드 A (자기 관측)",
       "aliases": ["A노드 지표"],
       "channels": ["metrics"],
+      "component": "batch-processor-01",
       "note": "구역 요약 지표(15초 페더레이션). 평시에 올라오는 것은 원본이 아니라 구역 요약이므로 aggregation 표기가 aggregated/zone으로 내려온다(BE-S-03·BE-S-06)."
     }
   ]
