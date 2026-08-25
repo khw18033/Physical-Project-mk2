@@ -305,6 +305,7 @@ web-dashboard/
 │  ├─ dev-all.mjs          목 서버 + Vite 동시 기동
 │  ├─ scenario.mjs         시나리오 CLI
 │  ├─ verify-pipeline-editor.mjs  ★ 그래프 검증·시험 토큰·반영·되돌리기 회귀 검사
+│  ├─ verify-mission-graph.mjs  ★ 승인 전 실행 금지·Sub task 진행·실패 전파 검증
 │  └─ verify-reconnect-cache.mjs  ★ 재접속 캐시 검증 (두 번 접속해야 성립한다)
 └─ src/
    ├─ transport/            ★ 전송 방식을 아는 유일한 폴더
@@ -339,7 +340,7 @@ web-dashboard/
       ├─ MetricsView.tsx       지표 조회 — 요약/원본 전환 (VZ-I-04 · C-03)
       ├─ VideoOverlayView.tsx  영상 오버레이 정합 + **인지 출처 구분** (VZ-I-06·07·09)
       ├─ InsightView.tsx       위험도·AI 실패·역할별 추상화 계층 (VZ-I-08·10 · O-04 · U-03)
-      └─ NodeGraphView.tsx     초안 편집·시험 실행·명시적 반영·되돌리기 (VZ-U-04)
+      └─ NodeGraphView.tsx     ★ 임무→Sub task→실행·영상·센서·제어 관제 + 데이터 파이프라인 보조 모드
 ```
 
 ### 목 게이트웨이 엔드포인트
@@ -545,7 +546,7 @@ ACK로 두 키를 함께 받는다. **두 키의 매핑은 `src/data/correlation
 - **미확인 탐지 그룹(VZ-U-06)** — 다음 범위.
 - **트윈 3D 렌더(VZ-U-02)** — 이 웹 앱의 범위 밖이지만 **미구현이 아니다.**
   `unity-twin/` 의 Unity 뷰어가 같은 게이트웨이 계약으로 구현했다.
-- 노드 편집기(VZ-U-04)는 구현했다. LLM 그래프 초안 생성(VZ-L-04)은 의도 해석 계약 확정 뒤 연결한다.
+- 노드 그래프(VZ-U-04)는 **임무 관제를 기본 화면**으로 구현했다. Sub task별 진행 상태와 로봇·영상·센서·제어 근거를 잇고, 기존 데이터 파이프라인 편집기는 보조 모드로 둔다. LLM 그래프 초안 생성(VZ-L-04)은 의도 해석 계약 확정 뒤 연결한다.
 
 이관 전 단일 파일 프로토타입(`prototype.html`)은 `_archive/prototype_260818.html` 로 옮겼다.
 코드는 재사용하지 않았고, 계약이 그 뒤로 여러 번 바뀌어 현행이 아니다.

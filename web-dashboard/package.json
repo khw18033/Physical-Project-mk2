@@ -12,7 +12,8 @@
     "typecheck": "tsc -b --force && tsc -p mock-gateway/tsconfig.json",
     "scenario": "node scripts/scenario.mjs",
     "verify:cache": "node scripts/verify-reconnect-cache.mjs",
-    "verify:pipeline": "node scripts/verify-pipeline-editor.mjs"
+    "verify:pipeline": "node scripts/verify-pipeline-editor.mjs",
+    "verify:mission-graph": "node scripts/verify-mission-graph.mjs"
   },
   "dependencies": {
     "react": "^19.1.0",

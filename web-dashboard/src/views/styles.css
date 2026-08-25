@@ -853,3 +853,31 @@ body {
 .graphresult { margin-top: 14px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 12px; }
 .graphresult h2 { margin: 0 0 8px; font-size: 15px; }
 @media (max-width: 850px) { .grapheditor { grid-template-columns: 1fr; } .canvas { min-height: 600px; } }
+
+/* 임무 관제 그래프 — 서브태스크 실행과 관측 근거를 한 화면에서 잇는다. */
+.missionbar, .pipelineeditor__head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; }
+.missionbar div, .pipelineeditor__head div:first-child { display: flex; flex-direction: column; margin-right: auto; }
+.missionbar span, .pipelineeditor__head p { color: var(--muted); margin: 0; }
+.missioncanvaswrap { overflow: auto; border: 1px solid var(--line); border-radius: 10px; background: #fbfcfd; }
+.missioncanvas { position: relative; height: 500px; background-image: radial-gradient(#d8dde3 1px, transparent 1px); background-size: 18px 18px; }
+.missionedges { z-index: 0; }
+.missionedges__evidence { stroke: #7a5cd6 !important; stroke-dasharray: 5 3; }
+.missionnode, .evidencenode { position: absolute; z-index: 1; width: 190px; min-height: 86px; text-align: left; border: 2px solid var(--line); border-radius: 10px; padding: 10px; background: var(--surface); }
+.missionnode span, .missionnode small, .evidencenode span, .evidencenode small { display: block; font-size: 11px; color: var(--muted); }
+.missionnode em { display: block; color: var(--fault); font-size: 10px; font-style: normal; margin-top: 4px; }
+.missionnode--root { width: 135px; border-color: #5b3fb5; }
+.missionnode--task { cursor: pointer; }
+.missionnode--selected { outline: 3px solid #2f6feb; }
+.missionnode--running { border-color: #2f6feb; background: #eef4ff; }
+.missionnode--done, .missionnode--approved { border-color: var(--normal); background: var(--normal-bg); }
+.missionnode--failed, .missionnode--rejected { border-color: var(--fault); background: var(--fault-bg); }
+.missionnode--skipped { opacity: .55; border-style: dashed; }
+.evidencenode { min-height: 58px; cursor: pointer; border-color: #a992d0; }
+.evidencenode--video { border-color: #d36b9b; }
+.evidencenode--sensor { border-color: #2f9e44; }
+.evidencenode--control { border-color: #d98b1e; }
+.evidencetools { margin: 14px 0; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 12px; }
+.evidencetools h2 { margin: 0 0 8px; font-size: 15px; }
+.evidencetools .btn { margin: 3px; }
+.pipelineeditor { margin-top: 4px; }
+.pipelineeditor__head h2 { margin: 0; font-size: 17px; }
