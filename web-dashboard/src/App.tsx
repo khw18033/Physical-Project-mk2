@@ -17,6 +17,7 @@ import { MissionView } from './views/MissionView.tsx';
 import { MetricsView } from './views/MetricsView.tsx';
 import { VideoOverlayView } from './views/VideoOverlayView.tsx';
 import { InsightView } from './views/InsightView.tsx';
+import { NodeGraphView } from './views/NodeGraphView.tsx';
 
 /** 현재 설계 전제는 구역 1개 (VZ-C-05). */
 const ZONE_ID = 'zone-503';
@@ -28,6 +29,7 @@ const TABS = [
   { id: 'metrics', label: '지표 조회', tag: 'VZ-I-04 · C-03' },
   { id: 'video', label: '영상 오버레이', tag: 'VZ-I-06·07·09' },
   { id: 'insight', label: '판단·알림', tag: 'VZ-I-08·10 · O-04 · U-03' },
+  { id: 'graph', label: '노드 그래프', tag: 'VZ-U-04' },
 ] as const;
 
 type TabId = (typeof TABS)[number]['id'];
@@ -72,6 +74,7 @@ export function App() {
       {/* 탭을 떠나면 언마운트되어 프레임 루프가 멈추고 서버 발행도 멈춘다 (VZ-I-06). */}
       {tab === 'video' && <VideoOverlayView />}
       {tab === 'insight' && <InsightView />}
+      {tab === 'graph' && <NodeGraphView />}
     </>
   );
 }

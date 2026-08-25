@@ -832,3 +832,24 @@ body {
 .failure { border-left: 4px solid var(--fault); background: var(--fault-bg); padding: 10px 12px; margin-top: 8px; }
 .failure > span { margin-left: 10px; color: var(--muted); }
 .failure p { margin: 5px 0; }
+
+/* ── 노드 그래프 편집기 (VZ-U-04) ─────────────────────────────────── */
+.graphactions { display: flex; gap: 7px; flex-wrap: wrap; }
+.grapheditor { display: grid; grid-template-columns: 230px 1fr; gap: 12px; margin-top: 14px; }
+.catalog { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 12px; }
+.catalog h2 { margin: 0 0 8px; font-size: 15px; }
+.catalog__node { width: 100%; text-align: left; padding: 8px; margin: 4px 0; border: 1px solid var(--line); border-radius: 7px; background: #fbfcfd; cursor: pointer; }
+.catalog__node span { display: block; color: var(--muted); font-size: 10px; }
+.canvas { position: relative; min-height: 530px; overflow: hidden; border: 1px solid var(--line); border-radius: 10px; background-color: #fbfcfd; background-image: radial-gradient(#d8dde3 1px, transparent 1px); background-size: 18px 18px; touch-action: none; }
+.canvas__edges { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.canvas__edges line { stroke: #6b7280; stroke-width: 2; }
+.graphnode { position: absolute; width: 185px; min-height: 76px; padding: 10px; border: 2px solid #7fa8d0; border-radius: 10px; background: var(--surface); box-shadow: 0 2px 8px rgba(0,0,0,.08); cursor: move; user-select: none; }
+.graphnode--transform { border-color: #a992d0; }
+.graphnode--sink { border-color: #d9a86a; }
+.graphnode--selected { outline: 3px solid #2f6feb; }
+.graphnode small { display: block; color: var(--muted); font-size: 10px; }
+.graphnode__remove { position: absolute; right: 4px; top: 2px; border: 0; background: transparent; cursor: pointer; color: var(--fault); font-size: 18px; }
+.graphnode__port { margin-top: 8px; width: 100%; border: 1px solid var(--line); border-radius: 999px; background: #f6f8fa; font-size: 10px; cursor: pointer; }
+.graphresult { margin-top: 14px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 12px; }
+.graphresult h2 { margin: 0 0 8px; font-size: 15px; }
+@media (max-width: 850px) { .grapheditor { grid-template-columns: 1fr; } .canvas { min-height: 600px; } }

@@ -38,6 +38,7 @@ import { CommandEngine, type PermissionVerdict } from './commands.ts';
 import { PlanEngine } from './plans.ts';
 import { VisionEmitter } from './vision.ts';
 import { SCENARIOS, runScenario } from './scenarios.ts';
+import { NODE_CATALOG, PipelineEditorEngine, validateGraph, type PipelineGraph } from './pipeline-editor.ts';
 import type {
   ClientMessage,
   CommandRequest,
@@ -58,6 +59,7 @@ const fleet = createFleet(hub);
 const commands = new CommandEngine(hub);
 const plans = new PlanEngine(hub);
 const vision = new VisionEmitter(hub, 'camera-02');
+const pipelineEditor = new PipelineEditorEngine();
 
 /** VZ-O-04 검증용 수신 실물. 실제 배치에서는 이 경로가 OTel Collector가 된다. */
 const clientMetrics: unknown[] = [];
@@ -143,6 +145,18 @@ const CORS = {
   'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
   'Access-Control-Allow-Headers': 'content-type',
 };
+
+function readJsonBody(req: import('node:http').IncomingMessage): Promise<unknown> {
+  return new Promise((resolve, reject) => {
+    const chunks: Buffer[] = [];
+    req.on('data', (chunk: Buffer) => chunks.push(chunk));
+    req.on('end', () => {
+      try { resolve(JSON.parse(Buffer.concat(chunks).toString('utf8')) as unknown); }
+      catch (error) { reject(error); }
+    });
+    req.on('error', reject);
+  });
+}
 
 /**
  * VZ-I-04 / BE-Q-01 — 지표 질의 프록시. **두 갈래다.**
@@ -247,6 +261,38 @@ const http = createServer((req, res) => {
         json(400, { accepted: false, error: 'invalid json' });
       }
     });
+    return;
+  }
+
+  if (url.pathname === '/pipelines/catalog' && req.method === 'GET') {
+    json(200, { nodes: NODE_CATALOG });
+    return;
+  }
+  if (url.pathname === '/pipelines/state' && req.method === 'GET') {
+    json(200, pipelineEditor.state());
+    return;
+  }
+  if (url.pathname === '/pipelines/validate' && req.method === 'POST') {
+    void readJsonBody(req).then((body) => json(200, { issues: validateGraph((body as { graph: PipelineGraph }).graph) }), () => json(400, { error: 'invalid json' }));
+    return;
+  }
+  if (url.pathname === '/pipelines/test' && req.method === 'POST') {
+    void readJsonBody(req).then((body) => json(200, pipelineEditor.test((body as { graph: PipelineGraph }).graph)), () => json(400, { error: 'invalid json' }));
+    return;
+  }
+  if (url.pathname === '/pipelines/commit' && req.method === 'POST') {
+    void readJsonBody(req).then((body) => {
+      const input = body as { graph: PipelineGraph; token: string };
+      const result = pipelineEditor.commit(input.graph, input.token);
+      log('파이프라인 반영 — ' + result.message);
+      json(result.ok ? 200 : 409, result);
+    }, () => json(400, { error: 'invalid json' }));
+    return;
+  }
+  if (url.pathname === '/pipelines/rollback' && req.method === 'POST') {
+    const result = pipelineEditor.rollback();
+    log('파이프라인 되돌리기 — ' + result.message);
+    json(result.ok ? 200 : 409, result);
     return;
   }
 
@@ -357,6 +403,7 @@ const http = createServer((req, res) => {
       ack_control: { ...ackControl },
       command_latency: { ...commandLatency },
       client_metrics: { received: clientMetrics.length, latest: clientMetrics.at(-1) ?? null },
+      pipelines: pipelineEditor.state(),
       /**
        * BE-T-06 — 정책과 **실물**을 함께 낸다.
        * 선언만 보면 지켜지는지 알 수 없다. violations가 비어 있지 않으면 그 자체가 버그다.
@@ -376,7 +423,7 @@ const http = createServer((req, res) => {
 
   json(404, {
     error: 'not found',
-    paths: ['/registry', '/scenarios', '/scenario/:name', '/insight/:name', '/observability/client-metrics', '/audit', '/actions', '/role', '/metrics/query', '/health'],
+    paths: ['/registry', '/scenarios', '/scenario/:name', '/insight/:name', '/observability/client-metrics', '/pipelines/catalog', '/pipelines/state', '/pipelines/validate', '/pipelines/test', '/pipelines/commit', '/pipelines/rollback', '/audit', '/actions', '/role', '/metrics/query', '/health'],
   });
 });
 
