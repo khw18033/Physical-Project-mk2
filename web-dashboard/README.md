@@ -49,6 +49,41 @@ npm run dev:mock     # 목 게이트웨이만 — ws://127.0.0.1:8787
 npm run dev:web      # 프런트만
 ```
 
+### Windows PowerShell에서 `npm.ps1` 실행이 차단될 때
+
+다음 오류는 Node.js나 프로젝트 오류가 아니라, PowerShell 실행 정책이 Node 설치 폴더의
+`npm.ps1` 스크립트 실행을 막아서 생긴다.
+
+```text
+npm.ps1 파일을 로드할 수 없습니다.
+PSSecurityException / UnauthorizedAccess
+```
+
+가장 간단한 해결책은 PowerShell 스크립트를 거치지 않는 `npm.cmd`를 사용하는 것이다.
+실행 정책을 변경하지 않으므로 이 방법을 권장한다.
+
+```powershell
+cd web-dashboard
+npm.cmd install
+npm.cmd run dev
+```
+
+의존성 설치 명령은 **`npm install`** 이다. `npm run install`은 `package.json`에
+`install`이라는 사용자 스크립트가 있을 때만 쓰는 별개의 명령이므로 사용하지 않는다.
+
+현재 PowerShell 창에서만 스크립트 실행을 허용하려면 다음과 같이 할 수도 있다. 창을
+닫으면 원래 정책으로 돌아가며, 시스템 전체 정책은 바꾸지 않는다.
+
+```powershell
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+npm install
+npm run dev
+```
+
+회사 정책 때문에 `Set-ExecutionPolicy` 자체가 거부되면 정책을 우회하려 하지 말고
+`npm.cmd`를 사용한다. 명령 프롬프트(cmd.exe)에서도 `npm install`과 `npm run dev`를
+그대로 실행할 수 있다.
+
 ### 안 켜질 때 — 포트 충돌
 
 가장 흔한 실패다. `npm run dev` 가 이렇게 끝나면:
