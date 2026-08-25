@@ -1,0 +1,655 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>stt-lab — STT 모델 시험 하네스</title>
+<!--
+  프레임워크 없이 순수 JS로 짠다. 빌드 단계도 node_modules도 없다.
+  이 화면의 목적은 예쁜 UI가 아니라 avg_logprob · no_speech_prob · 단어 probability 를
+  사람이 눈으로 훑어 REQ-1306의 임계값을 정하는 것이다. 그래서 수치는 반올림해서
+  숨기지 않고, 표에 그대로 깐다.
+-->
+<style>
+  :root {
+    --bg: #f6f7f9;
+    --card: #ffffff;
+    --line: #dfe3e8;
+    --ink: #1c2430;
+    --dim: #6b7683;
+    --accent: #2d6cdf;
+    --warn: #c2410c;
+    --bad: #b91c1c;
+    --ok: #15803d;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 20px;
+    background: var(--bg); color: var(--ink);
+    font: 14px/1.6 "Malgun Gothic", "맑은 고딕", system-ui, sans-serif;
+  }
+  h1 { font-size: 19px; margin: 0 0 4px; }
+  h2 { font-size: 15px; margin: 0 0 12px; padding-bottom: 8px; border-bottom: 1px solid var(--line); }
+  .sub { color: var(--dim); font-size: 12px; margin: 0 0 16px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(420px, 1fr)); gap: 16px; align-items: start; }
+  section { background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 16px; }
+  section.wide { grid-column: 1 / -1; }
+  label { display: block; font-size: 12px; color: var(--dim); margin: 10px 0 3px; }
+  input[type=text], input[type=number], select, textarea {
+    width: 100%; padding: 6px 8px; border: 1px solid var(--line); border-radius: 5px;
+    font: inherit; background: #fff; color: inherit;
+  }
+  textarea { resize: vertical; min-height: 54px; }
+  button {
+    font: inherit; padding: 7px 13px; border-radius: 5px; border: 1px solid var(--line);
+    background: #fff; color: var(--ink); cursor: pointer;
+  }
+  button:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  button.primary:hover:not(:disabled) { color: #fff; opacity: .9; }
+  button:disabled { opacity: .45; cursor: not-allowed; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .badge {
+    display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 12px;
+    background: #eef2f7; border: 1px solid var(--line); color: var(--dim);
+  }
+  .badge.gpu { background: #e7f5ec; border-color: #b7e0c6; color: var(--ok); }
+  .badge.cpu { background: #fdf1e7; border-color: #f3d3b3; color: var(--warn); }
+  .note { font-size: 12px; color: var(--warn); margin-top: 8px; white-space: pre-wrap; }
+  .note.err { color: var(--bad); }
+  table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  th, td { padding: 5px 7px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+  th { color: var(--dim); font-weight: 600; background: #fafbfc; position: sticky; top: 0; }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; font-family: Consolas, monospace; }
+  .scroll { max-height: 320px; overflow: auto; border: 1px solid var(--line); border-radius: 6px; }
+  .transcript { font-size: 17px; padding: 12px; background: #fbfcfd; border: 1px solid var(--line); border-radius: 6px; min-height: 46px; }
+  .w { padding: 1px 2px; border-radius: 3px; }
+  .w.mid { background: #fff4d6; }
+  .w.low { background: #ffdcd6; color: var(--bad); font-weight: 600; }
+  .presets { max-height: 190px; overflow: auto; border: 1px solid var(--line); border-radius: 6px; }
+  .presets div { padding: 4px 8px; cursor: pointer; border-bottom: 1px solid #f0f2f4; }
+  .presets div:hover { background: #eef4ff; }
+  .presets small { color: var(--dim); }
+  .meter { height: 9px; background: #e9edf2; border-radius: 5px; overflow: hidden; flex: 1; min-width: 120px; }
+  .meter > i { display: block; height: 100%; width: 0; background: var(--accent); transition: width .06s linear; }
+  .k { color: var(--dim); font-size: 12px; }
+  audio { width: 100%; margin-top: 8px; }
+  tr.selected { background: #eef4ff; }
+  .guide details { border-bottom: 1px solid var(--line); padding: 8px 0; }
+  .guide details:last-child { border-bottom: 0; }
+  .guide summary { cursor: pointer; font-weight: 600; color: var(--ink); }
+  .guide p, .guide ul, .guide ol { margin: 6px 0 2px; color: var(--dim); font-size: 12px; }
+  .guide ul, .guide ol { padding-left: 20px; }
+  .guide code { color: var(--ink); }
+  .guide .command {
+    display: block; padding: 7px 9px; margin-top: 6px; border-radius: 5px;
+    background: #f3f5f7; color: var(--ink); white-space: pre-wrap; overflow-wrap: anywhere;
+    font: 11.5px/1.5 Consolas, monospace;
+  }
+</style>
+</head>
+<body>
+
+<h1>stt-lab — STT 모델 시험 하네스</h1>
+<p class="sub">
+  F13(음성 인터페이스)을 구현하기 전에 어떤 엔진·모델·설정을 쓸지 근거를 만드는 실험용 화면이다.
+  대시보드가 아니다. 핵심 산출물은 전사문이 아니라 <b>avg_logprob · no_speech_prob · 단어 probability</b> 의 실측 분포다 (REQ-1306).
+</p>
+
+<div class="grid">
+
+  <!-- ① 입력 -->
+  <section>
+    <h2>① 입력</h2>
+    <div class="row">
+      <button id="btnRec" class="primary">● 녹음 시작</button>
+      <span id="recTime" class="k">00.0초</span>
+      <div class="meter"><i id="recLevel"></i></div>
+    </div>
+    <label for="fileInput">파일 업로드 (wav · mp3 · m4a · webm)</label>
+    <input type="file" id="fileInput" accept=".wav,.mp3,.m4a,.webm,.ogg,.flac,audio/*" />
+    <audio id="player" controls hidden></audio>
+    <div id="inputNote" class="note" hidden></div>
+
+    <label>시험 발화 프리셋 <span class="k" id="presetCount"></span></label>
+    <p class="k" style="margin:0 0 4px">
+      registry.json 의 <code>display_name</code>·<code>aliases[]</code> 조합으로 만든 문장이다.
+      클릭하면 정답 텍스트가 채워지므로, 읽어서 녹음하면 CER이 바로 나온다.
+    </p>
+    <div class="presets" id="presets"></div>
+  </section>
+
+  <!-- ② 설정 -->
+  <section>
+    <h2>② 설정</h2>
+    <div class="row">
+      <span id="deviceBadge" class="badge">device 확인 중…</span>
+      <span id="engineBadge" class="badge"></span>
+    </div>
+    <div id="fallbackNote" class="note" hidden></div>
+
+    <label for="engineSelect">엔진</label>
+    <select id="engineSelect"></select>
+
+    <label for="modelSelect">모델</label>
+    <select id="modelSelect"></select>
+
+    <label><input type="checkbox" id="useHotwords" checked />
+      hotwords 적용 <span class="k" id="hotwordCount"></span></label>
+    <p class="k" style="margin:0">
+      registry 어휘로 디코딩을 편향시킨다(REQ-1304). 아래 <code>initial_prompt</code> 와는 다른 것이다 —
+      이쪽은 <b>어휘</b>, 저쪽은 <b>문맥·문체</b>다.
+    </p>
+
+    <label><input type="checkbox" id="vadFilter" checked /> VAD 필터 (Silero)</label>
+    <p class="k" style="margin:0">끄고 같은 오디오를 다시 돌리면 무음 구간 환각의 영향을 볼 수 있다.</p>
+
+    <label for="initialPrompt">initial_prompt (선택)</label>
+    <textarea id="initialPrompt" placeholder="예: 설비 관제 음성 명령입니다."></textarea>
+
+    <div class="row">
+      <div style="flex:1"><label for="beamSize">beam size</label>
+        <input type="number" id="beamSize" value="5" min="1" max="10" /></div>
+      <div style="flex:1"><label for="temperature">temperature</label>
+        <input type="number" id="temperature" value="0" min="0" max="1" step="0.1" /></div>
+      <div style="flex:1"><label for="wordThreshold">단어 확률 강조 임계</label>
+        <input type="number" id="wordThreshold" value="0.6" min="0" max="1" step="0.05" /></div>
+    </div>
+    <p class="k" style="margin:6px 0 0">
+      <code>language=ko</code> 고정 · <code>condition_on_previous_text=False</code> 고정.
+      짧은 발화에서 언어 오판과 반복 환각을 부르는 두 설정이라 토글로 열어두지 않았다.
+    </p>
+
+    <div class="row" style="margin-top:14px">
+      <button id="btnRun" class="primary" disabled>전사 실행</button>
+      <button id="btnRerun" disabled title="현재 설정으로 같은 오디오를 다시 돌린다">같은 오디오 재실행</button>
+      <span id="runState" class="k"></span>
+    </div>
+  </section>
+
+  <!-- 넓은 화면의 세 번째 열을 쓰는 현장용 설명서. 작은 화면에서는 카드처럼 아래로 흐른다. -->
+  <section class="guide">
+    <h2>사용 설명서</h2>
+    <p class="k" style="margin:0 0 8px">
+      설정을 바꿀 때는 한 번에 하나만 바꾸고 <b>같은 오디오 재실행</b>으로 비교한다.
+      숫자 하나만 보지 말고 정답 여부와 확률 분포를 함께 본다.
+    </p>
+
+    <details open>
+      <summary>② 설정 용어</summary>
+      <ul>
+        <li><b>엔진</b>: 음성을 글로 바꾸는 구현체. 현재는 faster-whisper를 사용한다.</li>
+        <li><b>모델</b>: 클수록 대체로 정확하지만 다운로드·메모리·처리 시간이 늘어난다.</li>
+        <li><b>hotwords</b>: registry의 설비명과 별칭을 모델이 더 잘 고르도록 편향시킨다.</li>
+        <li><b>VAD</b>: 무음 구간을 먼저 잘라 무음 환각과 불필요한 계산을 줄인다.</li>
+        <li><b>initial_prompt</b>: 발화의 문맥과 문체를 알려준다. hotwords와 합치지 않는다.</li>
+        <li><b>beam size</b>: 여러 문장 후보를 탐색하는 폭. 높이면 느려질 수 있다.</li>
+        <li><b>temperature</b>: 후보 선택의 무작위성. 재현 비교는 기본값 0을 권장한다.</li>
+        <li><b>단어 확률 강조 임계</b>: 화면 색칠 기준일 뿐, 엔진의 판정값을 바꾸지 않는다.</li>
+      </ul>
+    </details>
+
+    <details open>
+      <summary>③ 결과 용어</summary>
+      <ul>
+        <li><b>발화</b>: 입력 오디오 길이. <b>VAD 후</b>는 무음을 제외한 길이다.</li>
+        <li><b>추론</b>: 모델이 전사하는 데 걸린 시간. 최초 모델 로드 시간은 별도다.</li>
+        <li><b>RTF</b>: 추론 시간 ÷ 발화 길이. 1 미만이면 재생 시간보다 빠르다.</li>
+        <li><b>avg_logprob</b>: 세그먼트 평균 로그 확률. 0에 가까울수록 상대적으로 확신이 높다.</li>
+        <li><b>no_speech_prob</b>: 무음일 확률. 높으면 무음 환각 후보지만 단독 판정은 금물이다.</li>
+        <li><b>단어 probability</b>: 단어별 상대 확률. 붉은 단어는 설정한 강조 임계 미만이다.</li>
+        <li><b>compression</b>: 반복적인 출력 정도. 지나치게 높으면 반복 환각을 의심한다.</li>
+      </ul>
+    </details>
+
+    <details>
+      <summary>④ 정확도 용어</summary>
+      <ul>
+        <li><b>CER</b>: 공백을 제외한 음절 편집 오류율. 낮을수록 좋고 명령 비교의 주 지표다.</li>
+        <li><b>자모 CER</b>: 초·중·종성 단위 오류율. 받침 하나 오류와 음절 전체 오류를 구분한다.</li>
+        <li><b>WER</b>: 어절 오류율. 한국어 조사 차이에도 크게 올라가므로 참고용이다.</li>
+      </ul>
+    </details>
+
+    <details open>
+      <summary>“추론 중 CUDA 실패” 해결</summary>
+      <p>
+        GPU는 감지됐지만 CUDA/cuDNN DLL을 불러오지 못하면 CPU int8로 자동 전환된다.
+        전사는 계속되지만 느리며, 이때의 RTF를 GPU 결과로 기록하면 안 된다.
+      </p>
+      <ol>
+        <li>오류 문구에서 누락된 DLL 이름을 확인한다.</li>
+        <li>NVIDIA 드라이버와 CUDA 12, cuDNN 9 런타임을 설치한다.</li>
+        <li>CUDA의 <code>bin</code> 경로가 Windows <code>PATH</code>에 있는지 확인한다.</li>
+        <li>서버를 종료하고 새 PowerShell에서 다시 실행한다.</li>
+      </ol>
+      <code class="command">Get-ChildItem "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA" -Recurse -Filter "cublas64_12.dll" -ErrorAction SilentlyContinue</code>
+      <p>결과가 없으면 CUDA 12의 cuBLAS 런타임이 설치되지 않은 상태다.</p>
+    </details>
+
+    <details>
+      <summary>자주 생기는 문제</summary>
+      <ul>
+        <li><b>8799 포트 충돌</b>: <code>$env:STT_LAB_PORT="8800"</code> 후 서버를 실행한다.</li>
+        <li><b>반복 문장</b>: VAD를 켜고 무음 구간 및 compression 값을 확인한다.</li>
+        <li><b>registry 오류</b>: 서버 상단에 출력된 registry 경로와 파일 존재 여부를 확인한다.</li>
+        <li><b>모델 다운로드 실패</b>: 인터넷 연결과 모델 캐시 폴더 쓰기 권한을 확인한다.</li>
+      </ul>
+    </details>
+  </section>
+
+  <!-- ③ 결과 -->
+  <section class="wide">
+    <h2>③ 결과</h2>
+    <div class="row" style="margin-bottom:10px">
+      <span class="badge" id="statDur">발화 —</span>
+      <span class="badge" id="statElapsed">추론 —</span>
+      <span class="badge" id="statLoad">모델 로드 —</span>
+      <span class="badge" id="statRtf">RTF —</span>
+      <span class="badge" id="statVad">VAD 후 —</span>
+    </div>
+    <div class="transcript" id="transcript">—</div>
+    <p class="k" style="margin:6px 0 0">
+      단어 배경색은 <code>probability</code> 기준이다. 붉은색 = 임계 미만, 노란색 = 임계~임계+0.15.
+    </p>
+    <div class="transcript" id="wordsView" style="font-size:15px; margin-top:8px">—</div>
+
+    <label>세그먼트</label>
+    <div class="scroll">
+      <table id="segTable">
+        <thead><tr>
+          <th class="num">#</th><th class="num">start</th><th class="num">end</th><th>텍스트</th>
+          <th class="num">avg_logprob</th><th class="num">no_speech_prob</th><th class="num">compression</th>
+        </tr></thead>
+        <tbody><tr><td colspan="7" class="k">아직 없음</td></tr></tbody>
+      </table>
+    </div>
+    <div id="resultNote" class="note err" hidden></div>
+  </section>
+
+  <!-- ④ 정확도 -->
+  <section class="wide">
+    <h2>④ 정확도</h2>
+    <label for="reference">정답 텍스트 (프리셋을 클릭하면 채워진다)</label>
+    <textarea id="reference" placeholder="503 구역 로봇 상태 보여줘"></textarea>
+    <div class="row" style="margin-top:8px">
+      <button id="btnScore">CER 계산</button>
+      <label style="margin:0"><input type="checkbox" id="stripPunct" checked /> 문장부호 제거 후 비교</label>
+      <span id="scoreOut" class="k"></span>
+    </div>
+    <p class="k" style="margin:6px 0 0">
+      CER은 <b>음절 단위</b>가 기준이다. 자모 CER은 참고치로, 종성 하나 틀린 것과 글자를 통째로 틀린 것을 구분해 준다.
+      한국어는 교착어라 어절 WER이 실제 인식 품질보다 나쁘게 나온다.
+    </p>
+
+    <div class="row" style="margin:16px 0 8px">
+      <b style="font-size:13px">누적 비교표</b>
+      <button id="btnReload">새로고침</button>
+      <a href="/api/runs.csv" download><button>CSV 내보내기</button></a>
+      <span class="k">행을 클릭하면 그 오디오가 현재 오디오로 선택된다 → 설정만 바꿔 재실행</span>
+    </div>
+    <div class="scroll" style="max-height:420px">
+      <table id="runsTable">
+        <thead><tr>
+          <th>시각</th><th>모델</th><th>hotwords</th><th>VAD</th>
+          <th class="num">CER</th><th class="num">RTF</th><th class="num">발화(초)</th><th>오디오</th>
+          <th class="num">min logprob</th><th class="num">max no_speech</th><th class="num">min 단어p</th><th>전사문</th>
+        </tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </section>
+
+</div>
+
+<script>
+"use strict";
+
+// --- 상태 ------------------------------------------------------------------
+// 화면이 기억해야 하는 건 "지금 보고 있는 오디오"와 "마지막 실행 id" 둘뿐이다.
+// 이 둘이 있어야 ④의 재실행과 사후 채점이 성립한다.
+const state = {
+  sampleName: null,   // 서버 samples/ 에 보관된 파일명
+  pendingFile: null,  // 아직 안 올린 로컬 blob (녹음 직후·파일 선택 직후)
+  runId: null,
+  lastText: "",
+  engines: [],
+};
+
+const $ = (id) => document.getElementById(id);
+const fmt = (v, d = 3) => (v === null || v === undefined || v === "" ? "—" : Number(v).toFixed(d));
+
+async function getJSON(url) {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`${url} → ${res.status} ${await res.text()}`);
+  return res.json();
+}
+
+// --- 초기 로드 --------------------------------------------------------------
+
+async function loadModels() {
+  const data = await getJSON("/api/models");
+  state.engines = data.engines;
+  const engineSelect = $("engineSelect");
+  const previousEngine = engineSelect.value;
+  engineSelect.innerHTML = "";
+  data.engines.forEach((engine) => {
+    const opt = document.createElement("option");
+    opt.value = engine.engine;
+    opt.textContent = engine.display_name;
+    engineSelect.appendChild(opt);
+  });
+  if (data.engines.some((engine) => engine.engine === previousEngine)) {
+    engineSelect.value = previousEngine;
+  }
+  renderSelectedEngine();
+
+  if (!data.engines.length) {
+    $("deviceBadge").textContent = "엔진 없음";
+    showNote("fallbackNote", "등록된 엔진이 없다. 서버 로그의 load_errors 를 확인할 것.\n" +
+      JSON.stringify(data.load_errors, null, 1), true);
+  }
+}
+
+function renderSelectedEngine() {
+  const engine = state.engines.find((item) => item.engine === $("engineSelect").value);
+  if (!engine) {
+    return;
+  }
+  const sel = $("modelSelect");
+  const previousModel = sel.value;
+  sel.innerHTML = "";
+  engine.models.forEach((m) => {
+    const opt = document.createElement("option");
+    opt.value = m; opt.textContent = m;
+    opt.selected = m === previousModel || (!engine.models.includes(previousModel) && m === engine.default_model);
+    sel.appendChild(opt);
+  });
+
+  const badge = $("deviceBadge");
+  badge.textContent = `${engine.device} · ${engine.compute_type}`;
+  badge.className = "badge " + (engine.device === "cuda" ? "gpu" : "cpu");
+  $("engineBadge").textContent = engine.display_name;
+
+  // 폴백했으면 반드시 화면에 남긴다. GPU인 줄 알고 잰 RTF는 쓸모가 없다.
+  const reasons = [engine.fallback_reason, engine.device === "cpu" ? engine.device_note : null]
+    .filter(Boolean).join("\n");
+  showNote("fallbackNote", reasons, false);
+}
+
+$("engineSelect").onchange = renderSelectedEngine;
+
+async function loadVocab() {
+  try {
+    const v = await getJSON("/api/vocab");
+    $("hotwordCount").textContent = `(${v.count}개 · ${v.registry_version || "버전 미상"})`;
+    $("hotwordCount").title = v.registry_path;
+  } catch (e) {
+    $("hotwordCount").textContent = "(registry 읽기 실패)";
+    showNote("fallbackNote", String(e), true);
+  }
+}
+
+async function loadPresets() {
+  try {
+    const p = await getJSON("/api/presets");
+    $("presetCount").textContent = `(${p.count}개)`;
+    const box = $("presets");
+    box.innerHTML = "";
+    p.items.forEach((item) => {
+      const div = document.createElement("div");
+      div.innerHTML = `${escapeHtml(item.text)} <small>· ${escapeHtml(item.target_id)}</small>`;
+      div.onclick = () => { $("reference").value = item.text; };
+      box.appendChild(div);
+    });
+  } catch (e) {
+    $("presets").innerHTML = `<div class="k">${escapeHtml(String(e))}</div>`;
+  }
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, (c) =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+function showNote(id, text, isError) {
+  const el = $(id);
+  el.textContent = text;
+  el.className = "note" + (isError ? " err" : "");
+  el.hidden = !text;
+}
+
+// --- ① 입력: 녹음 ------------------------------------------------------------
+
+let recorder = null, recStream = null, recCtx = null, recTimer = null, recStart = 0, recRaf = 0;
+
+async function startRecording() {
+  recStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  // webm/opus 로 받는다. 서버는 PyAV로 디코딩하므로 별도 변환이 필요 없다.
+  const mime = MediaRecorder.isTypeSupported("audio/webm;codecs=opus") ? "audio/webm;codecs=opus" : "";
+  recorder = new MediaRecorder(recStream, mime ? { mimeType: mime } : undefined);
+  const chunks = [];
+  recorder.ondataavailable = (e) => { if (e.data.size) chunks.push(e.data); };
+  recorder.onstop = () => {
+    const blob = new Blob(chunks, { type: "audio/webm" });
+    setPendingAudio(new File([blob], "recording.webm", { type: "audio/webm" }));
+  };
+  recorder.start();
+
+  // 경과 시간 + 입력 레벨. 레벨이 0에서 안 움직이면 마이크가 안 잡힌 것이다.
+  recStart = performance.now();
+  recTimer = setInterval(() => {
+    $("recTime").textContent = ((performance.now() - recStart) / 1000).toFixed(1) + "초";
+  }, 100);
+  recCtx = new AudioContext();
+  const analyser = recCtx.createAnalyser();
+  analyser.fftSize = 512;
+  recCtx.createMediaStreamSource(recStream).connect(analyser);
+  const buf = new Uint8Array(analyser.fftSize);
+  const tick = () => {
+    analyser.getByteTimeDomainData(buf);
+    let sum = 0;
+    for (const v of buf) { const x = (v - 128) / 128; sum += x * x; }
+    const rms = Math.sqrt(sum / buf.length);
+    $("recLevel").style.width = Math.min(100, rms * 320).toFixed(0) + "%";
+    recRaf = requestAnimationFrame(tick);
+  };
+  tick();
+
+  $("btnRec").textContent = "■ 녹음 정지";
+  $("btnRec").classList.remove("primary");
+}
+
+function stopRecording() {
+  if (recorder && recorder.state !== "inactive") recorder.stop();
+  if (recStream) recStream.getTracks().forEach((t) => t.stop());
+  if (recCtx) recCtx.close();
+  clearInterval(recTimer); cancelAnimationFrame(recRaf);
+  $("recLevel").style.width = "0%";
+  $("btnRec").textContent = "● 녹음 시작";
+  $("btnRec").classList.add("primary");
+  recorder = null; recStream = null; recCtx = null;
+}
+
+function setPendingAudio(file) {
+  state.pendingFile = file;
+  state.sampleName = null;   // 아직 서버에 없다. 첫 전사에서 보관된다.
+  $("player").src = URL.createObjectURL(file);
+  $("player").hidden = false;
+  $("btnRun").disabled = false;
+  $("btnRerun").disabled = true;
+  showNote("inputNote", `새 오디오: ${file.name} (${(file.size / 1024).toFixed(0)} KB) — 전사 실행 시 samples/ 에 보관된다.`, false);
+}
+
+function selectStoredSample(name) {
+  state.sampleName = name;
+  state.pendingFile = null;
+  $("player").src = `/samples/${name}`;
+  $("player").hidden = false;
+  $("btnRun").disabled = false;
+  $("btnRerun").disabled = false;
+  showNote("inputNote", `보관된 오디오 선택: ${name} — 설정만 바꿔 재실행할 수 있다.`, false);
+}
+
+$("btnRec").onclick = async () => {
+  try {
+    if (recorder) stopRecording();
+    else await startRecording();
+  } catch (e) {
+    stopRecording();
+    showNote("inputNote", "마이크를 열 수 없다: " + e + "\n(브라우저 권한, 또는 localhost 가 아닌 주소로 열었는지 확인)", true);
+  }
+};
+
+$("fileInput").onchange = (e) => { if (e.target.files[0]) setPendingAudio(e.target.files[0]); };
+
+// --- ②③ 전사 ---------------------------------------------------------------
+
+function currentOptions() {
+  return {
+    engine_id: $("engineSelect").value,
+    model: $("modelSelect").value,
+    use_hotwords: $("useHotwords").checked,
+    vad_filter: $("vadFilter").checked,
+    initial_prompt: $("initialPrompt").value,
+    beam_size: $("beamSize").value,
+    temperature: $("temperature").value,
+    strip_punctuation: $("stripPunct").checked,
+    reference: $("reference").value,
+  };
+}
+
+async function runTranscribe() {
+  const form = new FormData();
+  const opts = currentOptions();
+  Object.entries(opts).forEach(([k, v]) => form.append(k, typeof v === "boolean" ? String(v) : v));
+  if (state.pendingFile) form.append("audio", state.pendingFile, state.pendingFile.name);
+  else if (state.sampleName) form.append("sample", state.sampleName);
+  else return;
+
+  $("btnRun").disabled = true; $("btnRerun").disabled = true;
+  $("runState").textContent = "전사 중… (모델을 처음 쓰면 내려받느라 오래 걸린다)";
+  showNote("resultNote", "", false);
+  try {
+    const res = await fetch("/api/transcribe", { method: "POST", body: form });
+    const data = await res.json();
+    if (!res.ok || data.error) {
+      showNote("resultNote", (data.error || res.status) + "\n" + (data.traceback || data.detail || ""), true);
+      return;
+    }
+    renderResult(data);
+    await loadRuns();
+    await loadModels();  // 폴백이 일어났으면 배지가 바뀌어야 한다
+  } catch (e) {
+    showNote("resultNote", String(e), true);
+  } finally {
+    $("runState").textContent = "";
+    $("btnRun").disabled = false;
+    $("btnRerun").disabled = !state.sampleName;
+  }
+}
+
+function renderResult(d) {
+  state.runId = d.run_id;
+  state.sampleName = d.sample;
+  state.pendingFile = null;   // 이제 서버에 보관됐으니 재실행은 이름으로 참조한다
+  state.lastText = d.text;
+  $("player").src = d.sample_url;
+  $("player").hidden = false;
+
+  $("statDur").textContent = `발화 ${fmt(d.duration_sec, 2)}초`;
+  $("statElapsed").textContent = `추론 ${fmt(d.elapsed_sec, 2)}초`;
+  $("statLoad").textContent = `모델 로드 ${d.load_sec > 0 ? fmt(d.load_sec, 2) + "초" : "캐시 적중"}`;
+  $("statRtf").textContent = `RTF ${fmt(d.rtf, 3)}`;
+  $("statVad").textContent = `VAD 후 ${fmt(d.extra.duration_after_vad_sec, 2)}초`;
+
+  $("transcript").textContent = d.text || "(빈 결과)";
+
+  const th = parseFloat($("wordThreshold").value);
+  $("wordsView").innerHTML = d.words.length
+    ? d.words.map((w) => {
+        const p = w.probability;
+        const cls = p < th ? "low" : p < th + 0.15 ? "mid" : "";
+        return `<span class="w ${cls}" title="p=${fmt(p, 3)} · ${fmt(w.start, 2)}~${fmt(w.end, 2)}s">${escapeHtml(w.word)}</span>`;
+      }).join("")
+    : '<span class="k">단어 단위 결과 없음</span>';
+
+  const tbody = $("segTable").querySelector("tbody");
+  tbody.innerHTML = d.segments.length
+    ? d.segments.map((s) => `<tr>
+        <td class="num">${s.index}</td>
+        <td class="num">${fmt(s.start, 2)}</td>
+        <td class="num">${fmt(s.end, 2)}</td>
+        <td>${escapeHtml(s.text)}</td>
+        <td class="num" style="${s.avg_logprob < -1 ? "color:var(--bad);font-weight:600" : ""}">${fmt(s.avg_logprob)}</td>
+        <td class="num" style="${s.no_speech_prob > 0.5 ? "color:var(--bad);font-weight:600" : ""}">${fmt(s.no_speech_prob, 4)}</td>
+        <td class="num">${fmt(s.compression_ratio, 2)}</td></tr>`).join("")
+    : '<tr><td colspan="7" class="k">세그먼트 없음 — VAD가 전부 잘라냈거나 무음이다</td></tr>';
+
+  if (d.score) showScore(d.score);
+}
+
+$("btnRun").onclick = runTranscribe;
+$("btnRerun").onclick = () => { state.pendingFile = null; runTranscribe(); };
+
+// --- ④ 정확도 ---------------------------------------------------------------
+
+function showScore(s) {
+  $("scoreOut").innerHTML =
+    `CER <b>${fmt(s.cer, 4)}</b> · 자모 CER ${fmt(s.cer_jamo, 4)} · WER ${fmt(s.wer, 4)}` +
+    ` · ${s.exact_match ? "완전 일치" : `편집거리 ${s.cer_detail.distance}/${s.cer_detail.ref_len}자`}`;
+}
+
+$("btnScore").onclick = async () => {
+  const reference = $("reference").value.trim();
+  if (!reference || !state.lastText) { $("scoreOut").textContent = "정답 텍스트와 전사 결과가 모두 있어야 한다."; return; }
+  const res = await fetch("/api/score", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      reference,
+      hypothesis: state.lastText,
+      strip_punctuation: $("stripPunct").checked,
+      run_id: state.runId,   // 이미 적재된 실행에 CER을 덧붙인다
+    }),
+  });
+  const s = await res.json();
+  showScore(s);
+  await loadRuns();
+};
+
+async function loadRuns() {
+  const data = await getJSON("/api/runs");
+  const rows = data.items.slice().reverse();
+  const tbody = $("runsTable").querySelector("tbody");
+  tbody.innerHTML = rows.length
+    ? rows.map((r) => `<tr data-sample="${escapeHtml(r.sample)}" class="${r.run_id === state.runId ? "selected" : ""}">
+        <td>${escapeHtml((r.ts || "").replace("T", " "))}</td>
+        <td>${escapeHtml(r.model)}</td>
+        <td>${r.use_hotwords ? "켬 (" + r.hotword_count + ")" : "끔"}</td>
+        <td>${r.vad_filter ? "켬" : "끔"}</td>
+        <td class="num">${r.cer === "" ? "—" : fmt(r.cer, 4)}</td>
+        <td class="num">${fmt(r.rtf, 3)}</td>
+        <td class="num">${fmt(r.duration_sec, 2)}</td>
+        <td title="${escapeHtml(r.sample)}">${escapeHtml(r.sample)}</td>
+        <td class="num">${fmt(r.min_avg_logprob)}</td>
+        <td class="num">${fmt(r.max_no_speech_prob, 4)}</td>
+        <td class="num">${fmt(r.min_word_prob)}</td>
+        <td>${escapeHtml(r.text)}</td></tr>`).join("")
+    : '<tr><td colspan="12" class="k">아직 실행 기록이 없다</td></tr>';
+
+  tbody.querySelectorAll("tr[data-sample]").forEach((tr) => {
+    tr.onclick = () => selectStoredSample(tr.dataset.sample);
+  });
+}
+
+$("btnReload").onclick = loadRuns;
+
+// --- 기동 -------------------------------------------------------------------
+loadModels();
+loadVocab();
+loadPresets();
+loadRuns();
+</script>
+</body>
+</html>

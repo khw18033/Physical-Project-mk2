@@ -1,0 +1,6 @@
+# PyTorch를 끌어오지 않는다. faster-whisper는 CTranslate2 런타임이라 torch가 필요 없고,
+# torch가 의존성에 들어왔다면 엔진을 잘못 잡은 것이다.
+fastapi>=0.111
+uvicorn[standard]>=0.30
+python-multipart>=0.0.9
+faster-whisper>=1.1.0
