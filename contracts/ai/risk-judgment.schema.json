@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://physical-project.local/contracts/ai/risk-judgment.schema.json",
+  "title": "AI Risk Judgment",
+  "type": "object",
+  "required": [
+    "state",
+    "score",
+    "evidence_sufficiency",
+    "evidence_used",
+    "reasons",
+    "recommendation",
+    "model_version",
+    "decided_at"
+  ],
+  "properties": {
+    "state": {"enum": ["normal", "watch", "alert", "recovery"]},
+    "score": {"type": "number", "minimum": 0, "maximum": 1},
+    "evidence_sufficiency": {"type": "number", "minimum": 0, "maximum": 1},
+    "evidence_used": {
+      "type": "array",
+      "items": {"type": "string"},
+      "uniqueItems": true
+    },
+    "reasons": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["label", "value", "contribution"],
+        "properties": {
+          "label": {"type": "string"},
+          "value": {"type": "string"},
+          "contribution": {"type": "number"}
+        },
+        "additionalProperties": false
+      }
+    },
+    "recommendation": {"type": "string"},
+    "model_version": {"type": "string", "minLength": 1},
+    "decided_at": {"type": "string", "format": "date-time"}
+  },
+  "additionalProperties": false
+}

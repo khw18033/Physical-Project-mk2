@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://physical-project.local/contracts/ai/model-deployment-result.schema.json",
+  "title": "Model Deployment Result",
+  "type": "object",
+  "required": [
+    "deployment_id",
+    "model_id",
+    "model_version",
+    "artifact_ref",
+    "checksum",
+    "target_node_id",
+    "status",
+    "previous_version",
+    "reason",
+    "occurred_at"
+  ],
+  "properties": {
+    "deployment_id": {"type": "string", "minLength": 1},
+    "model_id": {"type": "string", "minLength": 1},
+    "model_version": {"type": "string", "minLength": 1},
+    "artifact_ref": {"type": "string", "minLength": 1},
+    "checksum": {"type": "string", "minLength": 1},
+    "target_node_id": {"type": "string", "minLength": 1},
+    "status": {
+      "enum": ["REQUESTED", "DOWNLOADING", "VALIDATING", "APPLIED", "FAILED", "ROLLED_BACK"]
+    },
+    "previous_version": {"type": ["string", "null"]},
+    "reason": {"type": ["string", "null"]},
+    "occurred_at": {"type": "string", "format": "date-time"}
+  },
+  "additionalProperties": false
+}

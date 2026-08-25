@@ -14,7 +14,7 @@
     "affected_by_one_optional_provider_loss": 1,
     "affected_ratio": 0.1667,
     "core_still_running": true,
-    "detection_to_degradation_latency_ms": 0.179
+    "detection_to_degradation_latency_ms": 0.177
   },
   "resource_adaptation": {
     "running_when_healthy": 6,
@@ -23,7 +23,7 @@
     "degradations": 4,
     "recoveries": 10,
     "core_kept_during_saturation": true,
-    "max_transition_latency_ms": 0.118
+    "max_transition_latency_ms": 0.089
   },
   "transport_integrity": {
     "declared_data_kinds": 11,

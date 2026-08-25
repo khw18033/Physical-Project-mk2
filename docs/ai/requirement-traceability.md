@@ -4,8 +4,9 @@ CLAUDE.md §7 규칙에 따라 요구사항 ID별 구현 위치·테스트·충�
 공통 골격(§6 1~4단계) 이후, `docs/ai/01-standalone-implementation-plan.md`에서 정리한
 "하드웨어·타 파트 없이 구현·검증 가능한 범위(Tier A/B)"를 권장 순서대로 구현했다:
 Provider fake → 의사결정(D) → 추적/판단(S) → 위험도(R) → 실행제어·배포·관측(B/O) →
-인지·캘리브레이션·환경설정(E/N-02). 전 항목 pytest로 실제 검증됨 (`ai-framework/tests`,
-110개 테스트 통과).
+인지·캘리브레이션·환경설정(E/N-02) 이후 공통 데이터 사전, 폐쇄망, 보안 오버레이,
+서버·엣지 통합 실행관리, 모델 배포 lifecycle, 파트 간 wire 계약까지 반영했다. 전 항목 pytest로 실제 검증됨
+(`ai-framework/tests`, 293 passed / 19 skipped).
 
 상태 값: **완료** = 요구사항이 정의한 동작·경계가 테스트로 보장됨 /
 **부분** = 핵심 일부만 구현, 명시된 gap 있음 / **미착수**.
@@ -51,7 +52,7 @@ Provider fake → 의사결정(D) → 추적/판단(S) → 위험도(R) → 실�
 |---|---|---|---|
 | AI-R-01 | 완료 | `risk/fsm.py` | `tests/test_risk_fsm.py` |
 | AI-R-02 | 완료 | `risk/scoring.py` | `tests/test_risk_scoring.py` |
-| AI-R-03 | 완료 | `risk/output.py` | `tests/test_risk_output.py` |
+| AI-R-03 | 완료 (내부 결과와 파트 간 `risk_state` payload 모두 검증) | `risk/output.py`, `integration/wire.py`, `contracts/ai/risk-judgment.schema.json` | `tests/test_risk_output.py`, `tests/test_wire_integration.py`, `tests/test_integration_contract_schemas.py` |
 | AI-R-04 | 완료 | `risk/adjustment.py` | `tests/test_risk_adjustment.py` |
 
 ## 자원·배포
@@ -62,19 +63,20 @@ Provider fake → 의사결정(D) → 추적/판단(S) → 위험도(R) → 실�
 | AI-B-02 | 완료 (OCI 이미지 빌드 + 컨테이너 내 테스트 통과 실증; 오케스트레이터 없이도 동일 코드 실행) | `Dockerfile`, `execution/control.py`, `execution/lifecycle.py` | `tests/test_control.py`, `tests/test_lifecycle.py`, `docker run ... pytest` |
 | AI-B-03 | 완료 (standalone + K3s 두 provider가 동일 계약; audit/trace 분리 검증) | `execution/control.py`, `providers/k3s.py` | `tests/test_control.py`, `tests/test_k3s_control.py` |
 | AI-B-04 | 완료 (preferred 태그가 선택 순위에 반영되며 배제는 하지 않음) | `contracts/profile.py::CompatibilityProfile.preference_penalty`, `selection/selector.py` | `tests/test_selector.py`, `tests/test_compute_providers.py` |
-| AI-B-05 | 완료 (상태기계 + **실 K3s 클러스터 배포·기동·중지·상태조회 검증**) | `execution/lifecycle.py`, `providers/k3s.py::K3sControlProvider` | `tests/test_lifecycle.py`, `tests/test_k3s_control.py` |
+| AI-B-05 | 완료 (실행 상태기계 + **실 K3s 배포·기동·중지·상태조회** + 모델 다운로드·검증·활성화 lifecycle) | `execution/lifecycle.py`, `providers/k3s.py::K3sControlProvider`, `runtime/model_deployment.py` | `tests/test_lifecycle.py`, `tests/test_k3s_control.py`, `tests/test_model_deployment.py` |
 | AI-B-06 | 완료 | `selection/selector.py::CapabilitySelector.select_with_degrade` | `tests/test_selector.py`, `tests/test_risk_adjustment.py` |
-| AI-B-07 | 완료 (health 격리 + lifecycle 롤백 + K3s rollout undo, 오케스트레이터 부재 시 거부로 축소) | `registry/capability_registry.py`, `execution/lifecycle.py`, `providers/k3s.py` | `tests/test_capability_registry.py`, `tests/test_lifecycle.py`, `tests/test_k3s_control.py` |
-| AI-B-08 | 완료 (스텁 + **실제 CPU/OpenCL 런타임 2종 교체 실증**, 벤더명 정적 검사) | `providers/adapters.py::AIRuntimeProvider`, `providers/compute.py` | `tests/test_provider_fakes.py`, `tests/test_compute_providers.py` |
+| AI-B-07 | 완료 (health 격리 + 실행/model lifecycle 롤백 + K3s rollout undo, 오케스트레이터 부재 시 거부로 축소) | `registry/capability_registry.py`, `execution/lifecycle.py`, `runtime/model_deployment.py`, `providers/k3s.py` | `tests/test_capability_registry.py`, `tests/test_lifecycle.py`, `tests/test_model_deployment.py`, `tests/test_k3s_control.py` |
+| AI-B-08 | 완료 (스텁 + **실제 CPU/OpenCL 런타임 2종 교체 실증** + 모델 배포 provider 교체 계약, 벤더명 정적 검사) | `providers/adapters.py::{AIRuntimeProvider,ModelDeploymentProvider}`, `providers/compute.py` | `tests/test_provider_fakes.py`, `tests/test_compute_providers.py`, `tests/test_model_deployment.py` |
 | AI-B-09 | 완료 (conformance 하네스) | `execution/conformance.py` | `tests/test_conformance.py` |
 | AI-B-10 | 부분 (엣지에만 Bridge/K3s/Collector를 두는 배치를 코드·테스트로 표현; 실물 말단 하드웨어 검증은 미착수) | `edge/bridge.py`, `providers/k3s.py`(kubectl CLI만 사용) | `tests/test_kafka_bridge.py` |
+| AI-B-11 | 완료 (서버·엣지 별도 제어면을 동일 `ControlProvider` 계약 뒤에서 라우팅) | `runtime/clusters.py` | `tests/test_overlay_and_clusters.py` |
 
 ## 관측
 
 | ID | 상태 | 구현 위치 | 테스트 |
 |---|---|---|---|
 | AI-O-01 | 완료 (엣지 상세/요약 + **실 OTel Collector OTLP 수출 검증**) | `observability/metrics.py`, `providers/otel.py::OtlpObservabilityProvider` | `tests/test_observability.py`, `tests/test_otel_observability.py` |
-| AI-O-02 | 완료 (수집기 장애 시에도 로컬 사건 보존, metric 요약과 분리 실증) | `observability/events.py`, `providers/otel.py` | `tests/test_observability.py`, `tests/test_otel_observability.py` |
+| AI-O-02 | 완료 (수집기 장애 시에도 로컬 사건 보존, metric 요약과 분리, `ai_failure`/`capability_status` wire 채널 분리 실증) | `observability/events.py`, `providers/otel.py`, `integration/wire.py` | `tests/test_observability.py`, `tests/test_otel_observability.py`, `tests/test_wire_integration.py` |
 | AI-O-03 | 완료 (+ 실 Kafka offset 기반 단기 replay 참조) | `observability/reproduction.py`, `providers/kafka.py::ReplayReference` | `tests/test_observability.py`, `tests/test_kafka_bridge.py` |
 | AI-O-04 | 완료 | `observability/availability.py` | `tests/test_observability.py` |
 
@@ -82,7 +84,7 @@ Provider fake → 의사결정(D) → 추적/판단(S) → 위험도(R) → 실�
 
 | ID | 상태 | 구현 위치 | 테스트 |
 |---|---|---|---|
-| AI-C-01 | 미착수 (의도적 보류 — §6-8: 전체 기능 구현 후 데이터 사전 통일) | - | - |
+| AI-C-01 | 완료 (공통 필드 의미·값 종류·생산자·소비자·데이터 평면 사전 + 언어 중립 JSON Schema + 임의 필드 검출) | `contracts/data_dictionary.py`, `../contracts/ai`, `integration/wire.py` | `tests/test_data_dictionary.py`, `tests/test_integration_contract_schemas.py`, `tests/test_wire_integration.py` |
 | AI-C-02 | 완료 | `common/coordinates.py` | `tests/test_coordinates.py` |
 | AI-C-03 | 완료 | `common/timing.py` | `tests/test_timing.py` |
 | AI-C-04 | 완료 | `providers/adapters.py` + `providers/fakes.py` | `tests/test_provider_fakes.py` |
@@ -93,15 +95,17 @@ Provider fake → 의사결정(D) → 추적/판단(S) → 위험도(R) → 실�
 | AI-C-09 | 완료 (AIRuntimeProvider 재사용) | `providers/adapters.py`, `perception/auxiliary.py` | `tests/test_provider_fakes.py`, `tests/test_auxiliary.py` |
 | AI-C-10 | 완료 | `registry/capability_registry.py::CapabilityRegistry` | `tests/test_capability_registry.py` |
 | AI-C-11 | 완료 | `contracts/capability.py::CapabilityRequirement.evaluate` | `tests/test_local_safety.py` 등 |
-| AI-C-12 | 완료 | `providers/adapters.py` (6종 Protocol) | `tests/test_provider_fakes.py` |
+| AI-C-12 | 완료 | `providers/adapters.py` (8종 Protocol) | `tests/test_provider_fakes.py`, `tests/test_overlay_and_clusters.py`, `tests/test_model_deployment.py` |
 | AI-C-13 | 완료 | `selection/selector.py::CapabilitySelector.select` | `tests/test_selector.py` |
 | AI-C-14 | 완료 | `common/data_plane.py` (+ `providers/mqtt.py` 적용) | `tests/test_data_plane.py`, `tests/test_mqtt_transport.py` |
 | AI-C-15 | 완료 (로더 + robot/facility/river 프로파일 + 도메인 분기 정적 검사) | `contracts/profile.py`, `contracts/profile_loader.py`, `profiles/*.json` | `tests/test_profile_loader.py` |
+| AI-C-16 | 완료 (내부 자산 조달 + 공개 egress 배치 전 검출 + 선택 외부 의존성만 비활성화) | `runtime/airgap.py` | `tests/test_airgap.py` |
+| AI-C-17 | 완료 (오버레이 provider 추상화 + Tailscale 구현 격리 + 오버레이 상태 별도 신호) | `providers/adapters.py`, `providers/overlay.py` | `tests/test_overlay_and_clusters.py` |
 
 ## 시나리오 검증 (하드웨어 없이 프레임워크 특성 확인)
 
 요구사항별 단위 검증과 별개로, "범용 프레임워크가 하드웨어·기능·실행환경 변화에 견디는가"를
-15개 시나리오로 검증한다. 구현 위치·실행법·지표는
+기존 15개 시나리오와 폐쇄망/오버레이/멀티클러스터 관점을 함께 검증한다. 구현 위치·실행법·지표는
 [docs/ai/03-framework-property-scenarios.md](03-framework-property-scenarios.md) 참고.
 
 | 시나리오 | 검증 요구사항 |
@@ -114,15 +118,17 @@ Provider fake → 의사결정(D) → 추적/판단(S) → 위험도(R) → 실�
 | S10 구성 delta·롤백 / S11 자동 캘리브레이션 | AI-N-02, AI-B-05/07, AI-E-02/03, AI-C-02 |
 | S12 도메인 전환 / S13 도메인 사후 추가 | AI-C-15, AI-C-04/05, AI-B-09 |
 | S15 Kafka burst | AI-C-06, AI-O-03, 원칙 #17 |
+| S16 폐쇄망 배치 / S17 보안 오버레이 / S18 멀티 클러스터 | AI-C-16/17, AI-B-11, AI-C-12, AI-O-04 |
 
 ## 요약
 
-- **완료: 46 / 48**, **부분: 1**(AI-B-10), **미착수: 1**(AI-C-01 — 의도적 보류)
+- **완료: 50 / 51**, **부분: 1**(AI-B-10), **미착수: 0**
 - **실 인프라로 승격 완료**: MQTT(mosquitto), Kafka(KRaft), 엣지 양방향 Bridge, OCI 컨테이너,
-  K3s 클러스터 제어, OpenTelemetry Collector(OTLP)
-- **시나리오 검증 완료**: 15개 시나리오 + 지표 산출 (`reports/framework-indicators.json`)
+  K3s 클러스터 제어, OpenTelemetry Collector(OTLP), Tailscale CLI 기반 오버레이 조회
+- **파트 간 통합 준비 완료**: JSON Schema 8종, 정상 payload 예제 6종, AI wire adapter,
+  모델 배포·롤백 lifecycle, 하드웨어·백엔드·가시화 병합 가이드
+- **시나리오 검증 완료**: 18개 관점(기존 15개 + 폐쇄망/오버레이/멀티클러스터) + 지표 산출 (`reports/framework-indicators.json`)
 - **남은 항목과 사유**:
-  - AI-C-01 데이터 사전 통일 — 의도적 보류 (§6-8: 전체 기능 구현 후 일괄 진행)
   - AI-B-10 실물 말단 검증 / AI-N-01 최소 처리주기 실측 — 실제 하드웨어 필요
   - AI-C-10 백엔드 통합 가용성 판정 — 백엔드 API 필요 (현재는 백엔드 mock으로 대역)
 
@@ -131,10 +137,10 @@ Provider fake → 의사결정(D) → 추적/판단(S) → 위험도(R) → 실�
 ```bash
 cd ai-framework
 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest -q
-#   -> 249 passed, 6 skipped (인프라 기동 시; skip = OpenCL 플랫폼 + K3s API 재기동 중)
+#   -> 293 passed, 19 skipped (현재 개발 환경; skip = 선택 의존성·인프라 부재)
 docker run --rm ai-framework:0.1.0 python -m pytest -q
 #   -> 230 passed, 25 skipped (선택 의존성·인프라 없는 최소 컨테이너)
-PYTHONPATH=. python3 examples/scenario_demo.py    # 13단계 최종 데모
+PYTHONPATH=. python3 examples/scenario_demo.py    # 16단계 최종 데모
 ```
 
 **선택 구성요소가 없으면 해당 테스트만 skip되고 나머지는 그대로 통과**하는 것이 AI-C-11이

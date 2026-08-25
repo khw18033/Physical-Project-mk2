@@ -1,0 +1,25 @@
+{
+  "schema_version": "1.0",
+  "message_id": "msg-model-001",
+  "source_id": "model-manager-a",
+  "node_id": "edge-node-a",
+  "zone_id": "zone-a",
+  "entity_id": "robot-01",
+  "channel": "model_deployment_result",
+  "timestamp": "2026-08-25T12:00:05Z",
+  "sequence_id": 12,
+  "correlation_id": "deployment-42",
+  "coordinate_frame": null,
+  "payload": {
+    "deployment_id": "deployment-42",
+    "model_id": "local-safety-detector",
+    "model_version": "4.1.0",
+    "artifact_ref": "internal://models/local-safety-detector/4.1.0",
+    "checksum": "sha256:0123456789abcdef",
+    "target_node_id": "robot-01-onboard",
+    "status": "APPLIED",
+    "previous_version": "4.0.2",
+    "reason": null,
+    "occurred_at": "2026-08-25T12:00:05Z"
+  }
+}

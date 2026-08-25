@@ -1,0 +1,26 @@
+{
+  "schema_version": "1.0",
+  "message_id": "msg-risk-001",
+  "source_id": "risk-engine-a",
+  "node_id": "edge-node-a",
+  "zone_id": "zone-a",
+  "entity_id": "river-section-12",
+  "channel": "risk_state",
+  "timestamp": "2026-08-25T12:00:01Z",
+  "sequence_id": 8,
+  "correlation_id": "incident-2026-08-25-01",
+  "coordinate_frame": null,
+  "payload": {
+    "state": "alert",
+    "score": 0.87,
+    "evidence_sufficiency": 0.92,
+    "evidence_used": ["water_level", "rise_rate"],
+    "reasons": [
+      {"label": "water level", "value": "4.2m", "contribution": 0.62},
+      {"label": "rise rate", "value": "0.3m/min", "contribution": 0.25}
+    ],
+    "recommendation": "close_gate_and_alert_operator",
+    "model_version": "river-rules-3",
+    "decided_at": "2026-08-25T12:00:01Z"
+  }
+}

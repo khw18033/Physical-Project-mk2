@@ -8,6 +8,7 @@
   ③ 실행 환경이 바뀌면 자동으로 재구성되는가?
   ④ 로봇·감시·하천이 동일 프레임워크로 돌아가는가?
   ⑤ 전송·관측·제어 계층이 서로 섞이지 않는가?
+  ⑥ 폐쇄망·보안 오버레이·서버/엣지 제어면 경계가 상위 로직 밖에 있는가?
 """
 
 from __future__ import annotations
@@ -17,15 +18,20 @@ from pathlib import Path
 
 from ai_framework.common.data_plane import DataKind, DataPlaneViolation
 from ai_framework.contracts.capability import CapabilityRequirement
+from ai_framework.contracts import data_dictionary as dd
 from ai_framework.contracts.profile import CompatibilityProfile, ResourceCost
 from ai_framework.contracts.profile_loader import load_profile
+from ai_framework.execution.control import LocalControlSupervisor
 from ai_framework.providers.fakes import (
     InMemoryObservabilityProvider,
     InMemoryTransportProvider,
     SyntheticMediaSourceProvider,
 )
+from ai_framework.providers.overlay import OverlayAwareRemoteGate, StaticOverlayProvider
 from ai_framework.registry.capability_registry import CapabilityRegistry, ProviderRegistration
+from ai_framework.runtime.airgap import AirgapPolicy, AssetRef, AssetResolver, ExternalDependency
 from ai_framework.runtime.application import CapabilitySpec, ZoneApplication
+from ai_framework.runtime.clusters import ClusterBinding, MultiClusterControlProvider, PlacementRequest
 from ai_framework.runtime.reconfiguration import ResourceAdaptiveReconfigurer, ResourceSnapshot
 from ai_framework.simulation.backend import BackendAvailabilityIntegrator
 from ai_framework.simulation.sources import ScriptedSeriesSource
@@ -205,8 +211,64 @@ river_transport.publish(
 print(f"  제어 명령 실행 결과: {[(r.outcome.value, r.reason) for r in river_terminal.command_log]}")
 print(f"  액추에이터 상태: flood_wall={river_terminal.state.get('flood_wall')}")
 
-# ---------------------------------------------------------------- 13
-banner(13, "코드 diff 확인 — Core code 변경 0")
+# ---------------------------------------------------------------- 13 ~ 15
+banner(13, "공통 데이터 사전으로 payload 이름 확인 (AI-C-01)")
+sample_payload = dd.assert_known(
+    {
+        dd.DEVICE_ID: "virtual_river_01",
+        dd.OBSERVED_AT: 1720000000.0,
+        dd.OBSERVATION_NAME: "water_level",
+        dd.OBSERVATION_VALUE: 3.1,
+        dd.RISK_STATE: fsm.state.value,
+    }
+)
+print(f"  사전에 등록된 payload field: {list(sample_payload)}")
+print(f"  관측 평면 field 예: {dd.TRACE_ID}, {dd.OVERLAY_STATE}")
+
+banner(14, "폐쇄망 배치 검증 + 선택 외부 서비스만 축소 (AI-C-16)")
+resolver = AssetResolver(
+    base_locations={
+        "image": "https://registry.internal.example/ai",
+        "model": "https://artifacts.internal.example/models",
+        "generic": "/var/lib/ai-framework/assets",
+    },
+    internal_hosts=frozenset({"registry.internal.example", "artifacts.internal.example"}),
+    internal_suffixes=frozenset({".internal"}),
+)
+model = resolver.resolve(AssetRef("risk-rules", kind="model", version="2"))
+policy = AirgapPolicy(resolver)
+verdict = policy.evaluate(
+    "river-risk-worker",
+    [
+        ExternalDependency("kafka://server.internal:9092", optional=False),
+        ExternalDependency("https://api.external-ai.example/v1", purpose="optional-vlm", optional=True),
+    ],
+)
+print(f"  내부 모델 위치: {model.location}")
+print(f"  배치 가능: {verdict.placeable}, 비활성화된 선택 의존성: {list(verdict.disabled_optional)}")
+
+banner(15, "보안 오버레이 + 서버/엣지 제어면 라우팅 (AI-C-17, AI-B-11)")
+overlay = StaticOverlayProvider(connected=True, peers={"server-1": True})
+gate = OverlayAwareRemoteGate(overlay)
+print(f"  server-1 원격 기능 선택 가능: {gate.may_select('server-1', backend_integrated_available=True)}")
+overlay.set_connected(False)
+print(f"  오버레이 단절 사유: {gate.unavailable_reason('server-1', backend_integrated_available=True)}")
+
+server_plane = LocalControlSupervisor()
+edge_plane = LocalControlSupervisor()
+control = MultiClusterControlProvider(
+    [
+        ClusterBinding("server-cluster", server_plane, frozenset({"server", "central"})),
+        ClusterBinding("edge-cluster-a", edge_plane, frozenset({"zone-edge", "local"})),
+    ]
+)
+control.request("start", "central-aggregator", {"placement": PlacementRequest(frozenset({"server"}))})
+control.request("start", "zone-risk-worker", {"placement": PlacementRequest(frozenset({"zone-edge"}))})
+print(f"  central-aggregator 배치: {control.cluster_of('central-aggregator')}")
+print(f"  zone-risk-worker 배치: {control.cluster_of('zone-risk-worker')}")
+
+# ---------------------------------------------------------------- 16
+banner(16, "코드 diff 확인 — Core code 변경 0")
 indicators = Path(__file__).resolve().parents[2] / "reports" / "framework-indicators.json"
 if indicators.exists():
     data = json.loads(indicators.read_text(encoding="utf-8"))

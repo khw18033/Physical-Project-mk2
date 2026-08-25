@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://physical-project.local/contracts/ai/frame-reference.schema.json",
+  "title": "Frame Reference",
+  "type": "object",
+  "required": ["source_id", "capture_timestamp", "sequence_id", "time_sync_state"],
+  "properties": {
+    "source_id": {"type": "string", "minLength": 1},
+    "capture_timestamp": {"type": "string", "format": "date-time"},
+    "sequence_id": {"type": "integer", "minimum": 0},
+    "frame_id": {"type": ["string", "null"]},
+    "time_sync_state": {"enum": ["SYNCED", "DEGRADED"]}
+  },
+  "additionalProperties": false
+}

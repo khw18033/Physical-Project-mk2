@@ -6,3 +6,19 @@ venv/
 *.egg-info/
 .coverage
 .DS_Store
+
+# Local configuration and credentials
+.env
+.env.*
+!.env.example
+config.yaml
+**/config.yaml
+secrets/
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Local runtime artifacts
+*.log
+*.pid

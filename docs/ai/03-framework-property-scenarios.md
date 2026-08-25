@@ -64,6 +64,9 @@
 | S12 | Robot → River 전환 | `test_s12_s13_domain_swap.py` | 같은 함수, 인자만 프로파일 경로 |
 | S13 | 감시 도메인 사후 추가 | 동일 파일 | 프로파일 파일 하나만 추가 |
 | S15 | Kafka 재난 Burst | `test_s15_burst.py` | 소비자 그룹별 독립 소비, 발행이 소비 속도에 묶이지 않음 |
+| S16 | 폐쇄망 배치 | `tests/test_airgap.py` | 내부 자산만으로 배치, 선택 외부 의존성만 비활성화 |
+| S17 | 보안 오버레이 단절 | `tests/test_overlay_and_clusters.py` | 원격 기능만 축소, 업무·관측 장애와 별도 사유 유지 |
+| S18 | 서버·엣지 멀티클러스터 | `tests/test_overlay_and_clusters.py` | 동일 제어 계약으로 배치, 한쪽 제어면 장애 격리 |
 | 지표 | §18 지표 산출 | `test_framework_indicators.py` | `reports/framework-indicators.json` 생성 |
 
 ## 3. 실행 방법
@@ -71,10 +74,11 @@
 ```bash
 cd ai-framework
 
-# 시나리오만 (인프라 없으면 관련 항목 자동 skip)
-PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest -q tests/scenarios
+# 시나리오 관점만 (인프라 없으면 관련 항목 자동 skip)
+PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest -q \
+  tests/scenarios tests/test_airgap.py tests/test_overlay_and_clusters.py
 
-# 최종 데모 (13단계 한 흐름)
+# 최종 데모 (16단계 한 흐름)
 PYTHONPATH=. python3 examples/scenario_demo.py
 ```
 

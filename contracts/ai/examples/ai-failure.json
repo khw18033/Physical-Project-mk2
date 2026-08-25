@@ -1,0 +1,26 @@
+{
+  "schema_version": "1.0",
+  "message_id": "msg-failure-001",
+  "source_id": "perception-runtime-a",
+  "node_id": "edge-node-a",
+  "zone_id": "zone-a",
+  "entity_id": "camera-01",
+  "channel": "ai_failure",
+  "timestamp": "2026-08-25T12:00:02Z",
+  "sequence_id": 9,
+  "correlation_id": "mission-42",
+  "coordinate_frame": null,
+  "payload": {
+    "event_id": "failure-001",
+    "component": "perception.detect",
+    "model_version": "detector-4",
+    "input_ref": "camera-01/frame-1043",
+    "error_code": "MODEL_EXECUTION_FAILED",
+    "detail": "runtime returned a non-zero status",
+    "severity": "critical",
+    "capability_state_before": "ACTIVE",
+    "capability_state_after": "DISABLED",
+    "trace_id": "trace-1001",
+    "occurred_at": "2026-08-25T12:00:02Z"
+  }
+}

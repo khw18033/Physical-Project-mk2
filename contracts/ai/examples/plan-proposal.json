@@ -1,0 +1,46 @@
+{
+  "schema_version": "1.0",
+  "message_id": "msg-plan-001",
+  "source_id": "planner-a",
+  "node_id": "edge-node-a",
+  "zone_id": "zone-a",
+  "entity_id": "robot-01",
+  "channel": "plan_proposal",
+  "timestamp": "2026-08-25T12:00:03Z",
+  "sequence_id": 10,
+  "correlation_id": "mission-42",
+  "coordinate_frame": null,
+  "payload": {
+    "plan_id": "plan-42-v1",
+    "mission_id": "mission-42",
+    "entity_id": "robot-01",
+    "generator": {
+      "name": "rule-template-planner",
+      "version": "1.0.0",
+      "context_version": "zone-a-map-12"
+    },
+    "subtasks": [
+      {
+        "subtask_id": "zone-a:inspect:0",
+        "zone_id": "zone-a",
+        "action": "inspect",
+        "order_index": 0,
+        "params": {},
+        "preconditions": ["zone_reachable:zone-a"],
+        "forbidden_if": ["flooded"],
+        "required_evidence": [],
+        "resource_requirements": {"battery_pct": 30}
+      }
+    ],
+    "validations": [
+      {
+        "subtask_id": "zone-a:inspect:0",
+        "executable": true,
+        "reasons": [],
+        "missing_evidence": []
+      }
+    ],
+    "approval_required": true,
+    "created_at": "2026-08-25T12:00:03Z"
+  }
+}

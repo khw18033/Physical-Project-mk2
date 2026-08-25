@@ -1,0 +1,98 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://physical-project.local/contracts/ai/message.schema.json",
+  "title": "AI Integration Message",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "message_id",
+    "source_id",
+    "node_id",
+    "zone_id",
+    "entity_id",
+    "channel",
+    "timestamp",
+    "sequence_id",
+    "correlation_id",
+    "coordinate_frame",
+    "payload"
+  ],
+  "properties": {
+    "schema_version": {"const": "1.0"},
+    "message_id": {"type": "string", "minLength": 1},
+    "source_id": {"type": "string", "minLength": 1},
+    "node_id": {"type": "string", "minLength": 1},
+    "zone_id": {"type": ["string", "null"]},
+    "entity_id": {"type": "string", "minLength": 1},
+    "channel": {
+      "enum": [
+        "detections",
+        "risk_state",
+        "ai_failure",
+        "plan_proposal",
+        "capability_status",
+        "model_deployment_result"
+      ]
+    },
+    "timestamp": {"type": "string", "format": "date-time"},
+    "sequence_id": {"type": "integer", "minimum": 0},
+    "correlation_id": {"type": ["string", "null"]},
+    "coordinate_frame": {"type": ["string", "null"]},
+    "payload": {"type": "object"}
+  },
+  "allOf": [
+    {
+      "oneOf": [
+        {
+          "properties": {
+            "channel": {"const": "detections"},
+            "payload": {
+              "$ref": "https://physical-project.local/contracts/ai/detection-result.schema.json"
+            }
+          }
+        },
+        {
+          "properties": {
+            "channel": {"const": "risk_state"},
+            "payload": {
+              "$ref": "https://physical-project.local/contracts/ai/risk-judgment.schema.json"
+            }
+          }
+        },
+        {
+          "properties": {
+            "channel": {"const": "ai_failure"},
+            "payload": {
+              "$ref": "https://physical-project.local/contracts/ai/ai-failure.schema.json"
+            }
+          }
+        },
+        {
+          "properties": {
+            "channel": {"const": "plan_proposal"},
+            "payload": {
+              "$ref": "https://physical-project.local/contracts/ai/plan-proposal.schema.json"
+            }
+          }
+        },
+        {
+          "properties": {
+            "channel": {"const": "capability_status"},
+            "payload": {
+              "$ref": "https://physical-project.local/contracts/ai/capability-status.schema.json"
+            }
+          }
+        },
+        {
+          "properties": {
+            "channel": {"const": "model_deployment_result"},
+            "payload": {
+              "$ref": "https://physical-project.local/contracts/ai/model-deployment-result.schema.json"
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "additionalProperties": false
+}

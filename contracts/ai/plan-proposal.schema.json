@@ -1,0 +1,77 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://physical-project.local/contracts/ai/plan-proposal.schema.json",
+  "title": "AI Plan Proposal",
+  "type": "object",
+  "required": [
+    "plan_id",
+    "mission_id",
+    "entity_id",
+    "generator",
+    "subtasks",
+    "validations",
+    "approval_required",
+    "created_at"
+  ],
+  "properties": {
+    "plan_id": {"type": "string", "minLength": 1},
+    "mission_id": {"type": "string", "minLength": 1},
+    "entity_id": {"type": "string", "minLength": 1},
+    "generator": {
+      "type": "object",
+      "required": ["name", "version", "context_version"],
+      "properties": {
+        "name": {"type": "string", "minLength": 1},
+        "version": {"type": "string", "minLength": 1},
+        "context_version": {"type": "string", "minLength": 1}
+      },
+      "additionalProperties": false
+    },
+    "subtasks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "subtask_id",
+          "zone_id",
+          "action",
+          "order_index",
+          "params",
+          "preconditions",
+          "forbidden_if",
+          "required_evidence",
+          "resource_requirements"
+        ],
+        "properties": {
+          "subtask_id": {"type": "string", "minLength": 1},
+          "zone_id": {"type": "string", "minLength": 1},
+          "action": {"type": "string", "minLength": 1},
+          "order_index": {"type": "integer", "minimum": 0},
+          "params": {"type": "object"},
+          "preconditions": {"type": "array", "items": {"type": "string"}},
+          "forbidden_if": {"type": "array", "items": {"type": "string"}},
+          "required_evidence": {"type": "array", "items": {"type": "string"}},
+          "resource_requirements": {"type": "object"}
+        },
+        "additionalProperties": false
+      }
+    },
+    "validations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["subtask_id", "executable", "reasons", "missing_evidence"],
+        "properties": {
+          "subtask_id": {"type": "string", "minLength": 1},
+          "executable": {"type": "boolean"},
+          "reasons": {"type": "array", "items": {"type": "string"}},
+          "missing_evidence": {"type": "array", "items": {"type": "string"}}
+        },
+        "additionalProperties": false
+      }
+    },
+    "approval_required": {"const": true},
+    "created_at": {"type": "string", "format": "date-time"}
+  },
+  "additionalProperties": false
+}

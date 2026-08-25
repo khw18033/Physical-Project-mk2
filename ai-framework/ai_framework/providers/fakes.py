@@ -114,6 +114,52 @@ class StubAIRuntimeProvider:
         self._available = value
 
 
+class InMemoryModelDeploymentProvider:
+    """Deterministic model installer fake used by the lifecycle coordinator."""
+
+    def __init__(
+        self,
+        *,
+        versions: dict[tuple[str, str], str] | None = None,
+        fail_at: str | None = None,
+    ) -> None:
+        self._versions = dict(versions or {})
+        self._fail_at = fail_at
+        self.calls: list[tuple] = []
+
+    def current_version(self, model_id: str, target_node_id: str) -> str | None:
+        self.calls.append(("current_version", model_id, target_node_id))
+        return self._versions.get((model_id, target_node_id))
+
+    def download(self, artifact_ref: str, target_node_id: str) -> bool:
+        self.calls.append(("download", artifact_ref, target_node_id))
+        return self._fail_at != "download"
+
+    def validate(self, artifact_ref: str, checksum: str, target_node_id: str) -> bool:
+        self.calls.append(("validate", artifact_ref, checksum, target_node_id))
+        return self._fail_at != "validate"
+
+    def activate(
+        self,
+        model_id: str,
+        model_version: str,
+        artifact_ref: str,
+        target_node_id: str,
+    ) -> bool:
+        self.calls.append(("activate", model_id, model_version, artifact_ref, target_node_id))
+        if self._fail_at == "activate":
+            return False
+        self._versions[(model_id, target_node_id)] = model_version
+        return True
+
+    def rollback(self, model_id: str, model_version: str, target_node_id: str) -> bool:
+        self.calls.append(("rollback", model_id, model_version, target_node_id))
+        if self._fail_at == "rollback":
+            return False
+        self._versions[(model_id, target_node_id)] = model_version
+        return True
+
+
 @dataclass
 class RecordedEvent:
     name: str

@@ -78,6 +78,32 @@ class AIRuntimeProvider(Protocol):
 
 
 @runtime_checkable
+class ModelDeploymentProvider(Protocol):
+    """Stages, validates, activates, and rolls back model artifacts.
+
+    Hardware-specific file transfer, filesystem paths, runtime reload APIs,
+    and process restarts stay behind this boundary. The coordinator sees only
+    logical model/version/target identifiers (HW-R-10, AI-B-05/07/08).
+    """
+
+    def current_version(self, model_id: str, target_node_id: str) -> str | None: ...
+
+    def download(self, artifact_ref: str, target_node_id: str) -> bool: ...
+
+    def validate(self, artifact_ref: str, checksum: str, target_node_id: str) -> bool: ...
+
+    def activate(
+        self,
+        model_id: str,
+        model_version: str,
+        artifact_ref: str,
+        target_node_id: str,
+    ) -> bool: ...
+
+    def rollback(self, model_id: str, model_version: str, target_node_id: str) -> bool: ...
+
+
+@runtime_checkable
 class ControlProvider(Protocol):
     """Start/stop/restart/reconfigure + status for one execution unit (AI-B-03).
 
@@ -104,3 +130,22 @@ class ObservabilityProvider(Protocol):
     def record_metric(self, name: str, value: float, tags: dict | None = None) -> None: ...
 
     def record_event(self, name: str, severity: str, payload: dict | None = None) -> None: ...
+
+
+@runtime_checkable
+class NetworkOverlayProvider(Protocol):
+    """Secure overlay linking 구역 엣지 and 서버 without public internet
+    exposure (AI-C-17, 원칙 #10).
+
+    Upper-layer code asks only two questions — can I reach that peer, and
+    what is the overlay's own state — so the current implementation
+    (Tailscale today) never leaks into transport or execution logic.
+    Overlay loss is reported separately from task-transport and
+    observability loss, because the three mean different things (AI-O-04).
+    """
+
+    def is_connected(self) -> bool: ...
+
+    def can_reach(self, peer_id: str) -> bool: ...
+
+    def peers(self) -> dict: ...

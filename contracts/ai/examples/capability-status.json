@@ -1,0 +1,21 @@
+{
+  "schema_version": "1.0",
+  "message_id": "msg-capability-001",
+  "source_id": "capability-registry-a",
+  "node_id": "edge-node-a",
+  "zone_id": "zone-a",
+  "entity_id": "camera-01",
+  "channel": "capability_status",
+  "timestamp": "2026-08-25T12:00:04Z",
+  "sequence_id": 11,
+  "correlation_id": null,
+  "coordinate_frame": null,
+  "payload": {
+    "capability_kind": "perception.detect",
+    "provider_id": "opencv-detector",
+    "state": "DEGRADED",
+    "reason": "association provider unavailable",
+    "cluster_id": "edge-a",
+    "changed_at": "2026-08-25T12:00:04Z"
+  }
+}

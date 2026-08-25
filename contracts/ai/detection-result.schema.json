@@ -1,0 +1,143 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://physical-project.local/contracts/ai/detection-result.schema.json",
+  "title": "AI Detection Result",
+  "type": "object",
+  "required": [
+    "frame_ref",
+    "emitted_at",
+    "inference_delay_ms",
+    "origin",
+    "bbox_space",
+    "association",
+    "corridor",
+    "detections"
+  ],
+  "properties": {
+    "frame_ref": {
+      "$ref": "https://physical-project.local/contracts/ai/frame-reference.schema.json"
+    },
+    "emitted_at": {"type": "string", "format": "date-time"},
+    "inference_delay_ms": {"type": "number", "minimum": 0},
+    "origin": {
+      "type": "object",
+      "required": ["tier", "kind", "optional"],
+      "properties": {
+        "tier": {"enum": ["device", "edge", "server"]},
+        "kind": {"enum": ["safety_minimal", "precise", "derived"]},
+        "optional": {"type": "boolean"},
+        "label": {"type": "string"}
+      },
+      "additionalProperties": false
+    },
+    "bbox_space": {
+      "type": "object",
+      "required": ["format", "origin", "reference"],
+      "properties": {
+        "format": {"enum": ["absolute", "normalized"]},
+        "origin": {"const": "top-left"},
+        "reference": {
+          "type": "object",
+          "required": ["width", "height"],
+          "properties": {
+            "width": {"type": "integer", "minimum": 1},
+            "height": {"type": "integer", "minimum": 1}
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "association": {"enum": ["enabled", "unavailable"]},
+    "corridor": {
+      "oneOf": [
+        {"type": "null"},
+        {"$ref": "#/$defs/box"}
+      ]
+    },
+    "detections": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/detection"}
+    }
+  },
+  "$defs": {
+    "point": {
+      "type": "object",
+      "required": ["x", "y"],
+      "properties": {
+        "x": {"type": "number"},
+        "y": {"type": "number"}
+      },
+      "additionalProperties": false
+    },
+    "box": {
+      "type": "object",
+      "required": ["x", "y", "width", "height"],
+      "properties": {
+        "x": {"type": "number"},
+        "y": {"type": "number"},
+        "width": {"type": "number", "minimum": 0},
+        "height": {"type": "number", "minimum": 0}
+      },
+      "additionalProperties": false
+    },
+    "link": {
+      "type": "object",
+      "required": ["linked_sources", "confidence"],
+      "properties": {
+        "linked_sources": {
+          "type": "array",
+          "items": {"type": "string", "minLength": 1},
+          "uniqueItems": true
+        },
+        "confidence": {"type": "number", "minimum": 0, "maximum": 1}
+      },
+      "additionalProperties": false
+    },
+    "detection": {
+      "type": "object",
+      "required": [
+        "track_id",
+        "label",
+        "confidence",
+        "class_confidence",
+        "bbox",
+        "approach",
+        "trail",
+        "source_id",
+        "link"
+      ],
+      "properties": {
+        "track_id": {"type": ["string", "null"]},
+        "label": {"type": "string"},
+        "confidence": {"type": "number", "minimum": 0, "maximum": 1},
+        "class_confidence": {
+          "oneOf": [
+            {"type": "null"},
+            {"type": "number", "minimum": 0, "maximum": 1}
+          ]
+        },
+        "bbox": {"$ref": "#/$defs/box"},
+        "approach": {
+          "oneOf": [
+            {"type": "null"},
+            {"enum": ["closing", "steady", "receding"]}
+          ]
+        },
+        "trail": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/point"}
+        },
+        "source_id": {"type": "string", "minLength": 1},
+        "link": {
+          "oneOf": [
+            {"type": "null"},
+            {"$ref": "#/$defs/link"}
+          ]
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}
