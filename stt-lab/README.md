@@ -21,6 +21,53 @@ python -m server.main
 5173, 8787~8788과 겹치지 않는 8799다. 바꾸려면 실행 전에
 `$env:STT_LAB_PORT = "8800"`처럼 지정한다.
 
+### 가상환경 생성·활성화가 안 될 때
+
+가상환경은 활성화하지 않아도 사용할 수 있다. `Activate.ps1` 실행에서 오류가 나면
+가상환경의 Python을 직접 지정하는 방법이 가장 안전하다.
+
+```powershell
+cd stt-lab
+python -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+.\.venv\Scripts\python.exe -m server.main
+```
+
+`이 시스템에서 스크립트를 실행할 수 없으므로 Activate.ps1을 로드할 수 없습니다`라는
+오류가 나고 활성화가 꼭 필요하다면, 현재 PowerShell 창에만 실행 정책을 완화한다.
+
+```powershell
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+.\.venv\Scripts\Activate.ps1
+```
+
+관리자 권한은 필요 없으며 새 PowerShell 창을 열면 설정이 원래대로 돌아간다. 회사나
+학교 PC의 정책으로 위 명령도 차단되면 활성화하지 말고 앞의 `python.exe` 직접 실행
+방법을 사용한다.
+
+`python -m venv .venv` 자체가 실패하면 다음 순서로 확인한다.
+
+```powershell
+python --version
+py -0p
+py -3.9 -m venv .venv
+```
+
+- `python`을 찾을 수 없으면 Python을 설치할 때 **Add Python to PATH**를 선택하거나,
+  설치된 버전이 표시되는 `py -0p` 결과에 맞춰 `py -3.9` 부분을 바꾼다.
+- `No module named venv` 또는 `ensurepip` 오류가 나면 Python 설치 관리자의
+  Modify에서 `pip`와 표준 라이브러리를 추가하거나 Python을 복구 설치한다.
+- 손상된 `.venv`를 다시 만들 때는 실행 중인 서버와 편집기를 닫고 기존 `.venv`
+  폴더를 삭제한 뒤 생성한다. `samples/`와 `results/`는 가상환경 밖에 있어 영향을
+  받지 않는다.
+- 가상환경을 전혀 만들 수 없는 경우에는 마지막 대안으로 사용자 영역에 설치할 수
+  있다. 다른 Python 프로젝트와 패키지 버전이 충돌할 수 있으므로 권장 방식은 아니다.
+
+```powershell
+python -m pip install --user -r requirements.txt
+python -m server.main
+```
+
 처음 모델을 선택해 전사하면 Hugging Face에서 모델을 내려받기 때문에 오래 걸릴 수
 있다. 같은 프로세스에서 같은 모델을 다시 쓰면 메모리 캐시를 사용하며, 화면에는 모델
 로드 시간과 실제 추론 시간이 분리되어 표시된다. 기본 모델은 `large-v3-turbo`다.

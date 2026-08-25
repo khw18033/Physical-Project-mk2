@@ -12,7 +12,7 @@ from __future__ import annotations
 import os
 import threading
 import time
-from typing import Any
+from typing import Any, Optional
 
 from faster_whisper import WhisperModel
 
@@ -30,12 +30,12 @@ COMPRESSION_RATIO_THRESHOLD = 2.4
 LOG_PROB_THRESHOLD = -1.0
 
 
-def _download_root() -> str | None:
+def _download_root() -> Optional[str]:
     """모델 캐시 경로. 지정이 없으면 HuggingFace 기본 캐시(HF_HOME 포함)에 맡긴다."""
     return os.environ.get("STT_LAB_MODEL_DIR") or None
 
 
-def _detect_device() -> tuple[str, str, str | None]:
+def _detect_device() -> tuple[str, str, Optional[str]]:
     """(device, compute_type, 사유) — CUDA가 잡히면 float16, 아니면 CPU int8.
 
     torch 없이 판정해야 하므로 CTranslate2에게 직접 묻는다. 여기서 CUDA가 잡혀도
@@ -64,7 +64,7 @@ class FasterWhisperEngine:
 
     def __init__(self) -> None:
         self._device, self._compute_type, self._device_note = _detect_device()
-        self._fallback_reason: str | None = None
+        self._fallback_reason: Optional[str] = None
         # 모델은 프로세스 수명 동안 캐시한다. 같은 모델을 매 요청마다 다시 로드하면
         # 로드 시간이 추론 시간에 섞여 RTF 측정이 무의미해진다.
         self._models: dict[tuple[str, str, str], WhisperModel] = {}

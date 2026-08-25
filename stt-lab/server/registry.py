@@ -15,7 +15,7 @@ import json
 import os
 import re
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 
 # stt-lab/server/registry.py → stt-lab/
 LAB_ROOT = Path(__file__).resolve().parent.parent
@@ -144,7 +144,7 @@ def vocabulary() -> dict[str, Any]:
     }
 
 
-def hotwords_string(terms: list[dict[str, str]] | None = None) -> str:
+def hotwords_string(terms: Optional[list[dict[str, str]]] = None) -> str:
     """faster-whisper 의 `hotwords` 에 그대로 넘길 한 줄.
 
     `initial_prompt` 와 합치지 않는다. hotwords 는 이 어휘 쪽으로 디코딩을 편향시키는

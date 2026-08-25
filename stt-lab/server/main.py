@@ -15,7 +15,7 @@ import re
 import shutil
 import traceback
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.responses import JSONResponse, PlainTextResponse
@@ -114,7 +114,7 @@ def api_runs_csv() -> PlainTextResponse:
 # --- 전사 -----------------------------------------------------------------
 
 
-def _resolve_sample(audio: UploadFile | None, sample: str | None) -> tuple[Path, str]:
+def _resolve_sample(audio: Optional[UploadFile], sample: Optional[str]) -> tuple[Path, str]:
     """새 업로드를 저장하거나, 기존 보관본을 그대로 쓴다.
 
     같은 오디오를 설정만 바꿔 다시 돌릴 수 있어야 비교가 성립한다. 그래서 업로드는
@@ -163,10 +163,10 @@ def _probability_summary(result_dict: dict[str, Any]) -> dict[str, Any]:
 
 @app.post("/api/transcribe")
 def api_transcribe(
-    audio: UploadFile | None = File(default=None),
-    sample: str | None = Form(default=None),
-    engine_id: str | None = Form(default=None),
-    model: str | None = Form(default=None),
+    audio: Optional[UploadFile] = File(default=None),
+    sample: Optional[str] = Form(default=None),
+    engine_id: Optional[str] = Form(default=None),
+    model: Optional[str] = Form(default=None),
     language: str = Form(default="ko"),
     use_hotwords: bool = Form(default=True),
     initial_prompt: str = Form(default=""),
@@ -274,7 +274,7 @@ class ScoreRequest(BaseModel):
     hypothesis: str
     strip_punctuation: bool = True
     # 채점 결과를 이미 적재된 실행에 덧붙일 때만 준다.
-    run_id: str | None = None
+    run_id: Optional[str] = None
 
 
 @app.post("/api/score")

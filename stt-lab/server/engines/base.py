@@ -14,7 +14,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Protocol, runtime_checkable
+from typing import Any, Optional, Protocol, runtime_checkable
 
 
 @dataclass
@@ -25,8 +25,8 @@ class TranscribeOptions:
     language: str = "ko"
     # hotwords 와 initial_prompt 는 다른 것이다. 전자는 특정 어휘로 디코딩을 편향시키고
     # 후자는 전체 문맥·문체를 유도한다. 한 입력란으로 합치지 않는다.
-    hotwords: str | None = None
-    initial_prompt: str | None = None
+    hotwords: Optional[str] = None
+    initial_prompt: Optional[str] = None
     vad_filter: bool = True
     beam_size: int = 5
     temperature: float = 0.0
@@ -115,7 +115,7 @@ def register_engine(engine: SttEngine) -> None:
     _ENGINES[engine.engine_id] = engine
 
 
-def get_engine(engine_id: str | None = None) -> SttEngine:
+def get_engine(engine_id: Optional[str] = None) -> SttEngine:
     if not _ENGINES:
         raise RuntimeError("등록된 STT 엔진이 없다. server/engines/__init__.py 의 로드 오류를 확인할 것.")
     if engine_id is None:

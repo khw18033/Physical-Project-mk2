@@ -18,7 +18,7 @@ import threading
 import uuid
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 
 LAB_ROOT = Path(__file__).resolve().parent.parent
 RESULTS_DIR = Path(os.environ.get("STT_LAB_RESULTS_DIR") or (LAB_ROOT / "results"))
@@ -98,9 +98,9 @@ def read_all() -> list[dict[str, Any]]:
     return records
 
 
-def update(run_id: str, patch: dict[str, Any]) -> dict[str, Any] | None:
+def update(run_id: str, patch: dict[str, Any]) -> Optional[dict[str, Any]]:
     records = read_all()
-    updated: dict[str, Any] | None = None
+    updated: Optional[dict[str, Any]] = None
     for record in records:
         if record.get("run_id") == run_id:
             record.update(patch)
