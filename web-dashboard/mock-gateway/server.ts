@@ -59,6 +59,36 @@ const commands = new CommandEngine(hub);
 const plans = new PlanEngine(hub);
 const vision = new VisionEmitter(hub, 'camera-02');
 
+/** VZ-O-04 검증용 수신 실물. 실제 배치에서는 이 경로가 OTel Collector가 된다. */
+const clientMetrics: unknown[] = [];
+let currentRiskLevel: 'normal' | 'watch' | 'alert' | 'recovery' = 'normal';
+
+function publishRisk(level: 'normal' | 'watch' | 'alert' | 'recovery'): void {
+  currentRiskLevel = level;
+  const now = new Date().toISOString();
+  const values = {
+    normal: { score: 18, reasons: [{ label: '수위', value: '1.2m · 안정', contribution: 0.42 }], recommendation: '정기 감시 유지' },
+    watch: { score: 56, reasons: [{ label: '강우', value: '시간당 32mm', contribution: 0.58 }, { label: '수위 상승', value: '+0.18m/10분', contribution: 0.31 }], recommendation: '503 구역 센서와 배수 경로 확인' },
+    alert: { score: 87, reasons: [{ label: '수위', value: '경보선 92%', contribution: 0.64 }, { label: '유입량', value: '평시 대비 2.3배', contribution: 0.27 }], recommendation: '수문 개방 계획 검토 후 승인' },
+    recovery: { score: 41, reasons: [{ label: '수위', value: '정점 대비 -0.34m', contribution: 0.55 }], recommendation: '복구 추세 확인, 즉시 평시 전환 금지' },
+  }[level];
+  // zone 자체는 레지스트리 entity가 아니므로, 구역 판단을 담당하는 엣지 노드에 싣는다.
+  hub.publish('edge-node-a', 'risk_state', { level, ...values, decided_at: now }, { fromDevice: false });
+}
+
+function publishAiFailure(): void {
+  const now = new Date().toISOString();
+  hub.publish('edge-node-a', 'ai_failure', {
+    event_id: 'aif-' + Date.now(),
+    component: 'edge-vision-tracker',
+    model_version: 'tracker-2.4.1',
+    input_ref: 'camera-02/frame-' + Math.floor(Date.now() / 1000),
+    error_code: 'INFERENCE_TIMEOUT',
+    detail: '추론 제한 500ms 초과 — 온디바이스 최소 안전 판단은 계속 동작',
+    occurred_at: now,
+  }, { fromDevice: false });
+}
+
 // ── 역할·권한 범위 (VZ-C-01 · VZ-C-04 / BE-Q-04) ──────────────────────────────
 //
 // **화면 차단은 사용자 편의이고 실제 강제는 백엔드다.** 그래서 이 값은 화면에 내려주는
@@ -101,6 +131,10 @@ hub.startLoops();
 
 // 기동 시 계획 하나를 승인 대기로 올려 둔다 — 화면을 열자마자 승인 절차를 볼 수 있게.
 plans.propose();
+publishRisk('normal');
+// risk_state는 BE-T-06 캐시 허용 목록 밖이다. 재접속한 화면도 현재 판정을 받도록
+// 판정 주체가 5초마다 현재값을 다시 발행한다. 단계 변경은 위 함수 호출 즉시 별도 발행된다.
+setInterval(() => publishRisk(currentRiskLevel), 5_000);
 
 // ── HTTP ─────────────────────────────────────────────────────────────────────
 
@@ -199,6 +233,36 @@ const http = createServer((req, res) => {
     return;
   }
 
+  if (url.pathname === '/observability/client-metrics' && req.method === 'POST') {
+    const chunks: Buffer[] = [];
+    req.on('data', (chunk: Buffer) => chunks.push(chunk));
+    req.on('end', () => {
+      try {
+        const metric = JSON.parse(Buffer.concat(chunks).toString('utf8')) as unknown;
+        clientMetrics.push(metric);
+        if (clientMetrics.length > 20) clientMetrics.shift();
+        log('가시화 자체 지표 수신 (VZ-O-04)');
+        json(202, { accepted: true });
+      } catch {
+        json(400, { accepted: false, error: 'invalid json' });
+      }
+    });
+    return;
+  }
+
+  if (url.pathname.startsWith('/insight/') && (req.method === 'POST' || req.method === 'GET')) {
+    const name = decodeURIComponent(url.pathname.slice('/insight/'.length));
+    if (name === 'ai-failure') publishAiFailure();
+    else if (name === 'risk-normal' || name === 'risk-watch' || name === 'risk-alert' || name === 'risk-recovery') {
+      publishRisk(name.slice('risk-'.length) as 'normal' | 'watch' | 'alert' | 'recovery');
+    } else {
+      json(404, { ok: false, error: 'unknown insight' });
+      return;
+    }
+    json(200, { ok: true, name });
+    return;
+  }
+
   // VZ-I-03 / REQ-304·305 — 레지스트리는 정적 파일을 그대로 서빙한다.
   // 값을 발행하지 않는 미배포 대상(robot-03)도 여기에 반드시 있어야 화면이 그릴 수 있다.
   if (url.pathname === '/registry') {
@@ -292,6 +356,7 @@ const http = createServer((req, res) => {
       role: currentRole(),
       ack_control: { ...ackControl },
       command_latency: { ...commandLatency },
+      client_metrics: { received: clientMetrics.length, latest: clientMetrics.at(-1) ?? null },
       /**
        * BE-T-06 — 정책과 **실물**을 함께 낸다.
        * 선언만 보면 지켜지는지 알 수 없다. violations가 비어 있지 않으면 그 자체가 버그다.
@@ -311,7 +376,7 @@ const http = createServer((req, res) => {
 
   json(404, {
     error: 'not found',
-    paths: ['/registry', '/scenarios', '/scenario/:name', '/audit', '/actions', '/role', '/metrics/query', '/health'],
+    paths: ['/registry', '/scenarios', '/scenario/:name', '/insight/:name', '/observability/client-metrics', '/audit', '/actions', '/role', '/metrics/query', '/health'],
   });
 });
 

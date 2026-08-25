@@ -10,6 +10,7 @@
 import { getTransport } from '../transport/index.ts';
 import { DataStore } from './store.ts';
 import { fetchRegistry } from './registry.ts';
+import { observeEnvelope, startSelfObservability } from './selfObservability.ts';
 
 export { DataStore } from './store.ts';
 export type { ChannelSlot, EntityRecord } from './store.ts';
@@ -56,14 +57,19 @@ export function startDataLayer(zoneId: string): () => void {
   // node 축에 zone 식별자를 주면 그 zone의 모든 node에 매칭된다.
   const unsubscribe = transport.subscribe(
     { entity: '*', node: zoneId, channel: '*' },
-    (envelope) => store.apply(envelope),
+    (envelope) => {
+      observeEnvelope(envelope);
+      store.apply(envelope);
+    },
     // VZ-I-11 — 현 단계 'all' 고정. 대상이 늘면 여기를 좁힌다.
     'all',
   );
+  const stopObservability = startSelfObservability();
 
   return () => {
     abort.abort();
     unsubscribe();
+    stopObservability();
     started = false;
   };
 }

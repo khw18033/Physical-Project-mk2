@@ -12,7 +12,7 @@
  *  4. 레지스트리에만 있고 값이 한 번도 안 온 대상도 **레코드가 존재한다.** 미배포 카드의 근거.
  */
 
-import type { ActuatorState, CommandResult, ControlLock, Envelope, StateLayers } from '../transport/index.ts';
+import type { ActuatorState, AiFailure, CommandResult, ControlLock, Envelope, RiskState, StateLayers } from '../transport/index.ts';
 import { commandTracker } from './commands.ts';
 import type { Plan, PlanSegment } from './plans.ts';
 import { normalizeAggregation, type Aggregation } from './aggregation.ts';
@@ -60,6 +60,10 @@ export type EntityRecord = {
     segments: PlanSegment[];
   }> | null;
   metrics: ChannelSlot | null;
+  /** VZ-I-08 — AI가 판정한 위험 단계와 근거. 화면에서 재계산하지 않는다. */
+  riskState: ChannelSlot<RiskState> | null;
+  /** VZ-I-10 — 지표 폴링과 분리된 즉시 실패 이벤트의 마지막 수신값. */
+  aiFailure: ChannelSlot<AiFailure> | null;
   /** 이 대상에서 받은 총 봉투 수. 계측·디버깅용. */
   envelopeCount: number;
 };
@@ -78,6 +82,8 @@ function emptyRecord(id: string, registry: RegistryEntity | null): EntityRecord 
     plan: null,
     planProgress: null,
     metrics: null,
+    riskState: null,
+    aiFailure: null,
     envelopeCount: 0,
   };
 }
@@ -203,6 +209,16 @@ export class DataStore {
         break;
       case 'metrics':
         rec.metrics = toSlot(env);
+        break;
+      case 'risk_state':
+        rec.riskState = toSlot<RiskState>(env);
+        // 단계 전이는 화면 색과 경보를 바꾸므로 병합 창을 기다리지 않는다.
+        immediate = true;
+        break;
+      case 'ai_failure':
+        rec.aiFailure = toSlot<AiFailure>(env);
+        // 실패는 드문 이산 이벤트다. 15초 지표 질의에 섞지 않고 도착 즉시 알린다.
+        immediate = true;
         break;
       case 'video_frame':
       case 'detections':

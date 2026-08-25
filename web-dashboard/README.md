@@ -319,6 +319,7 @@ web-dashboard/
    │  ├─ commands.ts        명령 발행 + 4단계 이력 + 3상태 파생 (키는 여기서 감춘다)
    │  ├─ permissions.ts     ★ 역할·범위 + 제어 게이트 (VZ-C-04)
    │  ├─ metrics.ts         ★ 지표 질의 — 요약/원본 두 경로 (VZ-I-04)
+   │  ├─ selfObservability.ts  ★ 자체 처리 지연 60초 발행 (VZ-O-04)
    │  ├─ auditFieldMap.ts   ★ 감사 필드 이름을 가두는 유일한 파일
    │  ├─ audit.ts           감사 조회 (열 때만 · 폴링 없음)
    │  ├─ plans.ts           계획·구간 타입과 승인 발행
@@ -333,7 +334,8 @@ web-dashboard/
       ├─ ControlPanel.tsx      제어 패널 (VZ-O-01·02·05 · VZ-C-04 · VZ-I-05)
       ├─ MissionView.tsx       계획 승인 + 산출 경로 + 구간 진행 (VZ-U-07 · U-05)
       ├─ MetricsView.tsx       지표 조회 — 요약/원본 전환 (VZ-I-04 · C-03)
-      └─ VideoOverlayView.tsx  영상 오버레이 정합 + **인지 출처 구분** (VZ-I-06·07·09)
+      ├─ VideoOverlayView.tsx  영상 오버레이 정합 + **인지 출처 구분** (VZ-I-06·07·09)
+      └─ InsightView.tsx       위험도·AI 실패·역할별 추상화 계층 (VZ-I-08·10 · O-04 · U-03)
 ```
 
 ### 목 게이트웨이 엔드포인트
@@ -344,6 +346,8 @@ web-dashboard/
 | `GET /registry` | 레지스트리 (VZ-I-03) |
 | `GET /scenarios` | 시나리오 목록과 기대 동작 |
 | `POST /scenario/:name` | 시나리오 재생 |
+| `POST /insight/:name` | 위험 단계 전이·AI 실패 이벤트 재생 |
+| `POST /observability/client-metrics` | 가시화 자체 60초 처리 지연 지표 수신 (목 OTel 경로) |
 | `GET /audit?command_id=` | 감사 이력 조회 (VZ-I-05 — **상관 키가 1차 조회 키**, 열 때만 부른다) |
 | `GET /audit?entity=` | 같은 경로의 보조 조회 — "이 대상을 마지막으로 조작한 사람" |
 | `GET /role` | 역할 + **적용 범위**(구역 집합) 조회 (VZ-C-04 / BE-Q-04) |
@@ -535,7 +539,7 @@ ACK로 두 키를 함께 받는다. **두 키의 매핑은 `src/data/correlation
 - **미확인 탐지 그룹(VZ-U-06)** — 다음 범위.
 - **트윈 3D 렌더(VZ-U-02)** — 이 웹 앱의 범위 밖이지만 **미구현이 아니다.**
   `unity-twin/` 의 Unity 뷰어가 같은 게이트웨이 계약으로 구현했다.
-- 추상화 계층 뷰(VZ-U-03), 노드 편집기(VZ-U-04) — 다음 범위.
+- 노드 편집기(VZ-U-04) — 다음 범위. 추상화 계층 뷰(VZ-U-03)는 판단·알림 탭에 구현했다.
 
 이관 전 단일 파일 프로토타입(`prototype.html`)은 `_archive/prototype_260818.html` 로 옮겼다.
 코드는 재사용하지 않았고, 계약이 그 뒤로 여러 번 바뀌어 현행이 아니다.

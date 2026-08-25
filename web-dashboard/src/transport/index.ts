@@ -17,6 +17,7 @@ export type { Transport, Unsubscribe } from './Transport.ts';
 export type {
   ActionSpec,
   ActuatorState,
+  AiFailure,
   Channel,
   CommandAck,
   CommandRequest,
@@ -27,6 +28,7 @@ export type {
   Envelope,
   Quality,
   RoleInfo,
+  RiskState,
   RoleScope,
   ScopeSpec,
   Selector,

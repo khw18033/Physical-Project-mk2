@@ -34,7 +34,27 @@ export type Channel =
   | 'plan_progress'
   | 'video_frame'
   | 'detections'
-  | 'metrics';
+  | 'metrics'
+  | 'risk_state'
+  | 'ai_failure';
+
+export type RiskState = {
+  level: 'normal' | 'watch' | 'alert' | 'recovery';
+  score: number;
+  reasons: Array<{ label: string; value: string; contribution: number }>;
+  recommendation: string;
+  decided_at: string;
+};
+
+export type AiFailure = {
+  event_id: string;
+  component: string;
+  model_version: string;
+  input_ref: string;
+  error_code: string;
+  detail: string;
+  occurred_at: string;
+};
 
 /**
  * VZ-I-11 — 구독 범위(관심 영역) 한정. **현 단계 'all' 고정.**

@@ -150,6 +150,8 @@ export const CACHE_POLICY: Record<Channel, CachePolicy> = {
   // ── 캐시하지 않는다 — 줘도 쓸 데가 없다 (2) ──
   heartbeat: { cache: false, why: '불필요: 서버가 이미 availability로 판정해 state에 실어준다' },
   metrics: { cache: false, why: '불필요: 질의 프록시(BE-Q-01)로 조회하는 별도 경로가 있다' },
+  risk_state: { cache: false, why: 'BE-T-06 허용 목록 밖. 현재 판정은 AI가 주기 재발행하며 캐시 범위를 임의로 넓히지 않는다' },
+  ai_failure: { cache: false, why: '이산 실패 이벤트. 과거 이벤트 재생은 알림이 아니라 별도 이력 조회의 몫이다' },
 };
 
 /** 구독 즉시 스냅샷을 받는 채널 목록. 로그·점검용. */

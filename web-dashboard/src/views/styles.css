@@ -809,3 +809,26 @@ body {
 .chip--scoped { background: #efe6ff; color: #5b3fb5; }
 
 .devpanel--inline { margin-top: 14px; padding: 12px; }
+
+/* ── 위험도·실패·추상화 계층 (Phase 2) ─────────────────────────────── */
+.levelbar { display: flex; gap: 6px; flex-wrap: wrap; }
+.levelbar .btn { display: flex; flex-direction: column; align-items: flex-start; }
+.levelbar em { font-size: 10px; font-style: normal; opacity: .75; }
+.riskcard { border: 2px solid var(--line); border-radius: 14px; padding: 18px; margin-bottom: 16px; background: var(--surface); }
+.riskcard--normal { border-color: var(--normal); }
+.riskcard--watch, .riskcard--recovery { border-color: var(--unknown); }
+.riskcard--alert { border-color: var(--fault); background: var(--fault-bg); }
+.riskcard__label { font-weight: 800; font-size: 18px; margin-right: 16px; }
+.riskcard strong { font-size: 38px; }
+.riskcard ul { margin: 10px 0; padding-left: 20px; }
+.riskcard li span { color: var(--muted); margin-left: 8px; }
+.riskcard pre, .layercard pre, .failure pre { overflow: auto; max-height: 260px; background: #f6f8fa; padding: 10px; font-size: 11px; }
+.layergrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px; margin-bottom: 16px; }
+.layercard { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 12px; }
+.layercard > .badge { float: right; }
+.failurebox { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 16px; margin-bottom: 16px; }
+.failurebox h2 { margin-top: 0; font-size: 16px; }
+.failurebox h2 small { color: var(--muted); font-weight: 400; margin-left: 8px; }
+.failure { border-left: 4px solid var(--fault); background: var(--fault-bg); padding: 10px 12px; margin-top: 8px; }
+.failure > span { margin-left: 10px; color: var(--muted); }
+.failure p { margin: 5px 0; }
