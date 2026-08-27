@@ -1,0 +1,31 @@
+{
+  "name": "hybrid-dt-viz-debugger",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "임무 실행 기록 디버거 — 0단계 골격",
+  "scripts": {
+    "dev": "node scripts/dev-all.mjs",
+    "dev:mock": "node gateway/server.mjs",
+    "dev:web": "vite",
+    "build": "tsc -b && vite build",
+    "typecheck": "tsc -b --force",
+    "verify:hierarchy": "node scripts/verify-hierarchy.mjs",
+    "verify:adapter-swap": "node scripts/verify-adapter-swap.mjs",
+    "verify:transport": "node scripts/verify-transport.mjs"
+  },
+  "dependencies": {
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.13.3",
+    "@types/react": "^19.1.0",
+    "@types/react-dom": "^19.1.0",
+    "@types/ws": "^8.18.0",
+    "@vitejs/plugin-react": "^4.3.4",
+    "typescript": "^5.7.0",
+    "vite": "^6.0.0"
+  }
+}

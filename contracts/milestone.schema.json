@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema", "$id": "milestone.schema.json",
+  "type": "object", "additionalProperties": false,
+  "required": ["milestone_id", "title", "order", "status", "tasks", "assigned_targets"],
+  "properties": {
+    "milestone_id": { "type": "string", "minLength": 1 }, "title": { "type": "string" },
+    "order": { "type": "integer", "minimum": 0 },
+    "status": { "$ref": "#/$defs/status" },
+    "tasks": { "type": "array", "items": { "$ref": "task.schema.json" } },
+    "assigned_targets": { "type": "array", "items": { "type": "string" }, "uniqueItems": true }
+  },
+  "$defs": { "status": { "enum": ["pending", "running", "done", "failed", "skipped", "awaiting_evaluation", "not_executed", "rerunning"] } }
+}

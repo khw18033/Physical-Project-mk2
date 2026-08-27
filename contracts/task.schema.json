@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema", "$id": "task.schema.json",
+  "type": "object", "additionalProperties": false,
+  "required": ["task_id", "title", "deps", "status", "attempt", "derived_from", "action_items", "evaluation"],
+  "properties": {
+    "task_id": { "type": "string", "minLength": 1 }, "title": { "type": "string" },
+    "deps": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
+    "status": { "$ref": "#/$defs/status" }, "attempt": { "type": "integer", "minimum": 1 },
+    "derived_from": { "type": ["string", "null"] },
+    "action_items": { "type": "array", "items": { "$ref": "action-item.schema.json" } },
+    "evaluation": { "anyOf": [{ "type": "null" }, { "$ref": "evaluation.schema.json" }] }
+  },
+  "$defs": { "status": { "enum": ["pending", "running", "done", "failed", "skipped", "awaiting_evaluation", "not_executed", "rerunning"] } }
+}
