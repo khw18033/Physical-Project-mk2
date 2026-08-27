@@ -402,7 +402,7 @@ flowchart LR
             T3["③ 지표 조회"]
             T4["④ 영상 오버레이"]
             T5["⑤ 파이프라인 편집기<br/><small>동결 · 시연용</small>"]
-            T6["⑥ viz-debugger<br/><small>3계층 · 되감기 · 경로 격리</small>"]
+            T6["⑥ 임무 설계 및 디버깅<br/><small>3계층 · 되감기 · 경로 격리</small>"]
         end
         subgraph LOC[" 로컬 계층 — 여기서 만들고 여기에 남는다 "]
             direction LR
