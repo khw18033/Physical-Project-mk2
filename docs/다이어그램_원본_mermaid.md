@@ -1,7 +1,13 @@
 # 다이어그램 원본 — Mermaid
 
-> 작성 2026-08-21 · **개정 2026-08-24** · 김현우(가시화) · 캡스톤 MK2
-> 기준 `피지컬팀 프로젝트 mk2 요구사항 정의서.xlsx` 김현우 시트 33건
+> 작성 2026-08-21 · **개정 2026-08-27** · 김현우(가시화) · 캡스톤 MK2
+> 기준 `피지컬팀 프로젝트 mk2 요구사항 정의서.xlsx` 김현우 시트 **46건**
+>
+> **2026-08-27 개정** — 가시화의 성격이 바뀌었다
+> - `AI-D-01`·`02`·`04` 삭제분을 인수해 **가시화가 임무를 만든다**(F15 · `VZ-G-01`~`05`)
+>   → `DF-1a`의 「받아서 그린다」가 더는 맞지 않는다. **`DF-7` 신설**
+> - 디버깅 실행 추적 신설(F14 · `VZ-D-01`~`08`) → `DF-7`
+> - 두 도구를 한 앱으로 통합, **탭 6개 + 공유 계층** 구조 확정(정의서 §3.1) → `DF-7`
 >
 > **2026-08-24 개정** — 상대 계약 변경 반영
 > - `AI-C-14`(데이터 유형별 경로 분리)로 **미디어가 세 번째 평면**이 됐다 → `DF-1a`·`DF-1b`
@@ -27,7 +33,7 @@ flowchart TB
     D["① 현장<br/><small>로봇 50ms · 센서 1분 · 카메라 15fps · 수문 100ms</small>"]
     E["② 구역 엣지 노드<br/><small>인지 · 판단 · 구역 트윈 · raw 로컬 보관</small>"]
     B["③ 백엔드<br/><small>전역 트윈 · 명령 조립 · 감사 · 레지스트리</small>"]
-    V["④ 가시화 뷰어<br/><small>받아서 그린다</small>"]
+    V["④ 가시화 웹<br/><small>받아서 그리고 · 임무를 만들고 · 실행을 되짚는다 (DF-7)</small>"]
 
     D -->|계측 · 상태 · 프레임| E
     E -->|융합 위치 · 요약 시계열 15초| B
@@ -359,6 +365,106 @@ sequenceDiagram
 > **이 그림이 막는 사고**: 두 결과를 같은 모양으로 그리면 관제사가 거친 판단을 정밀 판단으로
 > 읽는다. "0.9면 확실하다"를 두 출처에 똑같이 적용하게 되고, 온디바이스에는 애초에
 > 분류 신뢰도가 없다.
+
+---
+
+## DF-7 · 가시화 웹 중심 — 받고 · 만들고 · 내보낸다  *(flowchart, 2026-08-27 신설)*
+
+> `DF-1a`가 전체 계통에서 가시화를 **한 박스**로 뒀다면, 이 그림은 그 박스를 **열어** 본 것이다.
+> 조판본: `reports/assets/2026-08-27_데이터흐름_DF-7_가시화웹중심.png`
+
+```mermaid
+flowchart LR
+    subgraph IN[" 바깥 — 받는 곳 "]
+        direction TB
+        G1["WS 게이트웨이<br/><small>상태 3층 · 명령 결과 4단계 · 제어 잠금</small>"]
+        G4["레지스트리 조회<br/><small>존재 목록 · 소속 · 배치</small>"]
+        G5["역할 조회 API<br/><small>역할 · 권한 범위</small>"]
+        G2["질의 프록시<br/><small>요약 시계열 15초</small>"]
+        G3["감사 조회 API<br/><small>책임소재 이력</small>"]
+        MD(["미디어 경로<br/><small>영상 — 브로커 밖 AI-C-14</small>"])
+        AIX(["AI 엣지·서버<br/><small>탐지 · 추적 · 위험도 · 실패</small>"])
+    end
+
+    subgraph APP[" 가시화 웹 · 통합 앱 (viz-debugger/) "]
+        direction TB
+        subgraph SH[" 공유 계층 16건 "]
+            direction TB
+            S1["전송 · 구독<br/><small>VZ-I-01·02·11</small>"]
+            S2["레지스트리<br/><small>VZ-I-03</small>"]
+            S3["명령 발행 · 추적<br/><small>VZ-O-01·02·03·05 — 출구는 하나뿐</small>"]
+            S4["권한 · 표기 · 알림<br/><small>VZ-C-01·03·04·06 · VZ-I-10 · VZ-O-04</small>"]
+        end
+        subgraph TABS[" 탭 6개 "]
+            direction LR
+            T1["① 구역 현황판"]
+            T2["② 제어 패널"]
+            T3["③ 지표 조회"]
+            T4["④ 영상 오버레이"]
+            T5["⑤ 파이프라인 편집기<br/><small>동결 · 시연용</small>"]
+            T6["⑥ viz-debugger<br/><small>3계층 · 되감기 · 경로 격리</small>"]
+        end
+        subgraph LOC[" 로컬 계층 — 여기서 만들고 여기에 남는다 "]
+            direction LR
+            L1["① 음성 → 텍스트<br/><small>VZ-L-01</small>"]
+            L2["② 로컬 LLM — 생성 · 검증<br/><small>VZ-G-01~05</small>"]
+            L3[("③ 실행 기록 저장소<br/><small>VZ-D-02 · 덧붙이기 전용</small>")]
+        end
+    end
+
+    U(["사람<br/><small>발화 · 클릭 · 승인 · 재실행</small>"])
+    BE["백엔드<br/><small>명령 조립 · 디바이스 어휘 번역 · 감사 저장</small>"]
+    OT(["관측 스택 OTel<br/><small>viz.* 자체 지표</small>"])
+
+    G1 --> S1
+    G4 --> S2
+    G5 --> S4
+    G2 -.-> T3
+    G3 --> T2
+    MD -.-> T4
+    AIX -.-> T4
+    AIX -.-> T1
+    AIX -.-> S4
+
+    S1 --> T1
+    S2 --> T1
+    S2 --> T6
+
+    U ==>|발화| L1
+    L1 ==> L2
+    L2 ==> L3
+    L2 ==> T6
+    L3 ==>|되감기 · 경로 격리| T6
+
+    T6 ==>|재실행 · 정지 produced_by=human| S3
+    T2 --> S3
+    S3 --> BE
+    S4 -.->|60초 집계| OT
+
+    classDef work fill:#f3f8fd,stroke:#7fa8d0,stroke-width:2px,color:#1c3d5c
+    classDef obs  fill:#f7f4fc,stroke:#a08cd0,stroke-width:2px,color:#4a3570
+    classDef med  fill:#fdf4f7,stroke:#c98aa4,stroke-width:2px,color:#5c1f36,stroke-dasharray: 4 3
+    classDef ai   fill:#f4faf6,stroke:#7fae90,stroke-width:2px,color:#1f3a2a
+    classDef loc  fill:#fef8f1,stroke:#d9a86a,stroke-width:2px,color:#5c3d0f
+    classDef you  fill:#ffffff,stroke:#b6bcc3,stroke-width:2px,color:#3f4650
+    class G1,G3,G4,G5,S1,S2,S3,S4,T1,T2,BE work
+    class G2,T3,OT obs
+    class MD,T4 med
+    class AIX ai
+    class L1,L2,L3,T6 loc
+    class U,T5 you
+```
+
+**이 그림이 말하는 것 넷.**
+
+1. **「받아서 그린다」가 끝났다.** 발화에서 마일스톤·태스크를 만드는 것이 앱 안에 있다(F15).
+   그래서 굵은 화살표 — 발화 → 생성 → 실행 → 기록 → 되감기 — 가 바깥으로 나가지 않고 안에서 닫힌다.
+2. **바깥 출구는 둘뿐이다.** 명령(업무 평면)과 자체 관측 지표(관측 평면).
+3. **명령 출구는 하나여야 한다.** 탭②의 수동 제어와 탭⑥의 재실행이 같은 `S3`을 쓴다.
+   갈라지면 트레이스가 나뉘어 `produced_by=human` 기록이 한쪽에만 남는다.
+4. **실행 기록은 앱 안에만 있다.** 되감기(`VZ-D-04`)와 경로 격리(`VZ-D-05`)가 이 저장소 위의
+   계산이라 바깥 왕복이 없다 — 임의 시점 복원 16 ms 목표가 성립하는 이유다.
+
 
 ---
 
