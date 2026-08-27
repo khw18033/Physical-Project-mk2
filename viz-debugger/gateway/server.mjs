@@ -1,18 +1,10 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { WebSocketServer } from 'ws';
-
-const port = Number(process.env.VIZ_GATEWAY_PORT ?? 8790);
+const root = join(fileURLToPath(new URL('.', import.meta.url)), '..');
+const scenario = JSON.parse(readFileSync(join(root, 'scenarios', 'MSN-260826-01.json'), 'utf8'));
+const port = Number(process.env.VIZ_GATEWAY_PORT ?? 8790); const speed = Number(process.env.VIZ_SCENARIO_SPEED ?? 20);
 const server = new WebSocketServer({ port, host: '127.0.0.1' });
-server.on('connection', (socket) => {
-  socket.send(JSON.stringify({ type: 'hello', server_time: new Date().toISOString(), stale_threshold_ms: 60_000, mock: true }));
-  socket.on('message', (raw) => {
-    let message;
-    try { message = JSON.parse(String(raw)); } catch { return; }
-    if (message.type !== 'subscribe') return;
-    socket.send(JSON.stringify({ type: 'subscribed', id: message.id, snapshot_count: 0, mock: true }));
-    socket.send(JSON.stringify({
-      type: 'data', sub: message.id,
-      envelope: { schema_version: '1.0', entity: 'mock-gateway', node: 'viz-debugger', channel: 'heartbeat', ts: new Date().toISOString(), seq: 1, scope: message.scope ?? 'all', payload: { mock: true } },
-    }));
-  });
-});
-console.log(`[viz-debugger mock] ws://127.0.0.1:${port} — 목 서버`);
+server.on('connection', (socket) => { socket.send(JSON.stringify({ type: 'hello', server_time: new Date().toISOString(), stale_threshold_ms: 60_000, mock: true })); socket.on('message', (raw) => { let message; try { message = JSON.parse(String(raw)); } catch { return; } if (message.type !== 'subscribe') return; socket.send(JSON.stringify({ type: 'subscribed', id: message.id, snapshot_count: 0, mock: true })); for (const event of scenario.events) setTimeout(() => { const envelope = { schema_version: '1.0', entity: scenario.missionId, node: event.nodeId, channel: 'trace_event', ts: new Date().toISOString(), seq: event.seq, scope: message.scope ?? 'all', payload: { layer: 'task', node_id: event.nodeId, kind: event.kind, produced_by: event.producedBy, status: event.status, attempt: event.attempt ?? 1, mock: true } }; if (socket.readyState === socket.OPEN) socket.send(JSON.stringify({ type: 'data', sub: message.id, envelope })); console.log(`[trace ${String(event.atSec).padStart(2, '0')}s] ${event.nodeId} → ${event.status} (${event.producedBy})`); }, event.atSec * 1000 / speed); } ); });
+console.log(`[viz-debugger mock] ws://127.0.0.1:${port} — ${scenario.missionId}, ${speed}x 재생`);

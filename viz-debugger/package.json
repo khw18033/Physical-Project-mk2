@@ -12,7 +12,8 @@
     "typecheck": "tsc -b --force",
     "verify:hierarchy": "node scripts/verify-hierarchy.mjs",
     "verify:adapter-swap": "node scripts/verify-adapter-swap.mjs",
-    "verify:transport": "node scripts/verify-transport.mjs"
+    "verify:transport": "node scripts/verify-transport.mjs",
+    "verify:scenario": "node scripts/verify-scenario.mjs"
   },
   "dependencies": {
     "react": "^19.1.0",
