@@ -27,7 +27,8 @@ export function TaskGraph({ tasks, hardware, states, layoutMode, selected, dimUn
     {tasks.map((task) => {
       const state = states[task.id] ?? { status: 'pending' as const, attempt: 1 }; const style = STATE_STYLE[state.status];
       const device = hardware.find((item) => item.id === task.target); const dimmed = dimUnrelated && !relevant.has(task.id);
-      return <button key={task.id} type="button" className={`task-node ${style.className} ${selected === task.id ? 'selected' : ''} ${dimmed ? 'dimmed' : ''}`} style={positions[task.id]} onDoubleClick={() => onOpen(task)}>
+      const position = positions[task.id];
+      return <button key={task.id} type="button" className={`task-node ${style.className} ${selected === task.id ? 'selected' : ''} ${dimmed ? 'dimmed' : ''}`} style={{ left: position.x, top: position.y }} onDoubleClick={() => onOpen(task)}>
         <small>{task.id}</small><strong>{task.title}</strong>
         <span className="state-label">{style.icon} {style.label}{state.status === 'rerunning' ? ` · attempt ${state.attempt}` : ''}</span>
         <span className={`device ${device?.connection ?? 'offline'}`}>{task.target} · {device?.connection === 'online' ? '온라인' : device?.connection === 'maintenance' ? '점검' : '오프라인'}</span>
