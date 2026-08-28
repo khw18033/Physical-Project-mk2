@@ -102,6 +102,7 @@ export function UtterancePanel({ fallbackText }: { fallbackText: string }) {
   const frameRef = useRef<number | null>(null);
 
   const able = capabilities(status, mediaRecorderSupported());
+  const fileDisabled = !able.canTranscribe || phase === 'transcribing';
 
   useEffect(() => {
     const controller = new AbortController();
@@ -246,16 +247,23 @@ export function UtterancePanel({ fallbackText }: { fallbackText: string }) {
         {phase === 'recording'
           ? <button className="rec-stop" onClick={stopRecording}>■ 녹음 정지</button>
           : <button disabled={!able.canRecord || phase === 'transcribing'} onClick={() => void startRecording()}>● 녹음</button>}
-        <label className="file-fallback">
-          파일
-          <input type="file" accept="audio/*" disabled={!able.canTranscribe || phase === 'transcribing'}
+        {/* 파일 입력의 기본 모양은 브라우저마다 다르고 "선택된 파일 없음"이 붙어 나온다.
+            좁은 패널에서는 그 문구가 잘려 읽을 수 없는 글자만 남으므로 입력을 감추고
+            라벨을 버튼처럼 쓴다. 기능은 그대로다. */}
+        <label className={fileDisabled ? 'file-fallback is-disabled' : 'file-fallback'}>
+          파일 선택
+          <input type="file" accept="audio/*" disabled={fileDisabled}
             onChange={(event) => { const file = event.target.files?.[0]; if (file) void send(file); }} />
         </label>
-        <label className="hotword-toggle" title="끄면 레지스트리 어휘 편향 없이 인식합니다. VZ-L-03 임계 실측의 대조군입니다.">
+        <label className="hotword-toggle" title="레지스트리에 등록된 구역·장비 이름 쪽으로 인식을 맞춥니다. 끄면 편향 없이 인식합니다 — VZ-L-03 임계 실측의 대조군입니다.">
           <input type="checkbox" checked={useHotwords} onChange={(event) => setUseHotwords(event.target.checked)} />
-          호칭 사전
+          등록 이름 우선
         </label>
       </div>
+      <p className="stt-hint">
+        <b>등록 이름 우선</b> — 레지스트리에 등록된 구역·장비 이름(<code>503 구역</code>·<code>엣지 노드 A</code> …)
+        쪽으로 인식을 맞춥니다. 끄면 그 편향 없이 인식합니다.
+      </p>
 
       {able.note && <p className="stt-note">{able.note}</p>}
       {phase === 'transcribing' && <p className="stt-note">인식 중입니다. 모델을 처음 읽는 경우 오래 걸립니다.</p>}
@@ -285,9 +293,9 @@ export function UtterancePanel({ fallbackText }: { fallbackText: string }) {
             <dd className={`verdict-${decision.verdict}`}>
               {VERDICT_LABEL[decision.verdict]} <small>{PROVISIONAL_NOTE}</small>
             </dd>
-            <dt>호칭 사전</dt>
+            <dt>등록 이름</dt>
             <dd>
-              {useHotwords ? `${appliedHotwords}개 적용` : '끔 (대조군)'}
+              {useHotwords ? `${appliedHotwords}개 반영` : '끔 (대조군)'}
               {useHotwords && appliedHotwords === 0 ? <small>요청했으나 적용되지 않음</small> : null}
             </dd>
             <dt>생성 주체</dt><dd>produced_by=human · input_modality=voice</dd>
