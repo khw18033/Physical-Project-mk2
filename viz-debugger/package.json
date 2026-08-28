@@ -8,6 +8,7 @@
     "dev": "node scripts/dev-all.mjs",
     "dev:mock": "node gateway/server.mjs",
     "dev:web": "vite",
+    "dev:stt": "node scripts/dev-stt.mjs",
     "build": "tsc -b && vite build",
     "build:standalone": "tsc -b && vite build --config vite.standalone.config.ts",
     "typecheck": "tsc -b --force",
@@ -17,7 +18,10 @@
     "verify:scenario": "node scripts/verify-scenario.mjs",
     "verify:layout": "node scripts/verify-layout.mjs",
     "verify:single-egress": "node scripts/verify-single-egress.mjs",
-    "verify:standalone": "npm run build:standalone && node scripts/verify-standalone.mjs"
+    "verify:standalone": "npm run build:standalone && node scripts/verify-standalone.mjs",
+    "verify:stt-port": "node scripts/verify-stt-port.mjs",
+    "verify:voice-audit": "node scripts/verify-voice-audit.mjs",
+    "verify:no-stt": "node scripts/verify-no-stt.mjs"
   },
   "dependencies": {
     "react": "^19.1.0",

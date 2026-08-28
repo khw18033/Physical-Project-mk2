@@ -3,6 +3,7 @@ import { scenario, statusesAt } from './data/scenario.ts';
 import { TaskGraph } from './graph/TaskGraph.tsx';
 import type { Task } from './model/types.ts';
 import { ActionModal } from './views/ActionModal.tsx';
+import { UtterancePanel } from './views/UtterancePanel.tsx';
 import { StatusLegend } from './views/StatusLegend.tsx';
 import './style.css';
 
@@ -15,7 +16,7 @@ function timelineSegments(taskId: string) {
 }
 
 function Milestones({ assignments, onAssign, onOpen }: { assignments: Record<string, string[]>; onAssign(id: string, hardware: string): void; onOpen(): void }) {
-  return <div className="milestone-layout"><aside className="utterance-panel"><h2>발화 · Utterance</h2><div className="waveform">▂▅▃▆▂▇▅▃▆▂▅▇▃▆</div><blockquote>“{scenario.utterance.text}”</blockquote><dl><dt>엔진</dt><dd>{scenario.utterance.engine}</dd><dt>신뢰도</dt><dd>{scenario.utterance.confidence}</dd><dt>생성 주체</dt><dd>produced_by=ai</dd></dl></aside><section className="milestone-panel"><h2>마일스톤 · 7건</h2><div className="progress-steps">{['음성 수신', 'STT 변환', '의도 분석', '마일스톤 분리', '태스크 생성'].map((label) => <span key={label}>✓ {label}</span>)}</div><div className="milestone-list">{scenario.milestones.map((item) => <button key={item.id} className={`milestone state-${item.status}`} onClick={onOpen} onDragOver={(event) => event.preventDefault()} onDrop={(event) => onAssign(item.id, event.dataTransfer.getData('text/plain'))}><b>{item.id}</b><strong>{item.title}</strong><span>{(assignments[item.id] ?? item.assignedTargets).join(' · ') || '미배정'}</span><small>클릭 → 태스크 그래프</small></button>)}</div></section><aside className="hardware-panel"><h2>하드웨어 · 7대</h2><p>카드를 마일스톤으로 드래그</p>{scenario.hardware.map((item) => <article key={item.id} draggable onDragStart={(event) => event.dataTransfer.setData('text/plain', item.id)}><b className={item.connection}>{item.id}</b><small>{item.kind}</small><span>{item.connection} · {item.battery}% · {item.rssi} dBm</span></article>)}</aside></div>;
+  return <div className="milestone-layout"><UtterancePanel fallbackText={scenario.utterance.text} /><section className="milestone-panel"><h2>마일스톤 · 7건</h2><div className="milestone-list">{scenario.milestones.map((item) => <button key={item.id} className={`milestone state-${item.status}`} onClick={onOpen} onDragOver={(event) => event.preventDefault()} onDrop={(event) => onAssign(item.id, event.dataTransfer.getData('text/plain'))}><b>{item.id}</b><strong>{item.title}</strong><span>{(assignments[item.id] ?? item.assignedTargets).join(' · ') || '미배정'}</span><small>클릭 → 태스크 그래프</small></button>)}</div></section><aside className="hardware-panel"><h2>하드웨어 · 7대</h2><p>카드를 마일스톤으로 드래그</p>{scenario.hardware.map((item) => <article key={item.id} draggable onDragStart={(event) => event.dataTransfer.setData('text/plain', item.id)}><b className={item.connection}>{item.id}</b><small>{item.kind}</small><span>{item.connection} · {item.battery}% · {item.rssi} dBm</span></article>)}</aside></div>;
 }
 
 function ReplayControls({ second, onChange, tasks }: { second: number; onChange(value: number): void; tasks: Task[] }) {
