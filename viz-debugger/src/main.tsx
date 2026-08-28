@@ -1,11 +1,9 @@
-import { StrictMode, useMemo, useState } from 'react';
-import { createRoot } from 'react-dom/client';
+import { useEffect, useMemo, useState } from 'react';
 import { scenario, statusesAt } from './data/scenario.ts';
 import { TaskGraph } from './graph/TaskGraph.tsx';
 import type { Task } from './model/types.ts';
 import { ActionModal } from './views/ActionModal.tsx';
 import { StatusLegend } from './views/StatusLegend.tsx';
-import { TopBar } from './views/TopBar.tsx';
 import './style.css';
 
 type Screen = 'milestones' | 'graph' | 'detail' | 'replay' | 'failure';
@@ -30,12 +28,13 @@ function GraphScreen({ screen, tasks, layoutMode, onLayout, onOpen }: { screen: 
   return <div className={replay ? 'replay-layout' : ''}>{replay && <aside className="history"><h2>임무 이력</h2>{['MSN-260826-01 · 실패', 'MSN-260826-00 · 완료', 'MSN-260825-07 · 완료', 'MSN-260825-06 · 완료'].map((item) => <button key={item}>{item}</button>)}</aside>}<section className="graph-panel"><header className="section-title"><div><h2>마일스톤 C · 엘리베이터 탑승 → 5층 하차</h2><small>{replay ? `리플레이 · T+${String(second).padStart(2, '0')}s` : failure ? '실패 경로 강조 · 관련 없는 노드 흐림' : '분기와 합류가 있는 태스크 DAG'}</small></div><div className="toggle"><button className={layoutMode === 'dag' ? 'active' : ''} onClick={() => onLayout('dag')}>DAG</button><button className={layoutMode === 'tree' ? 'active' : ''} onClick={() => onLayout('tree')}>트리</button></div></header><TaskGraph tasks={tasks} hardware={scenario.hardware} states={states} layoutMode={layoutMode} selected={failure ? 'T-35' : undefined} dimUnrelated={failure} onOpen={(task) => onOpen(task, states[task.id]?.status === 'failed')} />{replay && <ReplayControls second={second} onChange={setSecond} tasks={tasks} />}<StatusLegend /><p className="hint">노드를 더블클릭하면 액션 아이템 상세를 엽니다. 실패 상태 노드는 수정 화면으로 이어집니다.</p></section></div>;
 }
 
-function App() {
+export type DebuggerNavigation = { screen: 'milestones' | 'replay'; requestId: number };
+
+export function MissionDebugger({ navigation }: { navigation?: DebuggerNavigation }) {
   const [screen, setScreen] = useState<Screen>('milestones'); const [layoutMode, setLayoutMode] = useState<'dag' | 'tree'>('dag'); const [modalTask, setModalTask] = useState<Task | null>(null); const [assignments, setAssignments] = useState<Record<string, string[]>>({});
   const assignedTasks = useMemo(() => scenario.tasks.map((task) => assignments['MS-C']?.length ? { ...task, target: assignments['MS-C'][0] } : task), [assignments]);
   const navigate = (next: Screen) => { setScreen(next); setModalTask(next === 'detail' ? assignedTasks[0] : next === 'failure' ? assignedTasks.find((task) => task.id === 'T-35') ?? null : null); };
   const openTask = (task: Task, failed: boolean) => { setModalTask(task); setScreen(failed ? 'failure' : 'detail'); };
-  return <main><TopBar onHome={() => navigate('milestones')} onReplay={() => navigate('replay')} />{screen === 'milestones' ? <Milestones assignments={assignments} onAssign={(id, hardware) => setAssignments((current) => ({ ...current, [id]: [...new Set([...(current[id] ?? []), hardware])] }))} onOpen={() => navigate('graph')} /> : <GraphScreen screen={screen} tasks={assignedTasks} layoutMode={layoutMode} onLayout={setLayoutMode} onOpen={openTask} />}{modalTask && <ActionModal task={modalTask} device={scenario.hardware.find((item) => item.id === modalTask.target)} failure={screen === 'failure'} onClose={() => { setModalTask(null); if (screen === 'detail') setScreen('graph'); }} />}{screen === 'failure' && !modalTask && <button className="failure-open" onClick={() => setModalTask(assignedTasks.find((task) => task.id === 'T-35')!)}>실패 수정 팝업 열기</button>}</main>;
+  useEffect(() => { if (navigation) navigate(navigation.screen); }, [navigation?.requestId]);
+  return <div className="mission-debugger">{screen === 'milestones' ? <Milestones assignments={assignments} onAssign={(id, hardware) => setAssignments((current) => ({ ...current, [id]: [...new Set([...(current[id] ?? []), hardware])] }))} onOpen={() => navigate('graph')} /> : <GraphScreen screen={screen} tasks={assignedTasks} layoutMode={layoutMode} onLayout={setLayoutMode} onOpen={openTask} />}{modalTask && <ActionModal task={modalTask} device={scenario.hardware.find((item) => item.id === modalTask.target)} failure={screen === 'failure'} onClose={() => { setModalTask(null); if (screen === 'detail') setScreen('graph'); }} />}{screen === 'failure' && !modalTask && <button className="failure-open" onClick={() => setModalTask(assignedTasks.find((task) => task.id === 'T-35')!)}>실패 수정 팝업 열기</button>}</div>;
 }
-
-createRoot(document.getElementById('root')!).render(<StrictMode><App /></StrictMode>);

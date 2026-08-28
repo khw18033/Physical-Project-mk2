@@ -4,6 +4,7 @@
 # Node
 node_modules/
 dist/
+dist-standalone/
 *.log
 
 # TypeScript 증분 빌드 캐시

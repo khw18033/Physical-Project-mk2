@@ -1,4 +1,6 @@
-export type TaskStatus = 'pending' | 'running' | 'done' | 'failed' | 'skipped' | 'awaiting_evaluation' | 'not_executed' | 'rerunning';
+import type { MissionTaskStatus } from '../shared/statusTypes.ts';
+
+export type TaskStatus = MissionTaskStatus;
 export type Connection = 'online' | 'offline' | 'maintenance';
 export type Hardware = { id: string; kind: string; connection: Connection; battery: number; rssi: number; latency: number; ip: string; firmware: string; temperature: number; heartbeat: string };
 export type ActionItem = { id: string; label: string; params: Record<string, string | number>; status: TaskStatus };
