@@ -35,6 +35,9 @@ MQTT_PASS = _s("MQTT_PASS", "")
 # 하트비트 1Hz 기준으로 keepalive를 짧게. 브로커는 keepalive*1.5(7.5초)에 LWT를
 # 띄우므로 LWT는 보조 경로이고, 4초 판정의 주 경로는 하트비트 타임아웃이다.
 KEEPALIVE = _i("KEEPALIVE", 5)
+# 재접속 백오프 상한(초). paho 기본 120초는 두절이 길수록 복구가 늦어져
+# 재난 대응과 방향이 반대다.
+RECONNECT_MAX_DELAY = _f("RECONNECT_MAX_DELAY", 10.0)
 
 # ---------------- 식별자 (HW-C-07, BE-C-02) ----------------
 # Entity(논리 개체) / Node(물리 노드) / Zone(구역) 3계층. 지금은 센서 1:1이라
@@ -43,7 +46,9 @@ ENTITY_ID_FILE = _s("ENTITY_ID_FILE", "/etc/device_id")
 NODE_ID_FILE = _s("NODE_ID_FILE", "/etc/node_id")     # 없으면 hostname 사용
 ZONE_ID_FILE = _s("ZONE_ID_FILE", "/etc/zone_id")     # 없으면 ZONE_ID 기본값
 ZONE_ID = _s("ZONE_ID", "zoneA")                      # 임시: 도메인 체계 확정 대기
-ENTITY_TYPE = _s("ENTITY_TYPE", "sensor")             # 토픽 2번째 칸
+ENTITY_TYPE = _s("ENTITY_TYPE", "")                   # 토픽 2번째 칸.
+# 비워 두면 노드 클래스의 ENTITY_TYPE(sensor/robot/actuator)을 쓴다.
+# 값을 넣으면 그 값이 이긴다 — 한 대에서 여러 역할을 검증할 때의 탈출구.
 DEVICE_TYPE = _s("DEVICE_TYPE", "water_level")        # 등록 메시지의 장치 종류
 FW_VERSION = _s("FW_VERSION", "0.3.0")
 # HW-C-07: 네트워크·구역 변경 시 갱신 → 이 주기로 MAC/IP/zone 변화를 확인
@@ -76,6 +81,24 @@ OTEL_EXPORT_INTERVAL = _f("OTEL_EXPORT_INTERVAL", 60.0)
 SPOOL_PATH = _s("SPOOL_PATH", "/var/lib/hw-node/spool.jsonl")
 SPOOL_MAX = _i("SPOOL_MAX", 5000)             # 초과분은 오래된 것부터 폐기
 SPOOL_REPLAY_BATCH = _i("SPOOL_REPLAY_BATCH", 50)   # 복구 시 한 번에 밀어넣는 양
+# 연속 상태값(로봇 위치·속도 등)의 재전송 해상도. 20Hz로 10분 두절이면 12,000건인데
+# 전량을 쏟으면 막 복구된 링크가 과거 데이터로 막혀 현재 상태와 명령 ACK가 밀린다.
+# 이산 이벤트는 전량 재전송하고 연속값만 이 간격으로 솎는다 (SDD 5.4).
+SPOOL_DOWNSAMPLE_S = _f("SPOOL_DOWNSAMPLE_S", 1.0)
+
+# ---------------- 로봇 온보드 (HW-R) ----------------
+# 제어기 -> 온보드 내부 수집. ROS 2 Control state_publish_rate 기본 50Hz 기준 (HW-R-01)
+ROBOT_INTERNAL_INTERVAL = _f("ROBOT_INTERNAL_INTERVAL", 0.02)
+# 온보드 -> 엣지 상태 보고. 임무 중 20Hz / 대기 1Hz (HW-R-03)
+# ⚠ 20Hz의 근거(Nav2 controller_frequency)는 내부 제어 루프 주기이지 네트워크 전송
+# 주기가 아니다(SRS O-11). 실물 확보 후 무선망 실측으로 재산정한다 — 그래서 설정값이다.
+ROBOT_STATE_INTERVAL_MISSION = _f("ROBOT_STATE_INTERVAL_MISSION", 0.05)
+ROBOT_STATE_INTERVAL_IDLE = _f("ROBOT_STATE_INTERVAL_IDLE", 1.0)
+# 20Hz 상태 스트림은 QoS 0. 다음 샘플이 50ms 뒤 오므로 유실을 상쇄하며, QoS 1은
+# 무선 왕복(실측 ~150ms)이 주기보다 길어 부적합하다 (SRS 9.4). 이산 이벤트만 QoS 1.
+ROBOT_STATE_QOS = _i("ROBOT_STATE_QOS", 0)
+ROBOT_BATTERY_WARN = _f("ROBOT_BATTERY_WARN", 20.0)     # % — 이산 경보 임계
+CONTROLLER_LINK = _s("CONTROLLER_LINK", "sim")          # sim | can | eth
 
 # ---------------- 가짜 센서 스위치 (실센서 입고 시 제거) ----------------
 RAIN_FLAG = _s("RAIN_FLAG", "/tmp/rain")

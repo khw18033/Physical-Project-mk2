@@ -13,17 +13,33 @@
     그래서 디스크 여유 공간이 관측 metric 5종(HW-C-05)에 들어가 있다.
   - 재전송분에 `replayed` 표식: 소비자(BE-S-01)가 "지금 값"과 "밀린 값"을 구분해야
     대시보드가 과거 값을 현재로 오인하지 않는다.
+
+재전송 정책 분리 (SDD 5.4)
+  로봇 상태는 20Hz다. 10분 두절이면 12,000건인데, 막 복구된 저대역 무선 링크에
+  과거 데이터를 전량 쏟으면 정작 중요한 현재 상태와 명령 ACK가 뒤로 밀린다.
+  그래서 레코드를 두 종류로 나눈다.
+
+    kind="event"       모드 전환·임계 경보·명령 결과·임무 상태 전이 등 이산 사건
+                       → 전량·시간순 재전송. 하나가 빠지면 사건의 인과가 끊긴다.
+    kind="continuous"  위치·속도·수위 추이 등 연속 표본
+                       → 지정 간격으로 솎아서(다운샘플) 재전송. 궤적은 1Hz 표본으로도
+                         복원되며 50ms 해상도가 사후 분석에 필요하지 않다.
 """
 import json
 import os
 
+EVENT = "event"
+CONTINUOUS = "continuous"
+
 
 class Spool:
-    def __init__(self, path, max_records, batch):
+    def __init__(self, path, max_records, batch, downsample_s=1.0):
         self.path = path
         self.max_records = max_records
         self.batch = batch
-        self.dropped = 0          # 상한 초과로 버린 건수 (degraded 판정 근거)
+        self.downsample_s = downsample_s
+        self.dropped = 0             # 상한 초과로 버린 건수 (degraded 판정 근거)
+        self.thinned = 0             # 다운샘플로 솎아낸 건수 (버린 것과 구분해서 보고)
         d = os.path.dirname(path)
         if d:
             os.makedirs(d, exist_ok=True)
@@ -36,9 +52,11 @@ class Spool:
         except OSError:
             return 0
 
-    def append(self, topic, payload, qos):
-        """발행 실패분을 적재. payload는 dict 그대로 — 재전송 시 표식을 넣어야 한다."""
-        rec = {"topic": topic, "qos": qos, "payload": payload}
+    def append(self, topic, payload, qos, ts, kind=EVENT):
+        """발행 실패분을 적재. payload는 dict 그대로 — 재전송 시 표식을 넣어야 한다.
+        ts는 발행 시각(epoch). 다운샘플 버킷 계산에 쓰므로 문자열 타임스탬프를
+        다시 파싱하지 않도록 여기서 숫자로 받아 둔다."""
+        rec = {"topic": topic, "qos": qos, "kind": kind, "ts": ts, "payload": payload}
         with open(self.path, "a", encoding="utf-8") as f:
             f.write(json.dumps(rec, ensure_ascii=False) + "\n")
         self.count += 1
@@ -70,6 +88,33 @@ class Spool:
                 f.write(ln + "\n")
         os.replace(tmp, self.path)   # 재작성 도중 정전에도 파일이 깨지지 않도록 원자 교체
 
+    def _downsample(self, lines):
+        """연속 표본만 버킷당 1건으로 솎는다. 이산 이벤트는 손대지 않는다.
+        재전송을 시작하기 전에 한 번만 수행하고 결과를 파일에 반영한다 — 배치마다
+        다시 계산하면 배치 경계에서 버킷이 갈라져 솎기가 어긋난다."""
+        if self.downsample_s <= 0:
+            return lines
+        kept, seen = [], set()
+        for ln in lines:
+            try:
+                rec = json.loads(ln)
+            except ValueError:
+                kept.append(ln)
+                continue
+            if rec.get("kind") != CONTINUOUS:
+                kept.append(ln)
+                continue
+            bucket = (rec.get("topic"), int(float(rec.get("ts", 0)) / self.downsample_s))
+            if bucket in seen:
+                self.thinned += 1
+                continue
+            seen.add(bucket)
+            kept.append(ln)
+        if len(kept) != len(lines):
+            self._write_lines(kept)
+            self.count = len(kept)
+        return kept
+
     def replay(self, publish_fn):
         """재연결 시 호출. batch 만큼만 밀어넣고 남은 건 다음 호출로 미룬다
         (한 번에 쏟아부으면 복구 직후 브로커·자신의 큐를 다시 막는다).
@@ -79,6 +124,7 @@ class Spool:
         if not lines:
             self.count = 0
             return 0
+        lines = self._downsample(lines)
         sent = 0
         for ln in lines[: self.batch]:
             try:

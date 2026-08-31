@@ -25,7 +25,7 @@ import time
 
 import paho.mqtt.client as mqtt
 
-import config
+from common import config
 
 INTERVAL = config.HB_INTERVAL      # 장치의 하트비트 주기 (HW-S-05: 1 Hz)
 MISS_LIMIT = config.MISS_LIMIT     # HW-S-07: 4회 미수신이면 오프라인 → 약 4초
@@ -34,6 +34,21 @@ ZONE = config.ZONE_ID
 last_seen = {}        # 장치별 마지막 하트비트 수신 시각
 availability = {}     # 서버 판정 층
 self_report = {}      # 장치 자기보고 층 (device_status)
+
+
+_last_print = {}
+_rate = {}
+
+
+def _throttle(dev, every=1.0):
+    """연속 표본을 화면에 초당 1줄로 솎는다. 판정 로직은 모든 메시지를 다 보되
+    사람이 보는 출력만 줄인다 — 20Hz 를 그대로 찍으면 다른 사건이 묻힌다."""
+    now = time.time()
+    _rate[dev] = _rate.get(dev, 0) + 1
+    if now - _last_print.get(dev, 0) >= every:
+        _last_print[dev] = now
+        return True
+    return False
 
 
 def _dev(payload, topic):
@@ -69,7 +84,8 @@ def on_message(client, userdata, m):
             buf = p.get("buffer", {})
             line += (f" mode={p['mode']}({p.get('mode_source')}) "
                      f"interval={p.get('report_interval_s')}s "
-                     f"buffer={buf.get('pending', 0)}/drop {buf.get('dropped', 0)}")
+                     f"buffer={buf.get('pending', 0)}"
+                     f"/drop {buf.get('dropped', 0)}/thin {buf.get('thinned', 0)}")
         print(line)
         if p.get("status") == "offline":
             # 정상 종료(shutdown)와 급사(lwt)는 다른 사건이다 — VZ-U-01이
@@ -78,9 +94,24 @@ def on_message(client, userdata, m):
             print(f"[가용성] {dev} OFFLINE — 사유 {p.get('reason')} / event {p.get('event')}")
 
     elif channel == "state":
-        flag = " ⚠" if p.get("alert") else ""
         rep = " (재전송분)" if p.get("replayed") else ""
-        print(f"[계측] {dev} {p.get('water_level_m')}m {p.get('reason')}{flag}{rep}")
+        if "water_level_m" in p:                    # 센서노드 (HW-S-02)
+            flag = " ⚠" if p.get("alert") else ""
+            print(f"[계측] {dev} {p['water_level_m']}m {p.get('reason')}{flag}{rep}")
+        elif "battery_pct" in p:                    # 로봇 온보드 (HW-R-03)
+            pos = p.get("position", {})
+            m = p.get("mission", {})
+            line = (f"[로봇] {dev} bat {p['battery_pct']}% "
+                    f"pos({pos.get('x')},{pos.get('y')}) {p.get('speed_mps')}m/s "
+                    f"mode={p.get('robot_mode')} {p.get('reason')}{rep}")
+            if m:
+                line += f" mission={m.get('mission_id')}/{m.get('status')}"
+            # 임무 중 20Hz 는 초당 20줄이라 화면을 덮는다. 연속 표본은 솎아 보여주고
+            # 이산 사건(모드 전환·배터리 경보)은 전부 보여준다.
+            if p.get("reason") != "periodic" or _throttle(dev):
+                print(line)
+        else:
+            print(f"[상태] {dev} {p.get('reason')}{rep}")
 
     elif channel in ("cmd/ack", "cmd/result"):
         print(f"[명령 {p.get('stage')}] {dev} {p.get('action')} "

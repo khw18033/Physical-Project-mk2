@@ -21,7 +21,7 @@ SDK 미설치·엔드포인트 미설정이면 조용히 no-op으로 떨어진�
 """
 import shutil
 
-import config
+from common import config
 
 try:
     import psutil

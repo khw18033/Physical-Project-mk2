@@ -122,7 +122,7 @@ fi
 # ---------------------------------------------------------------- 5. 현장 설정
 say "현장 설정 /etc/hw-node.env"
 if [ ! -f /etc/hw-node.env ]; then
-  sudo cp "$REPO_DIR/hw-node.env.example" /etc/hw-node.env
+  sudo cp "$REPO_DIR/deploy/hw-node.env.example" /etc/hw-node.env
   ok "템플릿 복사"
 fi
 if [ -n "$BROKER" ]; then
@@ -141,21 +141,21 @@ fi
 say "systemd 서비스 (role=$ROLE)"
 case "$ROLE" in
   sensor)
-    if [ -f "$REPO_DIR/sensor-node.service" ]; then
-      sudo cp "$REPO_DIR/sensor-node.service" /etc/systemd/system/
+    if [ -f "$REPO_DIR/deploy/sensor-node.service" ]; then
+      sudo cp "$REPO_DIR/deploy/sensor-node.service" /etc/systemd/system/
       sudo systemctl daemon-reload
       sudo systemctl enable sensor-node > /dev/null 2>&1
       ok "sensor-node.service 설치·부팅 등록 (기동은 수동: systemctl start sensor-node)"
     fi
     ;;
   robot)
-    if [ -f "$REPO_DIR/robot-node.service" ]; then
-      sudo cp "$REPO_DIR/robot-node.service" /etc/systemd/system/
+    if [ -f "$REPO_DIR/deploy/robot-node.service" ]; then
+      sudo cp "$REPO_DIR/deploy/robot-node.service" /etc/systemd/system/
       sudo systemctl daemon-reload
       sudo systemctl enable robot-node > /dev/null 2>&1
-      ok "robot-node.service 설치·부팅 등록"
+      ok "robot-node.service 설치·부팅 등록 (기동은 수동: systemctl start robot-node)"
     else
-      echo "  ! robot-node.service 미존재 — 로봇 온보드 구현 후 추가된다"
+      echo "  ! deploy/robot-node.service 미존재"
     fi
     ;;
   *) echo "  ✗ 알 수 없는 role: $ROLE (sensor|robot)" >&2; exit 1 ;;

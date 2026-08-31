@@ -15,7 +15,7 @@ import socket
 import time
 import uuid
 
-import config
+from common import config
 
 SCHEMA_VERSION = "1.3"
 
@@ -62,7 +62,8 @@ class Identity:
     """Entity/Node/Zone 3계층 + 물리 주소. HW-C-07의 '변경 시 갱신'을 위해
     현재 값을 다시 읽어 이전과 비교하는 책임까지 여기서 진다."""
 
-    def __init__(self, entity_id, node_id, zone_id, mac, ip):
+    def __init__(self, entity_id, node_id, zone_id, mac, ip, entity_type="node"):
+        self.entity_type = entity_type
         self.entity_id = entity_id
         self.node_id = node_id
         self.zone_id = zone_id
@@ -70,22 +71,29 @@ class Identity:
         self.ip = ip
 
     @classmethod
-    def resolve(cls):
-        entity_id = _read(config.ENTITY_ID_FILE) or os.environ.get("HW_ENTITY_ID", "")
+    def resolve(cls, entity_type="node"):
+        # 우선순위: 명시적 환경변수 > 설정 파일 > 기본값.
+        # 운용에서는 /etc/device_id 가 정본이지만, 한 대의 파이에서 센서 노드와 로봇
+        # 노드를 함께 검증할 때처럼 명시적으로 지정한 값이 있으면 그쪽이 더 구체적이다.
+        entity_id = os.environ.get("HW_ENTITY_ID", "") or _read(config.ENTITY_ID_FILE)
         if not entity_id:
             raise SystemExit(
                 f"device_id를 찾을 수 없다: {config.ENTITY_ID_FILE} (HW-C-07 채번 필요). "
-                "테스트 시에는 HW_ENTITY_ID 환경변수로 대체 가능."
+                "HW_ENTITY_ID 환경변수로도 지정할 수 있다."
             )
-        node_id = _read(config.NODE_ID_FILE) or socket.gethostname()
-        zone_id = _read(config.ZONE_ID_FILE) or config.ZONE_ID
-        return cls(entity_id, node_id, zone_id, _mac(), _ip())
+        node_id = (os.environ.get("HW_NODE_ID", "") or _read(config.NODE_ID_FILE)
+                   or socket.gethostname())
+        zone_id = (os.environ.get("HW_ZONE_ID", "") or _read(config.ZONE_ID_FILE)
+                   or config.ZONE_ID)
+        # 노드 클래스가 자기 타입을 안다. 환경변수는 명시적 덮어쓰기로만 이긴다.
+        etype = config.ENTITY_TYPE or entity_type
+        return cls(entity_id, node_id, zone_id, _mac(), _ip(), etype)
 
     @property
     def topic_base(self):
         """통합정립본 v3의 {domain}/{type}/{id}/{channel} 체계.
         domain 자리는 지금 zone_id를 쓴다 — 도메인 체계 확정 시 여기만 바뀐다."""
-        return f"{self.zone_id}/{config.ENTITY_TYPE}/{self.entity_id}"
+        return f"{self.zone_id}/{self.entity_type}/{self.entity_id}"
 
     def fingerprint(self):
         """이 값이 달라지면 재등록 대상(HW-C-07: 네트워크 또는 구역 변경 시 갱신)."""
@@ -98,6 +106,7 @@ class Identity:
             "entity_id": self.entity_id,
             "node_id": self.node_id,
             "zone_id": self.zone_id,
+            "entity_type": self.entity_type,
             "device_type": config.DEVICE_TYPE,
             "fw_version": config.FW_VERSION,
             "mac": self.mac,
