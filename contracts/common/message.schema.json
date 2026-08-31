@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/khw18033/Physical-Project-mk2/contracts/common/message.schema.json",
+  "title": "공통 메시지 봉투 (Common Message Envelope)",
+  "description": "모든 파트(하드웨어·AI·가시화)가 발행하는 메시지의 공통 머리(envelope). 백엔드가 정의·유지하는 단일 계약이며, 파트 경계의 기준은 이 JSON Schema이지 각 파트의 내부 타입이 아니다. 채널별 본문(payload)은 이 봉투 위에 각 채널 스키마가 얹힌다. 근거: BE-C-01(공통 스키마·필드), BE-C-02(식별자 계층), BE-C-07(원천 종류). 특정 장치명·IP를 공통 필수값으로 고정하지 않아 센서·이동체·엣지가 교체되어도 봉투가 유지된다.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "source_id",
+    "node_id",
+    "zone_id",
+    "timestamp"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+$",
+      "description": "봉투 계약 버전. 'MAJOR.MINOR' 형식(예: '1.0'). 필드의 의미·타입이 바뀌면 올린다. 이 필드로 하위호환을 관리해 구버전 소비자가 깨지지 않게 한다(BE-C-01: 스키마는 반복 전송 대상이 아니라 버전 관리 대상).",
+      "examples": ["1.0"]
+    },
+    "source_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "메시지를 실제로 생산한 논리 개체의 식별자. 가변값(IP·MAC)이 아닌 논리 ID다(BE-C-02). 재접속·네트워크 변경 후에도 동일 ID로 대상을 추적한다. 정본 필드이며, 과도기의 device_id 별칭은 이 계약에 포함하지 않는다 — 생산자는 source_id 단일 필드로 정렬한다.",
+      "examples": ["wl-001", "rb-01"]
+    },
+    "entity_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "논리 개체(Entity) 식별자. 한 물리 노드가 여러 개체를 대리할 때 개체를 구분한다(로봇 온보드가 여러 논리 대상을 대리하는 경우 등). 센서처럼 노드=개체가 1:1이면 생략 가능(그 경우 source_id가 개체를 가리킨다). BE-C-02의 Entity 계층.",
+      "examples": ["wl-001"]
+    },
+    "node_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "메시지를 발신한 물리 실행 노드(Node) 식별자. 백엔드 레지스트리의 물리 노드에 연결된다(BE-C-02). Entity(개체)와 분리해, 어느 물리 노드에서 나온 값인지 추적한다.",
+      "examples": ["pi7", "edge-zoneA-01"]
+    },
+    "zone_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "소속 구역(Zone) 식별자. 권한·구역 라우팅과 범위(scope)의 기준이다(BE-C-02, BE-Q-04). 구역 격리와 다구역 확장의 기준 계층.",
+      "examples": ["zoneA"]
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "메시지 생성 시각. 모든 노드는 NTP 기준 공통 시간을 따른다(BE-C-03, HW-S-08). 저장소가 구역·장치별 데이터를 이 시각 기준으로 병합·정렬하며, 재전송된 지연 도착 데이터도 원래 측정 시각으로 정합한다(BE-S-01). ISO-8601.",
+      "examples": ["2026-08-31T09:00:00+09:00"]
+    },
+    "sequence_id": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "생산자별 단조 증가 순번. 유실·역전 검출에 쓴다(하트비트·계측 등 연속 메시지에 부여, 규약성 메시지에는 없을 수 있어 선택). 통신 두절 후 재전송 시 순서 복원의 근거가 된다(HW-R-09, BE-S-01).",
+      "examples": [4837]
+    },
+    "correlation_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "요청·결과·감사 사슬을 잇는 상관키. 백엔드가 명령 조립 단계에서 발급(command_id)하며, 가시화 요청부터 디바이스 실행·결과·감사까지 이 키로 추적한다(BE-X-01). 명령 사슬에 속하지 않는 메시지에는 없으므로 선택.",
+      "examples": ["cmd-2026-0831-0001"]
+    },
+    "origin_kind": {
+      "type": "string",
+      "enum": ["real", "simulation", "replay"],
+      "description": "값·이벤트·명령 결과의 원천 종류. real=실물 장치, simulation=시뮬레이션, replay=기록 재생(BE-C-07). 감사 기록(BE-S-05·BE-X-02)이 실물 조작과 시뮬레이션 조작을 구분하고, 화면이 실물/비실물을 구분 표시하는 근거(VZ-C-06). 현재는 선택이며 미기재 시 소비자가 실물로 간주한다 — 시뮬·재생 구분이 필요한 배포에서 발행자가 명시한다.",
+      "examples": ["real"]
+    }
+  },
+  "$comment": "봉투는 여기까지다. 채널별 본문 필드(water_level_m, boxes, risk_state 등)는 이 봉투를 확장하는 각 채널 payload 스키마에서 정의한다. 이 스키마 자체는 추가 필드를 막지 않는다(additionalProperties 미지정) — 봉투 위에 채널 본문이 얹히기 때문. 채널 payload 스키마 쪽에서 필요하면 additionalProperties:false로 계층 경계를 강제한다."
+}

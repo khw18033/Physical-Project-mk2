@@ -1,0 +1,23 @@
+# 배포 대상이 리눅스 서버(엣지/중앙)이므로 저장소의 텍스트는 전부 LF로 고정한다.
+# docker-compose, .env, systemd unit, OTel Collector 설정 등은 CRLF가 섞이면
+# 값 끝에 \r 이 붙어 브로커 주소·경로 같은 설정이 조용히 어긋난다.
+* text=auto eol=lf
+
+# 셸/설정 파일은 명시적으로 LF (윈도우 편집기에서 열어도 CRLF로 안 바뀌게)
+*.sh    text eol=lf
+*.yml   text eol=lf
+*.yaml  text eol=lf
+*.env   text eol=lf
+*.conf  text eol=lf
+*.json  text eol=lf
+*.md    text eol=lf
+*.py    text eol=lf
+
+# 바이너리 — diff/줄바꿈 처리 대상에서 제외
+*.xlsx  binary
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.pdf   binary
+*.gz    binary
+*.zip   binary

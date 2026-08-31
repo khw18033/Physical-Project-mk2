@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/khw18033/Physical-Project-mk2/contracts/common/frame-reference.schema.json",
+  "title": "프레임 참조 (Frame Reference)",
+  "description": "인지·추적·판단 결과가 원본 관측 프레임으로 역추적되도록 하는 참조. 백엔드가 단일 규약으로 정의하고 전 파트가 따른다(BE-C-03). frame_ref는 엣지가 디코드 시점에 단 한 번 부여하고, 그 프레임에서 파생된 영상·탐지가 모두 그 값을 전파한다 — AI는 새 번호를 재생성하지 않는다(단일 출처). 이 단일 출처 규칙이 탐지 오버레이 정합의 성립 조건이다. 가시화의 탐지 박스는 영상(미디어 경로)과 탐지(업무 경로)가 뷰어에서 합류할 때 이 값이 F==F로 맞아야 정확히 겹쳐진다.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "source_id",
+    "capture_timestamp",
+    "sequence_id"
+  ],
+  "properties": {
+    "source_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "프레임을 취득한 카메라의 논리 식별자. 카메라가 둘 이상이면 같은 sequence_id가 생길 수 있으므로, source_id와 sequence_id의 조합으로만 프레임이 유일해진다. 봉투의 source_id와 같은 식별 체계를 쓴다(BE-C-02).",
+      "examples": ["robot1_front", "cctv-zoneA-03"]
+    },
+    "capture_timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "프레임 취득 시각. NTP 기준 ISO-8601(BE-C-03, HW-S-08). 프레임 정지(staleness) 감지의 기준이며, 여러 노드 결과 병합 시 공통 시간 기준이 된다.",
+      "examples": ["2026-08-31T09:00:00.123+09:00"]
+    },
+    "sequence_id": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "소스별 단조 증가 프레임 순번. frame_ref를 단일 frame 번호로 축약하지 않는 이유가 이것과 source_id의 조합 필요성 때문이다 — 재접속 시 번호가 초기화돼도 source_id와 함께 쓰면 오버레이 정합이 안 깨진다.",
+      "examples": [4837]
+    },
+    "frame_id": {
+      "type": ["string", "null"],
+      "description": "선택. 프레임의 문자열 식별자가 별도로 필요한 경우 사용(없으면 null). source_id+sequence_id 조합이 1차 키이며 이 필드는 보조.",
+      "examples": [null]
+    },
+    "time_sync_state": {
+      "type": "string",
+      "enum": ["SYNCED", "DEGRADED"],
+      "description": "선택. 프레임 취득 시점의 시간 동기 상태. SYNCED=NTP 동기 정상, DEGRADED=동기 저하(단일 노드 로컬 순서는 유지하되 노드 간 정합 정확도 저하, AI-C-03). 시간 동기 감시가 부여한다.",
+      "examples": ["SYNCED"]
+    }
+  }
+}

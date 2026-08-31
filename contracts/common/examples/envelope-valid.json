@@ -1,0 +1,15 @@
+{
+  "schema_version": "1.0",
+  "source_id": "wl-001",
+  "entity_id": "wl-001",
+  "node_id": "pi7",
+  "zone_id": "zoneA",
+  "timestamp": "2026-08-31T09:00:00+09:00",
+  "sequence_id": 4837,
+  "origin_kind": "real",
+  "channel": "state",
+  "water_level_m": 2.53,
+  "unit": "m",
+  "alert": false,
+  "reason": "periodic"
+}
