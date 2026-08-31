@@ -14,6 +14,7 @@ import { useState } from 'react';
 import { GATEWAY, type RiskState } from '../../transport/index.ts';
 import { deriveDisplayStatus, DISPLAY_STATUS_LABEL, store } from '../data/index.ts';
 import { useEntities } from '../data/hooks.ts';
+import { PendingSource } from '../../shared/PendingSource.tsx';
 
 type Level = 'decision' | 'operation' | 'development';
 
@@ -50,18 +51,21 @@ export function RiskPanel() {
         </div>
       </header>
 
-      {risk ? (
-        <div className={'riskcard riskcard--' + risk.level}>
-          <div><span className="riskcard__label">{RISK_LABEL[risk.level]}</span><strong>{risk.score}</strong><small>/ 100</small></div>
-          <p>{risk.recommendation}</p>
-          {level !== 'decision' && <ul>{risk.reasons.map((r) => <li key={r.label}><b>{r.label}</b> {r.value} <span>기여도 {Math.round(r.contribution * 100)}%</span></li>)}</ul>}
-          {level === 'development' && <pre>{JSON.stringify(riskSlot, null, 2)}</pre>}
-        </div>
-      ) : (
-        <p className="notice">위험도 판정 수신 대기</p>
-      )}
+      <PendingSource id="risk-state" minHeight={132}>
+        {risk ? (
+          <div className={'riskcard riskcard--' + risk.level}>
+            <div><span className="riskcard__label">{RISK_LABEL[risk.level]}</span><strong>{risk.score}</strong><small>/ 100</small></div>
+            <p>{risk.recommendation}</p>
+            {level !== 'decision' && <ul>{risk.reasons.map((r) => <li key={r.label}><b>{r.label}</b> {r.value} <span>기여도 {Math.round(r.contribution * 100)}%</span></li>)}</ul>}
+            {level === 'development' && <pre>{JSON.stringify(riskSlot, null, 2)}</pre>}
+          </div>
+        ) : (
+          <p className="notice">위험도 판정 수신 대기</p>
+        )}
+      </PendingSource>
 
       {level !== 'decision' && (
+        <PendingSource id="device-cards" minHeight={96}>
         <div className="layergrid">
           {records.map((r) => {
             const status = deriveDisplayStatus(r.state?.payload ?? null);
@@ -74,6 +78,7 @@ export function RiskPanel() {
             );
           })}
         </div>
+        </PendingSource>
       )}
 
       <div className="devpanel">

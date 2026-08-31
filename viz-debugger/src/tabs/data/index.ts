@@ -24,7 +24,6 @@ export * from './vision.ts';
 export * from '../../shared/auditFieldMap.ts';
 export * from './aggregation.ts';
 export * from './metrics.ts';
-export * from './pipelineEditor.ts';
 export * from './permissions.ts';
 export * from './constants.ts';
 export * from './registry.ts';

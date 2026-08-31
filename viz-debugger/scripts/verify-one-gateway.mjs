@@ -24,7 +24,8 @@ const TAB_CHANNELS = {
   '③ 제어 패널': ['actuator_state', 'control_lock'],
   '④ 지표 조회': ['telemetry'],
   '⑤ 영상 오버레이': ['video_meta'],
-  '⑥ 파이프라인 편집기': [], // HTTP 카탈로그로 채운다 — 아래에서 따로 본다
+  // 탭⑥은 2026-08-31에 제거됐다. 게이트웨이의 /pipelines/* 라우팅은 이식본 그대로
+  // 남아 있지만(기준선과의 diff 최소화) 소비하는 화면이 없으므로 검사하지 않는다.
   '① 임무 디버깅': ['trace_event'],
 };
 
@@ -87,12 +88,6 @@ try {
     }
   }
 
-  // 탭⑥은 WS 가 아니라 HTTP 카탈로그로 채워진다. 같은 게이트웨이인지 확인한다.
-  const catalog = await fetch(`http://127.0.0.1:${PORT}/pipelines/catalog`).then((r) => r.json()).catch(() => null);
-  if (!catalog || !Array.isArray(catalog.nodes) || catalog.nodes.length === 0) {
-    failures.push('⑥ 파이프라인 편집기 — 같은 게이트웨이의 /pipelines/catalog 가 비어 있다');
-  }
-
   // 음성 대조군 — 이 검사가 채널 이름을 실제로 보고 있는가.
   // command_result 는 명령을 내지 않았으므로 와서는 안 되고(캐시 금지 채널이기도 하다),
   // 아무거나 통과시키는 검사라면 이것도 '봤다'로 잡힐 것이다.
@@ -120,4 +115,4 @@ if (failures.length) {
   console.error(`❌ 게이트웨이 하나가 탭 여섯을 못 채운다:\n  - ${failures.join('\n  - ')}`);
   process.exit(1);
 }
-console.log(`✅ 통과 — 게이트웨이 1개 · 연결 1개로 탭별 채널 ${Object.values(TAB_CHANNELS).flat().join('·')} 수신, 파이프라인 카탈로그 동일 출처, 재연결 후 구독·스냅샷 복원, 미발행 채널 대조군 확인`);
+console.log(`✅ 통과 — 게이트웨이 1개 · 연결 1개로 탭별 채널 ${Object.values(TAB_CHANNELS).flat().join('·')} 수신, 재연결 후 구독·스냅샷 복원, 미발행 채널 대조군 확인`);

@@ -19,6 +19,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { PendingSource } from '../../shared/PendingSource.tsx';
 import {
   COMMAND_DISPLAY_LABEL,
   COMMAND_TTL_MS,
@@ -123,6 +124,8 @@ export function ControlPanel() {
 
       <section className="targetbar">
         <span className="targetbar__label">제어 대상</span>
+        {/* 대상 목록과 표시 이름은 레지스트리에서 온다 (VZ-I-03). 버튼 자체는 우리 것이다. */}
+        <PendingSource id="registry" inline />
         {TARGETS.map((id) => (
           <button
             key={id}
@@ -151,6 +154,7 @@ export function ControlPanel() {
 
           <ControlGateBar gate={gate} />
 
+          <PendingSource id="action-catalog" minHeight={52}>
           <div className="btnrow">
             {actions.map((spec) => (
               <button
@@ -167,6 +171,7 @@ export function ControlPanel() {
             ))}
             {actions.length === 0 && <p className="muted">액션 카탈로그를 받지 못했다.</p>}
           </div>
+          </PendingSource>
 
           {inFlight && (
             <p className="notice notice--busy">
@@ -178,7 +183,9 @@ export function ControlPanel() {
           <dl className="kv">
             <dt>현재 상태</dt>
             <dd>
-              <strong>{describePosition(record?.actuator?.payload?.position_pct ?? null)}</strong>
+              <PendingSource id="actuator-state" inline>
+                <strong>{describePosition(record?.actuator?.payload?.position_pct ?? null)}</strong>
+              </PendingSource>
             </dd>
             <dt>발행 형태</dt>
             <dd>
@@ -292,11 +299,13 @@ export function ControlPanel() {
             <span className="panel__tag">VZ-O-02</span>
           </header>
 
-          {latest === null ? (
-            <p className="muted">아직 발행한 명령이 없다. 왼쪽에서 명령을 눌러 보라.</p>
-          ) : (
-            <CommandTimeline command={latest} />
-          )}
+          <PendingSource id="command-result" minHeight={180}>
+            {latest === null ? (
+              <p className="muted">아직 발행한 명령이 없다. 왼쪽에서 명령을 눌러 보라.</p>
+            ) : (
+              <CommandTimeline command={latest} />
+            )}
+          </PendingSource>
 
           <p className="note">
             프론트는 <strong>진행중 · 확정 · 실패</strong> 3상태만 그린다. ACK를 확정으로 취급하면 화면과 현실이
@@ -484,7 +493,7 @@ function LastOperatorPanel({
       )}
 
       {open && last !== null && (
-        <>
+        <PendingSource id="audit-history" minHeight={150}>
           <div className="actor">
             <strong className="actor__name">{last.actorName ?? '미기록'}</strong>
             {last.actorRole !== null && <span className="chip">{last.actorRole}</span>}
@@ -513,7 +522,7 @@ function LastOperatorPanel({
               서버 누적 감사 조회 {result.serverQueryCount}회 (주기 폴링이 없으면 늘지 않는다)
             </p>
           )}
-        </>
+        </PendingSource>
       )}
     </section>
   );

@@ -32,6 +32,7 @@ import {
 } from '../data/index.ts';
 import { getBlockLog } from '../data/index.ts';
 import { useEntities, useMetricsQuery, useReaggregationBlocks } from '../data/hooks.ts';
+import { PendingSource } from '../../shared/PendingSource.tsx';
 
 /** 관측 지표를 내는 대상. 구역 요약의 출처다. */
 const METRIC_ENTITY = 'edge-node-a';
@@ -140,14 +141,16 @@ export function MetricsView() {
 
         {error !== null && <p className="notice notice--warn">{error}</p>}
 
-        {series !== null && (
-          <>
-            <SeriesChart series={series} unit={unit} loading={loading} />
-            <SeriesMeta series={series} unit={unit} />
-          </>
-        )}
+        <PendingSource id="metrics-query" minHeight={260}>
+          {series !== null && (
+            <>
+              <SeriesChart series={series} unit={unit} loading={loading} />
+              <SeriesMeta series={series} unit={unit} />
+            </>
+          )}
 
-        {series === null && !loading && error === null && <p className="muted">조회 결과가 없다.</p>}
+          {series === null && !loading && error === null && <p className="muted">조회 결과가 없다.</p>}
+        </PendingSource>
 
         <p className="note">
           요약은 백엔드가 <strong>{METRICS_AUTO_REFRESH_MS / 1000}초 페더레이션 주기</strong>로 이미 당겨 둔 값이라
@@ -194,6 +197,7 @@ function LiveSummaryCard() {
         <span className="panel__tag">VZ-C-03</span>
       </header>
 
+      <PendingSource id="metrics-push" minHeight={110}>
       <div className="statrow">
         <div className="stat">
           <span className="stat__value">{payload.cpu_pct?.value.toFixed(1) ?? '—'}</span>
@@ -212,6 +216,7 @@ function LiveSummaryCard() {
           </span>
         </div>
       </div>
+      </PendingSource>
 
       {/* 세 갈래로 갈라 쓴다. 'unknown'을 원본 쪽에 묶으면 화면이 "원본 측정값이다"라고
           거짓을 말하게 된다 — 실은 원본인지 아닌지 모르는 상태다. */}

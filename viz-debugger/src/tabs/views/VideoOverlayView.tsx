@@ -20,6 +20,7 @@
  */
 
 import { useEffect, useRef, useState } from 'react';
+import { PendingSource } from '../../shared/PendingSource.tsx';
 import {
   CONFIDENCE_THRESHOLD,
   EDGE_SILENCE_MS,
@@ -171,9 +172,19 @@ export function VideoOverlayView() {
             </p>
           )}
 
+          {/* 영상(VZ-I-06) · 탐지 박스(VZ-I-07) · 궤적(VZ-I-09)이 같은 캔버스 한 자리에 겹쳐 그려진다.
+              셋 다 남이 줄 데이터라 자리표시 셋을 나란히 둔다 — 어느 하나만 와도 그릴 수 없기 때문이다. */}
           <div className="videoframe">
-            <canvas ref={canvasRef} width={960} height={540} className="videocanvas" />
+            <PendingSource id="video-stream" minHeight={540}>
+              <canvas ref={canvasRef} width={960} height={540} className="videocanvas" />
+            </PendingSource>
           </div>
+          {/* 박스와 궤적은 위 캔버스에 **겹쳐** 그려지는 것이라 자리를 따로 차지하지 않는다.
+              한 줄짜리로 둬서 원래 화면 높이를 늘리지 않는다 (제약 7). */}
+          <p className="overlaypending">
+            <PendingSource id="detections" inline />
+            <PendingSource id="tracking" inline />
+          </p>
 
           {report !== null && (
             <div className="cols cols--3">

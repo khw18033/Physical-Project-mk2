@@ -22,7 +22,8 @@
     "verify:stt-port": "node scripts/verify-stt-port.mjs",
     "verify:voice-audit": "node scripts/verify-voice-audit.mjs",
     "verify:no-stt": "node scripts/verify-no-stt.mjs",
-    "verify:one-gateway": "node scripts/verify-one-gateway.mjs"
+    "verify:one-gateway": "node scripts/verify-one-gateway.mjs",
+    "verify:placeholder-default": "node scripts/verify-placeholder-default.mjs"
   },
   "dependencies": {
     "react": "^19.1.0",

@@ -19,7 +19,6 @@ import { useConnectionStatus } from './data/hooks.ts';
 import { ControlPanel } from './views/ControlPanel.tsx';
 import { DeviceGrid } from './views/DeviceGrid.tsx';
 import { MetricsView } from './views/MetricsView.tsx';
-import { NodeGraphView } from './views/NodeGraphView.tsx';
 import { RiskPanel } from './views/RiskPanel.tsx';
 import { VideoOverlayView } from './views/VideoOverlayView.tsx';
 import './views/styles.css';
@@ -40,13 +39,13 @@ export function useTabsDataLayer() {
   return useConnectionStatus();
 }
 
-/** 셸이 그리는 탭 본문. 탭① 은 여기 없다 — 그건 셸이 프롭으로 받는다. */
-export function TabView({ tab }: { tab: 'overview' | 'control' | 'metrics' | 'video' | 'pipeline' }) {
+/** 셸이 그리는 탭 본문. 탭① 은 여기 없다 — 그건 셸이 프롭으로 받는다.
+ * 탭⑥(파이프라인 편집기)은 2026-08-31에 제거했다 — 노드 에디터 방향이 탭①로 확정. */
+export function TabView({ tab }: { tab: 'overview' | 'control' | 'metrics' | 'video' }) {
   // 구 「판단·알림」 탭의 위험도·표시 깊이가 탭② 위쪽으로 들어왔다 (VZ-I-08 · VZ-U-03).
   if (tab === 'overview') return <><RiskPanel /><DeviceGrid /></>;
   if (tab === 'control') return <ControlPanel />;
   if (tab === 'metrics') return <MetricsView />;
   // 탭을 떠나면 언마운트되어 프레임 루프가 멈추고 서버 발행도 멈춘다 (VZ-I-06).
-  if (tab === 'video') return <VideoOverlayView />;
-  return <NodeGraphView />;
+  return <VideoOverlayView />;
 }

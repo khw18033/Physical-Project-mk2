@@ -279,6 +279,9 @@ const http = createServer((req, res) => {
     return;
   }
 
+  // 탭⑥(파이프라인 편집기)은 2026-08-31 제거 — 아래 /pipelines/* 는 소비하는 화면이 없다.
+  // 그래도 지우지 않는 이유: 이 게이트웨이는 web-dashboard/mock-gateway 이식본이고,
+  // 기준선과의 diff 를 최소로 유지하는 것이 이식 규약이다. 기준선(8787)에서는 여전히 쓰인다.
   if (url.pathname === '/pipelines/catalog' && req.method === 'GET') {
     // REQ-1003 — 매 요청마다 등록처를 다시 읽는다. 예시 파일을 하나 넣으면 코드를
     // 고치지 않고도 노드가 하나 늘어야 하고, 캐시하면 그 조건이 확인되지 않는다.

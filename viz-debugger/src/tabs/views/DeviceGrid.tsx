@@ -22,6 +22,7 @@ import {
   type DisplayStatus,
 } from '../data/index.ts';
 import { useEntities, useRenderRate, useRole, useRoleRefresh, useZoneSummary } from '../data/hooks.ts';
+import { PendingSource } from '../../shared/PendingSource.tsx';
 import { DeviceCard } from './DeviceCard.tsx';
 
 /** 현재 설계 전제는 구역 1개(VZ-C-05). 구역이 늘면 이 값이 선택 상태가 된다. */
@@ -79,25 +80,30 @@ export function DeviceGrid() {
         </p>
       )}
 
-      <section className="summary">
-        {STATUS_ORDER.map((s) => (
-          <div key={s} className={'summary__item summary__item--' + s}>
-            <span className="summary__count">{summary.counts[s]}</span>
-            <span className="summary__label">{DISPLAY_STATUS_LABEL[s]}</span>
+      <PendingSource id="zone-summary" minHeight={92}>
+        <section className="summary">
+          {STATUS_ORDER.map((s) => (
+            <div key={s} className={'summary__item summary__item--' + s}>
+              <span className="summary__count">{summary.counts[s]}</span>
+              <span className="summary__label">{DISPLAY_STATUS_LABEL[s]}</span>
+            </div>
+          ))}
+          <div className="summary__item summary__item--total">
+            <span className="summary__count">{summary.total}</span>
+            <span className="summary__label">전체</span>
           </div>
-        ))}
-        <div className="summary__item summary__item--total">
-          <span className="summary__count">{summary.total}</span>
-          <span className="summary__label">전체</span>
-        </div>
-      </section>
+        </section>
+      </PendingSource>
 
-      <section className="grid">
-        {records.map((r) => (
-          <DeviceCard key={r.id} record={r} />
-        ))}
-        {records.length === 0 && <p className="notice">표시할 대상이 없다. 레지스트리를 받지 못했거나 구역이 비어 있다.</p>}
-      </section>
+      {/* 카드 그리드 자리 전체. 대상 목록(VZ-I-03)과 그 상태(VZ-I-01)가 둘 다 남에게서 온다. */}
+      <PendingSource id="device-cards" minHeight={320}>
+        <section className="grid">
+          {records.map((r) => (
+            <DeviceCard key={r.id} record={r} />
+          ))}
+          {records.length === 0 && <p className="notice">표시할 대상이 없다. 레지스트리를 받지 못했거나 구역이 비어 있다.</p>}
+        </section>
+      </PendingSource>
 
       <MappingTable records={records} />
 
@@ -114,10 +120,12 @@ export function DeviceGrid() {
         <h2 className="devpanel__title">계약 확인</h2>
         <div className="devpanel__row devpanel__row--info">
           {/* VZ-C-04 — **자리 확보가 아니라 실사용이다.** 범위가 실제 값으로 내려온다. */}
-          <span className={'chip' + (isFullScope(role) ? '' : ' chip--scoped')}>
-            역할 {role?.display_name ?? '조회 중'} · {describeScope(role)}
-            {role !== null && <em> (VZ-C-04 · {role.source})</em>}
-          </span>
+          <PendingSource id="role-scope" inline>
+            <span className={'chip' + (isFullScope(role) ? '' : ' chip--scoped')}>
+              역할 {role?.display_name ?? '조회 중'} · {describeScope(role)}
+              {role !== null && <em> (VZ-C-04 · {role.source})</em>}
+            </span>
+          </PendingSource>
           <button type="button" className="btn btn--tiny" onClick={refreshRole}>
             역할 다시 조회 <em>(로그인 1회 + 토큰 갱신 시)</em>
           </button>

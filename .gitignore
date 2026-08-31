@@ -7,6 +7,9 @@ dist/
 dist-standalone/
 *.log
 
+# 검증 스크립트가 대조군 사본을 만드는 자리 (끝나면 스스로 지운다)
+viz-debugger/.verify-placeholder-*/
+
 # TypeScript 증분 빌드 캐시
 *.tsbuildinfo
 
