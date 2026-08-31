@@ -12,7 +12,7 @@
 | [`docs/SDD.md`](./docs/SDD.md) | **소프트웨어 설계 기술서.** 설계 원칙, 노드 3종 분할, 공통 코어, 주기 전환 3층, K3s 2층 배치, 장애 모드 |
 | [`하드웨어_구현_착수순서_계획.md`](./하드웨어_구현_착수순서_계획.md) | Phase 계획 + 진행 기록 |
 | `피지컬팀 프로젝트 mk2.xlsx` | 요구사항 정의서 (전 파트 공유) |
-| `docs/260825_데이터_전송_및_아키텍처v6.docx` | 전송 아키텍처 확정본. 정합 검토는 SRS §9.7·9.8 |
+| `docs/260827_데이터_전송_및_아키텍처v8.docx` | 전송 아키텍처 확정본. 정합 검토는 SRS §9.7·9.8 |
 
 ## 구조
 
@@ -47,7 +47,7 @@ systemd 로 상주시키고, 증강 기능만 k3s 로 배포한다. k3s agent �
 | 센서 | HW-S-03 | 이벤트 모드 1 Hz | ✅ |
 | 센서 | HW-S-04 | 적응형 주기 전환 명령 | ✅ |
 | 센서 | HW-S-05 | 하트비트 1 Hz | ✅ |
-| 센서 | HW-S-06 | 고정 CCTV 15 fps | ⛔ 카메라 부재 — 전송 규격은 v6에서 확정 |
+| 센서 | HW-S-06 | 고정 CCTV 15 fps | ◐ 송출 코드는 공유 — 카메라·엣지 수신단 대기 |
 | 센서 | HW-S-07 | 오프라인 판정 (LWT + 4초) | ✅ |
 | 센서 | HW-S-08 | 시각 동기 + 타임스탬프 | ✅ (오차 77µs) |
 | 로봇 | HW-R-01 | 제어기→온보드 50 Hz 수집 | ◐ SimLink 로 검증, 실물 대기 |
@@ -55,7 +55,7 @@ systemd 로 상주시키고, 증강 기능만 k3s 로 배포한다. k3s agent �
 | 로봇 | HW-R-03 | 상태 전달 임무 20 Hz / 대기 1 Hz | ✅ (실측 19.9 / 1.0 Hz) |
 | 로봇 | HW-R-05 | 임무 수신·검증 | ✅ (4단계 + 거부 조건) |
 | 로봇 | HW-R-06 | 제어 명령 내부 전달 | ◐ SimLink |
-| 로봇 | HW-R-07 | 관제 영상 온디맨드 | ⛔ 제어 경로만 — 전송 규격은 v6에서 확정(RTP/UDP+JPEG) |
+| 로봇 | HW-R-07 | 관제 영상 온디맨드 (RTP/UDP + JPEG) | ✅ 실측 6.8Mbps·결손 0% — 실카메라 교체만 남음 |
 | 로봇 | HW-R-09 | 두절 버퍼링·재전송 | ✅ (이산/연속 정책 분리) |
 | 로봇 | HW-R-04, R-08, R-10 | 온디바이스 AI·맵·모델 배포 | ⛔ AI 파트·K3s 의존 |
 | 액추 | HW-A-01 | 상태 5종 구분(대기/동작중/완료/오류/**확인불가**) | ✅ SimActuator |
@@ -78,13 +78,14 @@ pi/
 ├─ sensor/sensor_node.py   센서노드 (HW-S)
 ├─ robot/
 │   ├─ robot_node.py       로봇 온보드 (HW-R)
-│   └─ controller_link.py  제어기 내부 링크 (SimLink / CAN / Ethernet)
+│   ├─ controller_link.py  제어기 내부 링크 (SimLink / CAN / Ethernet)
+│   └─ media.py            영상 송출 (JPEG/RTP over UDP) — v8 §5-10
 ├─ actuator/
 │   ├─ actuator_node.py    액추에이터 제어노드 (HW-A) — 4단계·안전 잠금
 │   └─ actuator_link.py    액추에이터 링크. 상태 5종 (unknown 을 close 와 뭉치지 않는다)
 ├─ edge/monitor.py         엣지 대역 감시 (HW-S-07 + 상태 3층)
 ├─ deploy/                 systemd unit + 현장 설정 + k8s 증강 워크로드 매니페스트
-├─ bench/                  검증 도구 — 주기 실측·OTLP 수신단·인코딩 벤치
+├─ bench/                  검증 도구 — 주기 실측·OTLP 수신단·인코딩 벤치(H.264/JPEG)
 └─ pi_base_setup.sh        멱등 프로비저닝 (--role sensor|robot|actuator)
 ```
 
@@ -151,6 +152,7 @@ mosquitto_pub -h <IP> -t $S -q 1 -m '{"command_id":"d1","action":"diag"}'
 | 액추에이터 4단계 | `actuate gate open` | ACK→수행중→**물리 도달 확인**→완료 | ✅ |
 | 액추에이터 안전 잠금 | `touch /tmp/feedback_loss` 또는 브로커 종료 | 잠금 + 안전 상태 복귀, 명령 거부. 복구 시 실제 상태 재확인 후 해제 | ✅ 두 경로 |
 | K3s 증강 배포 | `kubectl apply/delete` | pi7 에 배포·셀프힐링(Exit 137)·제거. **MQTT 무영향** | ✅ |
+| 영상 온디맨드 | `stream start/stop` | 명령 전 0패킷 → 개시 후 RTP/JPEG 송출 → 종료 후 0패킷 | **6.8 Mbps, 결손 0%** ✅ |
 | 명령 중복 배달 | 같은 command_id 재전송 | 재실행 없이 이전 ACK 재송신 | ✅ |
 
 ## 임시값 (협의 후 교체)
@@ -158,9 +160,9 @@ mosquitto_pub -h <IP> -t $S -q 1 -m '{"command_id":"d1","action":"diag"}'
 | 항목 | 현재값 | 확정 방법 |
 |---|---|---|
 | 토픽 prefix | `zoneA` | 백엔드 도메인 체계 확정 |
-| 하트비트 주기 | 1초 (정의서 HW-S-05) | **v4·v6 모두 5초** — 5초면 HW-S-07의 4초 판정이 20초가 된다. 협의 안건 |
+| 하트비트 주기 | 1초 (정의서 HW-S-05) | **v4·v8 모두 5초** — 5초면 HW-S-07의 4초 판정이 20초가 된다. 협의 안건 |
 | 로봇 상태 20 Hz | 설정값 | 근거인 Nav2 값은 내부 제어 루프 주기 — 무선망 실측 재산정 필요 (SRS O-11) |
-| OTel export | 60초 (정의서 HW-C-05) | **v6은 15초** — 재판정 필요 (BACKEND_AGENDA 10-1) |
+| OTel export | 60초 (정의서 HW-C-05) | **v8은 15초** — 재판정 필요 (BACKEND_AGENDA 10-1) |
 | 스키마 필드 | `source_id`+`device_id` 병기 | 확정 시 `schema.LEGACY_DEVICE_ID=False` |
 | 브로커·인증 | 노트북, 익명 | 엣지노드 이전 + TLS |
 
@@ -171,7 +173,7 @@ mosquitto_pub -h <IP> -t $S -q 1 -m '{"command_id":"d1","action":"diag"}'
 | 현장용 엣지 전용 장비 | 현재 제어평면·브로커가 개발 PC 에 있다. PC 가 꺼지면 구역이 멈춘다 |
 | 백엔드 협의 | 토픽 체계·스키마 필드·하트비트 주기·[G2]/[G3]·frame_ref 형식 |
 | 센서·로봇·액추에이터 실물 | `read_sensor()` / `ControllerLink` / `ActuatorLink` 교체만 남았다 |
-| **JPEG 기준 인코딩 재측정** | v6이 코덱을 JPEG로 확정했다. 기존 벤치는 H.264 기준이라 이 설계에 맞지 않는다 |
-| RTP/UDP 송출 구현 | v6 §5-10 — 로봇 온보드는 RTSP 서버 없이 RTP 직접 송출 |
-| 말단 trace(span) 계측 | v6 §5-8이 범위를 하드웨어에 위임했다 |
+| 말단 trace(span) 계측 | v8 §5-8이 범위를 하드웨어에 위임했다 |
+| **온디바이스 결과의 frame_ref** | v8이 "엣지 단일 발급·재생성 금지"로 못박았는데 온보드 프레임은 엣지를 거치지 않는다 (BACKEND_AGENDA 10-4) |
+| 무선 대역 방침 | 로봇 홉1은 무선인데 720p 한 스트림이 6.8 Mbps다 (10-5) |
 | 증강 컨테이너 이미지 빌드 | 현재는 매니페스트만. arm64 이미지 빌드·레지스트리 필요 |

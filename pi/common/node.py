@@ -267,6 +267,10 @@ class BaseNode:
     def status_extra(self):
         return {}
 
+    def on_shutdown(self):
+        """정상 종료 시 노드가 띄운 외부 자원을 정리한다(예: 영상 송출 프로세스).
+        정리하지 않으면 노드가 내려간 뒤에도 대역폭을 계속 먹는다."""
+
     def on_tick(self, now):
         """매 반복 호출. 수집 주기와 다른 자기만의 마감을 가진 노드가 여기서 처리한다.
         로봇은 20ms 로 수집하고 50ms 로 발행하는데, 발행을 on_sample 안에 두면

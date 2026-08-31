@@ -100,6 +100,20 @@ ROBOT_STATE_QOS = _i("ROBOT_STATE_QOS", 0)
 ROBOT_BATTERY_WARN = _f("ROBOT_BATTERY_WARN", 20.0)     # % — 이산 경보 임계
 CONTROLLER_LINK = _s("CONTROLLER_LINK", "sim")          # sim | can | eth
 
+# ---------------- 영상 송출 (HW-R-07 / HW-S-06, 아키텍처 v8 §5-10) ----------------
+# 홉1(말단→엣지)은 JPEG/RTP over UDP 로 확정됐다. frame_ref 는 엣지가 디코드 시점에
+# 발급하므로(v8 §6-9) 말단은 만들지 않는다.
+MEDIA_SENDER = _s("MEDIA_SENDER", "rtp_jpeg")           # rtp_jpeg | none
+# 카메라 미확보 시 "test"(테스트 패턴)로 경로만 검증한다. 입고 후 /dev/videoN 으로 교체.
+MEDIA_SOURCE = _s("MEDIA_SOURCE", "test")
+MEDIA_SIZE = _s("MEDIA_SIZE", "1280x720")
+MEDIA_FPS = _i("MEDIA_FPS", 15)                          # HW-R-07·HW-S-06 모두 15 fps
+# JPEG 품질 2(최고)~31(최저). 실측상 q 는 대역폭을 크게 바꾸고 CPU 는 거의 그대로다 —
+# 무선 홉의 로봇은 해상도를 낮추기 전에 q 를 올리는 편이 손해가 적다.
+MEDIA_QUALITY = _i("MEDIA_QUALITY", 5)
+MEDIA_DEST_HOST = _s("MEDIA_DEST_HOST", "")             # 비우면 브로커 주소를 쓴다
+MEDIA_DEST_PORT = _i("MEDIA_DEST_PORT", 5004)
+
 # ---------------- 액추에이터 제어노드 (HW-A) ----------------
 ACTUATOR_LINK = _s("ACTUATOR_LINK", "sim")              # sim | modbus | gpio
 ACTUATOR_SAMPLE_INTERVAL = _f("ACTUATOR_SAMPLE_INTERVAL", 0.02)   # 내부 수집

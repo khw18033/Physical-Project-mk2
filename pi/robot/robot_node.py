@@ -30,7 +30,7 @@ from common.commands import BASE_ACTIONS, CommandError
 from common.node import BaseNode
 from common.schema import envelope
 from common.spool import CONTINUOUS, EVENT
-from robot import controller_link
+from robot import controller_link, media
 
 
 class RobotNode(BaseNode):
@@ -38,6 +38,7 @@ class RobotNode(BaseNode):
 
     def __init__(self):
         self.link = controller_link.create(config.CONTROLLER_LINK)
+        self.media = media.create()          # HW-R-07 영상 송출 (v8 §5-10)
         self.state = None                  # 최신 내부 표본 (50Hz)
         self.internal_seq = 0
         self.last_state_pub = 0.0
@@ -126,6 +127,16 @@ class RobotNode(BaseNode):
         elif not low and self.battery_warned:
             self.battery_warned = False   # 충전으로 회복되면 다음 하강에서 다시 알린다
 
+    def validate(self, action, params):
+        """ACK 전 검증. 이미 열린 스트림에 start 를 또 보내면 두 번째 ffmpeg 가
+        같은 포트로 붙어 엣지가 두 스트림을 섞어 받는다 — 받기 전에 막는다."""
+        if action == "stream":
+            a = params.get("action")
+            if a not in ("start", "stop"):
+                raise CommandError("invalid_stream_action")
+            if a == "start" and self.media.is_running():
+                raise CommandError("stream_already_open")
+
     # ================= 공통 코어 훅 =================
     def heartbeat_enabled(self):
         """HW-R-02: 임무 중에는 상태 데이터(20Hz)가 하트비트를 겸하므로 별도
@@ -141,13 +152,19 @@ class RobotNode(BaseNode):
             return schema.STATUS_DEGRADED
         return None
 
+    def on_shutdown(self):
+        if self.media.is_running():
+            print("[영상] 송출 중지")
+            self.media.stop()
+
     def status_extra(self):
         d = {"robot_mode": self.state.mode if self.state else "unknown",
              "in_mission": self.in_mission(),
              "state_interval_s": self.state_interval(),
              "heartbeat_active": self.heartbeat_enabled(),
              "link": self.link.link_health(),
-             "internal_seq": self.internal_seq}
+             "internal_seq": self.internal_seq,
+             "media": self.media.status()}
         if self.state:
             d["battery_pct"] = self.state.battery_pct
         if self.mission:
@@ -200,22 +217,48 @@ class RobotNode(BaseNode):
         self.mission = None
 
     def _act_stream(self, params):
-        """HW-R-07 관제용 영상 온디맨드 — 세션 개폐 제어만 MQTT로 하고 미디어는
-        별도 경로로 흐른다. Pi 5 에 H.264 하드웨어 인코더가 없어(SRS 9.3) 소프트웨어
-        인코딩뿐이므로 상시 스트림은 CPU 예산상 성립하지 않는다. 온디맨드가
-        설계상 필수 조건이다. 미디어 게이트웨이 확정 전까지 제어 경로만 둔다."""
+        """HW-R-07 관제용 영상 온디맨드 (아키텍처 v8 §5-10).
+
+        **제어는 MQTT, 미디어는 별도 경로.** 세션을 여닫는 신호만 이 명령으로 오가고
+        픽셀은 RTP/UDP 로 엣지에 직접 흐른다. 온디맨드인 이유는 CPU 가 아니라
+        **무선 대역폭**이다 — 1080p@15 JPEG 가 약 9.7 Mbps 를 쓴다(실측).
+
+        물리 명령으로 다룬다. 스트림이 실제로 열렸는지(프로세스 생존)를 확인한
+        뒤에야 `state_changed` 를 낸다 — 열렸다고 보고해 놓고 아무것도 나가지 않는
+        상태가 가장 나쁘기 때문이다."""
         action = params.get("action")
-        if action not in ("start", "stop"):
-            raise CommandError("invalid_stream_action")
-        yield "executing", {"action": action}
-        raise CommandError("media_gateway_not_configured")
+        if action == "start":
+            dest_host = (params.get("dest_host") or config.MEDIA_DEST_HOST
+                         or config.BROKER_HOST)
+            dest_port = int(params.get("dest_port") or config.MEDIA_DEST_PORT)
+            session_id = params.get("session_id") or f"s-{int(time.time())}"
+            yield "executing", {"dest": f"{dest_host}:{dest_port}",
+                                "session_id": session_id}
+            try:
+                self.media.start(dest_host, dest_port, session_id)
+            except RuntimeError as e:
+                raise CommandError(str(e))
+            yield "state_changed", self.media.status()
+            yield "completed", {"session_id": session_id}
+            return
+
+        if action == "stop":
+            yield "executing", None
+            self.media.stop()
+            if self.media.is_running():
+                raise CommandError("stream_stop_failed")
+            yield "state_changed", {"streaming": False}
+            yield "completed", None
+            return
+
+        raise CommandError("invalid_stream_action")
 
     ACTIONS = dict(BASE_ACTIONS, **{
         "assign_mission": _act_assign_mission,
         "abort_mission": _act_abort_mission,
         "stream": _act_stream,
     })
-    PHYSICAL_ACTIONS = frozenset({"assign_mission", "abort_mission"})
+    PHYSICAL_ACTIONS = frozenset({"assign_mission", "abort_mission", "stream"})
 
 
 if __name__ == "__main__":
