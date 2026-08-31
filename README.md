@@ -7,6 +7,7 @@
 
 | 문서 | 내용 |
 |---|---|
+| [`docs/METHODOLOGY.md`](./docs/METHODOLOGY.md) | **요구사항 도출 방법과 검증 방법.** 원문 전수 추출 → 타 파트 제약 추출 → 검증 가능한 재기술 → 상충 판정 → 타당성 검토의 5단계와, 모의·실기·장애주입·정량실측 4계층 검증 |
 | [`docs/SRS.md`](./docs/SRS.md) | **소프트웨어 요구사항 명세서.** xlsx 30건을 검증 가능한 형태로 재기술, 타 파트 파생 제약, 타당성 검토 결과, 검증 매트릭스 |
 | [`docs/SDD.md`](./docs/SDD.md) | **소프트웨어 설계 기술서.** 설계 원칙, 노드 3종 분할, 공통 코어, 주기 전환 3층, K3s 2층 배치, 장애 모드 |
 | [`하드웨어_구현_착수순서_계획.md`](./하드웨어_구현_착수순서_계획.md) | Phase 계획 + 진행 기록 |
@@ -82,6 +83,7 @@ pi/
 │   └─ actuator_link.py    액추에이터 링크. 상태 5종 (unknown 을 close 와 뭉치지 않는다)
 ├─ edge/monitor.py         엣지 대역 감시 (HW-S-07 + 상태 3층)
 ├─ deploy/                 systemd unit + 현장 설정 + k8s 증강 워크로드 매니페스트
+├─ bench/                  검증 도구 — 주기 실측·OTLP 수신단·인코딩 벤치
 └─ pi_base_setup.sh        멱등 프로비저닝 (--role sensor|robot|actuator)
 ```
 
