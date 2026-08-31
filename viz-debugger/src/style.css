@@ -54,3 +54,23 @@ b.follow-live{cursor:default}
 .zonemap__robot{fill:#e08b2d;stroke:#8f5312;stroke-width:.08}
 .zonemap__empty{display:flex;align-items:center;justify-content:center;margin:0;padding:12px;border:1px dashed #cbd3de;border-radius:8px;color:#687587;font-size:12px}
 .chart__danger{stroke:#d94b4b;stroke-width:2;stroke-dasharray:8 5}
+
+/* 시연 문장 목록 (260831) — 발화 패널 아래. 대본 라이브러리에서 읽어 그린다. */
+.script-sentences{margin:12px 0 6px;padding:10px;border:1px solid #dde3ea;border-radius:8px;background:#f8fafc}
+.script-sentences h3{margin:0 0 8px;font-size:12px;color:#3d4756}
+.script-sentences h3 small{display:block;margin-top:2px;font-weight:400;font-size:11px;color:#687587}
+.script-sentences ul{margin:0;padding:0;list-style:none;display:grid;gap:7px}
+.script-sentences li{display:grid;gap:2px}
+.script-sentences button{padding:7px 9px;border:1px solid #cbd3de;border-radius:7px;background:#fff;color:#17202b;font-size:12px;line-height:1.5;text-align:left;cursor:pointer;word-break:keep-all}
+.script-sentences button:hover{border-color:#4c8fe8;background:#f0f6fd}
+.script-sentences li small{color:#8a95a3;font-size:10px}
+
+/* 맵 없는 대본의 미니뷰 — 로봇 궤적 (8/31 점검 후 결정 b) */
+.zonemap__trail{fill:none;stroke:#e08b2d;stroke-width:.14;stroke-dasharray:.5 .3;opacity:.85}
+.zonemap__trailstart{fill:#fff;stroke:#e08b2d;stroke-width:.1}
+
+/* 탭④ 사각지대별 경과 표 (8/31 점검 후 추가) */
+.agestable{width:100%;border-collapse:collapse;font-size:12px}
+.agestable th,.agestable td{padding:6px 8px;border-bottom:1px solid #e4e9ef;text-align:left}
+.agestable th{color:#687587;font-weight:600;font-size:11px}
+.agestable__row--over td{background:#fdf3f2;color:#a83232}

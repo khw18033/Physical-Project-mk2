@@ -14,10 +14,11 @@
  * 안 되기 때문이다(REQ-302, 변환은 백엔드 책임).
  *
  * 평소(placeholder 기본값)에는 자리표시다 — 실제로는 백엔드 디지털 트윈(DT-04 커버리지 ·
- * DT-05 시의성)이 줄 데이터다. scenario 모드에서 대본에 맵이 없으면(1·3편·옛 편)
- * 「이 대본에는 맵이 없습니다」 한 줄로 **자리 크기를 유지**한다.
+ * DT-05 시의성)이 줄 데이터다. scenario 모드에서 대본에 맵이 없으면(1·3편)
+ * **로봇 위치·궤적만** 그린다(RobotTrailMap — 평면은 맵 데이터가 올 때 얹는다).
  */
 
+import { useEffect, useState } from 'react';
 import { useMission } from '../../data/scenario.ts';
 import { PendingSource } from '../../shared/PendingSource.tsx';
 import { useScenarioCast } from '../../shared/renderMode.ts';
@@ -53,14 +54,9 @@ function ScenarioMap() {
   const entities = useEntities();
   const map = mission.current.map;
 
-  if (map === null) {
-    // 자리 크기를 유지한다 — 맵이 없어도 칸이 줄어들면 화면이 널뛴다 (제약 7).
-    return (
-      <p className="zonemap__empty" style={{ minHeight: MAP_MIN_HEIGHT }}>
-        이 대본에는 맵이 없습니다 — 구역 맵은 2편(사각지대 탐지 · MSN-260831-02)에서 그려집니다.
-      </p>
-    );
-  }
+  // 맵(평면) 데이터가 없는 대본(1·3편) — 로봇 위치·궤적만 그린다 (8/31 점검 후 결정 b).
+  // 구역 평면·시야는 맵 데이터를 불러올 수 있을 때(백엔드 DT-04) 이 위에 얹는다.
+  if (map === null) return <RobotTrailMap />;
 
   const coverage = (entities.get(map.camera.entity)?.coverage?.payload ?? null) as CoveragePayload | null;
   const threshold = coverage?.rescan_threshold_sec ?? null;
@@ -122,6 +118,73 @@ function ScenarioMap() {
       <p className="note note--dim">
         시야(FOV)·사각지대·탐지 시각은 대본의 합성본 — 실제 원천은 백엔드 디지털 트윈(DT-04 · DT-05).
         로봇 위치는 telemetry.position(site-global) 그대로다. 재탐색 임계 {threshold ?? '—'}초.
+      </p>
+    </div>
+  );
+}
+
+/**
+ * 맵(평면) 데이터가 없는 대본의 미니뷰 — **로봇 위치·궤적만** 그린다 (8/31 점검 후 결정 b).
+ *
+ * 1편(503호 → 복도 → 엘리베이터)의 이동이 미니뷰에서도 보여야 하는데, 그 경로의 평면
+ * (복도·엘리베이터 홀)은 어느 데이터에도 없다 — 지어내지 않고 위치·궤적만 그린다.
+ * 구역 평면·시야는 **나중에 맵 데이터를 불러올 수 있을 때**(백엔드 DT-04) 이 위에 얹는다.
+ * 궤적은 수신한 telemetry.position 을 화면이 쌓은 것이다(합성 아님 — 받은 값의 기록).
+ */
+function RobotTrailMap() {
+  const mission = useMission();
+  const entities = useEntities();
+  const robot = robotPosition(entities, mission.current.cast);
+  const [trail, setTrail] = useState<Array<{ x: number; z: number }>>([]);
+  const missionId = mission.current.missionId;
+
+  // 임무가 바뀌면 궤적을 비운다 — 다른 대본의 길이 겹쳐 보이면 안 된다.
+  useEffect(() => setTrail([]), [missionId]);
+  useEffect(() => {
+    if (robot === null) return;
+    setTrail((current) => {
+      const last = current.at(-1);
+      if (last !== undefined && Math.hypot(last.x - robot.x, last.z - robot.z) < 0.05) return current;
+      const next = [...current, { x: robot.x, z: robot.z }];
+      return next.length > 400 ? next.slice(-400) : next;
+    });
+  }, [robot?.x, robot?.z]);
+
+  const points = robot === null ? trail : [...trail, { x: robot.x, z: robot.z }];
+  if (points.length === 0) {
+    return (
+      <p className="zonemap__empty" style={{ minHeight: MAP_MIN_HEIGHT }}>
+        위치를 낼 로봇이 아직 없습니다 — 로봇이 등장하는 대본(1·2편)에서 위치·궤적이 그려집니다.
+      </p>
+    );
+  }
+
+  // 보기 범위는 궤적에 맞춘다 (여백 2 m · 최소 폭 8 m). 좌표는 site-global 그대로다.
+  const xs = points.map((p) => p.x); const zs = points.map((p) => p.z);
+  const pad = 2; const minSpan = 8;
+  let xMin = Math.min(...xs) - pad; let xMax = Math.max(...xs) + pad;
+  let zMin = Math.min(...zs) - pad; let zMax = Math.max(...zs) + pad;
+  if (xMax - xMin < minSpan) { const c = (xMin + xMax) / 2; xMin = c - minSpan / 2; xMax = c + minSpan / 2; }
+  if (zMax - zMin < minSpan) { const c = (zMin + zMax) / 2; zMin = c - minSpan / 2; zMax = c + minSpan / 2; }
+  const sx = (x: number) => x - xMin;
+  const sy = (z: number) => zMax - z; // 북쪽(z 큰 쪽)이 위 — 2편 맵과 같은 방향.
+
+  return (
+    <div className="zonemap__body">
+      <svg viewBox={`0 0 ${xMax - xMin} ${zMax - zMin}`} className="zonemap__svg" role="img" aria-label="로봇 위치·궤적">
+        <polyline className="zonemap__trail" points={points.map((p) => `${sx(p.x)},${sy(p.z)}`).join(' ')} />
+        {trail[0] !== undefined && <circle cx={sx(trail[0].x)} cy={sy(trail[0].z)} r={0.25} className="zonemap__trailstart" />}
+        {robot !== null && (
+          <g>
+            <circle cx={sx(robot.x)} cy={sy(robot.z)} r={0.4} className="zonemap__robot" />
+            <text x={sx(robot.x) + 0.55} y={sy(robot.z) + 0.2} className="zonemap__celllabel">{robot.id}</text>
+          </g>
+        )}
+      </svg>
+      <p className="note note--dim">
+        이 대본에는 평면(맵) 데이터가 없어 로봇 위치·궤적만 그립니다 — 위치는 telemetry.position
+        (site-global) 그대로, 궤적은 수신값의 누적입니다. 구역 평면·시야는 맵 데이터가 오면
+        (백엔드 DT-04) 이 위에 그려집니다.
       </p>
     </div>
   );

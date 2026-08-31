@@ -12,7 +12,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { proposeMission } from '../data/scenario.ts';
+import { proposeMission, scenario as legacyScenario } from '../data/scenario.ts';
 import { SCRIPT_LIBRARY } from '../scenarios/library.ts';
 import { matchLibrary, type MatchOutcome } from '../scenarios/matcher.ts';
 import { issueCommand } from '../shared/commandEgress.ts';
@@ -58,6 +58,19 @@ const MOCK_STEPS = ['의도 분석', '마일스톤 분리', '태스크 생성'];
  */
 const SCRIPT_STEPS = ['의도 분석 → 대본 조회', '마일스톤 분리 → 대본에서 읽음', '태스크 생성 → 대본에서 읽음'];
 
+const LEGACY_TITLE = '415호 → 503호 이동 (구판 세계)';
+
+/**
+ * 시연 문장 목록 — **대본 라이브러리에서 읽는다.** 여기 하드코딩하면 대본이 늘 때
+ * 화면이 못 따라간다. 각 편의 `utterance.text`가 그 대본을 부르는 기준 문장이고,
+ * 옛 편(사이드카 — script 없음)은 번들의 옛 시나리오에서 문장을 가져온다.
+ */
+const DEMO_SENTENCES = SCRIPT_LIBRARY.map((entry) => ({
+  missionId: entry.missionId,
+  title: entry.script?.title ?? LEGACY_TITLE,
+  text: entry.script?.utterance.text ?? legacyScenario.utterance.text,
+}));
+
 /**
  * 문장을 대본 라이브러리에 대조하고, 맞으면 제안 상태로 올린다.
  * 게이트웨이(있으면)가 같은 매처·같은 대본으로 권위 있는 제안(plan)을 만들고,
@@ -68,7 +81,7 @@ function matchScript(text: string): MatchOutcome {
   if (outcome.kind === 'matched') {
     proposeMission({
       missionId: outcome.entry.missionId,
-      title: outcome.entry.script?.title ?? '415호 → 503호 이동 (구판 세계)',
+      title: outcome.entry.script?.title ?? LEGACY_TITLE,
       keywords: outcome.keywords,
       planId: null,
       world: outcome.entry.world,
@@ -119,6 +132,8 @@ export function UtterancePanel({ fallbackText }: { fallbackText: string }) {
   const [decision, setDecision] = useState<ConfidenceDecision | null>(null);
   const [edited, setEdited] = useState('');
   const [manual, setManual] = useState('');
+  /** 시연 문장을 누르면 직접 입력을 펼쳐 채운다 — 접힌 채로 채워지면 채워진 줄도 모른다. */
+  const [manualOpen, setManualOpen] = useState(false);
   const [useHotwords, setUseHotwords] = useState(true);
   const [error, setError] = useState<{ message: string; detail?: string } | null>(null);
   const [confirmed, setConfirmed] = useState(false);
@@ -367,7 +382,25 @@ export function UtterancePanel({ fallbackText }: { fallbackText: string }) {
         <blockquote>“{fallbackText}”<small>시나리오 목 문장 — 녹음하면 실제 인식 결과로 바뀝니다</small></blockquote>
       )}
 
-      <details className="manual-input" open={status === 'unavailable'}>
+      {/* 시연 문장 — 대본 라이브러리의 기준 문장. 보고 말하거나(녹음), 누르면 아래 입력창에 채워진다.
+          이 문장이 그대로일 필요는 없다 — 매칭은 키워드 대조라 「월류방어벽 가동해」도 통한다. */}
+      <section className="script-sentences">
+        <h3>대본을 부르는 문장 <small>보고 말하거나 · 누르면 아래 입력창에 채워집니다</small></h3>
+        <ul>
+          {DEMO_SENTENCES.map((demo) => (
+            <li key={demo.missionId}>
+              <button type="button" title={`${demo.missionId} — 누르면 「문장을 직접 넣기」에 채워집니다`}
+                onClick={() => { setManual(demo.text); setManualOpen(true); }}>
+                “{demo.text}”
+              </button>
+              <small>{demo.missionId} · {demo.title}</small>
+            </li>
+          ))}
+        </ul>
+      </section>
+
+      <details className="manual-input" open={manualOpen || status === 'unavailable'}
+        onToggle={(event) => setManualOpen((event.target as HTMLDetailsElement).open)}>
         <summary>문장을 직접 넣기</summary>
         <p className="hint">STT 서비스({STT_BASE_URL})가 없어도 이 경로는 항상 열려 있습니다.</p>
         <textarea value={manual} rows={2} placeholder="예: 503 구역 로봇을 5층 복도로 이동시켜"

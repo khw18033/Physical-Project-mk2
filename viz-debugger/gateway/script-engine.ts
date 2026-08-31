@@ -396,10 +396,14 @@ export class ScriptEngine {
 
     at(durationSec, () => {
       playback.ended = true;
-      // 끝 — 마지막 상태 유지. 등장 장비의 랜덤 워크는 마지막 값에서 다시 흔들린다.
-      // 탭⑤의 시야 상태는 「대본 닫기」까지 유지한다(끝났다고 합성 대상이 돌아오면 안 된다).
-      this.releaseDevices(entry?.script ?? null);
-      log('대본 재생 끝 — ' + info.mission_id + ' (' + String(durationSec) + 's × ' + SPEED + '배속)');
+      // 끝 — **마지막 상태 유지** (§흐름). 장치마다 평시 발행의 성질이 달라 갈린다:
+      //  - 센서: 랜덤 워크가 현재 값에서 이어지므로 풀어도 마지막 값에서 다시 흔들린다.
+      //  - 로봇: 평시 발행이 **고정 원 궤도 공식**이라 풀면 마지막 위치를 버리고
+      //    옛 궤도로 순간이동한다(is_moving 도 true 로 돌아간다). 그래서 로봇은
+      //    「대본 닫기」까지 마지막 구동 값에 얼려 둔다 — 8/31 점검에서 잡힌 결함.
+      // 탭⑤의 시야 상태도 「대본 닫기」까지 유지한다(끝났다고 합성 대상이 돌아오면 안 된다).
+      this.releaseDevices(entry?.script ?? null, { robots: false });
+      log('대본 재생 끝 — ' + info.mission_id + ' (' + String(durationSec) + 's × ' + SPEED + '배속) · 로봇은 마지막 위치 유지');
     });
 
     log(
@@ -428,10 +432,15 @@ export class ScriptEngine {
     );
   }
 
-  private releaseDevices(script: ScriptScenario | null): void {
+  /**
+   * 장치를 평시 발행으로 되돌린다. 재생 **끝**에서는 `robots: false` 로 부른다 —
+   * 로봇의 평시 발행은 고정 궤도라 풀면 마지막 위치가 버려진다(위 at(durationSec) 주석).
+   * 닫기·교체(stopPlayback)에서는 전부 되돌린다.
+   */
+  private releaseDevices(script: ScriptScenario | null, opts: { robots: boolean } = { robots: true }): void {
     if (script === null) return;
     for (const id of script.cast) {
-      this.deps.fleet.robots.get(id)?.endScript();
+      if (opts.robots) this.deps.fleet.robots.get(id)?.endScript();
       this.deps.fleet.sensors.get(id)?.endScript();
     }
   }

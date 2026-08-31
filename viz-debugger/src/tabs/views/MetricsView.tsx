@@ -174,8 +174,69 @@ export function MetricsView() {
         </p>
       </section>
 
+      <BlindspotAges />
+
       <ReaggregationPanel />
     </main>
+  );
+}
+
+/**
+ * 사각지대별 「마지막 탐지 이후 경과」 (260831 · 2편 탭④ 요구 — 8/31 점검에서 채움).
+ *
+ * 커버리지 % 시계열과 같은 원천(coverage 채널)의 **현재 경과 판독**이다 — 지금이
+ * 대본 시각으로 언제이고, 각 칸이 마지막으로 탐지된 지 얼마나 됐는지. 재탐색 임계
+ * (600초)를 넘은 칸은 「경과 초과」로 갈린다. 대본이 커버리지를 몰 때만 그린다 —
+ * 평소의 자리(A · 백엔드 DT-05 시의성)는 위 조회 자리표시가 이미 말하고 있다.
+ */
+function BlindspotAges() {
+  const mission = useMission();
+  const entities = useEntities();
+  const scenarioActive = mission.current.map !== null;
+  const camera = mission.current.map?.camera.entity ?? null;
+  const coverage = camera !== null
+    ? ((entities.get(camera)?.coverage?.payload ?? null) as {
+        rescan_threshold_sec?: number | null;
+        cells?: Array<{ cell: string; last_scan_at_sec: number | null }>;
+      } | null)
+    : null;
+
+  if (!scenarioActive || coverage?.cells === undefined || coverage.cells.length === 0) return null;
+
+  const threshold = coverage.rescan_threshold_sec ?? null;
+  const nowSec = mission.headSec; // 대본 시각 — 재생 머리. 트윈 시의성(DT-05)의 축과 같다.
+
+  return (
+    <section className="panel panel--wide">
+      <header className="panel__head">
+        <h2 className="panel__title">사각지대별 마지막 탐지 이후 경과 — {mission.current.missionId}</h2>
+        <span className="panel__tag">VZ-I-04 · 대본 합성 (실원천 DT-05)</span>
+      </header>
+      <table className="agestable">
+        <thead>
+          <tr><th>칸</th><th>마지막 탐지</th><th>경과 (대본 시각 T+{Math.round(nowSec)}s 기준)</th><th>판정</th></tr>
+        </thead>
+        <tbody>
+          {coverage.cells.map((cell) => {
+            const age = cell.last_scan_at_sec === null ? null : Math.max(0, Math.round(nowSec - cell.last_scan_at_sec));
+            const over = age !== null && threshold !== null && age > threshold;
+            return (
+              <tr key={cell.cell} className={over ? 'agestable__row--over' : undefined}>
+                <td><code>{cell.cell}</code></td>
+                <td>{cell.last_scan_at_sec === null ? '미탐색' : `T+${cell.last_scan_at_sec}s`}</td>
+                <td>{age === null ? '—' : `${age}s`}</td>
+                <td>{cell.last_scan_at_sec === null ? '아직 탐색 전' : over ? `경과 초과 — 재탐색 대상 (임계 ${threshold}s)` : '최신'}</td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+      <p className="note note--dim">
+        커버리지 % 시계열(위 조회)과 같은 coverage 채널에서 나온 현재 판독입니다. 경과가
+        {threshold ?? 600}초를 넘으면 대본이 재탐색을 파생 2회차로 일으킵니다 — 탭①의
+        derived 사건과 같은 이야기입니다. 실제 원천은 백엔드 트윈 시의성 판정(DT-05)입니다.
+      </p>
+    </section>
   );
 }
 
