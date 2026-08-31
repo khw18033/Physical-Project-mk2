@@ -60,6 +60,10 @@ CAMS = {
 def ws_connect(host, port, timeout=8):
     """웹소켓 핸드셰이크. (소켓, 핸드셰이크 뒤에 딸려온 잔여 바이트) 를 돌려준다."""
     sk = socket.create_connection((host, port), timeout=timeout)
+    # Nagle 을 끈다. 프레임이 평균 2.4KB 라 MSS 에 못 미치는 조각이 매번 남는데,
+    # Nagle 은 그 조각을 다음 데이터나 ACK 가 올 때까지 붙들어 둔다. 지연 ACK 와
+    # 겹치면 프레임당 수십 ms 가 조용히 붙는다 — 실시간 영상에서는 치명적이다.
+    sk.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
     key = base64.b64encode(os.urandom(16)).decode()
     sk.sendall((f"GET / HTTP/1.1\r\nHost: {host}:{port}\r\n"
                 f"Upgrade: websocket\r\nConnection: Upgrade\r\n"

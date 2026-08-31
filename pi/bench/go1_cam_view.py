@@ -43,6 +43,7 @@ import hashlib
 import json
 import os
 import queue
+import socket
 import struct
 import subprocess
 import sys
@@ -295,11 +296,21 @@ figcaption{padding:6px 10px;font-size:12px;color:#9ad;border-top:1px solid #222;
 canvas,img{width:100%;display:block;background:#000}
 .big canvas,.big img{max-height:78vh;object-fit:contain}
 .note{color:#777;font-size:12px;margin-top:14px}
+#clk{position:fixed;right:16px;bottom:16px;background:#000;color:#0f0;
+     font:700 84px/1 ui-monospace,Consolas,monospace;padding:14px 20px;
+     border:2px solid #0f0;border-radius:8px;letter-spacing:2px;display:none}
+body.glass #clk{display:block}
+body.glass .note{margin-bottom:120px}
 </style>
 <h1>Unitree Go1 카메라 — 실시간</h1>
 <nav>%NAV%</nav><div class="grid">%BODY%</div>
-<p class="note">지연 = 파이가 프레임을 받은 시각 → 화면에 그린 시각. 시계 차이는 왕복
-측정으로 보정한다. 로봇 내부(촬영·인코딩) 지연은 기준 시각이 없어 포함되지 않는다.</p>
+<div id="clk">0.000</div>
+<p class="note">망 = 파이 수신 → 브라우저 도착. 표시 = 도착 → 화면에 그림. 시계 차이는
+왕복 측정으로 보정한다. <b>로봇 내부(촬영·인코딩) 지연은 기준 시각이 없어 빠져 있으므로
+합계는 하한이다.</b> 전체 지연을 정확히 재려면 <a href="?glass=1">전구간 측정</a> 을 켜고,
+이 화면을 로봇 정면 카메라 쪽으로 돌린 뒤 스크린샷을 한 장 찍으면 된다 — 오른쪽 아래
+시계의 현재값과, 영상 속에 찍힌 같은 시계의 값 차이가 촬영부터 표시까지 전부다.
+시계를 맞출 필요가 없어 오차가 없다.</p>
 <script>
 const HAS_WC = 'VideoDecoder' in window;
 
@@ -312,11 +323,16 @@ function start(cid, fig){
     cap.textContent = 'MJPEG 대비 경로';
     return;
   }
-  const cv = fig.querySelector('canvas'), ctx = cv.getContext('2d');
+  const cv = fig.querySelector('canvas');
+  // desynchronized: 합성기(compositor) 동기를 기다리지 않고 바로 그린다.
+  // 화면 찢김을 감수하는 대신 프레임당 vsync 한 주기(60Hz 에서 16.7ms)를 아낀다.
+  const ctx = cv.getContext('2d', {desynchronized: true, alpha: false});
   const ws = new WebSocket((location.protocol==='https:'?'wss':'ws')
                             + '://' + location.host + '/ws/' + cid);
   ws.binaryType = 'arraybuffer';
-  let dec = null, offset = null, started = false, frames = 0, lat = 0;
+  let dec = null, offset = null, started = false, frames = 0;
+  let net = 0, dcd = 0;                 // 망 구간 / 디코드+표시 구간 (ms, 지수평활)
+  const arrived = new Map();            // 청크 timestamp(µs) → 브라우저 도착 시각
 
   // 시계 차이 보정. 브라우저와 파이의 Date.now() 는 서로 다르다.
   const ping = () => { if (ws.readyState===1) ws.send(JSON.stringify({t:'ping',c0:Date.now()})); };
@@ -330,6 +346,9 @@ function start(cid, fig){
     if (typeof ev.data === 'string'){
       const m = JSON.parse(ev.data);
       if (m.t === 'pong'){
+        // offset = 파이 시계 − 브라우저 시계. 파이의 시각 ts 를 브라우저 시계로 옮기면
+        // (ts − offset) 이므로 지연은 now − ts + offset 이다. 부호를 뒤집으면 지연이
+        // 음수로 나오는데, 그때는 값이 이상하다는 것이 바로 보이므로 다행히 눈에 띈다.
         const o = m.s - (m.c0 + Date.now())/2;
         offset = (offset === null) ? o : offset*0.7 + o*0.3;
       } else if (m.t === 'hello' && m.codec && !dec){
@@ -337,9 +356,11 @@ function start(cid, fig){
           output: f => {
             if (cv.width !== f.displayWidth){ cv.width=f.displayWidth; cv.height=f.displayHeight; }
             ctx.drawImage(f, 0, 0);
-            if (offset !== null){
-              const l = (Date.now() - offset) - f.timestamp/1000;
-              lat = lat ? lat*0.85 + l*0.15 : l;
+            const t = arrived.get(f.timestamp);
+            if (t !== undefined){
+              arrived.delete(f.timestamp);
+              const d = performance.now() - t;
+              dcd = dcd ? dcd*0.85 + d*0.15 : d;
             }
             f.close(); frames++;
           },
@@ -355,9 +376,19 @@ function start(cid, fig){
     const u8 = new Uint8Array(ev.data);
     const key = u8[0] === 1;
     const ts = new DataView(ev.data).getFloat64(1);
-    if (!started){ if (!key) return; started = true; }   // 키프레임부터 시작
+    if (offset !== null){
+      const n = (Date.now() - ts) + offset;          // 파이 수신 → 브라우저 도착
+      net = net ? net*0.85 + n*0.15 : n;
+    }
+    // 탭이 뒤로 밀리는 등으로 디코더가 밀리면 지연이 계속 쌓인다.
+    // 다음 키프레임까지 버리고 다시 붙는다 — 0.5초면 회복된다.
+    if (dec.decodeQueueSize > 5) started = false;
+    if (!started){ if (!key) return; started = true; arrived.clear(); }
+    const tsu = Math.round(ts*1000);
+    arrived.set(tsu, performance.now());
+    if (arrived.size > 90) arrived.clear();          // 누수 방지
     dec.decode(new EncodedVideoChunk({
-      type: key ? 'key' : 'delta', timestamp: Math.round(ts*1000), data: u8.subarray(9)}));
+      type: key ? 'key' : 'delta', timestamp: tsu, data: u8.subarray(9)}));
   };
 
   let last = performance.now();
@@ -365,11 +396,25 @@ function start(cid, fig){
     const now = performance.now(), fps = frames*1000/(now-last);
     frames = 0; last = now;
     if (ws.readyState === 1)
-      cap.textContent = fps.toFixed(0) + ' fps · 지연 '
-                      + (lat ? Math.round(lat) + ' ms' : '측정 중');
+      cap.textContent = net ? (fps.toFixed(0) + ' fps · 망 ' + Math.round(net)
+                               + ' · 표시 ' + Math.round(dcd)
+                               + ' · 합 ' + Math.round(net + dcd) + ' ms')
+                            : (fps.toFixed(0) + ' fps · 측정 중');
   }, 1000);
 }
 document.querySelectorAll('figure[data-cam]').forEach(f => start(+f.dataset.cam, f));
+
+// 전구간(glass-to-glass) 측정용 시계. 화면을 카메라로 찍어 스스로를 보게 하면
+// 시계 동기 없이 촬영→표시 전 구간을 한 장의 스크린샷으로 잴 수 있다.
+if (new URLSearchParams(location.search).has('glass')){
+  document.body.classList.add('glass');
+  const clk = document.getElementById('clk'), t0 = Date.now();
+  (function tick(){
+    const s = (Date.now() - t0)/1000;
+    clk.textContent = (s % 100).toFixed(3).padStart(6,'0');
+    requestAnimationFrame(tick);
+  })();
+}
 </script>
 """
 
@@ -389,6 +434,8 @@ def cell(cid, big=False):
 # ---------------------------------------------------------------- HTTP
 class Handler(BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
+    # 상류(로봇→파이)와 같은 이유로 하류(파이→브라우저)도 Nagle 을 끈다.
+    disable_nagle_algorithm = True
 
     def log_message(self, *args):
         pass                                  # 프레임마다 로그가 찍히면 못 쓴다
@@ -430,6 +477,7 @@ class Handler(BaseHTTPRequestHandler):
                           "Upgrade: websocket\r\nConnection: Upgrade\r\n"
                           f"Sec-WebSocket-Accept: {ws_accept(key)}\r\n\r\n").encode())
         self.wfile.flush()
+        self.connection.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
         conn = WSConn(self.connection)
         hub = HUBS[cid]
         q = hub.subscribe()
