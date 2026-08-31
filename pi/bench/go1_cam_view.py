@@ -44,6 +44,7 @@ import json
 import os
 import queue
 import socket
+import ssl
 import struct
 import subprocess
 import sys
@@ -53,6 +54,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 from robot.go1_camera import CAMS, Go1CameraSource, WSReader
 
+HTTPS_PORT = 0              # main() 에서 정해져 페이지에 주입된다
 IDLE_STOP_S = 20.0          # 보는 사람이 없으면 이만큼 뒤 상류 연결을 끊는다
 WS_GUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
 QUEUE_MAX = 8               # 느린 뷰어 때문에 지연이 쌓이지 않도록 얕게 둔다
@@ -253,6 +255,49 @@ class MjpegWorker:
 MJPEG = {cid: MjpegWorker(cid) for cid in CAMS}
 
 
+# ---------------------------------------------------------------- HTTPS 인증서
+CERT_DIR = os.path.expanduser("~/.cache/hw-cam")
+
+
+def local_ips():
+    out = set()
+    try:
+        txt = subprocess.run(["ip", "-4", "-o", "addr", "show"],
+                             capture_output=True, text=True).stdout
+        for line in txt.splitlines():
+            f = line.split()
+            if len(f) > 3 and f[2] == "inet":
+                out.add(f[3].split("/")[0])
+    except Exception:
+        pass
+    out.discard("127.0.0.1")
+    return sorted(out)
+
+
+def ensure_cert():
+    """자체 서명 인증서를 만든다(없을 때만).
+
+    **왜 HTTPS 가 필요한가.** WebCodecs 는 secure context 전용 API 다. 평문 http 로
+    열면 `VideoDecoder` 자체가 window 에 없어서, 페이지는 조용히 MJPEG 대비 경로로
+    떨어진다 — 화면은 나오는데 저지연 경로가 아닌 상태가 된다. 게다가 MJPEG 는
+    브라우저의 호스트당 동시 연결 6개 제한을 하나씩 잡아먹어서, 전체 보기(5대) 탭을
+    띄워 두면 다른 탭이 아예 멈춘다. 실제로 이 조합으로 화면이 멎었다.
+    """
+    os.makedirs(CERT_DIR, exist_ok=True)
+    cert = os.path.join(CERT_DIR, "cert.pem")
+    key = os.path.join(CERT_DIR, "key.pem")
+    if os.path.exists(cert) and os.path.exists(key):
+        return cert, key
+    alt = ["DNS:localhost", f"DNS:{socket.gethostname()}", f"DNS:{socket.gethostname()}.local",
+           "IP:127.0.0.1"] + [f"IP:{ip}" for ip in local_ips()]
+    subprocess.run(
+        ["openssl", "req", "-x509", "-newkey", "rsa:2048", "-nodes", "-days", "3650",
+         "-keyout", key, "-out", cert, "-subj", "/CN=hw-cam",
+         "-addext", "subjectAltName=" + ",".join(alt)],
+        check=True, capture_output=True)
+    return cert, key
+
+
 # ---------------------------------------------------------------- 웹소켓 서버
 def ws_accept(key):
     return base64.b64encode(hashlib.sha1((key + WS_GUID).encode()).digest()).decode()
@@ -296,6 +341,9 @@ figcaption{padding:6px 10px;font-size:12px;color:#9ad;border-top:1px solid #222;
 canvas,img{width:100%;display:block;background:#000}
 .big canvas,.big img{max-height:78vh;object-fit:contain}
 .note{color:#777;font-size:12px;margin-top:14px}
+#warn{display:none;background:#3a2a00;border:1px solid #a80;color:#fd8;
+      padding:10px 14px;border-radius:6px;margin-bottom:12px;font-size:13px}
+#warn a{color:#fe0}
 #clk{position:fixed;right:16px;bottom:16px;background:#000;color:#0f0;
      font:700 84px/1 ui-monospace,Consolas,monospace;padding:14px 20px;
      border:2px solid #0f0;border-radius:8px;letter-spacing:2px;display:none}
@@ -303,6 +351,7 @@ body.glass #clk{display:block}
 body.glass .note{margin-bottom:120px}
 </style>
 <h1>Unitree Go1 카메라 — 실시간</h1>
+<div id="warn"></div>
 <nav>%NAV%</nav><div class="grid">%BODY%</div>
 <div id="clk">0.000</div>
 <p class="note">망 = 파이 수신 → 브라우저 도착. 표시 = 도착 → 화면에 그림. 시계 차이는
@@ -312,7 +361,21 @@ body.glass .note{margin-bottom:120px}
 시계의 현재값과, 영상 속에 찍힌 같은 시계의 값 차이가 촬영부터 표시까지 전부다.
 시계를 맞출 필요가 없어 오차가 없다.</p>
 <script>
+// WebCodecs 는 secure context 전용이다. 평문 http 로 열면 VideoDecoder 가 아예 없어
+// MJPEG 대비 경로로 떨어진다 — 지연이 커지고, 브라우저의 호스트당 연결 6개 제한을
+// 잡아먹어 탭을 여러 개 열면 화면이 멎는다. https 쪽으로 안내한다.
 const HAS_WC = 'VideoDecoder' in window;
+const HTTPS_PORT = %HTTPS%;
+if (!HAS_WC){
+  const w = document.getElementById('warn');
+  const url = 'https://' + location.hostname + ':' + HTTPS_PORT + location.pathname + location.search;
+  w.style.display = 'block';
+  w.innerHTML = '지금은 <b>MJPEG 대비 경로</b>다. 저지연(무변환 통과) 경로는 브라우저가 '
+    + 'WebCodecs 를 켜 주는 <b>보안 연결</b>에서만 쓸 수 있다 → '
+    + '<a href="' + url + '">' + url + '</a><br>'
+    + '자체 서명 인증서라 경고가 한 번 뜬다. <b>고급 → 계속</b> 을 누르면 된다. '
+    + '탭을 여러 개 열어 두면 이 대비 경로는 연결 수 제한으로 멈출 수 있다.';
+}
 
 function start(cid, fig){
   const cap = fig.querySelector('.stat');
@@ -442,6 +505,11 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         path = self.path.split("?")[0]
+        if path == "/favicon.ico":
+            self.send_response(204)          # 없어서 404 가 콘솔을 더럽히는 것뿐이다
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
         if path == "/":
             return self._html("".join(cell(c) for c in CAMS))
         parts = path.strip("/").split("/")
@@ -460,7 +528,8 @@ class Handler(BaseHTTPRequestHandler):
         self.send_error(404)
 
     def _html(self, body):
-        b = PAGE.replace("%NAV%", nav_html()).replace("%BODY%", body).encode("utf-8")
+        b = (PAGE.replace("%NAV%", nav_html()).replace("%BODY%", body)
+                 .replace("%HTTPS%", str(HTTPS_PORT))).encode("utf-8")
         self.send_response(200)
         self.send_header("Content-Type", "text/html; charset=utf-8")
         self.send_header("Content-Length", str(len(b)))
@@ -539,13 +608,35 @@ class Handler(BaseHTTPRequestHandler):
             pass                              # 브라우저가 닫은 것뿐이다
 
 
-def main():
-    port = int(sys.argv[1]) if len(sys.argv) > 1 else 8090
+def serve(port, tls=None):
     srv = ThreadingHTTPServer(("0.0.0.0", port), Handler)
     srv.daemon_threads = True
-    print(f"대기 중 — http://<이 호스트>:{port}/")
+    if tls:
+        ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+        ctx.load_cert_chain(*tls)
+        srv.socket = ctx.wrap_socket(srv.socket, server_side=True)
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    return srv
+
+
+def main():
+    global HTTPS_PORT
+    port = int(sys.argv[1]) if len(sys.argv) > 1 else 8090
+    HTTPS_PORT = int(sys.argv[2]) if len(sys.argv) > 2 else port + 353
+
+    serve(port)
     try:
-        srv.serve_forever()
+        serve(HTTPS_PORT, ensure_cert())
+        tls_note = f"https://<이 호스트>:{HTTPS_PORT}/  ← 저지연(무변환 통과)"
+    except Exception as e:
+        # 인증서를 못 만들어도 평문 경로는 살려 둔다. 저지연만 못 쓸 뿐이다.
+        HTTPS_PORT = 0
+        tls_note = f"HTTPS 준비 실패({type(e).__name__}) — MJPEG 대비 경로만 쓸 수 있다"
+    print(f"대기 중 — http://<이 호스트>:{port}/")
+    print(f"         {tls_note}")
+    try:
+        while True:
+            time.sleep(3600)
     except KeyboardInterrupt:
         pass
 
