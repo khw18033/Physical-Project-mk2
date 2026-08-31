@@ -31,7 +31,7 @@ from collections import deque
 
 import paho.mqtt.client as mqtt
 
-from common import config, otel_metrics, schema
+from common import config, otel_metrics, otel_trace, schema
 from common.commands import BASE_ACTIONS, CommandEngine
 from common.schema import Identity, envelope
 from common.spool import EVENT, Spool
@@ -48,6 +48,7 @@ class BaseNode:
         self.spool = Spool(config.SPOOL_PATH, config.SPOOL_MAX,
                            config.SPOOL_REPLAY_BATCH, config.SPOOL_DOWNSAMPLE_S)
         self.metrics = otel_metrics.create(self.identity)
+        self.traces = otel_trace.create(self.identity)   # 명령 경로만 (10-3)
 
         self.connected = False
         self.started = time.time()
@@ -59,7 +60,8 @@ class BaseNode:
         self._connects = deque()      # 접속 시각 — client_id 중복(플래핑) 판정용
 
         self.client = None
-        self.commands = CommandEngine(self, self.publish, self.base)
+        self.commands = CommandEngine(self, self.publish, self.base,
+                                      tracer=self.traces)
         self._connect()
 
     # ================= 접속 =================
@@ -329,6 +331,7 @@ class BaseNode:
         self.client.disconnect()
         self.client.loop_stop()
         self.metrics.shutdown()
+        self.traces.shutdown()
 
 
 def _on_sigterm(signum, frame):

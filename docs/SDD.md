@@ -77,6 +77,7 @@ pi/
 │   ├─ schema.py           메시지 봉투 어댑터 + Identity 3계층  (P3의 격리 지점)
 │   ├─ spool.py            두절 대비 디스크 버퍼 (HW-R-09)
 │   ├─ otel_metrics.py     자기 관측 metric 5종 (HW-C-05)
+│   ├─ otel_trace.py       명령 경로 trace 3종 (v8 §5-7·§5-8, AGENDA 10-3)
 │   ├─ commands.py         명령 엔진 — 검증·중복억제·4단계 승격 (HW-C-06)
 │   └─ node.py             BaseNode — 접속·Birth·하트비트·상태요약·식별자감시
 ├─ sensor/
@@ -555,6 +556,27 @@ cmd 수신 ─► [검증] ─► accepted (cmd/ack)
 - 상주 서비스는 컨테이너화하지 않는다(§7.2). 컨테이너 이미지는 증강 기능 전용
 
 ---
+
+### 7.5 명령 경로 trace (v8 §5-8 위임분, 2026-08-31 구현)
+
+v8 §5-8 이 말단 계측 범위를 하드웨어에 위임했고, AGENDA 10-3 의 제안대로 구현했다:
+**span 은 명령 경로에만** — `cmd.receive`(수신·검증) → `cmd.execute`(수행, 단계 승격은
+event) → `cmd.result`(회신 발행). 계측·하트비트 같은 고빈도 경로는 span 을 만들지
+않는다. 이 범위로 §5-7 의 "장치 span 이 없으면 명령이 도달하지 못한 것"이 성립한다.
+
+- 백엔드가 명령에 W3C `traceparent` 를 실으면 **그 trace 의 자식**으로 붙는다 —
+  관제 클릭부터 물리 동작까지 한 사슬. 없으면 새 trace 를 시작한다.
+- Resource 속성은 otel_metrics 와 동일 — 같은 노드의 metric·trace 가 Collector 에서
+  같은 주체로 묶인다. 전역 provider 는 건드리지 않는다(meter 가 이미 전역).
+- 워커 스레드 경계는 trace 객체가 큐에 실려 건너간다 — 스레드 로컬 컨텍스트는
+  스레드를 넘지 못한다.
+- SDK·엔드포인트가 없으면 no-op. **관측은 업무의 전제조건이 아니다** — no-op 에서도
+  4단계 승격이 동일함을 시험이 보증한다.
+
+**검증 (`bench/trace_test.py` — Collector 불필요, 어느 OS 든)**: InMemorySpanExporter 로
+실제 CommandEngine 을 통과시켜 ① 사슬 부모 관계·속성·이벤트 ② traceparent 상속
+(trace_id 일치) ③ rejected 는 receive 단독 종결+ERROR ④ 수행 실패 ERROR
+⑤ no-op 동일 동작 — 5항목 전부 통과.
 
 ## 8. 장애 모드와 대응
 

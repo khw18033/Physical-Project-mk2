@@ -24,6 +24,9 @@ import time
 from collections import OrderedDict
 
 from common import schema
+from common.otel_trace import _Noop as _NoTrace
+
+_no_trace = _NoTrace()
 
 
 class CommandError(Exception):
@@ -31,11 +34,13 @@ class CommandError(Exception):
 
 
 class CommandEngine:
-    def __init__(self, owner, publish, base_topic, log=print):
+    def __init__(self, owner, publish, base_topic, log=print, tracer=None):
         self.owner = owner              # 액션 핸들러가 받는 노드 인스턴스
         self.publish = publish          # publish(topic, payload, qos=..., kind=...)
         self.base = base_topic
         self.log = log
+        # 명령 경로 trace (otel_trace). 없으면 no-op — 관측은 업무의 전제조건이 아니다.
+        self.tracer = tracer if tracer is not None else _no_trace
         self.q = queue.Queue()
         self.seen = OrderedDict()       # command_id -> ack (QoS 1 중복 배달 대비)
         threading.Thread(target=self._worker, daemon=True).start()
@@ -45,12 +50,19 @@ class CommandEngine:
         try:
             cmd = json.loads(payload_bytes)
         except ValueError:
+            t = self.tracer.begin({})
             self._ack(None, None, "rejected", "malformed_payload")
+            t.received(None, None, "rejected", "malformed_payload")
             return
+
+        # 명령 한 건 = trace 한 사슬. 백엔드가 traceparent 를 실었으면 그 자식으로
+        # 붙는다(v8 §5-7 — "장치 span 이 없으면 명령이 도달하지 못한 것").
+        t = self.tracer.begin(cmd)
 
         cid = cmd.get("command_id")     # BE-X-01: 백엔드가 발급, 말단은 에코만
         if not cid:
             self._ack(None, None, "rejected", "missing_command_id")
+            t.received(None, None, "rejected", "missing_command_id")
             return
 
         if cid in self.seen:
@@ -59,15 +71,18 @@ class CommandEngine:
             client.publish(f"{self.base}/cmd/ack",
                            json.dumps(self.seen[cid], ensure_ascii=False), qos=1)
             self.log(f"[명령 중복] {cid} — 재실행 없이 이전 ACK 재송신")
+            t.received(None, cid, "duplicate")
             return
 
         action, params = self._parse(cmd)
         expires = cmd.get("expires_at")     # VZ-O-01: 만료 후 실행 금지
         if expires and schema.iso_now() > expires:
             self._ack(cid, action, "rejected", "expired")
+            t.received(action, cid, "rejected", "expired")
             return
         if action not in self.owner.ACTIONS:
             self._ack(cid, action, "rejected", "unsupported_action")
+            t.received(action, cid, "rejected", "unsupported_action")
             return
 
         # 수행할 수 없는 명령은 ACK 단계에서 사유와 함께 거부한다(HW-A-03).
@@ -77,10 +92,14 @@ class CommandEngine:
             self.owner.validate(action, params)
         except CommandError as e:
             self._ack(cid, action, "rejected", str(e))
+            t.received(action, cid, "rejected", str(e))
             return
 
         self._ack(cid, action, "accepted")          # 1단계
-        self.q.put((cid, action, params))
+        t.received(action, cid, "accepted")
+        # trace 객체를 큐로 넘긴다 — 워커는 다른 스레드라 스레드 로컬 컨텍스트가
+        # 통하지 않고, 이 객체가 부모 span 컨텍스트를 들고 건너간다.
+        self.q.put((cid, action, params, t))
 
     @staticmethod
     def _parse(cmd):
@@ -122,17 +141,23 @@ class CommandEngine:
         """명령 수행은 별도 스레드. 수문 구동처럼 몇 초 걸리는 명령이 계측 루프를
         멈춰 세우면 안 되기 때문이다."""
         while True:
-            cid, action, params = self.q.get()
+            cid, action, params, t = self.q.get()
             handler = self.owner.ACTIONS[action]
             physical = action in self.owner.PHYSICAL_ACTIONS
-            try:
-                for stage, detail in handler(self.owner, params):
-                    self._result(cid, action, stage, detail, physical)
-            except CommandError as e:
-                self._result(cid, action, "failed", {"error": str(e)}, physical)
-            except Exception as e:
-                self._result(cid, action, "failed",
-                             {"error": f"{type(e).__name__}: {e}"}, physical)
+            with t.execute():
+                try:
+                    for stage, detail in handler(self.owner, params):
+                        self._result(cid, action, stage, detail, physical)
+                        t.stage(stage, detail)
+                except CommandError as e:
+                    self._result(cid, action, "failed", {"error": str(e)}, physical)
+                    t.stage("failed")
+                    t.failed(str(e))
+                except Exception as e:
+                    err = f"{type(e).__name__}: {e}"
+                    self._result(cid, action, "failed", {"error": err}, physical)
+                    t.stage("failed")
+                    t.failed(err)
 
 
 # ---------------- 어느 노드에나 있는 기본 어휘 ----------------
