@@ -164,10 +164,11 @@ class BaseNode:
                     if len(self._inflight) > 1000:   # PUBACK이 끝내 안 온 것들 정리
                         self._inflight.clear()
                 else:
-                    self.metrics.record_publish(True, 0)
+                    # QoS 0 은 PUBACK 이 없어 왕복을 잴 수 없다 — 건수만 센다
+                    self.metrics.record_publish(True)
                 return True
         self.pub_fail += 1
-        self.metrics.record_publish(False, 0)
+        self.metrics.record_publish(False)
         if allow_spool:
             self.spool.append(topic, payload, qos, time.time(), kind)
         return False

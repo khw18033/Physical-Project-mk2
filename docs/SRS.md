@@ -215,7 +215,10 @@ sequence_id)`를 유지한다(BE-C-03 / VZ-I-07).
 - **요구**: CPU/메모리, 전송 성공·실패, 지연을 OTel 규격으로 계측해 엣지 Collector에 전달.
 - **검증**: Collector 수신단에서 metric 5종이 60초 간격으로 도착하고 resource 속성에
   entity/node/zone이 실려 있음을 확인.
-- **상태**: ◐ — 계측 코드 구현, 초기화·fallback 검증. **실제 export 미검증**(A-3)
+- **상태**: ✅ (수신단 대체) — pi7 에서 OTLP/gRPC 로 metric 5종이 60초 주기로 실제 도착함을
+  확인했다. resource 속성에 entity/node/zone 이 실린다. 발행 지연은 PUBACK 왕복으로
+  실측되며(2.2~52 ms), QoS 0 발행은 왕복이 없으므로 지연 표본에서 제외한다.
+  ⚠ 검증에 쓴 것은 최소 수신단이며 **엣지 Collector(Agent) 실물은 여전히 부재**(A-3)
 
 #### HW-C-06 제어 명령 수신 및 ACK 응답
 - **요구**: 명령(주기 변경, 프로세스 기동/종료, 임무 하달, 모터 구동)에 수신 확인(ACK)과
@@ -518,7 +521,7 @@ xlsx의 BE/AI/VZ 시트 중 하드웨어가 **반드시 지켜야 하는** 항�
 | HW-C-02 | 발행 메시지의 봉투 필드 검사 | pi7 실기 | ◐ |
 | HW-C-03 | `kubectl get nodes` Ready, 컨테이너 배포/제거/셀프힐링 | 미착수 | ⏳ |
 | HW-C-04 | Birth·10초 요약·death/shutdown 구분 | pi7 실기 | ✅ |
-| HW-C-05 | Collector 수신단에서 metric 5종 도착 확인 | 미착수 | ◐ |
+| HW-C-05 | Collector 수신단에서 metric 5종 도착 확인 | pi7 → OTLP 수신단 | ✅ (실 Collector 대체) |
 | HW-C-06 | 4단계 왕복·거부 4종·중복 억제 | pi7 실기 | ✅ |
 | HW-C-07 | 재등록·중복 device_id 경보 | pi7 실기 | ✅ |
 | HW-S-01 | 데이터시트 기준 샘플링 | 센서 조달 후 | ⛔ |

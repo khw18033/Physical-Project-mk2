@@ -32,7 +32,7 @@ except ImportError:
 class _Noop:
     enabled = False
 
-    def record_publish(self, ok, latency_ms):
+    def record_publish(self, ok, latency_ms=None):
         pass
 
     def shutdown(self):
@@ -60,7 +60,9 @@ class Metrics:
         # Resource 속성으로 어느 노드의 지표인지 식별한다. 지표 이름에 장치 ID를
         # 넣으면 시계열이 장치 수만큼 폭발하므로 속성으로 붙이는 것이 정석이다.
         resource = Resource.create({
-            "service.name": "hw-sensor-node",
+            # 노드 종류별로 갈라야 Collector 에서 센서/로봇/액추에이터를 구분한다.
+            # 고정값이면 로봇 지표까지 hw-sensor-node 로 들어온다(실측에서 확인).
+            "service.name": f"hw-{identity.entity_type}-node",
             "service.version": config.FW_VERSION,
             "service.instance.id": identity.entity_id,
             "hw.entity_id": identity.entity_id,
@@ -76,6 +78,9 @@ class Metrics:
         meter = metrics.get_meter("hw.node")
 
         from opentelemetry.metrics import Observation
+
+        if psutil:
+            psutil.cpu_percent(interval=None)   # 첫 호출은 항상 0.0 — 미리 태워 둔다
 
         def cpu(_):
             yield Observation(psutil.cpu_percent(interval=None) / 100.0)
@@ -98,10 +103,13 @@ class Metrics:
         self._latency = meter.create_histogram(
             "hw.publish.duration", unit="ms", description="MQTT 발행 지연")
 
-    def record_publish(self, ok, latency_ms):
+    def record_publish(self, ok, latency_ms=None):
         outcome = {"outcome": "ok" if ok else "fail"}
         self._count.add(1, outcome)
-        self._latency.record(latency_ms, outcome)
+        # QoS 0 발행과 실패에는 왕복이 없다. 0ms 로 기록하면 지연 분포가 0 쪽으로
+        # 쏠려 "빠르다"는 거짓 신호를 준다 — 측정된 것만 넣는다.
+        if latency_ms is not None:
+            self._latency.record(latency_ms, outcome)
 
     def shutdown(self):
         try:
