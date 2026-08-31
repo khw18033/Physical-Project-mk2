@@ -6,12 +6,12 @@
   "description": "임무 실행 기록 디버거 — 0단계 골격",
   "scripts": {
     "dev": "node scripts/dev-all.mjs",
-    "dev:mock": "node gateway/server.mjs",
+    "dev:mock": "node gateway/server.ts",
     "dev:web": "vite",
     "dev:stt": "node scripts/dev-stt.mjs",
     "build": "tsc -b && vite build",
     "build:standalone": "tsc -b && vite build --config vite.standalone.config.ts",
-    "typecheck": "tsc -b --force",
+    "typecheck": "tsc -b --force && tsc -p gateway/tsconfig.json",
     "verify:hierarchy": "node scripts/verify-hierarchy.mjs",
     "verify:adapter-swap": "node scripts/verify-adapter-swap.mjs",
     "verify:transport": "node scripts/verify-transport.mjs",
@@ -21,7 +21,8 @@
     "verify:standalone": "npm run build:standalone && node scripts/verify-standalone.mjs",
     "verify:stt-port": "node scripts/verify-stt-port.mjs",
     "verify:voice-audit": "node scripts/verify-voice-audit.mjs",
-    "verify:no-stt": "node scripts/verify-no-stt.mjs"
+    "verify:no-stt": "node scripts/verify-no-stt.mjs",
+    "verify:one-gateway": "node scripts/verify-one-gateway.mjs"
   },
   "dependencies": {
     "react": "^19.1.0",

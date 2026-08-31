@@ -4,7 +4,7 @@ import { dagLayout, treeLayout } from './layout.ts';
 import { STATE_STYLE } from './stateStyle.ts';
 
 type Props = {
-  tasks: Task[]; hardware: Hardware[]; states: Record<string, { status: TaskStatus; attempt: number }>;
+  tasks: Task[]; hardware: readonly Hardware[]; states: Record<string, { status: TaskStatus; attempt: number }>;
   layoutMode: 'dag' | 'tree'; selected?: string; dimUnrelated?: boolean; onOpen(task: Task): void;
 };
 

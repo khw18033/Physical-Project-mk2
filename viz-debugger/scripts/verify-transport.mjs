@@ -5,10 +5,13 @@ import WebSocket from 'ws';
 
 globalThis.WebSocket = WebSocket;
 const root = join(fileURLToPath(new URL('.', import.meta.url)), '..');
+const PORT = Number(process.env.VERIFY_GATEWAY_PORT ?? 8796);
 const { WsTransport } = await import('../src/transport/WsTransport.ts');
 let gateway;
 const startGateway = () => new Promise((resolve, reject) => {
-  gateway = spawn(process.execPath, ['gateway/server.mjs'], { cwd: root, stdio: ['ignore', 'pipe', 'inherit'] });
+  // 통합 후 목 게이트웨이는 하나이고 TypeScript 다 (옛 server.mjs 는 그 안으로 접혔다).
+  // 개발 서버가 8790 을 잡고 있어도 이 검사가 성립하도록 전용 포트로 띄운다.
+  gateway = spawn(process.execPath, ['gateway/server.ts'], { cwd: root, stdio: ['ignore', 'pipe', 'inherit'], env: { ...process.env, MOCK_PORT: String(PORT) } });
   gateway.stdout.once('data', resolve); gateway.once('error', reject);
 });
 const waitFor = (label, predicate, timeout = 20_000) => new Promise((resolve, reject) => {
@@ -19,7 +22,7 @@ const waitFor = (label, predicate, timeout = 20_000) => new Promise((resolve, re
 });
 
 let openCount = 0; let received = 0; let lastState = 'closed';
-const transport = new WsTransport({ url: 'ws://127.0.0.1:8790', httpBase: 'http://127.0.0.1:8790' });
+const transport = new WsTransport({ url: `ws://127.0.0.1:${PORT}`, httpBase: `http://127.0.0.1:${PORT}` });
 transport.onStatus((status) => {
   console.log(`[transport] ${status.state} (attempt=${status.attempt})`);
   if (status.state === 'open' && lastState !== 'open') openCount += 1;

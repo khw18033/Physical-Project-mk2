@@ -5,7 +5,7 @@
 //   1. SttClient 가 전부 실패하는 상태에서 probe() 가 **던지지 않고** false 를 돌려주는가
 //      (여기서 예외가 새면 패널 첫 렌더가 통째로 날아간다)
 //   2. 그 상태의 capabilities() 가 음성만 끄고 manualInput 은 남기는가 — 값을 지운 대조군 포함
-//   3. STT 를 부르는 fetch 가 SttClient 밖에 없는가 — 두 번째 호출을 주입한 대조군 포함
+//   3. STT 주소를 아는 코드가 src/stt/ 밖에 없는가 — 두 번째 호출을 주입한 대조군 포함
 import { mkdtempSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, relative } from 'node:path';
@@ -75,21 +75,27 @@ const files = [];
   }
 })(srcDir);
 
+// **STT 주소를 아는 곳**을 센다. `fetch` 를 세지 않는 이유: 탭②~⑥의 데이터 계층도
+// 게이트웨이를 fetch 로 부르는데 그건 STT 와 아무 상관이 없다. 막고 싶은 것은
+// "STT 를 부르는 두 번째 길"이지 "fetch 를 쓰는 코드"가 아니다.
+// 엔드포인트 경로와 환경변수 이름만 본다. `STT_BASE_URL` **식별자**를 import 해서
+// 화면에 표시하는 것은 두 번째 길이 아니다 — 그 값 자체가 하나뿐인 면에서 나온 것이다.
+const STT_MARKERS = /VITE_STT_URL|['"`][^'"`]*\/stt\/transcribe/;
+
 function sttCallers(extra = '') {
   return files.flatMap((path) => {
-    const isClient = path.replaceAll('\\', '/').endsWith('src/stt/SttClient.ts');
-    const source = readFileSync(path, 'utf8') + (isClient ? extra : '');
-    const hits = [...source.matchAll(/fetch\s*\(/g)];
-    return hits.length && !isClient ? [relative(srcDir, path)] : [];
+    // src/stt/ 안은 STT 를 보는 면 그 자체다. 그 밖에서 주소를 알면 면이 둘이 된다.
+    const inside = path.replaceAll('\\', '/').includes('/src/stt/');
+    const source = readFileSync(path, 'utf8') + (inside ? extra : '');
+    return STT_MARKERS.test(source) && !inside ? [relative(srcDir, path)] : [];
   });
 }
 
 const outside = sttCallers();
 if (outside.length) {
-  failures.push(`SttClient 밖에서 fetch 를 부른다: ${outside.join(', ')} — STT 를 보는 면이 하나가 아니게 된다`);
+  failures.push(`src/stt/ 밖에서 STT 주소를 안다: ${outside.join(', ')} — STT 를 보는 면이 하나가 아니게 된다`);
 }
-// 대조군: SttClient 안에 하나를 더 넣어도 SttClient 는 예외라 잡히지 않아야 하고,
-// 다른 파일에 넣으면 잡혀야 한다. 후자를 확인한다.
+// 음성 대조군 — src/stt/ 밖에 STT 호출을 넣으면 반드시 잡혀야 한다.
 const decoy = join(scratch, 'decoy.ts');
 writeFileSync(decoy, 'export const x = () => fetch("http://127.0.0.1:8801/stt/transcribe");\n', 'utf8');
 files.push(decoy);
@@ -101,4 +107,4 @@ if (failures.length) {
   console.error(`❌ STT 없이 뜨는지 검사 실패:\n  - ${failures.join('\n  - ')}`);
   process.exit(1);
 }
-console.log('✅ 통과 — 서비스가 전부 실패해도 probe()는 조용히 false, 수동 입력은 모든 상태에서 살아 있음, STT fetch는 SttClient 한 곳, 대조군 3종 검출');
+console.log('✅ 통과 — 서비스가 전부 실패해도 probe()는 조용히 false, 수동 입력은 모든 상태에서 살아 있음, STT 주소를 아는 곳은 src/stt/ 뿐, 대조군 3종 검출');
