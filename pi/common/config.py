@@ -32,9 +32,10 @@ TLS_CERT = _s("TLS_CERT", "")
 TLS_KEY = _s("TLS_KEY", "")
 MQTT_USER = _s("MQTT_USER", "")
 MQTT_PASS = _s("MQTT_PASS", "")
-# 하트비트 1Hz 기준으로 keepalive를 짧게. 브로커는 keepalive*1.5(7.5초)에 LWT를
-# 띄우므로 LWT는 보조 경로이고, 4초 판정의 주 경로는 하트비트 타임아웃이다.
-KEEPALIVE = _i("KEEPALIVE", 5)
+# 하트비트가 5초가 되면서 하트비트 타임아웃 판정이 20초로 늘었다. 그래서 급사 감지의
+# **주 경로가 LWT 로 바뀐다** — 브로커는 keepalive*1.5 에 LWT 를 띄우므로 10초면 15초다.
+# 하트비트 주기(5초)보다 커야 정상 트래픽을 끊김으로 오인하지 않는다.
+KEEPALIVE = _i("KEEPALIVE", 10)
 # 재접속 백오프 상한(초). paho 기본 120초는 두절이 길수록 복구가 늦어져
 # 재난 대응과 방향이 반대다.
 RECONNECT_MAX_DELAY = _f("RECONNECT_MAX_DELAY", 10.0)
@@ -55,8 +56,10 @@ FW_VERSION = _s("FW_VERSION", "0.3.0")
 IDENTITY_CHECK_INTERVAL = _f("IDENTITY_CHECK_INTERVAL", 10)
 
 # ---------------- 주기 (HW-S-05, HW-C-04, HW-S-02/03) ----------------
-HB_INTERVAL = _f("HB_INTERVAL", 1.0)          # HW-S-05: 1 Hz (xlsx 기준)
-MISS_LIMIT = _i("MISS_LIMIT", 4)              # HW-S-07: 4회 미수신 → 약 4초
+# 아키텍처 v8 §5-1 에 맞춘다(백엔드 기준). 요구사항 정의서의 1 Hz 와 다르며,
+# 그 결과 HW-S-07 의 오프라인 판정이 4초 -> **20초**가 된다.
+HB_INTERVAL = _f("HB_INTERVAL", 5.0)          # HW-S-05 / v8 §5-1
+MISS_LIMIT = _i("MISS_LIMIT", 4)              # HW-S-07: 4회 미수신 → 20초
 STATUS_SUMMARY_INTERVAL = _f("STATUS_SUMMARY_INTERVAL", 10.0)   # HW-C-04: 10초 요약
 SAMPLE_INTERVAL = _f("SAMPLE_INTERVAL", 1.0)  # HW-S-01: 센서 데이터시트 확정 시 교체
 REPORT_INTERVAL_NORMAL = _f("REPORT_INTERVAL_NORMAL", 60.0)     # HW-S-02: 평시 1분
@@ -74,8 +77,8 @@ RAPID_MIN_GAP_S = _f("RAPID_MIN_GAP_S", 10.0)   # 급변 보고 자체의 최소
 # ---------------- 관측 (HW-C-05, BE-S-02) ----------------
 # 엣지 Collector(Agent)의 OTLP 수신 주소. 비우면 관측 발신을 끈다(노드는 정상 동작).
 OTEL_ENDPOINT = _s("OTEL_ENDPOINT", "")       # 예: http://192.168.50.244:4317
-# 요구사항 정의서(HW-C-05)는 60초. 계획서 초안의 15초와 상충하여 정의서를 따른다.
-OTEL_EXPORT_INTERVAL = _f("OTEL_EXPORT_INTERVAL", 60.0)
+# 아키텍처 v8 §5-1 에 맞춘다(백엔드 기준). 요구사항 정의서는 60초였다.
+OTEL_EXPORT_INTERVAL = _f("OTEL_EXPORT_INTERVAL", 15.0)
 
 # ---------------- 두절 대비 버퍼 (HW-R-09) ----------------
 SPOOL_PATH = _s("SPOOL_PATH", "/var/lib/hw-node/spool.jsonl")
@@ -93,7 +96,8 @@ ROBOT_INTERNAL_INTERVAL = _f("ROBOT_INTERNAL_INTERVAL", 0.02)
 # ⚠ 20Hz의 근거(Nav2 controller_frequency)는 내부 제어 루프 주기이지 네트워크 전송
 # 주기가 아니다(SRS O-11). 실물 확보 후 무선망 실측으로 재산정한다 — 그래서 설정값이다.
 ROBOT_STATE_INTERVAL_MISSION = _f("ROBOT_STATE_INTERVAL_MISSION", 0.05)
-ROBOT_STATE_INTERVAL_IDLE = _f("ROBOT_STATE_INTERVAL_IDLE", 1.0)
+# v8 §5-1: 대기 중 5초 (정의서는 1초였다)
+ROBOT_STATE_INTERVAL_IDLE = _f("ROBOT_STATE_INTERVAL_IDLE", 5.0)
 # 20Hz 상태 스트림은 QoS 0. 다음 샘플이 50ms 뒤 오므로 유실을 상쇄하며, QoS 1은
 # 무선 왕복(실측 ~150ms)이 주기보다 길어 부적합하다 (SRS 9.4). 이산 이벤트만 QoS 1.
 ROBOT_STATE_QOS = _i("ROBOT_STATE_QOS", 0)
@@ -122,8 +126,9 @@ ACTUATOR_SAMPLE_INTERVAL = _f("ACTUATOR_SAMPLE_INTERVAL", 0.02)   # 내부 수�
 ACTUATOR_REPORT_INTERVAL_MOVING = _f("ACTUATOR_REPORT_INTERVAL_MOVING", 0.05)
 ACTUATOR_REPORT_INTERVAL_IDLE = _f("ACTUATOR_REPORT_INTERVAL_IDLE", 10.0)
 ACTUATOR_TIMEOUT_S = _f("ACTUATOR_TIMEOUT_S", 10.0)     # 구동 완료 대기 상한
-# HW-A-05: 통신 두절이 이 시간을 넘으면 원격 제어를 잠그고 안전 상태로 간다.
-# 하트비트 4회(4초) 판정과 맞춘다.
+# HW-A-05: 세션 단절이 확인된 뒤 이 시간을 넘으면 원격 제어를 잠그고 안전 상태로 간다.
+# 단절 자체는 LWT(keepalive 기준 약 15초) 또는 하트비트 4회(20초)로 잡히므로,
+# 이 값은 "단절 확인 후 얼마나 더 기다릴까"이지 절대 시간이 아니다.
 ACTUATOR_LOCK_AFTER_S = _f("ACTUATOR_LOCK_AFTER_S", 4.0)
 # 시연·시험용 피드백 상실 주입구. 이 파일이 있으면 위치를 알 수 없는 상태가 된다.
 # (강우 스위치 RAIN_FLAG 와 같은 방식 — 실물 결선 후 제거)
