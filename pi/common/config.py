@@ -102,7 +102,13 @@ ROBOT_STATE_INTERVAL_IDLE = _f("ROBOT_STATE_INTERVAL_IDLE", 5.0)
 # 무선 왕복(실측 ~150ms)이 주기보다 길어 부적합하다 (SRS 9.4). 이산 이벤트만 QoS 1.
 ROBOT_STATE_QOS = _i("ROBOT_STATE_QOS", 0)
 ROBOT_BATTERY_WARN = _f("ROBOT_BATTERY_WARN", 20.0)     # % — 이산 경보 임계
-CONTROLLER_LINK = _s("CONTROLLER_LINK", "sim")          # sim | can | eth
+CONTROLLER_LINK = _s("CONTROLLER_LINK", "sim")          # sim | go1 | can | eth
+# Unitree Go1 내부 MQTT 브로커. 구독 전용 경로다 — SDK 의 UDP(8082)는 요청/응답이라
+# 상태를 받으려면 명령을 보내야 하고, 그 순간 sport mode 에서 제어권을 가져와
+# 서 있던 로봇이 주저앉을 수 있다. 그래서 쓰지 않는다.
+GO1_MQTT_HOST = _s("GO1_MQTT_HOST", "192.168.123.161")
+GO1_STALE_S = _f("GO1_STALE_S", 2.0)          # robot/state 12.5Hz 기준
+GO1_BMS_STALE_S = _f("GO1_BMS_STALE_S", 15.0) # bms/state 0.5Hz 기준
 
 # ---------------- 영상 송출 (HW-R-07 / HW-S-06, 아키텍처 v8 §5-10) ----------------
 # 홉1(말단→엣지)은 JPEG/RTP over UDP 로 확정됐다. frame_ref 는 엣지가 디코드 시점에

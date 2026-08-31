@@ -105,5 +105,8 @@ class SimLink(ControllerLink):
 def create(kind="sim"):
     if kind == "sim":
         return SimLink()
+    if kind == "go1":
+        from robot.go1_link import Go1Link      # paho 의존을 여기서만 진다
+        return Go1Link()
     raise NotImplementedError(
-        f"ControllerLink '{kind}' 미구현 — 제어기 실물 확보 후 CanLink/EthLink 추가")
+        f"ControllerLink '{kind}' 미구현 — CanLink/EthLink 는 제어기 실물 확보 후")
