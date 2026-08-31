@@ -5,55 +5,168 @@
 운영 구성요소가 아니다 — 운영 경로는 엣지가 받는 것이고, 이건 **말단에서 영상이 실제로
 나오는가**를 사람이 확인하기 위한 것이다.
 
-    카메라 ──ws H.264──► pi7 ──ffmpeg──► MJPEG ──HTTP multipart──► 브라우저
+## 두 가지 경로 — 기본은 무변환 통과
 
-MJPEG 로 바꾸는 이유는 하나뿐이다. `<img>` 태그 하나로 재생돼서 보는 쪽에 아무것도
-설치할 필요가 없다. 대역폭은 원본보다 훨씬 크므로(0.55 Mbps → 약 3.6 Mbps) **검증용이지
-운반 방식의 제안이 아니다.**
+    [기본]  카메라 ──ws H.264──► pi7 ──그대로 중계──► 브라우저 WebCodecs 디코드
+    [대비]  카메라 ──ws H.264──► pi7 ──ffmpeg──► MJPEG ──HTTP multipart──► <img>
+
+**기본 경로는 파이에서 디코드도 인코드도 하지 않는다.** 로봇이 이미 H.264 로 주므로
+바이트를 그대로 넘기고 브라우저가 하드웨어로 푼다. 처음에는 MJPEG 로 변환했는데,
+그 변환이 지연과 대역폭을 함께 잡아먹었다.
+
+| | MJPEG 변환 | **무변환 통과** |
+|---|---|---|
+| 파이 내부 지연 | 37 ms | **0 ms** (중계만) |
+| 파이 CPU (5대) | 0.65 코어 | **0.02 코어** |
+| 대역폭 | 3.6 Mbps | **0.58 Mbps** |
+| 브라우저 요구 | 없음 | WebCodecs (Chrome/Edge 94+) |
+
+MJPEG 경로는 WebCodecs 가 없는 브라우저를 위해 남겨 둔다. 자동으로 갈라진다.
+
+## 지연을 화면에 띄운다
+
+추측하지 않으려고 페이지가 스스로 측정해 표시한다. 브라우저와 파이의 시계가 다르므로
+NTP 와 같은 방식으로 왕복 측정해 시계 차이를 빼낸 뒤, **파이가 프레임을 받은 시각부터
+화면에 그린 시각까지**를 보여 준다. 로봇 내부(촬영→인코딩→송신) 지연은 기준 시각이
+없어 여기에 포함되지 않는다 — 표시값은 하한이다.
 
 사용:
     ssh physical@pi7.local
     cd ~/hw/pi && python3 -m bench.go1_cam_view 8090
     # 브라우저에서 http://pi7.local:8090/
 
-**실측 (pi7, 2026-08-31):** 카메라 1대 29 fps / 3.6 Mbps, 5대 동시에도 29 fps 유지,
-CPU 0.65코어(4코어 중 17%). 로봇 쪽 부하·상태 변화 없음.
+**실측 (pi7, 2026-08-31):** 464x400 H.264 baseline, 도착 간격 33.3 ms(30 fps, p90 34.1 —
+버스트 없음), 프레임 평균 2.4 KB, 키프레임 약 0.48 초 간격.
 """
+import base64
+import hashlib
+import json
 import os
+import queue
+import struct
 import subprocess
 import sys
 import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-from robot.go1_camera import CAMS, Go1CameraSource
+from robot.go1_camera import CAMS, Go1CameraSource, WSReader
 
-IDLE_STOP_S = 25.0          # 보는 사람이 없으면 이만큼 뒤 스스로 멈춘다
-JPEG_QUALITY = "5"
+IDLE_STOP_S = 20.0          # 보는 사람이 없으면 이만큼 뒤 상류 연결을 끊는다
+WS_GUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
+QUEUE_MAX = 8               # 느린 뷰어 때문에 지연이 쌓이지 않도록 얕게 둔다
 
 
-class CameraWorker:
-    """웹소켓 H.264 → ffmpeg → **최신 JPEG 한 장.**
+# ---------------------------------------------------------------- NAL 파싱
+def nal_types(chunk):
+    """Annex-B 조각 안의 NAL 종류 집합. 5=IDR, 7=SPS, 8=PPS."""
+    out, i = set(), 0
+    while True:
+        j = chunk.find(b"\x00\x00\x01", i)
+        if j < 0 or j + 3 >= len(chunk):
+            return out
+        out.add(chunk[j + 3] & 0x1F)
+        i = j + 3
 
-    큐를 두지 않는 것이 핵심이다. 프레임을 쌓아 두면 보는 사람이 느릴 때 지연이
-    그대로 누적돼 몇 초 전 장면을 보게 된다. 늦은 프레임은 버리는 편이 맞다.
-    """
+
+def codec_string(chunk):
+    """SPS 에서 WebCodecs 코덱 문자열(avc1.PPCCLL)을 만든다. 없으면 None.
+    프로파일·레벨을 박아 두면 로봇 펌웨어가 바뀔 때 조용히 어긋나므로 매번 읽는다."""
+    i = 0
+    while True:
+        j = chunk.find(b"\x00\x00\x01", i)
+        if j < 0 or j + 3 >= len(chunk):
+            return None
+        if (chunk[j + 3] & 0x1F) == 7 and j + 7 <= len(chunk):
+            return "avc1." + chunk[j + 4:j + 7].hex()
+        i = j + 3
+
+
+# ---------------------------------------------------------------- 상류 허브
+class Hub:
+    """카메라 하나에 상류 연결 하나. 뷰어가 몇이든 로봇에는 연결 하나만 간다."""
 
     def __init__(self, cam_id):
         self.cam_id = cam_id
         self.label = CAMS[cam_id][2]
+        self.lock = threading.Lock()
+        self.subs = set()
+        self.codec = None
+        self.err = None
+        self.running = False
+        self.last_want = 0.0
+        self.fps = 0.0
+
+    def subscribe(self):
+        q = queue.Queue(maxsize=QUEUE_MAX)
+        with self.lock:
+            self.subs.add(q)
+            self.last_want = time.time()
+            if not self.running:
+                self.running = True
+                threading.Thread(target=self._run, daemon=True).start()
+        return q
+
+    def unsubscribe(self, q):
+        with self.lock:
+            self.subs.discard(q)
+
+    def _fanout(self, item):
+        with self.lock:
+            subs = list(self.subs)
+        for q in subs:
+            try:
+                q.put_nowait(item)
+            except queue.Full:
+                # 뒤처진 뷰어의 오래된 프레임을 버린다. 쌓아 두면 그 뷰어는
+                # 몇 초 전 장면을 보게 된다 — 늦은 프레임은 버리는 편이 맞다.
+                try:
+                    q.get_nowait()
+                    q.put_nowait(item)
+                except queue.Empty:
+                    pass
+
+    def _run(self):
+        n, t0 = 0, time.time()
+        try:
+            for chunk in Go1CameraSource(self.cam_id):
+                types = nal_types(chunk)
+                if self.codec is None and 7 in types:
+                    self.codec = codec_string(chunk)
+                self._fanout((time.time(), 5 in types, chunk))
+                n += 1
+                dt = time.time() - t0
+                if dt >= 2.0:
+                    self.fps, n, t0 = round(n / dt, 1), 0, time.time()
+                with self.lock:
+                    if not self.subs and time.time() - self.last_want > IDLE_STOP_S:
+                        break
+                    if self.subs:
+                        self.last_want = time.time()
+        except Exception as e:
+            self.err = f"{type(e).__name__}: {e}"
+        finally:
+            self.running = False
+            self._fanout(None)
+
+
+HUBS = {cid: Hub(cid) for cid in CAMS}
+
+
+# ---------------------------------------------------------------- MJPEG 대비 경로
+class MjpegWorker:
+    """WebCodecs 가 없는 브라우저용. 허브를 구독해 ffmpeg 로 MJPEG 를 만든다."""
+
+    def __init__(self, cam_id):
+        self.cam_id = cam_id
         self.cond = threading.Condition()
         self.jpeg = None
         self.seq = 0
-        self.fps = 0.0
-        self.err = None
         self.last_want = 0.0
         self.running = False
         self.proc = None
 
-    # ---------- 생애주기 ----------
     def want(self):
-        """보는 사람이 있다는 표시. 꺼져 있으면 켠다."""
         self.last_want = time.time()
         if not self.running:
             self.running = True
@@ -64,43 +177,40 @@ class CameraWorker:
             ["ffmpeg", "-hide_banner", "-loglevel", "error",
              # `-fflags nobuffer` 는 **넣으면 안 된다.** 출력이 파이프일 때 두어 프레임만
              # 내보내고 나머지를 통째로 버린다 — 같은 입력이 파일 출력에서는 3.4MB,
-             # 파이프 출력에서는 29KB 로 나왔다. 실시간으로 먹이므로 없어도 지연은 없다.
+             # 파이프 출력에서는 29KB 였다. 오류도 남기지 않아 찾기 어렵다.
              #
-             # `-threads 1` 이 지연의 핵심이다. ffmpeg 은 기본이 **프레임 단위 멀티스레딩**
-             # 이라 스레드 수만큼 프레임을 쥐고 있다가 내보낸다. 처리량에는 좋지만
-             # 실시간 감시에는 그 지연이 그대로 보인다. 입출력 양쪽을 1스레드로 묶어
-             # 파이 내부 지연을 실측 301ms → 37ms 로 줄였다(디코더 -134, 인코더 -131).
-             # 464x400 은 1스레드로도 29fps 를 유지하므로 잃는 것이 없다.
+             # `-threads 1` 은 지연 때문이다. ffmpeg 기본은 프레임 단위 멀티스레딩이라
+             # 스레드 수만큼 프레임을 쥐고 있다가 내보낸다. 입출력 양쪽을 1스레드로 묶어
+             # 실측 301ms → 37ms 로 줄였다(디코더 −134, 인코더 −131).
              "-threads", "1",
              "-probesize", "32k", "-analyzeduration", "0",
              "-f", "h264", "-i", "pipe:0",
-             "-f", "mjpeg", "-q:v", JPEG_QUALITY, "-threads", "1", "pipe:1"],
-            stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-            stderr=subprocess.DEVNULL)
+             "-f", "mjpeg", "-q:v", "5", "-threads", "1", "pipe:1"],
+            stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
         threading.Thread(target=self._pump, daemon=True).start()
         self._collect()
 
     def _pump(self):
-        """웹소켓 → ffmpeg stdin. flush 를 빠뜨리면 파이썬 버퍼에 갇혀
-        ffmpeg 이 한 바이트도 못 받는다."""
+        q = HUBS[self.cam_id].subscribe()
         try:
-            for chunk in Go1CameraSource(self.cam_id):
-                if not self.running:
+            while self.running:
+                item = q.get()
+                if item is None:
                     break
-                self.proc.stdin.write(chunk)
+                # flush 를 빠뜨리면 파이썬 버퍼에 갇혀 ffmpeg 이 한 바이트도 못 받는다.
+                self.proc.stdin.write(item[2])
                 self.proc.stdin.flush()
-        except Exception as e:
-            self.err = f"{type(e).__name__}: {e}"
+        except Exception:
+            pass
         finally:
+            HUBS[self.cam_id].unsubscribe(q)
             try:
                 self.proc.stdin.close()
             except Exception:
                 pass
 
     def _collect(self):
-        """ffmpeg stdout 의 연속 JPEG 를 SOI/EOI 로 잘라낸다."""
         buf = b""
-        t0, n = time.time(), 0
         try:
             while self.running:
                 # read(n) 은 n 바이트가 찰 때까지 막는다. os.read 로 오는 대로 받는다.
@@ -114,31 +224,23 @@ class CameraWorker:
                     if s < 0 or e < 0:
                         break
                     with self.cond:
-                        self.jpeg = buf[s:e + 2]
-                        self.seq += 1
+                        self.jpeg, self.seq = buf[s:e + 2], self.seq + 1
                         self.cond.notify_all()
                     buf = buf[e + 2:]
-                    n += 1
-                dt = time.time() - t0
-                if dt >= 2.0:
-                    self.fps, t0, n = round(n / dt, 1), time.time(), 0
                 if time.time() - self.last_want > IDLE_STOP_S:
                     break
-        except Exception as e:
-            self.err = f"{type(e).__name__}: {e}"
+        except Exception:
+            pass
         finally:
-            self.stop()
-
-    def stop(self):
-        self.running = False
-        if self.proc is not None:
-            try:
-                self.proc.kill()
-            except Exception:
-                pass
-            self.proc = None
-        with self.cond:
-            self.cond.notify_all()
+            self.running = False
+            if self.proc:
+                try:
+                    self.proc.kill()
+                except Exception:
+                    pass
+                self.proc = None
+            with self.cond:
+                self.cond.notify_all()
 
     def wait_frame(self, last_seq, timeout=8.0):
         with self.cond:
@@ -147,9 +249,38 @@ class CameraWorker:
             return self.seq, self.jpeg
 
 
-WORKERS = {cid: CameraWorker(cid) for cid in CAMS}
+MJPEG = {cid: MjpegWorker(cid) for cid in CAMS}
 
-PAGE = """<!doctype html><meta charset="utf-8"><title>Go1 카메라</title>
+
+# ---------------------------------------------------------------- 웹소켓 서버
+def ws_accept(key):
+    return base64.b64encode(hashlib.sha1((key + WS_GUID).encode()).digest()).decode()
+
+
+class WSConn:
+    """서버→클라이언트 프레임 송신. 여러 스레드가 쓰므로 잠근다."""
+
+    def __init__(self, sock):
+        self.sock = sock
+        self.lock = threading.Lock()
+
+    def send(self, payload, opcode=0x2):
+        n = len(payload)
+        if n < 126:
+            hdr = bytes((0x80 | opcode, n))
+        elif n < 65536:
+            hdr = bytes((0x80 | opcode, 126)) + n.to_bytes(2, "big")
+        else:
+            hdr = bytes((0x80 | opcode, 127)) + n.to_bytes(8, "big")
+        with self.lock:
+            self.sock.sendall(hdr + payload)
+
+    def send_text(self, obj):
+        self.send(json.dumps(obj).encode("utf-8"), opcode=0x1)
+
+
+# ---------------------------------------------------------------- 페이지
+PAGE = r"""<!doctype html><meta charset="utf-8"><title>Go1 카메라</title>
 <style>
 body{background:#111;color:#ddd;font:14px/1.6 system-ui,sans-serif;margin:0;padding:16px}
 h1{font-size:16px;margin:0 0 10px;font-weight:600}
@@ -158,12 +289,88 @@ a{color:#7bf;text-decoration:none;margin-right:14px}
 a:hover{text-decoration:underline}
 .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px}
 figure{margin:0;background:#000;border:1px solid #333;border-radius:6px;overflow:hidden}
-figcaption{padding:6px 10px;font-size:13px;color:#9ad;border-top:1px solid #222}
-img{width:100%;display:block;background:#000}
-.big img{max-height:78vh;object-fit:contain}
+figcaption{padding:6px 10px;font-size:12px;color:#9ad;border-top:1px solid #222;
+           display:flex;justify-content:space-between;gap:8px}
+.stat{color:#7a8}
+canvas,img{width:100%;display:block;background:#000}
+.big canvas,.big img{max-height:78vh;object-fit:contain}
+.note{color:#777;font-size:12px;margin-top:14px}
 </style>
 <h1>Unitree Go1 카메라 — 실시간</h1>
 <nav>%NAV%</nav><div class="grid">%BODY%</div>
+<p class="note">지연 = 파이가 프레임을 받은 시각 → 화면에 그린 시각. 시계 차이는 왕복
+측정으로 보정한다. 로봇 내부(촬영·인코딩) 지연은 기준 시각이 없어 포함되지 않는다.</p>
+<script>
+const HAS_WC = 'VideoDecoder' in window;
+
+function start(cid, fig){
+  const cap = fig.querySelector('.stat');
+  if (!HAS_WC){                       // 대비 경로 — 브라우저가 WebCodecs 를 모른다
+    const img = document.createElement('img');
+    img.src = '/stream/' + cid;
+    fig.querySelector('canvas').replaceWith(img);
+    cap.textContent = 'MJPEG 대비 경로';
+    return;
+  }
+  const cv = fig.querySelector('canvas'), ctx = cv.getContext('2d');
+  const ws = new WebSocket((location.protocol==='https:'?'wss':'ws')
+                            + '://' + location.host + '/ws/' + cid);
+  ws.binaryType = 'arraybuffer';
+  let dec = null, offset = null, started = false, frames = 0, lat = 0;
+
+  // 시계 차이 보정. 브라우저와 파이의 Date.now() 는 서로 다르다.
+  const ping = () => { if (ws.readyState===1) ws.send(JSON.stringify({t:'ping',c0:Date.now()})); };
+  const pingTimer = setInterval(ping, 3000);
+
+  ws.onopen = ping;
+  ws.onclose = () => { clearInterval(pingTimer); cap.textContent = '연결 종료'; };
+  ws.onerror = () => { cap.textContent = '연결 오류'; };
+
+  ws.onmessage = ev => {
+    if (typeof ev.data === 'string'){
+      const m = JSON.parse(ev.data);
+      if (m.t === 'pong'){
+        const o = m.s - (m.c0 + Date.now())/2;
+        offset = (offset === null) ? o : offset*0.7 + o*0.3;
+      } else if (m.t === 'hello' && m.codec && !dec){
+        dec = new VideoDecoder({
+          output: f => {
+            if (cv.width !== f.displayWidth){ cv.width=f.displayWidth; cv.height=f.displayHeight; }
+            ctx.drawImage(f, 0, 0);
+            if (offset !== null){
+              const l = (Date.now() - offset) - f.timestamp/1000;
+              lat = lat ? lat*0.85 + l*0.15 : l;
+            }
+            f.close(); frames++;
+          },
+          error: e => { cap.textContent = '디코더 오류: ' + e.message; }
+        });
+        dec.configure({codec: m.codec, optimizeForLatency: true});
+      } else if (m.t === 'error'){
+        cap.textContent = m.msg;
+      }
+      return;
+    }
+    if (!dec || dec.state !== 'configured') return;
+    const u8 = new Uint8Array(ev.data);
+    const key = u8[0] === 1;
+    const ts = new DataView(ev.data).getFloat64(1);
+    if (!started){ if (!key) return; started = true; }   // 키프레임부터 시작
+    dec.decode(new EncodedVideoChunk({
+      type: key ? 'key' : 'delta', timestamp: Math.round(ts*1000), data: u8.subarray(9)}));
+  };
+
+  let last = performance.now();
+  setInterval(() => {
+    const now = performance.now(), fps = frames*1000/(now-last);
+    frames = 0; last = now;
+    if (ws.readyState === 1)
+      cap.textContent = fps.toFixed(0) + ' fps · 지연 '
+                      + (lat ? Math.round(lat) + ' ms' : '측정 중');
+  }, 1000);
+}
+document.querySelectorAll('figure[data-cam]').forEach(f => start(+f.dataset.cam, f));
+</script>
 """
 
 
@@ -174,10 +381,12 @@ def nav_html():
 
 def cell(cid, big=False):
     klass = ' class="big"' if big else ''
-    return (f'<figure{klass}><img src="/stream/{cid}" alt="cam{cid}">'
-            f'<figcaption>{cid} · {CAMS[cid][2]}</figcaption></figure>')
+    return (f'<figure{klass} data-cam="{cid}"><canvas></canvas>'
+            f'<figcaption><span>{cid} · {CAMS[cid][2]}</span>'
+            f'<span class="stat">연결 중</span></figcaption></figure>')
 
 
+# ---------------------------------------------------------------- HTTP
 class Handler(BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
 
@@ -188,16 +397,19 @@ class Handler(BaseHTTPRequestHandler):
         path = self.path.split("?")[0]
         if path == "/":
             return self._html("".join(cell(c) for c in CAMS))
-        if path.startswith("/cam/") or path.startswith("/stream/"):
+        parts = path.strip("/").split("/")
+        if len(parts) == 2 and parts[0] in ("cam", "stream", "ws"):
             try:
-                cid = int(path.rsplit("/", 1)[1])
+                cid = int(parts[1])
             except ValueError:
                 return self.send_error(404)
             if cid not in CAMS:
                 return self.send_error(404)
-            if path.startswith("/cam/"):
+            if parts[0] == "cam":
                 return self._html(cell(cid, big=True))
-            return self._stream(cid)
+            if parts[0] == "stream":
+                return self._mjpeg(cid)
+            return self._ws(cid)
         self.send_error(404)
 
     def _html(self, body):
@@ -208,8 +420,59 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(b)
 
-    def _stream(self, cid):
-        cam = WORKERS[cid]
+    # ---------- 무변환 통과 (기본) ----------
+    def _ws(self, cid):
+        key = self.headers.get("Sec-WebSocket-Key")
+        if not key:
+            return self.send_error(400, "웹소켓 요청이 아니다")
+        self.close_connection = True
+        self.wfile.write(("HTTP/1.1 101 Switching Protocols\r\n"
+                          "Upgrade: websocket\r\nConnection: Upgrade\r\n"
+                          f"Sec-WebSocket-Accept: {ws_accept(key)}\r\n\r\n").encode())
+        self.wfile.flush()
+        conn = WSConn(self.connection)
+        hub = HUBS[cid]
+        q = hub.subscribe()
+        threading.Thread(target=self._ws_control, args=(conn,), daemon=True).start()
+        try:
+            sent_hello = False
+            while True:
+                item = q.get(timeout=15)
+                if item is None:
+                    break
+                ts, is_key, chunk = item
+                if not sent_hello:
+                    if hub.codec is None:
+                        continue              # SPS 를 아직 못 봤다. 키프레임을 기다린다
+                    conn.send_text({"t": "hello", "codec": hub.codec, "cam": cid})
+                    sent_hello = True
+                conn.send(bytes((1 if is_key else 0,)) + struct.pack(">d", ts * 1000.0)
+                          + chunk)
+        except (queue.Empty, BrokenPipeError, ConnectionResetError, OSError):
+            pass
+        finally:
+            hub.unsubscribe(q)
+
+    def _ws_control(self, conn):
+        """클라이언트가 보내는 것은 시계 보정용 ping 뿐이다."""
+        try:
+            reader = WSReader(conn.sock)
+            while True:
+                op, payload = reader.frame()
+                if op == 0x8:
+                    break
+                if op == 0x9:                                  # ping
+                    conn.send(payload, opcode=0xA)
+                elif op == 0x1:
+                    m = json.loads(payload.decode("utf-8"))
+                    if m.get("t") == "ping":
+                        conn.send_text({"t": "pong", "c0": m["c0"], "s": time.time() * 1000.0})
+        except Exception:
+            pass
+
+    # ---------- MJPEG (대비) ----------
+    def _mjpeg(self, cid):
+        cam = MJPEG[cid]
         cam.want()
         self.send_response(200)
         self.send_header("Cache-Control", "no-cache, private")
@@ -218,11 +481,9 @@ class Handler(BaseHTTPRequestHandler):
         seq = -1
         try:
             while True:
-                cam.want()                    # 연결이 살아 있는 동안 계속 요구한다
+                cam.want()
                 seq, jpg = cam.wait_frame(seq)
                 if jpg is None:
-                    if cam.err:
-                        break
                     continue
                 self.wfile.write(b"--fr\r\nContent-Type: image/jpeg\r\nContent-Length: "
                                  + str(len(jpg)).encode() + b"\r\n\r\n" + jpg + b"\r\n")
@@ -238,8 +499,7 @@ def main():
     try:
         srv.serve_forever()
     except KeyboardInterrupt:
-        for w in WORKERS.values():
-            w.stop()
+        pass
 
 
 if __name__ == "__main__":
