@@ -19,7 +19,7 @@
 │  systemd 층 — 안전 필수, 항상 상주      │        │  Mosquitto (MQTT 5.0)    │
 │   ├ sensor-node   센서노드 wl-001      │─업무──►│  K3s server (제어평면)    │
 │   ├ robot-node    로봇 온보드 rb-01    │─관측──►│  OTel Collector (Agent)  │
-│   └ actuator-node 액추에이터 (예정)     │        │  미디어 게이트웨이 (예정)   │
+│   └ actuator-node 액추에이터 gate-01   │        │  미디어 게이트웨이 (예정)   │
 │  k3s agent 층 — 증강 기능(AI·영상)     │◄─배포──│                          │
 └────────────────────────────────────────┘        └──────────────────────────┘
 ```
@@ -35,9 +35,9 @@ systemd 로 상주시키고, 증강 기능만 k3s 로 배포한다. k3s agent �
 |---|---|---|---|
 | 공통 | HW-C-01 | 전송 인터페이스 — MQTT 5.0 적용 | ◐ TLS 대기 |
 | 공통 | HW-C-02 | 표준 메시지 규격 — BE-C-01/C-02 필드 정렬 | ◐ 백엔드 확정 대기 |
-| 공통 | HW-C-03 | K3s 컨테이너 배포·제거 | ⏳ 엣지 제어평면 부재 |
+| 공통 | HW-C-03 | K3s 컨테이너 배포·제거·셀프힐링 | ✅ (임시 엣지, `docs/EDGE_SETUP.md`) |
 | 공통 | HW-C-04 | Birth/Death + 상태 요약 10초 | ✅ |
-| 공통 | HW-C-05 | 관측 metric 5종 OTLP | ◐ Collector 부재 (실 export 미검증) |
+| 공통 | HW-C-05 | 관측 metric 5종 OTLP | ✅ 실 export 검증 (Collector 실물 대기) |
 | 공통 | HW-C-06 | 명령 ACK + 결과 4단계 승격 | ✅ |
 | 공통 | HW-C-07 | device_id 식별 + 변경 시 재등록 | ✅ |
 | 센서 | HW-S-01 | 계측값 수집 | ⛔ 센서 조달 대기 (`read_sensor()`만 교체) |
@@ -56,8 +56,11 @@ systemd 로 상주시키고, 증강 기능만 k3s 로 배포한다. k3s agent �
 | 로봇 | HW-R-07 | 관제 영상 온디맨드 | ⛔ 제어 경로만, 미디어 부재 |
 | 로봇 | HW-R-09 | 두절 버퍼링·재전송 | ✅ (이산/연속 정책 분리) |
 | 로봇 | HW-R-04, R-08, R-10 | 온디바이스 AI·맵·모델 배포 | ⛔ AI 파트·K3s 의존 |
-| 액추 | HW-A-03 | 제어 명령 ACK | ◐ 공통 체계로 검증, 실물 대기 |
-| 액추 | HW-A-01·02·04·05 | 상태 수집·구동·결과·안전 처리 | ⛔ 실물 대기 |
+| 액추 | HW-A-01 | 상태 5종 구분(대기/동작중/완료/오류/**확인불가**) | ✅ SimActuator |
+| 액추 | HW-A-02 | 사전 정의 물리 제어(수문·차수벽·펌프) | ✅ SimActuator |
+| 액추 | HW-A-03 | 즉시 ACK + **ACK 이전** 거부 4종 | ✅ |
+| 액추 | HW-A-04 | ACK와 물리 도달 구분, 20Hz 진행 보고 | ✅ SimActuator |
+| 액추 | HW-A-05 | 안전 잠금 + 복구 후 실제 상태 재확인 | ✅ SimActuator |
 
 ## 파일 구성
 
@@ -74,20 +77,24 @@ pi/
 ├─ robot/
 │   ├─ robot_node.py       로봇 온보드 (HW-R)
 │   └─ controller_link.py  제어기 내부 링크 (SimLink / CAN / Ethernet)
+├─ actuator/
+│   ├─ actuator_node.py    액추에이터 제어노드 (HW-A) — 4단계·안전 잠금
+│   └─ actuator_link.py    액추에이터 링크. 상태 5종 (unknown 을 close 와 뭉치지 않는다)
 ├─ edge/monitor.py         엣지 대역 감시 (HW-S-07 + 상태 3층)
-├─ deploy/                 systemd unit + 현장 설정 템플릿
-└─ pi_base_setup.sh        멱등 프로비저닝 (--role sensor|robot)
+├─ deploy/                 systemd unit + 현장 설정 + k8s 증강 워크로드 매니페스트
+└─ pi_base_setup.sh        멱등 프로비저닝 (--role sensor|robot|actuator)
 ```
 
 ## 채널(토픽) 구조
 
-`{zone}/{type}/{entity}/{channel}` — 예: `zoneA/sensor/wl-001`, `zoneA/robot/rb-01`
+`{zone}/{type}/{entity}/{channel}` — 예: `zoneA/sensor/wl-001`, `zoneA/robot/rb-01`,
+`zoneA/actuator/gate-01`
 
 | 채널 | QoS | retained | 내용 |
 |---|---|---|---|
 | `status` | 1 | ○ | birth / summary(10초) / rebirth / shutdown / death |
 | `heartbeat` | 0 | | 1 Hz. 로봇은 임무 중 정지 |
-| `state` | 센서 1 · 로봇 0 | | 계측·로봇 상태 |
+| `state` | 센서·액추에이터 1 · 로봇 0 | | 계측·로봇 상태·액추에이터 상태 |
 | `cmd` → `cmd/ack` → `cmd/result` | 1 | | 명령 4단계 |
 
 **QoS가 갈리는 이유**: 센서 계측은 유실 불가라 QoS 1. 로봇 20 Hz 상태는 다음 표본이
@@ -109,9 +116,9 @@ journalctl -u sensor-node -f
 cd pi && python3 -m edge.monitor
 ```
 
-한 대에서 두 역할을 함께 검증할 때는 `/etc/hw-robot.env` 에 `HW_ENTITY_ID=rb-01` 을
-넣고 `robot-node` 를 함께 띄운다. 설정은 코드가 아니라 `/etc/hw-node.env` 또는
-`HW_*` 환경변수로 바꾼다.
+한 대에서 여러 역할을 함께 검증할 때는 `/etc/hw-robot.env`·`/etc/hw-actuator.env` 에
+`HW_ENTITY_ID` 를 넣고 각 서비스를 함께 띄운다(pi7 에서 3종 동시 가동 확인).
+설정은 코드가 아니라 `/etc/hw-node.env` 또는 `HW_*` 환경변수로 바꾼다.
 
 ### 검증 시나리오 (전부 pi7 실기 통과)
 
@@ -138,6 +145,9 @@ mosquitto_pub -h <IP> -t $S -q 1 -m '{"command_id":"d1","action":"diag"}'
 | 두절 버퍼링 | 브로커 종료 후 복구 | 순서 보존 재전송, 잔량 0 | 센서 31건 전량 ✅ |
 | 버퍼 정책 분리 | 20Hz 임무 중 63초 두절 | 연속값은 1Hz로 솎고 이산 사건은 전량 | **1257건 → 64건**(95% 감축) ✅ |
 | device_id 중복 | 같은 ID 두 노드 | 20초 내 3회 재접속 시 `[치명]` 경보 | ✅ 양방향 |
+| 액추에이터 4단계 | `actuate gate open` | ACK→수행중→**물리 도달 확인**→완료 | ✅ |
+| 액추에이터 안전 잠금 | `touch /tmp/feedback_loss` 또는 브로커 종료 | 잠금 + 안전 상태 복귀, 명령 거부. 복구 시 실제 상태 재확인 후 해제 | ✅ 두 경로 |
+| K3s 증강 배포 | `kubectl apply/delete` | pi7 에 배포·셀프힐링(Exit 137)·제거. **MQTT 무영향** | ✅ |
 | 명령 중복 배달 | 같은 command_id 재전송 | 재실행 없이 이전 ACK 재송신 | ✅ |
 
 ## 임시값 (협의 후 교체)
@@ -153,6 +163,10 @@ mosquitto_pub -h <IP> -t $S -q 1 -m '{"command_id":"d1","action":"diag"}'
 
 ## 다음 할 일
 
-엣지노드 하드웨어 확보(K3s 제어평면·브로커·OTel Collector) → HW-C-03·HW-C-05 실검증,
-백엔드 협의(토픽·스키마·하트비트 주기·G2/G3), 센서·로봇·액추에이터 실물 조달,
-Pi 5 영상 인코딩 벤치마크(하드웨어 H.264 인코더 없음 — SRS §9.3).
+| 항목 | 막고 있는 것 |
+|---|---|
+| 현장용 엣지 전용 장비 | 현재 제어평면·브로커가 개발 PC 에 있다. PC 가 꺼지면 구역이 멈춘다 |
+| 백엔드 협의 | 토픽 체계·스키마 필드·하트비트 주기·[G2]/[G3]·frame_ref 형식 |
+| 센서·로봇·액추에이터 실물 | `read_sensor()` / `ControllerLink` / `ActuatorLink` 교체만 남았다 |
+| Pi 5 영상 인코딩 벤치마크 | 하드웨어 H.264 인코더가 없어 CPU 예산이 영상 설계를 지배한다 (SRS §9.3) |
+| 증강 컨테이너 이미지 빌드 | 현재는 매니페스트만. arm64 이미지 빌드·레지스트리 필요 |

@@ -12,7 +12,7 @@
 #   --entity   Entity 식별자(장치 ID). type-serial 형식. 채번 대장에서 받아온다 (HW-C-07)
 #   --node     물리 노드 식별자. 생략 시 hostname
 #   --zone     소속 구역 (HW-C-04)
-#   --role     sensor | robot — 설치할 서비스가 갈린다 (요구사항 8: 로봇/센서 분할)
+#   --role     sensor | robot | actuator — 설치할 서비스가 갈린다 (요구사항 8)
 #   --ntp      상위 NTP 서버(엣지노드). 생략 시 기존 chrony 설정 유지 (HW-S-08)
 #   --broker   MQTT 브로커 주소. /etc/hw-node.env 에 기록
 #   --no-venv  파이썬 venv 구성 생략
@@ -158,7 +158,17 @@ case "$ROLE" in
       echo "  ! deploy/robot-node.service 미존재"
     fi
     ;;
-  *) echo "  ✗ 알 수 없는 role: $ROLE (sensor|robot)" >&2; exit 1 ;;
+  actuator)
+    if [ -f "$REPO_DIR/deploy/actuator-node.service" ]; then
+      sudo cp "$REPO_DIR/deploy/actuator-node.service" /etc/systemd/system/
+      sudo systemctl daemon-reload
+      sudo systemctl enable actuator-node > /dev/null 2>&1
+      ok "actuator-node.service 설치·부팅 등록 (기동은 수동: systemctl start actuator-node)"
+    else
+      echo "  ! deploy/actuator-node.service 미존재"
+    fi
+    ;;
+  *) echo "  ✗ 알 수 없는 role: $ROLE (sensor|robot|actuator)" >&2; exit 1 ;;
 esac
 
 # ---------------------------------------------------------------- 마무리

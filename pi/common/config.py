@@ -100,5 +100,20 @@ ROBOT_STATE_QOS = _i("ROBOT_STATE_QOS", 0)
 ROBOT_BATTERY_WARN = _f("ROBOT_BATTERY_WARN", 20.0)     # % — 이산 경보 임계
 CONTROLLER_LINK = _s("CONTROLLER_LINK", "sim")          # sim | can | eth
 
+# ---------------- 액추에이터 제어노드 (HW-A) ----------------
+ACTUATOR_LINK = _s("ACTUATOR_LINK", "sim")              # sim | modbus | gpio
+ACTUATOR_SAMPLE_INTERVAL = _f("ACTUATOR_SAMPLE_INTERVAL", 0.02)   # 내부 수집
+# HW-A-04: 동작 중 50ms(20Hz) 진행 보고. 대기 중에는 낮춘다 —
+# 가만히 있는 수문을 초당 20번 보고할 이유가 없다.
+ACTUATOR_REPORT_INTERVAL_MOVING = _f("ACTUATOR_REPORT_INTERVAL_MOVING", 0.05)
+ACTUATOR_REPORT_INTERVAL_IDLE = _f("ACTUATOR_REPORT_INTERVAL_IDLE", 10.0)
+ACTUATOR_TIMEOUT_S = _f("ACTUATOR_TIMEOUT_S", 10.0)     # 구동 완료 대기 상한
+# HW-A-05: 통신 두절이 이 시간을 넘으면 원격 제어를 잠그고 안전 상태로 간다.
+# 하트비트 4회(4초) 판정과 맞춘다.
+ACTUATOR_LOCK_AFTER_S = _f("ACTUATOR_LOCK_AFTER_S", 4.0)
+# 시연·시험용 피드백 상실 주입구. 이 파일이 있으면 위치를 알 수 없는 상태가 된다.
+# (강우 스위치 RAIN_FLAG 와 같은 방식 — 실물 결선 후 제거)
+FEEDBACK_LOSS_FLAG = _s("FEEDBACK_LOSS_FLAG", "/tmp/feedback_loss")
+
 # ---------------- 가짜 센서 스위치 (실센서 입고 시 제거) ----------------
 RAIN_FLAG = _s("RAIN_FLAG", "/tmp/rain")

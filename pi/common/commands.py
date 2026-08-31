@@ -70,6 +70,15 @@ class CommandEngine:
             self._ack(cid, action, "rejected", "unsupported_action")
             return
 
+        # 수행할 수 없는 명령은 ACK 단계에서 사유와 함께 거부한다(HW-A-03).
+        # 받아 놓고 나중에 failed 로 돌려주면, 되돌리기 어려운 명령을 다루는 관제가
+        # "일단 갔다"고 오해하는 시간이 생긴다.
+        try:
+            self.owner.validate(action, params)
+        except CommandError as e:
+            self._ack(cid, action, "rejected", str(e))
+            return
+
         self._ack(cid, action, "accepted")          # 1단계
         self.q.put((cid, action, params))
 

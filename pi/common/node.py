@@ -272,6 +272,10 @@ class BaseNode:
         로봇은 20ms 로 수집하고 50ms 로 발행하는데, 발행을 on_sample 안에 두면
         20ms 틱에 양자화되어 60ms 간격(16.7Hz)이 나온다 — 20Hz 를 못 채운다."""
 
+    def validate(self, action, params):
+        """ACK 전 사전 검증. 수행할 수 없으면 CommandError 를 던진다(HW-A-03).
+        기본은 통과 — 설정 명령처럼 되돌릴 수 있는 것은 수행 중 실패로도 충분하다."""
+
     def next_wakeup(self):
         """on_tick 이 처리할 다음 마감시각(epoch). 없으면 None.
         루프가 이 시각에도 깨도록 해 위의 양자화를 막는다."""
