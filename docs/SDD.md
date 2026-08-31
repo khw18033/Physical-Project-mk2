@@ -428,7 +428,28 @@ H.264 로 주므로 **바이트를 그대로 넘기고 브라우저가 하드웨
 **남은 판단(O-20)**: 코덱이 H.264 라 v8 의 JPEG 와 다르다. 엣지가 둘 다 받을지, 코덱을
 맞출지는 백엔드·AI 와 정해야 한다. 전송 계층(RTP/UDP)은 어차피 우리가 다시 싣는다.
 
-### 5.5.5 구현 (`robot/media.py`)
+### 5.5.5 운영 경로 구현 — `robot/go1_relay.py` (2026-08-31, 로컬 검증)
+
+18차의 "무변환이 답"을 운영 경로로 만들었다. 뷰어(bench)는 사람 확인용이었고,
+실제 HW-R-07 은 **엣지로의 RTP 송출**이다.
+
+    Go1 카메라(웹소켓 H.264) ── Go1RtpRelaySender ──► RTP/UDP ──► 엣지
+
+- **RFC 6184 를 직접 구현했다** (Single NAL + FU-A, marker=액세스 유닛 경계, 90 kHz).
+  0.58 Mbps 를 옮기는 데 ffmpeg 프로세스는 과하고, 프로세스 관리라는 실패 모드 전체
+  (기동 실패·좀비·파이프 막힘·`-huffman`·`nobuffer`·`-threads` 함정)가 사라진다.
+- `MediaSender` 구현체라 로봇 노드의 `stream` 명령(4단계 승격)이 **코드 수정 없이**
+  이 송신기를 켜고 끈다. `HW_MEDIA_SENDER=go1_relay`, 카메라는 `HW_GO1_CAM_ID`.
+- SDP 는 `status()["sdp"]` 로 명령 회신에 실린다. SPS/PPS 는 로봇이 매 IDR(0.5초)마다
+  인밴드로 보내므로 `sprop-parameter-sets` 없이 디코더가 붙는다.
+
+**검증 (bench/go1_relay_test.py — 실물 불필요, 어느 OS 든).** RTP 는 규격이고 규격
+준수는 바이트로 판정된다: 가짜 wssink(합성 Annex-B) → 중계 → UDP 수신 → 재조립 비교.
+45프레임 79패킷(FU-A 49) 전 프레임 **바이트 일치**, 시퀀스 랩(65534→0) 연속, marker
+프레임당 정확히 1개, FU-A 조각 ≤ MTU, 이중 start 거부, 죽은 카메라 기동 실패 감지.
+실기(엣지 수신·디코드) 확인은 파이·로봇 확보 시 남은 유일한 항목이다.
+
+### 5.5.6 대비 경로 구현 (`robot/media.py`)
 
 `MediaSender` 추상 뒤에 `RtpJpegSender` 를 둔다(`ControllerLink`·`ActuatorLink` 와 같은 방식).
 카메라 미확보 상태에서는 `HW_MEDIA_SOURCE=test` 로 테스트 패턴을 써 **경로 자체를 검증**한다.

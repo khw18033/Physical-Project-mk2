@@ -258,6 +258,10 @@ def create(kind=None):
     kind = kind or config.MEDIA_SENDER
     if kind == "rtp_jpeg":
         return RtpJpegSender()
+    if kind == "go1_relay":
+        # Go1 실기용: H.264 를 디코드·재인코딩 없이 RTP 로 중계한다 (HW-R-07)
+        from robot.go1_relay import Go1RtpRelaySender
+        return Go1RtpRelaySender()
     if kind == "none":
         return NoMediaSender()
     raise NotImplementedError(f"MediaSender '{kind}' 미구현")

@@ -109,11 +109,12 @@ CONTROLLER_LINK = _s("CONTROLLER_LINK", "sim")          # sim | go1 | can | eth
 GO1_MQTT_HOST = _s("GO1_MQTT_HOST", "192.168.123.161")
 GO1_STALE_S = _f("GO1_STALE_S", 2.0)          # robot/state 12.5Hz 기준
 GO1_BMS_STALE_S = _f("GO1_BMS_STALE_S", 15.0) # bms/state 0.5Hz 기준
+GO1_CAM_ID = _i("GO1_CAM_ID", 1)              # go1_relay 가 중계할 카메라 (1=정면)
 
 # ---------------- 영상 송출 (HW-R-07 / HW-S-06, 아키텍처 v8 §5-10) ----------------
 # 홉1(말단→엣지)은 JPEG/RTP over UDP 로 확정됐다. frame_ref 는 엣지가 디코드 시점에
 # 발급하므로(v8 §6-9) 말단은 만들지 않는다.
-MEDIA_SENDER = _s("MEDIA_SENDER", "rtp_jpeg")           # rtp_jpeg | none
+MEDIA_SENDER = _s("MEDIA_SENDER", "rtp_jpeg")           # rtp_jpeg | go1_relay | none
 # 카메라 미확보 시 "test"(테스트 패턴)로 경로만 검증한다. 입고 후 /dev/videoN 으로 교체.
 MEDIA_SOURCE = _s("MEDIA_SOURCE", "test")
 MEDIA_SIZE = _s("MEDIA_SIZE", "1280x720")
