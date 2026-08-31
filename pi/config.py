@@ -1,0 +1,81 @@
+"""
+피지컬팀 mk2 — 말단 노드 설정 (주기·임계값·경로 단일 지점)
+==============================================================
+협의로 값이 바뀔 때 코드가 아니라 이 파일(또는 환경변수) 한 곳만 고치면 되도록
+임시값·주기 상수를 전부 모았다. 모든 값은 `HW_*` 환경변수로 덮어쓸 수 있어서
+파이에 배포한 뒤에도 systemd unit의 `Environment=` 만으로 주기를 바꿀 수 있다.
+
+주기 근거는 요구사항 정의서(xlsx) 기준. 계획서와 상충하는 값은 아래에 명시했다.
+"""
+import os
+
+def _s(name, default):
+    return os.environ.get(f"HW_{name}", default)
+
+def _f(name, default):
+    return float(os.environ.get(f"HW_{name}", default))
+
+def _i(name, default):
+    return int(os.environ.get(f"HW_{name}", default))
+
+def _b(name, default):
+    return str(os.environ.get(f"HW_{name}", default)).lower() in ("1", "true", "yes", "on")
+
+# ---------------- 브로커 접속 (HW-C-01) ----------------
+BROKER_HOST = _s("BROKER_HOST", "192.168.50.244")   # 임시: 노트북. 엣지노드 구축 후 교체
+BROKER_PORT = _i("BROKER_PORT", 1883)
+# BE-T-01이 말단↔엣지를 MQTT 5.0 + TLS로 확정. 5.0은 지금 적용하고,
+# TLS는 엣지 브로커에 인증서가 준비되면 아래 3개만 채우면 켜진다.
+MQTT_V5 = _b("MQTT_V5", "1")
+TLS_CA = _s("TLS_CA", "")           # 예: /etc/hw/ca.crt  (비어있으면 TLS 미사용)
+TLS_CERT = _s("TLS_CERT", "")
+TLS_KEY = _s("TLS_KEY", "")
+MQTT_USER = _s("MQTT_USER", "")
+MQTT_PASS = _s("MQTT_PASS", "")
+# 하트비트 1Hz 기준으로 keepalive를 짧게. 브로커는 keepalive*1.5(7.5초)에 LWT를
+# 띄우므로 LWT는 보조 경로이고, 4초 판정의 주 경로는 하트비트 타임아웃이다.
+KEEPALIVE = _i("KEEPALIVE", 5)
+
+# ---------------- 식별자 (HW-C-07, BE-C-02) ----------------
+# Entity(논리 개체) / Node(물리 노드) / Zone(구역) 3계층. 지금은 센서 1:1이라
+# entity == node 로 보이지만, 로봇처럼 한 노드가 여러 개체를 대리할 때 갈라진다.
+ENTITY_ID_FILE = _s("ENTITY_ID_FILE", "/etc/device_id")
+NODE_ID_FILE = _s("NODE_ID_FILE", "/etc/node_id")     # 없으면 hostname 사용
+ZONE_ID_FILE = _s("ZONE_ID_FILE", "/etc/zone_id")     # 없으면 ZONE_ID 기본값
+ZONE_ID = _s("ZONE_ID", "zoneA")                      # 임시: 도메인 체계 확정 대기
+ENTITY_TYPE = _s("ENTITY_TYPE", "sensor")             # 토픽 2번째 칸
+DEVICE_TYPE = _s("DEVICE_TYPE", "water_level")        # 등록 메시지의 장치 종류
+FW_VERSION = _s("FW_VERSION", "0.3.0")
+# HW-C-07: 네트워크·구역 변경 시 갱신 → 이 주기로 MAC/IP/zone 변화를 확인
+IDENTITY_CHECK_INTERVAL = _f("IDENTITY_CHECK_INTERVAL", 10)
+
+# ---------------- 주기 (HW-S-05, HW-C-04, HW-S-02/03) ----------------
+HB_INTERVAL = _f("HB_INTERVAL", 1.0)          # HW-S-05: 1 Hz (xlsx 기준)
+MISS_LIMIT = _i("MISS_LIMIT", 4)              # HW-S-07: 4회 미수신 → 약 4초
+STATUS_SUMMARY_INTERVAL = _f("STATUS_SUMMARY_INTERVAL", 10.0)   # HW-C-04: 10초 요약
+SAMPLE_INTERVAL = _f("SAMPLE_INTERVAL", 1.0)  # HW-S-01: 센서 데이터시트 확정 시 교체
+REPORT_INTERVAL_NORMAL = _f("REPORT_INTERVAL_NORMAL", 60.0)     # HW-S-02: 평시 1분
+REPORT_INTERVAL_EVENT = _f("REPORT_INTERVAL_EVENT", 1.0)        # HW-S-03: 이벤트 1 Hz
+
+# ---------------- 계측 판정 (HW-S-02) ----------------
+THRESHOLD = _f("THRESHOLD", 3.0)      # 임계 수위(m)
+HYST = _f("HYST", 0.1)                # 해제 여유: 경계에서 알림이 떨리는 것 방지
+# "급변 시 즉시 발행" — 임계 미만이라도 빠르게 오르면 그 자체가 사건이다.
+# 잔물결을 사건으로 오인하지 않도록 창(window) 양끝 차이로 판정한다.
+RAPID_WINDOW_S = _f("RAPID_WINDOW_S", 10.0)
+RAPID_DELTA_M = _f("RAPID_DELTA_M", 0.3)
+RAPID_MIN_GAP_S = _f("RAPID_MIN_GAP_S", 10.0)   # 급변 보고 자체의 최소 간격
+
+# ---------------- 관측 (HW-C-05, BE-S-02) ----------------
+# 엣지 Collector(Agent)의 OTLP 수신 주소. 비우면 관측 발신을 끈다(노드는 정상 동작).
+OTEL_ENDPOINT = _s("OTEL_ENDPOINT", "")       # 예: http://192.168.50.244:4317
+# 요구사항 정의서(HW-C-05)는 60초. 계획서 초안의 15초와 상충하여 정의서를 따른다.
+OTEL_EXPORT_INTERVAL = _f("OTEL_EXPORT_INTERVAL", 60.0)
+
+# ---------------- 두절 대비 버퍼 (HW-R-09) ----------------
+SPOOL_PATH = _s("SPOOL_PATH", "/var/lib/hw-node/spool.jsonl")
+SPOOL_MAX = _i("SPOOL_MAX", 5000)             # 초과분은 오래된 것부터 폐기
+SPOOL_REPLAY_BATCH = _i("SPOOL_REPLAY_BATCH", 50)   # 복구 시 한 번에 밀어넣는 양
+
+# ---------------- 가짜 센서 스위치 (실센서 입고 시 제거) ----------------
+RAIN_FLAG = _s("RAIN_FLAG", "/tmp/rain")
