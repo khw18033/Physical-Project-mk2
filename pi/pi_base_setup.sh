@@ -15,12 +15,14 @@
 #   --role     sensor | robot | actuator — 설치할 서비스가 갈린다 (요구사항 8)
 #   --ntp      상위 NTP 서버(엣지노드). 생략 시 기존 chrony 설정 유지 (HW-S-08)
 #   --broker   MQTT 브로커 주소. /etc/hw-node.env 에 기록
+#   --go1 IP   Unitree Go1 내부망(192.168.123.0/24) 연결을 eth0 에 영구 등록.
+#              IP 는 우리 쪽 주소(예: 192.168.123.162). 생략 시 이 단계를 건너뛴다
 #   --no-venv  파이썬 venv 구성 생략
 #
 # 근거: HW-S-08(시각 동기), HW-C-07(device_id 채번), HW-C-03(K3s 워커 편입 전제 cgroup)
 set -euo pipefail
 
-ENTITY=""; NODE=""; ZONE=""; ROLE="sensor"; NTP=""; BROKER=""; DO_VENV=1
+ENTITY=""; NODE=""; ZONE=""; ROLE="sensor"; NTP=""; BROKER=""; DO_VENV=1; GO1_IP=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --entity) ENTITY="$2"; shift 2 ;;
@@ -29,6 +31,7 @@ while [ $# -gt 0 ]; do
     --role)   ROLE="$2";   shift 2 ;;
     --ntp)    NTP="$2";    shift 2 ;;
     --broker) BROKER="$2"; shift 2 ;;
+    --go1)    GO1_IP="$2";  shift 2 ;;
     --no-venv) DO_VENV=0;  shift ;;
     -h|--help) sed -n '2,25p' "$0"; exit 0 ;;
     *) echo "알 수 없는 옵션: $1" >&2; exit 1 ;;
@@ -117,6 +120,36 @@ if [ "$DO_VENV" = "1" ]; then
   ok "라이브러리: $("$VENV/bin/pip" list 2>/dev/null | grep -ciE 'paho|opentelemetry|psutil')개 확인"
 else
   ok "venv 구성 생략(--no-venv)"
+fi
+
+# ---------------------------------------------------------------- 4-1. Go1 내부망
+# 로봇(Unitree Go1)은 등판 이더넷이 내부 스위치에 직결되어 있고 내부망이
+# 192.168.123.0/24 다. 말단을 여기에 붙여 텔레메트리를 받는다(HW-R-01).
+#
+# ⚠ 기본 경로(default route)를 절대 이쪽으로 넘기지 않는다. Go1 내부망에는 우리가
+#   쓸 게이트웨이가 없어서, 기본 경로가 넘어가면 엣지·브로커와의 연결이 통째로 끊긴다.
+#   그래서 gateway 를 주지 않고 ipv4.never-default 를 건다.
+#
+# ⚠ `ip addr add` 로 붙이면 재부팅에 날아간다. NetworkManager 프로파일로 등록한다
+#   (실제로 임시 설정을 쓰다가 파이 재부팅 때 Go1 연결이 통째로 끊긴 적이 있다).
+if [ -n "$GO1_IP" ]; then
+  say "Go1 내부망 연결 (HW-R-01)"
+  if command -v nmcli > /dev/null && [ "$(systemctl is-active NetworkManager)" = "active" ]; then
+    sudo nmcli con delete go1-link > /dev/null 2>&1 || true
+    sudo nmcli con add type ethernet ifname eth0 con-name go1-link          ipv4.method manual ipv4.addresses "$GO1_IP/24"          ipv4.never-default yes ipv6.method disabled          connection.autoconnect yes > /dev/null
+    sudo nmcli con up go1-link > /dev/null 2>&1 || true
+    ok "eth0 = $GO1_IP (영구, 기본 경로는 기존 인터페이스 유지)"
+    if ip route | grep -q "^default.*eth0"; then
+      echo "  ✗ 기본 경로가 eth0 로 넘어갔다 — 엣지 연결이 끊긴다. 확인 필요" >&2
+    else
+      ok "기본 경로: $(ip route | awk '/^default/{print $3, $5; exit}')"
+    fi
+    for h in 192.168.123.161 192.168.123.13; do
+      timeout 2 ping -c1 -W1 "$h" > /dev/null 2>&1         && ok "Go1 $h 응답" || echo "  ! Go1 $h 무응답 (케이블·전원 확인)"
+    done
+  else
+    echo "  ! NetworkManager 가 없어 영구 등록을 건너뛴다. 수동 설정 필요"
+  fi
 fi
 
 # ---------------------------------------------------------------- 5. 현장 설정
