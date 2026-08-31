@@ -43,6 +43,7 @@ import {
 } from '../data/index.ts';
 import { useEntities } from '../data/hooks.ts';
 import type { EntityRecord } from '../data/store.ts';
+import { Explain } from '../../shared/Explain.tsx';
 
 /**
  * **계획 대상을 코드에 적지 않는다.** 계획이 도착한 대상이 곧 임무 대상이고,
@@ -82,9 +83,9 @@ export function PlanApproval() {
       <header className="board__head">
         <div>
           <h2 className="board__title">임무 승인 · 서브태스크 진행</h2>
-          <p className="board__sub">
+          <Explain id="plan-1" className="board__sub">
             검증을 통과해도 <strong>사람이 승인해야 실행된다</strong>. 승인 전에는 구간이 하나도 진행되지 않는다
-          </p>
+          </Explain>
         </div>
         <div className="board__meta">
           {targets.length > 1 && (
@@ -225,7 +226,7 @@ function ApprovalPanel({ plan }: { plan: Plan }) {
 
       <ProvenanceTrack steps={ev.provenance} />
 
-      <p className="note note--dim">
+      <Explain id="plan-2" className="note note--dim">
         생성기 {ev.generator.name} {ev.generator.version} · 입력 맥락 {ev.generator.context_version}
         {/* 대본 계획은 AI 산출이 아니다 — 키워드 대조다. 감추면 REQ-1207 위반이다 (260831). */}
         {plan.script !== undefined
@@ -237,7 +238,7 @@ function ApprovalPanel({ plan }: { plan: Plan }) {
             상관키 <code>{plan.command_id}</code> <span className="chip chip--backend">백엔드 발급 (BE-X-01)</span>
           </>
         )}
-      </p>
+      </Explain>
 
       {pending && (
         <div className="approvebar">
@@ -332,10 +333,10 @@ function ProvenanceTrack({ steps }: { steps: ProvenanceStep[] }) {
           </li>
         ))}
       </ol>
-      <p className="note note--dim">
+      <Explain id="plan-3" className="note note--dim">
         AI는 계획 <strong>생성</strong>과 <strong>검증</strong>까지다. 가시화 전달·승인 수신·엣지 발행은 백엔드
         중계 구간이며, 승인·거부 모두 이 경로로 돌아간다.
-      </p>
+      </Explain>
     </section>
   );
 }
@@ -416,10 +417,10 @@ function SegmentTrack({ plan, segments }: { plan: Plan; segments: PlanSegment[] 
       )}
 
       {segments.some((s) => s.status === 'failed') && (
-        <p className="note">
+        <Explain id="plan-4" className="note">
           실패 뒤 구간은 <strong>하달 자체가 되지 않아</strong> '건너뜀'으로 표시된다. '대기'와 구분해야
           "왜 뒤 구간이 안 돌았나"가 화면에서 설명된다.
-        </p>
+        </Explain>
       )}
 
       {segments.some((s) => s.failure !== null) && openIndex === null && (

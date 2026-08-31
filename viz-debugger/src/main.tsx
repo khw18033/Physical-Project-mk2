@@ -16,6 +16,7 @@ import { ActionModal } from './views/ActionModal.tsx';
 import { UtterancePanel } from './views/UtterancePanel.tsx';
 import { StatusLegend } from './views/StatusLegend.tsx';
 import './style.css';
+import { Explain } from './shared/Explain.tsx';
 
 type Screen = 'milestones' | 'graph' | 'detail' | 'replay' | 'failure';
 
@@ -73,10 +74,21 @@ function ReplayControls({ second, following, playing, onChange, onFollow, view, 
   </div><input aria-label="임무 재생 시각" type="range" min="0" max={view.durationSec} value={shown} onChange={(event) => onChange(Number(event.target.value))} /><div className="timelines">{tasks.map((task) => <div key={task.id}><code>{task.id}</code><span className="timeline">{timelineSegments(view, task.id).map((segment, index) => <em key={`${segment.start}-${index}`} className={`state-${segment.status}`} style={{ width: `${(segment.end - segment.start) / view.durationSec * 100}%` }} />)}<i style={{ left: `${shown / view.durationSec * 100}%` }} /></span></div>)}</div></section>;
 }
 
-function GraphScreen({ screen, view, milestone, tasks, headSec, playing, layoutMode, onLayout, onOpen }: {
+/**
+ * 노드 분화(260831) 이후 그래프의 **보기 범위.**
+ * 분기·합류는 대부분 마일스톤을 건넌다 — 1편의 합류(T-15a ← MS-D 셋)도, 2편의
+ * 되돌아감(MS-F → MS-C)도. 그래서 「임무 전체」 보기를 둔다. 기본은 여전히 마일스톤이다 —
+ * HCI 전달본의 화면 흐름(마일스톤 클릭 → 그 마일스톤의 그래프)을 지킨다.
+ */
+export type GraphScope = 'milestone' | 'mission';
+
+function GraphScreen({ screen, view, milestone, tasks, headSec, playing, layoutMode, onLayout, scope, onScope, refEdges, crossing, onOpen }: {
   screen: Screen; view: MissionView; milestone: MissionMilestone | null; tasks: Task[];
   headSec: number; playing: boolean;
-  layoutMode: 'dag' | 'tree'; onLayout(value: 'dag' | 'tree'): void; onOpen(task: Task, failed: boolean): void;
+  layoutMode: 'dag' | 'tree'; onLayout(value: 'dag' | 'tree'): void;
+  scope: GraphScope; onScope(value: GraphScope): void;
+  refEdges: MissionView['refEdges']; crossing: MissionView['refEdges'];
+  onOpen(task: Task, failed: boolean): void;
 }) {
   const replay = screen === 'replay'; const failure = screen === 'failure';
   /** 되감기 위치. null 이면 재생 머리를 따라간다(live). */
@@ -85,8 +97,13 @@ function GraphScreen({ screen, view, milestone, tasks, headSec, playing, layoutM
   const second = replay ? (override ?? headSec) : headSec;
   const folded = useMemo(() => statusesAt(second, view), [second, view]);
   const failedTask = tasks.find((task) => folded.tasks[task.id]?.status === 'failed') ?? null;
-  const title = milestone === null ? view.label : `마일스톤 ${milestone.id.replace(/^MS-/, '')} · ${milestone.title}`;
-  return <div className={replay ? 'replay-layout' : ''}>{replay && <aside className="history"><h2>임무 이력</h2><PendingSource id="mission-history" minHeight={200}>{['MSN-260826-01 · 실패', 'MSN-260826-00 · 완료', 'MSN-260825-07 · 완료', 'MSN-260825-06 · 완료'].map((item) => <button key={item}>{item}</button>)}</PendingSource></aside>}<section className="graph-panel"><header className="section-title"><div><h2>{title}</h2><small>{replay ? `리플레이 · T+${String(Math.round(second)).padStart(2, '0')}s` : failure ? (failedTask ? '실패 경로 강조 · 관련 없는 노드 흐림' : '이 대본에는 실패가 없습니다 — 결함 주입(REQ-1409)으로 만들 수 있습니다') : '분기와 합류가 있는 태스크 DAG'}</small></div><div className="toggle"><button className={layoutMode === 'dag' ? 'active' : ''} onClick={() => onLayout('dag')}>DAG</button><button className={layoutMode === 'tree' ? 'active' : ''} onClick={() => onLayout('tree')}>트리</button></div></header><TaskGraph tasks={tasks} hardware={listRegisteredHardware()} states={folded.tasks} layoutMode={layoutMode} selected={failure ? failedTask?.id : undefined} dimUnrelated={failure && failedTask !== null} onOpen={(task) => onOpen(task, folded.tasks[task.id]?.status === 'failed')} />{replay && <ReplayControls second={second} following={override === null} playing={playing} onChange={setOverride} onFollow={() => setOverride(null)} view={view} tasks={tasks} />}<StatusLegend /><p className="hint">노드를 더블클릭하면 액션 아이템 상세를 엽니다. 실패 상태 노드는 수정 화면으로 이어집니다.</p></section></div>;
+  const title = scope === 'mission'
+    ? `${view.label} · 임무 전체 ${tasks.length}노드`
+    : milestone === null ? view.label : `마일스톤 ${milestone.id.replace(/^MS-/, '')} · ${milestone.title}`;
+  return <div className={replay ? 'replay-layout' : ''}>{replay && <aside className="history"><h2>임무 이력</h2><PendingSource id="mission-history" minHeight={200}>{['MSN-260826-01 · 실패', 'MSN-260826-00 · 완료', 'MSN-260825-07 · 완료', 'MSN-260825-06 · 완료'].map((item) => <button key={item}>{item}</button>)}</PendingSource></aside>}<section className="graph-panel"><header className="section-title"><div><h2>{title}</h2><small>{replay ? `리플레이 · T+${String(Math.round(second)).padStart(2, '0')}s` : failure ? (failedTask ? '실패 경로 강조 · 관련 없는 노드 흐림' : '이 대본에는 실패가 없습니다 — 결함 주입(REQ-1409)으로 만들 수 있습니다') : '분기와 합류가 있는 태스크 DAG'}</small></div><div className="toggle"><button className={layoutMode === 'dag' ? 'active' : ''} onClick={() => onLayout('dag')}>DAG</button><button className={layoutMode === 'tree' ? 'active' : ''} onClick={() => onLayout('tree')}>트리</button></div><div className="toggle"><button className={scope === 'milestone' ? 'active' : ''} onClick={() => onScope('milestone')}>이 마일스톤</button><button className={scope === 'mission' ? 'active' : ''} onClick={() => onScope('mission')}>임무 전체</button></div></header><TaskGraph tasks={tasks} hardware={listRegisteredHardware()} states={folded.tasks} layoutMode={layoutMode} selected={failure ? failedTask?.id : undefined} dimUnrelated={failure && failedTask !== null} refEdges={refEdges} onOpen={(task) => onOpen(task, folded.tasks[task.id]?.status === 'failed')} />
+    {/* 마일스톤 밖으로 나가는 되돌아감 — 적지 않으면 사용자는 루프의 존재를 모른다 (결정 2). */}
+    {crossing.length > 0 && <p className="ref-crossing">↺ {crossing.map((edge) => `${edge.from} → ${edge.to} (${edge.label})`).join(' · ')} — 이 마일스톤 밖으로 되돌아갑니다 <button onClick={() => onScope('mission')}>임무 전체로 보기</button></p>}
+    {replay && <ReplayControls second={second} following={override === null} playing={playing} onChange={setOverride} onFollow={() => setOverride(null)} view={view} tasks={tasks} />}<StatusLegend /><Explain id="dbg-1" className="hint">노드를 더블클릭하면 액션 아이템 상세를 엽니다. 실패 상태 노드는 수정 화면으로 이어집니다.</Explain></section></div>;
 }
 
 export type DebuggerNavigation = { screen: 'milestones' | 'replay'; requestId: number };
@@ -107,12 +124,13 @@ export function MissionDebugger({ navigation, planApproval }: { navigation?: Deb
 
   const [screen, setScreen] = useState<Screen>('milestones');
   const [layoutMode, setLayoutMode] = useState<'dag' | 'tree'>('dag');
+  const [scope, setScope] = useState<GraphScope>('milestone');
   const [modalTask, setModalTask] = useState<Task | null>(null);
   const [assignments, setAssignments] = useState<Record<string, string[]>>({});
   const [milestoneId, setMilestoneId] = useState<string | null>(null);
 
   // 임무가 바뀌면(대본 승인) 한 편에 묶였던 화면 상태를 처음으로 되돌린다.
-  useEffect(() => { setScreen('milestones'); setModalTask(null); setAssignments({}); setMilestoneId(null); }, [view.missionId]);
+  useEffect(() => { setScreen('milestones'); setModalTask(null); setAssignments({}); setMilestoneId(null); setScope('milestone'); }, [view.missionId]);
 
   // 그래프에 들어갈 마일스톤 — 클릭한 것. 태스크가 없으면(옛 파일의 MS-A 등)
   // 태스크를 가진 마일스톤으로 간다(옛 편은 전부 MS-C라 기존 화면 그대로다).
@@ -124,9 +142,20 @@ export function MissionDebugger({ navigation, planApproval }: { navigation?: Deb
 
   const graphTasks = useMemo(
     () => view.tasks
-      .filter((task) => task.milestone === graphMilestone?.id)
+      .filter((task) => scope === 'mission' || task.milestone === graphMilestone?.id)
       .map((task) => assignments[task.milestone ?? '']?.length ? { ...task, target: assignments[task.milestone ?? ''][0] } : task),
-    [assignments, graphMilestone, view],
+    [assignments, graphMilestone, scope, view],
+  );
+
+  // 참조 엣지 — 보이는 범위 안에 양끝이 다 있으면 그리고, 밖으로 나가면 한 줄로 적는다.
+  const graphTaskIds = useMemo(() => new Set(graphTasks.map((task) => task.id)), [graphTasks]);
+  const visibleRefEdges = useMemo(
+    () => view.refEdges.filter((edge) => graphTaskIds.has(edge.from) && graphTaskIds.has(edge.to)),
+    [graphTaskIds, view],
+  );
+  const crossingRefEdges = useMemo(
+    () => view.refEdges.filter((edge) => graphTaskIds.has(edge.from) !== graphTaskIds.has(edge.to)),
+    [graphTaskIds, view],
   );
 
   const milestoneStatuses = useMemo(() => statusesAt(display.headSec, view).milestones, [display.headSec, view]);
@@ -142,7 +171,7 @@ export function MissionDebugger({ navigation, planApproval }: { navigation?: Deb
 
   return <div className="mission-debugger">{screen === 'milestones'
     ? <Milestones view={view} phase={display.phase} milestoneStatuses={milestoneStatuses} assignments={assignments} onAssign={(id, hardware) => setAssignments((current) => ({ ...current, [id]: [...new Set([...(current[id] ?? []), hardware])] }))} onOpen={(id) => { setMilestoneId(id); navigate('graph'); }} planApproval={planApproval} />
-    : <GraphScreen screen={screen} view={view} milestone={graphMilestone} tasks={graphTasks} headSec={display.headSec} playing={display.phase === 'playing'} layoutMode={layoutMode} onLayout={setLayoutMode} onOpen={openTask} />}
+    : <GraphScreen screen={screen} view={view} milestone={graphMilestone} tasks={graphTasks} headSec={display.headSec} playing={display.phase === 'playing'} layoutMode={layoutMode} onLayout={setLayoutMode} scope={scope} onScope={setScope} refEdges={visibleRefEdges} crossing={crossingRefEdges} onOpen={openTask} />}
     {modalTask && <ActionModal task={modalTask} view={view} device={listRegisteredHardware().find((item) => item.id === modalTask.target)} failure={screen === 'failure'} onClose={() => { setModalTask(null); if (screen === 'detail') setScreen('graph'); }} />}
     {screen === 'failure' && !modalTask && firstFailed && <button className="failure-open" onClick={() => setModalTask(firstFailed)}>실패 수정 팝업 열기</button>}</div>;
 }

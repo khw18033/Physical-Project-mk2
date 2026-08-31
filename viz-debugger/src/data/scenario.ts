@@ -27,7 +27,7 @@ import rawScenario from '../../scenarios/MSN-260826-01.json';
 import { libraryEntry } from '../scenarios/library.ts';
 import type { ScriptMap, ScriptScenario } from '../scenarios/types.ts';
 import { TraceStore } from '../shared/stores/traceStore.ts';
-import type { Hardware, Scenario, ScenarioEvent, TaskStatus, Task } from '../model/types.ts';
+import type { Hardware, RefEdge, Scenario, ScenarioEvent, TaskStatus, Task } from '../model/types.ts';
 
 /** 옛 파일 원본. HCI 전달본·논문용 — 한 글자도 고치지 않는다(verify:scenario). */
 export const scenario = rawScenario as Scenario;
@@ -67,6 +67,8 @@ export type MissionView = {
   params: Record<string, unknown>;
   /** 2편의 구역 맵(503호 평면·카메라 시야·사각지대 칸). 다른 편은 null — 맵이 없다고 적는다. */
   map: ScriptMap | null;
+  /** 되돌아가는 참조 엣지 (260831 노드 분화). deps 가 아니다 — 그리기 전용. */
+  refEdges: RefEdge[];
 };
 
 function legacyView(): MissionView {
@@ -89,6 +91,7 @@ function legacyView(): MissionView {
     hardware: scenario.hardware ?? null,
     params: {},
     map: null,
+    refEdges: [],
   };
 }
 
@@ -111,6 +114,7 @@ function scriptToView(script: ScriptScenario): MissionView {
     hardware: null,
     params: script.params ?? {},
     map: script.map ?? null,
+    refEdges: script.refEdges ?? [],
   };
 }
 
@@ -139,8 +143,11 @@ export type MissionState = {
   /** 재생 머리(대본 시각 초). 재생 중이 아니면 durationSec — 슬라이더는 되감기 도구다. */
   headSec: number;
   playing: boolean;
-  /** 기동 기본(boot)인가, 사용자가 승인해 활성화(approval)됐는가 — 구판 세계 안내 띠의 근거. */
-  activatedBy: 'boot' | 'approval';
+  /**
+   * 기동 기본(boot) / 승인 활성화(approval) / 모드 스위치의 정지 미리보기(preview).
+   * 구판 세계 안내 띠와 「정지 미리보기」 표기의 근거다.
+   */
+  activatedBy: 'boot' | 'approval' | 'preview';
 };
 
 let state: MissionState = {
@@ -230,6 +237,21 @@ export function activateMission(missionId: string, mode: 'remote' | 'local'): vo
       commit({ headSec: nextHead });
     }, stepMs);
   }
+}
+
+/**
+ * 정지 미리보기 (260831 — 사이트 개선 요구 4 · 우상단 모드 스위치).
+ *
+ * 현재 임무를 그 대본으로 올리되 **사건이 하나도 없다** — headSec 0 · playing false 라
+ * 탭①은 전부 pending 으로 그린다(제안 상태와 같은 성질). **재생은 여전히 승인 뒤다** —
+ * 이 함수는 「그린다」까지이고 승인 선(VZ-U-07 · REQ-1506)을 우회하지 않는다.
+ */
+export function previewMission(missionId: string): void {
+  const view = viewForMission(missionId);
+  if (view === null) return;
+  stopLocalTimer();
+  missionTrace = new TraceStore();
+  commit({ current: view, proposal: null, headSec: 0, playing: false, activatedBy: 'preview' });
 }
 
 function stopLocalTimer(): void {

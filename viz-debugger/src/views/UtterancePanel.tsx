@@ -21,6 +21,7 @@ import { capabilities, type SttStatus } from '../stt/availability.ts';
 import { decide, PROVISIONAL_NOTE, VERDICT_LABEL, type ConfidenceDecision } from '../stt/confidence.ts';
 import { probe, STT_BASE_URL, transcribe } from '../stt/SttClient.ts';
 import { SttUnavailableError, type SttResult } from '../stt/types.ts';
+import { Explain } from '../shared/Explain.tsx';
 
 const LEVEL_BARS = 22;
 /** 레벨 갱신 주기. 60fps로 setState 하면 이 작은 패널이 렌더 예산을 먹는다. */
@@ -113,13 +114,13 @@ function Numbers({ result, decision }: { result: SttResult; decision: Confidence
         <dt>평균 단어 확률</dt>
         <dd>{show(result.mean_word_prob)} <small>단어 {result.word_count}개 · 최소 {show(result.min_word_prob)}</small></dd>
       </dl>
-      <p className="hint">셋을 하나의 점수로 합치지 않습니다. 합치면 임계값을 실측할 근거가 사라집니다.</p>
+      <Explain id="utt-1" className="hint">셋을 하나의 점수로 합치지 않습니다. 합치면 임계값을 실측할 근거가 사라집니다.</Explain>
       <ul>
         {decision.reasons.map((reason) => <li key={reason}>{reason}</li>)}
       </ul>
-      <p className="hint">
+      <Explain id="utt-2" className="hint">
         {result.device}/{result.compute_type} · 추론 {result.elapsed_sec.toFixed(2)}s · 로드 {result.load_sec.toFixed(2)}s · RTF {result.rtf.toFixed(2)}
-      </p>
+      </Explain>
     </details>
   );
 }
@@ -309,10 +310,10 @@ export function UtterancePanel({ fallbackText }: { fallbackText: string }) {
           등록 이름 우선
         </label>
       </div>
-      <p className="stt-hint">
+      <Explain id="utt-3" className="stt-hint">
         <b>등록 이름 우선</b> — 레지스트리에 등록된 구역·장비 이름(<code>503 구역</code>·<code>엣지 노드 A</code> …)
         쪽으로 인식을 맞춥니다. 끄면 그 편향 없이 인식합니다.
-      </p>
+      </Explain>
 
       {able.note && <p className="stt-note">{able.note}</p>}
       {phase === 'transcribing' && <p className="stt-note">인식 중입니다. 모델을 처음 읽는 경우 오래 걸립니다.</p>}
@@ -402,7 +403,7 @@ export function UtterancePanel({ fallbackText }: { fallbackText: string }) {
       <details className="manual-input" open={manualOpen || status === 'unavailable'}
         onToggle={(event) => setManualOpen((event.target as HTMLDetailsElement).open)}>
         <summary>문장을 직접 넣기</summary>
-        <p className="hint">STT 서비스({STT_BASE_URL})가 없어도 이 경로는 항상 열려 있습니다.</p>
+        <Explain id="utt-4" className="hint">STT 서비스({STT_BASE_URL})가 없어도 이 경로는 항상 열려 있습니다.</Explain>
         <textarea value={manual} rows={2} placeholder="예: 503 구역 로봇을 5층 복도로 이동시켜"
           onChange={(event) => setManual(event.target.value)} />
         <button disabled={!manual.trim()} onClick={() => void submitManual()}>직접 입력으로 요청</button>

@@ -27,8 +27,12 @@ const modePath = join(root, 'src', 'shared', 'renderMode.ts');
 {
   const m = await import(pathToFileURL(modePath).href);
   if (m.getRenderMode() !== 'placeholder') failures.push(`기본 렌더 모드가 '${m.getRenderMode()}' — 앱을 그냥 띄우면 자리표시여야 한다`);
-  m.enterScenarioRender({ missionId: 'MSN-X', title: 't', cast: ['sensor-01'] });
-  if (m.getRenderMode() !== 'scenario') failures.push('대본 진입 후 모드가 scenario 가 아니다');
+  // 진입 경로 둘 (260831 요구 4) — 정지 미리보기(playing: false)와 승인 재생(playing: true).
+  m.enterScenarioRender({ missionId: 'MSN-X', title: 't', cast: ['sensor-01'], axes: new Set(['water']), playing: false });
+  if (m.getRenderMode() !== 'scenario') failures.push('미리보기 진입 후 모드가 scenario 가 아니다');
+  if (m.getScenarioRender()?.playing !== false) failures.push('정지 미리보기가 playing: false 로 적히지 않는다 — 정지 화면을 재생 중이라고 말하면 안 된다');
+  m.enterScenarioRender({ missionId: 'MSN-X', title: 't', cast: ['sensor-01'], axes: new Set(['water']), playing: true });
+  if (m.getScenarioRender()?.playing !== true) failures.push('승인 재생이 playing: true 로 적히지 않는다');
   if (!m.getScenarioRender()?.castSet.has('sensor-01') || m.getScenarioRender()?.castSet.has('robot-02')) {
     failures.push('cast 집합이 대본 등장 장비만 담지 않는다 — cast 밖 장비는 자리표시여야 한다');
   }
@@ -46,12 +50,14 @@ const modePath = join(root, 'src', 'shared', 'renderMode.ts');
     const mutantPath = join(scratch, 'renderMode.ts');
     writeFileSync(mutantPath, readFileSync(modePath, 'utf8').replace('scenarioRender = null;', ';'), 'utf8');
     const mutant = await import(pathToFileURL(mutantPath).href);
-    mutant.enterScenarioRender({ missionId: 'MSN-X', title: 't', cast: [] });
+    mutant.enterScenarioRender({ missionId: 'MSN-X', title: 't', cast: [], axes: new Set(), playing: false });
     mutant.exitScenarioRender();
     if (mutant.getRenderMode() === 'placeholder') failures.push('대조군 실패: 닫기를 무력화한 사본이 placeholder 로 복귀했다 — 검사가 무의미하다');
     else controls.push('닫기 무력화 사본 검출');
   } finally {
-    rmSync(scratch, { recursive: true, force: true });
+    // 일부 개발 환경은 파일 삭제가 막혀 EPERM 이 난다 — 검사는 이미 끝났으므로
+    // 정리 실패로 죽지 않는다. 남은 .verify-* 디렉터리는 사람이 지운다.
+    try { rmSync(scratch, { recursive: true, force: true }); } catch { console.warn('임시 디렉터리 정리 실패(삭제 금지 환경?) — ' + scratch); }
   }
 }
 
@@ -74,9 +80,10 @@ if (checkSources(shellSource.replaceAll('scenario-banner', 'x'), pendingSourceTe
 } else {
   controls.push('배지 삭제 사본 검출');
 }
-// 끄는 경로는 하나 — 닫기(셸) 밖에서 exitScenarioRender 를 부르면 배지가 조용히 꺼질 수 있다.
+// 끄는 경로는 **셸에만** — 띠의 「대본 닫기」와 모드 스위치의 「일반」(둘은 같은 길이다,
+// renderMode.ts 머리 주석). 탭 화면이 exitScenarioRender 를 부르면 배지가 조용히 꺼질 수 있다.
 {
-  const allowed = new Set(['src/shared/renderMode.ts', 'src/shell/AppShell.tsx']);
+  const allowed = new Set(['src/shared/renderMode.ts', 'src/shell/AppShell.tsx', 'src/shell/ModeSwitch.tsx']);
   const { readdirSync, statSync } = await import('node:fs');
   const offenders = [];
   (function walk(dir) {
@@ -133,10 +140,10 @@ try {
       if (msg.envelope.channel === 'plan' && msg.envelope.payload?.script) planSeen = msg.envelope.payload;
     }
   });
-  const sendCommand = (action, params) => new Promise((resolve) => {
+  const sendCommand = (action, params, entity = 'MSN-260826-01') => new Promise((resolve) => {
     const id = 'req-' + Math.random().toString(36).slice(2, 8);
     ackWaiters.push({ id, resolve });
-    socket.send(JSON.stringify({ type: 'command', command: { client_request_id: id, entity: 'MSN-260826-01', action, params, expires_at: new Date(Date.now() + 30000).toISOString(), audit: { input_mode: 'click', decision_source: 'human' } } }));
+    socket.send(JSON.stringify({ type: 'command', command: { client_request_id: id, entity, action, params, expires_at: new Date(Date.now() + 30000).toISOString(), audit: { input_mode: 'click', decision_source: 'human' } } }));
   });
   socket.send(JSON.stringify({ type: 'subscribe', id: 'all', selector: { entity: '*', node: '*', channel: '*' }, scope: 'all' }));
   await wait(1200);
@@ -191,6 +198,19 @@ try {
   const closed = await sendCommand('script_close', {});
   if (closed.accepted !== true) failures.push(`대본 닫기가 거부됐다 — ${closed.message}`);
 
+  // 정지 미리보기 (260831 요구 4) — t=0 프레임만 반영되고, 기록 열은 0건이어야 한다.
+  // 미리보기는 「그린다」까지다 — 승인 선(VZ-U-07)을 우회하면 안 된다.
+  envelopes.length = 0;
+  const preview = await sendCommand('script_preview', { mission_id: 'MSN-260831-03' }, 'MSN-260831-03');
+  if (preview.accepted !== true) failures.push(`미리보기가 거부됐다 — ${preview.message}`);
+  await wait(1500);
+  if (envelopes.some((e) => e.channel === 'trace_event' && e.entity === 'MSN-260831-03')) {
+    failures.push('미리보기가 trace_event 를 냈다 — 미리보기는 「그린다」까지다');
+  }
+  const previewLevels = envelopes.filter((e) => e.entity === 'sensor-01' && e.channel === 'telemetry').map((e) => e.payload?.water_level?.value);
+  if (!previewLevels.includes(1.42)) failures.push('미리보기의 t=0 프레임(수위 1.42)이 장치 경로로 반영되지 않았다');
+  await sendCommand('script_close', {}, 'MSN-260831-03');
+
   socket.close();
 } catch (error) {
   failures.push(String(error?.message ?? error));
@@ -203,7 +223,7 @@ if (failures.length) {
   process.exit(1);
 }
 controls.push('무매칭 문장 거부(no_script_match)');
-console.log('✅ 기본 placeholder · 승인 후에만 scenario 진입 · cast 집합 대조 · 목 렌더 우선 · 닫으면 복귀');
-console.log('✅ 배지(scenario-banner) 존재 · 끄는 경로는 「대본 닫기」 하나 · 장치 그리드는 카드 단위 분기');
-console.log('✅ 게이트웨이 왕복 — 거부 · 제안 · 승인 전 발행 0건 · 재생(기록·세계 채널·event 모드·명령 4단계) · 감사 actor=임무 · 닫기');
+console.log('✅ 기본 placeholder · 진입 둘(미리보기 정지 / 승인 재생 — playing 구분) · cast 집합 대조 · 목 렌더 우선 · 닫으면 복귀');
+console.log('✅ 배지(scenario-banner) 존재 · 끄는 경로는 셸(대본 닫기·모드 스위치)뿐 · 장치 그리드는 카드 단위 분기');
+console.log('✅ 게이트웨이 왕복 — 거부 · 제안 · 승인 전 발행 0건 · 재생(기록·세계 채널·event 모드·명령 4단계) · 감사 actor=임무 · 닫기 · 미리보기(t=0만·기록 0건)');
 console.log(`✅ 음성 대조군 ${controls.length}건 — ${controls.join(' · ')}`);

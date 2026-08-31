@@ -34,7 +34,9 @@ import {
   type TrackedCommand,
 } from '../data/index.ts';
 import { useCommands, useControlGate, useEntities, useRole, useRoleRefresh } from '../data/hooks.ts';
+import { useScenarioCast } from '../../shared/renderMode.ts';
 import type { ActionSpec } from '../../transport/index.ts';
+import { Explain } from '../../shared/Explain.tsx';
 
 /** 제어 대상 후보. 둘째는 **다른 구역**에 있어 권한 범위 검증에 쓰인다(VZ-C-04). */
 const TARGETS = ['actuator-01', 'actuator-02'] as const;
@@ -69,7 +71,16 @@ export function ControlPanel() {
   const role = useRole();
   const refreshRole = useRoleRefresh();
 
+  // 시나리오 모드 — 제어 대상을 **대본 cast 로 좁힌다** (260831 요구 2).
+  // cast 에 액추에이터가 없으면(1·2편) 대상이 비고, 제어 자리들은 axis="actuator" 로
+  // 「이 대본에는 해당 없음」이 된다. 3편은 현행대로 대본 명령이 실제 엔진을 통과한다.
+  const scenarioCast = useScenarioCast();
+  const targets: string[] = scenarioCast === null ? [...TARGETS] : TARGETS.filter((id) => scenarioCast.has(id));
+
   const [target, setTarget] = useState<string>(TARGETS[0]);
+  useEffect(() => {
+    if (targets.length > 0 && !targets.includes(target)) setTarget(targets[0]);
+  }, [scenarioCast]);
   const [actions, setActions] = useState<ActionSpec[]>([]);
   /** 만료 검증용 — 이미 만료된 명령을 일부러 보내 본다. */
   const [forceExpired, setForceExpired] = useState(false);
@@ -112,10 +123,10 @@ export function ControlPanel() {
       <header className="board__head">
         <div>
           <h1 className="board__title">제어 패널 — 두 키의 수명 구간과 책임소재</h1>
-          <p className="board__sub">
+          <Explain id="ctl-1" className="board__sub">
             가시화는 <strong>요청 식별자</strong>만 붙여 보내고, 상관 키는 백엔드가 발급해 ACK로 내려준다.
             화면은 ACK 전후 두 구간으로 나뉘어 동작한다
-          </p>
+          </Explain>
         </div>
         <div className="board__meta">
           <span>VZ-O-01 · VZ-O-02 · VZ-O-05 · VZ-C-04 · VZ-I-05</span>
@@ -126,7 +137,7 @@ export function ControlPanel() {
         <span className="targetbar__label">제어 대상</span>
         {/* 대상 목록과 표시 이름은 레지스트리에서 온다 (VZ-I-03). 버튼 자체는 우리 것이다. */}
         <PendingSource id="registry" inline />
-        {TARGETS.map((id) => (
+        {targets.map((id) => (
           <button
             key={id}
             type="button"
@@ -136,6 +147,7 @@ export function ControlPanel() {
             {store.getRegistry()?.entities.find((e) => e.id === id)?.display_name ?? id}
           </button>
         ))}
+        {targets.length === 0 && <span className="muted">이 대본에는 제어할 액추에이터가 없습니다 (1·2편)</span>}
         <span className="targetbar__role">
           역할 <strong>{role?.display_name ?? '조회 중'}</strong> · {describeScope(role)}
           <button type="button" className="btn btn--tiny" onClick={refreshRole}>
@@ -154,7 +166,7 @@ export function ControlPanel() {
 
           <ControlGateBar gate={gate} />
 
-          <PendingSource id="action-catalog" minHeight={52} entity={target}>
+          <PendingSource id="action-catalog" minHeight={52} entity={target} axis="actuator">
           <div className="btnrow">
             {actions.map((spec) => (
               <button
@@ -183,7 +195,7 @@ export function ControlPanel() {
           <dl className="kv">
             <dt>현재 상태</dt>
             <dd>
-              <PendingSource id="actuator-state" inline entity={target}>
+              <PendingSource id="actuator-state" inline entity={target} axis="actuator">
                 <strong>{describePosition(record?.actuator?.payload?.position_pct ?? null)}</strong>
               </PendingSource>
             </dd>
@@ -199,7 +211,7 @@ export function ControlPanel() {
             </dd>
           </dl>
 
-          <p className="note">
+          <Explain id="ctl-2" className="note">
             가시화는 <strong>추상 action까지만</strong> 발행한다. 디바이스 명령(<code>levee:open</code>)으로의 번역은
             백엔드가 어휘집으로 수행한다.
             {actions.some((a) => a.irreversible) && (
@@ -208,7 +220,7 @@ export function ControlPanel() {
                 이 액션들은 <strong>되돌리기 어려움</strong>으로 선언되어 ACK가 아니라 수행 결과로 확정한다.
               </>
             )}
-          </p>
+          </Explain>
 
           <div className="devpanel devpanel--inline">
             <h3 className="devpanel__title">계약 검증</h3>
@@ -285,10 +297,10 @@ export function ControlPanel() {
                 화면 잠금 우회해 발행 <em>(서버가 거부하는지 확인)</em>
               </button>
             </div>
-            <p className="note note--dim">
+            <Explain id="ctl-3" className="note note--dim">
               역할은 로그인·토큰 갱신 시점에만 조회된다. 범위를 바꾼 뒤에는 위의 <strong>역할 다시 조회</strong>를
               눌러야 화면에 반영된다 — 주기 조회가 없는 것이 요구사항이기 때문이다.
-            </p>
+            </Explain>
           </div>
         </section>
 
@@ -301,7 +313,7 @@ export function ControlPanel() {
 
           {/* scenario 모드: 대본의 명령(3편 close/open_gate)이 이 엔진 이력에 4단계로 뜬다.
               발행 주체는 감사에 「임무 MSN-…」로 남는다 — 사람이 누른 것이 아니다. */}
-          <PendingSource id="command-result" minHeight={180} entity={target}>
+          <PendingSource id="command-result" minHeight={180} entity={target} axis="command">
             {latest === null ? (
               <p className="muted">아직 발행한 명령이 없다. 왼쪽에서 명령을 눌러 보라.</p>
             ) : (
@@ -309,10 +321,10 @@ export function ControlPanel() {
             )}
           </PendingSource>
 
-          <p className="note">
+          <Explain id="ctl-4" className="note">
             프론트는 <strong>진행중 · 확정 · 실패</strong> 3상태만 그린다. ACK를 확정으로 취급하면 화면과 현실이
             어긋난다.
-          </p>
+          </Explain>
         </section>
 
         {/* ── 3. 마지막 조작자 (VZ-I-05) ───────────────────────────────── */}
@@ -410,9 +422,9 @@ function CommandTimeline({ command }: { command: TrackedCommand }) {
         ))}
       </ol>
 
-      <p className="note note--dim">
+      <Explain id="ctl-5" className="note note--dim">
         만료 <code>{timeOf(command.expiresAt)}</code> · 만료 검사는 서버가 서버 시각으로 한다
-      </p>
+      </Explain>
 
       {command.display === 'failed' && (
         <div className="failbox">
@@ -511,18 +523,18 @@ function LastOperatorPanel({
             ))}
           </dl>
 
-          <p className="note note--dim">
+          <Explain id="ctl-6" className="note note--dim">
             상관 키 · {last.commandId ?? '—'}
             <br />
             기록 작성 — {last.writtenBy ?? '—'}
             <br />
             조작자·시각은 토큰·서버 시각에서 주입
-          </p>
+          </Explain>
 
           {result?.serverQueryCount != null && (
-            <p className="note note--dim">
+            <Explain id="ctl-7" className="note note--dim">
               서버 누적 감사 조회 {result.serverQueryCount}회 (주기 폴링이 없으면 늘지 않는다)
-            </p>
+            </Explain>
           )}
         </PendingSource>
       )}

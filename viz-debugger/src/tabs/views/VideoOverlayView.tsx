@@ -32,6 +32,7 @@ import {
   type OriginReport,
   type VideoFrame,
 } from '../data/index.ts';
+import { Explain } from '../../shared/Explain.tsx';
 
 const CAMERA = 'camera-02';
 
@@ -110,10 +111,10 @@ export function VideoOverlayView() {
       <header className="board__head">
         <div>
           <h1 className="board__title">탐지 결과 오버레이 정합</h1>
-          <p className="board__sub">
+          <Explain id="vid-1" className="board__sub">
             각 탐지에 되돌아온 <strong>프레임 참조값</strong>으로 해당 프레임에 정합시켜야 박스가 대상 위에 놓인다.
             급이 다른 두 인지 결과는 <strong>출처를 구분해</strong> 그린다
-          </p>
+          </Explain>
         </div>
         <div className="board__meta">
           <span>VZ-I-06 · VZ-I-07 · VZ-I-09</span>
@@ -178,15 +179,15 @@ export function VideoOverlayView() {
               박스는 게이트웨이가 대본의 시야 안/밖에 따라 만든다 — 시야 밖(사각지대)에서는
               탐지 배열이 비어 박스가 없다. 그게 2편의 요지다. */}
           <div className="videoframe">
-            <PendingSource id="video-stream" minHeight={540} entity={CAMERA}>
+            <PendingSource id="video-stream" minHeight={540} entity={CAMERA} axis="video">
               <canvas ref={canvasRef} width={960} height={540} className="videocanvas" />
             </PendingSource>
           </div>
           {/* 박스와 궤적은 위 캔버스에 **겹쳐** 그려지는 것이라 자리를 따로 차지하지 않는다.
               한 줄짜리로 둬서 원래 화면 높이를 늘리지 않는다 (제약 7). */}
           <p className="overlaypending">
-            <PendingSource id="detections" inline entity={CAMERA} />
-            <PendingSource id="tracking" inline entity={CAMERA} />
+            <PendingSource id="detections" inline entity={CAMERA} axis="video" />
+            <PendingSource id="tracking" inline entity={CAMERA} axis="video" />
           </p>
 
           {report !== null && (
@@ -218,11 +219,11 @@ export function VideoOverlayView() {
                     </li>
                   )}
                 </ul>
-                <p className="note">
+                <Explain id="vid-2" className="note">
                   로봇 온보드는 <strong>Pi와 카메라뿐</strong>이라 metric distance 센서를 전제하지 않는다. 그래서
                   온디바이스는 <strong>진행영역과 접근 변화</strong>만 내고 의미 분류를 하지 않는다. 정밀 분류·추적은
                   엣지에서 온다 — 두 결과를 같은 신뢰도 축으로 읽으면 안 된다.
-                </p>
+                </Explain>
               </section>
 
               <section className="panel">
@@ -241,7 +242,7 @@ export function VideoOverlayView() {
                   <dt>그린 프레임</dt>
                   <dd className="muted">{frameCount}장</dd>
                 </dl>
-                <p className="note">
+                <Explain id="vid-3" className="note">
                   {aligned
                     ? 'frame_ref가 가리키는 프레임에 맞춰 그린다. 뒤처짐이 0에 가깝다.'
                     : '도착 순서대로 현재 프레임에 그린다. 박스가 대상이 지나간 자리에 남는다.'}
@@ -258,7 +259,7 @@ export function VideoOverlayView() {
                       {device.inferenceDelayMs}ms) — 안전 판단이 엣지 왕복을 기다릴 수 없기 때문이다.
                     </>
                   )}
-                </p>
+                </Explain>
               </section>
 
               <section className="panel">
@@ -303,7 +304,7 @@ export function VideoOverlayView() {
                   </div>
                 ))}
 
-                <p className="note">
+                <Explain id="vid-4" className="note">
                   신뢰도 {CONFIDENCE_THRESHOLD} 미만은 <strong>점선 + 물음표</strong>로 그린다. 확실한 것과 애매한 것이
                   똑같이 보이면 안 된다.
                   {edge !== null && edge.association === 'unavailable' && (
@@ -312,7 +313,7 @@ export function VideoOverlayView() {
                       붙는 이유는 소스를 지우면 서로 다른 추적이 같은 id로 보이기 때문이다.
                     </>
                   )}
-                </p>
+                </Explain>
               </section>
             </div>
           )}

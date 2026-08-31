@@ -15,7 +15,7 @@
  * 그건 인라인 SVG로 충분하다.
  */
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   METRICS_AUTO_REFRESH_MS,
   METRICS_MODE_LABEL,
@@ -34,6 +34,8 @@ import { getBlockLog } from '../data/index.ts';
 import { useEntities, useMetricsQuery, useReaggregationBlocks } from '../data/hooks.ts';
 import { useMission } from '../../data/scenario.ts';
 import { PendingSource } from '../../shared/PendingSource.tsx';
+import { useScenarioCast, useScenarioRender } from '../../shared/renderMode.ts';
+import { Explain } from '../../shared/Explain.tsx';
 
 /** 관측 지표를 내는 대상. 구역 요약의 출처다. */
 const METRIC_ENTITY = 'edge-node-a';
@@ -56,6 +58,24 @@ export function MetricsView() {
   const [mode, setMode] = useState<MetricsMode>('summary');
   const [rangeMin, setRangeMin] = useState<number>(RANGE_OPTIONS[0].min);
 
+  // 시나리오 진입 시 **기본 지표를 대본 지표로 자동 전환** (260831 요구 2).
+  // 기본 cpu_pct 의 원천(edge-node-a)은 어느 대본 cast 에도 없어, 그대로 두면
+  // 시나리오로 들어가도 탭④ 첫 화면이 자리표시다. 축에서 유도한다:
+  // 2편(coverage) → 커버리지, 3편(water) → 수위, 1편(speed) → 로봇 속도.
+  const scenarioRender = useScenarioRender();
+  const scenarioCast = useScenarioCast();
+  useEffect(() => {
+    if (scenarioCast === null || scenarioRender === null) return;
+    const preferred = scenarioRender.axes.has('coverage')
+      ? 'coverage_pct'
+      : scenarioRender.axes.has('water')
+        ? 'water_level_m'
+        : scenarioRender.axes.has('speed')
+          ? 'robot_speed_mps'
+          : null;
+    if (preferred !== null) setMetric(preferred);
+  }, [scenarioRender?.missionId, scenarioCast === null]);
+
   const { series, loading, error, reload } = useMetricsQuery({
     entity: METRIC_ENTITY,
     metric,
@@ -77,10 +97,10 @@ export function MetricsView() {
       <header className="board__head">
         <div>
           <h1 className="board__title">지표 조회 — 요약과 원본은 다른 경로다</h1>
-          <p className="board__sub">
+          <Explain id="met-1" className="board__sub">
             평시에 올라오는 것은 <strong>구역 요약</strong>이고 원본은 엣지에 남는다. 원본이 필요하면 질의 프록시가
             엣지로 <strong>중계</strong>하므로 느리다
-          </p>
+          </Explain>
         </div>
         <div className="board__meta">
           <span>VZ-I-04 · VZ-C-03</span>
@@ -99,16 +119,21 @@ export function MetricsView() {
 
         <div className="qbar">
           <span className="qbar__group">
-            {METRICS.map((m) => (
-              <button
-                key={m.id}
-                type="button"
-                className={'btn btn--small' + (metric === m.id ? ' btn--on' : '')}
-                onClick={() => setMetric(m.id)}
-              >
-                {m.label}
-              </button>
-            ))}
+            {METRICS.map((m) => {
+              // 대본과 무관한 지표(원천이 cast 밖)는 흐리게 — 누르면 자리표시가 뜰 자리다.
+              const dimmed = scenarioCast !== null && !scenarioCast.has(m.source);
+              return (
+                <button
+                  key={m.id}
+                  type="button"
+                  className={'btn btn--small' + (metric === m.id ? ' btn--on' : '') + (dimmed ? ' btn--dim' : '')}
+                  title={dimmed ? '이 대본이 몰지 않는 지표입니다 — 원천 ' + m.source : undefined}
+                  onClick={() => setMetric(m.id)}
+                >
+                  {m.label}
+                </button>
+              );
+            })}
           </span>
 
           <span className="qbar__group">
@@ -156,7 +181,7 @@ export function MetricsView() {
 
         {error !== null && <p className="notice notice--warn">{error}</p>}
 
-        <PendingSource id="metrics-query" minHeight={260} entity={source}>
+        <PendingSource id="metrics-query" minHeight={260} entity={source} axis={source === METRIC_ENTITY ? 'observability' : undefined}>
           {series !== null && (
             <>
               <SeriesChart series={series} unit={unit} loading={loading} dangerLevel={dangerLevel} />
@@ -167,11 +192,11 @@ export function MetricsView() {
           {series === null && !loading && error === null && <p className="muted">조회 결과가 없다.</p>}
         </PendingSource>
 
-        <p className="note">
+        <Explain id="met-2" className="note">
           요약은 백엔드가 <strong>{METRICS_AUTO_REFRESH_MS / 1000}초 페더레이션 주기</strong>로 이미 당겨 둔 값이라
           그보다 촘촘히 물어도 새 점이 없다. 그래서 열린 패널의 자동 갱신도 같은 주기이고,
           <strong> 원본에는 자동 갱신을 걸지 않는다</strong> — 주기 갱신이 사설망 왕복을 계속 두드리는 일이 되기 때문이다.
-        </p>
+        </Explain>
       </section>
 
       <BlindspotAges />
@@ -231,11 +256,11 @@ function BlindspotAges() {
           })}
         </tbody>
       </table>
-      <p className="note note--dim">
+      <Explain id="met-3" className="note note--dim">
         커버리지 % 시계열(위 조회)과 같은 coverage 채널에서 나온 현재 판독입니다. 경과가
         {threshold ?? 600}초를 넘으면 대본이 재탐색을 파생 2회차로 일으킵니다 — 탭①의
         derived 사건과 같은 이야기입니다. 실제 원천은 백엔드 트윈 시의성 판정(DT-05)입니다.
-      </p>
+      </Explain>
     </section>
   );
 }
@@ -273,7 +298,8 @@ function LiveSummaryCard() {
         <span className="panel__tag">VZ-C-03</span>
       </header>
 
-      <PendingSource id="metrics-push" minHeight={110} entity={METRIC_ENTITY}>
+      {/* 관측 지표는 어느 대본도 몰지 않는다 — 평시 ObservabilityEmitter 의 몫 (260831 요구 2). */}
+      <PendingSource id="metrics-push" minHeight={110} entity={METRIC_ENTITY} axis="observability">
       <div className="statrow">
         <div className="stat">
           <span className="stat__value">{payload.cpu_pct?.value.toFixed(1) ?? '—'}</span>
@@ -473,18 +499,18 @@ function ReaggregationPanel() {
             정식 표기로 복귀
           </button>
         </div>
-        <p className="note note--dim">
+        <Explain id="met-4" className="note note--dim">
           앞의 둘은 <strong>필드 이름이 어긋난 생산자</strong>를 흉내 낸다. 뱃지가 "원본"이 아니라
           <strong> "표기 불명"</strong> 으로 떠야 하고, 평균을 적용하면 사유가 <strong>"표기를 읽을 수 없음"</strong> 으로
           갈려야 한다. "원본"으로 뜬다면 가드가 조용히 꺼진 것이다.
-        </p>
+        </Explain>
       </div>
 
-      <p className="note">
+      <Explain id="met-5" className="note">
         집약 연산은 반드시 <code>guardedMean()</code> / <code>guardedSum()</code> 을 거치게 해서 검사를 빠뜨릴 수
         없게 만들었다. 개발 모드 여부를 보지 않는다 — <strong>운영에서만 조용히 통과하는 것</strong>이 가장 위험한
         조합이기 때문이다. 못 읽는 표기도 같은 이유로 막는다 — <strong>판단이 안 되는 값에 계산하지 않는다.</strong>
-      </p>
+      </Explain>
     </section>
   );
 }

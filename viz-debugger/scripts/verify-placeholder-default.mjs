@@ -103,6 +103,7 @@ const strays = files.filter((path) => {
   if (normalized.endsWith('shared/PendingSource.tsx')) return false;
   if (normalized.endsWith('shared/renderMode.ts')) return false;
   if (normalized.endsWith('shell/AppShell.tsx')) return false; // 배지·토글은 셸이 그린다
+  if (normalized.endsWith('shell/ModeSwitch.tsx')) return false; // 우상단 모드 스위치(260831)도 셸의 모드 제어부다
   return /useMockRender|getRenderMode/.test(readFileSync(path, 'utf8'));
 });
 if (strays.length) {
@@ -122,7 +123,8 @@ const mutant = await import(pathToFileURL(mutantPath).href);
 if (mutant.getRenderMode() === 'placeholder') {
   failures.push('기본값을 목으로 바꾼 대조군을 만들지 못했다 — 이 검사는 무의미하다');
 }
-rmSync(scratch, { recursive: true, force: true });
+// 일부 개발 환경은 파일 삭제가 막혀 EPERM 이 난다 — 검사는 이미 끝났으므로 정리 실패로 죽지 않는다.
+try { rmSync(scratch, { recursive: true, force: true }); } catch { console.warn('임시 디렉터리 정리 실패(삭제 금지 환경?) — ' + scratch); }
 
 // 표에서 네 가지 중 하나를 지운 대조군도 잡히는지.
 const broken = { id: 'x', title: 't', what: 'w', from: [], ours: ['VZ-I-01'], plane: 'business' };

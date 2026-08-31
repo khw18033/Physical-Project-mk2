@@ -51,9 +51,22 @@ export type ScriptTaskEvaluation = {
   judgedBy: 'ai' | 'backend' | 'human';
 };
 
+/**
+ * 노드 문법 5종 (260831 — 노드 분화). 마일스톤을 임의로 쪼개지 않기 위한 규칙 —
+ * 한 마일스톤은 이 다섯의 작은 부분그래프로 **펴진다.** 단계를 더하거나 빼는 것이 아니다.
+ *  - sense  : 값을 받아 온다 (telemetry · coverage · vision)
+ *  - decide : 조건이 참인가 (evaluation.judgedBy)
+ *  - act    : 명령을 낸다 (commands[] · CommandEngine)
+ *  - verify : 구동 결과가 의도대로인가 (evaluation.criteria)
+ *  - report : 기록·발행 (trace_event · 감사)
+ */
+export type NodeKind = 'sense' | 'decide' | 'act' | 'verify' | 'report';
+
 export type ScriptTask = {
   id: string;
   title: string;
+  /** 노드 문법 (260831). 옛 파일에는 없다 — 없으면 화면이 칩을 그리지 않는다. */
+  nodeKind?: NodeKind;
   /** 이 태스크가 접히는 마일스톤. 옛 파일에는 없다(전부 MS-C 암묵). */
   milestone: string;
   deps: string[];
@@ -62,6 +75,22 @@ export type ScriptTask = {
   actionItems: ActionItem[];
   /** 있으면 「평가로 끝나는 태스크」 — awaiting_evaluation → done 전이가 있어야 한다. */
   evaluation?: ScriptTaskEvaluation;
+};
+
+/**
+ * 되돌아가는 참조 엣지 (260831 — 2편 재탐색 루프).
+ *
+ * **`deps` 가 아니다.** `graph/layout.ts` 의 depths() 에 순환이 들어가면 무한 재귀한다.
+ * 그런데 루프를 안 그리면 사용자는 이 대본이 되돌아간다는 것을 모른다 — 시각화의 의미가
+ * 사라진다. 그래서 레이아웃·깊이 계산에는 넣지 않고 **점선으로 그리기만 하는** 별도 목록이다.
+ */
+export type ScriptRefEdge = {
+  from: string;
+  to: string;
+  /** 그래프에 붙는 짧은 문구. */
+  label: string;
+  /** 왜 deps 가 아닌지 — 파일을 여는 사람에게 남기는 근거. */
+  note?: string;
 };
 
 export type ScriptEvent = {
@@ -129,6 +158,8 @@ export type ScriptScenario = {
   milestones: ScriptMilestone[];
   tasks: ScriptTask[];
   events: ScriptEvent[];
+  /** 되돌아가는 참조 엣지 — deps 와 분리돼 있다 (위 ScriptRefEdge 주석). */
+  refEdges?: ScriptRefEdge[];
   worldTimeline?: WorldDrive[];
   commands?: ScriptCommand[];
   map?: ScriptMap;

@@ -19,8 +19,9 @@
  */
 
 import type { ReactNode } from 'react';
+import { AXIS_LABEL, scriptsWithAxis, type ScenarioAxis } from '../scenarios/axes.ts';
 import { pendingSource, PLANE_LABEL, PLANE_NOTE } from './pendingSources.ts';
-import { useMockRender, useScenarioCast } from './renderMode.ts';
+import { useMockRender, useScenarioAxis, useScenarioCast } from './renderMode.ts';
 
 type Props = {
   /** `pendingSources.ts` 의 id. */
@@ -38,6 +39,15 @@ type Props = {
    * 「이 값은 대본이 준 것」과 「이 자리는 아직 아무도 안 준 것」이 그렇게 갈린다.
    */
   entity?: string;
+  /**
+   * 이 자리가 담는 **축** (260831 — 사이트 개선 요구 2).
+   *
+   * 시나리오 모드에서 이 축을 현재 대본이 몰지 않으면 「연결 예정」이 아니라
+   * **「이 대본에는 해당 없음」**을 그린다. 1편의 수문 자리, 3편의 영상 자리가 그렇다 —
+   * 그 자리는 못 받은 것이 아니라 이 대본의 이야기에 없는 것이고, 다른 편에서는 실제로 온다.
+   * 그 구분이 없으면 시연에서 "왜 여긴 비었냐"에 답할 수 없다.
+   */
+  axis?: ScenarioAxis;
   /** 목 렌더·scenario 모드에서 그릴 원래 화면. */
   children?: ReactNode;
 };
@@ -60,10 +70,11 @@ function summaryText(spec: ReturnType<typeof pendingSource>): string {
   ].join('\n');
 }
 
-export function PendingSource({ id, minHeight, fill, inline, entity, children }: Props) {
+export function PendingSource({ id, minHeight, fill, inline, entity, axis, children }: Props) {
   const spec = pendingSource(id);
   const mock = useMockRender();
   const scenarioCast = useScenarioCast();
+  const axisCovered = useScenarioAxis(axis);
 
   if (mock) {
     return (
@@ -72,6 +83,33 @@ export function PendingSource({ id, minHeight, fill, inline, entity, children }:
         <span className="mockwrap__badge" title={summaryText(spec)}>목 — 실제 데이터 아님</span>
         {children}
       </div>
+    );
+  }
+
+  // 시나리오 모드 · 이 축을 대본이 몰지 않는다 — **「연결 예정」이 아니다** (요구 2의 넷째 상태).
+  // 못 받은 것이 아니라 이 대본의 이야기에 없는 것이고, 어느 편에서 보이는지까지 적는다.
+  if (axisCovered === false && axis !== undefined) {
+    const elsewhere = scriptsWithAxis(axis);
+    if (inline) {
+      return (
+        <span className="notinscript notinscript--inline" data-pending={id} title={summaryText(spec)}>
+          <b>이 대본에는 해당 없음</b> <em>{AXIS_LABEL[axis]}</em>
+        </span>
+      );
+    }
+    return (
+      <section className="notinscript" data-pending={id} style={minHeight === undefined ? undefined : { minHeight }}>
+        <header>
+          <span className="notinscript__mark">이 대본에는 해당 없음</span>
+          <h3>{AXIS_LABEL[axis]} · {spec.title}</h3>
+        </header>
+        <p>
+          {elsewhere.length === 0
+            ? <>어느 대본도 몰지 않는 축입니다 — 평시 데이터({spec.from.map((sender) => sender.part).join('·') || '상대 미정'})가 줄 자리입니다.</>
+            : <>{elsewhere.map((script) => script.missionId).join(' · ')} 에서 보입니다.</>}
+        </p>
+        <p className="notinscript__why">자리 크기는 그대로 둡니다 — 대본을 바꾸거나 일반 모드로 돌아가면 이 자리에 그대로 들어갑니다.</p>
+      </section>
     );
   }
 

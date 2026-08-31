@@ -74,3 +74,63 @@ b.follow-live{cursor:default}
 .agestable th,.agestable td{padding:6px 8px;border-bottom:1px solid #e4e9ef;text-align:left}
 .agestable th{color:#687587;font-weight:600;font-size:11px}
 .agestable__row--over td{background:#fdf3f2;color:#a83232}
+
+/* 우상단 모드 스위치 · ? 오버레이 · 넷째 상태 (260831 사이트 개선) */
+.modeswitch{display:inline-flex;align-items:center;gap:0;margin-right:6px;position:relative}
+.modeswitch__label{margin-right:6px;font-size:11px;color:#8ea0b8}
+.global-bar .modeswitch__seg{padding:7px 11px;border:1px solid #aeb9c8;background:#fff;color:#3c4a5c;font-size:11px;cursor:pointer}
+.modeswitch__seg:first-of-type{border-radius:6px 0 0 6px}
+.modeswitch__drop .modeswitch__seg{border-left:none;border-radius:0}
+.global-bar .modeswitch__seg--on{border-color:#1768c5;background:#1768c5;color:#fff;font-weight:700}
+.global-bar .modeswitch__seg--on.modeswitch__seg--scenario{border-color:#168f50;background:#168f50;color:#fff}
+.global-bar .modeswitch__seg--on.modeswitch__seg--mock{border-color:#c62f35;background:#c62f35;color:#fff}
+.modeswitch > .modeswitch__seg:last-child,.modeswitch button:last-child{border-left:none;border-radius:0 6px 6px 0}
+.modeswitch__drop{position:relative;display:inline-block}
+.modeswitch__menu{position:absolute;top:calc(100% + 4px);left:0;z-index:80;min-width:280px;margin:0;padding:4px;list-style:none;border:1px solid #cbd3de;border-radius:8px;background:#fff;box-shadow:0 8px 24px rgba(20,30,45,.18)}
+.modeswitch__menu li button{display:block;width:100%;padding:8px 10px;border:none;border-radius:6px;background:none;color:#17202b;font-size:12px;text-align:left;cursor:pointer}
+.modeswitch__menu li button:hover{background:#f0f6fd}
+.modeswitch__menu li button b{margin-right:6px;font-size:11px;color:#20654a}
+.modeswitch__menunote{padding:6px 10px;border-top:1px solid #e4e9ef;color:#687587;font-size:10px}
+.global-bar .help-btn{width:30px;height:30px;margin-right:8px;padding:0;border:1px solid #1768c5;border-radius:50%;background:#fff;color:#1768c5;font-size:14px;font-weight:800;cursor:pointer}
+.global-bar .help-btn:hover{background:#1768c5;color:#fff}
+.help-backdrop{position:fixed;inset:0;z-index:90;display:flex;align-items:flex-start;justify-content:center;padding:48px 16px;background:rgba(15,22,32,.45);overflow:auto}
+.help-modal{width:min(760px,100%);border-radius:12px;background:#fff;box-shadow:0 16px 48px rgba(10,16,26,.35)}
+.help-modal>header{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:16px 18px;border-bottom:1px solid #e4e9ef}
+.help-modal>header h2{margin:0 0 4px;font-size:16px}
+.help-modal>header p{margin:0;color:#5a6779;font-size:12px;line-height:1.5}
+.help-modal>header button{padding:6px 12px;border:1px solid #cbd3de;border-radius:6px;background:#fff;cursor:pointer}
+.help-body{padding:14px 18px 18px;font-size:12px;line-height:1.6;color:#2c3646}
+.help-entry{margin:0 0 4px;padding:8px 10px;border-left:3px solid #dbe3ec;background:#f8fafc}
+.help-entry p{margin:0}
+.help-empty{color:#8a95a3}
+.help-body h3{margin:14px 0 6px;font-size:12px;color:#3d4756}
+.help-modes{margin:0;padding-left:16px}
+.help-modes li{margin-bottom:6px}
+.help-devtoggle{display:flex;gap:8px;align-items:flex-start;margin-top:12px;padding-top:10px;border-top:1px solid #e4e9ef;color:#5a6779;font-size:11px}
+.notinscript{display:grid;gap:6px;padding:12px;border:1px dashed #b9a86a;border-radius:8px;background:#fbf8ee;font-size:12px;line-height:1.55;color:#4a4436}
+.notinscript header{display:flex;align-items:center;gap:8px}
+.notinscript h3{margin:0;font-size:12px}
+.notinscript__mark{padding:2px 7px;border-radius:4px;background:#8a7a3d;color:#fdf6e3;font-size:10px;white-space:nowrap}
+.notinscript p{margin:0}
+.notinscript__why{color:#8a7f61;font-size:11px}
+.notinscript--inline{display:inline-flex;gap:6px;align-items:center;padding:2px 6px;border-bottom:2px solid #b9a86a;font-size:11px;color:#6b5f36}
+.notinscript--inline b{font-weight:600}
+
+.btn--dim{opacity:.4}
+.scenario-card__note{display:block;color:#8a7f61;font-size:11px;line-height:1.4}
+
+/* 노드 분화 (260831) — 문법 칩 · 참조 엣지 · 범위 안내 */
+.task-node small .node-kind{margin-left:5px;padding:1px 5px;border-radius:3px;font-size:9px;font-weight:600;vertical-align:1px}
+.node-kind--sense{background:#e3effc;color:#2c62a8}
+.node-kind--decide{background:#f3e9fb;color:#7c3fae}
+.node-kind--act{background:#fdefe0;color:#a86414}
+.node-kind--verify{background:#e6f7ee;color:#20654a}
+.node-kind--report{background:#eef1f5;color:#5f6b7a}
+.edge--ref{fill:none;stroke:#b9862d;stroke-width:1.6;stroke-dasharray:7 5;opacity:.85}
+.edge__label{fill:#8a6a1d;font-size:11px}
+.ref-crossing{margin:8px 0 0;padding:8px 10px;border:1px dashed #b9862d;border-radius:7px;background:#fdf8ec;color:#6b5316;font-size:12px;line-height:1.5}
+.ref-crossing button{margin-left:8px;padding:3px 9px;border:1px solid #b9862d;border-radius:6px;background:#fff;color:#6b5316;font-size:11px;cursor:pointer}
+
+/* 개발 도구는 목·개발 모드(또는 ? 오버레이 토글)에서만 (260831 요구 1).
+   단독 빌드에는 셸이 없어 이 규칙이 적용되지 않는다 — 전달본은 그대로다. */
+.app-shell:not(.app-shell--dev) .devpanel{display:none}

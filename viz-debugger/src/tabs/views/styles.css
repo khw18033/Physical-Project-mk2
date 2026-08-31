@@ -7,7 +7,7 @@
  * 이름을 바꾸면 원본과의 diff 가 화면 코드까지 번지고, 다음에 원본이 바뀌었을 때
  * 무엇이 이식이고 무엇이 개조인지 가릴 수 없게 된다.
  */
-// 이식: web-dashboard/src/views/styles.css @ 700ed91 — 무수정
+/* 이식: web-dashboard/src/views/styles.css @ 700ed91 — CSS 문법에 맞게 주석만 정정 */
 /* src/views/styles.css — 목업(2026-08-20_예상구현_VZ-U-01_상태4종_현황판.png) 배색을 따른다.
    차트·UI 라이브러리를 도입하지 않으므로 여기에 전부 둔다. */
 

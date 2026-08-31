@@ -15,6 +15,7 @@ import { GATEWAY, type RiskState } from '../../transport/index.ts';
 import { deriveDisplayStatus, DISPLAY_STATUS_LABEL, store } from '../data/index.ts';
 import { useEntities } from '../data/hooks.ts';
 import { PendingSource } from '../../shared/PendingSource.tsx';
+import { Explain } from '../../shared/Explain.tsx';
 
 type Level = 'decision' | 'operation' | 'development';
 
@@ -40,7 +41,7 @@ export function RiskPanel() {
       <header className="board__head">
         <div>
           <h2 className="board__title">상황 판단 · 설명가능성</h2>
-          <p className="board__sub">같은 구독을 유지한 채 역할에 맞춰 <strong>표시 깊이만</strong> 바꾼다 (VZ-U-03)</p>
+          <Explain id="risk-1" className="board__sub">같은 구독을 유지한 채 역할에 맞춰 <strong>표시 깊이만</strong> 바꾼다 (VZ-U-03)</Explain>
         </div>
         <div className="levelbar">
           {LEVELS.map((v) => (
@@ -51,7 +52,9 @@ export function RiskPanel() {
         </div>
       </header>
 
-      <PendingSource id="risk-state" minHeight={132}>
+      {/* 위험도는 어느 대본도 몰지 않는다 — AI 파트(VZ-I-08)의 몫. 시나리오 모드에서는
+          「연결 예정」이 아니라 「이 대본에는 해당 없음」으로 갈린다 (260831 요구 2). */}
+      <PendingSource id="risk-state" minHeight={132} axis="risk">
         {risk ? (
           <div className={'riskcard riskcard--' + risk.level}>
             <div><span className="riskcard__label">{RISK_LABEL[risk.level]}</span><strong>{risk.score}</strong><small>/ 100</small></div>
@@ -89,10 +92,10 @@ export function RiskPanel() {
           ))}
           <button className="btn" type="button" onClick={() => trigger('ai-failure')}>AI 실패 1건 → 상단 알림</button>
         </div>
-        <p className="note note--dim">
+        <Explain id="risk-2" className="note note--dim">
           현재 구독 대상 {store.getSnapshot().size}개. 계층을 바꿔도 <strong>재구독하지 않고</strong> 같은 원본의 표시 깊이만 바꾼다 (VZ-U-03).
           AI 실패는 이 화면이 아니라 <strong>상단 공통 알림</strong>으로 올라간다 (VZ-I-10) — 탭을 보고 있지 않아도 알아야 하는 것이기 때문이다.
-        </p>
+        </Explain>
       </div>
     </section>
   );

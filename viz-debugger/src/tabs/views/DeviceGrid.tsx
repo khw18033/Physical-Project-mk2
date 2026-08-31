@@ -26,6 +26,7 @@ import { PendingSource } from '../../shared/PendingSource.tsx';
 import { useScenarioCast } from '../../shared/renderMode.ts';
 import { DeviceCard } from './DeviceCard.tsx';
 import { ZoneMapMini } from './ZoneMapMini.tsx';
+import { Explain } from '../../shared/Explain.tsx';
 
 /** 현재 설계 전제는 구역 1개(VZ-C-05). 구역이 늘면 이 값이 선택 상태가 된다. */
 const ZONE_ID = 'zone-503';
@@ -68,9 +69,9 @@ export function DeviceGrid() {
       <header className="board__head">
         <div>
           <h1 className="board__title">{zone?.display_name ?? ZONE_ID} · 구역 장치 현황판</h1>
-          <p className="board__sub">
+          <Explain id="grid-1" className="board__sub">
             device_status · availability · deployment 3층을 조합해 정상 / 장애 / 의도적 미배포 / 판단 불가를 구분한다
-          </p>
+          </Explain>
         </div>
         <div className="board__meta">
           <span>갱신 {ZONE_BOARD_REFRESH_MS / 1000}초 · 병합 {RENDER_MERGE_WINDOW_MS}ms</span>
@@ -84,20 +85,40 @@ export function DeviceGrid() {
         </p>
       )}
 
-      <PendingSource id="zone-summary" minHeight={92}>
+      {/* 구역 요약 — 시나리오 모드에서는 **cast 기준 집계**다 (260831 요구 2).
+          상태 4종 집계는 남이 줄 데이터(A)라 대본 중에도 지어내지 않고, 지금 화면이
+          「대본 장비 몇 · 자리표시 몇」인지를 센다 — 이건 화면 자신의 사실이다. */}
+      {scenarioCast !== null ? (
         <section className="summary">
-          {STATUS_ORDER.map((s) => (
-            <div key={s} className={'summary__item summary__item--' + s}>
-              <span className="summary__count">{summary.counts[s]}</span>
-              <span className="summary__label">{DISPLAY_STATUS_LABEL[s]}</span>
-            </div>
-          ))}
+          <div className="summary__item summary__item--normal">
+            <span className="summary__count">{records.filter((r) => scenarioCast.has(r.id)).length}</span>
+            <span className="summary__label">대본 등장 (합성값)</span>
+          </div>
+          <div className="summary__item summary__item--unknown">
+            <span className="summary__count">{records.filter((r) => !scenarioCast.has(r.id)).length}</span>
+            <span className="summary__label">자리표시 (대본에 없음)</span>
+          </div>
           <div className="summary__item summary__item--total">
-            <span className="summary__count">{summary.total}</span>
+            <span className="summary__count">{records.length}</span>
             <span className="summary__label">전체</span>
           </div>
         </section>
-      </PendingSource>
+      ) : (
+        <PendingSource id="zone-summary" minHeight={92}>
+          <section className="summary">
+            {STATUS_ORDER.map((s) => (
+              <div key={s} className={'summary__item summary__item--' + s}>
+                <span className="summary__count">{summary.counts[s]}</span>
+                <span className="summary__label">{DISPLAY_STATUS_LABEL[s]}</span>
+              </div>
+            ))}
+            <div className="summary__item summary__item--total">
+              <span className="summary__count">{summary.total}</span>
+              <span className="summary__label">전체</span>
+            </div>
+          </section>
+        </PendingSource>
+      )}
 
       {/* 구역 맵 미니뷰 (260831) — 2편의 「가상 맵」. 평소엔 자리표시(백엔드 DT-04·DT-05). */}
       <ZoneMapMini />
@@ -109,7 +130,7 @@ export function DeviceGrid() {
         <section className="grid">
           {records.map((r) => scenarioCast.has(r.id)
             ? <div key={r.id} className="scenario-card"><DeviceCard record={r} /></div>
-            : <div key={r.id} className="scenario-card scenario-card--offcast"><b>{r.id}</b><PendingSource id="device-cards" entity={r.id} inline /></div>)}
+            : <div key={r.id} className="scenario-card scenario-card--offcast"><b>{r.id}</b><span className="scenario-card__note">이 대본에 없는 장비 — 대본 중에도 자리표시</span><PendingSource id="device-cards" entity={r.id} inline /></div>)}
         </section>
       ) : (
         <PendingSource id="device-cards" minHeight={320}>
@@ -150,10 +171,10 @@ export function DeviceGrid() {
             구독 scope <code>"all"</code> <em>(VZ-I-11 — 남은 자리 확보 항목)</em>
           </span>
         </div>
-        <p className="note note--dim">
+        <Explain id="grid-2" className="note note--dim">
           범위 제한은 <strong>제어 패널</strong>에서 확인한다 — zone-504의 수문이 범위 밖이 되면 버튼이 잠기고
           사유가 뜬다. 집약 표기와 재집약 차단은 <strong>지표 조회</strong> 탭으로 옮겼다.
-        </p>
+        </Explain>
 
         {SHOW_RENDER_COUNTER && (
           <p className="devpanel__metrics">

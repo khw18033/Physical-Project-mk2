@@ -18,12 +18,20 @@
  */
 
 import { useSyncExternalStore } from 'react';
+import type { ScenarioAxis } from '../scenarios/axes.ts';
 
 /**
  * 셋째 모드 `scenario` (260831 — 대본 재생).
- * **기본값은 여전히 `placeholder` 다.** scenario 는 토글이 아니라 대본이 **승인된 뒤에만**
- * 자동으로 들어가고, 「대본 닫기」로만 나온다. 목 렌더 토글이 켜져 있으면 `mock` 이 이긴다
+ *
+ * **기본값은 여전히 `placeholder` 다.** 목 렌더 토글이 켜져 있으면 `mock` 이 이긴다
  * (전부 그린다 — 붉은 띠가 대본 띠 위에 겹친다).
+ *
+ * 들어가는 길이 둘이다 (260831 사이트 개선 요구 4 — 우상단 모드 스위치):
+ *  - **승인 자동**  : 발화 → 매칭 → VZ-U-07 승인 → 재생과 함께 (`playing: true`)
+ *  - **수동 미리보기**: 우상단 모드 스위치에서 대본을 고름 (`playing: false`)
+ *
+ * 수동 진입은 **「그린다」까지**다. 재생은 여전히 승인 뒤다 — 스위치가 승인 선을 우회하지 않는다.
+ * 나오는 길은 스위치의 「일반」 또는 띠의 「대본 닫기」 하나로 같다.
  */
 export type RenderMode = 'placeholder' | 'mock' | 'scenario';
 
@@ -33,12 +41,22 @@ const DEFAULT_MODE: RenderMode = 'placeholder';
 let mode: RenderMode = DEFAULT_MODE;
 const listeners = new Set<() => void>();
 
-/** 재생 중(또는 재생 끝·닫기 전)인 대본. cast 밖 장비는 이 모드에서도 자리표시다. */
+/** 재생 중(또는 미리보기·재생 끝·닫기 전)인 대본. cast 밖 장비는 이 모드에서도 자리표시다. */
 export type ScenarioRender = {
   missionId: string;
   title: string;
   cast: readonly string[];
   castSet: ReadonlySet<string>;
+  /**
+   * 재생 중인가(승인됨), 아니면 정지한 미리보기인가(모드 스위치).
+   * 화면은 이 둘을 **다르게 적어야 한다** — 정지 화면을 재생 중이라고 말하면 안 된다.
+   */
+  playing: boolean;
+  /**
+   * 이 대본이 실제로 몰아 주는 축 (scenarios/axes.ts — 대본에서 유도).
+   * 여기 없는 축의 자리는 「연결 예정」이 아니라 **「이 대본에는 해당 없음」**이다.
+   */
+  axes: ReadonlySet<ScenarioAxis>;
 };
 
 let scenarioRender: ScenarioRender | null = null;
@@ -60,15 +78,29 @@ export function toggleRenderMode(): void {
 }
 
 /**
- * 대본 승인 → scenario 모드 진입 (자동). 통합 셸의 임무 브리지가 부른다.
- * 구판 세계(legacy) 대본은 들어오지 않는다 — 탭②~⑤에 따라 움직일 것이 없다.
+ * scenario 모드 진입. 통합 셸만 부른다 — 승인 자동(임무 브리지 · `playing: true`)과
+ * 모드 스위치의 정지 미리보기(`playing: false`). 구판 세계(legacy) 대본은 들어오지
+ * 않는다 — 탭②~⑤에 따라 움직일 것이 없다.
  */
-export function enterScenarioRender(info: { missionId: string; title: string; cast: readonly string[] }): void {
-  scenarioRender = { missionId: info.missionId, title: info.title, cast: [...info.cast], castSet: new Set(info.cast) };
+export function enterScenarioRender(info: {
+  missionId: string;
+  title: string;
+  cast: readonly string[];
+  axes: ReadonlySet<ScenarioAxis>;
+  playing: boolean;
+}): void {
+  scenarioRender = {
+    missionId: info.missionId,
+    title: info.title,
+    cast: [...info.cast],
+    castSet: new Set(info.cast),
+    axes: info.axes,
+    playing: info.playing,
+  };
   for (const listener of listeners) listener();
 }
 
-/** 「대본 닫기」 — placeholder 복귀. 끄는 경로는 이것 하나다. */
+/** 「대본 닫기」 · 모드 스위치의 「일반」 — placeholder 복귀. 끄는 경로는 셸의 이 둘뿐이다. */
 export function exitScenarioRender(): void {
   if (scenarioRender === null) return;
   scenarioRender = null;
@@ -93,6 +125,38 @@ export function useScenarioCast(): ReadonlySet<string> | null {
   const scenario = useScenarioRender();
   const effective = useRenderMode();
   return effective === 'scenario' && scenario !== null ? scenario.castSet : null;
+}
+
+/**
+ * 「이 축을 지금 대본이 몰아 주는가」 (260831 — 요구 2의 넷째 상태).
+ *  - null       : 시나리오 모드가 아니다 (평소의 자리표시 판단으로 간다)
+ *  - true/false : 시나리오 모드다. false 면 「이 대본에는 해당 없음」
+ */
+export function useScenarioAxis(axis: ScenarioAxis | undefined): boolean | null {
+  const scenario = useScenarioRender();
+  const effective = useRenderMode();
+  if (effective !== 'scenario' || scenario === null || axis === undefined) return null;
+  return scenario.axes.has(axis);
+}
+
+/**
+ * 개발 도구(시나리오 재생 버튼·계약 확인·리렌더 카운터)를 그릴 것인가 (260831 — 요구 1).
+ * 기본은 **목·개발 모드에서만**이고, `?` 오버레이의 토글로 명시적으로 켜고 끌 수 있다.
+ * 시연 화면(일반·시나리오)에서 개발 버튼 무더기가 메인 기능을 가리는 것을 막는다.
+ */
+let devToolsOverride: boolean | null = null;
+
+export function setDevToolsVisible(next: boolean | null): void {
+  devToolsOverride = next;
+  for (const listener of listeners) listener();
+}
+
+export function getDevToolsVisible(): boolean {
+  return devToolsOverride ?? mode === 'mock';
+}
+
+export function useDevTools(): boolean {
+  return useSyncExternalStore(subscribe, getDevToolsVisible, () => false);
 }
 
 function subscribe(listener: () => void): () => void {

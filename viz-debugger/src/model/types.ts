@@ -10,7 +10,18 @@ export type ActionItem = { id: string; label: string; params: Record<string, str
  *  - `milestone`: 이 태스크가 접히는 마일스톤. 옛 파일에는 없다(전부 MS-C 암묵 —
  *    적재할 때 채운다). 마일스톤 상태는 태스크 상태를 접은 결과라서 이 연결이 필요하다.
  */
-export type Task = { id: string; title: string; deps: string[]; target: string | null; actionItems: ActionItem[]; milestone?: string; evaluation?: { criteria: string[]; judgedBy: 'ai' | 'backend' | 'human' } };
+/**
+ * 노드 문법 5종 (260831 — 노드 분화). 마일스톤을 임의로 쪼개지 않기 위한 규칙이다:
+ * sense(관측) · decide(판정) · act(구동) · verify(검증) · report(보고).
+ */
+export type NodeKind = 'sense' | 'decide' | 'act' | 'verify' | 'report';
+export type Task = { id: string; title: string; deps: string[]; target: string | null; actionItems: ActionItem[]; milestone?: string; nodeKind?: NodeKind; evaluation?: { criteria: string[]; judgedBy: 'ai' | 'backend' | 'human' } };
+/**
+ * 되돌아가는 참조 엣지 (260831 — 2편 재탐색 루프). **`deps` 가 아니다** —
+ * `graph/layout.ts` 의 depths() 에 순환이 들어가면 안 되므로, 레이아웃·깊이 계산에는
+ * 넣지 않고 점선으로 **그리기만** 한다. 그리지 않으면 사용자는 대본이 되돌아간다는 것을 모른다.
+ */
+export type RefEdge = { from: string; to: string; label: string; note?: string };
 /**
  * `status` 는 옛 파일의 정적 필드다 — **무시하되 지우지 않는다.** 마일스톤 상태는
  * `statusesAt()` 이 태스크 상태를 접어 돌려준다(되감기와 어긋나지 않게).

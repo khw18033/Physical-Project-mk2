@@ -30,7 +30,7 @@ import { dirname, join } from 'node:path';
 
 import { matchLibrary } from '../src/scenarios/matcher.ts';
 import { LEGACY_ID, SCRIPT_IDS } from '../src/scenarios/manifest.ts';
-import type { ScriptLibraryEntry, ScriptMatch, ScriptScenario } from '../src/scenarios/types.ts';
+import type { ScriptLibraryEntry, ScriptMatch, ScriptScenario, WorldDrive } from '../src/scenarios/types.ts';
 import { SCENARIO_TIMING } from './config.ts';
 import type { CommandEngine, SubmitOutcome } from './commands.ts';
 import type { Fleet } from './devices.ts';
@@ -69,23 +69,27 @@ type Deps = {
   log: (message: string) => void;
 };
 
+type PlaybackState = {
+  missionId: string;
+  planId: string;
+  timers: Array<ReturnType<typeof setTimeout>>;
+  /** 태스크 → 마지막 상태(마일스톤 접기 재료). */
+  taskStatus: Map<string, string>;
+  /** 2편 coverage 누적 — 발행은 항상 전체 스냅샷이다(캐시가 마지막 봉투 하나라서). */
+  coverage: Map<string, number | null>;
+  ended: boolean;
+  /** 우상단 모드 스위치의 정지 미리보기인가 (260831 요구 4). 타이머가 없다. */
+  preview: boolean;
+};
+
 export class ScriptEngine {
   private readonly deps: Deps;
   private readonly library: ScriptLibraryEntry[];
   private readonly legacy: LegacyScenario;
   private commandSeq = 0;
 
-  /** 재생 중인 대본. 타이머 정리와 「대본 닫기」의 대상. */
-  private playback: {
-    missionId: string;
-    planId: string;
-    timers: Array<ReturnType<typeof setTimeout>>;
-    /** 태스크 → 마지막 상태(마일스톤 접기 재료). */
-    taskStatus: Map<string, string>;
-    /** 2편 coverage 누적 — 발행은 항상 전체 스냅샷이다(캐시가 마지막 봉투 하나라서). */
-    coverage: Map<string, number | null>;
-    ended: boolean;
-  } | null = null;
+  /** 재생(또는 미리보기) 중인 대본. 타이머 정리와 「대본 닫기」의 대상. */
+  private playback: PlaybackState | null = null;
 
   /** 제안이 승인될 때까지 들고 있는 발화 수치 (7.8 잠정 — trace_event.payload 로 나간다). */
   private pendingVoice: { missionId: string; metrics: Record<string, unknown> } | null = null;
@@ -122,7 +126,7 @@ export class ScriptEngine {
 
   /** 이 엔진이 접수하는 액션인가. server.ts 의 명령 분기가 묻는다. */
   handles(action: string): boolean {
-    return action === 'mission_from_utterance' || action === 'script_close';
+    return action === 'mission_from_utterance' || action === 'script_close' || action === 'script_preview';
   }
 
   /**
@@ -133,7 +137,53 @@ export class ScriptEngine {
     this.commandSeq += 1;
     const commandId = 'cmd-' + Date.now().toString(36) + '-scr' + String(this.commandSeq).padStart(2, '0');
     if (req.action === 'script_close') return this.closeScript(req, commandId);
+    if (req.action === 'script_preview') return this.previewScript(req, commandId);
     return this.handleUtterance(req, commandId);
+  }
+
+  /**
+   * 정지 미리보기 (260831 요구 4 — 우상단 모드 스위치).
+   *
+   * 대본의 `worldTimeline` 중 **`atSec === 0` 프레임만** 한 번 반영하고 끝낸다 —
+   * `trace_event` 도 `commands` 도 내보내지 않고 타이머도 세우지 않는다.
+   * **승인 선을 우회하지 않는다** — 재생(시간축·명령)은 여전히 VZ-U-07 승인 뒤다.
+   * 반영은 재생과 같은 applyWorldFrame() 한 곳을 지난다 — 두 벌이면 갈라진다.
+   */
+  private previewScript(req: CommandRequest, commandId: string): SubmitOutcome {
+    const missionId = String((req.params as { mission_id?: unknown } | undefined)?.mission_id ?? req.entity);
+    const entry = this.library.find((candidate) => candidate.missionId === missionId) ?? null;
+    if (!entry?.script) {
+      return this.reject(req, commandId, 'no_script_match', '미리보기할 대본이 없다 — ' + missionId);
+    }
+    this.stopPlayback('미리보기로 교체');
+    const script = entry.script;
+    const playback: PlaybackState = {
+      missionId,
+      planId: '(preview)',
+      timers: [],
+      taskStatus: new Map(),
+      coverage: new Map(),
+      ended: false,
+      preview: true,
+    };
+    this.playback = playback;
+
+    if (script.map) {
+      for (const cell of script.map.blind_cells) playback.coverage.set(cell.id, null);
+      this.publishCoverage(script, 0);
+    }
+    if (script.cast.includes(this.deps.vision.entity)) {
+      this.deps.vision.scriptView = { missionId: script.missionId, visible: [] };
+    }
+    for (const frame of script.worldTimeline ?? []) {
+      if (frame.atSec === 0) this.applyWorldFrame(script, frame, playback);
+    }
+
+    const detail = '대본 미리보기 — ' + missionId + ' 의 t=0 프레임만 반영 (정지 · 재생은 승인 뒤)';
+    this.emitResult(req, commandId, { status: 'completed', reason_code: null, detail });
+    this.deps.commands.recordExternal(req, commandId, 'completed', detail);
+    this.deps.log(detail);
+    return { clientRequestId: req.client_request_id, commandId, accepted: true, reasonCode: null, message: detail };
   }
 
   private handleUtterance(req: CommandRequest, commandId: string): SubmitOutcome {
@@ -258,15 +308,16 @@ export class ScriptEngine {
     this.stopPlayback('재시작');
 
     const entry = this.library.find((e) => e.missionId === info.mission_id) ?? null;
-    const { hub, fleet, plans, vision, commands, log } = this.deps;
+    const { hub, plans, vision, commands, log } = this.deps;
 
-    const playback = {
+    const playback: PlaybackState = {
       missionId: info.mission_id,
       planId: plan.plan_id,
-      timers: [] as Array<ReturnType<typeof setTimeout>>,
-      taskStatus: new Map<string, string>(),
-      coverage: new Map<string, number | null>(),
+      timers: [],
+      taskStatus: new Map(),
+      coverage: new Map(),
       ended: false,
+      preview: false,
     };
     this.playback = playback;
     const at = (sec: number, fn: () => void) => {
@@ -297,33 +348,9 @@ export class ScriptEngine {
         vision.scriptView = { missionId: script.missionId, visible: [] };
       }
 
-      // 세계 채널 — 장치의 평소 발행 경로로 몰아 준다.
+      // 세계 채널 — 장치의 평소 발행 경로로 몰아 준다. 반영은 미리보기와 같은 한 곳이다.
       for (const w of script.worldTimeline ?? []) {
-        at(w.atSec, () => {
-          const robot = fleet.robots.get(w.entity);
-          if (robot) {
-            robot.drive(w.drive);
-            return;
-          }
-          const sensor = fleet.sensors.get(w.entity);
-          if (sensor) {
-            sensor.drive(w.drive);
-            return;
-          }
-          if (w.entity === vision.entity) {
-            const view = w.drive.in_view;
-            if (Array.isArray(view) && vision.scriptView !== null) {
-              vision.scriptView = { missionId: script.missionId, visible: view.map(String) };
-            }
-            const coverage = w.drive.coverage;
-            if (Array.isArray(coverage)) {
-              for (const c of coverage as Array<{ cell: string; last_scan_at_sec: number | null }>) {
-                playback.coverage.set(c.cell, c.last_scan_at_sec);
-              }
-              this.publishCoverage(script, w.atSec);
-            }
-          }
-        });
+        at(w.atSec, () => this.applyWorldFrame(script, w, playback));
       }
 
       // 명령 — CommandEngine 을 실제로 통과한다. actor 는 임무이고 사람이 아니다.
@@ -411,6 +438,37 @@ export class ScriptEngine {
         (entry?.script?.worldTimeline?.length ?? 0) + '건 · 명령 ' + (entry?.script?.commands?.length ?? 0) +
         '건 · ' + SPEED + '배속',
     );
+  }
+
+  /**
+   * `worldTimeline` 한 프레임 반영 — **재생과 미리보기(t=0)가 같은 이 한 곳을 쓴다** (260831 요구 2).
+   * 봉투는 대본이 만들지 않는다 — 장치의 `drive()` 로 넣고 장치가 평소 경로로 낸다.
+   */
+  private applyWorldFrame(script: ScriptScenario, frame: WorldDrive, playback: PlaybackState): void {
+    const { fleet, vision } = this.deps;
+    const robot = fleet.robots.get(frame.entity);
+    if (robot) {
+      robot.drive(frame.drive);
+      return;
+    }
+    const sensor = fleet.sensors.get(frame.entity);
+    if (sensor) {
+      sensor.drive(frame.drive);
+      return;
+    }
+    if (frame.entity === vision.entity) {
+      const view = frame.drive.in_view;
+      if (Array.isArray(view) && vision.scriptView !== null) {
+        vision.scriptView = { missionId: script.missionId, visible: view.map(String) };
+      }
+      const coverage = frame.drive.coverage;
+      if (Array.isArray(coverage)) {
+        for (const c of coverage as Array<{ cell: string; last_scan_at_sec: number | null }>) {
+          playback.coverage.set(c.cell, c.last_scan_at_sec);
+        }
+        this.publishCoverage(script, frame.atSec);
+      }
+    }
   }
 
   /** 2편 커버리지 — 항상 전체 스냅샷을 발행한다. 재접속 화면이 캐시 한 건으로 복원해야 한다. */

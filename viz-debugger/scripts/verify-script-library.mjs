@@ -226,6 +226,26 @@ function checkScript(s) {
     if (!cast.has(id)) f.push(`${at}: initial의 ${id}가 cast에 없다`);
   }
 
+  // refEdges (노드 분화 260831) — 되돌아가는 참조 엣지. deps 가 아니라 별도 목록이다
+  // (layout.depths() 의 순환 방지). 실재하는 태스크만 이어야 하고, deps 와 겹치면 안 된다.
+  for (const edge of s.refEdges ?? []) {
+    if (!taskIds.has(edge.from) || !taskIds.has(edge.to)) {
+      f.push(`${at}: refEdge ${edge.from}→${edge.to} 가 태스크 밖을 가리킨다`);
+    }
+    if (!edge.label?.trim()) f.push(`${at}: refEdge ${edge.from}→${edge.to} 에 label 이 없다`);
+    const toTask = (s.tasks ?? []).find((t) => t.id === edge.to);
+    if (toTask?.deps.includes(edge.from)) {
+      f.push(`${at}: refEdge ${edge.from}→${edge.to} 가 deps 에도 들어 있다 — 순환이 된다`);
+    }
+  }
+  // nodeKind (노드 분화 260831) — 문법 5종 밖의 값이 들어오면 화면 표기가 깨진다.
+  const NODE_KINDS = new Set(['sense', 'decide', 'act', 'verify', 'report']);
+  for (const t of s.tasks ?? []) {
+    if (t.nodeKind !== undefined && !NODE_KINDS.has(t.nodeKind)) {
+      f.push(`${at}/${t.id}: nodeKind '${t.nodeKind}' 는 문법 5종 밖이다`);
+    }
+  }
+
   // map — 있으면 사각지대는 둘 이상(하나면 「다음 사각지대로」가 성립하지 않는다).
   if (s.map) {
     const cells = s.map.blind_cells ?? [];
@@ -261,12 +281,14 @@ function checkSpecifics(byId) {
   if (!derived.some((e) => e.payload?.threshold_sec === 600)) f.push('2편: 재탐색 파생 사건에 임계 600초 근거가 없다');
 
   // 3편 — 30초·10초·3분 그대로, close → open 순서.
-  const done3 = Object.fromEntries(
-    (s3.events ?? []).filter((e) => e.status === 'done' && e.payload).map((e) => [e.nodeId, e.payload]),
-  );
-  if (!(done3['T-42']?.rise_duration_sec >= 30)) f.push('3편: 상승 지속 근거가 30초 미만이거나 없다');
-  if (!(done3['T-43']?.hold_sec >= 10)) f.push('3편: 위험 수위 유지 근거가 10초 미만이거나 없다');
-  if (!(done3['T-44']?.fall_duration_sec >= 180)) f.push('3편: 하락 지속 근거가 180초(3분) 미만이거나 없다');
+  // 태스크 id 가 아니라 **근거값 키**로 찾는다 — 노드 분화(태스크 세분화)에도 견뎌야 한다.
+  const done3 = (s3.events ?? []).filter((e) => e.status === 'done' && e.payload).map((e) => e.payload);
+  const rise = done3.find((p) => typeof p.rise_duration_sec === 'number');
+  const hold = done3.find((p) => typeof p.hold_sec === 'number');
+  const fall = done3.find((p) => typeof p.fall_duration_sec === 'number');
+  if (!(rise?.rise_duration_sec >= 30)) f.push('3편: 상승 지속 근거가 30초 미만이거나 없다');
+  if (!(hold?.hold_sec >= 10)) f.push('3편: 위험 수위 유지 근거가 10초 미만이거나 없다');
+  if (!(fall?.fall_duration_sec >= 180)) f.push('3편: 하락 지속 근거가 180초(3분) 미만이거나 없다');
   if (typeof s3.params?.danger_level_m !== 'number') f.push('3편: params.danger_level_m이 없다 — 탭④ 위험 수위 선이 읽을 값이다');
   const actions = (s3.commands ?? []).map((c) => c.action);
   if (JSON.stringify(actions) !== JSON.stringify(['close_gate', 'open_gate'])) {
@@ -353,8 +375,10 @@ function control(name, failuresOfMutant, marker) {
 }
 {
   const m = structuredClone(byId['MSN-260831-03'] ?? scripts[2]);
+  // 유지 근거(hold_sec)를 실은 평가 태스크의 done payload 를 지운다 — id 가 아니라 키로 찾아
+  // 태스크 세분화에도 대조군이 유지되게 한다.
   for (const e of m.events) {
-    if (e.nodeId === 'T-43' && e.status === 'done') delete e.payload;
+    if (e.status === 'done' && e.payload && typeof e.payload.hold_sec === 'number') delete e.payload;
   }
   control('평가 근거값 삭제', checkScript(m), '근거값');
 }

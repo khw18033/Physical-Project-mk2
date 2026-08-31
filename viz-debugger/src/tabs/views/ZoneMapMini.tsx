@@ -23,6 +23,7 @@ import { useMission } from '../../data/scenario.ts';
 import { PendingSource } from '../../shared/PendingSource.tsx';
 import { useScenarioCast } from '../../shared/renderMode.ts';
 import { useEntities } from '../data/hooks.ts';
+import { Explain } from '../../shared/Explain.tsx';
 
 const MAP_MIN_HEIGHT = 220;
 
@@ -115,10 +116,10 @@ function ScenarioMap() {
           </g>
         )}
       </svg>
-      <p className="note note--dim">
+      <Explain id="map-1" className="note note--dim">
         시야(FOV)·사각지대·탐지 시각은 대본의 합성본 — 실제 원천은 백엔드 디지털 트윈(DT-04 · DT-05).
         로봇 위치는 telemetry.position(site-global) 그대로다. 재탐색 임계 {threshold ?? '—'}초.
-      </p>
+      </Explain>
     </div>
   );
 }
@@ -181,11 +182,11 @@ function RobotTrailMap() {
           </g>
         )}
       </svg>
-      <p className="note note--dim">
+      <Explain id="map-2" className="note note--dim">
         이 대본에는 평면(맵) 데이터가 없어 로봇 위치·궤적만 그립니다 — 위치는 telemetry.position
         (site-global) 그대로, 궤적은 수신값의 누적입니다. 구역 평면·시야는 맵 데이터가 오면
         (백엔드 DT-04) 이 위에 그려집니다.
-      </p>
+      </Explain>
     </div>
   );
 }

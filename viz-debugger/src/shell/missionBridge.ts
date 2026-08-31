@@ -16,6 +16,7 @@
 
 import { useEffect } from 'react';
 import { activateMission, proposeMission, receiveTrace, rejectProposal, viewForMission } from '../data/scenario.ts';
+import { axesOfMission } from '../scenarios/axes.ts';
 import { enterScenarioRender } from '../shared/renderMode.ts';
 import { store } from '../tabs/data/index.ts';
 import { getTransport, type Envelope } from '../transport/index.ts';
@@ -85,7 +86,13 @@ function applyPlan(envelope: Envelope): void {
     if (plan.script.world === 'registry') {
       const view = viewForMission(plan.script.mission_id);
       if (view !== null) {
-        enterScenarioRender({ missionId: view.missionId, title: view.label, cast: view.cast });
+        enterScenarioRender({
+          missionId: view.missionId,
+          title: view.label,
+          cast: view.cast,
+          axes: axesOfMission(view.missionId),
+          playing: true, // 승인 재생 — 모드 스위치의 정지 미리보기와 화면 문구가 다르다.
+        });
       }
     }
     return;
