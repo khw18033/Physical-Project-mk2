@@ -109,7 +109,12 @@ CONTROLLER_LINK = _s("CONTROLLER_LINK", "sim")          # sim | go1 | can | eth
 GO1_MQTT_HOST = _s("GO1_MQTT_HOST", "192.168.123.161")
 GO1_STALE_S = _f("GO1_STALE_S", 2.0)          # robot/state 12.5Hz 기준
 GO1_BMS_STALE_S = _f("GO1_BMS_STALE_S", 15.0) # bms/state 0.5Hz 기준
-GO1_CAM_ID = _i("GO1_CAM_ID", 1)              # go1_relay 가 중계할 카메라 (1=정면)
+GO1_CAM_ID = _i("GO1_CAM_ID", 1)
+
+# 토픽 도메인 체계(BACKEND_AGENDA #2)는 백엔드 회신 대기 중이다. 확정을 기다리며
+# 멈추지 않도록 체계를 설정으로 뺐다 — 어떤 체계가 오든 여기 한 줄만 바뀐다.
+# 자리표시자: {zone} {etype} {eid}
+TOPIC_TEMPLATE = _s("TOPIC_TEMPLATE", "{zone}/{etype}/{eid}")              # go1_relay 가 중계할 카메라 (1=정면)
 
 # ---------------- 영상 송출 (HW-R-07 / HW-S-06, 아키텍처 v8 §5-10) ----------------
 # 홉1(말단→엣지)은 JPEG/RTP over UDP 로 확정됐다. frame_ref 는 엣지가 디코드 시점에

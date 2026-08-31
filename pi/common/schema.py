@@ -92,8 +92,10 @@ class Identity:
     @property
     def topic_base(self):
         """통합정립본 v3의 {domain}/{type}/{id}/{channel} 체계.
-        domain 자리는 지금 zone_id를 쓴다 — 도메인 체계 확정 시 여기만 바뀐다."""
-        return f"{self.zone_id}/{self.entity_type}/{self.entity_id}"
+        구조 자체를 config.TOPIC_TEMPLATE 로 뺐다 — 도메인 체계(AGENDA #2)가
+        어떻게 확정되든 설정 한 줄로 전환되고 코드는 바뀌지 않는다."""
+        return config.TOPIC_TEMPLATE.format(
+            zone=self.zone_id, etype=self.entity_type, eid=self.entity_id)
 
     def fingerprint(self):
         """이 값이 달라지면 재등록 대상(HW-C-07: 네트워크 또는 구역 변경 시 갱신)."""
