@@ -1,4 +1,4 @@
-// 이식: web-dashboard/mock-gateway/vision.ts @ 700ed91 — 무수정
+// 이식: web-dashboard/mock-gateway/vision.ts @ 700ed91 — 대본 재생(260831)에서 scriptView 추가
 /**
  * mock-gateway/vision.ts
  *
@@ -203,6 +203,13 @@ export class VisionEmitter {
    */
   associationEnabled: boolean = VISION.ASSOCIATION_ENABLED;
 
+  /**
+   * **대본 재생 중의 시야 상태** (260831 · 대본 worldTimeline 의 in_view).
+   * null 이면 평소(합성 인물·로봇 두 대상). 대본 중에는 대본이 준 시야 안/밖에 따라
+   * 보이는 대상만 그린다 — 시야 밖(사각지대)에서 박스가 나오면 2편의 요지가 무너진다.
+   */
+  scriptView: { missionId: string; visible: string[] } | null = null;
+
   constructor(hub: Hub, entity: string) {
     this.hub = hub;
     this.entity = entity;
@@ -235,6 +242,20 @@ export class VisionEmitter {
     const t = seq / VISION.FPS;
     const W = this.inferenceWidth;
     const H = this.inferenceHeight;
+
+    // 대본 재생 중 — 시야에 든 대본 등장 장비만. 시야 밖이면 대상이 없다(빈 화면이 정답이다).
+    if (this.scriptView !== null) {
+      return this.scriptView.visible.map((id, index) => ({
+        track_id: id,
+        label: 'robot',
+        confidence: 0.9,
+        shape: 'robot' as const,
+        cx: W * 0.5 + Math.cos(t * VISION.ROBOT_SPEED_RAD + index) * W * 0.28,
+        cy: H * 0.62,
+        w: W * 0.18,
+        h: H * 0.22,
+      }));
+    }
 
     return [
       {

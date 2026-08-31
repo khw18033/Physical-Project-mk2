@@ -20,7 +20,7 @@
 
 import type { ReactNode } from 'react';
 import { pendingSource, PLANE_LABEL, PLANE_NOTE } from './pendingSources.ts';
-import { useMockRender } from './renderMode.ts';
+import { useMockRender, useScenarioCast } from './renderMode.ts';
 
 type Props = {
   /** `pendingSources.ts` 의 id. */
@@ -31,7 +31,14 @@ type Props = {
   fill?: boolean;
   /** 한 줄짜리 좁은 자리(카드 안 한 행 등). 네 가지는 툴팁으로 간다. */
   inline?: boolean;
-  /** 목 렌더 모드에서 그릴 원래 화면. */
+  /**
+   * 이 자리가 담는 **장비 ID** (260831 — scenario 모드).
+   * 대본 재생 중 그 장비가 대본의 cast 에 있으면 값을 그린다 — 대본이 몰아 주는
+   * 합성값이라는 배지와 함께. cast 밖이거나 entity 가 없으면 여전히 자리표시다.
+   * 「이 값은 대본이 준 것」과 「이 자리는 아직 아무도 안 준 것」이 그렇게 갈린다.
+   */
+  entity?: string;
+  /** 목 렌더·scenario 모드에서 그릴 원래 화면. */
   children?: ReactNode;
 };
 
@@ -53,15 +60,27 @@ function summaryText(spec: ReturnType<typeof pendingSource>): string {
   ].join('\n');
 }
 
-export function PendingSource({ id, minHeight, fill, inline, children }: Props) {
+export function PendingSource({ id, minHeight, fill, inline, entity, children }: Props) {
   const spec = pendingSource(id);
   const mock = useMockRender();
+  const scenarioCast = useScenarioCast();
 
   if (mock) {
     return (
       <div className={inline ? 'mockwrap mockwrap--inline' : 'mockwrap'} data-pending={id}>
         {/* 지워지지 않는다. 목 렌더 중이라는 사실이 화면에서 사라지면 안 된다. */}
         <span className="mockwrap__badge" title={summaryText(spec)}>목 — 실제 데이터 아님</span>
+        {children}
+      </div>
+    );
+  }
+
+  // scenario 모드 — 대본 등장 장비에 한해 합성값을 그린다. 배지는 지워지지 않는다.
+  // A/B 분류는 바뀌지 않는다 — 이 자리는 여전히 남이 줄 데이터이고, 지금 값은 대본의 합성본이다.
+  if (scenarioCast !== null && entity !== undefined && scenarioCast.has(entity)) {
+    return (
+      <div className={inline ? 'scenariowrap scenariowrap--inline' : 'scenariowrap'} data-pending={id}>
+        <span className="scenariowrap__badge" title={summaryText(spec)}>대본 — 합성 데이터</span>
         {children}
       </div>
     );

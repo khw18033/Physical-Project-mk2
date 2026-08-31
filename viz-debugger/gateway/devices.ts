@@ -1,4 +1,9 @@
-// 이식: web-dashboard/mock-gateway/devices.ts @ 700ed91 — 무수정
+// 이식: web-dashboard/mock-gateway/devices.ts @ 700ed91 — 대본 재생(260831)에서 drive()·scripted 추가
+//
+// 대본(worldTimeline)이 장치의 값을 「몰아 주는」 경로가 더해졌다. 봉투는 여전히
+// 장치의 평소 발행 경로(publishNow 등)로 나간다 — 대본이 봉투를 직접 만들면
+// seq·ts·quality 규칙이 두 벌이 된다. **대본이 도는 동안 무작위 흔들림은 멈춘다**
+// (scripted 플래그) — 랜덤 워크가 대본 값과 싸우면 기록 열이 흔들린다.
 /**
  * mock-gateway/devices.ts
  *
@@ -67,6 +72,8 @@ export class RobotDevice {
   private phase = 0;
   private readonly hub: Hub;
   readonly id: string;
+  /** 대본이 몰아 주는 값. null 이면 평소(원 궤도 랜덤 워크). */
+  private driven: { x: number; y: number; z: number; speed: number; moving: boolean } | null = null;
 
   constructor(
     hub: Hub,
@@ -91,6 +98,24 @@ export class RobotDevice {
   private emitTelemetry(): void {
     const rt = this.hub.runtime.get(this.id);
     const faulted = rt?.deviceStatus === 'fault';
+
+    // 대본 구동 중 — 몰아 준 값을 평소 경로 그대로 발행한다. 랜덤 워크는 멈춘다.
+    if (this.driven !== null) {
+      const d = this.driven;
+      if (d.moving) this.battery = Math.max(0, this.battery - 0.0006);
+      this.hub.publish(this.id, 'telemetry', {
+        position: { x: d.x, y: d.y, z: d.z, frame: 'site-global' },
+        battery_pct: round(this.battery, 1),
+        velocity: { linear_mps: d.speed, angular_rps: 0 },
+        is_moving: d.moving,
+        mission: null,
+      }, {
+        quality: faulted ? 'degraded' : 'good',
+        coordinateFrame: 'site-global',
+      });
+      return;
+    }
+
     const moving = this.mission && !faulted;
 
     if (moving) {
@@ -120,6 +145,28 @@ export class RobotDevice {
     });
   }
 
+  /**
+   * 대본 구동 (worldTimeline). 값을 채워 즉시 발행하고, 다음 구동까지 평소 주기로
+   * 마지막 값을 유지 발행한다. 보간하지 않는다 — 파일에 없는 값을 지어내지 않는다.
+   */
+  drive(values: Record<string, unknown>): void {
+    const pos = values.position as { x?: number; y?: number; z?: number } | undefined;
+    const prev = this.driven;
+    this.driven = {
+      x: pos?.x ?? prev?.x ?? 12,
+      y: pos?.y ?? prev?.y ?? 0,
+      z: pos?.z ?? prev?.z ?? -4.5,
+      speed: typeof values.speed_mps === 'number' ? values.speed_mps : prev?.speed ?? 0,
+      moving: typeof values.is_moving === 'boolean' ? values.is_moving : prev?.moving ?? false,
+    };
+    this.emitTelemetry();
+  }
+
+  /** 대본 종료·닫기 — 평소 랜덤 워크로 복귀한다. */
+  endScript(): void {
+    this.driven = null;
+  }
+
   /** 대기 중에만 1초 하트비트. 임무 중에는 50ms 상태 발행이 생존 신호를 겸한다. */
   private emitHeartbeat(): void {
     if (this.mission) return;
@@ -145,6 +192,8 @@ export class SensorDevice {
   private eventModeUntilMs = 0;
   /** 시나리오가 연결을 끊은 동안은 아무것도 발행하지 않는다. */
   silent = false;
+  /** 대본 구동 중 — 랜덤 워크를 멈추고 몰아 준 값을 유지 발행한다. */
+  scripted = false;
   private readonly hub: Hub;
   readonly id: string;
   private loop: Loop | null = null;
@@ -167,6 +216,11 @@ export class SensorDevice {
 
   private emit(): void {
     if (this.silent) return;
+    // 대본 구동 중에는 랜덤 워크가 대본 값과 싸우면 안 된다 — 마지막 구동 값을 유지 발행.
+    if (this.scripted) {
+      this.publishNow();
+      return;
+    }
     if (this.eventMode) {
       this.level = round(this.level + (Math.random() - 0.35) * 0.05, 3);
       this.flow = round(Math.max(0, this.flow + (Math.random() - 0.4) * 0.1), 3);
@@ -185,6 +239,28 @@ export class SensorDevice {
       report_mode: this.eventMode ? 'event' : 'normal',
       report_interval_ms: this.delay(),
     });
+  }
+
+  /**
+   * 대본 구동 (worldTimeline). 값을 넣고 즉시 발행한다 (HW-S-02 「급변 시 즉시」와 같은 길).
+   * 수위가 한 구동에 0.04 m 이상 움직이면 급변으로 보고 이벤트 모드(1초)로 상향한다 —
+   * 3편에서 report_mode 가 event 로 바뀌는 것이 이 규칙이다.
+   */
+  drive(values: Record<string, unknown>): void {
+    this.scripted = true;
+    const prevLevel = this.level;
+    if (typeof values.water_level_m === 'number') this.level = round(values.water_level_m, 3);
+    if (typeof values.flow_mps === 'number') this.flow = round(values.flow_mps, 3);
+    if (Math.abs(this.level - prevLevel) >= 0.04) {
+      this.eventModeUntilMs = Date.now() + INTERVALS.SENSOR_EVENT_HOLD_MS;
+      this.loop?.rearm();
+    }
+    this.publishNow();
+  }
+
+  /** 대본 종료·닫기 — 현재 값에서 평소 랜덤 워크로 복귀한다. */
+  endScript(): void {
+    this.scripted = false;
   }
 
   /**
@@ -353,6 +429,26 @@ export class ObservabilityEmitter {
     this.id = id;
   }
 
+  /**
+   * 합성으로 메워도 되는 지표 — 이 엣지가 스스로 만드는 관측 지표뿐이다.
+   * 도메인 계측(수위·로봇 속도·커버리지)은 **지어내지 않는다** (260831) —
+   * 값이 실제로 발행된 구간만 저장소에 있고, 없는 구간은 없는 채로 조회된다.
+   */
+  private readonly syntheticMetrics = new Set(['cpu_pct', 'publish_latency_ms', 'publish_success']);
+
+  syntheticAllowed(metric: string): boolean {
+    return this.syntheticMetrics.has(metric);
+  }
+
+  /**
+   * 도메인 계측 적재 (260831 — 대본 재생). 수위·로봇 속도·커버리지 %가 관측 지표와
+   * **같은 엣지 raw 저장소·같은 질의 경로**(/metrics/query · BE-Q-01)로 조회된다.
+   * 별도 경로를 만들지 않는다 — 경로가 둘이면 화면이 둘을 배운다.
+   */
+  recordSample(metric: string, value: number): void {
+    this.push(metric, Date.now(), value);
+  }
+
   /** 엣지가 자기 안에만 쌓는 원본 1초 샘플. */
   private sampleRaw(): void {
     const nowMs = Date.now();
@@ -377,6 +473,10 @@ export class ObservabilityEmitter {
     const nowMs = Date.now();
     const fromMs = nowMs - rangeMin * 60_000;
     const stored = (this.rawStore.get(metric) ?? []).filter((s) => s.t >= fromMs);
+
+    // 도메인 계측(260831)은 있는 만큼만 돌려준다 — 합성으로 메우면 대본이 안 돌던
+    // 구간에 없는 수위가 생긴다.
+    if (!this.syntheticMetrics.has(metric)) return stored.slice(-maxPoints);
 
     // 서버가 방금 떴다면 쌓인 raw가 짧다. 화면에서 "원본은 점이 15배 촘촘하다"를 보려면
     // 범위만큼의 점이 있어야 하므로, 없는 구간은 마지막 값 주변으로 합성해 채운다.

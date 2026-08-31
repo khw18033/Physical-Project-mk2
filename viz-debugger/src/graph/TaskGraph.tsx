@@ -60,7 +60,10 @@ export function TaskGraph({ tasks, hardware, states, layoutMode, selected, dimUn
       return <button key={task.id} type="button" className={`task-node ${style.className} ${selected === task.id ? 'selected' : ''} ${dimmed ? 'dimmed' : ''}`} style={{ left: position.x, top: position.y }} onPointerDown={(event) => startDrag(event, task.id)} onDoubleClick={() => onOpen(task)}>
         <small>{task.id}</small><strong>{task.title}</strong>
         <span className="state-label">{style.icon} {style.label}{state.status === 'rerunning' ? ` · attempt ${state.attempt}` : ''}</span>
-        <span className={`device ${device?.connection ?? 'offline'}`}>{task.target} · {device?.connection === 'online' ? '온라인' : device?.connection === 'maintenance' ? '점검' : '오프라인'}</span>
+        {/* 옛 편은 하드웨어 목록이 있어 기존 문구 그대로다. 대본(registry 세계)의 장비 실측
+            상태는 남이 줄 데이터라 '오프라인'이라고 지어 말하지 않는다 — 미수신은 미수신이다.
+            (칩 자체의 A/B 처리는 8/31 보류 항목 1 그대로 미결이다.) */}
+        <span className={`device ${device?.connection ?? 'unknown'}`}>{task.target === null ? '대상 없음' : `${task.target} · ${device ? (device.connection === 'online' ? '온라인' : device.connection === 'maintenance' ? '점검' : '오프라인') : '상태 미수신'}`}</span>
       </button>;
     })}
   </div>;

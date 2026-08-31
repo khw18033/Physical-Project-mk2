@@ -1,4 +1,9 @@
-// 이식: web-dashboard/mock-gateway/plans.ts @ 700ed91 — 무수정
+// 이식: web-dashboard/mock-gateway/plans.ts @ 700ed91 — 대본 재생(260831)에서 proposeScript()·onScriptApproved 추가
+//
+// 대본(시나리오 대본) 경로가 더해졌다. 발화가 대본에 매칭되면 **같은 승인 절차**(VZ-U-07 ·
+// REQ-1506)를 지나야 한다 — 새 승인 경로를 만들면 「승인 전 실행 없음」이 두 벌이 된다.
+// 대본 계획은 승인 뒤 구간 시뮬레이션(dispatchFrom)이 아니라 **대본 재생기**로 넘어간다.
+// 구간(segments)은 대본의 마일스톤이고, 재생기가 태스크 상태를 접어 갱신해 준다.
 /**
  * mock-gateway/plans.ts
  *
@@ -29,6 +34,8 @@ export type PlanSegment = {
   title: string;
   /** 이 구간이 지나는 구역. 여러 구역에 걸친 계획은 구역별 구간과 순서를 함께 본다. */
   zone: string;
+  /** 대본 계획의 구간 = 마일스톤. 재생기가 태스크 상태를 접어 이 id 로 갱신한다. */
+  milestone_id?: string;
   status: SegmentStatus;
   /** 소요 시간(초). 완료된 구간만. */
   elapsed_s: number | null;
@@ -103,6 +110,28 @@ export type Plan = {
   };
   /** 승인 수신 → 엣지·로봇 발행 사이의 중계 상태. */
   relay_stage: 'awaiting_decision' | 'decision_received' | 'dispatched' | 'halted';
+  /**
+   * 이 계획이 **대본 조회**에서 나왔는가 (260831). 있으면 LLM이 아니라 키워드 대조다 —
+   * 화면이 그 사실을 감추지 않도록 맞은 키워드와 대본 ID 를 그대로 싣는다 (REQ-1207의 정신).
+   */
+  script?: {
+    mission_id: string;
+    title: string;
+    matched_keywords: string[];
+    world: 'registry' | 'legacy';
+  };
+};
+
+/** proposeScript() 의 입력 — 대본(또는 옛 편)에서 계획을 만드는 데 필요한 만큼만. */
+export type ScriptPlanSeed = {
+  missionId: string;
+  title: string;
+  world: 'registry' | 'legacy';
+  utteranceText: string;
+  matchedKeywords: string[];
+  /** 등장 장비가 속한 구역. 구판 세계는 구역과 연결되지 않으므로 표기용 문자열이다. */
+  zone: string;
+  milestones: Array<{ id: string; title: string }>;
 };
 
 function nowIso(): string {
@@ -218,6 +247,127 @@ export class PlanEngine {
   }
 
   /**
+   * 대본 계획을 승인 시 재생으로 넘기는 훅. server.ts 가 ScriptEngine 을 연결한다.
+   * 엔진이 재생기를 직접 알지 않게 하려고 콜백으로 둔다 (permissionCheck 와 같은 방식).
+   */
+  onScriptApproved: ((plan: Plan) => void) | null = null;
+
+  /**
+   * **대본 조회에서 나온 계획 제안** (260831 · VZ-U-07 · REQ-1506).
+   *
+   * 발화가 대본에 매칭되면 여기로 온다. 데모 계획(propose)과 같은 승인 절차를 지나며,
+   * **승인 전에는 재생이 하나도 일어나지 않는다.** 구간은 대본의 마일스톤이고,
+   * 근거에는 「이것은 LLM이 아니라 키워드 대조」라는 사실이 그대로 실린다 (REQ-1207).
+   */
+  proposeScript(seed: ScriptPlanSeed): Plan {
+    this.reset();
+
+    const planId = 'plan-' + Date.now().toString(36) + '-scr';
+    const now = nowIso();
+
+    this.plan = {
+      plan_id: planId,
+      // 계획의 대상은 장비가 아니라 임무다. 임무 entity 는 mission-trace 노드에 등록돼
+      // 있어 구역 구독(zone-503)에는 딸려 오지 않는다 — 셸이 임무 축을 따로 구독한다.
+      entity: seed.missionId,
+      decision: 'pending',
+      decided_at: null,
+      reject_reason: null,
+      command_id: null,
+      relay_stage: 'awaiting_decision',
+      script: {
+        mission_id: seed.missionId,
+        title: seed.title,
+        matched_keywords: [...seed.matchedKeywords],
+        world: seed.world,
+      },
+      route: {
+        generated_by: '대본 라이브러리 조회 (키워드 대조 — LLM 아님)',
+        delivered_by: '백엔드 승인 중계 (BE-X-04)',
+        decision_returns_to: '백엔드 승인 중계 (BE-X-04)',
+        dispatches_to: '대본 재생기 (trace_event · 세계 채널 · CommandEngine)',
+      },
+      evidence: {
+        mission: {
+          id: seed.missionId,
+          title: seed.title,
+          requested_by: '발화 — mission_from_utterance',
+          created_at: now,
+        },
+        zones: [{ zone: seed.zone, order: 1, segment_count: seed.milestones.length }],
+        validations: [
+          {
+            rule: '대본 매칭 — 키워드 대조 (LLM 아님)',
+            result: 'pass',
+            detail: '맞은 키워드: ' + seed.matchedKeywords.join(' · ') + ' → ' + seed.missionId,
+          },
+          seed.world === 'registry'
+            ? {
+                rule: '등장 장비 실재',
+                result: 'pass' as const,
+                detail: 'cast 전부 registry.json 에 실재 (verify:script-library 가 강제)',
+              }
+            : {
+                rule: '세계 연결',
+                result: 'warn' as const,
+                detail: '이 대본은 구역 장비와 연결되지 않은 구판 세계다 — 탭②~⑤에 아무것도 따라 움직이지 않는다',
+              },
+        ],
+        generator: { name: 'script-library', version: '260831', context_version: seed.missionId },
+        provenance: [
+          {
+            stage: '대본 조회',
+            produced_by: 'backend',
+            ref: 'REQ-1207',
+            at: now,
+            detail:
+              '문장 「' + seed.utteranceText + '」 을 키워드 대조로 대본에 맞췄다. ' +
+              '**LLM이 아니다** — 마일스톤·태스크는 미리 써 둔 대본에서 읽는다.',
+          },
+          {
+            stage: '가시화 전달 (중계)',
+            produced_by: 'backend',
+            ref: 'BE-X-04',
+            at: now,
+            detail: '백엔드가 대본 제안과 근거를 가시화로 전달했다. 승인 전에는 재생이 일어나지 않는다.',
+          },
+        ],
+      },
+      segments: seed.milestones.map((m, i) => ({
+        index: i + 1,
+        total: seed.milestones.length,
+        title: m.title,
+        zone: seed.zone,
+        milestone_id: m.id,
+        status: 'pending',
+        elapsed_s: null,
+        failure: null,
+      })),
+    };
+
+    this.publishPlan();
+    return this.plan;
+  }
+
+  /**
+   * 재생기가 태스크 상태를 마일스톤 단위로 접은 결과를 구간 상태에 반영한다.
+   * 대본 계획의 구간 진행은 시뮬레이션이 아니라 **대본 기록 열의 파생**이다.
+   */
+  applyScriptMilestones(planId: string, statuses: Record<string, SegmentStatus>): void {
+    const plan = this.plan;
+    if (plan === null || plan.plan_id !== planId || plan.script === undefined) return;
+    let changed = false;
+    for (const seg of plan.segments) {
+      const next = seg.milestone_id !== undefined ? statuses[seg.milestone_id] : undefined;
+      if (next !== undefined && next !== seg.status) {
+        seg.status = next;
+        changed = true;
+      }
+    }
+    if (changed) this.publishProgress();
+  }
+
+  /**
    * 승인/거부. **백엔드 채널로 들어와 백엔드 채널로 처리된다** (BE-X-04).
    *
    * 승인이어도 곧바로 구간이 돌지 않는다 — 승인 수신과 엣지·로봇 발행 사이에
@@ -270,15 +420,30 @@ export class PlanEngine {
       setTimeout(() => {
         if (this.plan !== plan || plan.decision !== 'approved') return;
         plan.relay_stage = 'dispatched';
-        plan.evidence.provenance.push({
-          stage: '엣지 · 로봇 발행',
-          produced_by: 'backend',
-          ref: 'BE-X-04 → HW-R-05',
-          at: nowIso(),
-          detail: '승인된 계획만 엣지·로봇으로 발행했다. 승인 전에는 이 발행이 일어나지 않는다.',
-        });
+        plan.evidence.provenance.push(
+          plan.script !== undefined
+            ? {
+                stage: '대본 재생 시작',
+                produced_by: 'backend',
+                ref: 'BE-X-04',
+                at: nowIso(),
+                detail:
+                  '승인된 대본의 재생을 시작했다 — trace_event(탭①) · 세계 채널(탭②~⑤) · ' +
+                  '명령(CommandEngine)이 이제부터 나간다. 승인 전에는 하나도 나가지 않았다.',
+              }
+            : {
+                stage: '엣지 · 로봇 발행',
+                produced_by: 'backend',
+                ref: 'BE-X-04 → HW-R-05',
+                at: nowIso(),
+                detail: '승인된 계획만 엣지·로봇으로 발행했다. 승인 전에는 이 발행이 일어나지 않는다.',
+              },
+        );
         this.publishPlan();
-        this.dispatchFrom(1);
+        // 대본 계획은 구간 시뮬레이션이 아니라 재생기로 넘어간다. 구간 상태는
+        // 재생기가 태스크 상태를 접어 applyScriptMilestones() 로 돌려준다.
+        if (plan.script !== undefined) this.onScriptApproved?.(plan);
+        else this.dispatchFrom(1);
       }, SCENARIO_TIMING.PLAN_RELAY_MS),
     );
 

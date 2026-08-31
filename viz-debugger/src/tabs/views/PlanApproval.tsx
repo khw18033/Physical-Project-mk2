@@ -227,7 +227,10 @@ function ApprovalPanel({ plan }: { plan: Plan }) {
 
       <p className="note note--dim">
         생성기 {ev.generator.name} {ev.generator.version} · 입력 맥락 {ev.generator.context_version}
-        <span className="chip chip--ai">AI 산출</span>
+        {/* 대본 계획은 AI 산출이 아니다 — 키워드 대조다. 감추면 REQ-1207 위반이다 (260831). */}
+        {plan.script !== undefined
+          ? <span className="chip chip--backend">대본 조회 — LLM 아님 · 키워드 [{plan.script.matched_keywords.join(' · ')}]</span>
+          : <span className="chip chip--ai">AI 산출</span>}
         {plan.command_id !== null && (
           <>
             <br />

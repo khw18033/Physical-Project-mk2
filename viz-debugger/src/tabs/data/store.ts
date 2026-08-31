@@ -1,4 +1,4 @@
-// 이식: web-dashboard/src/data/store.ts @ 700ed91 — 무수정 (transport 경로만 조정)
+// 이식: web-dashboard/src/data/store.ts @ 700ed91 — 대본 재생(260831)에서 coverage 채널 슬롯 추가
 /**
  * src/data/store.ts
  *
@@ -61,6 +61,8 @@ export type EntityRecord = {
     segments: PlanSegment[];
   }> | null;
   metrics: ChannelSlot | null;
+  /** 대본 재생(260831) — 2편 구역 맵의 칸별 마지막 탐지 시각. 항상 전체 스냅샷으로 온다. */
+  coverage: ChannelSlot | null;
   /** VZ-I-08 — AI가 판정한 위험 단계와 근거. 화면에서 재계산하지 않는다. */
   riskState: ChannelSlot<RiskState> | null;
   /** VZ-I-10 — 지표 폴링과 분리된 즉시 실패 이벤트의 마지막 수신값. */
@@ -83,6 +85,7 @@ function emptyRecord(id: string, registry: RegistryEntity | null): EntityRecord 
     plan: null,
     planProgress: null,
     metrics: null,
+    coverage: null,
     riskState: null,
     aiFailure: null,
     envelopeCount: 0,
@@ -210,6 +213,11 @@ export class DataStore {
         break;
       case 'metrics':
         rec.metrics = toSlot(env);
+        break;
+      case 'coverage':
+        rec.coverage = toSlot(env);
+        // 칸이 채워지는 순간은 이산 사건이다 — 병합 창에 묻히면 맵의 채움이 늦게 보인다.
+        immediate = true;
         break;
       case 'risk_state':
         rec.riskState = toSlot<RiskState>(env);

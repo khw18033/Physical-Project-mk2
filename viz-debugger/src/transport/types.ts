@@ -32,7 +32,11 @@ export type Channel =
   | 'detections'
   | 'metrics'
   | 'risk_state'
-  | 'ai_failure';
+  | 'ai_failure'
+  // 통합 때 합류 — 탭①의 임무 실행 기록 열. 게이트웨이 protocol.ts 와 짝을 이룬다.
+  | 'trace_event'
+  // 대본 재생(260831) 때 신설 — 2편 구역 맵의 카메라 커버리지(칸별 마지막 탐지 시각).
+  | 'coverage';
 
 export type RiskState = {
   level: 'normal' | 'watch' | 'alert' | 'recovery';

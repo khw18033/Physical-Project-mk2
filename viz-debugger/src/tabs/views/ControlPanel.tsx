@@ -154,7 +154,7 @@ export function ControlPanel() {
 
           <ControlGateBar gate={gate} />
 
-          <PendingSource id="action-catalog" minHeight={52}>
+          <PendingSource id="action-catalog" minHeight={52} entity={target}>
           <div className="btnrow">
             {actions.map((spec) => (
               <button
@@ -183,7 +183,7 @@ export function ControlPanel() {
           <dl className="kv">
             <dt>현재 상태</dt>
             <dd>
-              <PendingSource id="actuator-state" inline>
+              <PendingSource id="actuator-state" inline entity={target}>
                 <strong>{describePosition(record?.actuator?.payload?.position_pct ?? null)}</strong>
               </PendingSource>
             </dd>
@@ -299,7 +299,9 @@ export function ControlPanel() {
             <span className="panel__tag">VZ-O-02</span>
           </header>
 
-          <PendingSource id="command-result" minHeight={180}>
+          {/* scenario 모드: 대본의 명령(3편 close/open_gate)이 이 엔진 이력에 4단계로 뜬다.
+              발행 주체는 감사에 「임무 MSN-…」로 남는다 — 사람이 누른 것이 아니다. */}
+          <PendingSource id="command-result" minHeight={180} entity={target}>
             {latest === null ? (
               <p className="muted">아직 발행한 명령이 없다. 왼쪽에서 명령을 눌러 보라.</p>
             ) : (

@@ -1,4 +1,4 @@
-// 이식: web-dashboard/src/views/MetricsView.tsx @ 700ed91 — 무수정 (transport 경로만 조정)
+// 이식: web-dashboard/src/views/MetricsView.tsx @ 700ed91 — 대본 재생(260831): 도메인 지표 3종 + 위험 수위 선
 /**
  * src/views/MetricsView.tsx
  *
@@ -32,14 +32,23 @@ import {
 } from '../data/index.ts';
 import { getBlockLog } from '../data/index.ts';
 import { useEntities, useMetricsQuery, useReaggregationBlocks } from '../data/hooks.ts';
+import { useMission } from '../../data/scenario.ts';
 import { PendingSource } from '../../shared/PendingSource.tsx';
 
 /** 관측 지표를 내는 대상. 구역 요약의 출처다. */
 const METRIC_ENTITY = 'edge-node-a';
 
+/**
+ * `source` 는 이 지표의 **원천 장비** — scenario 모드에서 그 장비가 대본 cast 에 있을 때만
+ * 그래프가 그려진다(자리표시 분기). 도메인 지표 3종(260831)은 관측 지표와 **같은 질의
+ * 경로**(/metrics/query · BE-Q-01)로 온다 — 별도 경로를 만들지 않는다.
+ */
 const METRICS = [
-  { id: 'cpu_pct', label: 'CPU 사용률', unit: '%' },
-  { id: 'publish_latency_ms', label: '발행 지연', unit: 'ms' },
+  { id: 'cpu_pct', label: 'CPU 사용률', unit: '%', source: 'edge-node-a' },
+  { id: 'publish_latency_ms', label: '발행 지연', unit: 'ms', source: 'edge-node-a' },
+  { id: 'water_level_m', label: '수위', unit: 'm', source: 'sensor-01' },
+  { id: 'coverage_pct', label: '커버리지', unit: '%', source: 'camera-02' },
+  { id: 'robot_speed_mps', label: '로봇 속도', unit: 'm/s', source: 'robot-01' },
 ] as const;
 
 export function MetricsView() {
@@ -55,7 +64,13 @@ export function MetricsView() {
   });
 
   const unit = METRICS.find((m) => m.id === metric)?.unit ?? '';
+  const source = METRICS.find((m) => m.id === metric)?.source ?? METRIC_ENTITY;
   const notice = heavyQueryNotice(mode, rangeMin);
+  // 위험 수위 선 — 대본 params 에서 읽는다 (3편 danger_level_m · 지어내지 않는다).
+  const mission = useMission();
+  const dangerLevel = metric === 'water_level_m'
+    ? ((mission.current.params.danger_level_m as number | undefined) ?? null)
+    : null;
 
   return (
     <main className="board">
@@ -141,10 +156,10 @@ export function MetricsView() {
 
         {error !== null && <p className="notice notice--warn">{error}</p>}
 
-        <PendingSource id="metrics-query" minHeight={260}>
+        <PendingSource id="metrics-query" minHeight={260} entity={source}>
           {series !== null && (
             <>
-              <SeriesChart series={series} unit={unit} loading={loading} />
+              <SeriesChart series={series} unit={unit} loading={loading} dangerLevel={dangerLevel} />
               <SeriesMeta series={series} unit={unit} />
             </>
           )}
@@ -197,7 +212,7 @@ function LiveSummaryCard() {
         <span className="panel__tag">VZ-C-03</span>
       </header>
 
-      <PendingSource id="metrics-push" minHeight={110}>
+      <PendingSource id="metrics-push" minHeight={110} entity={METRIC_ENTITY}>
       <div className="statrow">
         <div className="stat">
           <span className="stat__value">{payload.cpu_pct?.value.toFixed(1) ?? '—'}</span>
@@ -240,19 +255,22 @@ function LiveSummaryCard() {
 }
 
 /** 인라인 SVG 선 하나. 라이브러리를 들일 만한 그림이 아니다. */
-function SeriesChart({ series, unit, loading }: { series: MetricsSeries; unit: string; loading: boolean }) {
+function SeriesChart({ series, unit, loading, dangerLevel = null }: { series: MetricsSeries; unit: string; loading: boolean; dangerLevel?: number | null }) {
   const W = 900;
   const H = 200;
   const PAD = 8;
 
   const points: MetricPoint[] = series.points;
-  const { min, max } = seriesExtent(points);
+  const extent = seriesExtent(points);
+  // 위험 수위 선(260831 · 3편)이 화면 밖으로 나가지 않게 축에 포함한다.
+  const min = dangerLevel === null ? extent.min : Math.min(extent.min, dangerLevel);
+  const max = dangerLevel === null ? extent.max : Math.max(extent.max, dangerLevel);
 
+  const yOf = (value: number) => H - PAD - ((value - min) / Math.max(1e-9, max - min)) * (H - PAD * 2);
   const path = points
     .map((p, i) => {
       const x = PAD + (i / Math.max(1, points.length - 1)) * (W - PAD * 2);
-      const y = H - PAD - ((p.value - min) / (max - min)) * (H - PAD * 2);
-      return (i === 0 ? 'M' : 'L') + x.toFixed(1) + ' ' + y.toFixed(1);
+      return (i === 0 ? 'M' : 'L') + x.toFixed(1) + ' ' + yOf(p.value).toFixed(1);
     })
     .join(' ');
 
@@ -264,9 +282,14 @@ function SeriesChart({ series, unit, loading }: { series: MetricsSeries; unit: s
         </span>
         <span className="chart__scale">
           {min.toFixed(1)} ~ {max.toFixed(1)} {unit} · 점 {points.length}개 · 간격 {series.pointIntervalSec}초
+          {dangerLevel !== null && <> · 위험 수위 {dangerLevel} {unit} (대본 params)</>}
         </span>
       </div>
       <svg className="chart__svg" viewBox={'0 0 ' + W + ' ' + H} preserveAspectRatio="none" role="img">
+        {/* 위험 수위 선 — 상승 30초·유지 10초·하락 3분 구간이 이 선 기준으로 읽힌다 (3편). */}
+        {dangerLevel !== null && (
+          <line className="chart__danger" x1={PAD} x2={W - PAD} y1={yOf(dangerLevel)} y2={yOf(dangerLevel)} />
+        )}
         <path className={'chart__line chart__line--' + series.badge.state} d={path} />
       </svg>
     </div>

@@ -12,6 +12,9 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { proposeMission } from '../data/scenario.ts';
+import { SCRIPT_LIBRARY } from '../scenarios/library.ts';
+import { matchLibrary, type MatchOutcome } from '../scenarios/matcher.ts';
 import { issueCommand } from '../shared/commandEgress.ts';
 import { CommandAuditError } from '../shared/voiceAudit.ts';
 import { capabilities, type SttStatus } from '../stt/availability.ts';
@@ -48,6 +51,31 @@ function realSteps(phase: Phase, hasAudio: boolean, hasResult: boolean): Array<{
 
 const STEP_MARK: Record<StepState, string> = { idle: '·', active: '…', done: '✓', failed: '✕' };
 const MOCK_STEPS = ['의도 분석', '마일스톤 분리', '태스크 생성'];
+/**
+ * 대본이 맞았을 때의 뒤 세 칸 (260831). **이것은 LLM이 아니다** — 키워드 대조로 미리 써 둔
+ * 대본을 꺼낸 것이고, 배지 이름을 `목`과 갈라 두는 이유는 나중에 LLM(VZ-G-01)이 들어오면
+ * 대본 조회가 그 뒤의 대조군·시연 안전망으로 남아 둘이 화면에서 구별되어야 하기 때문이다.
+ */
+const SCRIPT_STEPS = ['의도 분석 → 대본 조회', '마일스톤 분리 → 대본에서 읽음', '태스크 생성 → 대본에서 읽음'];
+
+/**
+ * 문장을 대본 라이브러리에 대조하고, 맞으면 제안 상태로 올린다.
+ * 게이트웨이(있으면)가 같은 매처·같은 대본으로 권위 있는 제안(plan)을 만들고,
+ * 단독 빌드에서는 이 로컬 매칭이 곧 제안이다 — **같은 파일을 import 하므로 결과가 같다.**
+ */
+function matchScript(text: string): MatchOutcome {
+  const outcome = matchLibrary(text, SCRIPT_LIBRARY);
+  if (outcome.kind === 'matched') {
+    proposeMission({
+      missionId: outcome.entry.missionId,
+      title: outcome.entry.script?.title ?? '415호 → 503호 이동 (구판 세계)',
+      keywords: outcome.keywords,
+      planId: null,
+      world: outcome.entry.world,
+    });
+  }
+  return outcome;
+}
 
 function LevelMeter({ levels, live }: { levels: number[]; live: boolean }) {
   return (
@@ -95,6 +123,8 @@ export function UtterancePanel({ fallbackText }: { fallbackText: string }) {
   const [error, setError] = useState<{ message: string; detail?: string } | null>(null);
   const [confirmed, setConfirmed] = useState(false);
   const [issued, setIssued] = useState<string | null>(null);
+  /** 마지막 제출 문장의 대본 매칭 결과 — 뒤 세 칸이 `목`에서 `대본`으로 바뀌는 근거. */
+  const [scriptMatch, setScriptMatch] = useState<MatchOutcome | null>(null);
 
   const recorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -199,6 +229,9 @@ export function UtterancePanel({ fallbackText }: { fallbackText: string }) {
 
   const submitVoice = useCallback(async () => {
     if (!result || !decision) return;
+    // 매칭은 발행 전에 로컬에서도 한다 — 게이트웨이와 **같은 매처·같은 대본**이라 결과가
+    // 같고, 단독 빌드(게이트웨이 없음)에서는 이 결과가 곧 제안이 된다.
+    setScriptMatch(matchScript(edited.trim()));
     try {
       // 임계 미만이면 여기 오지 못한다. 조용히 통과시키지 않는다.
       await issueCommand({
@@ -224,6 +257,7 @@ export function UtterancePanel({ fallbackText }: { fallbackText: string }) {
 
   const submitManual = useCallback(async () => {
     if (!manual.trim()) return;
+    setScriptMatch(matchScript(manual.trim()));
     try {
       await issueCommand({ action: 'mission_from_utterance', params: { text: manual.trim(), source: 'manual_text' }, inputModality: 'pointer' });
       setIssued('직접 입력한 문장으로 발행했습니다 (음성 아님)');
@@ -271,12 +305,29 @@ export function UtterancePanel({ fallbackText }: { fallbackText: string }) {
 
       <div className="progress-steps">
         {steps.map((step) => <span key={step.label} className={`step-${step.state}`}>{STEP_MARK[step.state]} {step.label}</span>)}
-        {MOCK_STEPS.map((label) => (
-          <span key={label} className="step-mock" title="아직 목입니다 — VZ-G-01·VZ-G-02, 로컬 LLM 필요">
-            <b>목</b> {label}
-          </span>
-        ))}
+        {scriptMatch?.kind === 'matched'
+          ? SCRIPT_STEPS.map((label) => (
+              <span key={label} className="step-script" title="키워드 대조로 미리 써 둔 대본을 꺼냈습니다 — LLM(VZ-G-01)이 아닙니다">
+                <b>대본</b> {label}
+              </span>
+            ))
+          : MOCK_STEPS.map((label) => (
+              <span key={label} className="step-mock" title="아직 목입니다 — VZ-G-01·VZ-G-02, 로컬 LLM 필요">
+                <b>목</b> {label}
+              </span>
+            ))}
       </div>
+
+      {/* 어느 키워드가 맞아서 어느 대본이 골라졌는지 — 그 자리에서 보여준다 (REQ-1207의 정신). */}
+      {scriptMatch?.kind === 'matched' && (
+        <p className="script-match">
+          대본 <code>{scriptMatch.entry.missionId}</code> — 맞은 키워드 {scriptMatch.keywords.map((k) => <b key={k}>{k}</b>)}
+          <small>키워드 대조 결과입니다. LLM이 아니며, 마일스톤·태스크는 대본에서 읽습니다</small>
+        </p>
+      )}
+      {(scriptMatch?.kind === 'none' || scriptMatch?.kind === 'ambiguous') && (
+        <p className="stt-error">{scriptMatch.reason}</p>
+      )}
 
       {result && decision ? (
         <>

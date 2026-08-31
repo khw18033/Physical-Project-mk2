@@ -174,16 +174,19 @@ export function VideoOverlayView() {
 
           {/* 영상(VZ-I-06) · 탐지 박스(VZ-I-07) · 궤적(VZ-I-09)이 같은 캔버스 한 자리에 겹쳐 그려진다.
               셋 다 남이 줄 데이터라 자리표시 셋을 나란히 둔다 — 어느 하나만 와도 그릴 수 없기 때문이다. */}
+          {/* scenario 모드 (260831): camera-02 가 대본 cast 에 있으면 캔버스가 그려진다.
+              박스는 게이트웨이가 대본의 시야 안/밖에 따라 만든다 — 시야 밖(사각지대)에서는
+              탐지 배열이 비어 박스가 없다. 그게 2편의 요지다. */}
           <div className="videoframe">
-            <PendingSource id="video-stream" minHeight={540}>
+            <PendingSource id="video-stream" minHeight={540} entity={CAMERA}>
               <canvas ref={canvasRef} width={960} height={540} className="videocanvas" />
             </PendingSource>
           </div>
           {/* 박스와 궤적은 위 캔버스에 **겹쳐** 그려지는 것이라 자리를 따로 차지하지 않는다.
               한 줄짜리로 둬서 원래 화면 높이를 늘리지 않는다 (제약 7). */}
           <p className="overlaypending">
-            <PendingSource id="detections" inline />
-            <PendingSource id="tracking" inline />
+            <PendingSource id="detections" inline entity={CAMERA} />
+            <PendingSource id="tracking" inline entity={CAMERA} />
           </p>
 
           {report !== null && (

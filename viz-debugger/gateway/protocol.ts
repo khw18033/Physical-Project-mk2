@@ -40,7 +40,10 @@ export type Channel =
   | 'ai_failure'
   // 통합 때 합류. 탭①이 임무 실행 기록을 되짚는 축이다.
   // 장치 채널과 섞이지 않는다 — 대상이 장비가 아니라 임무이고, node 축도 다르다.
-  | 'trace_event';
+  | 'trace_event'
+  // 대본 재생(260831) 때 신설. 2편 구역 맵의 카메라 커버리지 — 칸별 마지막 탐지 시각.
+  // 실제로는 AI(AI-S-*)나 백엔드가 줄 데이터의 합성본이고, scenario 모드에서만 그린다.
+  | 'coverage';
 
 export type RiskState = {
   level: 'normal' | 'watch' | 'alert' | 'recovery';

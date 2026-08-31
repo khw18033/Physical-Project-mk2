@@ -43,6 +43,8 @@ import { PipelineEditorEngine, validateGraph, type PipelineContract } from './pi
 import { deriveCatalog } from './pipeline-catalog.ts';
 // 통합 때 합류 — 옛 viz-debugger/gateway/server.mjs 10줄이 여기로 접혔다.
 import { startMissionTrace } from './mission-trace.ts';
+// 대본 재생(260831) — 발화 → 대본 매칭 → 승인 → 재생. 매처는 브라우저와 같은 파일이다.
+import { ScriptEngine } from './script-engine.ts';
 import type { NodeLayout } from '../src/shared/pipeline-contract.ts';
 import type {
   ClientMessage,
@@ -75,6 +77,9 @@ const plans = new PlanEngine(hub);
 const vision = new VisionEmitter(hub, 'camera-02');
 // REQ-1007 — 허브를 넘겨 발행 흐름에 붙인다. 반영된 그래프의 실제 수신을 세기 위해서다.
 const pipelineEditor = new PipelineEditorEngine(hub);
+// 대본 라이브러리 (260831). 발화 명령을 매칭하고, 승인된 대본을 재생한다.
+// plans.onScriptApproved 연결은 생성자 안에서 일어난다 — 승인 전에는 아무것도 재생되지 않는다.
+const scripts = new ScriptEngine({ hub, fleet, commands, plans, vision, log });
 
 /** VZ-O-04 검증용 수신 실물. 실제 배치에서는 이 경로가 OTel Collector가 된다. */
 const clientMetrics: unknown[] = [];
@@ -146,6 +151,33 @@ for (const actuator of fleet.actuators.values()) actuator.attach(commands);
 
 hub.startLoops();
 
+// 대본 재생(260831) — 도메인 계측(수위·로봇 속도·커버리지 %)을 엣지 raw 저장소에 같이
+// 쌓아 /metrics/query 하나로 조회되게 한다 (탭④ · 별도 경로를 만들지 않는다).
+{
+  const edgeObs = fleet.observability.get('edge-node-a');
+  if (edgeObs !== undefined) {
+    hub.onPublish((env) => {
+      if (env.channel === 'telemetry') {
+        const p = env.payload as { water_level?: { value: number }; velocity?: { linear_mps: number } };
+        if (env.entity === 'sensor-01' && typeof p.water_level?.value === 'number') {
+          edgeObs.recordSample('water_level_m', p.water_level.value);
+        }
+        if (env.entity === 'robot-01' && typeof p.velocity?.linear_mps === 'number') {
+          edgeObs.recordSample('robot_speed_mps', p.velocity.linear_mps);
+        }
+      }
+      if (env.channel === 'coverage') {
+        const p = env.payload as { cells?: Array<{ last_scan_at_sec: number | null }> };
+        if (Array.isArray(p.cells) && p.cells.length > 0) {
+          // 커버리지 % — 사각지대 칸 중 채워진 비율. 2편 탭④의 시계열 재료다.
+          const filled = p.cells.filter((c) => c.last_scan_at_sec !== null).length;
+          edgeObs.recordSample('coverage_pct', Math.round((filled / p.cells.length) * 1000) / 10);
+        }
+      }
+    });
+  }
+}
+
 // 기동 시 계획 하나를 승인 대기로 올려 둔다 — 화면을 열자마자 승인 절차를 볼 수 있게.
 plans.propose();
 publishRisk('normal');
@@ -196,10 +228,13 @@ async function metricsQuery(params: URLSearchParams): Promise<MetricsQueryResult
     const nowMs = Date.now();
     // 요약 시계열은 백엔드가 이미 당겨 둔 값이므로 저장소를 읽기만 한다.
     const source = emitter?.readRaw(metric, rangeMin, METRICS_QUERY.MAX_POINTS) ?? [];
+    // 도메인 계측(수위·속도·커버리지 — 260831)은 빈 창을 합성으로 메우지 않는다.
+    const synthetic = emitter?.syntheticAllowed(metric) ?? false;
     const points = [];
     for (let i = count - 1; i >= 0; i -= 1) {
       const t = nowMs - i * stepSec * 1000;
       const window = source.filter((s) => s.t > t - stepSec * 1000 && s.t <= t);
+      if (window.length === 0 && !synthetic) continue;
       const value =
         window.length > 0
           ? Math.round((window.reduce((a, s) => a + s.value, 0) / window.length) * 10) / 10
@@ -554,7 +589,9 @@ wss.on('connection', (ws) => {
 
         // **명령은 여기서 끝난다.** 실제 디바이스로 나가는 경로는 만들지 않는다.
         // 상관 키(command_id)는 submit 안에서, 즉 **명령 조립 단계**에서 발급된다(BE-X-01).
-        const outcome = commands.submit(cmd);
+        // 발화(mission_from_utterance)·대본 닫기는 대본 엔진이 받는다 — 액추에이터 4단계가
+        // 아니라 매칭·재생의 일이고, 상관 키 발급·감사 적재·command_result 계약은 같다.
+        const outcome = scripts.handles(cmd.action) ? scripts.submit(cmd) : commands.submit(cmd);
 
         // ACK — **두 키를 함께 내려주는 유일한 메시지.** 이게 도착해야 화면이
         // client_request_id로 걸어 둔 낙관적 UI를 command_id 사슬에 이어 붙인다.
@@ -715,6 +752,7 @@ http.listen(SERVER.PORT, SERVER.HOST, () => {
     CACHEABLE_CHANNELS.join(', ') + '. command_result·video_frame·detections는 캐시하지 않는다',
   );
   log('시나리오: ' + SCENARIOS.map((s) => s.name).join(', '));
+  log('대본 라이브러리(260831): ' + scripts.describe() + ' — mission_from_utterance 가 키워드 대조로 매칭된다 (LLM 아님)');
   // 탭①의 임무 기록 열. 장치 채널과 **같은 게이트웨이 하나**에서 나간다 —
   // transport 는 싱글턴이고 주소가 하나라 '탭마다 다른 게이트웨이'는 성립하지 않는다.
   stopMissionTrace = startMissionTrace(hub, log);

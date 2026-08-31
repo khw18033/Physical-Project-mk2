@@ -97,6 +97,16 @@ export type Plan = {
   };
   /** 승인 수신 → 엣지·로봇 발행 사이의 중계 상태. */
   relay_stage: 'awaiting_decision' | 'decision_received' | 'dispatched' | 'halted';
+  /**
+   * 대본 조회에서 나온 계획인가 (260831). 있으면 생성 주체가 LLM/AI가 아니라
+   * **키워드 대조**다 — 화면이 그 사실을 감추면 안 된다 (REQ-1207).
+   */
+  script?: {
+    mission_id: string;
+    title: string;
+    matched_keywords: string[];
+    world: 'registry' | 'legacy';
+  };
 };
 
 export const RELAY_STAGE_LABEL: Record<Plan['relay_stage'], string> = {

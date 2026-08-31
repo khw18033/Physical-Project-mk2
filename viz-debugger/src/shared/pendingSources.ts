@@ -144,6 +144,20 @@ export const PENDING_SOURCES: PendingSourceSpec[] = [
     plane: 'business',
   },
   {
+    // 대본 재생(260831) 신설 — 탭② 구역 맵 미니뷰. 지금 scenario 모드에서 그리는 커버리지는
+    // 대본이 만든 **합성본**이고, 실제로는 아래 백엔드 디지털 트윈이 줄 데이터다(A).
+    // 가상 맵 본체는 Unity 트윈(VZ-U-02 · 별도 앱) 몫이며 이 미니뷰는 웹 시연용 축소판이다.
+    id: 'zone-map',
+    title: '구역 맵 커버리지 연결 예정',
+    what: '구역 평면 위 카메라 커버리지(FOV 투영) · 사각지대 칸 · 칸별 마지막 관측 시각(시의성)',
+    from: [
+      BE('DT-04', '커버리지 맵·사각지대 산출'),
+      BE('DT-05', '트윈 시의성(staleness) 판정'),
+    ],
+    ours: ['VZ-U-01', 'VZ-U-02'],
+    plane: 'business',
+  },
+  {
     id: 'risk-state',
     title: '환경 위험도 판정 연결 예정',
     what: '위험 수준 · 점수 · 판단 근거와 기여도 · 권고 조치',

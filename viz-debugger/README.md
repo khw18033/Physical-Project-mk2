@@ -35,7 +35,19 @@ npm run dev
 
 ## 음성 인식 (`VZ-L-01`)
 
-발화 패널의 녹음·인식은 **실제로 동작한다.** 파형은 마이크 입력 레벨이고, 인용문은 인식 결과이며, 진행 막대의 앞 두 칸(`음성 수신`·`STT 변환`)은 실제 상태를 따라간다. **뒤 세 칸(`의도 분석`·`마일스톤 분리`·`태스크 생성`)은 아직 목이고 화면에 `목` 배지가 붙어 있다** — `VZ-G-01`·`VZ-G-02`이고 로컬 LLM이 필요하다.
+발화 패널의 녹음·인식은 **실제로 동작한다.** 파형은 마이크 입력 레벨이고, 인용문은 인식 결과이며, 진행 막대의 앞 두 칸(`음성 수신`·`STT 변환`)은 실제 상태를 따라간다.
+
+**뒤 세 칸은 두 갈래다** (2026-08-31 · 시나리오 대본):
+
+- 문장이 **대본 라이브러리에 매칭되면** `대본` 배지로 바뀌고 문구는 `의도 분석 → 대본 조회` ·
+  `마일스톤 분리 → 대본에서 읽음` · `태스크 생성 → 대본에서 읽음`이 된다. **어느 키워드가 맞아서
+  어느 대본이 골라졌는지**가 그 자리에 뜬다. 이것은 LLM이 아니라 **키워드 대조**다 —
+  대본 세 편은 `scenarios/MSN-260831-0*.json`, 매처는 `src/scenarios/matcher.ts` 하나이고
+  게이트웨이와 브라우저가 같은 파일을 쓴다. 맞는 대본이 없으면 `no_script_match`로 거부된다 —
+  억지로 고르지 않는다.
+- 매칭이 없으면 지금처럼 `목` 배지다 — `VZ-G-01`·`VZ-G-02`이고 로컬 LLM이 필요하다.
+  나중에 LLM이 들어오면 대본 조회는 그 뒤의 **대조군·시연 안전망**으로 남는다. 배지 이름을
+  지금 갈라 둔 이유다(REQ-1207의 정신).
 
 인식 결과는 **고칠 수 있고, 원문과 수정본을 둘 다 보관한다**(`REQ-1303`). 원문만 남기면 오인식을 놓치고 수정본만 남기면 STT 성능을 평가할 수 없다.
 
@@ -85,6 +97,7 @@ npm run verify:scenario      npm run verify:layout        npm run verify:hierarc
 npm run verify:adapter-swap  npm run verify:transport     npm run verify:single-egress
 npm run verify:standalone    npm run verify:stt-port      npm run verify:voice-audit
 npm run verify:no-stt        npm run verify:one-gateway   npm run verify:placeholder-default
+npm run verify:script-library  npm run verify:scenario-mode
 npm run build
 ```
 
@@ -97,5 +110,7 @@ npm run build
 | `verify:no-stt` | STT가 전부 실패하는 상태에서 화면이 뜨고 수동 입력이 살아 있는가 |
 | `verify:one-gateway` | **목 게이트웨이가 하나이고 그 하나가 탭 전부를 채우는가.** 화면만 옮기면 이식 탭이 텅 빈 채로 뜨는 것이 이식에서 가장 놓치기 쉬웠다 |
 | `verify:placeholder-default` | **앱을 그냥 띄우면 남의 데이터 자리가 자리표시인가.** 자리표시마다 무엇·누가·우리 자리·평면 넷이 다 찼는가. 표만 채우고 화면을 안 고친 것도 잡는다 |
+| `verify:script-library` | **대본 세 편이 registry.json 세계 위에 있는가.** cast·세계 채널·명령의 장비가 전부 실재하고, 제목에 하드웨어 어휘가 없고, 평가 태스크마다 근거값이 있고, 세 문장이 각각 자기 대본에만 맞는가 |
+| `verify:scenario-mode` | **대본 재생이 자리표시 기본값을 깨뜨리지 않는가.** 기본은 여전히 placeholder, scenario 는 승인 뒤에만, cast 밖은 자리표시, 배지는 끌 수 없고 닫으면 복귀, 승인 전 발행 0건 |
 
 다섯 다 **음성 대조군**을 포함한다 — 검사를 무력화한 사본이 반드시 실패로 잡히는지까지 확인한다. 검사가 아무것도 못 잡은 채 통과하던 일이 실제로 있었다(`reports/2026-08-28_1036_통합구현_검토.md` B항).

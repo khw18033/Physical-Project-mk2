@@ -1,4 +1,4 @@
-// 이식: web-dashboard/src/views/DeviceGrid.tsx @ 700ed91 — 무수정 (transport 경로만 조정)
+// 이식: web-dashboard/src/views/DeviceGrid.tsx @ 700ed91 — 대본 재생(260831): 구역 맵 미니뷰 + scenario 카드 분기
 /**
  * src/views/DeviceGrid.tsx
  *
@@ -23,7 +23,9 @@ import {
 } from '../data/index.ts';
 import { useEntities, useRenderRate, useRole, useRoleRefresh, useZoneSummary } from '../data/hooks.ts';
 import { PendingSource } from '../../shared/PendingSource.tsx';
+import { useScenarioCast } from '../../shared/renderMode.ts';
 import { DeviceCard } from './DeviceCard.tsx';
+import { ZoneMapMini } from './ZoneMapMini.tsx';
 
 /** 현재 설계 전제는 구역 1개(VZ-C-05). 구역이 늘면 이 값이 선택 상태가 된다. */
 const ZONE_ID = 'zone-503';
@@ -44,6 +46,8 @@ export function DeviceGrid() {
   // 데이터 레이어 기동은 App이 앱 수명 단위로 한다 — 탭을 옮길 때마다 구독을
   // 끊었다 붙이면 돌아왔을 때 화면이 비고, 서버 스냅샷을 매번 다시 받게 된다.
   const entities = useEntities();
+  // 대본 재생 중인가 — 카드 단위 분기(대본 등장 장비만 그린다)의 근거 (260831).
+  const scenarioCast = useScenarioCast();
   const summary = useZoneSummary(ZONE_ID);
   const role = useRole();
   const refreshRole = useRoleRefresh();
@@ -95,15 +99,28 @@ export function DeviceGrid() {
         </section>
       </PendingSource>
 
-      {/* 카드 그리드 자리 전체. 대상 목록(VZ-I-03)과 그 상태(VZ-I-01)가 둘 다 남에게서 온다. */}
-      <PendingSource id="device-cards" minHeight={320}>
+      {/* 구역 맵 미니뷰 (260831) — 2편의 「가상 맵」. 평소엔 자리표시(백엔드 DT-04·DT-05). */}
+      <ZoneMapMini />
+
+      {/* 카드 그리드 자리 전체. 대상 목록(VZ-I-03)과 그 상태(VZ-I-01)가 둘 다 남에게서 온다.
+          scenario 모드에서는 **카드 단위로 갈린다** — 대본 등장 장비만 그리고, 나머지는
+          여전히 자리표시다. 그래야 「대본이 준 값」과 「아직 아무도 안 준 자리」가 갈린다. */}
+      {scenarioCast !== null ? (
         <section className="grid">
-          {records.map((r) => (
-            <DeviceCard key={r.id} record={r} />
-          ))}
-          {records.length === 0 && <p className="notice">표시할 대상이 없다. 레지스트리를 받지 못했거나 구역이 비어 있다.</p>}
+          {records.map((r) => scenarioCast.has(r.id)
+            ? <div key={r.id} className="scenario-card"><DeviceCard record={r} /></div>
+            : <div key={r.id} className="scenario-card scenario-card--offcast"><b>{r.id}</b><PendingSource id="device-cards" entity={r.id} inline /></div>)}
         </section>
-      </PendingSource>
+      ) : (
+        <PendingSource id="device-cards" minHeight={320}>
+          <section className="grid">
+            {records.map((r) => (
+              <DeviceCard key={r.id} record={r} />
+            ))}
+            {records.length === 0 && <p className="notice">표시할 대상이 없다. 레지스트리를 받지 못했거나 구역이 비어 있다.</p>}
+          </section>
+        </PendingSource>
+      )}
 
       <MappingTable records={records} />
 

@@ -15,7 +15,7 @@
  * 반대로 접었다면 `VZ-O-02`(4단계 추적)와 `VZ-O-03`(감사)이 통째로 사라졌을 것이다.
  */
 
-import { recordHuman } from '../data/scenario.ts';
+import { currentMission, recordHuman } from '../data/scenario.ts';
 import type { ActionSpec } from '../transport/index.ts';
 import { commandTracker, type TrackedCommand } from './commandCenter.ts';
 import { pushNotification } from './notifications.ts';
@@ -44,7 +44,8 @@ function specFor(action: string): ActionSpec {
 
 /** 앱 전체의 유일한 명령 출구. 셸과 모든 탭은 이 함수 또는 `commandTracker.issue()`를 부른다. */
 export async function issueCommand(command: AppCommand): Promise<TrackedCommand> {
-  const entity = command.entity ?? 'MSN-260826-01';
+  // 대상 없는 명령(임무 제어·발화)은 **현재 임무**가 대상이다 — 한 편이 박혀 있던 자리.
+  const entity = command.entity ?? currentMission().missionId;
   const modality = command.inputModality ?? 'pointer';
   let audit: { inputMode: 'click' | 'voice'; voice?: VoiceAudit };
   try {

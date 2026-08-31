@@ -25,6 +25,9 @@ from typing import Any, Dict, List, Optional
 STT_DIR = Path(__file__).resolve().parent
 REPO_ROOT = STT_DIR.parent.parent
 DEFAULT_REGISTRY_PATH = REPO_ROOT / "web-dashboard" / "mock-gateway" / "registry.json"
+# 대본 라이브러리 (260831). registry.json 에는 손대지 않으므로(aliases 추가 금지)
+# 「월류방어벽」「사각지대」 같은 대본 키워드는 여기서 hotword 에 **더한다** — 대체가 아니다.
+SCENARIO_DIR = STT_DIR.parent / "scenarios"
 
 
 def registry_path() -> Path:
@@ -72,6 +75,41 @@ def _targets(reg: Dict[str, Any]) -> List[Dict[str, Any]]:
     return out
 
 
+def _script_terms() -> List[Dict[str, str]]:
+    """대본 라이브러리의 match 키워드 (260831 · REQ-1304 의 확장점).
+
+    파일 목록을 하드코딩하지 않고 scenarios/*.json 에서 `match` 블록이 있는 파일
+    (대본 세 편 + 옛 편 사이드카)을 전부 읽는다 — 대본이 늘면 hotword 도 같이 는다.
+    verify:stt-port 는 engines/*.py 만 바이트 대조하므로(확인됨) 이 파일은 그 밖이다.
+    """
+    terms: List[Dict[str, str]] = []
+    if not SCENARIO_DIR.exists():
+        return terms
+    for path in sorted(SCENARIO_DIR.glob("*.json")):
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        match = data.get("match")
+        if not isinstance(match, dict):
+            continue
+        mission = data.get("missionId") or path.stem
+        words = [w for group in match.get("must", []) if isinstance(group, list) for w in group]
+        words += list(match.get("any", []))
+        for word in words:
+            if word:
+                terms.append(
+                    {
+                        "term": str(word),
+                        "field": "script-match",
+                        "kind": "script",
+                        "source_id": str(mission),
+                        "entity_type": "",
+                    }
+                )
+    return terms
+
+
 def vocabulary() -> Dict[str, Any]:
     """hotwords 어휘 + 각 어휘가 어디서 왔는지.
 
@@ -97,6 +135,13 @@ def vocabulary() -> Dict[str, Any]:
                     "entity_type": target["entity_type"] or "",
                 }
             )
+    # 대본 키워드는 레지스트리 어휘 **뒤에 더한다** (260831). 적용 수가 화면(등록 이름 N개
+    # 반영)에 뜨므로 실렸는지 확인된다. 대조군(등록 이름 우선 끔)은 그대로 편향이 없다.
+    for term in _script_terms():
+        if term["term"] in seen:
+            continue
+        seen.add(term["term"])
+        terms.append(term)
     return {
         "registry_path": str(registry_path()),
         "registry_version": reg.get("registry_version"),

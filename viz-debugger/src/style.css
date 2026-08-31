@@ -12,3 +12,45 @@
 .insight--embedded{margin-bottom:16px}.insight--embedded .board__title{font-size:17px;margin:0}
 .pending{display:flex;flex-direction:column;gap:10px;padding:16px 18px;border:2px dashed #b6c2d2;border-radius:10px;background:repeating-linear-gradient(135deg,#fbfcfe,#fbfcfe 10px,#f3f6fa 10px,#f3f6fa 20px);color:#3c4a5c}.pending--fill{height:100%}.pending__head{display:flex;align-items:baseline;gap:9px;flex-wrap:wrap}.pending__mark{padding:3px 8px;border-radius:20px;background:#1768c5;color:#fff;font-size:11px;letter-spacing:.5px}.pending__title{margin:0;font-size:15px}.pending__rows{display:grid;grid-template-columns:78px 1fr;gap:7px 12px;margin:0;font-size:12.5px;line-height:1.55}.pending__rows dt{color:#6b7888;font-weight:700}.pending__rows dd{margin:0}.pending__from{display:grid;gap:4px;margin:0;padding:0;list-style:none}.pending__from li{display:flex;align-items:baseline;gap:6px;flex-wrap:wrap}.pending__part{flex:none;min-width:48px;padding:1px 6px;border-radius:4px;font-size:11px;text-align:center}.pending__part--하드웨어{background:#e6f1e8;color:#1f6b3a}.pending__part--AI{background:#efe8fb;color:#5a3ba0}.pending__part--백엔드{background:#e5eefb;color:#14508f}.pending code{padding:0 4px;border-radius:3px;background:#e7ecf3;font-size:11.5px}.pending__why{display:block;color:#7d8896;font-size:11.5px}.pending__missing{display:inline-block;padding:2px 8px;border-radius:5px;background:#c62f35;color:#fff;font-size:12px}.pending--inline{display:inline-flex;align-items:baseline;gap:6px;padding:2px 8px;border:1px dashed #b6c2d2;border-radius:6px;background:#f5f8fc;color:#4a5768;font-size:11.5px;font-weight:400;white-space:normal}.pending--inline b{font-weight:700}.pending--inline em{color:#7d8896;font-style:normal}.pending--inline .pending__missing{padding:0 5px;font-size:11px}.mockwrap{position:relative;border:2px solid #e0a33a;border-radius:10px;padding:22px 8px 8px}.mockwrap--inline{display:inline-block;padding:14px 4px 2px}.mockwrap__badge{position:absolute;top:2px;left:8px;padding:1px 7px;border-radius:4px;background:#e0a33a;color:#3a2c08;font-size:10.5px;font-weight:700;letter-spacing:.3px}.mock-banner{position:sticky;top:0;z-index:30;margin:-22px -28px 14px;padding:9px 28px;background:#c62f35;color:#fff;font-size:13px}.mock-toggle{align-self:center;padding:9px 12px;border:1px solid #cbd3de;border-radius:7px;background:#fff;font-size:13px;white-space:nowrap}.mock-toggle--on{border-color:#c62f35;background:#c62f35;color:#fff}.global-bar p small{display:block;margin-top:3px;color:#8794a4;font-size:11.5px;line-height:1.5}
 .overlaypending{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0 0}.videoframe .pending{max-width:960px}
+
+/* 대본 재생 (260831) — 발화 뒤 세 칸의 `대본` 배지: `목`(빗금 회색)과 색·문구를 가른다.
+   나중에 LLM(VZ-G-01)이 들어오면 대본 조회는 대조군으로 남아 둘이 구별되어야 한다. */
+.progress-steps .step-script{border-bottom:3px solid #4f9e7d;background:#eef8f3;color:#1d3a2e}
+.progress-steps .step-script b{margin-right:3px;padding:1px 4px;border-radius:3px;background:#cfe9dd;color:#20654a;font-size:10px}
+.script-match{margin:8px 0 0;padding:8px;border:1px solid #bfe0d0;background:#f2faf6;font-size:12px;line-height:1.5}
+.script-match code{padding:0 3px;border-radius:3px;background:#e2f1e9;font-size:11px}
+.script-match b{margin:0 2px;padding:1px 5px;border-radius:3px;background:#cfe9dd;color:#20654a;font-size:11px;font-weight:600}
+.script-match small{display:block;color:#5f7a6c;font-size:11px}
+.proposal-note{margin:0 0 10px;padding:8px 10px;border:1px dashed #7aa7d9;background:#f0f6fd;font-size:12px;line-height:1.5;color:#274769}
+.proposal-note small{display:block;color:#5b7797;font-size:11px}
+.proposal-fallback{margin-top:12px;padding:10px;border:1px solid #7aa7d9;background:#f0f6fd;font-size:12px}
+.proposal-fallback p{margin:0 0 8px;line-height:1.5}
+.proposal-fallback button{margin-right:6px;padding:6px 12px;border:1px solid #4c8fe8;border-radius:6px;background:#fff;cursor:pointer}
+.proposal-fallback button:first-of-type{background:#4c8fe8;color:#fff}
+.follow-live{margin-left:10px;padding:3px 8px;border:1px solid #4f9e7d;border-radius:6px;background:#eef8f3;color:#20654a;font-size:11px;cursor:pointer}
+b.follow-live{cursor:default}
+
+/* scenario 렌더 모드 (260831) — 대본 띠·합성 배지. 목 렌더의 붉은 계열과 색·문구를 가른다. */
+.scenario-banner{position:sticky;top:0;z-index:60;display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:8px 14px;background:#0f5132;color:#eafff3;font-size:12px;line-height:1.5}
+.scenario-banner b{color:#fff}
+.scenario-banner button{margin-left:auto;padding:4px 10px;border:1px solid #9ad7b6;border-radius:6px;background:#eafff3;color:#0f5132;font-size:11px;cursor:pointer}
+.legacy-banner{position:sticky;top:0;z-index:59;padding:8px 14px;background:#4a4436;color:#fdf6e3;font-size:12px;line-height:1.5}
+.scenariowrap{position:relative;border:1px solid #4f9e7d;border-radius:6px}
+.scenariowrap__badge{position:absolute;top:-1px;right:-1px;z-index:5;padding:2px 7px;border-radius:0 6px 0 6px;background:#0f5132;color:#eafff3;font-size:10px;letter-spacing:.02em}
+.scenariowrap--inline{display:inline-flex;align-items:center;gap:6px;border:none;border-bottom:2px solid #4f9e7d;border-radius:0}
+.scenariowrap--inline .scenariowrap__badge{position:static;border-radius:3px}
+.scenario-card{position:relative}
+.scenario-card--offcast{display:grid;gap:6px;padding:10px;border:1px dashed #b9c2cd;border-radius:8px;background:#fafbfc;font-size:12px;align-content:start}
+.scenario-card--offcast b{font-size:12px;color:#5f6b7a}
+.zonemap__body{display:grid;gap:6px}
+.zonemap__svg{width:100%;max-height:340px;background:#f6f8fa;border:1px solid #dde3ea;border-radius:8px}
+.zonemap__room{fill:#fff;stroke:#8a95a3;stroke-width:.12}
+.zonemap__fov{fill:rgba(76,143,232,.14);stroke:#4c8fe8;stroke-width:.08;stroke-dasharray:.4 .25}
+.zonemap__cell{fill:rgba(217,75,75,.10);stroke:#d94b4b;stroke-width:.08;stroke-dasharray:.3 .2}
+.zonemap__cell--filled{fill:rgba(79,158,125,.28);stroke:#2f8562;stroke-dasharray:none}
+.zonemap__celllabel{font-size:.62px;fill:#3d4756}
+.zonemap__celltime{font-size:.5px;fill:#68758a}
+.zonemap__camera{fill:#4c8fe8}
+.zonemap__robot{fill:#e08b2d;stroke:#8f5312;stroke-width:.08}
+.zonemap__empty{display:flex;align-items:center;justify-content:center;margin:0;padding:12px;border:1px dashed #cbd3de;border-radius:8px;color:#687587;font-size:12px}
+.chart__danger{stroke:#d94b4b;stroke-width:2;stroke-dasharray:8 5}

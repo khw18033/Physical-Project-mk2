@@ -1,4 +1,4 @@
-// 이식: web-dashboard/mock-gateway/commands.ts @ 700ed91 — 무수정
+// 이식: web-dashboard/mock-gateway/commands.ts @ 700ed91 — 대본 재생(260831)에서 primeState() 하나 추가
 /**
  * mock-gateway/commands.ts
  *
@@ -109,6 +109,21 @@ export class CommandEngine {
       this.positionPct.set(entity, 0);
       this.setLock(entity, { locked: false, phase: 'unlocked', reason: null, safe_state_held: false, since: nowIso() });
     }
+  }
+
+  /**
+   * 대본 시작 시 세계의 초기 조건 주입 (대본 파일의 `initial`).
+   *
+   * 이 엔진은 수문을 닫힘 0%로 기동하는데, 3편(월류방어벽) 이야기는 열림 100%에서
+   * 시작한다. **명령 우회가 아니다** — 재생 전에 세계의 출발 상태를 정하는 것이고,
+   * 이후의 모든 변화는 여전히 submit() 4단계로만 일어난다. 수행 중인 명령이 있으면
+   * 상태가 어긋나므로 거부한다.
+   */
+  primeState(entity: string, positionPct: number, physicalState: string): boolean {
+    if (this.active.has(entity)) return false;
+    this.positionPct.set(entity, positionPct);
+    this.physicalState.set(entity, physicalState);
+    return true;
   }
 
   // ── 제어 잠금 (VZ-O-05) ────────────────────────────────────────────────────
@@ -416,6 +431,17 @@ export class CommandEngine {
       ...(req.audit ?? {}),
     });
     if (this.audit.length > 200) this.audit.length = 200;
+  }
+
+  /**
+   * 엔진 밖에서 접수·처리된 명령의 감사 적재 (260831 — mission_from_utterance 등).
+   *
+   * 대본 매칭은 액추에이터 명령이 아니라 이 엔진의 4단계를 지나지 않지만,
+   * **감사 저장소는 하나여야 한다** (VZ-I-05) — 발화로 낸 명령이 감사에서 사라지면
+   * REQ-1305(voice 감사 필드)가 이 지점에서 끊긴다.
+   */
+  recordExternal(req: CommandRequest, commandId: string, result: string, detail: string): void {
+    this.record(req, commandId, result, detail);
   }
 
   /**
