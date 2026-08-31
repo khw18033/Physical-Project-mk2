@@ -149,8 +149,21 @@ class Hub:
         except Exception as e:
             self.err = f"{type(e).__name__}: {e}"
         finally:
-            self.running = False
-            self._fanout(None)
+            # 여기에 경합이 있었다. 유휴로 빠져나오는 중에 새 구독자가 들어오면
+            # `running` 이 아직 True 라 새 스레드를 띄우지 않고, 곧바로 여기서
+            # running=False + None 을 뿌려 **막 붙은 뷰어의 스트림이 즉시 끝났다.**
+            # 화면은 마지막 프레임에서 얼어붙고 오류는 아무 데도 안 남는다.
+            # 빠져나가기 직전에 구독자가 남아 있으면 상류를 다시 연다.
+            with self.lock:
+                self.running = False
+                restart = bool(self.subs)
+                if restart:
+                    self.running = True
+            if restart:
+                time.sleep(0.5)          # 상류가 계속 실패할 때 스핀하지 않도록
+                threading.Thread(target=self._run, daemon=True).start()
+            else:
+                self._fanout(None)
 
 
 HUBS = {cid: Hub(cid) for cid in CAMS}
@@ -379,6 +392,9 @@ if (!HAS_WC){
 
 function start(cid, fig){
   const cap = fig.querySelector('.stat');
+  // 끊기면 스스로 다시 붙는다. 상류가 잠시 끊기거나 서버를 재기동해도 사람이
+  // 새로고침할 필요가 없다 — 얼어붙은 화면을 방치하지 않는 것이 목적이다.
+  const retry = () => { cap.textContent = '재연결 중…'; setTimeout(() => start(cid, fig), 1000); };
   if (!HAS_WC){                       // 대비 경로 — 브라우저가 WebCodecs 를 모른다
     const img = document.createElement('img');
     img.src = '/stream/' + cid;
@@ -402,7 +418,11 @@ function start(cid, fig){
   const pingTimer = setInterval(ping, 3000);
 
   ws.onopen = ping;
-  ws.onclose = () => { clearInterval(pingTimer); cap.textContent = '연결 종료'; };
+  ws.onclose = () => {
+    clearInterval(pingTimer);
+    try { if (dec && dec.state !== 'closed') dec.close(); } catch(e) {}
+    retry();
+  };
   ws.onerror = () => { cap.textContent = '연결 오류'; };
 
   ws.onmessage = ev => {
