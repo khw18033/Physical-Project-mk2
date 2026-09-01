@@ -60,6 +60,13 @@ export async function transcribe(blob: Blob, options: TranscribeOptions = {}): P
   return post(body, options.signal);
 }
 
+/** `probe()` 의 결과. **사유를 버리지 않는다** (260901 — 후속 3건 요구 3). */
+export type SttProbe = {
+  alive: boolean;
+  /** 못 닿았으면 왜인지. 화면이 이 문장을 그대로 적는다. 닿았으면 null. */
+  reason: string | null;
+};
+
 /**
  * 서비스가 살아 있는가.
  *
@@ -68,12 +75,38 @@ export async function transcribe(blob: Blob, options: TranscribeOptions = {}): P
  * 불어난 길을 그대로 밟게 된다. 대신 같은 경로에 GET 을 던진다 —
  * **응답이 오면(405 Method Not Allowed) 프로세스가 살아 있다는 뜻**이고,
  * 네트워크 자체가 실패하면 꺼져 있다는 뜻이다.
+ *
+ * **던지지 않는다** — 여기서 예외가 새면 발화 패널의 첫 렌더가 통째로 날아간다
+ * (`verify:no-stt`). 대신 실패 사유를 함께 돌려준다: 8/31까지는 `catch { return false }`
+ * 로 사유를 통째로 버려서, 「서비스가 안 떠 있다」와 「떠 있는데 브라우저가 막았다」가
+ * 화면에서 **같은 한 문장**으로 보였다. 그 둘은 고치는 방법이 전혀 다르다.
  */
-export async function probe(signal?: AbortSignal): Promise<boolean> {
+export async function probe(signal?: AbortSignal): Promise<SttProbe> {
   try {
     await fetch(TRANSCRIBE_URL, { method: 'GET', signal });
-    return true;
+    return { alive: true, reason: null };
+  } catch (error) {
+    return { alive: false, reason: await describeProbeFailure(error, signal) };
+  }
+}
+
+/**
+ * 왜 못 닿았는가 — 사람이 읽고 **다음 행동을 고를 수 있는** 한 줄.
+ *
+ * 브라우저의 `fetch` 는 「서비스가 없다」와 「서비스는 있는데 CORS 로 막혔다」를 **똑같은
+ * `TypeError: Failed to fetch`** 로 던진다. 그 둘을 가르려고 `mode: 'no-cors'` 로 한 번 더
+ * 던진다 — 프로세스가 살아 있으면 불투명(opaque) 응답이라도 돌아오고, 꺼져 있으면 여기서도
+ * 실패한다. 실패 경로에서만 한 번 더 부르므로 평소에는 비용이 없다.
+ */
+async function describeProbeFailure(error: unknown, signal?: AbortSignal): Promise<string> {
+  const raw = error instanceof Error ? `${error.name}: ${error.message}` : String(error);
+  if ((error as { name?: string } | null)?.name === 'AbortError') return '확인이 취소됐습니다.';
+  // 망 실패가 아닌 것(그 외)은 원문 그대로 — 지어내는 것보다 낫다.
+  if (!(error instanceof TypeError)) return raw;
+  try {
+    await fetch(TRANSCRIBE_URL, { method: 'GET', mode: 'no-cors', signal });
+    return `서비스는 떠 있는데 브라우저가 막았습니다 (${STT_BASE_URL}) — stt/service.py 의 ALLOWED_ORIGINS 에 이 페이지 주소가 있는지 확인하세요.`;
   } catch {
-    return false;
+    return `서비스가 떠 있지 않습니다 (${STT_BASE_URL}) — npm run dev:stt 로 따로 띄워 사유를 보세요. 원문: ${raw}`;
   }
 }

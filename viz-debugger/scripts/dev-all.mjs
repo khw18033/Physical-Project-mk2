@@ -28,4 +28,27 @@ const stt = startStt();
 
 const stop = () => { children.forEach((child) => child.kill()); stt?.kill(); };
 for (const signal of ['SIGINT', 'SIGTERM']) process.on(signal, () => { stop(); process.exit(0); });
-for (const child of children) child.on('exit', (code) => { stop(); process.exit(code ?? 0); });
+
+/**
+ * 필수 프로세스(게이트웨이·vite) 하나가 죽으면 전부 내린다 — STT 도 함께.
+ *
+ * **그 사실을 적는다** (260901). 8/31~9/1 에 실제로 났던 일이 이것이다: 이전 세션의
+ * 게이트웨이가 8790 을 잡고 있어 새 `npm run dev` 가 즉시 죽었고, 그러면서 **자기 STT 까지
+ * 같이 내렸다.** 브라우저는 옛 세션의 vite·게이트웨이에 그대로 붙어 있었으므로 화면도 뜨고
+ * 「게이트웨이 연결됨」이었고, **STT 만 없었다.** 증상이 「STT 서비스에 닿지 않습니다」 한
+ * 줄로만 보여서 원인이 STT 쪽에 있는 것처럼 읽혔다. 종료 사유를 마지막에 한 번 더 적으면
+ * 그 오해가 안 생긴다 — 위쪽 로그는 vite 출력에 묻힌다.
+ */
+for (const child of children) child.on('exit', (code) => {
+  if (code) {
+    console.error(`
+[dev] 필수 프로세스가 코드 ${code} 로 종료됐다 — 개발 스택 전체를 내린다.`);
+    console.error('[dev] **STT 서비스도 함께 내려간다.** 화면에 「STT 서비스에 닿지 않습니다」만 보이더라도');
+    console.error('[dev] 원인은 STT 가 아니라 위 로그의 종료 사유다. 포트가 이미 사용 중이라면');
+    console.error('[dev] 이전 세션이 살아 있는 것이고, 그때 브라우저는 옛 세션에 붙어 있어 화면은 멀쩡해 보인다.');
+    console.error('[dev]   Get-NetTCPConnection -LocalPort 8790,5174,8801 -State Listen |');
+    console.error('[dev]     ForEach-Object { Stop-Process -Id $_.OwningProcess -Force }');
+  }
+  stop();
+  process.exit(code ?? 0);
+});

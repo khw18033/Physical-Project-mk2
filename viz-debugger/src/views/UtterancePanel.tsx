@@ -142,17 +142,25 @@ export function UtterancePanel({ fallbackText }: { fallbackText: string }) {
   /** 마지막 제출 문장의 대본 매칭 결과 — 뒤 세 칸이 `목`에서 `대본`으로 바뀌는 근거. */
   const [scriptMatch, setScriptMatch] = useState<MatchOutcome | null>(null);
 
+  /** probe() 가 돌려준 실패 사유. 화면 문구에 주소와 함께 그대로 실린다 (260901 요구 3). */
+  const [sttReason, setSttReason] = useState<string | null>(null);
+
   const recorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const frameRef = useRef<number | null>(null);
 
-  const able = capabilities(status, mediaRecorderSupported());
+  const able = capabilities(status, mediaRecorderSupported(), sttReason);
   const fileDisabled = !able.canTranscribe || phase === 'transcribing';
 
   useEffect(() => {
     const controller = new AbortController();
-    void probe(controller.signal).then((alive) => setStatus(alive ? 'ready' : 'unavailable'));
+    // 사유를 함께 받는다 (260901 요구 3) — 「서비스가 없다」와 「떠 있는데 브라우저가
+    // 막았다」가 같은 문장으로 보이면 다음에 또 막혔을 때 진단이 처음부터 시작된다.
+    void probe(controller.signal).then((result) => {
+      setStatus(result.alive ? 'ready' : 'unavailable');
+      setSttReason(result.reason);
+    });
     return () => controller.abort();
   }, []);
 

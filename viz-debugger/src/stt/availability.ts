@@ -24,14 +24,31 @@ export type UtteranceCapabilities = {
   note: string | null;
 };
 
-export function capabilities(status: SttStatus, mediaRecorderSupported: boolean): UtteranceCapabilities {
+/**
+ * `detail` — `probe()` 가 돌려준 **실패 사유 한 줄** (260901 요구 3).
+ *
+ * 늘어나는 것은 `note` 의 내용뿐이다. 켜고 끄는 판단(특히 `manualInput`)은 이 값에
+ * **영향받지 않는다** — 사유를 못 만들었다고 수동 입력이 잠기면 안 된다.
+ */
+export function capabilities(
+  status: SttStatus,
+  mediaRecorderSupported: boolean,
+  detail?: string | null,
+): UtteranceCapabilities {
   const manualInput = true as const;
   if (status === 'unavailable') {
     return {
       canRecord: false,
       canTranscribe: false,
       manualInput,
-      note: 'STT 서비스에 닿지 않습니다. 음성 인식만 꺼졌고, 아래에 문장을 직접 넣을 수 있습니다.',
+      // 사유가 있으면 붙인다 — 「서비스가 없다」와 「떠 있는데 브라우저가 막았다」는
+      // 고치는 방법이 전혀 다른데 8/31까지는 화면에서 구별되지 않았다.
+      note: [
+        'STT 서비스에 닿지 않습니다. 음성 인식만 꺼졌고, 아래에 문장을 직접 넣을 수 있습니다.',
+        detail ?? null,
+      ]
+        .filter((line): line is string => line !== null && line.length > 0)
+        .join(' '),
     };
   }
   if (status === 'probing') {

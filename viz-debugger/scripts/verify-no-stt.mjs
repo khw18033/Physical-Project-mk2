@@ -2,8 +2,10 @@
 // (제약 5 · VZ-C-02 · VZ-G-01).
 //
 // 화면 전체가 죽거나 무한 로딩에 걸리는 것을 막는 검사다. 세 가지를 본다.
-//   1. SttClient 가 전부 실패하는 상태에서 probe() 가 **던지지 않고** false 를 돌려주는가
-//      (여기서 예외가 새면 패널 첫 렌더가 통째로 날아간다)
+//   1. SttClient 가 전부 실패하는 상태에서 probe() 가 **던지지 않고** alive:false 를 돌려주는가
+//      (여기서 예외가 새면 패널 첫 렌더가 통째로 날아간다). 260901 부터 **사유도 함께** 온다 —
+//      사유를 버리면 「서비스가 없다」와 「떠 있는데 브라우저가 막았다」가 화면에서 같은
+//      한 문장이 되고, 그 둘은 고치는 방법이 전혀 다르다.
 //   2. 그 상태의 capabilities() 가 음성만 끄고 manualInput 은 남기는가 — 값을 지운 대조군 포함
 //   3. STT 주소를 아는 코드가 src/stt/ 밖에 없는가 — 두 번째 호출을 주입한 대조군 포함
 import { mkdtempSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
@@ -24,13 +26,16 @@ globalThis.fetch = async () => {
 const client = await import(new URL('stt/SttClient.ts', srcRoot).href);
 const { SttUnavailableError } = await import(new URL('stt/types.ts', srcRoot).href);
 
-let alive;
+let probed;
 try {
-  alive = await client.probe();
+  probed = await client.probe();
 } catch (error) {
   failures.push(`probe() 가 예외를 던졌다 (${error?.name}) — 패널 첫 렌더가 통째로 죽는다`);
 }
-if (alive !== false) failures.push(`probe() 가 ${alive} 를 돌려줬다 — 꺼진 서비스를 살아 있다고 봤다`);
+if (probed?.alive !== false) failures.push(`probe() 가 ${JSON.stringify(probed)} 를 돌려줬다 — 꺼진 서비스를 살아 있다고 봤다`);
+// 사유를 버리지 않는가. 주소가 들어 있어야 「어디에 못 닿았는지」가 화면에서 읽힌다.
+if (!probed?.reason) failures.push('probe() 가 실패 사유를 버렸다 — 화면이 「닿지 않습니다」 한 문장밖에 못 적는다');
+else if (!probed.reason.includes('8801')) failures.push(`실패 사유에 주소가 없다 — ${probed.reason}`);
 
 try {
   await client.transcribe(new Blob(['x'], { type: 'audio/webm' }));
@@ -53,6 +58,11 @@ for (const status of ['probing', 'ready', 'unavailable']) {
 const down = capabilities('unavailable', true);
 if (down.canRecord || down.canTranscribe) failures.push('서비스가 꺼졌는데 음성 경로가 켜져 있다');
 if (!down.note) failures.push('무엇이 왜 꺼졌는지 화면에 알려 줄 문구가 없다 — 조용히 사라진다');
+// 사유가 오면 문구에 실려야 한다. 받아 놓고 안 적으면 사유를 버린 것과 같다 (260901).
+const withReason = capabilities('unavailable', true, probed?.reason ?? '테스트 사유 8801');
+if (!withReason.note?.includes('8801')) failures.push('probe() 사유를 넘겼는데 화면 문구에 실리지 않는다');
+if (withReason.manualInput !== true) failures.push('사유를 넘겼더니 수동 입력이 잠겼다 — note 말고는 아무것도 바뀌면 안 된다');
+if (withReason.canRecord || withReason.canTranscribe) failures.push('사유를 넘겼더니 음성 경로 판단이 바뀌었다');
 
 // 음성 대조군 — 수동 입력을 상태에 묶은 사본은 반드시 잡혀야 한다.
 const scratch = mkdtempSync(join(tmpdir(), 'verify-no-stt-'));
@@ -107,4 +117,4 @@ if (failures.length) {
   console.error(`❌ STT 없이 뜨는지 검사 실패:\n  - ${failures.join('\n  - ')}`);
   process.exit(1);
 }
-console.log('✅ 통과 — 서비스가 전부 실패해도 probe()는 조용히 false, 수동 입력은 모든 상태에서 살아 있음, STT 주소를 아는 곳은 src/stt/ 뿐, 대조군 3종 검출');
+console.log('✅ 통과 — 서비스가 전부 실패해도 probe()는 조용히 alive:false + 사유(주소 포함), 수동 입력은 모든 상태에서 살아 있음, 사유는 note 에만 실림, STT 주소를 아는 곳은 src/stt/ 뿐, 대조군 3종 검출');

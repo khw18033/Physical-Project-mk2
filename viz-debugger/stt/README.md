@@ -47,6 +47,28 @@ py -3.10 -m venv .venv
 
 `npm run dev:stt`로 이것만 따로 띄울 수도 있다.
 
+### 「STT 서비스에 닿지 않습니다」가 뜰 때 — 먼저 볼 것 *(2026-09-01)*
+
+**대부분 STT 문제가 아니다.** 실제로 났던 원인은 이것이었다.
+
+이전 세션의 목 게이트웨이(8790)나 vite(5174)가 아직 살아 있으면, 새 `npm run dev` 는 포트
+바인딩에 실패해 즉시 종료하고 **그러면서 자기가 띄운 STT 까지 같이 내린다**(`dev-all.mjs` 의
+`stop()`). 그런데 브라우저는 **옛 세션**의 vite·게이트웨이에 그대로 붙어 있으므로 화면은 뜨고
+상단도 「게이트웨이 연결됨」이다 — 없어진 것이 STT 하나뿐이라 증상이 STT 문제로 보인다.
+
+```powershell
+# 1) 콘솔 위쪽에서 [mock-gateway] 또는 [dev] 로 시작하는 종료 사유를 먼저 본다
+# 2) 남은 프로세스 정리
+Get-NetTCPConnection -LocalPort 8790,5174,8801 -State Listen |
+  ForEach-Object { Stop-Process -Id $_.OwningProcess -Force }
+# 3) 다시 npm run dev — 세 줄이 다 떠야 한다
+#    [mock-gateway] 기동 … / VITE ready / INFO: Uvicorn running on http://127.0.0.1:8801
+```
+
+정리한 뒤에도 안 되면 `npm run dev:stt` 로 STT 만 띄워 파이썬 트레이스백을 본다.
+화면의 실패 문구에는 **주소와 사유**가 함께 뜬다(2026-09-01) — 「서비스가 떠 있지 않습니다」와
+「떠 있는데 브라우저가 막았습니다(CORS)」가 구별되므로 그 문장부터 읽으면 된다.
+
 ### 모델 최초 다운로드는 오래 걸린다
 
 기본 모델은 `large-v3-turbo`이고 첫 요청에서 HuggingFace 캐시로 내려받는다(1.5 GB 안팎).
