@@ -67,5 +67,14 @@ skip되는 것이다.
 6. review와 CI 통과 후 squash merge하고 branch tag를 생성한다. 문제 발생 시 merge
    commit을 revert하며 history rewrite는 하지 않는다.
 
-실제 push, 기존 `ai-framework/` 삭제, 브랜치 보호 설정 변경은 이 계획 작성 범위에
-포함하지 않는다.
+## 실행 결과
+
+- 2026-09-01: `jny_AI`의 `012580c`를 기준으로 공개 후보를 구성했다.
+- 구 `ai-framework/`와 중복 루트 `contracts/`를 삭제하고 계약을
+  `perception-framework/contracts/ai/`에 포함했다.
+- 독립 복사본: `479 passed, 27 skipped`; Docker: `472 passed, 34 skipped`.
+- wheel 빌드 성공, secret 정규식 검사와 staged 경로 allowlist 검사 통과.
+- 배포 권한 미확인 PDF, 가상환경, cache, model, dataset과 runtime artifact는 제외했다.
+- commit `3dac804`를 `refs/heads/jny_AI`에만 push했다.
+
+브랜치 보호와 저장소 설정은 코드 push 권한과 별개의 관리자 작업이므로 변경하지 않았다.
