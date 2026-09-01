@@ -129,7 +129,7 @@ class Go1Drive:
         self.vy_gain = _f("GO1_VY_GAIN", 1.0 / 1.28)   # 횡이동 미측정 — 전진값 잠정 사용
         self.wz_gain = _f("GO1_WZ_GAIN", 1.0 / 0.81)
         self._vx = self._vy = self._wz = 0.0
-        self._proc = self._start_daemon()
+        self._proc = None                     # 지연 개시 — 첫 command 전까지 로봇 무개입
 
     def _start_daemon(self):
         """로봇 위 hw_highcmd_daemon 에 ssh 로 stdin 파이프를 연다.
@@ -145,6 +145,11 @@ class Go1Drive:
 
     def command(self, vx, vy, wz):
         self._vx, self._vy, self._wz = vx, vy, wz
+        if self._proc is None:
+            # 첫 명령이 오는 순간에만 HighCmd 데몬을 연다(= 제어권 인수).
+            # 그 전까지 로봇은 자기 sport mode 그대로 — 브리지를 띄워도 무개입.
+            self._proc = self._start_daemon()
+            time.sleep(0.3)
         gvx = vx * self.vx_gain
         gvy = vy * self.vy_gain
         gwz = wz * self.wz_gain
@@ -163,8 +168,8 @@ class Go1Drive:
         return self._vx, self._vy, self._wz
 
     def healthy(self):
-        # 데몬 살아있고 오도메트리 링크 정상
-        if self._proc is None or self._proc.poll() is not None:
+        # 아직 데몬 안 열림(무개입 대기)도 정상으로 본다 — 경로 추종 게이트는 별도
+        if self._proc is not None and self._proc.poll() is not None:
             return False
         return self.link.link_health() != "fault"
 
@@ -205,6 +210,7 @@ class UnityBridge:
         self._teleop_at = 0.0
         self._path = None                     # 추종 중 경로 (dict)
         self._path_idx = 0
+        self._armed = False                   # 첫 경로/텔레옵 전까지 로봇 무개입
         self._frame = None                    # (x0, y0, yaw0) — 경로 수신 순간 로봇 자세
         self._chunks = {}                     # path_id -> {idx: bytes}
         self._running = True
@@ -276,6 +282,7 @@ class UnityBridge:
             self._frame = (x0, y0, yaw0)      # go1_local_start 원점 = 지금 자세
             self._path = msg
             self._path_idx = 0
+        self._armed = True
         pts = msg.get("points", [])
         self.log(f"[브리지] 경로 수신 id={msg.get('path_id')} {len(pts)}점 "
                  f"tol={msg.get('position_tolerance')}m v={msg.get('default_speed')}m/s")
@@ -302,6 +309,8 @@ class UnityBridge:
             self._teleop = (self._clamp(vx, MAX_VX), self._clamp(vy, MAX_VY),
                             self._clamp(wz, MAX_WZ))
             self._teleop_at = time.time()
+            if any(self._teleop):
+                self._armed = True
 
     @staticmethod
     def _clamp(v, m):
@@ -340,6 +349,11 @@ class UnityBridge:
         with self._lock:
             path = self._path
             teleop, teleop_at = self._teleop, self._teleop_at
+
+        # 무장 전(첫 경로/텔레옵 도착 전)에는 로봇을 건드리지 않는다 —
+        # 브리지가 떠 있어도 로봇은 자기 제어 그대로. "가"의 실체가 이 첫 입력이다.
+        if not self._armed:
+            return
 
         # 텔레옵이 최근이면 텔레옵 우선 (경로 추종보다 사람이 우선)
         if time.time() - teleop_at < TELEOP_TIMEOUT and any(teleop):
