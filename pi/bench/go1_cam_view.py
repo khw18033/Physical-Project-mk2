@@ -412,6 +412,26 @@ function start(cid, fig){
   let dec = null, offset = null, started = false, frames = 0;
   let net = 0, dcd = 0;                 // 망 구간 / 디코드+표시 구간 (ms, 지수평활)
   const arrived = new Map();            // 청크 timestamp(µs) → 브라우저 도착 시각
+  // 디코드와 그리기를 분리한다. 디코더 출력마다 즉시 drawImage 하면, 그리기가
+  // GPU 경합(4K 화면·화면녹화 등)으로 늦어지는 순간 디코드 큐가 눈덩이처럼 쌓여
+  // 표시 지연이 수백 ms 까지 밀린다 — 실제 녹화 분석에서 표시 280ms 를 확인했다.
+  // 최신 프레임 하나만 들고 있다가 화면 주사(rAF)마다 그린다. 늦은 프레임은 버린다.
+  let pendingFrame = null;
+  (function paint(){
+    if (pendingFrame){
+      const f = pendingFrame; pendingFrame = null;
+      if (cv.width !== f.displayWidth){ cv.width=f.displayWidth; cv.height=f.displayHeight; }
+      ctx.drawImage(f, 0, 0);
+      const t = arrived.get(f.timestamp);
+      if (t !== undefined){
+        arrived.delete(f.timestamp);
+        const d = performance.now() - t;
+        dcd = dcd ? dcd*0.85 + d*0.15 : d;
+      }
+      f.close(); frames++;
+    }
+    requestAnimationFrame(paint);
+  })();
 
   // 시계 차이 보정. 브라우저와 파이의 Date.now() 는 서로 다르다.
   const ping = () => { if (ws.readyState===1) ws.send(JSON.stringify({t:'ping',c0:Date.now()})); };
@@ -437,17 +457,16 @@ function start(cid, fig){
       } else if (m.t === 'hello' && m.codec && !dec){
         dec = new VideoDecoder({
           output: f => {
-            if (cv.width !== f.displayWidth){ cv.width=f.displayWidth; cv.height=f.displayHeight; }
-            ctx.drawImage(f, 0, 0);
-            const t = arrived.get(f.timestamp);
-            if (t !== undefined){
-              arrived.delete(f.timestamp);
-              const d = performance.now() - t;
-              dcd = dcd ? dcd*0.85 + d*0.15 : d;
-            }
-            f.close(); frames++;
+            // 그리지 않는다 — 최신 프레임만 남기고 이전 것은 버린다 (위 paint 루프 참조)
+            if (pendingFrame) pendingFrame.close();
+            pendingFrame = f;
           },
-          error: e => { cap.textContent = '디코더 오류: ' + e.message; }
+          error: e => {
+            // 디코더가 죽으면(참조 프레임 유실 등) 화면이 영영 멈춘다 — 조용히
+            // 앉아 있지 말고 연결을 끊어 재연결 경로(onclose→retry)를 태운다.
+            cap.textContent = '디코더 오류 — 재연결: ' + e.message;
+            try { ws.close(); } catch(_) {}
+          }
         });
         dec.configure({codec: m.codec, optimizeForLatency: true});
       } else if (m.t === 'error'){
@@ -463,9 +482,11 @@ function start(cid, fig){
       const n = (Date.now() - ts) + offset;          // 파이 수신 → 브라우저 도착
       net = net ? net*0.85 + n*0.15 : n;
     }
-    // 탭이 뒤로 밀리는 등으로 디코더가 밀리면 지연이 계속 쌓인다.
-    // 다음 키프레임까지 버리고 다시 붙는다 — 0.5초면 회복된다.
-    if (dec.decodeQueueSize > 5) started = false;
+    // 탭이 뒤로 밀리는 등으로 디코더가 크게 밀리면 지연이 쌓인다. 다만 임계를
+    // 낮게(5) 잡았더니 정상 재생 중의 순간 스파이크에도 걸려, 키프레임(최대 1초)
+    // 까지 화면이 멈추기를 반복했다 — "중간중간 멈춤"의 정체가 이것이었다.
+    // 1초 분량(30프레임)이 진짜로 밀렸을 때만 리셋한다.
+    if (dec.decodeQueueSize > 30) started = false;
     if (!started){ if (!key) return; started = true; arrived.clear(); }
     const tsu = Math.round(ts*1000);
     arrived.set(tsu, performance.now());
@@ -551,6 +572,10 @@ class Handler(BaseHTTPRequestHandler):
         b = (PAGE.replace("%NAV%", nav_html()).replace("%BODY%", body)
                  .replace("%HTTPS%", str(HTTPS_PORT))).encode("utf-8")
         self.send_response(200)
+        # no-store 가 없으면 브라우저가 옛 페이지(옛 JS)를 캐시로 재사용한다.
+        # 실제로 디코더 가드 버그를 고친 뒤에도 사용자 탭만 1초 주기로 멈췄다 —
+        # 서버는 새 코드였지만 탭은 옛 JS 를 돌리고 있었다.
+        self.send_header("Cache-Control", "no-store")
         self.send_header("Content-Type", "text/html; charset=utf-8")
         self.send_header("Content-Length", str(len(b)))
         self.end_headers()

@@ -73,6 +73,17 @@ CAMS = {
     5: ("192.168.123.15", 9105, "복부(하방)"),
 }
 
+# 실험용 추가 소스 — 저지연 A/B 시험처럼 임시 스트림을 같은 뷰어·중계로 보고 싶을 때.
+# 형식: HW_GO1_EXTRA_CAM="6:127.0.0.1:9106:실험(저지연)"
+_extra = os.environ.get("HW_GO1_EXTRA_CAM", "")
+if _extra:
+    try:
+        _id, _host, _port, _label = _extra.split(":", 3)
+        CAMS[int(_id)] = (_host, int(_port), _label)
+    except ValueError:
+        pass                                    # 형식이 틀리면 조용히 무시하지 않는다
+
+
 
 def ws_connect(host, port, timeout=8):
     """웹소켓 핸드셰이크. (소켓, 핸드셰이크 뒤에 딸려온 잔여 바이트) 를 돌려준다."""
