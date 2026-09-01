@@ -189,6 +189,35 @@ def main():
     assert mirror and any("0.200" in m for m in mirror), f"미러 미수신: {mirror[:2]}"
     print(f"  7) 명령 미러(15102): {len(mirror)}건 수신 ✓")
 
+    # ---- 8) 정책 자율(GO1AutoPolicyController 흉내): 속도 "vx vy wz estop" 20Hz 스트림 ----
+    drive.x = drive.y = drive.yaw = 0.0
+    bridge.estop = False
+    # 전진 2초 → 좌회전 1초 → 정지 (정책이 내보내는 전형적 스트림)
+    t0 = time.time()
+    while time.time() - t0 < 2.0:
+        u.send_cmd("0.25 0 0 0"); time.sleep(0.05)
+    while time.time() - t0 < 3.0:
+        u.send_cmd("0.10 0 0.4 0"); time.sleep(0.05)
+    for _ in range(10):
+        u.send_cmd("0 0 0 0"); time.sleep(0.05)
+    x, y, yaw = drive.pose()
+    assert x > 0.3, f"정책 자율 전진 미반영 (x={x:.2f})"
+    assert abs(yaw) > 0.2, f"정책 자율 회전 미반영 (yaw={yaw:.2f})"
+    time.sleep(0.8)
+    assert drive.velocity()[0] == 0.0, "정책 정지 후에도 움직인다"
+    print(f"  8) 정책 자율(속도 20Hz 스트림): 전진 x={x:.2f}m·회전 yaw={math.degrees(yaw):.0f}° 반영, 정지 ✓")
+
+    # ---- 9) NavMesh 자율(GO1AutoNavigator 흉내): agent.path.corners → go1_path ----
+    drive.x = drive.y = drive.yaw = 0.0
+    # corners 를 로컬프레임 점으로 변환한 형태로 그대로 경로 전송 (Unity 가 하는 일)
+    corners = [{"x": 0.0, "z": 0.0, "yaw_deg": 0.0, "use_yaw": False},
+               {"x": 0.0, "z": 1.0, "yaw_deg": 0.0, "use_yaw": False},
+               {"x": 0.6, "z": 1.5, "yaw_deg": 0.0, "use_yaw": True}]
+    u.send_path(path_msg(corners, path_id=42))
+    states = u.drain_states(16.0)
+    assert wait_modes(states, 99), "NavMesh 자율 경로가 완료(mode 99)되지 않았다"
+    print(f"  9) NavMesh 자율(go1_path 추종): 3코너 완주 → mode=99 ✓")
+
     bridge.close()
     print("전부 통과")
 

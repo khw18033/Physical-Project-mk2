@@ -577,6 +577,16 @@ Unity 가상환경("My project1")의 RL 경로 재탐색 시스템이 실로봇�
 **검증** (`bench/unity_bridge_test.py`, 가짜 Unity — 7항목 전부 통과): 3점 경로
 추종·최종 yaw 정렬→mode 99 / 상태 10토큰 22Hz / CHUNK 재조립 / PATH_CANCEL→정지+
 mode 98 / 텔레옵 반영·침묵 정지 / estop 경로 폐기·신규 거부 / 미러 수신.
+**자율주행 두 방식 모두 브리지가 처리한다 (HW 유니티 프로젝트, 2026-09-01).**
+새 유니티 정본(HW)의 자율주행은 두 경로를 쓰는데 둘 다 기존 와이어 계약과 바이트
+동일하다 — 브리지 무수정:
+- **NavMesh 자율**(GO1AutoNavigator): `agent.path.corners` → `go1_path` JSON(15110) →
+  브리지 경로 추종 → 완료 시 mode 99.
+- **RL 정책 자율**(GO1AutoPolicyController): 정책이 계산한 `"vx vy wz estop"` 를 20Hz 로
+  15100 에 스트리밍 → 브리지 텔레옵 경로로 실로봇 구동. 정책 정지 시 0 스트림 → 정지.
+가짜 자율 컨트롤러로 두 방식 실검증(시험 8·9). HW 의 상태 파서(10토큰·mode 98/99)·
+포트(15100/15101/15110)가 브리지와 일치함을 소스 대조로 확인.
+
 **실기 구동 확정 (2026-09-01).** 조종 경로는 Go1 내부 MQTT 가 아니라 **Unitree Legged
 SDK HighCmd**(UDP 8082, HIGHLEVEL)였다. 로봇 위에 `hw_highcmd_daemon`(C++, SDK 링크 —
 CRC 를 SDK 가 계산, 하드 상한 전진/좌우 0.3·회전 0.5, 무입력 0.4s 자동 정지)을 두고
