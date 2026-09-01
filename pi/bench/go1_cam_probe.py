@@ -25,7 +25,13 @@ import time
 from robot.go1_camera import CAMS, Go1CameraSource
 
 CELL = 32 * 32
-STILL = 1.0                 # 처음↔끝 평균차가 이 아래면 정지로 본다
+# 정지 판정 임계 — 실측 근거로 가른다. 살아 있는 카메라는 장면이 완전히 정적이어도
+# 센서 잡음이 프레임간 평균차 0.08~0.25 를 만든다. 진짜 정지(인코더가 같은 버퍼를
+# 재압축)는 평균차 0.02·처음↔끝 0.00 으로 잡음조차 없다. 처음엔 임계를 1.0 으로
+# 뒀다가 바닥만 보는 턱·우측 카메라를 오판했다 — "변화가 적다"와 "잡음이 없다"는
+# 다른 신호다.
+STILL_MEAN = 0.05           # 프레임간 평균차가 이 아래면 잡음조차 없는 것
+STILL_SPAN = 0.10           # 처음↔끝이 이 아래면 (수집 구간 전체에서) 완전 동일
 
 
 def capture(cam_id, seconds, path):
@@ -67,7 +73,7 @@ def main():
                      for i in range(1, len(fr))]
             span = sum(abs(a - b) for a, b in zip(fr[0], fr[-1])) / CELL
             bright = sum(fr[-1]) / CELL
-            still = span < STILL and max(diffs) < STILL
+            still = span < STILL_SPAN and sum(diffs) / len(diffs) < STILL_MEAN
             if still:
                 bad.append(cid)
             print(f"  {cid} {CAMS[cid][2]:10s} {len(fr):3d}프레임  "
