@@ -403,9 +403,11 @@ function start(cid, fig){
     return;
   }
   const cv = fig.querySelector('canvas');
-  // desynchronized: 합성기(compositor) 동기를 기다리지 않고 바로 그린다.
-  // 화면 찢김을 감수하는 대신 프레임당 vsync 한 주기(60Hz 에서 16.7ms)를 아낀다.
-  const ctx = cv.getContext('2d', {desynchronized: true, alpha: false});
+  // desynchronized 는 쓰지 않는다. vsync 한 주기(16.7ms)를 아끼려던 옵션인데,
+  // 일부 윈도우/NVIDIA 조합에서 GPU 디코드 프레임을 이 캔버스에 그릴 때 프레임마다
+  // 느린 GPU→CPU 복사가 일어나 그리기 하나에 수백 ms 가 걸렸다(표시 280ms·화면
+  // 2~3fps 로 실측). 16ms 아끼려다 300ms 를 잃는 거래였다.
+  const ctx = cv.getContext('2d', {alpha: false});
   const ws = new WebSocket((location.protocol==='https:'?'wss':'ws')
                             + '://' + location.host + '/ws/' + cid);
   ws.binaryType = 'arraybuffer';
@@ -472,7 +474,11 @@ function start(cid, fig){
             try { ws.close(); } catch(_) {}
           }
         });
-        dec.configure({codec: m.codec, optimizeForLatency: true});
+        // prefer-software: 이 해상도(464x400)에서는 소프트웨어 디코드가 밀리초대로
+        // 충분하고, 하드웨어(D3D11/NVDEC) 경로는 세션 수 제한·출력 풀 대기 등으로
+        // 스트림이 2~3fps 까지 무너지는 환경이 실재한다(GPU 크롬에서 재현·확인).
+        dec.configure({codec: m.codec, optimizeForLatency: true,
+                       hardwareAcceleration: 'prefer-software'});
       } else if (m.t === 'error'){
         cap.textContent = m.msg;
       }
