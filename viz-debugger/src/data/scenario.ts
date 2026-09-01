@@ -23,11 +23,14 @@
  */
 
 import { useSyncExternalStore } from 'react';
+import { foldStatuses, type FoldedStatuses } from './fold.ts';
 import rawScenario from '../../scenarios/MSN-260826-01.json';
 import { libraryEntry } from '../scenarios/library.ts';
 import type { ScriptMap, ScriptScenario } from '../scenarios/types.ts';
 import { TraceStore } from '../shared/stores/traceStore.ts';
 import type { Hardware, RefEdge, Scenario, ScenarioEvent, TaskStatus, Task } from '../model/types.ts';
+
+export type { FoldedStatuses };
 
 /** 옛 파일 원본. HCI 전달본·논문용 — 한 글자도 고치지 않는다(verify:scenario). */
 export const scenario = rawScenario as Scenario;
@@ -291,40 +294,10 @@ export function recordHuman(kind: string, nodeId = state.current.missionId, payl
 
 // ── 상태 접기 (REQ-1405 되감기 · 마일스톤은 태스크를 접은 결과) ──────────────────
 
-export type FoldedStatuses = {
-  tasks: Record<string, { status: TaskStatus; attempt: number }>;
-  milestones: Record<string, TaskStatus>;
-};
-
 /**
- * 시각 t 의 계층 상태. **마일스톤도 함께 돌려준다** — 되감기하면 태스크와 마일스톤이
- * 같이 되돌아가야 한다. 접는 대상은 화면이 그리는 임무(제안 중이면 제안된 대본)다.
+ * 시각 t 의 계층 상태. 접는 규칙은 `fold.ts` 하나에 있고 여기서는 **접는 대상의 기본값**만
+ * 정한다 — 화면이 그리는 임무(제안 중이면 제안된 대본)다.
  */
 export function statusesAt(second: number, view: MissionView = displayMission().view): FoldedStatuses {
-  const tasks = Object.fromEntries(
-    view.tasks.map((task) => [task.id, { status: 'pending' as TaskStatus, attempt: 1 }]),
-  );
-  for (const event of view.events) {
-    if (event.atSec > second) break;
-    tasks[event.nodeId] = { status: event.status, attempt: event.attempt ?? tasks[event.nodeId]?.attempt ?? 1 };
-  }
-
-  const milestones: Record<string, TaskStatus> = {};
-  for (const milestone of view.milestones) {
-    const own = view.tasks.filter((task) => task.milestone === milestone.id);
-    if (own.length === 0) {
-      // 접을 재료가 없다 — 옛 파일의 정적 status 로만 그린다 (대본에는 이런 마일스톤이 없다).
-      milestones[milestone.id] = milestone.staticStatus ?? 'pending';
-      continue;
-    }
-    const statuses = own.map((task) => tasks[task.id]?.status ?? 'pending');
-    if (statuses.every((s) => s === 'done')) milestones[milestone.id] = 'done';
-    else if (statuses.some((s) => s === 'failed')) milestones[milestone.id] = 'failed';
-    else if (statuses.every((s) => s === 'not_executed')) milestones[milestone.id] = 'not_executed';
-    else if (statuses.every((s) => s === 'skipped')) milestones[milestone.id] = 'skipped';
-    else if (statuses.every((s) => s === 'pending')) milestones[milestone.id] = 'pending';
-    else milestones[milestone.id] = 'running';
-  }
-
-  return { tasks, milestones };
+  return foldStatuses(second, view);
 }

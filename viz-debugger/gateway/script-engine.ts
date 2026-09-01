@@ -168,6 +168,9 @@ export class ScriptEngine {
     };
     this.playback = playback;
 
+    // 출발 상태 — **재생 경로와 같은 한 곳**을 쓴다 (applyInitial). 미리보기만 이 단계를
+    // 건너뛰면 3편의 수문이 「열려 있던 것을 닫는」 이야기와 정반대인 0%(닫힘)로 선다.
+    this.applyInitial(script);
     if (script.map) {
       for (const cell of script.map.blind_cells) playback.coverage.set(cell.id, null);
       this.publishCoverage(script, 0);
@@ -179,7 +182,7 @@ export class ScriptEngine {
       if (frame.atSec === 0) this.applyWorldFrame(script, frame, playback);
     }
 
-    const detail = '대본 미리보기 — ' + missionId + ' 의 t=0 프레임만 반영 (정지 · 재생은 승인 뒤)';
+    const detail = '대본 미리보기 — ' + missionId + ' 의 초기 조건 + t=0 프레임 반영 (정지 · 재생은 승인 뒤)';
     this.emitResult(req, commandId, { status: 'completed', reason_code: null, detail });
     this.deps.commands.recordExternal(req, commandId, 'completed', detail);
     this.deps.log(detail);
@@ -328,14 +331,8 @@ export class ScriptEngine {
       const script = entry.script;
 
       // 초기 조건 — 세계의 출발 상태 (예: 3편 수문 열림 100%). 명령 우회가 아니다.
-      for (const [entityId, state] of Object.entries(script.initial ?? {})) {
-        const pct = typeof state.position_pct === 'number' ? state.position_pct : null;
-        const physical = typeof state.physical_state === 'string' ? state.physical_state : null;
-        if (pct !== null && physical !== null) {
-          const ok = commands.primeState(entityId, pct, physical);
-          log('대본 초기 조건 — ' + entityId + ' ' + physical + ' ' + pct + '%' + (ok ? '' : ' (수행 중이라 거부)'));
-        }
-      }
+      // 미리보기(previewScript)와 **같은 한 곳**을 지난다 — 두 벌로 적으면 갈라진다.
+      this.applyInitial(script);
 
       // 2편 맵 — 커버리지 초기 스냅샷(전부 빈 칸). 캐시가 마지막 봉투 하나라 전체를 싣는다.
       if (script.map) {
@@ -438,6 +435,28 @@ export class ScriptEngine {
         (entry?.script?.worldTimeline?.length ?? 0) + '건 · 명령 ' + (entry?.script?.commands?.length ?? 0) +
         '건 · ' + SPEED + '배속',
     );
+  }
+
+  /**
+   * 대본의 `initial` — **세계의 출발 상태**를 놓는다 (260901 요구 0-2).
+   *
+   * 재생(startPlayback)과 정지 미리보기(previewScript)가 **같은 이 한 곳**을 지난다.
+   * 미리보기가 이 단계를 건너뛰던 것이 3편의 결함이었다 — 대본은 「열려 있던 수문(100%)을
+   * 닫는」 이야기인데 미리보기의 개도율이 평시값 0%(닫힘)로 서서 이야기와 정반대였다.
+   *
+   * **값을 지어내는 것이 아니다.** `initial` 은 대본이 적어 둔 t=0 세계 그 자체이고,
+   * 명령 우회도 아니다 — primeState() 는 수행 중인 대상을 건드리지 않는다.
+   */
+  private applyInitial(script: ScriptScenario): void {
+    const { commands, log } = this.deps;
+    for (const [entityId, state] of Object.entries(script.initial ?? {})) {
+      const pct = typeof state.position_pct === 'number' ? state.position_pct : null;
+      const physical = typeof state.physical_state === 'string' ? state.physical_state : null;
+      if (pct !== null && physical !== null) {
+        const ok = commands.primeState(entityId, pct, physical);
+        log('대본 초기 조건 — ' + entityId + ' ' + physical + ' ' + pct + '%' + (ok ? '' : ' (수행 중이라 거부)'));
+      }
+    }
   }
 
   /**

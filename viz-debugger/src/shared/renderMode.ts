@@ -128,6 +128,24 @@ export function useScenarioCast(): ReadonlySet<string> | null {
 }
 
 /**
+ * **패널 접힘 판정의 재료** (260901 — 층 2). 시나리오 모드일 때만 대본의 축 집합을 준다.
+ *
+ * `null` 이면 **아무것도 접지 않는다.** 일반 모드는 모든 탭·패널이 그대로 떠야 하고
+ * (그게 「남이 줄 데이터가 어디에 얼마나 있는지」를 보여 주는 화면이다), 목 렌더가 켜져
+ * 있으면 목이 이긴다(전부 그린다). `verify:scenario-mode` 가 이 셋을 그대로 검사한다.
+ */
+export function getScenarioAxes(): ReadonlySet<ScenarioAxis> | null {
+  if (getRenderMode() !== 'scenario' || scenarioRender === null) return null;
+  return scenarioRender.axes;
+}
+
+export function useScenarioAxes(): ReadonlySet<ScenarioAxis> | null {
+  const scenario = useScenarioRender();
+  const effective = useRenderMode();
+  return effective === 'scenario' && scenario !== null ? scenario.axes : null;
+}
+
+/**
  * 「이 축을 지금 대본이 몰아 주는가」 (260831 — 요구 2의 넷째 상태).
  *  - null       : 시나리오 모드가 아니다 (평소의 자리표시 판단으로 간다)
  *  - true/false : 시나리오 모드다. false 면 「이 대본에는 해당 없음」

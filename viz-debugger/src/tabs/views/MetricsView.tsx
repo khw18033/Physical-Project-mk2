@@ -34,6 +34,7 @@ import { getBlockLog } from '../data/index.ts';
 import { useEntities, useMetricsQuery, useReaggregationBlocks } from '../data/hooks.ts';
 import { useMission } from '../../data/scenario.ts';
 import { PendingSource } from '../../shared/PendingSource.tsx';
+import { PanelGate } from '../ScenarioGate.tsx';
 import { useScenarioCast, useScenarioRender } from '../../shared/renderMode.ts';
 import { Explain } from '../../shared/Explain.tsx';
 
@@ -107,8 +108,11 @@ export function MetricsView() {
         </div>
       </header>
 
-      <LiveSummaryCard />
+      {/* 관측 지표(observability)는 어느 대본도 몰지 않는다 — 시나리오 모드에서는 패널째 접힌다
+          (260901 층 2). 8/31까지는 안쪽 칸만 「해당 없음」이고 제목·표기 각주는 남아 있었다. */}
+      <PanelGate id="metrics-push"><LiveSummaryCard /></PanelGate>
 
+      <PanelGate id="metrics-query">
       <section className="panel panel--wide">
         <header className="panel__head">
           <h2 className="panel__title">
@@ -198,6 +202,7 @@ export function MetricsView() {
           <strong> 원본에는 자동 갱신을 걸지 않는다</strong> — 주기 갱신이 사설망 왕복을 계속 두드리는 일이 되기 때문이다.
         </Explain>
       </section>
+      </PanelGate>
 
       <BlindspotAges />
 

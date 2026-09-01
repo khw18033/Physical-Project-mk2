@@ -915,3 +915,33 @@ body {
 .evidencetools .btn { margin: 3px; }
 .pipelineeditor { margin-top: 4px; }
 .pipelineeditor__head h2 { margin: 0; font-size: 17px; }
+
+/* ── 층 2 — 패널 접힘 카드 (260901 시나리오 연계) ──────────────────────────
+   자리표시(.pending)와 반대로 **자리 크기를 지키지 않는다.** 자리표시는 「나중에 이 자리에
+   그대로 들어간다」를 보이려 크기를 유지하지만, 접힘은 「이 이야기에 없다」이므로 화면을
+   짧게 만드는 것이 맞다. */
+.tabskip { margin: 12px 0; padding: 18px 20px; border: 1px solid #cfd8e4; border-left: 4px solid #7c8ea6; border-radius: 10px; background: #f7f9fc; color: #3c4a5c; }
+.tabskip--wide { min-height: 240px; display: flex; flex-direction: column; justify-content: center; }
+.tabskip__title { margin: 0 0 10px; font-size: 16px; font-weight: 700; color: #26313f; }
+.tabskip__title b { color: #1768c5; }
+.tabskip__why { margin: 0 0 6px; font-size: 13px; line-height: 1.6; }
+.tabskip__list { margin: 10px 0 0; padding: 0; list-style: none; display: grid; gap: 6px; font-size: 13px; }
+.tabskip__list li { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.tabskip__list code { padding: 1px 5px; border-radius: 4px; background: #e7ecf3; font-size: 12px; }
+.tabskip__list button { padding: 4px 11px; border: 1px solid #1768c5; border-radius: 6px; background: #fff; color: #1768c5; font-size: 12px; cursor: pointer; }
+.tabskip__list button:hover { background: #1768c5; color: #fff; }
+.tabskip__where { margin: 10px 0 0; font-size: 13px; line-height: 1.6; }
+.tabskip__back { margin: 12px 0 0; font-size: 12px; color: #6b7888; }
+
+/* ── 결정이 끝난 계획 — 한 줄 영수증 (260901 2차) ──────────────────────────
+   승인/거부가 끝나면 이 화면에서 결정할 것이 없다. 마일스톤 화면의 주인은 마일스톤이므로
+   자리를 비우고 「무엇이 언제 어느 계획으로 결정됐는가」만 남긴다. */
+.board--receipt { margin-top: 0; padding: 0; border: 0; background: none; }
+.planreceipt { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 0; padding: 8px 12px; border: 1px solid var(--line); border-left: 4px solid #168f50; border-radius: 8px; background: var(--surface); font-size: 12.5px; }
+.planreceipt--rejected { border-left-color: #c62f35; }
+.planreceipt__time { font-variant-numeric: tabular-nums; color: #4a5768; }
+.planreceipt__tag { color: #8794a4; font-size: 11.5px; }
+.planreceipt__reason { color: #c62f35; }
+.planreceipt .missionpick { margin-left: auto; font-size: 11.5px; }
+.planreceipt__toggle { margin-left: auto; }
+.planreceipt .missionpick + .planreceipt__toggle { margin-left: 0; }

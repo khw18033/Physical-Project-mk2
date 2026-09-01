@@ -1,9 +1,25 @@
 // 이식: web-dashboard/src/views/MissionView.tsx @ 700ed91 — 탭① 안의 승인 패널로 개조
 //
 // 구 「임무 승인·진행」 탭은 탭①에 통폐합됐다. 화면 하나를 통째로 옮긴 것이 아니라
-// **승인·거부 호출부(VZ-U-07)와 구간 진행(VZ-U-05)을 탭① 안으로 들여온 것**이다.
-// 그래서 최상위가 <main> 이 아니라 <section> 이고, 제목도 h1 이 아니라 h2 다 —
-// 이 화면의 h1 은 탭①이 갖는다.
+// **승인·거부 호출부(VZ-U-07)를 탭① 안으로 들여온 것**이다. 그래서 최상위가 <main> 이
+// 아니라 <section> 이고, 제목도 h1 이 아니라 h2 다 — 이 화면의 h1 은 탭①이 갖는다.
+//
+// 2026-09-01 — **서브태스크 진행(SegmentTrack)을 지웠다.** 근거 둘.
+//  1. 계획 구간은 마일스톤과 **같은 값**이다. gateway/plans.ts 머리 주석이 그렇게 적고 있고
+//     ScriptEngine 이 foldMilestones() 결과를 plans.applyScriptMilestones() 로 되돌린다 —
+//     즉 이 패널의 구간 목록은 탭①의 마일스톤 목록을 한 화면에서 두 번 그리는 것이었다.
+//  2. 실패 상세(faildetail)도 지웠다 — 탭①에 실패 경로 강조 화면(screen === 'failure')이
+//     이미 있다. 중계 단계(relay_stage)는 백엔드 내부 상태라 목·개발 모드로 내렸다.
+//
+// **VZ-U-05 를 조용히 없앤 것이 아니다.** 탭①의 마일스톤 목록 · 태스크 그래프 · 되감기
+// 타임라인이 그 요구를 충족한다고 보고, 그 판단을 요구사항정의서 §3.1 에 적었다.
+//
+// 2026-09-01 (2차) — **결정이 끝나면 한 줄 영수증으로 접는다.** 승인된 뒤에도 근거 4층과
+// 산출 경로가 화면 한가운데를 차지해 마일스톤을 아래로 밀고 있었는데, 그 시점에는 결정할
+// 것이 하나도 없다. 여기는 마일스톤 화면이고 마일스톤이 주인이다.
+//  - 승인 전  : 근거 4층을 **펼친 채로** + 승인·거부 (판단 1 그대로 — 관문이다)
+//  - 결정 후  : `✓ 승인됨 · 시각 · plan_id · [근거 ▾]` 한 줄. 펼치면 근거 4층과 산출 경로
+//  - 「어떻게 동작하는가」(경로 hop 의 뜻 · AI/백엔드 중계 구분)는 우상단 `?` 설명서로 옮겼다
 //
 // **탭① 단독 빌드에는 들어가지 않는다.** 이 파일은 tabs/ 아래에 있고, 통합 셸이
 // integrated.tsx 에서 프롭으로 주입한다. 단독 빌드는 프롭을 주지 않으므로 데이터 계층을
@@ -25,25 +41,28 @@
  *     생성기·맥락 버전은 맨 아래 각주로 뺐다 — 판단에 쓰는 값이 아니라 되짚을 때 쓰는 값이다.
  *  3. 거부는 **사유 없이 보낼 수 없게** 했다. 사유 없는 거부는 다음 계획 생성에 반영할 수 없다.
  *
- * 진행 노드는 목업(VZ-U-05_서브태스크_진행노드) 그대로다.
+ * 판단 1은 260901 이후에도 그대로다 — 승인은 되돌리기 어려운 조작이라 **승인 전에는**
+ * 근거 4층을 접지 않는다. 다만 그중 「구간별 계획」 절만 **한 줄로 줄였다**: 아래 마일스톤
+ * 목록과 같은 값이라 펼쳐 두면 같은 것을 두 번 읽게 된다.
+ *
+ * 판단 1이 말하는 것은 **결정하기 전**이다. 결정이 끝난 뒤에도 펼쳐 두는 것은 근거를 보이는
+ * 일이 아니라 자리를 차지하는 일이다 — 그래서 결정 후에는 접는다.
  */
 
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import {
   PRODUCED_BY_LABEL,
   RELAY_STAGE_LABEL,
-  SEGMENT_STATUS_LABEL,
   decidePlan,
-  planProgressSummary,
   playScenario,
   splitProvenance,
   type Plan,
-  type PlanSegment,
   type ProvenanceStep,
 } from '../data/index.ts';
 import { useEntities } from '../data/hooks.ts';
 import type { EntityRecord } from '../data/store.ts';
 import { Explain } from '../../shared/Explain.tsx';
+import { useDevTools } from '../../shared/renderMode.ts';
 
 /**
  * **계획 대상을 코드에 적지 않는다.** 계획이 도착한 대상이 곧 임무 대상이고,
@@ -73,46 +92,51 @@ export function PlanApproval() {
   const record = target === null ? null : (entities.get(target) ?? null);
 
   const plan = (record?.plan?.payload as Plan | undefined) ?? null;
-  // 진행은 별도 채널로 온다. 계획 본문과 갱신 시점이 다르기 때문이다.
-  const progress = record?.planProgress?.payload ?? null;
-  const segments: PlanSegment[] =
-    progress?.plan_id === plan?.plan_id && progress !== null ? progress.segments : (plan?.segments ?? []);
+  // 진행(planProgress)은 더 이상 읽지 않는다 — 구간 = 마일스톤이고, 마일스톤은 탭①이 그린다.
+
+  /** 결정이 끝났는가. 끝났으면 **머리글까지** 없애고 한 줄 영수증만 남긴다 (260901 2차). */
+  const decided = plan !== null && plan.decision !== 'pending';
+
+  // 계획 대상이 여럿일 때만 뜨는 고르개. 영수증 줄에서도 같은 것을 쓴다 — 두 벌로 만들지 않는다.
+  const targetPicker = targets.length > 1 ? (
+    <label className="missionpick">
+      임무 대상
+      <select value={target ?? ''} onChange={(e) => setPicked(e.target.value)}>
+        {targets.map((id) => (
+          <option key={id} value={id}>
+            {entities.get(id)?.registry?.display_name ?? id}
+          </option>
+        ))}
+      </select>
+    </label>
+  ) : null;
 
   return (
-    <section className="board board--embedded">
-      <header className="board__head">
-        <div>
-          <h2 className="board__title">임무 승인 · 서브태스크 진행</h2>
-          <Explain id="plan-1" className="board__sub">
-            검증을 통과해도 <strong>사람이 승인해야 실행된다</strong>. 승인 전에는 구간이 하나도 진행되지 않는다
-          </Explain>
-        </div>
-        <div className="board__meta">
-          {targets.length > 1 && (
-            <label className="missionpick">
-              임무 대상
-              <select value={target ?? ''} onChange={(e) => setPicked(e.target.value)}>
-                {targets.map((id) => (
-                  <option key={id} value={id}>
-                    {entities.get(id)?.registry?.display_name ?? id}
-                  </option>
-                ))}
-              </select>
-            </label>
-          )}
-          <span>VZ-U-07 · VZ-U-05</span>
-        </div>
-      </header>
+    <section className={'board board--embedded' + (decided ? ' board--receipt' : '')}>
+      {!decided && (
+        <header className="board__head">
+          <div>
+            <h2 className="board__title">임무 승인 — 계획 근거와 승인·거부</h2>
+            <Explain id="plan-1" className="board__sub">
+              검증을 통과해도 <strong>사람이 승인해야 실행된다</strong>. 승인 전에는 아무것도 재생되지 않고,
+              승인하면 <strong>아래 마일스톤</strong>이 순서대로 진행된다
+            </Explain>
+          </div>
+          <div className="board__meta">
+            {targetPicker}
+            <span>VZ-U-07</span>
+          </div>
+        </header>
+      )}
 
       {plan === null ? (
         <p className="notice">
           승인 대기 중인 계획이 없다. 아래에서 계획을 하나 내려받아 보라.
         </p>
+      ) : decided ? (
+        <DecidedReceipt plan={plan} picker={targetPicker} />
       ) : (
-        <>
-          <ApprovalPanel plan={plan} />
-          <SegmentTrack plan={plan} segments={segments} />
-        </>
+        <ApprovalPanel plan={plan} />
       )}
 
       <section className="devpanel">
@@ -130,13 +154,17 @@ export function PlanApproval() {
   );
 }
 
-/** VZ-U-07 — 근거를 펼쳐 보이고 승인/거부를 받는다. */
+/**
+ * VZ-U-07 — **결정하기 전** 화면. 근거를 펼쳐 보이고 승인/거부를 받는다.
+ *
+ * 산출 경로(RouteStrip)와 중계 4단계(ProvenanceTrack)는 여기 없다 (260901 2차) —
+ * 그건 「이 계획을 승인할 것인가」가 아니라 「이 시스템이 어떻게 동작하는가」이고,
+ * 그 설명은 우상단 `?` 설명서에 있다. 실제 단계와 시각은 결정 뒤 「근거 ▾」에서 본다
+ * (승인 수신·재생 시작 두 단계는 애초에 결정 뒤에야 생긴다).
+ */
 function ApprovalPanel({ plan }: { plan: Plan }) {
   const [rejectOpen, setRejectOpen] = useState(false);
   const [reason, setReason] = useState('');
-
-  const pending = plan.decision === 'pending';
-  const ev = plan.evidence;
 
   return (
     <section className="panel panel--wide">
@@ -144,27 +172,111 @@ function ApprovalPanel({ plan }: { plan: Plan }) {
         <h2 className="panel__title">
           계획 승인 <code className="cmdhead__id">{plan.plan_id}</code>
         </h2>
-        <span className={'badge badge--plan-' + plan.decision}>
-          {plan.decision === 'pending' ? '승인 대기' : plan.decision === 'approved' ? '승인됨' : '거부됨'}
-        </span>
+        <span className="badge badge--plan-pending">승인 대기</span>
       </header>
 
-      <RouteStrip plan={plan} />
+      <p className="notice notice--warn">
+        <strong>아직 실행되지 않았다.</strong> 승인해야 구간이 하달된다. 승인 없이 자동 실행하면 사고가 났을 때
+        책임소재가 성립하지 않는다.
+      </p>
 
-      {pending && (
-        <p className="notice notice--warn">
-          <strong>아직 실행되지 않았다.</strong> 승인해야 구간이 하달된다. 승인 없이 자동 실행하면 사고가 났을 때
-          책임소재가 성립하지 않는다.
-        </p>
+      <EvidenceList plan={plan} />
+
+      <Explain id="plan-2" className="note note--dim">
+        생성기 {plan.evidence.generator.name} {plan.evidence.generator.version} · 입력 맥락{' '}
+        {plan.evidence.generator.context_version}
+        {/* 대본 계획은 AI 산출이 아니다 — 키워드 대조다. 감추면 REQ-1207 위반이다 (260831). */}
+        {plan.script !== undefined
+          ? <span className="chip chip--backend">대본 조회 — LLM 아님 · 키워드 [{plan.script.matched_keywords.join(' · ')}]</span>
+          : <span className="chip chip--ai">AI 산출</span>}
+        {plan.command_id !== null && (
+          <>
+            <br />
+            상관키 <code>{plan.command_id}</code> <span className="chip chip--backend">백엔드 발급 (BE-X-01)</span>
+          </>
+        )}
+      </Explain>
+
+      <div className="approvebar">
+        <button type="button" className="btn btn--action btn--approve" onClick={() => decidePlan(plan.plan_id, 'approve')}>
+          승인 — 백엔드로 회신
+        </button>
+        <button type="button" className="btn btn--action" onClick={() => setRejectOpen((v) => !v)}>
+          거부
+        </button>
+
+        {rejectOpen && (
+          <div className="rejectbox">
+            <input
+              type="text"
+              className="input"
+              placeholder="거부 사유 (필수) — 다음 계획 생성에 반영된다"
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+            />
+            <button
+              type="button"
+              className="btn"
+              // 사유 없는 거부는 다음 계획 생성에 반영할 수 없으므로 막는다.
+              // 거부도 **같은 백엔드 채널로** 돌아간다 — 승인만 백엔드를 거치면
+              // "왜 실행이 안 됐나"의 절반이 어디에도 남지 않는다.
+              disabled={reason.trim().length === 0}
+              onClick={() => {
+                decidePlan(plan.plan_id, 'reject', reason.trim());
+                setRejectOpen(false);
+                setReason('');
+              }}
+            >
+              사유와 함께 거부
+            </button>
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
+
+/**
+ * 결정이 끝난 계획 — **한 줄 영수증** (260901 2차 · 사용자 피드백).
+ *
+ * 승인/거부가 끝나면 이 화면에서 결정할 것이 없다. 여기는 마일스톤 화면이고 마일스톤이
+ * 주인이므로, 무엇이 언제 어느 계획으로 결정됐는지만 한 줄로 남기고 자리를 비운다.
+ * 근거와 산출 경로는 사라지지 않는다 — 「근거 ▾」로 그대로 펼친다.
+ */
+function DecidedReceipt({ plan, picker }: { plan: Plan; picker: ReactNode }) {
+  const [open, setOpen] = useState(false);
+  const approved = plan.decision === 'approved';
+
+  return (
+    <>
+      <p className={'planreceipt planreceipt--' + plan.decision}>
+        <span className={'badge badge--plan-' + plan.decision}>{approved ? '✓ 승인됨' : '✕ 거부됨'}</span>
+        <span className="planreceipt__time">{timeOf(plan.decided_at)}</span>
+        <code className="cmdhead__id">{plan.plan_id}</code>
+        <span className="planreceipt__tag">VZ-U-07</span>
+        {!approved && <span className="planreceipt__reason">사유 — {plan.reject_reason}</span>}
+        {picker}
+        <button type="button" className="btn btn--tiny planreceipt__toggle" onClick={() => setOpen((v) => !v)}>
+          근거 {open ? '▴' : '▾'}
+        </button>
+      </p>
+
+      {open && (
+        <section className="panel panel--wide">
+          <EvidenceList plan={plan} />
+          {/* 실제 중계 단계와 시각 — 「어디서 끊겼나」를 되짚을 때 본다. 뜻풀이는 `?` 설명서에. */}
+          <RouteStrip plan={plan} />
+          <ProvenanceTrack steps={plan.evidence.provenance} />
+        </section>
       )}
+    </>
+  );
+}
 
-      {plan.decision === 'rejected' && (
-        <p className="notice notice--warn">
-          거부됨 — {plan.reject_reason} <span className="muted">({timeOf(plan.decided_at)})</span>
-        </p>
-      )}
-
-      {/* 근거 네 층. 요구사항이 말한 순서 그대로 쌓는다. */}
+/** 근거 네 층. 요구사항이 말한 순서 그대로 쌓는다. 승인 전 화면과 「근거 ▾」가 같이 쓴다. */
+function EvidenceList({ plan }: { plan: Plan }) {
+  const ev = plan.evidence;
+  return (
       <ol className="evidence">
         <li className="evidence__step">
           <span className="evidence__no">1</span>
@@ -196,14 +308,10 @@ function ApprovalPanel({ plan }: { plan: Plan }) {
         <li className="evidence__step">
           <span className="evidence__no">3</span>
           <div>
-            <h3 className="evidence__title">구간별 계획 — {plan.segments.length}구간</h3>
-            <ol className="seglist">
-              {plan.segments.map((s) => (
-                <li key={s.index}>
-                  <code>{s.index}/{s.total}</code> {s.title} <span className="muted">· {s.zone}</span>
-                </li>
-              ))}
-            </ol>
+            {/* 한 줄로 줄였다 (260901) — 구간 목록은 아래 마일스톤 목록과 **같은 값**이라
+                펼쳐 두면 한 화면에서 같은 것을 두 번 읽게 된다. */}
+            <h3 className="evidence__title">구간별 계획</h3>
+            <p className="evidence__body">{plan.segments.length}구간 — <strong>아래 마일스톤과 같음</strong></p>
           </div>
         </li>
 
@@ -223,61 +331,6 @@ function ApprovalPanel({ plan }: { plan: Plan }) {
           </div>
         </li>
       </ol>
-
-      <ProvenanceTrack steps={ev.provenance} />
-
-      <Explain id="plan-2" className="note note--dim">
-        생성기 {ev.generator.name} {ev.generator.version} · 입력 맥락 {ev.generator.context_version}
-        {/* 대본 계획은 AI 산출이 아니다 — 키워드 대조다. 감추면 REQ-1207 위반이다 (260831). */}
-        {plan.script !== undefined
-          ? <span className="chip chip--backend">대본 조회 — LLM 아님 · 키워드 [{plan.script.matched_keywords.join(' · ')}]</span>
-          : <span className="chip chip--ai">AI 산출</span>}
-        {plan.command_id !== null && (
-          <>
-            <br />
-            상관키 <code>{plan.command_id}</code> <span className="chip chip--backend">백엔드 발급 (BE-X-01)</span>
-          </>
-        )}
-      </Explain>
-
-      {pending && (
-        <div className="approvebar">
-          <button type="button" className="btn btn--action btn--approve" onClick={() => decidePlan(plan.plan_id, 'approve')}>
-            승인 — 백엔드로 회신
-          </button>
-          <button type="button" className="btn btn--action" onClick={() => setRejectOpen((v) => !v)}>
-            거부
-          </button>
-
-          {rejectOpen && (
-            <div className="rejectbox">
-              <input
-                type="text"
-                className="input"
-                placeholder="거부 사유 (필수) — 다음 계획 생성에 반영된다"
-                value={reason}
-                onChange={(e) => setReason(e.target.value)}
-              />
-              <button
-                type="button"
-                className="btn"
-                // 사유 없는 거부는 다음 계획 생성에 반영할 수 없으므로 막는다.
-                // 거부도 **같은 백엔드 채널로** 돌아간다 — 승인만 백엔드를 거치면
-                // "왜 실행이 안 됐나"의 절반이 어디에도 남지 않는다.
-                disabled={reason.trim().length === 0}
-                onClick={() => {
-                  decidePlan(plan.plan_id, 'reject', reason.trim());
-                  setRejectOpen(false);
-                  setReason('');
-                }}
-              >
-                사유와 함께 거부
-              </button>
-            </div>
-          )}
-        </div>
-      )}
-    </section>
   );
 }
 
@@ -285,10 +338,15 @@ function ApprovalPanel({ plan }: { plan: Plan }) {
  * BE-X-04 — 이 계획이 온 경로와 승인이 돌아가는 곳.
  *
  * 예전 화면은 승인을 AI 쪽과 직접 주고받는 모양이었다. 확정된 계약에서는 백엔드가 중계하고
- * **승인된 계획만** 엣지·로봇으로 발행하므로, 그 경로가 화면 위쪽에 한 줄로 보여야
- * "내 승인이 어디로 가는가"를 사용자가 안다.
+ * **승인된 계획만** 엣지·로봇으로 발행한다.
+ *
+ * 260901 2차 — 이 줄은 **결정 뒤 「근거 ▾」 안에만** 있다. 「내 승인이 어디로 가는가」는
+ * 이 계획의 사실이 아니라 시스템의 동작 방식이라 우상단 `?` 설명서가 맡는다.
  */
 function RouteStrip({ plan }: { plan: Plan }) {
+  // 중계 단계(relay_stage)는 **백엔드 내부 상태**다 (260901). 승인 화면에 늘 떠 있으면
+  // 「지금 내가 무엇을 보고 있나」가 흐려진다 — 필요할 때만 목·개발 모드에서 본다.
+  const devTools = useDevTools();
   return (
     <div className="route">
       <span className="route__hop route__hop--ai">{plan.route.generated_by}</span>
@@ -300,7 +358,7 @@ function RouteStrip({ plan }: { plan: Plan }) {
       <span className="route__hop route__hop--backend">{plan.route.decision_returns_to}</span>
       <span className="route__arrow">→</span>
       <span className="route__hop route__hop--device">{plan.route.dispatches_to}</span>
-      <span className={'route__stage route__stage--' + plan.relay_stage}>{RELAY_STAGE_LABEL[plan.relay_stage]}</span>
+      {devTools && <span className={'route__stage route__stage--' + plan.relay_stage}>{RELAY_STAGE_LABEL[plan.relay_stage]}</span>}
     </div>
   );
 }
@@ -333,99 +391,8 @@ function ProvenanceTrack({ steps }: { steps: ProvenanceStep[] }) {
           </li>
         ))}
       </ol>
-      <Explain id="plan-3" className="note note--dim">
-        AI는 계획 <strong>생성</strong>과 <strong>검증</strong>까지다. 가시화 전달·승인 수신·엣지 발행은 백엔드
-        중계 구간이며, 승인·거부 모두 이 경로로 돌아간다.
-      </Explain>
-    </section>
-  );
-}
-
-/** VZ-U-05 — 구간 노드. 목업 그대로. */
-function SegmentTrack({ plan, segments }: { plan: Plan; segments: PlanSegment[] }) {
-  const [openIndex, setOpenIndex] = useState<number | null>(null);
-  const summary = planProgressSummary(segments);
-  const started = plan.decision === 'approved';
-
-  return (
-    <section className="panel panel--wide">
-      <header className="panel__head">
-        <h2 className="panel__title">
-          {plan.entity} · {plan.plan_id}{' '}
-          {plan.command_id !== null && <code className="cmdhead__id">command_id {plan.command_id}</code>}
-        </h2>
-        <span className="panel__tag">
-          {started ? summary.done + '/' + summary.total + ' 완료' : '미시작'} · VZ-U-05
-        </span>
-      </header>
-
-      {!started && (
-        <p className="muted">
-          승인 전이라 진행 이벤트가 하나도 오지 않았다. 구간은 전부 대기 상태다.
-        </p>
-      )}
-
-      <div className="track">
-        {segments.map((s, i) => (
-          <div key={s.index} className="track__cell">
-            <button
-              type="button"
-              className={'segnode segnode--' + s.status + (s.failure !== null ? ' segnode--clickable' : '')}
-              onClick={() => s.failure !== null && setOpenIndex(openIndex === s.index ? null : s.index)}
-            >
-              <span className="segnode__mark">
-                {s.status === 'done' ? '✓' : s.status === 'failed' ? '✕' : s.status === 'running' ? '…' : '·'}
-              </span>
-              <strong className="segnode__title">
-                구간 {s.index}/{s.total}
-                {s.status === 'failed' && ' 실패'}
-              </strong>
-              <span className="segnode__sub">{s.title}</span>
-              <span className="segnode__meta">
-                {s.status === 'done' && s.elapsed_s !== null
-                  ? s.elapsed_s + ' s'
-                  : s.status === 'failed'
-                    ? 'rejected · ' + timeOf(s.failure?.failed_at ?? null)
-                    : SEGMENT_STATUS_LABEL[s.status]}
-              </span>
-              <span className="segnode__zone">{s.zone}</span>
-            </button>
-            {i < segments.length - 1 && <span className="track__arrow">→</span>}
-          </div>
-        ))}
-      </div>
-
-      {segments.map(
-        (s) =>
-          s.failure !== null &&
-          openIndex === s.index && (
-            <div key={'d' + s.index} className="faildetail">
-              <h3 className="faildetail__title">
-                구간 {s.index}/{s.total} 상세 — 실패 지점
-              </h3>
-              <p className="faildetail__line">
-                하달 {timeOf(s.failure.dispatched_at)} → ACK {timeOf(s.failure.acked_at)} →{' '}
-                <strong>실패 {timeOf(s.failure.failed_at)}</strong>
-              </p>
-              <p className="faildetail__line">
-                멈춘 단계 — <strong>{s.failure.failed_stage}</strong>
-              </p>
-              <p className="faildetail__line">사유 — {s.failure.reason}</p>
-              <p className="faildetail__line muted">{s.failure.judged_by}</p>
-            </div>
-          ),
-      )}
-
-      {segments.some((s) => s.status === 'failed') && (
-        <Explain id="plan-4" className="note">
-          실패 뒤 구간은 <strong>하달 자체가 되지 않아</strong> '건너뜀'으로 표시된다. '대기'와 구분해야
-          "왜 뒤 구간이 안 돌았나"가 화면에서 설명된다.
-        </Explain>
-      )}
-
-      {segments.some((s) => s.failure !== null) && openIndex === null && (
-        <p className="muted">실패 노드를 누르면 어느 단계에서 왜인지 펼쳐진다.</p>
-      )}
+      {/* 뜻풀이(어디까지 AI이고 어디부터 백엔드인가·왜 갈라 두는가)는 우상단 `?` 설명서로
+          옮겼다 (260901 2차). 여기 남는 것은 이 계획의 **실측 단계와 시각**이다. */}
     </section>
   );
 }

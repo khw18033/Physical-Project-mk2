@@ -16,7 +16,7 @@
 
 import { useEffect } from 'react';
 import { activateMission, proposeMission, receiveTrace, rejectProposal, viewForMission } from '../data/scenario.ts';
-import { axesOfMission } from '../scenarios/axes.ts';
+import { axesOfMission } from '../scenarios/scriptScope.ts';
 import { enterScenarioRender } from '../shared/renderMode.ts';
 import { store } from '../tabs/data/index.ts';
 import { getTransport, type Envelope } from '../transport/index.ts';

@@ -1,4 +1,5 @@
-// 이식: web-dashboard/src/views/DeviceGrid.tsx @ 700ed91 — 대본 재생(260831): 구역 맵 미니뷰 + scenario 카드 분기
+// 이식: web-dashboard/src/views/DeviceGrid.tsx @ 700ed91 — 대본 재생(260831): scenario 카드 분기
+// 260901 — 구역 맵 미니뷰를 tabs/index.tsx 로 꺼냈다(패널마다 축이 달라 따로 접혀야 한다).
 /**
  * src/views/DeviceGrid.tsx
  *
@@ -25,7 +26,6 @@ import { useEntities, useRenderRate, useRole, useRoleRefresh, useZoneSummary } f
 import { PendingSource } from '../../shared/PendingSource.tsx';
 import { useScenarioCast } from '../../shared/renderMode.ts';
 import { DeviceCard } from './DeviceCard.tsx';
-import { ZoneMapMini } from './ZoneMapMini.tsx';
 import { Explain } from '../../shared/Explain.tsx';
 
 /** 현재 설계 전제는 구역 1개(VZ-C-05). 구역이 늘면 이 값이 선택 상태가 된다. */
@@ -119,9 +119,6 @@ export function DeviceGrid() {
           </section>
         </PendingSource>
       )}
-
-      {/* 구역 맵 미니뷰 (260831) — 2편의 「가상 맵」. 평소엔 자리표시(백엔드 DT-04·DT-05). */}
-      <ZoneMapMini />
 
       {/* 카드 그리드 자리 전체. 대상 목록(VZ-I-03)과 그 상태(VZ-I-01)가 둘 다 남에게서 온다.
           scenario 모드에서는 **카드 단위로 갈린다** — 대본 등장 장비만 그리고, 나머지는

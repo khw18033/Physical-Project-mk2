@@ -135,7 +135,14 @@ export function splitProvenance(steps: ProvenanceStep[]): { ai: ProvenanceStep[]
   };
 }
 
-/** 진행률 요약 — 완료 구간 수 / 전체. */
+/**
+ * 진행률 요약 — 완료 구간 수 / 전체.
+ *
+ * **2026-09-01 이후 이 값을 그리는 화면이 없다.** 계획 구간은 마일스톤과 같은 값이라
+ * 탭①의 승인 패널에서 구간 진행 화면을 지웠다(요구사항정의서 §3.1 의 `VZ-U-05` 판단).
+ * 그래도 `plan_progress` 수신·저장과 이 요약은 **남긴다** — 백엔드와의 수신 계약을
+ * 화면 사정으로 죽이지 않는다. 다시 그릴 자리가 생기면 여기서 꺼내 쓴다.
+ */
 export function planProgressSummary(segments: PlanSegment[]): { done: number; total: number; failedAt: number | null } {
   const done = segments.filter((s) => s.status === 'done').length;
   const failed = segments.find((s) => s.status === 'failed');

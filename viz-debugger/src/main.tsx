@@ -44,15 +44,23 @@ function Milestones({ view, phase, milestoneStatuses, assignments, onAssign, onO
   const hardware = listRegisteredHardware();
   const cast = listCastIds();
   const mission = useMission();
+  // 승인·거부는 **마일스톤 목록 위 제안 카드 안**에 있다 (260901). 통합 빌드는 이 슬롯에
+  // PlanApproval(근거 4층 + 승인·거부)이 들어오고, 단독 빌드는 로컬 재생기용 폴백이 들어온다 —
+  // **같은 자리**다. 근거의 「구간별 계획」이 「아래 마일스톤과 같음」이라고 적으므로
+  // 카드는 목록보다 위에 있어야 한다.
+  const approvalSlot = planApproval ?? (mission.proposal !== null && <div className="proposal-fallback">
+    {/* 단독 빌드(게이트웨이 없음)의 승인 자리 — 통합 앱에서는 PlanApproval(VZ-U-07)이 들어온다. */}
+    <p>대본 제안 <code>{mission.proposal.missionId}</code> — 승인해야 재생이 시작됩니다 (VZ-U-07 · 로컬 재생기)</p>
+    <button onClick={() => activateMission(mission.proposal!.missionId, 'local')}>승인 — 재생 시작</button>
+    <button onClick={() => rejectProposal()}>거부</button>
+  </div>);
+  const showApproval = phase === 'proposal' || planApproval !== undefined;
   return <div className="milestone-layout"><UtterancePanel fallbackText={view.utteranceText} /><section className="milestone-panel"><h2>마일스톤 · {view.milestones.length}건</h2>
-    {phase === 'proposal' && <p className="proposal-note"><b>제안 상태</b> — 대본 {view.missionId} 「{view.label}」. 승인 전에는 아무것도 재생되지 않습니다{mission.proposal?.keywords.length ? <small>맞은 키워드: {mission.proposal.keywords.join(' · ')}</small> : null}</p>}
-    <div className="milestone-list">{view.milestones.map((item) => <button key={item.id} className={`milestone state-${milestoneStatuses[item.id] ?? 'pending'}`} onClick={() => onOpen(item.id)} onDragOver={(event) => event.preventDefault()} onDrop={(event) => onAssign(item.id, event.dataTransfer.getData('text/plain'))}><b>{item.id}</b><strong>{item.title}</strong><span>{(assignments[item.id] ?? item.assignedTargets).join(' · ') || '미배정'}</span><small>클릭 → 태스크 그래프</small></button>)}</div>
-    {planApproval ?? (mission.proposal !== null && <div className="proposal-fallback">
-      {/* 단독 빌드(게이트웨이 없음)의 승인 자리 — 통합 앱에서는 기존 PlanApproval(VZ-U-07)이 이 슬롯에 들어온다. */}
-      <p>대본 제안 <code>{mission.proposal.missionId}</code> — 승인해야 재생이 시작됩니다 (VZ-U-07 · 로컬 재생기)</p>
-      <button onClick={() => activateMission(mission.proposal!.missionId, 'local')}>승인 — 재생 시작</button>
-      <button onClick={() => rejectProposal()}>거부</button>
-    </div>)}</section>
+    {showApproval && <div className="proposal-card">
+      {phase === 'proposal' && <p className="proposal-note"><b>제안 상태</b> — 대본 {view.missionId} 「{view.label}」. 승인 전에는 아무것도 재생되지 않습니다{mission.proposal?.keywords.length ? <small>맞은 키워드: {mission.proposal.keywords.join(' · ')}</small> : null}</p>}
+      {approvalSlot}
+    </div>}
+    <div className="milestone-list">{view.milestones.map((item) => <button key={item.id} className={`milestone state-${milestoneStatuses[item.id] ?? 'pending'}`} onClick={() => onOpen(item.id)} onDragOver={(event) => event.preventDefault()} onDrop={(event) => onAssign(item.id, event.dataTransfer.getData('text/plain'))}><b>{item.id}</b><strong>{item.title}</strong><span>{(assignments[item.id] ?? item.assignedTargets).join(' · ') || '미배정'}</span><small>클릭 → 태스크 그래프</small></button>)}</div></section>
     <aside className="hardware-panel"><h2>하드웨어 · {view.hardware ? hardware.length : cast.length}대</h2><p>카드를 마일스톤으로 드래그 · 원천 {hardwareSourceLabel()}</p>
     {view.hardware
       ? hardware.map((item) => <article key={item.id} draggable onDragStart={(event) => event.dataTransfer.setData('text/plain', item.id)}><b className={item.connection}>{item.id}</b><small>{item.kind}</small><span><PendingSource id="hardware-pool-status" inline>{item.connection} · {item.battery}% · {item.rssi} dBm</PendingSource></span></article>)
@@ -110,6 +118,9 @@ export type DebuggerNavigation = { screen: 'milestones' | 'replay'; requestId: n
 
 /**
  * `planApproval` — VZ-U-07 승인·거부 패널. **통합 셸이 프롭으로 넣는다.**
+ *
+ * 자리는 마일스톤 목록 **위**의 제안 카드다 (260901). 단독 빌드는 이 프롭을 받지 않고
+ * 같은 자리에 로컬 승인 폴백을 그린다 — 통합·단독이 같은 슬롯을 쓴다.
  *
  * 여기서 직접 import 하지 않는 이유: 그 패널은 `tabs/data/` 의 스토어를 보는데,
  * 탭① 단독 빌드가 그걸 끌어오면 대시보드 데이터 계층이 통째로 딸려 들어와

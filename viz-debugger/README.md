@@ -100,7 +100,7 @@ npm run verify:scenario      npm run verify:layout        npm run verify:hierarc
 npm run verify:adapter-swap  npm run verify:transport     npm run verify:single-egress
 npm run verify:standalone    npm run verify:stt-port      npm run verify:voice-audit
 npm run verify:no-stt        npm run verify:one-gateway   npm run verify:placeholder-default
-npm run verify:script-library  npm run verify:scenario-mode
+npm run verify:script-library  npm run verify:scenario-mode  npm run verify:tab-scope
 npm run build
 ```
 
@@ -114,6 +114,7 @@ npm run build
 | `verify:one-gateway` | **목 게이트웨이가 하나이고 그 하나가 탭 전부를 채우는가.** 화면만 옮기면 이식 탭이 텅 빈 채로 뜨는 것이 이식에서 가장 놓치기 쉬웠다 |
 | `verify:placeholder-default` | **앱을 그냥 띄우면 남의 데이터 자리가 자리표시인가.** 자리표시마다 무엇·누가·우리 자리·평면 넷이 다 찼는가. 표만 채우고 화면을 안 고친 것도 잡는다 |
 | `verify:script-library` | **대본 세 편이 registry.json 세계 위에 있는가.** cast·세계 채널·명령의 장비가 전부 실재하고, 제목에 하드웨어 어휘가 없고, 평가 태스크마다 근거값이 있고, 세 문장이 각각 자기 대본에만 맞는가 |
-| `verify:scenario-mode` | **대본 재생이 자리표시 기본값을 깨뜨리지 않는가.** 기본은 여전히 placeholder, 진입 경로는 둘(모드 스위치의 **정지 미리보기** `playing:false` · 승인 **재생** `playing:true` — **재생**만 승인 뒤다), 끄는 경로는 셸 하나, cast 밖은 자리표시, 배지는 끌 수 없고, 미리보기는 t=0 프레임만 반영하고 trace 발행 0건 |
+| `verify:scenario-mode` | **대본 재생이 자리표시 기본값을 깨뜨리지 않는가.** 기본은 여전히 placeholder, 진입 경로는 둘(모드 스위치의 **정지 미리보기** `playing:false` · 승인 **재생** `playing:true` — **재생**만 승인 뒤다), 끄는 경로는 셸 하나, cast 밖은 자리표시, 배지는 끌 수 없다. 미리보기는 **초기 조건 + t=0 프레임**만 반영하고 trace 발행 0건 — 3편 미리보기 뒤 수문 개도율이 대본의 `initial`(100% 열림)과 맞는가까지 본다 *(260901)*. **일반 모드에서는 아무것도 접히지 않는가**와 안내줄이 재생 머리를 따라가는가도 여기서 잡는다 |
+| `verify:tab-scope` | **시나리오가 탭을 끌고 가는 대응이 두 곳에 손으로 적히지 않았는가** *(260901 신설)*. 축→탭 표(`AXIS_TABS`)와 패널→축 표(`SCENARIO_PANELS`)를 양방향으로 대조하고, 화면의 `PanelGate`·`TabGate` 가 그 표의 id 만 쓰는지, 표의 패널을 전부 누군가 접는지 본다. 세 편의 「쓰는 탭」(1편 ①②④⑤ · 2편 ①②④⑤ · 3편 ①②③④)도 못으로 박혀 있다 |
 
 다섯 다 **음성 대조군**을 포함한다 — 검사를 무력화한 사본이 반드시 실패로 잡히는지까지 확인한다. 검사가 아무것도 못 잡은 채 통과하던 일이 실제로 있었다(`reports/2026-08-28_1036_통합구현_검토.md` B항).

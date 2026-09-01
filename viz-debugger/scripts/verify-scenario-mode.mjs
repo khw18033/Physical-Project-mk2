@@ -6,8 +6,13 @@
 //  2. **승인 전 실행** — 매칭 결과는 제안이고, 승인 전에는 trace_event 도 세계 채널도
 //     하나도 나가면 안 된다 (plans.ts 머리말 · REQ-1506).
 //
-// 세 층을 본다: ① renderMode 모듈의 실동작 ② 화면 소스의 배지·분기 ③ 게이트웨이 실동작
-// (직접 띄워 발화→매칭→승인→재생→감사→닫기 왕복). 음성 대조군 포함.
+//  3. **시나리오 연계가 일반 모드를 갉아먹는 것** (260901) — 패널 접힘·탭 흐림은 시나리오
+//     모드에서만이다. 일반 모드에서 접히면 「남이 줄 데이터가 어디에 얼마나 있는지」를
+//     보여 주는 화면이 사라진다.
+//
+// 네 층을 본다: ① renderMode 모듈의 실동작 ② 화면 소스의 배지·분기 ③ 시나리오 연계
+// (접힘 판정 재료 · 안내줄이 재생 머리를 따라가는가) ④ 게이트웨이 실동작 (직접 띄워
+// 발화→매칭→승인→재생→감사→닫기→미리보기 왕복). 음성 대조군 포함.
 import { spawn } from 'node:child_process';
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
@@ -36,11 +41,16 @@ const modePath = join(root, 'src', 'shared', 'renderMode.ts');
   if (!m.getScenarioRender()?.castSet.has('sensor-01') || m.getScenarioRender()?.castSet.has('robot-02')) {
     failures.push('cast 집합이 대본 등장 장비만 담지 않는다 — cast 밖 장비는 자리표시여야 한다');
   }
+  // 접힘 판정의 재료 (260901 층 2) — scenario 모드일 때만 축 집합이 나온다.
+  if (m.getScenarioAxes() === null) failures.push('시나리오 모드인데 접힘 판정 재료(getScenarioAxes)가 null 이다 — 아무 패널도 접히지 않는다');
   m.setRenderMode('mock');
   if (m.getRenderMode() !== 'mock') failures.push('목 렌더 토글이 scenario 를 이기지 않는다 — 토글이 켜져 있으면 mock 이 이겨야 한다');
+  if (m.getScenarioAxes() !== null) failures.push('목·개발 모드에서 접힘 판정 재료가 나온다 — 목이 이기므로 전부 그려야 한다');
   m.setRenderMode('placeholder');
   m.exitScenarioRender();
   if (m.getRenderMode() !== 'placeholder') failures.push('대본 닫기 후 placeholder 로 복귀하지 않는다');
+  // **일반 모드에서는 아무것도 접히지 않는다.** 이 한 줄이 이번 작업의 안전선이다.
+  if (m.getScenarioAxes() !== null) failures.push('일반 모드에서 접힘 판정 재료가 나온다 — 일반 모드는 모든 탭·패널이 그대로 떠야 한다');
 }
 
 // 대조군 — exitScenarioRender 를 무력화한 사본이 잡히는가.
@@ -99,7 +109,57 @@ if (checkSources(shellSource.replaceAll('scenario-banner', 'x'), pendingSourceTe
   if (offenders.length > 0) failures.push(`닫기(셸) 밖에서 exitScenarioRender 를 부른다: ${offenders.join(', ')} — 끄는 경로는 하나여야 한다`);
 }
 
-// ── ③ 게이트웨이 실동작 — 발화 → 제안 → 승인 전 0건 → 재생 → 감사 → 닫기 ───────
+// ── ③ 시나리오 연계 — 접힘과 안내줄 (260901) ────────────────────────────────
+// 표와 규칙은 verify:tab-scope 가 통째로 본다. 여기서는 **재생 축과 얽힌 두 가지**만 —
+// 1편에서 탭③이 접히는가, 안내줄이 재생 머리를 따라가는가.
+{
+  const axesMod = await import(pathToFileURL(join(root, 'src', 'scenarios', 'axes.ts')).href);
+  const { nowPlaying } = await import(pathToFileURL(join(root, 'src', 'scenarios', 'nowPlaying.ts')).href);
+  const readScript = (id) => JSON.parse(readFileSync(join(root, 'scenarios', id + '.json'), 'utf8'));
+  const s1 = readScript('MSN-260831-01');
+  const s3 = readScript('MSN-260831-03');
+
+  // 1편(로봇 이동)에 액추에이터 명령이 없으므로 탭③은 통째로 접혀야 한다.
+  const axes1 = axesMod.axesOfScript(s1);
+  if (axesMod.tabsOfScript(s1).has('control')) failures.push('1편이 탭③을 쓴다고 나온다 — 로봇 이동에는 액추에이터 명령이 없다');
+  if (axesMod.panelsOfTab('control').some((panel) => axesMod.panelAlive(panel, axes1))) {
+    failures.push('1편에서 탭③의 패널이 살아 있다 — 제목·버튼 줄까지 접혀야 한다(칩만 붙이면 뼈대가 남는다)');
+  }
+
+  // 대본 → 화면 형태. src/data/scenario.ts 의 scriptToView 와 같은 필드만 쓴다(그 파일은
+  // 옛 편 JSON 을 import 하고 있어 Node 에서 열리지 않는다 — 여기서는 규칙이 아니라 자료다).
+  const view3 = {
+    missionId: s3.missionId, label: s3.title, world: 'registry', utteranceText: s3.utterance.text,
+    durationSec: s3.durationSec, milestones: s3.milestones, tasks: s3.tasks, events: s3.events,
+    cast: s3.cast, hardware: null, params: s3.params ?? {}, map: s3.map ?? null, refEdges: s3.refEdges ?? [],
+  };
+
+  const preview = nowPlaying(view3, s3, 0, false);
+  if (!preview?.text.includes('T+0 · 시작 상태')) failures.push(`정지 미리보기의 안내줄이 「T+0 · 시작 상태」가 아니다 — ${preview?.text}`);
+  if (!preview?.text.includes(s3.milestones[0].id)) failures.push('정지 미리보기의 안내줄에 첫 마일스톤이 없다');
+
+  // **재생 머리를 따라가는가** — 같은 대본인데 시각이 다르면 안내와 갈 탭이 달라져야 한다.
+  const early = nowPlaying(view3, s3, 40, true);
+  const atGate = nowPlaying(view3, s3, 162, true);
+  if (early === null || atGate === null) failures.push('재생 중 안내줄이 나오지 않는다');
+  else {
+    if (early.text === atGate.text) failures.push(`안내줄이 재생 머리를 따라가지 않는다 — T+40 과 T+162 가 같은 문구다(${early.text})`);
+    if (!atGate.text.includes('MS-C')) failures.push(`T+162 의 안내줄이 MS-C 가 아니다 — ${atGate.text}`);
+    if (!atGate.tabs.includes('control')) failures.push(`T+162(close_gate 발행)의 갈 탭에 제어 패널이 없다 — [${atGate.tabs.join(', ')}]`);
+    if (early.tabs.includes('control')) failures.push(`T+40(수위 감시)의 갈 탭에 제어 패널이 있다 — 그 시각에는 명령이 없다`);
+  }
+  const ended = nowPlaying(view3, s3, s3.durationSec, false);
+  if (!ended?.text.includes('재생 끝')) failures.push(`재생이 끝난 뒤 안내줄이 「재생 끝」이 아니다 — ${ended?.text}`);
+  // 옛 편(구판 세계)은 판정 대상이 아니다 — 대본이 없으므로 안내줄도 없다.
+  if (nowPlaying(view3, null, 100, true) !== null) failures.push('대본이 없는 임무에 안내줄이 나온다 — 구판 세계는 판정 대상이 아니다');
+
+  // 대조군 — 명령을 지운 사본에서 T+162 의 갈 탭이 그대로면 이 검사는 무의미하다.
+  const noCommands = nowPlaying(view3, { ...s3, commands: [] }, 162, true);
+  if (noCommands?.tabs.includes('control')) failures.push('대조군 실패: 명령을 지운 사본인데 갈 탭이 여전히 제어 패널이다');
+  else controls.push('대본 명령 삭제 사본(갈 탭이 제어 패널에서 빠짐)');
+}
+
+// ── ④ 게이트웨이 실동작 — 발화 → 제안 → 승인 전 0건 → 재생 → 감사 → 닫기 ───────
 const server = spawn(process.execPath, ['gateway/server.ts'], {
   cwd: root,
   stdio: ['ignore', 'ignore', 'inherit'],
@@ -198,8 +258,21 @@ try {
   const closed = await sendCommand('script_close', {});
   if (closed.accepted !== true) failures.push(`대본 닫기가 거부됐다 — ${closed.message}`);
 
-  // 정지 미리보기 (260831 요구 4) — t=0 프레임만 반영되고, 기록 열은 0건이어야 한다.
+  // 정지 미리보기 (260831 요구 4) — 초기 조건 + t=0 프레임이 반영되고, 기록 열은 0건이어야 한다.
   // 미리보기는 「그린다」까지다 — 승인 선(VZ-U-07)을 우회하면 안 된다.
+  //
+  // 개도율은 **재생이 close_gate 로 0%(닫힘)까지 몰아 둔 상태**에서 잰다. 3편은 「열려 있던
+  // 수문을 닫는」 이야기라 대본의 initial 이 100%(열림)이고, 미리보기가 그것을 반영해야
+  // 출발 상태가 이야기와 맞는다 — 8/31까지는 initial 을 건너뛰어 정반대였다 (260901 요구 0-2).
+  const beforePreview = envelopes
+    .filter((e) => e.entity === 'actuator-01' && e.channel === 'actuator_state')
+    .map((e) => e.payload?.position_pct)
+    .at(-1);
+  // 닫는 동작은 실시간 6초라 재생이 끝난 시점의 값이 정확히 0 이 아닐 수 있다(엔진 타이밍은
+  // 배속을 따르지 않는다 — script-engine.ts 머리 주석). 「열림이 아니다」까지만 전제로 둔다.
+  if (!(typeof beforePreview === 'number' && beforePreview < 50)) {
+    failures.push(`미리보기 직전 개도율이 닫힘 쪽이 아니다 — ${beforePreview}. 이 검사의 전제가 깨졌다`);
+  }
   envelopes.length = 0;
   const preview = await sendCommand('script_preview', { mission_id: 'MSN-260831-03' }, 'MSN-260831-03');
   if (preview.accepted !== true) failures.push(`미리보기가 거부됐다 — ${preview.message}`);
@@ -209,6 +282,12 @@ try {
   }
   const previewLevels = envelopes.filter((e) => e.entity === 'sensor-01' && e.channel === 'telemetry').map((e) => e.payload?.water_level?.value);
   if (!previewLevels.includes(1.42)) failures.push('미리보기의 t=0 프레임(수위 1.42)이 장치 경로로 반영되지 않았다');
+  const previewGate = envelopes
+    .filter((e) => e.entity === 'actuator-01' && e.channel === 'actuator_state')
+    .map((e) => e.payload?.position_pct);
+  if (!previewGate.includes(100)) {
+    failures.push(`3편 미리보기 뒤 개도율이 100%(열림)가 아니다 — [${previewGate.join(', ')}]. 대본의 initial(열림)과 반대다`);
+  }
   await sendCommand('script_close', {}, 'MSN-260831-03');
 
   socket.close();
@@ -225,5 +304,6 @@ if (failures.length) {
 controls.push('무매칭 문장 거부(no_script_match)');
 console.log('✅ 기본 placeholder · 진입 둘(미리보기 정지 / 승인 재생 — playing 구분) · cast 집합 대조 · 목 렌더 우선 · 닫으면 복귀');
 console.log('✅ 배지(scenario-banner) 존재 · 끄는 경로는 셸(대본 닫기·모드 스위치)뿐 · 장치 그리드는 카드 단위 분기');
-console.log('✅ 게이트웨이 왕복 — 거부 · 제안 · 승인 전 발행 0건 · 재생(기록·세계 채널·event 모드·명령 4단계) · 감사 actor=임무 · 닫기 · 미리보기(t=0만·기록 0건)');
+console.log('✅ 시나리오 연계 — 1편에서 탭③이 패널째 접힘 · 안내줄이 재생 머리를 따라감(T+40 수위 → T+162 close_gate·탭③) · 미리보기는 T+0 시작 상태 · 끝나면 「재생 끝」');
+console.log('✅ 게이트웨이 왕복 — 거부 · 제안 · 승인 전 발행 0건 · 재생(기록·세계 채널·event 모드·명령 4단계) · 감사 actor=임무 · 닫기 · 미리보기(초기 조건 100% + t=0 프레임 · 기록 0건)');
 console.log(`✅ 음성 대조군 ${controls.length}건 — ${controls.join(' · ')}`);

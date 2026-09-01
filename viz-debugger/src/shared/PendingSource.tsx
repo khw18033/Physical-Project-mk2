@@ -19,7 +19,8 @@
  */
 
 import type { ReactNode } from 'react';
-import { AXIS_LABEL, scriptsWithAxis, type ScenarioAxis } from '../scenarios/axes.ts';
+import { AXIS_LABEL, type ScenarioAxis } from '../scenarios/axes.ts';
+import { scriptsWithAxis } from '../scenarios/scriptScope.ts';
 import { pendingSource, PLANE_LABEL, PLANE_NOTE } from './pendingSources.ts';
 import { useMockRender, useScenarioAxis, useScenarioCast } from './renderMode.ts';
 

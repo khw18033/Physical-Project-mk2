@@ -506,8 +506,11 @@ function LastOperatorPanel({
         <p className="muted">조작 이력이 없다. 명령을 한 번 발행하면 기록이 생긴다.</p>
       )}
 
+      {/* 층 3 (260901) — 축을 줬다. 3편에서는 대본 명령이 실제 엔진을 통과하므로 감사에
+          값이 차고, 1·2편에서는 이 탭이 패널째 접혀 이 자리가 아예 나오지 않는다.
+          축이 없던 8/31까지는 시나리오 중에도 늘 「연결 예정」이라 값이 있어도 안 보였다. */}
       {open && last !== null && (
-        <PendingSource id="audit-history" minHeight={150}>
+        <PendingSource id="audit-history" minHeight={150} entity={entity} axis="command">
           <div className="actor">
             <strong className="actor__name">{last.actorName ?? '미기록'}</strong>
             {last.actorRole !== null && <span className="chip">{last.actorRole}</span>}

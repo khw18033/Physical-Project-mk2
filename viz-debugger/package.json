@@ -25,7 +25,8 @@
     "verify:one-gateway": "node scripts/verify-one-gateway.mjs",
     "verify:placeholder-default": "node scripts/verify-placeholder-default.mjs",
     "verify:script-library": "node scripts/verify-script-library.mjs",
-    "verify:scenario-mode": "node scripts/verify-scenario-mode.mjs"
+    "verify:scenario-mode": "node scripts/verify-scenario-mode.mjs",
+    "verify:tab-scope": "node scripts/verify-tab-scope.mjs"
   },
   "dependencies": {
     "react": "^19.1.0",

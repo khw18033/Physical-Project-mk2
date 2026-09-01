@@ -13,12 +13,10 @@
  */
 
 import { useEffect, useRef, useState } from 'react';
-import { previewMission } from '../data/scenario.ts';
-import { axesOfMission } from '../scenarios/axes.ts';
+import { enterScriptPreview } from '../scenarios/enterPreview.ts';
 import { SCRIPT_LIBRARY } from '../scenarios/library.ts';
 import { issueCommand } from '../shared/commandEgress.ts';
 import {
-  enterScenarioRender,
   exitScenarioRender,
   setRenderMode,
   useRenderMode,
@@ -51,21 +49,11 @@ export function ModeSwitch() {
     }
   };
 
+  // 진입 네 단계는 scenarios/enterPreview.ts 하나에 있다 — 접힘 카드의 「그 대본으로
+  // 바꾸기」가 같은 경로를 부른다(두 벌로 만들지 않는다, 260901).
   const toPreview = (missionId: string) => {
     setMenuOpen(false);
-    const entry = SCRIPT_LIBRARY.find((candidate) => candidate.missionId === missionId);
-    if (!entry?.script) return;
-    setRenderMode('placeholder'); // 목 토글이 켜져 있었다면 끈다 — mock 이 이기므로.
-    previewMission(missionId); // 탭① — 사건 0건, 전부 pending (승인 전과 같은 성질).
-    enterScenarioRender({
-      missionId,
-      title: entry.script.title,
-      cast: entry.script.cast,
-      axes: axesOfMission(missionId),
-      playing: false, // 정지 미리보기 — 재생 중이라고 적으면 안 된다.
-    });
-    // 게이트웨이 — t=0 프레임만 반영(장치 값이 그 대본의 출발점에 선다). 대상은 대본 임무다.
-    void issueCommand({ action: 'script_preview', entity: missionId, params: { mission_id: missionId } }).catch(() => undefined);
+    enterScriptPreview(missionId);
   };
 
   const toMock = () => {
