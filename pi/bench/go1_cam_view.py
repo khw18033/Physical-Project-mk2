@@ -417,21 +417,24 @@ function start(cid, fig){
   // 표시 지연이 수백 ms 까지 밀린다 — 실제 녹화 분석에서 표시 280ms 를 확인했다.
   // 최신 프레임 하나만 들고 있다가 화면 주사(rAF)마다 그린다. 늦은 프레임은 버린다.
   let pendingFrame = null;
-  (function paint(){
-    if (pendingFrame){
-      const f = pendingFrame; pendingFrame = null;
-      if (cv.width !== f.displayWidth){ cv.width=f.displayWidth; cv.height=f.displayHeight; }
-      ctx.drawImage(f, 0, 0);
-      const t = arrived.get(f.timestamp);
-      if (t !== undefined){
-        arrived.delete(f.timestamp);
-        const d = performance.now() - t;
-        dcd = dcd ? dcd*0.85 + d*0.15 : d;
-      }
-      f.close(); frames++;
+  function drain(){
+    if (!pendingFrame) return;
+    const f = pendingFrame; pendingFrame = null;
+    if (cv.width !== f.displayWidth){ cv.width=f.displayWidth; cv.height=f.displayHeight; }
+    ctx.drawImage(f, 0, 0);
+    const t = arrived.get(f.timestamp);
+    if (t !== undefined){
+      arrived.delete(f.timestamp);
+      const d = performance.now() - t;
+      dcd = dcd ? dcd*0.85 + d*0.15 : d;
     }
-    requestAnimationFrame(paint);
-  })();
+    f.close(); frames++;
+  }
+  // rAF 만으로 그리면 절전 모드(배터리 세이버 등)에서 브라우저가 rAF 를 2fps 까지
+  // 조여 화면이 뚝뚝 끊긴다 — 실제로 겪었다. 보조 타이머(가시 탭에서는 조여지지
+  // 않는다)를 함께 돌려 어느 쪽이든 먼저 온 쪽이 그린다.
+  (function paint(){ drain(); requestAnimationFrame(paint); })();
+  const drainTimer = setInterval(drain, 33);
 
   // 시계 차이 보정. 브라우저와 파이의 Date.now() 는 서로 다르다.
   const ping = () => { if (ws.readyState===1) ws.send(JSON.stringify({t:'ping',c0:Date.now()})); };
@@ -440,6 +443,7 @@ function start(cid, fig){
   ws.onopen = ping;
   ws.onclose = () => {
     clearInterval(pingTimer);
+    clearInterval(drainTimer);
     try { if (dec && dec.state !== 'closed') dec.close(); } catch(e) {}
     retry();
   };
