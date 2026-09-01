@@ -5,29 +5,29 @@ CLAUDE.md §4 구조도를 그대로 따른다.
 ```text
 Domain / Application Logic
         │
-        ├─ Perception / Decision / Risk / Safety      <- ai_framework/reference/*, 향후 perception/decision/risk 모듈
+        ├─ Perception / Decision / Risk / Safety      <- perception_framework/reference/*, 향후 perception/decision/risk 모듈
         │
 Common Capability & Provider Interfaces
         │
-        ├─ Input / Media Adapter                       <- ai_framework/providers/adapters.py: MediaSourceProvider
-        ├─ AI Runtime Provider                          <- ai_framework/providers/adapters.py: AIRuntimeProvider
-        ├─ Transport Provider                           <- ai_framework/providers/adapters.py: TransportProvider
-        ├─ Serializer Provider                          <- ai_framework/providers/adapters.py: SerializerProvider
-        ├─ Control / Orchestrator Provider              <- ai_framework/providers/adapters.py: ControlProvider
-        ├─ Observability Provider                       <- ai_framework/providers/adapters.py: ObservabilityProvider
-        ├─ Network Overlay Provider                     <- ai_framework/providers/adapters.py: NetworkOverlayProvider
-        └─ Model Deployment Provider                    <- ai_framework/providers/adapters.py: ModelDeploymentProvider
+        ├─ Input / Media Adapter                       <- perception_framework/providers/adapters.py: MediaSourceProvider
+        ├─ AI Runtime Provider                          <- perception_framework/providers/adapters.py: AIRuntimeProvider
+        ├─ Transport Provider                           <- perception_framework/providers/adapters.py: TransportProvider
+        ├─ Serializer Provider                          <- perception_framework/providers/adapters.py: SerializerProvider
+        ├─ Control / Orchestrator Provider              <- perception_framework/providers/adapters.py: ControlProvider
+        ├─ Observability Provider                       <- perception_framework/providers/adapters.py: ObservabilityProvider
+        ├─ Network Overlay Provider                     <- perception_framework/providers/adapters.py: NetworkOverlayProvider
+        └─ Model Deployment Provider                    <- perception_framework/providers/adapters.py: ModelDeploymentProvider
         │
 Capability Registry + Resource Profile + Deployment Profile
-        │                                               <- ai_framework/registry/capability_registry.py
-        │                                               <- ai_framework/contracts/profile.py
-        │                                               <- ai_framework/selection/selector.py
+        │                                               <- perception_framework/registry/capability_registry.py
+        │                                               <- perception_framework/contracts/profile.py
+        │                                               <- perception_framework/selection/selector.py
 Concrete Hardware / Sensor / Runtime / Protocol / Infrastructure
                                                           (현재 배포: MQTT/Kafka/OTel/K3s/Tailscale/RTSP 등 -
                                                            위 provider 뒤에 숨음)
         │
 Cross-part Wire Contract                                <- contracts/ai/*.schema.json
-                                                          ai_framework/integration/wire.py
+                                                          perception_framework/integration/wire.py
 ```
 
 ## 핵심 개념과 요구사항 매핑
@@ -100,9 +100,9 @@ Cross-part Wire Contract                                <- contracts/ai/*.schema
 
 ## 추가된 기능 모듈 (하드웨어·타 파트 없이 구현·검증된 부분)
 
-`docs/ai/01-standalone-implementation-plan.md`의 권장 순서를 따라 시작했고, 이후 실 전송·관측·
-오케스트레이션 provider와 새 인프라 경계까지 확장해 구현·검증했다 (`PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest -q`
-기준 293 passed / 19 skipped):
+`docs/ai/archive/01-standalone-implementation-plan.md`의 권장 순서를 따라 시작했고, 이후 실
+전송·관측·오케스트레이션 provider와 새 인프라 경계까지 확장해 구현·검증했다.
+현재 회귀 수치는 `PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest -q` 실행 결과를 기준으로 한다:
 
 | 모듈 | 요구사항 |
 |---|---|
@@ -124,8 +124,7 @@ Cross-part Wire Contract                                <- contracts/ai/*.schema
 - AI-C-10의 최종 장치 가용성은 백엔드 통합 판정을 입력으로 소비해야 하므로, 현재는
   `simulation/backend.py` mock으로 대역하고 실제 백엔드 API 연동은 외부 산출물 이후 작업이다.
 - 실제 센서 입력, 백엔드 broker/API, 가시화 렌더러 연결은 각 파트 브랜치의 책임이다. 현재
-  브랜치가 제공하는 계약·예시·검증 절차는 [../integration/README.md](../integration/README.md)에
-  파트별로 정리했다.
+  브랜치가 제공하는 계약은 `contracts/ai/`의 JSON Schema뿐이다.
 
-전체 51개 항목별 구현 상태는 [requirement-traceability.md](requirement-traceability.md),
-표준형 없이 구현 가능한 범위 판단 기준은 [01-standalone-implementation-plan.md](01-standalone-implementation-plan.md) 참고.
+전체 요구사항 항목별 구현 상태는 [requirement-traceability.md](requirement-traceability.md)를
+기준으로 한다.

@@ -1,0 +1,20 @@
+{
+  "domain_id": "reconnaissance_surveillance",
+  "active_capability_kinds": [
+    "perception.detect",
+    "perception.track",
+    "perception.associate",
+    "perception.object_record",
+    "media.video_input",
+    "observability.experiment_capture",
+    "perception.environment_map",
+    "ondevice.link_transition"
+  ],
+  "rule_set_id": "reconnaissance_rules_v1",
+  "node_tags": [
+    "cpu",
+    "mobile",
+    "on_device",
+    "disconnected_capable"
+  ]
+}

@@ -6,7 +6,7 @@ CLAUDE.md §7 규칙에 따라 요구사항 ID별 구현 위치·테스트·충�
 Provider fake → 의사결정(D) → 추적/판단(S) → 위험도(R) → 실행제어·배포·관측(B/O) →
 인지·캘리브레이션·환경설정(E/N-02) 이후 공통 데이터 사전, 폐쇄망, 보안 오버레이,
 서버·엣지 통합 실행관리, 모델 배포 lifecycle, 파트 간 wire 계약까지 반영했다. 전 항목 pytest로 실제 검증됨
-(`ai-framework/tests`, 293 passed / 19 skipped).
+(`perception-framework/tests`, 484 passed / 22 skipped; 2026-09-01 기능 검증).
 
 상태 값: **완료** = 요구사항이 정의한 동작·경계가 테스트로 보장됨 /
 **부분** = 핵심 일부만 구현, 명시된 gap 있음 / **미착수**.
@@ -17,6 +17,7 @@ Provider fake → 의사결정(D) → 추적/판단(S) → 위험도(R) → 실�
 |---|---|---|---|
 | AI-N-01 | 완료 | `reference/local_safety.py` | `tests/test_local_safety.py` |
 | AI-N-02 | 완료 | `ondevice/config_apply.py` | `tests/test_config_apply.py` |
+| AI-N-03 | 완료 (추세 예측 + 비대칭 이력 기반 축소·복귀) | `ondevice/link_handover.py` | `tests/test_link_handover.py` |
 
 ## 감시·인지 (엣지)
 
@@ -26,25 +27,27 @@ Provider fake → 의사결정(D) → 추적/판단(S) → 위험도(R) → 실�
 | AI-E-02 | 완료 (합성 데이터로 검증 — 실제 카메라/체커보드 없이 `cv2.calibrateCamera` 정확도 확인) | `edge/calibration.py` | `tests/test_calibration.py` |
 | AI-E-03 | 완료 | `edge/calibration_profile.py` | `tests/test_calibration_profile.py` |
 | AI-E-04 | 완료 | `perception/auxiliary.py` | `tests/test_auxiliary.py` |
+| AI-E-05 | 완료 (기준점 상대 추정 + 근거 누적 불확실도, 1안: 전역 좌표계 정의 안 함) | `perception/environment_map.py` | `tests/test_environment_map.py` |
 
 ## 의사결정
 
 | ID | 상태 | 구현 위치 | 테스트 |
 |---|---|---|---|
-| AI-D-01 | 완료 | `decision/subtask.py` | `tests/test_subtask_generator.py` |
-| AI-D-02 | 완료 (`jsonschema` + 커스텀 rule) | `decision/validator.py` | `tests/test_subtask_validator.py` |
+| AI-D-01 | 이관 완료 (가시화 파트) — 구현·테스트·계약 삭제 | 삭제됨 (이관 기록은 git 이력 참고) | 삭제됨 |
+| AI-D-02 | 이관 완료 (가시화 파트) — 구현·테스트·계약 삭제 | 삭제됨 (이관 기록은 git 이력 참고) | 삭제됨 |
 | AI-D-03 | 완료 | `decision/info_request.py` | `tests/test_info_request.py` |
-| AI-D-04 | 완료 | `decision/regeneration.py` | `tests/test_regeneration.py` |
+| AI-D-04 | 이관 완료 (가시화 파트) — 구현·테스트·계약 삭제 | 삭제됨 (이관 기록은 git 이력 참고) | 삭제됨 |
 
 ## 감시·인지 (추적/판단)
 
 | ID | 상태 | 구현 위치 | 테스트 |
 |---|---|---|---|
-| AI-S-01 | 완료 (IOU 기반 reference tracker) | `perception/tracking.py` | `tests/test_tracking.py` |
+| AI-S-01 | 완료 (IOU 기반 reference tracker) + 이종 evidence의 지속 객체 레코드 (`perception/object_record.py`, `tests/test_object_record.py`) | `perception/tracking.py` | `tests/test_tracking.py` |
 | AI-S-02 | 완료 | `perception/association.py` | `tests/test_association.py` |
-| AI-S-03 | 완료 | `perception/uncertainty.py` | `tests/test_uncertainty.py` |
-| AI-S-04 | 완료 | `perception/unconfirmed.py` | `tests/test_unconfirmed.py` |
+| AI-S-03 | 완료 + 신뢰도와 근거 충분도 분리 보고 (`perception/object_record.py::ObjectRecord.evidence_sufficient`) | `perception/uncertainty.py` | `tests/test_uncertainty.py` |
+| AI-S-04 | 완료 + 명명 근거 없으면 unknown 유지 (`perception/object_record.py`) | `perception/unconfirmed.py` | `tests/test_unconfirmed.py` |
 | AI-S-05 | 완료 | `perception/info_selection.py` | `tests/test_info_selection.py` |
+| AI-S-06 | 완료 (이종 근거 점진적 객체 레코드) | `perception/object_record.py` | `tests/test_object_record.py` |
 
 ## 위험도
 
@@ -75,9 +78,10 @@ Provider fake → 의사결정(D) → 추적/판단(S) → 위험도(R) → 실�
 
 | ID | 상태 | 구현 위치 | 테스트 |
 |---|---|---|---|
-| AI-O-01 | 완료 (엣지 상세/요약 + **실 OTel Collector OTLP 수출 검증**) | `observability/metrics.py`, `providers/otel.py::OtlpObservabilityProvider` | `tests/test_observability.py`, `tests/test_otel_observability.py` |
-| AI-O-02 | 완료 (수집기 장애 시에도 로컬 사건 보존, metric 요약과 분리, `ai_failure`/`capability_status` wire 채널 분리 실증) | `observability/events.py`, `providers/otel.py`, `integration/wire.py` | `tests/test_observability.py`, `tests/test_otel_observability.py`, `tests/test_wire_integration.py` |
-| AI-O-03 | 완료 (+ 실 Kafka offset 기반 단기 replay 참조) | `observability/reproduction.py`, `providers/kafka.py::ReplayReference` | `tests/test_observability.py`, `tests/test_kafka_bridge.py` |
+| AI-O-01 | 완료 (엣지 상세/요약 + **실 OTel Collector OTLP 수출 검증**) + 시연 실험 캡처 요약/개별 분리 (`observability/experiment.py`, `tests/test_experiment_capture.py`) | `observability/metrics.py`, `providers/otel.py::OtlpObservabilityProvider` | `tests/test_observability.py`, `tests/test_otel_observability.py` |
+| AI-S-06 수집 | 완료 (실측 완료시각 기반 evidence 수집 세션) | `collection/session.py`, `collection/sampler.py` | `tests/test_collection_session.py` |
+| AI-O-02 | 완료 (수집기 장애 시에도 로컬 사건 보존, metric 요약과 분리, `ai_failure`/`capability_status` wire 채널 분리 실증) + 캡처 장애 격리 (`observability/experiment.py`) | `observability/events.py`, `providers/otel.py`, `integration/wire.py` | `tests/test_observability.py`, `tests/test_otel_observability.py`, `tests/test_wire_integration.py` |
+| AI-O-03 | 완료 (+ 실 Kafka offset 기반 단기 replay 참조) + 실행 조건·버전 포함 run bundle 재현 (`observability/experiment.py::ExperimentRecorder.bundle`) | `observability/reproduction.py`, `providers/kafka.py::ReplayReference` | `tests/test_observability.py`, `tests/test_kafka_bridge.py` |
 | AI-O-04 | 완료 | `observability/availability.py` | `tests/test_observability.py` |
 
 ## 공통
@@ -94,13 +98,29 @@ Provider fake → 의사결정(D) → 추적/판단(S) → 위험도(R) → 실�
 | AI-C-08 | 완료 | `providers/fakes.py::SyntheticMediaSourceProvider` | `tests/test_provider_fakes.py` |
 | AI-C-09 | 완료 (AIRuntimeProvider 재사용) | `providers/adapters.py`, `perception/auxiliary.py` | `tests/test_provider_fakes.py`, `tests/test_auxiliary.py` |
 | AI-C-10 | 완료 | `registry/capability_registry.py::CapabilityRegistry` | `tests/test_capability_registry.py` |
-| AI-C-11 | 완료 | `contracts/capability.py::CapabilityRequirement.evaluate` | `tests/test_local_safety.py` 등 |
+| AI-C-11 | 완료 + 소스 소실을 반증으로 읽지 않는 레코드 해석 (`perception/object_record.py::RecordResolver.resolve`) | `contracts/capability.py::CapabilityRequirement.evaluate` | `tests/test_local_safety.py` 등 |
 | AI-C-12 | 완료 | `providers/adapters.py` (8종 Protocol) | `tests/test_provider_fakes.py`, `tests/test_overlay_and_clusters.py`, `tests/test_model_deployment.py` |
 | AI-C-13 | 완료 | `selection/selector.py::CapabilitySelector.select` | `tests/test_selector.py` |
 | AI-C-14 | 완료 | `common/data_plane.py` (+ `providers/mqtt.py` 적용) | `tests/test_data_plane.py`, `tests/test_mqtt_transport.py` |
-| AI-C-15 | 완료 (로더 + robot/facility/river 프로파일 + 도메인 분기 정적 검사) | `contracts/profile.py`, `contracts/profile_loader.py`, `profiles/*.json` | `tests/test_profile_loader.py` |
-| AI-C-16 | 완료 (내부 자산 조달 + 공개 egress 배치 전 검출 + 선택 외부 의존성만 비활성화) | `runtime/airgap.py` | `tests/test_airgap.py` |
+| AI-C-15 | 완료 (로더 + robot/facility/river 프로파일 + 도메인 분기 정적 검사) + 군사(정찰) 배포 프로파일 (`profiles/defense.json`) | `contracts/profile.py`, `contracts/profile_loader.py`, `profiles/*.json` | `tests/test_profile_loader.py` |
+| AI-C-16 | 완료 (내부 자산 조달 + 공개 egress 배치 전 검출 + 선택 외부 의존성만 비활성화) + **등록 정보의 외부 도달 선언**(`CompatibilityProfile.external_endpoints`/`external_optional`, 기본값 = 외부 연결 불요)과 폐쇄망 프로파일(`DeploymentProfile.closed_network`/`internal_endpoints`, 기본 폐쇄망)에서 selector 후보 필터로 **배치 전 배제**, 비선택(non-optional) egress는 `EgressGate.assert_declarations`로 명시 거부 | `runtime/airgap.py::EgressGate`, `contracts/profile.py`, `contracts/profile_loader.py`, `selection/selector.py` (placement_filter), `runtime/application.py` | `tests/test_airgap.py`, `tests/test_egress_gate.py` |
 | AI-C-17 | 완료 (오버레이 provider 추상화 + Tailscale 구현 격리 + 오버레이 상태 별도 신호) | `providers/adapters.py`, `providers/overlay.py` | `tests/test_overlay_and_clusters.py` |
+
+## 지속학습 (최신 요구사항)
+
+아래 완료 표시는 모델 재학습 성능이 아니라 승인된 소형 fixture에서의 품질 Gate,
+상태 전이, 자원 배분 및 감사 가능성 검증을 뜻한다.
+
+| ID | 상태 | 구현 위치 | 테스트 |
+|---|---|---|---|
+| AI-L-01 | 완료 (H2ST task/OOD 판정과 후보 생성) | `continual/h2st.py`, `continual/lineage.py` | `tests/test_continual_baselines.py` |
+| AI-L-02 | 완료 (신뢰도·중복 품질 필터) | `continual/replay.py`, `continual/lineage.py` | `tests/test_continual_baselines.py` |
+| AI-L-03 | 완료 (격리 상태 Gate) | `continual/lineage.py` | `tests/test_continual_baselines.py` |
+| AI-L-04 | 완료 (DGS grouping/consolidation 및 Ekya 자원 배분 계약) | `continual/dgs.py`, `continual/ekya.py` | `tests/test_continual_baselines.py` |
+| AI-L-05 | 완료 (고정 입력·결과·계보 기록) | `continual/lineage.py`, `../experiments/external/` | `tests/test_continual_baselines.py`, `tests/test_external_validation_common.py` |
+| AI-L-06 | 완료 (결정론적 resource allocation) | `continual/ekya.py`, `continual/lineage.py` | `tests/test_continual_baselines.py` |
+| AI-L-07 | 완료 (승격 전 검증 Gate) | `continual/lineage.py` | `tests/test_continual_baselines.py` |
+| AI-L-08 | 완료 (단계 적용·검증·rollback 이력) | `continual/lineage.py` | `tests/test_continual_baselines.py` |
 
 ## 시나리오 검증 (하드웨어 없이 프레임워크 특성 확인)
 
@@ -135,10 +155,10 @@ Provider fake → 의사결정(D) → 추적/판단(S) → 위험도(R) → 실�
 **검증 명령**:
 
 ```bash
-cd ai-framework
+cd perception-framework
 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest -q
-#   -> 293 passed, 19 skipped (현재 개발 환경; skip = 선택 의존성·인프라 부재)
-docker run --rm ai-framework:0.1.0 python -m pytest -q
+#   -> 328 passed, 19 skipped (현재 개발 환경; skip = 선택 의존성·인프라 부재)
+docker run --rm perception-framework:0.1.0 python -m pytest -q
 #   -> 230 passed, 25 skipped (선택 의존성·인프라 없는 최소 컨테이너)
 PYTHONPATH=. python3 examples/scenario_demo.py    # 16단계 최종 데모
 ```

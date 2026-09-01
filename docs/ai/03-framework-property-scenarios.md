@@ -37,7 +37,7 @@
   액추에이터 시뮬레이터)
 ```
 
-가상 말단은 `ai_framework/simulation/terminals.py`의 `VirtualRobotTerminal` /
+가상 말단은 `perception_framework/simulation/terminals.py`의 `VirtualRobotTerminal` /
 `VirtualRiverTerminal`이고, 입력은 CSV·스크립트 시계열(`sources.py::ScriptedSeriesSource`,
 `CsvReplaySource`)과 합성 영상 파일(`write_synthetic_video`, `VideoFileMediaSource`)이다.
 
@@ -72,7 +72,7 @@
 ## 3. 실행 방법
 
 ```bash
-cd ai-framework
+cd perception-framework
 
 # 시나리오 관점만 (인프라 없으면 관련 항목 자동 skip)
 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest -q \

@@ -1,0 +1,29 @@
+{
+  "domain_id": "robot_autonomy_support",
+  "active_capability_kinds": [
+    "safety.local_judgment",
+    "perception.detect",
+    "perception.track",
+    "media.video_input",
+    "perception.object_record",
+    "observability.experiment_capture",
+    "perception.environment_map",
+    "ondevice.link_transition"
+  ],
+  "rule_set_id": "robot_zone_rules_v1",
+  "node_tags": [
+    "cpu",
+    "mobile",
+    "onboard_camera"
+  ],
+  "serialization": {
+    "default_format": "json",
+    "by_boundary": {
+      "terminal_to_edge": "compact_binary_v1",
+      "edge_to_server": "compact_binary_v1",
+      "control": "compact_binary_v1",
+      "operator_view": "json",
+      "diagnostics": "json"
+    }
+  }
+}

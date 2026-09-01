@@ -1,0 +1,16 @@
+{
+  "domain_id": "river_risk_management",
+  "active_capability_kinds": [
+    "risk.state_machine",
+    "risk.rule_based",
+    "perception.detect",
+    "perception.object_record",
+    "observability.experiment_capture"
+  ],
+  "rule_set_id": "river_risk_rules_v1",
+  "node_tags": [
+    "cpu",
+    "fixed",
+    "edge_node"
+  ]
+}

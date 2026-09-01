@@ -1,0 +1,18 @@
+{
+  "domain_id": "facility_surveillance",
+  "active_capability_kinds": [
+    "perception.detect",
+    "perception.track",
+    "perception.associate",
+    "media.video_input",
+    "perception.object_record",
+    "observability.experiment_capture",
+    "perception.environment_map"
+  ],
+  "rule_set_id": "facility_rules_v1",
+  "node_tags": [
+    "cpu",
+    "fixed",
+    "edge_node"
+  ]
+}
