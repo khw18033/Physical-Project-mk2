@@ -111,35 +111,49 @@ class SimDrive:
 
 
 class Go1Drive:
-    """실 Go1. 속도 명령은 로봇 내부 MQTT 조종 채널로, 오도메트리는 go1_link 로.
+    """실 Go1. 속도 명령은 Unitree Legged SDK HighCmd 로(로봇에서 도는 hw_highcmd_daemon
+    에 stdin 스트리밍), 오도메트리는 go1_link 로 읽는다.
 
-    ⚠ 조종 채널의 페이로드 배율(스틱[-1,1] ↔ m/s)은 실기에서 보정해야 한다.
-    HW_GO1_STICK_VX_SCALE 등으로 조정. 보정 전 기본값은 보수적으로 낮게 둔다.
+    ⚠ HighCmd 는 HIGHLEVEL 로 sport mode 를 제어한다 — 로봇이 실제로 움직인다.
+    기립·주변 확보·입회 조건에서만 쓸 것. 데몬은 무입력 0.4초에 자동 정지한다.
+
+    배율(2026-09-01 실측): 명령 vx 0.2→실제 0.256 m/s(×1.28), wz 0.3→0.244 rad/s(×0.81).
+    브리지는 '원하는 실제 m/s' 로 지령하므로 데몬에 보낼 값은 원하는값÷배율이다.
     """
 
     def __init__(self):
         from robot.go1_link import Go1Link
         self.link = Go1Link()
-        self.vx_scale = _f("GO1_STICK_VX_SCALE", 1.0)
-        self.vy_scale = _f("GO1_STICK_VY_SCALE", 1.0)
-        self.wz_scale = _f("GO1_STICK_WZ_SCALE", 1.0)
+        # 원하는 실제속도 → HighCmd 지령값 환산 (실측 역배율)
+        self.vx_gain = _f("GO1_VX_GAIN", 1.0 / 1.28)
+        self.vy_gain = _f("GO1_VY_GAIN", 1.0 / 1.28)   # 횡이동 미측정 — 전진값 잠정 사용
+        self.wz_gain = _f("GO1_WZ_GAIN", 1.0 / 0.81)
         self._vx = self._vy = self._wz = 0.0
-        # 명령 발행용 별도 클라이언트 (go1_link 는 읽기 전용 원칙을 유지한다)
-        import paho.mqtt.client as mqtt
-        self._c = mqtt.Client(
-            callback_api_version=mqtt.CallbackAPIVersion.VERSION2,
-            client_id=f"hw-unity-drive-{int(time.time())}")
-        self._c.connect(os.environ.get("HW_GO1_MQTT_HOST", "192.168.123.161"), 1883,
-                        keepalive=10)
-        self._c.loop_start()
+        self._proc = self._start_daemon()
+
+    def _start_daemon(self):
+        """로봇 위 hw_highcmd_daemon 에 ssh 로 stdin 파이프를 연다.
+        파이는 이미 로봇에 무암호 ssh 키가 있다(워치독용). 로봇 IP 는 go1_link 호스트."""
+        import subprocess
+        host = os.environ.get("HW_GO1_SSH", "pi@192.168.123.161")
+        remote = os.environ.get("HW_GO1_DAEMON", "/home/pi/hw_highcmd_daemon")
+        return subprocess.Popen(
+            ["ssh", "-o", "BatchMode=yes", "-o", "StrictHostKeyChecking=no",
+             "-o", "ServerAliveInterval=2", host, remote],
+            stdin=subprocess.PIPE, stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL)
 
     def command(self, vx, vy, wz):
         self._vx, self._vy, self._wz = vx, vy, wz
-        # 앱 조종 스틱 채널: float32 ×4 (lx=좌우, rx=회전, ry, ly=전진) — 실기 보정 대상
-        lx = max(-1.0, min(1.0, -vy * self.vy_scale))
-        rx = max(-1.0, min(1.0, -wz * self.wz_scale))
-        ly = max(-1.0, min(1.0, vx * self.vx_scale))
-        self._c.publish("controller/stick", struct.pack("<4f", lx, rx, 0.0, ly), qos=0)
+        gvx = vx * self.vx_gain
+        gvy = vy * self.vy_gain
+        gwz = wz * self.wz_gain
+        if self._proc and self._proc.poll() is None:
+            try:
+                self._proc.stdin.write(f"{gvx:.4f} {gvy:.4f} {gwz:.4f}\n".encode())
+                self._proc.stdin.flush()
+            except (BrokenPipeError, OSError):
+                pass
 
     def pose(self):
         st = self.link.read_state()          # 실주행 검증된 오도메트리 (x, y, m)
@@ -149,12 +163,21 @@ class Go1Drive:
         return self._vx, self._vy, self._wz
 
     def healthy(self):
+        # 데몬 살아있고 오도메트리 링크 정상
+        if self._proc is None or self._proc.poll() is not None:
+            return False
         return self.link.link_health() != "fault"
 
     def close(self):
         try:
-            self.command(0, 0, 0)
-            self._c.loop_stop()
+            self.command(0, 0, 0)            # 마지막 정지 (데몬 워치독도 있지만 명시적으로)
+            time.sleep(0.3)
+        except Exception:
+            pass
+        try:
+            if self._proc:
+                self._proc.stdin.close()
+                self._proc.terminate()
         except Exception:
             pass
 
