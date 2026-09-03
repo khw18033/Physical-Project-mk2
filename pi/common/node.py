@@ -33,6 +33,7 @@ import paho.mqtt.client as mqtt
 
 from common import config, otel_metrics, otel_trace, schema
 from common.commands import BASE_ACTIONS, CommandEngine
+from common.physical_command import PhysicalCommandServer
 from common.schema import Identity, envelope
 from common.spool import EVENT, Spool
 
@@ -62,6 +63,13 @@ class BaseNode:
         self.client = None
         self.commands = CommandEngine(self, self.publish, self.base,
                                       tracer=self.traces)
+        # 물리 명령 통신 규약(정본): Protobuf 봉투 / terminal/<id>/downlink|uplink.
+        # 레거시 JSON cmd 경로와 병행 — 규약 소비자와 기존 소비자를 모두 지원한다.
+        # publish/subscribe 는 어댑터로 넘겨 재접속으로 client 가 갈려도 항상 현재 것을 쓴다.
+        self.pcmd = PhysicalCommandServer(
+            client=None, device_id=self.identity.entity_id, owner=self,
+            publish=lambda t, pl, qos: self.client.publish(t, pl, qos=qos),
+            subscribe=lambda t, qos: self.client.subscribe(t, qos=qos))
         self._connect()
 
     # ================= 접속 =================
@@ -115,6 +123,7 @@ class BaseNode:
         print(f"[접속] {config.BROKER_HOST}:{config.BROKER_PORT} — {self.base}")
         self._flap_check()
         client.subscribe(f"{self.base}/cmd", qos=1)
+        self.pcmd.start()                     # 규약 downlink 구독 + Capability 발행
         self.publish_status("birth")          # HW-C-04 등록
         if self.spool.pending:
             print(f"[버퍼] 미전송 {self.spool.pending}건 재전송 시작 (HW-R-09)")
@@ -146,7 +155,10 @@ class BaseNode:
               f"채번 대장과 /etc/device_id 확인 필요")
 
     def _on_message(self, client, userdata, msg):
-        self.commands.on_message(client, msg.payload)
+        if msg.topic == self.pcmd.downlink:
+            self.pcmd.on_message(msg.payload)     # 규약 Protobuf 봉투
+        else:
+            self.commands.on_message(client, msg.payload)   # 레거시 JSON cmd
 
     def _on_publish(self, client, userdata, mid, reason_code=None, properties=None):
         """PUBACK(QoS 1) 시점에 지연을 확정한다. publish() 호출 반환은 '큐에 넣었다'는
