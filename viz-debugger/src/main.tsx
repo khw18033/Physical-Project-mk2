@@ -10,6 +10,7 @@ import {
 } from './data/scenario.ts';
 import { TaskGraph, type CanvasLayer } from './graph/TaskGraph.tsx';
 import { Palette } from './canvas/Palette.tsx';
+import { ZoomOverlay } from './canvas/ZoomOverlay.tsx';
 import { viewNodeEntry } from './canvas/registry.ts';
 import { viewScopeFor } from './canvas/scope.ts';
 import { MISSION_SLOT } from './canvas/persist.ts';
@@ -125,6 +126,15 @@ function GraphScreen({ screen, view, milestone, tasks, headSec, playing, layoutM
   const [pickedTaskId, setPickedTaskId] = useState<string | null>(null);
   useEffect(() => setPickedTaskId(null), [slot, view.missionId]);
   const picked = tasks.find((task) => task.id === pickedTaskId) ?? null;
+  /**
+   * 확대된 뷰 노드 (260903 2단계 · `VZ-N-05`). **`activeTab` 류가 아니다** — 「몇 번째 탭」이
+   * 아니라 「어느 노드」이고, 문자열 하나라 한 번에 하나만 열린다(지시서 §6).
+   * 범위를 옮기면(다른 마일스톤·임무) 그 노드가 화면에 없으므로 함께 닫는다.
+   */
+  const [zoomedId, setZoomedId] = useState<string | null>(null);
+  useEffect(() => setZoomedId(null), [slot, view.missionId]);
+  const zoomedNode = canvas.nodes.find((node) => node.id === zoomedId) ?? null;
+  const zoomedEntry = zoomedNode === null ? null : viewNodeEntry(zoomedNode.kind);
   const canvasLayer = useMemo<CanvasLayer>(() => ({
     nodes: canvas.nodes,
     entryOf: viewNodeEntry,
@@ -135,7 +145,9 @@ function GraphScreen({ screen, view, milestone, tasks, headSec, playing, layoutM
     onMove: canvas.move,
     onBind: canvas.bind,
     onRemove: canvas.remove,
-  }), [canvas.bind, canvas.move, canvas.nodes, canvas.remove, picked, second, view]);
+    zoomedId,
+    onZoom: setZoomedId,
+  }), [canvas.bind, canvas.move, canvas.nodes, canvas.remove, picked, second, view, zoomedId]);
   const folded = useMemo(() => statusesAt(second, view), [second, view]);
   const failedTask = tasks.find((task) => folded.tasks[task.id]?.status === 'failed') ?? null;
   const title = scope === 'mission'
@@ -163,7 +175,10 @@ function GraphScreen({ screen, view, milestone, tasks, headSec, playing, layoutM
   return <div className={replay ? 'replay-layout' : ''}>{replay && <aside className="history"><h2>임무 이력</h2><PendingSource id="mission-history" minHeight={200}>{['MSN-260826-01 · 실패', 'MSN-260826-00 · 완료', 'MSN-260825-07 · 완료', 'MSN-260825-06 · 완료'].map((item) => <button key={item}>{item}</button>)}</PendingSource></aside>}<section className="graph-panel"><header className="section-title"><div>{crumbs}<h2>{title}</h2><small>{replay ? `리플레이 · T+${String(Math.round(second)).padStart(2, '0')}s` : failure ? (failedTask ? '실패 경로 강조 · 관련 없는 노드 흐림' : '이 대본에는 실패가 없습니다 — 결함 주입(REQ-1409)으로 만들 수 있습니다') : '분기와 합류가 있는 태스크 DAG'}</small></div><div className="toggle"><button className={layoutMode === 'dag' ? 'active' : ''} onClick={() => onLayout('dag')}>DAG</button><button className={layoutMode === 'tree' ? 'active' : ''} onClick={() => onLayout('tree')}>트리</button></div><div className="toggle"><button className={scope === 'milestone' ? 'active' : ''} onClick={() => onScope('milestone')}>이 마일스톤</button><button className={scope === 'mission' ? 'active' : ''} onClick={() => onScope('mission')}>임무 전체</button></div></header><Palette canvas={canvas} pickedTaskId={picked?.id ?? null} pickedTaskTitle={picked?.title ?? null} /><TaskGraph tasks={tasks} hardware={listRegisteredHardware()} states={folded.tasks} layoutMode={layoutMode} selected={failure ? failedTask?.id : undefined} dimUnrelated={failure && failedTask !== null} refEdges={refEdges} onOpen={(task) => onOpen(task, folded.tasks[task.id]?.status === 'failed')} canvas={canvasLayer} />
     {/* 마일스톤 밖으로 나가는 되돌아감 — 적지 않으면 사용자는 루프의 존재를 모른다 (결정 2). */}
     {crossing.length > 0 && <p className="ref-crossing">↺ {crossing.map((edge) => `${edge.from} → ${edge.to} (${edge.label})`).join(' · ')} — 이 마일스톤 밖으로 되돌아갑니다 <button onClick={() => onScope('mission')}>임무 전체로 보기</button></p>}
-    {replay && <ReplayControls second={second} following={override === null} playing={playing} onChange={setOverride} onFollow={() => setOverride(null)} view={view} tasks={tasks} />}<StatusLegend /><Explain id="dbg-1" className="hint">노드를 더블클릭하면 액션 아이템 상세를 엽니다. 실패 상태 노드는 수정 화면으로 이어집니다.</Explain></section></div>;
+    {replay && <ReplayControls second={second} following={override === null} playing={playing} onChange={setOverride} onFollow={() => setOverride(null)} view={view} tasks={tasks} />}<StatusLegend /><Explain id="dbg-1" className="hint">노드를 더블클릭하면 액션 아이템 상세를 엽니다. 실패 상태 노드는 수정 화면으로 이어집니다. 뷰 노드를 더블클릭하면 그 자리에서 확대됩니다 — 캔버스는 뒤에 그대로 있습니다.</Explain></section>
+    {/* 확대 오버레이 (260903 2단계). **TaskGraph 의 형제**다 — 위에서 캔버스를 조건 없이
+        그리고 여기에 얹기만 하므로, 확대해도 캔버스가 교체되지 않고 닫으면 같은 자리다. */}
+    {zoomedNode !== null && zoomedEntry !== null && <ZoomOverlay entry={zoomedEntry} scope={viewScopeFor(zoomedNode.taskId, view, second)} taskId={zoomedNode.taskId} onClose={() => setZoomedId(null)} />}</div>;
 }
 
 export type DebuggerNavigation = { screen: 'milestones' | 'replay'; requestId: number };

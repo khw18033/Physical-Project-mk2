@@ -1,4 +1,4 @@
-// 뷰 노드의 두 경계 (260903 — 노드 캔버스 1단계).
+// 뷰 노드의 두 경계 (260903 — 1단계 신설 · 2단계에서 요약/확대 짝을 추가).
 //
 // ## ① 단독 빌드 경계 — 이번 작업의 최대 위험
 //
@@ -32,7 +32,7 @@ function importsOf(source) {
 }
 
 // ── ① 캔버스는 tabs/·shell/ 을 모른다 ─────────────────────────────────────────
-const CANVAS_FILES = ['types.ts', 'registry.ts', 'scope.ts', 'persist.ts', 'defaults.ts', 'useCanvas.ts', 'Palette.tsx', 'ViewNodeCard.tsx'];
+const CANVAS_FILES = ['types.ts', 'registry.ts', 'scope.ts', 'persist.ts', 'defaults.ts', 'useCanvas.ts', 'Palette.tsx', 'ViewNodeCard.tsx', 'ZoomOverlay.tsx'];
 {
   const crosses = (path) => /(^|\/)(tabs|shell)\//.test(path);
   for (const file of CANVAS_FILES) {
@@ -64,10 +64,26 @@ const CANVAS_FILES = ['types.ts', 'registry.ts', 'scope.ts', 'persist.ts', 'defa
   const kinds = [...renderers.matchAll(/kind:\s*'([^']+)'/g)].map((match) => match[1]);
   check(kinds.length === 4, `뷰 노드 종류가 4종이 아니다: ${kinds.join(', ')}`);
   check(new Set(kinds).size === kinds.length, `종류가 중복됐다: ${kinds.join(', ')}`);
-  for (const field of ['label:', 'hint:', 'summary:']) {
+  // 요약과 확대는 **둘 다** 있어야 한다 (VZ-N-05). 하나만 있으면 그 종류는 확대할 수 없거나
+  // 접을 수 없고, 「요약 ↔ 확대」로 표시 깊이를 바꾼다는 설계가 그 칸에서만 깨진다.
+  for (const field of ['label:', 'hint:', 'summary:', 'zoom:']) {
     const count = renderers.split(field).length - 1;
     check(count === kinds.length, `${field} 가 ${count}개다 — 종류 ${kinds.length}개와 어긋난다`);
   }
+  // 확대 본문은 옛 탭의 화면이다. 접힘 규칙(PanelGate)을 지나야 한다 — 확대라고 규칙에서
+  // 빠져나가면 1편(로봇)에서 수문 제어 화면이 다시 열린다.
+  check(renderers.includes('PanelGate'), '확대 본문이 PanelGate 를 지나지 않는다 — 대본이 안 미는 축의 화면이 확대로 되살아난다');
+  // 접힘은 **정지 프레임**이다. 확대에서만 재생한다 (VZ-I-06).
+  check(!/summary:[^,]*VideoOverlayView/.test(renderers), '영상 요약이 VideoOverlayView 를 그린다 — 카드 수만큼 프레임 루프가 돈다');
+  check(/zoom:[^,]*VideoOverlayView/.test(renderers), '영상 확대가 VideoOverlayView 를 그리지 않는다 — 재생할 곳이 없다');
+  // 영상 구독자가 **둘 이상**일 수 있게 됐다(접힌 카드의 한 장 + 확대의 재생). 열기·닫기가
+  // 불리언이면 먼저 끝난 쪽이 남은 쪽의 발행까지 끄고, 증상은 「프레임이 안 온다」뿐이라
+  // 원인을 찾기 어렵다. 참조 계수인지 확인한다.
+  const vision = read('src', 'tabs', 'data', 'vision.ts');
+  check(/openPanels/.test(vision) && /if \(opened === 1\) transport\.setVideoPanel\(entity, true\)/.test(vision),
+    '영상 패널 열기가 참조 계수가 아니다 — 구독자가 둘이면 먼저 끝난 쪽이 남은 쪽의 프레임을 끊는다');
+  check(/if \(left === 0\) transport\.setVideoPanel\(entity, false\)/.test(vision),
+    '영상 패널 닫기가 참조 계수가 아니다 — 마지막 구독자가 나갈 때만 닫아야 한다');
   const palette = read('src', 'canvas', 'Palette.tsx');
   for (const kind of kinds) {
     check(!palette.includes(kind), `팔레트가 종류 ${kind} 를 손으로 적었다 — 목록은 등록분에서 자동 구성돼야 한다 (VZ-N-01)`);
@@ -79,7 +95,7 @@ const CANVAS_FILES = ['types.ts', 'registry.ts', 'scope.ts', 'persist.ts', 'defa
 
 // ── ④ 레지스트리 — 같은 종류가 두 번 등록되면 즉시 터진다 ─────────────────────
 {
-  const entry = (kind) => ({ kind, label: kind, hint: kind, summary: () => null });
+  const entry = (kind) => ({ kind, label: kind, hint: kind, summary: () => null, zoom: () => null });
   registerViewNodes([entry('a'), entry('b')]);
   check(viewNodeCatalog().length === 2, '등록한 렌더러가 목록에 안 보인다');
   check(viewNodeEntry('a') !== null && viewNodeEntry('zzz') === null, '종류 조회가 어긋난다');

@@ -37,6 +37,12 @@ export type CanvasLayer = {
   onMove(id: string, position: Position): void;
   onBind(id: string, taskId: string | null): void;
   onRemove(id: string): void;
+  /**
+   * 지금 확대된 뷰 노드 (260903 2단계). **문자열 하나다** — 배열이면 둘이 열리고,
+   * 둘이 열리면 분할 화면이고, 분할 화면은 곧 탭이 된다 (지시서 §6).
+   */
+  zoomedId: string | null;
+  onZoom(id: string | null): void;
 };
 
 /** 노드 문법 5종의 화면 표기 — 마일스톤을 왜 이렇게 쪼갰는지가 노드 위에 보인다. */
@@ -292,8 +298,10 @@ export function TaskGraph({ tasks, hardware, states, layoutMode, selected, dimUn
       scope={canvas!.scopeOf(node.taskId)}
       position={viewPositions[node.id] ?? { x: 30, y: 55 }}
       picked={canvas!.pickedTaskId}
+      zoomed={canvas!.zoomedId === node.id}
       onPointerDown={(event) => startDrag(event, node.id, 'view')}
       onBind={(taskId) => canvas!.onBind(node.id, taskId)}
-      onRemove={() => canvas!.onRemove(node.id)} />)}
+      onRemove={() => canvas!.onRemove(node.id)}
+      onZoom={() => canvas!.onZoom(node.id)} />)}
   </div></div>;
 }

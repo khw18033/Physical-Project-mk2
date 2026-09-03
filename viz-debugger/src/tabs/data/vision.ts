@@ -420,7 +420,20 @@ export function resolveAlignment(
  *
  * 프레임은 store를 거치지 않고 버퍼로 직접 들어간다. 15fps × 프레임마다 store 스냅샷을
  * 갈면 100ms 병합 창의 의미가 사라지고 상태 화면까지 같이 리렌더되기 때문이다.
+ *
+ * ## 구독자가 둘 이상일 수 있다 — 그래서 참조 계수다 (260903, 노드 캔버스 2단계)
+ *
+ * 탭 시절에는 영상 구독자가 늘 하나였다(탭⑤ 하나). 캔버스에서는 **접힌 영상 노드가 정지
+ * 프레임 한 장을 받으려고 잠깐 구독**하고, 그 사이 확대된 `VideoOverlayView` 가 재생 중일
+ * 수 있다. 열기·닫기가 불리언이면 **먼저 끝난 쪽이 남은 쪽의 발행까지 끈다** — 확대해 놓고
+ * 뒤의 카드에서 「다시 받기」를 누르면 재생이 멎는 식이다. 증상이 조용해서(그냥 프레임이
+ * 안 온다) 원인을 찾기 어렵다.
+ *
+ * 그래서 대상별로 **열린 구독 수**를 센다. 첫 구독에서만 패널을 열고 마지막 해제에서만
+ * 닫는다. 서버에 가는 메시지(`video open/close`)는 그대로다 — 계약은 안 바뀐다.
  */
+const openPanels = new Map<string, number>();
+
 export function subscribeVision(entity: string, buffer: FrameBuffer): () => void {
   const transport = getTransport();
 
@@ -433,11 +446,20 @@ export function subscribeVision(entity: string, buffer: FrameBuffer): () => void
     'all',
   );
 
-  transport.setVideoPanel(entity, true);
+  const opened = (openPanels.get(entity) ?? 0) + 1;
+  openPanels.set(entity, opened);
+  if (opened === 1) transport.setVideoPanel(entity, true);
 
+  let released = false;
   return () => {
-    transport.setVideoPanel(entity, false);
+    // 두 번 불려도 계수가 음수로 가지 않게. React 18의 StrictMode 는 정리 함수를 두 번 부른다.
+    if (released) return;
+    released = true;
+    const left = Math.max(0, (openPanels.get(entity) ?? 1) - 1);
+    openPanels.set(entity, left);
+    if (left === 0) transport.setVideoPanel(entity, false);
     unsubscribe();
+    // 버퍼는 구독자 개인 것이다 — 남의 버퍼를 비우지 않는다(자기 것만 넘겨받았다).
     buffer.clear();
   };
 }

@@ -46,7 +46,7 @@ const METRIC_ENTITY = 'edge-node-a';
  * 그래프가 그려진다(자리표시 분기). 도메인 지표 3종(260831)은 관측 지표와 **같은 질의
  * 경로**(/metrics/query · BE-Q-01)로 온다 — 별도 경로를 만들지 않는다.
  */
-const METRICS = [
+export const METRICS = [
   { id: 'cpu_pct', label: 'CPU 사용률', unit: '%', source: 'edge-node-a' },
   { id: 'publish_latency_ms', label: '발행 지연', unit: 'ms', source: 'edge-node-a' },
   { id: 'water_level_m', label: '수위', unit: 'm', source: 'sensor-01' },

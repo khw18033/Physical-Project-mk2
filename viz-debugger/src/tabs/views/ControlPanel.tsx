@@ -22,6 +22,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { PendingSource } from '../../shared/PendingSource.tsx';
 import {
   COMMAND_DISPLAY_LABEL,
+  COMMAND_STAGE_LABEL,
   COMMAND_TTL_MS,
   commandTracker,
   describeScope,
@@ -44,15 +45,8 @@ const TARGETS = ['actuator-01', 'actuator-02'] as const;
 /** ACK 없이 만료되는 것을 보려면 30초를 기다릴 수 없으므로 짧은 TTL을 쓴다. */
 const SHORT_TTL_MS = 6_000;
 
-const STAGE_LABEL: Record<string, string> = {
-  issued: '발행 — 요청 식별자로 화면 상태를 걸었다',
-  linked: '수신 확인 — 상관 키 매핑',
-  ack: '수신 확인 — 디바이스 ACK',
-  executing: '수행 중',
-  physical_state_changed: '물리 상태 변화',
-  settled: '완료 / 실패 확정',
-  expired: '만료 — 상관 키 미도착',
-};
+/** 단계 표기는 `shared/commandCenter.ts` 하나에 있다 — 캔버스의 제어 뷰 노드가 같은 것을 그린다. */
+const STAGE_LABEL = COMMAND_STAGE_LABEL;
 
 function timeOf(iso: string): string {
   // 서버가 보낸 시각을 표시만 한다. 이 값으로 판정하지 않는다.

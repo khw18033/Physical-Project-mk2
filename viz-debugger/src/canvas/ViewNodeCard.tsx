@@ -22,7 +22,7 @@ function spanLabel(scope: ViewScope): string {
   return `T+${Math.round(scope.fromSec)}~${Math.round(scope.toSec)}s`;
 }
 
-export function ViewNodeCard({ node, entry, scope, position, picked, onPointerDown, onBind, onRemove }: {
+export function ViewNodeCard({ node, entry, scope, position, picked, zoomed, onPointerDown, onBind, onRemove, onZoom }: {
   node: ViewNodeInstance;
   /** 등록되지 않은 종류면 null — 저장된 구성이 다른 빌드에서 만들어졌을 때다. */
   entry: ViewNodeEntry | null;
@@ -30,15 +30,22 @@ export function ViewNodeCard({ node, entry, scope, position, picked, onPointerDo
   position: { x: number; y: number };
   /** 지금 고른 태스크. 전역 노드를 여기에 이을 수 있다. */
   picked: string | null;
+  /** 이 노드가 지금 확대돼 있는가 (260903 2단계). 카드는 **그대로 남는다** — 확대가
+   *  캔버스를 교체하지 않는다는 것이 화면에서도 보여야 한다. */
+  zoomed: boolean;
   onPointerDown(event: ReactPointerEvent<HTMLDivElement>): void;
   onBind(taskId: string | null): void;
   onRemove(): void;
+  onZoom(): void;
 }) {
   const bound = node.taskId !== null;
   return <div
-    className={`view-node ${bound ? 'view-node--bound' : 'view-node--global'}`}
+    className={`view-node ${bound ? 'view-node--bound' : 'view-node--global'}${zoomed ? ' view-node--zoomed' : ''}`}
     style={{ left: position.x, top: position.y }}
     onPointerDown={onPointerDown}
+    // 확대는 **더블클릭**이다 (확정된 결정 2). 아래 ⤢ 버튼은 같은 길의 보이는 입구다 —
+    // 더블클릭만 두면 발견할 수 없는 길이 된다.
+    onDoubleClick={onZoom}
     data-view-node={node.kind}
   >
     <header className="view-node__head">
@@ -48,6 +55,7 @@ export function ViewNodeCard({ node, entry, scope, position, picked, onPointerDo
         : <span className="view-node__scope view-node__scope--global" title="연결하지 않은 전역 노드 — 임무 전체 구간을 봅니다">전역</span>}
       {/* 손잡이 버튼은 끌기와 섞이면 안 된다 — pointerdown 을 여기서 멈춘다. */}
       <span className="view-node__acts" onPointerDown={(event) => event.stopPropagation()}>
+        <button type="button" onClick={onZoom} disabled={entry === null} title={entry === null ? '이 빌드에는 렌더러가 없어 확대할 것이 없습니다' : '확대 (더블클릭도 같습니다) — 캔버스는 뒤에 그대로 있습니다'}>⤢</button>
         {bound
           ? <button type="button" onClick={() => onBind(null)} title="연결을 끊고 전역 노드로">⛓</button>
           : <button type="button" onClick={() => onBind(picked)} disabled={picked === null} title={picked === null ? '연결할 태스크를 먼저 고르세요 (태스크를 한 번 누릅니다)' : `${picked} 에 연결`}>⛓</button>}

@@ -45,6 +45,22 @@ export const COMMAND_DISPLAY_LABEL: Record<CommandDisplay, string> = {
   failed: '실패',
 };
 
+/**
+ * 단계 표기 — **어휘의 원천은 여기 하나다** (260903, `ControlPanel` 에서 올렸다).
+ *
+ * 제어 패널과 캔버스의 제어 뷰 노드가 같은 단계를 그린다. 두 화면이 각자 적으면 한쪽만
+ * 고쳐져 같은 단계가 다른 이름으로 뜬다 — 이 저장소가 계속 피해 온 「두 곳이 갈라진다」다.
+ */
+export const COMMAND_STAGE_LABEL: Record<string, string> = {
+  issued: '발행 — 요청 식별자로 화면 상태를 걸었다',
+  linked: '수신 확인 — 상관 키 매핑',
+  ack: '수신 확인 — 디바이스 ACK',
+  executing: '수행 중',
+  physical_state_changed: '물리 상태 변화',
+  settled: '완료 / 실패 확정',
+  expired: '만료 — 상관 키 미도착',
+};
+
 /** 서버가 보내는 네 단계. 화면은 3종으로 접지만 이력에는 네 단계가 다 남는다. */
 export type CommandStageEntry = {
   stage: CommandResult['stage'] | 'issued' | 'linked' | 'expired';

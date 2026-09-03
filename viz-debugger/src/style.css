@@ -204,3 +204,41 @@ b.follow-live{cursor:default}
 /* 고른 태스크 — 팔레트가 여기에 뷰 노드를 붙인다. 실패 강조(`selected`, 붉은 테)와
    다른 색이어야 한다. 하나는 「이 노드가 실패했다」이고 하나는 「이 노드에 붙인다」다. */
 .task-node.is-picked{box-shadow:0 0 0 3px #b5dcc6}
+
+/* ── 노드 캔버스 2단계 (260903) — 요약 카드 내용 · 확대 오버레이 ─────────────────
+   요약은 104px 안에 **판정과 숫자**를 담는다. 접는 기준이 「확대하지 않고도 이상함을
+   알아챌 수 있는 값」이므로, 넘치면 줄이는 것이 아니라 덜 중요한 줄을 뺀다. */
+.vn-line{margin:0;font-size:10.5px;line-height:1.45;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.vn-mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:9.5px;color:#5f6b7a}
+.vn-dim{color:#8a94a1;font-style:normal}
+.vn-status{padding:0 4px;border-radius:3px;font-size:10px}
+.vn-status--normal{background:#e6f7ee;color:#20654a}
+.vn-status--fault{background:#fdecec;color:#a53232}
+.vn-status--unknown{background:#fdf4e3;color:#8a6a1d}
+.vn-status--not_deployed{background:#eef1f5;color:#69737f}
+.vn-risk{padding:0 4px;border-radius:3px;font-size:10px}
+.vn-risk--normal{background:#e6f7ee;color:#20654a}
+.vn-risk--watch{background:#fdf4e3;color:#8a6a1d}
+.vn-risk--alert{background:#fdecec;color:#a53232}
+.vn-risk--recovery{background:#e7f0fb;color:#2c62a8}
+.vn-cmd--confirmed{color:#20654a}
+.vn-cmd--in_progress{color:#2c62a8}
+.vn-cmd--failed{color:#a53232}
+.vn-warn{color:#a53232}
+.vn-spark{display:block;width:100%;height:20px}
+.vn-spark polyline{fill:none;stroke:#1768c5;stroke-width:1.5;vector-effect:non-scaling-stroke}
+/* 대표 정지 프레임. 재생이 아니라 **한 장**이다 — 캔버스에서는 노드가 떠나지 않으므로
+   루프를 켜 두면 카드 수만큼 프레임 루프가 돈다 (VZ-I-06). */
+.vn-still{display:block;width:100%;height:34px;border-radius:3px;background:#1d2733}
+.vn-refresh{padding:0 5px;border:1px solid #dde3ea;border-radius:4px;background:#fff;color:#69737f;font-size:9.5px}
+/* 자리표시(PendingSource inline)가 카드 안에서 폭을 넘지 않게. */
+.view-node__body .pending--inline,.view-node__body .notinscript--inline,.view-node__body .mockwrap--inline,.view-node__body .scenariowrap--inline{display:block;font-size:10px;line-height:1.35;overflow:hidden}
+
+/* 확대 = 오버레이. **캔버스를 교체하지 않는다** — 배경(.modal-backdrop 은 반투명)에
+   캔버스가 그대로 남아 보이고, 닫으면 정확히 같은 자리다 (지시서 §6). */
+.zoom-modal{width:min(1400px,95vw);max-height:90vh;display:flex;flex-direction:column}
+.zoom-modal__body{flex:1;overflow:auto;padding:14px 18px;background:#f3f5f8}
+.zoom-modal__body>*+*{margin-top:14px}
+.zoom-modal>footer span{color:#6a7686;font-size:12px}
+/* 확대된 노드는 캔버스에서도 표시가 남는다 — 어느 카드를 열었는지가 뒤에 보여야 한다. */
+.view-node--zoomed{box-shadow:0 0 0 3px #1768c5}
