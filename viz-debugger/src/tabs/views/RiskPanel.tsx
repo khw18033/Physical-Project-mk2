@@ -15,6 +15,7 @@ import { GATEWAY, type RiskState } from '../../transport/index.ts';
 import { deriveDisplayStatus, DISPLAY_STATUS_LABEL, store } from '../data/index.ts';
 import { useEntities } from '../data/hooks.ts';
 import { PendingSource } from '../../shared/PendingSource.tsx';
+import { CURRENT_ZONE_ID } from '../../shared/registry.ts';
 import { Explain } from '../../shared/Explain.tsx';
 
 type Level = 'decision' | 'operation' | 'development';
@@ -32,7 +33,7 @@ export function RiskPanel() {
   const [level, setLevel] = useState<Level>('decision');
   const riskSlot = [...entities.values()].map((r) => r.riskState).find(Boolean) ?? null;
   const risk = riskSlot?.payload as RiskState | undefined;
-  const records = [...entities.values()].filter((r) => r.registry?.zone === 'zone-503');
+  const records = [...entities.values()].filter((r) => r.registry?.zone === CURRENT_ZONE_ID);
 
   const trigger = (name: string) => void fetch(GATEWAY.http + '/insight/' + name, { method: 'POST' });
 

@@ -24,12 +24,13 @@ import {
 } from '../data/index.ts';
 import { useEntities, useRenderRate, useRole, useRoleRefresh, useZoneSummary } from '../data/hooks.ts';
 import { PendingSource } from '../../shared/PendingSource.tsx';
+import { CURRENT_ZONE_ID } from '../../shared/registry.ts';
 import { useScenarioCast } from '../../shared/renderMode.ts';
 import { DeviceCard } from './DeviceCard.tsx';
 import { Explain } from '../../shared/Explain.tsx';
 
 /** 현재 설계 전제는 구역 1개(VZ-C-05). 구역이 늘면 이 값이 선택 상태가 된다. */
-const ZONE_ID = 'zone-503';
+const ZONE_ID = CURRENT_ZONE_ID;
 
 const STATUS_ORDER: DisplayStatus[] = ['normal', 'fault', 'unknown', 'not_deployed'];
 

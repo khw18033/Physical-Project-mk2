@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
+import { ViewNodeCard } from '../canvas/ViewNodeCard.tsx';
+import type { ViewNodeEntry, ViewNodeInstance, ViewScope } from '../canvas/types.ts';
 import type { Hardware, NodeKind, RefEdge, Task, TaskStatus } from '../model/types.ts';
-import { dagLayout, treeLayout, NODE_HEIGHT, NODE_WIDTH, type Position } from './layout.ts';
+import { dagLayout, treeLayout, viewNodeLayout, NODE_HEIGHT, NODE_WIDTH, VIEW_NODE_HEIGHT, VIEW_NODE_WIDTH, type Attached, type Position } from './layout.ts';
 import { STATE_STYLE } from './stateStyle.ts';
 
 type Props = {
@@ -12,6 +14,29 @@ type Props = {
    * 알 수 없다. 그래서 점선 + `↺ 문구` 로 **그리기만** 한다.
    */
   refEdges?: readonly RefEdge[];
+  /**
+   * 뷰 노드 층 (260903 — 노드 캔버스 1단계). **없으면 지금까지와 한 픽셀도 다르지 않다** —
+   * 단독 전달본과 렌더러 주입이 없는 빌드가 그렇다.
+   *
+   * 실행 노드와 **절대 섞지 않는다**: 여기 들어오는 것은 `deps` 도 상태(8상태)도 갖지
+   * 않고, 아래 깊이·배치 계산은 `tasks` 만 본다.
+   */
+  canvas?: CanvasLayer;
+};
+
+/** 캔버스가 그래프에 넘겨주는 것 — 무엇을 그릴지와, 사용자가 만졌을 때 무엇을 할지. */
+export type CanvasLayer = {
+  nodes: readonly ViewNodeInstance[];
+  /** 등록되지 않은 종류면 null (단독 빌드에서 열린 통합 구성 등). */
+  entryOf(kind: string): ViewNodeEntry | null;
+  /** 연결이 곧 범위 (`VZ-N-02`) — 계산은 `canvas/scope.ts` 하나에 있다. */
+  scopeOf(taskId: string | null): ViewScope;
+  /** 팔레트가 꺼낼 노드를 붙일 태스크. 한 번 누르면 골라진다. */
+  pickedTaskId: string | null;
+  onPick(taskId: string | null): void;
+  onMove(id: string, position: Position): void;
+  onBind(id: string, taskId: string | null): void;
+  onRemove(id: string): void;
 };
 
 /** 노드 문법 5종의 화면 표기 — 마일스톤을 왜 이렇게 쪼갰는지가 노드 위에 보인다. */
@@ -57,7 +82,24 @@ function wrapPath(from: Position, to: Position): string {
   return `M${x1},${y1} C${turn},${y1} ${turn},${lane} ${turn - 12},${lane} L${entry + 12},${lane} C${entry},${lane} ${entry},${y2} ${x2},${y2}`;
 }
 
-export function TaskGraph({ tasks, hardware, states, layoutMode, selected, dimUnrelated, onOpen, refEdges }: Props) {
+/**
+ * **범위 엣지** — 태스크에서 그 태스크에 연결된 뷰 노드로 내려오는 선 (260903).
+ *
+ * 셋째 선 종류다. 앞의 둘과 섞이면 안 된다 — 실행 흐름(실선 회색 · 화살표) · 되돌아감
+ * (점선 주황 `↺`) · 줄바꿈(실선 파랑 `↵`) 과 달리 이것은 **흐름이 아니라 소속**이라
+ * 화살표를 달지 않고 점선 초록으로 그린다. 이 선이 있고 없고가 「연결 ↔ 전역」의
+ * 가장 큰 차이다(`VZ-N-02` — 두 상태는 화면에서 구별되어야 한다).
+ */
+function bindPath(from: Position, to: Position): string {
+  const x1 = from.x + NODE_WIDTH / 2;
+  const y1 = from.y + NODE_HEIGHT;
+  const x2 = to.x + VIEW_NODE_WIDTH / 2;
+  const y2 = to.y;
+  const middle = (y1 + y2) / 2;
+  return `M${x1},${y1} C${x1},${middle} ${x2},${middle} ${x2},${y2}`;
+}
+
+export function TaskGraph({ tasks, hardware, states, layoutMode, selected, dimUnrelated, onOpen, refEdges, canvas }: Props) {
   // 자기 자리의 **실제 폭**을 잰다 (260901) — 배치가 폭을 모르면 화면 밖으로 나간다.
   const hostRef = useRef<HTMLDivElement | null>(null);
   const [availableWidth, setAvailableWidth] = useState<number | null>(null);
@@ -76,26 +118,67 @@ export function TaskGraph({ tasks, hardware, states, layoutMode, selected, dimUn
   }, []);
   const layoutWidth = availableWidth ?? FALLBACK_WIDTH;
 
+  /**
+   * 태스크마다 붙은 뷰 노드 수. 배치가 이만큼 아래를 밀어내지 않으면 뷰 노드가 그 열의
+   * 다음 태스크와 겹친다 (`verify:layout` 의 겹침·최대 y 검사).
+   */
+  const attached = useMemo<Attached>(() => {
+    const counts = new Map<string, number>();
+    for (const node of canvas?.nodes ?? []) {
+      if (node.taskId === null) continue;
+      counts.set(node.taskId, (counts.get(node.taskId) ?? 0) + 1);
+    }
+    return counts;
+  }, [canvas?.nodes]);
   const basePositions = useMemo(
-    () => (layoutMode === 'dag' ? dagLayout(tasks, layoutWidth) : treeLayout(tasks, layoutWidth)),
-    [layoutMode, tasks, layoutWidth],
+    () => (layoutMode === 'dag' ? dagLayout(tasks, layoutWidth, attached) : treeLayout(tasks, layoutWidth, attached)),
+    [attached, layoutMode, tasks, layoutWidth],
   );
   const [movedPositions, setMovedPositions] = useState<Record<string, { x: number; y: number }>>({});
-  const [drag, setDrag] = useState<{ id: string; offsetX: number; offsetY: number } | null>(null);
+  const [drag, setDrag] = useState<{ id: string; offsetX: number; offsetY: number; startX: number; startY: number; kind: 'task' | 'view' } | null>(null);
+  /**
+   * 끄는 중인 뷰 노드의 자리. **끌 때마다 저장하지 않는다** — 뷰 노드의 좌표는
+   * `localStorage` 에 있어서 pointermove 마다 쓰면 한 번 끄는 데 수백 번을 쓴다.
+   * 손을 뗄 때 한 번 굳힌다.
+   */
+  const [viewDrag, setViewDrag] = useState<{ id: string; x: number; y: number } | null>(null);
+  /** 끌지 않고 눌렀다 뗐으면 「고르기」다 — 팔레트가 이 태스크에 노드를 붙인다. */
+  const movedRef = useRef(false);
   // **창 크기가 바뀌었다고 사용자가 옮긴 노드를 되돌리지 않는다** — 기준 배치만 다시 계산한다.
   // 그래서 이 의존 배열에 layoutWidth 가 없다 (260901).
   useEffect(() => setMovedPositions({}), [layoutMode]);
   const positions = useMemo(() => Object.fromEntries(tasks.map((task) => [task.id, movedPositions[task.id] ?? basePositions[task.id]])), [basePositions, movedPositions, tasks]);
+  /**
+   * 뷰 노드의 기준 자리 — 연결한 태스크 **아래**, 전역이면 맨 아래 레인. 태스크를 끌면
+   * 딸린 뷰 노드도 따라온다(옮긴 자리 기준으로 계산한다).
+   */
+  const viewBase = useMemo(
+    () => viewNodeLayout(canvas?.nodes ?? [], positions, layoutWidth),
+    [canvas?.nodes, positions, layoutWidth],
+  );
+  const viewPositions = useMemo(() => Object.fromEntries((canvas?.nodes ?? []).map((node) => {
+    if (viewDrag !== null && viewDrag.id === node.id) return [node.id, { x: viewDrag.x, y: viewDrag.y }];
+    // 사용자가 놓아 둔 좌표가 있으면 그것이 이긴다. **배치 모드가 바뀌어도 지우지 않는다** —
+    // 태스크의 movedPositions 와 저장소가 다른 이유가 이것이다 (`VZ-N-04`).
+    if (node.x !== null && node.y !== null) return [node.id, { x: node.x, y: node.y }];
+    return [node.id, viewBase[node.id] ?? { x: 30, y: 55 }];
+  })) as Record<string, Position>, [canvas?.nodes, viewBase, viewDrag]);
   // 높이는 노드 위치에서 계산한다 (260831) — 노드 분화 뒤에는 한 열에 노드가 셋씩 쌓이고
   // 「임무 전체」 보기는 열일곱이라, 상수 높이면 아래쪽 노드와 참조 엣지 문구가 잘린다.
   const height = Math.max(
     layoutMode === 'dag' ? 390 : 690,
     ...Object.values(positions).map((position) => position.y + NODE_HEIGHT + ((refEdges?.length ?? 0) > 0 ? 70 : 30)),
+    // 뷰 노드가 세로를 밀어낸다 — 캔버스가 따라 커지지 않으면 아래쪽 카드가 잘린다.
+    ...Object.values(viewPositions).map((position) => position.y + VIEW_NODE_HEIGHT + 30),
   );
   // 폭은 **잰 자리 폭**과 실제 내용 중 큰 쪽이다 (260901). 접힌 배치는 잰 폭 안에 들어오므로
   // 보통 자리 폭 그대로이고, 사용자가 노드를 오른쪽으로 끌었거나 접기를 포기한 좁은 창
   // (MIN_COLS 미만)에서만 내용이 커져 가로 스크롤이 생긴다.
-  const width = Math.max(layoutWidth, ...Object.values(positions).map((position) => position.x + NODE_WIDTH + 30));
+  const width = Math.max(
+    layoutWidth,
+    ...Object.values(positions).map((position) => position.x + NODE_WIDTH + 30),
+    ...Object.values(viewPositions).map((position) => position.x + VIEW_NODE_WIDTH + 30),
+  );
   /**
    * 밴드를 넘어가는 deps — **기준 배치**로 판정한다. 사용자가 노드를 끌었다고 선 모양이
    * 바뀌면 안 되기 때문이다. deps 는 낮은 깊이 → 높은 깊이라 한 밴드 안에서는 늘 오른쪽으로
@@ -117,18 +200,40 @@ export function TaskGraph({ tasks, hardware, states, layoutMode, selected, dimUn
     const visit = (id: string) => { if (relevant.has(id)) return; relevant.add(id); tasks.find((task) => task.id === id)?.deps.forEach(visit); };
     visit(selected);
   }
-  const startDrag = (event: ReactPointerEvent<HTMLButtonElement>, id: string) => {
-    const canvas = event.currentTarget.parentElement; const position = positions[id]; if (!canvas || !position) return;
-    const rect = canvas.getBoundingClientRect(); event.currentTarget.setPointerCapture(event.pointerId);
-    setDrag({ id, offsetX: event.clientX - rect.left + canvas.scrollLeft - position.x, offsetY: event.clientY - rect.top + canvas.scrollTop - position.y });
+  const startDrag = (event: ReactPointerEvent<HTMLElement>, id: string, kind: 'task' | 'view') => {
+    const surface = event.currentTarget.parentElement;
+    const position = kind === 'task' ? positions[id] : viewPositions[id];
+    if (!surface || !position) return;
+    const rect = surface.getBoundingClientRect(); event.currentTarget.setPointerCapture(event.pointerId);
+    movedRef.current = false;
+    setDrag({ id, kind, startX: event.clientX, startY: event.clientY, offsetX: event.clientX - rect.left + surface.scrollLeft - position.x, offsetY: event.clientY - rect.top + surface.scrollTop - position.y });
   };
   const moveDrag = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (!drag) return; const rect = event.currentTarget.getBoundingClientRect();
-    const x = Math.max(0, Math.min(width - NODE_WIDTH, event.clientX - rect.left + event.currentTarget.scrollLeft - drag.offsetX));
-    const y = Math.max(0, Math.min(height - NODE_HEIGHT, event.clientY - rect.top + event.currentTarget.scrollTop - drag.offsetY));
-    setMovedPositions((current) => ({ ...current, [drag.id]: { x, y } }));
+    const box = drag.kind === 'task' ? { w: NODE_WIDTH, h: NODE_HEIGHT } : { w: VIEW_NODE_WIDTH, h: VIEW_NODE_HEIGHT };
+    const x = Math.max(0, Math.min(width - box.w, event.clientX - rect.left + event.currentTarget.scrollLeft - drag.offsetX));
+    const y = Math.max(0, Math.min(height - box.h, event.clientY - rect.top + event.currentTarget.scrollTop - drag.offsetY));
+    // 3px 안쪽의 흔들림은 「끌었다」가 아니다 — 누를 때 손이 조금 움직였다고 고르기가
+    // 안 되면, 팔레트로 가는 유일한 길이 사람마다 되기도 하고 안 되기도 한다.
+    if (Math.abs(event.clientX - drag.startX) > 3 || Math.abs(event.clientY - drag.startY) > 3) movedRef.current = true;
+    if (drag.kind === 'task') setMovedPositions((current) => ({ ...current, [drag.id]: { x, y } }));
+    else setViewDrag({ id: drag.id, x, y });
   };
-  return <div className="graph-scroll" ref={hostRef}><div className={`graph-canvas ${drag ? 'is-dragging' : ''}`} style={{ height, width }} onPointerMove={moveDrag} onPointerUp={() => setDrag(null)} onPointerCancel={() => setDrag(null)}>
+  /** 손을 뗄 때 뷰 노드의 자리를 한 번만 굳힌다(저장은 여기서 일어난다). */
+  const endDrag = () => {
+    if (viewDrag !== null) canvas?.onMove(viewDrag.id, { x: viewDrag.x, y: viewDrag.y });
+    setViewDrag(null);
+    setDrag(null);
+  };
+  return <div className="graph-scroll" ref={hostRef}><div
+    className={`graph-canvas ${drag ? 'is-dragging' : ''}`}
+    style={{ height, width }}
+    onPointerMove={moveDrag}
+    onPointerUp={endDrag}
+    onPointerCancel={endDrag}
+    // 빈 자리를 누르면 고르기를 푼다 — 팔레트가 그때부터 전역 노드를 만든다.
+    onPointerDown={(event) => { if (event.target === event.currentTarget) canvas?.onPick(null); }}
+  >
     <svg className="edges" width={width} height={height} aria-hidden="true">
       <defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" /></marker></defs>
       {/* 되돌아가는 참조 엣지 — 점선 + ↺ 문구. 깊이·레이아웃 계산에는 들어가지 않는다 (260831). */}
@@ -155,12 +260,22 @@ export function TaskGraph({ tasks, hardware, states, layoutMode, selected, dimUn
         }
         return <path key={key} className={`edge${dim}`} d={connectionPath(from, to)} markerEnd="url(#arrow)" />;
       }))}
+      {/* 범위 엣지 (260903) — 태스크 → 그 태스크에 연결된 뷰 노드. 흐름이 아니라 소속이라
+          화살표가 없다. **deps 가 아니다** — 깊이 계산은 위의 tasks 만 본다. */}
+      {(canvas?.nodes ?? []).map((node) => {
+        if (node.taskId === null) return null;
+        const from = positions[node.taskId]; const to = viewPositions[node.id];
+        if (!from || !to) return null;
+        return <path key={`bind-${node.id}`} className="edge edge--bind" d={bindPath(from, to)} />;
+      })}
     </svg>
     {tasks.map((task) => {
       const state = states[task.id] ?? { status: 'pending' as const, attempt: 1 }; const style = STATE_STYLE[state.status];
       const device = hardware.find((item) => item.id === task.target); const dimmed = dimUnrelated && !relevant.has(task.id);
       const position = positions[task.id];
-      return <button key={task.id} type="button" className={`task-node ${style.className} ${selected === task.id ? 'selected' : ''} ${dimmed ? 'dimmed' : ''}`} style={{ left: position.x, top: position.y }} onPointerDown={(event) => startDrag(event, task.id)} onDoubleClick={() => onOpen(task)}>
+      // 한 번 누르면 「고른 태스크」가 된다 (260903) — 팔레트가 여기에 뷰 노드를 붙인다.
+      // 끌었으면 고르지 않는다. 더블클릭(액션 아이템)은 그대로다.
+      return <button key={task.id} type="button" className={`task-node ${style.className} ${selected === task.id ? 'selected' : ''} ${canvas?.pickedTaskId === task.id ? 'is-picked' : ''} ${dimmed ? 'dimmed' : ''}`} style={{ left: position.x, top: position.y }} onPointerDown={(event) => startDrag(event, task.id, 'task')} onClick={() => { if (!movedRef.current) canvas?.onPick(task.id); }} onDoubleClick={() => onOpen(task)}>
         <small>{task.id}{task.nodeKind ? <em className={`node-kind node-kind--${task.nodeKind}`}>{NODE_KIND_LABEL[task.nodeKind]}</em> : null}</small><strong>{task.title}</strong>
         <span className="state-label">{style.icon} {style.label}{state.status === 'rerunning' ? ` · attempt ${state.attempt}` : ''}</span>
         {/* 옛 편은 하드웨어 목록이 있어 기존 문구 그대로다. 대본(registry 세계)의 장비 실측
@@ -169,5 +284,16 @@ export function TaskGraph({ tasks, hardware, states, layoutMode, selected, dimUn
         <span className={`device ${device?.connection ?? 'unknown'}`}>{task.target === null ? '대상 없음' : `${task.target} · ${device ? (device.connection === 'online' ? '온라인' : device.connection === 'maintenance' ? '점검' : '오프라인') : '상태 미수신'}`}</span>
       </button>;
     })}
+    {/* 뷰 노드 — 내용은 주입된 렌더러가 그린다. 여기까지가 캔버스가 아는 전부다. */}
+    {(canvas?.nodes ?? []).map((node) => <ViewNodeCard
+      key={node.id}
+      node={node}
+      entry={canvas!.entryOf(node.kind)}
+      scope={canvas!.scopeOf(node.taskId)}
+      position={viewPositions[node.id] ?? { x: 30, y: 55 }}
+      picked={canvas!.pickedTaskId}
+      onPointerDown={(event) => startDrag(event, node.id, 'view')}
+      onBind={(taskId) => canvas!.onBind(node.id, taskId)}
+      onRemove={() => canvas!.onRemove(node.id)} />)}
   </div></div>;
 }

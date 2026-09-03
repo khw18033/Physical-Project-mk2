@@ -15,6 +15,7 @@
 import { useEffect } from 'react';
 import { PanelGate, TabGate } from './ScenarioGate.tsx';
 import { useAiFailureNotifications } from './aiFailureBridge.ts';
+import { CURRENT_ZONE_ID } from '../shared/registry.ts';
 import { startDataLayer } from './data/index.ts';
 import { useConnectionStatus } from './data/hooks.ts';
 import { ControlPanel } from './views/ControlPanel.tsx';
@@ -26,9 +27,15 @@ import { ZoneMapMini } from './views/ZoneMapMini.tsx';
 import './views/styles.css';
 
 export { PlanApproval } from './views/PlanApproval.tsx';
+/**
+ * 캔버스에 주입할 뷰 노드 4종 (260903). `PlanApproval` 과 **같은 경계**를 지난다 —
+ * 통합 진입점만 이것을 가져가 `registerViewNodes()` 로 등록하고, 단독 빌드는 가져가지
+ * 않는다(`verify:standalone` · `verify:view-nodes`).
+ */
+export { VIEW_NODE_RENDERERS } from './viewNodes.tsx';
 
-/** 현재 설계 전제는 구역 1개 (VZ-C-05). */
-const ZONE_ID = 'zone-503';
+/** 현재 설계 전제는 구역 1개 (VZ-C-05). 값은 레지스트리 경계 한 곳에 있다. */
+const ZONE_ID = CURRENT_ZONE_ID;
 
 /**
  * 데이터 계층 기동. 앱 수명과 같다 — 탭 전환으로 구독을 끊지 않는다.

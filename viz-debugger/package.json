@@ -26,7 +26,9 @@
     "verify:placeholder-default": "node scripts/verify-placeholder-default.mjs",
     "verify:script-library": "node scripts/verify-script-library.mjs",
     "verify:scenario-mode": "node scripts/verify-scenario-mode.mjs",
-    "verify:tab-scope": "node scripts/verify-tab-scope.mjs"
+    "verify:tab-scope": "node scripts/verify-tab-scope.mjs",
+    "verify:canvas-persist": "node scripts/verify-canvas-persist.mjs",
+    "verify:view-nodes": "node scripts/verify-view-nodes.mjs"
   },
   "dependencies": {
     "react": "^19.1.0",

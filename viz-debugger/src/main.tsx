@@ -8,7 +8,12 @@ import {
   type MissionMilestone,
   type MissionView,
 } from './data/scenario.ts';
-import { TaskGraph } from './graph/TaskGraph.tsx';
+import { TaskGraph, type CanvasLayer } from './graph/TaskGraph.tsx';
+import { Palette } from './canvas/Palette.tsx';
+import { viewNodeEntry } from './canvas/registry.ts';
+import { viewScopeFor } from './canvas/scope.ts';
+import { MISSION_SLOT } from './canvas/persist.ts';
+import { useCanvas } from './canvas/useCanvas.ts';
 import type { Task, TaskStatus } from './model/types.ts';
 import { PendingSource } from './shared/PendingSource.tsx';
 import { hardwareSourceLabel, listCastIds, listRegisteredHardware } from './shared/registry.ts';
@@ -109,6 +114,28 @@ function GraphScreen({ screen, view, milestone, tasks, headSec, playing, layoutM
   const [override, setOverride] = useState<number | null>(null);
   useEffect(() => setOverride(null), [view.missionId, screen]);
   const second = replay ? (override ?? headSec) : headSec;
+  /**
+   * 노드 캔버스 (260903 — 1단계). **슬롯은 지금 보고 있는 범위**다 — 마일스톤 하나면 그
+   * 마일스톤, 「임무 전체」면 별도 슬롯(`__mission__`). 마일스톤별 저장만으로는 임무 전체
+   * 보기의 구성이 미아가 된다 (`VZ-N-04`).
+   */
+  const slot = scope === 'mission' ? MISSION_SLOT : milestone?.id ?? MISSION_SLOT;
+  const canvas = useCanvas(view.missionId, slot, tasks);
+  /** 팔레트가 뷰 노드를 붙일 태스크. 범위가 바뀌면 고르기를 푼다. */
+  const [pickedTaskId, setPickedTaskId] = useState<string | null>(null);
+  useEffect(() => setPickedTaskId(null), [slot, view.missionId]);
+  const picked = tasks.find((task) => task.id === pickedTaskId) ?? null;
+  const canvasLayer = useMemo<CanvasLayer>(() => ({
+    nodes: canvas.nodes,
+    entryOf: viewNodeEntry,
+    // **재생 머리는 캔버스 전체가 같은 값을 쓴다** (`VZ-N-03`) — 되감기 중이면 그 시각이다.
+    scopeOf: (taskId) => viewScopeFor(taskId, view, second),
+    pickedTaskId: picked?.id ?? null,
+    onPick: setPickedTaskId,
+    onMove: canvas.move,
+    onBind: canvas.bind,
+    onRemove: canvas.remove,
+  }), [canvas.bind, canvas.move, canvas.nodes, canvas.remove, picked, second, view]);
   const folded = useMemo(() => statusesAt(second, view), [second, view]);
   const failedTask = tasks.find((task) => folded.tasks[task.id]?.status === 'failed') ?? null;
   const title = scope === 'mission'
@@ -133,7 +160,7 @@ function GraphScreen({ screen, view, milestone, tasks, headSec, playing, layoutM
       : <button type="button" className="crumbs__link" onClick={onGraph}>{here}</button>}
     {openTask !== null && <><span className="crumbs__sep" aria-hidden="true">›</span><span className="crumbs__here">{openTask.id} {openTask.title}</span></>}
   </nav>;
-  return <div className={replay ? 'replay-layout' : ''}>{replay && <aside className="history"><h2>임무 이력</h2><PendingSource id="mission-history" minHeight={200}>{['MSN-260826-01 · 실패', 'MSN-260826-00 · 완료', 'MSN-260825-07 · 완료', 'MSN-260825-06 · 완료'].map((item) => <button key={item}>{item}</button>)}</PendingSource></aside>}<section className="graph-panel"><header className="section-title"><div>{crumbs}<h2>{title}</h2><small>{replay ? `리플레이 · T+${String(Math.round(second)).padStart(2, '0')}s` : failure ? (failedTask ? '실패 경로 강조 · 관련 없는 노드 흐림' : '이 대본에는 실패가 없습니다 — 결함 주입(REQ-1409)으로 만들 수 있습니다') : '분기와 합류가 있는 태스크 DAG'}</small></div><div className="toggle"><button className={layoutMode === 'dag' ? 'active' : ''} onClick={() => onLayout('dag')}>DAG</button><button className={layoutMode === 'tree' ? 'active' : ''} onClick={() => onLayout('tree')}>트리</button></div><div className="toggle"><button className={scope === 'milestone' ? 'active' : ''} onClick={() => onScope('milestone')}>이 마일스톤</button><button className={scope === 'mission' ? 'active' : ''} onClick={() => onScope('mission')}>임무 전체</button></div></header><TaskGraph tasks={tasks} hardware={listRegisteredHardware()} states={folded.tasks} layoutMode={layoutMode} selected={failure ? failedTask?.id : undefined} dimUnrelated={failure && failedTask !== null} refEdges={refEdges} onOpen={(task) => onOpen(task, folded.tasks[task.id]?.status === 'failed')} />
+  return <div className={replay ? 'replay-layout' : ''}>{replay && <aside className="history"><h2>임무 이력</h2><PendingSource id="mission-history" minHeight={200}>{['MSN-260826-01 · 실패', 'MSN-260826-00 · 완료', 'MSN-260825-07 · 완료', 'MSN-260825-06 · 완료'].map((item) => <button key={item}>{item}</button>)}</PendingSource></aside>}<section className="graph-panel"><header className="section-title"><div>{crumbs}<h2>{title}</h2><small>{replay ? `리플레이 · T+${String(Math.round(second)).padStart(2, '0')}s` : failure ? (failedTask ? '실패 경로 강조 · 관련 없는 노드 흐림' : '이 대본에는 실패가 없습니다 — 결함 주입(REQ-1409)으로 만들 수 있습니다') : '분기와 합류가 있는 태스크 DAG'}</small></div><div className="toggle"><button className={layoutMode === 'dag' ? 'active' : ''} onClick={() => onLayout('dag')}>DAG</button><button className={layoutMode === 'tree' ? 'active' : ''} onClick={() => onLayout('tree')}>트리</button></div><div className="toggle"><button className={scope === 'milestone' ? 'active' : ''} onClick={() => onScope('milestone')}>이 마일스톤</button><button className={scope === 'mission' ? 'active' : ''} onClick={() => onScope('mission')}>임무 전체</button></div></header><Palette canvas={canvas} pickedTaskId={picked?.id ?? null} pickedTaskTitle={picked?.title ?? null} /><TaskGraph tasks={tasks} hardware={listRegisteredHardware()} states={folded.tasks} layoutMode={layoutMode} selected={failure ? failedTask?.id : undefined} dimUnrelated={failure && failedTask !== null} refEdges={refEdges} onOpen={(task) => onOpen(task, folded.tasks[task.id]?.status === 'failed')} canvas={canvasLayer} />
     {/* 마일스톤 밖으로 나가는 되돌아감 — 적지 않으면 사용자는 루프의 존재를 모른다 (결정 2). */}
     {crossing.length > 0 && <p className="ref-crossing">↺ {crossing.map((edge) => `${edge.from} → ${edge.to} (${edge.label})`).join(' · ')} — 이 마일스톤 밖으로 되돌아갑니다 <button onClick={() => onScope('mission')}>임무 전체로 보기</button></p>}
     {replay && <ReplayControls second={second} following={override === null} playing={playing} onChange={setOverride} onFollow={() => setOverride(null)} view={view} tasks={tasks} />}<StatusLegend /><Explain id="dbg-1" className="hint">노드를 더블클릭하면 액션 아이템 상세를 엽니다. 실패 상태 노드는 수정 화면으로 이어집니다.</Explain></section></div>;

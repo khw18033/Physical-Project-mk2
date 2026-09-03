@@ -1,0 +1,49 @@
+/**
+ * src/canvas/Palette.tsx (260903 — 1단계)
+ *
+ * **뷰 노드 팔레트** (`VZ-N-01`). 캔버스 머리줄에 붙는 한 줄이다.
+ *
+ * 목록을 여기에 적지 않는다 — `registry` 에 등록된 렌더러를 그대로 훑는다. 요구사항의
+ * 뒷문장이 「개발자가 팔레트 코드를 고쳐 노드를 추가하는 일이 없어야 한다」이기 때문이고,
+ * 그 덕에 **단독 빌드에서는 등록이 하나도 없어 팔레트가 아예 뜨지 않는다** — 단독 전달본의
+ * 화면이 이번 작업으로 바뀌지 않는다는 뜻이다 (`verify:standalone`).
+ *
+ * 만든 노드는 **선택한 태스크에 연결된 채로** 나온다. 선택이 없으면 전역 노드다 —
+ * 전역은 허용된 상태이지 오류가 아니다(확정된 결정 3). 둘은 화면에서 구별된다.
+ */
+
+import type { CanvasApi } from './useCanvas.ts';
+import { useViewNodeCatalog } from './registry.ts';
+
+export function Palette({ canvas, pickedTaskId, pickedTaskTitle }: {
+  canvas: CanvasApi;
+  /** 지금 고른 태스크. 팔레트에서 꺼낸 노드가 여기에 붙는다. */
+  pickedTaskId: string | null;
+  pickedTaskTitle: string | null;
+}) {
+  const catalog = useViewNodeCatalog();
+  // 주입이 없는 빌드(단독 전달본)에서는 팔레트 자체가 없다. 빈 줄을 남기지 않는다.
+  if (catalog.length === 0) return null;
+  return <div className="palette">
+    <div className="palette__row">
+      <b className="palette__title">뷰 노드</b>
+      {catalog.map((entry) => <button
+        key={entry.kind}
+        type="button"
+        className="palette__item"
+        title={`${entry.hint} — ${pickedTaskId === null ? '전역 노드로 놓입니다' : `${pickedTaskId} 에 연결된 채로 놓입니다`}`}
+        onClick={() => canvas.add(entry.kind, pickedTaskId)}
+      >+ {entry.label}</button>)}
+      <span className="palette__target">
+        {pickedTaskId === null
+          ? <>연결 대상 없음 — <b>전역 노드</b>로 놓입니다 (태스크를 한 번 누르면 그 태스크에 연결됩니다)</>
+          : <>연결 대상 <b>◂ {pickedTaskId}</b>{pickedTaskTitle === null ? null : ` ${pickedTaskTitle}`}</>}
+      </span>
+      {/* 층 ③ — 사용자 구성을 지우고 기본 구성으로. 되돌릴 것이 없으면 버튼도 없다. */}
+      {canvas.restorable && <button type="button" className="palette__reset" onClick={canvas.reset} title="이 마일스톤의 캔버스 구성을 기본으로 되돌립니다">기본 구성으로 되돌리기</button>}
+    </div>
+    {/* 실패 셋의 한 줄들 — 저장소 막힘 · 태스크 소실 · 스키마 변경. 막지 않고 적기만 한다. */}
+    {canvas.notices.map((notice) => <p key={notice} className="palette__notice">{notice}</p>)}
+    {!canvas.writable && canvas.notices.length === 0 && <p className="palette__notice">이 브라우저에서는 캔버스 구성이 저장되지 않습니다 — 화면은 그대로 동작합니다.</p>}
+  </div>;
+}

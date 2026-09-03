@@ -1,9 +1,22 @@
 import { StrictMode, useState } from 'react';
 import { createRoot } from 'react-dom/client';
+import { registerViewNodes } from './canvas/registry.ts';
 import { MissionDebugger, type DebuggerNavigation } from './main.tsx';
 import { AppShell } from './shell/AppShell.tsx';
-import { PlanApproval } from './tabs/index.tsx';
+import { PlanApproval, VIEW_NODE_RENDERERS } from './tabs/index.tsx';
 import './style.css';
+
+/**
+ * **뷰 노드 렌더러 주입** (260903 — 노드 캔버스 1단계). `PlanApproval` 을 프롭으로 넣는
+ * 것과 같은 경계다: 캔버스(`src/canvas/`)는 인터페이스만 알고, `tabs/` 의 실물은 통합
+ * 빌드인 이 파일만 가져온다. 단독 빌드(`standalone.tsx`)는 이 줄이 없어 팔레트가 뜨지
+ * 않는다 — 그래야 `tabs/data/` 스토어가 단독 번들에 딸려 들어가지 않는다
+ * (`verify:standalone` · 논문 측정축 D).
+ *
+ * 렌더 전에 부른다. 등록이 늦으면 첫 프레임에 팔레트가 비어 보인다(구독하고 있어 곧
+ * 따라오지만, 굳이 깜빡일 이유가 없다).
+ */
+registerViewNodes(VIEW_NODE_RENDERERS);
 
 function IntegratedApp() {
   const [navigation, setNavigation] = useState<DebuggerNavigation>({ screen: 'milestones', requestId: 0 });

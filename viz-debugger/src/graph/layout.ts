@@ -16,6 +16,20 @@
  *
  * 자동 정렬·확대축소·미니맵은 만들지 않는다. 사용자가 노드를 임의로 옮길 수 있으므로
  * **첫 화면에 다 들어오기만 하면 된다**(사용자 요건).
+ *
+ * ## 뷰 노드가 세로를 밀어낸다 (260903 — 노드 캔버스 1단계)
+ *
+ * 뷰 노드는 기본적으로 **연결한 태스크 바로 아래**에 붙는다. 그런데 한 열의 세로 간격은
+ * `ROW`(150) 고정이라 노드 상자(110) 아래로 40px 밖에 없다 — 아무 처리 없이 뷰 노드를
+ * 달면 그 열의 **다음 태스크와 겹친다.**
+ *
+ * 그래서 배치가 붙은 뷰 노드 수를 받아 **그만큼 아래를 밀어낸다**(`attached`). 열 안에서는
+ * 뒤따르는 행이 내려가고, 밴드 높이는 그 밴드에서 **가장 높아진 열**로 다시 잡힌다.
+ * 붙은 것이 없으면 계산이 예전과 한 픽셀도 다르지 않다 — 탭 화면이 지금 그대로여야 한다.
+ * `verify:layout` 이 세 편 × 두 배치 × 폭 넷에서 겹침과 **최대 y** 를 함께 본다.
+ *
+ * 뷰 노드는 `deps` 에 들어가지 않으므로 `depths()` 는 그대로다 — 깊이 계산에 순환이
+ * 들어가지 않는다(`refEdges` 와 같은 이유).
  */
 
 import type { Task } from '../model/types.ts';
@@ -41,6 +55,30 @@ const BAND_GAP = 70;
  * 그때는 접기를 포기하고 가로 스크롤을 허용한다(`.graph-scroll` 의 `overflow-x:auto`).
  */
 const MIN_COLS = 3;
+
+/**
+ * 뷰 노드 상자 (260903). 폭은 태스크 노드와 **같다** — 연결한 태스크 바로 아래에 붙으므로
+ * 폭이 다르면 캔버스가 들쭉날쭉해지고, 「이 노드에 딸린 것」이라는 인상이 흐려진다.
+ * 높이는 요약 카드 한 장 분량이다(2단계에서 4종의 실제 요약이 이 안에 들어간다).
+ */
+export const VIEW_NODE_WIDTH = NODE_WIDTH;
+export const VIEW_NODE_HEIGHT = 104;
+/** 태스크 아래·뷰 노드 사이의 간격. 연결선(범위 엣지)이 지나갈 자리다. */
+export const VIEW_NODE_GAP = 14;
+/** 전역 노드 레인의 가로 몫. */
+const VIEW_COL = VIEW_NODE_WIDTH + 40;
+
+/** 태스크 하나에 뷰 노드 n 장이 붙으면 그 아래로 얼마나 더 필요한가. */
+export function viewStackHeight(count: number): number {
+  return count <= 0 ? 0 : count * (VIEW_NODE_HEIGHT + VIEW_NODE_GAP);
+}
+
+/** 태스크별 뷰 노드 수. `dagLayout`·`treeLayout` 이 이만큼 아래를 밀어낸다. */
+export type Attached = ReadonlyMap<string, number>;
+
+function extraOf(attached: Attached | undefined, id: string): number {
+  return viewStackHeight(attached?.get(id) ?? 0);
+}
 
 /**
  * 한 밴드에 몇 열이 들어가는가. 폭을 모르면(측정 전·검사) 접지 않는다 — 옛 배치 그대로다.
@@ -71,31 +109,42 @@ function depths(tasks: Task[]) {
   return result;
 }
 
-export function dagLayout(tasks: Task[], availableWidth?: number): Record<string, Position> {
+export function dagLayout(tasks: Task[], availableWidth?: number, attached?: Attached): Record<string, Position> {
   const depth = depths(tasks);
   const columns = new Map<number, Task[]>();
   for (const task of tasks) columns.set(depth[task.id], [...(columns.get(depth[task.id]) ?? []), task]);
   const perBand = columnsPerBand(availableWidth);
 
-  // 밴드 높이는 **그 밴드에서 가장 높은 열의 노드 수**로 정한다. 상수로 두면 1편 MS-D 처럼
+  // 열 안의 세로 자리. 기본은 한 행 ROW 이고, 뷰 노드가 붙은 태스크 뒤로는 그 높이만큼
+  // 더 내려간다 (260903). 붙은 것이 없으면 `row * ROW` 와 같은 값이다.
+  const offsets = new Map<number, number[]>();
+  // 밴드 높이는 **그 밴드에서 가장 높은 열**로 정한다. 상수로 두면 1편 MS-D 처럼
   // 한 열에 노드가 셋인 밴드가 다음 밴드와 겹친다 — `verify:layout` 이 상자 겹침으로 잡는다.
-  const rowsInBand = new Map<number, number>();
+  const bandHeight = new Map<number, number>();
   for (const [column, nodes] of columns) {
+    const ys: number[] = [];
+    let y = 0;
+    for (const task of nodes) {
+      ys.push(y);
+      y += ROW + extraOf(attached, task.id);
+    }
+    offsets.set(column, ys);
     const band = Math.floor(column / perBand);
-    rowsInBand.set(band, Math.max(rowsInBand.get(band) ?? 1, nodes.length));
+    bandHeight.set(band, Math.max(bandHeight.get(band) ?? ROW, y));
   }
   const bandTop = new Map<number, number>();
   let top = 55;
-  for (const band of [...rowsInBand.keys()].sort((a, b) => a - b)) {
+  for (const band of [...bandHeight.keys()].sort((a, b) => a - b)) {
     bandTop.set(band, top);
-    top += (rowsInBand.get(band) ?? 1) * ROW + BAND_GAP;
+    top += (bandHeight.get(band) ?? ROW) + BAND_GAP;
   }
 
   return Object.fromEntries(
     [...columns].flatMap(([column, nodes]) => {
       const band = Math.floor(column / perBand);
       const col = column % perBand;
-      return nodes.map((task, row) => [task.id, { x: PAD + col * COL, y: (bandTop.get(band) ?? 55) + row * ROW }]);
+      const ys = offsets.get(column) ?? [];
+      return nodes.map((task, row) => [task.id, { x: PAD + col * COL, y: (bandTop.get(band) ?? 55) + (ys[row] ?? row * ROW) }]);
     }),
   ) as Record<string, Position>;
 }
@@ -104,10 +153,64 @@ export function dagLayout(tasks: Task[], availableWidth?: number): Record<string
  * 트리 배치 — 한 노드당 한 줄이라 원래 세로로 길다. **폭만 접으면 된다.**
  * 접힌 뒤의 x 는 깊이가 아니라 「깊이 % 한 밴드의 열 수」다.
  */
-export function treeLayout(tasks: Task[], availableWidth?: number): Record<string, Position> {
+export function treeLayout(tasks: Task[], availableWidth?: number, attached?: Attached): Record<string, Position> {
   const depth = depths(tasks);
   const perBand = columnsPerBand(availableWidth);
-  return Object.fromEntries(
-    tasks.map((task, index) => [task.id, { x: PAD + (depth[task.id] % perBand) * COL, y: 25 + index * TREE_ROW }]),
-  ) as Record<string, Position>;
+  const entries: Array<[string, Position]> = [];
+  let y = 25;
+  for (const task of tasks) {
+    entries.push([task.id, { x: PAD + (depth[task.id] % perBand) * COL, y }]);
+    y += TREE_ROW + extraOf(attached, task.id);
+  }
+  return Object.fromEntries(entries) as Record<string, Position>;
+}
+
+/**
+ * 뷰 노드의 **기준 배치** (260903). 사용자가 끌어 옮기면(`x`·`y` 가 채워지면) 그 값이 이긴다 —
+ * 태스크 노드의 `movedPositions` 와 같은 규칙이되 **저장소는 다르다**: 태스크의 이동은
+ * DAG↔트리 전환 때 버려지고(자동 배치가 다시 계산되니 맞다), 뷰 노드는 **사용자가 놓은 것**
+ * 이라 버리면 "내가 만든 게 사라졌다"가 된다 (`VZ-N-04` · `verify:canvas-persist`).
+ *
+ * - 연결된 노드: 연결한 태스크 **바로 아래**에 차례로 쌓는다.
+ * - 전역 노드: 태스크가 다 그려진 **아래 레인**에 왼쪽부터 늘어놓는다. 연결선이 없으므로
+ *   태스크 사이에 끼면 어디에 딸린 것인지 오해를 준다.
+ */
+export function viewNodeLayout(
+  nodes: ReadonlyArray<{ id: string; taskId: string | null }>,
+  taskPositions: Record<string, Position>,
+  availableWidth?: number,
+): Record<string, Position> {
+  const result: Record<string, Position> = {};
+  const stacked = new Map<string, number>();
+  const global: string[] = [];
+  for (const node of nodes) {
+    const anchor = node.taskId === null ? undefined : taskPositions[node.taskId];
+    // 연결한 태스크가 지금 보이는 범위 밖이면 전역과 같은 자리에 둔다 — 화면에서도
+    // 그 노드는 전역으로 강등돼 있다(persist.ts 의 reconcile).
+    if (anchor === undefined || node.taskId === null) {
+      global.push(node.id);
+      continue;
+    }
+    const index = stacked.get(node.taskId) ?? 0;
+    stacked.set(node.taskId, index + 1);
+    result[node.id] = {
+      x: anchor.x,
+      y: anchor.y + NODE_HEIGHT + VIEW_NODE_GAP + index * (VIEW_NODE_HEIGHT + VIEW_NODE_GAP),
+    };
+  }
+  if (global.length > 0) {
+    const bottoms = [
+      ...Object.values(taskPositions).map((position) => position.y + NODE_HEIGHT),
+      ...Object.values(result).map((position) => position.y + VIEW_NODE_HEIGHT),
+    ];
+    const laneTop = (bottoms.length === 0 ? 55 : Math.max(...bottoms)) + BAND_GAP;
+    const perRow = Math.max(1, Math.floor(((availableWidth ?? PAD + VIEW_COL) - PAD) / VIEW_COL));
+    global.forEach((id, index) => {
+      result[id] = {
+        x: PAD + (index % perRow) * VIEW_COL,
+        y: laneTop + Math.floor(index / perRow) * (VIEW_NODE_HEIGHT + VIEW_NODE_GAP),
+      };
+    });
+  }
+  return result;
 }

@@ -168,3 +168,39 @@ b.follow-live{cursor:default}
 .crumbs__link:hover{border-color:#1768c5;background:#1768c5;color:#fff}
 .crumbs__sep{color:#a6b0bd}
 .crumbs__here{padding:2px 4px;color:#3c4a5c;font-weight:700}
+
+/* ── 노드 캔버스 1단계 (260903) — 팔레트 · 뷰 노드 · 범위 엣지 ───────────────────
+   탭 다섯은 아직 그대로다. 이 층이 붙어도 지금 화면이 깨지지 않아야 한다.
+   렌더러 주입이 없는 빌드(단독 전달본)에서는 `.palette` 자체가 그려지지 않는다. */
+.palette{margin:8px 0 0;padding:8px 10px;border:1px solid #d3dbe4;border-radius:8px;background:#fbfcfe}
+.palette__row{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+.palette__title{font-size:12px;color:#4b5766}
+.palette__item{padding:5px 10px;border:1px solid #b9cbe2;border-radius:7px;background:#fff;color:#1768c5;font-size:12px}
+.palette__item:hover{border-color:#1768c5;background:#eef5fd}
+.palette__target{margin-left:4px;color:#687587;font-size:11.5px}
+.palette__target b{color:#2f6f52}
+.palette__reset{margin-left:auto;padding:4px 9px;border:1px solid #cbd3de;border-radius:7px;background:#fff;color:#687587;font-size:11.5px}
+.palette__notice{margin:6px 0 0;color:#8a6a1d;font-size:11.5px;line-height:1.5}
+
+/* 뷰 노드 — 실행 노드와 **다르게 생겨야 한다**. 상태 색(8상태)을 쓰지 않고 테두리도
+   가늘다. 연결된 것은 초록 실선 + `◂ T-xx`, 전역은 회색 파선 + `전역` 뱃지다. */
+.view-node{position:absolute;width:180px;height:104px;display:flex;flex-direction:column;gap:4px;padding:7px 8px;border:1.5px solid #a9c8b8;border-radius:9px;background:#fff;cursor:grab;touch-action:none;user-select:none;overflow:hidden}
+.is-dragging .view-node,.view-node:active{cursor:grabbing}
+.view-node--global{border-style:dashed;border-color:#c3ccd7}
+.view-node__head{display:flex;align-items:center;gap:5px;font-size:11.5px}
+.view-node__head b{flex:0 0 auto;color:#25405c}
+.view-node__scope{padding:1px 5px;border-radius:4px;background:#e7f3ec;color:#2f6f52;font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.view-node__scope--global{background:#eef1f5;color:#69737f}
+.view-node__acts{margin-left:auto;display:flex;gap:3px}
+.view-node__acts button{padding:0 4px;border:1px solid #dde3ea;border-radius:4px;background:#fff;color:#69737f;font-size:11px;line-height:1.5}
+.view-node__acts button:disabled{opacity:.35;cursor:not-allowed}
+.view-node__body{flex:1;overflow:hidden;font-size:11px;line-height:1.4}
+.view-node__missing{margin:0;color:#8a6a1d}
+.view-node__foot{border-top:1px dashed #d7dee6;padding-top:4px;color:#7b8695;font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* 범위 엣지 — 셋째 선 종류다. 흐름(회색 실선·화살표) · 되돌아감(주황 점선 ↺) ·
+   줄바꿈(파랑 실선 ↵) 과 섞이면 안 되므로 **화살표 없는 초록 점선**이다. */
+.edge--bind{fill:none;stroke:#4f9273;stroke-width:1.6;stroke-dasharray:3 4;opacity:.9}
+/* 고른 태스크 — 팔레트가 여기에 뷰 노드를 붙인다. 실패 강조(`selected`, 붉은 테)와
+   다른 색이어야 한다. 하나는 「이 노드가 실패했다」이고 하나는 「이 노드에 붙인다」다. */
+.task-node.is-picked{box-shadow:0 0 0 3px #b5dcc6}
