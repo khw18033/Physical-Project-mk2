@@ -1,8 +1,11 @@
 /**
  * src/shell/HelpOverlay.tsx (260831 신설 — 사이트 개선 요구 1)
  *
- * 우상단 `?` — **현재 켜진 탭의 설명서만** 팝업으로 보인다 (사용자 결정 4).
- * 탭을 여섯으로 되돌리지 않는다 — 사용자가 지금 보고 있는 화면의 설명만 필요하다.
+ * 우상단 `?` — **지금 보고 있는 것의 설명서만** 팝업으로 보인다 (사용자 결정 4).
+ *
+ * 260903(3단계 — 탭 제거)에 「현재 켜진 탭」이 **「캔버스, 또는 확대가 열려 있으면 그 노드」**
+ * 가 됐다. 지시서 §3이 지목한 셸 5개소 중 넷째다. 판정 재료는 캔버스의 확대 상태 하나
+ * (`canvas/zoomState.ts`)이고 셸은 읽기만 한다 — 셸이 캔버스 안을 알면 탭을 걷어낸 뜻이 없다.
  *
  * 내용은 각 화면의 `<Explain>` 이 자기 자리에서 등록한 문단들이다 — 글의 원본은
  * 여전히 그 컴포넌트 안에 있고, 여기는 모아 보여줄 뿐이다(요구 1 「자리만 옮긴다」).
@@ -12,51 +15,51 @@ import { Fragment, useState } from 'react';
 import { manualEntries, useManualVersion, type ManualScopeId } from '../shared/Explain.tsx';
 import { setDevToolsVisible, useDevTools } from '../shared/renderMode.ts';
 
-const TAB_TITLE: Record<ManualScopeId, string> = {
-  debugger: '① 임무 설계 및 디버깅',
-  overview: '② 구역 현황판',
-  control: '③ 제어 패널',
-  metrics: '④ 지표 조회',
-  video: '⑤ 영상 오버레이',
+const SCOPE_TITLE: Record<ManualScopeId, string> = {
+  canvas: '노드 캔버스 — 임무 설계 및 디버깅',
+  'device-risk': '확대 · 장치 · 위험',
+  control: '확대 · 제어',
+  metrics: '확대 · 지표',
+  video: '확대 · 영상',
   shell: '상단 공통 바',
 };
 
-/** 탭별 한 줄 요약 — 손으로 쓴다 (지시서 §우상단 ? 오버레이). */
-const TAB_SUMMARY: Record<ManualScopeId, string> = {
-  debugger: '발화로 임무를 만들고, 마일스톤 → 태스크 그래프 → 액션으로 실행을 되짚는 본류 화면.',
-  overview: '구역 장치의 상태 3층(자기보고·가용성·배포)과 위험도, 구역 맵 미니뷰를 카드로 본다.',
+/** 구역별 한 줄 요약 — 손으로 쓴다 (지시서 §우상단 ? 오버레이). */
+const SCOPE_SUMMARY: Record<ManualScopeId, string> = {
+  canvas: '발화로 임무를 만들고, 마일스톤 → 태스크 그래프 → 뷰 노드로 실행을 되짚는 화면. 팔레트에서 꺼낸 뷰 노드를 태스크에 연결하면 그 태스크의 대상·구간이 그 노드의 조회 범위가 된다.',
+  'device-risk': '구역 장치의 상태 3층(자기보고·가용성·배포)과 위험도, 구역 맵 미니뷰. 요약 카드는 얕은 깊이이고 여기가 깊은 깊이다 (VZ-U-03).',
   control: '수동 제어 발행과 명령 4단계(발행→ACK→진행→완료) 추적, 감사 이력 조회.',
   metrics: '요약·원본 두 경로의 지표 질의 — 지금 보는 값이 요약인지 원본인지가 항상 표기된다.',
-  video: '영상 위 탐지 박스·궤적 정합 — 프레임 참조가 없으면 박스가 어긋난다는 것을 실측한다.',
+  video: '영상 위 탐지 박스·궤적 정합 — 프레임 참조가 없으면 박스가 어긋난다는 것을 실측한다. 접힌 카드는 정지 프레임이고 재생은 여기서만 돈다.',
   shell: '임무 이름·임무 제어·알림. 공통 명령은 단일 출구로 나가고 게이트웨이도 하나다.',
 };
 
-export function HelpOverlay({ tab }: { tab: ManualScopeId }) {
+export function HelpOverlay({ scope }: { scope: ManualScopeId }) {
   const [open, setOpen] = useState(false);
   const devTools = useDevTools();
-  useManualVersion(); // 탭 전환·마운트로 목록이 바뀌면 다시 그린다.
+  useManualVersion(); // 확대 열고 닫기·마운트로 목록이 바뀌면 다시 그린다.
 
   return (
     <>
-      <button type="button" className="help-btn" title="현재 탭의 설명서" onClick={() => setOpen(true)}>?</button>
+      <button type="button" className="help-btn" title="지금 보고 있는 화면의 설명서" onClick={() => setOpen(true)}>?</button>
       {open && (
         <div className="help-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setOpen(false); }}>
           <section className="help-modal" role="dialog" aria-label="화면 설명서">
             <header>
               <div>
-                <h2>{TAB_TITLE[tab]}</h2>
-                <p>{TAB_SUMMARY[tab]}</p>
+                <h2>{SCOPE_TITLE[scope]}</h2>
+                <p>{SCOPE_SUMMARY[scope]}</p>
               </div>
               <button type="button" onClick={() => setOpen(false)}>닫기</button>
             </header>
 
             <div className="help-body">
-              {manualEntries(tab).map((entry) => (
+              {manualEntries(scope).map((entry) => (
                 <Fragment key={entry.id}>
                   <div className="help-entry">{entry.read()}</div>
                 </Fragment>
               ))}
-              {manualEntries(tab).length === 0 && <p className="help-empty">이 탭에 등록된 설명이 없습니다.</p>}
+              {manualEntries(scope).length === 0 && <p className="help-empty">이 화면에 등록된 설명이 없습니다.</p>}
 
               <h3>모드 — 우상단 스위치</h3>
               <ul className="help-modes">
@@ -65,7 +68,7 @@ export function HelpOverlay({ tab }: { tab: ManualScopeId }) {
                 <li><b>목·개발</b> — 남이 줄 데이터 자리에 그럴듯한 목을 그린다. 붉은 배지가 유지되며 <b>시연 중에는 켜지 말 것.</b> 개발 도구(시나리오 재생 버튼·계약 확인)도 이 모드에서 보인다.</li>
               </ul>
 
-              {tab === 'debugger' && (
+              {scope === 'canvas' && (
                 <>
                   <h3>계획 승인 — 어디서 와서 어디로 돌아가는가 <small>(BE-X-04)</small></h3>
                   <p className="help-note">
@@ -100,18 +103,18 @@ export function HelpOverlay({ tab }: { tab: ManualScopeId }) {
               <p className="help-note">
                 대본이 그 패널의 축(위치·수위·영상·명령…)을 몰지 않으면 <b>패널을 통째로 접습니다</b> —
                 제목·버튼 줄·표까지 없앱니다. 로봇 이동 대본을 보는데 수문 제어 제목이 남아 있으면
-                「지금 무엇을 보고 있나」가 흐려지기 때문입니다. 탭 바에서도 <b>안 쓰는 탭은 흐리게</b>
+                「지금 무엇을 보고 있나」가 흐려지기 때문입니다. <b>팔레트에서도 안 쓰는 노드는 흐리게</b>
                 표시되지만 <b>막지는 않습니다</b> — 눌러서 확인할 수 있습니다. 접힌 자리에는 그 자리가
                 <b>어느 편에서 살아나는지</b>와 그 대본으로 바꾸는 버튼이 있습니다.
               </p>
               <p className="help-note">
-                <b>일반 모드에서는 아무것도 접히지 않습니다.</b> 모든 탭과 패널이 그대로 뜨는 것이
+                <b>일반 모드에서는 아무것도 접히지 않습니다.</b> 모든 노드와 패널이 그대로 뜨는 것이
                 「남이 줄 데이터가 어디에 얼마나 있는지」를 보여 주는 화면이기 때문입니다. 목·개발 모드도
                 전부 그립니다.
               </p>
               <h3>시나리오 중에도 자리표시로 남기는 셋 — 왜</h3>
               <ul className="help-modes">
-                <li><b>탭① 배정 풀의 상태 3행</b>(배터리·통신 세기·온도) — 대본 등장 장비라도 <b>실측값은 남이 줄 데이터</b>라 지어내지 않습니다 (<code>VZ-D-07</code> · 2026-08-31 결정). 대본은 장비 <b>id</b>까지만 말합니다.</li>
+                <li><b>배정 풀의 상태 3행</b>(배터리·통신 세기·온도) — 대본 등장 장비라도 <b>실측값은 남이 줄 데이터</b>라 지어내지 않습니다 (<code>VZ-D-07</code> · 2026-08-31 결정). 대본은 장비 <b>id</b>까지만 말합니다.</li>
                 <li><b>임무 이력</b> — 지난 임무 목록과 결과는 백엔드가 보관하고 우리는 조회해 보여줍니다 (<code>BE-S-01</code>·<code>BE-Q-01</code>). 현재 임무의 실행 기록 열(되감기 원자료)은 우리 것이라 여기 해당하지 않습니다.</li>
                 <li><b>레지스트리</b> — 대상 목록·소속 구역·노드 매핑은 백엔드가 주는 목록입니다 (<code>BE-Q-03</code>). 대본이 이 목록을 만들어 내면 「어느 장비가 실재하는가」가 화면마다 달라집니다.</li>
               </ul>

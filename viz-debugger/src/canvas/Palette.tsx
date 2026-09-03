@@ -12,6 +12,8 @@
  * 전역은 허용된 상태이지 오류가 아니다(확정된 결정 3). 둘은 화면에서 구별된다.
  */
 
+import { nodeKindsOfAxes, type ViewNodeKindId } from '../scenarios/axes.ts';
+import { useScenarioAxes } from '../shared/renderMode.ts';
 import type { CanvasApi } from './useCanvas.ts';
 import { useViewNodeCatalog } from './registry.ts';
 
@@ -22,18 +24,31 @@ export function Palette({ canvas, pickedTaskId, pickedTaskTitle }: {
   pickedTaskTitle: string | null;
 }) {
   const catalog = useViewNodeCatalog();
+  /**
+   * **층 1 — 대본이 안 쓰는 종류는 흐리게** (260903 3단계에 탭 바에서 여기로 옮겨 왔다).
+   *
+   * **막지 않는다** — 막으면 「왜 안 눌리지」가 새 질문이 된다. 판정 재료는 노드 접힘과
+   * **같은 훅**이라 일반 모드에서는 null 이고, 목 렌더가 켜져 있으면 목이 이긴다.
+   */
+  const axes = useScenarioAxes();
+  const scriptKinds = axes === null ? null : nodeKindsOfAxes(axes);
   // 주입이 없는 빌드(단독 전달본)에서는 팔레트 자체가 없다. 빈 줄을 남기지 않는다.
   if (catalog.length === 0) return null;
   return <div className="palette">
     <div className="palette__row">
       <b className="palette__title">뷰 노드</b>
-      {catalog.map((entry) => <button
-        key={entry.kind}
-        type="button"
-        className="palette__item"
-        title={`${entry.hint} — ${pickedTaskId === null ? '전역 노드로 놓입니다' : `${pickedTaskId} 에 연결된 채로 놓입니다`}`}
-        onClick={() => canvas.add(entry.kind, pickedTaskId)}
-      >+ {entry.label}</button>)}
+      {catalog.map((entry) => {
+        const unused = scriptKinds !== null && !scriptKinds.has(entry.kind as ViewNodeKindId);
+        return <button
+          key={entry.kind}
+          type="button"
+          className={'palette__item' + (unused ? ' palette__item--unused' : '')}
+          title={unused
+            ? `${entry.hint} — 이 대본은 이 노드를 쓰지 않습니다 (놓아서 확인할 수 있습니다)`
+            : `${entry.hint} — ${pickedTaskId === null ? '전역 노드로 놓입니다' : `${pickedTaskId} 에 연결된 채로 놓입니다`}`}
+          onClick={() => canvas.add(entry.kind, pickedTaskId)}
+        >+ {entry.label}{unused && <small> · 이 대본엔 없음</small>}</button>;
+      })}
       <span className="palette__target">
         {pickedTaskId === null
           ? <>연결 대상 없음 — <b>전역 노드</b>로 놓입니다 (태스크를 한 번 누르면 그 태스크에 연결됩니다)</>

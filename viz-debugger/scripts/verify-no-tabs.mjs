@@ -1,4 +1,4 @@
-// 확대는 탭이 아니다 (260903 — 노드 캔버스 2단계).
+// 탭이 없다 · 확대는 탭이 아니다 (260903 — 2단계에 §6 넷 · 3단계에 탭 제거까지).
 //
 // 이 검사가 막으려는 실패는 하나다: **확대가 이름만 바꾼 탭이 되는 것.**
 // 노드로 통합하는 이유가 「화면을 바꾸지 않고 공시 ↔ 통시를 넘어간다」(HCI 차별점 2)인데,
@@ -14,9 +14,10 @@
 //  4. 확대는 **한 번에 하나** — 상태가 문자열 하나다. 배열이면 둘이 열리고, 둘이 열리면
 //     분할 화면이고, 분할 화면은 곧 탭이 된다.
 //
-// **3단계(탭 제거) 몫은 아직 여기 없다.** `AppShell` 의 `activeTab` 은 탭 바가 살아 있는
-// 2단계에서는 정상이다. 대신 **그것이 셸 한 곳뿐인지**를 지금 못 박아 둔다 — 둘째가
-// 생기면 3단계에서 지울 것이 둘이 된다.
+// **3단계에서 다섯째가 늘었다 — 탭이 정말 없는가.** 2단계에는 `AppShell` 의 `activeTab` 이
+// 탭 바가 살아 있어 정상이었고 「셸 한 곳뿐인가」만 봤다. 이제 **0곳**이어야 하고,
+// `TabView`·`TabGate`·`app-tabs` 도 코드에 남아 있으면 안 된다. 죽은 탭 코드가 남으면
+// 다음 사람이 「아직 탭이 있나?」를 매번 다시 물어야 한다.
 //
 // 음성 대조군 포함 — 판정들이 무력화된 사본을 실제로 잡는지 확인한다.
 
@@ -82,27 +83,56 @@ const css = read('src', 'style.css');
     check(!looksLikeTabState(stripComments(read('src', 'canvas', file))), `src/canvas/${file} 에 탭 류 상태가 있다 — 확대가 이름만 바꾼 탭이 된다`);
   }
   check(!looksLikeTabState(stripComments(graph)), 'TaskGraph 에 탭 류 상태가 있다');
-  // 셸의 activeTab 은 **2단계에서는 정상**이다(탭 바가 살아 있다). 둘이 되지만 않으면 된다.
+  // 3단계에서 탭 바가 사라졌으므로 셸도 **0곳**이다. 2단계에는 여기가 「한 곳뿐인가」였다.
   const shell = stripComments(read('src', 'shell', 'AppShell.tsx'));
   const shellCount = (shell.match(/activeTab/g) ?? []).length;
-  check(shellCount > 0, 'AppShell 에 activeTab 이 없다 — 2단계에서는 탭 바가 그대로여야 한다');
+  check(shellCount === 0, `AppShell 에 activeTab 이 ${shellCount}곳 남았다 — 3단계에서 탭 상태는 0곳이어야 한다`);
   const mainCount = (stripComments(main).match(/activeTab/g) ?? []).length;
-  check(mainCount === 0, `탭① 화면(main.tsx)에 activeTab 이 ${mainCount}곳 생겼다 — 탭 상태는 셸 한 곳뿐이어야 한다`);
+  check(mainCount === 0, `캔버스 화면(main.tsx)에 activeTab 이 ${mainCount}곳 생겼다`);
   if (!looksLikeTabState("const [activeTab, setActiveTab] = useState('a');")) {
     failures.push('대조군 실패: 탭 류 상태를 판정이 놓쳤다 — 이 검사는 무의미하다');
   }
-  console.log(`✅ 탭 류 상태 — 캔버스·그래프에 0곳, 셸에만 ${shellCount}곳(3단계에 사라진다)`);
+  console.log('✅ 탭 류 상태 — 캔버스·그래프·셸 전부 0곳');
 }
 
-// ── ④ 확대는 한 번에 하나 ────────────────────────────────────────────────────
+// ── ④ 탭이 정말 없는가 (260903 3단계) ────────────────────────────────────────
 {
-  // 상태가 문자열 하나다. 배열·집합이면 둘이 열린다.
-  check(/const \[zoomedId, setZoomedId\] = useState<string \| null>\(null\)/.test(main), '확대 상태가 「문자열 하나」가 아니다 — 둘이 열릴 수 있다');
+  const shell = stripComments(read('src', 'shell', 'AppShell.tsx'));
+  const tabsIndex = stripComments(read('src', 'tabs', 'index.tsx'));
+  const gate = stripComments(read('src', 'tabs', 'ScenarioGate.tsx'));
+  const css = read('src', 'style.css');
+  // 탭 바·탭 라우팅·탭 단위 접힘 — 셋 다 코드에서 사라져야 한다.
+  check(!/app-tabs/.test(shell) && !/app-tabs/.test(css), '탭 바(app-tabs)가 코드나 CSS 에 남아 있다');
+  check(!/TabView/.test(shell) && !/TabView/.test(tabsIndex), 'TabView(탭 본문 라우팅)가 남아 있다');
+  check(!/TabGate/.test(gate) && !/TabGate/.test(tabsIndex), 'TabGate(탭 단위 접힘)가 남아 있다 — 접힘은 NodeGate 로 내려앉았다');
+  check(/NodeGate/.test(gate), 'NodeGate 가 없다 — 노드 단위 접힘이 사라졌다');
+  // 무대는 하나다. 감췄다 되살릴 다른 무대가 없다.
+  check(!/is-hidden/.test(shell) && !/is-hidden/.test(css), '감춘 무대(is-hidden)가 남아 있다 — 무대는 캔버스 하나뿐이어야 한다');
+  // 지시서 §3 — 이 둘은 **그대로 남아야** 한다.
+  check(/useTabsDataLayer\(\)/.test(shell), '데이터 계층 기동이 셸에서 사라졌다 — 앱 수명과 같아야 한다 (지시서 §3 · 하지 않을 것)');
+  check(/onDebuggerHome/.test(shell), '마일스톤 목록으로 돌아가는 길이 셸에서 사라졌다');
+  // 「○○ 노드로」 — 탭 시절의 「갈 탭」이 옮겨 앉은 자리.
+  check(/onOpenNode\(/.test(shell), '대본 띠의 「○○ 노드로」가 없다 — 안내줄이 갈 곳을 잃었다');
+  check(/nodeKinds\.map/.test(shell), '안내줄이 노드 후보를 그리지 않는다');
+  console.log('✅ 탭 제거 — 탭 바·TabView·TabGate·감춘 무대가 전부 없고, 데이터 계층과 되돌아갈 길은 그대로다');
+}
+
+// ── ⑤ 확대는 한 번에 하나 ────────────────────────────────────────────────────
+{
+  // 상태가 **하나**다. 배열·집합이면 둘이 열린다.
+  //
+  // 3단계에 원천이 모듈 저장소로 올라갔다(`canvas/zoomState.ts`) — 셸의 `?` 설명서가 같은
+  // 값을 읽어야 하기 때문이다. 값을 두 곳에 복제하지 않았는지가 여기서 걸린다.
+  const zoomState = stripComments(read('src', 'canvas', 'zoomState.ts'));
+  check(/export type ZoomTarget = \{ id: string; kind: string \} \| null;/.test(zoomState), '확대 상태의 모양이 「하나 또는 없음」이 아니다');
+  check(/^let target: ZoomTarget = null;$/m.test(zoomState), '확대 상태의 원천이 값 하나가 아니다 — 둘이 열릴 수 있다');
+  check(/const zoomedId = zoomTarget\?\.id \?\? null;/.test(main), '캔버스가 확대 상태를 저장소에서 파생하지 않는다 — 복제하면 갈라진다');
+  check(!/useState<string \| null>\(null\);[^\n]*\/\/ *zoom/i.test(main), '캔버스가 확대 상태를 따로 들고 있다');
   check(/zoomedId: string \| null;/.test(graph), '캔버스 계약의 확대 상태가 「문자열 하나」가 아니다');
-  check(!/zoomedIds|zoomed.*Set<|zoomed.*\[\]/.test(main + graph), '확대 상태가 여러 개를 담는 모양이다 — 분할 화면은 곧 탭이 된다');
+  check(!/zoomedIds|zoomTargets|zoomed.*Set<|zoomed.*\[\]/.test(main + graph + zoomState), '확대 상태가 여러 개를 담는 모양이다 — 분할 화면은 곧 탭이 된다');
   // 오버레이를 목록으로 그리지 않는다.
   check(!/<ZoomOverlay[\s\S]{0,200}\.map\(/.test(main) && !/\.map\([^)]*<ZoomOverlay/.test(main), '확대 오버레이를 목록으로 그린다 — 한 번에 하나여야 한다');
-  console.log('✅ 확대는 한 번에 하나 — 상태가 문자열 하나이고 오버레이를 목록으로 그리지 않는다');
+  console.log('✅ 확대는 한 번에 하나 — 원천이 값 하나(zoomState)이고 오버레이를 목록으로 그리지 않는다');
 }
 
 if (failures.length) {
@@ -110,4 +140,4 @@ if (failures.length) {
   for (const line of failures) console.error(`  - ${line}`);
   process.exit(1);
 }
-console.log('✅ 통과 — 오버레이 · 같은 자리 · 탭 상태 없음 · 동시 하나 (지시서 §6 네 조건)');
+console.log('✅ 통과 — 오버레이 · 같은 자리 · 탭 상태 0곳 · 탭 제거 · 동시 하나 (지시서 §6 네 조건 + 3단계)');

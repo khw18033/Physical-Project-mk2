@@ -43,6 +43,8 @@ export type CanvasLayer = {
    */
   zoomedId: string | null;
   onZoom(id: string | null): void;
+  /** 방금 안내줄이 가리킨 노드. 잠깐 반짝이고 스스로 꺼진다 (260903). */
+  highlightedId: string | null;
 };
 
 /** 노드 문법 5종의 화면 표기 — 마일스톤을 왜 이렇게 쪼갰는지가 노드 위에 보인다. */
@@ -299,6 +301,7 @@ export function TaskGraph({ tasks, hardware, states, layoutMode, selected, dimUn
       position={viewPositions[node.id] ?? { x: 30, y: 55 }}
       picked={canvas!.pickedTaskId}
       zoomed={canvas!.zoomedId === node.id}
+      highlighted={canvas!.highlightedId === node.id}
       onPointerDown={(event) => startDrag(event, node.id, 'view')}
       onBind={(taskId) => canvas!.onBind(node.id, taskId)}
       onRemove={() => canvas!.onRemove(node.id)}

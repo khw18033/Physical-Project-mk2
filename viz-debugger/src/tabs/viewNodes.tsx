@@ -41,7 +41,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { PendingSource } from '../shared/PendingSource.tsx';
 import type { ViewNodeEntry, ViewScope } from '../canvas/types.ts';
-import { PanelGate } from './ScenarioGate.tsx';
+import { NodeGate, PanelGate } from './ScenarioGate.tsx';
 import {
   COMMAND_DISPLAY_LABEL,
   COMMAND_STAGE_LABEL,
@@ -62,6 +62,7 @@ import { DeviceGrid } from './views/DeviceGrid.tsx';
 import { METRICS, MetricsView } from './views/MetricsView.tsx';
 import { RiskPanel } from './views/RiskPanel.tsx';
 import { VideoOverlayView } from './views/VideoOverlayView.tsx';
+import { ZoneMapMini } from './views/ZoneMapMini.tsx';
 
 const RISK_LABEL: Record<RiskState['level'], string> = { normal: '평시', watch: '관찰', alert: '경보', recovery: '복구' };
 
@@ -236,38 +237,46 @@ function VideoStill() {
  * 확대 본문은 옛 탭의 화면 그대로이고 `PanelGate` 를 그대로 지난다 — 대본이 그 축을 몰지
  * 않으면 확대해도 「이 대본엔 없음」 카드가 뜬다. 확대라고 해서 접힘 규칙에서 빠져나가면
  * 1편(로봇)에서 수문 제어 화면이 다시 열린다.
+ *
+ * 260903(3단계)에 **요약과 확대 둘 다 `NodeGate` 를 지난다** — 탭 단위 접힘이 노드 단위로
+ * 내려앉은 자리다. 대본이 그 노드의 축을 하나도 몰지 않으면 이미 놓인 카드가 「이 대본엔
+ * 없음」으로 갈음되고, 팔레트 버튼은 흐려지되 막히지 않는다.
  */
 export const VIEW_NODE_RENDERERS: readonly ViewNodeEntry[] = [
   {
     kind: 'device-risk',
     label: '장치 · 위험',
     hint: 'VZ-U-01 · VZ-I-03 · VZ-I-08 · VZ-U-03 — 4종 상태와 3층, 위험도 등급',
-    summary: (scope) => <PendingSource id="device-cards" inline entity={scope.deviceId ?? undefined}><DeviceRiskBody scope={scope} /></PendingSource>,
-    zoom: () => <>
+    summary: (scope) => <NodeGate kind="device-risk"><PendingSource id="device-cards" inline entity={scope.deviceId ?? undefined}><DeviceRiskBody scope={scope} /></PendingSource></NodeGate>,
+    // 구역 맵(ZoneMapMini)이 여기로 들어왔다 (260903 3단계) — 탭②가 사라지면서 갈 곳이
+    // 없어졌다. 축이 coverage·position 이라 장치·위험 노드가 그 집이다. **요구는 하나도
+    // 죽지 않는다**(VZ-I-03). 패널마다 축이 달라 각자 접히는 것은 그대로다.
+    zoom: () => <NodeGate kind="device-risk">
       <PanelGate id="risk"><RiskPanel /></PanelGate>
+      <PanelGate id="zone-map"><ZoneMapMini /></PanelGate>
       <PanelGate id="device-grid"><DeviceGrid /></PanelGate>
-    </>,
+    </NodeGate>,
   },
   {
     kind: 'control',
     label: '제어',
     hint: 'VZ-O-01 · 02 · 05 — 이 대상의 명령 수와 마지막 명령의 4단계 위치',
-    summary: (scope) => <PendingSource id="command-result" inline entity={scope.deviceId ?? undefined} axis="command"><ControlBody scope={scope} /></PendingSource>,
-    zoom: () => <PanelGate id="control"><ControlPanel /></PanelGate>,
+    summary: (scope) => <NodeGate kind="control"><PendingSource id="command-result" inline entity={scope.deviceId ?? undefined} axis="command"><ControlBody scope={scope} /></PendingSource></NodeGate>,
+    zoom: () => <NodeGate kind="control"><PanelGate id="control"><ControlPanel /></PanelGate></NodeGate>,
   },
   {
     kind: 'metrics',
     label: '지표',
     hint: 'VZ-I-04 · VZ-C-03 — 미니 스파크라인과 요약/원본 표기',
-    summary: (scope) => <PendingSource id="metrics-query" inline entity={metricFor(scope.deviceId).source}><MetricsBody scope={scope} /></PendingSource>,
-    zoom: () => <MetricsView />,
+    summary: (scope) => <NodeGate kind="metrics"><PendingSource id="metrics-query" inline entity={metricFor(scope.deviceId).source}><MetricsBody scope={scope} /></PendingSource></NodeGate>,
+    zoom: () => <NodeGate kind="metrics"><MetricsView /></NodeGate>,
   },
   {
     kind: 'video',
     label: '영상',
     hint: 'VZ-I-06 · 07 · 09 — 대표 정지 프레임과 탐지 수 (재생은 확대에서만)',
     // 카메라가 하나라 범위를 안 쓴다 — 위 VideoStill 의 주석이 그 이유다.
-    summary: () => <PendingSource id="video-stream" inline entity={VIDEO_CAMERA} axis="video"><VideoStill /></PendingSource>,
-    zoom: () => <PanelGate id="video"><VideoOverlayView /></PanelGate>,
+    summary: () => <NodeGate kind="video"><PendingSource id="video-stream" inline entity={VIDEO_CAMERA} axis="video"><VideoStill /></PendingSource></NodeGate>,
+    zoom: () => <NodeGate kind="video"><PanelGate id="video"><VideoOverlayView /></PanelGate></NodeGate>,
   },
 ];

@@ -109,9 +109,9 @@ if (checkSources(shellSource.replaceAll('scenario-banner', 'x'), pendingSourceTe
   if (offenders.length > 0) failures.push(`닫기(셸) 밖에서 exitScenarioRender 를 부른다: ${offenders.join(', ')} — 끄는 경로는 하나여야 한다`);
 }
 
-// ── ③ 시나리오 연계 — 접힘과 안내줄 (260901) ────────────────────────────────
-// 표와 규칙은 verify:tab-scope 가 통째로 본다. 여기서는 **재생 축과 얽힌 두 가지**만 —
-// 1편에서 탭③이 접히는가, 안내줄이 재생 머리를 따라가는가.
+// ── ③ 시나리오 연계 — 접힘과 안내줄 (260901 · 260903 3단계에 노드 어휘로) ──────
+// 표와 규칙은 verify:node-scope 가 통째로 본다. 여기서는 **재생 축과 얽힌 두 가지**만 —
+// 1편에서 제어 노드가 접히는가, 안내줄이 재생 머리를 따라가는가.
 {
   const axesMod = await import(pathToFileURL(join(root, 'src', 'scenarios', 'axes.ts')).href);
   const { nowPlaying } = await import(pathToFileURL(join(root, 'src', 'scenarios', 'nowPlaying.ts')).href);
@@ -119,11 +119,11 @@ if (checkSources(shellSource.replaceAll('scenario-banner', 'x'), pendingSourceTe
   const s1 = readScript('MSN-260831-01');
   const s3 = readScript('MSN-260831-03');
 
-  // 1편(로봇 이동)에 액추에이터 명령이 없으므로 탭③은 통째로 접혀야 한다.
+  // 1편(로봇 이동)에 액추에이터 명령이 없으므로 제어 노드는 통째로 접혀야 한다.
   const axes1 = axesMod.axesOfScript(s1);
-  if (axesMod.tabsOfScript(s1).has('control')) failures.push('1편이 탭③을 쓴다고 나온다 — 로봇 이동에는 액추에이터 명령이 없다');
-  if (axesMod.panelsOfTab('control').some((panel) => axesMod.panelAlive(panel, axes1))) {
-    failures.push('1편에서 탭③의 패널이 살아 있다 — 제목·버튼 줄까지 접혀야 한다(칩만 붙이면 뼈대가 남는다)');
+  if (axesMod.nodeKindsOfScript(s1).has('control')) failures.push('1편이 제어 노드를 쓴다고 나온다 — 로봇 이동에는 액추에이터 명령이 없다');
+  if (axesMod.panelsOfNode('control').some((panel) => axesMod.panelAlive(panel, axes1))) {
+    failures.push('1편에서 제어 노드의 패널이 살아 있다 — 제목·버튼 줄까지 접혀야 한다(칩만 붙이면 뼈대가 남는다)');
   }
 
   // 대본 → 화면 형태. src/data/scenario.ts 의 scriptToView 와 같은 필드만 쓴다(그 파일은
@@ -138,15 +138,17 @@ if (checkSources(shellSource.replaceAll('scenario-banner', 'x'), pendingSourceTe
   if (!preview?.text.includes('T+0 · 시작 상태')) failures.push(`정지 미리보기의 안내줄이 「T+0 · 시작 상태」가 아니다 — ${preview?.text}`);
   if (!preview?.text.includes(s3.milestones[0].id)) failures.push('정지 미리보기의 안내줄에 첫 마일스톤이 없다');
 
-  // **재생 머리를 따라가는가** — 같은 대본인데 시각이 다르면 안내와 갈 탭이 달라져야 한다.
+  // **재생 머리를 따라가는가** — 같은 대본인데 시각이 다르면 안내와 갈 노드가 달라져야 한다.
   const early = nowPlaying(view3, s3, 40, true);
   const atGate = nowPlaying(view3, s3, 162, true);
   if (early === null || atGate === null) failures.push('재생 중 안내줄이 나오지 않는다');
   else {
     if (early.text === atGate.text) failures.push(`안내줄이 재생 머리를 따라가지 않는다 — T+40 과 T+162 가 같은 문구다(${early.text})`);
     if (!atGate.text.includes('MS-C')) failures.push(`T+162 의 안내줄이 MS-C 가 아니다 — ${atGate.text}`);
-    if (!atGate.tabs.includes('control')) failures.push(`T+162(close_gate 발행)의 갈 탭에 제어 패널이 없다 — [${atGate.tabs.join(', ')}]`);
-    if (early.tabs.includes('control')) failures.push(`T+40(수위 감시)의 갈 탭에 제어 패널이 있다 — 그 시각에는 명령이 없다`);
+    if (!atGate.nodeKinds.includes('control')) failures.push(`T+162(close_gate 발행)의 갈 노드에 제어가 없다 — [${atGate.nodeKinds.join(', ')}]`);
+    if (early.nodeKinds.includes('control')) failures.push(`T+40(수위 감시)의 갈 노드에 제어가 있다 — 그 시각에는 명령이 없다`);
+    // 3단계 — 만들어 줄 노드를 **어느 태스크에 붙일지**가 함께 와야 한다(없으면 전역이 된다).
+    if (atGate.taskId === null) failures.push('재생 중인데 안내줄이 진행 중인 태스크를 말하지 않는다 — 「○○ 노드로」가 붙일 곳을 잃는다');
   }
   const ended = nowPlaying(view3, s3, s3.durationSec, false);
   if (!ended?.text.includes('재생 끝')) failures.push(`재생이 끝난 뒤 안내줄이 「재생 끝」이 아니다 — ${ended?.text}`);
@@ -155,8 +157,8 @@ if (checkSources(shellSource.replaceAll('scenario-banner', 'x'), pendingSourceTe
 
   // 대조군 — 명령을 지운 사본에서 T+162 의 갈 탭이 그대로면 이 검사는 무의미하다.
   const noCommands = nowPlaying(view3, { ...s3, commands: [] }, 162, true);
-  if (noCommands?.tabs.includes('control')) failures.push('대조군 실패: 명령을 지운 사본인데 갈 탭이 여전히 제어 패널이다');
-  else controls.push('대본 명령 삭제 사본(갈 탭이 제어 패널에서 빠짐)');
+  if (noCommands?.nodeKinds.includes('control')) failures.push('대조군 실패: 명령을 지운 사본인데 갈 노드가 여전히 제어다');
+  else controls.push('대본 명령 삭제 사본(갈 노드에서 제어가 빠짐)');
 }
 
 // ── ④ 게이트웨이 실동작 — 발화 → 제안 → 승인 전 0건 → 재생 → 감사 → 닫기 ───────
@@ -304,6 +306,6 @@ if (failures.length) {
 controls.push('무매칭 문장 거부(no_script_match)');
 console.log('✅ 기본 placeholder · 진입 둘(미리보기 정지 / 승인 재생 — playing 구분) · cast 집합 대조 · 목 렌더 우선 · 닫으면 복귀');
 console.log('✅ 배지(scenario-banner) 존재 · 끄는 경로는 셸(대본 닫기·모드 스위치)뿐 · 장치 그리드는 카드 단위 분기');
-console.log('✅ 시나리오 연계 — 1편에서 탭③이 패널째 접힘 · 안내줄이 재생 머리를 따라감(T+40 수위 → T+162 close_gate·탭③) · 미리보기는 T+0 시작 상태 · 끝나면 「재생 끝」');
+console.log('✅ 시나리오 연계 — 1편에서 제어 노드가 패널째 접힘 · 안내줄이 재생 머리를 따라감(T+40 수위 → T+162 close_gate·제어 노드) · 미리보기는 T+0 시작 상태 · 끝나면 「재생 끝」');
 console.log('✅ 게이트웨이 왕복 — 거부 · 제안 · 승인 전 발행 0건 · 재생(기록·세계 채널·event 모드·명령 4단계) · 감사 actor=임무 · 닫기 · 미리보기(초기 조건 100% + t=0 프레임 · 기록 0건)');
 console.log(`✅ 음성 대조군 ${controls.length}건 — ${controls.join(' · ')}`);

@@ -3,6 +3,10 @@
  *
  * **층 2 — 패널 접힘.** 대본이 그 패널의 축을 몰지 않으면 **패널을 통째로 접는다.**
  *
+ * 260903(3단계 — 탭 제거)에 판정 대상이 탭에서 **뷰 노드**로 옮겨 앉았다. 규칙은 그대로다:
+ * 노드가 담은 패널이 하나도 안 살면 카드 본문을 한 장으로 갈음하고(`NodeGate`), 하나라도
+ * 살면 개별 패널이 각자 접힌다(`PanelGate`). 팔레트 버튼은 흐려지되 **막지 않는다**.
+ *
  * 8/31 작업은 연계를 **자리(slot) 층에서만** 했다. 「이 대본에는 해당 없음」 칩을 안쪽 칸에
  * 붙였지만 그 위의 제목·버튼 줄·표는 그대로 서 있었다 — 1편(로봇 이동)을 틀어도 탭③에
  * `actuator-01 · 수문 제어` 제목과 버튼 줄과 감사 표가 남아서, **로봇 이야기를 보는 사람
@@ -20,9 +24,10 @@
  */
 
 import type { ReactNode } from 'react';
-import { TAB_LABEL, panelAlive, panelsOfTab, scenarioPanel, type ScenarioTab } from '../scenarios/axes.ts';
+import { viewNodeEntry } from '../canvas/registry.ts';
+import { panelAlive, panelsOfNode, scenarioPanel, type ViewNodeKindId } from '../scenarios/axes.ts';
 import { enterScriptPreview } from '../scenarios/enterPreview.ts';
-import { scriptsUsingPanel, scriptsUsingTab } from '../scenarios/scriptScope.ts';
+import { scriptsUsingNode, scriptsUsingPanel } from '../scenarios/scriptScope.ts';
 import { useScenarioAxes, useScenarioRender } from '../shared/renderMode.ts';
 
 type CardProps = {
@@ -32,7 +37,7 @@ type CardProps = {
   why: string[];
   /** 이 자리가 살아나는 대본들. */
   elsewhere: Array<{ missionId: string; title: string }>;
-  /** 탭 전체를 대체하는 한 장인가 (패널 하나가 아니라). */
+  /** 노드 카드 전체를 대체하는 한 장인가 (패널 하나가 아니라). */
   wide?: boolean;
 };
 
@@ -64,7 +69,7 @@ function NotInScriptCard({ what, why, elsewhere, wide }: CardProps) {
 
 /**
  * 패널 하나의 접힘. `id` 는 `SCENARIO_PANELS` 의 것이어야 한다 — 없는 id 면 즉시 터진다
- * (조용히 안 접히는 것보다 낫다). `verify:tab-scope` 가 화면과 표의 아귀를 검사한다.
+ * (조용히 안 접히는 것보다 낫다). `verify:node-scope` 가 화면과 표의 아귀를 검사한다.
  */
 export function PanelGate({ id, children }: { id: string; children: ReactNode }) {
   // 일반·목·개발 모드에서는 axes 가 null 이다 — 전부 그린다. 접힘은 시나리오 모드에서만이다.
@@ -76,20 +81,26 @@ export function PanelGate({ id, children }: { id: string; children: ReactNode })
 }
 
 /**
- * 탭 본문 전체의 대체. 그 탭의 패널이 **하나도** 살지 않으면 한 장으로 갈음한다 —
- * 1·2편의 탭③, 3편의 탭⑤가 그렇다. 하나라도 살면 본문을 그리고 개별 패널이 각자 접힌다.
+ * **뷰 노드 하나의 접힘** (260903 — 탭 제거. `TabGate` 였다).
+ *
+ * 그 종류의 패널이 **하나도** 살지 않으면 노드 본문을 한 장으로 갈음한다 — 1·2편의 제어
+ * 노드, 3편의 영상 노드가 그렇다. 하나라도 살면 본문을 그리고 개별 패널이 각자 접힌다.
+ * 판정 규칙은 탭 시절과 **똑같다** — 판정 대상이 탭에서 노드로 옮겨 앉았을 뿐이다.
+ *
+ * **이름은 등록된 렌더러에서 얻는다** — 여기 손으로 적으면 팔레트 버튼과 접힘 카드가
+ * 서로 다른 이름을 말하게 된다(`VZ-N-01`).
  */
-export function TabGate({ tab, children }: { tab: ScenarioTab; children: ReactNode }) {
+export function NodeGate({ kind, children }: { kind: ViewNodeKindId; children: ReactNode }) {
   const axes = useScenarioAxes();
   if (axes === null) return <>{children}</>;
-  const panels = panelsOfTab(tab);
+  const panels = panelsOfNode(kind);
   if (panels.length === 0 || panels.some((spec) => panelAlive(spec, axes))) return <>{children}</>;
   return (
     <NotInScriptCard
       wide
-      what={TAB_LABEL[tab]}
+      what={viewNodeEntry(kind)?.label ?? kind}
       why={panels.map((spec) => spec.why)}
-      elsewhere={scriptsUsingTab(tab)}
+      elsewhere={scriptsUsingNode(kind)}
     />
   );
 }

@@ -8,7 +8,8 @@
  * (`<Explain id="…">원래 문단</Explain>`), 그리는 위치만 바꾼다:
  *
  *  - 통합 셸 안(ManualScope 제공됨): 본문에는 아무것도 그리지 않고, 자기 내용을
- *    「지금 열려 있는 탭」의 설명서로 등록한다. 등록 순서 = DOM 순서 = 설명서의 순서.
+ *    「지금 보고 있는 것」(캔버스 또는 확대된 노드)의 설명서로 등록한다.
+ *    등록 순서 = DOM 순서 = 설명서의 순서.
  *  - 단독 빌드(셸 없음 — ManualScope 없음): **원래 문단 그대로 그린다.**
  *    HCI 전달본(단독 빌드)의 화면이 이 개편으로 바뀌면 안 되기 때문이다.
  *
@@ -18,10 +19,19 @@
 
 import { createContext, useContext, useEffect, useRef, useSyncExternalStore, type ReactNode } from 'react';
 
-/** 설명서의 구역 — 탭 다섯 + 셸 공통. */
-export type ManualScopeId = 'debugger' | 'overview' | 'control' | 'metrics' | 'video' | 'shell';
+/**
+ * 설명서의 구역 (260903 3단계 — 탭 다섯에서 **캔버스 + 뷰 노드 4종**으로).
+ *
+ * `canvas` 는 캔버스 화면 자체(마일스톤·태스크 그래프·팔레트)이고, 넷은 확대된 뷰 노드다.
+ * 종류 id 는 `scenarios/axes.ts` 의 `ViewNodeKindId` 와 같은 어휘를 쓴다 —
+ * `verify:node-scope` 가 그 어휘가 갈라지지 않았는지 본다.
+ */
+export type ManualScopeId = 'canvas' | 'device-risk' | 'control' | 'metrics' | 'video' | 'shell';
 
-/** 셸이 탭마다 감싼다. 단독 빌드에는 제공자가 없다 — 그때 Explain 은 문단으로 그린다. */
+/**
+ * 셸이 캔버스를, 확대 오버레이가 그 노드를 감싼다. 단독 빌드에는 제공자가 없다 —
+ * 그때 Explain 은 원래 문단 그대로 그린다(HCI 전달본 보존).
+ */
 export const ManualScope = createContext<ManualScopeId | null>(null);
 
 type ManualEntry = {
@@ -47,7 +57,7 @@ export function manualEntries(scope: ManualScopeId): ManualEntry[] {
   return [...entries.values()].filter((entry) => entry.scope === scope).sort((a, b) => a.order - b.order);
 }
 
-/** 오버레이가 목록 변화(탭 전환·마운트)에 다시 그리도록 하는 구독. */
+/** 오버레이가 목록 변화(확대 열고 닫기·마운트)에 다시 그리도록 하는 구독. */
 export function useManualVersion(): number {
   return useSyncExternalStore(
     (listener) => {

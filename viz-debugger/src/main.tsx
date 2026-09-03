@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
   activateMission,
   displayMission,
@@ -15,6 +15,7 @@ import { viewNodeEntry } from './canvas/registry.ts';
 import { viewScopeFor } from './canvas/scope.ts';
 import { MISSION_SLOT } from './canvas/persist.ts';
 import { useCanvas } from './canvas/useCanvas.ts';
+import { setZoomTarget, useZoomTarget } from './canvas/zoomState.ts';
 import type { Task, TaskStatus } from './model/types.ts';
 import { PendingSource } from './shared/PendingSource.tsx';
 import { hardwareSourceLabel, listCastIds, listRegisteredHardware } from './shared/registry.ts';
@@ -96,7 +97,7 @@ function ReplayControls({ second, following, playing, onChange, onFollow, view, 
  */
 export type GraphScope = 'milestone' | 'mission';
 
-function GraphScreen({ screen, view, milestone, tasks, headSec, playing, layoutMode, onLayout, scope, onScope, refEdges, crossing, onOpen, onBack, onGraph, openTask }: {
+function GraphScreen({ screen, view, milestone, tasks, headSec, playing, layoutMode, onLayout, scope, onScope, refEdges, crossing, onOpen, onBack, onGraph, openTask, nodeRequest }: {
   screen: Screen; view: MissionView; milestone: MissionMilestone | null; tasks: Task[];
   headSec: number; playing: boolean;
   layoutMode: 'dag' | 'tree'; onLayout(value: 'dag' | 'tree'): void;
@@ -109,6 +110,11 @@ function GraphScreen({ screen, view, milestone, tasks, headSec, playing, layoutM
   onGraph(): void;
   /** 마지막 칸은 액션 아이템 팝업이 열려 있을 때만 나온다. */
   openTask: Task | null;
+  /**
+   * 대본 띠의 「○○ 노드로」 (260903 3단계). **없으면 만들고, 있으면 하이라이트한다.**
+   * 탭 시절에는 갈 곳이 이미 있어 이동만 하면 됐지만 노드는 캔버스에 아직 없을 수 있다.
+   */
+  nodeRequest: { kind: string; taskId: string | null; requestId: number } | null;
 }) {
   const replay = screen === 'replay'; const failure = screen === 'failure';
   /** 되감기 위치. null 이면 재생 머리를 따라간다(live). */
@@ -128,13 +134,61 @@ function GraphScreen({ screen, view, milestone, tasks, headSec, playing, layoutM
   const picked = tasks.find((task) => task.id === pickedTaskId) ?? null;
   /**
    * 확대된 뷰 노드 (260903 2단계 · `VZ-N-05`). **`activeTab` 류가 아니다** — 「몇 번째 탭」이
-   * 아니라 「어느 노드」이고, 문자열 하나라 한 번에 하나만 열린다(지시서 §6).
+   * 아니라 「어느 노드」이고, 값이 하나라 한 번에 하나만 열린다(지시서 §6).
+   *
+   * 3단계에 **모듈 저장소로 올렸다**(`canvas/zoomState.ts`) — 셸의 `?` 설명서가 「확대가
+   * 열려 있으면 그 노드의 설명서」를 보여야 하는데, 상태를 양쪽에 복제하면 갈라진다.
    * 범위를 옮기면(다른 마일스톤·임무) 그 노드가 화면에 없으므로 함께 닫는다.
    */
-  const [zoomedId, setZoomedId] = useState<string | null>(null);
-  useEffect(() => setZoomedId(null), [slot, view.missionId]);
+  const zoomTarget = useZoomTarget();
+  const zoomedId = zoomTarget?.id ?? null;
+  const setZoomedId = (id: string | null) => {
+    const node = id === null ? null : canvas.nodes.find((item) => item.id === id) ?? null;
+    setZoomTarget(node === null ? null : { id: node.id, kind: node.kind });
+  };
+  useEffect(() => { setZoomTarget(null); }, [slot, view.missionId]);
+  // 그래프를 떠나면(마일스톤 목록으로) 확대도 함께 닫는다 — 뒤에 캔버스가 없으면 오버레이만 남는다.
+  useEffect(() => () => setZoomTarget(null), []);
   const zoomedNode = canvas.nodes.find((node) => node.id === zoomedId) ?? null;
   const zoomedEntry = zoomedNode === null ? null : viewNodeEntry(zoomedNode.kind);
+
+  /**
+   * 안내줄이 가리킨 노드 — 잠깐 반짝인다. 만들어 주고 어디 생겼는지 말하지 않으면
+   * 사용자가 캔버스를 훑어야 한다.
+   */
+  const [highlightedId, setHighlightedId] = useState<string | null>(null);
+  useEffect(() => {
+    if (highlightedId === null) return;
+    const timer = setTimeout(() => setHighlightedId(null), 2600);
+    return () => clearTimeout(timer);
+  }, [highlightedId]);
+
+  /**
+   * 「○○ 노드로」 — **없으면 만들고(진행 중인 태스크에 연결한 채로), 있으면 하이라이트한다.**
+   * 사용자가 팔레트를 몰라도 배너가 가르쳐 주는 두 번째 진입점이다 (지시서 §3 ★).
+   *
+   * **두 걸음으로 나눈 이유**: 안내줄이 가리키는 태스크가 지금 보고 있는 마일스톤 **밖**일
+   * 수 있다. 그때 셸의 요청 한 번이 마일스톤 이동과 노드 요청을 함께 일으키는데, 이동 직후
+   * 첫 렌더에는 `canvas.nodes` 가 아직 **옛 마일스톤의 구성**이다. 거기서 바로 판정하면
+   * 「이미 있다」를 잘못 읽어 아무것도 안 뜬다. 그래서 요청을 일단 세워 두고(pending),
+   * 캔버스 구성이 그 슬롯 것으로 바뀐 다음 렌더에서 처리한다.
+   */
+  const requestSeen = useRef(0);
+  const [pendingNode, setPendingNode] = useState<{ kind: string; taskId: string | null } | null>(null);
+  useEffect(() => {
+    if (nodeRequest === null || nodeRequest.requestId === requestSeen.current) return;
+    requestSeen.current = nodeRequest.requestId;
+    setPendingNode({ kind: nodeRequest.kind, taskId: nodeRequest.taskId });
+  }, [nodeRequest?.requestId]);
+  useEffect(() => {
+    if (pendingNode === null) return;
+    // 같은 종류가 이미 있으면 만들지 않는다 — 누를 때마다 카드가 쌓이면 캔버스가 금세 지저분해진다.
+    const existing = canvas.nodes.find((node) => node.kind === pendingNode.kind) ?? null;
+    // 그 태스크가 지금 범위 안에 있을 때만 연결한다. 밖이면 전역 노드가 된다(강등과 같은 규칙).
+    const boundTask = tasks.some((task) => task.id === pendingNode.taskId) ? pendingNode.taskId : null;
+    setHighlightedId(existing !== null ? existing.id : canvas.add(pendingNode.kind, boundTask));
+    setPendingNode(null);
+  }, [pendingNode, canvas.nodes, tasks]);
   const canvasLayer = useMemo<CanvasLayer>(() => ({
     nodes: canvas.nodes,
     entryOf: viewNodeEntry,
@@ -147,7 +201,8 @@ function GraphScreen({ screen, view, milestone, tasks, headSec, playing, layoutM
     onRemove: canvas.remove,
     zoomedId,
     onZoom: setZoomedId,
-  }), [canvas.bind, canvas.move, canvas.nodes, canvas.remove, picked, second, view, zoomedId]);
+    highlightedId,
+  }), [canvas.bind, canvas.move, canvas.nodes, canvas.remove, highlightedId, picked, second, view, zoomedId]);
   const folded = useMemo(() => statusesAt(second, view), [second, view]);
   const failedTask = tasks.find((task) => folded.tasks[task.id]?.status === 'failed') ?? null;
   const title = scope === 'mission'
@@ -181,7 +236,17 @@ function GraphScreen({ screen, view, milestone, tasks, headSec, playing, layoutM
     {zoomedNode !== null && zoomedEntry !== null && <ZoomOverlay entry={zoomedEntry} scope={viewScopeFor(zoomedNode.taskId, view, second)} taskId={zoomedNode.taskId} onClose={() => setZoomedId(null)} />}</div>;
 }
 
-export type DebuggerNavigation = { screen: 'milestones' | 'replay'; requestId: number };
+/**
+ * 셸 → 캔버스 요청 (260903 3단계에 `node` 가 늘었다).
+ *
+ * `node` 는 대본 띠의 「○○ 노드로」다 — 그 태스크가 든 마일스톤으로 데려간 다음, 캔버스에
+ * 그 종류가 없으면 만들고 있으면 하이라이트한다. 셸은 캔버스 안을 모른 채 **요청만** 넣는다.
+ */
+export type DebuggerNavigation = {
+  screen: 'milestones' | 'replay' | 'node';
+  requestId: number;
+  node?: { kind: string; taskId: string | null };
+};
 
 /**
  * `planApproval` — VZ-U-07 승인·거부 패널. **통합 셸이 프롭으로 넣는다.**
@@ -206,6 +271,8 @@ export function MissionDebugger({ navigation, planApproval }: { navigation?: Deb
   const [modalTask, setModalTask] = useState<Task | null>(null);
   const [assignments, setAssignments] = useState<Record<string, string[]>>({});
   const [milestoneId, setMilestoneId] = useState<string | null>(null);
+  /** 셸이 넣은 「○○ 노드로」 요청. 그래프 화면이 처리한다. */
+  const [nodeRequest, setNodeRequest] = useState<{ kind: string; taskId: string | null; requestId: number } | null>(null);
 
   // 임무가 바뀌면(대본 승인) 한 편에 묶였던 화면 상태를 처음으로 되돌린다.
   useEffect(() => { setScreen('milestones'); setModalTask(null); setAssignments({}); setMilestoneId(null); setScope('milestone'); }, [view.missionId]);
@@ -243,7 +310,19 @@ export function MissionDebugger({ navigation, planApproval }: { navigation?: Deb
     setModalTask(next === 'detail' ? graphTasks[0] ?? null : next === 'failure' ? graphTasks.find((task) => statusesAt(display.headSec, view).tasks[task.id]?.status === 'failed') ?? null : null);
   };
   const openTask = (task: Task, failed: boolean) => { setModalTask(task); setScreen(failed ? 'failure' : 'detail'); };
-  useEffect(() => { if (navigation) navigate(navigation.screen); }, [navigation?.requestId]);
+  useEffect(() => {
+    if (!navigation) return;
+    if (navigation.screen !== 'node') { navigate(navigation.screen); return; }
+    // 「○○ 노드로」 — 진행 중인 태스크가 든 마일스톤의 캔버스로 데려간다. 그 태스크가 어느
+    // 마일스톤인지는 여기서만 알 수 있다(셸은 임무 구조를 모른다).
+    const request = navigation.node;
+    if (request === undefined) return;
+    const owner = view.tasks.find((task) => task.id === request.taskId) ?? null;
+    if (owner?.milestone !== undefined) setMilestoneId(owner.milestone);
+    setScope('milestone');
+    navigate('graph');
+    setNodeRequest({ ...request, requestId: navigation.requestId });
+  }, [navigation?.requestId]);
 
   const firstFailed = graphTasks.find((task) => statusesAt(display.headSec, view).tasks[task.id]?.status === 'failed') ?? null;
 
@@ -254,7 +333,8 @@ export function MissionDebugger({ navigation, planApproval }: { navigation?: Deb
       // 범위도 함께 되돌린다: 「임무 전체」로 보다 목록으로 나갔다 다시 들어왔는데 전체로 남아 있으면 어리둥절하다.
       onBack={() => { setScope('milestone'); navigate('milestones'); }}
       onGraph={() => navigate('graph')}
-      openTask={modalTask} />}
+      openTask={modalTask}
+      nodeRequest={nodeRequest} />}
     {modalTask && <ActionModal task={modalTask} view={view} device={listRegisteredHardware().find((item) => item.id === modalTask.target)} failure={screen === 'failure'} onClose={() => { setModalTask(null); if (screen === 'detail') setScreen('graph'); }} />}
     {screen === 'failure' && !modalTask && firstFailed && <button className="failure-open" onClick={() => setModalTask(firstFailed)}>실패 수정 팝업 열기</button>}</div>;
 }

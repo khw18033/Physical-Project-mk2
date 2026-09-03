@@ -35,7 +35,8 @@ export type CanvasApi = {
   writable: boolean;
   /** 되돌릴 사용자 구성이 있는가 (층 ③ 버튼을 켤지). */
   restorable: boolean;
-  add(kind: ViewNodeKind, taskId: string | null): void;
+  /** 만든 노드의 id 를 돌려준다 — 대본 띠가 「없으면 만들고 하이라이트」에 쓴다 (260903). */
+  add(kind: ViewNodeKind, taskId: string | null): string;
   remove(id: string): void;
   bind(id: string, taskId: string | null): void;
   move(id: string, position: { x: number; y: number }): void;
@@ -80,6 +81,7 @@ export function useCanvas(missionId: string, slot: string, tasks: readonly Task[
   const add = useCallback((kind: ViewNodeKind, taskId: string | null) => {
     const node: ViewNodeInstance = { id: newId(kind), kind, taskId, x: null, y: null };
     commit({ ...configRef.current, nodes: [...configRef.current.nodes, node] });
+    return node.id;
   }, [commit]);
 
   const remove = useCallback((id: string) => {

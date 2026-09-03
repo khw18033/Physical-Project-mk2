@@ -1,10 +1,10 @@
 /**
  * src/scenarios/axes.ts (260831 — 사이트 개선 요구 2 · 260901 — 축→탭 표)
  *
- * 대본이 실제로 몰아 주는 **축**의 유도 규칙과 **축→탭·패널→축 표** — 여기 하나뿐이다.
+ * 대본이 실제로 몰아 주는 **축**의 유도 규칙과 **축→노드·패널→축 표** — 여기 하나뿐이다.
  *
  * **이 파일은 대본 목록(library.ts)을 import 하지 않는다.** 규칙과 표만 있고 「어느 편이
- * 이 축을 미는가」 같은 조회는 옆의 `scriptScope.ts` 에 있다. 그래야 `verify:tab-scope` 가
+ * 이 축을 미는가」 같은 조회는 옆의 `scriptScope.ts` 에 있다. 그래야 `verify:node-scope` 가
  * 이 파일을 Node 에서 그대로 읽어 표를 검사할 수 있다(브라우저 번들의 JSON import 는
  * Node ESM 에서 import attribute 없이 열리지 않는다).
  *
@@ -73,42 +73,43 @@ export function axesOfScript(script: ScriptScenario): ReadonlySet<ScenarioAxis> 
   return axes;
 }
 
-// ── 축 → 탭 (260901 — 시나리오가 탭을 끌고 가게) ───────────────────────────────
+// ── 축 → 뷰 노드 종류 (260901 축→탭 · 260903 3단계에서 노드로) ──────────────────
 //
-// **표는 여기 하나뿐이다.** 축을 화면 세 층(탭 바 흐림 · 패널 접힘 · 안내줄의 「갈 탭」)이
-// 각자 손으로 적으면 갈라진다 — 이 저장소가 계속 피해 온 실패다. `verify:tab-scope` 가
+// **표는 여기 하나뿐이다.** 축을 화면 세 층(팔레트 흐림 · 노드 접힘 · 안내줄의 「갈 노드」)이
+// 각자 손으로 적으면 갈라진다 — 이 저장소가 계속 피해 온 실패다. `verify:node-scope` 가
 // 이 표와 아래 패널 표의 아귀가 맞는지 검사한다.
 //
-// 탭 id 를 여기에 두는 이유: `AppShell` 의 `AppTab` 을 가져오면 `scenarios/` 가 셸에
-// 의존하게 되고, 이 파일은 `PendingSource` 를 통해 **탭① 단독 빌드의 의존 그래프 안**에
-// 있다(verify:standalone). 그래서 셸이 이 타입을 가져다 쓴다 — 반대가 아니다.
+// **탭이 사라져도 표의 구조는 그대로다.** 오른쪽 칸이 탭 id 에서 뷰 노드 종류로 바뀌었을
+// 뿐이고 대응 자체는 한 글자도 바뀌지 않았다 — 탭②가 장치·위험 노드로, 탭③이 제어 노드로,
+// 탭④가 지표 노드로, 탭⑤가 영상 노드로 그대로 옮겨 앉았다.
+//
+// 종류 id 를 여기 두는 이유: 렌더러 목록(`tabs/viewNodes.tsx`)을 가져오면 `scenarios/` 가
+// `tabs/` 에 의존하게 되고, 이 파일은 `PendingSource` 를 통해 **단독 빌드의 의존 그래프
+// 안**에 있다(verify:standalone). 그래서 **id 만** 여기 두고 **이름(label)은 두지 않는다** —
+// 이름의 원천은 등록된 렌더러다(`VZ-N-01`). `verify:node-scope` 가 둘을 대조한다.
 
-export type ScenarioTab = 'debugger' | 'overview' | 'control' | 'metrics' | 'video';
+export type ViewNodeKindId = 'device-risk' | 'control' | 'metrics' | 'video';
 
-export const TAB_LABEL: Record<ScenarioTab, string> = {
-  debugger: '① 임무 설계 및 디버깅',
-  overview: '② 구역 현황판',
-  control: '③ 제어 패널',
-  metrics: '④ 지표 조회',
-  video: '⑤ 영상 오버레이',
-};
+/** 표에 등장하는 종류들. 등록된 렌더러와 어긋나면 `verify:node-scope` 가 잡는다. */
+export const SCENARIO_NODE_KINDS: readonly ViewNodeKindId[] = ['device-risk', 'control', 'metrics', 'video'];
 
 /**
- * 이 축이 나타나는 탭. 탭①은 **임무 축**이라 어느 대본에서든 늘 산다 — 그래서 이 표에 없다
- * (`tabsOfAxes()` 가 항상 얹는다).
+ * 이 축이 나타나는 뷰 노드. **실행 노드(태스크 그래프)는 이 표에 없다** — 임무 축이라
+ * 어느 대본에서든 늘 살아 있고 접힘 판정의 대상이 아니다. 탭 시절 탭①이 표에 없던 것과
+ * 같은 이유다.
  *
- * `risk`·`observability` 는 어느 대본도 몰지 않는 축이지만 **탭은 적는다** — 그 축을 담은
- * 패널이 어느 탭에 있는지가 이 표에서 나와야 아래 패널 표와 대조할 수 있다.
+ * `risk`·`observability` 는 어느 대본도 몰지 않는 축이지만 **노드는 적는다** — 그 축을 담은
+ * 패널이 어느 노드에 있는지가 이 표에서 나와야 아래 패널 표와 대조할 수 있다.
  */
-export const AXIS_TABS: Record<ScenarioAxis, readonly ScenarioTab[]> = {
-  position: ['overview'],
+export const AXIS_NODES: Record<ScenarioAxis, readonly ViewNodeKindId[]> = {
+  position: ['device-risk'],
   speed: ['metrics'],
-  water: ['overview', 'metrics'],
-  coverage: ['overview', 'metrics'],
+  water: ['device-risk', 'metrics'],
+  coverage: ['device-risk', 'metrics'],
   video: ['video'],
   actuator: ['control'],
   command: ['control'],
-  risk: ['overview'],
+  risk: ['device-risk'],
   observability: ['metrics'],
 };
 
@@ -122,7 +123,8 @@ export const AXIS_TABS: Record<ScenarioAxis, readonly ScenarioTab[]> = {
 export type ScenarioPanelSpec = {
   /** 화면(PanelGate)과 검사가 같이 쓰는 식별자. */
   id: string;
-  tab: ScenarioTab;
+  /** 이 패널이 사는 뷰 노드 (260903 — `tab` 이었다). */
+  node: ViewNodeKindId;
   /** 접힘 카드에 적을 이름. */
   title: string;
   /** 이 축들 중 **하나라도** 대본이 몰면 패널이 산다. */
@@ -132,13 +134,13 @@ export type ScenarioPanelSpec = {
 };
 
 export const SCENARIO_PANELS: readonly ScenarioPanelSpec[] = [
-  { id: 'risk', tab: 'overview', title: '상황 판단 · 설명가능성', axes: ['risk'], why: '위험도 판정은 AI 파트(VZ-I-08) 몫이라 어느 대본도 몰지 않습니다.' },
-  { id: 'zone-map', tab: 'overview', title: '구역 맵 미니뷰', axes: ['coverage', 'position'], why: '이 편에는 움직이는 궤적도 커버리지 맵도 없습니다.' },
-  { id: 'device-grid', tab: 'overview', title: '구역 장치 현황판', axes: ['position', 'water'], why: '이 편은 구역 장치의 값을 몰지 않습니다.' },
-  { id: 'control', tab: 'control', title: '제어 · 명령 결과 · 감사 이력', axes: ['actuator', 'command'], why: '이 편에는 액추에이터 명령이 없습니다.' },
-  { id: 'metrics-query', tab: 'metrics', title: '지표 조회', axes: ['speed', 'water', 'coverage'], why: '이 편이 미는 도메인 지표가 없습니다.' },
-  { id: 'metrics-push', tab: 'metrics', title: '평시 관측 지표', axes: ['observability'], why: '관측 지표는 평시 ObservabilityEmitter 몫이라 어느 대본도 몰지 않습니다.' },
-  { id: 'video', tab: 'video', title: '영상 · 탐지 오버레이', axes: ['video'], why: '이 편에는 카메라 시야에 드는 대상이 없습니다.' },
+  { id: 'risk', node: 'device-risk', title: '상황 판단 · 설명가능성', axes: ['risk'], why: '위험도 판정은 AI 파트(VZ-I-08) 몫이라 어느 대본도 몰지 않습니다.' },
+  { id: 'zone-map', node: 'device-risk', title: '구역 맵 미니뷰', axes: ['coverage', 'position'], why: '이 편에는 움직이는 궤적도 커버리지 맵도 없습니다.' },
+  { id: 'device-grid', node: 'device-risk', title: '구역 장치 현황판', axes: ['position', 'water'], why: '이 편은 구역 장치의 값을 몰지 않습니다.' },
+  { id: 'control', node: 'control', title: '제어 · 명령 결과 · 감사 이력', axes: ['actuator', 'command'], why: '이 편에는 액추에이터 명령이 없습니다.' },
+  { id: 'metrics-query', node: 'metrics', title: '지표 조회', axes: ['speed', 'water', 'coverage'], why: '이 편이 미는 도메인 지표가 없습니다.' },
+  { id: 'metrics-push', node: 'metrics', title: '평시 관측 지표', axes: ['observability'], why: '관측 지표는 평시 ObservabilityEmitter 몫이라 어느 대본도 몰지 않습니다.' },
+  { id: 'video', node: 'video', title: '영상 · 탐지 오버레이', axes: ['video'], why: '이 편에는 카메라 시야에 드는 대상이 없습니다.' },
 ];
 
 const PANEL_BY_ID = new Map(SCENARIO_PANELS.map((spec) => [spec.id, spec]));
@@ -155,19 +157,22 @@ export function panelAlive(spec: ScenarioPanelSpec, axes: ReadonlySet<ScenarioAx
   return spec.axes.some((axis) => axes.has(axis));
 }
 
-/** 이 축들을 미는 대본이 쓰는 탭. **탭①은 임무 축이라 늘 들어간다.** */
-export function tabsOfAxes(axes: ReadonlySet<ScenarioAxis>): ReadonlySet<ScenarioTab> {
-  const tabs = new Set<ScenarioTab>(['debugger']);
-  for (const axis of axes) for (const tab of AXIS_TABS[axis]) tabs.add(tab);
-  return tabs;
+/**
+ * 이 축들을 미는 대본이 쓰는 뷰 노드. **실행 노드는 여기 없다** — 늘 살아 있어 판정 대상이
+ * 아니다(탭 시절 `tabsOfAxes()` 가 항상 얹던 `debugger` 가 사라진 자리다).
+ */
+export function nodeKindsOfAxes(axes: ReadonlySet<ScenarioAxis>): ReadonlySet<ViewNodeKindId> {
+  const kinds = new Set<ViewNodeKindId>();
+  for (const axis of axes) for (const kind of AXIS_NODES[axis]) kinds.add(kind);
+  return kinds;
 }
 
-/** 대본 하나가 쓰는 탭. 옛 편(축 없음)은 탭①만 — 구판 세계 안내가 따로 뜬다. */
-export function tabsOfScript(script: ScriptScenario): ReadonlySet<ScenarioTab> {
-  return tabsOfAxes(axesOfScript(script));
+/** 대본 하나가 쓰는 뷰 노드. 옛 편(축 없음)은 하나도 없다 — 구판 세계 안내가 따로 뜬다. */
+export function nodeKindsOfScript(script: ScriptScenario): ReadonlySet<ViewNodeKindId> {
+  return nodeKindsOfAxes(axesOfScript(script));
 }
 
-/** 이 탭이 담은 패널들 — 탭 본문을 통째로 한 장으로 대체할지 판정할 재료. */
-export function panelsOfTab(tab: ScenarioTab): ScenarioPanelSpec[] {
-  return SCENARIO_PANELS.filter((spec) => spec.tab === tab);
+/** 이 노드가 담은 패널들 — 노드 본문을 통째로 한 장으로 대체할지 판정할 재료. */
+export function panelsOfNode(kind: ViewNodeKindId): ScenarioPanelSpec[] {
+  return SCENARIO_PANELS.filter((spec) => spec.node === kind);
 }

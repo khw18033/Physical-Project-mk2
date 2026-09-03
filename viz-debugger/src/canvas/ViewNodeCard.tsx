@@ -22,7 +22,7 @@ function spanLabel(scope: ViewScope): string {
   return `T+${Math.round(scope.fromSec)}~${Math.round(scope.toSec)}s`;
 }
 
-export function ViewNodeCard({ node, entry, scope, position, picked, zoomed, onPointerDown, onBind, onRemove, onZoom }: {
+export function ViewNodeCard({ node, entry, scope, position, picked, zoomed, highlighted, onPointerDown, onBind, onRemove, onZoom }: {
   node: ViewNodeInstance;
   /** 등록되지 않은 종류면 null — 저장된 구성이 다른 빌드에서 만들어졌을 때다. */
   entry: ViewNodeEntry | null;
@@ -33,6 +33,11 @@ export function ViewNodeCard({ node, entry, scope, position, picked, zoomed, onP
   /** 이 노드가 지금 확대돼 있는가 (260903 2단계). 카드는 **그대로 남는다** — 확대가
    *  캔버스를 교체하지 않는다는 것이 화면에서도 보여야 한다. */
   zoomed: boolean;
+  /**
+   * 대본 띠의 「○○ 노드로」가 방금 이 카드를 가리켰는가 (260903 3단계).
+   * 만들어 준 노드가 캔버스 어디에 생겼는지 말해 주지 않으면 사용자가 찾아야 한다.
+   */
+  highlighted: boolean;
   onPointerDown(event: ReactPointerEvent<HTMLDivElement>): void;
   onBind(taskId: string | null): void;
   onRemove(): void;
@@ -40,7 +45,7 @@ export function ViewNodeCard({ node, entry, scope, position, picked, zoomed, onP
 }) {
   const bound = node.taskId !== null;
   return <div
-    className={`view-node ${bound ? 'view-node--bound' : 'view-node--global'}${zoomed ? ' view-node--zoomed' : ''}`}
+    className={`view-node ${bound ? 'view-node--bound' : 'view-node--global'}${zoomed ? ' view-node--zoomed' : ''}${highlighted ? ' view-node--flash' : ''}`}
     style={{ left: position.x, top: position.y }}
     onPointerDown={onPointerDown}
     // 확대는 **더블클릭**이다 (확정된 결정 2). 아래 ⤢ 버튼은 같은 길의 보이는 입구다 —
