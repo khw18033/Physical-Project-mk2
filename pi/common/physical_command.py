@@ -2,8 +2,7 @@
 """
 피지컬팀 mk2 — 물리 명령 통신 규약 서버 (Interface Specification 준수)
 ========================================================================
-받은 통신 규약을 그대로 구현한다. 기존 commands.py(JSON·종류별 토픽·4단계 stage)와
-달리 이건 규약 정본:
+받은 통신 규약을 그대로 구현한 명령 경로 정본이다(구 JSON 4단계 엔진은 폐기).
 
   전송   MQTT 5 / payload = PhysicalCommandEnvelope(protobuf) 직렬화 바이트
   토픽   terminal/<device-id>/downlink (엣지→장치, 구독)
@@ -40,19 +39,37 @@ PB = pb.PhysicalCommandEnvelope
 TS = pb.TerminalStatus
 
 
-class CommandError(Exception):
-    """수행 불가. code 는 gRPC 관례(INVALID_ARGUMENT/FAILED_PRECONDITION/
-    UNIMPLEMENTED/PERMISSION_DENIED/RESOURCE_EXHAUSTED/ALREADY_EXISTS)."""
+# gRPC 상태 코드(규약이 요구하는 어휘). 코드 없이 사유만 던진 raise 를
+# 봉투로 번역할 때 "이게 코드인가 메시지인가"를 이 집합으로 가른다.
+GRPC_CODES = frozenset({
+    "OK", "CANCELLED", "UNKNOWN", "INVALID_ARGUMENT", "DEADLINE_EXCEEDED",
+    "NOT_FOUND", "ALREADY_EXISTS", "PERMISSION_DENIED", "RESOURCE_EXHAUSTED",
+    "FAILED_PRECONDITION", "ABORTED", "OUT_OF_RANGE", "UNIMPLEMENTED",
+    "INTERNAL", "UNAVAILABLE", "DATA_LOSS", "UNAUTHENTICATED",
+})
 
-    def __init__(self, code, message=""):
-        super().__init__(f"{code}: {message}")
+
+class CommandError(Exception):
+    """수행 불가. 규약 코드는 gRPC 관례를 쓴다.
+
+    두 가지 호출을 모두 받는다:
+      CommandError("FAILED_PRECONDITION", "battery too low")  # 코드+메시지(권장)
+      CommandError("battery_too_low")                          # 사유만 - 코드는 기본값
+    사유만 준 경우 그 문자열을 메시지로 삼고 코드는 FAILED_PRECONDITION 으로 둔다
+    (규약상 "지금은 수행 불가"의 일반 코드). 단, 사유 자리에 gRPC 코드 문자열이
+    오면 그대로 코드로 인식한다."""
+
+    def __init__(self, code, message=None):
+        if message is None and code not in GRPC_CODES:
+            message, code = code, "FAILED_PRECONDITION"
         self.code = code
-        self.message = message
+        self.message = message or ""
+        super().__init__(f"{self.code}: {self.message}")
 
 
 def _err(e, default_code):
     """예외에서 (code, message) 를 뽑는다. code(str) 속성이 있으면 그대로 —
-    이 모듈의 CommandError 든 레거시 commands.CommandError 든 동일하게 다룬다."""
+    노드가 CommandError("사유")처럼 코드 없이 던져도 안전하게 다룬다."""
     code = getattr(e, "code", None)
     if not isinstance(code, str):
         code = default_code

@@ -63,7 +63,7 @@ class _Noop:
 
 
 class _CmdTrace:
-    """명령 한 건의 span 사슬. CommandEngine 스레드 경계(수신 콜백 → 워커)를
+    """명령 한 건의 span 사슬. 규약 서버 스레드 경계(수신 콜백 → 실행 워커)를
     큐에 실려 넘어가므로, 컨텍스트를 스레드 로컬이 아니라 이 객체가 든다."""
 
     def __init__(self, tracer, cmd):

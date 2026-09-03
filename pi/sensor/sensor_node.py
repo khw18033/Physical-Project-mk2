@@ -25,7 +25,8 @@ import time
 from collections import deque
 
 from common import config, node
-from common.commands import BASE_ACTIONS, CommandError
+from common.base_actions import BASE_ACTIONS
+from common.physical_command import CommandError
 from common.node import BaseNode
 from common.schema import envelope
 from common.spool import CONTINUOUS, EVENT
@@ -158,7 +159,7 @@ class SensorNode(BaseNode):
     def _act_set_mode(self, params):
         mode = params.get("mode")
         if mode not in ("normal", "event", "auto"):
-            raise CommandError("invalid_mode")
+            raise CommandError("INVALID_ARGUMENT", "invalid_mode")
         yield "executing", {"mode": mode}
         if mode == "auto":
             self.set_mode("event" if self.alert else "normal", "auto")
@@ -170,9 +171,9 @@ class SensorNode(BaseNode):
         try:
             sec = float(params.get("seconds"))
         except (TypeError, ValueError):
-            raise CommandError("invalid_seconds")
+            raise CommandError("INVALID_ARGUMENT", "invalid_seconds")
         if not 0.1 <= sec <= 3600:
-            raise CommandError("out_of_range")
+            raise CommandError("OUT_OF_RANGE", "out_of_range")
         yield "executing", {"seconds": sec}
         self.set_mode("custom", "command", interval=sec)
         yield "completed", {"report_interval_s": sec}
@@ -183,7 +184,7 @@ class SensorNode(BaseNode):
         상태 변화(state_changed)로 확정을 표시해야 한다(BE-X-03)."""
         pos = params.get("position")
         if pos not in ("open", "close"):
-            raise CommandError("invalid_position")
+            raise CommandError("INVALID_ARGUMENT", "invalid_position")
         yield "executing", {"position": pos}
         time.sleep(2)                                  # 구동 시간 (HW-A-04 진행 보고 자리)
         yield "state_changed", {"position": pos}

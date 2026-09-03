@@ -1,8 +1,8 @@
 # HW ↔ 백엔드 인터페이스 조율 정리 — 물리 명령 통신 규약
 
 > 대상: 백엔드 확정 「물리 명령 통신 규약(Interface Specification)」 (MQTT5 + Protobuf)
-> 담당: HW 파트 · 갱신: 2026-09-03 · 브랜치: `HW`
-> 관련 커밋: `329ccdb`(구현·검증·배포), `538cbb4`(진행 로그)
+> 담당: HW 파트 · 갱신: 2026-09-03(2차: 레거시 폐기) · 브랜치: `HW`
+> 관련 커밋: `329ccdb`(구현·검증·배포), `e399685`(문서), 레거시 폐기 커밋(아래)
 
 이 폴더는 규약을 HW 말단 노드에 맞춰 조율한 결과를 한곳에 모은 것이다.
 "무엇을 어떻게 지켰는가"를 **근거 코드 라인**과 **실측 검증**으로 남긴다.
@@ -12,7 +12,8 @@
 ## 1. 결론 요약
 
 - 규약의 미준수 항목(형식·행동 규칙)을 **전부 해소**했다.
-- 기존 레거시 JSON 명령 엔진은 **그대로 두고**, 규약을 지키는 **새 경로를 정본으로 병행 신설**했다.
+- 기존 레거시 JSON 명령 엔진(`CommandEngine`, `/cmd` 토픽, 4단계 stage)은 **완전히 폐기**하고,
+  규약을 지키는 경로만 남겼다(2026-09-03 조율 2차).
 - 로컬 → 온디바이스 → **라이브 브로커 E2E** 3단계로 검증했다.
 - pi1(`sensor-node.service`)에 배포되어 부팅 시 `terminal/<id>/downlink` 구독 + Capability 발행이 동작한다.
 
@@ -23,7 +24,8 @@
 | 규약 스키마(정본) | `schema/physical_command.proto` |
 | 컴파일 산출 | `pi/common/physical_command_pb2.py` |
 | 규약 서버 | `pi/common/physical_command.py` (`PhysicalCommandServer`) |
-| 노드 연동 | `pi/common/node.py` (레거시와 병행) |
+| 노드 연동 | `pi/common/node.py` (규약 경로 전용) |
+| 공통 명령 어휘 | `pi/common/base_actions.py` (ping/diag — 모든 노드 공유) |
 | 검증 | `pi/bench/physical_command_test.py`, `pi/bench/physical_command_node_test.py` |
 
 ---
@@ -68,18 +70,31 @@
 
 ---
 
-## 4. 조율 방식 — 왜 "병행"인가
+## 4. 조율 방식 — 레거시 폐기, 규약 경로 전용
 
-레거시 명령 엔진(`pi/common/commands.py`, JSON·종류별 토픽·4단계 stage)은 이미 다른 소비자와
-관측 파이프라인이 물려 있다. 이를 한 번에 걷어내면 기존 기능이 끊긴다. 그래서:
+1차 조율에서는 레거시 JSON 엔진과 규약 경로를 병행시켰으나, **2차 조율에서 레거시를 완전히 폐기**했다
+(규약대로만 진행). 제거·존치 내역:
 
-- 규약 서버를 **별도 토픽 네임스페이스**(`terminal/<id>/…`)로 신설해 레거시(`{zone}/{type}/{id}/cmd…`)와 충돌 없이 공존.
-- `pi/common/node.py` 가 수신 토픽으로 라우팅: downlink → 규약 서버, `{base}/cmd` → 레거시.
-- 명령 어휘(`owner.ACTIONS`)·검증(`owner.validate`)은 **양쪽이 그대로 공유** — 규약 서버가
-  레거시 owner 인터페이스를 재사용(예외는 duck-type 으로 흡수해 `CommandError` 클래스 차이 무해화).
-- publish/subscribe 는 어댑터로 주입 → 재접속으로 MQTT client 가 갈려도 항상 현재 것을 사용.
+**폐기**
+- `pi/common/commands.py`(`CommandEngine`) — JSON·`{zone}/{type}/{id}/cmd·cmd/ack·cmd/result`·4단계 stage.
+- `pi/bench/trace_test.py` — 그 엔진을 검사하던 테스트.
+- `pi/common/node.py` 의 `{base}/cmd` 구독·라우팅.
 
-> 결과: 규약 준수는 **새 경로가 정본**으로 담당하고, 레거시는 하위호환으로 유지된다.
+**존치(규약 서버가 그대로 재사용)**
+- `pi/common/base_actions.py` — 공통 명령 어휘(`ping`/`diag`). `commands.py` 에서 분리해 옮김.
+- 각 노드의 `owner.ACTIONS`/`validate`/`(stage, detail)` 제너레이터 핸들러 — 명령 엔진과 무관한 순수 로직.
+- `CommandError` — `physical_command.py` 로 **단일 정본화**. `CommandError("사유")`(1-인자)와
+  `CommandError("CODE","메시지")`(2-인자)를 모두 받아, 1-인자는 기본 코드(`FAILED_PRECONDITION`)로 안전 변환.
+
+**정밀화**
+- 각 노드의 `raise CommandError("reason")` 24건을 gRPC 코드로 승격
+  (예: `invalid_mode`→`INVALID_ARGUMENT`, `out_of_range`→`OUT_OF_RANGE`, `battery_too_low`→`FAILED_PRECONDITION`,
+  `travel_timeout`→`DEADLINE_EXCEEDED`).
+
+> 결과: 명령 경로는 **규약 경로 하나뿐**. 다른 토픽으로 온 메시지는 무시된다.
+
+> 주의(관측): 레거시 엔진이 쓰던 명령 trace(otel_trace)는 현재 규약 서버에 연결돼 있지 않다.
+> 명령 trace 연속성이 필요하면 별도 과제로 규약 서버에 tracer 를 물린다.
 
 ---
 
@@ -89,7 +104,7 @@
    §6 예시 흐름 전부 + §5 규칙 전부. 실제 Protobuf 직렬화/역직렬화로 바이트 수준 확인.
    - 6(a) 성공, 6(b) 미선언 거부, 6(c) 취소, 6(d) 재전송, ①ALREADY_EXISTS, ②deadline,
      ③취소 우선, ④UNIMPLEMENTED, Capability, uplink 방향 규칙 → **전부 통과**.
-   - 노드 연동 (`bench/physical_command_node_test.py`): 규약/레거시 병행 + 재접속 안전 → **통과**.
+   - 노드 연동 (`bench/physical_command_node_test.py`): 규약 경로 전용(레거시 `{base}/cmd` 미구독·무응답) + 재접속 안전 → **통과**.
 
 2. **온디바이스** (pi1, protobuf 7.36.1 / Python 3.13 / aarch64)
    위 두 벤치 동일 실행 → **전부 통과**.
@@ -98,6 +113,8 @@
    실제 downlink 로 Protobuf Command 발행, uplink 관찰:
    - `ping` → `acceptance{accepted=true}` → `status(EXECUTING)`×2 → `result{SUCCEEDED, uptime_s}`
    - `teleport`(미선언) → `acceptance{accepted=false, UNIMPLEMENTED}`, result 없음
+   - (2차) `set_report_interval(2.0)`→`SUCCEEDED{report_interval_s:2.0}`,
+     `set_report_interval(99999)`→`ABORTED{failure.code=OUT_OF_RANGE}` — 승격된 gRPC 코드가 종단까지 전달됨 확인.
    → 규약대로 동작 **확인**.
 
 재현:
@@ -121,12 +138,14 @@ python -m bench.physical_command_node_test
 
 ## 7. 백엔드와 확인/합의가 필요한 사항
 
-1. **레거시 경로 존치 여부** — 규약 정본 경로는 완비됐고, 레거시 JSON `cmd` 경로는 하위호환으로 병행 중.
-   백엔드가 규약 경로만 사용한다면 레거시를 단계적으로 폐기할 수 있다. (요청 시 정리)
+1. ~~레거시 경로 존치 여부~~ — **완료**. 레거시 JSON `cmd` 경로를 완전히 폐기하고 규약 경로만 남겼다(2차 조율).
 2. **device-id ↔ target 규칙** — 현재 `terminal/<device-id>` 의 device-id 는 노드 `entity_id`(예 `wl-001`)를 사용.
    `Command.target` 과 device-id 의 관계(동일/매핑) 확정 필요.
-3. **parameters/result 타입** — 규약 `map<string,double>` 기준으로 구현. 문자열/열거형 파라미터가 필요하면 스키마 확장 협의.
+3. **parameters/result 타입** — 규약 `map<string,double>` 기준으로 구현. 이 때문에 **문자열 파라미터를 쓰는 명령은
+   현재 규약 경로로 호출 불가**(예: 센서 `set_mode(mode="normal")`, `levee(position="open")`). double 파라미터 명령
+   (`set_report_interval(seconds=..)`)은 정상. 문자열/열거형 파라미터가 필요하면 스키마 확장 협의 필요 — **우선순위 높음**.
 4. **배포 경로 표준화** — 저장소 systemd 유닛 기본 경로가 실제 배치(`~/hw/pi`)와 달라 재구축 시 재발 소지. 표준화 대상.
+5. **명령 trace 연속성** — 폐기된 레거시 엔진이 담당하던 otel 명령 span 이 규약 서버엔 아직 없다. 필요 시 연결.
 
 ---
 
@@ -135,8 +154,11 @@ python -m bench.physical_command_node_test
 ```
 schema/physical_command.proto              규약 스키마(정본)
 pi/common/physical_command_pb2.py          컴파일 산출
-pi/common/physical_command.py              PhysicalCommandServer
-pi/common/node.py                          노드 연동(레거시 병행)
+pi/common/physical_command.py              PhysicalCommandServer + CommandError(정본)
+pi/common/base_actions.py                  공통 명령 어휘(ping/diag)
+pi/common/node.py                          노드 연동(규약 경로 전용)
 pi/bench/physical_command_test.py          §5·§6 검증
-pi/bench/physical_command_node_test.py     노드 연동·재접속 검증
+pi/bench/physical_command_node_test.py     노드 연동·레거시 폐기·재접속 검증
+
+폐기: pi/common/commands.py, pi/bench/trace_test.py
 ```

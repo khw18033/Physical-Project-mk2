@@ -26,7 +26,8 @@ import time
 from actuator import actuator_link
 from actuator.actuator_link import DONE, ERROR, IDLE, MOVING, UNKNOWN
 from common import config, node, schema
-from common.commands import BASE_ACTIONS, CommandError
+from common.base_actions import BASE_ACTIONS
+from common.physical_command import CommandError
 from common.node import BaseNode
 from common.schema import envelope
 from common.spool import CONTINUOUS, EVENT
@@ -183,15 +184,15 @@ class ActuatorNode(BaseNode):
     def _guard(self, device, target):
         """HW-A-03: 수행할 수 없으면 즉시 거부 사유를 돌려준다."""
         if self.locked:
-            raise CommandError(f"control_locked:{self.lock_reason}")
+            raise CommandError("FAILED_PRECONDITION", f"control_locked:{self.lock_reason}")
         if device not in DEVICES:
-            raise CommandError("unknown_device")
+            raise CommandError("INVALID_ARGUMENT", "unknown_device")
         if target not in DEVICES[device]:
-            raise CommandError("invalid_target")
+            raise CommandError("INVALID_ARGUMENT", "invalid_target")
         if self.state is None or not self.state.feedback_ok:
-            raise CommandError("feedback_unavailable")
+            raise CommandError("FAILED_PRECONDITION", "feedback_unavailable")
         if self.state.state == MOVING:
-            raise CommandError("busy")
+            raise CommandError("FAILED_PRECONDITION", "busy")
 
     def validate(self, action, params):
         """ACK 전에 막는다. 수문·펌프는 되돌리기 어려워서, 받아 놓고 나중에 실패를
@@ -218,12 +219,12 @@ class ActuatorNode(BaseNode):
                 yield "completed", {"device": device, "position": s.position}
                 return
             if s.state == ERROR:
-                raise CommandError(f"device_error:{s.detail}")
+                raise CommandError("INTERNAL", f"device_error:{s.detail}")
             if s.state == UNKNOWN:
-                raise CommandError("feedback_lost_during_motion")
+                raise CommandError("INTERNAL", "feedback_lost_during_motion")
             time.sleep(0.05)
         # 시간 안에 도달하지 못했다. 도달했는지 모르는 상태이므로 완료로 처리하지 않는다.
-        raise CommandError("travel_timeout")
+        raise CommandError("DEADLINE_EXCEEDED", "travel_timeout")
 
     def _act_safe_state(self, params):
         """관제·자동 판정이 강제로 안전 상태를 요구할 때. 잠금 중에도 허용한다 —
@@ -237,7 +238,7 @@ class ActuatorNode(BaseNode):
                 yield "completed", {"position": self.state.position}
                 return
             time.sleep(0.05)
-        raise CommandError("safe_state_timeout")
+        raise CommandError("DEADLINE_EXCEEDED", "safe_state_timeout")
 
     def _act_unlock(self, params):
         """잠금 해제는 자동 재동기화가 원칙이고, 이건 수동 개입 경로다.
@@ -248,7 +249,7 @@ class ActuatorNode(BaseNode):
             return
         self._try_resync()
         if self.locked:
-            raise CommandError(f"resync_failed:{self.state.state if self.state else 'no_state'}")
+            raise CommandError("INTERNAL", f"resync_failed:{self.state.state if self.state else 'no_state'}")
         yield "completed", {"locked": False, "position": self.state.position}
 
     ACTIONS = dict(BASE_ACTIONS, **{

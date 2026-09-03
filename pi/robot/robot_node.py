@@ -26,7 +26,8 @@
 import time
 
 from common import config, node, schema
-from common.commands import BASE_ACTIONS, CommandError
+from common.base_actions import BASE_ACTIONS
+from common.physical_command import CommandError
 from common.node import BaseNode
 from common.schema import envelope
 from common.spool import CONTINUOUS, EVENT
@@ -133,9 +134,9 @@ class RobotNode(BaseNode):
         if action == "stream":
             a = params.get("action")
             if a not in ("start", "stop"):
-                raise CommandError("invalid_stream_action")
+                raise CommandError("INVALID_ARGUMENT", "invalid_stream_action")
             if a == "start" and self.media.is_running():
-                raise CommandError("stream_already_open")
+                raise CommandError("ALREADY_EXISTS", "stream_already_open")
 
     # ================= 공통 코어 훅 =================
     def heartbeat_enabled(self):
@@ -179,11 +180,11 @@ class RobotNode(BaseNode):
         mission_id = params.get("mission_id")
         subtask = params.get("subtask")
         if not mission_id or not subtask:
-            raise CommandError("invalid_mission")
+            raise CommandError("INVALID_ARGUMENT", "invalid_mission")
         if self.in_mission():
-            raise CommandError("mission_in_progress")
+            raise CommandError("FAILED_PRECONDITION", "mission_in_progress")
         if self.state and self.state.battery_pct <= config.ROBOT_BATTERY_WARN:
-            raise CommandError("battery_too_low")
+            raise CommandError("FAILED_PRECONDITION", "battery_too_low")
 
         yield "executing", {"mission_id": mission_id, "subtask": subtask}
         self.mission = {"mission_id": mission_id, "subtask": subtask,
@@ -197,13 +198,13 @@ class RobotNode(BaseNode):
             time.sleep(0.05)
         else:
             self.mission["status"] = "failed"
-            raise CommandError("controller_did_not_start")
+            raise CommandError("INTERNAL", "controller_did_not_start")
         yield "state_changed", {"robot_mode": "mission"}
         yield "completed", {"mission_id": mission_id}
 
     def _act_abort_mission(self, params):
         if not self.mission:
-            raise CommandError("no_mission")
+            raise CommandError("FAILED_PRECONDITION", "no_mission")
         yield "executing", {"mission_id": self.mission["mission_id"]}
         self.link.send_command("abort_mission", params)
         deadline = time.time() + 3
@@ -237,7 +238,7 @@ class RobotNode(BaseNode):
             try:
                 self.media.start(dest_host, dest_port, session_id)
             except RuntimeError as e:
-                raise CommandError(str(e))
+                raise CommandError("INTERNAL", str(e))
             yield "state_changed", self.media.status()
             yield "completed", {"session_id": session_id}
             return
@@ -246,12 +247,12 @@ class RobotNode(BaseNode):
             yield "executing", None
             self.media.stop()
             if self.media.is_running():
-                raise CommandError("stream_stop_failed")
+                raise CommandError("INTERNAL", "stream_stop_failed")
             yield "state_changed", {"streaming": False}
             yield "completed", None
             return
 
-        raise CommandError("invalid_stream_action")
+        raise CommandError("INVALID_ARGUMENT", "invalid_stream_action")
 
     ACTIONS = dict(BASE_ACTIONS, **{
         "assign_mission": _act_assign_mission,

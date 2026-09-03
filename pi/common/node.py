@@ -32,7 +32,7 @@ from collections import deque
 import paho.mqtt.client as mqtt
 
 from common import config, otel_metrics, otel_trace, schema
-from common.commands import BASE_ACTIONS, CommandEngine
+from common.base_actions import BASE_ACTIONS
 from common.physical_command import PhysicalCommandServer
 from common.schema import Identity, envelope
 from common.spool import EVENT, Spool
@@ -61,10 +61,7 @@ class BaseNode:
         self._connects = deque()      # 접속 시각 — client_id 중복(플래핑) 판정용
 
         self.client = None
-        self.commands = CommandEngine(self, self.publish, self.base,
-                                      tracer=self.traces)
         # 물리 명령 통신 규약(정본): Protobuf 봉투 / terminal/<id>/downlink|uplink.
-        # 레거시 JSON cmd 경로와 병행 — 규약 소비자와 기존 소비자를 모두 지원한다.
         # publish/subscribe 는 어댑터로 넘겨 재접속으로 client 가 갈려도 항상 현재 것을 쓴다.
         self.pcmd = PhysicalCommandServer(
             client=None, device_id=self.identity.entity_id, owner=self,
@@ -104,7 +101,6 @@ class BaseNode:
         c.on_publish = self._on_publish
 
         self.client = c
-        self.commands.base = self.base   # 구역 변경 재접속 시 토픽만 갈아끼운다
         # paho 기본 재접속 백오프는 최대 120초까지 늘어난다. 두절이 길었을수록
         # 복구가 늦어지는데, 재난 대응에서는 정확히 반대여야 한다 — 오래 끊겼을수록
         # 밀린 데이터가 많아 빨리 붙어야 한다. 실측에서 20초 두절 뒤 재접속까지
@@ -122,7 +118,6 @@ class BaseNode:
         self.connected = True
         print(f"[접속] {config.BROKER_HOST}:{config.BROKER_PORT} — {self.base}")
         self._flap_check()
-        client.subscribe(f"{self.base}/cmd", qos=1)
         self.pcmd.start()                     # 규약 downlink 구독 + Capability 발행
         self.publish_status("birth")          # HW-C-04 등록
         if self.spool.pending:
@@ -155,10 +150,9 @@ class BaseNode:
               f"채번 대장과 /etc/device_id 확인 필요")
 
     def _on_message(self, client, userdata, msg):
+        # 규약 downlink 만 처리한다(레거시 JSON cmd 경로 폐기). 다른 토픽은 무시.
         if msg.topic == self.pcmd.downlink:
             self.pcmd.on_message(msg.payload)     # 규약 Protobuf 봉투
-        else:
-            self.commands.on_message(client, msg.payload)   # 레거시 JSON cmd
 
     def _on_publish(self, client, userdata, mid, reason_code=None, properties=None):
         """PUBACK(QoS 1) 시점에 지연을 확정한다. publish() 호출 반환은 '큐에 넣었다'는

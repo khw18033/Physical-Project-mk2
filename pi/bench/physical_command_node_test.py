@@ -2,12 +2,12 @@
 """
 피지컬팀 mk2 — 규약 서버의 노드 연동 검증 (브로커·실물 불필요)
 ================================================================
-BaseNode 가 물리 명령 통신 규약(Protobuf/terminal 토픽)과 레거시 JSON cmd 경로를
-동시에 처리하는지, 재접속 안전 어댑터로 현재 client 를 쓰는지 확인한다.
+BaseNode 가 물리 명령 통신 규약(Protobuf/terminal 토픽)만 처리하고 레거시 JSON cmd
+경로는 폐기했는지, 재접속 안전 어댑터로 현재 client 를 쓰는지 확인한다.
 
   · downlink(terminal/<id>/downlink) 로 온 Command → 규약 서버가 처리,
     uplink 로 Capability/Acceptance/Result(Protobuf) 발행
-  · {base}/cmd 로 온 JSON → 레거시 CommandEngine 이 그대로 처리
+  · 레거시 {base}/cmd 경로는 폐기됨 — 구독도 응답도 없어야 한다
   · publish 어댑터는 호출 시점의 self.client 를 읽는다(재접속 안전)
 
 사용: python -m bench.physical_command_node_test   (pi/ 디렉터리)
@@ -97,16 +97,16 @@ def main():
     assert {"capability", "acceptance", "result"} <= set(proto), proto
     print(f"  규약: downlink 구독·Capability 발행·Command 처리 → {proto} ✓")
 
-    # 레거시 경로: {base}/cmd 로 JSON ping
+    # 레거시 폐기 확인: {base}/cmd 는 더 이상 구독하지도, 처리하지도 않는다.
+    assert not any(t == "SUB" and pl == f"{n.base}/cmd" for t, pl in fc.sent), "레거시 cmd 를 아직 구독함"
     class Msg2:
         topic = f"{n.base}/cmd"
         payload = json.dumps({"command_id": "j-1", "action": "ping"}).encode()
 
     n._on_message(None, None, Msg2())
     time.sleep(0.3)
-    legacy = sorted({t for t, pl in fc.sent[before:]})
-    assert any(t.endswith("/cmd/ack") for t in legacy) and any("/cmd/result" in t for t in legacy), legacy
-    print(f"  레거시: {n.base}/cmd JSON 처리 → {legacy} ✓")
+    assert len(fc.sent) == before, f"레거시 {n.base}/cmd 가 아직 응답을 냄: {fc.sent[before:]}"
+    print(f"  레거시 폐기: {n.base}/cmd 미구독·무응답(규약 경로만) ✓")
 
     # 재접속 안전: client 를 갈아끼워도 어댑터가 새 client 로 발행
     fc2 = FakeClient()
@@ -123,7 +123,7 @@ def main():
     assert fc2.sent, "재접속 후 새 client 로 발행되지 않음"
     print(f"  재접속 안전: client 교체 후 새 client 로 발행({len(fc2.sent)}건) ✓")
 
-    print("전부 통과 — 규약/레거시 병행 + 재접속 안전")
+    print("전부 통과 — 규약 경로 전용(레거시 폐기) + 재접속 안전")
 
 
 if __name__ == "__main__":
