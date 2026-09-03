@@ -1,0 +1,120 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://physical-project.local/contracts/ai/physical-command.schema.json",
+  "title": "Physical command lifecycle message",
+  "type": "object",
+  "required": ["message_type", "payload"],
+  "additionalProperties": false,
+  "properties": {
+    "message_type": {
+      "enum": ["command", "acceptance", "status", "result", "cancel_request", "cancel_response", "capability"]
+    },
+    "payload": {"type": "object"}
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"message_type": {"const": "command"}}},
+      "then": {"properties": {"payload": {"$ref": "#/$defs/command"}}}
+    },
+    {
+      "if": {"properties": {"message_type": {"const": "acceptance"}}},
+      "then": {"properties": {"payload": {"$ref": "#/$defs/acceptance"}}}
+    },
+    {
+      "if": {"properties": {"message_type": {"const": "status"}}},
+      "then": {"properties": {"payload": {"$ref": "#/$defs/status"}}}
+    },
+    {
+      "if": {"properties": {"message_type": {"const": "result"}}},
+      "then": {"properties": {"payload": {"$ref": "#/$defs/result"}}}
+    },
+    {
+      "if": {"properties": {"message_type": {"const": "cancel_request"}}},
+      "then": {"properties": {"payload": {"$ref": "#/$defs/cancel_request"}}}
+    },
+    {
+      "if": {"properties": {"message_type": {"const": "cancel_response"}}},
+      "then": {"properties": {"payload": {"$ref": "#/$defs/cancel_response"}}}
+    },
+    {
+      "if": {"properties": {"message_type": {"const": "capability"}}},
+      "then": {"properties": {"payload": {"$ref": "#/$defs/capability"}}}
+    }
+  ],
+  "$defs": {
+    "command": {
+      "type": "object",
+      "required": ["command_id", "target", "action", "parameters"],
+      "additionalProperties": false,
+      "properties": {
+        "command_id": {"type": "string", "minLength": 1},
+        "target": {"type": "string", "minLength": 1},
+        "action": {"type": "string", "minLength": 1},
+        "parameters": {"type": "object"},
+        "correlation_id": {"type": ["string", "null"]},
+        "deadline": {"type": ["number", "null"]}
+      }
+    },
+    "acceptance": {
+      "type": "object", "required": ["command_id", "accepted", "accepted_at"],
+      "additionalProperties": false,
+      "properties": {
+        "command_id": {"type": "string", "minLength": 1},
+        "accepted": {"type": "boolean"}, "accepted_at": {"type": "number"},
+        "rejection": {"anyOf": [{"$ref": "#/$defs/rejection"}, {"type": "null"}]}
+      }
+    },
+    "rejection": {
+      "type": "object", "required": ["code", "message"], "additionalProperties": false,
+      "properties": {"code": {"type": "string", "minLength": 1}, "message": {"type": "string"}}
+    },
+    "status": {
+      "type": "object", "required": ["command_id", "status", "observed_at"],
+      "additionalProperties": false,
+      "properties": {
+        "command_id": {"type": "string", "minLength": 1},
+        "status": {"enum": ["ACCEPTED", "EXECUTING", "CANCELING", "SUCCEEDED", "ABORTED", "CANCELED"]},
+        "observed_at": {"type": "number"}
+      }
+    },
+    "result": {
+      "type": "object",
+      "required": ["command_id", "status", "completed_at"],
+      "additionalProperties": false,
+      "properties": {
+        "command_id": {"type": "string", "minLength": 1},
+        "status": {"enum": ["SUCCEEDED", "ABORTED", "CANCELED"]},
+        "completed_at": {"type": "number"},
+        "result": {"type": ["object", "null"]},
+        "failure": {"anyOf": [{"$ref": "#/$defs/failure"}, {"type": "null"}]}
+      }
+    },
+    "failure": {
+      "type": "object", "required": ["code", "message"], "additionalProperties": false,
+      "properties": {"code": {"type": "string", "minLength": 1}, "message": {"type": "string"}}
+    },
+    "cancel_request": {
+      "type": "object", "required": ["command_id"], "additionalProperties": false,
+      "properties": {"command_id": {"type": "string", "minLength": 1}}
+    },
+    "cancel_response": {
+      "type": "object", "required": ["command_id", "accepted"], "additionalProperties": false,
+      "properties": {
+        "command_id": {"type": "string", "minLength": 1}, "accepted": {"type": "boolean"},
+        "reason": {"type": ["string", "null"]}
+      }
+    },
+    "capability": {
+      "type": "object",
+      "required": ["name", "version", "parameter_schema", "result_schema", "cancel_supported", "required_resources"],
+      "additionalProperties": false,
+      "properties": {
+        "name": {"type": "string", "minLength": 1}, "version": {"type": "string", "minLength": 1},
+        "parameter_schema": {"type": "string", "minLength": 1},
+        "result_schema": {"type": "string", "minLength": 1},
+        "cancel_supported": {"type": "boolean"},
+        "required_resources": {"type": "array", "items": {"type": "string"}, "uniqueItems": true}
+      }
+    }
+  }
+}

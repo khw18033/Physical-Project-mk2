@@ -1,0 +1,80 @@
+syntax = "proto3";
+
+package physical_project.ai.v1;
+
+import "google/protobuf/struct.proto";
+
+message Command {
+  string command_id = 1;
+  string target = 2;
+  string action = 3;
+  google.protobuf.Struct parameters = 4;
+  optional string correlation_id = 5;
+  optional double deadline = 6;
+}
+
+message Rejection {
+  string code = 1;
+  string message = 2;
+}
+
+message CommandAcceptance {
+  string command_id = 1;
+  bool accepted = 2;
+  double accepted_at = 3;
+  optional Rejection rejection = 4;
+}
+
+enum ExecutionStatus {
+  EXECUTION_STATUS_UNSPECIFIED = 0;
+  ACCEPTED = 1;
+  EXECUTING = 2;
+  CANCELING = 3;
+  SUCCEEDED = 4;
+  ABORTED = 5;
+  CANCELED = 6;
+}
+
+message CommandStatus {
+  string command_id = 1;
+  ExecutionStatus status = 2;
+  double observed_at = 3;
+}
+
+message Failure { string code = 1; string message = 2; }
+
+message CommandResult {
+  string command_id = 1;
+  ExecutionStatus status = 2;
+  double completed_at = 3;
+  google.protobuf.Struct result = 4;
+  optional Failure failure = 5;
+}
+
+message CancelCommandRequest { string command_id = 1; }
+message CancelCommandResponse {
+  string command_id = 1;
+  bool accepted = 2;
+  optional string reason = 3;
+}
+
+message Capability {
+  string name = 1;
+  string version = 2;
+  string parameter_schema = 3;
+  string result_schema = 4;
+  bool cancel_supported = 5;
+  repeated string required_resources = 6;
+}
+
+message PhysicalCommandEnvelope {
+  oneof body {
+    Command command = 1;
+    CommandAcceptance acceptance = 2;
+    CommandResult result = 3;
+    CommandStatus status = 4;
+    CancelCommandRequest cancel_request = 5;
+    CancelCommandResponse cancel_response = 6;
+    Capability capability = 7;
+  }
+}
