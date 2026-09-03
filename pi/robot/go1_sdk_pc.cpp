@@ -654,9 +654,12 @@ private:
     world_x+=(vx*cy-vy*sy)*dts; world_z+=(vx*sy+vy*cy)*dts;
     double tms=std::chrono::duration_cast<std::chrono::duration<double>>(
       std::chrono::steady_clock::now().time_since_epoch()).count()*1000.0;
+    // 머리 방향(yaw) 180 보정 — Unity 가상 GO1 이 진행방향을 향하도록.
+    // 위치 dead-reckoning 은 원래 yaw 로 하고, 표시용 yaw 만 반전한다(실측으로 확정).
+    double yaw_out = wrap_pi(yaw + M_PI);
     char msg[512];
     std::snprintf(msg,sizeof(msg),"%llu %.1f %.6f %.6f %.6f %.3f %.3f %.3f %d %d",
-                  (unsigned long long)seq,tms,world_x,world_z,yaw,vx,vy,wz,estop,mode);
+                  (unsigned long long)seq,tms,world_x,world_z,yaw_out,vx,vy,wz,estop,mode);
     sendto(sock_tx_state,msg,strlen(msg),0,(sockaddr*)&unity_state_addr,sizeof(unity_state_addr));
   }
 
