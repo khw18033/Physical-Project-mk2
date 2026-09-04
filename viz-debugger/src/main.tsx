@@ -17,6 +17,8 @@ import { MISSION_SLOT } from './canvas/persist.ts';
 import { useCanvas } from './canvas/useCanvas.ts';
 import { setZoomTarget, useZoomTarget } from './canvas/zoomState.ts';
 import type { ScenarioEvent, Task, TaskStatus } from './model/types.ts';
+import { ObservabilityPanel } from './shared/ObservabilityPanel.tsx';
+import { measureFold, startObservability } from './shared/observability.ts';
 import { PendingSource } from './shared/PendingSource.tsx';
 import { hardwareSourceLabel, listCastIds, listRegisteredHardware } from './shared/registry.ts';
 import { graphShape, shapeLabel } from './graph/shape.ts';
@@ -243,7 +245,7 @@ function GraphScreen({ screen, view, trace, milestone, tasks, headSec, playing, 
   }), [canvas.bind, canvas.move, canvas.nodes, canvas.remove, highlightedId, picked, second, view, zoomedId]);
   // **기록 열이 자라면 다시 접는다** — 열은 덧붙일 때만 신원이 바뀌므로(TraceStore.snapshot)
   // 사건이 없는 렌더에서는 접지 않는다.
-  const folded = useMemo(() => foldStatuses(second, view, trace), [second, trace, view]);
+  const folded = useMemo(() => measureFold(() => foldStatuses(second, view, trace)), [second, trace, view]);
   const failedTask = tasks.find((task) => folded.tasks[task.id]?.status === 'failed') ?? null;
   /**
    * 머리줄이 적을 **이 임무 자신의 모양** (260904). 고정 문구(「분기와 합류가 있는 태스크
@@ -322,6 +324,12 @@ export function MissionDebugger({ navigation, planApproval }: { navigation?: Deb
   // 임무가 바뀌면(대본 승인) 한 편에 묶였던 화면 상태를 처음으로 되돌린다.
   useEffect(() => { setScreen('milestones'); setModalTask(null); setAssignments({}); setMilestoneId(null); setScope('milestone'); }, [view.missionId]);
 
+  /**
+   * 자체 관측 집계 (`VZ-O-04` · 260904). **두 빌드가 공유하는 이 화면**이 켠다 —
+   * 셸이 켜면 단독 빌드에서 안 돌고, 축 D는 바로 그 단독 빌드에서 재는 숫자다.
+   */
+  useEffect(() => startObservability(), []);
+
   // 그래프에 들어갈 마일스톤 — 클릭한 것. 태스크가 없으면(옛 파일의 MS-A 등)
   // 태스크를 가진 마일스톤으로 간다(옛 편은 전부 MS-C라 기존 화면 그대로다).
   const graphMilestone = useMemo(() => {
@@ -350,12 +358,12 @@ export function MissionDebugger({ navigation, planApproval }: { navigation?: Deb
 
   const trace = display.trace;
   const milestoneStatuses = useMemo(
-    () => foldStatuses(display.headSec, view, trace).milestones,
+    () => measureFold(() => foldStatuses(display.headSec, view, trace)).milestones,
     [display.headSec, trace, view],
   );
 
   /** 머리 시각의 접기 결과 — 실패 태스크를 찾는 두 자리가 같은 값을 본다. */
-  const folded = useMemo(() => foldStatuses(display.headSec, view, trace), [display.headSec, trace, view]);
+  const folded = useMemo(() => measureFold(() => foldStatuses(display.headSec, view, trace)), [display.headSec, trace, view]);
 
   const navigate = (next: Screen) => {
     setScreen(next);
@@ -388,5 +396,8 @@ export function MissionDebugger({ navigation, planApproval }: { navigation?: Deb
       openTask={modalTask}
       nodeRequest={nodeRequest} />}
     {modalTask && <ActionModal task={modalTask} view={view} device={listRegisteredHardware().find((item) => item.id === modalTask.target)} failure={screen === 'failure'} onClose={() => { setModalTask(null); if (screen === 'detail') setScreen('graph'); }} />}
-    {screen === 'failure' && !modalTask && firstFailed && <button className="failure-open" onClick={() => setModalTask(firstFailed)}>실패 수정 팝업 열기</button>}</div>;
+    {screen === 'failure' && !modalTask && firstFailed && <button className="failure-open" onClick={() => setModalTask(firstFailed)}>실패 수정 팝업 열기</button>}
+    {/* 자체 관측 (VZ-O-04) — devpanel 이라 통합 셸에서는 목·개발 모드에서만 뜨고,
+        단독 빌드(측정 장비)에서는 늘 보인다. 기본은 접힘이다. */}
+    <ObservabilityPanel /></div>;
 }

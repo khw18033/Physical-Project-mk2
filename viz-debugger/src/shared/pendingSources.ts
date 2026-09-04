@@ -244,6 +244,17 @@ export const PENDING_SOURCES: PendingSourceSpec[] = [
     plane: 'observability',
   },
   {
+    id: 'client-metrics-sink',
+    title: '자체 관측 지표 발행 연결 예정',
+    what: '가시화가 스스로 잰 60초 집계(기록 발생률 · 열 용량 · 접기 시간 · 수신 지연)를 받아 줄 관측 수집기',
+    from: [
+      BE('BE-S-02', 'OTel 관측 파이프라인(Agent+Gateway)'),
+      BE('BE-S-01', '시계열·상태 이력 저장'),
+    ],
+    ours: ['VZ-O-04'],
+    plane: 'observability',
+  },
+  {
     id: 'metrics-push',
     title: '평시 지표 푸시 연결 예정',
     what: '질의 없이 주기로 올라오는 관측 지표와 그 집약 계층 표기',

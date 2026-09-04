@@ -17,6 +17,7 @@
 import { useEffect } from 'react';
 import { activateMission, proposeMission, receiveTrace, rejectProposal, viewForMission } from '../data/scenario.ts';
 import { axesOfMission } from '../scenarios/scriptScope.ts';
+import { markIntegratedBuild, observeConnection, observeEnvelope, updateClientHealth } from '../shared/observability.ts';
 import { enterScenarioRender } from '../shared/renderMode.ts';
 import { store } from '../tabs/data/index.ts';
 import { getTransport, type Envelope } from '../transport/index.ts';
@@ -47,18 +48,33 @@ export function startMissionBridge(): () => void {
   if (started) return () => undefined;
   started = true;
 
-  const unsubscribe = getTransport().subscribe(
+  /**
+   * 자체 관측 (`VZ-O-04` · 260904) — **수신 지연과 재연결은 게이트웨이가 있을 때만 잰다.**
+   * 다리가 여기서 봉투와 연결 상태를 다 보므로 계측을 다른 곳에 또 걸 이유가 없다.
+   * 단독 빌드에는 이 다리가 없고, 그래서 그 둘은 「해당 없음」으로 뜬다 — 0이 아니다.
+   */
+  markIntegratedBuild();
+  const transport = getTransport();
+  observeConnection(transport.getStatus());
+  const unwatch = transport.onStatus((status) => observeConnection(status));
+
+  const unsubscribe = transport.subscribe(
     { entity: '*', node: 'mission-trace', channel: '*' },
     (envelope) => {
+      observeEnvelope(envelope);
       store.apply(envelope);
       if (envelope.channel === 'plan') applyPlan(envelope);
       if (envelope.channel === 'trace_event') applyTrace(envelope);
     },
     'all',
   );
+  // 임무 축 구독 하나. 탭 데이터 계층의 구역 축 구독은 그쪽이 센다.
+  updateClientHealth({ subscriptions: 1 });
 
   return () => {
     unsubscribe();
+    unwatch();
+    updateClientHealth({ subscriptions: 0 });
     started = false;
   };
 }

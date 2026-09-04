@@ -276,3 +276,30 @@ b.follow-live{cursor:default}
 .connections__actions button{padding:8px 12px;border:1px solid #cbd3de;border-radius:7px;background:#fff}
 .connections__apply:not(:disabled){color:#fff;border-color:#1768c5;background:#1768c5}
 .connections__actions button:disabled{opacity:.5;cursor:default}
+
+/* ── 자체 관측 패널 (260904 · VZ-O-04) ────────────────────────────────────────
+   devpanel 이라 통합 셸에서는 목·개발 모드에서만 뜨고(위 .devpanel 규칙), 셸이 없는
+   단독 빌드에서는 늘 보인다 — 단독 빌드가 곧 측정 장비다. 기본은 접힘. */
+.obs{margin-top:16px;border:1px solid #d1d7df;border-radius:6px;background:#f7f9fb;padding:10px 12px;font-size:12px}
+.obs--closed{padding:4px 8px}
+.obs__toggle{background:none;border:0;padding:2px 0;font:inherit;font-weight:700;color:#243447;cursor:pointer;text-align:left}
+.obs__head{display:flex;flex-wrap:wrap;gap:4px 12px;align-items:baseline;margin-bottom:8px}
+.obs__head small{color:#5d6b7a}
+.obs__grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(215px,1fr));gap:10px}
+.obs__group{background:#fff;border:1px solid #e3e8ee;border-radius:5px;padding:8px 10px}
+.obs__group h4{margin:0 0 6px;font-size:12px;color:#243447}
+.obs__group h4 small{font-weight:400;color:#5d6b7a}
+.obs__row{display:flex;gap:6px;align-items:baseline;padding:2px 0}
+.obs__row>span:first-child{flex:1;color:#5d6b7a}
+.obs__row b{font-variant-numeric:tabular-nums}
+.obs__row b small{font-weight:400;color:#5d6b7a}
+/* 못 잰 값. **0을 넣지 않는다** — 회색 글자가 「쟀는데 0」과 「못 쟀다」를 가른다. */
+.obs__na{font-weight:400;color:#8a97a5;font-style:italic}
+.obs__note{color:#8a97a5;flex-basis:100%}
+.obs__gaps{margin-top:10px}
+.obs__gaps h4{margin:0 0 4px;font-size:12px;color:#243447}
+.obs__gaps ul{margin:0;padding-left:18px;color:#5d6b7a}
+.obs__gaps li{margin:2px 0}
+.obs__actions{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:10px}
+.obs__actions button{padding:4px 9px;font-size:12px}
+.obs__actions small{color:#5d6b7a}
