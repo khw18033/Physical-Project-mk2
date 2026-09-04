@@ -120,12 +120,13 @@ Phase 7  디지털 트윈         DT 7건 (좌표 변환·융합·커버리지�
 
 **목표:** compose 스택이 뜨고 각 구성요소가 살아있는 상태.
 
-- Mosquitto · Kafka(소규모 KRaft 단일 노드) · OTel Collector · Prometheus · Grafana · Loki ·
-  Tempo · MySQL · TSDB를 `infra/` 아래 compose로 정의·기동.
-- **이관 방침(결정 5):** 서버에 이미 깔려 도는 기반(Mosquitto·OTel·Grafana 등)은 지웠다 다시
-  깔지 않는다. 기존 `docker-compose_260617.yml`·설정을 가져와 **무엇이 있는지 파악(A)**한 뒤,
-  MK2 정본(RBAC 제거·2축 저장 반영 등)에 맞춰 **새 compose로 재구성(B)**한다. 기반은 그대로
-  쓰고 정의 파일만 MK2 구조로 정리.
+- 서버에 이미 도는 스택(Mosquitto·OTel Collector·Prometheus·Grafana·Loki·Tempo·MySQL)에
+  **Kafka만 신규로 추가**한다. TSDB는 Phase 2로 미룬다.
+- **배포 방침(결정 5, Phase 0에서 확정된 실제 방식):** 서버에 이미 도는 compose
+  (`~/capstone-db/docker-compose.yml`)를 **수정**하는 것이 배포다. `git pull` 배포가 아니다.
+  `infra/docker-compose.yml`은 그 서버 파일의 작업본(청사진)이며 비밀값을 담아 커밋하지 않는다
+  (`.gitignore`). 컴퓨터 `infra/`에서 편집 → 사람이 서버에 복사·적용 → 결과 회수. 이미 도는
+  기반은 지웠다 다시 깔지 않고, `docker compose up -d`에 서비스 이름을 명시한다.
 - **DoD:** `docker compose up` 후 각 서비스 헬스 확인(Kafka 토픽 생성 가능, Mosquitto :1883
   접속, Prometheus/Grafana UI 응답, MySQL 접속). 헬스체크로 판정(pytest 아님).
 - **외부 의존성:** 없음(전부 이 머신 소프트웨어).
@@ -152,6 +153,9 @@ Phase 7  디지털 트윈         DT 7건 (좌표 변환·융합·커버리지�
 - `backend/storage/`: 계측(센서·로봇 상태 추이)은 **TSDB**, 감사(명령 이력)·레지스트리(장치·구역·
   식별자)는 **MySQL**(테이블 분리). 타임스탬프 기준 병합·정렬, 지연 도착 데이터 정합.
 - RBAC·MongoDB는 두지 않는다(정본 결정). 트윈·명령진행·가용성은 저장하지 않고 WS push.
+- **Phase 0 이월:** MySQL 컨테이너는 가동 중이나 MK2 전용 DB·계정은 없다(Phase 0 범위 밖으로
+  미룸). 여기서 MK2 감사·레지스트리용 DB·계정을 만든다. 기존 테스트 DB(`robot_capstone`)에
+  얹지 않는다.
 - **DoD:** 계측이 TSDB에 시각 순으로, 감사·레지스트리가 MySQL에 정합성 있게 쌓이고 조회로
   확인된다. 재전송(지연 도착) 데이터가 원래 측정 시각으로 정렬된다.
 - **외부 의존성:** 없음.
@@ -167,6 +171,16 @@ Phase 7  디지털 트윈         DT 7건 (좌표 변환·융합·커버리지�
 - **DoD:** 가짜 지표 발신 → Collector → Prometheus 저장·조회, 페더레이션 요약이 당겨지는 것
   확인. 치명 오류·장치 생사 신호가 일반 metric 요약에 섞이지 않고 개별 유지.
 - **외부 의존성:** 없음(조병현 HW-C-05 실 지표는 나중, 지금은 가짜 발신).
+- **Phase 0 이월 (현재 서버 관측 스택의 실제 상태 — 정본과의 gap):**
+  - 관측 3종이 Collector를 안 거친다. **Tempo가 OTLP 4317을 직접 수신**(그래서 Collector가
+    4316으로 밀림), **Loki는 Collector에 exporter가 없어** 직접 수신. metric만 Collector→
+    Prometheus. 여기서 Collector가 log→Loki·trace→Tempo로 분배하도록 정리한다.
+  - **Loki에 retention이 없다. 로그를 흘리기 "전에" 걸어야 한다** — 흘린 뒤 걸면 이미 쌓인
+    것은 안 지워진다(순서 주의).
+  - Prometheus `scrape_interval: 1s`가 정본(15초~1분)과 다르다. **바꾸면 기존 대시보드
+    해상도에 영향** → 팀원 합의 후 변경(단독 변경 불가).
+  - Tempo `block_retention: 24h`, Collector `batch` processor 없음도 함께 정리.
+  - 상세: `reports/2026-09-04_1620_phase0_인프라기동.md`, `infra/README.md` §6.
 - 관련: BE-S-02(파이프라인)·BE-S-03(계층화)·BE-S-06(집약 표기).
 
 ### Phase 4 — 미디어 경로 [기반 경로]
