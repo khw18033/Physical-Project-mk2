@@ -28,16 +28,17 @@
  * 배지는 **상태**(지금 붙어 있나)이고 이 모듈은 **설정**(어디에 붙을 것인가)이다.
  * 둘을 한 곳에 두면 「연결 안 됨」이 주소가 틀린 것인지 서버가 죽은 것인지 알 수 없어진다.
  *
- * ## STT 의 기본값은 여기서 읽지 않는다
+ * ## STT·생성의 기본값은 여기서 읽지 않는다
  *
- * STT 주소를 아는 곳은 `src/stt/` 뿐이어야 한다(`verify:no-stt` — 면이 둘이 되면 안 된다).
- * 그래서 그쪽이 자기 환경변수를 읽어 `registerConnectionDefault()` 로 **기본값만 심는다.**
+ * STT 주소를 아는 곳은 `src/stt/` 뿐이어야 하고(`verify:no-stt`), 생성 주소를 아는 곳은
+ * `src/generate/` 뿐이어야 한다(`verify:gen-port`) — 면이 둘이 되면 안 된다.
+ * 그래서 각자 자기 환경변수를 읽어 `registerConnectionDefault()` 로 **기본값만 심는다.**
  * 여기 적힌 값은 그 전에 화면이 그릴 대비값이다.
  */
 
 import { useSyncExternalStore } from 'react';
 
-export type ConnectionTargetId = 'gateway' | 'stt' | 'control-node' | 'digital-twin';
+export type ConnectionTargetId = 'gateway' | 'stt' | 'generate' | 'control-node' | 'digital-twin';
 
 export type ConnectionField = {
   key: string;
@@ -79,6 +80,13 @@ export const CONNECTION_TARGETS: readonly ConnectionTarget[] = [
     what: '발화 전사. 꺼져 있어도 화면은 뜨고 수동 입력이 열려 있다 (VZ-C-02)',
     live: true,
     fields: [{ key: 'base', label: '주소', fallback: 'http://127.0.0.1:8801' }],
+  },
+  {
+    id: 'generate',
+    label: '생성 서비스',
+    what: '발화 → 임무 객체 (VZ-G-01·VZ-G-02). 꺼져 있으면 생성만 꺼지고 대본 재생·되감기·캔버스는 그대로 돈다',
+    live: true,
+    fields: [{ key: 'base', label: '주소', fallback: 'http://127.0.0.1:8802' }],
   },
   {
     id: 'control-node',

@@ -1,0 +1,187 @@
+/**
+ * src/generate/LlmClient.ts (260904 신설 — 마일스톤 분리 지시서 §3)
+ *
+ * **가시화 코드가 생성 서비스를 보는 유일한 면이다.** 이 파일 밖에서 `fetch` 로 생성
+ * 서비스를 부르지 않는다. 엔진이 바뀌어도(llama.cpp · vLLM · 원격 API) 갈아끼우는 곳이
+ * 여기 하나가 되게 하기 위한 제약이고, `verify:gen-port` 가 그것을 검사한다.
+ *
+ * `SttClient.ts` 의 구조를 그대로 따른다 — 같은 문제를 같은 모양으로 푼다.
+ *
+ * ## 브라우저 안이 아니다
+ *
+ * 모델은 번들에 들어가지 않는다. 이유 셋이 이 저장소의 기존 제약과 직접 충돌하기 때문이다.
+ *  1. `verify:standalone` 이 단독 빌드 오염을 **KB 단위**로 감시한다. 모델을 번들에 넣으면
+ *     그 검사가 의미를 잃는다. 사이드카면 이 파일은 fetch 래퍼라 몇 KB다.
+ *  2. 문법 강제 디코딩이 브라우저 스택에서 안정적이지 않다 — **그것이 이 작업의 핵심 도구다.**
+ *  3. 배포에서 모델을 빼는 선택지(배치 ① 생성 꺼짐)가 사라진다.
+ *
+ * ## 서비스가 꺼져 있어도 화면은 뜬다
+ *
+ * 그래서 이 모듈은 실패를 **던지기만 하고 잡지 않는다** — 무엇을 비활성화할지는 화면이
+ * 정한다(`availability.ts`). 꺼지는 것은 **생성 하나**이고 대본 재생·되감기·캔버스는
+ * 그대로 돈다 (`verify:no-llm`).
+ *
+ * ## 문법은 계약에서 뽑아 **요청에 실어 보낸다**
+ *
+ * 손으로 쓴 문법 파일을 두지 않는다(`gbnf.ts`). 클라이언트가 계약에서 뽑아 보내므로
+ * **부르는 쪽이 계약 밖 출력을 요구할 수 없다.** 엔진이 붙으면 서비스도 같은 계약에서
+ * 다시 뽑아 대조하는 것이 다음 단계다 — 지금은 스텁이라 받은 지문을 되돌려 주기만 한다.
+ */
+
+import { connectionAddress, registerConnectionDefault } from '../shared/connections.ts';
+import missionContract from '../../../contracts/mission.schema.json' with { type: 'json' };
+import milestoneContract from '../../../contracts/milestone.schema.json' with { type: 'json' };
+import taskContract from '../../../contracts/task.schema.json' with { type: 'json' };
+import actionItemContract from '../../../contracts/action-item.schema.json' with { type: 'json' };
+import evaluationContract from '../../../contracts/evaluation.schema.json' with { type: 'json' };
+import { digest, toGbnf, type JsonSchema } from './gbnf.ts';
+import { LlmUnavailableError, type GenerateResult } from './types.ts';
+
+const meta = import.meta as unknown as { env?: { VITE_GENERATE_URL?: string } };
+
+/**
+ * 목 게이트웨이(8790)·대시보드(5173/8787~8788)·STT(8801)·stt-lab(8799)과 겹치지 않는 포트.
+ *
+ * **환경변수는 기본값이다** (`VZ-C-07`). 화면의 「연결 관리」가 덮어쓸 수 있고, 덮어쓴 값이
+ * 있으면 그것이 이긴다. 다만 **생성 주소를 아는 면은 `src/generate/` 하나**여야 하므로
+ * (`verify:gen-port`) 환경변수는 이 파일에서만 읽고 연결 저장소에는 **기본값만 심는다.**
+ */
+registerConnectionDefault('generate', 'base', meta.env?.VITE_GENERATE_URL ?? 'http://127.0.0.1:8802');
+
+/** 지금 쓰는 생성 서비스 주소. 상수가 아니라 **읽을 때마다 지금 값**이다. */
+export function generateBaseUrl(): string {
+  return connectionAddress('generate', 'base');
+}
+
+/** `$id` → 계약. `$ref` 를 푸는 데 쓴다. 계약 파일이 늘면 여기에 더한다. */
+const CONTRACTS: ReadonlyMap<string, JsonSchema> = new Map<string, JsonSchema>(
+  [missionContract, milestoneContract, taskContract, actionItemContract, evaluationContract]
+    .map((schema) => [String((schema as JsonSchema).$id), schema as JsonSchema]),
+);
+
+let cachedGrammar: { text: string; digest: string } | null = null;
+
+/**
+ * 계약에서 뽑은 문법. **한 번 뽑아 들고 있는다** — 계약은 빌드에 박혀 있으므로 매 요청마다
+ * 다시 뽑을 이유가 없다. 뽑다 실패하면 던진다(문법 없이 요청하면 강제 디코딩이 없다).
+ */
+export function missionGrammar(): { text: string; digest: string } {
+  if (cachedGrammar === null) {
+    const text = toGbnf(missionContract as JsonSchema, CONTRACTS);
+    cachedGrammar = { text, digest: digest(text) };
+  }
+  return cachedGrammar;
+}
+
+export type GenerateOptions = {
+  /**
+   * 장소 위상 (`places.json` 의 내용). **기하 파일은 넘기지 않는다** — 좌표를 보면 모델이
+   * 503호 전용이 된다(지시서 §1). 비어 있으면 그라운딩 없이 도는 것이고, 그 사실이
+   * 응답의 `extra` 에 남는다.
+   */
+  places?: unknown;
+  /** few-shot 예시. **채점 대상인 편은 예시에서 뺀다**(지시서 §4). 부르는 쪽이 고른다. */
+  examples?: unknown[];
+  model?: string;
+  signal?: AbortSignal;
+};
+
+async function post(path: string, body: unknown, signal?: AbortSignal): Promise<unknown> {
+  let response: Response;
+  try {
+    response = await fetch(`${generateBaseUrl()}${path}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+      signal,
+    });
+  } catch (error) {
+    // 서비스가 안 떠 있는 흔한 경우가 여기로 온다. 화면은 이 문장을 그대로 보여주고
+    // 생성 기능만 끈다.
+    throw new LlmUnavailableError('offline', `생성 서비스에 닿지 않습니다 (${generateBaseUrl()})`, String(error));
+  }
+  const text = await response.text();
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    throw new LlmUnavailableError('service', `생성 응답을 해석할 수 없습니다 (HTTP ${response.status})`, text.slice(0, 400));
+  }
+  if (!response.ok) {
+    const detail = parsed as { error?: string; traceback?: string };
+    throw new LlmUnavailableError('service', detail.error ?? `생성 실패 (HTTP ${response.status})`, detail.traceback);
+  }
+  return parsed;
+}
+
+/**
+ * 문장 하나 → 임무 객체. **이 함수가 생성의 전부다.**
+ *
+ * 결과는 **제안**이다 — 사람이 수락하기 전에는 아무것도 실행되지 않는다(`VZ-U-07`).
+ * 그 규칙을 지키는 것은 화면이고, 여기서는 만들어 돌려주기만 한다.
+ */
+export async function generateMission(utterance: string, options: GenerateOptions = {}): Promise<GenerateResult> {
+  const grammar = missionGrammar();
+  const parsed = await post('/generate/mission', {
+    utterance,
+    // **계약에서 뽑은 문법을 함께 보낸다.** 부르는 쪽이 계약 밖 출력을 요구할 수 없다.
+    grammar: { source: 'contracts/mission.schema.json', digest: grammar.digest, text: grammar.text },
+    places: options.places ?? null,
+    examples: options.examples ?? [],
+    model: options.model ?? null,
+  }, options.signal);
+  return parsed as GenerateResult;
+}
+
+/** `probe()` 의 결과. **사유를 버리지 않는다** (`SttProbe` 와 같은 규칙). */
+export type GenerateProbe = {
+  alive: boolean;
+  /** 못 닿았으면 왜인지. 화면이 이 문장을 그대로 적는다. 닿았으면 null. */
+  reason: string | null;
+  /** 닿았으면 무엇이 떠 있는지. 스텁이면 그렇게 적힌다 — 목임을 감추지 않는다. */
+  engine: string | null;
+};
+
+/**
+ * 서비스가 살아 있는가.
+ *
+ * `SttClient.probe()` 와 달리 **전용 경로를 하나 둔다**(`GET /generate/health`). STT 는 면이
+ * 전사 엔드포인트 하나뿐이라 같은 경로에 GET 을 던져 405 를 살아 있음의 신호로 썼다
+ * (그쪽 경로를 여기 적지 않는다 — `verify:no-stt` 는 STT 경로 문자열이 `src/stt/` 밖에
+ * 나오면 잡는다. 주석이라도 잡는 것이 맞다: 문자열은 언젠가 코드가 된다).
+ * 생성은 「무엇이 떠 있는가」(엔진·모델·스텁 여부)를 화면이 적어야 하므로 405 로는 부족하다 —
+ * **목임을 감추지 않는다**는 이 저장소의 규칙이 그 자리를 요구한다.
+ *
+ * **던지지 않는다** — 여기서 예외가 새면 첫 렌더가 통째로 날아간다 (`verify:no-llm`).
+ */
+export async function probe(signal?: AbortSignal): Promise<GenerateProbe> {
+  try {
+    const response = await fetch(`${generateBaseUrl()}/generate/health`, { method: 'GET', signal });
+    if (!response.ok) {
+      return { alive: false, reason: `생성 서비스가 오류를 냈습니다 (HTTP ${response.status}, ${generateBaseUrl()})`, engine: null };
+    }
+    const body = (await response.json()) as { engine?: string };
+    return { alive: true, reason: null, engine: body.engine ?? null };
+  } catch (error) {
+    return { alive: false, reason: await describeProbeFailure(error, signal), engine: null };
+  }
+}
+
+/**
+ * 왜 못 닿았는가 — 사람이 읽고 **다음 행동을 고를 수 있는** 한 줄.
+ *
+ * 브라우저의 `fetch` 는 「서비스가 없다」와 「서비스는 있는데 CORS 로 막혔다」를 똑같은
+ * `TypeError: Failed to fetch` 로 던진다. 그 둘을 가르려고 `mode: 'no-cors'` 로 한 번 더
+ * 던진다 (`SttClient` 가 260901 에 같은 문제를 같은 방법으로 풀었다).
+ */
+async function describeProbeFailure(error: unknown, signal?: AbortSignal): Promise<string> {
+  const raw = error instanceof Error ? `${error.name}: ${error.message}` : String(error);
+  if ((error as { name?: string } | null)?.name === 'AbortError') return '확인이 취소됐습니다.';
+  if (!(error instanceof TypeError)) return raw;
+  try {
+    await fetch(`${generateBaseUrl()}/generate/health`, { method: 'GET', mode: 'no-cors', signal });
+    return `서비스는 떠 있는데 브라우저가 막았습니다 (${generateBaseUrl()}) — gen-lab/server/main.py 의 ALLOWED_ORIGINS 에 이 페이지 주소가 있는지 확인하세요.`;
+  } catch {
+    return `서비스가 떠 있지 않습니다 (${generateBaseUrl()}) — gen-lab/README.md 의 절차로 따로 띄워 사유를 보세요. 원문: ${raw}`;
+  }
+}

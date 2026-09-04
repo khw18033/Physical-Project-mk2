@@ -14,6 +14,8 @@ viz-debugger/.verify-trace-*/
 viz-debugger/**/.verify-replay-*/
 viz-debugger/**/.verify-human-*/
 viz-debugger/**/.verify-dep-*/
+viz-debugger/**/.verify-no-llm-*/
+viz-debugger/**/.verify-gen-*/
 gen-lab/.venv/
 
 # TypeScript 증분 빌드 캐시
