@@ -38,6 +38,8 @@ const stripComments = (source) => source.replace(/\/\*[\s\S]*?\*\//g, '').replac
 
 const main = read('src', 'main.tsx');
 const overlay = read('src', 'canvas', 'ZoomOverlay.tsx');
+/** 대상 상태 오버레이 (260904 — `VZ-D-07`). 확대와 **같은 규칙**을 지켜야 한다. */
+const deviceOverlay = read('src', 'views', 'DeviceStatusOverlay.tsx');
 const graph = read('src', 'graph', 'TaskGraph.tsx');
 const css = read('src', 'style.css');
 
@@ -60,19 +62,36 @@ const css = read('src', 'style.css');
 }
 
 // ── ② 닫으면 정확히 같은 자리 ────────────────────────────────────────────────
+//
+// **오버레이마다 그 오버레이의 닫기를 본다** (260904). 예전에는 `main.tsx` 의 첫 `onClose`
+// 하나만 봤는데, 대상 상태 오버레이(`VZ-D-07`)가 늘면서 그 첫 자리가 바뀌어 확대의 닫기를
+// 놓칠 뻔했다. 규칙(닫으면 자기 상태 하나만 되돌린다)은 오버레이 **전부**에 걸어야 한다 —
+// 닫으면서 다른 상태까지 만지면 어느 오버레이든 「어디였지」가 생긴다.
 {
-  const close = /onClose=\{\(\) => ([^}]+)\}/.exec(main);
-  check(close !== null, '확대 닫기 경로가 없다');
-  if (close !== null) {
-    const body = close[1];
-    check(/setZoomedId\(null\)/.test(body), `닫기가 확대 상태를 되돌리지 않는다: ${body}`);
+  /** `<Name … onClose={() => …}>` 에서 그 오버레이의 닫기 본문만 꺼낸다. */
+  const closeBodyOf = (name) => {
+    const at = main.indexOf('<' + name);
+    if (at < 0) return null;
+    const found = /onClose=\{\(\) => ([^}]+)\}/.exec(main.slice(at, at + 600));
+    return found === null ? null : found[1];
+  };
+  for (const [name, setter] of [['ZoomOverlay', 'setZoomedId'], ['DeviceStatusOverlay', 'setStatusDeviceId']]) {
+    const body = closeBodyOf(name);
+    check(body !== null, `${name} 의 닫기 경로가 없다`);
+    if (body === null) continue;
+    check(body.includes(`${setter}(null)`), `${name} 의 닫기가 자기 상태를 되돌리지 않는다: ${body}`);
     // 닫으면서 다른 상태까지 만지면 「어디였지」가 생긴다 — 자리·스크롤·되감기 시각은 그대로여야 한다.
-    const otherSets = body.match(/set[A-Z][A-Za-z]*\(/g)?.filter((name) => name !== 'setZoomedId(') ?? [];
-    check(otherSets.length === 0, `닫기가 다른 상태도 되돌린다(${otherSets.join(' ')}) — 닫으면 같은 자리여야 한다`);
+    const otherSets = body.match(/set[A-Z][A-Za-z]*\(/g)?.filter((called) => called !== `${setter}(`) ?? [];
+    check(otherSets.length === 0, `${name} 의 닫기가 다른 상태도 되돌린다(${otherSets.join(' ')}) — 닫으면 같은 자리여야 한다`);
   }
   // Esc 로도 닫힌다 — 여는 길이 둘(더블클릭·버튼)이면 닫는 길도 둘 이상이어야 한다.
   check(overlay.includes("'Escape'"), '확대가 Esc 로 닫히지 않는다');
-  console.log('✅ 닫으면 같은 자리 — 닫기가 확대 상태 하나만 되돌린다 (Esc·배경·버튼)');
+  check(deviceOverlay.includes("'Escape'"), '대상 상태가 Esc 로 닫히지 않는다');
+  // 음성 대조군 — 이름을 앵커로 삼은 판정이 실제로 그 오버레이를 집는가.
+  if (closeBodyOf('ZoomOverlay') === closeBodyOf('DeviceStatusOverlay')) {
+    failures.push('대조군 실패: 두 오버레이의 닫기가 같은 것으로 잡혔다 — 앵커가 안 듣는다');
+  }
+  console.log('✅ 닫으면 같은 자리 — 오버레이 둘 다 자기 상태 하나만 되돌린다 (Esc·배경·버튼)');
 }
 
 // ── ③ 전역에 activeTab 류 상태가 없다 ────────────────────────────────────────

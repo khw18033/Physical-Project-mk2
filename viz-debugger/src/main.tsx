@@ -20,6 +20,7 @@ import type { Task, TaskStatus } from './model/types.ts';
 import { PendingSource } from './shared/PendingSource.tsx';
 import { hardwareSourceLabel, listCastIds, listRegisteredHardware } from './shared/registry.ts';
 import { ActionModal } from './views/ActionModal.tsx';
+import { DeviceStatusOverlay } from './views/DeviceStatusOverlay.tsx';
 import { UtterancePanel } from './views/UtterancePanel.tsx';
 import { StatusLegend } from './views/StatusLegend.tsx';
 import './style.css';
@@ -51,6 +52,12 @@ function Milestones({ view, phase, milestoneStatuses, assignments, onAssign, onO
   const hardware = listRegisteredHardware();
   const cast = listCastIds();
   const mission = useMission();
+  /**
+   * 더블클릭으로 연 **대상 상태** (260904 — `VZ-D-07` 의 미구현분). 카드가 드래그로 배정만
+   * 되고 눌러도 아무 일이 없었다. **문자열 하나다** — 배열이면 둘이 열리고, 둘이 열리면
+   * 분할 화면이고, 분할 화면은 곧 탭이 된다 (`VZ-N-05` 와 같은 규칙).
+   */
+  const [statusDeviceId, setStatusDeviceId] = useState<string | null>(null);
   // 승인·거부는 **마일스톤 목록 위 제안 카드 안**에 있다 (260901). 통합 빌드는 이 슬롯에
   // PlanApproval(근거 4층 + 승인·거부)이 들어오고, 단독 빌드는 로컬 재생기용 폴백이 들어온다 —
   // **같은 자리**다. 근거의 「구간별 계획」이 「아래 마일스톤과 같음」이라고 적으므로
@@ -68,12 +75,19 @@ function Milestones({ view, phase, milestoneStatuses, assignments, onAssign, onO
       {approvalSlot}
     </div>}
     <div className="milestone-list">{view.milestones.map((item) => <button key={item.id} className={`milestone state-${milestoneStatuses[item.id] ?? 'pending'}`} onClick={() => onOpen(item.id)} onDragOver={(event) => event.preventDefault()} onDrop={(event) => onAssign(item.id, event.dataTransfer.getData('text/plain'))}><b>{item.id}</b><strong>{item.title}</strong><span>{(assignments[item.id] ?? item.assignedTargets).join(' · ') || '미배정'}</span><small>클릭 → 태스크 그래프</small></button>)}</div></section>
-    <aside className="hardware-panel"><h2>하드웨어 · {view.hardware ? hardware.length : cast.length}대</h2><p>카드를 마일스톤으로 드래그 · 원천 {hardwareSourceLabel()}</p>
+    <aside className="hardware-panel"><h2>하드웨어 · {view.hardware ? hardware.length : cast.length}대</h2><p>카드를 마일스톤으로 드래그 · <b>더블클릭 → 대상 상태</b> · 원천 {hardwareSourceLabel()}</p>
     {view.hardware
-      ? hardware.map((item) => <article key={item.id} draggable onDragStart={(event) => event.dataTransfer.setData('text/plain', item.id)}><b className={item.connection}>{item.id}</b><small>{item.kind}</small><span><PendingSource id="hardware-pool-status" inline>{item.connection} · {item.battery}% · {item.rssi} dBm</PendingSource></span></article>)
+      ? hardware.map((item) => <article key={item.id} draggable onDragStart={(event) => event.dataTransfer.setData('text/plain', item.id)} onDoubleClick={() => setStatusDeviceId(item.id)}><b className={item.connection}>{item.id}</b><small>{item.kind}</small><span><PendingSource id="hardware-pool-status" inline>{item.connection} · {item.battery}% · {item.rssi} dBm</PendingSource></span></article>)
       // 대본(registry 세계) — 등장 장비는 id 만 대본에서 읽는다. 실측 3행은 여전히 자리표시다
       // (VZ-D-07 · 8/31 결정 — registry 장비의 실측값은 남이 줄 데이터라 지어내지 않는다).
-      : cast.map((id) => <article key={id} draggable onDragStart={(event) => event.dataTransfer.setData('text/plain', id)}><b>{id}</b><small>대본 등장 장비</small><span><PendingSource id="hardware-pool-status" inline>상태 3행 — 연결 예정</PendingSource></span></article>)}</aside></div>;
+      : cast.map((id) => <article key={id} draggable onDragStart={(event) => event.dataTransfer.setData('text/plain', id)} onDoubleClick={() => setStatusDeviceId(id)}><b>{id}</b><small>대본 등장 장비</small><span><PendingSource id="hardware-pool-status" inline>상태 3행 — 연결 예정</PendingSource></span></article>)}</aside>
+    {/* 대상 상태 (260904). 목록의 **형제**로 얹힌다 — 뒤의 마일스톤·하드웨어 목록은
+        언마운트되지 않으므로 닫으면 정확히 같은 자리다 (VZ-N-05 와 같은 규칙). */}
+    {statusDeviceId !== null && <DeviceStatusOverlay
+      deviceId={statusDeviceId}
+      device={hardware.find((item) => item.id === statusDeviceId)}
+      source={hardwareSourceLabel()}
+      onClose={() => setStatusDeviceId(null)} />}</div>;
 }
 
 function ReplayControls({ second, following, playing, onChange, onFollow, view, tasks }: {
