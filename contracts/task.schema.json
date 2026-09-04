@@ -7,6 +7,10 @@
     "deps": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
     "status": { "$ref": "#/$defs/status" }, "attempt": { "type": "integer", "minimum": 1 },
     "derived_from": { "type": ["string", "null"] },
+    "node_kind": {
+      "$comment": "노드 문법 5종 (260831 노드 분화 · 260904 계약 승격). **선택 필드다** — 이 필드가 대본 JSON 에만 있고 계약에 없어서 생성 결과를 계약으로 검증할 수 없었다. 필수로 올리면 노드 분화 이전 편(MSN-260826-01)과 기존 예시가 통째로 무효가 되므로 선택으로 둔다. deps 는 이 라벨에서 규칙으로 계산한다 — src/generate/solveDeps.ts",
+      "enum": ["sense", "decide", "act", "verify", "report"]
+    },
     "action_items": { "type": "array", "items": { "$ref": "action-item.schema.json" } },
     "evaluation": { "anyOf": [{ "type": "null" }, { "$ref": "evaluation.schema.json" }] }
   },

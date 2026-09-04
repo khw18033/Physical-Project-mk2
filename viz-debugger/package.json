@@ -19,6 +19,7 @@
     "verify:trace-append": "node scripts/verify-trace-append.mjs",
     "verify:replay": "node scripts/verify-replay.mjs",
     "verify:human-trace": "node scripts/verify-human-trace.mjs",
+    "verify:dep-rules": "node scripts/verify-dep-rules.mjs",
     "verify:layout": "node scripts/verify-layout.mjs",
     "verify:single-egress": "node scripts/verify-single-egress.mjs",
     "verify:standalone": "npm run build:standalone && node scripts/verify-standalone.mjs",

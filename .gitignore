@@ -13,6 +13,8 @@ viz-debugger/**/.verify-scenario-*/
 viz-debugger/.verify-trace-*/
 viz-debugger/**/.verify-replay-*/
 viz-debugger/**/.verify-human-*/
+viz-debugger/**/.verify-dep-*/
+gen-lab/.venv/
 
 # TypeScript 증분 빌드 캐시
 *.tsbuildinfo
