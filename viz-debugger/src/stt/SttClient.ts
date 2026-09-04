@@ -9,14 +9,26 @@
  * 실패를 **던지기만 하고 잡지 않는다** — 무엇을 비활성화할지는 화면이 정한다.
  */
 
+import { connectionAddress, registerConnectionDefault } from '../shared/connections.ts';
 import { SttUnavailableError, type SttResult } from './types.ts';
 
 const meta = import.meta as unknown as { env?: { VITE_STT_URL?: string } };
 
-/** 목 게이트웨이(8790)·대시보드(5173/8787~8788)·stt-lab(8799)과 겹치지 않는 포트. */
-export const STT_BASE_URL: string = meta.env?.VITE_STT_URL ?? 'http://127.0.0.1:8801';
+/**
+ * 목 게이트웨이(8790)·대시보드(5173/8787~8788)·stt-lab(8799)과 겹치지 않는 포트.
+ *
+ * **환경변수는 이제 기본값이다** (260904 — `VZ-C-07`). 화면의 「연결 관리」가 덮어쓸 수
+ * 있고, 덮어쓴 값이 있으면 그것이 이긴다. 다만 **STT 주소를 아는 면은 여기 하나**여야
+ * 하므로(`verify:no-stt`) 환경변수는 이 파일에서만 읽고, 연결 저장소에는 **기본값만 심는다.**
+ */
+registerConnectionDefault('stt', 'base', meta.env?.VITE_STT_URL ?? 'http://127.0.0.1:8801');
 
-const TRANSCRIBE_URL = `${STT_BASE_URL}/stt/transcribe`;
+/** 지금 쓰는 STT 주소. 상수가 아니라 **읽을 때마다 지금 값**이다. */
+export function sttBaseUrl(): string {
+  return connectionAddress('stt', 'base');
+}
+
+const transcribeUrl = () => `${sttBaseUrl()}/stt/transcribe`;
 
 export type TranscribeOptions = {
   /** 켬/끔만 보낸다. **어휘 문자열은 보내지 않는다** — 서비스가 registry 원본에서 매번 새로 뽑는다 (REQ-305). */
@@ -29,11 +41,11 @@ export type TranscribeOptions = {
 async function post(body: FormData, signal?: AbortSignal): Promise<SttResult> {
   let response: Response;
   try {
-    response = await fetch(TRANSCRIBE_URL, { method: 'POST', body, signal });
+    response = await fetch(transcribeUrl(), { method: 'POST', body, signal });
   } catch (error) {
     // 서비스가 안 떠 있는 흔한 경우가 여기로 온다. 화면은 이 문장을 그대로 보여주고
     // 음성 기능만 끈다.
-    throw new SttUnavailableError('offline', `STT 서비스에 닿지 않습니다 (${STT_BASE_URL})`, String(error));
+    throw new SttUnavailableError('offline', `STT 서비스에 닿지 않습니다 (${sttBaseUrl()})`, String(error));
   }
   const text = await response.text();
   let parsed: unknown;
@@ -83,7 +95,7 @@ export type SttProbe = {
  */
 export async function probe(signal?: AbortSignal): Promise<SttProbe> {
   try {
-    await fetch(TRANSCRIBE_URL, { method: 'GET', signal });
+    await fetch(transcribeUrl(), { method: 'GET', signal });
     return { alive: true, reason: null };
   } catch (error) {
     return { alive: false, reason: await describeProbeFailure(error, signal) };
@@ -104,9 +116,9 @@ async function describeProbeFailure(error: unknown, signal?: AbortSignal): Promi
   // 망 실패가 아닌 것(그 외)은 원문 그대로 — 지어내는 것보다 낫다.
   if (!(error instanceof TypeError)) return raw;
   try {
-    await fetch(TRANSCRIBE_URL, { method: 'GET', mode: 'no-cors', signal });
-    return `서비스는 떠 있는데 브라우저가 막았습니다 (${STT_BASE_URL}) — stt/service.py 의 ALLOWED_ORIGINS 에 이 페이지 주소가 있는지 확인하세요.`;
+    await fetch(transcribeUrl(), { method: 'GET', mode: 'no-cors', signal });
+    return `서비스는 떠 있는데 브라우저가 막았습니다 (${sttBaseUrl()}) — stt/service.py 의 ALLOWED_ORIGINS 에 이 페이지 주소가 있는지 확인하세요.`;
   } catch {
-    return `서비스가 떠 있지 않습니다 (${STT_BASE_URL}) — npm run dev:stt 로 따로 띄워 사유를 보세요. 원문: ${raw}`;
+    return `서비스가 떠 있지 않습니다 (${sttBaseUrl()}) — npm run dev:stt 로 따로 띄워 사유를 보세요. 원문: ${raw}`;
   }
 }

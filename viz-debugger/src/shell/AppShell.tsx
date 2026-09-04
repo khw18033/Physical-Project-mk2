@@ -10,6 +10,7 @@ import { useNotifications } from '../shared/notifications.ts';
 import { PendingSource } from '../shared/PendingSource.tsx';
 import { exitScenarioRender, useDevTools, useMockRender, useScenarioRender } from '../shared/renderMode.ts';
 import { useTabsDataLayer } from '../tabs/index.tsx';
+import { ConnectionsPanel } from './ConnectionsPanel.tsx';
 import { HelpOverlay } from './HelpOverlay.tsx';
 import { useMissionBridge } from './missionBridge.ts';
 import { ModeSwitch } from './ModeSwitch.tsx';
@@ -43,7 +44,7 @@ export function AppShell({ debuggerView, onDebuggerHome, onMissionHistory, onOpe
   /** 대본 띠의 「○○ 노드로」 — 캔버스에 요청만 넣는다. 셸은 캔버스 안을 모른다. */
   onOpenNode(kind: string, taskId: string | null): void;
 }) {
-  const [panel, setPanel] = useState<'history' | 'notifications' | null>(null);
+  const [panel, setPanel] = useState<'history' | 'notifications' | 'connections' | null>(null);
   const notifications = useNotifications();
   // 데이터 계층은 앱 수명과 같다. **탭을 옮겨도 구독을 끊지 않는다** — 여기서 한 번만 기동한다.
   const connection = useTabsDataLayer();
@@ -105,10 +106,12 @@ export function AppShell({ debuggerView, onDebuggerHome, onMissionHistory, onOpe
         <ModeSwitch />
         <HelpOverlay scope={manualScope} />
         <span className={`conn conn--${connection.state}`}>{CONNECTION_LABEL[connection.state] ?? connection.state}{connection.state === 'reconnecting' ? ` (${connection.attempt}회)` : ''}</span>
-        <button onClick={() => void issueCommand({ action: 'mission_pause' })}>■ 정지</button><button onClick={() => void issueCommand({ action: 'mission_resume' })}>▶ 재시작</button><button onClick={() => void issueCommand({ action: 'mission_abort' })}>■ 중단</button><button onClick={() => { setPanel('history'); onMissionHistory(); }}>◷ 임무 이력</button><button onClick={() => setPanel('notifications')}>알림 <b>{notifications.length}</b></button>
+        <button onClick={() => void issueCommand({ action: 'mission_pause' })}>■ 정지</button><button onClick={() => void issueCommand({ action: 'mission_resume' })}>▶ 재시작</button><button onClick={() => void issueCommand({ action: 'mission_abort' })}>■ 중단</button><button onClick={() => { setPanel('history'); onMissionHistory(); }}>◷ 임무 이력</button><button onClick={() => setPanel('notifications')}>알림 <b>{notifications.length}</b></button><button onClick={() => setPanel('connections')}>⇄ 연결 관리</button>
       </nav>
     </header>
-    {panel && <aside className="global-panel"><header><b>{panel === 'history' ? '임무 이력' : '통합 알림'}</b><button onClick={() => setPanel(null)}>닫기</button></header>{panel === 'history' ? <PendingSource id="mission-history" minHeight={110}><ul><li>MSN-260826-01 · 실패 · 현재</li><li>MSN-260826-00 · 완료</li><li>MSN-260825-07 · 완료</li></ul></PendingSource> : <ul>{notifications.map((item) => <li key={item.id}><b>{item.source}</b> {item.source === 'external-ai' ? <PendingSource id="ai-failure-alert" inline>{item.message}</PendingSource> : item.message}</li>)}</ul>}</aside>}
+    {/* 연결 관리는 폼이라 목록 판과 모양이 다르다 — 자기 부품이 그린다 (`VZ-C-07`). */}
+    {panel === 'connections' && <ConnectionsPanel onClose={() => setPanel(null)} />}
+    {panel !== null && panel !== 'connections' && <aside className="global-panel"><header><b>{panel === 'history' ? '임무 이력' : '통합 알림'}</b><button onClick={() => setPanel(null)}>닫기</button></header>{panel === 'history' ? <PendingSource id="mission-history" minHeight={110}><ul><li>MSN-260826-01 · 실패 · 현재</li><li>MSN-260826-00 · 완료</li><li>MSN-260825-07 · 완료</li></ul></PendingSource> : <ul>{notifications.map((item) => <li key={item.id}><b>{item.source}</b> {item.source === 'external-ai' ? <PendingSource id="ai-failure-alert" inline>{item.message}</PendingSource> : item.message}</li>)}</ul>}</aside>}
     {/* 무대는 하나다 — 노드 캔버스. 감췄다 되살릴 다른 무대가 없으므로 `is-hidden` 도 없다.
         ManualScope 는 캔버스를 감싼다 — 확대된 노드의 설명서는 오버레이가 따로 감싼다. */}
     <section className="tab-stage">

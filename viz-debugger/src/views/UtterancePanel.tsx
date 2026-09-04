@@ -19,7 +19,7 @@ import { issueCommand } from '../shared/commandEgress.ts';
 import { CommandAuditError } from '../shared/voiceAudit.ts';
 import { capabilities, type SttStatus } from '../stt/availability.ts';
 import { decide, PROVISIONAL_NOTE, VERDICT_LABEL, type ConfidenceDecision } from '../stt/confidence.ts';
-import { probe, STT_BASE_URL, transcribe } from '../stt/SttClient.ts';
+import { probe, sttBaseUrl, transcribe } from '../stt/SttClient.ts';
 import { SttUnavailableError, type SttResult } from '../stt/types.ts';
 import { Explain } from '../shared/Explain.tsx';
 
@@ -411,7 +411,7 @@ export function UtterancePanel({ fallbackText }: { fallbackText: string }) {
       <details className="manual-input" open={manualOpen || status === 'unavailable'}
         onToggle={(event) => setManualOpen((event.target as HTMLDetailsElement).open)}>
         <summary>문장을 직접 넣기</summary>
-        <Explain id="utt-4" className="hint">STT 서비스({STT_BASE_URL})가 없어도 이 경로는 항상 열려 있습니다.</Explain>
+        <Explain id="utt-4" className="hint">STT 서비스({sttBaseUrl()})가 없어도 이 경로는 항상 열려 있습니다.</Explain>
         <textarea value={manual} rows={2} placeholder="예: 503 구역 로봇을 5층 복도로 이동시켜"
           onChange={(event) => setManual(event.target.value)} />
         <button disabled={!manual.trim()} onClick={() => void submitManual()}>직접 입력으로 요청</button>

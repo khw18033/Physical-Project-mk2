@@ -252,3 +252,22 @@ b.follow-live{cursor:default}
    일곱 칸 한 줄과 카메라 자리표시 하나뿐이다. */
 .device-modal{width:min(980px,92vw)}
 .device-modal__camera{padding:16px 22px 4px}
+
+/* 연결 관리 (260904 — VZ-C-07). 목록 판(.global-panel)보다 넓다 — 폼이고 칸이 여섯이다. */
+.global-panel--connections{width:520px;max-height:calc(100vh - 140px);overflow:auto}
+.connections__lead{margin:10px 0 14px;color:#5a6675;font-size:13px;line-height:1.65}
+.connections__warn{margin:0 0 12px;padding:9px 11px;border:1px solid #e8c893;border-radius:7px;background:#fff8ec;color:#8a6300;font-size:12px}
+.conn-target{padding:12px 0;border-top:1px solid #e6eaf0}
+.conn-target h3{display:flex;align-items:center;gap:8px;margin:0 0 4px;font-size:14px}
+.conn-target h3 em{padding:2px 7px;border-radius:99px;background:#eef2f7;color:#6a7686;font-size:11px;font-style:normal}
+.conn-target p{margin:0 0 8px;color:#6a7686;font-size:12px}
+.conn-target__pending{color:#a2691a}
+.conn-target label{display:grid;grid-template-columns:96px 1fr;gap:9px;align-items:center;margin:6px 0}
+.conn-target label span{color:#5a6675;font-size:12px}
+.conn-target input{padding:7px 9px;border:1px solid #cbd3de;border-radius:6px;font-family:monospace;font-size:12px}
+.conn-target--pending input{background:#f4f6f9;color:#95a0ad}
+.connections__actions{display:flex;align-items:center;gap:8px;padding-top:13px;border-top:1px solid #e6eaf0}
+.connections__note{flex:1;color:#5a6675;font-size:12px;line-height:1.5}
+.connections__actions button{padding:8px 12px;border:1px solid #cbd3de;border-radius:7px;background:#fff}
+.connections__apply:not(:disabled){color:#fff;border-color:#1768c5;background:#1768c5}
+.connections__actions button:disabled{opacity:.5;cursor:default}

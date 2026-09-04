@@ -39,7 +39,12 @@ type Sub = {
 };
 
 export class WsTransport implements Transport {
-  private readonly config: WsTransportConfig;
+  /**
+   * 주소를 **붙을 때마다** 다시 읽는다 (260904 — `VZ-C-07`). 고정 설정을 주면 지금까지와
+   * 똑같고, 함수를 주면 그때그때 값을 본다. `getTransport()` 가 후자를 쓴다 — 화면에서
+   * 주소를 바꾸면 같은 인스턴스가 끊었다 **새 주소로** 붙어야 하기 때문이다.
+   */
+  private readonly resolve: () => WsTransportConfig;
   private ws: WebSocket | null = null;
   private readonly subs = new Map<string, Sub>();
   private readonly statusHandlers = new Set<(s: ConnectionStatus) => void>();
@@ -67,8 +72,13 @@ export class WsTransport implements Transport {
     lastError: null,
   };
 
-  constructor(config: WsTransportConfig) {
-    this.config = config;
+  constructor(config: WsTransportConfig | (() => WsTransportConfig)) {
+    this.resolve = typeof config === 'function' ? config : () => config;
+  }
+
+  /** 지금 붙어 있는(또는 붙을) 주소. 화면이 「어디에 붙었나」를 적을 때 쓴다. */
+  get config(): WsTransportConfig {
+    return this.resolve();
   }
 
   // ── 연결 ───────────────────────────────────────────────────────────────────
@@ -80,7 +90,7 @@ export class WsTransport implements Transport {
     }
     this.setStatus({ state: this.attempt > 0 ? 'reconnecting' : 'connecting', nextRetryInMs: null });
 
-    const ws = new WebSocket(this.config.url);
+    const ws = new WebSocket(this.resolve().url);
     this.ws = ws;
 
     ws.onopen = () => {

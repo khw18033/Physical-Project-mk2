@@ -111,8 +111,109 @@ try {
   stop();
 }
 
+// ── 주소가 런타임으로 바뀌어도 출입구는 하나인가 (260904 — `VZ-C-07`) ───────────
+//
+// `VZ-C-07`(연결 관리)이 **이 검사를 깨뜨리기 제일 쉬운** 변경이었다. 주소가 상수에서
+// 런타임 값이 되면 「여기저기서 URL 을 읽는」 길이 열리고, 그 순간 출입구가 갈라진다.
+// 위의 채널 검사는 목 게이트웨이만 보므로 그 성질을 못 본다 — 여기서 **실제로 주소를 바꿔**
+// 확인한다.
+//
+//  1. `getTransport()` 는 여전히 **같은 인스턴스**를 돌려준다 (주소를 바꿔도 새로 만들지 않는다)
+//  2. 바꾸면 **끊고 새 주소로 다시 붙는다** — 옛 게이트웨이를 죽여도 값이 계속 온다
+//  3. 구독은 살아 있다 — 호출자가 다시 구독하지 않는다
+//  4. **`new WsTransport(` 는 소스 전체에 하나뿐이다** — 두 번째가 생기면 출입구가 둘이다
+{
+  const { readFileSync, readdirSync, statSync } = await import('node:fs');
+  const { relative } = await import('node:path');
+
+  // 4 — 소스에서 전송을 만드는 곳을 센다.
+  const sources = [];
+  (function walk(directory) {
+    for (const name of readdirSync(directory)) {
+      const path = join(directory, name);
+      if (statSync(path).isDirectory()) walk(path);
+      else if (/\.tsx?$/.test(name)) sources.push(path);
+    }
+  })(join(root, 'src'));
+  const makers = sources.filter((path) => /new WsTransport\s*\(/.test(readFileSync(path, 'utf8')));
+  if (makers.length !== 1 || !makers[0].endsWith(join('src', 'transport', 'index.ts'))) {
+    failures.push(`전송을 만드는 곳이 ${makers.length}곳이다 (${makers.map((one) => relative(root, one)).join(', ')}) — 출입구는 transport/index.ts 하나여야 한다`);
+  }
+
+  // 1~3 — 실제로 주소를 바꿔 본다. 게이트웨이 둘을 띄우고 A → B 로 옮긴다.
+  globalThis.WebSocket = WebSocket;
+  const PORT_A = PORT + 1;
+  const PORT_B = PORT + 2;
+  const spawnGateway = (port) => spawn(process.execPath, ['gateway/server.ts'], {
+    cwd: root,
+    stdio: ['ignore', 'ignore', 'inherit'],
+    env: { ...process.env, MOCK_PORT: String(port), VIZ_SCENARIO_SPEED: '40' },
+  });
+  const gatewayA = spawnGateway(PORT_A);
+  const gatewayB = spawnGateway(PORT_B);
+  const waitFor = (label, predicate, timeout = 15000) => new Promise((resolve, reject) => {
+    const started = Date.now();
+    const timer = setInterval(() => {
+      if (predicate()) { clearInterval(timer); resolve(); }
+      else if (Date.now() - started > timeout) { clearInterval(timer); reject(new Error(`${label} 시간 초과`)); }
+    }, 50);
+  });
+  try {
+    const { saveConnections } = await import('../src/shared/connections.ts');
+    const { getTransport } = await import('../src/transport/index.ts');
+    saveConnections({ 'gateway.ws': `ws://127.0.0.1:${PORT_A}`, 'gateway.http': `http://127.0.0.1:${PORT_A}` });
+
+    const transport = getTransport();
+    let frames = 0;
+    // **열림으로 들어간 횟수.** 「끊고 다시 붙었다」는 이 값이 늘어야만 사실이다 —
+    // 주소만 바꿔 두고 옛 연결에 그대로 붙어 있어도 `config.url` 과 상태는 멀쩡해 보인다.
+    let opens = 0;
+    let previous = transport.getStatus().state;
+    transport.onStatus((status) => {
+      if (status.state === 'open' && previous !== 'open') opens += 1;
+      previous = status.state;
+    });
+    transport.subscribe({ entity: '*', node: 'zone-503', channel: '*' }, () => { frames += 1; });
+    transport.connect();
+    await waitFor('A 연결·구독', () => transport.getStatus().state === 'open' && frames > 0);
+    const opensAtA = opens;
+
+    // 주소를 B 로 바꾼다. **화면이 하는 일과 같은 호출**이다.
+    saveConnections({ 'gateway.ws': `ws://127.0.0.1:${PORT_B}`, 'gateway.http': `http://127.0.0.1:${PORT_B}` });
+    // 1 — 같은 인스턴스여야 한다.
+    if (getTransport() !== transport) failures.push('주소를 바꿨더니 getTransport() 가 새 인스턴스를 돌려준다 — 그 위에 걸린 구독이 통째로 날아간다');
+    // 2 — A 를 죽이지 않은 채로 **끊고 다시 붙어야** 한다. 그냥 두면 옛 연결이 멀쩡해서
+    //     아무 일도 일어나지 않는데, 그때도 주소·상태는 정상으로 보인다.
+    await waitFor(
+      'B 로 끊고 다시 붙기 (A 는 살아 있다)',
+      () => opens > opensAtA && transport.getStatus().state === 'open' && transport.config.url.endsWith(String(PORT_B)),
+    );
+
+    // 3 — 옛 게이트웨이를 죽여도 값이 계속 온다(= 정말 B 에 붙었다 + 구독이 살아 있다).
+    gatewayA.kill();
+    await new Promise((resolve) => gatewayA.once('exit', resolve));
+    frames = 0;
+    await waitFor('B 에서 구독 복원 수신', () => frames > 0);
+    console.log(`✅ 주소 교체 — 같은 인스턴스가 ${PORT_A} → ${PORT_B} 로 끊고 다시 붙고(A 를 죽이기 전에), 구독은 다시 걸지 않아도 살아 있다`);
+
+    // 음성 대조군 — 붙지 않는 주소로 바꾸면 반드시 열린 상태를 벗어난다.
+    saveConnections({ 'gateway.ws': 'ws://127.0.0.1:1', 'gateway.http': 'http://127.0.0.1:1' });
+    await waitFor('대조군 — 없는 주소에서 연결이 끊긴다', () => transport.getStatus().state !== 'open');
+    transport.close();
+  } catch (error) {
+    failures.push(`주소 교체 검사: ${String(error?.message ?? error)}`);
+  } finally {
+    gatewayA.kill();
+    gatewayB.kill();
+  }
+}
+
 if (failures.length) {
   console.error(`❌ 게이트웨이 하나가 탭 여섯을 못 채운다:\n  - ${failures.join('\n  - ')}`);
   process.exit(1);
 }
 console.log(`✅ 통과 — 게이트웨이 1개 · 연결 1개로 탭별 채널 ${Object.values(TAB_CHANNELS).flat().join('·')} 수신, 재연결 후 구독·스냅샷 복원, 미발행 채널 대조군 확인`);
+console.log('✅ 통과 — 주소가 런타임으로 바뀌어도 전송을 만드는 곳은 하나, 싱글턴 유지, 끊고 다시 붙기·구독 복원 확인');
+// 이 검사는 게이트웨이 셋과 소켓 여럿을 띄웠다 잡는다. 붙지 못한 소켓(대조군의 없는 주소)
+// 하나라도 남으면 Node 의 이벤트 루프가 안 죽어 `npm run` 이 영원히 매달린다 — 끝났으면 끝낸다.
+process.exit(0);
