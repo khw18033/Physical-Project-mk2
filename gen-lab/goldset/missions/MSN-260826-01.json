@@ -1,0 +1,182 @@
+{
+  "mission_id": "MSN-260826-01",
+  "world": "legacy",
+  "source": "viz-debugger/scenarios/MSN-260826-01.json (읽기 전용)",
+  "utterance": {
+    "text": "415호에서 503호로 이동해줘",
+    "engine": "faster-whisper-large-v3",
+    "confidence": 0.94,
+    "audio_ref": "utt-260826-1006.wav"
+  },
+  "match": {
+    "must": [
+      [
+        "415"
+      ]
+    ],
+    "any": [
+      "이동",
+      "503"
+    ],
+    "normalize": "공백 제거 · 소문자"
+  },
+  "milestones": [
+    {
+      "milestone_id": "MS-A",
+      "order": 0,
+      "title": "415호 출발 및 복도 진입",
+      "assigned_targets": [
+        "go1-02"
+      ],
+      "task_ids": []
+    },
+    {
+      "milestone_id": "MS-B",
+      "order": 1,
+      "title": "복도 통과 → 엘리베이터 홀 도달",
+      "assigned_targets": [
+        "go1-02"
+      ],
+      "task_ids": []
+    },
+    {
+      "milestone_id": "MS-C",
+      "order": 2,
+      "title": "엘리베이터 탑승 → 5층 하차",
+      "assigned_targets": [
+        "go1-02",
+        "arm-03",
+        "cam-4f"
+      ],
+      "task_ids": [
+        "T-31",
+        "T-32",
+        "T-33",
+        "T-34",
+        "T-35",
+        "T-36",
+        "T-37"
+      ]
+    },
+    {
+      "milestone_id": "MS-D",
+      "order": 3,
+      "title": "5층 복도 이동 → 503호 진입",
+      "assigned_targets": [],
+      "task_ids": []
+    },
+    {
+      "milestone_id": "MS-E",
+      "order": 4,
+      "title": "503호 내부 진입 확인",
+      "assigned_targets": [
+        "cam-5f"
+      ],
+      "task_ids": []
+    },
+    {
+      "milestone_id": "MS-F",
+      "order": 5,
+      "title": "도착 보고",
+      "assigned_targets": [],
+      "task_ids": []
+    },
+    {
+      "milestone_id": "MS-G",
+      "order": 6,
+      "title": "임무 종료",
+      "assigned_targets": [],
+      "task_ids": []
+    }
+  ],
+  "tasks": [
+    {
+      "task_id": "T-31",
+      "title": "엘리베이터 홀 이동",
+      "milestone_id": "MS-C",
+      "node_kind": null,
+      "target": "go1-02",
+      "deps": []
+    },
+    {
+      "task_id": "T-32",
+      "title": "상행 호출 버튼 누르기",
+      "milestone_id": "MS-C",
+      "node_kind": null,
+      "target": "arm-03",
+      "deps": [
+        "T-31"
+      ]
+    },
+    {
+      "task_id": "T-33",
+      "title": "대기 위치 정렬",
+      "milestone_id": "MS-C",
+      "node_kind": null,
+      "target": "go1-02",
+      "deps": [
+        "T-31"
+      ]
+    },
+    {
+      "task_id": "T-34",
+      "title": "도어 개방 확인",
+      "milestone_id": "MS-C",
+      "node_kind": null,
+      "target": "cam-4f",
+      "deps": [
+        "T-32",
+        "T-33"
+      ]
+    },
+    {
+      "task_id": "T-35",
+      "title": "엘리베이터 탑승",
+      "milestone_id": "MS-C",
+      "node_kind": null,
+      "target": "go1-02",
+      "deps": [
+        "T-34"
+      ]
+    },
+    {
+      "task_id": "T-36",
+      "title": "5층 버튼 누르기",
+      "milestone_id": "MS-C",
+      "node_kind": null,
+      "target": "arm-03",
+      "deps": [
+        "T-35"
+      ]
+    },
+    {
+      "task_id": "T-37",
+      "title": "5층 하차",
+      "milestone_id": "MS-C",
+      "node_kind": null,
+      "target": "go1-02",
+      "deps": [
+        "T-36"
+      ]
+    }
+  ],
+  "shape": {
+    "tasks": 7,
+    "edges": 7,
+    "roots": 1,
+    "sinks": 1,
+    "joins": 1,
+    "max_depth": 5,
+    "has_cycle": false,
+    "ref_edges": 0,
+    "node_kinds": [],
+    "labeled": false
+  },
+  "not_extracted": {
+    "events": "실행 기록 — 생성기가 만들 것이 아니라 실행이 만든다",
+    "worldTimeline": "세계 값 — 위와 같다",
+    "params": "편별 상수(위험 수위 등) — 임무 설계가 아니라 환경 설정이다",
+    "actionItems": "어댑터 전개 결과 — VZ-G-04 의 몫이다",
+    "refEdges": "되돌아가는 참조 엣지 — 사람이 대본에 적은 것이고 생성 대상이 아니다 (§5)"
+  }
+}
