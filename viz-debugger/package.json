@@ -29,7 +29,8 @@
     "verify:node-scope": "node scripts/verify-node-scope.mjs",
     "verify:canvas-persist": "node scripts/verify-canvas-persist.mjs",
     "verify:view-nodes": "node scripts/verify-view-nodes.mjs",
-    "verify:no-tabs": "node scripts/verify-no-tabs.mjs"
+    "verify:no-tabs": "node scripts/verify-no-tabs.mjs",
+    "measure:representation": "node scripts/measure-representation.mjs"
   },
   "dependencies": {
     "react": "^19.1.0",

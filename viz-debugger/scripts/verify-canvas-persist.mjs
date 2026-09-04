@@ -8,9 +8,15 @@
 //  2. **슬롯** — 마일스톤마다 다른 구성이고 「임무 전체」는 별도 슬롯(`__mission__`)이다.
 //     마일스톤을 옮겼다 돌아오면 그대로 있어야 한다.
 //  3. **실패 셋** — 저장소 막힘 · 연결한 태스크 소실 · 스키마 변경 (지시서 §4).
-//  4. **DAG↔트리 전환이 뷰 노드를 지우지 않는가** — 태스크의 `movedPositions` 는 배치 모드가
-//     바뀌면 버려진다(자동 배치가 다시 계산되니 맞다). 뷰 노드는 사용자가 놓은 것이라
-//     같이 버리면 "내가 만든 게 사라졌다"가 된다. **두 저장소가 분리돼 있는지**를 본다.
+//  4. **자동 배치가 다시 계산돼도 뷰 노드를 지우지 않는가** — 태스크의 `movedPositions` 는
+//     보고 있는 태스크 집합이 바뀌면 버려진다(그 자리는 남의 자리가 되니 맞다). 뷰 노드는
+//     사용자가 놓은 것이라 같이 버리면 "내가 만든 게 사라졌다"가 된다. **두 저장소가
+//     분리돼 있는지**를 본다.
+//
+//     *(260904 — **판정 계기가 옮겨 갔다.** 예전에는 「DAG↔트리 전환」이 계기였는데 배치 모드
+//     토글이 없어졌다(요구사항정의서 §7.10). **규칙은 그대로 살아야 한다** — 검사를 같이
+//     지우면 폭이 바뀔 때 뷰 노드가 날아가는 회귀를 아무도 못 잡는다. 그래서 계기를
+//     **「창 폭 변경 · 보기 범위(마일스톤↔임무 전체) 전환」**으로 옮겼다.)*
 //  5. 음성 대조군 — 위 판정들이 실제로 실패를 잡는가.
 //
 // 규칙은 전부 `src/canvas/persist.ts` 의 순수 함수라 여기서 그대로 돌린다.
@@ -34,6 +40,8 @@ const root = join(fileURLToPath(new URL('.', import.meta.url)), '..');
 const read = (...parts) => readFileSync(join(root, ...parts), 'utf8');
 const failures = [];
 const check = (ok, message) => { if (!ok) failures.push(message); };
+/** 주석을 걷어낸 소스. 이 저장소의 주석은 「왜 layoutMode 가 아닌가」를 길게 적는다. */
+const stripComments = (source) => source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^[ 	]*\/\/.*$/gm, '');
 
 const MISSION = 'MSN-260831-01';
 const node = (id, taskId = 'T-11a', x = null, y = null) => ({ id, kind: 'device-risk', taskId, x, y });
@@ -169,24 +177,63 @@ const TASKS = new Set(['T-11a', 'T-11b']);
   console.log('✅ 실패 3 — 판이 다르거나 깨졌으면 버리고 한 줄로 알린다. 성한 구성과 첫 방문은 조용하다');
 }
 
-// ── ⑦ DAG↔트리 전환이 뷰 노드를 지우지 않는다 (두 저장소의 분리) ───────────────
+// ── ⑦ 자동 배치가 다시 계산돼도 뷰 노드가 살아 있다 (두 저장소의 분리) ─────────
+//
+// **260904 — 계기가 바뀌었다.** 배치 모드 토글(DAG/트리)이 없어지면서 옛 계기가 사라졌지만
+// 규칙은 그대로다: **자동 배치가 다시 계산돼도 사용자가 놓은 뷰 노드는 안 지워진다.**
+// 이제 그 계기는 둘이다.
+//
+//   가. **창 폭(·높이) 변경** — 접기가 다시 계산된다. 여기서 뷰 노드가 날아가면
+//       창을 줄였다 늘린 것만으로 "내가 만든 게 사라졌다"가 된다. **이 검사를 지우면
+//       그 회귀를 아무도 못 잡는다.**
+//   나. **보기 범위 전환**(마일스톤 ↔ 임무 전체) — 태스크 집합이 통째로 달라진다.
+//       태스크의 이동 위치는 여기서 버려지는 것이 맞고(남의 자리가 된다), 뷰 노드는
+//       **슬롯이 다르므로 각자 자기 자리에 그대로 남아** 돌아오면 다시 보여야 한다.
 {
-  /** 뷰 노드 저장소가 배치 모드를 아는가 — 알면 모드가 바뀔 때 같이 버려질 길이 생긴다. */
-  const knowsLayoutMode = (source) => source.includes('layoutMode');
+  /** 뷰 노드 저장소가 화면 크기를 아는가 — 알면 폭이 바뀔 때 같이 버려질 길이 생긴다. */
+  const knowsViewport = (source) => /layoutWidth|layoutHeight|availableWidth|availableHeight|innerWidth/.test(source);
   for (const file of ['persist.ts', 'useCanvas.ts', 'defaults.ts']) {
-    check(!knowsLayoutMode(read('src', 'canvas', file)), `src/canvas/${file} 이 layoutMode 를 안다 — 뷰 노드 저장소가 배치 모드에 묶이면 전환 때 사라진다`);
+    check(!knowsViewport(read('src', 'canvas', file)), `src/canvas/${file} 이 화면 크기를 안다 — 뷰 노드 저장소가 창 크기에 묶이면 폭이 바뀔 때 사라진다`);
   }
   const graph = read('src', 'graph', 'TaskGraph.tsx');
-  check(graph.includes('setMovedPositions({}), [layoutMode]'), '태스크의 movedPositions 가 배치 모드 전환에서 초기화되지 않는다 — 기존 동작이 바뀌었다');
-  // 뷰 노드의 좌표는 저장된 값이 이긴다. 초기화 대상이 아니다.
-  check(graph.includes('node.x !== null && node.y !== null'), '뷰 노드가 저장된 좌표를 쓰지 않는다');
-  const resetsViews = /setViewDrag\([^)]*\),\s*\[layoutMode\]/.test(graph);
-  check(!resetsViews, '뷰 노드 상태가 배치 모드 전환에서 초기화된다');
-  // 음성 대조군 — 판정이 실제로 잡는가.
-  if (!knowsLayoutMode("const dag = layoutMode === 'dag';")) {
-    failures.push('대조군 실패: layoutMode 를 아는 소스를 판정이 놓쳤다 — 이 검사는 무의미하다');
+  // 가 — 창 크기는 **초기화 계기가 아니다.** 태스크의 이동조차 폭·높이로는 안 버린다.
+  const resetDeps = [...graph.matchAll(/setMovedPositions\(\{\}\),\s*\[([^\]]*)\]/g)].map((hit) => hit[1]);
+  check(resetDeps.length === 1, `실행 노드 이동 초기화가 ${resetDeps.length}곳이다 — 계기는 하나여야 한다`);
+  if (resetDeps.length === 1) {
+    check(!/layoutWidth|layoutHeight/.test(resetDeps[0]), `창 크기가 실행 노드 이동 초기화의 계기다 (${resetDeps[0]}) — 창을 줄였다 늘리면 노드가 제자리로 돌아간다`);
+    // 나 — 보고 있는 태스크 집합이 바뀌면 버린다. 그 자리는 남의 자리가 된다.
+    check(/taskSetKey/.test(resetDeps[0]), `실행 노드 이동 초기화의 계기가 태스크 집합이 아니다 (${resetDeps[0]})`);
   }
-  console.log('✅ DAG↔트리 — 뷰 노드 저장소는 배치 모드를 모른다(전환해도 안 지워진다). 태스크의 이동만 초기화된다');
+  check(/const taskSetKey = tasks\.map\(/.test(graph), '태스크 집합 키가 id 목록에서 나오지 않는다 — 배열 정체성만 바뀌어도 되돌아간다');
+  // 뷰 노드의 좌표는 저장된 값이 이긴다. 폭이 바뀌어도 초기화 대상이 아니다.
+  check(graph.includes('node.x !== null && node.y !== null'), '뷰 노드가 저장된 좌표를 쓰지 않는다');
+  const resetsViews = /setViewDrag\([^)]*\),\s*\[(layoutWidth|layoutHeight|taskSetKey)\]/.test(graph);
+  check(!resetsViews, '뷰 노드 상태가 폭 변경·범위 전환에서 초기화된다');
+  // 배치 모드는 정말 없어졌는가 — 남아 있으면 옛 계기가 조용히 살아 있는 것이다.
+  check(!/layoutMode/.test(stripComments(graph)), 'TaskGraph 에 layoutMode 가 남았다 — 토글은 없어졌다 (§7.10)');
+  check(!/layoutMode/.test(stripComments(read('src', 'main.tsx'))), 'main.tsx 에 layoutMode 가 남았다 — 토글은 없어졌다 (§7.10)');
+
+  // 나 — **범위 전환은 슬롯이 다르다.** 마일스톤에서 만든 것이 임무 전체로 새지 않고,
+  //      돌아오면 그대로 있다. (②가 슬롯 분리를 보고, 여기서는 왕복을 본다.)
+  {
+    const deps = { storage: fakeStorage(), defaults: noDefaults };
+    saveCanvas(MISSION, 'MS-C', { version: CANVAS_SCHEMA_VERSION, nodes: [node('vn-in-milestone')] }, deps);
+    const whole = loadCanvas(MISSION, MISSION_SLOT, TASKS, deps);
+    check(whole.config.nodes.length === 0, '범위를 「임무 전체」로 바꿨더니 마일스톤의 뷰 노드가 새어 들어왔다');
+    saveCanvas(MISSION, MISSION_SLOT, { version: CANVAS_SCHEMA_VERSION, nodes: [node('vn-in-mission')] }, deps);
+    const back = loadCanvas(MISSION, 'MS-C', TASKS, deps);
+    check(ids(back.config) === 'vn-in-milestone', `범위를 바꿨다 돌아오니 뷰 노드가 사라졌다: ${ids(back.config)}`);
+  }
+
+  // 음성 대조군 둘 — 판정이 실제로 잡는가.
+  if (!knowsViewport('const cols = columnsPerBand(layoutWidth);')) {
+    failures.push('대조군 실패: 화면 크기를 아는 소스를 판정이 놓쳤다 — 이 검사는 무의미하다');
+  }
+  if (!/layoutWidth|layoutHeight/.test('attached, tasks, layoutWidth')) {
+    failures.push('대조군 실패: 창 크기를 계기로 삼은 의존 배열을 판정이 놓쳤다');
+  }
+  console.log('✅ 자동 배치 재계산 — 뷰 노드 저장소는 창 크기를 모르고, 폭 변경은 실행 노드 이동조차 되돌리지 않는다');
+  console.log('✅ 보기 범위 전환 — 슬롯이 달라 새지 않고, 돌아오면 그대로 있다 (배치 모드 토글은 없어졌다)');
 }
 
 if (failures.length) {
@@ -194,4 +241,4 @@ if (failures.length) {
   for (const line of failures) console.error(`  - ${line}`);
   process.exit(1);
 }
-console.log(`✅ 통과 — 캔버스 구성 3층 · 슬롯 · 실패 셋 · 배치 모드 전환 (스키마 v${CANVAS_SCHEMA_VERSION})`);
+console.log(`✅ 통과 — 캔버스 구성 3층 · 슬롯 · 실패 셋 · 창 폭 변경·보기 범위 전환 (스키마 v${CANVAS_SCHEMA_VERSION})`);

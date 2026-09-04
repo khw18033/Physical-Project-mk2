@@ -19,6 +19,7 @@ import { setZoomTarget, useZoomTarget } from './canvas/zoomState.ts';
 import type { Task, TaskStatus } from './model/types.ts';
 import { PendingSource } from './shared/PendingSource.tsx';
 import { hardwareSourceLabel, listCastIds, listRegisteredHardware } from './shared/registry.ts';
+import { graphShape, shapeLabel } from './graph/shape.ts';
 import { ActionModal } from './views/ActionModal.tsx';
 import { DeviceStatusOverlay } from './views/DeviceStatusOverlay.tsx';
 import { UtterancePanel } from './views/UtterancePanel.tsx';
@@ -111,10 +112,9 @@ function ReplayControls({ second, following, playing, onChange, onFollow, view, 
  */
 export type GraphScope = 'milestone' | 'mission';
 
-function GraphScreen({ screen, view, milestone, tasks, headSec, playing, layoutMode, onLayout, scope, onScope, refEdges, crossing, onOpen, onBack, onGraph, openTask, nodeRequest }: {
+function GraphScreen({ screen, view, milestone, tasks, headSec, playing, scope, onScope, refEdges, crossing, onOpen, onBack, onGraph, openTask, nodeRequest }: {
   screen: Screen; view: MissionView; milestone: MissionMilestone | null; tasks: Task[];
   headSec: number; playing: boolean;
-  layoutMode: 'dag' | 'tree'; onLayout(value: 'dag' | 'tree'): void;
   scope: GraphScope; onScope(value: GraphScope): void;
   refEdges: MissionView['refEdges']; crossing: MissionView['refEdges'];
   onOpen(task: Task, failed: boolean): void;
@@ -219,6 +219,12 @@ function GraphScreen({ screen, view, milestone, tasks, headSec, playing, layoutM
   }), [canvas.bind, canvas.move, canvas.nodes, canvas.remove, highlightedId, picked, second, view, zoomedId]);
   const folded = useMemo(() => statusesAt(second, view), [second, view]);
   const failedTask = tasks.find((task) => folded.tasks[task.id]?.status === 'failed') ?? null;
+  /**
+   * 머리줄이 적을 **이 임무 자신의 모양** (260904). 고정 문구(「분기와 합류가 있는 태스크
+   * DAG」)는 대본에 따라 거짓이었다 — 3편은 합류가 하나도 없다. 트리는 언급하지 않는다:
+   * 배치 모드 토글이 없어졌고, 없는 기능을 설명하면 "그게 뭔데?"가 생긴다 (§7.10).
+   */
+  const shape = useMemo(() => graphShape(tasks, refEdges), [refEdges, tasks]);
   const title = scope === 'mission'
     ? `${view.label} · 임무 전체 ${tasks.length}노드`
     : milestone === null ? view.label : `마일스톤 ${milestone.id.replace(/^MS-/, '')} · ${milestone.title}`;
@@ -241,7 +247,7 @@ function GraphScreen({ screen, view, milestone, tasks, headSec, playing, layoutM
       : <button type="button" className="crumbs__link" onClick={onGraph}>{here}</button>}
     {openTask !== null && <><span className="crumbs__sep" aria-hidden="true">›</span><span className="crumbs__here">{openTask.id} {openTask.title}</span></>}
   </nav>;
-  return <div className={replay ? 'replay-layout' : ''}>{replay && <aside className="history"><h2>임무 이력</h2><PendingSource id="mission-history" minHeight={200}>{['MSN-260826-01 · 실패', 'MSN-260826-00 · 완료', 'MSN-260825-07 · 완료', 'MSN-260825-06 · 완료'].map((item) => <button key={item}>{item}</button>)}</PendingSource></aside>}<section className="graph-panel"><header className="section-title"><div>{crumbs}<h2>{title}</h2><small>{replay ? `리플레이 · T+${String(Math.round(second)).padStart(2, '0')}s` : failure ? (failedTask ? '실패 경로 강조 · 관련 없는 노드 흐림' : '이 대본에는 실패가 없습니다 — 결함 주입(REQ-1409)으로 만들 수 있습니다') : '분기와 합류가 있는 태스크 DAG'}</small></div><div className="toggle"><button className={layoutMode === 'dag' ? 'active' : ''} onClick={() => onLayout('dag')}>DAG</button><button className={layoutMode === 'tree' ? 'active' : ''} onClick={() => onLayout('tree')}>트리</button></div><div className="toggle"><button className={scope === 'milestone' ? 'active' : ''} onClick={() => onScope('milestone')}>이 마일스톤</button><button className={scope === 'mission' ? 'active' : ''} onClick={() => onScope('mission')}>임무 전체</button></div></header><Palette canvas={canvas} pickedTaskId={picked?.id ?? null} pickedTaskTitle={picked?.title ?? null} /><TaskGraph tasks={tasks} hardware={listRegisteredHardware()} states={folded.tasks} layoutMode={layoutMode} selected={failure ? failedTask?.id : undefined} dimUnrelated={failure && failedTask !== null} refEdges={refEdges} onOpen={(task) => onOpen(task, folded.tasks[task.id]?.status === 'failed')} canvas={canvasLayer} />
+  return <div className={replay ? 'replay-layout' : ''}>{replay && <aside className="history"><h2>임무 이력</h2><PendingSource id="mission-history" minHeight={200}>{['MSN-260826-01 · 실패', 'MSN-260826-00 · 완료', 'MSN-260825-07 · 완료', 'MSN-260825-06 · 완료'].map((item) => <button key={item}>{item}</button>)}</PendingSource></aside>}<section className="graph-panel"><header className="section-title"><div>{crumbs}<h2>{title}</h2><small>{replay ? `리플레이 · T+${String(Math.round(second)).padStart(2, '0')}s` : failure ? (failedTask ? '실패 경로 강조 · 관련 없는 노드 흐림' : '이 대본에는 실패가 없습니다 — 결함 주입(REQ-1409)으로 만들 수 있습니다') : shapeLabel(shape)}</small></div><div className="toggle"><button className={scope === 'milestone' ? 'active' : ''} onClick={() => onScope('milestone')}>이 마일스톤</button><button className={scope === 'mission' ? 'active' : ''} onClick={() => onScope('mission')}>임무 전체</button></div></header><Palette canvas={canvas} pickedTaskId={picked?.id ?? null} pickedTaskTitle={picked?.title ?? null} /><TaskGraph tasks={tasks} hardware={listRegisteredHardware()} states={folded.tasks} selected={failure ? failedTask?.id : undefined} dimUnrelated={failure && failedTask !== null} refEdges={refEdges} onOpen={(task) => onOpen(task, folded.tasks[task.id]?.status === 'failed')} canvas={canvasLayer} />
     {/* 마일스톤 밖으로 나가는 되돌아감 — 적지 않으면 사용자는 루프의 존재를 모른다 (결정 2). */}
     {crossing.length > 0 && <p className="ref-crossing">↺ {crossing.map((edge) => `${edge.from} → ${edge.to} (${edge.label})`).join(' · ')} — 이 마일스톤 밖으로 되돌아갑니다 <button onClick={() => onScope('mission')}>임무 전체로 보기</button></p>}
     {replay && <ReplayControls second={second} following={override === null} playing={playing} onChange={setOverride} onFollow={() => setOverride(null)} view={view} tasks={tasks} />}<StatusLegend /><Explain id="dbg-1" className="hint">노드를 더블클릭하면 액션 아이템 상세를 엽니다. 실패 상태 노드는 수정 화면으로 이어집니다. 뷰 노드를 더블클릭하면 그 자리에서 확대됩니다 — 캔버스는 뒤에 그대로 있습니다.</Explain></section>
@@ -280,7 +286,6 @@ export function MissionDebugger({ navigation, planApproval }: { navigation?: Deb
   const view = display.view;
 
   const [screen, setScreen] = useState<Screen>('milestones');
-  const [layoutMode, setLayoutMode] = useState<'dag' | 'tree'>('dag');
   const [scope, setScope] = useState<GraphScope>('milestone');
   const [modalTask, setModalTask] = useState<Task | null>(null);
   const [assignments, setAssignments] = useState<Record<string, string[]>>({});
@@ -342,7 +347,7 @@ export function MissionDebugger({ navigation, planApproval }: { navigation?: Deb
 
   return <div className="mission-debugger">{screen === 'milestones'
     ? <Milestones view={view} phase={display.phase} milestoneStatuses={milestoneStatuses} assignments={assignments} onAssign={(id, hardware) => setAssignments((current) => ({ ...current, [id]: [...new Set([...(current[id] ?? []), hardware])] }))} onOpen={(id) => { setMilestoneId(id); navigate('graph'); }} planApproval={planApproval} />
-    : <GraphScreen screen={screen} view={view} milestone={graphMilestone} tasks={graphTasks} headSec={display.headSec} playing={display.phase === 'playing'} layoutMode={layoutMode} onLayout={setLayoutMode} scope={scope} onScope={setScope} refEdges={visibleRefEdges} crossing={crossingRefEdges} onOpen={openTask}
+    : <GraphScreen screen={screen} view={view} milestone={graphMilestone} tasks={graphTasks} headSec={display.headSec} playing={display.phase === 'playing'} scope={scope} onScope={setScope} refEdges={visibleRefEdges} crossing={crossingRefEdges} onOpen={openTask}
       // navigate() 를 쓴다 — 그것이 modalTask 정리까지 함께 한다. setScreen 을 직접 부르면 팝업이 남는다.
       // 범위도 함께 되돌린다: 「임무 전체」로 보다 목록으로 나갔다 다시 들어왔는데 전체로 남아 있으면 어리둥절하다.
       onBack={() => { setScope('milestone'); navigate('milestones'); }}

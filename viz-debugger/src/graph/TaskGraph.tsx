@@ -2,12 +2,12 @@ import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointer
 import { ViewNodeCard } from '../canvas/ViewNodeCard.tsx';
 import type { ViewNodeEntry, ViewNodeInstance, ViewScope } from '../canvas/types.ts';
 import type { Hardware, NodeKind, RefEdge, Task, TaskStatus } from '../model/types.ts';
-import { dagLayout, treeLayout, viewNodeLayout, NODE_HEIGHT, NODE_WIDTH, VIEW_NODE_HEIGHT, VIEW_NODE_WIDTH, type Attached, type Position } from './layout.ts';
+import { dagLayout, viewNodeLayout, NODE_HEIGHT, NODE_WIDTH, VIEW_NODE_HEIGHT, VIEW_NODE_WIDTH, type Attached, type Position } from './layout.ts';
 import { STATE_STYLE } from './stateStyle.ts';
 
 type Props = {
   tasks: Task[]; hardware: readonly Hardware[]; states: Record<string, { status: TaskStatus; attempt: number }>;
-  layoutMode: 'dag' | 'tree'; selected?: string; dimUnrelated?: boolean; onOpen(task: Task): void;
+  selected?: string; dimUnrelated?: boolean; onOpen(task: Task): void;
   /**
    * 되돌아가는 엣지 (260831 노드 분화). **`deps` 가 아니라 별도로 받는다** — 레이아웃·깊이
    * 계산에 넣으면 순환이 된다. 그런데 그리지 않으면 사용자는 이 대본이 되돌아간다는 것을
@@ -114,7 +114,7 @@ function bindPath(from: Position, to: Position): string {
   return `M${x1},${y1} C${x1},${middle} ${x2},${middle} ${x2},${y2}`;
 }
 
-export function TaskGraph({ tasks, hardware, states, layoutMode, selected, dimUnrelated, onOpen, refEdges, canvas }: Props) {
+export function TaskGraph({ tasks, hardware, states, selected, dimUnrelated, onOpen, refEdges, canvas }: Props) {
   // 자기 자리의 **실제 폭과 높이**를 잰다 (260901 폭 · 260904 높이) — 배치가 폭을 모르면
   // 화면 밖으로 나가고, 높이를 모르면 남는 세로를 안 쓰면서 필요 이상으로 접는다.
   const hostRef = useRef<HTMLDivElement | null>(null);
@@ -166,11 +166,15 @@ export function TaskGraph({ tasks, hardware, states, layoutMode, selected, dimUn
     }
     return counts;
   }, [canvas?.nodes]);
+  /**
+   * 기준 배치. **DAG 하나다** (260904 — 요구사항정의서 §7.10). 배치 모드 토글이 없어졌고
+   * `treeLayout()` 은 지워지지 않은 채 부르는 곳만 `scripts/measure-representation.mjs` 로
+   * 옮겨 갔다 — 「트리로 만들면 이만큼 나빠진다」를 숫자로 내는 도구다. 화면은 트리를
+   * 언급하지 않는다.
+   */
   const basePositions = useMemo(
-    () => (layoutMode === 'dag'
-      ? dagLayout(tasks, layoutWidth, attached, layoutHeight)
-      : treeLayout(tasks, layoutWidth, attached)),
-    [attached, layoutMode, tasks, layoutWidth, layoutHeight],
+    () => dagLayout(tasks, layoutWidth, attached, layoutHeight),
+    [attached, tasks, layoutWidth, layoutHeight],
   );
   const [movedPositions, setMovedPositions] = useState<Record<string, { x: number; y: number }>>({});
   const [drag, setDrag] = useState<{ id: string; offsetX: number; offsetY: number; startX: number; startY: number; kind: 'task' | 'view' } | null>(null);
@@ -182,9 +186,20 @@ export function TaskGraph({ tasks, hardware, states, layoutMode, selected, dimUn
   const [viewDrag, setViewDrag] = useState<{ id: string; x: number; y: number } | null>(null);
   /** 끌지 않고 눌렀다 뗐으면 「고르기」다 — 팔레트가 이 태스크에 노드를 붙인다. */
   const movedRef = useRef(false);
-  // **창 크기가 바뀌었다고 사용자가 옮긴 노드를 되돌리지 않는다** — 기준 배치만 다시 계산한다.
-  // 그래서 이 의존 배열에 layoutWidth 가 없다 (260901).
-  useEffect(() => setMovedPositions({}), [layoutMode]);
+  /**
+   * 실행 노드의 이동 위치를 언제 버리는가 (260904 — 계기가 바뀌었다).
+   *
+   * 배치 모드 토글이 없어지면서 옛 계기(`[layoutMode]`)가 사라졌다. 새 계기는 **보고 있는
+   * 태스크 집합이 바뀔 때**다 — 마일스톤을 옮기거나 「임무 전체」로 넘어가면 화면에 있는
+   * 노드가 통째로 달라져서, 옛 자리를 들고 있어 봐야 남의 자리다.
+   *
+   * **창 크기는 계기가 아니다** — 폭·높이가 바뀌었다고 사용자가 옮긴 노드를 되돌리지 않는다
+   * (`VZ-N-04` · 지시서 §1 「하지 말 것」). 그래서 이 의존 배열에 `layoutWidth`·`layoutHeight`
+   * 가 없다. id 목록을 키로 쓰는 이유도 같다 — 배정이 바뀌어 `tasks` 배열의 정체성만
+   * 새로워진 경우까지 되돌리면 안 된다.
+   */
+  const taskSetKey = tasks.map((task) => task.id).join(',');
+  useEffect(() => setMovedPositions({}), [taskSetKey]);
   const positions = useMemo(() => Object.fromEntries(tasks.map((task) => [task.id, movedPositions[task.id] ?? basePositions[task.id]])), [basePositions, movedPositions, tasks]);
   /**
    * 뷰 노드의 기준 자리 — 연결한 태스크 **아래**, 전역이면 맨 아래 레인. 태스크를 끌면
@@ -196,8 +211,8 @@ export function TaskGraph({ tasks, hardware, states, layoutMode, selected, dimUn
   );
   const viewPositions = useMemo(() => Object.fromEntries((canvas?.nodes ?? []).map((node) => {
     if (viewDrag !== null && viewDrag.id === node.id) return [node.id, { x: viewDrag.x, y: viewDrag.y }];
-    // 사용자가 놓아 둔 좌표가 있으면 그것이 이긴다. **배치 모드가 바뀌어도 지우지 않는다** —
-    // 태스크의 movedPositions 와 저장소가 다른 이유가 이것이다 (`VZ-N-04`).
+    // 사용자가 놓아 둔 좌표가 있으면 그것이 이긴다. **자동 배치가 다시 계산돼도 지우지
+    // 않는다** — 태스크의 movedPositions 와 저장소가 다른 이유가 이것이다 (`VZ-N-04`).
     if (node.x !== null && node.y !== null) return [node.id, { x: node.x, y: node.y }];
     return [node.id, viewBase[node.id] ?? { x: 30, y: 55 }];
   })) as Record<string, Position>, [canvas?.nodes, viewBase, viewDrag]);
@@ -206,7 +221,7 @@ export function TaskGraph({ tasks, hardware, states, layoutMode, selected, dimUn
   // 바닥값이 **잰 높이**다 (260904) — 작은 그래프도 화면 아래까지 자리를 차지한다. 옛 390 은
   // 16:9 모니터에서 아래를 통째로 비웠고, 노드를 아래로 끌어 놓을 자리도 없었다.
   const height = Math.max(
-    layoutMode === 'dag' ? (layoutHeight ?? MIN_CANVAS_HEIGHT) : 690,
+    layoutHeight ?? MIN_CANVAS_HEIGHT,
     ...Object.values(positions).map((position) => position.y + NODE_HEIGHT + ((refEdges?.length ?? 0) > 0 ? 70 : 30)),
     // 뷰 노드가 세로를 밀어낸다 — 캔버스가 따라 커지지 않으면 아래쪽 카드가 잘린다.
     ...Object.values(viewPositions).map((position) => position.y + VIEW_NODE_HEIGHT + 30),

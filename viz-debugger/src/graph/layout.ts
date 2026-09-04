@@ -244,6 +244,15 @@ export function dagLayout(
 /**
  * 트리 배치 — 한 노드당 한 줄이라 원래 세로로 길다. **폭만 접으면 된다.**
  * 접힌 뒤의 x 는 깊이가 아니라 「깊이 % 한 밴드의 열 수」다.
+ *
+ * ## 화면이 아니라 측정 도구가 부른다 (260904)
+ *
+ * 배치 모드 토글이 없어졌다 — 회의록 §10의 「그래프 형태 vs 트리 형태」가 **그래프로**
+ * 닫혔기 때문이다(요구사항정의서 §7.10). **그래도 이 함수는 지우지 않는다.** 부르는 곳이
+ * 화면에서 `scripts/measure-representation.mjs` 로 옮겨 갔을 뿐이고, 「트리를 만들지 않은
+ * 이유」를 주장이 아니라 **숫자로** 내려면 계산이 남아 있어야 한다.
+ *
+ * `verify-layout.mjs` 가 이미 이 모듈을 Node 에서 직접 import 해 돌리고 있어 같은 패턴이다.
  */
 export function treeLayout(tasks: Task[], availableWidth?: number, attached?: Attached): Record<string, Position> {
   const depth = depths(tasks);

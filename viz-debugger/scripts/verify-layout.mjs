@@ -1,16 +1,19 @@
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { dagLayout, treeLayout } from '../src/graph/layout.ts';
+import { dagLayout } from '../src/graph/layout.ts';
 
 const root = join(fileURLToPath(new URL('.', import.meta.url)), '..');
 const scenario = JSON.parse(await readFile(join(root, 'scenarios', 'MSN-260826-01.json'), 'utf8'));
 const source = await readFile(join(root, 'src', 'graph', 'TaskGraph.tsx'), 'utf8');
-for (const [name, layout] of [['DAG', dagLayout(scenario.tasks)], ['트리', treeLayout(scenario.tasks)]]) {
-  const positions = Object.values(layout);
+// **배치는 DAG 하나다** (260904 — 요구사항정의서 §7.10). 배치 모드 토글이 없어졌으므로
+// 화면 배치 검사도 하나만 본다. `treeLayout()` 은 지워지지 않았고 `measure:representation`
+// 이 부른다 — 그쪽은 화면에 안 나오므로 「화면 밖으로 나가는가」를 물을 일이 없다.
+{
+  const positions = Object.values(dagLayout(scenario.tasks));
   const unique = new Set(positions.map(({ x, y }) => `${x},${y}`));
-  if (positions.length !== 7 || unique.size !== 7) throw new Error(`${name}: 노드 위치가 겹치거나 누락됨`);
-  console.log(`✅ ${name} 노드 7개 좌표가 모두 다름`);
+  if (positions.length !== 7 || unique.size !== 7) throw new Error('DAG: 노드 위치가 겹치거나 누락됨');
+  console.log('✅ DAG 노드 7개 좌표가 모두 다름');
 }
 if (!source.includes('style={{ left: position.x, top: position.y }}')) throw new Error('계산 좌표가 CSS left/top에 적용되지 않음');
 console.log('✅ 계산 좌표를 카드 CSS left/top에 적용');
@@ -51,20 +54,13 @@ function overlaps(positions) {
 
 function checkFold(label, tasks, width) {
   const f = [];
-  for (const [mode, layout] of [['DAG', dagLayout], ['트리', treeLayout]]) {
-    const positions = layout(tasks, width);
-    const ids = Object.keys(positions);
-    if (ids.length !== tasks.length) f.push(`${label} ${mode} ${width}px: 노드 ${tasks.length}개 중 ${ids.length}개만 배치됐다`);
-    const right = Math.max(...Object.values(positions).map((p) => p.x + NODE_WIDTH));
-    if (right > width) f.push(`${label} ${mode} ${width}px: 오른쪽 끝이 ${right}px — 화면 밖으로 ${right - width}px 나간다`);
-    if (mode === 'DAG') {
-      const hit = overlaps(positions);
-      if (hit !== null) f.push(`${label} DAG ${width}px: 노드 상자가 겹친다 (${hit}) — 밴드 높이가 그 밴드의 노드 수를 반영하지 않는다`);
-    } else {
-      const unique = new Set(Object.values(positions).map((p) => `${p.x},${p.y}`));
-      if (unique.size !== ids.length) f.push(`${label} 트리 ${width}px: 노드 위치가 겹친다`);
-    }
-  }
+  const positions = dagLayout(tasks, width);
+  const ids = Object.keys(positions);
+  if (ids.length !== tasks.length) f.push(`${label} ${width}px: 노드 ${tasks.length}개 중 ${ids.length}개만 배치됐다`);
+  const right = Math.max(...Object.values(positions).map((p) => p.x + NODE_WIDTH));
+  if (right > width) f.push(`${label} ${width}px: 오른쪽 끝이 ${right}px — 화면 밖으로 ${right - width}px 나간다`);
+  const hit = overlaps(positions);
+  if (hit !== null) f.push(`${label} ${width}px: 노드 상자가 겹친다 (${hit}) — 밴드 높이가 그 밴드의 노드 수를 반영하지 않는다`);
   return f;
 }
 
@@ -97,7 +93,7 @@ if (foldFailures.length) {
   console.error(`❌ 접기 배치 검사 실패:\n  - ${foldFailures.join('\n  - ')}`);
   process.exit(1);
 }
-console.log(`✅ 접기 배치 — 대본 ${scripts.length}편 × DAG/트리 × 임무 전체·마일스톤별, 폭 ${WIDTHS.join('/')}px 에서 노드가 하나도 화면 밖으로 나가지 않고 겹치지 않음`);
+console.log(`✅ 접기 배치 — 대본 ${scripts.length}편 × 임무 전체·마일스톤별, 폭 ${WIDTHS.join('/')}px 에서 노드가 하나도 화면 밖으로 나가지 않고 겹치지 않음 (배치는 DAG 하나)`);
 
 // ── 잰 높이 안에 들어오는가 (260904 — 추가 개선 1) ─────────────────────────────
 //
@@ -256,32 +252,28 @@ for (const script of scripts) {
     const attached = attachAll(tasks);
     const nodes = viewNodesFor(attached);
     for (const width of WIDTHS) {
-      for (const [mode, layout] of [['DAG', dagLayout], ['트리', treeLayout]]) {
-        const plain = layout(tasks, width);
-        const pushed = layout(tasks, width, attached);
-        for (const id of Object.keys(plain)) {
-          if (plain[id].x !== pushed[id].x) {
-            viewFailures.push(`${script.missionId} ${label} ${mode} ${width}px: 뷰 노드를 달았더니 ${id} 의 x 가 ${plain[id].x}→${pushed[id].x} 로 움직였다 — 깊이 계산이 오염됐다`);
-          }
+      const plain = dagLayout(tasks, width);
+      const pushed = dagLayout(tasks, width, attached);
+      for (const id of Object.keys(plain)) {
+        if (plain[id].x !== pushed[id].x) {
+          viewFailures.push(`${script.missionId} ${label} ${width}px: 뷰 노드를 달았더니 ${id} 의 x 가 ${plain[id].x}→${pushed[id].x} 로 움직였다 — 깊이 계산이 오염됐다`);
         }
-        const views = viewNodeLayout(nodes, pushed, width);
-        if (Object.keys(views).length !== nodes.length) {
-          viewFailures.push(`${script.missionId} ${label} ${mode} ${width}px: 뷰 노드 ${nodes.length}장 중 ${Object.keys(views).length}장만 배치됐다`);
-        }
-        if (mode === 'DAG') {
-          const hit = collide(pushed, views);
-          if (hit !== null) viewFailures.push(`${script.missionId} ${label} DAG ${width}px: 상자가 겹친다 (${hit}) — 배치가 뷰 노드 높이를 반영하지 않는다`);
-          if (label === '임무 전체' && width === 1440) {
-            heights.push({
-              id: script.missionId,
-              plain: Math.max(...Object.values(plain).map((p) => p.y + NODE_HEIGHT)),
-              withViews: Math.max(...Object.values(views).map((p) => p.y + VIEW_NODE_HEIGHT)),
-            });
-          }
-        }
-        const right = Math.max(...Object.values(views).map((p) => p.x + VIEW_NODE_WIDTH));
-        if (right > width) viewFailures.push(`${script.missionId} ${label} ${mode} ${width}px: 뷰 카드가 오른쪽으로 ${right - width}px 나간다`);
       }
+      const views = viewNodeLayout(nodes, pushed, width);
+      if (Object.keys(views).length !== nodes.length) {
+        viewFailures.push(`${script.missionId} ${label} ${width}px: 뷰 노드 ${nodes.length}장 중 ${Object.keys(views).length}장만 배치됐다`);
+      }
+      const hit = collide(pushed, views);
+      if (hit !== null) viewFailures.push(`${script.missionId} ${label} ${width}px: 상자가 겹친다 (${hit}) — 배치가 뷰 노드 높이를 반영하지 않는다`);
+      if (label === '임무 전체' && width === 1440) {
+        heights.push({
+          id: script.missionId,
+          plain: Math.max(...Object.values(plain).map((p) => p.y + NODE_HEIGHT)),
+          withViews: Math.max(...Object.values(views).map((p) => p.y + VIEW_NODE_HEIGHT)),
+        });
+      }
+      const right = Math.max(...Object.values(views).map((p) => p.x + VIEW_NODE_WIDTH));
+      if (right > width) viewFailures.push(`${script.missionId} ${label} ${width}px: 뷰 카드가 오른쪽으로 ${right - width}px 나간다`);
     }
   }
 }
