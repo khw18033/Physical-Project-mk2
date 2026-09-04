@@ -57,6 +57,13 @@ const NODE_KIND_LABEL: Record<NodeKind, string> = {
  * 첫 프레임의 배치가 예전과 같고, 잰 값이 들어오면 곧바로 그 폭에 맞춰 접힌다.
  */
 const FALLBACK_WIDTH = 1120;
+/**
+ * 캔버스가 아무리 작아도 이만큼은 된다 (260904). **옛 바닥값 그대로다** — 잰 값이 이보다
+ * 작게 나오는 창(아주 낮은 창·개발 도구를 아래에 띄운 화면)에서 지금보다 나빠지지 않는다.
+ */
+const MIN_CANVAS_HEIGHT = 390;
+/** 페이지 아래 여백(`main` 의 `padding-bottom`). 캔버스가 창 밑에 딱 붙으면 답답하다. */
+const PAGE_BOTTOM = 40;
 
 function connectionPath(from: { x: number; y: number }, to: { x: number; y: number }) {
   const dx = to.x - from.x; const dy = to.y - from.y;
@@ -108,23 +115,44 @@ function bindPath(from: Position, to: Position): string {
 }
 
 export function TaskGraph({ tasks, hardware, states, layoutMode, selected, dimUnrelated, onOpen, refEdges, canvas }: Props) {
-  // 자기 자리의 **실제 폭**을 잰다 (260901) — 배치가 폭을 모르면 화면 밖으로 나간다.
+  // 자기 자리의 **실제 폭과 높이**를 잰다 (260901 폭 · 260904 높이) — 배치가 폭을 모르면
+  // 화면 밖으로 나가고, 높이를 모르면 남는 세로를 안 쓰면서 필요 이상으로 접는다.
   const hostRef = useRef<HTMLDivElement | null>(null);
-  const [availableWidth, setAvailableWidth] = useState<number | null>(null);
+  const [available, setAvailable] = useState<{ width: number; height: number } | null>(null);
   useEffect(() => {
     const host = hostRef.current;
     if (host === null) return;
-    const measure = () => setAvailableWidth(host.clientWidth);
+    /**
+     * 세로는 자기 `clientHeight` 로 잴 수 없다 — 그 값이 곧 내용 높이라 자기를 되먹인다.
+     * **창 바닥까지 남은 자리**를 잰다: 창 높이 − 캔버스 시작 y − 아래에 깔린 것.
+     *
+     * 「아래에 깔린 것」(범례·안내줄·패널 아래 여백)은 고정 픽셀로 적지 않고 **패널 바닥과
+     * 캔버스 바닥의 차이로 잰다** — 캔버스가 커지면 패널도 같이 커지므로 이 차이는 캔버스
+     * 높이와 무관하고, 그래서 이 계산이 순환하지 않는다.
+     */
+    const measure = () => {
+      const rect = host.getBoundingClientRect();
+      const panel = host.closest('.graph-panel');
+      const below = panel === null ? 0 : Math.max(0, panel.getBoundingClientRect().bottom - rect.bottom);
+      const viewport = typeof window === 'undefined' ? 0 : window.innerHeight;
+      setAvailable({
+        width: host.clientWidth,
+        height: Math.max(MIN_CANVAS_HEIGHT, Math.round(viewport - rect.top - below - PAGE_BOTTOM)),
+      });
+    };
     measure();
+    // 창 높이만 바뀌면 자리 크기는 그대로라 ResizeObserver 가 안 깨어난다 — 둘 다 듣는다.
+    window.addEventListener('resize', measure);
     if (typeof ResizeObserver === 'undefined') {
-      window.addEventListener('resize', measure);
       return () => window.removeEventListener('resize', measure);
     }
     const observer = new ResizeObserver(measure);
     observer.observe(host);
-    return () => observer.disconnect();
+    return () => { window.removeEventListener('resize', measure); observer.disconnect(); };
   }, []);
-  const layoutWidth = availableWidth ?? FALLBACK_WIDTH;
+  const layoutWidth = available?.width ?? FALLBACK_WIDTH;
+  /** 아직 못 쟀으면 `undefined` — 배치는 높이를 모른 채 옛 규칙(폭 최대 열)으로 붙인다. */
+  const layoutHeight = available?.height;
 
   /**
    * 태스크마다 붙은 뷰 노드 수. 배치가 이만큼 아래를 밀어내지 않으면 뷰 노드가 그 열의
@@ -139,8 +167,10 @@ export function TaskGraph({ tasks, hardware, states, layoutMode, selected, dimUn
     return counts;
   }, [canvas?.nodes]);
   const basePositions = useMemo(
-    () => (layoutMode === 'dag' ? dagLayout(tasks, layoutWidth, attached) : treeLayout(tasks, layoutWidth, attached)),
-    [attached, layoutMode, tasks, layoutWidth],
+    () => (layoutMode === 'dag'
+      ? dagLayout(tasks, layoutWidth, attached, layoutHeight)
+      : treeLayout(tasks, layoutWidth, attached)),
+    [attached, layoutMode, tasks, layoutWidth, layoutHeight],
   );
   const [movedPositions, setMovedPositions] = useState<Record<string, { x: number; y: number }>>({});
   const [drag, setDrag] = useState<{ id: string; offsetX: number; offsetY: number; startX: number; startY: number; kind: 'task' | 'view' } | null>(null);
@@ -173,8 +203,10 @@ export function TaskGraph({ tasks, hardware, states, layoutMode, selected, dimUn
   })) as Record<string, Position>, [canvas?.nodes, viewBase, viewDrag]);
   // 높이는 노드 위치에서 계산한다 (260831) — 노드 분화 뒤에는 한 열에 노드가 셋씩 쌓이고
   // 「임무 전체」 보기는 열일곱이라, 상수 높이면 아래쪽 노드와 참조 엣지 문구가 잘린다.
+  // 바닥값이 **잰 높이**다 (260904) — 작은 그래프도 화면 아래까지 자리를 차지한다. 옛 390 은
+  // 16:9 모니터에서 아래를 통째로 비웠고, 노드를 아래로 끌어 놓을 자리도 없었다.
   const height = Math.max(
-    layoutMode === 'dag' ? 390 : 690,
+    layoutMode === 'dag' ? (layoutHeight ?? MIN_CANVAS_HEIGHT) : 690,
     ...Object.values(positions).map((position) => position.y + NODE_HEIGHT + ((refEdges?.length ?? 0) > 0 ? 70 : 30)),
     // 뷰 노드가 세로를 밀어낸다 — 캔버스가 따라 커지지 않으면 아래쪽 카드가 잘린다.
     ...Object.values(viewPositions).map((position) => position.y + VIEW_NODE_HEIGHT + 30),

@@ -99,6 +99,107 @@ if (foldFailures.length) {
 }
 console.log(`✅ 접기 배치 — 대본 ${scripts.length}편 × DAG/트리 × 임무 전체·마일스톤별, 폭 ${WIDTHS.join('/')}px 에서 노드가 하나도 화면 밖으로 나가지 않고 겹치지 않음`);
 
+// ── 잰 높이 안에 들어오는가 (260904 — 추가 개선 1) ─────────────────────────────
+//
+// 9/1의 접기는 **폭만** 알았다. 그래서 세로가 남아도 늘 「폭이 허락하는 최대 열」로 붙였고,
+// 16:9 모니터에서 아래가 통째로 비었다. 이제 배치가 높이를 함께 받는다.
+//
+// 여기서는 배치의 **속을 흉내 내지 않는다** — 높이를 모르는 배치(대조군)와 아는 배치를
+// 나란히 돌려 결과만 본다. 셋을 본다.
+//
+//  B. 대조군이 이미 잰 높이 안에 들어왔으면 → 아는 배치도 **반드시** 들어온다.
+//  C. 대조군조차 안 들어오면(세로가 애초에 모자라면) → 아는 배치가 **더 접지 않는다**
+//     (= 대조군과 같은 높이. 더 접어 봐야 더 길어질 뿐이다).
+//  D. 세로가 남는 창에서는 **실제로 더 쓴다** — 한 건도 안 늘면 높이 인자는 죽은 인자다.
+//  E. 한 밴드에 다 들어가는 그래프는 **접지 않는다** — 세로가 남는다고 없던 `↵` 를 만들면
+//     읽을 이유가 없는 줄바꿈이 생긴다. 접기는 어차피 접힐 그래프를 더 낫게 접는 일이다.
+//
+// 높이 값은 `TaskGraph` 가 재는 「창 바닥까지 남은 자리」다. 16:9 PC 기준으로 상단 바·머리줄·
+// 범례를 뺀 실측 어림값을 쓴다 (1366×768 → 390 · 1600×900 → 590 · 1920×1080 → 770 ·
+// 2560×1440 → 1130).
+const VIEWPORTS = [
+  { label: '1366×768', width: 1366, height: 390 },
+  { label: '1600×900', width: 1600, height: 590 },
+  { label: '1920×1080', width: 1920, height: 770 },
+  { label: '2560×1440', width: 2560, height: 1130 },
+];
+const heightFailures = [];
+/** D 의 증거 — 높이를 알려 줬더니 세로를 더 쓴 사례. */
+const usedMore = [];
+
+const bottomOf = (positions) => Math.max(...Object.values(positions).map((p) => p.y + NODE_HEIGHT));
+/** 밴드 수 — 왼쪽 끝(x === PAD)에서 다시 시작하는 세로 층의 수다. */
+const bandsOf = (positions) => new Set(Object.values(positions).map((p) => p.y)).size === 1
+  ? 1
+  : new Set(Object.values(positions).filter((p) => p.x === 30).map((p) => p.y)).size;
+const rightOf = (positions) => Math.max(...Object.values(positions).map((p) => p.x + NODE_WIDTH));
+
+for (const script of scripts) {
+  const groups = [['임무 전체', script.tasks]];
+  for (const milestone of [...new Set(script.tasks.map((t) => t.milestone))]) {
+    groups.push([milestone, script.tasks.filter((t) => t.milestone === milestone)]);
+  }
+  for (const [label, tasks] of groups) {
+    if (tasks.length === 0) continue;
+    for (const { label: screen, width, height } of VIEWPORTS) {
+      const where = `${script.missionId} ${label} ${screen}`;
+      const blind = dagLayout(tasks, width);            // 높이를 모르는 옛 배치 (대조군)
+      const aware = dagLayout(tasks, width, undefined, height);
+      const blindBottom = bottomOf(blind);
+      const awareBottom = bottomOf(aware);
+      if (blindBottom <= height && awareBottom > height) {
+        heightFailures.push(`${where}: 대조군은 ${blindBottom}px 로 잰 높이(${height}px) 안에 들어왔는데 높이를 알려 준 배치가 ${awareBottom}px 로 ${awareBottom - height}px 넘쳤다`);
+      }
+      if (blindBottom > height && awareBottom !== blindBottom) {
+        heightFailures.push(`${where}: 세로가 애초에 모자란데(대조군 ${blindBottom}px > ${height}px) 배치가 ${awareBottom}px 로 달라졌다 — 더 접으면 더 길어질 뿐이다`);
+      }
+      // 세로를 쓰겠다고 가로로 나가면 안 된다. 폭 상한은 어떤 경우에도 그대로다.
+      const right = rightOf(aware);
+      if (right > width) heightFailures.push(`${where}: 오른쪽 끝이 ${right}px — 폭(${width}px) 밖으로 ${right - width}px 나간다`);
+      const hit = overlaps(aware);
+      if (hit !== null) heightFailures.push(`${where}: 노드 상자가 겹친다 (${hit})`);
+      // E — 대조군이 밴드 하나로 끝났으면(모든 노드의 x 가 깊이 순서 그대로) 접지 않는다.
+      if (bandsOf(blind) === 1 && bandsOf(aware) !== 1) {
+        heightFailures.push(`${where}: 한 밴드에 다 들어가는데 ${bandsOf(aware)} 밴드로 접었다 — 없던 줄바꿈이 생긴다`);
+      }
+      if (awareBottom > blindBottom) usedMore.push(`${where} ${blindBottom}→${awareBottom}px / 잰 높이 ${height}px`);
+    }
+  }
+}
+
+if (usedMore.length === 0) {
+  heightFailures.push('세로가 남는 창이 하나도 없다 — 높이 인자가 배치를 한 번도 바꾸지 않았다면 죽은 인자다');
+}
+// 음성 대조군 — 높이를 안 주면 예전과 **한 픽셀도** 다르지 않아야 한다.
+for (const script of scripts) {
+  const a = dagLayout(script.tasks, 1440);
+  const b = dagLayout(script.tasks, 1440, undefined, undefined);
+  if (JSON.stringify(a) !== JSON.stringify(b)) heightFailures.push(`${script.missionId}: 높이를 안 줬는데 배치가 달라졌다 — 옛 화면이 바뀐다`);
+}
+{
+  /** 깊이 열 15개 × 한 줄짜리 열 — 폭 1920 이면 접지 않고도 8열이 들어간다. */
+  const heights = Array.from({ length: 15 }, () => 150);
+  if (columnsPerBand(1920, 100000, heights) >= columnsPerBand(1920)) {
+    heightFailures.push('대조군 실패: 세로가 무한히 남아도 열이 안 줄었다 — 이 검사는 무의미하다');
+  }
+  if (columnsPerBand(1920, 200, heights) !== columnsPerBand(1920)) {
+    heightFailures.push('대조군 실패: 세로가 모자란데 폭 최대 열을 안 썼다');
+  }
+  // 열이 폭 안에 다 들어가면(줄바꿈이 없으면) 높이가 아무리 남아도 접지 않는다.
+  const few = Array.from({ length: 5 }, () => 150);
+  if (columnsPerBand(1920, 100000, few) !== columnsPerBand(1920)) {
+    heightFailures.push('한 밴드에 다 들어가는데 접었다 — 없던 줄바꿈이 생긴다');
+  }
+}
+
+if (heightFailures.length) {
+  console.error('❌ 잰 높이 검사 실패:');
+  for (const line of heightFailures) console.error(`  - ${line}`);
+  process.exit(1);
+}
+console.log(`✅ 잰 높이 — 창 ${VIEWPORTS.map((v) => v.label).join('/')} 에서 높이가 허락하면 그 안에 들어오고, 모자라면 더 접지 않는다 (겹침 0 · 폭 안)`);
+console.log(`   세로를 더 쓴 사례 ${usedMore.length}건 — 예: ${usedMore.slice(0, 3).join(' · ')}`);
+
 // ── 뷰 노드가 세로를 밀어낸다 (260903 — 노드 캔버스 1단계) ──────────────────────
 //
 // 가로는 위에서 봤다. 뷰 노드는 **세로**로 자란다 — 연결한 태스크 바로 아래에 붙기 때문이고,
