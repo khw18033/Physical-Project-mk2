@@ -111,9 +111,75 @@ Phase 4 미디어 경로 → Phase 5 가용성 판정기 → Phase 6 상관·감
 
 ## 설치와 실행
 
-> 코드 착수 전이라 실행 절차는 Phase 0(인프라 기동) 구현 시 채운다. 인프라 스택(Kafka·Mosquitto·
-> OTel Collector·Prometheus·Grafana·Loki·Tempo·MySQL·TSDB)은 `infra/` 아래 Docker Compose로
-> 정의·기동할 예정이다. 검증은 Phase 0은 헬스체크, Phase 1부터 pytest.
+**Phase 0(인프라 기동) 완료 — 2026-09-04.** 스택 8개가 서버에서 가동 중이다. 운영 상세는
+[`infra/README.md`](infra/README.md), 작업 경위는
+[Phase 0 보고서](reports/2026-09-04_1620_phase0_인프라기동.md).
+
+### 인프라 스택 8개
+
+| 구성요소 | 역할 (5구간) | 상태 |
+|---|---|---|
+| Mosquitto | 엣지 MQTT 브로커 — 말단 업무 발행·명령 하달 수용 (구간 1·2) | 기존 가동 |
+| **Kafka** | 엣지↔서버 업무 백본 + 서버 다중 소비자 팬아웃 (구간 3·4) | **Phase 0에서 신규 설치** |
+| OTel Collector | 관측 3종(metric·log·trace) 수집·라우팅 (구간 2·4) | 기존 가동 |
+| Prometheus | 관측 metric 저장·요약 (구간 2·3) | 기존 가동 |
+| Loki | log 저장 (구간 4) | 기존 가동 |
+| Tempo | trace 저장 (구간 4) | 기존 가동 |
+| MySQL | 감사·레지스트리 — 2축 저장 중 관계형 (구간 4) | 기존 가동 |
+| Grafana | 개발용 종착지 (구간 5) | 기존 가동 |
+
+**TSDB는 아직 없다** — 제품(InfluxDB vs TimescaleDB) 미확정, Phase 2에서 정한다.
+**RBAC·MongoDB는 채택하지 않는다**(정본 결정).
+
+### 포트
+
+| 서비스 | 외부 | 내부 |
+|---|---|---|
+| Mosquitto | 1883 | 1883 |
+| Kafka | 9092 *(현재 로컬 바인딩)* | 9092 · 9093(controller) · 9094(internal) |
+| MySQL | 7858 | 3306 |
+| Prometheus | 7861 | 9090 |
+| Grafana | 7862 | 3000 |
+| Loki | 3100 | 3100 |
+| Tempo | 3200 · 4317(OTLP) | 3200 · 4317 |
+| OTel Collector | 4316 *(로컬 바인딩)* | 4317 · 8889(exporter, 미공개) |
+
+> **4316 / 4317** — OTLP gRPC 표준 포트는 4317인데 Tempo가 그 포트를 직접 받고 있어, OTel
+> Collector가 4316으로 밀렸다. 관측 3종이 Collector를 거치도록 정리하는 것은 Phase 3의 작업이다.
+
+### 기동과 헬스 확인
+
+서버의 compose 디렉터리에서:
+
+```bash
+docker compose up -d <서비스명>     # 서비스명을 반드시 명시 (아래 주의)
+docker compose ps
+```
+
+> ⚠️ `docker compose up -d`를 서비스명 없이 실행하면 compose 파일의 모든 서비스가 대상이 되어,
+> `:latest` 태그를 쓰는 기존 서비스가 재생성될 수 있다. **이미 도는 것을 건드리지 않는 것이 이
+> 스택의 원칙이다.**
+
+헬스 확인 명령 8종은 [`infra/README.md`](infra/README.md) §4에 있다. 예를 들어 Kafka는
+토픽 생성·조회·삭제로, Mosquitto는 발행 성공으로, Prometheus·Grafana·Loki·Tempo는 각자의
+헬스 엔드포인트로 판정한다.
+
+**검증 수단:** Phase 0은 헬스체크(pytest 아님). **Phase 1부터 pytest**로 "가짜 발행자 →
+파이프라인 → 예상 저장/중계" 회귀를 검증한다.
+
+### 작업 흐름 — 이 저장소는 서버에 `git pull`로 배포하지 않는다
+
+```text
+[작업 폴더]  infra/ 에서 편집
+     ↓  사람이 복사
+[서버]      compose 디렉터리의 실제 파일에 적용
+     ↓  결과·에러를 가져옴
+[작업 폴더]  수정
+```
+
+서버 실제 파일(`docker-compose.yml`, 설정 5개)의 사본을 `infra/` 아래에 두고 편집한다.
+**그 사본은 평문 비밀번호와 내부망 주소를 담고 있어 커밋하지 않는다**(`.gitignore`).
+저장소에 커밋되는 것은 이 README, `infra/README.md`, 보고서, 계약, 문서다.
 
 ## 다른 파트와 통합
 

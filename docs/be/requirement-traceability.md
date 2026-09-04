@@ -16,7 +16,10 @@
 
 ## 요약
 
-- **총 47건 · 완료 0 · 부분 0 · 미착수 47**
+- **총 47건 · 완료 0 · 부분 4 · 미착수 43**
+- 부분 4건(BE-T-01·BE-T-02·BE-S-02·BE-S-03)은 Phase 0(인프라 기동)으로 **기반만** 놓인 것이다.
+  헬스체크로 기동을 확인했을 뿐 동작·경계를 검증하는 테스트는 없으므로 **완료가 아니다**
+  (보고: [`../../reports/2026-09-04_1620_phase0_인프라기동.md`](../../reports/2026-09-04_1620_phase0_인프라기동.md)).
 - 대분류: 공통 규약(C) 7 · 전송·연결(T) 8 · 번역·조립(A) 5 · 저장·관측(S) 9 · 질의·소비(Q) 4 ·
   상관·감사(X) 7 · 디지털 트윈(DT) 7
 - 계약 계열(BE-C-01/02/03/07)의 봉투·frame_ref는 [`../../contracts/common/`](../../contracts/common/)에
@@ -40,8 +43,8 @@
 
 | ID | 소분류 | 상태 | 구현 위치 | 테스트 |
 |---|---|---|---|---|
-| BE-T-01 | 전송 프로토콜 확정(말단↔엣지 MQTT) | 미착수 | `backend/ingest/` (예정) | — |
-| BE-T-02 | 엣지↔백엔드 브릿지(Kafka) | 미착수 | `backend/ingest/` (예정) | — |
+| BE-T-01 | 전송 프로토콜 확정(말단↔엣지 MQTT) | **부분** | 인프라: Mosquitto 가동 (`infra/config/mosquitto.conf`, 서버) — 브로커 기동·발행 수용까지. 소비 구현 `backend/ingest/` (예정)<br>**gap:** 봉투 검증·LWT·인증·ACL 미구현 | — (Phase 0 헬스체크로 기동만 확인: `mosquitto_pub` 발행 성공) |
+| BE-T-02 | 엣지↔백엔드 브릿지(Kafka) | **부분** | 인프라: Kafka 가동 (`infra/docker-compose.yml` `kafka` 서비스, 서버) — KRaft 단일 노드, 토픽 조작 가능. 브릿지 구현 `backend/ingest/` (예정)<br>**gap:** MQTT→Kafka 브릿지 코드 없음, `advertised.listeners`가 `localhost`라 외부 접속 불가, 토픽 설계 없음 | — (Phase 0 헬스체크로 기동만 확인: 토픽 생성·조회·삭제) |
 | BE-T-03 | 가시화 클라이언트 실시간 채널 게이트웨이(WebSocket) | 미착수 | `backend/gateway/` (예정) | — |
 | BE-T-04 | 장치 등록·구역 소속 및 가용성 관리(Birth/Death) | 미착수 | `backend/availability/` (예정) | — |
 | BE-T-05 | 사설 IP 라우팅·프록시 중계 | 미착수 | — | — |
@@ -64,8 +67,8 @@
 | ID | 소분류 | 상태 | 구현 위치 | 테스트 |
 |---|---|---|---|---|
 | BE-S-01 | 시계열·상태 이력 저장 | 미착수 | `backend/storage/` (TSDB) (예정) | — |
-| BE-S-02 | OTel 관측 파이프라인(Agent+Gateway) | 미착수 | `infra/` (Collector) (예정) | — |
-| BE-S-03 | 관측 저장 계층화(엣지 로컬 + 페더레이션 요약) | 미착수 | `infra/` (Prometheus) (예정) | — |
+| BE-S-02 | OTel 관측 파이프라인(Agent+Gateway) | **부분** | `infra/config/otel-collector-config.yaml` (서버) — Collector 가동, **metric 파이프라인만** 동작(OTLP 수신 → Prometheus exporter)<br>**gap: `logs`·`traces` 파이프라인 없음.** Loki·Tempo가 각각 직접 수신 중이라 정본(Collector가 log→Loki, trace→Tempo 분배)과 다르다. `batch` processor도 없음 | — (Phase 0 헬스체크로 기동만 확인: OTLP 포트 수신, 정상 로그) |
+| BE-S-03 | 관측 저장 계층화(엣지 로컬 + 페더레이션 요약) | **부분** | `infra/config/prometheus.yml` (서버) — 단일 Prometheus 가동, Collector scrape 동작<br>**gap:** 엣지 raw 보관 + 중앙 페더레이션 요약 2계층 없음. `scrape_interval: 1s`로 정본(15초~1분)과 상이 | — (Phase 0 헬스체크로 기동만 확인: `/-/healthy`, 타깃 up) |
 | BE-S-04 | 재난 구간 업무 데이터 장기 보존(지속 학습 재료) | 미착수 | `backend/storage/` (예정) | — |
 | BE-S-05 | 감사 중앙 저장(MySQL 직행 예외) | 미착수 | `backend/storage/` (MySQL) (예정) | — |
 | BE-S-06 | 집약 계층 경계 표기 | 미착수 | — | — |
