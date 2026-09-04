@@ -134,13 +134,14 @@ if (checkSources(shellSource.replaceAll('scenario-banner', 'x'), pendingSourceTe
     cast: s3.cast, hardware: null, params: s3.params ?? {}, map: s3.map ?? null, refEdges: s3.refEdges ?? [],
   };
 
-  const preview = nowPlaying(view3, s3, 0, false);
+  // 260904 — 안내줄도 **기록 열**을 접는다. 흘러온 것이 없으면 빈 열이다(정지 미리보기).
+  const preview = nowPlaying(view3, s3, 0, false, []);
   if (!preview?.text.includes('T+0 · 시작 상태')) failures.push(`정지 미리보기의 안내줄이 「T+0 · 시작 상태」가 아니다 — ${preview?.text}`);
   if (!preview?.text.includes(s3.milestones[0].id)) failures.push('정지 미리보기의 안내줄에 첫 마일스톤이 없다');
 
   // **재생 머리를 따라가는가** — 같은 대본인데 시각이 다르면 안내와 갈 노드가 달라져야 한다.
-  const early = nowPlaying(view3, s3, 40, true);
-  const atGate = nowPlaying(view3, s3, 162, true);
+  const early = nowPlaying(view3, s3, 40, true, s3.events);
+  const atGate = nowPlaying(view3, s3, 162, true, s3.events);
   if (early === null || atGate === null) failures.push('재생 중 안내줄이 나오지 않는다');
   else {
     if (early.text === atGate.text) failures.push(`안내줄이 재생 머리를 따라가지 않는다 — T+40 과 T+162 가 같은 문구다(${early.text})`);
@@ -150,13 +151,13 @@ if (checkSources(shellSource.replaceAll('scenario-banner', 'x'), pendingSourceTe
     // 3단계 — 만들어 줄 노드를 **어느 태스크에 붙일지**가 함께 와야 한다(없으면 전역이 된다).
     if (atGate.taskId === null) failures.push('재생 중인데 안내줄이 진행 중인 태스크를 말하지 않는다 — 「○○ 노드로」가 붙일 곳을 잃는다');
   }
-  const ended = nowPlaying(view3, s3, s3.durationSec, false);
+  const ended = nowPlaying(view3, s3, s3.durationSec, false, s3.events);
   if (!ended?.text.includes('재생 끝')) failures.push(`재생이 끝난 뒤 안내줄이 「재생 끝」이 아니다 — ${ended?.text}`);
   // 옛 편(구판 세계)은 판정 대상이 아니다 — 대본이 없으므로 안내줄도 없다.
-  if (nowPlaying(view3, null, 100, true) !== null) failures.push('대본이 없는 임무에 안내줄이 나온다 — 구판 세계는 판정 대상이 아니다');
+  if (nowPlaying(view3, null, 100, true, s3.events) !== null) failures.push('대본이 없는 임무에 안내줄이 나온다 — 구판 세계는 판정 대상이 아니다');
 
   // 대조군 — 명령을 지운 사본에서 T+162 의 갈 탭이 그대로면 이 검사는 무의미하다.
-  const noCommands = nowPlaying(view3, { ...s3, commands: [] }, 162, true);
+  const noCommands = nowPlaying(view3, { ...s3, commands: [] }, 162, true, s3.events);
   if (noCommands?.nodeKinds.includes('control')) failures.push('대조군 실패: 명령을 지운 사본인데 갈 노드가 여전히 제어다');
   else controls.push('대본 명령 삭제 사본(갈 노드에서 제어가 빠짐)');
 }

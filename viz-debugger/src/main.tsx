@@ -3,11 +3,11 @@ import {
   activateMission,
   displayMission,
   rejectProposal,
-  statusesAt,
   useMission,
   type MissionMilestone,
   type MissionView,
 } from './data/scenario.ts';
+import { foldStatuses } from './data/fold.ts';
 import { TaskGraph, type CanvasLayer } from './graph/TaskGraph.tsx';
 import { Palette } from './canvas/Palette.tsx';
 import { ZoomOverlay } from './canvas/ZoomOverlay.tsx';
@@ -16,7 +16,7 @@ import { viewScopeFor } from './canvas/scope.ts';
 import { MISSION_SLOT } from './canvas/persist.ts';
 import { useCanvas } from './canvas/useCanvas.ts';
 import { setZoomTarget, useZoomTarget } from './canvas/zoomState.ts';
-import type { Task, TaskStatus } from './model/types.ts';
+import type { ScenarioEvent, Task, TaskStatus } from './model/types.ts';
 import { PendingSource } from './shared/PendingSource.tsx';
 import { hardwareSourceLabel, listCastIds, listRegisteredHardware } from './shared/registry.ts';
 import { graphShape, shapeLabel } from './graph/shape.ts';
@@ -35,10 +35,26 @@ type Screen = 'milestones' | 'graph' | 'detail' | 'replay' | 'failure';
  * 화면 구조는 HCI 전달본 그대로다.
  */
 
-function timelineSegments(view: MissionView, taskId: string) {
-  const events = view.events.filter((event) => event.nodeId === taskId);
+/**
+ * 되감기 타임라인의 한 줄. **접는 대상은 기록 열이다** (260904) — 전까지는 대본
+ * (`view.events`)을 그려서, 아직 오지 않은 사건까지 미리 칠해져 있었다.
+ */
+function timelineSegments(view: MissionView, trace: readonly ScenarioEvent[], taskId: string) {
+  const events = trace.filter((event) => event.nodeId === taskId);
   const points = events[0]?.atSec === 0 ? events : [{ atSec: 0, status: 'pending' as const }, ...events];
   return points.map((point, index) => ({ status: point.status, start: point.atSec, end: points[index + 1]?.atSec ?? view.durationSec }));
+}
+
+/**
+ * 사람 조작 줄 (260904 · `VZ-D-08`). 태스크 줄과 **같은 축**에 찍힌다 — 「모든 조작은
+ * `produced_by=human` 으로 기록된다」가 화면에서 확인되는 자리다.
+ *
+ * 조작은 구간이 아니라 **순간**이라 태스크 줄처럼 칠하지 않고 점으로 찍는다. 대상이
+ * 태스크가 아니라 장비·임무인 경우가 대부분이라(`recordHuman` 의 nodeId) 태스크 줄에
+ * 얹으면 그 태스크가 그때 무슨 상태였는지를 거짓으로 만든다.
+ */
+function humanMarks(trace: readonly ScenarioEvent[]) {
+  return trace.filter((event) => event.producedBy === 'human');
 }
 
 function Milestones({ view, phase, milestoneStatuses, assignments, onAssign, onOpen, planApproval }: {
@@ -91,17 +107,23 @@ function Milestones({ view, phase, milestoneStatuses, assignments, onAssign, onO
       onClose={() => setStatusDeviceId(null)} />}</div>;
 }
 
-function ReplayControls({ second, following, playing, onChange, onFollow, view, tasks }: {
+function ReplayControls({ second, following, playing, onChange, onFollow, view, trace, tasks }: {
   second: number; following: boolean; playing: boolean;
-  onChange(value: number): void; onFollow(): void; view: MissionView; tasks: Task[];
+  onChange(value: number): void; onFollow(): void; view: MissionView;
+  /** 되감기가 보는 것은 대본이 아니라 **흘러온 기록**이다 (260904). */
+  trace: readonly ScenarioEvent[];
+  tasks: Task[];
 }) {
   const shown = Math.min(view.durationSec, Math.round(second));
+  const human = humanMarks(trace);
   return <section className="replay-controls"><div><button onClick={() => onChange(0)}>◀◀</button><button onClick={() => onChange(Math.max(0, shown - 1))}>◀</button><button onClick={() => onChange(Math.min(view.durationSec, shown + 1))}>▶</button><b>{shown}s / {view.durationSec}s</b>
     {/* 재생 중에는 머리를 따라가고, 뒤로 끌면 그 시점을 그린다. 재생이 끝나면 그냥 되감기 도구다. */}
     {playing && (following
       ? <b className="follow-live">● 따라가는 중</b>
       : <button className="follow-live" onClick={onFollow}>▶ 따라가기 (live)</button>)}
-  </div><input aria-label="임무 재생 시각" type="range" min="0" max={view.durationSec} value={shown} onChange={(event) => onChange(Number(event.target.value))} /><div className="timelines">{tasks.map((task) => <div key={task.id}><code>{task.id}</code><span className="timeline">{timelineSegments(view, task.id).map((segment, index) => <em key={`${segment.start}-${index}`} className={`state-${segment.status}`} style={{ width: `${(segment.end - segment.start) / view.durationSec * 100}%` }} />)}<i style={{ left: `${shown / view.durationSec * 100}%` }} /></span></div>)}</div></section>;
+  </div><input aria-label="임무 재생 시각" type="range" min="0" max={view.durationSec} value={shown} onChange={(event) => onChange(Number(event.target.value))} /><div className="timelines">{tasks.map((task) => <div key={task.id}><code>{task.id}</code><span className="timeline">{timelineSegments(view, trace, task.id).map((segment, index) => <em key={`${segment.start}-${index}`} className={`state-${segment.status}`} style={{ width: `${(segment.end - segment.start) / view.durationSec * 100}%` }} />)}<i style={{ left: `${shown / view.durationSec * 100}%` }} /></span></div>)}
+    {/* 사람 조작 줄 — 없으면 「아직 없다」고 적는다. 빈 줄은 「기록을 안 한다」로 읽힌다. */}
+    <div className="timeline-human"><code>사람</code><span className="timeline">{human.map((event) => <b key={event.seq} className="human-mark" style={{ left: `${Math.min(1, event.atSec / view.durationSec) * 100}%` }} title={`T+${Math.round(event.atSec)}s · ${event.kind} → ${event.nodeId} (produced_by=human)`} />)}<i style={{ left: `${shown / view.durationSec * 100}%` }} /></span><small>{human.length === 0 ? '조작 기록 없음' : `${human.length}건 · produced_by=human`}</small></div></div></section>;
 }
 
 /**
@@ -112,8 +134,10 @@ function ReplayControls({ second, following, playing, onChange, onFollow, view, 
  */
 export type GraphScope = 'milestone' | 'mission';
 
-function GraphScreen({ screen, view, milestone, tasks, headSec, playing, scope, onScope, refEdges, crossing, onOpen, onBack, onGraph, openTask, nodeRequest }: {
+function GraphScreen({ screen, view, trace, milestone, tasks, headSec, playing, scope, onScope, refEdges, crossing, onOpen, onBack, onGraph, openTask, nodeRequest }: {
   screen: Screen; view: MissionView; milestone: MissionMilestone | null; tasks: Task[];
+  /** 흘러온 기록 열. 접기·되감기·타임라인이 전부 이것만 본다 (260904). */
+  trace: readonly ScenarioEvent[];
   headSec: number; playing: boolean;
   scope: GraphScope; onScope(value: GraphScope): void;
   refEdges: MissionView['refEdges']; crossing: MissionView['refEdges'];
@@ -217,7 +241,9 @@ function GraphScreen({ screen, view, milestone, tasks, headSec, playing, scope, 
     onZoom: setZoomedId,
     highlightedId,
   }), [canvas.bind, canvas.move, canvas.nodes, canvas.remove, highlightedId, picked, second, view, zoomedId]);
-  const folded = useMemo(() => statusesAt(second, view), [second, view]);
+  // **기록 열이 자라면 다시 접는다** — 열은 덧붙일 때만 신원이 바뀌므로(TraceStore.snapshot)
+  // 사건이 없는 렌더에서는 접지 않는다.
+  const folded = useMemo(() => foldStatuses(second, view, trace), [second, trace, view]);
   const failedTask = tasks.find((task) => folded.tasks[task.id]?.status === 'failed') ?? null;
   /**
    * 머리줄이 적을 **이 임무 자신의 모양** (260904). 고정 문구(「분기와 합류가 있는 태스크
@@ -250,7 +276,7 @@ function GraphScreen({ screen, view, milestone, tasks, headSec, playing, scope, 
   return <div className={replay ? 'replay-layout' : ''}>{replay && <aside className="history"><h2>임무 이력</h2><PendingSource id="mission-history" minHeight={200}>{['MSN-260826-01 · 실패', 'MSN-260826-00 · 완료', 'MSN-260825-07 · 완료', 'MSN-260825-06 · 완료'].map((item) => <button key={item}>{item}</button>)}</PendingSource></aside>}<section className="graph-panel"><header className="section-title"><div>{crumbs}<h2>{title}</h2><small>{replay ? `리플레이 · T+${String(Math.round(second)).padStart(2, '0')}s` : failure ? (failedTask ? '실패 경로 강조 · 관련 없는 노드 흐림' : '이 대본에는 실패가 없습니다 — 결함 주입(REQ-1409)으로 만들 수 있습니다') : shapeLabel(shape)}</small></div><div className="toggle"><button className={scope === 'milestone' ? 'active' : ''} onClick={() => onScope('milestone')}>이 마일스톤</button><button className={scope === 'mission' ? 'active' : ''} onClick={() => onScope('mission')}>임무 전체</button></div></header><Palette canvas={canvas} pickedTaskId={picked?.id ?? null} pickedTaskTitle={picked?.title ?? null} /><TaskGraph tasks={tasks} hardware={listRegisteredHardware()} states={folded.tasks} selected={failure ? failedTask?.id : undefined} dimUnrelated={failure && failedTask !== null} refEdges={refEdges} onOpen={(task) => onOpen(task, folded.tasks[task.id]?.status === 'failed')} canvas={canvasLayer} />
     {/* 마일스톤 밖으로 나가는 되돌아감 — 적지 않으면 사용자는 루프의 존재를 모른다 (결정 2). */}
     {crossing.length > 0 && <p className="ref-crossing">↺ {crossing.map((edge) => `${edge.from} → ${edge.to} (${edge.label})`).join(' · ')} — 이 마일스톤 밖으로 되돌아갑니다 <button onClick={() => onScope('mission')}>임무 전체로 보기</button></p>}
-    {replay && <ReplayControls second={second} following={override === null} playing={playing} onChange={setOverride} onFollow={() => setOverride(null)} view={view} tasks={tasks} />}<StatusLegend /><Explain id="dbg-1" className="hint">노드를 더블클릭하면 액션 아이템 상세를 엽니다. 실패 상태 노드는 수정 화면으로 이어집니다. 뷰 노드를 더블클릭하면 그 자리에서 확대됩니다 — 캔버스는 뒤에 그대로 있습니다.</Explain></section>
+    {replay && <ReplayControls second={second} following={override === null} playing={playing} onChange={setOverride} onFollow={() => setOverride(null)} view={view} trace={trace} tasks={tasks} />}<StatusLegend /><Explain id="dbg-1" className="hint">노드를 더블클릭하면 액션 아이템 상세를 엽니다. 실패 상태 노드는 수정 화면으로 이어집니다. 뷰 노드를 더블클릭하면 그 자리에서 확대됩니다 — 캔버스는 뒤에 그대로 있습니다.</Explain></section>
     {/* 확대 오버레이 (260903 2단계). **TaskGraph 의 형제**다 — 위에서 캔버스를 조건 없이
         그리고 여기에 얹기만 하므로, 확대해도 캔버스가 교체되지 않고 닫으면 같은 자리다. */}
     {zoomedNode !== null && zoomedEntry !== null && <ZoomOverlay entry={zoomedEntry} scope={viewScopeFor(zoomedNode.taskId, view, second)} taskId={zoomedNode.taskId} onClose={() => setZoomedId(null)} />}</div>;
@@ -322,11 +348,18 @@ export function MissionDebugger({ navigation, planApproval }: { navigation?: Deb
     [graphTaskIds, view],
   );
 
-  const milestoneStatuses = useMemo(() => statusesAt(display.headSec, view).milestones, [display.headSec, view]);
+  const trace = display.trace;
+  const milestoneStatuses = useMemo(
+    () => foldStatuses(display.headSec, view, trace).milestones,
+    [display.headSec, trace, view],
+  );
+
+  /** 머리 시각의 접기 결과 — 실패 태스크를 찾는 두 자리가 같은 값을 본다. */
+  const folded = useMemo(() => foldStatuses(display.headSec, view, trace), [display.headSec, trace, view]);
 
   const navigate = (next: Screen) => {
     setScreen(next);
-    setModalTask(next === 'detail' ? graphTasks[0] ?? null : next === 'failure' ? graphTasks.find((task) => statusesAt(display.headSec, view).tasks[task.id]?.status === 'failed') ?? null : null);
+    setModalTask(next === 'detail' ? graphTasks[0] ?? null : next === 'failure' ? graphTasks.find((task) => folded.tasks[task.id]?.status === 'failed') ?? null : null);
   };
   const openTask = (task: Task, failed: boolean) => { setModalTask(task); setScreen(failed ? 'failure' : 'detail'); };
   useEffect(() => {
@@ -343,11 +376,11 @@ export function MissionDebugger({ navigation, planApproval }: { navigation?: Deb
     setNodeRequest({ ...request, requestId: navigation.requestId });
   }, [navigation?.requestId]);
 
-  const firstFailed = graphTasks.find((task) => statusesAt(display.headSec, view).tasks[task.id]?.status === 'failed') ?? null;
+  const firstFailed = graphTasks.find((task) => folded.tasks[task.id]?.status === 'failed') ?? null;
 
   return <div className="mission-debugger">{screen === 'milestones'
     ? <Milestones view={view} phase={display.phase} milestoneStatuses={milestoneStatuses} assignments={assignments} onAssign={(id, hardware) => setAssignments((current) => ({ ...current, [id]: [...new Set([...(current[id] ?? []), hardware])] }))} onOpen={(id) => { setMilestoneId(id); navigate('graph'); }} planApproval={planApproval} />
-    : <GraphScreen screen={screen} view={view} milestone={graphMilestone} tasks={graphTasks} headSec={display.headSec} playing={display.phase === 'playing'} scope={scope} onScope={setScope} refEdges={visibleRefEdges} crossing={crossingRefEdges} onOpen={openTask}
+    : <GraphScreen screen={screen} view={view} trace={trace} milestone={graphMilestone} tasks={graphTasks} headSec={display.headSec} playing={display.phase === 'playing'} scope={scope} onScope={setScope} refEdges={visibleRefEdges} crossing={crossingRefEdges} onOpen={openTask}
       // navigate() 를 쓴다 — 그것이 modalTask 정리까지 함께 한다. setScreen 을 직접 부르면 팝업이 남는다.
       // 범위도 함께 되돌린다: 「임무 전체」로 보다 목록으로 나갔다 다시 들어왔는데 전체로 남아 있으면 어리둥절하다.
       onBack={() => { setScope('milestone'); navigate('milestones'); }}

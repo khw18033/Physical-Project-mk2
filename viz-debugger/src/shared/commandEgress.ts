@@ -15,7 +15,7 @@
  * 반대로 접었다면 `VZ-O-02`(4단계 추적)와 `VZ-O-03`(감사)이 통째로 사라졌을 것이다.
  */
 
-import { currentMission, recordHuman } from '../data/scenario.ts';
+import { currentMission } from '../data/scenario.ts';
 import type { ActionSpec } from '../transport/index.ts';
 import { commandTracker, type TrackedCommand } from './commandCenter.ts';
 import { pushNotification } from './notifications.ts';
@@ -57,7 +57,8 @@ export async function issueCommand(command: AppCommand): Promise<TrackedCommand>
     }
     throw error;
   }
-  recordHuman(command.action, entity, command.params);
+  // 사람 조작 기록(`VZ-D-08`)은 **출구 본체**가 한다 (260904 — commandCenter.issue).
+  // 여기서 하면 추적기를 직접 부르는 화면이 기록 없이 샌다.
   const tracked = await commandTracker.issue(entity, specFor(command.action), {
     params: command.params ?? {},
     inputMode: audit.inputMode,

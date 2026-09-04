@@ -28,6 +28,7 @@
  * 지금 무엇으로 추적 중인지는 `tracking` 한 필드로 표시용 형태만 넘어간다.
  */
 
+import { recordHuman } from '../data/scenario.ts';
 import { getTransport } from '../transport/index.ts';
 import type { ActionSpec, CommandRequest, CommandResult } from '../transport/index.ts';
 import { GATEWAY } from '../transport/index.ts';
@@ -175,6 +176,15 @@ export class CommandTracker {
     spec: ActionSpec,
     options: IssueOptions = {},
   ): Promise<TrackedCommand> {
+    /**
+     * **원본에서 고친 곳 ③** (260904 · `VZ-D-08`) — 사람 조작 기록.
+     *
+     * 화면에서 나가는 명령은 전부 여기를 지난다. 껍데기(`commandEgress`)에서 기록하면
+     * 추적기를 **직접** 부르는 화면(제어 뷰 노드의 `issue()`)이 기록 없이 샌다 —
+     * 「모든 조작은 `produced_by=human` 으로 기록된다」가 그 자리에서만 거짓이 된다.
+     * 발행 전에 적는다: 무엇을 눌렀는지는 발행이 성공했는지와 무관한 사실이다.
+     */
+    recordHuman(spec.action, entity, options.params ?? { target_pct: spec.targetPct });
     this.seq += 1;
     // 상관 키가 아니다. 접두사를 다르게 둬서 로그에서 섞이지 않게 한다.
     const requestId = 'req-' + Date.now().toString(36) + '-' + String(this.seq).padStart(2, '0');

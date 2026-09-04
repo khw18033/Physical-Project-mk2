@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from 'react';
 import { viewNodeEntry } from '../canvas/registry.ts';
 import { useZoomTarget } from '../canvas/zoomState.ts';
-import { useMission } from '../data/scenario.ts';
+import { traceFor, useMission } from '../data/scenario.ts';
 import { libraryEntry } from '../scenarios/library.ts';
 import { nowPlaying } from '../scenarios/nowPlaying.ts';
 import { issueCommand } from '../shared/commandEgress.ts';
@@ -62,7 +62,7 @@ export function AppShell({ debuggerView, onDebuggerHome, onMissionHistory, onOpe
   // 「지금 무엇이 어디서 보이는지」 (260901 §3). 재생 머리 기준 진행 중인 노드와 갈 탭 —
   // **셸이 그린다.** 탭이 그리면 탭을 옮길 때 사라져서 「보면서 확인」이 성립하지 않는다.
   const now = scenario !== null && mission.current.missionId === scenario.missionId
-    ? nowPlaying(mission.current, libraryEntry(mission.current.missionId)?.script ?? null, mission.headSec, mission.playing)
+    ? nowPlaying(mission.current, libraryEntry(mission.current.missionId)?.script ?? null, mission.headSec, mission.playing, traceFor(mission.current))
     : null;
   // 층 1(대본이 안 쓰는 것은 흐리게)은 **팔레트로 옮겨 갔다** — 흐려질 대상이 탭 버튼에서
   // 팔레트 버튼이 됐기 때문이다 (canvas/Palette.tsx).

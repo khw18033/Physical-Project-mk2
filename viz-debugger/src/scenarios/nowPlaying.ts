@@ -16,6 +16,7 @@
 
 import { foldStatuses } from '../data/fold.ts';
 import type { MissionView } from '../data/scenario.ts';
+import type { ScenarioEvent } from '../model/types.ts';
 import { AXIS_NODES, axesOfDrive, axesOfScript, type ScenarioAxis, type ViewNodeKindId } from './axes.ts';
 import type { ScriptScenario } from './types.ts';
 
@@ -46,6 +47,11 @@ export function nowPlaying(
   script: ScriptScenario | null,
   headSec: number,
   playing: boolean,
+  /**
+   * 지금까지 흘러온 **기록 열** (260904). 대본(`view.events`)이 아니다 — 안내줄이
+   * 화면과 다른 것을 접으면 「지금」이 화면과 어긋난다.
+   */
+  trace: readonly ScenarioEvent[],
 ): NowPlaying | null {
   if (script === null) return null;
 
@@ -68,12 +74,12 @@ export function nowPlaying(
 
   // 그 태스크가 **마지막으로 움직인 시각** — 「지금 창」의 시작이자 진행 중 후보의 정렬 기준.
   const lastMoveAt = new Map<string, number>();
-  for (const event of view.events) {
+  for (const event of trace) {
     if (event.atSec > headSec) break;
     lastMoveAt.set(event.nodeId, event.atSec);
   }
 
-  const folded = foldStatuses(headSec, view);
+  const folded = foldStatuses(headSec, view, trace);
   const active = view.tasks
     .filter((task) => ACTIVE.has(folded.tasks[task.id]?.status ?? 'pending'))
     .sort((a, b) => (lastMoveAt.get(b.id) ?? -1) - (lastMoveAt.get(a.id) ?? -1));
