@@ -210,9 +210,10 @@ def _fixed_mission(utterance: str) -> Dict[str, Any]:
             "audio_ref": None,
             "text": utterance,
             "engine": "stub",
-            # 7.8 utterance.confidence 계약이 미결이다. 스텁은 **저작된 문장**이므로
-            # 대본과 같은 규칙으로 1 을 쓴다(scenarios/types.ts 의 ScriptUtterance).
-            # 실제 STT 수치를 여기에 싣는 방식은 그 결정이 난 뒤에 정한다.
+            # 7.8 utterance.confidence 계약은 260906 에 닫혔다 — `confidence` 를 남기고
+            # `confidence_signals` 세 자리를 열었다. 스텁은 **저작된 문장**이라 인식 수치가
+            # 없으므로 대본과 같은 규칙으로 1 을 쓰고 `confidence_signals` 를 **넣지 않는다**
+            # (그 필드가 required 가 아닌 이유가 이 경우다).
             "confidence": 1,
         },
         "milestones": [

@@ -12,7 +12,18 @@
 /** `contracts/mission.schema.json` 의 임무 객체. 계약이 원본이므로 여기서는 얇게만 적는다. */
 export type GeneratedMission = {
   mission_id: string;
-  utterance: { audio_ref: string | null; text: string; engine: string; confidence: number };
+  utterance: {
+    audio_ref: string | null;
+    text: string;
+    engine: string;
+    /** `confidence_signals.unit_mean` 과 같은 값이다. **가중합이 아니다** (§7.8 · 260906 결정). */
+    confidence: number;
+    /**
+     * 엔진이 준 수치 셋. **선택 필드다** — 저작된 문장(`engine: 'script'`·스텁)에는 없다.
+     * 자리를 채우는 규칙은 `stt/confidence.ts` 의 `toUtterance()` 한 곳에 있다.
+     */
+    confidence_signals?: { primary: number | null; no_speech: number | null; unit_mean: number | null };
+  };
   milestones: Array<{
     milestone_id: string;
     title: string;

@@ -148,6 +148,37 @@ if (outside.length) {
   if (!grammar.includes('root ::=')) failures.push('문법에 root 규칙이 없다');
   if (!/mission-utterance-confidence ::= number/.test(grammar)) failures.push('utterance.confidence 가 number 로 안 실렸다');
 
+  // 260906 §7.8 결정 — 세 수치를 실은 자리가 **문법으로 뽑히는가.** 여기서 안 나오면
+  // 강제 디코딩 밖에 있는 필드이고, 그러면 모델이 그 자리를 아무렇게나 낼 수 있다.
+  if (!grammar.includes('mission-utterance-confidence-signals ::= "{"')) {
+    failures.push('confidence_signals 가 문법에 안 실렸다 — 새 필드가 강제 디코딩 밖에 있다');
+  }
+  for (const slot of ['primary', 'no-speech', 'unit-mean']) {
+    // **null 을 받아야 한다.** 0 으로 메우면 「쟀는데 0점」과 「못 쟀다」가 같은 값이 된다.
+    if (!new RegExp(`mission-utterance-confidence-signals-${slot} ::= number \| null`).test(grammar)) {
+      failures.push(`confidence_signals.${slot} 이 number|null 로 안 실렸다 — 못 재는 엔진의 자리가 사라진다`);
+    }
+  }
+  // **선택 필드여야 한다.** 필수로 실리면 대본 유래(engine:"script") 정답셋 4편이 통째로
+  // 계약 위반이 된다 — 그 편들에는 인식 수치가 없다.
+  const OPTIONAL_SIGNALS = '("," ws "\\"confidence_signals\\"" ws ":" ws mission-utterance-confidence-signals)?';
+  if (!grammar.includes(OPTIONAL_SIGNALS)) {
+    failures.push('confidence_signals 가 문법에서 선택 항목이 아니다 — 대본 유래 정답셋 4편이 계약 위반이 된다');
+  }
+  // 대조군 — null 허용을 계약에서 빼면 문법에서도 빠져야 한다. 안 빠지면 이 자리의
+  // 「null 을 받는다」는 계약이 아니라 문법 생성기의 우연이라는 뜻이다.
+  {
+    const noNull = JSON.parse(JSON.stringify(mission));
+    for (const slot of ['primary', 'no_speech', 'unit_mean']) {
+      noNull.properties.utterance.properties.confidence_signals.properties[slot].type = 'number';
+    }
+    if (/mission-utterance-confidence-signals-primary ::= number \| null/.test(toGbnf(noNull, contracts))) {
+      failures.push('대조군 실패: 계약에서 null 을 뺐는데 문법은 여전히 null 을 받는다');
+    } else {
+      controls.push('confidence_signals 의 null 허용을 뺀 사본에서 문법이 좁아짐');
+    }
+  }
+
   // **대조군** — 계약을 고치면 문법이 따라 바뀌어야 한다. 안 바뀌면 계약은 원본이 아니다.
   const mutated = JSON.parse(JSON.stringify(mission));
   mutated.properties.milestones = { type: 'array', items: { type: 'string' } };
@@ -194,5 +225,6 @@ if (failures.length) {
 console.log('✅ 생성 주소를 아는 곳은 src/generate/ 뿐 · 기본값은 LlmClient 가 심고 화면은 연결 관리로 바꾼다 (8802)');
 console.log('✅ 손으로 쓴 문법 파일 0건 — 문법은 contracts/mission.schema.json 에서 뽑는다');
 console.log('✅ 계약의 허용 목록(상태 8종 · 노드 문법 5종)이 문법에 그대로 실렸다');
+console.log('✅ utterance.confidence_signals 세 자리가 문법으로 뽑힌다 — 선택 항목이고 각 자리가 null 을 받는다 (§7.8 · 260906)');
 console.log('✅ gen-lab 은 계약 사본을 두지 않고 저장소 루트의 원본을 읽는다');
 console.log(`✅ 대조군 ${controls.length}건 검출 — ${controls.join(' · ')}`);

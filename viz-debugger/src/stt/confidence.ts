@@ -137,3 +137,104 @@ export const VERDICT_LABEL: Record<Verdict, string> = {
   confirm: '재확인 필요',
   reject: '거절',
 };
+
+// ── 계약으로 옮기는 자리 (260906 · §7.8 결정) ────────────────────────────────
+//
+// **결정: 안 ② + 이름 일반화. `confidence` 는 남긴다.**
+//
+// 세 안 중 ②(`utterance` 를 열어 명시 필드로)를 골랐다. ①(세 수치를 trace-event 로)은
+// 임계 근거가 임무 기록 밖에 남아 조인을 요구하고, ③(`confidence` 재정의)은 위 환각이
+// **최고 점수로** 통과하므로 판정의 실질을 잃는다. ②가 포기하는 것은 계층 경계인데,
+// 그 대가는 **이름을 일반화해서** 갚는다 — `avg_logprob`·`no_speech_prob` 는 Whisper 의
+// 말이고 그 이름이 계약에 오르면 `REQ-1302`(엔진 추상화)가 깨진다.
+//
+//   primary    엔진이 「주된 확신도」로 내놓는 값   ← avg_logprob
+//   no_speech  「이건 말이 아니다」 쪽 신호        ← no_speech_prob
+//   unit_mean  인식 단위(단어)당 평균 확신도       ← mean_word_prob
+//
+// ## `confidence` 에 가중합을 넣지 않는다
+//
+// 남긴 `confidence` 에는 **`unit_mean` 을 그대로** 넣는다. 가중합을 넣는 순간 세 자리를
+// 만든 이유가 사라진다 — 위 환각(평균 단어 확률 `0.933`)이 숫자 하나에 묻힌다.
+// 셋 중 `unit_mean` 만 고른 이유는 그것이 **엔진과 무관하게 0~1 로 읽히는 유일한 축**이기
+// 때문이다. `primary` 는 눈금이 엔진의 것이고(Whisper 는 상한 0의 음수), `no_speech` 는
+// 방향이 반대다(높을수록 말이 아니다).
+//
+// **그래서 `confidence` 는 수락 판정의 근거가 아니다.** 판정은 위 `decide()` 한 곳에서
+// 세 수치를 각각 보고 한다. `confidence` 는 계약이 0단계부터 요구해 온 자리이고, 그 자리에
+// 무엇이 들어 있는지를 이제 한 줄로 말할 수 있게 된 것이 이 결정의 전부다.
+
+/**
+ * `contracts/mission.schema.json` 의 `utterance`. **계약이 원본이므로 여기서는 얇게만 적는다**
+ * (`generate/types.ts` 와 같은 규칙).
+ */
+export type ContractUtterance = {
+  audio_ref: string | null;
+  text: string;
+  engine: string;
+  confidence: number;
+  confidence_signals: {
+    primary: number | null;
+    no_speech: number | null;
+    unit_mean: number | null;
+  };
+};
+
+/**
+ * 계약으로 옮긴 결과. **둘 중 하나만 값이 있다.**
+ *
+ * 옮기지 못하는 경우가 실제로 있고(아래), 그때 조용히 아무 숫자나 채우면 계약은 통과하고
+ * 사실만 사라진다. 그래서 「못 옮겼다」를 **사유와 함께** 돌려준다 — `probe()` 가 실패
+ * 사유를 버리지 않는 것과 같은 규칙이다.
+ */
+export type UtteranceMapping =
+  | { utterance: ContractUtterance; blocked: null }
+  | { utterance: null; blocked: string };
+
+/**
+ * STT 결과 한 건 → 계약의 `utterance`.
+ *
+ * @param text 사람이 고친 문장. 화면에서 손댈 수 있으므로 **수락된 문장**이 계약에 오른다.
+ *             안 넘기면 인식 원문 그대로다.
+ *
+ * ## 못 옮기는 경우 — `0` 으로 메우지 않는다
+ *
+ * `unit_mean` 이 없으면(단어가 하나도 안 나온 경우 · 단어 타임스탬프를 끈 엔진) 계약의
+ * `confidence` 에 넣을 정직한 0~1 값이 없다. `0` 은 「쟀는데 0점」이라 뜻이 다르고,
+ * `confidence` 자리는 계약상 `null` 을 받지 않는다 — **`confidence` 를 남기기로 한 결정이
+ * 실제로 치르는 값이 여기다.** 그 경우 임무를 만들지 않고 사유를 돌려준다.
+ * (`decide()` 도 같은 입력을 `confirm` 으로 보낸다 — 없는 것을 통과시키지 않는다.)
+ */
+export function toUtterance(result: SttResult, text: string = result.text): UtteranceMapping {
+  const confidence_signals = {
+    primary: result.avg_logprob,
+    no_speech: result.no_speech_prob,
+    unit_mean: result.mean_word_prob,
+  };
+  const unitMean = confidence_signals.unit_mean;
+  if (unitMean === null) {
+    return {
+      utterance: null,
+      blocked: `인식 단위당 확신도가 없어 계약의 confidence 를 채울 수 없습니다 (단어 ${result.word_count}건 · engine=${result.engine}). 0 으로 메우지 않습니다 — 0 은 「쟀는데 0점」이고 이 경우는 「못 쟀다」입니다.`,
+    };
+  }
+  if (unitMean < 0 || unitMean > 1) {
+    // 잘라서 넣으면 계약은 통과하고 사실이 사라진다. 엔진이 확률 축이 아닌 값을 이 자리에
+    // 실었다는 뜻이므로 매핑을 고쳐야 한다 — 여기서 감추지 않는다.
+    return {
+      utterance: null,
+      blocked: `인식 단위당 확신도가 확률 범위 밖입니다 (${unitMean} · engine=${result.engine}). 잘라 넣지 않습니다 — 계약은 통과하고 사실만 사라집니다.`,
+    };
+  }
+  return {
+    utterance: {
+      audio_ref: result.audio_ref,
+      text,
+      engine: result.engine,
+      // **가중합이 아니다.** unit_mean 그대로다 (위 머리말).
+      confidence: unitMean,
+      confidence_signals,
+    },
+    blocked: null,
+  };
+}
