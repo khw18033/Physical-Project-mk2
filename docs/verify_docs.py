@@ -15,14 +15,18 @@ import openpyxl
 # 저장소 루트에서 실행한다: python docs/verify_docs.py
 os.chdir(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+# 현행 문서는 2026-09-06에 루트에서 `문서/` 로 모았다. 루트에 남는 파일은 README.md 뿐이다.
+# 앞의 다섯은 그전부터 `_archive/` 에 있어 여기서도 없는 채로 잡힌다 — 이 이동과 무관한 기존 문제다.
+DOCROOT = "문서"
+
 DOCS = [
     "가시화_구현현황_260824.md",
     "작업계획_260824.md",
     "현황정리_260824.md",
     "구현계획서.md",
-    "가시화_프로토타입_설명서.md",
-    "요구사항정의서.md",
-    "가시화_요구사항_쉬운설명.md",
+    DOCROOT + "/가시화_프로토타입_설명서.md",
+    DOCROOT + "/요구사항정의서.md",
+    DOCROOT + "/가시화_요구사항_쉬운설명.md",
     "백엔드_회신_260824.md",
     "docs/다이어그램_원본_mermaid.md",
     "web-dashboard/README.md",
@@ -48,7 +52,7 @@ def p(msg):
 
 # ── A. 존재 ──────────────────────────────────────────────────────────────────
 p("■ A. 읽기순서가 가리키는 문서 존재")
-order = io.open("현재상황_읽기순서.txt", encoding="utf-8").read()
+order = io.open(DOCROOT + "/현재상황_읽기순서.txt", encoding="utf-8").read()
 for d in DOCS:
     exists = os.path.exists(d)
     named = os.path.basename(d) in order
@@ -92,7 +96,7 @@ p("   경로 인용 %d건 검사" % checked)
 
 # ── C. 요구사항 ID 유효성 ───────────────────────────────────────────────────
 p("\n■ C. 인용한 요구사항 ID가 시트에 있는가")
-wb = openpyxl.load_workbook("피지컬팀 프로젝트 mk2 요구사항 정의서.xlsx", data_only=True)
+wb = openpyxl.load_workbook(DOCROOT + "/피지컬팀 프로젝트 mk2 요구사항 정의서.xlsx", data_only=True)
 sheet_ids = {}
 subclass = {}
 for name in wb.sheetnames:
