@@ -1,0 +1,217 @@
+// scripts/run-baseline.mjs (260906 신설 — 마일스톤 분리 지시서 §4)
+//
+// `VZ-G-01` 베이스라인을 **CLI 로** 돌린다. 화면에 붙이기 전에 숫자가 나와야 한다 —
+// 붙인 뒤에 실패하면 모델 탓인지 붙이는 코드 탓인지 가를 수 없다.
+//
+// ## 무엇을 도는가
+//
+//   모델 × 임무 4편 × 발화 5개(원본 1 + 변형 4) = 모델당 20건
+//
+// 발화 변형이 축의 하나다. **마일스톤 정답은 원본과 같으므로**(goldset/utterances.json)
+// 같은 임무를 다른 말로 했을 때 같은 마일스톤이 나오는지가 표현 강건성이다.
+//
+// ## few-shot 은 leave-one-out 이다 — 여기가 누출이 나는 자리
+//
+// 채점 대상인 편을 예시에 넣으면 정답을 보여주고 정답을 맞히라고 하는 것이 된다.
+// **논문에서 가장 먼저 찔리는 자리**이므로 규칙을 코드 한 곳(`examplesFor`)에 두고
+// `verify:no-leak` 이 그 함수를 실제로 불러 검사한다.
+//
+// ## 부르는 길은 LlmClient 하나다
+//
+// 이 스크립트도 `src/generate/LlmClient.ts` 를 통해 부른다. 여기서 주소를 직접 알면
+// 생성 주소를 아는 면이 둘이 되고, 그것이 `verify:gen-port` 가 막는 것이다.
+//
+// ## 실행
+//
+//   node scripts/run-baseline.mjs --model Qwen3-8B-Q4_K_M
+//   node scripts/run-baseline.mjs --model X --no-grammar    문법 없는 대조군
+//   node scripts/run-baseline.mjs --model X --limit 2       빠른 확인용
+//   node scripts/run-baseline.mjs --rescore                 이미 낸 결과를 다시 채점만
+//
+// `--rescore` 가 있는 이유: 채점기에 축이 붙으면 옛 실행의 숫자에 그 축이 없다. 그때
+// **모델을 다시 돌리면 안 된다** — 같은 출력을 다시 뽑는 데 시간을 쓰는 것도 문제지만,
+// 재생성하면 「이 표의 출력이 그때 그 출력인가」가 흐려진다. 출력은 그대로 두고 채점만
+// 다시 한다.
+//
+// 결과는 `gen-lab/runs/<이름>/` 에 쌓이고 채점은 `score-generation.mjs` 가 한다 —
+// **축의 정의를 두 벌로 두지 않는다.**
+import { execFileSync } from 'node:child_process';
+// **누출을 막는 규칙은 여기 있지 않다** — scripts/lib/fewshot.mjs 한 곳이고,
+// `verify:no-leak` 이 그 파일을 직접 불러 검사한다.
+import { examplesFor } from './lib/fewshot.mjs';
+import { mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const vizRoot = join(dirname(fileURLToPath(import.meta.url)), '..');
+const repoRoot = join(vizRoot, '..');
+const goldDir = join(repoRoot, 'gen-lab', 'goldset', 'missions');
+const runsDir = join(repoRoot, 'gen-lab', 'runs');
+
+const args = process.argv.slice(2);
+const flag = (name, fallback = null) => (args.includes(name) ? args[args.indexOf(name) + 1] : fallback);
+const model = flag('--model');
+const enforceGrammar = !args.includes('--no-grammar');
+const limit = Number(flag('--limit', '0')) || 0;
+const rescoreOnly = args.includes('--rescore');
+const label = flag('--label', model ? `${model}${enforceGrammar ? '' : '__nogrammar'}` : null);
+
+if (model === null && !rescoreOnly) {
+  console.error('❌ --model 이 필요하다. 무엇을 쟀는지 모르는 숫자는 쓸 수 없다.');
+  console.error('   쓸 수 있는 이름은 http://127.0.0.1:8802/generate/health 의 models 에 있다.');
+  process.exit(1);
+}
+
+// ── 재료 ─────────────────────────────────────────────────────────────────────
+
+const gold = readdirSync(goldDir)
+  .filter((name) => name.endsWith('.json'))
+  .map((name) => JSON.parse(readFileSync(join(goldDir, name), 'utf8')))
+  .sort((a, b) => a.mission_id.localeCompare(b.mission_id));
+
+const variants = JSON.parse(readFileSync(join(repoRoot, 'gen-lab', 'goldset', 'utterances.json'), 'utf8'));
+
+/**
+ * 장소 위상. **기하 파일을 읽지 않는다** — 좌표를 보면 모델이 503호 전용이 된다
+ * (지시서 §1 · `verify:places` 4번 검사가 이 경로를 훑는다).
+ */
+const places = JSON.parse(readFileSync(join(repoRoot, 'places', 'places.json'), 'utf8'));
+
+/** 원본 발화 + 손으로 적은 변형. 마일스톤 정답은 전부 원본과 같다. */
+function utterancesFor(missionId, mission) {
+  const entry = (variants.missions ?? []).find((item) => item.mission_id === missionId);
+  return [mission.utterance.text, ...(entry?.variants ?? [])];
+}
+
+// ── 실행 ─────────────────────────────────────────────────────────────────────
+
+/**
+ * 채점 — **축의 정의는 `score-generation.mjs` 하나다.** 여기서 다시 계산하지 않는다.
+ * 축을 두 곳에 적으면 표와 채점기가 조용히 갈라진다.
+ */
+function writeSummary(root, { model: modelName, label: runLabel, grammar_enforced, records: rows }) {
+  const scored = [];
+  for (const dir of readdirSync(root).filter((name) => /^v\d+$/.test(name)).sort()) {
+    const out = execFileSync(process.execPath, [join(vizRoot, 'scripts', 'score-generation.mjs'), '--candidate', join(root, dir), '--json'], {
+      encoding: 'utf8', cwd: vizRoot, maxBuffer: 64 * 1024 * 1024,
+    });
+    scored.push({ variant: dir, results: JSON.parse(out).results });
+  }
+  const previous = (() => {
+    try { return JSON.parse(readFileSync(join(root, 'summary.json'), 'utf8')); } catch { return null; }
+  })();
+  writeFileSync(join(root, 'summary.json'), JSON.stringify({
+    model: modelName,
+    label: runLabel,
+    grammar_enforced,
+    // **생성한 시각은 그대로 두고 채점한 시각만 갱신한다** — 다시 채점했다고 해서
+    // 출력이 새로 난 것이 아니다. 그 둘을 한 칸에 적으면 기록이 거짓말한다.
+    ran_at: previous?.ran_at ?? new Date().toISOString(),
+    scored_at: new Date().toISOString(),
+    calls: rows.length,
+    records: rows,
+    scored,
+  }, null, 2), 'utf8');
+}
+
+if (rescoreOnly) {
+  // 출력은 손대지 않는다. 채점만 다시 한다.
+  for (const name of readdirSync(runsDir)) {
+    const root = join(runsDir, name);
+    let previous;
+    try { previous = JSON.parse(readFileSync(join(root, 'summary.json'), 'utf8')); } catch { continue; }
+    writeSummary(root, {
+      model: previous.model, label: previous.label,
+      grammar_enforced: previous.grammar_enforced, records: previous.records,
+    });
+    console.log(`  다시 채점 — ${name} (${previous.records.length}건, 출력은 그대로)`);
+  }
+  process.exit(0);
+}
+
+const { generateMission } = await import('../src/generate/LlmClient.ts');
+
+const outRoot = join(runsDir, label);
+rmSync(outRoot, { recursive: true, force: true });
+mkdirSync(join(outRoot, 'raw'), { recursive: true });
+
+const records = [];
+const targets = limit > 0 ? gold.slice(0, limit) : gold;
+
+console.log(`베이스라인 — model=${model} · 문법=${enforceGrammar ? '강제' : '없음(대조군)'} · 임무 ${targets.length}편`);
+console.log('');
+
+for (const mission of targets) {
+  const examples = examplesFor(mission.mission_id, gold);
+  const texts = utterancesFor(mission.mission_id, mission);
+  for (const [index, text] of texts.entries()) {
+    const started = Date.now();
+    let result = null;
+    let failure = null;
+    try {
+      result = await generateMission(text, {
+        places,
+        examples,
+        model,
+        missionId: mission.mission_id,
+        // 대본 유래라 인식 수치가 없다 — `confidence_signals` 없이 간다 (§7.8 규칙 2).
+        utteranceMeta: mission.utterance,
+        enforceGrammar,
+        maxTokens: 2048,
+        temperature: 0,
+        seed: 0,
+      });
+    } catch (error) {
+      // **삼키지 않는다.** 서비스가 죽은 것과 모델이 못 낸 것은 다른 일이고,
+      // 둘을 같은 빈칸으로 적으면 표가 거짓말을 한다.
+      failure = String(error?.message ?? error);
+    }
+    const wall = (Date.now() - started) / 1000;
+    const variantDir = join(outRoot, `v${index}`);
+    mkdirSync(variantDir, { recursive: true });
+
+    const record = {
+      mission_id: mission.mission_id,
+      variant: index,
+      utterance: text,
+      ok: failure === null,
+      failure,
+      wall_sec: Number(wall.toFixed(3)),
+      // **서비스가 말한 모델과 실제로 답한 파일을 둘 다 적는다.** 260906 에 이 둘이
+      // 어긋난 채로 표가 나온 적이 있다 (유령 llama-server). 기록이 거짓말하면
+      // 그 뒤의 모든 판단이 무의미하다.
+      model_requested: model,
+      model_reported: result?.model ?? null,
+      served_model_file: result?.extra?.served_model_file ?? null,
+      elapsed_sec: result?.elapsed_sec ?? null,
+      schema_errors: result?.schema_errors ?? null,
+      schema_pass: result === null ? null : (result.schema_errors ?? []).length === 0,
+      grammar: result?.grammar ?? null,
+      grammar_enforced: result?.extra?.grammar_enforced ?? null,
+      examples_used: examples.map((example) => example.mission_id),
+      extra: result?.extra ?? null,
+    };
+    records.push(record);
+    writeFileSync(join(outRoot, 'raw', `${mission.mission_id}__v${index}.json`), JSON.stringify({ record, mission: result?.mission ?? null }, null, 2), 'utf8');
+
+    if (result?.mission != null) {
+      // 채점기는 mission_id 로 짝을 찾는다. 모델이 식별자를 안 옮겨 적었어도 그 건을
+      // 잃지 않도록 여기서 맞춘다 — **식별자는 애초에 부르는 쪽이 준 값이다.**
+      // 지켰는지 여부는 `id_obeyed` 로 따로 남는다: 고쳐 놓고 안 고친 척하지 않는다.
+      record.id_obeyed = result.mission.mission_id === mission.mission_id;
+      writeFileSync(
+        join(variantDir, `${mission.mission_id}.json`),
+        JSON.stringify({ ...result.mission, mission_id: mission.mission_id }, null, 2),
+        'utf8',
+      );
+    }
+    const status = failure !== null ? `실패 — ${failure.slice(0, 60)}`
+      : `${record.schema_pass ? '스키마통과' : `스키마실패 ${record.schema_errors.length}`} · ${wall.toFixed(1)}초 · 마일스톤 ${result.mission?.milestones?.length ?? '?'}`;
+    console.log(`  ${mission.mission_id} v${index}  ${status}`);
+  }
+}
+
+writeSummary(outRoot, { model, label, grammar_enforced: enforceGrammar, records });
+console.log('');
+console.log(`기록 ${records.length}건 → ${join(outRoot, 'summary.json')}`);
+console.log('표는 `node scripts/report-baseline.mjs` 가 만든다 — 여러 모델을 한 표에 놓아야 낙폭이 보인다.');

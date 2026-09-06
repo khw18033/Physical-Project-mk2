@@ -4,13 +4,21 @@
 //
 // | 축 | 무엇을 | G-01 | G-02 |
 // |---|---|---|---|
-// | 스키마   | mission.schema.json 을 통과하는가        | ○ | ○ |
-// | 마일스톤 | 개수 · 순서 · 장소 어휘가 정답과 맞는가    | ○ | — |
-// | 노드 문법 | node_kind 라벨이 정답과 맞는가           | — | ○ |
-// | 그래프   | deps 가 만드는 DAG 가 동형인가 · 순환 없나 | — | ○ |
+// | 스키마     | mission.schema.json 을 통과하는가         | ○ | ○ |
+// | 마일스톤   | 개수 · 순서 · 장소 어휘가 정답과 맞는가     | ○ | — |
+// | 장소 위반  | places.json 밖 장소를 지어낸 건수          | ○ | — |
+// | 장비 위반  | 정답셋 밖 장비 id 를 지어낸 건수 (장소의 대조군) | ○ | — |
+// | 추상 위반  | 기종·좌표·속도가 제목에 새어 든 건수         | ○ | — |
+// | 노드 문법  | node_kind 라벨이 정답과 맞는가             | — | ○ |
+// | 그래프     | deps 가 만드는 DAG 가 동형인가 · 순환 없나   | — | ○ |
 //
 // **축을 섞으면 실패 원인을 못 가른다.** 「형식 오류인가 내용 오류인가」가 학습 판단의
 // 근거이므로(지시서 §학습 판단 관문) 여기서 갈라 두지 않으면 4단계에서 가를 수 없다.
+//
+// 위반 축 둘은 260906(§4 베이스라인)에 붙었다. 그전에는 「없는 장소를 지어냈는가」를
+// 잴 자리가 없었다 — 재현율만 있었고, 재현율은 **빠뜨린 것**을 재지 **지어낸 것**을
+// 재지 않는다. 학습 판단표의 두 줄(「없는 장소를 지어냄」·「추상 위반」)이 바로 이 둘이라
+// 자리가 없으면 그 판단 자체가 성립하지 않는다.
 //
 // ## 재는 것이 아니라 못 재는 것도 적는다
 //
@@ -27,7 +35,7 @@
 // 끝내지 않는다 — 낮은 것 자체가 결과다. 다만 **대조군**은 다르다: 망가뜨린 사본이
 // 축에 안 걸리면 그 축은 무의미하므로 그때만 1로 끝낸다.
 import { readFileSync, readdirSync, statSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { dirname, isAbsolute, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { loadContracts, validate } from './lib/json-schema.mjs';
 
@@ -67,6 +75,34 @@ function placeVocabulary() {
     return names.filter((name) => typeof name === 'string' && name.length > 0);
   } catch {
     return [];
+  }
+}
+
+/**
+ * 지어낸 장소를 세는 데 쓰는 **닫힌 축 둘** — 방 번호와 층.
+ *
+ * 자유 문장에서 임의의 장소를 집어내는 것은 장소 인식기가 할 일이고 이 채점기의 몫이
+ * 아니다. 대신 **틀렸을 때 확실히 틀린 두 가지**만 센다: `places.json` 에 없는 방 번호와
+ * 없는 층. 이 둘은 정규식으로 확실히 잡히고, 「지어냈다」의 가장 흔한 모양이다
+ * (모델이 없는 방을 만들면 거의 항상 번호로 만든다).
+ *
+ * **못 세는 것을 적어 둔다** — 없는 시설 이름(「중앙 계단실」)은 이 방법으로 못 잡는다.
+ */
+function placeAxes() {
+  try {
+    const raw = JSON.parse(readFileSync(join(repoRoot, 'places', 'places.json'), 'utf8'));
+    const rooms = new Set();
+    const floors = new Set();
+    for (const place of raw.places ?? []) {
+      for (const name of [place.label, ...(place.aliases ?? [])]) {
+        const room = String(name).match(/^(\d{3})\s*호?$/);
+        if (room) rooms.add(room[1]);
+      }
+      if (typeof place.floor === 'number') floors.add(place.floor);
+    }
+    return { rooms, floors, ok: rooms.size > 0 };
+  } catch {
+    return { rooms: new Set(), floors: new Set(), ok: false };
   }
 }
 
@@ -181,9 +217,9 @@ function axisMilestone(goldMission, candidate, vocabulary) {
   /**
    * 장소 어휘 — **정답 마일스톤이 말한 장소를 후보도 말했는가.**
    *
-   * 「없는 장소를 지어냈는가」(위반 건수)는 여기서 못 잰다. 자유 문장에서 장소를 집어내려면
-   * 장소 인식이 필요한데 그건 이 채점기의 일이 아니다 — 4단계에서 생성기가 장소를
-   * **필드로** 내게 하고 그때 센다. 지금 재는 것은 재현율 하나이고, 그 사실을 적어 둔다.
+   * 「없는 장소를 지어냈는가」(위반 건수)는 여기가 아니라 `axisPlaceViolation` 이 센다.
+   * 260906 까지 그 자리가 없어서 「빠뜨린 것」만 재고 「지어낸 것」은 못 쟀다 — 학습 판단표의
+   * 한 줄이 그 숫자를 요구하므로 축을 갈라 붙였다. 여기는 재현율 하나다.
    */
   const placePairs = vocabulary.length === 0 ? [] : matched.map((pair) => {
     const want = vocabulary.filter((name) => String(pair.gold.title).includes(name));
@@ -198,8 +234,130 @@ function axisMilestone(goldMission, candidate, vocabulary) {
     place_recall: vocabulary.length === 0 ? null : round(mean(placePairs)),
     place_vocab_note: vocabulary.length === 0
       ? '해당 없음 — places/places.json 이 비어 있다 (Unity 맵 추출 §1 대기). 빈칸에 0을 넣지 않는다'
-      : '재현율만 잰다 — 「없는 장소를 지어냈는가」는 생성기가 장소를 필드로 낼 때(4단계) 센다',
+      : '이 축은 재현율이다 — 「지어냈는가」는 옆의 장소 위반 축이 센다 (260906 신설)',
     unmatched: pairs.filter((pair) => pair.got === null).map((pair) => pair.gold.milestone_id),
+  };
+}
+
+/**
+ * 축 2b — **장소 어휘 위반.** `places.json` 밖 장소를 지어낸 건수 (지시서 §4-4).
+ *
+ * 재현율(축 2)과 방향이 반대다. 재현율은 **빠뜨린 것**을 재고 이 축은 **지어낸 것**을
+ * 잰다. 그라운딩이 듣는지는 이쪽이 답한다 — 목록을 줬는데도 없는 방을 만들면 0이 아니다.
+ */
+function axisPlaceViolation(candidate, axes) {
+  if (!axes.ok) {
+    return { count: null, items: [], note: '해당 없음 — places/places.json 을 읽지 못했다. 빈칸에 0을 넣지 않는다' };
+  }
+  const items = [];
+  for (const milestone of candidate.milestones ?? []) {
+    const title = String(milestone.title ?? '');
+    for (const [, room] of title.matchAll(/(\d{3})\s*호/g)) {
+      if (!axes.rooms.has(room)) items.push({ milestone_id: milestone.milestone_id, kind: 'room', found: `${room}호`, title });
+    }
+    for (const [, floor] of title.matchAll(/(\d+)\s*층/g)) {
+      if (!axes.floors.has(Number(floor))) items.push({ milestone_id: milestone.milestone_id, kind: 'floor', found: `${floor}층`, title });
+    }
+  }
+  return {
+    count: items.length,
+    items: items.slice(0, 8),
+    note: '방 번호와 층만 센다 — 없는 시설 이름(「중앙 계단실」)은 이 방법으로 못 잡는다',
+  };
+}
+
+/**
+ * 축 2d — **장비 어휘 위반.** `assigned_targets` 에 정답셋 밖의 장비 id 를 지어낸 건수.
+ *
+ * ## 왜 이 축을 더 붙였나 — 대조군이 공짜로 생긴다
+ *
+ * 지시서는 축 넷을 적었고 장비 어휘는 거기 없다. 그런데 260906 실측에서 **장소 위반이
+ * 세 모델 모두 0건**으로 나왔고, 그 0이 「그라운딩이 들었다」인지 「모델이 원래 장소를
+ * 안 지어낸다」인지 가릴 방법이 없었다.
+ *
+ * 장비가 그 대조군이다. **같은 모델 · 같은 프롬프트 · 같은 디코딩인데 장소는 목록을 주고
+ * 장비는 안 준다.** 두 축의 차이가 곧 목록의 효과다 — 이보다 깨끗한 대조는 만들기 어렵고,
+ * 이미 있는 데이터로 잴 수 있다.
+ *
+ * 어휘의 원천은 **정답셋 4편의 `assigned_targets` 합집합**이다. 게이트웨이의
+ * `registry.json` 을 읽지 않는다 — 채점기가 대시보드 계층에 의존하면 단독으로 못 돈다
+ * (`verify:standalone` 이 지키는 것과 같은 경계). few-shot 예시가 실제로 보여주는
+ * 어휘가 이 합집합이므로, 재는 것도 그것이 맞다.
+ */
+function targetVocabulary(missions) {
+  const known = new Set();
+  for (const mission of missions) {
+    for (const milestone of mission.milestones) {
+      for (const target of milestone.assigned_targets ?? []) known.add(target);
+    }
+  }
+  return known;
+}
+
+function axisTargetVocabulary(candidate, known) {
+  const items = [];
+  let total = 0;
+  for (const milestone of candidate.milestones ?? []) {
+    for (const target of milestone.assigned_targets ?? []) {
+      total += 1;
+      if (!known.has(target)) items.push({ milestone_id: milestone.milestone_id, found: target });
+    }
+  }
+  return {
+    count: items.length,
+    total,
+    items: items.slice(0, 8),
+    note: '어휘는 정답셋의 assigned_targets 합집합이다 — **이 목록은 모델에게 주지 않는다.** 장소 축의 대조군이다',
+  };
+}
+
+/**
+ * 축 2c — **추상 위반.** 마일스톤 제목에 기종·좌표·속도가 새어 든 건수 (지시서 §4-4).
+ *
+ * ## 「수치가 나오면 실패」로 짜지 않았다 — 정답셋이 그것을 반증한다
+ *
+ * 지시서는 한 곳에서 「기종·수치가 새어 들어온 횟수」라고 적었지만, 그대로 구현하면
+ * **정답셋 4편 중 3편이 위반으로 잡힌다**:
+ *
+ *   MSN-260831-01 MS-E  「엘리베이터와의 거리를 계산하여 3 m 이내면 정지」
+ *   MSN-260831-02 MS-F  「… 마지막 탐지 시각이 10분 초과 시 재탐색」
+ *   MSN-260831-03 MS-B  「하천 수위가 30초 이상 상승 곡선을 그릴 시 …」
+ *
+ * 사람이 쓴 정답이 위반이면 규칙이 틀린 것이다(`verify:dep-rules` 와 같은 논리).
+ * 그래서 지시서의 **다른 쪽 문장**을 따른다 — 「로봇 기종·좌표·속도가 나오면 실패다」.
+ * 가르는 선은 이렇다.
+ *
+ *   임무의 조건 (발화가 요구한 것: 시간·수위·거리 임계)  → 위반 아니다
+ *   구현 파라미터 (기종·절대 좌표·속도·장비 식별자)      → 위반이다
+ *
+ * 「이 임무가 무엇을 이루는가」는 마일스톤의 내용이고, 「어느 기계가 어떻게」는 아래
+ * 계층의 것이다. 그 선이 곧 `VZ-G-01` 이 말하는 추상이다.
+ */
+const ABSTRACTION_RULES = [
+  // 장비 식별자는 assigned_targets 의 자리다. 제목에 나오면 마일스톤이 그 장비 전용이 된다.
+  { kind: 'target_id', pattern: /\b(robot|camera|sensor|actuator|arm|cam|go1|drone)-\w+/gi },
+  // 기종·제품군 이름. 닫힌 목록이다 — 분류기가 아니라 낱말 목록이라는 것을 적어 둔다.
+  { kind: 'model_name', pattern: /(unitree|go1|go2|스팟|spot|사족보행|4족보행|이족보행|드론|쿼드콥터)/gi },
+  // 절대 좌표. (x, y) · (x, y, z) · x= 꼴.
+  { kind: 'coordinate', pattern: /\(\s*-?\d+(\.\d+)?\s*,\s*-?\d+(\.\d+)?(\s*,\s*-?\d+(\.\d+)?)?\s*\)|[xyz]\s*=\s*-?\d|좌표/gi },
+  // 속도·회전. 실행이 정하는 값이다.
+  { kind: 'velocity', pattern: /\d+(\.\d+)?\s*(m\/s|km\/h|rad\/s|rpm)|선속도|각속도|주행\s*속도/gi },
+];
+
+function axisAbstraction(candidate) {
+  const items = [];
+  for (const milestone of candidate.milestones ?? []) {
+    const title = String(milestone.title ?? '');
+    for (const rule of ABSTRACTION_RULES) {
+      for (const match of title.matchAll(rule.pattern)) {
+        items.push({ milestone_id: milestone.milestone_id, kind: rule.kind, found: match[0], title });
+      }
+    }
+  }
+  return {
+    count: items.length,
+    items: items.slice(0, 8),
+    note: '임무 조건(시간·수위·거리 임계)은 위반이 아니다 — 정답셋 4편 중 3편이 그것을 담고 있다',
   };
 }
 
@@ -289,7 +447,7 @@ function hasCycle(tasks) {
 
 // ── 채점 ─────────────────────────────────────────────────────────────────────
 
-export function score(candidates, vocabulary = placeVocabulary()) {
+export function score(candidates, vocabulary = placeVocabulary(), axes = placeAxes()) {
   return gold.map((goldMission) => {
     const candidate = candidates.find((item) => item.mission_id === goldMission.mission_id) ?? null;
     if (candidate === null) {
@@ -301,6 +459,9 @@ export function score(candidates, vocabulary = placeVocabulary()) {
       missing: false,
       schema: axisSchema(candidate),
       milestone: axisMilestone(goldMission, candidate, vocabulary),
+      place_violation: axisPlaceViolation(candidate, axes),
+      target_violation: axisTargetVocabulary(candidate, targetVocabulary(gold)),
+      abstraction: axisAbstraction(candidate),
       node_grammar: axisNodeGrammar(goldMission, taskPairs),
       graph: axisGraph(goldMission, candidate, taskPairs),
     };
@@ -308,7 +469,8 @@ export function score(candidates, vocabulary = placeVocabulary()) {
 }
 
 function loadCandidates(target) {
-  const path = join(process.cwd(), target);
+  // 절대 경로도 받는다 — 부르는 쪽(`run-baseline.mjs`)이 절대 경로를 넘긴다.
+  const path = isAbsolute(target) ? target : join(process.cwd(), target);
   const stat = statSync(path);
   const files = stat.isDirectory()
     ? readdirSync(path).filter((name) => name.endsWith('.json')).map((name) => join(path, name))
@@ -334,6 +496,9 @@ function damaged(kind) {
   if (kind === 'schema') target.milestones[0].order = '첫째';           // 타입 위반
   if (kind === 'milestone') target.milestones.splice(2, 1);              // 마일스톤 하나 삭제
   if (kind === 'node_grammar') target.milestones[0].tasks[0].node_kind = 'report'; // 라벨 오염
+  if (kind === 'place_violation') target.milestones[0].title += ' (601호 경유)';       // 없는 방을 지어냄
+  if (kind === 'target_violation') target.milestones[0].assigned_targets = ['system-01']; // 없는 장비를 지어냄
+  if (kind === 'abstraction') target.milestones[0].title += ' — robot-01 을 0.8 m/s 로'; // 구현 파라미터 유입
   if (kind === 'graph') {
     // 순환을 만든다 — 모델이 deps 를 직접 내면 실제로 나는 실패다.
     const tasks = target.milestones[0].tasks;
@@ -344,19 +509,50 @@ function damaged(kind) {
 
 const controlFailures = [];
 const controls = [];
-for (const kind of ['schema', 'milestone', 'node_grammar', 'graph']) {
-  const before = results.find((item) => item.mission_id === 'MSN-260831-01');
+// **기준선은 언제나 정답셋 자기 채점이다** — 채점 대상이 무엇이든 상관없다. 대조군이
+// 보는 것은 「채점기의 축이 망가진 입력을 잡는가」이지 「이번 후보가 어떤가」가 아니다.
+// (--candidate 로 임무 일부만 넘기면 그 임무가 후보에 없어 대조군이 통째로 죽는다.)
+const controlBaseline = score(selfCandidates);
+for (const kind of ['schema', 'milestone', 'place_violation', 'target_violation', 'abstraction', 'node_grammar', 'graph']) {
+  const before = controlBaseline.find((item) => item.mission_id === 'MSN-260831-01');
   const after = score(damaged(kind)).find((item) => item.mission_id === 'MSN-260831-01');
   const caught = {
     // **기준선이 이미 통과하지 않아도 잡아야 한다.** 「통과 → 실패」로만 재면 다른 이유로
     // 이미 실패 중일 때 이 대조군이 조용히 무의미해진다 (지금이 그 상황이다 — node_kind).
     schema: () => after.schema.error_count > before.schema.error_count,
     milestone: () => before.milestone.count.match && !after.milestone.count.match,
+    place_violation: () => (after.place_violation.count ?? 0) > (before.place_violation.count ?? 0),
+    target_violation: () => after.target_violation.count > before.target_violation.count,
+    abstraction: () => after.abstraction.count > before.abstraction.count,
     node_grammar: () => (after.node_grammar.accuracy ?? 1) < (before.node_grammar.accuracy ?? 0),
     graph: () => !before.graph.has_cycle && after.graph.has_cycle,
   }[kind]();
   if (caught) controls.push(kind);
   else controlFailures.push(`${kind} 축이 망가뜨린 사본을 잡지 못했다 — 그 축은 무의미하다`);
+}
+
+// ── 탐지기의 타당성 조건 — 정답셋이 위반으로 잡히면 탐지기가 틀린 것이다 ──────
+//
+// `verify:dep-rules` 가 「규칙이 사람이 만든 정답 DAG 를 복원하지 못하면 규칙이 틀린 것」
+// 이라고 적은 것과 같은 논리다. 위반 축 둘은 **사람이 쓴 정답을 통과시켜야** 의미가 있다.
+// 실제로 이 검사가 초안을 한 번 되돌렸다 — 「수치가 나오면 추상 위반」으로 짰더니
+// 정답 4편 중 3편이 걸렸다(위 ABSTRACTION_RULES 머리말).
+{
+  const selfViolations = [];
+  for (const row of controlBaseline) {
+    if (row.missing) continue;
+    if ((row.place_violation.count ?? 0) > 0) {
+      selfViolations.push(`${row.mission_id}: 정답셋이 장소 위반으로 잡혔다 — ${JSON.stringify(row.place_violation.items)}`);
+    }
+    if (row.abstraction.count > 0) {
+      selfViolations.push(`${row.mission_id}: 정답셋이 추상 위반으로 잡혔다 — ${JSON.stringify(row.abstraction.items)}`);
+    }
+    if (row.target_violation.count > 0) {
+      selfViolations.push(`${row.mission_id}: 정답셋이 장비 어휘 위반으로 잡혔다 — ${JSON.stringify(row.target_violation.items)}`);
+    }
+  }
+  controlFailures.push(...selfViolations);
+  if (selfViolations.length === 0) controls.push('정답셋이 위반 축 둘을 통과함 (탐지기의 타당성 조건)');
 }
 
 // ── 출력 ─────────────────────────────────────────────────────────────────────
@@ -368,13 +564,16 @@ if (asJson) {
   console.log('');
   const cell = (value, width) => (value === null ? '해당없음' : value.toFixed(2)).padStart(width);
   const head = (text, width) => text.padStart(width);
-  console.log('  ' + '임무'.padEnd(16) + head('스키마', 10) + head('마일 개수', 11) + head('마일 순서', 10) + head('문법', 9) + head('그래프 F1', 10) + head('순환', 7));
+  console.log('  ' + '임무'.padEnd(16) + head('스키마', 10) + head('마일 개수', 11) + head('마일 순서', 10) + head('장소위반', 9) + head('장비위반', 9) + head('추상위반', 9) + head('문법', 9) + head('그래프 F1', 10) + head('순환', 7));
   for (const row of results) {
     if (row.missing) { console.log('  ' + row.mission_id.padEnd(16) + '(결과 없음)'); continue; }
     console.log('  ' + row.mission_id.padEnd(16) +
       (row.schema.pass ? '통과' : `실패 ${row.schema.error_count}`).padStart(10) +
       `${row.milestone.count.got}/${row.milestone.count.gold}${row.milestone.count.match ? '' : ' ✗'}`.padStart(11) +
       cell(row.milestone.order_recall, 10) +
+      (row.place_violation.count === null ? '해당없음' : String(row.place_violation.count)).padStart(9) +
+      `${row.target_violation.count}/${row.target_violation.total}`.padStart(9) +
+      String(row.abstraction.count).padStart(9) +
       cell(row.node_grammar.accuracy, 9) +
       cell(row.graph.f1, 10) +
       (row.graph.has_cycle ? '있음' : '없음').padStart(7));
@@ -384,7 +583,7 @@ if (asJson) {
   const seen = new Set();
   for (const row of results) {
     if (row.missing) continue;
-    for (const note of [row.milestone.place_vocab_note, row.node_grammar.note]) {
+    for (const note of [row.milestone.place_vocab_note, row.place_violation.note, row.target_violation.note, row.abstraction.note, row.node_grammar.note]) {
       if (note && !seen.has(note)) { seen.add(note); console.log('  - ' + note); }
     }
   }
@@ -395,7 +594,7 @@ if (asJson) {
     for (const error of row.schema.errors) console.log('    ' + error);
   }
   console.log('');
-  console.log(`대조군 ${controls.length}/4 검출 — ${controls.join(' · ')}`);
+  console.log(`대조군 ${controls.length} 검출 — ${controls.join(' · ')}`);
 }
 
 if (controlFailures.length > 0) {

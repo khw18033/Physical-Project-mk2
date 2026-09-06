@@ -1,4 +1,4 @@
-# gen-lab — 생성 서비스 (지금은 스텁)
+# gen-lab — 생성 서비스
 
 발화에서 임무 객체를 만드는 서비스다 (`VZ-G-01` 마일스톤 분리 · `VZ-G-02` 태스크 DAG).
 `stt-lab`·`viz-debugger/stt` 와 **같은 패턴**이다 — 모델은 브라우저에 들어가지 않는다.
@@ -10,24 +10,76 @@
 | 주소 | 연결 관리(`VZ-C-07`) + 환경변수 기본값 | 동일 — `CONNECTION_TARGETS` 의 `generate` |
 | 꺼져 있으면 | 음성만 꺼짐 (`verify:no-stt`) | **생성만 꺼짐 (`verify:no-llm`)** |
 
-## 지금은 스텁이다 — 엔진이 없다
+## 엔진 — llama.cpp (`llama-server` 바이너리 + HTTP)
 
-**모델이 아직 정해지지 않았다.** 지시서 §4 가 「모델 후보를 둘 이상 같은 정답셋으로
-잰다」고 적었고 그 비교가 아직 없다.
+**모델은 브라우저에 들어가지 않는다.** 엔진이 붙어 있고 가중치가 있으면 그것으로 내고,
+없으면 계약을 만족하는 최소 임무를 돌려주는 **스텁으로 내려간다** — 그 사실은
+`/generate/health` 의 `engine` 과 응답의 `extra.stub` 이 그대로 적는다.
+**목임을 감추지 않는다.**
 
-엔진 없이 먼저 세운 이유는 그 앞의 것들이 **엔진과 무관하게 정해져야 하기 때문**이다 —
-경계(어디까지가 서비스인가) · 계약(무엇을 주고받는가) · 꺼짐(없으면 무엇이 꺼지는가).
-엔진을 먼저 붙이면 그 셋이 엔진 모양에 맞춰 굳는다.
+왜 llama.cpp 인가: `viz-debugger/src/generate/gbnf.ts` 가 계약에서 GBNF 를 뽑는데
+Ollama 는 GBNF 를 직접 받지 않는다. **문법 강제 디코딩이 이 작업의 핵심 도구**이므로
+그것을 그대로 받는 쪽으로 간다.
 
-**스텁이 실제로 하는 일은 계약 검증 하나다.** 받은 문법 지문을 기록하고, 고정 응답을
-`contracts/mission.schema.json` 으로 검증해 결과를 그대로 돌려준다.
+왜 바이너리 + HTTP 인가: `llama-cpp-python` 은 Windows + CUDA 휠 설치가 까다롭고,
+거기서 막히면 「모델이 나쁜 것」과 「설치가 안 된 것」이 섞인다. 바이너리는 설치가
+압축 해제 하나다. 안정되면 그때 in-process 를 판단한다.
 
-고정 응답은 **정답셋을 베껴 오지 않는다.** 정답을 그대로 돌려주면 채점기가 만점을 내고,
-그 만점이 「스텁이라서」인지 「모델이 잘해서」인지 구별되지 않는다. 계약만 만족하는
-최소 임무 하나를 돌려준다 — 스키마 축은 통과하고 나머지 축은 낮게 나오는 것이 정직한 모습이다.
+**엔진 프로세스는 gen-lab 이 관리한다.** 모델을 바꿔 달라고 하면 내리고 다시 띄운다 —
+사람이 매번 손으로 껐다 켜면 그 절차가 측정의 일부가 되어 재현이 흔들린다.
 
-**목임을 감추지 않는다.** `/generate/health` 가 `engine: "stub"` 을 돌려주고 응답의
-`extra.stub` 이 `true` 다.
+## 받을 것 둘 — 저장소에 없다
+
+`vendor/` 와 `models/` 는 `.gitignore` 에 있다. 합쳐 13 GB 이고, 하나는 남의 배포물이며
+하나는 라이선스가 따로 있다.
+
+### 1. llama.cpp (CUDA 빌드)
+
+```powershell
+# gen-lab/ 에서
+mkdir vendor
+curl -L -o vendor\llama.zip  https://github.com/ggml-org/llama.cpp/releases/download/b10825/llama-b10825-bin-win-cuda-12.4-x64.zip
+curl -L -o vendor\cudart.zip https://github.com/ggml-org/llama.cpp/releases/download/b10825/cudart-llama-bin-win-cuda-12.4-x64.zip
+Expand-Archive vendor\llama.zip  -DestinationPath vendor\llama.cpp -Force
+Expand-Archive vendor\cudart.zip -DestinationPath vendor\llama.cpp -Force
+.\vendor\llama.cpp\llama-server.exe --list-devices   # CUDA0 가 보여야 한다
+```
+
+CUDA **12.4** 빌드를 쓴다. 드라이버가 더 새 CUDA 를 지원해도 12.x 는 뒤로 호환되고,
+13.x 빌드는 드라이버 요구가 더 까다롭다 — 여기서 막히는 것이 측정에 섞이면 안 된다.
+
+### 2. 가중치 (Q4_K_M GGUF · RTX 3060 12 GB 기준)
+
+| 모델 | 파일 | 크기 | 라이선스 |
+|---|---|---|---|
+| Qwen3 8B | `Qwen3-8B-Q4_K_M.gguf` | 5.03 GB | Apache-2.0 |
+| EXAONE 3.5 7.8B Instruct | `EXAONE-3.5-7.8B-Instruct-Q4_K_M.gguf` | 4.77 GB | **EXAONE AI Model License 1.1 – NC** |
+| Qwen3 4B | `Qwen3-4B-Q4_K_M.gguf` | 2.50 GB | Apache-2.0 |
+
+```powershell
+mkdir models
+curl -L -o models\Qwen3-8B-Q4_K_M.gguf https://huggingface.co/Qwen/Qwen3-8B-GGUF/resolve/main/Qwen3-8B-Q4_K_M.gguf
+curl -L -o models\Qwen3-4B-Q4_K_M.gguf https://huggingface.co/Qwen/Qwen3-4B-GGUF/resolve/main/Qwen3-4B-Q4_K_M.gguf
+curl -L -o models\EXAONE-3.5-7.8B-Instruct-Q4_K_M.gguf https://huggingface.co/LGAI-EXAONE/EXAONE-3.5-7.8B-Instruct-GGUF/resolve/main/EXAONE-3.5-7.8B-Instruct-Q4_K_M.gguf
+curl -L -o models\EXAONE-3.5-7.8B-Instruct.LICENSE.txt https://huggingface.co/LGAI-EXAONE/EXAONE-3.5-7.8B-Instruct-GGUF/resolve/main/LICENSE
+```
+
+**모델 목록은 코드에 없다.** `models/` 에 있는 `*.gguf` 를 그대로 읽는다 — 새 모델을 재는
+일이 코드 수정이 되면 「무엇을 쟀는가」가 커밋 사이에 흩어진다.
+
+### EXAONE 을 쓸 때 지켜야 하는 것
+
+라이선스 전문은 받아 둔 `models/EXAONE-3.5-7.8B-Instruct.LICENSE.txt` 에 있다. 이 프로젝트에
+걸리는 조항은 셋이다.
+
+- **연구 목적 비상업(§2.1a · §3.1).** 이 저장소는 연구·평가용이라 허용 범위 안이다.
+  제품이나 수익이 걸리는 배포에는 **별도 상업 라이선스가 필요하다.**
+- **연구 결과 공개는 허용된다(§2.1b).** 논문·발표에 대조군으로 쓰고 숫자를 싣는 것은 된다.
+- **출력을 다른 모델의 학습·개선에 쓸 수 없다(§3.1 마지막 문장).**
+  5단계에서 학습으로 가더라도 **EXAONE 의 출력은 학습 자료가 될 수 없다.**
+  Qwen3 둘은 Apache-2.0 이라 이 제약이 없다.
+
+그래서 EXAONE 은 **한국어 대조군**으로만 쓴다. 주 후보는 Qwen3 8B 다.
 
 ## 실행
 
@@ -40,7 +92,19 @@ py -3.10 -m venv .venv
 .\.venv\Scripts\python.exe -m server.main
 ```
 
-`http://127.0.0.1:8802/generate/health` 를 열면 무엇이 떠 있는지 나온다.
+`http://127.0.0.1:8802/generate/health` 를 열면 무엇이 떠 있는지 나온다 —
+붙은 엔진, 쓸 수 있는 가중치 목록, 지금 물고 있는 것, 그리고 **포트에서 실제로 답하는
+파일**(`serving_model`)까지. 마지막 것이 중요하다: `loaded_model` 은 우리가 띄웠다고
+믿는 것이고 `serving_model` 은 물어본 것이다. 둘이 다르면 그 측정은 못 쓴다.
+
+베이스라인은 `viz-debugger/` 에서 돈다.
+
+```powershell
+npm run baseline:run -- --model Qwen3-8B-Q4_K_M      # 임무 4편 × 발화 5개 = 20건
+npm run baseline:run -- --model Qwen3-8B-Q4_K_M --no-grammar   # 문법 없는 대조군
+npm run baseline:run -- --rescore                    # 출력은 그대로, 채점만 다시
+npm run baseline:report                              # 모델을 한 표에 놓는다
+```
 포트를 바꾸려면 `$env:VIZ_GENERATE_PORT = "8803"` 처럼 지정하고, 화면 쪽은
 상단 바의 **「연결 관리」** 에서 주소를 바꾼다 (다시 빌드하지 않는다 · `VZ-C-07`).
 
@@ -50,9 +114,22 @@ py -3.10 -m venv .venv
 ## 면 둘
 
 ```
-GET  /generate/health    무엇이 떠 있는가 (엔진·모델·읽은 계약 목록)
+GET  /generate/health    무엇이 떠 있는가 (엔진·가중치 목록·지금 답하는 파일·계약 목록)
 POST /generate/mission   발화 하나 → 임무 객체 + 계약 검증 결과
+POST /generate/unload    가중치를 내린다 (STT 와 12 GB 를 나눠 쓸 때)
 ```
+
+`llama-server` 는 **8803** 을 쓴다. gen-lab 안쪽의 사정이라 화면의 「연결 관리」에는
+올리지 않는다 — 화면이 아는 생성 주소는 8802 하나다.
+
+### 프롬프트는 서비스가 만든다
+
+부르는 쪽이 프롬프트 문자열을 통째로 넘기게 하면, 같은 정답셋을 재는 두 사람이 서로 다른
+프롬프트로 재고도 그 사실을 모른다. **측정의 조건이 코드에 있어야**(`server/prompt.py`)
+숫자가 비교된다. 부르는 쪽이 고르는 것은 **재료**다 — 장소 위상과 few-shot 예시.
+
+예시를 부르는 쪽이 고르는 이유는 하나 더 있다. **채점 대상인 편은 예시에서 빼야 하는데**
+서비스는 어느 편이 채점 대상인지 모른다. 뺐는지는 `verify:no-leak` 이 검사한다.
 
 `SttClient` 는 전용 헬스 경로를 두지 않고 같은 경로에 GET 을 던져 405 를 살아 있음의
 신호로 쓴다. 생성은 **「무엇이 떠 있는가」(스텁인가 엔진인가)를 화면이 적어야** 하므로
@@ -66,8 +143,16 @@ POST /generate/mission   발화 하나 → 임무 객체 + 계약 검증 결과
 `verify:gen-port` 가 검사하는 것 둘 — 손으로 쓴 문법 파일(`*.gbnf` 등)이 없는가,
 계약을 고치면 문법이 따라 바뀌는가.
 
-**엔진이 붙으면 서비스도 같은 계약에서 다시 뽑아 클라이언트가 보낸 지문과 대조해야 한다.**
-지금은 스텁이라 받은 지문을 되돌려 주기만 한다 — 그때의 숙제로 남겨 둔 자리다.
+3단계는 「엔진이 붙으면 서비스도 같은 계약에서 문법을 다시 뽑아 지문을 대조해야 한다」를
+숙제로 남겼다. **하지 않기로 했다** (260906). 파이썬으로 GBNF 변환기를 한 벌 더 쓰는
+일이고, 그 순간 `gbnf.ts` 와 조용히 갈라지는 두 번째 구현이 생긴다.
+
+대신 **결과를 계약으로 검증한다.** 느슨한 문법이 들어오면 계약 밖 출력이 나오고 그것은
+`schema_errors` 에 그대로 잡힌다. 「강제 디코딩이 실제로 듣는가」를 재는 축이 바로 그
+숫자이므로, 검사하려던 것이 측정값 자체가 된다. 문법 지문은 기록에만 남긴다.
+
+실측이 그것을 뒷받침한다 (2026-09-06 · Qwen3 8B · 같은 프롬프트 20건):
+**문법을 걸면 스키마 통과 100% · 중앙값 7.5초, 끄면 45% · 38.8초.**
 
 ## 계약을 베껴 두지 않는다
 
@@ -82,12 +167,31 @@ POST /generate/mission   발화 하나 → 임무 객체 + 계약 검증 결과
 
 `goldset/` — 대본 4편에서 뽑은 (발화 → 마일스톤 → 태스크) 쌍과 손으로 적은 발화 변형 16개.
 만드는 것은 `viz-debugger/scripts/extract-goldset.mjs` 이고 **대본은 읽기만 한다.**
-채점은 `npm run score:generation` (네 축을 따로 낸다).
+채점은 `npm run score:generation` — **축을 따로 낸다.** 합산 점수 하나로 뭉치지 않는다:
+스키마 · 마일스톤(개수·순서·제목) · 장소 어휘 위반 · 장비 어휘 위반 · 추상 위반 ·
+노드 문법 · 그래프. 실패 유형을 못 가르면 학습 판단이 성립하지 않는다.
 
-## 엔진을 붙일 때
+## 엔진을 하나 더 붙일 때
 
-`server/engines/` 에 파일 하나를 더하고 `server/main.py` 가 그것을 고르게 한다.
-**서버 파일에 엔진 이름이 나오면 안 된다** (`stt-lab/server/main.py` 와 같은 규칙 · REQ-1302).
+`server/engines/` 에 파일 하나를 더하고 `server/engines/__init__.py` 의 `_ENGINE_MODULES`
+에 한 줄을 적는다. **교체가 파일 하나여야 한다.**
+`server/main.py` 에 엔진 이름이 나오면 안 된다 (`stt-lab/server/main.py` 와 같은 규칙 ·
+`REQ-1302`). 지금 `llama.cpp` 라는 문자열이 나오는 파일은
+`server/engines/llama_cpp_server.py` 하나다.
 
 `stt/engines/*.py` 처럼 원본에서 이식하는 것이 아니라 여기서 새로 쓴다 —
 그래서 `verify:stt-port` 같은 바이트 동일성 검사가 이 폴더에는 없다.
+
+## 겪은 것 — 유령 `llama-server`
+
+gen-lab 을 다시 띄우면 앞선 실행이 낳은 `llama-server` 가 **8803 을 잡은 채 남는다.**
+새 gen-lab 은 자기 자식이 없으니 새로 띄우려 하는데, `/health` 는 유령이 ok 로 답한다.
+그래서 260906 에 「8B 를 쟀다」고 적힌 표가 실제로는 4B 의 답이 됐다 — 두 모델의 20건이
+글자 하나까지 같게 나와서 알았다.
+
+지금은 셋으로 막는다.
+1. `/props` 로 **실제로 답하는 가중치 파일**을 확인한다. `/health` 만으로는 부족하다
+2. 원하는 가중치를 이미 물고 있으면 받아 쓰고, **다른 것을 물고 있으면 멈춘다**
+3. 서비스가 내려갈 때 자식을 반드시 내린다 (`shutdown` 훅)
+
+그래도 강제 종료로 유령이 남을 수 있다. 그때는 `Get-Process llama-server | Stop-Process`.

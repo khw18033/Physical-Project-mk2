@@ -80,9 +80,31 @@ export type GenerateOptions = {
    * 응답의 `extra` 에 남는다.
    */
   places?: unknown;
-  /** few-shot 예시. **채점 대상인 편은 예시에서 뺀다**(지시서 §4). 부르는 쪽이 고른다. */
+  /**
+   * few-shot 예시. **채점 대상인 편은 예시에서 뺀다**(지시서 §4). 부르는 쪽이 고른다 —
+   * 서비스는 어느 편이 채점 대상인지 모르기 때문이다. 뺐는지 검사하는 것이
+   * `verify:no-leak` 이고, 이 값이 그 검사의 대상이다.
+   */
   examples?: unknown[];
   model?: string;
+  /**
+   * 임무 식별자. **부르는 쪽이 준다** — 모델이 지어낼 것이 아니다. `audio_ref` 와 같은
+   * 성질이고, `VZ-G-01` 이 만드는 것은 마일스톤이지 식별자가 아니다.
+   */
+  missionId?: string;
+  /** 계약의 `utterance` 를 그대로 넘긴다. 모델은 옮겨 적기만 하면 된다. */
+  utteranceMeta?: unknown;
+  /**
+   * 문법을 걸 것인가. 기본은 건다.
+   *
+   * **끌 수 있어야 하는 이유가 있다.** 「강제 디코딩이 실제로 듣는가」는 안 걸었을 때와
+   * 비교해야 답이 된다 — 걸고 잰 통과율 하나만으로는 그 숫자가 문법 덕분인지 모델이
+   * 원래 잘하는 것인지 모른다. 화면은 이 값을 건드리지 않는다(대조군은 CLI 의 일이다).
+   */
+  enforceGrammar?: boolean;
+  maxTokens?: number;
+  temperature?: number;
+  seed?: number;
   signal?: AbortSignal;
 };
 
@@ -129,6 +151,12 @@ export async function generateMission(utterance: string, options: GenerateOption
     places: options.places ?? null,
     examples: options.examples ?? [],
     model: options.model ?? null,
+    mission_id: options.missionId ?? null,
+    utterance_meta: options.utteranceMeta ?? null,
+    enforce_grammar: options.enforceGrammar ?? true,
+    ...(options.maxTokens === undefined ? {} : { max_tokens: options.maxTokens }),
+    ...(options.temperature === undefined ? {} : { temperature: options.temperature }),
+    ...(options.seed === undefined ? {} : { seed: options.seed }),
   }, options.signal);
   return parsed as GenerateResult;
 }

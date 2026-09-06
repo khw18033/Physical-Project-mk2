@@ -1,31 +1,34 @@
-"""gen-lab 서버 — 생성 서비스. **지금은 스텁이다.**
+"""gen-lab 서버 — 생성 서비스.
 
 `stt-lab` 과 같은 모양의 FastAPI 다. npm·Vite·node_modules 가 없고, 실행은
 `python -m server.main` (gen-lab/ 에서), 포트는 8802 다 — 목 게이트웨이(8790)·
 대시보드(5173/8787~8788)·STT(8801)·stt-lab(8799) 과 겹치지 않는다.
 
-## 왜 스텁인가 — 모델이 아직 안 정해졌다
+## 엔진이 없어도 뜬다 — 스텁으로 내려간다
 
-지시서 §4 가 「모델 후보를 둘 이상 같은 정답셋으로 잰다」고 적었고 그 결정이 아직 없다.
-엔진 없이 세우는 이유는 그 앞의 것들이 **엔진과 무관하게 정해져야 하기 때문**이다 —
-경계(어디까지가 서비스인가) · 계약(무엇을 주고받는가) · 꺼짐(없으면 무엇이 꺼지는가).
-엔진을 먼저 붙이면 그 셋이 엔진 모양에 맞춰 굳는다.
+엔진(`engines/`)이 붙어 있고 가중치가 있으면 그것으로 낸다. 없으면 **계약을 만족하는
+최소 임무**를 돌려주는 스텁으로 내려가고, 그 사실을 `extra.stub` 과 `/generate/health`
+가 그대로 적는다. **목임을 감추지 않는다** (`renderMode` 의 목 배지와 같은 규칙).
 
-**스텁이 실제로 하는 일은 하나다 — 계약 검증.**
-받은 문법 지문을 기록하고, 고정 응답을 `contracts/mission.schema.json` 으로 검증해
-결과를 그대로 돌려준다. 검증이 실패하면 그 사실을 숨기지 않는다.
+스텁의 고정 응답은 **정답셋을 베껴 오지 않는다.** 정답을 돌려주면 채점기가 만점을 내고,
+그 만점이 「스텁이라서」인지 「모델이 잘해서」인지 구별되지 않는다.
 
-## 목임을 감추지 않는다
+## 이 파일에 엔진 이름이 나오면 안 된다 (`REQ-1302`)
 
-`/generate/health` 가 `engine: "stub"` 을 돌려주고, 응답의 `extra.stub` 이 `true` 다.
-화면은 그것을 그대로 적는다 (`renderMode` 의 목 배지와 같은 규칙).
+엔진을 더하는 일은 `engines/` 에 파일 하나를 더하고 그 폴더의 `__init__` 에 한 줄을
+적는 일이다 (`stt-lab/server/main.py` 와 같은 규칙). 라우터는 어느 엔진이 붙었는지
+모르고, 무엇이 붙었는지는 `engines.list_engines()` 가 말한다.
 
-## 엔진을 붙일 때
+## 문법을 여기서 다시 뽑지 않는다 — 계약으로 **결과**를 검증한다
 
-`engines/` 에 파일 하나를 더하고 `_load_engine()` 이 그것을 고르게 한다.
-이 파일에 엔진 이름이 나오면 안 된다 (`stt-lab/server/main.py` 와 같은 규칙 — REQ-1302).
-그때 **문법도 여기서 다시 뽑아 클라이언트가 보낸 지문과 대조해야 한다.** 지금은 스텁이라
-받은 지문을 되돌려 주기만 한다.
+3단계는 「엔진이 붙으면 서비스도 같은 계약에서 문법을 다시 뽑아 클라이언트가 보낸 지문과
+대조해야 한다」를 숙제로 남겼다. **하지 않기로 했다.** 파이썬으로 GBNF 변환기를 한 벌 더
+쓰는 일이고, 그 순간 `gbnf.ts` 와 조용히 갈라지는 두 번째 구현이 생긴다 — 이 저장소가
+계속 피해 온 실패가 문법에서 재현된다.
+
+대신 **결과를 계약으로 검증한다.** 느슨한 문법이 들어오면 계약 밖 출력이 나오고, 그것은
+`schema_errors` 에 그대로 잡힌다. 「강제 디코딩이 실제로 듣는가」를 재는 축이 바로 그
+숫자이므로, 검사하려던 것이 측정값 자체가 된다. 문법 지문은 기록에만 남긴다.
 """
 
 from __future__ import annotations
@@ -40,6 +43,9 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
+
+from . import engines, prompt as prompt_builder
+from .engines import GenerateOptions
 
 LAB_ROOT = Path(__file__).resolve().parent.parent
 REPO_ROOT = LAB_ROOT.parent
@@ -238,59 +244,217 @@ class GenerateRequest(BaseModel):
     places: Optional[Any] = None
     examples: List[Any] = []
     model: Optional[str] = None
+    #: 임무 식별자는 **부르는 쪽이 준다.** 모델이 지어낼 것이 아니다 —
+    #: `audio_ref` 와 같은 성질이고, `VZ-G-01` 이 만드는 것은 마일스톤이다.
+    mission_id: Optional[str] = None
+    #: 계약의 `utterance` 를 그대로 넘긴다. 모델은 옮겨 적기만 하면 된다.
+    utterance_meta: Optional[Dict[str, Any]] = None
+    #: **문법을 끌 수 있다.** 「강제 디코딩이 실제로 듣는가」는 안 걸었을 때와
+    #: 비교해야 답이 되기 때문이다 (대조군).
+    enforce_grammar: bool = True
+    max_tokens: int = 2048
+    temperature: float = 0.0
+    seed: int = 0
 
 
 @app.get("/generate/health")
 def health() -> Dict[str, Any]:
-    """무엇이 떠 있는가. **목임을 감추지 않는다** — 엔진 자리에 `stub` 이 적힌다."""
+    """무엇이 떠 있는가. **목임을 감추지 않는다** — 엔진이 없으면 그 자리에 `stub` 이 적힌다."""
+    engine = engines.get_engine(None)
+    status = engine.status() if engine is not None else {}
+    models = engine.models() if engine is not None else []
+    ready = bool(models) and status.get("binary_present", False)
     return {
-        "engine": "stub",
-        "model": None,
-        "why": "모델이 아직 정해지지 않았습니다 (지시서 §4 의 모델 후보 비교 대기). "
-               "요청을 받아 계약 검증만 하고 고정 응답을 돌려줍니다.",
+        "engine": engine.id if (engine is not None and ready) else "stub",
+        "model": status.get("loaded_model"),
+        "why": None if ready else (
+            "엔진은 붙어 있지만 쓸 수 있는 가중치나 바이너리가 없습니다 — gen-lab/README.md 의 절차를 보세요. "
+            "요청을 받으면 계약 검증만 하고 고정 응답을 돌려줍니다."
+            if engine is not None else
+            "엔진이 붙어 있지 않습니다. 요청을 받아 계약 검증만 하고 고정 응답을 돌려줍니다."
+        ),
+        "engines": engines.list_engines(),
+        # 엔진 하나가 설치 안 된 사실이 조용히 사라지지 않게 한다.
+        "engine_load_errors": engines.load_errors(),
+        "engine_status": status,
+        "models": models,
         "contracts": sorted(CONTRACTS.keys()),
         "goldset_missions": len(list((GOLDSET_DIR / "missions").glob("*.json"))) if (GOLDSET_DIR / "missions").exists() else 0,
     }
 
 
+@app.on_event("shutdown")
+def _release_engine() -> None:
+    """서비스가 내려갈 때 자식 프로세스를 **반드시** 내린다.
+
+    260906 에 이걸 안 해서 측정이 한 번 무효가 됐다 — gen-lab 을 다시 띄우자 앞선 실행의
+    `llama-server` 가 포트를 잡은 채 남았고, 새 gen-lab 이 그 유령에게 물어보면서
+    「8B 를 쟀다」는 표가 실제로는 4B 의 답이 됐다. `Ctrl+C` 로 끄면 여기가 돈다.
+    """
+    for name in engines.list_engines():
+        engine = engines.get_engine(name)
+        if engine is not None:
+            engine.unload()
+
+
+@app.post("/generate/unload")
+def unload() -> Dict[str, Any]:
+    """가중치를 내린다. **STT 와 12 GB 를 나눠 쓰는 배치에서 필요하다.**
+
+    측정 스크립트가 재는 사이에 부르기도 한다 — 「모델이 없을 때의 VRAM」이 있어야
+    「모델이 먹는 VRAM」이 뺄셈으로 나온다.
+    """
+    engine = engines.get_engine(None)
+    if engine is None:
+        return {"unloaded": False, "why": "엔진이 붙어 있지 않습니다"}
+    engine.unload()
+    return {"unloaded": True, "engine_status": engine.status()}
+
+
+def _extract_json(text: str) -> "tuple[Optional[Any], Optional[str]]":
+    """모델 출력에서 JSON 객체 하나를 꺼낸다.
+
+    문법을 걸면 출력이 곧 JSON 이라 그냥 파싱된다. **문법 없는 대조군**에서는 앞뒤에
+    설명이나 코드펜스가 붙으므로 첫 여는 중괄호부터 짝이 맞는 닫는 중괄호까지를 잘라 본다.
+    그 관대함이 쓰였는지는 `extra.json_recovered` 에 남는다 — 조용히 넘기지 않는다.
+    """
+    try:
+        return json.loads(text), None
+    except Exception:
+        pass
+    start = text.find("{")
+    if start < 0:
+        return None, "출력에 JSON 객체가 없습니다"
+    depth, in_string, escaped = 0, False, False
+    for index in range(start, len(text)):
+        char = text[index]
+        if in_string:
+            if escaped:
+                escaped = False
+            elif char == "\\":
+                escaped = True
+            elif char == '"':
+                in_string = False
+            continue
+        if char == '"':
+            in_string = True
+        elif char == "{":
+            depth += 1
+        elif char == "}":
+            depth -= 1
+            if depth == 0:
+                try:
+                    return json.loads(text[start:index + 1]), None
+                except Exception as exc:
+                    return None, f"JSON 을 잘라 냈지만 파싱에 실패했습니다: {exc}"
+    return None, "괄호가 닫히지 않았습니다 (n_predict 에서 잘렸을 수 있습니다)"
+
+
 @app.post("/generate/mission")
 def generate_mission(request: GenerateRequest) -> JSONResponse:
-    """발화 하나 → 임무 객체. 스텁은 **검증만** 한다."""
+    """발화 하나 → 임무 객체.
+
+    **결과는 제안이다** — 사람이 수락하기 전에는 아무것도 실행되지 않는다(`VZ-U-07`).
+    그 규칙을 지키는 것은 화면이고, 여기서는 만들어 돌려주기만 한다.
+    """
     started = time.perf_counter()
-    mission = _fixed_mission(request.utterance)
-    errors = _validate(mission, CONTRACTS["mission.schema.json"])
     grammar = request.grammar or {}
+    grammar_record = (
+        {"source": grammar.get("source"), "digest": grammar.get("digest"), "bytes": len(grammar.get("text") or "")}
+        if grammar else None
+    )
+    engine = engines.get_engine(None)
+    usable = engine is not None and bool(engine.models()) and engine.status().get("binary_present", False)
+
+    if not usable:
+        # 엔진이 없다 — 스텁으로 내려간다. **정답셋을 베껴 오지 않는다.**
+        mission = _fixed_mission(request.utterance)
+        errors = _validate(mission, CONTRACTS["mission.schema.json"])
+        body: Dict[str, Any] = {
+            "mission": mission,
+            "engine": "stub",
+            "model": request.model or "none",
+            "grammar": grammar_record,
+            "schema_checked": True,
+            "schema_errors": errors,
+            "elapsed_sec": round(time.perf_counter() - started, 6),
+            "extra": {
+                "stub": True,
+                "why": "엔진이나 가중치가 없습니다. 이 응답은 계약을 만족하는 최소 임무이지 생성 결과가 아닙니다.",
+                "places_given": request.places is not None,
+                "examples_given": len(request.examples),
+                "grammar_enforced": False,
+            },
+        }
+        # 스텁의 고정 응답이 계약을 어기면 그건 계약이 바뀐 것이다. 숨기지 않고 500 으로 낸다.
+        if errors:
+            body["error"] = "스텁의 고정 응답이 계약을 통과하지 못했습니다 — 계약이 바뀌었는지 확인하세요"
+            return JSONResponse(body, status_code=500)
+        return JSONResponse(body, status_code=200)
+
+    # 프롬프트는 **서비스가 만든다.** 부르는 쪽이 고르는 것은 재료(장소·예시)뿐이다.
+    built = prompt_builder.build(
+        utterance=request.utterance,
+        mission_id=request.mission_id or "MSN-GEN-0001",
+        places=request.places,
+        examples=request.examples,
+        utterance_meta=request.utterance_meta,
+    )
+    try:
+        output = engine.generate(built["user"], GenerateOptions(
+            model=request.model,
+            system=built["system"],
+            # 문법이 없으면 **강제 디코딩 없이** 돈다 — 그것이 대조군이다.
+            grammar=(grammar.get("text") if request.enforce_grammar else None),
+            max_tokens=request.max_tokens,
+            temperature=request.temperature,
+            seed=request.seed,
+        ))
+    except Exception as exc:  # 엔진 실패를 삼키지 않는다 — 화면이 문장을 그대로 보여준다
+        return JSONResponse(
+            {
+                "error": f"{type(exc).__name__}: {exc}",
+                "engine": engine.id,
+                "model": request.model,
+                "grammar": grammar_record,
+                "elapsed_sec": round(time.perf_counter() - started, 6),
+            },
+            status_code=500,
+        )
+
+    mission, parse_error = _extract_json(output.text)
+    errors = (
+        [f"$: 모델 출력을 JSON 으로 읽지 못했습니다 — {parse_error}"]
+        if mission is None else _validate(mission, CONTRACTS["mission.schema.json"])
+    )
     body = {
         "mission": mission,
-        "engine": "stub",
-        "model": request.model or "none",
-        # 클라이언트가 계약에서 뽑아 보낸 문법. **여기서 강제하지는 않는다** — 엔진이 없다.
-        # 엔진이 붙으면 이 지문을 서비스가 다시 뽑은 것과 대조해야 한다.
-        "grammar": (
-            {
-                "source": grammar.get("source"),
-                "digest": grammar.get("digest"),
-                "bytes": len(grammar.get("text") or ""),
-            }
-            if grammar
-            else None
-        ),
+        "engine": output.engine,
+        "model": output.model,
+        "grammar": grammar_record,
         "schema_checked": True,
         "schema_errors": errors,
-        "elapsed_sec": round(time.perf_counter() - started, 6),
+        "elapsed_sec": output.elapsed_sec,
         "extra": {
-            "stub": True,
-            "why": "엔진이 붙지 않았습니다. 이 응답은 계약을 만족하는 최소 임무이지 생성 결과가 아닙니다.",
+            "stub": False,
+            "grammar_enforced": output.grammar_enforced,
             "places_given": request.places is not None,
             "examples_given": len(request.examples),
-            "grammar_enforced": False,
+            "load_sec": output.load_sec,
+            "prompt_tokens": output.prompt_tokens,
+            "completion_tokens": output.completion_tokens,
+            "stop_reason": output.stop_reason,
+            "applied_options": output.applied_options,
+            # 문법 없이 돌린 대조군에서 JSON 을 잘라 냈는가. 관대함을 기록에 남긴다.
+            "json_recovered": mission is not None and output.text.strip()[:1] != "{",
+            # **원문을 버리지 않는다.** 파싱이 실패했을 때 왜인지 볼 수 있어야 한다.
+            "raw_text": output.text,
+            **output.extra,
         },
     }
-    # 스텁의 고정 응답이 계약을 어기면 그건 계약이 바뀐 것이다. 숨기지 않고 500 으로 낸다.
-    status = 200 if not errors else 500
-    if errors:
-        body["error"] = "스텁의 고정 응답이 계약을 통과하지 못했습니다 — 계약이 바뀌었는지 확인하세요"
-    return JSONResponse(body, status_code=status)
+    # 모델이 계약을 어긴 것은 **서비스의 실패가 아니다** — 그것이 측정값이다.
+    # 200 으로 내고 schema_errors 에 적는다. 500 을 내면 채점기가 그 건을 잃는다.
+    return JSONResponse(body, status_code=200)
 
 
 if __name__ == "__main__":

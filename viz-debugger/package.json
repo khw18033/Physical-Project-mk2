@@ -40,7 +40,10 @@
     "goldset:extract": "node scripts/extract-goldset.mjs",
     "score:generation": "node scripts/score-generation.mjs",
     "extract:places": "node scripts/extract-places.mjs",
-    "verify:places": "node scripts/verify-places.mjs"
+    "verify:places": "node scripts/verify-places.mjs",
+    "verify:no-leak": "node scripts/verify-no-leak.mjs",
+    "baseline:run": "node scripts/run-baseline.mjs",
+    "baseline:report": "node scripts/report-baseline.mjs"
   },
   "dependencies": {
     "react": "^19.1.0",

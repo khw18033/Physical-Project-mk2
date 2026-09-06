@@ -1,0 +1,125 @@
+// scripts/report-baseline.mjs (260906 신설 — 마일스톤 분리 지시서 §4)
+//
+// `gen-lab/runs/` 에 쌓인 실행들을 **한 표**로 놓는다. 8B 대 4B 의 낙폭은 두 표를
+// 번갈아 보면 안 보인다 — 그것이 배포 크기 결정의 근거이자 논문 5장의 숫자다.
+//
+// **합산 점수 하나로 뭉치지 않는다.** 축마다 열이 따로 있고, 못 잰 축은 0이 아니라
+// 「해당없음」이다. 실패 유형을 못 가르면 5단계의 학습 판단이 성립하지 않는다.
+//
+//   node scripts/report-baseline.mjs
+//   node scripts/report-baseline.mjs --json
+import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const vizRoot = join(dirname(fileURLToPath(import.meta.url)), '..');
+const runsDir = join(vizRoot, '..', 'gen-lab', 'runs');
+const asJson = process.argv.includes('--json');
+
+let labels;
+try {
+  labels = readdirSync(runsDir).filter((name) => statSync(join(runsDir, name)).isDirectory());
+} catch {
+  console.error('❌ gen-lab/runs/ 가 없다 — 먼저 `node scripts/run-baseline.mjs --model <이름>` 을 돌려라');
+  process.exit(1);
+}
+
+const mean = (values) => (values.length === 0 ? null : values.reduce((a, b) => a + b, 0) / values.length);
+const round = (value, digits = 2) => (value === null || value === undefined ? null : Math.round(value * 10 ** digits) / 10 ** digits);
+
+const rows = [];
+for (const label of labels.sort()) {
+  let summary;
+  try {
+    summary = JSON.parse(readFileSync(join(runsDir, label, 'summary.json'), 'utf8'));
+  } catch {
+    continue; // 아직 안 끝난 실행. 반쪽 숫자를 표에 올리지 않는다.
+  }
+  const records = summary.records;
+  const flat = summary.scored.flatMap((entry) => entry.results.filter((result) => !result.missing));
+
+  // **실제로 답한 가중치가 요청한 것과 같은가.** 260906 에 이 둘이 어긋난 표가 한 번
+  // 나왔다(유령 llama-server). 어긋나면 그 줄의 숫자는 전부 못 쓴다.
+  const served = new Set(records.map((record) => record.served_model_file).filter(Boolean));
+  const requested = new Set(records.map((record) => record.model_requested));
+
+  rows.push({
+    label,
+    model: summary.model,
+    grammar: summary.grammar_enforced,
+    calls: records.length,
+    served: [...served],
+    weights_ok: served.size <= 1 && [...served].every((file) => file.startsWith([...requested][0] ?? '')),
+    // 축 1 — 스키마 통과율. 강제 디코딩이 실제로 듣는가.
+    schema_pass: round(records.filter((record) => record.schema_pass === true).length / Math.max(1, records.length)),
+    // 서비스에 닿지도 못한 건. 모델의 실패와 섞지 않는다.
+    call_failed: records.filter((record) => !record.ok).length,
+    // 축 2 — 마일스톤 개수 일치 / 순서 재현율 / 제목 유사도.
+    count_match: round(flat.filter((result) => result.milestone.count.match).length / Math.max(1, flat.length)),
+    count_delta: round(mean(flat.map((result) => result.milestone.count.got - result.milestone.count.gold))),
+    order_recall: round(mean(flat.map((result) => result.milestone.order_recall ?? 0))),
+    title_similarity: round(mean(flat.map((result) => result.milestone.title_similarity ?? 0))),
+    // 축 3 — 장소 어휘 위반 (건수 합).
+    place_violations: flat.some((result) => result.place_violation.count === null)
+      ? null : flat.reduce((sum, result) => sum + result.place_violation.count, 0),
+    // 축 3b — 장비 어휘 위반. **장소 축의 대조군이다** — 장소는 목록을 주고 장비는 안 준다.
+    target_violations: flat.reduce((sum, result) => sum + result.target_violation.count, 0),
+    target_total: flat.reduce((sum, result) => sum + result.target_violation.total, 0),
+    // 축 4 — 추상 위반 (건수 합).
+    abstraction_violations: flat.reduce((sum, result) => sum + result.abstraction.count, 0),
+    // 축 5 — 응답 시간. **적재 시간은 뺀다** — 합치면 첫 요청만 크게 나와 비교가 안 된다.
+    sec_median: round(median(records.map((record) => record.elapsed_sec).filter((value) => typeof value === 'number'))),
+    sec_max: round(Math.max(...records.map((record) => record.elapsed_sec ?? 0))),
+    load_sec: round(Math.max(...records.map((record) => record.extra?.load_sec ?? 0))),
+    vram_model_mib: Math.max(...records.map((record) => record.extra?.vram_model_mib ?? 0)) || null,
+    prompt_tokens: round(mean(records.map((record) => record.extra?.prompt_tokens ?? 0)), 0),
+    // 부산물이지만 남긴다 — 「식별자를 옮겨 적으라」는 지시를 지켰는가.
+    id_obeyed: round(records.filter((record) => record.id_obeyed === true).length / Math.max(1, records.length)),
+    json_recovered: records.filter((record) => record.extra?.json_recovered === true).length,
+  });
+}
+
+function median(values) {
+  if (values.length === 0) return null;
+  const sorted = [...values].sort((a, b) => a - b);
+  const middle = Math.floor(sorted.length / 2);
+  return sorted.length % 2 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2;
+}
+
+if (asJson) {
+  console.log(JSON.stringify(rows, null, 2));
+} else {
+  const pad = (text, width) => String(text).padStart(width);
+  console.log('');
+  console.log('모델별 네 축 — 임무 4편 × 발화 5개 = 실행당 20건. 합산하지 않는다.');
+  console.log('');
+  console.log('  ' + '실행'.padEnd(34) + pad('문법', 6) + pad('스키마', 8) + pad('개수일치', 9) + pad('개수차', 8) + pad('순서', 7) + pad('제목', 7) + pad('장소위반', 9) + pad('장비위반', 10) + pad('추상위반', 9) + pad('중앙초', 8) + pad('최대초', 8));
+  for (const row of rows) {
+    console.log('  ' + row.label.padEnd(34) +
+      pad(row.grammar ? '강제' : '없음', 6) +
+      pad(`${(row.schema_pass * 100).toFixed(0)}%`, 8) +
+      pad(`${(row.count_match * 100).toFixed(0)}%`, 9) +
+      pad(row.count_delta > 0 ? `+${row.count_delta}` : row.count_delta, 8) +
+      pad(row.order_recall.toFixed(2), 7) +
+      pad(row.title_similarity.toFixed(2), 7) +
+      pad(row.place_violations === null ? '해당없음' : row.place_violations, 9) +
+      pad(`${row.target_violations}/${row.target_total}`, 10) +
+      pad(row.abstraction_violations, 9) +
+      pad(row.sec_median, 8) +
+      pad(row.sec_max, 8));
+  }
+  console.log('');
+  for (const row of rows) {
+    const flags = [];
+    if (!row.weights_ok) flags.push('⚠ 요청한 가중치와 실제로 답한 파일이 다르다 — 이 줄의 숫자는 못 쓴다');
+    if (row.call_failed) flags.push(`호출 실패 ${row.call_failed}건 (모델의 실패가 아니다)`);
+    if (row.json_recovered) flags.push(`JSON 을 잘라 낸 건 ${row.json_recovered}건 (문법 없는 대조군의 관대함)`);
+    console.log(`  ${row.label}`);
+    console.log(`    가중치=${row.served.join(', ') || '?'} · 적재 ${row.load_sec}초 · VRAM ${row.vram_model_mib ?? '해당없음'} MiB · 프롬프트 ${row.prompt_tokens} 토큰 · 식별자 준수 ${(row.id_obeyed * 100).toFixed(0)}%`);
+    for (const flag of flags) console.log(`    ${flag}`);
+  }
+  console.log('');
+  console.log('  개수차 = (낸 마일스톤 수 − 정답 수)의 평균. 음수면 덜 나눈 것이다.');
+  console.log('  장소위반 대 장비위반 = **같은 조건에서 목록을 준 축과 안 준 축.** 그 차이가 그라운딩의 효과다.');
+  console.log('  중앙초/최대초 = 서비스가 잰 추론 시간. **모델 적재 시간은 빼고** 따로 적는다.');
+}
