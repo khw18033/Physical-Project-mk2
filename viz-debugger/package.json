@@ -38,7 +38,9 @@
     "verify:no-tabs": "node scripts/verify-no-tabs.mjs",
     "measure:representation": "node scripts/measure-representation.mjs",
     "goldset:extract": "node scripts/extract-goldset.mjs",
-    "score:generation": "node scripts/score-generation.mjs"
+    "score:generation": "node scripts/score-generation.mjs",
+    "extract:places": "node scripts/extract-places.mjs",
+    "verify:places": "node scripts/verify-places.mjs"
   },
   "dependencies": {
     "react": "^19.1.0",
