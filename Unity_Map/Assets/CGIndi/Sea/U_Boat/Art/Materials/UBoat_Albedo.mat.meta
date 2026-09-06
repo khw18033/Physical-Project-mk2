@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 42ee02f50d432454a82c6297af4ece84
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 2100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 299720
+  packageName: U Boat
+  packageVersion: 1.0.0
+  assetPath: Assets/CGIndi/Sea/U_Boat/Art/Materials/UBoat_Albedo.mat
+  uploadId: 702886

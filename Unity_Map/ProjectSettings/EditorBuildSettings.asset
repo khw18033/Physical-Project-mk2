@@ -1,0 +1,24 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!1045 &1
+EditorBuildSettings:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Scenes:
+  - enabled: 1
+    path: Assets/Scenes/MainMenu.unity
+    guid: 99c9720ab356a0642a771bea13969a05
+  - enabled: 1
+    path: Assets/Scenes/N45F_Map.unity
+    guid: 91f83c71e56a36d44bcdcffdb9773b45
+  - enabled: 1
+    path: Assets/Scenes/Map_Editor_Plain.unity
+    guid: a9e3c2ef557ac4c4d8db6a982267a8cb
+  m_configObjects:
+    Unity.XR.Oculus.Settings: {fileID: 11400000, guid: 8513270b407cad3458027b66a86b3e3b, type: 2}
+    com.unity.dt.app-ui: {fileID: 11400000, guid: 1b1c20d82303e4b5781c3ef50ac1449f, type: 2}
+    com.unity.input.settings.actions: {fileID: -944628639613478452, guid: 052faaac586de48259a63d0c4782560b, type: 3}
+    com.unity.xr.management.loader_settings: {fileID: 11400000, guid: 65b8030c8e07285429c7cd09256a2a5a, type: 2}
+    com.unity.xr.openxr.settings4: {fileID: 11400000, guid: 2748f9ea7c0046247851956454b1e05e, type: 2}
+    xr.sdk.mock-hmd.settings: {fileID: 11400000, guid: fa3bcdf3ecb8c9a428cc97f1c532c80d, type: 2}
+  m_UseUCBPForAssetBundles: 0

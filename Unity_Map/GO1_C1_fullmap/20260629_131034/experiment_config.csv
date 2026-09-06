@@ -1,0 +1,2 @@
+﻿session_id,agent_name,condition_id,scenario_id,map_id,policy_id,method,random_seed,unity_version,mlagents_version,yaml_name,evaluation_mode,communicator_on,created_at_iso
+"20260629_131034","go1 (1)","C2_NO_REPLAN","S01","TestMap_A","GO1Agent13","MLAgents_NavMesh_ClosedLoop",121,"6000.3.5f2","1.1","go1.yaml",1,0,"2026-06-29T13:10:52.5731767+09:00"

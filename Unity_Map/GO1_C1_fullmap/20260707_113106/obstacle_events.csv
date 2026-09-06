@@ -1,0 +1,2 @@
+﻿session_id,agent_name,trial_id,condition_id,scenario_id,time_sec,obstacle_name,center_x,center_z,size_x,size_z,distance_to_path_m,block_threshold_m,closest_segment,path_blocked,replan_requested,replan_skip_reason,replan_count
+"20260707_113106","go1",0,"C1_NAVMESH_ONLY","S10",47.600310,"EXP_C3_REPLAN_S10_A5",2.071133,6.898248,0.668618,0.668618,0.000000,0.584309,-1,1,1,"",0

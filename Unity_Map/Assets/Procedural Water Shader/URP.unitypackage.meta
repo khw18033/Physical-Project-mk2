@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: 7246c4e2b962dbf408dcb96fad9590cd
+DefaultImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 353486
+  packageName: Procedural Water Shader
+  packageVersion: 1.1.0
+  assetPath: Assets/Procedural Water Shader/URP.unitypackage
+  uploadId: 855070

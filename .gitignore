@@ -32,3 +32,24 @@ unity-twin/[Uu]ser[Ss]ettings/
 unity-twin/[Mm]emoryCaptures/
 unity-twin/*.csproj
 unity-twin/*.sln
+
+# Python 바이트코드 캐시
+__pycache__/
+*.pyc
+
+# Unity (Unity_Map/) — 에디터·IDE가 다시 만들어내는 것들.
+# Library/ 하나가 4.1GB다. 지우고 열어도 Unity가 Assets/ 와 ProjectSettings/ 에서
+# 그대로 복원하므로 추적하지 않는다. 추적하는 것은 Assets/·Packages/·ProjectSettings/
+# 와 실험 결과(GO1_*)다.
+Unity_Map/[Ll]ibrary/
+Unity_Map/[Tt]emp/
+Unity_Map/[Oo]bj/
+Unity_Map/[Bb]uild/
+Unity_Map/[Bb]uilds/
+Unity_Map/[Ll]ogs/
+Unity_Map/[Uu]ser[Ss]ettings/
+Unity_Map/[Mm]emoryCaptures/
+Unity_Map/[Rr]ecordings/
+Unity_Map/*.csproj
+Unity_Map/*.sln
+Unity_Map/*.user

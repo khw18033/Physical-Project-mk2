@@ -1,0 +1,2 @@
+﻿session_id,agent_name,condition_id,scenario_id,map_id,policy_id,method,random_seed,unity_version,mlagents_version,yaml_name,evaluation_mode,communicator_on,created_at_iso
+"20260703_115648","go1","C1_NAVMESH_ONLY","S01","fullmap","NavMeshOnly","Unity_C1_NavMeshOnly_Evaluation",121,"6000.3.5f2","n/a","n/a",1,0,"2026-07-03T11:57:03.2881943+09:00"

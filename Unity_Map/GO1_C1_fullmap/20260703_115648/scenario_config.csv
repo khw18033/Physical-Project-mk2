@@ -1,0 +1,3 @@
+﻿session_id,agent_name,trial_id,mode,condition_id,scenario_id,map_id,policy_id,difficulty_level,evaluation_fixed_difficulty,agent_count,goal_min_distance,goal_max_distance,min_open_radius,start_x,start_z,start_yaw,target_x,target_z,target_straight_distance_m,random_seed,created_at_iso
+"20260703_115648","go1",0,"evaluation","C1_NAVMESH_ONLY","S01","fullmap","NavMeshOnly",0,1,0,3.000000,10.000000,0.500000,1.593803,3.418737,338.294300,1.170347,6.851146,3.458431,121,"2026-07-03T11:57:03.2902406+09:00"
+"20260703_115648","go1",1,"evaluation","C1_NAVMESH_ONLY","S02","fullmap","NavMeshOnly",0,1,0,3.000000,10.000000,0.500000,1.921021,4.468427,166.367400,5.784140,7.492461,4.905962,121,"2026-07-03T11:57:20.5679438+09:00"

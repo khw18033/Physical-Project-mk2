@@ -1,0 +1,1 @@
+﻿session_id,agent_name,trial_id,mode,condition_id,scenario_id,map_id,policy_id,difficulty_level,evaluation_fixed_difficulty,agent_count,goal_min_distance,goal_max_distance,min_open_radius,start_x,start_z,start_yaw,target_x,target_z,target_straight_distance_m,random_seed,created_at_iso

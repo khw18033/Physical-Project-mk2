@@ -28,3 +28,24 @@
 *.sh text eol=lf
 *.bat text eol=crlf
 *.cmd text eol=crlf
+
+# Unity 이진 에셋. `* text=auto` 의 내용 추정에 맡기지 않고 못을 박는다 —
+# 추정이 어긋나 줄바꿈 변환이 한 번이라도 들어가면 모델·텍스처가 깨진다.
+*.fbx binary
+*.glb binary
+*.blend binary
+*.vox binary
+*.onnx binary
+*.tga binary
+*.tif binary
+*.tiff binary
+*.exr binary
+*.psd binary
+*.ttf binary
+*.otf binary
+*.unitypackage binary
+*.dll binary
+*.so binary
+*.bundle binary
+*.a binary
+*.wlt binary
