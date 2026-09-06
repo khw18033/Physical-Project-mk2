@@ -4,7 +4,7 @@
     "script": "scripts/extract-places.mjs"
   },
   "warning": "생성 서비스는 이 파일을 읽지 않는다 — verify:places 가 그 경로를 검사한다.",
-  "frame": "site-global (N45F_Map.unity 월드 좌표, 단위 m)",
+  "frame": "site-global = N45F_Map.unity 월드 좌표, 단위 m. 줄자 실측 기반이며 측량 등급이 아니다(places/README.md).",
   "geometry": [
     {
       "place_id": "door-501b",

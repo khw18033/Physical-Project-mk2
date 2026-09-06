@@ -3,6 +3,9 @@
  *
  * Unity 씬(N45F_Map.unity)에서 장소 위상과 기하를 뽑아 두 파일로 나눈다.
  *
+ * **기준 좌표계는 이 씬의 월드 좌표다 — 그것이 `site-global` 의 정의이고 단위는 m.**
+ * 씬 자체는 줄자 실측과 피난 안내도 밑그림으로 만들었다. 측량 등급이 아니다(places/README.md).
+ *
  *   places/places.json           위상 — 생성 서비스가 읽는다 (좌표 없음)
  *   places/places.geometry.json  기하 — 생성 서비스는 읽지 않는다
  *
@@ -265,7 +268,7 @@ writeFileSync(ROOT + 'places/places.json', JSON.stringify({
 writeFileSync(ROOT + 'places/places.geometry.json', JSON.stringify({
   extracted_from: { scene: SCENE_REL, script: 'scripts/extract-places.mjs' },
   warning: '생성 서비스는 이 파일을 읽지 않는다 — verify:places 가 그 경로를 검사한다.',
-  frame: 'site-global (N45F_Map.unity 월드 좌표, 단위 m)',
+  frame: 'site-global = N45F_Map.unity 월드 좌표, 단위 m. 줄자 실측 기반이며 측량 등급이 아니다(places/README.md).',
   geometry,
 }, null, 2) + '\n');
 
