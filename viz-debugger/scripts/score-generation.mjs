@@ -7,7 +7,7 @@
 // | 스키마     | mission.schema.json 을 통과하는가         | ○ | ○ |
 // | 마일스톤   | 개수 · 순서 · 장소 어휘가 정답과 맞는가     | ○ | — |
 // | 장소 위반  | places.json 밖 장소를 지어낸 건수          | ○ | — |
-// | 장비 위반  | 정답셋 밖 장비 id 를 지어낸 건수 (장소의 대조군) | ○ | — |
+// | 장비 위반  | 정답셋 밖 장비 id — **지어냄**과 **오선택**을 가른다 (장소의 대조군) | ○ | — |
 // | 추상 위반  | 기종·좌표·속도가 제목에 새어 든 건수         | ○ | — |
 // | 노드 문법  | node_kind 라벨이 정답과 맞는가             | — | ○ |
 // | 그래프     | deps 가 만드는 DAG 가 동형인가 · 순환 없나   | — | ○ |
@@ -294,20 +294,49 @@ function targetVocabulary(missions) {
   return known;
 }
 
-function axisTargetVocabulary(candidate, known) {
+/**
+ * 저장소가 아는 장비 전부 (`equipment/equipment.json`).
+ *
+ * **채점 어휘와 다른 것이다.** 채점 어휘는 정답셋이 실제로 고른 것이고, 이쪽은 이 건물에
+ * 실재하는 장비다. 둘을 가르는 것이 아래 축 2d 의 요점이다.
+ *
+ * `placeAxes()` 와 같은 성질의 의존이다 — 저장소 루트의 어휘 파일을 읽지, 대시보드
+ * 계층(`registry.json`)을 읽지 않는다. 못 읽으면 **0이 아니라 null 이다.**
+ */
+function equipmentVocabulary() {
+  try {
+    const raw = JSON.parse(readFileSync(join(repoRoot, 'equipment', 'equipment.json'), 'utf8'));
+    const ids = new Set((raw.equipment ?? []).map((entry) => entry.equipment_id));
+    return ids.size ? ids : null;
+  } catch {
+    return null;
+  }
+}
+
+function axisTargetVocabulary(candidate, known, real) {
   const items = [];
   let total = 0;
   for (const milestone of candidate.milestones ?? []) {
     for (const target of milestone.assigned_targets ?? []) {
       total += 1;
-      if (!known.has(target)) items.push({ milestone_id: milestone.milestone_id, found: target });
+      if (known.has(target)) continue;
+      // **지어낸 것과 잘못 고른 것을 가른다.** 뭉치면 그라운딩이 들었는지를 못 읽는다.
+      const kind = real === null ? 'unknown' : (real.has(target) ? 'mischosen' : 'invented');
+      items.push({ milestone_id: milestone.milestone_id, found: target, kind });
     }
   }
+  const of = (kind) => items.filter((item) => item.kind === kind).length;
   return {
     count: items.length,
     total,
+    // **지어냄** — 이 건물에 없는 장비다. 그라운딩이 막아야 하는 것이 이것이다.
+    invented: real === null ? null : of('invented'),
+    // **오선택** — 실재하는 장비인데 정답이 고른 것이 아니다. 어휘 문제가 아니라 배정 문제다.
+    mischosen: real === null ? null : of('mischosen'),
     items: items.slice(0, 8),
-    note: '어휘는 정답셋의 assigned_targets 합집합이다 — **이 목록은 모델에게 주지 않는다.** 장소 축의 대조군이다',
+    note: real === null
+      ? '어휘는 정답셋의 assigned_targets 합집합이다. equipment/equipment.json 을 못 읽어 지어냄/오선택을 못 갈랐다 — 빈칸에 0을 넣지 않는다'
+      : '어휘는 정답셋의 assigned_targets 합집합이다. **지어냄**(equipment.json 에도 없다)과 **오선택**(실재하는데 정답이 아니다)을 가른다 — 260907 실측에서 목록을 주자 지어냄이 20건에서 0건이 됐고 남은 것은 전부 오선택이었다',
   };
 }
 
@@ -460,7 +489,7 @@ export function score(candidates, vocabulary = placeVocabulary(), axes = placeAx
       schema: axisSchema(candidate),
       milestone: axisMilestone(goldMission, candidate, vocabulary),
       place_violation: axisPlaceViolation(candidate, axes),
-      target_violation: axisTargetVocabulary(candidate, targetVocabulary(gold)),
+      target_violation: axisTargetVocabulary(candidate, targetVocabulary(gold), equipmentVocabulary()),
       abstraction: axisAbstraction(candidate),
       node_grammar: axisNodeGrammar(goldMission, taskPairs),
       graph: axisGraph(goldMission, candidate, taskPairs),
@@ -498,6 +527,9 @@ function damaged(kind) {
   if (kind === 'node_grammar') target.milestones[0].tasks[0].node_kind = 'report'; // 라벨 오염
   if (kind === 'place_violation') target.milestones[0].title += ' (601호 경유)';       // 없는 방을 지어냄
   if (kind === 'target_violation') target.milestones[0].assigned_targets = ['system-01']; // 없는 장비를 지어냄
+  // **가른 두 칸이 각각 잡히는지 따로 본다.** 뭉쳐서 잡히면 가른 의미가 없다 —
+  // 260907 에 A 판은 전부 지어냄이고 B·C 판은 전부 오선택이었다.
+  if (kind === 'target_mischosen') target.milestones[0].assigned_targets = ['robot-03']; // 실재하지만 정답이 아님
   if (kind === 'abstraction') target.milestones[0].title += ' — robot-01 을 0.8 m/s 로'; // 구현 파라미터 유입
   if (kind === 'graph') {
     // 순환을 만든다 — 모델이 deps 를 직접 내면 실제로 나는 실패다.
@@ -513,7 +545,7 @@ const controls = [];
 // 보는 것은 「채점기의 축이 망가진 입력을 잡는가」이지 「이번 후보가 어떤가」가 아니다.
 // (--candidate 로 임무 일부만 넘기면 그 임무가 후보에 없어 대조군이 통째로 죽는다.)
 const controlBaseline = score(selfCandidates);
-for (const kind of ['schema', 'milestone', 'place_violation', 'target_violation', 'abstraction', 'node_grammar', 'graph']) {
+for (const kind of ['schema', 'milestone', 'place_violation', 'target_violation', 'target_mischosen', 'abstraction', 'node_grammar', 'graph']) {
   const before = controlBaseline.find((item) => item.mission_id === 'MSN-260831-01');
   const after = score(damaged(kind)).find((item) => item.mission_id === 'MSN-260831-01');
   const caught = {
@@ -522,7 +554,11 @@ for (const kind of ['schema', 'milestone', 'place_violation', 'target_violation'
     schema: () => after.schema.error_count > before.schema.error_count,
     milestone: () => before.milestone.count.match && !after.milestone.count.match,
     place_violation: () => (after.place_violation.count ?? 0) > (before.place_violation.count ?? 0),
-    target_violation: () => after.target_violation.count > before.target_violation.count,
+    target_violation: () => after.target_violation.count > before.target_violation.count
+      && (after.target_violation.invented ?? 0) > (before.target_violation.invented ?? 0),
+    target_mischosen: () => after.target_violation.count > before.target_violation.count
+      && (after.target_violation.mischosen ?? 0) > (before.target_violation.mischosen ?? 0)
+      && (after.target_violation.invented ?? 0) === (before.target_violation.invented ?? 0),
     abstraction: () => after.abstraction.count > before.abstraction.count,
     node_grammar: () => (after.node_grammar.accuracy ?? 1) < (before.node_grammar.accuracy ?? 0),
     graph: () => !before.graph.has_cycle && after.graph.has_cycle,
@@ -564,7 +600,7 @@ if (asJson) {
   console.log('');
   const cell = (value, width) => (value === null ? '해당없음' : value.toFixed(2)).padStart(width);
   const head = (text, width) => text.padStart(width);
-  console.log('  ' + '임무'.padEnd(16) + head('스키마', 10) + head('마일 개수', 11) + head('마일 순서', 10) + head('장소위반', 9) + head('장비위반', 9) + head('추상위반', 9) + head('문법', 9) + head('그래프 F1', 10) + head('순환', 7));
+  console.log('  ' + '임무'.padEnd(16) + head('스키마', 10) + head('마일 개수', 11) + head('마일 순서', 10) + head('장소위반', 9) + head('장비 지/오/총', 14) + head('추상위반', 9) + head('문법', 9) + head('그래프 F1', 10) + head('순환', 7));
   for (const row of results) {
     if (row.missing) { console.log('  ' + row.mission_id.padEnd(16) + '(결과 없음)'); continue; }
     console.log('  ' + row.mission_id.padEnd(16) +
@@ -572,7 +608,7 @@ if (asJson) {
       `${row.milestone.count.got}/${row.milestone.count.gold}${row.milestone.count.match ? '' : ' ✗'}`.padStart(11) +
       cell(row.milestone.order_recall, 10) +
       (row.place_violation.count === null ? '해당없음' : String(row.place_violation.count)).padStart(9) +
-      `${row.target_violation.count}/${row.target_violation.total}`.padStart(9) +
+      `${row.target_violation.invented ?? '?'}/${row.target_violation.mischosen ?? '?'}/${row.target_violation.total}`.padStart(14) +
       String(row.abstraction.count).padStart(9) +
       cell(row.node_grammar.accuracy, 9) +
       cell(row.graph.f1, 10) +

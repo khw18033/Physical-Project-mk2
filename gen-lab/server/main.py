@@ -235,6 +235,18 @@ def _fixed_mission(utterance: str) -> Dict[str, Any]:
     }
 
 
+def _equipment_count(equipment: Any) -> int:
+    """프롬프트에 실린 장비가 몇 건인가. 안 줬으면 0.
+
+    기록에 남길 숫자다. 축이 살아 있으려면 이 값이 채점 어휘보다 커야 하고,
+    그 비교는 저장소 쪽 검사(`verify:no-leak`)가 한다 — 서비스는 정답을 모른다.
+    """
+    if not equipment:
+        return 0
+    entries = equipment.get("equipment", []) if isinstance(equipment, dict) else equipment
+    return len(entries) if isinstance(entries, list) else 0
+
+
 # --- 면 --------------------------------------------------------------------
 
 
@@ -242,6 +254,9 @@ class GenerateRequest(BaseModel):
     utterance: str
     grammar: Optional[Dict[str, Any]] = None
     places: Optional[Any] = None
+    #: 장비 어휘 (`equipment/equipment.json` 의 내용). **부르는 쪽이 고른다** — 장소·예시와
+    #: 같은 성질의 재료다. 안 주면 규칙도 목록도 안 붙고 6단계와 같은 프롬프트가 된다.
+    equipment: Optional[Any] = None
     examples: List[Any] = []
     model: Optional[str] = None
     #: 임무 식별자는 **부르는 쪽이 준다.** 모델이 지어낼 것이 아니다 —
@@ -382,6 +397,7 @@ def generate_mission(request: GenerateRequest) -> JSONResponse:
                 "stub": True,
                 "why": "엔진이나 가중치가 없습니다. 이 응답은 계약을 만족하는 최소 임무이지 생성 결과가 아닙니다.",
                 "places_given": request.places is not None,
+                "equipment_given": _equipment_count(request.equipment),
                 "examples_given": len(request.examples),
                 "grammar_enforced": False,
             },
@@ -397,6 +413,7 @@ def generate_mission(request: GenerateRequest) -> JSONResponse:
         utterance=request.utterance,
         mission_id=request.mission_id or "MSN-GEN-0001",
         places=request.places,
+        equipment=request.equipment,
         examples=request.examples,
         utterance_meta=request.utterance_meta,
     )
@@ -439,6 +456,9 @@ def generate_mission(request: GenerateRequest) -> JSONResponse:
             "stub": False,
             "grammar_enforced": output.grammar_enforced,
             "places_given": request.places is not None,
+            # **몇 건을 줬는지 센다.** 「줬다/안 줬다」만 남기면, 목록이 채점 어휘와 같은
+            # 크기로 좁아진 채 돈 실행을 나중에 가려낼 수 없다 (`verify:no-leak` 5번).
+            "equipment_given": _equipment_count(request.equipment),
             "examples_given": len(request.examples),
             "load_sec": output.load_sec,
             "prompt_tokens": output.prompt_tokens,

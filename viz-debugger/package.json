@@ -40,6 +40,7 @@
     "goldset:extract": "node scripts/extract-goldset.mjs",
     "score:generation": "node scripts/score-generation.mjs",
     "extract:places": "node scripts/extract-places.mjs",
+    "extract:equipment": "node scripts/extract-equipment.mjs",
     "verify:places": "node scripts/verify-places.mjs",
     "verify:no-leak": "node scripts/verify-no-leak.mjs",
     "baseline:run": "node scripts/run-baseline.mjs",

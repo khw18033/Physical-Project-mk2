@@ -69,6 +69,10 @@ for (const label of labels.sort()) {
     runMissions: [...runIds].sort(),
     model: summary.model,
     grammar: summary.grammar_enforced,
+    // **판을 표가 말한다.** 이름에만 적으면 이름을 바꾼 순간 열이 거짓말한다 —
+    // 옛 실행에는 이 두 칸이 없고, 그때는 장비 목록도 예시 0편도 없었다(6단계).
+    equipmentGiven: Math.max(0, ...records.map((r) => r.equipment_given ?? 0)),
+    shots: summary.shots ?? 'leave-one-out',
     calls: records.length,
     served: [...served],
     weights_ok: served.size <= 1 && [...served].every((file) => file.startsWith([...requested][0] ?? '')),
@@ -87,6 +91,12 @@ for (const label of labels.sort()) {
     // 축 3b — 장비 어휘 위반. **장소 축의 대조군이다** — 장소는 목록을 주고 장비는 안 준다.
     target_violations: flat.reduce((sum, result) => sum + result.target_violation.count, 0),
     target_total: flat.reduce((sum, result) => sum + result.target_violation.total, 0),
+    // **지어냄과 오선택을 가른다.** 뭉치면 그라운딩이 들었는지를 못 읽는다 — 260907 에
+    // 목록을 주자 지어냄이 20건에서 0건이 됐는데 총합은 거의 그대로였다(오선택으로 옮겼다).
+    target_invented: flat.some((result) => result.target_violation.invented == null)
+      ? null : flat.reduce((sum, result) => sum + result.target_violation.invented, 0),
+    target_mischosen: flat.some((result) => result.target_violation.mischosen == null)
+      ? null : flat.reduce((sum, result) => sum + result.target_violation.mischosen, 0),
     // 축 4 — 추상 위반 (건수 합).
     abstraction_violations: flat.reduce((sum, result) => sum + result.abstraction.count, 0),
     // 축 5 — 응답 시간. **적재 시간은 뺀다** — 합치면 첫 요청만 크게 나와 비교가 안 된다.
@@ -115,17 +125,20 @@ if (asJson) {
   console.log('');
   console.log('모델별 네 축 — 합산하지 않는다.');
   console.log('');
-  console.log('  ' + '실행'.padEnd(34) + pad('문법', 6) + pad('스키마', 8) + pad('개수일치', 9) + pad('개수차', 8) + pad('순서', 7) + pad('제목', 7) + pad('장소위반', 9) + pad('장비위반', 10) + pad('추상위반', 9) + pad('중앙초', 8) + pad('최대초', 8));
+  console.log('  ' + '실행'.padEnd(34) + pad('문법', 6) + pad('장비', 8) + pad('예시', 6) + pad('스키마', 8) + pad('개수일치', 9) + pad('개수차', 8) + pad('순서', 7) + pad('제목', 7) + pad('장소위반', 9) + pad('장비지어냄', 11) + pad('장비오선택', 12) + pad('추상위반', 9) + pad('중앙초', 8) + pad('최대초', 8));
   for (const row of rows) {
     console.log('  ' + row.label.padEnd(34) +
       pad(row.grammar ? '강제' : '없음', 6) +
+      pad(row.equipmentGiven ? `${row.equipmentGiven}건` : '없음', 8) +
+      pad(row.shots === 'none' ? '0편' : `${row.runMissions.length - 1}편`, 6) +
       pad(`${(row.schema_pass * 100).toFixed(0)}%`, 8) +
       pad(`${(row.count_match * 100).toFixed(0)}%`, 9) +
       pad(row.count_delta > 0 ? `+${row.count_delta}` : row.count_delta, 8) +
       pad(row.order_recall.toFixed(2), 7) +
       pad(row.title_similarity.toFixed(2), 7) +
       pad(row.place_violations === null ? '해당없음' : row.place_violations, 9) +
-      pad(`${row.target_violations}/${row.target_total}`, 10) +
+      pad(row.target_invented === null ? '해당없음' : row.target_invented, 11) +
+      pad(row.target_mischosen === null ? '해당없음' : `${row.target_mischosen}/${row.target_total}`, 12) +
       pad(row.abstraction_violations, 9) +
       pad(row.sec_median, 8) +
       pad(row.sec_max, 8));
@@ -153,6 +166,10 @@ if (asJson) {
     console.log('     비교하려면 지금 정답셋으로 **다시 돌려라.** 다시 채점하는 것으로는 안 된다.');
   }
   console.log('  개수차 = (낸 마일스톤 수 − 정답 수)의 평균. 음수면 덜 나눈 것이다.');
+  console.log('  장비/예시 = 프롬프트에 실제로 실린 것. 「없음」과 「0편」이 대조판이다 — 한 번에 하나만 끈다.');
+  console.log('  장비지어냄 = 저장소가 아는 장비 어디에도 없는 id. **그라운딩이 막아야 하는 것이 이것이다.**');
+  console.log('  장비오선택 = 실재하는 장비인데 정답이 고른 것이 아니다 / 낸 assigned_targets 총수. 어휘 문제가 아니라 배정 문제다.');
   console.log('  장소위반 대 장비위반 = **같은 조건에서 목록을 준 축과 안 준 축.** 그 차이가 그라운딩의 효과다.');
+  console.log('    7단계부터는 장비 열이 「없음」인 줄과 아닌 줄의 차이가 그 처방의 효과다.');
   console.log('  중앙초/최대초 = 서비스가 잰 추론 시간. **모델 적재 시간은 빼고** 따로 적는다.');
 }

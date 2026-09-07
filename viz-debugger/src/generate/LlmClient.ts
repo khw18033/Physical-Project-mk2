@@ -81,6 +81,15 @@ export type GenerateOptions = {
    */
   places?: unknown;
   /**
+   * 장비 어휘 (`equipment/equipment.json` 의 내용). 장소와 **같은 자리의 재료**다 —
+   * 260906 실측에서 목록을 준 장소 축은 위반 0건이고 안 준 장비 축은 22~48% 였고,
+   * 7단계가 그 대조를 처방으로 바꾼 것이 이 값이다.
+   *
+   * 안 주면 규칙도 목록도 붙지 않는다. 그것이 대조판(A)이고, 그 판이 있어야 차이를
+   * 장비 목록에 돌릴 수 있다 — `enforceGrammar` 를 끌 수 있게 둔 것과 같은 이유다.
+   */
+  equipment?: unknown;
+  /**
    * few-shot 예시. **채점 대상인 편은 예시에서 뺀다**(지시서 §4). 부르는 쪽이 고른다 —
    * 서비스는 어느 편이 채점 대상인지 모르기 때문이다. 뺐는지 검사하는 것이
    * `verify:no-leak` 이고, 이 값이 그 검사의 대상이다.
@@ -149,6 +158,7 @@ export async function generateMission(utterance: string, options: GenerateOption
     // **계약에서 뽑은 문법을 함께 보낸다.** 부르는 쪽이 계약 밖 출력을 요구할 수 없다.
     grammar: { source: 'contracts/mission.schema.json', digest: grammar.digest, text: grammar.text },
     places: options.places ?? null,
+    equipment: options.equipment ?? null,
     examples: options.examples ?? [],
     model: options.model ?? null,
     mission_id: options.missionId ?? null,

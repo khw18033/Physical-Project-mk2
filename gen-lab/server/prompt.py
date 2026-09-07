@@ -47,6 +47,27 @@ RULES = [
     "mission_id 와 utterance 는 아래 [요청] 에 준 값을 그대로 옮긴다.",
 ]
 
+#: 장비 목록을 **줬을 때만** 붙는 규칙 (7단계). 장소 규칙 바로 뒤에 들어간다 — 그라운딩
+#: 규칙 둘이 붙어 있어야 사람이 읽을 때 대칭이 보인다.
+#:
+#: **RULES 에 상수로 박지 않은 이유가 측정에 있다.** 목록을 안 주는 판(A)에서도 이 문장이
+#: 붙어 있으면, 모델은 있지도 않은 [장비] 목록을 찾다가 없는 것을 확인하게 된다. 그때
+#: 나온 숫자는 「목록이 없어서」가 아니라 「없는 목록을 가리켰기 때문」일 수 있고, 두 가지를
+#: 가를 방법이 없다. 안 주는 판은 **규칙도 목록도 없이** 6단계와 같은 프롬프트로 돈다.
+EQUIPMENT_RULE = "assigned_targets 에는 아래 [장비] 목록에 있는 id 만 쓴다. 목록에 없는 장비 id 를 만들면 실패다."
+
+
+def rules_for(equipment: Any = None) -> list[str]:
+    """이 요청에 실제로 적용되는 규칙. **화면에도 보고서에도 이 목록 그대로 쓴다.**
+
+    규칙을 두 벌로 적으면 모델이 지킨 규칙과 사람이 채점한 규칙이 갈라진다 — 그래서
+    「어느 판에 어느 규칙이 붙었는가」도 여기 한 곳에서만 정해진다.
+    """
+    if not equipment:
+        return list(RULES)
+    at = next(index for index, rule in enumerate(RULES) if rule.startswith("장소는")) + 1
+    return [*RULES[:at], EQUIPMENT_RULE, *RULES[at:]]
+
 
 def render_places(places: Any) -> str:
     """`places.json` → 프롬프트에 실을 장소 위상.
@@ -67,6 +88,52 @@ def render_places(places: Any) -> str:
         if alias:
             head += f" [별칭: {', '.join(alias)}]"
         lines.append(f"- {head}" + (f" ↔ {' · '.join(neighbours)}" if neighbours else " ↔ (연결 예정)"))
+    return "\n".join(lines)
+
+
+def render_equipment(equipment: Any) -> str:
+    """`equipment.json` → 프롬프트에 실을 장비 어휘 (7단계).
+
+    ## 왜 이 함수가 생겼나
+
+    260906 실측에서 **장소 위반은 0건이고 장비 위반은 22~48%** 였다. 같은 모델·같은
+    프롬프트·같은 디코딩·같은 응답 안에서 갈린 것이 하나뿐이다 — 장소는 목록을 줬고
+    장비는 안 줬다. 그래서 장비에도 같은 처방을 준다.
+
+    ## 원천을 여기서 고르지 않는다
+
+    무엇을 실을지는 `scripts/extract-equipment.mjs` 가 정한다. 이 함수는 **받은 것을
+    문장으로 펴기만 한다** — 예시와 같은 규칙이다(부르는 쪽이 재료를 고른다).
+
+    ## `label` 이 없으면 식별자만 적는다
+
+    추출기가 이름을 모르면 `null` 을 넣는다(레지스트리에 없는 식별자). 여기서 「로봇
+    go1-02」 같은 이름을 지어내면 그 이름이 프롬프트를 통해 세상에 생긴다.
+
+    ## 싣지 않는 항목이 있다
+
+    `equipment_id` · `label` · `kind` · `aliases` 넷만 편다. 추출기가 파일에 남기는
+    출처·집계는 **모델이 볼 것이 아니다** — 어느 장비가 정답셋에서 왔는지가 새면 그것이
+    곧 정답 누출이다. 그래서 통째로 돌리지 않고 항목을 하나씩 집는다.
+    """
+    if not equipment:
+        return "(장비 목록이 주어지지 않았습니다 — 그라운딩 없이 돕니다.)"
+    entries = equipment.get("equipment", []) if isinstance(equipment, dict) else list(equipment)
+    lines = []
+    for entry in entries:
+        label = entry.get("label")
+        kind = entry.get("kind")
+        head = entry["equipment_id"]
+        if label and kind:
+            head += f" — {label} ({kind})"
+        elif label:
+            head += f" — {label}"
+        elif kind:
+            head += f" ({kind})"
+        alias = [a for a in entry.get("aliases", []) if a and a != label]
+        if alias:
+            head += f" [별칭: {', '.join(alias)}]"
+        lines.append(f"- {head}")
     return "\n".join(lines)
 
 
@@ -101,16 +168,23 @@ def build(
     places: Any = None,
     examples: Optional[list[Any]] = None,
     utterance_meta: Optional[dict[str, Any]] = None,
+    equipment: Any = None,
 ) -> dict[str, str]:
-    """(system, user) 두 문자열. **엔진의 대화 틀은 엔진이 씌운다** (`engines/`)."""
+    """(system, user) 두 문자열. **엔진의 대화 틀은 엔진이 씌운다** (`engines/`).
+
+    `equipment` 를 안 주면 규칙도 목록도 붙지 않는다 — 6단계와 **같은 프롬프트**가 된다.
+    그것이 7단계 A 판의 정의이고, 그 판이 있어야 B 판의 차이를 장비 목록에 돌릴 수 있다.
+    """
     examples = examples or []
     parts = [
         "[규칙]",
-        "\n".join(f"{i + 1}. {rule}" for i, rule in enumerate(RULES)),
+        "\n".join(f"{i + 1}. {rule}" for i, rule in enumerate(rules_for(equipment))),
         "",
         "[장소] 이 목록 밖의 장소를 만들면 실패다.",
         render_places(places),
     ]
+    if equipment:
+        parts += ["", "[장비] assigned_targets 에는 이 목록의 id 만 쓴다.", render_equipment(equipment)]
     if examples:
         parts += ["", f"[예시] {len(examples)}편. 같은 형식으로 낸다."]
         parts += [render_example(example) for example in examples]
