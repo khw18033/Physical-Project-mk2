@@ -177,34 +177,25 @@ for (const l of landmarks) {
   });
 }
 /**
- * ── 자리표시: 측정하지 않은 4층 경로 ────────────────────────────────────────
+ * ── 자리표시: 아직 재지 않은 곳 ─────────────────────────────────────────────
  *
- * 이 씬은 5층이다. 그런데 옛 편 `MSN-260826-01` 의 임무는 **415호에서 503호로 층을
- * 이동한다** — 정답의 마일스톤 셋이 4층 복도 · 엘리베이터 홀 · 층 이동이다.
+ * 지금 잰 것은 **5층 복도와 503호뿐이다.** 4층 맵 데이터는 없다(2026-09-07 확인).
  *
- * 그 자리가 지도에 없으면 **모델이 층 이동을 통째로 빼먹어도 「없는 장소를 지어냈다」로
- * 잡히지 않는다.** 6단계의 「장소 위반 0건」이 실제보다 좋게 나온 이유가 이것이다
- * (`reports/2026-09-06_마일스톤분리_6단계.md` §10).
+ * `room-415` 는 옛 편 `MSN-260826-01` 의 발화(「415호에서 503호로」)에 나오므로
+ * **자리는 두되 인접을 비운다.** 4층 복도·엘리베이터를 이어 붙이면 재지 않은 위상을
+ * 지어내는 것이 되고, 그 지도로 낸 숫자는 실측 위에 서 있지 않게 된다.
  *
- * 그래서 **연결만 두고 좌표는 두지 않는다.** 4층은 줄자로 재지 않았다 —
- * `places.geometry.json` 에 이들의 자리는 없고, `verify:places` 가 **없는지를 검사한다.**
- * 「연결 예정」과 같은 원칙이다: 있는 것은 있는 대로, 없는 것은 없는 대로 둔다.
+ * **그래서 415→503 임무는 지금 그라운딩이 성립하지 않는다.** 모델에게 415호는 어디로도
+ * 이어지지 않은 섬이다. 그 편의 점수를 다른 편과 같은 표에 올리면 안 된다 —
+ * 처리는 채점기 쪽에 있다(`score-generation.mjs` 의 보류 표시).
  *
- * 건물에 4층이 있고 415호가 거기 있으며 엘리베이터가 두 층을 잇는다는 것까지가
- * 이 자리표시가 주장하는 전부다. 치수·거리는 아무것도 주장하지 않는다.
+ * 4층을 재면 그때 잇는다. 그 전까지는 **없는 것을 없는 대로 둔다.**
  */
 const HELD_OPEN = [
   { place_id: 'room-415', label: '415호', aliases: ['415', '415호'], kind: 'room', floor: 4,
-    adjacent: ['corridor-4f'] },
-  { place_id: 'corridor-4f', label: '4층 복도', aliases: ['복도', '4층 복도'], kind: 'corridor', floor: 4,
-    adjacent: ['room-415', 'elevator-4f'] },
-  { place_id: 'elevator-4f', label: '4층 엘리베이터', aliases: ['엘리베이터', '엘레베이터', '승강기', '엘리베이터 홀'],
-    kind: 'elevator', floor: 4, adjacent: ['corridor-4f', 'elevator-5f'] },
+    adjacent: [] },
 ];
 for (const h of HELD_OPEN) places.push({ ...h, zone_id: null });
-// 엘리베이터가 두 층을 잇는다 — 5층 쪽에도 같은 변을 적는다(인접은 무방향이다)
-const e5 = places.find((p) => p.place_id === 'elevator-5f');
-if (e5 && !e5.adjacent.includes('elevator-4f')) e5.adjacent = [...e5.adjacent, 'elevator-4f'].sort();
 
 // ── 기하 ───────────────────────────────────────────────────────────────────
 const round = (v) => Math.round(v * 100) / 100;
@@ -283,7 +274,7 @@ writeFileSync(ROOT + 'places/places.json', JSON.stringify({
   schema: 'contracts/place.schema.json',
   extracted_from: { scene: SCENE_REL, script: 'scripts/extract-places.mjs' },
   held_open: HELD_OPEN.map((h) => h.place_id),
-  held_open_note: '측정하지 않은 자리다 — 연결만 있고 좌표가 없다. places.geometry.json 에 이들의 자리는 없어야 하고 verify:places 가 그것을 검사한다.',
+  held_open_note: '아직 재지 않은 자리다 — 좌표도 인접도 없다. 4층 맵 데이터가 없어서 415호는 섬으로 둔다(260907). places.geometry.json 에 이들의 자리는 없어야 하고 verify:places 가 그것을 검사한다.',
   note: '좌표는 여기 없다 — places.geometry.json 이 든다. **방은 번호로만 부른다** — 기능 이름(강의실·연구실)은 넣지 않는다: 씬에 없는 정보이고 방 용도는 바뀐다.',
   places,
 }, null, 2) + '\n');

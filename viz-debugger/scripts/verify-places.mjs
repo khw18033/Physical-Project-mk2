@@ -41,9 +41,10 @@ for (const p of places) {
   }
 }
 if (!asym) ok('인접이 전부 양쪽에 적혀 있다');
-const orphan = places.filter((p) => p.adjacent.length === 0);
+const heldIds = new Set(doc.held_open ?? []);
+const orphan = places.filter((p) => p.adjacent.length === 0 && !heldIds.has(p.place_id));
 if (orphan.length) no(`고아 장소: ${orphan.map((p) => p.place_id).join(', ')}`);
-else ok('고아 장소 없음');
+else ok(`고아 장소 없음 (자리표시 ${heldIds.size}건은 예외 — 아직 안 쟀다)`);
 
 // 260907 — 자리표시(측정하지 않은 4층 경로)는 **연결만 있고 좌표가 없어야 한다.**
 // 좌표가 생기면 그것은 잰 값이 아니라 지어낸 값이다. 있는 것과 없는 것을 가르는 선이
@@ -58,7 +59,9 @@ if (held.length === 0) {
   const missing = held.filter((id) => !byId.has(id));
   if (missing.length) no(`held_open 이 없는 장소를 가리킨다: ${missing.join(', ')}`);
   if (leaked.length) no(`자리표시에 좌표가 생겼다: ${leaked.join(', ')} — 재지 않은 값이다`);
-  if (!missing.length && !leaked.length) ok(`자리표시 ${held.length}건은 연결만 있고 좌표가 없다 (${held.join(' · ')})`);
+  const wired = held.filter((id) => (byId.get(id)?.adjacent ?? []).length > 0);
+  if (wired.length) no(`자리표시에 인접이 생겼다: ${wired.join(', ')} — 재지 않은 위상이다`);
+  if (!missing.length && !leaked.length && !wired.length) ok(`자리표시 ${held.length}건은 좌표도 인접도 없다 (${held.join(' · ')})`);
 }
 
 console.log('3. 대본');
