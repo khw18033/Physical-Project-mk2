@@ -3,7 +3,7 @@
   "label": "EXAONE-3.5-7.8B-Instruct-Q4_K_M",
   "grammar_enforced": true,
   "ran_at": "2026-09-06T14:08:54.507Z",
-  "scored_at": "2026-09-06T14:25:27.506Z",
+  "scored_at": "2026-09-07T01:22:25.105Z",
   "calls": 20,
   "records": [
     {
@@ -1068,7 +1068,7 @@
             },
             "order_recall": 0.429,
             "title_similarity": 0.62,
-            "place_recall": 0.8,
+            "place_recall": 0.75,
             "place_vocab_note": "이 축은 재현율이다 — 「지어냈는가」는 옆의 장소 위반 축이 센다 (260906 신설)",
             "unmatched": [
               "MS-B",
@@ -1387,7 +1387,7 @@
             },
             "order_recall": 0.286,
             "title_similarity": 0.444,
-            "place_recall": 0.8,
+            "place_recall": 0.75,
             "place_vocab_note": "이 축은 재현율이다 — 「지어냈는가」는 옆의 장소 위반 축이 센다 (260906 신설)",
             "unmatched": [
               "MS-B",
@@ -1720,7 +1720,7 @@
             },
             "order_recall": 0.429,
             "title_similarity": 0.833,
-            "place_recall": 0.6,
+            "place_recall": 0.5,
             "place_vocab_note": "이 축은 재현율이다 — 「지어냈는가」는 옆의 장소 위반 축이 센다 (260906 신설)",
             "unmatched": [
               "MS-B",
@@ -2394,7 +2394,7 @@
             },
             "order_recall": 0.143,
             "title_similarity": 0.444,
-            "place_recall": 0.429,
+            "place_recall": 0.375,
             "place_vocab_note": "이 축은 재현율이다 — 「지어냈는가」는 옆의 장소 위반 축이 센다 (260906 신설)",
             "unmatched": [
               "MS-A",

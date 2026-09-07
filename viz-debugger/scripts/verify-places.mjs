@@ -41,9 +41,25 @@ for (const p of places) {
   }
 }
 if (!asym) ok('인접이 전부 양쪽에 적혀 있다');
-const orphan = places.filter((p) => p.adjacent.length === 0 && p.place_id !== 'room-415');
+const orphan = places.filter((p) => p.adjacent.length === 0);
 if (orphan.length) no(`고아 장소: ${orphan.map((p) => p.place_id).join(', ')}`);
-else ok('고아 장소 없음 (room-415 는 「연결 예정」 예외)');
+else ok('고아 장소 없음');
+
+// 260907 — 자리표시(측정하지 않은 4층 경로)는 **연결만 있고 좌표가 없어야 한다.**
+// 좌표가 생기면 그것은 잰 값이 아니라 지어낸 값이다. 있는 것과 없는 것을 가르는 선이
+// 이 검사다 — 「연결 예정」과 같은 원칙이고 places/README.md 에 근거가 있다.
+const held = doc.held_open ?? [];
+if (held.length === 0) {
+  no('held_open 목록이 없다 — 자리표시와 실측을 가르는 표시가 사라졌다');
+} else {
+  const geo = JSON.parse(readFileSync(join(ROOT, 'places/places.geometry.json'), 'utf8'));
+  const geoIds = new Set((geo.geometry ?? []).map((g) => g.place_id));
+  const leaked = held.filter((id) => geoIds.has(id));
+  const missing = held.filter((id) => !byId.has(id));
+  if (missing.length) no(`held_open 이 없는 장소를 가리킨다: ${missing.join(', ')}`);
+  if (leaked.length) no(`자리표시에 좌표가 생겼다: ${leaked.join(', ')} — 재지 않은 값이다`);
+  if (!missing.length && !leaked.length) ok(`자리표시 ${held.length}건은 연결만 있고 좌표가 없다 (${held.join(' · ')})`);
+}
 
 console.log('3. 대본');
 const SC = join(ROOT, 'viz-debugger/scenarios');

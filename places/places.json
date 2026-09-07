@@ -4,6 +4,12 @@
     "scene": "Unity_Map/Assets/Scenes/N45F_Map.unity",
     "script": "scripts/extract-places.mjs"
   },
+  "held_open": [
+    "room-415",
+    "corridor-4f",
+    "elevator-4f"
+  ],
+  "held_open_note": "측정하지 않은 자리다 — 연결만 있고 좌표가 없다. places.geometry.json 에 이들의 자리는 없어야 하고 verify:places 가 그것을 검사한다.",
   "note": "좌표는 여기 없다 — places.geometry.json 이 든다. **방은 번호로만 부른다** — 기능 이름(강의실·연구실)은 넣지 않는다: 씬에 없는 정보이고 방 용도는 바뀐다.",
   "places": [
     {
@@ -757,7 +763,8 @@
       "floor": 5,
       "adjacent": [
         "corridor-5f-main",
-        "corridor-5f-wing"
+        "corridor-5f-wing",
+        "elevator-4f"
       ],
       "zone_id": "zone-503"
     },
@@ -828,7 +835,41 @@
       ],
       "kind": "room",
       "floor": 4,
-      "adjacent": [],
+      "adjacent": [
+        "corridor-4f"
+      ],
+      "zone_id": null
+    },
+    {
+      "place_id": "corridor-4f",
+      "label": "4층 복도",
+      "aliases": [
+        "복도",
+        "4층 복도"
+      ],
+      "kind": "corridor",
+      "floor": 4,
+      "adjacent": [
+        "room-415",
+        "elevator-4f"
+      ],
+      "zone_id": null
+    },
+    {
+      "place_id": "elevator-4f",
+      "label": "4층 엘리베이터",
+      "aliases": [
+        "엘리베이터",
+        "엘레베이터",
+        "승강기",
+        "엘리베이터 홀"
+      ],
+      "kind": "elevator",
+      "floor": 4,
+      "adjacent": [
+        "corridor-4f",
+        "elevator-5f"
+      ],
       "zone_id": null
     }
   ]
