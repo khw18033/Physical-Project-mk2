@@ -16,6 +16,23 @@ const vizRoot = join(dirname(fileURLToPath(import.meta.url)), '..');
 const runsDir = join(vizRoot, '..', 'gen-lab', 'runs');
 const asJson = process.argv.includes('--json');
 
+/**
+ * **지금 정답셋이 무엇인가.** 실행마다 그때의 정답셋으로 채점돼 있는데, 정답셋이 바뀌면
+ * (415 편 보류 · 260907) 옛 실행의 숫자는 지금 것과 **같은 표에 놓을 수 없다.**
+ *
+ * 특히 장비 위반 축이 그렇다. 어휘가 정답셋의 `assigned_targets` 합집합이라 편이 빠지면
+ * 어휘가 좁아지고, 옛 실행이 **예시로 받았던 장비**(go1-02 · cam-5f)가 갑자기 위반이 된다.
+ * 그것은 모델이 나빠진 것이 아니라 **자로 잰 눈금이 바뀐 것**이다.
+ *
+ * 그래서 조용히 섞지 않고 줄에 표시한다. 유령 `llama-server` 때와 같은 규칙이다 —
+ * **못 쓰는 숫자는 못 쓴다고 적는다.**
+ */
+let goldIds = null;
+try {
+  const index = JSON.parse(readFileSync(join(vizRoot, '..', 'gen-lab', 'goldset', 'index.json'), 'utf8'));
+  goldIds = new Set((index.missions ?? []).map((m) => (typeof m === 'string' ? m : m.mission_id)));
+} catch { goldIds = null; }
+
 let labels;
 try {
   labels = readdirSync(runsDir).filter((name) => statSync(join(runsDir, name)).isDirectory());
@@ -36,6 +53,9 @@ for (const label of labels.sort()) {
     continue; // 아직 안 끝난 실행. 반쪽 숫자를 표에 올리지 않는다.
   }
   const records = summary.records;
+  const runIds = new Set(records.map((r) => r.mission_id).filter(Boolean));
+  const stale = goldIds !== null
+    && (runIds.size !== goldIds.size || [...runIds].some((id) => !goldIds.has(id)));
   const flat = summary.scored.flatMap((entry) => entry.results.filter((result) => !result.missing));
 
   // **실제로 답한 가중치가 요청한 것과 같은가.** 260906 에 이 둘이 어긋난 표가 한 번
@@ -45,6 +65,8 @@ for (const label of labels.sort()) {
 
   rows.push({
     label,
+    stale,
+    runMissions: [...runIds].sort(),
     model: summary.model,
     grammar: summary.grammar_enforced,
     calls: records.length,
@@ -91,7 +113,7 @@ if (asJson) {
 } else {
   const pad = (text, width) => String(text).padStart(width);
   console.log('');
-  console.log('모델별 네 축 — 임무 4편 × 발화 5개 = 실행당 20건. 합산하지 않는다.');
+  console.log('모델별 네 축 — 합산하지 않는다.');
   console.log('');
   console.log('  ' + '실행'.padEnd(34) + pad('문법', 6) + pad('스키마', 8) + pad('개수일치', 9) + pad('개수차', 8) + pad('순서', 7) + pad('제목', 7) + pad('장소위반', 9) + pad('장비위반', 10) + pad('추상위반', 9) + pad('중앙초', 8) + pad('최대초', 8));
   for (const row of rows) {
@@ -119,6 +141,17 @@ if (asJson) {
     for (const flag of flags) console.log(`    ${flag}`);
   }
   console.log('');
+  const staleRows = rows.filter((r) => r.stale);
+  if (staleRows.length) {
+    console.log('');
+    console.log('  ⚠ 지금 정답셋과 다른 편으로 돌린 실행 — **같은 표에서 비교하지 마라.**');
+    for (const r of staleRows) {
+      console.log(`     ${r.label}: ${r.runMissions.length}편 (${r.runMissions.join(' · ')})`);
+    }
+    console.log(`     지금 정답셋: ${[...(goldIds ?? [])].sort().join(' · ')}`);
+    console.log('     장비 위반 축이 특히 흔들린다 — 어휘가 정답셋에서 오므로 편이 빠지면 눈금이 바뀐다.');
+    console.log('     비교하려면 지금 정답셋으로 **다시 돌려라.** 다시 채점하는 것으로는 안 된다.');
+  }
   console.log('  개수차 = (낸 마일스톤 수 − 정답 수)의 평균. 음수면 덜 나눈 것이다.');
   console.log('  장소위반 대 장비위반 = **같은 조건에서 목록을 준 축과 안 준 축.** 그 차이가 그라운딩의 효과다.');
   console.log('  중앙초/최대초 = 서비스가 잰 추론 시간. **모델 적재 시간은 빼고** 따로 적는다.');

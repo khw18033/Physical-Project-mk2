@@ -87,6 +87,11 @@ if (gold.length === 0) {
       notes.push(`${label}: summary.json 이 없다 — 아직 안 끝난 실행이다`);
       continue;
     }
+    // 예시 수는 **그 실행이 돈 편 수** 기준으로 본다. 지금 정답셋 크기로 재면, 정답셋이
+    // 바뀐 뒤(415 편 보류 · 260907) 옛 실행이 전부 실패로 잡힌다 — 그 실행은 그 시점의
+    // 규칙을 지켰는데도. 검사가 봐야 하는 것은 「그때 leave-one-out 을 지켰는가」다.
+    const runMissions = new Set((summary.records ?? []).map((r) => r.mission_id).filter(Boolean));
+    const expected = runMissions.size - 1;
     for (const record of summary.records ?? []) {
       checked += 1;
       const used = record.examples_used ?? null;
@@ -97,8 +102,8 @@ if (gold.length === 0) {
       if (used.includes(record.mission_id)) {
         failures.push(`${label} / ${record.mission_id} v${record.variant}: **채점 대상 편이 예시에 들어갔다** (${used.join(', ')})`);
       }
-      if (used.length !== gold.length - 1) {
-        failures.push(`${label} / ${record.mission_id} v${record.variant}: 예시가 ${used.length}편이다 — ${gold.length - 1}편이어야 한다`);
+      if (used.length !== expected) {
+        failures.push(`${label} / ${record.mission_id} v${record.variant}: 예시가 ${used.length}편이다 — 이 실행은 ${runMissions.size}편을 돌았으므로 ${expected}편이어야 한다`);
       }
     }
   }

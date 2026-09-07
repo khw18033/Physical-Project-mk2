@@ -1,23 +1,14 @@
 {
-  "generated_at": "2026-09-04T10:49:03.587Z",
+  "generated_at": "2026-09-07T01:40:27.830Z",
   "generated_by": "viz-debugger/scripts/extract-goldset.mjs",
+  "withheld": [
+    {
+      "id": "MSN-260826-01",
+      "reason": "4층 맵 데이터 없음 — 415→503 층 이동을 그라운딩할 수 없다 (260907)"
+    }
+  ],
   "note": "대본 4편에서 뽑았다. 대본은 읽기만 한다 — 이 폴더 밖으로는 아무것도 쓰지 않는다.",
   "missions": [
-    {
-      "mission_id": "MSN-260826-01",
-      "utterance": "415호에서 503호로 이동해줘",
-      "milestones": 7,
-      "tasks": 7,
-      "edges": 7,
-      "roots": 1,
-      "sinks": 1,
-      "joins": 1,
-      "max_depth": 5,
-      "has_cycle": false,
-      "ref_edges": 0,
-      "node_kinds": [],
-      "labeled": false
-    },
     {
       "mission_id": "MSN-260831-01",
       "utterance": "503호에서 복도에 있는 엘리베이터 앞까지 이동해줘.",
@@ -82,15 +73,6 @@
     }
   ],
   "utterances": [
-    {
-      "mission_id": "MSN-260826-01",
-      "original": 1,
-      "variants": 4,
-      "total": 5,
-      "matcher_exact": 5,
-      "matcher_none": 0,
-      "matcher_other": 0
-    },
     {
       "mission_id": "MSN-260831-01",
       "original": 1,

@@ -116,16 +116,30 @@ function writeSummary(root, { model: modelName, label: runLabel, grammar_enforce
 
 if (rescoreOnly) {
   // 출력은 손대지 않는다. 채점만 다시 한다.
+  //
+  // **정답셋이 바뀐 실행은 건너뛴다.** 다시 채점하면 그 실행이 그때 예시로 받았던 장비가
+  // 갑자기 위반이 되고(어휘가 정답셋에서 온다), 모델이 나빠진 것처럼 보이는 표가 나온다.
+  // 눈금이 바뀐 자로 옛 길이를 다시 재는 것이다 — **다시 채점이 아니라 다시 돌려야 한다.**
+  const goldIds = new Set(gold.map((m) => m.mission_id));
+  let skipped = 0;
   for (const name of readdirSync(runsDir)) {
     const root = join(runsDir, name);
     let previous;
     try { previous = JSON.parse(readFileSync(join(root, 'summary.json'), 'utf8')); } catch { continue; }
+    const runIds = new Set((previous.records ?? []).map((r) => r.mission_id).filter(Boolean));
+    const same = runIds.size === goldIds.size && [...runIds].every((id) => goldIds.has(id));
+    if (!same) {
+      console.log(`  건너뜀 — ${name}: ${runIds.size}편으로 돌았는데 지금 정답셋은 ${goldIds.size}편이다. 다시 채점하지 않는다 (다시 돌려라)`);
+      skipped += 1;
+      continue;
+    }
     writeSummary(root, {
       model: previous.model, label: previous.label,
       grammar_enforced: previous.grammar_enforced, records: previous.records,
     });
     console.log(`  다시 채점 — ${name} (${previous.records.length}건, 출력은 그대로)`);
   }
+  if (skipped > 0) console.log(`  ${skipped}개 실행을 건너뛰었다 — 정답셋이 그때와 다르다.`);
   process.exit(0);
 }
 

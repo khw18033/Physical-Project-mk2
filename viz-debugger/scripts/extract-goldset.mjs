@@ -32,7 +32,24 @@ const scenarioDir = join(vizRoot, 'scenarios');
 const outDir = join(repoRoot, 'gen-lab', 'goldset');
 
 /** 뽑는 편. 순서는 보고서 표의 순서다. */
-const MISSIONS = ['MSN-260826-01', 'MSN-260831-01', 'MSN-260831-02', 'MSN-260831-03'];
+const MISSIONS = ['MSN-260831-01', 'MSN-260831-02', 'MSN-260831-03'];
+
+/**
+ * **뺀 편과 그 이유.** 지운 것이 아니라 뽑지 않는 것이다 —
+ * `viz-debugger/scenarios/MSN-260826-01.json` 은 그대로 있고 화면에서도 그대로 재생된다
+ * (HCI 전달본 · `verify:scenario` 무수정).
+ *
+ * 뺀 이유는 **우리 지도에 4층이 없어서**다(2026-09-07). 그 편의 임무는 415호에서
+ * 503호로 층을 이동하는데, `places.json` 에는 5층과 503호뿐이라 모델에게 415호는
+ * 어디로도 이어지지 않은 섬이다. 층 이동을 낼 근거가 프롬프트 안에 없다.
+ *
+ * **그 상태로 채점하면 우리 지도의 구멍이 모델의 점수로 찍힌다.** 실제로 6단계의
+ * 「8B 45% 대 EXAONE 20%」가 이 편 하나에서 나온 차이였고, 빼면 둘 다 27% 로 같아진다
+ * (`reports/2026-09-06_마일스톤분리_6단계.md` §11).
+ *
+ * 4층을 재면 이 배열에 다시 넣는다. 그때까지는 **없는 것을 없는 대로 둔다.**
+ */
+const WITHHELD = [{ id: 'MSN-260826-01', reason: '4층 맵 데이터 없음 — 415→503 층 이동을 그라운딩할 수 없다 (260907)' }];
 
 const { matchesRule } = await import(pathToFileURL(join(vizRoot, 'src', 'scenarios', 'matcher.ts')).href);
 
@@ -202,6 +219,7 @@ for (const mission of missions) {
 const index = {
   generated_at: new Date().toISOString(),
   generated_by: 'viz-debugger/scripts/extract-goldset.mjs',
+  withheld: WITHHELD,
   note: '대본 4편에서 뽑았다. 대본은 읽기만 한다 — 이 폴더 밖으로는 아무것도 쓰지 않는다.',
   missions: table,
   utterances: variantTable,
