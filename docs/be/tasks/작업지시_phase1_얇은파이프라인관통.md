@@ -177,6 +177,11 @@ docker exec capstone_kafka /opt/kafka/bin/kafka-topics.sh --bootstrap-server loc
 - **MQTT:** `paho-mqtt`, **고유 `client_id`**(예: `mk2-ingest`), `localhost:1883` 접속(익명).
   구독은 정확히 **`+/+/+/state`, `+/+/+/status`, `+/+/+/heartbeat`** 세 패턴 — 이렇게 하면
   `terminal/#`(명령, Phase 6)이 자연히 제외된다.
+  - **etype는 `sensor` 하나가 아니다.** HW는 `{zone}/{etype}/{eid}/{channel}`에서
+    etype ∈ `{sensor, robot, actuator, analysis}`를 쓴다(예: `zoneA/analysis/wl-001/state` =
+    증강 분석 워크로드). `+/+/+/<채널>` 구독은 **타입 무관이라 이들 전부를 잡는다 — 코드 변경
+    없음.** Phase 1 (A)는 sensor로 검증하되, robot/actuator/analysis 메시지가 와도 같은 봉투
+    검증→produce 경로로 처리된다(본문만 다름).
 - **메시지 처리(각 수신마다):**
   1. JSON 파싱.
   2. `contracts/common/message.schema.json`으로 **strict 검증** — `jsonschema` +
@@ -291,18 +296,30 @@ HW_ENTITY_ID=wl-001 HW_BROKER_HOST=210.110.250.33 python3 -m sensor.sensor_node
 **DoD:** `state`·`status`·`heartbeat`가 Kafka 3토픽 + 저장 sink + WS에 관통한다(발행은 컴퓨터→서버
 Mosquitto 경로). 4개 편집 덕분에 봉투 strict 검증을 통과한다(격리로 안 빠진다).
 
-### 단계 7 — 조병현 인계 문서 작성
+### 단계 7 — 조병현 인계 문서 작성 (= `BACKEND_AGENDA §1·§2 회신`)
 
 (A) 검증이 끝난 뒤(잘 되는 것을 확인한 뒤) HW 팀원(조병현)에게 전달할 문서를 만든다 — 예:
-`docs/be/hw-envelope-conformance.md`. **자세히** 쓴다:
+`docs/be/hw-envelope-conformance.md`. HW는 미결을 `docs/BACKEND_AGENDA.md`(HW 브랜치)로 정리해
+두었으므로, 이 문서는 그 **§1(스키마 필드 확정)과 §2(토픽·Kafka 매핑)에 대한 백엔드 회신** 형태로
+**자세히** 쓴다:
 
-- 편집 4개(부록 그대로)와 각각의 **이유**(공통 봉투 계약 정합).
-- **주의:** `LEGACY_DEVICE_ID = False`는 `device_id` 별칭을 없앤다 → HW 내부에서 `device_id`를
-  읽던 소비자(주석에 언급된 `monitor.py` 등)가 있으면 함께 갱신해야 한다.
-- `SCHEMA_VERSION`은 **공통 봉투 계약 버전(현재 `1.0`, 백엔드 소유)**이지 펌웨어 버전이 아니다
-  (펌웨어는 `fw_version` 별도). 현재 HW의 `1.3`은 드리프트이므로 `1.0`으로 맞춘다.
+- **`§1` 스키마 회신 — 편집 4개(부록 그대로)와 각각의 이유(공통 봉투 계약 정합):**
+  - `seq → sequence_id`, timestamp RFC3339 콜론 오프셋, `LEGACY_DEVICE_ID=False`, `SCHEMA_VERSION="1.0"`.
+  - **`schema_version` 표기 규칙 명시(HW 질문 §1.2 "semver? 정수?"에 대한 답):** `MAJOR.MINOR`
+    **문자열**, 현재 값 `"1.0"`(백엔드 소유 봉투 계약 버전이지 펌웨어 버전 아님 — 펌웨어는
+    `fw_version` 별도). HW의 `1.3`은 드리프트라 `1.0`으로 맞춘다.
+  - **`seq`(→`sequence_id`) 범위(HW 질문 §1.3에 대한 답):** 현재 **채널별 독립 순번**을 그대로
+    수용한다. 유실·역전 검출의 정확한 의미(채널별/소스별)는 **Phase 2에서 확정**한다. Phase 1은
+    값을 실어 나르기만 한다.
+- **`§2` 토픽 회신(HW엔 대부분 정보성 — HW는 MQTT만 발행):**
+  - MQTT 토픽 구조 `{zone}/{etype}/{eid}/{channel}` 유지. etype 어휘 `{sensor,robot,actuator,analysis}` 확인.
+  - **MQTT→Kafka 매핑(BE 내부, §2.4 답):** 원본 미러가 **아니라** 채널별 `mk2.telemetry.<채널>`,
+    파티션 키 `source_id`. HW 코드 변경 불필요.
+- **주의(device_id 제거의 영향 — 완화됨):** `LEGACY_DEVICE_ID=False`는 `device_id` 별칭을 없앤다.
+  **`pi/edge/monitor.py`는 이미 `source_id`를 우선 읽고 device_id는 폴백이라 안전하다**(확인함).
+  다만 **그 외에** `device_id`를 직접 읽는 HW 내부 소비자가 있으면 함께 갱신하라고 안내한다.
 
-**DoD:** 문서가 존재하고 위 3가지(편집·이유·내부 소비자 주의)를 담는다.
+**DoD:** 문서가 존재하고 위(§1 편집·이유·표기·seq / §2 토픽·Kafka 매핑 / device_id 주의)를 담는다.
 
 ---
 
@@ -322,6 +339,20 @@ Mosquitto 경로). 4개 편집 덕분에 봉투 strict 검증을 통과한다(�
   그대로. (미래작업: 아래.)
 - **인증·TLS·ACL·Mosquitto persistence** → 운영 전환/후속.
 - **파티션 증설·`etype` 분할 토픽**(`mk2.telemetry.sensor.state` 식) → 규모가 요구할 때.
+
+**HW 브랜치 전수조사(2026-09-07)로 확인된 이월 — Phase 1 무관, 해당 Phase에서 처리:**
+- **frame_ref 계약 정합 → Phase 4(미디어).** 우리 `contracts/common/frame-reference.schema.json`은
+  `capture_timestamp`를 **ISO date-time 문자열**로 정의했는데, HW/v8 §6-9 구현은 **epoch ms 정수**다
+  (`BACKEND_AGENDA §8`이 "봉투 timestamp(ISO)와 frame_ref(epoch ms) 공존이 의도냐" 질의). 미디어
+  착수 전 계약을 어느 쪽으로 정합할지 결정.
+- **명령 문자열 파라미터 → Phase 6.** `sensor_node`의 `set_mode(mode="normal")`·`levee(position="open")`는
+  문자열 파라미터인데 protobuf 명령은 `map<string,double>`이라 현재 호출 불가(`BACKEND_AGENDA §3`).
+  명령 스키마에 문자열/열거형 파라미터 지원 추가.
+- **엣지 가용성 판정 ↔ BE 최종 판정 → Phase 5.** HW엔 `pi/edge/monitor.py`·`edge/availability.py`가
+  엣지에서 up/offline을 판정한다. BE-T-04는 "백엔드 단일 지점 최종 판정, 업무 평면 우선"이므로,
+  엣지 1차 판정과 BE 최종 판정의 관계를 Phase 5에서 정리한다.
+- **device_status 발행 주체 → Phase 5.** HW가 ok/degraded/fault를 자기보고(`BACKEND_AGENDA §5`).
+  BE가 이를 수용할지, metric/log에서 파생할지 결정.
 
 > **미래작업(원격 Kafka 노출 시 정확히 바꿀 3가지, 지금은 하지 않음):**
 > ① 포트 바인딩 `127.0.0.1:9092:9092` → Tailscale 인터페이스 IP 바인딩(공인 `0.0.0.0` 노출 회피,
@@ -372,9 +403,14 @@ Mosquitto 경로). 4개 편집 덕분에 봉투 strict 검증을 통과한다(�
     스키마·시각 정렬·`replayed` 정합은 Phase 2.
 - **`docs/be/01-standalone-implementation-plan.md` 갱신** — "지금 당장 할 일" ③(Phase 1) 체크,
   그리고 **발견/이월사항을 그 조치가 이뤄질 미래 Phase 항목에** 적는다:
-  - Phase 2: `store(...)` 인터페이스 뒤에 TSDB 구현 교체, `replayed:true` 지연 도착 정합.
-  - Phase 4: 원격 Kafka 노출 3수정(§6 미래작업), Tailscale 선행.
-  - Phase 6: 명령 경로 protobuf 토픽(`mk2.command.*`)·`PhysicalCommandEnvelope` 계약 정합.
+  - Phase 2: `store(...)` 인터페이스 뒤에 TSDB 구현 교체, `replayed:true` 지연 도착 정합,
+    `sequence_id`(채널별) 기반 유실·역전 검출 의미 확정.
+  - Phase 4: 원격 Kafka 노출 3수정(§6 미래작업, Tailscale 선행), **frame_ref 계약 정합**
+    (`frame-reference.schema.json` ISO 문자열 ↔ HW/v8 epoch ms).
+  - Phase 5: **엣지 가용성 판정(`monitor.py`·`edge/availability.py`) ↔ BE 최종 판정 관계 정리**,
+    **device_status 발행 주체**(HW 자기보고 수용 vs metric 파생).
+  - Phase 6: 명령 경로 protobuf 토픽(`mk2.command.*`)·`PhysicalCommandEnvelope` 계약 정합,
+    **문자열/열거형 파라미터 지원**(`set_mode`·`levee`가 `map<string,double>`로 불가).
 - **크로스파트 의존:** HW 봉투 정합(편집 4개)은 조병현이 HW repo에 적용한다 — 인계 문서로 전달
   했음을 보고서에 남긴다.
 - 막히거나 결정이 필요하면 **임의로 정하지 말고** `reports/`에 남기고 멈춘다(§1-A 규율 7).
@@ -413,7 +449,8 @@ def iso_now():
     return datetime.now(timezone.utc).astimezone().isoformat(timespec="seconds")
 ```
 
-**③ `device_id` 별칭 제거**
+**③ `device_id` 별칭 제거** (HW 내부 `pi/edge/monitor.py`는 `source_id`를 우선 읽고 device_id는
+폴백이라 이 제거에 안전함 — 확인함. 그 외 device_id 직접 소비자만 조병현이 확인)
 
 ```python
 # before

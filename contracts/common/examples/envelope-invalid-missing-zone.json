@@ -1,0 +1,13 @@
+{
+  "_why_invalid": "필수 5필드 중 zone_id가 없다. 봉투 검증에서 거부되어 정상 토픽으로 재발행되지 않고 격리된다(음성 대조 fixture).",
+  "schema_version": "1.0",
+  "source_id": "wl-001",
+  "entity_id": "wl-001",
+  "node_id": "pi7",
+  "timestamp": "2026-08-31T09:00:00+09:00",
+  "sequence_id": 4838,
+  "origin_kind": "real",
+  "channel": "state",
+  "water_level_m": 2.53,
+  "unit": "m"
+}

@@ -25,22 +25,33 @@ MQTT·Kafka·OpenTelemetry·K3s·Tailscale은 **어댑터 뒤의 현재 배포 �
 
 ### 명령
 
-> 코드 착수 전이라 아래는 예정 구조다. Phase 0(인프라)·Phase 1(파이프라인) 구현 시 실제 명령으로
-> 확정한다.
+> **아래는 Phase 1까지 실제로 확정된 명령이다**(2026-09-07). 실행 위치는 **서버**이며, 코드는
+> 컴퓨터에서 편집해 사람이 서버로 복사한다(아래 "서버 배포 워크플로" 참조).
 
 ```bash
-# 인프라 스택 (Phase 0) — infra/ 아래 compose
-docker compose -f infra/docker-compose.yml up -d
-docker compose -f infra/docker-compose.yml ps        # 헬스 확인
+# ── 인프라 (Phase 0) — 서버 compose 디렉터리(~/capstone-db)에서. 서비스 이름 필수 ──
+docker compose up -d kafka
+docker compose ps kafka
+docker exec capstone_kafka /opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list
 
-# 파이썬 백엔드 (Phase 1~)
-python3 -m venv .venv && source .venv/bin/activate
-pip install -e ".[dev]"
+# ── 백엔드 (Phase 1~) — 서버 ~/capstone-db/phase1_work/Physical-Project-mk2 에서 ──
+source ~/capstone-db/phase1_work/venv_phase1/bin/activate   # Python 3.14
+python -m backend.ingest.bridge        # MQTT 구독 → 봉투 검증 → Kafka  (READY 로그 뒤에 발행)
+python -m backend.storage.consumer     # 저장 sink   (그룹 mk2-storage)
+python -m backend.gateway.ws_echo      # WS echo     (그룹 mk2-ws, ws://127.0.0.1:8765)
 
-# 테스트 (Phase 1부터 pytest)
-pytest -q
-pytest -q tests/test_xxx.py::test_name               # 단일 테스트
+# ── 테스트 (Phase 1부터 pytest. ingest·sink·WS가 먼저 떠 있어야 한다) ──
+python -m pytest -q
+python -m pytest -q tests/test_pipeline.py::test_valid_roundtrip
+python -m pytest -q tests/test_pipeline.py::test_contract_fixtures   # 인프라 없이도 도는 계약 검증
 ```
+
+- 설치는 필요 없다 — 저장소 루트에서 `python -m ...`으로 실행하면 임포트가 잡힌다. 새 환경을
+  만들 때만 `pip install -e ".[dev]"`.
+- 접속 정보·경로는 전부 환경변수다. 단일 출처는 [`backend/settings.py`](backend/settings.py)의
+  환경변수 표(`MK2_MQTT_HOST`·`MK2_BROKER_HOST`·`MK2_KAFKA_BOOTSTRAP`·`MK2_WS_*` 등).
+- 최소 발행자(수동 확인용): `python tests/publisher.py [--channel state|status|heartbeat]
+  [--invalid missing-zone|timestamp]` — MQTT만 쓰므로 컴퓨터에서도 돈다.
 
 - **Phase 0(인프라 기동)은 헬스체크로 검증**하고 pytest를 쓰지 않는다.
 - **Phase 1 이후는 pytest**로 "가짜 발행자 → 파이프라인 → 예상 저장/중계" 회귀를 검증한다.

@@ -1,0 +1,45 @@
+<!-- WS echo 확인용 최소 클라이언트 (Phase 1).
+     브라우저로 이 파일을 열고 WS 주소를 넣어 접속한다. 인증·구독 관리는 없다(Phase 5/7).
+     wscat 로도 같은 확인이 된다: wscat -c ws://<host>:8765
+     implements: BE-T-03 (확인 수단) -->
+<meta charset="utf-8" />
+<title>MK2 WS echo 콘솔</title>
+<style>
+  body { font-family: ui-monospace, Consolas, monospace; margin: 16px; }
+  #log { white-space: pre-wrap; border: 1px solid #ccc; padding: 8px; height: 70vh; overflow: auto; }
+  .status { color: #555; }
+</style>
+<h3>MK2 WS echo 콘솔</h3>
+<p>
+  <input id="url" size="40" value="ws://localhost:8765" />
+  <button id="go">접속</button>
+  <span id="state" class="status">대기</span>
+</p>
+<div id="log"></div>
+<script>
+  const logEl = document.getElementById('log');
+  const stateEl = document.getElementById('state');
+  let ws = null;
+  function line(text) {
+    logEl.textContent += text + '\n';
+    logEl.scrollTop = logEl.scrollHeight;
+  }
+  document.getElementById('go').onclick = () => {
+    if (ws) { ws.close(); }
+    const url = document.getElementById('url').value;
+    ws = new WebSocket(url);
+    stateEl.textContent = '접속 중…';
+    ws.onopen = () => { stateEl.textContent = '연결됨'; line('-- 연결됨: ' + url); };
+    ws.onclose = () => { stateEl.textContent = '끊김'; line('-- 끊김'); };
+    ws.onerror = (e) => { stateEl.textContent = '오류'; line('-- 오류'); };
+    ws.onmessage = (ev) => {
+      try {
+        const data = JSON.parse(ev.data);
+        const m = data.message || {};
+        line(`[${data.channel}] ${m.source_id} seq=${m.sequence_id} ts=${m.timestamp} :: ${ev.data}`);
+      } catch (_) {
+        line(ev.data);
+      }
+    };
+  };
+</script>

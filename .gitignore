@@ -33,12 +33,23 @@ build/
 dist/
 .venv/
 venv/
+# 서버의 Phase 1 실행용 가상환경
+venv_phase1/
 env/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
 .coverage
 htmlcov/
+
+# ─────────────────────────────────────────────────────────────
+# Phase 1 런타임 산출물 — 파이프라인이 돌면서 쌓는 기록(코드 아님)
+# 경로는 MK2_QUARANTINE_PATH / MK2_SINK_PATH 로 바꿀 수 있어 파일명 패턴도 함께 막는다.
+# ─────────────────────────────────────────────────────────────
+backend/ingest/quarantine.jsonl
+backend/storage/telemetry_sink.jsonl
+quarantine*.jsonl
+telemetry_sink*.jsonl
 
 # ─────────────────────────────────────────────────────────────
 # 로컬 임시/로그

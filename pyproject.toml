@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mk2-backend"
+version = "0.1.0"
+description = "MK2 백엔드 — 엣지-클라우드 관측 파이프라인 (Phase 1: 얇은 파이프라인 관통)"
+requires-python = ">=3.8"
+
+# Phase 1 관통에 필요한 것만 둔다. 저장 제품(TSDB)·관측 SDK·미디어는 각 Phase에서 추가한다.
+dependencies = [
+    "paho-mqtt>=2.0",          # 말단↔엣지 MQTT 구독 (BE-T-01)
+    "confluent-kafka>=2.3",    # 엣지↔서버 업무 백본 produce/consume (BE-T-02)
+    "jsonschema>=4.21",        # 공통 봉투 strict 검증 (BE-C-01)
+    "rfc3339-validator>=0.1.4", # date-time 포맷을 실제로 assert 하기 위한 필수 동반 의존성
+    # WS 게이트웨이 echo (BE-T-03). 상한을 두지 않는다 — 서버 설치본(17.1)이 다운그레이드되면
+    # 안 되고, 코드는 13(legacy)·14+(신 asyncio) 양쪽 API에서 도는 방식으로 작성했다.
+    "websockets>=13",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=7.4"]
+
+[tool.setuptools.packages.find]
+include = ["backend*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

@@ -156,6 +156,20 @@ Phase 7  디지털 트윈         DT 7건 (좌표 변환·융합·커버리지�
 - **Phase 0 이월:** MySQL 컨테이너는 가동 중이나 MK2 전용 DB·계정은 없다(Phase 0 범위 밖으로
   미룸). 여기서 MK2 감사·레지스트리용 DB·계정을 만든다. 기존 테스트 DB(`robot_capstone`)에
   얹지 않는다.
+- **Phase 1 이월 (여기서 처리):**
+  - **`store(...)` 뒤 구현 교체.** `backend/storage/writer.py`의 `TelemetryWriter.write()`가 지금
+    JSONL placeholder다. **이 몸통만 TSDB writer로 갈아끼우고 ingest·소비자·인터페이스는 건드리지
+    않는다**(경계를 그러라고 만들었다). 소비자는 `backend/storage/consumer.py`(그룹 `mk2-storage`).
+  - **두 시각의 정합.** 기록에 봉투 `timestamp`(발행 시각)와 `received_at`(서버 수신 시각)이 이미
+    분리 보존된다. Phase 1 실측에서 **7분 늦게 도착한 메시지**가 원래 시각을 유지하는 것을 확인했다
+    — TSDB 적재 시 어느 시각을 기준으로 정렬할지, 지연 도착(HW spool 재전송, `replayed:true`)을
+    어떻게 정합할지 여기서 확정한다.
+  - **`sequence_id` 의미 확정.** 실측 결과 HW의 순번은 **채널별 독립**이다(같은 시각에
+    heartbeat=12 / state=1, `status`·LWT는 순번 없음). 유실·역전 검출을 채널별로 볼지 소스별로
+    합칠지, 재기동 시 리셋을 어떻게 다룰지 정하고 **HW에 회신**한다(`BACKEND_AGENDA §1.3`,
+    [`hw-envelope-conformance.md`](hw-envelope-conformance.md) §1-3에서 "Phase 2에서 확정"으로 답해 둠).
+  - **채널 본문(payload) 스키마.** Phase 1은 봉투만 검증한다. 계측을 실제로 저장하려면 채널별
+    본문 스키마가 필요하다 — `contracts/common/`에 추가하고 ingest 검증을 2단(봉투→본문)으로 넓힌다.
 - **DoD:** 계측이 TSDB에 시각 순으로, 감사·레지스트리가 MySQL에 정합성 있게 쌓이고 조회로
   확인된다. 재전송(지연 도착) 데이터가 원래 측정 시각으로 정렬된다.
 - **외부 의존성:** 없음.
@@ -194,6 +208,20 @@ Phase 7  디지털 트윈         DT 7건 (좌표 변환·융합·커버리지�
 - **DoD:** 합성 JPEG 프레임 재생 → 엣지 WS → 서버 중계 → 뷰어 canvas 표시, frame_ref가 관통해
   탐지 박스가 정확한 프레임에 겹쳐진다. 상세 근거는 [`02-media-path.md`](02-media-path.md).
 - **외부 의존성:** 실 카메라·현장 회선은 Tier C(실측). 여기선 합성 프레임으로 경로·정합 검증.
+- **Phase 1 이월 (여기서 처리):**
+  - **원격 Kafka 노출 3수정.** Phase 1은 단일 머신이라 `localhost`로 충분했으나, 원격 엣지가
+    붙으려면 ① 포트 바인딩 `127.0.0.1:9092:9092` → **Tailscale 인터페이스 IP** 바인딩(공인
+    `0.0.0.0` 노출 회피, Tailscale 설치 선행) ② `KAFKA_ADVERTISED_LISTENERS`의 PLAINTEXT 호스트
+    `localhost` → 엣지가 실제 도달하는 주소 ③ ufw `9092 ALLOW Anywhere` → 엣지 소스로 제한.
+    단 docker publish는 DNAT라 ufw INPUT을 상당부분 우회하므로 **실질 통제는 ①의 인터페이스
+    바인딩**이다. 포트만 열면 브로커가 "localhost로 오라"고 답해 실패한다(2단계 연결).
+  - **frame_ref 계약 정합(팀 파급).** 우리 `contracts/common/frame-reference.schema.json`은
+    `capture_timestamp`를 **ISO date-time 문자열**로 정의했는데 HW/v8 §6-9 구현은 **epoch ms
+    정수**다. HW가 `BACKEND_AGENDA §8`에서 "봉투 timestamp(ISO)와 frame_ref(epoch ms) 공존이
+    의도냐"고 질의해 두었고, [`hw-envelope-conformance.md`](hw-envelope-conformance.md) §5에서
+    "Phase 4에서 회신"으로 답했다. **미디어 착수 전에** 어느 쪽으로 정합할지 결정하고 회신한다.
+  - **WS 게이트웨이 외부 노출.** Phase 1 echo는 `127.0.0.1` 바인딩이라 뷰어가 붙지 못한다.
+    뷰어 연결 시 바인딩·인증(WSS)을 함께 정한다.
 - 관련: BE-T-07(미디어 중계)·BE-C-03(frame_ref)·BE-T-08(오버레이 터널).
 
 ### Phase 5 — 가용성 판정기
@@ -207,6 +235,20 @@ Phase 7  디지털 트윈         DT 7건 (좌표 변환·융합·커버리지�
 - **DoD:** LWT/하트비트 타임아웃/지표 침묵을 주입해 online/offline이 세션 우선 규칙대로 판정되고,
   두 평면 불일치 케이스(세션 online·지표 결손 / 세션 offline·지표 존재)가 구분된다.
 - **외부 의존성:** Phase 3 관측 평면 신호(그래서 Phase 3 이후).
+- **Phase 1 이월 (여기서 처리):**
+  - **엣지 1차 판정 ↔ 백엔드 최종 판정의 관계.** HW 브랜치에 `pi/edge/monitor.py`·
+    `edge/availability.py`가 있어 **엣지가 이미 하트비트·LWT·상태 이벤트로 up/offline을 판정**하고
+    Prometheus 텍스트로 노출한다(`BACKEND_AGENDA §10-2`의 임의 진행분). BE-T-04는 "백엔드 단일
+    지점 최종 판정, 업무 평면 우선"이므로 **둘의 관계를 여기서 정리**한다 — 엣지 판정을 신호로
+    받아들이되 최종 판정은 백엔드가 한다는 경계를 명시하고 HW에 회신한다.
+  - **`device_status` 발행 주체(`BACKEND_AGENDA §5`).** HW가 ok/degraded/fault를 자기보고 중이다
+    (판정 기준: 버퍼 적재·폐기·단절·센서 3회 실패 등). 이를 그대로 수용할지, 백엔드가 metric·log
+    에서 파생할지 결정해 회신한다. 상태 3층(자기보고·서버판정·오케스트레이터)의 경계 문제다.
+  - **Phase 1이 흘려보내기만 한 신호들.** `status`(birth/summary/**shutdown**)와 LWT(**death**),
+    `heartbeat`가 이미 파이프라인을 통과해 저장·WS까지 온다. 계획 종료(`reason=graceful_shutdown`)
+    와 급사(`reason=lwt`)가 payload로 구분돼 있어(VZ-U-01) 판정기의 입력이 이미 갖춰져 있다.
+  - **Mosquitto `persistence` 미설정** — 브로커 재시작 시 retained `status`가 소실된다(Phase 0
+    이월). 재접속 스냅샷을 retained가 아니라 백엔드 캐시(BE-T-06)로 가는 정본 결정과 함께 정리.
 - 관련: BE-T-04(가용성)·BE-X-07(제어 잠금).
 
 ### Phase 6 — 상관·감사·명령
@@ -220,6 +262,19 @@ Phase 7  디지털 트윈         DT 7건 (좌표 변환·융합·커버리지�
   되돌리기 어려운 명령이 ACK가 아니라 물리 결과로 확정 표시된다. 감사 조회로 "누가 언제 무엇을"
   질의된다.
 - **외부 의존성:** 진나영 AI-O-02(AI 실패)·AI-R-03(위험 판정) 수신 연동은 계약 기준(가짜 이벤트로 검증).
+- **Phase 1 이월 (여기서 처리):**
+  - **명령 경로는 텔레메트리와 프로토콜이 다르다.** HW 정본은 `common/physical_command.py`이며
+    **구 JSON 4단계 엔진은 폐기**됐다. 명령은 `terminal/<device_id>/downlink|uplink` 위에서
+    **protobuf**(`PhysicalCommandEnvelope`)로 흐르므로 **JSON 봉투 계약이 이를 지배하지 않는다.**
+    Phase 1 ingest는 `terminal/#`을 구독하지 않아(구독 패턴이 4칸이라 3칸 토픽은 배달되지 않음)
+    자연히 격리돼 있다. 여기서 `mk2.command.*` 토픽과 protobuf 계약 정합을 설계한다.
+  - **문자열/열거형 파라미터 지원(`BACKEND_AGENDA §3`).** `sensor_node`의 `set_mode(mode="normal")`·
+    `levee(position="open")`는 문자열 파라미터인데 protobuf 명령은 `map<string,double>`이라
+    **현재 호출할 수 없다.** 명령 스키마에 문자열/열거형 파라미터를 추가해야 한다.
+  - **4단계 stage 값 확인(`BACKEND_AGENDA §7`).** HW가 `accepted|rejected` / `executing|
+    state_changed|completed|failed` + `physical:true|false`를 발행한다. `physical:false`(설정 명령)
+    는 물리 변화 단계가 없으므로 소비자가 `state_changed`를 무한정 기다리지 않게 승격 매핑을
+    확정하고 회신한다.
 - 관련: BE-X-01~05(상관·감사·승격·승인·중계)·BE-A-01/02/04(명령 번역)·BE-Q-02(감사 조회).
 
 ### Phase 7 — 디지털 트윈
@@ -245,10 +300,16 @@ Phase 7  디지털 트윈         DT 7건 (좌표 변환·융합·커버리지�
 - [x] **② 인프라 스택 compose 기동 + 헬스 확인 (Phase 0)** — 완료(2026-09-04). 서버에 7개가 이미
   가동 중이어서 **Kafka만 신규 설치**하고 나머지는 헬스 확인. 8개 전부 헬스 통과.
   보고: [`../../reports/2026-09-04_1620_phase0_인프라기동.md`](../../reports/2026-09-04_1620_phase0_인프라기동.md)
-- [ ] **③ 가짜 발행자로 얇은 파이프라인 관통 (Phase 1)** ← **다음** — 최소 발행자(C) → ingest →
-  Kafka → 저장 확인 → WS push 확인, 그다음 조병현 노드(A) 병행. 착수 전 결정 필요:
-  Kafka `advertised.listeners` 주소·포트 바인딩, 토픽 이름 규약, 브릿지 구현체
-  (Phase 0 보고서 "미결" 절 참조).
+- [x] **③ 가짜 발행자로 얇은 파이프라인 관통 (Phase 1)** — 완료(2026-09-07). 최소 발행자(C)와
+  조병현 노드(A) 양쪽에서 `state`·`status`·`heartbeat`가 ingest(봉투 strict 검증) → Kafka 3토픽 →
+  저장 sink + WS까지 관통. 봉투 불합격은 격리(pytest 음성 대조). 착수 전 결정 항목은 이렇게
+  닫혔다: **토픽 규약** = 채널별 `mk2.telemetry.<채널>`(파티션1·RF1), **브릿지 구현체** = 파이썬
+  직접, **Kafka advertised·포트** = 단일 머신이므로 `localhost`·`127.0.0.1:9092` **유지**(원격
+  노출은 Phase 4로 이월).
+  보고: [`../../reports/2026-09-07_1300_phase1_얇은파이프라인관통.md`](../../reports/2026-09-07_1300_phase1_얇은파이프라인관통.md)
+  / HW 인계: [`hw-envelope-conformance.md`](hw-envelope-conformance.md)
+- [ ] **④ 저장 2축 (Phase 2)** ← **다음** — `store(...)` 인터페이스 뒤를 TSDB로 교체하고 감사·
+  레지스트리 MySQL을 세운다. 아래 Phase 2 항목의 "Phase 1 이월" 참조.
 
 ---
 
