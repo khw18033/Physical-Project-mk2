@@ -59,7 +59,7 @@ Phase 0 시점(2026-09-04) 기준.
 | 서비스 | 외부 | 내부 | 비고 |
 |---|---|---|---|
 | Mosquitto | 1883 | 1883 | 모든 인터페이스. 익명 접속 허용 |
-| **Kafka** | **127.0.0.1:9092** | 9092 | 로컬 전용. Phase 1에서 변경 (§5) |
+| **Kafka** | **127.0.0.1:9092** | 9092 | 로컬 전용(현재 클라이언트가 전부 서버 안). 서버 밖 클라이언트가 생기면 변경 — 예상 시점 Phase 4 (§5) |
 | Kafka (controller) | — | 9093 | KRaft 합의용, 미공개 |
 | Kafka (internal) | — | 9094 | 같은 docker 네트워크 컨테이너용, 미공개 |
 | MySQL | 7858 | 3306 | |
@@ -144,13 +144,31 @@ docker logs --tail 20 capstone_otel_collector
 | `KAFKA_PROCESS_ROLES` | `broker,controller` | KRaft 겸용, ZooKeeper 불필요 | 노드 분리 시 |
 | `KAFKA_CONTROLLER_QUORUM_VOTERS` | `1@localhost:9093` | 투표자가 자기 자신뿐 | 브로커 추가 시 |
 | `KAFKA_LISTENERS` | `PLAINTEXT :9092`<br>`CONTROLLER :9093`<br>`INTERNAL :9094` | 외부 / KRaft 합의 / docker 네트워크 내부 | — |
-| **`KAFKA_ADVERTISED_LISTENERS`** | `PLAINTEXT://localhost:9092`<br>`INTERNAL://kafka:9094` | 브로커가 클라이언트에게 알려주는 자기 주소 | **Phase 1 — 아래 주의 참조** |
+| **`KAFKA_ADVERTISED_LISTENERS`** | `PLAINTEXT://localhost:9092`<br>`INTERNAL://kafka:9094` | 브로커가 클라이언트에게 알려주는 자기 주소 | **서버 밖 클라이언트가 생길 때**(원격 엣지 등) — 예상 Phase 4, 아래 주의 참조 |
 | 복제 인자 4종 | 전부 `1` | 기본값 3이면 내부 토픽 생성이 즉시 실패 | 브로커 추가 시 |
 | `KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS` | `0` | 기본 3000ms 대기가 개발 중 불편 | 운영 전환 시 상향 |
 | `KAFKA_LOG_DIRS` | `/var/lib/kafka/data` | 기본값 `/tmp/...` 회피 | — |
 | `KAFKA_LOG_RETENTION_HOURS` | `168` (7일) | **Kafka는 장기 저장소가 아니다**(원칙 11). 단기 버퍼·단기 replay용 | 디스크·replay 요구에 따라 |
 | `KAFKA_AUTO_CREATE_TOPICS_ENABLE` | `"false"` | 오타 토픽이 자동 생성되면, 발행자는 성공했다고 믿는데 아무도 안 읽는 상황이 생긴다 | 유지 권장 |
-| `ports` | `127.0.0.1:9092:9092` | Phase 0은 로컬 헬스체크만 필요 | **Phase 1** |
+| `ports` | `127.0.0.1:9092:9092` | Phase 0은 로컬 헬스체크, Phase 1은 Kafka에 붙는 코드가 전부 서버에 있어 노출 불필요 | **서버 밖 클라이언트가 생길 때** — 예상 Phase 4 |
+
+### 토픽 (Phase 1에서 생성)
+
+`AUTO_CREATE_TOPICS_ENABLE=false`라 명시적으로 만든다. 현재 존재하는 MK2 토픽:
+
+| 토픽 | 파티션 | 복제 | 무엇 |
+|---|---|---|---|
+| `mk2.telemetry.state` | 1 | 1 | 계측값(수위 등) |
+| `mk2.telemetry.status` | 1 | 1 | 등록·상태 요약·종료·LWT |
+| `mk2.telemetry.heartbeat` | 1 | 1 | 생존 신호 |
+
+채널별 3토픽이며 **장치별·구역별 토픽이 아니다** — `zone_id`·`source_id`는 봉투 안에 있다.
+파티션 키는 `source_id`(장치별 순서 보장). 이름은 점 구분 소문자이며 **언더스코어를 섞지 않는다**
+(생성 시 뜨는 `.`/`_` 경고는 둘을 섞을 때의 충돌을 알리는 것이라 점만 쓰는 현 규약에서는 무해).
+
+```bash
+docker exec capstone_kafka /opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list
+```
 
 ### ⚠️ 외부에서 Kafka에 붙으려면 — 포트만 열어서는 안 된다
 
@@ -165,9 +183,39 @@ Kafka 연결은 2단계다.
 `KAFKA_ADVERTISED_LISTENERS`가 지금 `localhost:9092`라서, 외부 클라이언트가 서버 주소로 붙어도
 브로커가 **"localhost로 오라"**고 답하고 클라이언트는 자기 자신을 찾아가 실패한다.
 
-**Phase 1에서 엣지를 붙이려면 둘 다 바꿔야 한다:**
-1. `ports` → `9092:9092`
-2. `KAFKA_ADVERTISED_LISTENERS`의 `PLAINTEXT` 호스트 → 엣지가 실제로 도달할 수 있는 서버 주소
+#### 지금 이 값인 이유 (Phase 1 시점의 상태)
+
+Phase 1에서는 그대로 두었다. 근거: Kafka에 붙는 코드(`ingest`·저장 sink·WS 게이트웨이)가 **전부
+서버 안**에 있고, 바깥에서 오는 것은 MQTT를 쓰는 발행자뿐이었다. 발행자는 Kafka를 모르므로
+**Kafka는 서버 localhost 전용으로 충분**했고, 이 구성으로 실노드 관통·pytest 회귀가 통과했다
+([`../reports/2026-09-07_1300_phase1_얇은파이프라인관통.md`](../reports/2026-09-07_1300_phase1_얇은파이프라인관통.md)).
+
+> **이건 "영구 고정"이 아니라 "지금 조건에서는 불필요"라는 뜻이다.** 정본 아키텍처(§5-1·§6-1)는
+> 엣지↔서버 Kafka 백본을 전제하므로 **노출 변경은 예정된 일**이다. 이 절은 변경을 막는 것이
+> 아니라 **바꿀 때 안전하게 바꾸는 방법**을 적어둔 것이다.
+
+**바꿔야 하는 조건 — 페이즈 번호가 아니라 이 조건이 기준이다.** 아래 중 하나라도 생기면 시점이
+Phase 4보다 이르더라도 바꾼다(그때 이 문서를 갱신한다).
+
+- 원격 엣지가 Kafka에 직접 붙는다 (가장 흔한 경우, 예상 Phase 4)
+- 다른 파트(AI·가시화)의 소비자가 **서버 밖에서** Kafka에 붙어야 한다
+- 브로커나 소비자를 다른 호스트로 옮긴다
+
+반대로 **서버 안에서만 붙는 소비자가 늘어나는 것은 변경 사유가 아니다** — 컨슈머 그룹만 추가하면
+된다(Phase 2의 TSDB writer, Phase 5·6의 소비자 등이 여기 해당한다).
+
+#### 바꿀 때 정확히 이 3가지 (예상 시점: Phase 4, 원격 엣지·Tailscale)
+
+포트만 열어서는 안 되고, **열더라도 모든 인터페이스에 열면 안 된다**(현재 PLAINTEXT·인증 없음).
+
+1. **`ports` → Tailscale 인터페이스 IP에 바인딩** (`<tailscale-ip>:9092:9092`). `9092:9092`는
+   공인 IP를 포함한 전 인터페이스 노출이라 쓰지 않는다. Tailscale 설치가 선행돼야 한다.
+2. **`KAFKA_ADVERTISED_LISTENERS`의 `PLAINTEXT` 호스트** → 엣지가 실제로 도달하는 그 주소
+   (위 1의 주소). 이걸 안 바꾸면 포트를 열어도 위 2단계 연결에서 실패한다.
+3. **ufw를 엣지 소스로 제한.** 단 **docker publish는 DNAT라 ufw INPUT을 상당부분 우회**하므로,
+   실질적인 통제는 3이 아니라 **1의 인터페이스 바인딩**이다. ufw는 보조 수단으로 본다.
+
+(현재 ufw에 `9092 ALLOW Anywhere` 규칙이 있으나 바인딩이 `127.0.0.1`이라 실제 노출은 없다.)
 
 ### 데이터 디렉터리 권한
 
