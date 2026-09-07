@@ -16,7 +16,7 @@ Wants=network-online.target
 [Service]
 Type=simple
 User=physical
-WorkingDirectory=/home/physical/Physical-Project-mk2/pi
+WorkingDirectory=/home/physical/hw/pi
 ExecStart=/home/physical/venv/bin/python3 -u -m robot.robot_node
 
 EnvironmentFile=-/etc/hw-node.env

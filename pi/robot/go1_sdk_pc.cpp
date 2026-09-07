@@ -161,6 +161,14 @@ public:
     if(!resolve_ipv4_sockaddr(unity_host_in,unity_waypoint_tx_port,unity_waypoint_addr))
     {std::fprintf(stderr,"[WARN] waypoint addr failed\n");}
 
+    // 5009: 실로봇 이동 여부(state_change) — Unity 가 이 신호로 driveByState 를 켜서
+    // 자율/텔레옵 이동 중 가상 GO1 이 실로봇을 따라 움직이게 한다(순간이동 방지).
+    unity_statechange_port=5009;
+    sock_tx_statechange=make_udp_sender();
+    if(!resolve_ipv4_sockaddr(unity_host_in,unity_statechange_port,unity_statechange_addr))
+    {std::fprintf(stderr,"[WARN] statechange addr failed\n");}
+    sc_inited=false; sc_last=false; sc_last_time=0.0;
+
     unity_path_port=15110;
     sock_rx_path=make_udp_receiver(unity_path_port);
     path_active=false; current_waypoint_idx=0; current_path_id=-1;
@@ -671,6 +679,27 @@ private:
     sendto(sock_tx_cmd,msg,strlen(msg),0,(sockaddr*)&unity_cmd_addr,sizeof(unity_cmd_addr));
   }
 
+  // 실로봇 이동 여부를 Unity(포트 5009)로 알린다. Unity 는 state_change=true 일 때만
+  // driveByState 를 켜므로, 이동 중 이 신호가 없으면 가상 GO1 이 안 따라오고 도착 때 순간이동한다.
+  // 변화 시 즉시, 그 외엔 0.3s 하트비트로 보낸다. JSON 에는 Unity 파서가 요구하는
+  // "state_change" 와 "motion_active" 필드를 반드시 포함한다.
+  void send_state_change(bool moving,int mode,float vx,float vy,float wz)
+  {
+    if(sock_tx_statechange<0) return;
+    double t=std::chrono::duration_cast<std::chrono::duration<double>>(
+      std::chrono::steady_clock::now().time_since_epoch()).count();
+    if(sc_inited && moving==sc_last && (t-sc_last_time)<0.3) return;
+    sc_last=moving; sc_last_time=t; sc_inited=true;
+    const char* b = moving?"true":"false";
+    char msg[256];
+    std::snprintf(msg,sizeof(msg),
+      "{\"state_change\": %s, \"motion_active\": %s, \"source\": \"go1_sdk_pc\", "
+      "\"mode\": %d, \"vx_cmd\": %.3f, \"vy_cmd\": %.3f, \"wz_cmd\": %.3f}",
+      b,b,mode,vx,vy,wz);
+    sendto(sock_tx_statechange,msg,strlen(msg),0,
+           (sockaddr*)&unity_statechange_addr,sizeof(unity_statechange_addr));
+  }
+
   void do_yaw_zero_reset_only(double raw_yaw)
   {
     yaw0=raw_yaw; yaw0_initialized=true;
@@ -692,6 +721,12 @@ private:
   int unity_waypoint_tx_port;
   int sock_tx_waypoint;
   sockaddr_in unity_waypoint_addr;
+
+  int unity_statechange_port;
+  int sock_tx_statechange;
+  sockaddr_in unity_statechange_addr;
+  bool sc_inited=false, sc_last=false;
+  double sc_last_time=0.0;
 
   int unity_path_port,sock_rx_path;
   int chunk_pid=-1, chunk_total=0;
@@ -930,6 +965,8 @@ void Custom::RobotControl()
     int estop2=(cmd.mode==1)?1:0; seq++;
     send_unity_state(yaw_unity,cmd.velocity[0],cmd.velocity[1],cmd.yawSpeed,estop2,cmd.mode);
     send_unity_cmd(cmd.velocity[0],cmd.velocity[1],cmd.yawSpeed,estop2);
+    send_state_change((cmd.mode==2)&&(std::fabs(cmd.velocity[0])>0.01f||std::fabs(cmd.velocity[1])>0.01f||std::fabs(cmd.yawSpeed)>0.01f),
+                      cmd.mode,cmd.velocity[0],cmd.velocity[1],cmd.yawSpeed);
     return;
   }
 
@@ -988,6 +1025,8 @@ void Custom::RobotControl()
   int estop2=(cmd.mode==1)?1:0; seq++;
   send_unity_state(yaw_unity,cmd.velocity[0],cmd.velocity[1],cmd.yawSpeed,estop2,cmd.mode);
   send_unity_cmd(cmd.velocity[0],cmd.velocity[1],cmd.yawSpeed,estop2);
+  send_state_change((cmd.mode==2)&&(std::fabs(cmd.velocity[0])>0.01f||std::fabs(cmd.velocity[1])>0.01f||std::fabs(cmd.yawSpeed)>0.01f),
+                    cmd.mode,cmd.velocity[0],cmd.velocity[1],cmd.yawSpeed);
 
   // 경로 완료 알림 (mode=99)
   if(path_done_notify)

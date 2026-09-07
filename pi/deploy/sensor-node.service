@@ -19,7 +19,7 @@ Wants=network-online.target
 [Service]
 Type=simple
 User=physical
-WorkingDirectory=/home/physical/Physical-Project-mk2/pi
+WorkingDirectory=/home/physical/hw/pi
 ExecStart=/home/physical/venv/bin/python3 -u -m sensor.sensor_node
 
 # 현장 설정 (없어도 기동 — 앞의 '-')
