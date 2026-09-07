@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
-  activateMission,
+  acceptProposal,
   displayMission,
   rejectProposal,
   useMission,
@@ -59,6 +59,16 @@ function humanMarks(trace: readonly ScenarioEvent[]) {
   return trace.filter((event) => event.producedBy === 'human');
 }
 
+/**
+ * AI 가 만든 것의 줄 (260907 · 9단계 · `VZ-G-01`). 사람 줄과 **같은 축**에 찍힌다 —
+ * 「이 임무는 누가 만들었나 → 누가 받아들였나」가 한 화면에서 위아래로 읽힌다.
+ *
+ * 빈 줄로 두지 않는다. 없으면 「없다」고 적는다 — 사람 줄과 같은 규칙이다.
+ */
+function aiMarks(trace: readonly ScenarioEvent[]) {
+  return trace.filter((event) => event.producedBy === 'ai');
+}
+
 function Milestones({ view, phase, milestoneStatuses, assignments, onAssign, onOpen, planApproval }: {
   view: MissionView;
   phase: 'proposal' | 'playing' | 'idle';
@@ -81,16 +91,24 @@ function Milestones({ view, phase, milestoneStatuses, assignments, onAssign, onO
   // PlanApproval(근거 4층 + 승인·거부)이 들어오고, 단독 빌드는 로컬 재생기용 폴백이 들어온다 —
   // **같은 자리**다. 근거의 「구간별 계획」이 「아래 마일스톤과 같음」이라고 적으므로
   // 카드는 목록보다 위에 있어야 한다.
+  // 모델이 낸 제안은 **재생할 것이 없다** — 대본이 아니라 계획이라 사건이 0건이다.
+  // 그래서 버튼 문구가 다르다. 「재생 시작」이라고 적어 두면 눌러도 아무 일이 없고,
+  // 그때 사용자는 승인이 실패했다고 읽는다.
+  const aiProposal = mission.proposal?.origin === 'ai' ? mission.proposal : null;
   const approvalSlot = planApproval ?? (mission.proposal !== null && <div className="proposal-fallback">
     {/* 단독 빌드(게이트웨이 없음)의 승인 자리 — 통합 앱에서는 PlanApproval(VZ-U-07)이 들어온다. */}
-    <p>대본 제안 <code>{mission.proposal.missionId}</code> — 승인해야 재생이 시작됩니다 (VZ-U-07 · 로컬 재생기)</p>
-    <button onClick={() => activateMission(mission.proposal!.missionId, 'local')}>승인 — 재생 시작</button>
+    <p>{aiProposal ? 'AI 제안' : '대본 제안'} <code>{mission.proposal.missionId}</code> — 승인해야 {aiProposal ? '캔버스에 올라갑니다' : '재생이 시작됩니다'} (VZ-U-07 · 로컬 재생기)</p>
+    {/* **승인의 문은 하나다** (`acceptProposal`). 종류마다 부르는 곳이 다르면 언젠가 한쪽만 검사가 붙는다. */}
+    <button onClick={() => acceptProposal('local')}>{aiProposal ? '승인 — 캔버스에 올린다' : '승인 — 재생 시작'}</button>
     <button onClick={() => rejectProposal()}>거부</button>
   </div>);
   const showApproval = phase === 'proposal' || planApproval !== undefined;
   return <div className="milestone-layout"><UtterancePanel fallbackText={view.utteranceText} /><section className="milestone-panel"><h2>마일스톤 · {view.milestones.length}건</h2>
     {showApproval && <div className="proposal-card">
-      {phase === 'proposal' && <p className="proposal-note"><b>제안 상태</b> — 대본 {view.missionId} 「{view.label}」. 승인 전에는 아무것도 재생되지 않습니다{mission.proposal?.keywords.length ? <small>맞은 키워드: {mission.proposal.keywords.join(' · ')}</small> : null}</p>}
+      {phase === 'proposal' && (aiProposal
+        ? <p className="proposal-note proposal-ai"><b>AI 제안</b> — <code>{aiProposal.provenance.model}</code> 이 만든 임무 {view.missionId} 「{view.label}」. 승인 전에는 아무것도 실행되지 않습니다
+            <small>규칙 {aiProposal.provenance.rules?.length ?? 0}개 · 프롬프트 {aiProposal.provenance.promptDigest ?? '없음(스텁)'} · 근거는 발화 패널에 폅니다</small></p>
+        : <p className="proposal-note"><b>제안 상태</b> — 대본 {view.missionId} 「{view.label}」. 승인 전에는 아무것도 재생되지 않습니다{mission.proposal?.origin === 'script' && mission.proposal.keywords.length ? <small>맞은 키워드: {mission.proposal.keywords.join(' · ')}</small> : null}</p>)}
       {approvalSlot}
     </div>}
     <div className="milestone-list">{view.milestones.map((item) => <button key={item.id} className={`milestone state-${milestoneStatuses[item.id] ?? 'pending'}`} onClick={() => onOpen(item.id)} onDragOver={(event) => event.preventDefault()} onDrop={(event) => onAssign(item.id, event.dataTransfer.getData('text/plain'))}><b>{item.id}</b><strong>{item.title}</strong><span>{(assignments[item.id] ?? item.assignedTargets).join(' · ') || '미배정'}</span><small>클릭 → 태스크 그래프</small></button>)}</div></section>
@@ -118,14 +136,23 @@ function ReplayControls({ second, following, playing, onChange, onFollow, view, 
 }) {
   const shown = Math.min(view.durationSec, Math.round(second));
   const human = humanMarks(trace);
+  const ai = aiMarks(trace);
+  /**
+   * 축의 길이. **0으로 나누지 않는다** — 모델이 낸 임무는 `durationSec` 이 0이다
+   * (재생할 사건이 없다). 나눠 버리면 눈금 위치가 전부 `NaN%` 가 되고, 그것은 CSS 에서
+   * 조용히 무시되어 「눈금이 왜 안 보이지」로 끝난다.
+   */
+  const span = Math.max(1, view.durationSec);
   return <section className="replay-controls"><div><button onClick={() => onChange(0)}>◀◀</button><button onClick={() => onChange(Math.max(0, shown - 1))}>◀</button><button onClick={() => onChange(Math.min(view.durationSec, shown + 1))}>▶</button><b>{shown}s / {view.durationSec}s</b>
     {/* 재생 중에는 머리를 따라가고, 뒤로 끌면 그 시점을 그린다. 재생이 끝나면 그냥 되감기 도구다. */}
     {playing && (following
       ? <b className="follow-live">● 따라가는 중</b>
       : <button className="follow-live" onClick={onFollow}>▶ 따라가기 (live)</button>)}
-  </div><input aria-label="임무 재생 시각" type="range" min="0" max={view.durationSec} value={shown} onChange={(event) => onChange(Number(event.target.value))} /><div className="timelines">{tasks.map((task) => <div key={task.id}><code>{task.id}</code><span className="timeline">{timelineSegments(view, trace, task.id).map((segment, index) => <em key={`${segment.start}-${index}`} className={`state-${segment.status}`} style={{ width: `${(segment.end - segment.start) / view.durationSec * 100}%` }} />)}<i style={{ left: `${shown / view.durationSec * 100}%` }} /></span></div>)}
+  </div><input aria-label="임무 재생 시각" type="range" min="0" max={view.durationSec} value={shown} onChange={(event) => onChange(Number(event.target.value))} /><div className="timelines">{tasks.map((task) => <div key={task.id}><code>{task.id}</code><span className="timeline">{timelineSegments(view, trace, task.id).map((segment, index) => <em key={`${segment.start}-${index}`} className={`state-${segment.status}`} style={{ width: `${(segment.end - segment.start) / span * 100}%` }} />)}<i style={{ left: `${shown / span * 100}%` }} /></span></div>)}
+    {/* AI 줄 — 이 임무를 무엇이 만들었나 (260907 · `VZ-G-01` 역추적). 사람 줄 바로 위다. */}
+    <div className="timeline-ai"><code>AI</code><span className="timeline">{ai.map((event) => <b key={event.seq} className="ai-mark" style={{ left: `${Math.min(1, event.atSec / span) * 100}%` }} title={`T+${Math.round(event.atSec)}s · ${event.kind} → ${event.nodeId} (produced_by=ai · ${String((event.payload as { model?: unknown } | undefined)?.model ?? '모델 미상')})`} />)}<i style={{ left: `${shown / span * 100}%` }} /></span><small>{ai.length === 0 ? '생성 기록 없음 (대본에서 읽은 임무입니다)' : `${ai.length}건 · produced_by=ai`}</small></div>
     {/* 사람 조작 줄 — 없으면 「아직 없다」고 적는다. 빈 줄은 「기록을 안 한다」로 읽힌다. */}
-    <div className="timeline-human"><code>사람</code><span className="timeline">{human.map((event) => <b key={event.seq} className="human-mark" style={{ left: `${Math.min(1, event.atSec / view.durationSec) * 100}%` }} title={`T+${Math.round(event.atSec)}s · ${event.kind} → ${event.nodeId} (produced_by=human)`} />)}<i style={{ left: `${shown / view.durationSec * 100}%` }} /></span><small>{human.length === 0 ? '조작 기록 없음' : `${human.length}건 · produced_by=human`}</small></div></div></section>;
+    <div className="timeline-human"><code>사람</code><span className="timeline">{human.map((event) => <b key={event.seq} className="human-mark" style={{ left: `${Math.min(1, event.atSec / span) * 100}%` }} title={`T+${Math.round(event.atSec)}s · ${event.kind} → ${event.nodeId} (produced_by=human)`} />)}<i style={{ left: `${shown / span * 100}%` }} /></span><small>{human.length === 0 ? '조작 기록 없음' : `${human.length}건 · produced_by=human`}</small></div></div></section>;
 }
 
 /**

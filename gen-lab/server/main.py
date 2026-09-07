@@ -33,6 +33,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import time
@@ -369,6 +370,44 @@ def _extract_json(text: str) -> "tuple[Optional[Any], Optional[str]]":
     return None, "괄호가 닫히지 않았습니다 (n_predict 에서 잘렸을 수 있습니다)"
 
 
+def _apply_caller_values(mission: Any, request: "GenerateRequest") -> "tuple[Any, List[Dict[str, Any]]]":
+    """`mission_id` 와 `utterance` 를 **부르는 쪽 값으로 덮어쓴다** (9단계 · §6 「같이 고칠 것」).
+
+    ## 왜 모델에게 맡기지 않나
+
+    이 둘은 부르는 쪽이 이미 아는 값이다(6단계 §9 · `audio_ref` 와 같은 성질). 프롬프트가
+    「그대로 옮겨 적어라」로 부탁하고 있었고, **되받아 적을 기회가 있으면 언젠가 틀린다** —
+    7단계 A 판 1건이 `utterance.confidence` 를 1 대신 **5** 로 적어 계약을 어겼다
+    (문법은 구조와 타입만 고정하고 `maximum` 같은 값 제약은 못 건다).
+
+    여기서 덮어쓰면 그 실패 유형이 **원천에서 사라진다.** 계약상 required 라 문법에서는
+    그대로 두고(모델은 여전히 낸다), 우리가 쓰는 값만 부르는 쪽 것으로 바꾼다.
+
+    ## 덮어쓴 사실을 버리지 않는다
+
+    「고쳐 놓고 안 고친 척」하지 않는다. 모델이 무엇을 적었는지를 그대로 남기고, 그것이
+    `id_obeyed` 같은 축의 원천이 된다. 조용히 고치면 「모델이 지시를 지켰는가」를 영영
+    못 재게 된다 — `run-baseline` 이 채점 짝을 맞추면서도 `id_obeyed` 를 따로 남긴 것과
+    같은 규칙이다.
+    """
+    overwritten: List[Dict[str, Any]] = []
+    if not isinstance(mission, dict):
+        return mission, overwritten
+    if request.mission_id is not None:
+        before = mission.get("mission_id")
+        if before != request.mission_id:
+            overwritten.append({"field": "mission_id", "model": before, "used": request.mission_id})
+        mission["mission_id"] = request.mission_id
+    if request.utterance_meta is not None:
+        before = mission.get("utterance")
+        if before != request.utterance_meta:
+            overwritten.append({"field": "utterance", "model": before, "used": request.utterance_meta})
+        # 부르는 쪽 객체를 그대로 물리지 않는다 — 응답을 조립하다 요청을 고치면
+        # 「무엇을 받았는가」가 흔들린다.
+        mission["utterance"] = json.loads(json.dumps(request.utterance_meta))
+    return mission, overwritten
+
+
 @app.post("/generate/mission")
 def generate_mission(request: GenerateRequest) -> JSONResponse:
     """발화 하나 → 임무 객체.
@@ -388,6 +427,9 @@ def generate_mission(request: GenerateRequest) -> JSONResponse:
     if not usable:
         # 엔진이 없다 — 스텁으로 내려간다. **정답셋을 베껴 오지 않는다.**
         mission = _fixed_mission(request.utterance)
+        # 덮어쓰기는 엔진 경로와 **같은 함수**다. 스텁만 다른 값을 내면 화면이 스텁에서
+        # 잘 돌다가 엔진에서 깨지고, 그 차이를 아무도 못 본다.
+        mission, overwritten = _apply_caller_values(mission, request)
         errors = _validate(mission, CONTRACTS["mission.schema.json"])
         body: Dict[str, Any] = {
             "mission": mission,
@@ -406,6 +448,12 @@ def generate_mission(request: GenerateRequest) -> JSONResponse:
                 # **판을 응답이 말한다.** 이름으로만 적으면 이름을 바꾼 순간 기록이 거짓말한다.
                 "node_kinds_given": request.node_kinds,
                 "grammar_enforced": False,
+                # 화면(§6)이 생성 근거에 싣는 셋. **스텁에는 프롬프트가 없다** —
+                # 빈 목록이 아니라 null 이다. 0 과 「해당 없음」을 가르는 이 저장소의 규칙.
+                "rules_applied": None,
+                "prompt_digest": None,
+                "prompt_chars": None,
+                "overwritten": overwritten,
             },
         }
         # 스텁의 고정 응답이 계약을 어기면 그건 계약이 바뀐 것이다. 숨기지 않고 500 으로 낸다.
@@ -447,6 +495,9 @@ def generate_mission(request: GenerateRequest) -> JSONResponse:
         )
 
     mission, parse_error = _extract_json(output.text)
+    # **검증은 덮어쓴 뒤에 한다.** 화면이 받는 것이 덮어쓴 객체이므로, 그 앞의 것을 재면
+    # 「통과했다」가 화면이 든 것과 다른 객체의 이야기가 된다.
+    mission, overwritten = _apply_caller_values(mission, request)
     errors = (
         [f"$: 모델 출력을 JSON 으로 읽지 못했습니다 — {parse_error}"]
         if mission is None else _validate(mission, CONTRACTS["mission.schema.json"])
@@ -469,6 +520,21 @@ def generate_mission(request: GenerateRequest) -> JSONResponse:
             "examples_given": len(request.examples),
             # **판을 응답이 말한다.** 이름으로만 적으면 이름을 바꾼 순간 기록이 거짓말한다.
             "node_kinds_given": request.node_kinds,
+            # 화면(§6)이 생성 근거에 싣는 셋 — 어느 규칙이 붙었는가 · 어느 프롬프트였는가.
+            #
+            # **규칙 목록은 `rules_for()` 가 준 그대로다.** 화면이 따로 적으면 모델이 지킨
+            # 규칙과 사람이 본 규칙이 갈라지고, 그 순간 「역추적이 맨 위까지 닿는다」
+            # (`VZ-G-01`)가 거짓이 된다. 그래서 여기서 한 번 더 만들지 않고 같은 함수를
+            # 같은 인자로 부른다.
+            "rules_applied": prompt_builder.rules_for(request.equipment, request.node_kinds),
+            # 프롬프트 지문. 문법 지문과 같은 성질이다 — 내용을 다 싣지 않고 「같은 것이었나」
+            # 만 답할 수 있으면 된다. 원문은 프롬프트를 만드는 코드가 커밋에 있다.
+            "prompt_digest": hashlib.sha256(
+                (built["system"] + "\n" + built["user"]).encode("utf-8")
+            ).hexdigest()[:16],
+            "prompt_chars": len(built["system"]) + len(built["user"]),
+            # 부르는 쪽 값으로 덮어쓴 자리. 비어 있으면 모델이 그대로 옮겨 적은 것이다.
+            "overwritten": overwritten,
             "load_sec": output.load_sec,
             "prompt_tokens": output.prompt_tokens,
             "completion_tokens": output.completion_tokens,

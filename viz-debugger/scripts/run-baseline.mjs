@@ -296,10 +296,17 @@ for (const mission of targets) {
     writeFileSync(join(outRoot, 'raw', `${mission.mission_id}__v${index}.json`), JSON.stringify({ record, mission: result?.mission ?? null }, null, 2), 'utf8');
 
     if (result?.mission != null) {
-      // 채점기는 mission_id 로 짝을 찾는다. 모델이 식별자를 안 옮겨 적었어도 그 건을
-      // 잃지 않도록 여기서 맞춘다 — **식별자는 애초에 부르는 쪽이 준 값이다.**
-      // 지켰는지 여부는 `id_obeyed` 로 따로 남는다: 고쳐 놓고 안 고친 척하지 않는다.
-      record.id_obeyed = result.mission.mission_id === mission.mission_id;
+      // 채점기는 mission_id 로 짝을 찾는다. **식별자는 애초에 부르는 쪽이 준 값이므로**
+      // 9단계부터는 서비스가 응답을 조립할 때 이미 덮어쓴다 (`_apply_caller_values`) —
+      // 여기서 다시 맞출 것이 없다. 지켰는지 여부는 서비스가 남긴 `overwritten` 이
+      // 답한다: 고쳐 놓고 안 고친 척하지 않는다.
+      //
+      // 8단계까지의 실행에는 그 자리가 없다. 그때는 화면 쪽 비교가 유일한 근거였으므로
+      // 없으면 그 비교로 물러선다 — 옛 기록의 숫자가 지금 규칙 때문에 바뀌면 안 된다.
+      const overwritten = result.extra?.overwritten;
+      record.id_obeyed = Array.isArray(overwritten)
+        ? !overwritten.some((entry) => entry.field === 'mission_id')
+        : result.mission.mission_id === mission.mission_id;
       writeFileSync(
         join(variantDir, `${mission.mission_id}.json`),
         JSON.stringify({ ...result.mission, mission_id: mission.mission_id }, null, 2),

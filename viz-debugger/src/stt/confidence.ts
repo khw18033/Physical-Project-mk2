@@ -238,3 +238,24 @@ export function toUtterance(result: SttResult, text: string = result.text): Utte
     blocked: null,
   };
 }
+
+/**
+ * **저작된 문장** → 계약의 `utterance` (260907 · 9단계).
+ *
+ * 사람이 직접 타이핑한 문장에는 인식이 없다. 대본의 `engine: 'script'` 가 같은 성질이고
+ * (「이 문장은 인식이 아니라 저작이다」 · `scenarios/types.ts`), 그때 `confidence` 는
+ * **정의상 1**이고 `audio_ref` 는 null 이다 — 잰 값이 아니라 인식 단계가 없다는 뜻이다.
+ *
+ * `confidence_signals` 를 **넣지 않는다.** 계약이 그 자리를 선택 필드로 둔 이유가 정확히
+ * 이것이다 — 저작된 문장에는 엔진이 준 수치가 없고, `null` 셋을 채워 넣으면 「엔진이
+ * 못 준 값」과 「엔진이 없는 경우」가 같은 모양이 된다.
+ *
+ * 이 함수가 `toUtterance` 옆에 있는 이유: 계약이 「자리를 채우는 규칙은
+ * `stt/confidence.ts` 한 곳」이라고 적어 두었다. 저작 경로만 다른 파일로 새면 그 문장이
+ * 거짓이 된다.
+ */
+export type AuthoredUtterance = { audio_ref: null; text: string; engine: string; confidence: 1 };
+
+export function authoredUtterance(text: string, engine: string): AuthoredUtterance {
+  return { audio_ref: null, text, engine, confidence: 1 };
+}

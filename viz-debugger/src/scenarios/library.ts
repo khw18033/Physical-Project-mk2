@@ -11,10 +11,10 @@
  * 매칭은 matcher.ts 하나**를 같이 쓴다. 아래 기동 검사가 목록과 실물의 어긋남을 잡는다.
  */
 
-import legacySidecar from '../../scenarios/MSN-260826-01.match.json';
-import script01 from '../../scenarios/MSN-260831-01.json';
-import script02 from '../../scenarios/MSN-260831-02.json';
-import script03 from '../../scenarios/MSN-260831-03.json';
+import legacySidecar from '../../scenarios/MSN-260826-01.match.json' with { type: 'json' };
+import script01 from '../../scenarios/MSN-260831-01.json' with { type: 'json' };
+import script02 from '../../scenarios/MSN-260831-02.json' with { type: 'json' };
+import script03 from '../../scenarios/MSN-260831-03.json' with { type: 'json' };
 import { LEGACY_ID, SCRIPT_IDS } from './manifest.ts';
 import type { ScriptLibraryEntry, ScriptScenario } from './types.ts';
 

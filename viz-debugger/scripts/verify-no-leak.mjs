@@ -34,7 +34,7 @@
 // 반대쪽도 막는다 — 정답의 장비가 목록에서 빠지면 「정답을 쓰지 말라」고 말한 셈이 된다.
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const vizRoot = join(dirname(fileURLToPath(import.meta.url)), '..');
 const repoRoot = join(vizRoot, '..');
@@ -232,6 +232,60 @@ let equipmentLine = null;
   }
 }
 
+// ── 6. 화면이 만드는 예시가 측정 경로와 같은가 (260907 · 9단계) ────────────────
+//
+// 9단계에 **예시를 싣는 경로가 둘이 됐다.** 측정은 정답셋(snake_case)에서 만들고, 화면은
+// 대본 라이브러리(camelCase)에서 만든다 — 원천의 표기가 달라 함수를 공유할 수 없었다.
+//
+// 그러면 두 벌이 조용히 갈라지는 자리가 하나 생긴다. **주석으로 「같다」고 적지 않고
+// 여기서 실제로 만들어 대조한다.** 갈라지면 화면은 표가 설명하지 못하는 조건으로 돌게
+// 되고, 그때 「화면이 왜 표보다 잘/못하지」에 답이 없다.
+//
+// 그리고 화면에도 leave-one-out 이 걸려 있는지 본다 — 화면의 시연 문장이 곧 대본의
+// 기준 문장이라, 맞은 편을 예시로 실으면 **정답을 주고 정답을 맞히라고 하는 것**이 된다.
+{
+  const { SCRIPT_LIBRARY } = await import(pathToFileURL(join(vizRoot, 'src', 'scenarios', 'library.ts')).href);
+  const { examplesForUtterance, scriptAsExample } = await import(
+    pathToFileURL(join(vizRoot, 'src', 'generate', 'fewshot.ts')).href
+  );
+
+  for (const mission of gold) {
+    const entry = SCRIPT_LIBRARY.find((item) => item.missionId === mission.mission_id);
+    if (!entry?.script) {
+      failures.push(`정답셋의 ${mission.mission_id} 이 대본 라이브러리에 없다 — 화면은 이 편을 예시로 실을 수 없다`);
+      continue;
+    }
+    const fromScreen = JSON.stringify(scriptAsExample(entry.script));
+    const fromMeasurement = JSON.stringify(asExample(mission));
+    if (fromScreen !== fromMeasurement) {
+      failures.push(
+        `화면과 측정 경로의 예시가 다르다 (${mission.mission_id}) — 두 벌이 갈라졌다.\n`
+        + `      화면: ${fromScreen.slice(0, 200)}\n      측정: ${fromMeasurement.slice(0, 200)}`,
+      );
+    }
+  }
+
+  // 화면도 맞은 편을 뺀다.
+  const target = gold[0].mission_id;
+  const shown = examplesForUtterance(SCRIPT_LIBRARY, target).map((example) => example.mission_id);
+  if (shown.includes(target)) {
+    failures.push(`화면이 맞은 편(${target})을 예시로 싣는다 — 정답을 주고 정답을 맞히라고 하는 것이다`);
+  }
+  // 옛 편은 애초에 안 실린다 — 그 편의 장소(415호)가 지금 지도에 없다.
+  const legacy = SCRIPT_LIBRARY.filter((item) => item.world === 'legacy').map((item) => item.missionId);
+  const all = examplesForUtterance(SCRIPT_LIBRARY, null).map((example) => example.mission_id);
+  for (const id of legacy) {
+    if (all.includes(id)) failures.push(`화면이 옛 편(${id})을 예시로 싣는다 — 지도에 없는 장소를 모델에게 쥐여 준다`);
+  }
+
+  // 대조군 — 빼지 않는 사본은 반드시 잡혀야 한다.
+  const notFiltered = SCRIPT_LIBRARY
+    .filter((item) => item.world === 'registry' && item.script !== null)
+    .map((item) => item.missionId);
+  if (!notFiltered.includes(target)) failures.push('화면 예시 대조군을 만들지 못했다 — 이 검사는 무의미하다');
+  else controls.push('화면 예시에서 맞은 편을 빼지 않은 사본');
+}
+
 if (failures.length) {
   console.error(`❌ verify:no-leak\n- ${failures.join('\n- ')}`);
   process.exit(1);
@@ -239,6 +293,7 @@ if (failures.length) {
 console.log(`✅ leave-one-out — 정답셋 ${gold.length}편, 예시는 ${allowedExampleCounts(gold.length).join('편 또는 ')}편이고 채점 대상 편은 어느 쪽에서도 빠진다`);
 console.log('✅ 실행 기록의 examples_used 에 자기 자신이 없다 — 함수가 아니라 남은 기록을 봤다');
 console.log('✅ 예시를 고르는 것은 부르는 쪽이다 — 서비스는 정답셋을 열지 않는다');
+console.log('✅ 화면이 만드는 예시가 측정 경로의 예시와 글자까지 같다 — 화면도 맞은 편을 뺀다 (leave-one-out)');
 if (equipmentLine !== null) console.log(`✅ ${equipmentLine} — 목록이 채점 어휘보다 넓다`);
 console.log(`✅ 대조군 ${controls.length}건 — ${controls.join(' · ')}`);
 for (const note of notes) console.log(`   · ${note}`);

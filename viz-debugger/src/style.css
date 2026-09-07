@@ -303,3 +303,44 @@ b.follow-live{cursor:default}
 .obs__actions{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:10px}
 .obs__actions button{padding:4px 9px;font-size:12px}
 .obs__actions small{color:#5d6b7a}
+
+/* ── 생성 (VZ-G-01 · VZ-G-02 · 260907 · 9단계) ──────────────────────────────
+   배지가 셋이다. **색으로도 갈린다** — 목(회색 빗금) · 대본(초록) · AI(보라).
+   같은 회색으로 두면 「이 마일스톤은 누가 썼나」가 화면에서 답이 안 된다. */
+.progress-steps .step-ai{border-bottom:3px solid #7a5cc4;background:#f4f0fd;color:#2f2450}
+.progress-steps .step-ai b,.badge-ai{margin-right:3px;padding:1px 4px;border-radius:3px;background:#e0d6f8;color:#4a3489;font-size:10px}
+/* 도는 중 — 점선이다. 끝난 것과 도는 것이 같은 모양이면 기다리는 줄 모른다. */
+.progress-steps .step-generating{border-bottom:3px dashed #7a5cc4;background:#faf8ff;color:#4a3489}
+.progress-steps .step-generating b{margin-right:3px;padding:1px 4px;border-radius:3px;background:#e0d6f8;color:#4a3489;font-size:10px}
+.gen-note{margin:6px 0;padding:7px 9px;border-left:3px solid #b6a6e0;background:#faf8ff;color:#4b4266;font-size:12px;line-height:1.5}
+.gen-note small{display:block;margin-top:3px;color:#7d759a;font-size:11px}
+.gen-progress{margin:8px 0;font-size:12px;color:#4a3489}
+.gen-progress small{margin-left:6px;color:#8a84a5;font-weight:400}
+.gen-progress progress{display:block;width:100%;height:6px;margin-top:5px}
+.gen-result{margin:10px 0 0;padding:9px 10px;border:1px solid #d4c9f2;border-radius:7px;background:#faf8ff;font-size:12px}
+.gen-result h3{margin:0 0 7px;font-size:12px}
+.gen-result h3 code{padding:0 3px;border-radius:3px;background:#ece5fb;font-size:11px}
+.gen-result h3 small{display:block;margin-top:3px;color:#7d759a;font-weight:400;font-size:11px}
+.gen-milestones{margin:0 0 8px;padding-left:20px;line-height:1.6}
+.gen-milestones b{margin-right:4px;color:#4a3489;font-size:11px}
+.gen-milestones small{display:block;color:#8a84a5;font-size:11px}
+.gen-switch{width:100%;padding:8px;border:1px solid #7a5cc4;border-radius:7px;background:#fff;color:#4a3489}
+.gen-switch small{display:block;margin-top:2px;color:#8a84a5;font-size:11px;font-weight:400}
+.gen-provenance{margin-top:8px;border:1px solid #ddd4f3;border-radius:6px;background:#fff}
+.gen-provenance>summary{padding:7px 9px;cursor:pointer;color:#4a3489}
+.gen-provenance>*:not(summary){margin:0;padding:0 11px 9px}
+.gen-provenance dl{display:grid;grid-template-columns:96px 1fr;gap:5px}
+.gen-provenance dd{margin:0}
+.gen-provenance code{font-size:11px;word-break:break-all}
+/* 규칙 목록은 **줄이지 않는다.** 길면 그 자리에서 굴린다 — 잘라 내면 역추적이 끊긴다. */
+.gen-rules{max-height:190px;overflow-y:auto;padding-left:22px;line-height:1.55;color:#4b4266;font-size:11px}
+.gen-rules li{margin:3px 0}
+/* 되감기의 AI 줄 — 사람 줄과 **같은 축**이다 (main.tsx 의 aiMarks 주석). */
+.timelines>div.timeline-ai{grid-template-columns:55px 1fr auto;gap:8px;align-items:center;margin-top:4px;border-top:1px dashed #d1d7df;padding-top:6px}
+.timeline-ai small{color:#7d759a;font-size:11px;white-space:nowrap}
+.mission-debugger .timeline-ai .timeline{border-style:dashed}
+.mission-debugger .timeline b.ai-mark{position:absolute;top:-3px;width:3px;height:17px;margin-left:-1px;background:#7a5cc4;border-radius:1px}
+.proposal-note.proposal-ai{border-color:#b6a6e0;background:#faf8ff;color:#3b3160}
+.gen-model{display:flex;align-items:center;gap:6px;margin-top:6px;flex-wrap:wrap}
+.gen-model select{max-width:230px;padding:3px 5px;border:1px solid #cbc0e8;border-radius:5px;font:inherit;font-size:11px}
+.gen-model small{color:#8a84a5;font-size:11px}

@@ -21,6 +21,7 @@
     "verify:human-trace": "node scripts/verify-human-trace.mjs",
     "verify:dep-rules": "node scripts/verify-dep-rules.mjs",
     "verify:no-llm": "node scripts/verify-no-llm.mjs",
+    "verify:proposal-gate": "node scripts/verify-proposal-gate.mjs",
     "verify:gen-port": "node scripts/verify-gen-port.mjs",
     "verify:layout": "node scripts/verify-layout.mjs",
     "verify:single-egress": "node scripts/verify-single-egress.mjs",

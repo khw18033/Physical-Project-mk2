@@ -126,6 +126,10 @@ if (capabilities('ready').canGenerate !== true) failures.push('서비스가 살�
     'shared/stores/traceStore.ts', 'shared/commandCenter.ts', 'shared/commandEgress.ts',
     'canvas/useCanvas.ts', 'canvas/persist.ts', 'canvas/scope.ts',
     'graph/layout.ts', 'main.tsx',
+    // 260907 — **근거의 모양을 든 중립 자리.** 임무 저장소가 이것을 import 하므로,
+    // 이 파일이 생성 계층을 끌어오는 순간 `data/scenario.ts` 가 전이로 끌어오게 되고
+    // 위 목록 전체가 무의미해진다. 오늘 타입인 것이 내일 함수가 된다.
+    'shared/provenance.ts',
   ];
   function dependents(extra = '') {
     const bad = [];

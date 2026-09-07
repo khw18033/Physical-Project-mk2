@@ -41,8 +41,9 @@
 import { useSyncExternalStore } from 'react';
 import { foldStatuses, type FoldedStatuses } from './fold.ts';
 import { MergeScheduler } from './mergeScheduler.ts';
-import { appendHuman, appendTrace, resetTrace, traceEvents, traceMissionId } from './trace.ts';
-import rawScenario from '../../scenarios/MSN-260826-01.json';
+import { appendGenerated, appendHuman, appendTrace, resetTrace, traceEvents, traceMissionId } from './trace.ts';
+import { provenancePayload, type AiProvenance } from '../shared/provenance.ts';
+import rawScenario from '../../scenarios/MSN-260826-01.json' with { type: 'json' };
 import { libraryEntry } from '../scenarios/library.ts';
 import type { ScriptMap, ScriptScenario } from '../scenarios/types.ts';
 import type { Hardware, RefEdge, Scenario, ScenarioEvent, TaskStatus, Task } from '../model/types.ts';
@@ -153,7 +154,11 @@ export function viewForMission(missionId: string): MissionView | null {
 
 // ── 저장소 ───────────────────────────────────────────────────────────────────
 
-export type MissionProposal = {
+/**
+ * 대본이 골라진 제안. **키워드 대조의 결과이지 모델이 아니다.**
+ */
+export type ScriptProposal = {
+  origin: 'script';
   missionId: string;
   title: string;
   /** 어느 키워드가 맞아서 이 대본이 골라졌는지 — 화면이 그 자리에서 보여준다. */
@@ -161,6 +166,32 @@ export type MissionProposal = {
   planId: string | null;
   world: 'registry' | 'legacy';
 };
+
+/**
+ * 모델이 낸 제안 (260907 · 9단계 · `VZ-G-01`).
+ *
+ * 대본 제안과 **다른 종류다.** 대본 제안은 「미리 써 둔 편 중 하나를 고른 것」이라
+ * `missionId` 만 있으면 본문을 라이브러리에서 찾을 수 있지만, 이쪽은 **방금 만들어진
+ * 것**이라 어디에도 없다. 그래서 본문(`view`)을 스스로 들고 다닌다.
+ *
+ * 그리고 근거를 함께 든다. 승인되기 전에는 기록 열에 아무것도 넣지 않으므로
+ * (「승인 전에는 진행 사건이 하나도 없다」), 근거가 사는 곳은 승인 전까지 여기 하나다.
+ */
+export type AiProposal = {
+  origin: 'ai';
+  missionId: string;
+  title: string;
+  /** 모델이 낸 임무. 대본 라이브러리에 없다 — 이것이 원본이다. */
+  view: MissionView;
+  provenance: AiProvenance;
+};
+
+/**
+ * **제안은 두 종류다.** 화면이 배지를 갈라 붙이는 근거가 이 합집합이고, 갈라 두지 않으면
+ * 「이 마일스톤은 누가 썼나」에 답할 수 없다 — 대본에서 읽은 것과 모델이 낸 것이 같은
+ * 모양으로 뜨는 순간 그 물음이 사라진다.
+ */
+export type MissionProposal = ScriptProposal | AiProposal;
 
 export type MissionState = {
   current: MissionView;
@@ -257,8 +288,11 @@ export function displayMission(): {
   trace: readonly ScenarioEvent[];
 } {
   if (state.proposal !== null) {
-    const view = viewForMission(state.proposal.missionId);
-    // 제안된 대본은 아직 승인 전이라 흘러온 것이 없다 — 열이 비어 있는 것이 곧 그 사실이다.
+    // 모델이 낸 제안은 라이브러리에 없다 — **제안이 본문을 들고 있다.**
+    const view = state.proposal.origin === 'ai'
+      ? state.proposal.view
+      : viewForMission(state.proposal.missionId);
+    // 제안은 아직 승인 전이라 흘러온 것이 없다 — 열이 비어 있는 것이 곧 그 사실이다.
     if (view !== null) return { view, phase: 'proposal', headSec: 0, trace: traceFor(view) };
   }
   return {
@@ -272,11 +306,36 @@ export function displayMission(): {
 // ── 제안 · 승인 · 재생 ────────────────────────────────────────────────────────
 
 /** 발화 매칭 결과를 제안으로 올린다. 게이트웨이(plan 수신)와 단독 빌드(로컬 매칭)가 부른다. */
-export function proposeMission(proposal: MissionProposal): void {
+export function proposeMission(proposal: ScriptProposal): void {
   if (viewForMission(proposal.missionId) === null) return;
   // 같은 제안의 중복(로컬 매칭 직후 게이트웨이 plan 도착)은 planId 만 갱신한다.
-  if (state.proposal?.missionId === proposal.missionId && proposal.planId === null) return;
+  if (state.proposal?.origin === 'script' && state.proposal.missionId === proposal.missionId && proposal.planId === null) return;
   commitNow({ proposal });
+}
+
+/**
+ * 모델이 낸 임무를 제안으로 올린다 (260907 · 9단계 · `VZ-G-01`).
+ *
+ * **여기서 실행되는 것은 없다.** 대본 제안과 정확히 같은 자리에 서고, 승인 전에는 기록
+ * 열이 비어 있다 — 「승인 없이는 아무것도 실행되지 않는다」(`VZ-U-07` · `REQ-1506`)가
+ * 모델이 낸 것에도 그대로 걸린다는 뜻이다.
+ *
+ * 대본 제안과 달리 **`viewForMission` 으로 걸러 낼 수 없다.** 방금 만들어진 임무라
+ * 라이브러리에 없는 것이 정상이다. 대신 그리 볼 수 없는 것은 막는다 — 마일스톤이 하나도
+ * 없는 임무는 화면에 올려 봐야 빈 목록이고, 사람이 승인을 판단할 재료가 없다.
+ */
+export function proposeGenerated(view: MissionView, provenance: AiProvenance, title?: string): boolean {
+  if (view.milestones.length === 0) return false;
+  commitNow({
+    proposal: {
+      origin: 'ai',
+      missionId: view.missionId,
+      title: title ?? view.label,
+      view,
+      provenance,
+    },
+  });
+  return true;
 }
 
 export function rejectProposal(): void {
@@ -316,6 +375,72 @@ export function activateMission(missionId: string, mode: 'remote' | 'local'): vo
       commit({ headSec: nextHead });
     }, stepMs);
   }
+}
+
+/**
+ * 승인 — **제안을 캔버스에 올리는 유일한 문** (`VZ-U-07` · `REQ-1506` · 260907).
+ *
+ * ## 왜 문이 하나여야 하나
+ *
+ * 9단계에 제안이 두 종류가 됐다(대본 · 모델). 승인 경로가 종류마다 따로 있으면, 나중에
+ * 한쪽에 검사를 더하면서 다른 쪽을 빠뜨려도 아무도 모른다 — 그리고 빠뜨린 쪽이 하필
+ * 모델이 낸 것이면, **사람이 안 본 계획이 캔버스에 올라간다.** 그래서 문을 하나로 두고
+ * `verify:proposal-gate` 가 이 함수 하나를 지킨다.
+ *
+ * 제안이 없으면 **아무 일도 하지 않는다.** 「승인할 것이 없는데 승인이 됐다」가 곧
+ * 승인 선을 우회하는 길이다.
+ *
+ * @returns 실제로 승인이 일어났는가.
+ */
+export function acceptProposal(mode: 'remote' | 'local' = 'local'): boolean {
+  const proposal = state.proposal;
+  if (proposal === null) return false;
+  if (proposal.origin === 'script') {
+    activateMission(proposal.missionId, mode);
+    return state.activatedBy === 'approval' && state.current.missionId === proposal.missionId;
+  }
+  return activateGenerated(proposal);
+}
+
+/**
+ * 모델이 낸 제안의 승인 (260907 · 9단계).
+ *
+ * `activateMission` 과 갈라지는 곳은 둘뿐이다.
+ *  - 라이브러리에서 찾지 않는다. **제안이 든 본문이 원본이다.**
+ *  - 재생기를 세우지 않는다. 흘려보낼 사건이 없다(`events: []` · `durationSec: 0`) —
+ *    이것은 실행 기록이 아니라 **계획**이다. 타이머를 세우면 있지도 않은 기록을 향해
+ *    머리가 굴러간다.
+ *
+ * 열에 들어가는 첫 두 줄이 이 함수의 요점이다.
+ *
+ * ```
+ * seq 2,000,000  produced_by=ai      mission_generated   ← 모델·프롬프트 지문·규칙 목록
+ * seq 1,000,000  produced_by=human   proposal_accepted   ← 사람이 수락했다 (VZ-D-08)
+ * ```
+ *
+ * **순서가 뜻이다.** 생성이 먼저고 승인이 그 뒤다 — 그 두 줄이 있어야 화면에 뜬 마일스톤
+ * 하나에서 「무엇이 만들었나 → 누가 받아들였나」로 거슬러 올라갈 수 있다
+ * (`VZ-G-01` 의 「역추적이 맨 위까지 닿는다」).
+ */
+function activateGenerated(proposal: AiProposal): boolean {
+  stopLocalTimer();
+  resetTrace(proposal.view.missionId);
+  localCursor = 0;
+  commitNow({ current: proposal.view, proposal: null, headSec: 0, playing: false, activatedBy: 'approval' });
+  appendGenerated(
+    proposal.view.missionId,
+    'mission_generated',
+    proposal.view.missionId,
+    0,
+    provenancePayload(proposal.provenance),
+  );
+  // 승인도 사람 조작이다 — `VZ-D-08` 은 예외를 두지 않는다.
+  recordHuman('proposal_accepted', proposal.view.missionId, {
+    origin: 'ai',
+    milestones: proposal.view.milestones.length,
+    tasks: proposal.view.tasks.length,
+  });
+  return true;
 }
 
 /**

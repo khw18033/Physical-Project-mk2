@@ -190,6 +190,31 @@ export type GenerateProbe = {
   reason: string | null;
   /** 닿았으면 무엇이 떠 있는지. 스텁이면 그렇게 적힌다 — 목임을 감추지 않는다. */
   engine: string | null;
+  /**
+   * 쓸 수 있는 가중치 이름들. **화면이 하나를 골라야 한다** — 엔진은 모델을 안 주면
+   * 거부한다(「아무거나 고르면 무엇을 쟀는지 알 수 없습니다」). 그 규칙은 측정에서
+   * 나왔지만 화면에도 그대로 걸린다: 어느 모델이 답했는지 모르는 제안은 근거가 없다.
+   *
+   * **목록을 코드에 두지 않는다.** `models/` 에 있는 것을 서비스가 그대로 읽고
+   * (`gen-lab/README.md`), 화면은 받은 것을 보여주기만 한다 — 새 모델을 재는 일이
+   * 화면 수정이 되면 「무엇을 쟀는가」가 커밋 사이에 흩어진다.
+   */
+  models: Array<{
+    id: string;
+    /**
+     * 따로 받아 둔 라이선스 파일의 이름. 없으면 null.
+     *
+     * **있으면 조건이 붙은 가중치다.** 이 저장소는 그런 것에만 라이선스 전문을 함께
+     * 받아 두었고(`gen-lab/README.md`), EXAONE 은 비상업 연구용이라 시연·배포 경로가
+     * **조용히** 물어서는 안 된다. 화면은 이 값으로 기본 선택을 피하고 배지를 붙인다 —
+     * 고르지 못하게 막지는 않는다(연구용 대조군으로는 정당하다).
+     */
+    licenseFile: string | null;
+    /** 가중치 파일 크기. 화면의 기본 선택이 이름이 아니라 이 값으로 정해진다 (아래 주석). */
+    bytes: number;
+  }>;
+  /** 지금 물고 있는 가중치. 없으면 null — 첫 요청이 적재를 부른다. */
+  loaded: string | null;
 };
 
 /**
@@ -208,12 +233,23 @@ export async function probe(signal?: AbortSignal): Promise<GenerateProbe> {
   try {
     const response = await fetch(`${generateBaseUrl()}/generate/health`, { method: 'GET', signal });
     if (!response.ok) {
-      return { alive: false, reason: `생성 서비스가 오류를 냈습니다 (HTTP ${response.status}, ${generateBaseUrl()})`, engine: null };
+      return { alive: false, reason: `생성 서비스가 오류를 냈습니다 (HTTP ${response.status}, ${generateBaseUrl()})`, engine: null, models: [], loaded: null };
     }
-    const body = (await response.json()) as { engine?: string };
-    return { alive: true, reason: null, engine: body.engine ?? null };
+    const body = (await response.json()) as {
+      engine?: string; model?: string | null;
+      models?: Array<{ id?: string; license_file?: string | null; bytes?: number }>;
+    };
+    return {
+      alive: true,
+      reason: null,
+      engine: body.engine ?? null,
+      models: (body.models ?? [])
+        .filter((entry): entry is { id: string; license_file?: string | null; bytes?: number } => typeof entry.id === 'string')
+        .map((entry) => ({ id: entry.id, licenseFile: entry.license_file ?? null, bytes: entry.bytes ?? 0 })),
+      loaded: body.model ?? null,
+    };
   } catch (error) {
-    return { alive: false, reason: await describeProbeFailure(error, signal), engine: null };
+    return { alive: false, reason: await describeProbeFailure(error, signal), engine: null, models: [], loaded: null };
   }
 }
 

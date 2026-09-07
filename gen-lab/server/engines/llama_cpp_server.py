@@ -112,6 +112,7 @@ class LlamaCppServerEngine:
         """
         if not MODEL_DIR.is_dir():
             return []
+        licences = {path.name[: -len(".LICENSE.txt")]: path.name for path in MODEL_DIR.glob("*.LICENSE.txt")}
         found = []
         for path in sorted(MODEL_DIR.glob("*.gguf")):
             found.append({
@@ -119,6 +120,20 @@ class LlamaCppServerEngine:
                 "file": path.name,
                 "bytes": path.stat().st_size,
                 "loaded": path.stem == self._model,
+                # **따로 받아 둔 라이선스 파일이 있는가** (260907 · 9단계).
+                #
+                # 이름을 코드에 적지 않고 **파일이 있는가**로 판단한다. 이 저장소는
+                # 조건이 붙은 가중치에만 라이선스 전문을 함께 받아 두었고(README 의 절차),
+                # 그 사실이 곧 「이건 아무 데나 쓰면 안 된다」의 표식이다. 모델 이름으로
+                # 가르면 새 모델이 늘 때마다 코드를 고쳐야 하고, 그러면 위 머리말이
+                # 지키려는 것이 무너진다.
+                #
+                # 화면은 이 값으로 기본 선택을 피하고 배지를 붙인다 — 시연·배포 경로가
+                # 조건이 붙은 가중치를 **조용히** 물지 않게 하는 것이 목적이다.
+                "license_file": next(
+                    (name for stem, name in licences.items() if path.stem.startswith(stem) or stem.startswith(path.stem)),
+                    None,
+                ),
             })
         return found
 

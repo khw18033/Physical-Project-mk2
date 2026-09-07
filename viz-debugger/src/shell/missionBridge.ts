@@ -84,6 +84,7 @@ function applyPlan(envelope: Envelope): void {
   if (!plan?.script) return; // 데모 계획(robot-01)은 임무 저장소와 무관하다.
   if (plan.decision === 'pending') {
     proposeMission({
+      origin: 'script',
       missionId: plan.script.mission_id,
       title: plan.script.title,
       keywords: plan.script.matched_keywords ?? [],
