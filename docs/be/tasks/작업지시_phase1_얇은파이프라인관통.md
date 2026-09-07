@@ -22,6 +22,22 @@
 > 순서·브릿지 구현체·토픽 규약·저장 경계·검증 정책·WS 범위)은 설계 단계에서 이미 확정됐다 —
 > 임의로 되돌리거나 다른 선택지를 열지 않는다.
 
+> **실행 주체 — CLAUDE.md §0 워크플로 그대로(어기면 Phase 0 재발).** 편집·생성은 **Claude Code가
+> 컴퓨터(이 저장소)에서** 한다. 실제 실행 — 코드 서버 반영, 컨테이너/`docker exec`(토픽 생성),
+> pytest, 서버 상태 확인 — 은 **사람이 서버(sysai-server2)에서** 한다. Claude Code는 서버에 붙지
+> 않고, 서버 파일을 직접 수정하지 않으며, 서버에 저장소를 clone·`git pull`하지 않는다(깃허브는
+> 코드·문서 동기화용이지 서버 배포 통로가 아니다). **Claude Code는 실행할 명령·코드를 제시하고,
+> 사람이 서버에서 돌린 결과를 받아 반영한다** — 서버 상태·명령 결과를 추측하거나 지어내지 않는다
+> (§1-A 규율 2·3). 컴퓨터→서버 코드 반영은 사람이 기존 방식대로 복사·적용한다.
+>
+> **실행 위치 분해(중요).** 서버에서 도는 것: `ingest`·저장 sink·WS·Kafka·`docker exec`(토픽
+> 생성)·서버 상태 확인·pytest의 파이프라인 대상. **발행자(단계 5의 최소 스크립트, 단계 6의
+> 실노드)만 컴퓨터에서 실행**해 **서버 Mosquitto(`210.110.250.33:1883`, 익명)로 발행**한다 —
+> 실제 배치(발행자=말단/엣지, 브로커=서버)와 같은 방향이라 발행자↔브로커 네트워크 경로까지 함께
+> 검증된다. 발행자는 MQTT만 쏘고 Kafka를 모르므로 이 구성에서 **Kafka는 여전히 서버 localhost
+> 전용**이고 노출이 필요 없다 — 그래서 Kafka advertised=localhost·`127.0.0.1:9092`를 이번
+> Phase에서 바꾸지 않는다(제약 5). Kafka에 붙는 코드(`ingest`·sink·WS)는 전부 서버에 있다.
+
 ---
 
 ## 2. 배경
@@ -32,8 +48,10 @@ Phase 0에서 스택 8개를 세웠고(Kafka만 신규, 나머지 7개는 헬스
 관통 위에 Phase 2~(저장 2축·관측·미디어·가용성·감사·트윈)가 얹힌다. 먼저 뚫고 그 위에 기능을
 얹는 전략(계획 §0-1)이다.
 
-**딛고 서는 것:** 가동 중인 Mosquitto(`127.0.0.1:1883` 익명)·Kafka(`127.0.0.1:9092`, KRaft 단일
-노드, healthy), 확정된 봉투 계약, 조병현 노드(로컬 사본으로 실행).
+**딛고 서는 것:** 가동 중인 Mosquitto(서버 `1883`, `0.0.0.0`·익명 → 컴퓨터에서 `210.110.250.33:1883`
+으로 도달)·Kafka(서버 `127.0.0.1:9092`, KRaft 단일 노드, healthy → 서버 localhost 전용), 확정된
+봉투 계약, 조병현 노드(로컬 사본으로 실행). 발행자는 컴퓨터에서 서버 Mosquitto로 발행하고,
+Kafka에 붙는 코드는 서버에서 돈다(머리말 실행 위치 분해 참조).
 
 **Phase 0에서 이월돼 이번에 닫는 것:**
 - Kafka `advertised.listeners`가 `localhost` → **이번 Phase는 단일 머신이라 localhost로 충분**하다.
@@ -75,6 +93,11 @@ JSON 봉투 계약이 이를 지배하지 않는다. **따라서 Phase 1은 JSON
    난다(노드에 중복 경보 로직이 있다).
 10. **저장 소비자와 WS 소비자는 서로 다른 Kafka 컨슈머 그룹**(독립 오프셋)을 쓴다 — 이 독립성이
     다중 소비자 팬아웃(§6-1)의 얇은 실현이며 완료 판정의 일부다.
+11. **구독이 먼저, 발행이 나중.** ingest가 구독을 건 뒤에 발행한다(발행자가 먼저 쏘면 클린 세션
+    ingest는 그 메시지를 못 받는다). 관통 확인·pytest·실노드 실행 모두 이 순서를 지킨다.
+12. **컴퓨터→서버 Mosquitto(`210.110.250.33:1883`) 도달은 착수 전 사람이 확인한다.** 발행자가
+    컴퓨터에서 붙으므로 전제다. 닿지 않으면 멈추고 `reports/`에 남긴다 — **방화벽·바인딩을 임의로
+    바꾸지 않는다**(Kafka 노출과 별개 사안, 임의 변경 금지).
 
 ---
 
@@ -165,12 +188,25 @@ docker exec capstone_kafka /opt/kafka/bin/kafka-topics.sh --bootstrap-server loc
   4. **합격** → MQTT topic의 말단 세그먼트(`state`/`status`/`heartbeat`)로 `mk2.telemetry.<세그먼트>`
      결정. `confluent-kafka` 프로듀서로 `localhost:9092`에 produce. **key = 봉투의 `source_id`,
      value = 원본 JSON 바이트**(생산자가 계약에 맞으므로 정규화하지 않는다).
+- **MQTT 수신 특성 — 구현·검증 때 헛디디지 않도록(설계 변경 아님, 주의):**
+  - **구독이 먼저, 발행이 나중.** node.py의 `state`는 QoS 1이지만, ingest가 구독을 걸기 전에
+    발행된 메시지는 브로커가 (ingest가 클린 세션이면) 버린다. 관통 확인·pytest는 **ingest 구독이
+    올라온 뒤 발행**하는 순서로 한다. (영속 세션·QoS 보존 정책은 Phase 5 운영 몫 — 여기선 순서만.)
+  - **`status`는 retained다.** node.py가 `{base}/status`를 `retain=true`로 발행하므로, ingest가
+    구독하는 **순간 브로커가 마지막 retained `status` 1건을 즉시 밀어준다.** "발행 안 했는데
+    status가 하나 뜬다"는 정상이다 — 다른 메시지와 똑같이 검증→produce하면 된다.
+  - **`heartbeat`는 QoS 0다.** 유실 허용이라 관통 확인 때 heartbeat가 몇 개 빠져도 정상이다
+    (완료 판정을 heartbeat 개수로 걸지 않는다).
+  - **LWT(death)도 `status` 채널로 온다.** node.py의 LWT는 `{base}/status`에 death 페이로드
+    (retained)다. Phase 1 ingest는 이걸 **그냥 status로 흘려보내기만** 하고 가용성 판정은 하지
+    않는다(판정은 Phase 5).
 - docstring 상단: `implements: BE-T-01, BE-T-02, BE-C-01`.
 - 추가 의존성(pyproject): `paho-mqtt`, `confluent-kafka`, `jsonschema`, `rfc3339-validator`.
 
-**DoD:** 콘솔 consumer(`kafka-console-consumer.sh`)를 띄운 상태에서 — 계약에 맞는 `state` 메시지를
-수동 발행하면 `mk2.telemetry.state`에 도착하고, `zone_id` 누락 메시지는 **토픽에 안 뜨고** 격리
-파일에 사유와 함께 남는다.
+**DoD:** 콘솔 consumer(`kafka-console-consumer.sh`)를 띄운 상태에서 — **ingest 구독이 올라온 뒤**
+계약에 맞는 `state` 메시지를 수동 발행하면 `mk2.telemetry.state`에 도착하고, `zone_id` 누락
+메시지는 **토픽에 안 뜨고** 격리 파일에 사유와 함께 남는다. (구독 즉시 도착하는 retained `status`
+1건은 정상이며 격리 대상이 아니다.)
 
 ### 단계 3 — 저장 sink 소비자 (관통 ①: 저장 확인)
 
@@ -204,38 +240,56 @@ Phase 5/7).
 `tests/` 아래에 **계약에 맞춘 최소 발행 스크립트**(테스트 헬퍼)를 만든다 — 팀원 의존 0, 내 계약이
 실제로 도는지 검증.
 
+- **발행 위치 = 컴퓨터.** 발행자는 MQTT만 쏘고 Kafka를 모르므로 **컴퓨터에서 실행해 서버
+  Mosquitto(`210.110.250.33:1883`, 익명)로 발행**한다. 실제 배치(발행자=말단/엣지, 브로커=서버)와
+  같은 방향이라 발행자↔브로커 네트워크 경로까지 함께 검증된다. (브로커에 붙는 것은 발행자이고,
+  Kafka에 붙는 것은 서버의 `ingest`이므로 Kafka 노출은 필요 없다 — advertised 그대로.)
+  - 브로커 주소는 하드코딩하지 말고 환경변수/인자로(예: `MK2_BROKER_HOST`, 기본
+    `210.110.250.33`, 포트 `1883`). pytest도 이 변수로 브로커를 가리킨다.
+  - **전제 확인(사람):** 컴퓨터에서 서버 `1883`에 실제로 닿는지 한 번 확인한다(예: 서버 밖에서
+    `nc -vz 210.110.250.33 1883` 또는 `mosquitto_pub -h 210.110.250.33 -t t -m x`). 닿지 않으면
+    멈추고 원인부터(막히면 `reports/`에 남긴다 — 임의로 방화벽 등을 건드리지 않는다).
 - 봉투: `schema_version:"1.0"`, `source_id`, `node_id`, `zone_id`, `timestamp`(콜론 오프셋
   `+09:00`), `sequence_id`, `origin_kind:"real"` + `channel:"state"` 본문(예: `water_level_m`).
   `zoneA/sensor/wl-001/state`에 발행.
-- **pytest(§검증 방침 = Phase 1부터 pytest):**
+- **pytest(§검증 방침 = Phase 1부터 pytest):** 발행자는 컴퓨터에서, 검증 대상 파이프라인
+  (`ingest`·Kafka·sink·WS)은 서버에서 돈다. pytest는 컴퓨터에서 서버 Mosquitto로 발행하고, 결과가
+  나타나는 곳(서버 Kafka 토픽·sink 기록·WS)을 확인한다. Kafka 토픽 확인처럼 서버 localhost에서만
+  보이는 것은 사람이 서버에서 확인해 결과를 회수한다.
   - `test_valid_roundtrip` — 발행 → `mk2.telemetry.state`에 **key=source_id·동일 value** 도착.
   - `test_invalid_quarantined`(**음성 대조**) — `zone_id` 누락 / 콜론 없는 `timestamp`(`+0900`)
     각각 → 토픽에 **안 뜨고** 격리 기록에 남는다. (검증이 무력하지 않은지 실제로 거부하는 것을
     본다 — CLAUDE.md §3.)
-  - `test_ws_delivery` — 발행/produce → WS 클라이언트가 수신.
+  - `test_ws_delivery` — 발행 → WS 클라이언트가 수신(WS는 서버가 서빙; 클라이언트는 컴퓨터에서
+    서버 WS 주소로 붙어 확인 가능).
 - 음성 대조 fixture 추가: `contracts/common/examples/envelope-invalid-missing-zone.json`,
   `envelope-invalid-timestamp.json`.
-- 테스트는 로컬 Mosquitto·Kafka 가동을 전제한다(둘은 Phase 1 파이프라인의 필수 요소라 skip 대상이
-  아니다).
+- Mosquitto·Kafka(서버) 가동을 전제한다(둘은 Phase 1 파이프라인의 필수 요소라 skip 대상이 아니다).
 
-**DoD:** `pytest -q` 양성 + 음성 + WS 통과.
+**DoD:** `pytest -q` 양성 + 음성 + WS 통과(발행은 컴퓨터→서버 Mosquitto 경로로 이뤄진다).
 
 ### 단계 6 — (A) 실노드 로컬 연결 검증
 
-조병현 HW 공통 패키지의 **로컬 사본**에 봉투 정합 편집 4개를 적용한 뒤(정확한 편집은 **부록**),
-실노드를 파이프라인에 붙여 전 구간 관통을 확인한다.
+조병현 HW 공통 패키지의 **로컬 사본**(컴퓨터)에 봉투 정합 편집 4개를 적용한 뒤(정확한 편집은
+**부록**), 실노드를 **컴퓨터에서 실행해 서버 Mosquitto로** 붙여 전 구간 관통을 확인한다. 단계 5의
+(C)와 같은 방향(발행자=컴퓨터, 브로커=서버)이다.
 
 ```bash
-# HW repo 로컬 사본의 pi/ 에서 (common/ 에 부록 4개 편집 적용 후)
-HW_ENTITY_ID=wl-001 HW_BROKER_HOST=127.0.0.1 python3 -m sensor.sensor_node
+# HW repo 로컬 사본의 pi/ 에서 (컴퓨터. common/ 에 부록 4개 편집 적용 후)
+HW_ENTITY_ID=wl-001 HW_BROKER_HOST=210.110.250.33 python3 -m sensor.sensor_node
 # 임계 초과 이벤트를 보려면 별도 터미널에서: touch /tmp/rain   (HW_RAIN_FLAG 기본 경로)
 ```
 
+- `HW_BROKER_HOST`를 **서버 주소(`210.110.250.33`)**로 준다(노드 기본값은 임시 노트북 IP라
+  반드시 덮어쓴다). 포트는 기본 `1883`.
 - 노드는 `zoneA/sensor/wl-001/{state,status,heartbeat}`를 발행하고, `terminal/wl-001/*`(명령)도
   건드리지만 ingest가 무시하므로 무해하다.
+- **ingest·sink·WS가 먼저 떠 있는 상태에서 노드를 켠다**(제약 11). 노드 접속 직후 `status`
+  birth가 retained로 오고, 이어 `state`/`heartbeat`가 흐른다.
+- Kafka 토픽·sink 기록처럼 서버 localhost에서만 보이는 것은 사람이 서버에서 확인해 결과를 회수한다.
 
-**DoD:** `state`·`status`·`heartbeat`가 Kafka 3토픽 + 저장 sink + WS에 관통한다. 4개 편집 덕분에
-봉투 strict 검증을 통과한다(격리로 안 빠진다).
+**DoD:** `state`·`status`·`heartbeat`가 Kafka 3토픽 + 저장 sink + WS에 관통한다(발행은 컴퓨터→서버
+Mosquitto 경로). 4개 편집 덕분에 봉투 strict 검증을 통과한다(격리로 안 빠진다).
 
 ### 단계 7 — 조병현 인계 문서 작성
 
@@ -282,17 +336,19 @@ HW_ENTITY_ID=wl-001 HW_BROKER_HOST=127.0.0.1 python3 -m sensor.sensor_node
 아래가 전부 참이어야 이 작업이 끝난 것이다.
 
 - [ ] 단계 0: 서버 상태가 확정 기준선과 일치(Kafka healthy·`127.0.0.1:9092`·advertised localhost /
-      Mosquitto 1883 익명).
+      Mosquitto 1883 익명), **그리고 컴퓨터→서버 `210.110.250.33:1883` 도달 확인**(제약 12).
 - [ ] 단계 1: `mk2.telemetry.{state,status,heartbeat}` 3토픽 존재(파티션 1·RF 1).
 - [ ] 단계 2: ingest가 고유 client_id로 3패턴 구독, 봉투 strict 검증(포맷 포함), 불합격 격리·기록,
-      합격은 `key=source_id`로 매칭 토픽에 produce.
+      합격은 `key=source_id`로 매칭 토픽에 produce. (구독 즉시 오는 retained `status` 1건은 정상.)
 - [ ] 단계 3: 저장 sink(그룹 `mk2-storage`)가 `store(...)`로 수신 기록.
 - [ ] 단계 4: WS echo(그룹 `mk2-ws`)가 클라이언트에 push, 최소 클라이언트로 값 확인.
 - [ ] 팬아웃: 저장·WS 두 그룹이 같은 메시지를 각자 독립 수신.
-- [ ] 단계 5: `pytest` 양성(왕복) + 음성(격리) + WS 도달 통과.
-- [ ] 단계 6: 실노드(로컬 4편집)의 `state`/`status`/`heartbeat`가 Kafka+sink+WS로 관통.
+- [ ] 단계 5: `pytest` 양성(왕복) + 음성(격리) + WS 도달 통과. **발행(컴퓨터)은 ingest 구독이
+      올라온 뒤** 이뤄진다(제약 11).
+- [ ] 단계 6: 실노드(로컬 4편집, 컴퓨터 실행→서버 브로커)의 `state`/`status`/`heartbeat`가
+      Kafka+sink+WS로 관통(ingest·sink·WS를 먼저 띄운 뒤 노드 실행).
 - [ ] 단계 7: 조병현 인계 문서 작성(편집 4개·이유·내부 소비자 주의).
-- [ ] 비밀값·`infra/docker-compose.yml`·내부망 IP 미커밋, LF·UTF-8, 격리 파일 gitignore.
+- [ ] 비밀값·`infra/docker-compose.yml`·내부망 IP 미커밋, LF·UTF-8, 격리 파일·`venv_phase1` gitignore.
 
 **검증 수단:** 자동은 pytest(단계 5), 실노드 통합(단계 6)은 수동 확인 후 보고서에 기록. **완료
 판정은 특정 기술 사용 여부가 아니라 동작·경계가 실제로 보장되는지로 한다**(테스트 없는 완료 금지,
