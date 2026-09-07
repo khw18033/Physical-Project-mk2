@@ -112,20 +112,46 @@ if (outside.length) {
 }
 
 // ── 3. 손으로 쓴 문법 파일이 없는가 ───────────────────────────────────────────
+//
+// 저장소 전체를 걷는다 — 문법 파일은 **어디에 놓여도** 문제이므로 범위를 우리 코드로
+// 좁히지 않는다. 대신 **다시 만들어지는 것과 남의 배포물은 건너뛴다.**
+//
+// 260907 — `Unity_Map` 이 들어오면서 이 걷기가 74,091 개를 훑게 됐고 검사가 2분을
+// 넘겼다. 그중 65,983 개가 `Library`(Unity 가 다시 만드는 캐시, git 에도 없다)였다.
+// **느린 검사는 사람이 안 돌린다** — 안 돌리는 검사는 없는 검사와 같다.
+const SKIP_DIRS = new Set([
+  'node_modules', '.git', '.venv', 'dist', 'dist-standalone',
+  // Unity 가 다시 만드는 것 — git 에 없고 우리가 쓴 것이 아니다
+  'Library', 'Temp', 'Obj', 'obj', 'Logs', 'Build', 'Builds',
+  // 받아 오는 것 — 가중치·바이너리·실행 산출물
+  'models', 'vendor', '__pycache__',
+]);
+// 걷는 양에 상한을 둔다. 넘으면 **통과가 아니라 실패**다 — 새 폴더가 들어와 검사가
+// 조용히 느려지는 것을 여기서 잡는다. 지금 8천 대이고 한도는 그 두 배 남짓이다.
+const WALK_BUDGET = 20000;
 {
   const found = [];
+  let walked = 0;
   (function walk(directory) {
     for (const name of readdirSync(directory)) {
-      if (name === 'node_modules' || name === '.git' || name === '.venv' || name === 'dist' || name === 'dist-standalone') continue;
+      if (SKIP_DIRS.has(name)) continue;
       const path = join(directory, name);
       let stat;
       try { stat = statSync(path); } catch { continue; }
       if (stat.isDirectory()) walk(path);
-      else if (/\.(gbnf|lark|ebnf|bnf)$/i.test(name)) found.push(relative(repoRoot, path).replaceAll('\\', '/'));
+      else {
+        walked += 1;
+        if (/\.(gbnf|lark|ebnf|bnf)$/i.test(name)) found.push(relative(repoRoot, path).replaceAll('\\', '/'));
+      }
     }
   })(repoRoot);
   if (found.length) {
     failures.push(`손으로 쓴 문법 파일이 있다: ${found.join(', ')} — 계약이 바뀌면 조용히 갈라진다. gbnf.ts 가 계약에서 뽑는다`);
+  }
+  if (walked > WALK_BUDGET) {
+    failures.push(`문법 파일 걷기가 ${walked} 개를 훑는다 (한도 ${WALK_BUDGET}) — 검사가 느려져 아무도 안 돌리게 된다. 다시 만들어지는 폴더라면 SKIP_DIRS 에 더해라`);
+  } else {
+    controls.push(`문법 파일 걷기 ${walked} 개 (한도 ${WALK_BUDGET})`);
   }
 }
 
