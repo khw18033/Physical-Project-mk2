@@ -95,6 +95,17 @@ export type GenerateOptions = {
    * `verify:no-leak` 이고, 이 값이 그 검사의 대상이다.
    */
   examples?: unknown[];
+  /**
+   * 노드 문법 5종(감지·판단·실행·검증·보고) 규칙을 붙일 것인가 (8단계 D 판).
+   *
+   * **장소·장비와 성질이 다르다.** 그 둘은 부르는 쪽이 고르는 *재료*(목록)이지만 이것은
+   * *규칙*이라 넘길 목록이 없다 — 다섯 종류는 규칙 문장 안에 있고, 그 문장은 서비스의
+   * `prompt.rules_for()` 한 곳이 정한다. 여기서 넘기는 것은 켜고 끄는 스위치 하나다.
+   *
+   * `enforceGrammar` 와 같은 이유로 끌 수 있다: 「이 규칙이 실제로 드는가」는 안 붙인
+   * 판(B)과 비교해야 답이 된다.
+   */
+  nodeKinds?: boolean;
   model?: string;
   /**
    * 임무 식별자. **부르는 쪽이 준다** — 모델이 지어낼 것이 아니다. `audio_ref` 와 같은
@@ -160,6 +171,7 @@ export async function generateMission(utterance: string, options: GenerateOption
     places: options.places ?? null,
     equipment: options.equipment ?? null,
     examples: options.examples ?? [],
+    node_kinds: options.nodeKinds ?? false,
     model: options.model ?? null,
     mission_id: options.missionId ?? null,
     utterance_meta: options.utteranceMeta ?? null,

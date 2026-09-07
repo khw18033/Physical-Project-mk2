@@ -73,6 +73,9 @@ for (const label of labels.sort()) {
     // 옛 실행에는 이 두 칸이 없고, 그때는 장비 목록도 예시 0편도 없었다(6단계).
     equipmentGiven: Math.max(0, ...records.map((r) => r.equipment_given ?? 0)),
     shots: summary.shots ?? 'leave-one-out',
+    // **스위치를 켠 것이 아니라 규칙이 붙은 것을 읽는다** — 기록에 서비스가 적은 값이 있고,
+    // 없으면(8단계 전 실행) summary 의 스위치로 물러선다.
+    nodeKinds: records.some((record) => record.node_kinds_given === true) || (summary.node_kinds ?? false),
     calls: records.length,
     served: [...served],
     weights_ok: served.size <= 1 && [...served].every((file) => file.startsWith([...requested][0] ?? '')),
@@ -125,12 +128,13 @@ if (asJson) {
   console.log('');
   console.log('모델별 네 축 — 합산하지 않는다.');
   console.log('');
-  console.log('  ' + '실행'.padEnd(34) + pad('문법', 6) + pad('장비', 8) + pad('예시', 6) + pad('스키마', 8) + pad('개수일치', 9) + pad('개수차', 8) + pad('순서', 7) + pad('제목', 7) + pad('장소위반', 9) + pad('장비지어냄', 11) + pad('장비오선택', 12) + pad('추상위반', 9) + pad('중앙초', 8) + pad('최대초', 8));
+  console.log('  ' + '실행'.padEnd(34) + pad('문법', 6) + pad('장비', 8) + pad('예시', 6) + pad('종류', 6) + pad('스키마', 8) + pad('개수일치', 9) + pad('개수차', 8) + pad('순서', 7) + pad('제목', 7) + pad('장소위반', 9) + pad('장비지어냄', 11) + pad('장비오선택', 12) + pad('추상위반', 9) + pad('중앙초', 8) + pad('최대초', 8));
   for (const row of rows) {
     console.log('  ' + row.label.padEnd(34) +
       pad(row.grammar ? '강제' : '없음', 6) +
       pad(row.equipmentGiven ? `${row.equipmentGiven}건` : '없음', 8) +
       pad(row.shots === 'none' ? '0편' : `${row.runMissions.length - 1}편`, 6) +
+      pad(row.nodeKinds ? '5종' : '없음', 6) +
       pad(`${(row.schema_pass * 100).toFixed(0)}%`, 8) +
       pad(`${(row.count_match * 100).toFixed(0)}%`, 9) +
       pad(row.count_delta > 0 ? `+${row.count_delta}` : row.count_delta, 8) +
@@ -167,6 +171,8 @@ if (asJson) {
   }
   console.log('  개수차 = (낸 마일스톤 수 − 정답 수)의 평균. 음수면 덜 나눈 것이다.');
   console.log('  장비/예시 = 프롬프트에 실제로 실린 것. 「없음」과 「0편」이 대조판이다 — 한 번에 하나만 끈다.');
+  console.log('  종류 = 단계 종류 5종(감지·판단·실행·검증·보고) 규칙이 붙었는가 (8단계 D 판). **개수가 아니라 종류다.**');
+  console.log('    이 열이 갈리는 두 줄은 개수만 보면 안 된다 — 개수가 오르고 제목이 내려가면 빈 단계를 채운 것이다.');
   console.log('  장비지어냄 = 저장소가 아는 장비 어디에도 없는 id. **그라운딩이 막아야 하는 것이 이것이다.**');
   console.log('  장비오선택 = 실재하는 장비인데 정답이 고른 것이 아니다 / 낸 assigned_targets 총수. 어휘 문제가 아니라 배정 문제다.');
   console.log('  장소위반 대 장비위반 = **같은 조건에서 목록을 준 축과 안 준 축.** 그 차이가 그라운딩의 효과다.');

@@ -27,15 +27,21 @@
 //   node scripts/run-baseline.mjs --model X --no-grammar      문법 없는 대조군
 //   node scripts/run-baseline.mjs --model X --no-equipment    장비 목록 없는 대조판 (7단계 A)
 //   node scripts/run-baseline.mjs --model X --no-examples     예시 0편 (7단계 C)
+//   node scripts/run-baseline.mjs --model X --node-kinds      노드 문법 5종 규칙 (8단계 D)
 //   node scripts/run-baseline.mjs --model X --limit 2         빠른 확인용
 //   node scripts/run-baseline.mjs --rescore                   이미 낸 결과를 다시 채점만
 //
-// ## 끄는 스위치가 셋인 이유 — 하나씩 꺼야 원인이 갈린다
+// ## 스위치가 넷인 이유 — 하나씩만 움직여야 원인이 갈린다
 //
 // `--no-grammar` 는 「강제 디코딩이 실제로 듣는가」를, `--no-equipment` 는 「장비 목록이
-// 위반을 줄이는가」를, `--no-examples` 는 「개수 일치가 실력인가 예시를 베낀 것인가」를
-// 답한다. **한 번에 하나만 끈다.** 둘을 같이 끄면 그 판의 숫자는 두 원인 중 어느 쪽에도
+// 위반을 줄이는가」를, `--no-examples` 는 「개수 일치가 실력인가 예시를 베낀 것인가」를,
+// `--node-kinds` 는 「단계의 *종류*를 알려주면 빠뜨린 단계가 돌아오는가」를 답한다.
+// **한 번에 하나만 움직인다.** 둘을 같이 움직이면 그 판의 숫자는 두 원인 중 어느 쪽에도
 // 돌릴 수 없고, 돌릴 수 없는 숫자는 표에 올릴 수 없다.
+//
+// 앞 셋은 기본이 켜짐이라 **끄는** 스위치이고 `--node-kinds` 만 **켜는** 스위치다.
+// 그 차이가 이름에 그대로 있다 — 이름이 기본값을 말하지 않으면 「끈 판」과 「안 켠 판」이
+// 표에서 같은 얼굴을 하게 된다.
 //
 // `--rescore` 가 있는 이유: 채점기에 축이 붙으면 옛 실행의 숫자에 그 축이 없다. 그때
 // **모델을 다시 돌리면 안 된다** — 같은 출력을 다시 뽑는 데 시간을 쓰는 것도 문제지만,
@@ -64,11 +70,13 @@ const enforceGrammar = !args.includes('--no-grammar');
 // 7단계의 두 축. **한 번에 하나만 끈다** — 둘을 같이 끄면 어느 쪽 덕인지 못 가른다.
 const giveEquipment = !args.includes('--no-equipment');
 const shots = args.includes('--no-examples') ? 'none' : 'leave-one-out';
+// 8단계의 축. **켜는 스위치**라 기본이 꺼짐이고, 그래서 7단계까지의 판은 이름이 그대로다.
+const nodeKinds = args.includes('--node-kinds');
 const limit = Number(flag('--limit', '0')) || 0;
 const rescoreOnly = args.includes('--rescore');
 // 이름이 **설정을 말한다.** 6단계에 유령 llama-server 로 표가 한 번 무효가 됐고, 그때
 // 배운 것이 「기록이 스스로를 설명해야 한다」였다. 끈 것이 있으면 이름에 남는다.
-const suffix = `${enforceGrammar ? '' : '__nogrammar'}${giveEquipment ? '' : '__noequip'}${shots === 'none' ? '__noshot' : ''}`;
+const suffix = `${enforceGrammar ? '' : '__nogrammar'}${giveEquipment ? '' : '__noequip'}${shots === 'none' ? '__noshot' : ''}${nodeKinds ? '__kinds' : ''}`;
 const label = flag('--label', model ? `${model}${suffix}` : null);
 
 if (model === null && !rescoreOnly) {
@@ -115,7 +123,7 @@ function utterancesFor(missionId, mission) {
  * 채점 — **축의 정의는 `score-generation.mjs` 하나다.** 여기서 다시 계산하지 않는다.
  * 축을 두 곳에 적으면 표와 채점기가 조용히 갈라진다.
  */
-function writeSummary(root, { model: modelName, label: runLabel, grammar_enforced, equipment_given, shots: runShots, records: rows }) {
+function writeSummary(root, { model: modelName, label: runLabel, grammar_enforced, equipment_given, shots: runShots, node_kinds, records: rows }) {
   const scored = [];
   for (const dir of readdirSync(root).filter((name) => /^v\d+$/.test(name)).sort()) {
     const out = execFileSync(process.execPath, [join(vizRoot, 'scripts', 'score-generation.mjs'), '--candidate', join(root, dir), '--json'], {
@@ -133,6 +141,7 @@ function writeSummary(root, { model: modelName, label: runLabel, grammar_enforce
     // **판을 파일이 스스로 말한다.** 이름만으로 설명하면 이름을 바꾼 순간 설명이 사라진다.
     equipment_given,
     shots: runShots,
+    node_kinds,
     // **생성한 시각은 그대로 두고 채점한 시각만 갱신한다** — 다시 채점했다고 해서
     // 출력이 새로 난 것이 아니다. 그 둘을 한 칸에 적으면 기록이 거짓말한다.
     ran_at: previous?.ran_at ?? new Date().toISOString(),
@@ -168,6 +177,8 @@ if (rescoreOnly) {
       // 다시 채점하는 것이지 다시 도는 것이 아니다 — 그때의 판을 그대로 옮긴다.
       equipment_given: previous.equipment_given ?? false,
       shots: previous.shots ?? 'leave-one-out',
+      // 옛 실행에는 이 칸이 없다 — 8단계 전에는 노드 문법 규칙 자체가 없었다.
+      node_kinds: previous.node_kinds ?? false,
       records: previous.records,
     });
     console.log(`  다시 채점 — ${name} (${previous.records.length}건, 출력은 그대로)`);
@@ -191,15 +202,17 @@ const outRoot = join(runsDir, label);
  * 그래서 **덮어쓰기 자체를 막지는 않되**(같은 설정을 다시 돌리는 것은 정상이다)
  * 설정이 다르면 멈춘다. 다시 돌릴 사람은 이름을 주면 된다.
  */
-const config = { model, grammar_enforced: enforceGrammar, equipment_given: giveEquipment, shots };
+const config = { model, grammar_enforced: enforceGrammar, equipment_given: giveEquipment, shots, node_kinds: nodeKinds };
 try {
   const previous = JSON.parse(readFileSync(join(outRoot, 'summary.json'), 'utf8'));
   const before = {
     model: previous.model,
     grammar_enforced: previous.grammar_enforced,
-    // 옛 실행에는 이 두 칸이 없다 — 그때는 장비 목록도 예시 0편도 없었다(6단계).
+    // 옛 실행에는 이 칸들이 없다 — 그때는 장비 목록도 예시 0편도(6단계),
+    // 노드 문법 규칙도(7단계까지) 없었다.
     equipment_given: previous.equipment_given ?? false,
     shots: previous.shots ?? 'leave-one-out',
+    node_kinds: previous.node_kinds ?? false,
   };
   const differs = Object.keys(config).filter((key) => config[key] !== before[key]);
   if (differs.length) {
@@ -217,7 +230,7 @@ const records = [];
 const targets = limit > 0 ? gold.slice(0, limit) : gold;
 
 console.log(`베이스라인 — model=${model} · 문법=${enforceGrammar ? '강제' : '없음(대조군)'} · 임무 ${targets.length}편`);
-console.log(`             장비 목록=${equipment ? `${equipment.equipment.length}건` : '없음'} · 예시=${shots === 'none' ? '0편' : `${targets.length - 1}편(leave-one-out)`} · 이름=${label}`);
+console.log(`             장비 목록=${equipment ? `${equipment.equipment.length}건` : '없음'} · 예시=${shots === 'none' ? '0편' : `${targets.length - 1}편(leave-one-out)`} · 노드 문법 규칙=${nodeKinds ? '붙임' : '없음'} · 이름=${label}`);
 console.log('');
 
 for (const mission of targets) {
@@ -232,6 +245,7 @@ for (const mission of targets) {
         places,
         equipment,
         examples,
+        nodeKinds,
         model,
         missionId: mission.mission_id,
         // 대본 유래라 인식 수치가 없다 — `confidence_signals` 없이 간다 (§7.8 규칙 2).
@@ -273,6 +287,9 @@ for (const mission of targets) {
       // 목록이 채점 어휘 크기로 좁아진 채 돈 실행을 나중에 못 가려낸다** — 그 순간
       // 이 축은 자기 자신을 채점하게 되고, `verify:no-leak` 5번이 이 숫자를 본다.
       equipment_given: result?.extra?.equipment_given ?? (giveEquipment ? null : 0),
+      // 규칙이 실제로 붙었는지도 **서비스가 말한 값**을 적는다. 스위치를 켰다는 것과
+      // 프롬프트에 붙었다는 것은 다른 일이고, 표는 뒤엣것을 읽어야 한다.
+      node_kinds_given: result?.extra?.node_kinds_given ?? null,
       extra: result?.extra ?? null,
     };
     records.push(record);
@@ -295,7 +312,7 @@ for (const mission of targets) {
   }
 }
 
-writeSummary(outRoot, { model, label, grammar_enforced: enforceGrammar, equipment_given: giveEquipment, shots, records });
+writeSummary(outRoot, { model, label, grammar_enforced: enforceGrammar, equipment_given: giveEquipment, shots, node_kinds: nodeKinds, records });
 console.log('');
 console.log(`기록 ${records.length}건 → ${join(outRoot, 'summary.json')}`);
 console.log('표는 `node scripts/report-baseline.mjs` 가 만든다 — 여러 모델을 한 표에 놓아야 낙폭이 보인다.');

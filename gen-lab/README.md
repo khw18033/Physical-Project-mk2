@@ -100,11 +100,18 @@ py -3.10 -m venv .venv
 베이스라인은 `viz-debugger/` 에서 돈다.
 
 ```powershell
-npm run baseline:run -- --model Qwen3-8B-Q4_K_M      # 임무 4편 × 발화 5개 = 20건
+npm run baseline:run -- --model Qwen3-8B-Q4_K_M      # 임무 3편 × 발화 5개 = 15건
 npm run baseline:run -- --model Qwen3-8B-Q4_K_M --no-grammar   # 문법 없는 대조군
+npm run baseline:run -- --model Qwen3-8B-Q4_K_M --no-equipment # 장비 목록 없는 대조판 (7단계 A)
+npm run baseline:run -- --model Qwen3-8B-Q4_K_M --no-examples  # 예시 0편 (7단계 C)
+npm run baseline:run -- --model Qwen3-8B-Q4_K_M --node-kinds   # 노드 문법 5종 규칙 (8단계 D)
 npm run baseline:run -- --rescore                    # 출력은 그대로, 채점만 다시
 npm run baseline:report                              # 모델을 한 표에 놓는다
 ```
+
+**스위치는 한 번에 하나만 움직인다.** 둘을 같이 움직이면 그 판의 숫자를 어느 원인에도
+돌릴 수 없다. 앞 셋은 기본이 켜짐이라 **끄는** 스위치이고 `--node-kinds` 만 **켜는**
+스위치다 — 8단계에서 재고 **채택하지 않았다**(`reports/2026-09-07_마일스톤분리_8단계.md`).
 포트를 바꾸려면 `$env:VIZ_GENERATE_PORT = "8803"` 처럼 지정하고, 화면 쪽은
 상단 바의 **「연결 관리」** 에서 주소를 바꾼다 (다시 빌드하지 않는다 · `VZ-C-07`).
 

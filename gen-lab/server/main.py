@@ -266,6 +266,10 @@ class GenerateRequest(BaseModel):
     utterance_meta: Optional[Dict[str, Any]] = None
     #: **문법을 끌 수 있다.** 「강제 디코딩이 실제로 듣는가」는 안 걸었을 때와
     #: 비교해야 답이 되기 때문이다 (대조군).
+    #: 노드 문법 5종(감지·판단·실행·검증·보고) 규칙을 붙일 것인가 (8단계 D 판).
+    #: 장소·장비와 달리 **목록이 아니라 규칙**이라 재료가 아니고 켜고 끄는 스위치다.
+    #: 무엇이 붙는지는 `prompt.rules_for()` 한 곳이 정한다.
+    node_kinds: bool = False
     enforce_grammar: bool = True
     max_tokens: int = 2048
     temperature: float = 0.0
@@ -399,6 +403,8 @@ def generate_mission(request: GenerateRequest) -> JSONResponse:
                 "places_given": request.places is not None,
                 "equipment_given": _equipment_count(request.equipment),
                 "examples_given": len(request.examples),
+                # **판을 응답이 말한다.** 이름으로만 적으면 이름을 바꾼 순간 기록이 거짓말한다.
+                "node_kinds_given": request.node_kinds,
                 "grammar_enforced": False,
             },
         }
@@ -414,6 +420,7 @@ def generate_mission(request: GenerateRequest) -> JSONResponse:
         mission_id=request.mission_id or "MSN-GEN-0001",
         places=request.places,
         equipment=request.equipment,
+        node_kinds=request.node_kinds,
         examples=request.examples,
         utterance_meta=request.utterance_meta,
     )
@@ -460,6 +467,8 @@ def generate_mission(request: GenerateRequest) -> JSONResponse:
             # 크기로 좁아진 채 돈 실행을 나중에 가려낼 수 없다 (`verify:no-leak` 5번).
             "equipment_given": _equipment_count(request.equipment),
             "examples_given": len(request.examples),
+            # **판을 응답이 말한다.** 이름으로만 적으면 이름을 바꾼 순간 기록이 거짓말한다.
+            "node_kinds_given": request.node_kinds,
             "load_sec": output.load_sec,
             "prompt_tokens": output.prompt_tokens,
             "completion_tokens": output.completion_tokens,

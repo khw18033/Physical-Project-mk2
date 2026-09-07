@@ -162,11 +162,17 @@ if (checkScreen(mainSource.replaceAll('humanMarks', 'xxx')).length === 0) {
 {
   const scratch = mkdtempSync(join(src, 'data', '.verify-human-'));
   try {
-    const source = readFileSync(tracePath, 'utf8');
+    // **줄끝을 맞춰 둔다.** `.gitattributes` 는 저장소 안을 LF 로 고정하지만 작업 트리는
+    // 환경의 관례를 따르므로(`core.autocrlf`) Windows 체크아웃에서는 CRLF 다. 자리표에
+    // `\n` 이 들어간 사본은 그때 안 만들어지고, 검사는 「원본이 바뀌었나?」라고 말한다 —
+    // 원본은 그대로인데. 사본은 임시 파일이라 줄끝이 무엇이든 상관없다.
+    const source = readFileSync(tracePath, 'utf8').replaceAll('\r\n', '\n');
     const mutants = [
       ["producedBy 를 backend 로 바꾼 사본", source.replace("producedBy: 'human',", "producedBy: 'backend',")],
       ['사람 조작을 열에 안 넣는 사본', source.replace('if (!appendTrace(missionId, event)) return null;', 'return event;')],
-      ['조작 시각을 임무 끝에 몰아 두는 사본', source.replace('    atSec,\n', '    atSec: 0,\n')],
+      // 자리표가 **사람 사건의 것임을 대역 이름으로 못박는다.** `atSec,` 하나로는 같은
+      // 모양의 다른 사건이 생기는 순간 어느 쪽을 뭉갠 것인지 말할 수 없다.
+      ['조작 시각을 임무 끝에 몰아 두는 사본', source.replace('HUMAN_SEQ_BASE + humanCount,\n    atSec,\n', 'HUMAN_SEQ_BASE + humanCount,\n    atSec: 0,\n')],
     ];
     for (const [label, code] of mutants) {
       if (code === source) { failures.push(`대조군을 만들지 못했다 — ${label} (원본이 바뀌었나?)`); continue; }
