@@ -248,6 +248,51 @@ if (unlabeled.length > 0) {
   console.log(`   적용 불가 — ${unlabeled.join(', ')} (노드 분화 이전 편이라 node_kind 라벨이 없다. 지어내지 않는다)`);
 }
 
+// ── 되돌아가는 것을 **마일스톤 단위로 적을 수 있는가** (260908 · 분기와 되풀이 1단계) ──
+//
+// 계약에 `repeat_of` 를 열기 전에 답해야 하는 물음이 하나 있었다: **마일스톤 단위 표현이
+// 사람이 손으로 적은 태스크 단위 엣지를 왜곡 없이 담는가.** 담지 못하면 그 계약은 표현이
+// 아니라 근사이고, 그 위에서 잰 숫자는 무엇을 잰 것인지 말할 수 없다.
+//
+// 여기서 확인하는 것은 규칙이 아니라 **표현의 적합성**이다 — `solveDeps` 를 안 부른다.
+// 규칙이 이것을 실제로 만들어 내는지는 2단계의 몫이고, 그때 이 자리가 그 정답이 된다.
+//
+// **정답셋이 아니라 대본을 읽는다.** `extract-goldset.mjs` 는 `refEdges` 를 일부러 안
+// 뽑고 그 사유를 파일에 적어 두었다 — 「사람이 대본에 적은 것이고 생성 대상이 아니다(§5)」.
+// 그 사유가 바로 이 작업이 고쳐 쓰는 결정이므로, 뽑을지 말지는 **생성이 실제로 그것을
+// 만들기 시작하는 3단계**에서 정한다. 여기서는 원본을 본다.
+{
+  const scriptDir = join(vizRoot, 'scenarios');
+  const scripts = readdirSync(scriptDir)
+    .filter((name) => /^MSN-260831-\d+\.json$/.test(name))
+    .map((name) => JSON.parse(readFileSync(join(scriptDir, name), 'utf8')));
+  const withLoops = scripts.filter((mission) => (mission.refEdges ?? []).length > 0);
+  if (withLoops.length === 0) {
+    failures.push('되돌아가는 엣지를 가진 대본이 하나도 없다 — 표현 적합성을 확인할 원본이 사라졌다');
+  }
+  for (const mission of withLoops) {
+    const tasksOf = (milestoneId) => mission.tasks.filter((task) => task.milestone === milestoneId).map((task) => task.id);
+    for (const edge of mission.refEdges) {
+      const fromMilestone = mission.tasks.find((task) => task.id === edge.from)?.milestone;
+      const toMilestone = mission.tasks.find((task) => task.id === edge.to)?.milestone;
+      if (fromMilestone === undefined || toMilestone === undefined) {
+        failures.push(`${mission.missionId}: refEdge ${edge.from}→${edge.to} 의 태스크가 어느 마일스톤 것인지 모른다`);
+        continue;
+      }
+      // 마일스톤 단위로 적은 것을 태스크로 펴는 규칙: **끝 노드 → 첫 노드.**
+      const expanded = { from: tasksOf(fromMilestone).slice(-1)[0], to: tasksOf(toMilestone)[0] };
+      if (expanded.from !== edge.from || expanded.to !== edge.to) {
+        failures.push(
+          `${mission.missionId}: 마일스톤 단위(${fromMilestone}→${toMilestone})를 펴면 ${expanded.from}→${expanded.to} 인데 `
+          + `대본은 ${edge.from}→${edge.to} 다 — 마일스톤 단위 표현이 이 되돌아감을 담지 못한다`,
+        );
+      } else {
+        console.log(`   ${mission.missionId} 되돌아감 — 마일스톤 ${fromMilestone}→${toMilestone} 를 펴면 ${edge.from}→${edge.to} · 대본과 같다`);
+      }
+    }
+  }
+}
+
 if (failures.length) {
   console.error(`❌ verify:dep-rules\n- ${failures.join('\n- ')}`);
   process.exit(1);
@@ -258,4 +303,5 @@ console.log(`✅ 순환 없음 — 대본 ${rows.length}편 + 무작위 목록 3
 console.log(`✅ 복원 ${restored}/${total} — 기준선과 일치 · 못 복원한 ${KNOWN_GAPS.length}자리는 사유와 함께 못박혀 있다`);
 console.log('✅ 합류가 살아 있다 (MSN-260831-01) — 병렬은 만들어지는 것이 아니라 제약이 없어서 남는다');
 console.log('✅ 계약 — task.schema.json 의 node_kind 는 노드 문법 5종의 **선택** 필드다');
+console.log('✅ 되돌아감을 마일스톤 단위로 적을 수 있다 — 펴면(끝 노드→첫 노드) 대본이 손으로 적은 엣지와 글자까지 같다');
 console.log(`✅ 대조군 ${controls.length}건 검출 — ${controls.join(' · ')}`);
