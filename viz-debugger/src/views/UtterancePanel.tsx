@@ -99,6 +99,14 @@ const MOCK_STEPS = ['의도 분석', '마일스톤 분리', '태스크 생성'];
  * 그대로 적어 「얼마나 더 기다리면 되나」에 답한다.
  */
 const GENERATE_MAX_SEC = 12.2;
+/**
+ * 태스크까지 낼 때의 실측 최대 (10단계 E3 · 15건 · 31.34초 · 중앙값 25.98초).
+ *
+ * **판마다 다르므로 판마다 적는다.** 12.2초짜리 막대를 26초 걸리는 판에 쓰면 막대가
+ * 절반쯤에서 끝까지 차 버리고, 그때부터 화면은 「곧 끝난다」를 계속 거짓말한다.
+ * 프롬프트가 4,400 → 7,600 토큰이 되고 출력이 마일스톤에서 태스크까지 늘어난 값이다.
+ */
+const GENERATE_MAX_SEC_TASKS = 31.4;
 /** 경과 표시 간격. 초 단위 숫자 하나를 갱신하는 데 60fps 를 쓸 이유가 없다. */
 const GENERATE_TICK_MS = 200;
 /**
@@ -134,6 +142,8 @@ type GenerationOutcome = {
   view: MissionView;
   nodeCount: number;
   edgeCount: number;
+  /** 모델이 규칙을 어기고 적은 의존의 수. **0이 정상이다** — 10단계 실측에서 15건 전부 0이었다. */
+  modelDeps: number;
   /** 지금 이 결과가 **제안으로 서 있는가.** 대본이 맞은 경우에는 나란히 뜨기만 한다. */
   proposed: boolean;
 };
@@ -258,6 +268,18 @@ export function UtterancePanel({ fallbackText }: { fallbackText: string }) {
    */
   const [genModels, setGenModels] = useState<GenerateProbe['models']>([]);
   const [genModel, setGenModel] = useState<string | null>(null);
+  /**
+   * 태스크까지 낼 것인가 (10단계 E · `VZ-G-02` 의 모델 쪽 절반).
+   *
+   * **기본은 켜짐이다.** 15건 실측에서 형식은 완전히 안정적이었고(스키마 15/15 ·
+   * 모델이 낸 `deps` 0건 · 순환 0건 · 라벨은 계약의 enum 이 강제), 결과는 제안일 뿐
+   * 사람이 승인한다. 다만 응답이 6.4 → 26초로 네 배가 되므로 **끌 수 있게 둔다** —
+   * 시연에서 기다릴 수 없을 때 마일스톤만 받는 길이 남아 있어야 한다.
+   *
+   * 정답 재현이 높아서 켠 것이 아니다. 낮다 — 그리고 그 원인의 대부분이 마일스톤 층에
+   * 있다(10단계 보고서). 켠 근거는 **형식이 안정적이고 제안일 뿐**이라는 것이다.
+   */
+  const [genTasks, setGenTasks] = useState(true);
   const [genPhase, setGenPhase] = useState<'idle' | 'running' | 'done' | 'failed'>('idle');
   /** 진행 표시 — 최대 12.2초다. 그동안 화면이 멎으면 안 된다(지시서 §6). */
   const [genElapsed, setGenElapsed] = useState(0);
@@ -442,7 +464,10 @@ export function UtterancePanel({ fallbackText }: { fallbackText: string }) {
       const generated = await generateMission(utteranceMeta.text, {
         places: placesTopology,
         equipment: equipmentVocabulary,
-        examples: examplesForUtterance(SCRIPT_LIBRARY, matchedMissionId),
+        // **규칙과 예시를 함께 켠다.** 규칙만 바꾸고 예시를 그대로 두면 프롬프트가 서로
+        // 반대되는 지시 둘을 들고, 실측에서 예시가 이겼다 (10단계 E 판 15건 중 10건).
+        examples: examplesForUtterance(SCRIPT_LIBRARY, matchedMissionId, { tasks: genTasks }),
+        tasks: genTasks,
         model: genModel,
         missionId,
         utteranceMeta,
@@ -458,11 +483,11 @@ export function UtterancePanel({ fallbackText }: { fallbackText: string }) {
         setGenPhase('failed');
         return;
       }
-      const { nodeCount, edgeCount } = tasksFromGenerated(generated.mission);
+      const { nodeCount, edgeCount, modelDeps } = tasksFromGenerated(generated.mission);
       const view = viewFromGenerated(generated.mission, `발화에서 생성 — ${utteranceMeta.text}`);
       // 대본이 맞았으면 대본이 제안으로 남는다. 아니면 이것이 제안이다.
       const proposed = matchedMissionId === null && proposeGenerated(view, provenance);
-      setGenOutcome({ provenance, view, nodeCount, edgeCount, proposed });
+      setGenOutcome({ provenance, view, nodeCount, edgeCount, modelDeps, proposed });
       setGenPhase('done');
     } catch (caught) {
       const unavailable = caught instanceof LlmUnavailableError;
@@ -471,7 +496,7 @@ export function UtterancePanel({ fallbackText }: { fallbackText: string }) {
       if (unavailable && caught.kind === 'offline') setGenStatus('unavailable');
       setGenPhase('failed');
     }
-  }, [genAble.canGenerate, genModel]);
+  }, [genAble.canGenerate, genModel, genTasks]);
 
   /** 나란히 뜬 AI 결과를 제안으로 올린다. **여전히 승인 앞이다** — 올리는 것과 승인은 다르다. */
   const switchToGenerated = useCallback(() => {
@@ -555,6 +580,9 @@ export function UtterancePanel({ fallbackText }: { fallbackText: string }) {
    * 대본이 이긴다 (위 `runGeneration` 의 근거). 사람이 버튼으로 바꾸면 `proposed` 가
    * 참이 되고 그때 `ai` 로 넘어간다.
    */
+  /** 이 판의 실측 최대. 태스크까지 내면 네 배가 걸린다 (10단계). */
+  const generateMaxSec = genTasks ? GENERATE_MAX_SEC_TASKS : GENERATE_MAX_SEC;
+
   const producer: 'mock' | 'script' | 'ai' | 'running' =
     genOutcome?.proposed ? 'ai'
       : scriptMatch?.kind === 'matched' ? 'script'
@@ -640,6 +668,13 @@ export function UtterancePanel({ fallbackText }: { fallbackText: string }) {
             </select>
             <small>물고 있지 않은 것을 고르면 적재에 수십 초가 걸립니다</small>
           </label>
+          {/* 태스크까지 낼 것인가 — `VZ-G-02` 의 모델 쪽 절반. 끌 수 있어야 하는 이유는
+              시간이다: 켜면 6.4 → 26초다(10단계 실측). 의존은 어느 쪽이든 규칙이 만든다. */}
+          <label className="gen-model">
+            <input type="checkbox" checked={genTasks} disabled={genPhase === 'running'}
+              onChange={(event) => setGenTasks(event.target.checked)} />
+            태스크까지 생성 <small>끄면 마일스톤만 (6초) · 켜면 태스크까지 (실측 최대 {GENERATE_MAX_SEC_TASKS}초) · 의존은 어느 쪽이든 규칙이 만듭니다</small>
+          </label>
         </p>
       )}
       {genEngine === 'stub' && (
@@ -647,8 +682,11 @@ export function UtterancePanel({ fallbackText }: { fallbackText: string }) {
       )}
       {genPhase === 'running' && (
         <p className="gen-progress" role="status">
-          <b>생성 중</b> {genElapsed.toFixed(1)}초 <small>실측 최대 {GENERATE_MAX_SEC}초 · 실시간이 아닙니다 (사람이 수락하는 단계)</small>
-          <progress max={GENERATE_MAX_SEC} value={Math.min(genElapsed, GENERATE_MAX_SEC)} />
+          <b>생성 중</b> {genElapsed.toFixed(1)}초 <small>실측 최대 {generateMaxSec}초 · 실시간이 아닙니다 (사람이 수락하는 단계)</small>
+          <progress max={generateMaxSec} value={Math.min(genElapsed, generateMaxSec)} />
+          {/* 상한을 넘으면 **넘었다고 적는다.** 막대가 끝에 붙은 채로 멈춰 있으면
+              사람은 화면이 죽었다고 읽는다. */}
+          {genElapsed > generateMaxSec && <small>실측 최대를 넘었습니다 — 처음 부르는 가중치라면 적재 중일 수 있습니다.</small>}
         </p>
       )}
       {genError && <p className="stt-error">{genError.message}{genError.detail ? <small>{genError.detail}</small> : null}</p>}
@@ -686,6 +724,14 @@ export function UtterancePanel({ fallbackText }: { fallbackText: string }) {
             <p className="stt-error">
               계약 위반 {genOutcome.provenance.schemaErrors.length}건 — 제안은 뜨지만 사람이 보고 판단할 자리입니다
               <small>{genOutcome.provenance.schemaErrors.join(' · ')}</small>
+            </p>
+          )}
+          {/* 모델이 규칙을 어기고 적은 의존은 **버렸다는 사실을 적는다.** 조용히 버리면
+              「모델이 지시를 지켰는가」를 영영 못 잰다 (utterance 덮어쓰기와 같은 규칙). */}
+          {genOutcome.modelDeps > 0 && (
+            <p className="gen-note">
+              모델이 적은 의존 {genOutcome.modelDeps}건을 버렸습니다 — 의존은 규칙(<code>solveDeps</code>)이 만듭니다
+              <small>실행 전에는 병렬의 근거가 없어, 모델이 낸 의존은 순환·고아 노드를 만듭니다 (지시서 §5)</small>
             </p>
           )}
           {genOutcome.provenance.overwritten.length > 0 && (

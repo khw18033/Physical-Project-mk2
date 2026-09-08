@@ -105,13 +105,20 @@ npm run baseline:run -- --model Qwen3-8B-Q4_K_M --no-grammar   # 문법 없는 �
 npm run baseline:run -- --model Qwen3-8B-Q4_K_M --no-equipment # 장비 목록 없는 대조판 (7단계 A)
 npm run baseline:run -- --model Qwen3-8B-Q4_K_M --no-examples  # 예시 0편 (7단계 C)
 npm run baseline:run -- --model Qwen3-8B-Q4_K_M --node-kinds   # 노드 문법 5종 규칙 (8단계 D)
+npm run baseline:run -- --model Qwen3-8B-Q4_K_M --tasks        # 태스크까지 낸다 (10단계 E)
 npm run baseline:run -- --rescore                    # 출력은 그대로, 채점만 다시
 npm run baseline:report                              # 모델을 한 표에 놓는다
 ```
 
 **스위치는 한 번에 하나만 움직인다.** 둘을 같이 움직이면 그 판의 숫자를 어느 원인에도
 돌릴 수 없다. 앞 셋은 기본이 켜짐이라 **끄는** 스위치이고 `--node-kinds` 만 **켜는**
-스위치다 — 8단계에서 재고 **채택하지 않았다**(`reports/2026-09-07_마일스톤분리_8단계.md`).
+스위치다 — `--node-kinds` 는 8단계에서 재고 **채택하지 않았고**, `--tasks` 는 10단계에서
+재고 **채택했다**(화면 기본 켜짐).
+
+`--tasks` 는 예시도 함께 바꾼다 — 규칙만 바꾸고 예시를 그대로 두면 프롬프트가 서로
+반대되는 지시 둘을 들고, 실측에서 **예시가 이겼다**(15건 중 10건이 규칙을 무시했다).
+그리고 프롬프트가 4,400 → 7,600 토큰이 되므로 `ctx` 가 **16384** 여야 한다 — 8192 에서는
+출력에 567 토큰밖에 안 남아 15건 전부 잘렸다.
 포트를 바꾸려면 `$env:VIZ_GENERATE_PORT = "8803"` 처럼 지정하고, 화면 쪽은
 상단 바의 **「연결 관리」** 에서 주소를 바꾼다 (다시 빌드하지 않는다 · `VZ-C-07`).
 
@@ -124,12 +131,15 @@ npm run baseline:report                              # 모델을 한 표에 놓�
 
 ```
 의도 분석 · 마일스톤 분리   VZ-G-01   generateMission()  ← 모델
-태스크 생성                VZ-G-02   solveDeps()        ← 규칙 (모델이 아니다)
+태스크 생성                VZ-G-02   노드는 모델 · deps 는 solveDeps() 규칙
 ```
 
 결과는 **제안**이다. 사람이 승인해야 캔버스에 올라가고(`VZ-U-07`), 그 문은
 `data/scenario.ts` 의 `acceptProposal()` 하나이며 `verify:proposal-gate` 가 지킨다.
 **대본이 맞으면 대본이 이긴다** — 모델의 답은 나란히 뜨고 사람이 버튼으로 바꾼다.
+
+태스크까지 낼지는 화면에서 끌 수 있다. **기본은 켜짐**이고, 끄면 마일스톤만 받는다
+(6초 대 26초). `deps` 는 어느 쪽이든 규칙이 만든다 — 모델은 빈 배열을 낸다.
 
 ## 면 둘
 

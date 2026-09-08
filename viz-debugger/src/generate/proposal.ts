@@ -80,14 +80,31 @@ export function provenanceOf(result: GenerateResult): AiProvenance {
  * 화면에서 사라지고, 여기서 노드를 지어내면 그것은 **모델이 낸 것이 아닌 것을 모델의
  * 것으로 그리는 일**이다. 0개를 0개라고 적는 것이 이 저장소의 규칙이다.
  */
-export function tasksFromGenerated(mission: GeneratedMission): {
-  tasks: Task[];
+export type SolvedDeps = {
+  /** 노드 id → 의존. **규칙이 매단 것이다** — 모델이 낸 `deps` 는 여기 없다. */
+  deps: Record<string, string[]>;
   nodeCount: number;
   edgeCount: number;
-} {
+  /**
+   * 모델이 규칙을 어기고 적은 의존의 수. **0이 정상이다** (규칙 14: 「deps 는 빈 배열로
+   * 둔다」). 0이 아니면 버렸다는 사실을 기록에 남긴다 — 조용히 버리면 「모델이 지시를
+   * 지켰는가」를 영영 못 잰다. `utterance` 덮어쓰기와 같은 규칙이다.
+   */
+  modelDeps: number;
+};
+
+/**
+ * 모델이 낸 노드 목록 → **규칙이 매단 의존.** `VZ-G-02` 의 규칙 절반이 도는 자리다.
+ *
+ * 화면과 측정 경로가 **이 함수 하나**를 같이 쓴다. 두 벌이면 표의 그래프 숫자와 화면에
+ * 그려지는 그래프가 조용히 갈라진다.
+ */
+export function solvedDepsFor(mission: GeneratedMission): SolvedDeps {
   const nodes: GeneratedNode[] = [];
+  let modelDeps = 0;
   for (const milestone of mission.milestones ?? []) {
     for (const task of milestone.tasks ?? []) {
+      modelDeps += (task.deps ?? []).length;
       nodes.push({
         id: task.task_id,
         title: task.title,
@@ -99,23 +116,59 @@ export function tasksFromGenerated(mission: GeneratedMission): {
       });
     }
   }
-  if (nodes.length === 0) return { tasks: [], nodeCount: 0, edgeCount: 0 };
-
+  if (nodes.length === 0) return { deps: {}, nodeCount: 0, edgeCount: 0, modelDeps };
   const solved = solveDeps(nodes);
-  const tasks = nodes.map((node) => ({
-    id: node.id,
-    title: node.title,
-    deps: solved.deps[node.id] ?? [],
-    target: node.target,
-    actionItems: [],
-    milestone: node.milestoneId,
-    nodeKind: node.nodeKind,
-  }));
   return {
-    tasks,
+    deps: solved.deps,
     nodeCount: nodes.length,
     edgeCount: Object.values(solved.deps).reduce((sum, deps) => sum + deps.length, 0),
+    modelDeps,
   };
+}
+
+/**
+ * 같은 임무를, **`deps` 만 규칙이 매단 것으로 바꿔서** 돌려준다.
+ *
+ * 채점되는 것도 화면이 그리는 것도 이 객체다. 모델의 원본은 버리지 않는다 —
+ * 실행 기록의 `raw/` 가 그대로 들고 있고, 몇 건을 버렸는지는 `modelDeps` 가 센다.
+ */
+export function withSolvedDeps(mission: GeneratedMission): { mission: GeneratedMission; solved: SolvedDeps } {
+  const solved = solvedDepsFor(mission);
+  if (solved.nodeCount === 0) return { mission, solved };
+  return {
+    mission: {
+      ...mission,
+      milestones: (mission.milestones ?? []).map((milestone) => ({
+        ...milestone,
+        tasks: (milestone.tasks ?? []).map((task) => ({ ...task, deps: solved.deps[task.task_id] ?? [] })),
+      })),
+    },
+    solved,
+  };
+}
+
+export function tasksFromGenerated(mission: GeneratedMission): {
+  tasks: Task[];
+  nodeCount: number;
+  edgeCount: number;
+  modelDeps: number;
+} {
+  const solved = solvedDepsFor(mission);
+  const tasks: Task[] = [];
+  for (const milestone of mission.milestones ?? []) {
+    for (const task of milestone.tasks ?? []) {
+      tasks.push({
+        id: task.task_id,
+        title: task.title,
+        deps: solved.deps[task.task_id] ?? [],
+        target: (task as { target?: string | null }).target ?? null,
+        actionItems: [],
+        milestone: milestone.milestone_id,
+        ...(NODE_KINDS.includes(task.node_kind as NodeKind) ? { nodeKind: task.node_kind as NodeKind } : {}),
+      });
+    }
+  }
+  return { tasks, nodeCount: solved.nodeCount, edgeCount: solved.edgeCount, modelDeps: solved.modelDeps };
 }
 
 /**

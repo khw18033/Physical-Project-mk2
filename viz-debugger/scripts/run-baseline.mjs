@@ -28,6 +28,7 @@
 //   node scripts/run-baseline.mjs --model X --no-equipment    장비 목록 없는 대조판 (7단계 A)
 //   node scripts/run-baseline.mjs --model X --no-examples     예시 0편 (7단계 C)
 //   node scripts/run-baseline.mjs --model X --node-kinds      노드 문법 5종 규칙 (8단계 D)
+//   node scripts/run-baseline.mjs --model X --tasks           태스크까지 낸다 (10단계 E)
 //   node scripts/run-baseline.mjs --model X --limit 2         빠른 확인용
 //   node scripts/run-baseline.mjs --rescore                   이미 낸 결과를 다시 채점만
 //
@@ -35,11 +36,12 @@
 //
 // `--no-grammar` 는 「강제 디코딩이 실제로 듣는가」를, `--no-equipment` 는 「장비 목록이
 // 위반을 줄이는가」를, `--no-examples` 는 「개수 일치가 실력인가 예시를 베낀 것인가」를,
-// `--node-kinds` 는 「단계의 *종류*를 알려주면 빠뜨린 단계가 돌아오는가」를 답한다.
+// `--node-kinds` 는 「단계의 *종류*를 알려주면 빠뜨린 단계가 돌아오는가」를,
+// `--tasks` 는 「모델이 노드 목록을 낼 줄 아는가」를 답한다.
 // **한 번에 하나만 움직인다.** 둘을 같이 움직이면 그 판의 숫자는 두 원인 중 어느 쪽에도
 // 돌릴 수 없고, 돌릴 수 없는 숫자는 표에 올릴 수 없다.
 //
-// 앞 셋은 기본이 켜짐이라 **끄는** 스위치이고 `--node-kinds` 만 **켜는** 스위치다.
+// 앞 셋은 기본이 켜짐이라 **끄는** 스위치이고 `--node-kinds`·`--tasks` 는 **켜는** 스위치다.
 // 그 차이가 이름에 그대로 있다 — 이름이 기본값을 말하지 않으면 「끈 판」과 「안 켠 판」이
 // 표에서 같은 얼굴을 하게 된다.
 //
@@ -47,6 +49,16 @@
 // **모델을 다시 돌리면 안 된다** — 같은 출력을 다시 뽑는 데 시간을 쓰는 것도 문제지만,
 // 재생성하면 「이 표의 출력이 그때 그 출력인가」가 흐려진다. 출력은 그대로 두고 채점만
 // 다시 한다.
+//
+// ## `deps` 는 채점 전에 **규칙이** 매단다 (10단계)
+//
+// `--tasks` 판에서 모델은 노드만 내고 `deps` 는 빈 배열로 낸다(규칙 14). 채점되는 것은
+// 그 상태가 아니라 **`solveDeps()` 를 지난 것**이다 — 지시서 §5 가 정한 파이프라인이
+// 「모델 노드 + 규칙 의존」이므로, 재는 대상도 그 파이프라인의 출력이어야 한다.
+//
+// 그 함수는 화면과 **같은 것**이다 (`src/generate/proposal.ts`). 두 벌이면 표의 그래프
+// 숫자와 화면에 그려지는 그래프가 조용히 갈라진다. 모델의 원본은 `raw/` 가 그대로 들고
+// 있고, 모델이 규칙을 어기고 적은 의존이 몇 건인지는 기록의 `model_deps` 가 센다.
 //
 // 결과는 `gen-lab/runs/<이름>/` 에 쌓이고 채점은 `score-generation.mjs` 가 한다 —
 // **축의 정의를 두 벌로 두지 않는다.**
@@ -72,11 +84,13 @@ const giveEquipment = !args.includes('--no-equipment');
 const shots = args.includes('--no-examples') ? 'none' : 'leave-one-out';
 // 8단계의 축. **켜는 스위치**라 기본이 꺼짐이고, 그래서 7단계까지의 판은 이름이 그대로다.
 const nodeKinds = args.includes('--node-kinds');
+// 10단계의 축. **켜는 스위치**라 기본이 꺼짐이고, 9단계까지의 판은 이름이 그대로다.
+const withTasks = args.includes('--tasks');
 const limit = Number(flag('--limit', '0')) || 0;
 const rescoreOnly = args.includes('--rescore');
 // 이름이 **설정을 말한다.** 6단계에 유령 llama-server 로 표가 한 번 무효가 됐고, 그때
 // 배운 것이 「기록이 스스로를 설명해야 한다」였다. 끈 것이 있으면 이름에 남는다.
-const suffix = `${enforceGrammar ? '' : '__nogrammar'}${giveEquipment ? '' : '__noequip'}${shots === 'none' ? '__noshot' : ''}${nodeKinds ? '__kinds' : ''}`;
+const suffix = `${enforceGrammar ? '' : '__nogrammar'}${giveEquipment ? '' : '__noequip'}${shots === 'none' ? '__noshot' : ''}${nodeKinds ? '__kinds' : ''}${withTasks ? '__tasks' : ''}`;
 const label = flag('--label', model ? `${model}${suffix}` : null);
 
 if (model === null && !rescoreOnly) {
@@ -123,7 +137,7 @@ function utterancesFor(missionId, mission) {
  * 채점 — **축의 정의는 `score-generation.mjs` 하나다.** 여기서 다시 계산하지 않는다.
  * 축을 두 곳에 적으면 표와 채점기가 조용히 갈라진다.
  */
-function writeSummary(root, { model: modelName, label: runLabel, grammar_enforced, equipment_given, shots: runShots, node_kinds, records: rows }) {
+function writeSummary(root, { model: modelName, label: runLabel, grammar_enforced, equipment_given, shots: runShots, node_kinds, tasks, records: rows }) {
   const scored = [];
   for (const dir of readdirSync(root).filter((name) => /^v\d+$/.test(name)).sort()) {
     const out = execFileSync(process.execPath, [join(vizRoot, 'scripts', 'score-generation.mjs'), '--candidate', join(root, dir), '--json'], {
@@ -142,6 +156,7 @@ function writeSummary(root, { model: modelName, label: runLabel, grammar_enforce
     equipment_given,
     shots: runShots,
     node_kinds,
+    tasks,
     // **생성한 시각은 그대로 두고 채점한 시각만 갱신한다** — 다시 채점했다고 해서
     // 출력이 새로 난 것이 아니다. 그 둘을 한 칸에 적으면 기록이 거짓말한다.
     ran_at: previous?.ran_at ?? new Date().toISOString(),
@@ -177,8 +192,9 @@ if (rescoreOnly) {
       // 다시 채점하는 것이지 다시 도는 것이 아니다 — 그때의 판을 그대로 옮긴다.
       equipment_given: previous.equipment_given ?? false,
       shots: previous.shots ?? 'leave-one-out',
-      // 옛 실행에는 이 칸이 없다 — 8단계 전에는 노드 문법 규칙 자체가 없었다.
+      // 옛 실행에는 이 칸들이 없다 — 8·10단계 전에는 그 규칙 자체가 없었다.
       node_kinds: previous.node_kinds ?? false,
+      tasks: previous.tasks ?? false,
       records: previous.records,
     });
     console.log(`  다시 채점 — ${name} (${previous.records.length}건, 출력은 그대로)`);
@@ -188,6 +204,8 @@ if (rescoreOnly) {
 }
 
 const { generateMission } = await import('../src/generate/LlmClient.ts');
+// **`deps` 를 매다는 규칙은 화면과 같은 파일이다.** 여기서 다시 쓰면 두 벌이 갈라진다.
+const { withSolvedDeps } = await import('../src/generate/proposal.ts');
 
 const outRoot = join(runsDir, label);
 
@@ -202,7 +220,7 @@ const outRoot = join(runsDir, label);
  * 그래서 **덮어쓰기 자체를 막지는 않되**(같은 설정을 다시 돌리는 것은 정상이다)
  * 설정이 다르면 멈춘다. 다시 돌릴 사람은 이름을 주면 된다.
  */
-const config = { model, grammar_enforced: enforceGrammar, equipment_given: giveEquipment, shots, node_kinds: nodeKinds };
+const config = { model, grammar_enforced: enforceGrammar, equipment_given: giveEquipment, shots, node_kinds: nodeKinds, tasks: withTasks };
 try {
   const previous = JSON.parse(readFileSync(join(outRoot, 'summary.json'), 'utf8'));
   const before = {
@@ -213,6 +231,7 @@ try {
     equipment_given: previous.equipment_given ?? false,
     shots: previous.shots ?? 'leave-one-out',
     node_kinds: previous.node_kinds ?? false,
+    tasks: previous.tasks ?? false,
   };
   const differs = Object.keys(config).filter((key) => config[key] !== before[key]);
   if (differs.length) {
@@ -230,11 +249,13 @@ const records = [];
 const targets = limit > 0 ? gold.slice(0, limit) : gold;
 
 console.log(`베이스라인 — model=${model} · 문법=${enforceGrammar ? '강제' : '없음(대조군)'} · 임무 ${targets.length}편`);
-console.log(`             장비 목록=${equipment ? `${equipment.equipment.length}건` : '없음'} · 예시=${shots === 'none' ? '0편' : `${targets.length - 1}편(leave-one-out)`} · 노드 문법 규칙=${nodeKinds ? '붙임' : '없음'} · 이름=${label}`);
+console.log(`             장비 목록=${equipment ? `${equipment.equipment.length}건` : '없음'} · 예시=${shots === 'none' ? '0편' : `${targets.length - 1}편(leave-one-out)`} · 노드 문법 규칙=${nodeKinds ? '붙임' : '없음'} · 태스크=${withTasks ? '낸다(deps 는 규칙)' : '안 낸다'} · 이름=${label}`);
 console.log('');
 
 for (const mission of targets) {
-  const examples = examplesFor(mission.mission_id, gold, shots);
+  // **규칙과 예시를 함께 켠다.** 규칙만 바꾸고 예시를 그대로 두면 프롬프트가 서로
+  // 반대되는 지시 둘을 들고, 실측에서 예시가 이겼다 (10단계 E 판 15건 중 10건).
+  const examples = examplesFor(mission.mission_id, gold, shots, { tasks: withTasks });
   const texts = utterancesFor(mission.mission_id, mission);
   for (const [index, text] of texts.entries()) {
     const started = Date.now();
@@ -246,6 +267,7 @@ for (const mission of targets) {
         equipment,
         examples,
         nodeKinds,
+        tasks: withTasks,
         model,
         missionId: mission.mission_id,
         // 대본 유래라 인식 수치가 없다 — `confidence_signals` 없이 간다 (§7.8 규칙 2).
@@ -290,6 +312,7 @@ for (const mission of targets) {
       // 규칙이 실제로 붙었는지도 **서비스가 말한 값**을 적는다. 스위치를 켰다는 것과
       // 프롬프트에 붙었다는 것은 다른 일이고, 표는 뒤엣것을 읽어야 한다.
       node_kinds_given: result?.extra?.node_kinds_given ?? null,
+      tasks_given: result?.extra?.tasks_given ?? null,
       extra: result?.extra ?? null,
     };
     records.push(record);
@@ -307,19 +330,32 @@ for (const mission of targets) {
       record.id_obeyed = Array.isArray(overwritten)
         ? !overwritten.some((entry) => entry.field === 'mission_id')
         : result.mission.mission_id === mission.mission_id;
+      // **채점되는 것은 `deps` 를 규칙이 매단 뒤의 임무다** (위 머리말). 노드가 0개면
+      // 아무것도 안 바뀐다 — 9단계까지의 판에서 이 줄은 항등이다.
+      const { mission: scored, solved } = withSolvedDeps(result.mission);
+      record.nodes = solved.nodeCount;
+      record.edges_by_rule = solved.edgeCount;
+      // 규칙 14(「deps 는 빈 배열로 둔다」)를 지켰는가. **0이 정상이다.**
+      record.model_deps = solved.modelDeps;
       writeFileSync(
         join(variantDir, `${mission.mission_id}.json`),
-        JSON.stringify({ ...result.mission, mission_id: mission.mission_id }, null, 2),
+        JSON.stringify({ ...scored, mission_id: mission.mission_id }, null, 2),
         'utf8',
       );
     }
     const status = failure !== null ? `실패 — ${failure.slice(0, 60)}`
-      : `${record.schema_pass ? '스키마통과' : `스키마실패 ${record.schema_errors.length}`} · ${wall.toFixed(1)}초 · 마일스톤 ${result.mission?.milestones?.length ?? '?'}`;
+      : `${record.schema_pass ? '스키마통과' : `스키마실패 ${record.schema_errors.length}`} · ${wall.toFixed(1)}초 · 마일스톤 ${result.mission?.milestones?.length ?? '?'}`
+        + (withTasks ? ` · 노드 ${record.nodes ?? 0} · 의존 ${record.edges_by_rule ?? 0}(규칙)` : '')
+        // **잘린 것과 모델이 못 한 것은 다른 실패다.** 안 적으면 둘 다 「스키마 실패」로만
+        // 보이고, 진단이 매번 처음부터 시작된다 (10단계 E2 가 15건 전부 그것이었다).
+        + (record.extra?.stop_reason === 'limit'
+          ? ` ⚠ 출력이 잘렸다 (프롬프트 ${record.extra?.prompt_tokens} + 출력 ${record.extra?.completion_tokens} = ctx ${record.extra?.applied_options?.ctx_size})`
+          : '');
     console.log(`  ${mission.mission_id} v${index}  ${status}`);
   }
 }
 
-writeSummary(outRoot, { model, label, grammar_enforced: enforceGrammar, equipment_given: giveEquipment, shots, node_kinds: nodeKinds, records });
+writeSummary(outRoot, { model, label, grammar_enforced: enforceGrammar, equipment_given: giveEquipment, shots, node_kinds: nodeKinds, tasks: withTasks, records });
 console.log('');
 console.log(`기록 ${records.length}건 → ${join(outRoot, 'summary.json')}`);
 console.log('표는 `node scripts/report-baseline.mjs` 가 만든다 — 여러 모델을 한 표에 놓아야 낙폭이 보인다.');

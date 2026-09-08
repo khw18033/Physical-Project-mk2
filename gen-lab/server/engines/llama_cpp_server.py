@@ -50,7 +50,15 @@ BIN = Path(os.environ.get("GEN_LAB_LLAMA_BIN", LAB_ROOT / "vendor" / "llama.cpp"
 MODEL_DIR = Path(os.environ.get("GEN_LAB_MODEL_DIR", LAB_ROOT / "models"))
 PORT = int(os.environ.get("GEN_LAB_LLAMA_PORT", "8803"))
 NGL = int(os.environ.get("GEN_LAB_NGL", "99"))
-CTX = int(os.environ.get("GEN_LAB_CTX", "8192"))
+#: 컨텍스트 길이. **8192 에서 16384 로 올렸다** (260907 · 10단계).
+#:
+#: 예시에 태스크가 실리면서 프롬프트가 4,400 → 7,600 토큰이 됐고, 8192 에서는 출력에
+#: 567 토큰밖에 안 남아 **15건 전부 중간에 잘렸다.** 스키마 실패 15/15 로 나타났지만
+#: 모델이 못 한 것이 아니라 자리가 없었던 것이다 — 그 둘은 다른 실패다.
+#:
+#: 이 값은 `applied_options.ctx_size` 로 매 건에 기록된다. 8192 로 돈 옛 실행들은
+#: 잘리지 않았으므로(프롬프트 4,400 + 출력 2,048 < 8192) 그 숫자는 그대로 쓴다.
+CTX = int(os.environ.get("GEN_LAB_CTX", "16384"))
 #: 적재가 이보다 오래 걸리면 뭔가 잘못된 것이다. 무한정 기다리면 요청이 매달린다.
 BOOT_TIMEOUT_SEC = float(os.environ.get("GEN_LAB_BOOT_TIMEOUT", "300"))
 BASE = f"http://127.0.0.1:{PORT}"

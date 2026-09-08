@@ -46,10 +46,29 @@ export type MissionExample = {
     title: string;
     order: number;
     status: 'pending';
-    /** **언제나 빈 배열이다.** 태스크는 `VZ-G-02` 의 몫이고 `deps` 는 `solveDeps()` 가 만든다. */
-    tasks: [];
+    /**
+     * 태스크를 보이는가는 **판이 정한다** (10단계). 기본은 빈 배열이고, 태스크를 내게
+     * 하는 판에서는 규칙과 **함께** 켜야 한다 — 규칙만 바꾸면 예시가 이긴다.
+     * `deps` 는 어느 판에서도 빈 배열이다: 의존은 예시가 아니라 규칙이 만든다.
+     */
+    tasks: MissionExampleTask[];
     assigned_targets: string[];
   }>;
+};
+
+/** 예시의 태스크 하나. 항목 차례는 계약의 `properties` 차례다 (문법이 그 순서를 고정한다). */
+export type MissionExampleTask = {
+  task_id: string;
+  title: string;
+  /** **언제나 빈 배열이다.** 정답의 의존을 보이면 모델이 흉내 내고, 그것이 §5 가 막는 것이다. */
+  deps: [];
+  status: 'pending';
+  attempt: 1;
+  derived_from: null;
+  node_kind?: string;
+  target?: string | null;
+  action_items: [];
+  evaluation: null;
 };
 
 /**
@@ -72,7 +91,7 @@ export type MissionExample = {
  * 문법 사이에서 싸운다」고 적어 둔 바로 그 상황이 `utterance` 안쪽에서 일어나고 있다.
  * 고치려면 프롬프트가 바뀌므로 **다시 재야 한다.** 짐작으로 고치지 않는다.
  */
-export function scriptAsExample(script: ScriptScenario): MissionExample {
+export function scriptAsExample(script: ScriptScenario, options: { tasks?: boolean } = {}): MissionExample {
   return {
     mission_id: script.missionId,
     utterance: {
@@ -86,7 +105,20 @@ export function scriptAsExample(script: ScriptScenario): MissionExample {
       title: milestone.title,
       order: index,
       status: 'pending',
-      tasks: [],
+      tasks: options.tasks === true
+        ? script.tasks.filter((task) => task.milestone === milestone.id).map((task) => ({
+          task_id: task.id,
+          title: task.title,
+          deps: [] as [],
+          status: 'pending' as const,
+          attempt: 1 as const,
+          derived_from: null,
+          ...(task.nodeKind == null ? {} : { node_kind: task.nodeKind }),
+          ...(task.target === undefined ? {} : { target: task.target }),
+          action_items: [] as [],
+          evaluation: null,
+        }))
+        : [],
       assigned_targets: milestone.assignedTargets,
     })),
   };
@@ -105,9 +137,10 @@ export function scriptAsExample(script: ScriptScenario): MissionExample {
 export function examplesForUtterance(
   library: readonly ScriptLibraryEntry[],
   excludeMissionId: string | null,
+  options: { tasks?: boolean } = {},
 ): MissionExample[] {
   return library
     .filter((entry) => entry.world === 'registry' && entry.script !== null)
     .filter((entry) => entry.missionId !== excludeMissionId)
-    .map((entry) => scriptAsExample(entry.script as ScriptScenario));
+    .map((entry) => scriptAsExample(entry.script as ScriptScenario, options));
 }

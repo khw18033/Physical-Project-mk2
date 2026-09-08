@@ -271,6 +271,11 @@ class GenerateRequest(BaseModel):
     #: 장소·장비와 달리 **목록이 아니라 규칙**이라 재료가 아니고 켜고 끄는 스위치다.
     #: 무엇이 붙는지는 `prompt.rules_for()` 한 곳이 정한다.
     node_kinds: bool = False
+    #: 마일스톤 안에 태스크까지 내게 할 것인가 (10단계 E 판 · `VZ-G-02` 의 모델 쪽 절반).
+    #: **규칙을 더하는 것이 아니라 갈아 끼운다** — 「tasks 는 빈 배열로 둔다」와 정면으로
+    #: 부딪히기 때문이다. `deps` 는 여전히 모델의 것이 아니다: 빈 배열로 받고 부르는 쪽의
+    #: `solveDeps()` 가 매단다(지시서 §5).
+    tasks: bool = False
     enforce_grammar: bool = True
     max_tokens: int = 2048
     temperature: float = 0.0
@@ -447,6 +452,7 @@ def generate_mission(request: GenerateRequest) -> JSONResponse:
                 "examples_given": len(request.examples),
                 # **판을 응답이 말한다.** 이름으로만 적으면 이름을 바꾼 순간 기록이 거짓말한다.
                 "node_kinds_given": request.node_kinds,
+                "tasks_given": request.tasks,
                 "grammar_enforced": False,
                 # 화면(§6)이 생성 근거에 싣는 셋. **스텁에는 프롬프트가 없다** —
                 # 빈 목록이 아니라 null 이다. 0 과 「해당 없음」을 가르는 이 저장소의 규칙.
@@ -469,6 +475,7 @@ def generate_mission(request: GenerateRequest) -> JSONResponse:
         places=request.places,
         equipment=request.equipment,
         node_kinds=request.node_kinds,
+        tasks=request.tasks,
         examples=request.examples,
         utterance_meta=request.utterance_meta,
     )
@@ -520,13 +527,14 @@ def generate_mission(request: GenerateRequest) -> JSONResponse:
             "examples_given": len(request.examples),
             # **판을 응답이 말한다.** 이름으로만 적으면 이름을 바꾼 순간 기록이 거짓말한다.
             "node_kinds_given": request.node_kinds,
+            "tasks_given": request.tasks,
             # 화면(§6)이 생성 근거에 싣는 셋 — 어느 규칙이 붙었는가 · 어느 프롬프트였는가.
             #
             # **규칙 목록은 `rules_for()` 가 준 그대로다.** 화면이 따로 적으면 모델이 지킨
             # 규칙과 사람이 본 규칙이 갈라지고, 그 순간 「역추적이 맨 위까지 닿는다」
             # (`VZ-G-01`)가 거짓이 된다. 그래서 여기서 한 번 더 만들지 않고 같은 함수를
             # 같은 인자로 부른다.
-            "rules_applied": prompt_builder.rules_for(request.equipment, request.node_kinds),
+            "rules_applied": prompt_builder.rules_for(request.equipment, request.node_kinds, request.tasks),
             # 프롬프트 지문. 문법 지문과 같은 성질이다 — 내용을 다 싣지 않고 「같은 것이었나」
             # 만 답할 수 있으면 된다. 원문은 프롬프트를 만드는 코드가 커밋에 있다.
             "prompt_digest": hashlib.sha256(

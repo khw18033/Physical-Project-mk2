@@ -106,6 +106,15 @@ export type GenerateOptions = {
    * 판(B)과 비교해야 답이 된다.
    */
   nodeKinds?: boolean;
+  /**
+   * 마일스톤 안에 **태스크까지** 내게 할 것인가 (10단계 E 판 · `VZ-G-02`).
+   *
+   * 켜면 규칙이 갈린다 — 「`tasks` 는 빈 배열로 둔다」가 태스크를 내라는 규칙들로
+   * 바뀐다. **`deps` 는 그래도 모델의 것이 아니다**: 모델은 빈 배열을 내고
+   * `proposal.ts` 의 `tasksFromGenerated()` 가 `solveDeps()` 로 매단다(지시서 §5).
+   * 실행 전에는 병렬의 근거가 없어 모델이 낸 의존은 순환·고아 노드를 만든다.
+   */
+  tasks?: boolean;
   model?: string;
   /**
    * 임무 식별자. **부르는 쪽이 준다** — 모델이 지어낼 것이 아니다. `audio_ref` 와 같은
@@ -172,6 +181,7 @@ export async function generateMission(utterance: string, options: GenerateOption
     equipment: options.equipment ?? null,
     examples: options.examples ?? [],
     node_kinds: options.nodeKinds ?? false,
+    tasks: options.tasks ?? false,
     model: options.model ?? null,
     mission_id: options.missionId ?? null,
     utterance_meta: options.utteranceMeta ?? null,

@@ -143,6 +143,10 @@ export function toContract(mission) {
           evaluation: null,
           // 노드 문법 라벨. **계약의 선택 필드다** (§5 에서 올렸다) — 없는 편도 있다.
           ...(task.node_kind === null ? {} : { node_kind: task.node_kind }),
+          // 대상 장비. 260907 에 같은 이유로 계약에 올렸다(선택 필드) — 정답셋에는 있는데
+          // 계약에 없어서 생성된 태스크를 계약으로 검증할 수 없었다. `null` 은 「장비가
+          // 필요 없는 태스크」이므로 값이고, 빼는 것이 아니다.
+          ...(task.target === undefined ? {} : { target: task.target }),
         })),
     })),
   };

@@ -91,10 +91,25 @@ for (const mission of gold) {
     if (allowedExampleCounts(gold.length).join(',') !== [0, gold.length - 1].join(',')) {
       failures.push(`allowedExampleCounts(${gold.length}) 가 [0, ${gold.length - 1}] 이 아니다`);
     }
-    // 예시에 태스크를 실으면 모델이 이번 단계에서 하지 말아야 할 일을 배운다 (§5).
+    // 기본 판의 예시는 **마일스톤까지다.** 태스크를 실으면 모델이 이번 단계에서 하지
+    // 말아야 할 일을 배운다 (§5).
     for (const example of examples) {
       if (example.milestones.some((milestone) => (milestone.tasks ?? []).length > 0)) {
         failures.push(`예시(${example.mission_id})에 태스크가 실렸다 — G-01 단계의 예시는 마일스톤까지다`);
+      }
+    }
+    // 태스크 판(10단계 E)에서는 태스크가 실린다. **그때도 `deps` 는 비어 있어야 한다** —
+    // 정답의 의존을 보여주면 모델이 그것을 흉내 내고, 그 순간 지시서 §5 가 막으려던 것
+    // (근거 없는 `deps`)이 규칙이 아니라 **예시를 통해** 들어온다. 의존은 예시가 아니라
+    // `solveDeps()` 가 만든다.
+    for (const example of examplesFor(mission.mission_id, gold, 'leave-one-out', { tasks: true })) {
+      const tasks = example.milestones.flatMap((milestone) => milestone.tasks ?? []);
+      if (tasks.length === 0) {
+        failures.push(`태스크 판의 예시(${example.mission_id})에 태스크가 없다 — 규칙만 바꾸고 예시를 그대로 두면 예시가 이긴다 (10단계 E 판 15건 중 10건)`);
+      }
+      const leaked = tasks.filter((task) => (task.deps ?? []).length > 0);
+      if (leaked.length) {
+        failures.push(`태스크 판의 예시(${example.mission_id})가 deps 를 ${leaked.length}건 보여준다 — 의존은 예시가 아니라 규칙이 만든다 (§5)`);
       }
     }
   }
@@ -255,13 +270,16 @@ let equipmentLine = null;
       failures.push(`정답셋의 ${mission.mission_id} 이 대본 라이브러리에 없다 — 화면은 이 편을 예시로 실을 수 없다`);
       continue;
     }
-    const fromScreen = JSON.stringify(scriptAsExample(entry.script));
-    const fromMeasurement = JSON.stringify(asExample(mission));
-    if (fromScreen !== fromMeasurement) {
-      failures.push(
-        `화면과 측정 경로의 예시가 다르다 (${mission.mission_id}) — 두 벌이 갈라졌다.\n`
-        + `      화면: ${fromScreen.slice(0, 200)}\n      측정: ${fromMeasurement.slice(0, 200)}`,
-      );
+    // **두 판을 다 대조한다.** 태스크 판만 갈라져도 화면과 표가 다른 프롬프트로 돈다.
+    for (const options of [{ tasks: false }, { tasks: true }]) {
+      const fromScreen = JSON.stringify(scriptAsExample(entry.script, options));
+      const fromMeasurement = JSON.stringify(asExample(mission, options));
+      if (fromScreen !== fromMeasurement) {
+        failures.push(
+          `화면과 측정 경로의 예시가 다르다 (${mission.mission_id} · 태스크 ${options.tasks}) — 두 벌이 갈라졌다.\n`
+          + `      화면: ${fromScreen.slice(0, 220)}\n      측정: ${fromMeasurement.slice(0, 220)}`,
+        );
+      }
     }
   }
 
@@ -293,7 +311,8 @@ if (failures.length) {
 console.log(`✅ leave-one-out — 정답셋 ${gold.length}편, 예시는 ${allowedExampleCounts(gold.length).join('편 또는 ')}편이고 채점 대상 편은 어느 쪽에서도 빠진다`);
 console.log('✅ 실행 기록의 examples_used 에 자기 자신이 없다 — 함수가 아니라 남은 기록을 봤다');
 console.log('✅ 예시를 고르는 것은 부르는 쪽이다 — 서비스는 정답셋을 열지 않는다');
-console.log('✅ 화면이 만드는 예시가 측정 경로의 예시와 글자까지 같다 — 화면도 맞은 편을 뺀다 (leave-one-out)');
+console.log('✅ 화면이 만드는 예시가 측정 경로의 예시와 글자까지 같다 (두 판 모두) — 화면도 맞은 편을 뺀다 (leave-one-out)');
+console.log('✅ 태스크 판의 예시는 태스크를 보이되 deps 는 비어 있다 — 의존은 예시가 아니라 규칙이 만든다');
 if (equipmentLine !== null) console.log(`✅ ${equipmentLine} — 목록이 채점 어휘보다 넓다`);
 console.log(`✅ 대조군 ${controls.length}건 — ${controls.join(' · ')}`);
 for (const note of notes) console.log(`   · ${note}`);

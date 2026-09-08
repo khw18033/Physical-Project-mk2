@@ -105,6 +105,46 @@ NODE_KIND_RULE = (
 )
 
 
+#: 태스크를 내게 하는 판 (10단계 E). **규칙 하나를 더하는 것이 아니라 갈아 끼운다** —
+#: 기본 규칙 「tasks 는 빈 배열 [] 로 둔다」와 정면으로 부딪히기 때문이다. 둘을 같이 두면
+#: 모델은 서로 반대되는 지시를 받고, 그때 나온 숫자는 어느 쪽을 따른 결과인지 못 가른다.
+#:
+#: ## 계약의 태스크는 **실행 모양**이라 규칙이 여럿 필요하다
+#:
+#: `task.schema.json` 의 required 는 실행이 채우는 자리를 여럿 들고 있다 —
+#: `status`·`attempt`·`derived_from`·`action_items`·`evaluation`. 문법이 그것을 전부
+#: 요구하므로, 못을 박아 두지 않으면 모델이 **실행이 정할 값을 지어낸다.** 마일스톤에
+#: 이미 같은 규칙이 있다(「status 는 모두 pending, order 는 0 부터」) — 그 규칙을 태스크
+#: 층으로 한 번 더 내리는 것이다.
+#:
+#: ## `deps` 는 모델이 만들지 않는다 (지시서 §5)
+#:
+#: **여기가 이 판에서 가장 중요한 줄이다.** 실행 전에는 worldTimeline 이 없어 병렬의
+#: 근거가 없고, 근거 없이 `deps` 를 내게 하면 순환·고아 노드·엉뚱한 합류가 나온다.
+#: 계약상 required 라 문법에서 뺄 수는 없으므로 **빈 배열로 내게 하고 규칙이 매단다**
+#: (`src/generate/solveDeps.ts`). `utterance` 를 부르는 쪽 값으로 덮어쓰는 것과 같은
+#: 모양이고, 덮어쓴 사실도 같은 자리에 남는다.
+#:
+#: ## 다섯 종류를 여기서는 적는다 — 8단계와 모순이 아니다
+#:
+#: 8단계 D 판은 「임무를 이 다섯 종류로 **나눠라**」였고, 그것이 빈 단계를 만들었다.
+#: 여기는 나누라는 말이 아니라 **이미 낸 태스크에 라벨을 붙이라**는 말이다. 값도 계약의
+#: enum 이라 문법이 다섯 중 하나로 강제한다 — 지어낼 수 없다. 그래도 D 판이 제목을
+#: 오염시킨 전례가 있으므로 마지막 문장으로 한 번 못을 박는다.
+TASK_RULES = [
+    "각 마일스톤의 tasks 에 그 마일스톤을 이루는 태스크를 낸다. 태스크는 **한 번에 하나씩 실행되는 단위**다.",
+    "task_id 는 임무 안에서 겹치지 않게 짓는다 (예: T-1, T-2 …).",
+    "node_kind 는 반드시 적는다 — sense(관측·값을 받아 온다) · decide(판정·조건이 참인가) · act(구동·명령을 낸다) · verify(검증·구동 결과가 의도대로인가) · report(보고·기록하고 알린다) 중 하나다.",
+    "target 은 그 태스크를 수행하는 [장비] 목록의 id 하나다. 장비가 필요 없는 태스크(임무 종료 처리 등)는 null 로 둔다 — 아무 장비나 적지 않는다.",
+    "deps 는 **빈 배열 [] 로 둔다.** 태스크 사이의 순서는 다음 단계가 규칙으로 계산한다. 여기서 적으면 버려진다.",
+    "status 는 \"pending\", attempt 는 1, derived_from 은 null, action_items 는 [], evaluation 은 null 로 둔다. 그 자리는 실행이 채운다.",
+    "node_kind 는 그 자리에만 적는다. 제목에 「(감지)」·「(확인)」처럼 종류를 덧붙이지 않는다.",
+]
+
+#: 태스크를 안 낼 때의 규칙. `RULES` 안에 있고, 태스크 판에서는 위 목록으로 **갈린다.**
+NO_TASK_RULE_PREFIX = "tasks 는 빈 배열"
+
+
 def _insert_after(rules: list[str], prefix: str, rule: str) -> list[str]:
     """`prefix` 로 시작하는 규칙 **바로 뒤**에 한 줄을 끼운다.
 
@@ -115,7 +155,18 @@ def _insert_after(rules: list[str], prefix: str, rule: str) -> list[str]:
     return [*rules[:at], rule, *rules[at:]]
 
 
-def rules_for(equipment: Any = None, node_kinds: bool = False) -> list[str]:
+def _replace_rule(rules: list[str], prefix: str, replacements: list[str]) -> list[str]:
+    """`prefix` 로 시작하는 규칙 **하나를 여러 줄로 갈아 끼운다.**
+
+    `_insert_after` 와 갈라 둔 이유가 있다. 더하는 것과 갈아 끼우는 것은 다른 일이고,
+    갈아 끼워야 하는 자리를 더하기로 처리하면 **서로 반대되는 지시 둘**이 프롬프트에
+    남는다. 그때 나온 숫자는 어느 쪽을 따른 결과인지 못 가른다.
+    """
+    at = next(index for index, existing in enumerate(rules) if existing.startswith(prefix))
+    return [*rules[:at], *replacements, *rules[at + 1:]]
+
+
+def rules_for(equipment: Any = None, node_kinds: bool = False, tasks: bool = False) -> list[str]:
     """이 요청에 실제로 적용되는 규칙. **화면에도 보고서에도 이 목록 그대로 쓴다.**
 
     규칙을 두 벌로 적으면 모델이 지킨 규칙과 사람이 채점한 규칙이 갈라진다 — 그래서
@@ -125,6 +176,8 @@ def rules_for(equipment: Any = None, node_kinds: bool = False) -> list[str]:
     rules = list(RULES)
     if node_kinds:
         rules = _insert_after(rules, "마일스톤은 여러 개다", NODE_KIND_RULE)
+    if tasks:
+        rules = _replace_rule(rules, NO_TASK_RULE_PREFIX, TASK_RULES)
     if equipment:
         rules = _insert_after(rules, "장소는", EQUIPMENT_RULE)
     return rules
@@ -231,6 +284,7 @@ def build(
     utterance_meta: Optional[dict[str, Any]] = None,
     equipment: Any = None,
     node_kinds: bool = False,
+    tasks: bool = False,
 ) -> dict[str, str]:
     """(system, user) 두 문자열. **엔진의 대화 틀은 엔진이 씌운다** (`engines/`).
 
@@ -241,11 +295,16 @@ def build(
     장소·장비와 달리 이것은 부르는 쪽이 고르는 재료가 아니라 규칙 자체이고, 다섯 종류가
     규칙 문장 안에 들어 있다. `[장비]` 처럼 절을 만들면 「목록에서 골라 채워라」로 읽히고,
     그것이 개수만 부풀리는 실패다(8단계 §「읽는 법」 둘째 줄).
+
+    `tasks` 는 10단계 E 판의 축이다. **규칙을 더하는 것이 아니라 갈아 끼운다** —
+    「tasks 는 빈 배열로 둔다」와 정면으로 부딪히므로 둘을 같이 둘 수 없다.
+    예시는 여전히 마일스톤까지만 보인다(`lib/fewshot.mjs`) — 태스크를 예시로 보이면
+    이 판이 재는 것이 「낼 줄 아는가」가 아니라 「예시를 베끼는가」가 된다.
     """
     examples = examples or []
     parts = [
         "[규칙]",
-        "\n".join(f"{i + 1}. {rule}" for i, rule in enumerate(rules_for(equipment, node_kinds))),
+        "\n".join(f"{i + 1}. {rule}" for i, rule in enumerate(rules_for(equipment, node_kinds, tasks))),
         "",
         "[장소] 이 목록 밖의 장소를 만들면 실패다.",
         render_places(places),
