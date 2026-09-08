@@ -30,6 +30,12 @@ export type GeneratedMission = {
     order: number;
     status: string;
     assigned_targets: string[];
+    /**
+     * 계획 주석 (260908 · `milestone.schema.json` 의 선택 필드). **없는 것이 정상이다** —
+     * 분기도 되풀이도 없는 계획이 대부분이고, 규칙은 안 주면 지금까지와 똑같이 돈다.
+     */
+    branch?: { from: string; when: 'pass' | 'fail' };
+    repeat_of?: { to: string; when: 'pass' | 'fail' };
     tasks: Array<{
       task_id: string;
       title: string;

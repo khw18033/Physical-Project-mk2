@@ -61,6 +61,23 @@ export type GeneratedNode = {
   milestoneId: string;
 };
 
+/**
+ * 마일스톤에 적힌 계획 주석 (260908 · 분기와 되풀이 2단계 · `milestone.schema.json`).
+ *
+ * **노드에 얹지 않고 따로 받는다.** 노드마다 같은 값을 복사해 넣으면 그 둘이 어긋날 수
+ * 있고, 어긋난 순간 규칙이 조용히 다른 그래프를 만든다.
+ */
+export type MilestonePlan = {
+  id: string;
+  /** 이 마일스톤이 **어느 마일스톤의 어느 판정 결과로 들어오는가.** 갈래는 배타적이다. */
+  branch?: { from: string; when: 'pass' | 'fail' };
+  /** 이 마일스톤이 끝났을 때 **어디로 되돌아가는가.** `deps` 가 아니라 `refEdges` 로 나간다. */
+  repeatOf?: { to: string; when: 'pass' | 'fail' };
+};
+
+/** 되돌아가는 참조 엣지. **`deps` 가 아니다** — `layout.ts` 의 `depths()` 가 무한 재귀한다. */
+export type SolvedRefEdge = { from: string; to: string; label: string; note?: string };
+
 export type RuleId = 'upstream' | 'resource' | 'milestone-boundary';
 
 export type SolveResult = {
@@ -72,6 +89,18 @@ export type SolveResult = {
   reduced: number;
   /** 마일스톤 블록. 같은 마일스톤이 떨어져 두 번 나오면 블록도 둘이다(2편의 재탐색 루프). */
   blocks: Array<{ milestoneId: string; nodeIds: string[] }>;
+  /**
+   * 되돌아가는 참조 엣지 (260908). **주석이 없으면 언제나 비어 있다** — 지어내지 않는다(§5).
+   * `deps` 와 섞지 않는 이유는 `SolvedRefEdge` 에 적었다.
+   */
+  refEdges: SolvedRefEdge[];
+  /**
+   * 앞을 안 가리켜서 **무시한** 주석의 수.
+   *
+   * 모델은 없는 마일스톤이나 **뒤**를 가리킬 수 있다. 그대로 매달면 순환이 생기므로
+   * 버리는데, **조용히 버리면 왜 안 갈렸는지 아무도 모른다.** 0이 정상이다.
+   */
+  ignoredPlan: number;
 };
 
 /**
@@ -115,8 +144,13 @@ function blocksOf(nodes: readonly GeneratedNode[]): Array<{ milestoneId: string;
  * 순환 검사가 필요 없다는 뜻이 아니라, 순환이 나오면 그건 이 함수의 버그라는 뜻이다
  * (`verify:dep-rules` 가 무작위 목록으로도 그것을 본다).
  */
-export function solveDeps(nodes: readonly GeneratedNode[]): SolveResult {
+export function solveDeps(nodes: readonly GeneratedNode[], plan: readonly MilestonePlan[] = []): SolveResult {
   const blocks = blocksOf(nodes);
+  // 주석은 마일스톤 id 로 찾는다. **안 주면 아래 규칙 전부가 지금까지와 글자 하나 다르지
+  // 않게 돈다** — 그것이 이 인자가 선택인 이유이고, 기존 복원이 안 흔들리는 근거다.
+  const planOf = new Map(plan.map((entry) => [entry.id, entry]));
+  const refEdges: SolvedRefEdge[] = [];
+  let ignoredPlan = 0;
   const raw = new Map<string, Set<string>>(nodes.map((node) => [node.id, new Set<string>()]));
   const byRule: Record<RuleId, number> = { upstream: 0, resource: 0, 'milestone-boundary': 0 };
 
@@ -155,17 +189,75 @@ export function solveDeps(nodes: readonly GeneratedNode[]): SolveResult {
   }
 
   // ── 규칙: 마일스톤 경계 ──────────────────────────────────────────────────────
-  // 블록 안에서 매달릴 곳이 없는 노드는 **직전 블록의 끝 노드 전부**에 매달린다.
+  //
+  // 블록 안에서 매달릴 곳이 없는 노드는 **앞 블록의 끝 노드 전부**에 매달린다.
   // 「첫 노드만」이면 sense 여럿이 임무에서 떨어져 나가고 다음 마일스톤의 합류가 사라진다.
+  //
+  // **「앞 블록」이 어느 블록인가**를 정하는 것이 260908 에 바뀐 자리다. 주석이 없으면
+  // 직전 하나이고(지금까지와 같다), 주석이 있으면 셋으로 갈린다 — 아래 `predecessorsOf`.
+
+  /** 그 블록의 **끝 노드**들 — 블록 안에서 뒤따르는 것이 없는 노드. */
+  const endsOf = (block: { indices: number[] }): string[] => {
+    const ids = block.indices.map((index) => nodes[index].id);
+    const hasSuccessor = new Set<string>();
+    for (const index of block.indices) {
+      for (const dep of raw.get(nodes[index].id)!) if (ids.includes(dep)) hasSuccessor.add(dep);
+    }
+    return ids.filter((id) => !hasSuccessor.has(id));
+  };
+
+  /**
+   * 그 마일스톤의 **마지막 블록 번호** (`before` 앞에서). 같은 마일스톤이 떨어져 두 번
+   * 나올 수 있다 — 2편의 `MS-D` 가 그렇다.
+   *
+   * `findLastIndex` 를 안 쓴다: `tsconfig` 의 `lib` 이 ES2022 라 타입이 없다. 런타임에는
+   * 있지만 **타입 검사가 못 보는 것을 쓰면 그 줄만 검사 밖에 놓인다.**
+   */
+  const lastBlockOf = (milestoneId: string, before: number): number => {
+    for (let index = Math.min(before, blocks.length) - 1; index >= 0; index -= 1) {
+      if (blocks[index].milestoneId === milestoneId) return index;
+    }
+    return -1;
+  };
+
+  /**
+   * 이 블록이 매달릴 앞 블록들.
+   *
+   *  1. **갈래** — 이 마일스톤이 `branch.from` 을 적었으면 **그 마일스톤에만** 매달린다.
+   *     형제 갈래에는 안 매달린다: 그것이 「둘 중 하나」와 「둘 다 차례로」를 가르는 자리이고,
+   *     10단계 §7 이 찾은 실패가 정확히 여기였다.
+   *  2. **합류** — 갈래가 아닌 블록 바로 앞에 **같은 판정을 가리키는 갈래들이 이어져
+   *     있으면** 그 갈래 **전부**의 끝에 매달린다. 하나에만 매달면 안 지나간 갈래가
+   *     임무에서 떨어져 나간다.
+   *  3. 그 외 — 직전 블록 하나 (지금까지의 규칙).
+   *
+   * **앞을 안 가리키는 주석은 무시한다.** 없는 마일스톤이나 뒤를 가리키면 매달 곳이 없거나
+   * 순환이 생긴다 — 모델이 낼 수 있는 값이므로 규칙이 견뎌야 하고, 버린 사실은 센다.
+   */
+  const predecessorsOf = (order: number): number[] => {
+    const own = planOf.get(blocks[order].milestoneId);
+    if (own?.branch !== undefined) {
+      const at = lastBlockOf(own.branch.from, order);
+      if (at >= 0) return [at];
+      ignoredPlan += 1; // 앞에 없는 마일스톤을 가리켰다 — 직전 블록으로 물러선다
+      return [order - 1];
+    }
+    // 합류 — 바로 앞에 이어진 갈래들을 모은다.
+    const siblings: number[] = [];
+    let from: string | null = null;
+    for (let back = order - 1; back >= 0; back -= 1) {
+      const branch = planOf.get(blocks[back].milestoneId)?.branch;
+      if (branch === undefined) break;
+      if (from === null) from = branch.from;
+      else if (branch.from !== from) break;
+      siblings.unshift(back);
+    }
+    return siblings.length > 0 ? siblings : [order - 1];
+  };
+
   for (const [order, block] of blocks.entries()) {
     if (order === 0) continue;
-    const previous = blocks[order - 1];
-    const previousIds = previous.indices.map((index) => nodes[index].id);
-    const hasSuccessorInBlock = new Set<string>();
-    for (const index of previous.indices) {
-      for (const dep of raw.get(nodes[index].id)!) if (previousIds.includes(dep)) hasSuccessorInBlock.add(dep);
-    }
-    const ends = previousIds.filter((id) => !hasSuccessorInBlock.has(id));
+    const ends = predecessorsOf(order).flatMap((at) => endsOf(blocks[at]));
     for (const index of block.indices) {
       const node = nodes[index];
       const own = raw.get(node.id)!;
@@ -176,6 +268,33 @@ export function solveDeps(nodes: readonly GeneratedNode[]): SolveResult {
         byRule['milestone-boundary'] += 1;
       }
     }
+  }
+
+  // ── 규칙: 되돌아감 — **`deps` 가 아니라 `refEdges` 로 낸다** ──────────────────
+  //
+  // `layout.ts` 의 `depths()` 가 순환에서 무한 재귀한다(5단계에 겪었고 대본 2편 주석에
+  // 적혀 있다). 그래서 되돌아가는 것은 그리기 전용 참조 엣지로만 편다 — 이 규칙이
+  // `deps` 를 **한 글자도** 건드리지 않는 것이 순환 불가능 보장을 지키는 방법이다.
+  //
+  // 펴는 규칙은 「**끝 노드 → 첫 노드**」다. 1단계가 대본 2편으로 확인했다:
+  // 마일스톤 `MS-F --(fail)--> MS-C` 를 이렇게 펴면 `T-27c → T-23a` 이고, 그것이 사람이
+  // 손으로 적은 엣지와 글자까지 같다.
+  for (const [order, block] of blocks.entries()) {
+    const repeat = planOf.get(block.milestoneId)?.repeatOf;
+    if (repeat === undefined) continue;
+    // 같은 마일스톤이 떨어져 두 번 나오면 **마지막 블록**에서 되돌아간다.
+    if (lastBlockOf(block.milestoneId, blocks.length) !== order) continue;
+    const at = blocks.findIndex((other) => other.milestoneId === repeat.to);
+    if (at < 0 || at >= order) { ignoredPlan += 1; continue; } // 앞으로 되돌아갈 수 없다
+    const from = endsOf(block).slice(-1)[0];
+    const to = nodes[blocks[at].indices[0]].id;
+    if (from === undefined || to === undefined) { ignoredPlan += 1; continue; }
+    refEdges.push({
+      from,
+      to,
+      label: `${block.milestoneId} 판정이 ${repeat.when} 이면 ${repeat.to} 로`,
+      note: 'deps 에 넣으면 layout.depths() 가 무한 재귀한다 — 점선 참조 엣지로만 그린다',
+    });
   }
 
   // ── 전이 축약 ────────────────────────────────────────────────────────────────
@@ -215,6 +334,8 @@ export function solveDeps(nodes: readonly GeneratedNode[]): SolveResult {
     byRule,
     reduced,
     blocks: blocks.map((block) => ({ milestoneId: block.milestoneId, nodeIds: block.indices.map((index) => nodes[index].id) })),
+    refEdges,
+    ignoredPlan,
   };
 }
 

@@ -25,7 +25,7 @@ import type { MissionView } from '../data/scenario.ts';
 import type { AiProvenance, OverwrittenField } from '../shared/provenance.ts';
 import type { NodeKind, Task } from '../model/types.ts';
 import { planShapeWarnings } from './planShape.ts';
-import { solveDeps, type GeneratedNode } from './solveDeps.ts';
+import { solveDeps, type GeneratedNode, type MilestonePlan, type SolvedRefEdge } from './solveDeps.ts';
 import type { GeneratedMission, GenerateResult } from './types.ts';
 
 const NODE_KINDS: readonly NodeKind[] = ['sense', 'decide', 'act', 'verify', 'report'];
@@ -49,9 +49,13 @@ export function provenanceOf(result: GenerateResult): AiProvenance {
   //
   // 되돌아가는 엣지는 지금 언제나 0건이다 — 생성 경로가 그것을 안 만든다(§5). 그래서
   // 루프를 요구한 발화는 늘 잡힌다. 그것이 맞다: 못 만드는 것을 못 만든다고 적는 것이다.
-  const shapeWarnings = result.mission == null ? [] : planShapeWarnings(
+  const solved = result.mission == null ? null : solvedDepsFor(result.mission);
+  const shapeWarnings = solved === null ? [] : planShapeWarnings(
     result.mission.utterance?.text ?? '',
-    solvedDepsFor(result.mission).deps,
+    solved.deps,
+    // **되돌아가는 엣지를 실제로 센다.** 규칙이 만들기 시작하면 이 경고는 손댈 것 없이
+    // 저절로 조용해진다 — 11단계가 그렇게 되도록 인자를 열어 뒀다.
+    solved.refEdges.length,
   );
   const extra = (result.extra ?? {}) as Record<string, unknown>;
   const rules = extra.rules_applied;
@@ -101,6 +105,13 @@ export type SolvedDeps = {
    * 지켰는가」를 영영 못 잰다. `utterance` 덮어쓰기와 같은 규칙이다.
    */
   modelDeps: number;
+  /**
+   * 되돌아가는 참조 엣지 (260908). **주석이 없으면 비어 있다** — 지어내지 않는다(§5).
+   * `deps` 가 아니라 그리기 전용이다.
+   */
+  refEdges: SolvedRefEdge[];
+  /** 앞을 안 가리켜서 무시한 주석의 수. **0이 정상이다.** */
+  ignoredPlan: number;
 };
 
 /**
@@ -111,8 +122,14 @@ export type SolvedDeps = {
  */
 export function solvedDepsFor(mission: GeneratedMission): SolvedDeps {
   const nodes: GeneratedNode[] = [];
+  // **마일스톤에 적힌 계획 주석을 그대로 넘긴다.** 노드에 얹지 않는다 — 노드마다 복사해
+  // 넣으면 그 둘이 어긋날 수 있고, 어긋난 순간 규칙이 조용히 다른 그래프를 만든다.
+  const plan: MilestonePlan[] = [];
   let modelDeps = 0;
   for (const milestone of mission.milestones ?? []) {
+    if (milestone.branch !== undefined || milestone.repeat_of !== undefined) {
+      plan.push({ id: milestone.milestone_id, branch: milestone.branch, repeatOf: milestone.repeat_of });
+    }
     for (const task of milestone.tasks ?? []) {
       modelDeps += (task.deps ?? []).length;
       nodes.push({
@@ -126,13 +143,15 @@ export function solvedDepsFor(mission: GeneratedMission): SolvedDeps {
       });
     }
   }
-  if (nodes.length === 0) return { deps: {}, nodeCount: 0, edgeCount: 0, modelDeps };
-  const solved = solveDeps(nodes);
+  if (nodes.length === 0) return { deps: {}, nodeCount: 0, edgeCount: 0, modelDeps, refEdges: [], ignoredPlan: 0 };
+  const solved = solveDeps(nodes, plan);
   return {
     deps: solved.deps,
     nodeCount: nodes.length,
     edgeCount: Object.values(solved.deps).reduce((sum, deps) => sum + deps.length, 0),
     modelDeps,
+    refEdges: solved.refEdges,
+    ignoredPlan: solved.ignoredPlan,
   };
 }
 
@@ -162,6 +181,8 @@ export function tasksFromGenerated(mission: GeneratedMission): {
   nodeCount: number;
   edgeCount: number;
   modelDeps: number;
+  refEdges: SolvedRefEdge[];
+  ignoredPlan: number;
 } {
   const solved = solvedDepsFor(mission);
   const tasks: Task[] = [];
@@ -178,7 +199,14 @@ export function tasksFromGenerated(mission: GeneratedMission): {
       });
     }
   }
-  return { tasks, nodeCount: solved.nodeCount, edgeCount: solved.edgeCount, modelDeps: solved.modelDeps };
+  return {
+    tasks,
+    nodeCount: solved.nodeCount,
+    edgeCount: solved.edgeCount,
+    modelDeps: solved.modelDeps,
+    refEdges: solved.refEdges,
+    ignoredPlan: solved.ignoredPlan,
+  };
 }
 
 /**
@@ -213,7 +241,9 @@ export function viewFromGenerated(mission: GeneratedMission, label: string): Mis
     hardware: null,
     params: {},
     map: null,
-    // 재탐색 루프를 지어내지 않는다 (§5 — 「사용자가 준 단계를 더하지 않는다」).
-    refEdges: [],
+    // 되돌아가는 엣지는 **모델이 마일스톤에 적었을 때만** 생긴다 (260908). §5 가 막는 것은
+    // 지어내기이고, 발화가 명시적으로 요구한 되풀이를 안 만드는 것은 원칙을 지키는 것이
+    // 아니라 사용자가 준 단계를 빼는 것이다. 안 적었으면 여전히 빈 배열이다.
+    refEdges: solvedDepsFor(mission).refEdges,
   };
 }

@@ -201,6 +201,156 @@ const unlabeled = gold.filter((mission) => !mission.shape.labeled).map((mission)
   }
 }
 
+// ── 5. 되돌아감과 배타 분기를 **규칙이 만든다** (260908 · 2단계) ─────────────
+//
+// 1단계는 「마일스톤 단위로 **적을 수 있는가**」를 봤다(아래 표현 적합성). 여기는
+// 「**규칙이 그것을 만드는가**」다 — 사람이 마일스톤에 한 줄 적으면 `solveDeps` 가 대본의
+// 태스크 엣지를 내야 한다.
+//
+// ## 주석을 손으로 적는다 — 대본에서 뽑지 않는다
+//
+// 대본의 `refEdges` 에서 마일스톤 주석을 역산해 넣으면 **정답에서 입력을 만드는 것**이라
+// 이 검사가 아무것도 확인하지 않게 된다. 그래서 「사람이 적었다면 이렇게 적었을 것」을
+// 여기 손으로 두고, 규칙이 그것을 펴서 **대본의 원래 엣지**를 내는지 본다.
+//
+// 이 주석이 정답셋으로 옮겨 갈지는 **생성이 실제로 그것을 만들기 시작하는 3단계**에서
+// 정한다 (`extract-goldset.mjs` 가 지금은 일부러 안 뽑는다).
+const PLAN_ANNOTATIONS = {
+  // 대본 2편의 재탐색 — MS-F 의 판정이 fail 이면 MS-C 로 되돌아간다.
+  // (판정은 T-27b 이고 기준이 「경과 ≤ 600초」라 초과가 곧 fail 이다.)
+  'MSN-260831-02': [{ id: 'MS-F', repeatOf: { to: 'MS-C', when: 'fail' } }],
+};
+
+{
+  for (const mission of gold) {
+    if (!mission.shape.labeled) continue;
+    const annotations = PLAN_ANNOTATIONS[mission.mission_id];
+    if (annotations === undefined) {
+      // 주석이 없으면 **아무것도 안 바뀌어야 한다.** 선택 인자의 뜻이 그것이다.
+      const withEmpty = solveDeps(nodesOf(mission), []);
+      const plain = solveDeps(nodesOf(mission));
+      if (JSON.stringify(withEmpty.deps) !== JSON.stringify(plain.deps)) {
+        failures.push(`${mission.mission_id}: 빈 주석을 넘겼는데 deps 가 달라졌다 — 선택 인자가 아니다`);
+      }
+      if ((withEmpty.refEdges ?? []).length > 0) {
+        failures.push(`${mission.mission_id}: 주석이 없는데 되돌아가는 엣지를 만들었다 — 지어내기다 (§5)`);
+      }
+      continue;
+    }
+    const result = solveDeps(nodesOf(mission), annotations);
+    // 되돌아가는 것은 **`deps` 에 없어야 한다** — layout 의 depths() 가 무한 재귀한다.
+    if (hasCycle(result.deps)) failures.push(`${mission.mission_id}: 주석을 넘겼더니 deps 에 순환이 생겼다 — refEdges 와 deps 를 섞었다`);
+    const script = JSON.parse(readFileSync(join(vizRoot, 'scenarios', `${mission.mission_id}.json`), 'utf8'));
+    const want = (script.refEdges ?? []).map((edge) => `${edge.from}→${edge.to}`).sort();
+    const got = (result.refEdges ?? []).map((edge) => `${edge.from}→${edge.to}`).sort();
+    if (JSON.stringify(got) !== JSON.stringify(want)) {
+      failures.push(
+        `${mission.mission_id}: 규칙이 낸 되돌아감이 [${got.join(', ') || '없음'}] 인데 대본은 [${want.join(', ')}] 다 `
+        + '— 마일스톤 주석을 태스크 엣지로 펴지 못했다',
+      );
+    } else {
+      console.log(`   ${mission.mission_id} 되돌아감 — 규칙이 마일스톤 주석에서 ${got.join(', ')} 를 냈다 · 대본과 같다`);
+    }
+    // 되돌아감을 만들어도 **복원은 흔들리지 않아야 한다** — deps 에 손대지 않았다는 뜻이다.
+    const plain = solveDeps(nodesOf(mission));
+    if (JSON.stringify(result.deps) !== JSON.stringify(plain.deps)) {
+      failures.push(`${mission.mission_id}: 되돌아감 주석이 deps 를 바꿨다 — 그리기 전용이어야 한다`);
+    }
+  }
+}
+
+// ── 6. 배타 분기 — 갈래가 서로 안 매달리고 뒤가 합류한다 ─────────────────────
+//
+// 정답셋에 배타 분기가 **한 건도 없다**(1단계에서 확인 — 갈라지는 자리 셋은 전부 병렬).
+// 그래서 대본으로는 못 재고, 손으로 만든 최소 목록으로 규칙 자체를 본다.
+//
+//   MS-A(판정) → MS-B(pass 갈래) · MS-C(fail 갈래) → MS-D(합류)
+{
+  const nodes = [
+    { id: 'A1', title: '관측', nodeKind: 'sense', target: 'robot-01', milestoneId: 'MS-A' },
+    { id: 'A2', title: '판정', nodeKind: 'decide', target: 'robot-01', milestoneId: 'MS-A' },
+    { id: 'B1', title: '보고', nodeKind: 'report', target: 'robot-01', milestoneId: 'MS-B' },
+    { id: 'C1', title: '되돌아가기', nodeKind: 'act', target: 'robot-01', milestoneId: 'MS-C' },
+    { id: 'D1', title: '종료', nodeKind: 'report', target: null, milestoneId: 'MS-D' },
+  ];
+  const plan = [
+    { id: 'MS-B', branch: { from: 'MS-A', when: 'pass' } },
+    { id: 'MS-C', branch: { from: 'MS-A', when: 'fail' } },
+  ];
+  const result = solveDeps(nodes, plan);
+  const deps = result.deps;
+  // 갈래 둘 다 판정에 매달린다.
+  if (!deps.B1?.includes('A2')) failures.push(`배타 분기: pass 갈래가 판정에 안 매달렸다 — B1 deps=${JSON.stringify(deps.B1)}`);
+  if (!deps.C1?.includes('A2')) failures.push(`배타 분기: fail 갈래가 판정에 안 매달렸다 — C1 deps=${JSON.stringify(deps.C1)}`);
+  // **갈래끼리는 안 매달린다.** 여기가 10단계 §7 이 찾은 실패 자리다.
+  if (deps.C1?.includes('B1')) failures.push('배타 분기: 두 갈래가 순차로 꿰였다 — 「둘 중 하나」가 「둘 다 차례로」가 된다');
+  // 뒤는 갈래 **전부**에 매달린다 (합류).
+  if (!deps.D1?.includes('B1') || !deps.D1?.includes('C1')) {
+    failures.push(`합류: 분기 뒤가 갈래 전부에 안 매달렸다 — D1 deps=${JSON.stringify(deps.D1)}`);
+  }
+  if (hasCycle(deps)) failures.push('배타 분기 결과에 순환이 있다');
+
+  // 앞을 안 가리키는 주석은 **무시하고 세어 둔다.** 모델이 뒤나 없는 마일스톤을 가리킬 수
+  // 있고, 그대로 매달면 순환이 생긴다.
+  const bogus = solveDeps(nodes, [{ id: 'MS-B', branch: { from: 'MS-Z', when: 'pass' } }]);
+  if (hasCycle(bogus.deps)) failures.push('없는 마일스톤을 가리킨 주석에서 순환이 나왔다');
+  if ((bogus.ignoredPlan ?? 0) === 0) failures.push('없는 마일스톤을 가리킨 주석을 무시했다는 기록이 없다 — 조용히 버리면 왜 안 갈렸는지 모른다');
+}
+
+// ── 대조군 — 분기·되돌아감을 무력화한 사본 (260908) ──────────────────────────
+//
+// **위 대조군 루프로는 이 둘이 안 잡힌다.** 그쪽은 주석 없이 복원 수만 보는데, 분기와
+// 되돌아감은 주석을 넘겨야 도는 규칙이라 복원 수가 한 글자도 안 바뀐다. 무력화한 축을
+// 그 축의 방법으로 봐야 대조가 성립한다.
+{
+  const scratch = mkdtempSync(join(vizRoot, 'src', 'generate', '.verify-plan-'));
+  try {
+    const source = readFileSync(solverPath, 'utf8')
+      .replace("from '../model/types.ts'", "from '../../model/types.ts'");
+    const branchNodes = [
+      { id: 'A1', title: '관측', nodeKind: 'sense', target: 'robot-01', milestoneId: 'MS-A' },
+      { id: 'A2', title: '판정', nodeKind: 'decide', target: 'robot-01', milestoneId: 'MS-A' },
+      { id: 'B1', title: '보고', nodeKind: 'report', target: 'robot-01', milestoneId: 'MS-B' },
+      { id: 'C1', title: '되돌아가기', nodeKind: 'act', target: 'robot-01', milestoneId: 'MS-C' },
+    ];
+    const branchPlan = [
+      { id: 'MS-B', branch: { from: 'MS-A', when: 'pass' } },
+      { id: 'MS-C', branch: { from: 'MS-A', when: 'fail' } },
+    ];
+    const two = gold.find((mission) => mission.mission_id === 'MSN-260831-02');
+    const mutants = [
+      {
+        name: '갈래를 직렬로 되돌린 사본',
+        from: '    if (own?.branch !== undefined) {',
+        to: '    if (false && own?.branch !== undefined) {',
+        // 무력화하면 갈래끼리 다시 꿰인다 — 10단계 §7 이 찾은 그 모양으로 돌아간다.
+        broken: (module) => module.solveDeps(branchNodes, branchPlan).deps.C1?.includes('B1') === true,
+      },
+      {
+        name: '되돌아감을 안 내는 사본',
+        from: '    refEdges.push({',
+        to: '    if (0 as number) refEdges.push({',
+        broken: (module) => module.solveDeps(nodesOf(two), PLAN_ANNOTATIONS['MSN-260831-02']).refEdges.length === 0,
+      },
+    ];
+    for (const [index, mutant] of mutants.entries()) {
+      if (!source.includes(mutant.from)) {
+        failures.push(`대조군을 만들지 못했다 — 자리(${mutant.name})가 원본에서 사라졌다`);
+        continue;
+      }
+      // **사본마다 다른 이름을 쓴다** — Node 는 모듈을 URL 로 캐시하므로 이름이 같으면
+      // 두 번째가 첫 번째의 결과를 돌려준다 (11단계에 실제로 그렇게 됐다).
+      const path = join(scratch, `solveDeps-plan-${index}.ts`);
+      writeFileSync(path, source.replace(mutant.from, mutant.to), 'utf8');
+      const copy = await import(pathToFileURL(path).href);
+      if (!mutant.broken(copy)) failures.push(`대조군을 검출하지 못했다: ${mutant.name} — 이 검사는 무의미하다`);
+      else controls.push(mutant.name);
+    }
+  } finally {
+    try { rmSync(scratch, { recursive: true, force: true }); } catch { console.warn('임시 디렉터리 정리 실패 — ' + scratch); }
+  }
+}
+
 // ── 대조군 — 규칙을 무력화한 사본이 반드시 잡혀야 한다 ───────────────────────
 {
   const scratch = mkdtempSync(join(vizRoot, 'src', 'generate', '.verify-dep-'));
@@ -304,4 +454,7 @@ console.log(`✅ 복원 ${restored}/${total} — 기준선과 일치 · 못 복�
 console.log('✅ 합류가 살아 있다 (MSN-260831-01) — 병렬은 만들어지는 것이 아니라 제약이 없어서 남는다');
 console.log('✅ 계약 — task.schema.json 의 node_kind 는 노드 문법 5종의 **선택** 필드다');
 console.log('✅ 되돌아감을 마일스톤 단위로 적을 수 있다 — 펴면(끝 노드→첫 노드) 대본이 손으로 적은 엣지와 글자까지 같다');
+console.log('✅ 규칙이 그것을 실제로 만든다 — 마일스톤 주석 한 줄에서 대본의 태스크 엣지가 나오고, deps 는 한 글자도 안 바뀐다');
+console.log('✅ 배타 분기 — 갈래 둘이 판정에 나란히 매달리고 서로에게는 안 매달린다 · 뒤가 갈래 전부에 합류한다');
+console.log('✅ 주석이 없으면 아무것도 안 바뀐다 · 앞을 안 가리키는 주석은 무시하고 센다 (지어내지 않는다 · 순환도 안 생긴다)');
 console.log(`✅ 대조군 ${controls.length}건 검출 — ${controls.join(' · ')}`);
