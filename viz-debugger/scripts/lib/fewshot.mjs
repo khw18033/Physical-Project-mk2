@@ -53,7 +53,7 @@ function taskAsExample(task) {
  * 항목 순서는 **계약의 차례대로** 둔다. 문법이 그 순서를 고정하므로(`gbnf.ts`),
  * 예시가 다른 순서면 모델이 예시와 문법 사이에서 싸운다.
  */
-export function asExample(mission, { tasks = false } = {}) {
+export function asExample(mission, { tasks = false, branch = false } = {}) {
   return {
     mission_id: mission.mission_id,
     utterance: mission.utterance,
@@ -66,6 +66,10 @@ export function asExample(mission, { tasks = false } = {}) {
         ? (mission.tasks ?? []).filter((task) => task.milestone_id === milestone.milestone_id).map(taskAsExample)
         : [],
       assigned_targets: milestone.assigned_targets,
+      // 분기·되풀이 주석 (260908 · 3단계). **판이 켜졌을 때만 보인다** — 규칙만 바꾸고
+      // 예시를 그대로 두면 예시가 이긴다(10단계 E 판 15건 중 10건).
+      ...(branch && milestone.branch !== undefined ? { branch: milestone.branch } : {}),
+      ...(branch && milestone.repeat_of !== undefined ? { repeat_of: milestone.repeat_of } : {}),
     })),
   };
 }
@@ -88,14 +92,14 @@ export const SHOT_MODES = /** @type {const} */ (['leave-one-out', 'none']);
  * @param missions  정답셋 전부.
  * @param shots     `'leave-one-out'`(기본) 또는 `'none'`(예시 0편 · 7단계 C 판).
  */
-export function examplesFor(missionId, missions, shots = 'leave-one-out', { tasks = false } = {}) {
+export function examplesFor(missionId, missions, shots = 'leave-one-out', { tasks = false, branch = false } = {}) {
   if (!SHOT_MODES.includes(shots)) throw new Error(`모르는 예시 방식: ${shots} — ${SHOT_MODES.join(' 또는 ')}`);
   // 0편은 **예시를 안 주는 것**이지 「없는 예시를 골랐다」가 아니다. 그래서 필터가 아니라
   // 이른 반환으로 가른다 — 정답셋이 1편이 되어도 0편은 0편이다.
   if (shots === 'none') return [];
   return missions
     .filter((mission) => mission.mission_id !== missionId)
-    .map((mission) => asExample(mission, { tasks }));
+    .map((mission) => asExample(mission, { tasks, branch }));
 }
 
 /**

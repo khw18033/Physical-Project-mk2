@@ -53,6 +53,9 @@ export type MissionExample = {
      */
     tasks: MissionExampleTask[];
     assigned_targets: string[];
+    /** 분기·되풀이 주석 (260908). **판이 켜졌을 때만 실린다.** */
+    branch?: { from: string; when: 'pass' | 'fail' };
+    repeat_of?: { to: string; when: 'pass' | 'fail' };
   }>;
 };
 
@@ -91,7 +94,20 @@ export type MissionExampleTask = {
  * 문법 사이에서 싸운다」고 적어 둔 바로 그 상황이 `utterance` 안쪽에서 일어나고 있다.
  * 고치려면 프롬프트가 바뀌므로 **다시 재야 한다.** 짐작으로 고치지 않는다.
  */
-export function scriptAsExample(script: ScriptScenario, options: { tasks?: boolean } = {}): MissionExample {
+export function scriptAsExample(script: ScriptScenario, options: { tasks?: boolean; branch?: boolean } = {}): MissionExample {
+  /**
+   * 대본의 **태스크 단위** 되돌아감을 마일스톤 단위로 올린다 — 측정 경로의
+   * `extract-goldset.mjs` 가 정답셋에 하는 것과 **같은 파생**이고, `when` 을 `fail` 로
+   * 채우는 관례도 같다(거기 주석에 근거가 있다). 두 결과가 글자까지 같은지는
+   * `verify:no-leak` 이 대조한다 — 갈라지면 화면과 표가 다른 프롬프트로 돈다.
+   */
+  const repeats = new Map<string, { to: string; when: 'fail' }>();
+  for (const edge of script.refEdges ?? []) {
+    const from = script.tasks.find((task) => task.id === edge.from)?.milestone;
+    const to = script.tasks.find((task) => task.id === edge.to)?.milestone;
+    if (from === undefined || to === undefined) continue;
+    repeats.set(from, { to, when: 'fail' });
+  }
   return {
     mission_id: script.missionId,
     utterance: {
@@ -120,6 +136,7 @@ export function scriptAsExample(script: ScriptScenario, options: { tasks?: boole
         }))
         : [],
       assigned_targets: milestone.assignedTargets,
+      ...(options.branch === true && repeats.has(milestone.id) ? { repeat_of: repeats.get(milestone.id)! } : {}),
     })),
   };
 }
@@ -137,7 +154,7 @@ export function scriptAsExample(script: ScriptScenario, options: { tasks?: boole
 export function examplesForUtterance(
   library: readonly ScriptLibraryEntry[],
   excludeMissionId: string | null,
-  options: { tasks?: boolean } = {},
+  options: { tasks?: boolean; branch?: boolean } = {},
 ): MissionExample[] {
   return library
     .filter((entry) => entry.world === 'registry' && entry.script !== null)

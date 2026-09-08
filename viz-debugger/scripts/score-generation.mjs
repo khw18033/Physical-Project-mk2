@@ -152,6 +152,15 @@ export function toContract(mission) {
   };
 }
 
+/**
+ * 발화가 분기·되풀이를 요구하는 표지. **`src/generate/planShape.ts` 와 같은 목록이다.**
+ *
+ * 화면이 경고하는 자리와 채점이 세는 자리가 갈라지면, 화면은 「못 만들었다」고 하는데
+ * 표는 「지어냈다」고 하는 일이 생긴다. 같은 목록인지는 `verify:plan-shape` 가 대조한다.
+ */
+const LOOP_MARKERS = ['때까지', '반복', '계속', '재탐색', '주기적', '다시 시도', '재시도', '할 때마다', '매번'];
+const BRANCH_MARKERS = ['없으면', '아니면', '그렇지 않으면', '안 되면', '못 하면', '실패하면', '중 하나'];
+
 // ── 문자열 비교 — 한국어라 어절이 아니라 글자 2-gram 이다 ────────────────────
 
 function bigrams(text) {
@@ -431,6 +440,63 @@ function axisNodeGrammar(goldMission, taskPairs) {
   return { accuracy: round(hit.length / Math.max(1, scored.length)), scored: scored.length, confusion, note: null };
 }
 
+/**
+ * 축 8 — **계획의 모양** (분기와루프 3단계). 배타 분기와 되풀이.
+ *
+ * ## `deps` 를 보지 않는다 — 볼 수 없다
+ *
+ * 2단계가 규칙을 세우고 나서 알게 된 것이다. 규칙은 배타 분기를 「같은 판정에 나란히 +
+ * 뒤에서 합류」로 만드는데, **그 `deps` 모양이 병렬과 똑같다**(병렬도 제약이 없어 나란히
+ * 남는다). 「둘 다 한다」와 「둘 중 하나」가 엣지로는 구별되지 않으므로, 이 축은 반드시
+ * **주석 자체**(`branch`·`repeat_of`)를 봐야 한다.
+ *
+ * ## 정답과 대조하지 않는다 — 대조할 정답이 없다
+ *
+ * 정답셋에 배타 분기가 **한 건도 없다**(1단계에서 확인 — 갈라지는 자리 셋은 전부 병렬).
+ * 그리고 **정답셋 발화 15개에 분기·되풀이 표지가 하나도 없다**(3단계에서 확인). 2편의
+ * 정답 되풀이는 발화가 아니라 대본 저자의 도메인 지식(「10분 초과 시 재탐색」)에서 왔다.
+ *
+ * 그래서 이 축이 재는 것은 **정확도가 아니라 절제**다.
+ *
+ * | 칸 | 뜻 |
+ * |---|---|
+ * | `declared` | 모델이 적은 주석 수 |
+ * | `invented` | **발화가 요구하지 않았는데 적은 수.** 정답셋에서는 declared 와 같다 |
+ * | `malformed` | 앞에 없는 마일스톤을 가리킨 수 — 규칙이 무시하는 것 |
+ *
+ * `invented` 가 이 판의 채택 여부를 가른다. 8단계 D 판이 「새 자리를 열면 모델은 그
+ * 자리를 채운다」를 보였고, 분기는 그쪽이 더 나쁘다 — **빈 단계는 사람이 보면 알지만
+ * 없어야 할 갈래는 그럴듯해 보인다.**
+ *
+ * 「요구했을 때 내는가」는 여기서 못 잰다. 정답셋 밖 발화로 따로 본다(보고서).
+ */
+function axisPlanShape(candidate, utterance) {
+  const milestones = candidate.milestones ?? [];
+  const ids = milestones.map((milestone) => milestone.milestone_id);
+  // 발화가 요구했는가 — 판별은 `src/generate/planShape.ts` 와 **같은 표지**를 쓴다.
+  // 두 벌로 적으면 화면이 경고하는 자리와 채점이 세는 자리가 갈라진다.
+  const asked = {
+    branch: BRANCH_MARKERS.some((marker) => utterance.includes(marker)),
+    loop: LOOP_MARKERS.some((marker) => utterance.includes(marker)),
+  };
+  const count = (kind) => {
+    const items = milestones.filter((milestone) => milestone[kind] !== undefined);
+    const malformed = items.filter((milestone) => {
+      const target = kind === 'branch' ? milestone.branch.from : milestone.repeat_of.to;
+      const at = ids.indexOf(target);
+      return at < 0 || at >= ids.indexOf(milestone.milestone_id);
+    }).length;
+    const wanted = kind === 'branch' ? asked.branch : asked.loop;
+    return { declared: items.length, invented: wanted ? 0 : items.length, malformed };
+  };
+  return {
+    asked,
+    branch: count('branch'),
+    repeat: count('repeat_of'),
+    note: '정답과 대조하지 않는다 — 정답셋에 배타 분기가 없고 발화 15개에 표지도 없다. 재는 것은 정확도가 아니라 **절제**다',
+  };
+}
+
 /** 축 4 — 그래프. deps 가 만드는 DAG 가 동형인가 · 순환이 없는가. */
 function axisGraph(goldMission, candidate, taskPairs) {
   const map = new Map();
@@ -497,6 +563,10 @@ export function score(candidates, vocabulary = placeVocabulary(), axes = placeAx
       abstraction: axisAbstraction(candidate),
       node_grammar: axisNodeGrammar(goldMission, taskPairs),
       graph: axisGraph(goldMission, candidate, taskPairs),
+      // 발화는 **후보의 것**을 본다 — 채점 대상 편의 원본이 아니라 그 건에 실제로 넣은
+      // 문장이어야 「요구했는가」가 맞는다(변형 발화가 다섯이다). 후보가 utterance 를
+      // 안 들면(옛 실행) 정답 원본으로 물러선다.
+      plan_shape: axisPlanShape(candidate, candidate.utterance?.text ?? goldMission.utterance.text),
     };
   });
 }
@@ -535,6 +605,11 @@ function damaged(kind) {
   // 260907 에 A 판은 전부 지어냄이고 B·C 판은 전부 오선택이었다.
   if (kind === 'target_mischosen') target.milestones[0].assigned_targets = ['robot-03']; // 실재하지만 정답이 아님
   if (kind === 'abstraction') target.milestones[0].title += ' — robot-01 을 0.8 m/s 로'; // 구현 파라미터 유입
+  // 지어낸 갈래 — 발화가 요구하지 않았는데 마일스톤에 branch 를 붙인다.
+  // **8단계 D 판이 보인 실패의 이 층 판**이다: 새 자리를 열면 모델이 그 자리를 채운다.
+  if (kind === 'plan_shape' && target.milestones.length > 1) {
+    target.milestones[1].branch = { from: target.milestones[0].milestone_id, when: 'pass' };
+  }
   if (kind === 'graph') {
     // 순환을 만든다 — 모델이 deps 를 직접 내면 실제로 나는 실패다.
     const tasks = target.milestones[0].tasks;
@@ -549,7 +624,7 @@ const controls = [];
 // 보는 것은 「채점기의 축이 망가진 입력을 잡는가」이지 「이번 후보가 어떤가」가 아니다.
 // (--candidate 로 임무 일부만 넘기면 그 임무가 후보에 없어 대조군이 통째로 죽는다.)
 const controlBaseline = score(selfCandidates);
-for (const kind of ['schema', 'milestone', 'place_violation', 'target_violation', 'target_mischosen', 'abstraction', 'node_grammar', 'graph']) {
+for (const kind of ['schema', 'milestone', 'place_violation', 'target_violation', 'target_mischosen', 'abstraction', 'node_grammar', 'graph', 'plan_shape']) {
   const before = controlBaseline.find((item) => item.mission_id === 'MSN-260831-01');
   const after = score(damaged(kind)).find((item) => item.mission_id === 'MSN-260831-01');
   const caught = {
@@ -566,6 +641,7 @@ for (const kind of ['schema', 'milestone', 'place_violation', 'target_violation'
     abstraction: () => after.abstraction.count > before.abstraction.count,
     node_grammar: () => (after.node_grammar.accuracy ?? 1) < (before.node_grammar.accuracy ?? 0),
     graph: () => !before.graph.has_cycle && after.graph.has_cycle,
+    plan_shape: () => after.plan_shape.branch.invented > before.plan_shape.branch.invented,
   }[kind]();
   if (caught) controls.push(kind);
   else controlFailures.push(`${kind} 축이 망가뜨린 사본을 잡지 못했다 — 그 축은 무의미하다`);

@@ -29,6 +29,7 @@
 //   node scripts/run-baseline.mjs --model X --no-examples     예시 0편 (7단계 C)
 //   node scripts/run-baseline.mjs --model X --node-kinds      노드 문법 5종 규칙 (8단계 D)
 //   node scripts/run-baseline.mjs --model X --tasks           태스크까지 낸다 (10단계 E)
+//   node scripts/run-baseline.mjs --model X --tasks --branch  분기·되풀이까지 (분기와루프 3단계 G)
 //   node scripts/run-baseline.mjs --model X --limit 2         빠른 확인용
 //   node scripts/run-baseline.mjs --rescore                   이미 낸 결과를 다시 채점만
 //
@@ -86,11 +87,14 @@ const shots = args.includes('--no-examples') ? 'none' : 'leave-one-out';
 const nodeKinds = args.includes('--node-kinds');
 // 10단계의 축. **켜는 스위치**라 기본이 꺼짐이고, 9단계까지의 판은 이름이 그대로다.
 const withTasks = args.includes('--tasks');
+// 분기와루프 3단계의 축. **켜는 스위치**이고, 예시도 함께 켠다 — 규칙만 바꾸면 예시가
+// 이긴다(10단계 E 판 15건 중 10건).
+const withBranch = args.includes('--branch');
 const limit = Number(flag('--limit', '0')) || 0;
 const rescoreOnly = args.includes('--rescore');
 // 이름이 **설정을 말한다.** 6단계에 유령 llama-server 로 표가 한 번 무효가 됐고, 그때
 // 배운 것이 「기록이 스스로를 설명해야 한다」였다. 끈 것이 있으면 이름에 남는다.
-const suffix = `${enforceGrammar ? '' : '__nogrammar'}${giveEquipment ? '' : '__noequip'}${shots === 'none' ? '__noshot' : ''}${nodeKinds ? '__kinds' : ''}${withTasks ? '__tasks' : ''}`;
+const suffix = `${enforceGrammar ? '' : '__nogrammar'}${giveEquipment ? '' : '__noequip'}${shots === 'none' ? '__noshot' : ''}${nodeKinds ? '__kinds' : ''}${withTasks ? '__tasks' : ''}${withBranch ? '__branch' : ''}`;
 const label = flag('--label', model ? `${model}${suffix}` : null);
 
 if (model === null && !rescoreOnly) {
@@ -137,7 +141,7 @@ function utterancesFor(missionId, mission) {
  * 채점 — **축의 정의는 `score-generation.mjs` 하나다.** 여기서 다시 계산하지 않는다.
  * 축을 두 곳에 적으면 표와 채점기가 조용히 갈라진다.
  */
-function writeSummary(root, { model: modelName, label: runLabel, grammar_enforced, equipment_given, shots: runShots, node_kinds, tasks, records: rows }) {
+function writeSummary(root, { model: modelName, label: runLabel, grammar_enforced, equipment_given, shots: runShots, node_kinds, tasks, branch, records: rows }) {
   const scored = [];
   for (const dir of readdirSync(root).filter((name) => /^v\d+$/.test(name)).sort()) {
     const out = execFileSync(process.execPath, [join(vizRoot, 'scripts', 'score-generation.mjs'), '--candidate', join(root, dir), '--json'], {
@@ -157,6 +161,7 @@ function writeSummary(root, { model: modelName, label: runLabel, grammar_enforce
     shots: runShots,
     node_kinds,
     tasks,
+    branch,
     // **생성한 시각은 그대로 두고 채점한 시각만 갱신한다** — 다시 채점했다고 해서
     // 출력이 새로 난 것이 아니다. 그 둘을 한 칸에 적으면 기록이 거짓말한다.
     ran_at: previous?.ran_at ?? new Date().toISOString(),
@@ -195,6 +200,7 @@ if (rescoreOnly) {
       // 옛 실행에는 이 칸들이 없다 — 8·10단계 전에는 그 규칙 자체가 없었다.
       node_kinds: previous.node_kinds ?? false,
       tasks: previous.tasks ?? false,
+      branch: previous.branch ?? false,
       records: previous.records,
     });
     console.log(`  다시 채점 — ${name} (${previous.records.length}건, 출력은 그대로)`);
@@ -220,7 +226,7 @@ const outRoot = join(runsDir, label);
  * 그래서 **덮어쓰기 자체를 막지는 않되**(같은 설정을 다시 돌리는 것은 정상이다)
  * 설정이 다르면 멈춘다. 다시 돌릴 사람은 이름을 주면 된다.
  */
-const config = { model, grammar_enforced: enforceGrammar, equipment_given: giveEquipment, shots, node_kinds: nodeKinds, tasks: withTasks };
+const config = { model, grammar_enforced: enforceGrammar, equipment_given: giveEquipment, shots, node_kinds: nodeKinds, tasks: withTasks, branch: withBranch };
 try {
   const previous = JSON.parse(readFileSync(join(outRoot, 'summary.json'), 'utf8'));
   const before = {
@@ -232,6 +238,7 @@ try {
     shots: previous.shots ?? 'leave-one-out',
     node_kinds: previous.node_kinds ?? false,
     tasks: previous.tasks ?? false,
+    branch: previous.branch ?? false,
   };
   const differs = Object.keys(config).filter((key) => config[key] !== before[key]);
   if (differs.length) {
@@ -249,13 +256,13 @@ const records = [];
 const targets = limit > 0 ? gold.slice(0, limit) : gold;
 
 console.log(`베이스라인 — model=${model} · 문법=${enforceGrammar ? '강제' : '없음(대조군)'} · 임무 ${targets.length}편`);
-console.log(`             장비 목록=${equipment ? `${equipment.equipment.length}건` : '없음'} · 예시=${shots === 'none' ? '0편' : `${targets.length - 1}편(leave-one-out)`} · 노드 문법 규칙=${nodeKinds ? '붙임' : '없음'} · 태스크=${withTasks ? '낸다(deps 는 규칙)' : '안 낸다'} · 이름=${label}`);
+console.log(`             장비 목록=${equipment ? `${equipment.equipment.length}건` : '없음'} · 예시=${shots === 'none' ? '0편' : `${targets.length - 1}편(leave-one-out)`} · 노드 문법 규칙=${nodeKinds ? '붙임' : '없음'} · 태스크=${withTasks ? '낸다(deps 는 규칙)' : '안 낸다'} · 분기·되풀이=${withBranch ? '적게 한다' : '안 적는다'} · 이름=${label}`);
 console.log('');
 
 for (const mission of targets) {
   // **규칙과 예시를 함께 켠다.** 규칙만 바꾸고 예시를 그대로 두면 프롬프트가 서로
   // 반대되는 지시 둘을 들고, 실측에서 예시가 이겼다 (10단계 E 판 15건 중 10건).
-  const examples = examplesFor(mission.mission_id, gold, shots, { tasks: withTasks });
+  const examples = examplesFor(mission.mission_id, gold, shots, { tasks: withTasks, branch: withBranch });
   const texts = utterancesFor(mission.mission_id, mission);
   for (const [index, text] of texts.entries()) {
     const started = Date.now();
@@ -268,6 +275,7 @@ for (const mission of targets) {
         examples,
         nodeKinds,
         tasks: withTasks,
+        branch: withBranch,
         model,
         missionId: mission.mission_id,
         // 대본 유래라 인식 수치가 없다 — `confidence_signals` 없이 간다 (§7.8 규칙 2).
@@ -313,6 +321,7 @@ for (const mission of targets) {
       // 프롬프트에 붙었다는 것은 다른 일이고, 표는 뒤엣것을 읽어야 한다.
       node_kinds_given: result?.extra?.node_kinds_given ?? null,
       tasks_given: result?.extra?.tasks_given ?? null,
+      branch_given: result?.extra?.branch_given ?? null,
       extra: result?.extra ?? null,
     };
     records.push(record);
@@ -337,6 +346,11 @@ for (const mission of targets) {
       record.edges_by_rule = solved.edgeCount;
       // 규칙 14(「deps 는 빈 배열로 둔다」)를 지켰는가. **0이 정상이다.**
       record.model_deps = solved.modelDeps;
+      // 분기·되풀이 주석을 **몇 개나 적었는가.** 정답셋 발화 15개에는 표지가 하나도
+      // 없으므로(3단계에서 확인) 여기서 0이 아닌 것은 전부 **지어낸 것**이다.
+      record.branches = (result.mission.milestones ?? []).filter((m) => m.branch !== undefined).length;
+      record.repeats = (result.mission.milestones ?? []).filter((m) => m.repeat_of !== undefined).length;
+      record.ignored_plan = solved.ignoredPlan;
       writeFileSync(
         join(variantDir, `${mission.mission_id}.json`),
         JSON.stringify({ ...scored, mission_id: mission.mission_id }, null, 2),
@@ -346,6 +360,7 @@ for (const mission of targets) {
     const status = failure !== null ? `실패 — ${failure.slice(0, 60)}`
       : `${record.schema_pass ? '스키마통과' : `스키마실패 ${record.schema_errors.length}`} · ${wall.toFixed(1)}초 · 마일스톤 ${result.mission?.milestones?.length ?? '?'}`
         + (withTasks ? ` · 노드 ${record.nodes ?? 0} · 의존 ${record.edges_by_rule ?? 0}(규칙)` : '')
+        + (withBranch ? ` · 분기 ${record.branches ?? 0} · 되풀이 ${record.repeats ?? 0}` : '')
         // **잘린 것과 모델이 못 한 것은 다른 실패다.** 안 적으면 둘 다 「스키마 실패」로만
         // 보이고, 진단이 매번 처음부터 시작된다 (10단계 E2 가 15건 전부 그것이었다).
         + (record.extra?.stop_reason === 'limit'
@@ -355,7 +370,7 @@ for (const mission of targets) {
   }
 }
 
-writeSummary(outRoot, { model, label, grammar_enforced: enforceGrammar, equipment_given: giveEquipment, shots, node_kinds: nodeKinds, tasks: withTasks, records });
+writeSummary(outRoot, { model, label, grammar_enforced: enforceGrammar, equipment_given: giveEquipment, shots, node_kinds: nodeKinds, tasks: withTasks, branch: withBranch, records });
 console.log('');
 console.log(`기록 ${records.length}건 → ${join(outRoot, 'summary.json')}`);
 console.log('표는 `node scripts/report-baseline.mjs` 가 만든다 — 여러 모델을 한 표에 놓아야 낙폭이 보인다.');

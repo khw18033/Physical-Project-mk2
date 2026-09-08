@@ -70,6 +70,42 @@ const readMatch = (id, raw) => {
  * 그래프의 모양. `graph/shape.ts` 가 화면 머리줄에 쓰는 것과 **같은 뜻의 숫자**이지만,
  * 여기서는 대본 파일에서 직접 센다 — 채점기가 화면 코드에 의존하면 안 된다.
  */
+/**
+ * 대본의 **태스크 단위 되돌아감**을 마일스톤 단위 주석으로 올린다 (260908 · 3단계).
+ *
+ * ## 왜 올리나 — 안 올리면 예시가 그것을 못 보인다
+ *
+ * 이 파일은 260904 부터 `refEdges` 를 **일부러 안 뽑았다** — 「사람이 대본에 적은 것이고
+ * 생성 대상이 아니다(§5)」. 그 사유가 지금 바뀌었다: **발화가 명시적으로 요구한 되풀이는
+ * 지어내는 것이 아니라 받아 적는 것**이고, 계약(`milestone.schema.json`)이 그 자리를
+ * 열었으며 규칙(`solveDeps`)이 그것을 태스크 엣지로 편다.
+ *
+ * 그리고 10단계 E 판이 배운 것이 있다 — **규칙만 바꾸고 예시를 그대로 두면 예시가 이긴다**
+ * (15건 중 10건). 모델에게 되풀이를 내라고 하려면 예시가 그것을 보여야 하고, 예시는
+ * 정답셋에서 나온다.
+ *
+ * ## `to` 는 뽑고 `when` 은 **관례로 채운다** — 그 사실을 감추지 않는다
+ *
+ * `to` 는 엣지에서 그대로 나온다(엣지가 가리키는 태스크의 마일스톤). `when` 은 대본의
+ * 참조 엣지에 없다. **`fail` 로 채운다** — 되돌아감은 판정이 어긋났을 때 일어나기 때문이고,
+ * 2편이 그 예다(`T-27b` 의 기준이 「경과 ≤ 600초」이고 **초과**가 재탐색 조건이다).
+ *
+ * **이것은 추론이다.** 지금 되돌아감이 있는 편이 하나뿐이라 관례가 곧 그 한 편이고,
+ * 편이 늘면 그때 다시 봐야 한다. 관례가 틀린 편이 생기면 이 함수가 아니라 대본이
+ * `repeat_of` 를 직접 들어야 한다.
+ */
+function repeatOfMilestone(raw, tasks) {
+  const milestoneOf = new Map(tasks.map((task) => [task.id, task.milestone]));
+  const out = new Map();
+  for (const edge of raw.refEdges ?? []) {
+    const from = milestoneOf.get(edge.from);
+    const to = milestoneOf.get(edge.to);
+    if (from === undefined || to === undefined) continue; // 태스크를 못 찾으면 지어내지 않는다
+    out.set(from, { to, when: 'fail' });
+  }
+  return out;
+}
+
 function shapeOf(tasks, refEdges) {
   const ids = new Set(tasks.map((task) => task.id));
   const deps = new Map(tasks.map((task) => [task.id, (task.deps ?? []).filter((id) => ids.has(id))]));
@@ -114,6 +150,7 @@ for (const id of MISSIONS) {
   const legacy = raw.cast === undefined;
   const tasks = raw.tasks.map((task) => ({ ...task, milestone: task.milestone ?? 'MS-C' }));
   const shape = shapeOf(tasks, raw.refEdges);
+  const repeats = repeatOfMilestone(raw, tasks);
   const byMilestone = new Map();
   for (const task of tasks) {
     if (!byMilestone.has(task.milestone)) byMilestone.set(task.milestone, []);
@@ -138,6 +175,8 @@ for (const id of MISSIONS) {
       title: milestone.title,
       assigned_targets: milestone.assignedTargets ?? [],
       task_ids: byMilestone.get(milestone.id) ?? [],
+      // 되돌아감을 **마일스톤 단위로 올린다** (260908 · 3단계). 아래 `repeatOfMilestone` 참조.
+      ...(repeats.get(milestone.id) === undefined ? {} : { repeat_of: repeats.get(milestone.id) }),
     })),
     // **모델이 내야 하는 것만** 남긴다 — 상태·액션 아이템·실행 기록은 정답이 아니다.
     tasks: tasks.map((task) => ({
@@ -155,7 +194,7 @@ for (const id of MISSIONS) {
       worldTimeline: '세계 값 — 위와 같다',
       params: '편별 상수(위험 수위 등) — 임무 설계가 아니라 환경 설정이다',
       actionItems: '어댑터 전개 결과 — VZ-G-04 의 몫이다',
-      refEdges: '되돌아가는 참조 엣지 — 사람이 대본에 적은 것이고 생성 대상이 아니다 (§5)',
+      refEdges: '태스크 단위 참조 엣지는 안 뽑는다 — **마일스톤 단위(milestones[].repeat_of)로 올렸다** (260908). 태스크 엣지는 규칙(solveDeps)이 그 주석에서 편다',
     },
   };
   missions.push(mission);

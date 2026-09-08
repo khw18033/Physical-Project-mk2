@@ -115,6 +115,13 @@ export type GenerateOptions = {
    * 실행 전에는 병렬의 근거가 없어 모델이 낸 의존은 순환·고아 노드를 만든다.
    */
   tasks?: boolean;
+  /**
+   * 마일스톤에 **분기·되풀이**를 적게 할 것인가 (분기와루프 3단계 G 판).
+   *
+   * **없는 것이 정상이다.** 발화가 요구하지 않았는데 나오면 지어내기이고, 채점이 그것을
+   * 따로 센다 — 8단계 D 판이 「새 자리를 열면 모델이 그 자리를 채운다」를 보였기 때문이다.
+   */
+  branch?: boolean;
   model?: string;
   /**
    * 임무 식별자. **부르는 쪽이 준다** — 모델이 지어낼 것이 아니다. `audio_ref` 와 같은
@@ -182,6 +189,7 @@ export async function generateMission(utterance: string, options: GenerateOption
     examples: options.examples ?? [],
     node_kinds: options.nodeKinds ?? false,
     tasks: options.tasks ?? false,
+    branch: options.branch ?? false,
     model: options.model ?? null,
     mission_id: options.missionId ?? null,
     utterance_meta: options.utteranceMeta ?? null,

@@ -145,6 +145,29 @@ TASK_RULES = [
 NO_TASK_RULE_PREFIX = "tasks 는 빈 배열"
 
 
+#: 분기와 되풀이를 적게 하는 판 (분기와루프 3단계 G). **태스크 규칙 뒤에 붙는다** —
+#: 마일스톤 층의 이야기지만 태스크를 낸 뒤에 읽어야 「무엇이 판정인가」가 이미 나와 있다.
+#:
+#: ## 마지막 줄이 이 규칙의 절반이다
+#:
+#: 8단계 D 판이 보인 것 — **새 자리를 열면 모델은 그 자리를 채운다.** 종류 목록을 주자
+#: 그 종류의 이름을 붙인 빈 단계를 만들었다. 분기와 되풀이도 같은 위험이 있고, 그쪽이
+#: 더 나쁘다: 빈 단계는 사람이 보면 알지만 **없어야 할 갈래는 그럴듯해 보인다.**
+#:
+#: 그래서 「없는 것이 정상이다」를 규칙으로 못박고, 채점이 **지어내기를 따로 센다.**
+#: 정답셋 발화 15개에는 분기·되풀이 표지가 하나도 없으므로 거기서 나온 것은 전부 지어낸
+#: 것이고, 그 숫자가 이 판의 채택 여부를 가르는 축이 된다.
+BRANCH_RULES = [
+    "발화가 **둘 중 하나를 고르라**고 할 때만 마일스톤을 갈래로 나눈다. 갈래인 마일스톤에는 branch 를 적는다 — from 은 판정한 마일스톤의 id, when 은 그 판정이 pass 일 때인지 fail 일 때인지다.",
+    "같은 판정에서 갈라진 마일스톤들은 **둘 중 하나만** 실행된다. 둘 다 하는 것은 갈래가 아니므로 branch 를 적지 않는다.",
+    "발화가 **되풀이**를 요구할 때만(「~할 때까지」·「반복」 같은 말) 그 마일스톤에 repeat_of 를 적는다 — to 는 돌아갈 마일스톤의 id, when 은 되돌아가는 조건이다.",
+    "**발화가 요구하지 않았으면 branch 도 repeat_of 도 적지 않는다. 없는 것이 정상이다** — 지어내면 실패다.",
+]
+
+#: `RULES` 안에서 태스크 규칙 묶음의 마지막 줄. 그 뒤에 분기 규칙이 들어간다.
+BRANCH_ANCHOR_PREFIX = "node_kind 는 그 자리에만 적는다"
+
+
 def _insert_after(rules: list[str], prefix: str, rule: str) -> list[str]:
     """`prefix` 로 시작하는 규칙 **바로 뒤**에 한 줄을 끼운다.
 
@@ -166,7 +189,12 @@ def _replace_rule(rules: list[str], prefix: str, replacements: list[str]) -> lis
     return [*rules[:at], *replacements, *rules[at + 1:]]
 
 
-def rules_for(equipment: Any = None, node_kinds: bool = False, tasks: bool = False) -> list[str]:
+def rules_for(
+    equipment: Any = None,
+    node_kinds: bool = False,
+    tasks: bool = False,
+    branch: bool = False,
+) -> list[str]:
     """이 요청에 실제로 적용되는 규칙. **화면에도 보고서에도 이 목록 그대로 쓴다.**
 
     규칙을 두 벌로 적으면 모델이 지킨 규칙과 사람이 채점한 규칙이 갈라진다 — 그래서
@@ -178,6 +206,12 @@ def rules_for(equipment: Any = None, node_kinds: bool = False, tasks: bool = Fal
         rules = _insert_after(rules, "마일스톤은 여러 개다", NODE_KIND_RULE)
     if tasks:
         rules = _replace_rule(rules, NO_TASK_RULE_PREFIX, TASK_RULES)
+    if branch:
+        # 태스크 판에서는 태스크 규칙 뒤, 아니면 분할 규칙 뒤. **어느 쪽이든 한 곳에서
+        # 정해진다** — 자리를 부르는 쪽이 정하면 판마다 프롬프트가 달라진다.
+        anchor = BRANCH_ANCHOR_PREFIX if tasks else "마일스톤은 여러 개다"
+        for rule in reversed(BRANCH_RULES):
+            rules = _insert_after(rules, anchor, rule)
     if equipment:
         rules = _insert_after(rules, "장소는", EQUIPMENT_RULE)
     return rules
@@ -285,6 +319,7 @@ def build(
     equipment: Any = None,
     node_kinds: bool = False,
     tasks: bool = False,
+    branch: bool = False,
 ) -> dict[str, str]:
     """(system, user) 두 문자열. **엔진의 대화 틀은 엔진이 씌운다** (`engines/`).
 
@@ -304,7 +339,7 @@ def build(
     examples = examples or []
     parts = [
         "[규칙]",
-        "\n".join(f"{i + 1}. {rule}" for i, rule in enumerate(rules_for(equipment, node_kinds, tasks))),
+        "\n".join(f"{i + 1}. {rule}" for i, rule in enumerate(rules_for(equipment, node_kinds, tasks, branch))),
         "",
         "[장소] 이 목록 밖의 장소를 만들면 실패다.",
         render_places(places),
