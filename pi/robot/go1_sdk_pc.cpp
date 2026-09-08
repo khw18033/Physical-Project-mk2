@@ -272,6 +272,25 @@ private:
       return false;
     }
 
+    // Unity Z키(yaw 정렬) 통지 — 여기서 로봇 좌표 기준을 Unity 와 맞춘다.
+    // Unity 는 늘 "현재 위치·방향 기준 상대 경로"를 보내는데, SDK 의 dead-reckoning
+    // world_x/z 는 기동 이후 계속 누적된다. 그 어긋남이 쌓이면 계획 경로와 실제 궤적이
+    // 갈라진다(실측: 2회차 경로에서 local z=1.785 가 world z=3.999 로 나감).
+    // 그래서 Z 를 누른 순간을 원점으로 삼는다 — 위치 0, 현재 방향을 yaw 0 으로.
+    {
+      float calib_deg=0;
+      if(sscanf(buf,"YAW_CALIB %f",&calib_deg)==1)
+      {
+        world_x=0.0; world_z=0.0;
+        last_dr_time=std::chrono::steady_clock::now();
+        yaw0_initialized=false;   // 다음 상태 갱신에서 현재 raw_yaw 를 0 기준으로 재설정
+        std::printf("[YAW_CALIB] Unity Z키 -> 좌표 원점 리셋 (pos=0, yaw0 재설정, unity_offset=%.2f deg)\n",
+                    calib_deg);
+        std::fflush(stdout);
+        return false;
+      }
+    }
+
     float tvx=0,tvy=0,twz=0; int tes=0;
     if(sscanf(buf,"%f %f %f %d",&tvx,&tvy,&twz,&tes)<4) return false;
     vx=tvx; vy=tvy; wz=twz; estop=tes; return true;
