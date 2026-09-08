@@ -30,6 +30,15 @@
  */
 export type OverwrittenField = { field: string; model: unknown; used: unknown };
 
+/**
+ * 발화가 요구한 모양과 계획의 모양이 어긋난 자리 (11단계).
+ *
+ * **경고이지 차단이 아니다.** 생성은 그대로 되고, 사람이 승인을 판단할 재료가 하나
+ * 늘 뿐이다. 이 자리가 비어 있는 것과 「검사하지 않았다」는 다르므로, 검사한 결과
+ * 없으면 빈 배열이다.
+ */
+export type PlanShapeNote = { kind: 'loop' | 'branch'; markers: readonly string[]; message: string };
+
 export type AiProvenance = {
   /** `VZ-D-08` 의 `produced_by`. 이 값이 `human`·`backend` 와 화면에서 갈리는 근거다. */
   producedBy: 'ai';
@@ -60,6 +69,13 @@ export type AiProvenance = {
    */
   schemaErrors: readonly string[];
   elapsedSec: number;
+  /**
+   * 발화와 계획의 모양이 어긋난 자리 (11단계). **빈 배열이 정상이다.**
+   *
+   * 근거에 함께 싣는 이유는 역추적이다 — 나중에 「이 임무는 왜 이렇게 생겼나」를 물었을 때
+   * 「그때 이미 어긋난다고 적혀 있었고 사람이 그것을 보고 승인했다」가 기록에 남아야 한다.
+   */
+  shapeWarnings: readonly PlanShapeNote[];
   /** 프롬프트에 실제로 실린 재료. 「무엇을 주고 얻은 답인가」가 근거의 일부다. */
   examplesGiven: number;
   placesGiven: boolean;
@@ -87,6 +103,7 @@ export function provenancePayload(provenance: AiProvenance): Record<string, unkn
     overwritten: [...provenance.overwritten],
     schema_errors: [...provenance.schemaErrors],
     elapsed_sec: provenance.elapsedSec,
+    shape_warnings: provenance.shapeWarnings.map((note) => ({ ...note, markers: [...note.markers] })),
     materials: {
       examples: provenance.examplesGiven,
       places: provenance.placesGiven,

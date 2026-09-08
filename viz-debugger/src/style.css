@@ -344,3 +344,8 @@ b.follow-live{cursor:default}
 .gen-model{display:flex;align-items:center;gap:6px;margin-top:6px;flex-wrap:wrap}
 .gen-model select{max-width:230px;padding:3px 5px;border:1px solid #cbc0e8;border-radius:5px;font:inherit;font-size:11px}
 .gen-model small{color:#8a84a5;font-size:11px}
+/* 발화와 계획의 모양이 어긋난 자리 (11단계). **경고이지 차단이 아니다** — 스키마 실패의
+   빨강과 다른 색이어야 한다. 이건 「계약을 어겼다」가 아니라 「못 만드는 모양이다」이다. */
+.gen-shape-warning{margin:6px 0;padding:8px 9px;border:1px solid #e2c98a;border-left-width:3px;background:#fdf8ec;color:#6b5520;font-size:12px;line-height:1.5}
+.gen-shape-warning b{margin-right:5px;padding:1px 5px;border-radius:3px;background:#f2e2b8;color:#6b5520;font-size:11px}
+.gen-shape-warning small{display:block;margin-top:4px;color:#8a7642;font-size:11px}

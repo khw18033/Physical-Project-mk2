@@ -24,6 +24,7 @@
 import type { MissionView } from '../data/scenario.ts';
 import type { AiProvenance, OverwrittenField } from '../shared/provenance.ts';
 import type { NodeKind, Task } from '../model/types.ts';
+import { planShapeWarnings } from './planShape.ts';
 import { solveDeps, type GeneratedNode } from './solveDeps.ts';
 import type { GeneratedMission, GenerateResult } from './types.ts';
 
@@ -44,6 +45,14 @@ function num(value: unknown): number | null {
  * 뭉개지 않듯, 근거도 「모델 이름 한 줄」로 뭉개지 않는다.
  */
 export function provenanceOf(result: GenerateResult): AiProvenance {
+  // 발화와 계획의 모양이 맞는가 (11단계). **경고이지 차단이 아니다.**
+  //
+  // 되돌아가는 엣지는 지금 언제나 0건이다 — 생성 경로가 그것을 안 만든다(§5). 그래서
+  // 루프를 요구한 발화는 늘 잡힌다. 그것이 맞다: 못 만드는 것을 못 만든다고 적는 것이다.
+  const shapeWarnings = result.mission == null ? [] : planShapeWarnings(
+    result.mission.utterance?.text ?? '',
+    solvedDepsFor(result.mission).deps,
+  );
   const extra = (result.extra ?? {}) as Record<string, unknown>;
   const rules = extra.rules_applied;
   const overwritten = extra.overwritten;
@@ -60,6 +69,7 @@ export function provenanceOf(result: GenerateResult): AiProvenance {
     overwritten: Array.isArray(overwritten) ? (overwritten as OverwrittenField[]) : [],
     schemaErrors: result.schema_errors ?? [],
     elapsedSec: result.elapsed_sec,
+    shapeWarnings,
     examplesGiven: num(extra.examples_given) ?? 0,
     placesGiven: extra.places_given === true,
     equipmentGiven: num(extra.equipment_given) ?? 0,

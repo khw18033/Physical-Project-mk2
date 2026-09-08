@@ -718,6 +718,16 @@ export function UtterancePanel({ fallbackText }: { fallbackText: string }) {
               </li>
             ))}
           </ol>
+          {/* 발화가 요구한 모양과 계획의 모양이 어긋났는가 (11단계).
+              **경고이지 차단이 아니다** — 제안은 그대로 뜨고, 사람이 승인을 판단할 재료가
+              하나 는다. 이것이 없으면 「분기를 순차로 꿴 계획」이 스키마도 통과하고 순환도
+              없어서 화면에서 아무 표시 없이 승인 대기에 선다. */}
+          {genOutcome.provenance.shapeWarnings.map((note) => (
+            <p key={note.kind} className="gen-shape-warning">
+              <b>{note.kind === 'loop' ? '되풀이' : '갈래'}</b> {note.message}
+              <small>발화에서 잡힌 말: {note.markers.map((m) => `「${m}」`).join(' · ')} — 지금 생성 경로가 못 만드는 모양입니다. 승인 전에 사람이 봐야 합니다</small>
+            </p>
+          ))}
           {/* 문법이 값의 범위는 못 잡는다 (7단계 §5 — confidence 5 가 문법을 통과했다).
               **잡은 것을 안 보이면 잡은 의미가 없다.** */}
           {genOutcome.provenance.schemaErrors.length > 0 && (
