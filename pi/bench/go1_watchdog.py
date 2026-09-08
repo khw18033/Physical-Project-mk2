@@ -155,8 +155,11 @@ def main():
     ap.add_argument("--interval", type=float, default=300.0)
     args = ap.parse_args()
     if args.once:
-        n = check_once(args.dry_run)
-        sys.exit(0 if n == 0 else 1)
+        # 정지 감지·재부팅은 워치독이 '할 일을 한 것'이므로 0으로 종료한다.
+        # (감지·재부팅 내역은 로그에 남는다. systemd oneshot 이 정상 복구를 'failed'로
+        #  표시하지 않도록.) ssh 자체 실패 등 실제 오류만 비정상 종료로 남긴다.
+        check_once(args.dry_run)
+        sys.exit(0)
     while True:
         check_once(args.dry_run)
         time.sleep(args.interval)
