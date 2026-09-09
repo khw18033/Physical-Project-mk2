@@ -21,6 +21,21 @@ export function ActionModal({ task, view, device, failure, onClose }: { task: Ta
       ? <><h3>평가 · Evaluation</h3>{task.evaluation
           ? task.evaluation.criteria.map((criterion) => <p key={criterion}>✓ {criterion} <small>판정 {task.evaluation!.judgedBy}</small></p>)
           : <p>평가 기준 없는 태스크 — 평가로 끝나는 태스크가 아닙니다</p>}
+        {/* 근거 가시화 (260909 시연 대본 §5) — 근거 **문장**이 있으면 그것부터 읽힌다.
+            발표에서 사람이 소리 내어 읽을 자리라 JSON 한 덩어리로 두면 못 읽는다.
+            이미지는 아직 없다 — **자리를 만들고 비워 둔다.** 더미를 그려 넣지 않는다. */}
+        {typeof evidence?.reason === 'string' && evidence.reason.trim() !== ''
+          ? <><h3>판단 근거</h3>
+              <p className="evidence-reason">{evidence.reason}</p>
+              <figure className="evidence-image">
+                {typeof evidence.image_ref === 'string' && evidence.image_ref !== ''
+                  ? <img src={evidence.image_ref} alt="검출 상자를 입힌 근거 이미지" />
+                  : <div className="evidence-image__empty">근거 이미지 미도착 — 탐지 파트가 붙으면 이 자리에 검출 상자가 들어옵니다</div>}
+                {Array.isArray(evidence.bbox)
+                  ? <figcaption>검출 상자 {(evidence.bbox as number[]).map((n) => n.toFixed(2)).join(' · ')}</figcaption>
+                  : null}
+              </figure></>
+          : null}
         <h3>근거값 · TraceEvent payload</h3>
         {evidence
           ? <code>{Object.entries(evidence).map(([key, value]) => `${key}: ${JSON.stringify(value)}`).join('\n')}</code>

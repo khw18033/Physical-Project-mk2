@@ -368,3 +368,11 @@ b.follow-live{cursor:default}
 .task-node.viewpoint--door .viewpoint__verdict{color:#237a49;font-weight:600}
 /* 움직임을 줄이라고 한 사용자에게는 점멸을 끈다 — 접근성 기본값이다. */
 @media (prefers-reduced-motion:reduce){.task-node.viewpoint--scanning{animation:none}}
+
+/* 근거 가시화 (260909 시연 대본 §5) — 문장이 먼저 읽히고, 이미지 자리는 비워 둔다.
+   더미 이미지를 그려 넣지 않는다: 발표에서 「이건 가짜입니다」를 말하게 되는 자리다. */
+.evidence-reason{margin:4px 0 8px;padding:8px 10px;border-left:3px solid #2f9e5f;background:#f3faf6;color:#24503a;font-size:13px;line-height:1.6}
+.evidence-image{margin:0 0 10px}
+.evidence-image img{display:block;width:100%;border:1px solid #d8dee7;border-radius:6px}
+.evidence-image__empty{display:flex;align-items:center;justify-content:center;min-height:88px;padding:10px;border:1px dashed #c6ced8;border-radius:6px;background:#fbfcfd;color:#7c8797;font-size:11px;text-align:center;line-height:1.5}
+.evidence-image figcaption{margin-top:4px;color:#7c8797;font-size:11px}
