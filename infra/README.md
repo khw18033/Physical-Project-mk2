@@ -238,7 +238,7 @@ Phase 0에서 고칠 것은 없다. 아래는 설정 파일에서 확인한 사�
 |---|---|---|
 | `otel-collector-config.yaml` | **`logs`·`traces` 파이프라인이 없다 (metric만).** Loki·Tempo가 각각 직접 수신하고 있어 정본(Collector가 분배)과 다르다 | **Phase 3 핵심** |
 | `otel-collector-config.yaml` | `batch` processor 없음 — 수신 즉시 export | Phase 3 |
-| `prometheus.yml` | `global.scrape_interval: 1s` — 정본이 상정한 15초~1분과 다르다. **바꾸면 기존 대시보드 해상도가 떨어지므로 단독 변경 불가** | Phase 3, 팀원 합의 후 |
+| `prometheus.yml` | `global.scrape_interval: 1s` — 정본이 상정한 15초~1분과 다르다. **바꾸면 기존 대시보드 해상도가 떨어지므로 단독 변경 불가** | 근거 확보됨 — 정본 BE-S-03(요약 15초) + 타 파트 문서화(일반 metric 60초). Phase 3에서 조정. 기존 대시보드 해상도 영향은 사전 고지 후 진행 |
 | `prometheus.yml` | 페더레이션 없음 (단일 Prometheus) | Phase 3 |
 | `loki-config.yaml` | **retention 없음 → 로그가 무제한으로 쌓인다.** 로그를 흘리기 **전에** 걸어야 한다. 흘린 뒤 걸면 이미 쌓인 것은 안 지워진다 | **Phase 3, 순서 주의** |
 | `loki-config.yaml` | schema v11 + boltdb-shipper (Loki 3.x 기준 구식). `allow_structured_metadata: false`로 호환 유지 중이며 동작에 문제는 없다 | 필요해지면 |
@@ -246,6 +246,7 @@ Phase 0에서 고칠 것은 없다. 아래는 설정 파일에서 확인한 사�
 | `tempo-config.yaml` | `block_retention: 24h` — trace가 하루만 남는다 | Phase 3 |
 | `mosquitto.conf` | `allow_anonymous true`, ACL 없음. 개발 단계라 의도된 상태이며 **Phase 1 브릿지 연결에는 오히려 유리하다** | 운영 전환 시 |
 | `mosquitto.conf` | `persistence` 미설정 → 브로커 재시작 시 retained 소실 | Phase 1/5 |
+| (요구사항) | **가용성 판정 파라미터** — 하트비트 1초 1회, **4회 연속 미수신(약 4초)** 시 장애 판정. 정본은 조병현 HW-S-05·HW-A-05이며 김현우 VZ-U-01도 4초 판정을 전제한다. **Phase 1 실측 5초는 테스트 편의값이지 요구사항이 아니다** | Phase 5 |
 
 관측 3종의 현재 실제 경로:
 

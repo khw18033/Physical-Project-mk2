@@ -1,0 +1,75 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/khw18033/Physical-Project-mk2/contracts/common/object-reference.schema.json",
+  "title": "지속 객체 참조 (Object Reference)",
+  "description": "구역을 넘어 같은 대상을 계속 가리키기 위한 지속 객체 참조. 프레임 참조(frame-reference.schema.json)와는 다른 축이다 — 프레임 참조는 '무엇을 언제 찍었나'(관측 근거)이고, 이 스키마는 '그 대상이 무엇인가'(대상 정체성)이다. 진나영 AI-S-06이 '지속 객체 레코드는 특정 프레임의 탐지 결과와 구분하여 관리'를 요구하므로 둘을 한 값으로 합치지 않는다. 역할 분담: 구역 내 추적 식별자(zone_local_track_id)는 AI가 부여하고, 구역 경계를 넘어도 유지되는 전역 객체 ID(object_id)는 백엔드가 부여·매핑한다(DT-06). 가시화 궤적 표시(VZ-I-09)가 이 전역 ID로 구역을 가로지르는 하나의 경로를 그린다.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "object_id",
+    "zone_local_track_id",
+    "zone_id",
+    "first_seen",
+    "last_seen",
+    "frame_ref"
+  ],
+  "properties": {
+    "object_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "백엔드가 부여하는 전역 지속 객체 식별자. 구역을 넘어도 동일 대상을 가리킨다(DT-06 핸드오프). 구역 내 track ID로 대체할 수 없다 — 구역마다 번호 체계가 독립이라 같은 대상이 구역을 넘으면 track ID가 바뀌기 때문이다. 논리 식별자이며 IP·MAC 같은 가변값이 아니다(BE-C-02).",
+      "examples": ["obj-2026-0908-000417"]
+    },
+    "zone_local_track_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "AI가 구역 내에서 부여한 추적 식별자. 전역 object_id와 구분해 보존한다 — 합치면 AI 쪽 추적 결과를 원래 값으로 되짚을 수 없다. 구역 내에서만 유일하므로 zone_id와 조합해야 유일해진다.",
+      "examples": ["zoneA-track-118"]
+    },
+    "zone_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "해당 track이 생성된 구역. 봉투의 zone_id와 같은 식별 체계를 쓴다(BE-C-02).",
+      "examples": ["zone_A"]
+    },
+    "first_seen": {
+      "type": "string",
+      "format": "date-time",
+      "description": "객체가 처음 관측된 시각. NTP 기준 ISO-8601(BE-C-03).",
+      "examples": ["2026-09-08T09:00:00.123+09:00"]
+    },
+    "last_seen": {
+      "type": "string",
+      "format": "date-time",
+      "description": "객체가 마지막으로 확인된 시각. NTP 기준 ISO-8601(BE-C-03). 값이 오래되었는지(staleness) 판정하는 기준이며, 임계는 백엔드가 함께 제공한다 — 화면이 자체 임계를 정하면 같은 대상이 화면마다 다르게 보인다(아키텍처 §6-4).",
+      "examples": ["2026-09-08T09:04:11.880+09:00"]
+    },
+    "frame_ref": {
+      "$ref": "frame-reference.schema.json",
+      "description": "이 객체의 근거가 된 원본 관측 프레임 참조. 프레임 참조와 객체 식별자는 서로 다른 것이다 — frame_ref는 낱장 관측(그 순간 무엇을 찍었나)이고 object_id는 시간에 걸쳐 지속되는 대상이다. frame_ref는 엣지가 한 번 부여하고 전파할 뿐 백엔드·AI가 재생성하지 않는다(BE-C-03)."
+    },
+    "handoff": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "description": "선택. 객체가 구역 경계를 넘어온 경우 직전 구역에서의 정체(없으면 null). 전역 object_id는 그대로 유지되고 구역 내 track ID만 바뀌므로, 그 이음새를 여기에 남겨 궤적이 끊기지 않게 한다(DT-06).",
+      "required": [
+        "previous_zone_id",
+        "previous_zone_local_track_id"
+      ],
+      "properties": {
+        "previous_zone_id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "핸드오프 이전 구역의 zone_id.",
+          "examples": ["zone_B"]
+        },
+        "previous_zone_local_track_id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "핸드오프 이전 구역에서 AI가 부여했던 track 식별자.",
+          "examples": ["zoneB-track-902"]
+        }
+      }
+    }
+  }
+}
