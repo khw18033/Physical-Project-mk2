@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointer
 import { ViewNodeCard } from '../canvas/ViewNodeCard.tsx';
 import type { ViewNodeEntry, ViewNodeInstance, ViewScope } from '../canvas/types.ts';
 import type { Hardware, NodeKind, RefEdge, Task, TaskStatus } from '../model/types.ts';
+import { applyFanLayout, type ViewpointGroup } from './fanLayout.ts';
 import { dagLayout, viewNodeLayout, NODE_HEIGHT, NODE_WIDTH, VIEW_NODE_HEIGHT, VIEW_NODE_WIDTH, type Attached, type Position } from './layout.ts';
 import { STATE_STYLE } from './stateStyle.ts';
 
@@ -14,6 +15,12 @@ type Props = {
    * 알 수 없다. 그래서 점선 + `↺ 문구` 로 **그리기만** 한다.
    */
   refEdges?: readonly RefEdge[];
+  /**
+   * 8분할 뷰포인트 묶음 (260909 시연 대본 §4). **선언한 편만 원형 배치를 받는다** —
+   * 없으면 `dagLayout` 의 결과가 그대로 나가고 지금까지와 한 픽셀도 다르지 않다.
+   * `refEdges` 와 같은 자리·같은 규칙이다: 배치·깊이 계산에 넣지 않고 결과만 덮는다.
+   */
+  viewpoints?: ViewpointGroup | null;
   /**
    * 뷰 노드 층 (260903 — 노드 캔버스 1단계). **없으면 지금까지와 한 픽셀도 다르지 않다** —
    * 단독 전달본과 렌더러 주입이 없는 빌드가 그렇다.
@@ -114,7 +121,7 @@ function bindPath(from: Position, to: Position): string {
   return `M${x1},${y1} C${x1},${middle} ${x2},${middle} ${x2},${y2}`;
 }
 
-export function TaskGraph({ tasks, hardware, states, selected, dimUnrelated, onOpen, refEdges, canvas }: Props) {
+export function TaskGraph({ tasks, hardware, states, selected, dimUnrelated, onOpen, refEdges, viewpoints, canvas }: Props) {
   // 자기 자리의 **실제 폭과 높이**를 잰다 (260901 폭 · 260904 높이) — 배치가 폭을 모르면
   // 화면 밖으로 나가고, 높이를 모르면 남는 세로를 안 쓰면서 필요 이상으로 접는다.
   const hostRef = useRef<HTMLDivElement | null>(null);
@@ -173,8 +180,10 @@ export function TaskGraph({ tasks, hardware, states, selected, dimUnrelated, onO
    * 언급하지 않는다.
    */
   const basePositions = useMemo(
-    () => dagLayout(tasks, layoutWidth, attached, layoutHeight),
-    [attached, tasks, layoutWidth, layoutHeight],
+    // 8분할 특례는 **여기 한 겹뿐이다** (260909 §4). `dagLayout` 이 낸 좌표를 받아 선언된
+    // 여덟 개만 원 둘레로 옮긴다 — 선언이 없는 편은 덮을 것이 없어 그대로 나간다.
+    () => applyFanLayout(dagLayout(tasks, layoutWidth, attached, layoutHeight), viewpoints),
+    [attached, tasks, layoutWidth, layoutHeight, viewpoints],
   );
   const [movedPositions, setMovedPositions] = useState<Record<string, { x: number; y: number }>>({});
   const [drag, setDrag] = useState<{ id: string; offsetX: number; offsetY: number; startX: number; startY: number; kind: 'task' | 'view' } | null>(null);

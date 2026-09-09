@@ -163,6 +163,20 @@ export type ScriptScenario = {
   worldTimeline?: WorldDrive[];
   commands?: ScriptCommand[];
   map?: ScriptMap;
+  /**
+   * 8분할 뷰포인트 묶음 (260909 시연 대본 §4). **배치 특례가 걸리는 유일한 자리다** —
+   * 이 선언이 없는 편은 배치가 지금까지와 한 픽셀도 다르지 않다. 태스크 id 를 배치
+   * 코드에 적어 두는 대신 대본이 선언한다(`src/graph/fanLayout.ts`).
+   */
+  viewpoints?: ScriptViewpoints;
+};
+
+/** 여덟이 한 부모에 매달려 원 둘레에 서는 묶음. 배열 차례가 곧 각도 차례다. */
+export type ScriptViewpoints = {
+  parentTaskId: string;
+  taskIds: string[];
+  startAngleDeg?: number;
+  stepDeg?: number;
 };
 
 /**

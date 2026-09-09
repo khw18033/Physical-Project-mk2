@@ -296,3 +296,101 @@ if (viewFailures.length) {
 }
 console.log(`✅ 뷰 노드 — 태스크마다 1장(첫 태스크 2장) + 전역 1장에서 깊이 무변경 · 겹침 0 · 폭 안`);
 console.log(`   세로 실측 (1440px · DAG · 임무 전체): ${heights.map((h) => `${h.id} ${h.plain}→${h.withViews}px`).join(' · ')}`);
+
+// ── 8분할 원형 배치의 특례 (260909 시연 대본 §4) ──────────────────────────────
+//
+// `dagLayout` 은 깊이로 열을 만든다. 여덟이 전부 한 부모에 매달리면 깊이가 같아 한 열에
+// 세로로 쌓이고 1,200px 기둥이 된다 — 순서도의 부채꼴이 아니다. `applyFanLayout` 이
+// 그 여덟만 원 둘레로 옮긴다.
+//
+// 여기서 보는 것 넷.
+//  1. **여덟이 서로 안 겹친다** — 반지름을 손으로 맞췄으므로 계산이 아니라 실측이 판정한다.
+//  2. **선언이 없는 편은 한 픽셀도 안 바뀐다** — 특례가 특례로 남는가.
+//  3. **0도가 위, 시계 방향** — 순서도의 각도와 화면의 각도가 같은가.
+//  4. **부모가 화면 밖이면 덮지 않는다** — 「이 마일스톤」 범위에서 원의 중심이 없을 때.
+{
+  const { applyFanLayout } = await import('../src/graph/fanLayout.ts');
+  const fanFailures = [];
+  const door = JSON.parse(await readFile(join(root, 'scenarios', 'MSN-260909-01.json'), 'utf8'));
+  const group = door.viewpoints;
+  if (!group) fanFailures.push('MSN-260909-01 에 viewpoints 선언이 없다 — 특례가 걸릴 곳이 없다');
+
+  for (const width of WIDTHS) {
+    const base = dagLayout(door.tasks, width);
+    const fan = applyFanLayout(base, group);
+
+    // 1. 여덟 상자가 서로 겹치지 않는가.
+    const boxes = group.taskIds.map((id) => ({ id, ...fan[id] }));
+    for (let i = 0; i < boxes.length; i += 1) {
+      for (let j = i + 1; j < boxes.length; j += 1) {
+        const a = boxes[i]; const b = boxes[j];
+        if (Math.abs(a.x - b.x) < NODE_WIDTH && Math.abs(a.y - b.y) < NODE_HEIGHT) {
+          fanFailures.push(`${width}px: 뷰포인트 ${a.id} 와 ${b.id} 가 겹친다`);
+        }
+      }
+    }
+    // 여덟이 부모·형제 노드와도 겹치면 안 된다.
+    for (const box of boxes) {
+      for (const [id, p] of Object.entries(fan)) {
+        if (group.taskIds.includes(id)) continue;
+        if (Math.abs(box.x - p.x) < NODE_WIDTH && Math.abs(box.y - p.y) < NODE_HEIGHT) {
+          fanFailures.push(`${width}px: 뷰포인트 ${box.id} 가 ${id} 와 겹친다`);
+        }
+      }
+    }
+
+    // 2. 묶음 밖의 노드는 그대로다 — 특례가 다른 노드로 새지 않는가.
+    for (const [id, p] of Object.entries(base)) {
+      if (group.taskIds.includes(id)) continue;
+      if (fan[id].x !== p.x || fan[id].y !== p.y) fanFailures.push(`${width}px: 묶음 밖의 ${id} 가 움직였다`);
+    }
+
+    // 3. 0도가 위, 시계 방향. index 0 이 가장 위이고 index 4(180도)가 가장 아래다.
+    const top = boxes.reduce((a, b) => (a.y <= b.y ? a : b));
+    const bottom = boxes.reduce((a, b) => (a.y >= b.y ? a : b));
+    if (top.id !== group.taskIds[0]) fanFailures.push(`${width}px: 가장 위가 ${top.id} — 0도가 위여야 한다`);
+    if (bottom.id !== group.taskIds[4]) fanFailures.push(`${width}px: 가장 아래가 ${bottom.id} — 180도가 아래여야 한다`);
+    // 90도(index 2)는 오른쪽, 270도(index 6)는 왼쪽.
+    const right = boxes.reduce((a, b) => (a.x >= b.x ? a : b));
+    const left = boxes.reduce((a, b) => (a.x <= b.x ? a : b));
+    if (right.id !== group.taskIds[2]) fanFailures.push(`${width}px: 가장 오른쪽이 ${right.id} — 90도가 오른쪽이어야 한다(시계 방향)`);
+    if (left.id !== group.taskIds[6]) fanFailures.push(`${width}px: 가장 왼쪽이 ${left.id} — 270도가 왼쪽이어야 한다`);
+  }
+
+  // 4. 선언이 없으면 입력 그대로. 다른 네 편의 배치가 안 바뀐다는 뜻이다.
+  for (const script of scripts) {
+    if (script.missionId === 'MSN-260909-01') continue;
+    const base = dagLayout(script.tasks, 1440);
+    const same = applyFanLayout(base, script.viewpoints ?? null);
+    if (JSON.stringify(same) !== JSON.stringify(base)) {
+      fanFailures.push(`${script.missionId}: 선언이 없는데 배치가 바뀌었다 — 특례가 새고 있다`);
+    }
+  }
+
+  // 5. 부모가 없으면 덮지 않는다 — 「이 마일스톤」 범위에서 원의 중심이 없을 때.
+  {
+    const onlyFan = door.tasks.filter((t) => group.taskIds.includes(t.id));
+    const base = dagLayout(onlyFan, 1440);
+    const same = applyFanLayout(base, group);
+    if (JSON.stringify(same) !== JSON.stringify(base)) {
+      fanFailures.push('부모가 화면에 없는데 원을 그렸다 — 중심을 지어냈다');
+    }
+  }
+
+  // 대조군 — 반지름을 상자보다 좁게 잡으면 반드시 겹쳐야 한다.
+  {
+    const base = dagLayout(door.tasks, 1440);
+    const tiny = applyFanLayout(base, { ...group, taskIds: group.taskIds, stepDeg: 5 });
+    const b = group.taskIds.map((id) => tiny[id]);
+    const collided = b.some((p, i) => b.some((q, j) => i !== j && Math.abs(p.x - q.x) < NODE_WIDTH && Math.abs(p.y - q.y) < NODE_HEIGHT));
+    if (!collided) fanFailures.push('대조군 실패: 각도를 5도로 좁혔는데도 안 겹친다 — 겹침 검사가 무의미하다');
+  }
+
+  if (fanFailures.length) {
+    console.error('❌ 8분할 원형 배치 검사 실패:');
+    for (const line of fanFailures) console.error(`  - ${line}`);
+    process.exit(1);
+  }
+  console.log(`✅ 8분할 원형 배치 — 여덟이 서로·이웃과 겹침 0 (폭 ${WIDTHS.length}종) · 0도 위 시계 방향 · 묶음 밖 노드 무변경`);
+  console.log('✅ 특례의 경계 — 선언 없는 네 편은 배치 무변경 · 부모가 없으면 덮지 않음 · 각도 좁힘 대조군 검출');
+}

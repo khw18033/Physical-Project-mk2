@@ -45,7 +45,7 @@ import { appendGenerated, appendHuman, appendTrace, resetTrace, traceEvents, tra
 import { provenancePayload, type AiProvenance } from '../shared/provenance.ts';
 import rawScenario from '../../scenarios/MSN-260826-01.json' with { type: 'json' };
 import { libraryEntry } from '../scenarios/library.ts';
-import type { ScriptMap, ScriptScenario } from '../scenarios/types.ts';
+import type { ScriptMap, ScriptScenario, ScriptViewpoints } from '../scenarios/types.ts';
 import type { Hardware, RefEdge, Scenario, ScenarioEvent, TaskStatus, Task } from '../model/types.ts';
 
 export type { FoldedStatuses };
@@ -95,6 +95,11 @@ export type MissionView = {
   map: ScriptMap | null;
   /** 되돌아가는 참조 엣지 (260831 노드 분화). deps 가 아니다 — 그리기 전용. */
   refEdges: RefEdge[];
+  /**
+   * 8분할 뷰포인트 묶음 (260909). 선언한 편만 원형 배치를 받는다 — 나머지는 null 이고
+   * 배치가 지금까지와 같다. `map` 과 같은 자리·같은 규칙이다.
+   */
+  viewpoints: ScriptViewpoints | null;
 };
 
 function legacyView(): MissionView {
@@ -118,6 +123,7 @@ function legacyView(): MissionView {
     params: {},
     map: null,
     refEdges: [],
+    viewpoints: null,
   };
 }
 
@@ -141,6 +147,7 @@ function scriptToView(script: ScriptScenario): MissionView {
     params: script.params ?? {},
     map: script.map ?? null,
     refEdges: script.refEdges ?? [],
+    viewpoints: script.viewpoints ?? null,
   };
 }
 

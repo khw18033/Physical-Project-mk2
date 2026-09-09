@@ -245,5 +245,7 @@ export function viewFromGenerated(mission: GeneratedMission, label: string): Mis
     // 지어내기이고, 발화가 명시적으로 요구한 되풀이를 안 만드는 것은 원칙을 지키는 것이
     // 아니라 사용자가 준 단계를 빼는 것이다. 안 적었으면 여전히 빈 배열이다.
     refEdges: solvedDepsFor(mission).refEdges,
+    // 생성 경로는 8분할 묶음을 만들지 않는다 — 그것은 사람이 대본에 적는 것이다(260909).
+    viewpoints: null,
   };
 }
