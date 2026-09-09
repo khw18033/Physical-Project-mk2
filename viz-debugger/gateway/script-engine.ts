@@ -37,7 +37,7 @@ import type { Fleet } from './devices.ts';
 import type { Hub } from './hub.ts';
 import { registerMission } from './mission-trace.ts';
 import type { Plan, PlanEngine, SegmentStatus } from './plans.ts';
-import type { CommandRequest, CommandResult } from './protocol.ts';
+import type { Channel, CommandRequest, CommandResult } from './protocol.ts';
 import type { VisionEmitter } from './vision.ts';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -348,6 +348,20 @@ export class ScriptEngine {
       // 세계 채널 — 장치의 평소 발행 경로로 몰아 준다. 반영은 미리보기와 같은 한 곳이다.
       for (const w of script.worldTimeline ?? []) {
         at(w.atSec, () => this.applyWorldFrame(script, w, playback));
+      }
+
+      // 뷰포인트 채널 (260909 §6) — **실제 로봇·탐지 AI 가 낼 채널과 같은 이름·같은 값**이다.
+      // 봉투만 여기서 만들고 값은 대본이 든 그대로 나간다. 로봇이 붙는 날 이 for 문이
+      // 사라지고 장치가 같은 채널로 내면, 화면은 한 줄도 안 고친다.
+      for (const frame of script.viewpointTimeline ?? []) {
+        at(frame.atSec, () => {
+          hub.publish(
+            info.mission_id,
+            frame.channel as Channel,
+            { ...frame.payload, at_sec: frame.atSec, mock: true },
+            { fromDevice: false },
+          );
+        });
       }
 
       // 명령 — CommandEngine 을 실제로 통과한다. actor 는 임무이고 사람이 아니다.

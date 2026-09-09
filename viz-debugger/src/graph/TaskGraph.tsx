@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointer
 import { ViewNodeCard } from '../canvas/ViewNodeCard.tsx';
 import type { ViewNodeEntry, ViewNodeInstance, ViewScope } from '../canvas/types.ts';
 import type { Hardware, NodeKind, RefEdge, Task, TaskStatus } from '../model/types.ts';
+import { cellClass, type ViewpointFill } from '../viewpoint/fill.ts';
 import { applyFanLayout, type ViewpointGroup } from './fanLayout.ts';
 import { dagLayout, viewNodeLayout, NODE_HEIGHT, NODE_WIDTH, VIEW_NODE_HEIGHT, VIEW_NODE_WIDTH, type Attached, type Position } from './layout.ts';
 import { STATE_STYLE } from './stateStyle.ts';
@@ -21,6 +22,12 @@ type Props = {
    * `refEdges` 와 같은 자리·같은 규칙이다: 배치·깊이 계산에 넣지 않고 결과만 덮는다.
    */
   viewpoints?: ViewpointGroup | null;
+  /**
+   * 8분할 뷰포인트가 지금 어디까지 채워졌는가 (260909 §4). **인덱스로 찾는 표다** —
+   * 배열이면 도착 순서에 끌려간다(`src/viewpoint/fill.ts`). 이 층은 그것이 대본에서
+   * 왔는지 게이트웨이에서 왔는지 모른다.
+   */
+  viewpointFill?: ViewpointFill | null;
   /**
    * 뷰 노드 층 (260903 — 노드 캔버스 1단계). **없으면 지금까지와 한 픽셀도 다르지 않다** —
    * 단독 전달본과 렌더러 주입이 없는 빌드가 그렇다.
@@ -121,7 +128,7 @@ function bindPath(from: Position, to: Position): string {
   return `M${x1},${y1} C${x1},${middle} ${x2},${middle} ${x2},${y2}`;
 }
 
-export function TaskGraph({ tasks, hardware, states, selected, dimUnrelated, onOpen, refEdges, viewpoints, canvas }: Props) {
+export function TaskGraph({ tasks, hardware, states, selected, dimUnrelated, onOpen, refEdges, viewpoints, viewpointFill, canvas }: Props) {
   // 자기 자리의 **실제 폭과 높이**를 잰다 (260901 폭 · 260904 높이) — 배치가 폭을 모르면
   // 화면 밖으로 나가고, 높이를 모르면 남는 세로를 안 쓰면서 필요 이상으로 접는다.
   const hostRef = useRef<HTMLDivElement | null>(null);
@@ -335,16 +342,26 @@ export function TaskGraph({ tasks, hardware, states, selected, dimUnrelated, onO
     </svg>
     {tasks.map((task) => {
       const state = states[task.id] ?? { status: 'pending' as const, attempt: 1 }; const style = STATE_STYLE[state.status];
+      // 뷰포인트 칸 — **선언의 차례가 곧 인덱스다.** 태스크 id 에서 숫자를 뜯어내면
+      // 이름 규칙에 배치가 묶인다(`T-A4-3` 의 3). 원형 배치가 각도를 정할 때 쓴 것과
+      // 같은 차례를 여기서도 쓴다.
+      const viewpointIndex = viewpoints?.taskIds.indexOf(task.id) ?? -1;
+      const cell = viewpointIndex < 0 ? null : viewpointFill?.get(viewpointIndex) ?? null;
+      const viewpointClass = cell === null ? '' : ` viewpoint ${cellClass(cell)}`;
       const device = hardware.find((item) => item.id === task.target); const dimmed = dimUnrelated && !relevant.has(task.id);
       const position = positions[task.id];
       // 한 번 누르면 「고른 태스크」가 된다 (260903) — 팔레트가 여기에 뷰 노드를 붙인다.
       // 끌었으면 고르지 않는다. 더블클릭(액션 아이템)은 그대로다.
-      return <button key={task.id} type="button" className={`task-node ${style.className} ${selected === task.id ? 'selected' : ''} ${canvas?.pickedTaskId === task.id ? 'is-picked' : ''} ${dimmed ? 'dimmed' : ''}`} style={{ left: position.x, top: position.y }} onPointerDown={(event) => startDrag(event, task.id, 'task')} onClick={() => { if (!movedRef.current) canvas?.onPick(task.id); }} onDoubleClick={() => onOpen(task)}>
+      return <button key={task.id} type="button" className={`task-node ${style.className} ${selected === task.id ? 'selected' : ''} ${canvas?.pickedTaskId === task.id ? 'is-picked' : ''} ${dimmed ? 'dimmed' : ''}${viewpointClass}`} style={{ left: position.x, top: position.y }} onPointerDown={(event) => startDrag(event, task.id, 'task')} onClick={() => { if (!movedRef.current) canvas?.onPick(task.id); }} onDoubleClick={() => onOpen(task)}>
         <small>{task.id}{task.nodeKind ? <em className={`node-kind node-kind--${task.nodeKind}`}>{NODE_KIND_LABEL[task.nodeKind]}</em> : null}</small><strong>{task.title}</strong>
         <span className="state-label">{style.icon} {style.label}{state.status === 'rerunning' ? ` · attempt ${state.attempt}` : ''}</span>
         {/* 옛 편은 하드웨어 목록이 있어 기존 문구 그대로다. 대본(registry 세계)의 장비 실측
             상태는 남이 줄 데이터라 '오프라인'이라고 지어 말하지 않는다 — 미수신은 미수신이다.
             (칩 자체의 A/B 처리는 8/31 보류 항목 1 그대로 미결이다.) */}
+        {cell !== null && cell.phase === 'judged' && cell.detection !== null
+          ? <span className="viewpoint__verdict">{cell.detection.door ? '문 있음' : '문 없음'} · {Math.round(cell.detection.confidence * 100)}%</span>
+          : null}
+        {cell !== null && cell.phase === 'scanning' ? <span className="viewpoint__verdict">탐색 중…</span> : null}
         <span className={`device ${device?.connection ?? 'unknown'}`}>{task.target === null ? '대상 없음' : `${task.target} · ${device ? (device.connection === 'online' ? '온라인' : device.connection === 'maintenance' ? '점검' : '오프라인') : '상태 미수신'}`}</span>
       </button>;
     })}

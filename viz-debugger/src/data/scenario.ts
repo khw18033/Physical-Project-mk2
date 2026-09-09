@@ -42,10 +42,12 @@ import { useSyncExternalStore } from 'react';
 import { foldStatuses, type FoldedStatuses } from './fold.ts';
 import { MergeScheduler } from './mergeScheduler.ts';
 import { appendGenerated, appendHuman, appendTrace, resetTrace, traceEvents, traceMissionId } from './trace.ts';
+import { scriptFrames } from '../viewpoint/source.ts';
+import { appendViewpoint, resetViewpoint } from '../viewpoint/store.ts';
 import { provenancePayload, type AiProvenance } from '../shared/provenance.ts';
 import rawScenario from '../../scenarios/MSN-260826-01.json' with { type: 'json' };
 import { libraryEntry } from '../scenarios/library.ts';
-import type { ScriptMap, ScriptScenario, ScriptViewpoints } from '../scenarios/types.ts';
+import type { ScriptMap, ScriptScenario, ScriptViewpointFrame, ScriptViewpoints } from '../scenarios/types.ts';
 import type { Hardware, RefEdge, Scenario, ScenarioEvent, TaskStatus, Task } from '../model/types.ts';
 
 export type { FoldedStatuses };
@@ -100,6 +102,11 @@ export type MissionView = {
    * 배치가 지금까지와 같다. `map` 과 같은 자리·같은 규칙이다.
    */
   viewpoints: ScriptViewpoints | null;
+  /**
+   * 뷰포인트 채널의 대본 (260909 §6). 화면은 이것을 **프레임으로 바꿔서만** 읽는다
+   * (`src/viewpoint/source.ts`) — 노드 갱신 코드는 대본을 모른다.
+   */
+  viewpointTimeline: ScriptViewpointFrame[];
 };
 
 function legacyView(): MissionView {
@@ -124,6 +131,7 @@ function legacyView(): MissionView {
     map: null,
     refEdges: [],
     viewpoints: null,
+    viewpointTimeline: [],
   };
 }
 
@@ -148,6 +156,7 @@ function scriptToView(script: ScriptScenario): MissionView {
     map: script.map ?? null,
     refEdges: script.refEdges ?? [],
     viewpoints: script.viewpoints ?? null,
+    viewpointTimeline: script.viewpointTimeline ?? [],
   };
 }
 
@@ -223,6 +232,9 @@ let state: MissionState = {
 
 const listeners = new Set<() => void>();
 let localTimer: ReturnType<typeof setInterval> | null = null;
+/** 뷰포인트 프레임을 어디까지 흘려보냈는지. 기록 열의 `localCursor` 와 같은 자리다. */
+let localViewpointCursor = 0;
+
 /** 로컬 재생기가 대본을 어디까지 읽어 흘려보냈는지. 매 틱 처음부터 훑지 않기 위한 자리다. */
 let localCursor = 0;
 
@@ -363,7 +375,9 @@ export function activateMission(missionId: string, mode: 'remote' | 'local'): vo
   if (view === null) return;
   stopLocalTimer();
   resetTrace(view.missionId);
+  resetViewpoint(view.missionId);
   localCursor = 0;
+  localViewpointCursor = 0;
   commitNow({ current: view, proposal: null, headSec: 0, playing: true, activatedBy: 'approval' });
 
   if (mode === 'local') {
@@ -432,7 +446,9 @@ export function acceptProposal(mode: 'remote' | 'local' = 'local'): boolean {
 function activateGenerated(proposal: AiProposal): boolean {
   stopLocalTimer();
   resetTrace(proposal.view.missionId);
+  resetViewpoint(proposal.view.missionId);
   localCursor = 0;
+  localViewpointCursor = 0;
   commitNow({ current: proposal.view, proposal: null, headSec: 0, playing: false, activatedBy: 'approval' });
   appendGenerated(
     proposal.view.missionId,
@@ -460,6 +476,16 @@ function feedLocalTrace(headSec: number): void {
     appendTrace(state.current.missionId, events[localCursor]);
     localCursor += 1;
   }
+  // 뷰포인트 채널 (260909 §6) — 기록 열과 **같은 걸음으로** 흘려보낸다. 화면은 대본이
+  // 아니라 흘러온 것을 접는다. 로봇이 붙는 날 이 줄이 게이트웨이 수신으로 바뀐다.
+  const timeline = state.current.viewpointTimeline;
+  while (localViewpointCursor < timeline.length && timeline[localViewpointCursor].atSec <= headSec) {
+    const entry = timeline[localViewpointCursor];
+    for (const frame of scriptFrames([entry], entry.atSec)) {
+      appendViewpoint(state.current.missionId, entry.atSec, frame);
+    }
+    localViewpointCursor += 1;
+  }
 }
 
 /**
@@ -474,7 +500,9 @@ export function previewMission(missionId: string): void {
   if (view === null) return;
   stopLocalTimer();
   resetTrace(view.missionId);
+  resetViewpoint(view.missionId);
   localCursor = 0;
+  localViewpointCursor = 0;
   commitNow({ current: view, proposal: null, headSec: 0, playing: false, activatedBy: 'preview' });
 }
 
@@ -541,4 +569,5 @@ export function statusesAt(second: number, view: MissionView = displayMission().
  * 열이 중복으로 흡수한다 (`VZ-I-02` 와 같은 성질).
  */
 resetTrace(state.current.missionId);
+resetViewpoint(state.current.missionId);
 for (const event of state.current.events) appendTrace(state.current.missionId, event);

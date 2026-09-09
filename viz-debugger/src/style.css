@@ -349,3 +349,22 @@ b.follow-live{cursor:default}
 .gen-shape-warning{margin:6px 0;padding:8px 9px;border:1px solid #e2c98a;border-left-width:3px;background:#fdf8ec;color:#6b5520;font-size:12px;line-height:1.5}
 .gen-shape-warning b{margin-right:5px;padding:1px 5px;border-radius:3px;background:#f2e2b8;color:#6b5520;font-size:11px}
 .gen-shape-warning small{display:block;margin-top:4px;color:#8a7642;font-size:11px}
+
+/* ── 8분할 뷰포인트 (260909 시연 대본 §4) ─────────────────────────────────────
+   상태 셋. 색은 여기서만 정한다 — `fill.ts` 는 이름만 준다.
+     대기      빈 테두리, 흐림
+     탐색 중   테두리 점멸
+     판정 완료 문 없음 회색 / 문 있음 초록
+   실행 상태(8상태)의 색과 **겹치지 않게** 테두리로만 말한다. 두 축이 같은 자리에서
+   싸우면 「이 노드가 실패인가 문이 없는가」를 못 읽는다. */
+.task-node.viewpoint{transition:border-color .18s ease,opacity .18s ease}
+.task-node.viewpoint--idle{border-style:dashed;border-color:#cfd6df;opacity:.55}
+.task-node.viewpoint--scanning{border-color:#4a8fd4;animation:viewpoint-blink 1s ease-in-out infinite}
+.task-node.viewpoint--empty{border-color:#b9c1cb;opacity:.78}
+.task-node.viewpoint--door{border-color:#2f9e5f;box-shadow:0 0 0 3px #cdeadb}
+@keyframes viewpoint-blink{0%,100%{border-color:#4a8fd4}50%{border-color:#cfe2f5}}
+/* 판정 결과 한 줄 — 색만으로는 「왜」가 안 남는다. 발표에서 읽힐 자리다. */
+.viewpoint__verdict{font-size:11px;color:#5c6a7c}
+.task-node.viewpoint--door .viewpoint__verdict{color:#237a49;font-weight:600}
+/* 움직임을 줄이라고 한 사용자에게는 점멸을 끈다 — 접근성 기본값이다. */
+@media (prefers-reduced-motion:reduce){.task-node.viewpoint--scanning{animation:none}}

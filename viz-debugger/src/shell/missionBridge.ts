@@ -21,6 +21,8 @@ import { markIntegratedBuild, observeConnection, observeEnvelope, updateClientHe
 import { enterScenarioRender } from '../shared/renderMode.ts';
 import { store } from '../tabs/data/index.ts';
 import { getTransport, type Envelope } from '../transport/index.ts';
+import { liveFrame } from '../viewpoint/source.ts';
+import { appendViewpoint } from '../viewpoint/store.ts';
 
 type WirePlan = {
   plan_id: string;
@@ -65,6 +67,7 @@ export function startMissionBridge(): () => void {
       store.apply(envelope);
       if (envelope.channel === 'plan') applyPlan(envelope);
       if (envelope.channel === 'trace_event') applyTrace(envelope);
+      if (envelope.channel === 'robot_state' || envelope.channel === 'detection') applyViewpoint(envelope);
     },
     'all',
   );
@@ -115,6 +118,19 @@ function applyPlan(envelope: Envelope): void {
     return;
   }
   rejectProposal(); // 거부하면 아무것도 재생되지 않는다.
+}
+
+/**
+ * 뷰포인트 채널 수신 (260909 §6). **라이브 입구 하나를 지난다** (`viewpoint/source.ts`) —
+ * 이 봉투가 목 게이트웨이의 대본 재생에서 왔는지 실제 로봇에서 왔는지 여기서 묻지 않고,
+ * 물을 방법도 없다. 실제 장치가 붙는 날 고칠 곳이 없다는 것이 이 함수의 뜻이다.
+ */
+function applyViewpoint(envelope: Envelope): void {
+  const payload = envelope.payload as Record<string, unknown> | null;
+  if (!payload) return;
+  const frame = liveFrame({ channel: envelope.channel, payload });
+  if (frame === null) return; // 형식에 안 맞으면 버린다 — 지어 채우지 않는다.
+  appendViewpoint(envelope.entity, typeof payload.at_sec === 'number' ? payload.at_sec : 0, frame);
 }
 
 function applyTrace(envelope: Envelope): void {

@@ -169,6 +169,20 @@ export type ScriptScenario = {
    * 코드에 적어 두는 대신 대본이 선언한다(`src/graph/fanLayout.ts`).
    */
   viewpoints?: ScriptViewpoints;
+  /**
+   * 뷰포인트 채널의 대본 (260909 §6). **라이브 채널과 같은 형식이다** — 로봇이 붙는 날
+   * 이 줄들을 게이트웨이 수신으로 갈아끼우면 노드 갱신 코드는 한 줄도 안 고친다.
+   * 가르는 자리는 `src/viewpoint/source.ts` 하나다.
+   */
+  viewpointTimeline?: ScriptViewpointFrame[];
+};
+
+/** 뷰포인트 채널 한 줄. 봉투가 아니라 값이다 — 봉투는 재생기가 만든다. */
+export type ScriptViewpointFrame = {
+  atSec: number;
+  /** 'robot_state' 또는 'detection'. 실제 채널 이름과 같다. */
+  channel: string;
+  payload: Record<string, unknown>;
 };
 
 /** 여덟이 한 부모에 매달려 원 둘레에 서는 묶음. 배열 차례가 곧 각도 차례다. */

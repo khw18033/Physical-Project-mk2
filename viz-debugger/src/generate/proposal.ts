@@ -247,5 +247,6 @@ export function viewFromGenerated(mission: GeneratedMission, label: string): Mis
     refEdges: solvedDepsFor(mission).refEdges,
     // 생성 경로는 8분할 묶음을 만들지 않는다 — 그것은 사람이 대본에 적는 것이다(260909).
     viewpoints: null,
+    viewpointTimeline: [],
   };
 }
