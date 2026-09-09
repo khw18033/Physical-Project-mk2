@@ -38,17 +38,20 @@ Phase 0 시점(2026-09-04) 기준.
 
 | 구성요소 | 역할 (5구간) | 처리 |
 |---|---|---|
-| **Kafka** | 엣지↔서버 업무 백본 + 서버 다중 소비자 팬아웃 | **신규 설치** |
+| **Kafka** | 엣지↔서버 업무 백본 + 서버 다중 소비자 구조 | **신규 설치** |
 | Mosquitto | 엣지 MQTT 브로커, 말단 발행 수용 | 기존 가동 — 헬스 확인만 |
 | OTel Collector | 관측 3종 수집·라우팅 | 기존 가동 — 헬스 확인만 |
 | Prometheus | 관측 metric 저장·요약 | 기존 가동 — 헬스 확인만 |
 | Grafana | 개발용 종착지 | 기존 가동 — 헬스 확인만 |
 | Loki | log 저장 | 기존 가동 — 헬스 확인만 |
 | Tempo | trace 저장 | 기존 가동 — 헬스 확인만 |
-| MySQL | 감사·레지스트리 (2축 중 관계형) | 기존 가동 — 헬스 확인만 |
+| MySQL | 감사·레지스트리·임무 실행 기록 (관계형 축) | 기존 가동 — 헬스 확인만 |
 
 - **TSDB 없음** — 제품(InfluxDB vs TimescaleDB) 미확정. Phase 2에서 정한다.
-- **RBAC·MongoDB 없음** — 정본 결정(CLAUDE.md 원칙 4).
+- **MongoDB 없음** — 현재 채택 없음(CLAUDE.md 원칙 4). 영구 배제가 아니라 타당한 근거가
+  있을 때 재검토한다.
+- **RBAC는 스택 구성요소가 아니다** — 채택은 확정이나 조회·명령 경로의 강제 축이라
+  Phase 6(인증·감사)에서 구현한다(BE-Q-04).
 - 서버 compose에는 MK2 스택 외의 서비스도 함께 들어 있다. **다른 파트가 쓰고 있을 수 있으므로
   건드리지 않는다.**
 
@@ -75,7 +78,7 @@ Phase 0 시점(2026-09-04) 기준.
 
 OTLP gRPC 표준 포트는 4317인데, **Tempo가 그 포트를 직접 받고 있다.** 그래서 OTel Collector가
 4316으로 밀렸다. 포트 충돌은 증상이고, 원인은 **"Collector를 거치지 않고 Tempo가 직접 받는
-구조"**다. 정본(아키텍처 §5-3·§6-3)은 Collector가 log→Loki, trace→Tempo로 분배하는 구조이며,
+구조"**다. 기준(아키텍처 §5-3·§6-3)은 Collector가 log→Loki, trace→Tempo로 분배하는 구조이며,
 이 정리는 **Phase 3**에서 한다.
 
 **지금 계측을 보낼 때는 `localhost:4316`이 Collector, `localhost:4317`이 Tempo다.**
@@ -162,7 +165,7 @@ docker logs --tail 20 capstone_otel_collector
 | `mk2.telemetry.status` | 1 | 1 | 등록·상태 요약·종료·LWT |
 | `mk2.telemetry.heartbeat` | 1 | 1 | 생존 신호 |
 
-채널별 3토픽이며 **장치별·구역별 토픽이 아니다** — `zone_id`·`source_id`는 봉투 안에 있다.
+채널별 3토픽이며 **장치별·구역별 토픽이 아니다** — `zone_id`·`source_id`는 공통 헤더 안에 있다.
 파티션 키는 `source_id`(장치별 순서 보장). 이름은 점 구분 소문자이며 **언더스코어를 섞지 않는다**
 (생성 시 뜨는 `.`/`_` 경고는 둘을 섞을 때의 충돌을 알리는 것이라 점만 쓰는 현 규약에서는 무해).
 
@@ -190,7 +193,7 @@ Phase 1에서는 그대로 두었다. 근거: Kafka에 붙는 코드(`ingest`·�
 **Kafka는 서버 localhost 전용으로 충분**했고, 이 구성으로 실노드 관통·pytest 회귀가 통과했다
 ([`../reports/2026-09-07_1300_phase1_얇은파이프라인관통.md`](../reports/2026-09-07_1300_phase1_얇은파이프라인관통.md)).
 
-> **이건 "영구 고정"이 아니라 "지금 조건에서는 불필요"라는 뜻이다.** 정본 아키텍처(§5-1·§6-1)는
+> **이건 "영구 고정"이 아니라 "지금 조건에서는 불필요"라는 뜻이다.** 기준 아키텍처(§5-1·§6-1)는
 > 엣지↔서버 Kafka 백본을 전제하므로 **노출 변경은 예정된 일**이다. 이 절은 변경을 막는 것이
 > 아니라 **바꿀 때 안전하게 바꾸는 방법**을 적어둔 것이다.
 
@@ -236,9 +239,9 @@ Phase 0에서 고칠 것은 없다. 아래는 설정 파일에서 확인한 사�
 
 | 파일 | 확인된 것 | 언제 |
 |---|---|---|
-| `otel-collector-config.yaml` | **`logs`·`traces` 파이프라인이 없다 (metric만).** Loki·Tempo가 각각 직접 수신하고 있어 정본(Collector가 분배)과 다르다 | **Phase 3 핵심** |
+| `otel-collector-config.yaml` | **`logs`·`traces` 파이프라인이 없다 (metric만).** Loki·Tempo가 각각 직접 수신하고 있어 기준(Collector가 분배)과 다르다 | **Phase 3 핵심** |
 | `otel-collector-config.yaml` | `batch` processor 없음 — 수신 즉시 export | Phase 3 |
-| `prometheus.yml` | `global.scrape_interval: 1s` — 정본이 상정한 15초~1분과 다르다. **바꾸면 기존 대시보드 해상도가 떨어지므로 단독 변경 불가** | 근거 확보됨 — 정본 BE-S-03(요약 15초) + 타 파트 문서화(일반 metric 60초). Phase 3에서 조정. 기존 대시보드 해상도 영향은 사전 고지 후 진행 |
+| `prometheus.yml` | `global.scrape_interval: 1s` — 기준이 상정한 15초~1분과 다르다. **바꾸면 기존 대시보드 해상도가 떨어지므로 단독 변경 불가** | 근거 확보됨 — 기준 BE-S-03(요약 15초) + 타 파트 문서화(일반 metric 60초). Phase 3에서 조정. 기존 대시보드 해상도 영향은 사전 고지 후 진행 |
 | `prometheus.yml` | 페더레이션 없음 (단일 Prometheus) | Phase 3 |
 | `loki-config.yaml` | **retention 없음 → 로그가 무제한으로 쌓인다.** 로그를 흘리기 **전에** 걸어야 한다. 흘린 뒤 걸면 이미 쌓인 것은 안 지워진다 | **Phase 3, 순서 주의** |
 | `loki-config.yaml` | schema v11 + boltdb-shipper (Loki 3.x 기준 구식). `allow_structured_metadata: false`로 호환 유지 중이며 동작에 문제는 없다 | 필요해지면 |
@@ -246,11 +249,11 @@ Phase 0에서 고칠 것은 없다. 아래는 설정 파일에서 확인한 사�
 | `tempo-config.yaml` | `block_retention: 24h` — trace가 하루만 남는다 | Phase 3 |
 | `mosquitto.conf` | `allow_anonymous true`, ACL 없음. 개발 단계라 의도된 상태이며 **Phase 1 브릿지 연결에는 오히려 유리하다** | 운영 전환 시 |
 | `mosquitto.conf` | `persistence` 미설정 → 브로커 재시작 시 retained 소실 | Phase 1/5 |
-| (요구사항) | **가용성 판정 파라미터** — 하트비트 1초 1회, **4회 연속 미수신(약 4초)** 시 장애 판정. 정본은 조병현 HW-S-05·HW-A-05이며 김현우 VZ-U-01도 4초 판정을 전제한다. **Phase 1 실측 5초는 테스트 편의값이지 요구사항이 아니다** | Phase 5 |
+| (요구사항) | **가용성 판정 파라미터** — 하트비트 1초 1회, **4회 연속 미수신(약 4초)** 시 장애 판정. 기준은 조병현 HW-S-05·HW-A-05이며 김현우 VZ-U-01도 4초 판정을 전제한다. **Phase 1 실측 5초는 테스트 편의값이지 요구사항이 아니다** | Phase 5 |
 
 관측 3종의 현재 실제 경로:
 
-| 신호 | 정본 경로 | 현재 실제 |
+| 신호 | 기준 경로 | 현재 실제 |
 |---|---|---|
 | metric | Collector → Prometheus | ✅ 그대로 |
 | trace | Collector → Tempo | ❌ 애플리케이션 → **Tempo 직접** |
