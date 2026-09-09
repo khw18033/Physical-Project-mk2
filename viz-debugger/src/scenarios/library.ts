@@ -1,7 +1,7 @@
 /**
  * src/scenarios/library.ts
  *
- * **브라우저용** 대본 라이브러리 — 대본 세 편과 옛 편 사이드카를 번들에 싣는다.
+ * **브라우저용** 대본 라이브러리 — 대본 네 편과 옛 편 사이드카를 번들에 싣는다.
  *
  * 단독 빌드(게이트웨이 없음)에서도 문장 → 탭① 전환이 동작해야 하므로(지시서 §흐름)
  * 대본이 번들에 들어간다. 번들 크기 전후는 보고서에 기록한다(논문 측정축 D).
@@ -15,10 +15,11 @@ import legacySidecar from '../../scenarios/MSN-260826-01.match.json' with { type
 import script01 from '../../scenarios/MSN-260831-01.json' with { type: 'json' };
 import script02 from '../../scenarios/MSN-260831-02.json' with { type: 'json' };
 import script03 from '../../scenarios/MSN-260831-03.json' with { type: 'json' };
+import script04 from '../../scenarios/MSN-260909-01.json' with { type: 'json' };
 import { LEGACY_ID, SCRIPT_IDS } from './manifest.ts';
 import type { ScriptLibraryEntry, ScriptScenario } from './types.ts';
 
-const scripts = [script01, script02, script03] as unknown as ScriptScenario[];
+const scripts = [script01, script02, script03, script04] as unknown as ScriptScenario[];
 
 // 목록(manifest)과 실물(import)의 대조 — 대본을 더할 때 한쪽만 늘면 여기서 즉시 죽는다.
 {

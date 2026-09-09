@@ -307,7 +307,13 @@ for (let i = 0; i < scripts.length; i += 1) {
   byId[s.missionId] = s;
   failures.push(...checkScript(s));
 }
-if (Object.keys(byId).length === 3) failures.push(...checkSpecifics(byId));
+// 편별 고정 검사는 **그 세 편이 있으면** 돈다. 편수로 조건을 걸면 대본을 더하는 순간
+// (260909 5편째) 1·2·3편의 시간값 검사가 조용히 사라진다 — 검사가 없어지는 것이 가장 나쁘다.
+if (['MSN-260831-01', 'MSN-260831-02', 'MSN-260831-03'].every((id) => id in byId)) {
+  failures.push(...checkSpecifics(byId));
+} else {
+  failures.push('편별 고정 검사를 돌릴 1·2·3편이 목록에 없다 — 시간 값 검사가 사라졌다');
+}
 
 // 옛 편 — 파일은 무수정(verify:scenario가 지킨다), 매칭 규칙은 사이드카에서.
 if (legacySidecar.missionId !== legacy.missionId) failures.push('사이드카의 missionId가 옛 편과 다르다');
@@ -410,8 +416,8 @@ if (failures.length) {
   console.error(`❌ verify:script-library\n- ${failures.join('\n- ')}`);
   process.exit(1);
 }
-console.log(`✅ 대본 3편 + 옛 편 사이드카 — cast·worldTimeline·commands 전부 registry.json 실재, atSec 단조, ACTION_CATALOG 대조`);
+console.log(`✅ 대본 ${scripts.length}편 + 옛 편 사이드카 — cast·worldTimeline·commands 전부 registry.json 실재, atSec 단조, ACTION_CATALOG 대조`);
 console.log('✅ 제목에 하드웨어 어휘 없음 · 평가 태스크마다 awaiting_evaluation → done + 근거값 · 파생 2회차 형식 확인');
 console.log('✅ 시간 값 그대로 — 상승 30초 · 유지 10초 · 하락 3분 · 재탐색 10분(600초). 압축은 배속으로만');
-console.log(`✅ 매칭 — 세 문장 각각 자기 대본에만, 옛 문장은 옛 편에만, 「안녕하세요」는 아무 데도 (규칙 ${library.length}편)`);
+console.log(`✅ 매칭 — ${scripts.length} 문장 각각 자기 대본에만, 옛 문장은 옛 편에만, 「안녕하세요」는 아무 데도 (규칙 ${library.length}편)`);
 console.log(`✅ 음성 대조군 ${controls.length}건 전부 검출 — ${controls.join(' · ')}`);
