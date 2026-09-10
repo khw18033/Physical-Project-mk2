@@ -66,8 +66,17 @@ b.follow-live{cursor:default}
 
 /* 시연 문장 목록 (260831) — 발화 패널 아래. 대본 라이브러리에서 읽어 그린다. */
 .script-sentences{margin:12px 0 6px;padding:10px;border:1px solid #dde3ea;border-radius:8px;background:#f8fafc}
-.script-sentences h3{margin:0 0 8px;font-size:12px;color:#3d4756}
-.script-sentences h3 small{display:block;margin-top:2px;font-weight:400;font-size:11px;color:#687587}
+/* 260910 — 제목이 `h3` 에서 `summary` 로 바뀌었다(접을 수 있게). 두 선택자를 같이 둔다. */
+.script-sentences h3,.script-sentences>summary{margin:0 0 8px;font-size:12px;color:#3d4756;font-weight:700;cursor:pointer}
+.script-sentences>summary{margin:0;list-style:revert}
+.script-sentences[open]>summary{margin-bottom:8px}
+.script-sentences h3 small,.script-sentences>summary small{display:block;margin-top:2px;font-weight:400;font-size:11px;color:#687587}
+
+/* 임무 생성 진행 — 평소엔 접혀 있고, 돌거나 막히면 저절로 펴진다. */
+.steps-box{margin:8px 0}
+.steps-box>summary{font-size:12px;color:#3d4756;font-weight:700;cursor:pointer}
+.steps-box>summary small{margin-left:6px;font-weight:400;color:#687587}
+.steps-box[open]>summary{margin-bottom:6px}
 .script-sentences ul{margin:0;padding:0;list-style:none;display:grid;gap:7px}
 .script-sentences li{display:grid;gap:2px}
 .script-sentences button{padding:7px 9px;border:1px solid #cbd3de;border-radius:7px;background:#fff;color:#17202b;font-size:12px;line-height:1.5;text-align:left;cursor:pointer;word-break:keep-all}

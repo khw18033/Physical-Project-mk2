@@ -89,6 +89,14 @@ function realSteps(phase: Phase, hasAudio: boolean, hasResult: boolean): Array<{
   ];
 }
 
+/** 접힌 줄에 적는 한 낱말 — 지금 이 마일스톤을 무엇이 썼는가. */
+function producerWord(producer: string): string {
+  if (producer === 'running') return '생성 중…';
+  if (producer === 'ai') return 'AI 가 만들었습니다';
+  if (producer === 'script') return '대본에서 꺼냈습니다';
+  return '아직 아무것도 안 했습니다';
+}
+
 const STEP_MARK: Record<StepState, string> = { idle: '·', active: '…', done: '✓', failed: '✕' };
 const MOCK_STEPS = ['의도 분석', '마일스톤 분리', '태스크 생성'];
 
@@ -239,6 +247,15 @@ export function UtterancePanel({ fallbackText }: { fallbackText: string }) {
   const [manual, setManual] = useState('');
   /** 시연 문장을 누르면 직접 입력을 펼쳐 채운다 — 접힌 채로 채워지면 채워진 줄도 모른다. */
   const [manualOpen, setManualOpen] = useState(false);
+  /**
+   * **시연 화면에서 접어 둔다** (260910 지시 — 「필요 없는 목·시나리오 UI 를 최대한 없앤다」).
+   *
+   * 둘 다 지우지는 않는다. 예시 문장은 발표자가 무엇을 말해야 하는지 볼 자리이고, 생성
+   * 진행 칸은 막혔을 때 어디서 막혔는지 보는 자리다 — 없애면 그때 볼 것이 없다.
+   * 평소에는 접어 두고 **필요할 때 펴게** 한다.
+   */
+  const [sentencesOpen, setSentencesOpen] = useState(false);
+  const [stepsOpen, setStepsOpen] = useState(false);
   const [useHotwords, setUseHotwords] = useState(true);
   const [error, setError] = useState<{ message: string; detail?: string } | null>(null);
   const [confirmed, setConfirmed] = useState(false);
@@ -621,7 +638,16 @@ export function UtterancePanel({ fallbackText }: { fallbackText: string }) {
       {phase === 'transcribing' && <p className="stt-note">인식 중입니다. 모델을 처음 읽는 경우 오래 걸립니다.</p>}
       {error && <p className="stt-error">{error.message}{error.detail ? <small>{error.detail}</small> : null}</p>}
 
-      {/* 뒤 세 칸 — 배지가 셋이다. **무엇이 이 마일스톤을 썼는가**가 여기서 갈린다. */}
+      {/*
+        임무 생성 진행 — **접어 둔다** (260910 지시). 뒤 세 칸은 배지가 셋이고,
+        **무엇이 이 마일스톤을 썼는가**가 여기서 갈린다.
+
+        접혀 있어도 **돌고 있거나 막혔으면 저절로 펴진다.** 접었다는 이유로 「왜 안 되지」의
+        답이 감춰지면 안 된다 — 접기는 평소를 조용하게 하려는 것이지 사실을 감추려는 것이 아니다.
+      */}
+      <details className="steps-box" open={stepsOpen || producer === 'running' || phase === 'failed'}
+        onToggle={(event) => setStepsOpen((event.target as HTMLDetailsElement).open)}>
+        <summary>임무 생성 진행 <small>{producerWord(producer)}</small></summary>
       <div className="progress-steps">
         {steps.map((step) => <span key={step.label} className={`step-${step.state}`}>{STEP_MARK[step.state]} {step.label}</span>)}
         {producer === 'running' && MOCK_STEPS.map((label, index) => (
@@ -645,6 +671,7 @@ export function UtterancePanel({ fallbackText }: { fallbackText: string }) {
           </span>
         ))}
       </div>
+      </details>
 
       {/* 생성 서비스가 없으면 **이 경로만** 꺼진다. 문구를 감추지 않는다 (`verify:no-llm`). */}
       {genAble.note && <p className="gen-note">{genAble.note}</p>}
@@ -821,8 +848,9 @@ export function UtterancePanel({ fallbackText }: { fallbackText: string }) {
 
       {/* 시연 문장 — 대본 라이브러리의 기준 문장. 보고 말하거나(녹음), 누르면 아래 입력창에 채워진다.
           이 문장이 그대로일 필요는 없다 — 매칭은 키워드 대조라 「월류방어벽 가동해」도 통한다. */}
-      <section className="script-sentences">
-        <h3>대본을 부르는 문장 <small>보고 말하거나 · 누르면 아래 입력창에 채워집니다</small></h3>
+      <details className="script-sentences" open={sentencesOpen}
+        onToggle={(event) => setSentencesOpen((event.target as HTMLDetailsElement).open)}>
+        <summary>예시 문장 <small>보고 말하거나 · 누르면 아래 입력창에 채워집니다</small></summary>
         <ul>
           {DEMO_SENTENCES.map((demo) => (
             <li key={demo.missionId}>
@@ -834,7 +862,7 @@ export function UtterancePanel({ fallbackText }: { fallbackText: string }) {
             </li>
           ))}
         </ul>
-      </section>
+      </details>
 
       <details className="manual-input" open={manualOpen || status === 'unavailable'}
         onToggle={(event) => setManualOpen((event.target as HTMLDetailsElement).open)}>
