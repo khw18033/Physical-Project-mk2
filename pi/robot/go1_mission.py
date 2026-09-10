@@ -59,13 +59,24 @@ class MissionClient:
         return self.probe(timeout)[0]
 
     # ---------- 미션 ----------
-    def start(self, steps=8, step_deg=45.0, forward_m=1.0, vx=0.0):
-        """ACK 수신 소켓을 **먼저** 연 뒤 미션을 건다(첫 ACK 유실 방지)."""
+    def _open_ack(self):
+        """ACK 수신 소켓을 **먼저** 연다 — 미션을 건 뒤에 열면 첫 ACK 를 놓친다."""
         self._canceled = False
         self._ack = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self._ack.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self._ack.bind(("127.0.0.1", self.ack_port))
+
+    def start(self, steps=8, step_deg=45.0, forward_m=1.0, vx=0.0):
+        """스캔 미션. forward_m=0 이면 스캔만 하고 전진하지 않는다."""
+        self._open_ack()
         msg = "MISSION SCAN %d %g %g %g" % (steps, step_deg, forward_m, vx)
+        self._tx.sendto(msg.encode(), (self.host, self.cmd_port))
+        return msg
+
+    def start_forward(self, distance_m, vx=0.0):
+        """전진만. 스캔 회전 없이 곧바로 직진한다(ACK 1건)."""
+        self._open_ack()
+        msg = "MISSION FORWARD %g %g" % (distance_m, vx)
         self._tx.sendto(msg.encode(), (self.host, self.cmd_port))
         return msg
 

@@ -23,6 +23,7 @@
 
 실행: python3 -m robot.robot_node   (pi/ 디렉터리에서)
 """
+import json
 import re
 import time
 
@@ -198,6 +199,21 @@ class RobotNode(BaseNode):
             if a == "start" and self.media.is_running():
                 raise CommandError("ALREADY_EXISTS", "stream_already_open")
 
+        if action == "move_forward":
+            d = float(params.get("distance_m") or 1.0)
+            vx = float(params.get("vx") or 0.0)
+            if not 0.05 <= d <= 10.0:
+                raise CommandError("INVALID_ARGUMENT", "distance_m_out_of_range")
+            if vx and not 0.05 <= vx <= 0.30:
+                raise CommandError("INVALID_ARGUMENT", "vx_out_of_range")
+            if self.in_mission():
+                raise CommandError("FAILED_PRECONDITION", "mission_in_progress")
+            sdk_up, state_ok = go1_mission.MissionClient().probe()
+            if not sdk_up:
+                raise CommandError("FAILED_PRECONDITION", "go1_sdk_not_running")
+            if not state_ok:
+                raise CommandError("FAILED_PRECONDITION", "robot_state_dead")
+
         if action == "scan_mission":
             # 범위 밖 값은 받기 전에 막는다 — 수락해 놓고 로봇이 이상하게 도는 것보다
             # 거부 사유를 돌려주는 편이 상위가 고칠 수 있다.
@@ -211,6 +227,7 @@ class RobotNode(BaseNode):
                 raise CommandError("INVALID_ARGUMENT", "step_deg_out_of_range")
             if not 0.0 <= forward_m <= 10.0:
                 raise CommandError("INVALID_ARGUMENT", "forward_m_out_of_range")
+            # forward_m=0 은 유효하다 — "스캔만 하고 전진하지 않는다"
             if vx and not 0.05 <= vx <= 0.30:
                 raise CommandError("INVALID_ARGUMENT", "vx_out_of_range")
             if self.in_mission():
@@ -331,7 +348,8 @@ class RobotNode(BaseNode):
         mc = go1_mission.MissionClient()
 
         mission_id = "scan-%d" % int(time.time())
-        expected = steps + 2                     # 스캔 steps + 문 방향 1 + 직진 1
+        # 스캔 steps + 문 방향 1 + (직진 1, forward_m>0 일 때만)
+        expected = steps + 1 + (1 if forward_m > 0 else 0)
         budget = go1_mission.MissionClient.budget(steps, step_deg, forward_m, vx)
         started = time.time()
 
@@ -360,10 +378,18 @@ class RobotNode(BaseNode):
                 self.m_ack.add(1, {"event": event,
                                    "outcome": "ok" if note.startswith("ok") else "other"})
                 # 규약 서버는 stage 문자열을 CommandStatus.detail 로 보낸다.
-                yield ("ack %s/%d %s %s/%s yaw=%.1f %s"
-                       % (ack.get("ack_seq", acks), expected, event,
-                          ack.get("step"), ack.get("total"),
-                          float(ack.get("yaw_deg") or 0.0), note)), None
+                # **JSON 으로 보낸다** — 관제 웹이 "몇 번째 회전인지"를 문자열 파싱 없이
+                # 읽을 수 있어야 하기 때문이다. CommandStatus 에는 detail(문자열) 말고
+                # 구조를 실을 자리가 없어서(규약 §3), 문자열 안에 구조를 넣는다.
+                yield json.dumps({
+                    "ack": ack.get("ack_seq", acks),   # 이번 미션의 ACK 순번
+                    "of": expected,                    # 총 ACK 수
+                    "event": event,                    # scan_turn | door_turn | forward | aborted
+                    "step": ack.get("step"),           # 그 단계 안에서 몇 번째(회전 3/8 의 3)
+                    "steps": ack.get("total"),         # 그 단계의 총 횟수(8)
+                    "yaw_deg": ack.get("yaw_deg"),     # 그 시점 방위(모르면 null)
+                    "note": note,                      # ok | turn_timeout | robot_state_lost …
+                }, ensure_ascii=False), None
         except go1_mission.MissionError as e:
             mc.cancel()
             self.mission["status"] = "failed"
@@ -385,6 +411,57 @@ class RobotNode(BaseNode):
                   "duration_s": round(time.time() - started, 1)}
         if odo_m is not None:
             result["odo_m"] = odo_m        # 모르면 키를 빼는 것이 0 을 싣는 것보다 정확하다
+        yield "completed", result
+
+    def _act_move_forward(self, params):
+        """전진만 (HW-R-06). 스캔 없이 지정 거리를 직진하고 ACK 1건을 돌려준다.
+
+        `scan_mission` 의 forward_m 은 "스캔을 마친 뒤의 전진"이라 스캔 없이 이동만
+        시킬 수단이 없었다. 관제에서 "조금만 앞으로"가 필요한 경우가 그것이다."""
+        distance_m = float(params.get("distance_m") or 1.0)
+        vx = float(params.get("vx") or 0.0)
+
+        mc = go1_mission.MissionClient()
+        mission_id = "fwd-%d" % int(time.time())
+        budget = go1_mission.MissionClient.budget(0, 0, distance_m, vx) 
+        started = time.time()
+
+        mc.start_forward(distance_m, vx)
+        self.mission_client = mc
+        self.mission = {"mission_id": mission_id, "subtask": "move_forward",
+                        "status": "executing", "started_at": schema.iso_now()}
+        yield "executing", {"distance_m": distance_m}
+
+        odo_m = None
+        aborted = None
+        try:
+            for ack in mc.acks(1, budget):
+                event = ack.get("event", "?")
+                note = str(ack.get("note", ""))
+                if event == "forward":
+                    odo_m = _odo_from_note(note)
+                if event == "aborted":
+                    aborted = note or "aborted"
+                self.m_ack.add(1, {"event": event,
+                                   "outcome": "ok" if note.startswith("ok") else "other"})
+                yield json.dumps({"ack": 1, "of": 1, "event": event,
+                                  "yaw_deg": ack.get("yaw_deg"), "note": note},
+                                 ensure_ascii=False), None
+        except go1_mission.MissionError as e:
+            mc.cancel()
+            raise CommandError("INTERNAL", str(e))
+        finally:
+            mc.close()
+            self.mission_client = None
+            self.mission = None
+
+        if aborted:
+            raise CommandError("ABORTED", aborted)
+
+        result = {"distance_m": distance_m,
+                  "duration_s": round(time.time() - started, 1)}
+        if odo_m is not None:
+            result["odo_m"] = odo_m
         yield "completed", result
 
     def cancel(self, command_id):
@@ -435,6 +512,7 @@ class RobotNode(BaseNode):
         "assign_mission": _act_assign_mission,
         "abort_mission": _act_abort_mission,
         "scan_mission": _act_scan_mission,
+        "move_forward": _act_move_forward,
         "stream": _act_stream,
     })
     PHYSICAL_ACTIONS = frozenset({"assign_mission", "abort_mission", "stream"})

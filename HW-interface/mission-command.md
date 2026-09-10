@@ -17,7 +17,7 @@
 |---|---|
 | 브로커 | **`pi7.local:1883`** (MQTT 5). 브로커는 로봇 옆 파이(pi7)에서 돈다 — 핫스팟으로 IP 가 바뀌어도 mDNS 이름은 그대로이고, 노트북이 꺼져도 명령 경로가 산다. 엣지노드 장비 구축 시 그쪽으로 이전 |
 | 토픽(보냄) | `terminal/go1-001/downlink` |
-| 토픽(받음) | `terminal/go1-001/uplink` |
+| 토픽(받음) | `terminal/go1-001/uplink` — **응답 3종이 모두 이 하나로 온다**(Acceptance·CommandStatus·CommandResult). 종류는 토픽이 아니라 봉투의 `oneof body` 가 정한다 |
 | payload | `PhysicalCommandEnvelope` (protobuf 직렬화 **바이트**, JSON 아님) |
 | 스키마 | `schema/physical_command.proto` |
 
@@ -41,6 +41,20 @@ Command {
 ```
 
 **파라미터를 다 생략해도 된다** — 그러면 8 × 45° → 45° → 1.0m 로 돈다.
+**`forward_m: 0` 은 유효한 값**이다 — 스캔만 하고 전진하지 않는다(ACK 는 steps+1 건).
+
+### 전진만 시키려면 — `move_forward`
+
+`scan_mission` 의 `forward_m` 은 "스캔을 마친 뒤의 전진"이다. 스캔 없이 이동만 시키려면
+별도 action 을 쓴다.
+
+```
+Command {
+  action     = "move_forward"
+  parameters = { "distance_m": 1.0, "vx": 0.15 }   // distance_m 0.05~10, vx 생략 가능
+}
+```
+ACK 는 1건(`event: "forward"`)이고 결과는 `{distance_m, odo_m, duration_s}` 다.
 
 > **왜 임무 종류가 문자열 파라미터가 아니라 action 이름인가**
 > 규약 `Command.parameters` 가 `map<string, double>` 이라 문자열을 실을 수 없다.
@@ -54,17 +68,30 @@ Command {
 ```
 CommandAcceptance  accepted=true
 CommandStatus      EXECUTING  "executing"
-CommandStatus      EXECUTING  "ack 1/10 scan_turn 1/8 yaw=-36.6 ok"
-CommandStatus      EXECUTING  "ack 2/10 scan_turn 2/8 yaw=8.3 ok"
+CommandStatus      EXECUTING  {"ack":1,"of":10,"event":"scan_turn","step":1,"steps":8,"yaw_deg":-36.6,"note":"ok"}
+CommandStatus      EXECUTING  {"ack":2,"of":10,"event":"scan_turn","step":2,"steps":8,"yaw_deg":8.3,"note":"ok"}
    ...
-CommandStatus      EXECUTING  "ack 9/10 door_turn 1/1 yaw=-74.2 ok"
-CommandStatus      EXECUTING  "ack 10/10 forward 1/1 yaw=-123.7 ok odo=1.00m cmd=2.00m"
+CommandStatus      EXECUTING  {"ack":9,"of":10,"event":"door_turn","step":1,"steps":1,"yaw_deg":-74.2,"note":"ok"}
+CommandStatus      EXECUTING  {"ack":10,"of":10,"event":"forward","step":1,"steps":1,"yaw_deg":-123.7,"note":"ok odo=1.00m cmd=2.00m"}
 CommandResult      SUCCEEDED  {acks:10, turns_ok:9, steps:8, step_deg:45,
                                forward_m:1.0, odo_m:1.0, duration_s:62.3}
 ```
 
-- `yaw` 는 Unity 규약 방위(도). `odo=` 는 로봇 오도메트리 실측 이동거리, `cmd=` 는 명령 적분값.
-- 회전이 시한 안에 목표각에 못 닿으면 그 ACK 의 꼬리가 `turn_timeout` 이 된다(미션은 계속 진행).
+**`CommandStatus.detail` 은 JSON 문자열이다.** 규약의 `CommandStatus` 에는 구조를 실을 자리가
+`detail`(문자열) 하나뿐이라(§3), 문자열 안에 구조를 넣는다. 관제 웹은 `JSON.parse(detail)` 로
+바로 읽으면 된다.
+
+| 필드 | 뜻 |
+|---|---|
+| `ack` / `of` | 이번 임무의 ACK 순번 / 총 ACK 수 |
+| `event` | `scan_turn` · `door_turn` · `forward` · `aborted` |
+| `step` / `steps` | **그 단계 안에서 몇 번째인가** — 회전 3/8 의 `3`, `8` |
+| `yaw_deg` | 그 시점 방위(도). 모르면 `null` |
+| `note` | `ok` · `turn_timeout` · `robot_state_lost` · `forward_timeout` … |
+
+- `odo=` 는 로봇 오도메트리 실측 이동거리, `cmd=` 는 명령 적분값(참고용).
+- 회전이 시한 안에 목표각에 못 닿으면 `note` 가 `turn_timeout` 이 된다(임무는 계속 진행).
+- 임무 도중 로봇이 끊기면 `event: "aborted"` 가 마지막 ACK 로 오고 결과는 `ABORTED` 다.
 - 사람이 눈으로도 확인할 수 있게 **ACK 마다 Go1 얼굴 라이트가 깜빡인다** —
   파랑 2회(스캔 회전) / 초록 3회(문 방향) / 보라 4회(직진 완료).
 
@@ -101,6 +128,35 @@ python3 -m bench.send_physical_command --broker pi7.local --device go1-001 --can
                        → [Status] ack 3/3 forward 1/1 ok odo=0.30m cmd=0.68m
 [Result] SUCCEEDED acks=3 turns_ok=2 odo_m=0.3 duration_s=13.4
 ```
+
+## 5-1. 스키마 파일과 접속 주소
+
+**`.proto` 파일**: 저장소 `schema/physical_command.proto` (브랜치 `HW`) 하나가 전부다.
+이 파일만 있으면 어떤 언어로도 붙을 수 있다.
+
+```bash
+# 파이썬
+protoc --python_out=. schema/physical_command.proto
+# 자바스크립트(브라우저) — protobufjs 는 .proto 를 런타임에 읽을 수 있다
+protobuf.load("physical_command.proto")
+```
+
+**접속 주소**
+
+| 상황 | 주소 |
+|---|---|
+| 일반(백엔드·Unity) | `pi7.local:1883` (TCP, MQTT5) |
+| 브라우저 | `ws://pi7.local:9001` (WebSocket) |
+| **이름이 안 풀릴 때(발표장 등)** | 랩 네트워크에서는 **`192.168.50.172` 고정**(pi7 wlan0 정적 설정) |
+
+핫스팟에서는 pi7 이 DHCP 로 주소를 받으므로 고정 IP 가 없다. 이름(mDNS)이 안 풀리는
+환경이면 **발표 직전에 pi7 에서 `hostname -I` 로 확인**해 그 주소를 쓰거나,
+그 핫스팟용 정적 주소를 미리 박아 둔다:
+
+```bash
+sudo nmcli connection modify hotspot-SysaiLAB ipv4.method manual      ipv4.addresses 192.168.137.50/24 ipv4.gateway 192.168.137.1
+```
+(위 값은 **Windows 모바일 핫스팟** 기준이다. 휴대폰 핫스팟이면 대역이 달라 그때 확인해야 한다.)
 
 ## 6. 로봇 쪽 구성 (참고)
 
