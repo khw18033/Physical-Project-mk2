@@ -86,7 +86,12 @@ export type LinkEffect =
    * 일어서는 중이다 — 몇 초 동안 아무 일도 안 일어나는 것처럼 보이는 구간이라 화면이
    * 그대로 말해야 한다.
    */
-  | { kind: 'stage'; stage: string };
+  | { kind: 'stage'; stage: string }
+  /**
+   * 로봇이 **스스로 걸었다.** 스캔은 돌기만 해야 하는데 끝에 직진이 붙어서 왔다.
+   * `forward_m: 0` 을 보냈는데도 온다 — 260910 실측(§ 아래 주석).
+   */
+  | { kind: 'walked'; taskId: string; note: string };
 
 export type LinkContext = {
   /** 지금 이 command_id 로 쏜 태스크. 응답이 어느 노드의 것인지 이걸로 안다. */
@@ -137,15 +142,34 @@ export function effectsOf(message: UplinkMessage, context: LinkContext): LinkEff
   const stage = stageOf(message.raw);
   if (stage !== null) return [{ kind: 'stage', stage }];
 
-  return statusEffects(message.detail, context);
+  return statusEffects(message.detail, { ...context, taskId });
 }
 
 /** `CommandStatus` 하나가 낳는 것들. `event` 로 갈린다 (§5 ㉡). */
-function statusEffects(detail: StatusDetail | null, context: LinkContext): LinkEffect[] {
+function statusEffects(detail: StatusDetail | null, context: LinkContext & { taskId: string }): LinkEffect[] {
   if (detail === null) return [];
   const effects: LinkEffect[] = [];
   const progress = progressOf(detail);
   if (progress !== null) effects.push({ kind: 'progress', ...progress });
+
+  // **로봇이 스스로 걸었다** (260910 실측 — 시뮬레이터·실물 둘 다).
+  //
+  // 우리는 `forward_m: 0` 을 보낸다. 스캔은 돌기만 하고, 어디로 갈지는 사람이 초록 칸을
+  // 보고 「접근 시작」을 눌러 정하는 것이 이 시연의 요점이기 때문이다. 그런데 결과가
+  // 이렇게 돌아온다:
+  //
+  //     보낸 것   { steps: 8, step_deg: 45, forward_m: 0 }
+  //     받은 것   forward … note="ok odo=1.00m cmd=1.00m"
+  //     결과      { forward_m: 1, odo_m: 1, … }
+  //
+  // 0 을 「안 준 것」으로 읽고 기본값 1.0 을 쓰는 것으로 보인다. 우리가 막을 수 있는
+  // 자리가 아니다 — 규약에 「직진하지 마라」를 말할 다른 방법이 없다. 그러면 **최소한
+  // 화면이 그 사실을 말해야 한다.** 안 그러면 발표자가 「접근 시작」을 눌러 로봇을 한 번
+  // 더 걷게 하고, 왜 두 번 가는지 모른다.
+  if (detail.event === 'forward') {
+    effects.push({ kind: 'walked', taskId: context.taskId, note: detail.note });
+    return effects;
+  }
 
   if (detail.event === 'aborted') {
     effects.push({ kind: 'aborted', note: detail.note });

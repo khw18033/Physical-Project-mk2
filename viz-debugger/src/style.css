@@ -449,6 +449,8 @@ b.follow-live{cursor:default}
 .robot-sdk-dot--ok{background:#e7f6ee;color:#125c33}
 .robot-sdk-dot--down{background:#f3f0ea;color:#7a4d08}
 .robot-sdk-none{flex-basis:100%;color:#8f2b26;font-size:12px}
+.robot-walked{margin:8px 0 0;padding:9px 12px;border-left:4px solid #c07a1a;background:#fdf6ea;color:#7a4d08;font-size:13px}
+.robot-walked code{background:#fff;padding:1px 4px;border-radius:3px}
 .robot-sdk-none code{background:#fdf3f2;padding:1px 4px;border-radius:3px}
 .robot-locked{display:flex;align-items:center;gap:10px;margin:0 0 8px;padding:9px 12px;border-left:4px solid #a3241f;background:#fdf3f2;color:#8f2b26;font-size:13px}
 .robot-release{margin-left:auto;padding:5px 11px;border:1px solid #a3241f;border-radius:6px;background:#fff;color:#8f2b26;font-size:12px}

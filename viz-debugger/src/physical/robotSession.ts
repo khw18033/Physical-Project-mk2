@@ -93,6 +93,13 @@ export type RobotSession = {
    * 하드웨어가 올리는 날 거절이 멈추고 저절로 풀린다 — 우리가 고칠 자리가 없다.
    */
   unsupported: Readonly<Record<string, true>>;
+  /**
+   * **스캔 중에 로봇이 스스로 걸었다** (260910 실측). `forward_m: 0` 을 보냈는데도 온다.
+   *
+   * 「접근 시작」을 누르면 **한 번 더** 걷는다는 뜻이라, 누르기 전에 알아야 한다.
+   * 담은 것은 로봇이 적어 준 문구 그대로다 — `"ok odo=1.00m cmd=1.00m"`.
+   */
+  walked: string | null;
 };
 
 const EMPTY: RobotSession = {
@@ -109,6 +116,7 @@ const EMPTY: RobotSession = {
   approvedAtMs: null,
   stage: null,
   unsupported: {},
+  walked: null,
   seenYaw: {},
 };
 
@@ -268,6 +276,9 @@ export function applyEffects(effects: readonly LinkEffect[]): ViewpointFrame[] {
         const action = next.commands[effect.commandId]?.action;
         if (action !== undefined) next = { ...next, unsupported: { ...next.unsupported, [action]: true } };
       }
+    } else if (effect.kind === 'walked') {
+      // 스캔이 걸었을 때만 놀랄 일이다 — 「접근 시작」(T-B2)은 걸으라고 시킨 것이다.
+      if (effect.taskId === 'T-A3') next = { ...next, walked: effect.note };
     } else if (effect.kind === 'stage') {
       // **일어서는 중이라는 말을 안 삼킨다.** 몇 초 동안 아무 일도 안 일어나는 것처럼
       // 보이는 구간이고, 그때 화면이 조용하면 발표장에서 「왜 안 가지」가 된다.

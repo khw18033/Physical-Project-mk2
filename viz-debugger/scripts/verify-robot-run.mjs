@@ -138,6 +138,34 @@ const run = replay();
   if (!/export function useRobotUplink/.test(bridge)) failures.push('useRobotUplink 이 robotBridge.ts 에 없다');
 }
 
+// ── 4-b. 스캔이 스스로 걸으면 말한다 (260910 실측) ──────────────────────────
+//
+// `forward_m: 0` 을 보내는데도 끝에 직진 한 걸음이 붙어서 온다. 0 을 「안 준 것」으로
+// 읽고 기본값을 쓰는 듯하다 — 시뮬레이터·실물 둘 다에서 봤다.
+//
+//     보낸 것   { steps: 8, step_deg: 45, forward_m: 0 }
+//     받은 것   forward … note="ok odo=1.00m cmd=1.00m"  ·  결과 { forward_m: 1, odo_m: 1 }
+//
+// 그러면 「접근 시작」은 **두 번째** 걸음이 된다. 누르기 전에 알아야 한다.
+{
+  const { robotSession: sessionOf } = await load('src', 'physical', 'robotSession.ts');
+  const walkNote = 'ok odo=1.00m cmd=1.00m';
+  receiveUplink(status('forward', 1, 45, 31), MISSION, 20);
+  if (sessionOf().walked === null) {
+    failures.push('스캔이 스스로 걸었는데 화면이 모른다 — 접근 시작이 두 번째 걸음이 된다');
+  }
+  // 로봇이 적어 준 문구를 그대로 남긴다 — odo 가 얼마인지가 그 안에 있다.
+  receiveUplink({
+    kind: 'status', commandId: COMMAND_ID, state: 'RUNNING',
+    detail: { ack: 31, of: 10, event: 'forward', step: 1, steps: 1, yaw_deg: 45, note: walkNote },
+    raw: JSON.stringify({ ack: 31, of: 10, event: 'forward', step: 1, steps: 1, yaw_deg: 45, note: walkNote }),
+  }, MISSION, 21);
+  if (sessionOf().walked !== walkNote) failures.push('로봇이 적어 준 문구를 안 남긴다');
+  // 화면이 실제로 그리는가.
+  const panel = code(read('src', 'physical', 'RobotPanel.tsx'));
+  if (!/session\.walked/.test(panel)) failures.push('화면이 「이미 걸었다」를 안 그린다');
+}
+
 // ── 5. 로봇 편은 시나리오 모드로 안 간다 (연결 여부와 무관하게) ────────────
 //
 // 「대본 · 합성 데이터 · 재생 중」 띠는 **연결 전 테스트처럼 보인다.** 실물 시연 편에는
@@ -194,5 +222,6 @@ if (failures.length) {
 }
 console.log('✅ 실측 한 판 재생 — 여덟 칸이 판정까지 가고 7번 걸음 하나만 초록 (로봇이 고른 방위 -94.16°)');
 console.log('✅ 재생 머리가 판정 프레임 뒤로 넘어간다 · 수신기는 사라지는 패널 밖에 있다');
+console.log('✅ 스캔이 스스로 걸으면 화면이 말한다 — forward_m 0 을 보냈는데도 온다 (실측)');
 console.log('✅ 로봇 편은 연결 여부와 무관하게 일반 모드 — 「합성 데이터 · 재생 중」 띠가 안 뜬다 (옛 편은 그대로)');
 console.log(`✅ 대조군 ${controls.length}건 전부 검출 — ${controls.join(' · ')}`);

@@ -120,6 +120,19 @@ export function RobotPanel({ client, params }: {
     {/* **어긋남을 보여 주지 않는다** (260910 지적). 로봇이 고른 쪽이 곧 화면이 고른
         쪽이므로 어긋날 것이 없다 — 로봇이 문으로 판단한 칸에 초록이 켜지고 거기서
         「문에 접근한다」로 선이 이어진다. */}
+    {/*
+      **로봇이 이미 걸었다** (260910 실측).
+
+      스캔에 `forward_m: 0` 을 보내는데도 끝에 직진 한 걸음이 붙어서 온다. 0 을 「안 준
+      것」으로 읽고 기본값을 쓰는 듯하다. 그러면 「접근 시작」은 **두 번째** 걸음이 된다.
+
+      모르고 누르면 로봇이 왜 두 번 가는지 아무도 모른다. 누르기 전에 말한다.
+    */}
+    {session.walked !== null && <p className="robot-walked" role="alert">
+      <b>스캔 중에 로봇이 이미 앞으로 걸었습니다</b> — <code>{session.walked}</code>.
+      직진 없이(<code>forward_m 0</code>) 보냈는데도 왔습니다. 「접근 시작」을 누르면 한 번 더 갑니다.
+    </p>}
+
     {session.doorTurn !== null && <p className="robot-door">
       로봇이 {session.doorTurn.chosenIndex === null
         ? '문 방향으로 돌았습니다 — 어느 걸음인지는 못 짚었습니다'
