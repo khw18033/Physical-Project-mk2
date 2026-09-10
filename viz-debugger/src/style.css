@@ -350,24 +350,58 @@ b.follow-live{cursor:default}
 .gen-shape-warning b{margin-right:5px;padding:1px 5px;border-radius:3px;background:#f2e2b8;color:#6b5520;font-size:11px}
 .gen-shape-warning small{display:block;margin-top:4px;color:#8a7642;font-size:11px}
 
-/* ── 8분할 뷰포인트 (260909 시연 대본 §4) ─────────────────────────────────────
-   상태 셋. 색은 여기서만 정한다 — `fill.ts` 는 이름만 준다.
-     대기      빈 테두리, 흐림
-     탐색 중   테두리 점멸
-     판정 완료 문 없음 회색 / 문 있음 초록
-   실행 상태(8상태)의 색과 **겹치지 않게** 테두리로만 말한다. 두 축이 같은 자리에서
-   싸우면 「이 노드가 실패인가 문이 없는가」를 못 읽는다. */
-.task-node.viewpoint{transition:border-color .18s ease,opacity .18s ease}
-.task-node.viewpoint--idle{border-style:dashed;border-color:#cfd6df;opacity:.55}
-.task-node.viewpoint--scanning{border-color:#4a8fd4;animation:viewpoint-blink 1s ease-in-out infinite}
-.task-node.viewpoint--empty{border-color:#b9c1cb;opacity:.78}
-.task-node.viewpoint--door{border-color:#2f9e5f;box-shadow:0 0 0 3px #cdeadb}
-@keyframes viewpoint-blink{0%,100%{border-color:#4a8fd4}50%{border-color:#cfe2f5}}
+/* ── 8분할 뷰포인트 (260909 신설 · 260910 상태 넷으로) ────────────────────────
+   상태 **넷**. 값은 여기 한 블록에 모은다 — 컴포넌트는 이름만 들고 나간다.
+
+   **색 하나로 구분하지 않는다.** 초록과 회색만 바꾸면 프로젝터에서 둘 다 밝은 회색으로
+   보인다. 채움·테두리 굵기·글자 진하기·불투명도 **넷을 같이** 움직인다.
+
+   미선정을 확실히 죽이는 쪽이 선정을 밝히는 것보다 효과가 크다 — 여덟 중 일곱이
+   가라앉으면 남은 하나로 눈이 저절로 간다. */
+:root{
+  /* 대기 — 아직 아무것도 안 왔다. 채움 없음, 점선, 글자 흐림 */
+  --vp-pending-fill:transparent; --vp-pending-border:#cfd6df; --vp-pending-width:1px;
+  --vp-pending-text:#9aa5b3; --vp-pending-weight:400; --vp-pending-opacity:.5;
+  /* 탐색 중 — 지금 이 방향을 보고 있다. 점멸은 여기 하나뿐이다 */
+  --vp-scanning-fill:transparent; --vp-scanning-border:#4a8fd4; --vp-scanning-width:2px;
+  --vp-scanning-text:#2f6ba8; --vp-scanning-weight:600; --vp-scanning-opacity:1;
+  /* 미선정 — 문 없음. **죽은 회색**: 채도 없음, 얇고 흐린 테두리, 불투명도 낮춤 */
+  --vp-rejected-fill:#f4f5f6; --vp-rejected-border:#dfe3e8; --vp-rejected-width:1px;
+  --vp-rejected-text:#a8b0ba; --vp-rejected-weight:400; --vp-rejected-opacity:.42;
+  /* 선정 — 문 있음. 초록 채움, 굵은 테두리, 진한 글자, 불투명도 최대 */
+  --vp-selected-fill:#d8f0e2; --vp-selected-border:#1f8a4d; --vp-selected-width:3px;
+  --vp-selected-text:#125c33; --vp-selected-weight:700; --vp-selected-opacity:1;
+}
+/* 낮은 카드 (260910) — 여덟을 세우면 길어진다. 높이는 fanLayout.ts 의
+   VIEWPOINT_NODE_HEIGHT 와 **같은 값이어야** 「한 화면에」 계산이 그림과 맞는다. */
+.task-node.viewpoint{
+  min-height:58px;height:58px;gap:2px;padding:7px 9px;overflow:hidden;
+  transition:opacity .18s ease,border-color .18s ease,background-color .18s ease;
+}
+.task-node.viewpoint strong{font-size:13px;line-height:1.2}
+.task-node.viewpoint small{font-size:10px}
+/* 낮은 카드에는 장비 줄이 안 들어간다 — 여덟 다 같은 장비라 정보도 없다. */
+.task-node.viewpoint .device,.task-node.viewpoint .state-label{display:none}
+.task-node.viewpoint--pending{background:var(--vp-pending-fill);border:var(--vp-pending-width) dashed var(--vp-pending-border);color:var(--vp-pending-text);font-weight:var(--vp-pending-weight);opacity:var(--vp-pending-opacity)}
+.task-node.viewpoint--scanning{background:var(--vp-scanning-fill);border:var(--vp-scanning-width) solid var(--vp-scanning-border);color:var(--vp-scanning-text);font-weight:var(--vp-scanning-weight);opacity:var(--vp-scanning-opacity);animation:viewpoint-blink 1s ease-in-out infinite}
+.task-node.viewpoint--rejected{background:var(--vp-rejected-fill);border:var(--vp-rejected-width) solid var(--vp-rejected-border);color:var(--vp-rejected-text);font-weight:var(--vp-rejected-weight);opacity:var(--vp-rejected-opacity);filter:saturate(0)}
+/* 선정 — 그림자를 한 겹 더 얹되 **깜빡이지 않는다.** scanning 이 점멸이라 둘이 섞이면
+   무슨 상태인지 못 읽는다. */
+.task-node.viewpoint--selected{background:var(--vp-selected-fill);border:var(--vp-selected-width) solid var(--vp-selected-border);color:var(--vp-selected-text);font-weight:var(--vp-selected-weight);opacity:var(--vp-selected-opacity);box-shadow:0 0 0 4px rgba(31,138,77,.18),0 2px 8px rgba(31,138,77,.25)}
+.task-node.viewpoint--selected strong,.task-node.viewpoint--rejected strong{color:inherit}
+@keyframes viewpoint-blink{0%,100%{border-color:var(--vp-scanning-border)}50%{border-color:#cfe2f5}}
 /* 판정 결과 한 줄 — 색만으로는 「왜」가 안 남는다. 발표에서 읽힐 자리다. */
-.viewpoint__verdict{font-size:11px;color:#5c6a7c}
-.task-node.viewpoint--door .viewpoint__verdict{color:#237a49;font-weight:600}
+.viewpoint__verdict{font-size:10px;color:inherit;opacity:.9}
+.task-node.viewpoint--selected .viewpoint__verdict{font-weight:700}
 /* 움직임을 줄이라고 한 사용자에게는 점멸을 끈다 — 접근성 기본값이다. */
 @media (prefers-reduced-motion:reduce){.task-node.viewpoint--scanning{animation:none}}
+
+/* 8분할 분기선 (260910) — 부모에서 가로선 하나가 나가 세로 spine 을 만들고, spine 에서
+   각 노드로 가로 화살표 여덟. 실행 흐름과 같은 회색이다 — 이것도 흐름이기 때문이다.
+   되돌아감(주황 점선)·줄바꿈(파랑)·소속(초록 점선)과 섞이지 않는다. */
+.edge--fan-trunk,.edge--fan-spine{stroke:#8392a3;stroke-width:2;fill:none}
+.edge--fan-spine{stroke-linecap:round}
+.edge--fan-arrow{stroke:#8392a3;stroke-width:2;fill:none}
 
 /* 근거 가시화 (260909 시연 대본 §5) — 문장이 먼저 읽히고, 이미지 자리는 비워 둔다.
    더미 이미지를 그려 넣지 않는다: 발표에서 「이건 가짜입니다」를 말하게 되는 자리다. */

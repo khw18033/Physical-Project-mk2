@@ -50,7 +50,22 @@ export type DoorDetectionFrame = {
   reason: string;
 };
 
-export type ViewpointPhase = 'idle' | 'scanning' | 'judged';
+/**
+ * 뷰포인트 한 칸의 상태 **넷** (260910 — 셋에서 쪼갰다).
+ *
+ * 9/9 에는 판정이 끝난 칸을 `judged` 하나로 묶고 문 있음·없음은 화면이 `detection.door` 를
+ * 다시 보고 갈랐다. 그래서 「이 칸은 무슨 상태인가」의 답이 두 군데에 있었다. 발표장에서
+ * 일곱을 죽이고 하나를 살리려면 그 구분이 **상태 자체**여야 한다.
+ *
+ * 프레임이 인덱스로 찾아가는 규칙과 사건 형식은 그대로다 — 갈라진 것은 도착한 뒤
+ * 이름을 정하는 자리뿐이다.
+ */
+export type ViewpointPhase = 'pending' | 'scanning' | 'rejected' | 'selected';
+
+/** 판정이 끝난 상태 둘. 여기서 되돌아가지 않는다. */
+function isJudged(phase: ViewpointPhase): boolean {
+  return phase === 'rejected' || phase === 'selected';
+}
 
 /** 뷰포인트 한 칸. 화면이 읽는 것은 이것뿐이다. */
 export type ViewpointCell = {
@@ -69,13 +84,13 @@ export type ViewpointFill = ReadonlyMap<number, ViewpointCell>;
 export function emptyFill(count: number): ViewpointFill {
   const map = new Map<number, ViewpointCell>();
   for (let i = 0; i < count; i += 1) {
-    map.set(i, { index: i, phase: 'idle', detection: null, rotation: null });
+    map.set(i, { index: i, phase: 'pending', detection: null, rotation: null });
   }
   return map;
 }
 
 function cellOf(fill: ViewpointFill, index: number): ViewpointCell {
-  return fill.get(index) ?? { index, phase: 'idle', detection: null, rotation: null };
+  return fill.get(index) ?? { index, phase: 'pending', detection: null, rotation: null };
 }
 
 /**
@@ -90,7 +105,7 @@ export function applyRotation(fill: ViewpointFill, frame: RobotRotationFrame): V
   const next = new Map(fill);
   next.set(frame.rotation_index, {
     ...cell,
-    phase: cell.phase === 'judged' ? 'judged' : 'scanning',
+    phase: isJudged(cell.phase) ? cell.phase : 'scanning',
     rotation: frame,
   });
   return next;
@@ -104,7 +119,9 @@ export function applyDetection(fill: ViewpointFill, frame: DoorDetectionFrame): 
   if (!fill.has(frame.index)) return fill;
   const cell = cellOf(fill, frame.index);
   const next = new Map(fill);
-  next.set(frame.index, { ...cell, phase: 'judged', detection: frame });
+  // 문이 있으면 **선정**, 없으면 **미선정**. 도착한 값에서 상태 이름이 곧바로 나온다 —
+  // 화면이 door 를 다시 보고 갈라내지 않는다.
+  next.set(frame.index, { ...cell, phase: frame.door ? 'selected' : 'rejected', detection: frame });
   return next;
 }
 
@@ -134,7 +151,7 @@ export function reduceFrames(fill: ViewpointFill, frames: readonly ViewpointFram
 /** 문이 있다고 판정된 칸. 없으면 null — 아직 안 왔거나 여덟 다 문 없음이다. */
 export function doorCell(fill: ViewpointFill): ViewpointCell | null {
   for (const cell of fill.values()) {
-    if (cell.phase === 'judged' && cell.detection?.door === true) return cell;
+    if (cell.phase === 'selected') return cell;
   }
   return null;
 }
@@ -149,7 +166,5 @@ export function cellsInOrder(fill: ViewpointFill): ViewpointCell[] {
  * CSS 가 그 이름으로 테두리·점멸·초록을 붙인다.
  */
 export function cellClass(cell: ViewpointCell): string {
-  if (cell.phase === 'idle') return 'viewpoint--idle';
-  if (cell.phase === 'scanning') return 'viewpoint--scanning';
-  return cell.detection?.door === true ? 'viewpoint--door' : 'viewpoint--empty';
+  return 'viewpoint--' + cell.phase;
 }

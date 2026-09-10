@@ -35,6 +35,8 @@ const DOOR_INDEX = 2;
 const failures = [];
 const controls = [];
 const phases = (fill) => cellsInOrder(fill).map((c) => c.phase).join(',');
+/** 판정이 끝난 상태 둘. fill.ts 의 같은 이름 헬퍼와 뜻이 같다. */
+const isJudged = (phase) => phase === 'rejected' || phase === 'selected';
 
 // ── 1. 하나씩 채워진다 ────────────────────────────────────────────────────────
 //
@@ -43,21 +45,27 @@ const phases = (fill) => cellsInOrder(fill).map((c) => c.phase).join(',');
 {
   const timeline = door.viewpointTimeline ?? [];
   let fill = emptyFill(COUNT);
-  if (phases(fill) !== Array(COUNT).fill('idle').join(',')) {
+  if (phases(fill) !== Array(COUNT).fill('pending').join(',')) {
     failures.push('승인 직후 여덟이 전부 대기가 아니다 — 다 보이되 비어 있어야 한다');
   }
   let judged = 0;
   let sawScanning = 0;
+  const seenPhases = new Set();
   const seconds = [...new Set(timeline.map((e) => e.atSec))].sort((a, b) => a - b);
   for (const sec of seconds) {
     fill = reduceFrames(emptyFill(COUNT), scriptFrames(door.viewpointTimeline, sec));
-    const now = cellsInOrder(fill).filter((c) => c.phase === 'judged').length;
+    const now = cellsInOrder(fill).filter((c) => isJudged(c.phase)).length;
     if (now > judged + 1) failures.push(`${sec}초에 판정 완료가 ${judged}→${now} — 한 번에 둘 이상 채워졌다`);
     judged = now;
     if (cellsInOrder(fill).some((c) => c.phase === 'scanning')) sawScanning += 1;
+    for (const c of cellsInOrder(fill)) seenPhases.add(c.phase);
   }
   if (judged !== COUNT) failures.push(`끝까지 흘려도 판정 완료가 ${judged}칸 — 여덟이어야 한다`);
   if (sawScanning === 0) failures.push('탐색 중 상태를 한 번도 지나지 않았다 — 대기에서 판정으로 건너뛴다');
+  // 상태 **넷을 다 거치는가** (§4). 하나라도 안 나오면 그 상태는 화면에서 죽은 값이다.
+  for (const phase of ['pending', 'scanning', 'rejected', 'selected']) {
+    if (!seenPhases.has(phase)) failures.push(`재생 내내 '${phase}' 상태가 한 번도 안 나왔다`);
+  }
 
   // 초록은 하나. 그리고 그것이 90도다.
   const green = cellsInOrder(fill).filter((c) => c.detection?.door === true);
@@ -67,10 +75,23 @@ const phases = (fill) => cellsInOrder(fill).map((c) => c.phase).join(',');
 
   // 화면 이름 넷이 서로 다른가 — 같은 이름이면 대기와 판정이 같아 보인다.
   const names = new Set(cellsInOrder(fill).map(cellClass));
-  if (!names.has('viewpoint--door') || !names.has('viewpoint--empty')) {
-    failures.push(`판정 완료의 화면 이름이 문 있음/없음으로 갈리지 않는다 — ${[...names].join(', ')}`);
+  if (!names.has('viewpoint--selected') || !names.has('viewpoint--rejected')) {
+    failures.push(`판정 완료의 화면 이름이 선정/미선정으로 갈리지 않는다 — ${[...names].join(', ')}`);
   }
-  if (cellClass(emptyFill(1).get(0)) !== 'viewpoint--idle') failures.push('대기의 화면 이름이 viewpoint--idle 이 아니다');
+  // 상태 **넷**이 서로 다른 이름을 갖는가 (260910 §2) — 같으면 화면이 못 가른다.
+  const allNames = new Set(['pending', 'scanning', 'rejected', 'selected'].map(
+    (phase) => cellClass({ index: 0, phase, detection: null, rotation: null }),
+  ));
+  if (allNames.size !== 4) failures.push(`상태 넷의 화면 이름이 ${allNames.size} 종류 — 넷이어야 한다`);
+
+  // index 2 만 선정, 나머지 일곱은 미선정 (§4).
+  const selected = cellsInOrder(fill).filter((c) => c.phase === 'selected').map((c) => c.index);
+  const rejected = cellsInOrder(fill).filter((c) => c.phase === 'rejected').map((c) => c.index);
+  if (JSON.stringify(selected) !== JSON.stringify([DOOR_INDEX])) {
+    failures.push(`선정이 [${selected.join(', ')}] — ${DOOR_INDEX} 하나여야 한다`);
+  }
+  if (rejected.length !== COUNT - 1) failures.push(`미선정이 ${rejected.length}칸 — 일곱이어야 한다`);
+  if (cellClass(emptyFill(1).get(0)) !== 'viewpoint--pending') failures.push('대기의 화면 이름이 viewpoint--pending 이 아니다');
 }
 
 // ── 2. 뒤섞어 넣어도 제 인덱스로 (지시서가 못박은 줄) ─────────────────────────
@@ -104,7 +125,7 @@ const phases = (fill) => cellsInOrder(fill).map((c) => c.phase).join(',');
       { channel: 'detection', payload: { index: 5, angle_deg: 225, door: false, bbox: null, confidence: 0.03, reason: '없음' } },
       { channel: 'robot_state', payload: { rotation_index: 5, yaw: 225, state: 'rotating', last_cmd: 'rotate_to', result: null } },
     ]);
-    if (late.get(5).phase !== 'judged') {
+    if (late.get(5).phase !== 'rejected') {
       failures.push('탐지가 회전보다 먼저 왔더니 판정이 대기로 되돌아갔다 — 늦은 회전이 결과를 지운다');
     }
   }
@@ -117,7 +138,7 @@ const phases = (fill) => cellsInOrder(fill).map((c) => c.phase).join(',');
     rotation_index: 3, yaw: 88.4, state: 'rotating', last_cmd: 'rotate_to', result: null,
   });
   if (drift.get(3).phase !== 'scanning') failures.push('rotation_index 3 인데 3번 칸이 안 켜졌다');
-  if (drift.get(2).phase !== 'idle') failures.push('yaw 88.4 를 90도로 읽어 2번 칸을 켰다 — 각도로 노드를 고르고 있다');
+  if (drift.get(2).phase !== 'pending') failures.push('yaw 88.4 를 90도로 읽어 2번 칸을 켰다 — 각도로 노드를 고르고 있다');
 
   // 표 밖의 인덱스는 버린다 — 없는 칸을 만들어 그리면 화면이 대본보다 커진다.
   const stray = applyDetection(emptyFill(COUNT), {
@@ -172,8 +193,8 @@ const phases = (fill) => cellsInOrder(fill).map((c) => c.phase).join(',');
   const spinStart = door.params.spin_start_sec;
   const atFirst = reduceFrames(emptyFill(COUNT), framesUpTo(spinStart + 1));
   const atEnd = reduceFrames(emptyFill(COUNT), framesUpTo(door.durationSec));
-  const judgedFirst = cellsInOrder(atFirst).filter((c) => c.phase === 'judged').length;
-  const judgedEnd = cellsInOrder(atEnd).filter((c) => c.phase === 'judged').length;
+  const judgedFirst = cellsInOrder(atFirst).filter((c) => isJudged(c.phase)).length;
+  const judgedEnd = cellsInOrder(atEnd).filter((c) => isJudged(c.phase)).length;
   if (judgedFirst !== 1) failures.push(`첫 탐지 시각에 판정 완료가 ${judgedFirst}칸 — 하나여야 한다`);
   if (judgedEnd !== COUNT) failures.push(`끝에 판정 완료가 ${judgedEnd}칸 — 여덟이어야 한다`);
 
@@ -216,7 +237,7 @@ function control(name, hit) {
     index: 1, angle_deg: 45, door: false, bbox: null, confidence: 0.02, reason: '없음',
   });
   const late = applyRotation(judged, { rotation_index: 1, yaw: 45, state: 'rotating', last_cmd: 'rotate_to', result: null });
-  control('판정 뒤 늦게 온 회전', late.get(1).phase === 'judged');
+  control('판정 뒤 늦게 온 회전', late.get(1).phase === 'rejected');
 }
 {
   // 초록을 둘로 만들면 doorCell 이 「하나」라는 이야기를 못 한다.
@@ -234,6 +255,7 @@ if (failures.length) {
   process.exit(1);
 }
 console.log('✅ 여덟이 대기로 서고 회전이 지나가며 하나씩 — 한 걸음에 한 칸씩만 채워진다');
+console.log('✅ 상태 넷(대기·탐색 중·미선정·선정)을 다 거친다 · index 2 만 선정 · 나머지 일곱은 미선정');
 console.log('✅ 뒤섞기 50회 · 탐지가 회전보다 먼저 와도 각 칸이 제 인덱스로 (도착 순서로 고르지 않는다)');
 console.log('✅ yaw 88.4 는 3번 칸 — 각도가 아니라 rotation_index 가 열쇠 · 표 밖 인덱스는 버린다');
 console.log('✅ 대본 입구와 라이브 입구가 같은 프레임 · fill.ts 는 대본을 모른다 (가르는 자리 한 곳)');

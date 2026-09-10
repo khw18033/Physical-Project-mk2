@@ -392,9 +392,12 @@ export function TaskGraph({ tasks, hardware, states, selected, dimUnrelated, onO
         {/* 옛 편은 하드웨어 목록이 있어 기존 문구 그대로다. 대본(registry 세계)의 장비 실측
             상태는 남이 줄 데이터라 '오프라인'이라고 지어 말하지 않는다 — 미수신은 미수신이다.
             (칩 자체의 A/B 처리는 8/31 보류 항목 1 그대로 미결이다.) */}
-        {cell !== null && cell.phase === 'judged' && cell.detection !== null
-          ? <span className="viewpoint__verdict">{cell.detection.door ? '문 있음' : '문 없음'} · {Math.round(cell.detection.confidence * 100)}%</span>
+        {/* 판정 한 줄 — 상태 이름에서 곧바로 나온다 (260910). 색만으로는 「왜」가 안 남고,
+            프로젝터에서 초록·회색이 둘 다 밝은 회색으로 보일 때 이 글자가 마지막 근거다. */}
+        {cell !== null && cell.phase === 'selected' && cell.detection !== null
+          ? <span className="viewpoint__verdict">문 있음 · {Math.round(cell.detection.confidence * 100)}%</span>
           : null}
+        {cell !== null && cell.phase === 'rejected' ? <span className="viewpoint__verdict">문 없음</span> : null}
         {cell !== null && cell.phase === 'scanning' ? <span className="viewpoint__verdict">탐색 중…</span> : null}
         <span className={`device ${device?.connection ?? 'unknown'}`}>{task.target === null ? '대상 없음' : `${task.target} · ${device ? (device.connection === 'online' ? '온라인' : device.connection === 'maintenance' ? '점검' : '오프라인') : '상태 미수신'}`}</span>
       </button>;
