@@ -1,0 +1,250 @@
+// verify:status-index (260910 신설 — 하드웨어 연동 지시서 §7)
+//
+// **한 칸 밀림을 잡는 검사다.**
+//
+// 로봇의 `step` 은 1부터, 우리 노드 인덱스는 0부터다. `index = step - 1`.
+// 이 한 줄을 틀리면 3번 각도의 결과가 4번 노드에 찍힌다. 그런데 **화면은 그럴싸하게
+// 돌아간다** — 여덟 칸이 차례로 켜지고 초록도 하나 뜬다. 눈으로는 절대 못 잡는다.
+// 지시서가 「이 작업에서 가장 흔하게 날 실수」라고 못박았고, 그래서 이 검사가 그것부터 본다.
+//
+// 보는 것 여섯.
+//  1. step 1~8 → index 0~7 로 옳게 옮는가 · 범위 밖은 버리는가
+//  2. scan_turn 이 아닌 event 는 뷰포인트를 안 건드리는가
+//  3. note != "ok" 가 경고로 남는가
+//  4. yaw_deg: null 에서 안 깨지는가
+//  5. door_turn 이 MS-B 전이를 일으키는가 (새 노드가 아니다)
+//  6. 로봇에서 온 인덱스와 대본에서 온 인덱스가 **같은 함수로** 노드를 채우는가
+//
+// 대조군 포함 — 한 칸 밀린 사본이 반드시 실패로 잡히는지까지 본다.
+
+import { join } from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+
+const root = join(fileURLToPath(new URL('.', import.meta.url)), '..');
+const load = (...p) => import(pathToFileURL(join(root, ...p)).href);
+
+const {
+  parseDetail, viewpointIndexOf, warningOf, progressOf, isDoorTurn, yawMismatch,
+} = await load('src', 'physical', 'uplink.ts');
+const { emptyFill, applyRotation, cellsInOrder } = await load('src', 'viewpoint', 'fill.ts');
+
+const failures = [];
+const controls = [];
+
+/** 하드웨어가 보내는 그대로의 한 줄. */
+const detailOf = (over = {}) => JSON.stringify({
+  ack: 1, of: 9, event: 'scan_turn', step: 1, steps: 8, yaw_deg: 0, note: 'ok', ...over,
+});
+
+// ── 1. step → index ─────────────────────────────────────────────────────────
+for (let step = 1; step <= 8; step += 1) {
+  const index = viewpointIndexOf(parseDetail(detailOf({ step })));
+  if (index !== step - 1) failures.push(`step ${step} → index ${index} — ${step - 1} 이어야 한다`);
+}
+// 범위 밖은 버린다 — 없는 칸을 만들어 그리면 화면이 대본보다 커진다.
+for (const step of [0, -1, 9, 12, 1.5]) {
+  const index = viewpointIndexOf(parseDetail(detailOf({ step })));
+  if (index !== null) failures.push(`범위 밖 step ${step} 이 index ${index} 를 냈다 — 버려야 한다`);
+}
+
+// ── 2. scan_turn 만 뷰포인트를 건드린다 ──────────────────────────────────────
+for (const event of ['door_turn', 'forward', 'aborted', '무슨event']) {
+  const index = viewpointIndexOf(parseDetail(detailOf({ event, step: 3 })));
+  if (index !== null) failures.push(`event ${event} 가 뷰포인트 index ${index} 를 건드렸다 — scan_turn 만이다`);
+}
+if (viewpointIndexOf(parseDetail(detailOf({ event: 'scan_turn', step: 3 }))) !== 2) {
+  failures.push('scan_turn 이 뷰포인트를 안 건드린다');
+}
+
+// ── 3. note != ok 는 경고로 남는다 ───────────────────────────────────────────
+{
+  if (warningOf(parseDetail(detailOf({ note: 'ok' }))) !== null) failures.push('note ok 인데 경고가 생겼다');
+  for (const note of ['turn_timeout', 'robot_state_lost', 'forward_timeout']) {
+    if (warningOf(parseDetail(detailOf({ note }))) !== note) {
+      failures.push(`note ${note} 가 경고로 안 남는다 — 조용히 정상으로 칠하면 안 된다`);
+    }
+  }
+}
+
+// ── 4. yaw_deg: null 에서 안 깨진다 ─────────────────────────────────────────
+{
+  const detail = parseDetail(detailOf({ yaw_deg: null, step: 5 }));
+  if (detail === null) failures.push('yaw_deg 가 null 인 detail 을 통째로 버렸다 — null 이 정상이다');
+  if (viewpointIndexOf(detail) !== 4) failures.push('yaw_deg 가 null 이면 index 가 안 나온다 — step 이 기준이다');
+  if (detail?.yaw_deg !== null) failures.push('yaw_deg null 이 다른 값으로 바뀌었다');
+  // 각도 대조도 null 에서 조용히 넘어가야 한다.
+  if (yawMismatch(detail, 90) !== null) failures.push('yaw_deg 가 null 인데 각도 어긋남을 주장한다');
+}
+
+// ── 5. door_turn 은 MS-B 로 넘어가는 계기 ────────────────────────────────────
+{
+  const door = parseDetail(detailOf({ event: 'door_turn', step: 9, ack: 9, of: 9, yaw_deg: 90 }));
+  if (!isDoorTurn(door)) failures.push('door_turn 을 못 알아본다');
+  if (viewpointIndexOf(door) !== null) failures.push('door_turn 이 뷰포인트 노드를 만들었다 — 새 노드로 만들지 않는다');
+  if (isDoorTurn(parseDetail(detailOf({ event: 'scan_turn' })))) failures.push('scan_turn 을 door_turn 이라고 한다');
+
+  // yaw 대조 — 어긋나면 기록만 남긴다(무엇을 할지는 아직 안 정했다).
+  if (yawMismatch(door, 90) !== null) failures.push('로봇 90도 · 화면 90도인데 어긋났다고 한다');
+  const off = yawMismatch(parseDetail(detailOf({ event: 'door_turn', yaw_deg: 131 })), 90);
+  if (off === null) failures.push('로봇 131도 · 화면 90도인데 어긋남을 못 잡는다');
+  // 각도는 360 으로 감긴다. 355 와 5 는 350 도가 아니라 **10 도** 차이라 허용 안이다.
+  if (yawMismatch(parseDetail(detailOf({ event: 'door_turn', yaw_deg: 355 })), 5) !== null) {
+    failures.push('355도와 5도를 350도 차이로 본다 — 각도가 감기는 것을 안 본다');
+  }
+  // 감기는 것을 봐도 20 도는 허용(15) 밖이다 — 감김이 어긋남을 삼키면 안 된다.
+  if (yawMismatch(parseDetail(detailOf({ event: 'door_turn', yaw_deg: 350 })), 10) === null) {
+    failures.push('350도와 10도는 20도 차이다 — 허용 밖인데 통과시켰다');
+  }
+}
+
+// ── 6. 진행률 ────────────────────────────────────────────────────────────────
+{
+  const p = progressOf(parseDetail(detailOf({ ack: 3, of: 9 })));
+  if (p?.ack !== 3 || p?.of !== 9) failures.push(`진행률이 ${JSON.stringify(p)} — 3/9 여야 한다`);
+  if (progressOf(parseDetail(detailOf({ of: 0 }))) !== null) failures.push('of 가 0 인데 진행률을 주장한다');
+  // forward_m=0 이면 of 는 9다 — 스캔 여덟에 door_turn 하나 (§5).
+  if (progressOf(parseDetail(detailOf({ of: 9 })))?.of !== 9) failures.push('of 9 를 못 읽는다');
+}
+
+// ── 7. 로봇에서 온 인덱스가 대본과 같은 함수로 노드를 채우는가 ───────────────
+//
+// 노드 갱신 코드는 그 인덱스가 로봇에서 왔는지 대본에서 왔는지 몰라야 한다 (§5).
+{
+  let fill = emptyFill(8);
+  for (let step = 1; step <= 8; step += 1) {
+    const detail = parseDetail(detailOf({ step, yaw_deg: (step - 1) * 45 }));
+    const index = viewpointIndexOf(detail);
+    if (index === null) continue;
+    // 로봇의 detail 을 fill.ts 의 프레임 모양으로 바꿔 넣는다 — fill.ts 는 출처를 모른다.
+    fill = applyRotation(fill, {
+      rotation_index: index, yaw: detail.yaw_deg ?? 0,
+      state: 'rotating', last_cmd: 'scan_mission', result: null,
+    });
+  }
+  const scanning = cellsInOrder(fill).filter((c) => c.phase === 'scanning').length;
+  if (scanning !== 8) failures.push(`로봇 사건 여덟을 넣었는데 탐색 중이 ${scanning}칸 — 여덟이어야 한다`);
+  // 첫 칸이 실제로 0번인가 — 한 칸 밀리면 여기서 갈린다.
+  if (fill.get(0)?.rotation?.rotation_index !== 0) failures.push('step 1 이 0번 칸에 안 들어갔다');
+  if (fill.get(7)?.rotation?.rotation_index !== 7) failures.push('step 8 이 7번 칸에 안 들어갔다');
+}
+
+// ── 8. 깨진 detail ──────────────────────────────────────────────────────────
+{
+  for (const raw of ['', '   ', 'not json', '[]', 'null', '{"event":"scan_turn"}', '{"step":3}']) {
+    const detail = parseDetail(raw);
+    if (detail !== null && (typeof detail.step !== 'number' || typeof detail.event !== 'string')) {
+      failures.push(`깨진 detail 「${raw}」 이 반쯤 채워진 값을 냈다`);
+    }
+    // 깨진 것은 인덱스를 내면 안 된다.
+    if (parseDetail(raw) === null && viewpointIndexOf(null) !== null) failures.push('null detail 이 인덱스를 냈다');
+  }
+}
+
+// ── 9. 응답 매핑 — 어느 태스크가 무엇을 쏘고 응답이 무엇을 바꾸는가 ─────────
+{
+  const { commandForTask, missionGeometry, effectsOf } = await load('src', 'physical', 'missionLink.ts');
+  const geometry = missionGeometry({ viewpoint_count: 8, forward_distance_m: 4.2 });
+
+  // T-A3 는 스캔만. **forward_m 을 태우지 않는다** — 두 마일스톤이 한 명령에 걸리면 안 된다.
+  const scan = commandForTask('T-A3', geometry);
+  if (scan?.action !== 'scan_mission') failures.push(`T-A3 가 ${scan?.action} 을 쏜다 — scan_mission 이어야 한다`);
+  if (scan?.parameters?.forward_m !== 0) failures.push(`T-A3 의 forward_m 이 ${scan?.parameters?.forward_m} — 0 이어야 한다 (스캔만)`);
+  if (scan?.parameters?.steps !== 8) failures.push('T-A3 의 steps 가 8 이 아니다');
+
+  // T-B2 는 전진만. 거리는 방향·거리 함수가 준다.
+  const fwd = commandForTask('T-B2', geometry);
+  if (fwd?.action !== 'move_forward') failures.push(`T-B2 가 ${fwd?.action} 을 쏜다`);
+  if (fwd?.parameters?.distance_m !== 4.2) failures.push(`T-B2 의 거리가 ${fwd?.parameters?.distance_m} — 4.2 여야 한다`);
+  if (fwd?.parameters?.vx !== undefined) failures.push('vx 를 생략하기로 했는데 값이 있다');
+  if (commandForTask('T-A1', geometry) !== null) failures.push('명령이 없는 태스크가 명령을 냈다');
+
+  // 거리를 대본이 안 주면 0 이다 — 지어내지 않는다.
+  if (missionGeometry({}).forwardDistanceM !== 0) failures.push('거리를 모르는데 값을 지어냈다');
+  if (missionGeometry(null).source !== 'script') failures.push('값의 출처 표기가 없다');
+
+  const context = { taskOf: () => 'T-A3', chosenAngleDeg: 90, viewpointCount: 8 };
+
+  // 거절은 숨기지 않는다 — 코드와 문구가 그대로 올라온다.
+  const rejected = effectsOf(
+    { kind: 'acceptance', commandId: 'c', accepted: false, code: 'robot_state_dead', message: '로봇이 죽어 있다' },
+    context,
+  );
+  const fail = rejected.find((e) => e.kind === 'task-failed');
+  if (!fail) failures.push('거절이 실패로 안 올라온다');
+  if (fail?.code !== 'robot_state_dead') failures.push('거절 코드를 버렸다 — 무대에서 원인을 못 찾는다');
+  if (!String(fail?.message ?? '').trim()) failures.push('거절 문구를 버렸다');
+
+  // 회전 하나가 노드를 채우면서 진행률도 민다.
+  const turn = effectsOf({ kind: 'status', commandId: 'c', state: 'EXECUTING', detail: parseDetail(detailOf({ step: 3, ack: 3, of: 9 })), raw: '' }, context);
+  const vp = turn.find((e) => e.kind === 'viewpoint');
+  if (vp?.frame?.payload?.rotation_index !== 2) failures.push(`step 3 이 rotation_index ${vp?.frame?.payload?.rotation_index} 로 갔다 — 2 여야 한다`);
+  // **로봇에서 온 것은 scanning 까지만이다** — 문 유무는 대본이 준다 (§6).
+  if (vp?.frame?.channel !== 'robot_state') failures.push('로봇 사건이 탐지 채널로 갔다 — 문 유무를 로봇이 말하면 안 된다');
+  if (!turn.some((e) => e.kind === 'progress' && e.ack === 3 && e.of === 9)) failures.push('진행률이 안 나온다');
+
+  // note 경고가 그 노드에 붙는다.
+  const warned = effectsOf({ kind: 'status', commandId: 'c', state: 'EXECUTING', detail: parseDetail(detailOf({ step: 4, note: 'turn_timeout' })), raw: '' }, context);
+  if (warned.find((e) => e.kind === 'viewpoint')?.warning !== 'turn_timeout') {
+    failures.push('turn_timeout 이 노드 경고로 안 붙는다');
+  }
+
+  // door_turn 은 계기 하나이고 뷰포인트를 만들지 않는다.
+  const doorTurn = effectsOf({ kind: 'status', commandId: 'c', state: 'EXECUTING', detail: parseDetail(detailOf({ event: 'door_turn', yaw_deg: 131, ack: 9, of: 9 })), raw: '' }, context);
+  if (!doorTurn.some((e) => e.kind === 'door-turn')) failures.push('door_turn 이 전이 계기로 안 나온다');
+  if (doorTurn.some((e) => e.kind === 'viewpoint')) failures.push('door_turn 이 뷰포인트를 만들었다');
+  if (doorTurn.find((e) => e.kind === 'door-turn')?.mismatch === null) {
+    failures.push('로봇 131도 · 화면 90도인데 어긋남을 기록하지 않는다');
+  }
+
+  // 끝과 실패.
+  const done = effectsOf({ kind: 'result', commandId: 'c', status: 'SUCCEEDED', result: { odo_m: 4.2 }, code: null, message: null }, context);
+  if (done[0]?.kind !== 'task-done') failures.push('SUCCEEDED 가 완료로 안 간다');
+  const aborted = effectsOf({ kind: 'result', commandId: 'c', status: 'ABORTED', result: {}, code: 'forward_timeout', message: '멈췄다' }, context);
+  if (aborted[0]?.kind !== 'task-failed') failures.push('ABORTED 가 실패로 안 간다');
+  if (aborted[0]?.code !== 'forward_timeout') failures.push('실패 사유를 버렸다');
+
+  // 모르는 command_id 는 아무 노드도 안 건드린다.
+  const orphan = effectsOf({ kind: 'acceptance', commandId: 'zzz', accepted: true, code: null, message: null }, { ...context, taskOf: () => null });
+  if (orphan.length !== 0) failures.push('모르는 command_id 가 노드를 건드렸다');
+}
+
+// ── 대조군 ───────────────────────────────────────────────────────────────────
+function control(name, hit) {
+  if (!hit) failures.push(`대조군 실패: ${name} — 변조 사본이 잡히지 않았다`);
+  controls.push(name);
+}
+{
+  // **한 칸 밀린 구현.** index = step 으로 두면 step 8 이 8번 칸을 노린다.
+  const shifted = (detail) => (detail.event === 'scan_turn' && detail.step >= 0 && detail.step < 8 ? detail.step : null);
+  const ours = [];
+  const theirs = [];
+  for (let step = 1; step <= 8; step += 1) {
+    const d = parseDetail(detailOf({ step }));
+    ours.push(viewpointIndexOf(d));
+    theirs.push(shifted(d));
+  }
+  control('index = step 으로 둔 사본 (한 칸 밀림)', JSON.stringify(ours) !== JSON.stringify(theirs));
+}
+{
+  // yaw 로 노드를 고르는 구현 — 출발 방위가 0 이 아니면 곧바로 어긋난다 (§5 ㉣).
+  // step 1(0번 칸)인데 로봇의 절대 방위가 350 도면 yaw 로는 8번을 노린다 — 있지도 않은 칸이다.
+  const drifted = parseDetail(detailOf({ step: 1, yaw_deg: 350 }));
+  const byYaw = Math.round((drifted.yaw_deg ?? 0) / 45);
+  control('yaw 로 노드를 고른 사본 (출발 방위 350도)', byYaw !== viewpointIndexOf(drifted));
+}
+{
+  // note 를 버리는 구현.
+  const d = parseDetail(detailOf({ note: 'turn_timeout' }));
+  control('note 를 버린 사본', warningOf(d) !== null);
+}
+
+if (failures.length) {
+  console.error(`❌ verify:status-index\n- ${failures.join('\n- ')}`);
+  process.exit(1);
+}
+console.log('✅ step 1~8 → index 0~7 · 범위 밖(0 · 9 · 소수)은 버린다');
+console.log('✅ scan_turn 만 뷰포인트를 건드린다 — door_turn·forward·aborted 는 0건');
+console.log('✅ note != ok 는 경고로 남는다 · yaw_deg: null 에서 안 깨진다 · 각도는 360 으로 감긴다');
+console.log('✅ door_turn 은 계기이지 노드가 아니다 — 뷰포인트를 만들지 않고 yaw 어긋남만 기록한다');
+console.log('✅ 로봇 사건 여덟이 대본과 같은 함수로 여덟 칸을 채운다 (fill.ts 는 출처를 모른다)');
+console.log(`✅ 대조군 ${controls.length}건 전부 검출 — ${controls.join(' · ')}`);

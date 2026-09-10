@@ -34,6 +34,7 @@
     "verify:placeholder-default": "node scripts/verify-placeholder-default.mjs",
     "verify:script-library": "node scripts/verify-script-library.mjs",
     "verify:script-door": "node scripts/verify-script-door.mjs",
+    "verify:status-index": "node scripts/verify-status-index.mjs",
     "verify:command-encode": "node scripts/verify-command-encode.mjs",
     "verify:physical-port": "node scripts/verify-physical-port.mjs",
     "verify:no-physical": "node scripts/verify-no-physical.mjs",
