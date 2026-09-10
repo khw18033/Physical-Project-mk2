@@ -1,0 +1,154 @@
+// verify:no-publish-before-approval (260910 신설 — 화면 연결 지시서 §7)
+//
+// **승인 전에 로봇으로 나가는 바이트가 0건인가.**
+//
+// 매칭 결과는 제안이고 사람이 승인하기 전에는 아무것도 나가지 않는다(`VZ-U-07`).
+// 이 검사는 그 선이 로봇 채널에도 걸려 있는지 본다 — 대본 재생에는 걸려 있었지만
+// MQTT 는 이번에 새로 뚫은 길이라 같은 선을 다시 그어야 한다.
+//
+// 발행을 세는 방법: 진짜 `PhysicalClient` 를 쓰되 `send()` 를 세는 것으로 갈아 끼운다.
+// 브로커에 붙지 않은 상태에서도 「보내려 시도했는가」가 잡혀야 하므로 붙은 척한다.
+
+import { join } from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+
+const root = join(fileURLToPath(new URL('.', import.meta.url)), '..');
+const load = (...p) => import(pathToFileURL(join(root, ...p)).href);
+
+const { issueScan, issueApproach, issuePing, emergencyStop } = await load('src', 'physical', 'robotCommands.ts');
+const {
+  resetRobotSession, markApproved, robotSession, canIssueRobotCommand, releaseStopped,
+} = await load('src', 'physical', 'robotSession.ts');
+
+const failures = [];
+const controls = [];
+
+/** 붙은 척하면서 발행을 세는 가짜 클라이언트. 진짜와 같은 모양이다. */
+function countingClient() {
+  const sent = [];
+  return {
+    sent,
+    getStatus: () => ({ state: 'open' }),
+    send(action, parameters) {
+      sent.push({ action, parameters });
+      return { sent: true, commandId: 'cmd-' + String(sent.length).padStart(8, '0') };
+    },
+  };
+}
+
+const params = { viewpoint_count: 8, forward_distance_m: 4.2 };
+
+// ── 1. 승인 전 — 임무 명령이 하나도 안 나간다 ────────────────────────────────
+{
+  resetRobotSession();
+  const client = countingClient();
+  if (canIssueRobotCommand()) failures.push('승인 전인데 로봇 명령을 내도 된다고 한다');
+
+  const scan = await issueScan(client, params);
+  const approach = await issueApproach(client, params);
+
+  if (client.sent.length !== 0) {
+    failures.push(`승인 전에 ${client.sent.length}건이 나갔다 — ${client.sent.map((s) => s.action).join(', ')}`);
+  }
+  if (scan?.sent !== false) failures.push('승인 전 스캔이 보냈다고 한다');
+  if (approach?.sent !== false) failures.push('승인 전 접근이 보냈다고 한다');
+  // 왜 안 보냈는지는 말해야 한다 — 조용히 넘어가면 발표장에서 「왜 안 가지」가 된다.
+  if (!String(scan?.reason ?? '').trim()) failures.push('승인 전 거부에 사유가 없다');
+}
+
+// ── 2. 승인 뒤 — 스캔이 나간다. forward_m 은 0 이다 ─────────────────────────
+{
+  resetRobotSession();
+  const client = countingClient();
+  markApproved();
+  await issueScan(client, params);
+
+  if (client.sent.length !== 1) failures.push(`승인 뒤 스캔이 ${client.sent.length}건 — 하나여야 한다`);
+  const scan = client.sent[0];
+  if (scan?.action !== 'scan_mission') failures.push(`승인이 ${scan?.action} 을 쐈다 — scan_mission 이어야 한다`);
+  // **스캔과 접근을 한 명령으로 묶지 않는다** — 두 마일스톤이 한 명령에 걸리면 안 된다.
+  if (scan?.parameters?.forward_m !== 0) failures.push(`승인이 쏜 forward_m 이 ${scan?.parameters?.forward_m} — 0 이어야 한다`);
+}
+
+// ── 3. 스캔 → 접근이 자동으로 이어지지 않는다 (§1) ──────────────────────────
+{
+  resetRobotSession();
+  const client = countingClient();
+  markApproved();
+  await issueScan(client, params);
+  const before = client.sent.length;
+
+  // door_turn 이 오지 않은 상태에서 접근을 부르면 — 사람이 안 눌렀다는 뜻이다.
+  const { canApproach } = await load('src', 'physical', 'robotCommands.ts');
+  if (canApproach()) failures.push('door_turn 전인데 접근을 눌러도 된다고 한다');
+  if (client.sent.length !== before) failures.push('스캔이 접근을 자동으로 불렀다 — 사람이 눌러야 한다');
+}
+
+// ── 4. 정지 뒤에는 다시 안 나간다 ────────────────────────────────────────────
+{
+  resetRobotSession();
+  const client = countingClient();
+  markApproved();
+  await emergencyStop(client);
+  const afterStop = client.sent.length;   // abort 하나는 나갔다
+
+  await issueScan(client, params);
+  await issueApproach(client, params);
+  if (client.sent.length !== afterStop) {
+    failures.push(`정지 뒤에 ${client.sent.length - afterStop}건이 더 나갔다 — 잠긴 화면에서 명령이 나가면 안 된다`);
+  }
+
+  // 「정지됨」에서 나오면 **승인이 내려간다** — 사람이 다시 승인해야 한다.
+  releaseStopped();
+  if (robotSession().approved) failures.push('정지를 풀었더니 승인이 그대로다 — 사람이 다시 승인해야 한다');
+  if (canIssueRobotCommand()) failures.push('정지를 푼 직후에 명령을 내도 된다고 한다');
+}
+
+// ── 5. ping 은 승인과 무관하다 ───────────────────────────────────────────────
+//
+// 임무 명령이 아니라 연결 확인이다. 발표 직전에 무대에 오르기 전 누르는 것이라
+// 승인이라는 개념 자체가 없다.
+{
+  resetRobotSession();
+  const client = countingClient();
+  const ping = await issuePing(client);
+  if (client.sent.length !== 1 || client.sent[0].action !== 'ping') {
+    failures.push('승인 전 ping 이 안 나간다 — 연결 확인은 임무 명령이 아니다');
+  }
+  if (ping.ok !== true) failures.push('ping 이 나갔는데 실패라고 한다');
+}
+
+// ── 대조군 ───────────────────────────────────────────────────────────────────
+function control(name, hit) {
+  if (!hit) failures.push(`대조군 실패: ${name} — 변조 사본이 잡히지 않았다`);
+  controls.push(name);
+}
+{
+  // 승인 확인을 건너뛴 사본은 승인 전에 바이트를 낸다.
+  resetRobotSession();
+  const client = countingClient();
+  client.send('scan_mission', { steps: 8, forward_m: 0 });  // 관문을 안 지난 발행
+  control('승인 확인을 건너뛴 발행', client.sent.length > 0 && !robotSession().approved);
+}
+{
+  resetRobotSession();
+  markApproved();
+  control('승인 뒤에는 관문이 열린다', canIssueRobotCommand());
+}
+
+resetRobotSession();
+// 추적기의 만료 타이머를 끊는다 — 안 끊으면 Node 가 TTL 이 다 될 때까지 안 죽는다.
+const { commandTracker } = await load('src', 'shared', 'commandCenter.ts');
+commandTracker.clear();
+
+if (failures.length) {
+  console.error(`❌ verify:no-publish-before-approval\n- ${failures.join('\n- ')}`);
+  process.exit(1);
+}
+console.log('✅ 승인 전 로봇 발행 0건 — 스캔·접근 둘 다 막히고 사유를 말한다');
+console.log('✅ 승인 뒤 scan_mission 하나 · forward_m=0 (스캔과 접근을 한 명령으로 묶지 않는다)');
+console.log('✅ 스캔이 접근을 자동으로 부르지 않는다 — door_turn 전에는 누를 수도 없다');
+console.log('✅ 정지 뒤 발행 0건 · 정지를 풀면 승인이 내려간다 (사람이 다시 승인한다)');
+console.log('✅ ping 은 승인과 무관 — 연결 확인은 임무 명령이 아니다');
+console.log(`✅ 대조군 ${controls.length}건 전부 검출 — ${controls.join(' · ')}`);
+process.exit(0);

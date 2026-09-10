@@ -13,6 +13,23 @@
  * 빈 프리셋으로 두고, 받는 즉시 아래 한 줄만 고치면 되게 해 두었다.
  */
 
+/**
+ * **정지 명령의 이름. 상수 한 줄이다.** (`문서/정지명령_규약_260910.md`)
+ *
+ * 우리가 정의해 하드웨어 쪽에 넘긴 안이고 **받는 쪽이 아직 합의하지 않았다.** 그쪽이 다른
+ * 이름을 쓰겠다고 하면 이 줄만 고친다 — 그래서 문자열을 여기 밖에 적지 않는다.
+ * 규약의 질문 다섯 중 첫째가 「`abort` 라는 이름으로 괜찮은가」다.
+ */
+export const STOP_ACTION = 'abort';
+
+/**
+ * 정지 사유 코드. `parameters` 가 `map<string, double>` 이라 문자열을 못 넣어 숫자로 보낸다.
+ * **기록용이고 로봇 동작은 값과 무관하게 같아야 한다** — 무엇이든 즉시 멈춘다.
+ *
+ * **`reason` 말고 다른 파라미터를 더하지 않는다** — 규약 밖으로 나가지 않는다.
+ */
+export const STOP_REASON = { human: 1, screen: 2, connection: 3 } as const;
+
 export type BrokerPreset = {
   id: string;
   label: string;

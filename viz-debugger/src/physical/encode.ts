@@ -17,6 +17,7 @@
  */
 
 import { physical } from './protocol.js';
+import { STOP_ACTION } from './presets.ts';
 
 /** 하드웨어가 부르는 장비 이름. **이 디렉터리 밖에 적지 않는다.** */
 export const HARDWARE_TARGET = 'go1-001';
@@ -29,8 +30,14 @@ export function hardwareTarget(vizEntityId: string): string {
   return TARGET_OF[vizEntityId] ?? vizEntityId;
 }
 
-/** 하드웨어가 받는 세 가지. 그 밖의 action 은 장치가 거부한다(Capability §5-4). */
-export type PhysicalAction = 'ping' | 'scan_mission' | 'move_forward';
+/**
+ * 하드웨어가 받는 셋과, **우리가 정의해 넘긴 정지 하나** (`STOP_ACTION`).
+ * 그 밖의 action 은 장치가 거부한다(Capability §5-4).
+ *
+ * 정지의 이름은 상수에서 끌어온다 — 하드웨어가 다른 이름을 쓰겠다고 하면 `presets.ts` 의
+ * 그 한 줄만 고치면 이 타입까지 같이 따라온다.
+ */
+export type PhysicalAction = 'ping' | 'scan_mission' | 'move_forward' | typeof STOP_ACTION;
 
 export type CommandInput = {
   commandId: string;

@@ -30,7 +30,7 @@
 
 import { recordHuman } from '../data/scenario.ts';
 import { getTransport } from '../transport/index.ts';
-import type { ActionSpec, CommandRequest, CommandResult } from '../transport/index.ts';
+import type { ActionSpec, CommandAck, CommandRequest, CommandResult } from '../transport/index.ts';
 import { GATEWAY } from '../transport/index.ts';
 import { buildAuditPayload, type VoiceAuditPayload } from './auditFieldMap.ts';
 import { CorrelationRegistry } from './correlation.ts';
@@ -136,6 +136,18 @@ export type IssueOptions = {
   params?: Record<string, unknown>;
   /** 음성으로 발행된 명령의 출처 (REQ-1305). 검증은 shared/voiceAudit.ts 가 한다. */
   voice?: VoiceAuditPayload;
+  /**
+   * **발행 수단을 갈아 끼운다** (260910 — 화면 연결).
+   *
+   * 로봇 명령은 게이트웨이가 아니라 MQTT 로 나간다. 그렇다고 추적기를 우회하면
+   * `VZ-O-02`(4단계 추적)와 `VZ-O-03`(감사)이 **그 명령만** 못 본다 — 탭 이식 때
+   * 추적기를 본체로 삼은 이유가 그것이다.
+   *
+   * 그래서 출구를 하나로 두고 **나가는 수단만** 바꾼다. 주지 않으면 지금까지와 한 줄도
+   * 다르지 않게 게이트웨이로 나간다. `verify:command-through-tracker` 가 로봇 명령이
+   * 이 길을 지나는지 본다.
+   */
+  publish?: (request: CommandRequest) => Promise<CommandAck>;
 };
 
 export class CommandTracker {
@@ -250,7 +262,9 @@ export class CommandTracker {
     // ACK 없이 만료되는 경우를 화면이 스스로 정리할 수 있게 한다.
     this.armExpiry(requestId, ttl);
 
-    const ack = await getTransport().publishCommand(request);
+    // 발행 수단은 갈아 끼울 수 있다(로봇은 MQTT). **추적·감사는 갈리지 않는다** —
+    // 위에서 이미 기록했고 아래에서 같은 자리로 ACK 를 반영한다.
+    const ack = await (options.publish ?? ((r: CommandRequest) => getTransport().publishCommand(r)))(request);
     this.applyAck(ack.clientRequestId, ack.commandId, ack.accepted, ack.reasonCode, ack.message);
     return this.commands.get(requestId) ?? tracked;
   }
