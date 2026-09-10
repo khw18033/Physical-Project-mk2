@@ -37,7 +37,11 @@ export function hardwareTarget(vizEntityId: string): string {
  * 정지의 이름은 상수에서 끌어온다 — 하드웨어가 다른 이름을 쓰겠다고 하면 `presets.ts` 의
  * 그 한 줄만 고치면 이 타입까지 같이 따라온다.
  */
-export type PhysicalAction = 'ping' | 'scan_mission' | 'move_forward' | typeof STOP_ACTION;
+export type PhysicalAction =
+  | 'ping' | 'diag'                                   // 로봇이 안 움직인다
+  | 'turn' | 'move_forward' | 'scan_mission'          // 로봇이 움직인다
+  | 'sdk_start' | 'sdk_stop' | 'sdk_auto'             // 구동 브리지 (§4-3)
+  | 'abort_mission' | typeof STOP_ACTION;
 
 export type CommandInput = {
   commandId: string;

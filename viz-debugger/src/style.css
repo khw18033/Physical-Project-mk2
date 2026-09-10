@@ -438,6 +438,18 @@ b.follow-live{cursor:default}
 .robot-stop:hover{background:#b8271f}
 /* 정지 실패 — 크게, 빨갛게. 누른 사람은 로봇이 멈춘 줄 알고 다가간다. */
 .robot-stopfail{margin:0 0 8px;padding:12px 14px;border:2px solid #a3241f;border-radius:8px;background:#fdeceb;color:#8f2b26;font-size:15px;font-weight:800}
+/* 구동 브리지 (260910) — 「붙어 있다」와 「움직일 수 있다」는 다르다. */
+.robot-standing{margin:0 0 8px;padding:9px 12px;border-left:4px solid #c07a1a;border-radius:0 6px 6px 0;background:#fdf6ea;color:#7a4d08;font-size:13px}
+.robot-sdk{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:10px;padding-top:9px;border-top:1px dashed #dfe4ea}
+.robot-sdk-label{color:#6b7888;font-size:12px;font-weight:700;letter-spacing:.04em}
+.robot-sdk button{padding:5px 10px;border:1px solid #ccd4dd;border-radius:6px;background:#fff;color:#39434f;font-size:12px}
+.robot-sdk-dot{padding:3px 8px;border-radius:10px;font-size:12px;font-style:normal;font-weight:600}
+/* 모름이 기본이다 — 회색. 꺼짐(빨강)으로 그리지 않는다. */
+.robot-sdk-dot--unknown{background:#eef1f5;color:#6b7888}
+.robot-sdk-dot--ok{background:#e7f6ee;color:#125c33}
+.robot-sdk-dot--down{background:#f3f0ea;color:#7a4d08}
+.robot-sdk-none{flex-basis:100%;color:#8f2b26;font-size:12px}
+.robot-sdk-none code{background:#fdf3f2;padding:1px 4px;border-radius:3px}
 .robot-locked{display:flex;align-items:center;gap:10px;margin:0 0 8px;padding:9px 12px;border-left:4px solid #a3241f;background:#fdf3f2;color:#8f2b26;font-size:13px}
 .robot-release{margin-left:auto;padding:5px 11px;border:1px solid #a3241f;border-radius:6px;background:#fff;color:#8f2b26;font-size:12px}
 .robot-yawoff{margin:8px 0 0;padding:8px 10px;border-left:3px solid #e2a13a;background:#fdf8ec;color:#6b5520;font-size:12px}

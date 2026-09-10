@@ -31,6 +31,8 @@ export function DeviceFacts({ entityId }: { entityId: string }) {
   if (device.link !== null) rows.push(['로봇 링크', device.link]);
   if (device.health !== null) rows.push(['상태', device.health]);
   if (device.mode !== null) rows.push(['모드', device.mode]);
+  // **null 은 「모른다」다** — 회색으로 두고 꺼짐으로 그리지 않는다 (연동 가이드 §4-3).
+  rows.push(['구동 브리지', sdkWords(device.sdkReady, device.sdkAutostart)]);
   if (device.inMission !== null) rows.push(['임무 중', device.inMission ? '예' : '아니오']);
   // null 은 「모른다」다 — 0% 로 그리지 않는다.
   if (device.batteryPct !== null) {
@@ -47,4 +49,30 @@ export function DeviceFacts({ entityId }: { entityId: string }) {
   return <dl className="device-facts">
     {rows.map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}
   </dl>;
+}
+
+/**
+ * 구동 브리지의 상태를 한 줄로. **`null` 을 「꺼짐」으로 그리지 않는다** (연동 가이드 §4-3).
+ *
+ * 지금 돌고 있는 노드(schema 1.3)는 이 필드를 아예 안 실어 보낸다. 그래서 실제로 계속
+ * 「모름」이고, 그것이 사실이다 — 「내려감」이라고 적으면 거짓을 그리는 것이다.
+ */
+export function sdkWords(ready: boolean | null, autostart: boolean | null): string {
+  const state = ready === null ? '모름 (상태를 안 보내옵니다)' : ready ? '서 있음' : '내려감';
+  if (autostart === null) return state;
+  return `${state} · 자동 기동 ${autostart ? '켜짐' : '꺼짐'}`;
+}
+
+/**
+ * 로봇 패널의 한 칸짜리 표시. 브리지가 서 있는지를 **버튼 옆에** 둔다 — 눌러야 할지
+ * 말지를 그 자리에서 알아야 한다.
+ */
+export function SdkState({ entityId }: { entityId: string }) {
+  const devices = useDeviceStates();
+  const device = devices[hardwareTarget(entityId)] ?? null;
+  const ready = device?.sdkReady ?? null;
+  return <em
+    className={`robot-sdk-dot robot-sdk-dot--${ready === null ? 'unknown' : ready ? 'ok' : 'down'}`}
+    title="구동 브리지(go1-sdk). 평시에는 내려가 있습니다 — 기동하면 로봇이 일어섭니다"
+  >{sdkWords(ready, device?.sdkAutostart ?? null)}</em>;
 }

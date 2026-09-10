@@ -19,7 +19,7 @@ const root = join(fileURLToPath(new URL('.', import.meta.url)), '..');
 const load = (...p) => import(pathToFileURL(join(root, ...p)).href);
 
 const { commandTracker } = await load('src', 'shared', 'commandCenter.ts');
-const { issueScan } = await load('src', 'physical', 'robotCommands.ts');
+const { issueScan, issueSdkStart, issueSdkAuto } = await load('src', 'physical', 'robotCommands.ts');
 const { resetRobotSession, markApproved, setConnection } = await load('src', 'physical', 'robotSession.ts');
 const online = () => setConnection({ state: 'open' });
 const failures = [];
@@ -72,6 +72,30 @@ function countingClient() {
 
   // 3. 태스크 id 가 파라미터에 실렸는가 — 응답이 어느 노드의 것인지 잇는 실.
   if (tracked !== undefined && outcome?.commandId === '') failures.push('command_id 가 안 돌아왔다');
+}
+
+// ── 4-b. 구동 브리지 명령도 지난다 (260910) ─────────────────────────────────
+//
+// `sdk_start` 는 **로봇을 일으켜 세운다.** 임무 명령이 아니라 승인과 무관하게 나가므로
+// 오히려 감사에 남을 이유가 더 크다 — 「누가 언제 로봇을 세웠나」가 남아야 한다.
+{
+  resetRobotSession();
+  online();   // 승인은 안 한다 — 임무 명령이 아니라는 것까지 같이 본다
+  const client = countingClient();
+  const before = commandTracker.getSnapshot().length;
+
+  const started = await issueSdkStart(client);
+  const auto = await issueSdkAuto(client, false);
+
+  if (commandTracker.getSnapshot().length !== before + 2) {
+    failures.push('브리지 명령이 추적기를 안 지났다 — 로봇을 세우는 명령이 감사에 안 남는다');
+  }
+  if (started.sent !== true) failures.push('승인 전이라고 브리지 명령을 막았다 — 임무 명령이 아니다');
+  const actions = client.sent.map((c) => c.action);
+  if (actions.join(',') !== 'sdk_start,sdk_auto') failures.push(`나간 action 이 ${actions.join(',')}`);
+  // 규약이 map<string, double> 이라 참·거짓을 1·0 으로 싣는다.
+  if (client.sent[1]?.parameters?.on !== 0) failures.push('자동 기동 끄기가 on:0 으로 안 나갔다');
+  if (auto.sent !== true) failures.push('sdk_auto 가 안 나갔다');
 }
 
 // ── 5. 게이트웨이로는 안 나간다 ──────────────────────────────────────────────

@@ -40,6 +40,8 @@ export type StopState = {
 export type TaskCommandRecord = {
   taskId: string;
   commandId: string;
+  /** 무슨 명령이었나. 로봇이 「그런 명령 없다」고 하면 어느 이름인지 알아야 한다. */
+  action: string;
   /** 추적기가 발급한 요청 식별자 — 감사·추적이 이 키로 걸린다. */
   requestId: string | null;
   state: 'issued' | 'running' | 'done' | 'failed';
@@ -75,6 +77,22 @@ export type RobotSession = {
   ping: { ok: boolean; roundTripMs: number | null; message: string } | null;
   /** 승인한 시각(ms). 로봇이 몰 때 「몇 초째인가」의 기준이다. 승인 전에는 null. */
   approvedAtMs: number | null;
+  /**
+   * 지금 어느 **단계**인가 (연동 가이드 §4-3). `sdk_starting` 이면 로봇이 일어서는 중이다.
+   * 임무 ACK 와 다른 축이라 따로 둔다 — 진행률은 아직 0인데 로봇은 이미 뭔가 하고 있다.
+   */
+  stage: string | null;
+  /**
+   * 로봇이 **「그런 명령 없다」고 한 이름들** (`UNIMPLEMENTED`).
+   *
+   * 가이드에 적힌 어휘와 노드에 올라가 있는 어휘가 다를 수 있다 — 260910 실측으로
+   * `sdk_stop` · `sdk_auto` 가 `UNIMPLEMENTED: action not supported` 로 돌아왔다.
+   * 그러면 그 버튼은 **눌러도 영영 안 되는 버튼**이다. 비활성으로 감추지 않고(정지
+   * 버튼과 같은 규칙) 한 번 듣고 나면 화면이 그 사실을 말한다.
+   *
+   * 하드웨어가 올리는 날 거절이 멈추고 저절로 풀린다 — 우리가 고칠 자리가 없다.
+   */
+  unsupported: Readonly<Record<string, true>>;
 };
 
 const EMPTY: RobotSession = {
@@ -89,6 +107,8 @@ const EMPTY: RobotSession = {
   stopped: null,
   ping: null,
   approvedAtMs: null,
+  stage: null,
+  unsupported: {},
   seenYaw: {},
 };
 
@@ -241,6 +261,17 @@ export function applyEffects(effects: readonly LinkEffect[]): ViewpointFrame[] {
       next = { ...next, doorTurn: { yawDeg: effect.yawDeg, chosenIndex: effect.chosenIndex } };
     } else if (effect.kind === 'task-running' || effect.kind === 'task-failed' || effect.kind === 'task-done') {
       next = { ...next, commands: applyTaskEffect(next.commands, effect) };
+      // 명령이 끝났으면 단계는 지난 말이다 — 「실행 중」을 끝난 뒤에도 띄우면 거짓말이다.
+      if (effect.kind !== 'task-running') next = { ...next, stage: null };
+      // **「그런 명령 없다」를 기억한다.** 눌러도 영영 안 되는 버튼을 계속 권하지 않는다.
+      if (effect.kind === 'task-failed' && effect.code === 'UNIMPLEMENTED') {
+        const action = next.commands[effect.commandId]?.action;
+        if (action !== undefined) next = { ...next, unsupported: { ...next.unsupported, [action]: true } };
+      }
+    } else if (effect.kind === 'stage') {
+      // **일어서는 중이라는 말을 안 삼킨다.** 몇 초 동안 아무 일도 안 일어나는 것처럼
+      // 보이는 구간이고, 그때 화면이 조용하면 발표장에서 「왜 안 가지」가 된다.
+      next = { ...next, stage: effect.stage };
     } else if (effect.kind === 'aborted') {
       // 로봇이 스스로 끊었다 — 우리가 누른 정지와 다르다. 화면은 잠그지 않고 사실만 남긴다.
       next = { ...next, progress: next.progress };
@@ -254,7 +285,8 @@ function applyTaskEffect(
   commands: RobotSession['commands'],
   effect: LinkEffect,
 ): RobotSession['commands'] {
-  const entry = Object.values(commands).find((c) => 'taskId' in effect && c.taskId === effect.taskId);
+  // **command_id 로 찾는다.** 태스크 이름으로 찾으면 같은 이름의 둘째 명령이 첫째를 덮는다.
+  const entry = 'commandId' in effect ? commands[effect.commandId] : undefined;
   if (entry === undefined) return commands;
   const next = { ...entry };
   if (effect.kind === 'task-running') next.state = 'running';

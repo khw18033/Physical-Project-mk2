@@ -122,6 +122,53 @@ export function viewpointIndexOf(detail: StatusDetail | null, count = 8): number
   return index;
 }
 
+/**
+ * **로봇이 일어서는 중인지 알려 주는 자리** (연동 가이드 §4-3).
+ *
+ * 구동 브리지는 평시에 내려가 있다 — 기동하는 순간 로봇이 일어서기 때문이다. 이동 명령은
+ * 필요하면 스스로 브리지를 띄우고, 그 사이 진행 보고가 두 건 더 온다.
+ *
+ *     수락 → sdk_starting → sdk_ready → executing → (임무 ACK…) → 종료
+ *
+ * 가이드가 「`sdk_starting` 이 보이면 로봇이 지금 일어서는 중이다. 화면에 그대로 드러내야
+ * 한다」고 못박았다. 몇 초 동안 아무 일도 안 일어나는 것처럼 보이는 구간이라, 안 그리면
+ * 발표장에서 「왜 안 가지」가 된다.
+ */
+export const SDK_STARTING = 'sdk_starting';
+export const SDK_READY = 'sdk_ready';
+
+/**
+ * 임무 ACK 가 아닌 **단계 보고**를 읽는다. 못 읽으면 null 이다.
+ *
+ * `detail` 은 한 종류가 아니다. 실측으로 셋을 봤다:
+ *
+ *     ""                                          빈 것 — 아무 말도 안 한다
+ *     "executing"                                 맨 문자열로 온 단계 이름
+ *     {"ack":3,"of":10,"event":"scan_turn",…}     임무 ACK (JSON)
+ *
+ * 그래서 `parseDetail` 하나로 다 받으면 안 된다 — 그것은 `step` 을 요구해서 앞의 둘을
+ * **조용히 버린다.** 실제로 `diag` 의 단계 둘이 그렇게 사라졌다. 임무 ACK 인 것은 여기서
+ * null 을 돌려주고 `parseDetail` 에게 맡긴다 — 한 봉투가 두 뜻이 되면 안 된다.
+ */
+export function stageOf(raw: string): string | null {
+  const text = raw.trim();
+  if (text === '') return null;
+  // 맨 문자열이면 그것이 단계 이름이다.
+  if (!text.startsWith('{')) return text;
+  // 임무 ACK 면 단계가 아니다 — 저쪽 함수의 몫이다.
+  if (parseDetail(raw) !== null) return null;
+  let parsed: unknown;
+  try { parsed = JSON.parse(raw); } catch { return null; }
+  if (typeof parsed !== 'object' || parsed === null) return null;
+  const event = (parsed as Record<string, unknown>).event;
+  return typeof event === 'string' && event !== '' ? event : null;
+}
+
+/** 이 단계에서 **로봇이 일어서는 중**인가. */
+export function isStanding(stage: string | null): boolean {
+  return stage === SDK_STARTING;
+}
+
 /** `note` 가 `ok` 가 아니면 경고다. 조용히 정상으로 칠하지 않는다 (§5 ㉢). */
 export function warningOf(detail: StatusDetail | null): string | null {
   if (detail === null) return null;

@@ -10,7 +10,7 @@
 
 import { useEffect } from 'react';
 import { appendViewpoint } from '../viewpoint/store.ts';
-import { effectsOf, type LinkEffect } from './missionLink.ts';
+import { effectsOf, NO_NODE, type LinkEffect } from './missionLink.ts';
 import type { PhysicalClient } from './PhysicalClient.ts';
 import { advanceRobotHead, receiveRobotProgress } from '../data/scenario.ts';
 import type { ScenarioEvent } from '../model/types.ts';
@@ -108,6 +108,8 @@ let robotSeq = 3_000_000;
 function traceEventsOf(effects: readonly LinkEffect[], atSec: number): ScenarioEvent[] {
   const events: ScenarioEvent[] = [];
   for (const effect of effects) {
+    // 노드가 없는 명령(구동 브리지)은 사건을 안 만든다 — 없는 노드에 붙이면 그래프가 커진다.
+    if ('taskId' in effect && effect.taskId === NO_NODE) continue;
     if (effect.kind === 'task-running') {
       events.push(event(effect.taskId, 'running', 'started', atSec));
     } else if (effect.kind === 'task-done') {

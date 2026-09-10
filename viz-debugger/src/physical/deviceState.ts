@@ -44,6 +44,17 @@ export type DeviceState = {
   timestamp: string | null;
   /** 목 장비인가 (`go1-sim`). 화면이 진짜와 섞지 않게 표시한다. */
   simulated: boolean;
+  /**
+   * **구동 브리지가 서 있는가** (연동 가이드 §4-3). 붙어 있다고 움직일 수 있는 것이 아니다 —
+   * 브리지는 기동하는 순간 로봇을 일으켜 세우므로 평시에 내려가 있다.
+   *
+   * **`null` 은 「아직 모른다」이지 「꺼짐」이 아니다.** 가이드가 「회색으로 두고 꺼짐으로
+   * 그리지 말 것」이라고 못박았다. 지금 돌고 있는 노드(schema 1.3)는 이 필드를 아예 안
+   * 실어 보내므로 실제로 계속 null 이다.
+   */
+  sdkReady: boolean | null;
+  /** 이동 명령이 왔을 때 브리지를 알아서 띄우는가. 꺼져 있으면 이동이 거절된다. */
+  sdkAutostart: boolean | null;
 };
 
 /** 토픽 하나를 뜯는다. 우리 것이 아니면 null — 남의 토픽을 지어 해석하지 않는다. */
@@ -75,6 +86,7 @@ export function applyDeviceMessage(
     online: null, health: null, link: null, mode: null, inMission: null,
     batteryPct: null, position: null, speedMps: null, firmware: null,
     lastSeenMs: nowMs, timestamp: null, simulated: false,
+    sdkReady: null, sdkAutostart: null,
   };
   const merged: DeviceState = { ...next, lastSeenMs: nowMs };
   merged.timestamp = str(body.timestamp) ?? merged.timestamp;
@@ -90,6 +102,12 @@ export function applyDeviceMessage(
     merged.batteryPct = num(body.battery_pct) ?? merged.batteryPct;
     const registration = body.registration as Record<string, unknown> | undefined;
     merged.firmware = str(registration?.fw_version) ?? merged.firmware;
+    // 없으면 **안 건드린다** — 「안 실렸다」가 「꺼졌다」가 되면 안 된다.
+    const sdk = body.sdk as Record<string, unknown> | undefined;
+    if (sdk !== undefined) {
+      if (typeof sdk.ready === 'boolean') merged.sdkReady = sdk.ready;
+      if (typeof sdk.autostart === 'boolean') merged.sdkAutostart = sdk.autostart;
+    }
   } else if (parsed.channel === 'state') {
     merged.batteryPct = num(body.battery_pct) ?? merged.batteryPct;
     merged.health = str(body.device_status) ?? merged.health;

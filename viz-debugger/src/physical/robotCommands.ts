@@ -22,6 +22,8 @@
 import { commandTracker } from '../shared/commandCenter.ts';
 import type { CommandAck, CommandRequest } from '../transport/index.ts';
 import type { PhysicalAction } from './encode.ts';
+import { SDK_ACTIONS } from './presets.ts';
+import { NO_NODE } from './missionLink.ts';
 import { commandForTask, missionGeometry } from './missionLink.ts';
 import type { PhysicalClient } from './PhysicalClient.ts';
 import type { UplinkMessage } from './uplink.ts';
@@ -96,7 +98,7 @@ async function issueThroughTracker(
   const sent = commandId !== '';
   if (sent) {
     recordCommand({
-      taskId, commandId, requestId: tracked.requestId,
+      taskId, commandId, action, requestId: tracked.requestId,
       state: 'issued', code: null, message: null, result: {},
     });
   }
@@ -151,6 +153,39 @@ export async function issueApproach(client: PhysicalClient, params: Record<strin
   const outcome = await issueTask(client, 'T-B2', params);
   if (outcome?.sent === true) markApproachIssued();
   return outcome;
+}
+
+/**
+ * **구동 브리지를 사람이 쥔다** (연동 가이드 §4-3 · 260910 지시).
+ *
+ * 로봇은 평시에 「연결만 된 상태」다. 브리지(`go1-sdk`)는 내려가 있고, 기동하는 순간
+ * 로봇이 **일어선다.** 그래서 부팅 자동시작이 꺼져 있다.
+ *
+ * 임무 쪽은 손댈 것이 없다 — 이동 명령이 알아서 브리지를 띄우고 그 사이 `sdk_starting`
+ * 을 보고한다. 여기 있는 셋은 **사람이 미리 쥐고 싶을 때**의 손잡이다.
+ *
+ *   준비    무대 오르기 전에 세워 둔다. 일어서는 몇 초를 시연 중에 안 쓴다
+ *   내림    선 채로 남는다. 리허설 사이에 내려 둔다
+ *   자동    끄면 이동 명령이 `go1_sdk_not_running` 으로 거절된다 —
+ *           「로봇이 스스로 일어서는 일이 절대 없게」 하고 싶을 때
+ *
+ * ## 승인과 무관하다 (ping 과 같은 자리)
+ *
+ * 임무 명령이 아니다. 「승인 전에 나가는 바이트가 없어야 한다」는 대본 실행을 막는
+ * 규칙이고, 이것은 사람이 버튼을 눌러 장비를 준비시키는 일이다. 대신 **추적기를
+ * 지난다** — 로봇을 일으켜 세우는 명령이라 감사에 남을 이유가 더 크다.
+ */
+export async function issueSdkStart(client: PhysicalClient): Promise<IssueOutcome> {
+  return issueThroughTracker(client, NO_NODE, SDK_ACTIONS.start);
+}
+
+export async function issueSdkStop(client: PhysicalClient): Promise<IssueOutcome> {
+  return issueThroughTracker(client, NO_NODE, SDK_ACTIONS.stop);
+}
+
+/** 자동 기동 켜기/끄기. 규약이 `map<string, double>` 이라 참·거짓을 1·0 으로 싣는다. */
+export async function issueSdkAuto(client: PhysicalClient, on: boolean): Promise<IssueOutcome> {
+  return issueThroughTracker(client, NO_NODE, SDK_ACTIONS.auto, { on: on ? 1 : 0 });
 }
 
 /** 접근을 눌러도 되는가 — `door_turn` 이 왔고, 아직 안 쐈고, 잠기지 않았을 때. */
