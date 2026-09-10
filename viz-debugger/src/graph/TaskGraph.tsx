@@ -3,7 +3,7 @@ import { ViewNodeCard } from '../canvas/ViewNodeCard.tsx';
 import type { ViewNodeEntry, ViewNodeInstance, ViewScope } from '../canvas/types.ts';
 import type { Hardware, NodeKind, RefEdge, Task, TaskStatus } from '../model/types.ts';
 import { cellClass, type ViewpointFill } from '../viewpoint/fill.ts';
-import { applyFanLayout, type ViewpointGroup } from './fanLayout.ts';
+import { applyFanLayout, fanGeometry, VIEWPOINT_NODE_HEIGHT, type ViewpointGroup } from './fanLayout.ts';
 import { dagLayout, viewNodeLayout, NODE_HEIGHT, NODE_WIDTH, VIEW_NODE_HEIGHT, VIEW_NODE_WIDTH, type Attached, type Position } from './layout.ts';
 import { STATE_STYLE } from './stateStyle.ts';
 
@@ -218,6 +218,15 @@ export function TaskGraph({ tasks, hardware, states, selected, dimUnrelated, onO
   useEffect(() => setMovedPositions({}), [taskSetKey]);
   const positions = useMemo(() => Object.fromEntries(tasks.map((task) => [task.id, movedPositions[task.id] ?? basePositions[task.id]])), [basePositions, movedPositions, tasks]);
   /**
+   * 8분할 분기선의 기하 (260910). **배치와 같은 함수에서 나온다** — 화면이 그리는 선과
+   * `verify:viewpoint-layout` 이 재는 선이 두 벌이면 「겹치지 않는다」가 그림과 다른 것을
+   * 말하게 된다. 사용자가 노드를 끌어 옮기면 그 자리를 기준으로 다시 잡힌다.
+   */
+  const fan = useMemo(() => fanGeometry(positions, viewpoints), [positions, viewpoints]);
+  /** 분기선으로 따로 그리는 여덟. 기본 엣지에서 건너뛸 쌍을 고르는 데 쓴다. */
+  const fanIds = useMemo(() => new Set(viewpoints?.taskIds ?? []), [viewpoints]);
+
+  /**
    * 뷰 노드의 기준 자리 — 연결한 태스크 **아래**, 전역이면 맨 아래 레인. 태스크를 끌면
    * 딸린 뷰 노드도 따라온다(옮긴 자리 기준으로 계산한다).
    */
@@ -238,7 +247,11 @@ export function TaskGraph({ tasks, hardware, states, selected, dimUnrelated, onO
   // 16:9 모니터에서 아래를 통째로 비웠고, 노드를 아래로 끌어 놓을 자리도 없었다.
   const height = Math.max(
     layoutHeight ?? MIN_CANVAS_HEIGHT,
-    ...Object.values(positions).map((position) => position.y + NODE_HEIGHT + ((refEdges?.length ?? 0) > 0 ? 70 : 30)),
+    // 뷰포인트 노드는 낮은 카드다 (260910) — 여기서 기본 높이로 재면 캔버스가 52px 씩
+    // 과하게 잡히고, 「여덟이 한 화면에」 계산이 실제 그림보다 후해진다.
+    ...Object.entries(positions).map(([id, position]) => position.y
+      + (fanIds.has(id) ? VIEWPOINT_NODE_HEIGHT : NODE_HEIGHT)
+      + ((refEdges?.length ?? 0) > 0 ? 70 : 30)),
     // 뷰 노드가 세로를 밀어낸다 — 캔버스가 따라 커지지 않으면 아래쪽 카드가 잘린다.
     ...Object.values(viewPositions).map((position) => position.y + VIEW_NODE_HEIGHT + 30),
   );
@@ -320,6 +333,9 @@ export function TaskGraph({ tasks, hardware, states, selected, dimUnrelated, onO
       {tasks.flatMap((task) => task.deps.map((dep) => {
         const from = positions[dep]; const to = positions[task.id]; if (!from || !to) return null;
         const key = `${dep}-${task.id}`;
+        // 8분할 분기 (260910) — 이 여덟 쌍은 **아래에서 spine 하나로 따로 그린다.**
+        // 쌍마다 그리면 세로 구간 여덟이 같은 x 에 포개져 한 줄처럼 보일 뿐 실제로는 여덟 겹이다.
+        if (fan !== null && dep === viewpoints?.parentTaskId && fanIds.has(task.id)) return null;
         const dim = dimUnrelated && (!relevant.has(dep) || !relevant.has(task.id)) ? ' dimmed' : '';
         // 줄바꿈(↵ · 실선 파랑)과 되돌아감(↺ · 점선 주황)은 **다른 것**이다. 섞이면 안 된다.
         if (wrapped.has(key)) {
@@ -331,6 +347,24 @@ export function TaskGraph({ tasks, hardware, states, selected, dimUnrelated, onO
         }
         return <path key={key} className={`edge${dim}`} d={connectionPath(from, to)} markerEnd="url(#arrow)" />;
       }))}
+      {/* 8분할 분기선 (260910) — **다섯째 선 종류다.** 부모에서 가로선 하나가 나가 세로
+          spine 을 만들고, spine 에서 각 노드로 가로 화살표 여덟이 붙는다. 여덟은 y 가 다
+          달라 서로 만나지 않는다 (`verify:viewpoint-layout` 이 좌표로 잰다).
+
+          쌍마다 그리지 않는 이유가 이것이다 — spine 은 여덟이 **공유하는** 한 줄이고,
+          노드쌍 하나의 성질이 아니다. 9/9 의 원형 배치에서 화살표가 겹친 것도 같은 자리다. */}
+      {fan !== null && (
+        <g className="edge--fan">
+          {/* 부모 오른쪽 변에서 spine 까지 가로선 하나. 화살촉 없음 — 갈라지는 지점이다. */}
+          <path className="edge edge--fan-trunk" d={`M${fan.parent.x},${fan.parent.y} L${fan.spineX},${fan.parent.y}`} />
+          {/* 세로 spine. 첫 노드 중앙에서 마지막 노드 중앙까지. */}
+          <path className="edge edge--fan-spine" d={`M${fan.spineX},${Math.min(fan.spineTop, fan.parent.y)} L${fan.spineX},${Math.max(fan.spineBottom, fan.parent.y)}`} />
+          {/* 가로 화살표 여덟. 화살촉이 각 노드의 **왼쪽 변 중앙**에 붙는다. */}
+          {fan.arrows.map((arrow) => (
+            <path key={`fan-${arrow.id}`} className="edge edge--fan-arrow" d={`M${arrow.fromX},${arrow.y} L${arrow.toX},${arrow.y}`} markerEnd="url(#arrow)" />
+          ))}
+        </g>
+      )}
       {/* 범위 엣지 (260903) — 태스크 → 그 태스크에 연결된 뷰 노드. 흐름이 아니라 소속이라
           화살표가 없다. **deps 가 아니다** — 깊이 계산은 위의 tasks 만 본다. */}
       {(canvas?.nodes ?? []).map((node) => {

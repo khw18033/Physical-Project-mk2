@@ -34,6 +34,7 @@
     "verify:placeholder-default": "node scripts/verify-placeholder-default.mjs",
     "verify:script-library": "node scripts/verify-script-library.mjs",
     "verify:script-door": "node scripts/verify-script-door.mjs",
+    "verify:viewpoint-layout": "node scripts/verify-viewpoint-layout.mjs",
     "verify:viewpoint-fill": "node scripts/verify-viewpoint-fill.mjs",
     "verify:scenario-mode": "node scripts/verify-scenario-mode.mjs",
     "verify:node-scope": "node scripts/verify-node-scope.mjs",
