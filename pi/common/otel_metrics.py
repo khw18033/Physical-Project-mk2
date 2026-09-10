@@ -7,7 +7,7 @@
 발신 대상은 구역 엣지의 Collector(Agent)이고, 엣지가 가공해 백엔드 Collector
 (Gateway)로 모은다 — BE-S-02의 Agent+Gateway 구조.
 
-metric 5종
+metric 5종 (노드 공통) — 여기에 더해 노드가 자기 도메인 지표를 등록한다(observe/counter/histogram)
   1) system.cpu.utilization      CPU 사용률
   2) system.memory.utilization   메모리 사용률
   3) system.filesystem.free      디스크 여유 공간 — HW-R-09 버퍼가 먹는 자원이라 포함
@@ -29,11 +29,30 @@ except ImportError:
     psutil = None
 
 
+class _NoopInstrument:
+    """관측이 꺼져 있을 때의 계측기. 노드 코드에 if 를 넣지 않기 위해 존재한다."""
+
+    def add(self, *a, **kw):
+        pass
+
+    def record(self, *a, **kw):
+        pass
+
+
 class _Noop:
     enabled = False
 
     def record_publish(self, ok, latency_ms=None):
         pass
+
+    def observe(self, name, callback, unit="1", description=""):
+        pass
+
+    def counter(self, name, unit="1", description=""):
+        return _NoopInstrument()
+
+    def histogram(self, name, unit="1", description=""):
+        return _NoopInstrument()
 
     def shutdown(self):
         pass
@@ -102,6 +121,41 @@ class Metrics:
             "hw.publish.count", unit="1", description="MQTT 발행 성공/실패 건수")
         self._latency = meter.create_histogram(
             "hw.publish.duration", unit="ms", description="MQTT 발행 지연")
+
+    # ---- 도메인 지표 등록 -------------------------------------------------
+    # 전송(OTLP)은 여기가 알고, **무엇을 재는지는 노드가 안다.** 로봇 지표를 이 파일에
+    # 박으면 센서 노드가 로봇 개념을 끌고 다니게 된다.
+    #
+    # callback 은 값 하나를 돌려주거나, **모르면 None 을 돌려준다.** None 이면 그 주기에는
+    # 아무것도 내보내지 않는다 — 0 을 내보내면 "쟀더니 0" 과 구별되지 않기 때문이다
+    # (common/schema.py 의 결측 표현 규칙).
+    def observe(self, name, callback, unit="1", description=""):
+        from opentelemetry import metrics
+        from opentelemetry.metrics import Observation
+
+        meter = metrics.get_meter("hw.node")
+
+        def _cb(_):
+            try:
+                v = callback()
+            except Exception:
+                return
+            if v is None:
+                return
+            yield Observation(float(v))
+
+        meter.create_observable_gauge(name, callbacks=[_cb],
+                                      unit=unit, description=description)
+
+    def counter(self, name, unit="1", description=""):
+        from opentelemetry import metrics
+        return metrics.get_meter("hw.node").create_counter(
+            name, unit=unit, description=description)
+
+    def histogram(self, name, unit="1", description=""):
+        from opentelemetry import metrics
+        return metrics.get_meter("hw.node").create_histogram(
+            name, unit=unit, description=description)
 
     def record_publish(self, ok, latency_ms=None):
         outcome = {"outcome": "ok" if ok else "fail"}

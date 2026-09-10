@@ -211,8 +211,10 @@ class Go1Link(ControllerLink):
         if st:
             d["joints_deg"] = list(struct.unpack_from("<12h", st, JOINTS))
             d["body_height_m"] = round(struct.unpack_from("<f", st, F_HEIGHT)[0], 3)
-        if bms:
+        if bms and any(bms):        # 전부 0 인 프레임은 측정값이 아니다(read_state 와 같은 규칙)
             cur = struct.unpack_from("<i", bms, 4)[0]
             d["battery"] = {"soc_pct": bms[3], "current_ma": cur,
                             "cycles": struct.unpack_from("<H", bms, 8)[0]}
+        else:
+            d["battery"] = None
         return d

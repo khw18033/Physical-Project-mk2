@@ -36,10 +36,13 @@ from robot import controller_link, go1_mission, media
 
 
 def _odo_from_note(note):
-    """ACK note("ok odo=1.00m cmd=2.00m")에서 실측 이동거리를 뽑는다.
-    규약 result 는 map<string,double> 라 문자열 note 를 그대로 실을 수 없다."""
+    """ACK note("ok odo=1.00m cmd=2.00m")에서 실측 이동거리를 뽑는다. 없으면 None.
+
+    규약 result 는 map<string,double> 라 문자열 note 도, null 도 실을 수 없다.
+    그래서 "모름"은 **키를 아예 넣지 않는 것**으로 표현한다 — 0.0 으로 채우면
+    "제자리에 있었다"는 거짓 사실이 되고, 상위는 그걸 구별할 방법이 없다."""
     m = re.search(r"odo=([0-9.]+)", note or "")
-    return float(m.group(1)) if m else 0.0
+    return float(m.group(1)) if m else None
 
 
 class RobotNode(BaseNode):
@@ -56,7 +59,52 @@ class RobotNode(BaseNode):
         self.prev_mode = "idle"
         self.battery_warned = False
         self.internal_fail = 0
+        self.sdk_alive_cache = None        # go1_sdk_pc 생존(캐시). None = 아직 모름
+        self.sdk_probe_at = 0.0
         super().__init__()
+        self._register_metrics()
+
+    # ================= 관측 지표 (HW-C-05) =================
+    def _register_metrics(self):
+        """이 노드가 재는 것. 오늘(2026-09-10) 사람이 로그를 뒤져서 찾아낸 장애 세 건이
+        전부 여기 하나씩 대응한다 — 지표가 있었다면 그래프 한 줄로 끝났을 것들이다.
+
+          미션이 8회전 내내 헛돎     -> robot.telemetry.alive / robot.sdk.alive
+          배터리 경보 오발동         -> robot.battery.percent (모르면 미발행)
+          키를 눌러도 안 움직임      -> robot.sdk.alive
+
+        게이지 콜백은 **모르면 None** 을 돌려준다. 0 을 내보내면 "쟀더니 0" 과 구별되지
+        않는다(common/schema.py 결측 표현 규칙)."""
+        m = self.metrics
+        m.observe("robot.telemetry.alive",
+                  lambda: 1.0 if self.state is not None else 0.0,
+                  description="로봇이 상태를 올려보내고 있는가(0/1)")
+        m.observe("robot.battery.percent",
+                  lambda: self.state.battery_pct if self.state else None,
+                  unit="%", description="배터리 잔량. 모르면 발행하지 않는다")
+        m.observe("robot.sdk.alive", lambda: self.sdk_alive_cache,
+                  description="구동 브리지(go1_sdk_pc)가 살아 있고 로봇 상태를 받는가(0/1)")
+        m.observe("robot.mission.active",
+                  lambda: 1.0 if self.in_mission() else 0.0,
+                  description="임무 수행 중인가(0/1)")
+        self.m_ack = m.counter("robot.mission.ack.count",
+                               description="임무 단계 ACK 건수(event 속성으로 구분)")
+        self.m_mission_dur = m.histogram("robot.mission.duration", unit="s",
+                                         description="임무 1건의 소요 시간")
+
+    def _probe_sdk(self, now):
+        """구동 브리지 생존을 낮은 주기로 확인해 캐시한다.
+
+        지표 콜백 안에서 직접 물으면 export 스레드가 UDP 타임아웃만큼 멈춘다.
+        주기는 5초 — 이 값이 바뀌어도 관측 해상도만 달라지고 동작은 그대로다."""
+        if now - self.sdk_probe_at < 5.0:
+            return
+        self.sdk_probe_at = now
+        try:
+            up, state_ok = go1_mission.MissionClient().probe(timeout=0.3)
+        except Exception:
+            up, state_ok = False, False
+        self.sdk_alive_cache = 1.0 if (up and state_ok) else 0.0
 
     # ================= 수집·보고 (HW-R-01 / HW-R-03) =================
     def sample_interval(self):
@@ -90,6 +138,7 @@ class RobotNode(BaseNode):
         return self.mission is not None and self.mission.get("status") == "executing"
 
     def on_sample(self, now):
+        self._probe_sdk(now)
         # --- 내부 수집 50Hz (HW-R-01) ---
         try:
             self.state = self.link.read_state()
@@ -294,7 +343,7 @@ class RobotNode(BaseNode):
                             "forward_m": forward_m, "expected_acks": expected}
 
         acks = turns_ok = 0
-        odo_m = 0.0
+        odo_m = None
         aborted = None
         try:
             for ack in mc.acks(expected, budget):
@@ -308,6 +357,8 @@ class RobotNode(BaseNode):
                 if event == "aborted":
                     # 미션 도중 로봇이 끊겼다. 성공으로 끝내면 안 된다.
                     aborted = note or "aborted"
+                self.m_ack.add(1, {"event": event,
+                                   "outcome": "ok" if note.startswith("ok") else "other"})
                 # 규약 서버는 stage 문자열을 CommandStatus.detail 로 보낸다.
                 yield ("ack %s/%d %s %s/%s yaw=%.1f %s"
                        % (ack.get("ack_seq", acks), expected, event,
@@ -328,9 +379,13 @@ class RobotNode(BaseNode):
             raise CommandError("ABORTED", aborted)
 
         yield "state_changed", {"robot_mode": self.state.mode if self.state else "?"}
-        yield "completed", {"acks": acks, "turns_ok": turns_ok, "steps": steps,
-                            "step_deg": step_deg, "forward_m": forward_m,
-                            "odo_m": odo_m, "duration_s": round(time.time() - started, 1)}
+        self.m_mission_dur.record(time.time() - started, {"mission": "door_scan"})
+        result = {"acks": acks, "turns_ok": turns_ok, "steps": steps,
+                  "step_deg": step_deg, "forward_m": forward_m,
+                  "duration_s": round(time.time() - started, 1)}
+        if odo_m is not None:
+            result["odo_m"] = odo_m        # 모르면 키를 빼는 것이 0 을 싣는 것보다 정확하다
+        yield "completed", result
 
     def cancel(self, command_id):
         """규약 §5-3 취소 — 실제 정지를 유도한다. CommandResult=CANCELED 보고는
