@@ -389,6 +389,67 @@ commandTracker.clear();
   }
 }
 
+// ── 9. 초기화 — 비우되 연결은 남긴다 (260910 지시) ──────────────────────────
+//
+// 지금까지는 새로고침이 유일한 방법이었는데, 새로고침하면 **브로커 연결이 끊긴다.**
+// 무대에서 연결 관리를 다시 열어 붙이는 시간이 아깝고 그 사이 화면은 빨갛다.
+//
+// 그리고 **두 번 눌러야 한다.** 정지와 반대다 — 정지는 못 누르는 것이 나쁘고, 초기화는
+// 잘못 누르는 것이 나쁘다. 한 판을 통째로 버리는 일이라 급할 이유가 없다.
+{
+  const scenario = await load('src', 'data', 'scenario.ts');
+  resetRobotSession();
+  setConnection({ state: 'open' });
+  markApproved();
+  const bot = client();
+  await issueScan(bot, { viewpoint_count: 8 });
+  applyEffects([{ kind: 'progress', ack: 3, of: 9 }]);
+
+  scenario.resetMission();
+
+  const after = scenario.getMissionState();
+  if (after.current.missionId !== '') failures.push(`초기화 뒤에도 임무가 남았다 — ${after.current.missionId}`);
+  if (after.current.milestones.length !== 0) failures.push('초기화 뒤에도 마일스톤이 남았다');
+  if (after.proposal !== null) failures.push('초기화 뒤에도 제안이 남았다');
+  if (after.playing) failures.push('초기화했는데 아직 재생 중이다');
+  if (robotSession().progress !== null) failures.push('초기화 뒤에도 진행률이 남았다');
+  if (robotSession().approved) failures.push('초기화 뒤에도 승인이 남았다 — 아무도 안 눌렀는데 로봇이 움직일 수 있다');
+  // **연결은 남는다.** 이것이 새로고침 대신 이 버튼을 만든 이유다.
+  if (robotSession().connection.state !== 'open') {
+    failures.push('초기화가 브로커 연결까지 끊었다 — 그러면 새로고침과 다를 것이 없다');
+  }
+
+  // **부팅 기본값**도 비어 있어야 한다 — 열자마자 구판 대본과 자리표시가 뜨면 안 된다.
+  //
+  // 소스에서 `emptyView()` 를 찾는 것으로는 못 가른다 — `resetMission()` 안에도 같은 줄이
+  // 있어서, 부팅 기본값만 옛 편으로 되돌려도 그 검사는 통과한다(실제로 그랬다).
+  // 그래서 **모듈을 새로 하나 더 열어** 아무것도 안 한 상태를 직접 읽는다.
+  const fresh = await import(pathToFileURL(join(root, 'src', 'data', 'scenario.ts')).href + '?boot=1');
+  const boot = fresh.getMissionState();
+  if (boot.current.missionId !== '') {
+    failures.push(`부팅 기본값이 ${boot.current.missionId} 다 — 열자마자 안 쓰는 대본이 뜬다`);
+  }
+  if (boot.current.milestones.length !== 0) {
+    failures.push(`부팅 기본값에 마일스톤이 ${boot.current.milestones.length}건 있다`);
+  }
+  // `hardware` 가 `null` 이면 cast 를 그린다 — 자리표시 카드가 되살아난다. 빈 배열이어야 한다.
+  if (boot.current.hardware === null || boot.current.hardware.length !== 0) {
+    failures.push('부팅 기본값의 장비 목록이 비어 있지 않다 — 자리표시 카드가 뜬다');
+  }
+  if (boot.headSec !== 0 || boot.playing) failures.push('부팅하자마자 재생 중이다');
+
+  // 화면이 두 번 묻는가.
+  const button = readFileSync(join(root, 'src', 'views', 'ResetButton.tsx'), 'utf8');
+  if (!/setAsking\(true\)/.test(button) || !/정말 초기화/.test(button)) {
+    failures.push('초기화가 한 번에 지운다 — 한 판을 버리는 일은 두 번 물어야 한다');
+  }
+  for (const bar of [['src', 'shell', 'AppShell.tsx'], ['src', 'views', 'TopBar.tsx']]) {
+    if (!readFileSync(join(root, ...bar), 'utf8').includes('<ResetButton />')) {
+      failures.push(`${bar.at(-1)} 에 초기화 버튼이 없다`);
+    }
+  }
+}
+
 if (failures.length) {
   console.error(`❌ verify:emergency-stop\n- ${failures.join('\n- ')}`);
   process.exit(1);
@@ -401,5 +462,6 @@ console.log('✅ 규약 그대로 — action 은 상수 하나 · 파라미터�
 console.log('✅ 일시정지 — 멈추되 진행률을 남긴다 · 못 보내도 멈춘다 · 재시작이 그 단계를 다시 낸다');
 console.log('✅ 정지 버튼이 빨간 바탕에 흰 글씨로 보인다 — 머리줄 규칙에 안 덮인다 (빈 상자였다)');
 console.log('✅ 「중단」은 사라지고 정지·일시정지·재시작 셋만 — 두 셸 다 그리고, disabled 도 confirm 도 없다');
+console.log('✅ 초기화가 임무·진행·승인을 비우고 연결은 남긴다 · 두 번 물어본다 · 부팅 기본값이 빈 화면');
 console.log(`✅ 대조군 ${controls.length}건 전부 검출 — ${controls.join(' · ')}`);
 process.exit(0);

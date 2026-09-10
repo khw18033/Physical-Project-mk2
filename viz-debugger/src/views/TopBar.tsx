@@ -1,5 +1,6 @@
 import { useMission } from '../data/scenario.ts';
 import { PauseButton, ResumeButton, StopButton } from '../physical/StopButton.tsx';
+import { ResetButton } from './ResetButton.tsx';
 
 export function TopBar({ onHome, onReplay }: { onHome(): void; onReplay(): void }) {
   const { current } = useMission();
@@ -9,6 +10,6 @@ export function TopBar({ onHome, onReplay }: { onHome(): void; onReplay(): void 
   return <header className="topbar">
     <button className="mission-home" onClick={onHome}><b>{current.missionId}</b><span>{current.label}</span><small>목 데이터 · HCI 초안 · 클릭하면 마일스톤으로</small></button>
     <p>정지는 로봇을 즉시 멈추고 임무를 끝냅니다. 진행상황을 남기려면 일시정지를 쓰세요.</p>
-    <nav><StopButton /><PauseButton /><ResumeButton /><button onClick={onReplay}>◷ 임무 이력</button></nav>
+    <nav><StopButton /><PauseButton /><ResumeButton /><button onClick={onReplay}>◷ 임무 이력</button><ResetButton /></nav>
   </header>;
 }

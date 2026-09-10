@@ -64,6 +64,7 @@ import { useEntities } from '../data/hooks.ts';
 import type { EntityRecord } from '../data/store.ts';
 import { Explain } from '../../shared/Explain.tsx';
 import { useDevTools } from '../../shared/renderMode.ts';
+import { humanActed, noteHumanAction } from '../../shared/humanAction.ts';
 
 /**
  * **계획 대상을 코드에 적지 않는다.** 계획이 도착한 대상이 곧 임무 대상이고,
@@ -104,6 +105,17 @@ function freshestTarget(entities: ReturnType<typeof useEntities>, targets: reado
 
 export function PlanApproval() {
   const entities = useEntities();
+  /**
+   * **사람이 먼저다** (260910). 계획 채널은 캐시되는 채널이라, 구독하는 순간 지난 세션의
+   * 계획이 그대로 다시 들어온다. 그걸 그리면 **아무도 아무것도 안 눌렀는데** 앱을 열자마자
+   * 지난 판의 승인 버튼이 떠 있다 — 누르면 게이트웨이가 「그런 계획이 없다」로 거절한다.
+   *
+   * 빈 화면을 기본으로 만들고도 이 카드만 남아 있던 자리다. 임무 다리(`missionBridge`)에
+   * 건 것과 같은 빗장이고 같은 이유다.
+   *
+   * 훅을 부른 **뒤에** 돌아간다 — 훅의 수가 그리기마다 달라지면 안 된다.
+   */
+  const acted = humanActed();
   const targets = planTargets(entities);
   const [picked, setPicked] = useState<string | null>(null);
   /**
@@ -127,6 +139,8 @@ export function PlanApproval() {
   const decided = plan !== null && plan.decision !== 'pending';
 
   // 계획 대상이 여럿일 때만 뜨는 고르개. 영수증 줄에서도 같은 것을 쓴다 — 두 벌로 만들지 않는다.
+  if (!acted) return null;
+
   const targetPicker = targets.length > 1 ? (
     <label className="missionpick">
       임무 대상
@@ -227,7 +241,7 @@ function ApprovalPanel({ plan }: { plan: Plan }) {
       </Explain>
 
       <div className="approvebar">
-        <button type="button" className="btn btn--action btn--approve" onClick={() => { armApproval(plan.plan_id); decidePlan(plan.plan_id, 'approve'); }}>
+        <button type="button" className="btn btn--action btn--approve" onClick={() => { noteHumanAction(); armApproval(plan.plan_id); decidePlan(plan.plan_id, 'approve'); }}>
           승인 — 백엔드로 회신
         </button>
         <button type="button" className="btn btn--action" onClick={() => setRejectOpen((v) => !v)}>

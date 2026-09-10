@@ -25,6 +25,7 @@ import { getTransport, type Envelope } from '../transport/index.ts';
 import { liveFrame } from '../viewpoint/source.ts';
 import { appendViewpoint } from '../viewpoint/store.ts';
 import { approvedByHuman, markApproved } from '../physical/robotSession.ts';
+import { humanActed } from '../shared/humanAction.ts';
 
 type WirePlan = {
   plan_id: string;
@@ -110,6 +111,14 @@ function robotScript(missionId: string): boolean {
 function applyPlan(envelope: Envelope): void {
   const plan = envelope.payload as WirePlan | null;
   if (!plan?.script) return; // 데모 계획(robot-01)은 임무 저장소와 무관하다.
+  /**
+   * **사람이 먼저다** (260910). 계획 채널은 캐시되는 채널이라, 구독하는 순간 지난 세션의
+   * 제안과 승인이 그대로 다시 들어온다. 그걸 새 것으로 받으면 아무도 아무것도 안 눌렀는데
+   * 화면이 임무로 찬다 — 빈 화면을 기본으로 만들고도 부팅 화면이 안 비었던 이유다.
+   *
+   * 로봇 관문의 `approvedByHuman` 과 같은 빗장이고 같은 이유다.
+   */
+  if (!humanActed()) return;
   if (plan.decision === 'pending') {
     proposeMission({
       origin: 'script',

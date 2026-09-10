@@ -61,6 +61,7 @@ import { Explain } from '../shared/Explain.tsx';
  */
 import placesTopology from '../../../places/places.json';
 import equipmentVocabulary from '../../../equipment/equipment.json';
+import { noteHumanAction } from '../shared/humanAction.ts';
 
 const LEVEL_BARS = 22;
 /** 레벨 갱신 주기. 60fps로 setState 하면 이 작은 패널이 렌더 예산을 먹는다. */
@@ -532,6 +533,9 @@ export function UtterancePanel({ fallbackText }: { fallbackText: string }) {
     setScriptMatch(matched);
     try {
       // 임계 미만이면 여기 오지 못한다. 조용히 통과시키지 않는다.
+      // **사람이 냈다.** 이 뒤부터 계획 채널을 받는다 — 열자마자 캐시된 계획이
+      // 화면을 채우지 않게 하는 빗장이다(`missionBridge.noteHumanAction`).
+      noteHumanAction();
       await issueCommand({
         action: 'mission_from_utterance',
         params: { text: edited.trim(), verdict: decision.verdict, threshold_status: PROVISIONAL_NOTE },
@@ -571,6 +575,7 @@ export function UtterancePanel({ fallbackText }: { fallbackText: string }) {
     const matched = matchScript(manual.trim());
     setScriptMatch(matched);
     try {
+      noteHumanAction();   // 사람이 냈다 — 이 뒤부터 계획 채널을 받는다
       await issueCommand({ action: 'mission_from_utterance', params: { text: manual.trim(), source: 'manual_text' }, inputModality: 'pointer' });
       setIssued('직접 입력한 문장으로 발행했습니다 (음성 아님)');
     } catch (caught) {

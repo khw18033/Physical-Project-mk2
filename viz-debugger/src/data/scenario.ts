@@ -110,6 +110,44 @@ export type MissionView = {
   viewpointTimeline: ScriptViewpointFrame[];
 };
 
+/**
+ * **아무 임무도 없는 화면** (260910 지시 — 「비어 있는 걸 기본으로」).
+ *
+ * 부팅 기본값이 옛 편(MSN-260826-01)이었다. 그러면 앱을 열자마자 시연에서 쓰지도 않는
+ * 구판 대본의 마일스톤 일곱과 **하드웨어 자리표시 일곱 장**이 뜬다 — 무대에 올라 처음
+ * 보이는 화면이 그것이었다. 발화를 넣으면 넘어가긴 하지만, 그 전까지 화면이 목으로 차 있다.
+ *
+ * 그래서 **비운 채로 시작한다.** 옛 편은 사라지지 않는다 — 「415호에서 503호로 이동해줘」를
+ * 넣으면 그대로 온다.
+ *
+ * `world` 는 `registry` 다. 비어 있는 화면이 시나리오 모드로 들어갈 일은 없지만, 기본값이
+ * `legacy` 면 「구판 세계」 안내줄이 임무도 없는데 뜬다.
+ *
+ * `hardware` 를 `null` 이 아니라 **빈 배열**로 둔다 — `null` 은 「cast 를 써라」는 뜻이라
+ * 자리표시 카드가 다시 살아난다. 빈 배열은 「장비가 없다」다.
+ */
+export const NO_MISSION = '';
+
+function emptyView(): MissionView {
+  return {
+    missionId: NO_MISSION,
+    label: '아직 임무가 없습니다',
+    world: 'registry',
+    utteranceText: '',
+    durationSec: 0,
+    milestones: [],
+    tasks: [],
+    events: [],
+    cast: [],
+    hardware: [],
+    params: {},
+    map: null,
+    refEdges: [],
+    viewpoints: null,
+    viewpointTimeline: [],
+  };
+}
+
 function legacyView(): MissionView {
   return {
     missionId: scenario.missionId,
@@ -224,9 +262,10 @@ export type MissionState = {
 };
 
 let state: MissionState = {
-  current: legacyView(),
+  // **비운 채로 시작한다** (260910). 옛 편은 발화로 부르면 온다.
+  current: emptyView(),
   proposal: null,
-  headSec: (rawScenario as Scenario).durationSec,
+  headSec: 0,
   playing: false,
   activatedBy: 'boot',
 };
@@ -614,3 +653,24 @@ export function statusesAt(second: number, view: MissionView = displayMission().
 resetTrace(state.current.missionId);
 resetViewpoint(state.current.missionId);
 for (const event of state.current.events) appendTrace(state.current.missionId, event);
+
+
+/**
+ * **화면을 처음 상태로** (260910 지시).
+ *
+ * 시연을 한 판 돌리고 나면 마일스톤도 여덟 칸도 차 있다. 다시 보이려면 새로고침해야 했는데,
+ * 새로고침하면 **브로커 연결이 끊긴다** — 무대에서 그걸 다시 붙이는 시간이 아깝다.
+ *
+ * 그래서 여기서 비운다. 임무·제안·기록 열이 지워지고, 연결은 그대로 남는다
+ * (`resetRobotSession` 이 연결과 ping 을 남기는 것과 같은 이유다).
+ */
+export function resetMission(): void {
+  stopLocalTimer();
+  localCursor = 0;
+  localViewpointCursor = 0;
+  // 임무가 없으니 열도 없다 — 다음 임무가 열릴 때 그 id 로 다시 선다.
+  resetTrace(NO_MISSION);
+  resetViewpoint(NO_MISSION);
+  resetRobotSession();
+  commitNow({ current: emptyView(), proposal: null, headSec: 0, playing: false, activatedBy: 'boot' });
+}
