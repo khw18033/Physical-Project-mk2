@@ -13,9 +13,15 @@
    기본 unity_ip = 192.168.50.244  (Unity PC, wlan0 경유)
    --robot_ip / --unity_ip 인자로 덮어쓴다.
 
- 상태(world_x/z)는 명령 dead-reckoning 으로 만든다(yaw 만 실 IMU). Unity 의
- GO1LocalPathUdpSender(swapXZ/invertX/invertZ) 설정과 좌표변환이 검증된 쌍이므로
- 이 로직은 원본을 보존한다. path follower 는 보수적으로 튜닝(회전 우선, 저속).
+ 상태(world_x/z)는 명령 dead-reckoning 으로 만든다(yaw 만 실 IMU).
+
+ 좌표 규약 — 이 파일의 월드 좌표는 Unity 월드 좌표를 그대로 쓴다:
+   위치  state x,z  = Unity world X,Z (m)
+   방향  state yaw  = Unity transform.eulerAngles.y (rad). 시계방향 +, +Z 기준.
+         전진 = (sin yaw, cos yaw), 우 = (cos yaw, -sin yaw)
+ IMU(rpy[2], 반시계+) -> 이 규약으로의 변환은 RobotControl() 의 yaw_unity 한 줄에서만
+ 한다. 따라서 Unity 쪽 GO1CoordinateMapper 는 항등(swap/invert/offset 전부 off)이다.
+ path follower 는 보수적으로 튜닝(회전 우선, 저속).
 
  원 저작권: Unitree Robotics 예제 기반.
 ***********************************************************************/
@@ -169,6 +175,8 @@ public:
     {std::fprintf(stderr,"[WARN] statechange addr failed\n");}
     sc_inited=false; sc_last=false; sc_last_time=0.0;
 
+    relay_enabled=false; sock_tx_relay=-1; relay_port=15200; robot_uid="go1-real";
+
     unity_path_port=15110;
     sock_rx_path=make_udp_receiver(unity_path_port);
     path_active=false; current_waypoint_idx=0; current_path_id=-1;
@@ -182,7 +190,7 @@ public:
     path_yaw_reach_tol_rad=8.0*M_PI/180.0;
     path_done_notify=false;
 
-    yaw0_initialized=false; yaw0=0.0; UNITY_YAW_OFFSET_RAD=M_PI/2.0;
+    yaw0_initialized=false; yaw0=0.0; UNITY_YAW_OFFSET_RAD=0.0;
     world_x=0.0; world_z=0.0; last_dr_time=now;
 
     yaw_align_active=false; yaw_align_target_rel=0.0;
@@ -190,8 +198,127 @@ public:
     seq=0;
     last_pf_print_time=now;
 
+    // ── 문 탐색 미션(오른쪽 45도 x8 -> 왼쪽 45도 -> 5m 직진) ──
+    // 각 단계가 끝날 때마다 ACK 를 한 번 낸다. ACK 목적지는 아직 정해지지 않았으므로
+    // 기본은 로그만이고, --ack_ip 를 주면 그 주소(기본 포트 15106)로 JSON 을 같이 보낸다.
+    // 사람이 눈으로도 확인할 수 있게 ACK 마다 Go1 라이트를 깜빡인다.
+    mission_active=false; mission_phase=MP_IDLE; mission_step=0;
+    mission_request=false; mission_cancel_request=false;
+    mission_scan_steps=8; mission_step_deg=45.0; mission_forward_m=1.0;
+    // 회전 판정 여유. 목표각은 '미션 시작 방향 기준 절대 누적각'이라 스텝 오차가
+    // 쌓이지 않는다(구현: begin_turn). 그래도 스텝당 정확도를 위해 3도로 조인다.
+    // 최소 회전속도는 다리가 실제로 떨어지는 값(0.2)으로 둔다.
+    mission_turn_kp=1.6; mission_turn_max_wz=0.55; mission_turn_min_wz=0.20;
+    mission_turn_tol_rad=3.0*M_PI/180.0;
+    mission_turn_timeout_sec=15.0; mission_settle_sec=1.5;
+    mission_forward_vx=0.15; mission_forward_kp_yaw=1.2; mission_forward_max_wz=0.35;
+    mission_forward_timeout_sec=0.0;
+    mission_dist=0.0; mission_odo_dist=0.0; mission_use_odo=true;
+    mission_odo0_x=0.0; mission_odo0_y=0.0;
+    mission_turn_target_rel=0.0; mission_forward_yaw_ref=0.0; mission_yaw0=0.0;
+    mission_phase_start=now; mission_last_tick=now;
+
+    ack_seq=0; ack_enabled=false; sock_tx_ack=-1; ack_port=15106;
+    ack_gesture=false;
+    led_blink_until=now; led_blink_period=0.4; led_r=led_g=led_b=0;
+    light_enabled=false; light_on=false; light_port=7801; sock_tx_light=-1;
+    light_r=light_g=light_b=0; light_last_tx=now;
+
     std::printf("[CONFIG] robot=%s unity=%s\n",robot_host.c_str(),unity_host.c_str());
     std::printf("[CONFIG] T=0: C++ WASD mode, T=1: Unity cmd mode\n");
+    std::fflush(stdout);
+  }
+
+  // 다중 로봇 트윈 릴레이를 켠다. 이 파이에서 도는 robot_state_relay.py 를 가리킨다.
+  // 부르지 않으면 릴레이 송출은 일어나지 않는다(기존 동작 그대로).
+  void enable_relay(const std::string& host,int port,const std::string& uid)
+  {
+    if(host.empty()) return;
+    relay_host=host; relay_port=port;
+    if(!uid.empty()) robot_uid=uid;
+    sock_tx_relay=make_udp_sender();
+    if(sock_tx_relay<0 || !resolve_ipv4_sockaddr(relay_host,relay_port,relay_addr))
+    {
+      std::fprintf(stderr,"[WARN] relay addr 실패: %s:%d\n",relay_host.c_str(),relay_port);
+      relay_enabled=false; return;
+    }
+    relay_enabled=true;
+    std::printf("[CONFIG] 다중 로봇 릴레이 -> %s:%d (robot_id=%s)\n",
+                relay_host.c_str(),relay_port,robot_uid.c_str());
+    std::fflush(stdout);
+  }
+
+  // ACK 수신처를 켠다. 아직 목적지가 정해지지 않았으므로 부르지 않으면 로그만 남는다.
+  void enable_ack(const std::string& host,int port,bool gesture)
+  {
+    ack_gesture=gesture;
+    if(host.empty())
+    {
+      std::printf("[CONFIG] ACK 목적지 미설정 — 로그(+라이트)로만 낸다. "
+                  "보내려면 --ack_ip <주소> [--ack_port %d]\n",ack_port);
+      std::fflush(stdout);
+      return;
+    }
+    if(port>0) ack_port=port;
+    sock_tx_ack=make_udp_sender();
+    if(sock_tx_ack<0 || !resolve_ipv4_sockaddr(host,ack_port,ack_addr))
+    {
+      std::fprintf(stderr,"[WARN] ACK addr 실패: %s:%d — 로그로만 낸다\n",host.c_str(),ack_port);
+      ack_enabled=false; return;
+    }
+    ack_enabled=true;
+    std::printf("[CONFIG] ACK -> %s:%d (JSON)\n",host.c_str(),ack_port);
+    std::fflush(stdout);
+  }
+
+  // Go1 얼굴 라이트를 켠다(헤드 Nano 의 face_light_bridge 로 "R G B" UDP).
+  // host 가 "off" 면 라이트를 안 쓴다 — 브리지가 안 떠 있어도 미션은 그대로 돈다.
+  void enable_face_light(const std::string& host,int port)
+  {
+    if(host=="off"||host=="none")
+    { std::printf("[CONFIG] 얼굴 라이트 사용 안 함\n"); std::fflush(stdout); return; }
+    if(port>0) light_port=port;
+    sock_tx_light=make_udp_sender();
+    if(sock_tx_light<0 || !resolve_ipv4_sockaddr(host,light_port,light_addr))
+    {
+      std::fprintf(stderr,"[WARN] 얼굴 라이트 주소 실패: %s:%d — 라이트 없이 진행\n",
+                   host.c_str(),light_port);
+      light_enabled=false; return;
+    }
+    light_enabled=true;
+    std::printf("[CONFIG] 얼굴 라이트 -> %s:%d (헤드 Nano face_light_bridge)\n",
+                host.c_str(),light_port);
+    std::fflush(stdout);
+  }
+
+  // 로봇 상태가 끊긴 채 오래 있으면 프로세스를 새로 시작하게 한다.
+  //
+  // 로봇 전원을 껐다 켜면 이 프로세스는 상태를 영영 못 받는다 — 로봇이 사라진 동안
+  // UDP 소켓이 ICMP 오류로 막히고, 로봇이 돌아와도 그 소켓은 그대로다(실측 2026-09-10,
+  // 두 번 겪음). SDK 의 UDP 객체는 다시 열 수단이 없어서, 프로세스를 새로 띄우는 것이
+  // 유일하게 확실한 복구다. 종료는 systemd Restart=always 가 받아 준다
+  // (유닛에 StartLimitIntervalSec=0 이 있어야 반복돼도 포기하지 않는다).
+  void enable_state_watchdog(double sec)
+  {
+    state_dead_restart_sec=sec;
+    if(sec>0)
+      std::printf("[CONFIG] 상태 두절 %.0f초면 자체 재기동(systemd 가 다시 띄운다)\n",sec);
+    else
+      std::printf("[CONFIG] 상태 두절 자체 재기동 없음\n");
+    std::fflush(stdout);
+  }
+
+  // 미션 파라미터 덮어쓰기 — 실검증을 작게 쪼개서 먼저 돌려보기 위한 것이다.
+  // 0 이하를 주면 기본값을 유지한다.
+  void configure_mission(int steps,double step_deg,double forward_m,double vx)
+  {
+    if(steps>0) mission_scan_steps=steps;
+    if(step_deg>0) mission_step_deg=step_deg;
+    if(forward_m>0) mission_forward_m=forward_m;
+    if(vx>0) mission_forward_vx=vx;
+    std::printf("[CONFIG] 미션: 오른쪽 %.0fdeg x%d -> 왼쪽 %.0fdeg -> %.1fm 직진(vx=%.2f)\n",
+                mission_step_deg,mission_scan_steps,mission_step_deg,
+                mission_forward_m,mission_forward_vx);
     std::fflush(stdout);
   }
 
@@ -217,6 +344,11 @@ public:
 private:
   struct PathPoint { double x,z,yaw_deg; bool use_yaw; };
   struct WaypointTarget { double x_world,z_world,yaw_world; bool use_yaw; };
+
+  // 문 탐색 미션의 단계. TURN/FORWARD 는 움직이는 구간, SETTLE 은 ACK 를 내고
+  // 사람이 라이트로 확인할 수 있게 서 있는 구간이다.
+  enum MissionPhase { MP_IDLE=0, MP_SCAN_TURN, MP_SCAN_SETTLE,
+                      MP_DOOR_TURN, MP_DOOR_SETTLE, MP_FORWARD, MP_FORWARD_SETTLE };
 
   void resetCmdBase();
   void note_key_event(const std::chrono::steady_clock::time_point& now);
@@ -289,6 +421,40 @@ private:
         std::fflush(stdout);
         return false;
       }
+    }
+
+    // 문 탐색 미션 트리거.
+    //   "MISSION SCAN [steps] [step_deg] [forward_m] [vx]"  숫자는 생략 가능(기본값 유지)
+    //   "MISSION CANCEL"                                    즉시 중단
+    //   "MISSION PING"                                      살아있음 확인 — 보낸 쪽에 PONG
+    // 상위(규약 노드)가 이 한 줄로 미션을 건다. 여기서는 IMU 각을 모르므로
+    // 요청 플래그만 세우고 실제 시작은 RobotControl 에서 한다.
+    if(strncmp(buf,"MISSION",7)==0)
+    {
+      if(strstr(buf,"PING"))
+      {
+        // 명령을 받기 전에 "SDK 가 떠 있는가"를 확인할 수 있어야 한다. 안 그러면
+        // 상위가 미션을 수락해 놓고 아무 일도 일어나지 않는 상태가 된다.
+        // 로봇 상태(HighState)가 실제로 들어오는지도 같이 알려준다. yaw 가 갱신되지
+        // 않으면 회전을 닫을 수 없어 미션이 열린 루프로 도는 위험한 동작이 된다
+        // (실측 2026-09-10: 로봇 재부팅 후 HighState 가 전부 0 인 채로 601표본 유지).
+        char pong[64];
+        std::snprintf(pong,sizeof(pong),"MISSION PONG state=%s",
+                      robot_state_alive()?"ok":"dead");
+        sendto(sock_rx_unity,pong,strlen(pong),0,(sockaddr*)&from,fromlen);
+        return false;
+      }
+      if(strstr(buf,"CANCEL")) mission_cancel_request=true;
+      else
+      {
+        int st=0; double sd=0,fm=0,mvx=0;
+        const char* q=strstr(buf,"SCAN");
+        if(q) std::sscanf(q+4,"%d %lf %lf %lf",&st,&sd,&fm,&mvx);
+        if(st>0||sd>0||fm>0||mvx>0) configure_mission(st,sd,fm,mvx);
+        mission_request=true;
+      }
+      std::printf("[MISSION] UDP 요청: %s\n",buf); std::fflush(stdout);
+      return false;
     }
 
     float tvx=0,tvy=0,twz=0; int tes=0;
@@ -471,13 +637,15 @@ private:
     std::fflush(stdout);
   }
 
+  // path-local(lx=우, lz=전진) -> 월드. 규약은 Unity 와 동일하다:
+  //   전진 = (sin yaw, cos yaw), 우 = (cos yaw, -sin yaw)
+  // Unity 는 GO1CoordinateMapper 를 항등(swap/invert 전부 off)으로 두고 로컬 좌표를
+  // 그대로 보낸다. 아래 식은 dead-reckoning(send_unity_state)과 정확히 같은 회전이다.
   void local_to_world(double lx,double lz,double sx,double sz,double sy,
                       double& ox,double& oz)
   {
-    // 기존에 동기화가 맞던 좌표 변환식 유지
-    // Unity sender의 swapXZ=true, invertX=true, invertZ=true 설정과 쌍으로 맞는다.
-    ox=sx+std::cos(sy)*lz+std::sin(sy)*lx;
-    oz=sz+std::sin(sy)*lz-std::cos(sy)*lx;
+    ox=sx+lx*std::cos(sy)+lz*std::sin(sy);
+    oz=sz-lx*std::sin(sy)+lz*std::cos(sy);
   }
 
   double local_yaw_to_world(double yaw_deg,double start_yaw)
@@ -488,6 +656,16 @@ private:
     cancel_path();
     if(pts.size()<2) return;
     raw_path_points=pts; current_path_id=pid;
+
+    // 위치 원점 리셋 — Unity 는 늘 "지금 위치 기준" 상대 경로를 보내는데 SDK 의
+    // dead-reckoning world_x/z 는 기동 이후 계속 누적된다. 그대로 앵커로 쓰면 회차가
+    // 쌓일수록 계획 경로와 실제 궤적이 갈라진다(실측: 리플랜 시 local z=1.545 가
+    // world z=3.955 로 나감). 새 경로를 받는 순간이 곧 "지금"이므로 여기서 0 으로 맞춘다.
+    // 사람이 Z 를 누를 수 없는 자율 리플랜에서도 매번 정합된다.
+    // yaw 는 건드리지 않는다 — 앵커는 이미 Unity 가상 GO1 의 출발 yaw 로 정렬돼 있다.
+    world_x=0.0; world_z=0.0;
+    last_dr_time=std::chrono::steady_clock::now();
+
     path_anchor_robot_x=world_x; path_anchor_robot_z=world_z;
     path_anchor_robot_yaw=yaw_now;
     const PathPoint& p0=pts[0];
@@ -497,7 +675,8 @@ private:
       local_to_world(pts[i].x-p0.x,pts[i].z-p0.z,
                      path_anchor_robot_x,path_anchor_robot_z,
                      path_anchor_robot_yaw,wp.x_world,wp.z_world);
-      wp.yaw_world=local_yaw_to_world(pts[i].yaw_deg-p0.yaw_deg,path_anchor_robot_yaw);
+      // Unity 의 yaw_deg 는 start_pose 기준 상대각(시계+)이라 그대로 더한다.
+      wp.yaw_world=local_yaw_to_world(pts[i].yaw_deg,path_anchor_robot_yaw);
       wp.use_yaw=pts[i].use_yaw;
 
       // waypoint가 많을 때 로그가 묻히지 않도록 앞 3개와 마지막 1개만 출력한다.
@@ -626,11 +805,13 @@ private:
     double dz = target_z - world_z;
     double dist = std::sqrt(dx*dx + dz*dz);
 
-    double target_yaw = std::atan2(dz, dx);
+    // 월드 방위는 Unity 규약(+Z 기준 시계+)이므로 atan2(dx,dz) 다.
+    double target_yaw = std::atan2(dx, dz);
     double yaw_err = wrap_pi(target_yaw - yaw_now);
 
     double cmd_vx = path_kp_dist * dist;
-    double cmd_wz = path_kp_yaw * yaw_err;
+    // 로봇 yawSpeed 는 반시계(+)인데 yaw 는 시계(+)라 부호를 뒤집는다.
+    double cmd_wz = -path_kp_yaw * yaw_err;
 
     if(cmd_vx > path_max_vx) cmd_vx = path_max_vx;
     if(cmd_vx < 0.0) cmd_vx = 0.0;
@@ -677,17 +858,29 @@ private:
     auto now=std::chrono::steady_clock::now();
     double dts=std::chrono::duration_cast<std::chrono::duration<double>>(now-last_dr_time).count();
     last_dr_time=now;
+    // 전진 = (sin yaw, cos yaw), 좌 = (-cos yaw, sin yaw). vy 는 좌(+).
     double cy=cos(yaw),sy=sin(yaw);
-    world_x+=(vx*cy-vy*sy)*dts; world_z+=(vx*sy+vy*cy)*dts;
+    world_x+=(vx*sy-vy*cy)*dts; world_z+=(vx*cy+vy*sy)*dts;
     double tms=std::chrono::duration_cast<std::chrono::duration<double>>(
       std::chrono::steady_clock::now().time_since_epoch()).count()*1000.0;
-    // 머리 방향(yaw) 180 보정 — Unity 가상 GO1 이 진행방향을 향하도록.
-    // 위치 dead-reckoning 은 원래 yaw 로 하고, 표시용 yaw 만 반전한다(실측으로 확정).
-    double yaw_out = wrap_pi(yaw + M_PI);
+    // yaw 는 이미 Unity 규약이므로 보정 없이 그대로 보낸다.
+    // (구 코드는 +180 을 더했다 — 프레임 규약이 어긋난 걸 각도로 때우던 땜질이다.
+    //  지금은 Unity 매퍼가 항등이라 여기서 더하면 그대로 오차가 된다.)
+    double yaw_out = wrap_pi(yaw);
     char msg[512];
     std::snprintf(msg,sizeof(msg),"%llu %.1f %.6f %.6f %.6f %.3f %.3f %.3f %d %d",
                   (unsigned long long)seq,tms,world_x,world_z,yaw_out,vx,vy,wz,estop,mode);
     sendto(sock_tx_state,msg,strlen(msg),0,(sockaddr*)&unity_state_addr,sizeof(unity_state_addr));
+
+    // 다중 로봇 릴레이(옵트인). 축약형 "<type> <robot_id> + 10필드" 로 보낸다.
+    // node_id 는 릴레이가 정한다 - 어느 파이가 전달했는지는 파이 자신만 알기 때문이다.
+    if(relay_enabled && sock_tx_relay>=0)
+    {
+      char rmsg[640];
+      std::snprintf(rmsg,sizeof(rmsg),"go1 %s %s",robot_uid.c_str(),msg);
+      sendto(sock_tx_relay,rmsg,strlen(rmsg),0,
+             (sockaddr*)&relay_addr,sizeof(relay_addr));
+    }
   }
 
   void send_unity_cmd(float vx,float vy,float wz,int estop)
@@ -719,6 +912,25 @@ private:
            (sockaddr*)&unity_statechange_addr,sizeof(unity_statechange_addr));
   }
 
+  // 로봇이 **지금** 상태를 올려보내고 있는가.
+  //
+  // 값의 유효성만 보면 안 된다 — udp.GetRecv 는 마지막에 받은 프레임을 그대로
+  // 남겨두므로, 로봇 전원이 꺼져도 직전 자세값이 계속 유효해 보인다(실측 2026-09-10:
+  // 로봇을 끈 뒤에도 미션이 수락돼 8회전이 전부 turn_timeout 으로 헛돌았다).
+  // 그래서 **신선도**를 본다: SDK 의 UDP 수신 카운터가 최근에 늘었는가.
+  //   ① 카운터가 0.5초 안에 증가 = 패킷이 실제로 오고 있다
+  //   ② 쿼터니언이 정규화돼 있다 = 그 패킷에 실제 자세가 들어 있다(전부 0 인 프레임 배제)
+  bool robot_state_alive() const
+  {
+    auto now=std::chrono::steady_clock::now();
+    double since=std::chrono::duration_cast<std::chrono::duration<double>>(
+                   now-last_recv_change).count();
+    if(!recv_seen || since>0.5) return false;
+    const float* q=&state.imu.quaternion[0];
+    double n=(double)q[0]*q[0]+(double)q[1]*q[1]+(double)q[2]*q[2]+(double)q[3]*q[3];
+    return n>0.5;
+  }
+
   void do_yaw_zero_reset_only(double raw_yaw)
   {
     yaw0=raw_yaw; yaw0_initialized=true;
@@ -726,10 +938,348 @@ private:
     std::fflush(stdout);
   }
 
+  // ===================================================================
+  // 문 탐색 미션 — 오른쪽 45도 x8(회전마다 ACK) -> 왼쪽 45도(문 방향) ACK
+  //                -> 5m 직진 ACK
+  // 회전은 IMU yaw 로 닫는다(명령 시간적분이 아니라 실제 각도로 판정). 직진 거리는
+  // 로봇 자체 odometry(HighState.position)를 1차로 쓰되, odometry 가 안 움직이면
+  // 명령 dead-reckoning 으로 내려간다(이 파일의 기존 규약).
+  // 단계 사이에 정지 구간(settle)을 둬서 사람이 라이트로 ACK 를 확인할 수 있게 한다.
+  // ===================================================================
+  static double sec_between(const std::chrono::steady_clock::time_point& a,
+                            const std::chrono::steady_clock::time_point& b)
+  { return std::chrono::duration_cast<std::chrono::duration<double>>(b-a).count(); }
+
+  void enter_phase(MissionPhase p,const std::chrono::steady_clock::time_point& now)
+  { mission_phase=p; mission_phase_start=now; mission_last_tick=now; }
+
+  // 목표각은 "미션 시작 방향(mission_yaw0) 기준 절대 누적각"이다.
+  // 직전 현재각 기준으로 잡으면 스텝마다 허용오차만큼 모자란 게 그대로 쌓인다
+  // (실측: 45도 x8 이 323도로 끝남 — 스텝당 4.6도씩 손해). 절대 기준으로 두면
+  // 이번 스텝이 조금 모자라도 다음 스텝 목표가 그 부족분을 흡수해, 8번 뒤 정확히 제자리다.
+  void begin_turn(MissionPhase phase,double cum_deg,double yaw_rel,
+                  const std::chrono::steady_clock::time_point& now)
+  {
+    // IMU yaw_rel 은 반시계(+) 규약이라 "오른쪽 회전"은 음수 각이다.
+    mission_turn_target_rel=wrap_pi(mission_yaw0+cum_deg*M_PI/180.0);
+    enter_phase(phase,now);
+    std::printf("[MISSION] %s 누적%+.0fdeg (IMU %.1f -> %.1f deg)\n",
+                phase==MP_SCAN_TURN?"스캔회전":"문방향회전",cum_deg,
+                yaw_rel*180.0/M_PI,mission_turn_target_rel*180.0/M_PI);
+    std::fflush(stdout);
+  }
+
+  void begin_forward(double yaw_rel,const std::chrono::steady_clock::time_point& now)
+  {
+    mission_forward_yaw_ref=yaw_rel;
+    mission_dist=0.0; mission_odo_dist=0.0; mission_use_odo=true;
+    mission_odo0_x=state.position[0]; mission_odo0_y=state.position[1];
+    // 가감속을 감안해 넉넉히 — 이 시간을 넘기면 실패로 보고 멈춘다.
+    // 실측(2026-09-10): 명령 0.15m/s 로 76초에 odometry 4.16m — 실이동이 명령의 1/3 수준이다.
+    // 2.5배로는 5m 가 타임아웃에 걸린다. 4배로 잡되 이 시간을 넘기면 실패로 보고 멈춘다.
+    mission_forward_timeout_sec=mission_forward_m/mission_forward_vx*4.0+5.0;
+    enter_phase(MP_FORWARD,now);
+    std::printf("[MISSION] 직진 %.1fm 시작 (vx=%.2f, 타임아웃 %.0fs, odo0=(%.2f,%.2f))\n",
+                mission_forward_m,mission_forward_vx,mission_forward_timeout_sec,
+                mission_odo0_x,mission_odo0_y);
+    std::fflush(stdout);
+  }
+
+  void mission_start(double yaw_rel,const std::chrono::steady_clock::time_point& now)
+  {
+    if(mission_active){ std::printf("[MISSION] 이미 진행 중\n"); std::fflush(stdout); return; }
+    // 상태가 안 오면 회전을 닫을 각이 없다 — 시작하지 않는다. 그대로 두면 8번 모두
+    // 타임아웃까지 열린 루프로 도는, 사람이 예상할 수 없는 동작이 된다.
+    if(!robot_state_alive())
+    {
+      std::printf("[MISSION] 거부 — 로봇 상태(HighState)가 오지 않는다. "
+                  "sport mode 기동/기립 후 다시 시도할 것\n");
+      std::fflush(stdout);
+      return;
+    }
+    cancel_path(); yaw_align_active=false;
+    mission_active=true; mission_step=0; stand_only=false;
+    last_key_time=now; last_move_cmd_time=now;
+    std::printf("[MISSION] 시작 — 오른쪽 %.0fdeg x%d -> 왼쪽 %.0fdeg -> %.1fm 직진 "
+                "(각 단계마다 ACK+라이트)\n",
+                mission_step_deg,mission_scan_steps,mission_step_deg,mission_forward_m);
+    std::fflush(stdout);
+    mission_yaw0=yaw_rel;                       // 이 방향이 0 도 기준 — 8번 뒤 여기로 돌아온다
+    begin_turn(MP_SCAN_TURN,-mission_step_deg,yaw_rel,now);
+  }
+
+  void mission_cancel(const char* why)
+  {
+    if(!mission_active) return;
+    mission_active=false; mission_phase=MP_IDLE;
+    auto now=std::chrono::steady_clock::now();
+    led_blink_until=now; face_light_set(0,0,0,now,true);
+    set_move_cmd(0,0,0,now);
+    vx_cmd=vy_cmd=wz_cmd=0.0f;
+    stand_only=true; last_key_time=now; last_move_cmd_time=now;
+    use_grace=true; recent_event_count=0; grace_deadline=now;
+    std::printf("[MISSION] 취소 (%s)\n",why); std::fflush(stdout);
+  }
+
+  void mission_finish()
+  {
+    mission_active=false; mission_phase=MP_IDLE;
+    auto now=std::chrono::steady_clock::now();
+    set_move_cmd(0,0,0,now);
+    stand_only=true; last_key_time=now; last_move_cmd_time=now;
+    use_grace=true; recent_event_count=0; grace_deadline=now;
+    std::printf("[MISSION] 완료 — ACK %llu 개 발행\n",(unsigned long long)ack_seq);
+    std::fflush(stdout);
+  }
+
+  // ACK 1건: 로그 + (목적지가 있으면) UDP JSON + 라이트 점멸.
+  void emit_ack(const char* event,int step,int total,double yaw_unity,const char* note)
+  {
+    ack_seq++;
+    double t=std::chrono::duration_cast<std::chrono::duration<double>>(
+      std::chrono::steady_clock::now().time_since_epoch()).count();
+    char msg[512];
+    std::snprintf(msg,sizeof(msg),
+      "{\"ack_seq\": %llu, \"robot_id\": \"%s\", \"mission\": \"door_scan\", "
+      "\"event\": \"%s\", \"step\": %d, \"total\": %d, \"yaw_deg\": %.2f, "
+      "\"x\": %.3f, \"z\": %.3f, \"t_ms\": %.1f, \"note\": \"%s\"}",
+      (unsigned long long)ack_seq,robot_uid.c_str(),event,step,total,
+      yaw_unity*180.0/M_PI,world_x,world_z,t*1000.0,note);
+
+    std::printf("[ACK] #%llu %s %d/%d yaw=%.1fdeg %s%s\n",
+                (unsigned long long)ack_seq,event,step,total,yaw_unity*180.0/M_PI,note,
+                ack_enabled?"":"  (목적지 미설정: 로그만)");
+    std::printf("[ACK] %s\n",msg);
+    std::fflush(stdout);
+
+    if(ack_enabled&&sock_tx_ack>=0)
+      sendto(sock_tx_ack,msg,strlen(msg),0,(sockaddr*)&ack_addr,sizeof(ack_addr));
+
+    ack_light(event);
+  }
+
+  // ACK 를 사람이 볼 수 있게 — 종류별로 색·횟수를 다르게 한다.
+  void ack_light(const char* event)
+  {
+    double dur=1.6; uint8_t r=0,g=0,b=255;
+    if(std::strcmp(event,"scan_turn")==0){r=0;g=0;b=255;dur=1.6;}        // 파랑 2회
+    else if(std::strcmp(event,"door_turn")==0){r=0;g=255;b=0;dur=2.4;}   // 초록 3회
+    else {r=255;g=0;b=255;dur=3.2;}                                      // 보라 4회(직진 완료)
+    led_r=r; led_g=g; led_b=b; led_blink_period=0.4;
+    led_blink_until=std::chrono::steady_clock::now()+
+      std::chrono::duration_cast<std::chrono::steady_clock::duration>(
+        std::chrono::duration<double>(dur));
+  }
+
+  // Go1 얼굴 라이트로 색을 보낸다.
+  // HighCmd.led 는 Go1 에서 동작하지 않는다(헤더에도 "reserve", 실측으로 무반응).
+  // 실제 얼굴 LED 는 헤드 Nano(192.168.123.13)의 faceLightServer 가 잡고 있고,
+  // 그 패킷은 닫힌 .so 안에서 만들어진다. 그래서 Nano 에 올린 브리지
+  // (pi/robot/go1_face_light_bridge.cpp, UDP 7801, "R G B")를 통해 색을 바꾼다.
+  void face_light_set(uint8_t r,uint8_t g,uint8_t b,
+                      const std::chrono::steady_clock::time_point& now,bool force)
+  {
+    if(!light_enabled||sock_tx_light<0) return;
+    bool changed=(r!=light_r||g!=light_g||b!=light_b);
+    if(!changed&&!force&&sec_between(light_last_tx,now)<0.2) return;   // 헤드의 faceLightMqtt 가
+    light_r=r; light_g=g; light_b=b; light_last_tx=now;                // 색을 덮어쓸 수 있어
+    light_on=(r||g||b);                                               // 주기적으로 재전송한다.
+    char msg[32];
+    int n=std::snprintf(msg,sizeof(msg),"%d %d %d",(int)r,(int)g,(int)b);
+    sendto(sock_tx_light,msg,n,0,(sockaddr*)&light_addr,sizeof(light_addr));
+  }
+
+  // 매 프레임 라이트 상태를 갱신한다. 미션 밖에서는 건드리지 않는다.
+  void apply_led()
+  {
+    auto now=std::chrono::steady_clock::now();
+    bool blinking=(now<led_blink_until);
+    if(!mission_active&&!blinking)
+    {
+      if(light_on) face_light_set(0,0,0,now,true);   // 미션이 끝나면 한 번 끈다
+      return;
+    }
+    uint8_t r=0,g=0,b=0;
+    if(blinking)
+    {
+      double left=sec_between(now,led_blink_until);
+      if(std::fmod(left,led_blink_period)>led_blink_period*0.5){r=led_r;g=led_g;b=led_b;}
+    }
+    else { r=60;g=35;b=0; }   // 미션 진행 중 은은한 주황
+    for(int i=0;i<4;i++){cmd.led[i].r=r;cmd.led[i].g=g;cmd.led[i].b=b;}  // 호환용(무시됨)
+    face_light_set(r,g,b,now,false);
+  }
+
+  // 라이트가 안 보이는 환경을 위한 보조 표시 — 정지 중에 몸을 끄덕인다(--ack_gesture).
+  void apply_ack_gesture(const std::chrono::steady_clock::time_point& now)
+  {
+    if(!ack_gesture) return;
+    if(now>=led_blink_until) return;
+    double left=sec_between(now,led_blink_until);
+    cmd.mode=1;
+    cmd.euler[1]=(float)(0.18*std::sin(2.0*M_PI*left/0.8));
+  }
+
+  bool run_mission(double yaw_rel,double yaw_unity,
+                   const std::chrono::steady_clock::time_point& now,
+                   float& ovx,float& ovy,float& owz)
+  {
+    ovx=ovy=owz=0.0f;
+    if(!mission_active) return false;
+
+    // 도중에 상태가 끊기면(전원차단·케이블 이탈) 각도 되먹임이 사라진다. 시작 시점만
+    // 확인하면 그때부터 타임아웃까지 헛도므로 매 프레임 본다.
+    if(!robot_state_alive())
+    {
+      std::printf("[MISSION] 중단 — 로봇 상태가 끊겼다(전원/케이블 확인)\n");
+      std::fflush(stdout);
+      // 취소를 먼저 해서 상태를 정리하고, 그 다음 마지막 ACK 를 낸다
+      // (mission_cancel 이 점멸을 끄므로 순서가 반대면 라이트가 안 깜빡인다).
+      mission_cancel("로봇 상태 두절");
+      emit_ack("aborted",mission_step,mission_scan_steps,yaw_unity,"robot_state_lost");
+      return false;
+    }
+
+    double in_phase=sec_between(mission_phase_start,now);
+
+    switch(mission_phase)
+    {
+      case MP_SCAN_TURN:
+      case MP_DOOR_TURN:
+      {
+        double err=wrap_pi(yaw_rel-mission_turn_target_rel);
+        bool reached=(std::fabs(err)<=mission_turn_tol_rad);
+        bool timeout=(in_phase>=mission_turn_timeout_sec);
+        if(reached||timeout)
+        {
+          if(mission_phase==MP_SCAN_TURN)
+          {
+            mission_step++;
+            emit_ack("scan_turn",mission_step,mission_scan_steps,yaw_unity,
+                     timeout?"turn_timeout":"ok");
+            enter_phase(MP_SCAN_SETTLE,now);
+          }
+          else
+          {
+            emit_ack("door_turn",1,1,yaw_unity,timeout?"turn_timeout":"ok");
+            enter_phase(MP_DOOR_SETTLE,now);
+          }
+          return true;   // 이번 프레임은 정지
+        }
+        double wz=-mission_turn_kp*err;
+        if(wz>mission_turn_max_wz) wz=mission_turn_max_wz;
+        if(wz<-mission_turn_max_wz) wz=-mission_turn_max_wz;
+        // 너무 느리면 다리가 안 떨어져 각이 멎는다 — 최소 회전속도를 둔다.
+        if(std::fabs(wz)<mission_turn_min_wz) wz=(wz>=0?mission_turn_min_wz:-mission_turn_min_wz);
+        owz=(float)wz;
+        if(in_phase-mission_log_mark>=1.0)
+        {
+          mission_log_mark=in_phase;
+          if(mission_phase==MP_SCAN_TURN)
+            std::printf("[MISSION] 스캔회전중 %d/%d err=%.1fdeg wz=%.2f\n",
+                        mission_step+1,mission_scan_steps,err*180.0/M_PI,wz);
+          else
+            std::printf("[MISSION] 문방향회전중 err=%.1fdeg wz=%.2f\n",
+                        err*180.0/M_PI,wz);
+          std::fflush(stdout);
+        }
+        return true;
+      }
+
+      case MP_SCAN_SETTLE:
+      {
+        // ACK 점멸이 끝날 때까지 서 있는다 — 사람이 확인할 시간을 준다.
+        if(in_phase>=mission_settle_sec&&now>=led_blink_until)
+        {
+          mission_log_mark=0.0;
+          if(mission_step>=mission_scan_steps)
+            // 한 바퀴(-360도)를 돈 뒤 왼쪽 45도 = 시작 기준 -360+45 도.
+            begin_turn(MP_DOOR_TURN,
+                       -mission_step_deg*mission_scan_steps+mission_step_deg,yaw_rel,now);
+          else
+            begin_turn(MP_SCAN_TURN,-mission_step_deg*(mission_step+1),yaw_rel,now);
+        }
+        return true;
+      }
+
+      case MP_DOOR_SETTLE:
+      {
+        if(in_phase>=mission_settle_sec&&now>=led_blink_until)
+        { mission_log_mark=0.0; begin_forward(yaw_rel,now); }
+        return true;
+      }
+
+      case MP_FORWARD:
+      {
+        double dt=sec_between(mission_last_tick,now);
+        mission_last_tick=now;
+        if(dt>0.05) dt=0.05;                       // 프레임 튐 방지
+        mission_dist+=mission_forward_vx*dt;       // 명령 dead-reckoning(백업 기준)
+
+        double ox=state.position[0]-mission_odo0_x;
+        double oy=state.position[1]-mission_odo0_y;
+        mission_odo_dist=std::sqrt(ox*ox+oy*oy);
+        // odometry 가 죽어 있으면(1m 명령을 넣었는데 5cm 도 안 움직였다면) 명령적분으로 내려간다.
+        // 전환 문턱은 목표 거리보다 작아야 한다 — 안 그러면 짧은 구간에서 판정 전에 끝난다.
+        double odo_check=mission_forward_m*0.3; if(odo_check>1.0) odo_check=1.0;
+        if(mission_use_odo&&mission_dist>odo_check&&mission_odo_dist<0.05)
+        {
+          mission_use_odo=false;
+          std::printf("[MISSION] odometry 무응답 — 명령 dead-reckoning 으로 전환\n");
+          std::fflush(stdout);
+        }
+        double travelled=mission_use_odo?mission_odo_dist:mission_dist;
+        bool done=(travelled>=mission_forward_m);
+        bool timeout=(in_phase>=mission_forward_timeout_sec);
+        if(done||timeout)
+        {
+          char note[128];
+          std::snprintf(note,sizeof(note),"%s odo=%.2fm cmd=%.2fm",
+                        timeout?"forward_timeout":"ok",mission_odo_dist,mission_dist);
+          emit_ack("forward",1,1,yaw_unity,note);
+          enter_phase(MP_FORWARD_SETTLE,now);
+          return true;
+        }
+        ovx=(float)mission_forward_vx;
+        double err=wrap_pi(yaw_rel-mission_forward_yaw_ref);
+        double wz=-mission_forward_kp_yaw*err;
+        if(wz>mission_forward_max_wz) wz=mission_forward_max_wz;
+        if(wz<-mission_forward_max_wz) wz=-mission_forward_max_wz;
+        owz=(float)wz;
+        if(in_phase-mission_log_mark>=1.0)
+        {
+          mission_log_mark=in_phase;
+          std::printf("[MISSION] 직진중 %.2f/%.2fm (odo=%.2f cmd=%.2f) yaw_err=%.1fdeg\n",
+                      travelled,mission_forward_m,mission_odo_dist,mission_dist,
+                      err*180.0/M_PI);
+          std::fflush(stdout);
+        }
+        return true;
+      }
+
+      case MP_FORWARD_SETTLE:
+      {
+        if(in_phase>=mission_settle_sec&&now>=led_blink_until){ mission_finish(); return false; }
+        return true;
+      }
+
+      default: return false;
+    }
+  }
+
   std::string robot_host,robot_ip,unity_host;
   int unity_state_port,unity_cmd_port,unity_rx_port;
   int sock_tx_state,sock_tx_cmd,sock_rx_unity;
   sockaddr_in unity_state_addr,unity_cmd_addr;
+
+  // 다중 로봇 트윈용 릴레이 송출(옵트인). --relay_ip 를 주지 않으면 아무 일도 안 한다.
+  // 이 파이에서 도는 robot_state_relay.py 로 상태를 한 벌 더 보내면, 릴레이가 node_id 를
+  // 찍어 Unity(15201)로 넘긴다. 그래야 실물 Go1 도 여러 로봇 화면에 같이 뜬다.
+  // 규약: HW-interface/multi-robot-contract.md
+  std::string relay_host,robot_uid;
+  int relay_port,sock_tx_relay;
+  bool relay_enabled;
+  sockaddr_in relay_addr;
 
   std::chrono::steady_clock::time_point last_unity_cmd_time;
   bool use_unity_cmd;
@@ -762,6 +1312,14 @@ private:
   double path_yaw_reach_tol_rad;
   bool path_done_notify;
 
+  // 로봇 상태 신선도 감시 — SDK UDP 수신 카운터가 늘어난 시각
+  unsigned long long last_recv_count=0; bool recv_seen=false;
+  std::chrono::steady_clock::time_point last_recv_change;
+  // 상태가 이 시간 이상 안 오면 스스로 종료한다(0 이면 끈다). systemd 가 다시 띄운다.
+  double state_dead_restart_sec=0.0;
+  std::chrono::steady_clock::time_point state_dead_since;
+  bool state_dead_inited=false;
+
   bool yaw0_initialized; double yaw0,UNITY_YAW_OFFSET_RAD;
   double world_x,world_z;
   std::chrono::steady_clock::time_point last_dr_time;
@@ -769,6 +1327,37 @@ private:
   unsigned long long seq;
 
   bool yaw_align_active; double yaw_align_target_rel,yaw_align_kp,yaw_align_tol_rad;
+
+  // ── 문 탐색 미션 상태 ──
+  bool mission_active,mission_request,mission_cancel_request;
+  MissionPhase mission_phase;
+  int mission_step,mission_scan_steps;
+  double mission_step_deg,mission_forward_m;
+  double mission_turn_kp,mission_turn_max_wz,mission_turn_min_wz,mission_turn_tol_rad;
+  double mission_turn_timeout_sec,mission_settle_sec;
+  double mission_forward_vx,mission_forward_kp_yaw,mission_forward_max_wz;
+  double mission_forward_timeout_sec;
+  double mission_turn_target_rel,mission_forward_yaw_ref,mission_yaw0;
+  double mission_dist,mission_odo_dist,mission_odo0_x,mission_odo0_y;
+  bool mission_use_odo;
+  double mission_log_mark=0.0;
+  std::chrono::steady_clock::time_point mission_phase_start,mission_last_tick;
+
+  // ── ACK / 라이트 ──
+  unsigned long long ack_seq;
+  bool ack_enabled,ack_gesture;
+  int ack_port,sock_tx_ack;
+  sockaddr_in ack_addr;
+  std::chrono::steady_clock::time_point led_blink_until;
+  double led_blink_period;
+  uint8_t led_r,led_g,led_b;
+
+  // Go1 얼굴 라이트(헤드 Nano 브리지)
+  bool light_enabled,light_on;
+  int light_port,sock_tx_light;
+  sockaddr_in light_addr;
+  uint8_t light_r,light_g,light_b;
+  std::chrono::steady_clock::time_point light_last_tx;
 };
 
 void Custom::UDPRecv(){udp.Recv();}
@@ -824,14 +1413,38 @@ void Custom::RobotControl()
   udp.GetRecv(state);
   double raw_yaw=(double)state.imu.rpy[2];
 
+  // 로봇에서 패킷이 실제로 오고 있는지(신선도). robot_state_alive 가 이 값을 쓴다.
+  {
+    auto tnow=std::chrono::steady_clock::now();
+    if(udp.udpState.RecvCount!=last_recv_count)
+    { last_recv_count=udp.udpState.RecvCount; last_recv_change=tnow; recv_seen=true; }
+
+    // 상태 두절 감시. 미션 중에는 미션 쪽이 먼저 중단시키므로 여기서는 대기 중만 본다.
+    if(!state_dead_inited){ state_dead_since=tnow; state_dead_inited=true; }
+    if(robot_state_alive()) state_dead_since=tnow;
+    else if(state_dead_restart_sec>0 && !mission_active)
+    {
+      double dead=std::chrono::duration_cast<std::chrono::duration<double>>(
+                    tnow-state_dead_since).count();
+      if(dead>=state_dead_restart_sec)
+      {
+        std::printf("[FATAL] 로봇 상태 %.0f초 두절 — 프로세스를 새로 시작한다\n",dead);
+        std::fflush(stdout);
+        quit=true;
+      }
+    }
+  }
+
   if(!yaw0_initialized)
   {
     do_yaw_zero_reset_only(raw_yaw);
     last_dr_time=std::chrono::steady_clock::now();
   }
 
+  // yaw_rel 은 IMU 원본 규약(반시계+). yaw_unity 는 Unity 규약(시계+, +Z 기준).
+  // 좌표계 변환은 이 한 줄에서만 일어난다. 이후 모든 좌표/경로/상태는 Unity 규약이다.
   double yaw_rel=wrap_pi(raw_yaw-yaw0);
-  double yaw_unity=wrap_pi(yaw_rel+UNITY_YAW_OFFSET_RAD);
+  double yaw_unity=wrap_pi(-yaw_rel+UNITY_YAW_OFFSET_RAD);
   auto now=std::chrono::steady_clock::now();
 
   // recv path json or PATH_CANCEL
@@ -860,15 +1473,29 @@ void Custom::RobotControl()
     int pid=-1; std::vector<PathPoint> pts;
     if(parse_path_json(latest_path_json,pid,pts))
     {
-      // Unity 가상 GO1이 출발했던 yaw와 현재 C++ yaw_unity 사이의 차이를 보정한다.
+      // Unity 가상 GO1이 출발했던 yaw 를 기준으로 좌표계를 맞춘다.
+      // start_pose.yaw_deg 는 Unity 의 transform.eulerAngles.y 이고, 우리 yaw_unity 도
+      // 같은 규약이므로 부호 변환 없이 그대로 쓴다.
       double unity_start_yaw_deg=parse_start_yaw_deg(latest_path_json);
-      double unity_start_yaw_rad=unity_start_yaw_deg*M_PI/180.0;
+      double unity_start_yaw_rad=wrap_pi(unity_start_yaw_deg*M_PI/180.0);
+
+      // ── 오프셋 자동 보정 ──
+      // 로봇이 실제로 어느 방향을 보고 있는지는 IMU 로 알 수 없다(절대 방위 센서 없음).
+      // 그래서 "이 방향에 놓여 있을 것"이라는 하드코딩 상수(90/180도) 대신,
+      // Unity 가 알려준 가상 GO1 의 출발 방향을 지금 이 순간의 IMU 각(yaw_rel)에
+      // 짝지어 오프셋을 실측으로 정한다. 로봇을 어느 방향에 놓든 경로 시작 시점에
+      // 자동 정합되고, 이후 yaw_correction 은 0 이 된다.
+      // (yaw_unity = -yaw_rel + offset 이므로 offset = start + yaw_rel)
+      UNITY_YAW_OFFSET_RAD = wrap_pi(unity_start_yaw_rad + yaw_rel);
+      yaw_unity = wrap_pi(-yaw_rel + UNITY_YAW_OFFSET_RAD);   // 이번 경로부터 즉시 반영
+
       double yaw_correction=wrap_pi(yaw_unity-unity_start_yaw_rad);
-      std::printf("[PATH] unity_start_yaw=%.2f deg yaw_unity=%.2f deg yaw_correction=%.3f rad\n",
-                  unity_start_yaw_deg, yaw_unity*180.0/M_PI, yaw_correction);
+      std::printf("[PATH] unity_start_yaw=%.2f deg yaw_rel(IMU)=%.2f deg "
+                  "-> offset 자동보정=%.2f deg, yaw_unity=%.2f deg, correction=%.3f rad\n",
+                  unity_start_yaw_deg, yaw_rel*180.0/M_PI,
+                  UNITY_YAW_OFFSET_RAD*180.0/M_PI, yaw_unity*180.0/M_PI, yaw_correction);
       std::fflush(stdout);
 
-      if(!pts.empty()) pts[0].yaw_deg=(float)unity_start_yaw_deg;
       activate_path_from_points(pid, pts, wrap_pi(yaw_unity-yaw_correction));
       stand_only=false; yaw_align_active=false;
     }
@@ -905,8 +1532,13 @@ void Custom::RobotControl()
       do_yaw_zero_reset_only(raw_yaw);
       last_dr_time=std::chrono::steady_clock::now();
     }
+    else if(c=='m'||c=='M')
+    {
+      mission_request=true;
+    }
     else if(c=='x'||c=='X'||c==' ')
     {
+      mission_cancel_request=true;
       yaw_align_active=false; cancel_path(); stand_only=true;
       last_key_time=now; last_move_cmd_time=now;
       set_move_cmd(0,0,0,now); use_grace=true; recent_event_count=0; grace_deadline=now;
@@ -962,6 +1594,41 @@ void Custom::RobotControl()
 
   resetCmdBase();
 
+  // 미션 시작/취소는 IMU 각(yaw_rel)이 필요해 여기서 처리한다(키 'M' / UDP "MISSION SCAN").
+  if(mission_cancel_request){ mission_cancel_request=false; mission_cancel("사용자 요청"); }
+  if(mission_request){ mission_request=false; mission_start(yaw_rel,now); }
+
+  // 문 탐색 미션 — 진행 중에는 경로·텔레옵보다 우선한다.
+  if(mission_active)
+  {
+    float mvx=0,mvy=0,mwz=0;
+    if(run_mission(yaw_rel,yaw_unity,now,mvx,mvy,mwz))
+    {
+      bool moving=(std::fabs(mvx)>1e-3f||std::fabs(mvy)>1e-3f||std::fabs(mwz)>1e-3f);
+      if(moving)
+      {
+        cmd.mode=2; cmd.gaitType=1;
+        cmd.velocity[0]=clampf(mvx,-V_MAX,V_MAX);
+        cmd.velocity[1]=clampf(mvy,-S_MAX,S_MAX);
+        cmd.yawSpeed=clampf(mwz,-W_MAX,W_MAX);
+      }
+      else
+      {
+        cmd.mode=1;
+        cmd.velocity[0]=cmd.velocity[1]=cmd.yawSpeed=0.0f;
+        apply_ack_gesture(now);
+      }
+      vx_cmd=cmd.velocity[0]; vy_cmd=cmd.velocity[1]; wz_cmd=cmd.yawSpeed;
+      apply_led();
+      udp.SetSend(cmd);
+      int estop2=(cmd.mode==1)?1:0; seq++;
+      send_unity_state(yaw_unity,cmd.velocity[0],cmd.velocity[1],cmd.yawSpeed,estop2,cmd.mode);
+      send_unity_cmd(cmd.velocity[0],cmd.velocity[1],cmd.yawSpeed,estop2);
+      send_state_change(moving,cmd.mode,cmd.velocity[0],cmd.velocity[1],cmd.yawSpeed);
+      return;
+    }
+  }
+
   // yaw align priority
   if(yaw_align_active)
   {
@@ -980,6 +1647,7 @@ void Custom::RobotControl()
       cmd.yawSpeed=clampf((float)wz,-W_MAX,W_MAX);
       vx_cmd=vy_cmd=0.0f; wz_cmd=cmd.yawSpeed;
     }
+    apply_led();
     udp.SetSend(cmd);
     int estop2=(cmd.mode==1)?1:0; seq++;
     send_unity_state(yaw_unity,cmd.velocity[0],cmd.velocity[1],cmd.yawSpeed,estop2,cmd.mode);
@@ -1040,6 +1708,7 @@ void Custom::RobotControl()
     }
   }
 
+  apply_led();
   udp.SetSend(cmd);
   int estop2=(cmd.mode==1)?1:0; seq++;
   send_unity_state(yaw_unity,cmd.velocity[0],cmd.velocity[1],cmd.yawSpeed,estop2,cmd.mode);
@@ -1071,6 +1740,8 @@ int main(int argc,char** argv)
     << "T=1: Unity VR/keyboard mode\n"
     << "W/S=forward/back A/D=strafe Q/E=yaw\n"
     << "Space/X=stop R=yaw-align Z=yaw0-reset ESC=quit\n"
+    << "M=문 탐색 미션(오른쪽 45도 x8 -> 왼쪽 45도 -> 5m 직진, 단계마다 ACK+라이트)\n"
+    << "  UDP 로도 시작/취소: echo 'MISSION SCAN' | nc -u <pi7> 15100\n"
     << "Press Enter to continue...\n";
   std::cin.ignore();
 
@@ -1078,12 +1749,43 @@ int main(int argc,char** argv)
 
   std::string robot_ip=get_arg_value(argc,argv,"--robot_ip");
   std::string unity_ip=get_arg_value(argc,argv,"--unity_ip");
+  std::string relay_ip=get_arg_value(argc,argv,"--relay_ip");
+  std::string relay_port_s=get_arg_value(argc,argv,"--relay_port");
+  std::string robot_uid=get_arg_value(argc,argv,"--robot_id");
 
   Custom custom=(!robot_ip.empty()||!unity_ip.empty())
     ? Custom(HIGHLEVEL,
              robot_ip.empty()?"192.168.123.161":robot_ip,
              unity_ip.empty()?"192.168.50.244":unity_ip)
     : Custom(HIGHLEVEL);
+
+  custom.enable_relay(relay_ip,
+                      relay_port_s.empty()?15200:std::atoi(relay_port_s.c_str()),
+                      robot_uid);
+
+  // ACK 목적지는 아직 정해지지 않았다 — 주지 않으면 로그(+라이트)로만 낸다.
+  std::string ack_ip=get_arg_value(argc,argv,"--ack_ip");
+  std::string ack_port_s=get_arg_value(argc,argv,"--ack_port");
+  bool ack_gesture=false;
+  for(int i=1;i<argc;++i) if(std::string(argv[i])=="--ack_gesture") ack_gesture=true;
+  custom.enable_ack(ack_ip,ack_port_s.empty()?0:std::atoi(ack_port_s.c_str()),ack_gesture);
+
+  std::string sdw=get_arg_value(argc,argv,"--state_dead_restart");
+  custom.enable_state_watchdog(sdw.empty()?0.0:std::atof(sdw.c_str()));
+
+  std::string light_ip=get_arg_value(argc,argv,"--light_ip");
+  std::string light_port_s=get_arg_value(argc,argv,"--light_port");
+  custom.enable_face_light(light_ip.empty()?"192.168.123.13":light_ip,
+                           light_port_s.empty()?0:std::atoi(light_port_s.c_str()));
+
+  std::string ms=get_arg_value(argc,argv,"--mission_steps");
+  std::string md=get_arg_value(argc,argv,"--mission_step_deg");
+  std::string mf=get_arg_value(argc,argv,"--mission_forward_m");
+  std::string mv=get_arg_value(argc,argv,"--mission_vx");
+  custom.configure_mission(ms.empty()?0:std::atoi(ms.c_str()),
+                           md.empty()?0.0:std::atof(md.c_str()),
+                           mf.empty()?0.0:std::atof(mf.c_str()),
+                           mv.empty()?0.0:std::atof(mv.c_str()));
 
   LoopFunc loop_control("control_loop",custom.dt,boost::bind(&Custom::RobotControl,&custom));
   LoopFunc loop_udpSend("udp_send",custom.dt,3,boost::bind(&Custom::UDPSend,&custom));

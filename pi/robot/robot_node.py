@@ -23,6 +23,7 @@
 
 실행: python3 -m robot.robot_node   (pi/ 디렉터리에서)
 """
+import re
 import time
 
 from common import config, node, schema
@@ -31,7 +32,14 @@ from common.physical_command import CommandError
 from common.node import BaseNode
 from common.schema import envelope
 from common.spool import CONTINUOUS, EVENT
-from robot import controller_link, media
+from robot import controller_link, go1_mission, media
+
+
+def _odo_from_note(note):
+    """ACK note("ok odo=1.00m cmd=2.00m")에서 실측 이동거리를 뽑는다.
+    규약 result 는 map<string,double> 라 문자열 note 를 그대로 실을 수 없다."""
+    m = re.search(r"odo=([0-9.]+)", note or "")
+    return float(m.group(1)) if m else 0.0
 
 
 class RobotNode(BaseNode):
@@ -44,6 +52,7 @@ class RobotNode(BaseNode):
         self.internal_seq = 0
         self.last_state_pub = 0.0
         self.mission = None                # {"mission_id", "subtask", "status"}
+        self.mission_client = None         # 진행 중인 문 탐색 미션(go1_sdk_pc) 핸들
         self.prev_mode = "idle"
         self.battery_warned = False
         self.internal_fail = 0
@@ -120,6 +129,8 @@ class RobotNode(BaseNode):
             self._publish_state(now, "mode_changed", kind=EVENT, qos=1)
             print(f"[로봇] 동작 모드 → {s.mode}")
 
+        if s.battery_pct is None:
+            return                      # 배터리를 모르는 동안은 경보도 해제도 하지 않는다
         low = s.battery_pct <= config.ROBOT_BATTERY_WARN
         if low and not self.battery_warned:
             self.battery_warned = True
@@ -137,6 +148,33 @@ class RobotNode(BaseNode):
                 raise CommandError("INVALID_ARGUMENT", "invalid_stream_action")
             if a == "start" and self.media.is_running():
                 raise CommandError("ALREADY_EXISTS", "stream_already_open")
+
+        if action == "scan_mission":
+            # 범위 밖 값은 받기 전에 막는다 — 수락해 놓고 로봇이 이상하게 도는 것보다
+            # 거부 사유를 돌려주는 편이 상위가 고칠 수 있다.
+            steps = int(params.get("steps") or 8)
+            step_deg = float(params.get("step_deg") or 45.0)
+            forward_m = float(params.get("forward_m") or 1.0)
+            vx = float(params.get("vx") or 0.0)
+            if not 1 <= steps <= 36:
+                raise CommandError("INVALID_ARGUMENT", "steps_out_of_range")
+            if not 5.0 <= step_deg <= 180.0:
+                raise CommandError("INVALID_ARGUMENT", "step_deg_out_of_range")
+            if not 0.0 <= forward_m <= 10.0:
+                raise CommandError("INVALID_ARGUMENT", "forward_m_out_of_range")
+            if vx and not 0.05 <= vx <= 0.30:
+                raise CommandError("INVALID_ARGUMENT", "vx_out_of_range")
+            if self.in_mission():
+                raise CommandError("FAILED_PRECONDITION", "mission_in_progress")
+            # 실행 주체(go1_sdk_pc)와 로봇 상태를 **수락 전에** 본다. 수락해 놓고
+            # 로봇이 아무것도 하지 않거나, 각도 되먹임 없이 도는 것이 최악이다.
+            sdk_up, state_ok = go1_mission.MissionClient().probe()
+            if not sdk_up:
+                raise CommandError("FAILED_PRECONDITION", "go1_sdk_not_running")
+            if not state_ok:
+                # 로봇이 HighState 를 안 올려보내는 상태. 회전을 IMU 로 닫을 수 없어
+                # 8번 모두 타임아웃까지 열린 루프로 돈다 — 시작하지 않는다.
+                raise CommandError("FAILED_PRECONDITION", "robot_state_dead")
 
     # ================= 공통 코어 훅 =================
     def heartbeat_enabled(self):
@@ -183,7 +221,8 @@ class RobotNode(BaseNode):
             raise CommandError("INVALID_ARGUMENT", "invalid_mission")
         if self.in_mission():
             raise CommandError("FAILED_PRECONDITION", "mission_in_progress")
-        if self.state and self.state.battery_pct <= config.ROBOT_BATTERY_WARN:
+        if (self.state and self.state.battery_pct is not None
+                and self.state.battery_pct <= config.ROBOT_BATTERY_WARN):
             raise CommandError("FAILED_PRECONDITION", "battery_too_low")
 
         yield "executing", {"mission_id": mission_id, "subtask": subtask}
@@ -216,6 +255,89 @@ class RobotNode(BaseNode):
         yield "state_changed", {"robot_mode": self.state.mode if self.state else "?"}
         yield "completed", {"mission_id": self.mission["mission_id"]}
         self.mission = None
+
+    def _act_scan_mission(self, params):
+        """문 탐색 미션 (HW-R-05/06).
+
+        오른쪽 `step_deg` 씩 `steps` 번 회전(회전마다 ACK) → 왼쪽 `step_deg` 1회
+        (문을 찾은 방향) ACK → `forward_m` 직진 ACK.
+
+        **규약 parameters 는 map<string,double> 라 문자열을 못 싣는다.** 그래서 임무
+        종류를 문자열 파라미터로 받지 않고 action 이름 자체를 어휘로 쓰고, 값은 숫자만
+        받는다. 이 제약 때문에 기존 `assign_mission`(mission_id/subtask 가 문자열)은
+        규약 경로로 호출할 수 없다 — 규약 확장 전까지 로봇 임무는 이 어휘를 쓴다.
+
+        실제 구동은 같은 파이의 `go1_sdk_pc`(C++ 500Hz 제어 루프)가 한다. 여기서는
+        UDP 한 줄로 걸고 ACK 를 받아 **단계마다 진행보고로 되돌려준다** — 상위는
+        CommandStatus 를 steps+2 번 받고 마지막에 CommandResult 를 받는다."""
+        steps = int(params.get("steps") or 8)
+        step_deg = float(params.get("step_deg") or 45.0)
+        forward_m = float(params.get("forward_m") or 1.0)
+        vx = float(params.get("vx") or 0.0)
+
+        if (self.state and self.state.battery_pct is not None
+                and self.state.battery_pct <= config.ROBOT_BATTERY_WARN):
+            raise CommandError("FAILED_PRECONDITION", "battery_too_low")
+
+        mc = go1_mission.MissionClient()
+
+        mission_id = "scan-%d" % int(time.time())
+        expected = steps + 2                     # 스캔 steps + 문 방향 1 + 직진 1
+        budget = go1_mission.MissionClient.budget(steps, step_deg, forward_m, vx)
+        started = time.time()
+
+        mc.start(steps, step_deg, forward_m, vx)
+        self.mission_client = mc
+        self.mission = {"mission_id": mission_id, "subtask": "door_scan",
+                        "status": "executing", "started_at": schema.iso_now()}
+        yield "executing", {"steps": steps, "step_deg": step_deg,
+                            "forward_m": forward_m, "expected_acks": expected}
+
+        acks = turns_ok = 0
+        odo_m = 0.0
+        aborted = None
+        try:
+            for ack in mc.acks(expected, budget):
+                acks += 1
+                event = ack.get("event", "?")
+                note = str(ack.get("note", ""))
+                if event in ("scan_turn", "door_turn") and note == "ok":
+                    turns_ok += 1
+                if event == "forward":
+                    odo_m = _odo_from_note(note)
+                if event == "aborted":
+                    # 미션 도중 로봇이 끊겼다. 성공으로 끝내면 안 된다.
+                    aborted = note or "aborted"
+                # 규약 서버는 stage 문자열을 CommandStatus.detail 로 보낸다.
+                yield ("ack %s/%d %s %s/%s yaw=%.1f %s"
+                       % (ack.get("ack_seq", acks), expected, event,
+                          ack.get("step"), ack.get("total"),
+                          float(ack.get("yaw_deg") or 0.0), note)), None
+        except go1_mission.MissionError as e:
+            mc.cancel()
+            self.mission["status"] = "failed"
+            raise CommandError("INTERNAL", str(e))
+        finally:
+            mc.close()
+            self.mission_client = None
+            if self.mission and self.mission.get("status") == "executing":
+                self.mission["status"] = "completed"
+            self.mission = None
+
+        if aborted:
+            raise CommandError("ABORTED", aborted)
+
+        yield "state_changed", {"robot_mode": self.state.mode if self.state else "?"}
+        yield "completed", {"acks": acks, "turns_ok": turns_ok, "steps": steps,
+                            "step_deg": step_deg, "forward_m": forward_m,
+                            "odo_m": odo_m, "duration_s": round(time.time() - started, 1)}
+
+    def cancel(self, command_id):
+        """규약 §5-3 취소 — 실제 정지를 유도한다. CommandResult=CANCELED 보고는
+        규약 서버가 핸들러 종료 시 낸다."""
+        mc = self.mission_client
+        if mc is not None:
+            mc.cancel()
 
     def _act_stream(self, params):
         """HW-R-07 관제용 영상 온디맨드 (아키텍처 v8 §5-10).
@@ -257,6 +379,7 @@ class RobotNode(BaseNode):
     ACTIONS = dict(BASE_ACTIONS, **{
         "assign_mission": _act_assign_mission,
         "abort_mission": _act_abort_mission,
+        "scan_mission": _act_scan_mission,
         "stream": _act_stream,
     })
     PHYSICAL_ACTIONS = frozenset({"assign_mission", "abort_mission", "stream"})

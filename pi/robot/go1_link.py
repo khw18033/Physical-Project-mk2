@@ -126,6 +126,13 @@ class Go1Link(ControllerLink):
             # 아직 한 건도 못 받았다. 값을 지어내지 않는다 — 모르는 것은 모른다고 낸다.
             raise RuntimeError("go1_state_unavailable")
 
+        # 전부 0 인 프레임은 **측정값이 아니라 데이터 부재**다. 로봇 전원 직후나
+        # sport mode 초기화 전에 퍼블리셔가 빈 버퍼를 그대로 내보내는 것을 실측했다
+        # (2026-09-10: robot/state 84B·bms/state 34B 가 85초간 전부 0). 이걸 그대로 읽으면
+        # 자세 0도·위치 원점·배터리 0% 라는 '있어 보이는 거짓값'이 상위로 올라간다.
+        if not any(st):
+            raise RuntimeError("go1_state_zeroed")
+
         rpy = struct.unpack_from("<3h", st, BODY_RPY)          # 도
         height = struct.unpack_from("<f", st, F_HEIGHT)[0]     # m
         pos = struct.unpack_from("<2f", st, F_POS)             # 추정
@@ -139,7 +146,9 @@ class Go1Link(ControllerLink):
         mode = self._infer_mode(st_age, height, speed)
 
         return RobotState(
-            battery_pct=battery if battery is not None else 0.0,
+            # 모르면 None 이다. 0.0 으로 바꾸면 "방전 직전"과 구별되지 않아
+            # 배터리 경보가 오발동하고 임무가 battery_too_low 로 거부된다.
+            battery_pct=battery,
             x=round(pos[0], 3), y=round(pos[1], 3),
             heading_deg=float(rpy[2]),
             speed_mps=round(speed, 3),
@@ -151,6 +160,8 @@ class Go1Link(ControllerLink):
         """SDK BmsState 의 SOC(0~100%). 레이아웃은 comm.h 와 일치함을 실측 확인했다."""
         if bms is None or len(bms) < 4:
             return None
+        if not any(bms):
+            return None            # 전부 0 = 아직 안 채워진 프레임(데이터 부재)
         return float(bms[3])
 
     @staticmethod

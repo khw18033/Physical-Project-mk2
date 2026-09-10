@@ -26,7 +26,7 @@ from dataclasses import asdict, dataclass
 @dataclass
 class RobotState:
     """제어기가 50Hz로 올려보내는 내부 상태 (HW-R-01)."""
-    battery_pct: float
+    battery_pct: float | None      # None = 아직 모른다(0% 와 구별해야 한다)
     x: float
     y: float
     heading_deg: float
