@@ -38,7 +38,7 @@
 
 import { useSyncExternalStore } from 'react';
 
-export type ConnectionTargetId = 'gateway' | 'stt' | 'generate' | 'control-node' | 'digital-twin';
+export type ConnectionTargetId = 'gateway' | 'stt' | 'generate' | 'physical' | 'control-node' | 'digital-twin';
 
 export type ConnectionField = {
   key: string;
@@ -87,6 +87,17 @@ export const CONNECTION_TARGETS: readonly ConnectionTarget[] = [
     what: '발화 → 임무 객체 (VZ-G-01·VZ-G-02). 꺼져 있으면 생성만 꺼지고 대본 재생·되감기·캔버스는 그대로 돈다',
     live: true,
     fields: [{ key: 'base', label: '주소', fallback: 'http://127.0.0.1:8802' }],
+  },
+  {
+    id: 'physical',
+    label: '로봇 (MQTT 브로커)',
+    what: 'Go1 명령·진행 보고. 꺼져 있으면 로봇 명령만 꺼지고 대본 재생·되감기·캔버스는 그대로 돈다',
+    live: true,
+    // **주소를 여기 적지 않는다.** stt·generate 는 대비값을 여기 두지만, 로봇은
+    // 주소·토픽·장비 id 가 한 곳에만 있어야 한다는 제약이 더 세다(`verify:physical-port`) —
+    // 브로커를 옮기거나 중앙 서버 경유로 바꿀 때 한쪽만 고쳐지면 화면이 「붙었다」고
+    // 말하면서 아무것도 못 받는다. 기본값은 `src/physical/PhysicalClient.ts` 가 심는다.
+    fields: [{ key: 'ws', label: 'WebSocket', fallback: '' }],
   },
   {
     id: 'control-node',

@@ -34,6 +34,9 @@
     "verify:placeholder-default": "node scripts/verify-placeholder-default.mjs",
     "verify:script-library": "node scripts/verify-script-library.mjs",
     "verify:script-door": "node scripts/verify-script-door.mjs",
+    "verify:command-encode": "node scripts/verify-command-encode.mjs",
+    "verify:physical-port": "node scripts/verify-physical-port.mjs",
+    "verify:no-physical": "node scripts/verify-no-physical.mjs",
     "verify:viewpoint-layout": "node scripts/verify-viewpoint-layout.mjs",
     "verify:viewpoint-fill": "node scripts/verify-viewpoint-fill.mjs",
     "verify:scenario-mode": "node scripts/verify-scenario-mode.mjs",
@@ -44,6 +47,7 @@
     "measure:representation": "node scripts/measure-representation.mjs",
     "goldset:extract": "node scripts/extract-goldset.mjs",
     "score:generation": "node scripts/score-generation.mjs",
+    "schema:pull": "node scripts/pull-schema.mjs",
     "extract:places": "node scripts/extract-places.mjs",
     "extract:equipment": "node scripts/extract-equipment.mjs",
     "verify:places": "node scripts/verify-places.mjs",
@@ -52,6 +56,8 @@
     "baseline:report": "node scripts/report-baseline.mjs"
   },
   "dependencies": {
+    "mqtt": "^5.15.2",
+    "protobufjs": "^8.8.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "ws": "^8.18.0"
@@ -62,6 +68,7 @@
     "@types/react-dom": "^19.1.0",
     "@types/ws": "^8.18.0",
     "@vitejs/plugin-react": "^4.3.4",
+    "protobufjs-cli": "^2.7.0",
     "typescript": "^5.7.0",
     "vite": "^6.0.0"
   }
