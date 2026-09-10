@@ -403,6 +403,9 @@ b.follow-live{cursor:default}
 .edge--fan-trunk,.edge--fan-spine{stroke:#8392a3;stroke-width:2;fill:none}
 .edge--fan-spine{stroke-linecap:round}
 .edge--fan-arrow{stroke:#8392a3;stroke-width:2;fill:none}
+/* 판정이 오기 전 뷰포인트에서 나가는 선 (260910 후속) — 여덟이 다 대기인데 한 곳에서만
+   굵은 선이 나가면 화면이 탐지보다 먼저 답을 말한다. 판정이 도착하면 선명해진다. */
+.edge--unjudged{opacity:.28;stroke-dasharray:5 4}
 
 /* 근거 가시화 (260909 시연 대본 §5) — 문장이 먼저 읽히고, 이미지 자리는 비워 둔다.
    더미 이미지를 그려 넣지 않는다: 발표에서 「이건 가짜입니다」를 말하게 되는 자리다. */

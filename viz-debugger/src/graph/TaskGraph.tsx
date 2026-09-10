@@ -359,6 +359,15 @@ export function TaskGraph({ tasks, hardware, states, selected, dimUnrelated, onO
         // 8분할 분기 (260910) — 이 여덟 쌍은 **아래에서 spine 하나로 따로 그린다.**
         // 쌍마다 그리면 세로 구간 여덟이 같은 x 에 포개져 한 줄처럼 보일 뿐 실제로는 여덟 겹이다.
         if (fan !== null && dep === viewpoints?.parentTaskId && fanIds.has(task.id)) return null;
+        // 뷰포인트에서 **나가는** 선 (260910 후속). 판정이 오기 전에는 이 선도 흐리다.
+        //
+        // 여덟이 다 대기인데 90도에서만 굵은 선이 나가면, 화면이 「이게 답이다」를 탐지보다
+        // 먼저 말하는 셈이다. 카드는 전부 같은 색인데 선만 굵어 「연결됐는데 색이 같다」로
+        // 읽힌 자리가 여기다. 판정이 도착하면 카드와 함께 선명해진다.
+        const fromViewpoint = fanIds.has(dep)
+          ? viewpointFill?.get(viewpoints?.taskIds.indexOf(dep) ?? -1) ?? null
+          : null;
+        const pendingLead = fromViewpoint !== null && fromViewpoint.phase !== 'selected' ? ' edge--unjudged' : '';
         const dim = dimUnrelated && (!relevant.has(dep) || !relevant.has(task.id)) ? ' dimmed' : '';
         // 줄바꿈(↵ · 실선 파랑)과 되돌아감(↺ · 점선 주황)은 **다른 것**이다. 섞이면 안 된다.
         if (wrapped.has(key)) {
@@ -368,7 +377,7 @@ export function TaskGraph({ tasks, hardware, states, selected, dimUnrelated, onO
             <text className="edge__wrapmark" x={to.x + 6} y={lane - 6}>↵ 줄바꿈</text>
           </g>;
         }
-        return <path key={key} className={`edge${dim}`} d={connectionPath(from, to)} markerEnd="url(#arrow)" />;
+        return <path key={key} className={`edge${dim}${pendingLead}`} d={connectionPath(from, to)} markerEnd="url(#arrow)" />;
       }))}
       {/* 8분할 분기선 (260910) — **다섯째 선 종류다.** 부모에서 가로선 하나가 나가 세로
           spine 을 만들고, spine 에서 각 노드로 가로 화살표 여덟이 붙는다. 여덟은 y 가 다
@@ -422,6 +431,9 @@ export function TaskGraph({ tasks, hardware, states, selected, dimUnrelated, onO
           : null}
         {cell !== null && cell.phase === 'rejected' ? <span className="viewpoint__verdict">문 없음</span> : null}
         {cell !== null && cell.phase === 'scanning' ? <span className="viewpoint__verdict">탐색 중…</span> : null}
+        {/* 대기에도 글자를 준다 — 낮은 카드에서 실행 상태 줄(`.state-label`)을 숨겼더니
+            여덟만 아무 말이 없어 「아직 안 왔다」가 「고장났다」로 읽혔다. */}
+        {cell !== null && cell.phase === 'pending' ? <span className="viewpoint__verdict">대기</span> : null}
         <span className={`device ${device?.connection ?? 'unknown'}`}>{task.target === null ? '대상 없음' : `${task.target} · ${device ? (device.connection === 'online' ? '온라인' : device.connection === 'maintenance' ? '점검' : '오프라인') : '상태 미수신'}`}</span>
       </button>;
     })}
