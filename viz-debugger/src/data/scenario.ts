@@ -44,7 +44,7 @@ import { MergeScheduler } from './mergeScheduler.ts';
 import { appendGenerated, appendHuman, appendTrace, resetTrace, traceEvents, traceMissionId } from './trace.ts';
 import { scriptFrames } from '../viewpoint/source.ts';
 import { appendViewpoint, resetViewpoint } from '../viewpoint/store.ts';
-import { markApproved, resetRobotSession } from '../physical/robotSession.ts';
+import { markApproved, resetRobotSession, robotDrives } from '../physical/robotSession.ts';
 import { provenancePayload, type AiProvenance } from '../shared/provenance.ts';
 import rawScenario from '../../scenarios/MSN-260826-01.json' with { type: 'json' };
 import { libraryEntry } from '../scenarios/library.ts';
@@ -382,7 +382,9 @@ export function activateMission(missionId: string, mode: 'remote' | 'local'): vo
   localViewpointCursor = 0;
   commitNow({ current: view, proposal: null, headSec: 0, playing: true, activatedBy: 'approval' });
 
-  if (mode === 'local') {
+  // **로봇이 몰면 타이머를 안 세운다** (260910 지적). 대본 시각이 저 혼자 흐르면 로봇이
+  // 아직 첫 걸음도 안 뗐는데 화면은 끝나 있다.
+  if (mode === 'local' && !robotDrives()) {
     const stepMs = 200;
     localTimer = setInterval(() => {
       const nextHead = state.headSec + (stepMs / 1000) * LOCAL_SPEED;
@@ -485,7 +487,12 @@ function feedLocalTrace(headSec: number): void {
     localCursor += 1;
   }
   // 뷰포인트 채널 (260909 §6) — 기록 열과 **같은 걸음으로** 흘려보낸다. 화면은 대본이
-  // 아니라 흘러온 것을 접는다. 로봇이 붙는 날 이 줄이 게이트웨이 수신으로 바뀐다.
+  // 아니라 흘러온 것을 접는다.
+  //
+  // **로봇이 붙어 있으면 대본이 이 자리를 채우지 않는다** (260910 지적). 진행은 uplink 의
+  // `CommandStatus` 가 몬다 — 대본과 로봇이 같이 채우면 여덟 칸이 두 번 차고, 화면이
+  // 로봇보다 앞서 간다.
+  if (robotDrives()) return;
   const timeline = state.current.viewpointTimeline;
   while (localViewpointCursor < timeline.length && timeline[localViewpointCursor].atSec <= headSec) {
     const entry = timeline[localViewpointCursor];
@@ -527,6 +534,33 @@ function stopLocalTimer(): void {
  * 중복(재접속 뒤 다시 온 같은 `seq`)은 열이 흡수한다 — 새로 생긴 것이 없고 머리도 안
  * 움직이면 화면을 다시 그리지 않는다.
  */
+/**
+ * **로봇이 민 진행** (260910). `receiveTrace` 와 갈라 둔 이유는 **대본 끝 판정** 때문이다.
+ *
+ * `receiveTrace` 는 대본의 마지막 사건 시각을 넘으면 「재생 끝」으로 보고 머리를
+ * `durationSec` 에 세운다. 로봇은 대본보다 느릴 수도 빠를 수도 있어서 그 판정을 쓰면
+ * 로봇이 아직 도는 중에 화면이 끝나 버린다. 여기서는 **머리를 사건 시각까지만** 민다.
+ */
+export function receiveRobotProgress(missionId: string, event: ScenarioEvent): void {
+  if (missionId !== state.current.missionId) return;
+  appendTrace(missionId, event);
+  commit({ headSec: Math.max(state.headSec, event.atSec), playing: true });
+}
+
+/**
+ * **로봇이 민 재생 머리** (260910). 사건 없이 시각만 민다.
+ *
+ * 뷰포인트 프레임은 기록 열의 사건이 아니라 별도 열로 들어간다(`viewpoint/store.ts`).
+ * 화면은 그 열을 **머리까지만** 접으므로, 머리가 안 움직이면 로봇이 여덟 걸음을 다
+ * 흘려도 화면은 비어 있다 — 실제로 그랬다. 회전 사건에는 태스크 상태 변화가 없어서
+ * 머리를 밀 사건이 하나도 없었기 때문이다.
+ */
+export function advanceRobotHead(missionId: string, atSec: number): void {
+  if (missionId !== state.current.missionId) return;
+  if (atSec <= state.headSec) return;
+  commit({ headSec: atSec, playing: true });
+}
+
 export function receiveTrace(missionId: string, event: ScenarioEvent): void {
   if (missionId !== state.current.missionId) return;
   const fresh = appendTrace(missionId, event);

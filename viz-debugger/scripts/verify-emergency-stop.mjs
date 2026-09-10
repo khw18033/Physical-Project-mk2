@@ -24,8 +24,17 @@ const load = (...p) => import(pathToFileURL(join(root, ...p)).href);
 const { emergencyStop, stopFailureMessage, issueScan } = await load('src', 'physical', 'robotCommands.ts');
 const {
   resetRobotSession, markApproved, robotSession, registerTimer, releaseStopped,
-  applyEffects, canIssueRobotCommand,
+  applyEffects, canIssueRobotCommand, setConnection, recordCommand,
 } = await load('src', 'physical', 'robotSession.ts');
+
+const online = () => setConnection({ state: 'open' });
+/**
+ * 목이 쓰는 command_id 를 **우리가 낸 명령으로 등록**한다. `effectsOf` 가 남의 명령의
+ * 진행 보고를 걸러 내므로(260910), 등록하지 않으면 목 프레임이 통째로 무시된다.
+ */
+const ownCommand = (commandId = 'cmd-00000001') => recordCommand({
+  taskId: 'T-A3', commandId, requestId: null, state: 'issued', code: null, message: null, result: {},
+});
 const { receiveUplink } = await load('src', 'physical', 'robotBridge.ts');
 const { decodeUplink, parseDetail } = await load('src', 'physical', 'uplink.ts');
 const { mockScanUplink } = await load('src', 'physical', 'mockUplink.ts');
@@ -56,7 +65,9 @@ const filled = () => cellsInOrder(reduceFrames(emptyFill(8), framesUpTo(999))).f
 {
   resetRobotSession();
   resetViewpoint(MISSION);
+  online();
   markApproved();
+  ownCommand();
 
   const frames = mockScanUplink();
   // 앞의 넷을 흘린다 — 회전이 도는 중이다.
@@ -89,6 +100,7 @@ const filled = () => cellsInOrder(reduceFrames(emptyFill(8), framesUpTo(999))).f
 // ── 2. 타이머·폴링이 멈춘다 ─────────────────────────────────────────────────
 {
   resetRobotSession();
+  online();
   markApproved();
   let cancelled = 0;
   registerTimer(() => { cancelled += 1; });
@@ -101,6 +113,7 @@ const filled = () => cellsInOrder(reduceFrames(emptyFill(8), framesUpTo(999))).f
 // ── 3. 화면이 잠기고, 나오는 길이 있다 ──────────────────────────────────────
 {
   resetRobotSession();
+  online();
   markApproved();
   await emergencyStop(client());
 
@@ -118,6 +131,7 @@ const filled = () => cellsInOrder(reduceFrames(emptyFill(8), framesUpTo(999))).f
 // ── 4. 연결이 없을 때 — 눌리고, 실패를 크게 말한다 ──────────────────────────
 {
   resetRobotSession();
+  online();
   markApproved();
   const offline = client({ connected: false });
 
@@ -137,6 +151,7 @@ const filled = () => cellsInOrder(reduceFrames(emptyFill(8), framesUpTo(999))).f
 // ── 5. 클라이언트가 아예 없어도 잠긴다 ──────────────────────────────────────
 {
   resetRobotSession();
+  online();
   markApproved();
   const stopped = await emergencyStop(null);
   if (robotSession().stopped === null) failures.push('클라이언트가 null 인데 화면이 안 잠겼다');
@@ -147,6 +162,7 @@ const filled = () => cellsInOrder(reduceFrames(emptyFill(8), framesUpTo(999))).f
 // ── 6. 발행이 던져도 잠긴다 ─────────────────────────────────────────────────
 {
   resetRobotSession();
+  online();
   markApproved();
   const throwing = {
     getStatus: () => ({ state: 'open' }),
@@ -161,6 +177,7 @@ const filled = () => cellsInOrder(reduceFrames(emptyFill(8), framesUpTo(999))).f
 // ── 7. 규약 밖으로 나가지 않는다 ────────────────────────────────────────────
 {
   resetRobotSession();
+  online();
   markApproved();
   const c = client();
   await emergencyStop(c);
@@ -177,6 +194,7 @@ const filled = () => cellsInOrder(reduceFrames(emptyFill(8), framesUpTo(999))).f
 
   // **abort 는 자기 command_id 를 새로 만든다** — 돌던 임무의 id 를 재사용하면 응답이 섞인다.
   resetRobotSession();
+  online();
   markApproved();
   const c2 = client();
   await issueScan(c2, { viewpoint_count: 8, forward_distance_m: 4.2 });
@@ -211,7 +229,9 @@ function control(name, hit) {
   // 정지를 안 눌렀으면 늦게 온 사건이 노드를 채운다 — 1번 검사가 뜻이 있으려면 이래야 한다.
   resetRobotSession();
   resetViewpoint(MISSION);
+  online();
   markApproved();
+  ownCommand();
   const frames = mockScanUplink();
   for (const frame of frames.slice(0, 4)) receiveUplink(decodeUplink(frame.payload), MISSION, frame.atSec, 90);
   const before = filled();
@@ -221,6 +241,7 @@ function control(name, hit) {
 {
   // 발행 성공과 잠금을 묶은 사본 — 실패했으면 안 잠근다. 그것이 막으려는 것이다.
   resetRobotSession();
+  online();
   markApproved();
   const stopped = await emergencyStop(client({ connected: false }));
   control('발행 실패해도 잠긴다', stopped.published === false && robotSession().stopped !== null);
@@ -228,6 +249,7 @@ function control(name, hit) {
 {
   // detail 이 깨져도 정지 상태에서는 아무것도 안 바뀐다.
   resetRobotSession();
+  online();
   markApproved();
   await emergencyStop(client());
   const before = JSON.stringify(robotSession());

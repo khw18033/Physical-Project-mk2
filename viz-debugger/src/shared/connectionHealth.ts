@@ -23,7 +23,14 @@ export type HealthLine = {
   /** 줄 이름. `physical` 은 '브로커'와 '로봇' 둘이다. */
   id: string;
   label: string;
-  ok: boolean;
+  /**
+   * `true` 초록 · `false` 빨강 · **`null` 은 「모른다」**.
+   *
+   * 모른다와 빨갛다는 다르다. `ping` 은 단말까지만 증명하고 로봇은 증명하지 않는다 —
+   * 그때 로봇 줄을 빨갛게 칠하면 「로봇이 죽었다」는 없는 사실을 말하는 것이고,
+   * 초록으로 칠하면 「로봇이 살아 있다」는 더 나쁜 거짓말이다.
+   */
+  ok: boolean | null;
   /** 왕복 시간(ms). 모르면 null — 발표에서 물어볼 수 있는 숫자다. */
   roundTripMs: number | null;
   /** 실패했으면 왜. 화면이 이 문장을 그대로 적는다. */
@@ -78,7 +85,7 @@ export function setHealth(target: ConnectionTargetId, lines: readonly HealthLine
 export function line(
   id: string,
   label: string,
-  ok: boolean,
+  ok: boolean | null,
   extra: { roundTripMs?: number | null; reason?: string | null } = {},
 ): HealthLine {
   return {
@@ -100,13 +107,18 @@ export function line(
 export function targetOk(target: ConnectionTargetId): boolean | null {
   const lines = healthOf(target).lines;
   if (lines.length === 0) return null;
-  return lines.every((l) => l.ok);
+  // 빨간 줄이 하나라도 있으면 빨갛다.
+  if (lines.some((l) => l.ok === false)) return false;
+  // 「모른다」만 남았으면 초록이라고 말하지 않는다 — 확인된 것만 초록이다.
+  if (lines.every((l) => l.ok === true)) return true;
+  return null;
 }
 
 /** 시연 화면 표시등이 읽는 한 줄. 무엇이 끊겼는지가 보여야 한다 (§4). */
 export function firstBroken(targets: readonly ConnectionTargetId[]): { target: ConnectionTargetId; line: HealthLine } | null {
   for (const target of targets) {
-    const broken = healthOf(target).lines.find((l) => !l.ok);
+    // **모르는 것은 끊긴 것이 아니다.** 빨간 줄만 짚는다.
+    const broken = healthOf(target).lines.find((l) => l.ok === false);
     if (broken !== undefined) return { target, line: broken };
   }
   return null;

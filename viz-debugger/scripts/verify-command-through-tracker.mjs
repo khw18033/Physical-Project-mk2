@@ -20,7 +20,8 @@ const load = (...p) => import(pathToFileURL(join(root, ...p)).href);
 
 const { commandTracker } = await load('src', 'shared', 'commandCenter.ts');
 const { issueScan } = await load('src', 'physical', 'robotCommands.ts');
-const { resetRobotSession, markApproved } = await load('src', 'physical', 'robotSession.ts');
+const { resetRobotSession, markApproved, setConnection } = await load('src', 'physical', 'robotSession.ts');
+const online = () => setConnection({ state: 'open' });
 const failures = [];
 const controls = [];
 
@@ -39,6 +40,7 @@ function countingClient() {
 // ── 1~4. 스캔 하나를 쏘고 추적기가 봤는지 본다 ───────────────────────────────
 {
   resetRobotSession();
+  online();
   markApproved();
   const client = countingClient();
   const before = commandTracker.getSnapshot().length;
@@ -86,6 +88,7 @@ function countingClient() {
   };
 
   resetRobotSession();
+  online();
   markApproved();
   const client = countingClient();
   await issueScan(client, { viewpoint_count: 8, forward_distance_m: 4.2 });
@@ -104,6 +107,7 @@ function control(name, hit) {
 {
   // 추적기를 우회해 클라이언트를 직접 부르면 목록이 안 는다 — 그것이 이 검사가 막는 것이다.
   resetRobotSession();
+  online();
   markApproved();
   const client = countingClient();
   const before = commandTracker.getSnapshot().length;

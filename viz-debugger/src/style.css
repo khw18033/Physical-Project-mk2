@@ -465,3 +465,14 @@ b.follow-live{cursor:default}
 .conn-lamp--ok{background:#e7f6ee;color:#125c33;border-color:#bfe3ce}
 .conn-lamp--bad{background:#fdeceb;color:#8f2b26;border-color:#f0c4c1}
 .conn-lamp--unknown{background:#eef2f7;color:#5c6a7c;border-color:#dfe4ea}
+
+/* 하드웨어 카드의 연결 층 (260910) — 브로커·단말·로봇 셋을 뭉치지 않는다.
+   로봇은 늘 「?」다: ping 은 단말까지만 증명한다. */
+.hw-link{display:flex;flex-wrap:wrap;gap:4px;align-items:center}
+.hw-dot{padding:1px 6px;border-radius:8px;font-size:10px;font-style:normal;font-weight:600}
+.hw-dot--ok{background:#e7f6ee;color:#125c33}
+.hw-dot--bad{background:#fdeceb;color:#8f2b26}
+.hw-dot--unknown{background:#eef2f7;color:#6b7888}
+/* 로봇이 보낸 ACK 순번 — 우리 값과 나란히 둔다. 어긋나면(ack > of) 표시를 달리한다. */
+.robot-ack{padding:3px 8px;border-radius:10px;background:#f2f4f7;color:#6b7888;font-size:11px;font-variant-numeric:tabular-nums}
+.robot-ack--odd{background:#fdf6e3;color:#7a5c12;font-weight:600}

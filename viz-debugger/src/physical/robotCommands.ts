@@ -24,10 +24,11 @@ import type { CommandAck, CommandRequest } from '../transport/index.ts';
 import type { PhysicalAction } from './encode.ts';
 import { commandForTask, missionGeometry } from './missionLink.ts';
 import type { PhysicalClient } from './PhysicalClient.ts';
+import type { UplinkMessage } from './uplink.ts';
 import { STOP_ACTION, STOP_REASON } from './presets.ts';
 import {
-  canIssueRobotCommand, lockStopped, markApproachIssued, recordCommand, robotSession,
-  type StopState,
+  canIssueRobotCommand, clearScanIssued, lockStopped, markApproachIssued, markScanIssued,
+  recordCommand, robotDrives, robotSession, type StopState,
 } from './robotSession.ts';
 
 export type IssueOutcome = {
@@ -107,9 +108,34 @@ async function issueThroughTracker(
   };
 }
 
-/** 승인 → `T-A3` 가 `scan_mission` 을 쏜다. `forward_m=0` 이라 스캔만 돈다. */
-export function issueScan(client: PhysicalClient, params: Record<string, unknown> | null) {
-  return issueTask(client, 'T-A3', params);
+/**
+ * 승인 → `T-A3` 가 `scan_mission` 을 쏜다. `forward_m=0` 이라 스캔만 돈다.
+ *
+ * **표시를 먼저 세운다.** 발행을 기다렸다가 세우면 그 사이의 다시 그리기에서 관문이
+ * 아직 열려 있어 스캔이 여러 번 나간다 — 260910 에 진행률이 「40 / 10」으로 찍혔다.
+ * 로봇이 네 번 돈 것이다. 실패하면 도로 내린다.
+ */
+export async function issueScan(client: PhysicalClient, params: Record<string, unknown> | null): Promise<IssueOutcome> {
+  // **막히면 왜 막혔는지 말한다.** 조용히 null 을 돌려주면 발표장에서 「왜 안 가지」가 된다.
+  if (robotSession().scanIssued) {
+    return { sent: false, commandId: '', requestId: null, reason: '이미 쐈습니다 — 승인 한 번에 한 번만 나갑니다' };
+  }
+  if (!robotDrives()) {
+    return { sent: false, commandId: '', requestId: null, reason: '브로커에 안 붙어 있습니다 — 대본이 돕니다' };
+  }
+  markScanIssued();
+  const outcome = await issueTask(client, 'T-A3', params);
+  if (outcome === null || outcome.sent !== true) clearScanIssued();
+  return outcome ?? { sent: false, commandId: '', requestId: null, reason: 'T-A3 에 낼 명령이 없습니다' };
+}
+
+/**
+ * 승인 뒤 스캔을 **한 번만** 쏜다. 화면이 다시 그려질 때마다 부르면 로봇이 여러 번 돈다.
+ * 브로커에 안 붙어 있으면 안 쏜다 — 그때는 대본이 돈다.
+ */
+export function shouldIssueScan(): boolean {
+  const session = robotSession();
+  return session.approved && !session.scanIssued && session.stopped === null && robotDrives();
 }
 
 /**
@@ -132,20 +158,69 @@ export function canApproach(): boolean {
 }
 
 /**
- * **연결 확인.** `ping` 왕복. 발표 직전에 이걸 눌러 초록을 보고 무대에 오른다.
+ * **연결 확인.** `ping` **왕복**. 발표 직전에 이걸 눌러 초록을 보고 무대에 오른다.
  * 임무 명령이 아니라 승인과 무관하다.
+ *
+ * ## 발행 성공은 왕복 성공이 아니다 (260910 — 실제로 났던 거짓말)
+ *
+ * 처음에 `client.send()` 가 참을 돌려주면 곧바로 `ok: true` 로 적었다. 그건 **브로커가
+ * 받았다**는 뜻이지 로봇이 답했다는 뜻이 아니다. 로봇을 꺼 놓고 눌렀는데 「로봇 ✓ 1ms」가
+ * 떴다 — 1ms 는 왕복이 아니라 `send()` 가 걸린 시간이었다.
+ *
+ * 「붙었다」와 「답한다」를 가른 것이 연결 관리의 요점인데, 정작 로봇 줄이 브로커를 다시
+ * 재고 있었다. 이제 **그 command_id 의 uplink 가 올 때까지 기다린다.** 안 오면 빨갛다.
  */
-export async function issuePing(client: PhysicalClient): Promise<{ ok: boolean; roundTripMs: number | null; message: string }> {
+export async function issuePing(
+  client: PhysicalClient,
+  timeoutMs = 4000,
+): Promise<{ ok: boolean; roundTripMs: number | null; message: string }> {
+  // **귀를 먼저 연다.** 보내고 나서 열면 빠른 응답을 놓친다.
+  let expected: string | null = null;
+  let settle: ((message: UplinkMessage) => void) | null = null;
+  const answered = new Promise<UplinkMessage>((resolve) => { settle = resolve; });
+  const seen: UplinkMessage[] = [];
+  const off = client.onMessage((message) => {
+    seen.push(message);
+    if (expected !== null && message.commandId === expected && settle !== null) {
+      settle(message);
+      settle = null;
+    }
+  });
+
   const startedAt = Date.now();
-  const outcome = client.send('ping');
-  if (!outcome.sent) {
-    return { ok: false, roundTripMs: null, message: outcome.reason ?? '보내지 못했습니다' };
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  try {
+    const outcome = client.send('ping');
+    if (!outcome.sent) {
+      return { ok: false, roundTripMs: null, message: outcome.reason ?? '보내지 못했습니다' };
+    }
+    expected = outcome.commandId;
+
+    // 보내는 사이에 이미 왔을 수도 있다.
+    const early = seen.find((m) => m.commandId === expected);
+    const reply = early ?? await Promise.race([
+      answered,
+      new Promise<null>((resolve) => { timer = setTimeout(() => resolve(null), timeoutMs); }),
+    ]);
+
+    if (reply === null) {
+      // **브로커는 받았는데 로봇이 답을 안 했다.** 이게 로봇이 꺼져 있을 때의 모습이다.
+      return {
+        ok: false,
+        roundTripMs: null,
+        message: `로봇이 ${timeoutMs}ms 안에 답하지 않았습니다 — 브로커는 받았습니다`,
+      };
+    }
+    const roundTripMs = Date.now() - startedAt;
+    // 거절도 **답한 것**이다 — 로봇은 살아 있고 그 말을 그대로 옮긴다.
+    if (reply.kind === 'acceptance' && !reply.accepted) {
+      return { ok: false, roundTripMs, message: `로봇이 거절했습니다 — ${reply.code ?? '사유 없음'} ${reply.message ?? ''}`.trim() };
+    }
+    return { ok: true, roundTripMs, message: '로봇이 답했습니다' };
+  } finally {
+    off();
+    if (timer !== null) clearTimeout(timer);
   }
-  return {
-    ok: true,
-    roundTripMs: Date.now() - startedAt,
-    message: '브로커로 발행했습니다 — 로봇 응답은 uplink 로 옵니다',
-  };
 }
 
 /**

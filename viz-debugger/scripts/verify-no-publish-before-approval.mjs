@@ -17,8 +17,11 @@ const load = (...p) => import(pathToFileURL(join(root, ...p)).href);
 
 const { issueScan, issueApproach, issuePing, emergencyStop } = await load('src', 'physical', 'robotCommands.ts');
 const {
-  resetRobotSession, markApproved, robotSession, canIssueRobotCommand, releaseStopped,
+  resetRobotSession, markApproved, robotSession, canIssueRobotCommand, releaseStopped, setConnection,
 } = await load('src', 'physical', 'robotSession.ts');
+
+/** 브로커에 붙은 것으로 둔다 — `issueScan` 이 `robotDrives()` 를 묻는다. */
+const online = () => setConnection({ state: 'open' });
 
 const failures = [];
 const controls = [];
@@ -26,12 +29,22 @@ const controls = [];
 /** 붙은 척하면서 발행을 세는 가짜 클라이언트. 진짜와 같은 모양이다. */
 function countingClient() {
   const sent = [];
+  const listeners = new Set();
   return {
     sent,
     getStatus: () => ({ state: 'open' }),
+    // 진짜 클라이언트와 같은 면 — issuePing 이 응답을 기다리므로 귀가 있어야 한다.
+    onMessage(listener) { listeners.add(listener); return () => listeners.delete(listener); },
+    /** 로봇이 답한 척한다. 안 부르면 응답 없음이 된다. */
+    reply(message) { for (const l of listeners) l(message); },
     send(action, parameters) {
       sent.push({ action, parameters });
-      return { sent: true, commandId: 'cmd-' + String(sent.length).padStart(8, '0') };
+      const commandId = 'cmd-' + String(sent.length).padStart(8, '0');
+      // ping 은 왕복을 기다린다 — 다음 틱에 답이 온 것으로 한다.
+      if (action === 'ping') {
+        setTimeout(() => this.reply({ kind: 'acceptance', commandId, accepted: true, code: null, message: null }), 0);
+      }
+      return { sent: true, commandId };
     },
   };
 }
@@ -41,6 +54,7 @@ const params = { viewpoint_count: 8, forward_distance_m: 4.2 };
 // ── 1. 승인 전 — 임무 명령이 하나도 안 나간다 ────────────────────────────────
 {
   resetRobotSession();
+  online();
   const client = countingClient();
   if (canIssueRobotCommand()) failures.push('승인 전인데 로봇 명령을 내도 된다고 한다');
 
@@ -59,6 +73,7 @@ const params = { viewpoint_count: 8, forward_distance_m: 4.2 };
 // ── 2. 승인 뒤 — 스캔이 나간다. forward_m 은 0 이다 ─────────────────────────
 {
   resetRobotSession();
+  online();
   const client = countingClient();
   markApproved();
   await issueScan(client, params);
@@ -73,6 +88,7 @@ const params = { viewpoint_count: 8, forward_distance_m: 4.2 };
 // ── 3. 스캔 → 접근이 자동으로 이어지지 않는다 (§1) ──────────────────────────
 {
   resetRobotSession();
+  online();
   const client = countingClient();
   markApproved();
   await issueScan(client, params);
@@ -87,6 +103,7 @@ const params = { viewpoint_count: 8, forward_distance_m: 4.2 };
 // ── 4. 정지 뒤에는 다시 안 나간다 ────────────────────────────────────────────
 {
   resetRobotSession();
+  online();
   const client = countingClient();
   markApproved();
   await emergencyStop(client);
@@ -110,12 +127,48 @@ const params = { viewpoint_count: 8, forward_distance_m: 4.2 };
 // 승인이라는 개념 자체가 없다.
 {
   resetRobotSession();
+  online();
   const client = countingClient();
   const ping = await issuePing(client);
   if (client.sent.length !== 1 || client.sent[0].action !== 'ping') {
     failures.push('승인 전 ping 이 안 나간다 — 연결 확인은 임무 명령이 아니다');
   }
   if (ping.ok !== true) failures.push('ping 이 나갔는데 실패라고 한다');
+}
+
+// ── 6. 화면이 실제로 스캔을 부르는가 (260910 — 빠져 있던 배선) ──────────────
+//
+// `issueScan()` 을 만들어 놓고 **부르는 곳을 안 만든 적이 있다.** 이 검사가 함수를 직접
+// 불러 통과해서 드러나지 않았다 — 화면에서는 승인해도 로봇이 안 돌았다.
+// **함수가 있다**와 **화면이 부른다**는 다르다.
+{
+  const { readFileSync } = await import('node:fs');
+  const panel = readFileSync(join(root, 'src', 'physical', 'RobotPanel.tsx'), 'utf8');
+  if (!/issueScan\(/.test(panel)) {
+    failures.push('화면이 issueScan 을 부르지 않는다 — 승인해도 로봇이 안 돈다');
+  }
+  if (!/shouldIssueScan\(\)/.test(panel)) {
+    failures.push('스캔을 한 번만 쏘는 관문을 안 쓴다 — 다시 그릴 때마다 로봇이 돈다');
+  }
+
+  // 관문이 실제로 한 번만 열리는가.
+  const { shouldIssueScan } = await load('src', 'physical', 'robotCommands.ts');
+  const { markScanIssued, setConnection } = await load('src', 'physical', 'robotSession.ts');
+  resetRobotSession();
+  online();
+  if (shouldIssueScan()) failures.push('승인 전인데 스캔을 쏘라고 한다');
+  markApproved();
+  if (!shouldIssueScan()) failures.push('승인 뒤 브로커가 붙었는데 스캔을 안 쏜다');
+  markScanIssued();
+  if (shouldIssueScan()) failures.push('이미 쐈는데 또 쏘라고 한다 — 로봇이 여러 번 돈다');
+
+  // 브로커가 없으면 안 쏜다 — 그때는 대본이 돈다.
+  resetRobotSession();
+  online();
+  markApproved();
+  setConnection({ state: 'closed', reason: '없음' });
+  if (shouldIssueScan()) failures.push('브로커가 없는데 스캔을 쏘라고 한다');
+  resetRobotSession();
 }
 
 // ── 대조군 ───────────────────────────────────────────────────────────────────
@@ -126,12 +179,14 @@ function control(name, hit) {
 {
   // 승인 확인을 건너뛴 사본은 승인 전에 바이트를 낸다.
   resetRobotSession();
+  online();
   const client = countingClient();
   client.send('scan_mission', { steps: 8, forward_m: 0 });  // 관문을 안 지난 발행
   control('승인 확인을 건너뛴 발행', client.sent.length > 0 && !robotSession().approved);
 }
 {
   resetRobotSession();
+  online();
   markApproved();
   control('승인 뒤에는 관문이 열린다', canIssueRobotCommand());
 }
@@ -150,5 +205,6 @@ console.log('✅ 승인 뒤 scan_mission 하나 · forward_m=0 (스캔과 접근
 console.log('✅ 스캔이 접근을 자동으로 부르지 않는다 — door_turn 전에는 누를 수도 없다');
 console.log('✅ 정지 뒤 발행 0건 · 정지를 풀면 승인이 내려간다 (사람이 다시 승인한다)');
 console.log('✅ ping 은 승인과 무관 — 연결 확인은 임무 명령이 아니다');
+console.log('✅ 화면이 실제로 issueScan 을 부른다 · 관문이 한 번만 열린다 · 브로커 없으면 안 쏜다');
 console.log(`✅ 대조군 ${controls.length}건 전부 검출 — ${controls.join(' · ')}`);
 process.exit(0);

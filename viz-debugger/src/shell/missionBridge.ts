@@ -23,6 +23,7 @@ import { store } from '../tabs/data/index.ts';
 import { getTransport, type Envelope } from '../transport/index.ts';
 import { liveFrame } from '../viewpoint/source.ts';
 import { appendViewpoint } from '../viewpoint/store.ts';
+import { approvedByHuman, markApproved, robotDrives } from '../physical/robotSession.ts';
 
 type WirePlan = {
   plan_id: string;
@@ -66,6 +67,15 @@ export function startMissionBridge(): () => void {
       observeEnvelope(envelope);
       store.apply(envelope);
       if (envelope.channel === 'plan') applyPlan(envelope);
+      // **로봇이 붙어 있으면 목 게이트웨이의 대본 재생을 안 받는다** (260910 지적).
+      //
+      // 목 게이트웨이는 승인되면 대본을 제 시각으로 흘려보낸다 — trace_event 로 노드를
+      // 칠하고 robot_state·detection 으로 뷰포인트를 채운다. 그건 로봇이 없을 때의
+      // 시연이고, 로봇이 붙어 있으면 **진행은 로봇이 몰아야 한다.** 둘 다 받으면 화면이
+      // 로봇보다 앞서 가고, 여덟 칸이 두 번 찬다.
+      //
+      // 계획(plan)은 그대로 받는다 — 승인 자체는 게이트웨이를 지나는 일이다.
+      if (robotDrives() && (envelope.channel === 'trace_event' || envelope.channel === 'robot_state' || envelope.channel === 'detection')) return;
       if (envelope.channel === 'trace_event') applyTrace(envelope);
       if (envelope.channel === 'robot_state' || envelope.channel === 'detection') applyViewpoint(envelope);
     },
@@ -101,6 +111,13 @@ function applyPlan(envelope: Envelope): void {
     activatedPlans.add(plan.plan_id);
     // 재생 머리는 게이트웨이의 trace_event 가 민다 — 로컬 타이머를 세우지 않는다.
     activateMission(plan.script.mission_id, 'remote');
+    // **여기도 승인이다** (260910 — 빠져 있었다). 단독 빌드는 `acceptProposal` 을 지나며
+    // 관문을 열지만 통합 빌드는 게이트웨이의 plan 채널로 들어와 그 함수를 안 지난다.
+    //
+    // 다만 **사람이 이번 세션에서 누른 것만** 연다. 계획은 캐시되는 채널이라 지난 세션의
+    // 승인이 재접속 즉시 다시 내려온다 — 그걸 새 승인으로 받으면 아무도 안 눌렀는데
+    // 로봇이 움직인다. 실제로 그랬다.
+    if (approvedByHuman(plan.plan_id)) markApproved();
     // registry 세계 대본만 scenario 렌더 모드에 들어간다 (자동 · VZ-U-07 승인 뒤).
     // 구판 세계(legacy)는 탭②~⑤에 따라 움직일 것이 없다 — 안내 띠는 셸이 그린다.
     if (plan.script.world === 'registry') {

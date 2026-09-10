@@ -10,11 +10,18 @@
 
 import { PhysicalClient } from './PhysicalClient.ts';
 import { issuePing } from './robotCommands.ts';
+import { setConnection } from './robotSession.ts';
 
 let singleton: PhysicalClient | null = null;
 
 export function robotClient(): PhysicalClient {
-  if (singleton === null) singleton = new PhysicalClient('robot-01');
+  if (singleton === null) {
+    singleton = new PhysicalClient('robot-01');
+    // **연결 상태는 만들 때 잇는다** (260910). 화면 부품이 구독하게 두면 그 부품이 안 떠
+    // 있는 동안의 변화를 놓치고, 「붙었는데 세션은 모른다」가 된다 — 승인 순간에 그게
+    // 나면 대본 타이머가 돌아 로봇보다 화면이 앞서 간다.
+    singleton.onStatus(setConnection);
+  }
   return singleton;
 }
 

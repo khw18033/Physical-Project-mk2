@@ -90,6 +90,11 @@ export function effectsOf(message: UplinkMessage, context: LinkContext): LinkEff
       : [{ kind: 'task-failed', taskId, code: message.code, message: message.message }];
   }
 
+  // **우리가 낸 명령의 상태만 받는다** (260910 — 실제로 섞였다).
+  //
+  // uplink 는 토픽 하나라 다른 도구가 쏜 명령의 진행 보고도 같이 들어온다. 그걸 그대로
+  // 반영했더니 진행률이 「30 / 10」이 됐다 — 남의 스캔 셋이 우리 여덟 칸을 같이 채운 것이다.
+  if (taskId === null) return [];
   return statusEffects(message.detail, context);
 }
 

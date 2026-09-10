@@ -75,9 +75,22 @@ export function encodeCommand(input: CommandInput): Uint8Array {
   ).finish();
 }
 
-/** 명령 id — 재전송 식별용이다(스키마 field 1). 12자로 맞춰 기준 수치와 길이가 같게 둔다. */
-let commandSeq = 0;
+/**
+ * 명령 id — **재전송 식별용**이다(스키마 field 1). 12자로 맞춰 기준 수치(79·31 바이트)와
+ * 길이가 같게 둔다.
+ *
+ * ## 세션마다 1부터 세면 안 된다 (260910 — 실제로 거절당했다)
+ *
+ * 처음에 `cmd-00000001` 부터 세었더니 페이지를 새로 열 때마다 같은 id 가 다시 나갔고,
+ * 단말이 **`ALREADY_EXISTS — command_id reused with different content`** 로 거절했다.
+ * 맞는 거절이다 — 재전송 식별용 키가 매번 되풀이되면 그 키로는 아무것도 못 가른다.
+ *
+ * 그래서 시각과 난수를 섞는다. 36진수 8자리는 약 2.8조 가지라 한 발표에서 겹칠 일이 없고,
+ * 길이는 정확히 12자로 유지된다.
+ */
 export function nextCommandId(): string {
-  commandSeq += 1;
-  return 'cmd-' + String(commandSeq).padStart(8, '0');
+  // 시각 6자리(ms 단위로 바뀐다) + 난수 2자리.
+  const time = Date.now().toString(36).slice(-6).padStart(6, '0');
+  const salt = Math.floor(Math.random() * 36 * 36).toString(36).padStart(2, '0');
+  return 'cmd-' + time + salt;
 }

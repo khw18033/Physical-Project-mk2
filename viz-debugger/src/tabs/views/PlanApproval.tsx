@@ -49,6 +49,7 @@
  * 일이 아니라 자리를 차지하는 일이다 — 그래서 결정 후에는 접는다.
  */
 
+import { armApproval } from '../../physical/robotSession.ts';
 import { useState, type ReactNode } from 'react';
 import {
   PRODUCED_BY_LABEL,
@@ -198,7 +199,7 @@ function ApprovalPanel({ plan }: { plan: Plan }) {
       </Explain>
 
       <div className="approvebar">
-        <button type="button" className="btn btn--action btn--approve" onClick={() => decidePlan(plan.plan_id, 'approve')}>
+        <button type="button" className="btn btn--action btn--approve" onClick={() => { armApproval(plan.plan_id); decidePlan(plan.plan_id, 'approve'); }}>
           승인 — 백엔드로 회신
         </button>
         <button type="button" className="btn btn--action" onClick={() => setRejectOpen((v) => !v)}>

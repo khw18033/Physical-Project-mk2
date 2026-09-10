@@ -58,6 +58,8 @@ export type RobotSession = {
   progress: { ack: number; of: number } | null;
   /** `door_turn` 이 왔는가 — `MS-B` 로 넘어가는 선이 열린다. 새 노드가 아니다. */
   doorTurn: { yawDeg: number | null; mismatch: { robot: number; chosen: number; diff: number } | null } | null;
+  /** 스캔을 이미 쐈는가. 승인 한 번에 한 번만 나간다. */
+  scanIssued: boolean;
   /** 접근을 이미 쐈는가. **자동으로 넘어가지 않는다** — 사람이 누른다(§1). */
   approachIssued: boolean;
   /** 승인 뒤인가. 이 값이 false 인 동안 로봇으로 나가는 바이트가 없어야 한다(§2). */
@@ -66,6 +68,8 @@ export type RobotSession = {
   stopped: StopState | null;
   /** 마지막 `ping` 왕복. 발표 직전에 이걸 보고 무대에 오른다. */
   ping: { ok: boolean; roundTripMs: number | null; message: string } | null;
+  /** 승인한 시각(ms). 로봇이 몰 때 「몇 초째인가」의 기준이다. 승인 전에는 null. */
+  approvedAtMs: number | null;
 };
 
 const EMPTY: RobotSession = {
@@ -74,10 +78,12 @@ const EMPTY: RobotSession = {
   warnings: {},
   progress: null,
   doorTurn: null,
+  scanIssued: false,
   approachIssued: false,
   approved: false,
   stopped: null,
   ping: null,
+  approvedAtMs: null,
 };
 
 let session: RobotSession = EMPTY;
@@ -104,10 +110,18 @@ export function useRobotSession(): RobotSession {
   return useSyncExternalStore(subscribeRobot, robotSession, robotSession);
 }
 
-/** 임무가 바뀌면 판을 비운다. 남은 상태가 다음 임무의 노드를 칠하면 안 된다. */
+/**
+ * 임무가 바뀌면 판을 비운다. 남은 상태가 다음 임무의 노드를 칠하면 안 된다.
+ *
+ * **연결은 안 지운다** (260910 — 실제로 났던 버그). 브로커에 붙은 것은 임무의 성질이
+ * 아니라 전송의 성질이다. 여기서 지웠더니 승인 순간에 「브로커 안 붙음」으로 보여
+ * 대본 타이머가 돌았고, 로봇이 첫 걸음도 떼기 전에 화면이 끝나 있었다.
+ *
+ * `ping` 결과도 남긴다 — 연결 관리에서 확인한 사실이 임무를 바꿨다고 사라지면 안 된다.
+ */
 export function resetRobotSession(): void {
   stopAllTimers();
-  commit(EMPTY);
+  commit({ ...EMPTY, connection: session.connection, ping: session.ping });
 }
 
 /**
@@ -132,9 +146,48 @@ export function setPing(ping: RobotSession['ping']): void {
   commit({ ...session, ping });
 }
 
+/**
+ * **사람이 이번 세션에서 승인을 누른 계획.** 로봇 관문은 이 값이 맞을 때만 열린다.
+ *
+ * 260910 에 페이지를 새로 열자마자 `approved: true` 였다. 계획 채널이 **캐시되는 채널**이라
+ * 지난 세션의 승인된 계획이 재접속 즉시 다시 내려오고, 그걸 새 승인으로 받아 관문을
+ * 열었기 때문이다. 브로커가 붙는 순간 스캔이 나갔다 — **사람이 아무것도 안 눌렀는데
+ * 로봇이 움직일 수 있는 상태**였다.
+ *
+ * 모듈 변수로 둔다(세션 밖으로 안 나간다). 새로고침하면 비고, 그것이 이 값의 요점이다.
+ */
+let humanApprovedPlanId: string | null = null;
+
+/** 사람이 「승인」을 눌렀다. 누른 그 순간에만 부른다. */
+export function armApproval(planId: string): void {
+  humanApprovedPlanId = planId;
+}
+
+/** 이 계획을 이번 세션에서 사람이 승인했는가. */
+export function approvedByHuman(planId: string): boolean {
+  return humanApprovedPlanId === planId;
+}
+
 /** 승인 — 이 뒤부터 로봇으로 바이트가 나갈 수 있다 (`VZ-U-07`). */
 export function markApproved(): void {
-  commit({ ...session, approved: true });
+  commit({ ...session, approved: true, approvedAtMs: Date.now() });
+}
+
+/**
+ * **로봇이 임무를 모는가.** 브로커에 붙어 있으면 그렇다.
+ *
+ * 붙어 있으면 대본의 자동 진행을 멈추고 uplink 가 오는 대로 진행한다 — 「라즈베리파이와
+ * 통신되어서 받아오는 정보를 토대로 진행되어야 한다」(260910 지적). 안 붙어 있으면
+ * 대본이 그대로 돈다 — 로봇 없이도 시연이 되어야 하기 때문이다.
+ */
+export function robotDrives(): boolean {
+  return session.connection.state === 'open';
+}
+
+/** 승인 뒤 몇 초째인가. 로봇이 몰 때 사건의 시각이 된다. */
+export function elapsedSec(): number {
+  if (session.approvedAtMs === null) return 0;
+  return (Date.now() - session.approvedAtMs) / 1000;
 }
 
 /** 태스크가 명령을 냈다. `requestId` 는 추적기가 준다. */
@@ -144,6 +197,15 @@ export function recordCommand(record: TaskCommandRecord): void {
 
 export function markApproachIssued(): void {
   commit({ ...session, approachIssued: true });
+}
+
+export function markScanIssued(): void {
+  commit({ ...session, scanIssued: true });
+}
+
+/** 발행이 실패했으면 표시를 도로 내린다 — 안 나간 것을 나갔다고 둘 수 없다. */
+export function clearScanIssued(): void {
+  commit({ ...session, scanIssued: false });
 }
 
 /** `effectsOf` 가 낸 것을 판에 반영한다. **여기서 새로 계산하지 않는다** (§3). */
@@ -212,7 +274,9 @@ export function lockStopped(published: boolean, failure: string | null): StopSta
  * 그래서 푸는 것과 동시에 승인도 내린다.
  */
 export function releaseStopped(): void {
-  commit({ ...session, stopped: null, approved: false, approachIssued: false });
+  // 정지를 풀면 승인도 내려간다 — 사람이 다시 눌러야 관문이 열린다.
+  humanApprovedPlanId = null;
+  commit({ ...session, stopped: null, approved: false, approachIssued: false, scanIssued: false });
 }
 
 /** 지금 로봇 명령을 내도 되는가. 승인 전과 정지 뒤에는 안 된다. */

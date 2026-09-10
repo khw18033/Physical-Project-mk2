@@ -28,8 +28,9 @@ import { UtterancePanel } from './views/UtterancePanel.tsx';
 import { StatusLegend } from './views/StatusLegend.tsx';
 import './style.css';
 import { Explain } from './shared/Explain.tsx';
-import { emptyFill, reduceFrames, type ViewpointFill } from './viewpoint/fill.ts';
+import { emptyFill, reduceFrames, type DoorDetectionFrame, type ViewpointFill } from './viewpoint/fill.ts';
 import { RobotPanel } from './physical/RobotPanel.tsx';
+import { HardwareLink } from './physical/HardwareLink.tsx';
 import { robotClient } from './physical/robotClient.ts';
 import { framesUpTo } from './viewpoint/store.ts';
 
@@ -108,7 +109,22 @@ function Milestones({ view, phase, milestoneStatuses, assignments, onAssign, onO
   </div>);
   const showApproval = phase === 'proposal' || planApproval !== undefined;
   return <div className="milestone-layout"><UtterancePanel fallbackText={view.utteranceText} /><section className="milestone-panel"><h2>마일스톤 · {view.milestones.length}건</h2>
-    <RobotPanel client={robotClient()} params={view.params} />
+    <RobotPanel
+      client={robotClient()}
+      params={view.params}
+      missionId={view.missionId}
+      chosenAngleDeg={typeof view.params.door_viewpoint_index === 'number' && typeof view.params.viewpoint_step_deg === 'number'
+        ? view.params.door_viewpoint_index * view.params.viewpoint_step_deg
+        : null}
+      /* 문 판정은 대본에서 읽는다 — 로봇은 각도만 말한다 (2단계-A §6).
+         탐지 연동이 붙으면 이 한 줄이 그쪽을 보게 된다. */
+      detectionFor={(index) => {
+        const entry = view.viewpointTimeline.find(
+          (row) => row.channel === 'detection' && (row.payload as { index?: number }).index === index,
+        );
+        return entry === undefined ? null : (entry.payload as unknown as DoorDetectionFrame);
+      }}
+    />
     {showApproval && <div className="proposal-card">
       {phase === 'proposal' && (aiProposal
         ? <p className="proposal-note proposal-ai"><b>AI 제안</b> — <code>{aiProposal.provenance.model}</code> 이 만든 임무 {view.missionId} 「{view.label}」. 승인 전에는 아무것도 실행되지 않습니다
@@ -122,7 +138,10 @@ function Milestones({ view, phase, milestoneStatuses, assignments, onAssign, onO
       ? hardware.map((item) => <article key={item.id} draggable onDragStart={(event) => event.dataTransfer.setData('text/plain', item.id)} onDoubleClick={() => setStatusDeviceId(item.id)}><b className={item.connection}>{item.id}</b><small>{item.kind}</small><span><PendingSource id="hardware-pool-status" inline>{item.connection} · {item.battery}% · {item.rssi} dBm</PendingSource></span></article>)
       // 대본(registry 세계) — 등장 장비는 id 만 대본에서 읽는다. 실측 3행은 여전히 자리표시다
       // (VZ-D-07 · 8/31 결정 — registry 장비의 실측값은 남이 줄 데이터라 지어내지 않는다).
-      : cast.map((id) => <article key={id} draggable onDragStart={(event) => event.dataTransfer.setData('text/plain', id)} onDoubleClick={() => setStatusDeviceId(id)}><b>{id}</b><small>대본 등장 장비</small><span><PendingSource id="hardware-pool-status" inline>상태 3행 — 연결 예정</PendingSource></span></article>)}</aside>
+      // 대본(registry 세계) — 등장 장비는 id 만 대본에서 읽는다. 연결 상태는 **아는 만큼**
+      // 적고(260910 지적), 실측 두 행(배터리·RSSI)은 여전히 자리표시다 — 로봇이 그 값을
+      // 보내 주는 채널이 아직 없다(VZ-D-07 · 8/31 결정: 남이 줄 데이터는 지어내지 않는다).
+      : cast.map((id) => <article key={id} draggable onDragStart={(event) => event.dataTransfer.setData('text/plain', id)} onDoubleClick={() => setStatusDeviceId(id)}><b>{id}</b><small>대본 등장 장비</small><HardwareLink entityId={id} /></article>)}</aside>
     {/* 대상 상태 (260904). 목록의 **형제**로 얹힌다 — 뒤의 마일스톤·하드웨어 목록은
         언마운트되지 않으므로 닫으면 정확히 같은 자리다 (VZ-N-05 와 같은 규칙). */}
     {statusDeviceId !== null && <DeviceStatusOverlay

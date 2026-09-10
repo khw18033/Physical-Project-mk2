@@ -19,7 +19,7 @@
  * 「원래 저런가」가 되고, 진짜 빨강이 묻힌다.
  */
 
-import { CHECKED_TARGETS, firstBroken, useConnectionHealth } from '../shared/connectionHealth.ts';
+import { CHECKED_TARGETS, firstBroken, targetOk, useConnectionHealth } from '../shared/connectionHealth.ts';
 import { CONNECTION_TARGETS } from '../shared/connections.ts';
 
 const LABEL_OF = new Map(CONNECTION_TARGETS.map((target) => [target.id, target.label]));
@@ -38,6 +38,13 @@ export function ConnectionLamp({ onOpen }: { onOpen(): void }) {
   if (broken !== null) {
     return <button type="button" className="conn-lamp conn-lamp--bad" onClick={onOpen}>
       {LABEL_OF.get(broken.target) ?? broken.target} {broken.line.label} 끊김 — 누르면 연결 관리
+    </button>;
+  }
+  // 빨간 줄은 없지만 「모르는」 줄이 남아 있을 수 있다 — 초록이라고 말하지 않는다.
+  const unknown = CHECKED_TARGETS.filter((target) => targetOk(target) === null && (health[target]?.lines.length ?? 0) > 0);
+  if (unknown.length > 0) {
+    return <button type="button" className="conn-lamp conn-lamp--unknown" onClick={onOpen}>
+      연결 {checked.length - unknown.length}/{CHECKED_TARGETS.length} · 미확인 {unknown.length}
     </button>;
   }
   return <button type="button" className="conn-lamp conn-lamp--ok" onClick={onOpen}>

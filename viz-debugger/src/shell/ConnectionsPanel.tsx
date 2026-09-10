@@ -132,8 +132,8 @@ function HealthRow({ target, physical }: { target: ConnectionTargetId; physical:
     <div className="conn-health__lines">
       {state.lines.length === 0
         ? <span className="conn-dot conn-dot--unknown">아직 확인하지 않았습니다</span>
-        : state.lines.map((row) => <span key={row.id} className={`conn-dot conn-dot--${row.ok ? 'ok' : 'bad'}`}>
-          {row.label} {row.ok ? '✓' : '✕'}
+        : state.lines.map((row) => <span key={row.id} className={`conn-dot conn-dot--${row.ok === true ? 'ok' : row.ok === false ? 'bad' : 'unknown'}`}>
+          {row.label} {row.ok === true ? '✓' : row.ok === false ? '✕' : '?'}
           {row.roundTripMs !== null && ` ${row.roundTripMs}ms`}
           {row.reason !== null && ` — ${row.reason}`}
         </span>)}
