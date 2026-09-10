@@ -104,11 +104,44 @@ CommandResult      SUCCEEDED  {acks:10, turns_ok:9, steps:8, step_deg:45,
 | `INVALID_ARGUMENT` | `steps_out_of_range` 등 | 파라미터 범위 밖 |
 | `UNIMPLEMENTED` | `action not supported` | action 오타 |
 
-## 4. 중간에 멈추려면
+`abort` 는 사전조건이 없다 — 언제 보내도 수락된다. 멈출 것이 없어도 성공이다.
 
-같은 규약의 취소를 쓴다 — `CancelCommandRequest { command_id }` 를 downlink 로.
-로봇은 즉시 정지하고 `CancelCommandResponse(accepted=true)` 에 이어
+## 4. 중간에 멈추려면 — 두 가지
+
+### 4-1. `abort` — **무엇이 돌고 있든 다 멈춘다** (권장)
+
+```
+Command {
+  action     = "abort"
+  parameters = { "reason": 1 }        // 생략 가능. 숫자만(규약 map<string,double>)
+}
+```
+
+command_id 를 몰라도 되고, 누가 무엇을 걸었든 멈춘다. 관제의 "일단 멈춰"가 이것이다.
+멈추는 순서는 셋이고, **텔레옵까지 끊는 것이 핵심**이다 — 임무만 취소하면 촬영 도구나
+Unity 가 흘리던 속도 명령으로 로봇이 계속 움직인다.
+
+| | 내용 |
+|---|---|
+| ① | 진행 중인 임무 중단 |
+| ② | 0속도 estop 프레임으로 흘러가던 속도 명령을 덮어쓴다 |
+| ③ | 구동 브리지를 외부 명령 모드에서 뺀다 — **다른 쪽이 계속 보내도 무시**된다 |
+
+응답: `SUCCEEDED { had_mission, sdk_reached, reason }`
+(`sdk_reached` 는 구동 브리지가 실제로 응답했는지다. 0 이면 브리지가 죽어 있다 —
+로봇이 이미 멈춰 있다는 뜻이기도 하고, 켜야 한다는 뜻이기도 하다.)
+멈춰진 쪽 명령은 `ABORTED / aborted_by_command` 로 끝난다.
+
+### 4-2. `CancelCommandRequest` — 그 명령 하나만 취소
+
+```
+CancelCommandRequest { command_id }
+```
+규약 표준 경로다. 해당 명령만 멈추고 `CancelCommandResponse(accepted=true)` 에 이어
 `CommandResult(status=CANCELED)` 를 보낸다(§5-3 취소 우선).
+
+> **둘 다 안전 E-stop 이 아니다.** E-stop 은 통신과 독립인 장치 자체 안전장치다(규약 §7).
+> 통신이 끊긴 상황에서는 두 방법 모두 닿지 않는다.
 
 ## 5. 보내는 예 (참조 구현)
 

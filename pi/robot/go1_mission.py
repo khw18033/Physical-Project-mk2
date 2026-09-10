@@ -84,6 +84,27 @@ class MissionClient:
         self._canceled = True
         self._tx.sendto(b"MISSION CANCEL", (self.host, self.cmd_port))
 
+    def stop_all(self):
+        """**진행 중인 모든 구동을 멈춘다.** 상위의 abort 명령이 쓴다.
+
+        미션 취소만으로는 부족하다 — 촬영 도구나 Unity 가 텔레옵을 흘리고 있으면
+        로봇은 계속 움직인다. 그래서 세 가지를 순서대로 한다.
+
+          ① MISSION CANCEL   진행 중인 미션 중단
+          ② 0속도 estop 프레임  지금 흘러가던 속도 명령을 덮어써 즉시 정지
+          ③ MODE 0           SDK 를 외부 명령 모드에서 빼낸다. 이걸 해야 **다른 쪽이
+                             계속 보내고 있어도** 그 명령이 무시된다(핵심).
+
+        ※ 이것은 규약 경로의 정지이지 안전 E-stop 이 아니다. E-stop 은 통신과 독립인
+          장치 자체 안전장치다(규약 §7). 통신이 끊긴 상황에서는 이 명령이 닿지 않는다."""
+        addr = (self.host, self.cmd_port)
+        self._canceled = True
+        self._tx.sendto(b"MISSION CANCEL", addr)
+        for _ in range(5):                     # estop=1 -> SDK 는 mode=1(force stand)
+            self._tx.sendto(b"0.000 0.000 0.000 1", addr)
+            time.sleep(0.02)
+        self._tx.sendto(b"MODE 0", addr)
+
     def acks(self, expected, timeout_s):
         """ACK 를 오는 대로 흘려보낸다(제너레이터). 마지막 ACK(event="forward") 또는
         expected 건을 채우면 끝난다. 조용히 끊기는 것을 막으려고 전체 시한을 둔다."""

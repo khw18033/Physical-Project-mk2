@@ -392,7 +392,11 @@ class RobotNode(BaseNode):
                 }, ensure_ascii=False), None
         except go1_mission.MissionError as e:
             mc.cancel()
-            self.mission["status"] = "failed"
+            if self.mission:
+                self.mission["status"] = "failed"
+            # 취소로 끊긴 것은 내부 오류가 아니다 — 사유가 그대로 드러나야 한다.
+            if str(e) == "canceled":
+                raise CommandError("ABORTED", "aborted_by_command")
             raise CommandError("INTERNAL", str(e))
         finally:
             mc.close()
@@ -449,6 +453,8 @@ class RobotNode(BaseNode):
                                  ensure_ascii=False), None
         except go1_mission.MissionError as e:
             mc.cancel()
+            if str(e) == "canceled":
+                raise CommandError("ABORTED", "aborted_by_command")
             raise CommandError("INTERNAL", str(e))
         finally:
             mc.close()
@@ -462,6 +468,57 @@ class RobotNode(BaseNode):
                   "duration_s": round(time.time() - started, 1)}
         if odo_m is not None:
             result["odo_m"] = odo_m
+        yield "completed", result
+
+    def _act_abort(self, params):
+        """**진행 중인 모든 동작을 즉시 멈춘다** (HW-R-06).
+
+        규약의 취소(CancelCommandRequest)는 command_id 를 알아야 하고 그 명령 하나만
+        멈춘다. 관제에서 "일단 멈춰"는 그게 아니다 — 무엇이 돌고 있든, 누가 걸었든
+        멈춰야 한다. 그래서 별도 action 으로 둔다.
+
+        멈추는 것: 진행 중인 임무 + 외부 텔레옵(촬영 도구·Unity 가 흘리던 속도 명령).
+        텔레옵까지 끊는 것이 핵심이다 — 임무만 취소하면 다른 쪽이 보내던 속도로
+        로봇이 계속 움직인다.
+
+        `reason` 은 숫자만 실을 수 있어(규약 map<string,double>) 코드값으로 받는다.
+        무엇을 뜻하는지는 상위가 정하고, 여기서는 그대로 기록만 한다.
+
+        ※ 안전 E-stop 이 아니다. E-stop 은 통신과 독립인 장치 자체 안전장치다(규약 §7).
+          통신이 끊긴 상황에서는 이 명령이 닿지 않는다."""
+        reason = params.get("reason")
+        had_mission = bool(self.mission)
+        mission_id = (self.mission or {}).get("mission_id")
+
+        yield "executing", {"reason": reason}
+
+        # 진행 중인 임무 핸들러에게 먼저 알린다(그 명령은 ABORTED 로 끝난다).
+        mc = self.mission_client
+        if mc is not None:
+            mc.cancel()
+
+        # 그리고 구동 자체를 끊는다. 임무가 없어도 텔레옵이 돌고 있을 수 있다.
+        client = go1_mission.MissionClient()
+        try:
+            client.stop_all()
+        except OSError:
+            pass
+        # UDP 는 받는 쪽이 없어도 send 가 성공한다 — 그래서 "보냈다"로 도달을 판정하면
+        # SDK 가 죽어 있어도 sdk_reached=1 이라는 거짓이 올라간다. 응답으로 확인한다.
+        reached = client.probe(timeout=0.5)[0]
+
+        if self.mission:
+            self.mission["status"] = "aborted"
+        self.mission = None
+
+        print(f"[로봇] abort — 임무={mission_id or '없음'} reason={reason} "
+              f"sdk_reached={reached}")
+
+        yield "state_changed", {"robot_mode": "idle", "aborted": True}
+        result = {"had_mission": 1.0 if had_mission else 0.0,
+                  "sdk_reached": 1.0 if reached else 0.0}
+        if reason is not None:
+            result["reason"] = float(reason)
         yield "completed", result
 
     def cancel(self, command_id):
@@ -513,6 +570,7 @@ class RobotNode(BaseNode):
         "abort_mission": _act_abort_mission,
         "scan_mission": _act_scan_mission,
         "move_forward": _act_move_forward,
+        "abort": _act_abort,
         "stream": _act_stream,
     })
     PHYSICAL_ACTIONS = frozenset({"assign_mission", "abort_mission", "stream"})
