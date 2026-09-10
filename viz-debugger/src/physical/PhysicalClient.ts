@@ -85,7 +85,7 @@ export function resolveConnect(mod: unknown): (url: string, opts: Record<string,
 /** mqtt.js 클라이언트에서 우리가 쓰는 만큼. 라이브러리 타입을 끌어오지 않는다. */
 type MqttLike = {
   on(event: string, handler: (...args: never[]) => void): void;
-  subscribe(topic: string, opts: { qos: number }): void;
+  subscribe(topic: string, opts: { qos: number }, done?: () => void): void;
   publish(topic: string, payload: Uint8Array, opts: { qos: number }): void;
   end(force?: boolean): void;
 };
@@ -178,11 +178,19 @@ export class PhysicalClient {
       );
 
       client.on('connect', (() => {
-        clearTimeout(timer);
-        client.subscribe(uplink, { qos: 1 });
-        // 장비 상태는 QoS 0 — 주기 발행이라 한 건 놓쳐도 다음 것이 온다.
+        // **시한을 여기서 끄지 않는다.** 붙은 것만으로는 아직 결론이 아니다 — 구독이
+        // 안 서면 받을 귀가 없고, 그때 시한마저 꺼 두면 영영 안 끝난다.
+        // **구독이 서기 전에 「붙었다」고 하지 않는다** (260910 실측).
+        //
+        // 하드웨어 팀 클라이언트로 재 보니 **첫 명령만** 응답을 놓쳤다. 붙자마자 발행하면
+        // SUBACK 이 오기 전에 로봇의 답이 지나가 버린다. 「붙었다고 말하면서 아무것도 못
+        // 받는다」가 정확히 이 모양이고, 시연 직전 첫 연결 확인에서 나기 딱 좋다.
+        client.subscribe(uplink, { qos: 1 }, () => {
+          clearTimeout(timer);
+          finish({ state: 'open' });
+        });
+        // 장비 상태는 QoS 0 — 주기 발행이라 한 건 놓쳐도 다음 것이 온다. 이건 안 기다린다.
         for (const topic of DEVICE_TOPICS) client.subscribe(topic, { qos: 0 });
-        finish({ state: 'open' });
       }) as () => void);
       client.on('message', ((topic: string, payload: Uint8Array) => {
         // 장비 상태는 **JSON** 이고 명령 응답은 **protobuf** 다. 토픽으로 가른다 —
