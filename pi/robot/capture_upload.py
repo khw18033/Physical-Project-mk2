@@ -140,10 +140,29 @@ def main():
         if not os.path.isdir(sess):
             print(f"[건너뜀] 디렉터리가 아니다: {sess}")
             continue
-        man = build_manifest(sess)
-        n = man["frames"]["count"]
+
+        # 이미 매니페스트가 있고 **다른 종류의 세션**이면(예: 8방향 스캔 촬영) 그 도구가
+        # 만든 것을 그대로 존중한다. 여기서 덮어쓰면 사진과 방위의 대응이 사라진다.
+        mpath = os.path.join(sess, "manifest.json")
+        man = None
+        if os.path.exists(mpath):
+            try:
+                with open(mpath, encoding="utf-8") as f:
+                    man = json.load(f)
+            except ValueError:
+                man = None
+        if man is None or man.get("kind") == "capture_session":
+            man = build_manifest(sess)
+
+        if man.get("kind") == "capture_session":
+            n = man["frames"]["count"]
+            size_bytes = man["frames"]["bytes"]
+        else:
+            shots = man.get("shots") or []
+            n = len(shots)
+            size_bytes = sum(sh.get("bytes") or 0 for sh in shots)
         if n == 0:
-            print(f"[건너뜀] 프레임 0장: {sess}")
+            print(f"[건너뜀] 사진 0장: {sess}")
             continue
 
         archive = None
@@ -156,20 +175,22 @@ def main():
                 archive = pack(sess, "/tmp")
             try:
                 uri, status = http_put(archive, args.put)
-                man["frames"]["uri"] = uri
+                if man.get("kind") == "capture_session":
+                    man["frames"]["uri"] = uri
+                else:
+                    man["uri"] = uri
                 uploaded = 200 <= status < 300
                 print(f"[업로드] {uri} ({status})")
             except Exception as e:
                 print(f"[업로드 실패] {type(e).__name__}: {e}")
 
         # 매니페스트는 세션 옆에 남긴다. 목적지가 정해지면 이 파일만 보내면 된다.
-        mpath = os.path.join(sess, "manifest.json")
         with open(mpath, "w", encoding="utf-8") as f:
             json.dump(man, f, ensure_ascii=False, indent=2)
 
-        size_mb = man["frames"]["bytes"] / 1e6
-        print(f"[{man['session_id']}] 프레임 {n}장 {size_mb:.1f}MB "
-              f"길이 {man['duration_s']}s -> {mpath}"
+        label = man.get("session_id") or man.get("session") or os.path.basename(sess)
+        print(f"[{label}] 사진 {n}장 {size_bytes/1e6:.1f}MB "
+              f"길이 {man.get('duration_s')}s -> {mpath}"
               + (f" / 적재 {archive}" if archive else ""))
 
         if args.delete_after and uploaded:
