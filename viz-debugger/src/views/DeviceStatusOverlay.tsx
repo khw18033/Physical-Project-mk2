@@ -14,23 +14,23 @@
  * | 동시 하나 | 상태가 **문자열 하나**(`statusDeviceId`)다. 배열이면 둘이 열린다 |
  * | 닫는 길이 둘 이상 | 닫기 버튼 · Esc · 배경 누르기 |
  *
- * ## 지어내지 않는다
+ * ## 지어내지 않는다 — 다만 오는 것은 보여 준다 (260910)
  *
- * 대본(registry 세계) 장비의 실측값은 **남이 줄 데이터**다(8/31 결정). 그래서 더블클릭하면
- * 뜨는 것은 값이 아니라 **「무엇을 · 누구에게서 기다리는가」 카드**다. 그것이 이 화면의 요지다.
- * 옛 편(`MSN-260826-01`)처럼 시나리오에 `hardware` 목록이 실려 있으면 일곱 칸을 그릴 수는
- * 있지만, 그것도 `PendingSource` 안에 있으므로 기본 모드에서는 자리표시가 이긴다.
+ * 8/31 결정은 registry 장비의 실측값을 **지어내지 않는다**였고, 그건 값을 줄 채널이
+ * 없었기 때문이다. 이제 `zoneA/<type>/<id>/{status,state}` 가 온다.
  *
- * **카메라 연결 상태는 계약에 아예 없다** — `Hardware` 타입에 필드가 없고
- * (배터리·RSSI·지연·IP·펌웨어·관절 온도·하트비트는 있다) 상대 파트도 미확인이다
- * (요구사항정의서 §7.10 「열림」). 자리만 만들고 **「상대 없음 — 회의 안건」**으로 둔다.
- * 필드를 임의로 늘리지 않는다 — 하드웨어 파트와 맞춘 뒤에 넣는다.
+ * **지어내지 않는 것은 그대로**이고, 안 오는 칸을 「연결 예정」 자리표시로 채우던 것을
+ * 걷어냈다 — 시연 화면에서 그 문구가 연결 전 테스트처럼 보인다는 지적이 있었다.
+ * 오는 값만 적고, 안 오는 것은 **아예 안 그린다.**
+ *
+ * 카메라 연결 상태는 여전히 MQTT 로 안 나온다(연동 가이드 §3-4) — 노드 상태 요약에
+ * 필드가 추가돼야 한다. 그 칸도 자리표시 대신 없앴다.
  */
 
 import { useEffect } from 'react';
 import type { Hardware } from '../model/types.ts';
-import { PendingSource } from '../shared/PendingSource.tsx';
 import { DeviceStrip } from './DeviceStrip.tsx';
+import { DeviceFacts } from '../physical/DeviceFacts.tsx';
 
 export function DeviceStatusOverlay({ deviceId, device, source, onClose }: {
   deviceId: string;
@@ -56,14 +56,9 @@ export function DeviceStatusOverlay({ deviceId, device, source, onClose }: {
         </div>
         <button onClick={onClose}>닫기 (Esc)</button>
       </header>
-      {/* 일곱 칸 — `ActionModal` 과 **같은 부품**이다. 기본 모드에서는 자리표시가 대신 뜬다. */}
-      <PendingSource id="robot-status-strip" minHeight={104}>
-        {device ? <DeviceStrip device={device} /> : undefined}
-      </PendingSource>
-      {/* 여덟째 칸이 될 수 없는 것 — 계약에 필드가 없다. 값을 지어내는 대신 자리를 비워 둔다. */}
-      <div className="device-modal__camera">
-        <PendingSource id="device-camera-link" minHeight={96} />
-      </div>
+      {/* **오는 값만 적는다** (260910). 안 오는 칸은 자리표시로 채우지 않고 아예 안 그린다. */}
+      <DeviceFacts entityId={deviceId} />
+      {device !== undefined && <DeviceStrip device={device} />}
       <footer>
         <span>이 창은 뒤의 목록을 교체하지 않습니다 — 닫으면 같은 자리입니다.</span>
       </footer>

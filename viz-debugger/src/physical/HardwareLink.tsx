@@ -21,7 +21,6 @@
  * 안 된다** — 캐시된 봉투를 현재로 그리지 않는 것과 같은 규칙이다(`CACHE_POLICY`).
  */
 
-import { PendingSource } from '../shared/PendingSource.tsx';
 import { hardwareTarget } from './encode.ts';
 import { isStale, useDeviceStates, type DeviceState } from './deviceState.ts';
 import { useRobotSession } from './robotSession.ts';
@@ -38,11 +37,12 @@ export function HardwareLink({ entityId }: { entityId: string }) {
       <em className="hw-dot hw-dot--unknown">
         {session.connection.state === 'open' ? '장비 상태 미수신' : '브로커 미연결'}
       </em>
-      <PendingSource id="hardware-pool-status" inline>상태 3행 — 연결 예정</PendingSource>
     </span>;
   }
 
   const stale = isStale(device);
+  // 링크가 성하지 않으면 값이 멈춘 채로 계속 온다 — 그때의 값은 현재가 아니다.
+  const held = stale || (device.link !== null && device.link !== 'ok');
   return <span className="hw-link">
     {/* 파이가 보는 생사. 끊기면 LWT 가 offline 을 넣는다. */}
     <em className={`hw-dot hw-dot--${stale ? 'unknown' : mark(device.online)}`}>
@@ -54,8 +54,10 @@ export function HardwareLink({ entityId }: { entityId: string }) {
       title="로봇 ↔ 파이 내부 링크"
     >링크 {device.link}</em>}
     {device.health !== null && device.health !== 'ok' && <em className="hw-dot hw-dot--bad">{device.health}</em>}
-    {device.batteryPct !== null && <em className={`hw-dot hw-dot--${stale ? 'unknown' : battery(device.batteryPct)}`}>
-      배터리 {device.batteryPct}%
+    {/* 링크가 끊겨도 마지막 배터리가 계속 온다(연동 가이드 §3-3) — 멈춘 값을 살아 있는
+        값으로 보이면 안 된다. `null` 은 「모른다」이지 0% 가 아니다. */}
+    {device.batteryPct !== null && <em className={`hw-dot hw-dot--${held ? 'unknown' : battery(device.batteryPct)}`}>
+      배터리 {device.batteryPct}%{held ? ' (마지막 수신)' : ''}
     </em>}
     {device.mode !== null && <em className="hw-dot hw-dot--plain">{device.mode}</em>}
     {device.simulated && <em className="hw-dot hw-dot--plain" title="목 장비입니다">모의</em>}
@@ -63,8 +65,6 @@ export function HardwareLink({ entityId }: { entityId: string }) {
     {stale && <em className="hw-dot hw-dot--unknown">
       {Math.round((Date.now() - device.lastSeenMs) / 1000)}초째 소식 없음
     </em>}
-    {/* RSSI 는 아직 안 온다 — 없는 값을 지어내지 않는다 (VZ-D-07). */}
-    <PendingSource id="hardware-pool-status" inline>RSSI — 연결 예정</PendingSource>
   </span>;
 }
 

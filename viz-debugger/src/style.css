@@ -478,3 +478,9 @@ b.follow-live{cursor:default}
 /* 로봇이 보낸 ACK 순번 — 우리 값과 나란히 둔다. 어긋나면(ack > of) 표시를 달리한다. */
 .robot-ack{padding:3px 8px;border-radius:10px;background:#f2f4f7;color:#6b7888;font-size:11px;font-variant-numeric:tabular-nums}
 .robot-ack--odd{background:#fdf6e3;color:#7a5c12;font-weight:600}
+/* 장비 상태 카드 (260910) — 오는 값만 적는다. 안 오는 칸은 아예 안 그린다. */
+.device-facts{display:grid;gap:2px;margin:10px 0}
+.device-facts>div{display:flex;gap:10px;padding:5px 8px;border-bottom:1px solid #eef1f5;font-size:13px}
+.device-facts dt{min-width:88px;color:#6b7888}
+.device-facts dd{margin:0;color:#26303c;font-weight:600}
+.device-facts--none{margin:12px 0;padding:10px;border:1px dashed #d5dbe3;border-radius:6px;color:#6b7888;font-size:13px}
