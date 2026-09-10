@@ -48,6 +48,40 @@ function topics(target: string) {
   };
 }
 
+/**
+ * `mqtt` 모듈에서 `connect` 를 꺼낸다. **두 모양을 다 받는다.**
+ *
+ * 260910 에 브라우저에서만 `mqtt.connect is not a function` 으로 안 붙었다. 원인은
+ * 빌드가 둘이라는 것이다 — Node 는 CJS(`build/index.js`)를 interop 해서 네임스페이스에
+ * `connect` 가 붙지만, 브라우저용 ESM(`dist/mqtt.esm.js`)은 **`export default` 하나뿐**이라
+ * 네임스페이스에 `connect` 가 없다. 그래서 Node 에서 돌린 검사는 통과하는데 화면만 깨졌다.
+ *
+ * 어느 쪽이든 같은 함수를 꺼내고, 못 찾으면 **그 사실을 말한다** — 조용히 undefined 를
+ * 부르면 「mqtt.connect is not a function」이라는 남의 말로 실패한다.
+ */
+async function mqttConnect(): Promise<(url: string, opts: Record<string, unknown>) => unknown> {
+  const mod = await import('mqtt');
+  return resolveConnect(mod);
+}
+
+/** 모듈 네임스페이스에서 `connect` 찾기. 검사가 두 모양을 다 넣어 본다. */
+export function resolveConnect(mod: unknown): (url: string, opts: Record<string, unknown>) => unknown {
+  const namespace = mod as { connect?: unknown; default?: { connect?: unknown } };
+  const found = typeof namespace.connect === 'function' ? namespace.connect : namespace.default?.connect;
+  if (typeof found !== 'function') {
+    throw new Error('mqtt 모듈에서 connect 를 못 찾았습니다 — 빌드 모양이 바뀌었습니다');
+  }
+  return found as (url: string, opts: Record<string, unknown>) => unknown;
+}
+
+/** mqtt.js 클라이언트에서 우리가 쓰는 만큼. 라이브러리 타입을 끌어오지 않는다. */
+type MqttLike = {
+  on(event: string, handler: (...args: never[]) => void): void;
+  subscribe(topic: string, opts: { qos: number }): void;
+  publish(topic: string, payload: Uint8Array, opts: { qos: number }): void;
+  end(force?: boolean): void;
+};
+
 export type PhysicalStatus =
   | { state: 'idle' }
   | { state: 'connecting' }
@@ -97,28 +131,57 @@ export class PhysicalClient {
 
   /**
    * 브로커에 붙는다. **실패해도 던지지 않는다** — 화면이 죽으면 안 된다.
-   * 붙었는지는 `getStatus()` 로 묻는다.
+   *
+   * **열릴 때까지 기다린다.** 260910 에 핸들러만 걸고 곧바로 돌아왔더니 부르는 쪽이
+   * `connecting` 을 읽고 「못 붙었다」로 적었다 — 실제로는 붙는 중이었다. MQTT 연결은
+   * WebSocket 핸드셰이크 뒤에 CONNECT/CONNACK 왕복이 더 있어서 즉시 열리지 않는다.
+   *
+   * 시간 안에 아무 일도 없으면 닫힌 것으로 본다. 무한정 기다리면 「확인」 버튼이 영영
+   * 돌아오지 않는다.
    */
-  async connect(): Promise<PhysicalStatus> {
-    if (this.status.state === 'open' || this.status.state === 'connecting') return this.status;
+  async connect(timeoutMs = 6000): Promise<PhysicalStatus> {
+    if (this.status.state === 'open') return this.status;
+    if (this.status.state === 'connecting') return this.status;
     this.setStatus({ state: 'connecting' });
     try {
-      const mqtt = await import('mqtt');
-      const client = mqtt.connect(physicalWsUrl(), { protocolVersion: 5, reconnectPeriod: 0 });
+      const client = (await mqttConnect())(physicalWsUrl(), { protocolVersion: 5, reconnectPeriod: 0 }) as MqttLike;
       this.client = client;
       const { uplink } = topics(this.target);
-      client.on('connect', () => {
+
+      // 처음 한 번만 결론을 낸다 — 뒤이어 오는 close 가 open 을 덮어쓰면 안 된다.
+      let settle: ((status: PhysicalStatus) => void) | null = null;
+      const settled = new Promise<PhysicalStatus>((resolve) => { settle = resolve; });
+      const finish = (status: PhysicalStatus) => {
+        this.setStatus(status);
+        if (settle !== null) { settle(status); settle = null; }
+      };
+      const timer = setTimeout(
+        () => finish({ state: 'closed', reason: `${timeoutMs}ms 안에 응답이 없습니다` }),
+        timeoutMs,
+      );
+
+      client.on('connect', (() => {
+        clearTimeout(timer);
         client.subscribe(uplink, { qos: 1 });
-        this.setStatus({ state: 'open' });
-      });
-      client.on('message', (_topic: string, payload: Uint8Array) => {
+        finish({ state: 'open' });
+      }) as () => void);
+      client.on('message', ((_topic: string, payload: Uint8Array) => {
         const message = decodeUplink(payload);
         // 형식에 안 맞으면 버린다 — 지어 채우지 않는다.
         if (message === null) return;
         for (const listener of this.listeners) listener(message);
-      });
-      client.on('error', (error: Error) => this.setStatus({ state: 'closed', reason: error.message }));
-      client.on('close', () => this.setStatus({ state: 'closed', reason: '연결이 닫혔습니다' }));
+      }) as never);
+      client.on('error', ((error: Error) => {
+        clearTimeout(timer);
+        finish({ state: 'closed', reason: error.message });
+      }) as never);
+      // close 는 붙은 뒤에도 온다 — 그때는 결론이 아니라 상태 갱신이다.
+      client.on('close', (() => {
+        clearTimeout(timer);
+        finish({ state: 'closed', reason: '연결이 닫혔습니다' });
+      }) as () => void);
+
+      return await settled;
     } catch (error) {
       // mqtt 를 못 불러오거나 주소가 틀렸다 — 로봇 명령만 꺼지고 화면은 그대로 돈다.
       this.setStatus({ state: 'closed', reason: error instanceof Error ? error.message : String(error) });
