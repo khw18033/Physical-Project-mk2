@@ -65,6 +65,11 @@ function segmentsCross(a, b) {
   return o1 !== o2 && o3 !== o4;
 }
 
+function control(name, hit) {
+  if (!hit) failures.push(`대조군 실패: ${name} — 변조 사본이 잡히지 않았다`);
+  controls.push(name);
+}
+
 if (!group) {
   console.error('❌ verify:viewpoint-layout\n- MSN-260909-01 에 viewpoints 선언이 없다');
   process.exit(1);
@@ -158,6 +163,50 @@ for (const width of WIDTHS) {
   if (right > width) failures.push(`${width}px: 내용이 오른쪽으로 ${right - width}px 나간다`);
 }
 
+// ── 3b. 배치 엔진에 대표만 넘긴다 — 밴드가 헛되이 접히지 않는가 ─────────────
+//
+// 여덟을 다 넘기면 엔진이 그 열을 `ROW`(150) × 8 = 1,200px 로 보고 세로가 모자란다고
+// 판단해 **밴드를 더 접는다.** 그러면 판단·근거 노드가 아래 밴드로 내려가고 캔버스가
+// 두 배 넘게 길어진다. 실제로 그랬고 **좌표 검사는 통과했는데 화면 캡처에서 드러났다** —
+// 그래서 이 검사를 여기 적는다.
+//
+// `TaskGraph` 의 `layoutTasks` 와 **같은 규칙**으로 줄여서 잰다.
+{
+  const members = new Set(group.taskIds);
+  const needed = new Set();
+  for (const task of door.tasks) {
+    if (members.has(task.id)) continue;
+    for (const dep of task.deps ?? []) if (members.has(dep)) needed.add(dep);
+  }
+  if (needed.size === 0) needed.add(group.taskIds[0]);
+  const reduced = door.tasks.filter((t) => !members.has(t.id) || needed.has(t.id));
+  if (reduced.length !== door.tasks.length - (group.taskIds.length - needed.size)) {
+    failures.push('대표만 남기는 규칙이 태스크 수와 안 맞는다');
+  }
+
+  // MS-A 만 연 화면 — 시연에서 여덟을 보는 그 화면이다.
+  const msA = reduced.filter((t) => t.milestone === 'MS-A');
+  const full = door.tasks.filter((t) => t.milestone === 'MS-A');
+  /** 실제로 잰 폭. 1440 창에서 그래프 자리에 남는 값이다(캡처로 확인). */
+  const MEASURED_WIDTH = 1346;
+  const laid = applyFanLayout(dagLayout(msA, MEASURED_WIDTH, undefined, WORST_VIEWPORT_HEIGHT), group);
+  const bottom = Math.max(...full.map((t) => {
+    const p = laid[t.id];
+    return p === undefined ? 0 : p.y + (members.has(t.id) ? VIEWPOINT_NODE_HEIGHT : NODE_HEIGHT);
+  }));
+  if (bottom > WORST_VIEWPORT_HEIGHT) {
+    failures.push(`MS-A 전체 아래끝이 ${bottom}px — 잰 높이 ${WORST_VIEWPORT_HEIGHT}px 를 넘어 스크롤이 생긴다`);
+  }
+  // 여덟이 다 자리를 받았는가 — 대표만 넘겼으므로 나머지 일곱은 특례가 세워야 한다.
+  const missing = group.taskIds.filter((id) => laid[id] === undefined);
+  if (missing.length > 0) failures.push(`대표만 넘겼더니 ${missing.join(', ')} 가 자리를 못 받았다`);
+
+  // 대조군 — 여덟을 다 넘기면 캔버스가 훨씬 길어져야 한다. 그래야 이 검사가 뜻이 있다.
+  const naive = applyFanLayout(dagLayout(full, MEASURED_WIDTH, undefined, WORST_VIEWPORT_HEIGHT), group);
+  const naiveBottom = Math.max(...full.map((t) => naive[t.id].y + (members.has(t.id) ? VIEWPOINT_NODE_HEIGHT : NODE_HEIGHT)));
+  control('여덟을 다 넘긴 사본 (엔진이 열을 1,200px 로 본다)', naiveBottom > bottom);
+}
+
 // ── 4. 원형 코드가 지워졌는가 ────────────────────────────────────────────────
 {
   const source = readFileSync(join(root, 'src', 'graph', 'fanLayout.ts'), 'utf8');
@@ -190,10 +239,6 @@ for (const width of WIDTHS) {
 }
 
 // ── 대조군 ───────────────────────────────────────────────────────────────────
-function control(name, hit) {
-  if (!hit) failures.push(`대조군 실패: ${name} — 변조 사본이 잡히지 않았다`);
-  controls.push(name);
-}
 {
   // 두 화살표를 같은 y 에 놓으면 반드시 겹침으로 잡혀야 한다.
   const a = { p1: { x: 0, y: 10 }, p2: { x: 40, y: 10 } };

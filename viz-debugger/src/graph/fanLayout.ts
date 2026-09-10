@@ -90,6 +90,8 @@ export function viewpointColumnHeight(count: number): number {
 
 /** 배치가 그린 분기선의 기하. 화면과 검사가 **같은 값**을 봐야 겹침 계산이 그림과 맞는다. */
 export type FanGeometry = {
+  /** 여덟이 서는 열의 x. 배치 엔진이 대표 하나에 준 자리다. */
+  columnX: number;
   /** 부모에서 나온 가로선이 꺾이는 x — 세로 spine 의 x. */
   spineX: number;
   /** 부모 오른쪽 변 중앙. 가로선이 여기서 시작한다. */
@@ -112,10 +114,10 @@ export function applyFanLayout(
   base: Record<string, Position>,
   group: ViewpointGroup | null | undefined,
 ): Record<string, Position> {
-  if (fanGeometry(base, group) === null || !group) return base;
+  const geometry = fanGeometry(base, group);
+  if (geometry === null || !group) return base;
   const moved: Record<string, Position> = { ...base };
-  // x 는 배치 엔진이 정한 열 그대로다 — 여덟은 깊이가 같아 이미 한 열에 서 있다.
-  const columnX = base[group.taskIds[0]].x;
+  const columnX = geometry.columnX;
   const top = columnTop(base[group.parentTaskId], group.taskIds.length);
   group.taskIds.forEach((id, index) => {
     moved[id] = { x: columnX, y: top + index * ROW };
@@ -148,11 +150,19 @@ export function fanGeometry(
   const parent = base[group.parentTaskId];
   if (parent === undefined) return null;
   if (group.taskIds.length === 0) return null;
-  if (group.taskIds.some((id) => base[id] === undefined)) return null;
 
-  // 여덟이 한 열에 있어야 한다. 밴드 줄바꿈으로 갈라졌으면 세로 나열이 성립하지 않는다.
-  const columnX = base[group.taskIds[0]].x;
-  if (group.taskIds.some((id) => base[id].x !== columnX)) return null;
+  // 열의 x — **대표 하나만 있으면 된다.**
+  //
+  // 배치 엔진에는 여덟 중 대표만 넘긴다(`TaskGraph`) — 여덟을 다 넘기면 엔진이 그 열을
+  // `ROW`(150) × 8 = 1,200px 로 보고, 세로가 모자란다고 판단해 **밴드를 접는다.** 그러면
+  // 오른쪽의 판단·근거 노드가 다음 밴드로 내려가 첫 화면에서 사라진다. 실제로 그랬다 —
+  // 좌표 검사는 통과했는데 화면 캡처에서 드러났다.
+  //
+  // 대표의 열에 나머지 일곱을 세운다. 엔진은 그 열을 노드 하나짜리로 알고 있으면 된다.
+  const present = group.taskIds.filter((id) => base[id] !== undefined);
+  if (present.length === 0) return null;
+  const columnX = base[present[0]].x;
+  if (present.some((id) => base[id].x !== columnX)) return null;
   // 부모가 열 왼쪽에 있어야 왼→오 분기선이 그려진다. 줄바꿈으로 부모가 오른쪽에 오면 접는다.
   if (columnX <= parent.x + NODE_WIDTH) return null;
 
@@ -160,6 +170,7 @@ export function fanGeometry(
   const top = columnTop(parent, group.taskIds.length);
   const centreOf = (index: number) => top + index * ROW + VIEWPOINT_NODE_HEIGHT / 2;
   return {
+    columnX,
     spineX,
     parent: { x: parent.x + NODE_WIDTH, y: parent.y + NODE_HEIGHT / 2 },
     spineTop: centreOf(0),

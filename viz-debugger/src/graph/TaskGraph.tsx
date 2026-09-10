@@ -186,11 +186,34 @@ export function TaskGraph({ tasks, hardware, states, selected, dimUnrelated, onO
    * 옮겨 갔다 — 「트리로 만들면 이만큼 나빠진다」를 숫자로 내는 도구다. 화면은 트리를
    * 언급하지 않는다.
    */
+  /**
+   * 배치 엔진에 넘길 태스크 (260910). 8분할 여덟 중 **다른 태스크가 의존하는 것만** 남기고
+   * 나머지는 뺀다.
+   *
+   * 여덟을 다 넘기면 엔진이 그 열을 `ROW`(150) × 8 = 1,200px 로 보고 **밴드를 접는다** —
+   * 오른쪽의 판단·근거 노드가 다음 밴드로 내려가 첫 화면에서 사라진다. 실제로 그랬고
+   * 좌표 검사는 통과했는데 화면 캡처에서 드러났다. 빠진 일곱의 자리는 `applyFanLayout`
+   * 이 대표의 열에 세운다 — 엔진은 그 열을 노드 하나짜리로 알고 있으면 된다.
+   *
+   * 선언이 없으면 목록이 그대로다. 다른 편의 배치는 한 픽셀도 달라지지 않는다.
+   */
+  const layoutTasks = useMemo(() => {
+    if (!viewpoints) return tasks;
+    const members = new Set(viewpoints.taskIds);
+    const needed = new Set<string>();
+    for (const task of tasks) {
+      if (members.has(task.id)) continue;
+      for (const dep of task.deps) if (members.has(dep)) needed.add(dep);
+    }
+    // 아무도 안 가리키면 첫째를 대표로 남긴다 — 열 자체가 없어지면 안 된다.
+    if (needed.size === 0 && viewpoints.taskIds.length > 0) needed.add(viewpoints.taskIds[0]);
+    return tasks.filter((task) => !members.has(task.id) || needed.has(task.id));
+  }, [tasks, viewpoints]);
   const basePositions = useMemo(
-    // 8분할 특례는 **여기 한 겹뿐이다** (260909 §4). `dagLayout` 이 낸 좌표를 받아 선언된
-    // 여덟 개만 원 둘레로 옮긴다 — 선언이 없는 편은 덮을 것이 없어 그대로 나간다.
-    () => applyFanLayout(dagLayout(tasks, layoutWidth, attached, layoutHeight), viewpoints),
-    [attached, tasks, layoutWidth, layoutHeight, viewpoints],
+    // 8분할 특례는 **여기 한 겹뿐이다**. `dagLayout` 이 낸 좌표를 받아 선언된 여덟을
+    // 세로 한 열로 세운다 — 선언이 없는 편은 덮을 것이 없어 그대로 나간다.
+    () => applyFanLayout(dagLayout(layoutTasks, layoutWidth, attached, layoutHeight), viewpoints),
+    [attached, layoutTasks, layoutWidth, layoutHeight, viewpoints],
   );
   const [movedPositions, setMovedPositions] = useState<Record<string, { x: number; y: number }>>({});
   const [drag, setDrag] = useState<{ id: string; offsetX: number; offsetY: number; startX: number; startY: number; kind: 'task' | 'view' } | null>(null);
