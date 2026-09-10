@@ -29,6 +29,8 @@ import { StatusLegend } from './views/StatusLegend.tsx';
 import './style.css';
 import { Explain } from './shared/Explain.tsx';
 import { emptyFill, reduceFrames, type ViewpointFill } from './viewpoint/fill.ts';
+import { RobotPanel } from './physical/RobotPanel.tsx';
+import { robotClient } from './physical/robotClient.ts';
 import { framesUpTo } from './viewpoint/store.ts';
 
 type Screen = 'milestones' | 'graph' | 'detail' | 'replay' | 'failure';
@@ -106,6 +108,7 @@ function Milestones({ view, phase, milestoneStatuses, assignments, onAssign, onO
   </div>);
   const showApproval = phase === 'proposal' || planApproval !== undefined;
   return <div className="milestone-layout"><UtterancePanel fallbackText={view.utteranceText} /><section className="milestone-panel"><h2>마일스톤 · {view.milestones.length}건</h2>
+    <RobotPanel client={robotClient()} params={view.params} />
     {showApproval && <div className="proposal-card">
       {phase === 'proposal' && (aiProposal
         ? <p className="proposal-note proposal-ai"><b>AI 제안</b> — <code>{aiProposal.provenance.model}</code> 이 만든 임무 {view.missionId} 「{view.label}」. 승인 전에는 아무것도 실행되지 않습니다

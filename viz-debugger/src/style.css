@@ -414,3 +414,32 @@ b.follow-live{cursor:default}
 .evidence-image img{display:block;width:100%;border:1px solid #d8dee7;border-radius:6px}
 .evidence-image__empty{display:flex;align-items:center;justify-content:center;min-height:88px;padding:10px;border:1px dashed #c6ced8;border-radius:6px;background:#fbfcfd;color:#7c8797;font-size:11px;text-align:center;line-height:1.5}
 .evidence-image figcaption{margin-top:4px;color:#7c8797;font-size:11px}
+
+/* ── 로봇 패널 (260910 화면 연결) ─────────────────────────────────────────────
+   정지 버튼은 크고, 색이 다르고, 다른 버튼과 멀리 떨어져 있다 — **잘못 누르는 것보다
+   못 누르는 게 나쁘다.** 연결이 없어도 비활성화하지 않는다. */
+.robot-panel{margin:8px 0;padding:10px 12px;border:1px solid #dfe4ea;border-radius:8px;background:#fbfcfd}
+.robot-bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.robot-preset,.robot-address{padding:5px 7px;border:1px solid #cfd6df;border-radius:6px;font-size:12px}
+.robot-address{min-width:190px}
+.robot-ping{padding:6px 12px;border:1px solid #b6c2d0;border-radius:6px;background:#fff;font-size:12px}
+.robot-ping--ok{color:#1f8a4d;font-weight:600;font-size:12px}
+.robot-ping--fail{color:#b3352f;font-weight:600;font-size:12px}
+.robot-progress{padding:3px 8px;border-radius:10px;background:#eef2f7;color:#4a5b6e;font-size:12px;font-variant-numeric:tabular-nums}
+.robot-approach{padding:7px 14px;border:2px solid #2f9e5f;border-radius:7px;background:#e7f6ee;color:#125c33;font-weight:700;font-size:13px}
+/* 브로커 연결 — 로봇이 안 움직이는 것과 **다른 축**이다. 둘을 같은 표시로 뭉치지 않는다. */
+.robot-conn{padding:3px 9px;border-radius:10px;font-size:12px;font-weight:600}
+.robot-conn--open{background:#e7f6ee;color:#125c33}
+.robot-conn--connecting{background:#fdf6e3;color:#7a5c12}
+.robot-conn--closed{background:#fdeceb;color:#8f2b26}
+.robot-conn--idle{background:#eef2f7;color:#5c6a7c}
+/* 긴급 정지 — 다른 버튼과 멀리(margin-left:auto), 크게, 빨갛게. */
+.robot-stop{margin-left:auto;padding:11px 22px;border:2px solid #a3241f;border-radius:8px;background:#d5322b;color:#fff;font-size:15px;font-weight:800;letter-spacing:.5px;cursor:pointer}
+.robot-stop:hover{background:#b8271f}
+/* 정지 실패 — 크게, 빨갛게. 누른 사람은 로봇이 멈춘 줄 알고 다가간다. */
+.robot-stopfail{margin:0 0 8px;padding:12px 14px;border:2px solid #a3241f;border-radius:8px;background:#fdeceb;color:#8f2b26;font-size:15px;font-weight:800}
+.robot-locked{display:flex;align-items:center;gap:10px;margin:0 0 8px;padding:9px 12px;border-left:4px solid #a3241f;background:#fdf3f2;color:#8f2b26;font-size:13px}
+.robot-release{margin-left:auto;padding:5px 11px;border:1px solid #a3241f;border-radius:6px;background:#fff;color:#8f2b26;font-size:12px}
+.robot-yawoff{margin:8px 0 0;padding:8px 10px;border-left:3px solid #e2a13a;background:#fdf8ec;color:#6b5520;font-size:12px}
+.robot-reject{margin:8px 0 0;padding:9px 11px;border-left:3px solid #a3241f;background:#fdeceb;color:#8f2b26;font-size:13px;font-weight:600}
+.robot-reject code{margin:0 4px;padding:1px 5px;border-radius:3px;background:#f6d9d7}

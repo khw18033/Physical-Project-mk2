@@ -44,6 +44,7 @@ import { MergeScheduler } from './mergeScheduler.ts';
 import { appendGenerated, appendHuman, appendTrace, resetTrace, traceEvents, traceMissionId } from './trace.ts';
 import { scriptFrames } from '../viewpoint/source.ts';
 import { appendViewpoint, resetViewpoint } from '../viewpoint/store.ts';
+import { markApproved, resetRobotSession } from '../physical/robotSession.ts';
 import { provenancePayload, type AiProvenance } from '../shared/provenance.ts';
 import rawScenario from '../../scenarios/MSN-260826-01.json' with { type: 'json' };
 import { libraryEntry } from '../scenarios/library.ts';
@@ -376,6 +377,7 @@ export function activateMission(missionId: string, mode: 'remote' | 'local'): vo
   stopLocalTimer();
   resetTrace(view.missionId);
   resetViewpoint(view.missionId);
+  resetRobotSession();
   localCursor = 0;
   localViewpointCursor = 0;
   commitNow({ current: view, proposal: null, headSec: 0, playing: true, activatedBy: 'approval' });
@@ -418,7 +420,12 @@ export function acceptProposal(mode: 'remote' | 'local' = 'local'): boolean {
   if (proposal === null) return false;
   if (proposal.origin === 'script') {
     activateMission(proposal.missionId, mode);
-    return state.activatedBy === 'approval' && state.current.missionId === proposal.missionId;
+    const accepted = state.activatedBy === 'approval' && state.current.missionId === proposal.missionId;
+    // **승인이 로봇 관문을 연다** (260910 · `VZ-U-07`). 이 줄 앞에서는 MQTT 로 나가는
+    // 바이트가 없다 — `verify:no-publish-before-approval` 이 그것을 센다.
+    // 승인의 문이 하나이므로 관문도 여기 한 곳에서만 열린다.
+    if (accepted) markApproved();
+    return accepted;
   }
   return activateGenerated(proposal);
 }
@@ -447,6 +454,7 @@ function activateGenerated(proposal: AiProposal): boolean {
   stopLocalTimer();
   resetTrace(proposal.view.missionId);
   resetViewpoint(proposal.view.missionId);
+  resetRobotSession();
   localCursor = 0;
   localViewpointCursor = 0;
   commitNow({ current: proposal.view, proposal: null, headSec: 0, playing: false, activatedBy: 'approval' });
@@ -501,6 +509,7 @@ export function previewMission(missionId: string): void {
   stopLocalTimer();
   resetTrace(view.missionId);
   resetViewpoint(view.missionId);
+  resetRobotSession();
   localCursor = 0;
   localViewpointCursor = 0;
   commitNow({ current: view, proposal: null, headSec: 0, playing: false, activatedBy: 'preview' });
