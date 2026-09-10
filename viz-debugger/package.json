@@ -62,7 +62,8 @@
     "baseline:run": "node scripts/run-baseline.mjs",
     "baseline:report": "node scripts/report-baseline.mjs",
     "verify:robot-run": "node scripts/verify-robot-run.mjs",
-    "verify:sdk-bridge": "node scripts/verify-sdk-bridge.mjs"
+    "verify:sdk-bridge": "node scripts/verify-sdk-bridge.mjs",
+    "verify:plan-freshness": "node scripts/verify-plan-freshness.mjs"
   },
   "dependencies": {
     "mqtt": "^5.15.2",

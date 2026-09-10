@@ -201,11 +201,28 @@ export class DataStore {
         immediate = rec.controlLock.payload.locked !== prev;
         break;
       }
-      case 'plan':
-        rec.plan = toSlot<Plan>(env);
+      case 'plan': {
+        /**
+         * **지난 계획으로 덮이지 않는다** (260910 실측).
+         *
+         * 게이트웨이는 구독하는 순간 **계획을 여러 건** 밀어 준다 — 지금 것과 지난 것이
+         * 같이 온다. 그냥 덮으면 나중에 도착한 쪽이 이기고, 그게 지난 계획이면 화면이
+         * 지난 계획의 승인 버튼을 그린다. 누르면 게이트웨이가 「그런 계획이 없다」로
+         * 거절하고(그쪽은 최신 한 건만 들고 있다) **아무 일도 안 일어난다.**
+         *
+         * 실제로 그랬다. 승인을 눌러도 임무가 시작되지 않았고, 화면에는 아무 말도 없었다.
+         *
+         * 같은 `plan_id` 의 갱신(pending → approved)은 언제나 받는다 — 그건 덮어써야 한다.
+         */
+        const incoming = toSlot<Plan>(env);
+        const held = rec.plan;
+        const sameplan = held?.payload.plan_id === incoming.payload.plan_id;
+        if (held != null && !sameplan && olderPlan(incoming.payload, held.payload)) break;
+        rec.plan = incoming;
         // 승인 절차는 사용자가 기다리는 화면이다. 병합 창에 묻히면 클릭이 먹히지 않은 것처럼 보인다.
         immediate = true;
         break;
+      }
       case 'plan_progress':
         rec.planProgress = toSlot(env);
         // 구간 전이는 이산 이벤트다 — 네 시점에만 오므로 묶을 이유가 없다.
@@ -270,4 +287,18 @@ export class DataStore {
   get(id: string): EntityRecord | null {
     return this.snapshot.get(id) ?? null;
   }
+}
+
+
+/**
+ * 이 계획이 들고 있는 것보다 **지난 것**인가. 만든 시각으로 견준다.
+ *
+ * 시각을 못 읽으면 지난 것으로 치지 않는다 — 모를 때 버리면 새 계획을 놓칠 수 있고,
+ * 그건 지난 계획을 그리는 것보다 나쁘다.
+ */
+function olderPlan(incoming: Plan, held: Plan): boolean {
+  const a = Date.parse(incoming.evidence?.mission?.created_at ?? '');
+  const b = Date.parse(held.evidence?.mission?.created_at ?? '');
+  if (Number.isNaN(a) || Number.isNaN(b)) return false;
+  return a < b;
 }

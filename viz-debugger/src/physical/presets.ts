@@ -23,14 +23,28 @@
 export const STOP_ACTION = 'abort';
 
 /**
- * **일시정지가 쓰는 이름.** `abort` 와 다르다 — 돌던 임무만 접고 다른 쪽(Unity·촬영 도구)이
- * 흘리는 것은 안 건드린다(연동 가이드 §4-2).
+ * **일시정지가 쓰는 이름 — 정지와 같다.** (260910 실측)
  *
- * 규약에 **일시정지도 재개도 없다.** 우리가 할 수 있는 것은 임무를 접는 것뿐이고,
- * 「이어 하기」는 화면이 그 단계를 다시 내는 것으로 흉내 낸다. 이 줄만 고치면 하드웨어가
- * 진짜 일시정지를 주는 날 그리로 갈아탄다.
+ * 처음엔 `abort_mission` 을 썼다. 「돌던 임무만 접는다」고 적혀 있어(가이드 §4-2) 일시정지에
+ * 알맞아 보였다. **안 멈춘다.** 로봇에 직접 쏴서 잰 것:
+ *
+ *     0.0s  scan_mission 발행 · 수락
+ *     2.5s  scan_turn step 1
+ *     6.0s  abort_mission 발행 · **수락** · 결과 ABORTED {} INTERNAL
+ *     6.8s  scan_turn step 2      ← 계속 돈다
+ *    27.6s  scan_turn step 7      ← 끝까지 돈다
+ *
+ * 수락은 하고 자기는 `INTERNAL` 로 끝나면서 임무는 그대로 둔다. 같은 자리에 `abort` 를
+ * 쏘면 1.5초 안에 스캔이 `ABORTED` 로 끝난다.
+ *
+ *     6.0s  abort 발행 · 수락 · 결과 SUCCEEDED {sdk_reached:1, had_mission:1}
+ *     7.5s  scan_mission 결과 ABORTED
+ *
+ * 그래서 **로봇을 멈추는 방법은 하나뿐**이고, 정지와 일시정지의 차이는 전부 화면 쪽에
+ * 있다 — 정지는 진행상황을 종결하고 화면을 잠그며 다시 승인을 받고, 일시정지는 아무것도
+ * 안 버린다. 하드웨어가 `abort_mission` 을 고치거나 진짜 일시정지를 주는 날 이 줄만 고친다.
  */
-export const PAUSE_ACTION = 'abort_mission';
+export const PAUSE_ACTION = STOP_ACTION;
 
 /**
  * **구동 브리지 명령의 이름들.** 여기 밖에 문자열을 안 적는 이유는 위와 같다.

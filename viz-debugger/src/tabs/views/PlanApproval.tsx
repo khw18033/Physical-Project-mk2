@@ -85,11 +85,39 @@ function timeOf(iso: string | null): string {
   );
 }
 
+/**
+ * 아직 결정 안 난 계획 중 **가장 나중에 만들어진** 것의 대상. 없으면 목록의 첫째다.
+ * 만든 시각을 못 읽으면 순서를 안 바꾼다 — 모를 때 뒤섞으면 더 나쁘다.
+ */
+function freshestTarget(entities: ReturnType<typeof useEntities>, targets: readonly string[]): string | null {
+  let best: string | null = null;
+  let bestAt = -Infinity;
+  for (const id of targets) {
+    const plan = entities.get(id)?.plan?.payload as Plan | undefined;
+    if (plan === undefined || plan.decision !== 'pending') continue;
+    const at = Date.parse(plan.evidence?.mission?.created_at ?? '');
+    if (Number.isNaN(at)) continue;
+    if (at > bestAt) { bestAt = at; best = id; }
+  }
+  return best ?? targets[0] ?? null;
+}
+
 export function PlanApproval() {
   const entities = useEntities();
   const targets = planTargets(entities);
   const [picked, setPicked] = useState<string | null>(null);
-  const target = picked !== null && targets.includes(picked) ? picked : (targets[0] ?? null);
+  /**
+   * **새 계획이 오면 그리로 따라간다** (260910 실측으로 드러난 자리).
+   *
+   * 전에는 목록의 첫째(`targets[0]`)를 그렸다. 그 자리에 지난 편의 **묵은 계획**이 앉아
+   * 있으면, 방금 요청해 받은 계획이 아니라 그것의 승인 버튼이 뜬다. 눌러도 게이트웨이가
+   * 「그런 계획이 없다」로 거절한다 — 그쪽은 최신 한 건만 들고 있기 때문이다.
+   *
+   * 실제로 그랬다. 승인을 눌러도 임무가 시작되지 않았고, 화면에는 아무 말도 없었다.
+   * 이제 **아직 결정 안 난 것 중 가장 새 것**을 기본으로 고른다. 사람이 직접 고른 것은
+   * 그대로 존중한다.
+   */
+  const target = picked !== null && targets.includes(picked) ? picked : freshestTarget(entities, targets);
   const record = target === null ? null : (entities.get(target) ?? null);
 
   const plan = (record?.plan?.payload as Plan | undefined) ?? null;

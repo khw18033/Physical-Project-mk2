@@ -282,7 +282,8 @@ export async function pauseMission(client: PhysicalClient | null): Promise<Pause
   try {
     if (client === null) failure = '브로커 연결 없음';
     else {
-      const outcome = client.send(PAUSE_ACTION);
+      // **규약 밖의 파라미터를 더하지 않는다** — reason 하나뿐이다. 사람이 누른 것이다.
+      const outcome = client.send(PAUSE_ACTION, { reason: STOP_REASON.human });
       published = outcome.sent;
       commandId = outcome.commandId;
       if (!outcome.sent) failure = outcome.reason ?? '보내지 못했습니다';

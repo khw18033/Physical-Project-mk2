@@ -12,6 +12,7 @@
  */
 
 import { backoffDelayMs } from './backoff.ts';
+import { pushNotification } from '../shared/notifications.ts';
 import type { Transport, Unsubscribe } from './Transport.ts';
 import type {
   CommandAck,
@@ -207,6 +208,26 @@ export class WsTransport implements Transport {
         const waiters = this.roleWaiters;
         this.roleWaiters = [];
         for (const w of waiters) w(info);
+        return;
+      }
+
+      case 'plan_decision': {
+        /**
+         * **승인이 거절될 수 있다** (260910 실측 — 조용히 삼키고 있었다).
+         *
+         * 게이트웨이는 계획 한 건만 들고 있는데, 구독할 때 지난 계획까지 밀어 준다.
+         * 화면이 지난 것을 잡으면 승인이 「그런 계획이 없다」로 거절된다. 그 답을 여기서
+         * 버리고 있어서 **누르면 아무 일도 안 일어나고 화면에는 아무 말도 없었다.**
+         * 승인은 시연의 관문이라, 안 열렸으면 안 열렸다고 말해야 한다.
+         */
+        if (msg.accepted !== true) {
+          pushNotification({
+            id: 'PLAN-DECISION-' + String(msg.plan_id),
+            source: 'command',
+            message: `계획 승인이 거절됐습니다 — ${String(msg.message ?? '사유 없음')}. 다시 요청해 새 계획을 받으세요`,
+            occurredAt: new Date().toISOString(),
+          });
+        }
         return;
       }
 

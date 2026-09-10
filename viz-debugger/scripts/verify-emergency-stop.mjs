@@ -291,8 +291,15 @@ commandTracker.clear();
   if (robotSession().progress === null) failures.push('일시정지가 진행률을 버렸다 — 그것은 정지가 할 일이다');
   if (robotSession().stopped !== null) failures.push('일시정지가 화면을 잠갔다 — 정지와 같아져 버린다');
   if (paused.published !== true) failures.push('일시정지가 로봇에 안 나갔다');
-  if (bot.sent.at(-1)?.action !== 'abort_mission') {
-    failures.push(`일시정지가 ${bot.sent.at(-1)?.action} 을 쏜다 — abort_mission 이어야 한다`);
+  // **로봇을 멈추는 방법은 하나뿐이다** (260910 실측). `abort_mission` 은 수락만 하고
+  // 임무를 그대로 두고 돌린다 — 6초에 쏴도 27초까지 계속 돌았다. `abort` 만 멎는다.
+  const last = bot.sent.at(-1);
+  if (last?.action !== 'abort') {
+    failures.push(`일시정지가 ${last?.action} 을 쏜다 — abort 여야 한다 (abort_mission 은 안 멈춘다)`);
+  }
+  // 규약 밖의 파라미터를 더하지 않는다 — reason 하나뿐이다.
+  if (JSON.stringify(last?.parameters ?? {}) !== JSON.stringify({ reason: 1 })) {
+    failures.push(`일시정지의 파라미터가 ${JSON.stringify(last?.parameters)} 다 — reason 하나여야 한다`);
   }
   release();
   if (before === progressed) failures.push('진행률이 안 바뀌었다 — 검사가 헛돈다');
