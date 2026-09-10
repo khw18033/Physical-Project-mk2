@@ -16,6 +16,7 @@
 
 import { useEffect } from 'react';
 import { activateMission, proposeMission, receiveTrace, rejectProposal, viewForMission } from '../data/scenario.ts';
+import { libraryEntry } from '../scenarios/library.ts';
 import { axesOfMission } from '../scenarios/scriptScope.ts';
 import { markIntegratedBuild, observeConnection, observeEnvelope, updateClientHealth } from '../shared/observability.ts';
 import { enterScenarioRender } from '../shared/renderMode.ts';
@@ -23,7 +24,7 @@ import { store } from '../tabs/data/index.ts';
 import { getTransport, type Envelope } from '../transport/index.ts';
 import { liveFrame } from '../viewpoint/source.ts';
 import { appendViewpoint } from '../viewpoint/store.ts';
-import { approvedByHuman, markApproved, robotDrives } from '../physical/robotSession.ts';
+import { approvedByHuman, markApproved } from '../physical/robotSession.ts';
 
 type WirePlan = {
   plan_id: string;
@@ -67,15 +68,19 @@ export function startMissionBridge(): () => void {
       observeEnvelope(envelope);
       store.apply(envelope);
       if (envelope.channel === 'plan') applyPlan(envelope);
-      // **로봇이 붙어 있으면 목 게이트웨이의 대본 재생을 안 받는다** (260910 지적).
+      // **로봇 편의 진행은 로봇만 몬다** (260910 지적 — 조건을 걸지 않는다).
       //
       // 목 게이트웨이는 승인되면 대본을 제 시각으로 흘려보낸다 — trace_event 로 노드를
-      // 칠하고 robot_state·detection 으로 뷰포인트를 채운다. 그건 로봇이 없을 때의
-      // 시연이고, 로봇이 붙어 있으면 **진행은 로봇이 몰아야 한다.** 둘 다 받으면 화면이
-      // 로봇보다 앞서 가고, 여덟 칸이 두 번 찬다.
+      // 칠하고 robot_state·detection 으로 여덟 칸을 채운다. 그건 로봇이 없던 시절의
+      // 재생이다. 이제 이 편은 실물 시연이므로 그 합성 진행을 **아예 안 받는다.**
+      //
+      // 처음엔 `robotDrives()` 일 때만 버렸는데, 승인 순간 연결이 아직 안 열려 있으면
+      // 대본이 그대로 재생돼 **로봇 없이 다 끝난 화면**이 나왔다. 로봇이 안 붙었으면
+      // 진행이 없는 것이 맞다 — 없는 진행을 지어 보이는 편이 나쁘다.
       //
       // 계획(plan)은 그대로 받는다 — 승인 자체는 게이트웨이를 지나는 일이다.
-      if (robotDrives() && (envelope.channel === 'trace_event' || envelope.channel === 'robot_state' || envelope.channel === 'detection')) return;
+      if (robotScript(envelope.entity)
+        && (envelope.channel === 'trace_event' || envelope.channel === 'robot_state' || envelope.channel === 'detection')) return;
       if (envelope.channel === 'trace_event') applyTrace(envelope);
       if (envelope.channel === 'robot_state' || envelope.channel === 'detection') applyViewpoint(envelope);
     },
@@ -90,6 +95,16 @@ export function startMissionBridge(): () => void {
     updateClientHealth({ subscriptions: 0 });
     started = false;
   };
+}
+
+/**
+ * 이 임무가 **로봇이 도는 편**인가 (`world: 'registry'`).
+ *
+ * 로봇 편의 진행은 로봇만 몬다 — 목 게이트웨이의 합성 재생도, 시나리오 모드 띠도 안 쓴다.
+ * 옛 편(`legacy`)은 재생할 로봇이 없으니 그대로 대본으로 돈다.
+ */
+function robotScript(missionId: string): boolean {
+  return libraryEntry(missionId)?.world === 'registry';
 }
 
 function applyPlan(envelope: Envelope): void {
@@ -118,9 +133,17 @@ function applyPlan(envelope: Envelope): void {
     // 승인이 재접속 즉시 다시 내려온다 — 그걸 새 승인으로 받으면 아무도 안 눌렀는데
     // 로봇이 움직인다. 실제로 그랬다.
     if (approvedByHuman(plan.plan_id)) markApproved();
-    // registry 세계 대본만 scenario 렌더 모드에 들어간다 (자동 · VZ-U-07 승인 뒤).
-    // 구판 세계(legacy)는 탭②~⑤에 따라 움직일 것이 없다 — 안내 띠는 셸이 그린다.
-    if (plan.script.world === 'registry') {
+    // **로봇 편은 시나리오 모드로 안 들어간다** (260910 지적 — 조건을 걸지 않는다).
+    //
+    // 시나리오 모드는 「대본을 재생 중」이라는 화면이다 — 「합성 데이터 · 재생 중」 띠를
+    // 띄우고 안 쓰는 패널을 접는다. 실물 시연에서 그 띠가 뜨면 **연결 전 테스트처럼
+    // 보인다.** 이 편(`world: 'registry'`)은 로봇이 도는 편이므로 일반 모드로 둔다.
+    //
+    // 로봇이 안 붙어 있을 때만 재생하도록 했다가 되돌렸다 — 승인 순간 연결이 아직
+    // 안 열려 있으면 띠가 떴다. 「연결이 늦었다」는 사정이 화면에 대본으로 나오면 안 된다.
+    //
+    // 옛 편(`world: 'legacy'`, MSN-260826-01)은 그대로 시나리오 모드로 간다.
+    if (plan.script.world !== 'registry') {
       const view = viewForMission(plan.script.mission_id);
       if (view !== null) {
         enterScenarioRender({

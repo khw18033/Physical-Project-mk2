@@ -131,7 +131,9 @@ export async function issueScan(client: PhysicalClient, params: Record<string, u
 
 /**
  * 승인 뒤 스캔을 **한 번만** 쏜다. 화면이 다시 그려질 때마다 부르면 로봇이 여러 번 돈다.
- * 브로커에 안 붙어 있으면 안 쏜다 — 그때는 대본이 돈다.
+ *
+ * 브로커에 안 붙어 있으면 안 쏜다. **그때 대신 도는 대본은 이제 없다**(260910) — 진행이
+ * 아예 없는 것이 맞다. 없는 진행을 대본으로 지어 보이면 무대에서 「되는 줄」 알고 넘어간다.
  */
 export function shouldIssueScan(): boolean {
   const session = robotSession();

@@ -91,7 +91,7 @@ export const CONNECTION_TARGETS: readonly ConnectionTarget[] = [
   {
     id: 'physical',
     label: '로봇 (MQTT 브로커)',
-    what: 'Go1 명령·진행 보고. 꺼져 있으면 로봇 명령만 꺼지고 대본 재생·되감기·캔버스는 그대로 돈다',
+    what: 'Go1 명령·진행 보고. **시연 편은 이 하나로 돈다** — 안 붙이면 승인해도 로봇이 안 움직이고 화면도 안 나아간다',
     live: true,
     // **주소를 여기 적지 않는다.** stt·generate 는 대비값을 여기 두지만, 로봇은
     // 주소·토픽·장비 id 가 한 곳에만 있어야 한다는 제약이 더 세다(`verify:physical-port`) —
