@@ -39,7 +39,9 @@ function walk(dir) {
 const FORBIDDEN = [
   { pattern: /pi7\.local/, what: 'MQTT 브로커 이름' },
   { pattern: /192\.168\.50\.172/, what: '랩 Wi-Fi 고정 IP' },
-  { pattern: /terminal\/[^\s'"`]*\/(downlink|uplink)/, what: 'MQTT 토픽' },
+  { pattern: /terminal\/[^\s'"`]*\/(downlink|uplink)/, what: 'MQTT 명령 토픽' },
+  // 장비 상태 토픽도 경계 안에 있어야 한다 (260910). 구역 이름이 바뀌면 한 곳만 고친다.
+  { pattern: /zoneA\/\+\/\+\//, what: 'MQTT 장비 상태 토픽' },
   { pattern: /\bgo1-001\b/, what: '하드웨어 장비 id' },
   { pattern: /from\s+['"]mqtt['"]|import\(['"]mqtt['"]\)/, what: 'mqtt 라이브러리 import' },
   { pattern: /from\s+['"]protobufjs/, what: 'protobufjs import' },
@@ -66,7 +68,8 @@ failures.push(...scan(files));
   const client = join(srcDir, 'physical', 'PhysicalClient.ts');
   const source = readFileSync(client, 'utf8');
   if (!/pi7\.local/.test(source)) failures.push('PhysicalClient.ts 에 기본 주소가 없다 — 검사가 헛돈다');
-  if (!/terminal\//.test(source)) failures.push('PhysicalClient.ts 에 토픽이 없다 — 검사가 헛돈다');
+  if (!/terminal\//.test(source)) failures.push('PhysicalClient.ts 에 명령 토픽이 없다 — 검사가 헛돈다');
+  if (!/zoneA\//.test(source)) failures.push('PhysicalClient.ts 에 장비 상태 토픽이 없다 — 검사가 헛돈다');
   if (!/registerConnectionDefault\(\s*'physical'/.test(source)) {
     failures.push("PhysicalClient.ts 가 'physical' 연결 기본값을 심지 않는다");
   }
@@ -96,7 +99,9 @@ function control(name, hit) {
   // 경계 밖 파일에 토픽을 한 줄 심은 셈 치고 같은 규칙을 돌린다.
   const injected = "const t = 'terminal/go1-001/downlink';";
   const hits = FORBIDDEN.filter(({ pattern }) => pattern.test(injected));
-  control('경계 밖에 토픽 주입', hits.length >= 2);
+  control('경계 밖에 명령 토픽 주입', hits.length >= 2);
+  control('경계 밖에 장비 상태 토픽 주입',
+    FORBIDDEN.some(({ pattern }) => pattern.test("client.subscribe('zoneA/+/+/state')")));
 }
 {
   const injected = "import mqtt from 'mqtt';";

@@ -52,7 +52,37 @@ async function timed<T>(run: () => Promise<T>): Promise<{ value: T; ms: number }
  * 로봇을 증명하려면 로봇을 움직이는 명령을 보내야 하는데, 그건 연결 확인이 할 일이 아니다.
  * 단말이 로봇 상태를 실어 주면 그때 이 줄이 채워진다 — 하드웨어 쪽에 물어볼 것이다.
  */
-export async function checkPhysical(client: PhysicalProbe | null): Promise<readonly HealthLine[]> {
+/** 로봇 줄이 읽는 것. 장비 상태에서 온 값만 담는다 — 이 파일은 토픽을 모른다. */
+export type RobotFacts = {
+  online: boolean | null;
+  link: string | null;
+  health: string | null;
+  batteryPct: number | null;
+  stale: boolean;
+  staleSec: number;
+};
+
+/**
+ * 장비 상태를 **잠깐 기다린다.** 붙자마자 누르면 아직 한 건도 안 와 있는데, 그때 「모른다」로
+ * 끝내면 발표 직전 점검에서 늘 한 번 더 눌러야 한다. 상태는 5초 주기라 그만큼만 기다린다.
+ *
+ * 기다려도 안 오면 그대로 「모른다」다 — 없는 것을 지어내지 않는다.
+ */
+async function waitForRobot(get: (() => RobotFacts | null) | null, timeoutMs = 6000): Promise<RobotFacts | null> {
+  if (get === null) return null;
+  const deadline = Date.now() + timeoutMs;
+  for (;;) {
+    const facts = get();
+    if (facts !== null) return facts;
+    if (Date.now() >= deadline) return null;
+    await new Promise((resolve) => setTimeout(resolve, 250));
+  }
+}
+
+export async function checkPhysical(
+  client: PhysicalProbe | null,
+  robotSource: RobotFacts | (() => RobotFacts | null) | null = null,
+): Promise<readonly HealthLine[]> {
   if (client === null) {
     return [line('broker', '브로커', false, { reason: '클라이언트가 없습니다' })];
   }
@@ -78,14 +108,28 @@ export async function checkPhysical(client: PhysicalProbe | null): Promise<reado
     ? line('agent', '단말', true, { roundTripMs: ping.roundTripMs ?? ms })
     : line('agent', '단말', false, { reason: ping.message });
 
-  return [
-    broker,
-    agent,
-    // **ping 은 단말까지만 증명한다.** 단말이 답해도 로봇은 모른다.
-    agent.ok === true
-      ? line('robot', '로봇', null, { reason: 'ping 은 단말까지만 증명합니다 — 로봇은 명령을 보내야 압니다' })
-      : line('robot', '로봇', null, { reason: '단말이 답하지 않아 물어보지 못했습니다' }),
-  ];
+  // **붙은 뒤에 기다린다.** 붙기 전에 기다리면 구독이 없어 아무것도 안 오고, 그 시간만
+  // 버린 채 「모른다」로 끝난다 — 실제로 그랬다.
+  const robot = typeof robotSource === 'function' ? await waitForRobot(robotSource) : robotSource;
+  return [broker, agent, robotLine(agent, robot)];
+}
+
+/**
+ * 로봇 줄 — **`ping` 이 아니라 장비 상태가 채운다** (260910).
+ *
+ * `ping` 은 단말까지만 증명한다. 로봇 자신이 붙어 있는지는 `zoneA/.../status` 의 `link`
+ * (로봇 ↔ 파이 내부 링크)가 말한다. 그 값이 안 왔으면 여전히 「모른다」다 —
+ * 안 온 것을 초록으로도 빨강으로도 칠하지 않는다.
+ */
+function robotLine(agent: HealthLine, robot: RobotFacts | null): HealthLine {
+  if (agent.ok !== true) return line('robot', '로봇', null, { reason: '단말이 답하지 않아 물어보지 못했습니다' });
+  if (robot === null) return line('robot', '로봇', null, { reason: '장비 상태가 아직 안 왔습니다' });
+  if (robot.stale) return line('robot', '로봇', null, { reason: `${robot.staleSec}초째 소식이 없습니다 — 마지막 값을 현재로 보지 않습니다` });
+  if (robot.online === false) return line('robot', '로봇', false, { reason: '파이가 오프라인으로 봅니다' });
+  if (robot.link !== null && robot.link !== 'ok') return line('robot', '로봇', false, { reason: `내부 링크 ${robot.link}` });
+  if (robot.link === null) return line('robot', '로봇', null, { reason: '내부 링크 값이 안 왔습니다' });
+  const extra = robot.batteryPct === null ? '' : ` · 배터리 ${robot.batteryPct}%`;
+  return line('robot', '로봇', true, { reason: robot.health === 'ok' ? null : `${robot.health}${extra}` });
 }
 
 /**
@@ -117,10 +161,14 @@ export async function checkGenerate(): Promise<readonly HealthLine[]> {
  * 대상 하나를 확인한다. **던지지 않는다** — 여기서 예외가 새면 팝업이 통째로 날아간다.
  * 예외도 결과이고, 그 사유가 화면에 남아야 한다.
  */
-export async function checkTarget(target: ConnectionTargetId, physical: PhysicalProbe | null): Promise<void> {
+export async function checkTarget(
+  target: ConnectionTargetId,
+  physical: PhysicalProbe | null,
+  robot: RobotFacts | (() => RobotFacts | null) | null = null,
+): Promise<void> {
   setChecking(target, true);
   try {
-    if (target === 'physical') setHealth(target, await checkPhysical(physical));
+    if (target === 'physical') setHealth(target, await checkPhysical(physical, robot));
     else if (target === 'detect') setHealth(target, await checkDetect());
     else if (target === 'stt') setHealth(target, await checkStt());
     else if (target === 'generate') setHealth(target, await checkGenerate());

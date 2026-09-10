@@ -27,6 +27,8 @@
 import { useState } from 'react';
 import { BROKER_PRESETS, presetReady } from '../physical/presets.ts';
 import { checkTarget, type PhysicalProbe } from '../shared/connectionCheck.ts';
+import { robotFacts } from '../physical/robotFacts.ts';
+import { useDeviceStates } from '../physical/deviceState.ts';
 import { CHECKED_TARGETS, useConnectionHealth, type TargetHealth } from '../shared/connectionHealth.ts';
 import type { ConnectionTargetId } from '../shared/connections.ts';
 import {
@@ -127,6 +129,8 @@ export function ConnectionsPanel({ onClose, physical }: { onClose(): void; physi
  */
 function HealthRow({ target, physical }: { target: ConnectionTargetId; physical: PhysicalProbe | null }) {
   const health = useConnectionHealth();
+  // 장비 상태를 구독한다 — 로봇 줄이 그 값으로 채워진다.
+  useDeviceStates();
   const state: TargetHealth = health[target] ?? { checking: false, lines: [] };
   return <div className="conn-health">
     <div className="conn-health__lines">
@@ -142,7 +146,7 @@ function HealthRow({ target, physical }: { target: ConnectionTargetId; physical:
       type="button"
       className="conn-check"
       disabled={state.checking}
-      onClick={() => void checkTarget(target, physical)}
+      onClick={() => void checkTarget(target, physical, robotFacts)}
     >{state.checking ? '확인 중…' : '확인'}</button>
     {state.lines.length > 0 && <small className="conn-health__at">
       {new Date(state.lines[0].checkedAtIso).toLocaleTimeString()}

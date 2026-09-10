@@ -473,6 +473,8 @@ b.follow-live{cursor:default}
 .hw-dot--ok{background:#e7f6ee;color:#125c33}
 .hw-dot--bad{background:#fdeceb;color:#8f2b26}
 .hw-dot--unknown{background:#eef2f7;color:#6b7888}
+.hw-dot--warn{background:#fdf6e3;color:#7a5c12}
+.hw-dot--plain{background:#f2f4f7;color:#5c6a7c;font-weight:400}
 /* 로봇이 보낸 ACK 순번 — 우리 값과 나란히 둔다. 어긋나면(ack > of) 표시를 달리한다. */
 .robot-ack{padding:3px 8px;border-radius:10px;background:#f2f4f7;color:#6b7888;font-size:11px;font-variant-numeric:tabular-nums}
 .robot-ack--odd{background:#fdf6e3;color:#7a5c12;font-weight:600}

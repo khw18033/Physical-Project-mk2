@@ -11,6 +11,7 @@
 import { PhysicalClient } from './PhysicalClient.ts';
 import { issuePing } from './robotCommands.ts';
 import { setConnection } from './robotSession.ts';
+import { receiveDeviceMessage } from './deviceState.ts';
 
 let singleton: PhysicalClient | null = null;
 
@@ -21,6 +22,9 @@ export function robotClient(): PhysicalClient {
     // 있는 동안의 변화를 놓치고, 「붙었는데 세션은 모른다」가 된다 — 승인 순간에 그게
     // 나면 대본 타이머가 돌아 로봇보다 화면이 앞서 간다.
     singleton.onStatus(setConnection);
+    // 장비 상태도 만들 때 잇는다 — 화면 부품이 안 떠 있는 동안의 값을 놓치면
+    // 하드웨어 카드가 「모른다」로 남는다.
+    singleton.onDevice(receiveDeviceMessage);
   }
   return singleton;
 }

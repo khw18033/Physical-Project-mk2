@@ -61,10 +61,40 @@ const controls = [];
   if (both.find((l) => l.id === 'broker')?.ok !== true) failures.push('브로커가 붙었는데 초록이 아니다');
   if (both.find((l) => l.id === 'agent')?.ok !== true) failures.push('단말이 답했는데 초록이 아니다');
   if (both.find((l) => l.id === 'agent')?.roundTripMs !== 12) failures.push('왕복 시간이 안 실린다');
-  // **로봇은 모른다.** 단말이 답해도 초록으로 칠하지 않는다 — 그게 이번에 고친 거짓말이다.
+  // **장비 상태가 없으면 로봇은 모른다.** 단말이 답했다고 초록으로 칠하지 않는다.
   const robotLine = both.find((l) => l.id === 'robot');
-  if (robotLine?.ok !== null) failures.push(`단말이 답했다고 로봇 줄이 ${robotLine?.ok} — 「모른다(null)」여야 한다`);
-  if (!/단말까지만/.test(String(robotLine?.reason))) failures.push('로봇 줄이 왜 모르는지 안 적었다');
+  if (robotLine?.ok !== null) failures.push(`장비 상태가 없는데 로봇 줄이 ${robotLine?.ok} — 「모른다(null)」여야 한다`);
+
+  // **장비 상태가 오면 로봇 줄이 채워진다** (260910 — link 가 그 답이다).
+  const facts = (over = {}) => ({ online: true, link: 'ok', health: 'ok', batteryPct: 55, stale: false, staleSec: 0, ...over });
+  const alive = await checkPhysical({
+    getStatus: () => ({ state: 'open' }), connect: async () => ({ state: 'open' }),
+    ping: async () => ({ ok: true, roundTripMs: 5, message: 'ok' }),
+  }, facts());
+  if (alive.find((l) => l.id === 'robot')?.ok !== true) failures.push('link 가 ok 인데 로봇 줄이 초록이 아니다');
+
+  // 내부 링크가 끊기면 **빨갛다** — 파이는 붙어 있는데 로봇이 아니다.
+  const linkDown = await checkPhysical({
+    getStatus: () => ({ state: 'open' }), connect: async () => ({ state: 'open' }),
+    ping: async () => ({ ok: true, roundTripMs: 5, message: 'ok' }),
+  }, facts({ link: 'down' }));
+  if (linkDown.find((l) => l.id === 'robot')?.ok !== false) failures.push('내부 링크가 끊겼는데 로봇 줄이 빨갛지 않다');
+  if (linkDown.find((l) => l.id === 'agent')?.ok !== true) failures.push('로봇 링크가 끊겼다고 단말까지 빨개졌다');
+
+  // 파이가 오프라인으로 보면 빨갛다.
+  const offline = await checkPhysical({
+    getStatus: () => ({ state: 'open' }), connect: async () => ({ state: 'open' }),
+    ping: async () => ({ ok: true, roundTripMs: 5, message: 'ok' }),
+  }, facts({ online: false }));
+  if (offline.find((l) => l.id === 'robot')?.ok !== false) failures.push('오프라인인데 로봇 줄이 빨갛지 않다');
+
+  // **낡은 값은 현재가 아니다** — 마지막 값을 초록으로 그리면 안 된다.
+  const old = await checkPhysical({
+    getStatus: () => ({ state: 'open' }), connect: async () => ({ state: 'open' }),
+    ping: async () => ({ ok: true, roundTripMs: 5, message: 'ok' }),
+  }, facts({ stale: true, staleSec: 40 }));
+  if (old.find((l) => l.id === 'robot')?.ok !== null) failures.push('40초째 소식이 없는데 현재처럼 그린다');
+  if (!/소식이 없습니다/.test(String(old.find((l) => l.id === 'robot')?.reason))) failures.push('낡았다는 사실을 안 적었다');
 
   // **단말이 안 답하면 단말 줄이 빨갛다** — 브로커는 그대로 초록이다.
   const agentDead = await checkPhysical({
@@ -193,7 +223,8 @@ if (failures.length) {
   process.exit(1);
 }
 console.log(`✅ 확인 대상 넷이 다 올라와 있다 — ${CHECKED_TARGETS.join(' · ')} (팝업이 목록을 그린다)`);
-console.log('✅ physical 이 브로커·단말·로봇 셋을 따로 보인다 — 단말이 답해도 로봇은 「모른다」');
+console.log('✅ physical 이 브로커·단말·로봇 셋을 따로 보인다 — 로봇 줄은 장비 상태의 link 가 채운다');
+console.log('✅ 링크가 끊기면 로봇만 빨갛고 단말은 초록 · 낡은 값은 현재로 안 그린다');
 console.log('✅ 브로커가 없으면 아래 둘은 「못 물어봤다」 · 모르는 줄이 있으면 초록이라고 말하지 않는다');
 console.log('✅ 확인 버튼이 실제 왕복을 한 번 돌린다 · 던져도 사유가 남는다 (팝업이 안 날아간다)');
 console.log('✅ detect 는 자리만 — 2단계-B 에서 잇는다 · 한 대상이 죽어도 나머지는 돈다');

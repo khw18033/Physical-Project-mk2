@@ -49,6 +49,14 @@ function topics(target: string) {
 }
 
 /**
+ * 장비 상태 토픽 (260910). **명령 응답과 다른 축이다** — 이쪽은 「장비가 지금 어떤가」다.
+ *
+ * 구역의 모든 장비를 받는다(`+`). 우리 로봇만 걸러 받으면 나중에 센서·수문이 붙을 때
+ * 구독을 또 늘려야 하고, 그때 한쪽만 고쳐진다. 걸러 내는 것은 화면의 몫이다.
+ */
+const DEVICE_TOPICS = ['zoneA/+/+/status', 'zoneA/+/+/state', 'zoneA/+/+/heartbeat'];
+
+/**
  * `mqtt` 모듈에서 `connect` 를 꺼낸다. **두 모양을 다 받는다.**
  *
  * 260910 에 브라우저에서만 `mqtt.connect is not a function` 으로 안 붙었다. 원인은
@@ -89,6 +97,8 @@ export type PhysicalStatus =
   | { state: 'closed'; reason: string };
 
 export type PhysicalListener = (message: UplinkMessage) => void;
+/** 장비 상태 한 건. 토픽과 본문을 그대로 넘긴다 — 뜯는 것은 `deviceState.ts` 다. */
+export type DeviceListener = (topic: string, body: Record<string, unknown>) => void;
 export type StatusListener = (status: PhysicalStatus) => void;
 
 /**
@@ -102,6 +112,7 @@ export class PhysicalClient {
   private client: unknown = null;
   private status: PhysicalStatus = { state: 'idle' };
   private readonly listeners = new Set<PhysicalListener>();
+  private readonly deviceListeners = new Set<DeviceListener>();
   private readonly statusListeners = new Set<StatusListener>();
   /** 붙을 대상. 화면 id 를 받아 하드웨어 id 로 바꿔 둔다. */
   private readonly target: string;
@@ -117,6 +128,12 @@ export class PhysicalClient {
   onMessage(listener: PhysicalListener): () => void {
     this.listeners.add(listener);
     return () => this.listeners.delete(listener);
+  }
+
+  /** 장비 상태를 듣는다. 명령 응답과 **다른 귀**다 — 섞으면 어느 축인지 흐려진다. */
+  onDevice(listener: DeviceListener): () => void {
+    this.deviceListeners.add(listener);
+    return () => this.deviceListeners.delete(listener);
   }
 
   onStatus(listener: StatusListener): () => void {
@@ -163,9 +180,20 @@ export class PhysicalClient {
       client.on('connect', (() => {
         clearTimeout(timer);
         client.subscribe(uplink, { qos: 1 });
+        // 장비 상태는 QoS 0 — 주기 발행이라 한 건 놓쳐도 다음 것이 온다.
+        for (const topic of DEVICE_TOPICS) client.subscribe(topic, { qos: 0 });
         finish({ state: 'open' });
       }) as () => void);
-      client.on('message', ((_topic: string, payload: Uint8Array) => {
+      client.on('message', ((topic: string, payload: Uint8Array) => {
+        // 장비 상태는 **JSON** 이고 명령 응답은 **protobuf** 다. 토픽으로 가른다 —
+        // 한쪽 디코더에 남의 바이트를 넣으면 조용히 null 이 되고 원인을 못 찾는다.
+        if (topic !== uplink) {
+          let body: unknown;
+          try { body = JSON.parse(new TextDecoder().decode(payload)); } catch { return; }
+          if (typeof body !== 'object' || body === null) return;
+          for (const listener of this.deviceListeners) listener(topic, body as Record<string, unknown>);
+          return;
+        }
         const message = decodeUplink(payload);
         // 형식에 안 맞으면 버린다 — 지어 채우지 않는다.
         if (message === null) return;
