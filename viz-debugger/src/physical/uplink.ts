@@ -143,19 +143,53 @@ export function isDoorTurn(detail: StatusDetail | null): boolean {
 }
 
 /**
- * `door_turn` 의 `yaw_deg` 가 화면이 고른 각도와 맞는가 (§5).
+ * `door_turn` 이 고른 걸음이 몇 번째인가 (260910 — 「로봇이 고른 각도가 곧 화면이 고른 각도」).
  *
- * 어긋나면 로봇이 우리와 다른 방향을 보고 있다는 뜻이고, **시연 중에 알아야 하는 사실**이다.
- * 어긋났을 때 무엇을 할지는 정하지 않았다 — 지시서가 「일단 기록만 남긴다」고 했다.
+ * 예전에는 화면이 대본으로 고른 각도와 로봇의 `yaw_deg` 를 **대조해 어긋남을 표시**했다.
+ * 그걸 없앴다 — 어긋남을 보여 줄 것이 아니라 **로봇이 고른 쪽을 따라야** 한다. 로봇이 문이
+ * 있다고 판단해 몸을 돌린 그 방향이 곧 초록 칸이다.
+ *
+ * ## 절대 각도로 고르지 않는다
+ *
+ * 로봇의 `yaw_deg` 는 기준점이 움직인다(연동 가이드 §5-3) — 시뮬레이터는 회차가 이월되고
+ * 실물은 출발 자세에 맞춰 재보정된다. 그래서 **그 판의 회전 걸음들이 실제로 보고한 yaw**
+ * 와 견준다. 같은 판의 값끼리 견주므로 기준점이 어디든 상관없다.
+ *
+ * 걸음을 하나도 못 봤으면 null 이다 — 지어 고르지 않는다.
  */
-export function yawMismatch(
+export function chosenIndexOf(
   detail: StatusDetail | null,
-  chosenAngleDeg: number | null,
-  toleranceDeg = 15,
-): { robot: number; chosen: number; diff: number } | null {
-  if (detail === null || detail.yaw_deg === null || chosenAngleDeg === null) return null;
-  // 각도는 360 으로 감긴다 — 350 도와 10 도의 차이는 340 이 아니라 20 이다.
-  const raw = Math.abs(detail.yaw_deg - chosenAngleDeg) % 360;
-  const diff = raw > 180 ? 360 - raw : raw;
-  return diff > toleranceDeg ? { robot: detail.yaw_deg, chosen: chosenAngleDeg, diff } : null;
+  seenYawByIndex: ReadonlyMap<number, number> = new Map(),
+): number | null {
+  if (detail === null || !isDoorTurn(detail)) return null;
+  const seen = seenYawByIndex ?? new Map();
+
+  // **`step` 을 믿지 않는다** (260910 실측). `door_turn` 의 `step` 은 고른 걸음이 아니라
+  // **늘 1** 이다 — 실제 로그:
+  //
+  //   ack 129 step 8 scan_turn  yaw 180
+  //   ack 130 step 1 door_turn  yaw 225   ← 고른 것은 yaw 225 인 7번째 걸음이다
+  //
+  // 그래서 **방위로 견준다.** 같은 판의 회전 걸음들이 보고한 yaw 와 맞춰 보면 기준점이
+  // 어디든 상관없다(연동 가이드 §5-3 — 절대 각도는 기준점이 움직인다).
+  if (detail.yaw_deg !== null && seen.size > 0) {
+    return closestIndex(seen, detail.yaw_deg);
+  }
+
+  // 방위를 모를 때만 걸음 번호를 쓴다 — 그마저 없으면 안 고른다.
+  const byStep = detail.step - 1;
+  if (Number.isInteger(byStep) && seen.has(byStep)) return byStep;
+  return null;
+}
+
+/** 본 방위들 중 가장 가까운 걸음. 각도는 360 으로 감긴다. */
+function closestIndex(seen: ReadonlyMap<number, number>, yawDeg: number): number | null {
+  let best: number | null = null;
+  let closest = Number.POSITIVE_INFINITY;
+  for (const [index, yaw] of seen) {
+    const raw = Math.abs(yaw - yawDeg) % 360;
+    const diff = raw > 180 ? 360 - raw : raw;
+    if (diff < closest) { closest = diff; best = index; }
+  }
+  return best;
 }

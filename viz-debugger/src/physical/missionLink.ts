@@ -16,7 +16,7 @@
 import type { ViewpointFrame } from '../viewpoint/fill.ts';
 import { missionGeometry, type MissionGeometry } from './presets.ts';
 import {
-  isDoorTurn, progressOf, viewpointIndexOf, warningOf, yawMismatch,
+  chosenIndexOf, isDoorTurn, progressOf, viewpointIndexOf, warningOf,
   type StatusDetail, type UplinkMessage,
 } from './uplink.ts';
 import type { PhysicalAction } from './encode.ts';
@@ -35,7 +35,13 @@ export type TaskCommand = { taskId: string; action: PhysicalAction; parameters?:
  */
 export function commandForTask(taskId: string, geometry: MissionGeometry): TaskCommand | null {
   if (taskId === 'T-A3') {
-    return { taskId, action: 'scan_mission', parameters: { steps: geometry.steps, forward_m: 0 } };
+    // `step_deg` 를 함께 싣는다 (연동 가이드 §4-1). 안 실으면 로봇의 기본값을 쓰게 되고,
+    // 그러면 우리가 여덟 칸을 그리는 근거(45도씩)와 로봇이 도는 각이 어긋날 수 있다.
+    return {
+      taskId,
+      action: 'scan_mission',
+      parameters: { steps: geometry.steps, step_deg: geometry.stepDeg, forward_m: 0 },
+    };
   }
   if (taskId === 'T-B2') {
     return { taskId, action: 'move_forward', parameters: { distance_m: geometry.forwardDistanceM } };
@@ -53,14 +59,21 @@ export type LinkEffect =
   | { kind: 'task-done'; taskId: string; result: Record<string, number> }
   | { kind: 'viewpoint'; frame: ViewpointFrame; warning: string | null }
   | { kind: 'progress'; ack: number; of: number }
-  | { kind: 'door-turn'; yawDeg: number | null; mismatch: { robot: number; chosen: number; diff: number } | null }
+  /**
+   * 로봇이 문 쪽으로 몸을 돌렸다. **로봇이 고른 칸이 곧 화면이 고른 칸이다** (260910).
+   * `chosenIndex` 가 null 이면 어느 걸음인지 못 짚은 것이고, 그때는 초록을 켜지 않는다.
+   */
+  | { kind: 'door-turn'; yawDeg: number | null; chosenIndex: number | null }
   | { kind: 'aborted'; note: string };
 
 export type LinkContext = {
   /** 지금 이 command_id 로 쏜 태스크. 응답이 어느 노드의 것인지 이걸로 안다. */
   taskOf(commandId: string): string | null;
-  /** 화면이 고른 각도 — `door_turn` 의 yaw 와 대조한다. 아직 없으면 null. */
-  chosenAngleDeg: number | null;
+  /**
+   * 이 판에서 각 걸음이 보고한 방위. `door_turn` 이 어느 걸음이었는지 견주는 데 쓴다.
+   * **절대 각도로 고르지 않는다** — 기준점이 움직인다(연동 가이드 §5-3).
+   */
+  seenYawByIndex: ReadonlyMap<number, number>;
   /** 뷰포인트 칸 수. 대본이 여덟이라고 말한다. */
   viewpointCount: number;
 };
@@ -116,8 +129,8 @@ function statusEffects(detail: StatusDetail | null, context: LinkContext): LinkE
     effects.push({
       kind: 'door-turn',
       yawDeg: detail.yaw_deg,
-      // 어긋나면 **기록만 남긴다** — 무엇을 할지는 아직 안 정했다(지시서).
-      mismatch: yawMismatch(detail, context.chosenAngleDeg),
+      // **로봇이 고른 쪽을 따른다.** 어긋남을 보여 주는 것이 아니라 그것이 답이다.
+      chosenIndex: chosenIndexOf(detail, context.seenYawByIndex),
     });
     return effects;
   }

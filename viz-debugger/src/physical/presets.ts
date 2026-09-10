@@ -63,6 +63,8 @@ export function presetReady(preset: BrokerPreset): boolean {
 export type MissionGeometry = {
   /** 스캔을 몇 등분하는가. 지금은 대본의 여덟. */
   steps: number;
+  /** 한 걸음의 각도. **상수로 박지 않는다** — 명령 파라미터이고 로봇도 이 값을 쓴다. */
+  stepDeg: number;
   /** 접근 거리(m). 경로 산출이 붙으면 그 결과가 들어온다. */
   forwardDistanceM: number;
   /** 값이 어디서 왔는가 — 화면과 보고서가 이 사실을 적는다. */
@@ -72,6 +74,7 @@ export type MissionGeometry = {
 /** 대본 `params` 에서 읽는다. 없으면 스캔만 돌린다 — 거리를 지어내지 않는다. */
 export function missionGeometry(params: Record<string, unknown> | null | undefined): MissionGeometry {
   const steps = typeof params?.viewpoint_count === 'number' ? params.viewpoint_count : 8;
+  const stepDeg = typeof params?.viewpoint_step_deg === 'number' ? params.viewpoint_step_deg : 360 / steps;
   const forward = typeof params?.forward_distance_m === 'number' ? params.forward_distance_m : 0;
-  return { steps, forwardDistanceM: forward, source: 'script' };
+  return { steps, stepDeg, forwardDistanceM: forward, source: 'script' };
 }

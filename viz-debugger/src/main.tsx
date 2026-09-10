@@ -28,8 +28,9 @@ import { UtterancePanel } from './views/UtterancePanel.tsx';
 import { StatusLegend } from './views/StatusLegend.tsx';
 import './style.css';
 import { Explain } from './shared/Explain.tsx';
-import { emptyFill, reduceFrames, type DoorDetectionFrame, type ViewpointFill } from './viewpoint/fill.ts';
+import { emptyFill, reduceFrames, type ViewpointFill } from './viewpoint/fill.ts';
 import { RobotPanel } from './physical/RobotPanel.tsx';
+import { useRobotUplink } from './physical/robotBridge.ts';
 import { HardwareLink } from './physical/HardwareLink.tsx';
 import { robotClient } from './physical/robotClient.ts';
 import { framesUpTo } from './viewpoint/store.ts';
@@ -109,22 +110,7 @@ function Milestones({ view, phase, milestoneStatuses, assignments, onAssign, onO
   </div>);
   const showApproval = phase === 'proposal' || planApproval !== undefined;
   return <div className="milestone-layout"><UtterancePanel fallbackText={view.utteranceText} /><section className="milestone-panel"><h2>마일스톤 · {view.milestones.length}건</h2>
-    <RobotPanel
-      client={robotClient()}
-      params={view.params}
-      missionId={view.missionId}
-      chosenAngleDeg={typeof view.params.door_viewpoint_index === 'number' && typeof view.params.viewpoint_step_deg === 'number'
-        ? view.params.door_viewpoint_index * view.params.viewpoint_step_deg
-        : null}
-      /* 문 판정은 대본에서 읽는다 — 로봇은 각도만 말한다 (2단계-A §6).
-         탐지 연동이 붙으면 이 한 줄이 그쪽을 보게 된다. */
-      detectionFor={(index) => {
-        const entry = view.viewpointTimeline.find(
-          (row) => row.channel === 'detection' && (row.payload as { index?: number }).index === index,
-        );
-        return entry === undefined ? null : (entry.payload as unknown as DoorDetectionFrame);
-      }}
-    />
+    <RobotPanel client={robotClient()} params={view.params} />
     {showApproval && <div className="proposal-card">
       {phase === 'proposal' && (aiProposal
         ? <p className="proposal-note proposal-ai"><b>AI 제안</b> — <code>{aiProposal.provenance.model}</code> 이 만든 임무 {view.missionId} 「{view.label}」. 승인 전에는 아무것도 실행되지 않습니다
@@ -382,6 +368,13 @@ export function MissionDebugger({ navigation, planApproval }: { navigation?: Deb
    * 셸이 켜면 단독 빌드에서 안 돌고, 축 D는 바로 그 단독 빌드에서 재는 숫자다.
    */
   useEffect(() => startObservability(), []);
+
+  /**
+   * **로봇 응답 수신** (260910). 여기 두는 이유는 위 관측과 같다 — 이 화면은 두 빌드가
+   * 공유하고 앱이 살아 있는 동안 안 사라진다. 패널 안에 뒀다가 노드를 누르는 순간
+   * 구독이 끊겨 `door_turn` 을 통째로 놓쳤다.
+   */
+  useRobotUplink(view.missionId, view.params);
 
   // 그래프에 들어갈 마일스톤 — 클릭한 것. 태스크가 없으면(옛 파일의 MS-A 등)
   // 태스크를 가진 마일스톤으로 간다(옛 편은 전부 MS-C라 기존 화면 그대로다).

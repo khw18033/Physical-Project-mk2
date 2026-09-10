@@ -60,7 +60,8 @@
     "verify:places": "node scripts/verify-places.mjs",
     "verify:no-leak": "node scripts/verify-no-leak.mjs",
     "baseline:run": "node scripts/run-baseline.mjs",
-    "baseline:report": "node scripts/report-baseline.mjs"
+    "baseline:report": "node scripts/report-baseline.mjs",
+    "verify:robot-run": "node scripts/verify-robot-run.mjs"
   },
   "dependencies": {
     "mqtt": "^5.15.2",

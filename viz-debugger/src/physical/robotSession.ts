@@ -56,8 +56,13 @@ export type RobotSession = {
   warnings: Readonly<Record<number, string>>;
   /** 진행률 — `ack/of`. 아직 모르면 null. */
   progress: { ack: number; of: number } | null;
-  /** `door_turn` 이 왔는가 — `MS-B` 로 넘어가는 선이 열린다. 새 노드가 아니다. */
-  doorTurn: { yawDeg: number | null; mismatch: { robot: number; chosen: number; diff: number } | null } | null;
+  /**
+   * `door_turn` 이 왔는가 — `MS-B` 로 넘어가는 선이 열린다. 새 노드가 아니다.
+   * `chosenIndex` 는 **로봇이 고른 칸**이다. 그 칸이 초록이 된다 (260910).
+   */
+  doorTurn: { yawDeg: number | null; chosenIndex: number | null } | null;
+  /** 이 판에서 각 걸음이 보고한 방위. `door_turn` 을 견주는 데 쓴다. */
+  seenYaw: Readonly<Record<number, number>>;
   /** 스캔을 이미 쐈는가. 승인 한 번에 한 번만 나간다. */
   scanIssued: boolean;
   /** 접근을 이미 쐈는가. **자동으로 넘어가지 않는다** — 사람이 누른다(§1). */
@@ -84,6 +89,7 @@ const EMPTY: RobotSession = {
   stopped: null,
   ping: null,
   approvedAtMs: null,
+  seenYaw: {},
 };
 
 let session: RobotSession = EMPTY;
@@ -220,15 +226,19 @@ export function applyEffects(effects: readonly LinkEffect[]): ViewpointFrame[] {
   for (const effect of effects) {
     if (effect.kind === 'viewpoint') {
       frames.push(effect.frame);
-      // 경고는 회전 프레임에만 붙는다 — 로봇이 내는 것은 「어느 각도를 보는가」뿐이다(§6).
-      if (effect.warning !== null && effect.frame.channel === 'robot_state') {
+      if (effect.frame.channel === 'robot_state') {
         const index = effect.frame.payload.rotation_index;
-        next = { ...next, warnings: { ...next.warnings, [index]: effect.warning } };
+        // 이 걸음이 보고한 방위를 적어 둔다 — `door_turn` 이 어느 걸음이었는지 견줄 재료다.
+        next = { ...next, seenYaw: { ...next.seenYaw, [index]: effect.frame.payload.yaw } };
+        // 경고는 회전 프레임에만 붙는다 — 로봇이 내는 것은 「어느 각도를 보는가」뿐이다(§6).
+        if (effect.warning !== null) {
+          next = { ...next, warnings: { ...next.warnings, [index]: effect.warning } };
+        }
       }
     } else if (effect.kind === 'progress') {
       next = { ...next, progress: { ack: effect.ack, of: effect.of } };
     } else if (effect.kind === 'door-turn') {
-      next = { ...next, doorTurn: { yawDeg: effect.yawDeg, mismatch: effect.mismatch } };
+      next = { ...next, doorTurn: { yawDeg: effect.yawDeg, chosenIndex: effect.chosenIndex } };
     } else if (effect.kind === 'task-running' || effect.kind === 'task-failed' || effect.kind === 'task-done') {
       next = { ...next, commands: applyTaskEffect(next.commands, effect) };
     } else if (effect.kind === 'aborted') {

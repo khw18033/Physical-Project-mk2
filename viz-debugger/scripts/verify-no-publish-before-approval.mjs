@@ -141,13 +141,16 @@ const params = { viewpoint_count: 8, forward_distance_m: 4.2 };
 // `issueScan()` 을 만들어 놓고 **부르는 곳을 안 만든 적이 있다.** 이 검사가 함수를 직접
 // 불러 통과해서 드러나지 않았다 — 화면에서는 승인해도 로봇이 안 돌았다.
 // **함수가 있다**와 **화면이 부른다**는 다르다.
+//
+// 260910 — 부르는 곳이 `RobotPanel` 에서 `robotBridge.useRobotUplink` 으로 옮겼다. 패널은
+// 마일스톤 화면에만 있어서, 승인 직후에 화면을 옮기면 명령이 아예 안 나갔다.
 {
   const { readFileSync } = await import('node:fs');
-  const panel = readFileSync(join(root, 'src', 'physical', 'RobotPanel.tsx'), 'utf8');
-  if (!/issueScan\(/.test(panel)) {
+  const wiring = readFileSync(join(root, 'src', 'physical', 'robotBridge.ts'), 'utf8');
+  if (!/issueScan\(/.test(wiring)) {
     failures.push('화면이 issueScan 을 부르지 않는다 — 승인해도 로봇이 안 돈다');
   }
-  if (!/shouldIssueScan\(\)/.test(panel)) {
+  if (!/shouldIssueScan\(\)/.test(wiring)) {
     failures.push('스캔을 한 번만 쏘는 관문을 안 쓴다 — 다시 그릴 때마다 로봇이 돈다');
   }
 

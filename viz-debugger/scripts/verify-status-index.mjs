@@ -25,7 +25,7 @@ const root = join(fileURLToPath(new URL('.', import.meta.url)), '..');
 const load = (...p) => import(pathToFileURL(join(root, ...p)).href);
 
 const {
-  parseDetail, viewpointIndexOf, warningOf, progressOf, isDoorTurn, yawMismatch,
+  parseDetail, viewpointIndexOf, warningOf, progressOf, isDoorTurn, chosenIndexOf,
 } = await load('src', 'physical', 'uplink.ts');
 const { emptyFill, applyRotation, cellsInOrder } = await load('src', 'viewpoint', 'fill.ts');
 
@@ -73,8 +73,8 @@ if (viewpointIndexOf(parseDetail(detailOf({ event: 'scan_turn', step: 3 }))) !==
   if (detail === null) failures.push('yaw_deg 가 null 인 detail 을 통째로 버렸다 — null 이 정상이다');
   if (viewpointIndexOf(detail) !== 4) failures.push('yaw_deg 가 null 이면 index 가 안 나온다 — step 이 기준이다');
   if (detail?.yaw_deg !== null) failures.push('yaw_deg null 이 다른 값으로 바뀌었다');
-  // 각도 대조도 null 에서 조용히 넘어가야 한다.
-  if (yawMismatch(detail, 90) !== null) failures.push('yaw_deg 가 null 인데 각도 어긋남을 주장한다');
+  // door_turn 이 아닌 것에서 고른 칸을 주장하면 안 된다.
+  if (chosenIndexOf(detail, new Map([[0, 0]])) !== null) failures.push('scan_turn 인데 고른 칸을 주장한다');
 }
 
 // ── 5. door_turn 은 MS-B 로 넘어가는 계기 ────────────────────────────────────
@@ -84,18 +84,23 @@ if (viewpointIndexOf(parseDetail(detailOf({ event: 'scan_turn', step: 3 }))) !==
   if (viewpointIndexOf(door) !== null) failures.push('door_turn 이 뷰포인트 노드를 만들었다 — 새 노드로 만들지 않는다');
   if (isDoorTurn(parseDetail(detailOf({ event: 'scan_turn' })))) failures.push('scan_turn 을 door_turn 이라고 한다');
 
-  // yaw 대조 — 어긋나면 기록만 남긴다(무엇을 할지는 아직 안 정했다).
-  if (yawMismatch(door, 90) !== null) failures.push('로봇 90도 · 화면 90도인데 어긋났다고 한다');
-  const off = yawMismatch(parseDetail(detailOf({ event: 'door_turn', yaw_deg: 131 })), 90);
-  if (off === null) failures.push('로봇 131도 · 화면 90도인데 어긋남을 못 잡는다');
-  // 각도는 360 으로 감긴다. 355 와 5 는 350 도가 아니라 **10 도** 차이라 허용 안이다.
-  if (yawMismatch(parseDetail(detailOf({ event: 'door_turn', yaw_deg: 355 })), 5) !== null) {
-    failures.push('355도와 5도를 350도 차이로 본다 — 각도가 감기는 것을 안 본다');
+  // **로봇이 고른 칸을 따른다** (260910). 어긋남을 표시하지 않는다 — 로봇이 답이다.
+  //
+  // `door_turn` 의 `step` 은 **늘 1** 이라 못 믿는다(실측). 이 판에서 본 방위와 견준다.
+  const seen = new Map([[0, 135], [1, 90], [2, 45], [3, 0], [4, 315], [5, 270], [6, 225], [7, 180]]);
+  // 실제 로그 그대로 — step 1 · yaw 225 는 **7번째 걸음(index 6)** 이다.
+  const real = parseDetail(detailOf({ event: 'door_turn', step: 1, yaw_deg: 225 }));
+  if (chosenIndexOf(real, seen) !== 6) {
+    failures.push(`step 1 · yaw 225 가 ${chosenIndexOf(real, seen)}번을 골랐다 — 6번이어야 한다 (step 을 믿으면 0번이 된다)`);
   }
-  // 감기는 것을 봐도 20 도는 허용(15) 밖이다 — 감김이 어긋남을 삼키면 안 된다.
-  if (yawMismatch(parseDetail(detailOf({ event: 'door_turn', yaw_deg: 350 })), 10) === null) {
-    failures.push('350도와 10도는 20도 차이다 — 허용 밖인데 통과시켰다');
-  }
+  // 각도는 감긴다 — yaw 350 은 0도(index 3)에 가장 가깝다.
+  const wrapped = parseDetail(detailOf({ event: 'door_turn', step: 1, yaw_deg: 350 }));
+  if (chosenIndexOf(wrapped, seen) !== 3) failures.push('감기는 각도를 못 견준다');
+  // 방위를 모르면 걸음 번호로 물러난다.
+  const noYaw = parseDetail(detailOf({ event: 'door_turn', step: 3, yaw_deg: null }));
+  if (chosenIndexOf(noYaw, seen) !== 2) failures.push('방위가 없을 때 걸음 번호로 물러나지 않는다');
+  // 본 걸음이 하나도 없으면 **안 고른다** — 지어 고르지 않는다.
+  if (chosenIndexOf(real, new Map()) !== null) failures.push('본 걸음이 없는데 칸을 골랐다');
 }
 
 // ── 6. 진행률 ────────────────────────────────────────────────────────────────
@@ -163,7 +168,7 @@ if (viewpointIndexOf(parseDetail(detailOf({ event: 'scan_turn', step: 3 }))) !==
   if (missionGeometry({}).forwardDistanceM !== 0) failures.push('거리를 모르는데 값을 지어냈다');
   if (missionGeometry(null).source !== 'script') failures.push('값의 출처 표기가 없다');
 
-  const context = { taskOf: () => 'T-A3', chosenAngleDeg: 90, viewpointCount: 8 };
+  const context = { taskOf: () => 'T-A3', seenYawByIndex: new Map([[2, 225]]), viewpointCount: 8 };
 
   // 거절은 숨기지 않는다 — 코드와 문구가 그대로 올라온다.
   const rejected = effectsOf(
@@ -193,8 +198,9 @@ if (viewpointIndexOf(parseDetail(detailOf({ event: 'scan_turn', step: 3 }))) !==
   const doorTurn = effectsOf({ kind: 'status', commandId: 'c', state: 'EXECUTING', detail: parseDetail(detailOf({ event: 'door_turn', yaw_deg: 131, ack: 9, of: 9 })), raw: '' }, context);
   if (!doorTurn.some((e) => e.kind === 'door-turn')) failures.push('door_turn 이 전이 계기로 안 나온다');
   if (doorTurn.some((e) => e.kind === 'viewpoint')) failures.push('door_turn 이 뷰포인트를 만들었다');
-  if (doorTurn.find((e) => e.kind === 'door-turn')?.mismatch === null) {
-    failures.push('로봇 131도 · 화면 90도인데 어긋남을 기록하지 않는다');
+  // **로봇이 고른 칸을 따른다** — 어긋남을 기록하는 자리가 아니다.
+  if (doorTurn.find((e) => e.kind === 'door-turn')?.chosenIndex !== 2) {
+    failures.push('door_turn 이 로봇이 고른 칸을 안 짚는다');
   }
 
   // 끝과 실패.
@@ -311,7 +317,7 @@ if (failures.length) {
 console.log('✅ step 1~8 → index 0~7 · 범위 밖(0 · 9 · 소수)은 버린다');
 console.log('✅ scan_turn 만 뷰포인트를 건드린다 — door_turn·forward·aborted 는 0건');
 console.log('✅ note != ok 는 경고로 남는다 · yaw_deg: null 에서 안 깨진다 · 각도는 360 으로 감긴다');
-console.log('✅ door_turn 은 계기이지 노드가 아니다 — 뷰포인트를 만들지 않고 yaw 어긋남만 기록한다');
+console.log('✅ door_turn 은 계기이지 노드가 아니다 — 로봇이 고른 걸음을 따른다 (어긋남을 표시하지 않는다)');
 console.log('✅ 로봇 사건 여덟이 대본과 같은 함수로 여덟 칸을 채운다 (fill.ts 는 출처를 모른다)');
 console.log('✅ 응답 매핑 — 거절 코드·문구 보존 · SUCCEEDED 완료 · 모르는 command_id 는 0건');
 console.log('✅ 목 uplink 아홉 건이 진짜와 같은 봉투 — 경고 한 번 · yaw null 한 번 · 2초 박자 · 문 유무는 안 만든다');
