@@ -443,3 +443,25 @@ b.follow-live{cursor:default}
 .robot-yawoff{margin:8px 0 0;padding:8px 10px;border-left:3px solid #e2a13a;background:#fdf8ec;color:#6b5520;font-size:12px}
 .robot-reject{margin:8px 0 0;padding:9px 11px;border-left:3px solid #a3241f;background:#fdeceb;color:#8f2b26;font-size:13px;font-weight:600}
 .robot-reject code{margin:0 4px;padding:1px 5px;border-radius:3px;background:#f6d9d7}
+
+/* ── 연결 관리의 상태·확인 줄 (260910 연결 관리 통합) ─────────────────────────
+   대상마다 네 줄: 주소 · 상태 · 확인 · 마지막 확인.
+   physical 은 **줄이 둘**이다 — 브로커와 로봇을 뭉치면 발표 직전에 무엇이 문제인지
+   못 가른다(주소·포트·망이냐, 로봇 전원이냐). */
+.conn-health{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:6px}
+.conn-health__lines{display:flex;gap:6px;flex-wrap:wrap;flex:1}
+.conn-dot{padding:3px 9px;border-radius:10px;font-size:11px;font-weight:600}
+.conn-dot--ok{background:#e7f6ee;color:#125c33}
+.conn-dot--bad{background:#fdeceb;color:#8f2b26}
+.conn-dot--unknown{background:#eef2f7;color:#6b7888;font-weight:400}
+.conn-check{padding:4px 12px;border:1px solid #b6c2d0;border-radius:6px;background:#fff;font-size:12px}
+.conn-check:disabled{opacity:.5}
+.conn-health__at{color:#8a94a2;font-size:11px;font-variant-numeric:tabular-nums}
+.conn-preset{margin-right:6px;padding:4px 6px;border:1px solid #cfd6df;border-radius:5px;font-size:12px}
+
+/* 시연 화면 표시등 — **읽기 전용**이다. 누르면 연결 관리가 열리고 거기서 고친다.
+   주소 입력도 프리셋도 여기 없다(§4). */
+.conn-lamp{padding:3px 10px;border-radius:10px;border:1px solid transparent;font-size:12px;font-weight:600;cursor:pointer}
+.conn-lamp--ok{background:#e7f6ee;color:#125c33;border-color:#bfe3ce}
+.conn-lamp--bad{background:#fdeceb;color:#8f2b26;border-color:#f0c4c1}
+.conn-lamp--unknown{background:#eef2f7;color:#5c6a7c;border-color:#dfe4ea}

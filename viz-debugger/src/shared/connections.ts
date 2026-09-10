@@ -38,7 +38,7 @@
 
 import { useSyncExternalStore } from 'react';
 
-export type ConnectionTargetId = 'gateway' | 'stt' | 'generate' | 'physical' | 'control-node' | 'digital-twin';
+export type ConnectionTargetId = 'gateway' | 'stt' | 'generate' | 'physical' | 'detect' | 'control-node' | 'digital-twin';
 
 export type ConnectionField = {
   key: string;
@@ -98,6 +98,15 @@ export const CONNECTION_TARGETS: readonly ConnectionTarget[] = [
     // 브로커를 옮기거나 중앙 서버 경유로 바꿀 때 한쪽만 고쳐지면 화면이 「붙었다」고
     // 말하면서 아무것도 못 받는다. 기본값은 `src/physical/PhysicalClient.ts` 가 심는다.
     fields: [{ key: 'ws', label: 'WebSocket', fallback: '' }],
+  },
+  {
+    id: 'detect',
+    label: '객체 탐지',
+    what: '문 유무 판정. 2단계-B 에서 붙는다 — 지금은 문 유무를 대본이 준다',
+    live: true,
+    // **자리만 만든다** (§2). 실제 확인은 2단계-B 에서 잇는다 — 없는 서비스에 붙는 척하지 않는다.
+    pending: '아직 안 붙었습니다 — 주소를 넣어 둘 수는 있고, 확인은 2단계-B 에서 잇습니다',
+    fields: [{ key: 'base', label: '주소', fallback: '' }],
   },
   {
     id: 'control-node',

@@ -9,10 +9,24 @@
  */
 
 import { PhysicalClient } from './PhysicalClient.ts';
+import { issuePing } from './robotCommands.ts';
 
 let singleton: PhysicalClient | null = null;
 
 export function robotClient(): PhysicalClient {
   if (singleton === null) singleton = new PhysicalClient('robot-01');
   return singleton;
+}
+
+/**
+ * 연결 관리가 쓰는 얇은 면 (`PhysicalProbe`). **주소·토픽은 여기서도 안 샌다** —
+ * 팝업은 「붙어라 · 물어봐라」만 알고 어디에 어떻게 붙는지는 모른다.
+ */
+export function robotProbe() {
+  const client = robotClient();
+  return {
+    connect: () => client.connect(),
+    getStatus: () => client.getStatus(),
+    ping: () => issuePing(client),
+  };
 }
