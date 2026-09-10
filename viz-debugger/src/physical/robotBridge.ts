@@ -58,9 +58,17 @@ export function receiveUplink(
    */
   for (const effect of effects) {
     if (effect.kind !== 'door-turn') continue;
-    if (effect.chosenIndex === null) continue;   // 어느 걸음인지 못 짚었으면 초록을 안 켠다
+    // **문 방향은 임시로 뽑아 둔 것이다** (260910 지시).
+    //
+    // 로봇이 돌아선 방향(`effect.chosenIndex`)은 고정된 기하값이라 「문이 거기 있다」는
+    // 뜻이 아니다(연동 가이드 §5-3). 탐지가 붙기 전까지는 여덟 중 하나를 무작위로 정해
+    // 두고 그 칸에 불을 켠다 — 화면이 그 자리에 「임시」라고 적는다.
+    //
+    // 못 뽑았으면(스캔을 안 거쳤다면) 아무 칸도 안 켠다. 지어 고르지 않는다.
+    const doorIndex = robotSession().doorIndex;
+    if (doorIndex === null) continue;
     for (let index = 0; index < viewpointCount; index += 1) {
-      const chosen = index === effect.chosenIndex;
+      const chosen = index === doorIndex;
       const verdict = applyEffects([{
         kind: 'viewpoint',
         frame: {
@@ -73,7 +81,8 @@ export function receiveUplink(
             bbox: null,
             confidence: chosen ? 1 : 0,
             // **탐지 결과가 아니다.** 로봇이 지금 이쪽을 보고 있다는 사실뿐이다.
-            reason: chosen ? '로봇이 이 방향을 보고 있습니다 (탐지 결과 아님)' : '',
+            // **탐지 결과가 아니다.** 탐지가 붙기 전까지 임시로 뽑은 방향이다.
+            reason: chosen ? '임시 판정 — 문 탐지가 아직 안 붙었습니다' : '',
           } as never,
         },
         warning: null,

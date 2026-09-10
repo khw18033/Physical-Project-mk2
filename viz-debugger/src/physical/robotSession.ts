@@ -87,6 +87,17 @@ export type RobotSession = {
   doorTurn: { yawDeg: number | null; chosenIndex: number | null } | null;
   /** 이 판에서 각 걸음이 보고한 방위. `door_turn` 을 견주는 데 쓴다. */
   seenYaw: Readonly<Record<number, number>>;
+  /**
+   * **문이 있다고 칠 방향** — 임시다 (260910 지시).
+   *
+   * 문 탐지 기능이 아직 없다(연동 가이드 §5-3). `door_turn` 은 고정된 기하값이라 「어느
+   * 쪽에 문이 있나」를 아무도 말해 주지 않는다. 탐지가 붙을 때까지 **여덟 중 하나를
+   * 무작위로** 정해 두고 화면이 그 자리에 「임시」라고 적는다.
+   *
+   * 판마다 한 번만 뽑는다 — 다시 그릴 때마다 뽑으면 초록 칸이 돌아다닌다.
+   * 탐지가 붙는 날 이 칸을 탐지 결과로 갈아 끼우면 화면 코드는 안 바뀐다.
+   */
+  doorIndex: number | null;
   /** 스캔을 이미 쐈는가. 승인 한 번에 한 번만 나간다. */
   scanIssued: boolean;
   /** 접근을 이미 쐈는가. **자동으로 넘어가지 않는다** — 사람이 누른다(§1). */
@@ -132,6 +143,7 @@ const EMPTY: RobotSession = {
   warnings: {},
   progress: null,
   doorTurn: null,
+  doorIndex: null,
   scanIssued: false,
   approachIssued: false,
   approved: false,
@@ -274,6 +286,15 @@ export function applyEffects(effects: readonly LinkEffect[]): ViewpointFrame[] {
   // 실패 모양이고 눈으로는 "어? 멈췄는데 왜 돌지"로 나타난다.
   if (session.stopped !== null) return [];
 
+  // **일시정지도 같다** (260910 지적 — 「돌고 있는 도중 일시정지가 안 된다」).
+  //
+  // 멈춤 표시는 걸리는데 여덟 칸이 계속 찼다. 여기서 `stopped` 만 보고 `paused` 를 안
+  // 봤기 때문이다. 로봇이 실제로 멈추기까지 몇 걸음이 더 날아오고, 그것들이 그대로
+  // 반영되니 **누른 사람 눈에는 아무 일도 안 일어난 것**으로 보인다.
+  //
+  // 정지와 다른 점은 **버리는 것이 아니라 안 받는 것**이다. 이미 찬 칸은 그대로 남는다.
+  if (session.paused !== null) return [];
+
   let next = session;
   const frames: ViewpointFrame[] = [];
   for (const effect of effects) {
@@ -379,11 +400,34 @@ export function lockPaused(taskId: string | null, published: boolean, failure: s
  *
  * `scanIssued` 는 내린다. 재시작이 그 단계를 다시 내야 하기 때문이다.
  */
+/**
+ * 일시정지 문구를 **뒤늦게** 채운다. 로봇의 답이 늦게 오기 때문이다.
+ *
+ * 이미 풀렸으면 아무것도 안 한다 — 지나간 판의 사유가 다시 뜨면 안 된다.
+ */
+export function notePauseFailure(failure: string): void {
+  if (session.paused === null) return;
+  commit({ ...session, paused: { ...session.paused, failure } });
+}
+
 export function releasePaused(): void {
   commit({ ...session, paused: null, scanIssued: false, approachIssued: false });
 }
 
 /** 지금 로봇이 돌리고 있는 태스크. 재시작이 무엇을 다시 낼지 정하는 재료다. */
+/**
+ * **문 방향을 하나 뽑는다** — 탐지가 붙기 전까지의 임시 자리 (260910 지시).
+ *
+ * 스캔을 낼 때 한 번만 부른다. 이미 뽑았으면 그대로 둔다 — 재시작으로 같은 판을 다시
+ * 돌 때 답이 바뀌면 「아까는 7번이었는데」가 된다.
+ */
+export function pickDoorIndex(count: number): number {
+  if (session.doorIndex !== null) return session.doorIndex;
+  const index = Math.floor(Math.random() * Math.max(1, count));
+  commit({ ...session, doorIndex: index });
+  return index;
+}
+
 export function runningTaskId(): string | null {
   const running = Object.values(session.commands).find((c) => c.state === 'running' || c.state === 'issued');
   return running?.taskId ?? null;

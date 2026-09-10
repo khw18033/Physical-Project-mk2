@@ -24,7 +24,7 @@ const load = (...p) => import(pathToFileURL(join(root, ...p)).href);
 
 const {
   emptyFill, applyRotation, applyDetection, reduceFrames,
-  doorCell, cellsInOrder, cellClass,
+  doorCell, cellsInOrder, cellClass, scanHead,
 } = await load('src', 'viewpoint', 'fill.ts');
 const { scriptFrames, liveFrame, toFrame } = await load('src', 'viewpoint', 'source.ts');
 
@@ -250,6 +250,39 @@ function control(name, hit) {
 }
 
 // ── 결과 ─────────────────────────────────────────────────────────────────────
+// ── 「탐색 중」과 「탐색 완료」를 가른다 (260910 지적) ────────────────────────
+//
+// `scanning` 은 「회전이 지나갔고 판정은 아직」이라는 뜻인데, 화면의 낱말이 「지금 이 칸을
+// 보고 있다」로 읽힌다. 그래서 여덟을 다 돌고 난 뒤에도 전부 「탐색 중」이라고 적혀 있었다.
+//
+// 지금 보고 있는 칸은 **하나뿐**이고, 지나간 칸은 탐색이 끝난 것이다.
+{
+  const rotate = (fill, index) => applyRotation(fill, { rotation_index: index, yaw: index * 45, state: 'rotating', last_cmd: 'rotate_to', result: null });
+  let fill = emptyFill(8);
+  if (scanHead(fill) !== null) failures.push('아무 회전도 안 왔는데 「지금 보는 칸」이 있다');
+
+  fill = rotate(fill, 0);
+  if (scanHead(fill) !== 0) failures.push(`첫 걸음 뒤 머리가 ${scanHead(fill)} 다 — 0 이어야 한다`);
+  fill = rotate(fill, 1);
+  fill = rotate(fill, 2);
+  if (scanHead(fill) !== 2) failures.push(`세 걸음 뒤 머리가 ${scanHead(fill)} 다 — 2 여야 한다`);
+  // 지나간 칸은 「지금 보는 칸」이 아니다 — 화면이 「탐색 완료」로 적는 근거다.
+  for (const passed of [0, 1]) {
+    if (scanHead(fill) === passed) failures.push(`지나간 ${passed}번이 아직 머리다`);
+  }
+
+  // **여덟이 다 지나가면 머리가 없다** — 탐색이 끝난 것이고 전부 「탐색 완료」다.
+  for (let i = 3; i < 8; i += 1) fill = rotate(fill, i);
+  if (scanHead(fill) !== null) failures.push(`여덟을 다 돌았는데 머리가 ${scanHead(fill)} 로 남았다 — 그 칸만 「탐색 중」으로 남는다`);
+
+  // 화면이 실제로 이 함수를 쓰는가 — 함수가 있다와 화면이 쓴다는 다르다.
+  const { readFileSync } = await import('node:fs');
+  const graph = readFileSync(join(root, 'src', 'graph', 'TaskGraph.tsx'), 'utf8')
+    .replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
+  if (!/scanHead\(/.test(graph)) failures.push('화면이 scanHead 를 안 쓴다 — 다 돌고도 「탐색 중」이 남는다');
+  if (!/탐색 완료/.test(graph)) failures.push('「탐색 완료」라는 말이 화면에 없다');
+}
+
 if (failures.length) {
   console.error(`❌ verify:viewpoint-fill\n- ${failures.join('\n- ')}`);
   process.exit(1);
@@ -260,4 +293,5 @@ console.log('✅ 뒤섞기 50회 · 탐지가 회전보다 먼저 와도 각 칸
 console.log('✅ yaw 88.4 는 3번 칸 — 각도가 아니라 rotation_index 가 열쇠 · 표 밖 인덱스는 버린다');
 console.log('✅ 대본 입구와 라이브 입구가 같은 프레임 · fill.ts 는 대본을 모른다 (가르는 자리 한 곳)');
 console.log('✅ 화면은 흘러온 열을 접는다 — 되감기가 열에서 나오고 남의 임무 프레임은 버린다');
+console.log('✅ 「탐색 중」은 한 칸뿐 — 지나간 칸은 「탐색 완료」이고 여덟을 다 돌면 머리가 없다');
 console.log(`✅ 대조군 ${controls.length}건 전부 검출 — ${controls.join(' · ')}`);

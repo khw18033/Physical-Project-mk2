@@ -30,7 +30,7 @@ const read = (...p) => readFileSync(join(root, ...p), 'utf8');
 const code = (source) => source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
 
 const { receiveUplink } = await load('src', 'physical', 'robotBridge.ts');
-const { robotSession, recordCommand, markApproved } = await load('src', 'physical', 'robotSession.ts');
+const { robotSession, recordCommand, markApproved, pickDoorIndex } = await load('src', 'physical', 'robotSession.ts');
 const { resetViewpoint, framesUpTo } = await load('src', 'viewpoint', 'store.ts');
 const { emptyFill, reduceFrames, cellsInOrder } = await load('src', 'viewpoint', 'fill.ts');
 const scenario = await load('src', 'data', 'scenario.ts');
@@ -46,8 +46,12 @@ const MISSION = 'MSN-260909-01';
 const SEEN = [-9.98, 35.09, 80.06, 125.32, 170, -144.71, -99.67, -54.76];
 const DOOR_YAW = -94.16;
 // -94.16 에 가장 가까운 것은 7번째 걸음(-99.67, 5.51도 차이)이다. 8번째(-54.76)는 39도,
-// 6번째(-144.71)는 50도 떨어져 있다.
-const EXPECTED_INDEX = 6;
+// 6번째(-144.71)는 50도 떨어져 있다. 이것이 **로봇이 바라보는 쪽**이다.
+const FACING_INDEX = 6;
+// **초록이 켜지는 칸은 이것과 다르다** (260910 지시). 문 탐지가 아직 없어서 여덟 중
+// 하나를 무작위로 정해 둔다 — 그 값이 그대로 초록이 된다. 검사는 판마다 정해진 값을 쓴다.
+const DOOR_INDEX = 3;
+void DOOR_INDEX;   // 값은 pickDoorIndex 가 뽑는다 — 여기서는 「따로 있다」는 사실만 적는다
 // **로봇이 실은 걸음 번호는 1 이다.** 고른 걸음이 아니다 — 이 검사의 핵심 재료다.
 const DOOR_STEP = 1;
 
@@ -65,6 +69,8 @@ function replay() {
   scenario.previewMission(MISSION);
   resetViewpoint(MISSION);
   markApproved();
+  // 스캔을 낼 때 뽑는 것을 그대로 흉내 낸다 — 판마다 한 번이다.
+  pickDoorIndex(8);
   recordCommand({
     commandId: COMMAND_ID, taskId: 'T-A3', action: 'scan_mission',
     atMs: Date.now(), requestId: 'req-verify',
@@ -93,8 +99,15 @@ const run = replay();
   }
   const selected = phases.map((p, i) => (p === 'selected' ? i : -1)).filter((i) => i >= 0);
   if (selected.length !== 1) failures.push(`선정된 칸이 ${selected.length}개다 — 하나여야 한다`);
-  else if (selected[0] !== EXPECTED_INDEX) {
-    failures.push(`${selected[0]}번 칸이 초록이다 — 로봇이 고른 것은 ${EXPECTED_INDEX}번이다`);
+  else if (selected[0] !== robotSession().doorIndex) {
+    failures.push(`${selected[0]}번 칸이 초록인데 뽑아 둔 것은 ${robotSession().doorIndex}번이다`);
+  }
+  // **로봇이 바라보는 쪽과 초록 칸은 서로 다른 것이다.** 같은 값으로 뭉치면 「로봇이
+  // 골랐다」로 되돌아간다 — 로봇은 방향을 고르지 않는다(가이드 §5-3).
+  if (selected[0] === undefined) {
+    failures.push('초록이 하나도 없다');
+  } else if (robotSession().doorTurn?.chosenIndex !== FACING_INDEX) {
+    failures.push(`로봇이 바라보는 쪽이 ${robotSession().doorTurn?.chosenIndex} 다 — ${FACING_INDEX} 여야 한다`);
   }
   const rejected = phases.filter((p) => p === 'rejected').length;
   if (rejected !== 7) failures.push(`탈락한 칸이 ${rejected}개다 — 7개여야 한다`);
@@ -104,8 +117,8 @@ const run = replay();
 {
   if (run.doorTurn === null) failures.push('door_turn 이 세션에 안 남았다');
   else {
-    if (run.doorTurn.chosenIndex !== EXPECTED_INDEX) {
-      failures.push(`세션이 ${run.doorTurn.chosenIndex}번을 골랐다 — ${EXPECTED_INDEX}번이어야 한다`);
+    if (run.doorTurn.chosenIndex !== FACING_INDEX) {
+      failures.push(`세션이 ${run.doorTurn.chosenIndex}번을 짚었다 — ${FACING_INDEX}번이어야 한다`);
     }
     if (run.doorTurn.yawDeg !== DOOR_YAW) failures.push('로봇이 말한 방위가 안 남았다');
   }
@@ -207,8 +220,38 @@ const run = replay();
   }
   // 대신 「보고 있다」로 적는가 — 지웠는데 아무 말도 안 하면 화면이 비어 버린다.
   const panel = code(read('src', 'physical', 'RobotPanel.tsx'));
-  if (!/보고 있습니다/.test(panel)) failures.push('돌아선 방향을 아예 안 말한다 — 다음 걸음을 누를 사람에게 필요한 값이다');
-  if (!/탐지는 아직 안 붙었습니다/.test(panel)) failures.push('탐지가 아직 없다는 사실을 화면이 안 말한다');
+  if (!/문으로 칩니다/.test(panel)) failures.push('어느 칸을 문으로 쳤는지 안 말한다');
+  if (!/무작위로 정했습니다/.test(panel)) failures.push('무작위로 정한 임시값이라는 사실을 화면이 안 말한다');
+  if (!/실제로 바라보는 쪽은/.test(panel)) failures.push('로봇이 바라보는 쪽을 따로 안 말한다 — 둘을 뭉치면 로봇이 골랐다고 읽힌다');
+}
+
+// ── 7. 안 뽑았으면 초록을 안 켠다 ───────────────────────────────────────────
+//
+// 문 방향은 스캔을 낼 때 뽑는다. 안 거쳤으면 아무 칸도 안 켠다 — **지어 고르지 않는다.**
+{
+  const { resetRobotSession, setConnection } = await load('src', 'physical', 'robotSession.ts');
+  resetRobotSession();
+  setConnection({ state: 'open' });
+  scenario.previewMission(MISSION);
+  resetViewpoint(MISSION);
+  markApproved();
+  recordCommand({
+    commandId: 'cmd-nopick', taskId: 'T-A3', action: 'scan_mission',
+    atMs: Date.now(), requestId: 'req-nopick', state: 'issued', code: null, message: null, result: {},
+  });
+  SEEN.forEach((yaw, i) => receiveUplink({
+    kind: 'status', commandId: 'cmd-nopick', state: 'RUNNING',
+    detail: { ack: i + 1, of: 10, ackSeq: null, event: 'scan_turn', step: i + 1, steps: 8, yaw_deg: yaw, note: 'ok' },
+    raw: '{}',
+  }, MISSION, (i + 1) * 2));
+  receiveUplink({
+    kind: 'status', commandId: 'cmd-nopick', state: 'RUNNING',
+    detail: { ack: 9, of: 10, ackSeq: null, event: 'door_turn', step: 1, steps: 1, yaw_deg: DOOR_YAW, note: 'ok' },
+    raw: '{}',
+  }, MISSION, 18);
+  const phases = cellsInOrder(reduceFrames(emptyFill(8), framesUpTo(scenario.getMissionState().headSec)))
+    .map((c) => c.phase);
+  if (phases.includes('selected')) failures.push('안 뽑았는데 초록을 켰다 — 지어 고르면 안 된다');
 }
 
 // ── 대조군 ───────────────────────────────────────────────────────────────────
@@ -225,7 +268,7 @@ function control(name, hit) {
 }
 {
   // **걸음 번호로 고른 사본.** `door_turn` 의 step 은 늘 1 이라 0번 칸이 초록이 된다.
-  control('door_turn 의 step 으로 고른 사본 (늘 1번 칸)', DOOR_STEP - 1 !== EXPECTED_INDEX);
+  control('door_turn 의 step 으로 짚은 사본 (늘 1번 칸)', DOOR_STEP - 1 !== FACING_INDEX);
 }
 {
   // **연결 상태로 대본 재생을 가른 사본.**
@@ -242,7 +285,7 @@ if (failures.length) {
   console.error(`❌ verify:robot-run\n- ${failures.join('\n- ')}`);
   process.exit(1);
 }
-console.log('✅ 실측 한 판 재생 — 여덟 칸이 판정까지 가고 7번 걸음 하나만 초록 (로봇이 돌아선 방위 -94.16°)');
+console.log('✅ 실측 한 판 재생 — 여덟 칸이 판정까지 가고 뽑아 둔 칸 하나만 초록 (로봇이 바라보는 쪽은 따로 적는다)');
 console.log('✅ 재생 머리가 판정 프레임 뒤로 넘어간다 · 수신기는 사라지는 패널 밖에 있다');
 console.log('✅ 화면이 「문으로 판단했다」고 말하지 않는다 — 탐지 기능이 없다 (§5-3)');
 console.log('✅ 스캔이 스스로 걸으면 화면이 말한다 — forward_m 0 을 보냈는데도 온다 (실측)');

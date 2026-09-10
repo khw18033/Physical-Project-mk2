@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointer
 import { ViewNodeCard } from '../canvas/ViewNodeCard.tsx';
 import type { ViewNodeEntry, ViewNodeInstance, ViewScope } from '../canvas/types.ts';
 import type { Hardware, NodeKind, RefEdge, Task, TaskStatus } from '../model/types.ts';
-import { cellClass, type ViewpointFill } from '../viewpoint/fill.ts';
+import { cellClass, doorCell, scanHead, type ViewpointFill } from '../viewpoint/fill.ts';
 import { applyFanLayout, fanGeometry, VIEWPOINT_NODE_HEIGHT, type ViewpointGroup } from './fanLayout.ts';
 import { dagLayout, viewNodeLayout, NODE_HEIGHT, NODE_WIDTH, VIEW_NODE_HEIGHT, VIEW_NODE_WIDTH, type Attached, type Position } from './layout.ts';
 import { STATE_STYLE } from './stateStyle.ts';
@@ -247,6 +247,8 @@ export function TaskGraph({ tasks, hardware, states, selected, dimUnrelated, onO
    */
   const fan = useMemo(() => fanGeometry(positions, viewpoints), [positions, viewpoints]);
   /** 분기선으로 따로 그리는 여덟. 기본 엣지에서 건너뛸 쌍을 고르는 데 쓴다. */
+  // 지금 보고 있는 칸 하나. 여덟이 다 지나갔으면 null 이고, 그때는 탐색이 끝난 것이다.
+  const head = viewpointFill ? scanHead(viewpointFill) : null;
   const fanIds = useMemo(() => new Set(viewpoints?.taskIds ?? []), [viewpoints]);
 
   /**
@@ -354,30 +356,40 @@ export function TaskGraph({ tasks, hardware, states, selected, dimUnrelated, onO
         </g>;
       })}
       {tasks.flatMap((task) => task.deps.map((dep) => {
-        const from = positions[dep]; const to = positions[task.id]; if (!from || !to) return null;
+        const to = positions[task.id]; if (!positions[dep] || !to) return null;
         const key = `${dep}-${task.id}`;
         // 8분할 분기 (260910) — 이 여덟 쌍은 **아래에서 spine 하나로 따로 그린다.**
         // 쌍마다 그리면 세로 구간 여덟이 같은 x 에 포개져 한 줄처럼 보일 뿐 실제로는 여덟 겹이다.
         if (fan !== null && dep === viewpoints?.parentTaskId && fanIds.has(task.id)) return null;
-        // 뷰포인트에서 **나가는** 선 (260910 후속). 판정이 오기 전에는 이 선도 흐리다.
+        // 뷰포인트에서 **나가는** 선 (260910 지적 — 「탐색 전에는 선이 없어야 한다」).
         //
-        // 여덟이 다 대기인데 90도에서만 굵은 선이 나가면, 화면이 「이게 답이다」를 탐지보다
-        // 먼저 말하는 셈이다. 카드는 전부 같은 색인데 선만 굵어 「연결됐는데 색이 같다」로
-        // 읽힌 자리가 여기다. 판정이 도착하면 카드와 함께 선명해진다.
-        const fromViewpoint = fanIds.has(dep)
-          ? viewpointFill?.get(viewpoints?.taskIds.indexOf(dep) ?? -1) ?? null
-          : null;
-        const pendingLead = fromViewpoint !== null && fromViewpoint.phase !== 'selected' ? ' edge--unjudged' : '';
-        const dim = dimUnrelated && (!relevant.has(dep) || !relevant.has(task.id)) ? ' dimmed' : '';
+        // 대본은 이 선을 `T-A4-2 → T-A5` 로 박아 두었다. 90도 칸이 답이라고 미리 정해 둔
+        // 것인데, 그러면 **화면이 탐지보다 먼저 답을 말한다.** 여덟이 다 대기인데 90도에서만
+        // 선이 나가 있으면 보는 사람은 거기가 문이라고 읽는다.
+        //
+        // 그래서 이 선은 **판정이 날 때까지 아예 안 그리고**, 나면 **판정된 칸에서** 나간다.
+        // 대본의 deps 는 그대로 둔다 — 배치(깊이)는 그것으로 정해지고, 여기서는 그리는
+        // 쪽만 바꾼다. deps 를 손대면 T-A5 의 열이 통째로 움직인다.
+        let originId = dep;
+        if (fanIds.has(dep)) {
+          const chosen = viewpointFill ? doorCell(viewpointFill) : null;
+          if (chosen === null) return null;                 // 아직 판정 전 — 선이 없다
+          const chosenId = viewpoints?.taskIds[chosen.index];
+          if (chosenId === undefined) return null;
+          originId = chosenId;
+        }
+        const fromNode = positions[originId];
+        if (!fromNode) return null;
+        const dim = dimUnrelated && (!relevant.has(originId) || !relevant.has(task.id)) ? ' dimmed' : '';
         // 줄바꿈(↵ · 실선 파랑)과 되돌아감(↺ · 점선 주황)은 **다른 것**이다. 섞이면 안 된다.
         if (wrapped.has(key)) {
-          const lane = (from.y + NODE_HEIGHT + to.y) / 2;
+          const lane = (fromNode.y + NODE_HEIGHT + to.y) / 2;
           return <g key={key}>
-            <path className={`edge edge--wrap${dim}`} d={wrapPath(from, to)} markerEnd="url(#arrow)" />
+            <path className={`edge edge--wrap${dim}`} d={wrapPath(fromNode, to)} markerEnd="url(#arrow)" />
             <text className="edge__wrapmark" x={to.x + 6} y={lane - 6}>↵ 줄바꿈</text>
           </g>;
         }
-        return <path key={key} className={`edge${dim}${pendingLead}`} d={connectionPath(from, to)} markerEnd="url(#arrow)" />;
+        return <path key={key} className={`edge${dim}`} d={connectionPath(fromNode, to)} markerEnd="url(#arrow)" />;
       }))}
       {/* 8분할 분기선 (260910) — **다섯째 선 종류다.** 부모에서 가로선 하나가 나가 세로
           spine 을 만들고, spine 에서 각 노드로 가로 화살표 여덟이 붙는다. 여덟은 y 가 다
@@ -430,7 +442,13 @@ export function TaskGraph({ tasks, hardware, states, selected, dimUnrelated, onO
           ? <span className="viewpoint__verdict">문 있음 · {Math.round(cell.detection.confidence * 100)}%</span>
           : null}
         {cell !== null && cell.phase === 'rejected' ? <span className="viewpoint__verdict">문 없음</span> : null}
-        {cell !== null && cell.phase === 'scanning' ? <span className="viewpoint__verdict">탐색 중…</span> : null}
+        {/* **탐색 중과 탐색 완료를 가른다** (260910 지적).
+            `scanning` 은 「회전이 지나갔고 판정은 아직」이라는 뜻인데, 낱말이 「지금 이 칸을
+            보고 있다」로 읽힌다. 그래서 다 돌고 난 뒤에도 여덟이 전부 「탐색 중」이었다.
+            지금 보고 있는 칸은 하나뿐이고, 지나간 칸은 탐색이 끝난 것이다. */}
+        {cell !== null && cell.phase === 'scanning'
+          ? <span className="viewpoint__verdict">{viewpointIndex === head ? '탐색 중…' : '탐색 완료'}</span>
+          : null}
         {/* 대기에도 글자를 준다 — 낮은 카드에서 실행 상태 줄(`.state-label`)을 숨겼더니
             여덟만 아무 말이 없어 「아직 안 왔다」가 「고장났다」로 읽혔다. */}
         {cell !== null && cell.phase === 'pending' ? <span className="viewpoint__verdict">대기</span> : null}

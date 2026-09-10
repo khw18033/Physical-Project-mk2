@@ -168,3 +168,21 @@ export function cellsInOrder(fill: ViewpointFill): ViewpointCell[] {
 export function cellClass(cell: ViewpointCell): string {
   return 'viewpoint--' + cell.phase;
 }
+
+/**
+ * **지금 보고 있는 칸.** 회전이 지나간 칸 중 가장 나중 것이다.
+ *
+ * 여덟이 다 지나갔으면 `null` 이다 — 그때는 「지금 보는 칸」이 없고 탐색이 끝난 것이다.
+ * 화면이 이걸로 「탐색 중…」과 「탐색 완료」를 가른다. 260910 에 다 돌고 난 뒤에도 여덟이
+ * 전부 「탐색 중」이라고 적혀 있었다 — 판정이 오기 전에는 phase 가 `scanning` 에 머무는데,
+ * 그 낱말이 「지금 이 칸을 보고 있다」로 읽히기 때문이다.
+ */
+export function scanHead(fill: ViewpointFill): number | null {
+  let head: number | null = null;
+  let pending = 0;
+  for (const cell of fill.values()) {
+    if (cell.phase === 'pending') { pending += 1; continue; }
+    if (head === null || cell.index > head) head = cell.index;
+  }
+  return pending === 0 ? null : head;
+}

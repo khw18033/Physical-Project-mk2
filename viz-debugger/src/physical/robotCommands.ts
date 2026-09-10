@@ -30,7 +30,7 @@ import type { UplinkMessage } from './uplink.ts';
 import { STOP_ACTION, STOP_REASON } from './presets.ts';
 import {
   canIssueRobotCommand, clearScanIssued, lockPaused, lockStopped, markApproachIssued, markScanIssued,
-  recordCommand, releasePaused, robotDrives, robotSession, runningTaskId,
+  notePauseFailure, pickDoorIndex, recordCommand, releasePaused, robotDrives, robotSession, runningTaskId,
   type PauseState, type StopState,
 } from './robotSession.ts';
 
@@ -127,6 +127,10 @@ export async function issueScan(client: PhysicalClient, params: Record<string, u
     return { sent: false, commandId: '', requestId: null, reason: '브로커에 안 붙어 있습니다 — 대본이 돕니다' };
   }
   markScanIssued();
+  // **문 방향을 하나 뽑아 둔다** — 탐지가 붙기 전까지의 임시 자리 (260910 지시).
+  // 판이 시작할 때 한 번만 뽑는다. `door_turn` 이 올 때 뽑으면 이미 늦고, 다시 그릴
+  // 때마다 뽑으면 초록 칸이 돌아다닌다.
+  pickDoorIndex(typeof params?.viewpoint_count === 'number' ? params.viewpoint_count : 8);
   const outcome = await issueTask(client, 'T-A3', params);
   if (outcome === null || outcome.sent !== true) clearScanIssued();
   return outcome ?? { sent: false, commandId: '', requestId: null, reason: 'T-A3 에 낼 명령이 없습니다' };
@@ -274,18 +278,57 @@ export async function pauseMission(client: PhysicalClient | null): Promise<Pause
   const taskId = runningTaskId();
   let published = false;
   let failure: string | null = null;
+  let commandId = '';
   try {
     if (client === null) failure = '브로커 연결 없음';
     else {
       const outcome = client.send(PAUSE_ACTION);
       published = outcome.sent;
+      commandId = outcome.commandId;
       if (!outcome.sent) failure = outcome.reason ?? '보내지 못했습니다';
     }
   } catch (error) {
     failure = error instanceof Error ? error.message : String(error);
   }
   // 2 · 3 — **위 결과를 보지 않는다.** 못 보냈어도 화면은 멈추고 크게 말한다.
-  return lockPaused(taskId, published, failure);
+  const paused = lockPaused(taskId, published, failure);
+
+  /**
+   * **로봇이 뭐라 했는지까지 듣는다** (260910 지적 — 「돌고 있는 도중 일시정지가 안 된다」).
+   *
+   * 발행 성공은 브로커가 받았다는 뜻일 뿐이다. 로봇이 `abort_mission` 을 거절하면
+   * (돌던 임무가 없다거나, 그 이름을 모른다거나) **로봇은 계속 도는데 화면만 멈춘다.**
+   * 그때 아무 말이 없으면 「일시정지가 안 먹는다」로만 보이고 원인을 알 수 없다.
+   *
+   * 화면 멈춤은 이미 위에서 끝났다 — 여기서 듣는 것은 **문구를 채우기 위해서**다.
+   * 늦게 오든 안 오든 멈춤은 그대로다.
+   */
+  if (client !== null && published) void reportPauseAnswer(client, commandId);
+  return paused;
+}
+
+async function reportPauseAnswer(client: PhysicalClient, commandId: string, timeoutMs = 4000): Promise<void> {
+  const answer = await firstAnswer(client, commandId, timeoutMs);
+  if (answer === null) {
+    notePauseFailure(`로봇이 ${timeoutMs}ms 안에 답하지 않았습니다 — 계속 돌고 있을 수 있습니다`);
+    return;
+  }
+  if (answer.kind === 'acceptance' && !answer.accepted) {
+    notePauseFailure(`로봇이 거절했습니다 — ${answer.code ?? '사유 없음'} ${answer.message ?? ''}`.trim());
+  }
+}
+
+/** 그 `command_id` 의 첫 응답. 안 오면 null. */
+function firstAnswer(client: PhysicalClient, commandId: string, timeoutMs: number): Promise<UplinkMessage | null> {
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => { off(); resolve(null); }, timeoutMs);
+    const off = client.onMessage((message) => {
+      if (message.commandId !== commandId) return;
+      clearTimeout(timer);
+      off();
+      resolve(message);
+    });
+  });
 }
 
 /**

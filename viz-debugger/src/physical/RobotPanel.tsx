@@ -155,11 +155,18 @@ export function RobotPanel({ client, params }: {
       문 유무는 탐지 담당이 붙을 때까지 **비어 있는 것이 맞다.** 지어 채우지 않는다.
     */}
     {session.doorTurn !== null && <p className="robot-door">
-      {session.doorTurn.chosenIndex === null
-        ? '로봇이 방향을 틀었습니다 — 어느 걸음인지는 못 짚었습니다'
-        : `로봇이 ${session.doorTurn.chosenIndex + 1}번째 방향을 보고 있습니다`}
-      {session.doorTurn.yawDeg !== null && ` (${session.doorTurn.yawDeg}°)`}
-      <small>정해진 방향입니다 — 문 탐지는 아직 안 붙었습니다</small>
+      {session.doorIndex === null
+        ? '문 방향을 아직 못 정했습니다'
+        : `${session.doorIndex + 1}번째 방향을 문으로 칩니다`}
+      <em className="robot-door-temp">임시</em>
+      <small>
+        {/* 두 가지를 **갈라서** 적는다. 로봇이 바라보는 쪽과 우리가 문으로 친 쪽은 지금
+            서로 무관하다 — 하나로 뭉쳐 적으면 로봇이 골랐다고 읽힌다. */}
+        문 탐지가 아직 안 붙어서 여덟 중 하나를 무작위로 정했습니다.
+        {session.doorTurn.chosenIndex !== null
+          && ` 로봇이 실제로 바라보는 쪽은 ${session.doorTurn.chosenIndex + 1}번째입니다`}
+        {session.doorTurn.yawDeg !== null && ` (${session.doorTurn.yawDeg}°)`}.
+      </small>
     </p>}
 
     {/*
