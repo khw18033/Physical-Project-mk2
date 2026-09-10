@@ -276,12 +276,13 @@ function GraphScreen({ screen, view, trace, milestone, tasks, headSec, playing, 
     pickedTaskId: picked?.id ?? null,
     onPick: setPickedTaskId,
     onMove: canvas.move,
+    onResize: canvas.resize,
     onBind: canvas.bind,
     onRemove: canvas.remove,
     zoomedId,
     onZoom: setZoomedId,
     highlightedId,
-  }), [canvas.bind, canvas.move, canvas.nodes, canvas.remove, highlightedId, picked, second, view, zoomedId]);
+  }), [canvas.bind, canvas.move, canvas.nodes, canvas.remove, canvas.resize, highlightedId, picked, second, view, zoomedId]);
   // **기록 열이 자라면 다시 접는다** — 열은 덧붙일 때만 신원이 바뀌므로(TraceStore.snapshot)
   // 사건이 없는 렌더에서는 접지 않는다.
   const folded = useMemo(() => measureFold(() => foldStatuses(second, view, trace)), [second, trace, view]);

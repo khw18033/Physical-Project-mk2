@@ -241,4 +241,39 @@ if (failures.length) {
   for (const line of failures) console.error(`  - ${line}`);
   process.exit(1);
 }
+// ── 크기도 좌표와 같은 자리에 남는다 (260911 지시 4) ────────────────────────
+//
+// 파워포인트처럼 테두리를 끌어 노드 크기를 바꾼다. 그 값이 좌표와 **다른 자리**에 있으면
+// 옮기고 나서 크기를 바꿨을 때 새로고침 뒤 크기만 사라진다.
+//
+// **이미 저장된 구성에는 이 칸이 없다.** 그것을 「못 읽는 것」으로 치면 사람이 짜 둔 배치가
+// 통째로 날아간다 — 크기는 있어도 되고 없어도 된다.
+{
+  const withSize = parseCanvas(JSON.stringify({
+    version: CANVAS_SCHEMA_VERSION,
+    nodes: [{ id: 'vn-1', kind: 'control', taskId: null, x: 10, y: 20, w: 260, h: 154 }],
+  }));
+  const node = withSize.config?.nodes[0];
+  if (node?.w !== 260 || node?.h !== 154) failures.push(`크기를 안 읽는다 — ${JSON.stringify(node)}`);
+
+  // 크기 칸이 없는 옛 구성도 그대로 읽힌다.
+  const legacy = parseCanvas(JSON.stringify({
+    version: CANVAS_SCHEMA_VERSION,
+    nodes: [{ id: 'vn-2', kind: 'control', taskId: null, x: 10, y: 20 }],
+  }));
+  if (legacy.config?.nodes.length !== 1) failures.push('크기 칸이 없는 옛 구성을 버린다 — 짜 둔 배치가 날아간다');
+
+  // 말이 안 되는 크기는 버린다 — 0이나 음수면 노드가 사라져 보인다.
+  const bad = parseCanvas(JSON.stringify({
+    version: CANVAS_SCHEMA_VERSION,
+    nodes: [{ id: 'vn-3', kind: 'control', taskId: null, x: 0, y: 0, w: 0, h: -5 }],
+  }));
+  if (bad.config?.nodes.length !== 0) failures.push('0이나 음수 크기를 받아들인다 — 노드가 사라져 보인다');
+
+  // 훅에 저장하는 길이 있는가 — 화면만 바뀌고 안 남으면 새로고침에 사라진다.
+  const hook = readFileSync(join(root, 'src', 'canvas', 'useCanvas.ts'), 'utf8');
+  if (!/resize\(id: string, size:/.test(hook)) failures.push('캔버스 훅에 크기를 저장하는 길이 없다');
+}
+
+console.log('✅ 크기가 좌표와 같은 자리에 남는다 — 옛 구성(크기 없음)도 그대로 읽고, 0·음수는 버린다');
 console.log(`✅ 통과 — 캔버스 구성 3층 · 슬롯 · 실패 셋 · 창 폭 변경·보기 범위 전환 (스키마 v${CANVAS_SCHEMA_VERSION})`);

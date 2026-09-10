@@ -40,6 +40,8 @@ export type CanvasApi = {
   remove(id: string): void;
   bind(id: string, taskId: string | null): void;
   move(id: string, position: { x: number; y: number }): void;
+  /** 사람이 테두리를 끌어 크기를 바꿨다 (260911). 좌표와 같은 자리에 저장된다. */
+  resize(id: string, size: { w: number; h: number }): void;
   reset(): void;
 };
 
@@ -106,6 +108,13 @@ export function useCanvas(missionId: string, slot: string, tasks: readonly Task[
     });
   }, [commit]);
 
+  const resize = useCallback((id: string, size: { w: number; h: number }) => {
+    commit({
+      ...configRef.current,
+      nodes: configRef.current.nodes.map((node) => (node.id === id ? { ...node, w: size.w, h: size.h } : node)),
+    });
+  }, [commit]);
+
   const reset = useCallback(() => {
     clearCanvas(missionId, slot, deps);
     setState(loadCanvas(missionId, slot, taskIds, deps));
@@ -116,6 +125,6 @@ export function useCanvas(missionId: string, slot: string, tasks: readonly Task[
     notices: state.notices,
     writable: state.writable,
     restorable: state.source === 'user' || state.config.nodes.length > 0,
-    add, remove, bind, move, reset,
+    add, remove, bind, move, resize, reset,
   };
 }

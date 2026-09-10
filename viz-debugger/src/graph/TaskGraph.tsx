@@ -49,6 +49,8 @@ export type CanvasLayer = {
   pickedTaskId: string | null;
   onPick(taskId: string | null): void;
   onMove(id: string, position: Position): void;
+  /** 사람이 테두리를 끌어 크기를 바꿨다 (260911). 좌표와 같은 자리에 저장된다. */
+  onResize(id: string, size: { w: number; h: number }): void;
   onBind(id: string, taskId: string | null): void;
   onRemove(id: string): void;
   /**
@@ -79,15 +81,24 @@ const MIN_CANVAS_HEIGHT = 390;
 /** 페이지 아래 여백(`main` 의 `padding-bottom`). 캔버스가 창 밑에 딱 붙으면 답답하다. */
 const PAGE_BOTTOM = 40;
 
-function connectionPath(from: { x: number; y: number }, to: { x: number; y: number }) {
+/**
+ * **선은 상자에 붙는다** (260911 — 크기 조절이 생기면서).
+ *
+ * 전에는 `NODE_WIDTH`·`NODE_HEIGHT` 상수를 그대로 썼다. 사람이 노드를 늘리면 선이 노드
+ * 한가운데가 아니라 옛 크기의 자리에 붙어 **허공에서 시작하거나 카드를 뚫고 나온다.**
+ * 그래서 좌표가 아니라 **상자**(좌표+크기)를 받는다.
+ */
+type Box = { x: number; y: number; w: number; h: number };
+
+function connectionPath(from: Box, to: Box) {
   const dx = to.x - from.x; const dy = to.y - from.y;
-  if (Math.abs(dx) >= NODE_WIDTH + 20) {
-    const forward = dx > 0; const x1 = from.x + (forward ? NODE_WIDTH : 0); const x2 = to.x + (forward ? 0 : NODE_WIDTH);
-    const y1 = from.y + NODE_HEIGHT / 2; const y2 = to.y + NODE_HEIGHT / 2; const middle = (x1 + x2) / 2;
+  if (Math.abs(dx) >= from.w + 20) {
+    const forward = dx > 0; const x1 = from.x + (forward ? from.w : 0); const x2 = to.x + (forward ? 0 : to.w);
+    const y1 = from.y + from.h / 2; const y2 = to.y + to.h / 2; const middle = (x1 + x2) / 2;
     return `M${x1},${y1} C${middle},${y1} ${middle},${y2} ${x2},${y2}`;
   }
-  const downward = dy >= 0; const x1 = from.x + NODE_WIDTH / 2; const x2 = to.x + NODE_WIDTH / 2;
-  const y1 = from.y + (downward ? NODE_HEIGHT : 0); const y2 = to.y + (downward ? 0 : NODE_HEIGHT); const middle = (y1 + y2) / 2;
+  const downward = dy >= 0; const x1 = from.x + from.w / 2; const x2 = to.x + to.w / 2;
+  const y1 = from.y + (downward ? from.h : 0); const y2 = to.y + (downward ? 0 : to.h); const middle = (y1 + y2) / 2;
   return `M${x1},${y1} C${x1},${middle} ${x2},${middle} ${x2},${y2}`;
 }
 
@@ -100,12 +111,12 @@ function connectionPath(from: { x: number; y: number }, to: { x: number; y: numb
  * **되돌아가는 참조 엣지(점선 `↺`)와 반드시 구별되어야 한다** — 하나는 「줄바꿈」이고
  * 하나는 「루프」다. 이쪽은 **실선 파랑 + `↵`**, 저쪽은 점선 주황 + `↺` 다.
  */
-function wrapPath(from: Position, to: Position): string {
-  const x1 = from.x + NODE_WIDTH;
-  const y1 = from.y + NODE_HEIGHT / 2;
+function wrapPath(from: Box, to: Box): string {
+  const x1 = from.x + from.w;
+  const y1 = from.y + from.h / 2;
   const x2 = to.x;
-  const y2 = to.y + NODE_HEIGHT / 2;
-  const lane = (from.y + NODE_HEIGHT + to.y) / 2; // 두 밴드 사이 통로
+  const y2 = to.y + to.h / 2;
+  const lane = (from.y + from.h + to.y) / 2; // 두 밴드 사이 통로
   const turn = x1 + 30;
   const entry = Math.max(6, x2 - 30);
   return `M${x1},${y1} C${turn},${y1} ${turn},${lane} ${turn - 12},${lane} L${entry + 12},${lane} C${entry},${lane} ${entry},${y2} ${x2},${y2}`;
@@ -119,10 +130,10 @@ function wrapPath(from: Position, to: Position): string {
  * 화살표를 달지 않고 점선 초록으로 그린다. 이 선이 있고 없고가 「연결 ↔ 전역」의
  * 가장 큰 차이다(`VZ-N-02` — 두 상태는 화면에서 구별되어야 한다).
  */
-function bindPath(from: Position, to: Position): string {
-  const x1 = from.x + NODE_WIDTH / 2;
-  const y1 = from.y + NODE_HEIGHT;
-  const x2 = to.x + VIEW_NODE_WIDTH / 2;
+function bindPath(from: Box, to: Box): string {
+  const x1 = from.x + from.w / 2;
+  const y1 = from.y + from.h;
+  const x2 = to.x + to.w / 2;
   const y2 = to.y;
   const middle = (y1 + y2) / 2;
   return `M${x1},${y1} C${x1},${middle} ${x2},${middle} ${x2},${y2}`;
@@ -309,6 +320,93 @@ export function TaskGraph({ tasks, hardware, states, selected, dimUnrelated, onO
     const visit = (id: string) => { if (relevant.has(id)) return; relevant.add(id); tasks.find((task) => task.id === id)?.deps.forEach(visit); };
     visit(selected);
   }
+  /**
+   * **사람이 바꾼 크기** (260911 지시 4). 파워포인트처럼 테두리를 끌어 조절한다.
+   *
+   * 태스크 노드는 **이 화면에 사는 동안만** 기억한다 — 자리(`movedPositions`)를 그렇게
+   * 두는 것과 같다. 뷰 노드는 사람이 짜 두는 구성이라 좌표와 같은 자리에 저장한다.
+   */
+  const [taskSizes, setTaskSizes] = useState<Record<string, { w: number; h: number }>>({});
+  const [resizing, setResizing] = useState<
+    { id: string; kind: 'task' | 'view'; edge: 'e' | 's' | 'se'; startX: number; startY: number; w: number; h: number } | null
+  >(null);
+  const [viewSize, setViewSize] = useState<{ id: string; w: number; h: number } | null>(null);
+
+  /**
+   * 사람이 **직접 바꾼** 크기. 안 바꿨으면 null 이다.
+   *
+   * 선을 그릴 때 쓰는 `sizeOf` 와 나누는 이유가 있다 — 안 바꾼 노드에까지 인라인 높이를
+   * 박으면 **글이 잘린다.** 기본 카드는 `min-height` 로 내용만큼 자라는데, 거기에 110px 을
+   * 박아 넣으면 마지막 줄(「robot-01 · 상태 미수신」)이 사라진다. 실제로 그랬다.
+   */
+  const setSize = (id: string, kind: 'task' | 'view'): { w: number; h: number } | null => {
+    if (kind === 'task') return taskSizes[id] ?? null;
+    if (viewSize !== null && viewSize.id === id) return { w: viewSize.w, h: viewSize.h };
+    const node = (canvas?.nodes ?? []).find((item) => item.id === id);
+    return node?.w !== undefined && node?.h !== undefined ? { w: node.w, h: node.h } : null;
+  };
+
+  /** 이 노드의 지금 크기. 안 바꿨으면 기본값이다 — **선이 붙는 자리**를 정한다. */
+  const sizeOf = (id: string, kind: 'task' | 'view'): { w: number; h: number } => {
+    if (kind === 'task') {
+      const fan = viewpoints?.taskIds.includes(id) === true;
+      return taskSizes[id] ?? (fan
+        ? { w: NODE_WIDTH, h: VIEWPOINT_NODE_HEIGHT }
+        : { w: NODE_WIDTH, h: NODE_HEIGHT });
+    }
+    if (viewSize !== null && viewSize.id === id) return { w: viewSize.w, h: viewSize.h };
+    const node = (canvas?.nodes ?? []).find((item) => item.id === id);
+    return { w: node?.w ?? VIEW_NODE_WIDTH, h: node?.h ?? VIEW_NODE_HEIGHT };
+  };
+
+  /** 좌표 + 크기. 선이 붙는 자리를 이것 하나로 정한다. */
+  const boxOf = (id: string, kind: 'task' | 'view'): Box | null => {
+    const at = kind === 'task' ? positions[id] : viewPositions[id];
+    if (!at) return null;
+    return { x: at.x, y: at.y, ...sizeOf(id, kind) };
+  };
+
+  /**
+   * 테두리를 잡았다. **끌기와 섞이면 안 된다** — 노드 본체의 `onPointerDown` 으로
+   * 올라가면 크기를 바꾸려다 노드가 딸려 온다.
+   */
+  const startResize = (
+    event: ReactPointerEvent<HTMLElement>, id: string, kind: 'task' | 'view', edge: 'e' | 's' | 'se',
+  ) => {
+    event.stopPropagation();
+    event.preventDefault();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    const size = sizeOf(id, kind);
+    setResizing({ id, kind, edge, startX: event.clientX, startY: event.clientY, w: size.w, h: size.h });
+  };
+
+  const MIN_W = 96;
+  const MIN_H = 44;
+  const moveResize = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (resizing === null) return;
+    const w = resizing.edge === 's'
+      ? resizing.w
+      : Math.max(MIN_W, Math.round(resizing.w + (event.clientX - resizing.startX)));
+    const h = resizing.edge === 'e'
+      ? resizing.h
+      : Math.max(MIN_H, Math.round(resizing.h + (event.clientY - resizing.startY)));
+    if (resizing.kind === 'task') setTaskSizes((current) => ({ ...current, [resizing.id]: { w, h } }));
+    else setViewSize({ id: resizing.id, w, h });
+  };
+  /** 손을 뗄 때 뷰 노드의 크기를 한 번만 굳힌다(저장은 여기서 일어난다 — 끌 때마다 쓰지 않는다). */
+  const endResize = () => {
+    if (viewSize !== null) canvas?.onResize(viewSize.id, { w: viewSize.w, h: viewSize.h });
+    setViewSize(null);
+    setResizing(null);
+  };
+
+  /** 노드 하나에 붙는 테두리 손잡이 셋 — 오른쪽·아래·모서리. */
+  const handles = (id: string, kind: 'task' | 'view') => <>
+    <span className="node-grip node-grip--e" onPointerDown={(e) => startResize(e, id, kind, 'e')} />
+    <span className="node-grip node-grip--s" onPointerDown={(e) => startResize(e, id, kind, 's')} />
+    <span className="node-grip node-grip--se" onPointerDown={(e) => startResize(e, id, kind, 'se')} />
+  </>;
+
   const startDrag = (event: ReactPointerEvent<HTMLElement>, id: string, kind: 'task' | 'view') => {
     const surface = event.currentTarget.parentElement;
     const position = kind === 'task' ? positions[id] : viewPositions[id];
@@ -319,7 +417,7 @@ export function TaskGraph({ tasks, hardware, states, selected, dimUnrelated, onO
   };
   const moveDrag = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (!drag) return; const rect = event.currentTarget.getBoundingClientRect();
-    const box = drag.kind === 'task' ? { w: NODE_WIDTH, h: NODE_HEIGHT } : { w: VIEW_NODE_WIDTH, h: VIEW_NODE_HEIGHT };
+    const box = sizeOf(drag.id, drag.kind);
     const x = Math.max(0, Math.min(width - box.w, event.clientX - rect.left + event.currentTarget.scrollLeft - drag.offsetX));
     const y = Math.max(0, Math.min(height - box.h, event.clientY - rect.top + event.currentTarget.scrollTop - drag.offsetY));
     // 3px 안쪽의 흔들림은 「끌었다」가 아니다 — 누를 때 손이 조금 움직였다고 고르기가
@@ -337,9 +435,9 @@ export function TaskGraph({ tasks, hardware, states, selected, dimUnrelated, onO
   return <div className="graph-scroll" ref={hostRef}><div
     className={`graph-canvas ${drag ? 'is-dragging' : ''}`}
     style={{ height, width }}
-    onPointerMove={moveDrag}
-    onPointerUp={endDrag}
-    onPointerCancel={endDrag}
+    onPointerMove={(event) => { moveDrag(event); moveResize(event); }}
+    onPointerUp={() => { endDrag(); endResize(); }}
+    onPointerCancel={() => { endDrag(); endResize(); }}
     // 빈 자리를 누르면 고르기를 푼다 — 팔레트가 그때부터 전역 노드를 만든다.
     onPointerDown={(event) => { if (event.target === event.currentTarget) canvas?.onPick(null); }}
   >
@@ -356,7 +454,7 @@ export function TaskGraph({ tasks, hardware, states, selected, dimUnrelated, onO
         </g>;
       })}
       {tasks.flatMap((task) => task.deps.map((dep) => {
-        const to = positions[task.id]; if (!positions[dep] || !to) return null;
+        const to = boxOf(task.id, 'task'); if (!positions[dep] || !to) return null;
         const key = `${dep}-${task.id}`;
         // 8분할 분기 (260910) — 이 여덟 쌍은 **아래에서 spine 하나로 따로 그린다.**
         // 쌍마다 그리면 세로 구간 여덟이 같은 x 에 포개져 한 줄처럼 보일 뿐 실제로는 여덟 겹이다.
@@ -378,12 +476,12 @@ export function TaskGraph({ tasks, hardware, states, selected, dimUnrelated, onO
           if (chosenId === undefined) return null;
           originId = chosenId;
         }
-        const fromNode = positions[originId];
+        const fromNode = boxOf(originId, 'task');
         if (!fromNode) return null;
         const dim = dimUnrelated && (!relevant.has(originId) || !relevant.has(task.id)) ? ' dimmed' : '';
         // 줄바꿈(↵ · 실선 파랑)과 되돌아감(↺ · 점선 주황)은 **다른 것**이다. 섞이면 안 된다.
         if (wrapped.has(key)) {
-          const lane = (fromNode.y + NODE_HEIGHT + to.y) / 2;
+          const lane = (fromNode.y + fromNode.h + to.y) / 2;
           return <g key={key}>
             <path className={`edge edge--wrap${dim}`} d={wrapPath(fromNode, to)} markerEnd="url(#arrow)" />
             <text className="edge__wrapmark" x={to.x + 6} y={lane - 6}>↵ 줄바꿈</text>
@@ -413,7 +511,7 @@ export function TaskGraph({ tasks, hardware, states, selected, dimUnrelated, onO
           화살표가 없다. **deps 가 아니다** — 깊이 계산은 위의 tasks 만 본다. */}
       {(canvas?.nodes ?? []).map((node) => {
         if (node.taskId === null) return null;
-        const from = positions[node.taskId]; const to = viewPositions[node.id];
+        const from = boxOf(node.taskId, 'task'); const to = boxOf(node.id, 'view');
         if (!from || !to) return null;
         return <path key={`bind-${node.id}`} className="edge edge--bind" d={bindPath(from, to)} />;
       })}
@@ -430,7 +528,9 @@ export function TaskGraph({ tasks, hardware, states, selected, dimUnrelated, onO
       const position = positions[task.id];
       // 한 번 누르면 「고른 태스크」가 된다 (260903) — 팔레트가 여기에 뷰 노드를 붙인다.
       // 끌었으면 고르지 않는다. 더블클릭(액션 아이템)은 그대로다.
-      return <button key={task.id} type="button" className={`task-node ${style.className} ${selected === task.id ? 'selected' : ''} ${canvas?.pickedTaskId === task.id ? 'is-picked' : ''} ${dimmed ? 'dimmed' : ''}${viewpointClass}`} style={{ left: position.x, top: position.y }} onPointerDown={(event) => startDrag(event, task.id, 'task')} onClick={() => { if (!movedRef.current) canvas?.onPick(task.id); }} onDoubleClick={() => onOpen(task)}>
+      return <button key={task.id} type="button" className={`task-node ${style.className} ${selected === task.id ? 'selected' : ''} ${canvas?.pickedTaskId === task.id ? 'is-picked' : ''} ${dimmed ? 'dimmed' : ''}${setSize(task.id, 'task') === null ? '' : ' task-node--sized'}${viewpointClass}`} style={{ left: position.x, top: position.y, width: setSize(task.id, 'task')?.w, height: setSize(task.id, 'task')?.h }} onPointerDown={(event) => startDrag(event, task.id, 'task')} onClick={() => { if (!movedRef.current) canvas?.onPick(task.id); }} onDoubleClick={() => onOpen(task)}>
+        {/* 테두리 손잡이 — 파워포인트처럼 가장자리에 대면 커서가 바뀐다 (260911). */}
+        {handles(task.id, 'task')}
         <small>{task.id}{task.nodeKind ? <em className={`node-kind node-kind--${task.nodeKind}`}>{NODE_KIND_LABEL[task.nodeKind]}</em> : null}</small><strong>{task.title}</strong>
         <span className="state-label">{style.icon} {style.label}{state.status === 'rerunning' ? ` · attempt ${state.attempt}` : ''}</span>
         {/* 옛 편은 하드웨어 목록이 있어 기존 문구 그대로다. 대본(registry 세계)의 장비 실측
@@ -462,6 +562,8 @@ export function TaskGraph({ tasks, hardware, states, selected, dimUnrelated, onO
       entry={canvas!.entryOf(node.kind)}
       scope={canvas!.scopeOf(node.taskId)}
       position={viewPositions[node.id] ?? { x: 30, y: 55 }}
+      size={setSize(node.id, 'view') ?? undefined}
+      grips={handles(node.id, 'view')}
       picked={canvas!.pickedTaskId}
       zoomed={canvas!.zoomedId === node.id}
       highlighted={canvas!.highlightedId === node.id}

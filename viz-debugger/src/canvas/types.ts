@@ -84,4 +84,13 @@ export type ViewNodeInstance = {
   taskId: string | null;
   x: number | null;
   y: number | null;
+  /**
+   * **사람이 늘리거나 줄인 크기** (260911 지시 4). 없으면 기본 크기다.
+   *
+   * 좌표와 같은 자리에 둔다 — 노드를 옮기고 나서 크기를 바꿨는데 새로고침하면 크기만
+   * 사라지는 것이 제일 이상하다. `deps` 와 달리 이것은 **그리는 값**이라 깊이 계산에
+   * 안 들어간다(뷰 노드는 실행 노드가 아니다).
+   */
+  w?: number;
+  h?: number;
 };

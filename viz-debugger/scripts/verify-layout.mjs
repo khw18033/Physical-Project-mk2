@@ -15,8 +15,13 @@ const source = await readFile(join(root, 'src', 'graph', 'TaskGraph.tsx'), 'utf8
   if (positions.length !== 7 || unique.size !== 7) throw new Error('DAG: 노드 위치가 겹치거나 누락됨');
   console.log('✅ DAG 노드 7개 좌표가 모두 다름');
 }
-if (!source.includes('style={{ left: position.x, top: position.y }}')) throw new Error('계산 좌표가 CSS left/top에 적용되지 않음');
+// 260911 — 인라인 스타일에 **크기**가 붙었다(사람이 테두리를 끌어 조절한다). 좌표가
+// 그대로 left/top 으로 가는지만 본다 — 뒤에 무엇이 더 붙는지는 이 검사의 관심이 아니다.
+if (!source.includes('left: position.x, top: position.y')) throw new Error('계산 좌표가 CSS left/top에 적용되지 않음');
 console.log('✅ 계산 좌표를 카드 CSS left/top에 적용');
+// 크기를 바꿔도 **선이 상자에 붙는다** — 상수로 그리면 늘린 노드에서 선이 허공에 뜬다.
+if (!source.includes('boxOf(')) throw new Error('선이 노드의 실제 크기를 안 본다');
+console.log('✅ 선이 노드의 실제 상자(좌표+크기)에 붙는다 — 크기를 바꿔도 따라온다');
 if (source.includes('viewBox={`0 0 1380')) throw new Error('SVG와 HTML 노드가 서로 다른 좌표계를 사용함');
 if (!source.includes('width={width} height={height}')) throw new Error('SVG가 그래프 캔버스 픽셀 크기를 공유하지 않음');
 console.log('✅ SVG 연결선과 HTML 노드가 같은 픽셀 좌표계 사용');

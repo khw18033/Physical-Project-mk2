@@ -14,7 +14,7 @@
  * 한눈에 보이는 차이다.
  */
 
-import type { PointerEvent as ReactPointerEvent } from 'react';
+import type { PointerEvent as ReactPointerEvent, ReactNode } from 'react';
 import type { ViewNodeEntry, ViewNodeInstance, ViewScope } from './types.ts';
 
 /** 구간을 사람이 읽는 한 줄로. 전역은 임무 전체다. */
@@ -22,12 +22,16 @@ function spanLabel(scope: ViewScope): string {
   return `T+${Math.round(scope.fromSec)}~${Math.round(scope.toSec)}s`;
 }
 
-export function ViewNodeCard({ node, entry, scope, position, picked, zoomed, highlighted, onPointerDown, onBind, onRemove, onZoom }: {
+export function ViewNodeCard({ node, entry, scope, position, size, grips, picked, zoomed, highlighted, onPointerDown, onBind, onRemove, onZoom }: {
   node: ViewNodeInstance;
   /** 등록되지 않은 종류면 null — 저장된 구성이 다른 빌드에서 만들어졌을 때다. */
   entry: ViewNodeEntry | null;
   scope: ViewScope;
   position: { x: number; y: number };
+  /** 사람이 바꾼 크기. 없으면 CSS 기본값이다 (260911). */
+  size?: { w: number; h: number };
+  /** 테두리 손잡이 — 그래프가 만들어 넣는다. 카드는 크기 조절 규칙을 모른다. */
+  grips?: ReactNode;
   /** 지금 고른 태스크. 전역 노드를 여기에 이을 수 있다. */
   picked: string | null;
   /** 이 노드가 지금 확대돼 있는가 (260903 2단계). 카드는 **그대로 남는다** — 확대가
@@ -46,13 +50,14 @@ export function ViewNodeCard({ node, entry, scope, position, picked, zoomed, hig
   const bound = node.taskId !== null;
   return <div
     className={`view-node ${bound ? 'view-node--bound' : 'view-node--global'}${zoomed ? ' view-node--zoomed' : ''}${highlighted ? ' view-node--flash' : ''}`}
-    style={{ left: position.x, top: position.y }}
+    style={{ left: position.x, top: position.y, width: size?.w, height: size?.h }}
     onPointerDown={onPointerDown}
     // 확대는 **더블클릭**이다 (확정된 결정 2). 아래 ⤢ 버튼은 같은 길의 보이는 입구다 —
     // 더블클릭만 두면 발견할 수 없는 길이 된다.
     onDoubleClick={onZoom}
     data-view-node={node.kind}
   >
+    {grips}
     <header className="view-node__head">
       <b>{entry?.label ?? node.kind}</b>
       {bound

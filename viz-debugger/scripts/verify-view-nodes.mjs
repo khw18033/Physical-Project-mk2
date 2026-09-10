@@ -143,6 +143,31 @@ const CANVAS_FILES = ['types.ts', 'registry.ts', 'scope.ts', 'persist.ts', 'defa
   console.log(`✅ deps — 계약에 칸이 없고, 배치·그래프의 deps 읽기 ${depsLines.length + graphDeps.length}곳이 전부 태스크다`);
 }
 
+// ── ⑥ 크기 조절 손잡이가 테두리 **안쪽**에 있는가 (260911) ────────────────────
+//
+// 파워포인트처럼 테두리를 끌어 크기를 바꾼다. 손잡이를 테두리 **밖으로** 내밀었더니
+// `overflow:hidden` 인 카드에서 잘려 **보이는데 안 눌렸다** — 실제로 뷰 노드가 그랬다.
+{
+  const css = read('src', 'style.css');
+  for (const grip of ['e', 's', 'se']) {
+    const rule = css.match(new RegExp(`\.node-grip--${grip}\{([^}]*)\}`))?.[1] ?? '';
+    if (rule === '') { failures.push(`.node-grip--${grip} 규칙이 없다`); continue; }
+    if (/-\d+px/.test(rule)) {
+      failures.push(`.node-grip--${grip} 이 테두리 밖으로 나가 있다 — overflow:hidden 인 카드에서 안 눌린다`);
+    }
+    if (!/cursor:(ew|ns|nwse)-resize/.test(rule)) {
+      failures.push(`.node-grip--${grip} 에 커서가 없다 — 테두리에 대도 조절할 수 있다는 것을 모른다`);
+    }
+  }
+  // 그래프가 실제로 손잡이를 그리는가 · 크기를 저장하는 길이 있는가.
+  const graph = read('src', 'graph', 'TaskGraph.tsx');
+  check(/node-grip node-grip--se/.test(graph), '그래프가 크기 손잡이를 안 그린다');
+  check(/onResize\(/.test(graph), '그래프가 바뀐 크기를 저장하지 않는다 — 새로고침에 사라진다');
+  // 안 바꾼 카드에 인라인 높이를 박으면 **글이 잘린다** — 실제로 그랬다.
+  check(/setSize\(task\.id, 'task'\)\?\.h/.test(graph), '안 바꾼 카드에도 높이를 박는다 — 마지막 줄이 잘린다');
+  console.log('✅ 크기 조절 — 손잡이가 테두리 안쪽에 있고 커서가 바뀐다 · 안 바꾼 카드는 내용만큼 자란다');
+}
+
 if (failures.length) {
   console.error('❌ 뷰 노드 경계 검사 실패:');
   for (const line of failures) console.error(`  - ${line}`);

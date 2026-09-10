@@ -61,7 +61,11 @@ function isInstance(value: unknown): value is ViewNodeInstance {
     && typeof node.kind === 'string'
     && (node.taskId === null || typeof node.taskId === 'string')
     && (node.x === null || typeof node.x === 'number')
-    && (node.y === null || typeof node.y === 'number');
+    && (node.y === null || typeof node.y === 'number')
+    // 크기는 **없어도 된다** (260911 신설). 이미 저장된 구성에는 이 칸이 없고, 그것을
+    // 못 읽는 것으로 치면 사람이 짜 둔 배치가 통째로 날아간다.
+    && (node.w === undefined || (typeof node.w === 'number' && node.w > 0))
+    && (node.h === undefined || (typeof node.h === 'number' && node.h > 0));
 }
 
 /**
