@@ -18,7 +18,37 @@
  */
 
 import { useEffect, useState } from 'react';
-import { resetMission } from '../data/scenario.ts';
+import { restartMission, resetMission, useMission } from '../data/scenario.ts';
+
+/**
+ * **지금 임무를 처음부터 다시** (260911 지시).
+ *
+ * 한 판이 끝났거나 정지한 뒤 같은 편을 다시 보려면 발화부터 다시 해야 했다 — 문장을 누르고,
+ * 요청하고, 승인하고. 시연 중에 그 셋을 다시 하는 것은 번거롭고, 그동안 화면이 제안
+ * 상태로 돌아가 보는 사람이 「방금 것이 실패했나」로 읽는다.
+ *
+ * ## 머리줄의 「▶ 재시작」과 다른 것이다
+ *
+ *   ▶ 재시작    **로봇의 멈춘 단계**를 다시 낸다 — 일시정지를 푸는 것
+ *   ↻ 처음부터  **임무 한 편**을 처음부터 — 기록·여덟 칸을 비우고 첫 걸음부터
+ *
+ * 이름을 「재시작」으로 하면 둘이 같아 보인다. 그래서 「처음부터」다.
+ *
+ * 임무가 없으면 누를 것이 없다 — 그때는 안 그린다. 초기화와 달리 한 번에 돈다.
+ * 잘못 눌러도 같은 편을 다시 볼 뿐이고, 시연 중에 두 번 묻는 것이 더 성가시다.
+ */
+export function RestartButton() {
+  const mission = useMission();
+  if (mission.current.missionId === '') return null;
+  return <button
+    type="button"
+    className="mission-restart"
+    onClick={() => { restartMission(); }}
+    title="이 임무를 처음부터 다시 돌립니다 — 발화와 승인을 다시 하지 않아도 됩니다"
+  >
+    ↻ 처음부터
+  </button>;
+}
 
 export function ResetButton() {
   const [asking, setAsking] = useState(false);

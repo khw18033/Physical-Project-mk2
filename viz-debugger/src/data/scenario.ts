@@ -674,3 +674,27 @@ export function resetMission(): void {
   resetRobotSession();
   commitNow({ current: emptyView(), proposal: null, headSec: 0, playing: false, activatedBy: 'boot' });
 }
+
+
+/**
+ * **지금 임무를 처음부터 다시** (260911 지시).
+ *
+ * 한 판이 끝났거나 정지한 뒤 같은 편을 다시 보려면 발화부터 다시 해야 했다 — 문장을 누르고,
+ * 요청하고, 승인하고. 시연 중에 그 셋을 다시 하는 것은 번거롭고, 그동안 화면이 제안 상태로
+ * 돌아가 보는 사람이 「방금 것이 실패했나」로 읽는다.
+ *
+ * `activateMission` 과 같은 일을 한다 — 기록·여덟 칸·로봇 세션을 비우고 시각을 0으로.
+ * **승인은 다시 안 받는다.** 이 편은 이미 승인된 편이고, 버튼을 누른 것이 사람의 행위다.
+ * 그래서 로봇 관문도 같이 연다 — 안 그러면 눌러도 로봇이 안 움직여 「또 안 되네」가 된다.
+ *
+ * 임무가 없으면 아무것도 안 한다.
+ */
+export function restartMission(): boolean {
+  const missionId = state.current.missionId;
+  if (missionId === NO_MISSION) return false;
+  if (viewForMission(missionId) === null) return false;
+  activateMission(missionId, 'remote');
+  markApproved();
+  recordHuman('mission_restarted', missionId, { from: 'button' });
+  return true;
+}

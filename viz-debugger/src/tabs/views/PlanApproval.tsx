@@ -95,7 +95,7 @@ function freshestTarget(entities: ReturnType<typeof useEntities>, targets: reado
   let bestAt = -Infinity;
   for (const id of targets) {
     const plan = entities.get(id)?.plan?.payload as Plan | undefined;
-    if (plan === undefined || plan.decision !== 'pending') continue;
+    if (plan === undefined) continue;
     const at = Date.parse(plan.evidence?.mission?.created_at ?? '');
     if (Number.isNaN(at)) continue;
     if (at > bestAt) { bestAt = at; best = id; }
@@ -126,8 +126,11 @@ export function PlanApproval() {
    * 「그런 계획이 없다」로 거절한다 — 그쪽은 최신 한 건만 들고 있기 때문이다.
    *
    * 실제로 그랬다. 승인을 눌러도 임무가 시작되지 않았고, 화면에는 아무 말도 없었다.
-   * 이제 **아직 결정 안 난 것 중 가장 새 것**을 기본으로 고른다. 사람이 직접 고른 것은
-   * 그대로 존중한다.
+   * 이제 **가장 새 계획**을 기본으로 고른다. 사람이 직접 고른 것은 그대로 존중한다.
+   *
+   * 처음엔 「아직 결정 안 난 것 중」으로 좁혔다가 되돌렸다. 승인하는 순간 그 계획이
+   * pending 에서 빠지면서 화면이 **다른 편의 묵은 pending 계획으로 튀었다** — 방금 승인한
+   * 영수증을 봐야 할 자리에 지난 판의 승인 버튼이 떴다. 승인 여부로 고르면 안 된다.
    */
   const target = picked !== null && targets.includes(picked) ? picked : freshestTarget(entities, targets);
   const record = target === null ? null : (entities.get(target) ?? null);

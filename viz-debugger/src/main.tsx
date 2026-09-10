@@ -442,6 +442,37 @@ export function MissionDebugger({ navigation, planApproval }: { navigation?: Deb
     setModalTask(next === 'detail' ? graphTasks[0] ?? null : next === 'failure' ? graphTasks.find((task) => folded.tasks[task.id]?.status === 'failed') ?? null : null);
   };
   const openTask = (task: Task, failed: boolean) => { setModalTask(task); setScreen(failed ? 'failure' : 'detail'); };
+
+  /**
+   * **마일스톤이 끝나면 다음 마일스톤 그래프로 넘어간다** (260911 지시).
+   *
+   * 시연에서 MS-A 가 끝나면 발표자가 마일스톤 목록으로 돌아가 MS-B 를 다시 눌러야 했다.
+   * 로봇은 이미 다음 걸음을 기다리는데 화면만 뒤에 있다.
+   *
+   * ## 이미 끝난 것을 열었을 때는 안 넘어간다
+   *
+   * 끝난 마일스톤을 되짚어 보려고 연 것인데 곧바로 다음으로 튀면 **되짚어 볼 수가 없다.**
+   * 그래서 **열 때 안 끝나 있던 것이 끝났을 때만** 넘어간다.
+   *
+   * 한 박자 쉬고 넘어간다. 끝나자마자 화면이 바뀌면 무엇이 끝났는지 볼 틈이 없다.
+   * 그 사이에 사람이 다른 데로 가면 취소된다.
+   */
+  const watching = useRef<string | null>(null);
+  const currentMilestoneStatus = milestoneId === null ? null : milestoneStatuses[milestoneId] ?? 'pending';
+  useEffect(() => {
+    if (screen !== 'graph' || milestoneId === null) { watching.current = null; return; }
+    // 열 때 이미 끝나 있었으면 이 마일스톤에서는 안 넘어간다.
+    if (watching.current !== milestoneId) {
+      watching.current = milestoneId;
+      if (currentMilestoneStatus === 'done') return;
+    }
+    if (currentMilestoneStatus !== 'done') return;
+    const order = view.milestones.map((item) => item.id);
+    const next = order[order.indexOf(milestoneId) + 1];
+    if (next === undefined) return;   // 마지막이면 그대로 둔다
+    const timer = setTimeout(() => setMilestoneId(next), 1200);
+    return () => clearTimeout(timer);
+  }, [screen, milestoneId, currentMilestoneStatus, view]);
   useEffect(() => {
     if (!navigation) return;
     if (navigation.screen !== 'node') { navigate(navigation.screen); return; }

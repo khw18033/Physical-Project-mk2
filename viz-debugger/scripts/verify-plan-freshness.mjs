@@ -106,6 +106,12 @@ for (const order of [[NEW, OLD], [OLD, NEW]]) {
   if (!/picked !== null && targets\.includes\(picked\) \? picked/.test(panel)) {
     failures.push('사람이 고른 대상을 존중하지 않는다');
   }
+  // **승인 여부로 고르면 안 된다** (260911 실측). 「아직 결정 안 난 것 중에서」로 좁혔더니,
+  // 승인하는 순간 그 계획이 pending 에서 빠지면서 화면이 **다른 편의 묵은 pending 계획으로
+  // 튀었다** — 방금 승인한 영수증 자리에 지난 판의 승인 버튼이 떴다.
+  if (/plan\.decision !== 'pending'\) continue;/.test(panel)) {
+    failures.push('가장 새 것을 고를 때 승인 여부로 거른다 — 승인하는 순간 묵은 계획으로 튄다');
+  }
 }
 
 // ── 4. 거절된 승인이 화면에 남는다 ──────────────────────────────────────────
@@ -146,6 +152,6 @@ if (failures.length) {
 }
 console.log('✅ 지난 계획이 새 계획을 안 덮는다 — 도착 순서가 뒤바뀌어도 같다');
 console.log('✅ 같은 계획의 승인 갱신은 그대로 받는다 (여기까지 막으면 승인이 안 보인다)');
-console.log('✅ 승인 패널이 아직 결정 안 난 것 중 가장 새 것을 고른다 · 사람이 고른 것은 존중한다');
+console.log('✅ 승인 패널이 가장 새 계획을 고른다 (승인 여부로 안 거른다) · 사람이 고른 것은 존중한다');
 console.log('✅ 거절된 승인이 화면에 남는다 — 조용히 사라지지 않는다');
 console.log(`✅ 대조군 ${controls.length}건 전부 검출 — ${controls.join(' · ')}`);

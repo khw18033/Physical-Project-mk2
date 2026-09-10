@@ -144,9 +144,20 @@ const params = { viewpoint_count: 8, forward_distance_m: 4.2 };
 //
 // 260910 — 부르는 곳이 `RobotPanel` 에서 `robotBridge.useRobotUplink` 으로 옮겼다. 패널은
 // 마일스톤 화면에만 있어서, 승인 직후에 화면을 옮기면 명령이 아예 안 나갔다.
+//
+// 260911 — 다시 `robotClient()` 로 옮겼다. **그리기 타이밍에 매이면 두 판째에 안 나간다.**
+// 같은 임무를 다시 올릴 때 `approved` 가 한 틱 안에 true → false → true 로 오가는데,
+// React 가 둘을 한 번의 그리기로 묶으면 의존값이 안 바뀐 것으로 보여 효과가 안 돈다.
+// 이제 세션 구독으로 쏜다 — 연결 상태·장비 상태를 거기서 잇는 것과 같은 자리다.
 {
   const { readFileSync } = await import('node:fs');
-  const wiring = readFileSync(join(root, 'src', 'physical', 'robotBridge.ts'), 'utf8');
+  const wiring = readFileSync(join(root, 'src', 'physical', 'robotClient.ts'), 'utf8');
+  // 그리기에 매인 자리로 되돌아가지 않게 못을 박는다.
+  const bridge = readFileSync(join(root, 'src', 'physical', 'robotBridge.ts'), 'utf8')
+    .replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
+  if (/useEffect\([^)]*issueScan/.test(bridge) || /issueScan\(/.test(bridge)) {
+    failures.push('스캔 발행이 다시 그리기 효과 안으로 들어갔다 — 두 판째에 안 나간다');
+  }
   if (!/issueScan\(/.test(wiring)) {
     failures.push('화면이 issueScan 을 부르지 않는다 — 승인해도 로봇이 안 돈다');
   }

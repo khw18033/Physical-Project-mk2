@@ -477,6 +477,7 @@ button.robot-stop:hover{background:#b8271f}
 .robot-node-flag{color:#8f2b26}
 
 /* 초기화 (260910) — 두 번 눌러야 지운다. 물어보는 동안만 색이 선다. */
+button.mission-restart{padding:6px 12px;border:1px solid #4c8fe8;border-radius:6px;background:#eef5fd;color:#1a4f8f;font-weight:600}
 button.mission-reset{padding:6px 12px;border:1px solid #ccd4dd;border-radius:6px;background:#fff;color:#4a5666}
 button.mission-reset--confirm{border-color:#a3241f;background:#fdf3f2;color:#8f2b26;font-weight:700}
 .mission-reset-ask{display:inline-flex;align-items:center;gap:6px}

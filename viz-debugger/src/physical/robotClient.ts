@@ -9,8 +9,9 @@
  */
 
 import { PhysicalClient } from './PhysicalClient.ts';
-import { issuePing } from './robotCommands.ts';
-import { setConnection } from './robotSession.ts';
+import { issuePing, issueScan, shouldIssueScan } from './robotCommands.ts';
+import { setConnection, subscribeRobot } from './robotSession.ts';
+import { currentMission } from '../data/scenario.ts';
 import { receiveDeviceMessage } from './deviceState.ts';
 
 let singleton: PhysicalClient | null = null;
@@ -25,6 +26,24 @@ export function robotClient(): PhysicalClient {
     // 장비 상태도 만들 때 잇는다 — 화면 부품이 안 떠 있는 동안의 값을 놓치면
     // 하드웨어 카드가 「모른다」로 남는다.
     singleton.onDevice(receiveDeviceMessage);
+    /**
+     * **승인이 스캔을 쏘는 자리도 여기다** (260911 — 두 판째에 안 나가던 자리).
+     *
+     * 전에는 화면의 `useEffect` 가 `session.approved` 가 바뀌는 것을 보고 쐈다. 한 판을
+     * 돌린 뒤 같은 임무를 다시 올리면 `approved` 는 **true → false → true** 로 한 틱 안에
+     * 오간다(`activateMission` 이 세션을 비우고 곧바로 승인이 다시 걸린다). React 가 그
+     * 둘을 한 번의 그리기로 묶으면 **의존값이 안 바뀐 것으로 보여 효과가 안 돈다.**
+     * 그러면 승인은 됐는데 로봇에는 아무것도 안 간다.
+     *
+     * 그래서 그리기와 무관한 자리로 옮겼다 — 세션이 바뀔 때마다 조건을 다시 보고, 참이면
+     * 쏜다. 관문(`markScanIssued`)이 한 번만 열리게 스스로 빗장을 건다.
+     *
+     * 연결 상태·장비 상태를 여기서 잇는 것과 같은 이유이고 같은 자리다.
+     */
+    subscribeRobot(() => {
+      if (!shouldIssueScan()) return;
+      void issueScan(singleton as PhysicalClient, currentMission().params);
+    });
   }
   return singleton;
 }

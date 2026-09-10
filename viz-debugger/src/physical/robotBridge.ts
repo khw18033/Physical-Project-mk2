@@ -14,8 +14,7 @@ import { effectsOf, NO_NODE, type LinkEffect } from './missionLink.ts';
 import type { PhysicalClient } from './PhysicalClient.ts';
 import { advanceRobotHead, receiveRobotProgress } from '../data/scenario.ts';
 import type { ScenarioEvent } from '../model/types.ts';
-import { elapsedSec, applyEffects, robotSession, useRobotSession } from './robotSession.ts';
-import { issueScan, shouldIssueScan } from './robotCommands.ts';
+import { elapsedSec, applyEffects, robotSession } from './robotSession.ts';
 import { robotClient } from './robotClient.ts';
 import type { UplinkMessage } from './uplink.ts';
 
@@ -195,11 +194,9 @@ export function useRobotUplink(missionId: string, params: Record<string, unknown
     });
   }, [missionId]);
 
-  // **승인이 스캔을 쏜다.** 세션이 바뀔 때마다 조건을 다시 본다 — `shouldIssueScan()` 이
-  // 한 번만 참이 되도록 스스로 빗장을 건다(`markScanIssued`).
-  const session = useRobotSession();
-  useEffect(() => {
-    if (!shouldIssueScan()) return;
-    void issueScan(robotClient(), params);
-  }, [params, session.approved, session.scanIssued, session.connection.state]);
+  // **스캔 발행은 여기 없다** (260911). 그리기 타이밍에 매이면 두 판째에 안 나간다 —
+  // 같은 임무를 다시 올릴 때 `approved` 가 한 틱 안에 true → false → true 로 오가서,
+  // React 가 한 번의 그리기로 묶으면 의존값이 안 바뀐 것으로 보인다.
+  // `robotClient()` 가 만들 때 세션을 구독해 쏜다.
+  void params;
 }
