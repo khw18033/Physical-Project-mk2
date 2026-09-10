@@ -91,14 +91,18 @@
 |---|---|
 | seq | 증가 시퀀스 |
 | tms | 타임스탬프(ms) |
-| x, z | dead-reckoning 위치(m). z=전진축 |
-| yaw | 자세(**라디안**) — 진행 방향과 일치하도록 보정 |
+| x, z | dead-reckoning 위치(m). Unity world X,Z 와 동일 |
+| yaw | 자세(**라디안**). Unity `eulerAngles.y` 규약 — 시계방향 +, `+Z` 기준 |
 | vx, vy, wz | 현재 속도 |
 | estop | 1=정지 상태 |
 | mode | 로봇 모드. **99=경로완료 통지**, 98=취소 ACK |
 
 - 위치는 odometry가 있으면 그걸, 없으면 **명령속도 적분(dead-reckoning)** 으로 만든다.
 - Unity 가상 로봇은 이 스트림을 그대로 따라 움직인다(digital twin).
+- **좌표 규약은 [coordinate-contract.md](coordinate-contract.md) 가 정본이다.** 축·부호를
+  상위에서 다시 뒤집지 않는다(swap/invert/offset 전부 항등). 브리지 안에서 한 번만 맞춘다.
+- 이 스트림에는 **로봇 신원이 없다**(한 대 전용). 여러 대·여러 기종을 붙이려면
+  [multi-robot-contract.md](multi-robot-contract.md) 의 15200/15201 경로를 쓴다.
 
 ### 4.2 이동 여부 — 5009 (필수, 트윈 정합용)
 로봇이 실제 이동 중일 때 상위가 "가상이 실로봇을 따라가야 한다"를 알도록 하는 신호.

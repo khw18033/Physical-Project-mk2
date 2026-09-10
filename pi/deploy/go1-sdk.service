@@ -11,6 +11,11 @@
 #   --state_dead_restart 로봇 상태가 이 초 동안 안 오면 스스로 종료한다(systemd 가 재기동).
 #                        로봇 전원을 껐다 켜면 UDP 소켓이 막혀 상태를 못 받는데(실측),
 #                        프로세스를 새로 띄우는 것이 유일하게 확실한 복구다.
+#   --relay_ip/--robot_id  상태를 같은 파이의 robot-relay 로도 한 벌 더 보낸다(이중 발신).
+#                        릴레이가 신원(node_id/robot_type/robot_id)을 찍어 15201 로 넘긴다.
+#                        Unity 직결(15101)은 그대로 살아 있어 지금 동작은 바뀌지 않는다 —
+#                        나중에 릴레이 대상만 서버로 바꾸면 그대로 서버 경유가 된다
+#                        (docs/ARCHITECTURE_ALIGNMENT.md §2-3 1단계).
 [Unit]
 Description=Go1 SDK PC bridge (Unity/autonomy/teleop/mission)
 After=network-online.target
@@ -28,7 +33,7 @@ Type=simple
 User=physical
 WorkingDirectory=/home/physical/go1sdk
 StandardInput=null
-ExecStart=/home/physical/go1sdk/go1_sdk_pc --robot_ip 192.168.123.161 --unity_ip 192.168.50.244 --ack_ip 127.0.0.1 --ack_port 15106 --light_ip 192.168.123.13 --light_port 7801 --state_dead_restart 30
+ExecStart=/home/physical/go1sdk/go1_sdk_pc --robot_ip 192.168.123.161 --unity_ip 192.168.50.244 --ack_ip 127.0.0.1 --ack_port 15106 --light_ip 192.168.123.13 --light_port 7801 --state_dead_restart 30 --relay_ip 127.0.0.1 --relay_port 15200 --robot_id go1-1
 Restart=always
 RestartSec=2
 
