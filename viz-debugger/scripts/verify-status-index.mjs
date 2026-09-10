@@ -17,6 +17,7 @@
 //
 // 대조군 포함 — 한 칸 밀린 사본이 반드시 실패로 잡히는지까지 본다.
 
+import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
@@ -208,6 +209,71 @@ if (viewpointIndexOf(parseDetail(detailOf({ event: 'scan_turn', step: 3 }))) !==
   if (orphan.length !== 0) failures.push('모르는 command_id 가 노드를 건드렸다');
 }
 
+// ── 10. 목 uplink — 진짜와 같은 바이트를 내는가 ──────────────────────────────
+//
+// 목이 화면에 가짜 경로를 따로 두면 진짜가 붙는 날 그 경로만 안 고쳐진다. 그래서 목도
+// 봉투로 인코딩해서 내보내고 받는 쪽은 decodeUplink 를 그대로 지난다.
+{
+  const { mockScanUplink, mockAcceptance, mockResult } = await load('src', 'physical', 'mockUplink.ts');
+  const { decodeUplink } = await load('src', 'physical', 'uplink.ts');
+  const frames = mockScanUplink();
+
+  // 스캔 여덟 + door_turn 하나 = 아홉.
+  if (frames.length !== 9) failures.push(`목이 ${frames.length}건을 낸다 — 여덟 + door_turn 하나여야 한다`);
+
+  const decoded = frames.map((f) => decodeUplink(f.payload));
+  if (decoded.some((d) => d === null)) failures.push('목이 낸 바이트를 우리 디코더가 못 읽는다 — 같은 봉투가 아니다');
+
+  const details = decoded.map((d) => d?.detail);
+  // of 는 아홉으로 고정 (§5 「ACK 개수 — 확정」).
+  if (details.some((d) => d?.of !== 9)) failures.push('목의 of 가 9 가 아니다');
+
+  // step 1~8 이 index 0~7 로 간다.
+  const indexes = details.map((d) => viewpointIndexOf(d)).filter((i) => i !== null);
+  if (JSON.stringify(indexes) !== JSON.stringify([0, 1, 2, 3, 4, 5, 6, 7])) {
+    failures.push(`목을 흘렸더니 인덱스가 [${indexes.join(', ')}] — 0~7 이어야 한다`);
+  }
+
+  // **경고가 한 번은 나온다** — 조용히 정상으로 칠하는지 여기서 드러난다.
+  const warnings = details.map((d) => warningOf(d)).filter(Boolean);
+  if (warnings.length === 0) failures.push('목이 note 경고를 한 번도 안 낸다 — 경고 표시를 확인할 수 없다');
+  if (!warnings.includes('turn_timeout')) failures.push(`목의 경고가 ${warnings.join(', ')} — turn_timeout 이 있어야 한다`);
+
+  // **yaw_deg 가 null 인 경우도 한 번** — 모를 수 있다.
+  if (!details.some((d) => d?.yaw_deg === null)) failures.push('목이 yaw_deg null 을 한 번도 안 낸다');
+  // null 이어도 그 칸은 제 인덱스로 간다.
+  const nullOne = details.find((d) => d?.yaw_deg === null);
+  if (nullOne && viewpointIndexOf(nullOne) !== nullOne.step - 1) failures.push('yaw 가 null 인 걸음이 제 칸으로 안 간다');
+
+  // 마지막은 door_turn 이고 뷰포인트를 만들지 않는다.
+  const last = details[details.length - 1];
+  if (!isDoorTurn(last)) failures.push('목의 마지막이 door_turn 이 아니다');
+  if (viewpointIndexOf(last) !== null) failures.push('목의 door_turn 이 뷰포인트를 만들었다');
+
+  // 1초 회전 + 1초 유지 — 대본과 같은 박자다.
+  const gaps = new Set(frames.slice(1).map((f, i) => f.atSec - frames[i].atSec));
+  if (gaps.size !== 1 || ![...gaps][0] || [...gaps][0] !== 2) {
+    failures.push(`목의 간격이 ${[...gaps].join(', ')}초 — 2초(1초 회전 + 1초 유지)여야 한다`);
+  }
+
+  // 거절·끝도 같은 봉투다.
+  const rejected = decodeUplink(mockAcceptance('c', false));
+  if (rejected?.kind !== 'acceptance' || rejected.accepted !== false) failures.push('목 거절이 acceptance 로 안 온다');
+  if (rejected?.code !== 'robot_state_dead') failures.push('목 거절에 코드가 없다');
+  const ok = decodeUplink(mockResult('c', 'SUCCEEDED', { odo_m: 4.2 }));
+  if (ok?.kind !== 'result' || ok.status !== 'SUCCEEDED') failures.push('목 결과가 SUCCEEDED 로 안 온다');
+  if (Math.abs((ok?.result?.odo_m ?? 0) - 4.2) > 1e-9) failures.push('목 결과의 값이 깨졌다');
+  const aborted = decodeUplink(mockResult('c', 'ABORTED'));
+  if (aborted?.kind !== 'result' || aborted.status !== 'ABORTED') failures.push('목 ABORTED 가 안 온다');
+  if (!String(aborted?.code ?? '').trim()) failures.push('목 ABORTED 에 사유가 없다');
+
+  // **문 유무를 목이 만들지 않는다** (§6) — 로봇이 안 주는 것을 목이 주면 경계가 흐려진다.
+  const source = readFileSync(join(root, 'src', 'physical', 'mockUplink.ts'), 'utf8');
+  if (/door\s*:\s*(true|false)/.test(source)) {
+    failures.push('목이 문 유무를 만든다 — 그것은 대본이 주는 값이다');
+  }
+}
+
 // ── 대조군 ───────────────────────────────────────────────────────────────────
 function control(name, hit) {
   if (!hit) failures.push(`대조군 실패: ${name} — 변조 사본이 잡히지 않았다`);
@@ -247,4 +313,6 @@ console.log('✅ scan_turn 만 뷰포인트를 건드린다 — door_turn·forwa
 console.log('✅ note != ok 는 경고로 남는다 · yaw_deg: null 에서 안 깨진다 · 각도는 360 으로 감긴다');
 console.log('✅ door_turn 은 계기이지 노드가 아니다 — 뷰포인트를 만들지 않고 yaw 어긋남만 기록한다');
 console.log('✅ 로봇 사건 여덟이 대본과 같은 함수로 여덟 칸을 채운다 (fill.ts 는 출처를 모른다)');
+console.log('✅ 응답 매핑 — 거절 코드·문구 보존 · SUCCEEDED 완료 · 모르는 command_id 는 0건');
+console.log('✅ 목 uplink 아홉 건이 진짜와 같은 봉투 — 경고 한 번 · yaw null 한 번 · 2초 박자 · 문 유무는 안 만든다');
 console.log(`✅ 대조군 ${controls.length}건 전부 검출 — ${controls.join(' · ')}`);
