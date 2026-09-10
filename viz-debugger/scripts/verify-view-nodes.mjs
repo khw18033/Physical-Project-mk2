@@ -62,7 +62,14 @@ const CANVAS_FILES = ['types.ts', 'registry.ts', 'scope.ts', 'persist.ts', 'defa
 {
   const renderers = read('src', 'tabs', 'viewNodes.tsx');
   const kinds = [...renderers.matchAll(/kind:\s*'([^']+)'/g)].map((match) => match[1]);
-  check(kinds.length === 4, `뷰 노드 종류가 4종이 아니다: ${kinds.join(', ')}`);
+  // **이름을 못으로 박는다.** 개수만 세면 하나 지우고 하나 더한 것을 못 잡는다.
+  // 260910 에 `robot` 이 늘었다 — 실물 로봇 상태를 태스크 그래프에서도 보려는 것이고,
+  // 축 표에는 안 들어간다(대본과 무관하게 늘 살아 있어야 한다).
+  const EXPECTED = ['control', 'device-risk', 'metrics', 'robot', 'video'];
+  check(
+    [...kinds].sort().join(',') === EXPECTED.join(','),
+    `뷰 노드 종류가 [${EXPECTED.join(', ')}] 가 아니다: ${kinds.join(', ')}`,
+  );
   check(new Set(kinds).size === kinds.length, `종류가 중복됐다: ${kinds.join(', ')}`);
   // 요약과 확대는 **둘 다** 있어야 한다 (VZ-N-05). 하나만 있으면 그 종류는 확대할 수 없거나
   // 접을 수 없고, 「요약 ↔ 확대」로 표시 깊이를 바꾼다는 설계가 그 칸에서만 깨진다.

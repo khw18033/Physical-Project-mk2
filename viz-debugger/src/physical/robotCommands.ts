@@ -22,15 +22,16 @@
 import { commandTracker } from '../shared/commandCenter.ts';
 import type { CommandAck, CommandRequest } from '../transport/index.ts';
 import type { PhysicalAction } from './encode.ts';
-import { SDK_ACTIONS } from './presets.ts';
+import { PAUSE_ACTION, SDK_ACTIONS } from './presets.ts';
 import { NO_NODE } from './missionLink.ts';
 import { commandForTask, missionGeometry } from './missionLink.ts';
 import type { PhysicalClient } from './PhysicalClient.ts';
 import type { UplinkMessage } from './uplink.ts';
 import { STOP_ACTION, STOP_REASON } from './presets.ts';
 import {
-  canIssueRobotCommand, clearScanIssued, lockStopped, markApproachIssued, markScanIssued,
-  recordCommand, robotDrives, robotSession, type StopState,
+  canIssueRobotCommand, clearScanIssued, lockPaused, lockStopped, markApproachIssued, markScanIssued,
+  recordCommand, releasePaused, robotDrives, robotSession, runningTaskId,
+  type PauseState, type StopState,
 } from './robotSession.ts';
 
 export type IssueOutcome = {
@@ -258,6 +259,55 @@ export async function issuePing(
     off();
     if (timer !== null) clearTimeout(timer);
   }
+}
+
+/**
+ * **일시정지.** 정지와 뼈대가 같다 — 발행이 실패해도 멈춤은 그대로 일어난다.
+ *
+ *   1. `abort_mission` 발행    ← 실패할 수 있다
+ *   2. 타이머 정지 · 3. 새 명령 차단  ← **1의 결과와 무관하게 일어난다**
+ *
+ * 정지와 다른 점은 **아무것도 안 버린다**는 것뿐이다. 여덟 칸도 진행률도 문 방향도 그대로
+ * 남고, 재시작하면 그 자리에서 이어 간다.
+ */
+export async function pauseMission(client: PhysicalClient | null): Promise<PauseState> {
+  const taskId = runningTaskId();
+  let published = false;
+  let failure: string | null = null;
+  try {
+    if (client === null) failure = '브로커 연결 없음';
+    else {
+      const outcome = client.send(PAUSE_ACTION);
+      published = outcome.sent;
+      if (!outcome.sent) failure = outcome.reason ?? '보내지 못했습니다';
+    }
+  } catch (error) {
+    failure = error instanceof Error ? error.message : String(error);
+  }
+  // 2 · 3 — **위 결과를 보지 않는다.** 못 보냈어도 화면은 멈추고 크게 말한다.
+  return lockPaused(taskId, published, failure);
+}
+
+/**
+ * **재시작.** 멈춰 있던 태스크를 다시 낸다.
+ *
+ * **그 단계를 처음부터 다시 한다.** 로봇 규약에 이어 하기가 없어서다 — 스캔을 세 걸음째에
+ * 세웠으면 여덟 걸음을 다시 돈다. 화면이 그렇게 적어 둔다.
+ *
+ * 멈출 때 돌던 태스크가 없었으면(승인 직후에 눌렀다든지) 관문만 풀고 아무것도 안 쏜다 —
+ * 그때는 원래 흐름이 알아서 스캔을 낸다.
+ */
+export async function resumeMission(
+  client: PhysicalClient,
+  params: Record<string, unknown> | null,
+): Promise<IssueOutcome | null> {
+  const taskId = robotSession().paused?.taskId ?? null;
+  releasePaused();
+  if (taskId === null) return null;
+  if (taskId === 'T-A3') markScanIssued();      // 관문을 다시 걸어 두 번 안 나가게
+  const outcome = await issueTask(client, taskId, params);
+  if (taskId === 'T-A3' && (outcome === null || outcome.sent !== true)) clearScanIssued();
+  return outcome;
 }
 
 /**

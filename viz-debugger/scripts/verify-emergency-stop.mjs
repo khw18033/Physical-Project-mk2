@@ -21,7 +21,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 const root = join(fileURLToPath(new URL('.', import.meta.url)), '..');
 const load = (...p) => import(pathToFileURL(join(root, ...p)).href);
 
-const { emergencyStop, stopFailureMessage, issueScan } = await load('src', 'physical', 'robotCommands.ts');
+const { emergencyStop, stopFailureMessage, issueScan, pauseMission, resumeMission } = await load('src', 'physical', 'robotCommands.ts');
 const {
   resetRobotSession, markApproved, robotSession, registerTimer, releaseStopped,
   applyEffects, canIssueRobotCommand, setConnection, recordCommand,
@@ -261,6 +261,127 @@ resetRobotSession();
 resetViewpoint(MISSION);
 commandTracker.clear();
 
+// ── 6. 일시정지 — 멈추되 버리지 않는다 (260910 지시) ────────────────────────
+//
+// 「중단」을 없애고 그 동작을 「정지」에 넣었다. 대신 **일시정지**가 생겼다. 둘의 차이는
+// 하나뿐이다 — 정지는 진행상황을 종결하고, 일시정지는 그대로 남긴다.
+//
+// 뼈대는 정지와 같다: **발행이 실패해도 멈춤은 일어난다.**
+{
+  resetRobotSession();
+  setConnection({ state: 'open' });
+  markApproved();
+  const bot = client();
+  await issueScan(bot, { viewpoint_count: 8 });
+
+  // 로봇이 세 걸음 돌았다 — 이 진행상황이 살아남아야 한다.
+  const before = robotSession().progress;
+  applyEffects([{ kind: 'progress', ack: 3, of: 9 }]);
+  const progressed = robotSession().progress;
+  if (progressed === null) failures.push('진행률이 안 실렸다 — 검사가 헛돈다');
+
+  let stopped = false;
+  const release = registerTimer(() => { stopped = true; });
+  const paused = await pauseMission(bot);
+
+  if (robotSession().paused === null) failures.push('일시정지를 눌렀는데 세션이 안 멈췄다');
+  if (!stopped) failures.push('일시정지가 타이머를 안 멈춘다 — 화면이 계속 흐른다');
+  if (canIssueRobotCommand()) failures.push('일시정지 중인데 새 명령을 내도 된다고 한다');
+  // **핵심** — 아무것도 안 버린다.
+  if (robotSession().progress === null) failures.push('일시정지가 진행률을 버렸다 — 그것은 정지가 할 일이다');
+  if (robotSession().stopped !== null) failures.push('일시정지가 화면을 잠갔다 — 정지와 같아져 버린다');
+  if (paused.published !== true) failures.push('일시정지가 로봇에 안 나갔다');
+  if (bot.sent.at(-1)?.action !== 'abort_mission') {
+    failures.push(`일시정지가 ${bot.sent.at(-1)?.action} 을 쏜다 — abort_mission 이어야 한다`);
+  }
+  release();
+  if (before === progressed) failures.push('진행률이 안 바뀌었다 — 검사가 헛돈다');
+}
+{
+  // **발행이 실패해도 멈춘다.** 정지와 같은 뼈대다.
+  resetRobotSession();
+  setConnection({ state: 'open' });
+  markApproved();
+  let timerStopped = false;
+  registerTimer(() => { timerStopped = true; });
+  const paused = await pauseMission(null);   // 연결 없음
+  if (robotSession().paused === null) failures.push('못 보냈다고 일시정지를 안 걸었다');
+  if (!timerStopped) failures.push('못 보냈다고 타이머를 안 멈췄다');
+  if (paused.published !== false || paused.failure === null) {
+    failures.push('못 보냈는데 조용하다 — 크게 말해야 한다');
+  }
+}
+{
+  // **재시작** — 멈춰 있던 단계를 다시 낸다. 승인은 다시 안 받는다.
+  resetRobotSession();
+  setConnection({ state: 'open' });
+  markApproved();
+  const bot = client();
+  await issueScan(bot, { viewpoint_count: 8 });
+  await pauseMission(bot);
+  const sentBefore = bot.sent.length;
+  await resumeMission(bot, { viewpoint_count: 8 });
+
+  if (robotSession().paused !== null) failures.push('재시작했는데 아직 멈춰 있다');
+  if (!robotSession().approved) failures.push('재시작이 승인을 내렸다 — 사람이 이미 승인한 임무다');
+  if (bot.sent.length !== sentBefore + 1) {
+    failures.push(`재시작이 명령을 ${bot.sent.length - sentBefore}건 냈다 — 하나여야 한다`);
+  }
+  if (bot.sent.at(-1)?.action !== 'scan_mission') {
+    failures.push(`재시작이 ${bot.sent.at(-1)?.action} 을 냈다 — 멈출 때 돌던 단계여야 한다`);
+  }
+}
+
+// ── 7. 「중단」이 사라지고 셋만 남았는가 (소스) ──────────────────────────────
+//
+// 전에는 「■ 정지」가 게이트웨이로 `mission_pause` 를 쏘다 거절되고, 그 옆의 「■ 중단」만
+// 실제로 로봇을 멈췄다 — **같은 뜻의 버튼이 둘인데 하나만 동작했다.**
+{
+  const buttons = readFileSync(join(root, 'src', 'physical', 'StopButton.tsx'), 'utf8');
+  const strip = (t) => t.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
+  for (const [name, mark] of [['StopButton', '■ 정지'], ['PauseButton', '⏸'], ['ResumeButton', '▶ 재시작']]) {
+    if (!buttons.includes(`export function ${name}`)) failures.push(`${name} 이 없다`);
+    if (!buttons.includes(mark)) failures.push(`${name} 의 글씨(${mark})가 없다`);
+  }
+  if (strip(buttons).includes('중단')) failures.push('「중단」이 남아 있다 — 정지에 합쳤다');
+  for (const bar of [['src', 'shell', 'AppShell.tsx'], ['src', 'views', 'TopBar.tsx']]) {
+    const source = strip(readFileSync(join(root, ...bar), 'utf8'));
+    if (/mission_(pause|resume)/.test(source)) {
+      failures.push(`${bar.at(-1)} 이 아직 게이트웨이로 mission_pause 를 쏜다 — 거절되는 명령이다`);
+    }
+    for (const name of ['StopButton', 'PauseButton', 'ResumeButton']) {
+      if (!source.includes(`<${name} />`)) failures.push(`${bar.at(-1)} 에 ${name} 이 없다`);
+    }
+  }
+}
+
+// ── 8. 정지 버튼이 실제로 보이는가 (260910 실측으로 드러난 자리) ────────────
+//
+// **흰 글씨에 흰 바탕이었다.** 셸 머리줄의 `.global-bar button` 이 `background:#fff` 를
+// 걸고 그쪽이 더 구체적이라, `.robot-stop` 의 빨간 바탕이 덮였다. 화면에는 **빈 상자**가
+// 떴고 예전 「중단」도 내내 그 상태였다.
+//
+// 「크고, 색이 다르고, 다른 버튼과 떨어져 있다」가 이 버튼의 규칙인데 그중 둘이 죽어
+// 있었다. 눌러야 할 때 안 보이는 정지 버튼이 이 기능의 최악이다.
+{
+  const css = readFileSync(join(root, 'src', 'style.css'), 'utf8');
+  // 머리줄 규칙보다 특정도가 낮으면 또 덮인다 — `button.` 을 붙여 맞춘다.
+  for (const name of ['robot-stop', 'robot-pause', 'robot-resume']) {
+    if (!new RegExp(`button\.${name}\{`).test(css)) {
+      failures.push(`.${name} 의 특정도가 낮다 — .global-bar button 이 바탕을 덮어 빈 상자가 된다`);
+    }
+  }
+  // 검사가 헛돌지 않게 — 덮는 규칙이 실제로 있는지 확인한다.
+  if (!/\.global-bar button[^{]*\{[^}]*background:#fff/.test(css)) {
+    failures.push('덮는 규칙(.global-bar button)이 사라졌다 — 이 검사의 전제가 없어졌다');
+  }
+  // 정지는 빨간 바탕에 흰 글씨여야 한다. 옆 버튼과 색이 같으면 못 찾는다.
+  const stop = css.match(/button\.robot-stop\{([^}]*)\}/)?.[1] ?? '';
+  if (!/background:#d5322b/.test(stop) || !/color:#fff/.test(stop)) {
+    failures.push('정지 버튼이 빨간 바탕·흰 글씨가 아니다 — 다른 버튼과 구별되지 않는다');
+  }
+}
+
 if (failures.length) {
   console.error(`❌ verify:emergency-stop\n- ${failures.join('\n- ')}`);
   process.exit(1);
@@ -270,6 +391,8 @@ console.log('✅ 타이머·폴링이 끊긴다 · 화면이 잠기고 「정지
 console.log('✅ 연결이 없어도 눌린다 — 못 보내면 「보내지 못했습니다」를 띄운다 (조용히 성공한 척 안 한다)');
 console.log('✅ 발행이 실패해도·예외를 던져도·클라이언트가 없어도 화면은 잠긴다 (발행과 잠금이 갈려 있다)');
 console.log('✅ 규약 그대로 — action 은 상수 하나 · 파라미터는 reason 뿐 · abort 는 자기 command_id');
-console.log('✅ 기존 「■ 중단」을 살렸다 — 두 셸 다 그리고, disabled 도 confirm 도 없다');
+console.log('✅ 일시정지 — 멈추되 진행률을 남긴다 · 못 보내도 멈춘다 · 재시작이 그 단계를 다시 낸다');
+console.log('✅ 정지 버튼이 빨간 바탕에 흰 글씨로 보인다 — 머리줄 규칙에 안 덮인다 (빈 상자였다)');
+console.log('✅ 「중단」은 사라지고 정지·일시정지·재시작 셋만 — 두 셸 다 그리고, disabled 도 confirm 도 없다');
 console.log(`✅ 대조군 ${controls.length}건 전부 검출 — ${controls.join(' · ')}`);
 process.exit(0);

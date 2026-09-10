@@ -63,6 +63,13 @@ import { METRICS, MetricsView } from './views/MetricsView.tsx';
 import { RiskPanel } from './views/RiskPanel.tsx';
 import { VideoOverlayView } from './views/VideoOverlayView.tsx';
 import { ZoneMapMini } from './views/ZoneMapMini.tsx';
+import { DeviceFacts, sdkWords } from '../physical/DeviceFacts.tsx';
+import { useDeviceStates } from '../physical/deviceState.ts';
+import { hardwareTarget } from '../physical/encode.ts';
+import { useRobotSession } from '../physical/robotSession.ts';
+
+/** 화면이 쓰는 로봇 id. 하드웨어 id 로 바꾸는 것은 경계 안쪽(`hardwareTarget`) 일이다. */
+const ROBOT_ENTITY = 'robot-01';
 
 const RISK_LABEL: Record<RiskState['level'], string> = { normal: '평시', watch: '관찰', alert: '경보', recovery: '복구' };
 
@@ -242,7 +249,71 @@ function VideoStill() {
  * 내려앉은 자리다. 대본이 그 노드의 축을 하나도 몰지 않으면 이미 놓인 카드가 「이 대본엔
  * 없음」으로 갈음되고, 팔레트 버튼은 흐려지되 막히지 않는다.
  */
+
+/**
+ * **로봇 노드** (260910 지시 — 「노드 그래프에서도 확인할 수 있게」).
+ *
+ * 하드웨어 카드에도 같은 값이 있지만 그 카드는 마일스톤 화면에만 있다. 로봇이 도는 동안
+ * 태스크 그래프를 보고 있으면 배터리도 링크도 안 보인다 — 실제로 그 화면에서 시연을 본다.
+ *
+ * ## 자리표시로 감싸지 않는다
+ *
+ * 다른 네 노드는 `PendingSource` 로 감싼다. 남이 줄 데이터라 일반 모드에서는 「누가 줄
+ * 값인지」를 그려야 하기 때문이다. **이 노드의 값은 지금 실제로 오고 있다** —
+ * 장비 상태 채널이 5초마다 민다(주소·토픽은 `src/physical/` 경계 안에 있다). 오는 값을 가리면
+ * 「연결 전 테스트처럼 보인다」는 지적으로 되돌아간다.
+ *
+ * 안 오는 값은 감추는 것이 아니라 **줄을 아예 안 그린다**(`DeviceFacts` 와 같은 규칙).
+ */
+function RobotBody() {
+  const session = useRobotSession();
+  const devices = useDeviceStates();
+  const device = devices[hardwareTarget(ROBOT_ENTITY)] ?? null;
+
+  // 접힘 카드는 **확대하지 않고도 이상함을 알아챌 수 있는 값**만 담는다 (VZ-N-05).
+  const bad = device === null
+    || device.online === false
+    || (device.link !== null && device.link !== 'ok')
+    || (device.batteryPct !== null && device.batteryPct < 20);
+
+  return <div className={`robot-node${bad ? ' robot-node--bad' : ''}`}>
+    <div className="robot-node-row">
+      <b>{ROBOT_ENTITY}</b>
+      <span>{session.connection.state === 'open' ? '브로커 ✓' : '브로커 ✕'}</span>
+      {device === null
+        ? <span>장비 상태 미수신</span>
+        : <>
+          <span>{device.online === true ? '온라인' : device.online === false ? '오프라인' : '생사 미상'}</span>
+          {device.link !== null && <span>링크 {device.link}</span>}
+          {/* null 은 「모른다」다 — 0% 로 그리지 않는다 (연동 가이드 §3-3). */}
+          {device.batteryPct !== null && <span>배터리 {device.batteryPct}%</span>}
+          {device.mode !== null && <span>{device.mode}</span>}
+          <span title="구동 브리지 — 평시에는 내려가 있습니다">
+            구동 {sdkWords(device.sdkReady, device.sdkAutostart)}
+          </span>
+        </>}
+    </div>
+    <div className="robot-node-row robot-node-row--sub">
+      {/* 지금 무엇을 하고 있나 — 진행률과 단계. 둘 다 없으면 아무 말도 안 한다. */}
+      {session.progress !== null && <span>진행 {session.progress.ack}/{session.progress.of}</span>}
+      {session.stage !== null && <span>{session.stage}</span>}
+      {session.paused !== null && <b className="robot-node-flag">일시정지</b>}
+      {session.stopped !== null && <b className="robot-node-flag">정지됨</b>}
+      {session.progress === null && session.stage === null
+        && session.paused === null && session.stopped === null && <span>대기 중</span>}
+    </div>
+  </div>;
+}
+
 export const VIEW_NODE_RENDERERS: readonly ViewNodeEntry[] = [
+  {
+    kind: 'robot',
+    label: '로봇',
+    hint: '실물 로봇의 지금 상태 — 링크·배터리·구동 브리지·진행. 대본이 아니라 장비가 미는 값이다',
+    // **자리표시로 감싸지 않는다** — 지금 실제로 오고 있는 값이다.
+    summary: () => <NodeGate kind="robot"><RobotBody /></NodeGate>,
+    zoom: () => <NodeGate kind="robot"><DeviceFacts entityId={ROBOT_ENTITY} /></NodeGate>,
+  },
   {
     kind: 'device-risk',
     label: '장치 · 위험',

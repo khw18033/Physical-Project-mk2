@@ -36,6 +36,28 @@ export type StopState = {
   failure: string | null;
 };
 
+/**
+ * **일시정지.** 정지와 다른 점은 하나다 — **진행상황을 안 버린다.**
+ *
+ *   정지    로봇을 멈추고 화면을 잠근다. 여덟 칸도 진행률도 종결된다. 다시 승인해야 한다
+ *   일시정지 로봇을 멈추지만 여덟 칸·진행률·문 방향은 그대로 둔다. 재시작하면 이어 간다
+ *
+ * ## 로봇에는 「이어 하기」가 없다
+ *
+ * 규약에 일시정지도 재개도 없다(연동 가이드 §4-2). 우리가 할 수 있는 것은 `abort_mission`
+ * 으로 **돌던 임무를 접는 것**뿐이다. 그래서 재시작은 멈춘 지점부터가 아니라 **그 단계를
+ * 처음부터** 다시 낸다. 화면이 그렇게 말한다 — 「이어서 간다」고 적어 두면 발표자가
+ * 로봇이 세 걸음째부터 돌 줄 알고 기다린다.
+ */
+export type PauseState = {
+  atIso: string;
+  /** 멈출 때 돌던 태스크. 재시작이 다시 낼 명령이 이것이다. 없었으면 null. */
+  taskId: string | null;
+  /** `abort_mission` 이 실제로 나갔는가. **화면 멈춤과 별개다.** */
+  published: boolean;
+  failure: string | null;
+};
+
 /** 태스크 하나가 로봇에 낸 명령. 응답이 어느 노드의 것인지 이걸로 안다. */
 export type TaskCommandRecord = {
   taskId: string;
@@ -73,6 +95,8 @@ export type RobotSession = {
   approved: boolean;
   /** 잠김. `null` 이면 안 잠겼다. */
   stopped: StopState | null;
+  /** 일시정지됨. `null` 이면 안 멈췄다. **진행상황은 그대로 남아 있다.** */
+  paused: PauseState | null;
   /** 마지막 `ping` 왕복. 발표 직전에 이걸 보고 무대에 오른다. */
   ping: { ok: boolean; roundTripMs: number | null; message: string } | null;
   /** 승인한 시각(ms). 로봇이 몰 때 「몇 초째인가」의 기준이다. 승인 전에는 null. */
@@ -112,6 +136,7 @@ const EMPTY: RobotSession = {
   approachIssued: false,
   approved: false,
   stopped: null,
+  paused: null,
   ping: null,
   approvedAtMs: null,
   stage: null,
@@ -334,5 +359,32 @@ export function releaseStopped(): void {
 
 /** 지금 로봇 명령을 내도 되는가. 승인 전과 정지 뒤에는 안 된다. */
 export function canIssueRobotCommand(): boolean {
-  return session.approved && session.stopped === null;
+  return session.approved && session.stopped === null && session.paused === null;
+}
+
+/**
+ * **일시정지를 건다.** 정지와 같은 뼈대다 — 발행이 실패해도 2·3 은 그대로 일어난다.
+ * 다른 점은 **아무것도 안 버린다**는 것뿐이다. 여덟 칸도 진행률도 문 방향도 그대로다.
+ */
+export function lockPaused(taskId: string | null, published: boolean, failure: string | null): PauseState {
+  stopAllTimers();
+  const paused: PauseState = { atIso: new Date().toISOString(), taskId, published, failure };
+  commit({ ...session, paused });
+  return paused;
+}
+
+/**
+ * **일시정지를 푼다.** 정지 해제와 달리 **승인을 안 내린다** — 사람이 이미 승인한 임무를
+ * 잠깐 세웠다가 이어 가는 것이라 다시 승인을 받을 이유가 없다.
+ *
+ * `scanIssued` 는 내린다. 재시작이 그 단계를 다시 내야 하기 때문이다.
+ */
+export function releasePaused(): void {
+  commit({ ...session, paused: null, scanIssued: false, approachIssued: false });
+}
+
+/** 지금 로봇이 돌리고 있는 태스크. 재시작이 무엇을 다시 낼지 정하는 재료다. */
+export function runningTaskId(): string | null {
+  const running = Object.values(session.commands).find((c) => c.state === 'running' || c.state === 'issued');
+  return running?.taskId ?? null;
 }

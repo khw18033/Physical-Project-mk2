@@ -88,10 +88,20 @@ export function axesOfScript(script: ScriptScenario): ReadonlySet<ScenarioAxis> 
 // 안**에 있다(verify:standalone). 그래서 **id 만** 여기 두고 **이름(label)은 두지 않는다** —
 // 이름의 원천은 등록된 렌더러다(`VZ-N-01`). `verify:node-scope` 가 둘을 대조한다.
 
-export type ViewNodeKindId = 'device-risk' | 'control' | 'metrics' | 'video';
+export type ViewNodeKindId = 'device-risk' | 'control' | 'metrics' | 'video' | 'robot';
 
 /** 표에 등장하는 종류들. 등록된 렌더러와 어긋나면 `verify:node-scope` 가 잡는다. */
-export const SCENARIO_NODE_KINDS: readonly ViewNodeKindId[] = ['device-risk', 'control', 'metrics', 'video'];
+export const SCENARIO_NODE_KINDS: readonly ViewNodeKindId[] =
+  ['device-risk', 'control', 'metrics', 'video', 'robot'];
+
+// `robot` 은 **축 표(`AXIS_NODES`)에 없다** — 일부러다 (260910).
+//
+// 축 표는 「이 대본이 이 축을 안 몰면 그 노드를 접는다」를 판정하는 재료이고, 로봇 노드가
+// 그리는 것은 **대본이 아니라 실물 장비의 지금 상태**다. 대본과 무관하게 늘 살아 있어야
+// 하고, 실제로 `NodeGate` 는 패널이 하나도 없는 노드를 늘 그린다.
+//
+// 그래서 접힘 판정도 안 받고 팔레트에서 흐려지지도 않는다 — 실행 노드가 표에 없는 것과
+// 같은 이유다.
 
 /**
  * 이 축이 나타나는 뷰 노드. **실행 노드(태스크 그래프)는 이 표에 없다** — 임무 축이라

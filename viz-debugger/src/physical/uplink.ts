@@ -23,8 +23,16 @@ import { physical } from './protocol.js';
 
 /** `CommandStatus.detail` 안의 JSON. 하드웨어가 보내는 그대로다. */
 export type StatusDetail = {
+  /** **이번 임무의** ACK 순번. 진행률은 이걸 쓴다 (연동 가이드 §5 · 260910 갱신). */
   ack: number;
   of: number;
+  /**
+   * 로봇 원본 카운터. **진행률에 쓰지 않는다** — 브리지가 사는 동안 누적된다.
+   *
+   * 예전에는 `ack` 자체가 이렇게 누적돼서 화면이 「31 / 10」을 띄웠다. 하드웨어가
+   * `ack` 를 임무별로 돌리고 원본을 이 칸으로 옮겼다. 안 오면 null 이다.
+   */
+  ackSeq: number | null;
   event: 'scan_turn' | 'door_turn' | 'forward' | 'aborted' | string;
   step: number;
   steps: number;
@@ -97,6 +105,7 @@ export function parseDetail(raw: string): StatusDetail | null {
   return {
     ack: typeof d.ack === 'number' ? d.ack : 0,
     of: typeof d.of === 'number' ? d.of : 0,
+    ackSeq: typeof d.ack_seq === 'number' ? d.ack_seq : null,
     event: d.event,
     step: d.step,
     steps: typeof d.steps === 'number' ? d.steps : 0,
@@ -190,11 +199,18 @@ export function isDoorTurn(detail: StatusDetail | null): boolean {
 }
 
 /**
- * `door_turn` 이 고른 걸음이 몇 번째인가 (260910 — 「로봇이 고른 각도가 곧 화면이 고른 각도」).
+ * `door_turn` 이 **돌아선 방향이 몇 번째 걸음인가**.
  *
- * 예전에는 화면이 대본으로 고른 각도와 로봇의 `yaw_deg` 를 **대조해 어긋남을 표시**했다.
- * 그걸 없앴다 — 어긋남을 보여 줄 것이 아니라 **로봇이 고른 쪽을 따라야** 한다. 로봇이 문이
- * 있다고 판단해 몸을 돌린 그 방향이 곧 초록 칸이다.
+ * ## 이것은 탐지 결과가 아니다 (연동 가이드 §5-3 · 260910 갱신)
+ *
+ * 한동안 「로봇이 문으로 판단한 방향」으로 읽고 그렇게 화면에 적었다. **틀렸다.**
+ * 하드웨어 쪽이 못박았다 — 문 탐지 기능은 아직 없고, `door_turn` 의 회전 목표는
+ * `-step_deg × (steps-1)` 로 **고정된 기하값**이다. 한 바퀴 돈 뒤 왼쪽으로 한 칸
+ * 되돌아오는 것뿐이고, 로봇이 방향을 고르는 절차는 존재하지 않는다.
+ *
+ * 그래서 이 함수가 내놓는 것은 「로봇이 고른 칸」이 아니라 **「로봇이 지금 바라보는 칸」**
+ * 이다. 화면 문구도 그렇게 적는다. 문 유무는 탐지 담당이 붙을 때까지 **비어 있는 것이
+ * 맞다** — 지어 채우지 않는다.
  *
  * ## 절대 각도로 고르지 않는다
  *
@@ -211,14 +227,18 @@ export function chosenIndexOf(
   if (detail === null || !isDoorTurn(detail)) return null;
   const seen = seenYawByIndex ?? new Map();
 
-  // **`step` 을 믿지 않는다** (260910 실측). `door_turn` 의 `step` 은 고른 걸음이 아니라
-  // **늘 1** 이다 — 실제 로그:
+  // **방위로 견준다.** `step` 이 아니라.
+  //
+  // 실측에서 `door_turn` 의 `step` 은 **늘 1** 이었다:
   //
   //   ack 129 step 8 scan_turn  yaw 180
-  //   ack 130 step 1 door_turn  yaw 225   ← 고른 것은 yaw 225 인 7번째 걸음이다
+  //   ack 130 step 1 door_turn  yaw 225   ← 돌아선 곳은 yaw 225 인 7번째 걸음이다
   //
-  // 그래서 **방위로 견준다.** 같은 판의 회전 걸음들이 보고한 yaw 와 맞춰 보면 기준점이
-  // 어디든 상관없다(연동 가이드 §5-3 — 절대 각도는 기준점이 움직인다).
+  // 갱신된 가이드는 이제 해당 스캔 걸음 번호를 싣는다고 하지만(기본값이면 늘 7),
+  // **방위 견주기는 옛 노드에서도 새 노드에서도 옳다** — yaw 는 돌아선 뒤의 실제 방위라
+  // 어느 쪽이든 같은 답을 준다. 그래서 굳이 갈아타지 않는다.
+  //
+  // 절대 각도를 안 쓰고 **같은 판의 값끼리만** 견주므로 기준점이 움직여도(§5-2) 상관없다.
   if (detail.yaw_deg !== null && seen.size > 0) {
     return closestIndex(seen, detail.yaw_deg);
   }

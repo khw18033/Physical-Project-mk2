@@ -60,6 +60,21 @@ export function RobotPanel({ client, params }: {
   return <section className="robot-panel">
     {/* 정지 실패는 가장 위에, 크게. **조용히 성공한 척하는 것이 최악이다.** */}
     {failure !== null && <p className="robot-stopfail" role="alert">{failure}</p>}
+    {/*
+      **일시정지 중.** 정지와 다른 띠다 — 잠긴 것이 아니라 멈춰 있는 것이고, 여덟 칸도
+      진행률도 그대로 남아 있다. 재시작이 무엇을 할지 **미리 적는다**: 로봇에 이어 하기가
+      없어서 그 단계를 처음부터 다시 한다. 「이어서 간다」고 읽으면 발표자가 세 걸음째부터
+      돌 줄 알고 기다린다.
+    */}
+    {session.paused !== null && <p className="robot-paused">
+      <b>일시정지</b> {new Date(session.paused.atIso).toLocaleTimeString()}
+      {session.paused.published ? ' · 로봇에 정지를 보냈습니다' : ' · 로봇에 못 보냈습니다'}
+      {session.paused.failure !== null && <em> — {session.paused.failure}</em>}
+      <span>진행상황은 그대로 있습니다. 재시작하면 {session.paused.taskId === null
+        ? '멈춘 자리에서 다시 시작합니다'
+        : `${session.paused.taskId} 를 처음부터 다시 합니다 — 로봇에 이어 하기가 없습니다`}.</span>
+    </p>}
+
     {stopped !== null && <p className="robot-locked">
       <b>정지됨</b> {new Date(stopped.atIso).toLocaleTimeString()}
       {stopped.published && ' · 정지 명령을 보냈습니다'}
@@ -117,9 +132,6 @@ export function RobotPanel({ client, params }: {
           머리줄은 늘 떠 있고 이 패널은 마일스톤 화면에만 있다. */}
     </div>
 
-    {/* **어긋남을 보여 주지 않는다** (260910 지적). 로봇이 고른 쪽이 곧 화면이 고른
-        쪽이므로 어긋날 것이 없다 — 로봇이 문으로 판단한 칸에 초록이 켜지고 거기서
-        「문에 접근한다」로 선이 이어진다. */}
     {/*
       **로봇이 이미 걸었다** (260910 실측).
 
@@ -133,11 +145,21 @@ export function RobotPanel({ client, params }: {
       직진 없이(<code>forward_m 0</code>) 보냈는데도 왔습니다. 「접근 시작」을 누르면 한 번 더 갑니다.
     </p>}
 
+    {/*
+      **「문으로 판단했다」고 쓰면 안 된다** (연동 가이드 §5-3 · 260910 갱신).
+
+      한동안 그렇게 적었다. 틀렸다 — **문 탐지 기능이 아직 없다.** `door_turn` 의 회전
+      목표는 `-step_deg × (steps-1)` 로 고정된 기하값이고, 로봇이 방향을 고르는 절차는
+      존재하지 않는다. 초록 칸은 「찾았다」가 아니라 **「지금 이쪽을 보고 있다」**다.
+
+      문 유무는 탐지 담당이 붙을 때까지 **비어 있는 것이 맞다.** 지어 채우지 않는다.
+    */}
     {session.doorTurn !== null && <p className="robot-door">
-      로봇이 {session.doorTurn.chosenIndex === null
-        ? '문 방향으로 돌았습니다 — 어느 걸음인지는 못 짚었습니다'
-        : `${session.doorTurn.chosenIndex + 1}번째 방향을 문으로 판단했습니다`}
+      {session.doorTurn.chosenIndex === null
+        ? '로봇이 방향을 틀었습니다 — 어느 걸음인지는 못 짚었습니다'
+        : `로봇이 ${session.doorTurn.chosenIndex + 1}번째 방향을 보고 있습니다`}
       {session.doorTurn.yawDeg !== null && ` (${session.doorTurn.yawDeg}°)`}
+      <small>정해진 방향입니다 — 문 탐지는 아직 안 붙었습니다</small>
     </p>}
 
     {/*

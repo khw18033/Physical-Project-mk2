@@ -1,11 +1,20 @@
 /**
- * src/physical/StopButton.tsx (260910 신설 — 화면 연결 §4)
+ * src/physical/StopButton.tsx (260910 신설 — 화면 연결 §4 · 같은 날 셋으로 정리)
  *
- * **화면에 이미 있던 「■ 중단」을 살린 것이다.** 새 버튼이 아니라, 셸(`AppShell`)과 단독
- * 상단 바(`TopBar`)가 각자 그리던 그 버튼을 한 부품으로 모아 실제로 동작하게 했다.
- * 두 곳에 같은 동작을 손으로 적으면 언젠가 한쪽만 고쳐진다.
+ * **머리줄의 임무 조작 셋.** 어느 화면에 있든 늘 떠 있다.
  *
- * ## 지키는 것 넷
+ *   ■ 정지     로봇을 멈추고 **끝낸다.** 진행상황도 종결되고 화면이 잠긴다
+ *   ⏸ 일시정지 로봇을 멈추지만 **아무것도 안 버린다.** 여덟 칸도 진행률도 그대로
+ *   ▶ 재시작   멈춰 있던 단계를 다시 낸다
+ *
+ * ## 「중단」을 없애고 「정지」에 합쳤다 (260910 지시)
+ *
+ * 전에는 「■ 정지」와 「■ 중단」이 나란히 있었다. 정지는 게이트웨이로 `mission_pause` 를
+ * 쏘다가 「지원하지 않는 action」으로 거절됐고, 실제로 로봇을 멈추는 것은 중단뿐이었다 —
+ * **같은 뜻의 버튼이 둘인데 하나만 동작하는** 상태였다. 발표장에서 어느 쪽을 눌러야 하는지
+ * 아는 사람이 없다. 그래서 동작하는 쪽을 「정지」라는 이름에 넣고 중단을 지웠다.
+ *
+ * ## 지키는 것 넷 (셋 다 같다)
  *
  *  - **어느 화면에 있든 보인다** — 머리줄에 있으므로 마일스톤이든 뷰 노드든 늘 떠 있다
  *  - **확인 대화상자를 띄우지 않는다** — 한 번 누르면 멈춘다
@@ -19,9 +28,10 @@
  * 든 사람이 옆에 있어야 한다.
  */
 
-import { emergencyStop } from './robotCommands.ts';
+import { emergencyStop, pauseMission, resumeMission } from './robotCommands.ts';
 import { robotClient } from './robotClient.ts';
 import { useRobotSession } from './robotSession.ts';
+import { currentMission } from '../data/scenario.ts';
 
 export function StopButton() {
   const session = useRobotSession();
@@ -31,8 +41,44 @@ export function StopButton() {
     className={`robot-stop${locked ? ' robot-stop--locked' : ''}`}
     // **비활성화하지 않는다.** 연결이 없어도 누를 수 있어야 한다 — 2·3·4 는 그래도 일어난다.
     onClick={() => void emergencyStop(robotClient())}
-    title="로봇을 즉시 멈춥니다 — 화면의 정지는 소프트웨어 정지입니다"
+    title="로봇을 멈추고 임무를 끝냅니다 — 진행상황이 종결되고 다시 승인해야 합니다"
   >
-    ■ 중단
+    ■ 정지
+  </button>;
+}
+
+/**
+ * **일시정지.** 정지와 뼈대가 같고 버리는 것만 다르다.
+ *
+ * 이미 멈춰 있으면 누른 시각을 보여 준다 — 두 번 눌러도 해로울 것은 없지만, 눌렀는데
+ * 아무 변화가 없으면 「안 먹었나」가 된다.
+ */
+export function PauseButton() {
+  const session = useRobotSession();
+  const paused = session.paused !== null;
+  return <button
+    type="button"
+    className={`robot-pause${paused ? ' robot-pause--held' : ''}`}
+    onClick={() => void pauseMission(robotClient())}
+    title="로봇을 멈추되 진행상황은 그대로 둡니다 — 재시작하면 그 단계를 다시 합니다"
+  >
+    {paused ? '⏸ 멈춰 있음' : '⏸ 일시정지'}
+  </button>;
+}
+
+/**
+ * **재시작.** 멈춰 있던 단계를 다시 낸다.
+ *
+ * **비활성화하지 않는다.** 멈춰 있지 않을 때 눌러도 관문만 풀고 아무것도 안 쏜다 —
+ * 회색 버튼을 보고 「왜 안 눌리지」를 묻는 것보다 낫다.
+ */
+export function ResumeButton() {
+  return <button
+    type="button"
+    className="robot-resume"
+    onClick={() => void resumeMission(robotClient(), currentMission().params)}
+    title="멈춰 있던 단계를 다시 냅니다 — 로봇에 이어 하기가 없어 그 단계를 처음부터 합니다"
+  >
+    ▶ 재시작
   </button>;
 }

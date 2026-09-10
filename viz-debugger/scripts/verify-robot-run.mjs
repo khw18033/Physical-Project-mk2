@@ -189,6 +189,28 @@ const run = replay();
   if (libraryEntry('MSN-260826-01')?.world !== 'legacy') failures.push('옛 편이 legacy 가 아니다 — 검사가 헛돈다');
 }
 
+// ── 6. 「문으로 판단했다」고 쓰지 않는다 (가이드 §5-3 · 260910 갱신) ─────────
+//
+// 한동안 그렇게 적었다. 틀렸다 — **문 탐지 기능이 아직 없다.** `door_turn` 의 회전 목표는
+// `-step_deg × (steps-1)` 로 고정된 기하값이고, 로봇이 방향을 고르는 절차는 존재하지 않는다.
+// 초록 칸은 「찾았다」가 아니라 「지금 이쪽을 보고 있다」다.
+//
+// 문 유무는 탐지 담당이 붙을 때까지 **비어 있는 것이 맞다.** 지어 채우면 시연에서
+// 「로봇이 문을 찾았다」는 거짓을 말하게 된다.
+{
+  const claims = /문으로\s*판단|문을\s*찾았|판단했습니다/;
+  for (const file of [['src', 'physical', 'RobotPanel.tsx'], ['src', 'physical', 'robotBridge.ts']]) {
+    const source = code(read(...file));
+    if (claims.test(source)) {
+      failures.push(`${file.at(-1)} 이 아직 「문으로 판단」이라고 말한다 — 탐지 기능이 없다 (§5-3)`);
+    }
+  }
+  // 대신 「보고 있다」로 적는가 — 지웠는데 아무 말도 안 하면 화면이 비어 버린다.
+  const panel = code(read('src', 'physical', 'RobotPanel.tsx'));
+  if (!/보고 있습니다/.test(panel)) failures.push('돌아선 방향을 아예 안 말한다 — 다음 걸음을 누를 사람에게 필요한 값이다');
+  if (!/탐지는 아직 안 붙었습니다/.test(panel)) failures.push('탐지가 아직 없다는 사실을 화면이 안 말한다');
+}
+
 // ── 대조군 ───────────────────────────────────────────────────────────────────
 function control(name, hit) {
   if (!hit) failures.push(`대조군 실패: ${name} — 변조 사본이 잡히지 않았다`);
@@ -220,8 +242,9 @@ if (failures.length) {
   console.error(`❌ verify:robot-run\n- ${failures.join('\n- ')}`);
   process.exit(1);
 }
-console.log('✅ 실측 한 판 재생 — 여덟 칸이 판정까지 가고 7번 걸음 하나만 초록 (로봇이 고른 방위 -94.16°)');
+console.log('✅ 실측 한 판 재생 — 여덟 칸이 판정까지 가고 7번 걸음 하나만 초록 (로봇이 돌아선 방위 -94.16°)');
 console.log('✅ 재생 머리가 판정 프레임 뒤로 넘어간다 · 수신기는 사라지는 패널 밖에 있다');
+console.log('✅ 화면이 「문으로 판단했다」고 말하지 않는다 — 탐지 기능이 없다 (§5-3)');
 console.log('✅ 스캔이 스스로 걸으면 화면이 말한다 — forward_m 0 을 보냈는데도 온다 (실측)');
 console.log('✅ 로봇 편은 연결 여부와 무관하게 일반 모드 — 「합성 데이터 · 재생 중」 띠가 안 뜬다 (옛 편은 그대로)');
 console.log(`✅ 대조군 ${controls.length}건 전부 검출 — ${controls.join(' · ')}`);

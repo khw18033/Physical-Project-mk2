@@ -434,8 +434,12 @@ b.follow-live{cursor:default}
 .robot-conn--closed{background:#fdeceb;color:#8f2b26}
 .robot-conn--idle{background:#eef2f7;color:#5c6a7c}
 /* 긴급 정지 — 다른 버튼과 멀리(margin-left:auto), 크게, 빨갛게. */
-.robot-stop{margin-left:auto;padding:11px 22px;border:2px solid #a3241f;border-radius:8px;background:#d5322b;color:#fff;font-size:15px;font-weight:800;letter-spacing:.5px;cursor:pointer}
-.robot-stop:hover{background:#b8271f}
+/* **`button.` 을 붙인 이유** (260910 실측). 셸 머리줄의 `.global-bar button` 이
+   `background:#fff` 를 걸고 있고 그쪽이 더 구체적이라, 그냥 `.robot-stop` 이면 빨간 바탕이
+   덮여 **흰 글씨에 흰 바탕**이 된다 — 정지 버튼이 빈 상자로 보였다. 눌러야 할 때 안 보이는
+   버튼이 이 기능의 최악이라 여기만 특정도를 맞춘다. 셋 다 같다. */
+button.robot-stop{margin-left:auto;padding:11px 22px;border:2px solid #a3241f;border-radius:8px;background:#d5322b;color:#fff;font-size:15px;font-weight:800;letter-spacing:.5px;cursor:pointer}
+button.robot-stop:hover{background:#b8271f}
 /* 정지 실패 — 크게, 빨갛게. 누른 사람은 로봇이 멈춘 줄 알고 다가간다. */
 .robot-stopfail{margin:0 0 8px;padding:12px 14px;border:2px solid #a3241f;border-radius:8px;background:#fdeceb;color:#8f2b26;font-size:15px;font-weight:800}
 /* 구동 브리지 (260910) — 「붙어 있다」와 「움직일 수 있다」는 다르다. */
@@ -452,6 +456,22 @@ b.follow-live{cursor:default}
 .robot-walked{margin:8px 0 0;padding:9px 12px;border-left:4px solid #c07a1a;background:#fdf6ea;color:#7a4d08;font-size:13px}
 .robot-walked code{background:#fff;padding:1px 4px;border-radius:3px}
 .robot-sdk-none code{background:#fdf3f2;padding:1px 4px;border-radius:3px}
+/* 로봇 노드 (260910) — 그래프에서도 장비 상태를 본다. */
+.robot-node{display:grid;gap:5px;padding:2px 0}
+.robot-node-row{display:flex;flex-wrap:wrap;align-items:center;gap:6px;font-size:12px}
+.robot-node-row b{font-size:13px;color:#26303c}
+.robot-node-row span{padding:2px 7px;border-radius:9px;background:#eef1f5;color:#4a5666}
+.robot-node-row--sub span{background:transparent;padding:2px 0;color:#6b7888}
+.robot-node--bad .robot-node-row span{background:#fdf3f2;color:#8f2b26}
+.robot-node-flag{color:#8f2b26}
+
+/* 임무 조작 셋 (260910) — 정지는 끝내고, 일시정지는 남긴다. */
+button.robot-pause{padding:6px 12px;border:1px solid #c07a1a;border-radius:6px;background:#fdf6ea;color:#7a4d08;font-weight:600}
+button.robot-pause--held{background:#c07a1a;color:#fff}
+button.robot-resume{padding:6px 12px;border:1px solid #2f9e5f;border-radius:6px;background:#e7f6ee;color:#125c33;font-weight:600}
+.robot-paused{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:0 0 8px;padding:9px 12px;border-left:4px solid #c07a1a;background:#fdf6ea;color:#7a4d08;font-size:13px}
+.robot-paused span{flex-basis:100%;color:#6b5227;font-size:12px}
+.robot-paused em{font-style:normal;color:#8f2b26;font-weight:600}
 .robot-locked{display:flex;align-items:center;gap:10px;margin:0 0 8px;padding:9px 12px;border-left:4px solid #a3241f;background:#fdf3f2;color:#8f2b26;font-size:13px}
 .robot-release{margin-left:auto;padding:5px 11px;border:1px solid #a3241f;border-radius:6px;background:#fff;color:#8f2b26;font-size:12px}
 .robot-yawoff{margin:8px 0 0;padding:8px 10px;border-left:3px solid #e2a13a;background:#fdf8ec;color:#6b5520;font-size:12px}

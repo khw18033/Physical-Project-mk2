@@ -67,6 +67,9 @@ export function mockScanUplink(options: MockOptions = {}): MockFrame[] {
       payload: statusBytes(commandId, {
         ack: step,
         of,
+        // 로봇 원본 카운터. 임무를 넘어 누적되므로 목도 그렇게 만든다 — 화면이 이걸
+        // 진행률로 쓰면 「31 / 10」이 되고, 그 실패를 목에서도 재현할 수 있어야 한다.
+        ackSeq: 100 + step,
         event: 'scan_turn',
         step,
         steps,
@@ -78,11 +81,12 @@ export function mockScanUplink(options: MockOptions = {}): MockFrame[] {
     });
   }
 
-  // 마지막 ACK — 문으로 판정한 방향으로 몸을 돌린다. 새 노드가 아니라 마일스톤 전이 계기다.
+  // 마지막 ACK — 정해진 방향으로 몸을 돌린다. **탐지 결과가 아니다**(연동 가이드 §5-3).
+  // 새 노드가 아니라 마일스톤 전이 계기다.
   frames.push({
     atSec: steps * 2,
     payload: statusBytes(commandId, {
-      ack: of, of, event: 'door_turn', step: of, steps, yaw_deg: doorYawDeg, note: 'ok',
+      ack: of, of, ackSeq: 100 + of, event: 'door_turn', step: of, steps, yaw_deg: doorYawDeg, note: 'ok',
     }),
   });
   return frames;
