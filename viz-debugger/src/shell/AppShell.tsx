@@ -16,6 +16,7 @@ import { useMissionBridge } from './missionBridge.ts';
 import { ModeSwitch } from './ModeSwitch.tsx';
 import { StopButton } from '../physical/StopButton.tsx';
 import { robotProbe } from '../physical/robotClient.ts';
+import { ConnectionLamp } from './ConnectionLamp.tsx';
 
 /**
  * ## 2026-09-03 (3단계) — 탭 바가 사라졌다
@@ -108,7 +109,7 @@ export function AppShell({ debuggerView, onDebuggerHome, onMissionHistory, onOpe
         <ModeSwitch />
         <HelpOverlay scope={manualScope} />
         <span className={`conn conn--${connection.state}`}>{CONNECTION_LABEL[connection.state] ?? connection.state}{connection.state === 'reconnecting' ? ` (${connection.attempt}회)` : ''}</span>
-        <button onClick={() => void issueCommand({ action: 'mission_pause' })}>■ 정지</button><button onClick={() => void issueCommand({ action: 'mission_resume' })}>▶ 재시작</button><StopButton /><button onClick={() => { setPanel('history'); onMissionHistory(); }}>◷ 임무 이력</button><button onClick={() => setPanel('notifications')}>알림 <b>{notifications.length}</b></button><button onClick={() => setPanel('connections')}>⇄ 연결 관리</button>
+        <button onClick={() => void issueCommand({ action: 'mission_pause' })}>■ 정지</button><button onClick={() => void issueCommand({ action: 'mission_resume' })}>▶ 재시작</button><StopButton /><ConnectionLamp onOpen={() => setPanel('connections')} /><button onClick={() => { setPanel('history'); onMissionHistory(); }}>◷ 임무 이력</button><button onClick={() => setPanel('notifications')}>알림 <b>{notifications.length}</b></button><button onClick={() => setPanel('connections')}>⇄ 연결 관리</button>
       </nav>
     </header>
     {/* 연결 관리는 폼이라 목록 판과 모양이 다르다 — 자기 부품이 그린다 (`VZ-C-07`). */}

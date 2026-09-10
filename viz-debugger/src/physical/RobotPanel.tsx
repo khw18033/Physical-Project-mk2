@@ -1,49 +1,36 @@
 /**
- * src/physical/RobotPanel.tsx (260910 신설 — 화면 연결 §1 · §3 · §4)
+ * src/physical/RobotPanel.tsx (260910 신설 · 같은 날 연결 관리로 정리)
  *
- * **시연에서 사람이 누르는 자리.** 누르는 순서가 곧 시연 대본이다.
+ * **시연 중에 사람이 누르는 자리.** 임무를 진행시키는 것만 남았다.
  *
- *   0. 연결 확인 (`ping`)  — 발표 직전에만. 초록을 보고 무대에 오른다
- *   1. 발화/텍스트         — 이미 있다
- *   2. 승인                — 기존 승인 버튼. 거기서 스캔이 나간다
- *   3. **접근 시작**       — `door_turn` 뒤에 열린다. 자동으로 안 넘어간다
- *   4. **긴급 정지**       — 항상 보인다
+ *   1. 발화/텍스트   — 이미 있다
+ *   2. 승인          — 기존 승인 버튼. 거기서 스캔이 나간다
+ *   3. **접근 시작** — `door_turn` 뒤에 열린다. 자동으로 안 넘어간다
+ *   4. **긴급 정지** — 셸 머리줄의 「■ 중단」. 안전 기능이라 시연 화면에 그대로 있다
  *
- * ## 연결이 끊긴 것과 로봇이 안 움직이는 것은 다르다 (§3)
+ * ## 연결에 관한 것은 여기 없다 (연결 관리 통합 §4)
  *
- * 둘을 같은 표시로 뭉치지 않는다. 브로커 연결 상태를 **따로** 보여 주는 자리를 위에 뒀다.
- * 「붙어 있는데 로봇이 거절했다」와 「아예 안 붙었다」는 고치는 방법이 전혀 다르다.
+ * 주소·프리셋·연결 확인 버튼을 걷어 냈다. 연결을 **바꾸는** 자리는 「연결 관리」 하나다 —
+ * 두 군데 있으면 「어느 쪽이 진짜냐」가 생긴다. 시연 세팅은 무대에 오르기 전에 끝낸다.
+ *
+ * 끊긴 것을 시연 중에 알아야 하는 건 맞아서 **읽기 전용 표시등**을 셸 머리줄에 뒀다
+ * (`ConnectionLamp`). 누르면 연결 관리가 열리고, 고치는 것은 거기서 한다.
+ *
+ * 남은 것은 연결이 아니라 **임무 진행**이다 — 진행률·접근 버튼·거절 사유, 그리고 정지 표시.
  */
 
-import { useCallback, useEffect, useState } from 'react';
-import { BROKER_PRESETS, presetReady } from './presets.ts';
+import { useEffect } from 'react';
 import { PhysicalClient } from './PhysicalClient.ts';
-import { canApproach, issueApproach, issuePing, stopFailureMessage } from './robotCommands.ts';
-import { releaseStopped, setConnection, setPing, useRobotSession } from './robotSession.ts';
-import { connectionAddress, connectionAddresses, connectionKey, saveConnections, useConnections } from '../shared/connections.ts';
+import { canApproach, issueApproach, stopFailureMessage } from './robotCommands.ts';
+import { releaseStopped, setConnection, useRobotSession } from './robotSession.ts';
 
 export function RobotPanel({ client, params }: { client: PhysicalClient | null; params: Record<string, unknown> | null }) {
   const session = useRobotSession();
-  const [busy, setBusy] = useState(false);
-  // 주소를 구독한다 — 프리셋을 고르면 곧바로 칸이 따라와야 한다.
-  useConnections();
-  const address = connectionAddress('physical', 'ws');
-  /** 한 칸만 바꾼다. 저장소는 통째로 받으므로 지금 값에 얹는다. */
-  const setAddress = (value: string) => {
-    saveConnections({ ...connectionAddresses(), [connectionKey('physical', 'ws')]: value });
-  };
 
+  // 연결 상태는 표시등이 읽는다 — 여기서는 열에 흘려보내기만 한다.
   useEffect(() => {
     if (client === null) return;
     return client.onStatus(setConnection);
-  }, [client]);
-
-  const onPing = useCallback(async () => {
-    if (client === null) { setPing({ ok: false, roundTripMs: null, message: '브로커 연결 없음' }); return; }
-    setBusy(true);
-    if (client.getStatus().state !== 'open') await client.connect();
-    setPing(await issuePing(client));
-    setBusy(false);
   }, [client]);
 
   const stopped = session.stopped;
@@ -61,34 +48,12 @@ export function RobotPanel({ client, params }: { client: PhysicalClient | null; 
     </p>}
 
     <div className="robot-bar">
-      {/* 브로커 연결 — 로봇이 안 움직이는 것과 **다른 축**이다 (§3). */}
-      <span className={`robot-conn robot-conn--${session.connection.state}`}>
-        브로커 {label(session.connection.state)}
-        {session.connection.state === 'closed' && ` — ${session.connection.reason}`}
-      </span>
+      {/* **주소도 프리셋도 연결 확인도 여기 없다** (260910 연결 관리 통합 §4).
+          연결을 바꾸는 자리는 「연결 관리」 하나다 — 두 군데 있으면 「어느 쪽이 진짜냐」가
+          생긴다. 시연 세팅은 무대에 오르기 전에 끝내고, 발표 중에는 팝업을 열지 않는다.
 
-      <select
-        className="robot-preset"
-        value={address}
-        onChange={(event) => setAddress(event.target.value)}
-      >
-        {BROKER_PRESETS.filter(presetReady).map((preset) => (
-          <option key={preset.id} value={preset.url}>{preset.label}{preset.url && ` — ${preset.url}`}</option>
-        ))}
-      </select>
-      <input
-        className="robot-address"
-        value={address}
-        onChange={(event) => setAddress(event.target.value)}
-        placeholder="ws://…:9001"
-      />
-
-      <button type="button" className="robot-ping" disabled={busy} onClick={() => void onPing()}>
-        연결 확인
-      </button>
-      {session.ping !== null && <span className={session.ping.ok ? 'robot-ping--ok' : 'robot-ping--fail'}>
-        {session.ping.ok ? `✓ ${session.ping.roundTripMs} ms` : `✕ ${session.ping.message}`}
-      </span>}
+          끊긴 것을 시연 중에 알아야 하는 건 맞아서, 읽기 전용 표시등을 셸 머리줄에 뒀다
+          (`ConnectionLamp`) — 누르면 연결 관리가 열린다. */}
 
       {/* 진행률 — forward_m=0 이면 of 는 9다 (스캔 여덟 + door_turn 하나). */}
       {session.progress !== null && <span className="robot-progress">
@@ -122,11 +87,4 @@ export function RobotPanel({ client, params }: { client: PhysicalClient | null; 
       </p>
     ))}
   </section>;
-}
-
-function label(state: string): string {
-  if (state === 'open') return '연결됨';
-  if (state === 'connecting') return '연결 중';
-  if (state === 'closed') return '끊김';
-  return '대기';
 }
