@@ -538,10 +538,21 @@ export function TaskGraph({ tasks, hardware, states, selected, dimUnrelated, onO
             (칩 자체의 A/B 처리는 8/31 보류 항목 1 그대로 미결이다.) */}
         {/* 판정 한 줄 — 상태 이름에서 곧바로 나온다 (260910). 색만으로는 「왜」가 안 남고,
             프로젝터에서 초록·회색이 둘 다 밝은 회색으로 보일 때 이 글자가 마지막 근거다. */}
-        {cell !== null && cell.phase === 'selected' && cell.detection !== null
-          ? <span className="viewpoint__verdict">문 있음 · {Math.round(cell.detection.confidence * 100)}%</span>
+        {/*
+          **판단 문장은 탐지가 준 것을 그대로 쓴다** (260912).
+
+          전에는 여기서 `confidence` 에 100을 곱해 「문 있음 · 27%」를 만들었다. 그 값은
+          확률이 아니라 **특징 여덟 중 최고값**이다 — 27% 로 적으면 보는 사람은 「거의 못
+          찾았다」로 읽는데, 실제로는 관문 넷을 다 통과한 확실한 판정이다.
+
+          문장은 `detect/parse.ts` 가 관문에서 조립한다. 칸이 좁아 잘리므로 전문은 툴팁에
+          둔다 — 잘린 글자가 남는 것이 없는 것보다 낫다.
+        */}
+        {cell !== null && (cell.phase === 'selected' || cell.phase === 'rejected')
+          ? <span className="viewpoint__verdict" title={cell.detection?.reason || undefined}>
+            {cell.detection?.reason?.trim() || (cell.phase === 'selected' ? '문 있음' : '문 없음')}
+          </span>
           : null}
-        {cell !== null && cell.phase === 'rejected' ? <span className="viewpoint__verdict">문 없음</span> : null}
         {/* **탐색 중과 탐색 완료를 가른다** (260910 지적).
             `scanning` 은 「회전이 지나갔고 판정은 아직」이라는 뜻인데, 낱말이 「지금 이 칸을
             보고 있다」로 읽힌다. 그래서 다 돌고 난 뒤에도 여덟이 전부 「탐색 중」이었다.

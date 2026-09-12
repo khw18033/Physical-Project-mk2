@@ -5,9 +5,12 @@
 // `verify:no-stt` · `verify:no-llm` · `verify:no-physical` 과 같은 검사다. 탐지는 2단계-B
 // 에서 붙으므로 **지금은 늘 없는 상태**이고, 그 상태가 나머지를 끌어내리면 안 된다.
 //
-// 특히 §5 의 발표 직전 점검이 성립해야 한다 — 넷 중 detect 만 「아직 확인하지 않음」이고
-// 나머지 셋은 초록일 수 있어야 한다. detect 를 지금 빨갛게 칠하면 「넷 다 초록」이
-// 애초에 불가능해진다.
+// 특히 §5 의 발표 직전 점검이 성립해야 한다 — 주소도 없고 테스트도 안 켠 detect 가
+// 나머지 셋을 끌어내리면 안 된다. detect 를 그때 **빨갛게** 칠하면 「넷 다 초록」이
+// 애초에 불가능해진다. 그래서 그 상태는 빨강이 아니라 **「모름」**이다.
+//
+// 260912 — 탐지 확인이 실제로 이어졌다(테스트 자료 또는 실제 주소). 그래도 위 규칙은
+// 그대로다: **상대가 없을 때 빨개지지 않는다.**
 
 import { join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -47,9 +50,13 @@ const controls = [];
     lines = [];
   }
   if (lines.length === 0) failures.push('detect 확인이 아무 줄도 안 낸다');
-  // **실제 확인은 2단계-B 에서 잇는다** — 지금 GET /health 를 부르면 안 된다.
-  if (!/2단계-B/.test(String(lines[0]?.reason))) {
-    failures.push('detect 가 「아직 확인하지 않는다」고 말하지 않는다');
+  // **상대가 없으면 「모름」이다.** 주소도 없고 테스트도 안 켰으면 빨강이 아니다 —
+  // 빨강은 「붙어야 하는데 못 붙었다」는 뜻이고, 지금은 붙을 상대가 없는 것이다.
+  if (lines[0]?.ok !== null) {
+    failures.push(`주소도 테스트도 없는데 detect 가 ${lines[0]?.ok} 다 — 「모름」이어야 한다`);
+  }
+  if (!/테스트/.test(String(lines[0]?.reason))) {
+    failures.push('상대가 없을 때 무엇을 할 수 있는지 안 알려 준다 — 테스트로 먼저 볼 수 있다');
   }
 
   // 확인 버튼을 눌러도 팝업이 안 날아간다.
@@ -71,16 +78,34 @@ const controls = [];
   if (targetOk('stt') !== true) failures.push('detect 때문에 stt 가 빨개졌다');
   if (targetOk('generate') !== true) failures.push('detect 때문에 generate 가 빨개졌다');
 
-  // 표시등이 짚는 것은 detect 하나여야 한다.
+  // **표시등이 detect 를 짚지 않는다.** 「모름」은 끊긴 것이 아니다 — 상대가 없는 것이다.
+  // 여기서 짚으면 무대에 오르기 전 점검에서 넷 다 초록이 영영 안 된다.
   const broken = firstBroken(CHECKED_TARGETS);
-  if (broken?.target !== 'detect') {
-    failures.push(`표시등이 ${broken?.target} 을 짚는다 — 지금 끊긴 것은 detect 하나다`);
+  if (broken !== null) {
+    failures.push(`표시등이 ${broken.target} 을 짚는다 — 상대 없는 detect 는 끊긴 것이 아니다`);
+  }
+}
+
+// ── 3-b. 테스트를 켜면 초록이 된다 (260912) ─────────────────────────────────
+//
+// 탐지 서비스가 붙기 전에 화면 쪽을 다 맞춰 두려면, 받아 둔 실제 산출물로 한 판을 돌 수
+// 있어야 한다. 「테스트」가 그 자리다.
+{
+  const { setTestMode, detectState } = await load('src', 'detect', 'store.ts');
+  setTestMode(true);
+  if (!detectState().testMode) failures.push('테스트를 켰는데 안 켜진다');
+  // 끄면 읽어 둔 것도 같이 버린다 — 시료가 실제 결과로 남아 있으면 안 된다.
+  const { receiveFrames } = await load('src', 'detect', 'store.ts');
+  receiveFrames([{ frame: 'f.jpg', rotation_deg: 0, found: true }]);
+  setTestMode(false);
+  if (detectState().frames.length !== 0) {
+    failures.push('테스트를 껐는데 읽어 둔 결과가 남았다 — 시료가 실제 결과로 보인다');
   }
 }
 
 // ── 4. 화면은 탐지 없이도 돈다 ──────────────────────────────────────────────
 //
-// 문 유무는 아직 대본이 준다(2단계-A §6). 탐지가 없다고 뷰포인트가 안 차면 안 된다.
+// 대본을 돌리면 탐지 없이도 여덟 칸이 찬다. 탐지가 붙는다고 이 길이 막히면 안 된다.
 {
   const { readFileSync } = await import('node:fs');
   const { emptyFill, reduceFrames, cellsInOrder } = await load('src', 'viewpoint', 'fill.ts');
@@ -97,10 +122,11 @@ function control(name, hit) {
   controls.push(name);
 }
 {
-  // detect 를 빨갛게 칠한 사본이라면 「넷 다 초록」이 불가능하다 — 지금이 그 상태다.
+  // **detect 를 빨갛게 칠한 사본.** 그러면 「넷 다 초록」이 애초에 불가능해진다.
+  // 상대가 없는 것과 못 붙은 것은 다르다 — 지금은 앞쪽이다.
   resetHealth();
   await checkTarget('detect', null);
-  control('detect 는 지금 초록이 될 수 없다', targetOk('detect') === false);
+  control('상대 없는 detect 를 빨갛게 칠한 사본', targetOk('detect') !== false);
 }
 {
   resetHealth();
@@ -113,9 +139,9 @@ if (failures.length) {
   console.error(`❌ verify:no-detect\n- ${failures.join('\n- ')}`);
   process.exit(1);
 }
-console.log('✅ detect 자리가 있고 「2단계-B 에서 잇는다」고 적혀 있다 — 없는 것을 있는 척하지 않는다');
+console.log('✅ detect 자리가 있고 언제 붙는지 적혀 있다 — 없는 것을 있는 척하지 않는다');
 console.log('✅ detect 확인이 던지지 않는다 — 눌러도 팝업이 안 날아간다');
-console.log('✅ detect 가 나머지 셋을 안 끌어내린다 · 표시등이 짚는 것은 detect 하나');
-console.log('✅ 탐지 없이도 뷰포인트가 찬다 — 문 유무는 아직 대본이 준다');
+console.log('✅ 상대 없는 detect 가 나머지 셋을 안 끌어내린다 — 표시등이 아무도 안 짚는다 (모름은 끊김이 아니다)');
+console.log('✅ 탐지 없이도 대본으로 뷰포인트가 찬다 · 테스트를 켜면 받아 둔 실제 산출물로 돈다');
 console.log(`✅ 대조군 ${controls.length}건 전부 검출 — ${controls.join(' · ')}`);
 process.exit(0);

@@ -31,6 +31,7 @@ import { Explain } from './shared/Explain.tsx';
 import { emptyFill, reduceFrames, type ViewpointFill } from './viewpoint/fill.ts';
 import { RobotPanel } from './physical/RobotPanel.tsx';
 import { useRobotUplink } from './physical/robotBridge.ts';
+import { useDetectUplink } from './detect/useDetect.tsx';
 import { HardwareLink } from './physical/HardwareLink.tsx';
 import { robotClient } from './physical/robotClient.ts';
 import { framesUpTo } from './viewpoint/store.ts';
@@ -376,6 +377,8 @@ export function MissionDebugger({ navigation, planApproval }: { navigation?: Deb
    * 구독이 끊겨 `door_turn` 을 통째로 놓쳤다.
    */
   useRobotUplink(view.missionId, view.params);
+  // 탐지도 같은 자리에서 받는다 (260912) — 상대가 있을 때만 묻는다.
+  useDetectUplink(view.missionId, view.params);
 
   // 그래프에 들어갈 마일스톤 — 클릭한 것. 태스크가 없으면(옛 파일의 MS-A 등)
   // 태스크를 가진 마일스톤으로 간다(옛 편은 전부 MS-C라 기존 화면 그대로다).

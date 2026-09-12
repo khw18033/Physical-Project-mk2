@@ -401,7 +401,7 @@ b.follow-live{cursor:default}
 .task-node.viewpoint--selected strong,.task-node.viewpoint--rejected strong{color:inherit}
 @keyframes viewpoint-blink{0%,100%{border-color:var(--vp-scanning-border)}50%{border-color:#cfe2f5}}
 /* 판정 결과 한 줄 — 색만으로는 「왜」가 안 남는다. 발표에서 읽힐 자리다. */
-.viewpoint__verdict{font-size:10px;color:inherit;opacity:.9}
+.viewpoint__verdict{font-size:10px;color:inherit;opacity:.9;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .task-node.viewpoint--selected .viewpoint__verdict{font-weight:700}
 /* 움직임을 줄이라고 한 사용자에게는 점멸을 끈다 — 접근성 기본값이다. */
 @media (prefers-reduced-motion:reduce){.task-node.viewpoint--scanning{animation:none}}
@@ -522,6 +522,8 @@ button.robot-resume{padding:6px 12px;border:1px solid #2f9e5f;border-radius:6px;
 .conn-dot--ok{background:#e7f6ee;color:#125c33}
 .conn-dot--bad{background:#fdeceb;color:#8f2b26}
 .conn-dot--unknown{background:#eef2f7;color:#6b7888;font-weight:400}
+.conn-test{display:inline-flex;align-items:center;gap:5px;margin-right:8px;padding:5px 9px;border:1px dashed #c07a1a;border-radius:6px;background:#fdf6ea;color:#7a4d08;font-size:12px;cursor:pointer}
+.conn-test input{margin:0}
 .conn-check{padding:4px 12px;border:1px solid #b6c2d0;border-radius:6px;background:#fff;font-size:12px}
 .conn-check:disabled{opacity:.5}
 .conn-health__at{color:#8a94a2;font-size:11px;font-variant-numeric:tabular-nums}

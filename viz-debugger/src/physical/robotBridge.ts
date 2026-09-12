@@ -10,6 +10,7 @@
 
 import { useEffect } from 'react';
 import { appendViewpoint } from '../viewpoint/store.ts';
+import { hasResults } from '../detect/detectBridge.ts';
 import { effectsOf, NO_NODE, type LinkEffect } from './missionLink.ts';
 import type { PhysicalClient } from './PhysicalClient.ts';
 import { advanceRobotHead, receiveRobotProgress } from '../data/scenario.ts';
@@ -57,11 +58,17 @@ export function receiveUplink(
    */
   for (const effect of effects) {
     if (effect.kind !== 'door-turn') continue;
-    // **문 방향은 임시로 뽑아 둔 것이다** (260910 지시).
+    // **탐지가 말하면 로봇은 칸을 안 칠한다** (260912).
+    //
+    // 탐지 결과가 한 건이라도 있으면 여덟 칸은 그쪽이 채운다(`detect/detectBridge.ts`).
+    // 둘 다 칠하면 같은 칸을 두 번 덮어쓰고, 그때 어느 쪽이 이기는지는 도착 순서가 정한다.
+    if (hasResults()) continue;
+
+    // 여기부터는 **탐지가 아직 없을 때**의 임시다 (260910 지시).
     //
     // 로봇이 돌아선 방향(`effect.chosenIndex`)은 고정된 기하값이라 「문이 거기 있다」는
-    // 뜻이 아니다(연동 가이드 §5-3). 탐지가 붙기 전까지는 여덟 중 하나를 무작위로 정해
-    // 두고 그 칸에 불을 켠다 — 화면이 그 자리에 「임시」라고 적는다.
+    // 뜻이 아니다(연동 가이드 §5-3). 그래서 여덟 중 하나를 무작위로 정해 두고 그 칸에
+    // 불을 켠다 — 화면이 그 자리에 「임시」라고 적는다.
     //
     // 못 뽑았으면(스캔을 안 거쳤다면) 아무 칸도 안 켠다. 지어 고르지 않는다.
     const doorIndex = robotSession().doorIndex;

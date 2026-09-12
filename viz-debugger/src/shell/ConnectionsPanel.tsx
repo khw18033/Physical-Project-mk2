@@ -28,6 +28,7 @@ import { useState } from 'react';
 import { BROKER_PRESETS, presetReady } from '../physical/presets.ts';
 import { checkTarget, type PhysicalProbe } from '../shared/connectionCheck.ts';
 import { robotFacts } from '../physical/robotFacts.ts';
+import { setTestMode, useDetect } from '../detect/store.ts';
 import { useDeviceStates } from '../physical/deviceState.ts';
 import { CHECKED_TARGETS, useConnectionHealth, type TargetHealth } from '../shared/connectionHealth.ts';
 import type { ConnectionTargetId } from '../shared/connections.ts';
@@ -132,6 +133,8 @@ function HealthRow({ target, physical }: { target: ConnectionTargetId; physical:
   // 장비 상태를 구독한다 — 로봇 줄이 그 값으로 채워진다.
   useDeviceStates();
   const state: TargetHealth = health[target] ?? { checking: false, lines: [] };
+  // 탐지 줄만 「테스트」를 쓴다. 훅은 조건 없이 부른다 — 그리기마다 수가 달라지면 안 된다.
+  const detect = useDetect();
   return <div className="conn-health">
     <div className="conn-health__lines">
       {state.lines.length === 0
@@ -142,6 +145,19 @@ function HealthRow({ target, physical }: { target: ConnectionTargetId; physical:
           {row.reason !== null && ` — ${row.reason}`}
         </span>)}
     </div>
+    {/*
+      **탐지만의 「테스트」** (260912 지시). 확인 버튼 왼쪽이다.
+
+      켜면 탐지 담당이 준 **실제 산출물**(`door_example/`)을 진짜 결과처럼 읽는다. 목을
+      지어내는 것이 아니라 받은 값 그대로다 — 그래서 화면이 「테스트 자료」라고 적되 값은
+      손대지 않는다. 탐지 서비스가 붙기 전에 화면 쪽을 다 맞춰 둘 수 있다.
+
+      **끄면 읽어 둔 것도 같이 버린다.** 시료가 실제 결과로 남아 있으면 안 된다.
+    */}
+    {target === 'detect' && <label className="conn-test" title="탐지 담당이 준 실제 산출물을 진짜 결과처럼 읽습니다">
+      <input type="checkbox" checked={detect.testMode} onChange={(event) => setTestMode(event.target.checked)} />
+      테스트
+    </label>}
     <button
       type="button"
       className="conn-check"

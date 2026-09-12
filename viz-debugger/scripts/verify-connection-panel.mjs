@@ -159,12 +159,26 @@ const controls = [];
   if (!lines.some((l) => /소켓이 죽었다/.test(String(l.reason)))) failures.push('예외 사유가 안 남았다');
 }
 
-// ── 4. detect 는 자리만 — 2단계-B 에서 잇는다 ────────────────────────────────
+// ── 4. detect — 상대가 없으면 「모름」이다 (260912) ──────────────────────────
+//
+// 확인이 실제로 이어졌다. 그래도 **주소도 없고 테스트도 안 켰으면 빨강이 아니다** —
+// 빨강은 「붙어야 하는데 못 붙었다」이고 지금은 붙을 상대가 없는 것이다. 여기서 빨갛게
+// 칠하면 무대에 오르기 전 점검에서 「넷 다 초록」이 애초에 불가능해진다.
 {
   const detect = await checkDetect();
   if (detect.length === 0) failures.push('detect 줄이 아예 없다 — 자리는 있어야 한다');
-  if (!/2단계-B/.test(String(detect[0]?.reason))) {
-    failures.push('detect 가 「아직 확인하지 않는다」고 말하지 않는다 — 없는 서비스에 붙는 척하면 안 된다');
+  if (detect[0]?.ok !== null) {
+    failures.push(`주소도 테스트도 없는데 detect 가 ${detect[0]?.ok} 다 — 「모름」이어야 한다`);
+  }
+  // 「테스트」로 먼저 볼 수 있다는 것을 알려 준다 — 그러라고 만든 자리다.
+  if (!/테스트/.test(String(detect[0]?.reason))) {
+    failures.push('상대가 없을 때 무엇을 할 수 있는지 안 알려 준다');
+  }
+  // 화면에 그 체크박스가 실제로 있는가.
+  const { readFileSync } = await import('node:fs');
+  const panel = readFileSync(join(root, 'src', 'shell', 'ConnectionsPanel.tsx'), 'utf8');
+  if (!/conn-test/.test(panel) || !/setTestMode\(/.test(panel)) {
+    failures.push('연결 관리에 탐지 「테스트」 체크박스가 없다');
   }
 }
 
@@ -227,7 +241,7 @@ console.log('✅ physical 이 브로커·단말·로봇 셋을 따로 보인다 
 console.log('✅ 링크가 끊기면 로봇만 빨갛고 단말은 초록 · 낡은 값은 현재로 안 그린다');
 console.log('✅ 브로커가 없으면 아래 둘은 「못 물어봤다」 · 모르는 줄이 있으면 초록이라고 말하지 않는다');
 console.log('✅ 확인 버튼이 실제 왕복을 한 번 돌린다 · 던져도 사유가 남는다 (팝업이 안 날아간다)');
-console.log('✅ detect 는 자리만 — 2단계-B 에서 잇는다 · 한 대상이 죽어도 나머지는 돈다');
+console.log('✅ detect 는 상대가 없으면 모름 — 2단계-B 에서 잇는다 · 한 대상이 죽어도 나머지는 돈다');
 console.log('✅ 프리셋 넷 · 발표장 핫스팟은 빈 채로 고를 수 없다');
 console.log(`✅ 대조군 ${controls.length}건 전부 검출 — ${controls.join(' · ')}`);
 process.exit(0);

@@ -17,6 +17,8 @@ import { probe as generateProbe } from '../generate/LlmClient.ts';
 import { probe as sttProbe } from '../stt/SttClient.ts';
 import type { ConnectionTargetId } from './connections.ts';
 import { line, setChecking, setHealth, type HealthLine } from './connectionHealth.ts';
+import { probeDetect, sourceOf } from '../detect/DetectClient.ts';
+import { detectState } from '../detect/store.ts';
 
 /**
  * `physical` 을 확인할 때 쓸 것. 로봇 경계를 이 파일이 직접 열지 않는다 —
@@ -139,8 +141,27 @@ function robotLine(agent: HealthLine, robot: RobotFacts | null): HealthLine {
  * 「빨간 줄」이 늘 하나 켜져 있게 된다. 그러면 발표 직전 점검에서 「넷 다 초록」이
  * 애초에 불가능해진다. **못 물어봤다고 말한다.**
  */
+/**
+ * 탐지 확인 (260912 — 자리만이던 것을 실제로 이었다).
+ *
+ * **「테스트」가 켜져 있으면 시료를 실제로 한 번 읽어 본다.** 「켰는데 파일이 없다」를
+ * 그때 잡는다 — 무대에서 체크만 하고 아무것도 안 오면 원인을 못 찾는다.
+ */
 export async function checkDetect(): Promise<readonly HealthLine[]> {
-  return [line('health', 'GET /health', false, { reason: '2단계-B 에서 잇습니다 — 아직 확인하지 않습니다' })];
+  const source = sourceOf(detectState().testMode);
+  if (source.kind === 'sample') {
+    const { value, ms } = await timed(() => probeDetect(source));
+    return [value.alive
+      ? line('sample', '테스트 자료', true, { roundTripMs: ms, reason: value.reason })
+      : line('sample', '테스트 자료', false, { reason: value.reason })];
+  }
+  if (source.base.trim() === '') {
+    return [line('health', 'GET /health', null, { reason: '주소가 비어 있습니다 — 테스트로 먼저 볼 수 있습니다' })];
+  }
+  const { value, ms } = await timed(() => probeDetect(source));
+  return [value.alive
+    ? line('health', 'GET /health', true, { roundTripMs: ms })
+    : line('health', 'GET /health', false, { reason: value.reason })];
 }
 
 export async function checkStt(): Promise<readonly HealthLine[]> {
