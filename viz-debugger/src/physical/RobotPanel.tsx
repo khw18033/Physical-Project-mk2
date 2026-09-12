@@ -119,12 +119,21 @@ export function RobotPanel({ client, params }: {
       >ACK {session.progress.ack}/{session.progress.of}</span>}
 
       {/* 접근 시작 — **door_turn 뒤에만 열린다.** 자동으로 안 넘어간다 (§1). */}
+      {/*
+        **산출된 경로를 따라간다** (260912). 태스크 이름이 「전방으로 직진」에서
+        「산출된 경로에 따라 이동」으로 바뀌었고, 버튼도 같은 말을 쓴다 — 화면의 두 자리가
+        다른 이름으로 같은 일을 가리키면 발표자가 둘을 다른 것으로 읽는다.
+
+        누르면 **회전 먼저, 직진 나중**으로 둘이 나간다. 앞의 세 태스크(판단·근거·경로
+        산출)는 로봇을 안 움직인다.
+      */}
       {canApproach() && client !== null && <button
         type="button"
         className="robot-approach"
         onClick={() => void issueApproach(client, params)}
+        title="경로 산출이 낸 회전과 직진을 차례로 냅니다"
       >
-        접근 시작 — 문 쪽으로
+        ▶ 산출된 경로에 따라 이동
       </button>}
 
       {/* **정지 버튼은 여기 없다.** 화면에 이미 있는 머리줄의 「■ 중단」을 살렸다

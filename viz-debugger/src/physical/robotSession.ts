@@ -288,9 +288,11 @@ export function elapsedSec(): number {
   // **시작을 누른 순간이 0초다** (260912). 승인 시각으로 재면, 승인하고 설명하는 동안
   // 시계가 흘러 시작하자마자 「이미 한참 지난」 화면이 된다 — 탐지 시료가 그 시계로
   // 각도를 열고 여덟 칸의 시각도 그 축이라, 눌렀을 때 처음부터 흘러야 한다.
-  const from = session.startedAtMs ?? session.approvedAtMs;
-  if (from === null) return 0;
-  return (Date.now() - from) / 1000;
+  // **시작 전에는 0이다.** 승인 시각으로 물러나면 안 된다 — 승인하고 설명하는 동안 시계가
+  // 흘러, 눌렀을 때 이미 여덟 각도가 다 열린 화면이 된다. 실제로 그렇게 보였다:
+  // 승인하고 한참 뒤에 열어 보면 **처음부터 270도만 불이 켜져 있었다.**
+  if (session.startedAtMs === null) return 0;
+  return (Date.now() - session.startedAtMs) / 1000;
 }
 
 /** 태스크가 명령을 냈다. `requestId` 는 추적기가 준다. */

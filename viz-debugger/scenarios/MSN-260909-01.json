@@ -241,7 +241,7 @@
     },
     {
       "id": "T-B2",
-      "title": "전방으로 직진",
+      "title": "산출된 경로에 따라 이동",
       "milestone": "MS-B",
       "deps": [
         "T-B1"

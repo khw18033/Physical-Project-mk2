@@ -17,6 +17,7 @@ import { useEffect } from 'react';
 import { advanceRobotHead } from '../data/scenario.ts';
 import { elapsedSec } from '../physical/robotSession.ts';
 import { applyDetection } from './detectBridge.ts';
+import { advanceDetectTasks } from './detectTrace.ts';
 import { detectBaseUrl } from './DetectClient.ts';
 import { startDetectPolling } from './poll.ts';
 import { detectState, subscribeDetect, useDetect } from './store.ts';
@@ -39,6 +40,10 @@ export function useDetectUplink(missionId: string, params: Record<string, unknow
    */
   useEffect(() => subscribeDetect(() => {
     const at = elapsedSec();
-    if (applyDetection(missionId, at, stepDeg, count) > 0) advanceRobotHead(missionId, at);
+    const put = applyDetection(missionId, at, stepDeg, count);
+    // **태스크 노드도 민다** (260912). 여덟 칸만 차고 노드가 대기로 남으면 마일스톤이
+    // 안 끝나고 다음 마일스톤으로도 안 넘어간다 — 실제로 그랬다.
+    const moved = advanceDetectTasks(missionId, at, stepDeg, count);
+    if (put > 0 || moved > 0) advanceRobotHead(missionId, at);
   }), [missionId, stepDeg, count]);
 }

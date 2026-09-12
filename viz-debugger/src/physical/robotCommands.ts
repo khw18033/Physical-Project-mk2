@@ -24,7 +24,8 @@ import type { CommandAck, CommandRequest } from '../transport/index.ts';
 import type { PhysicalAction } from './encode.ts';
 import { PAUSE_ACTION, SDK_ACTIONS } from './presets.ts';
 import { NO_NODE } from './missionLink.ts';
-import { commandForTask, missionGeometry } from './missionLink.ts';
+import { detectState } from '../detect/store.ts';
+import { commandForTask, missionGeometry, pathCommands } from './missionLink.ts';
 import type { PhysicalClient } from './PhysicalClient.ts';
 import type { UplinkMessage } from './uplink.ts';
 import { STOP_ACTION, STOP_REASON } from './presets.ts';
@@ -158,9 +159,45 @@ export function shouldIssueScan(): boolean {
  * 시연에서 가장 좋은 자리다.
  */
 export async function issueApproach(client: PhysicalClient, params: Record<string, unknown> | null) {
+  /**
+   * **산출된 경로를 따라간다** (260912 지시). 앞의 세 태스크(판단·근거·경로 산출)는
+   * 로봇을 안 움직이고, 움직이는 것은 이 하나다.
+   *
+   * 경로가 와 있으면 **회전 먼저, 직진 나중**으로 둘을 낸다 — 돌기 전에 직진하면 엉뚱한
+   * 데로 간다. 경로가 없으면 예전대로 직진 하나만 낸다(대본 거리).
+   */
+  const path = detectState().path;
+  if (path !== null) {
+    const steps = pathCommands(
+      path.turn_instruction,
+      turnDegOf(path),
+      path.forward_distance_cm / 100,
+    );
+    let last: IssueOutcome | null = null;
+    for (const step of steps) {
+      if (!canIssueRobotCommand()) {
+        return { sent: false, commandId: '', requestId: null, reason: '승인 전이거나 정지된 상태입니다' };
+      }
+      last = await issueThroughTracker(client, step.taskId, step.action, step.parameters);
+      // 회전이 안 나갔으면 직진을 내면 안 된다 — 안 돌고 가면 엉뚱한 데로 간다.
+      if (last.sent !== true) return last;
+    }
+    if (last !== null) markApproachIssued();
+    return last ?? { sent: false, commandId: '', requestId: null, reason: '경로에 낼 명령이 없습니다' };
+  }
   const outcome = await issueTask(client, 'T-B2', params);
   if (outcome?.sent === true) markApproachIssued();
   return outcome;
+}
+
+/**
+ * 경로 산출이 낸 회전량(절댓값). 식과 대입값 문자열에서 읽는다 — **우리가 다시 계산하지
+ * 않는다.** 못 읽으면 0이고, 그때는 안 돈다.
+ */
+function turnDegOf(path: { path_calculation?: Record<string, { substituted: string }> }): number {
+  const step = path.path_calculation?.step2_turn_amount?.substituted ?? '';
+  const matched = step.match(/=\s*([\d.]+)\s*\(/);
+  return matched === null ? 0 : Number(matched[1]);
 }
 
 /**
@@ -199,7 +236,11 @@ export async function issueSdkAuto(client: PhysicalClient, on: boolean): Promise
 /** 접근을 눌러도 되는가 — `door_turn` 이 왔고, 아직 안 쐈고, 잠기지 않았을 때. */
 export function canApproach(): boolean {
   const session = robotSession();
-  return session.doorTurn !== null && !session.approachIssued && canIssueRobotCommand();
+  // **탐지가 경로를 냈으면 그것으로 연다** (260912). 전에는 로봇의 `door_turn` 하나만
+  // 봤는데, 탐지가 몰 때는 그 신호가 안 온다 — 여덟 칸이 다 차고 경로까지 나왔는데
+  // 버튼이 영영 안 떴다.
+  const ready = session.doorTurn !== null || detectState().path !== null;
+  return ready && !session.approachIssued && canIssueRobotCommand();
 }
 
 /**

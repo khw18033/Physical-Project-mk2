@@ -60,6 +60,30 @@ export function commandForTask(taskId: string, geometry: MissionGeometry): TaskC
   return null;
 }
 
+/**
+ * **산출된 경로를 따라가는 명령들** (260912 지시 — 「전방으로 직진」이 바뀐 자리).
+ *
+ * 경로 산출이 낸 것은 「얼마나 돌고 얼마나 간다」 둘이다. 앞의 세 태스크(판단·근거·경로
+ * 산출)는 **로봇을 안 움직인다** — 보고 판단하는 자리다. 움직이는 것은 여기 하나다.
+ *
+ * 회전이 먼저다. 돌기 전에 직진하면 엉뚱한 데로 간다.
+ *
+ * `turn` 은 **오른쪽이 +** 다(연동 가이드 §4-2). 경로 산출은 왼쪽/오른쪽을 문장으로 주고
+ * 각도는 절댓값으로 주므로, 왼쪽이면 부호를 뒤집는다.
+ */
+export function pathCommands(
+  turnInstruction: string, turnDegAbs: number, forwardM: number,
+): TaskCommand[] {
+  const out: TaskCommand[] = [];
+  const left = /왼쪽|반시계|counter/i.test(turnInstruction);
+  const deg = left ? -Math.abs(turnDegAbs) : Math.abs(turnDegAbs);
+  // 5도 미만은 규약이 안 받는다(§4-2 — `deg` 5~360). 그만한 각도는 안 도는 것이 맞다.
+  if (Math.abs(deg) >= 5) out.push({ taskId: 'T-B2', action: 'turn', parameters: { deg } });
+  // 0.05m 미만도 안 받는다. 이미 다 온 것이다.
+  if (forwardM >= 0.05) out.push({ taskId: 'T-B2', action: 'move_forward', parameters: { distance_m: forwardM } });
+  return out;
+}
+
 /** 대본 `params` 에서 방향·거리를 읽는다 — 경로 산출이 붙는 자리는 `presets.ts` 하나다. */
 export { missionGeometry };
 

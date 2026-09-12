@@ -45,6 +45,7 @@ import { appendGenerated, appendHuman, appendTrace, resetTrace, traceEvents, tra
 import { scriptFrames } from '../viewpoint/source.ts';
 import { appendViewpoint, resetViewpoint } from '../viewpoint/store.ts';
 import { clearStarted, markApproved, resetRobotSession, robotDrives } from '../physical/robotSession.ts';
+import { resetDetect } from '../detect/store.ts';
 import { provenancePayload, type AiProvenance } from '../shared/provenance.ts';
 import rawScenario from '../../scenarios/MSN-260826-01.json' with { type: 'json' };
 import { libraryEntry } from '../scenarios/library.ts';
@@ -417,6 +418,9 @@ export function activateMission(missionId: string, mode: 'remote' | 'local'): vo
   resetTrace(view.missionId);
   resetViewpoint(view.missionId);
   resetRobotSession();
+  // 탐지도 같이 비운다 (260912) — 지난 판의 각도와 「이미 끝났다」는 기억이 남으면
+  // 새 판이 처음부터 다 끝난 채로 뜬다.
+  resetDetect();
   localCursor = 0;
   localViewpointCursor = 0;
   commitNow({ current: view, proposal: null, headSec: 0, playing: true, activatedBy: 'approval' });
@@ -672,6 +676,7 @@ export function resetMission(): void {
   resetTrace(NO_MISSION);
   resetViewpoint(NO_MISSION);
   resetRobotSession();
+  resetDetect();
   commitNow({ current: emptyView(), proposal: null, headSec: 0, playing: false, activatedBy: 'boot' });
 }
 

@@ -150,6 +150,17 @@ const COUNT = 8;
   // 넘치지 않는다.
   if (sampleRevealed(9999, 8) !== 8) failures.push('여덟을 넘겨 내놓는다');
 
+  // **시작 전에는 시계가 0이다.** 승인 시각으로 물러나면 승인하고 설명하는 동안 각도가
+  // 열려, 눌렀을 때 이미 다 끝난 화면이 된다 — 실제로 그렇게 보였다.
+  const session = readFileSync(join(root, 'src', 'physical', 'robotSession.ts'), 'utf8')
+    .replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
+  if (/startedAtMs \?\? session\.approvedAtMs/.test(session)) {
+    failures.push('시작 전 시계가 승인 시각으로 흐른다 — 눌렀을 때 이미 다 열린 화면이 된다');
+  }
+  if (!/if \(session\.startedAtMs === null\) return 0;/.test(session)) {
+    failures.push('시작 전에 시계를 0으로 두지 않는다');
+  }
+
   const bridge = readFileSync(join(root, 'src', 'detect', 'detectBridge.ts'), 'utf8')
     .replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
   if (!/if \(!sweepDone\(count\)\) return null;/.test(bridge)) {
@@ -163,6 +174,47 @@ const COUNT = 8;
   const views = readFileSync(join(root, 'src', 'detect', 'views', 'DetectViews.tsx'), 'utf8')
     .replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
   if (!/sweepDone\(count\)/.test(views)) failures.push('근거가 판정보다 먼저 뜬다');
+}
+
+// ── 5-d. 탐지가 태스크 노드를 민다 (260912 지시) ────────────────────────────
+//
+// 여덟 칸이 다 차고 초록까지 떠도 **태스크 노드는 그대로 대기**였다. 그러면 마일스톤이
+// 안 끝나고 다음 마일스톤으로도 안 넘어간다 — 임무가 거기서 멎는다.
+//
+// **없는 것을 끝났다고 하지는 않는다.** 이동·정지·종료는 로봇이 움직여야 끝나는 것이고
+// 탐지는 그것을 모른다.
+{
+  const trace = readFileSync(join(root, 'src', 'detect', 'detectTrace.ts'), 'utf8')
+    .replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
+  for (const node of ['T-A1', 'T-A2', 'T-A3', 'T-A5', 'T-A6', 'T-B1']) {
+    if (!trace.includes(node)) failures.push(`탐지가 ${node} 를 안 민다 — 그 노드가 대기로 남아 마일스톤이 안 끝난다`);
+  }
+  // 로봇이 해야 끝나는 것을 탐지가 끝냈다고 하면 안 된다.
+  for (const node of ['T-B2', 'T-B3', 'T-C1']) {
+    if (trace.includes(`'${node}'`)) {
+      failures.push(`탐지가 ${node} 를 끝냈다고 한다 — 로봇이 움직여야 끝나는 것이다`);
+    }
+  }
+  // 못 고르면 판단이 안 끝난다 — 「문을 찾지 못함」은 완료가 아니다.
+  if (!/chosen !== null/.test(trace)) failures.push('못 골랐는데도 판단을 끝냈다고 한다');
+
+  // 이동 버튼이 탐지 경로로도 열려야 한다 — 로봇의 door_turn 만 보면 영영 안 뜬다.
+  const cmd = readFileSync(join(root, 'src', 'physical', 'robotCommands.ts'), 'utf8')
+    .replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
+  if (!/detectState\(\)\.path !== null/.test(cmd)) {
+    failures.push('이동 버튼이 탐지 경로를 안 본다 — 경로가 나왔는데 버튼이 안 뜬다');
+  }
+  // 회전 먼저, 직진 나중 — 돌기 전에 가면 엉뚱한 데로 간다.
+  const { pathCommands } = await load('src', 'physical', 'missionLink.ts');
+  const left = pathCommands('왼쪽(반시계)으로 90.0도 회전', 90, 6.354);
+  if (left.map((c) => c.action).join(',') !== 'turn,move_forward') {
+    failures.push(`경로 명령이 [${left.map((c) => c.action).join(',')}] — turn 이 먼저여야 한다`);
+  }
+  if (left[0]?.parameters?.deg !== -90) failures.push(`왼쪽 회전이 ${left[0]?.parameters?.deg} — 오른쪽이 + 라 -90 이어야 한다`);
+  const right = pathCommands('오른쪽(시계)으로 30도 회전', 30, 1);
+  if (right[0]?.parameters?.deg !== 30) failures.push('오른쪽 회전의 부호가 틀렸다');
+  // 규약 범위 밖은 안 낸다 — 5도 미만·0.05m 미만은 거절당한다.
+  if (pathCommands('오른쪽으로 2도', 2, 0.01).length !== 0) failures.push('규약이 안 받는 값을 낸다');
 }
 
 // ── 6. 경계 — 탐지를 아는 면이 src/detect/ 하나인가 ─────────────────────────
@@ -217,5 +269,6 @@ console.log('✅ 시료도 한 각도씩 — 4초에 하나, 여덟을 다 본 �
 console.log('✅ 초록은 하나 — 시료에서 실제로 둘이 찾혔고(270·315) 점수 높은 쪽을 고른다, 없으면 안 고른다');
 console.log('✅ 상자를 [x,y,w,h] 로 바꾼다 · 판단 문장은 관문 넷에서 나오고 화면도 퍼센트를 안 만든다');
 console.log('✅ 보정범위 밖 깊이값을 거리로 안 그린다 (시료는 0.0cm · 범위 밖)');
+console.log('✅ 탐지가 태스크 노드를 민다 — 이동·정지·종료는 안 민다(로봇이 해야 끝난다) · 회전 먼저 직진 나중');
 console.log('✅ 탐지를 아는 면이 src/detect/ 하나 — 시료 경로·엔드포인트가 경계 밖에 0건');
 console.log(`✅ 대조군 ${controls.length}건 전부 검출 — ${controls.join(' · ')}`);

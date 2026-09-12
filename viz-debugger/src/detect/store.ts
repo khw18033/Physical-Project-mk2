@@ -12,6 +12,7 @@
  */
 
 import { useSyncExternalStore } from 'react';
+import { resetDetectTrace } from './detectTrace.ts';
 import type { DetectFeatures, DetectFrame, DetectFrameEvidence, DetectPath } from './types.ts';
 
 export type DetectState = {
@@ -64,6 +65,7 @@ export function useDetect(): DetectState {
 
 /** 「테스트」를 켜고 끈다. **끄면 읽어 둔 것도 같이 버린다** — 시료가 실제 결과로 보이면 안 된다. */
 export function setTestMode(on: boolean): void {
+  resetDetectTrace();
   commit(on ? { ...state, testMode: true } : { ...EMPTY, testMode: false });
 }
 
@@ -92,5 +94,7 @@ export function noteDetectError(reason: string): void {
  * 사람이 설정한 것이고, 임무를 다시 올릴 때마다 꺼지면 매번 다시 켜야 한다.
  */
 export function resetDetect(): void {
+  // 낸 사건 기억도 같이 비운다 — 안 그러면 다음 판에서 태스크가 처음부터 끝나 있다.
+  resetDetectTrace();
   commit({ ...EMPTY, testMode: state.testMode });
 }
