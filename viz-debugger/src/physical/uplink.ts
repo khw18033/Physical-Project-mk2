@@ -260,3 +260,37 @@ function closestIndex(seen: ReadonlyMap<number, number>, yawDeg: number): number
   }
   return best;
 }
+
+/**
+ * **봉투 하나 → 사람이 읽을 한 줄.** 값은 전부 로봇이 준 것이고, 없는 칸은 **안 적는다**
+ * (260912 지시 — 「더미가 아니라 실제로 받은 로그를」).
+ *
+ * 화면이 문장을 짓지 않게 여기 한 곳에서 만든다. 두 곳에서 만들면 액션 아이템에 적힌
+ * 줄과 실패 사유에 적힌 줄이 같은 응답을 다르게 말하는 날이 온다.
+ */
+export function uplinkWords(message: UplinkMessage): string {
+  if (message.kind === 'acceptance') {
+    if (message.accepted) return '수락';
+    // 거절 사유를 버리지 않는다 — 이것이 실패 사유 자리에 그대로 올라간다.
+    return `거절 — ${[message.code, message.message].filter((v) => v !== null && v !== '').join(' ') || '사유 없음'}`;
+  }
+  if (message.kind === 'result') {
+    const values = Object.entries(message.result).map(([key, value]) => `${key}=${value}`).join(' ');
+    const why = [message.code, message.message].filter((v) => v !== null && v !== '').join(' ');
+    return [message.status, values, why].filter((part) => part !== '').join(' · ');
+  }
+  const detail = message.detail;
+  if (detail === null) {
+    // 임무 ACK 가 아니면 단계 보고다 — `sdk_starting` 이 여기로 온다.
+    return message.raw.trim() === '' ? message.state : `${message.state} · ${message.raw.trim()}`;
+  }
+  const parts = [
+    `ack ${detail.ack}/${detail.of}`,
+    detail.event,
+    `step ${detail.step}/${detail.steps}`,
+  ];
+  // **모를 수 있는 값은 빈칸으로 둔다.** 0 으로 채우면 북쪽을 보고 있다는 거짓이 된다.
+  if (detail.yaw_deg !== null) parts.push(`yaw ${detail.yaw_deg}`);
+  if (detail.note !== '') parts.push(detail.note);
+  return parts.join(' · ');
+}

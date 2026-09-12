@@ -34,6 +34,7 @@ const online = () => setConnection({ state: 'open' });
  */
 const ownCommand = (commandId = 'cmd-00000001') => recordCommand({
   taskId: 'T-A3', commandId, requestId: null, state: 'issued', code: null, message: null, result: {},
+  issuedAtIso: new Date().toISOString(), parameters: {}, log: [],
 });
 const { receiveUplink } = await load('src', 'physical', 'robotBridge.ts');
 const { decodeUplink, parseDetail } = await load('src', 'physical', 'uplink.ts');
@@ -213,7 +214,11 @@ const filled = () => cellsInOrder(reduceFrames(emptyFill(8), framesUpTo(999))).f
     if (!/<StopButton \/>/.test(source)) failures.push(`${name} 이 정지 버튼을 안 그린다 — 어느 화면에 있든 보여야 한다`);
     if (/mission_abort/.test(source)) failures.push(`${name} 에 옛 mission_abort 가 남아 있다 — 기존 버튼을 살리기로 했다`);
   }
-  const button = readFileSync(join(root, 'src', 'physical', 'StopButton.tsx'), 'utf8');
+  const whole = readFileSync(join(root, 'src', 'physical', 'StopButton.tsx'), 'utf8');
+  // 같은 파일에 이동 버튼(`ApproachButton`)이 함께 산다. 그쪽은 **보내는 중에만** 막는데
+  // (두 번 누르면 같은 걸음이 두 번 나간다), 그것까지 걸리면 검사가 엉뚱한 것을 잡는다.
+  // 여기서 보는 것은 임무 조작 셋뿐이다.
+  const button = whole.split('export function ApproachButton')[0];
   // **비활성화하지 않는다.**
   if (/disabled/.test(button)) failures.push('정지 버튼에 disabled 가 있다 — 연결이 없어도 눌려야 한다');
   // **확인 대화상자를 띄우지 않는다.**

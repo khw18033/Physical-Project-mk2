@@ -22,7 +22,7 @@
 import { commandTracker } from '../shared/commandCenter.ts';
 import type { CommandAck, CommandRequest } from '../transport/index.ts';
 import type { PhysicalAction } from './encode.ts';
-import { PAUSE_ACTION, SDK_ACTIONS } from './presets.ts';
+import { PAUSE_ACTION, SDK_ACTIONS, TEST_FORWARD_M } from './presets.ts';
 import { NO_NODE } from './missionLink.ts';
 import { detectState } from '../detect/store.ts';
 import { commandForTask, missionGeometry, pathCommands, type TaskCommand } from './missionLink.ts';
@@ -30,8 +30,9 @@ import type { PhysicalClient } from './PhysicalClient.ts';
 import type { UplinkMessage } from './uplink.ts';
 import { STOP_ACTION, STOP_REASON } from './presets.ts';
 import {
-  canIssueRobotCommand, clearScanIssued, lockPaused, lockStopped, markApproachIssued, markScanIssued,
-  notePauseFailure, pickDoorIndex, recordCommand, releasePaused, robotDrives, robotSession, runningTaskId,
+  canIssueRobotCommand, clearScanIssued, commandsOfTask, lockPaused, lockStopped, markApproachIssued,
+  markScanIssued, notePauseFailure, pickDoorIndex, recordCommand, releasePaused, robotDrives,
+  robotSession, runningTaskId,
   type PauseState, type StopState,
 } from './robotSession.ts';
 
@@ -101,7 +102,11 @@ async function issueThroughTracker(
   if (sent) {
     recordCommand({
       taskId, commandId, action, requestId: tracked.requestId,
-      state: 'issued', code: null, message: null, result: {},
+      // **실려 나간 값 그대로.** 화면에 적힌 계획값이 아니라 바이트에 들어간 것이다 —
+      // 시험에서 둘이 갈리는 자리가 있어(`TEST_FORWARD_M`) 더 그렇다.
+      parameters: { ...(parameters ?? {}) },
+      issuedAtIso: new Date().toISOString(),
+      state: 'issued', code: null, message: null, result: {}, log: [],
     });
   }
   return {
@@ -183,13 +188,45 @@ export async function issueApproach(
   const steps = approachSteps();
   if (steps.length > 0) {
     let last: IssueOutcome | null = null;
-    for (const step of steps) {
+    for (const [order, step] of steps.entries()) {
       if (!canIssueRobotCommand()) {
         return { sent: false, commandId: '', requestId: null, reason: '승인 전이거나 정지된 상태입니다' };
       }
       last = await issueThroughTracker(client, step.taskId, step.action, step.parameters);
       // 회전이 안 나갔으면 직진을 내면 안 된다 — 안 돌고 가면 엉뚱한 데로 간다.
       if (last.sent !== true) return last;
+      if (order === steps.length - 1) break;
+
+      /**
+       * **앞 명령이 끝나야 다음을 낸다** (260912 실측 — 「이동을 마쳤는데 실패로 떴다」).
+       *
+       * 전에는 둘을 **연달아 쏘았다.** `issueThroughTracker` 는 브로커가 받은 시점에
+       * 돌아오지 로봇이 다 돌았을 때 돌아오지 않는다 — 그래서 회전이 시작하자마자 직진이
+       * 나갔다. 규약에 대기열이 없으니 뒤엣것이 앞엣것을 밀어내거나 거절당한다.
+       * 태스크는 하나(`T-B2`)인데 명령이 둘이라, 그 거절 하나가 노드를 실패로 만든다.
+       *
+       * 여기서 기다리는 것은 **종료 응답**이다. 수락은 「받았다」일 뿐이라 그것으로
+       * 다음을 내면 같은 자리로 돌아온다.
+       */
+      const settled = await terminalAnswer(client, last.commandId, STEP_TIMEOUT_MS);
+      if (settled === null) {
+        return {
+          sent: false, commandId: last.commandId, requestId: last.requestId,
+          reason: `앞 명령(${step.action})이 ${STEP_TIMEOUT_MS / 1000}초 안에 안 끝났습니다 — 다음 명령을 안 냅니다`,
+        };
+      }
+      if (settled.kind === 'result' && settled.status !== 'SUCCEEDED') {
+        return {
+          sent: false, commandId: last.commandId, requestId: last.requestId,
+          reason: `앞 명령(${step.action})이 ${settled.status} 로 끝났습니다 — ${[settled.code, settled.message].filter((v) => v).join(' ') || '사유 없음'}`,
+        };
+      }
+      if (settled.kind === 'acceptance' && !settled.accepted) {
+        return {
+          sent: false, commandId: last.commandId, requestId: last.requestId,
+          reason: `앞 명령(${step.action})이 거절됐습니다 — ${[settled.code, settled.message].filter((v) => v).join(' ') || '사유 없음'}`,
+        };
+      }
     }
     if (last !== null) markApproachIssued();
     return last ?? { sent: false, commandId: '', requestId: null, reason: '경로에 낼 명령이 없습니다' };
@@ -208,7 +245,25 @@ export async function issueApproach(
 export function approachSteps(): readonly TaskCommand[] {
   const path = detectState().path;
   if (path === null) return [];
-  return pathCommands(path.turn_instruction, turnDegOf(path), path.forward_distance_cm / 100);
+  return pathCommands(path.turn_instruction, turnDegOf(path), issuedForwardM() ?? 0);
+}
+
+/** 경로 산출이 낸 **계획** 거리(m). 화면이 적는 값이다. 없으면 null. */
+export function plannedForwardM(): number | null {
+  const path = detectState().path;
+  return path === null ? null : path.forward_distance_cm / 100;
+}
+
+/**
+ * **실제로 나가는** 거리(m). 「테스트」가 켜져 있으면 상한이 걸린다 (260912 지시).
+ *
+ * 계획값과 갈릴 수 있는 유일한 자리다. 그래서 이 둘을 **다른 함수로 갈라 둔다** — 한
+ * 함수가 때에 따라 다른 값을 내면, 화면이 어느 쪽을 적고 있는지 읽는 사람이 알 수 없다.
+ */
+export function issuedForwardM(): number | null {
+  const planned = plannedForwardM();
+  if (planned === null) return null;
+  return detectState().testMode ? Math.min(planned, TEST_FORWARD_M) : planned;
 }
 
 /**
@@ -221,10 +276,19 @@ export function approachWords(): string | null {
   if (steps.length === 0) return null;
   // **부호를 사람 말로 푼다.** 규약에서 오른쪽이 + 라 왼쪽 회전은 `-90` 으로 나간다.
   // 버튼에 「회전 -90도」라고 적으면 보는 사람은 그것이 방향인지 오차인지 모른다.
+  const planned = plannedForwardM();
   return steps.map((step) => {
-    if (step.action !== 'turn') return `직진 ${(step.parameters?.distance_m ?? 0).toFixed(2)}m`;
-    const deg = step.parameters?.deg ?? 0;
-    return `${deg < 0 ? '왼쪽' : '오른쪽'} ${Math.abs(Math.round(deg))}도 회전`;
+    if (step.action === 'turn') {
+      const deg = step.parameters?.deg ?? 0;
+      return `${deg < 0 ? '왼쪽' : '오른쪽'} ${Math.abs(Math.round(deg))}도 회전`;
+    }
+    // **계획값을 적고, 다르면 나간 값을 괄호로 붙인다** (260912 지시). 화면은 산출된
+    // 경로를 그대로 보여 주되, 적힌 숫자와 나간 숫자가 다른 것을 숨기지 않는다.
+    const issued = step.parameters?.distance_m ?? 0;
+    const words = `직진 ${(planned ?? issued).toFixed(2)}m`;
+    return planned !== null && Math.abs(planned - issued) > 0.005
+      ? `${words} (시험 ${issued.toFixed(2)}m 만 보냅니다)`
+      : words;
   }).join(' · ');
 }
 
@@ -401,6 +465,31 @@ async function reportPauseAnswer(client: PhysicalClient, commandId: string, time
   }
 }
 
+/**
+ * **한 걸음이 끝날 때까지 기다리는 시간.** 90도 회전에 로봇이 붙이는 직진 한 걸음까지
+ * 치면 십수 초다. 넉넉히 두되 무한정은 아니다 — 안 끝나면 다음 명령을 안 내고 그렇게 말한다.
+ */
+const STEP_TIMEOUT_MS = 60_000;
+
+/**
+ * 그 `command_id` 가 **끝날 때까지**. 수락은 끝이 아니라 시작이라 그냥 흘려보낸다.
+ * 거절은 끝이다 — 그 명령은 더 이상 진행하지 않는다.
+ */
+function terminalAnswer(client: PhysicalClient, commandId: string, timeoutMs: number): Promise<UplinkMessage | null> {
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => { off(); resolve(null); }, timeoutMs);
+    const off = client.onMessage((message) => {
+      if (message.commandId !== commandId) return;
+      // 진행 보고는 끝이 아니다. 수락도 마찬가지 — 「받았다」일 뿐이다.
+      if (message.kind === 'status') return;
+      if (message.kind === 'acceptance' && message.accepted) return;
+      clearTimeout(timer);
+      off();
+      resolve(message);
+    });
+  });
+}
+
 /** 그 `command_id` 의 첫 응답. 안 오면 null. */
 function firstAnswer(client: PhysicalClient, commandId: string, timeoutMs: number): Promise<UplinkMessage | null> {
   return new Promise((resolve) => {
@@ -473,4 +562,24 @@ export async function emergencyStop(client: PhysicalClient | null): Promise<Stop
 /** 정지 뒤 화면에 크게 띄울 문구. 조용히 성공한 척하지 않는다. */
 export function stopFailureMessage(stopped: StopState): string | null {
   return stopped.published ? null : `정지 명령을 보내지 못했습니다 — ${stopped.failure ?? '알 수 없는 이유'}`;
+}
+
+/**
+ * **그 태스크가 실패한 사유 — 로봇이 준 것만** (260912 지시).
+ *
+ * 전에는 실패 화면에 손으로 쓴 예시 문장이 박혀 있었다. 「진입 중 측면 클리어런스
+ * 0.06 m」는 실제로 일어난 적이 없는 일인데 실패할 때마다 떴고, 발표장에서 그 문장을
+ * 읽고 원인을 찾으면 아무 데도 안 닿는다.
+ *
+ * 찾는 순서가 둘이다. 먼저 로봇이 준 **코드와 문구**, 그것이 비어 있으면 그 명령의
+ * **마지막 로그 줄**. 둘 다 없으면 **null 이고, 그때 화면은 비운다** — 지어내지 않는다.
+ */
+export function failureOfTask(taskId: string): { words: string; atIso: string | null } | null {
+  const failed = commandsOfTask(taskId).filter((record) => record.state === 'failed').at(-1);
+  if (failed === undefined) return null;
+  const said = [failed.code, failed.message].filter((v) => v !== null && v !== '').join(' ');
+  const lastLine = failed.log.at(-1) ?? null;
+  if (said !== '') return { words: said, atIso: lastLine?.atIso ?? null };
+  if (lastLine !== null) return { words: lastLine.text, atIso: lastLine.atIso };
+  return null;
 }

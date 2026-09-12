@@ -31,12 +31,19 @@ const controls = [];
 {
   const target = CONNECTION_TARGETS.find((t) => t.id === 'detect');
   if (target === undefined) failures.push('연결 관리에 detect 자리가 없다');
-  // 없는 서비스를 있는 척하지 않는다 — 자리표시 문구가 있어야 한다.
+  // 주소가 비었을 때 **무엇을 할 수 있는지** 적혀 있어야 한다. 260912 에 탐지가 실제로
+  // 붙으면서 「2단계-B 에서 붙는다」는 지난 말이 됐다 — 지금 필요한 안내는 「테스트를
+  // 켜면 받아 둔 산출물로 같은 길을 돈다」다. 빈 문구는 여전히 안 된다.
   if (target !== undefined && !String(target.pending ?? '').trim()) {
-    failures.push('detect 에 「아직 안 붙었다」는 문구가 없다 — 없는 것을 있는 척하면 안 된다');
+    failures.push('detect 에 안내 문구가 없다 — 주소가 비었을 때 무엇을 할 수 있는지 말해야 한다');
   }
-  if (target !== undefined && !/2단계-B/.test(String(target.pending))) {
-    failures.push('detect 자리표시가 언제 붙는지 안 적었다');
+  if (target !== undefined && !/테스트/.test(String(target.pending))) {
+    failures.push('detect 자리표시가 테스트로 볼 수 있다는 것을 안 적었다');
+  }
+  // **지금 쓰는 둘이 맨 위다** (260912 지시). 시연 직전에 확인하는 것이 로봇과 탐지다.
+  const top = CONNECTION_TARGETS.slice(0, 2).map((t) => t.id).join(',');
+  if (top !== 'physical,detect') {
+    failures.push(`연결 관리 맨 위 둘이 [${top}] 다 — physical,detect 여야 한다`);
   }
 }
 
@@ -139,7 +146,7 @@ if (failures.length) {
   console.error(`❌ verify:no-detect\n- ${failures.join('\n- ')}`);
   process.exit(1);
 }
-console.log('✅ detect 자리가 있고 언제 붙는지 적혀 있다 — 없는 것을 있는 척하지 않는다');
+console.log('✅ detect 자리가 맨 위 둘(로봇·탐지)에 있고, 주소가 비었을 때 무엇을 할 수 있는지 적혀 있다');
 console.log('✅ detect 확인이 던지지 않는다 — 눌러도 팝업이 안 날아간다');
 console.log('✅ 상대 없는 detect 가 나머지 셋을 안 끌어내린다 — 표시등이 아무도 안 짚는다 (모름은 끊김이 아니다)');
 console.log('✅ 탐지 없이도 대본으로 뷰포인트가 찬다 · 테스트를 켜면 받아 둔 실제 산출물로 돈다');

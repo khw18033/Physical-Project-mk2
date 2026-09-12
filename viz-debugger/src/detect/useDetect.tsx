@@ -15,7 +15,7 @@
 
 import { useEffect } from 'react';
 import { advanceRobotHead } from '../data/scenario.ts';
-import { elapsedSec } from '../physical/robotSession.ts';
+import { elapsedSec, useRobotSession } from '../physical/robotSession.ts';
 import { applyDetection } from './detectBridge.ts';
 import { advanceDetectTasks } from './detectTrace.ts';
 import { detectBaseUrl } from './DetectClient.ts';
@@ -27,12 +27,24 @@ export function useDetectUplink(missionId: string, params: Record<string, unknow
   const stepDeg = typeof params?.viewpoint_step_deg === 'number' ? params.viewpoint_step_deg : 45;
   const count = typeof params?.viewpoint_count === 'number' ? params.viewpoint_count : 8;
   const base = detectBaseUrl();
+  /**
+   * **시작을 누르기 전에는 안 묻는다** (260912 지시 — 「승인을 누르면 T-A1·T-A2 가 바로
+   * 완료로 뜬다」).
+   *
+   * 자세 역산은 임무 시계와 무관한 파일이라 켜 두면 곧바로 온다. 그래서 승인만 하고
+   * 가만히 있어도 앞의 두 노드가 초록이 됐다 — **로봇은 아직 아무것도 안 했는데.**
+   *
+   * 묻는 시점을 시작에 건다. 승인은 「이 계획대로 해도 좋다」이고, 임무의 첫 걸음은
+   * 시작을 누른 뒤에 시작한다.
+   */
+  const started = useRobotSession().started;
 
-  // 상대가 있을 때만 묻는다. 주소가 바뀌거나 테스트를 켜면 그때 다시 선다.
+  // 상대가 있고 **임무가 시작됐을 때만** 묻는다. 주소가 바뀌거나 테스트를 켜면 다시 선다.
   useEffect(() => {
+    if (!started) return;
     if (!state.testMode && base.trim() === '') return;
     return startDetectPolling(() => detectState().frames.length < count, count);
-  }, [state.testMode, base, count]);
+  }, [started, state.testMode, base, count]);
 
   /**
    * 받은 것을 여덟 칸에 얹는다. **머리도 같이 민다** — 안 그러면 방금 넣은 프레임이

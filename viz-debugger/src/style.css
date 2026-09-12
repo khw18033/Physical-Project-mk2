@@ -9,6 +9,28 @@
 .mission-debugger .timeline-human .timeline{border-style:dashed}
 .mission-debugger .timeline b.human-mark{position:absolute;top:-3px;width:3px;height:17px;margin-left:-1px;background:#b4530f;border-radius:1px}
 .modal-backdrop{position:fixed;inset:0;z-index:20;display:grid;place-items:center;padding:55px;background:#1a222c55}.modal{width:min(1280px,94vw);max-height:88vh;overflow:auto;background:#fff;border-radius:12px;box-shadow:0 20px 70px #1e293b55}.modal>header,.modal>footer{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:16px 22px;border-bottom:1px solid #dce1e8}.modal h2{margin:0 0 5px}.device-strip{display:grid;grid-template-columns:1.2fr repeat(6,1fr);gap:14px;padding:15px 22px;background:#eef5fb}.device-strip b,.device-strip span{display:flex;flex-direction:column;gap:5px}.device-strip small{font-weight:400}.modal-grid{display:grid;grid-template-columns:1fr 300px}.modal table{width:calc(100% - 32px);border-collapse:collapse;margin:16px}.modal th,.modal td{padding:12px;border-bottom:1px solid #e1e5eb;text-align:left}.modal td small{display:block}.modal aside{padding:18px;border-left:1px solid #e1e5eb}.modal footer{border-top:1px solid #dce1e8;border-bottom:0;justify-content:flex-end}.modal footer span{margin-right:auto;color:#6a7686}.modal footer button,.modal>header button,.failure-open{padding:9px 13px;border:1px solid #bec8d5;background:#fff;border-radius:7px}.modal footer button:last-child{color:#fff;background:#1768c5}.failure-reason{margin:16px 22px;padding:15px;border:1px solid #efb2b2;background:#fff0f0}.parameter-form{display:grid;gap:12px;padding:15px 22px 35px}.parameter-form label{display:grid;grid-template-columns:200px 160px 1fr;gap:8px;align-items:center}.parameter-form input{padding:8px;border:1px solid #1768c5}.failure-open{position:fixed;right:45px;bottom:35px;color:#fff;background:#c62f35}
+/* 실패 사유가 비었을 때 — **비었다는 것 자체가 정보다.** 붉게 칠하지 않는다. */
+.failure-reason--empty{color:#6a7686}
+/* 로봇과 실제로 오간 것. 지어낸 문장이 없으므로 값이 그대로 읽히게만 한다. */
+.modal-grid__left{padding:16px 22px;min-width:0}
+.modal-grid__left>h3{margin:0 0 10px;font-size:13px;color:#4a5666}
+.modal-grid__left table{width:100%;margin:16px 0 0}
+.robot-log{display:grid;gap:12px}
+.robot-log__empty{margin:0;color:#6a7686;font-size:13px}
+.robot-log__cmd{border:1px solid #dde3ea;border-radius:8px;padding:10px 12px}
+.robot-log__cmd.is-failed{border-color:#efb2b2;background:#fff7f7}
+.robot-log__cmd.is-done{border-color:#bfe0cd}
+.robot-log__cmd>header{display:flex;flex-wrap:wrap;align-items:baseline;gap:8px;padding:0;border:0}
+.robot-log__cmd>header b{font-size:13px}
+.robot-log__cmd>header span{padding:1px 8px;border-radius:9px;background:#eef1f5;color:#4a5666;font-size:11px}
+.robot-log__cmd>header code{margin-left:auto;color:#8a94a1;font-size:11px}
+.robot-log__params{margin:6px 0 0;font-size:12px;color:#26303c;font-variant-numeric:tabular-nums}
+.robot-log__lines{margin:8px 0 0;padding:0;list-style:none;display:grid;gap:3px}
+.robot-log__lines li{display:grid;grid-template-columns:88px 1fr;gap:8px;font-size:12px;line-height:1.45}
+.robot-log__lines time{color:#8a94a1;font-variant-numeric:tabular-nums}
+.robot-log__lines code{grid-column:2;color:#6b7888;font-size:11px;word-break:break-all}
+.robot-log__lines .is-result span{font-weight:700}
+.robot-log__lines .is-empty span{color:#8a94a1}
 .milestone-layout,.graph-panel,.replay-layout{margin-top:0}.replay-layout .graph-panel{margin-top:0}
 .waveform{display:flex;align-items:flex-end;gap:2px;height:62px;padding:6px 8px;background:#f4f7fb;font-size:0}.waveform i{flex:1;min-height:3px;background:#b9cde6;border-radius:1px;transition:height .06s linear}.waveform.live i{background:#2f7fd6}.stt-controls{display:flex;align-items:center;gap:8px;margin:10px 0 6px;font-size:12px;flex-wrap:wrap}.stt-controls>button{padding:7px 11px;border:1px solid #cbd3de;border-radius:7px;background:#fff}.stt-controls>button:disabled{color:#9aa5b3;background:#f2f4f7}.stt-controls .rec-stop{color:#fff;border-color:#c62f35;background:#c62f35}.file-fallback input{width:104px;font-size:11px}.hotword-toggle{display:flex;align-items:center;gap:4px}.stt-note{margin:6px 0;color:#687587;font-size:12px}.stt-error{margin:6px 0;padding:8px;border:1px solid #efb2b2;background:#fff0f0;color:#8f2b2b;font-size:12px}.stt-error small{display:block;margin-top:5px;font-family:monospace;white-space:pre-wrap;color:#a35a5a}.stt-issued{margin:8px 0 0;padding:8px;border:1px solid #b7ddc4;background:#eef9f1;font-size:12px}.progress-steps span{border-bottom-color:#cbd3dc;color:#8a95a3}.progress-steps .step-active{border-bottom-color:#4c8fe8;color:#17202b}.progress-steps .step-done{border-bottom-color:#35a36a;color:#17202b}.progress-steps .step-failed{border-bottom-color:#d94b4b;color:#a83232}.progress-steps .step-mock{border-bottom:3px dashed #b9c2cd;background:repeating-linear-gradient(135deg,#fafbfc,#fafbfc 6px,#f1f3f6 6px,#f1f3f6 12px)}.progress-steps .step-mock b{margin-right:3px;padding:1px 4px;border-radius:3px;background:#e3e7ec;color:#5f6b7a;font-size:10px}.transcript-edit{display:grid;gap:4px;margin:12px 0 6px;font-size:12px}.transcript-edit textarea,.manual-input textarea{width:100%;padding:8px;border:1px solid #1768c5;border-radius:6px;font:inherit;font-size:13px;resize:vertical}.transcript-original{margin:0 0 10px;color:#7a6a2f;font-size:12px}.transcript-original small{display:block;color:#98a2b0}.utterance-panel dd small{display:block;color:#8a95a3;font-weight:400}.verdict-accept{color:#168f50}.verdict-confirm{color:#a97a00}.verdict-reject{color:#cc3434}.stt-numbers{margin:12px 0;border:1px solid #dfe4ea;border-radius:7px;background:#fafbfc;font-size:12px}.stt-numbers>summary{padding:8px 10px;cursor:pointer}.stt-numbers>*:not(summary){margin:0;padding:0 12px 10px}.stt-numbers dl{display:grid;grid-template-columns:130px 1fr;gap:6px;font-family:monospace}.stt-numbers ul{padding-left:28px}.reconfirm{display:flex;align-items:flex-start;gap:6px;margin:8px 0;font-size:12px}.submit-utterance{width:100%;padding:10px;border:1px solid #1768c5;border-radius:7px;background:#1768c5;color:#fff}.submit-utterance:disabled{border-color:#c8d0da;background:#eef1f5;color:#98a2b0}.manual-input{margin-top:14px;border-top:1px dashed #d6dce5;padding-top:10px;font-size:12px}.manual-input summary{cursor:pointer;font-weight:700}.manual-input button{margin-top:6px;padding:7px 11px;border:1px solid #cbd3de;border-radius:7px;background:#fff}
 .progress-steps{display:grid;grid-template-columns:repeat(auto-fit,minmax(96px,1fr));gap:6px}.progress-steps span{padding:7px 6px;font-size:11px;line-height:1.35;word-break:keep-all}.milestone{grid-template-columns:62px 1fr auto}.milestone small{max-width:96px;font-size:11px;line-height:1.35;text-align:right;word-break:keep-all}
@@ -254,6 +276,11 @@ b.follow-live{cursor:default}
 .zoom-modal__body>*+*{margin-top:14px}
 .zoom-modal>footer span{color:#6a7686;font-size:12px}
 /* 확대된 노드는 캔버스에서도 표시가 남는다 — 어느 카드를 열었는지가 뒤에 보여야 한다. */
+/* **그림이 있으면 가로를 꽉 채운다** (260912 지시). 채운 만큼 세로가 따라 늘어나야
+   잘리지 않는다 — 높이를 104 로 묶어 두면 위쪽 몇 줄만 보인다. 크기를 직접 조절한
+   노드는 인라인 높이가 이깁니다(그쪽이 더 구체적이다). */
+.view-node:has(.view-node__body img){height:auto;min-height:104px}
+.view-node__body img{max-width:100%}
 .view-node--zoomed{box-shadow:0 0 0 3px #1768c5}
 
 /* ── 3단계 (260903) — 안내줄이 만든 노드는 잠깐 반짝인다 ────────────────────────
@@ -478,8 +505,8 @@ button.robot-stop:hover{background:#b8271f}
 .detect-temp{margin-left:6px;padding:1px 6px;border-radius:9px;background:#fdf6ea;color:#7a4d08;font-style:normal;font-size:10px;font-weight:700}
 
 .detect-cam{display:grid;gap:4px}
-.detect-cam img{width:100%;border-radius:5px;object-fit:cover;max-height:120px}
-.detect-cam--zoom img{max-height:420px;object-fit:contain;background:#11161d}
+.detect-cam img{width:100%;height:auto;display:block;border-radius:5px}
+.detect-cam--zoom img{max-height:min(60vh,620px);object-fit:contain;background:#11161d}
 .detect-cam__at{font-size:11px;color:#4a5666}
 .detect-strip{display:flex;gap:6px;overflow-x:auto;padding-bottom:4px}
 .detect-strip figure{margin:0;flex:0 0 96px}
@@ -494,7 +521,7 @@ button.robot-stop:hover{background:#b8271f}
 .detect-gates li{padding:2px 7px;border-radius:9px;font-size:11px}
 .detect-gates .is-pass{background:#e7f6ee;color:#125c33}
 .detect-gates .is-fail{background:#fdf3f2;color:#8f2b26}
-.detect-crop{max-height:160px;border:1px solid #dde3ea;border-radius:5px;image-rendering:pixelated}
+.detect-crop{width:100%;height:auto;display:block;border:1px solid #dde3ea;border-radius:5px;image-rendering:pixelated}
 .detect-features{width:100%;border-collapse:collapse;font-size:11px}
 .detect-features th{text-align:left;font-weight:400;color:#4a5666;padding:2px 0}
 .detect-features td{text-align:right;color:#26303c;font-variant-numeric:tabular-nums}
@@ -503,7 +530,7 @@ button.robot-stop:hover{background:#b8271f}
 .detect-map{display:grid;gap:5px}
 /* 경로가 나오기 전의 도면. 같은 자리에 같은 크기로 선다 — 그림이 바뀔 때 칸이 안 흔들린다. */
 .detect-map--plain img{opacity:.9}
-.detect-map img{width:100%;border-radius:5px;background:#fff;object-fit:contain;max-height:130px}
+.detect-map img{width:100%;height:auto;display:block;border-radius:5px;background:#fff}
 .detect-map__facts{display:flex;flex-wrap:wrap;gap:8px;font-size:11px;color:#4a5666}
 .detect-map__rows{display:grid;gap:2px;margin:4px 0 0}
 .detect-map__rows>div{display:flex;gap:10px;font-size:12px}

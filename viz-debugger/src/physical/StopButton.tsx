@@ -129,21 +129,32 @@ export function ApproachButton() {
   useRobotSession();
   useDetect();
   const [failure, setFailure] = useState<string | null>(null);
+  /**
+   * **기다리는 중이라고 말한다** (260912). 회전이 끝나야 직진을 내므로 누른 뒤 십수 초
+   * 동안 아무 일도 안 일어나는 것처럼 보인다. 그때 화면이 조용하면 발표자가 한 번 더 누른다.
+   */
+  const [busy, setBusy] = useState(false);
   if (!canApproach()) return null;
   const words = approachWords();
   return <button
     type="button"
     className={`robot-approach${failure === null ? '' : ' robot-approach--failed'}`}
+    // 두 번 누르면 같은 걸음이 두 번 나간다 — 기다리는 동안만 막는다.
+    disabled={busy}
     onClick={() => {
       setFailure(null);
+      setBusy(true);
       void issueApproach(robotClient(), currentMission().params).then((outcome) => {
+        setBusy(false);
         setFailure(outcome?.sent === true ? null : (outcome?.reason ?? '낼 명령이 없습니다'));
       });
     }}
-    title={failure ?? '경로 산출이 낸 회전과 직진을 차례로 냅니다'}
+    title={failure ?? '경로 산출이 낸 회전과 직진을 차례로 냅니다 — 회전이 끝나야 직진이 나갑니다'}
   >
-    {failure === null
-      ? <>▶ 경로대로 이동{words !== null && <small> · {words}</small>}</>
-      : <>▶ 못 보냈습니다 — {failure}</>}
+    {busy
+      ? <>▶ 로봇이 하는 중 — 앞 명령이 끝나기를 기다립니다</>
+      : failure === null
+        ? <>▶ 경로대로 이동{words !== null && <small> · {words}</small>}</>
+        : <>▶ 못 보냈습니다 — {failure}</>}
   </button>;
 }

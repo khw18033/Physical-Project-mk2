@@ -145,6 +145,20 @@ const { PREP_SEC, afterPrep } = session;
   if (!/unidepth_localization\/localization_evidence\.json/.test(client)) {
     failures.push('자세 역산을 읽는 자리가 없다');
   }
+
+  /**
+   * **승인만으로는 앞의 둘도 안 움직인다** (260912 지시 — 「승인을 누르면 T-A1·T-A2 가
+   * 바로 완료로 뜬다」).
+   *
+   * 자세 역산은 임무 시계와 무관한 파일이라 켜 두면 곧바로 온다. 묻는 시점을 시작에
+   * 걸지 않으면, 승인만 하고 가만히 있어도 두 노드가 초록이 된다 — 로봇은 아직 아무것도
+   * 안 했는데.
+   */
+  const uplink = src('detect', 'useDetect.tsx');
+  if (!/if \(!started\) return;/.test(uplink)) {
+    failures.push('시작 전에도 탐지를 묻는다 — 승인만 했는데 T-A1·T-A2 가 완료로 뜬다');
+  }
+  if (!/\[started, /.test(uplink)) failures.push('시작이 바뀌어도 폴링이 다시 서지 않는다');
 }
 
 // ── 5. 2D 맵은 경로 전후로 다른 그림이다 (260912 지시) ──────────────────────
@@ -185,7 +199,11 @@ const { PREP_SEC, afterPrep } = session;
   }
   const button = src('physical', 'StopButton.tsx');
   if (!/export function ApproachButton/.test(button)) failures.push('머리줄에 이동 버튼이 없다');
-  if (/disabled/.test(button)) failures.push('머리줄 버튼을 비활성화한다 — 누르게 하고 못 보냈다고 말해야 한다');
+  // 연결이 없다고 막으면 안 된다. **보내는 중에만** 막는다 — 두 번 누르면 같은 걸음이
+  // 두 번 나간다.
+  for (const bad of button.match(/disabled=\{[^}]*\}/g) ?? []) {
+    if (bad !== 'disabled={busy}') failures.push(`이동 버튼을 ${bad} 로 막는다 — 연결이 없어도 눌려야 한다`);
+  }
   if (!/못 보냈습니다/.test(button)) failures.push('못 보낸 것을 버튼 자리에 안 적는다');
   for (const bar of [src('shell', 'AppShell.tsx'), src('views', 'TopBar.tsx')]) {
     if (!/<ApproachButton \/>/.test(bar)) failures.push('머리줄이 이동 버튼을 안 건다 — 어느 화면에서는 안 보인다');
@@ -240,7 +258,7 @@ if (failures.length) {
 console.log(`✅ 시작을 눌러도 준비 창(${PREP_SEC}초)이 닫히기 전에는 스캔이 안 나간다 — T-A1·T-A2 가 먼저다`);
 console.log('✅ 준비 중에는 한 각도도 안 열린다 — 로봇이 서 있는 동안 안 본 방향의 답이 뜨지 않는다');
 console.log('✅ 정지·일시정지·처음으로가 준비 창을 같이 끊는다 — 멈춘 뒤에 창이 닫혀도 안 돈다');
-console.log('✅ T-A1·T-A2 는 자세 역산으로 끝난다 (문의 도면 위치 · 로봇 위치와 방위)');
+console.log('✅ T-A1·T-A2 는 자세 역산으로 끝나고, 그 자세도 「임무 시작」 뒤에야 묻는다');
 console.log('✅ 2D 맵은 경로 전후로 다른 그림이고, 바뀌는 값이 T-B1 의 완료와 같다');
 console.log('✅ 이동 버튼이 머리줄에 있어 어느 화면에서도 보이고, 연결이 없어도 눌린다');
 console.log(`✅ 대조군 ${controls.length}건 전부 검출 — ${controls.join(' · ')}`);

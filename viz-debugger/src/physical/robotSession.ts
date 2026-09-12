@@ -58,18 +58,42 @@ export type PauseState = {
   failure: string | null;
 };
 
+/**
+ * **로봇이 보내온 한 줄.** 지어낸 문장이 아니라 **받은 값 그대로**다 (260912 지시).
+ *
+ * 액션 아이템 자리와 실패 사유 자리가 둘 다 이것을 읽는다. 전에는 그 두 자리에 손으로
+ * 적은 예시 문장이 박혀 있었다 — 「진입 중 측면 클리어런스 0.06 m」 같은 것이 실제로
+ * 일어난 적이 없는데도 실패할 때마다 떴다. **없으면 비운다.**
+ */
+export type CommandLogLine = {
+  /** 받은 시각. 명령을 낸 시각과의 차이가 곧 걸린 시간이다. */
+  atIso: string;
+  /** 수락 / 진행 / 종료 중 무엇인가. */
+  kind: 'acceptance' | 'status' | 'result';
+  /** 한 줄 요약. 값은 로봇이 준 것만 담는다. */
+  text: string;
+  /** 로봇이 보낸 원문(`detail`). 없으면 빈 문자열 — 지어 채우지 않는다. */
+  raw: string;
+};
+
 /** 태스크 하나가 로봇에 낸 명령. 응답이 어느 노드의 것인지 이걸로 안다. */
 export type TaskCommandRecord = {
   taskId: string;
   commandId: string;
   /** 무슨 명령이었나. 로봇이 「그런 명령 없다」고 하면 어느 이름인지 알아야 한다. */
   action: string;
+  /** **실제로 실려 나간 값.** 화면에 적힌 계획값이 아니라 바이트에 들어간 것이다. */
+  parameters: Record<string, number>;
+  /** 낸 시각. 로그의 시각과 견주면 걸린 시간이 나온다. */
+  issuedAtIso: string;
   /** 추적기가 발급한 요청 식별자 — 감사·추적이 이 키로 걸린다. */
   requestId: string | null;
   state: 'issued' | 'running' | 'done' | 'failed';
   code: string | null;
   message: string | null;
   result: Record<string, number>;
+  /** 이 명령으로 오간 로그. **받은 순서 그대로** 쌓는다. */
+  log: readonly CommandLogLine[];
 };
 
 export type RobotSession = {
@@ -362,6 +386,29 @@ export function afterPrep(elapsed: number): number {
 /** 태스크가 명령을 냈다. `requestId` 는 추적기가 준다. */
 export function recordCommand(record: TaskCommandRecord): void {
   commit({ ...session, commands: { ...session.commands, [record.commandId]: record } });
+}
+
+/**
+ * **로봇이 보낸 한 줄을 그 명령 밑에 쌓는다** (260912 지시).
+ *
+ * 모르는 `command_id` 는 버린다 — uplink 는 토픽 하나라 남의 도구가 쏜 명령의 보고도
+ * 같이 들어온다. 그것까지 쌓으면 우리 노드의 로그에 남의 값이 섞인다.
+ *
+ * 정지·일시정지 뒤에도 쌓는다. 진행을 **반영**하지 않는 것과 무엇이 왔는지 **기록**하는
+ * 것은 다르다 — 멈춘 뒤에 뭐가 왔는지가 오히려 알고 싶은 것이다.
+ */
+export function noteCommandLog(commandId: string, line: CommandLogLine): void {
+  const entry = session.commands[commandId];
+  if (entry === undefined) return;
+  const next = { ...entry, log: [...entry.log, line] };
+  commit({ ...session, commands: { ...session.commands, [commandId]: next } });
+}
+
+/** 그 태스크가 낸 명령들. 낸 순서대로 — 회전 먼저, 직진 나중. */
+export function commandsOfTask(taskId: string): readonly TaskCommandRecord[] {
+  return Object.values(session.commands)
+    .filter((record) => record.taskId === taskId)
+    .sort((a, b) => a.issuedAtIso.localeCompare(b.issuedAtIso));
 }
 
 export function markApproachIssued(): void {

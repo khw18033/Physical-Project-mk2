@@ -73,7 +73,7 @@ function replay() {
   pickDoorIndex(8);
   recordCommand({
     commandId: COMMAND_ID, taskId: 'T-A3', action: 'scan_mission',
-    atMs: Date.now(), requestId: 'req-verify',
+    issuedAtIso: new Date().toISOString(), parameters: {}, log: [], requestId: 'req-verify',
   });
   SEEN.forEach((yaw, i) => receiveUplink(status('scan_turn', i + 1, yaw, 22 + i), MISSION, (i + 1) * 2));
   const lastRotationSec = SEEN.length * 2;
@@ -237,7 +237,7 @@ const run = replay();
   markApproved();
   recordCommand({
     commandId: 'cmd-nopick', taskId: 'T-A3', action: 'scan_mission',
-    atMs: Date.now(), requestId: 'req-nopick', state: 'issued', code: null, message: null, result: {},
+    issuedAtIso: new Date().toISOString(), parameters: {}, log: [], requestId: 'req-nopick', state: 'issued', code: null, message: null, result: {},
   });
   SEEN.forEach((yaw, i) => receiveUplink({
     kind: 'status', commandId: 'cmd-nopick', state: 'RUNNING',

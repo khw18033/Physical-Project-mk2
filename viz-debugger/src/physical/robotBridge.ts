@@ -15,9 +15,9 @@ import { effectsOf, NO_NODE, type LinkEffect } from './missionLink.ts';
 import type { PhysicalClient } from './PhysicalClient.ts';
 import { advanceRobotHead, receiveRobotProgress } from '../data/scenario.ts';
 import type { ScenarioEvent } from '../model/types.ts';
-import { elapsedSec, applyEffects, robotSession } from './robotSession.ts';
+import { elapsedSec, applyEffects, noteCommandLog, robotSession } from './robotSession.ts';
 import { robotClient } from './robotClient.ts';
-import type { UplinkMessage } from './uplink.ts';
+import { uplinkWords, type UplinkMessage } from './uplink.ts';
 
 /**
  * uplink 하나를 화면 상태로. 되돌려주는 것은 뷰포인트 열에 넣은 프레임 수다.
@@ -31,6 +31,23 @@ export function receiveUplink(
   atSec: number,
   viewpointCount = 8,
 ): number {
+  /**
+   * **온 것을 그대로 적어 둔다** (260912 지시).
+   *
+   * 액션 아이템 자리와 실패 사유 자리가 이 로그를 읽는다. 전에는 그 두 자리에 손으로 쓴
+   * 예시 문장이 박혀 있었고, 실제로 일어난 적이 없는 일이 실패할 때마다 떴다.
+   *
+   * **효과보다 먼저 적는다.** 효과는 정지·일시정지 뒤에 버려지는데, 무엇이 왔는지는
+   * 그때도 알고 싶은 것이다 — 오히려 그때 가장 알고 싶다.
+   */
+  noteCommandLog(message.commandId, {
+    atIso: new Date().toISOString(),
+    kind: message.kind,
+    text: uplinkWords(message),
+    // 원문은 status 에만 있다. 없는 것을 지어 채우지 않는다.
+    raw: message.kind === 'status' ? message.raw : '',
+  });
+
   const effects = effectsOf(message, {
     // 어느 태스크의 응답인가 — 발행할 때 적어 둔 표를 본다.
     taskOf: (commandId) => robotSession().commands[commandId]?.taskId ?? null,

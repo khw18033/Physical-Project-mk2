@@ -84,7 +84,7 @@ const strip = (source) => source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.
   scenario.previewMission('MSN-260909-01');
   recordCommand({
     commandId: 'cmd-sdk', taskId: NO_NODE, action: SDK_ACTIONS.start,
-    atMs: Date.now(), requestId: 'req-sdk', state: 'issued', code: null, message: null, result: {},
+    issuedAtIso: new Date().toISOString(), parameters: {}, log: [], requestId: 'req-sdk', state: 'issued', code: null, message: null, result: {},
   });
   receiveUplink(statusOf(JSON.stringify({ event: SDK_STARTING })), 'MSN-260909-01', 1);
   if (robotSession().stage !== SDK_STARTING) {
@@ -138,7 +138,7 @@ const strip = (source) => source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.
   setConnection({ state: 'open' });
   recordCommand({
     commandId: 'cmd-nosdk', taskId: NO_NODE, action: SDK_ACTIONS.stop,
-    atMs: Date.now(), requestId: 'req-nosdk', state: 'issued', code: null, message: null, result: {},
+    issuedAtIso: new Date().toISOString(), parameters: {}, log: [], requestId: 'req-nosdk', state: 'issued', code: null, message: null, result: {},
   });
   receiveUplink({
     kind: 'acceptance', commandId: 'cmd-nosdk', accepted: false,
@@ -152,7 +152,7 @@ const strip = (source) => source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.
   setConnection({ state: 'open' });
   recordCommand({
     commandId: 'cmd-batt', taskId: NO_NODE, action: SDK_ACTIONS.start,
-    atMs: Date.now(), requestId: 'req-batt', state: 'issued', code: null, message: null, result: {},
+    issuedAtIso: new Date().toISOString(), parameters: {}, log: [], requestId: 'req-batt', state: 'issued', code: null, message: null, result: {},
   });
   receiveUplink({
     kind: 'acceptance', commandId: 'cmd-batt', accepted: false,

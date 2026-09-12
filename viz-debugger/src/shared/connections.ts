@@ -63,7 +63,34 @@ export type ConnectionTarget = {
 };
 
 /** **대상 목록의 유일한 원천.** 화면은 이것을 그린다. */
+/**
+ * **대상 목록의 유일한 원천.** 화면은 이것을 그린다.
+ *
+ * **순서가 화면의 순서다** (260912 지시). 지금 실제로 쓰는 둘 — 로봇과 객체 탐지 — 이
+ * 맨 위다. 시연 직전에 확인해야 하는 것이 그 둘이고, 아래로 내려가면 스크롤한 만큼
+ * 늦게 눈에 들어온다. 나머지는 쓰던 순서 그대로 뒤에 선다.
+ */
 export const CONNECTION_TARGETS: readonly ConnectionTarget[] = [
+  {
+    id: 'physical',
+    label: '로봇 (MQTT 브로커)',
+    what: 'Go1 명령·진행 보고. **시연 편은 이 하나로 돈다** — 안 붙이면 승인해도 로봇이 안 움직이고 화면도 안 나아간다',
+    live: true,
+    // **주소를 여기 적지 않는다.** stt·generate 는 대비값을 여기 두지만, 로봇은
+    // 주소·토픽·장비 id 가 한 곳에만 있어야 한다는 제약이 더 세다(`verify:physical-port`) —
+    // 브로커를 옮기거나 중앙 서버 경유로 바꿀 때 한쪽만 고쳐지면 화면이 「붙었다」고
+    // 말하면서 아무것도 못 받는다. 기본값은 `src/physical/PhysicalClient.ts` 가 심는다.
+    fields: [{ key: 'ws', label: 'WebSocket', fallback: '' }],
+  },
+  {
+    id: 'detect',
+    label: '객체 탐지',
+    what: '문 유무 판정 · 근거 · 2D 맵 경로 산출. 여덟 칸과 MS-A 의 노드를 이쪽이 민다',
+    live: true,
+    // 260912 — 붙었다. 「테스트」를 켜면 받아 둔 실제 산출물로 같은 길을 그대로 돈다.
+    pending: '주소가 비어 있으면 「테스트」를 켜서 받아 둔 실제 산출물로 돌릴 수 있습니다',
+    fields: [{ key: 'base', label: '주소', fallback: '' }],
+  },
   {
     id: 'gateway',
     label: '백엔드 WS 게이트웨이',
@@ -87,26 +114,6 @@ export const CONNECTION_TARGETS: readonly ConnectionTarget[] = [
     what: '발화 → 임무 객체 (VZ-G-01·VZ-G-02). 꺼져 있으면 생성만 꺼지고 대본 재생·되감기·캔버스는 그대로 돈다',
     live: true,
     fields: [{ key: 'base', label: '주소', fallback: 'http://127.0.0.1:8802' }],
-  },
-  {
-    id: 'physical',
-    label: '로봇 (MQTT 브로커)',
-    what: 'Go1 명령·진행 보고. **시연 편은 이 하나로 돈다** — 안 붙이면 승인해도 로봇이 안 움직이고 화면도 안 나아간다',
-    live: true,
-    // **주소를 여기 적지 않는다.** stt·generate 는 대비값을 여기 두지만, 로봇은
-    // 주소·토픽·장비 id 가 한 곳에만 있어야 한다는 제약이 더 세다(`verify:physical-port`) —
-    // 브로커를 옮기거나 중앙 서버 경유로 바꿀 때 한쪽만 고쳐지면 화면이 「붙었다」고
-    // 말하면서 아무것도 못 받는다. 기본값은 `src/physical/PhysicalClient.ts` 가 심는다.
-    fields: [{ key: 'ws', label: 'WebSocket', fallback: '' }],
-  },
-  {
-    id: 'detect',
-    label: '객체 탐지',
-    what: '문 유무 판정. 2단계-B 에서 붙는다 — 지금은 문 유무를 대본이 준다',
-    live: true,
-    // **자리만 만든다** (§2). 실제 확인은 2단계-B 에서 잇는다 — 없는 서비스에 붙는 척하지 않는다.
-    pending: '아직 안 붙었습니다 — 주소를 넣어 둘 수는 있고, 확인은 2단계-B 에서 잇습니다',
-    fields: [{ key: 'base', label: '주소', fallback: '' }],
   },
   {
     id: 'control-node',
