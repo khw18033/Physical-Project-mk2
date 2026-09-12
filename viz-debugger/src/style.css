@@ -467,6 +467,45 @@ button.robot-stop:hover{background:#b8271f}
 .robot-sdk-none code{background:#fdf3f2;padding:1px 4px;border-radius:3px}
 .robot-door-temp{margin-left:6px;padding:2px 7px;border-radius:9px;background:#fdf6ea;color:#7a4d08;font-style:normal;font-size:11px;font-weight:700}
 
+/* 탐지 셋 (260912) — 영상 · 근거 · 2D 맵. 값이 없으면 감추지 않고 적는다. */
+.detect-wait{margin:0;padding:6px 2px;color:#6b7888;font-size:12px}
+.detect-wait small{display:block;margin-top:3px;font-size:11px;color:#8a95a3}
+.detect-temp{margin-left:6px;padding:1px 6px;border-radius:9px;background:#fdf6ea;color:#7a4d08;font-style:normal;font-size:10px;font-weight:700}
+
+.detect-cam{display:grid;gap:4px}
+.detect-cam img{width:100%;border-radius:5px;object-fit:cover;max-height:120px}
+.detect-cam--zoom img{max-height:420px;object-fit:contain;background:#11161d}
+.detect-cam__at{font-size:11px;color:#4a5666}
+.detect-strip{display:flex;gap:6px;overflow-x:auto;padding-bottom:4px}
+.detect-strip figure{margin:0;flex:0 0 96px}
+.detect-strip img{max-height:72px;border:1px solid #dde3ea}
+.detect-strip .is-found img{border:2px solid #2f9e5f}
+.detect-strip figcaption{font-size:10px;color:#6b7888;text-align:center}
+
+.detect-reason{display:grid;gap:5px;font-size:12px}
+.detect-reason__head{display:flex;align-items:center;gap:7px}
+.detect-score{padding:1px 7px;border-radius:9px;background:#eef1f5;color:#4a5666;font-size:11px}
+.detect-gates{display:flex;flex-wrap:wrap;gap:4px;margin:0;padding:0;list-style:none}
+.detect-gates li{padding:2px 7px;border-radius:9px;font-size:11px}
+.detect-gates .is-pass{background:#e7f6ee;color:#125c33}
+.detect-gates .is-fail{background:#fdf3f2;color:#8f2b26}
+.detect-crop{max-height:160px;border:1px solid #dde3ea;border-radius:5px;image-rendering:pixelated}
+.detect-features{width:100%;border-collapse:collapse;font-size:11px}
+.detect-features th{text-align:left;font-weight:400;color:#4a5666;padding:2px 0}
+.detect-features td{text-align:right;color:#26303c;font-variant-numeric:tabular-nums}
+.detect-note{margin:2px 0 0;color:#6b7888;font-size:11px}
+
+.detect-map{display:grid;gap:5px}
+.detect-map img{width:100%;border-radius:5px;background:#fff;object-fit:contain;max-height:130px}
+.detect-map__facts{display:flex;flex-wrap:wrap;gap:8px;font-size:11px;color:#4a5666}
+.detect-map__rows{display:grid;gap:2px;margin:4px 0 0}
+.detect-map__rows>div{display:flex;gap:10px;font-size:12px}
+.detect-map__rows dt{min-width:76px;color:#6b7888}
+.detect-map__rows dd{margin:0;color:#26303c;font-weight:600}
+.detect-steps{margin:6px 0 0;padding-left:18px;display:grid;gap:5px}
+.detect-steps code{display:block;font-size:11px;color:#39434f}
+.detect-steps small{color:#6b7888;font-size:11px}
+
 /* 로봇 노드 (260910) — 그래프에서도 장비 상태를 본다. */
 .robot-node{display:grid;gap:5px;padding:2px 0}
 .robot-node-row{display:flex;flex-wrap:wrap;align-items:center;gap:6px;font-size:12px}

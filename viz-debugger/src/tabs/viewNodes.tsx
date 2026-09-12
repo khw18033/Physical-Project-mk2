@@ -67,6 +67,7 @@ import { DeviceFacts, sdkWords } from '../physical/DeviceFacts.tsx';
 import { useDeviceStates } from '../physical/deviceState.ts';
 import { hardwareTarget } from '../physical/encode.ts';
 import { useRobotSession } from '../physical/robotSession.ts';
+import { DetectCam, DetectMap, DetectReason } from '../detect/views/DetectViews.tsx';
 
 /** 화면이 쓰는 로봇 id. 하드웨어 id 로 바꾸는 것은 경계 안쪽(`hardwareTarget`) 일이다. */
 const ROBOT_ENTITY = 'robot-01';
@@ -306,6 +307,29 @@ function RobotBody() {
 }
 
 export const VIEW_NODE_RENDERERS: readonly ViewNodeEntry[] = [
+  {
+    // 탐지 셋 (260912) — 자리표시로 비어 있던 `video-stream` · `detections` · `zone-map`.
+    // **자리표시로 감싸지 않는다** — 실제로 오는 값이다.
+    kind: 'detect-cam',
+    label: '탐지 영상',
+    hint: '탐지가 본 그림 — 상자 입힌 프레임. 도는 동안은 마지막으로 본 각도',
+    summary: () => <NodeGate kind="detect-cam"><DetectCam /></NodeGate>,
+    zoom: () => <NodeGate kind="detect-cam"><DetectCam zoom /></NodeGate>,
+  },
+  {
+    kind: 'detect-reason',
+    label: '판단 근거',
+    hint: '왜 문이라고 했나 — 관문 넷과 특징 여덟 점수. 판정은 점수가 아니라 관문이 정한다',
+    summary: () => <NodeGate kind="detect-reason"><DetectReason /></NodeGate>,
+    zoom: () => <NodeGate kind="detect-reason"><DetectReason zoom /></NodeGate>,
+  },
+  {
+    kind: 'detect-map',
+    label: '2D 맵 · 경로',
+    hint: '도면 위의 경로와 계산 다섯 단계 — 우리가 다시 계산하지 않는다',
+    summary: () => <NodeGate kind="detect-map"><DetectMap /></NodeGate>,
+    zoom: () => <NodeGate kind="detect-map"><DetectMap zoom /></NodeGate>,
+  },
   {
     kind: 'robot',
     label: '로봇',

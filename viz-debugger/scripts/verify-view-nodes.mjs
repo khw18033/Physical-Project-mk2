@@ -65,7 +65,11 @@ const CANVAS_FILES = ['types.ts', 'registry.ts', 'scope.ts', 'persist.ts', 'defa
   // **이름을 못으로 박는다.** 개수만 세면 하나 지우고 하나 더한 것을 못 잡는다.
   // 260910 에 `robot` 이 늘었다 — 실물 로봇 상태를 태스크 그래프에서도 보려는 것이고,
   // 축 표에는 안 들어간다(대본과 무관하게 늘 살아 있어야 한다).
-  const EXPECTED = ['control', 'device-risk', 'metrics', 'robot', 'video'];
+  // 260912 — 탐지 셋이 늘었다. 자리표시(`video-stream` · `detections` · `zone-map`)로
+  // 비어 있던 곳이고, 축 표에는 안 들어간다(대본이 아니라 탐지가 미는 값이다).
+  const EXPECTED = [
+    'control', 'detect-cam', 'detect-map', 'detect-reason', 'device-risk', 'metrics', 'robot', 'video',
+  ];
   check(
     [...kinds].sort().join(',') === EXPECTED.join(','),
     `뷰 노드 종류가 [${EXPECTED.join(', ')}] 가 아니다: ${kinds.join(', ')}`,

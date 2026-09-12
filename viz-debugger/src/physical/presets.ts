@@ -20,6 +20,8 @@
  * 이름을 쓰겠다고 하면 이 줄만 고친다 — 그래서 문자열을 여기 밖에 적지 않는다.
  * 규약의 질문 다섯 중 첫째가 「`abort` 라는 이름으로 괜찮은가」다.
  */
+import { detectState } from '../detect/store.ts';
+
 export const STOP_ACTION = 'abort';
 
 /**
@@ -111,10 +113,25 @@ export type MissionGeometry = {
   source: 'script' | 'path-planner';
 };
 
-/** 대본 `params` 에서 읽는다. 없으면 스캔만 돌린다 — 거리를 지어내지 않는다. */
+/**
+ * 대본 `params` 에서 읽되, **경로 산출이 와 있으면 그쪽이 이긴다** (260912).
+ *
+ * 대본의 `forward_distance_m: 4.2` 는 값을 줄 데가 없어서 박아 둔 숫자였다. 이제 탐지가
+ * 도면 좌표로 실제 거리를 낸다 — 시료에서 `635.4cm` 였다. 대본 숫자를 그대로 쓰면 로봇이
+ * 문 앞이 아니라 엉뚱한 데 선다.
+ *
+ * 각도는 대본이 계속 정한다 — **몇 등분해서 볼지는 우리가 정하는 것**이고, 탐지는 그
+ * 각도마다 무엇을 봤는지만 말한다.
+ *
+ * 없으면 스캔만 돌린다 — 거리를 지어내지 않는다.
+ */
 export function missionGeometry(params: Record<string, unknown> | null | undefined): MissionGeometry {
   const steps = typeof params?.viewpoint_count === 'number' ? params.viewpoint_count : 8;
   const stepDeg = typeof params?.viewpoint_step_deg === 'number' ? params.viewpoint_step_deg : 360 / steps;
+  const planned = detectState().path;
+  if (planned !== null && Number.isFinite(planned.forward_distance_cm) && planned.forward_distance_cm > 0) {
+    return { steps, stepDeg, forwardDistanceM: planned.forward_distance_cm / 100, source: 'path-planner' };
+  }
   const forward = typeof params?.forward_distance_m === 'number' ? params.forward_distance_m : 0;
   return { steps, stepDeg, forwardDistanceM: forward, source: 'script' };
 }
