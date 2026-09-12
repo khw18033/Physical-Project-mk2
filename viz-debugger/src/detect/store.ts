@@ -13,7 +13,9 @@
 
 import { useSyncExternalStore } from 'react';
 import { resetDetectTrace } from './detectTrace.ts';
-import type { DetectFeatures, DetectFrame, DetectFrameEvidence, DetectPath } from './types.ts';
+import type {
+  DetectFeatures, DetectFrame, DetectFrameEvidence, DetectLocalization, DetectPath,
+} from './types.ts';
 
 export type DetectState = {
   /** 연결 관리의 「테스트」가 켜져 있는가. 켜면 받아 둔 실제 산출물을 읽는다. */
@@ -22,6 +24,11 @@ export type DetectState = {
   frames: readonly DetectFrame[];
   /** 각도별 근거. 키는 `frame_000113.jpg`. 못 찾은 각도에는 없다. */
   evidence: Readonly<Record<string, DetectFrameEvidence>>;
+  /**
+   * 자세 역산 — **도는 것보다 먼저 온다.** 도면상 문의 자리(`T-A1`)와 로봇 자신의
+   * 자리·방위(`T-A2`)가 여기 있다. 스캔 결과와 다른 파일이라 따로 둔다.
+   */
+  localization: DetectLocalization | null;
   /** 경로 산출. 스캔이 끝나야 나온다 — 그 전에는 null 이고, 그것이 정상이다. */
   path: DetectPath | null;
   /** 무엇을 문이라고 물었나. */
@@ -36,6 +43,7 @@ const EMPTY: DetectState = {
   testMode: false,
   frames: [],
   evidence: {},
+  localization: null,
   path: null,
   features: null,
   fetchedAtMs: 0,
@@ -75,6 +83,10 @@ export function receiveFrames(frames: readonly DetectFrame[]): void {
 
 export function receiveEvidence(frame: string, evidence: DetectFrameEvidence): void {
   commit({ ...state, evidence: { ...state.evidence, [frame]: evidence } });
+}
+
+export function receiveLocalization(localization: DetectLocalization | null): void {
+  commit({ ...state, localization });
 }
 
 export function receivePath(path: DetectPath | null): void {

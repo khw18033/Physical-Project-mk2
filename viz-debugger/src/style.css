@@ -435,7 +435,12 @@ b.follow-live{cursor:default}
 .robot-ping--ok{color:#1f8a4d;font-weight:600;font-size:12px}
 .robot-ping--fail{color:#b3352f;font-weight:600;font-size:12px}
 .robot-progress{padding:3px 8px;border-radius:10px;background:#eef2f7;color:#4a5b6e;font-size:12px;font-variant-numeric:tabular-nums}
-.robot-approach{padding:7px 14px;border:2px solid #2f9e5f;border-radius:7px;background:#e7f6ee;color:#125c33;font-weight:700;font-size:13px}
+/* **`button.` 을 붙인 이유는 정지 버튼과 같다** — 머리줄의 `.global-bar button` 이
+   `background:#fff` 를 걸고 있고 그쪽이 더 구체적이다. 클래스만 쓰면 초록이 안 뜬다. */
+button.robot-approach{padding:7px 14px;border:2px solid #2f9e5f;border-radius:7px;background:#e7f6ee;color:#125c33;font-weight:700;font-size:13px}
+button.robot-approach small{font-weight:600;opacity:.8}
+/* 눌렀는데 안 나갔다 — 감추지 않고 버튼 자리에 그대로 적는다. */
+button.robot-approach--failed{border-color:#a3241f;background:#fdeceb;color:#8f2b26}
 /* 브로커 연결 — 로봇이 안 움직이는 것과 **다른 축**이다. 둘을 같은 표시로 뭉치지 않는다. */
 .robot-conn{padding:3px 9px;border-radius:10px;font-size:12px;font-weight:600}
 .robot-conn--open{background:#e7f6ee;color:#125c33}
@@ -496,6 +501,8 @@ button.robot-stop:hover{background:#b8271f}
 .detect-note{margin:2px 0 0;color:#6b7888;font-size:11px}
 
 .detect-map{display:grid;gap:5px}
+/* 경로가 나오기 전의 도면. 같은 자리에 같은 크기로 선다 — 그림이 바뀔 때 칸이 안 흔들린다. */
+.detect-map--plain img{opacity:.9}
 .detect-map img{width:100%;border-radius:5px;background:#fff;object-fit:contain;max-height:130px}
 .detect-map__facts{display:flex;flex-wrap:wrap;gap:8px;font-size:11px;color:#4a5666}
 .detect-map__rows{display:grid;gap:2px;margin:4px 0 0}

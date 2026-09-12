@@ -94,3 +94,24 @@ export type DetectFeatures = {
   is_localization_landmark: boolean;
   features_compared: readonly string[];
 };
+
+/**
+ * **자세 역산.** `unidepth_localization/localization_evidence.json`.
+ *
+ * 스캔을 돌기 **전에** 나와야 하는 둘이 여기 있다 — 도면상 문의 자리(`T-A1`)와 로봇 자신의
+ * 자리·방위(`T-A2`). 받침대를 기준점으로 삼아 역산한 결과라, 문 자신의 관측각으로 구하면
+ * 순환 논리가 된다(파일의 `step3` 주석이 그 말을 한다).
+ */
+export type DetectLocalization = {
+  ok: boolean;
+  /** 도면상 문의 자리. 이것이 와야 `T-A1` 이 끝난다. */
+  door_position_cm_fixed_from_gt?: readonly number[];
+  /** 로봇 자신의 자리와 방위. 이 둘이 와야 `T-A2` 가 끝난다. */
+  robot_position_cm?: readonly number[];
+  current_heading_map_deg?: number;
+  pedestal_surface_point_cm?: readonly number[];
+  pedestal_distance_avg_cm?: number;
+  map_bearing_to_pedestal_deg?: number;
+  /** 식과 대입값. **우리가 다시 계산하지 않는다.** */
+  rotation_calculation?: Readonly<Record<string, { formula: string; substituted: string; note?: string }>>;
+};

@@ -25,7 +25,7 @@ import type { PhysicalAction } from './encode.ts';
 import { PAUSE_ACTION, SDK_ACTIONS } from './presets.ts';
 import { NO_NODE } from './missionLink.ts';
 import { detectState } from '../detect/store.ts';
-import { commandForTask, missionGeometry, pathCommands } from './missionLink.ts';
+import { commandForTask, missionGeometry, pathCommands, type TaskCommand } from './missionLink.ts';
 import type { PhysicalClient } from './PhysicalClient.ts';
 import type { UplinkMessage } from './uplink.ts';
 import { STOP_ACTION, STOP_REASON } from './presets.ts';
@@ -147,7 +147,11 @@ export function shouldIssueScan(): boolean {
   const session = robotSession();
   // **승인만으로는 안 쏜다** (260912 지시). 사람이 「임무 시작」을 눌러야 나간다 —
   // 승인은 「이 계획대로 해도 좋다」이고 시작은 「지금 하라」다.
-  return session.started && session.approved
+  //
+  // **시작만으로도 안 쏜다** (260912 지시). 앞에 `T-A1`·`T-A2` 가 있고, 도는 것은 그
+  // 뒤의 일이다. 눌렀는데 로봇이 곧바로 돌면 화면에서는 한 바퀴 다 돌고 나서 그 둘에
+  // 완료가 떠서 순서가 거꾸로 보인다.
+  return session.started && session.prepared && session.approved
     && !session.scanIssued && session.stopped === null && robotDrives();
 }
 
@@ -158,7 +162,17 @@ export function shouldIssueScan(): boolean {
  * 박자 쉰다 — 발표자가 "이 방향으로 갑니다"를 말하고 누르면 로봇이 간다. 그 한 박자가
  * 시연에서 가장 좋은 자리다.
  */
-export async function issueApproach(client: PhysicalClient, params: Record<string, unknown> | null) {
+export async function issueApproach(
+  client: PhysicalClient | null, params: Record<string, unknown> | null,
+): Promise<IssueOutcome | null> {
+  /**
+   * **연결이 없어도 누를 수 있다** (정지 버튼과 같은 규칙). 전에는 버튼 자체를 감췄는데,
+   * 그러면 경로까지 다 나온 화면에서 **다음 칸이 아예 없는 것처럼** 보인다 — 발표자는
+   * 「여기서 막혔다」고 읽고 원인을 모른다. 누르게 하고 못 보냈다고 크게 말한다.
+   */
+  if (client === null) {
+    return { sent: false, commandId: '', requestId: null, reason: '브로커에 안 붙어 있습니다 — 경로 명령을 보내지 못했습니다' };
+  }
   /**
    * **산출된 경로를 따라간다** (260912 지시). 앞의 세 태스크(판단·근거·경로 산출)는
    * 로봇을 안 움직이고, 움직이는 것은 이 하나다.
@@ -166,13 +180,8 @@ export async function issueApproach(client: PhysicalClient, params: Record<strin
    * 경로가 와 있으면 **회전 먼저, 직진 나중**으로 둘을 낸다 — 돌기 전에 직진하면 엉뚱한
    * 데로 간다. 경로가 없으면 예전대로 직진 하나만 낸다(대본 거리).
    */
-  const path = detectState().path;
-  if (path !== null) {
-    const steps = pathCommands(
-      path.turn_instruction,
-      turnDegOf(path),
-      path.forward_distance_cm / 100,
-    );
+  const steps = approachSteps();
+  if (steps.length > 0) {
     let last: IssueOutcome | null = null;
     for (const step of steps) {
       if (!canIssueRobotCommand()) {
@@ -188,6 +197,35 @@ export async function issueApproach(client: PhysicalClient, params: Record<strin
   const outcome = await issueTask(client, 'T-B2', params);
   if (outcome?.sent === true) markApproachIssued();
   return outcome;
+}
+
+/**
+ * **지금 누르면 나갈 명령들.** 버튼에 적는 문구와 실제로 내는 것이 같은 함수를 쓴다 —
+ * 둘이 갈리면 「회전 90도」라고 적힌 버튼이 다른 각도를 낸다.
+ *
+ * 경로가 없으면 빈 목록이고, 그때는 예전대로 대본 거리로 직진 하나만 낸다.
+ */
+export function approachSteps(): readonly TaskCommand[] {
+  const path = detectState().path;
+  if (path === null) return [];
+  return pathCommands(path.turn_instruction, turnDegOf(path), path.forward_distance_cm / 100);
+}
+
+/**
+ * **무엇이 나가는지 한 줄로.** 누르기 전에 로봇이 무엇을 할지 발표자가 알아야 한다.
+ * 문구와 실제 명령이 같은 함수(`approachSteps`)에서 나온다 — 둘이 갈리면 「회전 90도」라고
+ * 적힌 버튼이 다른 각도를 낸다.
+ */
+export function approachWords(): string | null {
+  const steps = approachSteps();
+  if (steps.length === 0) return null;
+  // **부호를 사람 말로 푼다.** 규약에서 오른쪽이 + 라 왼쪽 회전은 `-90` 으로 나간다.
+  // 버튼에 「회전 -90도」라고 적으면 보는 사람은 그것이 방향인지 오차인지 모른다.
+  return steps.map((step) => {
+    if (step.action !== 'turn') return `직진 ${(step.parameters?.distance_m ?? 0).toFixed(2)}m`;
+    const deg = step.parameters?.deg ?? 0;
+    return `${deg < 0 ? '왼쪽' : '오른쪽'} ${Math.abs(Math.round(deg))}도 회전`;
+  }).join(' · ');
 }
 
 /**

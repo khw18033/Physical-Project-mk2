@@ -28,9 +28,13 @@
  * 든 사람이 옆에 있어야 한다.
  */
 
-import { emergencyStop, pauseMission, resumeMission } from './robotCommands.ts';
+import { useState } from 'react';
+import {
+  approachWords, canApproach, emergencyStop, issueApproach, pauseMission, resumeMission,
+} from './robotCommands.ts';
 import { robotClient } from './robotClient.ts';
 import { markStarted, useRobotSession } from './robotSession.ts';
+import { useDetect } from '../detect/store.ts';
 import { currentMission } from '../data/scenario.ts';
 
 export function StopButton() {
@@ -96,5 +100,50 @@ export function ResumeButton() {
       : '승인된 임무를 지금 시작합니다 — 이 버튼을 누르기 전에는 로봇이 움직이지 않습니다'}
   >
     {started ? '▶ 재시작' : '▶ 임무 시작'}
+  </button>;
+}
+
+/**
+ * **산출된 경로에 따라 이동.** 스캔이 끝나고 경로가 나온 뒤에만 뜬다.
+ *
+ * ## 왜 머리줄로 옮겼나 (260912 지시 — 「직전에서 막힘」)
+ *
+ * 이 버튼은 `RobotPanel` 안에 있었다. 그 패널은 **마일스톤 목록 화면에만** 있다. 그런데
+ * 마지막 마일스톤이 끝나면 화면이 다음 마일스톤의 노드 그래프로 저절로 넘어가고(260911),
+ * 거기에는 패널이 없다. 경로까지 다 나온 화면에서 「산출된 경로에 따라 이동」 노드가
+ * 대기로 떠 있는데 **누를 것이 아무 데도 없었다.**
+ *
+ * 정지·일시정지·재시작과 같은 자리로 옮긴다 — 임무를 진행시키는 버튼은 어느 화면에 있든
+ * 보여야 한다.
+ *
+ * ## 연결이 없어도 비활성화하지 않는다
+ *
+ * 정지 버튼과 같은 규칙이다. 누르게 하고, 못 보냈으면 **버튼 자리에 그대로 적는다** —
+ * 눌렀는데 아무 변화가 없으면 발표자는 버튼이 죽은 줄 안다.
+ *
+ * **자동으로 넘어가지 않는다**(§1). 스캔이 끝나면 화면이 초록 노드를 보여 주고 거기서 한
+ * 박자 쉰다. 사람이 이 버튼을 누른다.
+ */
+export function ApproachButton() {
+  // 관문이 로봇 세션과 탐지 경로 둘 다를 본다 — 둘 다 구독해야 열리는 순간 다시 그린다.
+  useRobotSession();
+  useDetect();
+  const [failure, setFailure] = useState<string | null>(null);
+  if (!canApproach()) return null;
+  const words = approachWords();
+  return <button
+    type="button"
+    className={`robot-approach${failure === null ? '' : ' robot-approach--failed'}`}
+    onClick={() => {
+      setFailure(null);
+      void issueApproach(robotClient(), currentMission().params).then((outcome) => {
+        setFailure(outcome?.sent === true ? null : (outcome?.reason ?? '낼 명령이 없습니다'));
+      });
+    }}
+    title={failure ?? '경로 산출이 낸 회전과 직진을 차례로 냅니다'}
+  >
+    {failure === null
+      ? <>▶ 경로대로 이동{words !== null && <small> · {words}</small>}</>
+      : <>▶ 못 보냈습니다 — {failure}</>}
   </button>;
 }

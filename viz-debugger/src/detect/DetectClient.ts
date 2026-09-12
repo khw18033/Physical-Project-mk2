@@ -21,7 +21,9 @@
  */
 
 import { connectionAddress } from '../shared/connections.ts';
-import type { DetectFeatures, DetectFrameEvidence, DetectPath, DetectSummary } from './types.ts';
+import type {
+  DetectFeatures, DetectFrameEvidence, DetectLocalization, DetectPath, DetectSummary,
+} from './types.ts';
 
 /** 탐지 서비스 주소. **이 함수 밖에서 주소 문자열을 만들지 않는다.** */
 export function detectBaseUrl(): string {
@@ -54,12 +56,13 @@ async function getJson<T>(url: string): Promise<T> {
  * 정해진 채로** 화면이 뜬다 — 실제 서비스는 그렇게 안 온다. 한 각도 스캔이 끝날 때마다
  * 하나씩 온다.
  *
- * 그래서 시료도 같은 박자로 내놓는다. 기준 시계는 **승인 뒤 몇 초째**(`elapsedSec`)다 —
- * 로봇이 같이 돌고 있으면 그 회전과 같은 시계를 쓰게 된다.
+ * 그래서 시료도 같은 박자로 내놓는다. 기준 시계는 **로봇이 돌기 시작한 뒤 몇 초째**
+ * (`scanElapsedSec`)다 — 준비 단계(`T-A1`·`T-A2`)가 지나간 뒤부터 센다. 시작을 누른
+ * 시각으로 재면 로봇이 아직 서 있는 동안 각도가 열려, 안 본 방향의 결과가 먼저 뜬다.
  */
 const SAMPLE_STEP_SEC = 4;
 
-/** 지금까지 몇 각도를 봤는가. 승인 전(0초)이면 아무것도 안 봤다. */
+/** 지금까지 몇 각도를 봤는가. 돌기 전(0초)이면 아무것도 안 봤다. */
 export function sampleRevealed(elapsedSec: number, total: number): number {
   if (!(elapsedSec > 0)) return 0;
   return Math.max(0, Math.min(total, Math.floor(elapsedSec / SAMPLE_STEP_SEC)));
@@ -107,6 +110,24 @@ export async function fetchPath(
   }
 }
 
+/**
+ * **자세 역산.** 스캔을 돌기 전에 나오는 둘 — 도면상 문의 자리와 로봇 자신의 자리·방위.
+ *
+ * 시료에서는 클래스 폴더 밖(`unidepth_localization/`)에 있다. 문·받침대 어느 한쪽의
+ * 산출물이 아니라 **둘을 합쳐 만든 것**이라 그 자리에 있는 것이고, 그래서 `target` 을
+ * 받지 않는다.
+ */
+export async function fetchLocalization(source: DetectSource): Promise<DetectLocalization | null> {
+  const url = source.kind === 'sample'
+    ? `${SAMPLE_BASE}/unidepth_localization/localization_evidence.json`
+    : `${source.base}/detect/localization`;
+  try {
+    return await getJson<DetectLocalization>(url);
+  } catch {
+    return null;
+  }
+}
+
 /** 무엇을 그 클래스라고 물었나. 근거 가시화가 쓴다. */
 export async function fetchFeatures(source: DetectSource, target: DetectClass = 'door'): Promise<DetectFeatures | null> {
   const url = source.kind === 'sample'
@@ -133,6 +154,17 @@ export function frameImageUrl(
   const dir = frame.replace(/\.jpg$/, '');
   if (source.kind === 'sample') return `${SAMPLE_BASE}/${target}/${dir}/${kind}.jpg`;
   return `${source.base}/detect/frame?target=${target}&frame=${encodeURIComponent(frame)}&kind=${kind}`;
+}
+
+/**
+ * **아무것도 안 그린 도면.** 경로가 나오기 전에 2D 맵 자리에 서는 그림이다.
+ *
+ * 전에는 경로가 없는 동안 그 자리가 통째로 비어 있었다 — 도면은 임무 내내 있는 것인데
+ * 「경로가 아직 없습니다」만 떠서, 발표 초반에 2D 맵 뷰 노드가 빈 상자로 보였다.
+ */
+export function mapImageUrl(source: DetectSource): string {
+  if (source.kind === 'sample') return `${SAMPLE_BASE}/unidepth_localization/map_original.jpg`;
+  return `${source.base}/detect/map`;
 }
 
 /** 도면 위에 경로를 그린 그림. 스캔이 끝나야 나온다. */

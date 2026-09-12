@@ -15,9 +15,14 @@
  * 것은 여덟 번의 갱신이다.
  */
 
-import { fetchFeatures, fetchFrameEvidence, fetchPath, fetchSummary, sourceOf } from './DetectClient.ts';
-import { elapsedSec } from '../physical/robotSession.ts';
-import { detectState, noteDetectError, receiveEvidence, receiveFeatures, receiveFrames, receivePath } from './store.ts';
+import {
+  fetchFeatures, fetchFrameEvidence, fetchLocalization, fetchPath, fetchSummary, sourceOf,
+} from './DetectClient.ts';
+import { scanElapsedSec } from '../physical/robotSession.ts';
+import {
+  detectState, noteDetectError, receiveEvidence, receiveFeatures, receiveFrames,
+  receiveLocalization, receivePath,
+} from './store.ts';
 
 /** 스캔이 도는 동안. 한 각도가 4초쯤 걸리니 그보다 짧아야 칸이 제때 바뀐다. */
 export const POLL_RUNNING_MS = 1500;
@@ -36,9 +41,19 @@ export async function pollOnce(expected = 8): Promise<void> {
   inFlight = true;
   try {
     const source = sourceOf(detectState().testMode);
-    // **승인 뒤 몇 초째인가.** 시료를 한 각도씩 내놓는 박자의 기준이고, 로봇이 같이 돌고
-    // 있으면 그 회전과 같은 시계다.
-    const summary = await fetchSummary(source, 'door', elapsedSec());
+
+    /**
+     * **자세를 먼저 받는다.** 도는 것보다 앞이다 — 도면상 문의 자리(`T-A1`)와 로봇
+     * 자신의 자리·방위(`T-A2`)가 여기서 나오고, 그 둘이 끝나야 로봇이 돈다.
+     *
+     * 각도별 결과와 달리 **박자에 걸리지 않는다.** 준비 단계에 있는 값이라 첫 물음에
+     * 바로 온다.
+     */
+    if (detectState().localization === null) receiveLocalization(await fetchLocalization(source));
+
+    // **로봇이 돌기 시작한 뒤 몇 초째인가.** 시료를 한 각도씩 내놓는 박자의 기준이고,
+    // 로봇이 같이 돌고 있으면 그 회전과 같은 시계다. 준비 단계는 빠져 있다.
+    const summary = await fetchSummary(source, 'door', scanElapsedSec());
     receiveFrames(summary.frames ?? []);
     const complete = (summary.frames ?? []).length >= expected;
 

@@ -229,7 +229,7 @@ const COUNT = 8;
     if (file.includes(join('src', 'detect'))) continue;
     const source = strip(readFileSync(file, 'utf8'));
     if (/\/detect-sample/.test(source)) failures.push(`${file} 에 탐지 시료 경로가 있다 — 경계 밖이다`);
-    if (/\/detect\/(results|frame|path|evidence|features)/.test(source)) {
+    if (/\/detect\/(results|frame|path|evidence|features|localization|map)/.test(source)) {
       failures.push(`${file} 에 탐지 엔드포인트가 있다 — 경계 밖이다`);
     }
   }

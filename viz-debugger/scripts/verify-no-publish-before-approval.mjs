@@ -167,7 +167,7 @@ const params = { viewpoint_count: 8, forward_distance_m: 4.2 };
 
   // 관문이 실제로 한 번만 열리는가.
   const { shouldIssueScan } = await load('src', 'physical', 'robotCommands.ts');
-  const { markScanIssued, markStarted, clearStarted, setConnection } =
+  const { markScanIssued, markStarted, clearStarted, setConnection, finishPrep } =
     await load('src', 'physical', 'robotSession.ts');
   resetRobotSession();
   online();
@@ -182,7 +182,16 @@ const params = { viewpoint_count: 8, forward_distance_m: 4.2 };
   markApproved();
   if (shouldIssueScan()) failures.push('승인만 했는데 스캔을 쏘라고 한다 — 시작을 눌러야 한다');
   markStarted();
-  if (!shouldIssueScan()) failures.push('시작을 눌렀는데 스캔을 안 쏜다');
+  /**
+   * **시작만으로도 안 쏜다** (260912 지시 — 관문이 또 하나 생겼다).
+   *
+   * 앞에 `T-A1`(문 위치 확인)·`T-A2`(로봇 위치·각도)가 있다. 누르는 즉시 돌면 화면에서는
+   * 한 바퀴 다 돌고 나서 그 둘에 완료가 떠서 순서가 거꾸로 보인다. 준비 창이 닫혀야 쏜다
+   * (`verify:mission-prep` 이 그 창을 따로 지킨다).
+   */
+  if (shouldIssueScan()) failures.push('시작을 누르자마자 스캔을 쏘라고 한다 — 준비 단계가 없다');
+  finishPrep();
+  if (!shouldIssueScan()) failures.push('준비가 끝났는데 스캔을 안 쏜다');
   markScanIssued();
   if (shouldIssueScan()) failures.push('이미 쐈는데 또 쏘라고 한다 — 로봇이 여러 번 돈다');
 
@@ -197,6 +206,7 @@ const params = { viewpoint_count: 8, forward_distance_m: 4.2 };
   online();
   markApproved();
   markStarted();
+  finishPrep();
   setConnection({ state: 'closed', reason: '없음' });
   if (shouldIssueScan()) failures.push('브로커가 없는데 스캔을 쏘라고 한다');
 

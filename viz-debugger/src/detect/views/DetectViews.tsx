@@ -19,7 +19,7 @@
  * 이름을 `특징 최고값` 으로 적는 것만으로 그 오독이 사라진다 (`parse.ts` 의 `SCORE_LABEL`).
  */
 
-import { frameImageUrl, pathImageUrl, sourceOf } from '../DetectClient.ts';
+import { frameImageUrl, mapImageUrl, pathImageUrl, sourceOf } from '../DetectClient.ts';
 import { chosenFrame, gateWords, indexOfRotation, SCORE_LABEL, usableDistanceCm } from '../parse.ts';
 import { sweepDone } from '../detectBridge.ts';
 import { useDetect } from '../store.ts';
@@ -141,7 +141,13 @@ export function DetectReason({ zoom = false, count = 8 }: { zoom?: boolean; coun
 // ── 2D 맵 ────────────────────────────────────────────────────────────────────
 
 /**
- * **도면 위의 경로.** 탐지가 그려 준 그림과 그 계산 다섯 단계.
+ * **도면, 그리고 그 위의 경로.** 그림 한 장이 두 얼굴을 갖는다.
+ *
+ *   경로 산출 전   아무것도 안 그린 도면 — 임무 내내 있는 것이라 비워 두지 않는다
+ *   경로 산출 후   탐지가 그려 준 경로 (`T-B1` 이 완료로 뜨는 바로 그때다)
+ *
+ * 바뀌는 시점이 `T-B1` 의 완료와 **같은 값에 걸려 있다**(`state.path !== null`). 두 군데서
+ * 따로 판단하면 노드는 초록인데 그림은 그대로인 날이 온다.
  *
  * `path_calculation` 은 식과 대입값이 문자열로 들어 있다 — **우리가 다시 계산하지 않는다.**
  * 그대로 늘어놓는 것이 「왜 90도를 돌았나」에 대한 답이 된다.
@@ -149,10 +155,19 @@ export function DetectReason({ zoom = false, count = 8 }: { zoom?: boolean; coun
 export function DetectMap({ zoom = false }: { zoom?: boolean }) {
   const state = useDetect();
   const source = sourceOf(state.testMode);
-  if (state.path === null) {
-    return <Waiting what="경로가 아직 없습니다 (스캔이 끝나야 나옵니다)" />;
-  }
   const path = state.path;
+
+  // **경로가 없어도 도면은 있다.** 전에는 이 자리가 통째로 비어서, 발표 초반 내내
+  // 2D 맵 뷰 노드가 빈 상자였다.
+  if (path === null) {
+    return <div className="detect-map detect-map--plain">
+      <img src={mapImageUrl(source)} alt="2D 도면" />
+      <div className="detect-map__facts">
+        <span>경로는 스캔이 끝난 뒤에 그려집니다</span>
+        {state.testMode && <em className="detect-temp">테스트 자료</em>}
+      </div>
+    </div>;
+  }
   const steps = Object.entries(path.path_calculation ?? {});
 
   return <div className="detect-map">

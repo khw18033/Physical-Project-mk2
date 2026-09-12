@@ -64,7 +64,8 @@
     "verify:robot-run": "node scripts/verify-robot-run.mjs",
     "verify:sdk-bridge": "node scripts/verify-sdk-bridge.mjs",
     "verify:plan-freshness": "node scripts/verify-plan-freshness.mjs",
-    "verify:detect-map": "node scripts/verify-detect-map.mjs"
+    "verify:detect-map": "node scripts/verify-detect-map.mjs",
+    "verify:mission-prep": "node scripts/verify-mission-prep.mjs"
   },
   "dependencies": {
     "mqtt": "^5.15.2",

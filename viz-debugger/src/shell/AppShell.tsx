@@ -14,7 +14,7 @@ import { ConnectionsPanel } from './ConnectionsPanel.tsx';
 import { HelpOverlay } from './HelpOverlay.tsx';
 import { useMissionBridge } from './missionBridge.ts';
 import { ModeSwitch } from './ModeSwitch.tsx';
-import { PauseButton, ResumeButton, StopButton } from '../physical/StopButton.tsx';
+import { ApproachButton, PauseButton, ResumeButton, StopButton } from '../physical/StopButton.tsx';
 import { ResetButton, RestartButton } from '../views/ResetButton.tsx';
 import { robotProbe } from '../physical/robotClient.ts';
 import { ConnectionLamp } from './ConnectionLamp.tsx';
@@ -113,7 +113,7 @@ export function AppShell({ debuggerView, onDebuggerHome, onMissionHistory, onOpe
         {/* **셋이 한 부품에서 온다** (260910). 전에는 여기서 게이트웨이로 `mission_pause` 를
             쏘고 그 옆에 실제로 동작하는 「중단」이 따로 있었다 — 같은 뜻의 버튼이 둘인데
             하나만 동작했다. 동작하는 쪽을 「정지」에 넣고 중단을 지웠다. */}
-        <StopButton /><PauseButton /><ResumeButton /><ConnectionLamp onOpen={() => setPanel('connections')} /><button onClick={() => { setPanel('history'); onMissionHistory(); }}>◷ 임무 이력</button><button onClick={() => setPanel('notifications')}>알림 <b>{notifications.length}</b></button><RestartButton /><ResetButton /><button onClick={() => setPanel('connections')}>⇄ 연결 관리</button>
+        <StopButton /><PauseButton /><ResumeButton /><ApproachButton /><ConnectionLamp onOpen={() => setPanel('connections')} /><button onClick={() => { setPanel('history'); onMissionHistory(); }}>◷ 임무 이력</button><button onClick={() => setPanel('notifications')}>알림 <b>{notifications.length}</b></button><RestartButton /><ResetButton /><button onClick={() => setPanel('connections')}>⇄ 연결 관리</button>
       </nav>
     </header>
     {/* 연결 관리는 폼이라 목록 판과 모양이 다르다 — 자기 부품이 그린다 (`VZ-C-07`). */}

@@ -20,9 +20,7 @@
  */
 
 import { PhysicalClient } from './PhysicalClient.ts';
-import {
-  canApproach, issueApproach, issueSdkAuto, issueSdkStart, issueSdkStop, stopFailureMessage,
-} from './robotCommands.ts';
+import { issueSdkAuto, issueSdkStart, issueSdkStop, stopFailureMessage } from './robotCommands.ts';
 import { isStanding } from './uplink.ts';
 import { SdkState } from './DeviceFacts.tsx';
 import { SDK_ACTIONS } from './presets.ts';
@@ -118,23 +116,16 @@ export function RobotPanel({ client, params }: {
         title="로봇이 보낸 ACK 순번 · 문서는 임무별이라고 했으나 실측은 누적"
       >ACK {session.progress.ack}/{session.progress.of}</span>}
 
-      {/* 접근 시작 — **door_turn 뒤에만 열린다.** 자동으로 안 넘어간다 (§1). */}
       {/*
-        **산출된 경로를 따라간다** (260912). 태스크 이름이 「전방으로 직진」에서
-        「산출된 경로에 따라 이동」으로 바뀌었고, 버튼도 같은 말을 쓴다 — 화면의 두 자리가
-        다른 이름으로 같은 일을 가리키면 발표자가 둘을 다른 것으로 읽는다.
+        **「산출된 경로에 따라 이동」 버튼은 여기 없다** (260912 지시 — 「직전에서 막힘」).
 
-        누르면 **회전 먼저, 직진 나중**으로 둘이 나간다. 앞의 세 태스크(판단·근거·경로
-        산출)는 로봇을 안 움직인다.
+        이 패널은 마일스톤 목록 화면에만 있다. 마지막 마일스톤이 끝나면 화면이 다음
+        마일스톤의 노드 그래프로 저절로 넘어가는데, 거기에는 이 패널이 없다 — 경로까지 다
+        나왔는데 **누를 것이 아무 데도 없었다.**
+
+        정지·일시정지·재시작과 같은 자리(머리줄의 `ApproachButton`)로 옮겼다. 임무를
+        진행시키는 버튼은 어느 화면에 있든 보여야 한다.
       */}
-      {canApproach() && client !== null && <button
-        type="button"
-        className="robot-approach"
-        onClick={() => void issueApproach(client, params)}
-        title="경로 산출이 낸 회전과 직진을 차례로 냅니다"
-      >
-        ▶ 산출된 경로에 따라 이동
-      </button>}
 
       {/* **정지 버튼은 여기 없다.** 화면에 이미 있는 머리줄의 「■ 중단」을 살렸다
           (`AppShell`·`TopBar`) — 새로 만들지 않는다. 어느 화면에 있든 보여야 하는데

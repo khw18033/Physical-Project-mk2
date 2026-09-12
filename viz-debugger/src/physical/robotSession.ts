@@ -123,6 +123,16 @@ export type RobotSession = {
   /** 시작을 누른 시각(ms). **임무 시계의 0초가 여기다.** 승인 시각이 아니다. */
   startedAtMs: number | null;
   /**
+   * **준비 단계가 끝났는가** (260912 지시).
+   *
+   * 시작을 누르면 로봇이 곧바로 돌았다. 그런데 앞에 두 태스크가 있다 — 「2D 맵에서 문
+   * 위치 확인」(`T-A1`)과 「로봇 현재 위치와 각도 파악」(`T-A2`). 도는 것은 그 뒤의 일인데
+   * 화면에서는 **한 바퀴 다 돌고 나서** 그 둘에 완료가 떴다. 순서가 거꾸로 보였다.
+   *
+   * 그래서 시작과 회전 사이에 창을 하나 둔다. 이 값이 참이 되기 전에는 스캔이 안 나간다.
+   */
+  prepared: boolean;
+  /**
    * 지금 어느 **단계**인가 (연동 가이드 §4-3). `sdk_starting` 이면 로봇이 일어서는 중이다.
    * 임무 ACK 와 다른 축이라 따로 둔다 — 진행률은 아직 0인데 로봇은 이미 뭔가 하고 있다.
    */
@@ -163,6 +173,7 @@ const EMPTY: RobotSession = {
   approvedAtMs: null,
   started: false,
   startedAtMs: null,
+  prepared: false,
   stage: null,
   unsupported: {},
   walked: null,
@@ -203,6 +214,7 @@ export function useRobotSession(): RobotSession {
  * `ping` 결과도 남긴다 — 연결 관리에서 확인한 사실이 임무를 바꿨다고 사라지면 안 된다.
  */
 export function resetRobotSession(): void {
+  cancelPrep();
   stopAllTimers();
   commit({ ...EMPTY, connection: session.connection, ping: session.ping });
 }
@@ -261,15 +273,49 @@ export function markApproved(): void {
   commit({ ...session, approved: true, approvedAtMs: Date.now() });
 }
 
+/**
+ * **준비 단계의 길이(초).** 시작을 누르고 로봇이 돌기 시작할 때까지.
+ *
+ * 이 창이 **시계로 재는 것**이라는 점을 숨기지 않는다. 탐지가 자세를 언제 내줄지 우리가
+ * 모르고, 자세가 영영 안 오면 로봇이 영영 안 도는 화면이 되기 때문이다 — 발표장에서
+ * 가장 나쁜 실패다. `T-A1`·`T-A2` 의 **완료**는 여전히 자세 값이 실제로 왔을 때만 뜬다
+ * (`detect/detectTrace.ts`). 여기서 재는 것은 「언제부터 돌아도 되는가」 하나다.
+ */
+export const PREP_SEC = 5;
+
+/** 준비 창을 재는 타이머. 시작을 다시 누르거나 정지하면 끊는다. */
+let prepTimer: ReturnType<typeof setTimeout> | null = null;
+let unregisterPrep: (() => void) | null = null;
+
+function cancelPrep(): void {
+  if (prepTimer !== null) { clearTimeout(prepTimer); prepTimer = null; }
+  if (unregisterPrep !== null) { unregisterPrep(); unregisterPrep = null; }
+}
+
+/** 준비 창이 닫혔다. 이 뒤에 스캔이 나간다. */
+export function finishPrep(): void {
+  cancelPrep();
+  if (session.prepared) return;
+  commit({ ...session, prepared: true });
+}
+
 /** 사람이 「임무 시작」을 눌렀다. **임무 시계가 여기서 0부터 흐른다.** */
 export function markStarted(): void {
   if (!session.approved) return;   // 승인 없이는 시작도 없다
-  commit({ ...session, started: true, startedAtMs: Date.now() });
+  cancelPrep();
+  commit({ ...session, started: true, startedAtMs: Date.now(), prepared: false });
+  prepTimer = setTimeout(finishPrep, PREP_SEC * 1000);
+  // 정지 한 번에 같이 끊긴다 — 멈춘 뒤에 창이 닫혀 스캔이 나가면 안 된다.
+  unregisterPrep = registerTimer(cancelPrep);
 }
 
 /** 시작 전으로 되돌린다. 「처음부터」가 쓴다 — 다시 누르는 것도 사람의 행위다. */
 export function clearStarted(): void {
-  commit({ ...session, started: false, startedAtMs: null, scanIssued: false, approachIssued: false });
+  cancelPrep();
+  commit({
+    ...session, started: false, startedAtMs: null, prepared: false,
+    scanIssued: false, approachIssued: false,
+  });
 }
 
 /**
@@ -293,6 +339,24 @@ export function elapsedSec(): number {
   // 승인하고 한참 뒤에 열어 보면 **처음부터 270도만 불이 켜져 있었다.**
   if (session.startedAtMs === null) return 0;
   return (Date.now() - session.startedAtMs) / 1000;
+}
+
+/**
+ * **로봇이 돌기 시작한 뒤 몇 초째인가.** 준비 단계를 뺀 시계다.
+ *
+ * 각도별 결과의 박자가 이 시계를 쓴다 — 시작 시계로 재면 로봇이 아직 서 있는 동안
+ * 각도가 열려, **안 본 방향의 결과가 먼저 뜬다.**
+ */
+export function scanElapsedSec(): number {
+  return afterPrep(elapsedSec());
+}
+
+/**
+ * 준비 창을 뺀 시계. **순수 함수로 갈라 둔다** — 시계를 읽는 함수는 시험할 수가 없어서,
+ * 빼는 규칙만 따로 두면 그것을 눈으로도 검사로도 확인할 수 있다.
+ */
+export function afterPrep(elapsed: number): number {
+  return Math.max(0, elapsed - PREP_SEC);
 }
 
 /** 태스크가 명령을 냈다. `requestId` 는 추적기가 준다. */
@@ -409,7 +473,12 @@ export function lockStopped(published: boolean, failure: string | null): StopSta
 export function releaseStopped(): void {
   // 정지를 풀면 승인도 내려간다 — 사람이 다시 눌러야 관문이 열린다.
   humanApprovedPlanId = null;
-  commit({ ...session, stopped: null, approved: false, approachIssued: false, scanIssued: false });
+  cancelPrep();
+  commit({
+    ...session, stopped: null, approved: false, approachIssued: false, scanIssued: false,
+    // 다시 승인받아야 하는 판이다 — 준비 단계도 처음부터 다시 지나간다.
+    started: false, startedAtMs: null, prepared: false,
+  });
 }
 
 /** 지금 로봇 명령을 내도 되는가. 승인 전과 정지 뒤에는 안 된다. */

@@ -14,8 +14,8 @@
  *
  * 각 태스크는 **그것이 실제로 아는 값이 왔을 때만** 끝난다.
  *
- *   T-A1 문 위치 확인      `localization_ok` — 도면상 위치가 잡혔다
- *   T-A2 로봇 위치·각도     같음 (받침대로 자세를 역산한 결과다)
+ *   T-A1 문 위치 확인      `door_position_cm_fixed_from_gt` — 도면상 문의 자리가 잡혔다
+ *   T-A2 로봇 위치·각도     `robot_position_cm` · `current_heading_map_deg` (받침대로 역산한 자세다)
  *   T-A3 한 바퀴 돈다       여덟 각도를 다 봤다
  *   T-A4-n 각도 탐색        그 각도의 결과가 왔다
  *   T-A5 방향 판단          여덟을 다 보고 하나를 골랐다 (못 고르면 **안 끝난다**)
@@ -24,6 +24,16 @@
  *
  * `T-B2`(이동)·`T-B3`(정지)·`T-C1`(종료)은 **여기서 안 만든다.** 로봇이 실제로 움직여야
  * 끝나는 것들이고, 탐지는 그것을 모른다.
+ *
+ * ## 앞의 둘은 도는 것보다 먼저다 (260912 지시)
+ *
+ * 전에는 `T-A1`·`T-A2` 를 **첫 각도 결과가 오면** 끝났다고 했다. 그러면 로봇이 이미 돌고
+ * 있는 중에 「문 위치 확인」이 초록이 된다 — 실제로는 **한 바퀴 다 돌고 나서** 그 둘에
+ * 완료가 떴고, 순서가 거꾸로 보였다.
+ *
+ * 이제 그 둘은 **자세 역산**(`unidepth_localization/localization_evidence.json`)이 왔을 때
+ * 끝난다. 그 파일은 스캔 결과와 다른 자리에 있고 먼저 온다. 로봇이 돌기 시작하는 시각은
+ * `physical/robotSession.ts` 의 준비 창(`PREP_SEC`)이 따로 잡는다.
  */
 
 import { receiveRobotProgress } from '../data/scenario.ts';
@@ -78,14 +88,32 @@ export function advanceDetectTasks(
   missionId: string, atSec: number, stepDeg: number, count: number,
 ): number {
   const state = detectState();
-  if (state.frames.length === 0) return 0;
+  const loc = state.localization;
+  // 자세도 각도도 아직 아무것도 없으면 낼 것이 없다.
+  if (loc === null && state.frames.length === 0) return 0;
   let put = 0;
 
-  // 자세가 잡혔다 — 도면상 목표 위치와 로봇 자세 둘 다 여기서 나온다.
-  if (state.frames.length > 0) {
-    put += emit(missionId, 'T-A1', 'done', atSec) ? 1 : 0;
-    put += emit(missionId, 'T-A2', 'done', atSec) ? 1 : 0;
-  }
+  // ── 준비 단계 ─────────────────────────────────────────────────────────────
+  // 여기 있는 동안 로봇은 **안 돈다**. 화면이 두 노드를 진행 중으로 보여 준다.
+  put += emit(missionId, 'T-A1', 'running', atSec) ? 1 : 0;
+  put += emit(missionId, 'T-A2', 'running', atSec) ? 1 : 0;
+
+  // 도면상 문의 자리가 잡혔다.
+  const doorPlaced = loc?.door_position_cm_fixed_from_gt !== undefined;
+  // 로봇 자신의 자리와 방위가 잡혔다 — 받침대를 기준점으로 역산한 결과다.
+  const posePlaced = loc?.robot_position_cm !== undefined && loc?.current_heading_map_deg !== undefined;
+
+  /**
+   * **자세가 안 오는 상대도 있다.** 탐지 서비스에 자세 창구가 없으면 이 둘이 영영 대기로
+   * 남고, 그러면 `MS-A` 가 끝나지 않는다. 각도 결과가 오기 시작했다는 것은 저쪽이
+   * 어떻게든 자세를 잡았다는 뜻이라, 그때는 그것을 근거로 삼는다.
+   */
+  const swept0 = state.frames.length > 0;
+  if (doorPlaced || swept0) put += emit(missionId, 'T-A1', 'done', atSec) ? 1 : 0;
+  if (posePlaced || swept0) put += emit(missionId, 'T-A2', 'done', atSec) ? 1 : 0;
+
+  // 여기서부터는 각도 결과가 있어야 한다.
+  if (state.frames.length === 0) return put;
 
   // 도는 중 → 다 돌았다.
   put += emit(missionId, 'T-A3', 'running', atSec) ? 1 : 0;
