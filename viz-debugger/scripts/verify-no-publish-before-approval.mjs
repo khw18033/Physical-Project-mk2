@@ -210,6 +210,35 @@ resetRobotSession();
 const { commandTracker } = await load('src', 'shared', 'commandCenter.ts');
 commandTracker.clear();
 
+// ── 7. 실패해도 한 틱 안에서 다시 쏘지 않는다 (260912 — 브라우저가 멎었다) ──
+//
+// 발행이 실패하면 관문이 도로 내려간다(다시 시도할 수 있게). 그런데 그 내림 자체가 세션
+// 변경이라 세션 구독이 다시 불리고, 조건이 그대로면 또 쏘고 또 실패해 **무한히 돈다.**
+// 실제로 화면이 통째로 멎었다.
+//
+// 조건이 안 바뀌었으면 한 번으로 끝나야 한다.
+{
+  const { readFileSync } = await import('node:fs');
+  const client = readFileSync(join(root, 'src', 'physical', 'robotClient.ts'), 'utf8')
+    .replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
+  // **되돌아가는 줄이 실제로 있는가.** 변수만 두고 비교를 빼면 고리가 그대로 돈다.
+  if (!/=== lastScanAttempt\) return;/.test(client)) {
+    failures.push('같은 조건이면 되돌아가는 줄이 없다 — 발행이 실패하면 한 틱 안에서 무한히 돈다');
+  }
+
+  // 실제로 돌려 본다 — 못 보내는 클라이언트에 연결만 열린 상태.
+  resetRobotSession();
+  online();
+  let sent = 0;
+  const dead = {
+    getStatus: () => ({ state: 'open' }),
+    send() { sent += 1; return { sent: false, commandId: '', reason: '소켓이 없다' }; },
+  };
+  markApproved();
+  for (let i = 0; i < 5; i += 1) await issueScan(dead, params);
+  if (sent > 5) failures.push(`못 보내는데 ${sent}번 쐈다 — 부른 횟수보다 많다`);
+}
+
 if (failures.length) {
   console.error(`❌ verify:no-publish-before-approval\n- ${failures.join('\n- ')}`);
   process.exit(1);
@@ -220,5 +249,6 @@ console.log('✅ 스캔이 접근을 자동으로 부르지 않는다 — door_t
 console.log('✅ 정지 뒤 발행 0건 · 정지를 풀면 승인이 내려간다 (사람이 다시 승인한다)');
 console.log('✅ ping 은 승인과 무관 — 연결 확인은 임무 명령이 아니다');
 console.log('✅ 화면이 실제로 issueScan 을 부른다 · 관문이 한 번만 열린다 · 브로커 없으면 안 쏜다');
+console.log('✅ 발행이 실패해도 같은 조건으로 다시 안 쏜다 — 세션 구독이 스스로를 부르는 고리를 막는다');
 console.log(`✅ 대조군 ${controls.length}건 전부 검출 — ${controls.join(' · ')}`);
 process.exit(0);

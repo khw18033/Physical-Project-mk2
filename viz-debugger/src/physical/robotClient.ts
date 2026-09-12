@@ -10,11 +10,13 @@
 
 import { PhysicalClient } from './PhysicalClient.ts';
 import { issuePing, issueScan, shouldIssueScan } from './robotCommands.ts';
-import { setConnection, subscribeRobot } from './robotSession.ts';
+import { robotSession, setConnection, subscribeRobot } from './robotSession.ts';
 import { currentMission } from '../data/scenario.ts';
 import { receiveDeviceMessage } from './deviceState.ts';
 
 let singleton: PhysicalClient | null = null;
+/** 마지막으로 스캔을 시도한 조건. 같은 조건이면 다시 안 쏜다 (아래 주석). */
+let lastScanAttempt = '';
 
 export function robotClient(): PhysicalClient {
   if (singleton === null) {
@@ -42,6 +44,22 @@ export function robotClient(): PhysicalClient {
      */
     subscribeRobot(() => {
       if (!shouldIssueScan()) return;
+      /**
+       * **같은 조건으로 두 번 시도하지 않는다** (260912 — 브라우저가 멎었다).
+       *
+       * 발행이 실패하면 `issueScan` 이 관문을 도로 내린다(다시 시도할 수 있게). 그런데 그
+       * 내림 자체가 세션 변경이라 이 구독이 다시 불리고, 조건이 그대로니 또 쏘고, 또 실패해
+       * **한 틱 안에서 무한히 돈다.** 화면이 통째로 멎는다.
+       *
+       * 실제로 그렇게 멎었다 — 연결 상태만 `open` 이고 소켓은 안 붙은 상태에서.
+       *
+       * 그래서 **무엇이 바뀌었을 때만** 시도한다. 승인이나 연결 상태가 그대로면 한 번으로
+       * 끝이고, 사유는 화면에 남는다. 다시 하려면 사람이 「처음부터」를 누른다.
+       */
+      const session = robotSession();
+      const attempt = `${session.approved}|${session.connection.state}|${session.approvedAtMs ?? 0}`;
+      if (attempt === lastScanAttempt) return;
+      lastScanAttempt = attempt;
       void issueScan(singleton as PhysicalClient, currentMission().params);
     });
   }
