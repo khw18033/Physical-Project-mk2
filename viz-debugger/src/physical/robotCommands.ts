@@ -22,7 +22,7 @@
 import { commandTracker } from '../shared/commandCenter.ts';
 import type { CommandAck, CommandRequest } from '../transport/index.ts';
 import type { PhysicalAction } from './encode.ts';
-import { PAUSE_ACTION, SDK_ACTIONS, TEST_FORWARD_M } from './presets.ts';
+import { PAUSE_ACTION, SDK_ACTIONS, STOP_ACTION as ARRIVAL_STOP, STOP_REASON as STOP_WHY, TEST_FORWARD_M } from './presets.ts';
 import { NO_NODE } from './missionLink.ts';
 import { detectState } from '../detect/store.ts';
 import { commandForTask, missionGeometry, pathCommands, type TaskCommand } from './missionLink.ts';
@@ -245,7 +245,20 @@ export async function issueApproach(
 export function approachSteps(): readonly TaskCommand[] {
   const path = detectState().path;
   if (path === null) return [];
-  return pathCommands(path.turn_instruction, turnDegOf(path), issuedForwardM() ?? 0);
+  const walk = pathCommands(path.turn_instruction, turnDegOf(path), issuedForwardM() ?? 0);
+  if (walk.length === 0) return [];
+  /**
+   * **도착 정지를 한 번 더 낸다** (260912 지시 — 「확인사살용으로」).
+   *
+   * 직진이 끝나면 로봇은 이미 서 있다. 그래도 `T-B3`「문과 가까워지면 정지」는 순서도에
+   * 있는 걸음이고, 노드가 있는데 아무 명령도 안 내면 **화면에만 있는 걸음**이 된다.
+   * 한 번 더 내는 쪽이 안전하기도 하다 — 직진이 어딘가에서 덜 끝났을 때 그것을 접는다.
+   *
+   * 로봇을 멈추는 방법은 하나뿐이라(`presets.ts` 의 실측) 긴급 정지와 같은 action 을
+   * 쓴다. 다른 점은 **화면을 안 잠근다**는 것이다 — 이건 임무가 끝나는 정상 걸음이지
+   * 사람이 누른 비상 정지가 아니다. 그래서 `reason` 도 사람이 아니라 화면이다.
+   */
+  return [...walk, { taskId: 'T-B3', action: ARRIVAL_STOP, parameters: { reason: STOP_WHY.screen } }];
 }
 
 /** 경로 산출이 낸 **계획** 거리(m). 화면이 적는 값이다. 없으면 null. */
@@ -282,6 +295,7 @@ export function approachWords(): string | null {
       const deg = step.parameters?.deg ?? 0;
       return `${deg < 0 ? '왼쪽' : '오른쪽'} ${Math.abs(Math.round(deg))}도 회전`;
     }
+    if (step.action !== 'move_forward') return '도착 정지';
     // **계획값을 적고, 다르면 나간 값을 괄호로 붙인다** (260912 지시). 화면은 산출된
     // 경로를 그대로 보여 주되, 적힌 숫자와 나간 숫자가 다른 것을 숨기지 않는다.
     const issued = step.parameters?.distance_m ?? 0;

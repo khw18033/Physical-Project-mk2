@@ -17,7 +17,7 @@ import { advanceRobotHead, receiveRobotProgress } from '../data/scenario.ts';
 import type { ScenarioEvent } from '../model/types.ts';
 import { elapsedSec, applyEffects, noteCommandLog, robotSession } from './robotSession.ts';
 import { robotClient } from './robotClient.ts';
-import { uplinkWords, type UplinkMessage } from './uplink.ts';
+import { uplinkWords, viewpointIndexOf, type UplinkMessage } from './uplink.ts';
 
 /**
  * uplink 하나를 화면 상태로. 되돌려주는 것은 뷰포인트 열에 넣은 프레임 수다.
@@ -46,6 +46,8 @@ export function receiveUplink(
     text: uplinkWords(message),
     // 원문은 status 에만 있다. 없는 것을 지어 채우지 않는다.
     raw: message.kind === 'status' ? message.raw : '',
+    // **몇 번째 각도의 줄인가.** 회전 보고가 아니면 null 이고, 그것이 정상이다.
+    index: message.kind === 'status' ? viewpointIndexOf(message.detail, viewpointCount) : null,
   });
 
   const effects = effectsOf(message, {
@@ -148,6 +150,17 @@ function traceEventsOf(effects: readonly LinkEffect[], atSec: number): ScenarioE
       events.push(event(effect.taskId, 'running', 'started', atSec));
     } else if (effect.kind === 'task-done') {
       events.push(event(effect.taskId, 'done', 'evaluated', atSec, effect.result));
+      /**
+       * **임무 종료 확인은 화면이 내리는 판정이다** (260912 지시 — 「임무 완료 판정까지」).
+       *
+       * `T-C1` 에 대응하는 로봇 명령이 없다. 로봇에 「임무가 끝났는가」를 묻는 말이 규약에
+       * 없기 때문이다. 그래서 우리가 본 것으로 판정한다 — **도착 정지(`T-B3`)가 성공했으면
+       * 한 바퀴가 끝난 것이다.**
+       *
+       * 정지가 실패하면 여기로 안 온다(그때는 `task-failed` 다). 끝나지 않은 임무를
+       * 끝났다고 적지 않는다.
+       */
+      if (effect.taskId === 'T-B3') events.push(event('T-C1', 'done', 'evaluated', atSec));
     } else if (effect.kind === 'task-failed') {
       // 거절·실패 사유를 payload 에 그대로 싣는다 — 화면이 코드와 문구를 읽는다.
       events.push(event(effect.taskId, 'failed', 'failed', atSec, {

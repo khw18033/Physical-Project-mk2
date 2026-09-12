@@ -15,6 +15,7 @@ import { HelpOverlay } from './HelpOverlay.tsx';
 import { useMissionBridge } from './missionBridge.ts';
 import { ModeSwitch } from './ModeSwitch.tsx';
 import { ApproachButton, PauseButton, ResumeButton, StopButton } from '../physical/StopButton.tsx';
+import { MissionHistoryList } from '../views/MissionHistory.tsx';
 import { ResetButton, RestartButton } from '../views/ResetButton.tsx';
 import { robotProbe } from '../physical/robotClient.ts';
 import { ConnectionLamp } from './ConnectionLamp.tsx';
@@ -118,7 +119,7 @@ export function AppShell({ debuggerView, onDebuggerHome, onMissionHistory, onOpe
     </header>
     {/* 연결 관리는 폼이라 목록 판과 모양이 다르다 — 자기 부품이 그린다 (`VZ-C-07`). */}
     {panel === 'connections' && <ConnectionsPanel onClose={() => setPanel(null)} physical={robotProbe()} />}
-    {panel !== null && panel !== 'connections' && <aside className="global-panel"><header><b>{panel === 'history' ? '임무 이력' : '통합 알림'}</b><button onClick={() => setPanel(null)}>닫기</button></header>{panel === 'history' ? <PendingSource id="mission-history" minHeight={110}><ul><li>MSN-260826-01 · 실패 · 현재</li><li>MSN-260826-00 · 완료</li><li>MSN-260825-07 · 완료</li></ul></PendingSource> : <ul>{notifications.map((item) => <li key={item.id}><b>{item.source}</b> {item.source === 'external-ai' ? <PendingSource id="ai-failure-alert" inline>{item.message}</PendingSource> : item.message}</li>)}</ul>}</aside>}
+    {panel !== null && panel !== 'connections' && <aside className="global-panel"><header><b>{panel === 'history' ? '임무 이력' : '통합 알림'}</b><button onClick={() => setPanel(null)}>닫기</button></header>{panel === 'history' ? <MissionHistoryList compact /> : <ul>{notifications.map((item) => <li key={item.id}><b>{item.source}</b> {item.source === 'external-ai' ? <PendingSource id="ai-failure-alert" inline>{item.message}</PendingSource> : item.message}</li>)}</ul>}</aside>}
     {/* 무대는 하나다 — 노드 캔버스. 감췄다 되살릴 다른 무대가 없으므로 `is-hidden` 도 없다.
         ManualScope 는 캔버스를 감싼다 — 확대된 노드의 설명서는 오버레이가 따로 감싼다. */}
     <section className="tab-stage">

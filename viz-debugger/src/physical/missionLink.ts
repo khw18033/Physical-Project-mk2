@@ -84,6 +84,21 @@ export function pathCommands(
   return out;
 }
 
+/**
+ * **`T-A4-3` → 3.** 각도 칸 노드의 이름 규칙.
+ *
+ * 대본이 이 이름으로 여덟을 두고 `detect/detectTrace.ts` 도 같은 규칙으로 사건을 낸다.
+ * 이름을 읽는 자리를 여기 하나로 모아 둔다 — 세 곳에서 따로 쪼개면 하나만 고쳐지는 날이 온다.
+ *
+ * 규칙에 안 맞으면 null 이다. 각도 칸이 아닌 노드에 각도 로그를 붙이지 않는다.
+ */
+export function viewpointTaskIndex(taskId: string): number | null {
+  const matched = /^T-A4-(\d+)$/.exec(taskId);
+  if (matched === null) return null;
+  const index = Number(matched[1]);
+  return Number.isInteger(index) && index >= 0 ? index : null;
+}
+
 /** 대본 `params` 에서 방향·거리를 읽는다 — 경로 산출이 붙는 자리는 `presets.ts` 하나다. */
 export { missionGeometry };
 

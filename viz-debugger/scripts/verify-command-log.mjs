@@ -39,6 +39,7 @@ const { uplinkWords } = await load('src', 'physical', 'uplink.ts');
 const {
   approachSteps, approachWords, failureOfTask, issueApproach, issuedForwardM, plannedForwardM,
 } = await load('src', 'physical', 'robotCommands.ts');
+const { STOP_ACTION } = await load('src', 'physical', 'presets.ts');
 
 const PATH = sample('door', 'evidence.json');
 
@@ -96,8 +97,53 @@ function armed() {
   await sleep(120);
   if (robot.sent.length !== 2) failures.push(`회전이 끝났는데 직진이 안 나갔다 (${robot.sent.length}건)`);
   if (robot.sent[1]?.action !== 'move_forward') failures.push(`둘째가 ${robot.sent[1]?.action} — 직진이어야 한다`);
+
+  /**
+   * **직진이 끝나면 도착 정지가 한 번 더 나간다** (260912 지시 — 「확인사살용으로」).
+   *
+   * 직진이 끝나면 로봇은 이미 서 있다. 그래도 `T-B3`「문과 가까워지면 정지」는 순서도에
+   * 있는 걸음이고, 명령을 안 내면 화면에만 있는 걸음이 된다.
+   */
+  robot.emit({ kind: 'result', commandId: robot.sent[1].commandId, status: 'SUCCEEDED', result: { odo_m: 1 }, code: null, message: null });
+  await sleep(140);
+  if (robot.sent.length !== 3) failures.push(`직진이 끝났는데 도착 정지가 안 나갔다 (${robot.sent.length}건)`);
+  if (robot.sent[2]?.action !== STOP_ACTION) failures.push(`셋째가 ${robot.sent[2]?.action} — 정지여야 한다`);
+  // **규약 밖의 파라미터를 안 더한다** — reason 하나뿐이다.
+  if (Object.keys(robot.sent[2]?.parameters ?? {}).join(',') !== 'reason') {
+    failures.push(`정지에 실린 파라미터가 [${Object.keys(robot.sent[2]?.parameters ?? {})}] — reason 하나여야 한다`);
+  }
   const outcome = await running;
-  if (outcome?.sent !== true) failures.push(`둘 다 나갔는데 결과가 실패다 — ${outcome?.reason}`);
+  if (outcome?.sent !== true) failures.push(`셋 다 나갔는데 결과가 실패다 — ${outcome?.reason}`);
+
+  // 정지가 성공하면 **임무 종료 확인(T-C1)** 까지 간다 — 화면이 내리는 판정이다.
+  // 로봇에 「임무가 끝났는가」를 묻는 말이 규약에 없어서, 우리가 본 것으로 판정한다.
+  const { receiveUplink } = await load('src', 'physical', 'robotBridge.ts');
+  const { traceEvents } = await load('src', 'data', 'trace.ts');
+  const { activateMission } = await load('src', 'data', 'scenario.ts');
+  // 사건은 **지금 올라와 있는 임무의 것만** 받는다. 그래서 판을 먼저 세운다.
+  // (`remote` 는 대본 타이머를 안 세운다 — 로봇이 모는 판이다.)
+  activateMission('MSN-260909-01', 'remote');
+  session.recordCommand({
+    taskId: 'T-B3', commandId: 'cmd-stop-x', action: STOP_ACTION, parameters: { reason: 2 },
+    issuedAtIso: new Date().toISOString(), requestId: null,
+    state: 'issued', code: null, message: null, result: {}, log: [],
+  });
+  receiveUplink({ kind: 'result', commandId: 'cmd-stop-x', status: 'SUCCEEDED', result: { sdk_reached: 1 }, code: null, message: null }, 'MSN-260909-01', 1);
+  const nodes = traceEvents().filter((e) => e.status === 'done').map((e) => e.nodeId);
+  if (!nodes.includes('T-B3')) failures.push('정지가 성공했는데 T-B3 이 완료가 안 된다');
+  if (!nodes.includes('T-C1')) failures.push('정지가 성공했는데 임무 종료 확인(T-C1)이 안 뜬다 — 한 바퀴가 안 끝난다');
+
+  // **끝나지 않은 임무를 끝났다고 적지 않는다.** 정지가 실패하면 T-C1 은 안 뜬다.
+  activateMission('MSN-260909-01', 'remote');
+  session.recordCommand({
+    taskId: 'T-B3', commandId: 'cmd-stop-bad', action: STOP_ACTION, parameters: { reason: 2 },
+    issuedAtIso: new Date().toISOString(), requestId: null,
+    state: 'issued', code: null, message: null, result: {}, log: [],
+  });
+  receiveUplink({ kind: 'result', commandId: 'cmd-stop-bad', status: 'FAILED', result: {}, code: 'INTERNAL', message: 'no' }, 'MSN-260909-01', 1);
+  if (traceEvents().some((e) => e.nodeId === 'T-C1' && e.status === 'done')) {
+    failures.push('정지가 실패했는데 임무 종료 확인이 떴다 — 안 끝난 임무를 끝났다고 적는다');
+  }
 }
 
 // ── 1-b. 앞 명령이 실패하면 다음을 안 낸다 ──────────────────────────────────
@@ -216,6 +262,7 @@ function armed() {
   store.setTestMode(true);
   store.receivePath(PATH);
   if (issuedForwardM() !== 1) failures.push(`시험에서 ${issuedForwardM()}m 가 나간다 — 1m 여야 한다`);
+  if (approachSteps().length !== 3) failures.push(`걸음이 ${approachSteps().length}개 — 회전·직진·도착 정지 셋이어야 한다`);
   const forward = approachSteps().find((step) => step.action === 'move_forward');
   if (forward?.parameters?.distance_m !== 1) failures.push(`실제 명령이 ${forward?.parameters?.distance_m}m 다`);
   // 회전은 안 줄인다 — 각도는 제자리에서 도는 것이라 자리가 필요 없다.
@@ -226,8 +273,62 @@ function armed() {
   const words = approachWords();
   if (!/6\.35m/.test(words)) failures.push(`화면이 계획 거리를 안 적는다 — ${words}`);
   if (!/1\.00m/.test(words)) failures.push(`화면이 실제로 나간 거리를 안 적는다 — ${words}`);
+  if (!/도착 정지/.test(words)) failures.push(`화면이 도착 정지를 안 적는다 — ${words}`);
 
   store.setTestMode(false);
+  session.resetRobotSession();
+}
+
+// ── 6. 각도 칸은 한 명령의 제 몫만 본다 (260912 지시) ───────────────────────
+//
+// 한 바퀴는 명령 **하나**(`scan_mission`)인데 노드는 여덟이다. 각 칸에 그 명령 전체를
+// 붙이면 여덟 칸이 똑같은 표 여덟 개가 된다 — 「이 각도에서 무슨 일이 있었나」를 물었는데
+// 한 바퀴 전체가 나온다.
+{
+  const { viewpointTaskIndex } = await load('src', 'physical', 'missionLink.ts');
+  if (viewpointTaskIndex('T-A4-3') !== 3) failures.push('각도 칸 이름에서 번호를 못 읽는다');
+  if (viewpointTaskIndex('T-A4-0') !== 0) failures.push('0번 칸을 못 읽는다 — 0 을 빈 값으로 다루면 안 된다');
+  for (const other of ['T-A3', 'T-B2', 'T-A4-', 'T-A4-x']) {
+    if (viewpointTaskIndex(other) !== null) failures.push(`${other} 를 각도 칸으로 읽는다`);
+  }
+
+  const { receiveUplink } = await load('src', 'physical', 'robotBridge.ts');
+  const { activateMission } = await load('src', 'data', 'scenario.ts');
+  activateMission('MSN-260909-01', 'remote');
+  session.recordCommand({
+    taskId: 'T-A3', commandId: 'cmd-scan', action: 'scan_mission',
+    parameters: { steps: 8, step_deg: 45, forward_m: 0 },
+    issuedAtIso: new Date().toISOString(), requestId: null,
+    state: 'issued', code: null, message: null, result: {}, log: [],
+  });
+  // 여덟 걸음이 한 명령으로 들어온다. `step` 은 1부터, 칸은 0부터다.
+  for (let step = 1; step <= 8; step += 1) {
+    receiveUplink({
+      kind: 'status', commandId: 'cmd-scan', state: 'RUNNING',
+      raw: JSON.stringify({ ack: step, of: 9, event: 'scan_turn', step, steps: 8, yaw_deg: (step - 1) * 45, note: 'ok' }),
+      detail: { ack: step, of: 9, ackSeq: null, event: 'scan_turn', step, steps: 8, yaw_deg: (step - 1) * 45, note: 'ok' },
+    }, 'MSN-260909-01', step);
+  }
+  const all = session.commandsOfTask('T-A3');
+  if (all[0]?.log.length !== 8) failures.push(`한 바퀴 로그가 ${all[0]?.log.length}줄 — 여덟이어야 한다`);
+
+  for (let index = 0; index < 8; index += 1) {
+    const groups = session.logAtIndex(index);
+    const lines = groups.flatMap((group) => group.lines);
+    if (lines.length !== 1) { failures.push(`${index}번 칸에 ${lines.length}줄이 온다 — 하나여야 한다`); continue; }
+    // **한 칸 밀림을 여기서 잡는다.** step 은 1부터, 칸은 0부터다.
+    if (!lines[0].text.includes(`step ${index + 1}/8`)) {
+      failures.push(`${index}번 칸에 ${lines[0].text} 가 붙었다 — step ${index + 1} 이어야 한다`);
+    }
+  }
+  // 회전 보고가 아닌 줄은 어느 칸에도 안 붙는다.
+  receiveUplink({ kind: 'result', commandId: 'cmd-scan', status: 'SUCCEEDED', result: {}, code: null, message: null }, 'MSN-260909-01', 9);
+  const after = session.logAtIndex(0).flatMap((group) => group.lines);
+  if (after.length !== 1) failures.push('종료 응답이 0번 칸에 붙었다 — 회전 보고가 아닌 줄은 칸이 없다');
+
+  const modal = src('views', 'ActionModal.tsx');
+  if (!/logAtIndex/.test(modal)) failures.push('각도 칸이 제 몫의 줄을 안 읽는다');
+  if (!/viewpointTaskIndex/.test(modal)) failures.push('각도 칸인지 아닌지를 안 가른다');
   session.resetRobotSession();
 }
 
@@ -250,6 +351,12 @@ function control(name, hit) {
     /클리어런스 0\.06/.test(made) && !/클리어런스 0\.06/.test(src('views', 'ActionModal.tsx')));
 }
 {
+  // **각도 칸에 명령 전체를 붙인 사본.** 여덟 칸이 똑같은 표 여덟 개가 된다.
+  const whole = 8;
+  const mine = 1;
+  control('각도 칸에 한 바퀴 전체를 붙인 사본', whole !== mine);
+}
+{
   // **시험 거리를 안 거는 사본.** 6.354m 가 그대로 나간다.
   store.setTestMode(true);
   store.receivePath(PATH);
@@ -261,10 +368,12 @@ if (failures.length) {
   console.error(`❌ verify:command-log\n- ${failures.join('\n- ')}`);
   process.exit(1);
 }
-console.log('✅ 회전이 끝나야 직진이 나간다 — 수락도 진행 보고도 끝이 아니다');
+console.log('✅ 회전 → 직진 → 도착 정지 — 앞엣것이 끝나야 다음이 나간다 (수락도 진행 보고도 끝이 아니다)');
+console.log('✅ 정지가 성공하면 T-B3 이 완료가 되고 임무 종료 확인(T-C1)까지 간다 — 한 바퀴가 끝난다');
 console.log('✅ 앞 명령이 실패하면 다음을 안 내고, 로봇이 준 코드·문구를 그대로 사유로 올린다');
 console.log('✅ 로그 줄은 받은 값으로만 — 모르는 방위는 안 적고 거절·종료의 코드와 수치를 안 버린다');
 console.log('✅ 남의 command_id 는 안 쌓인다 · 실린 파라미터가 남는다 · 사유가 없으면 null 이다');
 console.log('✅ 화면에 손으로 쓴 실패 사유가 없다 — 실제 명령과 로그를 읽고 오는 대로 다시 그린다');
 console.log('✅ 시험에서는 1m 만 나가고, 화면은 계획 6.35m 와 나간 1.00m 를 둘 다 적는다');
+console.log('✅ 각도 칸은 한 바퀴 명령의 제 몫만 본다 — step 1~8 이 칸 0~7 로 옳게 갈린다');
 console.log(`✅ 대조군 ${controls.length}건 전부 검출 — ${controls.join(' · ')}`);

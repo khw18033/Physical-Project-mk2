@@ -20,6 +20,7 @@ import type { ScenarioEvent, Task, TaskStatus } from './model/types.ts';
 import { ObservabilityPanel } from './shared/ObservabilityPanel.tsx';
 import { measureFold, startObservability } from './shared/observability.ts';
 import { PendingSource } from './shared/PendingSource.tsx';
+import { MissionHistoryList, useMissionEndWatch } from './views/MissionHistory.tsx';
 import { hardwareSourceLabel, listCastIds, listRegisteredHardware } from './shared/registry.ts';
 import { graphShape, shapeLabel } from './graph/shape.ts';
 import { ActionModal } from './views/ActionModal.tsx';
@@ -316,7 +317,9 @@ function GraphScreen({ screen, view, trace, milestone, tasks, headSec, playing, 
       : <button type="button" className="crumbs__link" onClick={onGraph}>{here}</button>}
     {openTask !== null && <><span className="crumbs__sep" aria-hidden="true">›</span><span className="crumbs__here">{openTask.id} {openTask.title}</span></>}
   </nav>;
-  return <div className={replay ? 'replay-layout' : ''}>{replay && <aside className="history"><h2>임무 이력</h2><PendingSource id="mission-history" minHeight={200}>{['MSN-260826-01 · 실패', 'MSN-260826-00 · 완료', 'MSN-260825-07 · 완료', 'MSN-260825-06 · 완료'].map((item) => <button key={item}>{item}</button>)}</PendingSource></aside>}<section className="graph-panel"><header className="section-title"><div>{crumbs}<h2>{title}</h2><small>{replay ? `리플레이 · T+${String(Math.round(second)).padStart(2, '0')}s` : failure ? (failedTask ? '실패 경로 강조 · 관련 없는 노드 흐림' : '이 대본에는 실패가 없습니다 — 결함 주입(REQ-1409)으로 만들 수 있습니다') : shapeLabel(shape)}</small></div><div className="toggle"><button className={scope === 'milestone' ? 'active' : ''} onClick={() => onScope('milestone')}>이 마일스톤</button><button className={scope === 'mission' ? 'active' : ''} onClick={() => onScope('mission')}>임무 전체</button></div></header><Palette canvas={canvas} pickedTaskId={picked?.id ?? null} pickedTaskTitle={picked?.title ?? null} /><TaskGraph tasks={tasks} hardware={listRegisteredHardware()} states={folded.tasks} selected={failure ? failedTask?.id : undefined} dimUnrelated={failure && failedTask !== null} refEdges={refEdges} viewpoints={viewpoints} viewpointFill={viewpointFill} onOpen={(task) => onOpen(task, folded.tasks[task.id]?.status === 'failed')} canvas={canvasLayer} />
+  return <div className={replay ? 'replay-layout' : ''}>{/* **손으로 쓴 네 줄이 실제 목록이 됐다** (260912 지시). 이 세션에서 끝난 판만
+        쌓이고, 그 사실을 목록이 스스로 적는다. */}
+    {replay && <aside className="history"><h2>임무 이력</h2><MissionHistoryList /></aside>}<section className="graph-panel"><header className="section-title"><div>{crumbs}<h2>{title}</h2><small>{replay ? `리플레이 · T+${String(Math.round(second)).padStart(2, '0')}s` : failure ? (failedTask ? '실패 경로 강조 · 관련 없는 노드 흐림' : '이 대본에는 실패가 없습니다 — 결함 주입(REQ-1409)으로 만들 수 있습니다') : shapeLabel(shape)}</small></div><div className="toggle"><button className={scope === 'milestone' ? 'active' : ''} onClick={() => onScope('milestone')}>이 마일스톤</button><button className={scope === 'mission' ? 'active' : ''} onClick={() => onScope('mission')}>임무 전체</button></div></header><Palette canvas={canvas} pickedTaskId={picked?.id ?? null} pickedTaskTitle={picked?.title ?? null} /><TaskGraph tasks={tasks} hardware={listRegisteredHardware()} states={folded.tasks} selected={failure ? failedTask?.id : undefined} dimUnrelated={failure && failedTask !== null} refEdges={refEdges} viewpoints={viewpoints} viewpointFill={viewpointFill} onOpen={(task) => onOpen(task, folded.tasks[task.id]?.status === 'failed')} canvas={canvasLayer} />
     {/* 마일스톤 밖으로 나가는 되돌아감 — 적지 않으면 사용자는 루프의 존재를 모른다 (결정 2). */}
     {crossing.length > 0 && <p className="ref-crossing">↺ {crossing.map((edge) => `${edge.from} → ${edge.to} (${edge.label})`).join(' · ')} — 이 마일스톤 밖으로 되돌아갑니다 <button onClick={() => onScope('mission')}>임무 전체로 보기</button></p>}
     {replay && <ReplayControls second={second} following={override === null} playing={playing} onChange={setOverride} onFollow={() => setOverride(null)} view={view} trace={trace} tasks={tasks} />}<StatusLegend /><Explain id="dbg-1" className="hint">노드를 더블클릭하면 액션 아이템 상세를 엽니다. 실패 상태 노드는 수정 화면으로 이어집니다. 뷰 노드를 더블클릭하면 그 자리에서 확대됩니다 — 캔버스는 뒤에 그대로 있습니다.</Explain></section>
@@ -440,6 +443,12 @@ export function MissionDebugger({ navigation, planApproval }: { navigation?: Deb
 
   /** 머리 시각의 접기 결과 — 실패 태스크를 찾는 두 자리가 같은 값을 본다. */
   const folded = useMemo(() => measureFold(() => foldStatuses(display.headSec, view, trace)), [display.headSec, trace, view]);
+
+  /**
+   * **한 판이 끝나면 이력에 한 줄** (260912 지시). 완료·실패·정지 셋 중 하나로 끝났을 때다.
+   * 여기서 보는 이유는 접기 결과가 이 화면에 있기 때문이다 — 셸은 임무 구조를 모른다.
+   */
+  useMissionEndWatch(view, folded);
 
   const navigate = (next: Screen) => {
     setScreen(next);

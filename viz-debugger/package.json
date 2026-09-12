@@ -66,7 +66,8 @@
     "verify:plan-freshness": "node scripts/verify-plan-freshness.mjs",
     "verify:detect-map": "node scripts/verify-detect-map.mjs",
     "verify:mission-prep": "node scripts/verify-mission-prep.mjs",
-    "verify:command-log": "node scripts/verify-command-log.mjs"
+    "verify:command-log": "node scripts/verify-command-log.mjs",
+    "verify:mission-history": "node scripts/verify-mission-history.mjs"
   },
   "dependencies": {
     "mqtt": "^5.15.2",

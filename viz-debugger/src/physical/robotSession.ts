@@ -74,6 +74,16 @@ export type CommandLogLine = {
   text: string;
   /** 로봇이 보낸 원문(`detail`). 없으면 빈 문자열 — 지어 채우지 않는다. */
   raw: string;
+  /**
+   * **몇 번째 각도의 줄인가** (260912 지시 — 각도별 노드가 자기 몫만 보여 준다).
+   *
+   * 한 바퀴는 명령 **하나**(`scan_mission`)인데 노드는 여덟이다. 그래서 그 하나의 로그를
+   * 걸음 번호로 갈라 각 칸에 나눠 준다 — `step`(1부터) 을 인덱스(0부터)로 옮긴 값이고,
+   * 그 변환은 `uplink.ts` 의 함수 하나가 한다.
+   *
+   * 회전 보고가 아닌 줄은 null 이다. 없는 칸에 억지로 붙이지 않는다.
+   */
+  index: number | null;
 };
 
 /** 태스크 하나가 로봇에 낸 명령. 응답이 어느 노드의 것인지 이걸로 안다. */
@@ -402,6 +412,21 @@ export function noteCommandLog(commandId: string, line: CommandLogLine): void {
   if (entry === undefined) return;
   const next = { ...entry, log: [...entry.log, line] };
   commit({ ...session, commands: { ...session.commands, [commandId]: next } });
+}
+
+/**
+ * **그 각도의 줄만 모은다** (260912 지시).
+ *
+ * 한 바퀴가 명령 하나라 태스크 이름으로는 못 가른다. 줄에 적어 둔 걸음 번호로 가른다.
+ * 그 각도의 줄이 하나도 없는 명령은 안 내놓는다 — 빈 표를 여덟 개 만들지 않는다.
+ */
+export function logAtIndex(index: number): ReadonlyArray<{
+  record: TaskCommandRecord; lines: readonly CommandLogLine[];
+}> {
+  return Object.values(session.commands)
+    .map((record) => ({ record, lines: record.log.filter((line) => line.index === index) }))
+    .filter((entry) => entry.lines.length > 0)
+    .sort((a, b) => a.record.issuedAtIso.localeCompare(b.record.issuedAtIso));
 }
 
 /** 그 태스크가 낸 명령들. 낸 순서대로 — 회전 먼저, 직진 나중. */

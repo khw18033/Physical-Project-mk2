@@ -19,7 +19,11 @@ import type { Hardware, Task } from '../model/types.ts';
 import { PendingSource } from '../shared/PendingSource.tsx';
 import { STATE_STYLE } from '../graph/stateStyle.ts';
 import { failureOfTask } from '../physical/robotCommands.ts';
-import { commandsOfTask, useRobotSession, type TaskCommandRecord } from '../physical/robotSession.ts';
+import { viewpointTaskIndex } from '../physical/missionLink.ts';
+import {
+  commandsOfTask, logAtIndex, useRobotSession,
+  type CommandLogLine, type TaskCommandRecord,
+} from '../physical/robotSession.ts';
 import { DeviceStrip } from './DeviceStrip.tsx';
 
 /** 명령 하나의 상태를 사람 말로. 로봇이 준 상태 그대로를 옮긴다. */
@@ -45,14 +49,28 @@ function tookSec(record: TaskCommandRecord): number | null {
  */
 function RobotCommands({ taskId }: { taskId: string }) {
   useRobotSession();                       // 로그가 오는 대로 다시 그린다
-  const records = commandsOfTask(taskId);
-  if (records.length === 0) {
+
+  /**
+   * **각도 칸은 한 명령의 제 몫만 본다** (260912 지시).
+   *
+   * 한 바퀴는 명령 하나(`scan_mission`)인데 노드는 여덟이다. 각 칸에 그 명령 전체를
+   * 붙이면 여덟 칸이 똑같은 표 여덟 개가 된다 — 「이 각도에서 무슨 일이 있었나」를
+   * 물었는데 한 바퀴 전체가 나온다. 그래서 걸음 번호로 갈라 준다.
+   */
+  const angle = viewpointTaskIndex(taskId);
+  const groups = angle === null
+    ? commandsOfTask(taskId).map((record) => ({ record, lines: record.log }))
+    : logAtIndex(angle);
+
+  if (groups.length === 0) {
     return <p className="robot-log__empty">
-      이 태스크가 낸 로봇 명령이 아직 없습니다 — 값이 오면 여기에 그대로 쌓입니다
+      {angle === null
+        ? '이 태스크가 낸 로봇 명령이 아직 없습니다 — 값이 오면 여기에 그대로 쌓입니다'
+        : '이 각도에서 온 줄이 아직 없습니다 — 로봇이 여기까지 돌면 그때 쌓입니다'}
     </p>;
   }
   return <div className="robot-log">
-    {records.map((record, index) => {
+    {groups.map(({ record, lines }, index) => {
       const took = tookSec(record);
       const params = Object.entries(record.parameters);
       return <section key={record.commandId} className={`robot-log__cmd is-${record.state}`}>
@@ -61,6 +79,8 @@ function RobotCommands({ taskId }: { taskId: string }) {
           <span>{COMMAND_STATE[record.state]}</span>
           {/* **응답이 없으면 시간을 안 적는다.** 0초로 적으면 즉시 끝난 것으로 읽힌다. */}
           {took !== null && <span>{took.toFixed(1)}초</span>}
+          {/* 각도 칸에서는 **이 표가 한 명령의 일부**라는 것을 적는다. */}
+          {angle !== null && <span>한 바퀴 명령 중 {angle + 1}번째 걸음</span>}
           <code>{record.commandId}</code>
         </header>
         <p className="robot-log__params">
@@ -68,18 +88,22 @@ function RobotCommands({ taskId }: { taskId: string }) {
             ? '파라미터 없음'
             : params.map(([key, value]) => `${key}=${value}`).join(' · ')}
         </p>
-        {/* 오간 줄. 받은 순서 그대로이고 문장은 로봇이 준 값으로만 만든다. */}
-        <ol className="robot-log__lines">
-          {record.log.map((line, at) => <li key={`${line.atIso}-${at}`} className={`is-${line.kind}`}>
-            <time>{line.atIso.slice(11, 23)}</time>
-            <span>{line.text}</span>
-            {line.raw !== '' && <code>{line.raw}</code>}
-          </li>)}
-          {record.log.length === 0 && <li className="is-empty"><span>아직 응답이 없습니다</span></li>}
-        </ol>
+        <LogLines lines={lines} />
       </section>;
     })}
   </div>;
+}
+
+/** 오간 줄. 받은 순서 그대로이고 문장은 로봇이 준 값으로만 만든다. */
+function LogLines({ lines }: { lines: readonly CommandLogLine[] }) {
+  return <ol className="robot-log__lines">
+    {lines.map((line, at) => <li key={`${line.atIso}-${at}`} className={`is-${line.kind}`}>
+      <time>{line.atIso.slice(11, 23)}</time>
+      <span>{line.text}</span>
+      {line.raw !== '' && <code>{line.raw}</code>}
+    </li>)}
+    {lines.length === 0 && <li className="is-empty"><span>아직 응답이 없습니다</span></li>}
+  </ol>;
 }
 
 /** **실패 사유 — 로봇이 준 것만.** 없으면 비운다 (260912 지시). */
@@ -107,7 +131,9 @@ export function ActionModal({ task, view, device, failure, onClose }: { task: Ta
   return <div className="modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}><section className={`modal ${failure ? 'failure-modal' : ''}`}>
     <header><div><h2>{failure ? '× ' : ''}{task.id} · {task.title}{failure ? ' — 실패' : ''}</h2>{/* **낸 명령 수를 적는다.** 「액션 아이템 0건」은 이 편에서 늘 0이라 아무것도 안 알려
           줬다. 대본에 목록이 실제로 들어 있는 편에서는 그 수도 같이 적는다. */}
-      <small>로봇 명령 {commandsOfTask(task.id).length}건{task.actionItems.length > 0 && ` · 액션 아이템 ${task.actionItems.length}건`} · target {task.target ?? '없음'}</small></div><button onClick={onClose}>닫기</button></header>
+      <small>{viewpointTaskIndex(task.id) === null
+        ? `로봇 명령 ${commandsOfTask(task.id).length}건`
+        : `이 각도의 로그 ${logAtIndex(viewpointTaskIndex(task.id)!).reduce((sum, group) => sum + group.lines.length, 0)}줄`}{task.actionItems.length > 0 && ` · 액션 아이템 ${task.actionItems.length}건`} · target {task.target ?? '없음'}</small></div><button onClick={onClose}>닫기</button></header>
     {failure ? <FailureReason taskId={task.id} /> : device && <PendingSource id="robot-status-strip" minHeight={104}><DeviceStrip device={device} /></PendingSource>}
     {/* **로봇이 실제로 낸 명령이 있으면 이 폼을 안 띄운다** (260912 지시).
         「진입 속도 · 최소 클리어런스」는 구판 편의 입력칸이다. 회전·직진이 실패한 자리에
