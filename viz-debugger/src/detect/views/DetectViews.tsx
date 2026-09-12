@@ -21,6 +21,7 @@
 
 import { frameImageUrl, pathImageUrl, sourceOf } from '../DetectClient.ts';
 import { chosenFrame, gateWords, indexOfRotation, SCORE_LABEL, usableDistanceCm } from '../parse.ts';
+import { sweepDone } from '../detectBridge.ts';
 import { useDetect } from '../store.ts';
 import type { DetectFrame } from '../types.ts';
 
@@ -76,15 +77,23 @@ export function DetectCam({ zoom = false }: { zoom?: boolean }) {
  *
  * 찾았다는 판정은 **점수가 아니라 관문이 정한다.** 그래서 관문을 먼저, 점수를 뒤에 적는다.
  */
-export function DetectReason({ zoom = false }: { zoom?: boolean }) {
+export function DetectReason({ zoom = false, count = 8 }: { zoom?: boolean; count?: number }) {
   const state = useDetect();
   const source = sourceOf(state.testMode);
   const score = (f: DetectFrame) => state.evidence[f.frame]?.final_score ?? 0;
-  const frame = chosenFrame(state.frames, score);
-  if (frame === null) {
+  /**
+   * **근거는 판정 뒤에 나온다** (260912 지시). 도는 동안에는 아직 고른 것이 없다 —
+   * 세 각도만 보고 근거를 띄우면 다섯째에서 답이 바뀌었을 때 근거도 같이 바뀐다.
+   */
+  if (!sweepDone(count)) {
     return state.frames.length === 0
       ? <Waiting what="판단 근거가 아직 없습니다" />
-      : <p className="detect-wait">여덟 각도에서 문을 못 찾았습니다<small>임의로 한 방향을 고르지 않습니다</small></p>;
+      : <p className="detect-wait">탐색 중입니다 — {state.frames.length}/{count} 각도
+        <small>여덟을 다 본 뒤에 판정과 근거가 나옵니다</small></p>;
+  }
+  const frame = chosenFrame(state.frames, score);
+  if (frame === null) {
+    return <p className="detect-wait">여덟 각도에서 문을 못 찾았습니다<small>임의로 한 방향을 고르지 않습니다</small></p>;
   }
   const evidence = state.evidence[frame.frame] ?? null;
   const gates = Object.entries(evidence?.mandatory_gates ?? {});

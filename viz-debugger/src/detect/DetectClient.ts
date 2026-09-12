@@ -47,10 +47,32 @@ async function getJson<T>(url: string): Promise<T> {
   return await response.json() as T;
 }
 
+/**
+ * **테스트 자료도 한 각도씩 내놓는다** (260912 지시).
+ *
+ * 파일에는 여덟 각도가 다 들어 있다. 그걸 그대로 돌려주면 **시작하자마자 정답이 이미
+ * 정해진 채로** 화면이 뜬다 — 실제 서비스는 그렇게 안 온다. 한 각도 스캔이 끝날 때마다
+ * 하나씩 온다.
+ *
+ * 그래서 시료도 같은 박자로 내놓는다. 기준 시계는 **승인 뒤 몇 초째**(`elapsedSec`)다 —
+ * 로봇이 같이 돌고 있으면 그 회전과 같은 시계를 쓰게 된다.
+ */
+const SAMPLE_STEP_SEC = 4;
+
+/** 지금까지 몇 각도를 봤는가. 승인 전(0초)이면 아무것도 안 봤다. */
+export function sampleRevealed(elapsedSec: number, total: number): number {
+  if (!(elapsedSec > 0)) return 0;
+  return Math.max(0, Math.min(total, Math.floor(elapsedSec / SAMPLE_STEP_SEC)));
+}
+
 /** 각도별 결과 — 한 각도 스캔이 끝날 때마다 늘어난다 (260912 확인). */
-export async function fetchSummary(source: DetectSource, target: DetectClass = 'door'): Promise<DetectSummary> {
-  if (source.kind === 'sample') return getJson<DetectSummary>(`${SAMPLE_BASE}/${target}/target_summary.json`);
-  return getJson<DetectSummary>(`${source.base}/detect/results?target=${target}`);
+export async function fetchSummary(
+  source: DetectSource, target: DetectClass = 'door', elapsedSec = Infinity,
+): Promise<DetectSummary> {
+  if (source.kind !== 'sample') return getJson<DetectSummary>(`${source.base}/detect/results?target=${target}`);
+  const all = await getJson<DetectSummary>(`${SAMPLE_BASE}/${target}/target_summary.json`);
+  const frames = all.frames ?? [];
+  return { ...all, frames: frames.slice(0, sampleRevealed(elapsedSec, frames.length)) };
 }
 
 /** 한 각도의 근거. 못 찾은 각도에는 없다 — 없는 것이 정상이라 null 로 돌려준다. */
@@ -69,7 +91,12 @@ export async function fetchFrameEvidence(
 }
 
 /** 경로 산출. 스캔이 끝나야 나온다 — 그 전에는 없다. */
-export async function fetchPath(source: DetectSource, target: DetectClass = 'door'): Promise<DetectPath | null> {
+export async function fetchPath(
+  source: DetectSource, target: DetectClass = 'door', complete = true,
+): Promise<DetectPath | null> {
+  // **스캔이 끝나야 나온다.** 시료도 그 순서를 지킨다 — 여덟을 다 보기 전에 경로가 뜨면
+  // 「아직 안 돌았는데 갈 곳이 정해져 있다」가 된다.
+  if (!complete) return null;
   const url = source.kind === 'sample'
     ? `${SAMPLE_BASE}/${target}/evidence.json`
     : `${source.base}/detect/path?target=${target}`;

@@ -31,9 +31,20 @@ function scoreOf(frame: DetectFrame): number {
  * 방향을 고르지 않는다** — 「문을 찾지 못함」에서 멈추는 것이 맞다.
  */
 export function chosenIndex(stepDeg: number, count: number): number | null {
+  // **여덟을 다 보기 전에는 안 고른다** (260912 지시).
+  //
+  // 세 각도만 보고 「여기가 제일 높다」고 초록을 켜면, 다섯째에서 더 높은 것이 나왔을 때
+  // 초록이 옮겨 다닌다. 보는 사람은 화면이 흔들린다고 읽는다. 실제로 가장 높은 것은
+  // **다 보고 나서야** 알 수 있다.
+  if (!sweepDone(count)) return null;
   const best = chosenFrame(detectState().frames, scoreOf);
   if (best === null) return null;
   return indexOfRotation(best.rotation_deg, stepDeg, count);
+}
+
+/** 여덟을 다 봤는가. 판정도 근거도 경로도 이 뒤에 나온다. */
+export function sweepDone(count: number): boolean {
+  return detectState().frames.length >= count;
 }
 
 /** 아직 아무 각도도 안 봤는가. 화면이 「탐지 대기」와 「문 없음」을 가르는 재료다. */
@@ -51,11 +62,23 @@ export function hasResults(): boolean {
 export function applyDetection(missionId: string, atSec: number, stepDeg: number, count: number): number {
   const { frames } = detectState();
   if (frames.length === 0) return 0;
+  const done = sweepDone(count);
   const winner = chosenIndex(stepDeg, count);
   let put = 0;
   for (const result of frames) {
     const index = indexOfRotation(result.rotation_deg, stepDeg, count);
     if (index === null) continue;   // 범위 밖 각도는 버린다 — 없는 칸을 만들지 않는다
+    /**
+     * **도는 동안에는 「문 없음」만 칠한다** (260912 지시).
+     *
+     * 찾은 각도는 아직 **판정이 안 난 것**이지 탈락이 아니다. 그런데 칸의 상태는
+     * 초록(선정)과 탈락 둘뿐이라, 도중에 칠하면 둘 중 하나로 거짓을 말하게 된다.
+     * 여덟을 다 보고 나서 한 번에 칠한다 — 그때 초록 하나와 「문 후보」가 갈린다.
+     *
+     * 못 찾은 각도는 도중에 칠해도 거짓이 아니다. 그래야 화면이 한 칸씩 지워지는 것이
+     * 보이고, 발표자가 「지금 어디까지 봤나」를 안다.
+     */
+    if (!done && result.found) continue;
     const evidence = detectState().evidence[result.frame] ?? null;
     const frame = liveFrame({
       channel: 'detection',

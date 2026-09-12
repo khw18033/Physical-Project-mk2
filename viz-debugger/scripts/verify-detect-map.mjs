@@ -133,6 +133,38 @@ const COUNT = 8;
   }
 }
 
+// ── 5-c. 다 보기 전에는 판정하지 않는다 (260912 지시) ───────────────────────
+//
+// 시료 파일에는 여덟 각도가 다 들어 있다. 그대로 내놓으면 **시작하자마자 정답이 이미
+// 정해진 채로** 화면이 뜬다 — 실제 서비스는 한 각도가 끝날 때마다 하나씩 준다.
+//
+// 그리고 세 각도만 보고 「여기가 제일 높다」고 초록을 켜면, 다섯째에서 더 높은 것이
+// 나왔을 때 **초록이 옮겨 다닌다.**
+{
+  const { sampleRevealed } = await load('src', 'detect', 'DetectClient.ts');
+  // 승인 전에는 아무것도 안 봤다.
+  if (sampleRevealed(0, 8) !== 0) failures.push('승인 전인데 각도를 봤다고 한다');
+  // 한 각도에 4초. 여덟이면 32초쯤 — 로봇이 실제로 도는 시간과 비슷해야 한다.
+  if (sampleRevealed(4, 8) !== 1) failures.push(`4초에 ${sampleRevealed(4, 8)}각도 — 1개여야 한다`);
+  if (sampleRevealed(31, 8) !== 7) failures.push(`31초에 ${sampleRevealed(31, 8)}각도 — 7개여야 한다`);
+  // 넘치지 않는다.
+  if (sampleRevealed(9999, 8) !== 8) failures.push('여덟을 넘겨 내놓는다');
+
+  const bridge = readFileSync(join(root, 'src', 'detect', 'detectBridge.ts'), 'utf8')
+    .replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
+  if (!/if \(!sweepDone\(count\)\) return null;/.test(bridge)) {
+    failures.push('다 보기 전에 초록을 켠다 — 더 높은 각도가 나오면 초록이 옮겨 다닌다');
+  }
+  // 도는 동안 찾은 각도를 탈락으로 칠하면 안 된다 — 판정이 안 난 것이지 탈락이 아니다.
+  if (!/if \(!done && result\.found\) continue;/.test(bridge)) {
+    failures.push('도는 동안 찾은 각도를 칠한다 — 초록도 탈락도 아닌데 둘 중 하나로 거짓을 말한다');
+  }
+  // 근거도 판정 뒤다.
+  const views = readFileSync(join(root, 'src', 'detect', 'views', 'DetectViews.tsx'), 'utf8')
+    .replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
+  if (!/sweepDone\(count\)/.test(views)) failures.push('근거가 판정보다 먼저 뜬다');
+}
+
 // ── 6. 경계 — 탐지를 아는 면이 src/detect/ 하나인가 ─────────────────────────
 {
   const { readdirSync, statSync } = await import('node:fs');
@@ -181,6 +213,7 @@ if (failures.length) {
   process.exit(1);
 }
 console.log('✅ 여덟 각도가 0~7 로 옮는다 — 범위 밖·안 떨어지는 각도는 버리고 step_deg 를 안 박았다');
+console.log('✅ 시료도 한 각도씩 — 4초에 하나, 여덟을 다 본 뒤에 판정·근거·경로가 나온다');
 console.log('✅ 초록은 하나 — 시료에서 실제로 둘이 찾혔고(270·315) 점수 높은 쪽을 고른다, 없으면 안 고른다');
 console.log('✅ 상자를 [x,y,w,h] 로 바꾼다 · 판단 문장은 관문 넷에서 나오고 화면도 퍼센트를 안 만든다');
 console.log('✅ 보정범위 밖 깊이값을 거리로 안 그린다 (시료는 0.0cm · 범위 밖)');

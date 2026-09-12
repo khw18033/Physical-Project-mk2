@@ -16,6 +16,7 @@
  */
 
 import { fetchFeatures, fetchFrameEvidence, fetchPath, fetchSummary, sourceOf } from './DetectClient.ts';
+import { elapsedSec } from '../physical/robotSession.ts';
 import { detectState, noteDetectError, receiveEvidence, receiveFeatures, receiveFrames, receivePath } from './store.ts';
 
 /** 스캔이 도는 동안. 한 각도가 4초쯤 걸리니 그보다 짧아야 칸이 제때 바뀐다. */
@@ -30,13 +31,16 @@ let inFlight = false;
  * 한 번 읽어 온다. **던지지 않는다** — 여기서 예외가 새면 폴링이 통째로 죽고,
  * 그러면 화면은 「탐지가 아무 말도 안 한다」가 된다. 사유는 저장소에 남긴다.
  */
-export async function pollOnce(): Promise<void> {
+export async function pollOnce(expected = 8): Promise<void> {
   if (inFlight) return;          // 느린 응답에 요청이 겹치면 탐지 기계만 바빠진다
   inFlight = true;
   try {
     const source = sourceOf(detectState().testMode);
-    const summary = await fetchSummary(source);
+    // **승인 뒤 몇 초째인가.** 시료를 한 각도씩 내놓는 박자의 기준이고, 로봇이 같이 돌고
+    // 있으면 그 회전과 같은 시계다.
+    const summary = await fetchSummary(source, 'door', elapsedSec());
     receiveFrames(summary.frames ?? []);
+    const complete = (summary.frames ?? []).length >= expected;
 
     // 찾은 각도의 근거만 받아 온다 — 못 찾은 각도에는 근거 파일이 없는 것이 정상이다.
     for (const frame of summary.frames ?? []) {
@@ -47,8 +51,8 @@ export async function pollOnce(): Promise<void> {
     }
 
     if (detectState().features === null) receiveFeatures(await fetchFeatures(source));
-    // 경로는 스캔이 끝나야 나온다. 없는 동안 null 인 것이 정상이라 사유를 안 남긴다.
-    if (detectState().path === null) receivePath(await fetchPath(source));
+    // 경로는 **스캔이 끝나야** 나온다. 없는 동안 null 인 것이 정상이라 사유를 안 남긴다.
+    if (detectState().path === null && complete) receivePath(await fetchPath(source, 'door', true));
   } catch (error) {
     noteDetectError(error instanceof Error ? error.message : String(error));
   } finally {
@@ -62,11 +66,11 @@ export async function pollOnce(): Promise<void> {
  * `running()` 이 참이면 짧게, 아니면 길게 묻는다. 매번 다시 재는 이유는 스캔이 도는 동안
  * 간격이 바뀌어야 하기 때문이다 — 한 번 정해 두면 끝나고도 계속 1.5초마다 때린다.
  */
-export function startDetectPolling(running: () => boolean): () => void {
+export function startDetectPolling(running: () => boolean, expected = 8): () => void {
   let stopped = false;
   const tick = async () => {
     if (stopped) return;
-    await pollOnce();
+    await pollOnce(expected);
     if (stopped) return;
     timer = setTimeout(() => void tick(), running() ? POLL_RUNNING_MS : POLL_IDLE_MS);
   };

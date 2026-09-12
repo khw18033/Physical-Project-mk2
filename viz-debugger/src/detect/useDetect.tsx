@@ -30,7 +30,7 @@ export function useDetectUplink(missionId: string, params: Record<string, unknow
   // 상대가 있을 때만 묻는다. 주소가 바뀌거나 테스트를 켜면 그때 다시 선다.
   useEffect(() => {
     if (!state.testMode && base.trim() === '') return;
-    return startDetectPolling(() => detectState().frames.length < count);
+    return startDetectPolling(() => detectState().frames.length < count, count);
   }, [state.testMode, base, count]);
 
   /**
