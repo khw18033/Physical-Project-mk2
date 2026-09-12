@@ -110,8 +110,18 @@ export type RobotSession = {
   paused: PauseState | null;
   /** 마지막 `ping` 왕복. 발표 직전에 이걸 보고 무대에 오른다. */
   ping: { ok: boolean; roundTripMs: number | null; message: string } | null;
-  /** 승인한 시각(ms). 로봇이 몰 때 「몇 초째인가」의 기준이다. 승인 전에는 null. */
+  /** 승인한 시각(ms). 승인 전에는 null. */
   approvedAtMs: number | null;
+  /**
+   * **사람이 「임무 시작」을 눌렀는가** (260912 지시).
+   *
+   * 승인만으로는 로봇이 안 움직인다. 승인은 「이 계획대로 해도 좋다」이고, 시작은
+   * 「지금 하라」다 — 무대에서 그 둘 사이에 말할 시간이 필요하다. 승인하자마자 로봇이
+   * 돌기 시작하면 발표자가 계획을 설명할 틈이 없다.
+   */
+  started: boolean;
+  /** 시작을 누른 시각(ms). **임무 시계의 0초가 여기다.** 승인 시각이 아니다. */
+  startedAtMs: number | null;
   /**
    * 지금 어느 **단계**인가 (연동 가이드 §4-3). `sdk_starting` 이면 로봇이 일어서는 중이다.
    * 임무 ACK 와 다른 축이라 따로 둔다 — 진행률은 아직 0인데 로봇은 이미 뭔가 하고 있다.
@@ -151,6 +161,8 @@ const EMPTY: RobotSession = {
   paused: null,
   ping: null,
   approvedAtMs: null,
+  started: false,
+  startedAtMs: null,
   stage: null,
   unsupported: {},
   walked: null,
@@ -239,9 +251,25 @@ export function approvedByHuman(planId: string): boolean {
   return humanApprovedPlanId === planId;
 }
 
-/** 승인 — 이 뒤부터 로봇으로 바이트가 나갈 수 있다 (`VZ-U-07`). */
+/**
+ * 승인 — 이 뒤부터 로봇으로 바이트가 나갈 수 있다 (`VZ-U-07`).
+ *
+ * **승인만으로는 안 움직인다** (260912). 관문이 하나 더 있다 — 사람이 「임무 시작」을
+ * 누르는 것. 승인은 「이 계획대로 해도 좋다」이고 시작은 「지금 하라」다.
+ */
 export function markApproved(): void {
   commit({ ...session, approved: true, approvedAtMs: Date.now() });
+}
+
+/** 사람이 「임무 시작」을 눌렀다. **임무 시계가 여기서 0부터 흐른다.** */
+export function markStarted(): void {
+  if (!session.approved) return;   // 승인 없이는 시작도 없다
+  commit({ ...session, started: true, startedAtMs: Date.now() });
+}
+
+/** 시작 전으로 되돌린다. 「처음부터」가 쓴다 — 다시 누르는 것도 사람의 행위다. */
+export function clearStarted(): void {
+  commit({ ...session, started: false, startedAtMs: null, scanIssued: false, approachIssued: false });
 }
 
 /**
@@ -257,8 +285,12 @@ export function robotDrives(): boolean {
 
 /** 승인 뒤 몇 초째인가. 로봇이 몰 때 사건의 시각이 된다. */
 export function elapsedSec(): number {
-  if (session.approvedAtMs === null) return 0;
-  return (Date.now() - session.approvedAtMs) / 1000;
+  // **시작을 누른 순간이 0초다** (260912). 승인 시각으로 재면, 승인하고 설명하는 동안
+  // 시계가 흘러 시작하자마자 「이미 한참 지난」 화면이 된다 — 탐지 시료가 그 시계로
+  // 각도를 열고 여덟 칸의 시각도 그 축이라, 눌렀을 때 처음부터 흘러야 한다.
+  const from = session.startedAtMs ?? session.approvedAtMs;
+  if (from === null) return 0;
+  return (Date.now() - from) / 1000;
 }
 
 /** 태스크가 명령을 냈다. `requestId` 는 추적기가 준다. */

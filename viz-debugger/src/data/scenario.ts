@@ -44,7 +44,7 @@ import { MergeScheduler } from './mergeScheduler.ts';
 import { appendGenerated, appendHuman, appendTrace, resetTrace, traceEvents, traceMissionId } from './trace.ts';
 import { scriptFrames } from '../viewpoint/source.ts';
 import { appendViewpoint, resetViewpoint } from '../viewpoint/store.ts';
-import { markApproved, resetRobotSession, robotDrives } from '../physical/robotSession.ts';
+import { clearStarted, markApproved, resetRobotSession, robotDrives } from '../physical/robotSession.ts';
 import { provenancePayload, type AiProvenance } from '../shared/provenance.ts';
 import rawScenario from '../../scenarios/MSN-260826-01.json' with { type: 'json' };
 import { libraryEntry } from '../scenarios/library.ts';
@@ -695,6 +695,9 @@ export function restartMission(): boolean {
   if (viewForMission(missionId) === null) return false;
   activateMission(missionId, 'remote');
   markApproved();
+  // **시작까지 자동으로 넘어가지 않는다** (260912). 「처음부터」는 판을 비우는 것이고,
+  // 로봇을 움직이는 것은 사람이 「임무 시작」을 누르는 일이다 — 관문을 우회하지 않는다.
+  clearStarted();
   recordHuman('mission_restarted', missionId, { from: 'button' });
   return true;
 }

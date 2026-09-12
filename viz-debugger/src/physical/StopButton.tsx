@@ -30,7 +30,7 @@
 
 import { emergencyStop, pauseMission, resumeMission } from './robotCommands.ts';
 import { robotClient } from './robotClient.ts';
-import { useRobotSession } from './robotSession.ts';
+import { markStarted, useRobotSession } from './robotSession.ts';
 import { currentMission } from '../data/scenario.ts';
 
 export function StopButton() {
@@ -73,12 +73,28 @@ export function PauseButton() {
  * 회색 버튼을 보고 「왜 안 눌리지」를 묻는 것보다 낫다.
  */
 export function ResumeButton() {
+  const session = useRobotSession();
+  /**
+   * **시작과 재시작은 같은 자리의 두 얼굴이다** (260912 지시).
+   *
+   * 아직 안 돌린 임무면 「임무 시작」, 한 번 돌린 뒤면 「재시작」이다. 버튼을 둘로 나누면
+   * 머리줄에 여섯이 되고, 그중 하나는 늘 눌러선 안 되는 것이 된다.
+   *
+   * **승인만으로는 로봇이 안 움직인다.** 승인은 「이 계획대로 해도 좋다」이고 이 버튼이
+   * 「지금 하라」다 — 무대에서 그 둘 사이에 계획을 설명할 시간이 필요하다.
+   */
+  const started = session.started;
   return <button
     type="button"
-    className="robot-resume"
-    onClick={() => void resumeMission(robotClient(), currentMission().params)}
-    title="멈춰 있던 단계를 다시 냅니다 — 로봇에 이어 하기가 없어 그 단계를 처음부터 합니다"
+    className={started ? 'robot-resume' : 'robot-resume robot-resume--start'}
+    onClick={() => {
+      if (!started) { markStarted(); return; }
+      void resumeMission(robotClient(), currentMission().params);
+    }}
+    title={started
+      ? '멈춰 있던 단계를 다시 냅니다 — 로봇에 이어 하기가 없어 그 단계를 처음부터 합니다'
+      : '승인된 임무를 지금 시작합니다 — 이 버튼을 누르기 전에는 로봇이 움직이지 않습니다'}
   >
-    ▶ 재시작
+    {started ? '▶ 재시작' : '▶ 임무 시작'}
   </button>;
 }

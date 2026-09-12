@@ -532,6 +532,8 @@ button.robot-stop:hover{background:#b8271f}
 /* 크기를 바꾸는 동안에는 글자가 잡히지 않게 — 끌다가 문장이 파랗게 선택되면 손이 멎는다. */
 .is-dragging,.graph-canvas:has(.node-grip:active){user-select:none}
 
+/* 아직 안 돌린 임무면 시작 버튼이다 — 눌러야 로봇이 움직인다 (260912). */
+button.robot-resume--start{border-color:#2f9e5f;background:#2f9e5f;color:#fff}
 button.mission-restart{padding:6px 12px;border:1px solid #4c8fe8;border-radius:6px;background:#eef5fd;color:#1a4f8f;font-weight:600}
 button.mission-reset{padding:6px 12px;border:1px solid #ccd4dd;border-radius:6px;background:#fff;color:#4a5666}
 button.mission-reset--confirm{border-color:#a3241f;background:#fdf3f2;color:#8f2b26;font-weight:700}

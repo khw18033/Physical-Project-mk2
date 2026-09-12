@@ -144,7 +144,10 @@ export async function issueScan(client: PhysicalClient, params: Record<string, u
  */
 export function shouldIssueScan(): boolean {
   const session = robotSession();
-  return session.approved && !session.scanIssued && session.stopped === null && robotDrives();
+  // **승인만으로는 안 쏜다** (260912 지시). 사람이 「임무 시작」을 눌러야 나간다 —
+  // 승인은 「이 계획대로 해도 좋다」이고 시작은 「지금 하라」다.
+  return session.started && session.approved
+    && !session.scanIssued && session.stopped === null && robotDrives();
 }
 
 /**

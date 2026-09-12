@@ -167,22 +167,58 @@ const params = { viewpoint_count: 8, forward_distance_m: 4.2 };
 
   // 관문이 실제로 한 번만 열리는가.
   const { shouldIssueScan } = await load('src', 'physical', 'robotCommands.ts');
-  const { markScanIssued, setConnection } = await load('src', 'physical', 'robotSession.ts');
+  const { markScanIssued, markStarted, clearStarted, setConnection } =
+    await load('src', 'physical', 'robotSession.ts');
   resetRobotSession();
   online();
   if (shouldIssueScan()) failures.push('승인 전인데 스캔을 쏘라고 한다');
+
+  /**
+   * **승인만으로는 안 쏜다** (260912 지시 — 관문이 하나 더 생겼다).
+   *
+   * 승인은 「이 계획대로 해도 좋다」이고 시작은 「지금 하라」다. 무대에서 그 둘 사이에
+   * 계획을 설명할 시간이 필요한데, 승인하자마자 로봇이 돌면 그 틈이 없다.
+   */
   markApproved();
-  if (!shouldIssueScan()) failures.push('승인 뒤 브로커가 붙었는데 스캔을 안 쏜다');
+  if (shouldIssueScan()) failures.push('승인만 했는데 스캔을 쏘라고 한다 — 시작을 눌러야 한다');
+  markStarted();
+  if (!shouldIssueScan()) failures.push('시작을 눌렀는데 스캔을 안 쏜다');
   markScanIssued();
   if (shouldIssueScan()) failures.push('이미 쐈는데 또 쏘라고 한다 — 로봇이 여러 번 돈다');
 
-  // 브로커가 없으면 안 쏜다 — 그때는 대본이 돈다.
+  // 승인 없이 시작만 누르는 길은 없다 — 관문 둘이 **둘 다** 있어야 한다.
+  resetRobotSession();
+  online();
+  markStarted();
+  if (shouldIssueScan()) failures.push('승인 없이 시작만으로 쏘라고 한다');
+
+  // 브로커가 없으면 안 쏜다.
   resetRobotSession();
   online();
   markApproved();
+  markStarted();
   setConnection({ state: 'closed', reason: '없음' });
   if (shouldIssueScan()) failures.push('브로커가 없는데 스캔을 쏘라고 한다');
+
+  // 「처음부터」는 시작 관문을 도로 닫는다 — 우회하지 않는다.
   resetRobotSession();
+  online();
+  markApproved();
+  markStarted();
+  clearStarted();
+  if (shouldIssueScan()) failures.push('처음부터가 시작 관문을 열어 둔 채로 둔다 — 눌러야 움직인다');
+  resetRobotSession();
+}
+
+// ── 6-b. 화면의 버튼이 시작과 재시작 둘을 한 자리에 둔다 (260912 지시) ───────
+{
+  const { readFileSync } = await import('node:fs');
+  const button = readFileSync(join(root, 'src', 'physical', 'StopButton.tsx'), 'utf8');
+  if (!/임무 시작/.test(button)) failures.push('「임무 시작」 글씨가 없다');
+  if (!/started \? '▶ 재시작' : '▶ 임무 시작'/.test(button)) {
+    failures.push('안 돌린 임무에서 「재시작」이라고 적는다 — 한 번도 안 돌렸는데 다시 시작할 수는 없다');
+  }
+  if (!/markStarted\(\)/.test(button)) failures.push('시작 버튼이 시작을 안 건다');
 }
 
 // ── 대조군 ───────────────────────────────────────────────────────────────────
@@ -248,6 +284,7 @@ console.log('✅ 승인 뒤 scan_mission 하나 · forward_m=0 (스캔과 접근
 console.log('✅ 스캔이 접근을 자동으로 부르지 않는다 — door_turn 전에는 누를 수도 없다');
 console.log('✅ 정지 뒤 발행 0건 · 정지를 풀면 승인이 내려간다 (사람이 다시 승인한다)');
 console.log('✅ ping 은 승인과 무관 — 연결 확인은 임무 명령이 아니다');
+console.log('✅ 승인만으로는 안 쏜다 — 사람이 「임무 시작」을 눌러야 나간다 (관문 둘)');
 console.log('✅ 화면이 실제로 issueScan 을 부른다 · 관문이 한 번만 열린다 · 브로커 없으면 안 쏜다');
 console.log('✅ 발행이 실패해도 같은 조건으로 다시 안 쏜다 — 세션 구독이 스스로를 부르는 고리를 막는다');
 console.log(`✅ 대조군 ${controls.length}건 전부 검출 — ${controls.join(' · ')}`);

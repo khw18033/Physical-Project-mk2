@@ -57,7 +57,7 @@ export function robotClient(): PhysicalClient {
        * 끝이고, 사유는 화면에 남는다. 다시 하려면 사람이 「처음부터」를 누른다.
        */
       const session = robotSession();
-      const attempt = `${session.approved}|${session.connection.state}|${session.approvedAtMs ?? 0}`;
+      const attempt = `${session.started}|${session.approved}|${session.connection.state}|${session.startedAtMs ?? 0}`;
       if (attempt === lastScanAttempt) return;
       lastScanAttempt = attempt;
       void issueScan(singleton as PhysicalClient, currentMission().params);
