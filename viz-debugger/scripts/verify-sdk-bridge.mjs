@@ -174,13 +174,31 @@ const strip = (source) => source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.
   if (SDK_ACTIONS.start !== 'sdk_start' || SDK_ACTIONS.stop !== 'sdk_stop' || SDK_ACTIONS.auto !== 'sdk_auto') {
     failures.push('브리지 명령 이름이 가이드 §4-2 와 다르다');
   }
-  // 화면이 실제로 부르는가 — 함수가 있다와 화면이 부른다는 다르다 (260910 에 실제로 겪었다).
+  /**
+   * **화면에는 버튼이 없다** (260913 지시).
+   *
+   * 넷이 있었다. 「미리 세우기」는 브리지를 당겨 띄워 일어서는 몇 초를 아끼려는 것이었는데,
+   * 파이가 **전원을 켤 때 브리지를 띄우도록 바뀌어** 그 몇 초가 애초에 없다. 나머지 셋은
+   * 위에서 본 대로 `UNIMPLEMENTED` 로 거절된다 — 눌러도 안 되는 버튼이었다.
+   *
+   * 잘못 누르면 로봇이 일어서는 버튼이라 **안 두는 쪽이 안전하다.** 되살릴 일이 생기면
+   * 명령 셋은 `robotCommands.ts` 에 그대로 있다 — 지운 것은 화면의 버튼뿐이다.
+   */
   const panel = strip(readFileSync(join(root, 'src', 'physical', 'RobotPanel.tsx'), 'utf8'));
+  const commands = strip(readFileSync(join(root, 'src', 'physical', 'robotCommands.ts'), 'utf8'));
   for (const name of ['issueSdkStart', 'issueSdkStop', 'issueSdkAuto']) {
-    if (!new RegExp(name + '\\(').test(panel)) failures.push(`화면이 ${name} 을 안 부른다`);
+    if (panel.includes(name + '(')) {
+      failures.push(`화면에 ${name} 버튼이 돌아왔다 — 잘못 누르면 로봇이 일어선다`);
+    }
+    // 명령 자체는 남아 있어야 한다. 화면에서 뺀 것과 규약에서 지운 것은 다르다.
+    if (!new RegExp('export async function ' + name).test(commands)) {
+      failures.push(`${name} 이 통째로 사라졌다 — 되살릴 길이 없어진다`);
+    }
   }
+  // **상태는 남는다.** 브리지가 죽으면 이동 명령이 `go1_sdk_not_running` 으로 거절되는데,
+  // 그때 원인을 볼 자리가 이 하나다.
+  if (!/<SdkState/.test(panel)) failures.push('화면이 구동 브리지 상태를 안 그린다 — 거절 원인을 볼 자리가 없어진다');
   if (!/isStanding\(/.test(panel)) failures.push('화면이 「일어서는 중」을 안 그린다 — 가이드가 드러내라고 못박았다');
-  if (!/unsupported/.test(panel)) failures.push('화면이 「그런 명령 없다」를 안 그린다 — 죽은 버튼을 계속 권한다');
   // **내부 자리 이름이 화면에 새면 안 된다.** 실제로 「no-node 실패 — UNIMPLEMENTED」가 떴다.
   if (!new RegExp('taskId === NO_NODE').test(panel)) {
     failures.push('거절 문구가 no-node 를 그대로 쓴다 — 사람이 읽을 말이 아니다');

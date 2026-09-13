@@ -20,10 +20,9 @@
  */
 
 import { PhysicalClient } from './PhysicalClient.ts';
-import { issueSdkAuto, issueSdkStart, issueSdkStop, stopFailureMessage } from './robotCommands.ts';
+import { stopFailureMessage } from './robotCommands.ts';
 import { isStanding } from './uplink.ts';
 import { SdkState } from './DeviceFacts.tsx';
-import { SDK_ACTIONS } from './presets.ts';
 import { NO_NODE } from './missionLink.ts';
 import { releaseStopped, useRobotSession } from './robotSession.ts';
 
@@ -156,42 +155,23 @@ export function RobotPanel({ client }: { client: PhysicalClient | null }) {
     </p>}
 
     {/*
-      **구동 준비 — 사람이 쥐는 손잡이** (260910 지시).
+      **구동 — 이제 상태만 본다** (260913 지시).
 
-      평시에는 「연결만 된 상태」이고 임무가 붙어 이동 명령이 나갈 때 브리지가 알아서 뜬다.
-      그게 기본 흐름이라 시연에서는 아무것도 안 눌러도 된다. 이 셋은 그 자동을 **미리
-      당겨 쓰거나 아예 막고 싶을 때**의 자리다.
+      버튼 넷이 여기 있었다. 「미리 세우기」는 브리지를 당겨 띄워 일어서는 몇 초를 시연
+      중에 안 쓰려는 것이었는데, **파이가 전원을 켤 때 브리지를 띄우도록 바뀌어** 그 몇
+      초가 애초에 없다. 나머지 셋(`sdk_stop` · `sdk_auto` 끄기/켜기)은 260910 실측에서
+      `UNIMPLEMENTED: action not supported` 로 거절됐다 — **눌러도 안 되는 버튼**이었다.
+      넷 다 무대에서 누를 이유가 없는데 자리만 차지하고, 잘못 누르면 로봇이 일어선다.
 
-      `sdk_start` 는 **로봇을 일으켜 세운다** — 버튼 글씨에 그렇게 적는다. 「준비」라고만
-      적으면 무엇이 일어나는지 모르고 누른다.
+      **상태는 남긴다.** 브리지가 도중에 죽으면 이동 명령이 `go1_sdk_not_running` 으로
+      거절되는데, 그때 원인을 볼 자리가 여기 하나다.
+
+      되살릴 일이 생기면 명령 셋은 그대로 있다(`robotCommands.ts` 의 `issueSdkStart` 등).
+      지운 것은 **화면의 버튼**뿐이다.
     */}
     {client !== null && <div className="robot-sdk">
-      <span className="robot-sdk-label" title="구동 브리지(go1-sdk)는 평시에 내려가 있습니다">구동</span>
+      <span className="robot-sdk-label" title="구동 브리지(go1-sdk) — 전원을 켜면 파이가 띄웁니다">구동</span>
       <SdkState entityId="robot-01" />
-      <button type="button" onClick={() => void issueSdkStart(client)}>
-        미리 세우기 — 로봇이 일어섭니다
-      </button>
-      <button type="button" onClick={() => void issueSdkStop(client)}>
-        내리기 — 선 채로 남습니다
-      </button>
-      <button type="button" onClick={() => void issueSdkAuto(client, false)}
-        title="끄면 이동 명령이 go1_sdk_not_running 으로 거절됩니다">
-        자동 기동 끄기
-      </button>
-      <button type="button" onClick={() => void issueSdkAuto(client, true)}>자동 기동 켜기</button>
-      {/*
-        **눌러도 안 되는 버튼을 조용히 두지 않는다** (260910 실측).
-
-        가이드 §4-2 에 적힌 브리지 어휘가 지금 pi7 에 올라가 있지 않다 —
-        `UNIMPLEMENTED: action not supported` 로 돌아온다. 비활성으로 감추면 「왜 회색이지」가
-        되고, 그냥 두면 발표자가 계속 누른다. 한 번 듣고 나면 화면이 그 사실을 말한다.
-
-        **하드웨어가 올리는 날 저절로 풀린다** — 거절이 멈추면 이 줄이 사라진다.
-      */}
-      {sdkUnsupported(session.unsupported) && <span className="robot-sdk-none">
-        이 로봇 노드에는 구동 명령이 아직 없습니다 — <code>UNIMPLEMENTED</code>.
-        이동 명령이 브리지를 알아서 띄우는 경로는 그대로 돕니다.
-      </span>}
     </div>}
 
     {/* 거절과 실패 — **코드와 문구를 그대로** 올린다 (§3). */}
@@ -205,8 +185,4 @@ export function RobotPanel({ client }: { client: PhysicalClient | null }) {
   </section>;
 }
 
-/** 셋 중 하나라도 「그런 명령 없다」를 들었으면 어휘 자체가 안 올라간 것이다. */
-function sdkUnsupported(unsupported: Readonly<Record<string, true>>): boolean {
-  return Object.values(SDK_ACTIONS).some((action) => unsupported[action] === true);
-}
 

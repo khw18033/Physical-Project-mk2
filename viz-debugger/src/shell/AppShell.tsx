@@ -119,7 +119,11 @@ export function AppShell({ debuggerView, onDebuggerHome, onMissionHistory, onOpe
     </header>
     {/* 연결 관리는 폼이라 목록 판과 모양이 다르다 — 자기 부품이 그린다 (`VZ-C-07`). */}
     {panel === 'connections' && <ConnectionsPanel onClose={() => setPanel(null)} physical={robotProbe()} />}
-    {panel !== null && panel !== 'connections' && <aside className="global-panel"><header><b>{panel === 'history' ? '임무 이력' : '통합 알림'}</b><button onClick={() => setPanel(null)}>닫기</button></header>{panel === 'history' ? <MissionHistoryList compact /> : <ul>{notifications.map((item) => <li key={item.id}><b>{item.source}</b> {item.source === 'external-ai' ? <PendingSource id="ai-failure-alert" inline>{item.message}</PendingSource> : item.message}</li>)}</ul>}</aside>}
+    {panel !== null && panel !== 'connections' && <aside className="global-panel"><header><b>{panel === 'history' ? '임무 이력' : '통합 알림'}</b><button onClick={() => setPanel(null)}>닫기</button></header>{panel === 'history' ? <MissionHistoryList compact /> : notifications.length === 0
+      /* **비어 있으면 비었다고 적는다** (260913 지시). 전에는 일어난 적 없는 두 줄이 늘
+         박혀 있어서 뱃지가 언제나 「알림 2」였다. */
+      ? <p className="notifications-empty">아직 올라온 알림이 없습니다<small>명령이 거부되거나 외부 AI 실패가 도착하면 여기에 쌓입니다</small></p>
+      : <ul>{notifications.map((item) => <li key={item.id}><b>{item.source}</b> {item.source === 'external-ai' ? <PendingSource id="ai-failure-alert" inline>{item.message}</PendingSource> : item.message}</li>)}</ul>}</aside>}
     {/* 무대는 하나다 — 노드 캔버스. 감췄다 되살릴 다른 무대가 없으므로 `is-hidden` 도 없다.
         ManualScope 는 캔버스를 감싼다 — 확대된 노드의 설명서는 오버레이가 따로 감싼다. */}
     <section className="tab-stage">
