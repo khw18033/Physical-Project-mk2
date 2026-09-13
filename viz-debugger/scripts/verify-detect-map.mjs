@@ -166,10 +166,58 @@ const COUNT = 8;
   if (!/if \(!sweepDone\(count\)\) return null;/.test(bridge)) {
     failures.push('다 보기 전에 초록을 켠다 — 더 높은 각도가 나오면 초록이 옮겨 다닌다');
   }
-  // 도는 동안 찾은 각도를 탈락으로 칠하면 안 된다 — 판정이 안 난 것이지 탈락이 아니다.
-  if (!/if \(!done && result\.found\) continue;/.test(bridge)) {
-    failures.push('도는 동안 찾은 각도를 칠한다 — 초록도 탈락도 아닌데 둘 중 하나로 거짓을 말한다');
+  /**
+   * **한 바퀴를 다 돌기 전에는 아무 판정도 안 칠한다** (260913 지시).
+   *
+   * 전에는 못 찾은 각도를 오는 대로 탈락으로 칠했다. 화면에서는 **여덟이 하나씩
+   * 희미해지다가** 마지막에 하나만 초록으로 남는 모양이 됐고, 보는 사람은 답이 각도마다
+   * 하나씩 정해지는 줄 읽는다. 실제 순서는 그 반대다.
+   *
+   * 소스를 훑는 대신 **칸의 상태를 실제로 굴려 본다** — 문자열 검사는 같은 뜻의 다른
+   * 코드를 못 잡는다.
+   */
+  const detect = await load('src', 'detect', 'detectBridge.ts');
+  const store = await load('src', 'detect', 'store.ts');
+  const vp = await load('src', 'viewpoint', 'store.ts');
+  const fill = await load('src', 'viewpoint', 'fill.ts');
+  const MISSION = 'MSN-260909-01';
+  const phasesAfter = (howMany) => {
+    store.resetDetect();
+    vp.resetViewpoint(MISSION);
+    store.receiveFrames(summary.frames.slice(0, howMany));
+    for (const [name, ev] of [[found113.frame, found113], [found132.frame, found132]]) {
+      if (summary.frames.slice(0, howMany).some((f) => f.frame === name)) store.receiveEvidence(name, ev);
+    }
+    detect.applyDetection(MISSION, 1, STEP, COUNT);
+    const cells = fill.cellsInOrder(fill.reduceFrames(fill.emptyFill(COUNT), vp.framesUpTo(Infinity)), COUNT);
+    return cells.map((cell) => cell.phase);
+  };
+
+  // 세 각도만 봤을 때 — 셋은 탐색 중, 나머지는 대기. **판정은 하나도 없다.**
+  const three = phasesAfter(3);
+  if (three.slice(0, 3).some((phase) => phase !== 'scanning')) {
+    failures.push(`세 각도를 봤는데 [${three.slice(0, 3)}] — 셋 다 탐색 중이어야 한다`);
   }
+  if (three.some((phase) => phase === 'selected' || phase === 'rejected')) {
+    failures.push(`도는 중에 판정이 났다 — [${three}]`);
+  }
+
+  // 일곱째(270도 · 찾음)까지 봐도 아직 초록이 없다.
+  const seven = phasesAfter(7);
+  if (seven.includes('selected')) failures.push(`일곱 각도에서 벌써 초록이 떴다 — [${seven}]`);
+  if (seven.includes('rejected')) failures.push(`일곱 각도에서 벌써 탈락이 떴다 — [${seven}]`);
+
+  // 여덟째가 들어온 순간 한 번에 갈린다 — 초록 하나(270도 = 6번)와 흐림 일곱.
+  const eight = phasesAfter(8);
+  if (eight.filter((phase) => phase === 'selected').length !== 1) {
+    failures.push(`다 보고 나서 초록이 ${eight.filter((p) => p === 'selected').length}개 — 하나여야 한다`);
+  }
+  if (eight[6] !== 'selected') failures.push(`초록이 ${eight.indexOf('selected')}번 칸 — 270도(6번)여야 한다`);
+  if (eight.filter((phase) => phase === 'rejected').length !== 7) {
+    failures.push(`흐림이 ${eight.filter((p) => p === 'rejected').length}개 — 일곱이어야 한다`);
+  }
+  store.resetDetect();
+  vp.resetViewpoint(MISSION);
   // 근거도 판정 뒤다.
   const views = readFileSync(join(root, 'src', 'detect', 'views', 'DetectViews.tsx'), 'utf8')
     .replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
@@ -266,6 +314,7 @@ if (failures.length) {
 }
 console.log('✅ 여덟 각도가 0~7 로 옮는다 — 범위 밖·안 떨어지는 각도는 버리고 step_deg 를 안 박았다');
 console.log('✅ 시료도 한 각도씩 — 4초에 하나, 여덟을 다 본 뒤에 판정·근거·경로가 나온다');
+console.log('✅ 도는 동안은 「탐색 중」뿐 — 여덟째가 들어온 순간 초록 하나와 흐림 일곱으로 한 번에 갈린다');
 console.log('✅ 초록은 하나 — 시료에서 실제로 둘이 찾혔고(270·315) 점수 높은 쪽을 고른다, 없으면 안 고른다');
 console.log('✅ 상자를 [x,y,w,h] 로 바꾼다 · 판단 문장은 관문 넷에서 나오고 화면도 퍼센트를 안 만든다');
 console.log('✅ 보정범위 밖 깊이값을 거리로 안 그린다 (시료는 0.0cm · 범위 밖)');

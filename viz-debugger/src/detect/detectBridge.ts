@@ -58,6 +58,9 @@ export function hasResults(): boolean {
  * **초록은 하나다.** 둘 이상에서 `found` 가 오는 것은 가정이 아니라 측정값이다 — 받은
  * 시료에서 270도와 315도가 둘 다 찾혔고 점수 차이가 0.0016 이었다. 나머지도 찾혔다는
  * 사실은 칸을 열면 보이게 남긴다(근거에 그대로 있다).
+ *
+ * **판정은 한 바퀴 뒤에 한 번에 온다** (260913 지시). 도는 동안 칸은 「탐색 중」이고,
+ * 여덟째가 들어온 그 순간 여덟이 함께 초록 하나와 흐림 일곱으로 갈린다.
  */
 export function applyDetection(missionId: string, atSec: number, stepDeg: number, count: number): number {
   const { frames } = detectState();
@@ -68,17 +71,38 @@ export function applyDetection(missionId: string, atSec: number, stepDeg: number
   for (const result of frames) {
     const index = indexOfRotation(result.rotation_deg, stepDeg, count);
     if (index === null) continue;   // 범위 밖 각도는 버린다 — 없는 칸을 만들지 않는다
+
     /**
-     * **도는 동안에는 「문 없음」만 칠한다** (260912 지시).
+     * **한 바퀴를 다 돌기 전에는 아무 판정도 안 칠한다** (260913 지시).
      *
-     * 찾은 각도는 아직 **판정이 안 난 것**이지 탈락이 아니다. 그런데 칸의 상태는
-     * 초록(선정)과 탈락 둘뿐이라, 도중에 칠하면 둘 중 하나로 거짓을 말하게 된다.
-     * 여덟을 다 보고 나서 한 번에 칠한다 — 그때 초록 하나와 「문 후보」가 갈린다.
+     * 전에는 못 찾은 각도를 **오는 대로** 탈락으로 칠했다. 「지금 어디까지 봤나」를
+     * 보여 주려던 것인데, 화면에서는 **여덟이 하나씩 희미해지다가** 마지막에 하나만
+     * 초록으로 남는 모양이 됐다. 보는 사람은 답이 각도마다 하나씩 정해지는 줄 읽는다.
      *
-     * 못 찾은 각도는 도중에 칠해도 거짓이 아니다. 그래야 화면이 한 칸씩 지워지는 것이
-     * 보이고, 발표자가 「지금 어디까지 봤나」를 안다.
+     * 실제 순서는 그 반대다 — **여덟을 다 보고 나서** 그중 하나를 고른다. 그래서 도는
+     * 동안에는 「탐색 중」만 켜 둔다. 불은 켜져 있고 답은 아직 없는 상태다.
+     *
+     * 「탐색 중」은 회전 채널이 만드는 상태다(`viewpoint/fill.ts` 의 `applyRotation`).
+     * 로봇이 같이 돌고 있으면 그쪽에서도 같은 상태가 오고, 둘이 겹쳐도 결과가 같다 —
+     * 같은 칸에 같은 상태를 두 번 쓸 뿐이다.
      */
-    if (!done && result.found) continue;
+    if (!done) {
+      const scanning = liveFrame({
+        channel: 'robot_state',
+        payload: {
+          rotation_index: index,
+          // **스캔 시작이 0도.** 로봇의 yaw 를 여기 넣지 않는다 — 표기용이고 칸을 고르는
+          // 데는 안 쓴다(`fill.ts` 의 「rotation_index 가 유일한 열쇠다」).
+          yaw: result.rotation_deg,
+          state: 'rotating',
+          last_cmd: 'scan_mission',
+          result: null,
+        },
+      });
+      if (scanning !== null && appendViewpoint(missionId, atSec, scanning)) put += 1;
+      continue;
+    }
+
     const evidence = detectState().evidence[result.frame] ?? null;
     const frame = liveFrame({
       channel: 'detection',
@@ -87,7 +111,7 @@ export function applyDetection(missionId: string, atSec: number, stepDeg: number
         // **스캔 시작이 0도다** (260912 결정). 로봇의 yaw 를 여기 넣지 않는다.
         angle_deg: result.rotation_deg,
         // 찾았어도 초록은 하나다. 나머지는 「문 없음」이 아니라 **안 고른 것**이고,
-        // 그 구별은 근거에 남는다.
+        // 그 구별은 근거에 남는다. 여기까지 왔다는 것은 여덟을 다 봤다는 뜻이다.
         door: index === winner,
         bbox: boxOf(evidence?.box_xyxy),
         confidence: evidence?.final_score ?? 0,
