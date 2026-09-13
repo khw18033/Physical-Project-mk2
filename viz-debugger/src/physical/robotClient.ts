@@ -12,7 +12,36 @@ import { PhysicalClient } from './PhysicalClient.ts';
 import { issuePing, issueScan, shouldIssueScan } from './robotCommands.ts';
 import { robotSession, setConnection, subscribeRobot } from './robotSession.ts';
 import { currentMission } from '../data/scenario.ts';
+import { noteIssue } from '../shared/notifications.ts';
 import { receiveDeviceMessage } from './deviceState.ts';
+import type { PhysicalStatus } from './PhysicalClient.ts';
+
+/**
+ * **연결이 바뀌면 알림에 한 줄** (260913 지시 — 「실제로 이슈가 생기면 알림에도 뜨도록」).
+ *
+ * 머리줄의 표시등은 **지금 상태**만 보여 준다. 끊겼다 다시 붙으면 초록으로 돌아가 있어서
+ * 「아까 끊겼었다」는 사실이 사라진다. 시연 도중 한 번 끊겼던 것이 나중에 원인이 되는데,
+ * 그때 되짚을 자리가 없었다.
+ *
+ * `noteIssue` 가 **직전과 같은 문구만** 삼키므로, 끊겼다 붙었다 다시 끊기면 세 줄이 남는다.
+ */
+function noteConnection(status: PhysicalStatus): void {
+  /**
+   * **붙는 중과 안 붙음은 안 올린다** (260913 — 실측하고 줄였다).
+   *
+   * 처음에 넷을 다 올렸더니 「확인」 한 번에 두 줄이 생겼다 — 「붙는 중입니다」와
+   * 「끊겼습니다」. 앞의 것은 **이슈가 아니라 지나가는 상태**이고, 그 상태는 머리줄의
+   * 표시등이 이미 실시간으로 보여 준다.
+   *
+   * 남기는 것은 **결말 둘**이다. 끊겼다(이슈)와 다시 붙었다(복구). 복구를 안 남기면
+   * 나중에 로그를 읽는 사람이 그 뒤로 계속 끊겨 있었다고 읽는다.
+   */
+  if (status.state === 'connecting' || status.state === 'idle') return;
+  const words = status.state === 'open'
+    ? '브로커에 붙었습니다'
+    : `브로커가 끊겼습니다 — ${status.reason || '사유 없음'}`;
+  noteIssue('robot-broker', 'connection', words);
+}
 
 let singleton: PhysicalClient | null = null;
 /** 마지막으로 스캔을 시도한 조건. 같은 조건이면 다시 안 쏜다 (아래 주석). */
@@ -24,7 +53,12 @@ export function robotClient(): PhysicalClient {
     // **연결 상태는 만들 때 잇는다** (260910). 화면 부품이 구독하게 두면 그 부품이 안 떠
     // 있는 동안의 변화를 놓치고, 「붙었는데 세션은 모른다」가 된다 — 승인 순간에 그게
     // 나면 대본 타이머가 돌아 로봇보다 화면이 앞서 간다.
-    singleton.onStatus(setConnection);
+    singleton.onStatus((status) => {
+      // 알림을 먼저 적고 세션을 민다 — 순서가 뒤면 화면이 새 상태로 다시 그려진 뒤에
+      // 알림이 붙어, 로그를 되짚을 때 한 칸씩 어긋나 보인다.
+      noteConnection(status);
+      setConnection(status);
+    });
     // 장비 상태도 만들 때 잇는다 — 화면 부품이 안 떠 있는 동안의 값을 놓치면
     // 하드웨어 카드가 「모른다」로 남는다.
     singleton.onDevice(receiveDeviceMessage);

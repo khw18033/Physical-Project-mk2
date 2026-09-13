@@ -19,6 +19,7 @@ import {
   fetchFeatures, fetchFrameEvidence, fetchLocalization, fetchPath, fetchSummary, sourceOf,
 } from './DetectClient.ts';
 import { scanElapsedSec } from '../physical/robotSession.ts';
+import { noteIssue } from '../shared/notifications.ts';
 import {
   detectState, noteDetectError, receiveEvidence, receiveFeatures, receiveFrames,
   receiveLocalization, receivePath,
@@ -68,8 +69,16 @@ export async function pollOnce(expected = 8): Promise<void> {
     if (detectState().features === null) receiveFeatures(await fetchFeatures(source));
     // 경로는 **스캔이 끝나야** 나온다. 없는 동안 null 인 것이 정상이라 사유를 안 남긴다.
     if (detectState().path === null && complete) receivePath(await fetchPath(source, 'door', true));
+    /**
+     * **돌아오면 돌아왔다고 적는다** (260913 지시). 끊겼다는 줄만 남고 복구가 안 남으면,
+     * 나중에 로그를 읽는 사람은 그 뒤로 계속 끊겨 있었다고 읽는다.
+     */
+    if (detectState().error !== null) noteIssue('detect', 'connection', '탐지 서비스에서 다시 받고 있습니다');
   } catch (error) {
-    noteDetectError(error instanceof Error ? error.message : String(error));
+    const why = error instanceof Error ? error.message : String(error);
+    noteDetectError(why);
+    // 폴링은 1.5초마다 돈다. 같은 사유는 `noteIssue` 가 삼키므로 한 줄만 남는다.
+    noteIssue('detect', 'connection', `탐지 서비스에 못 닿습니다 — ${why}`);
   } finally {
     inFlight = false;
   }

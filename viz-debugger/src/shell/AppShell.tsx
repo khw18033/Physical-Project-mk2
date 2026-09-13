@@ -6,7 +6,7 @@ import { libraryEntry } from '../scenarios/library.ts';
 import { nowPlaying } from '../scenarios/nowPlaying.ts';
 import { issueCommand } from '../shared/commandEgress.ts';
 import { ManualScope, type ManualScopeId } from '../shared/Explain.tsx';
-import { useNotifications } from '../shared/notifications.ts';
+import { SOURCE_WORDS, useNotifications } from '../shared/notifications.ts';
 import { PendingSource } from '../shared/PendingSource.tsx';
 import { exitScenarioRender, useDevTools, useMockRender, useScenarioRender } from '../shared/renderMode.ts';
 import { useTabsDataLayer } from '../tabs/index.tsx';
@@ -122,8 +122,13 @@ export function AppShell({ debuggerView, onDebuggerHome, onMissionHistory, onOpe
     {panel !== null && panel !== 'connections' && <aside className="global-panel"><header><b>{panel === 'history' ? '임무 이력' : '통합 알림'}</b><button onClick={() => setPanel(null)}>닫기</button></header>{panel === 'history' ? <MissionHistoryList compact /> : notifications.length === 0
       /* **비어 있으면 비었다고 적는다** (260913 지시). 전에는 일어난 적 없는 두 줄이 늘
          박혀 있어서 뱃지가 언제나 「알림 2」였다. */
-      ? <p className="notifications-empty">아직 올라온 알림이 없습니다<small>명령이 거부되거나 외부 AI 실패가 도착하면 여기에 쌓입니다</small></p>
-      : <ul>{notifications.map((item) => <li key={item.id}><b>{item.source}</b> {item.source === 'external-ai' ? <PendingSource id="ai-failure-alert" inline>{item.message}</PendingSource> : item.message}</li>)}</ul>}</aside>}
+      ? <p className="notifications-empty">아직 올라온 알림이 없습니다</p>
+      /* 어느 갈래·언제·무슨 일인지 셋을 한 줄에 둔다 (260913 지시). 문구는 온 값 그대로다. */
+      : <ul className="notification-list">{notifications.map((item) => <li key={item.id} className={`is-${item.source}`}>
+          <b>{SOURCE_WORDS[item.source] ?? item.source}</b>
+          <time>{item.occurredAt.slice(11, 19)}</time>
+          <span>{item.source === 'external-ai' ? <PendingSource id="ai-failure-alert" inline>{item.message}</PendingSource> : item.message}</span>
+        </li>)}</ul>}</aside>}
     {/* 무대는 하나다 — 노드 캔버스. 감췄다 되살릴 다른 무대가 없으므로 `is-hidden` 도 없다.
         ManualScope 는 캔버스를 감싼다 — 확대된 노드의 설명서는 오버레이가 따로 감싼다. */}
     <section className="tab-stage">

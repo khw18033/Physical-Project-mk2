@@ -49,6 +49,16 @@
 .history-label,.history-why{flex-basis:100%;color:#6b7888}
 .history-why{color:#8f2b26}
 .history-note{margin:10px 0 0;color:#8a94a1;font-size:11px}
+/* 통합 알림 (260913) — 어느 갈래·언제·무슨 일인지 셋을 한 줄에. 문구는 온 값 그대로다. */
+.notifications-empty{margin:0;color:#6a7686;font-size:13px}
+.notification-list{margin:0;padding:0;list-style:none;display:grid;gap:6px}
+.notification-list li{display:grid;grid-template-columns:auto auto 1fr;align-items:baseline;gap:8px;padding:8px 10px;border:1px solid #dde3ea;border-radius:7px;font-size:12px;line-height:1.5}
+.notification-list b{padding:1px 8px;border-radius:9px;background:#eef1f5;color:#39434f;font-size:11px}
+.notification-list time{color:#8a94a1;font-variant-numeric:tabular-nums}
+.notification-list .is-robot{border-color:#efb2b2;background:#fff7f7}
+.notification-list .is-robot b{background:#fbdcda;color:#8f2b26}
+.notification-list .is-connection{border-color:#cdd9e6;background:#f7fafd}
+.notification-list .is-connection b{background:#e2ecf7;color:#25405c}
 .milestone-layout,.graph-panel,.replay-layout{margin-top:0}.replay-layout .graph-panel{margin-top:0}
 
 /* ── 마일스톤 화면이 남는 세로를 쓴다 (260913 지시) ─────────────────────────

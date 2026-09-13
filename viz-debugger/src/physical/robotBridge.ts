@@ -14,6 +14,7 @@ import { hasResults } from '../detect/detectBridge.ts';
 import { effectsOf, NO_NODE, type LinkEffect } from './missionLink.ts';
 import type { PhysicalClient } from './PhysicalClient.ts';
 import { advanceRobotHead, receiveRobotProgress } from '../data/scenario.ts';
+import { noteIssue } from '../shared/notifications.ts';
 import type { ScenarioEvent } from '../model/types.ts';
 import { elapsedSec, applyEffects, noteCommandLog, robotSession } from './robotSession.ts';
 import { robotClient } from './robotClient.ts';
@@ -129,6 +130,23 @@ export function receiveUplink(
   // **태스크 노드도 로봇이 민다** (260910 지적). 대본 타이머가 멈춰 있으므로 노드 상태가
   // 저절로 바뀌지 않는다 — 응답을 기록 열의 사건으로 옮겨야 화면이 따라온다.
   for (const event of traceEventsOf(effects, atSec)) receiveRobotProgress(missionId, event);
+
+  /**
+   * **실패는 알림에도 올린다** (260913 지시 — 「어떤 태스크에서 어떤 문제인지」).
+   *
+   * 노드가 빨개지는 것은 그 마일스톤을 보고 있을 때만 보인다. 발표자가 다른 화면에 있으면
+   * 로봇이 거절당한 것을 모른 채로 다음 걸음을 누른다. 머리줄의 뱃지는 어느 화면에서도 는다.
+   *
+   * 문구는 **어느 태스크·무슨 명령·로봇이 뭐라 했는지** 셋이다. 셋 다 로봇이 준 값이고
+   * 없는 칸은 안 적는다.
+   */
+  for (const effect of effects) {
+    if (effect.kind !== 'task-failed') continue;
+    const action = robotSession().commands[effect.commandId]?.action ?? null;
+    const who = effect.taskId === NO_NODE ? (action ?? '이름 없는 명령') : `${effect.taskId}${action === null ? '' : ` · ${action}`}`;
+    const why = [effect.code, effect.message].filter((v) => v !== null && v !== '').join(' ');
+    noteIssue(`task:${effect.taskId}`, 'robot', `${who} 실패 — ${why || '사유 없음'}`);
+  }
   return appended;
 }
 

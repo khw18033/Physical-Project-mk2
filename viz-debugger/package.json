@@ -67,7 +67,8 @@
     "verify:detect-map": "node scripts/verify-detect-map.mjs",
     "verify:mission-prep": "node scripts/verify-mission-prep.mjs",
     "verify:command-log": "node scripts/verify-command-log.mjs",
-    "verify:mission-history": "node scripts/verify-mission-history.mjs"
+    "verify:mission-history": "node scripts/verify-mission-history.mjs",
+    "verify:notifications": "node scripts/verify-notifications.mjs"
   },
   "dependencies": {
     "mqtt": "^5.15.2",

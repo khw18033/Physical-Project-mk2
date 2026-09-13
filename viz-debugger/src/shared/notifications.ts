@@ -25,15 +25,75 @@
 
 import { useSyncExternalStore } from 'react';
 
-export type AppNotification = { id: string; source: 'external-ai' | 'mission-generation' | 'command'; message: string; occurredAt: string };
+export type NotificationSource =
+  | 'external-ai' | 'mission-generation' | 'command'
+  /** 붙었나 끊겼나 — 브로커·탐지 서비스. */
+  | 'connection'
+  /** 로봇이 거절했거나 태스크가 실패했다. **어느 태스크인지 문구에 적는다.** */
+  | 'robot';
+
+export type AppNotification = { id: string; source: NotificationSource; message: string; occurredAt: string };
+
+export const SOURCE_WORDS: Record<NotificationSource, string> = {
+  'external-ai': '외부 AI',
+  'mission-generation': '임무 생성',
+  command: '명령',
+  connection: '연결',
+  robot: '로봇',
+};
 
 /** **비어 있는 채로 시작한다.** 실제 사건이 와야 는다. */
 const items: AppNotification[] = [];
+
+/** 목록 길이. 시연 한 판이면 넘칠 일이 없고, 종일 켜 두어도 안 부푼다. */
+const KEEP = 60;
+
+/**
+ * **같은 말을 되풀이하지 않는다.**
+ *
+ * 연결 상태는 초마다 다시 오고 탐지 폴링은 1.5초마다 실패한다. 그것을 그대로 쌓으면
+ * 목록이 같은 줄로 가득 차서 **정작 하나뿐인 사건이 묻힌다.**
+ *
+ * 통로(`channel`)별로 **직전에 올린 문구**만 기억한다. 전역으로 한 번씩만 올리는 것과는
+ * 다르다 — 끊겼다 붙었다 다시 끊기면 세 줄이 다 남아야 한다. 직전과 같을 때만 삼킨다.
+ */
+const lastOf = new Map<string, string>();
+
+export function noteIssue(channel: string, source: NotificationSource, message: string): boolean {
+  if (lastOf.get(channel) === message) return false;
+  lastOf.set(channel, message);
+  pushNotification({
+    id: `${channel}-${Date.now()}`,
+    source,
+    message,
+    occurredAt: new Date().toISOString(),
+  });
+  return true;
+}
+
+/** 판을 새로 시작할 때. 지난 판의 「직전 문구」가 새 판의 첫 줄을 삼키면 안 된다. */
+export function armNotifications(): void {
+  lastOf.clear();
+}
 const listeners = new Set<() => void>();
 
 export function pushNotification(item: AppNotification) {
   items.unshift(item);
+  if (items.length > KEEP) items.length = KEEP;
   listeners.forEach((listener) => listener());
+}
+
+/** 「초기화」가 부른다 — 화면을 처음 상태로 되돌리는 것이라 알림도 같이 비운다. */
+export function resetNotifications(): void {
+  lastOf.clear();
+  if (items.length === 0) return;
+  items.length = 0;
+  listeners.forEach((listener) => listener());
+}
+
+/** 훅 없이 읽는 길. 검사와 훅이 **같은 배열**을 본다 — 두 벌이면 갈라진다. */
+export function notificationsNow(): readonly AppNotification[] {
+  return items;
 }
 
 export function useNotifications() {

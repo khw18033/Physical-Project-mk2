@@ -47,6 +47,7 @@ import { appendViewpoint, resetViewpoint } from '../viewpoint/store.ts';
 import { clearStarted, markApproved, resetRobotSession, robotDrives } from '../physical/robotSession.ts';
 import { resetDetect } from '../detect/store.ts';
 import { armMissionHistory, resetMissionHistory } from './missionHistory.ts';
+import { armNotifications, resetNotifications } from '../shared/notifications.ts';
 import { provenancePayload, type AiProvenance } from '../shared/provenance.ts';
 import rawScenario from '../../scenarios/MSN-260826-01.json' with { type: 'json' };
 import { libraryEntry } from '../scenarios/library.ts';
@@ -422,6 +423,9 @@ export function activateMission(missionId: string, mode: 'remote' | 'local'): vo
   // 새 판이 선다 — 이력은 **판마다 한 줄**이라 여기서 표시를 내려야 같은 편을 두 번
   // 돌렸을 때 두 줄이 남는다 (260912).
   armMissionHistory();
+  // 지난 판의 「직전 문구」가 새 판의 첫 줄을 삼키면 안 된다 — 같은 사유로 또 끊겨도
+  // 새 판에서는 새로 적혀야 한다.
+  armNotifications();
   // 탐지도 같이 비운다 (260912) — 지난 판의 각도와 「이미 끝났다」는 기억이 남으면
   // 새 판이 처음부터 다 끝난 채로 뜬다.
   resetDetect();
@@ -681,8 +685,9 @@ export function resetMission(): void {
   resetViewpoint(NO_MISSION);
   resetRobotSession();
   resetDetect();
-  // 「초기화」는 화면을 처음 상태로 되돌리는 것이라 이력도 같이 비운다.
+  // 「초기화」는 화면을 처음 상태로 되돌리는 것이라 이력도 알림도 같이 비운다.
   resetMissionHistory();
+  resetNotifications();
   commitNow({ current: emptyView(), proposal: null, headSec: 0, playing: false, activatedBy: 'boot' });
 }
 

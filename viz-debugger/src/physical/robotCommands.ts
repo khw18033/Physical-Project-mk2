@@ -20,6 +20,7 @@
  */
 
 import { commandTracker } from '../shared/commandCenter.ts';
+import { noteIssue } from '../shared/notifications.ts';
 import type { CommandAck, CommandRequest } from '../transport/index.ts';
 import type { PhysicalAction } from './encode.ts';
 import { PAUSE_ACTION, SDK_ACTIONS, STOP_ACTION as ARRIVAL_STOP, STOP_REASON as STOP_WHY, TEST_FORWARD_M } from './presets.ts';
@@ -451,6 +452,8 @@ export async function pauseMission(client: PhysicalClient | null): Promise<Pause
   } catch (error) {
     failure = error instanceof Error ? error.message : String(error);
   }
+  if (!published) noteIssue('pause', 'robot', `일시정지를 못 보냈습니다 — ${failure ?? '사유 없음'}. 로봇이 계속 움직일 수 있습니다`);
+
   // 2 · 3 — **위 결과를 보지 않는다.** 못 보냈어도 화면은 멈추고 크게 말한다.
   const paused = lockPaused(taskId, published, failure);
 
@@ -471,11 +474,15 @@ export async function pauseMission(client: PhysicalClient | null): Promise<Pause
 async function reportPauseAnswer(client: PhysicalClient, commandId: string, timeoutMs = 4000): Promise<void> {
   const answer = await firstAnswer(client, commandId, timeoutMs);
   if (answer === null) {
-    notePauseFailure(`로봇이 ${timeoutMs}ms 안에 답하지 않았습니다 — 계속 돌고 있을 수 있습니다`);
+    const words = `로봇이 ${timeoutMs}ms 안에 답하지 않았습니다 — 계속 돌고 있을 수 있습니다`;
+    notePauseFailure(words);
+    noteIssue('pause', 'robot', `일시정지 — ${words}`);
     return;
   }
   if (answer.kind === 'acceptance' && !answer.accepted) {
-    notePauseFailure(`로봇이 거절했습니다 — ${answer.code ?? '사유 없음'} ${answer.message ?? ''}`.trim());
+    const words = `로봇이 거절했습니다 — ${answer.code ?? '사유 없음'} ${answer.message ?? ''}`.trim();
+    notePauseFailure(words);
+    noteIssue('pause', 'robot', `일시정지 — ${words}`);
   }
 }
 
@@ -568,6 +575,15 @@ export async function emergencyStop(client: PhysicalClient | null): Promise<Stop
     // 발행이 던져도 아래 잠금은 그대로 일어난다. 이게 이 기능의 뼈대다.
     failure = error instanceof Error ? error.message : String(error);
   }
+
+  /**
+   * **못 보낸 정지는 알림에도 올린다** (260913 지시).
+   *
+   * 화면은 어차피 잠긴다. 그런데 **로봇은 안 멈췄을 수 있다** — 누른 사람이 멈춘 줄 알고
+   * 다가가는 것이 이 기능의 가장 위험한 실패 모양이다. 잠긴 화면의 붉은 띠만으로는
+   * 다른 화면으로 옮겨 가면 사라지므로, 머리줄에도 남긴다.
+   */
+  if (!published) noteIssue('stop', 'robot', `정지 명령을 못 보냈습니다 — ${failure ?? '사유 없음'}. 로봇이 계속 움직일 수 있습니다`);
 
   // 2 · 3 · 4 — **위 결과를 보지 않는다.**
   return lockStopped(published, failure);
