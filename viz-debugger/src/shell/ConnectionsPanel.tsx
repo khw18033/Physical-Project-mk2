@@ -66,19 +66,19 @@ export function ConnectionsPanel({ onClose, physical }: { onClose(): void; physi
 
   return <aside className="global-panel global-panel--connections">
     <header><b>⇄ 연결 관리</b><button onClick={onClose}>닫기</button></header>
-    <p className="connections__lead">
-      접속 주소를 여기서 정하고 <b>여기서 확인합니다</b> (<code>VZ-C-07</code>).
-      환경변수는 <b>기본값</b>이 되고 여기서 넣은 값이 이깁니다.
-      <b>무대에 오르기 전에 넷을 다 눌러 초록을 확인하세요</b> — 시연 중에는 다시 열지 않습니다.
-    </p>
+    {/* **최상단 안내를 뺐다** (260913 지시). 여기 있던 세 줄은 이 판을 처음 여는 사람에게
+        필요한 말이고, 시연 직전에 여는 사람에게는 매번 같은 자리를 차지할 뿐이었다.
+        규칙 자체는 그대로다 — 환경변수가 기본값이고 여기서 넣은 값이 이긴다. */}
     {!writable && <p className="connections__warn">
       저장소가 막혀 있습니다 — 바꿔도 이번 세션에만 적용되고 새로고침하면 기본값으로 돌아갑니다.
     </p>}
     {/* 목록을 그린다. 대상이 늘면 이 파일이 아니라 shared/connections.ts 가 바뀐다. */}
     {CONNECTION_TARGETS.map((target) => <section key={target.id} className={`conn-target${target.live ? '' : ' conn-target--pending'}`}>
       <h3>{target.label}{target.live ? null : <em>연결 예정</em>}</h3>
-      <p>{target.what}</p>
-      {target.pending && <p className="conn-target__pending">{target.pending}</p>}
+      {/* 설명이 없는 대상도 있다 (260913 지시 — 로봇·객체 탐지). 늘 쓰는 둘이라
+          매번 읽을 문장이 아니다. 자리도 그만큼 줄어든다. */}
+      {target.what !== undefined && <p>{target.what}</p>}
+      {target.pending !== undefined && <p className="conn-target__pending">{target.pending}</p>}
       {target.fields.map((field) => {
         const key = connectionKey(target.id, field.key);
         return <label key={key}>

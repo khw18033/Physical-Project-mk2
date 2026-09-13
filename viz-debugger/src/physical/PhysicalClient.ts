@@ -12,7 +12,7 @@
  *
  * ## 채널 (하드웨어가 실제로 쏴 보고 확인한 값)
  *
- *   브로커   ws://pi7.local:9001 (WebSocket) · MQTT 5 · 인증 없음
+ *   브로커   ws://pi7.tailcb6bfb.ts.net:9001/mqtt (WebSocket) · MQTT 5 · 인증 없음
  *   발행     terminal/go1-001/downlink  QoS 1
  *   수신     terminal/go1-001/uplink    QoS 1
  *   페이로드 protobuf 바이너리 — JSON 문자열이 아니다
@@ -33,7 +33,16 @@ const meta = import.meta as unknown as { env?: { VITE_PHYSICAL_WS?: string } };
  * (260904 · `VZ-C-07`). 다만 주소를 아는 면은 여기 하나여야 하므로 환경변수는 이 파일에서만
  * 읽고 연결 저장소에는 기본값만 심는다 — `SttClient` 와 같은 규칙이다.
  */
-registerConnectionDefault('physical', 'ws', meta.env?.VITE_PHYSICAL_WS ?? 'ws://pi7.local:9001');
+/**
+ * **기본값이 Tailscale 주소다** (260913 지시).
+ *
+ * 전에는 `ws://pi7.local:9001` 이었다 — mDNS 라 같은 랜에 있어야 풀린다. 노트북에서
+ * 돌리거나 발표장 망이 바뀌면 이름이 안 풀려서 주소부터 고쳐야 했다. Tailscale 이름은
+ * 망이 바뀌어도 같다.
+ *
+ * `pi7.local` 은 프리셋에 남겨 둔다(`presets.ts`) — 같은 랜에 있을 때는 그쪽이 한 홉 짧다.
+ */
+registerConnectionDefault('physical', 'ws', meta.env?.VITE_PHYSICAL_WS ?? 'ws://pi7.tailcb6bfb.ts.net:9001/mqtt');
 
 /** 지금 쓰는 브로커 주소. 상수가 아니라 **읽을 때마다 지금 값**이다. */
 export function physicalWsUrl(): string {

@@ -26,13 +26,8 @@ import { SdkState } from './DeviceFacts.tsx';
 import { SDK_ACTIONS } from './presets.ts';
 import { NO_NODE } from './missionLink.ts';
 import { releaseStopped, useRobotSession } from './robotSession.ts';
-import { cellsInOrder, emptyFill, reduceFrames } from '../viewpoint/fill.ts';
-import { framesUpTo } from '../viewpoint/store.ts';
 
-export function RobotPanel({ client, params }: {
-  client: PhysicalClient | null;
-  params: Record<string, unknown> | null;
-}) {
+export function RobotPanel({ client }: { client: PhysicalClient | null }) {
   const session = useRobotSession();
 
   // 연결 상태를 여기서 구독하지 않는다 — `robotClient()` 가 만들 때 이어 둔다.
@@ -45,12 +40,6 @@ export function RobotPanel({ client, params }: {
    *
    * 여기 남은 것은 **사람이 누르는 것**과 지금까지 받은 것을 그리는 일뿐이다.
    */
-
-  // 우리가 실제로 채운 칸 — 화면과 같은 값이다.
-  const total = typeof params?.viewpoint_count === 'number' ? params.viewpoint_count : 8;
-  const filled = Object.keys(session.warnings).length > 0 || session.progress !== null
-    ? cellsFilled(total)
-    : 0;
 
   const stopped = session.stopped;
   const failure = stopped === null ? null : stopFailureMessage(stopped);
@@ -103,18 +92,15 @@ export function RobotPanel({ client, params }: {
           (`ConnectionLamp`) — 누르면 연결 관리가 열린다. */}
 
       {/*
-        진행률 — **우리가 센 것을 앞에 둔다.**
+        **진행률 두 칸을 뺐다** (260913 지시 — 「시연에서 굳이 보일 필요 없음」).
 
-        로봇의 `ack` 는 문서상 「이번 임무의 ACK 순번」인데 실제로는 명령마다 10씩 **누적**된다
-        (260910 실측: 30 → 40 → 50). 그걸 그대로 「50 / 10」으로 띄우면 보는 사람이 못 읽는다.
-        그렇다고 고쳐 적으면 어긋난 사실이 묻히므로, **우리 값을 앞에 두고 로봇 값을 그대로
-        옆에 붙인다.** 하드웨어 쪽에 물어볼 숫자다.
+        「8 / 8 칸」과 「ACK 9/9」가 여기 있었다. 여덟 칸이 차는 것은 뷰포인트 노드에서
+        눈으로 보이고, ACK 순번은 규약을 아는 사람만 읽는 숫자다 — 무대에서 그 둘은
+        읽히지 않은 채 자리만 차지했다.
+
+        **값 자체는 안 버린다.** 진행률은 세션에 그대로 쌓이고(`session.progress`),
+        ACK 순번은 노드를 열면 오간 로그에 한 줄씩 남는다. 여기서 안 그릴 뿐이다.
       */}
-      {filled > 0 && <span className="robot-progress">{filled} / {total} 칸</span>}
-      {session.progress !== null && <span
-        className={`robot-ack${session.progress.ack > session.progress.of ? ' robot-ack--odd' : ''}`}
-        title="로봇이 보낸 ACK 순번 · 문서는 임무별이라고 했으나 실측은 누적"
-      >ACK {session.progress.ack}/{session.progress.of}</span>}
 
       {/*
         **「산출된 경로에 따라 이동」 버튼은 여기 없다** (260912 지시 — 「직전에서 막힘」).
@@ -224,8 +210,3 @@ function sdkUnsupported(unsupported: Readonly<Record<string, true>>): boolean {
   return Object.values(SDK_ACTIONS).some((action) => unsupported[action] === true);
 }
 
-/** 지금까지 실제로 채워진 칸 수. 화면이 그리는 것과 같은 열을 센다. */
-function cellsFilled(total: number): number {
-  const fill = reduceFrames(emptyFill(total), framesUpTo(Number.MAX_SAFE_INTEGER));
-  return cellsInOrder(fill).filter((cell) => cell.phase !== 'pending').length;
-}

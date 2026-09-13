@@ -96,7 +96,9 @@ export type BrokerPreset = {
 };
 
 export const BROKER_PRESETS: readonly BrokerPreset[] = [
-  { id: 'name', label: '이름', url: 'ws://pi7.local:9001', why: '기본값. mDNS 가 풀리면 이것이 가장 편하다' },
+  // **기본값.** 망이 바뀌어도 이름이 같다 — 노트북에서 돌리든 발표장에서 돌든 한 주소다.
+  { id: 'tailscale', label: 'Tailscale', url: 'ws://pi7.tailcb6bfb.ts.net:9001/mqtt', why: '기본값. 망이 바뀌어도 같은 이름으로 붙는다' },
+  { id: 'name', label: '같은 랜 (mDNS)', url: 'ws://pi7.local:9001', why: '같은 랜에 있을 때. 한 홉 짧다' },
   { id: 'lab', label: '랩 Wi-Fi', url: 'ws://192.168.50.172:9001', why: '고정 IP. 이름이 안 풀릴 때' },
   // ↓ 정적 IP 를 받으면 이 줄의 url 만 채운다.
   { id: 'venue', label: '발표장 핫스팟', url: '', why: '정적 IP 미정 — 받는 즉시 채운다. 지어내 넣지 않는다' },

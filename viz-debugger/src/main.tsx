@@ -112,7 +112,7 @@ function Milestones({ view, phase, milestoneStatuses, assignments, onAssign, onO
   </div>);
   const showApproval = phase === 'proposal' || planApproval !== undefined;
   return <div className="milestone-layout"><UtterancePanel fallbackText={view.utteranceText} /><section className="milestone-panel"><h2>마일스톤 · {view.milestones.length}건</h2>
-    <RobotPanel client={robotClient()} params={view.params} />
+    <RobotPanel client={robotClient()} />
     {showApproval && <div className="proposal-card">
       {phase === 'proposal' && (aiProposal
         ? <p className="proposal-note proposal-ai"><b>AI 제안</b> — <code>{aiProposal.provenance.model}</code> 이 만든 임무 {view.missionId} 「{view.label}」. 승인 전에는 아무것도 실행되지 않습니다

@@ -313,17 +313,22 @@ b.follow-live{cursor:default}
 .device-modal__camera{padding:16px 22px 4px}
 
 /* 연결 관리 (260904 — VZ-C-07). 목록 판(.global-panel)보다 넓다 — 폼이고 칸이 여섯이다. */
-.global-panel--connections{width:520px;max-height:calc(100vh - 140px);overflow:auto}
-.connections__lead{margin:10px 0 14px;color:#5a6675;font-size:13px;line-height:1.65}
+/* 연결 관리만 넓다 — 주소 한 줄이 안 잘려야 한다 (260913 지시).
+   `ws://pi7.tailcb6bfb.ts.net:9001/mqtt` 는 520px 칸에서 끝이 잘렸다.
+   이력·알림 판은 그대로 430px 다. */
+.global-panel--connections{width:min(760px,94vw);max-height:calc(100vh - 140px);overflow:auto}
 .connections__warn{margin:0 0 12px;padding:9px 11px;border:1px solid #e8c893;border-radius:7px;background:#fff8ec;color:#8a6300;font-size:12px}
 .conn-target{padding:12px 0;border-top:1px solid #e6eaf0}
 .conn-target h3{display:flex;align-items:center;gap:8px;margin:0 0 4px;font-size:14px}
 .conn-target h3 em{padding:2px 7px;border-radius:99px;background:#eef2f7;color:#6a7686;font-size:11px;font-style:normal}
 .conn-target p{margin:0 0 8px;color:#6a7686;font-size:12px}
 .conn-target__pending{color:#a2691a}
-.conn-target label{display:grid;grid-template-columns:96px 1fr;gap:9px;align-items:center;margin:6px 0}
+.conn-target label{display:grid;grid-template-columns:78px 1fr;gap:9px;align-items:center;margin:6px 0}
 .conn-target label span{color:#5a6675;font-size:12px}
-.conn-target input{padding:7px 9px;border:1px solid #cbd3de;border-radius:6px;font-family:monospace;font-size:12px}
+.conn-target input{width:100%;min-width:0;padding:7px 9px;border:1px solid #cbd3de;border-radius:6px;font-family:monospace;font-size:12px}
+/* 프리셋이 있는 줄은 고르는 칸과 주소 칸이 한 줄을 나눠 쓴다 — 주소가 길어서
+   (`ws://pi7.tailcb6bfb.ts.net:9001/mqtt`) 끝이 잘리면 무엇을 보고 있는지 모른다. */
+.conn-target label:has(.conn-preset){grid-template-columns:78px auto 1fr}
 .conn-target--pending input{background:#f4f6f9;color:#95a0ad}
 .connections__actions{display:flex;align-items:center;gap:8px;padding-top:13px;border-top:1px solid #e6eaf0}
 .connections__note{flex:1;color:#5a6675;font-size:12px;line-height:1.5}
@@ -479,7 +484,6 @@ b.follow-live{cursor:default}
 .robot-ping{padding:6px 12px;border:1px solid #b6c2d0;border-radius:6px;background:#fff;font-size:12px}
 .robot-ping--ok{color:#1f8a4d;font-weight:600;font-size:12px}
 .robot-ping--fail{color:#b3352f;font-weight:600;font-size:12px}
-.robot-progress{padding:3px 8px;border-radius:10px;background:#eef2f7;color:#4a5b6e;font-size:12px;font-variant-numeric:tabular-nums}
 /* **`button.` 을 붙인 이유는 정지 버튼과 같다** — 머리줄의 `.global-bar button` 이
    `background:#fff` 를 걸고 있고 그쪽이 더 구체적이다. 클래스만 쓰면 초록이 안 뜬다. */
 button.robot-approach{padding:7px 14px;border:2px solid #2f9e5f;border-radius:7px;background:#e7f6ee;color:#125c33;font-weight:700;font-size:13px}
@@ -639,8 +643,6 @@ button.robot-resume{padding:6px 12px;border:1px solid #2f9e5f;border-radius:6px;
 .hw-dot--warn{background:#fdf6e3;color:#7a5c12}
 .hw-dot--plain{background:#f2f4f7;color:#5c6a7c;font-weight:400}
 /* 로봇이 보낸 ACK 순번 — 우리 값과 나란히 둔다. 어긋나면(ack > of) 표시를 달리한다. */
-.robot-ack{padding:3px 8px;border-radius:10px;background:#f2f4f7;color:#6b7888;font-size:11px;font-variant-numeric:tabular-nums}
-.robot-ack--odd{background:#fdf6e3;color:#7a5c12;font-weight:600}
 /* 장비 상태 카드 (260910) — 오는 값만 적는다. 안 오는 칸은 아예 안 그린다. */
 .device-facts{display:grid;gap:2px;margin:10px 0}
 .device-facts>div{display:flex;gap:10px;padding:5px 8px;border-bottom:1px solid #eef1f5;font-size:13px}

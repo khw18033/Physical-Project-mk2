@@ -31,14 +31,18 @@ const controls = [];
 {
   const target = CONNECTION_TARGETS.find((t) => t.id === 'detect');
   if (target === undefined) failures.push('연결 관리에 detect 자리가 없다');
-  // 주소가 비었을 때 **무엇을 할 수 있는지** 적혀 있어야 한다. 260912 에 탐지가 실제로
-  // 붙으면서 「2단계-B 에서 붙는다」는 지난 말이 됐다 — 지금 필요한 안내는 「테스트를
-  // 켜면 받아 둔 산출물로 같은 길을 돈다」다. 빈 문구는 여전히 안 된다.
-  if (target !== undefined && !String(target.pending ?? '').trim()) {
-    failures.push('detect 에 안내 문구가 없다 — 주소가 비었을 때 무엇을 할 수 있는지 말해야 한다');
-  }
-  if (target !== undefined && !/테스트/.test(String(target.pending))) {
-    failures.push('detect 자리표시가 테스트로 볼 수 있다는 것을 안 적었다');
+  /**
+   * **늘 떠 있는 설명은 없다** (260913 지시). 로봇과 탐지는 매번 쓰는 둘이라 문장이 아니라
+   * 주소 칸이 먼저 보여야 한다.
+   *
+   * 그렇다고 안내가 사라진 것은 아니다 — 주소가 비었을 때 무엇을 할 수 있는지는 아래
+   * 「상태」 줄이 **그때 그 상태의 사유로** 말한다(2절이 그것을 검사한다). 늘 떠 있는
+   * 문장과 그때만 뜨는 사유는 다르다.
+   */
+  for (const id of ['physical', 'detect']) {
+    const live = CONNECTION_TARGETS.find((t) => t.id === id);
+    if (live?.what !== undefined) failures.push(`${id} 에 늘 떠 있는 설명이 남아 있다`);
+    if (live?.pending !== undefined) failures.push(`${id} 에 늘 떠 있는 자리표시 문구가 남아 있다`);
   }
   // **지금 쓰는 둘이 맨 위다** (260912 지시). 시연 직전에 확인하는 것이 로봇과 탐지다.
   const top = CONNECTION_TARGETS.slice(0, 2).map((t) => t.id).join(',');
@@ -146,7 +150,7 @@ if (failures.length) {
   console.error(`❌ verify:no-detect\n- ${failures.join('\n- ')}`);
   process.exit(1);
 }
-console.log('✅ detect 자리가 맨 위 둘(로봇·탐지)에 있고, 주소가 비었을 때 무엇을 할 수 있는지 적혀 있다');
+console.log('✅ detect 자리가 맨 위 둘(로봇·탐지)에 있고, 늘 떠 있는 설명 없이 상태 줄이 그때 사유를 말한다');
 console.log('✅ detect 확인이 던지지 않는다 — 눌러도 팝업이 안 날아간다');
 console.log('✅ 상대 없는 detect 가 나머지 셋을 안 끌어내린다 — 표시등이 아무도 안 짚는다 (모름은 끊김이 아니다)');
 console.log('✅ 탐지 없이도 대본으로 뷰포인트가 찬다 · 테스트를 켜면 받아 둔 실제 산출물로 돈다');

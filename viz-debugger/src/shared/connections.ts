@@ -50,8 +50,13 @@ export type ConnectionField = {
 export type ConnectionTarget = {
   id: ConnectionTargetId;
   label: string;
-  /** 무엇을 위해 붙는가. 화면이 그대로 적는다. */
-  what: string;
+  /**
+   * 무엇을 위해 붙는가. 화면이 그대로 적는다.
+   *
+   * **없어도 된다** (260913 지시). 늘 쓰는 대상(로봇·객체 탐지)은 매번 읽을 문장이 아니라
+   * 빼 뒀다 — 자리가 그만큼 줄고, 주소 칸이 먼저 눈에 들어온다.
+   */
+  what?: string;
   fields: readonly ConnectionField[];
   /**
    * 지금 **실제로 붙는가.** false 면 주소를 넣어도 붙을 곳이 없다 — 자리만 두고
@@ -74,7 +79,6 @@ export const CONNECTION_TARGETS: readonly ConnectionTarget[] = [
   {
     id: 'physical',
     label: '로봇 (MQTT 브로커)',
-    what: 'Go1 명령·진행 보고. **시연 편은 이 하나로 돈다** — 안 붙이면 승인해도 로봇이 안 움직이고 화면도 안 나아간다',
     live: true,
     // **주소를 여기 적지 않는다.** stt·generate 는 대비값을 여기 두지만, 로봇은
     // 주소·토픽·장비 id 가 한 곳에만 있어야 한다는 제약이 더 세다(`verify:physical-port`) —
@@ -85,10 +89,10 @@ export const CONNECTION_TARGETS: readonly ConnectionTarget[] = [
   {
     id: 'detect',
     label: '객체 탐지',
-    what: '문 유무 판정 · 근거 · 2D 맵 경로 산출. 여덟 칸과 MS-A 의 노드를 이쪽이 민다',
     live: true,
-    // 260912 — 붙었다. 「테스트」를 켜면 받아 둔 실제 산출물로 같은 길을 그대로 돈다.
-    pending: '주소가 비어 있으면 「테스트」를 켜서 받아 둔 실제 산출물로 돌릴 수 있습니다',
+    // 설명도 자리표시 문구도 없다 (260913 지시). 주소가 비었을 때 무엇을 할 수 있는지는
+    // 아래 「상태」 줄이 그때그때 말한다 — 늘 떠 있는 문장이 아니라 그 상태의 사유다.
+
     fields: [{ key: 'base', label: '주소', fallback: '' }],
   },
   {

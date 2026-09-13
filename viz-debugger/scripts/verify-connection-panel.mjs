@@ -195,9 +195,30 @@ const controls = [];
   if (!String(broken?.line.label ?? '').trim()) failures.push('끊긴 줄의 이름이 없다');
 }
 
-// ── 6. physical 프리셋 넷 ────────────────────────────────────────────────────
+// ── 6. physical 프리셋 ───────────────────────────────────────────────────────
+//
+// 네 자리(기본·같은 랜·발표장·직접 입력)가 다 있어야 한다. 260913 에 Tailscale 이 하나 더
+// 붙어 다섯이 됐다 — 수를 못박는 대신 **있어야 하는 것이 있는지**를 본다.
 {
-  if (BROKER_PRESETS.length !== 4) failures.push(`프리셋이 ${BROKER_PRESETS.length}개 — 넷이어야 한다`);
+  if (BROKER_PRESETS.length < 4) failures.push(`프리셋이 ${BROKER_PRESETS.length}개 — 넷 이상이어야 한다`);
+  for (const id of ['tailscale', 'name', 'venue', 'manual']) {
+    if (!BROKER_PRESETS.some((p) => p.id === id)) failures.push(`프리셋 ${id} 가 없다`);
+  }
+  /**
+   * **기본 주소와 프리셋이 갈리면 안 된다** (260913 지시 — 기본을 Tailscale 로 옮겼다).
+   *
+   * 화면이 처음 뜰 때의 주소와 목록에서 고를 수 있는 주소가 다르면, 고르는 칸이
+   * 「직접 입력」으로 떠 있는데 실제로는 프리셋과 같은 값인 상태가 된다.
+   */
+  const { connectionAddress } = await load('src', 'shared', 'connections.ts');
+  await load('src', 'physical', 'PhysicalClient.ts');          // 기본값을 심는 자리
+  const seeded = connectionAddress('physical', 'ws');
+  const tail = BROKER_PRESETS.find((p) => p.id === 'tailscale');
+  if (tail !== undefined && seeded !== tail.url) {
+    failures.push(`기본 주소가 ${seeded} — Tailscale 프리셋(${tail.url})과 같아야 한다`);
+  }
+  if (tail !== undefined && !/\.ts\.net/.test(tail.url)) failures.push('Tailscale 프리셋이 ts.net 주소가 아니다');
+
   const venue = BROKER_PRESETS.find((p) => p.id === 'venue');
   if (venue === undefined) failures.push('발표장 핫스팟 프리셋이 없다');
   // **비어 있어야 한다** — 정적 IP 를 받으면 채운다. 지어내 넣지 않는다.
