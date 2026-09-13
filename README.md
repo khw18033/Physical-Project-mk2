@@ -15,7 +15,8 @@
 바로 돌려보려면:
 
 ```bash
-cd viz-debugger
+git clone -b khw_VZ https://github.com/khw18033/Physical-Project-mk2.git
+cd Physical-Project-mk2/viz-debugger
 npm install
 npm run dev
 ```
