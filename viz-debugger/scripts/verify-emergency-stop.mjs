@@ -70,7 +70,8 @@ const filled = () => cellsInOrder(reduceFrames(emptyFill(8), framesUpTo(999))).f
   markApproved();
   ownCommand();
 
-  const frames = mockScanUplink();
+  // 옛 pi7 처럼 door_turn 까지 흘린다 — 정지 뒤에 그것이 선을 여는지도 봐야 한다.
+  const frames = mockScanUplink({ legacyDoorTurn: true });
   // 앞의 넷을 흘린다 — 회전이 도는 중이다.
   for (const frame of frames.slice(0, 4)) {
     receiveUplink(decodeUplink(frame.payload), MISSION, frame.atSec, 90);

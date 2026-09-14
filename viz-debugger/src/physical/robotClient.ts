@@ -20,6 +20,7 @@ import { hardwareTarget } from './encode.ts';
 import { receiveScanCapture } from './robotBridge.ts';
 import { elapsedSec } from './robotSession.ts';
 import { initPrepStage } from './prepStage.ts';
+import { initScanContinue } from './scanContinue.ts';
 import { noteRobotFrame } from '../record/recorder.ts';
 import type { PhysicalStatus } from './PhysicalClient.ts';
 
@@ -91,6 +92,8 @@ export function robotClient(): PhysicalClient {
     // **준비 단계(T-A1·T-A2)도 여기서 잇는다** — 스캔 발행과 같은 이유다. 그리기에 매이면
     // 두 판째에 안 돈다.
     initPrepStage();
+    // **로봇의 촬영 뒤 대기를 푸는 신호도 여기서 잇는다** (260914) — 그 각도 그림이 화면에 뜨면 다음 회전.
+    initScanContinue(() => singleton);
     /**
      * **승인이 스캔을 쏘는 자리도 여기다** (260911 — 두 판째에 안 나가던 자리).
      *

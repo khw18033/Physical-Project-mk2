@@ -166,7 +166,7 @@ export function PathFacts() {
     </>}
     {command !== null && <p className="path-note">
       탐지가 낸 로봇 명령 — <code>turn {command.turn.deg}°</code> · <code>move_forward {command.move_forward.distance_m} m</code>
-      <small> 회전은 스캔 시작 방향 기준(오른쪽 +). 로봇이 스캔 뒤 틀어진 만큼은 「산출된 경로에 따라 이동」이 보정합니다</small>
+      <small> 회전은 스캔 시작 방향 기준(오른쪽 +). 로봇이 한 바퀴 뒤 출발 방향에 서므로 그대로 보냅니다</small>
       {command.warning !== undefined && <> · <span className="detect-map__failed">{command.warning}</span></>}
     </p>}
   </section>;
@@ -186,14 +186,11 @@ export function ApproachFacts() {
     {!plan.ok
       ? <p className="robot-log__empty">{plan.reason}</p>
       : <dl>
-        <div><dt>탐지 회전</dt><dd>{turnWords(plan.detectionTurnDeg)} <small>스캔 시작 방향 기준</small></dd></div>
-        <div><dt>출발 방위</dt><dd>{plan.startYawDeg === null ? '모름' : `${plan.startYawDeg.toFixed(1)}°`} <small>{plan.startYawSource}</small></dd></div>
-        <div><dt>지금 방위</dt><dd>{plan.nowYawDeg === null ? '모름' : `${plan.nowYawDeg.toFixed(1)}°`} <small>{plan.nowYawSource}</small></dd></div>
-        <div><dt>이미 돈 각도</dt><dd>{plan.turnedSinceStartCwDeg === null ? '보정 못 함' : turnWords(plan.turnedSinceStartCwDeg)} <small>로봇의 scan_mission 은 한 바퀴 뒤 door_turn 으로 한 칸 되돌아 선다</small></dd></div>
+        <div><dt>탐지 회전</dt><dd>{turnWords(plan.detectionTurnDeg)} <small>스캔 시작 방향 기준 — 로봇은 한 바퀴 뒤 출발 방향에 서 있으므로 보정 없이 그대로 보낸다</small></dd></div>
         <div className="prep-facts__live"><dt>보낼 명령</dt><dd><b>{plan.steps.map((step) => step.action === 'turn'
           ? `turn ${step.parameters?.deg}°`
           : step.action === 'move_forward' ? `move_forward ${step.parameters?.distance_m} m` : `${step.action}(도착 정지)`).join(' → ')}</b></dd></div>
-        <div><dt>직진</dt><dd>경로 {plan.plannedForwardM.toFixed(3)} m{Math.abs(plan.plannedForwardM - plan.issuedForwardM) > 0.0005 && <> · 「테스트」라 {plan.issuedForwardM.toFixed(3)} m 만 보냄</>}</dd></div>
+        <div><dt>직진</dt><dd>경로 {plan.plannedForwardM.toFixed(3)} m{Math.abs(plan.plannedForwardM - plan.issuedForwardM) > 0.0005 && <> · 「테스트」라 {plan.issuedForwardM.toFixed(3)} m 만 보냄</>} · 속도 {plan.forwardVx} m/s <small>로봇 기본값 0.15 m/s 의 두 배 · 회전 속도는 pi7 설정</small></dd></div>
         {plan.notes.map((note) => <div key={note}><dt>참고</dt><dd>{note}</dd></div>)}
       </dl>}
   </section>;

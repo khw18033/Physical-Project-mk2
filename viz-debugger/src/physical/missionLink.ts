@@ -14,9 +14,9 @@
  */
 
 import type { ViewpointFrame } from '../viewpoint/fill.ts';
-import { missionGeometry, type MissionGeometry } from './presets.ts';
+import { missionGeometry, SCAN_HOLD_AFTER_CAPTURE, SCAN_HOLD_TIMEOUT_S, type MissionGeometry } from './presets.ts';
 import {
-  chosenIndexOf, isDoorTurn, isReturnTurn, progressOf, stageOf, viewpointIndexOf, warningOf,
+  chosenIndexOf, holdRotationOf, isDoorTurn, isReturnTurn, isScanHold, isScanRelease, progressOf, stageOf, viewpointIndexOf, warningOf,
   type StatusDetail, type UplinkMessage,
 } from './uplink.ts';
 import type { PhysicalAction } from './encode.ts';
@@ -51,7 +51,11 @@ export function commandForTask(taskId: string, geometry: MissionGeometry): TaskC
     return {
       taskId,
       action: 'scan_mission',
-      parameters: { steps: geometry.steps, step_deg: geometry.stepDeg, forward_m: 0 },
+      // 촬영 뒤 대기를 켠다 (260914) — 화면이 그 각도 그림을 띄운 뒤 `scan_continue` 로 다음 회전을 푼다.
+      parameters: {
+        steps: geometry.steps, step_deg: geometry.stepDeg, forward_m: 0,
+        hold_after_capture: SCAN_HOLD_AFTER_CAPTURE, hold_timeout_s: SCAN_HOLD_TIMEOUT_S,
+      },
     };
   }
   // **`T-B2`(이동)는 여기서 명령을 만들지 않는다** (260914 리허설 — 「하드코딩된 경로로 이동」).
@@ -131,6 +135,12 @@ export type LinkEffect =
    * 방위이고, 탐지의 회전각이 그 방위 기준이라 이동 명령을 보정할 때 쓴다(`approachPlan.ts`).
    */
   | { kind: 'scan-return'; yawDeg: number | null }
+  /**
+   * **로봇이 촬영 뒤 서서 기다린다** (260914). 화면이 그 각도 그림을 띄우면 `scan_continue` 를 보낸다
+   * (`physical/scanContinue.ts`). 노드가 아니다.
+   */
+  | { kind: 'scan-hold'; step: number; rotationDeg: number | null; seq: number | null; timeoutS: number | null; note: string }
+  | { kind: 'scan-release'; step: number; rotationDeg: number | null; by: string | null; waitedS: number | null }
   | { kind: 'aborted'; note: string }
   /**
    * 임무 ACK 가 아닌 **단계 보고** (연동 가이드 §4-3). `sdk_starting` 이면 로봇이 지금
@@ -226,6 +236,19 @@ function statusEffects(detail: StatusDetail | null, context: LinkContext & { tas
 
   if (detail.event === 'aborted') {
     effects.push({ kind: 'aborted', note: detail.note });
+    return effects;
+  }
+
+  // 촬영 뒤 대기 · 풀림 (260914). 칸을 켜지 않는다 — 칸은 촬영(/frame)이 켠다.
+  if (isScanHold(detail)) {
+    effects.push({
+      kind: 'scan-hold', step: detail.step, rotationDeg: holdRotationOf(detail),
+      seq: detail.seq ?? null, timeoutS: detail.timeout_s ?? null, note: detail.note,
+    });
+    return effects;
+  }
+  if (isScanRelease(detail)) {
+    effects.push({ kind: 'scan-release', step: detail.step, rotationDeg: holdRotationOf(detail), by: detail.by ?? null, waitedS: detail.waited_s ?? null });
     return effects;
   }
 

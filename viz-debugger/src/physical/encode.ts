@@ -41,7 +41,9 @@ export type PhysicalAction =
   | 'ping' | 'diag'                                   // 로봇이 안 움직인다
   | 'turn' | 'move_forward' | 'scan_mission'          // 로봇이 움직인다
   | 'sdk_start' | 'sdk_stop' | 'sdk_auto'             // 구동 브리지 (§4-3)
-  | 'abort_mission' | typeof STOP_ACTION;
+  | 'abort_mission' | typeof STOP_ACTION
+  // 스캔 중 「그 각도 그림이 화면에 떴다 — 다음 회전」 신호 (260914 · pi7 scan_hold). 로봇을 움직이지 않는다.
+  | 'scan_continue';
 
 export type CommandInput = {
   commandId: string;

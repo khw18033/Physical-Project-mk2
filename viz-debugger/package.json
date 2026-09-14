@@ -69,6 +69,8 @@
     "verify:mission-prep": "node scripts/verify-mission-prep.mjs",
     "verify:command-log": "node scripts/verify-command-log.mjs",
     "verify:approach-plan": "node scripts/verify-approach-plan.mjs",
+    "verify:scan-gate": "node scripts/verify-scan-gate.mjs",
+    "verify:scan-hold": "node scripts/verify-scan-hold.mjs",
     "verify:mission-history": "node scripts/verify-mission-history.mjs",
     "verify:mission-record": "node scripts/verify-mission-record.mjs",
     "verify:notifications": "node scripts/verify-notifications.mjs"

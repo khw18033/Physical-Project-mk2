@@ -39,6 +39,16 @@ export type StatusDetail = {
   /** 그 시점 방위(도). **모를 수 있다 — null 이 정상이다.** 노드를 고르는 데 쓰지 않는다. */
   yaw_deg: number | null;
   note: string;
+  /**
+   * `scan_hold` · `scan_release` 에만 (260914). `step` 은 촬영 순번(0~7)이고 `rotation_deg` 가 그 각도다.
+   * `scan_hold.note` 는 `ok` · `no_frame`(사진을 못 찍음) · `frame_not_confirmed`(전송 알림이 안 옴).
+   */
+  rotation_deg?: number | null;
+  seq?: number | null;
+  timeout_s?: number | null;
+  /** `scan_release` — `web` · `timeout` · `abort`. */
+  by?: string | null;
+  waited_s?: number | null;
 };
 
 export type UplinkMessage =
@@ -112,7 +122,30 @@ export function parseDetail(raw: string): StatusDetail | null {
     // **null 이 정상이다.** 모를 수 있다고 하드웨어가 못박았다.
     yaw_deg: typeof d.yaw_deg === 'number' ? d.yaw_deg : null,
     note: typeof d.note === 'string' ? d.note : 'ok',
+    ...(d.event === 'scan_hold' || d.event === 'scan_release' ? {
+      rotation_deg: typeof d.rotation_deg === 'number' ? d.rotation_deg : null,
+      seq: typeof d.seq === 'number' ? d.seq : null,
+      timeout_s: typeof d.timeout_s === 'number' ? d.timeout_s : null,
+      by: typeof d.by === 'string' ? d.by : null,
+      waited_s: typeof d.waited_s === 'number' ? d.waited_s : null,
+    } : {}),
   };
+}
+
+/** 촬영 뒤 대기 보고인가 (260914). 칸을 켜지 않는다 — 화면이 신호를 보낼 계기다. */
+export function isScanHold(detail: StatusDetail | null): boolean {
+  return detail?.event === 'scan_hold';
+}
+
+export function isScanRelease(detail: StatusDetail | null): boolean {
+  return detail?.event === 'scan_release';
+}
+
+/** 대기 보고의 각도. 안 실렸으면 촬영 순번 × 간격으로 — 순번은 0부터다. */
+export function holdRotationOf(detail: StatusDetail): number | null {
+  if (typeof detail.rotation_deg === 'number') return detail.rotation_deg;
+  if (detail.steps > 0 && Number.isInteger(detail.step)) return detail.step * (360 / detail.steps);
+  return null;
 }
 
 /**
@@ -300,6 +333,18 @@ export function uplinkWords(message: UplinkMessage): string {
   if (detail === null) {
     // 임무 ACK 가 아니면 단계 보고다 — `sdk_starting` 이 여기로 온다.
     return message.raw.trim() === '' ? message.state : `${message.state} · ${message.raw.trim()}`;
+  }
+  if (detail.event === 'scan_hold' || detail.event === 'scan_release') {
+    const rotation = holdRotationOf(detail);
+    return [
+      detail.event === 'scan_hold' ? '촬영 뒤 대기' : '대기 풀림',
+      detail.event,
+      rotation === null ? `촬영 ${detail.step}` : `${rotation}°`,
+      detail.event === 'scan_hold' && detail.timeout_s != null ? `최대 ${detail.timeout_s}초` : '',
+      detail.by != null ? `by ${detail.by}` : '',
+      detail.waited_s != null ? `${detail.waited_s}초 기다림` : '',
+      detail.note !== 'ok' && detail.note !== '' ? detail.note : '',
+    ].filter((part) => part !== '').join(' · ');
   }
   const parts = [
     `ack ${detail.ack}/${detail.of}`,

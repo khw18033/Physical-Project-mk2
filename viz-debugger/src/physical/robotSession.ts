@@ -129,6 +129,12 @@ export type RobotSession = {
    */
   scanReturnYaw: number | null;
   /**
+   * **로봇이 지금 촬영 뒤 서서 기다리는 각도** (260914). `scan_release` 가 오면 null. `holdSeen` 은 이 판에서
+   * 대기 보고를 한 번이라도 받았는가 — 옛 노드(대기 없음)와 가른다.
+   */
+  scanHold: { step: number; rotationDeg: number; seq: number | null; timeoutS: number | null; note: string; sinceMs: number } | null;
+  holdSeen: boolean;
+  /**
    * **문이 있다고 칠 방향** — 임시다 (260910 지시).
    *
    * 문 탐지 기능이 아직 없다(연동 가이드 §5-3). `door_turn` 은 고정된 기하값이라 「어느
@@ -234,6 +240,8 @@ const EMPTY: RobotSession = {
   seenYaw: {},
   litIndices: {},
   scanReturnYaw: null,
+  scanHold: null,
+  holdSeen: false,
 };
 
 let session: RobotSession = EMPTY;
@@ -439,6 +447,7 @@ export function markStarted(): void {
     // **지난 판의 방위를 들고 가지 않는다** (260914) — 이동 명령을 보정하는 재료라, 남아 있으면
     // 이번 판의 회전을 지난 판의 방위로 고친다.
     seenYaw: {}, litIndices: {}, scanReturnYaw: null, doorTurn: null, warnings: {}, walked: null,
+    scanHold: null, holdSeen: false,
   });
   prepTimer = setTimeout(finishPrep, PREP_SEC * 1000);
   // 정지 한 번에 같이 끊긴다 — 멈춘 뒤에 창이 닫혀 스캔이 나가면 안 된다.
@@ -549,7 +558,7 @@ export function markApproachIssued(): void {
 }
 
 export function markScanIssued(): void {
-  commit({ ...session, scanIssued: true });
+  commit({ ...session, scanIssued: true, scanHold: null, holdSeen: false });
 }
 
 /** 발행이 실패했으면 표시를 도로 내린다 — 안 나간 것을 나갔다고 둘 수 없다. */
@@ -594,6 +603,15 @@ export function applyEffects(effects: readonly LinkEffect[]): ViewpointFrame[] {
       next = { ...next, doorTurn: { yawDeg: effect.yawDeg, chosenIndex: effect.chosenIndex } };
     } else if (effect.kind === 'scan-return') {
       next = { ...next, scanReturnYaw: effect.yawDeg };
+    } else if (effect.kind === 'scan-hold') {
+      const rotationDeg = effect.rotationDeg ?? effect.step * 45;
+      next = {
+        ...next, holdSeen: true,
+        scanHold: { step: effect.step, rotationDeg, seq: effect.seq, timeoutS: effect.timeoutS, note: effect.note, sinceMs: Date.now() },
+      };
+    } else if (effect.kind === 'scan-release') {
+      // 그 각도의 대기만 푼다 — 늦게 온 앞 각도의 풀림이 지금 대기를 지우면 안 된다.
+      if (next.scanHold !== null && next.scanHold.step === effect.step) next = { ...next, scanHold: null };
     } else if (effect.kind === 'task-running' || effect.kind === 'task-failed' || effect.kind === 'task-done') {
       next = { ...next, commands: applyTaskEffect(next.commands, effect) };
       // 명령이 끝났으면 단계는 지난 말이다 — 「실행 중」을 끝난 뒤에도 띄우면 거짓말이다.
@@ -645,7 +663,8 @@ function applyTaskEffect(
 export function lockStopped(published: boolean, failure: string | null): StopState {
   stopAllTimers();                                   // 3. 타이머·폴링 정지
   const stopped: StopState = { atIso: new Date().toISOString(), published, failure };
-  commit({ ...session, stopped });                   // 2. 추적 중단(applyEffects 가 즉시 막힌다) · 4. 잠금
+  // 멈추면 로봇의 대기도 풀린다(abort) — 남겨 두면 다시 이을 때 옛 각도 신호를 보낸다.
+  commit({ ...session, stopped, scanHold: null });                   // 2. 추적 중단(applyEffects 가 즉시 막힌다) · 4. 잠금
   return stopped;
 }
 
@@ -677,7 +696,7 @@ export function canIssueRobotCommand(): boolean {
 export function lockPaused(taskId: string | null, published: boolean, failure: string | null): PauseState {
   stopAllTimers();
   const paused: PauseState = { atIso: new Date().toISOString(), taskId, published, failure };
-  commit({ ...session, paused });
+  commit({ ...session, paused, scanHold: null });
   return paused;
 }
 

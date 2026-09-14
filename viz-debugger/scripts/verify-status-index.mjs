@@ -246,15 +246,15 @@ if (viewpointIndexOf(parseDetail(detailOf({ event: 'scan_turn', step: 3 }))) !==
   const { decodeUplink } = await load('src', 'physical', 'uplink.ts');
   const frames = mockScanUplink();
 
-  // 스캔 여덟 + door_turn 하나 = 아홉.
-  if (frames.length !== 9) failures.push(`목이 ${frames.length}건을 낸다 — 여덟 + door_turn 하나여야 한다`);
+  // 스캔 여덟 — pi7 에서 door_turn 을 걷어 냈다 (260914).
+  if (frames.length !== 8) failures.push(`목이 ${frames.length}건을 낸다 — 스캔 여덟이어야 한다 (door_turn 없음)`);
 
   const decoded = frames.map((f) => decodeUplink(f.payload));
   if (decoded.some((d) => d === null)) failures.push('목이 낸 바이트를 우리 디코더가 못 읽는다 — 같은 봉투가 아니다');
 
   const details = decoded.map((d) => d?.detail);
-  // of 는 아홉으로 고정 (§5 「ACK 개수 — 확정」).
-  if (details.some((d) => d?.of !== 9)) failures.push('목의 of 가 9 가 아니다');
+  // of 는 스캔 걸음 수 — door_turn 이 빠져 여덟이다.
+  if (details.some((d) => d?.of !== 8)) failures.push('목의 of 가 8 이 아니다');
 
   // step 1~7 이 index 1~7 로 간다 — step 8 은 복귀, 0도는 촬영이 켠다.
   const indexes = details.map((d) => viewpointIndexOf(d)).filter((i) => i !== null);
@@ -273,10 +273,16 @@ if (viewpointIndexOf(parseDetail(detailOf({ event: 'scan_turn', step: 3 }))) !==
   const nullOne = details.find((d) => d?.yaw_deg === null);
   if (nullOne && nullOne.step < 8 && viewpointIndexOf(nullOne) !== nullOne.step) failures.push('yaw 가 null 인 걸음이 제 칸으로 안 간다');
 
-  // 마지막은 door_turn 이고 뷰포인트를 만들지 않는다.
+  // 마지막은 출발 방향으로 돌아오는 복귀 회전이고 뷰포인트를 만들지 않는다. door_turn 은 없다.
   const last = details[details.length - 1];
-  if (!isDoorTurn(last)) failures.push('목의 마지막이 door_turn 이 아니다');
-  if (viewpointIndexOf(last) !== null) failures.push('목의 door_turn 이 뷰포인트를 만들었다');
+  if (last?.event !== 'scan_turn' || last?.step !== 8) failures.push('목의 마지막이 복귀 회전(step 8)이 아니다');
+  if (viewpointIndexOf(last) !== null) failures.push('목의 복귀 회전이 뷰포인트를 만들었다');
+  if (details.some((d) => isDoorTurn(d))) failures.push('목이 아직 door_turn 을 낸다 — pi7 에서 걷어 냈다');
+  // 옛 pi7 을 흉내 내면 여전히 door_turn 하나가 붙는다 — 화면이 그것도 받아야 한다.
+  const legacy = mockScanUplink({ legacyDoorTurn: true }).map((f) => decodeUplink(f.payload)?.detail);
+  if (legacy.length !== 9 || !isDoorTurn(legacy[8]) || legacy[0]?.of !== 9 || viewpointIndexOf(legacy[8]) !== null) {
+    failures.push('옛 pi7 흉내(legacyDoorTurn)가 여덟 + door_turn(of 9) 이 아니다');
+  }
 
   // 1초 회전 + 1초 유지 — 대본과 같은 박자다.
   const gaps = new Set(frames.slice(1).map((f, i) => f.atSec - frames[i].atSec));
@@ -343,5 +349,5 @@ console.log('✅ note != ok 는 경고로 남는다 · yaw_deg: null 에서 안 
 console.log('✅ door_turn 은 계기이지 노드가 아니다 — 로봇이 고른 걸음을 따른다 (어긋남을 표시하지 않는다)');
 console.log('✅ 로봇 사건 여덟이 대본과 같은 함수로 여덟 칸을 채운다 (fill.ts 는 출처를 모른다)');
 console.log('✅ 응답 매핑 — 거절 코드·문구 보존 · SUCCEEDED 완료 · 모르는 command_id 는 0건');
-console.log('✅ 목 uplink 아홉 건이 진짜와 같은 봉투 — 경고 한 번 · yaw null 한 번 · 2초 박자 · 문 유무는 안 만든다');
+console.log('✅ 목 uplink 여덟 건(door_turn 없음 · 옛 pi7 흉내는 아홉)이 진짜와 같은 봉투 — 경고 한 번 · yaw null 한 번 · 2초 박자 · 문 유무는 안 만든다');
 console.log(`✅ 대조군 ${controls.length}건 전부 검출 — ${controls.join(' · ')}`);

@@ -19,7 +19,7 @@
  * 이름을 `특징 최고값` 으로 적는 것만으로 그 오독이 사라진다 (`parse.ts` 의 `SCORE_LABEL`).
  */
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { displayMission, useMission } from '../../data/scenario.ts';
 import { foldStatuses } from '../../data/fold.ts';
 import { usePrepStage } from '../../physical/prepStage.ts';
@@ -29,6 +29,7 @@ import { DOOR_PX, FLOOR_PLAN_SIZE_PX } from '../floorPlan.ts';
 import { chosenFrame, gateWords, indexOfRotation, SCORE_LABEL, usableDistanceCm } from '../parse.ts';
 import { sweepDone } from '../detectBridge.ts';
 import { useDetect } from '../store.ts';
+import { noteScanImageFailed, noteScanImageShown, registerScanImageView } from '../../physical/scanGate.ts';
 import type { DetectFrame } from '../types.ts';
 
 /**
@@ -47,9 +48,22 @@ function Waiting({ what }: { what: string }) {
   </p>;
 }
 
-/** 지금 고른 각도. 없으면 마지막으로 본 각도 — 도는 동안 화면이 따라가야 한다. */
-function focusFrame(frames: readonly DetectFrame[], score: (f: DetectFrame) => number): DetectFrame | null {
+/**
+ * **도는 동안은 마지막으로 본 각도, 다 돌면 고른 각도** (260914 고침).
+ *
+ * 전에는 도는 중에도 「지금까지 찾은 것 중 최고」를 먼저 보여 줘서, 90도에서 문이 한 번 찾히면 뒤 각도들이
+ * 와도 탐지 영상이 90도에 붙어 있었다. 각도 칸은 그 각도의 그림이 뜬 뒤에 넘어가므로(`physical/scanGate.ts`)
+ * 뷰가 최신 각도를 따라가야 칸과 로봇이 같이 간다.
+ */
+function focusFrame(frames: readonly DetectFrame[], score: (f: DetectFrame) => number, count: number): DetectFrame | null {
+  if (frames.length < count) return frames.at(-1) ?? null;
   return chosenFrame(frames, score) ?? frames.at(-1) ?? null;
+}
+
+/** 이 임무의 각도 칸 수. */
+function viewpointCountOf(): number {
+  const count = displayMission().view.params?.viewpoint_count;
+  return typeof count === 'number' ? count : 8;
 }
 
 // ── 영상 ─────────────────────────────────────────────────────────────────────
@@ -64,13 +78,16 @@ export function DetectCam({ zoom = false }: { zoom?: boolean }) {
   const state = useDetect();
   const source = viewSourceOf(state);
   const score = (f: DetectFrame) => state.evidence[f.frame]?.final_score ?? 0;
-  const frame = focusFrame(state.frames, score);
+  const frame = focusFrame(state.frames, score, viewpointCountOf());
+  // **이 뷰가 떠 있다고 문지기에 알린다** — 각도 칸은 여기 그림이 다 그려진 뒤에 넘어간다.
+  useEffect(() => registerScanImageView(), []);
   if (frame === null) return <Waiting what="탐지 영상이 아직 없습니다" />;
 
   // 찾은 각도는 상자 입힌 것을, 못 찾은 각도는 원본을 — 없는 상자를 그린 척하지 않는다.
   const kind = frame.found ? 'target_overlay' : 'original';
+  const url = roundedImageUrl(frameImageUrl(source, frame.frame, kind), state.imageRound);
   return <div className={`detect-cam${zoom ? ' detect-cam--zoom' : ''}`}>
-    <img src={roundedImageUrl(frameImageUrl(source, frame.frame, kind), state.imageRound)} alt={`${frame.rotation_deg}도 프레임`} />
+    <img src={url} alt={`${frame.rotation_deg}도 프레임`} onLoad={() => noteScanImageShown(url)} onError={() => noteScanImageFailed(url)} />
     <span className="detect-cam__at">
       {frame.rotation_deg}도 · {frame.found ? '문 있음' : '문 없음'}
     </span>

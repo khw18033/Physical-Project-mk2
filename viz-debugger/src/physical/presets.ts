@@ -87,6 +87,28 @@ export const STOP_REASON = { human: 1, screen: 2, connection: 3 } as const;
  */
 export const TEST_FORWARD_M = 1;
 
+/**
+ * **경로 이동의 직진 속도(m/s)** (260914 지시 — 「시연 시간이 정해져 있어 약 2배 빠르게」).
+ *
+ * `move_forward` 에 `vx` 를 안 실으면 로봇 기본값 0.15 m/s 로 걷는다. 규약 상한이 0.30 m/s 이고
+ * 그것이 정확히 두 배다(연동 가이드 §4-2 — `vx` 0.05~0.30). 6.4m 가 43초에서 21초가 된다.
+ *
+ * **회전 속도는 여기서 못 바꾼다** — `turn` · `scan_mission` 에 속도 파라미터가 없다. pi7 쪽 설정이다.
+ */
+export const APPROACH_VX = 0.3;
+
+/**
+ * **스캔 촬영 뒤 대기** (260914 — pi7 에 요청해 들어간 기능).
+ *
+ * `scan_mission` 에 `hold_after_capture: 1` 을 실으면 로봇이 각 촬영(/frame 전송) 뒤 서서 `scan_hold` 를 보내고,
+ * 화면이 그 각도의 탐지 영상을 다 띄운 뒤 `scan_continue { rotation_deg }` 를 보내면 다음 회전으로 간다.
+ * 신호가 안 오면 로봇이 `hold_timeout_s` 뒤 스스로 넘어간다 — 화면의 자체 한도(15초, `scanGate.ts`)보다 길게 둔다.
+ *
+ * 옛 노드는 모르는 파라미터를 무시하고 예전처럼 돈다(pi7 답변). 그때는 `scan_hold` 가 안 오고 화면은 신호를 안 보낸다.
+ */
+export const SCAN_HOLD_AFTER_CAPTURE = 1;
+export const SCAN_HOLD_TIMEOUT_S = 20;
+
 export type BrokerPreset = {
   id: string;
   label: string;

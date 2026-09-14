@@ -14,6 +14,7 @@
  */
 
 import { appendViewpoint } from '../viewpoint/store.ts';
+import { offerScanFrame } from '../physical/scanGate.ts';
 import { liveFrame } from '../viewpoint/source.ts';
 import { boxOf, chosenFrame, indexOfRotation, reasonOf } from './parse.ts';
 import { detectState } from './store.ts';
@@ -99,7 +100,8 @@ export function applyDetection(missionId: string, atSec: number, stepDeg: number
           result: null,
         },
       });
-      if (scanning !== null && appendViewpoint(missionId, atSec, scanning)) put += 1;
+      // 결과가 온 각도도 순서를 지킨다 — 앞 칸이 끝나야 연다(`physical/scanGate.ts`).
+      if (scanning !== null) put += offerScanFrame(missionId, atSec, scanning, 'result');
       continue;
     }
 

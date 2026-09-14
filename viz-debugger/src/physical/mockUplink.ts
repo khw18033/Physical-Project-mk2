@@ -10,8 +10,8 @@
  *
  * ## 무엇을 흘리는가 (§6)
  *
- *   · `CommandStatus` 를 1초 + 1초 간격으로 step 1~8
- *   · 마지막에 `door_turn` 하나 → `of` 는 9 (스캔 여덟 + door_turn 하나)
+ *   · `CommandStatus` 를 1초 + 1초 간격으로 step 1~8 → `of` 는 8
+ *   · **`door_turn` 은 없다** (260914 — pi7 에서 걷어 냈다). 옛 pi7 을 흉내 내려면 `legacyDoorTurn`
  *   · **한 번은 `note` 를 `turn_timeout`** — 경고 표시가 실제로 뜨는지 본다
  *   · **`yaw_deg` 가 `null` 인 경우도 한 번** — 모를 수 있다고 하드웨어가 못박았다
  *
@@ -31,7 +31,9 @@ export type MockOptions = {
   timeoutAtStep?: number | null;
   /** yaw 를 모르는 step (1부터). null 이면 안 넣는다. */
   unknownYawAtStep?: number | null;
-  /** 문으로 판정한 방향 — `door_turn` 의 yaw 로 나간다. */
+  /** 옛 pi7 처럼 마지막에 `door_turn` 을 붙인다. 그때 `of` 는 steps+1. */
+  legacyDoorTurn?: boolean;
+  /** `legacyDoorTurn` 일 때 `door_turn` 의 yaw. */
   doorYawDeg?: number;
 };
 
@@ -55,10 +57,11 @@ export function mockScanUplink(options: MockOptions = {}): MockFrame[] {
     steps = 8,
     timeoutAtStep = 4,
     unknownYawAtStep = 6,
+    legacyDoorTurn = false,
     doorYawDeg = 90,
   } = options;
-  // forward_m=0 이면 of 는 9다 — 스캔 여덟에 door_turn 하나 (§5 「ACK 개수 — 확정」).
-  const of = steps + 1;
+  // forward_m=0 이면 of 는 스캔 걸음 수다. 옛 pi7 은 door_turn 하나가 더 붙었다.
+  const of = legacyDoorTurn ? steps + 1 : steps;
   const frames: MockFrame[] = [];
 
   for (let step = 1; step <= steps; step += 1) {
@@ -81,8 +84,8 @@ export function mockScanUplink(options: MockOptions = {}): MockFrame[] {
     });
   }
 
-  // 마지막 ACK — 정해진 방향으로 몸을 돌린다. **탐지 결과가 아니다**(연동 가이드 §5-3).
-  // 새 노드가 아니라 마일스톤 전이 계기다.
+  if (!legacyDoorTurn) return frames;
+  // 옛 pi7 의 마지막 ACK — 정해진 방향으로 몸을 돌린다. **탐지 결과가 아니다**(연동 가이드 §5-3).
   frames.push({
     atSec: steps * 2,
     payload: statusBytes(commandId, {

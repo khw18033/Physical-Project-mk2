@@ -29,7 +29,6 @@ import { detectState } from '../detect/store.ts';
 import { appendDetectLog, DETECT_TASKS } from '../detect/detectLog.ts';
 import { commandForTask, missionGeometry, type TaskCommand } from './missionLink.ts';
 import { planApproach, type ApproachPlan } from './approachPlan.ts';
-import { currentMission } from '../data/scenario.ts';
 import type { PhysicalClient } from './PhysicalClient.ts';
 import type { UplinkMessage } from './uplink.ts';
 import { STOP_ACTION, STOP_REASON } from './presets.ts';
@@ -192,7 +191,8 @@ export async function issueApproach(
    * **경로가 없으면 안 움직인다** (260914 리허설). 전에는 대본 거리(4.2m)로 직진 하나를
    * 냈다 — 방향도 모른 채 걸었다. 이제 사유를 돌려주고 끝낸다.
    */
-  const plan = planApproach(currentStepDeg(params));
+  void params;
+  const plan = planApproach();
   if (!plan.ok) {
     appendDetectLog({ lane: 'screen', level: 'warn', text: `이동하지 않았습니다 — ${plan.reason}`, detail: '', tasks: [DETECT_TASKS.approach] });
     return { sent: false, commandId: '', requestId: null, reason: plan.reason };
@@ -247,11 +247,6 @@ export async function issueApproach(
   return { sent: false, commandId: '', requestId: null, reason: '경로에 낼 명령이 없습니다' };
 }
 
-/** 대본의 각도 간격. 스캔 뒤 방위를 보정할 때 「한 칸」이 몇 도인지 알아야 한다. */
-function currentStepDeg(params: Record<string, unknown> | null): number {
-  return typeof params?.viewpoint_step_deg === 'number' ? params.viewpoint_step_deg : 45;
-}
-
 /**
  * **경로 → 명령 계산을 액션 아이템에 남긴다** (260914 지시 — 「최종적으로 내려진 제어 명령들」).
  * 실제로 나간 바이트는 로봇 명령 표(`commandsOfTask('T-B2')`)에 따로 쌓인다.
@@ -259,13 +254,11 @@ function currentStepDeg(params: Record<string, unknown> | null): number {
 function logApproachPlan(plan: Extract<ApproachPlan, { ok: true }>): void {
   appendDetectLog({
     lane: 'screen', level: plan.notes.length > 0 ? 'warn' : 'info',
-    text: `이동 명령 계산 — 탐지 회전 ${signedTurn(plan.detectionTurnDeg)}(스캔 시작 기준)`
-      + (plan.turnedSinceStartCwDeg === null ? '' : ` · 로봇이 스캔 뒤 이미 ${signedTurn(plan.turnedSinceStartCwDeg)} 돌아 있음`)
+    text: `이동 명령 계산 — 탐지 회전 ${signedTurn(plan.detectionTurnDeg)}(스캔 시작 기준 · 로봇이 출발 방향에 서 있으므로 그대로)`
       + ` → 보낼 명령 ${plan.steps.map(stepWords).join(' · ')}`,
     detail: [
-      `출발 방위 ${plan.startYawDeg === null ? '모름' : `${plan.startYawDeg.toFixed(1)}°`} (${plan.startYawSource})`,
-      `지금 방위 ${plan.nowYawDeg === null ? '모름' : `${plan.nowYawDeg.toFixed(1)}°`} (${plan.nowYawSource})`,
       `경로 직진 ${plan.plannedForwardM.toFixed(3)} m`,
+      `직진 속도 ${plan.forwardVx} m/s`,
       ...plan.notes,
     ].join(' · '),
     tasks: [DETECT_TASKS.approach],
@@ -276,7 +269,7 @@ const signedTurn = (deg: number) => `${deg < 0 ? '왼쪽' : '오른쪽'} ${Math.
 
 function stepWords(step: TaskCommand): string {
   if (step.action === 'turn') return `turn ${step.parameters?.deg}°`;
-  if (step.action === 'move_forward') return `move_forward ${step.parameters?.distance_m} m`;
+  if (step.action === 'move_forward') return `move_forward ${step.parameters?.distance_m} m @ ${step.parameters?.vx ?? '기본'} m/s`;
   return `${step.action}(도착 정지)`;
 }
 
@@ -290,7 +283,7 @@ function stepWords(step: TaskCommand): string {
  * 순서도의 걸음이고, 직진이 덜 끝났을 때 그것을 접는다. 화면을 잠그지 않는다.
  */
 export function approachSteps(): readonly TaskCommand[] {
-  const plan = planApproach(currentStepDeg(currentMission().params));
+  const plan = planApproach();
   return plan.ok ? plan.steps : [];
 }
 
@@ -361,6 +354,23 @@ export function approachWords(): string | null {
  */
 export async function issueSdkStart(client: PhysicalClient): Promise<IssueOutcome> {
   return issueThroughTracker(client, NO_NODE, SDK_ACTIONS.start);
+}
+
+/**
+ * **「그 각도 그림이 화면에 떴다 — 다음 회전」** (260914 · pi7 `scan_continue`).
+ *
+ * 스캔 도중에 나가는 명령이지만 로봇을 움직이지 않고 태스크 노드도 없다(`NO_NODE`) — 결과가 `T-A3` 을 끝낸 것으로
+ * 읽히면 안 된다. 거절(`FAILED_PRECONDITION` · 사유는 message 의 `stale_rotation` / `no_scan_in_progress`)은
+ * 로그에만 남긴다. 로봇이 그 대기를 이미 시한으로 넘겼다는 뜻이라 스캔은 계속된다.
+ *
+ * 돌려주는 것은 발행 결과와 **종료 응답**(없으면 null)이다.
+ */
+export async function issueScanContinue(
+  client: PhysicalClient, rotationDeg: number, timeoutMs = 5000,
+): Promise<{ outcome: IssueOutcome; answer: UplinkMessage | null }> {
+  const outcome = await issueThroughTracker(client, NO_NODE, 'scan_continue', { rotation_deg: rotationDeg });
+  if (!outcome.sent) return { outcome, answer: null };
+  return { outcome, answer: await terminalAnswer(client, outcome.commandId, timeoutMs) };
 }
 
 export async function issueSdkStop(client: PhysicalClient): Promise<IssueOutcome> {

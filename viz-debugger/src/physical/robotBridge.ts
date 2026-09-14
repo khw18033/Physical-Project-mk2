@@ -18,8 +18,9 @@ import { noteIssue } from '../shared/notifications.ts';
 import type { ScenarioEvent } from '../model/types.ts';
 import { elapsedSec, applyEffects, noteCommandLog, robotSession } from './robotSession.ts';
 import { robotClient } from './robotClient.ts';
-import { uplinkWords, viewpointIndexOf, type UplinkMessage } from './uplink.ts';
+import { isScanHold, isScanRelease, uplinkWords, viewpointIndexOf, type UplinkMessage } from './uplink.ts';
 import { isReplayingRecord } from '../record/replayMode.ts';
+import { offerScanFrame } from './scanGate.ts';
 
 /**
  * uplink 하나를 화면 상태로. 되돌려주는 것은 뷰포인트 열에 넣은 프레임 수다.
@@ -52,7 +53,12 @@ export function receiveUplink(
     // 원문은 status 에만 있다. 없는 것을 지어 채우지 않는다.
     raw: message.kind === 'status' ? message.raw : '',
     // **몇 번째 각도의 줄인가.** 회전 보고가 아니면 null 이고, 그것이 정상이다.
-    index: message.kind === 'status' ? viewpointIndexOf(message.detail, viewpointCount) : null,
+    // 촬영 뒤 대기 · 풀림은 그 촬영의 칸에 붙인다 — `step` 이 촬영 순번(0부터)이다 (260914).
+    index: message.kind !== 'status' ? null
+      : (isScanHold(message.detail) || isScanRelease(message.detail)) && message.detail !== null
+        && message.detail.step >= 0 && message.detail.step < viewpointCount
+        ? message.detail.step
+        : viewpointIndexOf(message.detail, viewpointCount),
   });
 
   const effects = effectsOf(message, {
@@ -64,10 +70,15 @@ export function receiveUplink(
     viewpointCount,
   });
   const frames = applyEffects(effects);
-  for (const frame of frames) appendViewpoint(missionId, atSec, frame);
   // 이 봉투로 열에 넣은 프레임 수. **회전 프레임만 세면 안 된다** — 아래 판정 칠하기도
   // 프레임이고, 그것까지 세야 재생 머리가 그 뒤로 넘어간다.
-  let appended = frames.length;
+  let appended = 0;
+  for (const frame of frames) {
+    // **회전 보고는 문지기를 지난다** (260914) — 촬영이 흐르는 판에서는 칸을 촬영과 탐지 결과가 켠다.
+    appended += frame.channel === 'robot_state'
+      ? offerScanFrame(missionId, atSec, frame, 'turn')
+      : appendViewpoint(missionId, atSec, frame) ? 1 : 0;
+  }
 
   /**
    * **로봇이 돌아선 칸에 불이 켜진다** (연동 가이드 §5-3 · 260910 갱신).
@@ -257,9 +268,11 @@ export function receiveScanCapture(missionId: string, atSec: number, index: numb
     // 방위를 모르면 0 을 적지 않는다 — `door_turn` 견주기에 가짜 0도가 끼면 엉뚱한 칸이 초록이 된다.
     yawKnown: known !== null,
   }]);
-  for (const frame of frames) appendViewpoint(missionId, atSec, frame);
-  if (frames.length > 0) advanceRobotHead(missionId, atSec);
-  return frames.length;
+  // **촬영이 칸을 켠다 — 앞 칸의 탐지 결과가 온 뒤에** (260914 `scanGate.ts`).
+  let put = 0;
+  for (const frame of frames) put += offerScanFrame(missionId, atSec, frame, 'image');
+  if (put > 0) advanceRobotHead(missionId, atSec);
+  return put;
 }
 
 /** 그 걸음이 보고한 방위. 못 봤으면 0 — 표시용이고 칸을 고르는 데는 안 쓴다. */
