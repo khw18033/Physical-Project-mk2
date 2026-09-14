@@ -92,6 +92,11 @@ py -3.10 -m venv .venv
 .\.venv\Scripts\python.exe -m server.main
 ```
 
+**`.venv` 가 있으면 `viz-debugger` 의 `npm run dev` 가 이 서비스를 같이 띄운다** (260914).
+마지막 줄은 이것만 따로 띄울 때 쓴다(`npm run dev:generate` 도 같다). `npm run dev` 를 끄면
+프로세스 트리째 내리므로 이 서비스가 띄운 `llama-server` 도 남지 않는다 — 부모만 죽이면 남는다는
+것을 실측으로 확인했다(아래 「유령 `llama-server`」).
+
 `http://127.0.0.1:8802/generate/health` 를 열면 무엇이 떠 있는지 나온다 —
 붙은 엔진, 쓸 수 있는 가중치 목록, 지금 물고 있는 것, 그리고 **포트에서 실제로 답하는
 파일**(`serving_model`)까지. 마지막 것이 중요하다: `loaded_model` 은 우리가 띄웠다고

@@ -9,6 +9,7 @@
     "dev:mock": "node gateway/server.ts",
     "dev:web": "vite",
     "dev:stt": "node scripts/dev-stt.mjs",
+    "dev:generate": "node scripts/dev-generate.mjs",
     "build": "tsc -b && vite build",
     "build:standalone": "tsc -b && vite build --config vite.standalone.config.ts",
     "typecheck": "tsc -b --force && tsc -p gateway/tsconfig.json",

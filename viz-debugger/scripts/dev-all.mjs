@@ -1,7 +1,7 @@
 /**
  * scripts/dev-all.mjs
  *
- * 목 게이트웨이 · Vite 개발 서버 · STT 서비스를 한 번에 띄운다.
+ * 목 게이트웨이 · Vite 개발 서버 · STT 서비스 · 생성 서비스를 한 번에 띄운다.
  * 라이브러리를 늘리지 않으려고 concurrently 같은 도구 대신 child_process만 쓴다.
  *
  * **목 게이트웨이는 하나다.** 통합 전에는 10줄짜리 시나리오 재생기(server.mjs)와
@@ -13,6 +13,7 @@
 import { spawn } from 'node:child_process';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { startGenerate, stopGenerate } from './dev-generate.mjs';
 import { startStt } from './dev-stt.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -25,8 +26,11 @@ const children = [
 // STT 서비스는 **없어도 되는 프로세스**다. 죽어도 나머지를 끌어내리지 않는다 (제약 5).
 // 그래서 위 children 배열에 넣지 않고 따로 들고 있다가 종료할 때만 같이 정리한다.
 const stt = startStt();
+// 생성 서비스도 **없어도 되는 프로세스**다 (260914 — 전에는 따로 띄워야 했다).
+// 끌 때는 트리째 내린다 — 자식 `llama-server` 가 남으면 다음 실행이 그 유령에게 묻는다.
+const generate = startGenerate();
 
-const stop = () => { children.forEach((child) => child.kill()); stt?.kill(); };
+const stop = () => { children.forEach((child) => child.kill()); stt?.kill(); stopGenerate(generate); };
 for (const signal of ['SIGINT', 'SIGTERM']) process.on(signal, () => { stop(); process.exit(0); });
 
 /**
@@ -43,10 +47,10 @@ for (const child of children) child.on('exit', (code) => {
   if (code) {
     console.error(`
 [dev] 필수 프로세스가 코드 ${code} 로 종료됐다 — 개발 스택 전체를 내린다.`);
-    console.error('[dev] **STT 서비스도 함께 내려간다.** 화면에 「STT 서비스에 닿지 않습니다」만 보이더라도');
+    console.error('[dev] **STT·생성 서비스도 함께 내려간다.** 화면에 「STT 서비스에 닿지 않습니다」만 보이더라도');
     console.error('[dev] 원인은 STT 가 아니라 위 로그의 종료 사유다. 포트가 이미 사용 중이라면');
     console.error('[dev] 이전 세션이 살아 있는 것이고, 그때 브라우저는 옛 세션에 붙어 있어 화면은 멀쩡해 보인다.');
-    console.error('[dev]   Get-NetTCPConnection -LocalPort 8790,5174,8801 -State Listen |');
+    console.error('[dev]   Get-NetTCPConnection -LocalPort 8790,5174,8801,8802,8803 -State Listen |');
     console.error('[dev]     ForEach-Object { Stop-Process -Id $_.OwningProcess -Force }');
   }
   stop();
