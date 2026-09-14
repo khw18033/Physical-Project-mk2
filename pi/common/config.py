@@ -117,7 +117,6 @@ EP_CONN_TYPE = _s("EP_CONN_TYPE", "rndis")    # rndis(USB) | sta(공유기) | ap
 EP_SUB_FREQ = _i("EP_SUB_FREQ", 50)           # SDK 구독 주기. 허용값 1/5/10/20/50
 EP_STALE_S = _f("EP_STALE_S", 1.0)            # 위치 표본이 이보다 오래되면 fault
 EP_BATTERY_STALE_S = _f("EP_BATTERY_STALE_S", 15.0)
-EP_SPEED_MOVING = _f("EP_SPEED_MOVING", 0.05) # 이 이상이면 움직이는 것으로 본다(m/s)
 EP_MISSION_SPEED = _f("EP_MISSION_SPEED", 0.3)  # start_mission 기본 전진 속도
 EP_MAX_SPEED = _f("EP_MAX_SPEED", 0.5)        # 링크 클램프 상한. 상위가 뭘 보내든 이 값
 EP_CMD_TIMEOUT_S = _f("EP_CMD_TIMEOUT_S", 1.0)  # 워치독 — 갱신 없으면 정지

@@ -147,12 +147,20 @@ class EpLink(ControllerLink):
             # 아직 한 건도 못 받았다. 값을 지어내지 않는다.
             raise RuntimeError("ep_state_unavailable")
 
+        # 모드는 **명령 사실**로 정한다. 속도로 추정하지 않는다.
+        #
+        # 처음에는 Go1Link 처럼 속도 임계로 추정했는데, 실측에서 로봇이 진동만 해도
+        # 속도 구독값이 임계를 넘어 모드가 계속 뒤집혔다(pi1 + EP, 2026-09-14).
+        # 표시만 틀리는 게 아니다 — robot_node 의 heartbeat_enabled() 가 임무 중에는
+        # 하트비트를 끄고 state 를 20Hz 로 올리므로, 백엔드는 하트비트가 끊긴 채
+        # 20Hz 스트림을 받게 된다.
+        #
+        # Go1 은 명령 경로가 막혀 있어(제어권 탈취 위험) 추정 말고는 방법이 없었지만,
+        # EP 는 명령 경로가 열려 있으니 추정할 이유가 없다. 우리가 시킨 것만 임무다.
         if pos_age is not None and pos_age > config.EP_STALE_S:
             mode = "unknown"
         elif mission:
             mode = "mission"
-        elif speed is not None and speed > config.EP_SPEED_MOVING:
-            mode = "mission"          # 사람이 앱으로 몰고 있어도 정지가 아니다
         else:
             mode = "idle"
 
