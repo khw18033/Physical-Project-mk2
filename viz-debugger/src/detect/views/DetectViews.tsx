@@ -253,6 +253,12 @@ export function DetectMap({ zoom = false, headSec }: { zoom?: boolean; headSec?:
    * 선을 그을 자리가 없다. 그때는 도면과 문 자리만 두고 「얼마나 돌고 얼마나 가나」를 적는다.
    */
   const overlay = path.path_overlay_available !== false;
+  /**
+   * **C 에서도 그림이 온다** (260914 지시 「C로 나와도 산출된 경로를 역추적해서 2D 맵에」). 탐지가 명령(문 방위·거리)을
+   * 문에서 거꾸로 따라가 그린다. **시연에서는 역추적이라고 적지 않는다**(같은 날 지시) — 그 사실은 탐지 근거
+   * (`path_overlay_kind` · `backtrace`)와 임무 기록에만 남는다.
+   */
+  const backtrace = path.path_overlay_kind === 'backtraced' ? path.backtrace ?? null : null;
 
   return <div className="detect-map">
     {overlay ? <img src={roundedImageUrl(pathImageUrl(source), state.imageRound)} alt="도면 위의 경로" /> : <FloorPlan urls={planUrls} />}
@@ -264,11 +270,15 @@ export function DetectMap({ zoom = false, headSec }: { zoom?: boolean; headSec?:
     </div>
     {zoom && <>
       <dl className="detect-map__rows">
-        <div><dt>로봇 위치</dt><dd>{path.robot_position_cm === null ? '모름 — 문 관측만으로 산출' : `${path.robot_position_cm.map((n) => n.toFixed(1)).join(', ')} cm`}</dd></div>
-        <div><dt>로봇 방위</dt><dd>{path.current_heading_map_deg === null ? '모름' : `${path.current_heading_map_deg}도 (도면 기준)`}</dd></div>
+        <div><dt>로봇 위치</dt><dd>{path.robot_position_cm !== null ? `${path.robot_position_cm.map((n) => n.toFixed(1)).join(', ')} cm`
+          : backtrace !== null ? `${backtrace.start_position_cm.map((n) => n.toFixed(1)).join(', ')} cm`
+            : '모름 — 문 관측만으로 산출'}</dd></div>
+        <div><dt>로봇 방위</dt><dd>{path.current_heading_map_deg !== null ? `${path.current_heading_map_deg}도 (도면 기준)`
+          : backtrace !== null ? `${backtrace.start_heading_map_deg}도 (도면 기준)` : '모름'}</dd></div>
         <div><dt>목표 위치</dt><dd>{path.target_position_cm.map((n) => n.toFixed(1)).join(', ')} cm{path.target_resolution !== undefined && ` · ${path.target_resolution.source}`}</dd></div>
         <div><dt>목표까지</dt><dd>{(path.distance_to_target_cm / 100).toFixed(2)} m</dd></div>
-        <div><dt>도착점</dt><dd>{path.goal_cm === null ? '모름' : `${path.goal_cm.map((n) => n.toFixed(1)).join(', ')} cm`}</dd></div>
+        <div><dt>도착점</dt><dd>{path.goal_cm !== null ? `${path.goal_cm.map((n) => n.toFixed(1)).join(', ')} cm`
+          : backtrace !== null ? `${backtrace.goal_cm.map((n) => n.toFixed(1)).join(', ')} cm` : '모름'}</dd></div>
       </dl>
       {/* **식과 대입값을 그대로.** 우리가 다시 계산하지 않는다 — 계산이 두 곳에 있으면
           하나만 고쳐지는 날이 온다. */}

@@ -112,8 +112,23 @@ export type DetectPath = {
   localization_method?: 'pedestal' | 'door_only' | null;
   localization_reason?: string | null;
   fallback_chain?: readonly FallbackStep[];
-  /** 경로 그림(`/detect/path_overlay`)이 있는가. C 에서는 없다. */
+  /** 경로 그림(`/detect/path_overlay`)이 있는가. */
   path_overlay_available?: boolean;
+  /**
+   * **그림이 무엇인가** (260914). `map` 은 추정한 로봇 자리에서 그린 것(A·B), `backtraced` 는 자리를 못 잡은 C 에서
+   * 명령(문 방위·거리)을 문에서 거꾸로 따라가 **가정한 출발 자리**로 그린 것이다. 옛 산출물에는 없다.
+   */
+  path_overlay_kind?: 'map' | 'backtraced' | null;
+  /** `backtraced` 일 때 — 가정과 식. `robot_position_cm` 은 여전히 null 이다(추정한 자리가 아니다). */
+  backtrace?: {
+    assumption: string;
+    start_position_cm: readonly number[];
+    start_heading_map_deg: number;
+    goal_cm: readonly number[];
+    start_inside_pedestal?: boolean;
+    calculation: Readonly<Record<string, { formula: string; substituted: string }>>;
+    note?: string;
+  } | null;
   /** 실패일 때만 — 왜 경로가 안 나왔나. */
   reason?: string;
   target_resolution?: { position_cm: readonly number[] | null; source: string; detail: string };

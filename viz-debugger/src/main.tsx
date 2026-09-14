@@ -177,8 +177,10 @@ function ReplayControls({ second, following, playing, onChange, onFollow, view, 
  */
 export type GraphScope = 'milestone' | 'mission';
 
-function GraphScreen({ screen, view, trace, milestone, tasks, headSec, playing, scope, onScope, refEdges, crossing, viewpoints, viewpointFill, onOpen, onBack, onGraph, openTask, nodeRequest }: {
+function GraphScreen({ screen, view, trace, milestone, tasks, headSec, playing, scope, onScope, refEdges, crossing, viewpoints, viewpointFill, onOpen, onBack, onGraph, openTask, nodeRequest, onMilestone }: {
   screen: Screen; view: MissionView; milestone: MissionMilestone | null; tasks: Task[];
+  /** 이전 · 다음 마일스톤으로 (260914 지시). 태스크가 있는 마일스톤만 오간다. */
+  onMilestone(id: string): void;
   /** 흘러온 기록 열. 접기·되감기·타임라인이 전부 이것만 본다 (260904). */
   trace: readonly ScenarioEvent[];
   headSec: number; playing: boolean;
@@ -321,9 +323,36 @@ function GraphScreen({ screen, view, trace, milestone, tasks, headSec, playing, 
       : <button type="button" className="crumbs__link" onClick={onGraph}>{here}</button>}
     {openTask !== null && <><span className="crumbs__sep" aria-hidden="true">›</span><span className="crumbs__here">{openTask.id} {openTask.title}</span></>}
   </nav>;
+  /**
+   * **이전 · 다음 마일스톤** (260914 지시 — 「메인 화면으로 나가서 마일스톤을 골라야 했다」).
+   *
+   * 머리줄 가운데에 둔다. 태스크가 없는 마일스톤(옛 편의 MS-A·B 등)은 그래프가 비므로 건너뛴다 —
+   * 그래프에 들어갈 마일스톤을 고르는 규칙(`graphMilestone`)과 같다. 「임무 전체」로 보고 있으면 오갈
+   * 마일스톤이 없으므로 누르면 그 마일스톤 보기로 돌아간다.
+   */
+  const steppable = view.milestones.filter((item) => view.tasks.some((task) => task.milestone === item.id));
+  const at = milestone === null ? -1 : steppable.findIndex((item) => item.id === milestone.id);
+  const prevMilestone = at > 0 ? steppable[at - 1] : null;
+  const nextMilestone = at >= 0 && at < steppable.length - 1 ? steppable[at + 1] : null;
+  const goMilestone = (target: MissionMilestone | null) => {
+    if (target === null) return;
+    onMilestone(target.id);
+    onScope('milestone');
+  };
+  const stepper = steppable.length > 1 && <nav className="milestone-stepper" aria-label="마일스톤 이동">
+    <button type="button" disabled={prevMilestone === null} onClick={() => goMilestone(prevMilestone)}
+      title={prevMilestone === null ? '첫 마일스톤입니다' : `${prevMilestone.id} ${prevMilestone.title}`}>
+      ◀ 이전 마일스톤{prevMilestone !== null && <small>{prevMilestone.id}</small>}
+    </button>
+    <span className="milestone-stepper__at">{at >= 0 ? `${at + 1} / ${steppable.length}` : `– / ${steppable.length}`}</span>
+    <button type="button" disabled={nextMilestone === null} onClick={() => goMilestone(nextMilestone)}
+      title={nextMilestone === null ? '마지막 마일스톤입니다' : `${nextMilestone.id} ${nextMilestone.title}`}>
+      {nextMilestone !== null && <small>{nextMilestone.id}</small>}다음 마일스톤 ▶
+    </button>
+  </nav>;
   return <div className={replay ? 'replay-layout' : ''}>{/* **손으로 쓴 네 줄이 실제 목록이 됐다** (260912 지시). 이 세션에서 끝난 판만
         쌓이고, 그 사실을 목록이 스스로 적는다. */}
-    {replay && <aside className="history"><h2>임무 이력</h2><MissionHistoryList /></aside>}<section className="graph-panel"><header className="section-title"><div>{crumbs}<h2>{title}</h2><small>{replay ? `${recorded !== null ? `저장된 판 ${recorded.date}/${recorded.run} · ` : ''}리플레이 · T+${String(Math.round(second)).padStart(2, '0')}s` : failure ? (failedTask ? '실패 경로 강조 · 관련 없는 노드 흐림' : '이 대본에는 실패가 없습니다 — 결함 주입(REQ-1409)으로 만들 수 있습니다') : shapeLabel(shape)}</small></div><div className="toggle"><button className={scope === 'milestone' ? 'active' : ''} onClick={() => onScope('milestone')}>이 마일스톤</button><button className={scope === 'mission' ? 'active' : ''} onClick={() => onScope('mission')}>임무 전체</button></div></header><Palette canvas={canvas} pickedTaskId={picked?.id ?? null} pickedTaskTitle={picked?.title ?? null} /><TaskGraph tasks={tasks} hardware={listRegisteredHardware()} states={folded.tasks} selected={failure ? failedTask?.id : undefined} dimUnrelated={failure && failedTask !== null} refEdges={refEdges} viewpoints={viewpoints} viewpointFill={viewpointFill} onOpen={(task) => onOpen(task, folded.tasks[task.id]?.status === 'failed')} canvas={canvasLayer} />
+    {replay && <aside className="history"><h2>임무 이력</h2><MissionHistoryList /></aside>}<section className="graph-panel"><header className="section-title section-title--graph"><div>{crumbs}<h2>{title}</h2><small>{replay ? `${recorded !== null ? `저장된 판 ${recorded.date}/${recorded.run} · ` : ''}리플레이 · T+${String(Math.round(second)).padStart(2, '0')}s` : failure ? (failedTask ? '실패 경로 강조 · 관련 없는 노드 흐림' : '이 대본에는 실패가 없습니다 — 결함 주입(REQ-1409)으로 만들 수 있습니다') : shapeLabel(shape)}</small></div>{stepper || <span />}<div className="toggle"><button className={scope === 'milestone' ? 'active' : ''} onClick={() => onScope('milestone')}>이 마일스톤</button><button className={scope === 'mission' ? 'active' : ''} onClick={() => onScope('mission')}>임무 전체</button></div></header><Palette canvas={canvas} pickedTaskId={picked?.id ?? null} pickedTaskTitle={picked?.title ?? null} /><TaskGraph tasks={tasks} hardware={listRegisteredHardware()} states={folded.tasks} selected={failure ? failedTask?.id : undefined} dimUnrelated={failure && failedTask !== null} refEdges={refEdges} viewpoints={viewpoints} viewpointFill={viewpointFill} onOpen={(task) => onOpen(task, folded.tasks[task.id]?.status === 'failed')} canvas={canvasLayer} />
     {/* 마일스톤 밖으로 나가는 되돌아감 — 적지 않으면 사용자는 루프의 존재를 모른다 (결정 2). */}
     {crossing.length > 0 && <p className="ref-crossing">↺ {crossing.map((edge) => `${edge.from} → ${edge.to} (${edge.label})`).join(' · ')} — 이 마일스톤 밖으로 되돌아갑니다 <button onClick={() => onScope('mission')}>임무 전체로 보기</button></p>}
     {replay && <ReplayControls second={second} following={override === null} playing={playing} onChange={setOverride} onFollow={() => setOverride(null)} view={view} trace={trace} tasks={tasks} />}<StatusLegend /><Explain id="dbg-1" className="hint">노드를 더블클릭하면 액션 아이템 상세를 엽니다. 실패 상태 노드는 수정 화면으로 이어집니다. 뷰 노드를 더블클릭하면 그 자리에서 확대됩니다 — 캔버스는 뒤에 그대로 있습니다.</Explain></section>
@@ -529,7 +558,8 @@ export function MissionDebugger({ navigation, planApproval }: { navigation?: Deb
       onBack={() => { setScope('milestone'); navigate('milestones'); }}
       onGraph={() => navigate('graph')}
       openTask={modalTask}
-      nodeRequest={nodeRequest} />}
+      nodeRequest={nodeRequest}
+      onMilestone={setMilestoneId} />}
     {modalTask && <ActionModal task={modalTask} view={view} device={listRegisteredHardware().find((item) => item.id === modalTask.target)} failure={screen === 'failure'} onClose={() => { setModalTask(null); if (screen === 'detail') setScreen('graph'); }} />}
     {screen === 'failure' && !modalTask && firstFailed && <button className="failure-open" onClick={() => setModalTask(firstFailed)}>실패 수정 팝업 열기</button>}
     {/* 자체 관측 (VZ-O-04) — devpanel 이라 통합 셸에서는 목·개발 모드에서만 뜨고,

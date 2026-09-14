@@ -618,6 +618,14 @@ button.robot-stop:hover{background:#b8271f}
 .detect-strip figure:focus-visible{outline:2px solid #1768c5;outline-offset:2px}
 .detect-strip .is-shown img{outline:2px solid #1768c5;outline-offset:1px}
 .detect-strip .is-shown figcaption{color:#1768c5;font-weight:700}
+/* 이전 · 다음 마일스톤 (260914) — 그래프 머리줄 가운데 */
+.section-title--graph{display:grid;grid-template-columns:1fr auto 1fr;align-items:start;gap:12px}
+.section-title--graph>.toggle{justify-self:end}
+.milestone-stepper{display:flex;align-items:center;gap:8px;align-self:center}
+.milestone-stepper button{display:inline-flex;align-items:center;gap:6px;border:1px solid #cbd3de;background:#fff;border-radius:7px;padding:9px 12px}
+.milestone-stepper button:disabled{opacity:.45;cursor:default}
+.milestone-stepper button small{color:#1768c5;font-weight:700}
+.milestone-stepper__at{font-size:12px;color:#657286;font-variant-numeric:tabular-nums;min-width:44px;text-align:center}
 .detect-cam__back{margin-left:6px;padding:1px 8px;border:1px solid #b9c6d6;border-radius:6px;background:#f4f7fb;font-size:11px;cursor:pointer}
 
 .detect-reason{display:grid;gap:5px;font-size:12px}
