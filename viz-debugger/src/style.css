@@ -614,6 +614,11 @@ button.robot-stop:hover{background:#b8271f}
 .detect-strip img{max-height:72px;border:1px solid #dde3ea}
 .detect-strip .is-found img{border:2px solid #2f9e5f}
 .detect-strip figcaption{font-size:10px;color:#6b7888;text-align:center}
+.detect-strip figure{cursor:pointer;border-radius:4px}
+.detect-strip figure:focus-visible{outline:2px solid #1768c5;outline-offset:2px}
+.detect-strip .is-shown img{outline:2px solid #1768c5;outline-offset:1px}
+.detect-strip .is-shown figcaption{color:#1768c5;font-weight:700}
+.detect-cam__back{margin-left:6px;padding:1px 8px;border:1px solid #b9c6d6;border-radius:6px;background:#f4f7fb;font-size:11px;cursor:pointer}
 
 .detect-reason{display:grid;gap:5px;font-size:12px}
 .detect-reason__head{display:flex;align-items:center;gap:7px}

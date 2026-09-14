@@ -173,6 +173,8 @@ await freshRun();
   const views = (await import('node:fs')).readFileSync(join(root, 'src', 'detect', 'views', 'DetectViews.tsx'), 'utf8');
   if (!/if \(frames\.length < count\) return frames\.at\(-1\)/.test(views)) failures.push('탐지 영상이 도는 동안 최신 각도를 안 따라간다');
   if (!/onLoad=\{\(\) => noteScanImageShown\(url\)\}/.test(views)) failures.push('탐지 영상 img 가 다 그렸다고 문지기에 안 알린다');
+  // 큰 자리를 다른 각도로 골라 둬도(작은 각도 클릭) 작은 그림이 뜬 것을 알린다 — 안 그러면 로봇이 15초씩 선다.
+  if (!/onLoad=\{\(\) => noteScanImageShown\(thumb\)\}/.test(views)) failures.push('작은 각도 그림이 뜬 것을 문지기에 안 알린다 — 큰 자리를 골라 두면 로봇이 멈춘다');
   gate.resetScanGate();
 }
 

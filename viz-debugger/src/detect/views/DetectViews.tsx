@@ -78,24 +78,44 @@ export function DetectCam({ zoom = false }: { zoom?: boolean }) {
   const state = useDetect();
   const source = viewSourceOf(state);
   const score = (f: DetectFrame) => state.evidence[f.frame]?.final_score ?? 0;
-  const frame = focusFrame(state.frames, score, viewpointCountOf());
+  const focus = focusFrame(state.frames, score, viewpointCountOf());
+  /**
+   * **아래 작은 각도를 누르면 그 각도를 크게** (260914 지시). 고른 것이 없거나 그 판에 더는 없는 각도면
+   * 원래대로(도는 동안 최신 · 다 돌면 고른 각도). 같은 칸을 한 번 더 누르거나 「원래대로」로 푼다.
+   */
+  const [pickedFrame, setPickedFrame] = useState<string | null>(null);
+  const picked = pickedFrame === null ? null : state.frames.find((item) => item.frame === pickedFrame) ?? null;
+  const frame = picked ?? focus;
   // **이 뷰가 떠 있다고 문지기에 알린다** — 각도 칸은 여기 그림이 다 그려진 뒤에 넘어간다.
   useEffect(() => registerScanImageView(), []);
   if (frame === null) return <Waiting what="탐지 영상이 아직 없습니다" />;
 
   // 찾은 각도는 상자 입힌 것을, 못 찾은 각도는 원본을 — 없는 상자를 그린 척하지 않는다.
-  const kind = frame.found ? 'target_overlay' : 'original';
-  const url = roundedImageUrl(frameImageUrl(source, frame.frame, kind), state.imageRound);
+  const urlOf = (item: DetectFrame) => roundedImageUrl(frameImageUrl(source, item.frame, item.found ? 'target_overlay' : 'original'), state.imageRound);
+  const url = urlOf(frame);
+  const toggle = (item: DetectFrame) => setPickedFrame((current) => (current === item.frame ? null : item.frame));
   return <div className={`detect-cam${zoom ? ' detect-cam--zoom' : ''}`}>
     <img src={url} alt={`${frame.rotation_deg}도 프레임`} onLoad={() => noteScanImageShown(url)} onError={() => noteScanImageFailed(url)} />
     <span className="detect-cam__at">
       {frame.rotation_deg}도 · {frame.found ? '문 있음' : '문 없음'}
+      {picked !== null && picked.frame !== focus?.frame && <>
+        {' '}· 골라 본 각도
+        <button type="button" className="detect-cam__back" onClick={() => setPickedFrame(null)}>원래대로 ({focus?.rotation_deg ?? '-'}도)</button>
+      </>}
     </span>
     {zoom && <div className="detect-strip">
-      {state.frames.map((item) => <figure key={item.frame} className={item.found ? 'is-found' : ''}>
-        <img src={roundedImageUrl(frameImageUrl(source, item.frame, item.found ? 'target_overlay' : 'original'), state.imageRound)} alt={`${item.rotation_deg}도`} />
-        <figcaption>{item.rotation_deg}도</figcaption>
-      </figure>)}
+      {state.frames.map((item) => {
+        const thumb = urlOf(item);
+        return <figure key={item.frame}
+          className={`${item.found ? 'is-found' : ''}${item.frame === frame.frame ? ' is-shown' : ''}`}
+          role="button" tabIndex={0} title={`${item.rotation_deg}도를 크게 보기`}
+          onClick={() => toggle(item)}
+          onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); toggle(item); } }}>
+          {/* 작은 그림도 화면에 뜬 것이다 — 큰 자리를 다른 각도로 골라 둬도 문지기가 멈추지 않는다. */}
+          <img src={thumb} alt={`${item.rotation_deg}도`} onLoad={() => noteScanImageShown(thumb)} />
+          <figcaption>{item.rotation_deg}도</figcaption>
+        </figure>;
+      })}
     </div>}
   </div>;
 }

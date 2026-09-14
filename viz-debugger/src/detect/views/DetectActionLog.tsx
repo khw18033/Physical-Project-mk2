@@ -11,8 +11,8 @@
  */
 
 import { useEffect, useState } from 'react';
-import { planApproach } from '../../physical/approachPlan.ts';
-import { useRobotSession } from '../../physical/robotSession.ts';
+import { planApproach, wrapDeg } from '../../physical/approachPlan.ts';
+import { commandsOfTask, useRobotSession } from '../../physical/robotSession.ts';
 import { useDeviceStates } from '../../physical/deviceState.ts';
 import { hardwareTarget } from '../../physical/encode.ts';
 import { viewpointTaskIndex } from '../../physical/missionLink.ts';
@@ -104,6 +104,56 @@ export function PrepFacts({ taskId }: { taskId: string }) {
             <small> 도면 기준 — 로봇 방위와 기준점이 다릅니다</small></>}
         </dd>
       </div>
+    </dl>
+  </section>;
+}
+
+/**
+ * **`T-A3` 로봇이 1바퀴 돈다 — 한 바퀴 뒤 방위** (260914 지시).
+ *
+ * 각도 칸의 액션 아이템에는 그 회전 보고의 yaw 가 있지만, 여덟째 회전(출발 방향 복귀)은 칸이 없어 어디에도
+ * 안 보였다. 그 보고의 yaw 는 이미 받고 있다(`scan_turn` step 8 → `scanReturnYaw`) — pi7 쪽 변경 없이 여기 적는다.
+ *
+ * 출발 방위와 견준 차이가 한 바퀴의 누적 오차다. 탐지의 회전각은 출발 방향 기준이므로 이 차이만큼 이동이 어긋난다.
+ * 모든 값은 로봇 오도메트리 기준이고, 로봇이 안 실은 값은 「모름」으로 둔다.
+ */
+export function SweepFacts() {
+  const session = useRobotSession();
+  const prep = usePrepStage();
+  const startCapture = session.seenYaw[0];
+  const startPose = prep.pose.value?.headingDeg;
+  const start = startCapture ?? startPose ?? null;
+  const back = session.scanReturnYaw;
+  const drift = start !== null && back !== null ? wrapDeg(back - start) : null;
+  const scan = commandsOfTask(DETECT_TASKS.sweep).at(-1) ?? null;
+  const resultYaw = scan?.result.yaw_deg;
+  const turns = Object.entries(session.seenYaw)
+    .map(([index, yaw]) => [Number(index), yaw] as const)
+    .filter(([index]) => index > 0)
+    .sort((a, b) => a[0] - b[0]);
+  return <section className="prep-facts">
+    <h3>한 바퀴 방위 (yaw)</h3>
+    <dl>
+      <div>
+        <dt>출발 방위</dt>
+        <dd>{start === null ? '모름 — 0도 촬영 때 로봇 state 도, T-A2 방위도 없습니다'
+          : <><b>{start.toFixed(1)}°</b> <small>{startCapture !== undefined ? '0도 촬영 때 로봇 state' : 'T-A2 가 잡은 방위'}</small></>}</dd>
+      </div>
+      <div className="prep-facts__live">
+        <dt>한 바퀴 뒤 방위</dt>
+        <dd>{back === null
+          ? (session.scanIssued ? '아직 없습니다 — 여덟째 회전(출발 방향 복귀) 보고가 오면 적힙니다' : '스캔 전입니다')
+          : <><b>{back.toFixed(1)}°</b> <small>여덟째 회전(출발 방향 복귀) 보고의 yaw</small></>}</dd>
+      </div>
+      <div>
+        <dt>출발과 차이</dt>
+        <dd>{drift === null ? '모름' : <><b>{drift >= 0 ? '+' : ''}{drift.toFixed(1)}°</b> <small>한 바퀴 누적 오차 · 탐지 회전각이 이만큼 어긋난 방향에서 나간다</small></>}</dd>
+      </div>
+      {typeof resultYaw === 'number' && <div><dt>스캔 종료 결과</dt><dd>{resultYaw.toFixed(1)}° <small>scan_mission 결과의 yaw_deg</small></dd></div>}
+      {turns.length > 0 && <div>
+        <dt>회전별</dt>
+        <dd>{turns.map(([index, yaw]) => `${index}번 ${yaw.toFixed(1)}°`).join(' · ')}{back !== null && ` · 복귀 ${back.toFixed(1)}°`}</dd>
+      </div>}
     </dl>
   </section>;
 }

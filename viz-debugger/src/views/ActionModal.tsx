@@ -25,7 +25,7 @@ import {
   type CommandLogLine, type TaskCommandRecord,
 } from '../physical/robotSession.ts';
 import { DeviceStrip } from './DeviceStrip.tsx';
-import { ApproachFacts, DetectLogLines, isDetectTask, PathFacts, PrepFacts } from '../detect/views/DetectActionLog.tsx';
+import { ApproachFacts, DetectLogLines, isDetectTask, PathFacts, PrepFacts, SweepFacts } from '../detect/views/DetectActionLog.tsx';
 
 /** 명령 하나의 상태를 사람 말로. 로봇이 준 상태 그대로를 옮긴다. */
 const COMMAND_STATE: Record<TaskCommandRecord['state'], string> = {
@@ -152,6 +152,7 @@ export function ActionModal({ task, view, device, failure, onClose }: { task: Ta
       <PrepFacts taskId={task.id} />
       {/* **경로 산출 과정 · 최종 제어 명령** (260914 지시). T-B1 은 탐지가 경로를 어떻게 냈는지(대체
           경로 A→B→C · 문 거리 근거 · 식), T-B2 는 그 경로가 로봇 명령으로 어떻게 바뀌었는지(방위 보정). */}
+      {task.id === 'T-A3' && <SweepFacts />}
       {task.id === 'T-B1' && <PathFacts />}
       {task.id === 'T-B2' && <ApproachFacts />}
       <h3>로봇 명령 · 오간 로그</h3>
