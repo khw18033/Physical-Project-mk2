@@ -47,6 +47,9 @@ RUN pip install --no-cache-dir pillow
 WORKDIR /app
 COPY common/ /app/common/
 COPY robot/ /app/robot/
+# 검증 도구(bench.ep_cam_view 등)도 넣는다. 운영 엔트리포인트는 robot.robot_node 이고
+# bench 는 --entrypoint 로 골라 쓴다 — 현장에서 파이에 소스를 따로 두지 않아도 된다.
+COPY bench/ /app/bench/
 
 # 비루트. 단, USB 시리얼(/dev/ttyACM0)을 쓸 때는 compose 에서 dialout 그룹을 준다.
 #
