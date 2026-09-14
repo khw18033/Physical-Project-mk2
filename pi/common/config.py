@@ -114,7 +114,14 @@ GO1_CAM_ID = _i("GO1_CAM_ID", 1)
 # RoboMaster EP. Go1 과 달리 명령 경로를 연다(바퀴형이라 제어권 탈취 위험이 없다).
 # 대신 링크에서 속도를 클램프하고 워치독으로 정지시킨다 — robot/ep_link.py 참조.
 EP_CONN_TYPE = _s("EP_CONN_TYPE", "rndis")    # rndis(USB) | sta(공유기) | ap(직결)
-EP_SUB_FREQ = _i("EP_SUB_FREQ", 50)           # SDK 구독 주기. 허용값 1/5/10/20/50
+# SDK 구독 주기(허용값 1/5/10/20/50). 50 은 쓰지 마라 — position·attitude·velocity
+# 셋을 50Hz 로 함께 걸면 RNDIS 위에서 DDS 가 밀려 **값이 조용히 썩는다.**
+# 실측(pi1 + EP, 2026-09-14): 위치가 계속 0.0 으로 고정되고 배터리가 6·11 같은
+# 거짓값으로 읽혔다(실제 46). 오류가 나지 않아 알아채기 어렵다 — 10 에서는 24초간
+# 배터리 31.0 고정, 3초 전진에 x=0.558m 로 정상이었다.
+# 로봇 20Hz 보고(HW-R-03)에 10Hz 수집이면 표본이 부족해 보이지만, 부족한 표본보다
+# 썩은 표본이 나쁘다. 20 이 필요해지면 그 주기에서 위 두 값을 다시 실측하고 올린다.
+EP_SUB_FREQ = _i("EP_SUB_FREQ", 10)
 EP_STALE_S = _f("EP_STALE_S", 1.0)            # 위치 표본이 이보다 오래되면 fault
 EP_BATTERY_STALE_S = _f("EP_BATTERY_STALE_S", 15.0)
 EP_MISSION_SPEED = _f("EP_MISSION_SPEED", 0.3)  # start_mission 기본 전진 속도
