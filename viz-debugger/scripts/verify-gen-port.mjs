@@ -125,6 +125,9 @@ const SKIP_DIRS = new Set([
   'Library', 'Temp', 'Obj', 'obj', 'Logs', 'Build', 'Builds',
   // 받아 오는 것 — 가중치·바이너리·실행 산출물
   'models', 'vendor', '__pycache__',
+  // 260914 — 탐지 담당 저장소를 루트에 클론해 둔다(`.gitignore`). 남의 코드이고, 그 안의
+  // `venv` 만으로 2만 개를 넘겨 sympy 의 `.lark` 까지 걸렸다.
+  'physical_demo', 'venv',
 ]);
 // 걷는 양에 상한을 둔다. 넘으면 **통과가 아니라 실패**다 — 새 폴더가 들어와 검사가
 // 조용히 느려지는 것을 여기서 잡는다. 지금 8천 대이고 한도는 그 두 배 남짓이다.

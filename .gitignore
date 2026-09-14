@@ -53,3 +53,5 @@ Unity_Map/[Rr]ecordings/
 Unity_Map/*.csproj
 Unity_Map/*.sln
 Unity_Map/*.user
+
+physical_demo/
