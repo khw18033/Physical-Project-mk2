@@ -4,27 +4,40 @@
 # 하나로 갈리므로 이미지는 하나면 된다 — 기종별로 이미지를 나누면 공통 코어가
 # 두 벌이 되고, schema.py 를 고칠 때마다 둘 다 재빌드해야 한다.
 #
-#   docker buildx build --platform linux/arm64 -t hw-robot:<태그> \
-#          -f pi/robot/Dockerfile pi
+#   docker build -t hw-robot:latest -f pi/robot/Dockerfile pi
 #
-# ⚠ 말단은 aarch64 다. amd64 로 빌드해 밀어 넣으면 exec format error 로 죽는다.
+# 파이에서 직접 빌드하므로 이미 arm64 다. 크로스 빌드(buildx --platform)는 필요 없고,
+# 쓰면 amd64 이미지를 밀어 넣어 exec format error 로 죽는 사고만 는다.
 #
-# ⚠ 파이썬 3.11 을 쓴다(호스트 pi1 은 3.13). robomaster SDK 가 상정한 버전대이고,
+# ⚠ 파이썬 3.11 을 쓴다(호스트 pi1 은 3.13). RoboMaster SDK 가 상정한 범위이고,
 #   컨테이너가 호스트 파이썬과 무관해지는 것이 컨테이너를 쓰는 이유 중 하나다.
 FROM python:3.11-slim-bookworm
 
-# libopus: robomaster SDK 의 오디오 경로가 링크한다. 없으면 import 단계에서 죽는다.
-RUN apt-get update && apt-get install -y --no-install-recommends \
-        libopus0 \
-    && rm -rf /var/lib/apt/lists/*
-
-# 공통 의존. robomaster 는 EP 를 쓸 때만 필요하지만, 이미지를 하나로 두는 대가로
-# 항상 넣는다 — 기종 전환이 재빌드 없이 env 한 줄이 되는 편이 낫다.
-RUN pip install --no-cache-dir \
+# ⚠ PyPI 의 `robomaster` 는 쓸 수 없다 — DJI 가 x86·구버전 파이썬용만 올려두어
+#   aarch64/3.11 에는 **배포본이 아예 없다**(pip: "from versions: none").
+#   그래서 robomaster_ros 저자의 포크를 git 에서 설치한다. 공식 저장소의 결함을
+#   고쳐 둔 것이고, 나중에 ROS 2 경로로 가더라도 같은 포크를 쓴다.
+#
+# libopus-dev / build-essential / git 은 빌드에만 필요해서 같은 레이어에서 지운다.
+RUN set -eux; \
+    apt-get update; \
+    apt-get install -y --no-install-recommends \
+        git ca-certificates build-essential libopus-dev; \
+    pip install --no-cache-dir \
         paho-mqtt==2.1.0 \
         protobuf==7.36.1 \
         psutil \
-        robomaster
+        numpy numpy-quaternion pyyaml; \
+    pip install --no-cache-dir git+https://github.com/jeguzzi/RoboMaster-SDK.git; \
+    # 미디어 코덱은 카메라 경로에만 쓴다. EpLink 는 섀시·배터리만 읽으므로 없어도
+    # 되지만, 있으면 나중에 영상까지 열 수 있어 최선노력으로 시도한다.
+    pip install --no-cache-dir -i https://test.pypi.org/simple/ rm-libmedia-codec \
+        || echo "[build] rm-libmedia-codec 미설치 — 카메라 경로만 비활성, 구동에는 무관"; \
+    # 여기가 진짜 관문이다. import 가 안 되면 런타임이 아니라 빌드에서 멈춘다.
+    python -c "from robomaster import robot; print('[build] robomaster import ok')"; \
+    apt-get purge -y --auto-remove git build-essential libopus-dev; \
+    apt-get install -y --no-install-recommends libopus0; \
+    rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 COPY common/ /app/common/
