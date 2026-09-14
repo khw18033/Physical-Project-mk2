@@ -21,6 +21,7 @@ import { advanceDetectTasks } from './detectTrace.ts';
 import { detectBaseUrl } from './DetectClient.ts';
 import { startDetectPolling } from './poll.ts';
 import { detectState, subscribeDetect, useDetect } from './store.ts';
+import { isReplayingRecord } from '../record/replayMode.ts';
 
 export function useDetectUplink(missionId: string, params: Record<string, unknown> | null): void {
   const state = useDetect();
@@ -51,6 +52,8 @@ export function useDetectUplink(missionId: string, params: Record<string, unknow
    * 「아직 안 온 것」으로 걸러진다(로봇 연동에서 그대로 겪은 자리다).
    */
   useEffect(() => subscribeDetect(() => {
+    // **다시보기가 채운 결과로는 칠하지 않는다** (260914) — 칸과 노드 상태는 기록 열에 이미 있다.
+    if (isReplayingRecord()) return;
     const at = elapsedSec();
     const put = applyDetection(missionId, at, stepDeg, count);
     // **태스크 노드도 민다** (260912). 여덟 칸만 차고 노드가 대기로 남으면 마일스톤이

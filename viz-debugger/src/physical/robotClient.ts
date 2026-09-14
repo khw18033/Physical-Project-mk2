@@ -20,6 +20,7 @@ import { hardwareTarget } from './encode.ts';
 import { receiveScanCapture } from './robotBridge.ts';
 import { elapsedSec } from './robotSession.ts';
 import { initPrepStage } from './prepStage.ts';
+import { noteRobotFrame } from '../record/recorder.ts';
 import type { PhysicalStatus } from './PhysicalClient.ts';
 
 /**
@@ -78,6 +79,8 @@ export function robotClient(): PhysicalClient {
       const stepDeg = typeof params?.viewpoint_step_deg === 'number' ? params.viewpoint_step_deg : 45;
       const count = typeof params?.viewpoint_count === 'number' ? params.viewpoint_count : 8;
       noteScanFeed(message, stepDeg, count);
+      // 로봇이 찍은 원본을 임무 기록에 남긴다 (260914) — 탐지 그림과 견줄 수 있게.
+      noteRobotFrame(message);
       // **촬영이 그 칸을 켠다** (260914) — 0도 노드는 회전 없이 촬영만 하므로 이것만이 그 칸을 켠다.
       if (message.kind === 'frame') {
         const index = indexOfRotation(message.rotationDeg, stepDeg, count);

@@ -83,6 +83,22 @@
 .history-label,.history-why{flex-basis:100%;color:#6b7888}
 .history-why{color:#8f2b26}
 .history-note{margin:10px 0 0;color:#8a94a1;font-size:11px}
+/* 임무 기록 (260914) — 저장된 판을 날짜별로, 줄마다 다시보기 */
+.replay-layout{grid-template-columns:300px 1fr}
+.history{max-height:calc(100vh - 140px);overflow:auto}
+.history-day{margin-top:10px}
+.history-day h3{margin:0 0 6px;font-size:13px;color:#39434f}
+.history-day h3 small{color:#8a94a1;font-weight:400}
+.history-list li time{margin-left:0;color:#4a5666}
+.history-list li.is-open{border-style:dashed}
+.history-list li.is-replaying{box-shadow:0 0 0 2px #1768c5}
+.history .history-action,.history-list .history-action{width:auto;margin:0 0 0 auto;padding:2px 9px;border:1px solid #b9c6d6;border-radius:6px;background:#f4f7fb;font-size:11px;text-align:center;cursor:pointer}
+.history-list .history-action:disabled{opacity:.5;cursor:default}
+.history-note .history-action{margin-left:6px}
+.history-recorder{margin:0 0 8px;font-size:11px;color:#125c33}
+.history-recorder code,.history-note code,.history-replaying code{font-size:10px;word-break:break-all}
+.history-replaying{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:0 0 10px;padding:8px 10px;border:1px solid #9cc0ea;border-radius:7px;background:#eef5fd;font-size:12px}
+.history-replaying small{flex-basis:100%;color:#4a5666}
 /* 통합 알림 (260913) — 어느 갈래·언제·무슨 일인지 셋을 한 줄에. 문구는 온 값 그대로다. */
 .notifications-empty{margin:0;color:#6a7686;font-size:13px}
 .notification-list{margin:0;padding:0;list-style:none;display:grid;gap:6px}

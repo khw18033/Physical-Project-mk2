@@ -119,7 +119,7 @@ export function AppShell({ debuggerView, onDebuggerHome, onMissionHistory, onOpe
     </header>
     {/* 연결 관리는 폼이라 목록 판과 모양이 다르다 — 자기 부품이 그린다 (`VZ-C-07`). */}
     {panel === 'connections' && <ConnectionsPanel onClose={() => setPanel(null)} physical={robotProbe()} />}
-    {panel !== null && panel !== 'connections' && <aside className="global-panel"><header><b>{panel === 'history' ? '임무 이력' : '통합 알림'}</b><button onClick={() => setPanel(null)}>닫기</button></header>{panel === 'history' ? <MissionHistoryList compact /> : notifications.length === 0
+    {panel !== null && panel !== 'connections' && <aside className="global-panel"><header><b>{panel === 'history' ? '임무 이력' : '통합 알림'}</b><button onClick={() => setPanel(null)}>닫기</button></header>{panel === 'history' ? <MissionHistoryList compact onReplay={() => { onMissionHistory(); setPanel(null); }} /> : notifications.length === 0
       /* **비어 있으면 비었다고 적는다** (260913 지시). 전에는 일어난 적 없는 두 줄이 늘
          박혀 있어서 뱃지가 언제나 「알림 2」였다. */
       ? <p className="notifications-empty">아직 올라온 알림이 없습니다</p>

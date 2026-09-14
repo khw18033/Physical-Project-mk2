@@ -353,6 +353,53 @@ export const PREP_SEC = 5;
 let prepTimer: ReturnType<typeof setTimeout> | null = null;
 let unregisterPrep: (() => void) | null = null;
 
+/**
+ * **기록에 남기는 몫** (260914 — 임무 기록). 연결·ping 은 이 기기의 지금 사정이라 뺀다.
+ */
+export type RecordedRobotSession = Pick<RobotSession,
+  'commands' | 'warnings' | 'progress' | 'doorTurn' | 'doorIndex' | 'seenYaw' | 'litIndices' | 'scanReturnYaw'
+  | 'scanIssued' | 'approachIssued' | 'approved' | 'stopped' | 'paused' | 'approvedAtMs' | 'started' | 'startedAtMs'
+  | 'prepared' | 'preparedAtMs' | 'stage' | 'unsupported' | 'walked'>;
+
+export function recordableRobotSession(): RecordedRobotSession {
+  const {
+    commands, warnings, progress, doorTurn, doorIndex, seenYaw, litIndices, scanReturnYaw, scanIssued, approachIssued,
+    approved, stopped, paused, approvedAtMs, started, startedAtMs, prepared, preparedAtMs, stage, unsupported, walked,
+  } = session;
+  return {
+    commands, warnings, progress, doorTurn, doorIndex, seenYaw, litIndices, scanReturnYaw, scanIssued, approachIssued,
+    approved, stopped, paused, approvedAtMs, started, startedAtMs, prepared, preparedAtMs, stage, unsupported, walked,
+  };
+}
+
+/**
+ * **다시보기 — 지난 판의 명령과 응답을 도로 채운다** (260914).
+ *
+ * 액션 아이템이 읽는 값(명령 · 로그 · 방위)만 되살린다. **승인·시작·정지는 안 되살린다** —
+ * 그 셋이 참이면 스캔을 쏘거나 도면을 받으러 가거나 화면을 잠그는 쪽이 깨어난다. 다시보기는
+ * 로봇을 움직이지 않는다. 그 셋의 원래 값은 기록 파일에 그대로 있다.
+ */
+export function restoreRobotSession(saved: Partial<RecordedRobotSession>): void {
+  cancelPrep();
+  stopAllTimers();
+  commit({
+    ...EMPTY,
+    connection: session.connection,
+    ping: session.ping,
+    commands: saved.commands ?? {},
+    warnings: saved.warnings ?? {},
+    progress: saved.progress ?? null,
+    doorTurn: saved.doorTurn ?? null,
+    doorIndex: saved.doorIndex ?? null,
+    seenYaw: saved.seenYaw ?? {},
+    litIndices: saved.litIndices ?? {},
+    scanReturnYaw: saved.scanReturnYaw ?? null,
+    unsupported: saved.unsupported ?? {},
+    walked: saved.walked ?? null,
+    approachIssued: saved.approachIssued ?? false,
+  });
+}
+
 function cancelPrep(): void {
   if (prepTimer !== null) { clearTimeout(prepTimer); prepTimer = null; }
   if (unregisterPrep !== null) { unregisterPrep(); unregisterPrep = null; }

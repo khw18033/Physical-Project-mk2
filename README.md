@@ -163,6 +163,7 @@ py -3.10 -m venv .venv
 |---|---|
 | [`contracts/`](contracts/) | 파트 간 JSON 스키마와 예제, 검증 스크립트 |
 | [`places/`](places/) | 장소 계약. Unity 맵에서 뽑되 좌표와 의미를 층으로 가른다 |
+| `mission-history/` | **임무 기록** — 관제 웹이 판마다 남기는 기록과 받은 그림(날짜/시각_임무). git 에 안 올라간다. [viz-debugger/README.md](viz-debugger/README.md) 「임무 기록」 |
 
 ---
 

@@ -35,6 +35,7 @@ import type { ScenarioEvent } from '../model/types.ts';
 import { noteIssue } from '../shared/notifications.ts';
 import { deviceState, subscribeDevices } from './deviceState.ts';
 import { hardwareTarget } from './encode.ts';
+import { isReplayingRecord, subscribeReplayMode } from '../record/replayMode.ts';
 import {
   elapsedSec, markPrepTasksDone, robotDrives, robotSession, subscribeRobot,
 } from './robotSession.ts';
@@ -184,7 +185,7 @@ async function loadFloorPlan(runKey: number): Promise<void> {
 
 /** **T-A2 — 로봇이 보고한 지금 방위.** 시작 무렵 한 주기 안에 온 state 만 친다. */
 function checkPose(): void {
-  if (state.runKey === null || state.pose.step === 'done') return;
+  if (state.runKey === null || state.pose.step === 'done' || isReplayingRecord()) return;
   const device = deviceState(hardwareTarget(ROBOT_ENTITY));
   const position = device?.position ?? null;
   const at = device?.positionAtMs ?? null;
@@ -213,6 +214,8 @@ function checkPose(): void {
 
 /** 시작이 바뀌었는지 본다. 새 시작이면 두 걸음을 처음부터 한다. */
 function checkSession(): void {
+  // 다시보기가 채운 준비 값은 그대로 둔다 — 세션이 비어 있다고 지우지 않는다.
+  if (isReplayingRecord()) return;
   const session = robotSession();
   if (!session.started || session.startedAtMs === null) {
     if (state.runKey !== null) commit(IDLE);
@@ -258,6 +261,16 @@ export function initPrepStage(): void {
   initialised = true;
   subscribeRobot(checkSession);
   subscribeDevices(checkPose);
+  // 다시보기를 닫으면 그 판의 준비 값을 걷는다 — 다음 판 시작 전까지 남아 있으면 지난 판이 보인다.
+  subscribeReplayMode(() => { if (!isReplayingRecord()) commit(IDLE); });
+}
+
+/**
+ * **다시보기 — 지난 판의 준비 값** (260914). `runKey` 는 비운다 — 채워 두면 세션을 볼 때마다
+ * 「시작이 바뀌었다」로 읽혀 다시 도면을 받으러 간다. 도면 주소는 부르는 쪽이 기록 폴더로 바꿔 준다.
+ */
+export function restorePrepStage(saved: PrepState): void {
+  commit({ ...saved, runKey: null });
 }
 
 /** 검사가 판을 비울 때. */

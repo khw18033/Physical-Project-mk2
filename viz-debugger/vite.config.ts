@@ -3,6 +3,8 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { resolve, join, normalize } from 'node:path';
 import { createReadStream, cpSync, existsSync, statSync } from 'node:fs';
+// 임무 기록을 파일로 남기는 창구 (260914) — 새로고침해도 리허설 기록이 남는다.
+import { missionRecords } from './scripts/mission-records.mjs';
 
 /**
  * **탐지 시료를 `/detect-sample` 로 내준다** (260912).
@@ -49,7 +51,7 @@ function detectSample() {
 
 export default defineConfig({
   base: './',
-  plugins: [react(), detectSample()],
+  plugins: [react(), detectSample(), missionRecords()],
   server: {
     port: 5174,
     strictPort: true,

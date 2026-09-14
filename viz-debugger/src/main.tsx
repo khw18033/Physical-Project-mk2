@@ -36,6 +36,8 @@ import { useDetectUplink } from './detect/useDetect.tsx';
 import { HardwareLink } from './physical/HardwareLink.tsx';
 import { robotClient } from './physical/robotClient.ts';
 import { framesUpTo } from './viewpoint/store.ts';
+import { startMissionRecorder } from './record/recorder.ts';
+import { useReplayTarget } from './record/replayMode.ts';
 
 type Screen = 'milestones' | 'graph' | 'detail' | 'replay' | 'failure';
 
@@ -198,6 +200,8 @@ function GraphScreen({ screen, view, trace, milestone, tasks, headSec, playing, 
   nodeRequest: { kind: string; taskId: string | null; requestId: number } | null;
 }) {
   const replay = screen === 'replay'; const failure = screen === 'failure';
+  /** 저장된 판을 다시 보는 중이면 그 판 (260914). 머리줄에 어느 판인지 적는다. */
+  const recorded = useReplayTarget();
   /** 되감기 위치. null 이면 재생 머리를 따라간다(live). */
   const [override, setOverride] = useState<number | null>(null);
   useEffect(() => setOverride(null), [view.missionId, screen]);
@@ -319,7 +323,7 @@ function GraphScreen({ screen, view, trace, milestone, tasks, headSec, playing, 
   </nav>;
   return <div className={replay ? 'replay-layout' : ''}>{/* **손으로 쓴 네 줄이 실제 목록이 됐다** (260912 지시). 이 세션에서 끝난 판만
         쌓이고, 그 사실을 목록이 스스로 적는다. */}
-    {replay && <aside className="history"><h2>임무 이력</h2><MissionHistoryList /></aside>}<section className="graph-panel"><header className="section-title"><div>{crumbs}<h2>{title}</h2><small>{replay ? `리플레이 · T+${String(Math.round(second)).padStart(2, '0')}s` : failure ? (failedTask ? '실패 경로 강조 · 관련 없는 노드 흐림' : '이 대본에는 실패가 없습니다 — 결함 주입(REQ-1409)으로 만들 수 있습니다') : shapeLabel(shape)}</small></div><div className="toggle"><button className={scope === 'milestone' ? 'active' : ''} onClick={() => onScope('milestone')}>이 마일스톤</button><button className={scope === 'mission' ? 'active' : ''} onClick={() => onScope('mission')}>임무 전체</button></div></header><Palette canvas={canvas} pickedTaskId={picked?.id ?? null} pickedTaskTitle={picked?.title ?? null} /><TaskGraph tasks={tasks} hardware={listRegisteredHardware()} states={folded.tasks} selected={failure ? failedTask?.id : undefined} dimUnrelated={failure && failedTask !== null} refEdges={refEdges} viewpoints={viewpoints} viewpointFill={viewpointFill} onOpen={(task) => onOpen(task, folded.tasks[task.id]?.status === 'failed')} canvas={canvasLayer} />
+    {replay && <aside className="history"><h2>임무 이력</h2><MissionHistoryList /></aside>}<section className="graph-panel"><header className="section-title"><div>{crumbs}<h2>{title}</h2><small>{replay ? `${recorded !== null ? `저장된 판 ${recorded.date}/${recorded.run} · ` : ''}리플레이 · T+${String(Math.round(second)).padStart(2, '0')}s` : failure ? (failedTask ? '실패 경로 강조 · 관련 없는 노드 흐림' : '이 대본에는 실패가 없습니다 — 결함 주입(REQ-1409)으로 만들 수 있습니다') : shapeLabel(shape)}</small></div><div className="toggle"><button className={scope === 'milestone' ? 'active' : ''} onClick={() => onScope('milestone')}>이 마일스톤</button><button className={scope === 'mission' ? 'active' : ''} onClick={() => onScope('mission')}>임무 전체</button></div></header><Palette canvas={canvas} pickedTaskId={picked?.id ?? null} pickedTaskTitle={picked?.title ?? null} /><TaskGraph tasks={tasks} hardware={listRegisteredHardware()} states={folded.tasks} selected={failure ? failedTask?.id : undefined} dimUnrelated={failure && failedTask !== null} refEdges={refEdges} viewpoints={viewpoints} viewpointFill={viewpointFill} onOpen={(task) => onOpen(task, folded.tasks[task.id]?.status === 'failed')} canvas={canvasLayer} />
     {/* 마일스톤 밖으로 나가는 되돌아감 — 적지 않으면 사용자는 루프의 존재를 모른다 (결정 2). */}
     {crossing.length > 0 && <p className="ref-crossing">↺ {crossing.map((edge) => `${edge.from} → ${edge.to} (${edge.label})`).join(' · ')} — 이 마일스톤 밖으로 되돌아갑니다 <button onClick={() => onScope('mission')}>임무 전체로 보기</button></p>}
     {replay && <ReplayControls second={second} following={override === null} playing={playing} onChange={setOverride} onFollow={() => setOverride(null)} view={view} trace={trace} tasks={tasks} />}<StatusLegend /><Explain id="dbg-1" className="hint">노드를 더블클릭하면 액션 아이템 상세를 엽니다. 실패 상태 노드는 수정 화면으로 이어집니다. 뷰 노드를 더블클릭하면 그 자리에서 확대됩니다 — 캔버스는 뒤에 그대로 있습니다.</Explain></section>
@@ -367,12 +371,27 @@ export function MissionDebugger({ navigation, planApproval }: { navigation?: Deb
 
   // 임무가 바뀌면(대본 승인) 한 편에 묶였던 화면 상태를 처음으로 되돌린다.
   useEffect(() => { setScreen('milestones'); setModalTask(null); setAssignments({}); setMilestoneId(null); setScope('milestone'); }, [view.missionId]);
+  /**
+   * **저장된 판을 열면 리플레이 화면의 임무 전체로** (260914). 위 효과 **뒤에** 둔다 — 다른 임무의
+   * 판을 열면 같은 그리기에서 둘이 같이 돌고, 나중 것이 이긴다.
+   */
+  const recordedRun = useReplayTarget();
+  useEffect(() => {
+    if (recordedRun === null) return;
+    setScreen('replay'); setModalTask(null); setScope('mission');
+  }, [recordedRun?.loadSerial]);
 
   /**
    * 자체 관측 집계 (`VZ-O-04` · 260904). **두 빌드가 공유하는 이 화면**이 켠다 —
    * 셸이 켜면 단독 빌드에서 안 돌고, 축 D는 바로 그 단독 빌드에서 재는 숫자다.
    */
   useEffect(() => startObservability(), []);
+
+  /**
+   * **임무 기록** (260914 — 「새로고침하면 다 날아간다」). 판마다 저장소 루트 `mission-history/` 에
+   * 쓴다. 여기 두는 이유는 위 관측과 같다 — 이 화면은 앱이 살아 있는 동안 안 사라진다.
+   */
+  useEffect(() => startMissionRecorder(), []);
 
   /**
    * **로봇 응답 수신** (260910). 여기 두는 이유는 위 관측과 같다 — 이 화면은 두 빌드가

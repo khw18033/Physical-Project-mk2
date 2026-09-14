@@ -22,6 +22,7 @@
 
 import { connectionAddress, registerConnectionDefault } from '../shared/connections.ts';
 import { DETECT_PRESETS } from './presets.ts';
+import { detectImagePath, recordFileUrl } from '../record/recordClient.ts';
 import type {
   DetectFeatures, DetectFrameEvidence, DetectLocalization, DetectPath, DetectSummary,
 } from './types.ts';
@@ -54,6 +55,17 @@ export type DetectSource = { kind: 'live'; base: string } | { kind: 'sample' };
 /** 지금 어디서 읽는가. 테스트가 켜져 있으면 시료, 아니면 실제 서비스. */
 export function sourceOf(testMode: boolean): DetectSource {
   return testMode ? { kind: 'sample' } : { kind: 'live', base: detectBaseUrl() };
+}
+
+/**
+ * **그림을 어디서 읽는가** (260914 — 임무 기록). 결과를 묻는 곳(`DetectSource`)과 달리 그림에는
+ * 자리가 하나 더 있다 — 다시보기 중이면 그 판의 기록 폴더다. 지난 판의 그림은 탐지 창구에 이미 없다.
+ */
+export type ImageSource = DetectSource | { kind: 'record'; date: string; run: string };
+
+/** 화면이 그릴 그림의 자리 — 다시보기 중이면 기록, 아니면 `sourceOf`. */
+export function viewSourceOf(state: { testMode: boolean; recordRun: { date: string; run: string } | null }): ImageSource {
+  return state.recordRun !== null ? { kind: 'record', ...state.recordRun } : sourceOf(state.testMode);
 }
 
 async function getJson<T>(url: string): Promise<T> {
@@ -170,10 +182,11 @@ export async function fetchFeatures(source: DetectSource, target: DetectClass = 
  * 깨진 그림이 뜬다. 여기서 **우리가 열 수 있는 주소**로 바꾼다.
  */
 export function frameImageUrl(
-  source: DetectSource, frame: string, kind: 'original' | 'rpn_overlay' | 'target_overlay' | 'target_crop',
+  source: ImageSource, frame: string, kind: 'original' | 'rpn_overlay' | 'target_overlay' | 'target_crop',
   target: DetectClass = 'door',
 ): string {
   const dir = frame.replace(/\.jpg$/, '');
+  if (source.kind === 'record') return recordFileUrl(source.date, source.run, detectImagePath({ frame, kind }));
   if (source.kind === 'sample') return `${SAMPLE_BASE}/${target}/${dir}/${kind}.jpg`;
   return `${source.base}/detect/frame?target=${target}&frame=${encodeURIComponent(frame)}&kind=${kind}`;
 }
@@ -184,7 +197,8 @@ export function frameImageUrl(
  * 전에는 경로가 없는 동안 그 자리가 통째로 비어 있었다 — 도면은 임무 내내 있는 것인데
  * 「경로가 아직 없습니다」만 떠서, 발표 초반에 2D 맵 뷰 노드가 빈 상자로 보였다.
  */
-export function mapImageUrl(source: DetectSource): string {
+export function mapImageUrl(source: ImageSource): string {
+  if (source.kind === 'record') return recordFileUrl(source.date, source.run, detectImagePath('map'));
   if (source.kind === 'sample') return `${SAMPLE_BASE}/unidepth_localization/map_original.jpg`;
   return `${source.base}/detect/map`;
 }
@@ -200,7 +214,7 @@ export function mapImageUrl(source: DetectSource): string {
  * 옮겨 적는다. 저장소의 `door_example` 에 같은 그림이 있으므로 그것으로 대신한다. 각도 결과나
  * 경로 같은 **판의 산출물은 대신하지 않는다.**
  */
-export function floorPlanUrls(source: DetectSource): readonly string[] {
+export function floorPlanUrls(source: ImageSource): readonly string[] {
   const bundled = `${SAMPLE_BASE}/unidepth_localization/map_original.jpg`;
   return source.kind === 'sample' ? [bundled] : [mapImageUrl(source), bundled];
 }
@@ -219,7 +233,8 @@ export function roundedImageUrl(url: string, round: number): string {
 }
 
 /** 도면 위에 경로를 그린 그림. 스캔이 끝나야 나온다. */
-export function pathImageUrl(source: DetectSource, target: DetectClass = 'door'): string {
+export function pathImageUrl(source: ImageSource, target: DetectClass = 'door'): string {
+  if (source.kind === 'record') return recordFileUrl(source.date, source.run, detectImagePath('path_overlay'));
   if (source.kind === 'sample') return `${SAMPLE_BASE}/${target}/path_overlay.jpg`;
   return `${source.base}/detect/path_overlay?target=${target}`;
 }

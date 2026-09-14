@@ -13,8 +13,8 @@
 //  2. **한 판이 여러 줄이 되는 것** — 접기 결과는 다시 그릴 때마다 나온다. 표시가 없으면
 //     같은 판이 목록을 통째로 채운다.
 //  3. **같은 편을 두 번 돌렸는데 한 줄인 것** — 「처음부터」는 새 판이다. 두 줄이어야 한다.
-//  4. **서버 이력인 척하는 것** — 여기 쌓인 것은 이 세션에서 우리가 본 것뿐이다.
-//     진짜 이력은 백엔드가 보관한다(`mission-history` 자리표시).
+//  4. **DB 이력인 척하는 것** — 판은 파일로 남지만(260914 · `verify:mission-record`) DB 가
+//     보관하는 이력은 아직이다(`mission-history` 자리표시). 창구가 없으면 이 세션 것뿐이라고 적는다.
 //
 // 대조군 포함.
 
@@ -94,13 +94,15 @@ const entry = (missionId, outcome, extra = {}) => ({
   if (history.missionHistory().length !== 0) failures.push('초기화했는데 이력이 남아 있다');
 }
 
-// ── 4. 서버 이력인 척하지 않는다 ────────────────────────────────────────────
+// ── 4. DB 이력인 척하지 않는다 ──────────────────────────────────────────────
 {
   const view = src('views', 'MissionHistory.tsx');
   if (!/mission-history/.test(view)) {
-    failures.push('서버 이력 자리표시를 안 남긴다 — 이 목록이 서버 것으로 읽힌다');
+    failures.push('DB 이력 자리표시를 안 남긴다 — 이 목록이 DB 것으로 읽힌다');
   }
-  if (!/세션/.test(view)) failures.push('이 세션에만 남는다는 말이 없다 — 새로고침하고 「사라졌다」가 된다');
+  // 파일 창구가 없을 때(단독 빌드 등)는 이 세션 것뿐이라고 적어야 한다.
+  if (!/세션/.test(view)) failures.push('창구가 없을 때 이 세션에만 남는다는 말이 없다 — 새로고침하고 「사라졌다」가 된다');
+  if (!/listRecordedRuns/.test(view) || !/openRecordedRun/.test(view)) failures.push('목록이 저장된 판을 안 읽거나 다시보기가 없다');
   // 끝난 판이 셋 중 무엇인지 적어야 한다.
   for (const word of ['완료', '실패', '정지']) {
     if (!new RegExp(word).test(src('data', 'missionHistory.ts'))) failures.push(`결과 「${word}」 가 없다`);
@@ -138,5 +140,5 @@ if (failures.length) {
 console.log('✅ 손으로 쓴 이력이 사라지고 두 자리(셸 판·리플레이 기둥)가 같은 목록을 그린다');
 console.log('✅ 한 판은 한 줄 — 다시 그려도 안 늘어나고, 새 판이 서면 새 줄이 쌓인다 (최근 것이 위)');
 console.log('✅ 실패는 어느 노드에서 왜인지 로봇이 준 그대로 남고, 초기화하면 목록도 비운다');
-console.log('✅ 서버가 보관할 이력은 자리표시로 남긴다 — 이 세션에서 본 것만이라고 적는다');
+console.log('✅ 목록은 저장된 판을 읽어 다시보기를 달고, DB 이력은 자리표시로 남긴다 — 창구가 없으면 이 세션 것뿐이라고 적는다');
 console.log(`✅ 대조군 ${controls.length}건 전부 검출 — ${controls.join(' · ')}`);

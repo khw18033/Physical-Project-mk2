@@ -10,8 +10,9 @@
  * 가를 수 있어야 하는데, 지금까지 화면은 앞의 절반을 볼 수 없었다. 같은 브로커에 붙어 있으니
  * 같이 들으면 된다.
  *
- * **그림은 버린다.** 한 장이 34 KB 이고 화면이 쓸 곳이 없다 — 탐지가 상자를 입혀 HTTP 로
- * 다시 내준다. 여기서는 그림을 뺀 값만 뽑는다.
+ * **그림은 화면이 들고 있지 않는다.** 한 장이 34 KB 이고 화면이 쓸 곳이 없다 — 탐지가 상자를 입혀
+ * HTTP 로 다시 내준다. 다만 임무 기록(260914)이 원본을 파일로 남기므로 `imageBase64` 로 한 번
+ * 넘겨준다 — 받는 쪽이 저장소에 담지 않고 곧바로 흘려보낸다.
  *
  * 토픽 문자열은 여기 없다 — 브로커·토픽을 아는 면은 `PhysicalClient.ts` 하나다.
  */
@@ -31,6 +32,8 @@ export type ScanFeedMessage =
     /** 직전 프레임과 바이트까지 같다 — 카메라가 얼었다는 뜻이다. 이 판은 탐지가 버린다. */
     duplicateOfPrev: boolean;
     timestamp: string | null;
+    /** JPEG 원본(base64). 기록기만 쓴다 — 저장소에 담지 않는다. 없으면 null. */
+    imageBase64: string | null;
   }
   | {
     kind: 'scan';
@@ -82,6 +85,7 @@ export function parseScanFeed(topic: string, body: Record<string, unknown>): Sca
       sha1: str(body.sha1),
       duplicateOfPrev: body.duplicate_of_prev === true,
       timestamp,
+      imageBase64: image === '' ? null : image,
     };
   }
 

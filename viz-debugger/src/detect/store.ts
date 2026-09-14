@@ -60,6 +60,11 @@ export type DetectState = {
    * 지난 판의 경로 그림이 남는다. 판이 바뀔 때마다 올려 주소를 가른다. 비울 때도 줄지 않는다.
    */
   imageRound: number;
+  /**
+   * **다시보기 중이면 그 판** (260914 — 임무 기록). 그림을 탐지 창구가 아니라 기록 폴더에서 읽는다.
+   * 지난 판의 그림은 탐지 창구에 이미 없다 — 새 판이 시작될 때 지워진다.
+   */
+  recordRun: { date: string; run: string } | null;
 };
 
 const EMPTY: DetectState = {
@@ -75,6 +80,7 @@ const EMPTY: DetectState = {
   error: null,
   staleFrames: null,
   imageRound: 0,
+  recordRun: null,
 };
 
 let state: DetectState = EMPTY;
@@ -159,6 +165,37 @@ export function discardRound(): void {
   commit({
     ...state, frames: [], evidence: {}, localization: null, path: null, pathFailure: null, pathFailureDetail: null,
     imageRound: state.imageRound + 1,
+  });
+}
+
+/** 기록에 남기는 몫 — 받은 결과 전부. 폴링의 사정(오류 · 거르는 중)은 뺀다. */
+export type RecordedDetect = Pick<DetectState,
+  'testMode' | 'frames' | 'evidence' | 'localization' | 'path' | 'pathFailure' | 'pathFailureDetail' | 'features'>;
+
+export function recordableDetect(): RecordedDetect {
+  const { testMode, frames, evidence, localization, path, pathFailure, pathFailureDetail, features } = state;
+  return { testMode, frames, evidence, localization, path, pathFailure, pathFailureDetail, features };
+}
+
+/**
+ * **다시보기 — 지난 판의 탐지 결과를 도로 채운다** (260914). 그림은 그 판의 기록 폴더에서 읽는다.
+ * 「테스트」 켬/끔은 사람이 정한 것이라 지금 값을 남긴다.
+ */
+export function restoreDetect(saved: Partial<RecordedDetect>, recordRun: { date: string; run: string }): void {
+  resetDetectTrace();
+  commit({
+    ...EMPTY,
+    testMode: state.testMode,
+    frames: saved.frames ?? [],
+    evidence: saved.evidence ?? {},
+    localization: saved.localization ?? null,
+    path: saved.path ?? null,
+    pathFailure: saved.pathFailure ?? null,
+    pathFailureDetail: saved.pathFailureDetail ?? null,
+    features: saved.features ?? null,
+    fetchedAtMs: Date.now(),
+    imageRound: state.imageRound + 1,
+    recordRun,
   });
 }
 

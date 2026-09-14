@@ -23,7 +23,7 @@ import { useState } from 'react';
 import { displayMission, useMission } from '../../data/scenario.ts';
 import { foldStatuses } from '../../data/fold.ts';
 import { usePrepStage } from '../../physical/prepStage.ts';
-import { floorPlanUrls, frameImageUrl, pathImageUrl, roundedImageUrl, sourceOf } from '../DetectClient.ts';
+import { floorPlanUrls, frameImageUrl, pathImageUrl, roundedImageUrl, viewSourceOf } from '../DetectClient.ts';
 import { DETECT_TASKS } from '../detectLog.ts';
 import { DOOR_PX, FLOOR_PLAN_SIZE_PX } from '../floorPlan.ts';
 import { chosenFrame, gateWords, indexOfRotation, SCORE_LABEL, usableDistanceCm } from '../parse.ts';
@@ -62,7 +62,7 @@ function focusFrame(frames: readonly DetectFrame[], score: (f: DetectFrame) => n
  */
 export function DetectCam({ zoom = false }: { zoom?: boolean }) {
   const state = useDetect();
-  const source = sourceOf(state.testMode);
+  const source = viewSourceOf(state);
   const score = (f: DetectFrame) => state.evidence[f.frame]?.final_score ?? 0;
   const frame = focusFrame(state.frames, score);
   if (frame === null) return <Waiting what="탐지 영상이 아직 없습니다" />;
@@ -92,7 +92,7 @@ export function DetectCam({ zoom = false }: { zoom?: boolean }) {
  */
 export function DetectReason({ zoom = false, count = 8 }: { zoom?: boolean; count?: number }) {
   const state = useDetect();
-  const source = sourceOf(state.testMode);
+  const source = viewSourceOf(state);
   const score = (f: DetectFrame) => state.evidence[f.frame]?.final_score ?? 0;
   /**
    * **근거는 판정 뒤에 나온다** (260912 지시). 도는 동안에는 아직 고른 것이 없다 —
@@ -166,7 +166,7 @@ export function DetectReason({ zoom = false, count = 8 }: { zoom?: boolean; coun
  */
 export function DetectMap({ zoom = false, headSec }: { zoom?: boolean; headSec?: number }) {
   const state = useDetect();
-  const source = sourceOf(state.testMode);
+  const source = viewSourceOf(state);
   const path = state.path;
   const prep = usePrepStage();
   useMission();                                          // 노드 상태가 바뀌면 다시 그린다
@@ -186,7 +186,8 @@ export function DetectMap({ zoom = false, headSec }: { zoom?: boolean; headSec?:
     || foldStatuses(headSec ?? display.headSec, display.view, display.trace).tasks[DETECT_TASKS.map]?.status === 'done';
 
   // 준비 단계가 실제로 받아 온 주소가 있으면 그것을 그린다 — 받은 그림과 그린 그림이 같아야 한다.
-  const planUrls = prep.map.url !== null ? [prep.map.url] : floorPlanUrls(source);
+  // 다시보기면 그 판의 기록 폴더 → 저장소 사본 순서다 — 기록에 도면이 없어도 빈 상자가 안 된다.
+  const planUrls = source.kind !== 'record' && prep.map.url !== null ? [prep.map.url] : floorPlanUrls(source);
 
   // **경로가 없어도 도면은 있다.** 전에는 이 자리가 통째로 비어서, 발표 초반 내내
   // 2D 맵 뷰 노드가 빈 상자였다.

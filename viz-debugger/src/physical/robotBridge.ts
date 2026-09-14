@@ -19,6 +19,7 @@ import type { ScenarioEvent } from '../model/types.ts';
 import { elapsedSec, applyEffects, noteCommandLog, robotSession } from './robotSession.ts';
 import { robotClient } from './robotClient.ts';
 import { uplinkWords, viewpointIndexOf, type UplinkMessage } from './uplink.ts';
+import { isReplayingRecord } from '../record/replayMode.ts';
 
 /**
  * uplink 하나를 화면 상태로. 되돌려주는 것은 뷰포인트 열에 넣은 프레임 수다.
@@ -32,6 +33,9 @@ export function receiveUplink(
   atSec: number,
   viewpointCount = 8,
 ): number {
+  // **다시보기 중에는 받지 않는다** (260914). 지난 판의 명령 로그에 지금 로봇의 응답이 섞이면
+  // 기록을 들여다보는 의미가 없다. 로봇은 그대로 붙어 있고, 다시보기를 닫으면 다시 받는다.
+  if (isReplayingRecord()) return 0;
   /**
    * **온 것을 그대로 적어 둔다** (260912 지시).
    *
@@ -234,7 +238,7 @@ export function bindRobot(
  */
 export function receiveScanCapture(missionId: string, atSec: number, index: number, yawDeg: number | null): number {
   const session = robotSession();
-  if (!session.started || !session.scanIssued) return 0;
+  if (!session.started || !session.scanIssued || isReplayingRecord()) return 0;
   const known = yawDeg ?? session.seenYaw[index] ?? null;
   const frames = applyEffects([{
     kind: 'viewpoint',

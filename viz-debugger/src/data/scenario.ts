@@ -43,10 +43,11 @@ import { foldStatuses, type FoldedStatuses } from './fold.ts';
 import { MergeScheduler } from './mergeScheduler.ts';
 import { appendGenerated, appendHuman, appendTrace, resetTrace, traceEvents, traceMissionId } from './trace.ts';
 import { scriptFrames } from '../viewpoint/source.ts';
-import { appendViewpoint, resetViewpoint } from '../viewpoint/store.ts';
+import { appendViewpoint, resetViewpoint, type ArrivedFrame } from '../viewpoint/store.ts';
 import { clearStarted, markApproved, resetRobotSession, robotDrives } from '../physical/robotSession.ts';
 import { resetDetect } from '../detect/store.ts';
-import { armMissionHistory, resetMissionHistory } from './missionHistory.ts';
+import { armMissionHistory, resetMissionHistory, sealRun } from './missionHistory.ts';
+import { isReplayingRecord, leaveRecordReplay } from '../record/replayMode.ts';
 import { armNotifications, resetNotifications } from '../shared/notifications.ts';
 import { provenancePayload, type AiProvenance } from '../shared/provenance.ts';
 import rawScenario from '../../scenarios/MSN-260826-01.json' with { type: 'json' };
@@ -258,10 +259,10 @@ export type MissionState = {
   headSec: number;
   playing: boolean;
   /**
-   * 기동 기본(boot) / 승인 활성화(approval) / 모드 스위치의 정지 미리보기(preview).
-   * 구판 세계 안내 띠와 「정지 미리보기」 표기의 근거다.
+   * 기동 기본(boot) / 승인 활성화(approval) / 모드 스위치의 정지 미리보기(preview) /
+   * 저장된 기록 다시보기(record · 260914). 구판 세계 안내 띠와 「정지 미리보기」 표기의 근거다.
    */
-  activatedBy: 'boot' | 'approval' | 'preview';
+  activatedBy: 'boot' | 'approval' | 'preview' | 'record';
 };
 
 let state: MissionState = {
@@ -416,6 +417,7 @@ export function rejectProposal(): void {
 export function activateMission(missionId: string, mode: 'remote' | 'local'): void {
   const view = viewForMission(missionId);
   if (view === null) return;
+  beforeNewRun();
   stopLocalTimer();
   resetTrace(view.missionId);
   resetViewpoint(view.missionId);
@@ -504,6 +506,7 @@ export function acceptProposal(mode: 'remote' | 'local' = 'local'): boolean {
  * (`VZ-G-01` 의 「역추적이 맨 위까지 닿는다」).
  */
 function activateGenerated(proposal: AiProposal): boolean {
+  beforeNewRun();
   stopLocalTimer();
   resetTrace(proposal.view.missionId);
   resetViewpoint(proposal.view.missionId);
@@ -564,6 +567,7 @@ function feedLocalTrace(headSec: number): void {
 export function previewMission(missionId: string): void {
   const view = viewForMission(missionId);
   if (view === null) return;
+  beforeNewRun();
   stopLocalTimer();
   resetTrace(view.missionId);
   resetViewpoint(view.missionId);
@@ -576,6 +580,18 @@ export function previewMission(missionId: string): void {
 function stopLocalTimer(): void {
   if (localTimer !== null) clearInterval(localTimer);
   localTimer = null;
+}
+
+/**
+ * **판을 비우기 전에** (260914 — 임무 기록). 기록기가 지난 판의 마지막 모습을 뜨게 하고,
+ * 다시보기 중이었으면 그것을 푼다 — 다시보기로 채운 탐지 결과·로봇 명령이 새 판에 남으면 안 된다.
+ */
+function beforeNewRun(): void {
+  sealRun();
+  if (!isReplayingRecord()) return;
+  leaveRecordReplay();
+  resetRobotSession();
+  resetDetect();
 }
 
 /**
@@ -593,7 +609,8 @@ function stopLocalTimer(): void {
  * 로봇이 아직 도는 중에 화면이 끝나 버린다. 여기서는 **머리를 사건 시각까지만** 민다.
  */
 export function receiveRobotProgress(missionId: string, event: ScenarioEvent): void {
-  if (missionId !== state.current.missionId) return;
+  // 다시보기 중에는 지난 판의 열에 아무것도 안 붙인다 — 같은 임무 id 의 새 사건이어도.
+  if (missionId !== state.current.missionId || isReplayingRecord()) return;
   appendTrace(missionId, event);
   commit({ headSec: Math.max(state.headSec, event.atSec), playing: true });
 }
@@ -607,13 +624,13 @@ export function receiveRobotProgress(missionId: string, event: ScenarioEvent): v
  * 머리를 밀 사건이 하나도 없었기 때문이다.
  */
 export function advanceRobotHead(missionId: string, atSec: number): void {
-  if (missionId !== state.current.missionId) return;
+  if (missionId !== state.current.missionId || isReplayingRecord()) return;
   if (atSec <= state.headSec) return;
   commit({ headSec: atSec, playing: true });
 }
 
 export function receiveTrace(missionId: string, event: ScenarioEvent): void {
-  if (missionId !== state.current.missionId) return;
+  if (missionId !== state.current.missionId || isReplayingRecord()) return;
   const fresh = appendTrace(missionId, event);
   const lastAt = state.current.events.at(-1)?.atSec ?? state.current.durationSec;
   if (event.atSec >= lastAt) {
@@ -635,6 +652,8 @@ export function receiveTrace(missionId: string, event: ScenarioEvent): void {
  * `produced_by=human` 이 여기저기서 손으로 적히면 그 규칙이 갈라진다.
  */
 export function recordHuman(kind: string, nodeId = state.current.missionId, payload: Record<string, unknown> = {}) {
+  // 다시보기는 지난 판이다 — 지금 누른 것을 그 판의 기록에 끼워 넣지 않는다.
+  if (isReplayingRecord()) return null;
   const event = appendHuman(
     state.current.missionId,
     kind,
@@ -677,6 +696,7 @@ for (const event of state.current.events) appendTrace(state.current.missionId, e
  * (`resetRobotSession` 이 연결과 ping 을 남기는 것과 같은 이유다).
  */
 export function resetMission(): void {
+  beforeNewRun();
   stopLocalTimer();
   localCursor = 0;
   localViewpointCursor = 0;
@@ -716,4 +736,56 @@ export function restartMission(): boolean {
   clearStarted();
   recordHuman('mission_restarted', missionId, { from: 'button' });
   return true;
+}
+
+
+// ── 저장된 기록 다시보기 (260914) ────────────────────────────────────────────
+
+/**
+ * **지난 판을 화면에 올린다.** 기록 파일의 기록 열 · 뷰포인트 프레임을 새 열에 그대로 붓고,
+ * 재생 머리를 그 판이 끝난 자리에 세운다 — 슬라이더가 되감기 도구다(기동 직후 옛 편과 같은 성질).
+ *
+ * 로봇 명령·탐지 결과는 부르는 쪽(`record/loadRecord.ts`)이 먼저 채운다. 여기서는 임무와 두 열만.
+ * **재생기는 안 세운다** — 흘려보낼 대본이 아니라 이미 일어난 일이다.
+ *
+ * 축 길이는 대본 길이와 기록이 간 곳 중 긴 쪽이다. 로봇이 몬 판은 대본보다 오래 걸린다.
+ */
+export function loadRecordedMission(
+  view: MissionView,
+  trace: readonly ScenarioEvent[],
+  frames: readonly ArrivedFrame[],
+  headSec: number,
+): void {
+  stopLocalTimer();
+  localCursor = 0;
+  localViewpointCursor = 0;
+  resetTrace(view.missionId);
+  for (const event of trace) appendTrace(view.missionId, event);
+  resetViewpoint(view.missionId);
+  for (const entry of frames) appendViewpoint(view.missionId, entry.atSec, entry.frame);
+  const reach = Math.max(headSec, ...trace.map((event) => event.atSec), ...frames.map((entry) => entry.atSec));
+  commitNow({
+    current: { ...view, durationSec: Math.max(view.durationSec, Math.ceil(reach)) },
+    proposal: null,
+    headSec: Math.max(headSec, reach),
+    playing: false,
+    activatedBy: 'record',
+  });
+}
+
+/**
+ * **다시보기를 닫는다.** 「초기화」와 같이 비우되 이 세션의 이력 목록과 알림은 남긴다 —
+ * 다시보기는 지난 판을 들여다본 것이지 화면을 처음으로 돌린 것이 아니다.
+ */
+export function closeRecordReplay(): void {
+  if (!isReplayingRecord()) return;
+  leaveRecordReplay();
+  stopLocalTimer();
+  localCursor = 0;
+  localViewpointCursor = 0;
+  resetTrace(NO_MISSION);
+  resetViewpoint(NO_MISSION);
+  resetRobotSession();
+  resetDetect();
+  commitNow({ current: emptyView(), proposal: null, headSec: 0, playing: false, activatedBy: 'boot' });
 }

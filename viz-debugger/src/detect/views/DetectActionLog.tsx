@@ -73,12 +73,16 @@ export function PrepFacts({ taskId }: { taskId: string }) {
   const live = device?.position ?? null;
   const caught = prep.pose.value;
   const loc = detect.localization;
+  // 다시보기면 「지금 로봇 방위」는 이 판의 값이 아니다 — 지난 판 옆에 지금 값을 놓으면 섞어 읽는다.
+  const replaying = detect.recordRun !== null;
   return <section className="prep-facts">
     <h3>로봇 방위 (yaw)</h3>
     <dl>
       <div className="prep-facts__live">
         <dt>지금 로봇 방위</dt>
-        <dd>{live === null
+        <dd>{replaying
+          ? '저장된 판을 다시 보는 중이라 적지 않습니다 — 이 판의 값은 아래 두 줄입니다'
+          : live === null
           ? '로봇 state 를 받은 적이 없습니다 — 브로커에 붙어 있는지 볼 것'
           : <><b>{live.headingDeg.toFixed(1)}°</b> · x {live.x.toFixed(2)} m · y {live.y.toFixed(2)} m
             <small> {ago(now, device?.positionAtMs ?? null)} · 로봇 시각 {device?.timestamp?.slice(11, 19) ?? '없음'} · 오도메트리 기준</small></>}

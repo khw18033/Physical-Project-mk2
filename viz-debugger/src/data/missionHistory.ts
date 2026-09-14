@@ -11,11 +11,14 @@
  * 실패면 실패, 사람이 정지를 눌렀으면 정지다. 사유는 로봇이 준 것을 그대로 옮기고
  * (`failureOfTask`), 없으면 빈 문자열이다. 지어 채우지 않는다.
  *
- * ## 이 세션에만 남는다
+ * ## 이 목록은 이 세션 것이고, 판 전체는 파일로 남는다 (260914)
  *
- * `localStorage` 에 안 넣는다. 접속 주소와 달리 임무 이력은 **이 설치본의 성질이 아니라
- * 이 판의 성질**이고, 진짜 이력은 백엔드가 들고 있어야 하는 것이다. 새로고침하면 비는
- * 것이 맞다 — 여기 쌓인 것을 「서버의 이력」으로 읽으면 안 된다. 화면이 그렇게 적는다.
+ * `localStorage` 에 안 넣는다. 이 목록은 이 세션에서 끝난 판의 요약이다. 새로고침해도 남아야
+ * 하는 것 — 어떤 임무였고 어떻게 진행됐는지, 받은 그림 — 은 기록기가 판마다 파일로 쓴다
+ * (`src/record/recorder.ts` → 저장소 루트 `mission-history/`). DB 가 붙기 전까지의 자리다.
+ *
+ * 여기에는 기록기가 판의 경계를 알 수 있게 **판 번호**와 **봉인**을 둔다. 새 판을 올리면 저장소가
+ * 비워지므로, 비우기 **전에** 지난 판의 마지막 모습을 적어야 한다.
  */
 
 import { useSyncExternalStore } from 'react';
@@ -52,6 +55,27 @@ const listeners = new Set<() => void>();
  */
 let markedRun: string | null = null;
 
+/** 판 번호 — 새 판이 설 때마다 오른다. 기록기가 「다른 판이 됐다」를 이것으로 안다. */
+let runSerial = 0;
+const sealListeners = new Set<() => void>();
+
+export function currentRunSerial(): number {
+  return runSerial;
+}
+
+/**
+ * **판을 비우기 직전** (260914). 새 임무 · 처음부터 · 초기화 · 다시보기가 저장소를 비우기 전에 부른다.
+ * 기록기가 여기서 지난 판의 마지막 모습을 동기로 떠 둔다 — 비운 뒤에는 뜰 것이 없다.
+ */
+export function sealRun(): void {
+  for (const listener of sealListeners) listener();
+}
+
+export function onRunSeal(listener: () => void): () => void {
+  sealListeners.add(listener);
+  return () => sealListeners.delete(listener);
+}
+
 function notify(): void {
   for (const listener of listeners) listener();
 }
@@ -75,6 +99,7 @@ export function useMissionHistory(): readonly MissionHistoryEntry[] {
  */
 export function armMissionHistory(): void {
   markedRun = null;
+  runSerial += 1;
 }
 
 /** 적는다. 이미 이 판을 적었으면 아무 일도 안 한다. */

@@ -108,6 +108,12 @@ export function useDetectLog(): readonly DetectLogLine[] {
   return useSyncExternalStore(subscribeDetectLog, detectLog, detectLog);
 }
 
+/** 다시보기 — 지난 판의 줄을 그대로 채운다 (260914). */
+export function restoreDetectLog(saved: readonly DetectLogLine[]): void {
+  lines = saved.slice(-KEEP);
+  for (const listener of listeners) listener();
+}
+
 /** 임무를 새로 올릴 때. 지난 판의 줄이 새 판 노드에 붙으면 안 된다. */
 export function resetDetectLog(): void {
   lines = [];
