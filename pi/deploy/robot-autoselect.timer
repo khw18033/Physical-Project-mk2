@@ -1,0 +1,12 @@
+# 10초마다 맞춘다. 로봇 전원만 켜도(케이블은 그대로) 알아채야 하므로 udev 만으로는
+# 부족하다 — udev 는 착탈 순간만 알고, 전원 상태는 모른다.
+[Unit]
+Description=피지컬팀 mk2 로봇 컨테이너 자동 선택 (주기)
+
+[Timer]
+OnBootSec=30s
+OnUnitActiveSec=10s
+AccuracySec=1s
+
+[Install]
+WantedBy=timers.target
