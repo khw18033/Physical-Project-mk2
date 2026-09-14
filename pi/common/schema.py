@@ -68,7 +68,53 @@ def _read(path, default=""):
         return default
 
 
-def _mac():
+def _mac(ip=""):
+    """이 노드의 MAC. **BE-T-05 가 MAC↔구역 매핑을 라우팅 근거로 쓰므로 값이
+    흔들리면 안 된다.**
+
+    원래는 `uuid.getnode()` 하나였는데, 컨테이너 안에서 실제 인터페이스를 못 찾으면
+    **난수를 만들어 돌려준다**(locally-administered 비트가 선 값). 실측(pi1, 2026-09-14):
+    같은 파이에서 센서 노드는 2c:cf:67:9d:10:4c, 컨테이너 로봇 노드는 46:fa:28:cd:e2:c0
+    를 보고했고 후자는 프로세스마다 바뀐다. 대장이 한 노드를 여럿으로 본다.
+
+    그래서 **우리가 실제로 쓰는 인터페이스**의 MAC 을 찾는다 — `_ip()` 가 고른,
+    브로커로 나가는 그 인터페이스다. 못 찾으면 단계적으로 물러난다.
+    """
+    forced = os.environ.get("HW_MAC", "").strip()
+    if forced:
+        return forced
+
+    if ip:
+        try:
+            import psutil
+            for name, addrs in psutil.net_if_addrs().items():
+                if name == "lo":
+                    continue
+                if not any(getattr(a, "address", "") == ip for a in addrs):
+                    continue
+                for a in addrs:
+                    if getattr(a, "family", None) != psutil.AF_LINK:
+                        continue
+                    addr = (a.address or "").lower()
+                    # 루프백·가상 인터페이스는 전부 0 을 돌려준다. 그건 주소가 아니다.
+                    if len(addr) == 17 and addr != "00:00:00:00:00:00":
+                        return addr
+        except Exception:
+            pass                      # psutil 이 없거나 형태가 다르면 아래로 내려간다
+
+    # 물리 인터페이스를 직접 뒤진다. 가상(docker0·veth·usb0)과 난수 MAC 은 뺀다.
+    try:
+        for name in sorted(os.listdir("/sys/class/net")):
+            if name == "lo" or name.startswith(("docker", "veth", "br-", "usb")):
+                continue
+            addr = _read(f"/sys/class/net/{name}/address").lower()
+            if len(addr) == 17 and addr != "00:00:00:00:00:00" \
+                    and not int(addr[:2], 16) & 0x02:      # locally-administered 제외
+                return addr
+    except OSError:
+        pass
+
+    # 마지막 수단. 여기까지 오면 값이 난수일 수 있다 — 그래서 순서가 마지막이다.
     return ":".join(f"{(uuid.getnode() >> i) & 0xff:02x}" for i in range(40, -1, -8))
 
 
@@ -113,7 +159,8 @@ class Identity:
                    or config.ZONE_ID)
         # 노드 클래스가 자기 타입을 안다. 환경변수는 명시적 덮어쓰기로만 이긴다.
         etype = config.ENTITY_TYPE or entity_type
-        return cls(entity_id, node_id, zone_id, _mac(), _ip(), etype)
+        ip = _ip()
+        return cls(entity_id, node_id, zone_id, _mac(ip), ip, etype)
 
     @property
     def topic_base(self):

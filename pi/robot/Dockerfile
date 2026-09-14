@@ -44,6 +44,13 @@ RUN set -eux; \
 # SDK 레이어 뒤에 따로 둔다 — 이 줄이 바뀌어도 위의 긴 빌드가 캐시로 남는다.
 RUN pip install --no-cache-dir pillow
 
+# 타임존. 없으면 컨테이너가 UTC 라 timestamp 가 +00:00 으로 나간다 — 계약상 유효하지만
+# (콜론 오프셋이면 된다) 같은 파이의 센서 노드는 +09:00 이라 로그를 읽는 사람이 헷갈린다.
+# slim 이미지에는 tzdata 가 없어 TZ 만 줘도 안 먹는다. compose 에서 덮어쓸 수 있다.
+RUN apt-get update && apt-get install -y --no-install-recommends tzdata \
+    && rm -rf /var/lib/apt/lists/*
+ENV TZ=Asia/Seoul
+
 WORKDIR /app
 COPY common/ /app/common/
 COPY robot/ /app/robot/
