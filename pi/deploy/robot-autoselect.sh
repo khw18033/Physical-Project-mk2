@@ -56,7 +56,9 @@ reconcile() {
         return
     fi
 
-    running "$svc" || return          # 원래 안 떠 있으면 셀 것도 없다
+    # `|| return` 은 직전 명령의 실패 상태(1)를 그대로 반환한다. 그게 스크립트의
+    # 마지막 문장이 되면(= Go1 이 안 붙어 있는 평소) 서비스가 실패로 끝난다.
+    running "$svc" || return 0        # 원래 안 떠 있으면 셀 것도 없다
 
     miss=$(( $(cat "$miss_file" 2>/dev/null || echo 0) + 1 ))
     echo "$miss" > "$miss_file"
@@ -72,3 +74,7 @@ reconcile() {
 
 reconcile ep  "$EP_HOST"
 reconcile go1 "$GO1_HOST"
+
+# 로봇이 하나도 없거나, 있는 그대로 두는 것도 정상 결과다. 마지막 판정의 종료 코드가
+# 서비스 상태로 새어 나가지 않게 명시적으로 끝낸다.
+exit 0
