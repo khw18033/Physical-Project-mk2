@@ -24,6 +24,7 @@
 import { connectionAddress, registerConnectionDefault } from '../shared/connections.ts';
 import { encodeCommand, hardwareTarget, nextCommandId, type CommandInput, type PhysicalAction } from './encode.ts';
 import { physical } from './protocol.js';
+import { parseScanFeed, scanFeedChannel, type ScanFeedMessage } from './scanFeed.ts';
 import { decodeUplink, type UplinkMessage } from './uplink.ts';
 
 const meta = import.meta as unknown as { env?: { VITE_PHYSICAL_WS?: string } };
@@ -64,6 +65,15 @@ function topics(target: string) {
  * 구독을 또 늘려야 하고, 그때 한쪽만 고쳐진다. 걸러 내는 것은 화면의 몫이다.
  */
 const DEVICE_TOPICS = ['zoneA/+/+/status', 'zoneA/+/+/state', 'zoneA/+/+/heartbeat'];
+
+/**
+ * **로봇 → 탐지 흐름** (260914). 탐지가 받는 것과 같은 두 토픽을 화면도 듣는다
+ * (`physical_demo/detection-protocol_0914.md` §1). 뜯는 것은 `scanFeed.ts` 다.
+ *
+ * 탐지 그림이 안 올 때 **로봇이 안 보냈는지 탐지가 못 받았는지** 가르려면 앞의 절반을 봐야
+ * 한다. 실제로 그걸 못 갈라서 원인을 한참 찾았다. QoS 1 — 규약이 그렇게 보낸다.
+ */
+const SCAN_FEED_TOPICS = ['zoneA/+/+/frame', 'zoneA/+/+/scan'];
 
 /**
  * `mqtt` 모듈에서 `connect` 를 꺼낸다. **두 모양을 다 받는다.**
@@ -108,6 +118,8 @@ export type PhysicalStatus =
 export type PhysicalListener = (message: UplinkMessage) => void;
 /** 장비 상태 한 건. 토픽과 본문을 그대로 넘긴다 — 뜯는 것은 `deviceState.ts` 다. */
 export type DeviceListener = (topic: string, body: Record<string, unknown>) => void;
+/** 로봇 → 탐지 한 건. 뜯은 값만 넘긴다 — 그림은 여기서 버린다. */
+export type ScanFeedListener = (message: ScanFeedMessage) => void;
 export type StatusListener = (status: PhysicalStatus) => void;
 
 /**
@@ -122,6 +134,7 @@ export class PhysicalClient {
   private status: PhysicalStatus = { state: 'idle' };
   private readonly listeners = new Set<PhysicalListener>();
   private readonly deviceListeners = new Set<DeviceListener>();
+  private readonly scanFeedListeners = new Set<ScanFeedListener>();
   private readonly statusListeners = new Set<StatusListener>();
   /** 붙을 대상. 화면 id 를 받아 하드웨어 id 로 바꿔 둔다. */
   private readonly target: string;
@@ -143,6 +156,12 @@ export class PhysicalClient {
   onDevice(listener: DeviceListener): () => void {
     this.deviceListeners.add(listener);
     return () => this.deviceListeners.delete(listener);
+  }
+
+  /** 로봇 → 탐지 흐름을 듣는다. 장비 상태와 **또 다른 귀**다 — 이쪽은 한 판의 재료다. */
+  onScanFeed(listener: ScanFeedListener): () => void {
+    this.scanFeedListeners.add(listener);
+    return () => this.scanFeedListeners.delete(listener);
   }
 
   onStatus(listener: StatusListener): () => void {
@@ -200,6 +219,7 @@ export class PhysicalClient {
         });
         // 장비 상태는 QoS 0 — 주기 발행이라 한 건 놓쳐도 다음 것이 온다. 이건 안 기다린다.
         for (const topic of DEVICE_TOPICS) client.subscribe(topic, { qos: 0 });
+        for (const topic of SCAN_FEED_TOPICS) client.subscribe(topic, { qos: 1 });
       }) as () => void);
       client.on('message', ((topic: string, payload: Uint8Array) => {
         // 장비 상태는 **JSON** 이고 명령 응답은 **protobuf** 다. 토픽으로 가른다 —
@@ -208,6 +228,12 @@ export class PhysicalClient {
           let body: unknown;
           try { body = JSON.parse(new TextDecoder().decode(payload)); } catch { return; }
           if (typeof body !== 'object' || body === null) return;
+          // 로봇 → 탐지 흐름은 장비 상태가 아니다 — 다른 귀로 보낸다.
+          if (scanFeedChannel(topic) !== null) {
+            const feed = parseScanFeed(topic, body as Record<string, unknown>);
+            if (feed !== null) for (const listener of this.scanFeedListeners) listener(feed);
+            return;
+          }
           for (const listener of this.deviceListeners) listener(topic, body as Record<string, unknown>);
           return;
         }

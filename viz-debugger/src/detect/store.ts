@@ -12,6 +12,7 @@
  */
 
 import { useSyncExternalStore } from 'react';
+import { resetDetectLog } from './detectLog.ts';
 import { resetDetectTrace } from './detectTrace.ts';
 import type {
   DetectFeatures, DetectFrame, DetectFrameEvidence, DetectLocalization, DetectPath,
@@ -140,5 +141,7 @@ export function discardRound(): void {
 export function resetDetect(): void {
   // 낸 사건 기억도 같이 비운다 — 안 그러면 다음 판에서 태스크가 처음부터 끝나 있다.
   resetDetectTrace();
+  // 오간 줄도 비운다 — 지난 임무의 줄이 같은 이름의 노드에 붙으면 안 된다.
+  resetDetectLog();
   commit({ ...EMPTY, testMode: state.testMode });
 }

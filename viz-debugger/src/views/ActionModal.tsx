@@ -25,6 +25,7 @@ import {
   type CommandLogLine, type TaskCommandRecord,
 } from '../physical/robotSession.ts';
 import { DeviceStrip } from './DeviceStrip.tsx';
+import { DetectLogLines, isDetectTask, PrepFacts } from '../detect/views/DetectActionLog.tsx';
 
 /** 명령 하나의 상태를 사람 말로. 로봇이 준 상태 그대로를 옮긴다. */
 const COMMAND_STATE: Record<TaskCommandRecord['state'], string> = {
@@ -144,8 +145,14 @@ export function ActionModal({ task, view, device, failure, onClose }: { task: Ta
       {/* **액션 아이템 자리가 실제 제어 명령이다** (260912 지시). 대본의 목록은 로봇 편에서
           늘 0건이었고, 정작 알고 싶은 것은 무엇이 나갔고 무엇이 돌아왔는가였다.
           대본에 목록이 실제로 들어 있는 편(구판)에서는 그것도 같이 보여 준다. */}
+      {/* **준비 두 걸음이 받아 온 값** (260914 지시) — T-A1 은 도면과 문 자리, T-A2 는 로봇의
+          지금 방위(yaw). 이 둘은 로봇에 명령을 안 내므로 아래 로봇 명령 표는 비어 있다. */}
+      <PrepFacts taskId={task.id} />
       <h3>로봇 명령 · 오간 로그</h3>
       <RobotCommands taskId={task.id} />
+      {/* **탐지 쪽에서 오간 것** (260914 지시). 로봇 → 탐지 프레임, 탐지 → 화면 결과, 화면의
+          판단이 그 태스크 몫만 붙는다. 탐지 그림이 안 올 때 어느 구간에서 끊겼는지가 여기 남는다. */}
+      {isDetectTask(task.id) && <DetectLogLines taskId={task.id} />}
       {task.actionItems.length > 0 && <table><thead><tr><th>#</th><th>액션 아이템</th><th>파라미터</th><th>상태</th></tr></thead><tbody>{task.actionItems.map((item, index) => <tr key={item.id}><td>{index + 1}</td><td><b>{item.label}</b><small>{item.id}</small></td><td><code>{Object.entries(item.params).map(([key, value]) => `${key}: ${value}`).join(' · ') || '없음'}</code></td><td>{STATE_STYLE[item.status].label}</td></tr>)}</tbody></table>}
     </div><aside>{view.world === 'registry'
       ? <><h3>평가 · Evaluation</h3>{task.evaluation

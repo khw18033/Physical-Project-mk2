@@ -19,7 +19,13 @@
  * 이름을 `특징 최고값` 으로 적는 것만으로 그 오독이 사라진다 (`parse.ts` 의 `SCORE_LABEL`).
  */
 
-import { frameImageUrl, mapImageUrl, pathImageUrl, sourceOf } from '../DetectClient.ts';
+import { useState } from 'react';
+import { displayMission, useMission } from '../../data/scenario.ts';
+import { foldStatuses } from '../../data/fold.ts';
+import { usePrepStage } from '../../physical/prepStage.ts';
+import { floorPlanUrls, frameImageUrl, pathImageUrl, sourceOf } from '../DetectClient.ts';
+import { DETECT_TASKS } from '../detectLog.ts';
+import { DOOR_PX, FLOOR_PLAN_SIZE_PX } from '../floorPlan.ts';
 import { chosenFrame, gateWords, indexOfRotation, SCORE_LABEL, usableDistanceCm } from '../parse.ts';
 import { sweepDone } from '../detectBridge.ts';
 import { useDetect } from '../store.ts';
@@ -158,17 +164,42 @@ export function DetectReason({ zoom = false, count = 8 }: { zoom?: boolean; coun
  * `path_calculation` 은 식과 대입값이 문자열로 들어 있다 — **우리가 다시 계산하지 않는다.**
  * 그대로 늘어놓는 것이 「왜 90도를 돌았나」에 대한 답이 된다.
  */
-export function DetectMap({ zoom = false }: { zoom?: boolean }) {
+export function DetectMap({ zoom = false, headSec }: { zoom?: boolean; headSec?: number }) {
   const state = useDetect();
   const source = sourceOf(state.testMode);
   const path = state.path;
+  const prep = usePrepStage();
+  useMission();                                          // 노드 상태가 바뀌면 다시 그린다
+  const display = displayMission();
+
+  /**
+   * **도면은 「2D 맵에서 문 위치 확인」(T-A1)이 끝난 뒤에 뜬다** (260914 지시).
+   *
+   * 전에는 처음부터 떠 있었다. 그러면 노드는 대기인데 맵은 이미 떠 있어, 그 걸음이 무엇을
+   * 했는지 화면에서 안 보였다. 노드 상태를 그대로 읽는다 — 로봇이 몰 때는 `prepStage` 가,
+   * 대본 재생에서는 대본이 칠한 같은 상태다. 되감으면 그 시각의 상태를 따른다.
+   *
+   * 이 임무에 T-A1 이 없으면(다른 편) 기다리지 않는다.
+   */
+  const hasMapTask = display.view.tasks.some((task) => task.id === DETECT_TASKS.map);
+  const mapDone = !hasMapTask
+    || foldStatuses(headSec ?? display.headSec, display.view, display.trace).tasks[DETECT_TASKS.map]?.status === 'done';
 
   // **경로가 없어도 도면은 있다.** 전에는 이 자리가 통째로 비어서, 발표 초반 내내
   // 2D 맵 뷰 노드가 빈 상자였다.
   if (path === null) {
+    if (!mapDone) {
+      return <p className="detect-wait">
+        2D 맵은 「2D 맵에서 문 위치 확인」이 끝나면 뜹니다
+        {prep.map.step === 'failed' && prep.map.reason !== null && <small>{prep.map.reason}</small>}
+      </p>;
+    }
+    // 준비 단계가 실제로 받아 온 주소가 있으면 그것을 그린다 — 받은 그림과 그린 그림이 같아야 한다.
+    const urls = prep.map.url !== null ? [prep.map.url] : floorPlanUrls(source);
     return <div className="detect-map detect-map--plain">
-      <img src={mapImageUrl(source)} alt="2D 도면" />
+      <FloorPlan urls={urls} />
       <div className="detect-map__facts">
+        <span>문 도면 위치 ({prep.map.doorCm.x.toFixed(1)}, {prep.map.doorCm.y.toFixed(1)}) cm</span>
         <span>경로는 스캔이 끝난 뒤에 그려집니다</span>
       </div>
     </div>;
@@ -199,6 +230,23 @@ export function DetectMap({ zoom = false }: { zoom?: boolean }) {
         </li>)}
       </ol>
     </>}
+  </div>;
+}
+
+/**
+ * **도면 한 장과 그 위의 문 자리.** 앞 주소가 안 뜨면 뒤 주소로 넘어간다 — 탐지 창구에 아직
+ * 도면이 없으면(새 판 직후 404) 저장소의 같은 도면으로 대신한다(`floorPlanUrls`).
+ *
+ * 문 표시는 **GT 고정값**이다(`floorPlan.ts`). 탐지가 검출한 자리가 아니다.
+ */
+function FloorPlan({ urls }: { urls: readonly string[] }) {
+  const [at, setAt] = useState(0);
+  const url = urls[Math.min(at, urls.length - 1)] ?? '';
+  const left = (DOOR_PX.x / FLOOR_PLAN_SIZE_PX.width) * 100;
+  const top = (DOOR_PX.y / FLOOR_PLAN_SIZE_PX.height) * 100;
+  return <div className="detect-map__plan">
+    <img src={url} alt="2D 도면" onError={() => { if (at < urls.length - 1) setAt(at + 1); }} />
+    <span className="detect-map__door" style={{ left: `${left}%`, top: `${top}%` }} title="문 — 도면 GT 고정 위치">문</span>
   </div>;
 }
 

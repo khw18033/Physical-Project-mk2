@@ -43,8 +43,8 @@ export function useDetectUplink(missionId: string, params: Record<string, unknow
   useEffect(() => {
     if (!started) return;
     if (!state.testMode && base.trim() === '') return;
-    return startDetectPolling(() => detectState().frames.length < count, count);
-  }, [started, state.testMode, base, count]);
+    return startDetectPolling(() => detectState().frames.length < count, count, stepDeg);
+  }, [started, state.testMode, base, count, stepDeg]);
 
   /**
    * 받은 것을 여덟 칸에 얹는다. **머리도 같이 민다** — 안 그러면 방금 넣은 프레임이

@@ -167,7 +167,7 @@ const params = { viewpoint_count: 8, forward_distance_m: 4.2 };
 
   // 관문이 실제로 한 번만 열리는가.
   const { shouldIssueScan } = await load('src', 'physical', 'robotCommands.ts');
-  const { markScanIssued, markStarted, clearStarted, setConnection, finishPrep } =
+  const { markScanIssued, markStarted, clearStarted, setConnection, finishPrep, markPrepTasksDone } =
     await load('src', 'physical', 'robotSession.ts');
   resetRobotSession();
   online();
@@ -190,7 +190,9 @@ const params = { viewpoint_count: 8, forward_distance_m: 4.2 };
    * (`verify:mission-prep` 이 그 창을 따로 지킨다).
    */
   if (shouldIssueScan()) failures.push('시작을 누르자마자 스캔을 쏘라고 한다 — 준비 단계가 없다');
+  // 준비 = 창이 닫히고 **T-A1·T-A2 가 실제로 끝났다** (260914 — `verify:mission-prep` 4절).
   finishPrep();
+  markPrepTasksDone();
   if (!shouldIssueScan()) failures.push('준비가 끝났는데 스캔을 안 쏜다');
   markScanIssued();
   if (shouldIssueScan()) failures.push('이미 쐈는데 또 쏘라고 한다 — 로봇이 여러 번 돈다');
@@ -207,6 +209,7 @@ const params = { viewpoint_count: 8, forward_distance_m: 4.2 };
   markApproved();
   markStarted();
   finishPrep();
+  markPrepTasksDone();
   setConnection({ state: 'closed', reason: '없음' });
   if (shouldIssueScan()) failures.push('브로커가 없는데 스캔을 쏘라고 한다');
 

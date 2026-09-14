@@ -180,6 +180,27 @@ export function mapImageUrl(source: DetectSource): string {
   return `${source.base}/detect/map`;
 }
 
+/**
+ * **도면을 읽을 자리 둘 — 먼저 것이 안 되면 뒤의 것** (260914).
+ *
+ * 탐지 창구의 `/detect/map` 은 탐지가 자세 역산 단계에서 도면을 다시 써야 생긴다. 새 판이
+ * 시작되면 지워지므로 **로봇이 돌기 전에는 404** 인 때가 있다. 그런데 `T-A1` 은 돌기 전에
+ * 도면을 봐야 한다.
+ *
+ * 도면은 판마다 바뀌는 결과가 아니라 **방의 그림**이다 — 탐지는 `datasets/25300.png` 를 그대로
+ * 옮겨 적는다. 저장소의 `door_example` 에 같은 그림이 있으므로 그것으로 대신한다. 각도 결과나
+ * 경로 같은 **판의 산출물은 대신하지 않는다.**
+ */
+export function floorPlanUrls(source: DetectSource): readonly string[] {
+  const bundled = `${SAMPLE_BASE}/unidepth_localization/map_original.jpg`;
+  return source.kind === 'sample' ? [bundled] : [mapImageUrl(source), bundled];
+}
+
+/** 그 주소가 저장소 사본인가 — 로그에 어디서 읽었는지 적는다. */
+export function isBundledFloorPlan(url: string): boolean {
+  return url.startsWith(SAMPLE_BASE);
+}
+
 /** 도면 위에 경로를 그린 그림. 스캔이 끝나야 나온다. */
 export function pathImageUrl(source: DetectSource, target: DetectClass = 'door'): string {
   if (source.kind === 'sample') return `${SAMPLE_BASE}/${target}/path_overlay.jpg`;

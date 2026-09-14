@@ -164,8 +164,18 @@ export type RobotSession = {
    * 화면에서는 **한 바퀴 다 돌고 나서** 그 둘에 완료가 떴다. 순서가 거꾸로 보였다.
    *
    * 그래서 시작과 회전 사이에 창을 하나 둔다. 이 값이 참이 되기 전에는 스캔이 안 나간다.
+   *
+   * **창만으로는 안 열린다** (260914 실측 — 「앞의 두 노드가 대기인데 로봇이 돈다」).
+   * 시계가 닫혀도 T-A1·T-A2 가 실제로 끝나야 참이 된다(`physical/prepStage.ts`). 로봇이 몰지
+   * 않는 대본 재생에서는 그 둘을 대본이 칠하므로 창만 본다.
    */
   prepared: boolean;
+  /** 준비 창(최소 시간)이 닫혔는가. */
+  prepWindowDone: boolean;
+  /** T-A1·T-A2 가 실제로 끝났는가 — 도면을 읽었고, 로봇의 지금 방위를 받았다. */
+  prepTasksDone: boolean;
+  /** 준비가 끝난 시각(ms). **로봇이 돌기 시작하는 시계의 0초가 여기다.** */
+  preparedAtMs: number | null;
   /**
    * 지금 어느 **단계**인가 (연동 가이드 §4-3). `sdk_starting` 이면 로봇이 일어서는 중이다.
    * 임무 ACK 와 다른 축이라 따로 둔다 — 진행률은 아직 0인데 로봇은 이미 뭔가 하고 있다.
@@ -208,6 +218,9 @@ const EMPTY: RobotSession = {
   started: false,
   startedAtMs: null,
   prepared: false,
+  prepWindowDone: false,
+  prepTasksDone: false,
+  preparedAtMs: null,
   stage: null,
   unsupported: {},
   walked: null,
@@ -268,7 +281,14 @@ function stopAllTimers(): void {
 }
 
 export function setConnection(connection: PhysicalStatus): void {
-  commit({ ...session, connection });
+  /**
+   * **시작한 뒤에 브로커가 붙었다** — 준비를 창만 보고 열어 뒀다면 도로 닫는다 (260914).
+   * 로봇이 몰기 시작하는 순간부터는 T-A1·T-A2 가 실제로 끝나야 돈다. 이미 스캔을 냈으면
+   * 건드리지 않는다 — 돌고 있는 판을 되돌리지 않는다.
+   */
+  const reopen = connection.state === 'open' && session.started && session.prepared
+    && !session.prepTasksDone && !session.scanIssued;
+  commit({ ...session, connection, ...(reopen ? { prepared: false, preparedAtMs: null } : {}) });
 }
 
 export function setPing(ping: RobotSession['ping']): void {
@@ -308,12 +328,15 @@ export function markApproved(): void {
 }
 
 /**
- * **준비 단계의 길이(초).** 시작을 누르고 로봇이 돌기 시작할 때까지.
+ * **준비 단계의 최소 길이(초).** 시작을 누르고 로봇이 돌기 시작할 때까지.
  *
- * 이 창이 **시계로 재는 것**이라는 점을 숨기지 않는다. 탐지가 자세를 언제 내줄지 우리가
- * 모르고, 자세가 영영 안 오면 로봇이 영영 안 도는 화면이 되기 때문이다 — 발표장에서
- * 가장 나쁜 실패다. `T-A1`·`T-A2` 의 **완료**는 여전히 자세 값이 실제로 왔을 때만 뜬다
- * (`detect/detectTrace.ts`). 여기서 재는 것은 「언제부터 돌아도 되는가」 하나다.
+ * 260914 에 바뀌었다. 전에는 이 시계가 닫히면 곧바로 돌았고, `T-A1`·`T-A2` 는 탐지의 자세
+ * 역산을 기다렸다. 그런데 실제 탐지 프로그램은 자세를 **한 바퀴를 다 받은 뒤에** 계산한다 —
+ * 두 노드는 대기인 채로 로봇이 돌았다.
+ *
+ * 이제 둘은 돌기 전에 **화면이 실제로 할 수 있는 일**로 끝난다(`physical/prepStage.ts`).
+ * 도면과 문의 도면 위치를 읽고(T-A1), 로봇이 보고한 지금 방위를 받는다(T-A2). 이 시계는
+ * 「그 둘이 진행 중으로 보이는 최소 시간」이고, 둘이 끝나야 비로소 돈다.
  */
 export const PREP_SEC = 5;
 
@@ -326,18 +349,38 @@ function cancelPrep(): void {
   if (unregisterPrep !== null) { unregisterPrep(); unregisterPrep = null; }
 }
 
-/** 준비 창이 닫혔다. 이 뒤에 스캔이 나간다. */
+/** 준비가 막 끝났다 — 끝난 시각을 한 번만 적는다. */
+function prepare(next: RobotSession): RobotSession {
+  if (next.prepared) return next;
+  return { ...next, prepared: true, preparedAtMs: Date.now() };
+}
+
+/**
+ * 준비 창이 닫혔다. **로봇이 몰면 T-A1·T-A2 도 끝나야 스캔이 나간다** (260914).
+ * 로봇이 안 몰면(대본 재생) 두 노드는 대본이 칠하므로 창만으로 연다.
+ */
 export function finishPrep(): void {
   cancelPrep();
   if (session.prepared) return;
-  commit({ ...session, prepared: true });
+  const next = { ...session, prepWindowDone: true };
+  commit(next.prepTasksDone || !robotDrives() ? prepare(next) : next);
+}
+
+/** T-A1·T-A2 가 실제로 끝났다. 창도 닫혀 있으면 이제 돈다. */
+export function markPrepTasksDone(): void {
+  if (!session.started || session.prepTasksDone) return;
+  const next = { ...session, prepTasksDone: true };
+  commit(next.prepWindowDone ? prepare(next) : next);
 }
 
 /** 사람이 「임무 시작」을 눌렀다. **임무 시계가 여기서 0부터 흐른다.** */
 export function markStarted(): void {
   if (!session.approved) return;   // 승인 없이는 시작도 없다
   cancelPrep();
-  commit({ ...session, started: true, startedAtMs: Date.now(), prepared: false });
+  commit({
+    ...session, started: true, startedAtMs: Date.now(),
+    prepared: false, prepWindowDone: false, prepTasksDone: false, preparedAtMs: null,
+  });
   prepTimer = setTimeout(finishPrep, PREP_SEC * 1000);
   // 정지 한 번에 같이 끊긴다 — 멈춘 뒤에 창이 닫혀 스캔이 나가면 안 된다.
   unregisterPrep = registerTimer(cancelPrep);
@@ -348,6 +391,7 @@ export function clearStarted(): void {
   cancelPrep();
   commit({
     ...session, started: false, startedAtMs: null, prepared: false,
+    prepWindowDone: false, prepTasksDone: false, preparedAtMs: null,
     scanIssued: false, approachIssued: false,
   });
 }
@@ -382,15 +426,20 @@ export function elapsedSec(): number {
  * 각도가 열려, **안 본 방향의 결과가 먼저 뜬다.**
  */
 export function scanElapsedSec(): number {
-  return afterPrep(elapsedSec());
+  // **준비가 실제로 걸린 시간을 뺀다** (260914). 준비가 창보다 길어질 수 있다 — 로봇의 방위가
+  // 늦게 오면 그만큼 늦게 돈다. 아직 준비 중이면 무한대를 빼서 0이다.
+  const prepSec = session.preparedAtMs !== null && session.startedAtMs !== null
+    ? Math.max(PREP_SEC, (session.preparedAtMs - session.startedAtMs) / 1000)
+    : Number.POSITIVE_INFINITY;
+  return afterPrep(elapsedSec(), prepSec);
 }
 
 /**
- * 준비 창을 뺀 시계. **순수 함수로 갈라 둔다** — 시계를 읽는 함수는 시험할 수가 없어서,
+ * 준비를 뺀 시계. **순수 함수로 갈라 둔다** — 시계를 읽는 함수는 시험할 수가 없어서,
  * 빼는 규칙만 따로 두면 그것을 눈으로도 검사로도 확인할 수 있다.
  */
-export function afterPrep(elapsed: number): number {
-  return Math.max(0, elapsed - PREP_SEC);
+export function afterPrep(elapsed: number, prepSec = PREP_SEC): number {
+  return Math.max(0, elapsed - prepSec);
 }
 
 /** 태스크가 명령을 냈다. `requestId` 는 추적기가 준다. */
@@ -550,6 +599,7 @@ export function releaseStopped(): void {
     ...session, stopped: null, approved: false, approachIssued: false, scanIssued: false,
     // 다시 승인받아야 하는 판이다 — 준비 단계도 처음부터 다시 지나간다.
     started: false, startedAtMs: null, prepared: false,
+    prepWindowDone: false, prepTasksDone: false, preparedAtMs: null,
   });
 }
 

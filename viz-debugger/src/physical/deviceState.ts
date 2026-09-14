@@ -36,6 +36,11 @@ export type DeviceState = {
   inMission: boolean | null;
   batteryPct: number | null;
   position: { x: number; y: number; headingDeg: number } | null;
+  /**
+   * **위치·방위를 받은 시각(ms)** (260914). `lastSeenMs` 와 다르다 — 그쪽은 heartbeat 에도
+   * 밀린다. 「로봇의 지금 yaw」라고 말하려면 방위 자체가 언제 왔는지를 봐야 한다.
+   */
+  positionAtMs: number | null;
   speedMps: number | null;
   firmware: string | null;
   /** 마지막으로 무엇이든 받은 시각(ms). 신선도 판정에 쓴다. */
@@ -84,7 +89,7 @@ export function applyDeviceMessage(
     entityId: parsed.entityId,
     entityType: parsed.entityType,
     online: null, health: null, link: null, mode: null, inMission: null,
-    batteryPct: null, position: null, speedMps: null, firmware: null,
+    batteryPct: null, position: null, positionAtMs: null, speedMps: null, firmware: null,
     lastSeenMs: nowMs, timestamp: null, simulated: false,
     sdkReady: null, sdkAutostart: null,
   };
@@ -118,7 +123,10 @@ export function applyDeviceMessage(
       const x = num(position.x);
       const y = num(position.y);
       const headingDeg = num(position.heading_deg);
-      if (x !== null && y !== null) merged.position = { x, y, headingDeg: headingDeg ?? 0 };
+      if (x !== null && y !== null) {
+        merged.position = { x, y, headingDeg: headingDeg ?? 0 };
+        merged.positionAtMs = nowMs;
+      }
     }
   }
   // heartbeat 는 `lastSeenMs` 만 민다 — 살아 있다는 것 말고는 아무것도 안 말한다.

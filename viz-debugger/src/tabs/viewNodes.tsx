@@ -327,8 +327,9 @@ export const VIEW_NODE_RENDERERS: readonly ViewNodeEntry[] = [
     kind: 'detect-map',
     label: '2D 맵',
     hint: '도면 위의 경로와 계산 다섯 단계 — 우리가 다시 계산하지 않는다',
-    summary: () => <NodeGate kind="detect-map"><DetectMap /></NodeGate>,
-    zoom: () => <NodeGate kind="detect-map"><DetectMap zoom /></NodeGate>,
+    // **재생 머리를 넘긴다** (260914) — 도면은 T-A1 이 끝난 뒤에 뜨고, 되감으면 그 시각을 따른다.
+    summary: (scope) => <NodeGate kind="detect-map"><DetectMap headSec={scope.headSec} /></NodeGate>,
+    zoom: (scope) => <NodeGate kind="detect-map"><DetectMap zoom headSec={scope.headSec} /></NodeGate>,
   },
   {
     kind: 'robot',

@@ -31,6 +31,27 @@
 .robot-log__lines code{grid-column:2;color:#6b7888;font-size:11px;word-break:break-all}
 .robot-log__lines .is-result span{font-weight:700}
 .robot-log__lines .is-empty span{color:#8a94a1}
+/* 탐지 · 오간 로그 (260914) — 로봇 명령 로그와 같은 모양에 구간 딱지 하나를 더한다. */
+.detect-log{margin-top:14px}
+.detect-log__lines{margin:6px 0 0;padding:0;list-style:none;display:grid;gap:4px}
+.detect-log__lines li{display:grid;grid-template-columns:88px 84px 1fr;gap:8px;font-size:12px;line-height:1.45}
+.detect-log__lines time{color:#8a94a1;font-variant-numeric:tabular-nums}
+.detect-log__lines em{font-style:normal;font-size:10.5px;padding:1px 6px;border-radius:9px;background:#eef1f5;color:#4a5666;align-self:start;text-align:center;white-space:nowrap}
+.detect-log__lines .lane-robot em{background:#e8f0fb;color:#2f5f9c}
+.detect-log__lines .lane-detect em{background:#eaf6ef;color:#2f6f52}
+.detect-log__lines code{grid-column:3;color:#6b7888;font-size:11px;word-break:break-all}
+.detect-log__lines .is-warn span{color:#8a5a00;font-weight:600}
+.detect-log__lines .is-error span{color:#b3261e;font-weight:600}
+/* 준비 두 걸음이 받아 온 값 (260914) — T-A1 도면·문 자리, T-A2 로봇 방위. */
+.prep-facts{margin:0 0 12px;padding:10px 12px;border:1px solid #dde3ea;border-radius:8px;background:#fbfcfd}
+.prep-facts h3{margin:0 0 6px}
+.prep-facts dl{display:grid;gap:4px;margin:0}
+.prep-facts dl>div{display:grid;grid-template-columns:120px 1fr;gap:8px;font-size:12.5px}
+.prep-facts dt{color:#6b7888}
+.prep-facts dd{margin:0;color:#26303c;font-variant-numeric:tabular-nums}
+.prep-facts dd b{font-size:14px}
+.prep-facts dd small{color:#8a94a1;margin-left:4px}
+.prep-facts__live dd b{color:#2f5f9c}
 /* 임무 이력 (260912) — 이 세션에서 끝난 판만. 목록이 스스로 그 사실을 적는다. */
 .history-empty{margin:0;color:#6a7686;font-size:13px;display:grid;gap:4px}
 .history-empty small{color:#8a94a1}
@@ -583,6 +604,9 @@ button.robot-stop:hover{background:#b8271f}
 .detect-map--plain img{opacity:.9}
 .detect-map img{width:100%;height:auto;display:block;border-radius:5px;background:#fff}
 .detect-map__facts{display:flex;flex-wrap:wrap;gap:8px;font-size:11px;color:#4a5666}
+/* 도면 위의 문 자리 (260914) — GT 고정값을 퍼센트로 얹는다. 그림이 줄어도 같은 자리다. */
+.detect-map__plan{position:relative}
+.detect-map__door{position:absolute;transform:translate(-50%,-50%);padding:1px 5px;border-radius:9px;background:#1f8a4d;color:#fff;font-size:10px;font-weight:700;box-shadow:0 0 0 2px rgba(255,255,255,.85)}
 .detect-map__rows{display:grid;gap:2px;margin:4px 0 0}
 .detect-map__rows>div{display:flex;gap:10px;font-size:12px}
 .detect-map__rows dt{min-width:76px;color:#6b7888}

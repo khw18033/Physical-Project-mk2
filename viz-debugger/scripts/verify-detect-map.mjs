@@ -234,8 +234,13 @@ const COUNT = 8;
 {
   const trace = readFileSync(join(root, 'src', 'detect', 'detectTrace.ts'), 'utf8')
     .replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
-  for (const node of ['T-A1', 'T-A2', 'T-A3', 'T-A5', 'T-A6', 'T-B1']) {
+  for (const node of ['T-A3', 'T-A5', 'T-A6', 'T-B1']) {
     if (!trace.includes(node)) failures.push(`탐지가 ${node} 를 안 민다 — 그 노드가 대기로 남아 마일스톤이 안 끝난다`);
+  }
+  // **앞의 둘은 탐지가 안 민다** (260914) — 탐지는 자세를 한 바퀴 뒤에 계산한다. 돌기 전에
+  // 끝나야 하는 두 걸음은 `physical/prepStage.ts` 가 민다(`verify:mission-prep` 4절).
+  for (const node of ['T-A1', 'T-A2']) {
+    if (trace.includes(`'${node}'`)) failures.push(`탐지가 아직 ${node} 를 민다 — 한 바퀴 뒤에야 오는 값으로 끝내고, prepStage 와 두 벌이 된다`);
   }
   // 로봇이 해야 끝나는 것을 탐지가 끝냈다고 하면 안 된다.
   for (const node of ['T-B2', 'T-B3', 'T-C1']) {
@@ -316,6 +321,17 @@ const COUNT = 8;
     served.frames = all.slice(0, 2);
     await pollOnce(COUNT);
     if (detectState().frames.length !== 2) failures.push(`지워진 뒤 쌓인 2각도를 ${detectState().frames.length}각도로 받았다`);
+    // **각도 결과가 그 각도 칸의 액션 아이템에 붙는다** (260914) — 0°·45° 둘이 T-A4-0·T-A4-1 에.
+    const { detectLogOf } = await load('src', 'detect', 'detectLog.ts');
+    for (const [index, frame] of all.slice(0, 2).entries()) {
+      const hit = detectLogOf(`T-A4-${indexOfRotation(frame.rotation_deg, STEP, COUNT)}`);
+      if (!hit.some((line) => line.lane === 'detect' && line.text.includes(`${frame.rotation_deg}°`))) {
+        failures.push(`${index + 1}번째 각도(${frame.rotation_deg}°) 결과가 그 칸의 액션 아이템 로그에 없다`);
+      }
+    }
+    if (!detectLogOf('T-A3').some((line) => line.lane === 'screen' && /지난 판/.test(line.text))) {
+      failures.push('지난 판을 거른 사실이 액션 아이템 로그에 없다 — 탐지는 답하는데 화면만 비어 「연결이 안 된다」로 읽힌다');
+    }
 
     // ③ 처음부터 비어 있으면 거를 것이 없다.
     resetDetect(); resetDetectGate();
@@ -344,6 +360,55 @@ const COUNT = 8;
     globalThis.fetch = realFetch;
     resetDetect(); resetDetectGate();
   }
+}
+
+// ── 5-f. 로봇 → 탐지 흐름을 화면도 듣는다 (260914) ──────────────────────────
+//
+// 탐지 그림이 한 장도 안 왔는데 **로봇이 안 보냈는지 탐지가 못 받았는지** 가를 수 없었다.
+// 규약(`detection-protocol_0914.md` §2·§3)의 실제 모양으로 뜯고, 줄이 그 각도 칸에 붙는지 본다.
+{
+  const { parseScanFeed } = await load('src', 'physical', 'scanFeed.ts');
+  const { noteScanFeed } = await load('src', 'detect', 'feedLog.ts');
+  const { detectLogOf, resetDetectLog } = await load('src', 'detect', 'detectLog.ts');
+  resetDetectLog();
+
+  const frame = parseScanFeed('zoneA/robot/go1-001/frame', {
+    schema_version: '1.3', device_id: 'go1-001', channel: 'frame', timestamp: '2026-09-14T11:45:53+0900',
+    seq: 6, rotation_deg: 270.0, image: 'A'.repeat(32000), mission_id: 'scan-1789353953',
+    width: 464, height: 400, bytes: 24558, sha1: '0ece0f94dc1947ee',
+  });
+  if (frame?.kind !== 'frame' || frame.rotationDeg !== 270 || frame.seq !== 6) failures.push(`프레임을 못 뜯었다 — ${JSON.stringify(frame)}`);
+  if (frame !== null && 'image' in frame) failures.push('그림(base64)을 들고 다닌다 — 한 장 34KB 가 화면 메모리에 쌓인다');
+  if (parseScanFeed('zoneA/robot/go1-001/frame', { seq: 1 }) !== null) failures.push('각도 없는 프레임을 받았다 — 탐지가 쓰는 짝이 아니다');
+  if (parseScanFeed('zoneA/robot/go1-001/state', { position: {} }) !== null) failures.push('장비 상태를 스캔 흐름으로 뜯었다');
+  const start = parseScanFeed('zoneA/robot/go1-001/scan', { channel: 'scan', event: 'scan_start', mission_id: 'scan-1', plan: { steps: 8, step_deg: 45, expected_frames: 8 } });
+  if (start?.kind !== 'scan' || start.expectedFrames !== 8) failures.push('scan_start 의 예상 장수를 못 읽었다');
+  const end = parseScanFeed('zoneA/robot/go1-001/scan', { channel: 'scan', event: 'scan_end', outcome: 'ABORTED', frames_sent: 5, expected_frames: 8 });
+
+  noteScanFeed(start, STEP, COUNT);
+  noteScanFeed(frame, STEP, COUNT);
+  noteScanFeed({ ...frame, seq: 7, rotationDeg: 315, duplicateOfPrev: true }, STEP, COUNT);
+  noteScanFeed(end, STEP, COUNT);
+
+  if (!detectLogOf('T-A4-6').some((line) => line.lane === 'robot' && /270° 프레임/.test(line.text))) {
+    failures.push('로봇이 270° 프레임을 보낸 사실이 270° 칸(T-A4-6) 액션 아이템에 없다');
+  }
+  const dup = detectLogOf('T-A4-7').find((line) => line.lane === 'robot');
+  if (dup?.level !== 'warn' || !/같은 그림/.test(dup.text)) failures.push('카메라가 얼어 같은 그림이 온 것을 경고로 안 적는다 — 탐지가 그 판을 버린다');
+  const sweep = detectLogOf('T-A3');
+  if (!sweep.some((line) => /시작했습니다/.test(line.text))) failures.push('scan_start 가 한 바퀴(T-A3) 로그에 없다');
+  if (!sweep.some((line) => line.level === 'warn' && /ABORTED/.test(line.text))) failures.push('중단된 판(ABORTED · 5/8장)을 경고로 안 적는다');
+
+  // 화면이 실제로 그 토픽을 구독하는가 — 뜯는 함수만 있고 안 들으면 소용이 없다.
+  const client = readFileSync(join(root, 'src', 'physical', 'PhysicalClient.ts'), 'utf8');
+  if (!/zoneA\/\+\/\+\/frame/.test(client) || !/zoneA\/\+\/\+\/scan/.test(client)) failures.push('PhysicalClient 가 /frame · /scan 을 구독하지 않는다');
+  const robotClientSrc = readFileSync(join(root, 'src', 'physical', 'robotClient.ts'), 'utf8');
+  if (!/onScanFeed\(/.test(robotClientSrc) || !/noteScanFeed\(/.test(robotClientSrc)) failures.push('로봇 클라이언트가 스캔 흐름을 로그로 안 잇는다');
+  // 액션 아이템이 그 로그를 실제로 그리는가.
+  const modal = readFileSync(join(root, 'src', 'views', 'ActionModal.tsx'), 'utf8');
+  if (!/<DetectLogLines /.test(modal)) failures.push('액션 아이템이 탐지 로그를 안 그린다');
+  if (!/<PrepFacts /.test(modal)) failures.push('액션 아이템이 T-A1·T-A2 가 받아 온 값(도면·로봇 방위)을 안 그린다');
+  resetDetectLog();
 }
 
 // ── 6. 경계 — 탐지를 아는 면이 src/detect/ 하나인가 ─────────────────────────
@@ -401,5 +466,6 @@ console.log('✅ 상자를 [x,y,w,h] 로 바꾼다 · 판단 문장은 관문 �
 console.log('✅ 보정범위 밖 깊이값을 거리로 안 그린다 (시료는 0.0cm · 범위 밖)');
 console.log('✅ 탐지가 태스크 노드를 민다 — 이동·정지·종료는 안 민다(로봇이 해야 끝난다) · 회전 먼저 직진 나중');
 console.log('✅ 지난 판 결과를 이번 판으로 안 받는다 — 시작 때 남아 있으면 거르고, 지워진 뒤 쌓이는 것만 받는다');
+console.log('✅ 로봇 → 탐지(/frame · /scan)를 화면도 듣고, 각도 결과와 함께 그 칸의 액션 아이템 로그에 붙는다 — 얼어붙은 그림·중단된 판은 경고');
 console.log('✅ 탐지를 아는 면이 src/detect/ 하나 — 시료 경로·엔드포인트가 경계 밖에 0건');
 console.log(`✅ 대조군 ${controls.length}건 전부 검출 — ${controls.join(' · ')}`);

@@ -16,8 +16,10 @@
 //     결과가 먼저 뜬다. **안 본 방향의 답이 먼저 나온다**
 //  3. **정지했는데 나중에 돈다** — 준비 창이 타이머라, 그 타이머가 정지에 안 걸리면
 //     멈춘 뒤에 창이 닫히면서 스캔이 나간다. 가장 위험한 실패다
-//  4. **앞의 둘을 각도 결과로 끝냈다고 한다** — 그러면 이미 돌고 있는 중에 완료가 뜬다.
-//     자세 역산(`localization_evidence.json`)이 그 둘의 근거다
+//  4. **앞의 둘이 대기인데 돈다** (260914 실측 — 3번째로 되살아난 모양). 창이 시계로만
+//     닫혀서, 두 노드가 대기인 채로 로봇이 돌았다. 두 노드는 탐지의 자세 역산을 기다렸는데
+//     실제 탐지는 그것을 **한 바퀴 뒤에** 계산한다. 이제 둘은 돌기 전에 실제로 끝난다 —
+//     도면을 받고(T-A1), 로봇의 지금 방위를 받는다(T-A2). **둘이 끝나야** 돈다
 //
 // 대조군 포함.
 
@@ -57,9 +59,22 @@ const { PREP_SEC, afterPrep } = session;
     failures.push('시작을 누르자마자 스캔이 나간다 — T-A1·T-A2 가 진행 중인데 로봇이 돈다');
   }
 
+  // **창만 닫혀서는 안 돈다** (260914) — 로봇이 몰면 T-A1·T-A2 가 실제로 끝나야 한다.
   session.finishPrep();
-  if (!session.robotSession().prepared) failures.push('준비 창이 안 닫힌다');
+  if (session.robotSession().prepared) failures.push('창만 닫혔는데 준비가 끝났다고 한다 — T-A1·T-A2 가 대기인데 로봇이 돈다');
+  if (shouldIssueScan()) failures.push('창만 닫혔는데 스캔이 나간다 — 260914 에 실제로 났던 모양이다');
+  session.markPrepTasksDone();
+  if (!session.robotSession().prepared) failures.push('창도 닫히고 두 걸음도 끝났는데 준비가 안 끝난다');
   if (!shouldIssueScan()) failures.push('준비가 끝났는데 스캔이 안 나간다 — 로봇이 영영 안 돈다');
+
+  // 로봇이 안 몰면(대본 재생) 두 노드는 대본이 칠한다 — 창만으로 연다.
+  session.resetRobotSession();
+  session.setConnection({ state: 'closed', reason: '검사' });
+  session.markApproved();
+  session.markStarted();
+  session.finishPrep();
+  if (!session.robotSession().prepared) failures.push('로봇이 안 모는데 창이 닫혀도 준비가 안 끝난다 — 대본 재생의 시료 박자가 멎는다');
+  session.resetRobotSession();
 }
 
 // ── 2. 준비 중에는 각도가 안 열린다 ─────────────────────────────────────────
@@ -122,24 +137,73 @@ const { PREP_SEC, afterPrep } = session;
   session.resetRobotSession();              // 타이머를 남기지 않는다
 }
 
-// ── 4. 앞의 둘은 자세 역산으로 끝난다 ───────────────────────────────────────
+// ── 4. 앞의 둘은 돌기 전에 실제로 끝난다 (260914) ───────────────────────────
 //
-// 각도 결과로 끝내면 **이미 돌고 있는 중에** 완료가 뜬다. 자세는 스캔 결과와 다른 파일에
-// 있고 먼저 온다.
+// 도면을 받고(T-A1) 로봇의 지금 방위를 받는다(T-A2). **둘이 끝나야** 돈다. 시계와 가짜
+// 서비스로 실제로 흘린다 — 문자열 훑기가 아니다.
 {
   const evidence = sample('unidepth_localization', 'localization_evidence.json');
-  // 재료가 실제로 있어야 검사가 헛돌지 않는다.
-  if (evidence.door_position_cm_fixed_from_gt === undefined) failures.push('시료에 문의 도면 위치가 없다 — 검사가 헛돈다');
-  if (evidence.robot_position_cm === undefined) failures.push('시료에 로봇 위치가 없다 — 검사가 헛돈다');
-  if (evidence.current_heading_map_deg === undefined) failures.push('시료에 로봇 방위가 없다 — 검사가 헛돈다');
-
-  const trace = src('detect', 'detectTrace.ts');
-  if (!/door_position_cm_fixed_from_gt/.test(trace)) {
-    failures.push('T-A1 이 문의 도면 위치를 안 본다 — 각도 결과로 끝내면 이미 돌고 있는 중에 완료가 뜬다');
+  // 문 자리는 탐지와 **같은 값**이어야 한다 — 도면 위 표시와 탐지 경로가 같은 문을 가리킨다.
+  const { doorCm } = await load('src', 'detect', 'floorPlan.ts');
+  const door = doorCm();
+  const [gx, gy] = evidence.door_position_cm_fixed_from_gt;
+  if (Math.abs(door.x - gx) > 0.1 || Math.abs(door.y - gy) > 0.1) {
+    failures.push(`문의 도면 위치가 탐지와 다르다 — 화면 (${door.x.toFixed(1)}, ${door.y.toFixed(1)}) · 탐지 (${gx}, ${gy})`);
   }
-  if (!/current_heading_map_deg/.test(trace)) failures.push('T-A2 가 로봇 방위를 안 본다');
-  // 진행 중 표시가 있어야 준비 창이 빈 시간으로 안 보인다.
-  if (!/'T-A1', 'running'/.test(trace)) failures.push('준비 중에 T-A1 이 진행 중으로 안 뜬다 — 그 몇 초가 빈 화면이 된다');
+
+  // 탐지는 더 이상 두 노드를 칠하지 않는다 — 두 곳에서 칠하면 사건이 두 벌 쌓인다.
+  const trace = src('detect', 'detectTrace.ts');
+  if (/'T-A1'|'T-A2'/.test(trace)) failures.push('detectTrace 가 아직 T-A1·T-A2 를 칠한다 — 한 바퀴 뒤에야 오는 값으로 끝낸다');
+
+  const prep = await load('src', 'physical', 'prepStage.ts');
+  const devices = await load('src', 'physical', 'deviceState.ts');
+  const scenario = await load('src', 'data', 'scenario.ts');
+  const realFetch = globalThis.fetch;
+  const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
+  globalThis.fetch = async () => new Response('jpeg', { status: 200, headers: { 'content-type': 'image/jpeg' } });
+  const robotState = (heading) => devices.receiveDeviceMessage('zoneA/robot/go1-001/state', {
+    timestamp: '2026-09-14T14:36:26+0900', position: { x: 0.187, y: -0.207, heading_deg: heading },
+  });
+  try {
+    prep.initPrepStage();
+    void scenario;
+
+    // ① 시작 → 두 노드가 진행 중. 도면이 오면 T-A1 끝, 방위가 아직이면 안 돈다.
+    devices.resetDevices(); prep.resetPrepStage(); session.resetRobotSession();
+    session.setConnection({ state: 'open' });
+    session.markApproved();
+    session.markStarted();
+    if (prep.prepState().map.step !== 'running' || prep.prepState().pose.step !== 'running') {
+      failures.push('시작을 눌렀는데 T-A1·T-A2 가 진행 중으로 안 뜬다 — 그 몇 초가 빈 화면이 된다');
+    }
+    await flush(); await flush();
+    if (prep.prepState().map.step !== 'done') failures.push(`도면을 받았는데 T-A1 이 ${prep.prepState().map.step} 다`);
+    session.finishPrep();
+    if (shouldIssueScan()) failures.push('로봇 방위를 아직 안 받았는데 스캔이 나간다 — T-A2 가 대기인데 돈다');
+
+    // ② 로봇이 지금 방위를 보냈다 → T-A2 끝 → 이제 돈다. 액션 아이템이 읽을 값도 남는다.
+    robotState(-29);
+    if (prep.prepState().pose.step !== 'done') failures.push('로봇 방위가 왔는데 T-A2 가 안 끝난다');
+    if (prep.prepState().pose.value?.headingDeg !== -29) failures.push(`T-A2 가 잡은 방위가 ${prep.prepState().pose.value?.headingDeg} — 로봇이 보낸 -29 여야 한다`);
+    if (!shouldIssueScan()) failures.push('두 걸음이 다 끝났는데 스캔이 안 나간다');
+
+    // ③ **낡은 방위로 끝내지 않는다** — 시작 한참 전에 온 값은 「지금」이 아니다.
+    devices.resetDevices(); prep.resetPrepStage(); session.resetRobotSession();
+    const realNow = Date.now;
+    Date.now = () => realNow() - prep.POSE_FRESH_MS - 5000;
+    robotState(10);
+    Date.now = realNow;
+    session.setConnection({ state: 'open' });
+    session.markApproved();
+    session.markStarted();
+    await flush(); await flush();
+    session.finishPrep();
+    if (prep.prepState().pose.step === 'done') failures.push('시작 전에 받은 낡은 방위로 T-A2 를 끝냈다 — 「현재 각도」가 거짓이 된다');
+    if (shouldIssueScan()) failures.push('낡은 방위만 있는데 스캔이 나간다');
+  } finally {
+    globalThis.fetch = realFetch;
+    prep.resetPrepStage(); session.resetRobotSession(); devices.resetDevices();
+  }
 
   const client = src('detect', 'DetectClient.ts');
   if (!/unidepth_localization\/localization_evidence\.json/.test(client)) {
@@ -174,8 +238,18 @@ const { PREP_SEC, afterPrep } = session;
   if (!/path_overlay\.jpg$/.test(pathImageUrl(at))) failures.push(`경로 그림이 ${pathImageUrl(at)} 다`);
 
   const views = src('detect', 'views', 'DetectViews.tsx');
-  if (!/mapImageUrl\(source\)/.test(views)) failures.push('경로 전에 도면을 안 그린다 — 그 자리가 빈 상자가 된다');
+  if (!/floorPlanUrls\(source\)/.test(views)) failures.push('경로 전에 도면을 안 그린다 — 그 자리가 빈 상자가 된다');
   if (!/path === null/.test(views)) failures.push('그림을 바꾸는 기준이 경로가 아니다');
+  // **도면은 T-A1 이 끝난 뒤에 뜬다** (260914 지시) — 노드 상태를 그대로 읽는다.
+  if (!/foldStatuses\(/.test(views) || !/DETECT_TASKS\.map/.test(views)) {
+    failures.push('2D 맵이 T-A1 완료를 안 기다린다 — 노드는 대기인데 맵이 먼저 뜬다');
+  }
+  // 도면을 대신 읽을 자리가 도면 그림 하나뿐인가 — 판의 산출물은 대신하지 않는다.
+  const { floorPlanUrls } = await load('src', 'detect', 'DetectClient.ts');
+  const live = floorPlanUrls({ kind: 'live', base: 'http://d.test' });
+  if (live.length !== 2 || !/\/detect\/map$/.test(live[0]) || !/map_original\.jpg$/.test(live[1])) {
+    failures.push(`도면 주소 순서가 [${live.join(', ')}] — 탐지 창구 먼저, 저장소 도면 사본 나중이어야 한다`);
+  }
 
   // 그림이 바뀌는 값과 T-B1 이 끝나는 값이 같은가.
   const trace = src('detect', 'detectTrace.ts');
@@ -241,24 +315,34 @@ function control(name, hit) {
   session.markStarted();
   const blocked = !shouldIssueScan();
   session.finishPrep();
+  session.markPrepTasksDone();
   control('준비를 건너뛴 사본 (prepared 를 안 보는 관문)', blocked && shouldIssueScan());
   session.resetRobotSession();
 }
 {
-  // **각도 결과로 앞의 둘을 끝내는 사본.** 첫 각도는 로봇이 이미 돈 뒤에 온다.
-  const trace = src('detect', 'detectTrace.ts');
-  const onlyFrames = /if \(state\.frames\.length > 0\) \{\s*put \+= emit\(missionId, 'T-A1'/.test(trace);
-  control('각도 결과로 T-A1 을 끝내는 사본', !onlyFrames);
+  // **창만 보는 사본** (260914 에 실제로 있던 코드). 창이 닫히면 곧바로 참이었다 — 위 1절의
+  // 「창만 닫혔는데 스캔이 나간다」 판정이 그것을 잡는지, 그 사본의 결과로 확인한다.
+  session.resetRobotSession();
+  session.setConnection({ state: 'open' });
+  session.markApproved();
+  session.markStarted();
+  session.finishPrep();
+  const oursBlocks = !shouldIssueScan();
+  // 옛 코드를 흉내 낸다 — 창이 닫히는 순간 두 걸음을 확인하지 않고 준비를 끝낸다.
+  session.markPrepTasksDone();
+  const copyRotates = shouldIssueScan();      // 1절의 「창만 닫혔는데 스캔이 나간다」가 걸리는 상태
+  control('창만 닫히면 도는 사본 (T-A1·T-A2 대기 중 회전)', oursBlocks && copyRotates);
+  session.resetRobotSession();
 }
 
 if (failures.length) {
   console.error(`❌ verify:mission-prep\n- ${failures.join('\n- ')}`);
   process.exit(1);
 }
-console.log(`✅ 시작을 눌러도 준비 창(${PREP_SEC}초)이 닫히기 전에는 스캔이 안 나간다 — T-A1·T-A2 가 먼저다`);
+console.log(`✅ 시작을 눌러도 준비 창(${PREP_SEC}초)이 닫히고 T-A1·T-A2 가 실제로 끝나기 전에는 스캔이 안 나간다`);
 console.log('✅ 준비 중에는 한 각도도 안 열린다 — 로봇이 서 있는 동안 안 본 방향의 답이 뜨지 않는다');
 console.log('✅ 정지·일시정지·처음으로가 준비 창을 같이 끊는다 — 멈춘 뒤에 창이 닫혀도 안 돈다');
-console.log('✅ T-A1·T-A2 는 자세 역산으로 끝나고, 그 자세도 「임무 시작」 뒤에야 묻는다');
-console.log('✅ 2D 맵은 경로 전후로 다른 그림이고, 바뀌는 값이 T-B1 의 완료와 같다');
+console.log('✅ T-A1 은 도면을 받아 끝나고(문 자리가 탐지와 같다), T-A2 는 로봇의 지금 방위로 끝난다 — 낡은 방위로는 안 끝난다');
+console.log('✅ 2D 맵은 T-A1 이 끝난 뒤에 뜨고, 경로 전후로 다른 그림이며, 바뀌는 값이 T-B1 의 완료와 같다');
 console.log('✅ 이동 버튼이 머리줄에 있어 어느 화면에서도 보이고, 연결이 없어도 눌린다');
 console.log(`✅ 대조군 ${controls.length}건 전부 검출 — ${controls.join(' · ')}`);

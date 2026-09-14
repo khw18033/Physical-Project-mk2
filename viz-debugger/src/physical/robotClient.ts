@@ -14,6 +14,8 @@ import { robotSession, setConnection, subscribeRobot } from './robotSession.ts';
 import { currentMission } from '../data/scenario.ts';
 import { noteIssue } from '../shared/notifications.ts';
 import { receiveDeviceMessage } from './deviceState.ts';
+import { noteScanFeed } from '../detect/feedLog.ts';
+import { initPrepStage } from './prepStage.ts';
 import type { PhysicalStatus } from './PhysicalClient.ts';
 
 /**
@@ -62,6 +64,19 @@ export function robotClient(): PhysicalClient {
     // 장비 상태도 만들 때 잇는다 — 화면 부품이 안 떠 있는 동안의 값을 놓치면
     // 하드웨어 카드가 「모른다」로 남는다.
     singleton.onDevice(receiveDeviceMessage);
+    /**
+     * **로봇 → 탐지 흐름도 만들 때 잇는다** (260914). 탐지 그림이 안 올 때 로봇이 보냈는지를
+     * 화면이 스스로 말할 수 있어야 한다. 각도 → 칸은 지금 올라온 임무의 간격·칸 수로 잡는다.
+     */
+    singleton.onScanFeed((message) => {
+      const params = currentMission().params;
+      const stepDeg = typeof params?.viewpoint_step_deg === 'number' ? params.viewpoint_step_deg : 45;
+      const count = typeof params?.viewpoint_count === 'number' ? params.viewpoint_count : 8;
+      noteScanFeed(message, stepDeg, count);
+    });
+    // **준비 단계(T-A1·T-A2)도 여기서 잇는다** — 스캔 발행과 같은 이유다. 그리기에 매이면
+    // 두 판째에 안 돈다.
+    initPrepStage();
     /**
      * **승인이 스캔을 쏘는 자리도 여기다** (260911 — 두 판째에 안 나가던 자리).
      *

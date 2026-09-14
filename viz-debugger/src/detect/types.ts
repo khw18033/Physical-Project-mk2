@@ -30,6 +30,11 @@ export type DetectFrame = {
   distance_cm?: number;
   /** `false` 면 위 `distance_cm` 은 거리가 아니다. 그리면 안 된다. */
   in_valid_calibration_range?: boolean;
+  /**
+   * 찾은 각도의 특징 최고값. 스키마에는 없고 탐지 창구(`detect_api_server.py`)가 덧붙여 준다 —
+   * **로그에만 쓴다.** 판정은 근거(`evidence.final_score`)로 한다. 없을 수 있다.
+   */
+  final_score?: number;
 };
 
 /** 한 각도의 통과 관문. **찾았다는 판정은 점수가 아니라 이 넷이 정한다.** */
