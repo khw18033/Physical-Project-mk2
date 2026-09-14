@@ -44,7 +44,15 @@ COPY common/ /app/common/
 COPY robot/ /app/robot/
 
 # 비루트. 단, USB 시리얼(/dev/ttyACM0)을 쓸 때는 compose 에서 dialout 그룹을 준다.
-RUN useradd -r -u 10002 hwrobot
+#
+# ⚠ spool 디렉터리를 **이미지 안에서** 만들고 소유권을 준다. 도커 named volume 은
+#   비어 있을 때 마운트 지점의 내용·소유권을 그대로 복사하는데, 이미지에 그 경로가
+#   없으면 root:root 로 생겨 비루트 프로세스가 못 쓴다(실측: spool.py append 에서
+#   PermissionError 로 노드가 죽었다). 볼륨이 이미 root 로 생긴 뒤라면 이미지를
+#   고쳐도 소용없다 — `docker compose ... down -v` 로 볼륨을 지우고 다시 띄워야 한다.
+RUN useradd -r -u 10002 hwrobot \
+    && mkdir -p /var/lib/hw-node \
+    && chown 10002:10002 /var/lib/hw-node
 USER hwrobot
 
 ENV PYTHONUNBUFFERED=1
