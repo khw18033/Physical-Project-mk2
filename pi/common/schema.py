@@ -31,16 +31,20 @@ BE-C-02 식별자 계층: Entity(개체) / Node(물리 노드) / Zone(구역) �
 """
 import os
 import socket
-import time
 import uuid
+from datetime import datetime, timezone
 
 from common import config
 
-SCHEMA_VERSION = "1.3"
+SCHEMA_VERSION = "1.1"
 
-# 백엔드가 source_id 단일 필드로 확정하면 이 플래그를 False로. 그때까지는
-# 기존 소비자(monitor.py 등)가 깨지지 않도록 device_id 별칭을 같이 싣는다.
-LEGACY_DEVICE_ID = True
+# 프로세스 1회 기동을 가리키는 값. 순번 리셋의 경계를 정확히 가른다(백엔드 회신 §6-2).
+# 파일에 저장하지 않는다 — 저장하면 재시작해도 같은 값이 되어 의미가 사라진다.
+SESSION_ID = uuid.uuid4().hex[:12]
+
+# 백엔드가 source_id 단일 필드로 확정(2026-09-07 회신 §1-1 ③) — 별칭 발행 중단.
+# 소비자(monitor.py:56·analyzer.py:92)는 source_id 우선이라 안전하다.
+LEGACY_DEVICE_ID = False
 
 # BE-T-04 / [G3]: 장치 자기보고 상태. 서버 판정 가용성(availability)과는 다른 층이다.
 STATUS_OK = "ok"
@@ -49,8 +53,11 @@ STATUS_FAULT = "fault"
 
 
 def iso_now():
-    """HW-S-08: 모든 메시지에 타임스탬프. chrony로 엣지와 시각을 맞춘 뒤라야 의미가 있다."""
-    return time.strftime("%Y-%m-%dT%H:%M:%S%z")
+    """HW-S-08: 모든 메시지에 타임스탬프. chrony로 엣지와 시각을 맞춘 뒤라야 의미가 있다.
+
+    콜론 있는 오프셋(+09:00) + 밀리초. RFC3339 / 계약 date-time 정합(백엔드 회신 §1-1 ② · §6-9).
+    strftime("%z")가 내는 +0900 은 계약이 거부한다 — 전량 격리된다."""
+    return datetime.now(timezone.utc).astimezone().isoformat(timespec="milliseconds")
 
 
 def _read(path, default=""):
@@ -143,9 +150,10 @@ def envelope(identity, seq=None, correlation_id=None):
         "node_id": identity.node_id,       # BE-C-02
         "zone_id": identity.zone_id,
         "timestamp": iso_now(),            # HW-S-08
+        "session_id": SESSION_ID,          # 백엔드 회신 §6-2: 순번 리셋 경계
     }
     if seq is not None:
-        env["seq"] = seq
+        env["sequence_id"] = seq   # 계약 필드명(백엔드 회신 §1-1 ①). 인자 이름은 그대로.
     if correlation_id is not None:
         env["correlation_id"] = correlation_id   # BE-X-01: 백엔드 발급 command_id를 에코
     if LEGACY_DEVICE_ID:

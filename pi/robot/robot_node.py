@@ -170,6 +170,7 @@ class RobotNode(BaseNode):
             # HW-R-05: 수행 시작/완료/실패 보고는 상태 데이터에 포함해 회신한다
             payload["mission"] = dict(self.mission)
         self.publish(f"{self.base}/state", payload, qos=qos, kind=kind)
+        self.seq += 1
 
     def _check_discrete_events(self, now):
         """연속 표본과 달리 놓치면 인과가 끊기는 사건들. QoS 1 + 전량 재전송."""
