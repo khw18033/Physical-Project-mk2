@@ -32,7 +32,13 @@ import type { DetectFrame } from '../types.ts';
  * 「테스트」가 보이면 연결 전 시험처럼 읽힌다 — 어디서 읽는지는 연결 관리가 말한다.
  */
 function Waiting({ what }: { what: string }) {
-  return <p className="detect-wait">{what}</p>;
+  const { staleFrames } = useDetect();
+  return <p className="detect-wait">
+    {what}
+    {/* **지난 판을 거르고 있으면 그렇다고 적는다** (260914). 안 적으면 탐지 서비스는 결과를
+        내주고 있는데 화면만 비어 있어, 「연결이 안 된다」로 읽힌다. */}
+    {staleFrames !== null && <small>탐지 서비스에 남은 지난 판 결과({staleFrames}각도)는 쓰지 않습니다 — 새 스캔이 시작되면 받습니다</small>}
+  </p>;
 }
 
 /** 지금 고른 각도. 없으면 마지막으로 본 각도 — 도는 동안 화면이 따라가야 한다. */

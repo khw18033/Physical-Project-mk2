@@ -37,6 +37,14 @@ export type DetectState = {
   fetchedAtMs: number;
   /** 못 읽었으면 왜. 조용히 비워 두지 않는다. */
   error: string | null;
+  /**
+   * **지난 판 결과를 거르는 중이면 그 각도 수** (260914). 거를 것이 없으면 null.
+   *
+   * 탐지 서비스는 새 스캔이 **시작될 때** 지난 판 산출물을 지운다. 그 전까지는 지난 판을
+   * 그대로 내준다 — 「임무 시작」을 눌렀을 때 이미 여덟이 다 와 있으면 그것은 이번 판이
+   * 아니다(`poll.ts` 의 문). 화면은 거르고 있다는 사실을 숨기지 않고 적는다.
+   */
+  staleFrames: number | null;
 };
 
 const EMPTY: DetectState = {
@@ -48,6 +56,7 @@ const EMPTY: DetectState = {
   features: null,
   fetchedAtMs: 0,
   error: null,
+  staleFrames: null,
 };
 
 let state: DetectState = EMPTY;
@@ -99,6 +108,29 @@ export function receiveFeatures(features: DetectFeatures | null): void {
 
 export function noteDetectError(reason: string): void {
   commit({ ...state, error: reason });
+}
+
+/** 지난 판 결과를 거르기 시작한다. 받은 것은 없는 채로 둔다 — 각도 수만 적는다. */
+export function markStale(count: number): void {
+  if (state.staleFrames === count) return;
+  commit({ ...state, staleFrames: count, fetchedAtMs: Date.now(), error: null });
+}
+
+/** 거를 것이 없어졌다 — 새 판이 시작됐거나 처음부터 비어 있었다. */
+export function clearStale(): void {
+  if (state.staleFrames === null) return;
+  commit({ ...state, staleFrames: null });
+}
+
+/**
+ * **도중에 판이 새로 시작됐다** — 받은 각도 수가 줄었다.
+ *
+ * 탐지는 카메라가 얼어 같은 그림이 섞인 판을 통째로 버리고 다시 스캔한다. 그때 새 판도
+ * 프레임 이름이 `frame_000001.jpg` 부터라, 근거를 이름으로 기억해 두면 **버린 판의 근거가
+ * 새 판 각도에 붙는다.** 받은 것을 비운다. 낸 사건 기억은 남긴다 — 끝난 노드를 되돌리지 않는다.
+ */
+export function discardRound(): void {
+  commit({ ...state, frames: [], evidence: {}, localization: null, path: null });
 }
 
 /**

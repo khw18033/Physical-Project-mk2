@@ -265,6 +265,87 @@ const COUNT = 8;
   if (pathCommands('오른쪽으로 2도', 2, 0.01).length !== 0) failures.push('규약이 안 받는 값을 낸다');
 }
 
+// ── 5-e. 지난 판 결과를 이번 판으로 받지 않는다 (260914 실측) ────────────────
+//
+// 데스크톱 탐지 창구에 지난 판 산출물이 남아 있었고, 「임무 시작」 첫 물음에 여덟 각도와
+// 경로가 한꺼번에 와서 로봇이 돌지도 않았는데 「접근 시작」까지 열렸다. 탐지 서비스는 새
+// 스캔이 시작될 때 지난 판을 지우므로, **지워지는 것을 본 뒤에 쌓이는 것만** 받아야 한다.
+//
+// 가짜 탐지 서비스(fetch 스텁)로 그 순서를 실제로 흘린다 — 문자열 훑기가 아니다.
+{
+  const { registerConnectionDefault } = await load('src', 'shared', 'connections.ts');
+  await load('src', 'detect', 'DetectClient.ts');
+  registerConnectionDefault('detect', 'base', 'http://detect.test');
+  const { pollOnce, resetDetectGate } = await load('src', 'detect', 'poll.ts');
+  const { detectState, resetDetect, setTestMode } = await load('src', 'detect', 'store.ts');
+  setTestMode(false);
+
+  // 탐지 서비스가 지금 내주는 것. 테스트가 바꿔 가며 흘린다.
+  const served = { frames: [], path: null, localization: null };
+  const all = summary.frames;
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = async (url) => {
+    const u = String(url);
+    const json = (body, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
+    if (u.includes('/detect/results')) return json({ target_class: 'door', frames: served.frames });
+    if (u.includes('/detect/localization')) return served.localization ? json(served.localization) : json({ error: 'not_available' }, 404);
+    if (u.includes('/detect/path')) return served.path ? json(served.path) : json({ error: 'not_available' }, 404);
+    if (u.includes('/detect/evidence')) return json(u.includes('frame_000132') ? found132 : found113);
+    if (u.includes('/detect/features')) return json({ door: { features_compared: [] } });
+    return json({ error: 'not_found' }, 404);
+  };
+  const stalePath = sample('door', 'evidence.json');
+  const staleLoc = sample('unidepth_localization', 'localization_evidence.json');
+
+  try {
+    // ① 시작을 눌렀는데 지난 판이 다 남아 있다 — 아무것도 안 받는다.
+    resetDetect(); resetDetectGate();
+    Object.assign(served, { frames: all, path: stalePath, localization: staleLoc });
+    await pollOnce(COUNT);
+    await pollOnce(COUNT);
+    const s1 = detectState();
+    if (s1.frames.length !== 0) failures.push(`지난 판 ${all.length}각도가 남은 채 시작했는데 ${s1.frames.length}각도를 받았다 — 돌지도 않았는데 판정이 난다`);
+    if (s1.path !== null) failures.push('지난 판의 경로를 받았다 — 「접근 시작」이 지난 판 경로로 로봇을 움직인다');
+    if (s1.localization !== null) failures.push('지난 판의 자세를 받았다 — T-A1·T-A2 가 시작하자마자 끝난다');
+    if (s1.staleFrames !== all.length) failures.push(`거르고 있다는 사실을 안 적었다 (staleFrames=${s1.staleFrames})`);
+
+    // ② 새 스캔이 시작돼 지워졌다 → 한 각도씩 쌓인다 — 이제 받는다.
+    Object.assign(served, { frames: [], path: null, localization: null });
+    await pollOnce(COUNT);
+    if (detectState().staleFrames !== null) failures.push('지난 판이 지워졌는데 계속 거른다 — 이번 판을 영영 못 받는다');
+    served.frames = all.slice(0, 2);
+    await pollOnce(COUNT);
+    if (detectState().frames.length !== 2) failures.push(`지워진 뒤 쌓인 2각도를 ${detectState().frames.length}각도로 받았다`);
+
+    // ③ 처음부터 비어 있으면 거를 것이 없다.
+    resetDetect(); resetDetectGate();
+    Object.assign(served, { frames: [], path: null, localization: null });
+    await pollOnce(COUNT);
+    served.frames = all.slice(0, 1);
+    await pollOnce(COUNT);
+    if (detectState().frames.length !== 1 || detectState().staleFrames !== null) failures.push('비어 있던 서비스에서 첫 각도를 못 받았다');
+
+    // ④ 이번 판 도중에 줄었다 — 판이 다시 시작됐다. 버린 판의 근거가 새 판 각도에 붙으면 안 된다.
+    served.frames = all.filter((f) => f.found);          // 270·315 — 근거를 받는다
+    await pollOnce(COUNT);
+    const hadEvidence = Object.keys(detectState().evidence).length;
+    served.frames = [];
+    await pollOnce(COUNT);
+    if (hadEvidence === 0) failures.push('검사 준비 실패 — 찾은 각도의 근거를 받지 못했다');
+    if (Object.keys(detectState().evidence).length !== 0) failures.push('판이 다시 시작됐는데 버린 판의 근거가 남았다');
+
+    // 대조군 — **문이 없던 사본**(받은 목록을 그대로 넣는다)을 실제로 만들고 ①의 판정이
+    // 그것을 잡는지 본다. 잡지 못하면 위 검사는 헛돈다.
+    const { receiveFrames } = await load('src', 'detect', 'store.ts');
+    resetDetect();
+    receiveFrames(all);
+    control('지난 판을 그대로 받는 사본 (시작하자마자 여덟 각도)', detectState().frames.length !== 0);
+  } finally {
+    globalThis.fetch = realFetch;
+    resetDetect(); resetDetectGate();
+  }
+}
+
 // ── 6. 경계 — 탐지를 아는 면이 src/detect/ 하나인가 ─────────────────────────
 {
   const { readdirSync, statSync } = await import('node:fs');
@@ -319,5 +400,6 @@ console.log('✅ 초록은 하나 — 시료에서 실제로 둘이 찾혔고(27
 console.log('✅ 상자를 [x,y,w,h] 로 바꾼다 · 판단 문장은 관문 넷에서 나오고 화면도 퍼센트를 안 만든다');
 console.log('✅ 보정범위 밖 깊이값을 거리로 안 그린다 (시료는 0.0cm · 범위 밖)');
 console.log('✅ 탐지가 태스크 노드를 민다 — 이동·정지·종료는 안 민다(로봇이 해야 끝난다) · 회전 먼저 직진 나중');
+console.log('✅ 지난 판 결과를 이번 판으로 안 받는다 — 시작 때 남아 있으면 거르고, 지워진 뒤 쌓이는 것만 받는다');
 console.log('✅ 탐지를 아는 면이 src/detect/ 하나 — 시료 경로·엔드포인트가 경계 밖에 0건');
 console.log(`✅ 대조군 ${controls.length}건 전부 검출 — ${controls.join(' · ')}`);
