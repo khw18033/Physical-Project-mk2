@@ -25,6 +25,7 @@
  */
 
 import { useState } from 'react';
+import { DETECT_PRESETS, detectPresetReady } from '../detect/presets.ts';
 import { BROKER_PRESETS, presetReady } from '../physical/presets.ts';
 import { checkTarget, type PhysicalProbe } from '../shared/connectionCheck.ts';
 import { robotFacts } from '../physical/robotFacts.ts';
@@ -40,6 +41,20 @@ import {
   saveConnections,
   useConnections,
 } from '../shared/connections.ts';
+
+type AddressPreset = { id: string; label: string; url: string; why: string };
+
+/**
+ * **네트워크 환경을 고르는 칸이 있는 대상** (260910 로봇 · 260914 객체 탐지).
+ *
+ * 둘 다 망에 따라 주소가 갈리는 상대다 — 테일넷 이름 · 같은 랜 · 직접 입력. 프리셋 목록은
+ * 각자의 경계(`src/physical/` · `src/detect/`)에 두고, 이 화면은 고르는 칸만 그린다.
+ * 대상이 늘면 여기 한 줄을 더한다.
+ */
+const ADDRESS_PRESETS: Partial<Record<ConnectionTargetId, { presets: readonly AddressPreset[]; ready(preset: AddressPreset): boolean }>> = {
+  physical: { presets: BROKER_PRESETS, ready: presetReady },
+  detect: { presets: DETECT_PRESETS, ready: detectPresetReady },
+};
 
 export function ConnectionsPanel({ onClose, physical }: { onClose(): void; physical?: PhysicalProbe | null }) {
   const current = useConnections();
@@ -81,24 +96,26 @@ export function ConnectionsPanel({ onClose, physical }: { onClose(): void; physi
       {target.pending !== undefined && <p className="conn-target__pending">{target.pending}</p>}
       {target.fields.map((field) => {
         const key = connectionKey(target.id, field.key);
+        const choice = ADDRESS_PRESETS[target.id];
         return <label key={key}>
           <span>{field.label}</span>
-          {/* 프리셋이 있는 대상은 고르는 자리도 준다 (§2) — 지금은 physical 뿐이다.
+          {/* 프리셋이 있는 대상은 네트워크 환경을 고르는 자리도 준다 (§2) — 로봇과 객체 탐지.
               이름이 안 풀릴 때 손으로 IP 를 치는 것보다 고르는 편이 빠르다. */}
-          {target.id === 'physical' && <select
+          {choice !== undefined && <select
             className="conn-preset"
-            value={BROKER_PRESETS.find((preset) => preset.url === (draft[key] ?? ''))?.id ?? 'manual'}
+            value={choice.presets.find((preset) => preset.url === (draft[key] ?? ''))?.id ?? 'manual'}
             onChange={(event) => {
-              const preset = BROKER_PRESETS.find((p) => p.id === event.target.value);
+              const preset = choice.presets.find((p) => p.id === event.target.value);
               if (preset && preset.url) setDraft((prev) => ({ ...prev, [key]: preset.url }));
             }}
           >
-            {BROKER_PRESETS.map((preset) => <option
+            {choice.presets.map((preset) => <option
               key={preset.id}
               value={preset.id}
+              title={preset.why}
               // 값이 빈 프리셋은 **아직 없는 것**이다 — 고를 수 없게 막는다.
-              disabled={!presetReady(preset)}
-            >{preset.label}{presetReady(preset) || preset.id === 'manual' ? '' : ' (미정)'}</option>)}
+              disabled={!choice.ready(preset)}
+            >{preset.label}{choice.ready(preset) || preset.id === 'manual' ? '' : ' (미정)'}</option>)}
           </select>}
           <input
             value={draft[key] ?? ''}

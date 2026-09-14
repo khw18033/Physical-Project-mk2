@@ -20,10 +20,23 @@
  * 만들지 않는다.
  */
 
-import { connectionAddress } from '../shared/connections.ts';
+import { connectionAddress, registerConnectionDefault } from '../shared/connections.ts';
+import { DETECT_PRESETS } from './presets.ts';
 import type {
   DetectFeatures, DetectFrameEvidence, DetectLocalization, DetectPath, DetectSummary,
 } from './types.ts';
+
+const meta = import.meta as unknown as { env?: { VITE_DETECT_URL?: string } };
+
+/**
+ * **기본값이 Tailscale 주소다** (260914 지시).
+ *
+ * 전에는 비어 있어서 연결 관리에 주소를 손으로 넣어야 붙었다. 탐지가 시연장 밖의 데스크톱에서
+ * 돌게 되면서 주소가 하나로 정해졌다 — 테일넷 이름이다(`presets.ts`). 로봇과 같은 규칙으로
+ * 환경변수가 있으면 그것이 이기고, 연결 관리에서 넣은 값이 그 위에서 이긴다.
+ */
+const TAILSCALE = DETECT_PRESETS.find((preset) => preset.id === 'tailscale')?.url ?? '';
+registerConnectionDefault('detect', 'base', meta.env?.VITE_DETECT_URL ?? TAILSCALE);
 
 /** 탐지 서비스 주소. **이 함수 밖에서 주소 문자열을 만들지 않는다.** */
 export function detectBaseUrl(): string {

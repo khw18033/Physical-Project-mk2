@@ -92,7 +92,9 @@ export const CONNECTION_TARGETS: readonly ConnectionTarget[] = [
     live: true,
     // 설명도 자리표시 문구도 없다 (260913 지시). 주소가 비었을 때 무엇을 할 수 있는지는
     // 아래 「상태」 줄이 그때그때 말한다 — 늘 떠 있는 문장이 아니라 그 상태의 사유다.
-
+    //
+    // **주소를 여기 적지 않는다** (260914). 로봇과 같다 — 기본값(Tailscale)은
+    // `src/detect/DetectClient.ts` 가 `src/detect/presets.ts` 에서 꺼내 심는다.
     fields: [{ key: 'base', label: '주소', fallback: '' }],
   },
   {

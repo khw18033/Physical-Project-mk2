@@ -165,7 +165,13 @@ const controls = [];
 // 빨강은 「붙어야 하는데 못 붙었다」이고 지금은 붙을 상대가 없는 것이다. 여기서 빨갛게
 // 칠하면 무대에 오르기 전 점검에서 「넷 다 초록」이 애초에 불가능해진다.
 {
+  // 260914 — 기본 주소(Tailscale)가 생겼으므로 「주소 없음」을 명시적으로 만든다.
+  // 기본값 그대로 두면 실제 테일넷에 요청이 나가 결과가 데스크톱 전원에 따라 갈린다.
+  const { connectionAddress, registerConnectionDefault } = await load('src', 'shared', 'connections.ts');
+  const seededDetect = connectionAddress('detect', 'base');
+  registerConnectionDefault('detect', 'base', '');
   const detect = await checkDetect();
+  registerConnectionDefault('detect', 'base', seededDetect);
   if (detect.length === 0) failures.push('detect 줄이 아예 없다 — 자리는 있어야 한다');
   if (detect[0]?.ok !== null) {
     failures.push(`주소도 테스트도 없는데 detect 가 ${detect[0]?.ok} 다 — 「모름」이어야 한다`);
@@ -228,6 +234,33 @@ const controls = [];
   if (!/BROKER_PRESETS/.test(panel)) failures.push('연결 관리가 프리셋을 안 그린다');
 }
 
+// ── 7. detect 프리셋 (260914) ────────────────────────────────────────────────
+//
+// 로봇과 같은 모양으로 네트워크 환경을 고른다. 탐지는 시연장 밖 데스크톱에서 돌므로
+// **기본값이 Tailscale 이고, 처음 뜰 때의 주소와 그 프리셋이 같아야 한다** — 갈리면 고르는
+// 칸이 「직접 입력」으로 떠 있는데 값은 프리셋과 같은 상태가 된다(6절과 같은 이유).
+{
+  const { DETECT_PRESETS, detectPresetReady } = await load('src', 'detect', 'presets.ts');
+  for (const id of ['tailscale', 'manual']) {
+    if (!DETECT_PRESETS.some((p) => p.id === id)) failures.push(`탐지 프리셋 ${id} 가 없다`);
+  }
+  const { connectionAddress } = await load('src', 'shared', 'connections.ts');
+  await load('src', 'detect', 'DetectClient.ts');            // 기본값을 심는 자리
+  const seeded = connectionAddress('detect', 'base');
+  const tail = DETECT_PRESETS.find((p) => p.id === 'tailscale');
+  if (tail !== undefined && seeded !== tail.url) {
+    failures.push(`탐지 기본 주소가 ${seeded || '(빈 값)'} — Tailscale 프리셋(${tail.url})과 같아야 한다`);
+  }
+  if (tail !== undefined && !/\.ts\.net/.test(tail.url)) failures.push('탐지 Tailscale 프리셋이 ts.net 주소가 아니다');
+  if (DETECT_PRESETS.some((p) => p.id !== 'manual' && !detectPresetReady(p))) {
+    failures.push('값이 빈 탐지 프리셋을 고를 수 있다');
+  }
+  const panel = readFileSync(join(root, 'src', 'shell', 'ConnectionsPanel.tsx'), 'utf8');
+  if (!/DETECT_PRESETS/.test(panel)) failures.push('연결 관리가 탐지 프리셋을 안 그린다');
+  // 주소 문자열은 탐지 경계 안에만 — 화면이 손으로 적으면 두 곳이 갈라진다.
+  if (/ts\.net:8000|:8000/.test(panel)) failures.push('연결 관리가 탐지 주소를 손으로 적었다 — src/detect/presets.ts 에서 읽어야 한다');
+}
+
 // ── 대조군 ───────────────────────────────────────────────────────────────────
 function control(name, hit) {
   if (!hit) failures.push(`대조군 실패: ${name} — 변조 사본이 잡히지 않았다`);
@@ -264,5 +297,6 @@ console.log('✅ 브로커가 없으면 아래 둘은 「못 물어봤다」 · 
 console.log('✅ 확인 버튼이 실제 왕복을 한 번 돌린다 · 던져도 사유가 남는다 (팝업이 안 날아간다)');
 console.log('✅ detect 는 상대가 없으면 모름 — 2단계-B 에서 잇는다 · 한 대상이 죽어도 나머지는 돈다');
 console.log('✅ 프리셋 넷 · 발표장 핫스팟은 빈 채로 고를 수 없다');
+console.log('✅ 탐지도 네트워크 환경을 고른다 — 기본 주소가 Tailscale 프리셋과 같고, 주소는 src/detect/ 에만 있다');
 console.log(`✅ 대조군 ${controls.length}건 전부 검출 — ${controls.join(' · ')}`);
 process.exit(0);

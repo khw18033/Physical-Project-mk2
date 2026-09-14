@@ -52,6 +52,13 @@ const controls = [];
 }
 
 // ── 2. 확인이 던지지 않는다 ─────────────────────────────────────────────────
+//
+// 260914 — 기본 주소가 생겼다(Tailscale). 그래서 **「상대가 없다」를 여기서 명시적으로 만든다.**
+// 기본값을 그대로 두면 검사가 실제 테일넷에 요청을 던지고, 데스크톱이 켜져 있느냐에 따라
+// 결과가 갈린다. 규칙은 그대로다 — 주소도 없고 테스트도 안 켰으면 빨강이 아니라 모름.
+const { registerConnectionDefault } = await load('src', 'shared', 'connections.ts');
+await load('src', 'detect', 'DetectClient.ts');          // 기본값을 심는 자리 — 먼저 심게 두고 덮는다
+registerConnectionDefault('detect', 'base', '');
 {
   let lines;
   try {
