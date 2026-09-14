@@ -10,6 +10,8 @@
 제어기 실물이 미정이므로 인터페이스만 고정하고 구현체를 갈아끼운다.
 
   SimLink   실물 없이 파이프라인을 검증한다. 지금 사용
+  Go1Link   Unitree Go1. 내부 MQTT 구독 전용(명령 차단)
+  EpLink    RoboMaster EP. SDK 구독 + 섀시 속도 제어
   CanLink   소형 주기 스칼라(배터리·위치·속도·모드). 결정적 지연·프레임 우선순위
   EthLink   가변 크기 인식 결과. 구조화 데이터
 
@@ -108,5 +110,8 @@ def create(kind="sim"):
     if kind == "go1":
         from robot.go1_link import Go1Link      # paho 의존을 여기서만 진다
         return Go1Link()
+    if kind == "ep":
+        from robot.ep_link import EpLink        # robomaster SDK 의존을 여기서만 진다
+        return EpLink()
     raise NotImplementedError(
         f"ControllerLink '{kind}' 미구현 — CanLink/EthLink 는 제어기 실물 확보 후")

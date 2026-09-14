@@ -102,7 +102,7 @@ ROBOT_STATE_INTERVAL_IDLE = _f("ROBOT_STATE_INTERVAL_IDLE", 5.0)
 # 무선 왕복(실측 ~150ms)이 주기보다 길어 부적합하다 (SRS 9.4). 이산 이벤트만 QoS 1.
 ROBOT_STATE_QOS = _i("ROBOT_STATE_QOS", 0)
 ROBOT_BATTERY_WARN = _f("ROBOT_BATTERY_WARN", 20.0)     # % — 이산 경보 임계
-CONTROLLER_LINK = _s("CONTROLLER_LINK", "sim")          # sim | go1 | can | eth
+CONTROLLER_LINK = _s("CONTROLLER_LINK", "sim")          # sim | go1 | ep | can | eth
 # Unitree Go1 내부 MQTT 브로커. 구독 전용 경로다 — SDK 의 UDP(8082)는 요청/응답이라
 # 상태를 받으려면 명령을 보내야 하고, 그 순간 sport mode 에서 제어권을 가져와
 # 서 있던 로봇이 주저앉을 수 있다. 그래서 쓰지 않는다.
@@ -110,6 +110,17 @@ GO1_MQTT_HOST = _s("GO1_MQTT_HOST", "192.168.123.161")
 GO1_STALE_S = _f("GO1_STALE_S", 2.0)          # robot/state 12.5Hz 기준
 GO1_BMS_STALE_S = _f("GO1_BMS_STALE_S", 15.0) # bms/state 0.5Hz 기준
 GO1_CAM_ID = _i("GO1_CAM_ID", 1)
+
+# RoboMaster EP. Go1 과 달리 명령 경로를 연다(바퀴형이라 제어권 탈취 위험이 없다).
+# 대신 링크에서 속도를 클램프하고 워치독으로 정지시킨다 — robot/ep_link.py 참조.
+EP_CONN_TYPE = _s("EP_CONN_TYPE", "rndis")    # rndis(USB) | sta(공유기) | ap(직결)
+EP_SUB_FREQ = _i("EP_SUB_FREQ", 50)           # SDK 구독 주기. 허용값 1/5/10/20/50
+EP_STALE_S = _f("EP_STALE_S", 1.0)            # 위치 표본이 이보다 오래되면 fault
+EP_BATTERY_STALE_S = _f("EP_BATTERY_STALE_S", 15.0)
+EP_SPEED_MOVING = _f("EP_SPEED_MOVING", 0.05) # 이 이상이면 움직이는 것으로 본다(m/s)
+EP_MISSION_SPEED = _f("EP_MISSION_SPEED", 0.3)  # start_mission 기본 전진 속도
+EP_MAX_SPEED = _f("EP_MAX_SPEED", 0.5)        # 링크 클램프 상한. 상위가 뭘 보내든 이 값
+EP_CMD_TIMEOUT_S = _f("EP_CMD_TIMEOUT_S", 1.0)  # 워치독 — 갱신 없으면 정지
 
 # 토픽 도메인 체계(BACKEND_AGENDA #2)는 백엔드 회신 대기 중이다. 확정을 기다리며
 # 멈추지 않도록 체계를 설정으로 뺐다 — 어떤 체계가 오든 여기 한 줄만 바뀐다.
