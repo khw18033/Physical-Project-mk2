@@ -38,7 +38,12 @@ running() {
 }
 
 reconcile() {
-    local svc="$1" host="$2" miss_file="$STATE_DIR/$svc.miss" miss
+    # 한 local 문에 몰아 쓰면 안 된다 — bash 는 local 의 인자를 대입 **전에** 전부
+    # 전개하므로 같은 줄에서 $svc 를 참조하면 set -u 가 unbound 로 잡는다.
+    local svc="$1"
+    local host="$2"
+    local miss_file="$STATE_DIR/$svc.miss"
+    local miss
 
     if alive "$host"; then
         echo 0 > "$miss_file"
