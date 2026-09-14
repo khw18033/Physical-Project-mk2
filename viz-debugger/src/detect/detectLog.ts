@@ -57,6 +57,8 @@ export const DETECT_TASKS = {
   judge: 'T-A5',
   evidence: 'T-A6',
   path: 'T-B1',
+  /** 산출된 경로로 이동 — 경로가 로봇 명령으로 바뀌는 계산과 실제로 나간 명령이 여기 붙는다. */
+  approach: 'T-B2',
 } as const;
 
 /** 각도 칸의 태스크 id. 인덱스를 id 로 옮기는 규칙은 `physical/missionLink.ts` 의 역이다. */

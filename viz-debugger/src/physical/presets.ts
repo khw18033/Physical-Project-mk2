@@ -127,7 +127,7 @@ export type MissionGeometry = {
   /** 접근 거리(m). 경로 산출이 붙으면 그 결과가 들어온다. */
   forwardDistanceM: number;
   /** 값이 어디서 왔는가 — 화면과 보고서가 이 사실을 적는다. */
-  source: 'script' | 'path-planner';
+  source: 'none' | 'path-planner';
 };
 
 /**
@@ -149,6 +149,7 @@ export function missionGeometry(params: Record<string, unknown> | null | undefin
   if (planned !== null && Number.isFinite(planned.forward_distance_cm) && planned.forward_distance_cm > 0) {
     return { steps, stepDeg, forwardDistanceM: planned.forward_distance_cm / 100, source: 'path-planner' };
   }
-  const forward = typeof params?.forward_distance_m === 'number' ? params.forward_distance_m : 0;
-  return { steps, stepDeg, forwardDistanceM: forward, source: 'script' };
+  // **대본 거리(`forward_distance_m`)를 쓰지 않는다** (260914 리허설). 그 값으로 방향도 모른 채
+  // 4.2m 를 걸었다. 경로가 없으면 거리도 없다 — 0 이고, 이동 버튼은 열리지 않는다.
+  return { steps, stepDeg, forwardDistanceM: 0, source: 'none' };
 }

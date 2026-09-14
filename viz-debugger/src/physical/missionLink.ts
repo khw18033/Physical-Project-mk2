@@ -16,7 +16,7 @@
 import type { ViewpointFrame } from '../viewpoint/fill.ts';
 import { missionGeometry, type MissionGeometry } from './presets.ts';
 import {
-  chosenIndexOf, isDoorTurn, progressOf, stageOf, viewpointIndexOf, warningOf,
+  chosenIndexOf, isDoorTurn, isReturnTurn, progressOf, stageOf, viewpointIndexOf, warningOf,
   type StatusDetail, type UplinkMessage,
 } from './uplink.ts';
 import type { PhysicalAction } from './encode.ts';
@@ -54,9 +54,12 @@ export function commandForTask(taskId: string, geometry: MissionGeometry): TaskC
       parameters: { steps: geometry.steps, step_deg: geometry.stepDeg, forward_m: 0 },
     };
   }
-  if (taskId === 'T-B2') {
-    return { taskId, action: 'move_forward', parameters: { distance_m: geometry.forwardDistanceM } };
-  }
+  // **`T-B2`(이동)는 여기서 명령을 만들지 않는다** (260914 리허설 — 「하드코딩된 경로로 이동」).
+  //
+  // 전에는 `move_forward { distance_m: 대본의 forward_distance_m }`(4.2m)을 냈다. 탐지 경로가
+  // 없어도 로봇의 `door_turn` 만 오면 「경로대로 이동」이 열렸고, 누르면 **방향도 모른 채 4.2m** 를
+  // 걸었다 — 리허설에서 두 번 사람이 정지로 끊었다. 이동은 이제 `T-B1`(2D 맵 기반 경로 산출)이
+  // 낸 경로로만 나간다(`physical/approachPlan.ts`). 경로가 없으면 안 움직인다.
   return null;
 }
 
@@ -112,13 +115,22 @@ export type LinkEffect =
   | { kind: 'task-running'; taskId: string; commandId: string }
   | { kind: 'task-failed'; taskId: string; commandId: string; code: string | null; message: string | null }
   | { kind: 'task-done'; taskId: string; commandId: string; result: Record<string, number> }
-  | { kind: 'viewpoint'; frame: ViewpointFrame; warning: string | null }
+  /**
+   * `yawKnown === false` 면 칸만 켜고 방위는 안 적는다 (260914). 0도 칸은 회전 보고 없이 켜질 수
+   * 있는데, 그때 옆 걸음의 방위를 빌려 적으면 `door_turn` 견주기와 이동 보정이 둘 다 틀린다.
+   */
+  | { kind: 'viewpoint'; frame: ViewpointFrame; warning: string | null; yawKnown?: boolean }
   | { kind: 'progress'; ack: number; of: number }
   /**
    * 로봇이 문 쪽으로 몸을 돌렸다. **로봇이 고른 칸이 곧 화면이 고른 칸이다** (260910).
    * `chosenIndex` 가 null 이면 어느 걸음인지 못 짚은 것이고, 그때는 초록을 켜지 않는다.
    */
   | { kind: 'door-turn'; yawDeg: number | null; chosenIndex: number | null }
+  /**
+   * **출발 방향으로 돌아온 마지막 회전** (260914). 노드가 아니다. 그 방위는 곧 스캔을 시작한
+   * 방위이고, 탐지의 회전각이 그 방위 기준이라 이동 명령을 보정할 때 쓴다(`approachPlan.ts`).
+   */
+  | { kind: 'scan-return'; yawDeg: number | null }
   | { kind: 'aborted'; note: string }
   /**
    * 임무 ACK 가 아닌 **단계 보고** (연동 가이드 §4-3). `sdk_starting` 이면 로봇이 지금
@@ -140,6 +152,8 @@ export type LinkContext = {
    * **절대 각도로 고르지 않는다** — 기준점이 움직인다(연동 가이드 §5-3).
    */
   seenYawByIndex: ReadonlyMap<number, number>;
+  /** 이미 켜진 칸. 없으면 방위를 본 칸으로 갈음한다. */
+  litIndices?: ReadonlySet<number>;
   /** 뷰포인트 칸 수. 대본이 여덟이라고 말한다. */
   viewpointCount: number;
 };
@@ -227,7 +241,31 @@ function statusEffects(detail: StatusDetail | null, context: LinkContext & { tas
     return effects;
   }
 
+  if (isReturnTurn(detail)) {
+    effects.push({ kind: 'scan-return', yawDeg: detail.yaw_deg });
+    return effects;
+  }
+
   const index = viewpointIndexOf(detail, context.viewpointCount);
+  /**
+   * **첫 회전이 왔는데 0도 칸이 아직 안 켜졌으면 0도를 켠다** (260914). 0도는 첫 회전 **전에**
+   * 찍힌다 — 보통은 `/frame` 촬영이 먼저 켜지만(`robotBridge.receiveScanCapture`), 촬영 흐름이
+   * 없을 때(pi7 전송이 꺼짐 · 로봇 없는 모의) 0도 칸이 영영 대기로 남으면 안 된다. 회전을
+   * 0도 칸에 붙이는 것이 아니다 — 「회전1이 시작됐다면 0도는 이미 찍혔다」는 사실만 칠한다.
+   */
+  const zeroLit = context.litIndices?.has(0) ?? context.seenYawByIndex.has(0);
+  if (index === 1 && !zeroLit) {
+    effects.push({
+      kind: 'viewpoint',
+      frame: {
+        channel: 'robot_state',
+        // 0도의 방위는 이 보고에 없다 — 이것은 회전1 **뒤**의 방위다. 칸만 켜고 방위는 안 적는다.
+        payload: { rotation_index: 0, yaw: detail.yaw_deg ?? 0, state: 'rotating', last_cmd: 'scan_mission', result: null },
+      },
+      warning: null,
+      yawKnown: false,
+    });
+  }
   if (index !== null) {
     effects.push({
       kind: 'viewpoint',

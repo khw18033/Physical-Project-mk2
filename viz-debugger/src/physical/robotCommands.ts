@@ -23,10 +23,13 @@ import { commandTracker } from '../shared/commandCenter.ts';
 import { noteIssue } from '../shared/notifications.ts';
 import type { CommandAck, CommandRequest } from '../transport/index.ts';
 import type { PhysicalAction } from './encode.ts';
-import { PAUSE_ACTION, SDK_ACTIONS, STOP_ACTION as ARRIVAL_STOP, STOP_REASON as STOP_WHY, TEST_FORWARD_M } from './presets.ts';
+import { PAUSE_ACTION, SDK_ACTIONS, TEST_FORWARD_M } from './presets.ts';
 import { NO_NODE } from './missionLink.ts';
 import { detectState } from '../detect/store.ts';
-import { commandForTask, missionGeometry, pathCommands, type TaskCommand } from './missionLink.ts';
+import { appendDetectLog, DETECT_TASKS } from '../detect/detectLog.ts';
+import { commandForTask, missionGeometry, type TaskCommand } from './missionLink.ts';
+import { planApproach, type ApproachPlan } from './approachPlan.ts';
+import { currentMission } from '../data/scenario.ts';
 import type { PhysicalClient } from './PhysicalClient.ts';
 import type { UplinkMessage } from './uplink.ts';
 import { STOP_ACTION, STOP_REASON } from './presets.ts';
@@ -184,9 +187,18 @@ export async function issueApproach(
    * 로봇을 안 움직이고, 움직이는 것은 이 하나다.
    *
    * 경로가 와 있으면 **회전 먼저, 직진 나중**으로 둘을 낸다 — 돌기 전에 직진하면 엉뚱한
-   * 데로 간다. 경로가 없으면 예전대로 직진 하나만 낸다(대본 거리).
+   * 데로 간다.
+   *
+   * **경로가 없으면 안 움직인다** (260914 리허설). 전에는 대본 거리(4.2m)로 직진 하나를
+   * 냈다 — 방향도 모른 채 걸었다. 이제 사유를 돌려주고 끝낸다.
    */
-  const steps = approachSteps();
+  const plan = planApproach(currentStepDeg(params));
+  if (!plan.ok) {
+    appendDetectLog({ lane: 'screen', level: 'warn', text: `이동하지 않았습니다 — ${plan.reason}`, detail: '', tasks: [DETECT_TASKS.approach] });
+    return { sent: false, commandId: '', requestId: null, reason: plan.reason };
+  }
+  logApproachPlan(plan);
+  const steps = plan.steps;
   if (steps.length > 0) {
     let last: IssueOutcome | null = null;
     for (const [order, step] of steps.entries()) {
@@ -232,34 +244,54 @@ export async function issueApproach(
     if (last !== null) markApproachIssued();
     return last ?? { sent: false, commandId: '', requestId: null, reason: '경로에 낼 명령이 없습니다' };
   }
-  const outcome = await issueTask(client, 'T-B2', params);
-  if (outcome?.sent === true) markApproachIssued();
-  return outcome;
+  return { sent: false, commandId: '', requestId: null, reason: '경로에 낼 명령이 없습니다' };
+}
+
+/** 대본의 각도 간격. 스캔 뒤 방위를 보정할 때 「한 칸」이 몇 도인지 알아야 한다. */
+function currentStepDeg(params: Record<string, unknown> | null): number {
+  return typeof params?.viewpoint_step_deg === 'number' ? params.viewpoint_step_deg : 45;
+}
+
+/**
+ * **경로 → 명령 계산을 액션 아이템에 남긴다** (260914 지시 — 「최종적으로 내려진 제어 명령들」).
+ * 실제로 나간 바이트는 로봇 명령 표(`commandsOfTask('T-B2')`)에 따로 쌓인다.
+ */
+function logApproachPlan(plan: Extract<ApproachPlan, { ok: true }>): void {
+  appendDetectLog({
+    lane: 'screen', level: plan.notes.length > 0 ? 'warn' : 'info',
+    text: `이동 명령 계산 — 탐지 회전 ${signedTurn(plan.detectionTurnDeg)}(스캔 시작 기준)`
+      + (plan.turnedSinceStartCwDeg === null ? '' : ` · 로봇이 스캔 뒤 이미 ${signedTurn(plan.turnedSinceStartCwDeg)} 돌아 있음`)
+      + ` → 보낼 명령 ${plan.steps.map(stepWords).join(' · ')}`,
+    detail: [
+      `출발 방위 ${plan.startYawDeg === null ? '모름' : `${plan.startYawDeg.toFixed(1)}°`} (${plan.startYawSource})`,
+      `지금 방위 ${plan.nowYawDeg === null ? '모름' : `${plan.nowYawDeg.toFixed(1)}°`} (${plan.nowYawSource})`,
+      `경로 직진 ${plan.plannedForwardM.toFixed(3)} m`,
+      ...plan.notes,
+    ].join(' · '),
+    tasks: [DETECT_TASKS.approach],
+  });
+}
+
+const signedTurn = (deg: number) => `${deg < 0 ? '왼쪽' : '오른쪽'} ${Math.abs(deg).toFixed(1)}°`;
+
+function stepWords(step: TaskCommand): string {
+  if (step.action === 'turn') return `turn ${step.parameters?.deg}°`;
+  if (step.action === 'move_forward') return `move_forward ${step.parameters?.distance_m} m`;
+  return `${step.action}(도착 정지)`;
 }
 
 /**
  * **지금 누르면 나갈 명령들.** 버튼에 적는 문구와 실제로 내는 것이 같은 함수를 쓴다 —
- * 둘이 갈리면 「회전 90도」라고 적힌 버튼이 다른 각도를 낸다.
+ * 둘이 갈리면 「회전 90도」라고 적힌 버튼이 다른 각도를 낸다. 계산은 `approachPlan.ts` 하나다.
  *
- * 경로가 없으면 빈 목록이고, 그때는 예전대로 대본 거리로 직진 하나만 낸다.
+ * 경로가 없으면 빈 목록이다 — **대본 거리로 대신하지 않는다** (260914).
+ *
+ * 끝의 도착 정지(`T-B3`)는 「확인사살용」이다(260912 지시) — 직진이 끝나면 이미 서 있지만
+ * 순서도의 걸음이고, 직진이 덜 끝났을 때 그것을 접는다. 화면을 잠그지 않는다.
  */
 export function approachSteps(): readonly TaskCommand[] {
-  const path = detectState().path;
-  if (path === null) return [];
-  const walk = pathCommands(path.turn_instruction, turnDegOf(path), issuedForwardM() ?? 0);
-  if (walk.length === 0) return [];
-  /**
-   * **도착 정지를 한 번 더 낸다** (260912 지시 — 「확인사살용으로」).
-   *
-   * 직진이 끝나면 로봇은 이미 서 있다. 그래도 `T-B3`「문과 가까워지면 정지」는 순서도에
-   * 있는 걸음이고, 노드가 있는데 아무 명령도 안 내면 **화면에만 있는 걸음**이 된다.
-   * 한 번 더 내는 쪽이 안전하기도 하다 — 직진이 어딘가에서 덜 끝났을 때 그것을 접는다.
-   *
-   * 로봇을 멈추는 방법은 하나뿐이라(`presets.ts` 의 실측) 긴급 정지와 같은 action 을
-   * 쓴다. 다른 점은 **화면을 안 잠근다**는 것이다 — 이건 임무가 끝나는 정상 걸음이지
-   * 사람이 누른 비상 정지가 아니다. 그래서 `reason` 도 사람이 아니라 화면이다.
-   */
-  return [...walk, { taskId: 'T-B3', action: ARRIVAL_STOP, parameters: { reason: STOP_WHY.screen } }];
+  const plan = planApproach(currentStepDeg(currentMission().params));
+  return plan.ok ? plan.steps : [];
 }
 
 /** 경로 산출이 낸 **계획** 거리(m). 화면이 적는 값이다. 없으면 null. */
@@ -308,16 +340,6 @@ export function approachWords(): string | null {
 }
 
 /**
- * 경로 산출이 낸 회전량(절댓값). 식과 대입값 문자열에서 읽는다 — **우리가 다시 계산하지
- * 않는다.** 못 읽으면 0이고, 그때는 안 돈다.
- */
-function turnDegOf(path: { path_calculation?: Record<string, { substituted: string }> }): number {
-  const step = path.path_calculation?.step2_turn_amount?.substituted ?? '';
-  const matched = step.match(/=\s*([\d.]+)\s*\(/);
-  return matched === null ? 0 : Number(matched[1]);
-}
-
-/**
  * **구동 브리지를 사람이 쥔다** (연동 가이드 §4-3 · 260910 지시).
  *
  * 로봇은 평시에 「연결만 된 상태」다. 브리지(`go1-sdk`)는 내려가 있고, 기동하는 순간
@@ -350,13 +372,12 @@ export async function issueSdkAuto(client: PhysicalClient, on: boolean): Promise
   return issueThroughTracker(client, NO_NODE, SDK_ACTIONS.auto, { on: on ? 1 : 0 });
 }
 
-/** 접근을 눌러도 되는가 — `door_turn` 이 왔고, 아직 안 쐈고, 잠기지 않았을 때. */
+/** 접근을 눌러도 되는가 — 경로가 있고, 아직 안 쐈고, 잠기지 않았을 때. */
 export function canApproach(): boolean {
   const session = robotSession();
-  // **탐지가 경로를 냈으면 그것으로 연다** (260912). 전에는 로봇의 `door_turn` 하나만
-  // 봤는데, 탐지가 몰 때는 그 신호가 안 온다 — 여덟 칸이 다 차고 경로까지 나왔는데
-  // 버튼이 영영 안 떴다.
-  const ready = session.doorTurn !== null || detectState().path !== null;
+  // **경로가 있을 때만 연다** (260914 리허설). 전에는 로봇의 `door_turn` 만 와도 열렸다 —
+  // `door_turn` 은 pi7 의 고정 기하값이지 경로가 아니다. 그 문으로 대본 거리(4.2m) 직진이 나갔다.
+  const ready = detectState().path !== null && detectState().pathFailure === null;
   return ready && !session.approachIssued && canIssueRobotCommand();
 }
 
@@ -540,6 +561,8 @@ export async function resumeMission(
   const taskId = robotSession().paused?.taskId ?? null;
   releasePaused();
   if (taskId === null) return null;
+  // **이동 걸음은 경로로 다시 낸다** (260914). 전에는 `issueTask('T-B2')` 가 대본 거리로 직진을 냈다.
+  if (taskId === 'T-B2' || taskId === 'T-B3') return issueApproach(client, params);
   if (taskId === 'T-A3') markScanIssued();      // 관문을 다시 걸어 두 번 안 나가게
   const outcome = await issueTask(client, taskId, params);
   if (taskId === 'T-A3' && (outcome === null || outcome.sent !== true)) clearScanIssued();

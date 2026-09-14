@@ -18,7 +18,7 @@
  *   T-A4-n 각도 탐색        그 각도의 결과가 왔다
  *   T-A5 방향 판단          여덟을 다 보고 하나를 골랐다 (못 고르면 **안 끝난다**)
  *   T-A6 근거 가시화        고른 각도의 근거가 왔다
- *   T-B1 경로 산출          경로가 왔다
+ *   T-B1 경로 산출          여덟을 다 보면 진행 중 · 경로가 오면 완료 · 대체 경로가 다 안 되면 실패(사유)
  *
  * `T-B2`(이동)·`T-B3`(정지)·`T-C1`(종료)은 **여기서 안 만든다.** 로봇이 실제로 움직여야
  * 끝나는 것들이고, 탐지는 그것을 모른다.
@@ -53,25 +53,26 @@ export function resetDetectTrace(): void {
   emitted.clear();
 }
 
-function event(nodeId: string, status: 'running' | 'done', atSec: number): ScenarioEvent {
+function event(nodeId: string, status: 'running' | 'done' | 'failed', atSec: number, payload?: Record<string, unknown>): ScenarioEvent {
   seq += 1;
   return {
     seq,
     atSec,
     nodeId,
     status,
-    kind: status === 'done' ? 'evaluated' : 'started',
+    kind: status === 'done' ? 'evaluated' : status === 'failed' ? 'failed' : 'started',
     // **탐지가 낸 것이다.** 사람도 대본도 로봇도 아니다 — 열을 되짚을 때 그 사실이 남아야 한다.
     producedBy: 'backend',
+    ...(payload === undefined ? {} : { payload }),
   } as ScenarioEvent;
 }
 
 /** 한 번만 낸다. 이미 낸 것이면 아무 일도 안 한다. */
-function emit(missionId: string, nodeId: string, status: 'running' | 'done', atSec: number): boolean {
+function emit(missionId: string, nodeId: string, status: 'running' | 'done' | 'failed', atSec: number, payload?: Record<string, unknown>): boolean {
   const key = `${nodeId}:${status}`;
   if (emitted.has(key)) return false;
   emitted.add(key);
-  receiveRobotProgress(missionId, event(nodeId, status, atSec));
+  receiveRobotProgress(missionId, event(nodeId, status, atSec, payload));
   return true;
 }
 
@@ -113,7 +114,23 @@ export function advanceDetectTasks(
     }
   }
 
-  // 경로가 오면 산출이 끝난다. **이동은 여기서 안 낸다** — 로봇이 움직여야 끝난다.
-  if (state.path !== null) put += emit(missionId, 'T-B1', 'done', atSec) ? 1 : 0;
+  /**
+   * **`T-B1` 2D 맵 기반 경로 산출** (260914 리허설 — 「해당 노드를 진행하지 않고 바로 이동」).
+   *
+   * 여덟을 다 보면 탐지가 곧바로 경로를 산출한다(A 단상 → B 문만 위치 → C 문 관측만). 그 동안
+   * 노드가 진행 중이고, 경로가 오면 완료 — 2D 맵이 같은 값(`state.path`)으로 경로 그림으로 바뀐다.
+   * 대체 경로가 전부 실패하면 **실패로 칠하고 사유를 싣는다** — 전에는 대기로 남은 채 이동이
+   * 대본 거리로 열렸다. 이동(`T-B2`)은 여기서 안 낸다 — 로봇이 움직여야 끝난다.
+   */
+  if (swept) put += emit(missionId, 'T-B1', 'running', atSec) ? 1 : 0;
+  if (state.path !== null) {
+    put += emit(missionId, 'T-B1', 'done', atSec, {
+      ...(state.path.path_mode ? { path_mode: state.path.path_mode } : {}),
+      turn_instruction: state.path.turn_instruction,
+      forward_distance_cm: state.path.forward_distance_cm,
+    }) ? 1 : 0;
+  } else if (state.pathFailure !== null) {
+    put += emit(missionId, 'T-B1', 'failed', atSec, { code: 'path_failed', message: state.pathFailure }) ? 1 : 0;
+  }
   return put;
 }

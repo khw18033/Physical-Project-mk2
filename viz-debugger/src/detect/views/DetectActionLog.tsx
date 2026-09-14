@@ -11,6 +11,8 @@
  */
 
 import { useEffect, useState } from 'react';
+import { planApproach } from '../../physical/approachPlan.ts';
+import { useRobotSession } from '../../physical/robotSession.ts';
 import { useDeviceStates } from '../../physical/deviceState.ts';
 import { hardwareTarget } from '../../physical/encode.ts';
 import { viewpointTaskIndex } from '../../physical/missionLink.ts';
@@ -101,6 +103,99 @@ export function PrepFacts({ taskId }: { taskId: string }) {
     </dl>
   </section>;
 }
+
+/** 대체 경로 단계의 사람 이름. */
+const STEP_NAMES: Record<string, string> = {
+  A_pedestal: 'A · 단상으로 위치 추정',
+  B_door_only: 'B · 문만으로 위치 추정',
+  C_door_relative: 'C · 문 관측만으로 경로',
+  path_map: '도면 기반 경로 산출',
+};
+
+/**
+ * **`T-B1` 2D 맵 기반 경로 산출이 어떻게 나왔나** (260914 지시 — 「경로 산출 과정을 액션 아이템에서」).
+ *
+ * 탐지가 준 산출물 그대로다 — 대체 경로가 어디서 왜 넘어갔는지, 문 거리를 무엇으로 어림했는지,
+ * 식과 대입값, 탐지가 낸 로봇 명령. **다시 계산하지 않는다.**
+ */
+export function PathFacts() {
+  const detect = useDetect();
+  const path = detect.path ?? detect.pathFailureDetail;
+  if (path === null) {
+    return <section className="prep-facts">
+      <h3>경로 산출</h3>
+      <p className="robot-log__empty">아직 없습니다 — 여덟 각도를 다 보면 탐지가 곧바로 산출합니다</p>
+    </section>;
+  }
+  const distance = path.door_distance_estimate ?? null;
+  const command = path.robot_command ?? null;
+  return <section className="prep-facts">
+    <h3>경로 산출{path.ok ? '' : ' — 실패'}</h3>
+    <dl>
+      <div><dt>결과</dt><dd>{path.ok ? <><b>{path.turn_instruction}</b> · 직진 {(path.forward_distance_cm / 100).toFixed(2)} m</> : <span className="detect-map__failed">{path.reason}</span>}</dd></div>
+      {path.path_mode_words !== undefined && <div><dt>산출 방식</dt><dd>{path.path_mode_words}</dd></div>}
+    </dl>
+    {(path.fallback_chain ?? []).length > 0 && <ol className="path-chain">
+      {(path.fallback_chain ?? []).map((step, at) => <li key={`${step.step}-${at}`} className={step.ok ? 'is-ok' : 'is-fail'}>
+        <b>{step.ok ? '✓' : '✕'} {STEP_NAMES[step.step] ?? step.step}</b> <span>{step.detail}</span>
+      </li>)}
+    </ol>}
+    {distance !== null && <>
+      <h4>문 거리 — 겉보기 크기</h4>
+      <p className="path-note"><code>{distance.formula}</code>{distance.substituted !== undefined && <> → {distance.substituted}</>}{distance.reason !== undefined && <> · <span className="detect-map__failed">{distance.reason}</span></>}</p>
+      <table className="path-table"><thead><tr><th>프레임</th><th>각도</th><th>폭 px</th><th>높이 px</th><th>폭→거리</th><th>높이→거리</th></tr></thead>
+        <tbody>{distance.per_frame.map((row) => <tr key={row.frame}>
+          <td>{row.frame}</td><td>{row.rotation_deg}°</td>
+          <td>{row.box_w_px}{row.width_clipped ? ' (잘림)' : ''}</td><td>{row.box_h_px}{row.height_clipped ? ' (잘림)' : ''}</td>
+          <td>{row.distance_from_width_cm ?? '—'}</td><td>{row.distance_from_height_cm ?? row.skipped_reason ?? '—'}</td>
+        </tr>)}</tbody>
+      </table>
+    </>}
+    {Object.keys(path.path_calculation ?? {}).length > 0 && <>
+      <h4>식과 대입값</h4>
+      <ol className="detect-steps">
+        {Object.entries(path.path_calculation).map(([name, step]) => <li key={name}>
+          <code>{step.formula}</code>
+          <small>{step.substituted}</small>
+        </li>)}
+      </ol>
+    </>}
+    {command !== null && <p className="path-note">
+      탐지가 낸 로봇 명령 — <code>turn {command.turn.deg}°</code> · <code>move_forward {command.move_forward.distance_m} m</code>
+      <small> 회전은 스캔 시작 방향 기준(오른쪽 +). 로봇이 스캔 뒤 틀어진 만큼은 「산출된 경로에 따라 이동」이 보정합니다</small>
+      {command.warning !== undefined && <> · <span className="detect-map__failed">{command.warning}</span></>}
+    </p>}
+  </section>;
+}
+
+/**
+ * **`T-B2` 경로 → 실제로 보낼 명령** (260914). 버튼·발행과 같은 계산(`planApproach`)을 그대로 보여 준다.
+ * 실제로 나간 명령과 로봇의 응답은 그 아래 「로봇 명령 · 오간 로그」에 있다.
+ */
+export function ApproachFacts() {
+  useDetect();
+  useRobotSession();
+  useTick(2000);
+  const plan = planApproach();
+  return <section className="prep-facts">
+    <h3>이동 명령 계산</h3>
+    {!plan.ok
+      ? <p className="robot-log__empty">{plan.reason}</p>
+      : <dl>
+        <div><dt>탐지 회전</dt><dd>{turnWords(plan.detectionTurnDeg)} <small>스캔 시작 방향 기준</small></dd></div>
+        <div><dt>출발 방위</dt><dd>{plan.startYawDeg === null ? '모름' : `${plan.startYawDeg.toFixed(1)}°`} <small>{plan.startYawSource}</small></dd></div>
+        <div><dt>지금 방위</dt><dd>{plan.nowYawDeg === null ? '모름' : `${plan.nowYawDeg.toFixed(1)}°`} <small>{plan.nowYawSource}</small></dd></div>
+        <div><dt>이미 돈 각도</dt><dd>{plan.turnedSinceStartCwDeg === null ? '보정 못 함' : turnWords(plan.turnedSinceStartCwDeg)} <small>로봇의 scan_mission 은 한 바퀴 뒤 door_turn 으로 한 칸 되돌아 선다</small></dd></div>
+        <div className="prep-facts__live"><dt>보낼 명령</dt><dd><b>{plan.steps.map((step) => step.action === 'turn'
+          ? `turn ${step.parameters?.deg}°`
+          : step.action === 'move_forward' ? `move_forward ${step.parameters?.distance_m} m` : `${step.action}(도착 정지)`).join(' → ')}</b></dd></div>
+        <div><dt>직진</dt><dd>경로 {plan.plannedForwardM.toFixed(3)} m{Math.abs(plan.plannedForwardM - plan.issuedForwardM) > 0.0005 && <> · 「테스트」라 {plan.issuedForwardM.toFixed(3)} m 만 보냄</>}</dd></div>
+        {plan.notes.map((note) => <div key={note}><dt>참고</dt><dd>{note}</dd></div>)}
+      </dl>}
+  </section>;
+}
+
+const turnWords = (deg: number) => `${deg < 0 ? '왼쪽' : '오른쪽'} ${Math.abs(deg).toFixed(1)}°`;
 
 /** `idle` 은 「임무 시작」 전이거나, 로봇이 안 몰아 대본이 노드를 칠한 경우다. */
 const STEP_WORDS = { idle: '아직 안 했습니다 — 로봇이 몰 때 「임무 시작」 뒤에 채워집니다', running: '진행 중', done: '완료', failed: '실패' } as const;

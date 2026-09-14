@@ -56,6 +56,7 @@ export function receiveUplink(
     taskOf: (commandId) => robotSession().commands[commandId]?.taskId ?? null,
     // 이 판에서 본 방위들 — `door_turn` 이 어느 걸음이었는지 견주는 재료다.
     seenYawByIndex: new Map(Object.entries(robotSession().seenYaw).map(([k, v]) => [Number(k), v])),
+    litIndices: new Set(Object.keys(robotSession().litIndices).map(Number)),
     viewpointCount,
   });
   const frames = applyEffects(effects);
@@ -219,6 +220,42 @@ export function bindRobot(
   return client.onMessage((message) => {
     receiveUplink(message, missionId, headSec());
   });
+}
+
+/**
+ * **로봇이 그 각도에서 사진을 찍었다** — 그 칸을 「탐색 중」으로 켠다 (260914 리허설).
+ *
+ * 0도 노드는 회전하지 않는다. 로봇은 스캔을 시작하자마자 **돌기 전에** 0도를 찍는다 — 그 칸을
+ * 켤 회전 보고가 없으므로 촬영(`/frame`)이 켠다. 다른 각도는 회전 보고와 촬영이 둘 다 켜는데,
+ * 같은 칸에 같은 상태를 두 번 쓸 뿐이라 결과가 같다.
+ *
+ * 우리가 낸 스캔이 도는 중일 때만 받는다 — 남의 도구가 돌린 스캔의 촬영이 우리 칸을 켜면 안 된다.
+ * 정지·일시정지 뒤에는 `applyEffects` 가 버린다.
+ */
+export function receiveScanCapture(missionId: string, atSec: number, index: number, yawDeg: number | null): number {
+  const session = robotSession();
+  if (!session.started || !session.scanIssued) return 0;
+  const known = yawDeg ?? session.seenYaw[index] ?? null;
+  const frames = applyEffects([{
+    kind: 'viewpoint',
+    frame: {
+      channel: 'robot_state',
+      payload: {
+        rotation_index: index,
+        // 0도 촬영에는 회전 보고가 없어 방위를 모른다 — 로봇의 지금 방위(state)를 넘겨받는다.
+        yaw: known ?? 0,
+        state: 'rotating',
+        last_cmd: 'scan_mission',
+        result: null,
+      },
+    },
+    warning: null,
+    // 방위를 모르면 0 을 적지 않는다 — `door_turn` 견주기에 가짜 0도가 끼면 엉뚱한 칸이 초록이 된다.
+    yawKnown: known !== null,
+  }]);
+  for (const frame of frames) appendViewpoint(missionId, atSec, frame);
+  if (frames.length > 0) advanceRobotHead(missionId, atSec);
+  return frames.length;
 }
 
 /** 그 걸음이 보고한 방위. 못 봤으면 0 — 표시용이고 칸을 고르는 데는 안 쓴다. */

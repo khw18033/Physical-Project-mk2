@@ -116,19 +116,36 @@ export function parseDetail(raw: string): StatusDetail | null {
 }
 
 /**
- * **step(1부터) → 뷰포인트 노드 인덱스(0부터).** 변환은 여기 한 곳뿐이다.
+ * **회전 걸음(step, 1부터) → 그 회전이 로봇을 데려다 놓은 뷰포인트 노드(0부터).** 변환은 여기 한 곳뿐이다.
  *
- * `scan_turn` 만 뷰포인트를 건드린다 (§5 ㉡). `door_turn` 은 마일스톤이 넘어가는 계기이지
- * 노드가 아니고, `forward` 는 `T-B2`, `aborted` 는 임무 중단이다.
+ * ## 0도 노드는 회전하지 않는다 (260914 리허설 — 「맨 처음 노드부터 회전한다」)
  *
- * 범위 밖의 step 은 null 이다 — 없는 칸을 만들어 그리면 화면이 대본보다 커진다.
+ * 로봇의 실제 순서는 이렇다(`detection-protocol_0914.md` §4② · 브로커 감시 실측).
+ *
+ *     scan_start → 0도 촬영 → 회전1 → 45도 촬영 → 회전2 → 90도 촬영 … 회전7 → 315도 촬영 → 회전8(출발 방향으로 복귀)
+ *
+ * 전에는 `step - 1` 로 옮겨서 **회전1(0→45도)이 0도 노드에 붙었다** — 화면에서 0도 노드가
+ * 회전하는 것처럼 보였다. 연동 가이드 §5-2 의 표(「step 1 → index 0」)는 「돌고 나서 본다」던
+ * 옛 시뮬레이터 전제였고, 실물은 0도를 돌기 전에 찍는다.
+ *
+ * 이제 회전 k 는 **k 번 노드**(k·step_deg 도)에 붙는다. 0도 노드는 회전 없이 촬영·탐지만 한다 —
+ * 그 칸은 `/frame` 의 0도 촬영이 켠다(`robotBridge.receiveScanCapture`). 마지막 회전(step = count)
+ * 은 출발 방향으로 돌아오는 것이라 **어느 노드도 아니다** — `T-A3`(한 바퀴)의 줄로 남는다.
+ *
+ * `scan_turn` 만 뷰포인트를 건드린다 (§5 ㉡). `door_turn` 은 노드가 아니고, `forward` 는 `T-B2`,
+ * `aborted` 는 임무 중단이다. 범위 밖의 step 은 null — 없는 칸을 만들지 않는다.
  */
 export function viewpointIndexOf(detail: StatusDetail | null, count = 8): number | null {
   if (detail === null) return null;
   if (detail.event !== 'scan_turn') return null;
-  const index = detail.step - 1;
-  if (!Number.isInteger(index) || index < 0 || index >= count) return null;
+  const index = detail.step;
+  if (!Number.isInteger(index) || index < 1 || index >= count) return null;
   return index;
+}
+
+/** 출발 방향으로 돌아오는 마지막 회전인가 (step = steps). 노드가 아니다 — 방위만 적어 둔다. */
+export function isReturnTurn(detail: StatusDetail | null): boolean {
+  return detail !== null && detail.event === 'scan_turn' && detail.steps > 0 && detail.step === detail.steps;
 }
 
 /**
@@ -243,8 +260,8 @@ export function chosenIndexOf(
     return closestIndex(seen, detail.yaw_deg);
   }
 
-  // 방위를 모를 때만 걸음 번호를 쓴다 — 그마저 없으면 안 고른다.
-  const byStep = detail.step - 1;
+  // 방위를 모를 때만 걸음 번호를 쓴다 — 그마저 없으면 안 고른다. 회전 k 가 k 번 노드다(260914).
+  const byStep = detail.step;
   if (Number.isInteger(byStep) && seen.has(byStep)) return byStep;
   return null;
 }

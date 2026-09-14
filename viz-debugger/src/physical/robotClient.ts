@@ -13,8 +13,12 @@ import { issuePing, issueScan, shouldIssueScan } from './robotCommands.ts';
 import { robotSession, setConnection, subscribeRobot } from './robotSession.ts';
 import { currentMission } from '../data/scenario.ts';
 import { noteIssue } from '../shared/notifications.ts';
-import { receiveDeviceMessage } from './deviceState.ts';
+import { deviceState, receiveDeviceMessage } from './deviceState.ts';
 import { noteScanFeed } from '../detect/feedLog.ts';
+import { indexOfRotation } from '../detect/parse.ts';
+import { hardwareTarget } from './encode.ts';
+import { receiveScanCapture } from './robotBridge.ts';
+import { elapsedSec } from './robotSession.ts';
 import { initPrepStage } from './prepStage.ts';
 import type { PhysicalStatus } from './PhysicalClient.ts';
 
@@ -69,10 +73,17 @@ export function robotClient(): PhysicalClient {
      * 화면이 스스로 말할 수 있어야 한다. 각도 → 칸은 지금 올라온 임무의 간격·칸 수로 잡는다.
      */
     singleton.onScanFeed((message) => {
-      const params = currentMission().params;
+      const mission = currentMission();
+      const params = mission.params;
       const stepDeg = typeof params?.viewpoint_step_deg === 'number' ? params.viewpoint_step_deg : 45;
       const count = typeof params?.viewpoint_count === 'number' ? params.viewpoint_count : 8;
       noteScanFeed(message, stepDeg, count);
+      // **촬영이 그 칸을 켠다** (260914) — 0도 노드는 회전 없이 촬영만 하므로 이것만이 그 칸을 켠다.
+      if (message.kind === 'frame') {
+        const index = indexOfRotation(message.rotationDeg, stepDeg, count);
+        const heading = deviceState(hardwareTarget('robot-01'))?.position?.headingDeg ?? null;
+        if (index !== null) receiveScanCapture(mission.missionId, elapsedSec(), index, index === 0 ? heading : null);
+      }
     });
     // **준비 단계(T-A1·T-A2)도 여기서 잇는다** — 스캔 발행과 같은 이유다. 그리기에 매이면
     // 두 판째에 안 돈다.

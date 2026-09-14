@@ -32,6 +32,13 @@ export type DetectState = {
   localization: DetectLocalization | null;
   /** 경로 산출. 스캔이 끝나야 나온다 — 그 전에는 null 이고, 그것이 정상이다. */
   path: DetectPath | null;
+  /**
+   * **경로 산출 실패의 사유** (260914). 대체 경로(A 단상 → B 문만 위치 → C 문 관측만)가 전부
+   * 안 됐다는 뜻이다. 있으면 `T-B1` 이 실패로 뜨고 이동은 열리지 않는다.
+   */
+  pathFailure: string | null;
+  /** 실패 산출물 원본 — 어디서 왜 끊겼는지(fallback_chain)를 액션 아이템이 그린다. */
+  pathFailureDetail: DetectPath | null;
   /** 무엇을 문이라고 물었나. */
   features: DetectFeatures | null;
   /** 마지막으로 읽어 온 시각(ms). 0 이면 아직 한 번도 안 읽었다. */
@@ -46,6 +53,13 @@ export type DetectState = {
    * 아니다(`poll.ts` 의 문). 화면은 거르고 있다는 사실을 숨기지 않고 적는다.
    */
   staleFrames: number | null;
+  /**
+   * **판 번호 — 그림 주소에 붙인다** (260914). 탐지의 그림 주소는 판마다 같다
+   * (`frame_000001.jpg` · `/detect/path_overlay?target=door`). 서버가 `no-store` 를 줘도 브라우저는
+   * 한 페이지 안에서 같은 주소의 그림을 다시 쓸 수 있어, 새로고침 없이 두 번째 판을 돌리면
+   * 지난 판의 경로 그림이 남는다. 판이 바뀔 때마다 올려 주소를 가른다. 비울 때도 줄지 않는다.
+   */
+  imageRound: number;
 };
 
 const EMPTY: DetectState = {
@@ -54,10 +68,13 @@ const EMPTY: DetectState = {
   evidence: {},
   localization: null,
   path: null,
+  pathFailure: null,
+  pathFailureDetail: null,
   features: null,
   fetchedAtMs: 0,
   error: null,
   staleFrames: null,
+  imageRound: 0,
 };
 
 let state: DetectState = EMPTY;
@@ -84,7 +101,8 @@ export function useDetect(): DetectState {
 /** 「테스트」를 켜고 끈다. **끄면 읽어 둔 것도 같이 버린다** — 시료가 실제 결과로 보이면 안 된다. */
 export function setTestMode(on: boolean): void {
   resetDetectTrace();
-  commit(on ? { ...state, testMode: true } : { ...EMPTY, testMode: false });
+  const imageRound = state.imageRound + 1;
+  commit(on ? { ...state, testMode: true, imageRound } : { ...EMPTY, testMode: false, imageRound });
 }
 
 export function receiveFrames(frames: readonly DetectFrame[]): void {
@@ -100,7 +118,13 @@ export function receiveLocalization(localization: DetectLocalization | null): vo
 }
 
 export function receivePath(path: DetectPath | null): void {
-  commit({ ...state, path });
+  commit({ ...state, path, ...(path !== null ? { pathFailure: null, pathFailureDetail: null } : {}) });
+}
+
+/** 경로 산출이 실패했다 — 탐지가 대체 경로를 다 해 보고도 못 냈다. */
+export function receivePathFailure(detail: DetectPath): void {
+  if (state.pathFailure !== null) return;
+  commit({ ...state, path: null, pathFailure: detail.reason ?? '경로 산출 실패', pathFailureDetail: detail });
 }
 
 export function receiveFeatures(features: DetectFeatures | null): void {
@@ -120,7 +144,8 @@ export function markStale(count: number): void {
 /** 거를 것이 없어졌다 — 새 판이 시작됐거나 처음부터 비어 있었다. */
 export function clearStale(): void {
   if (state.staleFrames === null) return;
-  commit({ ...state, staleFrames: null });
+  // 지난 판을 지웠다는 뜻이다 — 여기서부터 받는 그림은 새 판의 것이다.
+  commit({ ...state, staleFrames: null, imageRound: state.imageRound + 1 });
 }
 
 /**
@@ -131,7 +156,10 @@ export function clearStale(): void {
  * 새 판 각도에 붙는다.** 받은 것을 비운다. 낸 사건 기억은 남긴다 — 끝난 노드를 되돌리지 않는다.
  */
 export function discardRound(): void {
-  commit({ ...state, frames: [], evidence: {}, localization: null, path: null });
+  commit({
+    ...state, frames: [], evidence: {}, localization: null, path: null, pathFailure: null, pathFailureDetail: null,
+    imageRound: state.imageRound + 1,
+  });
 }
 
 /**
@@ -143,5 +171,5 @@ export function resetDetect(): void {
   resetDetectTrace();
   // 오간 줄도 비운다 — 지난 임무의 줄이 같은 이름의 노드에 붙으면 안 된다.
   resetDetectLog();
-  commit({ ...EMPTY, testMode: state.testMode });
+  commit({ ...EMPTY, testMode: state.testMode, imageRound: state.imageRound + 1 });
 }

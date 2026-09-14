@@ -23,7 +23,7 @@ import { useState } from 'react';
 import { displayMission, useMission } from '../../data/scenario.ts';
 import { foldStatuses } from '../../data/fold.ts';
 import { usePrepStage } from '../../physical/prepStage.ts';
-import { floorPlanUrls, frameImageUrl, pathImageUrl, sourceOf } from '../DetectClient.ts';
+import { floorPlanUrls, frameImageUrl, pathImageUrl, roundedImageUrl, sourceOf } from '../DetectClient.ts';
 import { DETECT_TASKS } from '../detectLog.ts';
 import { DOOR_PX, FLOOR_PLAN_SIZE_PX } from '../floorPlan.ts';
 import { chosenFrame, gateWords, indexOfRotation, SCORE_LABEL, usableDistanceCm } from '../parse.ts';
@@ -70,13 +70,13 @@ export function DetectCam({ zoom = false }: { zoom?: boolean }) {
   // 찾은 각도는 상자 입힌 것을, 못 찾은 각도는 원본을 — 없는 상자를 그린 척하지 않는다.
   const kind = frame.found ? 'target_overlay' : 'original';
   return <div className={`detect-cam${zoom ? ' detect-cam--zoom' : ''}`}>
-    <img src={frameImageUrl(source, frame.frame, kind)} alt={`${frame.rotation_deg}도 프레임`} />
+    <img src={roundedImageUrl(frameImageUrl(source, frame.frame, kind), state.imageRound)} alt={`${frame.rotation_deg}도 프레임`} />
     <span className="detect-cam__at">
       {frame.rotation_deg}도 · {frame.found ? '문 있음' : '문 없음'}
     </span>
     {zoom && <div className="detect-strip">
       {state.frames.map((item) => <figure key={item.frame} className={item.found ? 'is-found' : ''}>
-        <img src={frameImageUrl(source, item.frame, item.found ? 'target_overlay' : 'original')} alt={`${item.rotation_deg}도`} />
+        <img src={roundedImageUrl(frameImageUrl(source, item.frame, item.found ? 'target_overlay' : 'original'), state.imageRound)} alt={`${item.rotation_deg}도`} />
         <figcaption>{item.rotation_deg}도</figcaption>
       </figure>)}
     </div>}
@@ -124,7 +124,7 @@ export function DetectReason({ zoom = false, count = 8 }: { zoom?: boolean; coun
     </ul>
     {zoom && <>
       {evidence !== null && <img className="detect-crop"
-        src={frameImageUrl(source, frame.frame, 'target_crop')} alt="잘라낸 목표" />}
+        src={roundedImageUrl(frameImageUrl(source, frame.frame, 'target_crop'), state.imageRound)} alt="잘라낸 목표" />}
       {/* 특징 여덟 — 무엇을 문이라고 물었고 각각 얼마나 닮았나. */}
       {evidence !== null && <table className="detect-features">
         <tbody>
@@ -185,6 +185,9 @@ export function DetectMap({ zoom = false, headSec }: { zoom?: boolean; headSec?:
   const mapDone = !hasMapTask
     || foldStatuses(headSec ?? display.headSec, display.view, display.trace).tasks[DETECT_TASKS.map]?.status === 'done';
 
+  // 준비 단계가 실제로 받아 온 주소가 있으면 그것을 그린다 — 받은 그림과 그린 그림이 같아야 한다.
+  const planUrls = prep.map.url !== null ? [prep.map.url] : floorPlanUrls(source);
+
   // **경로가 없어도 도면은 있다.** 전에는 이 자리가 통째로 비어서, 발표 초반 내내
   // 2D 맵 뷰 노드가 빈 상자였다.
   if (path === null) {
@@ -194,32 +197,40 @@ export function DetectMap({ zoom = false, headSec }: { zoom?: boolean; headSec?:
         {prep.map.step === 'failed' && prep.map.reason !== null && <small>{prep.map.reason}</small>}
       </p>;
     }
-    // 준비 단계가 실제로 받아 온 주소가 있으면 그것을 그린다 — 받은 그림과 그린 그림이 같아야 한다.
-    const urls = prep.map.url !== null ? [prep.map.url] : floorPlanUrls(source);
     return <div className="detect-map detect-map--plain">
-      <FloorPlan urls={urls} />
+      <FloorPlan urls={planUrls} />
       <div className="detect-map__facts">
         <span>문 도면 위치 ({prep.map.doorCm.x.toFixed(1)}, {prep.map.doorCm.y.toFixed(1)}) cm</span>
-        <span>경로는 스캔이 끝난 뒤에 그려집니다</span>
+        {/* **실패도 적는다** (260914). 대체 경로(A 단상 → B 문만 위치 → C 문 관측만)가 다 안 되면
+            경로가 없고 이동도 안 한다 — 그 사유가 여기와 T-B1 액션 아이템에 있다. */}
+        {state.pathFailure !== null
+          ? <span className="detect-map__failed">경로 산출 실패 — {state.pathFailure}</span>
+          : <span>경로는 스캔이 끝난 뒤에 그려집니다</span>}
       </div>
     </div>;
   }
   const steps = Object.entries(path.path_calculation ?? {});
+  /**
+   * **도면 위 경로 그림이 없는 경로가 있다** (260914 — C, 문 관측만). 로봇의 도면 자리를 모르면
+   * 선을 그을 자리가 없다. 그때는 도면과 문 자리만 두고 「얼마나 돌고 얼마나 가나」를 적는다.
+   */
+  const overlay = path.path_overlay_available !== false;
 
   return <div className="detect-map">
-    <img src={pathImageUrl(source)} alt="도면 위의 경로" />
+    {overlay ? <img src={roundedImageUrl(pathImageUrl(source), state.imageRound)} alt="도면 위의 경로" /> : <FloorPlan urls={planUrls} />}
     <div className="detect-map__facts">
       <span><b>{path.turn_instruction}</b></span>
       <span>직진 {(path.forward_distance_cm / 100).toFixed(2)}m</span>
       <span>정지거리 {(path.standoff_cm / 100).toFixed(2)}m</span>
+      {path.path_mode_words !== undefined && <span className={overlay ? '' : 'detect-map__failed'}>{path.path_mode_words}</span>}
     </div>
     {zoom && <>
       <dl className="detect-map__rows">
-        <div><dt>로봇 위치</dt><dd>{path.robot_position_cm.map((n) => n.toFixed(1)).join(', ')} cm</dd></div>
-        <div><dt>로봇 방위</dt><dd>{path.current_heading_map_deg}도 (도면 기준)</dd></div>
-        <div><dt>목표 위치</dt><dd>{path.target_position_cm.map((n) => n.toFixed(1)).join(', ')} cm · {path.target_resolution.source}</dd></div>
+        <div><dt>로봇 위치</dt><dd>{path.robot_position_cm === null ? '모름 — 문 관측만으로 산출' : `${path.robot_position_cm.map((n) => n.toFixed(1)).join(', ')} cm`}</dd></div>
+        <div><dt>로봇 방위</dt><dd>{path.current_heading_map_deg === null ? '모름' : `${path.current_heading_map_deg}도 (도면 기준)`}</dd></div>
+        <div><dt>목표 위치</dt><dd>{path.target_position_cm.map((n) => n.toFixed(1)).join(', ')} cm{path.target_resolution !== undefined && ` · ${path.target_resolution.source}`}</dd></div>
         <div><dt>목표까지</dt><dd>{(path.distance_to_target_cm / 100).toFixed(2)} m</dd></div>
-        <div><dt>도착점</dt><dd>{path.goal_cm.map((n) => n.toFixed(1)).join(', ')} cm</dd></div>
+        <div><dt>도착점</dt><dd>{path.goal_cm === null ? '모름' : `${path.goal_cm.map((n) => n.toFixed(1)).join(', ')} cm`}</dd></div>
       </dl>
       {/* **식과 대입값을 그대로.** 우리가 다시 계산하지 않는다 — 계산이 두 곳에 있으면
           하나만 고쳐지는 날이 온다. */}

@@ -22,11 +22,11 @@ import { scanElapsedSec } from '../physical/robotSession.ts';
 import { noteIssue } from '../shared/notifications.ts';
 import {
   clearStale, detectState, discardRound, markStale, noteDetectError, receiveEvidence,
-  receiveFeatures, receiveFrames, receiveLocalization, receivePath,
+  receiveFeatures, receiveFrames, receiveLocalization, receivePath, receivePathFailure,
 } from './store.ts';
 import { angleTask, appendDetectLog, DETECT_TASKS, WHOLE_DETECT_PATH } from './detectLog.ts';
 import { chosenFrame, gateWords, indexOfRotation, SCORE_LABEL } from './parse.ts';
-import type { DetectFrame, DetectFrameEvidence } from './types.ts';
+import type { DetectFrame, DetectFrameEvidence, DetectPath } from './types.ts';
 
 /** 스캔이 도는 동안. 한 각도가 4초쯤 걸리니 그보다 짧아야 칸이 제때 바뀐다. */
 export const POLL_RUNNING_MS = 1500;
@@ -175,7 +175,7 @@ export async function pollOnce(expected = 8, stepDeg = 45): Promise<void> {
         appendDetectLog({
           lane: 'detect', level: 'info',
           text: `탐지가 자세를 역산했습니다 — 도면 기준 방위 ${localization.current_heading_map_deg ?? '?'}° · 위치 (${x}, ${y}) cm`,
-          detail: '받침대 관측으로 역산한 값 · 로봇 오도메트리 방위와 기준점이 다릅니다',
+          detail: `${localization.method === 'door_only' ? '단상을 못 찾아 문 관측만으로 추정한 값' : '받침대 관측으로 역산한 값'} · 로봇 오도메트리 방위와 기준점이 다릅니다`,
           tasks: [DETECT_TASKS.pose, DETECT_TASKS.path],
         });
       }
@@ -219,15 +219,28 @@ export async function pollOnce(expected = 8, stepDeg = 45): Promise<void> {
 
     if (detectState().features === null) receiveFeatures(await fetchFeatures(source));
     // 경로는 **스캔이 끝나야** 나온다. 없는 동안 null 인 것이 정상이라 사유를 안 남긴다.
-    if (detectState().path === null && complete) {
-      const path = await fetchPath(source, 'door', true);
-      receivePath(path);
+    if (detectState().path === null && detectState().pathFailure === null && complete) {
+      const { path, failure } = await fetchPath(source, 'door', true);
       if (path !== null) {
+        receivePath(path);
         appendDetectLog({
-          lane: 'detect', level: 'info',
-          text: `경로를 받았습니다 — ${path.turn_instruction} · 직진 ${(path.forward_distance_cm / 100).toFixed(2)} m`,
-          detail: `정지거리 ${(path.standoff_cm / 100).toFixed(2)} m · 그림 /detect/path_overlay`,
+          lane: 'detect', level: path.path_mode === 'door_relative' ? 'warn' : 'info',
+          text: `경로를 받았습니다 — ${path.turn_instruction} · 직진 ${(path.forward_distance_cm / 100).toFixed(2)} m`
+            + (path.path_mode_words ? ` · ${path.path_mode_words}` : ''),
+          detail: [
+            chainWords(path),
+            `정지거리 ${(path.standoff_cm / 100).toFixed(2)} m`,
+            path.path_overlay_available === false ? '도면 경로 그림 없음(로봇 위치 모름)' : '그림 /detect/path_overlay',
+          ].filter((part) => part !== '').join(' · '),
           tasks: [DETECT_TASKS.path],
+        });
+      } else if (failure !== null) {
+        receivePathFailure(failure);
+        appendDetectLog({
+          lane: 'detect', level: 'error',
+          text: `경로 산출 실패 — ${failure.reason ?? '사유 없음'}`,
+          detail: `${chainWords(failure)} · 이동하지 않습니다`,
+          tasks: [DETECT_TASKS.path, DETECT_TASKS.approach],
         });
       }
     }
@@ -245,6 +258,12 @@ export async function pollOnce(expected = 8, stepDeg = 45): Promise<void> {
   } finally {
     inFlight = false;
   }
+}
+
+/** 대체 경로를 한 줄로 — `A_pedestal ✕ → B_door_only ✓ → path_map ✓`. */
+function chainWords(path: DetectPath): string {
+  const chain = path.fallback_chain ?? [];
+  return chain.length === 0 ? '' : chain.map((step) => `${step.step} ${step.ok ? '✓' : '✕'}`).join(' → ');
 }
 
 /** 관문 넷을 한 줄로 — 화면 문장과 같은 함수(`gateWords`)를 쓴다. */

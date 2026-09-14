@@ -106,20 +106,29 @@ export async function fetchFrameEvidence(
   }
 }
 
-/** 경로 산출. 스캔이 끝나야 나온다 — 그 전에는 없다. */
+/**
+ * 경로 산출. 스캔이 끝나야 나온다 — 그 전에는 없다.
+ *
+ * **셋을 가른다** (260914). 없음(아직 · 404) · 성공(`ok: true`) · **실패(`ok: false` + reason +
+ * fallback_chain)**. 전에는 실패도 null 로 삼켜서, 경로가 영영 안 나오는데 화면은 계속 기다렸고
+ * 그 사이 「경로대로 이동」이 대본 거리로 열렸다.
+ */
+export type PathAnswer = { path: DetectPath | null; failure: DetectPath | null };
+
 export async function fetchPath(
   source: DetectSource, target: DetectClass = 'door', complete = true,
-): Promise<DetectPath | null> {
+): Promise<PathAnswer> {
   // **스캔이 끝나야 나온다.** 시료도 그 순서를 지킨다 — 여덟을 다 보기 전에 경로가 뜨면
   // 「아직 안 돌았는데 갈 곳이 정해져 있다」가 된다.
-  if (!complete) return null;
+  if (!complete) return { path: null, failure: null };
   const url = source.kind === 'sample'
     ? `${SAMPLE_BASE}/${target}/evidence.json`
     : `${source.base}/detect/path?target=${target}`;
   try {
-    return await getJson<DetectPath>(url);
+    const answer = await getJson<DetectPath>(url);
+    return answer.ok === false ? { path: null, failure: answer } : { path: answer, failure: null };
   } catch {
-    return null;
+    return { path: null, failure: null };
   }
 }
 
@@ -199,6 +208,14 @@ export function floorPlanUrls(source: DetectSource): readonly string[] {
 /** 그 주소가 저장소 사본인가 — 로그에 어디서 읽었는지 적는다. */
 export function isBundledFloorPlan(url: string): boolean {
   return url.startsWith(SAMPLE_BASE);
+}
+
+/**
+ * **그림 주소에 판 번호를 붙인다** (260914 — `store.ts` 의 `imageRound`). 판마다 주소가 같아
+ * 브라우저가 지난 판의 그림을 다시 쓰는 것을 막는다. 서버는 모르는 쿼리를 무시한다.
+ */
+export function roundedImageUrl(url: string, round: number): string {
+  return `${url}${url.includes('?') ? '&' : '?'}round=${round}`;
 }
 
 /** 도면 위에 경로를 그린 그림. 스캔이 끝나야 나온다. */

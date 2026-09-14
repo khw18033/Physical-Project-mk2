@@ -52,6 +52,19 @@
 .prep-facts dd b{font-size:14px}
 .prep-facts dd small{color:#8a94a1;margin-left:4px}
 .prep-facts__live dd b{color:#2f5f9c}
+/* 경로 산출 과정 (260914) — 대체 경로 사슬 · 문 거리 표. */
+.prep-facts h4{margin:10px 0 4px;font-size:12px;color:#4a5666}
+.path-chain{margin:8px 0 0;padding:0;list-style:none;display:grid;gap:3px;font-size:12px}
+.path-chain li b{margin-right:6px}
+.path-chain .is-ok b{color:#1f8a4d}
+.path-chain .is-fail b{color:#b3261e}
+.path-chain span{color:#4a5666}
+.path-note{margin:4px 0;font-size:12px;color:#26303c;line-height:1.5;word-break:break-word}
+.path-note small{display:block;color:#8a94a1}
+.path-table{width:100%;border-collapse:collapse;font-size:11.5px;font-variant-numeric:tabular-nums}
+.path-table th,.path-table td{padding:2px 6px;border-bottom:1px solid #eef1f5;text-align:left}
+.path-table th{color:#6b7888;font-weight:600}
+.detect-map__failed{color:#b3261e;font-weight:600}
 /* 임무 이력 (260912) — 이 세션에서 끝난 판만. 목록이 스스로 그 사실을 적는다. */
 .history-empty{margin:0;color:#6a7686;font-size:13px;display:grid;gap:4px}
 .history-empty small{color:#8a94a1}

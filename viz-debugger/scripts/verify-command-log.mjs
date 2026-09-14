@@ -301,30 +301,38 @@ function armed() {
     issuedAtIso: new Date().toISOString(), requestId: null,
     state: 'issued', code: null, message: null, result: {}, log: [],
   });
-  // 여덟 걸음이 한 명령으로 들어온다. `step` 은 1부터, 칸은 0부터다.
+  // 여덟 걸음이 한 명령으로 들어온다 (260914). 0도는 회전 **전에** 찍혀 회전 보고가 없고,
+  // 회전 k(1~7)는 k번 칸이며, 회전 8 은 출발 방향으로의 복귀라 칸이 없다.
   for (let step = 1; step <= 8; step += 1) {
     receiveUplink({
       kind: 'status', commandId: 'cmd-scan', state: 'RUNNING',
-      raw: JSON.stringify({ ack: step, of: 9, event: 'scan_turn', step, steps: 8, yaw_deg: (step - 1) * 45, note: 'ok' }),
-      detail: { ack: step, of: 9, ackSeq: null, event: 'scan_turn', step, steps: 8, yaw_deg: (step - 1) * 45, note: 'ok' },
+      raw: JSON.stringify({ ack: step, of: 9, event: 'scan_turn', step, steps: 8, yaw_deg: step * 45, note: 'ok' }),
+      detail: { ack: step, of: 9, ackSeq: null, event: 'scan_turn', step, steps: 8, yaw_deg: step * 45, note: 'ok' },
     }, 'MSN-260909-01', step);
   }
   const all = session.commandsOfTask('T-A3');
   if (all[0]?.log.length !== 8) failures.push(`한 바퀴 로그가 ${all[0]?.log.length}줄 — 여덟이어야 한다`);
 
-  for (let index = 0; index < 8; index += 1) {
+  // **0도 칸에는 회전 줄이 없다** — 첫 칸에서 돌았다고 적으면 리허설에서 본 그 잘못이다.
+  const zero = session.logAtIndex(0).flatMap((group) => group.lines);
+  if (zero.length !== 0) failures.push(`0번 칸에 회전 줄 ${zero.length}개가 붙었다 — 0도는 돌지 않고 찍기만 한다`);
+  for (let index = 1; index < 8; index += 1) {
     const groups = session.logAtIndex(index);
     const lines = groups.flatMap((group) => group.lines);
     if (lines.length !== 1) { failures.push(`${index}번 칸에 ${lines.length}줄이 온다 — 하나여야 한다`); continue; }
-    // **한 칸 밀림을 여기서 잡는다.** step 은 1부터, 칸은 0부터다.
-    if (!lines[0].text.includes(`step ${index + 1}/8`)) {
-      failures.push(`${index}번 칸에 ${lines[0].text} 가 붙었다 — step ${index + 1} 이어야 한다`);
+    // **한 칸 밀림을 여기서 잡는다.** 회전 k 가 k번 칸이다.
+    if (!lines[0].text.includes(`step ${index}/8`)) {
+      failures.push(`${index}번 칸에 ${lines[0].text} 가 붙었다 — step ${index} 이어야 한다`);
     }
   }
+  // 복귀 회전(step 8)은 어느 칸에도 안 붙는다.
+  const returnLine = [0, 1, 2, 3, 4, 5, 6, 7].some((index) => session.logAtIndex(index)
+    .flatMap((group) => group.lines).some((line) => line.text.includes('step 8/8')));
+  if (returnLine) failures.push('복귀 회전(step 8)이 각도 칸에 붙었다 — 출발 방향으로 돌아온 것이지 새 각도가 아니다');
   // 회전 보고가 아닌 줄은 어느 칸에도 안 붙는다.
   receiveUplink({ kind: 'result', commandId: 'cmd-scan', status: 'SUCCEEDED', result: {}, code: null, message: null }, 'MSN-260909-01', 9);
   const after = session.logAtIndex(0).flatMap((group) => group.lines);
-  if (after.length !== 1) failures.push('종료 응답이 0번 칸에 붙었다 — 회전 보고가 아닌 줄은 칸이 없다');
+  if (after.length !== 0) failures.push('종료 응답이 0번 칸에 붙었다 — 회전 보고가 아닌 줄은 칸이 없다');
 
   const modal = src('views', 'ActionModal.tsx');
   if (!/logAtIndex/.test(modal)) failures.push('각도 칸이 제 몫의 줄을 안 읽는다');
@@ -375,5 +383,5 @@ console.log('✅ 로그 줄은 받은 값으로만 — 모르는 방위는 안 �
 console.log('✅ 남의 command_id 는 안 쌓인다 · 실린 파라미터가 남는다 · 사유가 없으면 null 이다');
 console.log('✅ 화면에 손으로 쓴 실패 사유가 없다 — 실제 명령과 로그를 읽고 오는 대로 다시 그린다');
 console.log('✅ 시험에서는 1m 만 나가고, 화면은 계획 6.35m 와 나간 1.00m 를 둘 다 적는다');
-console.log('✅ 각도 칸은 한 바퀴 명령의 제 몫만 본다 — step 1~8 이 칸 0~7 로 옳게 갈린다');
+console.log('✅ 각도 칸은 한 바퀴 명령의 제 몫만 본다 — 0도는 회전 줄이 없고 회전 1~7 이 칸 1~7, 회전 8(복귀)은 칸이 없다');
 console.log(`✅ 대조군 ${controls.length}건 전부 검출 — ${controls.join(' · ')}`);

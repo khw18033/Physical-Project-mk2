@@ -25,7 +25,7 @@ import {
   type CommandLogLine, type TaskCommandRecord,
 } from '../physical/robotSession.ts';
 import { DeviceStrip } from './DeviceStrip.tsx';
-import { DetectLogLines, isDetectTask, PrepFacts } from '../detect/views/DetectActionLog.tsx';
+import { ApproachFacts, DetectLogLines, isDetectTask, PathFacts, PrepFacts } from '../detect/views/DetectActionLog.tsx';
 
 /** 명령 하나의 상태를 사람 말로. 로봇이 준 상태 그대로를 옮긴다. */
 const COMMAND_STATE: Record<TaskCommandRecord['state'], string> = {
@@ -67,7 +67,9 @@ function RobotCommands({ taskId }: { taskId: string }) {
     return <p className="robot-log__empty">
       {angle === null
         ? '이 태스크가 낸 로봇 명령이 아직 없습니다 — 값이 오면 여기에 그대로 쌓입니다'
-        : '이 각도에서 온 줄이 아직 없습니다 — 로봇이 여기까지 돌면 그때 쌓입니다'}
+        : angle === 0
+          ? '0도는 돌지 않습니다 — 스캔을 시작한 방향에서 촬영·탐지만 하므로 회전 명령 줄이 없습니다'
+          : '이 각도에서 온 줄이 아직 없습니다 — 로봇이 여기까지 돌면 그때 쌓입니다'}
     </p>;
   }
   return <div className="robot-log">
@@ -148,6 +150,10 @@ export function ActionModal({ task, view, device, failure, onClose }: { task: Ta
       {/* **준비 두 걸음이 받아 온 값** (260914 지시) — T-A1 은 도면과 문 자리, T-A2 는 로봇의
           지금 방위(yaw). 이 둘은 로봇에 명령을 안 내므로 아래 로봇 명령 표는 비어 있다. */}
       <PrepFacts taskId={task.id} />
+      {/* **경로 산출 과정 · 최종 제어 명령** (260914 지시). T-B1 은 탐지가 경로를 어떻게 냈는지(대체
+          경로 A→B→C · 문 거리 근거 · 식), T-B2 는 그 경로가 로봇 명령으로 어떻게 바뀌었는지(방위 보정). */}
+      {task.id === 'T-B1' && <PathFacts />}
+      {task.id === 'T-B2' && <ApproachFacts />}
       <h3>로봇 명령 · 오간 로그</h3>
       <RobotCommands taskId={task.id} />
       {/* **탐지 쪽에서 오간 것** (260914 지시). 로봇 → 탐지 프레임, 탐지 → 화면 결과, 화면의

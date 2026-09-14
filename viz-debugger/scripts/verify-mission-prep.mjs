@@ -237,6 +237,21 @@ const { PREP_SEC, afterPrep } = session;
   if (!/map_original\.jpg$/.test(mapImageUrl(at))) failures.push(`기본 도면이 ${mapImageUrl(at)} 다`);
   if (!/path_overlay\.jpg$/.test(pathImageUrl(at))) failures.push(`경로 그림이 ${pathImageUrl(at)} 다`);
 
+  // **판이 바뀌면 그림 주소도 바뀐다** (260914). 탐지의 그림 주소는 판마다 같아서, 새로고침 없이
+  // 두 번째 판을 돌리면 브라우저가 지난 판의 경로 그림을 다시 쓸 수 있다.
+  const { roundedImageUrl } = await load('src', 'detect', 'DetectClient.ts');
+  const detectStore = await load('src', 'detect', 'store.ts');
+  const liveSource = { kind: 'live', base: 'http://detect:8765' };
+  const urlNow = () => roundedImageUrl(pathImageUrl(liveSource), detectStore.detectState().imageRound);
+  const first = urlNow();
+  detectStore.resetDetect();
+  const second = urlNow();
+  detectStore.discardRound();
+  const third = urlNow();
+  if (first === second || second === third) failures.push('새 판(임무 시작 · 탐지 재시작)에도 경로 그림 주소가 같다 — 지난 판 그림이 남는다');
+  if (!second.startsWith('http://detect:8765/detect/path_overlay?target=door&round=')) failures.push(`판 번호를 붙인 주소가 ${second} 다`);
+  if (!/imageRound/.test(src('detect', 'views', 'DetectViews.tsx'))) failures.push('그림을 그리는 곳이 판 번호를 안 붙인다');
+
   const views = src('detect', 'views', 'DetectViews.tsx');
   if (!/floorPlanUrls\(source\)/.test(views)) failures.push('경로 전에 도면을 안 그린다 — 그 자리가 빈 상자가 된다');
   if (!/path === null/.test(views)) failures.push('그림을 바꾸는 기준이 경로가 아니다');

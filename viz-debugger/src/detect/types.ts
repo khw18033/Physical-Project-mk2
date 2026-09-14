@@ -74,21 +74,66 @@ export type DetectSummary = {
 };
 
 /** 경로 산출. `evidence.json`. 스캔이 끝나야 나온다. */
+/** 대체 경로의 한 걸음 (260914). A 단상 → B 문만 위치 → C 문 관측만 경로. */
+export type FallbackStep = { step: string; ok: boolean; detail: string };
+
+/** 문 겉보기 크기로 어림한 거리의 근거 (260914 — 받침대 없이 거리를 구하는 자리). */
+export type DoorDistanceEstimate = {
+  method: string;
+  formula: string;
+  substituted?: string;
+  distance_cm?: number;
+  estimates_cm?: readonly number[];
+  reason?: string;
+  per_frame: ReadonlyArray<{
+    frame: string; rotation_deg: number; box_w_px: number; box_h_px: number;
+    width_clipped?: boolean; height_clipped?: boolean;
+    distance_from_width_cm?: number; distance_from_height_cm?: number; skipped_reason?: string;
+  }>;
+};
+
+/** 로봇이 바로 쓰는 명령 두 개 — `detection-protocol_0914.md` §4. turn 은 **스캔 시작 방향 기준**, 오른쪽 +. */
+export type RobotCommandPlan = {
+  turn: { deg: number };
+  move_forward: { distance_m: number };
+  distance_m_in_range: boolean;
+  warning?: string;
+};
+
 export type DetectPath = {
   target_class: string;
   ok: boolean;
-  target_resolution: { position_cm: readonly number[]; source: string; detail: string };
-  robot_position_cm: readonly number[];
-  current_heading_map_deg: number;
+  /**
+   * **어느 길로 나온 경로인가** (260914). `map` 은 도면 위 로봇 자리에서(A 단상 · B 문만 위치),
+   * `door_relative` 는 자리 없이 문 관측만으로(C) — 도면 경로 그림이 없다.
+   */
+  path_mode?: 'map' | 'door_relative' | null;
+  path_mode_words?: string;
+  localization_method?: 'pedestal' | 'door_only' | null;
+  localization_reason?: string | null;
+  fallback_chain?: readonly FallbackStep[];
+  /** 경로 그림(`/detect/path_overlay`)이 있는가. C 에서는 없다. */
+  path_overlay_available?: boolean;
+  /** 실패일 때만 — 왜 경로가 안 나왔나. */
+  reason?: string;
+  target_resolution?: { position_cm: readonly number[] | null; source: string; detail: string };
+  /** C(문 관측만)에서는 null — 도면 위 자리를 모른다. */
+  robot_position_cm: readonly number[] | null;
+  current_heading_map_deg: number | null;
   target_position_cm: readonly number[];
-  map_bearing_to_target_deg: number;
+  map_bearing_to_target_deg?: number;
   turn_instruction: string;
+  turn_deg?: number;
   distance_to_target_cm: number;
   standoff_cm: number;
   forward_distance_cm: number;
-  goal_cm: readonly number[];
+  forward_distance_m?: number;
+  robot_command?: RobotCommandPlan;
+  goal_cm: readonly number[] | null;
   /** 식과 대입값이 문자열로 들어 있다 — **우리가 다시 계산하지 않는다.** */
-  path_calculation: Readonly<Record<string, { formula: string; substituted: string }>>;
+  path_calculation: Readonly<Record<string, { formula: string; substituted: string; note?: string }>>;
+  bearing_refinement?: Record<string, unknown> | null;
+  door_distance_estimate?: DoorDistanceEstimate | null;
   pedestal_obstacle_clear?: boolean;
 };
 
@@ -114,6 +159,8 @@ export type DetectLocalization = {
   /** 로봇 자신의 자리와 방위. 이 둘이 와야 `T-A2` 가 끝난다. */
   robot_position_cm?: readonly number[];
   current_heading_map_deg?: number;
+  /** 무엇으로 잡았나 (260914) — 단상(A) · 문만(B). */
+  method?: 'pedestal' | 'door_only';
   pedestal_surface_point_cm?: readonly number[];
   pedestal_distance_avg_cm?: number;
   map_bearing_to_pedestal_deg?: number;

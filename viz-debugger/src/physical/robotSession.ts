@@ -121,6 +121,13 @@ export type RobotSession = {
   doorTurn: { yawDeg: number | null; chosenIndex: number | null } | null;
   /** 이 판에서 각 걸음이 보고한 방위. `door_turn` 을 견주는 데 쓴다. */
   seenYaw: Readonly<Record<number, number>>;
+  /** 이 판에서 켜진 뷰포인트 칸. 방위를 모르고 켜진 칸(0도)도 여기엔 있다. */
+  litIndices: Readonly<Record<number, true>>;
+  /**
+   * **출발 방향으로 돌아온 마지막 회전의 방위** (260914). 곧 스캔을 시작한 방위다 — 탐지의
+   * 회전각이 그 방위 기준이라, 로봇이 스캔 뒤 `door_turn` 으로 틀어진 만큼 이동 명령을 보정한다.
+   */
+  scanReturnYaw: number | null;
   /**
    * **문이 있다고 칠 방향** — 임시다 (260910 지시).
    *
@@ -225,6 +232,8 @@ const EMPTY: RobotSession = {
   unsupported: {},
   walked: null,
   seenYaw: {},
+  litIndices: {},
+  scanReturnYaw: null,
 };
 
 let session: RobotSession = EMPTY;
@@ -380,6 +389,9 @@ export function markStarted(): void {
   commit({
     ...session, started: true, startedAtMs: Date.now(),
     prepared: false, prepWindowDone: false, prepTasksDone: false, preparedAtMs: null,
+    // **지난 판의 방위를 들고 가지 않는다** (260914) — 이동 명령을 보정하는 재료라, 남아 있으면
+    // 이번 판의 회전을 지난 판의 방위로 고친다.
+    seenYaw: {}, litIndices: {}, scanReturnYaw: null, doorTurn: null, warnings: {}, walked: null,
   });
   prepTimer = setTimeout(finishPrep, PREP_SEC * 1000);
   // 정지 한 번에 같이 끊긴다 — 멈춘 뒤에 창이 닫혀 스캔이 나가면 안 된다.
@@ -522,7 +534,8 @@ export function applyEffects(effects: readonly LinkEffect[]): ViewpointFrame[] {
       if (effect.frame.channel === 'robot_state') {
         const index = effect.frame.payload.rotation_index;
         // 이 걸음이 보고한 방위를 적어 둔다 — `door_turn` 이 어느 걸음이었는지 견줄 재료다.
-        next = { ...next, seenYaw: { ...next.seenYaw, [index]: effect.frame.payload.yaw } };
+        if (effect.yawKnown !== false) next = { ...next, seenYaw: { ...next.seenYaw, [index]: effect.frame.payload.yaw } };
+        next = { ...next, litIndices: { ...next.litIndices, [index]: true } };
         // 경고는 회전 프레임에만 붙는다 — 로봇이 내는 것은 「어느 각도를 보는가」뿐이다(§6).
         if (effect.warning !== null) {
           next = { ...next, warnings: { ...next.warnings, [index]: effect.warning } };
@@ -532,6 +545,8 @@ export function applyEffects(effects: readonly LinkEffect[]): ViewpointFrame[] {
       next = { ...next, progress: { ack: effect.ack, of: effect.of } };
     } else if (effect.kind === 'door-turn') {
       next = { ...next, doorTurn: { yawDeg: effect.yawDeg, chosenIndex: effect.chosenIndex } };
+    } else if (effect.kind === 'scan-return') {
+      next = { ...next, scanReturnYaw: effect.yawDeg };
     } else if (effect.kind === 'task-running' || effect.kind === 'task-failed' || effect.kind === 'task-done') {
       next = { ...next, commands: applyTaskEffect(next.commands, effect) };
       // 명령이 끝났으면 단계는 지난 말이다 — 「실행 중」을 끝난 뒤에도 띄우면 거짓말이다.

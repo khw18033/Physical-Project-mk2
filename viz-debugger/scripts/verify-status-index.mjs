@@ -2,13 +2,19 @@
 //
 // **한 칸 밀림을 잡는 검사다.**
 //
-// 로봇의 `step` 은 1부터, 우리 노드 인덱스는 0부터다. `index = step - 1`.
 // 이 한 줄을 틀리면 3번 각도의 결과가 4번 노드에 찍힌다. 그런데 **화면은 그럴싸하게
 // 돌아간다** — 여덟 칸이 차례로 켜지고 초록도 하나 뜬다. 눈으로는 절대 못 잡는다.
 // 지시서가 「이 작업에서 가장 흔하게 날 실수」라고 못박았고, 그래서 이 검사가 그것부터 본다.
 //
+// ## 260914 — 규칙이 바뀌었다: 회전 k 는 k 번 노드다
+//
+// 전에는 `index = step - 1` 이었다(「돌고 나서 본다」던 옛 시뮬레이터 전제). 실물 로봇은
+// **0도를 돌기 전에 찍고**, 회전 k 뒤에 k·45도를 찍고, 마지막 회전(step 8)은 출발 방향으로
+// 돌아온다. 옛 규칙에서는 회전1(0→45도)이 0도 노드에 붙어 **0도 노드가 회전하는 것처럼**
+// 보였다(리허설 지적). 이제 0도 노드는 촬영(`/frame`)이 켜고, step 8 은 어느 노드도 아니다.
+//
 // 보는 것 여섯.
-//  1. step 1~8 → index 0~7 로 옳게 옮는가 · 범위 밖은 버리는가
+//  1. step 1~7 → index 1~7 · step 8(복귀)은 노드가 아니다 · 범위 밖은 버리는가
 //  2. scan_turn 이 아닌 event 는 뷰포인트를 안 건드리는가
 //  3. note != "ok" 가 경고로 남는가
 //  4. yaw_deg: null 에서 안 깨지는가
@@ -38,11 +44,16 @@ const detailOf = (over = {}) => JSON.stringify({
 });
 
 // ── 1. step → index ─────────────────────────────────────────────────────────
-for (let step = 1; step <= 8; step += 1) {
+for (let step = 1; step <= 7; step += 1) {
   const index = viewpointIndexOf(parseDetail(detailOf({ step })));
-  if (index !== step - 1) failures.push(`step ${step} → index ${index} — ${step - 1} 이어야 한다`);
+  if (index !== step) failures.push(`step ${step} → index ${index} — ${step} 이어야 한다 (회전 k 뒤에 k·45도를 찍는다)`);
 }
-// 범위 밖은 버린다 — 없는 칸을 만들어 그리면 화면이 대본보다 커진다.
+// **마지막 회전(step 8)은 출발 방향으로 돌아오는 것이다** — 노드가 아니다.
+if (viewpointIndexOf(parseDetail(detailOf({ step: 8 }))) !== null) failures.push('step 8(복귀 회전)이 노드를 켰다 — 315도 노드는 회전7 뒤에 찍는다');
+const { isReturnTurn } = await load('src', 'physical', 'uplink.ts');
+if (!isReturnTurn(parseDetail(detailOf({ step: 8, steps: 8 })))) failures.push('step 8/8 을 복귀 회전으로 못 알아본다');
+if (isReturnTurn(parseDetail(detailOf({ step: 7, steps: 8 })))) failures.push('step 7/8 을 복귀 회전이라고 한다');
+// 범위 밖은 버린다 — 없는 칸을 만들어 그리면 화면이 대본보다 커진다. 0 은 「회전 없음」이라 노드가 아니다.
 for (const step of [0, -1, 9, 12, 1.5]) {
   const index = viewpointIndexOf(parseDetail(detailOf({ step })));
   if (index !== null) failures.push(`범위 밖 step ${step} 이 index ${index} 를 냈다 — 버려야 한다`);
@@ -53,7 +64,7 @@ for (const event of ['door_turn', 'forward', 'aborted', '무슨event']) {
   const index = viewpointIndexOf(parseDetail(detailOf({ event, step: 3 })));
   if (index !== null) failures.push(`event ${event} 가 뷰포인트 index ${index} 를 건드렸다 — scan_turn 만이다`);
 }
-if (viewpointIndexOf(parseDetail(detailOf({ event: 'scan_turn', step: 3 }))) !== 2) {
+if (viewpointIndexOf(parseDetail(detailOf({ event: 'scan_turn', step: 3 }))) !== 3) {
   failures.push('scan_turn 이 뷰포인트를 안 건드린다');
 }
 
@@ -71,7 +82,7 @@ if (viewpointIndexOf(parseDetail(detailOf({ event: 'scan_turn', step: 3 }))) !==
 {
   const detail = parseDetail(detailOf({ yaw_deg: null, step: 5 }));
   if (detail === null) failures.push('yaw_deg 가 null 인 detail 을 통째로 버렸다 — null 이 정상이다');
-  if (viewpointIndexOf(detail) !== 4) failures.push('yaw_deg 가 null 이면 index 가 안 나온다 — step 이 기준이다');
+  if (viewpointIndexOf(detail) !== 5) failures.push('yaw_deg 가 null 이면 index 가 안 나온다 — step 이 기준이다');
   if (detail?.yaw_deg !== null) failures.push('yaw_deg null 이 다른 값으로 바뀌었다');
   // door_turn 이 아닌 것에서 고른 칸을 주장하면 안 된다.
   if (chosenIndexOf(detail, new Map([[0, 0]])) !== null) failures.push('scan_turn 인데 고른 칸을 주장한다');
@@ -98,7 +109,7 @@ if (viewpointIndexOf(parseDetail(detailOf({ event: 'scan_turn', step: 3 }))) !==
   if (chosenIndexOf(wrapped, seen) !== 3) failures.push('감기는 각도를 못 견준다');
   // 방위를 모르면 걸음 번호로 물러난다.
   const noYaw = parseDetail(detailOf({ event: 'door_turn', step: 3, yaw_deg: null }));
-  if (chosenIndexOf(noYaw, seen) !== 2) failures.push('방위가 없을 때 걸음 번호로 물러나지 않는다');
+  if (chosenIndexOf(noYaw, seen) !== 3) failures.push('방위가 없을 때 걸음 번호로 물러나지 않는다 (걸음 k = k 번 노드)');
   // 본 걸음이 하나도 없으면 **안 고른다** — 지어 고르지 않는다.
   if (chosenIndexOf(real, new Map()) !== null) failures.push('본 걸음이 없는데 칸을 골랐다');
 }
@@ -118,7 +129,7 @@ if (viewpointIndexOf(parseDetail(detailOf({ event: 'scan_turn', step: 3 }))) !==
 {
   let fill = emptyFill(8);
   for (let step = 1; step <= 8; step += 1) {
-    const detail = parseDetail(detailOf({ step, yaw_deg: (step - 1) * 45 }));
+    const detail = parseDetail(detailOf({ step, yaw_deg: step * 45 }));
     const index = viewpointIndexOf(detail);
     if (index === null) continue;
     // 로봇의 detail 을 fill.ts 의 프레임 모양으로 바꿔 넣는다 — fill.ts 는 출처를 모른다.
@@ -128,10 +139,11 @@ if (viewpointIndexOf(parseDetail(detailOf({ event: 'scan_turn', step: 3 }))) !==
     });
   }
   const scanning = cellsInOrder(fill).filter((c) => c.phase === 'scanning').length;
-  if (scanning !== 8) failures.push(`로봇 사건 여덟을 넣었는데 탐색 중이 ${scanning}칸 — 여덟이어야 한다`);
-  // 첫 칸이 실제로 0번인가 — 한 칸 밀리면 여기서 갈린다.
-  if (fill.get(0)?.rotation?.rotation_index !== 0) failures.push('step 1 이 0번 칸에 안 들어갔다');
-  if (fill.get(7)?.rotation?.rotation_index !== 7) failures.push('step 8 이 7번 칸에 안 들어갔다');
+  if (scanning !== 7) failures.push(`회전 보고 여덟(복귀 하나 포함)을 넣었는데 탐색 중이 ${scanning}칸 — 일곱이어야 한다 (0도는 촬영이 켠다)`);
+  // **0도 칸은 회전이 안 켠다** — 한 칸 밀리면 여기서 갈린다.
+  if (fill.get(0)?.phase !== 'pending') failures.push('회전 보고가 0도 칸을 켰다 — 0도 노드는 회전하지 않는다');
+  if (fill.get(1)?.rotation?.rotation_index !== 1) failures.push('step 1 이 1번(45도) 칸에 안 들어갔다');
+  if (fill.get(7)?.rotation?.rotation_index !== 7) failures.push('step 7 이 7번(315도) 칸에 안 들어갔다');
 }
 
 // ── 8. 깨진 detail ──────────────────────────────────────────────────────────
@@ -157,16 +169,15 @@ if (viewpointIndexOf(parseDetail(detailOf({ event: 'scan_turn', step: 3 }))) !==
   if (scan?.parameters?.forward_m !== 0) failures.push(`T-A3 의 forward_m 이 ${scan?.parameters?.forward_m} — 0 이어야 한다 (스캔만)`);
   if (scan?.parameters?.steps !== 8) failures.push('T-A3 의 steps 가 8 이 아니다');
 
-  // T-B2 는 전진만. 거리는 방향·거리 함수가 준다.
-  const fwd = commandForTask('T-B2', geometry);
-  if (fwd?.action !== 'move_forward') failures.push(`T-B2 가 ${fwd?.action} 을 쏜다`);
-  if (fwd?.parameters?.distance_m !== 4.2) failures.push(`T-B2 의 거리가 ${fwd?.parameters?.distance_m} — 4.2 여야 한다`);
-  if (fwd?.parameters?.vx !== undefined) failures.push('vx 를 생략하기로 했는데 값이 있다');
+  // **T-B2 는 대본 거리로 명령을 만들지 않는다** (260914 리허설 — 방향도 모른 채 4.2m 를 걸었다).
+  // 이동은 T-B1 경로로만 나간다(`approachPlan.ts`).
+  if (commandForTask('T-B2', geometry) !== null) failures.push('T-B2 가 대본 거리로 직진 명령을 만든다 — 경로 없이 걷는다');
   if (commandForTask('T-A1', geometry) !== null) failures.push('명령이 없는 태스크가 명령을 냈다');
 
-  // 거리를 대본이 안 주면 0 이다 — 지어내지 않는다.
+  // **대본이 거리를 줘도 쓰지 않는다** — 경로가 없으면 0 이다.
+  if (geometry.forwardDistanceM !== 0) failures.push(`경로가 없는데 거리가 ${geometry.forwardDistanceM} — 대본 거리(4.2)를 쓰면 안 된다`);
   if (missionGeometry({}).forwardDistanceM !== 0) failures.push('거리를 모르는데 값을 지어냈다');
-  if (missionGeometry(null).source !== 'script') failures.push('값의 출처 표기가 없다');
+  if (missionGeometry(null).source !== 'none') failures.push('값의 출처 표기가 없다');
 
   const context = { taskOf: () => 'T-A3', seenYawByIndex: new Map([[2, 225]]), viewpointCount: 8 };
 
@@ -183,7 +194,18 @@ if (viewpointIndexOf(parseDetail(detailOf({ event: 'scan_turn', step: 3 }))) !==
   // 회전 하나가 노드를 채우면서 진행률도 민다.
   const turn = effectsOf({ kind: 'status', commandId: 'c', state: 'EXECUTING', detail: parseDetail(detailOf({ step: 3, ack: 3, of: 9 })), raw: '' }, context);
   const vp = turn.find((e) => e.kind === 'viewpoint');
-  if (vp?.frame?.payload?.rotation_index !== 2) failures.push(`step 3 이 rotation_index ${vp?.frame?.payload?.rotation_index} 로 갔다 — 2 여야 한다`);
+  if (vp?.frame?.payload?.rotation_index !== 3) failures.push(`step 3 이 rotation_index ${vp?.frame?.payload?.rotation_index} 로 갔다 — 3 이어야 한다`);
+
+  // **첫 회전이 왔는데 0도 칸이 아직이면 0도도 켠다** — 촬영 흐름이 없을 때(모의·pi7 전송 꺼짐)의 대비.
+  const first = effectsOf({ kind: 'status', commandId: 'c', state: 'EXECUTING', detail: parseDetail(detailOf({ step: 1 })), raw: '' }, { ...context, seenYawByIndex: new Map() });
+  const firstIdx = first.filter((e) => e.kind === 'viewpoint').map((e) => e.frame.payload.rotation_index);
+  if (JSON.stringify(firstIdx) !== '[0,1]') failures.push(`0도가 안 켜진 채 첫 회전이 왔는데 칸이 [${firstIdx}] — [0,1] 이어야 한다`);
+  const firstSeen = effectsOf({ kind: 'status', commandId: 'c', state: 'EXECUTING', detail: parseDetail(detailOf({ step: 1 })), raw: '' }, { ...context, seenYawByIndex: new Map([[0, 10]]) });
+  if (firstSeen.filter((e) => e.kind === 'viewpoint').length !== 1) failures.push('촬영으로 0도가 이미 켜졌는데 첫 회전이 0도를 또 켠다');
+  // 복귀 회전은 방위만 남긴다 — 이동 명령을 보정할 출발 방위다.
+  const ret = effectsOf({ kind: 'status', commandId: 'c', state: 'EXECUTING', detail: parseDetail(detailOf({ step: 8, steps: 8, yaw_deg: -2.8 })), raw: '' }, context);
+  if (ret.find((e) => e.kind === 'scan-return')?.yawDeg !== -2.8) failures.push('복귀 회전의 방위를 안 남긴다 — 스캔 뒤 틀어진 만큼 이동을 보정할 수 없다');
+  if (ret.some((e) => e.kind === 'viewpoint')) failures.push('복귀 회전이 노드를 켰다');
   // **로봇에서 온 것은 scanning 까지만이다** — 문 유무는 대본이 준다 (§6).
   if (vp?.frame?.channel !== 'robot_state') failures.push('로봇 사건이 탐지 채널로 갔다 — 문 유무를 로봇이 말하면 안 된다');
   if (!turn.some((e) => e.kind === 'progress' && e.ack === 3 && e.of === 9)) failures.push('진행률이 안 나온다');
@@ -234,10 +256,10 @@ if (viewpointIndexOf(parseDetail(detailOf({ event: 'scan_turn', step: 3 }))) !==
   // of 는 아홉으로 고정 (§5 「ACK 개수 — 확정」).
   if (details.some((d) => d?.of !== 9)) failures.push('목의 of 가 9 가 아니다');
 
-  // step 1~8 이 index 0~7 로 간다.
+  // step 1~7 이 index 1~7 로 간다 — step 8 은 복귀, 0도는 촬영이 켠다.
   const indexes = details.map((d) => viewpointIndexOf(d)).filter((i) => i !== null);
-  if (JSON.stringify(indexes) !== JSON.stringify([0, 1, 2, 3, 4, 5, 6, 7])) {
-    failures.push(`목을 흘렸더니 인덱스가 [${indexes.join(', ')}] — 0~7 이어야 한다`);
+  if (JSON.stringify(indexes) !== JSON.stringify([1, 2, 3, 4, 5, 6, 7])) {
+    failures.push(`목을 흘렸더니 인덱스가 [${indexes.join(', ')}] — 1~7 이어야 한다`);
   }
 
   // **경고가 한 번은 나온다** — 조용히 정상으로 칠하는지 여기서 드러난다.
@@ -249,7 +271,7 @@ if (viewpointIndexOf(parseDetail(detailOf({ event: 'scan_turn', step: 3 }))) !==
   if (!details.some((d) => d?.yaw_deg === null)) failures.push('목이 yaw_deg null 을 한 번도 안 낸다');
   // null 이어도 그 칸은 제 인덱스로 간다.
   const nullOne = details.find((d) => d?.yaw_deg === null);
-  if (nullOne && viewpointIndexOf(nullOne) !== nullOne.step - 1) failures.push('yaw 가 null 인 걸음이 제 칸으로 안 간다');
+  if (nullOne && nullOne.step < 8 && viewpointIndexOf(nullOne) !== nullOne.step) failures.push('yaw 가 null 인 걸음이 제 칸으로 안 간다');
 
   // 마지막은 door_turn 이고 뷰포인트를 만들지 않는다.
   const last = details[details.length - 1];
@@ -286,16 +308,17 @@ function control(name, hit) {
   controls.push(name);
 }
 {
-  // **한 칸 밀린 구현.** index = step 으로 두면 step 8 이 8번 칸을 노린다.
-  const shifted = (detail) => (detail.event === 'scan_turn' && detail.step >= 0 && detail.step < 8 ? detail.step : null);
+  // **옛 규칙 사본** (260914 까지의 코드) — index = step - 1. 회전1(0→45도)이 0도 노드에 붙어
+  // 0도 노드가 회전하는 것처럼 보였다. 위 1절이 그것을 잡는지, 그 사본의 결과로 확인한다.
+  const oldRule = (detail) => (detail.event === 'scan_turn' && detail.step >= 1 && detail.step <= 8 ? detail.step - 1 : null);
   const ours = [];
   const theirs = [];
   for (let step = 1; step <= 8; step += 1) {
     const d = parseDetail(detailOf({ step }));
     ours.push(viewpointIndexOf(d));
-    theirs.push(shifted(d));
+    theirs.push(oldRule(d));
   }
-  control('index = step 으로 둔 사본 (한 칸 밀림)', JSON.stringify(ours) !== JSON.stringify(theirs));
+  control('index = step - 1 사본 (0도 노드가 첫 회전을 가져감)', theirs[0] === 0 && ours[0] === 1 && JSON.stringify(ours) !== JSON.stringify(theirs));
 }
 {
   // yaw 로 노드를 고르는 구현 — 출발 방위가 0 이 아니면 곧바로 어긋난다 (§5 ㉣).
@@ -314,7 +337,7 @@ if (failures.length) {
   console.error(`❌ verify:status-index\n- ${failures.join('\n- ')}`);
   process.exit(1);
 }
-console.log('✅ step 1~8 → index 0~7 · 범위 밖(0 · 9 · 소수)은 버린다');
+console.log('✅ 회전 step 1~7 → index 1~7 · step 8 은 출발 방향 복귀(노드 아님) · 0도는 회전하지 않는다 · 범위 밖은 버린다');
 console.log('✅ scan_turn 만 뷰포인트를 건드린다 — door_turn·forward·aborted 는 0건');
 console.log('✅ note != ok 는 경고로 남는다 · yaw_deg: null 에서 안 깨진다 · 각도는 360 으로 감긴다');
 console.log('✅ door_turn 은 계기이지 노드가 아니다 — 로봇이 고른 걸음을 따른다 (어긋남을 표시하지 않는다)');
