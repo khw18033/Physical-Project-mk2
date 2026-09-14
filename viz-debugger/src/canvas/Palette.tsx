@@ -37,7 +37,7 @@ export function Palette({ canvas, pickedTaskId, pickedTaskTitle }: {
   return <div className="palette">
     <div className="palette__row">
       <b className="palette__title">뷰 노드</b>
-      {catalog.map((entry) => {
+      {catalog.filter((entry) => entry.inPalette !== false).map((entry) => {
         const unused = scriptKinds !== null && !scriptKinds.has(entry.kind as ViewNodeKindId);
         return <button
           key={entry.kind}
@@ -49,11 +49,11 @@ export function Palette({ canvas, pickedTaskId, pickedTaskTitle }: {
           onClick={() => canvas.add(entry.kind, pickedTaskId)}
         >+ {entry.label}{unused && <small> · 이 대본엔 없음</small>}</button>;
       })}
-      <span className="palette__target">
-        {pickedTaskId === null
-          ? <>연결 대상 없음 — <b>전역 노드</b>로 놓입니다 (태스크를 한 번 누르면 그 태스크에 연결됩니다)</>
-          : <>연결 대상 <b>◂ {pickedTaskId}</b>{pickedTaskTitle === null ? null : ` ${pickedTaskTitle}`}</>}
-      </span>
+      {/* 고른 태스크가 없을 때는 아무 말도 안 한다 (260914 지시) — 늘 떠 있는 설명이라
+          버튼 줄만 길어졌다. 전역 노드로 놓인다는 것은 버튼 툴팁과 카드의 「전역」이 말한다. */}
+      {pickedTaskId !== null && <span className="palette__target">
+        연결 대상 <b>◂ {pickedTaskId}</b>{pickedTaskTitle === null ? null : ` ${pickedTaskTitle}`}
+      </span>}
       {/* 층 ③ — 사용자 구성을 지우고 기본 구성으로. 되돌릴 것이 없으면 버튼도 없다. */}
       {canvas.restorable && <button type="button" className="palette__reset" onClick={canvas.reset} title="이 마일스톤의 캔버스 구성을 기본으로 되돌립니다">기본 구성으로 되돌리기</button>}
     </div>

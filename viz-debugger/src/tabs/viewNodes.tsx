@@ -325,7 +325,7 @@ export const VIEW_NODE_RENDERERS: readonly ViewNodeEntry[] = [
   },
   {
     kind: 'detect-map',
-    label: '2D 맵 · 경로',
+    label: '2D 맵',
     hint: '도면 위의 경로와 계산 다섯 단계 — 우리가 다시 계산하지 않는다',
     summary: () => <NodeGate kind="detect-map"><DetectMap /></NodeGate>,
     zoom: () => <NodeGate kind="detect-map"><DetectMap zoom /></NodeGate>,
@@ -370,6 +370,9 @@ export const VIEW_NODE_RENDERERS: readonly ViewNodeEntry[] = [
     kind: 'video',
     label: '영상',
     hint: 'VZ-I-06 · 07 · 09 — 대표 정지 프레임과 탐지 수 (재생은 확대에서만)',
+    // **팔레트에서 뺀다** (260914 지시) — 「탐지 영상」과 겹친다. 렌더러는 남긴다: 옛 대본의
+    // 안내줄 「영상 노드로」와 이미 저장된 캔버스가 이 노드를 그린다.
+    inPalette: false,
     // 카메라가 하나라 범위를 안 쓴다 — 위 VideoStill 의 주석이 그 이유다.
     summary: () => <NodeGate kind="video"><PendingSource id="video-stream" inline entity={VIDEO_CAMERA} axis="video"><VideoStill /></PendingSource></NodeGate>,
     zoom: () => <NodeGate kind="video"><PanelGate id="video"><VideoOverlayView /></PanelGate></NodeGate>,

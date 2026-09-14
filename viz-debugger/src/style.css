@@ -446,9 +446,11 @@ b.follow-live{cursor:default}
    미선정을 확실히 죽이는 쪽이 선정을 밝히는 것보다 효과가 크다 — 여덟 중 일곱이
    가라앉으면 남은 하나로 눈이 저절로 간다. */
 :root{
-  /* 대기 — 아직 아무것도 안 왔다. 채움 없음, 점선, 글자 흐림 */
-  --vp-pending-fill:transparent; --vp-pending-border:#cfd6df; --vp-pending-width:1px;
-  --vp-pending-text:#9aa5b3; --vp-pending-weight:400; --vp-pending-opacity:.5;
+  /* 대기 — 아직 아무것도 안 왔다. 흰 채움, 점선, 글자는 **흐리지 않는다** (260914 지시).
+     흐림은 한 바퀴를 다 돈 뒤 미선정에만 쓴다 — 대기가 먼저 흐리면 여덟이 시작부터
+     탈락처럼 보이고, 판정 순간의 「일곱이 가라앉는다」가 안 읽힌다. */
+  --vp-pending-fill:#fff; --vp-pending-border:#aab4c0; --vp-pending-width:1px;
+  --vp-pending-text:#3d4756; --vp-pending-weight:400; --vp-pending-opacity:1;
   /* 탐색 중 — 지금 이 방향을 보고 있다. 점멸은 여기 하나뿐이다 */
   --vp-scanning-fill:transparent; --vp-scanning-border:#4a8fd4; --vp-scanning-width:2px;
   --vp-scanning-text:#2f6ba8; --vp-scanning-weight:600; --vp-scanning-opacity:1;
@@ -552,7 +554,6 @@ button.robot-stop:hover{background:#b8271f}
 /* 탐지 셋 (260912) — 영상 · 근거 · 2D 맵. 값이 없으면 감추지 않고 적는다. */
 .detect-wait{margin:0;padding:6px 2px;color:#6b7888;font-size:12px}
 .detect-wait small{display:block;margin-top:3px;font-size:11px;color:#8a95a3}
-.detect-temp{margin-left:6px;padding:1px 6px;border-radius:9px;background:#fdf6ea;color:#7a4d08;font-style:normal;font-size:10px;font-weight:700}
 
 .detect-cam{display:grid;gap:4px}
 .detect-cam img{width:100%;height:auto;display:block;border-radius:5px}

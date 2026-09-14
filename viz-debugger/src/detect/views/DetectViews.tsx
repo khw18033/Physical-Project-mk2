@@ -25,12 +25,14 @@ import { sweepDone } from '../detectBridge.ts';
 import { useDetect } from '../store.ts';
 import type { DetectFrame } from '../types.ts';
 
-/** 아직 아무것도 안 왔을 때. **감추지 않고 적는다.** */
+/**
+ * 아직 아무것도 안 왔을 때. **감추지 않고 적는다.**
+ *
+ * 시료로 읽는지 실제 서비스로 읽는지는 **노드에 적지 않는다** (260914 지시). 무대 화면에서
+ * 「테스트」가 보이면 연결 전 시험처럼 읽힌다 — 어디서 읽는지는 연결 관리가 말한다.
+ */
 function Waiting({ what }: { what: string }) {
-  return <p className="detect-wait">
-    {what}
-    <small>연결 관리에서 주소를 넣거나 「테스트」를 켜면 들어옵니다</small>
-  </p>;
+  return <p className="detect-wait">{what}</p>;
 }
 
 /** 지금 고른 각도. 없으면 마지막으로 본 각도 — 도는 동안 화면이 따라가야 한다. */
@@ -59,7 +61,6 @@ export function DetectCam({ zoom = false }: { zoom?: boolean }) {
     <img src={frameImageUrl(source, frame.frame, kind)} alt={`${frame.rotation_deg}도 프레임`} />
     <span className="detect-cam__at">
       {frame.rotation_deg}도 · {frame.found ? '문 있음' : '문 없음'}
-      {state.testMode && <em className="detect-temp">테스트 자료</em>}
     </span>
     {zoom && <div className="detect-strip">
       {state.frames.map((item) => <figure key={item.frame} className={item.found ? 'is-found' : ''}>
@@ -102,7 +103,6 @@ export function DetectReason({ zoom = false, count = 8 }: { zoom?: boolean; coun
     <div className="detect-reason__head">
       <b>{frame.rotation_deg}도</b>
       {evidence !== null && <span className="detect-score">{SCORE_LABEL} {evidence.final_score.toFixed(3)}</span>}
-      {state.testMode && <em className="detect-temp">테스트 자료</em>}
     </div>
     <ul className="detect-gates">
       {gates.map(([name, gate]) => <li key={name} className={gate.passed ? 'is-pass' : 'is-fail'}>
@@ -164,7 +164,6 @@ export function DetectMap({ zoom = false }: { zoom?: boolean }) {
       <img src={mapImageUrl(source)} alt="2D 도면" />
       <div className="detect-map__facts">
         <span>경로는 스캔이 끝난 뒤에 그려집니다</span>
-        {state.testMode && <em className="detect-temp">테스트 자료</em>}
       </div>
     </div>;
   }
@@ -176,7 +175,6 @@ export function DetectMap({ zoom = false }: { zoom?: boolean }) {
       <span><b>{path.turn_instruction}</b></span>
       <span>직진 {(path.forward_distance_cm / 100).toFixed(2)}m</span>
       <span>정지거리 {(path.standoff_cm / 100).toFixed(2)}m</span>
-      {state.testMode && <em className="detect-temp">테스트 자료</em>}
     </div>
     {zoom && <>
       <dl className="detect-map__rows">
