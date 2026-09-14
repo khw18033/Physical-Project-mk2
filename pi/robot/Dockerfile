@@ -39,6 +39,11 @@ RUN set -eux; \
     apt-get install -y --no-install-recommends libopus0; \
     rm -rf /var/lib/apt/lists/*
 
+# 검증 도구용. Pillow 로 numpy 프레임을 JPEG 로 굽는다(bench/ep_cam_view.py).
+# opencv 를 쓰지 않는다 — 90MB 가 늘고, 하는 일은 JPEG 인코딩 하나뿐이다.
+# SDK 레이어 뒤에 따로 둔다 — 이 줄이 바뀌어도 위의 긴 빌드가 캐시로 남는다.
+RUN pip install --no-cache-dir pillow
+
 WORKDIR /app
 COPY common/ /app/common/
 COPY robot/ /app/robot/
