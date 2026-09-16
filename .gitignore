@@ -2,9 +2,16 @@
 # 비밀정보 — Public 저장소이므로 절대 커밋 금지 (실값은 환경변수/secret manager로 주입)
 # ─────────────────────────────────────────────────────────────
 _serverinfo/
+# 하드웨어 파트(조병현) 브랜치 소스 사본 — 본문 규격의 실물 근거로 읽기만 한다.
+# 남의 저작물이고 이 저장소는 Public 이라 커밋하지 않는다. 무엇이 들어 있는지는
+# _hwsrc/README.md 참조.
+_hwsrc/
 .env
 .env.*
-!.env.example            # 예제(placeholder만)는 올린다
+# 예제(placeholder만)는 올린다.
+# ⚠ 아래 부정 패턴에 줄 끝 주석을 붙이지 않는다 — gitignore 의 '#' 은 줄 첫 글자일 때만
+#    주석이라, 줄 끝에 붙이면 패턴의 일부가 되어 규칙이 통째로 무효가 된다.
+!.env.example
 *.pem
 *.key
 *.crt
@@ -18,9 +25,18 @@ credentials.json
 
 # 서버 실제 설정 파일 사본 — 여기서 고치고 서버에 복사해 적용하는 작업본.
 # 평문 비밀번호와 내부망 주소가 들어 있어 Public 저장소에 올리지 않는다.
-# (서버 정본 경로는 _serverinfo/ 참조)
+# (서버 기준 경로는 _serverinfo/ 참조)
+#
+# ⚠ `infra/` 로 디렉터리 전체를 막지 않는다. git 은 **제외된 디렉터리 안을 아예 훑지
+#    않아** 부정 패턴(!infra/sql/...)으로 되살릴 수 없다. 그러면 커밋해야 하는
+#    infra/sql/*.sql(재구축 재현 수단)까지 함께 사라진다. 막을 것만 콕 집어 막는다.
 infra/docker-compose.yml
 infra/config/
+# 실제 비밀번호가 들어간 GRANT 적용본. 자리표시자 템플릿(.example)만 커밋한다.
+# (아래 패턴은 `.sql` 로 끝나는 것만 잡으므로 `*.sql.example` 은 그대로 커밋된다.)
+infra/sql/mk2_grants.sql
+infra/sql/mk2_grants_mysql.sql
+infra/sql/mk2_grants_tsdb.sql
 
 # ─────────────────────────────────────────────────────────────
 # Python

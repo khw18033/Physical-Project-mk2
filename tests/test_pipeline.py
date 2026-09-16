@@ -10,7 +10,8 @@
 - 접속 정보는 환경변수로 준다(`tests/conftest.py` 표 참조).
 
 implements: BE-C-01, BE-T-01, BE-T-02, BE-T-03, BE-S-01
-tests: 계약 fixture 양성/음성, 브릿지 왕복, 불합격 격리, sink 도달, WS 도달
+tests: 공통 규격 fixture 양성/음성, `session_id` 선택 필드(양성 2 + 음성 1),
+       브릿지 왕복, 공통 헤더(1단) 불합격 격리, **본문(2단) 불합격 격리**, sink 도달, WS 도달
 """
 
 from __future__ import annotations
@@ -78,6 +79,37 @@ def test_contract_fixtures() -> None:
     with pytest.raises(EnvelopeInvalid) as excinfo:
         validate_envelope(bad_timestamp)
     assert "timestamp" in str(excinfo.value)
+
+
+def test_session_id_optional() -> None:
+    """규격 1.1 — `session_id`가 **있는 메시지와 없는 메시지가 둘 다** 통과한다.
+
+    선택 필드이므로 보내는 생산자와 안 보내는 생산자가 공존하는 것이 정상 상태다
+    (하드웨어는 아직 보내지 않는다). 규격 버전이 1.1로 올랐다고 `"1.0"`을 선언하는
+    실노드가 격리되면 그 순간 전량이 사라지므로, 옛 표기가 통과하는 것까지 함께 본다.
+
+    음성 대조도 붙인다 — 빈 문자열이 통과하면 `minLength: 1`이 무력한 것이다.
+    """
+    from backend.ingest.envelope import EnvelopeInvalid, validate_envelope
+    from backend import settings
+
+    examples = settings.contracts_dir() / "examples"
+    without = json.loads((examples / "envelope-valid.json").read_text(encoding="utf-8"))
+    with_session = json.loads((examples / "envelope-valid-session.json").read_text(encoding="utf-8"))
+
+    assert "session_id" not in without, "이 fixture는 session_id가 없는 쪽이어야 한다"
+    assert with_session["session_id"], "이 fixture는 session_id가 있는 쪽이어야 한다"
+
+    validate_envelope(without)       # 양성 ① — 없이도 통과
+    validate_envelope(with_session)  # 양성 ② — 있어도 통과
+
+    # 혼재 기간: 옛 버전 표기(1.0)도 통과해야 한다.
+    validate_envelope(dict(with_session, schema_version="1.0"))
+
+    # 음성: 빈 문자열은 거부되어야 한다.
+    with pytest.raises(EnvelopeInvalid) as excinfo:
+        validate_envelope(dict(with_session, session_id=""))
+    assert "session_id" in str(excinfo.value)
 
 
 # ── 관통 (양성) ────────────────────────────────────────────────────────────
@@ -182,3 +214,49 @@ def test_invalid_quarantined(kind, expected_reason, kafka_reader, broker, quaran
         timeout=absence_window,
     )
     assert leaked is None, f"불합격 메시지가 {STATE_TOPIC} 로 새어 나갔다"
+
+
+def test_payload_invalid_quarantined(kafka_reader, broker, quarantine_path, timeout_s) -> None:
+    """★음성 — **본문(2단) 불합격도 토픽에 나타나지 않고 격리된다.**
+
+    위 `test_invalid_quarantined`가 보는 것은 1단(공통 헤더)이다. Phase 2가 새로 켠 것은
+    2단(채널 본문)이고, **그 둘은 다른 검증기다** — 1단만 보면 "본문 검증이 실제로 무는가"를
+    말할 수 없다. 저장 층이 값의 존재를 가정할 수 있으려면 필수 누락은 막혀야 한다.
+
+    본문 규격은 타입별이므로 **토픽 2번째 칸(etype)이 맞아야** 의도한 검증기가 걸린다.
+    로봇 본문 fixture를 sensor 토픽으로 쏘면 다른 스키마에 걸려 이 테스트가 다른 것을 본다.
+    """
+    kind = "payload-missing-device-status"
+    etype = publisher.INVALID_ETYPE[kind]
+    reader = kafka_reader([STATE_TOPIC])
+    offset = _size(quarantine_path)
+    source_id = publisher.unique_source_id(prefix="wl-bad-payload")
+    payload = publisher.load_invalid(kind, source_id=source_id)
+
+    # 공통 헤더는 통과해야 한다 — 1단에서 걸리면 2단을 확인하지 못한 것이다.
+    from backend.ingest.envelope import validate_envelope
+
+    validate_envelope(payload)
+
+    publisher.publish(
+        publisher.topic_for("state", etype=etype, eid=source_id),
+        payload, host=broker["host"], port=broker["port"],
+    )
+
+    record = _wait_for_record(
+        quarantine_path,
+        offset,
+        lambda rec: source_id in rec.get("raw", ""),
+        timeout=timeout_s,
+    )
+    assert record is not None, f"본문 불합격이 격리 기록({quarantine_path})에 남지 않았다"
+    assert "device_status" in record["reason"], f"격리 사유가 기대와 다르다: {record['reason']}"
+    assert "본문" in record["reason"], f"1단이 아니라 2단에서 걸려야 한다: {record['reason']}"
+    assert record["topic"] == f"zoneA/{etype}/{source_id}/state"
+
+    absence_window = max(5.0, timeout_s / 2)
+    leaked = reader.wait_for(
+        lambda m: source_id in m.value().decode("utf-8", errors="replace"),
+        timeout=absence_window,
+    )
+    assert leaked is None, f"본문 불합격 메시지가 {STATE_TOPIC} 로 새어 나갔다"

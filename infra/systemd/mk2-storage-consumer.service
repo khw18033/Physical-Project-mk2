@@ -1,0 +1,38 @@
+# MK2 백엔드 상주 프로세스 — 저장 소비자 (Kafka 3토픽 → TSDB·레지스트리 · C층 파생)
+#
+# implements: BE-S-01 (계측 저장 상시 가동), BE-S-02 (A층·C층 계측의 선행 조건 — Phase 3 결정 1)
+#
+# 설치(사람이 서버에서):  sudo cp infra/systemd/mk2-*.service /etc/systemd/system/
+#                        sudo systemctl daemon-reload && sudo systemctl enable --now mk2-storage-consumer
+# 코드를 고치면:         서버 사본에 복사 → sudo systemctl restart mk2-storage-consumer
+# 로그:                  journalctl -u mk2-storage-consumer -f
+#
+# 이 프로세스는 .env 없이는 뜨지 않는다 — MK2_TSDB_PASSWORD·MK2_MYSQL_PASSWORD 가 필수이고
+# 없으면 조용히 폴백하지 않고 settings.MissingSetting 으로 죽는다(의도). EnvironmentFile 이 그 값을 준다.
+# ⚠ .env 를 읽는 파서가 이제 셋이다(셸 source · compose dotenv · systemd EnvironmentFile). 영숫자만 쓴다.
+#
+# 재기동 시 옛 메시지를 다시 읽는 것은 정상이다(auto.offset.reset=earliest). 저장 층의 스트림 좌표
+# 유일 키가 중복을 흡수하므로 TSDB 행 수가 재소비로 늘지 않는다(단계 1 DoD 4).
+
+[Unit]
+Description=MK2 storage consumer (Kafka -> TimescaleDB / MySQL registry / C-layer observability)
+After=docker.service
+Wants=docker.service
+# ⚠ StartLimit* 는 [Unit] 이다. [Service] 에 두면 무시된다.
+StartLimitBurst=3
+StartLimitIntervalSec=60
+
+[Service]
+Type=simple
+User=dg
+WorkingDirectory=/home/dg/capstone-db/phase1_work/Physical-Project-mk2
+EnvironmentFile=/home/dg/capstone-db/.env
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/home/dg/capstone-db/phase1_work/venv_phase1/bin/python -m backend.storage.consumer
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

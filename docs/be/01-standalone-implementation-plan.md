@@ -31,6 +31,9 @@
 - **조병현 `sensor_node.py`** — 이미 BE-C-01/02 공통 헤더 형식으로 실제 MQTT를 발행한다
   (`status`/`heartbeat`/`state`/`cmd`/`cmd/ack`/`cmd/result` 6채널). 하천 도메인(수위)이라 과업
   A(하천 감시·제어)와도 맞는다.
+  > ⚠ 낡은 서술 — Phase 1에서 확인: 구 JSON `cmd/*` 3채널은 **폐기**됐고 명령은 protobuf
+  > `terminal/<id>/downlink|uplink`로 흐른다. 텔레메트리는 `state`·`status`·`heartbeat` **3채널**이다
+  > (Phase 6 이월 참조). Phase 2에서 이 3채널의 **본문 규격 6종**을 만들었다.
 - **진나영 `simulation/terminals.py`의 `VirtualRiverTerminal`** — 하천/로봇 시뮬 MQTT 발행자.
 
 이는 조병현이 실 센서 없이 가짜 수위값(`read_water_level()`)으로 파이프라인부터 뚫은 것과 같은
@@ -40,6 +43,8 @@
 
 - 방금 정의한 공통 헤더([`../../contracts/common/`](../../contracts/common/))가 세 팀원을 정렬시킨다.
   조병현 `schema.py`가 `LEGACY_DEVICE_ID`로 대기하던 것이 이 확정으로 정리된다.
+  > ⚠ 2026-09-14 현재 **HW 브랜치에 그 편집(4개)이 아직 반영되지 않았다**(9-9 스냅샷 기준,
+  > `hw-envelope-conformance.md` §6-3). 지금 실노드를 붙이면 전량 격리된다.
 - 가용성 판정(BE-T-04, "MQTT 세션 우선")은 진나영이 `simulation/backend.py` mock으로 대기 중인
   바로 그것이다 — 백엔드가 채우면 mock이 실물로 교체된다.
 
@@ -60,10 +65,10 @@ Phase 순서는 이 요구 때문에 바뀌지 않는다.
 
 | 영역 | 무엇 | 검증 방법 |
 |---|---|---|
-| 공통 헤더 수신 검증 (BE-C-01/02/07) | 가짜 발행자 메시지를 `message.schema.json`으로 검증·격리 | 유효/무효 fixture 쌍으로 통과·거부 확인 |
-| MQTT→Kafka 브릿지 (BE-T-02) | 엣지 Mosquitto 구독 → 서버 Kafka produce | 가짜 발행자 → 브릿지 → Kafka 토픽에 도착 |
-| WS 게이트웨이 (BE-T-03) | Kafka 소비자 + WebSocket 서버, 구독 push | 브라우저(콘솔)에 실시간 값 도달 |
-| 저장 축 (BE-S-01/05) | TSDB 계측 write + MySQL 감사·레지스트리 | write 후 조회로 정합 확인 |
+| 공통 헤더 수신 검증 (BE-C-01/02/07) ✅ Phase 1·2 | 가짜 발행자 메시지를 `message.schema.json`으로 검증·격리 + **채널 본문 6종 2단 검증**(Phase 2) | 유효/무효 fixture 쌍으로 통과·거부 확인 — `test_payload_contract` 34건 |
+| MQTT→Kafka 브릿지 (BE-T-02) ✅ Phase 1 | 엣지 Mosquitto 구독 → 서버 Kafka produce | 가짜 발행자 → 브릿지 → Kafka 토픽에 도착 |
+| WS 게이트웨이 (BE-T-03) ✅ Phase 1 echo까지 | Kafka 소비자 + WebSocket 서버, 구독 push | 브라우저(콘솔)에 실시간 값 도달 |
+| 저장 축 (BE-S-01/05/08) ✅ Phase 2 | TimescaleDB 계측 write + MySQL 감사·레지스트리·실행 기록 | write 후 조회로 정합 확인 — 지연 도착 정렬·재소비 중복·권한 음성까지 pytest 6파일 62건(`tsdb_storage`7·`mysql_storage`10·`gap_detection`11·`storage_record`9·`registry_guards`15·`mission_event`10) |
 | 가용성 판정 (BE-T-04) | MQTT LWT + 하트비트 → 세션 우선 통합 상태 | LWT/타임아웃 주입 → online/offline 판정 |
 | 상관·감사 (BE-X-01/02/03) | command_id 발급, actor·시각 주입, 4단계 승격 | 명령 사슬 fixture로 상관·승격 확인 |
 | 관측 파이프라인 (BE-S-02/03) | OTel Collector 수집 → Prometheus 저장/요약. 계측 대상 3층(백엔드 자기 관측 / 말단 노드 / 업무 값의 관측 표현, §8-3) | 가짜 지표 발신 → Collector → Prometheus 조회 |
@@ -122,7 +127,7 @@ Phase 6  상관·감사·명령      command_id, actor 주입, 4단계 승격, �
 Phase 7  디지털 트윈         DT 7건 (좌표 변환·융합·커버리지는 Tier B, Unity 연결은 Tier C)
 ```
 
-### Phase 0 — 인프라 기동
+### Phase 0 — 인프라 기동 ✅ 완료 (2026-09-04)
 
 **목표:** compose 스택이 뜨고 각 구성요소가 살아있는 상태.
 
@@ -137,7 +142,7 @@ Phase 7  디지털 트윈         DT 7건 (좌표 변환·융합·커버리지�
   접속, Prometheus/Grafana UI 응답, MySQL 접속). 헬스체크로 판정(pytest 아님).
 - **외부 의존성:** 없음(전부 이 머신 소프트웨어).
 
-### Phase 1 — 얇은 파이프라인 관통
+### Phase 1 — 얇은 파이프라인 관통 ✅ 완료 (2026-09-07)
 
 **목표:** 발행자 → 백엔드 → 저장/화면이 한 줄로 관통.
 
@@ -152,52 +157,113 @@ Phase 7  디지털 트윈         DT 7건 (좌표 변환·융합·커버리지�
 - **외부 의존성:** 조병현 `sensor_node.py`(가져와 실행 — 이미 확보).
 - 관련: BE-C-01(공통 헤더 검증)·BE-T-01(MQTT)·BE-T-02(브릿지)·BE-T-03(WS 게이트웨이).
 
-### Phase 2 — 저장 축
+### Phase 2 — 저장 축 ✅ **완료 (2026-09-10)**
 
-**목표:** 성격별 저장 모델이 실제로 갈라져 쌓인다.
+**결과:** pytest **103건 전건 통과**(서버, 음성 대조 5건 포함). **완료 판정 35개 전부 충족.**
+보고: [`../../reports/2026-09-10_2200_phase2_저장축.md`](../../reports/2026-09-10_2200_phase2_저장축.md)
+/ 지시서: [`tasks/작업지시_phase2_저장축.md`](tasks/작업지시_phase2_저장축.md)
+/ 회신·문의: [`hw-envelope-conformance.md`](hw-envelope-conformance.md) §6 · [`vz-mission-record-inquiry.md`](vz-mission-record-inquiry.md)
+
+**확정된 것 — 다음 Phase가 딛고 서는 지점:**
+
+- **TSDB 제품 = TimescaleDB**(PG 16.15 + timescaledb 2.30.0 Community, `127.0.0.1:7859`, digest 고정)
+- **시간축 = 발행 `timestamp`.** 지연 도착이 원래 측정 시각 자리에 꽂힌다(실측 `lag_s=420.527`)
+- **유일 키 = 스트림 좌표**(`ts, stream_topic, stream_partition, stream_offset`). 재소비 중복을
+  도착 계층에서 흡수한다(실측 `346 → 346`)
+- **검출은 저장이 아니라 조회에서** — `docs/be/queries/gap-detection.sql`, 판정 4갈래
+- **공통 헤더 규격 v1.1** — 선택 필드 `session_id` 추가(MINOR). **`"1.0"`도 계속 통과**
+- **채널 본문 규격 6종 + 느슨한 2단 검증** — 필수 누락은 격리, **모르는 필드는 통과**
+- **레지스트리 2축**(선언·관측) + 가드 3개 · **감사·실행 기록 append-only를 DB 권한이 강제**
+- **MySQL 드라이버 = PyMySQL**, TSDB 드라이버 = `psycopg[binary]`
+
+> 아래는 **착수 전 계획 원문**이다. 이월 항목마다 처리 결과를 ✅로 달았다.
+
+**목표:** 성격별 저장 모델이 실제로 갈라져 쌓인다. ✅
 
 - `backend/storage/`: 계측(센서·로봇 상태 추이)은 **TSDB**, 감사(명령 이력)·레지스트리(장치·구역·
   식별자)는 **MySQL**(테이블 분리). 타임스탬프 기준 병합·정렬, 지연 도착 데이터 정합.
 - MongoDB는 두지 않는다(현재 채택 없음). **RBAC는 채택하되 저장 축이 아니라 조회·명령
   경로의 강제 축이라 Phase 6**에서 인증과 함께 만든다(BE-Q-04). 트윈·명령진행·가용성은
   저장하지 않고 WS push.
-- **Phase 0 이월:** MySQL 컨테이너는 가동 중이나 MK2 전용 DB·계정은 없다(Phase 0 범위 밖으로
+- **Phase 0 이월:** ✅ MySQL 컨테이너는 가동 중이나 MK2 전용 DB·계정은 없다(Phase 0 범위 밖으로
   미룸). 여기서 MK2 감사·레지스트리용 DB·계정을 만든다. 기존 테스트 DB(`robot_capstone`)에
-  얹지 않는다.
+  얹지 않는다. → `mk2` DB · `'mk2_app'@'172.18.%'` · 테이블 8개, 테이블 단위 차등 권한.
 - **Phase 1 이월 (여기서 처리):**
-  - **`store(...)` 뒤 구현 교체.** `backend/storage/writer.py`의 `TelemetryWriter.write()`가 지금
+  - ✅ **`store(...)` 뒤 구현 교체.** `backend/storage/writer.py`의 `TelemetryWriter.write()`가 지금
     JSONL placeholder다. **이 몸통만 TSDB writer로 갈아끼우고 ingest·소비자·인터페이스는 건드리지
     않는다**(그러라고 나눠 둔 지점이다). 소비자는 `backend/storage/consumer.py`(그룹 `mk2-storage`).
-  - **두 시각의 정합.** 기록에 공통 헤더 `timestamp`(발행 시각)와 `received_at`(서버 수신 시각)이 이미
+    → `tsdb_writer.py` 신설. `consumer.py`·`bridge.py` 한 줄도 안 바뀜.
+  - ✅ **두 시각의 정합.** 기록에 공통 헤더 `timestamp`(발행 시각)와 `received_at`(서버 수신 시각)이 이미
     분리 보존된다. Phase 1 실측에서 **7분 늦게 도착한 메시지**가 원래 시각을 유지하는 것을 확인했다
     — TSDB 적재 시 어느 시각을 기준으로 정렬할지, 지연 도착(HW spool 재전송, `replayed:true`)을
-    어떻게 정합할지 여기서 확정한다.
-  - **`sequence_id` 의미 확정.** 실측 결과 HW의 순번은 **채널별 독립**이다(같은 시각에
+    어떻게 정합할지 여기서 확정한다. → **시간축 = `timestamp`**, `ingest_at` 신설(Kafka 헤더),
+    `lag_s`·`clock_skew`·`replayed` 보관. ⚠ `received_at`은 "서버 수신"이 아니라 **"소비 시각"**이었다.
+  - ✅ **`sequence_id` 의미 확정.** 실측 결과 HW의 순번은 **채널별 독립**이다(같은 시각에
     heartbeat=12 / state=1, `status`·LWT는 순번 없음). 유실·역전 검출을 채널별로 볼지 소스별로
     합칠지, 재기동 시 리셋을 어떻게 다룰지 정하고 **HW에 회신**한다(`BACKEND_AGENDA §1.3`,
     [`hw-envelope-conformance.md`](hw-envelope-conformance.md) §1-3에서 "Phase 2에서 확정"으로 답해 둠).
-  - **채널 본문(payload) 스키마.** Phase 1은 공통 헤더만 검증한다. 계측을 실제로 저장하려면
+    → 단위 `(source_id, channel, session_id)`, 경계는 `session_id`(없으면 `birth` 폴백). 회신 §6-1·§6-2.
+  - ✅ **채널 본문(payload) 스키마.** Phase 1은 공통 헤더만 검증한다. 계측을 실제로 저장하려면
     채널별 본문 스키마가 필요하다 — `contracts/common/`에 추가하고 ingest 검증을 2단(공통 헤더→
-    본문)으로 넓힌다.
-  - **채널 본문의 누락값 표현.** 본문 규격을 만들 때, 값이 없는 항목을 어떻게 표현할지 함께
+    본문)으로 넓힌다. → `contracts/common/payload/` 6종, 느슨한 2단(모르는 필드 통과·필수 누락 격리).
+  - ✅ **채널 본문의 누락값 표현.** 본문 규격을 만들 때, 값이 없는 항목을 어떻게 표현할지 함께
     확정한다 — **명시적 `null`이 기본**이고, 부재 사유 구분이 필요한 항목만 `unsupported`(이
     배포에 생산자 없음) / `unavailable`(있는데 지금 값 없음) 상태를 함께 준다(규칙은
     [`../../contracts/common/README.md`](../../contracts/common/README.md) "값이 없을 때의 표현").
     **어느 항목이 어느 형태인지 목록을 정하고 생산자 파트(HW)에 확정**한다. 근거는 260908 지도
     방향 — 생산자 구성이 바뀌어도 소비자(트윈·로봇 제어)가 안 흔들려야 한다.
-- **DoD:** 계측이 TSDB에 시각 순으로, 감사·레지스트리가 MySQL에 정합성 있게 쌓이고 조회로
+    → 구분 필요 항목은 **`state` 계측값 + `status.registration` 둘**로 확정, 나머지 `null`. 회신 §6-8.
+- **DoD:** ✅ 계측이 TSDB에 시각 순으로, 감사·레지스트리가 MySQL에 정합성 있게 쌓이고 조회로
   확인된다. 재전송(지연 도착) 데이터가 원래 측정 시각으로 정렬된다.
   채널 본문 규격에 누락값 표현 규칙이 반영되고, 값이 없는 항목이 키를 유지한 채 내려간다.
 - **외부 의존성:** 없음.
-- **임무 실행 기록 축(BE-S-08).** 감사·레지스트리와 같은 MySQL의 **별도 테이블**로 append-only
+- ✅ **임무 실행 기록 축(BE-S-08).** 감사·레지스트리와 같은 MySQL의 **별도 테이블**로 append-only
   사건 열을 둔다(§6-2). 이번 Phase에서는 **테이블 골격과 append 경로까지**만 만들고, 구체 필드·
   실패 단계 어휘·보존 기간은 소비자(가시화 되감기 VZ-D-02·VZ-D-04) 요구가 확정된 뒤 합의해 채운다.
-  되감기 질의는 소비자가 붙는 시점에 구현한다.
+  되감기 질의는 소비자가 붙는 시점에 구현한다. → `mission_event` + `append_mission_event()` 멱등.
+  문의 발송 대기: `vz-mission-record-inquiry.md`.
 - 관련: BE-S-01(TSDB)·BE-S-05(감사 MySQL)·BE-S-08(실행 기록)·BE-C-02(식별자)·BE-Q-03(레지스트리).
+- **Phase 2가 남긴 미결 (검수 후 결정):** `registry_identity_history`의 `UPDATE` 권한. 지시서
+  권한 표는 관측 축 셋을 한 묶음(`SELECT, INSERT, UPDATE`)으로 적었지만, 같은 지시서가 이
+  테이블을 "관측(**append**)"으로 정의한다. 회수는 한 줄이고 즉시 적용된다 —
+  `REVOKE UPDATE ON mk2.registry_identity_history FROM 'mk2_app'@'172.18.%';`
+- **🆕 이월 — Phase가 아니라 「발동 조건 충족 시」:** **TSDB 보존 기간·압축·재난 구간
+  아카이브(BE-S-04).** 이번에 설정하지 않았다 — BE-S-04가 별도 요구사항이고 발동 조건이 아직
+  아니다([`00-architecture.md`](00-architecture.md) §8-5). 다만 `telemetry`를 **하이퍼테이블로
+  만들어 두어 나중에 정책만 붙이면 되게** 했다. ⚠ **Kafka retention과 헷갈리지 않는다** —
+  재난 데이터 장기 보존은 **TSDB 보존 사안**이지 Kafka retention이 아니다(원칙 11).
 
-### Phase 3 — 관측 파이프라인 완성 [기반 경로]
+### Phase 3 — 관측 파이프라인 완성 ✅ **완료 (2026-09-16)** [기반 경로]
 
-**목표:** 시스템 자기 관측이 업무 데이터와 분리된 평면으로 흐른다.
+**결과:** pytest **184건 전건 통과**(서버, 기준선 104 + 신규 80, skip 0; 음성 대조 7건 전부 실제 거부·유지 확인).
+**완료 판정 48개 전부 충족.** 보고: [`../../reports/2026-09-16_1900_phase3_관측파이프라인.md`](../../reports/2026-09-16_1900_phase3_관측파이프라인.md)
+/ 지시서: [`tasks/작업지시_phase3_관측파이프라인.md`](tasks/작업지시_phase3_관측파이프라인.md)
+/ 회신·통지: [`hw-envelope-conformance.md`](hw-envelope-conformance.md) **§7**(traceparent) · [`vz-observability-namespace.md`](vz-observability-namespace.md)(이름 공간)
+
+**확정된 것 — 다음 Phase가 딛고 서는 지점:**
+
+- **상주 3개 = systemd 유닛**(`infra/systemd/mk2-{ingest,storage-consumer,ws-echo}.service`, enabled, `EnvironmentFile=.env`).
+  소비자 둘은 SIGTERM에 그룹을 깨끗이 떠난다(없으면 재기동 후 45초 파티션 미할당 — 실측 78초).
+- **Collector = Gateway.** 파이프라인 3종(metric→Prometheus 8889 · trace→`tempo:4317` · log→`loki:3100/otlp`) + `batch`.
+  **호스트 포트 4316 무변경.** 이미지 digest 고정(v0.150.1). 컴포넌트 유무는 `components`가 아니라 **`validate`로**.
+- **Loki v13/tsdb + 보존 14d**(3줄 함께) · **Tempo 168h** · **Prometheus `otel_collector` 잡 5s**(global 1s·보존 15d 무변경).
+- **관측 어댑터 `backend/observability.py`** — `opentelemetry`를 import하는 유일한 파일. 인터페이스 `setup`·`count`·
+  `updown`·`gauge`·`observe`·`log_handler`·`shutdown`. no-op 규율 · **금지 라벨 `ValueError`** · A층에 `source_id` 금지.
+- **이름 공간 `hw.`/`be.`/`vz.`(권고)**, `service.name`은 컴포넌트별(`be-ingest`·`be-storage`·`be-gateway`). Prometheus에서는
+  `exported_job`으로 밀려나므로 **컴포넌트 구분은 `component` 라벨**.
+- **A층 9종**(`component`·`channel`·`outcome`·`stage`) — `be.pipeline.lag`가 BE-S-07의 측정 수단(값의 출처 `telemetry.lag_s`,
+  **음수는 절대값 + `outcome=clock_skew`** — OTel 히스토그램이 음수를 받지 않는다, 사용자 결정 안 A).
+- **C층 12종**(`source_id`·`zone_id`·`entity_type`·`channel`) — 대상은 규격 `$comment`에서 읽는다(`contracts.observation_hints()`,
+  27곳 → gauge 9·counter 3·log/event 10 = 22). 파생 지점은 **저장 소비자**, 저장 성공과 무관, 예외 삼킴.
+  **counter 힌트 3개는 gauge 계기**(절대 누적값). `null`·`{value:null}`·부재는 시계열을 만들지 않는다.
+- **집약 계층 경계 표기(BE-S-06) = `agg_layer="edge"`**(엣지 external_labels, 중앙 `honor_labels` 보존). **부재 = 중앙 원본.**
+- **로그 경로 = OTel Logs SDK → Collector → Loki**(journald 병존). 로그 SDK 경로는 `opentelemetry.sdk._logs`(밑줄, 1.44.0).
+- **Tailscale이 서버에 설치됐다**(1.102.4, 팀 공용 계정). Phase 4가 Kafka 노출에 그대로 쓴다.
+- **counter는 재기동마다 0** — 조회는 `rate()`/`increase()`. C층 gauge는 **값이 흐를 때만 존재**(5분 갱신 없으면 사라진다).
+
+> 아래는 **착수 전 계획 원문**이다. 이월 항목마다 처리 결과를 ✅로 달았다.
+
+**목표:** 시스템 자기 관측이 업무 데이터와 분리된 평면으로 흐른다. ✅
 
 **계측 대상은 세 층이다**([`00-architecture.md`](00-architecture.md) §8-3):
 
@@ -208,33 +274,73 @@ Phase 7  디지털 트윈         DT 7건 (좌표 변환·융합·커버리지�
   본문 규격을 보고 여기서 고른다.** 파생 지점은 값을 **받은 쪽**이며 말단이 두 번 보내지
   않는다. 원본은 여전히 TSDB이고 관측 표현은 파생이다.
 
-라벨은 값의 종류가 한정된 것(`source_id`·`zone_id`·채널)만 쓴다 — 시각·프레임 식별자를 라벨에
-넣으면 시계열이 폭증한다.
+라벨은 값의 종류가 한정된 것만 쓴다 — **층에 따라 다르다**: A층(백엔드 자기 관측)은 `component`·`channel`·
+`outcome`·`stage`이고 `source_id`를 넣지 않는다(장치 수만큼 곱해진다), C층(업무 값)은 `source_id`·`zone_id`·
+`entity_type`·`channel`. 어느 층에도 넣지 않는 것 **전수**: `session_id`·`internal_seq`·`sequence_id`·시각
+(`timestamp`·`ts`·`capture_timestamp`)·프레임 식별자(`frame_id`). ✅ 어댑터가 `ValueError`로 막는다.
 
-- OTel Collector(Agent) 수집 → 가공 → 백엔드 Collector(Gateway) → metric은 Prometheus,
-  log는 Loki, trace는 Tempo. 엣지 Prometheus raw 보관 + 페더레이션 요약 pull.
-- Grafana로 확인. metric은 요약 가능(분산), log·trace는 원본 전달(요약하면 의미 깨짐).
-- **DoD:** 가짜 지표 발신 → Collector → Prometheus 저장·조회, 페더레이션 요약이 당겨지는 것
-  확인. 치명 오류·장치 생사 신호가 일반 metric 요약에 섞이지 않고 개별 유지.
-  A층 지표가 Prometheus에 나타나고 Grafana에서 조회된다. C층 대상 항목이 선정·계측되며, 그 값의
-  원본이 여전히 TSDB임이 문서와 구현 양쪽에서 유지된다(파생이 원본을 대체하지 않는다).
-- **외부 의존성:** 없음(조병현 HW-C-05 실 지표는 나중, 지금은 가짜 발신).
+- ✅ OTel Collector(Agent) 수집 → 가공 → 백엔드 Collector(Gateway) → metric은 Prometheus,
+  log는 Loki, trace는 Tempo. 엣지 Prometheus raw 보관 + 페더레이션 요약 pull. → 서버 Collector 파이프라인 3종 +
+  임시 엣지(컴퓨터, Tailscale)의 Agent·Prometheus로 **Agent→Gateway 사슬과 페더레이션을 실증**했다(검증 뒤 되돌림).
+- ✅ Grafana로 확인. metric은 요약 가능(분산), log·trace는 원본 전달(요약하면 의미 깨짐). → 조회는 API로 판정했다
+  (`infra/README.md` §4 「흐른다」 블록). Grafana 대시보드는 만들지 않았다(범위 밖 — 확인 수단일 뿐).
+- **DoD:** ✅ 가짜 지표 발신 → Collector → Prometheus 저장·조회(`hw_*`·`system_*` 엣지 → 서버 `agg_layer="edge"`),
+  페더레이션 요약이 당겨지는 것 확인(#31). 치명 오류·장치 생사 신호가 일반 metric 요약에 섞이지 않고 개별 유지
+  (`match[]`에 `up`·생사 없음, #34). A층 지표 9종이 Prometheus에 나타난다(#16). C층 12종이 선정·계측되며(#23), 그
+  값의 원본이 여전히 TSDB임이 문서와 구현 양쪽에서 유지된다(#26 — 같은 발행분이 `telemetry`에 `null` 그대로).
+- **외부 의존성:** 없음(조병현 HW-C-05 실 지표는 나중, 지금은 가짜 발신). ✅ 그대로였다.
 - **Phase 0 이월 (현재 서버 관측 스택의 실제 상태 — 기준과의 gap):**
-  - 관측 3종이 Collector를 안 거친다. **Tempo가 OTLP 4317을 직접 수신**(그래서 Collector가
-    4316으로 밀림), **Loki는 Collector에 exporter가 없어** 직접 수신. metric만 Collector→
-    Prometheus. 여기서 Collector가 log→Loki·trace→Tempo로 분배하도록 정리한다.
-  - **Loki에 retention이 없다. 로그를 흘리기 "전에" 걸어야 한다** — 흘린 뒤 걸면 이미 쌓인
-    것은 안 지워진다(순서 주의).
-  - Prometheus `scrape_interval: 1s`가 기준(15초~1분)과 다르다. **근거는 확보됐다** —
-    BE-S-03이 요약 15초를 전제하고, 타 파트 문서도 일반 metric 60초를 명시한다. 여기서
-    조정하되 기존 대시보드 해상도에 영향이 있으므로 **사전 고지 후 진행**한다.
-  - Tempo `block_retention: 24h`, Collector `batch` processor 없음도 함께 정리.
-  - 상세: `reports/2026-09-04_1620_phase0_인프라기동.md`, `infra/README.md` §6.
-- **요청 추적 문맥 전달 회신(HW `BACKEND_AGENDA` §10-3).**
-  [`hw-envelope-conformance.md`](hw-envelope-conformance.md) §5에서 "Phase 3(관측) 이후 회신"으로
-  답해 두었다. A층 계측으로 백엔드가 추적에 참여하게 되면, 하드웨어가 넘기는 추적 문맥을 어떻게
-  이어받을지 정해 **하드웨어 파트에 회신**한다.
-- 관련: BE-S-02(파이프라인)·BE-S-03(계층화)·BE-S-06(집약 표기).
+  - ✅ 관측 3종이 Collector를 안 거친다 → **Collector가 분배한다.** `traces`→`otlp_grpc` `tempo:4317`, `logs`→
+    `otlp_http` `http://loki:3100/otlp`(도커 망 — 호스트 포트를 거치지 않는다). **호스트 포트 4316은 무변경** —
+    포트 재배치는 파이프라인 신설의 선행 조건이 아니었다(설계에서 검증·기각). Tempo 호스트 4317은 우회 입구로
+    남아 있다(기록만, `infra/README.md` §6 ⓓ).
+  - ✅ ~~**Loki에 retention이 없다. 로그를 흘리기 "전에" 걸어야 한다** — 흘린 뒤 걸면 이미 쌓인 것은 안 지워진다~~
+    **⚠ 정정: 이 서술은 틀렸다.** Loki retention은 compactor가 **나이 기준으로 소급 집행**해 이미 저장된 청크도
+    지운다. 따라서 순서는 **권장**이지 강제가 아니다(먼저 거는 편이 디스크상 깔끔할 뿐). 오류의 출처는
+    `reports/2026-09-04_1620_phase0_인프라기동.md`였고 여기까지 전파됐다. 정확한 서술은 *"보존을 집행할 기능이
+    꺼져 있었다"* — `retention_enabled: false`·`retention_period: 0s`·`delete_request_store: ""` 세 줄이 함께 꺼져
+    있었고 하나만 켜면 조용히 아무 일도 안 일어난다. → 셋 다 켜고 `14d`. 그리고 v11/boltdb-shipper가 네이티브 OTLP
+    수집을 지원하지 않아 데이터(7개월 전 172K, 백업 `/home/dg/loki_data.bak_before_phase3.tgz`)를 비우고 v13/tsdb로.
+  - ✅ Prometheus `scrape_interval: 1s` → **global은 건드리지 않고 `otel_collector` 잡만 5s.** global을 올리면
+    `rpi`·`thermal`(잡별 5s에 global timeout 1s 상속)이 `timeout > interval`로 걸려 **설정 전체가 거부**되고, 그
+    대시보드는 다른 파트 것이다. "사전 고지 후 조정"은 필요 없어졌다(다른 파트 잡·global 무변경).
+  - ✅ Tempo `block_retention: 24h` → 168h · Collector `batch`(5s/512) 추가.
+  - 상세: `reports/2026-09-04_1620_phase0_인프라기동.md`, `infra/README.md` §5-0·§6.
+- ✅ **요청 추적 문맥 전달 회신(HW `BACKEND_AGENDA` §10-3).** → [`hw-envelope-conformance.md`](hw-envelope-conformance.md)
+  **§7**: 싣는다, W3C `traceparent`, protobuf 본문 필드(`Command.traceparent`), `tracestate` 없음, 실배선 Phase 6.
+  스냅샷 `260909`에는 `begin(cmd)` 호출부가 없고 `extract(carrier=cmd)`가 protobuf 객체를 그대로 받아 dict 배선이
+  필요하다는 것을 확인 요청으로 넣었다.
+- **🆕 Phase 2 이월 (여기서 처리):**
+  - ✅ **착수 전 결정 — 백엔드 3개를 어떻게 띄우나.** → **systemd unit 3개**(`User=dg`·`Restart=on-failure`·
+    `StartLimitBurst=3/60s`·`EnvironmentFile=/home/dg/capstone-db/.env`·enabled). 재기동 시 retained `status`가
+    다시 흘러 들어오는 것은 정상(지금 6건)이며 레지스트리 시각 가드가 대장 오염을 막는다. 재소비로 TSDB 행이
+    늘지 않는다(스트림 좌표 유일 키, 479→479 실측).
+  - ✅ **C층 대상은 본문 규격에서 꺼낸다.** → `contracts.observation_hints()`가 `$comment`를 `properties` 재귀로 훑어
+    **27곳 → gauge 9·counter 3·log/event 10 = 22**를 얻는다(`tests/test_c_layer_extract.py`가 못 박는다). 이번엔
+    gauge 9 + counter 3 = **12개**만 계측, log/event 10개는 Phase 5.
+  - ✅ ~~**라벨 금지 목록에 `session_id`·`internal_seq`를 추가한다.**~~ **⚠ 정정:** 이 이월은 둘만 적었는데 규격
+    파일(`contracts/common/README.md`)의 전수는 **`sequence_id`·시각·프레임 식별자**를 포함한다. 전수와 맞췄다 —
+    `session_id`·`internal_seq`·`sequence_id`·`timestamp`·`ts`·`frame_id`·`capture_timestamp`(어댑터 `FORBIDDEN_LABELS`).
+  - ✅ **A층이 셀 값 셋** — ① `telemetry.lag_s` → `be.pipeline.lag` 히스토그램 ② TSDB 적재 실패 →
+    `be.storage.write{outcome="fail"}` ③ 레지스트리 갱신 실패 → `be.registry.observe{outcome="fail"}`.
+  - ⏭ **`clock_skew` 임계 확정** → **확정하지 못했다.** `lag_s`가 채워진 행이 적고 양 끝(`-30.000`·retained 재유입
+    ~434,000초)이 전부 인공물이라 분포를 정할 재료가 못 된다. 이제 `be_pipeline_lag_seconds{outcome="clock_skew"}`로
+    쌓이므로 **Phase 5에서 확정**(아래 이월).
+- 관련: BE-S-02(파이프라인)·BE-S-03(계층화)·BE-S-06(집약 표기)·**BE-S-07(지연 상한 — 측정 수단)**.
+- **🆕 Phase 3 이월 — 어디로 갔는지:**
+  - **Phase 4:** ① Collector의 **Tailscale 바인딩(compose 주석 한 줄)과 ufw 규칙을 되살린다** — 엣지 OTLP 수신단의
+    **TLS·인증은 BE-T-08**(Phase 3은 터널 안 평문, ufw를 엣지 IP `/32`로 제한) ② Tailscale 계정은 **이미 팀 공용
+    계정**이라 "임시 계정 → IP 변경" 이월은 소멸 — 다만 **엣지 실물의 IP로 `prometheus.yml` `edge_federate` 타깃과
+    Collector 바인딩을 바꾼다** ③ Prometheus 이미지 digest 고정(컨테이너 재생성이 따라오므로 다른 작업과 묶어서)
+    ④ `LoggingHandler`(SDK 1.44 deprecated) → `opentelemetry-instrumentation-logging` 핸들러로 교체(패키지 1개)
+    ⑤ Kafka 원격 노출 3수정은 Phase 3에서 설치한 Tailscale을 그대로 쓴다.
+  - **Phase 5:** ① **C층 log/event 10개**(`reason`·`device_status`·`alert`·`robot_mode`·`actuator_state`·`feedback_ok`·
+    `control_locked`·`above_threshold`·`event`·`status`)를 **상태 전이 판정과 함께** 계측한다(결정 5-b — 그대로 내면
+    로봇 1대당 초당 60줄) ② **`clock_skew` 임계 확정** — A층 `be_pipeline_lag_seconds{outcome="clock_skew"}` 분포로
+    ③ `be.pipeline.lag` 상한 판정·경보(BE-S-07의 나머지).
+  - **Phase 6:** **`.proto` 개정에 `Command.traceparent` 필드를 함께 넣는다** — `BACKEND_AGENDA` §3(문자열/열거형
+    파라미터)와 같은 개정. HW 확인 2건(필드 번호·옛 말단 호환)은 §7-4. **안 적으면 그 시점에 따로 떠오르지 않는다.**
+    백엔드 span 생산(명령 경로)도 여기.
 
 ### Phase 4 — 미디어 경로 [기반 경로]
 
@@ -247,13 +353,26 @@ Phase 7  디지털 트윈         DT 7건 (좌표 변환·융합·커버리지�
 - **DoD:** 합성 JPEG 프레임 재생 → 엣지 WS → 서버 중계 → 뷰어 canvas 표시, frame_ref가 관통해
   탐지 박스가 정확한 프레임에 겹쳐진다. 상세 근거는 [`02-media-path.md`](02-media-path.md).
 - **외부 의존성:** 실 카메라·현장 회선은 Tier C(실측). 여기선 합성 프레임으로 경로·정합 검증.
+- **🆕 Phase 3 이월 (여기서 처리):** ① Collector 4316의 **Tailscale 바인딩(compose 주석 한 줄) + ufw(엣지 IP `/32`)
+  되살리기** — 엣지 OTLP 수신단의 **TLS·인증은 BE-T-08**(Phase 3은 터널 안 평문이었다) ② `prometheus.yml`
+  `edge_federate` 잡(주석) 타깃을 엣지 실물 주소로 바꿔 되살리기 ③ Prometheus 이미지 digest 고정(재생성 동반)
+  ④ `LoggingHandler` → `opentelemetry-instrumentation-logging`(SDK 1.44 deprecation) ⑤ Tailscale은 서버에
+  이미 있다(1.102.4, 팀 공용 계정 — 아래 3수정의 "설치 선행"은 끝났다).
 - **Phase 1 이월 (여기서 처리):**
   - **원격 Kafka 노출 3수정.** Phase 1은 단일 머신이라 `localhost`로 충분했으나, 원격 엣지가
     붙으려면 ① 포트 바인딩 `127.0.0.1:9092:9092` → **Tailscale 인터페이스 IP** 바인딩(공인
-    `0.0.0.0` 노출 회피, Tailscale 설치 선행) ② `KAFKA_ADVERTISED_LISTENERS`의 PLAINTEXT 호스트
-    `localhost` → 엣지가 실제 도달하는 주소 ③ ufw `9092 ALLOW Anywhere` → 엣지 소스로 제한.
-    단 docker publish는 DNAT라 ufw INPUT을 상당부분 우회하므로 **실질 통제는 ①의 인터페이스
-    바인딩**이다. 포트만 열면 브로커가 "localhost로 오라"고 답해 실패한다(2단계 연결).
+    `0.0.0.0` 노출 회피, ~~Tailscale 설치 선행~~ Phase 3에서 설치됨) ② `KAFKA_ADVERTISED_LISTENERS`의 PLAINTEXT 호스트
+    `localhost` → 엣지가 실제 도달하는 주소 ③ ufw `9092 ALLOW Anywhere` → 엣지 소스로 제한
+    **하고, 그 포트를 ufw에 반드시 연다.** 포트만 열면 브로커가 "localhost로 오라"고 답해
+    실패한다(2단계 연결).
+    > ⚠ **정정(2026-09-10).** 이 항목은 원래 *"docker publish는 DNAT라 ufw INPUT을 상당부분
+    > 우회하므로 실질 통제는 ①의 바인딩이다"* 라고 쓰여 있었다. **실측이 반증했다** — 서버에서
+    > 9100 포트를 ufw에 열자마자 Prometheus 수집이 정상화됐다. 이 문장을 믿고 "ufw는 안 열어도
+    > 된다"고 판단하면 같은 사고가 반복된다. **바인딩(노출 통제)과 ufw(장애 원인 배제)는 층이
+    > 다르며 둘 다 한다.** `infra/README.md` §5의 정정과 같은 내용이다.
+    > ⚠ **PLAINTEXT advertised를 바꾸면 백엔드 3개(ingest·저장 소비자·WS)도 함께 영향을 받는다** —
+    > 셋 다 호스트 프로세스라 `localhost:9092`(PLAINTEXT)로 붙는다. INTERNAL(9094)은 쓰는
+    > 클라이언트가 없다. `MK2_KAFKA_BOOTSTRAP`도 같이 맞춘다(`infra/README.md` §5).
   - **frame_ref 규격 정합(팀 파급).** 우리 `contracts/common/frame-reference.schema.json`은
     `capture_timestamp`를 **ISO date-time 문자열**로 정의했는데 HW/v8 §6-9 구현은 **epoch ms
     정수**다. HW가 `BACKEND_AGENDA §8`에서 "봉투 timestamp(ISO)와 frame_ref(epoch ms) 공존이
@@ -261,7 +380,12 @@ Phase 7  디지털 트윈         DT 7건 (좌표 변환·융합·커버리지�
     "Phase 4에서 회신"으로 답했다. **미디어 착수 전에** 어느 쪽으로 정합할지 결정하고 회신한다.
   - **WS 게이트웨이 외부 노출.** Phase 1 echo는 `127.0.0.1` 바인딩이라 뷰어가 붙지 못한다.
     뷰어 연결 시 바인딩·인증(WSS)을 함께 정한다.
-- 관련: BE-T-07(미디어 중계)·BE-C-03(frame_ref)·BE-T-08(오버레이 터널).
+- **🆕 Phase 2 이월 (여기 또는 Phase 5):**
+  - **VZ-C-07 — 가시화가 WS 게이트웨이 주소를 화면에서 설정한다.** 이 요구는 **외부 노출이
+    전제**다(위 「WS 게이트웨이 외부 노출」과 같은 자리). 주소를 화면에서 바꿀 수 있다는 것은
+    바인딩이 `127.0.0.1`이 아니어야 한다는 뜻이고, 그러면 **인증이 함께 와야 한다**(지금 echo는
+    인증이 없다). 노출·인증·주소 설정 셋을 한 묶음으로 정한다.
+- 관련: BE-T-07(미디어 중계)·BE-C-03(frame_ref)·BE-T-08(오버레이 터널)·**VZ-C-07(WS 주소 설정)**.
 
 ### Phase 5 — 가용성 판정기
 
@@ -288,7 +412,39 @@ Phase 7  디지털 트윈         DT 7건 (좌표 변환·융합·커버리지�
     와 급사(`reason=lwt`)가 payload로 구분돼 있어(VZ-U-01) 판정기의 입력이 이미 갖춰져 있다.
   - **Mosquitto `persistence` 미설정** — 브로커 재시작 시 retained `status`가 소실된다(Phase 0
     이월). 재접속 스냅샷을 retained가 아니라 백엔드 캐시(BE-T-06)로 가는 확정 결정과 함께 정리.
-- 관련: BE-T-04(가용성)·BE-X-07(제어 잠금).
+- **🆕 Phase 2 이월 (여기서 처리):**
+  - **구역 변경 시 빈 payload가 격리 파일을 오염시킨다.** `pi/common/node.py:253`이 구역이 바뀌면
+    **옛 토픽에 `""`를 retained로 발행**한다(그 구역에 유령 장치가 남지 않게 하는 **정상 동작**이다).
+    그런데 ingest의 `json.loads("")`가 실패해 **격리 파일에 쌓인다.** 정상 동작인데 격리 기록이
+    오염되므로, ingest가 **빈 payload를 "등록 취소 신호"로 인지**하도록 손질한다. 가용성·레지스트리
+    판정과 같은 자리라 여기서 처리한다.
+  - **`status`·LWT·`heartbeat`가 이미 전부 저장돼 있다.** Phase 2가 세 채널을 TSDB에 그대로
+    쌓고 있고(`payload` JSONB에 원본 전체), 레지스트리 관측 축도 `status`로 채워진다. **판정기의
+    입력이 조회 한 번으로 나온다** — 새 소비자를 만들 필요가 없다.
+  - **`device_status` 주체 결정에 쓸 재료가 생겼다.** HW 자기보고 값이 `telemetry.device_status`
+    칼럼으로 추출돼 있어 **분포를 조회로 볼 수 있다**. 수용할지 파생할지 판단을 실측으로 할 수 있다.
+  - **로봇은 임무 중 하트비트를 끈다**(`robot_node.py`의 `heartbeat_enabled()`가 `not in_mission()`).
+    **하트비트 침묵을 장애로 단정하면 임무 중인 로봇이 전부 장애가 된다.** 갭 검출은 이미 이것을
+    반영해 하트비트 갭을 `loss_not_implied`로 분류한다 — 가용성 판정도 같은 규칙을 따라야 한다.
+  - **VZ-N-02·N-03 — 재생 머리 하나가 실행 기록·계측·감사를 묶는다**(Phase 5/6 걸침). 재생 머리를
+    과거로 옮기면 **지표(TSDB) 뷰 노드도 그 시점 값을 보여야 한다.** 조회 프록시(BE-Q-01)가 구간
+    질의를 지원해야 하며, **인터페이스 형태를 가시화에 물어 두었다**
+    ([`vz-mission-record-inquiry.md`](vz-mission-record-inquiry.md) §2-6). 저장은 이미 양쪽 다
+    준비됐다 — 계측이 발행 시각 축으로 정렬돼 임의 구간을 그대로 잘라낼 수 있다.
+- **🆕 Phase 3 이월 (여기서 처리):**
+  - **C층 log/event 10개를 상태 전이 판정과 함께 계측한다**(Phase 3 결정 5-b). 대상은 규격 `$comment`의
+    log/event 힌트 — `reason`·`device_status`·`alert`·`robot_mode`·`actuator_state`·`feedback_ok`·`control_locked`·
+    `above_threshold`·`event`·`status`(`contracts.observation_hints()`로 읽는다, `backend/storage/derive.py`의
+    `METRIC_KINDS`에 `log/event`를 더하는 자리가 아니라 **전이 판정기가 "바뀌었을 때만"** 내는 구조). 전부 상태
+    어휘라 "언제 바뀌었나"가 의미의 전부이고, 그대로 내면 로봇 1대당 초당 60줄이 Loki로 간다.
+  - **`clock_skew` 임계 확정.** Phase 3부터 `be_pipeline_lag_seconds{outcome="clock_skew"}` 히스토그램이 쌓인다 —
+    그 분포로 `lag_s < 0` 무조건 플래그를 임계로 바꾼다. 인공물(가짜 발행자 `--timestamp +30`, retained 재유입)은
+    빼고 본다.
+  - **`be.pipeline.lag` 상한 판정·경보**(BE-S-07의 나머지) — 관측 평면 신호로 판정하는 첫 사례라 가용성 판정기와
+    같은 자리에서.
+  - **관측 신호는 가용성의 보조 평면이다.** 업무 평면(MQTT 세션) 우선 규칙은 그대로 — A층·B층 지표 침묵(`absent`)은
+    "지표 결손 플래그"이지 불가용 판정이 아니다(원칙 7). `edge_federate`가 주석 상태라 B층은 Phase 4 되살린 뒤에야 온다.
+- 관련: BE-T-04(가용성)·BE-X-07(제어 잠금)·**BE-Q-01(구간 질의)**.
 
 ### Phase 6 — 상관·감사·명령
 
@@ -326,8 +482,41 @@ Phase 7  디지털 트윈         DT 7건 (좌표 변환·융합·커버리지�
   상태 어휘는 진나영 AI-C-20을 근거로 공통 규격에 고정한다.
 - **임무 하달·위험 대응 제어(BE-A-03·BE-A-04).** §6-7의 역할 구분대로 구현한다. 임무 분해는
   가시화가 하므로 백엔드는 투입 판단 결과의 하달과 위험 판정의 제어 번역만 담당한다.
+- **🆕 Phase 2 이월 (여기서 처리):**
+  - **감사 테이블은 이미 서 있다 — 남은 것은 쓰기 경로다.** `mk2.audit_log`(17칼럼 + 인덱스 4)가
+    `infra/sql/mk2_mysql_schema.sql`에 있고 **UPDATE·DELETE가 권한으로 막혀 있다**(음성 대조 확인).
+    여기서 만들 것은 ① **명령이 실제로 흘러 들어가는 배선** ② **actor를 토큰에서 주입**
+    ③ **시각을 서버 시각으로 주입**(위조 불가)이다. **인증(BE-Q-04)이 선행조건**이라 같은 Phase다.
+  - **🆕 모델 적용 승인 기록 — BE-* 요구사항 신설 여부를 결정한다.** AI-L-06/07/08·VZ-U-08이
+    요구하는데 **백엔드 47건에 대응 행이 없다**(추적표에 gap으로 기록). Phase 2가 감사 테이블의
+    대상을 `subject_kind`(`command`|`plan`|`model`)로 **일반화해 자리만 확보**해 두었으므로
+    스키마 변경 없이 받을 수 있다. **요구사항을 신설할지, gap으로 둘지**를 가시화·AI 회신 후
+    결정한다([`vz-mission-record-inquiry.md`](vz-mission-record-inquiry.md) §2-8).
+  - **MySQL 노출 정리 — `0.0.0.0:7858` + `root@%`.** Phase 2 단계 0에서 실측됐으나 **다른 파트가
+    쓰는 컨테이너라 손대지 않았다**(기록만). 인증·인가를 세우는 이 Phase에서 함께 정리한다.
+    참고로 MK2 앱 계정은 이미 `'mk2_app'@'172.18.%'`로 **호스트 제한 + 테이블 단위 차등**이다.
+  - **실행 기록의 실제 쓰기 배선(BE-S-08).** 생산자는 가시화·엣지이고, 지금 `append_mission_event()`를
+    부르는 것은 테스트뿐이다. **가시화 회신(§9-2)이 오면 `detail` JSON에서 칼럼으로 승격**하는
+    작업이 여기 붙는다 — 전환 비용은 문의서 §3에 정리해 두었다.
+    > ⚠ **생산자 제약 둘을 배선 전에 전달해야 한다.** ① `mission_event`의 **`actor_kind`가
+    > `NOT NULL`** 이다(2026-09-14 정정, VZ-D-02 *"산출 주체를 반드시 포함"*) — 안 보내면 INSERT가
+    > 실패하고, `build_params()`는 빈 문자열도 `ValueError`로 막는다. ② **`occurred_at`은 UTC**다
+    > (서버가 `system_tz=KST`라 로컬 시각을 그대로 보내면 9시간 어긋난다). 둘 다 가시화 문의
+    > §1 표·§1-2에 적어 두었다.
+  - **`actor_kind` 어휘를 `audit_log`와 통일한다.** `mission_event`는 `ai|backend|human`,
+    `audit_log`는 `user|system|ai 등`으로 **어휘가 갈려 있다**(추적표 BE-S-05 gap ④). 감사 쓰기를
+    세우는 이 Phase에서 하나로 맞춘다 — 안 맞추면 되감기 화면에서 같은 주체가 다르게 표기된다.
+- **🆕 Phase 3 이월 (여기서 처리):**
+  - **`.proto` 개정에 `Command.traceparent` 필드를 함께 넣는다.** 위 「문자열/열거형 파라미터」(`BACKEND_AGENDA` §3)와
+    **같은 개정**이다 — 두 번 고치면 말단 재배포가 두 번이다. 백엔드가 `command_id`(BE-X-01)와 함께 W3C `traceparent`를
+    만들어 싣는다(`tracestate` 없음). HW 확인 2건(필드 번호를 누가 정하나·옛 말단 호환)과 정보(스냅샷 `260909`에
+    `begin(cmd)` 호출부가 없고 `extract(carrier=cmd)`에 dict 배선이 필요)는 [`hw-envelope-conformance.md`](hw-envelope-conformance.md)
+    §7-3·§7-4. **안 적으면 그 시점에 따로 떠오르지 않는다.**
+  - **백엔드 span 생산.** Phase 3은 Collector→Tempo 경로만 가짜 span으로 확인했다. 명령 경로(요청 수신 → command_id
+    발급 → 하달 → 결과)에 span을 붙이고 HW `cmd.receive`가 그 자식이 되게 한다 — 관제 클릭부터 물리 동작까지 한
+    사슬(`00-architecture.md` §5-3·§6-5). 고빈도 경로(텔레메트리)에는 span을 만들지 않는다(HW와 같은 범위).
 - 관련: BE-X-01~05(상관·감사·승격·승인·중계)·BE-A-01/02/03/04(명령 번역·임무·제어)·
-  BE-Q-02(감사 조회)·BE-Q-04(인증·인가).
+  BE-Q-02(감사 조회)·BE-Q-04(인증·인가)·**BE-S-05(감사 쓰기)·BE-S-08(실행 기록 쓰기)**.
 
 ### Phase 7 — 디지털 트윈
 
@@ -366,10 +555,25 @@ Phase 7  디지털 트윈         DT 7건 (좌표 변환·융합·커버리지�
   노출은 Phase 4로 이월).
   보고: [`../../reports/2026-09-07_1300_phase1_얇은파이프라인관통.md`](../../reports/2026-09-07_1300_phase1_얇은파이프라인관통.md)
   / HW 인계: [`hw-envelope-conformance.md`](hw-envelope-conformance.md)
-- [ ] **④ 저장 축 (Phase 2)** ← **다음** — `store(...)` 인터페이스 뒤를 TSDB로 교체하고 감사·
-  레지스트리 MySQL을 세운다. 아래 Phase 2 항목의 "Phase 1 이월" 참조.
+- [x] **④ 저장 축 (Phase 2)** — 완료(2026-09-10). `TelemetryWriter.write()` 뒤를 **TimescaleDB로
+  교체**(호출부 무변경)하고, MySQL에 **레지스트리 2축 + 감사 + 실행 기록** 8테이블을 세웠다.
+  공통 헤더 규격이 **1.1**로 오르고(`session_id`) **채널 본문 규격 6종 + 느슨한 2단 검증**이
+  켜졌다. 유실·역전 **검출은 조회 시점**으로 확정(`docs/be/queries/gap-detection.sql`).
+  **pytest 103건 전건 통과**(음성 대조 5건 포함).
   착수 전 **기반 문서 보강이 선행되었다**(2026-09-09) — 관측 범위 3층(§8-3)·누락값 표현 규칙·
   용어 정리. 보고: [`../../reports/2026-09-09_1138_기반문서_보강.md`](../../reports/2026-09-09_1138_기반문서_보강.md)
+  / Phase 2 보고: [`../../reports/2026-09-10_2200_phase2_저장축.md`](../../reports/2026-09-10_2200_phase2_저장축.md)
+  / 회신·문의: [`hw-envelope-conformance.md`](hw-envelope-conformance.md) §6 ·
+  [`vz-mission-record-inquiry.md`](vz-mission-record-inquiry.md)
+- [x] **⑤ 관측 파이프라인 완성 (Phase 3)** — 완료(2026-09-16). Collector가 log→Loki·trace→Tempo를 **분배**하고
+  (파이프라인 3종, digest 고정, 호스트 포트 무변경), Loki v13/tsdb+보존 14d·Tempo 168h·Prometheus `otel_collector` 5s.
+  **A층 9종·C층 12종**이 관측 어댑터(`backend/observability.py`) 뒤에서 Prometheus·Loki로 흐르고, 상주 3개는 systemd다.
+  **2계층 페더레이션과 Agent→Gateway 사슬을 임시 엣지(컴퓨터·Tailscale)로 실증**한 뒤 되돌렸다(`agg_layer="edge"` 규약 확정).
+  **pytest 184건 전건 통과**(음성 대조 7건). 보고: [`../../reports/2026-09-16_1900_phase3_관측파이프라인.md`](../../reports/2026-09-16_1900_phase3_관측파이프라인.md)
+  / 회신·통지: [`hw-envelope-conformance.md`](hw-envelope-conformance.md) §7 · [`vz-observability-namespace.md`](vz-observability-namespace.md)
+- [ ] **⑥ 미디어 경로 (Phase 4)** ← **다음** — 온디맨드 WS 중계(방식 B)·frame_ref 관통·WSS+인증. Phase 1·2·3 이월이
+  모여 있다: Kafka 원격 노출 3수정(Tailscale은 Phase 3에서 설치됨), frame_ref 규격 정합 회신, WS 게이트웨이 외부 노출+인증,
+  Collector Tailscale 바인딩·ufw 되살리기(BE-T-08), Prometheus digest, `LoggingHandler` 교체. 아래 Phase 4 항목 참조.
 
 ---
 
@@ -378,9 +582,15 @@ Phase 7  디지털 트윈         DT 7건 (좌표 변환·융합·커버리지�
 | 의존 대상 | 관련 Phase | 필요한 것 |
 |---|---|---|
 | 조병현 (HW) | Phase 1 | `sensor_node.py`(가져와 실행 — 확보) / 실 센서 입고는 Tier C |
-| 진나영 (AI) | Phase 6·7 | AI 실패·위험 판정·연계 신뢰도 규격(가짜 이벤트로 검증 / 실 모델은 Tier C) |
+| 조병현 (HW) | **Phase 2 회신 대기** ([`hw-envelope-conformance.md`](hw-envelope-conformance.md) §6) | 🔴 **공통 헤더 편집 4개 적용**(2026-09-09 스냅샷 기준 미반영 — **실노드 관통 검증의 선행조건**, 안 하면 전량 격리) · 🔴 `robot_node.py` 순번 결함 · 🟡 `session_id` 2줄 · 🟡 `reason` 어휘 확인. **답이 없어도 백엔드는 폴백 경로로 진행** |
+| 진나영 (AI) | Phase 6·7 | AI 실패·위험 판정·연계 신뢰도 규격(가짜 이벤트로 검증 / 실 모델은 Tier C) · 명령 의미 규격(AI-C-20) · **모델 승인 기록의 BE-* 신설 여부**(AI-L-06/07/08 — Phase 2가 감사 테이블에 자리만 확보). **AI 요구사항은 공유 스프레드시트에서 읽으면 되고 Phase 6 전까지 별도 문의가 필요 없다** |
 | 김현우 (가시화) | Phase 4·7 | 뷰어 canvas 표시·오버레이 / Unity 트윈 렌더(Tier C) |
+| 김현우 (가시화) | **Phase 6 전 회신 대기** ([`vz-mission-record-inquiry.md`](vz-mission-record-inquiry.md)) | 실행 기록 규격 확인 7항목 — 특히 **`event_type` 실패 단계 어휘**(VZ-D-05 「합의 필요」)와 **`node_ref` 부여 주체**. **답이 없어도 기본값으로 진행**, Phase 6/7 배선 전까지만 오면 재작업 없음 |
 | 현장/실측 | Phase 4·5 | 회선 QoS·콜드스타트·Tailscale 실측(Tier C) |
+
+> **HW 소스의 최신본은 `_hwsrc/upstream_<날짜>/`** 에 둔다(gitignore, 절대 고치지 않는다). 새 브랜치가
+> 오면 이전 것과 해시 비교한다 — 절차는 `_hwsrc/README.md`. 우리가 편집을 얹은 실행 사본은
+> `local_patched_*/`이며 **근거로 쓰지 않는다**(Phase 2 보고서 「발견한 것 ⑧」).
 
 ---
 
@@ -390,7 +600,15 @@ Phase 7  디지털 트윈         DT 7건 (좌표 변환·융합·커버리지�
 - **Phase 1 이후:** **pytest** — "가짜 발행자 → 파이프라인 → 예상 저장/중계" 회귀. 진나영과
   도구를 통일해 나중 통합 검증이 수월하게 한다.
 - 선택 구성요소(예: 실 Grafana 연동)가 없으면 해당 테스트만 skip하고 나머지는 통과 — 이 격리
-  자체가 요구사항(핵심·선택 분리)의 증거다.
+  자체가 요구사항(핵심·선택 분리)의 증거다. **Phase 2에서 실현됐다** — `tests/conftest.py`의
+  `tsdb_conn`·`mysql_conn` fixture가 접속 실패를 `pytest.skip`으로 바꾼다(서버 skip 0 / 컴퓨터 28 skip,
+  양방향 확인). 새 저장소·외부 의존이 생기면 같은 방식으로 fixture를 더한다. **Phase 3에서 관측 3종에도
+  같은 fixture를 더했다**(`prometheus_url`·`loki_url`·`tempo_url`, 표준 `urllib`만). 서버 전건 **184건**(2026-09-16,
+  skip 0), 컴퓨터는 단위 파일 7개만 돌려 **139 passed / 2 skipped** — Mosquitto·Kafka를 필수로 두는 `test_pipeline.py`와
+  저장소 전용 파일 셋은 컴퓨터에서 돌리지 않는다.
+- **"떠 있다"로 판정하지 않는다.** 관측 스택은 컨테이너가 `Up`이어도 데이터가 0건일 수 있었다(Phase 3 착수 시
+  실측). 판정은 **발행 전후의 차분**(counter는 리셋을 `rate()`처럼 처리)·최근 시각 범위의 로그·태그값의 출현으로 한다
+  (`infra/README.md` §4 「흐른다」).
 - 상태를 **완료**로 올릴 때는 반드시 동작과 허용 범위를 검증하는 테스트를 [`requirement-traceability.md`](requirement-traceability.md)에
   함께 기록한다(테스트 없는 완료 금지). 검증 스크립트가 무력하지 않은지(무효 입력을 실제로
   거부하는지) 음성 대조도 포함한다.

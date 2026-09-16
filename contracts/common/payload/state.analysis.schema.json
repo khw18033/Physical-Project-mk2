@@ -1,0 +1,68 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/khw18033/Physical-Project-mk2/contracts/common/payload/state.analysis.schema.json",
+  "title": "채널 본문 — state / analysis (증강 분석)",
+  "description": "엣지 K3s 가 상황 발생 시 배포하는 증강 분석 워크로드가 `{zone}/analysis/{eid}/state` 로 발행하는 본문. 실물 근거: HW `pi/augment/analyzer.py` main() 의 payload.update({...}). 센서 상태 채널을 구독해 추세(m/분)와 임계 도달 예상 시간을 계산한다.\n\n⚠ 이 스키마가 없으면 **가동 중인 생산자가 전량 격리된다.** analyzer 는 다른 노드와 본문 모양이 다르다 — device_status 도 reason 도 없다.",
+  "type": "object",
+  "required": [
+    "subject_id",
+    "value",
+    "window_s",
+    "samples",
+    "above_threshold",
+    "threshold_m"
+  ],
+  "properties": {
+    "subject_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "분석 **대상**의 식별자. 공통 헤더의 source_id 와 같은 값이 오지만 의미가 다르다 — analyzer 는 자기 자신이 아니라 남을 분석해 보고한다(analyzer.py:123·127 이 Identity(dev, ...) 로 대상 id 를 그대로 쓴다).",
+      "examples": ["wl-001"]
+    },
+    "value": {
+      "type": ["number", "null"],
+      "description": "분석 시점의 대상 계측값. 창의 마지막 표본이다.",
+      "$comment": "관측 신호 힌트: gauge. 부재 사유 구분(unsupported/unavailable) 대상이 아니다 — 표본이 모자라면 analyzer 가 아예 발행하지 않는다(analyzer.py:118-119).",
+      "examples": [2.87]
+    },
+    "window_s": {
+      "type": ["number", "null"],
+      "description": "추세를 계산한 창의 길이(초).",
+      "examples": [300.0]
+    },
+    "samples": {
+      "type": ["integer", "null"],
+      "description": "창 안의 표본 개수. 개수만으로는 부족해 시간 폭(window)도 함께 본다 — 3초 주기 5개면 15초치인데 그 폭의 잔물결에 회귀선을 그으면 오경보가 난다(실측).",
+      "examples": [37]
+    },
+    "above_threshold": {
+      "type": ["boolean", "null"],
+      "description": "현재 임계를 넘었는가.",
+      "$comment": "관측 신호 힌트: log/event",
+      "examples": [false]
+    },
+    "threshold_m": {
+      "type": ["number", "null"],
+      "description": "판정에 쓴 임계값(m).",
+      "examples": [3.0]
+    },
+    "trend_m_per_min": {
+      "type": ["number", "null"],
+      "description": "최소제곱 회귀 기울기(m/분). **표본이 적거나 시간 폭이 모자라면 명시적 null 이다**(판단 보류) — 0 이 아니다. 0 을 주면 소비자가 '변화 없음'으로 오해한다.",
+      "$comment": "관측 신호 힌트: gauge",
+      "examples": [0.0412, null]
+    },
+    "eta_to_threshold_min": {
+      "type": ["number", "null"],
+      "description": "임계 도달까지 남은 시간(분). **이미 넘었거나 멀어지는 중이면 명시적 null 이다** — 그때 필요한 정보는 '몇 분 남았나'가 아니라 '넘었다'와 '오르고 있나'다. 0 을 주면 '방금 넘었다'로 오해한다(analyzer.py:61-70).",
+      "$comment": "관측 신호 힌트: gauge",
+      "examples": [3.2, null]
+    },
+    "channel": {
+      "type": ["string", "null"],
+      "description": "⚠ **이 생산자는 토픽 마지막 칸이 `state` 인데 본문에는 `\"analysis\"` 를 넣는다**(analyzer.py:126·136). 백엔드는 토픽으로 라우팅하므로 무해하지만, 일치를 강제하면 가동 중인 생산자가 전량 격리된다. 그래서 이 값을 검증하지 않고 불일치는 기록만 한다. 이 필드를 유지할지는 하드웨어·AI 회신 항목이다.",
+      "examples": ["analysis"]
+    }
+  },
+  "$comment": "additionalProperties 를 false 로 두지 않는다. ⚠ 이 생산자의 순번(analyzer.py 의 모듈 전역 seq)은 **모든 대상에 걸쳐 공유**되므로 대상별로 보면 구멍이 뚫린 것처럼 보인다 — analysis 는 유실·역전 검출 대상에서 제외한다. 또한 Identity(dev, node_id, ZONE, \"\", \"\", \"analysis\") 로 **mac·ip 가 빈 문자열**이라, 레지스트리 관측 축은 빈 문자열로 기존 값을 덮지 않는 가드를 둔다."
+}

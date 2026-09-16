@@ -1,0 +1,17 @@
+{
+  "schema_version": "1.0",
+  "source_id": "wl-001",
+  "node_id": "edge-zoneA-01",
+  "zone_id": "zoneA",
+  "timestamp": "2026-09-10T09:00:00+09:00",
+  "sequence_id": 12,
+  "channel": "analysis",
+  "subject_id": "wl-001",
+  "window_s": 300.0,
+  "samples": 37,
+  "value": 2.87,
+  "trend_m_per_min": 0.0412,
+  "eta_to_threshold_min": 3.2,
+  "above_threshold": false,
+  "threshold_m": 3.0
+}

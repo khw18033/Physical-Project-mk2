@@ -1,0 +1,80 @@
+-- =============================================================================
+-- MK2 Phase 2 — TimescaleDB 앱 계정과 권한 (템플릿)
+--
+-- implements: BE-S-01(계측 저장)
+-- 근거: docs/be/tasks/작업지시_phase2_저장축.md §5 단계 2
+--
+-- ⚠ 이 파일은 **템플릿**이다. `<MK2_TSDB_PASSWORD>` 자리에 실제 비밀번호가 들어간
+--   적용본은 커밋하지 않는다(.gitignore: infra/sql/mk2_grants_tsdb.sql).
+--   파일로 남기지 않고 서버에서 바로 치환해 파이프하는 것이 가장 안전하다:
+--
+--     cd ~/capstone-db
+--     set -a; . ./.env; set +a
+--     sed "s|<MK2_TSDB_PASSWORD>|${MK2_TSDB_PASSWORD}|g" mk2_grants_tsdb.sql.example \
+--       | docker exec -i capstone_timescaledb psql -U postgres -d mk2 -v ON_ERROR_STOP=1
+--
+--   (mk2_tsdb_schema.sql 을 **먼저** 적용해야 한다 — telemetry 가 있어야 GRANT 를 건다.)
+--
+-- ⚠ postgres 슈퍼유저는 pg_hba 제한으로 TCP(7859)로 붙지 못한다. 위처럼 `docker exec`
+--   (컨테이너 안 unix 소켓)로 들어간다. 이것이 의도된 경로다.
+-- =============================================================================
+
+-- ── 1. 계정 ──────────────────────────────────────────────────────────────────
+-- PostgreSQL 에는 CREATE ROLE IF NOT EXISTS 가 없다. 재실행 가능하게 감싼다.
+DO $mk2$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'mk2_app') THEN
+        CREATE ROLE mk2_app LOGIN;
+        RAISE NOTICE '[mk2] 역할 mk2_app 생성';
+    ELSE
+        RAISE NOTICE '[mk2] 역할 mk2_app 이 이미 있다 — 비밀번호만 맞춘다';
+    END IF;
+END
+$mk2$;
+
+-- PG14+ 는 password_encryption 기본값이 scram-sha-256 이라 이 문장 하나로 SCRAM 해시가 된다
+-- (pg_hba 의 scram-sha-256 과 짝이 맞아야 접속된다).
+ALTER ROLE mk2_app WITH LOGIN PASSWORD '<MK2_TSDB_PASSWORD>';
+
+-- 앱 계정에 슈퍼유저·DB 생성·역할 생성 권한이 없음을 명시적으로 못 박는다.
+ALTER ROLE mk2_app WITH NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;
+
+
+-- ── 2. 접속과 스키마 ─────────────────────────────────────────────────────────
+GRANT CONNECT ON DATABASE mk2 TO mk2_app;
+
+-- ⚠ 빠뜨리기 쉬운 부대 권한 ①: 스키마 USAGE 가 없으면 테이블 권한이 있어도 못 본다.
+GRANT USAGE ON SCHEMA public TO mk2_app;
+
+-- PG15+ 는 public 스키마의 CREATE 권한이 PUBLIC 에서 이미 회수돼 있다(기본값).
+-- 의존하지 않고 명시한다 — 앱 계정이 테이블을 만들 수 없어야 한다(제약 14).
+REVOKE CREATE ON SCHEMA public FROM PUBLIC;
+REVOKE CREATE ON SCHEMA public FROM mk2_app;
+
+
+-- ── 3. telemetry — SELECT, INSERT 만 ────────────────────────────────────────
+-- UPDATE 를 주지 않는 이유: 삽입이 INSERT ... ON CONFLICT DO NOTHING 이라 필요가 없고,
+-- **없는 편이 계측 원본을 덮어쓸 경로 자체를 없앤다.** DELETE 도 주지 않는다.
+GRANT SELECT, INSERT ON TABLE telemetry TO mk2_app;
+
+
+-- =============================================================================
+-- 적용 확인 (postgres 로 실행)
+-- =============================================================================
+-- 3-a. 역할 속성 — 전부 f 여야 한다
+SELECT rolname, rolsuper, rolcreatedb, rolcreaterole, rolcanlogin
+FROM pg_roles WHERE rolname = 'mk2_app';
+
+-- 3-b. telemetry 권한 — SELECT·INSERT 만 나와야 한다
+SELECT grantee, privilege_type
+FROM information_schema.role_table_grants
+WHERE table_name = 'telemetry' AND grantee = 'mk2_app'
+ORDER BY privilege_type;
+
+-- 3-c. ⚠ 빠뜨리기 쉬운 부대 권한 ②: 하이퍼테이블은 내부 청크로 쪼개진다.
+--      TimescaleDB 는 하이퍼테이블 GRANT 를 청크로 상속시키지만, **청크가 실제로 생긴
+--      뒤에 mk2_app 으로 INSERT·SELECT 가 되는지 테스트로 확인**해야 한다. 상속이 안 되면
+--      데이터가 쌓이다가 어느 순간 권한 오류가 난다.
+--      아래는 지금 존재하는 청크 목록이다(적용 직후에는 0건이 정상 — 데이터가 없다).
+SELECT chunk_schema, chunk_name FROM timescaledb_information.chunks
+WHERE hypertable_name = 'telemetry';

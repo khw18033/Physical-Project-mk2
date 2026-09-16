@@ -1,6 +1,6 @@
 {
   "_why_invalid": "timestamp 오프셋에 콜론이 없다(+0900). RFC3339 date-time은 +09:00을 요구하므로 포맷 검사(FormatChecker)에서 거부된다 — 포맷 검사기가 없으면 조용히 통과하므로 이 fixture가 검증의 무력화를 잡는다(음성 대조).",
-  "schema_version": "1.0",
+  "schema_version": "1.1",
   "source_id": "wl-001",
   "entity_id": "wl-001",
   "node_id": "pi7",

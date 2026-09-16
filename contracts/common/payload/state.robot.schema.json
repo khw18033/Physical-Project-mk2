@@ -1,0 +1,94 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/khw18033/Physical-Project-mk2/contracts/common/payload/state.robot.schema.json",
+  "title": "채널 본문 — state / robot",
+  "description": "로봇 온보드가 `{zone}/robot/{eid}/state` 로 발행하는 본문. 실물 근거: HW `pi/robot/robot_node.py` _publish_state() 의 payload.update({...}). 임무 중 20Hz(QoS 0) / 대기 5초 주기이며, 모드 전환·배터리 경보는 QoS 1 이산 사건으로 따로 나간다.",
+  "type": "object",
+  "required": [
+    "reason",
+    "device_status",
+    "battery_pct",
+    "position",
+    "speed_mps",
+    "robot_mode",
+    "internal_seq"
+  ],
+  "properties": {
+    "reason": {
+      "type": "string",
+      "minLength": 1,
+      "description": "이 메시지를 발행한 사유.",
+      "$comment": "관측 신호 힌트: log/event. 관측된 어휘는 periodic · mode_changed · battery_low 3종(robot_node.py:76·120·126). enum 으로 고정하지 않는다 — 어휘가 늘 때 전량 격리되는 사고를 만들지 않는다.",
+      "examples": ["periodic", "mode_changed", "battery_low"]
+    },
+    "device_status": {
+      "type": "string",
+      "minLength": 1,
+      "description": "장치 자기보고 상태. 서버 판정 가용성과 다른 층이다.",
+      "$comment": "관측 신호 힌트: log/event. 어휘 ok · degraded · fault.",
+      "examples": ["ok", "degraded", "fault"]
+    },
+    "battery_pct": {
+      "x-mk2-absence": "stateful",
+      "description": "배터리 잔량(%). **부재 사유를 구분해야 하는 항목이다** — 내부 링크 읽기가 실패하면 표본 자체가 갱신되지 않고(robot_node.py:89-92), 3회 연속이면 device_status 가 fault 가 된다. 화면이 '해당 없음'과 '읽지 못함'을 달리 그려야 한다.",
+      "$comment": "관측 신호 힌트: gauge. 0~100 범위를 강제하지 않는다 — 이상값이 격리되면 원인 추적 재료가 사라진다.",
+      "oneOf": [
+        { "type": "number" },
+        { "type": "null" },
+        {
+          "type": "object",
+          "required": ["value", "state"],
+          "properties": {
+            "value": { "type": ["number", "null"] },
+            "state": { "enum": ["unsupported", "unavailable"] }
+          }
+        }
+      ],
+      "examples": [87.5, null, { "value": null, "state": "unavailable" }]
+    },
+    "position": {
+      "type": ["object", "null"],
+      "description": "로봇의 평면 위치와 방위. ⚠ **액추에이터의 position 은 같은 이름이지만 문자열이다**(\"open\"·\"close\" 등). 이름이 같고 타입이 달라 공통 코어에 넣을 수 없어, 타입별 확장에만 둔다 — 공통에 넣으면 한쪽이 반드시 깨진다.",
+      "required": ["x", "y", "heading_deg"],
+      "properties": {
+        "x": { "type": ["number", "null"], "description": "노드 원점 기준 좌표. 전역 변환은 백엔드가 한다(BE-C-04, Phase 7)." },
+        "y": { "type": ["number", "null"] },
+        "heading_deg": { "type": ["number", "null"], "description": "방위(도)." }
+      },
+      "examples": [{ "x": 12.34, "y": -3.5, "heading_deg": 91.2 }]
+    },
+    "speed_mps": {
+      "type": ["number", "null"],
+      "description": "이동 속도(m/s).",
+      "$comment": "관측 신호 힌트: gauge",
+      "examples": [0.42]
+    },
+    "robot_mode": {
+      "type": ["string", "null"],
+      "description": "로봇 동작 모드. 관측된 값은 idle · mission · fault(controller_link.RobotState.mode).",
+      "$comment": "관측 신호 힌트: log/event",
+      "examples": ["idle", "mission", "fault"]
+    },
+    "internal_seq": {
+      "type": ["integer", "null"],
+      "description": "제어기→온보드 **내부 수집(50Hz)** 순번. 공통 헤더의 sequence_id(발행 순번)와 다른 축이다. ⚠ 라벨로 쓰지 않는다 — 매 표본마다 달라져 시계열이 무한 증식한다.",
+      "examples": [15832]
+    },
+    "mission": {
+      "type": ["object", "null"],
+      "description": "수행 중인 임무. 임무가 없으면 이 키가 아예 없다(robot_node.py:110-112). 수행 시작·완료·실패 보고가 상태 데이터에 포함돼 회신된다(HW-R-05).",
+      "examples": [{ "mission_id": "m-2026-0910-001", "subtask": "patrol-A", "status": "executing" }]
+    },
+    "replayed": {
+      "type": ["boolean", "null"],
+      "description": "두절 후 재전송분. 로봇 연속 상태는 재전송 시 다운샘플되므로 이 구간의 성긴 periodic 은 유실이 아니다.",
+      "examples": [true]
+    },
+    "channel": {
+      "type": ["string", "null"],
+      "description": "생산자가 붙이는 채널 이름. 백엔드는 검증하지 않는다(라우팅은 토픽 기준).",
+      "examples": ["state"]
+    }
+  },
+  "$comment": "additionalProperties 를 false 로 두지 않는다(모르는 필드는 통과·저장). ⚠ 순번 주의: robot_node.py 는 envelope(seq=self.seq) 를 쓰면서 self.seq 를 **증가시키지 않는다** — 로봇 state 의 sequence_id 는 항상 0 이다. 저장 층의 유일 키를 sequence_id 에 의존시키면 로봇 20Hz 데이터가 사라진다(스트림 좌표를 쓰는 이유)."
+}

@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/khw18033/Physical-Project-mk2/contracts/common/payload/heartbeat.schema.json",
+  "title": "채널 본문 — heartbeat (생존 신호)",
+  "description": "말단 노드가 `{zone}/{etype}/{eid}/heartbeat` 로 발행하는 생존 신호. 실물 근거: HW `pi/common/node.py` tick_heartbeat(). **본문이 없다** — 공통 헤더(특히 timestamp·sequence_id)만으로 의미가 성립한다.",
+  "type": "object",
+  "required": [],
+  "properties": {
+    "channel": {
+      "type": ["string", "null"],
+      "description": "생산자가 붙이는 채널 이름. 백엔드는 검증하지 않는다(라우팅은 토픽 기준).",
+      "examples": ["heartbeat"]
+    }
+  },
+  "$comment": "필수 항목이 없고 additionalProperties 도 막지 않는다 — 즉 공통 헤더만 통과하면 이 채널은 통과한다. 그것이 의도다.\n\n⚠ **이 채널의 갭을 유실로 단정하지 않는다.** 세 가지 이유가 겹친다: ① QoS 0 이라 유실이 설계된 동작이다(node.py:237) ② allow_spool=False 라 두절 중의 것은 버퍼에 쌓이지도 않는다 — '지금 살아있다'는 신호를 나중에 보내면 거짓말이 되기 때문이다 ③ **로봇은 임무 중 하트비트를 아예 끈다**(robot_node.py heartbeat_enabled() 가 not in_mission()) — 임무 중에는 20Hz 상태 데이터가 하트비트를 겸한다. 침묵을 장애로 단정하면 임무 중인 로봇이 전부 장애로 보고된다.\n\n순번은 BaseNode.hb_seq 로 state 의 self.seq 와 **물리적으로 다른 카운터**다. 그래서 유실·역전 검출 단위가 (source_id, channel, session_id) 이며 소스별로 합산하지 않는다 — 합산하면 매 메시지가 갭으로 잡힌다."
+}

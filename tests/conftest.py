@@ -2,7 +2,10 @@
 
 접속 정보의 정본은 `backend/settings.py`의 환경변수 표다. 여기서 기본값을 다시 적지 않고
 그대로 참조한다(두 벌이 되면 조용히 갈라진다). 테스트 전용 값만 여기서 읽는다:
-`MK2_TEST_TIMEOUT`(기본 20초 — 도달 대기 상한).
+`MK2_TEST_TIMEOUT`(기본 20초 — 도달 대기 상한), 그리고 Phase 3 관측 저장소 **조회** 주소
+`MK2_PROMETHEUS_URL`(기본 `http://localhost:7861`) · `MK2_LOKI_URL`(`http://localhost:3100`) ·
+`MK2_TEMPO_URL`(`http://localhost:3200`) — 백엔드는 아직 이 셋을 질의하지 않으므로(질의 프록시 BE-Q-01은
+Phase 5/6) settings 가 아니라 여기 둔다. 발신 주소(`MK2_OTEL_ENDPOINT`)는 settings 것을 쓴다.
 
 **실행 위치 주의.** 발행자는 MQTT만 쓰므로 어디서든 서버 Mosquitto로 쏠 수 있지만, 결과가
 나타나는 곳(Kafka 토픽·격리 파일·sink 파일·WS)은 파이프라인이 도는 곳에서 보인다. 전부
@@ -65,6 +68,132 @@ def sink_path() -> Path:
 @pytest.fixture(scope="session")
 def timeout_s() -> float:
     return float(os.environ.get("MK2_TEST_TIMEOUT", "20"))
+
+
+# ── 저장소 fixture — 없으면 **그 테스트만 skip** 한다 ───────────────────────
+#
+# "인프라가 없으면 해당 테스트만 skip하고 나머지는 통과한다"는 저절로 되지 않는다. 접속
+# 실패를 그대로 두면 전건이 빨갛게 되어 **무엇이 진짜 실패인지 안 보인다.** 이 격리 자체가
+# 요구사항(핵심·선택 분리)의 증거다.
+#
+# Mosquitto·Kafka 는 예외다 — Phase 1 파이프라인의 필수 요소라 skip 대상이 아니다.
+
+
+def _skip(reason: str, exc: BaseException) -> None:
+    pytest.skip("{} — {}: {}".format(reason, type(exc).__name__, exc))
+
+
+@pytest.fixture(scope="session")
+def tsdb_conn():
+    """계측 TSDB 접속(`mk2_app`). 드라이버·접속 정보·서버 중 하나라도 없으면 skip."""
+    psycopg = pytest.importorskip("psycopg", reason="psycopg 미설치 — TSDB 테스트를 건너뛴다")
+    try:
+        password = settings.tsdb_password()
+    except Exception as exc:  # noqa: BLE001 - MissingSetting 포함
+        _skip("TSDB 접속 정보가 없다(MK2_TSDB_PASSWORD)", exc)
+    try:
+        conn = psycopg.connect(
+            host=settings.tsdb_host(), port=settings.tsdb_port(),
+            dbname=settings.tsdb_db(), user=settings.tsdb_user(), password=password,
+            autocommit=True, connect_timeout=5,
+        )
+    except Exception as exc:  # noqa: BLE001
+        _skip("TimescaleDB 에 붙지 못했다", exc)
+    conn.execute("SET TIME ZONE '{}'".format(settings.store_tz()))
+    yield conn
+    conn.close()
+
+
+@pytest.fixture(scope="session")
+def mysql_conn():
+    """감사·레지스트리·실행 기록 MySQL 접속(`mk2_app`). 없으면 skip."""
+    pymysql = pytest.importorskip("pymysql", reason="PyMySQL 미설치 — MySQL 테스트를 건너뛴다")
+    try:
+        password = settings.mysql_password()
+    except Exception as exc:  # noqa: BLE001
+        _skip("MySQL 접속 정보가 없다(MK2_MYSQL_PASSWORD)", exc)
+    try:
+        conn = pymysql.connect(
+            host=settings.mysql_host(), port=settings.mysql_port(),
+            database=settings.mysql_db(), user=settings.mysql_user(), password=password,
+            charset="utf8mb4", autocommit=True, connect_timeout=5,
+        )
+    except Exception as exc:  # noqa: BLE001
+        _skip("MySQL 에 붙지 못했다", exc)
+    with conn.cursor() as cur:
+        cur.execute("SET time_zone = '+00:00'")
+    yield conn
+    conn.close()
+
+
+@pytest.fixture(scope="session")
+def sql_query():
+    """`docs/be/queries/*.sql` 의 `-- @@QUERY: <이름>` 절을 꺼내 돌려준다.
+
+    **테스트가 SQL을 다시 적지 않는다.** 커밋된 파일이 유일한 기준이고 테스트는 그것이
+    실제로 도는지를 본다 — 두 벌이 되면 문서와 동작이 조용히 갈린다(공통 규격을 파이썬에
+    다시 선언하지 않는 것과 같은 이유다).
+    """
+    queries_dir = REPO_ROOT / "docs" / "be" / "queries"
+
+    def _load(filename: str, name: str) -> str:
+        text = (queries_dir / filename).read_text(encoding="utf-8")
+        marker = "-- @@QUERY: {}".format(name)
+        if marker not in text:
+            raise KeyError("{} 안에 '{}' 절이 없다".format(filename, name))
+        body = text.split(marker, 1)[1]
+        # 다음 절이 시작되면 거기서 끊는다.
+        body = body.split("\n-- @@QUERY:", 1)[0]
+        statement = body.split(";", 1)[0].strip()
+        if not statement:
+            raise ValueError("'{}' 절이 비어 있다".format(name))
+        return statement
+
+    return _load
+
+
+# ── 관측 저장소 fixture (Phase 3) — 없으면 그 테스트만 skip ─────────────────
+#
+# 표준 라이브러리 urllib 만 쓴다(`requests` 를 넣지 않는다 — 헬퍼는 `tests/obs_query.py`). 셋 다
+# "조회" 용이고, 관측이 업무의 전제조건이 아니듯 이 fixture 도 파이프라인 테스트의 전제조건이
+# 아니다 — 관측 스택이 없는 컴퓨터에서는 관측 테스트만 건너뛰고 나머지는 그대로 돈다.
+
+from obs_query import http_get  # noqa: E402  (위 sys.path 보정 뒤에 import)
+
+
+def _observability_url(env: str, default: str, ready_path: str, what: str) -> str:
+    base = os.environ.get(env, default).rstrip("/")
+    try:
+        body = http_get(base + ready_path, timeout=3.0)
+    except Exception as exc:  # noqa: BLE001
+        _skip("{} 에 붙지 못했다({})".format(what, base), exc)
+    if what == "Loki" and "ready" not in body.lower():
+        pytest.skip("{} 가 아직 ready 가 아니다: {}".format(what, body.strip()[:60]))
+    return base
+
+
+@pytest.fixture(scope="session")
+def prometheus_url() -> str:
+    """서버 Prometheus 조회 주소(`/api/v1/query`). `/-/healthy` 가 안 되면 skip."""
+    return _observability_url("MK2_PROMETHEUS_URL", "http://localhost:7861", "/-/healthy", "Prometheus")
+
+
+@pytest.fixture(scope="session")
+def loki_url() -> str:
+    """서버 Loki 조회 주소(`/loki/api/v1/query_range`). `/ready` 가 `ready` 가 아니면 skip."""
+    return _observability_url("MK2_LOKI_URL", "http://localhost:3100", "/ready", "Loki")
+
+
+@pytest.fixture(scope="session")
+def tempo_url() -> str:
+    """서버 Tempo 조회 주소(`/api/search`). `/ready` 가 안 되면 skip."""
+    return _observability_url("MK2_TEMPO_URL", "http://localhost:3200", "/ready", "Tempo")
+
+
+@pytest.fixture(scope="session")
+def observe_timeout_s() -> float:
+    """관측 도달 대기 상한(초). export 15s + scrape 5s + 여유. `MK2_OBSERVE_TIMEOUT` 로 조정."""
+    return float(os.environ.get("MK2_OBSERVE_TIMEOUT", "45"))
 
 
 class KafkaReader:

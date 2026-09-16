@@ -1,0 +1,82 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/khw18033/Physical-Project-mk2/contracts/common/payload/state.actuator.schema.json",
+  "title": "채널 본문 — state / actuator",
+  "description": "액추에이터 제어노드가 `{zone}/actuator/{eid}/state` 로 발행하는 본문. 실물 근거: HW `pi/actuator/actuator_node.py` _publish_state() 의 payload.update({...}). 동작 중 20Hz 진행 보고, 대기 중 저주기, 상태 전이는 즉시(QoS 1).",
+  "type": "object",
+  "required": [
+    "reason",
+    "device_status",
+    "actuator_state",
+    "position",
+    "progress",
+    "feedback_ok",
+    "control_locked"
+  ],
+  "properties": {
+    "reason": {
+      "type": "string",
+      "minLength": 1,
+      "description": "이 메시지를 발행한 사유. ⚠ **필드 `progress` 와 사유 값 `\"progress\"` 를 헷갈리지 않는다** — 필드 progress 는 0.0~1.0 진행률이고, reason: \"progress\" 는 '동작 중 진행 보고'라는 뜻이다(actuator_node.py:77).",
+      "$comment": "관측 신호 힌트: log/event. 관측된 어휘는 periodic · progress · state_idle · state_moving · state_done · state_error · state_unknown 7종(:77-78·:119, actuator_link.py:26). state_* 는 f\"state_{cur}\" 로 생성된다. enum 으로 고정하지 않는다.",
+      "examples": ["periodic", "progress", "state_moving", "state_done"]
+    },
+    "device_status": {
+      "type": "string",
+      "minLength": 1,
+      "description": "장치 자기보고 상태. 서버 판정 가용성과 다른 층이다.",
+      "$comment": "관측 신호 힌트: log/event. 어휘 ok · degraded · fault.",
+      "examples": ["ok", "degraded", "fault"]
+    },
+    "actuator_state": {
+      "type": ["string", "null"],
+      "description": "구동부 상태 5종. **'닫혀 있다'와 '닫혔는지 모른다'를 뭉치지 않는다** — unknown 을 별도 상태로 유지하는 것이 이 노드의 설계 원칙이고, 그때 제어를 잠근다(HW-A-05).",
+      "$comment": "관측 신호 힌트: log/event. 어휘 idle · moving · done · error · unknown(actuator_link.py:26).",
+      "examples": ["idle", "moving", "done", "error", "unknown"]
+    },
+    "position": {
+      "type": ["string", "null"],
+      "description": "구동부 위치. ⚠ **로봇의 position 은 같은 이름이지만 객체 {x,y,heading_deg} 다.** 이름이 같고 타입이 달라 공통 코어에 넣을 수 없어 타입별 확장에만 둔다.",
+      "examples": ["open", "close", "up", "down", "on", "off", "unknown"]
+    },
+    "progress": {
+      "type": ["number", "null"],
+      "description": "동작 진행률 0.0~1.0(HW-A-04 '동작 중 진행 보고'). 위 reason 의 값 \"progress\" 와 다른 것이다.",
+      "$comment": "관측 신호 힌트: gauge. 0~1 범위를 강제하지 않는다 — 이상값이 격리되면 원인 추적 재료가 사라진다.",
+      "examples": [0.42]
+    },
+    "feedback_ok": {
+      "type": ["boolean", "null"],
+      "description": "피드백 센서가 살아 있는가. false 면 위치를 알 수 없는 상태이며 제어가 잠긴다.",
+      "$comment": "관측 신호 힌트: log/event",
+      "examples": [true]
+    },
+    "control_locked": {
+      "type": ["boolean", "null"],
+      "description": "원격 제어 차단 여부(HW-A-05 안전 잠금). 화면의 제어 UI 잠금 표시 근거다(VZ-O-05). **복구만으로 풀리지 않는다** — 실제 상태를 다시 읽어 확정적일 때만 풀린다.",
+      "$comment": "관측 신호 힌트: log/event",
+      "examples": [false]
+    },
+    "lock_reason": {
+      "type": ["string", "null"],
+      "description": "잠금 사유. 잠기지 않았으면 명시적 null 로 온다(키가 사라지지 않는다). 관측된 값: comm_loss · feedback_lost · device_error.",
+      "examples": [null, "comm_loss", "feedback_lost", "device_error"]
+    },
+    "detail": {
+      "type": ["string", "null"],
+      "description": "구동부가 덧붙이는 설명. 값이 비어 있으면 키 자체가 없다(actuator_node.py:104-105).",
+      "examples": ["close -> open", "목표 위치 도달"]
+    },
+    "replayed": {
+      "type": ["boolean", "null"],
+      "description": "두절 후 재전송분.",
+      "examples": [true]
+    },
+    "channel": {
+      "type": ["string", "null"],
+      "description": "생산자가 붙이는 채널 이름. 백엔드는 검증하지 않는다(라우팅은 토픽 기준).",
+      "examples": ["state"]
+    }
+  },
+  "$comment": "additionalProperties 를 false 로 두지 않는다(모르는 필드는 통과·저장)."
+}

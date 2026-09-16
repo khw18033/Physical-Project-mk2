@@ -6,8 +6,12 @@
 Phase 1 범위는 echo다 — **인증·구독 관리·재접속 캐시·명령 번역은 하지 않는다**(Phase 5/7).
 Kafka 소비는 블로킹이라 별도 스레드에서 돌리고, asyncio 큐로 넘겨 브로드캐스트한다.
 
-implements: BE-T-03, BE-T-02
-tests: tests/test_pipeline.py — 발행값이 WS 클라이언트에 도달(팬아웃 ②)
+A층 계측(Phase 3, BE-S-02): push 건수(`be.gateway.push`)와 접속 수(`be.gateway.clients`, +1/-1)만
+센다 — Phase 3 범위는 계측까지이고 본구현(구독·인증·캐시)은 Phase 5/7이다.
+
+implements: BE-T-03, BE-T-02, BE-S-02(A층 — be.gateway.*)
+tests: tests/test_pipeline.py — 발행값이 WS 클라이언트에 도달(팬아웃 ②) ·
+       tests/test_observability_pipeline.py — be_gateway_push_total·be_gateway_clients 도달
 """
 
 from __future__ import annotations
@@ -15,6 +19,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import signal
 import sys
 import threading
 from typing import Any, Dict, Optional, Set
@@ -29,11 +34,13 @@ try:
 except ImportError:  # pragma: no cover — websockets 12 이하
     from websockets import serve as ws_serve  # type: ignore[attr-defined]
 
+from backend import observability as obs
 from backend import settings
 
 LOG = logging.getLogger("mk2.gateway")
 
 CONSUMER_GROUP = "mk2-ws"
+COMPONENT = "gateway"
 
 
 def build_consumer(group_id: str = CONSUMER_GROUP) -> Consumer:
@@ -93,6 +100,8 @@ async def _broadcast(queue: "asyncio.Queue[Dict[str, Any]]", clients: Set[Any]) 
             except Exception as exc:  # 끊긴 클라이언트는 조용히 정리한다
                 LOG.info("클라이언트 전송 실패(정리): %s", exc)
                 clients.discard(client)
+                continue
+            obs.count("be.gateway.push", component=COMPONENT, channel=item["channel"])
 
 
 async def serve(host: Optional[str] = None, port: Optional[int] = None, group_id: str = CONSUMER_GROUP) -> None:
@@ -111,6 +120,7 @@ async def serve(host: Optional[str] = None, port: Optional[int] = None, group_id
           Phase 1 echo는 단방향 push라 클라이언트가 보낸 것은 버린다(구독 관리는 Phase 5/7).
         """
         clients.add(websocket)
+        obs.updown("be.gateway.clients", +1, component=COMPONENT)
         LOG.info("WS 클라이언트 접속 (현재 %s명)", len(clients))
         try:
             async for _ in websocket:
@@ -119,7 +129,17 @@ async def serve(host: Optional[str] = None, port: Optional[int] = None, group_id
             LOG.info("WS 클라이언트 연결 종료(사유: %s)", exc)
         finally:
             clients.discard(websocket)
+            obs.updown("be.gateway.clients", -1, component=COMPONENT)
             LOG.info("WS 클라이언트 종료 (현재 %s명)", len(clients))
+
+    # ⚠ SIGTERM(systemd stop/restart)을 잡는다. 기본 동작은 즉시 종료라 소비 스레드의 `consumer.close()`
+    #    (LeaveGroup)가 안 불리고, 재기동한 인스턴스는 세션 타임아웃(45초)까지 파티션을 못 받는다
+    #    (저장 소비자에서 2026-09-16 실측). 메인 태스크를 취소해 아래 finally 가 돌게 한다.
+    main_task = asyncio.current_task()
+    try:
+        loop.add_signal_handler(signal.SIGTERM, lambda: main_task.cancel() if main_task else None)
+    except (NotImplementedError, RuntimeError):  # pragma: no cover — Windows 등 미지원 환경
+        pass
 
     thread = threading.Thread(target=_consume_loop, args=(loop, queue, stop, group_id), daemon=True)
     thread.start()
@@ -129,6 +149,7 @@ async def serve(host: Optional[str] = None, port: Optional[int] = None, group_id
             await _broadcast(queue, clients)
     finally:
         stop.set()
+        # 소비 스레드가 poll(0.5) 한 바퀴 뒤 consumer.close() 로 그룹을 떠난다. 종료 중이라 루프를 잠깐 막아도 된다.
         thread.join(timeout=5)
 
 
@@ -138,10 +159,18 @@ def main() -> int:
         format="%(asctime)s %(levelname)s %(name)s %(message)s",
         stream=sys.stdout,
     )
+    # 관측 어댑터 — 비활성이면 한 줄 로그 뒤 no-op. 로그 핸들러는 루트에 추가(stdout 은 그대로).
+    obs.setup("be-gateway")
+    handler = obs.log_handler()
+    if handler is not None:
+        logging.getLogger().addHandler(handler)
     try:
         asyncio.run(serve())
-    except KeyboardInterrupt:
-        LOG.info("종료 신호 — WS 게이트웨이를 닫는다")
+    except (KeyboardInterrupt, asyncio.CancelledError):
+        # SIGINT 는 KeyboardInterrupt, SIGTERM 은 serve() 안의 핸들러가 메인 태스크를 취소한다.
+        LOG.info("종료 신호 — WS 게이트웨이를 닫았다(그룹 이탈)")
+    finally:
+        obs.shutdown()
     return 0
 
 

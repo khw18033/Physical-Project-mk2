@@ -26,7 +26,12 @@ AI 파트도 이 소유권을 전제한다 — AI-C-01: "AI가 생산·소비하
 | `message.schema.json` | 모든 메시지의 공통 헤더(머리) | BE-C-01·BE-C-02·BE-C-07 |
 | `frame-reference.schema.json` | 원본 관측 프레임 역추적 참조(frame_ref) | BE-C-03 |
 | `object-reference.schema.json` | 구역을 넘어 유지되는 지속 객체 참조(object_id) | DT-06·AI-S-06 |
+| `payload/state.{sensor,robot,actuator,analysis}.schema.json` | `state` 채널 본문 — **개체 타입마다 다르다** | BE-C-01 |
+| `payload/status.schema.json` | `status` 채널 본문(등록·요약·종료·급사). 타입 공통 | BE-C-01·BE-T-04 |
+| `payload/heartbeat.schema.json` | `heartbeat` 채널 — 본문 없음 | BE-C-01 |
 | `examples/envelope-valid.json` | 공통 헤더를 통과하는 정상 메시지 예제 | 위 스키마 |
+| `examples/envelope-valid-session.json` | 위와 같되 `session_id`가 실린 형태(규격 1.1) | 위 스키마 |
+| `examples/payload-*.json` | 채널 본문 예제(양성·음성). **공통 헤더 + 본문이 합쳐진 완전한 메시지**다 — 검증이 메시지 단위로 이뤄지므로 본문만 담으면 돌릴 수 없다 | 위 스키마 |
 
 ## 프레임 참조와 객체 참조 — 다른 축
 
@@ -50,7 +55,7 @@ AI 파트도 이 소유권을 전제한다 — AI-C-01: "AI가 생산·소비하
 
 `message.schema.json`은 **공통 헤더만** 정의한다 — 모든 메시지에 공통인 머리
 (`schema_version` · `source_id` · `entity_id` · `node_id` · `zone_id` · `timestamp` ·
-`sequence_id` · `correlation_id` · `origin_kind`).
+`sequence_id` · `session_id` · `correlation_id` · `origin_kind`).
 
 채널별 본문(계측값 `water_level_m`, 탐지 `boxes`, 위험 `risk_state` 등)은 이 공통 헤더 위에
 얹히며, 각 채널 payload 스키마에서 따로 정의한다. `examples/envelope-valid.json`이 공통 헤더 위에
@@ -59,6 +64,7 @@ AI 파트도 이 소유권을 전제한다 — AI-C-01: "AI가 생산·소비하
 - **필수 필드**: `schema_version` · `source_id` · `node_id` · `zone_id` · `timestamp`.
   이 다섯은 모든 메시지에 무조건 있어야 한다.
 - **선택 필드**: `entity_id`(노드=개체가 1:1이면 생략) · `sequence_id`(연속 메시지에만) ·
+  `session_id`(생산자 프로세스의 1회 기동. 없으면 소비자가 `status`의 `birth`로 폴백) ·
   `correlation_id`(명령 사슬에만) · `origin_kind`(미기재 시 실물로 간주).
 
 ## 값이 없을 때의 표현
@@ -104,8 +110,78 @@ c가 채워진다.
 `node_id`·`zone_id`·`timestamp`)은 언제나 존재해야 하며 `null`을 허용하지 않는다 — 없으면
 수신 시 통과하지 못하고 걸러진다. 따라서 `message.schema.json`은 이 규칙 때문에 바뀌지 않는다.
 
-구체적인 항목 목록과 각 항목의 형태는 **채널 본문 규격을 만들 때(Phase 2) 확정**하고, 확정 후
-생산자 파트에 알린다.
+### 확정된 항목 (2026-09-10, Phase 2)
+
+**부재 사유를 구분하는 형태(`{value, state}`)를 쓰는 항목은 둘뿐이다.** 나머지는 전부
+기본형(명시적 `null`)이다 — 전부 상태를 달면 본문이 불필요하게 무거워진다.
+
+| 구분 필요 항목 | 왜 |
+|---|---|
+| `state`의 계측값 — `water_level_m`(sensor) · `battery_pct`(robot) | 센서 읽기가 실패하면 **발행 자체가 되지 않고**, 연속 실패하면 `device_status`가 `fault`가 된다. 화면은 "센서 없음"과 "센서 고장"을 달리 그려야 한다 |
+| `status.registration` | LWT엔 원래 없다(`unsupported`) vs 있어야 하는데 없다(`unavailable`) |
+
+> `status.buffer`는 **기본형으로 내렸다.** 공통 코어에서 항상 채워지고 빠지는 경우가 LWT
+> 뿐이라 `registration`의 부재 사유와 중복이기 때문이다.
+
+규격 파일에서는 해당 항목에 `x-mk2-absence: "stateful"` 표시가 붙어 있다. JSON Schema는
+모르는 키워드를 무시하므로 검증에 영향이 없고, **어느 항목이 어느 형태인지를 규격이
+알려주는 기계 판독 표시**로만 쓰인다 — 그래야 소비자 코드가 목록을 따로 들고 있지 않아도 된다.
+
+**저장은 이 규칙의 적용 대상이 아니다.** 저장은 원본 그대로이며(저장 시점에 `null`을 채워
+넣으면 저장된 것이 원본이 아니게 된다), 키를 채우는 것은 **읽기 함수**의 몫이다
+(`backend/storage/normalize.py`의 `normalize_payload()`).
+
+이 확정 내용은 생산자 파트(하드웨어)에 회신한다.
+
+## 채널 본문 검증 — 느슨한 2단
+
+수신 측은 `message.schema.json`(공통 헤더)을 먼저 보고, 그다음 채널 본문 스키마를 본다.
+본문 스키마는 **MQTT 토픽으로 고른다** — 채널은 마지막 칸, 개체 타입은 2번째 칸이다.
+
+세게 거는 곳과 느슨하게 두는 곳이 나뉘며, 그 경계마다 이유가 있다.
+
+| 규칙 | 왜 |
+|---|---|
+| **필수 필드 누락은 격리한다** | 저장 층이 값의 존재를 가정할 수 있어야 한다 |
+| **모르는 필드는 통과시킨다**(`additionalProperties: false`를 쓰지 않는다) | 생산자가 필드를 하나 추가하는 순간 전량 격리되는 사고를 만들지 않는다. 노드마다 다른 필드를 덧붙이는 훅이 있어 **필드가 느는 것이 정상 동작**이다 |
+| **모르는 개체 타입은 검증을 건너뛰고 통과시킨다** | 새 노드 타입이 첫 메시지부터 격리되면 파이프라인이 그 자리에서 막힌다 |
+| **본문의 `channel` 필드는 검증하지 않는다** | 라우팅은 토픽 기준이다. 증강 분석이 토픽 `state`에 본문 `channel: "analysis"`를 보내고 있어 일치를 강제하면 가동 중인 생산자가 전량 격리된다. 불일치는 기록만 한다 |
+| **값 어휘(`reason`·`device_status` 등)를 `enum`으로 고정하지 않는다** | 같은 이유다. 관측된 어휘는 각 스키마의 `$comment`에 적어 두고, 확정·확장 여부는 생산자 파트 회신으로 닫는다 |
+
+## 관측 신호 힌트와 라벨 금지
+
+각 본문 항목의 `$comment`에 **관측 신호 종류 힌트**(`관측 신호 힌트: <종류>`)를 달아 두었다. 업무 값의
+관측 표현(관측 3층의 C층)을 만들 때 **어떤 항목을 어떤 종류로 낼지는 규격 파일이 정한다** —
+`backend/contracts.py::observation_hints()`가 `$comment`를 읽어 목록을 만들고, 파이썬에 목록을 다시 적지
+않는다(두 벌이 되면 조용히 어긋난다). **아래 표는 그 결과의 사본이지 기준이 아니다.**
+
+**전수(2026-09-16, 규격 6종):** 힌트가 붙은 곳 **27**(sensor 4 · robot 5 · actuator 6 · analysis 4 · status 8 ·
+heartbeat 0), 항목 이름으로 중복(`reason` ×3 · `device_status` ×4)을 접으면 **gauge 9 · counter 3 ·
+log/event 10 = 22**. `tests/test_c_layer_extract.py`가 이 숫자를 못 박는다.
+
+| 종류 | 해당 항목 (전수) | Phase 3 처리 |
+|---|---|---|
+| gauge(연속 수치) **9** | `water_level_m` · `battery_pct` · `speed_mps` · `progress` · `value` · `trend_m_per_min` · `eta_to_threshold_min` · `uptime_s` · `buffer.pending` | ✅ 계측 — `be.telemetry.<항목>` (`state.analysis`의 셋만 `be.telemetry.analysis.<항목>`) |
+| counter(사건 횟수) **3** | `buffer.dropped` · `buffer.thinned` · `publish_failures` | ✅ 계측 — 단 **gauge 계기로**(말단이 보내는 절대 누적값이라 델타를 만들려면 상태를 들어야 한다 — 무상태 원칙). 이름에 `_total`을 붙이지 않고, 증가분은 조회에서 `delta()`/`deriv()` |
+| log/event(사건 서술) **10** | `reason` · `device_status` · `alert` · `robot_mode` · `actuator_state` · `feedback_ok` · `control_locked` · `above_threshold` · `event` · `status` | ⏭ **Phase 5 이월** — 전부 상태 어휘라 "언제 바뀌었나" 판정이 가용성의 일이고, 지금 그대로 내면 로봇 1대당 초당 60줄이 Loki로 간다 |
+
+> 이전 판의 표는 부분 목록이었다(gauge 7·log/event 9 — `eta_to_threshold_min`·`buffer.pending`·`status`가 빠짐).
+> 규격 파일이 기준이므로 표가 규격을 못 따라간 것이며, 그래서 코드가 표가 아니라 파일을 읽는다.
+
+**값이 없으면 기록하지 않는다.** `{"value": null, "state": "…"}`·명시적 `null`·부재(LWT의 `buffer`)는 시계열을
+만들지 않는다 — 0을 넣으면 "값 없음"이 "0"이 된다.
+
+**라벨은 값의 종류가 한정된 것만 쓴다.** 그리고 **층에 따라 기준이 다르다**(Phase 3 결정 4-b):
+
+| 층 | 라벨 | 이유 |
+|---|---|---|
+| **A층** 백엔드 자기 관측(`be.ingest.*`·`be.kafka.*`·`be.storage.*`·`be.registry.*`·`be.gateway.*`·`be.pipeline.*`) | `component` · `channel` · `outcome` · `stage` — **`source_id`·`zone_id`·`entity_type`을 넣지 않는다** | 질문이 "백엔드가 잘 도는가"라 장치별로 가를 필요가 없고, 달면 장치 수만큼 시계열이 곱해진다 |
+| **C층** 업무 값의 관측 표현(`be.telemetry.*`) | `source_id` · `zone_id` · `entity_type` · `channel` | 장치별이어야 의미가 있다 |
+
+> ⛔ **어느 층에도 넣지 않는다: `session_id` · `internal_seq` · `sequence_id` · 시각(`timestamp`·`ts`·`capture_timestamp`) ·
+> 프레임 식별자(`frame_id`).** 값이 계속 달라지는 것을 라벨에 넣으면 시계열이 폭증한다. 특히 `session_id`는
+> **재기동마다 새 값**이라 노드를 껐다 켤 때마다 시계열이 하나씩 영구히 늘어난다. 백엔드 어댑터
+> (`backend/observability.py`)는 이 목록을 **`ValueError`로 막는다** — 조용히 버리지 않는다.
 
 ## 식별자 원칙 (BE-C-02)
 
@@ -121,6 +197,17 @@ c가 채워진다.
 제외한다 — 생산자는 source_id 단일 필드로 정렬한다.)
 
 ## 버전 정책
+
+**현재 규격 버전: `1.1`** (2026-09-10). 이력:
+
+| 버전 | 변경 | 왜 이 자리인가 |
+|---|---|---|
+| `1.0` | 최초 공통 헤더 | — |
+| `1.1` | **선택 필드 `session_id` 추가** | 구버전 소비자가 깨지지 않는 추가라 MINOR. `sequence_id`가 재기동 시 리셋되므로 순번 열의 경계를 가를 값이 필요하다(BE-S-01) |
+
+> **혼재 기간이 정상이다.** `schema_version` 정규식은 형식만 보므로 `"1.0"`을 보내는
+> 생산자도 계속 통과한다. 하드웨어는 아직 `session_id`를 보내지 않으며, 그동안 소비자는
+> `status`의 `birth`를 경계로 폴백한다. **버전이 올랐다고 옛 생산자를 격리하지 않는다.**
 
 - 기존 필드의 의미·타입 변경은 `schema_version`의 MAJOR 또는 MINOR를 올린다.
 - 선택 필드는 누락 대신 명시적 `null`을 쓸 수 있으나, 공통 헤더 선택 필드는 아예 생략도 허용한다

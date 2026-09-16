@@ -5,18 +5,33 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "mk2-backend"
 version = "0.1.0"
-description = "MK2 백엔드 — 엣지-클라우드 관측 파이프라인 (Phase 1: 얇은 파이프라인 관통)"
+description = "MK2 백엔드 — 엣지-클라우드 관측 파이프라인 (Phase 3: 관측 파이프라인 완성)"
 requires-python = ">=3.8"
 
-# Phase 1 관통에 필요한 것만 둔다. 저장 제품(TSDB)·관측 SDK·미디어는 각 Phase에서 추가한다.
+# 각 Phase에서 실제로 쓰는 것만 둔다. 미디어는 그 Phase(4)에서 추가한다.
 dependencies = [
+    # ── Phase 1 (얇은 파이프라인 관통) ──
     "paho-mqtt>=2.0",          # 말단↔엣지 MQTT 구독 (BE-T-01)
     "confluent-kafka>=2.3",    # 엣지↔서버 업무 백본 produce/consume (BE-T-02)
-    "jsonschema>=4.21",        # 공통 봉투 strict 검증 (BE-C-01)
+    "jsonschema>=4.21",        # 공통 헤더·채널 본문 strict 검증 (BE-C-01)
     "rfc3339-validator>=0.1.4", # date-time 포맷을 실제로 assert 하기 위한 필수 동반 의존성
     # WS 게이트웨이 echo (BE-T-03). 상한을 두지 않는다 — 서버 설치본(17.1)이 다운그레이드되면
     # 안 되고, 코드는 13(legacy)·14+(신 asyncio) 양쪽 API에서 도는 방식으로 작성했다.
     "websockets>=13",
+
+    # ── Phase 2 (저장 축) ──
+    # 저장 제품 클라이언트는 여기서만 등장하고, 상위 로직은 목적 인터페이스만 안다(원칙 1).
+    "psycopg[binary]>=3.2",    # 계측 TSDB(TimescaleDB/PostgreSQL 16) — cp314 휠 확인됨 (BE-S-01)
+    "PyMySQL>=1.1",            # 감사·레지스트리·실행 기록 MySQL. 순수 파이썬이라 3.14에서 빌드가 없다
+    # PyMySQL이 caching_sha2_password로 **최초** 인증할 때 서버 공개키로 비밀번호를 RSA
+    # 암호화하는 데 쓴다(TLS 미설정 구간이라 필요). 없으면 첫 접속이 RuntimeError로 실패한다.
+    "cryptography>=42",
+
+    # ── Phase 3 (관측 파이프라인) ──
+    # OTel SDK 는 backend/observability.py 뒤에서만 쓴다(원칙 1). 없어도 백엔드는 no-op 으로 돈다
+    # (관측은 업무의 전제조건이 아니다) — 그래서 설치 실패가 기동 실패로 번지지 않는다.
+    "opentelemetry-sdk>=1.27",                      # metric·log(·trace) SDK (BE-S-02)
+    "opentelemetry-exporter-otlp-proto-grpc>=1.27",  # OTLP gRPC → 서버 Collector 127.0.0.1:4316
 ]
 
 [project.optional-dependencies]

@@ -1,0 +1,40 @@
+# MK2 백엔드 상주 프로세스 — ingest (MQTT 구독 → 2단 검증 → Kafka produce)
+#
+# implements: BE-T-02 (브릿지 상시 가동), BE-S-02 (A층 계측의 선행 조건 — Phase 3 결정 1)
+#
+# 설치(사람이 서버에서):  sudo cp infra/systemd/mk2-*.service /etc/systemd/system/
+#                        sudo systemctl daemon-reload && sudo systemctl enable --now mk2-ingest
+# 코드를 고치면:         서버 사본에 복사 → sudo systemctl restart mk2-ingest  (git pull 배포가 아니다)
+# 로그:                  journalctl -u mk2-ingest -f     (stdout 은 journald 로 간다. OTel 로그 경로와 병존)
+#
+# 비밀값은 이 파일에 없다 — /home/dg/capstone-db/.env 를 EnvironmentFile 로 읽는다(저장소 밖, 600).
+# ⚠ .env 를 읽는 파서가 이제 셋이다(셸 source · compose dotenv · systemd EnvironmentFile).
+#    셋의 인용부호 규칙이 달라 값에 특수문자를 넣으면 한쪽만 다르게 읽는다. 영숫자만 쓴다.
+
+[Unit]
+Description=MK2 ingest (MQTT -> envelope/payload validation -> Kafka)
+After=docker.service
+Wants=docker.service
+# ⚠ StartLimit* 는 [Service] 가 아니라 [Unit] 이다(systemd v229 이후).
+#    [Service] 에 두면 경고와 함께 무시되어 재시작 루프가 안 끊긴다.
+#    .env 가 없으면 settings.MissingSetting 으로 죽는데, 이 둘이 그 재시작을 3회에서 끊는다.
+StartLimitBurst=3
+StartLimitIntervalSec=60
+
+[Service]
+Type=simple
+User=dg
+WorkingDirectory=/home/dg/capstone-db/phase1_work/Physical-Project-mk2
+EnvironmentFile=/home/dg/capstone-db/.env
+# stdout 이 파이프(journald)면 파이썬이 블록 버퍼링한다. READY 같은 기동 로그가 journalctl 에
+# 즉시 보이도록 버퍼링을 끈다(logging 은 매 레코드 flush 하지만 print 경로까지 같이 막는다).
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/home/dg/capstone-db/phase1_work/venv_phase1/bin/python -m backend.ingest.bridge
+# Restart=always 를 쓰지 않는다 — 설정 오류(.env 없음 등)로 죽는 것을 무한 재시작하면 원인이 묻힌다.
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

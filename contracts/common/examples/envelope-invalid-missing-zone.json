@@ -1,6 +1,6 @@
 {
   "_why_invalid": "필수 5필드 중 zone_id가 없다. 봉투 검증에서 거부되어 정상 토픽으로 재발행되지 않고 격리된다(음성 대조 fixture).",
-  "schema_version": "1.0",
+  "schema_version": "1.1",
   "source_id": "wl-001",
   "entity_id": "wl-001",
   "node_id": "pi7",

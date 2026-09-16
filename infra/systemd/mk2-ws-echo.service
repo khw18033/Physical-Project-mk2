@@ -1,0 +1,35 @@
+# MK2 백엔드 상주 프로세스 — WS echo 게이트웨이 (Kafka 소비자 + WebSocket 서버)
+#
+# implements: BE-T-03 (게이트웨이 상시 가동), BE-S-02 (A층 계측의 선행 조건 — Phase 3 결정 1)
+#
+# 설치(사람이 서버에서):  sudo cp infra/systemd/mk2-*.service /etc/systemd/system/
+#                        sudo systemctl daemon-reload && sudo systemctl enable --now mk2-ws-echo
+# 코드를 고치면:         서버 사본에 복사 → sudo systemctl restart mk2-ws-echo
+# 로그:                  journalctl -u mk2-ws-echo -f
+#
+# 바인딩은 settings 기본값 127.0.0.1:8765 다(외부 노출은 Phase 4/5 — 인증과 한 묶음).
+# .env 의 비밀값을 직접 쓰지는 않지만, 세 유닛의 환경을 한 벌로 맞추기 위해 같은 EnvironmentFile 을 읽는다.
+# ⚠ .env 를 읽는 파서가 이제 셋이다(셸 source · compose dotenv · systemd EnvironmentFile). 영숫자만 쓴다.
+
+[Unit]
+Description=MK2 WS echo gateway (Kafka consumer + WebSocket server)
+After=docker.service
+Wants=docker.service
+# ⚠ StartLimit* 는 [Unit] 이다. [Service] 에 두면 무시된다.
+StartLimitBurst=3
+StartLimitIntervalSec=60
+
+[Service]
+Type=simple
+User=dg
+WorkingDirectory=/home/dg/capstone-db/phase1_work/Physical-Project-mk2
+EnvironmentFile=/home/dg/capstone-db/.env
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/home/dg/capstone-db/phase1_work/venv_phase1/bin/python -m backend.gateway.ws_echo
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

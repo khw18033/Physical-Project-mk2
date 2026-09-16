@@ -1,0 +1,16 @@
+{
+  "_why_invalid": "state/robot 본문의 필수 항목 device_status 가 없다. 공통 헤더는 통과하지만 **본문 검증에서 거부되어 정상 토픽으로 재발행되지 않고 격리된다**(음성 대조 fixture). 저장 층이 값의 존재를 가정할 수 있으려면 필수 누락은 막아야 한다 — 이것이 공통 헤더만 검증하던 Phase 1 과 달라진 지점이다.",
+  "schema_version": "1.0",
+  "source_id": "rb-01",
+  "node_id": "pi-robot-1",
+  "zone_id": "zoneA",
+  "timestamp": "2026-09-10T09:00:00+09:00",
+  "sequence_id": 0,
+  "channel": "state",
+  "reason": "periodic",
+  "battery_pct": 87.5,
+  "position": { "x": 12.34, "y": -3.5, "heading_deg": 91.2 },
+  "speed_mps": 0.42,
+  "robot_mode": "mission",
+  "internal_seq": 15832
+}

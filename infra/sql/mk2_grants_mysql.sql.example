@@ -1,0 +1,74 @@
+-- =============================================================================
+-- MK2 Phase 2 — MySQL 앱 계정과 권한 (템플릿)
+--
+-- implements: BE-S-05(감사 — UPDATE·DELETE 를 권한으로 차단) · BE-S-08(실행 기록 append-only)
+-- 근거: docs/be/tasks/작업지시_phase2_저장축.md §5 단계 2
+--
+-- ⚠ 이 파일은 **템플릿**이다. `<MK2_MYSQL_PASSWORD>` 자리에 실제 비밀번호가 들어간
+--   적용본은 커밋하지 않는다(.gitignore: infra/sql/mk2_grants_mysql.sql).
+--   가장 안전한 적용 방법은 **파일로 남기지 않고 서버에서 바로 치환해 파이프**하는 것이다:
+--
+--     cd ~/capstone-db
+--     set -a; . ./.env; set +a
+--     sed "s|<MK2_MYSQL_PASSWORD>|${MK2_MYSQL_PASSWORD}|g" mk2_grants_mysql.sql.example \
+--       | docker exec -i capstone_mysql sh -c 'mysql -uroot -p"$MYSQL_ROOT_PASSWORD"'
+--
+--   (mk2_mysql_schema.sql 을 **먼저** 적용해야 한다 — MySQL 은 존재하지 않는 테이블에
+--    테이블 단위 GRANT 를 걸 수 없다.)
+-- =============================================================================
+--
+-- ── 계정 host 를 '172.18.%' 로 두는 근거는 실측이다 ──────────────────────────
+--    호스트에서 127.0.0.1:7858 로 붙은 연결이 MySQL 쪽 processlist 에는 172.18.0.1 로
+--    보인다(docker 브리지 게이트웨이). 그래서 'mk2_app'@'localhost' 는 **붙지 못한다.**
+--
+-- ── 권한 차등이 이 설계의 핵심이다 ──────────────────────────────────────────
+--    ⚠ MySQL GRANT 에는 **테이블 이름 와일드카드가 없다.** `GRANT ... ON mk2.*` 로
+--      뭉뚱그리면 차등이 무너져 mission_event 에도 UPDATE 가 붙는다. 테이블마다 한 줄씩 쓴다.
+--    ⚠ CREATE·ALTER·DROP 을 **어디에도 주지 않는다.** 코드가 스키마를 바꿀 수 없어야
+--      한다(제약 14). 스키마 변경은 사람이 root 로 한다.
+-- =============================================================================
+
+-- ── 1. 계정 ──────────────────────────────────────────────────────────────────
+CREATE USER IF NOT EXISTS 'mk2_app'@'172.18.%'
+    IDENTIFIED WITH caching_sha2_password BY '<MK2_MYSQL_PASSWORD>';
+
+-- 재적용 시 .env 의 값과 어긋나지 않게 비밀번호를 맞춰 둔다(CREATE USER IF NOT EXISTS 는
+-- 이미 있으면 비밀번호를 바꾸지 않는다).
+ALTER USER 'mk2_app'@'172.18.%'
+    IDENTIFIED WITH caching_sha2_password BY '<MK2_MYSQL_PASSWORD>';
+
+
+-- ── 2. 레지스트리 관측 축 — 갱신된다 ────────────────────────────────────────
+-- status.registration 이 올 때마다 upsert 하므로 UPDATE 가 필요하다.
+GRANT SELECT, INSERT, UPDATE ON mk2.registry_entity_observed  TO 'mk2_app'@'172.18.%';
+GRANT SELECT, INSERT, UPDATE ON mk2.registry_node_observed    TO 'mk2_app'@'172.18.%';
+-- ⚠ registry_identity_history 는 설계상 append 축이다(작업지시 단계 7 "관측(append)").
+--   작업지시 §5 단계 2 의 권한 표가 관측 축 셋을 한 묶음으로 적어 UPDATE 가 함께 붙어 있다.
+--   append-only 를 권한으로 강제하려면 아래 줄에서 UPDATE 만 빼면 된다(mission_event 와 같은 취급).
+GRANT SELECT, INSERT, UPDATE ON mk2.registry_identity_history TO 'mk2_app'@'172.18.%';
+
+
+-- ── 3. 레지스트리 선언 축 — 사람이 넣는다. 앱은 읽기만 ──────────────────────
+-- 미배포 대상을 앱이 지우거나 바꿀 수 없어야 한다(BE-Q-03 의 목적이 그 목록의 유지다).
+GRANT SELECT ON mk2.registry_entity_declared TO 'mk2_app'@'172.18.%';
+GRANT SELECT ON mk2.registry_node_declared   TO 'mk2_app'@'172.18.%';
+GRANT SELECT ON mk2.registry_zone            TO 'mk2_app'@'172.18.%';
+
+
+-- ── 4. 감사 — UPDATE·DELETE 를 권한으로 막는다 (원칙 5) ─────────────────────
+-- 책임 기록은 쓰이고 나면 바뀌지 않아야 한다. 코드가 약속하는 것으로는 부족하다.
+GRANT SELECT, INSERT ON mk2.audit_log TO 'mk2_app'@'172.18.%';
+
+
+-- ── 5. 임무 실행 기록 — append-only 를 권한으로 강제 (BE-S-08) ──────────────
+-- "수정·삭제하지 않으며"를 코드 규율이 아니라 DB 가 지킨다.
+-- 실패한 임무와 사람 개입도 지워지지 않아야 시점 복원(되감기)이 성립한다.
+GRANT SELECT, INSERT ON mk2.mission_event TO 'mk2_app'@'172.18.%';
+
+
+-- =============================================================================
+-- 적용 확인 (root 로 실행)
+-- =============================================================================
+-- 아래에 CREATE/ALTER/DROP 이 보이면 안 되고, mission_event·audit_log 에 UPDATE·DELETE 가
+-- 보이면 안 된다.
+SHOW GRANTS FOR 'mk2_app'@'172.18.%';
