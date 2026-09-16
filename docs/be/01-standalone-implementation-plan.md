@@ -341,6 +341,9 @@ Phase 7  디지털 트윈         DT 7건 (좌표 변환·융합·커버리지�
   - **Phase 6:** **`.proto` 개정에 `Command.traceparent` 필드를 함께 넣는다** — `BACKEND_AGENDA` §3(문자열/열거형
     파라미터)와 같은 개정. HW 확인 2건(필드 번호·옛 말단 호환)은 §7-4. **안 적으면 그 시점에 따로 떠오르지 않는다.**
     백엔드 span 생산(명령 경로)도 여기.
+- **문서 정합 패치 완료(2026-09-16):** `CLAUDE.md`·루트 `README.md`·`00-architecture.md`·`infra/README.md`·
+  `02-media-path.md`·HW 회신 §5-1 표·보고 대상 목록(설계_규칙·템플릿). 근거 지시서 `작업지시_phase3후_문서정합패치.md`,
+  기록은 Phase 3 보고서 끝 「후속 정합 패치」.
 
 ### Phase 4 — 미디어 경로 [기반 경로]
 
@@ -583,10 +586,12 @@ Phase 7  디지털 트윈         DT 7건 (좌표 변환·융합·커버리지�
 |---|---|---|
 | 조병현 (HW) | Phase 1 | `sensor_node.py`(가져와 실행 — 확보) / 실 센서 입고는 Tier C |
 | 조병현 (HW) | **Phase 2 회신 대기** ([`hw-envelope-conformance.md`](hw-envelope-conformance.md) §6) | 🔴 **공통 헤더 편집 4개 적용**(2026-09-09 스냅샷 기준 미반영 — **실노드 관통 검증의 선행조건**, 안 하면 전량 격리) · 🔴 `robot_node.py` 순번 결함 · 🟡 `session_id` 2줄 · 🟡 `reason` 어휘 확인. **답이 없어도 백엔드는 폴백 경로로 진행** |
+| 조병현 (HW) | **Phase 6 전 회신 대기** ([`hw-envelope-conformance.md`](hw-envelope-conformance.md) §7) | ⚪ **`.proto`에 `Command.traceparent` 필드 1개** + `otel_trace.py:77` carrier를 dict로 넘기는 한 줄. `BACKEND_AGENDA` §3(문자열/열거형 파라미터) 개정과 **같은 커밋**으로. 확인 2건 — 필드 번호를 누가 정하나 · 옛 말단 호환. **답이 없어도 백엔드는 멈추지 않는다**(필드가 없으면 말단이 새 trace를 시작하는 지금 동작이 곧 기본값) |
 | 진나영 (AI) | Phase 6·7 | AI 실패·위험 판정·연계 신뢰도 규격(가짜 이벤트로 검증 / 실 모델은 Tier C) · 명령 의미 규격(AI-C-20) · **모델 승인 기록의 BE-* 신설 여부**(AI-L-06/07/08 — Phase 2가 감사 테이블에 자리만 확보). **AI 요구사항은 공유 스프레드시트에서 읽으면 되고 Phase 6 전까지 별도 문의가 필요 없다** |
 | 김현우 (가시화) | Phase 4·7 | 뷰어 canvas 표시·오버레이 / Unity 트윈 렌더(Tier C) |
 | 김현우 (가시화) | **Phase 6 전 회신 대기** ([`vz-mission-record-inquiry.md`](vz-mission-record-inquiry.md)) | 실행 기록 규격 확인 7항목 — 특히 **`event_type` 실패 단계 어휘**(VZ-D-05 「합의 필요」)와 **`node_ref` 부여 주체**. **답이 없어도 기본값으로 진행**, Phase 6/7 배선 전까지만 오면 재작업 없음 |
-| 현장/실측 | Phase 4·5 | 회선 QoS·콜드스타트·Tailscale 실측(Tier C) |
+| 김현우 (가시화) | **지표 발행 시작 전 회신 대기** ([`vz-observability-namespace.md`](vz-observability-namespace.md)) | 🟡 VZ-O-04 자체 관측 지표의 **이름 공간 `vz.`** · 금지 라벨 전수 · `service.name`은 `vz-<컴포넌트>` · 발신 대상은 서버 Collector `127.0.0.1:4316`(저장소 직접 쓰기 금지). **답이 없어도 백엔드는 멈추지 않는다**(백엔드는 `be.`만 쓴다) |
+| 현장/실측 | Phase 4·5 | 회선 QoS·콜드스타트(Tier C) · **Tailscale은 연구실 환경에서 Phase 3에 부분 실측**(DERP 72ms → 직접 3ms) — 현장 엣지-서버 배치 실측은 남아 있다 |
 
 > **HW 소스의 최신본은 `_hwsrc/upstream_<날짜>/`** 에 둔다(gitignore, 절대 고치지 않는다). 새 브랜치가
 > 오면 이전 것과 해시 비교한다 — 절차는 `_hwsrc/README.md`. 우리가 편집을 얹은 실행 사본은

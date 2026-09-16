@@ -27,6 +27,7 @@ Phase 0(인프라 기동)에서 세운 스택의 현재 상태와 운영 방법.
 | `/home/dg/capstone-db/mk2_sql/` | 위 `sql/`의 서버 사본(사람이 root로 적용) |
 | `/etc/systemd/system/mk2-*.service` | 위 `systemd/`의 설치본(**Phase 3**). 저장소 사본 `…/Physical-Project-mk2/infra/systemd/`에서 `sudo cp` |
 | `/home/dg/capstone-db/phase1_work/phase3_new/` | Phase별 설정 대기 위치(컴퓨터에서 올린 파일을 여기 두고 블록이 `config/`로 옮긴다). 다음 Phase는 `phase4_new/` |
+| **`tailscaled`** (시스템 패키지) | **Phase 3 설치**. 1.102.4, enabled, **팀 공용 계정** 로그인. 서버 주소는 `tailscale ip -4` / `_serverinfo/260916_phase3_tailscale.txt`. **되돌리지 않았다 — Phase 4(미디어·Kafka 원격 노출)가 그대로 쓴다.** 다시 `tailscale up`을 치지 않는다 |
 
 **저장소 밖에 둔 이유:** 이 저장소는 Public이고, compose가 같은 디렉터리의 `.env`를 자동으로
 읽으므로 `${MK2_TSDB_ROOT_PASSWORD}` 치환이 그대로 된다. 기존 서비스들은 `${...}`를 안 쓰므로
@@ -209,6 +210,37 @@ docker compose ps kafka
 > ⚠️ **서비스 이름을 반드시 명시한다.** `docker compose up -d`만 치면 compose 파일의 모든
 > 서비스가 대상이 되고, `:latest` 태그를 쓰는 기존 서비스들이 이미지 갱신 시 **재생성**될 수
 > 있다. 이미 도는 것을 건드리지 않는 것이 이 스택의 원칙이다.
+
+### 서버를 재부팅한 뒤 — 뜬 걸로 치지 말고 확인한다 (Phase 3 신설)
+
+컨테이너는 `restart: always`(Mosquitto만 `unless-stopped`)라 알아서 올라오고, 백엔드 상주 3개도
+systemd `enabled`라 자동으로 뜬다. **그런데 둘의 순서가 보장되지 않는다** — 유닛의
+`After=docker.service`는 *dockerd가 떴다*는 뜻이지 *컨테이너가 준비됐다*는 뜻이 아니다. 유닛이 먼저
+시작하면 실패할 수 있고, 재시작을 몇 번 하다 멈추면 `failed`로 남는다.
+
+**그래서 재부팅 뒤에는 자동으로 떴으려니 하지 말고 확인한다.**
+
+```bash
+cd ~/capstone-db
+docker compose ps                                     # 컨테이너 13개가 다 올라왔나
+systemctl is-active mk2-ingest mk2-storage-consumer mk2-ws-echo
+systemctl --failed | grep mk2                         # failed 로 남은 유닛이 있나
+journalctl -u mk2-ingest -n 30 --no-pager -q          # 있으면 로그부터
+```
+
+되살릴 때:
+
+```bash
+sudo systemctl restart mk2-ingest mk2-storage-consumer mk2-ws-echo
+
+# "start request repeated too quickly" 가 나오면 재시작 한도에 걸린 것이다. 먼저 풀고 다시:
+sudo systemctl reset-failed mk2-ingest mk2-storage-consumer mk2-ws-echo
+sudo systemctl start        mk2-ingest mk2-storage-consumer mk2-ws-echo
+```
+
+**되살려도 안 되면 원인을 추측하지 말고 위 네 명령의 결과와 `journalctl` 로그를 들고 시작한다.**
+흐르는지까지 보려면 아래 「"떠 있다"가 아니라 "흐른다"를 본다」. 재시작 정책 값과 그 이유,
+`session.timeout.ms` 손잡이는 §6.
 
 ### TimescaleDB 접속 제한 (pg_hba) — 기동 **뒤에** 사람이 1회
 
@@ -467,7 +499,13 @@ Phase 4보다 이르더라도 바꾼다(그때 이 문서를 갱신한다).
 포트만 열어서는 안 되고, **열더라도 모든 인터페이스에 열면 안 된다**(현재 PLAINTEXT·인증 없음).
 
 1. **`ports` → Tailscale 인터페이스 IP에 바인딩** (`<tailscale-ip>:9092:9092`). `9092:9092`는
-   공인 IP를 포함한 전 인터페이스 노출이라 쓰지 않는다. Tailscale 설치가 선행돼야 한다.
+   공인 IP를 포함한 전 인터페이스 노출이라 쓰지 않는다. ~~Tailscale 설치가 선행돼야 한다.~~
+   **Tailscale은 Phase 3(2026-09-16)에서 서버에 설치됐다**(1.102.4, `tailscaled` enabled,
+   팀 공용 계정) — 설치 선행 조건은 이미 충족이다. ⚠ 다시 `tailscale up`을 치지 않는다(계정이
+   갈릴 수 있다). 주소는 `tailscale ip -4`로 읽고 `_serverinfo/`에만 적는다.
+   ⚠ **없는 IP에는 docker가 바인딩하지 못한다** — `tailscaled`가 뜨기 전에 `up -d`를 하면
+   `cannot assign requested address`로 기동이 실패하고, 재부팅 시 `restart: always`가 루프에
+   빠질 수 있다(§6 ⓗ와 같은 함정).
 2. **`KAFKA_ADVERTISED_LISTENERS`의 `PLAINTEXT` 호스트** → 엣지가 실제로 도달하는 그 주소
    (위 1의 주소). 이걸 안 바꾸면 포트를 열어도 위 2단계 연결에서 실패한다.
 3. **ufw를 엣지 소스로 제한하고, 그 포트를 ufw에 반드시 연다.**
@@ -560,11 +598,12 @@ Phase 3 뒤: 셋 다 흐른다 — `be_*` 21종(A 9 + C 12)·`{service_name="be-
 | **TimescaleDB** | `timescaledb-tune`이 서버 사양(247GB·다코어)에 맞춰 `max_worker_processes=115`·`max_parallel_workers=96`·`work_mem=21MB`로 잡았다. **공용 서버라** 부하가 보이면 조일 여지가 있다 | 필요해지면 |
 | **TimescaleDB** | **보존 기간·압축 정책이 없다.** 하이퍼테이블로 만들어 두어 **정책만 붙이면 된다** — BE-S-04가 별도 요구사항이고 발동 조건이 아직 아니다 | 발동 조건 충족 시 |
 | Kafka | **검증용 컨슈머 그룹 3개가 남아 있다**(§5 「컨슈머 그룹」) | 정리 여부 미결 |
-| 백엔드 상주 프로세스 | ~~터미널 수동 기동~~ → ✅ **systemd 유닛 3개**(`infra/systemd/`, enabled). ⚠ 재부팅 시 Kafka·Mosquitto 컨테이너가 `3회×5초` 안에 안 올라오면 `StartLimitBurst`에 걸려 실패 상태로 멈출 수 있다 — 그때는 `sudo systemctl start mk2-*`. 그리고 **`kill -9`·OOM처럼 신호 없이 죽으면 재기동한 소비자가 세션 타임아웃(45초)까지 파티션을 못 받는다**(SIGTERM은 Phase 3에서 그룹을 깨끗이 떠나게 고쳤다) | ✅ Phase 3 |
+| 백엔드 상주 프로세스 | ~~터미널 수동 기동~~ → ✅ **systemd 유닛 3개**(`infra/systemd/`, enabled). ⚠ 재부팅 시 Kafka·Mosquitto 컨테이너가 `3회×5초` 안에 안 올라오면 `StartLimitBurst`에 걸려 실패 상태로 멈출 수 있다 — 그때는 `sudo systemctl start mk2-*`. 그리고 **`kill -9`·OOM처럼 신호 없이 죽으면 재기동한 소비자가 세션 타임아웃까지 파티션을 못 받는다**(SIGTERM은 Phase 3에서 그룹을 깨끗이 떠나게 고쳤다 — 정상 재기동은 6초).<br>**손잡이:** `session.timeout.ms` — Kafka 소비자 설정, `backend/storage/consumer.py::build_consumer()`·`backend/gateway/ws_echo.py::build_consumer()`의 `Consumer({...})` 딕셔너리에 키를 더하면 된다. **기본값 45000(librdkafka)** — 지금은 안 적어 기본값. 낮추면(예: `10000`) 비정상 죽음 뒤 재할당이 빨라지는 대신, 소비자가 잠깐 멈추기만 해도(GC·TSDB 재접속 대기 등) 브로커가 죽은 것으로 오판해 리밸런스가 잦아진다. 함께 보는 값 `heartbeat.interval.ms`(기본 3000, timeout의 1/3 이하). Phase 3에서는 **바꾸지 않았다**(지시서에 없음) | ✅ Phase 3 |
 | OTel Logs SDK | `LoggingHandler`가 SDK 1.44에서 **deprecated** — `opentelemetry-instrumentation-logging`의 핸들러로 옮기라는 경고(pytest 경고 2건). 동작엔 영향 없음 | Phase 4 (패키지 교체 1건) |
-| A층 counter | **재기동마다 0으로 리셋**되고 Collector exporter가 옛 프로세스 값을 5분간 더 내보낸다. 절대값을 읽지 말고 `rate()`/`increase()`로 본다. ingest 재기동 시 retained `status` 재유입(지금 **6건** — sensor·robot·actuator·analysis wl-001 + reg-a zoneA/zoneB)만큼 `be_ingest_received_total{channel="status"}`가 튄다 — 정상 | 기록 |
-| C층 gauge | 값이 흐를 때만 존재한다 — 5분 갱신이 없으면 exporter가 내리고 Prometheus가 stale 처리한다("장치가 안 보내면 시계열도 없다"). `state.analysis` 3종은 증강 분석이 돌지 않아 **가짜 발행자로만 값이 있었다** | 기록 |
+| A층 counter | **재기동마다 0으로 리셋**되고 Collector exporter가 옛 프로세스 값을 5분간 더 내보낸다. 절대값을 읽지 말고 `rate()`/`increase()`로 본다. ingest 재기동 시 retained `status` 재유입(지금 **6건** — sensor·robot·actuator·analysis wl-001 + reg-a zoneA/zoneB)만큼 `be_ingest_received_total{channel="status"}`가 튄다 — 정상.<br>**손잡이 없음** — counter가 프로세스 수명을 따르는 것은 OTel 규격이라 설정으로 못 바꾼다. 조회 규칙(`rate()`)이 답이다. "옛 값 5분"은 아래 C층 행의 `metric_expiration`과 같은 값이다 | 기록 |
+| C층 gauge | 값이 흐를 때만 존재한다 — 5분 갱신이 없으면 exporter가 내리고 Prometheus가 stale 처리한다("장치가 안 보내면 시계열도 없다"). `state.analysis` 3종은 증강 분석이 돌지 않아 **가짜 발행자로만 값이 있었다**.<br>**손잡이:** `metric_expiration` — Collector 설정 `config/otel-collector-config.yaml`의 `exporters.prometheus:` 아래에 한 줄(예: `metric_expiration: 30m`). **기본값 5m** — 지금은 안 적어 기본값. 늘리면 장치가 침묵해도 마지막 값이 그 시간만큼 `/metrics`에 남아 대시보드에 "살아 있는 것처럼" 보이고(잔상), 줄이면 더 빨리 사라진다. 이 값은 A층 counter의 "옛 프로세스 값 잔류 시간"도 함께 바꾼다(같은 exporter). 바꾸면 `validate` → `config/` 교체 → `docker compose up -d otel-collector`(단계 4-3·4-4와 같은 절차). **장치 침묵을 "시계열 부재"로 읽을지 "마지막 값 유지"로 읽을지는 가용성 판정(Phase 5)의 결정 사항**이라 Phase 3에서는 기본값을 두었다. 또 하나 관련 기본값: SDK gauge는 새 값이 들어온 주기에만 데이터를 낸다(OTel last-value 집계) — 이건 손잡이가 없다 | 기록 |
 | WS echo 로그 | `be-gateway`는 접속 사건 때만 로그를 내므로 Loki `service_name` 목록에 안 보일 때가 있다 — 이상 아님 | 기록 |
+| **TimescaleDB `telemetry`** | **745행**(2026-09-16). 그중 테스트 잔여 **342행** — `st-*`·`wl-obs-*`·`wl-test-*`·`gap-*`·`wl-null`·`tsdb-*`. `mk2_app`에 DELETE 권한이 없어 정리하지 않았다(의도). **단계 0에서 행 수가 안 맞으면 먼저 이 접두사들로 설명되는지 본다** — Phase 3 단계 0이 476≠415에서 멈춰 조사한 전례가 있다 | 기록 |
 
 관측 3종의 현재 실제 경로 (2026-09-16):
 

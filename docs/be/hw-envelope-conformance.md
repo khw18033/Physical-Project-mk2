@@ -291,14 +291,14 @@ Phase의 작업 항목으로 등록해 두었다.**
 | §5 `device_status` 발행 주체 (HW 자기보고 수용 vs metric 파생) | **Phase 5(가용성)** |
 | §10-2 엣지 파생 `up` ↔ 백엔드 최종 판정의 관계 | **Phase 5(가용성)** |
 | §3 명령 문자열 파라미터(`set_mode(mode="normal")`가 `map<string,double>`로 불가) | **Phase 6(명령)** |
+| §7 4단계 stage 값 확인 | **Phase 6(명령)** |
+| ~~§10-3 traceparent 전달 계획~~ | ~~**Phase 3(관측)** 이후~~ → ✅ **2026-09-16 [§7](#s7)에서 회신** (5-0 표로 이동) |
 
 > **§3은 지금 알아둘 함정이다(Phase 6 전까지).** 회신은 Phase 6이지만, 그전에 규약(protobuf)
 > 명령 경로로 `set_mode(mode="normal")`·`levee(position="open")`처럼 **문자열/열거형 파라미터를
 > 쓰는 명령은 호출할 수 없다**(`map<string,double>`이라 double만 실린다). `set_report_interval
 > (seconds=..)` 같은 수치 명령만 규약 경로로 동작한다. 문자열 파라미터 명령 테스트는 Phase 6
 > (스키마 확장) 이후로 미뤄 달라 — 백엔드가 고칠 것이 아니라 HW가 인지할 사항이다.
-| §7 4단계 stage 값 확인 | **Phase 6(명령)** |
-| ~~§10-3 traceparent 전달 계획~~ | ~~**Phase 3(관측)** 이후~~ → ✅ **2026-09-16 [§7](#s7)에서 회신** (5-0 표로 이동) |
 
 ---
 

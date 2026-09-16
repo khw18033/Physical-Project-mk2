@@ -34,13 +34,20 @@ docker compose up -d kafka
 docker compose ps kafka
 docker exec capstone_kafka /opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list
 
-# ── 백엔드 (Phase 1~) — 서버 ~/capstone-db/phase1_work/Physical-Project-mk2 에서 ──
-source ~/capstone-db/phase1_work/venv_phase1/bin/activate   # Python 3.14
-python -m backend.ingest.bridge        # MQTT 구독 → 공통 헤더 검증 → Kafka  (READY 로그 뒤에 발행)
-python -m backend.storage.consumer     # 저장 sink   (그룹 mk2-storage)
-python -m backend.gateway.ws_echo      # WS echo     (그룹 mk2-ws, ws://127.0.0.1:8765)
+# ── 백엔드 상주 3개 (Phase 3부터 systemd — 손으로 띄우지 않는다) ──
+sudo systemctl status mk2-ingest mk2-storage-consumer mk2-ws-echo
+journalctl -u mk2-ingest -f
+# 코드를 고친 뒤:  서버 사본에 복사 → sudo systemctl restart mk2-ingest mk2-storage-consumer mk2-ws-echo
+#
+# ⚠ 손으로 띄워야 할 때(격리 실험 등)는 먼저 유닛을 내린다 —
+#   ingest 는 client_id=mk2-ingest 가 고정이라 둘이 붙으면 서로 밀어낸다.
+#   sudo systemctl stop mk2-ingest && set -a; . /home/dg/capstone-db/.env; set +a
+#   source ~/capstone-db/phase1_work/venv_phase1/bin/activate   # Python 3.14
+#   python -m backend.ingest.bridge        # MQTT 구독 → 2단 검증 → Kafka  (READY 로그 뒤에 발행)
+#   python -m backend.storage.consumer     # 저장 sink   (그룹 mk2-storage)
+#   python -m backend.gateway.ws_echo      # WS echo     (그룹 mk2-ws, ws://127.0.0.1:8765)
 
-# ── 테스트 (Phase 1부터 pytest. ingest·sink·WS가 먼저 떠 있어야 한다) ──
+# ── 테스트 (Phase 1부터 pytest. 상주 3개가 떠 있어야 한다 — Phase 3부터 systemd 가 띄운다) ──
 python -m pytest -q
 python -m pytest -q tests/test_pipeline.py::test_valid_roundtrip
 python -m pytest -q tests/test_pipeline.py::test_contract_fixtures   # 인프라 없이도 도는 공통 규격 검증
@@ -49,7 +56,9 @@ python -m pytest -q tests/test_pipeline.py::test_contract_fixtures   # 인프라
 - 설치는 필요 없다 — 저장소 루트에서 `python -m ...`으로 실행하면 임포트가 잡힌다. 새 환경을
   만들 때만 `pip install -e ".[dev]"`.
 - 접속 정보·경로는 전부 환경변수다. 단일 출처는 [`backend/settings.py`](backend/settings.py)의
-  환경변수 표(`MK2_MQTT_HOST`·`MK2_BROKER_HOST`·`MK2_KAFKA_BOOTSTRAP`·`MK2_WS_*` 등).
+  환경변수 표(`MK2_MQTT_HOST`·`MK2_BROKER_HOST`·`MK2_KAFKA_BOOTSTRAP`·`MK2_WS_*`·
+  **`MK2_OTEL_ENDPOINT`·`MK2_OTEL_EXPORT_INTERVAL`·`MK2_OTEL_SERVICE_NAME`** 등).
+  `MK2_OTEL_ENDPOINT`가 비어 있으면 관측은 **no-op**이고 업무 경로는 그대로 돈다.
 - 최소 발행자(수동 확인용): `python tests/publisher.py [--channel state|status|heartbeat]
   [--invalid missing-zone|timestamp]` — MQTT만 쓰므로 컴퓨터에서도 돈다.
 
@@ -63,13 +72,16 @@ python -m pytest -q tests/test_pipeline.py::test_contract_fixtures   # 인프라
 
 ```
 backend/
+  observability.py  관측 어댑터 — opentelemetry 를 import 하는 유일한 파일(원칙 1). A층·C층 발신, 로그 경로
   ingest/        MQTT 구독 → Kafka produce (엣지 소비자, 브릿지)
   storage/       TSDB writer(계측) + MySQL writer(감사·레지스트리·임무 실행 기록) — 저장 축
+                 derive.py = C층(업무 값의 관측 표현 파생, 저장 소비자 안)
   availability/  가용성 판정기 (업무 평면 MQTT 세션 우선 + 관측 평면 통합)
   gateway/       WS 게이트웨이 — Kafka 소비자이면서 WebSocket 서버 (서버 내부 컴포넌트)
   twin/          디지털 트윈 (위치·클래스 융합, 커버리지·사각지대, 시의성, 로봇 투입)
 contracts/common/  파트가 나뉘는 지점의 공통 규격 (JSON Schema). 이것이 기준이지 파이썬 타입이 아니다.
 infra/             docker-compose · Collector · Grafana 등 배포 자산
+  systemd/         상주 3개 유닛(mk2-ingest · mk2-storage-consumer · mk2-ws-echo). 커밋한다
 ```
 
 **흐름 요약(구간별):**
@@ -219,6 +231,13 @@ infra/             docker-compose · Collector · Grafana 등 배포 자산
 - 실제 `.env`·토큰·키·인증서·내부망 endpoint를 커밋하지 않는다(Public 저장소).
 - 업무 값의 관측 표현(파생)을 원본 저장 대신 쓰지 않는다 — 조회·감사·학습 재료를 관측
   저장소에서 끌어오지 않는다.
+- **`opentelemetry`를 `backend/observability.py` 밖에서 import 하지 않는다** — 관측 SDK는 그
+  어댑터 뒤에 둔다(원칙 1). 호출부는 `setup`·`count`·`updown`·`gauge`·`observe`·`log_handler`·
+  `shutdown` 목적 인터페이스만 쓴다. 관측 저장소가 죽어도 업무 경로가 멈추면 안 된다.
+- **관측 라벨에 값이 계속 달라지는 것을 넣지 않는다** — `session_id`·`internal_seq`·`sequence_id`·
+  시각(`timestamp`·`ts`·`capture_timestamp`)·프레임 식별자(`frame_id`). 어댑터가 `ValueError`로
+  막는다(조용히 버리지 않는다). **A층(백엔드 자기 관측)에는 `source_id`·`zone_id`·`entity_type`도
+  넣지 않는다** — 장치 수만큼 시계열이 곱해진다. C층(업무 값)에서만 쓴다.
 
 ---
 
