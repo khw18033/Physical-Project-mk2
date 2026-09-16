@@ -24,6 +24,8 @@ import type { ScenarioEvent } from '../model/types.ts';
 import { restorePrepStage, type PrepState } from '../physical/prepStage.ts';
 import { restoreRobotSession, type RecordedRobotSession } from '../physical/robotSession.ts';
 import type { ArrivedFrame } from '../viewpoint/store.ts';
+import { restoreNavFeed, type RecordedNavFeed } from '../physical/navFeed.ts';
+import { restoreObstacle, type RecordedObstacle } from '../autodrive/obstacle.ts';
 import { fetchRecordJson } from './recordClient.ts';
 import { enterRecordReplay, leaveRecordReplay } from './replayMode.ts';
 
@@ -37,6 +39,10 @@ type ProgressFile = {
   detect?: Partial<RecordedDetect>;
   detectLog?: DetectLogLine[];
   prep?: PrepState;
+  /** 자율주행 편 (260915) — pi1 중계 상태·사건. 문 찾기 편 기록에는 없다. */
+  nav?: Partial<RecordedNavFeed>;
+  /** 자율주행 편 (260915) — AI 서버 장애물 기록. */
+  obstacle?: Partial<RecordedObstacle>;
 };
 
 export type OpenResult = { ok: true } | { ok: false; reason: string };
@@ -61,6 +67,9 @@ export async function openRecordedRun(date: string, run: string): Promise<OpenRe
     restoreRobotSession(progress.robot ?? {});
     restoreDetect(progress.detect ?? {}, { date, run });
     restoreDetectLog(progress.detectLog ?? []);
+    // 자율주행 편 — 없으면(문 찾기 편 기록) 비운다. 지금 받고 있던 값이 지난 판 자리에 남으면 안 된다.
+    restoreNavFeed(progress.nav);
+    restoreObstacle(progress.obstacle);
     if (progress.prep !== undefined) {
       const map = progress.prep.map;
       // 도면 주소는 그 판의 기록 폴더로 — 탐지 창구의 도면은 판마다 지워진다. 기록에 없으면 저장소 사본.

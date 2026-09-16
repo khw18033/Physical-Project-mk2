@@ -5,6 +5,8 @@ import { resolve, join, normalize } from 'node:path';
 import { createReadStream, cpSync, existsSync, statSync } from 'node:fs';
 // 임무 기록을 파일로 남기는 창구 (260914) — 새로고침해도 리허설 기록이 남는다.
 import { missionRecords } from './scripts/mission-records.mjs';
+// 자율주행 편의 AI 서버(영상 · 장애물 탐지)를 옮기는 창구 (260915) — 그 서버가 CORS 를 안 연다.
+import { autodriveAiRelay } from './scripts/autodrive-ai-relay.mjs';
 
 /**
  * **탐지 시료를 `/detect-sample` 로 내준다** (260912).
@@ -51,7 +53,7 @@ function detectSample() {
 
 export default defineConfig({
   base: './',
-  plugins: [react(), detectSample(), missionRecords()],
+  plugins: [react(), detectSample(), missionRecords(), autodriveAiRelay()],
   server: {
     port: 5174,
     strictPort: true,

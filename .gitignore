@@ -54,7 +54,9 @@ Unity_Map/*.csproj
 Unity_Map/*.sln
 Unity_Map/*.user
 
-physical_demo/
 
 # 임무 기록 (viz-debugger 가 판마다 남긴다 — 리허설 디버깅용 · 그림이 들어 있어 무겁다)
 mission-history/
+
+
+physical_demo/

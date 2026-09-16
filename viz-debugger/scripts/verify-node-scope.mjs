@@ -152,6 +152,8 @@ const EXPECTED = {
   // 5편(260909 시연) — 자리와 속도만 몬다. 액추에이터 명령이 없고(로봇은 ACTION_CATALOG 밖)
   // 영상 축도 없다 — 근거 이미지는 아직 없어서 자리만 비워 두었다(지시서 §5).
   'MSN-260909-01': ['device-risk', 'metrics'],
+  // 6편(260915 자율주행) — 5편과 같이 자리와 속도만 몬다. 명령·영상 축은 연동이 붙을 때 생긴다.
+  'MSN-260915-01': ['device-risk', 'metrics'],
 };
 function checkScripts(list) {
   const f = [];
@@ -180,6 +182,7 @@ const PANEL_EXPECTED = {
   'MSN-260831-02': ['risk', 'control', 'metrics-push'],
   'MSN-260831-03': ['risk', 'zone-map', 'metrics-push', 'video'],
   'MSN-260909-01': ['risk', 'control', 'metrics-push', 'video'],
+  'MSN-260915-01': ['risk', 'control', 'metrics-push', 'video'],
 };
 for (const script of scripts) {
   const got = collapsedPanels(script).sort();

@@ -68,6 +68,8 @@ import { useDeviceStates } from '../physical/deviceState.ts';
 import { hardwareTarget } from '../physical/encode.ts';
 import { useRobotSession } from '../physical/robotSession.ts';
 import { DetectCam, DetectMap, DetectReason } from '../detect/views/DetectViews.tsx';
+import { AutodriveCam } from '../autodrive/views/AutodriveViews.tsx';
+import { relayDriven } from '../scenarios/library.ts';
 
 /** 화면이 쓰는 로봇 id. 하드웨어 id 로 바꾸는 것은 경계 안쪽(`hardwareTarget`) 일이다. */
 const ROBOT_ENTITY = 'robot-01';
@@ -306,13 +308,32 @@ function RobotBody() {
   </div>;
 }
 
+/**
+ * **팔레트를 임무로 가른다** (260915 — 자율주행 편). 문 찾기 시연의 노드(탐지 셋 · pi7 로봇)는 중계 편
+ * (`driver: 'relay'`)의 팔레트에 두지 않고, 자율주행 편의 로봇 영상은 그 편에만 둔다. 시연 편의 팔레트는
+ * 전과 한 칸도 다르지 않다.
+ */
+const notRelay = (missionId: string) => !relayDriven(missionId);
+const onlyRelay = (missionId: string) => relayDriven(missionId);
+
 export const VIEW_NODE_RENDERERS: readonly ViewNodeEntry[] = [
+  {
+    // 자율주행 편 (260915) — AI 서버의 로봇 앞 카메라 영상을 **그대로**. 접힘은 한 장씩, 실시간은 확대에서.
+    // 문 찾기 시연의 「탐지 영상」과 서버도 코드도 다르다(`src/autodrive/`). 자리표시로 감싸지 않는다 — 실제로 오는 값이다.
+    kind: 'autodrive-cam',
+    label: '로봇 영상',
+    hint: '자율주행 로봇 앞 카메라의 AI 영상 — 접힘은 2초마다 한 장, 확대하면 실시간',
+    showFor: onlyRelay,
+    summary: () => <NodeGate kind="autodrive-cam"><AutodriveCam /></NodeGate>,
+    zoom: () => <NodeGate kind="autodrive-cam"><AutodriveCam zoom /></NodeGate>,
+  },
   {
     // 탐지 셋 (260912) — 자리표시로 비어 있던 `video-stream` · `detections` · `zone-map`.
     // **자리표시로 감싸지 않는다** — 실제로 오는 값이다.
     kind: 'detect-cam',
     label: '탐지 영상',
     hint: '탐지가 본 그림 — 상자 입힌 프레임. 도는 동안은 마지막으로 본 각도',
+    showFor: notRelay,
     summary: () => <NodeGate kind="detect-cam"><DetectCam /></NodeGate>,
     zoom: () => <NodeGate kind="detect-cam"><DetectCam zoom /></NodeGate>,
   },
@@ -320,6 +341,7 @@ export const VIEW_NODE_RENDERERS: readonly ViewNodeEntry[] = [
     kind: 'detect-reason',
     label: '판단 근거',
     hint: '왜 문이라고 했나 — 관문 넷과 특징 여덟 점수. 판정은 점수가 아니라 관문이 정한다',
+    showFor: notRelay,
     summary: () => <NodeGate kind="detect-reason"><DetectReason /></NodeGate>,
     zoom: () => <NodeGate kind="detect-reason"><DetectReason zoom /></NodeGate>,
   },
@@ -327,6 +349,7 @@ export const VIEW_NODE_RENDERERS: readonly ViewNodeEntry[] = [
     kind: 'detect-map',
     label: '2D 맵',
     hint: '도면 위의 경로와 계산 다섯 단계 — 우리가 다시 계산하지 않는다',
+    showFor: notRelay,
     // **재생 머리를 넘긴다** (260914) — 도면은 T-A1 이 끝난 뒤에 뜨고, 되감으면 그 시각을 따른다.
     summary: (scope) => <NodeGate kind="detect-map"><DetectMap headSec={scope.headSec} /></NodeGate>,
     zoom: (scope) => <NodeGate kind="detect-map"><DetectMap zoom headSec={scope.headSec} /></NodeGate>,
@@ -335,6 +358,8 @@ export const VIEW_NODE_RENDERERS: readonly ViewNodeEntry[] = [
     kind: 'robot',
     label: '로봇',
     hint: '실물 로봇의 지금 상태 — 링크·배터리·구동 브리지·진행. 대본이 아니라 장비가 미는 값이다',
+    // pi7(문 찾기 시연) 로봇이다 — 자율주행 편(pi1)의 로봇이 아니다.
+    showFor: notRelay,
     // **자리표시로 감싸지 않는다** — 지금 실제로 오고 있는 값이다.
     summary: () => <NodeGate kind="robot"><RobotBody /></NodeGate>,
     zoom: () => <NodeGate kind="robot"><DeviceFacts entityId={ROBOT_ENTITY} /></NodeGate>,

@@ -51,7 +51,10 @@ import { isReplayingRecord, leaveRecordReplay } from '../record/replayMode.ts';
 import { armNotifications, resetNotifications } from '../shared/notifications.ts';
 import { provenancePayload, type AiProvenance } from '../shared/provenance.ts';
 import rawScenario from '../../scenarios/MSN-260826-01.json' with { type: 'json' };
-import { libraryEntry } from '../scenarios/library.ts';
+import { libraryEntry, opensRobotGate, relayDriven, scriptDriven } from '../scenarios/library.ts';
+import { armNavRun, endNavRun } from '../physical/navRun.ts';
+import { resetNavFeed } from '../physical/navFeed.ts';
+import { clearObstacleData } from '../autodrive/obstacle.ts';
 import type { ScriptMap, ScriptScenario, ScriptViewpointFrame, ScriptViewpoints } from '../scenarios/types.ts';
 import type { Hardware, RefEdge, Scenario, ScenarioEvent, TaskStatus, Task } from '../model/types.ts';
 
@@ -435,9 +438,18 @@ export function activateMission(missionId: string, mode: 'remote' | 'local'): vo
   localViewpointCursor = 0;
   commitNow({ current: view, proposal: null, headSec: 0, playing: true, activatedBy: 'approval' });
 
+  // **중계가 모는 편은 판을 걸어만 둔다** (260915 · pi1). 칠하기는 「▶ 임무 시작」부터다 — 승인하자마자
+  // 노드에 불이 켜지면 계획을 설명할 틈이 없다(문 찾기 편과 같은 순서). 대본 타이머도 안 세운다 —
+  // 합성 진행이 중계와 같은 노드를 칠하면 무엇이 진짜인지 모른다.
+  if (relayDriven(view.missionId)) {
+    armNavRun(view.missionId);
+    return;
+  }
+
   // **로봇이 몰면 타이머를 안 세운다** (260910 지적). 대본 시각이 저 혼자 흐르면 로봇이
-  // 아직 첫 걸음도 안 뗐는데 화면은 끝나 있다.
-  if (mode === 'local' && !robotDrives()) {
+  // 아직 첫 걸음도 안 뗐는데 화면은 끝나 있다. 대본이 모는 편(`driver: 'script'` · 260915)은
+  // 브로커가 붙어 있어도 로봇이 그 편을 몰지 않으므로 그대로 세운다.
+  if (mode === 'local' && (!robotDrives() || scriptDriven(missionId))) {
     const stepMs = 200;
     localTimer = setInterval(() => {
       const nextHead = state.headSec + (stepMs / 1000) * LOCAL_SPEED;
@@ -479,7 +491,8 @@ export function acceptProposal(mode: 'remote' | 'local' = 'local'): boolean {
     // **승인이 로봇 관문을 연다** (260910 · `VZ-U-07`). 이 줄 앞에서는 MQTT 로 나가는
     // 바이트가 없다 — `verify:no-publish-before-approval` 이 그것을 센다.
     // 승인의 문이 하나이므로 관문도 여기 한 곳에서만 열린다.
-    if (accepted) markApproved();
+    // 자기 방식으로 도는 편(`driver: 'script'` · `'relay'` · 260915)은 열지 않는다 — 로봇 경로가 문 찾기 편에 묶여 있다.
+    if (accepted && opensRobotGate(proposal.missionId)) markApproved();
     return accepted;
   }
   return activateGenerated(proposal);
@@ -588,10 +601,15 @@ function stopLocalTimer(): void {
  */
 function beforeNewRun(): void {
   sealRun();
+  // 중계 판도 닫는다 — 다음 판이 중계 편이면 activateMission 이 다시 연다.
+  endNavRun();
   if (!isReplayingRecord()) return;
   leaveRecordReplay();
   resetRobotSession();
   resetDetect();
+  // 다시보기가 채운 자율주행 기록도 걷는다 (260915) — 지난 판의 경로 사건·장애물 값이 새 판에 남으면 안 된다.
+  resetNavFeed();
+  clearObstacleData();
 }
 
 /**
@@ -730,7 +748,7 @@ export function restartMission(): boolean {
   if (missionId === NO_MISSION) return false;
   if (viewForMission(missionId) === null) return false;
   activateMission(missionId, 'remote');
-  markApproved();
+  if (opensRobotGate(missionId)) markApproved();
   // **시작까지 자동으로 넘어가지 않는다** (260912). 「처음부터」는 판을 비우는 것이고,
   // 로봇을 움직이는 것은 사람이 「임무 시작」을 누르는 일이다 — 관문을 우회하지 않는다.
   clearStarted();
@@ -757,6 +775,8 @@ export function loadRecordedMission(
   headSec: number,
 ): void {
   stopLocalTimer();
+  // 다시보기는 지난 판이다 — 지금 오는 중계로 그 판의 노드를 칠하지 않는다.
+  endNavRun();
   localCursor = 0;
   localViewpointCursor = 0;
   resetTrace(view.missionId);
@@ -780,6 +800,7 @@ export function loadRecordedMission(
 export function closeRecordReplay(): void {
   if (!isReplayingRecord()) return;
   leaveRecordReplay();
+  endNavRun();
   stopLocalTimer();
   localCursor = 0;
   localViewpointCursor = 0;
@@ -787,5 +808,7 @@ export function closeRecordReplay(): void {
   resetViewpoint(NO_MISSION);
   resetRobotSession();
   resetDetect();
+  resetNavFeed();
+  clearObstacleData();
   commitNow({ current: emptyView(), proposal: null, headSec: 0, playing: false, activatedBy: 'boot' });
 }

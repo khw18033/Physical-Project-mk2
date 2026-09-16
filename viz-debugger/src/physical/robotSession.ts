@@ -25,6 +25,7 @@ import { useSyncExternalStore } from 'react';
 import type { ViewpointFrame } from '../viewpoint/fill.ts';
 import type { LinkEffect } from './missionLink.ts';
 import type { PhysicalStatus } from './PhysicalClient.ts';
+import { endNavRun } from './navRun.ts';
 
 /** 화면이 잠긴 이유. `null` 이면 안 잠겼다. */
 export type StopState = {
@@ -675,6 +676,8 @@ export function lockStopped(published: boolean, failure: string | null): StopSta
 export function releaseStopped(): void {
   // 정지를 풀면 승인도 내려간다 — 사람이 다시 눌러야 관문이 열린다.
   humanApprovedPlanId = null;
+  // 자율주행 편(pi1 중계)의 판도 내린다 (260915) — 다시 승인해야 시작할 수 있다. 문 찾기 편에서는 걸어 둔 것이 없어 아무 일도 없다.
+  endNavRun();
   cancelPrep();
   commit({
     ...session, stopped: null, approved: false, approachIssued: false, scanIssued: false,

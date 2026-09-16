@@ -38,7 +38,7 @@
 
 import { useSyncExternalStore } from 'react';
 
-export type ConnectionTargetId = 'gateway' | 'stt' | 'generate' | 'physical' | 'detect' | 'control-node' | 'digital-twin';
+export type ConnectionTargetId = 'gateway' | 'stt' | 'generate' | 'physical' | 'detect' | 'autodrive' | 'autodrive-ai' | 'control-node' | 'digital-twin';
 
 export type ConnectionField = {
   key: string;
@@ -95,6 +95,24 @@ export const CONNECTION_TARGETS: readonly ConnectionTarget[] = [
     //
     // **주소를 여기 적지 않는다** (260914). 로봇과 같다 — 기본값(Tailscale)은
     // `src/detect/DetectClient.ts` 가 `src/detect/presets.ts` 에서 꺼내 심는다.
+    fields: [{ key: 'base', label: '주소', fallback: '' }],
+  },
+  {
+    // 260915 — 자율주행 편. 문 찾기 시연(`physical`, pi7)과 **기계도 브로커도 다르다.**
+    // 주소는 여기 적지 않는다 — 기본값은 `src/physical/NavClient.ts` 가 심는다(로봇과 같은 규칙).
+    id: 'autodrive',
+    label: '자율주행 로봇 (pi1 중계)',
+    what: '유니티가 모는 로봇의 배터리·방위·경로 사건을 받기만 합니다 — 명령을 보내지 않고, 머리줄 정지도 이 로봇에는 닿지 않습니다',
+    live: true,
+    fields: [{ key: 'ws', label: 'WebSocket', fallback: '' }],
+  },
+  {
+    // 260915 — 자율주행 편의 AI 서버(로봇 앞 카메라). 문 찾기 시연의 객체 탐지(`detect`)와 **다른 서버**다.
+    // 주소는 여기 적지 않는다 — 기본값은 `src/autodrive/aiClient.ts` 가 심는다.
+    id: 'autodrive-ai',
+    label: '자율주행 영상 · 장애물 탐지',
+    what: '로봇 앞 카메라의 AI 영상(스트림)과 장애물 탐지 JSON 을 받기만 합니다 — 문 찾기 시연의 객체 탐지와 다른 서버입니다',
+    live: true,
     fields: [{ key: 'base', label: '주소', fallback: '' }],
   },
   {

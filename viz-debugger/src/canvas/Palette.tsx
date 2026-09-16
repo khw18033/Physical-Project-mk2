@@ -17,8 +17,10 @@ import { useScenarioAxes } from '../shared/renderMode.ts';
 import type { CanvasApi } from './useCanvas.ts';
 import { useViewNodeCatalog } from './registry.ts';
 
-export function Palette({ canvas, pickedTaskId, pickedTaskTitle }: {
+export function Palette({ canvas, missionId, pickedTaskId, pickedTaskTitle }: {
   canvas: CanvasApi;
+  /** 지금 캔버스의 임무. 렌더러가 자기 임무에서만 버튼을 두게 한다(`showFor`). */
+  missionId: string;
   /** 지금 고른 태스크. 팔레트에서 꺼낸 노드가 여기에 붙는다. */
   pickedTaskId: string | null;
   pickedTaskTitle: string | null;
@@ -37,7 +39,7 @@ export function Palette({ canvas, pickedTaskId, pickedTaskTitle }: {
   return <div className="palette">
     <div className="palette__row">
       <b className="palette__title">뷰 노드</b>
-      {catalog.filter((entry) => entry.inPalette !== false).map((entry) => {
+      {catalog.filter((entry) => entry.inPalette !== false && (entry.showFor?.(missionId) ?? true)).map((entry) => {
         const unused = scriptKinds !== null && !scriptKinds.has(entry.kind as ViewNodeKindId);
         return <button
           key={entry.kind}

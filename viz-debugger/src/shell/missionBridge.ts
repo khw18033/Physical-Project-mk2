@@ -16,7 +16,7 @@
 
 import { useEffect } from 'react';
 import { activateMission, proposeMission, receiveTrace, rejectProposal, viewForMission } from '../data/scenario.ts';
-import { libraryEntry } from '../scenarios/library.ts';
+import { libraryEntry, opensRobotGate, scriptDriven } from '../scenarios/library.ts';
 import { axesOfMission } from '../scenarios/scriptScope.ts';
 import { markIntegratedBuild, observeConnection, observeEnvelope, updateClientHealth } from '../shared/observability.ts';
 import { enterScenarioRender } from '../shared/renderMode.ts';
@@ -102,10 +102,12 @@ export function startMissionBridge(): () => void {
  * 이 임무가 **로봇이 도는 편**인가 (`world: 'registry'`).
  *
  * 로봇 편의 진행은 로봇만 몬다 — 목 게이트웨이의 합성 재생도, 시나리오 모드 띠도 안 쓴다.
- * 옛 편(`legacy`)은 재생할 로봇이 없으니 그대로 대본으로 돈다.
+ * 옛 편(`legacy`)은 재생할 로봇이 없으니 그대로 대본으로 돈다. 실물 연동 전이라
+ * `driver: 'script'` 를 적은 registry 편도 같은 이유로 대본으로 돈다. `driver: 'relay'`
+ * (260915 자율주행 · pi1 중계)는 로봇 편처럼 합성 진행을 안 받는다 — 중계가 칠한다.
  */
 function robotScript(missionId: string): boolean {
-  return libraryEntry(missionId)?.world === 'registry';
+  return libraryEntry(missionId)?.world === 'registry' && !scriptDriven(missionId);
 }
 
 function applyPlan(envelope: Envelope): void {
@@ -141,7 +143,9 @@ function applyPlan(envelope: Envelope): void {
     // 다만 **사람이 이번 세션에서 누른 것만** 연다. 계획은 캐시되는 채널이라 지난 세션의
     // 승인이 재접속 즉시 다시 내려온다 — 그걸 새 승인으로 받으면 아무도 안 눌렀는데
     // 로봇이 움직인다. 실제로 그랬다.
-    if (approvedByHuman(plan.plan_id)) markApproved();
+    //
+    // 자기 방식으로 도는 편(`driver: 'script'` · `'relay'`)은 관문을 안 연다 — 로봇 경로가 문 찾기 편에 묶여 있다.
+    if (approvedByHuman(plan.plan_id) && opensRobotGate(plan.script.mission_id)) markApproved();
     // **로봇 편은 시나리오 모드로 안 들어간다** (260910 지적 — 조건을 걸지 않는다).
     //
     // 시나리오 모드는 「대본을 재생 중」이라는 화면이다 — 「합성 데이터 · 재생 중」 띠를
@@ -151,8 +155,9 @@ function applyPlan(envelope: Envelope): void {
     // 로봇이 안 붙어 있을 때만 재생하도록 했다가 되돌렸다 — 승인 순간 연결이 아직
     // 안 열려 있으면 띠가 떴다. 「연결이 늦었다」는 사정이 화면에 대본으로 나오면 안 된다.
     //
-    // 옛 편(`world: 'legacy'`, MSN-260826-01)은 그대로 시나리오 모드로 간다.
-    if (plan.script.world !== 'registry') {
+    // 옛 편(`world: 'legacy'`, MSN-260826-01)은 그대로 시나리오 모드로 간다. 실물 연동 전인
+    // 편(`driver: 'script'`)도 간다 — 그 편의 진행은 정말로 합성이라 띠가 사실을 말한다.
+    if (plan.script.world !== 'registry' || scriptDriven(plan.script.mission_id)) {
       const view = viewForMission(plan.script.mission_id);
       if (view !== null) {
         enterScenarioRender({

@@ -200,6 +200,71 @@ try {
     }
   }
 
+  // ── 7. 자율주행 편 (260915) — pi1 중계와 장애물 기록이 남고, 다시보기가 되살린다 ───────────
+  {
+    const feed = await load('src', 'physical', 'navFeed.ts');
+    const navRunMod = await load('src', 'physical', 'navRun.ts');
+    const { startNavLink, drainNavEvents } = await load('src', 'physical', 'navLink.ts');
+    const obstacle = await load('src', 'autodrive', 'obstacle.ts');
+    const AUTO = 'MSN-260915-01';
+    const STATE = 'zoneA/robot/go1-001/nav_state';
+    const EVENT = 'zoneA/robot/go1-001/nav_event';
+    const nav = (over) => ({ schema: 'viz-nav/1', node_id: 'pi1', entity_id: 'go1-001', source: 'journal', note: '', path_id: null, point_count: null, ...over });
+    const stopLink = startNavLink();
+    feed.resetNavFeed();
+    obstacle.clearObstacleData();
+    // 지난 판의 사건 — 열에는 남아 있지만 이 판 기록에 섞이면 안 된다.
+    feed.receiveNavMessage(EVENT, nav({ seq: 900, ts_ms: Date.now() - 60_000, event: 'path_received', path_id: 5 }), Date.now() - 60_000);
+    drainNavEvents();
+    const doorFolder = folder;
+    scenario.activateMission(AUTO, 'remote');
+    recorder.recordTick();
+    await recorder.settleRecorder();
+    if (runDirs().some((f) => f.endsWith(`_${AUTO}`))) failures.push('자율주행 편을 승인만 했는데 폴더가 생겼다 — 시작한 판만 남긴다');
+    navRunMod.startArmedNavRun();
+    const t0 = navRunMod.navRun().startedAtMs;
+    feed.receiveNavMessage(STATE, nav({ ts_ms: Date.now(), battery_pct: 77, yaw_deg: 3, yaw_source: 'bridge_state', yaw_odometry_deg: -3, moving: false, path_active: false }), Date.now());
+    feed.receiveNavMessage(EVENT, nav({ seq: 1, ts_ms: t0 + 1000, event: 'path_received', path_id: 1, point_count: 4 }), t0 + 1000);
+    drainNavEvents();
+    const OBSTACLE = { timestamp: '1789440000.5', camera_id: 'go1_front', detections: [{ id: 1, name: 'umbrella', group: 'HARD_OBSTACLE', rel_depth: 1.3, distance_cm: 40.2, distance_cm_raw: 40, risk_level: 'near', bbox_xyxy: [1, 2, 3, 4] }], has_near_obstacle: true, state_change: false };
+    obstacle.receiveObstacle(OBSTACLE, 'relay', Date.now());
+    recorder.recordTick();
+    await recorder.settleRecorder();
+    const autoFolder = runDirs().find((f) => f.endsWith(`_${AUTO}`));
+    if (autoFolder === undefined) failures.push('자율주행 편을 시작했는데 폴더가 안 생겼다');
+    else {
+      const saved = readRun(autoFolder, 'progress.json');
+      if (saved.nav?.telemetry?.batteryPct !== 77 || saved.nav?.telemetry?.yawOdometryDeg !== -3) failures.push('pi1 중계 상태(배터리·yaw)가 기록에 안 남는다');
+      if (!saved.nav?.events?.some((e) => e.pathId === 1)) failures.push('pi1 경로 사건이 기록에 안 남는다');
+      if (saved.nav?.events?.some((e) => e.seq === 900)) failures.push('판을 열기 전(지난 판)의 경로 사건이 이 판 기록에 섞였다');
+      if (saved.obstacle?.latest?.raw?.detections?.[0]?.name !== 'umbrella' || !saved.obstacle?.log?.some((l) => l.text.includes('umbrella'))) failures.push('장애물 JSON(받은 그대로)과 바뀐 줄이 기록에 안 남는다');
+      if (!saved.trace.some((e) => e.nodeId === 'T-NB1' && e.status === 'done')) failures.push('자율주행 노드 사건이 기록 열에 안 남는다');
+      const mission = readRun(autoFolder, 'mission.json');
+      if (!('autodrive' in (mission.connections ?? {})) || !('autodriveAi' in (mission.connections ?? {}))) failures.push('기록에 pi1 · AI 서버 주소가 안 남는다');
+      if (doorFolder !== undefined && 'nav' in readRun(doorFolder, 'progress.json')) failures.push('문 찾기 편 기록에 자율주행 칸이 들어갔다');
+
+      // 다시보기 — 지금 값을 비워 두고 연다. 기록에서 되살아나야 한다.
+      scenario.resetMission();
+      feed.resetNavFeed();
+      obstacle.clearObstacleData();
+      const [date, run] = autoFolder.split('/');
+      const opened = await openRecordedRun(date, run);
+      if (!opened.ok) failures.push(`자율주행 다시보기가 안 열린다 — ${opened.reason}`);
+      else {
+        if (feed.navFeedState().telemetry?.batteryPct !== 77 || !feed.navFeedState().events.some((e) => e.pathId === 1)) failures.push('다시보기가 pi1 중계 값을 안 되살린다');
+        if (obstacle.obstacleState().latest?.hasNearObstacle !== true) failures.push('다시보기가 장애물 기록을 안 되살린다');
+        // 다시보기 중에는 AI 서버에 묻지 않는다 — 지금 값이 기록을 덮으면 안 된다.
+        const release = obstacle.holdObstaclePolling(async () => { throw new Error('다시보기 중에 물었다'); });
+        if (obstacle.obstacleHolders() !== 0 || obstacle.obstacleState().polling) failures.push('다시보기 중에 장애물 폴링이 돈다');
+        release();
+        if (navRunMod.navRun() !== null || navRunMod.navRunState().armed !== null) failures.push('다시보기가 자율주행 판을 되살렸다 — 지금 중계로 지난 판을 칠한다');
+        scenario.closeRecordReplay();
+        if (feed.navFeedState().events.length !== 0 || obstacle.obstacleState().latest !== null) failures.push('다시보기를 닫았는데 지난 판의 중계·장애물 값이 남는다');
+      }
+    }
+    stopLink();
+  }
+
   stopRecorder();
 
   // ── 대조군 ─────────────────────────────────────────────────────────────────
@@ -236,5 +301,6 @@ console.log('✅ 로봇 명령과 응답 · 탐지 결과와 경로 · 탐지 �
 console.log('✅ 끝나면 곧바로 결과가 적히고, 새 판을 올리기 직전의 마지막 사건까지 봉인된다');
 console.log('✅ 다시보기는 같은 저장소를 채워 같은 화면을 세우고, 그림은 기록 폴더에서 읽는다');
 console.log('✅ 다시보기는 승인·시작을 안 되살리고, 지금 로봇 응답·사람 조작·진행을 안 섞고, 또 기록되지 않는다');
+console.log('✅ 자율주행 편 — pi1 중계 상태·이 판 사건·장애물 JSON(받은 그대로)·바뀐 줄이 남고, 다시보기가 되살리며 그동안 AI 서버에 안 묻고, 닫으면 걷힌다');
 console.log(`✅ 대조군 ${controls.length}건 전부 검출 — ${controls.join(' · ')}`);
 process.exit(0);

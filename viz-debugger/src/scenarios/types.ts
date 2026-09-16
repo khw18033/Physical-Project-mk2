@@ -25,6 +25,14 @@ import type { ActionItem, TaskStatus } from '../model/types.ts';
 export type ScriptMatch = {
   must: string[][];
   any?: string[];
+  /**
+   * 제외어 (260915 — 자율주행 편). 하나라도 들어 있으면 이 편은 **맞지 않는다.**
+   *
+   * 「문 앞까지 자율주행 진행해」가 시연 편(MSN-260909-01)의 must 「문앞」에도 걸려 두 편이
+   * 모호 거부됐다. 매처는 모호하면 고르지 않는다(억지로 고르면 LLM 흉내다) — 그래서 우선순위를
+   * 두지 않고, 시연 편이 「자율주행」이 든 문장은 자기 것이 아니라고 **스스로 말하게** 한다.
+   */
+  not?: string[];
   /** 사람이 읽는 정규화 규칙 설명. 실제 규칙은 matcher.ts 의 normalize() 하나다. */
   normalize?: string;
 };
@@ -150,6 +158,20 @@ export type ScriptScenario = {
   match: ScriptMatch;
   /** 탭②~⑤에서 그려도 되는 장비. 전부 registry.json 에 실재해야 한다(verify:script-library). */
   cast: string[];
+  /**
+   * **이 편의 진행을 누가 모는가** (260915 — 자율주행 편).
+   *
+   *  - 없음    지금까지 그대로 — registry 편은 로봇이 몬다(게이트웨이 합성 진행을 안 받고,
+   *            승인이 로봇 관문을 연다). 1~3편 · 5편(시연)이 이 값이다
+   *  - 'script' 실물 연동이 아직 없는 편 — 옛 편처럼 **대본 재생이 몰고**(시나리오 모드 띠),
+   *            승인이 로봇 관문을 **안 연다.** 「임무 시작」을 눌러도 문 찾기 스캔이 나가지 않는다
+   *  - 'relay'  로봇을 **다른 쪽(유니티)이 몰고** 라즈베리파이가 본 것을 전해 주는 편 (260915 · pi1).
+   *            게이트웨이 합성 진행을 안 받고(일반 모드), 승인이 로봇 관문을 **안 연다** — 화면은
+   *            아무것도 보내지 않는다. 승인하는 순간부터 중계를 칠한다(`physical/navLink.ts`)
+   *
+   * 가르는 자리는 `library.ts` 의 `scriptDriven()` · `relayDriven()` · `opensRobotGate()` 셋이다.
+   */
+  driver?: 'script' | 'relay';
   durationSec: number;
   /** 편별 상수 — 위험 수위 선(탭④)·정지 거리·재탐색 임계 등. 화면이 읽는다. */
   params?: Record<string, unknown>;

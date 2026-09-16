@@ -48,6 +48,10 @@ import type { ScanFeedMessage } from '../physical/scanFeed.ts';
 import { connectionAddress } from '../shared/connections.ts';
 import { notificationsNow } from '../shared/notifications.ts';
 import { arrivedFrames } from '../viewpoint/store.ts';
+import { recordableNavFeed } from '../physical/navFeed.ts';
+import { navRun } from '../physical/navRun.ts';
+import { recordableObstacle } from '../autodrive/obstacle.ts';
+import { relayDriven } from '../scenarios/library.ts';
 import { useSyncExternalStore } from 'react';
 import {
   detectImagePath, postRecordImage, putRecordJson, robotImagePath, runFolderOf, type RecordMissionSummary,
@@ -84,6 +88,8 @@ type Run = {
   images: Map<string, string>;
   /** 저장이 어떻게 됐나 — 기록에 같이 남긴다. */
   imageLog: Record<string, { source: string; savedAtIso: string | null; attempts: number; error: string | null }>;
+  /** 자율주행 편 — 이 판에서 중계 판을 연 시각. 안 열었으면 null. */
+  navStartedAtMs: number | null;
 };
 
 type ImageJob = {
@@ -144,6 +150,7 @@ function currentRun(): Run | null {
       robotFrames: [],
       images: new Map(),
       imageLog: {},
+      navStartedAtMs: null,
     };
   }
   return run;
@@ -202,6 +209,9 @@ function buildBodies(target: Run): { mission: string; progress: string } {
     connections: {
       robot: connectionAddress('physical', 'ws'),
       detect: connectionAddress('detect', 'base'),
+      // 자율주행 편 (260915) — pi1 중계와 AI 서버. 문 찾기 편에서도 적히지만 그 판에서는 쓰이지 않는다.
+      autodrive: connectionAddress('autodrive', 'ws'),
+      autodriveAi: connectionAddress('autodrive-ai', 'base'),
     },
     view,
   };
@@ -220,6 +230,12 @@ function buildBodies(target: Run): { mission: string; progress: string } {
     prep: prepState(),
     notifications: notificationsNow(),
     images: target.imageLog,
+    // 자율주행 편 (260915) — pi1 중계가 준 상태·사건과 AI 서버의 장애물 기록. 판이 안 열렸으면 사건은 비어 있다.
+    // 중계 판의 임무에서만 싣는다 — 문 찾기 편 기록에 남의 판 값이 섞이면 안 된다.
+    ...(relayDriven(view.missionId) ? {
+      nav: recordableNavFeed(navRun()?.startedAtMs ?? target.navStartedAtMs),
+      obstacle: recordableObstacle(),
+    } : {}),
   };
   return { mission: JSON.stringify(summary, null, 2), progress: JSON.stringify(progress) };
 }
@@ -329,9 +345,13 @@ export function recordTick(): void {
   if (isReplayingRecord() || status.state === 'unavailable') return;
   const target = currentRun();
   if (target === null) { setStatus({ state: 'idle', folder: null }); return; }
+  // 중계 판이 열린 시각을 붙들어 둔다 — 정지 해제로 판이 닫힌 뒤에 뜨는 마지막 기록도 이 판의 사건만 싣는다.
+  const nav = navRun();
+  if (nav !== null && nav.missionId === target.missionId) target.navStartedAtMs = nav.startedAtMs;
   if (target.folder === null) {
     if (!somethingHappened(target)) { setStatus({ state: 'waiting', folder: null }); return; }
-    const startedAtMs = robotSession().startedAtMs ?? target.createdAtMs;
+    // 자율주행 편은 로봇 세션을 안 쓴다 — 「▶ 임무 시작」이 연 판의 시각이 시작이다(260915).
+    const startedAtMs = robotSession().startedAtMs ?? target.navStartedAtMs ?? target.createdAtMs;
     target.folder = runFolderOf(new Date(startedAtMs), target.missionId);
     target.startedAtIso = new Date(startedAtMs).toISOString();
   }

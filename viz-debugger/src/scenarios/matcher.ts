@@ -10,6 +10,7 @@
  * 규칙:
  *   - must: 바깥 배열 AND · 안쪽 배열 OR (동의어·오인식 변형)
  *   - any : 비어 있지 않으면 하나는 맞아야 한다
+ *   - not : 하나라도 들어 있으면 맞지 않는다 (260915 — 이웃 편의 문장을 스스로 내어 준다)
  *   - 정규화: 공백 제거 · 소문자 — 이 한 줄이 대본 파일 match.normalize 문구의 실체다
  *   - **맞는 대본이 없으면 없다고 한다.** 둘 이상 맞아도 고르지 않는다(모호 = 거부).
  *     비슷한 것을 억지로 고르면 「대본 조회」가 LLM 흉내가 된다.
@@ -25,6 +26,7 @@ export function normalize(text: string): string {
 export function matchesRule(sentence: string, match: ScriptMatch | undefined): boolean {
   if (!match || !Array.isArray(match.must) || match.must.length === 0) return false;
   const text = normalize(sentence);
+  if (Array.isArray(match.not) && match.not.some((word) => text.includes(normalize(word)))) return false;
   const mustOk = match.must.every(
     (group) => Array.isArray(group) && group.some((word) => text.includes(normalize(word))),
   );

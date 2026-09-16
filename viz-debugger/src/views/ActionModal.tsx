@@ -14,7 +14,12 @@
 
 import { useState } from 'react';
 import { issueCommand } from '../shared/commandEgress.ts';
-import type { MissionView } from '../data/scenario.ts';
+import { traceFor, type MissionView } from '../data/scenario.ts';
+import { relayDriven } from '../scenarios/library.ts';
+import { isNavTask } from '../physical/navLink.ts';
+import { NavFacts } from '../physical/NavFacts.tsx';
+import { OBSTACLE_TASK } from '../autodrive/obstacle.ts';
+import { ObstacleEvidence, ObstacleFacts } from '../autodrive/views/AutodriveViews.tsx';
 import type { Hardware, Task } from '../model/types.ts';
 import { PendingSource } from '../shared/PendingSource.tsx';
 import { STATE_STYLE } from '../graph/stateStyle.ts';
@@ -128,8 +133,11 @@ export function ActionModal({ task, view, device, failure, onClose }: { task: Ta
   const action = (kind: string) => void issueCommand({ action: kind, entity: task.id, params: { speed, clearance } });
   // 대본(registry 세계)의 평가는 대본 파일에서 읽는다 — 기준은 task.evaluation, 근거값은
   // 기록 열의 payload (예: MS-E 의 distance_m: 2.7). 옛 편은 전달본의 목 문구 그대로다.
+  // **중계 편은 흘러온 기록에서 읽는다** (260915). 대본의 사건은 그 편의 정의일 뿐이라, 거기서 읽으면
+  // pi1 이 아무것도 안 보냈는데 「배터리 82%」 같은 대본 값이 근거로 뜬다.
+  const relay = relayDriven(view.missionId);
   const evidence = view.world === 'registry'
-    ? view.events.filter((e) => e.nodeId === task.id && e.payload && Object.keys(e.payload).length > 0).at(-1)?.payload ?? null
+    ? (relay ? traceFor(view) : view.events).filter((e) => e.nodeId === task.id && e.payload && Object.keys(e.payload).length > 0).at(-1)?.payload ?? null
     : null;
   return <div className="modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}><section className={`modal ${failure ? 'failure-modal' : ''}`}>
     <header><div><h2>{failure ? '× ' : ''}{task.id} · {task.title}{failure ? ' — 실패' : ''}</h2>{/* **낸 명령 수를 적는다.** 「액션 아이템 0건」은 이 편에서 늘 0이라 아무것도 안 알려
@@ -155,8 +163,14 @@ export function ActionModal({ task, view, device, failure, onClose }: { task: Ta
       {task.id === 'T-A3' && <SweepFacts />}
       {task.id === 'T-B1' && <PathFacts />}
       {task.id === 'T-B2' && <ApproachFacts />}
-      <h3>로봇 명령 · 오간 로그</h3>
-      <RobotCommands taskId={task.id} />
+      {/* **중계 편은 화면이 명령을 안 낸다** (260915) — 로봇은 유니티가 몬다. 대신 pi1 이 전해 준 것을 붙인다. */}
+      {relay
+        ? <>
+            {isNavTask(task.id) && <><h3>pi1 중계 · 받은 값</h3><NavFacts taskId={task.id} /></>}
+            {/* **장애물 탐지는 AI 서버가 준 것 그대로** (260915). 문 찾기 시연의 탐지 로그와 다른 서버다. */}
+            {task.id === OBSTACLE_TASK && <><h3>장애물 탐지 · AI 서버</h3><ObstacleFacts /></>}
+          </>
+        : <><h3>로봇 명령 · 오간 로그</h3><RobotCommands taskId={task.id} /></>}
       {/* **탐지 쪽에서 오간 것** (260914 지시). 로봇 → 탐지 프레임, 탐지 → 화면 결과, 화면의
           판단이 그 태스크 몫만 붙는다. 탐지 그림이 안 올 때 어느 구간에서 끊겼는지가 여기 남는다. */}
       {isDetectTask(task.id) && <DetectLogLines taskId={task.id} />}
@@ -165,6 +179,7 @@ export function ActionModal({ task, view, device, failure, onClose }: { task: Ta
       ? <><h3>평가 · Evaluation</h3>{task.evaluation
           ? task.evaluation.criteria.map((criterion) => <p key={criterion}>✓ {criterion} <small>판정 {task.evaluation!.judgedBy}</small></p>)
           : <p>평가 기준 없는 태스크 — 평가로 끝나는 태스크가 아닙니다</p>}
+        {relay && task.id === OBSTACLE_TASK && <><h3>판단 근거</h3><ObstacleEvidence /></>}
         {/* 근거 가시화 (260909 시연 대본 §5) — 근거 **문장**이 있으면 그것부터 읽힌다.
             발표에서 사람이 소리 내어 읽을 자리라 JSON 한 덩어리로 두면 못 읽는다.
             이미지는 아직 없다 — **자리를 만들고 비워 둔다.** 더미를 그려 넣지 않는다. */}

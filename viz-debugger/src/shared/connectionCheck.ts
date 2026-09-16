@@ -19,6 +19,8 @@ import type { ConnectionTargetId } from './connections.ts';
 import { line, setChecking, setHealth, type HealthLine } from './connectionHealth.ts';
 import { probeDetect, sourceOf } from '../detect/DetectClient.ts';
 import { detectState } from '../detect/store.ts';
+import { fetchObstacleJson, probeStill, type FetchLike } from '../autodrive/aiClient.ts';
+import { parseObstacle } from '../autodrive/obstacle.ts';
 
 /**
  * `physical` 을 확인할 때 쓸 것. 로봇 경계를 이 파일이 직접 열지 않는다 —
@@ -164,6 +166,75 @@ export async function checkDetect(): Promise<readonly HealthLine[]> {
     : line('health', 'GET /health', false, { reason: value.reason })];
 }
 
+/**
+ * `autodrive` 를 확인할 때 쓸 것 (260915 — pi1 중계). 로봇 경계를 이 파일이 직접 열지 않는다 —
+ * `physical` 과 같은 이유다. 화면이 넘긴다.
+ */
+export type NavProbe = {
+  connect(): Promise<{ state: string; reason?: string }>;
+  getStatus(): { state: string; reason?: string };
+  /** 마지막으로 받은 중계 값. 한 건도 안 왔으면 null. */
+  latest(): {
+    receivedAtMs: number; nodeId: string; entityId: string;
+    batteryPct: number | null; yawDeg: number | null; yawSource: string | null;
+  } | null;
+};
+
+/**
+ * **`autodrive` 는 줄이 둘이다** — 브로커 · 중계.
+ *
+ * 로봇에 물어볼 방법이 없다(명령을 안 보낸다). 대신 pi1 의 중계가 0.5초마다 상태를 내므로,
+ * 붙은 **뒤에** 새로 온 한 건이 있으면 중계가 살아 있는 것이다. 6초 안에 안 오면 빨갛다 —
+ * 브로커는 붙었는데 중계가 안 돈다는 사실이고, 고칠 곳이 pi1 의 서비스라는 뜻이다.
+ */
+export async function checkAutodrive(probe: NavProbe | null, waitMs = 6000): Promise<readonly HealthLine[]> {
+  if (probe === null) return [line('broker', '브로커', false, { reason: '클라이언트가 없습니다' })];
+  const askedAt = Date.now();
+  const status = probe.getStatus().state === 'open' ? probe.getStatus() : (await timed(() => probe.connect())).value;
+  if (status.state !== 'open') {
+    return [
+      line('broker', '브로커', false, { reason: status.reason ?? status.state }),
+      line('feed', '중계', null, { reason: '브로커가 없어 물어보지 못했습니다' }),
+    ];
+  }
+  const broker = line('broker', '브로커', true);
+  const deadline = Date.now() + waitMs;
+  for (;;) {
+    const latest = probe.latest();
+    if (latest !== null && latest.receivedAtMs >= askedAt) {
+      const words = [
+        [latest.nodeId, latest.entityId].filter((v) => v !== '').join(' · '),
+        latest.batteryPct === null ? '배터리 모름' : `배터리 ${latest.batteryPct}%`,
+        latest.yawDeg === null ? 'yaw 모름' : `yaw ${latest.yawDeg.toFixed(1)}° (${latest.yawSource})`,
+      ].filter((v) => v !== '').join(' · ');
+      return [broker, line('feed', '중계', true, { roundTripMs: latest.receivedAtMs - askedAt, reason: words })];
+    }
+    if (Date.now() >= deadline) break;
+    await new Promise((resolve) => setTimeout(resolve, 250));
+  }
+  return [broker, line('feed', '중계', false, { reason: `${waitMs / 1000}초 안에 중계 상태가 안 왔습니다 — 브로커는 붙었습니다. pi1 의 중계 서비스를 보세요` })];
+}
+
+/**
+ * `autodrive-ai` — **장애물 JSON · 영상 한 장** 두 줄 (260915). 둘은 경로가 달라 따로 죽는다 —
+ * JSON 은 오는데 스트림만 멎는 일이 실제로 있었다(같은 날 실측).
+ */
+export async function checkAutodriveAi(fetcher?: FetchLike): Promise<readonly HealthLine[]> {
+  const { value: json, ms } = await timed(() => fetchObstacleJson(fetcher));
+  const snap = json.ok ? parseObstacle(json.body) : null;
+  const control = !json.ok
+    ? line('control', '장애물 JSON', false, { reason: json.reason })
+    : snap === null
+      ? line('control', '장애물 JSON', false, { reason: '받았지만 모양이 다릅니다 — detections 배열이 없습니다' })
+      : line('control', '장애물 JSON', true, {
+          roundTripMs: ms,
+          reason: `탐지 ${snap.detections.length}건 · has_near_obstacle ${String(snap.hasNearObstacle)}${json.via === 'direct' ? ' · 직접' : ''}`,
+        });
+  const still = await probeStill();
+  const stream = line('stream', '영상 한 장', still.ok, { roundTripMs: still.ms, reason: still.reason });
+  return [control, stream];
+}
+
 export async function checkStt(): Promise<readonly HealthLine[]> {
   const { value, ms } = await timed(() => sttProbe());
   return [value.alive
@@ -186,10 +257,13 @@ export async function checkTarget(
   target: ConnectionTargetId,
   physical: PhysicalProbe | null,
   robot: RobotFacts | (() => RobotFacts | null) | null = null,
+  nav: NavProbe | null = null,
 ): Promise<void> {
   setChecking(target, true);
   try {
     if (target === 'physical') setHealth(target, await checkPhysical(physical, robot));
+    else if (target === 'autodrive') setHealth(target, await checkAutodrive(nav));
+    else if (target === 'autodrive-ai') setHealth(target, await checkAutodriveAi());
     else if (target === 'detect') setHealth(target, await checkDetect());
     else if (target === 'stt') setHealth(target, await checkStt());
     else if (target === 'generate') setHealth(target, await checkGenerate());

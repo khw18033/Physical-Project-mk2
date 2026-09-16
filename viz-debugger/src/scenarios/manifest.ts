@@ -9,8 +9,11 @@
  * 조용히 갈라지는 일을 막는다. `library.ts` 가 기동 시 목록과 실제 import 를 대조한다.
  */
 
-/** registry 세계 대본. `scenarios/<id>.json`. */
-export const SCRIPT_IDS = ['MSN-260831-01', 'MSN-260831-02', 'MSN-260831-03', 'MSN-260909-01'] as const;
+/**
+ * registry 세계 대본. `scenarios/<id>.json`.
+ * `MSN-260915-01`(문 앞까지 자율주행)은 유니티가 로봇을 몰고 pi1 이 중계한다 — `driver: 'relay'`.
+ */
+export const SCRIPT_IDS = ['MSN-260831-01', 'MSN-260831-02', 'MSN-260831-03', 'MSN-260909-01', 'MSN-260915-01'] as const;
 
 /**
  * 옛 편 — HCI 전달본·논문용이라 파일은 한 글자도 고치지 않는다(verify:scenario).

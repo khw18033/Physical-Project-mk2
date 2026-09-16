@@ -7,6 +7,9 @@ import { applyFanLayout, fanGeometry, VIEWPOINT_NODE_HEIGHT, type ViewpointGroup
 import { dagLayout, viewNodeLayout, NODE_HEIGHT, NODE_WIDTH, VIEW_NODE_HEIGHT, VIEW_NODE_WIDTH, type Attached, type Position } from './layout.ts';
 import { STATE_STYLE } from './stateStyle.ts';
 
+/** 되돌아가는 곡선이 두 노드 바닥 아래로 내려가는 깊이(px). 문구와 화살촉이 노드와 겹치지 않을 만큼. */
+const REF_EDGE_DEPTH = 56;
+
 type Props = {
   tasks: Task[]; hardware: readonly Hardware[]; states: Record<string, { status: TaskStatus; attempt: number }>;
   selected?: string; dimUnrelated?: boolean; onOpen(task: Task): void;
@@ -287,7 +290,8 @@ export function TaskGraph({ tasks, hardware, states, selected, dimUnrelated, onO
     // 과하게 잡히고, 「여덟이 한 화면에」 계산이 실제 그림보다 후해진다.
     ...Object.entries(positions).map(([id, position]) => position.y
       + (fanIds.has(id) ? VIEWPOINT_NODE_HEIGHT : NODE_HEIGHT)
-      + ((refEdges?.length ?? 0) > 0 ? 70 : 30)),
+      // 되돌아감이 있으면 그 곡선과 문구가 들어갈 자리까지 (260915 — 곡선을 더 깊게 했다).
+      + ((refEdges?.length ?? 0) > 0 ? REF_EDGE_DEPTH + 58 : 30)),
     // 뷰 노드가 세로를 밀어낸다 — 캔버스가 따라 커지지 않으면 아래쪽 카드가 잘린다.
     ...Object.values(viewPositions).map((position) => position.y + VIEW_NODE_HEIGHT + 30),
   );
@@ -442,15 +446,27 @@ export function TaskGraph({ tasks, hardware, states, selected, dimUnrelated, onO
     onPointerDown={(event) => { if (event.target === event.currentTarget) canvas?.onPick(null); }}
   >
     <svg className="edges" width={width} height={height} aria-hidden="true">
-      <defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" /></marker></defs>
-      {/* 되돌아가는 참조 엣지 — 점선 + ↺ 문구. 깊이·레이아웃 계산에는 들어가지 않는다 (260831). */}
+      <defs>
+        <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" /></marker>
+        {/* 되돌아감 전용 화살촉 (260915 지시 — 「화살표처럼 보이게」). 점선은 촉까지 끊겨 보이므로 촉은 채운 삼각형으로 크게,
+            선과 같은 색으로 따로 둔다. userSpaceOnUse 라 선 굵기에 따라 작아지지 않는다. */}
+        <marker id="arrow-ref" className="edge-ref-head" viewBox="0 0 12 12" refX="10" refY="6" markerWidth="13" markerHeight="13" markerUnits="userSpaceOnUse" orient="auto"><path d="M 0 0 L 12 6 L 0 12 L 3 6 z" /></marker>
+      </defs>
+      {/* 되돌아가는 참조 엣지 — 점선 + ↺ 문구. 깊이·레이아웃 계산에는 들어가지 않는다 (260831).
+          260915 — 노드 바닥에 딱 붙어 선인지 테두리인지 안 갈렸다. 양끝을 노드에서 띄우고(떠나는 쪽 8px · 닿는 쪽 촉 자리까지 14px),
+          더 깊게 휘게 해 두 노드 사이 선들과 겹치지 않게 한다. 크기를 바꾼 노드도 실제 상자 바닥에서 띄운다. */}
       {(refEdges ?? []).map((edge) => {
-        const from = positions[edge.from]; const to = positions[edge.to]; if (!from || !to) return null;
-        const midX = (from.x + to.x) / 2 + NODE_WIDTH / 2;
-        const midY = Math.max(from.y, to.y) + NODE_HEIGHT + 28;
+        const from = boxOf(edge.from, 'task'); const to = boxOf(edge.to, 'task'); if (!from || !to) return null;
+        const startX = from.x + from.w / 2;
+        const startY = from.y + from.h + 8;
+        const endX = to.x + to.w / 2;
+        const endY = to.y + to.h + 14;
+        const depth = Math.max(startY, endY) + REF_EDGE_DEPTH;
+        // 세 차 베지어의 가장 낮은 곳은 조절점 깊이의 3/4 쯤이다 — 문구를 그 아래에 둔다.
+        const lowest = Math.max(startY, endY) + REF_EDGE_DEPTH * 0.75;
         return <g key={`ref-${edge.from}-${edge.to}`}>
-          <path className="edge edge--ref" d={`M${from.x + NODE_WIDTH / 2},${from.y + NODE_HEIGHT} C${from.x + NODE_WIDTH / 2},${midY} ${to.x + NODE_WIDTH / 2},${midY} ${to.x + NODE_WIDTH / 2},${to.y + NODE_HEIGHT}`} markerEnd="url(#arrow)" />
-          <text className="edge__label" x={midX} y={midY + 14} textAnchor="middle">↺ {edge.label}</text>
+          <path className="edge edge--ref" d={`M${startX},${startY} C${startX},${depth} ${endX},${depth} ${endX},${endY}`} markerEnd="url(#arrow-ref)" />
+          <text className="edge__label" x={(startX + endX) / 2} y={lowest + 16} textAnchor="middle">↺ {edge.label}</text>
         </g>;
       })}
       {tasks.flatMap((task) => task.deps.map((dep) => {

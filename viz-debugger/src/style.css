@@ -264,7 +264,9 @@ b.follow-live{cursor:default}
 .node-kind--act{background:#fdefe0;color:#a86414}
 .node-kind--verify{background:#e6f7ee;color:#20654a}
 .node-kind--report{background:#eef1f5;color:#5f6b7a}
-.edge--ref{fill:none;stroke:#b9862d;stroke-width:1.6;stroke-dasharray:7 5;opacity:.85}
+.edge--ref{fill:none;stroke:#b9862d;stroke-width:2;stroke-dasharray:7 5;opacity:.95}
+/* 되돌아감 화살촉 (260915) — 선과 같은 색으로 채운다. 기본 채움(검정)이면 점선 끝에 검은 점처럼 보인다. */
+.edge-ref-head path{fill:#b9862d;stroke:none}
 /* 줄바꿈 엣지 (260901) — 화면 폭에 맞춰 접힌 자리. **실선 파랑**이라 되돌아가는 참조
    엣지(점선 주황 ↺)와 섞이지 않는다. 하나는 「줄바꿈」이고 하나는 「루프」다. */
 .edge--wrap{fill:none;stroke:#1768c5;stroke-width:2;opacity:.8}
@@ -744,3 +746,15 @@ button.robot-resume{padding:6px 12px;border:1px solid #2f9e5f;border-radius:6px;
 .device-facts dt{min-width:88px;color:#6b7888}
 .device-facts dd{margin:0;color:#26303c;font-weight:600}
 .device-facts--none{margin:12px 0;padding:10px;border:1px dashed #d5dbe3;border-radius:6px;color:#6b7888;font-size:13px}
+/* 자율주행 편 — 로봇 영상 · 장애물 탐지 (260915). 문 찾기 시연 화면의 규칙은 건드리지 않는다. */
+.autodrive-cam img{min-height:48px;background:#11161d}
+.obstacle-facts h4{margin:12px 0 4px;font-size:12px;color:#4a5666}
+.obstacle-table{width:100%;border-collapse:collapse;margin:6px 0;font-size:12px}
+.obstacle-table th,.obstacle-table td{padding:4px 6px;border-bottom:1px solid #eef1f5;text-align:left;vertical-align:top}
+.obstacle-table small{display:block;color:#8a94a1;font-size:10px}
+.obstacle-table tr.is-near td{background:#fff4f1}
+.obstacle-raw{margin:6px 0}
+.obstacle-raw pre{max-height:260px;overflow:auto;margin:4px 0 0;padding:8px;border-radius:6px;background:#11161d;color:#d7e0ea;font-size:11px;line-height:1.45}
+.evidence-reason--warn{border-left-color:#d9534f;background:#fff4f1;color:#7a2a26}
+.obstacle-evidence{margin:4px 0 10px;padding-left:18px;font-size:12px;line-height:1.6}
+.obstacle-evidence li.is-near{color:#a3342f}

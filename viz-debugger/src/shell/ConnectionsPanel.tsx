@@ -29,6 +29,7 @@ import { DETECT_PRESETS, detectPresetReady } from '../detect/presets.ts';
 import { BROKER_PRESETS, presetReady } from '../physical/presets.ts';
 import { checkTarget, type PhysicalProbe } from '../shared/connectionCheck.ts';
 import { robotFacts } from '../physical/robotFacts.ts';
+import { navProbe } from '../physical/NavClient.ts';
 import { setTestMode, useDetect } from '../detect/store.ts';
 import { useDeviceStates } from '../physical/deviceState.ts';
 import { CHECKED_TARGETS, useConnectionHealth, type TargetHealth } from '../shared/connectionHealth.ts';
@@ -124,8 +125,10 @@ export function ConnectionsPanel({ onClose, physical }: { onClose(): void; physi
             onChange={(event) => setDraft((prev) => ({ ...prev, [key]: event.target.value }))} />
         </label>;
       })}
-      {/* 상태 · 확인 · 마지막 확인 — 나머지 세 줄 (§2). 확인 방법이 있는 대상만. */}
-      {CHECKED_TARGETS.includes(target.id) && <HealthRow
+      {/* 상태 · 확인 · 마지막 확인 — 나머지 세 줄 (§2). 확인 방법이 있는 대상만.
+          자율주행(pi1)도 확인은 되지만 머리줄 표시등의 목록(`CHECKED_TARGETS`)에는 안 넣는다 —
+          문 찾기 시연의 「n/4 확인됨」이 그대로여야 한다 (260915). */}
+      {(CHECKED_TARGETS.includes(target.id) || target.id === 'autodrive' || target.id === 'autodrive-ai') && <HealthRow
         target={target.id}
         physical={target.id === 'physical' ? (physical ?? null) : null}
       />}
@@ -179,7 +182,7 @@ function HealthRow({ target, physical }: { target: ConnectionTargetId; physical:
       type="button"
       className="conn-check"
       disabled={state.checking}
-      onClick={() => void checkTarget(target, physical, robotFacts)}
+      onClick={() => void checkTarget(target, physical, robotFacts, target === 'autodrive' ? navProbe() : null)}
     >{state.checking ? '확인 중…' : '확인'}</button>
     {state.lines.length > 0 && <small className="conn-health__at">
       {new Date(state.lines[0].checkedAtIso).toLocaleTimeString()}
