@@ -62,6 +62,8 @@ import { Explain } from '../shared/Explain.tsx';
 import placesTopology from '../../../places/places.json';
 import equipmentVocabulary from '../../../equipment/equipment.json';
 import { noteHumanAction } from '../shared/humanAction.ts';
+import { t } from '../i18n/dict.ts';
+import { useLang } from '../shared/language.ts';
 
 const LEVEL_BARS = 22;
 /** 레벨 갱신 주기. 60fps로 setState 하면 이 작은 패널이 렌더 예산을 먹는다. */
@@ -85,21 +87,22 @@ function realSteps(phase: Phase, hasAudio: boolean, hasResult: boolean): Array<{
   const capture: StepState = phase === 'recording' ? 'active' : phase === 'failed' && !hasAudio ? 'failed' : hasAudio ? 'done' : 'idle';
   const stt: StepState = phase === 'transcribing' ? 'active' : phase === 'failed' && hasAudio && !hasResult ? 'failed' : hasResult ? 'done' : 'idle';
   return [
-    { label: '음성 수신', state: capture },
-    { label: 'STT 변환', state: stt },
+    { label: t('utter.step.voice'), state: capture },
+    { label: t('utter.step.stt'), state: stt },
   ];
 }
 
 /** 접힌 줄에 적는 한 낱말 — 지금 이 마일스톤을 무엇이 썼는가. */
 function producerWord(producer: string): string {
-  if (producer === 'running') return '생성 중…';
-  if (producer === 'ai') return 'AI 가 만들었습니다';
-  if (producer === 'script') return '대본에서 꺼냈습니다';
-  return '아직 아무것도 안 했습니다';
+  if (producer === 'running') return t('utter.badge.generating');
+  if (producer === 'ai') return t('utter.badge.ai');
+  if (producer === 'script') return t('utter.badge.script');
+  return t('utter.badge.idle');
 }
 
 const STEP_MARK: Record<StepState, string> = { idle: '·', active: '…', done: '✓', failed: '✕' };
-const MOCK_STEPS = ['의도 분석', '마일스톤 분리', '태스크 생성'];
+/** **상수가 아니라 함수다** — 최상위 상수에서 `t()` 를 부르면 로드 시점에 굳는다 (지시서 §2 ②). */
+const mockSteps = () => [t('utter.step.intent'), t('utter.step.milestones'), t('utter.step.tasks')];
 
 /**
  * 생성 응답이 얼마나 걸리는가 — **실측값이다.** 8B·정답셋 3편 15건에서 최대 12.23초
@@ -123,7 +126,7 @@ const GENERATE_TICK_MS = 200;
  * 대본을 꺼낸 것이고, 배지 이름을 `목`과 갈라 두는 이유는 나중에 LLM(VZ-G-01)이 들어오면
  * 대본 조회가 그 뒤의 대조군·시연 안전망으로 남아 둘이 화면에서 구별되어야 하기 때문이다.
  */
-const SCRIPT_STEPS = ['의도 분석 → 대본 조회', '마일스톤 분리 → 대본에서 읽음', '태스크 생성 → 대본에서 읽음'];
+const scriptSteps = () => [t('utter.step.intentScript'), t('utter.step.milestonesScript'), t('utter.step.tasksScript')];
 
 /**
  * 모델이 냈을 때의 뒤 세 칸 (260907 · 9단계).
@@ -135,13 +138,13 @@ const SCRIPT_STEPS = ['의도 분석 → 대본 조회', '마일스톤 분리 �
  */
 function aiSteps(milestones: number, nodes: number, edges: number): string[] {
   return [
-    '의도 분석 → VZ-G-01',
-    `마일스톤 분리 → ${milestones}건`,
+    t('utter.step.intentGen'),
+    t('utter.step.milestonesN', { n: milestones }),
     // 노드가 0개인 것을 감추지 않는다. 확정된 프롬프트는 `tasks: []` 를 내고, 규칙은
     // 붙어 있으나 매달 노드가 없다 — 그 사실이 그대로 적힌다.
     nodes === 0
-      ? '태스크 생성 → 노드 0개 (규칙 대기)'
-      : `태스크 생성 → 노드 ${nodes} · 의존 ${edges} (규칙)`,
+      ? t('utter.step.tasksNone')
+      : t('utter.step.tasksN', { nodes, edges }),
   ];
 }
 
@@ -171,7 +174,8 @@ function nextGeneratedMissionId(): string {
     + `-${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
 }
 
-const LEGACY_TITLE = '415호 → 503호 이동 (구판 세계)';
+/** 상수가 아니라 함수다 — 위 `mockSteps` 와 같은 이유. */
+const legacyTitle = () => t('utter.legacyMove');
 
 /**
  * 시연 문장 목록 — **대본 라이브러리에서 읽는다.** 여기 하드코딩하면 대본이 늘 때
@@ -180,7 +184,7 @@ const LEGACY_TITLE = '415호 → 503호 이동 (구판 세계)';
  */
 const DEMO_SENTENCES = SCRIPT_LIBRARY.map((entry) => ({
   missionId: entry.missionId,
-  title: entry.script?.title ?? LEGACY_TITLE,
+  title: entry.script?.title ?? legacyTitle(),
   text: entry.script?.utterance.text ?? legacyScenario.utterance.text,
 }));
 
@@ -195,7 +199,7 @@ function matchScript(text: string): MatchOutcome {
     proposeMission({
       origin: 'script',
       missionId: outcome.entry.missionId,
-      title: outcome.entry.script?.title ?? LEGACY_TITLE,
+      title: outcome.entry.script?.title ?? legacyTitle(),
       keywords: outcome.keywords,
       planId: null,
       world: outcome.entry.world,
@@ -205,8 +209,9 @@ function matchScript(text: string): MatchOutcome {
 }
 
 function LevelMeter({ levels, live }: { levels: number[]; live: boolean }) {
+  useLang();
   return (
-    <div className={live ? 'waveform live' : 'waveform'} aria-label="입력 레벨">
+    <div className={live ? 'waveform live' : 'waveform'} aria-label={t('utter.level')}>
       {levels.map((level, index) => (
         <i key={index} style={{ height: `${Math.max(3, Math.round(level * 100))}%` }} />
       ))}
@@ -215,19 +220,21 @@ function LevelMeter({ levels, live }: { levels: number[]; live: boolean }) {
 }
 
 function Numbers({ result, decision }: { result: SttResult; decision: ConfidenceDecision }) {
+  // 같은 파일 안이어도 별개 컴포넌트는 자기 훅이 필요하다 (지시서 §2 ①).
+  useLang();
   const show = (value: number | null, digits = 3) => (value === null ? '—' : value.toFixed(digits));
   return (
     <details className="stt-numbers">
-      <summary>원본 수치 세 개 · 판정 근거</summary>
+      <summary>{t('num.title')}</summary>
       <dl>
         <dt>avg_logprob</dt>
-        <dd>{show(result.avg_logprob)} <small>세그먼트 중 최소</small></dd>
+        <dd>{show(result.avg_logprob)} <small>{t('num.minSegment')}</small></dd>
         <dt>no_speech_prob</dt>
-        <dd>{show(result.no_speech_prob, 4)} <small>세그먼트 중 최대</small></dd>
-        <dt>평균 단어 확률</dt>
-        <dd>{show(result.mean_word_prob)} <small>단어 {result.word_count}개 · 최소 {show(result.min_word_prob)}</small></dd>
+        <dd>{show(result.no_speech_prob, 4)} <small>{t('num.maxSegment')}</small></dd>
+        <dt>{t('num.meanWordProb')}</dt>
+        <dd>{show(result.mean_word_prob)} <small>{t('num.words', { n: result.word_count, min: show(result.min_word_prob) })}</small></dd>
       </dl>
-      <Explain id="utt-1" className="hint">셋을 하나의 점수로 합치지 않습니다. 합치면 임계값을 실측할 근거가 사라집니다.</Explain>
+      <Explain id="utt-1" className="hint">{t('num.noCombine')}</Explain>
       <ul>
         {decision.reasons.map((reason) => <li key={reason}>{reason}</li>)}
       </ul>
@@ -239,6 +246,7 @@ function Numbers({ result, decision }: { result: SttResult; decision: Confidence
 }
 
 export function UtterancePanel({ fallbackText }: { fallbackText: string }) {
+  useLang();
   const [status, setStatus] = useState<SttStatus>('probing');
   const [phase, setPhase] = useState<Phase>('idle');
   const [levels, setLevels] = useState<number[]>(() => new Array(LEVEL_BARS).fill(0));
@@ -436,7 +444,7 @@ export function UtterancePanel({ fallbackText }: { fallbackText: string }) {
       setPhase('recording');
     } catch (caught) {
       stopMeter();
-      setError({ message: `마이크를 열 수 없습니다: ${String(caught)}` });
+      setError({ message: t('utter.micFailed', { reason: String(caught) }) });
       setPhase('failed');
     }
   }, [send, startMeter, stopMeter]);
@@ -470,7 +478,7 @@ export function UtterancePanel({ fallbackText }: { fallbackText: string }) {
     if (genModel === null) {
       // **지어내지 않는다.** 이름을 하나 박아 넣으면 그 이름이 없는 기기에서 조용히 실패하고,
       // 있는 기기에서는 「무엇이 답했는지」가 화면에 안 적힌 채 돈다.
-      setGenError({ message: '쓸 수 있는 가중치가 없습니다 — gen-lab/models/ 에 GGUF 를 두고 서비스를 다시 띄우세요.' });
+      setGenError({ message: t('gen.noWeightsHelp') });
       setGenPhase('failed');
       return;
     }
@@ -495,14 +503,14 @@ export function UtterancePanel({ fallbackText }: { fallbackText: string }) {
         // 계약을 못 읽은 응답이다. **버리지 않고 사유를 보인다** — 무엇이 왜 실패했는지가
         // 곧 측정값이고, 화면에서 감추면 그 사실이 사라진다.
         setGenError({
-          message: '모델 응답을 임무 객체로 읽지 못했습니다.',
+          message: t('utter.notMission'),
           detail: provenance.schemaErrors.join(' · ') || undefined,
         });
         setGenPhase('failed');
         return;
       }
       const { nodeCount, edgeCount, modelDeps } = tasksFromGenerated(generated.mission);
-      const view = viewFromGenerated(generated.mission, `발화에서 생성 — ${utteranceMeta.text}`);
+      const view = viewFromGenerated(generated.mission, t('utter.fromUtterance', { text: utteranceMeta.text }));
       // 대본이 맞았으면 대본이 제안으로 남는다. 아니면 이것이 제안이다.
       const proposed = matchedMissionId === null && proposeGenerated(view, provenance);
       setGenOutcome({ provenance, view, nodeCount, edgeCount, modelDeps, proposed });
@@ -551,7 +559,7 @@ export function UtterancePanel({ fallbackText }: { fallbackText: string }) {
           audio_ref: result.audio_ref,
         },
       });
-      setIssued(`음성 발화로 발행했습니다 · audio_ref=${result.audio_ref}`);
+      setIssued(t('utter.issuedVoice', { ref: result.audio_ref }));
     } catch (caught) {
       setError({ message: caught instanceof CommandAuditError ? caught.message : String(caught) });
       return; // 감사에 걸린 명령으로 임무를 만들지 않는다.
@@ -563,7 +571,7 @@ export function UtterancePanel({ fallbackText }: { fallbackText: string }) {
     // 「쟀는데 0점」과 「못 쟀다」가 다른 자리다.
     const mapped = toUtterance(result, edited.trim());
     if (mapped.utterance === null) {
-      setGenError({ message: '이 인식 결과로는 임무를 만들 수 없습니다.', detail: mapped.blocked });
+      setGenError({ message: t('utter.cannotBuild'), detail: mapped.blocked });
       setGenPhase('failed');
       return;
     }
@@ -577,7 +585,7 @@ export function UtterancePanel({ fallbackText }: { fallbackText: string }) {
     try {
       noteHumanAction();   // 사람이 냈다 — 이 뒤부터 계획 채널을 받는다
       await issueCommand({ action: 'mission_from_utterance', params: { text: manual.trim(), source: 'manual_text' }, inputModality: 'pointer' });
-      setIssued('직접 입력한 문장으로 발행했습니다 (음성 아님)');
+      setIssued(t('utter.issuedManual'));
     } catch (caught) {
       setError({ message: String(caught) });
       return;
@@ -611,21 +619,27 @@ export function UtterancePanel({ fallbackText }: { fallbackText: string }) {
         : genPhase === 'running' ? 'running'
           : genOutcome !== null ? 'ai' : 'mock';
 
+  // **사전에는 한 문장, 렌더에서만 가른다** (지시서 §2 ③) — <code>·<b> 가 문장 가운데 있다.
+  const readyParts = t('gen.ready', { engine: genEngine ?? '', url: generateBaseUrl() }).split('{strong}');
+  const stubParts = t('gen.stub').split('{strong}');
+  const matchParts = t('utter.scriptMatched', { id: '' }).split('{id}');
+  const depsParts = t('gen.droppedDeps', { n: genOutcome?.modelDeps ?? 0 }).split('{code}');
+  const rulesParts = t('gen.rulesNote').split(/\{code\}|\{event\}|\{line\}/);
   return (
     <aside className="utterance-panel">
-      <h2>발화 · Utterance</h2>
+      <h2>{t('utter.title')}</h2>
 
       <LevelMeter levels={levels} live={phase === 'recording'} />
 
       <div className="stt-controls">
         {phase === 'recording'
-          ? <button className="rec-stop" onClick={stopRecording}>■ 녹음 정지</button>
-          : <button disabled={!able.canRecord || phase === 'transcribing'} onClick={() => void startRecording()}>● 녹음</button>}
+          ? <button className="rec-stop" onClick={stopRecording}>{t('utter.recordStop')}</button>
+          : <button disabled={!able.canRecord || phase === 'transcribing'} onClick={() => void startRecording()}>{t('utter.record')}</button>}
         {/* 파일 입력의 기본 모양은 브라우저마다 다르고 "선택된 파일 없음"이 붙어 나온다.
             좁은 패널에서는 그 문구가 잘려 읽을 수 없는 글자만 남으므로 입력을 감추고
             라벨을 버튼처럼 쓴다. 기능은 그대로다. */}
         <label className={fileDisabled ? 'file-fallback is-disabled' : 'file-fallback'}>
-          파일 선택
+          {t('utter.pickFile')}
           <input type="file" accept="audio/*" disabled={fileDisabled}
             onChange={(event) => { const file = event.target.files?.[0]; if (file) void send(file); }} />
         </label>
@@ -652,27 +666,27 @@ export function UtterancePanel({ fallbackText }: { fallbackText: string }) {
       */}
       <details className="steps-box" open={stepsOpen || producer === 'running' || phase === 'failed'}
         onToggle={(event) => setStepsOpen((event.target as HTMLDetailsElement).open)}>
-        <summary>임무 생성 진행 <small>{producerWord(producer)}</small></summary>
+        <summary>{t('utter.progress')} <small>{producerWord(producer)}</small></summary>
       <div className="progress-steps">
         {steps.map((step) => <span key={step.label} className={`step-${step.state}`}>{STEP_MARK[step.state]} {step.label}</span>)}
-        {producer === 'running' && MOCK_STEPS.map((label, index) => (
-          <span key={label} className="step-generating" title={`생성 중입니다 — 실측 최대 ${GENERATE_MAX_SEC}초`}>
-            <b>AI</b> {label}{index === 0 ? ` … ${genElapsed.toFixed(1)}초` : ''}
+        {producer === 'running' && mockSteps().map((label, index) => (
+          <span key={label} className="step-generating" title={t('utter.generating', { sec: GENERATE_MAX_SEC })}>
+            <b>AI</b> {label}{index === 0 ? t('utter.elapsedInline', { sec: genElapsed.toFixed(1) }) : ''}
           </span>
         ))}
         {producer === 'ai' && genOutcome !== null && aiSteps(genOutcome.view.milestones.length, genOutcome.nodeCount, genOutcome.edgeCount).map((label) => (
-          <span key={label} className="step-ai" title={`모델이 만들었습니다 — ${genOutcome.provenance.model} · 태스크 칸은 모델이 아니라 규칙(solveDeps)입니다`}>
+          <span key={label} className="step-ai" title={t('utter.aiStepTitle', { model: genOutcome.provenance.model })}>
             <b>AI</b> {label}
           </span>
         ))}
-        {producer === 'script' && SCRIPT_STEPS.map((label) => (
-          <span key={label} className="step-script" title="키워드 대조로 미리 써 둔 대본을 꺼냈습니다 — LLM(VZ-G-01)이 아닙니다">
-            <b>대본</b> {label}
+        {producer === 'script' && scriptSteps().map((label) => (
+          <span key={label} className="step-script" title={t('utter.scriptPicked')}>
+            <b>{t('utter.scriptBadge')}</b> {label}
           </span>
         ))}
-        {producer === 'mock' && MOCK_STEPS.map((label) => (
-          <span key={label} className="step-mock" title="아직 아무것도 안 했습니다 — 문장을 넣으면 대본 조회 또는 생성(VZ-G-01)이 돕니다">
-            <b>목</b> {label}
+        {producer === 'mock' && mockSteps().map((label) => (
+          <span key={label} className="step-mock" title={t('utter.idleHint')}>
+            <b>{t('utter.mockBadge')}</b> {label}
           </span>
         ))}
       </div>
@@ -682,43 +696,43 @@ export function UtterancePanel({ fallbackText }: { fallbackText: string }) {
       {genAble.note && <p className="gen-note">{genAble.note}</p>}
       {genStatus === 'ready' && genEngine !== null && genEngine !== 'stub' && (
         <p className="gen-note">
-          생성 서비스가 떠 있습니다 ({genEngine} · {generateBaseUrl()}). 문장을 넣으면 임무를 <b>제안</b>합니다 — 승인 전에는 실행되지 않습니다.
+          {readyParts[0]}<b>{t('gen.ready.strong')}</b>{readyParts[1]}
           {/* **어느 모델이 답할 것인가를 화면이 적는다.** 서비스는 이름 없이 오는 요청을
               거부하고(「아무거나 고르면 무엇을 쟀는지 알 수 없습니다」), 그 규칙은 화면에도
               그대로 걸린다 — 어느 모델이 냈는지 모르는 제안에는 근거가 없다.
               목록은 서비스가 준다: 여기에 이름을 박지 않는다. */}
           <label className="gen-model">
-            가중치
+            {t('gen.weights')}
             <select value={genModel ?? ''} disabled={genPhase === 'running' || genModels.length === 0}
               onChange={(event) => setGenModel(event.target.value)}>
-              {genModels.length === 0 && <option value="">쓸 수 있는 가중치가 없습니다</option>}
+              {genModels.length === 0 && <option value="">{t('gen.noWeights')}</option>}
               {genModels.map((entry) => (
                 <option key={entry.id} value={entry.id}>
-                  {entry.id}{entry.licenseFile === null ? '' : ' — 별도 라이선스 (비상업 연구용)'}
+                  {entry.id}{entry.licenseFile === null ? '' : t('gen.license')}
                 </option>
               ))}
             </select>
-            <small>물고 있지 않은 것을 고르면 적재에 수십 초가 걸립니다</small>
+            <small>{t('gen.weightsHint')}</small>
           </label>
           {/* 태스크까지 낼 것인가 — `VZ-G-02` 의 모델 쪽 절반. 끌 수 있어야 하는 이유는
               시간이다: 켜면 6.4 → 26초다(10단계 실측). 의존은 어느 쪽이든 규칙이 만든다. */}
           <label className="gen-model">
             <input type="checkbox" checked={genTasks} disabled={genPhase === 'running'}
               onChange={(event) => setGenTasks(event.target.checked)} />
-            태스크까지 생성 <small>끄면 마일스톤만 (6초) · 켜면 태스크까지 (실측 최대 {GENERATE_MAX_SEC_TASKS}초) · 의존은 어느 쪽이든 규칙이 만듭니다</small>
+            {t('gen.withTasks')} <small>{t('gen.withTasksHint', { sec: GENERATE_MAX_SEC_TASKS })}</small>
           </label>
         </p>
       )}
       {genEngine === 'stub' && (
-        <p className="gen-note">생성 서비스는 떠 있으나 <b>스텁</b>입니다 — 가중치나 엔진 바이너리가 없습니다. 돌려주는 임무는 계약을 만족하는 최소 임무이지 생성 결과가 아닙니다.</p>
+        <p className="gen-note">{stubParts[0]}<b>{t('gen.stub.strong')}</b>{stubParts[1]}</p>
       )}
       {genPhase === 'running' && (
         <p className="gen-progress" role="status">
-          <b>생성 중</b> {genElapsed.toFixed(1)}초 <small>실측 최대 {generateMaxSec}초 · 실시간이 아닙니다 (사람이 수락하는 단계)</small>
+          <b>{t('gen.running')}</b> {t('gen.elapsedRunning', { sec: genElapsed.toFixed(1) })} <small>{t('gen.runningHint', { sec: generateMaxSec })}</small>
           <progress max={generateMaxSec} value={Math.min(genElapsed, generateMaxSec)} />
           {/* 상한을 넘으면 **넘었다고 적는다.** 막대가 끝에 붙은 채로 멈춰 있으면
               사람은 화면이 죽었다고 읽는다. */}
-          {genElapsed > generateMaxSec && <small>실측 최대를 넘었습니다 — 처음 부르는 가중치라면 적재 중일 수 있습니다.</small>}
+          {genElapsed > generateMaxSec && <small>{t('gen.overMax')}</small>}
         </p>
       )}
       {genError && <p className="stt-error">{genError.message}{genError.detail ? <small>{genError.detail}</small> : null}</p>}
@@ -726,8 +740,8 @@ export function UtterancePanel({ fallbackText }: { fallbackText: string }) {
       {/* 어느 키워드가 맞아서 어느 대본이 골라졌는지 — 그 자리에서 보여준다 (REQ-1207의 정신). */}
       {scriptMatch?.kind === 'matched' && (
         <p className="script-match">
-          대본 <code>{scriptMatch.entry.missionId}</code> — 맞은 키워드 {scriptMatch.keywords.map((k) => <b key={k}>{k}</b>)}
-          <small>키워드 대조 결과입니다. LLM이 아니며, 마일스톤·태스크는 대본에서 읽습니다</small>
+          {matchParts[0]}<code>{scriptMatch.entry.missionId}</code>{matchParts[1]} {scriptMatch.keywords.map((k) => <b key={k}>{k}</b>)}
+          <small>{t('gen.scriptHint')}</small>
         </p>
       )}
       {(scriptMatch?.kind === 'none' || scriptMatch?.kind === 'ambiguous') && (
@@ -739,14 +753,14 @@ export function UtterancePanel({ fallbackText }: { fallbackText: string }) {
       {genOutcome !== null && (
         <section className="gen-result">
           <h3>
-            <b className="badge-ai">AI</b> 생성 결과 <code>{genOutcome.view.missionId}</code>
-            <small>{genOutcome.proposed ? '제안으로 서 있습니다 — 승인해야 캔버스에 올라갑니다' : '대본이 맞아 대본이 제안입니다 — 이 결과는 나란히 보기만 합니다'}</small>
+            <b className="badge-ai">AI</b> {t('gen.result')} <code>{genOutcome.view.missionId}</code>
+            <small>{genOutcome.proposed ? t('utter.proposalStands') : t('utter.scriptWins')}</small>
           </h3>
           <ol className="gen-milestones">
             {genOutcome.view.milestones.map((milestone) => (
               <li key={milestone.id}>
                 <b>{milestone.id}</b> {milestone.title}
-                <small>{milestone.assignedTargets.join(' · ') || '미배정'}</small>
+                <small>{milestone.assignedTargets.join(' · ') || t('plan.unassigned')}</small>
               </li>
             ))}
           </ol>
@@ -756,7 +770,7 @@ export function UtterancePanel({ fallbackText }: { fallbackText: string }) {
               없어서 화면에서 아무 표시 없이 승인 대기에 선다. */}
           {genOutcome.provenance.shapeWarnings.map((note) => (
             <p key={note.kind} className="gen-shape-warning">
-              <b>{note.kind === 'loop' ? '되풀이' : '갈래'}</b> {note.message}
+              <b>{note.kind === 'loop' ? t('plan.repeat') : t('plan.branch')}</b> {note.message}
               <small>발화에서 잡힌 말: {note.markers.map((m) => `「${m}」`).join(' · ')} — 지금 생성 경로가 못 만드는 모양입니다. 승인 전에 사람이 봐야 합니다</small>
             </p>
           ))}
@@ -764,7 +778,7 @@ export function UtterancePanel({ fallbackText }: { fallbackText: string }) {
               **잡은 것을 안 보이면 잡은 의미가 없다.** */}
           {genOutcome.provenance.schemaErrors.length > 0 && (
             <p className="stt-error">
-              계약 위반 {genOutcome.provenance.schemaErrors.length}건 — 제안은 뜨지만 사람이 보고 판단할 자리입니다
+              {t('gen.schemaErrors', { n: genOutcome.provenance.schemaErrors.length })}
               <small>{genOutcome.provenance.schemaErrors.join(' · ')}</small>
             </p>
           )}
@@ -772,30 +786,30 @@ export function UtterancePanel({ fallbackText }: { fallbackText: string }) {
               「모델이 지시를 지켰는가」를 영영 못 잰다 (utterance 덮어쓰기와 같은 규칙). */}
           {genOutcome.modelDeps > 0 && (
             <p className="gen-note">
-              모델이 적은 의존 {genOutcome.modelDeps}건을 버렸습니다 — 의존은 규칙(<code>solveDeps</code>)이 만듭니다
-              <small>실행 전에는 병렬의 근거가 없어, 모델이 낸 의존은 순환·고아 노드를 만듭니다 (지시서 §5)</small>
+              {depsParts[0]}<code>solveDeps</code>{depsParts[1]}
+              <small>{t('gen.droppedDepsWhy')}</small>
             </p>
           )}
           {genOutcome.provenance.overwritten.length > 0 && (
             <p className="gen-note">
-              부르는 쪽 값으로 덮어쓴 자리 {genOutcome.provenance.overwritten.length}건 — {genOutcome.provenance.overwritten.map((entry) => entry.field).join(' · ')}
-              <small>모델이 되받아 적은 값 대신 이 화면이 준 값을 씁니다. 감추지 않고 적습니다</small>
+              {t('gen.overwritten', { n: genOutcome.provenance.overwritten.length, fields: genOutcome.provenance.overwritten.map((entry) => entry.field).join(' · ') })}
+              <small>{t('gen.overwrittenWhy')}</small>
             </p>
           )}
           {!genOutcome.proposed && (
             <button type="button" className="gen-switch" onClick={switchToGenerated}>
-              이 AI 제안으로 바꾸기 <small>바꿔도 승인 전에는 실행되지 않습니다</small>
+              {t('gen.switchTo')} <small>{t('gen.switchToWhy')}</small>
             </button>
           )}
           <details className="gen-provenance">
-            <summary>생성 근거 — produced_by=ai · 모델 · 프롬프트 지문 · 적용된 규칙</summary>
+            <summary>{t('gen.provenance')}</summary>
             <dl>
-              <dt>생성 주체</dt><dd>produced_by=ai · {genOutcome.provenance.engine}{genOutcome.provenance.stub ? ' (스텁 — 생성 결과가 아닙니다)' : ''}</dd>
-              <dt>모델</dt><dd><code>{genOutcome.provenance.model}</code></dd>
-              <dt>프롬프트 지문</dt><dd><code>{genOutcome.provenance.promptDigest ?? '해당 없음 (스텁에는 프롬프트가 없습니다)'}</code>{genOutcome.provenance.promptChars !== null ? <small>{genOutcome.provenance.promptChars}자</small> : null}</dd>
-              <dt>문법</dt><dd>{genOutcome.provenance.grammar ? <><code>{genOutcome.provenance.grammar.digest}</code> <small>{genOutcome.provenance.grammar.source} · {genOutcome.provenance.grammar.bytes}B</small></> : '없음'}</dd>
-              <dt>재료</dt><dd>장소 {genOutcome.provenance.placesGiven ? '줌' : '없음'} · 장비 {genOutcome.provenance.equipmentGiven}건 · 예시 {genOutcome.provenance.examplesGiven}편 · 노드 종류 규칙 {genOutcome.provenance.nodeKindsGiven ? '붙임' : '없음'}</dd>
-              <dt>소요</dt><dd>{genOutcome.provenance.elapsedSec.toFixed(2)}초</dd>
+              <dt>{t('gen.author')}</dt><dd>produced_by=ai · {genOutcome.provenance.engine}{genOutcome.provenance.stub ? t('gen.stubNote') : ''}</dd>
+              <dt>{t('gen.model')}</dt><dd><code>{genOutcome.provenance.model}</code></dd>
+              <dt>{t('gen.promptDigest')}</dt><dd><code>{genOutcome.provenance.promptDigest ?? t('gen.noPrompt')}</code>{genOutcome.provenance.promptChars !== null ? <small>{t('gen.promptChars', { n: genOutcome.provenance.promptChars })}</small> : null}</dd>
+              <dt>{t('gen.grammar')}</dt><dd>{genOutcome.provenance.grammar ? <><code>{genOutcome.provenance.grammar.digest}</code> <small>{genOutcome.provenance.grammar.source} · {genOutcome.provenance.grammar.bytes}B</small></> : t('gen.none')}</dd>
+              <dt>{t('gen.materials')}</dt><dd>{t('gen.materialsValue', { places: genOutcome.provenance.placesGiven ? t('gen.given') : t('gen.none'), equipment: genOutcome.provenance.equipmentGiven, examples: genOutcome.provenance.examplesGiven, nodeKinds: genOutcome.provenance.nodeKindsGiven ? t('gen.attached') : t('gen.none') })}</dd>
+              <dt>{t('gen.elapsed')}</dt><dd>{t('gen.elapsedSec', { sec: genOutcome.provenance.elapsedSec.toFixed(2) })}</dd>
             </dl>
             {/* **규칙 목록은 서비스가 준 그대로다.** 화면이 따로 적으면 모델이 지킨 규칙과
                 사람이 본 규칙이 갈라진다. 줄이지도 않는다 — 줄이면 역추적이 거기서 끊긴다. */}
@@ -803,11 +817,10 @@ export function UtterancePanel({ fallbackText }: { fallbackText: string }) {
               {(genOutcome.provenance.rules ?? []).map((rule, index) => <li key={index}>{rule}</li>)}
             </ol>
             {genOutcome.provenance.rules === null && (
-              <Explain id="utt-6" className="hint">규칙 목록이 없습니다 — 스텁이라 프롬프트가 만들어지지 않았습니다. 「규칙 0개」와 다른 말입니다.</Explain>
+              <Explain id="utt-6" className="hint">{t('gen.noRules')}</Explain>
             )}
             <Explain id="utt-5" className="hint">
-              이 목록은 서비스의 <code>rules_for()</code> 가 준 그대로입니다. 승인하면 이 근거가 기록 열에
-              <code>produced_by=ai</code> 사건으로 들어가고, 되감기 화면의 <b>AI</b> 줄에 뜹니다.
+              {rulesParts[0]}<code>rules_for()</code>{rulesParts[1]}<code>produced_by=ai</code>{rulesParts[2]}<b>AI</b>{rulesParts[3]}
             </Explain>
           </details>
         </section>
@@ -816,50 +829,50 @@ export function UtterancePanel({ fallbackText }: { fallbackText: string }) {
       {result && decision ? (
         <>
           <label className="transcript-edit">
-            <span>인식 결과 — 고칠 수 있습니다 (1차 확인 · REQ-1303)</span>
+            <span>{t('stt.transcriptEdit')}</span>
             <textarea value={edited} rows={2} onChange={(event) => { setEdited(event.target.value); setConfirmed(false); }} />
           </label>
           {edited.trim() !== result.text && (
-            <p className="transcript-original">원문: “{result.text}” <small>원문과 수정본을 둘 다 보관합니다</small></p>
+            <p className="transcript-original">{t('stt.original', { text: result.text })} <small>{t('stt.originalKept')}</small></p>
           )}
           <dl>
-            <dt>엔진</dt><dd>{result.engine} · {result.model}</dd>
-            <dt>판정</dt>
+            <dt>{t('stt.engine')}</dt><dd>{result.engine} · {result.model}</dd>
+            <dt>{t('stt.verdict')}</dt>
             <dd className={`verdict-${decision.verdict}`}>
               {VERDICT_LABEL[decision.verdict]} <small>{PROVISIONAL_NOTE}</small>
             </dd>
-            <dt>등록 이름</dt>
+            <dt>{t('stt.hotwords')}</dt>
             <dd>
-              {useHotwords ? `${appliedHotwords}개 반영` : '끔 (대조군)'}
-              {useHotwords && appliedHotwords === 0 ? <small>요청했으나 적용되지 않음</small> : null}
+              {useHotwords ? t('stt.hotwordsApplied', { n: appliedHotwords }) : t('stt.hotwordsOff')}
+              {useHotwords && appliedHotwords === 0 ? <small>{t('stt.hotwordsIgnored')}</small> : null}
             </dd>
-            <dt>생성 주체</dt><dd>produced_by=human · input_modality=voice</dd>
+            <dt>{t('stt.author')}</dt><dd>produced_by=human · input_modality=voice</dd>
           </dl>
           <Numbers result={result} decision={decision} />
           {decision.verdict === 'confirm' && (
             <label className="reconfirm">
               <input type="checkbox" checked={confirmed} onChange={(event) => setConfirmed(event.target.checked)} />
-              위 문장이 맞는지 확인했습니다
+              {t('stt.reconfirm')}
             </label>
           )}
-          {decision.verdict === 'reject' && <p className="stt-error">임계 미만입니다. 다시 녹음하거나 아래에 문장을 직접 넣으세요.</p>}
+          {decision.verdict === 'reject' && <p className="stt-error">{t('stt.belowThreshold')}</p>}
           <button className="submit-utterance" disabled={blocked || !edited.trim()} onClick={() => void submitVoice()}>
-            이 발화로 임무 생성 요청
+            {t('stt.submitVoice')}
           </button>
         </>
       ) : (
-        <blockquote>“{fallbackText}”<small>시나리오 목 문장 — 녹음하면 실제 인식 결과로 바뀝니다</small></blockquote>
+        <blockquote>“{fallbackText}”<small>{t('stt.mockSentence')}</small></blockquote>
       )}
 
       {/* 시연 문장 — 대본 라이브러리의 기준 문장. 보고 말하거나(녹음), 누르면 아래 입력창에 채워진다.
           이 문장이 그대로일 필요는 없다 — 매칭은 키워드 대조라 「월류방어벽 가동해」도 통한다. */}
       <details className="script-sentences" open={sentencesOpen}
         onToggle={(event) => setSentencesOpen((event.target as HTMLDetailsElement).open)}>
-        <summary>예시 문장 <small>보고 말하거나 · 누르면 아래 입력창에 채워집니다</small></summary>
+        <summary>{t('stt.examples')} <small>{t('stt.examplesHint')}</small></summary>
         <ul>
           {DEMO_SENTENCES.map((demo) => (
             <li key={demo.missionId}>
-              <button type="button" title={`${demo.missionId} — 누르면 「문장을 직접 넣기」에 채워집니다`}
+              <button type="button" title={t('stt.exampleTitle', { id: demo.missionId })}
                 onClick={() => { setManual(demo.text); setManualOpen(true); }}>
                 “{demo.text}”
               </button>
@@ -871,11 +884,11 @@ export function UtterancePanel({ fallbackText }: { fallbackText: string }) {
 
       <details className="manual-input" open={manualOpen || status === 'unavailable'}
         onToggle={(event) => setManualOpen((event.target as HTMLDetailsElement).open)}>
-        <summary>문장을 직접 넣기</summary>
-        <Explain id="utt-4" className="hint">STT 서비스({sttBaseUrl()})가 없어도 이 경로는 항상 열려 있습니다.</Explain>
-        <textarea value={manual} rows={2} placeholder="예: 503 구역 로봇을 5층 복도로 이동시켜"
+        <summary>{t('stt.manual')}</summary>
+        <Explain id="utt-4" className="hint">{t('stt.manualHint', { url: sttBaseUrl() })}</Explain>
+        <textarea value={manual} rows={2} placeholder={t('stt.manualPlaceholder')}
           onChange={(event) => setManual(event.target.value)} />
-        <button disabled={!manual.trim()} onClick={() => void submitManual()}>직접 입력으로 요청</button>
+        <button disabled={!manual.trim()} onClick={() => void submitManual()}>{t('stt.submitManual')}</button>
       </details>
 
       {issued && <p className="stt-issued">{issued}</p>}
