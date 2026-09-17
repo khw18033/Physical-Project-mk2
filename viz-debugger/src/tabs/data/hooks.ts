@@ -10,8 +10,8 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
-import { getTransport } from '../../transport/index.ts';
-import type { ControlLock, ConnectionStatus, RoleInfo } from '../../transport/index.ts';
+import type { ControlLock, RoleInfo } from '../../transport/index.ts';
+import { useConnectionStatus } from '../../shared/connectionStatus.ts';
 import { store } from './index.ts';
 import { commandTracker, type TrackedCommand } from '../../shared/commandCenter.ts';
 import { getBlockLog, subscribeBlocks, type BlockRecord } from './aggregation.ts';
@@ -45,12 +45,18 @@ export function useCommands(): readonly TrackedCommand[] {
   return useSyncExternalStore(commandTracker.subscribe, commandTracker.getSnapshot, commandTracker.getSnapshot);
 }
 
-export function useConnectionStatus(): ConnectionStatus {
-  const transport = getTransport();
-  const [status, setStatus] = useState<ConnectionStatus>(() => transport.getStatus());
-  useEffect(() => transport.onStatus(setStatus), [transport]);
-  return status;
-}
+/**
+ * **몸통은 `shared/connectionStatus.ts` 로 갔다** (260916 — 단독 빌드 정합 §2).
+ *
+ * `getTransport()` 만 보고 대시보드 저장소를 안 쓰므로 `tabs/` 에 있을 이유가 없었다.
+ * 그런데 셸이 배지 하나 때문에 이걸 부르려고 `useTabsDataLayer()` 를 탔고, 그 바람에
+ * 데이터 계층 전체가 셸에 딸려 들어와 **셸이 통째로 단독 빌드에서 빠져 있었다.**
+ *
+ * 이름은 여기 그대로 둔다 — 기존 호출부를 한 곳도 안 고치기 위해서다.
+ * 아래 `useRole()` 이 같은 파일에서 부르므로 **지역으로 들여와서 다시 내보낸다**
+ * (`export … from` 만 쓰면 이 파일 안에서는 그 이름을 못 쓴다).
+ */
+export { useConnectionStatus };
 
 /**
  * VZ-C-01 · VZ-C-04 — 역할과 **그 적용 범위**.

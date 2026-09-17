@@ -11,7 +11,6 @@
  * `event_id` 로 중복을 막는다 — 스토어 스냅샷은 같은 이벤트를 여러 번 돌려주기 때문이다.
  */
 
-import { useEffect } from 'react';
 import type { AiFailure } from '../transport/index.ts';
 import { pushNotification } from '../shared/notifications.ts';
 import { store } from './data/index.ts';
@@ -34,10 +33,14 @@ function sweep(): void {
   }
 }
 
-/** 셸이 한 번만 건다. 데이터 계층 수명과 같다. */
-export function useAiFailureNotifications(): void {
-  useEffect(() => {
-    sweep();
-    return store.subscribe(sweep);
-  }, []);
+/**
+ * 한 번만 건다. 데이터 계층 수명과 같다.
+ *
+ * **훅이 아니라 기동 함수다** (260916 — 단독 빌드 정합 §2). 전에는 `useAiFailureNotifications()`
+ * 였고 셸이 `useTabsDataLayer()` 를 통해 직접 불렀다 — 그래서 셸이 `tabs/` 를 알게 됐다.
+ * 지금은 통합 진입점이 `registerAppService()` 로 주입하고 셸은 무엇이 도는지 모른다.
+ */
+export function startAiFailureNotifications(): () => void {
+  sweep();
+  return store.subscribe(sweep);
 }

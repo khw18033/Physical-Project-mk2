@@ -21,11 +21,9 @@
  * 끊으면 돌아왔을 때 화면이 비고, 평시 1분 주기 센서는 최대 1분간 빈 칸이 된다.
  */
 
-import { useEffect } from 'react';
-import { useAiFailureNotifications } from './aiFailureBridge.ts';
+import { startAiFailureNotifications } from './aiFailureBridge.ts';
 import { CURRENT_ZONE_ID } from '../shared/registry.ts';
 import { startDataLayer } from './data/index.ts';
-import { useConnectionStatus } from './data/hooks.ts';
 import './views/styles.css';
 
 export { PlanApproval } from './views/PlanApproval.tsx';
@@ -42,11 +40,32 @@ const ZONE_ID = CURRENT_ZONE_ID;
 
 /**
  * 데이터 계층 기동. **앱 수명과 같다** — 화면을 옮겨도 구독을 끊지 않는다.
- * 셸이 최상위에서 한 번 부른다. 두 번 불려도 `startDataLayer` 가 스스로 막는다.
+ * 두 번 불려도 `startDataLayer` 가 스스로 막는다.
+ *
+ * ## 260916 — 셸이 이걸 직접 부르지 않는다 (단독 빌드 정합 §2)
+ *
+ * 전에는 `useTabsDataLayer()` 라는 훅이었고 **셸이 불렀다.** 그 안에 성질이 다른 셋이
+ * 묶여 있었던 것이 문제였다.
+ *
+ * ```
+ * startDataLayer(ZONE_ID)       구역 축 구독      — tabs 전용
+ * useAiFailureNotifications()   외부 AI 실패 알림 — tabs 전용
+ * useConnectionStatus()         conn 배지         — getTransport() 만 본다
+ * ```
+ *
+ * 셸이 원한 것은 **셋째뿐**인데 앞의 둘이 같이 딸려 갔다. 그래서 셸이 `tabs/` 에 닿는 것으로
+ * 잡혔고, 셸 전체가 단독 빌드 금지 목록에 올라 모드 스위치·연결 관리·긴급정지까지
+ * 19일간 전달본에서 빠져 있었다.
+ *
+ * 지금은 셋째가 `shared/connectionStatus.ts` 로 나갔고, 남은 둘을 이 함수가 묶어
+ * **통합 진입점이 `registerAppService()` 로 주입한다.** 셸은 무엇이 도는지 모른다.
+ *
+ * `registerAppService` 는 함수 참조로 모으므로 **이름 있는 이 함수를 그대로 넘겨야 한다** —
+ * 익명 화살표로 감싸면 HMR 때 중복 등록 방어가 무력해진다.
  */
-export function useTabsDataLayer() {
-  useEffect(() => startDataLayer(ZONE_ID), []);
+export function startTabsServices(): () => void {
+  const stopDataLayer = startDataLayer(ZONE_ID);
   // VZ-I-10 — 외부 AI 실패는 탭 하나가 아니라 **상단 공통 알림**으로 올라간다.
-  useAiFailureNotifications();
-  return useConnectionStatus();
+  const stopAiFailures = startAiFailureNotifications();
+  return () => { stopAiFailures(); stopDataLayer(); };
 }

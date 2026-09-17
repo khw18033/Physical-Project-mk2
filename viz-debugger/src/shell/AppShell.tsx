@@ -9,7 +9,8 @@ import { ManualScope, type ManualScopeId } from '../shared/Explain.tsx';
 import { SOURCE_WORDS, useNotifications } from '../shared/notifications.ts';
 import { PendingSource } from '../shared/PendingSource.tsx';
 import { exitScenarioRender, useDevTools, useMockRender, useScenarioRender } from '../shared/renderMode.ts';
-import { useTabsDataLayer } from '../tabs/index.tsx';
+import { useAppServices } from '../shared/appServices.ts';
+import { useConnectionStatus } from '../shared/connectionStatus.ts';
 import { ConnectionsPanel } from './ConnectionsPanel.tsx';
 import { HelpOverlay } from './HelpOverlay.tsx';
 import { useMissionBridge } from './missionBridge.ts';
@@ -51,8 +52,16 @@ export function AppShell({ debuggerView, onDebuggerHome, onMissionHistory, onOpe
 }) {
   const [panel, setPanel] = useState<'history' | 'notifications' | 'connections' | null>(null);
   const notifications = useNotifications();
-  // 데이터 계층은 앱 수명과 같다. **탭을 옮겨도 구독을 끊지 않는다** — 여기서 한 번만 기동한다.
-  const connection = useTabsDataLayer();
+  // 배경 작업은 앱 수명과 같다. **여기서 한 번만 기동한다.**
+  //
+  // **셸은 무엇이 기동되는지 모른다** (260916 — 단독 빌드 정합 §2). 통합 빌드는 구역 축
+  // 구독과 AI 실패 알림을 주입하고, 단독 빌드는 아무것도 주입하지 않아 아무 일도 안 일어난다.
+  // 전에는 여기서 `useTabsDataLayer()` 를 직접 불렀고, 그 한 줄 때문에 셸 전체가
+  // 단독 빌드에서 빠져 있었다.
+  useAppServices();
+  // 상단 `conn` 배지. **이 훅이 게이트웨이 연결을 시작한다** — `getTransport()` 가 첫 호출에
+  // 붙기 때문이다(`shared/connectionStatus.ts` 의 ⚠). 셸이 뜨는 순간 붙으러 간다.
+  const connection = useConnectionStatus();
   // 임무 축(plan 제안·trace_event) — 구역 축 구독에 딸려 오지 않아 셸이 따로 잇는다 (260831).
   useMissionBridge();
   // 남이 줄 데이터를 그릴지 말지. **기본은 자리표시**다 (shared/renderMode.ts).

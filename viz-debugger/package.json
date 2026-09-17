@@ -28,6 +28,7 @@
     "verify:layout": "node scripts/verify-layout.mjs",
     "verify:single-egress": "node scripts/verify-single-egress.mjs",
     "verify:standalone": "npm run build:standalone && node scripts/verify-standalone.mjs",
+    "verify:build-parity": "node scripts/verify-build-parity.mjs",
     "verify:stt-port": "node scripts/verify-stt-port.mjs",
     "verify:voice-audit": "node scripts/verify-voice-audit.mjs",
     "verify:no-stt": "node scripts/verify-no-stt.mjs",

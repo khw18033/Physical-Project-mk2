@@ -52,10 +52,13 @@ const CANVAS_FILES = ['types.ts', 'registry.ts', 'scope.ts', 'persist.ts', 'defa
   check(/registerViewNodes\(\s*VIEW_NODE_RENDERERS\s*\)/.test(integrated), 'integrated.tsx 가 뷰 노드 렌더러를 등록하지 않는다 — 통합 앱의 팔레트가 조용히 빈다');
   check(importsOf(integrated).some((path) => path.includes('tabs/')), 'integrated.tsx 가 tabs/ 를 가져오지 않는다 — 주입할 실물이 없다');
   check(!standalone.includes('registerViewNodes'), 'standalone.tsx 가 렌더러를 등록한다 — 단독 번들에 tabs/ 가 딸려 들어간다');
-  check(!importsOf(standalone).some((path) => /(tabs|shell)\//.test(path)), 'standalone.tsx 가 tabs/·shell/ 을 가져온다');
+  // **260916 — `shell/` 이 빠졌다** (단독 빌드 정합 §5). 단독 진입점은 이제 셸을 가져온다.
+  // 금지는 `tabs/` 하나이고, 그것이 애초에 이 경계가 막으려던 것이다(대시보드 데이터 계층).
+  // 위 ①의 캔버스 경계는 **그대로 `tabs/`·`shell/` 둘 다 금지**다 — 다른 이유로 선 줄이다.
+  check(!importsOf(standalone).some((path) => /(^|\/)tabs\//.test(path)), 'standalone.tsx 가 tabs/ 를 가져온다');
   // 렌더러 실물은 tabs/ 안에 있어야 한다 — canvas/ 로 옮기면 경계가 사라진다.
   check(read('src', 'tabs', 'index.tsx').includes('VIEW_NODE_RENDERERS'), 'tabs/index.tsx 가 렌더러를 내보내지 않는다');
-  console.log('✅ 주입 — 통합 진입점만 registerViewNodes() 를 부르고, 단독 진입점은 tabs/·shell/ 을 모른다');
+  console.log('✅ 주입 — 통합 진입점만 registerViewNodes() 를 부르고, 단독 진입점은 tabs/ 를 모른다');
 }
 
 // ── ③ 팔레트는 종류를 손으로 적지 않는다 (VZ-N-01) ────────────────────────────

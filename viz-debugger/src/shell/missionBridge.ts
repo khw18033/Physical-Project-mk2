@@ -7,20 +7,35 @@
  * 발화 command_result)이 딸려 오지 않는다 — 임무는 장비가 아니고 zone 이 없다
  * (gateway/mission-trace.ts 의 규칙). 그래서 셸이 임무 축을 따로 구독한다.
  *
- * **셸에만 있다.** 탭① 코어(단독 빌드)는 게이트웨이가 없으므로 이 다리도 없다 —
- * 그때는 발화 패널의 로컬 매칭과 로컬 재생기가 같은 저장소를 민다(같은 매처·같은 대본).
+ * ## 260916 — 「셸에만 있다」가 뒤집혔다 (단독 빌드 정합)
  *
- * 받은 봉투는 탭 데이터 계층(store)에도 넣는다 — 계획은 PlanApproval(VZ-U-07)이 읽고,
- * command_result 는 명령 추적기가 요청을 정리한다. 저장소 반영은 그 다음이다.
+ * 여기 이렇게 적혀 있었다:
+ *
+ * > **셸에만 있다.** 탭① 코어(단독 빌드)는 **게이트웨이가 없으므로** 이 다리도 없다 —
+ * > 그때는 발화 패널의 로컬 매칭과 로컬 재생기가 같은 저장소를 민다.
+ *
+ * **그 전제가 거짓이 된 지 오래였다.** 260916 에 재 보니 단독 빌드의 의존 그래프에
+ * `transport/` · `physical/` · `detect/` · `stt/` · `generate/` 가 전부 들어 있었다.
+ * 붙는 법을 아는 클라이언트는 다 있고 **붙기를 시작하는 코드만 없었다** — 그것도 설계가
+ * 아니라, 이 다리가 `shell/` 에 있고 `shell/` 이 통짜로 금지돼 있었기 때문이다.
+ *
+ * 지금은 셸이 단독 빌드에도 들어가고 **이 다리도 같이 간다.** 단독에서도 게이트웨이가
+ * 떠 있으면 임무 축을 받는다. 없으면 못 받을 뿐이고, 그때도 발화 패널의 로컬 매칭과
+ * 로컬 재생기가 같은 저장소를 민다(같은 매처·같은 대본) — 그 갈래는 그대로 살아 있다.
+ *
+ * 받은 봉투는 등록된 수신처에도 흘린다(`shared/envelopeSink.ts`). 통합 빌드는 대시보드
+ * 저장소를 등록하므로 계획은 PlanApproval(VZ-U-07)이 읽고 command_result 는 명령 추적기가
+ * 정리한다. 단독 빌드는 등록하지 않아 조용히 지나간다 — **전에는 이 한 줄이 `tabs/data/`
+ * 를 직접 import 해서 셸 전체를 단독 빌드 밖으로 밀어내고 있었다.**
  */
 
 import { useEffect } from 'react';
 import { activateMission, proposeMission, receiveTrace, rejectProposal, viewForMission } from '../data/scenario.ts';
 import { libraryEntry, opensRobotGate, scriptDriven } from '../scenarios/library.ts';
 import { axesOfMission } from '../scenarios/scriptScope.ts';
-import { markIntegratedBuild, observeConnection, observeEnvelope, updateClientHealth } from '../shared/observability.ts';
+import { observeConnection, observeEnvelope, updateClientHealth } from '../shared/observability.ts';
 import { enterScenarioRender } from '../shared/renderMode.ts';
-import { store } from '../tabs/data/index.ts';
+import { fanOutEnvelope } from '../shared/envelopeSink.ts';
 import { getTransport, type Envelope } from '../transport/index.ts';
 import { liveFrame } from '../viewpoint/source.ts';
 import { appendViewpoint } from '../viewpoint/store.ts';
@@ -56,9 +71,15 @@ export function startMissionBridge(): () => void {
   /**
    * 자체 관측 (`VZ-O-04` · 260904) — **수신 지연과 재연결은 게이트웨이가 있을 때만 잰다.**
    * 다리가 여기서 봉투와 연결 상태를 다 보므로 계측을 다른 곳에 또 걸 이유가 없다.
-   * 단독 빌드에는 이 다리가 없고, 그래서 그 둘은 「해당 없음」으로 뜬다 — 0이 아니다.
+   *
+   * **260916 — 「단독 빌드에는 이 다리가 없다」가 더는 참이 아니다.** 단독에서도 다리가 돌고,
+   * 게이트웨이가 떠 있으면 그 둘을 실제로 잰다. 게이트웨이가 없으면 재연결만 쌓인다.
+   *
+   * **`markIntegratedBuild()` 가 여기 있었는데 진입점으로 옮겼다** (단독 빌드 정합 §3).
+   * 그대로 뒀으면 단독 빌드가 이 다리를 도는 순간 스스로를 「통합」이라 표시해
+   * **논문 측정축 D 가 오염된다.** 그 표식의 뜻은 「대시보드 데이터 계층이 실렸는가」이고,
+   * 그것을 아는 곳은 이 다리가 아니라 그 계층을 주입하는 `integrated.tsx` 다.
    */
-  markIntegratedBuild();
   const transport = getTransport();
   observeConnection(transport.getStatus());
   const unwatch = transport.onStatus((status) => observeConnection(status));
@@ -67,7 +88,9 @@ export function startMissionBridge(): () => void {
     { entity: '*', node: 'mission-trace', channel: '*' },
     (envelope) => {
       observeEnvelope(envelope);
-      store.apply(envelope);
+      // 등록된 수신처에 흘린다 — 통합 빌드에서는 대시보드 저장소가 받고, 단독 빌드에서는
+      // 등록된 것이 없어 조용히 지나간다 (`shared/envelopeSink.ts`).
+      fanOutEnvelope(envelope);
       if (envelope.channel === 'plan') applyPlan(envelope);
       // **로봇 편의 진행은 로봇만 몬다** (260910 지적 — 조건을 걸지 않는다).
       //

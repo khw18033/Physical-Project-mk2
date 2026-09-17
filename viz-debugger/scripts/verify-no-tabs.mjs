@@ -128,7 +128,18 @@ const css = read('src', 'style.css');
   // 무대는 하나다. 감췄다 되살릴 다른 무대가 없다.
   check(!/is-hidden/.test(shell) && !/is-hidden/.test(css), '감춘 무대(is-hidden)가 남아 있다 — 무대는 캔버스 하나뿐이어야 한다');
   // 지시서 §3 — 이 둘은 **그대로 남아야** 한다.
-  check(/useTabsDataLayer\(\)/.test(shell), '데이터 계층 기동이 셸에서 사라졌다 — 앱 수명과 같아야 한다 (지시서 §3 · 하지 않을 것)');
+  //
+  // **260916 — 무엇을 보는지가 바뀌었다** (단독 빌드 정합 §5). 전에는 셸에 `useTabsDataLayer()`
+  // 라는 **글자**가 있는지 봤다. 그 글자가 이 작업에서 사라진다 — 셸이 `tabs/` 를 알던 유일한
+  // 고리였고, 그것 때문에 셸 전체가 단독 빌드에서 빠져 있었기 때문이다.
+  //
+  // 지키려던 성질은 그대로다: **데이터 계층 기동이 앱 수명과 같은가.** 그래서 글자 대신
+  // 성질을 본다 — 셸이 앱 수명 배경 작업을 기동하고(`useAppServices`), 통합 진입점이 거기에
+  // 데이터 계층을 실제로 등록하는가(`registerAppService`). **양 끝을 다 보므로 전보다 세다** —
+  // 전에는 셸의 글자 하나만 봐서 통합 쪽이 등록을 빠뜨려도 안 걸렸다.
+  const integrated = stripComments(read('src', 'integrated.tsx'));
+  check(/useAppServices\(\)/.test(shell), '앱 수명 배경 작업 기동이 셸에서 사라졌다 — 데이터 계층이 앱 수명과 같아야 한다 (지시서 §3 · 하지 않을 것)');
+  check(/registerAppService\(/.test(integrated), '통합 진입점이 데이터 계층을 등록하지 않는다 — 셸이 기동해도 기동할 것이 없다');
   check(/onDebuggerHome/.test(shell), '마일스톤 목록으로 돌아가는 길이 셸에서 사라졌다');
   // 「○○ 노드로」 — 탭 시절의 「갈 탭」이 옮겨 앉은 자리.
   check(/onOpenNode\(/.test(shell), '대본 띠의 「○○ 노드로」가 없다 — 안내줄이 갈 곳을 잃었다');
