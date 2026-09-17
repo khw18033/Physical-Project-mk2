@@ -14,6 +14,7 @@ import { useConnectionStatus } from '../shared/connectionStatus.ts';
 import { ConnectionsPanel } from './ConnectionsPanel.tsx';
 import { HelpOverlay } from './HelpOverlay.tsx';
 import { useMissionBridge } from './missionBridge.ts';
+import { LangSwitch } from './LangSwitch.tsx';
 import { ModeSwitch } from './ModeSwitch.tsx';
 import { ApproachButton, PauseButton, ResumeButton, StopButton } from '../physical/StopButton.tsx';
 import { MissionHistoryList } from '../views/MissionHistory.tsx';
@@ -118,6 +119,8 @@ export function AppShell({ debuggerView, onDebuggerHome, onMissionHistory, onOpe
       {/* 안내 문단 2줄은 우상단 `?` 오버레이로 옮겼다 (사이트 개선 요구 1). */}
       <nav>
         <ModeSwitch />
+        {/* 언어 세그먼트 — 모드 옆 (영문화 1단계 §3). 라벨은 각 언어를 그 언어로 적는다. */}
+        <LangSwitch />
         <HelpOverlay scope={manualScope} />
         <span className={`conn conn--${connection.state}`}>{CONNECTION_LABEL[connection.state] ?? connection.state}{connection.state === 'reconnecting' ? ` (${connection.attempt}회)` : ''}</span>
         {/* **셋이 한 부품에서 온다** (260910). 전에는 여기서 게이트웨이로 `mission_pause` 를

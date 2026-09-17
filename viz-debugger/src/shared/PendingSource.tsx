@@ -21,7 +21,9 @@
 import type { ReactNode } from 'react';
 import { AXIS_LABEL, type ScenarioAxis } from '../scenarios/axes.ts';
 import { scriptsWithAxis } from '../scenarios/scriptScope.ts';
-import { pendingSource, PLANE_LABEL, PLANE_NOTE } from './pendingSources.ts';
+import { pendingSource, PLANE_NOTE } from './pendingSources.ts';
+import { t } from '../i18n/dict.ts';
+import { useLang } from './language.ts';
 import { useMockRender, useScenarioAxis, useScenarioCast } from './renderMode.ts';
 
 type Props = {
@@ -67,12 +69,16 @@ function summaryText(spec: ReturnType<typeof pendingSource>): string {
     `무엇: ${spec.what}`,
     from,
     `우리 자리: ${spec.ours.join(' · ')}`,
-    `경로: ${PLANE_LABEL[spec.plane]} — ${PLANE_NOTE[spec.plane]}`,
+    // 시범 키 ④ 열거형 라벨 (영문화 1단계 §4). `PLANE_LABEL` 은 모듈 최상위 상수라
+    // 거기서 `t()` 를 부르면 로드 시점에 굳는다 — **읽는 자리에서 부른다.**
+    `경로: ${t('plane.' + spec.plane)} — ${PLANE_NOTE[spec.plane]}`,
   ].join('\n');
 }
 
 export function PendingSource({ id, minHeight, fill, inline, entity, axis, children }: Props) {
   const spec = pendingSource(id);
+  // 언어가 바뀌면 다시 그린다 — `t()` 는 값을 줄 뿐 리렌더를 일으키지 않는다 (§4).
+  useLang();
   const mock = useMockRender();
   const scenarioCast = useScenarioCast();
   const axisCovered = useScenarioAxis(axis);
@@ -179,7 +185,8 @@ export function PendingSource({ id, minHeight, fill, inline, entity, axis, child
 
         <dt>경로</dt>
         <dd>
-          <b>{PLANE_LABEL[spec.plane]}</b>
+          {/* 시범 키 ④ — 읽는 자리에서 부른다 (위 `summaryText` 주석과 같은 이유). */}
+          <b>{t('plane.' + spec.plane)}</b>
           <span className="pending__why">{PLANE_NOTE[spec.plane]}</span>
         </dd>
       </dl>

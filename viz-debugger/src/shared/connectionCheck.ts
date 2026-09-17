@@ -15,6 +15,7 @@
 
 import { probe as generateProbe } from '../generate/LlmClient.ts';
 import { probe as sttProbe } from '../stt/SttClient.ts';
+import { t } from '../i18n/dict.ts';
 import type { ConnectionTargetId } from './connections.ts';
 import { line, setChecking, setHealth, type HealthLine } from './connectionHealth.ts';
 import { probeDetect, sourceOf } from '../detect/DetectClient.ts';
@@ -128,7 +129,9 @@ export async function checkPhysical(
 function robotLine(agent: HealthLine, robot: RobotFacts | null): HealthLine {
   if (agent.ok !== true) return line('robot', '로봇', null, { reason: '단말이 답하지 않아 물어보지 못했습니다' });
   if (robot === null) return line('robot', '로봇', null, { reason: '장비 상태가 아직 안 왔습니다' });
-  if (robot.stale) return line('robot', '로봇', null, { reason: `${robot.staleSec}초째 소식이 없습니다 — 마지막 값을 현재로 보지 않습니다` });
+  // 시범 키 ② 치환 (영문화 1단계 §4). **영어는 어순이 반대다** — ko 는 숫자가 앞이고
+  // en 은 'No signal for {sec}s' 로 뒤다. 조각을 이어붙였다면 옮길 방법이 없었다.
+  if (robot.stale) return line('robot', '로봇', null, { reason: t('check.robot.stale', { sec: robot.staleSec }) });
   if (robot.online === false) return line('robot', '로봇', false, { reason: '파이가 오프라인으로 봅니다' });
   if (robot.link !== null && robot.link !== 'ok') return line('robot', '로봇', false, { reason: `내부 링크 ${robot.link}` });
   if (robot.link === null) return line('robot', '로봇', null, { reason: '내부 링크 값이 안 왔습니다' });

@@ -16,6 +16,8 @@ import { useEffect, useRef, useState } from 'react';
 import { enterScriptPreview } from '../scenarios/enterPreview.ts';
 import { SCRIPT_LIBRARY } from '../scenarios/library.ts';
 import { issueCommand } from '../shared/commandEgress.ts';
+import { t } from '../i18n/dict.ts';
+import { useLang } from '../shared/language.ts';
 import {
   exitScenarioRender,
   setRenderMode,
@@ -25,6 +27,9 @@ import {
 
 export function ModeSwitch() {
   const mode = useRenderMode();
+  // **`t()` 는 부르는 순간의 언어를 줄 뿐 다시 그리게 하지 않는다.** 이 훅이 그 일을 한다 —
+  // 빼면 언어를 바꿔도 이 부품만 옛 문구로 남는다 (영문화 1단계 §4).
+  useLang();
   const scenario = useScenarioRender();
   const [menuOpen, setMenuOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement | null>(null);
@@ -68,7 +73,8 @@ export function ModeSwitch() {
 
   return (
     <div className="modeswitch" role="group" aria-label="렌더 모드" ref={rootRef}>
-      <span className="modeswitch__label">모드</span>
+      {/* 시범 키 ① 단순 라벨 (영문화 1단계 §4). `useLang()` 이 있어야 전환 때 다시 그린다. */}
+      <span className="modeswitch__label">{t('mode.label')}</span>
       <button
         type="button"
         className={'modeswitch__seg' + (mode === 'placeholder' ? ' modeswitch__seg--on' : '')}
@@ -104,7 +110,9 @@ export function ModeSwitch() {
         onClick={toMock}
         title="남이 줄 데이터 자리에 목을 그립니다. 켜져 있는 동안 붉은 배지가 유지됩니다"
       >
-        목·개발
+        {/* 시범 키 ⑤ — **`en.ts` 에 일부러 없다.** 영문 화면에서 이 버튼만 한국어로 남고
+            콘솔에 한 줄이 찍히면 fallback 이 도는 것이다 (영문화 1단계 §4). */}
+        {t('mode.mock')}
       </button>
     </div>
   );

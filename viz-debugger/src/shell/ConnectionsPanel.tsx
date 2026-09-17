@@ -25,6 +25,8 @@
  */
 
 import { useState } from 'react';
+import { t } from '../i18n/dict.ts';
+import { useLang } from '../shared/language.ts';
 import { DETECT_PRESETS, detectPresetReady } from '../detect/presets.ts';
 import { BROKER_PRESETS, presetReady } from '../physical/presets.ts';
 import { checkTarget, type PhysicalProbe } from '../shared/connectionCheck.ts';
@@ -62,6 +64,8 @@ export function ConnectionsPanel({ onClose, physical }: { onClose(): void; physi
   /** 편집 중인 값. 저장을 눌러야 적용된다 — 한 글자 칠 때마다 끊고 다시 붙으면 못 쓴다. */
   const [draft, setDraft] = useState<Record<string, string>>({ ...current });
   const [note, setNote] = useState<string | null>(null);
+  // 언어가 바뀌면 다시 그린다 — `t()` 는 값을 줄 뿐 리렌더를 일으키지 않는다 (§4).
+  useLang();
   const writable = connectionsWritable();
   const dirty = CONNECTION_TARGETS.some((target) => target.fields.some((field) => {
     const key = connectionKey(target.id, field.key);
@@ -85,8 +89,10 @@ export function ConnectionsPanel({ onClose, physical }: { onClose(): void; physi
     {/* **최상단 안내를 뺐다** (260913 지시). 여기 있던 세 줄은 이 판을 처음 여는 사람에게
         필요한 말이고, 시연 직전에 여는 사람에게는 매번 같은 자리를 차지할 뿐이었다.
         규칙 자체는 그대로다 — 환경변수가 기본값이고 여기서 넣은 값이 이긴다. */}
+    {/* 시범 키 ③ 긴 오류 문장 (영문화 1단계 §4). 좁은 판이라 **줄바꿈이 레이아웃을 깨는지**를
+        여기서 본다 — 영어가 한국어보다 길다. 2단계에 미리 알아야 할 것이 이런 자리다. */}
     {!writable && <p className="connections__warn">
-      저장소가 막혀 있습니다 — 바꿔도 이번 세션에만 적용되고 새로고침하면 기본값으로 돌아갑니다.
+      {t('conn.storageBlocked')}
     </p>}
     {/* 목록을 그린다. 대상이 늘면 이 파일이 아니라 shared/connections.ts 가 바뀐다. */}
     {CONNECTION_TARGETS.map((target) => <section key={target.id} className={`conn-target${target.live ? '' : ' conn-target--pending'}`}>
