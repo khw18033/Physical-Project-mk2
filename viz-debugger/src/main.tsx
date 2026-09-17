@@ -23,6 +23,7 @@ import { PendingSource } from './shared/PendingSource.tsx';
 import { MissionHistoryList, useMissionEndWatch } from './views/MissionHistory.tsx';
 import { hardwareSourceLabel, listCastIds, listRegisteredHardware } from './shared/registry.ts';
 import { graphShape, shapeLabel } from './graph/shape.ts';
+import { useLang } from './shared/language.ts';
 import { ActionModal } from './views/ActionModal.tsx';
 import { DeviceStatusOverlay } from './views/DeviceStatusOverlay.tsx';
 import { UtterancePanel } from './views/UtterancePanel.tsx';
@@ -203,6 +204,9 @@ function GraphScreen({ screen, view, trace, milestone, tasks, headSec, playing, 
    */
   nodeRequest: { kind: string; taskId: string | null; requestId: number } | null;
 }) {
+  // **범위 밖이지만 한 줄 넣었다** (260917 — 영문화 2단계). 머리줄이 그리는
+  // `shapeLabel()` 이 사전을 타는데, 이 훅이 없으면 언어를 바꿔도 그 한 줄만 안 따라온다.
+  useLang();
   const replay = screen === 'replay'; const failure = screen === 'failure';
   /** 저장된 판을 다시 보는 중이면 그 판 (260914). 머리줄에 어느 판인지 적는다. */
   const recorded = useReplayTarget();

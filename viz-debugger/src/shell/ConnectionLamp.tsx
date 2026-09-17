@@ -21,10 +21,14 @@
 
 import { CHECKED_TARGETS, firstBroken, targetOk, useConnectionHealth } from '../shared/connectionHealth.ts';
 import { CONNECTION_TARGETS } from '../shared/connections.ts';
+import { t } from '../i18n/dict.ts';
+import { useLang } from '../shared/language.ts';
 
 const LABEL_OF = new Map(CONNECTION_TARGETS.map((target) => [target.id, target.label]));
 
 export function ConnectionLamp({ onOpen }: { onOpen(): void }) {
+  // `t()` 는 값을 줄 뿐 리렌더를 안 일으킨다 (지시서 §2 ①).
+  useLang();
   const health = useConnectionHealth();
   const checked = CHECKED_TARGETS.filter((target) => (health[target]?.lines.length ?? 0) > 0);
   const broken = firstBroken(CHECKED_TARGETS);
@@ -32,22 +36,22 @@ export function ConnectionLamp({ onOpen }: { onOpen(): void }) {
   // 아무것도 안 눌러 봤다 — 「모른다」다. 빨갛게 칠하지 않는다.
   if (checked.length === 0) {
     return <button type="button" className="conn-lamp conn-lamp--unknown" onClick={onOpen}>
-      연결 미확인 — 누르면 연결 관리
+      {t('lamp.unknown')}
     </button>;
   }
   if (broken !== null) {
     return <button type="button" className="conn-lamp conn-lamp--bad" onClick={onOpen}>
-      {LABEL_OF.get(broken.target) ?? broken.target} {broken.line.label} 끊김 — 누르면 연결 관리
+      {t('lamp.broken', { target: LABEL_OF.get(broken.target) ?? broken.target, line: broken.line.label })}
     </button>;
   }
   // 빨간 줄은 없지만 「모르는」 줄이 남아 있을 수 있다 — 초록이라고 말하지 않는다.
   const unknown = CHECKED_TARGETS.filter((target) => targetOk(target) === null && (health[target]?.lines.length ?? 0) > 0);
   if (unknown.length > 0) {
     return <button type="button" className="conn-lamp conn-lamp--unknown" onClick={onOpen}>
-      연결 {checked.length - unknown.length}/{CHECKED_TARGETS.length} · 미확인 {unknown.length}
+      {t('lamp.partial', { ok: checked.length - unknown.length, total: CHECKED_TARGETS.length, unknown: unknown.length })}
     </button>;
   }
   return <button type="button" className="conn-lamp conn-lamp--ok" onClick={onOpen}>
-    연결 {checked.length}/{CHECKED_TARGETS.length} 확인됨
+    {t('lamp.ok', { ok: checked.length, total: CHECKED_TARGETS.length })}
   </button>;
 }

@@ -26,6 +26,7 @@ import {
   type CanvasLoad,
 } from './persist.ts';
 import type { ViewNodeInstance, ViewNodeKind } from './types.ts';
+import { t } from '../i18n/dict.ts';
 
 export type CanvasApi = {
   nodes: readonly ViewNodeInstance[];
@@ -75,7 +76,7 @@ export function useCanvas(missionId: string, slot: string, tasks: readonly Task[
       config: next,
       source: 'user',
       // 저장이 실패했으면 그 사실을 한 줄로 남긴다 — 조용히 잃는 것이 제일 나쁘다.
-      notices: saved ? current.notices : [...new Set([...current.notices, '이 브라우저에서는 캔버스 구성이 저장되지 않습니다 — 새로고침하면 기본 구성으로 돌아갑니다.'])],
+      notices: saved ? current.notices : [...new Set([...current.notices, t('canvas.notSaved')])],
       writable: saved,
     }));
   }, [deps, missionId, slot]);

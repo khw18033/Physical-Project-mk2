@@ -5,7 +5,7 @@ import type { Hardware, NodeKind, RefEdge, Task, TaskStatus } from '../model/typ
 import { cellClass, doorCell, scanHead, type ViewpointFill } from '../viewpoint/fill.ts';
 import { applyFanLayout, fanGeometry, VIEWPOINT_NODE_HEIGHT, type ViewpointGroup } from './fanLayout.ts';
 import { dagLayout, viewNodeLayout, NODE_HEIGHT, NODE_WIDTH, VIEW_NODE_HEIGHT, VIEW_NODE_WIDTH, type Attached, type Position } from './layout.ts';
-import { STATE_STYLE } from './stateStyle.ts';
+import { STATE_STYLE, stateLabel } from './stateStyle.ts';
 
 /** 되돌아가는 곡선이 두 노드 바닥 아래로 내려가는 깊이(px). 문구와 화살촉이 노드와 겹치지 않을 만큼. */
 const REF_EDGE_DEPTH = 56;
@@ -548,7 +548,7 @@ export function TaskGraph({ tasks, hardware, states, selected, dimUnrelated, onO
         {/* 테두리 손잡이 — 파워포인트처럼 가장자리에 대면 커서가 바뀐다 (260911). */}
         {handles(task.id, 'task')}
         <small>{task.id}{task.nodeKind ? <em className={`node-kind node-kind--${task.nodeKind}`}>{NODE_KIND_LABEL[task.nodeKind]}</em> : null}</small><strong>{task.title}</strong>
-        <span className="state-label">{style.icon} {style.label}{state.status === 'rerunning' ? ` · attempt ${state.attempt}` : ''}</span>
+        <span className="state-label">{style.icon} {stateLabel(state.status)}{state.status === 'rerunning' ? ` · attempt ${state.attempt}` : ''}</span>
         {/* 옛 편은 하드웨어 목록이 있어 기존 문구 그대로다. 대본(registry 세계)의 장비 실측
             상태는 남이 줄 데이터라 '오프라인'이라고 지어 말하지 않는다 — 미수신은 미수신이다.
             (칩 자체의 A/B 처리는 8/31 보류 항목 1 그대로 미결이다.) */}

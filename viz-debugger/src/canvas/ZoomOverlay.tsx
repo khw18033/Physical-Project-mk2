@@ -18,6 +18,8 @@
 import { useEffect, type ReactNode } from 'react';
 import { ManualScope, type ManualScopeId } from '../shared/Explain.tsx';
 import type { ViewNodeEntry, ViewScope } from './types.ts';
+import { t } from '../i18n/dict.ts';
+import { useLang } from '../shared/language.ts';
 
 export function ZoomOverlay({ entry, scope, taskId, onClose }: {
   entry: ViewNodeEntry;
@@ -27,6 +29,7 @@ export function ZoomOverlay({ entry, scope, taskId, onClose }: {
   onClose(): void;
 }) {
   // Esc 로 닫힌다. 팝업을 여는 길이 둘(더블클릭·버튼)이면 닫는 길도 둘 이상이어야 한다.
+  useLang();
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') onClose(); };
     window.addEventListener('keydown', onKey);
@@ -34,18 +37,18 @@ export function ZoomOverlay({ entry, scope, taskId, onClose }: {
   }, [onClose]);
 
   const where: ReactNode = taskId === null
-    ? <>전역 노드 · 임무 전체 구간</>
-    : <>◂ {taskId} 에 연결됨 · {scope.deviceId ?? '대상 없음'}</>;
+    ? <>{t('zoom.globalNode')}</>
+    : <>{t('zoom.linkedTo', { task: taskId })} · {scope.deviceId ?? t('zoom.noTarget')}</>;
 
   return <div className="modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
-    <section className="modal zoom-modal" role="dialog" aria-label={`${entry.label} 확대`}>
+    <section className="modal zoom-modal" role="dialog" aria-label={t('zoom.aria', { label: entry.label })}>
       <header>
         <div>
           <h2>⤢ {entry.label}</h2>
           {/* 범위를 여기 한 줄로 적는다 — 확대해도 「무엇의 값인지」가 안 흐려져야 한다. */}
-          <small>{where} · T+{Math.round(scope.fromSec)}~{Math.round(scope.toSec)}s · 재생 머리 T+{Math.round(scope.headSec)}s</small>
+          <small>{where} · T+{Math.round(scope.fromSec)}~{Math.round(scope.toSec)}s · {t('zoom.head', { sec: Math.round(scope.headSec) })}</small>
         </div>
-        <button onClick={onClose}>닫기 (Esc)</button>
+        <button onClick={onClose}>{t('zoom.close')}</button>
       </header>
       {/* 확대 본문 안의 `<Explain>` 문단들이 **이 노드의 설명서**로 등록된다 (260903 3단계).
           우상단 `?` 가 확대 중에는 그 노드 것을 보인다 — 탭별 설명서가 있던 자리다. */}
@@ -53,7 +56,7 @@ export function ZoomOverlay({ entry, scope, taskId, onClose }: {
         <ManualScope.Provider value={entry.kind as ManualScopeId}>{entry.zoom(scope)}</ManualScope.Provider>
       </div>
       <footer>
-        <span>확대는 캔버스를 교체하지 않습니다 — 뒤에 그대로 있고, 닫으면 같은 자리입니다.</span>
+        <span>{t('zoom.note')}</span>
       </footer>
     </section>
   </div>;

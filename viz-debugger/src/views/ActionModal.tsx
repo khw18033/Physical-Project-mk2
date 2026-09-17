@@ -22,7 +22,7 @@ import { OBSTACLE_TASK } from '../autodrive/obstacle.ts';
 import { ObstacleEvidence, ObstacleFacts } from '../autodrive/views/AutodriveViews.tsx';
 import type { Hardware, Task } from '../model/types.ts';
 import { PendingSource } from '../shared/PendingSource.tsx';
-import { STATE_STYLE } from '../graph/stateStyle.ts';
+import { stateLabel } from '../graph/stateStyle.ts';
 import { failureOfTask } from '../physical/robotCommands.ts';
 import { viewpointTaskIndex } from '../physical/missionLink.ts';
 import {
@@ -174,7 +174,7 @@ export function ActionModal({ task, view, device, failure, onClose }: { task: Ta
       {/* **탐지 쪽에서 오간 것** (260914 지시). 로봇 → 탐지 프레임, 탐지 → 화면 결과, 화면의
           판단이 그 태스크 몫만 붙는다. 탐지 그림이 안 올 때 어느 구간에서 끊겼는지가 여기 남는다. */}
       {isDetectTask(task.id) && <DetectLogLines taskId={task.id} />}
-      {task.actionItems.length > 0 && <table><thead><tr><th>#</th><th>액션 아이템</th><th>파라미터</th><th>상태</th></tr></thead><tbody>{task.actionItems.map((item, index) => <tr key={item.id}><td>{index + 1}</td><td><b>{item.label}</b><small>{item.id}</small></td><td><code>{Object.entries(item.params).map(([key, value]) => `${key}: ${value}`).join(' · ') || '없음'}</code></td><td>{STATE_STYLE[item.status].label}</td></tr>)}</tbody></table>}
+      {task.actionItems.length > 0 && <table><thead><tr><th>#</th><th>액션 아이템</th><th>파라미터</th><th>상태</th></tr></thead><tbody>{task.actionItems.map((item, index) => <tr key={item.id}><td>{index + 1}</td><td><b>{item.label}</b><small>{item.id}</small></td><td><code>{Object.entries(item.params).map(([key, value]) => `${key}: ${value}`).join(' · ') || '없음'}</code></td><td>{stateLabel(item.status)}</td></tr>)}</tbody></table>}
     </div><aside>{view.world === 'registry'
       ? <><h3>평가 · Evaluation</h3>{task.evaluation
           ? task.evaluation.criteria.map((criterion) => <p key={criterion}>✓ {criterion} <small>판정 {task.evaluation!.judgedBy}</small></p>)

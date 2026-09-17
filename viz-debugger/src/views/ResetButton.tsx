@@ -19,6 +19,8 @@
 
 import { useEffect, useState } from 'react';
 import { restartMission, resetMission, useMission } from '../data/scenario.ts';
+import { t } from '../i18n/dict.ts';
+import { useLang } from '../shared/language.ts';
 
 /**
  * **지금 임무를 처음부터 다시** (260911 지시).
@@ -38,19 +40,22 @@ import { restartMission, resetMission, useMission } from '../data/scenario.ts';
  * 잘못 눌러도 같은 편을 다시 볼 뿐이고, 시연 중에 두 번 묻는 것이 더 성가시다.
  */
 export function RestartButton() {
+  // `t()` 는 값을 줄 뿐 리렌더를 안 일으킨다 (지시서 §2 ①).
+  useLang();
   const mission = useMission();
   if (mission.current.missionId === '') return null;
   return <button
     type="button"
     className="mission-restart"
     onClick={() => { restartMission(); }}
-    title="이 임무를 처음부터 다시 돌립니다 — 발화와 승인을 다시 하지 않아도 됩니다"
+    title={t('reset.restartTitle')}
   >
-    ↻ 처음부터
+    {t('reset.restart')}
   </button>;
 }
 
 export function ResetButton() {
+  useLang();
   const [asking, setAsking] = useState(false);
 
   // 물어보는 상태를 오래 두지 않는다.
@@ -65,16 +70,16 @@ export function ResetButton() {
       type="button"
       className="mission-reset"
       onClick={() => setAsking(true)}
-      title="임무·진행·여덟 칸을 비웁니다. 브로커 연결은 그대로 남습니다"
+      title={t('reset.resetTitle')}
     >
-      ↺ 초기화
+      {t('reset.reset')}
     </button>;
   }
 
   return <span className="mission-reset-ask">
     <button type="button" className="mission-reset mission-reset--confirm" onClick={() => { resetMission(); setAsking(false); }}>
-      정말 초기화 — 이 판을 버립니다
+      {t('reset.confirm')}
     </button>
-    <button type="button" className="mission-reset-cancel" onClick={() => setAsking(false)}>취소</button>
+    <button type="button" className="mission-reset-cancel" onClick={() => setAsking(false)}>{t('reset.cancel')}</button>
   </span>;
 }

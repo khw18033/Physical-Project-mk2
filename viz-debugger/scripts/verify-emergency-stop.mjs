@@ -445,9 +445,17 @@ commandTracker.clear();
   if (boot.headSec !== 0 || boot.playing) failures.push('부팅하자마자 재생 중이다');
 
   // 화면이 두 번 묻는가.
+  //
+  // **문구가 아니라 키를 본다** (260917 — 영문화 2단계 §5). 전에는 「정말 초기화」를 소스에서
+  // 찾았는데, 그 문구가 사전으로 갔다. 번역이 바뀌어도 안 깨지도록 키로 대조한다.
+  // **키만 보면 오타가 안 잡히므로 사전에 그 키가 실제로 있는지도 같이 본다.**
   const button = readFileSync(join(root, 'src', 'views', 'ResetButton.tsx'), 'utf8');
-  if (!/setAsking\(true\)/.test(button) || !/정말 초기화/.test(button)) {
+  const { ko } = await import(pathToFileURL(join(root, 'src', 'i18n', 'ko.ts')).href);
+  if (!/setAsking\(true\)/.test(button) || !button.includes("t('reset.confirm')")) {
     failures.push('초기화가 한 번에 지운다 — 한 판을 버리는 일은 두 번 물어야 한다');
+  }
+  if (ko['reset.confirm'] === undefined) {
+    failures.push('사전에 reset.confirm 이 없다 — 확인 버튼이 키 이름을 그대로 그린다');
   }
   for (const bar of [['src', 'shell', 'AppShell.tsx'], ['src', 'views', 'TopBar.tsx']]) {
     if (!readFileSync(join(root, ...bar), 'utf8').includes('<ResetButton />')) {

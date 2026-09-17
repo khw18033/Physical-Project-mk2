@@ -17,6 +17,7 @@
  */
 
 import type { RefEdge, Task } from '../model/types.ts';
+import { t } from '../i18n/dict.ts';
 
 export type GraphShape = {
   /** 지금 보고 있는 범위의 노드 수. */
@@ -47,11 +48,13 @@ export function graphShape(tasks: readonly Task[], refEdges: readonly RefEdge[] 
  * 무엇과 비교되고 있는지 묻게 된다.
  */
 export function shapeLabel(shape: GraphShape): string {
-  const parts: string[] = [`${shape.nodes}노드`];
-  if (shape.merges > 0) parts.push(`합류 ${shape.merges}`);
-  if (shape.loops > 0) parts.push(`되돌아감 ${shape.loops}`);
-  if (shape.merges === 0 && shape.loops === 0) parts.push('일직선');
-  return `태스크 DAG — ${parts.join(' · ')}`;
+  const parts: string[] = [t('shape.nodes', { n: shape.nodes })];
+  if (shape.merges > 0) parts.push(t('shape.merges', { n: shape.merges }));
+  if (shape.loops > 0) parts.push(t('shape.loops', { n: shape.loops }));
+  if (shape.merges === 0 && shape.loops === 0) parts.push(t('shape.linear'));
+  // **조각을 이어붙이지 않는다** — 바깥 문장은 통째로 한 키다 (지시서 §2 ③).
+  // 안쪽 조각들은 「·」로 잇는 목록이라 어순 문제가 없다.
+  return t('shape.dag', { parts: parts.join(' · ') });
 }
 
 /**

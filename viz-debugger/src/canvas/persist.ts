@@ -28,6 +28,7 @@
  */
 
 import type { ViewNodeInstance } from './types.ts';
+import { t } from '../i18n/dict.ts';
 
 /** 스키마 판. **키가 아니라 값 안에 둔다** — 키에 두면 옛 구성이 조용히 미아가 된다. */
 export const CANVAS_SCHEMA_VERSION = 1;
@@ -78,16 +79,16 @@ export function parseCanvas(raw: string | null): { config: CanvasConfig | null; 
   try {
     parsed = JSON.parse(raw);
   } catch {
-    return { config: null, notice: '저장된 캔버스 구성을 읽지 못해 기본 구성으로 시작합니다.' };
+    return { config: null, notice: t('canvas.readFailed') };
   }
   if (typeof parsed !== 'object' || parsed === null || !Array.isArray((parsed as CanvasConfig).nodes)) {
-    return { config: null, notice: '저장된 캔버스 구성의 모양이 달라 기본 구성으로 시작합니다.' };
+    return { config: null, notice: t('canvas.shapeChanged') };
   }
   const version = (parsed as CanvasConfig).version;
   if (version !== CANVAS_SCHEMA_VERSION) {
     return {
       config: null,
-      notice: `저장된 캔버스 구성이 옛 판(v${String(version)})이라 버리고 기본 구성으로 시작합니다.`,
+      notice: t('canvas.oldVersion', { version: String(version) }),
     };
   }
   const nodes = (parsed as CanvasConfig).nodes.filter(isInstance);
@@ -111,7 +112,7 @@ export function reconcile(config: CanvasConfig, taskIds: ReadonlySet<string>): {
   if (lost.length === 0) return { config, notices: [] };
   return {
     config: { ...config, nodes },
-    notices: [`연결했던 태스크 ${[...new Set(lost)].join(' · ')} 가 지금 대본에 없어 전역 노드로 두었습니다 (지우지 않았습니다).`],
+    notices: [t('canvas.lostTasks', { tasks: [...new Set(lost)].join(' · ') })],
   };
 }
 
