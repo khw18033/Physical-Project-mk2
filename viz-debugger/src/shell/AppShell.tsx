@@ -21,6 +21,7 @@ import { MissionHistoryList } from '../views/MissionHistory.tsx';
 import { ResetButton, RestartButton } from '../views/ResetButton.tsx';
 import { robotProbe } from '../physical/robotClient.ts';
 import { ConnectionLamp } from './ConnectionLamp.tsx';
+import { t } from '../i18n/dict.ts';
 
 /**
  * ## 2026-09-03 (3단계) — 탭 바가 사라졌다
@@ -37,12 +38,11 @@ import { ConnectionLamp } from './ConnectionLamp.tsx';
  *    사용자가 팔레트를 몰라도 배너가 가르쳐 주는 두 번째 진입점이다.
  */
 
-const CONNECTION_LABEL: Record<string, string> = {
-  open: '게이트웨이 연결됨',
-  reconnecting: '재연결 중',
-  connecting: '연결 중',
-  closed: '연결 종료',
-};
+/**
+ * 연결 상태 넉 자. **표를 사전으로 바꾸지 않았다** — 모듈 최상위 상수라 여기서 `t()` 를
+ * 부르면 로드 시점에 굳는다(지시서 §2 ②). 읽는 자리가 `t('conn.state.' + state)` 로 묻는다.
+ * 표가 통째로 없어진 이유는 키 이름이 상태 값과 1:1이라 표가 할 일이 남지 않아서다.
+ */
 
 export function AppShell({ debuggerView, onDebuggerHome, onMissionHistory, onOpenNode }: {
   debuggerView: ReactNode;
@@ -73,7 +73,7 @@ export function AppShell({ debuggerView, onDebuggerHome, onMissionHistory, onOpe
   const scenario = useScenarioRender();
   const scenarioEnded =
     scenario !== null && scenario.playing && mission.current.missionId === scenario.missionId && !mission.playing;
-  const scenarioState = scenario === null ? '' : scenario.playing ? (scenarioEnded ? '재생 끝 — 마지막 상태' : '재생 중') : '정지 미리보기';
+  const scenarioState = scenario === null ? '' : scenario.playing ? (scenarioEnded ? t('script.ended') : t('mode.playing')) : t('script.preview');
   // 「지금 무엇이 어디서 보이는지」 (260901 §3). 재생 머리 기준 진행 중인 노드와 갈 탭 —
   // **셸이 그린다.** 탭이 그리면 탭을 옮길 때 사라져서 「보면서 확인」이 성립하지 않는다.
   const now = scenario !== null && mission.current.missionId === scenario.missionId
@@ -93,48 +93,52 @@ export function AppShell({ debuggerView, onDebuggerHome, onMissionHistory, onOpe
   // 원천은 하나(canvas/zoomState.ts)이고 셸은 읽기만 한다.
   const zoomTarget = useZoomTarget();
   const manualScope: ManualScopeId = (zoomTarget?.kind as ManualScopeId | undefined) ?? 'canvas';
+  // **사전에는 한 문장, 렌더에서만 가른다** (지시서 §2 ③). <b> 가 문장 가운데 있는데
+  // 키를 쪼개면 번역가가 어순을 못 바꾼다 — 자리표시 위치를 번역이 정한다.
+  const mockParts = t('banner.mock').split('{strong}');
+  const legacyParts = t('banner.legacy').split('{id}');
   const openNode = (kind: string, taskId: string | null) => { onOpenNode(kind, taskId); setPanel(null); };
   return <main className={'app-shell' + (mock ? ' app-shell--mock' : '') + (devTools ? ' app-shell--dev' : '')}>
     {/* 배너 3종은 각각 **한 줄**이다 — 상태는 우상단 모드 스위치가 말한다. 목 배너의 경고만 남긴다. */}
-    {mock && <div className="mock-banner" role="status">목 렌더 켜짐 — 남의 데이터 자리가 <b>전부 지어낸 값</b>입니다. 시연 전에 끄세요.</div>}
+    {mock && <div className="mock-banner" role="status">{mockParts[0]}<b>{t('banner.mock.strong')}</b>{mockParts[1]}</div>}
     {scenario !== null && <div className="scenario-banner" role="status">
       <span className="scenario-banner__head">
-        대본 <b>{scenario.missionId}</b> 「{scenario.title}」 · <b>합성 데이터</b> · {scenarioState}
+        {t('banner.script')} <b>{scenario.missionId}</b> 「{scenario.title}」 · <b>{t('banner.synthetic')}</b> · {scenarioState}
         {scenario.playing && !scenarioEnded && <> T+{Math.round(mission.headSec)}s</>}
-        {' '}— cast 밖 장비는 자리표시
+        {' '}{t('banner.castNote')}
       </span>
       {now !== null && <span className="scenario-banner__now">
-        <b>지금:</b> {now.text}
+        <b>{t('banner.now')}</b> {now.text}
         {/* 「○○ 노드로」 — 없으면 만들고 있으면 하이라이트한다 (지시서 §3 ★). 이름의 원천은
             등록된 렌더러다(VZ-N-01) — 여기 손으로 적으면 팔레트와 갈라진다. */}
-        {now.nodeKinds.map((kind) => <button key={kind} className="scenario-banner__goto" onClick={() => openNode(kind, now.taskId)}>{viewNodeEntry(kind)?.label ?? kind} 노드로</button>)}
+        {now.nodeKinds.map((kind) => <button key={kind} className="scenario-banner__goto" onClick={() => openNode(kind, now.taskId)}>{t('banner.gotoNode', { label: viewNodeEntry(kind)?.label ?? kind })}</button>)}
       </span>}
-      <button className="scenario-banner__close" onClick={closeScript}>대본 닫기</button>
+      <button className="scenario-banner__close" onClick={closeScript}>{t('banner.close')}</button>
     </div>}
     {scenario === null && mission.activatedBy === 'approval' && mission.current.world === 'legacy' && <div className="legacy-banner" role="status">
-      구판 세계 대본(<b>{mission.current.missionId}</b>) — 구역 장비와 연결되지 않아 탭②~⑤는 따라 움직이지 않습니다 (7.8 예외)
+      {legacyParts[0]}<b>{mission.current.missionId}</b>{legacyParts[1]}
     </div>}
     <header className="global-bar">
-      <button className="mission-identity" onClick={onDebuggerHome}><b>{mission.current.missionId}</b><span>{mission.current.label}</span><small>통합 가시화 · 노드 캔버스</small></button>
+      <button className="mission-identity" onClick={onDebuggerHome}><b>{mission.current.missionId}</b><span>{mission.current.label}</span><small>{t('bar.subtitle')}</small></button>
       {/* 안내 문단 2줄은 우상단 `?` 오버레이로 옮겼다 (사이트 개선 요구 1). */}
       <nav>
         <ModeSwitch />
         {/* 언어 세그먼트 — 모드 옆 (영문화 1단계 §3). 라벨은 각 언어를 그 언어로 적는다. */}
         <LangSwitch />
         <HelpOverlay scope={manualScope} />
-        <span className={`conn conn--${connection.state}`}>{CONNECTION_LABEL[connection.state] ?? connection.state}{connection.state === 'reconnecting' ? ` (${connection.attempt}회)` : ''}</span>
+        <span className={`conn conn--${connection.state}`}>{t('conn.state.' + connection.state)}{connection.state === 'reconnecting' ? t('conn.attempts', { n: connection.attempt }) : ''}</span>
         {/* **셋이 한 부품에서 온다** (260910). 전에는 여기서 게이트웨이로 `mission_pause` 를
             쏘고 그 옆에 실제로 동작하는 「중단」이 따로 있었다 — 같은 뜻의 버튼이 둘인데
             하나만 동작했다. 동작하는 쪽을 「정지」에 넣고 중단을 지웠다. */}
-        <StopButton /><PauseButton /><ResumeButton /><ApproachButton /><ConnectionLamp onOpen={() => setPanel('connections')} /><button onClick={() => { setPanel('history'); onMissionHistory(); }}>◷ 임무 이력</button><button onClick={() => setPanel('notifications')}>알림 <b>{notifications.length}</b></button><RestartButton /><ResetButton /><button onClick={() => setPanel('connections')}>⇄ 연결 관리</button>
+        <StopButton /><PauseButton /><ResumeButton /><ApproachButton /><ConnectionLamp onOpen={() => setPanel('connections')} /><button onClick={() => { setPanel('history'); onMissionHistory(); }}>{t('bar.history')}</button><button onClick={() => setPanel('notifications')}>{t('bar.notifications')} <b>{notifications.length}</b></button><RestartButton /><ResetButton /><button onClick={() => setPanel('connections')}>{t('bar.connections')}</button>
       </nav>
     </header>
     {/* 연결 관리는 폼이라 목록 판과 모양이 다르다 — 자기 부품이 그린다 (`VZ-C-07`). */}
     {panel === 'connections' && <ConnectionsPanel onClose={() => setPanel(null)} physical={robotProbe()} />}
-    {panel !== null && panel !== 'connections' && <aside className="global-panel"><header><b>{panel === 'history' ? '임무 이력' : '통합 알림'}</b><button onClick={() => setPanel(null)}>닫기</button></header>{panel === 'history' ? <MissionHistoryList compact onReplay={() => { onMissionHistory(); setPanel(null); }} /> : notifications.length === 0
+    {panel !== null && panel !== 'connections' && <aside className="global-panel"><header><b>{panel === 'history' ? t('panel.history') : t('panel.notifications')}</b><button onClick={() => setPanel(null)}>{t('panel.close')}</button></header>{panel === 'history' ? <MissionHistoryList compact onReplay={() => { onMissionHistory(); setPanel(null); }} /> : notifications.length === 0
       /* **비어 있으면 비었다고 적는다** (260913 지시). 전에는 일어난 적 없는 두 줄이 늘
          박혀 있어서 뱃지가 언제나 「알림 2」였다. */
-      ? <p className="notifications-empty">아직 올라온 알림이 없습니다</p>
+      ? <p className="notifications-empty">{t('panel.noNotifications')}</p>
       /* 어느 갈래·언제·무슨 일인지 셋을 한 줄에 둔다 (260913 지시). 문구는 온 값 그대로다. */
       : <ul className="notification-list">{notifications.map((item) => <li key={item.id} className={`is-${item.source}`}>
           <b>{SOURCE_WORDS[item.source] ?? item.source}</b>

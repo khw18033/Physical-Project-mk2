@@ -16,6 +16,8 @@
 
 import type { PointerEvent as ReactPointerEvent, ReactNode } from 'react';
 import type { ViewNodeEntry, ViewNodeInstance, ViewScope } from './types.ts';
+import { t } from '../i18n/dict.ts';
+import { useLang } from '../shared/language.ts';
 
 /** 구간을 사람이 읽는 한 줄로. 전역은 임무 전체다. */
 function spanLabel(scope: ViewScope): string {
@@ -47,6 +49,11 @@ export function ViewNodeCard({ node, entry, scope, position, size, grips, picked
   onRemove(): void;
   onZoom(): void;
 }) {
+  useLang();
+  // **사전에는 한 문장, 렌더에서만 가른다** (지시서 §2 ③). `<code>` 로 감쌀 자리가
+  // 문장 가운데 있는데, 키를 둘로 쪼개면 번역가가 어순을 못 바꾼다. 자리표시 위치를
+  // 번역이 정하고 렌더는 그 자리에서 자르기만 한다.
+  const missingParts = t('viewnode.rendererMissingFor').split('{kind}');
   const bound = node.taskId !== null;
   return <div
     className={`view-node ${bound ? 'view-node--bound' : 'view-node--global'}${zoomed ? ' view-node--zoomed' : ''}${highlighted ? ' view-node--flash' : ''}`}
@@ -61,22 +68,22 @@ export function ViewNodeCard({ node, entry, scope, position, size, grips, picked
     <header className="view-node__head">
       <b>{entry?.label ?? node.kind}</b>
       {bound
-        ? <span className="view-node__scope" title={`이 태스크의 대상·구간이 이 노드의 조회 범위입니다 (${spanLabel(scope)})`}>◂ {node.taskId}</span>
-        : <span className="view-node__scope view-node__scope--global" title="연결하지 않은 전역 노드 — 임무 전체 구간을 봅니다">전역</span>}
+        ? <span className="view-node__scope" title={t('viewnode.scopeTitle', { span: spanLabel(scope) })}>◂ {node.taskId}</span>
+        : <span className="view-node__scope view-node__scope--global" title={t('viewnode.globalTitle')}>{t('viewnode.global')}</span>}
       {/* 손잡이 버튼은 끌기와 섞이면 안 된다 — pointerdown 을 여기서 멈춘다. */}
       <span className="view-node__acts" onPointerDown={(event) => event.stopPropagation()}>
-        <button type="button" onClick={onZoom} disabled={entry === null} title={entry === null ? '이 빌드에는 렌더러가 없어 확대할 것이 없습니다' : '확대 (더블클릭도 같습니다) — 캔버스는 뒤에 그대로 있습니다'}>⤢</button>
+        <button type="button" onClick={onZoom} disabled={entry === null} title={entry === null ? t('viewnode.noRenderer') : t('viewnode.zoomTitle')}>⤢</button>
         {bound
-          ? <button type="button" onClick={() => onBind(null)} title="연결을 끊고 전역 노드로">⛓</button>
-          : <button type="button" onClick={() => onBind(picked)} disabled={picked === null} title={picked === null ? '연결할 태스크를 먼저 고르세요 (태스크를 한 번 누릅니다)' : `${picked} 에 연결`}>⛓</button>}
-        <button type="button" onClick={onRemove} title="이 뷰 노드를 캔버스에서 지웁니다">×</button>
+          ? <button type="button" onClick={() => onBind(null)} title={t('viewnode.unlink')}>⛓</button>
+          : <button type="button" onClick={() => onBind(picked)} disabled={picked === null} title={picked === null ? t('viewnode.pickTaskFirst') : t('viewnode.linkTo', { task: picked })}>⛓</button>}
+        <button type="button" onClick={onRemove} title={t('viewnode.remove')}>×</button>
       </span>
     </header>
     <div className="view-node__body">
       {entry === null
-        ? <p className="view-node__missing">이 빌드에는 <code>{node.kind}</code> 렌더러가 없습니다 — 통합 앱에서 보입니다.</p>
+        ? <p className="view-node__missing">{missingParts[0]}<code>{node.kind}</code>{missingParts[1]}</p>
         : entry.summary(scope)}
     </div>
-    <footer className="view-node__foot">{scope.deviceId ?? '대상 없음'} · {spanLabel(scope)}</footer>
+    <footer className="view-node__foot">{scope.deviceId ?? t('viewnode.noTarget')} · {spanLabel(scope)}</footer>
   </div>;
 }

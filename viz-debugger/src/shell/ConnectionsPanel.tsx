@@ -75,17 +75,17 @@ export function ConnectionsPanel({ onClose, physical }: { onClose(): void; physi
   const apply = () => {
     const saved = saveConnections(draft);
     setNote(saved
-      ? '적용했습니다 — 게이트웨이 주소가 바뀌었으면 끊고 새 주소로 다시 붙습니다.'
-      : '이번 세션에만 적용했습니다 — 저장소가 막혀 있어 새로고침하면 기본값으로 돌아갑니다.');
+      ? t('conn.applied')
+      : t('conn.appliedSession'));
   };
   const restore = () => {
     resetConnections();
     setDraft({});
-    setNote('기본값으로 되돌렸습니다.');
+    setNote(t('conn.restored'));
   };
 
   return <aside className="global-panel global-panel--connections">
-    <header><b>⇄ 연결 관리</b><button onClick={onClose}>닫기</button></header>
+    <header><b>{t('conn.title')}</b><button onClick={onClose}>{t('conn.close')}</button></header>
     {/* **최상단 안내를 뺐다** (260913 지시). 여기 있던 세 줄은 이 판을 처음 여는 사람에게
         필요한 말이고, 시연 직전에 여는 사람에게는 매번 같은 자리를 차지할 뿐이었다.
         규칙 자체는 그대로다 — 환경변수가 기본값이고 여기서 넣은 값이 이긴다. */}
@@ -96,7 +96,7 @@ export function ConnectionsPanel({ onClose, physical }: { onClose(): void; physi
     </p>}
     {/* 목록을 그린다. 대상이 늘면 이 파일이 아니라 shared/connections.ts 가 바뀐다. */}
     {CONNECTION_TARGETS.map((target) => <section key={target.id} className={`conn-target${target.live ? '' : ' conn-target--pending'}`}>
-      <h3>{target.label}{target.live ? null : <em>연결 예정</em>}</h3>
+      <h3>{target.label}{target.live ? null : <em>{t('conn.pendingBadge')}</em>}</h3>
       {/* 설명이 없는 대상도 있다 (260913 지시 — 로봇·객체 탐지). 늘 쓰는 둘이라
           매번 읽을 문장이 아니다. 자리도 그만큼 줄어든다. */}
       {target.what !== undefined && <p>{target.what}</p>}
@@ -122,12 +122,12 @@ export function ConnectionsPanel({ onClose, physical }: { onClose(): void; physi
               title={preset.why}
               // 값이 빈 프리셋은 **아직 없는 것**이다 — 고를 수 없게 막는다.
               disabled={!choice.ready(preset)}
-            >{preset.label}{choice.ready(preset) || preset.id === 'manual' ? '' : ' (미정)'}</option>)}
+            >{preset.label}{choice.ready(preset) || preset.id === 'manual' ? '' : t('conn.presetUndecided')}</option>)}
           </select>}
           <input
             value={draft[key] ?? ''}
             disabled={!target.live}
-            placeholder={target.live ? field.fallback : '상대가 정해지면 열립니다'}
+            placeholder={target.live ? field.fallback : t('conn.placeholderPending')}
             onChange={(event) => setDraft((prev) => ({ ...prev, [key]: event.target.value }))} />
         </label>;
       })}
@@ -142,8 +142,8 @@ export function ConnectionsPanel({ onClose, physical }: { onClose(): void; physi
     <footer className="connections__actions">
       {note && <span className="connections__note">{note}</span>}
       {/* 되돌아올 길. 틀린 주소를 넣으면 아무 데도 못 붙으므로 이 길이 없으면 갇힌다. */}
-      <button onClick={restore}>기본값 복원</button>
-      <button className="connections__apply" onClick={apply} disabled={!dirty}>적용</button>
+      <button onClick={restore}>{t('conn.restore')}</button>
+      <button className="connections__apply" onClick={apply} disabled={!dirty}>{t('conn.apply')}</button>
     </footer>
   </aside>;
 }
@@ -155,6 +155,10 @@ export function ConnectionsPanel({ onClose, physical }: { onClose(): void; physi
  * 주소를 봐야 하는지 로봇 전원을 봐야 하는지 못 가른다 (§3).
  */
 function HealthRow({ target, physical }: { target: ConnectionTargetId; physical: PhysicalProbe | null }) {
+  // **같은 파일 안이어도 별개 컴포넌트는 자기 훅이 필요하다** (지시서 §2 ①).
+  // 위 `ConnectionsPanel` 의 `useLang()` 은 이 부품을 다시 그리게 하지 않는다 — 빼면
+  // 언어를 바꿔도 「확인」 버튼과 「아직 확인하지 않았습니다」만 옛 언어로 남는다.
+  useLang();
   const health = useConnectionHealth();
   // 장비 상태를 구독한다 — 로봇 줄이 그 값으로 채워진다.
   useDeviceStates();
@@ -164,7 +168,7 @@ function HealthRow({ target, physical }: { target: ConnectionTargetId; physical:
   return <div className="conn-health">
     <div className="conn-health__lines">
       {state.lines.length === 0
-        ? <span className="conn-dot conn-dot--unknown">아직 확인하지 않았습니다</span>
+        ? <span className="conn-dot conn-dot--unknown">{t('conn.notChecked')}</span>
         : state.lines.map((row) => <span key={row.id} className={`conn-dot conn-dot--${row.ok === true ? 'ok' : row.ok === false ? 'bad' : 'unknown'}`}>
           {row.label} {row.ok === true ? '✓' : row.ok === false ? '✕' : '?'}
           {row.roundTripMs !== null && ` ${row.roundTripMs}ms`}
@@ -180,16 +184,16 @@ function HealthRow({ target, physical }: { target: ConnectionTargetId; physical:
 
       **끄면 읽어 둔 것도 같이 버린다.** 시료가 실제 결과로 남아 있으면 안 된다.
     */}
-    {target === 'detect' && <label className="conn-test" title="탐지 담당이 준 실제 산출물을 진짜 결과처럼 읽습니다">
+    {target === 'detect' && <label className="conn-test" title={t('conn.testTitle')}>
       <input type="checkbox" checked={detect.testMode} onChange={(event) => setTestMode(event.target.checked)} />
-      테스트
+      {t('conn.test')}
     </label>}
     <button
       type="button"
       className="conn-check"
       disabled={state.checking}
       onClick={() => void checkTarget(target, physical, robotFacts, target === 'autodrive' ? navProbe() : null)}
-    >{state.checking ? '확인 중…' : '확인'}</button>
+    >{state.checking ? t('conn.checking') : t('conn.check')}</button>
     {state.lines.length > 0 && <small className="conn-health__at">
       {new Date(state.lines[0].checkedAtIso).toLocaleTimeString()}
     </small>}

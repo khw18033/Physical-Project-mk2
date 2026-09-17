@@ -68,11 +68,14 @@ export function ModeSwitch() {
 
   const scenarioLabel =
     scenario === null
-      ? '시나리오 ▾'
-      : `시나리오 · ${scenario.missionId.replace('MSN-', '')} ${scenario.playing ? '재생 중' : '정지'} ▾`;
+      ? t('mode.scenario')
+      : t('mode.scenarioOn', {
+          id: scenario.missionId.replace('MSN-', ''),
+          state: scenario.playing ? t('mode.playing') : t('mode.stopped'),
+        });
 
   return (
-    <div className="modeswitch" role="group" aria-label="렌더 모드" ref={rootRef}>
+    <div className="modeswitch" role="group" aria-label={t('mode.aria')} ref={rootRef}>
       {/* 시범 키 ① 단순 라벨 (영문화 1단계 §4). `useLang()` 이 있어야 전환 때 다시 그린다. */}
       <span className="modeswitch__label">{t('mode.label')}</span>
       <button
@@ -80,14 +83,14 @@ export function ModeSwitch() {
         className={'modeswitch__seg' + (mode === 'placeholder' ? ' modeswitch__seg--on' : '')}
         onClick={toNormal}
       >
-        일반
+        {t('mode.normal')}
       </button>
       <div className="modeswitch__drop">
         <button
           type="button"
           className={'modeswitch__seg' + (mode === 'scenario' ? ' modeswitch__seg--on modeswitch__seg--scenario' : '')}
           onClick={() => setMenuOpen((open) => !open)}
-          title="대본을 고르면 정지 미리보기로 들어갑니다. 재생은 여전히 승인(VZ-U-07) 뒤입니다"
+          title={t('mode.scenarioTitle')}
         >
           {scenarioLabel}
         </button>
@@ -100,7 +103,7 @@ export function ModeSwitch() {
                 </button>
               </li>
             ))}
-            <li className="modeswitch__menunote">정지 미리보기 — 재생은 승인 뒤 (VZ-U-07)</li>
+            <li className="modeswitch__menunote">{t('mode.menuNote')}</li>
           </ul>
         )}
       </div>
@@ -108,7 +111,7 @@ export function ModeSwitch() {
         type="button"
         className={'modeswitch__seg' + (mode === 'mock' ? ' modeswitch__seg--on modeswitch__seg--mock' : '')}
         onClick={toMock}
-        title="남이 줄 데이터 자리에 목을 그립니다. 켜져 있는 동안 붉은 배지가 유지됩니다"
+        title={t('mode.mockTitle')}
       >
         {/* 시범 키 ⑤ — **`en.ts` 에 일부러 없다.** 영문 화면에서 이 버튼만 한국어로 남고
             콘솔에 한 줄이 찍히면 fallback 이 도는 것이다 (영문화 1단계 §4). */}

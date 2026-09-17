@@ -28,6 +28,8 @@ import { join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const root = join(fileURLToPath(new URL('.', import.meta.url)), '..');
+// 사전을 직접 읽는다 — 키 대조만으로는 오타가 안 잡힌다 (260917 · 영문화 2단계 §5).
+const { ko: koDict } = await import(pathToFileURL(join(root, 'src', 'i18n', 'ko.ts')).href);
 const load = (...p) => import(pathToFileURL(join(root, ...p)).href);
 const sample = (...p) => JSON.parse(readFileSync(join(root, '..', 'door_example', 'test', ...p), 'utf8'));
 const strip = (t) => t.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
@@ -293,7 +295,9 @@ const { PREP_SEC, afterPrep } = session;
   for (const bad of button.match(/disabled=\{[^}]*\}/g) ?? []) {
     if (bad !== 'disabled={busy}') failures.push(`이동 버튼을 ${bad} 로 막는다 — 연결이 없어도 눌려야 한다`);
   }
-  if (!/못 보냈습니다/.test(button)) failures.push('못 보낸 것을 버튼 자리에 안 적는다');
+  // **문구가 아니라 키를 본다** (260917 — 영문화 2단계 §5). 사전에 그 키가 실제로 있는지도 같이 본다.
+  if (!button.includes("t('stop.sendFailed'")) failures.push('못 보낸 것을 버튼 자리에 안 적는다');
+  if (koDict['stop.sendFailed'] === undefined) failures.push('사전에 stop.sendFailed 가 없다');
   for (const bar of [src('shell', 'AppShell.tsx'), src('views', 'TopBar.tsx')]) {
     if (!/<ApproachButton \/>/.test(bar)) failures.push('머리줄이 이동 버튼을 안 건다 — 어느 화면에서는 안 보인다');
   }

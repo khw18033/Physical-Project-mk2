@@ -16,6 +16,8 @@ import { nodeKindsOfAxes, type ViewNodeKindId } from '../scenarios/axes.ts';
 import { useScenarioAxes } from '../shared/renderMode.ts';
 import type { CanvasApi } from './useCanvas.ts';
 import { useViewNodeCatalog } from './registry.ts';
+import { t } from '../i18n/dict.ts';
+import { useLang } from '../shared/language.ts';
 
 export function Palette({ canvas, missionId, pickedTaskId, pickedTaskTitle }: {
   canvas: CanvasApi;
@@ -25,6 +27,8 @@ export function Palette({ canvas, missionId, pickedTaskId, pickedTaskTitle }: {
   pickedTaskId: string | null;
   pickedTaskTitle: string | null;
 }) {
+  // `t()` 는 값을 줄 뿐 리렌더를 안 일으킨다 (지시서 §2 ①).
+  useLang();
   const catalog = useViewNodeCatalog();
   /**
    * **층 1 — 대본이 안 쓰는 종류는 흐리게** (260903 3단계에 탭 바에서 여기로 옮겨 왔다).
@@ -38,7 +42,7 @@ export function Palette({ canvas, missionId, pickedTaskId, pickedTaskTitle }: {
   if (catalog.length === 0) return null;
   return <div className="palette">
     <div className="palette__row">
-      <b className="palette__title">뷰 노드</b>
+      <b className="palette__title">{t('palette.title')}</b>
       {catalog.filter((entry) => entry.inPalette !== false && (entry.showFor?.(missionId) ?? true)).map((entry) => {
         const unused = scriptKinds !== null && !scriptKinds.has(entry.kind as ViewNodeKindId);
         return <button
@@ -46,21 +50,23 @@ export function Palette({ canvas, missionId, pickedTaskId, pickedTaskTitle }: {
           type="button"
           className={'palette__item' + (unused ? ' palette__item--unused' : '')}
           title={unused
-            ? `${entry.hint} — 이 대본은 이 노드를 쓰지 않습니다 (놓아서 확인할 수 있습니다)`
-            : `${entry.hint} — ${pickedTaskId === null ? '전역 노드로 놓입니다' : `${pickedTaskId} 에 연결된 채로 놓입니다`}`}
+            ? t('palette.hintUnused', { hint: entry.hint })
+            : pickedTaskId === null
+              ? t('palette.hintGlobal', { hint: entry.hint })
+              : t('palette.hintLinked', { hint: entry.hint, task: pickedTaskId })}
           onClick={() => canvas.add(entry.kind, pickedTaskId)}
-        >+ {entry.label}{unused && <small> · 이 대본엔 없음</small>}</button>;
+        >+ {entry.label}{unused && <small> {t('palette.notInScript')}</small>}</button>;
       })}
       {/* 고른 태스크가 없을 때는 아무 말도 안 한다 (260914 지시) — 늘 떠 있는 설명이라
           버튼 줄만 길어졌다. 전역 노드로 놓인다는 것은 버튼 툴팁과 카드의 「전역」이 말한다. */}
       {pickedTaskId !== null && <span className="palette__target">
-        연결 대상 <b>◂ {pickedTaskId}</b>{pickedTaskTitle === null ? null : ` ${pickedTaskTitle}`}
+        {t('palette.linkTarget')} <b>◂ {pickedTaskId}</b>{pickedTaskTitle === null ? null : ` ${pickedTaskTitle}`}
       </span>}
       {/* 층 ③ — 사용자 구성을 지우고 기본 구성으로. 되돌릴 것이 없으면 버튼도 없다. */}
-      {canvas.restorable && <button type="button" className="palette__reset" onClick={canvas.reset} title="이 마일스톤의 캔버스 구성을 기본으로 되돌립니다">기본 구성으로 되돌리기</button>}
+      {canvas.restorable && <button type="button" className="palette__reset" onClick={canvas.reset} title={t('palette.resetTitle')}>{t('palette.reset')}</button>}
     </div>
     {/* 실패 셋의 한 줄들 — 저장소 막힘 · 태스크 소실 · 스키마 변경. 막지 않고 적기만 한다. */}
     {canvas.notices.map((notice) => <p key={notice} className="palette__notice">{notice}</p>)}
-    {!canvas.writable && canvas.notices.length === 0 && <p className="palette__notice">이 브라우저에서는 캔버스 구성이 저장되지 않습니다 — 화면은 그대로 동작합니다.</p>}
+    {!canvas.writable && canvas.notices.length === 0 && <p className="palette__notice">{t('canvas.notSavedShort')}</p>}
   </div>;
 }

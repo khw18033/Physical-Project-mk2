@@ -39,8 +39,11 @@ import { currentMission } from '../data/scenario.ts';
 import { relayDriven } from '../scenarios/library.ts';
 import { startArmedNavRun, useNavRunState } from './navRun.ts';
 import { pauseRelayRun, resumeRelayRun, stopRelayRun } from './navControl.ts';
+import { t } from '../i18n/dict.ts';
+import { useLang } from '../shared/language.ts';
 
 export function StopButton() {
+  useLang();
   const session = useRobotSession();
   const locked = session.stopped !== null;
   return <button
@@ -49,9 +52,9 @@ export function StopButton() {
     // **비활성화하지 않는다.** 연결이 없어도 누를 수 있어야 한다 — 2·3·4 는 그래도 일어난다.
     // 자율주행 편(pi1 중계)은 pi7 로 abort 를 보내지 않는다 — 엉뚱한 로봇이 선다 (`navControl.ts` · 260915).
     onClick={() => void (relayDriven(currentMission().missionId) ? stopRelayRun() : emergencyStop(robotClient()))}
-    title="로봇을 멈추고 임무를 끝냅니다 — 진행상황이 종결되고 다시 승인해야 합니다"
+    title={t('stop.stopTitle')}
   >
-    ■ 정지
+    {t('stop.stop')}
   </button>;
 }
 
@@ -62,15 +65,16 @@ export function StopButton() {
  * 아무 변화가 없으면 「안 먹었나」가 된다.
  */
 export function PauseButton() {
+  useLang();
   const session = useRobotSession();
   const paused = session.paused !== null;
   return <button
     type="button"
     className={`robot-pause${paused ? ' robot-pause--held' : ''}`}
     onClick={() => void (relayDriven(currentMission().missionId) ? pauseRelayRun() : pauseMission(robotClient()))}
-    title="로봇을 멈추되 진행상황은 그대로 둡니다 — 재시작하면 그 단계를 다시 합니다"
+    title={t('stop.pauseTitle')}
   >
-    {paused ? '⏸ 멈춰 있음' : '⏸ 일시정지'}
+    {paused ? t('stop.paused') : t('stop.pause')}
   </button>;
 }
 
@@ -81,6 +85,7 @@ export function PauseButton() {
  * 회색 버튼을 보고 「왜 안 눌리지」를 묻는 것보다 낫다.
  */
 export function ResumeButton() {
+  useLang();
   const session = useRobotSession();
   /**
    * **시작과 재시작은 같은 자리의 두 얼굴이다** (260912 지시).
@@ -112,15 +117,15 @@ export function ResumeButton() {
     }}
     title={relay
       ? (started
-        ? '일시정지를 풀고 pi1 중계를 다시 칠합니다 — 로봇에는 아무것도 보내지 않습니다'
+        ? t('stop.resumeNavTitle')
         : nav.armed === null
-          ? '승인된 임무가 없습니다 — 먼저 승인하세요'
-          : '승인된 자율주행 임무를 지금 시작합니다 — 이때부터 pi1 중계를 노드에 칠합니다(로봇은 유니티가 몹니다)')
+          ? t('stop.noApproved')
+          : t('stop.startNavTitle'))
       : started
-        ? '멈춰 있던 단계를 다시 냅니다 — 로봇에 이어 하기가 없어 그 단계를 처음부터 합니다'
-        : '승인된 임무를 지금 시작합니다 — 이 버튼을 누르기 전에는 로봇이 움직이지 않습니다'}
+        ? t('stop.restartTitle')
+        : t('stop.startTitle')}
   >
-    {started ? '▶ 재시작' : '▶ 임무 시작'}
+    {started ? t('stop.restart') : t('stop.start')}
   </button>;
 }
 
@@ -146,6 +151,7 @@ export function ResumeButton() {
  * 박자 쉰다. 사람이 이 버튼을 누른다.
  */
 export function ApproachButton() {
+  useLang();
   // 관문이 로봇 세션과 탐지 경로 둘 다를 본다 — 둘 다 구독해야 열리는 순간 다시 그린다.
   useRobotSession();
   useDetect();
@@ -167,15 +173,15 @@ export function ApproachButton() {
       setBusy(true);
       void issueApproach(robotClient(), currentMission().params).then((outcome) => {
         setBusy(false);
-        setFailure(outcome?.sent === true ? null : (outcome?.reason ?? '낼 명령이 없습니다'));
+        setFailure(outcome?.sent === true ? null : (outcome?.reason ?? t('stop.nothingToSend')));
       });
     }}
-    title={failure ?? '경로 산출이 낸 회전과 직진을 차례로 냅니다 — 회전이 끝나야 직진이 나갑니다'}
+    title={failure ?? t('stop.approachTitle')}
   >
     {busy
-      ? <>▶ 로봇이 하는 중 — 앞 명령이 끝나기를 기다립니다</>
+      ? <>{t('stop.busy')}</>
       : failure === null
-        ? <>▶ 경로대로 이동{words !== null && <small> · {words}</small>}</>
-        : <>▶ 못 보냈습니다 — {failure}</>}
+        ? <>{t('stop.approach')}{words !== null && <small> · {words}</small>}</>
+        : <>{t('stop.sendFailed', { reason: failure })}</>}
   </button>;
 }

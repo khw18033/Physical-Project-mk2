@@ -21,6 +21,8 @@ import { isScratchPath, makeScratch } from './lib/scratch.mjs';
 import { WebSocket } from 'ws';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
+// 사전을 직접 읽는다 — 키 대조만으로는 오타가 안 잡힌다 (260917 · 영문화 2단계 §5).
+const { ko: koDict } = await import(pathToFileURL(join(root, 'src', 'i18n', 'ko.ts')).href);
 const PORT = Number(process.env.VERIFY_SCENARIO_PORT ?? 8797);
 const URL = `ws://127.0.0.1:${PORT}`;
 const HTTP = `http://127.0.0.1:${PORT}`;
@@ -76,7 +78,9 @@ const modePath = join(root, 'src', 'shared', 'renderMode.ts');
 function checkSources(shellSource, pendingSource, gridSource) {
   const f = [];
   if (!shellSource.includes('scenario-banner')) f.push('셸에 대본 띠(scenario-banner)가 없다 — 지워지지 않는 배지가 요구사항이다');
-  if (!shellSource.includes('대본 닫기')) f.push('셸에 「대본 닫기」 버튼이 없다 — placeholder 복귀 경로가 없다');
+  // **문구가 아니라 키를 본다** (260917 — 영문화 2단계 §5). 사전에 그 키가 실제로 있는지도 같이 본다.
+  if (!shellSource.includes("t('banner.close')")) f.push('셸에 「대본 닫기」 버튼이 없다 — placeholder 복귀 경로가 없다');
+  if (koDict['banner.close'] === undefined) f.push('사전에 banner.close 가 없다 — 버튼이 키 이름을 그대로 그린다');
   if (!pendingSource.includes('scenarioCast.has(entity)')) f.push('PendingSource 가 장비 ID 로 cast 를 대조하지 않는다 — cast 밖 장비가 그려질 길이 열린다');
   if (!gridSource.includes('scenarioCast.has(r.id)')) f.push('장치 그리드가 카드 단위로 갈리지 않는다 — 자리 하나가 여러 장비를 담으면 카드 단위여야 한다');
   return f;

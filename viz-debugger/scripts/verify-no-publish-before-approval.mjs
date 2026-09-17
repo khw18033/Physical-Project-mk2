@@ -13,6 +13,8 @@ import { join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const root = join(fileURLToPath(new URL('.', import.meta.url)), '..');
+// 사전을 직접 읽는다 — 키 대조만으로는 오타가 안 잡힌다 (260917 · 영문화 2단계 §5).
+const { ko: koDict } = await import(pathToFileURL(join(root, 'src', 'i18n', 'ko.ts')).href);
 const load = (...p) => import(pathToFileURL(join(root, ...p)).href);
 
 const { issueScan, issueApproach, issuePing, emergencyStop } = await load('src', 'physical', 'robotCommands.ts');
@@ -227,8 +229,10 @@ const params = { viewpoint_count: 8, forward_distance_m: 4.2 };
 {
   const { readFileSync } = await import('node:fs');
   const button = readFileSync(join(root, 'src', 'physical', 'StopButton.tsx'), 'utf8');
-  if (!/임무 시작/.test(button)) failures.push('「임무 시작」 글씨가 없다');
-  if (!/started \? '▶ 재시작' : '▶ 임무 시작'/.test(button)) {
+  // **문구가 아니라 키를 본다** (260917 — 영문화 2단계 §5). 사전에 그 키가 실제로 있는지도 같이 본다.
+  if (!button.includes("t('stop.start')")) failures.push('「임무 시작」 글씨가 없다');
+  if (koDict['stop.start'] === undefined) failures.push('사전에 stop.start 가 없다');
+  if (!/started \? t\('stop\.restart'\) : t\('stop\.start'\)/.test(button)) {
     failures.push('안 돌린 임무에서 「재시작」이라고 적는다 — 한 번도 안 돌렸는데 다시 시작할 수는 없다');
   }
   if (!/markStarted\(\)/.test(button)) failures.push('시작 버튼이 시작을 안 건다');
