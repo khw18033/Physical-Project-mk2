@@ -30,7 +30,11 @@ if (getRenderMode() !== 'placeholder') {
 }
 
 // --- 2·3. 표의 내용 ---------------------------------------------------------
-const { PENDING_SOURCES, PLANE_LABEL } = await import(specsPath.href);
+const { PENDING_SOURCES, PLANES } = await import(specsPath.href);
+// 문구가 사전으로 갔다 (260917 — 영문화 2단계). **키가 있는지, 그 값이 비지 않았는지**를 본다 —
+// 키 이름만 대조하면 오타가 안 잡히고, 비어 있으면 화면이 조용히 빈다.
+const { ko: koDict } = await import(pathToFileURL(join(srcDir, "i18n", "ko.ts")).href);
+const said = (key) => typeof koDict[key] === 'string' && koDict[key].trim() !== '';
 if (!Array.isArray(PENDING_SOURCES) || PENDING_SOURCES.length === 0) {
   failures.push('pendingSources 표가 비어 있다');
 }
@@ -40,7 +44,8 @@ if (!Array.isArray(PENDING_SOURCES) || PENDING_SOURCES.length === 0) {
  * `DT-01` 처럼 중분류 문자가 없는 계열이 있어 두 모양을 다 받는다 (이대규 시트의 DT-01~07).
  */
 const ID_SHAPE = /^(HW|AI|BE)-[A-Z]-\d{2}$|^DT-\d{2}$/;
-const PARTS = new Set(['하드웨어', 'AI', '백엔드']);
+// 파트명이 **소문자 식별자**가 됐다 (260917 — 영문화 2단계 §3 · 용어집 §4). 표시는 사전이 한다.
+const PARTS = new Set(['hardware', 'ai', 'backend']);
 const seen = new Set();
 
 for (const spec of PENDING_SOURCES) {
@@ -48,9 +53,9 @@ for (const spec of PENDING_SOURCES) {
   if (seen.has(spec.id)) failures.push(`${at}: id 가 중복이다`);
   seen.add(spec.id);
 
-  if (!spec.title?.trim()) failures.push(`${at}: title 이 비었다`);
+  if (!said(`pending.${spec.id}.title`)) failures.push(`${at}: 사전에 pending.${spec.id}.title 이 없거나 비었다`);
   // ① 무엇
-  if (!spec.what?.trim()) failures.push(`${at}: '무엇을 기다리는가' 가 비었다`);
+  if (!said(`pending.${spec.id}.what`)) failures.push(`${at}: 사전에 pending.${spec.id}.what 이 없거나 비었다`);
   // ③ 우리 자리 — 이게 있어야 "안 만든 게 아니라 못 받은 것"이 증명된다
   if (!Array.isArray(spec.ours) || spec.ours.length === 0) {
     failures.push(`${at}: 우리 쪽 자리(VZ-*)가 비었다`);
@@ -60,7 +65,8 @@ for (const spec of PENDING_SOURCES) {
     }
   }
   // ④ 평면
-  if (!(spec.plane in PLANE_LABEL)) failures.push(`${at}: 평면이 없거나 알 수 없다 — ${spec.plane}`);
+  if (!PLANES.includes(spec.plane)) failures.push(`${at}: 평면이 없거나 알 수 없다 — ${spec.plane}`);
+  if (!said(`plane.${spec.plane}`)) failures.push(`${at}: 사전에 plane.${spec.plane} 이 없다`);
 
   // ② 누가 보내나 — 비어 있으면 「상대 없음」 사유가 반드시 있어야 한다
   if (!Array.isArray(spec.from) || spec.from.length === 0) {
@@ -72,7 +78,7 @@ for (const spec of PENDING_SOURCES) {
     for (const sender of spec.from) {
       if (!PARTS.has(sender.part)) failures.push(`${at}: 파트 이름이 아니다 — ${sender.part} (사람 이름을 쓰지 않는다)`);
       if (!ID_SHAPE.test(sender.id)) failures.push(`${at}: 상대 ID 형식이 아니다 — ${sender.id}`);
-      if (!sender.title?.trim()) failures.push(`${at}: ${sender.id} 의 제목이 비었다`);
+      if (!said(`req.${sender.id}`)) failures.push(`${at}: 사전에 req.${sender.id} 가 없거나 비었다`);
     }
   }
 }

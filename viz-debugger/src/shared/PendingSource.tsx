@@ -21,7 +21,7 @@
 import type { ReactNode } from 'react';
 import { AXIS_LABEL, type ScenarioAxis } from '../scenarios/axes.ts';
 import { scriptsWithAxis } from '../scenarios/scriptScope.ts';
-import { pendingSource, PLANE_NOTE } from './pendingSources.ts';
+import { pendingSource } from './pendingSources.ts';
 import { t } from '../i18n/dict.ts';
 import { useLang } from './language.ts';
 import { useMockRender, useScenarioAxis, useScenarioCast } from './renderMode.ts';
@@ -56,22 +56,22 @@ type Props = {
 };
 
 function senderLines(spec: ReturnType<typeof pendingSource>) {
-  return spec.from.map((sender) => `${sender.part} ${sender.id} ${sender.title}`);
+  return spec.from.map((sender) => `${t('part.' + sender.part)} ${sender.id} ${t('req.' + sender.id)}`);
 }
 
 /** 좁은 자리에서 툴팁으로 쓰는 한 덩어리 문구. 네 가지가 다 들어간다. */
 function summaryText(spec: ReturnType<typeof pendingSource>): string {
   const from = spec.from.length === 0
-    ? `누가 보내나: 상대 없음 — ${spec.missing ?? '회의 안건'}`
-    : `누가 보내나: ${senderLines(spec).join(' → ')}`;
+    ? t('pending.summary.fromNone', { reason: spec.missing ?? t('pending.agenda') })
+    : t('pending.summary.from', { value: senderLines(spec).join(' → ') });
   return [
-    spec.title,
-    `무엇: ${spec.what}`,
+    t(`pending.${spec.id}.title`),
+    t('pending.summary.what', { value: t(`pending.${spec.id}.what`) }),
     from,
-    `우리 자리: ${spec.ours.join(' · ')}`,
+    t('pending.summary.ours', { value: spec.ours.join(' · ') }),
     // 시범 키 ④ 열거형 라벨 (영문화 1단계 §4). `PLANE_LABEL` 은 모듈 최상위 상수라
     // 거기서 `t()` 를 부르면 로드 시점에 굳는다 — **읽는 자리에서 부른다.**
-    `경로: ${t('plane.' + spec.plane)} — ${PLANE_NOTE[spec.plane]}`,
+    t('pending.summary.path', { label: t('plane.' + spec.plane), note: t(`plane.${spec.plane}.note`) }),
   ].join('\n');
 }
 
@@ -87,7 +87,7 @@ export function PendingSource({ id, minHeight, fill, inline, entity, axis, child
     return (
       <div className={inline ? 'mockwrap mockwrap--inline' : 'mockwrap'} data-pending={id}>
         {/* 지워지지 않는다. 목 렌더 중이라는 사실이 화면에서 사라지면 안 된다. */}
-        <span className="mockwrap__badge" title={summaryText(spec)}>목 — 실제 데이터 아님</span>
+        <span className="mockwrap__badge" title={summaryText(spec)}>{t('pending.badge.mock')}</span>
         {children}
       </div>
     );
@@ -100,22 +100,22 @@ export function PendingSource({ id, minHeight, fill, inline, entity, axis, child
     if (inline) {
       return (
         <span className="notinscript notinscript--inline" data-pending={id} title={summaryText(spec)}>
-          <b>이 대본에는 해당 없음</b> <em>{AXIS_LABEL[axis]}</em>
+          <b>{t('pending.notInScript')}</b> <em>{AXIS_LABEL[axis]}</em>
         </span>
       );
     }
     return (
       <section className="notinscript" data-pending={id} style={minHeight === undefined ? undefined : { minHeight }}>
         <header>
-          <span className="notinscript__mark">이 대본에는 해당 없음</span>
-          <h3>{AXIS_LABEL[axis]} · {spec.title}</h3>
+          <span className="notinscript__mark">{t('pending.notInScript')}</span>
+          <h3>{AXIS_LABEL[axis]} · {t(`pending.${spec.id}.title`)}</h3>
         </header>
         <p>
           {elsewhere.length === 0
-            ? <>어느 대본도 몰지 않는 축입니다 — 평시 데이터({spec.from.map((sender) => sender.part).join('·') || '상대 미정'})가 줄 자리입니다.</>
-            : <>{elsewhere.map((script) => script.missionId).join(' · ')} 에서 보입니다.</>}
+            ? <>{t('pending.noScriptDrives', { parts: spec.from.map((sender) => t('part.' + sender.part)).join('·') || t('pending.partsUndecided') })}</>
+            : <>{t('pending.seenIn', { scripts: elsewhere.map((script) => script.missionId).join(' · ') })}</>}
         </p>
-        <p className="notinscript__why">자리 크기는 그대로 둡니다 — 대본을 바꾸거나 일반 모드로 돌아가면 이 자리에 그대로 들어갑니다.</p>
+        <p className="notinscript__why">{t('pending.sizeKept')}</p>
       </section>
     );
   }
@@ -125,7 +125,7 @@ export function PendingSource({ id, minHeight, fill, inline, entity, axis, child
   if (scenarioCast !== null && entity !== undefined && scenarioCast.has(entity)) {
     return (
       <div className={inline ? 'scenariowrap scenariowrap--inline' : 'scenariowrap'} data-pending={id}>
-        <span className="scenariowrap__badge" title={summaryText(spec)}>대본 — 합성 데이터</span>
+        <span className="scenariowrap__badge" title={summaryText(spec)}>{t('pending.badge.script')}</span>
         {children}
       </div>
     );
@@ -136,9 +136,9 @@ export function PendingSource({ id, minHeight, fill, inline, entity, axis, child
   if (inline) {
     return (
       <span className="pending pending--inline" data-pending={id} title={summaryText(spec)}>
-        <b>{spec.title}</b>
+        <b>{t(`pending.${spec.id}.title`)}</b>
         <em>{spec.ours.join(' · ')}</em>
-        {noCounterpart && <strong className="pending__missing">상대 없음 — 회의 안건</strong>}
+        {noCounterpart && <strong className="pending__missing">{t('pending.noCounterpart')}</strong>}
       </span>
     );
   }
@@ -150,44 +150,44 @@ export function PendingSource({ id, minHeight, fill, inline, entity, axis, child
       style={minHeight === undefined ? undefined : { minHeight }}
     >
       <header className="pending__head">
-        <span className="pending__mark">연결 예정</span>
-        <h3 className="pending__title">{spec.title}</h3>
+        <span className="pending__mark">{t('pending.mark')}</span>
+        <h3 className="pending__title">{t(`pending.${spec.id}.title`)}</h3>
       </header>
 
       <dl className="pending__rows">
-        <dt>무엇</dt>
-        <dd>{spec.what}</dd>
+        <dt>{t('pending.what')}</dt>
+        <dd>{t(`pending.${spec.id}.what`)}</dd>
 
-        <dt>누가 보내나</dt>
+        <dt>{t('pending.from')}</dt>
         <dd>
           {noCounterpart ? (
             <>
-              <strong className="pending__missing">상대 없음 — 회의 안건</strong>
+              <strong className="pending__missing">{t('pending.noCounterpart')}</strong>
               <span className="pending__why">{spec.missing}</span>
             </>
           ) : (
             <ol className="pending__from">
               {spec.from.map((sender) => (
                 <li key={sender.id}>
-                  <span className={`pending__part pending__part--${sender.part}`}>{sender.part}</span>
-                  <code>{sender.id}</code> {sender.title}
+                  <span className={`pending__part pending__part--${sender.part}`}>{t('part.' + sender.part)}</span>
+                  <code>{sender.id}</code> {t('req.' + sender.id)}
                 </li>
               ))}
             </ol>
           )}
         </dd>
 
-        <dt>우리 자리</dt>
+        <dt>{t('pending.ours')}</dt>
         <dd>
           {spec.ours.map((our) => <code key={our}>{our}</code>)}
-          <span className="pending__why">받으면 그릴 준비가 되어 있다. 못 만든 것이 아니라 못 받은 것이다</span>
+          <span className="pending__why">{t('pending.oursWhy')}</span>
         </dd>
 
-        <dt>경로</dt>
+        <dt>{t('pending.path')}</dt>
         <dd>
           {/* 시범 키 ④ — 읽는 자리에서 부른다 (위 `summaryText` 주석과 같은 이유). */}
           <b>{t('plane.' + spec.plane)}</b>
-          <span className="pending__why">{PLANE_NOTE[spec.plane]}</span>
+          <span className="pending__why">{t(`plane.${spec.plane}.note`)}</span>
         </dd>
       </dl>
     </section>
