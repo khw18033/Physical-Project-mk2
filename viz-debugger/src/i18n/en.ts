@@ -260,7 +260,7 @@ export const en: Record<string, string> = {
   'req.BE-S-05': 'Central audit storage (direct-to-MySQL exception)',
   'req.BE-S-06': 'Aggregation-layer boundary marking',
   'req.BE-T-03': 'Real-time channel gateway for visualisation clients (WebSocket)',
-  'req.BE-T-04': 'Device registration, zone membership and availability management',
+  'req.BE-T-04': 'Device registration, zone membership and availability management (Birth/Death)',
   'req.BE-T-05': 'Private-IP routing and proxy relay',
   'req.BE-T-06': 'Immediate current-value delivery on reconnect (backend cache)',
   'req.BE-X-01': 'Correlation key (command_id) issuance and mapping',

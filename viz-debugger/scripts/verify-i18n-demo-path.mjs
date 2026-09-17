@@ -109,7 +109,31 @@ const code = (s) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, 
   console.log(`✅ 사전 — ko ${Object.keys(ko).length}키 · en ${Object.keys(en).length}키 · 비어 있는 것은 ${EXPECTED_GAP.join(', ')} 하나뿐`);
 }
 
-// ── 4. 대조군 — 위 셋을 어긴 사본이 잡혀야 한다 ──────────────────────────────
+// ── 4. 자리표시 데이터의 키가 값과 1:1인가 ───────────────────────────────────
+//
+// **2단계에서 실제로 글자를 하나 잃었다.** `pendingSources.ts` 의 요구사항 제목을
+// `req.<ID>` 로 키를 만들어 사전에 옮겼는데, 같은 ID 가 **제목이 다른 채로 두 번** 나오는
+// 자리가 있었다(`BE-T-04` — 「…관리(Birth/Death)」와 「…관리」). Map 에 담으면서 뒤엣것이
+// 이겨 괄호가 조용히 사라졌고, 한국어 화면이 그만큼 바뀌었다 — §4 를 어긴 유일한 자리다.
+//
+// 키가 값과 1:1이 아니면 같은 일이 또 난다. 그래서 **id 가 겹치면 여기서 잡는다.**
+{
+  const { PENDING_SOURCES } = await import(pathToFileURL(join(root, 'src', 'shared', 'pendingSources.ts')).href);
+  const ids = new Set();
+  for (const spec of PENDING_SOURCES) {
+    if (ids.has(spec.id)) failures.push(`자리표시 id 가 겹친다 — ${spec.id}. 키가 값과 1:1이 아니면 한쪽이 조용히 사라진다`);
+    ids.add(spec.id);
+    for (const key of ['title', 'what']) {
+      if (ko[`pending.${spec.id}.${key}`] === undefined) failures.push(`사전에 pending.${spec.id}.${key} 가 없다`);
+    }
+    for (const sender of spec.from) {
+      if (ko[`req.${sender.id}`] === undefined) failures.push(`사전에 req.${sender.id} 가 없다`);
+    }
+  }
+  console.log(`✅ 자리표시 ${PENDING_SOURCES.length}건 · 요구사항 제목이 전부 사전에 있고 id 가 안 겹친다`);
+}
+
+// ── 5. 대조군 — 위 넷을 어긴 사본이 잡혀야 한다 ──────────────────────────────
 //
 // 실제 파일을 안 건드린다. 판정식에 손으로 만든 입력을 먹여 **잣대가 무는지**만 본다 —
 // 진짜 위반이 하나라도 있으면 대조군이 그것 때문에 통과/실패해서 무엇을 확인한 것인지
