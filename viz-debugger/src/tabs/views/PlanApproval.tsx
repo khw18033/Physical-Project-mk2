@@ -65,6 +65,9 @@ import type { EntityRecord } from '../data/store.ts';
 import { Explain } from '../../shared/Explain.tsx';
 import { useDevTools } from '../../shared/renderMode.ts';
 import { humanActed, noteHumanAction } from '../../shared/humanAction.ts';
+import { t } from '../../i18n/dict.ts';
+import { Rich } from '../../i18n/RichText.tsx';
+import { useLang } from '../../shared/language.ts';
 
 /**
  * **계획 대상을 코드에 적지 않는다.** 계획이 도착한 대상이 곧 임무 대상이고,
@@ -104,6 +107,8 @@ function freshestTarget(entities: ReturnType<typeof useEntities>, targets: reado
 }
 
 export function PlanApproval() {
+  // `t()` 는 값을 줄 뿐 리렌더를 안 일으킨다 — 컴포넌트마다 건다 (지시서 §2 ①).
+  useLang();
   const entities = useEntities();
   /**
    * **사람이 먼저다** (260910). 계획 채널은 캐시되는 채널이라, 구독하는 순간 지난 세션의
@@ -145,9 +150,7 @@ export function PlanApproval() {
   if (!acted) return null;
 
   const targetPicker = targets.length > 1 ? (
-    <label className="missionpick">
-      임무 대상
-      <select value={target ?? ''} onChange={(e) => setPicked(e.target.value)}>
+    <label className="missionpick">{t('plan.missionTarget')}<select value={target ?? ''} onChange={(e) => setPicked(e.target.value)}>
         {targets.map((id) => (
           <option key={id} value={id}>
             {entities.get(id)?.registry?.display_name ?? id}
@@ -162,10 +165,9 @@ export function PlanApproval() {
       {!decided && (
         <header className="board__head">
           <div>
-            <h2 className="board__title">임무 승인 — 계획 근거와 승인·거부</h2>
+            <h2 className="board__title">{t('plan.title')}</h2>
             <Explain id="plan-1" className="board__sub">
-              검증을 통과해도 <strong>사람이 승인해야 실행된다</strong>. 승인 전에는 아무것도 재생되지 않고,
-              승인하면 <strong>아래 마일스톤</strong>이 순서대로 진행된다
+              <Rich id="plan.humanApproves" />
             </Explain>
           </div>
           <div className="board__meta">
@@ -177,7 +179,7 @@ export function PlanApproval() {
 
       {plan === null ? (
         <p className="notice">
-          승인 대기 중인 계획이 없다. 아래에서 계획을 하나 내려받아 보라.
+          {t('plan.nonePending')}
         </p>
       ) : decided ? (
         <DecidedReceipt plan={plan} picker={targetPicker} />
@@ -186,14 +188,10 @@ export function PlanApproval() {
       )}
 
       <section className="devpanel">
-        <h2 className="devpanel__title">시나리오 재생</h2>
+        <h2 className="devpanel__title">{t('plan.playScript')}</h2>
         <div className="devpanel__row">
-          <button type="button" className="btn" onClick={() => playScenario('plan-propose')}>
-            계획 내려받기 (정상 완주)
-          </button>
-          <button type="button" className="btn" onClick={() => playScenario('plan-propose-failing')}>
-            계획 내려받기 (구간 4/5 실패)
-          </button>
+          <button type="button" className="btn" onClick={() => playScenario('plan-propose')}>{t('plan.fetchOk')}</button>
+          <button type="button" className="btn" onClick={() => playScenario('plan-propose-failing')}>{t('plan.fetchFail')}</button>
         </div>
       </section>
     </section>
@@ -209,54 +207,49 @@ export function PlanApproval() {
  * (승인 수신·재생 시작 두 단계는 애초에 결정 뒤에야 생긴다).
  */
 function ApprovalPanel({ plan }: { plan: Plan }) {
+  // `t()` 는 값을 줄 뿐 리렌더를 안 일으킨다 — 컴포넌트마다 건다 (지시서 §2 ①).
+  useLang();
   const [rejectOpen, setRejectOpen] = useState(false);
   const [reason, setReason] = useState('');
 
   return (
     <section className="panel panel--wide">
       <header className="panel__head">
-        <h2 className="panel__title">
-          계획 승인 <code className="cmdhead__id">{plan.plan_id}</code>
+        <h2 className="panel__title">{t('plan.approve')}<code className="cmdhead__id">{plan.plan_id}</code>
         </h2>
-        <span className="badge badge--plan-pending">승인 대기</span>
+        <span className="badge badge--plan-pending">{t('plan.awaiting')}</span>
       </header>
 
       <p className="notice notice--warn">
-        <strong>아직 실행되지 않았다.</strong> 승인해야 구간이 하달된다. 승인 없이 자동 실행하면 사고가 났을 때
-        책임소재가 성립하지 않는다.
+        <strong>{t('plan.notRunYet')}</strong> {t('plan.whyApproval')}
       </p>
 
       <EvidenceList plan={plan} />
 
       <Explain id="plan-2" className="note note--dim">
-        생성기 {plan.evidence.generator.name} {plan.evidence.generator.version} · 입력 맥락{' '}
+        {t('plan.generatorLine', { name: plan.evidence.generator.name, version: plan.evidence.generator.version })}{' '}
         {plan.evidence.generator.context_version}
         {/* 대본 계획은 AI 산출이 아니다 — 키워드 대조다. 감추면 REQ-1207 위반이다 (260831). */}
         {plan.script !== undefined
-          ? <span className="chip chip--backend">대본 조회 — LLM 아님 · 키워드 [{plan.script.matched_keywords.join(' · ')}]</span>
-          : <span className="chip chip--ai">AI 산출</span>}
+          ? <span className="chip chip--backend">{t('plan.scriptLookup', { keywords: plan.script.matched_keywords.join(' · ') })}</span>
+          : <span className="chip chip--ai">{t('plan.aiOutput')}</span>}
         {plan.command_id !== null && (
           <>
-            <br />
-            상관키 <code>{plan.command_id}</code> <span className="chip chip--backend">백엔드 발급 (BE-X-01)</span>
+            <br />{t('plan.correlationKey')}<code>{plan.command_id}</code> <span className="chip chip--backend">{t('plan.backendIssued')}</span>
           </>
         )}
       </Explain>
 
       <div className="approvebar">
-        <button type="button" className="btn btn--action btn--approve" onClick={() => { noteHumanAction(); armApproval(plan.plan_id); decidePlan(plan.plan_id, 'approve'); }}>
-          승인 — 백엔드로 회신
-        </button>
-        <button type="button" className="btn btn--action" onClick={() => setRejectOpen((v) => !v)}>
-          거부
-        </button>
+        <button type="button" className="btn btn--action btn--approve" onClick={() => { noteHumanAction(); armApproval(plan.plan_id); decidePlan(plan.plan_id, 'approve'); }}>{t('plan.approveReply')}</button>
+        <button type="button" className="btn btn--action" onClick={() => setRejectOpen((v) => !v)}>{t('plan.reject')}</button>
 
         {rejectOpen && (
           <div className="rejectbox">
             <input
               type="text"
               className="input"
-              placeholder="거부 사유 (필수) — 다음 계획 생성에 반영된다"
+              placeholder={t('plan.rejectReason')}
               value={reason}
               onChange={(e) => setReason(e.target.value)}
             />
@@ -272,9 +265,7 @@ function ApprovalPanel({ plan }: { plan: Plan }) {
                 setRejectOpen(false);
                 setReason('');
               }}
-            >
-              사유와 함께 거부
-            </button>
+            >{t('plan.rejectWithReason')}</button>
           </div>
         )}
       </div>
@@ -290,20 +281,22 @@ function ApprovalPanel({ plan }: { plan: Plan }) {
  * 근거와 산출 경로는 사라지지 않는다 — 「근거 ▾」로 그대로 펼친다.
  */
 function DecidedReceipt({ plan, picker }: { plan: Plan; picker: ReactNode }) {
+  // `t()` 는 값을 줄 뿐 리렌더를 안 일으킨다 — 컴포넌트마다 건다 (지시서 §2 ①).
+  useLang();
   const [open, setOpen] = useState(false);
   const approved = plan.decision === 'approved';
 
   return (
     <>
       <p className={'planreceipt planreceipt--' + plan.decision}>
-        <span className={'badge badge--plan-' + plan.decision}>{approved ? '✓ 승인됨' : '✕ 거부됨'}</span>
+        <span className={'badge badge--plan-' + plan.decision}>{approved ? t('plan.approved') : t('plan.rejected')}</span>
         <span className="planreceipt__time">{timeOf(plan.decided_at)}</span>
         <code className="cmdhead__id">{plan.plan_id}</code>
         <span className="planreceipt__tag">VZ-U-07</span>
-        {!approved && <span className="planreceipt__reason">사유 — {plan.reject_reason}</span>}
+        {!approved && <span className="planreceipt__reason">{t('plan.reasonIs', { reason: plan.reject_reason ?? '' })}</span>}
         {picker}
         <button type="button" className="btn btn--tiny planreceipt__toggle" onClick={() => setOpen((v) => !v)}>
-          근거 {open ? '▴' : '▾'}
+          {t('plan.rationaleToggle', { mark: open ? '▴' : '▾' })}
         </button>
       </p>
 
@@ -321,16 +314,18 @@ function DecidedReceipt({ plan, picker }: { plan: Plan; picker: ReactNode }) {
 
 /** 근거 네 층. 요구사항이 말한 순서 그대로 쌓는다. 승인 전 화면과 「근거 ▾」가 같이 쓴다. */
 function EvidenceList({ plan }: { plan: Plan }) {
+  // `t()` 는 값을 줄 뿐 리렌더를 안 일으킨다 — 컴포넌트마다 건다 (지시서 §2 ①).
+  useLang();
   const ev = plan.evidence;
   return (
       <ol className="evidence">
         <li className="evidence__step">
           <span className="evidence__no">1</span>
           <div>
-            <h3 className="evidence__title">전역 임무</h3>
+            <h3 className="evidence__title">{t('plan.globalMission')}</h3>
             <p className="evidence__body">{ev.mission.title}</p>
             <p className="evidence__meta">
-              <code>{ev.mission.id}</code> · 하달 {ev.mission.requested_by} · {timeOf(ev.mission.created_at)}
+              <code>{ev.mission.id}</code> {t('plan.dispatchedBy', { by: ev.mission.requested_by, at: timeOf(ev.mission.created_at) })}
             </p>
           </div>
         </li>
@@ -338,13 +333,13 @@ function EvidenceList({ plan }: { plan: Plan }) {
         <li className="evidence__step">
           <span className="evidence__no">2</span>
           <div>
-            <h3 className="evidence__title">구역 분할 — 어느 구역을 어떤 순서로</h3>
+            <h3 className="evidence__title">{t('plan.zoneSplit')}</h3>
             <div className="zonerow">
               {[...ev.zones]
                 .sort((a, b) => a.order - b.order)
                 .map((z) => (
                   <span key={z.zone} className="chip">
-                    {z.order}. {z.zone} <em>구간 {z.segment_count}개</em>
+                    {z.order}. {z.zone} <em>{t('plan.segmentCount', { n: z.segment_count })}</em>
                   </span>
                 ))}
             </div>
@@ -356,19 +351,19 @@ function EvidenceList({ plan }: { plan: Plan }) {
           <div>
             {/* 한 줄로 줄였다 (260901) — 구간 목록은 아래 마일스톤 목록과 **같은 값**이라
                 펼쳐 두면 한 화면에서 같은 것을 두 번 읽게 된다. */}
-            <h3 className="evidence__title">구간별 계획</h3>
-            <p className="evidence__body">{plan.segments.length}구간 — <strong>아래 마일스톤과 같음</strong></p>
+            <h3 className="evidence__title">{t('plan.perSegment')}</h3>
+            <p className="evidence__body">{plan.segments.length}구간 — <strong>{t('plan.sameAsMilestones')}</strong></p>
           </div>
         </li>
 
         <li className="evidence__step">
           <span className="evidence__no">4</span>
           <div>
-            <h3 className="evidence__title">검증 결과</h3>
+            <h3 className="evidence__title">{t('plan.validation')}</h3>
             <ul className="vallist">
               {ev.validations.map((v, i) => (
                 <li key={i} className={'vallist__item vallist__item--' + v.result}>
-                  <span className="vallist__mark">{v.result === 'pass' ? '통과' : '주의'}</span>
+                  <span className="vallist__mark">{v.result === 'pass' ? t('plan.pass') : t('plan.warn')}</span>
                   <strong>{v.rule}</strong>
                   <span className="muted">{v.detail}</span>
                 </li>
@@ -390,6 +385,8 @@ function EvidenceList({ plan }: { plan: Plan }) {
  * 이 계획의 사실이 아니라 시스템의 동작 방식이라 우상단 `?` 설명서가 맡는다.
  */
 function RouteStrip({ plan }: { plan: Plan }) {
+  // `t()` 는 값을 줄 뿐 리렌더를 안 일으킨다 — 컴포넌트마다 건다 (지시서 §2 ①).
+  useLang();
   // 중계 단계(relay_stage)는 **백엔드 내부 상태**다 (260901). 승인 화면에 늘 떠 있으면
   // 「지금 내가 무엇을 보고 있나」가 흐려진다 — 필요할 때만 목·개발 모드에서 본다.
   const devTools = useDevTools();
@@ -399,7 +396,7 @@ function RouteStrip({ plan }: { plan: Plan }) {
       <span className="route__arrow">→</span>
       <span className="route__hop route__hop--backend">{plan.route.delivered_by}</span>
       <span className="route__arrow">→</span>
-      <span className="route__hop route__hop--screen">가시화 (이 화면)</span>
+      <span className="route__hop route__hop--screen">{t('plan.thisScreen')}</span>
       <span className="route__arrow">→</span>
       <span className="route__hop route__hop--backend">{plan.route.decision_returns_to}</span>
       <span className="route__arrow">→</span>
@@ -417,13 +414,15 @@ function RouteStrip({ plan }: { plan: Plan }) {
  * 어느 구간에서 끊겼는지 화면만 보고 좁힐 수 있다.
  */
 function ProvenanceTrack({ steps }: { steps: ProvenanceStep[] }) {
+  // `t()` 는 값을 줄 뿐 리렌더를 안 일으킨다 — 컴포넌트마다 건다 (지시서 §2 ①).
+  useLang();
   if (steps.length === 0) return null;
   const split = splitProvenance(steps);
 
   return (
     <section className="prov">
       <h3 className="prov__title">
-        산출 경로 — AI 구간 {split.ai.length}단계 · 백엔드 중계 구간 {split.backend.length}단계
+        {t('plan.splitPath', { ai: split.ai.length, backend: split.backend.length })}
       </h3>
       <ol className="prov__list">
         {steps.map((s, i) => (

@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
 import { ViewNodeCard } from '../canvas/ViewNodeCard.tsx';
 import type { ViewNodeEntry, ViewNodeInstance, ViewScope } from '../canvas/types.ts';
-import type { Hardware, NodeKind, RefEdge, Task, TaskStatus } from '../model/types.ts';
+import type { Hardware, RefEdge, Task, TaskStatus } from '../model/types.ts';
 import { cellClass, doorCell, scanHead, type ViewpointFill } from '../viewpoint/fill.ts';
 import { applyFanLayout, fanGeometry, VIEWPOINT_NODE_HEIGHT, type ViewpointGroup } from './fanLayout.ts';
 import { dagLayout, viewNodeLayout, NODE_HEIGHT, NODE_WIDTH, VIEW_NODE_HEIGHT, VIEW_NODE_WIDTH, type Attached, type Position } from './layout.ts';
 import { STATE_STYLE, stateLabel } from './stateStyle.ts';
+import { t } from '../i18n/dict.ts';
+import { useLang } from '../shared/language.ts';
 
 /** 되돌아가는 곡선이 두 노드 바닥 아래로 내려가는 깊이(px). 문구와 화살촉이 노드와 겹치지 않을 만큼. */
 const REF_EDGE_DEPTH = 56;
@@ -66,10 +68,12 @@ export type CanvasLayer = {
   highlightedId: string | null;
 };
 
-/** 노드 문법 5종의 화면 표기 — 마일스톤을 왜 이렇게 쪼갰는지가 노드 위에 보인다. */
-const NODE_KIND_LABEL: Record<NodeKind, string> = {
-  sense: '관측', decide: '판정', act: '구동', verify: '검증', report: '보고',
-};
+/**
+ * 노드 문법 5종의 화면 표기 — 마일스톤을 왜 이렇게 쪼갰는지가 노드 위에 보인다.
+ *
+ * **표가 없어졌다** (260917 — 영문화 2단계). 키가 `node_kind` 값과 1:1이라 표가 할 일이
+ * 남지 않았고, 최상위 상수에 `t()` 를 두면 로드 시점에 굳는다(지시서 §2 ②).
+ */
 
 /**
  * 폭을 아직 못 쟀을 때의 대비값 (260901). 옛 `.graph-canvas` 의 `min-width` 와 같은 값이라
@@ -143,6 +147,7 @@ function bindPath(from: Box, to: Box): string {
 }
 
 export function TaskGraph({ tasks, hardware, states, selected, dimUnrelated, onOpen, refEdges, viewpoints, viewpointFill, canvas }: Props) {
+  useLang();
   // 자기 자리의 **실제 폭과 높이**를 잰다 (260901 폭 · 260904 높이) — 배치가 폭을 모르면
   // 화면 밖으로 나가고, 높이를 모르면 남는 세로를 안 쓰면서 필요 이상으로 접는다.
   const hostRef = useRef<HTMLDivElement | null>(null);
@@ -500,7 +505,7 @@ export function TaskGraph({ tasks, hardware, states, selected, dimUnrelated, onO
           const lane = (fromNode.y + fromNode.h + to.y) / 2;
           return <g key={key}>
             <path className={`edge edge--wrap${dim}`} d={wrapPath(fromNode, to)} markerEnd="url(#arrow)" />
-            <text className="edge__wrapmark" x={to.x + 6} y={lane - 6}>↵ 줄바꿈</text>
+            <text className="edge__wrapmark" x={to.x + 6} y={lane - 6}>{t('graph.wrapMark')}</text>
           </g>;
         }
         return <path key={key} className={`edge${dim}`} d={connectionPath(fromNode, to)} markerEnd="url(#arrow)" />;
@@ -547,7 +552,7 @@ export function TaskGraph({ tasks, hardware, states, selected, dimUnrelated, onO
       return <button key={task.id} type="button" className={`task-node ${style.className} ${selected === task.id ? 'selected' : ''} ${canvas?.pickedTaskId === task.id ? 'is-picked' : ''} ${dimmed ? 'dimmed' : ''}${setSize(task.id, 'task') === null ? '' : ' task-node--sized'}${viewpointClass}`} style={{ left: position.x, top: position.y, width: setSize(task.id, 'task')?.w, height: setSize(task.id, 'task')?.h }} onPointerDown={(event) => startDrag(event, task.id, 'task')} onClick={() => { if (!movedRef.current) canvas?.onPick(task.id); }} onDoubleClick={() => onOpen(task)}>
         {/* 테두리 손잡이 — 파워포인트처럼 가장자리에 대면 커서가 바뀐다 (260911). */}
         {handles(task.id, 'task')}
-        <small>{task.id}{task.nodeKind ? <em className={`node-kind node-kind--${task.nodeKind}`}>{NODE_KIND_LABEL[task.nodeKind]}</em> : null}</small><strong>{task.title}</strong>
+        <small>{task.id}{task.nodeKind ? <em className={`node-kind node-kind--${task.nodeKind}`}>{t(`node.${task.nodeKind}`)}</em> : null}</small><strong>{task.title}</strong>
         <span className="state-label">{style.icon} {stateLabel(state.status)}{state.status === 'rerunning' ? ` · attempt ${state.attempt}` : ''}</span>
         {/* 옛 편은 하드웨어 목록이 있어 기존 문구 그대로다. 대본(registry 세계)의 장비 실측
             상태는 남이 줄 데이터라 '오프라인'이라고 지어 말하지 않는다 — 미수신은 미수신이다.
@@ -566,7 +571,7 @@ export function TaskGraph({ tasks, hardware, states, selected, dimUnrelated, onO
         */}
         {cell !== null && (cell.phase === 'selected' || cell.phase === 'rejected')
           ? <span className="viewpoint__verdict" title={cell.detection?.reason || undefined}>
-            {cell.detection?.reason?.trim() || (cell.phase === 'selected' ? '문 있음' : '문 없음')}
+            {cell.detection?.reason?.trim() || (cell.phase === 'selected' ? t('vp.doorFound') : t('vp.doorNone'))}
           </span>
           : null}
         {/* **탐색 중과 탐색 완료를 가른다** (260910 지적).
@@ -574,12 +579,12 @@ export function TaskGraph({ tasks, hardware, states, selected, dimUnrelated, onO
             보고 있다」로 읽힌다. 그래서 다 돌고 난 뒤에도 여덟이 전부 「탐색 중」이었다.
             지금 보고 있는 칸은 하나뿐이고, 지나간 칸은 탐색이 끝난 것이다. */}
         {cell !== null && cell.phase === 'scanning'
-          ? <span className="viewpoint__verdict">{viewpointIndex === head ? '탐색 중…' : '탐색 완료'}</span>
+          ? <span className="viewpoint__verdict">{viewpointIndex === head ? t('vp.scanning') : t('vp.scanned')}</span>
           : null}
         {/* 대기에도 글자를 준다 — 낮은 카드에서 실행 상태 줄(`.state-label`)을 숨겼더니
             여덟만 아무 말이 없어 「아직 안 왔다」가 「고장났다」로 읽혔다. */}
-        {cell !== null && cell.phase === 'pending' ? <span className="viewpoint__verdict">대기</span> : null}
-        <span className={`device ${device?.connection ?? 'unknown'}`}>{task.target === null ? '대상 없음' : `${task.target} · ${device ? (device.connection === 'online' ? '온라인' : device.connection === 'maintenance' ? '점검' : '오프라인') : '상태 미수신'}`}</span>
+        {cell !== null && cell.phase === 'pending' ? <span className="viewpoint__verdict">{t('task.state.pending')}</span> : null}
+        <span className={`device ${device?.connection ?? 'unknown'}`}>{task.target === null ? t('dev.noTarget') : t('dev.line', { target: task.target, state: device ? t('dev.' + device.connection) : t('dev.unknown') })}</span>
       </button>;
     })}
     {/* 뷰 노드 — 내용은 주입된 렌더러가 그린다. 여기까지가 캔버스가 아는 전부다. */}

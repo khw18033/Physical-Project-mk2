@@ -23,6 +23,8 @@ import { join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const root = join(fileURLToPath(new URL('.', import.meta.url)), '..');
+// 사전을 직접 읽는다 — 키 대조만으로는 오타가 안 잡힌다 (260917 · 영문화 2단계 §5).
+const { ko: koDict } = await import(pathToFileURL(join(root, 'src', 'i18n', 'ko.ts')).href);
 const load = (...p) => import(pathToFileURL(join(root, ...p)).href);
 const strip = (t) => t.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
 const src = (...p) => strip(readFileSync(join(root, 'src', ...p), 'utf8'));
@@ -101,7 +103,9 @@ const entry = (missionId, outcome, extra = {}) => ({
     failures.push('DB 이력 자리표시를 안 남긴다 — 이 목록이 DB 것으로 읽힌다');
   }
   // 파일 창구가 없을 때(단독 빌드 등)는 이 세션 것뿐이라고 적어야 한다.
-  if (!/세션/.test(view)) failures.push('창구가 없을 때 이 세션에만 남는다는 말이 없다 — 새로고침하고 「사라졌다」가 된다');
+  // **문구가 아니라 키를 본다** (260917 — 영문화 2단계 §5). 사전에 그 키가 실제로 있는지도 같이 본다.
+  if (!view.includes("t('hist.sessionOnly')")) failures.push('창구가 없을 때 이 세션에만 남는다는 말이 없다 — 새로고침하고 「사라졌다」가 된다');
+  if (!/세션/.test(String(koDict['hist.sessionOnly'] ?? ''))) failures.push('사전의 hist.sessionOnly 가 세션 이야기를 안 한다');
   if (!/listRecordedRuns/.test(view) || !/openRecordedRun/.test(view)) failures.push('목록이 저장된 판을 안 읽거나 다시보기가 없다');
   // 끝난 판이 셋 중 무엇인지 적어야 한다.
   for (const word of ['완료', '실패', '정지']) {

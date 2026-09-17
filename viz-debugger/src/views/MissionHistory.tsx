@@ -37,6 +37,8 @@ import { openRecordedRun } from '../record/loadRecord.ts';
 import { listRecordedRuns, type RecordedRun } from '../record/recordClient.ts';
 import { useRecorderStatus } from '../record/recorder.ts';
 import { isReplayingRecord, useReplayTarget } from '../record/replayMode.ts';
+import { t } from '../i18n/dict.ts';
+import { useLang } from '../shared/language.ts';
 
 /**
  * **판이 끝났는지 보고, 끝났으면 한 줄 적는다.**
@@ -68,7 +70,7 @@ export function useMissionEndWatch(view: MissionView, folded: FoldedStatuses): v
       of: tasks.length,
       failedTaskId: failed?.id ?? null,
       reason: outcome === 'stopped'
-        ? (session.stopped?.failure ?? '사람이 정지를 눌렀습니다')
+        ? (session.stopped?.failure ?? t('hist.stoppedByHuman'))
         : (why?.words ?? ''),
     });
   }, [view.missionId, allDone, failed?.id, stopped, done, tasks.length]);
@@ -105,6 +107,8 @@ function useRecordedRuns(): { runs: RecordedRun[] | null; dir: string; refresh()
  * `onReplay` — 다시보기를 연 뒤 부른다. 셸 판에서 누르면 리플레이 화면으로 옮긴다.
  */
 export function MissionHistoryList({ compact = false, onReplay }: { compact?: boolean; onReplay?: () => void }) {
+  // `t()` 는 값을 줄 뿐 리렌더를 안 일으킨다 — 컴포넌트마다 건다 (지시서 §2 ①).
+  useLang();
   const entries = useMissionHistory();
   const { runs, dir, refresh } = useRecordedRuns();
   const recorder = useRecorderStatus();
@@ -124,31 +128,29 @@ export function MissionHistoryList({ compact = false, onReplay }: { compact?: bo
   };
 
   const recorderLine = recorder.state === 'recording'
-    ? <>● 지금 판 기록 중 — <code>{recorder.folder}</code></>
+    ? <>{t('hist.recordingNow')}<code>{recorder.folder}</code></>
     : recorder.state === 'waiting'
-      ? <>승인된 판 — 시작하면 기록 폴더가 생깁니다</>
+      ? <>{t('hist.approvedRun')}</>
       : recorder.state === 'unavailable'
-        ? <>기록 창구가 없어 판이 파일로 안 남습니다 — <code>npm run dev</code> 로 띄운 화면에서만 저장됩니다</>
+        ? <>{t('hist.noEndpoint')}<code>npm run dev</code>{t('hist.onlyVia')}</>
         : null;
 
   return <div className="history-list">
     {replaying !== null && <div className="history-replaying">
-      <b>다시보기 중</b> <code>{replaying.date}/{replaying.run}</code>
-      <button type="button" className="history-action" onClick={() => closeRecordReplay()}>다시보기 닫기</button>
-      <small>저장된 판을 그대로 채운 화면입니다 — 로봇에는 아무것도 보내지 않습니다. 슬라이더로 되감을 수 있습니다</small>
+      <b>{t('hist.replaying')}</b> <code>{replaying.date}/{replaying.run}</code>
+      <button type="button" className="history-action" onClick={() => closeRecordReplay()}>{t('hist.closeReplay')}</button>
+      <small>{t('hist.replayNote')}</small>
     </div>}
     {recorderLine !== null && <p className="history-recorder">
       {recorderLine}
-      {recorder.lastError !== null && recorder.state !== 'unavailable' && <small> · 저장 오류: {recorder.lastError}</small>}
+      {recorder.lastError !== null && recorder.state !== 'unavailable' && <small> {t('hist.saveError', { reason: recorder.lastError })}</small>}
     </p>}
-    {openError !== null && <p className="history-why">다시보기를 못 열었습니다 — {openError}</p>}
+    {openError !== null && <p className="history-why">{t('hist.openFailed', { reason: openError })}</p>}
 
     {runs === null
       ? <SessionEntries entries={entries} compact={compact} />
       : runs.length === 0
-        ? <p className="history-empty">
-          아직 저장된 판이 없습니다
-          <small>임무를 시작하면 날짜 폴더 아래 판마다 기록과 받은 그림이 쌓입니다</small>
+        ? <p className="history-empty">{t('hist.noSaved')}<small>{t('hist.noSavedWhy')}</small>
         </p>
         : groupByDate(runs).map(([date, items]) => <section key={date} className="history-day">
           <h3>{dateWords(date)} <small>{items.length}판</small></h3>
@@ -162,11 +164,11 @@ export function MissionHistoryList({ compact = false, onReplay }: { compact?: bo
 
     {/* **DB 가 보관할 이력은 여전히 남이 줄 값이다** (`mission-history`). 지금은 파일이 그 자리를 대신한다. */}
     <p className="history-note">
-      {runs !== null && <>저장 위치 <code>{dir}</code> <button type="button" className="history-action" onClick={refresh}>새로 읽기</button><br /></>}
+      {runs !== null && <>{t('hist.location')}<code>{dir}</code> <button type="button" className="history-action" onClick={refresh}>{t('hist.refresh')}</button><br /></>}
       <PendingSource id="mission-history" inline>
         {runs === null
-          ? '기록 창구가 없어 이 세션에서 본 것만입니다 — 새로고침하면 빕니다. DB 가 보관하는 임무 이력은 아직 안 붙었습니다'
-          : 'DB 연결 전이라 파일로 남깁니다 — DB 가 보관하는 임무 이력은 아직 안 붙었습니다'}
+          ? t('hist.sessionOnly')
+          : t('hist.fileFallback')}
       </PendingSource>
     </p>
   </div>;
@@ -180,30 +182,34 @@ function RunLine({ item, compact, recordingFolder, replayingKey, opening, onOpen
   opening: string | null;
   onOpen(run: RecordedRun): void;
 }) {
+  // `t()` 는 값을 줄 뿐 리렌더를 안 일으킨다 — 컴포넌트마다 건다 (지시서 §2 ①).
+  useLang();
+  // `t()` 는 값을 줄 뿐 리렌더를 안 일으킨다 — 컴포넌트마다 건다 (지시서 §2 ①).
+  useLang();
   const key = `${item.date}/${item.run}`;
   const mission = item.mission;
   const outcome = mission?.outcome ?? null;
   const current = replayingKey === key;
   // 끝 표시가 없는 판 — 지금 쓰는 중이거나, 끝나기 전에 새로고침·충돌로 끊긴 판이다.
-  const outcomeWords = outcome !== null ? OUTCOME_WORDS[outcome] : recordingFolder === key ? '기록 중' : '끝 표시 없음';
+  const outcomeWords = outcome !== null ? OUTCOME_WORDS[outcome] : recordingFolder === key ? t('hist.recording') : t('hist.noEndMark');
   return <li className={`${outcome === null ? 'is-open' : `is-${outcome}`}${current ? ' is-replaying' : ''}`}>
     <time>{timeWords(item.run)}</time>
     <b>{mission?.missionId ?? item.run.slice(7)}</b>
     <span className="history-outcome">{outcomeWords}</span>
     {mission !== null && <span className="history-count">{mission.done}/{mission.of} 노드</span>}
     <button type="button" className="history-action" disabled={opening !== null || mission === null} onClick={() => onOpen(item)}>
-      {opening === key ? '여는 중…' : current ? '다시 불러오기' : '다시보기'}
+      {opening === key ? t('hist.opening') : current ? t('hist.reload') : t('hist.replay')}
     </button>
     {!compact && mission !== null && <small className="history-label">
-      {mission.label}{mission.testMode ? ' · 테스트 자료' : ''} · 그림 {mission.imageCount}장 · T+{Math.round(mission.headSec)}s
+      {mission.label}{mission.testMode ? t('hist.testData') : ''} · 그림 {mission.imageCount}장 · T+{Math.round(mission.headSec)}s
     </small>}
-    {mission?.path != null && <small className="history-label">경로 {mission.path.turnInstruction} · 직진 {mission.path.forwardM.toFixed(2)} m</small>}
-    {mission?.pathFailure != null && <small className="history-why">경로 산출 실패 · {mission.pathFailure}</small>}
+    {mission?.path != null && <small className="history-label">{t('hist.path', { turn: mission.path.turnInstruction, forward: mission.path.forwardM.toFixed(2) })}</small>}
+    {mission?.pathFailure != null && <small className="history-why">{t('hist.pathFailed', { reason: mission.pathFailure })}</small>}
     {mission !== null && mission.failedTaskId !== null && <small className="history-why">
       {mission.failedTaskId}{mission.reason !== '' && ` · ${mission.reason}`}
     </small>}
     {mission !== null && mission.failedTaskId === null && mission.reason !== '' && <small className="history-why">{mission.reason}</small>}
-    {mission === null && <small className="history-why">mission.json 을 못 읽었습니다 — 쓰는 중이었거나 깨졌습니다</small>}
+    {mission === null && <small className="history-why">{t('hist.unreadable')}</small>}
   </li>;
 }
 
@@ -215,10 +221,10 @@ function groupByDate(runs: readonly RecordedRun[]): Array<[string, RecordedRun[]
 
 /** 창구가 없을 때 — 이 세션에서 끝난 판만. */
 function SessionEntries({ entries, compact }: { entries: ReturnType<typeof useMissionHistory>; compact: boolean }) {
+  // `t()` 는 값을 줄 뿐 리렌더를 안 일으킨다 — 컴포넌트마다 건다 (지시서 §2 ①).
+  useLang();
   if (entries.length === 0) {
-    return <p className="history-empty">
-      아직 끝난 임무가 없습니다
-      <small>한 판이 완료·실패·정지로 끝나면 여기에 한 줄씩 쌓입니다</small>
+    return <p className="history-empty">{t('hist.noFinished')}<small>{t('hist.noFinishedWhy')}</small>
     </p>;
   }
   return <ul>

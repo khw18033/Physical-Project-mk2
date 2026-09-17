@@ -17,6 +17,8 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { isScratchPath } from './lib/scratch.mjs';
 
 const root = join(fileURLToPath(new URL('.', import.meta.url)), '..');
+// 사전을 직접 읽는다 — 키 대조만으로는 오타가 안 잡힌다 (260917 · 영문화 2단계 §5).
+const { ko: koDict } = await import(pathToFileURL(join(root, 'src', 'i18n', 'ko.ts')).href);
 const load = (...p) => import(pathToFileURL(join(root, ...p)).href);
 const read = (...p) => readFileSync(join(root, ...p), 'utf8');
 const code = (source) => source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
@@ -231,8 +233,11 @@ const SAMPLE = {
 
   // 액션 아이템 — 장애물은 중계 편의 T-NB2 에서만.
   const modal = code(read('src', 'views', 'ActionModal.tsx'));
-  if (!/relay\s*\?[\s\S]*task\.id === OBSTACLE_TASK && <><h3>장애물 탐지/.test(modal)) failures.push('장애물 액션 아이템이 중계 편 갈래 안에 있지 않다');
-  if (!/relay && task\.id === OBSTACLE_TASK && <><h3>판단 근거<\/h3><ObstacleEvidence/.test(modal)) failures.push('장애물 판단 근거가 중계 편 T-NB2 에만 걸려 있지 않다');
+  // **문구가 아니라 키를 본다** (260917 — 영문화 2단계 §5). 사전에 그 키가 실제로 있는지도 같이 본다.
+  if (!/relay\s*\?[\s\S]*task\.id === OBSTACLE_TASK && <><h3>\{t\('act\.obstacleAi'\)\}/.test(modal)) failures.push('장애물 액션 아이템이 중계 편 갈래 안에 있지 않다');
+  if (koDict['act.obstacleAi'] === undefined) failures.push('사전에 act.obstacleAi 가 없다');
+  if (!/relay && task\.id === OBSTACLE_TASK && <><h3>\{t\('act\.rationale'\)\}<\/h3><ObstacleEvidence/.test(modal)) failures.push('장애물 판단 근거가 중계 편 T-NB2 에만 걸려 있지 않다');
+  if (koDict['act.rationale'] === undefined) failures.push('사전에 act.rationale 이 없다');
   if (obstacle.OBSTACLE_TASK !== 'T-NB2') failures.push('장애물을 붙이는 노드가 「장애물 탐지」(T-NB2)가 아니다');
   const door = JSON.parse(read('scenarios', 'MSN-260909-01.json'));
   if (door.tasks.some((t) => t.id === obstacle.OBSTACLE_TASK)) failures.push('시연 편에 같은 태스크 id 가 있다 — 장애물 값이 시연 노드에 붙을 수 있다');

@@ -20,6 +20,8 @@ import { join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const root = join(fileURLToPath(new URL('.', import.meta.url)), '..');
+// 사전을 직접 읽는다 — 키 대조만으로는 오타가 안 잡힌다 (260917 · 영문화 2단계 §5).
+const { ko: koDict } = await import(pathToFileURL(join(root, 'src', 'i18n', 'ko.ts')).href);
 const load = (...p) => import(pathToFileURL(join(root, ...p)).href);
 
 const {
@@ -280,7 +282,9 @@ function control(name, hit) {
   const graph = readFileSync(join(root, 'src', 'graph', 'TaskGraph.tsx'), 'utf8')
     .replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
   if (!/scanHead\(/.test(graph)) failures.push('화면이 scanHead 를 안 쓴다 — 다 돌고도 「탐색 중」이 남는다');
-  if (!/탐색 완료/.test(graph)) failures.push('「탐색 완료」라는 말이 화면에 없다');
+  // **문구가 아니라 키를 본다** (260917 — 영문화 2단계 §5). 사전에 그 키가 실제로 있는지도 같이 본다.
+  if (!graph.includes("t('vp.scanned')")) failures.push('「탐색 완료」라는 말이 화면에 없다');
+  if (!String(koDict['vp.scanned'] ?? '').trim()) failures.push('사전에 vp.scanned 가 없거나 비었다');
 }
 
 if (failures.length) {
