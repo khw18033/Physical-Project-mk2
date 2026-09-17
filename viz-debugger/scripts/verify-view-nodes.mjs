@@ -18,7 +18,7 @@
 
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { registerViewNodes, viewNodeCatalog, viewNodeEntry } from '../src/canvas/registry.ts';
 
 const root = join(fileURLToPath(new URL('.', import.meta.url)), '..');
@@ -59,6 +59,43 @@ const CANVAS_FILES = ['types.ts', 'registry.ts', 'scope.ts', 'persist.ts', 'defa
   // 렌더러 실물은 tabs/ 안에 있어야 한다 — canvas/ 로 옮기면 경계가 사라진다.
   check(read('src', 'tabs', 'index.tsx').includes('VIEW_NODE_RENDERERS'), 'tabs/index.tsx 가 렌더러를 내보내지 않는다');
   console.log('✅ 주입 — 통합 진입점만 registerViewNodes() 를 부르고, 단독 진입점은 tabs/ 를 모른다');
+}
+
+// ── ②-b 봉투 수신처가 **실제로 저장소를 바꾸는가** (260917 신설) ───────────────
+//
+// 260916 에 `registerEnvelopeSink(store.apply)` 로 적었다. `apply` 는 `this.records` 를 쓰는
+// 클래스 메서드라, 떼어 넘기면 `this` 가 풀려 **봉투마다 던졌다.** 그런데 `fanOutEnvelope()`
+// 가 그 오류를 삼켜서 계획 봉투가 대시보드 저장소에 한 번도 안 들어갔고, **승인을 눌러도
+// 영수증으로 안 접혔다.** 사람이 화면을 보고 찾았다.
+//
+// 「등록했는가」만 보는 검사로는 절대 안 잡힌다 — 등록은 됐다. **돌려서 값이 바뀌는지**를 본다.
+{
+  const integrated = read('src', 'integrated.tsx');
+  const { DataStore } = await import(pathToFileURL(join(root, 'src', 'tabs', 'data', 'store.ts')).href);
+  const { registerEnvelopeSink, fanOutEnvelope } = await import(pathToFileURL(join(root, 'src', 'shared', 'envelopeSink.ts')).href + '?case=wiring');
+
+  // 1. 통합 진입점이 **메서드를 떼어** 넘기지 않는다 — `registerEnvelopeSink(x.method)` 꼴
+  check(!/registerEnvelopeSink\(\s*[a-z]\w*\.[a-z]\w*\s*\)/.test(integrated.replace(/\/\*[\s\S]*?\*\//g, '')),
+    'integrated.tsx 가 메서드를 떼어 registerEnvelopeSink 에 넘긴다 — this 가 풀려 봉투마다 던지고, 그 오류는 삼켜진다');
+
+  // 2. 통합 진입점이 쓰는 꼴(이름 있는 함수로 감싸기)이 **실제로 저장소를 바꾸는가**
+  const store = new DataStore();
+  const envelope = { entity: 'plan-verify', node: 'mission-trace', channel: 'plan', payload: { plan_id: 'p', decision: 'approved' }, ts: new Date().toISOString() };
+  const errors = [];
+  const realError = console.error;
+  console.error = (...args) => { errors.push(args.map(String).join(' ')); };
+  function applyToStore(e) { store.apply(e); }
+  registerEnvelopeSink(applyToStore);
+  fanOutEnvelope(envelope);
+  console.error = realError;
+  check(errors.length === 0, `봉투 수신처가 던졌다 — ${errors[0] ?? ''}`);
+
+  // 3. 대조군 — **떼어 넘긴 메서드는 반드시 던져야 한다.** 안 던지면 1번 규칙이 헛짚은 것이다.
+  let detachedThrows = false;
+  try { const detached = store.apply; detached(envelope); } catch { detachedThrows = true; }
+  check(detachedThrows, '대조군 실패: 떼어 넘긴 store.apply 가 안 던진다 — 1번 규칙이 지키는 것이 없다');
+
+  console.log('✅ 봉투 수신처 — 메서드를 떼어 넘기지 않고, 돌려 보면 저장소가 실제로 받는다 · 떼어 넘긴 사본은 던진다(대조군)');
 }
 
 // ── ③ 팔레트는 종류를 손으로 적지 않는다 (VZ-N-01) ────────────────────────────

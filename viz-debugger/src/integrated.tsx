@@ -36,8 +36,26 @@ registerViewNodes(VIEW_NODE_RENDERERS);
  */
 registerAppService(startTabsServices);
 
-/** ③ 임무 다리가 받은 봉투를 대시보드 저장소에도 넣는다. 단독은 그 저장소가 없다. */
-registerEnvelopeSink(store.apply);
+/**
+ * ③ 임무 다리가 받은 봉투를 대시보드 저장소에도 넣는다. 단독은 그 저장소가 없다.
+ *
+ * ## 260917 — `store.apply` 를 그대로 넘기면 안 된다
+ *
+ * 260916 에 `registerEnvelopeSink(store.apply)` 로 적었다. `apply` 는 **클래스 메서드이고
+ * `this.records` 를 쓴다** — 메서드를 떼어 넘기면 `this` 가 풀려 봉투마다 던진다.
+ *
+ * 그런데 `fanOutEnvelope()` 가 「한 곳이 던져도 나머지는 받아야 한다」며 그 오류를 **삼켰다.**
+ * 그래서 계획 봉투가 대시보드 저장소에 **한 번도 안 들어갔고**, `PlanApproval` 은
+ * `plan.decision` 이 계속 `pending` 이라 **승인을 눌러도 영수증으로 안 접혔다.**
+ * 화면은 멀쩡해 보이는데 값이 안 오는 — `envelopeSink.ts` 주석이 가장 피하려던 바로 그 모양이다.
+ *
+ * 화살표로 감싸면 `this` 가 산다. **익명 화살표는 HMR 중복 방어를 무력화하므로**
+ * (`appServices.ts` 주석) 이름 있는 모듈 수준 함수로 둔다.
+ */
+function applyToStore(envelope: Parameters<typeof store.apply>[0]): void {
+  store.apply(envelope);
+}
+registerEnvelopeSink(applyToStore);
 
 /**
  * ④ 관측 보고서의 `build` 표식. **셸이 아니라 여기서 찍는다** (260916).
