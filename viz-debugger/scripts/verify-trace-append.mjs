@@ -11,9 +11,11 @@
 //
 // 대조군을 함께 돌린다 — **검사를 무력화한 사본이 반드시 실패로 잡히는지**까지 본다
 // (`verify:standalone` 이 셸 import 를 주입해 보는 것과 같은 방식).
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { isScratchPath, makeScratch } from './lib/scratch.mjs';
+import { mutate, readSource } from './lib/source.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const storePath = join(root, 'src', 'shared', 'stores', 'traceStore.ts');
@@ -95,6 +97,11 @@ failures.push(...checkStore(TraceStore));
   (function walk(dir) {
     for (const name of readdirSync(dir)) {
       const path = join(dir, name);
+      // **남의 쓰레기가 내 판정을 바꾸면 안 된다** (260917 — 검사 위생 §3①).
+      // 260917 에 `verify:human-trace` 가 흘린 `.verify-human-*/trace-3.ts` 6건을
+      // 이 검사가 「기록 열을 따로 만드는 곳」으로 셌다. 잔여물이 0이어도 이 제외는 둔다 —
+      // 정리는 실패할 수 있고, 판정은 아니다.
+      if (isScratchPath(path)) continue;
       if (statSync(path).isDirectory()) walk(path);
       else if (/\.tsx?$/.test(name)) {
         const rel = path.slice(root.length + 1).replaceAll('\\', '/');
@@ -131,21 +138,24 @@ failures.push(...checkStore(TraceStore));
 
 // ── 대조군 — 검사를 무력화한 사본이 반드시 잡혀야 한다 ────────────────────────
 {
-  const scratch = mkdtempSync(join(root, '.verify-trace-'));
+  const scratch = makeScratch(root, '.verify-trace-');
   try {
-    const source = readFileSync(storePath, 'utf8');
+    // **`readSource` 로 읽는다** (260917 — 검사 위생 §1). 아래 대조군 둘이 여러 줄을 찾는데
+    // `traceStore.ts` 가 CRLF 라 `\n` 으로는 아무것도 못 찾았다. 그래서 이 검사가 늘 빨갰고,
+    // 그 빨강이 진짜 회귀를 가렸다. 치환 문자열은 안 고친다 — 읽는 쪽이 맞춰 준다.
+    const source = readSource(storePath);
     const mutants = [
-      ['중복 무시를 없앤 사본', source.replace('if (this.seen.has(event.seq)) {', 'if (false) {')],
-      ['순서 정렬을 없앤 사본', source.replace(
+      ['중복 무시를 없앤 사본', mutate(source, 'if (this.seen.has(event.seq)) {', 'if (false) {')],
+      ['순서 정렬을 없앤 사본', mutate(source,
         'let index = this.events.length;\n    while (index > 0 && !precedes(this.events[index - 1], event)) index -= 1;\n    return index;',
         'return this.events.length;',
       )],
-      ['사본이 아니라 내부 배열을 내주는 사본', source.replace('if (this.cached === null) this.cached = Object.freeze([...this.events]);\n    return this.cached;', 'return this.events;')],
-      ['넣은 객체를 얼리지 않는 사본', source.replace('return Object.freeze(copy);', 'return event;')],
+      ['사본이 아니라 내부 배열을 내주는 사본', mutate(source, 'if (this.cached === null) this.cached = Object.freeze([...this.events]);\n    return this.cached;', 'return this.events;')],
+      ['넣은 객체를 얼리지 않는 사본', mutate(source, 'return Object.freeze(copy);', 'return event;')],
     ];
     for (const [label, code] of mutants) {
-      if (code === source) { failures.push(`대조군을 만들지 못했다 — ${label} (원본이 바뀌었나?)`); continue; }
-      const path = join(scratch, `traceStore-${controls.length}.ts`);
+      if (code === null) { failures.push(`대조군을 만들지 못했다 — ${label} (원본이 바뀌었나?)`); continue; }
+      const path = scratch.file(`traceStore-${controls.length}.ts`);
       writeFileSync(path, code, 'utf8');
       const mutant = await import(pathToFileURL(path).href);
       // 던지는 것도 검출이다 — 무력화된 사본은 검사 도중 자기 발에 걸리기도 한다.
@@ -156,7 +166,8 @@ failures.push(...checkStore(TraceStore));
     }
   } finally {
     // 일부 개발 환경은 파일 삭제가 막혀 EPERM 이 난다 — 검사는 이미 끝났으므로 죽지 않는다.
-    try { rmSync(scratch, { recursive: true, force: true }); } catch { console.warn('임시 디렉터리 정리 실패 — ' + scratch); }
+    // 다만 **조용히 넘어가지도 않는다**: 못 지운 것은 끝에 목록으로 뜬다 (`lib/scratch.mjs`).
+    scratch.cleanup();
   }
 }
 

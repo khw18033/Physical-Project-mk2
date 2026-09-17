@@ -14,9 +14,10 @@
 // (접힘 판정 재료 · 안내줄이 재생 머리를 따라가는가) ④ 게이트웨이 실동작 (직접 띄워
 // 발화→매칭→승인→재생→감사→닫기→미리보기 왕복). 음성 대조군 포함.
 import { spawn } from 'node:child_process';
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { isScratchPath, makeScratch } from './lib/scratch.mjs';
 import { WebSocket } from 'ws';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -55,9 +56,9 @@ const modePath = join(root, 'src', 'shared', 'renderMode.ts');
 
 // 대조군 — exitScenarioRender 를 무력화한 사본이 잡히는가.
 {
-  const scratch = mkdtempSync(join(root, '.verify-scenario-'));
+  const scratch = makeScratch(root, '.verify-scenario-');
   try {
-    const mutantPath = join(scratch, 'renderMode.ts');
+    const mutantPath = scratch.file('renderMode.ts');
     writeFileSync(mutantPath, readFileSync(modePath, 'utf8').replace('scenarioRender = null;', ';'), 'utf8');
     const mutant = await import(pathToFileURL(mutantPath).href);
     mutant.enterScenarioRender({ missionId: 'MSN-X', title: 't', cast: [], axes: new Set(), playing: false });
@@ -67,7 +68,7 @@ const modePath = join(root, 'src', 'shared', 'renderMode.ts');
   } finally {
     // 일부 개발 환경은 파일 삭제가 막혀 EPERM 이 난다 — 검사는 이미 끝났으므로
     // 정리 실패로 죽지 않는다. 남은 .verify-* 디렉터리는 사람이 지운다.
-    try { rmSync(scratch, { recursive: true, force: true }); } catch { console.warn('임시 디렉터리 정리 실패(삭제 금지 환경?) — ' + scratch); }
+    scratch.cleanup();
   }
 }
 
@@ -99,6 +100,8 @@ if (checkSources(shellSource.replaceAll('scenario-banner', 'x'), pendingSourceTe
   (function walk(dir) {
     for (const name of readdirSync(dir)) {
       const path = join(dir, name);
+      // 남의 대조군 잔여물을 내 판정에 넣지 않는다 (260917 — 검사 위생 §3①).
+      if (isScratchPath(path)) continue;
       if (statSync(path).isDirectory()) walk(path);
       else if (/\.tsx?$/.test(name)) {
         const rel = path.slice(root.length + 1).replaceAll('\\', '/');

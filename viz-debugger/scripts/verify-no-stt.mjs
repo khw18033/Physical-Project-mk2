@@ -12,6 +12,7 @@ import { mkdtempSync, readFileSync, readdirSync, statSync, writeFileSync } from 
 import { tmpdir } from 'node:os';
 import { join, relative } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { isScratchPath } from './lib/scratch.mjs';
 
 const srcRoot = new URL('../src/', import.meta.url);
 const srcDir = fileURLToPath(srcRoot);
@@ -80,6 +81,8 @@ const files = [];
 (function walk(directory) {
   for (const name of readdirSync(directory)) {
     const path = join(directory, name);
+    // 남의 대조군 잔여물을 내 판정에 넣지 않는다 (260917 — 검사 위생 §3①).
+    if (isScratchPath(path)) continue;
     if (statSync(path).isDirectory()) walk(path);
     else if (/\.(ts|tsx)$/.test(name)) files.push(path);
   }

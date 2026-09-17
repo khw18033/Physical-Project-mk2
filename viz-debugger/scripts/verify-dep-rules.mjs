@@ -15,9 +15,10 @@
 //     노드 분화 이전 편과 기존 예시가 통째로 무효가 된다.
 //
 // 대조군 포함 — 규칙을 무력화한 사본이 반드시 실패로 잡히는지까지 본다.
-import { mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { makeScratch } from './lib/scratch.mjs';
 
 const vizRoot = join(dirname(fileURLToPath(import.meta.url)), '..');
 const repoRoot = join(vizRoot, '..');
@@ -303,7 +304,7 @@ const PLAN_ANNOTATIONS = {
 // 되돌아감은 주석을 넘겨야 도는 규칙이라 복원 수가 한 글자도 안 바뀐다. 무력화한 축을
 // 그 축의 방법으로 봐야 대조가 성립한다.
 {
-  const scratch = mkdtempSync(join(vizRoot, 'src', 'generate', '.verify-plan-'));
+  const scratch = makeScratch(join(vizRoot, 'src', 'generate'), '.verify-plan-');
   try {
     const source = readFileSync(solverPath, 'utf8')
       .replace("from '../model/types.ts'", "from '../../model/types.ts'");
@@ -340,20 +341,20 @@ const PLAN_ANNOTATIONS = {
       }
       // **사본마다 다른 이름을 쓴다** — Node 는 모듈을 URL 로 캐시하므로 이름이 같으면
       // 두 번째가 첫 번째의 결과를 돌려준다 (11단계에 실제로 그렇게 됐다).
-      const path = join(scratch, `solveDeps-plan-${index}.ts`);
+      const path = scratch.file(`solveDeps-plan-${index}.ts`);
       writeFileSync(path, source.replace(mutant.from, mutant.to), 'utf8');
       const copy = await import(pathToFileURL(path).href);
       if (!mutant.broken(copy)) failures.push(`대조군을 검출하지 못했다: ${mutant.name} — 이 검사는 무의미하다`);
       else controls.push(mutant.name);
     }
   } finally {
-    try { rmSync(scratch, { recursive: true, force: true }); } catch { console.warn('임시 디렉터리 정리 실패 — ' + scratch); }
+    scratch.cleanup();
   }
 }
 
 // ── 대조군 — 규칙을 무력화한 사본이 반드시 잡혀야 한다 ───────────────────────
 {
-  const scratch = mkdtempSync(join(vizRoot, 'src', 'generate', '.verify-dep-'));
+  const scratch = makeScratch(join(vizRoot, 'src', 'generate'), '.verify-dep-');
   try {
     const source = readFileSync(solverPath, 'utf8').replace("from '../model/types.ts'", "from '../../model/types.ts'");
     const mutants = [
@@ -364,7 +365,7 @@ const PLAN_ANNOTATIONS = {
     ];
     for (const [label, code] of mutants) {
       if (code === source) { failures.push(`대조군을 만들지 못했다 — ${label} (원본이 바뀌었나?)`); continue; }
-      const path = join(scratch, `solveDeps-${controls.length}.ts`);
+      const path = scratch.file(`solveDeps-${controls.length}.ts`);
       writeFileSync(path, code, 'utf8');
       const mutant = await import(pathToFileURL(path).href);
       let detected;
@@ -378,7 +379,7 @@ const PLAN_ANNOTATIONS = {
     }
   } finally {
     // 일부 개발 환경은 파일 삭제가 막혀 EPERM 이 난다 — 검사는 이미 끝났으므로 죽지 않는다.
-    try { rmSync(scratch, { recursive: true, force: true }); } catch { console.warn('임시 디렉터리 정리 실패 — ' + scratch); }
+    scratch.cleanup();
   }
 }
 

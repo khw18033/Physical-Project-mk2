@@ -12,9 +12,10 @@
 //  4. **되감기 화면이 그것을 그린다** — 열에만 있고 화면에 없으면 1번과 같은 상태다.
 //
 // 대조군 포함 — 기록을 무력화한 사본이 반드시 실패로 잡히는지까지 본다.
-import { mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { isScratchPath, makeScratch } from './lib/scratch.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const src = join(root, 'src');
@@ -32,6 +33,8 @@ const read = (...parts) => readFileSync(join(src, ...parts), 'utf8');
   (function walk(dir) {
     for (const name of readdirSync(dir)) {
       const path = join(dir, name);
+      // 남의 대조군 잔여물을 내 판정에 넣지 않는다 (260917 — 검사 위생 §3①).
+      if (isScratchPath(path)) continue;
       if (statSync(path).isDirectory()) walk(path);
       else if (/\.tsx?$/.test(name)) {
         const rel = path.slice(src.length + 1).replaceAll('\\', '/');
@@ -160,7 +163,7 @@ if (checkScreen(mainSource.replaceAll('humanMarks', 'xxx')).length === 0) {
 
 // ── 대조군 — 기록 규칙 자체를 무력화한 사본 ──────────────────────────────────
 {
-  const scratch = mkdtempSync(join(src, 'data', '.verify-human-'));
+  const scratch = makeScratch(join(src, 'data'), '.verify-human-');
   try {
     // **줄끝을 맞춰 둔다.** `.gitattributes` 는 저장소 안을 LF 로 고정하지만 작업 트리는
     // 환경의 관례를 따르므로(`core.autocrlf`) Windows 체크아웃에서는 CRLF 다. 자리표에
@@ -176,7 +179,7 @@ if (checkScreen(mainSource.replaceAll('humanMarks', 'xxx')).length === 0) {
     ];
     for (const [label, code] of mutants) {
       if (code === source) { failures.push(`대조군을 만들지 못했다 — ${label} (원본이 바뀌었나?)`); continue; }
-      const path = join(scratch, `trace-${controls.length}.ts`);
+      const path = scratch.file(`trace-${controls.length}.ts`);
       writeFileSync(path, code, 'utf8');
       let detected;
       try { detected = (await checkColumn(path)).length > 0; } catch { detected = true; }
@@ -185,7 +188,7 @@ if (checkScreen(mainSource.replaceAll('humanMarks', 'xxx')).length === 0) {
     }
   } finally {
     // 일부 개발 환경은 파일 삭제가 막혀 EPERM 이 난다 — 검사는 이미 끝났으므로 죽지 않는다.
-    try { rmSync(scratch, { recursive: true, force: true }); } catch { console.warn('임시 디렉터리 정리 실패 — ' + scratch); }
+    scratch.cleanup();
   }
 }
 

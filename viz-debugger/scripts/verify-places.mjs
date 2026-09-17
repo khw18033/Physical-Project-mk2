@@ -9,8 +9,17 @@
  */
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-const ROOT = new URL('../../', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1');
+// **`.pathname` 이 아니라 `fileURLToPath` 다** (260917 — 검사 위생 §2).
+//
+// `URL.pathname` 은 퍼센트 인코딩된 문자열이다. 저장소 경로에 한글이 있으면 `대학` 이
+// `%EB%8C%80%ED%95%99` 로 남은 채 `readFileSync` 에 들어가 ENOENT 가 난다 — 이 검사가
+// 윈도우 한글 경로에서만 늘 빨갰던 이유다. 리눅스·영문 경로에서는 안 깨져서 안 보였다.
+//
+// `fileURLToPath` 가 디코딩과 윈도우 드라이브 문자를 **둘 다** 처리하므로 손으로 붙였던
+// `.replace(/^\/([A-Za-z]:)/, '$1')` 도 같이 지웠다.
+const ROOT = fileURLToPath(new URL('../../', import.meta.url));
 const fail = [];
 const ok = (m) => console.log(`  ok   ${m}`);
 const no = (m) => { fail.push(m); console.log(`  FAIL ${m}`); };

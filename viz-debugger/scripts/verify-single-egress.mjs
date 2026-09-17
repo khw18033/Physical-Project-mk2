@@ -1,12 +1,15 @@
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { isScratchPath } from './lib/scratch.mjs';
 
 const root = fileURLToPath(new URL('../src/', import.meta.url));
 const files = [];
 function walk(directory) {
   for (const name of readdirSync(directory)) {
     const path = join(directory, name);
+    // 남의 대조군 잔여물을 내 판정에 넣지 않는다 (260917 — 검사 위생 §3①).
+    if (isScratchPath(path)) continue;
     if (statSync(path).isDirectory()) walk(path);
     else if (/\.(ts|tsx)$/.test(name)) files.push(path);
   }

@@ -15,9 +15,10 @@
 //  - **접기 시간 실측** — 기술 문서 §5-2 의 16 ms 목표. 논문 측정축 D 본문이다.
 //
 // 대조군 포함 — 접기를 무력화한 사본이 반드시 실패로 잡히는지까지 본다.
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { makeScratch } from './lib/scratch.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const foldPath = join(root, 'src', 'data', 'fold.ts');
@@ -170,7 +171,7 @@ failures.push(...checkReplay(foldStatuses));
 
 // ── 대조군 — 접기를 무력화한 사본이 반드시 잡혀야 한다 ────────────────────────
 {
-  const scratch = mkdtempSync(join(root, 'src', 'data', '.verify-replay-'));
+  const scratch = makeScratch(join(root, 'src', 'data'), '.verify-replay-');
   try {
     const source = readFileSync(foldPath, 'utf8');
     const mutants = [
@@ -180,7 +181,7 @@ failures.push(...checkReplay(foldStatuses));
     ];
     for (const [label, code] of mutants) {
       if (code === source) { failures.push(`대조군을 만들지 못했다 — ${label} (원본이 바뀌었나?)`); continue; }
-      const path = join(scratch, `fold-${controls.length}.ts`);
+      const path = scratch.file(`fold-${controls.length}.ts`);
       writeFileSync(path, code, 'utf8');
       const mutant = await import(pathToFileURL(path).href);
       let detected;
@@ -190,7 +191,7 @@ failures.push(...checkReplay(foldStatuses));
     }
   } finally {
     // 일부 개발 환경은 파일 삭제가 막혀 EPERM 이 난다 — 검사는 이미 끝났으므로 죽지 않는다.
-    try { rmSync(scratch, { recursive: true, force: true }); } catch { console.warn('임시 디렉터리 정리 실패 — ' + scratch); }
+    scratch.cleanup();
   }
 }
 

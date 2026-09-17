@@ -14,6 +14,7 @@
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, relative, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { isScratchPath } from './lib/scratch.mjs';
 
 const root = join(fileURLToPath(new URL('.', import.meta.url)), '..');
 const load = (...p) => import(pathToFileURL(join(root, ...p)).href);
@@ -187,6 +188,8 @@ const SAMPLE = {
 {
   const walk = (dir) => readdirSync(dir).flatMap((name) => {
     const full = join(dir, name);
+    // 남의 대조군 잔여물을 내 판정에 넣지 않는다 (260917 — 검사 위생 §3①).
+    if (isScratchPath(full)) return [];
     return statSync(full).isDirectory() ? walk(full) : /\.(ts|tsx)$/.test(name) ? [full] : [];
   });
   const autodriveDir = join('src', 'autodrive') + sep;

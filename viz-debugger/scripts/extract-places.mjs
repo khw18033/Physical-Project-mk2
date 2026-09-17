@@ -17,8 +17,12 @@
  * 방 용도는 바뀐다 — 그때마다 추출 결과가 흔들리면 그것은 실측이 아니다.
  */
 import { readFileSync, writeFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 
-const ROOT = new URL('../../', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1');
+// **`.pathname` 이 아니라 `fileURLToPath` 다** (260917 — 검사 위생 §2).
+// 한글 경로가 퍼센트 인코딩된 채 파일 열기에 들어가는 것을 막는다. `verify-places.mjs` 와
+// 같은 줄이 두 벌이었고 둘 다 고쳤다.
+const ROOT = fileURLToPath(new URL('../../', import.meta.url));
 const SCENE_REL = 'Unity_Map/Assets/Scenes/N45F_Map.unity';
 const ROOM503_REL = 'Unity_Map/Assets/XRI/lab.unity';
 const SCENE = ROOT + SCENE_REL;

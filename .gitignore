@@ -7,15 +7,15 @@ dist/
 dist-standalone/
 *.log
 
-# 검증 스크립트가 대조군 사본을 만드는 자리 (끝나면 스스로 지운다)
-viz-debugger/.verify-placeholder-*/
-viz-debugger/**/.verify-scenario-*/
-viz-debugger/.verify-trace-*/
-viz-debugger/**/.verify-replay-*/
-viz-debugger/**/.verify-human-*/
-viz-debugger/**/.verify-dep-*/
-viz-debugger/**/.verify-no-llm-*/
-viz-debugger/**/.verify-gen-*/
+# 검증 스크립트가 대조군 사본을 만드는 자리.
+#
+# **접두사 한 줄이다** (260917 — 검사 위생 §3④). 전에는 검사마다 한 줄씩 여덟 줄이었고,
+# 새 검사를 만들 때마다 여기 한 줄을 더하는 것이 관행이었다 — 「끝나면 스스로 지운다」고
+# 적어 두고 안 지워지니까 늘어난 것이다. 손으로 적는 목록은 다음 검사에서 또 어긋난다.
+#
+# 만들고 치우는 자리는 `viz-debugger/scripts/lib/scratch.mjs` 하나이고, 남은 것은
+# `npm run verify:clean` 이 비운다.
+viz-debugger/**/.verify-*/
 gen-lab/.venv/
 
 # TypeScript 증분 빌드 캐시

@@ -11,9 +11,10 @@
 //   4. 표에 있는 자리표시가 **화면에서 실제로 참조되는가**. 표만 채우고 화면을 안 고치면
 //      아무것도 바뀌지 않는다
 //   5. 대조군 — 기본값을 'mock' 으로 바꾼 사본이 **실패로 잡히는가**
-import { mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { isScratchPath, makeScratch } from './lib/scratch.mjs';
 
 const srcRoot = new URL('../src/', import.meta.url);
 const srcDir = fileURLToPath(srcRoot);
@@ -81,6 +82,8 @@ const files = [];
 (function walk(directory) {
   for (const name of readdirSync(directory)) {
     const path = join(directory, name);
+    // 남의 대조군 잔여물을 내 판정에 넣지 않는다 (260917 — 검사 위생 §3①).
+    if (isScratchPath(path)) continue;
     if (statSync(path).isDirectory()) walk(path);
     else if (/\.tsx?$/.test(name)) files.push(path);
   }
@@ -114,8 +117,8 @@ if (strays.length) {
 // 사본은 **프로젝트 안**에 만든다. renderMode.ts 가 react 를 import 하므로 tmp 에 두면
 // 모듈 해석이 실패하고, node_modules 안에 두면 타입 스트리핑이 거부된다.
 // 둘 다 "검사가 무엇을 봤는지 모른 채 죽는" 실패라 프로젝트 루트에 만들고 끝나면 지운다.
-const scratch = mkdtempSync(join(srcDir, '..', '.verify-placeholder-'));
-const mutantPath = join(scratch, 'renderMode.ts');
+const scratch = makeScratch(join(srcDir, '..'), '.verify-placeholder-');
+const mutantPath = scratch.file('renderMode.ts');
 const mutantSource = readFileSync(modePath, 'utf8')
   .replace("const DEFAULT_MODE: RenderMode = 'placeholder';", "const DEFAULT_MODE: RenderMode = 'mock';");
 writeFileSync(mutantPath, mutantSource, 'utf8');
@@ -124,7 +127,7 @@ if (mutant.getRenderMode() === 'placeholder') {
   failures.push('기본값을 목으로 바꾼 대조군을 만들지 못했다 — 이 검사는 무의미하다');
 }
 // 일부 개발 환경은 파일 삭제가 막혀 EPERM 이 난다 — 검사는 이미 끝났으므로 정리 실패로 죽지 않는다.
-try { rmSync(scratch, { recursive: true, force: true }); } catch { console.warn('임시 디렉터리 정리 실패(삭제 금지 환경?) — ' + scratch); }
+scratch.cleanup();
 
 // 표에서 네 가지 중 하나를 지운 대조군도 잡히는지.
 const broken = { id: 'x', title: 't', what: 'w', from: [], ours: ['VZ-I-01'], plane: 'business' };

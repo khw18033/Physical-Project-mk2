@@ -15,9 +15,10 @@
 //   4. **대본 재생·되감기·캔버스가 생성 계층을 import 하지 않는가.** 이것이 「생성만 꺼진다」의
 //      구조적 근거다 — 함수가 true 를 돌려주는 것만으로는 부족하고, 그 셋이 애초에
 //      생성 서비스를 모르는지 봐야 한다.
-import { mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join, relative } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { isScratchPath, makeScratch } from './lib/scratch.mjs';
 
 const vizRoot = join(dirname(fileURLToPath(import.meta.url)), '..');
 const srcDir = join(vizRoot, 'src');
@@ -83,9 +84,9 @@ if (capabilities('ready').canGenerate !== true) failures.push('서비스가 살�
 
 // 대조군 — 대본 재생을 상태에 묶은 사본은 반드시 잡혀야 한다.
 {
-  const scratch = mkdtempSync(join(srcDir, 'generate', '.verify-no-llm-'));
+  const scratch = makeScratch(join(srcDir, 'generate'), '.verify-no-llm-');
   try {
-    const mutantPath = join(scratch, 'availability.ts');
+    const mutantPath = scratch.file('availability.ts');
     writeFileSync(
       mutantPath,
       readFileSync(availabilityPath, 'utf8').replace(
@@ -101,7 +102,7 @@ if (capabilities('ready').canGenerate !== true) failures.push('서비스가 살�
       controls.push('대본 재생을 생성 상태에 묶은 사본');
     }
   } finally {
-    try { rmSync(scratch, { recursive: true, force: true }); } catch { console.warn('임시 디렉터리 정리 실패 — ' + scratch); }
+    scratch.cleanup();
   }
 }
 
@@ -114,6 +115,8 @@ if (capabilities('ready').canGenerate !== true) failures.push('서비스가 살�
   (function walk(directory) {
     for (const name of readdirSync(directory)) {
       const path = join(directory, name);
+      // 남의 대조군 잔여물을 내 판정에 넣지 않는다 (260917 — 검사 위생 §3①).
+      if (isScratchPath(path)) continue;
       if (statSync(path).isDirectory()) { if (!name.startsWith('.')) walk(path); }
       else if (/\.(ts|tsx)$/.test(name)) files.push(path);
     }

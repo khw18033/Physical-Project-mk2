@@ -13,9 +13,10 @@
 //   2. `CONNECTION_TARGETS` 에 `generate` 가 있고 기본값이 8802 인가 · 다른 서비스와 안 겹치는가
 //   3. **손으로 쓴 문법 파일이 없는가** (`*.gbnf` 등)
 //   4. **계약을 고치면 문법이 따라 바뀌는가** — 계약이 원본이라는 원칙의 기계적 확인
-import { mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join, relative } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { isScratchPath, makeScratch } from './lib/scratch.mjs';
 
 const vizRoot = join(dirname(fileURLToPath(import.meta.url)), '..');
 const repoRoot = join(vizRoot, '..');
@@ -27,6 +28,8 @@ const files = [];
 (function walk(directory) {
   for (const name of readdirSync(directory)) {
     const path = join(directory, name);
+    // 남의 대조군 잔여물을 내 판정에 넣지 않는다 (260917 — 검사 위생 §3①).
+    if (isScratchPath(path)) continue;
     if (statSync(path).isDirectory()) { if (!name.startsWith('.')) walk(path); }
     else if (/\.(ts|tsx)$/.test(name)) files.push(path);
   }
@@ -60,9 +63,9 @@ if (outside.length) {
 // 대조군 — src/generate/ **밖에** 생성 호출을 넣으면 반드시 잡혀야 한다.
 // 소스 트리에 실제 파일을 만들고 끝나면 지운다 (verify:no-stt 와 같은 방식).
 {
-  const scratch = mkdtempSync(join(srcDir, '.verify-gen-'));
+  const scratch = makeScratch(srcDir, '.verify-gen-');
   try {
-    const decoy = join(scratch, 'decoy.ts');
+    const decoy = scratch.file('decoy.ts');
     writeFileSync(decoy, 'export const x = () => fetch("http://127.0.0.1:8802/generate/mission");', 'utf8');
     files.push(decoy);
     if (generateCallers().length === 0) {
@@ -72,7 +75,7 @@ if (outside.length) {
     }
     files.pop();
   } finally {
-    try { rmSync(scratch, { recursive: true, force: true }); } catch { console.warn('임시 디렉터리 정리 실패 — ' + scratch); }
+    scratch.cleanup();
   }
 }
 
@@ -139,6 +142,8 @@ const WALK_BUDGET = 20000;
     for (const name of readdirSync(directory)) {
       if (SKIP_DIRS.has(name)) continue;
       const path = join(directory, name);
+      // 남의 대조군 잔여물을 내 판정에 넣지 않는다 (260917 — 검사 위생 §3①).
+      if (isScratchPath(path)) continue;
       let stat;
       try { stat = statSync(path); } catch { continue; }
       if (stat.isDirectory()) walk(path);
@@ -235,6 +240,8 @@ const WALK_BUDGET = 20000;
     for (const name of readdirSync(directory)) {
       if (name === '.venv' || name === '__pycache__' || name === 'goldset') continue;
       const path = join(directory, name);
+      // 남의 대조군 잔여물을 내 판정에 넣지 않는다 (260917 — 검사 위생 §3①).
+      if (isScratchPath(path)) continue;
       const stat = statSync(path);
       if (stat.isDirectory()) walk(path);
       else if (name.endsWith('.schema.json')) copies.push(relative(repoRoot, path).replaceAll('\\', '/'));

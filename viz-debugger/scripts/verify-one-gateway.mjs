@@ -12,6 +12,7 @@
 import { spawn } from 'node:child_process';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { isScratchPath } from './lib/scratch.mjs';
 import { WebSocket } from 'ws';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -131,6 +132,8 @@ try {
   (function walk(directory) {
     for (const name of readdirSync(directory)) {
       const path = join(directory, name);
+      // 남의 대조군 잔여물을 내 판정에 넣지 않는다 (260917 — 검사 위생 §3①).
+      if (isScratchPath(path)) continue;
       if (statSync(path).isDirectory()) walk(path);
       else if (/\.tsx?$/.test(name)) sources.push(path);
     }
