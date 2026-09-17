@@ -1,0 +1,44 @@
+{
+  "id": "s04-failure-isolation",
+  "description": "선택 provider 하나가 죽어도(또는 자기 health probe가 죽어도) 의존하는 기능만 DISABLED되고 핵심 기능은 계속 ACTIVE다. 전체 재시작이 아니라 기능 단위 격리. (AI-B-07, AI-C-11)",
+  "nodes": [
+    {
+      "id": "registry", "type": "registry_node",
+      "profile": {
+        "domain_id": "zone-1",
+        "active_capability_kinds": ["perception.detect", "perception.track", "perception.depth", "perception.environment_map", "risk.rule_based"],
+        "node_tags": ["cpu"]
+      },
+      "capabilities": [
+        {"kind": "perception.detect", "core": true},
+        {"kind": "perception.track", "core": true},
+        {"kind": "perception.depth", "rank": 1},
+        {"kind": "perception.environment_map", "rank": 2, "requires": ["perception.depth"]},
+        {"kind": "risk.rule_based", "rank": 3}
+      ],
+      "providers": [
+        {"kind": "perception.detect", "provider_id": "detect-1"},
+        {"kind": "perception.track", "provider_id": "track-1"},
+        {"kind": "perception.depth", "provider_id": "depth-1", "health_ref": "depth"},
+        {"kind": "perception.environment_map", "provider_id": "mapper-1"},
+        {"kind": "risk.rule_based", "provider_id": "flaky-1", "health_ref": "flaky"}
+      ],
+      "budget": {"compute_units": 30.0, "memory_mb": 4096.0}
+    }
+  ],
+  "couplings": [],
+  "stimuli": [
+    {"at": 1.0, "port": "control", "target": "registry", "label": "flaky_probe_crashing_from_the_start",
+     "msg": {"op": "set_health", "ref": "flaky", "raise": true}},
+    {"at": 2.0, "port": "control", "target": "registry", "label": "healthy",
+     "msg": {"op": "resource_snapshot", "cpu": 0.1, "memory": 0.3}},
+    {"at": 3.0, "port": "control", "target": "registry", "label": "depth_killed",
+     "msg": {"op": "set_health", "ref": "depth", "alive": false}}
+  ],
+  "run_until": 4.0,
+  "expectations": [
+    {"type": "capability_state", "node": "registry", "after": "healthy", "state": {"perception.detect": "ACTIVE", "perception.track": "ACTIVE", "perception.depth": "ACTIVE", "risk.rule_based": "DISABLED"}},
+    {"type": "capability_state", "node": "registry", "after": "depth_killed", "state": {"perception.detect": "ACTIVE", "perception.track": "ACTIVE", "perception.depth": "DISABLED", "perception.environment_map": "DISABLED"}},
+    {"type": "core_kinds_running", "node": "registry", "value": true}
+  ]
+}

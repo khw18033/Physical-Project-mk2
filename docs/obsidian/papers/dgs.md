@@ -1,8 +1,8 @@
 # Boosting Vision-Language Models Towards Cross-Domain Incremental Object Detection
 
 ## 메타데이터
-- categories: [[Dynamic Task Grouping]], [[Incremental Group Adapters]], [[Intra-Group Consolidation]]
-- domain: [[Vision-Language Model]], [[Incremental Object Detection]]
+- categories: Dynamic Task Grouping, Incremental Group Adapters, Intra-Group Consolidation
+- domain: [[지속학습]], [[객체 탐지·분할]]
 - source: Wang, Xu, Lin, Zihan, Zhang, Yixin, Wang, Zilei, "Boosting Vision-Language Models Towards Cross-Domain Incremental Object Detection", CVPR, 2026.
 - url: https://openaccess.thecvf.com/content/CVPR2026/html/Wang_Boosting_Vision-Language_Models_Towards_Cross-Domain_Incremental_Object_Detection_CVPR_2026_paper.html
 - year: 2026

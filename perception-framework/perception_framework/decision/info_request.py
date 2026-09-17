@@ -1,17 +1,28 @@
 """Requests decision-supporting information only from sources that
 actually exist right now, and proceeds with a stated gap when none do.
 
-implements: AI-D-03
+implements: AI-S-05
 
-AI-D-03: "의사결정에 필요한 근거가 부족하거나 서로 충돌하면 현재 실제로 사용할 수
-있는 정보원 중 필요한 항목만 선택해 요청해야 한다 ... 특정 정보원이 항상 존재한다고
-가정해서는 안 된다. 추가 정보가 없으면 확인 가능한 범위까지만 판단하고 부족한 근거를
-명시해야 한다."
+이 모듈은 원래 구 요구사항 AI-D-03("추가 정보 요청")을 구현했었다. AI-D 계열
+(서브태스크 생성·검증)은 최신 요구사항 시트에서 전부 제거되어 가시화 파트로
+이관됐고, AI-D-03의 실질 기능만 신규 AI-S-05("추가 정보 판단·선택·요청")로
+흡수됐다(CLAUDE.md, docs/ai/requirement-traceability.md 참고) — 코드는 그대로
+유효하므로 옮기지 않고 요구사항 ID만 정정한다.
+
+AI-S-05: "미확인, 근거 부족·충돌 또는 위험 분석 등에서 현재 업무가 요구하는
+정보와 객체·환경 레코드에 확보된 근거를 비교해 부족한 정보의 종류를 식별하고,
+현재 사용 가능한 관측·분석 capability 중 적합한 후보를 선택·요청할 수 있어야
+한다 ... 이용 가능한 후보가 없으면 확인 가능한 범위까지만 판단하면서 부족한
+근거를 남겨야 한다."
 
 Consumes a caller-supplied `missing_evidence` list and reuses the
-same registry/selector machinery as AI-S-05, so "what can I ask for" is
-answered by the capability registry rather than by a hardcoded list of
-cameras, trackers or digital-twin services.
+same registry/selector machinery as `perception/info_selection.py`, so
+"what can I ask for" is answered by the capability registry rather than by
+a hardcoded list of cameras, trackers or digital-twin services. A caller
+that has an `EvidenceGap` from `perception/purpose_requirements.py`
+(AI-S-07) can turn its `missing_required` fields into `EvidenceNeed`s here
+to close the "목적별 요구 근거 → 부족분 → 요청" loop; this module does not
+import that one to keep perception/decision layering one-directional.
 """
 
 from __future__ import annotations

@@ -51,3 +51,32 @@ def test_global_transform_is_refused_inside_ai():
     # 전역 좌표 변환은 백엔드 디지털 트윈 책임 (AI-C-02).
     with pytest.raises(NotImplementedError):
         to_global(image_value())
+
+
+def test_camera_local_values_with_mismatched_axis_convention_are_not_comparable():
+    # REP-103: body convention과 camera optical convention을 같은 frame/source_id로
+    # 착각하면 두 provider가 서로 다른 축 관례를 쓰고도 comparable로 오판될 수 있다.
+    a = to_camera_local(
+        image_value("cam-1"), calibration_profile=object(), axis_convention="ros_rep103_optical"
+    )
+    b = to_camera_local(
+        image_value("cam-1"), calibration_profile=object(), axis_convention="ros_rep103_body"
+    )
+
+    assert not a.is_comparable_with(b)
+
+
+def test_camera_local_values_with_unstated_axis_convention_stay_comparable():
+    # 두 값 다 axis_convention을 명시하지 않았다면(None) 기존 동작(같은 source_id면
+    # comparable)을 그대로 유지한다 — optional 정보 부재가 축소를 강제하지 않는다.
+    a = to_camera_local(image_value("cam-1"), calibration_profile=object())
+    b = to_camera_local(image_value("cam-1"), calibration_profile=object())
+
+    assert a.is_comparable_with(b)
+
+
+def test_camera_local_values_with_mismatched_unit_are_not_comparable():
+    a = to_camera_local(image_value("cam-1"), calibration_profile=object(), unit="m")
+    b = to_camera_local(image_value("cam-1"), calibration_profile=object(), unit="mm")
+
+    assert not a.is_comparable_with(b)

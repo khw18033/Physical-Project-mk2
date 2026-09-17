@@ -1,0 +1,21 @@
+{
+  "id": "s08-observability-smoke",
+  "description": "ObservabilityNode 검증 — 실제 떠 있는 OTel Collector(127.0.0.1:4317)로 진짜 OTLP 전송. AI-O-01, AI-O-02",
+  "nodes": [
+    {"id": "obs", "type": "observability_node", "endpoint": "http://127.0.0.1:4317", "service_name": "aif-sim-smoke"}
+  ],
+  "couplings": [],
+  "stimuli": [
+    {"at": 0.0, "port": "control", "target": "obs", "label": "metric1",
+     "msg": {"op": "emit_metric", "name": "sim_smoke_counter", "value": 1.0, "tags": {"capability": "perception.detect"}}},
+    {"at": 1.0, "port": "control", "target": "obs", "label": "event1",
+     "msg": {"op": "emit_event", "name": "sim_smoke_event", "severity": "critical", "payload": {"reason": "smoke-test"}}},
+    {"at": 1.5, "port": "control", "target": "obs", "label": "flush1",
+     "msg": {"op": "flush", "timeout_ms": 2000}}
+  ],
+  "run_until": 1.5,
+  "expectations": [
+    {"type": "node_state", "node": "obs", "after": "metric1", "path": ["collector_reachable"], "expected": true},
+    {"type": "node_state", "node": "obs", "after": "event1", "path": ["critical_event_count"], "expected": 1}
+  ]
+}

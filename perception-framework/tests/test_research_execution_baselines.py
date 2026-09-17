@@ -10,6 +10,7 @@ from perception_framework.selection.research_execution_baselines import (
     E4Profile,
     E4ProfilePolicy,
     LatencyPredictor,
+    OctoCrossTransferPolicy,
     OctopinfPlacementPolicy,
 )
 
@@ -69,3 +70,59 @@ def test_e4_selects_low_energy_feasible_profile_and_reports_failure():
     failed = E4ProfilePolicy().select(profiles, min_quality=.99, max_latency_ms=3, max_energy_mj=1)
     assert failed.constraints_met is False
     assert failed.reason == "least_normalized_constraint_violation"
+
+
+def test_octocross_resolves_feasible_overload_and_conserves_total_load():
+    predicted_load = {"cam-a": 150.0, "cam-b": 50.0, "cam-c": 30.0}
+    capacity = {"cam-a": 100.0, "cam-b": 100.0, "cam-c": 100.0}
+    allowed_edges = {("cam-a", "cam-b"), ("cam-a", "cam-c")}
+
+    plan = OctoCrossTransferPolicy().plan(predicted_load, capacity, allowed_edges)
+    print("feasible plan transfers:", plan.transfers)
+    print("feasible plan resulting_load:", plan.resulting_load)
+
+    assert plan.overloaded_nodes == ()
+    assert plan.reason == "capacity_feasible"
+    assert plan.resulting_load["cam-a"] <= capacity["cam-a"] + 1e-9
+    assert sum(plan.resulting_load.values()) == pytest.approx(sum(predicted_load.values()))
+    assert plan.transfers  # a real transfer plan was produced, not a no-op
+
+
+def test_octocross_reports_genuinely_infeasible_overload_without_fabricating_success():
+    # Total capacity (100 + 30 + 30 = 160) is below total predicted load (240), so
+    # the topology cannot possibly absorb the overload -- the policy must say so.
+    # (cam-b/cam-c still have some spare headroom, so this is "not enough", not
+    # "no reachable headroom at all" -- that disconnected case is tested separately.)
+    predicted_load = {"cam-a": 200.0, "cam-b": 20.0, "cam-c": 20.0}
+    capacity = {"cam-a": 100.0, "cam-b": 30.0, "cam-c": 30.0}
+    allowed_edges = {("cam-a", "cam-b"), ("cam-a", "cam-c")}
+
+    plan = OctoCrossTransferPolicy().plan(predicted_load, capacity, allowed_edges)
+    print("infeasible plan transfers:", plan.transfers)
+    print("infeasible plan resulting_load:", plan.resulting_load)
+    print("infeasible plan overloaded_nodes:", plan.overloaded_nodes)
+
+    assert plan.overloaded_nodes != ()
+    assert plan.reason == "insufficient_reachable_capacity"
+    # It still does its best: no node ends up over its own capacity plus what is
+    # mathematically unavoidable, and total load is still conserved.
+    for node in predicted_load:
+        assert plan.resulting_load[node] <= max(predicted_load[node], capacity[node]) + 1e-6
+    assert sum(plan.resulting_load.values()) == pytest.approx(sum(predicted_load.values()))
+    # It did not simply give up -- overload on cam-a is reduced vs. the raw prediction.
+    assert plan.resulting_load["cam-a"] < predicted_load["cam-a"]
+
+
+def test_octocross_leaves_disconnected_overloaded_node_overloaded_without_raising():
+    predicted_load = {"cam-a": 150.0, "cam-b": 50.0}
+    capacity = {"cam-a": 100.0, "cam-b": 100.0}
+    allowed_edges: set[tuple[str, str]] = set()  # cam-a has no outgoing edge at all
+
+    plan = OctoCrossTransferPolicy().plan(predicted_load, capacity, allowed_edges)
+    print("disconnected plan transfers:", plan.transfers)
+    print("disconnected plan overloaded_nodes:", plan.overloaded_nodes)
+
+    assert plan.overloaded_nodes == ("cam-a",)
+    assert plan.reason == "no_reachable_headroom"
+    assert plan.transfers == {}
+    assert plan.resulting_load == predicted_load

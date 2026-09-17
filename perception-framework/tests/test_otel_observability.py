@@ -145,7 +145,7 @@ def test_collector_actually_received_the_telemetry():
     content = ""
     while time.time() < deadline:
         content = Path(COLLECTOR_OUTPUT).read_text(errors="ignore")
-        if marker in content:
+        if marker in content and "aif_e2e_counter" in content and "aif_e2e_event" in content:
             break
         time.sleep(0.5)
 

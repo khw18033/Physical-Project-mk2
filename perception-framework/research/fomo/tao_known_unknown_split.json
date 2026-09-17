@@ -1,0 +1,410 @@
+{
+  "methodology": "LVIS/TAO native frequency label ('f'/'c' -> known, 'r' -> unknown), restricted to categories with >= 10 instances in the locally downloaded 4178-frame TAO validation subset. Reconstructed split, not the original (lost) 0B/0C split.",
+  "source_frame_count": 4178,
+  "known": [
+    {
+      "lvis_name": "baby",
+      "natural_name": "baby",
+      "frequency": "f",
+      "instance_count": 9078
+    },
+    {
+      "lvis_name": "dog",
+      "natural_name": "dog",
+      "frequency": "f",
+      "instance_count": 525
+    },
+    {
+      "lvis_name": "bird",
+      "natural_name": "bird",
+      "frequency": "f",
+      "instance_count": 240
+    },
+    {
+      "lvis_name": "toy",
+      "natural_name": "toy",
+      "frequency": "f",
+      "instance_count": 223
+    },
+    {
+      "lvis_name": "cat",
+      "natural_name": "cat",
+      "frequency": "f",
+      "instance_count": 172
+    },
+    {
+      "lvis_name": "cellular_telephone",
+      "natural_name": "cellular telephone",
+      "frequency": "f",
+      "instance_count": 143
+    },
+    {
+      "lvis_name": "racket",
+      "natural_name": "racket",
+      "frequency": "c",
+      "instance_count": 142
+    },
+    {
+      "lvis_name": "hat",
+      "natural_name": "hat",
+      "frequency": "f",
+      "instance_count": 132
+    },
+    {
+      "lvis_name": "camera",
+      "natural_name": "camera",
+      "frequency": "f",
+      "instance_count": 118
+    },
+    {
+      "lvis_name": "sheep",
+      "natural_name": "sheep",
+      "frequency": "f",
+      "instance_count": 114
+    },
+    {
+      "lvis_name": "pigeon",
+      "natural_name": "pigeon",
+      "frequency": "c",
+      "instance_count": 99
+    },
+    {
+      "lvis_name": "horse",
+      "natural_name": "horse",
+      "frequency": "f",
+      "instance_count": 90
+    },
+    {
+      "lvis_name": "cup",
+      "natural_name": "cup",
+      "frequency": "f",
+      "instance_count": 88
+    },
+    {
+      "lvis_name": "car_(automobile)",
+      "natural_name": "car",
+      "frequency": "f",
+      "instance_count": 81
+    },
+    {
+      "lvis_name": "book",
+      "natural_name": "book",
+      "frequency": "f",
+      "instance_count": 80
+    },
+    {
+      "lvis_name": "bowl",
+      "natural_name": "bowl",
+      "frequency": "f",
+      "instance_count": 78
+    },
+    {
+      "lvis_name": "blanket",
+      "natural_name": "blanket",
+      "frequency": "f",
+      "instance_count": 76
+    },
+    {
+      "lvis_name": "spatula",
+      "natural_name": "spatula",
+      "frequency": "f",
+      "instance_count": 73
+    },
+    {
+      "lvis_name": "elephant",
+      "natural_name": "elephant",
+      "frequency": "f",
+      "instance_count": 72
+    },
+    {
+      "lvis_name": "parachute",
+      "natural_name": "parachute",
+      "frequency": "c",
+      "instance_count": 70
+    },
+    {
+      "lvis_name": "guitar",
+      "natural_name": "guitar",
+      "frequency": "f",
+      "instance_count": 69
+    },
+    {
+      "lvis_name": "ball",
+      "natural_name": "ball",
+      "frequency": "f",
+      "instance_count": 65
+    },
+    {
+      "lvis_name": "sandal_(type_of_shoe)",
+      "natural_name": "sandal",
+      "frequency": "f",
+      "instance_count": 60
+    },
+    {
+      "lvis_name": "umbrella",
+      "natural_name": "umbrella",
+      "frequency": "f",
+      "instance_count": 57
+    },
+    {
+      "lvis_name": "truck",
+      "natural_name": "truck",
+      "frequency": "f",
+      "instance_count": 56
+    },
+    {
+      "lvis_name": "bottle",
+      "natural_name": "bottle",
+      "frequency": "f",
+      "instance_count": 51
+    },
+    {
+      "lvis_name": "drum_(musical_instrument)",
+      "natural_name": "drum",
+      "frequency": "c",
+      "instance_count": 49
+    },
+    {
+      "lvis_name": "grocery_bag",
+      "natural_name": "grocery bag",
+      "frequency": "c",
+      "instance_count": 44
+    },
+    {
+      "lvis_name": "pencil",
+      "natural_name": "pencil",
+      "frequency": "c",
+      "instance_count": 43
+    },
+    {
+      "lvis_name": "cow",
+      "natural_name": "cow",
+      "frequency": "f",
+      "instance_count": 40
+    },
+    {
+      "lvis_name": "pitcher_(vessel_for_liquid)",
+      "natural_name": "pitcher",
+      "frequency": "f",
+      "instance_count": 40
+    },
+    {
+      "lvis_name": "carton",
+      "natural_name": "carton",
+      "frequency": "c",
+      "instance_count": 40
+    },
+    {
+      "lvis_name": "birdhouse",
+      "natural_name": "birdhouse",
+      "frequency": "c",
+      "instance_count": 40
+    },
+    {
+      "lvis_name": "chair",
+      "natural_name": "chair",
+      "frequency": "f",
+      "instance_count": 40
+    },
+    {
+      "lvis_name": "walking_stick",
+      "natural_name": "walking stick",
+      "frequency": "c",
+      "instance_count": 40
+    },
+    {
+      "lvis_name": "fork",
+      "natural_name": "fork",
+      "frequency": "f",
+      "instance_count": 40
+    },
+    {
+      "lvis_name": "duck",
+      "natural_name": "duck",
+      "frequency": "f",
+      "instance_count": 40
+    },
+    {
+      "lvis_name": "vacuum_cleaner",
+      "natural_name": "vacuum cleaner",
+      "frequency": "c",
+      "instance_count": 40
+    },
+    {
+      "lvis_name": "microphone",
+      "natural_name": "microphone",
+      "frequency": "f",
+      "instance_count": 38
+    },
+    {
+      "lvis_name": "scrubbing_brush",
+      "natural_name": "scrubbing brush",
+      "frequency": "c",
+      "instance_count": 38
+    },
+    {
+      "lvis_name": "canister",
+      "natural_name": "canister",
+      "frequency": "c",
+      "instance_count": 37
+    },
+    {
+      "lvis_name": "bell",
+      "natural_name": "bell",
+      "frequency": "f",
+      "instance_count": 36
+    },
+    {
+      "lvis_name": "eggbeater",
+      "natural_name": "eggbeater",
+      "frequency": "c",
+      "instance_count": 36
+    },
+    {
+      "lvis_name": "piano",
+      "natural_name": "piano",
+      "frequency": "c",
+      "instance_count": 36
+    },
+    {
+      "lvis_name": "pickup_truck",
+      "natural_name": "pickup truck",
+      "frequency": "f",
+      "instance_count": 34
+    },
+    {
+      "lvis_name": "pacifier",
+      "natural_name": "pacifier",
+      "frequency": "c",
+      "instance_count": 33
+    },
+    {
+      "lvis_name": "necklace",
+      "natural_name": "necklace",
+      "frequency": "f",
+      "instance_count": 31
+    },
+    {
+      "lvis_name": "spoon",
+      "natural_name": "spoon",
+      "frequency": "f",
+      "instance_count": 30
+    },
+    {
+      "lvis_name": "gift_wrap",
+      "natural_name": "gift wrap",
+      "frequency": "c",
+      "instance_count": 29
+    },
+    {
+      "lvis_name": "jersey",
+      "natural_name": "jersey",
+      "frequency": "f",
+      "instance_count": 28
+    },
+    {
+      "lvis_name": "clipboard",
+      "natural_name": "clipboard",
+      "frequency": "c",
+      "instance_count": 28
+    },
+    {
+      "lvis_name": "towel",
+      "natural_name": "towel",
+      "frequency": "f",
+      "instance_count": 27
+    },
+    {
+      "lvis_name": "wooden_spoon",
+      "natural_name": "wooden spoon",
+      "frequency": "c",
+      "instance_count": 26
+    },
+    {
+      "lvis_name": "baby_buggy",
+      "natural_name": "baby buggy",
+      "frequency": "f",
+      "instance_count": 26
+    },
+    {
+      "lvis_name": "toast_(food)",
+      "natural_name": "toast",
+      "frequency": "c",
+      "instance_count": 24
+    },
+    {
+      "lvis_name": "thermometer",
+      "natural_name": "thermometer",
+      "frequency": "c",
+      "instance_count": 23
+    },
+    {
+      "lvis_name": "ski_pole",
+      "natural_name": "ski pole",
+      "frequency": "f",
+      "instance_count": 22
+    },
+    {
+      "lvis_name": "railcar_(part_of_a_train)",
+      "natural_name": "railcar",
+      "frequency": "f",
+      "instance_count": 20
+    },
+    {
+      "lvis_name": "wineglass",
+      "natural_name": "wineglass",
+      "frequency": "f",
+      "instance_count": 19
+    },
+    {
+      "lvis_name": "flag",
+      "natural_name": "flag",
+      "frequency": "f",
+      "instance_count": 18
+    },
+    {
+      "lvis_name": "fish",
+      "natural_name": "fish",
+      "frequency": "c",
+      "instance_count": 16
+    },
+    {
+      "lvis_name": "basket",
+      "natural_name": "basket",
+      "frequency": "f",
+      "instance_count": 12
+    }
+  ],
+  "unknown": [
+    {
+      "lvis_name": "drumstick",
+      "natural_name": "drumstick",
+      "frequency": "r",
+      "instance_count": 151
+    },
+    {
+      "lvis_name": "birdfeeder",
+      "natural_name": "birdfeeder",
+      "frequency": "r",
+      "instance_count": 40
+    },
+    {
+      "lvis_name": "mallet",
+      "natural_name": "mallet",
+      "frequency": "r",
+      "instance_count": 37
+    },
+    {
+      "lvis_name": "biscuit_(bread)",
+      "natural_name": "biscuit",
+      "frequency": "r",
+      "instance_count": 33
+    },
+    {
+      "lvis_name": "dustpan",
+      "natural_name": "dustpan",
+      "frequency": "r",
+      "instance_count": 30
+    }
+  ]
+}

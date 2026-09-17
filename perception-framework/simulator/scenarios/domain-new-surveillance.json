@@ -1,0 +1,141 @@
+{
+  "id": "domain-new-surveillance",
+  "description": "새 도메인(경계 감시)은 시나리오 파일 하나만 추가하면 된다 — 핵심 코드는 0줄 변경. (AI-B-09, AI-C-15)",
+  "nodes": [
+    {
+      "id": "registry",
+      "type": "registry_node",
+      "profile": {
+        "domain_id": "perimeter_surveillance",
+        "active_capability_kinds": [
+          "media.video_input",
+          "perception.detect",
+          "perception.track",
+          "perception.associate"
+        ],
+        "rule_set_id": "perimeter_rules_v1",
+        "node_tags": [
+          "cpu",
+          "fixed"
+        ]
+      },
+      "capabilities": [
+        {
+          "kind": "safety.local_judgment",
+          "rank": 0
+        },
+        {
+          "kind": "perception.detect",
+          "rank": 1
+        },
+        {
+          "kind": "perception.track",
+          "rank": 2
+        },
+        {
+          "kind": "perception.associate",
+          "rank": 3
+        },
+        {
+          "kind": "media.video_input",
+          "rank": 4
+        },
+        {
+          "kind": "perception.object_record",
+          "rank": 5
+        },
+        {
+          "kind": "observability.experiment_capture",
+          "rank": 6
+        },
+        {
+          "kind": "perception.environment_map",
+          "rank": 7
+        },
+        {
+          "kind": "ondevice.link_transition",
+          "rank": 8
+        },
+        {
+          "kind": "risk.state_machine",
+          "rank": 9
+        },
+        {
+          "kind": "risk.rule_based",
+          "rank": 10
+        }
+      ],
+      "providers": [
+        {
+          "kind": "safety.local_judgment",
+          "provider_id": "safety.local_judgment-provider"
+        },
+        {
+          "kind": "perception.detect",
+          "provider_id": "perception.detect-provider"
+        },
+        {
+          "kind": "perception.track",
+          "provider_id": "perception.track-provider"
+        },
+        {
+          "kind": "perception.associate",
+          "provider_id": "perception.associate-provider"
+        },
+        {
+          "kind": "media.video_input",
+          "provider_id": "media.video_input-provider"
+        },
+        {
+          "kind": "perception.object_record",
+          "provider_id": "perception.object_record-provider"
+        },
+        {
+          "kind": "observability.experiment_capture",
+          "provider_id": "observability.experiment_capture-provider"
+        },
+        {
+          "kind": "perception.environment_map",
+          "provider_id": "perception.environment_map-provider"
+        },
+        {
+          "kind": "ondevice.link_transition",
+          "provider_id": "ondevice.link_transition-provider"
+        },
+        {
+          "kind": "risk.state_machine",
+          "provider_id": "risk.state_machine-provider"
+        },
+        {
+          "kind": "risk.rule_based",
+          "provider_id": "risk.rule_based-provider"
+        }
+      ]
+    }
+  ],
+  "couplings": [],
+  "stimuli": [],
+  "run_until": 0.0,
+  "expectations": [
+    {
+      "type": "capability_state",
+      "node": "registry",
+      "after": 0.0,
+      "state": {
+        "media.video_input": "ACTIVE",
+        "perception.detect": "ACTIVE",
+        "perception.track": "ACTIVE",
+        "perception.associate": "ACTIVE",
+        "risk.state_machine": "DISABLED",
+        "perception.environment_map": "DISABLED"
+      }
+    },
+    {
+      "type": "source_scan",
+      "forbidden_tokens": [
+        "perimeter_surveillance",
+        "surveillance"
+      ]
+    }
+  ]
+}

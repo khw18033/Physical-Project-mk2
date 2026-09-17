@@ -1,0 +1,134 @@
+{
+  "id": "domain-river",
+  "description": "하천 위험 관리 도메인. 위험 상태기계는 활성화되지만 이 도메인은 environment_map을 설치하지 않는다. (AI-C-15)",
+  "nodes": [
+    {
+      "id": "registry",
+      "type": "registry_node",
+      "profile": {
+        "domain_id": "river_risk_management",
+        "active_capability_kinds": [
+          "risk.state_machine",
+          "risk.rule_based",
+          "perception.detect",
+          "perception.object_record",
+          "observability.experiment_capture"
+        ],
+        "rule_set_id": "river_risk_rules_v1",
+        "node_tags": [
+          "cpu",
+          "fixed",
+          "edge_node"
+        ]
+      },
+      "capabilities": [
+        {
+          "kind": "safety.local_judgment",
+          "rank": 0
+        },
+        {
+          "kind": "perception.detect",
+          "rank": 1
+        },
+        {
+          "kind": "perception.track",
+          "rank": 2
+        },
+        {
+          "kind": "perception.associate",
+          "rank": 3
+        },
+        {
+          "kind": "media.video_input",
+          "rank": 4
+        },
+        {
+          "kind": "perception.object_record",
+          "rank": 5
+        },
+        {
+          "kind": "observability.experiment_capture",
+          "rank": 6
+        },
+        {
+          "kind": "perception.environment_map",
+          "rank": 7
+        },
+        {
+          "kind": "ondevice.link_transition",
+          "rank": 8
+        },
+        {
+          "kind": "risk.state_machine",
+          "rank": 9
+        },
+        {
+          "kind": "risk.rule_based",
+          "rank": 10
+        }
+      ],
+      "providers": [
+        {
+          "kind": "safety.local_judgment",
+          "provider_id": "safety.local_judgment-provider"
+        },
+        {
+          "kind": "perception.detect",
+          "provider_id": "perception.detect-provider"
+        },
+        {
+          "kind": "perception.track",
+          "provider_id": "perception.track-provider"
+        },
+        {
+          "kind": "perception.associate",
+          "provider_id": "perception.associate-provider"
+        },
+        {
+          "kind": "media.video_input",
+          "provider_id": "media.video_input-provider"
+        },
+        {
+          "kind": "perception.object_record",
+          "provider_id": "perception.object_record-provider"
+        },
+        {
+          "kind": "observability.experiment_capture",
+          "provider_id": "observability.experiment_capture-provider"
+        },
+        {
+          "kind": "perception.environment_map",
+          "provider_id": "perception.environment_map-provider"
+        },
+        {
+          "kind": "ondevice.link_transition",
+          "provider_id": "ondevice.link_transition-provider"
+        },
+        {
+          "kind": "risk.state_machine",
+          "provider_id": "risk.state_machine-provider"
+        },
+        {
+          "kind": "risk.rule_based",
+          "provider_id": "risk.rule_based-provider"
+        }
+      ]
+    }
+  ],
+  "couplings": [],
+  "stimuli": [],
+  "run_until": 0.0,
+  "expectations": [
+    {
+      "type": "capability_state",
+      "node": "registry",
+      "after": 0.0,
+      "state": {
+        "risk.state_machine": "ACTIVE",
+        "risk.rule_based": "ACTIVE",
+        "perception.environment_map": "DISABLED",
+        "ondevice.link_transition": "DISABLED"
+      }
+    }
+  ]
+}

@@ -1,8 +1,8 @@
 # OVTR: End-to-End Open-Vocabulary Multiple Object Tracking with Transformer
 
 ## 메타데이터
-- categories: [[Category Information Propagation]], [[Attention Isolation]], [[Dual-branch Decoder]], [[Multimodal Alignment]]
-- domain: [[Multiple Object Tracking]], [[Open-Vocabulary 인지]]
+- categories: Category Information Propagation, Attention Isolation, Dual-branch Decoder, Multimodal Alignment
+- domain: [[객체 추적]]
 - source: Jinyang Li, En Yu, Sijia Chen, Wenbing Tao, "OVTR: End-to-End Open-Vocabulary Multiple Object Tracking with Transformer", ICLR 2025.
 - url: https://arxiv.org/abs/2503.10616
 - year: 2025

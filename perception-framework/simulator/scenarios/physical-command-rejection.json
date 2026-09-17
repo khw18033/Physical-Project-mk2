@@ -1,0 +1,22 @@
+{
+  "id": "physical-command-rejection",
+  "description": "선언하지 않은 action은 거부한다(interface-spec 예시 (b), §5-4) — CommandResult 없이 CommandAcceptance{accepted:false}로 끝난다. (AI-C-20)",
+  "nodes": [
+    {
+      "id": "robot1", "type": "physical_command_device",
+      "capabilities": [{"name": "navigate.relative"}],
+      "accept_delay": 0.5, "exec_time": 2.0
+    }
+  ],
+  "couplings": [],
+  "stimuli": [
+    {"at": 0.0, "port": "downlink", "target": "robot1", "label": "unsupported_command_sent",
+     "msg": {"message_type": "command",
+             "payload": {"command_id": "c-2", "target": "robot1", "action": "fly", "parameters": {}}}}
+  ],
+  "run_until": 5.0,
+  "expectations": [
+    {"type": "trace_contains", "node": "robot1", "port": "uplink", "message_type": "acceptance",
+     "payload_contains": {"command_id": "c-2", "accepted": false}}
+  ]
+}

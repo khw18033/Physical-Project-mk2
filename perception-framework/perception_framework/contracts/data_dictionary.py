@@ -56,7 +56,7 @@ LIFECYCLE_STATE = "lifecycle_state"
 GEOMETRY_KIND = "geometry_kind"
 EXPOSED_AT = "exposed_at"
 
-# --- 환경 구조 추정 (AI-E-05) ------------------------------------------------
+# --- 환경 구조 추정 (AI-S-08) ------------------------------------------------
 MAP_ELEMENT_ID = "map_element_id"
 STRUCTURE_UNCERTAINTY = "structure_uncertainty"
 ANCHOR_ID = "anchor_id"
@@ -64,6 +64,43 @@ ANCHOR_ID = "anchor_id"
 # --- 링크 품질 (AI-N-03) -----------------------------------------------------
 LINK_QUALITY = "link_quality"
 LINK_POSTURE = "link_posture"
+
+# --- 이동체·센서 종류 (2026-09-17, LOTUSim-Energy 반영) -----------------------
+# 이 두 이름은 값을 고정하는 enum이 아니라 **태그 어휘의 의미**를 등록하는 것이다
+# (절대 준수 원칙 #1: 센서 제품·이동체 벤더를 핵심 코드에 하드코딩하지 않는다).
+# 실제 값은 `CompatibilityProfile.required_hw_tags`/`preferred_hw_tags`에
+# `platform.uav` / `sensor.sonar` 같은 자유 문자열로 들어가고, 노드가 실제로
+# 무엇을 갖고 있는지는 `providers/compute.py::discover_node_tags()` 계열이
+# 실측해 보고한다 -- 그래서 새 이동체·새 센서를 붙이는 것은 등록의 문제이지
+# 이 파일을 고치는 문제가 아니다.
+#
+# 왜 이름만이라도 등록하는가: LOTUSim-Energy(docs/obsidian/papers/lotusim-energy.md)
+# 의 태스크 표는 "작업 -> 이동체 종류 -> 자율 수준 -> 주 센서"를 한 줄로 묶는데,
+# 우리 쪽에는 "작업에 필요한 정보"(AI-S-07 PurposeRequirement)는 있어도 "어떤
+# 이동체가, 어떤 센서로"를 적을 공통 어휘가 없었다. 어휘를 정해두지 않으면
+# 같은 뜻을 `uav`/`drone`/`platform.uav`처럼 제각각 쓰게 된다(AI-C-01 위반).
+PLATFORM_KIND = "platform_kind"
+SENSOR_KIND = "sensor_kind"
+
+# --- 자율 수준 (2026-09-17, LOTUSim-Energy 반영) -------------------------------
+# 같은 조치라도 "사람이 직접 조종", "사람 승인 후 자동 수행", "자동 수행"은
+# 책임 소재가 다르다. AI는 이 등급을 **판단해서 표시**할 뿐이고, 실제 승인 절차와
+# 물리 명령 발급은 백엔드·하드웨어 몫이다(AI-C-19) -- 그래서 이 값은 권고
+# (RECOMMENDATION)에 동반되는 정보이지 명령 필드가 아니다.
+AUTONOMY_LEVEL = "autonomy_level"
+
+# --- 노드 위치·자세 (2026-09 온디바이스/엣지 재설계, AI-S-06/S-08 연계) ----------
+# 이동형 에이전트의 위치는 확정값이 아니라 "어떤 방법으로 얼마나 최근에" 얻었는지가
+# 함께 붙어야 하는 근거다(AI-S-03과 같은 이유로 confidence/근거출처/불확실도를
+# 분리한다) — 그래서 세 필드로 나눈다: 위치 자체(NODE_POSE), 그 위치를 만든 방법
+# (POSE_SOURCE: 예를 들어 "고정 카메라가 봤다" vs "로봇이 자체 추정했다"는 신뢰도가
+# 전혀 다르다), 그리고 누적 불확실도(POSE_UNCERTAINTY). 고정 카메라 자신의 위치는
+# 이동하지 않으므로 별도 이름(CAMERA_EXTRINSIC)으로 두고 보정 프로파일(AI-E-02)의
+# 일부로 버전 관리한다 — 매 틱 갱신되는 NODE_POSE와 성격이 다르다.
+NODE_POSE = "node_pose"
+POSE_SOURCE = "pose_source"
+POSE_UNCERTAINTY = "pose_uncertainty"
+CAMERA_EXTRINSIC = "camera_extrinsic"
 
 # --- 시간·순서·원본 참조 -----------------------------------------------------
 FRAME_ID = "frame_id"
@@ -88,6 +125,43 @@ COORDINATE_FRAME = "coordinate_frame"
 CAPABILITY_STATE_BEFORE = "capability_state_before"
 CAPABILITY_STATE_AFTER = "capability_state_after"
 STATE_CHANGE_REASON = "state_change_reason"
+
+#: Controlled vocabulary for STATE_CHANGE_REASON (2026-09-17). Every reason a
+#: selector/resolver attaches to a capability or a candidate is one of these
+#: tokens; a token marked "<...>" carries data after a ':' separator
+#: (`missing_required:media.video_input,perception.detect`). Producers:
+#: `selection/selector.py` (REASON_* constants), `runtime/application.py`,
+#: `runtime/airgap.py::EgressGate.rejection_reason`. The list lives here, not
+#: in the selector, because the dictionary is the layer consumers import —
+#: `tests/test_data_dictionary.py` proves the producers stay inside it.
+#: A display grade (READY/BLOCKED/MISSING/STALE …) is *derived* from
+#: (CapabilityState, token) by the consumer; it is not a state of its own
+#: (docs/ai/design/capability-ui-orchestration-plan.md §3-2).
+STATE_CHANGE_REASONS: tuple[str, ...] = (
+    "selected",                                  # winner / capability placed
+    "selected_degraded",                         # placed with optional deps missing
+    "compatible",                                # candidate passed every filter, ranked below winner
+    "no_provider_registered",                    # kind has no healthy provider at all
+    "no_compatible_provider_within_budget",      # providers exist, none fit tags/budget
+    "required_hw_tag_missing",                   # + ":<tags>"  (per candidate)
+    "required_runtime_tag_missing",              # + ":<tags>"  (per candidate)
+    "over_budget",                               # per candidate
+    "missing_required",                          # + ":<kinds>" (capability's own required deps)
+    "core_capability_unplaced",                  # optional kind withheld to keep headroom for core
+    "deadline_exceeded",                         # TaskIntent deadline passed before selection
+    "input_too_stale",                           # TaskIntent max_input_age violated
+    "execution_profile_conditions_mismatch",     # measured evidence from other conditions not reused
+    "runtime_instance_unhealthy_or_expired",     # instance TTL/health failed
+    "no_capability_kinds_given",                 # select_with_degrade called with []
+    "external_connection_required_in_closed_network",    # AI-C-16 egress gate, blocking
+    "external_connection_unavailable_in_closed_network", # AI-C-16 egress gate, optional feature off
+)
+
+
+def state_change_reason_token(reason: str) -> str:
+    """The vocabulary token of a reason string — everything before the first
+    ':'. `"missing_required:a,b"` → `"missing_required"`."""
+    return reason.split(":", 1)[0]
 
 # --- 제어 -------------------------------------------------------------------
 COMMAND_ID = "command_id"
@@ -115,7 +189,7 @@ OBSERVABILITY_ALIVE = "observability_alive"
 OVERLAY_STATE = "overlay_state"
 
 
-# --- 관측 커버리지·사각 (AI-E-05, AI-S-03) -----------------------------------
+# --- 관측 커버리지·사각 (AI-S-03) -------------------------------------------
 REGION_ID = "region_id"
 OBSERVATION_ID = "observation_id"
 OBSERVED_FRACTION = "observed_fraction"
@@ -129,6 +203,36 @@ AVAILABLE_AT = "available_at"
 OBJECT_ID = "object_id"
 SEMANTIC_CLASS = "semantic_class"
 CONFIDENCE = "confidence"
+#: 백엔드 contracts/common/object-reference.schema.json과 이름을 맞춘 필드
+#: (2026-09-16 door/pedestal 랜드마크 통합 설계 조사에서 확인). OBJECT_ID는
+#: 백엔드가 부여하는 구역-횡단 전역 식별자이고, 이건 AI가 구역 내에서만
+#: 부여하는 로컬 추적 식별자다 — 둘을 하나로 합치면 AI 쪽 추적 결과를 원래
+#: 값으로 되짚을 수 없어 별도 필드로 유지한다.
+ZONE_LOCAL_TRACK_ID = "zone_local_track_id"
+
+# --- 랜드마크 기반 회전각/거리 산출 (2026-09 door/pedestal 통합 설계) ------------
+# 8방향 회전 스캔 중 특정 프레임에서 탐지된 물체의, 그 프레임 자체를 기준으로 한
+# 회전각(랜드마크의 지도상 절대 위치와는 별개 — ROTATION_DEG는 "몇 번째 스캔
+# 각도에서 찍혔나"이고 ABSOLUTE_BEARING_DEG는 그걸 지도 기준 절대 방위각으로
+# 환산한 값이다. 이 구분을 지키지 않으면 회전 지시각이 45도 배수로만 나오는
+# 구조적 결함이 재발한다 — edge/self_localization.py 참고).
+ROTATION_DEG = "rotation_deg"
+ABSOLUTE_BEARING_DEG = "absolute_bearing_deg"
+#: 현재 방향에서 목표를 향하도록 얼마나 돌아야 하는지(부호: 오른쪽(시계)=+).
+TURN_DEG = "turn_deg"
+FORWARD_DISTANCE_M = "forward_distance_m"
+STANDOFF_CM = "standoff_cm"
+#: CLIP 텍스트 특징 문구별 유사도 원본값(어떤 특징이 근거였는지 사람이 읽을 수
+#: 있게 남긴다 — 최종 점수 하나로 뭉개면 "왜 이 판정인가"를 재현할 수 없다).
+FEATURE_SIMILARITIES = "feature_similarities"
+#: 클래스 판정에 반드시 통과해야 하는 게이트들의 이름→통과여부·실측값 묶음
+#: (색상/모양/기준영상 유사도/채도 등). 게이트 자체의 구체 종류는 클래스별
+#: 설정 파일이 정하므로 여기서는 자유 형식 dict로만 의미를 고정한다.
+MANDATORY_GATES = "mandatory_gates"
+
+# --- 미확인 객체 근거 충분도 (AI-S-03, AI-S-04) -------------------------------
+UNKNOWN_LIKELIHOOD = "unknown_likelihood"
+UNKNOWNNESS_POLICY_ID = "unknownness_policy_id"
 
 # --- 임무·서브태스크 실행 (AI-B-05, AI-C-05) ---------------------------------
 GOAL_ID = "goal_id"
@@ -215,15 +319,23 @@ _ENTRIES: tuple[FieldSpec, ...] = (
               ("말단",), ("엣지", "백엔드"), DataPlane.TASK),
     FieldSpec(OBSERVATION_VALUE, "관측 값", "number|list|str",
               ("말단",), ("엣지", "백엔드"), DataPlane.TASK),
-    FieldSpec(COORDINATE_FRAME, "공간 값의 기준 좌표계", "IMAGE|CAMERA_LOCAL|GLOBAL",
-              ("인지",), ("디지털트윈", "가시화"), DataPlane.TASK),
+    FieldSpec(COORDINATE_FRAME,
+              "공간 값의 기준 좌표계. ZONE은 엣지가 여러 카메라를 융합해 낸 구역 공통"
+              " 좌표(후보값)이고 GLOBAL은 서버가 여러 구역을 통합해 확정한 authoritative"
+              " 값이다 — 엣지는 ZONE까지만 산출하고 GLOBAL 승격은 백엔드 소관이다(AI-C-02, AI-C-19)",
+              "IMAGE|CAMERA_LOCAL|ZONE|GLOBAL",
+              ("인지", "엣지 위치 융합"), ("디지털트윈", "가시화"), DataPlane.TASK),
 
     FieldSpec(CAPABILITY_STATE_BEFORE, "상태 변화 이전의 기능 상태", "ACTIVE|DEGRADED|DISABLED",
               ("실행관리",), ("관측", "백엔드"), DataPlane.OBSERVABILITY),
     FieldSpec(CAPABILITY_STATE_AFTER, "상태 변화 이후의 기능 상태", "ACTIVE|DEGRADED|DISABLED",
               ("실행관리",), ("관측", "백엔드"), DataPlane.OBSERVABILITY),
-    FieldSpec(STATE_CHANGE_REASON, "기능 상태가 바뀐 사유", "str",
-              ("실행관리",), ("관측", "운영자"), DataPlane.OBSERVABILITY),
+    FieldSpec(STATE_CHANGE_REASON,
+              "기능 상태가 바뀐(또는 provider가 선택·탈락한) 사유. 자유 문자열이 아니라"
+              " STATE_CHANGE_REASONS의 통제 어휘이며, ':' 뒤에는 데이터(빠진 kind·태그 목록)가"
+              " 붙을 수 있다 — 소비자는 state_change_reason_token()으로 어휘만 떼어 본다",
+              "|".join(STATE_CHANGE_REASONS),
+              ("실행관리", "선택기"), ("관측", "운영자", "가시화"), DataPlane.OBSERVABILITY),
 
     FieldSpec(COMMAND_ID, "명령 1건의 식별자(회신 상관 및 책임 추적용)", "str",
               ("백엔드",), ("엣지", "말단"), DataPlane.TASK),
@@ -287,6 +399,30 @@ _ENTRIES: tuple[FieldSpec, ...] = (
     FieldSpec(LINK_POSTURE, "링크 품질에 따른 현재 실행 태세(전송·오버레이 상태와 별개)", "remote_ok|reducing|local_only",
               ("온디바이스 전환 판단",), ("실행 재구성", "백엔드"), DataPlane.OBSERVABILITY),
 
+    FieldSpec(PLATFORM_KIND, "관측·작업을 수행하는 이동체의 종류(제품명이 아니라 역할 수준 태그 어휘)",
+              "str(예: platform.uav, platform.usv, platform.ground_robot, platform.fixed_camera)",
+              ("배포 프로파일", "노드 자원 탐색"), ("기능 선택", "추가 정보 요청"), DataPlane.TASK),
+    FieldSpec(SENSOR_KIND, "관측에 쓰이는 센서의 종류(제품명이 아니라 역할 수준 태그 어휘)",
+              "str(예: sensor.rgb, sensor.lidar, sensor.sonar, sensor.sar, sensor.thermal)",
+              ("배포 프로파일", "노드 자원 탐색"), ("기능 선택", "추가 정보 요청"), DataPlane.TASK),
+    FieldSpec(AUTONOMY_LEVEL, "권고된 조치를 수행할 때 사람이 어디까지 개입해야 하는지의 등급"
+              "(AI는 등급을 표시만 하고 승인 절차·명령 발급은 백엔드 소관, AI-C-19)",
+              "teleoperated|shared|autonomous",
+              ("의사결정",), ("백엔드", "가시화"), DataPlane.TASK),
+
+    FieldSpec(NODE_POSE, "이동형 에이전트의 현재 위치·방향 추정치(확정값 아님, coordinate_frame과 함께 해석)",
+              "dict(position+orientation)",
+              ("말단(에이전트 자체 추정)", "인지(고정 카메라 기반 관측)"),
+              ("위치 융합", "객체 레코드", "가시화"), DataPlane.TASK),
+    FieldSpec(POSE_SOURCE, "node_pose를 산출한 방법 — 방법마다 신뢰도가 다르므로 근거로 함께 취급한다"
+              "(예: fixed_camera_observation, onboard_odometry)",
+              "str", ("말단", "인지"), ("위치 융합", "근거 충분도 평가"), DataPlane.TASK),
+    FieldSpec(POSE_UNCERTAINTY, "node_pose의 누적 불확실도(시간 경과·근거 종류에 따라 커짐, 확정값 아님)",
+              "float", ("말단", "인지"), ("위치 융합", "근거 충분도 평가", "백엔드"), DataPlane.TASK),
+    FieldSpec(CAMERA_EXTRINSIC, "고정 카메라의 구역(zone) 내 위치·방향 — 보정 프로파일의 일부로"
+              " calibration_profile_version과 함께 버전 관리되며 매 틱 갱신되는 node_pose와 다르다",
+              "dict(position+orientation)", ("엣지 보정",), ("인지", "좌표 변환", "위치 융합"), DataPlane.TASK),
+
     FieldSpec(REGION_ID, "관측 커버리지를 누적하는 공간 구역 식별자(전역 좌표 아님)", "str",
               ("커버리지 추정",), ("계획 기능", "실험 기록", "백엔드"), DataPlane.TASK),
     FieldSpec(OBSERVATION_ID, "커버리지에 반영된 개별 관측 보고 1건의 식별자(중복 배달 제거용)", "str",
@@ -311,6 +447,29 @@ _ENTRIES: tuple[FieldSpec, ...] = (
               ("객체 레코드",), ("백엔드", "가시화"), DataPlane.TASK),
     FieldSpec(CONFIDENCE, "모델·소스가 스스로 보고한 신뢰도(근거 충분도와 구분)", "float[0,1]",
               ("인지", "위험 분석"), ("객체 레코드", "의사결정", "백엔드"), DataPlane.TASK),
+
+    FieldSpec(ZONE_LOCAL_TRACK_ID, "AI가 구역 내에서 부여한 추적 식별자(백엔드가 부여하는 전역 object_id와 구분)",
+              "str", ("객체 레코드",), ("백엔드 디지털 트윈(전역 object_id 매핑)", "가시화"), DataPlane.TASK),
+
+    FieldSpec(ROTATION_DEG, "회전 스캔 중 해당 프레임을 찍은 시점의 상대 회전각(0/45/.../315 등, 시작 방향 기준)",
+              "float(deg)", ("말단(회전 스캔)",), ("자기위치추정", "가시화"), DataPlane.TASK),
+    FieldSpec(ABSOLUTE_BEARING_DEG, "rotation_deg를 지도 기준 절대 방위각으로 환산한 값(node_pose와 함께 해석)",
+              "float(deg)", ("자기위치추정",), ("경로 계산", "가시화"), DataPlane.TASK),
+    FieldSpec(TURN_DEG, "현재 방향에서 목표를 향하도록 회전해야 하는 양(오른쪽(시계)=+)",
+              "float(deg)", ("경로 계산",), ("물리 명령(Command.parameters)", "가시화"), DataPlane.TASK),
+    FieldSpec(FORWARD_DISTANCE_M, "회전 후 직진해야 하는 거리(standoff_cm이 이미 반영된 값)",
+              "float(m)", ("경로 계산",), ("물리 명령(Command.parameters)", "가시화"), DataPlane.TASK),
+    FieldSpec(STANDOFF_CM, "목표 앞 정지 거리(클래스별로 다를 수 있음, 예: door=80cm)",
+              "float(cm)", ("경로 계산 설정",), ("경로 계산", "가시화"), DataPlane.TASK),
+    FieldSpec(FEATURE_SIMILARITIES, "클래스 판정에 쓰인 CLIP 텍스트 특징 문구별 유사도 원본값",
+              "dict[str, float]", ("CLIP dictionary provider",), ("근거 재현", "가시화"), DataPlane.TASK),
+    FieldSpec(MANDATORY_GATES, "클래스 판정이 통과해야 하는 필수 게이트별 통과여부·실측값",
+              "dict[str, object]", ("CLIP dictionary provider",), ("근거 재현", "가시화"), DataPlane.TASK),
+
+    FieldSpec(UNKNOWN_LIKELIHOOD, "이 검출이 미확인(open-set) 객체일 가능성(known-class confidence와 구분)",
+              "float", ("인지",), ("객체 레코드", "미확인 후보 등록"), DataPlane.TASK),
+    FieldSpec(UNKNOWNNESS_POLICY_ID, "unknown_likelihood를 산출한 교체 가능한 정책 식별자(AI-C-13)",
+              "str", ("인지",), ("객체 레코드", "실험 기록"), DataPlane.TASK),
 
     FieldSpec(GOAL_ID, "분해 대상이 된 목표(구역 임무) 식별자", "str",
               ("임무 배분",), ("서브태스크 분해", "실험 기록"), DataPlane.TASK),

@@ -1,0 +1,978 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>기능 상태 패널 · Function Status Panel</title>
+<style>
+  /* 외부 자원 없음 — 폐쇄망에서도 그대로 렌더링된다 (AI-C-16). 모든 색은 :root 토큰.
+     모든 문자열은 /api/labels(ko/en)에서 온다; API 응답은 id만 싣는다. */
+  :root {
+    color-scheme: light dark;
+    --bg: #f6f7f9;
+    --surface: #ffffff;
+    --surface-2: #eef0f3;
+    --border: #d5d9e0;
+    --text: #1b1f27;
+    --muted: #5f6673;
+    --accent: #2456c9;
+    --accent-bg: #e4ebfb;
+    --focus: #2456c9;
+    --ok-bg: #d9f2e2;     --ok-fg: #14532d;   --ok-line: #57b37c;
+    --warn-bg: #fdecc8;   --warn-fg: #6b4400; --warn-line: #d9a23b;
+    --bad-bg: #fbdada;    --bad-fg: #7a1616;  --bad-line: #d95b5b;
+    --info-bg: #e2e6ee;   --info-fg: #2d3442;
+    --changed: #b45309;
+    --shadow: 0 8px 28px rgba(0,0,0,.18);
+    --mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, "Liberation Mono", monospace;
+    --sans: system-ui, -apple-system, "Segoe UI", "Noto Sans KR", "Malgun Gothic", Roboto, sans-serif;
+    --radius: 6px;
+    --gutter: 16px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #12151b;
+      --surface: #1a1e26;
+      --surface-2: #232833;
+      --border: #333a47;
+      --text: #e6e8ec;
+      --muted: #9aa3b2;
+      --accent: #7ea2ff;
+      --accent-bg: #1f2a45;
+      --focus: #9db8ff;
+      --ok-bg: #143323;   --ok-fg: #9fe1b8;   --ok-line: #3f9c63;
+      --warn-bg: #3a2c0d; --warn-fg: #f3cf7a; --warn-line: #b8862b;
+      --bad-bg: #3d1717;  --bad-fg: #f3a3a3;  --bad-line: #c24a4a;
+      --info-bg: #262c38; --info-fg: #c8cfdb;
+      --changed: #f59e0b;
+      --shadow: 0 8px 28px rgba(0,0,0,.5);
+    }
+  }
+  * { box-sizing: border-box; }
+  html { font-size: 14px; }
+  body {
+    margin: 0;
+    font-family: var(--sans);
+    color: var(--text);
+    background: var(--bg);
+    line-height: 1.45;
+    padding-inline: var(--gutter);
+    padding-block: 0 24px;
+  }
+  a { color: var(--accent); }
+  button, input { font: inherit; color: inherit; }
+  button {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 6px 12px;
+    cursor: pointer;
+  }
+  button:hover { background: var(--surface-2); }
+  button.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+  button.primary:hover { filter: brightness(1.08); }
+  button[aria-pressed="true"], button[aria-selected="true"] {
+    background: var(--accent-bg); border-color: var(--accent); color: var(--accent); font-weight: 600;
+  }
+  button:disabled { opacity: .55; cursor: not-allowed; }
+  :is(button, input, summary, [tabindex]):focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
+  }
+  input[type="number"] {
+    width: 100%;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 5px 8px;
+    font-variant-numeric: tabular-nums;
+  }
+  code, .mono { font-family: var(--mono); font-size: .93em; }
+  .num { font-variant-numeric: tabular-nums; }
+  .muted { color: var(--muted); }
+  .small { font-size: .82rem; }
+  [hidden] { display: none !important; }
+
+  /* --- header ------------------------------------------------------------ */
+  header {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px;
+    padding-block: 12px 10px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 14px;
+    position: sticky; top: env(safe-area-inset-top, 0px); background: var(--bg); z-index: 5;
+  }
+  header h1 { font-size: 1.2rem; margin: 0; font-weight: 650; }
+  header h1 small { font-weight: 400; color: var(--muted); font-size: .8rem; margin-left: 6px; }
+  .spacer { flex: 1 1 auto; }
+  .tabs { display: flex; gap: 4px; flex-wrap: wrap; }
+  .tabs button { border-radius: 999px; }
+  #lang-toggle { font-family: var(--mono); letter-spacing: .04em; padding: 5px 10px; }
+  #lang-toggle .on { color: var(--accent); font-weight: 700; }
+  #lang-toggle .off { color: var(--muted); }
+  .badge {
+    display: inline-block; padding: 2px 8px; border-radius: 999px;
+    font-size: .8rem; font-weight: 600; letter-spacing: .01em; border: 1px solid transparent;
+    white-space: nowrap;
+  }
+  .badge.info { background: var(--info-bg); color: var(--info-fg); }
+  .badge.ok { background: var(--ok-bg); color: var(--ok-fg); border-color: var(--ok-line); }
+  .badge.warn { background: var(--warn-bg); color: var(--warn-fg); border-color: var(--warn-line); }
+  .badge.bad { background: var(--bad-bg); color: var(--bad-fg); border-color: var(--bad-line); }
+  .badge.core { background: var(--accent-bg); color: var(--accent); font-size: .72rem; vertical-align: middle; }
+  .badge.big { font-size: .9rem; padding: 3px 10px; }
+
+  /* --- layout ------------------------------------------------------------ */
+  .panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 12px 14px;
+    min-width: 0;
+  }
+  .panel h2 { font-size: 1rem; margin: 0 0 10px; font-weight: 650; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .panel h3 { font-size: .82rem; margin: 12px 0 6px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; font-weight: 600; }
+  .panel p.note { margin: 6px 0 0; color: var(--muted); font-size: .85rem; }
+  .stack { display: flex; flex-direction: column; gap: 14px; }
+  .grid2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; align-items: start; }
+  @media (max-width: 860px) { .grid2 { grid-template-columns: 1fr; } }
+  .empty { color: var(--muted); font-size: .9rem; padding: 6px 0; }
+  #error { margin-bottom: 12px; white-space: normal; }
+  .whatif-bar { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; margin-bottom: 12px; font-size: .9rem; }
+  .whatif-bar.active { color: var(--changed); font-weight: 600; }
+
+  /* --- functions --------------------------------------------------------- */
+  .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
+  .card {
+    background: var(--surface); border: 1px solid var(--border); border-left: 5px solid var(--border);
+    border-radius: var(--radius); padding: 12px 14px; cursor: pointer; min-width: 0;
+    display: flex; flex-direction: column; gap: 6px;
+  }
+  .card:hover { background: var(--surface-2); }
+  .card.ok { border-left-color: var(--ok-line); }
+  .card.warn { border-left-color: var(--warn-line); }
+  .card.bad { border-left-color: var(--bad-line); }
+  .card.changed { box-shadow: inset 0 0 0 1px var(--changed); }
+  .card .head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .card .name { font-weight: 650; font-size: 1.02rem; }
+  .card .desc { color: var(--muted); font-size: .86rem; }
+  .card .why { font-size: .86rem; }
+  .card .why b { font-weight: 600; }
+  .card .id { font-size: .75rem; }
+  .arrow { color: var(--muted); }
+
+  /* --- drawer ------------------------------------------------------------ */
+  .drawer {
+    position: fixed; top: 0; right: 0; bottom: 0; width: min(560px, 100vw);
+    background: var(--surface); border-left: 1px solid var(--border); box-shadow: var(--shadow);
+    overflow: auto; z-index: 20; padding: 14px var(--gutter) calc(20px + env(safe-area-inset-bottom, 0px));
+    padding-top: calc(14px + env(safe-area-inset-top, 0px));
+  }
+  .drawer h2 { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 1.1rem; margin: 0 0 8px; }
+  .drawer .close { margin-left: auto; }
+  .drawer h3 { font-size: .82rem; margin: 14px 0 6px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; font-weight: 600; }
+  .krow { border: 1px solid var(--border); border-radius: var(--radius); padding: 8px 10px; margin-bottom: 6px; }
+  .krow.missing { border-color: var(--bad-line); }
+  .krow .khead { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .krow .kname { font-weight: 600; }
+  .krow ul { margin: 4px 0 0; padding-left: 18px; font-size: .88rem; }
+  .krow li { margin: 2px 0; }
+  .krow .charged { font-weight: 600; }
+  .backdrop { position: fixed; inset: 0; background: rgba(0,0,0,.25); z-index: 19; }
+
+  /* --- tiers ------------------------------------------------------------- */
+  .role-section .role-name { font-size: 1.05rem; }
+  .nodes { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; }
+  .node { border: 1px solid var(--border); border-radius: var(--radius); padding: 10px 12px; min-width: 0; }
+  .node h4 { margin: 0 0 6px; font-size: .95rem; font-weight: 600; display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+  .node h4 code { font-weight: 400; }
+  .pins { display: flex; flex-wrap: wrap; gap: 6px; }
+  .pin {
+    display: inline-flex; align-items: center; gap: 5px; padding: 2px 9px; border-radius: 999px;
+    border: 1px solid var(--border); background: var(--surface-2); font-size: .8rem; cursor: pointer;
+    font-family: var(--mono);
+  }
+  .pin.on { background: var(--accent-bg); border-color: var(--accent); color: var(--accent); }
+  .pin.static { cursor: default; }
+  .pin input { margin: 0; }
+  .fields { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .fields label { display: flex; flex-direction: column; gap: 3px; font-size: .82rem; color: var(--muted); }
+  .checks { display: flex; flex-direction: column; gap: 4px; }
+  .checks label { display: flex; align-items: center; gap: 8px; cursor: pointer; padding: 2px 0; }
+  .served-list { display: flex; flex-wrap: wrap; gap: 6px; }
+  .served-item { display: inline-flex; gap: 6px; align-items: center; padding: 2px 8px; border-radius: 999px; background: var(--ok-bg); color: var(--ok-fg); border: 1px solid var(--ok-line); font-size: .8rem; }
+  .served-item.warn { background: var(--warn-bg); color: var(--warn-fg); border-color: var(--warn-line); }
+  details { margin-top: 6px; }
+  summary { cursor: pointer; font-size: .85rem; color: var(--accent); width: fit-content; padding: 2px 4px; border-radius: 4px; }
+  table { border-collapse: collapse; width: 100%; font-size: .87rem; margin-top: 6px; }
+  th, td { text-align: left; padding: 4px 8px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  th { color: var(--muted); font-weight: 600; font-size: .8rem; }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .tablewrap { overflow-x: auto; }
+
+  /* --- events ------------------------------------------------------------ */
+  .events { max-height: 320px; overflow: auto; font-size: .85rem; }
+  .ev { display: grid; grid-template-columns: 78px 76px 1fr; gap: 8px; padding: 4px 0; border-bottom: 1px dashed var(--border); align-items: start; }
+  .ev .t { color: var(--muted); font-variant-numeric: tabular-nums; font-family: var(--mono); font-size: .8rem; }
+  .ev .p { font-family: var(--mono); font-size: .8rem; word-break: break-all; color: var(--muted); }
+  .ev .n { font-weight: 600; }
+  .ev.warning .n { color: var(--warn-fg); }
+  .ev.critical .n, .ev.fatal .n, .ev.error .n { color: var(--bad-fg); }
+
+  /* --- developer rows ---------------------------------------------------- */
+  #dev-nodes { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+  .rows { display: flex; flex-direction: column; gap: 8px; }
+  .row {
+    border: 1px solid var(--border); border-left: 4px solid transparent;
+    border-radius: var(--radius); padding: 8px 12px; background: var(--surface);
+  }
+  .row.changed { border-left-color: var(--changed); }
+  .row-head {
+    display: grid;
+    grid-template-columns: minmax(180px, 1.3fr) auto auto minmax(140px, 1fr) minmax(200px, 2fr);
+    gap: 6px 14px; align-items: center;
+  }
+  @media (max-width: 1100px) { .row-head { grid-template-columns: 1fr 1fr; } }
+  @media (max-width: 560px) { .row-head { grid-template-columns: 1fr; } }
+  .row .kind { font-family: var(--mono); font-weight: 600; word-break: break-all; }
+  .row .chip-label { display: block; font-size: .7rem; color: var(--muted); margin-bottom: 2px; }
+  .row .reason .tok { font-weight: 700; }
+  .row .reason .data { color: var(--muted); }
+  .row-meta { display: flex; flex-wrap: wrap; gap: 4px 18px; margin-top: 6px; font-size: .85rem; color: var(--muted); }
+  .row-meta b { color: var(--text); font-weight: 600; }
+
+  /* --- footer ------------------------------------------------------------ */
+  footer { margin-top: 24px; padding-top: 12px; border-top: 1px solid var(--border); color: var(--muted); font-size: .82rem; }
+  footer p { margin: 4px 0; }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .row, .card { transition: border-color .2s ease, background .12s ease; }
+    button { transition: background .12s ease; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1><span data-t="title">기능 상태 패널</span> <small data-t="subtitle">검토용</small></h1>
+  <nav class="tabs" role="tablist" aria-label="tabs">
+    <button type="button" role="tab" data-tab="functions" aria-selected="true" data-t="tab_functions">기능</button>
+    <button type="button" role="tab" data-tab="tiers" aria-selected="false" data-t="tab_tiers">계층·자원</button>
+    <button type="button" role="tab" data-tab="developer" aria-selected="false" data-t="tab_developer">개발자</button>
+  </nav>
+  <span class="spacer"></span>
+  <span id="control-badge" class="badge info">control: …</span>
+  <button id="lang-toggle" type="button" aria-label="언어 / Language" title="KO | EN"><span class="on">KO</span> | <span class="off">EN</span></button>
+  <button id="reset-btn" type="button" data-t="reset">초기화</button>
+</header>
+
+<div id="error" class="badge bad" role="alert" hidden></div>
+
+<!-- ===== Functions tab ===== -->
+<section id="tab-functions" role="tabpanel">
+  <div id="fn-whatif" class="whatif-bar"></div>
+  <div id="cards" class="cards"></div>
+</section>
+
+<!-- ===== Tiers tab ===== -->
+<section id="tab-tiers" role="tabpanel" hidden>
+  <div id="tiers-whatif" class="whatif-bar"></div>
+  <div id="roles" class="stack"></div>
+  <section class="panel" style="margin-top:14px" aria-labelledby="events-title">
+    <h2 id="events-title"><span data-t="events">이벤트</span> <span class="muted small" style="font-weight:400">/api/events · <span data-t="events_hint">2초마다 갱신</span></span></h2>
+    <div id="events" class="events"><div class="empty">—</div></div>
+  </section>
+</section>
+
+<!-- ===== Developer tab ===== -->
+<section id="tab-developer" role="tabpanel" hidden>
+  <div id="dev-whatif" class="whatif-bar"></div>
+  <div id="dev-nodes" aria-label="node select"></div>
+  <main class="panel">
+    <h2><span id="dev-node-title">—</span> <span id="dev-node-meta" class="muted small" style="font-weight:400"></span></h2>
+    <div id="dev-rows" class="rows"></div>
+    <p class="note" data-t="rows_note"></p>
+  </main>
+  <section class="panel" style="margin-top:14px">
+    <h2>vocabulary</h2>
+    <div id="dev-vocab" class="tablewrap"></div>
+    <div id="dev-labels-missing" class="small muted" style="margin-top:8px"></div>
+  </section>
+</section>
+
+<!-- ===== drawer (function detail) ===== -->
+<div id="backdrop" class="backdrop" hidden></div>
+<aside id="drawer" class="drawer" hidden aria-modal="true" role="dialog" aria-labelledby="drawer-title">
+  <h2><span id="drawer-title"></span><button type="button" class="close" id="drawer-close" data-t="close">닫기</button></h2>
+  <div id="drawer-body"></div>
+</aside>
+
+<footer>
+  <p><strong data-t="footer_1"></strong></p>
+  <p data-t="footer_2"></p>
+  <p data-t="footer_3"></p>
+</footer>
+
+<script>
+(function () {
+  'use strict';
+
+  const $ = (id) => document.getElementById(id);
+  const S = {
+    labels: null,
+    lang: 'ko',
+    config: null,
+    vocab: null,
+    base: null,        // /api/functions with no overrides
+    whatif: null,      // /api/functions/whatif result when overrides are active
+    overrides: {},     // node_id -> {tags, budget, exclude_providers}
+    tab: 'functions',
+    devNode: null,
+    drawerFn: null,
+    placement: {},     // node_id -> /api/placement state
+    actions: {},       // node_id -> last apply actions
+    eventsTimer: null,
+  };
+
+  // --- labels ------------------------------------------------------------------
+  function pick(entry) {
+    if (!entry || typeof entry !== 'object') return null;
+    if (typeof entry[S.lang] === 'string' && entry[S.lang]) return entry[S.lang];
+    for (const l of (S.labels && S.labels.languages) || []) if (typeof entry[l] === 'string' && entry[l]) return entry[l];
+    return null;
+  }
+  function t(key, vars) {
+    let s = pick(S.labels && S.labels.ui && S.labels.ui[key]) || key;
+    if (vars) for (const [k, v] of Object.entries(vars)) s = s.split('{' + k + '}').join(String(v));
+    return s;
+  }
+  const tk = (kind) => pick(S.labels && S.labels.capability_kinds && S.labels.capability_kinds[kind]) || kind;
+  const tf = (id) => pick(S.labels && S.labels.functions && S.labels.functions[id] && S.labels.functions[id].label) || id;
+  const tfd = (id) => pick(S.labels && S.labels.functions && S.labels.functions[id] && S.labels.functions[id].description) || '';
+  const ts = (st) => pick(S.labels && S.labels.states && S.labels.states[st]) || st;
+  const tg = (g) => pick(S.labels && S.labels.grades && S.labels.grades[g]) || g;
+  const tr = (tok) => pick(S.labels && S.labels.reasons && S.labels.reasons[tok]) || tok;
+  const trole = (r) => pick(S.labels && S.labels.roles && S.labels.roles[r]) || r;
+  const tcmd = (c) => pick(S.labels && S.labels.commands && S.labels.commands[c]) || c;
+
+  function loadLang() {
+    try { const v = localStorage.getItem('status_ui.lang'); if (v === 'ko' || v === 'en') return v; } catch (e) { /* storage unavailable */ }
+    return 'ko';
+  }
+  function saveLang(lang) { try { localStorage.setItem('status_ui.lang', lang); } catch (e) { /* ignore */ } }
+  function toggleLang() {
+    S.lang = S.lang === 'ko' ? 'en' : 'ko';
+    saveLang(S.lang);
+    renderAll();
+  }
+
+  // --- helpers -----------------------------------------------------------------
+  function el(tag, attrs, ...children) {
+    const node = document.createElement(tag);
+    if (attrs) for (const [k, v] of Object.entries(attrs)) {
+      if (k === 'class') node.className = v;
+      else if (k === 'text') node.textContent = v;
+      else if (k.startsWith('on')) node.addEventListener(k.slice(2), v);
+      else if (v !== null && v !== undefined && v !== false) node.setAttribute(k, v === true ? '' : v);
+    }
+    for (const c of children) {
+      if (c === null || c === undefined || c === false) continue;
+      node.appendChild(typeof c === 'string' ? document.createTextNode(c) : c);
+    }
+    return node;
+  }
+  function clear(node) { while (node.firstChild) node.removeChild(node.firstChild); }
+  function locale() { return S.lang === 'ko' ? 'ko-KR' : 'en-US'; }
+  function fmtNum(v, digits) {
+    if (v === null || v === undefined) return '—';
+    return Number(v).toLocaleString(locale(), { maximumFractionDigits: digits ?? 2 });
+  }
+  function fmtTime(ts) { return new Date(ts * 1000).toLocaleTimeString(locale(), { hour12: false }); }
+  function showError(msg) {
+    const box = $('error');
+    if (!msg) { box.hidden = true; box.textContent = ''; return; }
+    box.textContent = t('error') + ': ' + msg;
+    box.hidden = false;
+  }
+  async function api(path, body) {
+    const opts = body === undefined ? { method: 'GET' }
+      : { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) };
+    opts.cache = 'no-store';
+    const res = await fetch(path, opts);
+    let data = null;
+    try { data = await res.json(); } catch (e) { /* not json */ }
+    if (!res.ok) throw new Error((data && data.error) || (res.status + ' ' + res.statusText));
+    return data;
+  }
+  const STATE_CLASS = { ACTIVE: 'ok', DEGRADED: 'warn', DISABLED: 'bad' };
+  const GRADE_CLASS = { READY: 'ok', DEGRADED: 'warn', MISSING: 'bad', STALE: 'warn', BLOCKED: 'bad' };
+  function stateChip(st, big) { return el('span', { class: 'badge ' + (STATE_CLASS[st] || 'info') + (big ? ' big' : ''), text: ts(st), title: st }); }
+  function gradeChip(g) { return el('span', { class: 'badge ' + (GRADE_CLASS[g] || 'info'), text: g, title: tg(g) }); }
+  function reasonText(token, data) { return token ? tr(token) + (data ? ' (' + data + ')' : '') : '—'; }
+  function selectorText(sel) {
+    if (!sel) return '';
+    if (sel.error) return sel.error;
+    return Object.entries(sel).map(([k, v]) => `${k}=${v}`).join(' ');
+  }
+
+  // --- current data ------------------------------------------------------------
+  function current() { return S.whatif ? S.whatif.after : S.base; }
+  function diffById() { return S.whatif ? Object.fromEntries(S.whatif.diff.map((d) => [d.function_id, d])) : {}; }
+  function nodeCfg(nodeId) { return S.config.nodes.find((n) => n.node_id === nodeId); }
+  function nodeData(nodeId) { return (current().nodes || []).find((n) => n.node_id === nodeId); }
+
+  // --- what-if overrides -------------------------------------------------------
+  function overrideFor(nodeId) {
+    const cfg = nodeCfg(nodeId);
+    const o = S.overrides[nodeId];
+    return {
+      tags: o && o.tags ? o.tags : cfg.tags.slice(),
+      budget: o && o.budget ? o.budget : { compute_units: cfg.budget.compute_units, memory_mb: cfg.budget.memory_mb },
+      exclude_providers: o && o.exclude_providers ? o.exclude_providers : [],
+    };
+  }
+  function isBaseline(nodeId) {
+    const cfg = nodeCfg(nodeId);
+    const o = overrideFor(nodeId);
+    const sameTags = o.tags.length === cfg.tags.length && o.tags.every((x) => cfg.tags.includes(x));
+    const sameBudget = o.budget.compute_units === cfg.budget.compute_units && o.budget.memory_mb === cfg.budget.memory_mb;
+    return sameTags && sameBudget && o.exclude_providers.length === 0;
+  }
+  function activeOverrides() {
+    const out = {};
+    for (const n of S.config.nodes) if (!isBaseline(n.node_id)) out[n.node_id] = overrideFor(n.node_id);
+    return out;
+  }
+  function setOverride(nodeId, patch) {
+    S.overrides[nodeId] = Object.assign({}, overrideFor(nodeId), patch);
+    return refreshWhatif();
+  }
+  async function refreshWhatif() {
+    const ov = activeOverrides();
+    try {
+      showError(null);
+      if (!Object.keys(ov).length) { S.whatif = null; }
+      else { S.whatif = await api('/api/functions/whatif', { overrides: ov }); }
+      renderAll();
+    } catch (e) { showError('what-if: ' + e.message); }
+  }
+  async function resetOverrides() { S.overrides = {}; await refreshWhatif(); }
+  function renderWhatifBar(box) {
+    clear(box);
+    const n = S.whatif ? S.whatif.diff.filter((d) => d.changed).length : 0;
+    if (!S.whatif) { box.className = 'whatif-bar muted'; box.appendChild(el('span', { text: t('whatif_baseline') })); return; }
+    box.className = 'whatif-bar active';
+    box.appendChild(el('span', { text: t('whatif_active', { n }) }));
+    box.appendChild(el('button', { type: 'button', text: t('to_baseline'), onclick: resetOverrides }));
+  }
+
+  // --- header ------------------------------------------------------------------
+  function renderStatic() {
+    document.documentElement.lang = S.lang;
+    for (const node of document.querySelectorAll('[data-t]')) node.textContent = t(node.getAttribute('data-t'));
+    const lt = $('lang-toggle');
+    clear(lt);
+    lt.appendChild(el('span', { class: S.lang === 'ko' ? 'on' : 'off', text: 'KO' }));
+    lt.appendChild(document.createTextNode(' | '));
+    lt.appendChild(el('span', { class: S.lang === 'en' ? 'on' : 'off', text: 'EN' }));
+    lt.setAttribute('aria-label', t('language'));
+    $('reset-btn').title = t('reset_title');
+    for (const b of document.querySelectorAll('.tabs [role="tab"]')) b.setAttribute('aria-selected', String(b.dataset.tab === S.tab));
+    $('tab-functions').hidden = S.tab !== 'functions';
+    $('tab-tiers').hidden = S.tab !== 'tiers';
+    $('tab-developer').hidden = S.tab !== 'developer';
+    renderControlBadge((S.placement.__control) || S.config.control);
+  }
+  function renderControlBadge(control) {
+    if (!control) return;
+    const b = $('control-badge');
+    const fallback = control.reason ? ' (' + t('control_fallback', control) + ')' : '';
+    b.textContent = `${t('control')}: ${control.active}${fallback}`;
+    b.className = 'badge ' + (control.reason ? 'warn' : 'info');
+    b.title = control.active === 'k3s' ? `namespace=${control.namespace}` : 'LocalControlSupervisor (in-process)';
+  }
+  function selectTab(tab) {
+    S.tab = tab;
+    renderAll();
+    if (tab === 'tiers') { loadAllPlacement(); refreshEvents(); }
+  }
+
+  // --- functions tab -----------------------------------------------------------
+  function whyLine(fn) {
+    const parts = [];
+    if (fn.state === 'DISABLED') {
+      const seen = new Set();
+      for (const s of fn.supplement) {
+        const key = s.kind + '|' + s.role;
+        if (seen.has(key)) continue; seen.add(key);
+        parts.push(el('span', null, el('b', { text: tk(s.kind) }), ' — ' + trole(s.role) + ': ' + reasonText(s.reason_token, s.reason_data)));
+      }
+    } else if (fn.state === 'DEGRADED') {
+      for (const row of fn.optional) if (row.missing) parts.push(el('span', null, el('b', { text: tk(row.kind) }), ' — ' + t('missing')));
+    }
+    if (!parts.length) return null;
+    const line = el('div', { class: 'why' }, el('span', { class: 'muted', text: t('why') + ': ' }));
+    parts.slice(0, 4).forEach((p, i) => { if (i) line.appendChild(document.createTextNode(' · ')); line.appendChild(p); });
+    if (parts.length > 4) line.appendChild(document.createTextNode(' · …'));
+    return line;
+  }
+  function renderFunctions() {
+    renderWhatifBar($('fn-whatif'));
+    const box = $('cards');
+    clear(box);
+    const data = current();
+    if (!data || !data.functions.length) { box.appendChild(el('div', { class: 'empty', text: t('no_functions') })); return; }
+    const diff = diffById();
+    for (const fn of data.functions) {
+      const d = diff[fn.function_id];
+      const changed = !!(d && d.changed);
+      const card = el('article', {
+        class: 'card ' + (STATE_CLASS[fn.state] || '') + (changed ? ' changed' : ''),
+        tabindex: '0', role: 'button', 'aria-label': tf(fn.function_id),
+        onclick: () => openDrawer(fn.function_id),
+        onkeydown: (ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); openDrawer(fn.function_id); } },
+      });
+      const head = el('div', { class: 'head' }, el('span', { class: 'name', text: tf(fn.function_id) }));
+      if (changed) {
+        head.appendChild(stateChip(d.before_state));
+        head.appendChild(el('span', { class: 'arrow', text: '→' }));
+      }
+      head.appendChild(stateChip(fn.state));
+      card.appendChild(head);
+      const desc = tfd(fn.function_id);
+      if (desc) card.appendChild(el('div', { class: 'desc', text: desc }));
+      const why = whyLine(fn);
+      if (why) card.appendChild(why);
+      card.appendChild(el('div', { class: 'id muted mono', text: fn.function_id + ' · ' + t('detail') + ' ›' }));
+      box.appendChild(card);
+    }
+  }
+
+  // --- drawer ------------------------------------------------------------------
+  function openDrawer(fnId) {
+    S.drawerFn = fnId;
+    renderDrawer();
+    $('drawer').hidden = false; $('backdrop').hidden = false;
+    $('drawer-close').focus();
+  }
+  function closeDrawer() { S.drawerFn = null; $('drawer').hidden = true; $('backdrop').hidden = true; }
+  function kindRow(row, isRequired) {
+    const wrap = el('div', { class: 'krow' + (row.missing ? ' missing' : '') });
+    const head = el('div', { class: 'khead' },
+      el('span', { class: 'kname', text: tk(row.kind) }),
+      el('code', { class: 'muted small', text: row.kind }),
+      el('span', { class: 'badge ' + (isRequired ? 'info' : 'info'), text: isRequired ? t('required') : t('optional') }),
+      row.missing ? el('span', { class: 'badge bad', text: t('missing') }) : el('span', { class: 'badge ok', text: t('served_by') }));
+    wrap.appendChild(head);
+    const list = el('ul');
+    if (!row.missing) {
+      row.served_by.forEach((s, i) => {
+        list.appendChild(el('li', { class: i === 0 ? 'charged' : '' },
+          trole(s.role) + ' · ', el('code', { text: s.provider_id }),
+          el('span', { class: 'muted small', text: ' ' + s.node_id + ' · ' + fmtNum(s.cost.compute_units) + ' CU / ' + fmtNum(s.cost.memory_mb, 0) + ' MB' })));
+      });
+    } else {
+      if (!row.activated) list.appendChild(el('li', { class: 'muted', text: t('kind_not_activated') }));
+      for (const w of row.why) {
+        const li = el('li', null, trole(w.role) + ' ', el('span', { class: 'muted small mono', text: w.node_id }), ': ' + reasonText(w.reason_token, w.reason_data));
+        if (w.alternatives && w.alternatives.length) {
+          const sub = el('ul');
+          for (const a of w.alternatives) sub.appendChild(el('li', null, el('code', { text: a.provider_id }), ' — ' + reasonText(a.reason_token, a.reason_data)));
+          li.appendChild(sub);
+        }
+        list.appendChild(li);
+      }
+    }
+    wrap.appendChild(list);
+    return wrap;
+  }
+  function renderDrawer() {
+    if (!S.drawerFn) return;
+    const fn = (current().functions || []).find((f) => f.function_id === S.drawerFn);
+    if (!fn) { closeDrawer(); return; }
+    const d = diffById()[fn.function_id];
+    const title = $('drawer-title');
+    clear(title);
+    title.appendChild(el('span', { text: tf(fn.function_id) }));
+    if (d && d.changed) { title.appendChild(stateChip(d.before_state)); title.appendChild(el('span', { class: 'arrow', text: '→' })); }
+    title.appendChild(stateChip(fn.state, true));
+    title.appendChild(gradeChip(fn.derived_grade));
+    const body = $('drawer-body');
+    clear(body);
+    body.appendChild(el('div', { class: 'muted small mono', text: fn.function_id }));
+    const desc = tfd(fn.function_id);
+    if (desc) body.appendChild(el('p', { class: 'muted', style: 'margin:6px 0', text: desc }));
+
+    body.appendChild(el('h3', { text: t('required') }));
+    for (const row of fn.required) body.appendChild(kindRow(row, true));
+    if (fn.optional.length) {
+      body.appendChild(el('h3', { text: t('optional') }));
+      for (const row of fn.optional) body.appendChild(kindRow(row, false));
+    }
+
+    body.appendChild(el('h3', { text: t('resources_by_role') }));
+    const roles = Object.entries(fn.resources.by_role);
+    if (!roles.length) body.appendChild(el('div', { class: 'empty', text: '—' }));
+    else {
+      const table = el('table', null, el('thead', null, el('tr', null,
+        el('th', { text: t('role') }), el('th', { class: 'num', text: t('compute_units') }), el('th', { class: 'num', text: t('memory_mb') }))));
+      const tb = el('tbody');
+      for (const [role, r] of roles) tb.appendChild(el('tr', null,
+        el('td', null, trole(role), el('span', { class: 'muted small mono', text: ' ' + role })),
+        el('td', { class: 'num', text: fmtNum(r.compute_units) }), el('td', { class: 'num', text: fmtNum(r.memory_mb, 0) })));
+      table.appendChild(tb);
+      body.appendChild(el('div', { class: 'tablewrap' }, table));
+    }
+    const tags = el('div', { class: 'pins', style: 'margin-top:8px' }, el('span', { class: 'muted small', text: t('required_hw_tags') + ':' }));
+    if (!fn.resources.required_hw_tags.length) tags.appendChild(el('span', { class: 'muted small', text: '—' }));
+    for (const tag of fn.resources.required_hw_tags) tags.appendChild(el('span', { class: 'pin static on', text: tag }));
+    body.appendChild(tags);
+    body.appendChild(el('p', { class: 'muted small', style: 'margin:6px 0 0', text: t('resources_rule') }));
+    if (fn.resources.by_kind.length) {
+      const det = el('details', null, el('summary', { text: t('cost') + ' · ' + t('kind') }));
+      const table = el('table', null, el('thead', null, el('tr', null,
+        el('th', { text: t('kind') }), el('th', { text: t('role') }), el('th', { text: t('provider') }),
+        el('th', { class: 'num', text: 'CU' }), el('th', { class: 'num', text: 'MB' }))));
+      const tb = el('tbody');
+      for (const k of fn.resources.by_kind) tb.appendChild(el('tr', null,
+        el('td', null, tk(k.kind), el('span', { class: 'muted small', text: k.required ? '' : ' (' + t('optional') + ')' })),
+        el('td', { text: trole(k.role) }), el('td', null, el('code', { text: k.provider_id }), el('span', { class: 'muted small', text: ' ' + k.node_id })),
+        el('td', { class: 'num', text: fmtNum(k.cost.compute_units) }), el('td', { class: 'num', text: fmtNum(k.cost.memory_mb, 0) })));
+      table.appendChild(tb);
+      det.appendChild(el('div', { class: 'tablewrap' }, table));
+      body.appendChild(det);
+    }
+
+    body.appendChild(el('h3', { text: t('supplement') }));
+    body.appendChild(el('p', { class: 'muted small', style: 'margin:0 0 6px', text: t('supplement_hint') }));
+    if (!fn.supplement.length) body.appendChild(el('div', { class: 'empty', text: t('supplement_none') }));
+    else {
+      const ul = el('ul', { style: 'margin:0; padding-left:18px' });
+      for (const s of fn.supplement) ul.appendChild(el('li', null,
+        el('b', { text: tk(s.kind) }), ' — ' + trole(s.role) + ': ' + reasonText(s.reason_token, s.reason_data),
+        s.provider_id ? el('span', { class: 'muted small', text: ' · ' }) : null,
+        s.provider_id ? el('code', { class: 'muted small', text: s.provider_id }) : null));
+      body.appendChild(ul);
+    }
+  }
+
+  // --- tiers tab ---------------------------------------------------------------
+  function renderTiers() {
+    renderWhatifBar($('tiers-whatif'));
+    const box = $('roles');
+    clear(box);
+    const data = current();
+    const served = (data && data.served) || {};
+    for (const role of S.config.roles) {
+      const sec = el('section', { class: 'panel role-section' });
+      sec.appendChild(el('h2', null, el('span', { class: 'role-name', text: trole(role) }), el('code', { class: 'muted small', text: role })));
+
+      // served kinds by this tier (from any node of the role)
+      const servedHere = [];
+      for (const [kind, entries] of Object.entries(served)) {
+        const mine = entries.filter((e) => e.role === role);
+        if (mine.length) servedHere.push({ kind, entries: mine });
+      }
+      sec.appendChild(el('h3', { text: t('served_kinds') }));
+      const sl = el('div', { class: 'served-list' });
+      if (!servedHere.length) sl.appendChild(el('span', { class: 'empty', text: t('none_served') }));
+      for (const s of servedHere) {
+        const provs = [...new Set(s.entries.map((e) => e.provider_id))].join(', ');
+        const degraded = s.entries.every((e) => e.state === 'DEGRADED');
+        sl.appendChild(el('span', { class: 'served-item' + (degraded ? ' warn' : ''), title: s.kind }, tk(s.kind), el('code', { class: 'small', text: provs })));
+      }
+      sec.appendChild(sl);
+
+      sec.appendChild(el('h3', { text: t('nodes') }));
+      const nodes = el('div', { class: 'nodes' });
+      for (const cfg of S.config.nodes) if (cfg.role === role) nodes.appendChild(renderNode(cfg));
+      sec.appendChild(nodes);
+      box.appendChild(sec);
+    }
+  }
+  function renderNode(cfg) {
+    const ov = overrideFor(cfg.node_id);
+    const nd = nodeData(cfg.node_id);
+    const card = el('div', { class: 'node' });
+    card.appendChild(el('h4', null, el('span', { class: 'small', text: cfg.label }), el('code', { class: 'muted small', text: cfg.node_id })));
+
+    // tags as pins (what-if toggles)
+    card.appendChild(el('div', { class: 'muted small', text: t('tags') }));
+    const pins = el('div', { class: 'pins' });
+    for (const tag of S.config.all_tags) {
+      const on = ov.tags.includes(tag);
+      const input = el('input', { type: 'checkbox', checked: on, 'aria-label': tag, onchange: (ev) => {
+        const next = ev.target.checked ? [...new Set([...overrideFor(cfg.node_id).tags, tag])] : overrideFor(cfg.node_id).tags.filter((x) => x !== tag);
+        setOverride(cfg.node_id, { tags: next });
+      } });
+      pins.appendChild(el('label', { class: 'pin' + (on ? ' on' : '') }, input, tag));
+    }
+    card.appendChild(pins);
+
+    // budget
+    card.appendChild(el('div', { class: 'muted small', style: 'margin-top:8px', text: t('budget') }));
+    const fields = el('div', { class: 'fields' });
+    const cu = el('input', { type: 'number', step: '0.5', min: '0', inputmode: 'decimal', value: ov.budget.compute_units });
+    const mem = el('input', { type: 'number', step: '64', min: '0', inputmode: 'numeric', value: ov.budget.memory_mb });
+    const onBudget = () => {
+      const c = parseFloat(cu.value), m = parseFloat(mem.value);
+      setOverride(cfg.node_id, { budget: {
+        compute_units: Number.isFinite(c) ? c : cfg.budget.compute_units,
+        memory_mb: Number.isFinite(m) ? m : cfg.budget.memory_mb } });
+    };
+    cu.addEventListener('change', onBudget); mem.addEventListener('change', onBudget);
+    fields.appendChild(el('label', null, t('compute_units'), cu));
+    fields.appendChild(el('label', null, t('memory_mb'), mem));
+    card.appendChild(fields);
+
+    // provider exclusion
+    const exDet = el('details', ov.exclude_providers.length ? { open: true } : null, el('summary', { text: t('exclude_providers') + (ov.exclude_providers.length ? ' (' + ov.exclude_providers.length + ')' : '') }));
+    const checks = el('div', { class: 'checks' });
+    const seen = new Set();
+    for (const p of S.config.providers) {
+      if (seen.has(p.provider_id)) continue; seen.add(p.provider_id);
+      const input = el('input', { type: 'checkbox', checked: ov.exclude_providers.includes(p.provider_id), onchange: (ev) => {
+        const cur = overrideFor(cfg.node_id).exclude_providers;
+        setOverride(cfg.node_id, { exclude_providers: ev.target.checked ? [...new Set([...cur, p.provider_id])] : cur.filter((x) => x !== p.provider_id) });
+      } });
+      checks.appendChild(el('label', null, input, el('code', { text: p.provider_id }),
+        el('span', { class: 'muted small', text: ' ' + tk(p.capability_kind) + (p.deployable ? ' · ' + t('container') : '') })));
+    }
+    exDet.appendChild(checks);
+    card.appendChild(exDet);
+
+    // served on this node
+    card.appendChild(el('div', { class: 'muted small', style: 'margin-top:8px', text: t('served_kinds') }));
+    const sl = el('div', { class: 'served-list' });
+    const rows = nd ? nd.rows.filter((r) => r.state === 'ACTIVE' || r.state === 'DEGRADED') : [];
+    if (!rows.length) sl.appendChild(el('span', { class: 'empty', text: t('none_served') }));
+    for (const r of rows) sl.appendChild(el('span', { class: 'served-item' + (r.state === 'DEGRADED' ? ' warn' : ''), title: r.kind + ' · ' + r.reason }, tk(r.kind), el('code', { class: 'small', text: r.provider_id })));
+    card.appendChild(sl);
+
+    // placement
+    const pl = el('details', null, el('summary', { text: t('placement') }));
+    const bar = el('div', { style: 'display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin:6px 0' });
+    const btn = el('button', { type: 'button', class: 'primary', text: t('apply_placement'), onclick: () => applyPlacement(cfg.node_id, btn) });
+    bar.appendChild(btn);
+    bar.appendChild(el('span', { class: 'muted small', text: t('placement_note') }));
+    pl.appendChild(bar);
+    pl.appendChild(el('h3', { text: t('actions') }));
+    pl.appendChild(renderActions(S.actions[cfg.node_id]));
+    pl.appendChild(el('h3', { text: t('bound') }));
+    pl.appendChild(renderBound(S.placement[cfg.node_id]));
+    pl.appendChild(el('h3', { text: t('audit_log') }));
+    pl.appendChild(renderAudit(S.placement[cfg.node_id]));
+    card.appendChild(pl);
+    return card;
+  }
+
+  // --- placement ---------------------------------------------------------------
+  async function applyPlacement(nodeId, btn) {
+    const ov = overrideFor(nodeId);
+    btn.disabled = true;
+    try {
+      showError(null);
+      const data = await api('/api/placement', { node_id: nodeId, tags: ov.tags, budget: ov.budget, exclude_providers: ov.exclude_providers });
+      S.actions[nodeId] = data.actions;
+      S.placement[nodeId] = data.state;
+      S.placement.__control = data.state.control;
+      renderAll();
+      await refreshEvents();
+    } catch (e) { showError(t('placement') + ': ' + e.message); }
+    finally { btn.disabled = false; }
+  }
+  async function loadAllPlacement() {
+    try {
+      for (const n of S.config.nodes) {
+        const data = await api('/api/placement?node_id=' + encodeURIComponent(n.node_id));
+        S.placement[n.node_id] = data;
+        S.placement.__control = data.control;
+      }
+      renderAll();
+    } catch (e) { showError(t('placement') + ': ' + e.message); }
+  }
+  function renderActions(actions) {
+    if (!actions) return el('div', { class: 'empty', text: t('not_applied_yet') });
+    if (!actions.length) return el('div', { class: 'empty', text: t('no_change') });
+    const table = el('table', null, el('thead', null, el('tr', null,
+      el('th', { text: t('kind') }), el('th', { text: t('provider') }), el('th', { text: t('command') }), el('th', { text: t('state') }), el('th', { text: t('reason') }))));
+    const tb = el('tbody');
+    for (const a of actions) tb.appendChild(el('tr', null,
+      el('td', null, tk(a.kind), el('span', { class: 'muted small mono', text: ' ' + a.kind })),
+      el('td', { class: 'mono', text: a.provider_id }),
+      el('td', null, el('span', { class: 'badge ' + (a.command === 'stop' ? 'warn' : 'info'), text: tcmd(a.command), title: a.command })),
+      el('td', null, el('span', { class: 'badge ' + (a.accepted ? 'ok' : 'bad'), text: a.accepted ? t('accepted') : t('rejected') })),
+      el('td', { class: 'mono muted', text: a.rejection_reason || '' })));
+    table.appendChild(tb);
+    return el('div', { class: 'tablewrap' }, table);
+  }
+  function renderBound(state) {
+    if (!state || !state.bound.length) return el('div', { class: 'empty', text: t('no_bound') });
+    const table = el('table', null, el('thead', null, el('tr', null,
+      el('th', { text: t('kind') }), el('th', { text: t('provider') }), el('th', { text: t('run_mode') }), el('th', { text: t('status') }), el('th', { text: t('node_selector') }))));
+    const tb = el('tbody');
+    for (const b of state.bound) tb.appendChild(el('tr', null,
+      el('td', null, tk(b.kind), el('span', { class: 'muted small mono', text: ' ' + b.kind })),
+      el('td', { class: 'mono', text: b.provider_id }),
+      el('td', { text: b.deployable ? t('container') : tcmd('in_process') }),
+      el('td', { class: 'mono', text: b.status || '—' }),
+      el('td', { class: 'mono muted', text: selectorText(b.node_selector) })));
+    table.appendChild(tb);
+    return el('div', { class: 'tablewrap' }, table);
+  }
+  function renderAudit(state) {
+    if (!state || !state.audit_log.length) return el('div', { class: 'empty', text: t('no_audit') });
+    const table = el('table', null, el('thead', null, el('tr', null,
+      el('th', { text: t('time') }), el('th', { text: t('command') }), el('th', { text: t('target') }), el('th', { text: t('requested_by') }))));
+    const tb = el('tbody');
+    for (const e of state.audit_log.slice().reverse()) tb.appendChild(el('tr', null,
+      el('td', { class: 'mono num', text: fmtTime(e.at) }),
+      el('td', null, el('span', { text: tcmd(e.command), title: e.command })),
+      el('td', { class: 'mono', text: e.target_id }),
+      el('td', { class: 'mono muted', text: e.requested_by })));
+    table.appendChild(tb);
+    return el('div', { class: 'tablewrap' }, table);
+  }
+
+  // --- events ------------------------------------------------------------------
+  async function refreshEvents() {
+    try {
+      const data = await api('/api/events');
+      const box = $('events');
+      clear(box);
+      if (!data.events.length) { box.appendChild(el('div', { class: 'empty', text: t('no_events') })); return; }
+      for (const ev of data.events.slice().reverse()) {
+        box.appendChild(el('div', { class: 'ev ' + ev.severity },
+          el('span', { class: 't', text: fmtTime(ev.ts) }),
+          el('span', { class: 'n', text: ev.name, title: ev.severity }),
+          el('span', { class: 'p', text: JSON.stringify(ev.payload) })));
+      }
+    } catch (e) { /* 이벤트 조회 실패는 화면을 막지 않는다 */ }
+  }
+
+  // --- developer tab -----------------------------------------------------------
+  function renderDeveloper() {
+    renderWhatifBar($('dev-whatif'));
+    const nb = $('dev-nodes');
+    clear(nb);
+    for (const n of S.config.nodes) nb.appendChild(el('button', {
+      type: 'button', 'aria-pressed': String(n.node_id === S.devNode), title: n.label,
+      text: n.node_id + ' · ' + trole(n.role), onclick: () => { S.devNode = n.node_id; renderDeveloper(); },
+    }));
+    const nd = nodeData(S.devNode);
+    const cfg = nodeCfg(S.devNode);
+    $('dev-node-title').textContent = cfg ? cfg.label : '—';
+    $('dev-node-meta').textContent = nd
+      ? `${trole(nd.role)} · tags=[${nd.tags.join(', ')}] · ${t('budget')} ${fmtNum(nd.budget.compute_units)} CU / ${fmtNum(nd.budget.memory_mb, 0)} MB`
+        + (nd.exclude_providers.length ? ` · ${t('exclude_providers')}: ${nd.exclude_providers.join(', ')}` : '')
+      : '';
+    const box = $('dev-rows');
+    clear(box);
+    if (!nd || !nd.rows.length) { box.appendChild(el('div', { class: 'empty', text: t('no_rows') })); return; }
+    const baseNode = S.whatif ? (S.whatif.before.nodes || []).find((n) => n.node_id === S.devNode) : null;
+    const before = baseNode ? Object.fromEntries(baseNode.rows.map((r) => [r.kind, r])) : null;
+    for (const row of nd.rows) {
+      const prev = before ? before[row.kind] : null;
+      const changed = !!(prev && (prev.state !== row.state || prev.provider_id !== row.provider_id));
+      const r = el('div', { class: 'row' + (changed ? ' changed' : '') });
+      const head = el('div', { class: 'row-head' });
+      const kindCell = el('div', null, el('span', { class: 'kind', text: row.kind }), el('div', { class: 'muted small', text: tk(row.kind) }));
+      if (row.is_core) kindCell.appendChild(el('span', { class: 'badge core', style: 'margin-left:6px', text: t('core') }));
+      head.appendChild(kindCell);
+      head.appendChild(el('div', null, el('span', { class: 'chip-label', text: 'CapabilityState' }), stateChip(row.state)));
+      head.appendChild(el('div', null, el('span', { class: 'chip-label', text: t('derived_grade') }), gradeChip(row.derived_grade)));
+      head.appendChild(el('div', null, el('span', { class: 'chip-label', text: t('provider') }),
+        el('span', { class: 'mono', text: row.provider_id || '—' }),
+        row.provider_version ? el('span', { class: 'muted', text: ' v' + row.provider_version }) : null));
+      const reason = el('span', { class: 'reason' }, el('span', { class: 'tok mono', text: row.reason_token || row.reason || '—' }));
+      if (row.reason_data) reason.appendChild(el('span', { class: 'data mono', text: ':' + row.reason_data }));
+      reason.appendChild(el('div', { class: 'muted small', text: tr(row.reason_token) }));
+      head.appendChild(el('div', null, el('span', { class: 'chip-label', text: t('reason') + ' (state_change_reason)' }), reason));
+      r.appendChild(head);
+
+      const meta = el('div', { class: 'row-meta' });
+      meta.appendChild(el('span', null, t('cost') + ' ', el('b', { class: 'num', text: row.cost ? `${fmtNum(row.cost.compute_units)} CU · ${fmtNum(row.cost.memory_mb, 0)} MB` : '—' })));
+      if (row.priority !== null && row.priority !== undefined) meta.appendChild(el('span', null, 'priority ', el('b', { class: 'num', text: String(row.priority) })));
+      if (row.requirement.required.length) meta.appendChild(el('span', null, 'required ', el('b', { class: 'mono', text: row.requirement.required.join(', ') })));
+      if (row.requirement.optional.length) meta.appendChild(el('span', null, 'optional ', el('b', { class: 'mono', text: row.requirement.optional.join(', ') })));
+      if (!row.is_core) meta.appendChild(el('span', null, t('degrade_rank') + ' ', el('b', { class: 'num', text: String(row.degrade_rank) })));
+      if (row.node_selector) meta.appendChild(el('span', null, t('node_selector') + ' ', el('b', { class: 'mono', text: selectorText(row.node_selector) })));
+      if (row.provider_id) meta.appendChild(el('span', { class: 'muted', text: row.deployable ? t('container') : tcmd('in_process') }));
+      r.appendChild(meta);
+      if (changed) r.appendChild(el('div', { class: 'small', style: 'color:var(--changed); margin-top:4px', text:
+        `${t('changed')}: ${ts(prev.state)} / ${prev.provider_id || '—'} → ${ts(row.state)} / ${row.provider_id || '—'}` }));
+
+      const alts = row.alternatives || [];
+      const det = el('details', null, el('summary', { text: `${t('alternatives')} ${alts.length}` }));
+      if (alts.length) {
+        const table = el('table', null, el('thead', null, el('tr', null,
+          el('th', { text: 'provider_id' }), el('th', { text: t('reason_token') }), el('th', { text: t('reason_data') }), el('th', { text: t('reason') }))));
+        const tb = el('tbody');
+        for (const a of alts) tb.appendChild(el('tr', null,
+          el('td', { class: 'mono', text: a.provider_id }),
+          el('td', { class: 'mono', text: a.reason_token }),
+          el('td', { class: 'mono muted', text: a.reason_data || '' }),
+          el('td', { class: 'muted', text: tr(a.reason_token) })));
+        table.appendChild(tb);
+        det.appendChild(el('div', { class: 'tablewrap' }, table));
+      } else det.appendChild(el('div', { class: 'empty', text: t('no_alternatives') }));
+      r.appendChild(det);
+      box.appendChild(r);
+    }
+    // vocabulary
+    const vb = $('dev-vocab');
+    clear(vb);
+    if (S.vocab) {
+      const table = el('table', null, el('thead', null, el('tr', null, el('th', { text: 'grade' }), el('th', { text: t('derived_grade') }), el('th', { text: 'GRADE_DESCRIPTIONS' }))));
+      const tb = el('tbody');
+      for (const [g, desc] of Object.entries(S.vocab.grades)) tb.appendChild(el('tr', null, el('td', null, gradeChip(g)), el('td', { text: tg(g) }), el('td', { class: 'muted small', text: desc })));
+      table.appendChild(tb);
+      vb.appendChild(table);
+      vb.appendChild(el('div', { class: 'muted small mono', style: 'margin-top:6px; word-break:break-all', text: 'state_change_reasons: ' + S.vocab.state_change_reasons.join(' | ') }));
+    }
+    const lm = $('dev-labels-missing');
+    lm.textContent = S.config.labels_missing && S.config.labels_missing.length
+      ? t('labels_missing') + ': ' + S.config.labels_missing.join(', ') : '';
+  }
+
+  // --- reset / render all ---------------------------------------------------------
+  async function reset() {
+    try {
+      showError(null);
+      const data = await api('/api/reset', {});
+      S.placement = { __control: data.control };
+      S.actions = {};
+      await loadAllPlacement();
+      await refreshEvents();
+    } catch (e) { showError(t('reset') + ': ' + e.message); }
+  }
+  function renderAll() {
+    renderStatic();
+    renderFunctions();
+    renderTiers();
+    renderDeveloper();
+    renderDrawer();
+  }
+
+  // --- boot --------------------------------------------------------------------
+  async function boot() {
+    S.lang = loadLang();
+    try {
+      const [labels, config, vocab, base] = await Promise.all([api('/api/labels'), api('/api/config'), api('/api/vocabulary'), api('/api/functions')]);
+      S.labels = labels; S.config = config; S.vocab = vocab; S.base = base;
+      S.devNode = config.nodes[0] && config.nodes[0].node_id;
+      $('lang-toggle').addEventListener('click', toggleLang);
+      $('reset-btn').addEventListener('click', reset);
+      $('drawer-close').addEventListener('click', closeDrawer);
+      $('backdrop').addEventListener('click', closeDrawer);
+      document.addEventListener('keydown', (ev) => { if (ev.key === 'Escape' && S.drawerFn) closeDrawer(); });
+      for (const b of document.querySelectorAll('.tabs [role="tab"]')) b.addEventListener('click', () => selectTab(b.dataset.tab));
+      renderAll();
+      await refreshEvents();
+      S.eventsTimer = setInterval(refreshEvents, 2000);
+    } catch (e) { showError(e.message); }
+  }
+  boot();
+})();
+</script>
+</body>
+</html>

@@ -60,6 +60,32 @@ def test_dgs_groups_similar_tasks_and_consolidates_state() -> None:
     assert separate.group_id != merged.group_id
 
 
+def test_dgs_forgetting_gate_isolates_instead_of_consolidating_on_large_shift() -> None:
+    # AI-L-05: 새 지식만 보고 병합하면 기존 검증된 group의 adapter_state를 과도하게
+    # 흔들 수 있다 — divergence는 통과해도 병합 후 상태 이동이 크면 병합 대신 격리한다
+    # (Kayenta류 baseline-vs-candidate 회귀 게이트).
+    grouper = DynamicTaskGrouper(divergence_max=5.0, forgetting_max=0.1)
+    first = grouper.assign("rain-1", ((0.0, 0.0), (0.2, 0.2)), (1.0, 0.0))
+    # divergence는 낮지만(같은 그룹으로 매칭될 조건) adapter_state가 크게 달라 병합하면
+    # 기존 상태(1.0, 0.0)를 거의 지워버린다.
+    isolated = grouper.assign("rain-2", ((0.05, 0.05), (0.25, 0.25)), (0.0, 100.0))
+
+    assert isolated.group_id != first.group_id
+    assert isolated.adapter_state == pytest.approx((0.0, 100.0))
+    # 격리됐으므로 원래 그룹의 검증된 adapter_state는 그대로 보존된다.
+    assert grouper.groups[0].adapter_state == pytest.approx((1.0, 0.0))
+
+
+def test_dgs_forgetting_gate_disabled_by_default() -> None:
+    # forgetting_max를 지정하지 않으면 기존 동작(순수 divergence 기반 병합)을 그대로
+    # 유지한다 — 새 게이트가 기본값으로 기존 회귀 스위트를 바꾸지 않는다.
+    grouper = DynamicTaskGrouper(divergence_max=5.0)
+    grouper.assign("rain-1", ((0.0, 0.0), (0.2, 0.2)), (1.0, 0.0))
+    merged = grouper.assign("rain-2", ((0.05, 0.05), (0.25, 0.25)), (0.0, 100.0))
+
+    assert merged.task_ids == ("rain-1", "rain-2")
+
+
 def test_ekya_policy_selects_profiles_and_allocates_all_chunks() -> None:
     jobs = (
         ResourceJob("camera-a", (MicroProfile("fast", 0.1, 0.6, 0.7, 10),)),

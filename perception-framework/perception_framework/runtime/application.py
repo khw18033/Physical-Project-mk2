@@ -23,7 +23,7 @@ from perception_framework.contracts.capability import CapabilityRequirement, Cap
 from perception_framework.contracts.profile import DeploymentProfile, ResourceBudget
 from perception_framework.registry.capability_registry import CapabilityRegistry, ProviderRegistration
 from perception_framework.runtime.airgap import EgressGate
-from perception_framework.selection.selector import CapabilitySelector
+from perception_framework.selection.selector import CandidateOutcome, CapabilitySelector
 
 
 @dataclass(frozen=True)
@@ -46,6 +46,10 @@ class CapabilityResolution:
     state: CapabilityState
     provider: ProviderRegistration | None
     reason: str
+    # Every other candidate the selector considered for this kind and why it
+    # lost (P1, 2026-09-17). Empty when the kind was decided before selection
+    # (missing required deps, core headroom) — nothing was considered then.
+    alternatives: tuple[CandidateOutcome, ...] = ()
 
     @property
     def is_running(self) -> bool:
@@ -158,9 +162,13 @@ class ZoneApplication:
 
         selection = self._selector.select(spec.kind, self._node_tags, budget)
         if selection.provider is None:
-            return CapabilityResolution(spec.kind, CapabilityState.DISABLED, None, selection.reason)
+            return CapabilityResolution(
+                spec.kind, CapabilityState.DISABLED, None, selection.reason, selection.alternatives
+            )
 
-        return CapabilityResolution(spec.kind, declared_state, selection.provider, "selected")
+        return CapabilityResolution(
+            spec.kind, declared_state, selection.provider, "selected", selection.alternatives
+        )
 
     # --- queries -----------------------------------------------------------
     def state_of(self, kind: str) -> CapabilityState:

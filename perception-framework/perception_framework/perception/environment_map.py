@@ -1,6 +1,6 @@
 """Environment structure estimated from vision and terminal motion data.
 
-implements: AI-E-05, AI-C-02, AI-C-03, AI-C-11
+implements: AI-S-08, AI-C-02, AI-C-03, AI-C-05
 
 What this produces is an *estimate*, and it is built that way on purpose. The
 only quantity available as a known value is the installed pose of a fixed

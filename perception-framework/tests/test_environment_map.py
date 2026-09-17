@@ -1,4 +1,4 @@
-"""implements: AI-E-05, AI-C-02, AI-C-11
+"""implements: AI-S-08, AI-C-02, AI-C-05
 tests: anchor-relative only, uncertainty falls with independent producers,
        producer loss keeps remaining support, no invented absolute position
 """

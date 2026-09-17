@@ -15,21 +15,30 @@ from perception_framework.contracts.profile_loader import (
     profile_from_dict,
 )
 
-PROFILE_DIR = Path(__file__).resolve().parents[1] / "profiles"
+# Shipped domain profiles now live embedded in `simulator/scenarios/domain-*.json`
+# (a scenario file's "profile" key) rather than in a standalone `profiles/`
+# directory - the scenario file is both the demo/regression input and, here,
+# the "real shipped domain data" this suite checks against.
+DOMAIN_SCENARIO_DIR = Path(__file__).resolve().parents[1] / "simulator" / "scenarios"
 PACKAGE_DIR = Path(__file__).resolve().parents[1] / "perception_framework"
 
 
-@pytest.mark.parametrize("name", ["robot", "facility", "river"])
+def _load_domain_profile(path: Path):
+    scenario = json.loads(path.read_text(encoding="utf-8"))
+    return profile_from_dict(scenario["nodes"][0]["profile"])
+
+
+@pytest.mark.parametrize("name", ["robot", "facility", "river", "defense"])
 def test_each_shipped_domain_profile_loads(name):
-    profile = load_profile(PROFILE_DIR / f"{name}.json")
+    profile = _load_domain_profile(DOMAIN_SCENARIO_DIR / f"domain-{name}.json")
 
     assert profile.domain_id
     assert profile.active_capability_kinds
 
 
 def test_active_capability_set_differs_per_domain_without_code_change():
-    robot = load_profile(PROFILE_DIR / "robot.json")
-    river = load_profile(PROFILE_DIR / "river.json")
+    robot = _load_domain_profile(DOMAIN_SCENARIO_DIR / "domain-robot.json")
+    river = _load_domain_profile(DOMAIN_SCENARIO_DIR / "domain-river.json")
 
     # 같은 코드가 프로파일만 바뀌어 다른 기능 조합으로 동작한다 (AI-C-15).
     assert is_capability_active(robot, "perception.environment_map")
@@ -67,10 +76,10 @@ def test_core_code_contains_no_domain_name_branching():
     """절대 준수 원칙 #3: 도메인명을 기준으로 핵심 코드에 분기문을 추가하지 않는다.
 
     Enforced statically so the rule cannot rot: no domain identifier from
-    any shipped profile may appear anywhere in the package source.
+    any shipped domain scenario may appear anywhere in the package source.
     """
-    domain_ids = [load_profile(p).domain_id for p in PROFILE_DIR.glob("*.json")]
-    assert domain_ids, "no profiles found to check"
+    domain_ids = [_load_domain_profile(p).domain_id for p in sorted(DOMAIN_SCENARIO_DIR.glob("domain-*.json"))]
+    assert domain_ids, "no domain scenarios found to check"
 
     for domain_id in domain_ids:
         hit = subprocess.run(

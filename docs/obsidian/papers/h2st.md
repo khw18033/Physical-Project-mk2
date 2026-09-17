@@ -1,8 +1,8 @@
 # H2ST: Hierarchical Two-Sample Tests for Continual Out-of-Distribution Detection
 
 ## 메타데이터
-- categories: [[Hierarchical Two-Sample Tests (H2ST)]], [[Classifier Two-Sample Test (C2ST)]], [[Feature-level Source-Target Prediction]], [[Calibrated Detection]]
-- domain: [[Out-of-Distribution Detection]], [[Continual Learning]]
+- categories: Hierarchical Two-Sample Tests (H2ST), Classifier Two-Sample Test (C2ST), Feature-level Source-Target Prediction, Calibrated Detection
+- domain: [[지속학습]]
 - source: Yuhang Liu, Wenjie Zhao, Yunhui Guo, "H2ST: Hierarchical Two-Sample Tests for Continual Out-of-Distribution Detection," Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR), 2025, pp. 15413-15423.
 - url: https://openaccess.thecvf.com/content/CVPR2025/html/Liu_H2ST_Hierarchical_Two-Sample_Tests_for_Continual_Out-of-Distribution_Detection_CVPR_2025_paper.html
 - year: 2025

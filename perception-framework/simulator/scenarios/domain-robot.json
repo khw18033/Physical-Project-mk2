@@ -1,0 +1,138 @@
+{
+  "id": "domain-robot",
+  "description": "로봇 자율주행 지원 도메인. 인지·매핑은 활성화되지만 위험 상태기계는 이 도메인에서 쓰지 않는다. 핵심 코드는 다른 도메인과 완전히 동일하다. (AI-C-15)",
+  "nodes": [
+    {
+      "id": "registry",
+      "type": "registry_node",
+      "profile": {
+        "domain_id": "robot_autonomy_support",
+        "active_capability_kinds": [
+          "safety.local_judgment",
+          "perception.detect",
+          "perception.track",
+          "media.video_input",
+          "perception.object_record",
+          "observability.experiment_capture",
+          "perception.environment_map",
+          "ondevice.link_transition"
+        ],
+        "rule_set_id": "robot_zone_rules_v1",
+        "node_tags": [
+          "cpu",
+          "mobile",
+          "onboard_camera"
+        ]
+      },
+      "capabilities": [
+        {
+          "kind": "safety.local_judgment",
+          "rank": 0
+        },
+        {
+          "kind": "perception.detect",
+          "rank": 1
+        },
+        {
+          "kind": "perception.track",
+          "rank": 2
+        },
+        {
+          "kind": "perception.associate",
+          "rank": 3
+        },
+        {
+          "kind": "media.video_input",
+          "rank": 4
+        },
+        {
+          "kind": "perception.object_record",
+          "rank": 5
+        },
+        {
+          "kind": "observability.experiment_capture",
+          "rank": 6
+        },
+        {
+          "kind": "perception.environment_map",
+          "rank": 7
+        },
+        {
+          "kind": "ondevice.link_transition",
+          "rank": 8
+        },
+        {
+          "kind": "risk.state_machine",
+          "rank": 9
+        },
+        {
+          "kind": "risk.rule_based",
+          "rank": 10
+        }
+      ],
+      "providers": [
+        {
+          "kind": "safety.local_judgment",
+          "provider_id": "safety.local_judgment-provider"
+        },
+        {
+          "kind": "perception.detect",
+          "provider_id": "perception.detect-provider"
+        },
+        {
+          "kind": "perception.track",
+          "provider_id": "perception.track-provider"
+        },
+        {
+          "kind": "perception.associate",
+          "provider_id": "perception.associate-provider"
+        },
+        {
+          "kind": "media.video_input",
+          "provider_id": "media.video_input-provider"
+        },
+        {
+          "kind": "perception.object_record",
+          "provider_id": "perception.object_record-provider"
+        },
+        {
+          "kind": "observability.experiment_capture",
+          "provider_id": "observability.experiment_capture-provider"
+        },
+        {
+          "kind": "perception.environment_map",
+          "provider_id": "perception.environment_map-provider"
+        },
+        {
+          "kind": "ondevice.link_transition",
+          "provider_id": "ondevice.link_transition-provider"
+        },
+        {
+          "kind": "risk.state_machine",
+          "provider_id": "risk.state_machine-provider"
+        },
+        {
+          "kind": "risk.rule_based",
+          "provider_id": "risk.rule_based-provider"
+        }
+      ]
+    }
+  ],
+  "couplings": [],
+  "stimuli": [],
+  "run_until": 0.0,
+  "expectations": [
+    {
+      "type": "capability_state",
+      "node": "registry",
+      "after": 0.0,
+      "state": {
+        "perception.detect": "ACTIVE",
+        "perception.environment_map": "ACTIVE",
+        "ondevice.link_transition": "ACTIVE",
+        "risk.state_machine": "DISABLED",
+        "risk.rule_based": "DISABLED"
+      }
+    }
+  ]
+}

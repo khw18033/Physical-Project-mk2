@@ -8,6 +8,7 @@ from .dgs import DynamicTaskGrouper, TaskGroup
 from .ekya import MicroProfile, ResourceAllocator, ResourceJob
 from .h2st import H2STDecision, HierarchicalTwoSampleDetector
 from .lineage import LearningLineage, LearningState, LineageEvent
+from .p2iod import TaskVectorFusionResult, fuse_task_vectors
 from .replay import Box, PseudoLabel, ReplayCandidate, ReplaySelector
 
 __all__ = [
@@ -25,4 +26,6 @@ __all__ = [
     "ResourceAllocator",
     "ResourceJob",
     "TaskGroup",
+    "TaskVectorFusionResult",
+    "fuse_task_vectors",
 ]

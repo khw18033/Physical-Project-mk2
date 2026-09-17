@@ -16,6 +16,7 @@ class itself cannot tell the difference. That is the requirement
 from __future__ import annotations
 
 import hashlib
+import sqlite3
 import threading
 from collections import deque
 from dataclasses import dataclass, field
@@ -47,6 +48,7 @@ class TopicRoute:
 class BridgeStats:
     uplink: int = 0
     downlink: int = 0
+    queued: int = 0
     dropped: dict[str, int] = field(default_factory=dict)
 
 
@@ -66,6 +68,7 @@ class EdgeTransportBridge:
         routes: list[TopicRoute],
         *,
         echo_memory: int = 1024,
+        outbox_path: str | None = None,
     ) -> None:
         self._device = device_transport
         self._server = server_transport
@@ -79,6 +82,13 @@ class EdgeTransportBridge:
         self._lock = threading.Lock()
         self._echoes: deque[str] = deque(maxlen=echo_memory)
         self._echo_set: set[str] = set()
+        self._outbox = sqlite3.connect(outbox_path, check_same_thread=False) if outbox_path else None
+        if self._outbox is not None:
+            self._outbox.execute(
+                "CREATE TABLE IF NOT EXISTS outbox (id INTEGER PRIMARY KEY, direction TEXT, "
+                "topic TEXT, payload BLOB, qos TEXT)"
+            )
+            self._outbox.commit()
 
     def start(self) -> None:
         for route in self._routes:
@@ -92,7 +102,10 @@ class EdgeTransportBridge:
             if self._is_own_echo(route.device_topic, payload):
                 return
             if not self._server.is_connected():
-                self._count_drop("server_link_down")
+                if self._enqueue("uplink", route.server_topic, payload, self._qos(route)):
+                    self.stats.queued += 1
+                else:
+                    self._count_drop("server_link_down")
                 return
             self._remember(route.server_topic, payload)
             self._server.publish(route.server_topic, payload, qos=self._qos(route))
@@ -107,7 +120,10 @@ class EdgeTransportBridge:
             if self._is_own_echo(route.server_topic, payload):
                 return
             if not self._device.is_connected():
-                self._count_drop("device_link_down")
+                if self._enqueue("downlink", route.device_topic, payload, self._qos(route)):
+                    self.stats.queued += 1
+                else:
+                    self._count_drop("device_link_down")
                 return
             self._remember(route.device_topic, payload)
             self._device.publish(route.device_topic, payload, qos=self._qos(route))
@@ -149,3 +165,40 @@ class EdgeTransportBridge:
 
     def _count_drop(self, reason: str) -> None:
         self.stats.dropped[reason] = self.stats.dropped.get(reason, 0) + 1
+
+    def _enqueue(self, direction: str, topic: str, payload: bytes, qos: str) -> bool:
+        if self._outbox is None or qos == "at_most_once":
+            return False
+        self._outbox.execute(
+            "INSERT INTO outbox(direction, topic, payload, qos) VALUES (?, ?, ?, ?)",
+            (direction, topic, payload, qos),
+        )
+        self._outbox.commit()
+        return True
+
+    def pending_count(self) -> int:
+        if self._outbox is None:
+            return 0
+        return int(self._outbox.execute("SELECT COUNT(*) FROM outbox").fetchone()[0])
+
+    def flush_pending(self) -> int:
+        """Replay durable messages in insertion order after a link recovers."""
+        if self._outbox is None:
+            return 0
+        sent = 0
+        for row_id, direction, topic, payload, qos in self._outbox.execute(
+            "SELECT id, direction, topic, payload, qos FROM outbox ORDER BY id"
+        ).fetchall():
+            transport = self._server if direction == "uplink" else self._device
+            if not transport.is_connected():
+                break
+            self._remember(topic, payload)
+            transport.publish(topic, payload, qos=qos)
+            self._outbox.execute("DELETE FROM outbox WHERE id = ?", (row_id,))
+            sent += 1
+        self._outbox.commit()
+        return sent
+
+    def close(self) -> None:
+        if self._outbox is not None:
+            self._outbox.close()

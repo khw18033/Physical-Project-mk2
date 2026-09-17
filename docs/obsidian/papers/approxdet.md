@@ -1,8 +1,8 @@
 # ApproxDet: Content and Contention-Aware Approximate Object Detection for Mobiles
 
 ## 메타데이터
-- categories: [[Multi-branch Object Detection Framework]], [[Content-aware Feature Extraction]], [[Latency-Accuracy Prediction Model]], [[Latency SLA-driven Scheduler]], [[Contention Sensor]]
-- domain: [[모바일 비디오 객체 탐지]], [[근사 컴퓨팅]]
+- categories: Multi-branch Object Detection Framework, Content-aware Feature Extraction, Latency-Accuracy Prediction Model, Latency SLA-driven Scheduler, Contention Sensor
+- domain: [[엣지 실행·자원]], [[객체 탐지·분할]]
 - source: Ran Xu, Chen-lin Zhang, Pengcheng Wang, Jayoung Lee, Subrata Mitra, Somali Chaterji, Yin Li, Saurabh Bagchi, "ApproxDet: Content and Contention-Aware Approximate Object Detection for Mobiles," Proceedings of the 18th ACM Conference on Embedded Networked Sensor Systems (SenSys '20), 2020.
 - url: https://doi.org/10.1145/3384419.3431159
 - year: 2020

@@ -1,4 +1,4 @@
-"""implements: AI-E-05, AI-C-02, AI-C-10, AI-C-11, AI-S-03
+"""implements: AI-S-03, AI-C-02, AI-C-05, AI-C-10
 tests: three-valued observation state, blind-spot cause separation, source loss
        is not counter-evidence (and the paths where coverage *does* change),
        uncertainty reported apart from confidence, anchor referenced not defined

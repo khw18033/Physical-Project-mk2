@@ -1,8 +1,8 @@
 # ByteTrack: Multi-Object Tracking by Associating Every Detection Box
 
 ## 메타데이터
-- categories: [[BYTE 연관 알고리즘]], [[ByteTrack 파이프라인]], [[Low-score Detection Box 복구]], [[Kalman Filter 기반 모션 예측]]
-- domain: [[Multi-Object Tracking]], [[Computer Vision]]
+- categories: BYTE 연관 알고리즘, ByteTrack 파이프라인, Low-score Detection Box 복구, Kalman Filter 기반 모션 예측
+- domain: [[객체 추적]]
 - source: Zhang, Yifu, Sun, Peize, Jiang, Yi, Yu, Dongdong, Weng, Fucheng, Yuan, Zehuan, Luo, Ping, Liu, Wenyu, Wang, Xinggang. "ByteTrack: Multi-Object Tracking by Associating Every Detection Box." Proceedings of the European Conference on Computer Vision (ECCV), 2022.
 - url: https://arxiv.org/abs/2110.06864
 - year: 2022

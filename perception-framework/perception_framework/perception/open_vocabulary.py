@@ -2,17 +2,18 @@
 
 implements: AI-E-01, AI-S-04, AI-B-08, AI-B-09, AI-C-11
 
-`experiments/open_world_tracking/`의 0B/0C 실험에서 실측 검증된 결과를 실제
-framework 코드로 옮긴 것이다(회귀 없음 확인: TAO 6비디오에서 known recall
-0.757, unknown recall 0.392, 20260901 재현). 두 가지 실측 사실을 그대로
-반영한다.
+과거 0B/0C 실험(실행 코드는 이후 정리 과정에서 저장소에서 제거됨)에서 실측
+검증된 결과를 실제 framework 코드로 옮긴 것이다(회귀 없음 확인: TAO 6비디오에서
+known recall 0.757, unknown recall 0.392, 20260901 재현). 두 가지 실측 사실을
+그대로 반영한다.
 
 1. 단일 추상 프롬프트("an object")는 grounding이 매우 약하다(0B: known
    0.007, unknown 0.004). 그래서 이 provider는 **넓은 구체 명사 어휘**를
    기본으로 받는다 — 추상 프롬프트 모드는 제공하지 않는다.
 2. 이 ONNX 모델은 int8 양자화본이고, CUDAExecutionProvider와 CPU 사이에
    원점수가 유의미하게 다르다(같은 입력에서 max prob diff 0.183 실측,
-   `experiments/open_world_tracking/RESULTS.md` "GPU 실행 환경" 참고). 그래서
+   과거 실험의 "GPU 실행 환경" 기록 참고 — 원본 실행 코드는 이후 정리 과정에서
+   저장소에서 제거됨). 그래서
    이 provider는 **어떤 execution provider로 실행됐는지를 결과에 함께
    기록**한다 — 서로 다른 provider로 낸 결과를 같은 실험에서 섞으면 안 된다.
 
@@ -31,7 +32,7 @@ from typing import Any
 from perception_framework.perception.detection import PerceptionProvider, PerceptionResult
 
 INPUT_SIZE = 768
-# CLIP 정규화 상수. experiments/openvocab/smoke_openvocab.py, common_owlvit.py와 동일.
+# CLIP 정규화 상수. 과거 실험 스크립트(제거됨)의 smoke test와 동일한 값을 사용한다.
 _MEAN = (0.48145466, 0.4578275, 0.40821073)
 _STD = (0.26862954, 0.26130258, 0.27577711)
 
@@ -47,6 +48,25 @@ class OpenVocabularyPerceptionResult(PerceptionResult):
 
     matched_vocab: str = ""
     execution_provider: str = ""
+
+
+@dataclass(frozen=True)
+class RawVocabScores:
+    """One frame's full known-vs-vocab probability matrix, pre-threshold.
+
+    `probs[box_i, vocab_i]` is the sigmoid score of box `box_i` against
+    `vocab[vocab_i]`. `boxes` are already pixel-space xyxy, aligned to
+    `probs`' first axis. Box regression in OWL-ViT is computed from the
+    image tower alone (text-independent), so two `detect_raw()` calls on the
+    same frame with different vocabularies yield the same boxes at the same
+    index — this is what lets a caller align a known-class run and an
+    attribute run by box index without re-matching geometry.
+    """
+
+    vocab: tuple[str, ...]
+    boxes: tuple[tuple[float, float, float, float], ...]
+    probs: Any  # numpy ndarray [n_boxes, len(vocab)]; typed Any to avoid a hard numpy import here
+    execution_provider: str
 
 
 class OwlVitPerceptionProvider:
@@ -97,6 +117,10 @@ class OwlVitPerceptionProvider:
         결과 provenance에 무엇으로 실행됐는지 남기기 위해 노출한다)."""
         return self._active_provider
 
+    @property
+    def vocab(self) -> tuple[str, ...]:
+        return tuple(self._vocab)
+
     def _preprocess(self, frame: Any) -> Any:
         import cv2
 
@@ -106,7 +130,15 @@ class OwlVitPerceptionProvider:
         im = (im - np.array(_MEAN, np.float32)) / np.array(_STD, np.float32)
         return im.transpose(2, 0, 1)[None]
 
-    def detect(self, frame: Any) -> list[OpenVocabularyPerceptionResult]:
+    def detect_raw(self, frame: Any) -> RawVocabScores:
+        """Per-box, per-vocab sigmoid scores before any threshold is applied.
+
+        `detect()` is a thresholded, single-vocab view over this. Exposed
+        separately because unknown-object scoring (AI-S-04, e.g. FOMO's
+        p_unknown = (1 - max(known)) * max(attribute)) needs the full known
+        vs. attribute probability distribution, not just the labels that
+        happened to clear one provider's own threshold.
+        """
         np = self._np
         h, w = frame.shape[:2]
         pixel_values = self._preprocess(frame)
@@ -116,22 +148,34 @@ class OwlVitPerceptionProvider:
         )
         probs = 1.0 / (1.0 + np.exp(-logits[0]))  # [n_boxes, n_vocab]
 
+        pixel_boxes = []
+        for cx, cy, bw, bh in boxes[0]:
+            pixel_boxes.append(
+                (
+                    float((cx - bw / 2) * w),
+                    float((cy - bh / 2) * h),
+                    float((cx + bw / 2) * w),
+                    float((cy + bh / 2) * h),
+                )
+            )
+        return RawVocabScores(
+            vocab=tuple(self._vocab),
+            boxes=tuple(pixel_boxes),
+            probs=probs,
+            execution_provider=self._active_provider,
+        )
+
+    def detect(self, frame: Any) -> list[OpenVocabularyPerceptionResult]:
+        raw = self.detect_raw(frame)
         out: list[OpenVocabularyPerceptionResult] = []
-        for box_i, vocab_i in np.argwhere(probs > self._score_thr):
-            score = float(probs[box_i, vocab_i])
-            cx, cy, bw, bh = boxes[0, box_i]
+        for box_i, vocab_i in self._np.argwhere(raw.probs > self._score_thr):
             out.append(
                 OpenVocabularyPerceptionResult(
-                    box=(
-                        float((cx - bw / 2) * w),
-                        float((cy - bh / 2) * h),
-                        float((cx + bw / 2) * w),
-                        float((cy + bh / 2) * h),
-                    ),
-                    label=self._vocab[vocab_i],
-                    confidence=score,
-                    matched_vocab=self._vocab[vocab_i],
-                    execution_provider=self._active_provider,
+                    box=raw.boxes[box_i],
+                    label=raw.vocab[vocab_i],
+                    confidence=float(raw.probs[box_i, vocab_i]),
+                    matched_vocab=raw.vocab[vocab_i],
+                    execution_provider=raw.execution_provider,
                 )
             )
         return out

@@ -1,0 +1,99 @@
+{
+  "$comment": "tools/status_ui/serve.py가 읽는 설정. providers_manifest·labels는 이 파일 기준 상대경로. 'deployment'는 contracts/profile_loader.py::profile_from_dict가 읽는 DeploymentProfile 그대로(모르는 키 거부). 'capabilities'는 runtime/application.py::CapabilitySpec — requirement의 required/optional은 capability kind 이름이고, degrade_rank가 클수록 예산 부족 시 먼저 버려진다. nodes[].role은 자유 문자열 계층(ondevice/edge/server …; enum이 아니다 — 새 계층은 새 문자열 + labels 파일의 라벨 한 줄), tags는 providers/compute.py::discover_node_tags()가 돌려주는 것과 같은 자유 문자열 태그(계층 태그 'tier.<role>' 포함), budget은 ResourceBudget. 'functions'는 사용자 관점의 기능 — required/optional capability kind로만 정의하고(라벨은 labels 파일) contracts/capability_contract.py::TaskIntent.evaluate_availability로 판정한다. 예시가 보여주려는 것: go1-onboard(4.0 CU)는 core 두 개 + control.locomotion만 남고 나머지 선택 기능은 over_budget으로 탈락하며 classify 대안에 required_hw_tag_missing:compute.gpu가 남는다; edge-dev(8.0 CU)는 segment 하나만 탈락; edge-gpu·server-1은 control.locomotion(tier.ondevice 필요)만 빼고 전부 ACTIVE. 기능 관점: local_safety·door_detection·go_to_door는 가능(go_to_door의 이동 제어는 go1-onboard가 제공하며 pi6·pi4는 고정 카메라), risk_analysis는 risk.event_input을 제공하는 provider가 없어 불가 — '위험 입력이 없으면 위험 분석만 비활성'(AI-R-01). What-if에서 rpn-ondevice를 제외하면 core_capability_unplaced, unidepth를 제외하면 segment가 DEGRADED(optional 결손)로, go_to_door가 불가로 바뀐다.",
+  "providers_manifest": "providers.status_ui.example.json",
+  "labels": "status_ui.labels.json",
+  "deployment": {
+    "domain_id": "door-demo",
+    "active_capability_kinds": [
+      "media.video_input",
+      "perception.detect",
+      "perception.classify",
+      "perception.detect_ovd",
+      "perception.depth",
+      "perception.segment",
+      "control.locomotion"
+    ],
+    "closed_network": false
+  },
+  "capabilities": [
+    {"kind": "media.video_input", "is_core": true},
+    {"kind": "perception.detect", "is_core": true, "requirement": {"required": ["media.video_input"]}},
+    {"kind": "perception.classify", "degrade_rank": 1, "requirement": {"required": ["perception.detect"]}},
+    {"kind": "perception.detect_ovd", "degrade_rank": 2, "requirement": {"required": ["media.video_input"]}},
+    {"kind": "perception.depth", "degrade_rank": 3, "requirement": {"optional": ["perception.detect"]}},
+    {"kind": "perception.segment", "degrade_rank": 4, "requirement": {"optional": ["perception.depth"]}},
+    {"kind": "control.locomotion", "is_core": false, "degrade_rank": 0, "requirement": {"optional": []}}
+  ],
+  "functions": [
+    {
+      "function_id": "local_safety",
+      "required_capabilities": ["media.video_input"],
+      "optional_capabilities": ["perception.classify", "perception.depth"]
+    },
+    {
+      "function_id": "door_detection",
+      "required_capabilities": ["media.video_input", "perception.detect", "perception.classify"],
+      "optional_capabilities": ["perception.detect_ovd", "perception.segment"]
+    },
+    {
+      "function_id": "go_to_door",
+      "required_capabilities": [
+        "media.video_input",
+        "perception.detect",
+        "perception.classify",
+        "perception.depth",
+        "control.locomotion"
+      ],
+      "optional_capabilities": ["perception.detect_ovd"]
+    },
+    {
+      "function_id": "risk_analysis",
+      "required_capabilities": ["risk.event_input"],
+      "optional_capabilities": []
+    }
+  ],
+  "nodes": [
+    {
+      "node_id": "go1-onboard",
+      "label": "로봇 온디바이스 · Go1 탑재 연산기 — 가정(미실측, HW 브랜치 확인 전)",
+      "role": "ondevice",
+      "tags": ["compute.cpu", "tier.ondevice", "sensor.camera.go1_front"],
+      "budget": {"compute_units": 4.0, "memory_mb": 4096}
+    },
+    {
+      "node_id": "pi6",
+      "label": "고정 카메라 · Raspberry Pi 5 · Camera Module 3 (imx708) — 2026-09-17 실측",
+      "role": "fixed_camera",
+      "tags": ["compute.cpu", "tier.fixed_camera", "sensor.camera.imx708"],
+      "budget": {"compute_units": 4.0, "memory_mb": 7900}
+    },
+    {
+      "node_id": "pi4",
+      "label": "고정 카메라 · Raspberry Pi 5 · Camera Module 3 Wide (imx708_wide) — 2026-09-17 실측",
+      "role": "fixed_camera",
+      "tags": ["compute.cpu", "tier.fixed_camera", "sensor.camera.imx708_wide"],
+      "budget": {"compute_units": 4.0, "memory_mb": 7900}
+    },
+    {
+      "node_id": "edge-dev",
+      "label": "구역 엣지 · 개발(WSL2)",
+      "role": "edge",
+      "tags": ["compute.cpu", "compute.gpu", "media.hw_decode", "media.ingest", "tier.edge"],
+      "budget": {"compute_units": 8.0, "memory_mb": 4096}
+    },
+    {
+      "node_id": "edge-gpu",
+      "label": "구역 엣지 · 시연 GPU",
+      "role": "edge",
+      "tags": ["compute.cpu", "compute.gpu", "compute.opencl", "media.hw_decode", "media.ingest", "tier.edge"],
+      "budget": {"compute_units": 30.0, "memory_mb": 4096}
+    },
+    {
+      "node_id": "server-1",
+      "label": "서버 · 중앙",
+      "role": "server",
+      "tags": ["compute.cpu", "compute.gpu", "media.ingest", "tier.server"],
+      "budget": {"compute_units": 60.0, "memory_mb": 16384}
+    }
+  ]
+}

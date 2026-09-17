@@ -1,13 +1,16 @@
 """Risk judgment output: a domain object plus a Serializer/Transport
 call, independent of any specific messaging/serialization/storage
-technology (AI-R-03).
+technology (AI-R-02).
+
+implements: AI-R-02
 
 implements: AI-R-03
 
 Actual actuator command generation and physical-motion confirmation are
 explicitly out of scope here — they belong to the backend/hardware side
-(AI-R-03: "실제 액추에이터 명령 생성과 물리 동작 확인은 백엔드·하드웨어
-파트가 담당해야 한다").
+(AI-R-02: "실제 액추에이터 명령 생성과 물리 동작 확인은 백엔드·하드웨어가
+담당하고" / AI-C-19: AI는 물리 명령 발급과 실제 액추에이터 제어를 직접
+소유해서는 안 된다).
 """
 
 from __future__ import annotations

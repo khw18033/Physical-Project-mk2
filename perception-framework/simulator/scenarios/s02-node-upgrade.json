@@ -1,0 +1,31 @@
+{
+  "id": "s02-node-upgrade",
+  "description": "상위 코드는 'perception.detect'만 요청한다 — 노드에 가속기가 생기면 다음 재평가에서 자동으로 더 우선순위 높은(priority 낮은 값) provider로 옮겨간다. 코드 변경 없음. (AI-B-01, AI-B-04)",
+  "nodes": [
+    {
+      "id": "registry", "type": "registry_node",
+      "profile": {
+        "domain_id": "zone-1",
+        "active_capability_kinds": ["perception.detect"],
+        "node_tags": ["cpu"]
+      },
+      "capabilities": [
+        {"kind": "perception.detect", "core": true}
+      ],
+      "providers": [
+        {"kind": "perception.detect", "provider_id": "provider_A_cpu", "priority": 50, "hw_tags": ["cpu"]},
+        {"kind": "perception.detect", "provider_id": "provider_B_accel", "priority": 10, "hw_tags": ["accel"]}
+      ]
+    }
+  ],
+  "couplings": [],
+  "stimuli": [
+    {"at": 5.0, "port": "control", "target": "registry", "label": "accelerator_added",
+     "msg": {"op": "set_node_tags", "tags": ["cpu", "accel"]}}
+  ],
+  "run_until": 10.0,
+  "expectations": [
+    {"type": "provider_id", "node": "registry", "after": 0.0, "provider": {"perception.detect": "provider_A_cpu"}},
+    {"type": "provider_id", "node": "registry", "after": "accelerator_added", "provider": {"perception.detect": "provider_B_accel"}}
+  ]
+}

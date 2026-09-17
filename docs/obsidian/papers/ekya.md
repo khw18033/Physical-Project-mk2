@@ -1,8 +1,8 @@
 # Ekya: Continuous Learning of Video Analytics Models on Edge Compute Servers
 
 ## 메타데이터
-- categories: [[Micro-Profiler]], [[Thief Scheduler]], [[Continuous Learning]], [[Data Drift]]
-- domain: [[Edge Computing]], [[Video Analytics]]
+- categories: Micro-Profiler, Thief Scheduler, Continuous Learning, Data Drift
+- domain: [[엣지 실행·자원]], [[지속학습]]
 - source: Bhardwaj, R., Xia, Z., Ananthanarayanan, G., Jiang, J., Shu, Y., Karianakis, N., Hsieh, K., Bahl, P., Stoica, I., "Ekya: Continuous Learning of Video Analytics Models on Edge Compute Servers", USENIX NSDI, 2022, pp. 119-135
 - url: https://www.usenix.org/conference/nsdi22/presentation/bhardwaj
 - year: 2022

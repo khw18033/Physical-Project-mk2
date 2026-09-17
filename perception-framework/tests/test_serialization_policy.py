@@ -200,8 +200,15 @@ def test_absent_config_still_yields_a_working_policy():
     assert SerializationPolicy.from_config({}).format_for("control") == "compact_binary_v1"
 
 
-def test_profile_file_supplies_the_policy():
-    policy = load_policy_from_profile("profiles/robot.json")
+def test_profile_file_supplies_the_policy(tmp_path):
+    path = tmp_path / "profile-with-serialization.json"
+    path.write_text(json.dumps({
+        "domain_id": "check-domain",
+        "active_capability_kinds": ["perception.detect"],
+        "serialization": {"default_format": "json", "by_boundary": {"edge_to_server": "compact_binary_v1"}},
+    }), encoding="utf-8")
+
+    policy = load_policy_from_profile(path)
     assert isinstance(policy.serializer_for("edge_to_server"), SerializerProvider)
 
 

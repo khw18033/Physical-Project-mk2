@@ -1,0 +1,24 @@
+{
+  "id": "physical-command-success",
+  "description": "물리 명령 정상 성공 흐름(interface-spec 예시 (a)) — 장치가 실제 시뮬레이션 시간(accept_delay, exec_time)을 들여 accept한 뒤 실행하고 SUCCEEDED로 끝난다. (AI-C-20)",
+  "nodes": [
+    {
+      "id": "robot1", "type": "physical_command_device",
+      "capabilities": [{"name": "navigate.relative"}],
+      "accept_delay": 0.5, "exec_time": 2.0
+    }
+  ],
+  "couplings": [],
+  "stimuli": [
+    {"at": 0.0, "port": "downlink", "target": "robot1", "label": "command_sent",
+     "msg": {"message_type": "command",
+             "payload": {"command_id": "c-1", "target": "robot1", "action": "navigate.relative", "parameters": {"distance": 1.0}}}}
+  ],
+  "run_until": 5.0,
+  "expectations": [
+    {"type": "trace_contains", "node": "robot1", "port": "uplink", "message_type": "acceptance",
+     "payload_contains": {"command_id": "c-1", "accepted": true}},
+    {"type": "trace_contains", "node": "robot1", "port": "uplink", "message_type": "result",
+     "payload_contains": {"command_id": "c-1", "status": "SUCCEEDED"}}
+  ]
+}

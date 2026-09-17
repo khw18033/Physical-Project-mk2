@@ -48,6 +48,25 @@ def test_local_order_survives_a_backwards_clock_jump():
     assert [r.payload for r in ordered] == ["first", "second"]
 
 
+def test_produced_at_is_kept_separate_from_observed_at():
+    # OGC O&M phenomenonTime(관측 시각) vs resultTime(결과 생산 시각) 분리 —
+    # 캡처 시각과 추론 완료 시각은 다른 순간이며 하나로 합치지 않는다 (AI-O-03).
+    factory = FrameReferenceFactory("cam-1", clock=FakeClock(1000.0))
+    ref = factory.next_reference("f1")
+
+    result = DerivedResult(ref, "payload", produced_at=1000.5)
+
+    assert result.reference.observed_at == 1000.0
+    assert result.produced_at == 1000.5
+
+
+def test_produced_at_defaults_to_none_for_existing_callers():
+    factory = FrameReferenceFactory("cam-1", clock=FakeClock())
+    result = DerivedResult(factory.next_reference("f1"), "payload")
+
+    assert result.produced_at is None
+
+
 def test_cross_node_fusion_is_gated_on_sync_state_only():
     factory = FrameReferenceFactory("cam-1", clock=FakeClock())
     synced = factory.next_reference("f1")

@@ -1,8 +1,8 @@
 # DACC: Discerning and Adaptive Offloading for Coarse-Grained Content-Aware Video Analytics
 
 ## 메타데이터
-- categories: [[Offloading Scheduler]], [[Accuracy Predictor]], [[Content-Aware Frame Offloading]], [[Frame Complexity Feature]]
-- domain: [[Edge Computing]], [[Video Analytics]]
+- categories: Offloading Scheduler, Accuracy Predictor, Content-Aware Frame Offloading, Frame Complexity Feature
+- domain: [[엣지 실행·자원]]
 - source: Pan, H., Chen, N., Huang, H., Sun, Y.-E., Wang, X., Xing, Y., Zhang, S., & Wu, J. (2026). DACC: Discerning and adaptive offloading for coarse-grained content-aware video analytics. Computer Networks, 280, 112130.
 - url: https://doi.org/10.1016/j.comnet.2026.112130
 - year: 2026

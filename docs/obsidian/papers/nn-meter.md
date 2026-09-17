@@ -1,8 +1,8 @@
 # nn-Meter: Towards Accurate Latency Prediction of Deep-Learning Model Inference on Diverse Edge Devices
 
 ## 메타데이터
-- categories: [[커널 수준 지연시간 예측]], [[자동 커널 탐지]], [[적응형 데이터 샘플링]], [[nn-Meter Builder]]
-- domain: [[엣지 AI 추론]], [[하드웨어 인식 신경망 아키텍처 탐색]]
+- categories: 커널 수준 지연시간 예측, 자동 커널 탐지, 적응형 데이터 샘플링, nn-Meter Builder
+- domain: [[엣지 실행·자원]]
 - source: Li Lyna Zhang, Shihao Han, Jianyu Wei, Ningxin Zheng, Ting Cao, Yuqing Yang, Yunxin Liu, "nn-Meter: Towards Accurate Latency Prediction of Deep-Learning Model Inference on Diverse Edge Devices," Proceedings of the 19th Annual International Conference on Mobile Systems, Applications, and Services (MobiSys), 2021.
 - url: https://doi.org/10.1145/3458864.3467882
 - year: 2021

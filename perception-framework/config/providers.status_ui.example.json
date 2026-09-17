@@ -1,0 +1,177 @@
+{
+  "$comment": "tools/status_ui/serve.py 검토용 manifest. config/providers.example.json의 6개 항목을 그대로 포함하고(cost/priority/requirement 동일) 세 가지를 더한다: (1) 'media.video_input'의 imx708-libcamera — providers.example.json에는 없는 kind라 core 기능이 DISABLED(no_provider_registered)로 보이는 것을 막는다. (2) 'perception.classify'의 clip-dictionary-cuda — required_hw_tags ['compute.gpu'], priority 10이라 GPU 노드에서는 clip-dictionary(priority 50)를 이기고, compute.gpu가 없는 노드에서는 대안(alternatives)에 'required_hw_tag_missing:compute.gpu'로 남는다(P1). (3) 'control.locomotion'의 go1-adapter — required_hw_tags ['tier.ondevice']라 말단 계층(tier.ondevice 태그를 가진 노드)에서만 제공되고 엣지·서버에서는 required_hw_tag_missing:tier.ondevice로 탈락한다; 기능 관점에서 go_to_door의 이동 제어가 말단 계층에서 온다는 것을 보여준다. rpn-ondevice는 preferred_hw_tags ['tier.ondevice']를 갖지만 preferred는 정보성이라(AI-B-04) 엣지·서버에서도 선택된다. 'deployment' 섹션은 컨테이너로 띄우는 provider에만 있고(image는 example.invalid — 실제 이미지가 아니다) PlacementReconciler가 ControlProvider.start에 그대로 넘긴다(P4); grounding-dino/yolo-world 둘 다 deployable이라 하나를 제외하면 stop→start 교체가 보인다. 그 외 provider는 in-process로 간주된다.",
+  "providers": [
+    {
+      "capability_kind": "media.video_input",
+      "provider_id": "imx708-libcamera",
+      "version": "1",
+      "compatibility": {
+        "required_hw_tags": ["sensor.camera.imx708"],
+        "preferred_hw_tags": [],
+        "cost": {"compute_units": 0.5, "memory_mb": 128},
+        "priority": 50
+      },
+      "requirement": {"required": [], "optional": []},
+      "supported_inputs": [],
+      "supported_outputs": ["image"]
+    },
+    {
+      "capability_kind": "media.video_input",
+      "provider_id": "imx708-wide-libcamera",
+      "version": "1",
+      "compatibility": {
+        "required_hw_tags": ["sensor.camera.imx708_wide"],
+        "preferred_hw_tags": [],
+        "cost": {"compute_units": 0.5, "memory_mb": 128},
+        "priority": 50
+      },
+      "requirement": {"required": [], "optional": []},
+      "supported_inputs": [],
+      "supported_outputs": ["image"]
+    },
+    {
+      "capability_kind": "media.video_input",
+      "provider_id": "go1-front-camera",
+      "version": "0-assumed",
+      "compatibility": {
+        "required_hw_tags": ["sensor.camera.go1_front"],
+        "preferred_hw_tags": [],
+        "cost": {"compute_units": 0.5, "memory_mb": 128},
+        "priority": 50
+      },
+      "requirement": {"required": [], "optional": []},
+      "supported_inputs": [],
+      "supported_outputs": ["image"]
+    },
+    {
+      "capability_kind": "media.video_input",
+      "provider_id": "media-path-ingest",
+      "version": "1",
+      "compatibility": {
+        "required_hw_tags": ["media.ingest"],
+        "preferred_hw_tags": ["media.hw_decode"],
+        "cost": {"compute_units": 0.5, "memory_mb": 128},
+        "priority": 60
+      },
+      "requirement": {"required": [], "optional": []},
+      "supported_inputs": ["frame_ref"],
+      "supported_outputs": ["image"]
+    },
+    {
+      "capability_kind": "perception.detect",
+      "provider_id": "rpn-ondevice",
+      "version": "1",
+      "compatibility": {
+        "required_hw_tags": [],
+        "preferred_hw_tags": ["tier.ondevice"],
+        "cost": {"compute_units": 2.0, "memory_mb": 256},
+        "priority": 50
+      },
+      "requirement": {"required": [], "optional": []},
+      "supported_inputs": ["image"],
+      "supported_outputs": ["region_proposal"]
+    },
+    {
+      "capability_kind": "perception.depth",
+      "provider_id": "unidepth",
+      "version": "1",
+      "compatibility": {
+        "required_hw_tags": [],
+        "preferred_hw_tags": [],
+        "cost": {"compute_units": 2.0, "memory_mb": 256},
+        "priority": 50
+      },
+      "requirement": {"required": [], "optional": []},
+      "supported_inputs": ["image"],
+      "supported_outputs": ["depth_map", "camera_intrinsics"]
+    },
+    {
+      "capability_kind": "perception.detect_ovd",
+      "provider_id": "grounding-dino",
+      "version": "1",
+      "compatibility": {
+        "required_hw_tags": [],
+        "preferred_hw_tags": [],
+        "cost": {"compute_units": 2.0, "memory_mb": 256},
+        "priority": 50
+      },
+      "requirement": {"required": [], "optional": []},
+      "supported_inputs": ["image", "text_prompt"],
+      "supported_outputs": ["detection"],
+      "deployment": {"image": "example.invalid/aif/grounding-dino:0", "command": []}
+    },
+    {
+      "capability_kind": "perception.classify",
+      "provider_id": "clip-dictionary",
+      "version": "1",
+      "compatibility": {
+        "required_hw_tags": [],
+        "preferred_hw_tags": [],
+        "cost": {"compute_units": 3.0, "memory_mb": 256},
+        "priority": 50
+      },
+      "requirement": {"required": [], "optional": []},
+      "supported_inputs": ["image", "region_proposal"],
+      "supported_outputs": ["class_score"]
+    },
+    {
+      "capability_kind": "perception.classify",
+      "provider_id": "clip-dictionary-cuda",
+      "version": "1",
+      "compatibility": {
+        "required_hw_tags": ["compute.gpu"],
+        "preferred_hw_tags": [],
+        "cost": {"compute_units": 1.0, "memory_mb": 512},
+        "priority": 10
+      },
+      "requirement": {"required": [], "optional": []},
+      "supported_inputs": ["image", "region_proposal"],
+      "supported_outputs": ["class_score"],
+      "deployment": {"image": "example.invalid/aif/clip-dictionary-cuda:0", "command": []}
+    },
+    {
+      "capability_kind": "perception.detect_ovd",
+      "provider_id": "yolo-world",
+      "version": "1",
+      "compatibility": {
+        "required_hw_tags": [],
+        "preferred_hw_tags": [],
+        "cost": {"compute_units": 2.0, "memory_mb": 256},
+        "priority": 60
+      },
+      "requirement": {"required": [], "optional": []},
+      "supported_inputs": ["image", "text_prompt"],
+      "supported_outputs": ["detection"],
+      "deployment": {"image": "example.invalid/aif/yolo-world:0", "command": []}
+    },
+    {
+      "capability_kind": "perception.segment",
+      "provider_id": "fastsam",
+      "version": "1",
+      "compatibility": {
+        "required_hw_tags": [],
+        "preferred_hw_tags": [],
+        "cost": {"compute_units": 2.0, "memory_mb": 256},
+        "priority": 50
+      },
+      "requirement": {"required": [], "optional": []},
+      "supported_inputs": ["image"],
+      "supported_outputs": ["mask"]
+    },
+    {
+      "capability_kind": "control.locomotion",
+      "provider_id": "go1-adapter",
+      "version": "1",
+      "compatibility": {
+        "required_hw_tags": ["tier.ondevice"],
+        "preferred_hw_tags": [],
+        "cost": {"compute_units": 0.5, "memory_mb": 64},
+        "priority": 50
+      },
+      "requirement": {"required": [], "optional": []},
+      "supported_inputs": ["locomotion_goal"],
+      "supported_outputs": ["command_outcome"],
+      "deployment": {"image": "example.invalid/aif/go1-adapter:0", "command": []}
+    }
+  ]
+}

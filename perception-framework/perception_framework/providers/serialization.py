@@ -24,6 +24,7 @@ from typing import Any, Callable
 
 from perception_framework.providers.adapters import SerializerProvider
 from perception_framework.providers.fakes import JsonSerializerProvider
+from perception_framework.providers.physical_command_protobuf import PhysicalCommandProtobufSerializerProvider
 
 # --------------------------------------------------------------------------
 # Compact binary wire format (stdlib only — 폐쇄망 조달 제약, AI-C-16)
@@ -212,6 +213,7 @@ class CompactBinarySerializerProvider:
 _REGISTRY: dict[str, Callable[[], SerializerProvider]] = {
     "json": JsonSerializerProvider,
     "compact_binary_v1": CompactBinarySerializerProvider,
+    "physical_command_protobuf_v1": PhysicalCommandProtobufSerializerProvider,
 }
 
 
@@ -268,8 +270,8 @@ class SerializationPolicy:
         machine-to-machine boundaries get the compact binary format,
         human-facing boundaries get JSON (가독성).
 
-        Measured trade-off (experiments/runs/serializer-comparison.json,
-        seeds 0-19, 200 iters/message): the binary format costs 0.79-0.88x
+        Measured trade-off (past benchmark run, raw data no longer in the
+        repo; seeds 0-19, 200 iters/message): the binary format costs 0.79-0.88x
         the bytes of JSON but 1.5-2.4x the encode time and 2.5-6.8x the
         decode time, because CPython's `json` is a C extension while this
         format is pure Python. So the default favours bandwidth, which is
@@ -279,6 +281,9 @@ class SerializationPolicy:
         configuration rather than code.
         """
         mapping = {b: "compact_binary_v1" for b in MACHINE_BOUNDARIES}
+        # Existing generic control payloads retain their format. The typed
+        # physical lifecycle has its own explicit canonical boundary.
+        mapping["physical_command"] = "physical_command_protobuf_v1"
         mapping.update({b: "json" for b in HUMAN_BOUNDARIES})
         return SerializationPolicy(by_boundary=mapping, default_format="json")
 

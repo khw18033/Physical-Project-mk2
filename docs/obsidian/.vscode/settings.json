@@ -1,0 +1,22 @@
+{
+  // Obsidian Visualizer (khuongduy354.obsidian-visualizer)
+  // 이 vault는 두 가지 링크를 섞어 쓴다:
+  //   [[Computer Vision]] 같은 개념 태그 624개 (대응 파일 없음 -> 미해결 노드로 표시)
+  //   [bytetrack](bytetrack.md) 같은 파일 링크 112개 (실제 문서 간 연결)
+  // 둘 다 보려면 "both"가 필요하다.
+  "obsidianVisualizer.linkPattern": "both",
+
+  // .py/.pt/.pdf/.yaml 은 그래프에서 제외
+  "obsidianVisualizer.include": ["**/*.md"],
+  "obsidianVisualizer.exclude": ["**/node_modules/**", "**/.*/**"],
+
+  // 노드 약 200개 / 링크 약 730개 기준 튜닝 (기본값은 이 밀도에서 너무 퍼진다)
+  "obsidianVisualizer.graph.nodeSize": 5,
+  "obsidianVisualizer.graph.fontSize": 12,
+  "obsidianVisualizer.graph.repulsionForce": 1200,
+  "obsidianVisualizer.graph.linkDistance": 120,
+  "obsidianVisualizer.graph.linkStrength": 0.01,
+  "obsidianVisualizer.graph.centerForce": 0.02,
+  "obsidianVisualizer.graph.collisionRadius": 22,
+  "obsidianVisualizer.graph.velocityDecay": 0.5
+}

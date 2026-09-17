@@ -1,0 +1,35 @@
+{
+  "_comment": "edge/model_config.py가 읽는 설정 예시. 실제 배포에서는 이 파일을 복사해 경로/device만 바꾼다 -- provider 코드는 절대 건드리지 않는다.",
+  "rpn": {
+    "weights_path": "../../research/oln_training/yolo_weights/yolov8n.pt",
+    "device": null,
+    "conf": 1e-4,
+    "iou": 0.50,
+    "top_n": 1000
+  },
+  "clip": {
+    "vision_model_path": "../../models/openvocab/clip-vit-base-patch32/onnx/vision_model_quantized.onnx",
+    "text_model_path": "../../models/openvocab/clip-vit-base-patch32/onnx/text_model_quantized.onnx",
+    "tokenizer_path": "../../models/openvocab/clip-vit-base-patch32/tokenizer.json",
+    "class_features_path": "../../demo/test/class_features.json"
+  },
+  "grounding_dino": {
+    "model_id": "IDEA-Research/grounding-dino-tiny",
+    "device": null,
+    "box_threshold": 0.15,
+    "text_threshold": 0.15
+  },
+  "yolo_world": {
+    "weights_path": "../../research/oln_training/yolo_weights/yolov8s-worldv2.pt",
+    "device": null,
+    "conf": 0.05
+  },
+  "fastsam": {
+    "weights_path": "../../research/oln_training/yolo_weights/FastSAM-s.pt",
+    "device": null
+  },
+  "unidepth": {
+    "model_id": "lpiccinelli/unidepth-v2-vitb14",
+    "device": "cuda"
+  }
+}

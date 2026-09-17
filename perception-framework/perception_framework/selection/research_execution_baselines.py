@@ -10,6 +10,7 @@ side-effect free so an experiment can freeze inputs and audit every decision.
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from typing import Callable, Mapping, Protocol, Sequence, runtime_checkable
 
@@ -214,3 +215,243 @@ class E4ProfilePolicy:
             return (quality_gap + latency_gap + energy_gap, p.energy_mj, p.latency_ms, p.profile_id)
 
         return E4Decision(min(profiles, key=violation), False, "least_normalized_constraint_violation")
+
+
+@dataclass(frozen=True)
+class EdgeBoostDecision:
+    offload: bool
+    margin: float
+    calibrated_probs: tuple[float, ...]
+    reason: str
+
+
+class EdgeBoostOffloadPolicy:
+    """EdgeBoost-style (Said & Landsiedel, Computer Networks 2025;
+    docs/obsidian/papers/edgeboost.md) selective on-device/edge offload.
+
+    implements: AI-E-04, AI-S-05
+
+    Verified against the paper's own reference implementation
+    (`ds-kiel/EdgeBoost` on GitHub) rather than the abstract alone: the
+    offload trigger is *not* raw top-1 confidence, calibrated or otherwise
+    -- it is the gap between the temperature-scaled top-1 and top-2 class
+    probabilities. A model can be "confident" (high top-1) while still
+    nearly tied with a second class; margin catches that ambiguity, plain
+    top-1 confidence does not.
+    """
+
+    def __init__(self, *, temperature: float = 1.0) -> None:
+        if temperature <= 0:
+            raise ValueError("temperature must be positive")
+        self._temperature = temperature
+
+    def calibrate(self, logits: Sequence[float]) -> tuple[float, ...]:
+        """Temperature-scaled softmax -- the same calibration family as the
+        reference implementation's `torch_uncertainty.TemperatureScaler`.
+        Higher temperature flattens the distribution (lower margin for the
+        same logits); lower temperature sharpens it.
+        """
+        if not logits:
+            raise ValueError("logits must be non-empty")
+        scaled = [v / self._temperature for v in logits]
+        peak = max(scaled)
+        exps = [math.exp(v - peak) for v in scaled]
+        total = sum(exps)
+        return tuple(e / total for e in exps)
+
+    def decide(self, logits: Sequence[float], *, margin_threshold: float) -> EdgeBoostDecision:
+        probs = self.calibrate(logits)
+        ranked = sorted(probs, reverse=True)
+        top1 = ranked[0]
+        top2 = ranked[1] if len(ranked) > 1 else 0.0
+        margin = top1 - top2
+        offload = margin < margin_threshold
+        reason = "low_confidence_margin" if offload else "margin_within_local_budget"
+        return EdgeBoostDecision(offload, margin, probs, reason)
+
+
+@dataclass(frozen=True)
+class Where2commSelection:
+    selected_indices: tuple[int, ...]
+    total_regions: int
+    reason: str
+
+    @property
+    def communication_volume(self) -> int:
+        return len(self.selected_indices)
+
+    @property
+    def reduction_factor(self) -> float:
+        """How many times smaller the selected set is than a full broadcast."""
+        return self.total_regions / max(1, self.communication_volume)
+
+
+class Where2commBroadcastPolicy:
+    """Where2comm-style (Hu et al., NeurIPS 2022; docs/obsidian/papers/where2comm.md)
+    spatially sparse broadcast selection.
+
+    implements: AI-E-04, AI-C-06
+
+    Verified against the full paper text (not the abstract alone): what
+    gates a broadcast region is the *sender's own* per-region detection
+    confidence, not "does the receiver lack this" -- round 0 selects the
+    sender's own top-confidence regions with no receiver input at all.
+    Only from round 1 onward does a receiver's request map (1 - its own
+    confidence) multiplicatively narrow that same sender-confidence-led
+    selection. Framing this as "share whatever the receiver is missing"
+    (a natural first reading) is the one specific point the original
+    colleague summary got backwards -- this implementation follows the
+    verified mechanism, not that framing.
+    """
+
+    def _top_k(self, values: Sequence[float], keep_fraction: float) -> tuple[int, ...]:
+        if not values:
+            return ()
+        if not 0.0 < keep_fraction <= 1.0:
+            raise ValueError("keep_fraction must be in (0, 1]")
+        k = max(1, round(len(values) * keep_fraction))
+        ranked = sorted(range(len(values)), key=lambda i: values[i], reverse=True)
+        return tuple(sorted(ranked[:k]))
+
+    def select_round0(self, sender_confidence: Sequence[float], *, keep_fraction: float) -> Where2commSelection:
+        """First round: gated purely by the sender's own confidence map."""
+        indices = self._top_k(sender_confidence, keep_fraction)
+        return Where2commSelection(indices, len(sender_confidence), "sender_confidence_top_k")
+
+    def select_round1(
+        self,
+        sender_confidence: Sequence[float],
+        receiver_confidence: Sequence[float],
+        *,
+        keep_fraction: float,
+    ) -> Where2commSelection:
+        """Second round: sender confidence times the receiver's request map
+        (1 - receiver confidence) -- the receiver only ever *narrows*, it
+        never overrides, what the sender was already willing to share.
+        """
+        if len(sender_confidence) != len(receiver_confidence):
+            raise ValueError("sender_confidence and receiver_confidence must be the same length")
+        request_map = [1.0 - c for c in receiver_confidence]
+        gated = [s * r for s, r in zip(sender_confidence, request_map)]
+        indices = self._top_k(gated, keep_fraction)
+        return Where2commSelection(indices, len(sender_confidence), "sender_confidence_times_receiver_request")
+
+
+@dataclass(frozen=True)
+class OctoCrossTransferPlan:
+    transfers: dict[tuple[str, str], float]
+    resulting_load: dict[str, float]
+    overloaded_nodes: tuple[str, ...]
+    reason: str
+
+
+class OctoCrossTransferPolicy:
+    """OctoCross-style (Cheng et al., ICSOC 2025; docs/obsidian/papers/octocross.md)
+    capacity-feasible cross-camera load transfer.
+
+    implements: AI-B-04, AI-B-06
+
+    Verified against the real paper/repo: OctoCross's actual contribution is
+    a learned spatiotemporal-attention *load predictor* plus a graph
+    topology -- this class reproduces only the downstream decision (given
+    already-predicted loads and a topology, compute a capacity-respecting
+    transfer plan via iterative proportional fitting / Sinkhorn-style
+    row/column rescaling, the same family of numerical projection the
+    paper's own `iterative_transfer_projection` uses on top of its learned
+    scores), never the predictor itself. Predicted loads and node
+    capacities must always be supplied by the caller -- this matches
+    AI-B-01's rule that performance/cost measured under one configuration
+    must not be assumed to transfer to another; nothing here invents a
+    load number.
+
+    Algorithm: for each overloaded node, the excess above capacity (its
+    "row target") is split evenly across its allowed outgoing edges, and
+    each under-capacity neighbour's incoming total (its "column target")
+    is capped at its own headroom. Column caps and row caps are then
+    applied alternately -- each pass can only ever shrink a transfer
+    amount, never grow it, so the process is monotone and converges within
+    a bounded number of passes; `iterations` is an upper bound on how many
+    alternating passes are attempted, not a guarantee that every overload
+    is resolved. If the reachable topology's total headroom is genuinely
+    insufficient, or an overloaded node has no allowed outgoing edge at
+    all, the leftover overload is reported honestly in
+    `overloaded_nodes` rather than fabricated away.
+    """
+
+    def plan(
+        self,
+        predicted_load: dict[str, float],
+        capacity: dict[str, float],
+        allowed_edges: set[tuple[str, str]],
+        *,
+        iterations: int = 20,
+    ) -> OctoCrossTransferPlan:
+        if not predicted_load or not capacity:
+            raise ValueError("predicted_load and capacity are required")
+        if set(predicted_load) != set(capacity):
+            raise ValueError("predicted_load and capacity must describe the same set of nodes")
+        if any(v < 0 for v in predicted_load.values()) or any(v < 0 for v in capacity.values()):
+            raise ValueError("predicted loads and capacities must be non-negative")
+        if iterations <= 0:
+            raise ValueError("iterations must be positive")
+
+        nodes = tuple(predicted_load)
+        for frm, to in allowed_edges:
+            if frm not in predicted_load or to not in predicted_load:
+                raise ValueError("allowed_edges must only reference known nodes")
+
+        excess = {n: max(0.0, predicted_load[n] - capacity[n]) for n in nodes}
+        headroom = {n: max(0.0, capacity[n] - predicted_load[n]) for n in nodes}
+
+        outgoing: dict[str, list[str]] = {}
+        for frm, to in allowed_edges:
+            if excess[frm] > 0.0 and headroom[to] > 0.0:
+                outgoing.setdefault(frm, []).append(to)
+
+        edges = [(frm, to) for frm, targets in outgoing.items() for to in targets]
+        if not edges:
+            overloaded_nodes = tuple(sorted(n for n in nodes if excess[n] > 1e-9))
+            reason = "capacity_feasible" if not overloaded_nodes else "no_reachable_headroom"
+            return OctoCrossTransferPlan({}, dict(predicted_load), overloaded_nodes, reason)
+
+        out_count: dict[str, int] = {}
+        for frm, _to in edges:
+            out_count[frm] = out_count.get(frm, 0) + 1
+        weight = {(frm, to): excess[frm] / out_count[frm] for frm, to in edges}
+
+        for _ in range(iterations):
+            col_sum: dict[str, float] = {}
+            for (_frm, to), w in weight.items():
+                col_sum[to] = col_sum.get(to, 0.0) + w
+            for edge in weight:
+                to = edge[1]
+                total = col_sum[to]
+                if headroom[to] <= 0.0:
+                    weight[edge] = 0.0
+                elif total > headroom[to]:
+                    weight[edge] *= headroom[to] / total
+
+            row_sum: dict[str, float] = {}
+            for (frm, _to), w in weight.items():
+                row_sum[frm] = row_sum.get(frm, 0.0) + w
+            converged = True
+            for edge in weight:
+                frm = edge[0]
+                total = row_sum[frm]
+                if excess[frm] > 0.0 and total > excess[frm]:
+                    new_w = weight[edge] * excess[frm] / total
+                    if abs(new_w - weight[edge]) > 1e-9:
+                        converged = False
+                    weight[edge] = new_w
+            if converged:
+                break
+
+        transfers = {edge: amount for edge, amount in weight.items() if amount > 1e-9}
+        resulting_load = dict(predicted_load)
+        for (frm, to), amount in transfers.items():
+            resulting_load[frm] -= amount
+            resulting_load[to] += amount
+
+        overloaded_nodes = tuple(sorted(n for n in nodes if resulting_load[n] > capacity[n] + 1e-9))
+        reason = "capacity_feasible" if not overloaded_nodes else "insufficient_reachable_capacity"
+        return OctoCrossTransferPlan(transfers, resulting_load, overloaded_nodes, reason)

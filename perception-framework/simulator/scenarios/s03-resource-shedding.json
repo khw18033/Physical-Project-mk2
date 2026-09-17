@@ -1,0 +1,47 @@
+{
+  "id": "s03-resource-shedding",
+  "description": "자원이 포화되면 우선순위 낮은 선택 기능부터 축소되고, 회복되면 다시 켜진다. 정말 부족하면 핵심 기능도 숨기지 않고 DISABLED+사유로 드러낸다. 시간축을 따라 포화->복구->극단 포화를 순서대로 겪는다. (AI-B-06, AI-C-05, AI-C-11, AI-O-02)",
+  "nodes": [
+    {
+      "id": "registry", "type": "registry_node",
+      "profile": {
+        "domain_id": "zone-1",
+        "active_capability_kinds": ["perception.detect", "perception.track", "perception.additional_analysis", "service.optional"],
+        "node_tags": ["cpu"]
+      },
+      "capabilities": [
+        {"kind": "perception.detect", "core": true},
+        {"kind": "perception.track", "core": true, "rank": 0},
+        {"kind": "perception.additional_analysis", "rank": 1},
+        {"kind": "service.optional", "rank": 2}
+      ],
+      "providers": [
+        {"kind": "perception.detect", "provider_id": "detect-1", "compute": 4.0, "memory": 256},
+        {"kind": "perception.track", "provider_id": "track-1", "compute": 3.0, "memory": 256},
+        {"kind": "perception.additional_analysis", "provider_id": "analysis-1", "compute": 5.0, "memory": 512},
+        {"kind": "service.optional", "provider_id": "optional-1", "compute": 5.0, "memory": 512}
+      ],
+      "budget": {"compute_units": 30.0, "memory_mb": 4096.0}
+    }
+  ],
+  "couplings": [],
+  "stimuli": [
+    {"at": 1.0, "port": "control", "target": "registry", "label": "healthy", "msg": {"op": "resource_snapshot", "cpu": 0.30, "memory": 0.4}},
+    {"at": 2.0, "port": "control", "target": "registry", "label": "saturated", "msg": {"op": "resource_snapshot", "cpu": 0.75, "memory": 0.4}},
+    {"at": 3.0, "port": "control", "target": "registry", "label": "recovered", "msg": {"op": "resource_snapshot", "cpu": 0.30, "memory": 0.4}},
+    {"at": 4.0, "port": "control", "target": "registry", "label": "very_high", "msg": {"op": "resource_snapshot", "cpu": 0.90, "memory": 0.4}},
+    {"at": 5.0, "port": "control", "target": "registry", "label": "extreme", "msg": {"op": "resource_snapshot", "cpu": 0.97, "memory": 0.4}}
+  ],
+  "run_until": 6.0,
+  "expectations": [
+    {"type": "capability_state", "node": "registry", "after": "healthy", "state": {"perception.detect": "ACTIVE", "perception.track": "ACTIVE", "perception.additional_analysis": "ACTIVE", "service.optional": "ACTIVE"}},
+    {"type": "capability_state", "node": "registry", "after": "saturated", "state": {"perception.detect": "ACTIVE", "perception.track": "ACTIVE", "service.optional": "DISABLED"}},
+    {"type": "event_logged", "node": "registry", "name": "capability_state_changed", "payload_contains": {"capability_kind": "service.optional", "after": "DISABLED"}},
+    {"type": "capability_state", "node": "registry", "after": "recovered", "state": {"perception.detect": "ACTIVE", "perception.track": "ACTIVE", "perception.additional_analysis": "ACTIVE", "service.optional": "ACTIVE"}},
+    {"type": "recovery_count_at_least", "node": "registry", "value": 1},
+    {"type": "capability_state", "node": "registry", "after": "very_high", "state": {"perception.detect": "DISABLED", "perception.additional_analysis": "DISABLED", "service.optional": "DISABLED"}},
+    {"type": "capability_state", "node": "registry", "after": "extreme", "state": {"perception.detect": "DISABLED"}},
+    {"type": "event_logged", "node": "registry", "name": "capability_state_changed", "severity": "error", "payload_contains": {"capability_kind": "perception.detect"}},
+    {"type": "core_kinds_running", "node": "registry", "value": false}
+  ]
+}

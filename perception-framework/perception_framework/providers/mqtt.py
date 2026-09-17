@@ -17,11 +17,20 @@ a Kafka or DDS implementation can honour the same contract later.
 from __future__ import annotations
 
 import threading
+from dataclasses import dataclass
+import ssl
 from typing import Callable
 
 from perception_framework.common.data_plane import DataKind, DataPlane, assert_routable, policy_for
 
 _QOS_MAP = {"at_most_once": 0, "at_least_once": 1, "exactly_once": 2}
+
+
+@dataclass(frozen=True)
+class MqttMessageMetadata:
+    response_topic: str | None = None
+    correlation_data: bytes | None = None
+    message_expiry_interval: int | None = None
 
 
 class MqttTransportProvider:
@@ -41,6 +50,9 @@ class MqttTransportProvider:
         keepalive: int = 30,
         last_will_topic: str | None = None,
         last_will_payload: bytes = b"offline",
+        username: str | None = None,
+        password: str | None = None,
+        tls_context: ssl.SSLContext | None = None,
     ) -> None:
         import paho.mqtt.client as mqtt  # local import: only this module may know the client library
 
@@ -54,6 +66,12 @@ class MqttTransportProvider:
         self._keepalive = keepalive
         self._connected = threading.Event()
         self._handlers: dict[str, list[Callable[[bytes], None]]] = {}
+        self._envelope_handlers: dict[str, list[Callable[[bytes, MqttMessageMetadata], None]]] = {}
+
+        if username is not None:
+            self._client.username_pw_set(username, password)
+        if tls_context is not None:
+            self._client.tls_set_context(tls_context)
 
         if last_will_topic is not None:
             # Device-death signal must stay an individual state, never be
@@ -88,8 +106,36 @@ class MqttTransportProvider:
         except Exception:
             return
 
+    def publish_command(
+        self, topic: str, payload: bytes, *, response_topic: str,
+        correlation_data: bytes, message_expiry_interval: int, qos: str = "at_least_once",
+    ) -> None:
+        """MQTT 5 request/response properties; semantic deadline remains in the payload."""
+        if message_expiry_interval <= 0:
+            raise ValueError("message_expiry_interval must be positive")
+        from paho.mqtt.packettypes import PacketTypes
+        from paho.mqtt.properties import Properties
+
+        properties = Properties(PacketTypes.PUBLISH)
+        properties.ResponseTopic = response_topic
+        properties.CorrelationData = correlation_data
+        properties.MessageExpiryInterval = message_expiry_interval
+        try:
+            self._client.publish(topic, payload, qos=_QOS_MAP.get(qos, 1), properties=properties)
+        except Exception:
+            return
+
     def subscribe(self, topic: str, handler: Callable[[bytes], None]) -> None:
         self._handlers.setdefault(topic, []).append(handler)
+        try:
+            self._client.subscribe(topic, qos=1)
+        except Exception:
+            return
+
+    def subscribe_envelope(
+        self, topic: str, handler: Callable[[bytes, MqttMessageMetadata], None]
+    ) -> None:
+        self._envelope_handlers.setdefault(topic, []).append(handler)
         try:
             self._client.subscribe(topic, qos=1)
         except Exception:
@@ -117,6 +163,8 @@ class MqttTransportProvider:
         self._connected.set()
         for topic in self._handlers:
             client.subscribe(topic, qos=1)
+        for topic in self._envelope_handlers:
+            client.subscribe(topic, qos=1)
 
     def _on_disconnect(self, client, userdata, *args, **kwargs) -> None:
         self._connected.clear()
@@ -130,6 +178,19 @@ class MqttTransportProvider:
                     except Exception:
                         # One subscriber's failure must not stop the others
                         # or the transport itself (AI-C-11).
+                        continue
+        properties = getattr(message, "properties", None)
+        metadata = MqttMessageMetadata(
+            response_topic=getattr(properties, "ResponseTopic", None),
+            correlation_data=getattr(properties, "CorrelationData", None),
+            message_expiry_interval=getattr(properties, "MessageExpiryInterval", None),
+        )
+        for topic, handlers in self._envelope_handlers.items():
+            if _topic_matches(topic, message.topic):
+                for handler in handlers:
+                    try:
+                        handler(message.payload, metadata)
+                    except Exception:
                         continue
 
 

@@ -1,8 +1,8 @@
 # Open-World Objectness Modeling Unifies Novel Object Detection
 
 ## 메타데이터
-- categories: [[Class-Agnostic Objectness Modeling]], [[Dynamic Gaussian Prior]], [[Energy-based Margin Loss]]
-- domain: [[Computer Vision]], [[Open-World Object Detection]]
+- categories: Class-Agnostic Objectness Modeling, Dynamic Gaussian Prior, Energy-based Margin Loss
+- domain: [[객체 탐지·분할]]
 - source: Shan Zhang, Yao Ni, Jinhao Du, Yuan Xue, Philip H.S. Torr, Piotr Koniusz, Anton van den Hengel, "Open-World Objectness Modeling Unifies Novel Object Detection," Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR), 2025, pp. 30332-30342.
 - url: https://openaccess.thecvf.com/content/CVPR2025/html/Zhang_Open-World_Objectness_Modeling_Unifies_Novel_Object_Detection_CVPR_2025_paper.html
 - year: 2025

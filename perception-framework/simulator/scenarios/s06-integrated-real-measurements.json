@@ -1,0 +1,160 @@
+{
+  "id": "s06-integrated-real-measurements",
+  "description": "말단(CPU)-엣지(GPU) 인지 provider + 실 MQTT/Kafka 링크 지연 + 물리 명령 + 실 tracking/coverage/risk + 실 OTel 전송 + K3s 실측 지연 + 실 학습 후보-lineage 파이프라인을 하나의 시뮬레이션 시간축에서 통합 실행. provider의 latency_ms/measured_accuracy는 이 환경의 실제 WildTrack 추론(ssd_mobilenet_v1, CPUExecutionProvider vs CUDAExecutionProvider) 실측값, 링크 rtt_ms와 K3s apply/ready 지연은 이 환경에 실제로 떠 있는 Mosquitto/Kafka/K3s 실측값이다. AI-N-01, AI-E-01, AI-E-04, AI-S-01, AI-S-03, AI-R-01, AI-R-02, AI-B-02/03/04/05/06/09, AI-C-05/06/13/20, AI-O-01/02, AI-L-01/02/07/08",
+  "nodes": [
+    {
+      "id": "registry", "type": "registry_node",
+      "profile": {
+        "domain_id": "wildtrack_pilot",
+        "active_capability_kinds": ["safety.local_judgment", "perception.detect"],
+        "node_tags": ["cpu", "mobile"]
+      },
+      "capabilities": [
+        {"kind": "safety.local_judgment", "core": true, "rank": 0},
+        {"kind": "perception.detect", "core": false, "rank": 1}
+      ],
+      "providers": [
+        {"kind": "safety.local_judgment", "provider_id": "local-safety-loop", "priority": 0,
+         "compute": 0.1, "memory": 8.0, "hw_tags": ["cpu"], "health_ref": "safety-health"},
+        {"kind": "perception.detect", "provider_id": "cpu_detector", "priority": 50,
+         "compute": 1.0, "memory": 64.0, "hw_tags": ["cpu"], "latency_ms": 13.94,
+         "measured_accuracy": 0.215, "health_ref": "cpu-detector-health"},
+        {"kind": "perception.detect", "provider_id": "edge_gpu_detector", "priority": 50,
+         "compute": 5.0, "memory": 512.0, "hw_tags": ["gpu"], "latency_ms": 15.56,
+         "measured_accuracy": 0.215, "health_ref": "gpu-detector-health"}
+      ],
+      "budget": {"compute_units": 30.0, "memory_mb": 4096.0}
+    },
+    {"id": "mqtt_link", "type": "link_node", "rtt_ms": 19.4},
+    {"id": "kafka_link", "type": "link_node", "rtt_ms": 1.4},
+    {
+      "id": "robot1", "type": "physical_command_device",
+      "capabilities": [{"name": "navigate.relative"}],
+      "accept_delay": 0.5, "exec_time": 2.0
+    },
+    {"id": "perc", "type": "perception_risk_node",
+     "risk_event_kinds": ["water_level"], "observe_threshold": 0.3, "alert_threshold": 0.7},
+    {"id": "obs", "type": "observability_node", "endpoint": "http://127.0.0.1:4317", "service_name": "aif-sim-integrated"},
+    {"id": "cluster", "type": "cluster_control_node", "apply_delay_s": 0.26, "ready_delay_s": 2.1},
+    {"id": "learn", "type": "learning_pipeline_node", "alpha": 0.05}
+  ],
+  "couplings": [],
+  "stimuli": [
+    {"at": 0.0, "port": "in", "target": "mqtt_link", "label": "p0_coldstart",
+     "msg": {"message_type": "safety_state", "payload": {"state": "SAFE", "device": "term1"}}},
+    {"at": 0.0, "port": "downlink", "target": "robot1", "label": "p0b_command_sent",
+     "msg": {"message_type": "command",
+             "payload": {"command_id": "c-1", "target": "robot1", "action": "navigate.relative", "parameters": {"distance": 1.0}}}},
+    {"at": 0.0, "port": "control", "target": "perc", "label": "p0c_detect_frame",
+     "msg": {"op": "detect_frame", "detections": [
+       {"box": [0, 0, 10, 10], "label": "person", "score": 0.9},
+       {"box": [50, 50, 60, 60], "label": "person", "score": 0.8}
+     ]}},
+    {"at": 0.0, "port": "control", "target": "obs", "label": "p0d_metric",
+     "msg": {"op": "emit_metric", "name": "sim_integrated_counter", "value": 1.0, "tags": {"capability": "perception.detect"}}},
+    {"at": 0.0, "port": "control", "target": "learn", "label": "p0e_seed_reference",
+     "msg": {"op": "add_reference_task", "task_id": "normal_scene",
+             "reference_features": [[0.0, 0.0], [0.1, 0.1], [-0.1, 0.1], [0.1, -0.1]]}},
+
+    {"at": 0.03, "port": "in", "target": "kafka_link", "label": "p0f_checkpoint_for_mqtt_latency",
+     "msg": {"message_type": "probe", "payload": {}}},
+
+    {"at": 0.5, "port": "control", "target": "perc", "label": "p0g_coverage",
+     "msg": {"op": "coverage_observation", "region_id": "zone_a", "source_id": "cam1",
+             "observation_id": "o1", "observed_at": 0.5, "observed_fraction": 0.3, "confidence": 0.8}},
+    {"at": 0.5, "port": "control", "target": "cluster", "label": "p0h_deploy_requested",
+     "msg": {"op": "deploy", "target_id": "perc-svc", "image": "perception-framework:0.1.0"}},
+
+    {"at": 1.0, "port": "control", "target": "registry", "label": "p1_edge_escalation",
+     "msg": {"op": "set_node_tags", "tags": ["cpu", "mobile", "gpu", "edge_node"]}},
+    {"at": 1.0, "port": "control", "target": "learn", "label": "p1c_ood_candidate",
+     "msg": {"op": "candidate_check", "lineage_id": "cand-1",
+             "target_features": [[50.0, 50.0], [50.1, 49.9], [49.9, 50.1], [50.0, 49.8]],
+             "actor": "sim", "evidence_ref": "wildtrack-frame-0", "reason": "far-from-normal-cluster"}},
+    {"at": 1.05, "port": "in", "target": "kafka_link", "label": "p1b_edge_to_server",
+     "msg": {"message_type": "coverage_observation", "payload": {"region_id": "zone_a", "observed_fraction": 0.6}}},
+
+    {"at": 1.5, "port": "control", "target": "obs", "label": "p1d_critical_event",
+     "msg": {"op": "emit_event", "name": "sim_integrated_event", "severity": "critical", "payload": {"reason": "cpu-detector-about-to-fail"}}},
+
+    {"at": 2.0, "port": "control", "target": "registry", "label": "p2_ondevice_failure",
+     "msg": {"op": "set_health", "ref": "cpu-detector-health", "alive": false}},
+    {"at": 2.0, "port": "control", "target": "perc", "label": "p2b_risk_alert",
+     "msg": {"op": "risk_event", "kind": "water_level", "severity": 0.9}},
+    {"at": 2.05, "port": "control", "target": "learn", "label": "p2c_advance_1",
+     "msg": {"op": "lineage_advance", "lineage_id": "cand-1", "actor": "sim", "evidence_ref": "e1", "reason": "isolated for review"}},
+    {"at": 2.1, "port": "control", "target": "learn", "label": "p2d_advance_2",
+     "msg": {"op": "lineage_advance", "lineage_id": "cand-1", "actor": "sim", "evidence_ref": "e2", "reason": "manual review done"}},
+    {"at": 2.15, "port": "control", "target": "learn", "label": "p2e_advance_3",
+     "msg": {"op": "lineage_advance", "lineage_id": "cand-1", "actor": "sim", "evidence_ref": "e3", "reason": "strategy chosen"}},
+    {"at": 2.2, "port": "control", "target": "learn", "label": "p2f_advance_4",
+     "msg": {"op": "lineage_advance", "lineage_id": "cand-1", "actor": "sim", "evidence_ref": "e4", "reason": "validation gate passed"}},
+    {"at": 2.25, "port": "control", "target": "learn", "label": "p2g_advance_5",
+     "msg": {"op": "lineage_advance", "lineage_id": "cand-1", "actor": "sim", "evidence_ref": "e5", "reason": "sent for approval"}},
+    {"at": 2.3, "port": "control", "target": "learn", "label": "p2h_advance_6",
+     "msg": {"op": "lineage_advance", "lineage_id": "cand-1", "actor": "admin", "evidence_ref": "e6", "reason": "admin approved"}},
+    {"at": 2.35, "port": "control", "target": "learn", "label": "p2i_advance_deployed",
+     "msg": {"op": "lineage_advance", "lineage_id": "cand-1", "actor": "sim", "evidence_ref": "e7", "reason": "staged rollout started"}},
+
+    {"at": 2.9, "port": "control", "target": "learn", "label": "p2j_rollback",
+     "msg": {"op": "lineage_rollback", "lineage_id": "cand-1", "actor": "sim", "evidence_ref": "e8", "reason": "operational regression detected"}},
+
+    {"at": 3.0, "port": "control", "target": "registry", "label": "p3_latency_budget_pressure",
+     "msg": {"op": "resource_snapshot", "cpu": 0.5, "max_latency_ms": 10.0}},
+
+    {"at": 4.0, "port": "control", "target": "registry", "label": "p4a_cpu_health_restored",
+     "msg": {"op": "set_health", "ref": "cpu-detector-health", "alive": true}},
+    {"at": 4.01, "port": "control", "target": "registry", "label": "p4_recovery",
+     "msg": {"op": "resource_snapshot", "cpu": 0.2, "max_latency_ms": null}},
+
+    {"at": 4.5, "port": "control", "target": "registry", "label": "p5_hotplug_new_sensor",
+     "msg": {"op": "register_provider", "kind": "perception.detect", "provider_id": "new_thermal_cam",
+              "priority": 40, "compute": 1.2, "memory": 96.0, "hw_tags": ["cpu"], "latency_ms": 12.0}}
+  ],
+  "run_until": 5.0,
+  "expectations": [
+    {"type": "latency_budget", "node": "mqtt_link", "max_s": 0.05},
+    {"type": "provider_id", "node": "registry", "after": "p0_coldstart",
+     "provider": {"perception.detect": "cpu_detector"}},
+    {"type": "accuracy_floor", "node": "registry", "kind": "perception.detect",
+     "provider_id": "cpu_detector", "min": 0.2},
+    {"type": "node_state", "node": "perc", "after": "p0_coldstart", "path": ["track_count"], "expected": 2},
+
+    {"type": "trace_contains", "node": "robot1", "port": "uplink", "message_type": "acceptance",
+     "payload_contains": {"command_id": "c-1", "accepted": true}},
+
+    {"type": "node_state", "node": "perc", "after": "p0g_coverage", "path": ["blind_spot_count"], "expected": 1},
+
+    {"type": "provider_id", "node": "registry", "after": "p1_edge_escalation",
+     "provider": {"perception.detect": "cpu_detector"}},
+    {"type": "node_state", "node": "learn", "after": "p1_edge_escalation", "path": ["last_decision_in_distribution"], "expected": false},
+    {"type": "node_state", "node": "learn", "after": "p1_edge_escalation", "path": ["lineage_states", "cand-1"], "expected": "candidate"},
+
+    {"type": "node_state", "node": "obs", "after": "p1d_critical_event", "path": ["critical_event_count"], "expected": 1},
+
+    {"type": "provider_id", "node": "registry", "after": "p2_ondevice_failure",
+     "provider": {"perception.detect": "edge_gpu_detector"}},
+    {"type": "capability_state", "node": "registry", "after": "p2_ondevice_failure",
+     "state": {"safety.local_judgment": "ACTIVE"}},
+    {"type": "node_state", "node": "perc", "after": "p2_ondevice_failure", "path": ["risk_state"], "expected": "ALERT"},
+    {"type": "node_state", "node": "learn", "after": "p2i_advance_deployed", "path": ["lineage_states", "cand-1"], "expected": "deployed"},
+
+    {"type": "node_state", "node": "learn", "after": "p2j_rollback", "path": ["lineage_states", "cand-1"], "expected": "rolled_back"},
+
+    {"type": "capability_state", "node": "registry", "after": "p3_latency_budget_pressure",
+     "state": {"perception.detect": "DISABLED"}},
+    {"type": "capability_state", "node": "registry", "after": "p3_latency_budget_pressure",
+     "state": {"safety.local_judgment": "ACTIVE"}},
+
+    {"type": "provider_id", "node": "registry", "after": "p4_recovery",
+     "provider": {"perception.detect": "cpu_detector"}},
+    {"type": "node_state", "node": "cluster", "after": "p4_recovery", "path": ["perc-svc"], "expected": "RUNNING"},
+
+    {"type": "conformance", "node": "registry", "must_pass": true,
+     "provider": {"kind": "perception.detect", "provider_id": "new_thermal_cam", "priority": 40,
+                   "compute": 1.2, "memory": 96.0, "hw_tags": ["cpu"]}},
+
+    {"type": "trace_contains", "node": "robot1", "port": "uplink", "message_type": "result",
+     "payload_contains": {"command_id": "c-1", "status": "SUCCEEDED"}}
+  ]
+}

@@ -1,0 +1,28 @@
+{
+  "id": "physical-command-cancel",
+  "description": "실행 중 취소는 완료보다 우선한다(interface-spec 예시 (c), §5-3) — 취소가 accept 이후·자연 완료 이전(t=1.5, 원래 완료 예정 t=3.2)에 도착하면 최종 결과는 SUCCEEDED가 아니라 CANCELED다. 실제 시뮬레이션 시간 지연이 있어야만 표현 가능한 경쟁 조건이라 in-memory fake로는 재현하지 못했던 경로다. (AI-C-20)",
+  "nodes": [
+    {
+      "id": "robot1", "type": "physical_command_device",
+      "capabilities": [{"name": "navigate.relative"}],
+      "accept_delay": 0.2, "exec_time": 3.0, "stop_delay": 0.2
+    }
+  ],
+  "couplings": [],
+  "stimuli": [
+    {"at": 0.0, "port": "downlink", "target": "robot1", "label": "command_sent",
+     "msg": {"message_type": "command",
+             "payload": {"command_id": "c-3", "target": "robot1", "action": "navigate.relative", "parameters": {}}}},
+    {"at": 1.5, "port": "downlink", "target": "robot1", "label": "cancel_sent",
+     "msg": {"message_type": "cancel_request", "payload": {"command_id": "c-3"}}}
+  ],
+  "run_until": 5.0,
+  "expectations": [
+    {"type": "trace_contains", "node": "robot1", "port": "uplink", "message_type": "acceptance",
+     "payload_contains": {"command_id": "c-3", "accepted": true}, "at_or_before": 1.5},
+    {"type": "trace_contains", "node": "robot1", "port": "uplink", "message_type": "cancel_response",
+     "payload_contains": {"command_id": "c-3", "accepted": true}},
+    {"type": "trace_contains", "node": "robot1", "port": "uplink", "message_type": "result",
+     "payload_contains": {"command_id": "c-3", "status": "CANCELED"}, "at_or_before": 5.0}
+  ]
+}

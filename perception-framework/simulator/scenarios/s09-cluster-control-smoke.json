@@ -1,0 +1,16 @@
+{
+  "id": "s09-cluster-control-smoke",
+  "description": "ClusterControlNode 검증 — 실측 K3s apply(0.26s)/ready(2.1s) 지연을 시뮬레이션 시간축에 반영(기본 모드는 실 kubectl 호출 안 함, use_real_k3s=false). AI-B-02, AI-B-03, AI-B-05",
+  "nodes": [
+    {"id": "cluster", "type": "cluster_control_node", "apply_delay_s": 0.26, "ready_delay_s": 2.1}
+  ],
+  "couplings": [],
+  "stimuli": [
+    {"at": 0.0, "port": "control", "target": "cluster", "label": "deploy_requested",
+     "msg": {"op": "deploy", "target_id": "perc-svc", "image": "perception-framework:0.1.0"}}
+  ],
+  "run_until": 2.4,
+  "expectations": [
+    {"type": "node_state", "node": "cluster", "after": 2.4, "path": ["perc-svc"], "expected": "RUNNING"}
+  ]
+}

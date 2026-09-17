@@ -1,0 +1,32 @@
+{
+  "id": "s07-perception-risk-smoke",
+  "description": "PerceptionRiskNode 검증 — 실 ByteTracker/CoverageEstimator/RiskAnalysisFsm/RuleBasedRiskScorer 연동. AI-S-01, AI-S-03, AI-R-01, AI-R-02",
+  "nodes": [
+    {"id": "perc", "type": "perception_risk_node",
+     "risk_event_kinds": ["water_level"], "observe_threshold": 0.3, "alert_threshold": 0.7}
+  ],
+  "couplings": [],
+  "stimuli": [
+    {"at": 0.0, "port": "control", "target": "perc", "label": "frame1",
+     "msg": {"op": "detect_frame", "detections": [
+       {"box": [0, 0, 10, 10], "label": "person", "score": 0.9},
+       {"box": [50, 50, 60, 60], "label": "person", "score": 0.8}
+     ]}},
+    {"at": 1.0, "port": "control", "target": "perc", "label": "coverage1",
+     "msg": {"op": "coverage_observation", "region_id": "zone_a", "source_id": "cam1",
+             "observation_id": "o1", "observed_at": 1.0, "observed_fraction": 0.3, "confidence": 0.8}},
+    {"at": 2.0, "port": "control", "target": "perc", "label": "risk_normal",
+     "msg": {"op": "risk_event", "kind": "water_level", "severity": 0.2}},
+    {"at": 3.0, "port": "control", "target": "perc", "label": "risk_alert",
+     "msg": {"op": "risk_event", "kind": "water_level", "severity": 0.9}},
+    {"at": 4.0, "port": "control", "target": "perc", "label": "risk_score",
+     "msg": {"op": "risk_score", "inputs": {}}}
+  ],
+  "run_until": 4.0,
+  "expectations": [
+    {"type": "node_state", "node": "perc", "after": "frame1", "path": ["track_count"], "expected": 2},
+    {"type": "node_state", "node": "perc", "after": "coverage1", "path": ["blind_spot_count"], "expected": 1},
+    {"type": "node_state", "node": "perc", "after": "risk_normal", "path": ["risk_state"], "expected": "NORMAL"},
+    {"type": "node_state", "node": "perc", "after": "risk_alert", "path": ["risk_state"], "expected": "ALERT"}
+  ]
+}

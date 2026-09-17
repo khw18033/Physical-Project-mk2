@@ -1,8 +1,8 @@
 # OW-OVD: Unified Open World and Open Vocabulary Object Detection
 
 ## 메타데이터
-- categories: [[Open World Object Detection]], [[Open Vocabulary Object Detection]], [[Visual Similarity Attribute Selection]], [[Hybrid Attribute-Uncertainty Fusion]]
-- domain: [[Computer Vision]], [[Object Detection]]
+- categories: [[Open World Object Detection]], Open Vocabulary Object Detection, Visual Similarity Attribute Selection, Hybrid Attribute-Uncertainty Fusion
+- domain: [[객체 탐지·분할]]
 - source: Xing Xi, Yangyang Huang, Ronghua Luo, Yu Qiu, "OW-OVD: Unified Open World and Open Vocabulary Object Detection," Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR), 2025, pp. 25454-25464.
 - url: https://openaccess.thecvf.com/content/CVPR2025/html/Xi_OW-OVD_Unified_Open_World_and_Open_Vocabulary_Object_Detection_CVPR_2025_paper.html
 - year: 2025

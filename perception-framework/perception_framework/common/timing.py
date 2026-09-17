@@ -13,6 +13,15 @@ Two clocks are kept apart on purpose:
   - `local_sequence`: a strictly increasing per-node counter that never
     depends on the wall clock, so single-node ordering survives a sync
     outage untouched.
+
+A third instant is kept separate from both: `DerivedResult.produced_at`,
+the moment an AI output was actually finished being computed. This follows
+OGC Observations & Measurements' `phenomenonTime` (when the thing being
+described happened — here, `FrameReference.observed_at`) vs `resultTime`
+(when the result was produced) split. Conflating them loses information a
+reproduction/error-analysis consumer (AI-O-03) needs: a detection's
+capture time and its inference-completion time are legitimately different
+instants, and the gap between them is itself a latency signal.
 """
 
 from __future__ import annotations
@@ -82,12 +91,19 @@ class FrameReferenceFactory:
 
 @dataclass
 class DerivedResult:
-    """Any AI output, always bound to the observation it came from."""
+    """Any AI output, always bound to the observation it came from.
+
+    `produced_at` is OGC O&M's `resultTime` — when this specific result was
+    finished, as opposed to `reference.observed_at` (`phenomenonTime`, when
+    the source frame was captured). It defaults to `None` ("not stated")
+    so existing callers that never measured completion time are unaffected.
+    """
 
     reference: FrameReference
     payload: object
     produced_by: str = ""
     versions: dict[str, str] = field(default_factory=dict)
+    produced_at: float | None = None
 
 
 def in_local_order(results: list[DerivedResult]) -> list[DerivedResult]:

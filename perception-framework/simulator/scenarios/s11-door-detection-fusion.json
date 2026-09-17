@@ -1,0 +1,45 @@
+{
+  "id": "s11-door-detection-fusion",
+  "description": "door/pedestal 랜드마크 탐지 통합(2026-09-16 설계)의 capability 구성. perception.detect(온디바이스 RPN, 필수)은 항상 켜져 있고, 엣지의 perception.classify(CLIP dictionary)/perception.detect_ovd(GroundingDINO+YOLO-World)/perception.depth(UniDepth 자기위치추정)는 선택 기능이라 자원이 부족해지면 우선순위 낮은 것부터 축소된다 -- object_record.py의 REQUIREMENT(perception.detect 필수, segment/classify/depth 선택)와 동일한 구성을 실제 배포 프로파일로 표현한다. (AI-B-06, AI-C-05, AI-C-11, AI-S-06)",
+  "nodes": [
+    {
+      "id": "edge-zoneA",
+      "type": "registry_node",
+      "profile": {
+        "domain_id": "zone-a-robot-nav",
+        "active_capability_kinds": ["perception.detect", "perception.classify", "perception.detect_ovd", "perception.depth"],
+        "node_tags": ["cpu"]
+      },
+      "capabilities": [
+        {"kind": "perception.detect", "core": true},
+        {"kind": "perception.depth", "rank": 0},
+        {"kind": "perception.detect_ovd", "rank": 1},
+        {"kind": "perception.classify", "rank": 2}
+      ],
+      "providers": [
+        {"kind": "perception.detect", "provider_id": "rpn-ondevice", "compute": 2.0, "memory": 256},
+        {"kind": "perception.depth", "provider_id": "unidepth", "compute": 2.0, "memory": 256},
+        {"kind": "perception.detect_ovd", "provider_id": "grounding-dino", "compute": 2.0, "memory": 256},
+        {"kind": "perception.classify", "provider_id": "clip-dictionary", "compute": 3.0, "memory": 256}
+      ],
+      "budget": {"compute_units": 30.0, "memory_mb": 4096.0}
+    }
+  ],
+  "couplings": [],
+  "stimuli": [
+    {"at": 1.0, "port": "control", "target": "edge-zoneA", "label": "healthy", "msg": {"op": "resource_snapshot", "cpu": 0.30, "memory": 0.4}},
+    {"at": 2.0, "port": "control", "target": "edge-zoneA", "label": "saturated", "msg": {"op": "resource_snapshot", "cpu": 0.75, "memory": 0.4}},
+    {"at": 3.0, "port": "control", "target": "edge-zoneA", "label": "unidepth_lost", "msg": {"op": "unregister_provider", "kind": "perception.depth", "provider_id": "unidepth"}},
+    {"at": 4.0, "port": "control", "target": "edge-zoneA", "label": "extreme", "msg": {"op": "resource_snapshot", "cpu": 0.97, "memory": 0.4}}
+  ],
+  "run_until": 5.0,
+  "expectations": [
+    {"type": "capability_state", "node": "edge-zoneA", "after": "healthy", "state": {"perception.detect": "ACTIVE", "perception.classify": "ACTIVE", "perception.detect_ovd": "ACTIVE", "perception.depth": "ACTIVE"}},
+    {"type": "capability_state", "node": "edge-zoneA", "after": "saturated", "state": {"perception.detect": "ACTIVE", "perception.depth": "ACTIVE", "perception.detect_ovd": "ACTIVE", "perception.classify": "DISABLED"}},
+    {"type": "event_logged", "node": "edge-zoneA", "name": "capability_state_changed", "payload_contains": {"capability_kind": "perception.classify", "after": "DISABLED"}},
+    {"type": "capability_state", "node": "edge-zoneA", "after": "unidepth_lost", "state": {"perception.detect": "ACTIVE", "perception.depth": "DISABLED"}},
+    {"type": "capability_state", "node": "edge-zoneA", "after": "extreme", "state": {"perception.detect": "DISABLED"}},
+    {"type": "event_logged", "node": "edge-zoneA", "name": "capability_state_changed", "severity": "error", "payload_contains": {"capability_kind": "perception.detect"}},
+    {"type": "core_kinds_running", "node": "edge-zoneA", "value": false}
+  ]
+}

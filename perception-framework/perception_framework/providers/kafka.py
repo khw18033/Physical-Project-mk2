@@ -55,11 +55,23 @@ class KafkaTransportProvider:
         client_id: str = "perception-framework",
         group_id: str | None = None,
         consumer_timeout_ms: int = 1000,
+        security_protocol: str = "PLAINTEXT",
+        sasl_mechanism: str | None = None,
+        sasl_username: str | None = None,
+        sasl_password: str | None = None,
+        ssl_context=None,
     ) -> None:
         self._bootstrap = bootstrap_servers
         self._client_id = client_id
         self._group_id = group_id or f"{client_id}-group"
         self._consumer_timeout_ms = consumer_timeout_ms
+        self._security = {
+            "security_protocol": security_protocol,
+            "sasl_mechanism": sasl_mechanism,
+            "sasl_plain_username": sasl_username,
+            "sasl_plain_password": sasl_password,
+            "ssl_context": ssl_context,
+        }
         self._producer = None
         self._consumers: list = []
         self._threads: list[threading.Thread] = []
@@ -73,12 +85,20 @@ class KafkaTransportProvider:
         from kafka.errors import KafkaError
 
         try:
+            options = {key: value for key, value in self._security.items() if value is not None}
             self._producer = KafkaProducer(
                 bootstrap_servers=self._bootstrap,
                 client_id=self._client_id,
                 acks="all",
+                # kafka-python-ng 2.x does not expose Kafka's idempotent
+                # producer flag. Preserve retry ordering here; semantic
+                # exactly-once behavior is enforced by command_id dedupe at
+                # the execution contract, not claimed by this transport.
+                retries=5,
+                max_in_flight_requests_per_connection=1,
                 api_version_auto_timeout_ms=int(timeout_s * 1000),
                 request_timeout_ms=int(timeout_s * 1000),
+                **options,
             )
             self._connected = self._producer.bootstrap_connected()
         except (KafkaError, Exception):
@@ -123,13 +143,17 @@ class KafkaTransportProvider:
         from kafka import KafkaConsumer
 
         try:
+            options = {key: value for key, value in self._security.items() if value is not None}
             consumer = KafkaConsumer(
                 topic,
                 bootstrap_servers=self._bootstrap,
                 group_id=self._group_id,
                 auto_offset_reset="earliest",
-                enable_auto_commit=True,
+                # Commit only after the domain handler succeeds. Auto commit
+                # can acknowledge a command before the actuator sees it.
+                enable_auto_commit=False,
                 consumer_timeout_ms=self._consumer_timeout_ms,
+                **options,
             )
         except Exception:
             return
@@ -144,6 +168,7 @@ class KafkaTransportProvider:
                             break
                         try:
                             handler(record.value)
+                            consumer.commit()
                         except Exception:
                             # One subscriber failing must not stop the others
                             # or the transport itself (AI-C-11).

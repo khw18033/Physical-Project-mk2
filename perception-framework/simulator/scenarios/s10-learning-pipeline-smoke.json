@@ -1,0 +1,40 @@
+{
+  "id": "s10-learning-pipeline-smoke",
+  "description": "LearningPipelineNode 검증 — 실 H2ST 후보 판정 + 실 LearningLineage 상태기계(candidate→quarantined→...→deployed→rollback). AI-L-01, AI-L-02, AI-L-07, AI-L-08",
+  "nodes": [
+    {"id": "learn", "type": "learning_pipeline_node", "alpha": 0.05}
+  ],
+  "couplings": [],
+  "stimuli": [
+    {"at": 0.0, "port": "control", "target": "learn", "label": "seed_reference",
+     "msg": {"op": "add_reference_task", "task_id": "normal_scene",
+             "reference_features": [[0.0, 0.0], [0.1, 0.1], [-0.1, 0.1], [0.1, -0.1]]}},
+    {"at": 1.0, "port": "control", "target": "learn", "label": "ood_candidate",
+     "msg": {"op": "candidate_check", "lineage_id": "cand-1",
+             "target_features": [[50.0, 50.0], [50.1, 49.9], [49.9, 50.1], [50.0, 49.8]],
+             "actor": "sim", "evidence_ref": "wildtrack-frame-0", "reason": "far-from-normal-cluster"}},
+    {"at": 2.0, "port": "control", "target": "learn", "label": "advance_quarantined",
+     "msg": {"op": "lineage_advance", "lineage_id": "cand-1", "actor": "sim", "evidence_ref": "e1", "reason": "isolated for review"}},
+    {"at": 2.1, "port": "control", "target": "learn", "label": "advance_reviewed",
+     "msg": {"op": "lineage_advance", "lineage_id": "cand-1", "actor": "sim", "evidence_ref": "e2", "reason": "manual review done"}},
+    {"at": 2.2, "port": "control", "target": "learn", "label": "advance_strategy",
+     "msg": {"op": "lineage_advance", "lineage_id": "cand-1", "actor": "sim", "evidence_ref": "e3", "reason": "strategy chosen"}},
+    {"at": 2.3, "port": "control", "target": "learn", "label": "advance_validated",
+     "msg": {"op": "lineage_advance", "lineage_id": "cand-1", "actor": "sim", "evidence_ref": "e4", "reason": "validation gate passed"}},
+    {"at": 2.4, "port": "control", "target": "learn", "label": "advance_approval_pending",
+     "msg": {"op": "lineage_advance", "lineage_id": "cand-1", "actor": "sim", "evidence_ref": "e5", "reason": "sent for approval"}},
+    {"at": 2.5, "port": "control", "target": "learn", "label": "advance_approved",
+     "msg": {"op": "lineage_advance", "lineage_id": "cand-1", "actor": "admin", "evidence_ref": "e6", "reason": "admin approved"}},
+    {"at": 2.6, "port": "control", "target": "learn", "label": "advance_deployed",
+     "msg": {"op": "lineage_advance", "lineage_id": "cand-1", "actor": "sim", "evidence_ref": "e7", "reason": "staged rollout started"}},
+    {"at": 3.0, "port": "control", "target": "learn", "label": "rollback",
+     "msg": {"op": "lineage_rollback", "lineage_id": "cand-1", "actor": "sim", "evidence_ref": "e8", "reason": "operational regression detected"}}
+  ],
+  "run_until": 3.0,
+  "expectations": [
+    {"type": "node_state", "node": "learn", "after": "ood_candidate", "path": ["last_decision_in_distribution"], "expected": false},
+    {"type": "node_state", "node": "learn", "after": "ood_candidate", "path": ["lineage_states", "cand-1"], "expected": "candidate"},
+    {"type": "node_state", "node": "learn", "after": "advance_deployed", "path": ["lineage_states", "cand-1"], "expected": "deployed"},
+    {"type": "node_state", "node": "learn", "after": "rollback", "path": ["lineage_states", "cand-1"], "expected": "rolled_back"}
+  ]
+}

@@ -43,6 +43,28 @@ def test_specs_keep_meaning_producer_consumer_and_plane_together():
     assert spec.plane is DataPlane.TASK
 
 
+def test_node_pose_is_kept_separate_from_its_confidence_and_source():
+    # 2026-09 재설계: 위치 자체와 "어떤 방법으로 얻었는지"를 같은 이름에 섞지 않는다 —
+    # 고정 카메라가 본 위치와 로봇 자체 추정 위치는 신뢰도가 다르므로 근거로 구분한다.
+    pose_spec = dd.spec_for(dd.NODE_POSE)
+    source_spec = dd.spec_for(dd.POSE_SOURCE)
+    uncertainty_spec = dd.spec_for(dd.POSE_UNCERTAINTY)
+
+    assert pose_spec.plane is DataPlane.TASK
+    assert "확정값 아님" in pose_spec.meaning
+    assert source_spec.name != pose_spec.name
+    assert uncertainty_spec.name != pose_spec.name
+
+
+def test_camera_extrinsic_is_distinct_from_dynamic_node_pose():
+    # 고정 카메라 위치는 매 틱 갱신되는 node_pose가 아니라 보정 프로파일처럼
+    # 버전 관리되는 별도 개념이다(AI-E-02).
+    extrinsic_spec = dd.spec_for(dd.CAMERA_EXTRINSIC)
+
+    assert "엣지 보정" in extrinsic_spec.produced_by
+    assert extrinsic_spec.name != dd.NODE_POSE
+
+
 def test_unknown_spec_lookup_fails_closed():
     with pytest.raises(UnknownFieldError):
         dd.spec_for("undocumented_name")
@@ -143,3 +165,50 @@ def test_collection_session_capture_payloads_use_only_dictionary_names():
     assert entries, "세션이 아무것도 기록하지 않았다면 검사가 무의미하다"
     for entry in entries:
         assert dd.unknown_fields(entry.payload) == (), (entry.channel, entry.payload)
+
+
+# -- STATE_CHANGE_REASON is a controlled vocabulary (2026-09-17, P2) ---------
+
+
+def test_every_selector_reason_constant_is_in_the_dictionary_vocabulary():
+    """The selector defines the strings; the dictionary owns the vocabulary.
+    A new REASON_* constant that is not registered here fails this test —
+    that is how the vocabulary stays closed instead of drifting back to
+    free text."""
+    from perception_framework.selection import selector
+
+    constants = {v for k, v in vars(selector).items() if k.startswith("REASON_") and isinstance(v, str)}
+    assert constants  # guard against the prefix being renamed silently
+    assert constants <= set(dd.STATE_CHANGE_REASONS)
+
+
+def test_resolver_and_egress_gate_reasons_are_in_the_vocabulary():
+    from perception_framework.contracts.capability import CapabilityRequirement
+    from perception_framework.contracts.profile import DeploymentProfile, ResourceBudget
+    from perception_framework.registry.capability_registry import CapabilityRegistry
+    from perception_framework.runtime.application import CapabilitySpec, ZoneApplication
+
+    app = ZoneApplication(
+        DeploymentProfile(domain_id="t", active_capability_kinds=("a", "b")),
+        CapabilityRegistry(),
+        [
+            CapabilitySpec("a", is_core=True, requirement=CapabilityRequirement(required=("x",))),
+            CapabilitySpec("b"),
+        ],
+    )
+    reasons = {r.reason for r in app.resolve(ResourceBudget(1, 1)).values()}
+
+    assert reasons == {"missing_required:x", "core_capability_unplaced"}
+    assert {dd.state_change_reason_token(r) for r in reasons} <= set(dd.STATE_CHANGE_REASONS)
+
+
+def test_reason_token_strips_only_the_data_suffix():
+    assert dd.state_change_reason_token("missing_required:media.video_input,perception.detect") == "missing_required"
+    assert dd.state_change_reason_token("required_hw_tag_missing:compute.gpu") == "required_hw_tag_missing"
+    assert dd.state_change_reason_token("selected") == "selected"
+
+
+def test_state_change_reason_spec_lists_the_vocabulary_not_str():
+    spec = dd.spec_for(dd.STATE_CHANGE_REASON)
+    assert spec.value_kind != "str"
+    assert set(spec.value_kind.split("|")) == set(dd.STATE_CHANGE_REASONS)

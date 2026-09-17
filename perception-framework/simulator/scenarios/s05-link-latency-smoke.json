@@ -1,0 +1,16 @@
+{
+  "id": "s05-link-latency-smoke",
+  "description": "LinkNode 검증용 스모크 테스트 — 실측 MQTT RTT(19.4ms)를 링크에 주입하고 메시지가 그 지연만큼 뒤에 나오는지 확인. AI-C-06, AI-N-03",
+  "nodes": [
+    {"id": "mqtt_link", "type": "link_node", "rtt_ms": 19.4, "drop_rate": 0.0}
+  ],
+  "couplings": [],
+  "stimuli": [
+    {"at": 0.0, "port": "in", "target": "mqtt_link", "label": "publish", "msg": {"message_type": "safety_state", "payload": {"state": "SAFE"}}}
+  ],
+  "run_until": 0.025,
+  "expectations": [
+    {"type": "latency_budget", "node": "mqtt_link", "max_s": 0.05},
+    {"type": "trace_contains", "node": "mqtt_link", "port": "out", "direction": "out", "message_type": "safety_state", "payload_contains": {"state": "SAFE"}}
+  ]
+}

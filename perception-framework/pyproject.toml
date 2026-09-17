@@ -7,7 +7,7 @@ name = "perception-framework"
 version = "0.1.0"
 description = "AI/edge execution framework core - capability, provider and profile boundaries"
 requires-python = ">=3.10"
-dependencies = ["jsonschema>=4.20", "numpy>=1.26", "opencv-python>=4.9"]
+dependencies = ["jsonschema>=4.20", "numpy>=1.26", "opencv-python>=4.9", "protobuf>=7.35.1,<8"]
 
 [project.optional-dependencies]
 dev = ["pytest>=7.4"]
@@ -17,10 +17,15 @@ mqtt = ["paho-mqtt>=2.1"]
 kafka = ["kafka-python-ng>=2.2"]
 otel = ["opentelemetry-sdk>=1.20", "opentelemetry-exporter-otlp-proto-grpc>=1.20"]
 # K3s provider는 추가 파이썬 의존성 없이 kubectl CLI만 사용한다 (AI-B-10, 원칙 #12).
+# simulator/ 전용 DEVS 엔진 — perception_framework 패키지 자체는 이 의존성을 모른다.
+sim = ["pyjevsim>=2.0"]
 
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["perception_framework*"]
+
+[tool.setuptools.package-data]
+"perception_framework.contracts.proto" = ["*.proto"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

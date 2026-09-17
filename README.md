@@ -74,7 +74,7 @@ Hardware | Backend | Visualization
 
 현재 배포 원칙은 말단↔엣지 업무·제어·하트비트에 MQTT, 엣지↔서버 업무·제어에 Kafka,
 관측에 OpenTelemetry, 영상에 별도 미디어 경로를 사용하는 것이다. 이 기술들은 provider 구현이며
-상위 AI 모듈의 필수 의존성이 아니다. 자세한 구조는 [AI 아키텍처](docs/ai/00-architecture.md)를
+상위 AI 모듈의 필수 의존성이 아니다. 자세한 구조는 [AI 아키텍처](docs/ai/architecture.md)를
 참고한다.
 
 ## 현재 구현
@@ -90,8 +90,8 @@ Hardware | Backend | Visualization
 | 파트 간 계약 | AI message envelope와 payload JSON Schema 8종, 정상 예제 6종, Python wire adapter |
 | 검증 | 단위·계약·시나리오·선택 인프라 테스트, 가상 로봇·하천·백엔드 mock |
 
-현재 전체 회귀 결과는 **293 passed, 19 skipped**다. skip은 MQTT/Kafka/OTel/K3s/OpenCL 등
-선택 의존성이나 외부 인프라가 없는 환경에서 해당 provider 테스트만 격리된 결과다.
+전체 회귀 결과는 실행 환경에 설치된 선택 의존성(MQTT/Kafka/OTel/K3s/OpenCL 등)에 따라
+달라진다 — 미설치 provider의 테스트만 skip되고 나머지는 통과한다(§설치와 테스트 참고).
 
 ## 제어 프로토콜 경계
 
@@ -114,26 +114,29 @@ MQTT/Kafka adapter 뒤에서 동일 의미를 보존하도록 설계한다. 물�
 
 ```text
 Physical-Project-mk2/
-├── ai-framework/
-│   ├── ai_framework/       # AI 프레임워크 Python 패키지
-│   ├── profiles/           # robot/facility/river 배포 프로파일
-│   ├── examples/           # 기능 및 통합 시나리오 데모
-│   └── tests/              # 단위·계약·인프라·시나리오 테스트
+├── perception-framework/
+│   ├── perception_framework/       # AI 프레임워크 Python 패키지
+│   ├── simulator/           # 시나리오 시뮬레이터 (하드웨어 없이 프레임워크 성질 확인)
+│   │   └── scenarios/       # 도메인 프로파일 포함, JSON 시나리오
+│   └── tests/               # 모듈 단위 검증 + 시나리오 자동 검증
 ├── contracts/ai/           # 파트 간 JSON Schema와 예제 payload
-├── docs/ai/                # 아키텍처, 구현 계획, 요구사항 추적
-├── docs/integration/       # 하드웨어·백엔드·가시화 병합 안내
-├── reports/                # 작업 보고서와 프레임워크 지표
-└── CLAUDE.md               # 51개 AI 요구사항 원문과 개발 규칙
+├── interface-spec/         # 파트 경계를 넘는 통신 규약(물리 명령 wire 규약 등)
+├── docs/ai/                # 아키텍처, 설계 결정, 요구사항 추적, 검증 계획
+├── docs/ops/                # 이 PC(엣지+서버 겸용)의 네트워크·보안 운영 설정
+├── docs/obsidian/          # KCI 확장 연구 — 재현 대상 논문·아이디어·구현 계획
+├── models/                 # 실험용 AI 모델 artifact와 모델 카드
+├── reports/                 # 개인 기록(git 미추적)
+└── CLAUDE.md               # AI 요구사항 원문과 개발 규칙
 ```
 
-세부 Python 패키지 구조는 [ai-framework/README.md](ai-framework/README.md)에서 확인할 수 있다.
+세부 Python 패키지 구조는 [perception-framework/README.md](perception-framework/README.md)에서 확인할 수 있다.
 
 ## 설치와 테스트
 
 Python 3.10 이상이 필요하다.
 
 ```bash
-cd ai-framework
+cd perception-framework
 python3 -m venv .venv
 source .venv/bin/activate
 python3 -m pip install -e ".[dev]"
@@ -141,44 +144,226 @@ python3 -m pip install -e ".[dev]"
 # 전체 회귀 테스트
 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest -q
 
-# 실행 가능한 데모
-PYTHONPATH=. python3 examples/demo.py
-PYTHONPATH=. python3 examples/scenario_demo.py
+# 실행 가능한 시뮬레이터 (하드웨어 없이 프레임워크 성질 확인)
+PYTHONPATH=. python3 simulator/simulation.py
 
-# 프레임워크 특성 시나리오만 실행
-PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest -q tests/scenarios
+# 프레임워크 특성 시나리오만 실행 (simulator/scenarios/*.json 전체)
+PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest -q tests/test_scenarios.py
 ```
 
 컨테이너 검증:
 
 ```bash
-cd ai-framework
-docker build -t ai-framework:0.1.0 .
-docker run --rm ai-framework:0.1.0 python -m pytest -q
+cd perception-framework
+docker build -t perception-framework:0.1.0 .
+docker run --rm perception-framework:0.1.0 python -m pytest -q
 ```
 
 실 MQTT, Kafka, OTel Collector, K3s 검증 환경은
-[인프라·mock 계획](docs/ai/02-infra-mock-plan.md)을 참고한다.
+[인프라·mock 계획](docs/ai/validation/infra-mock-plan.md)을 참고한다.
 
-## 다른 파트와 통합
+## 새 기기에서 환경 복원
+
+이 저장소는 **코드·문서·실험 결과만** 담고 있다. 데이터셋과 모델 가중치는 용량 때문에
+제외돼 있으므로(`.gitignore`의 `datasets/`, `models/`) 아래 절차로 내려받아야 원래
+작업 디렉터리와 같은 상태가 된다. 각 자산의 출처·체크섬·라이선스는 내려받은 뒤
+생성되는 `PROVENANCE.json`이 아니라 **이 문서가 기준**이다.
+
+복원 후 검증 기준: `pytest` **471 passed / 2 skipped**, 시나리오 러너 전체 통과.
+
+### 1. 시스템 요건
+
+- Linux (검증 환경: Ubuntu, 커널 6.8)
+- Python 3.10 이상
+- 디스크 여유 **최소 15GB** (데이터셋 5.0GB + 모델 0.5GB + torch 1GB + 여유)
+- k3s 시나리오를 돌리려면 k3s와 `kubectl`. 없으면 해당 시나리오만 건너뛴다.
+
+### 2. 파이썬 패키지
+
+```bash
+cd perception-framework
+pip install -e ".[dev]"          # jsonschema, numpy, opencv-python, pytest
+```
+
+실험 코드가 추가로 요구하는 것:
+
+```bash
+pip install onnxruntime psutil tokenizers
+pip install torch --index-url https://download.pytorch.org/whl/cpu   # CPU 전용, ~1GB
+```
+
+전송 provider는 **선택 의존성**이다. 미설치 시 해당 provider만 비활성화되고 나머지는
+그대로 동작한다(AI-C-11).
+
+```bash
+pip install -e ".[mqtt,kafka,otel]"   # paho-mqtt / kafka-python-ng / opentelemetry
+pip install -e ".[sim]"               # pyjevsim — simulator/ 전용 DEVS 엔진
+```
+
+> 시스템 pytest 6.2.5 + anyio 플러그인 충돌로 collection이 깨지면:
+> `PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest -q`
+
+### 3. 데이터셋
+
+#### 3-1. MDDRobots — 실내 로봇 RGB 시퀀스 (5.0GB)
+
+인지·추적·미학습 객체·지속학습 실험의 주 입력이다.
+
+- 출처: Zenodo record **15340287** — DOI `10.5281/zenodo.15340287`
+- 제목: *Multi-Domain Dataset for Robots (MDDRobots)*
+- 라이선스: **CC BY 4.0**
+- 전체는 36GB이며 아래 **부분집합만** 받는다(카메라 다양성 기준, 디스크 제약).
+
+`datasets/mddrobots_subset/` 에 배치한다. **ZIP은 풀지 않는다** — 실험 코드가 zip을
+스트리밍으로 읽는다.
+
+| 파일 | 크기 | MD5 |
+|---|---:|---|
+| `README.md` | 3.9KB | `d076e1a12cfd1abd9e8c12e4e625e3c8` |
+| `Visual-Anomaly-Dataction-for-Robots-MDDRobots-main.zip` | 1.6MB | `ed134c5f95506e37cea22af376f4202b` |
+| `DataSet_P40PRO_RGB_test3.zip` | 578.8MB | `d063fc911cf5c611137b6d247b51af27` |
+| `DataSet_XTION_RGB_test1.zip` | 730.5MB | `01953d274b3dcd18241d21a5f9807123` |
+| `DataSet_RobotPiCamera_RGB_test1.zip` | 1683.0MB | `b8d0cdbf8b803db3eedda9aee5538960` |
+| `DataSet_GOPRO_RGB_test3.zip` | 2291.0MB | `5a89be0b05d6ac4d8f98c736e3cda100` |
+
+```bash
+mkdir -p datasets/mddrobots_subset && cd datasets/mddrobots_subset
+for f in README.md Visual-Anomaly-Dataction-for-Robots-MDDRobots-main.zip \
+         DataSet_P40PRO_RGB_test3.zip DataSet_XTION_RGB_test1.zip \
+         DataSet_RobotPiCamera_RGB_test1.zip DataSet_GOPRO_RGB_test3.zip; do
+  curl -L -O "https://zenodo.org/records/15340287/files/$f?download=1"
+done
+md5sum -c <<'SUM'
+d076e1a12cfd1abd9e8c12e4e625e3c8  README.md
+ed134c5f95506e37cea22af376f4202b  Visual-Anomaly-Dataction-for-Robots-MDDRobots-main.zip
+d063fc911cf5c611137b6d247b51af27  DataSet_P40PRO_RGB_test3.zip
+01953d274b3dcd18241d21a5f9807123  DataSet_XTION_RGB_test1.zip
+b8d0cdbf8b803db3eedda9aee5538960  DataSet_RobotPiCamera_RGB_test1.zip
+5a89be0b05d6ac4d8f98c736e3cda100  DataSet_GOPRO_RGB_test3.zip
+SUM
+```
+
+데이터 성격: 4개 카메라(GOPRO / P40PRO / RobotPiCamera / XTION)가 **동일한 6개 방**을
+촬영했다. Test1은 학습 조건에 가깝고 **Test3은 조명·배치·시간대·경로가 바뀐 자연
+분포 변화**다. 라벨은 **방 단위뿐이며 객체 bbox는 없다**.
+
+#### 3-2. 기후 관측 (76KB)
+
+하천·기후 위험 시나리오 입력. 2022-08-08 서울 호우 실측이다.
+
+- 출처: WAMIS open API (국가수자원관리종합정보시스템) — `http://www.wamis.go.kr:8080/wamis/openapi/`
+- 기간: 2022-08-05 ~ 2022-08-14, API 키 불필요
+
+```bash
+PYTHONPATH=perception-framework python3 tools/acquire_climate.py
+```
+
+`datasets/climate_hrfco_2022_08/` 에 관측소별 CSV와 `PROVENANCE.json`이 생성된다.
+
+#### 3-3. 링크 품질 트레이스 (19MB)
+
+AI-N-03 링크 기반 실행 전환 시나리오 입력. **원시 데이터를 먼저 받아야 한다.**
+
+- 출처: Zenodo record **1219249** — DOI `10.5281/zenodo.1219249`
+- 제목: *RSSI-based mobile robot localization datasets*
+- 라이선스: **CC BY 4.0**
+
+```bash
+mkdir -p datasets/link_quality/zenodo_1219249_raw
+# Zenodo 1219249 의 아카이브를 받아 위 디렉터리에 풀면 ex/ 하위 트리가 생긴다.
+#   https://zenodo.org/records/1219249
+PYTHONPATH=perception-framework python3 tools/curate_link_trace.py
+```
+
+`tools/curate_link_trace.py` 는 `datasets/link_quality/zenodo_1219249_raw/ex` 를 읽어
+`datasets/link_quality/robot_rssi_zenodo_1219249` 를 만든다. 원시 트리가 없으면 스크립트가
+바로 실패하므로 압축 해제 위치를 반드시 확인한다.
+
+### 4. 모델
+
+#### 4-1. closed-set ONNX 5종 (178MB) → `models/onnx/`
+
+ONNX Model Zoo 미러(Hugging Face `onnxmodelzoo/*`)에서 받는다. 전부 표준 공개 모델이다.
+
+| 파일 | 크기 | 용도 |
+|---|---:|---|
+| `tiny-yolov3-11.onnx` | 34MB | 객체 검출, pseudo-GT 생성 |
+| `ssd_mobilenet_v1_10.onnx` | 28MB | 객체 검출 (대체 provider) |
+| `resnet50-v1-12.onnx` | 98MB | 분류, 고비용 보조 provider |
+| `mobilenetv2-12.onnx` | 14MB | 분류, 중간 비용 |
+| `squeezenet1.1-7.onnx` | 4.8MB | 분류, 최저 비용 baseline |
+
+`models/squeezenet/squeezenet1.1-7.onnx` 는 위 파일의 사본이며
+`models/squeezenet/MODEL_CARD.md`(저장소에 포함됨)에 SHA256이 기록돼 있다.
+
+#### 4-2. open-vocabulary ONNX 3종 (356MB) → `models/openvocab/`
+
+전부 **int8 동적 양자화** 내보내기본이며 `onnxruntime` CPUExecutionProvider로 돈다.
+
+| 디렉터리 | HF repo | 크기 | 라이선스 | 실측 지연 |
+|---|---|---:|---|---|
+| `clip-vit-base-patch32/` | `Xenova/clip-vit-base-patch32` | 157MB | **상업 제약 있음** | vision 15.4ms |
+| `owlvit-base-patch32/` | `Xenova/owlvit-base-patch32` | 159MB | **Apache-2.0, 제약 없음** | 탐지 170–255ms |
+| `mobileclip_s0/` | `Xenova/mobileclip_s0` | 57MB | **Apple AMLR — 연구 한정** | vision 55ms |
+
+각 repo에서 `onnx/*_quantized.onnx`, `config.json`, `preprocessor_config.json`,
+`tokenizer.json`, `tokenizer_config.json` 을 받아 위 디렉터리 구조로 둔다.
+
+> **라이선스 주의.** 상업적 제약이 없는 것은 **OWL-ViT 하나뿐**이다. CLIP은 상위 모델
+> 카드가 배포 사용을 out-of-scope로 명시하고, MobileCLIP-S0은 Apple AMLR로 상업 사용을
+> 금지한다. 연구·비교 실험 용도로만 쓰고 제품 배포 후보로 간주하지 않는다.
+>
+> **MobileCLIP-S0 caveat.** 전처리 상수·토크나이저를 상위 카드 기준으로 재검증하지
+> 않았고 스모크 테스트에서 zero-shot 분포가 무의미했다. 사용 전
+> `preprocessor_config.json` 기준 재검증이 필요하다.
+
+#### 4-3. 폐쇄망 원칙 (AI-C-16)
+
+모델 조달은 **1회성**이며 런타임 추론 경로에는 네트워크 의존이 없다. 로컬 `.onnx` +
+로컬 `tokenizer.json` + CPUExecutionProvider만 사용한다. `huggingface_hub`·
+`transformers`는 **의도적으로 설치하지 않는다** — 런타임 자동 다운로드를 유발하기
+때문이다. 토크나이저는 순수 로컬 파일을 읽는 `tokenizers` 패키지만 쓴다.
+
+### 5. 인프라 (선택)
+
+실제 broker·수집기·오케스트레이터를 쓰는 시나리오용이다. 없으면 해당 시나리오만
+건너뛰고 나머지는 fake provider로 동작한다.
+
+```bash
+./tools/start_experiment_infra.sh      # MQTT(Mosquitto) / Kafka(Redpanda) / OTel Collector
+sudo ./tools/k3s_local_only.sh         # k3s를 로컬 전용으로 고정
+```
+
+> `k3s_local_only.sh` 는 과거 k3s 유닛이 Tailscale IP에 고정돼 1,179회 크래시 루프한
+> 사고를 막기 위한 것이다. 새 기기에서는 **Tailscale IP가 다르므로** 스크립트 안의
+> 주소를 그대로 쓰지 말고 현재 노드 기준으로 확인한 뒤 실행한다.
+>
+> 디스크가 90%를 넘으면 kubelet이 `DiskPressure` taint를 걸어 파드가 **전혀** 스케줄되지
+> 않는다. 시나리오가 전부 실패하면 `df -h /` 부터 확인한다.
+
+### 6. 복원 검증
+
+```bash
+cd perception-framework
+PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest -q
+```
+
+OpenCL 플랫폼이 없거나 OTel collector 출력 경로가 지정되지 않은 노드에서는 해당
+테스트만 skip된다. 회귀가 아니다.
+
+### 7. 저장소에 없는 것 정리
+
+| 경로 | 용량 | 복원 방법 |
+|---|---:|---|
+| `datasets/` | 5.0GB | §3 |
+| `models/` | 534MB | §4 |
+| `.venv/`, `__pycache__/` | — | §2 재설치 |
+
+## 다른 파트와의 계약
 
 파트 경계의 단일 기준은 Python dataclass가 아니라 [공통 AI 계약](contracts/ai/README.md)이다.
-
-1. 백엔드가 `contracts/ai/`를 먼저 반영하고 수신 검증·격리·라우팅을 구현한다.
-2. 하드웨어가 프레임 참조와 모델 배포 결과, 로컬 안전·제어 경계를 연결한다.
-3. 가시화가 동일 예제를 fixture로 사용해 TypeScript 타입과 bbox/frame/risk 변환을 맞춘다.
-4. 영상 파일 또는 가상 장치로 E2E를 통과한 뒤 실물 장치 검증으로 승격한다.
-
-파트별 상세 절차:
-
-- [통합 준비 개요](docs/integration/README.md)
-- [하드웨어 병합 가이드](docs/integration/hardware-merge-guide.md)
-- [백엔드 병합 가이드](docs/integration/backend-merge-guide.md)
-- [가시화 병합 가이드](docs/integration/visualization-merge-guide.md)
-
-Google Sheet에 남아 있는 존재하지 않는 AI 요구사항 참조와 의미 불일치는
-[통합 준비 개요](docs/integration/README.md#요구사항-표-정정-필요)에 기록했다. 해당 ID를 임의로
-재사용하지 않고 담당자 합의 후 정정해야 한다.
+하드웨어·백엔드·가시화는 AI 내부 Python 타입을 직접 import하지 않고
+`contracts/ai/*.schema.json`과 예제 payload만 소비한다.
 
 ## 남은 검증
 

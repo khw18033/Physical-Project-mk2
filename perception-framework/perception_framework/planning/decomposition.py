@@ -6,9 +6,10 @@ implements: AI-D-03 인접 (Milestone -> Task 분해)
 관할 경계
 ---------
 Goal→Milestone→Task→Action Item 계층에서 Milestone/Task는 AI 소관으로
-확정됐다(docs/integration/subtask-handoff-to-visualization.md §계층 경계 확정
-2026-08-28). AI-D-01(서브태스크=Action Item 생성)과 AI-D-02(검증)은 2026-08-26에
-가시화 파트로 이관되어 AI 저장소에서 삭제됐고, 이 모듈은 그 복원이 아니다.
+확정됐다(2026-08-28 파트 간 경계 확정 — 근거 문서는 이후 정리 과정에서 저장소에서
+제거됨). AI-D-01(서브태스크=Action Item 생성)과 AI-D-02(검증)은 2026-08-26에
+가시화 파트로 이관되어 AI 저장소에서 삭제됐고, 이 모듈은 그 복원이 아니다
+(CLAUDE.md 최신 요구사항 목록에서도 AI-D 대분류 자체가 제거됨).
 삭제 시점 스키마(plan-proposal)는 근거로만 참고했고 그대로 복원하지 않았다 —
 특히 이관 문서가 문제로 지적한 `robot_resources`처럼 핵심 코드에 도메인
 명사가 들어간 이름은 쓰지 않는다(절대 준수 원칙 #3).

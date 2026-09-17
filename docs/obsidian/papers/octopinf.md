@@ -1,8 +1,8 @@
 # OCTOPINF: Workload-Aware Inference Serving for Edge Video Analytics
 
 ## 메타데이터
-- categories: [[Cross-Device Workload Distributor]], [[Adaptive Batching]], [[Co-location Inference Spatiotemporal Scheduler]], [[Runtime Horizontal AutoScaler]]
-- domain: [[Edge Video Analytics]], [[Edge Computing]]
+- categories: Cross-Device Workload Distributor, Adaptive Batching, Co-location Inference Spatiotemporal Scheduler, Runtime Horizontal AutoScaler
+- domain: [[엣지 실행·자원]]
 - source: Thanh-Tung Nguyen, Lucas Liebe, Nhat-Quang Tau, Yuheng Wu, Jinghan Cheng, Dongman Lee, "OCTOPINF: Workload-Aware Inference Serving for Edge Video Analytics," IEEE International Conference on Pervasive Computing and Communications (PerCom), 2025.
 - url: https://doi.org/10.1109/PerCom64205.2025.00032
 - year: 2025

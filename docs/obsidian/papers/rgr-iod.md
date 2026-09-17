@@ -1,8 +1,8 @@
 # Revisiting Generative Replay for Class Incremental Object Detection
 
 ## 메타데이터
-- categories: [[Image-Level Generative Replay]], [[Similarity-based Cross Sampling]], [[Pseudo-Labeling]], [[Mixed-Domain Training]]
-- domain: [[Class Incremental Object Detection]], [[Generative Replay]]
+- categories: Image-Level Generative Replay, Similarity-based Cross Sampling, Pseudo-Labeling, Mixed-Domain Training
+- domain: [[지속학습]]
 - source: Shizhou Zhang, Xueqiang Lv, Yinghui Xing, Qirui Wu, Di Xu, Yanning Zhang, "Revisiting Generative Replay for Class Incremental Object Detection," Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR), 2025, pp. 20340-20349.
 - url: https://openaccess.thecvf.com/content/CVPR2025/html/Zhang_Revisiting_Generative_Replay_for_Class_Incremental_Object_Detection_CVPR_2025_paper.html
 - year: 2025

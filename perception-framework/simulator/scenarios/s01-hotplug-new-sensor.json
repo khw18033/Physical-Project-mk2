@@ -1,0 +1,36 @@
+{
+  "id": "s01-hotplug-new-sensor",
+  "description": "새 하드웨어(열화상 카메라)가 실행 중에 등록되면 재시작 없이 활성화되고, 기존 기능은 영향받지 않는다. (AI-B-01, AI-B-04, AI-B-09, AI-C-04, AI-C-10, AI-C-12, AI-C-15)",
+  "nodes": [
+    {
+      "id": "registry", "type": "registry_node",
+      "profile": {
+        "domain_id": "zone-1",
+        "active_capability_kinds": ["perception.detect", "risk.rule_based", "sensor.thermal"],
+        "node_tags": ["cpu"]
+      },
+      "capabilities": [
+        {"kind": "perception.detect", "core": true},
+        {"kind": "risk.rule_based", "rank": 1},
+        {"kind": "sensor.thermal", "rank": 2}
+      ],
+      "providers": [
+        {"kind": "perception.detect", "provider_id": "camera_A"},
+        {"kind": "risk.rule_based", "provider_id": "water_level_A"}
+      ]
+    }
+  ],
+  "couplings": [],
+  "stimuli": [
+    {"at": 5.0, "port": "control", "target": "registry", "label": "hotplug",
+     "msg": {"op": "register_provider", "kind": "sensor.thermal", "provider_id": "thermal_camera_B"}}
+  ],
+  "run_until": 10.0,
+  "expectations": [
+    {"type": "capability_state", "node": "registry", "after": 0.0, "state": {"sensor.thermal": "DISABLED", "perception.detect": "ACTIVE"}},
+    {"type": "capability_state", "node": "registry", "after": "hotplug", "state": {"sensor.thermal": "ACTIVE", "perception.detect": "ACTIVE", "risk.rule_based": "ACTIVE"}},
+    {"type": "provider_id", "node": "registry", "after": "hotplug", "provider": {"sensor.thermal": "thermal_camera_B"}},
+    {"type": "conformance", "node": "registry", "provider": {"kind": "sensor.thermal", "provider_id": "thermal_camera_B"}, "must_pass": true},
+    {"type": "source_scan", "forbidden_tokens": ["thermal_camera_B", "thermal", "camera_A", "water_level_A"]}
+  ]
+}

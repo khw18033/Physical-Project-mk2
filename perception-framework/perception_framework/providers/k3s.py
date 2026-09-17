@@ -162,6 +162,8 @@ class K3sControlProvider:
         image = params.get("image")
         if not image:
             return ControlResult(False, None, rejection_reason="missing_image")
+        if params.get("require_image_digest") and "@sha256:" not in image:
+            return ControlResult(False, None, rejection_reason="image_digest_required")
 
         name = self._name(target_id)
         if self._run(["get", "deployment", name, "-n", self._namespace]).returncode == 0:
@@ -190,7 +192,10 @@ class K3sControlProvider:
         # is already running — a briefly-ignored placement is still an ignored
         # placement.
         placement = params.get("node_selector")
-        if not placement:
+        security_context = params.get("security_context")
+        service_account = params.get("service_account")
+        image_pull_secrets = params.get("image_pull_secrets") or ()
+        if not any((placement, security_context, service_account, image_pull_secrets)):
             created = self._run(args)
             if created.returncode != 0:
                 return ControlResult(False, None,
@@ -202,7 +207,16 @@ class K3sControlProvider:
             return ControlResult(False, None, rejection_reason=_reject_reason(rendered.stderr))
         try:
             manifest = json.loads(rendered.stdout)
-            manifest["spec"]["template"]["spec"]["nodeSelector"] = dict(placement)
+            pod_spec = manifest["spec"]["template"]["spec"]
+            if placement:
+                pod_spec["nodeSelector"] = dict(placement)
+            if service_account:
+                pod_spec["serviceAccountName"] = str(service_account)
+            if image_pull_secrets:
+                pod_spec["imagePullSecrets"] = [{"name": str(name)} for name in image_pull_secrets]
+            if security_context:
+                for container in pod_spec["containers"]:
+                    container["securityContext"] = dict(security_context)
         except (ValueError, KeyError):
             return ControlResult(False, None, rejection_reason="placement_not_applied")
         applied = self._run(["apply", "-n", self._namespace, "-f", "-"],

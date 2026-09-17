@@ -1,6 +1,13 @@
 """Observation coverage and blind spots, accumulated from what was actually seen.
 
-implements: AI-E-05, AI-C-02, AI-C-10, AI-C-11, AI-S-03
+implements: AI-S-03, AI-C-02, AI-C-05, AI-C-10
+
+Region-level counterpart to `perception/uncertainty.py`'s object-level
+evidence-sufficiency report (AI-S-03): the same "confidence vs. sufficiency"
+split, applied to "how much of this space is actually backed by a current
+observation" instead of "how much do we trust this one object". Filed under
+AI-S-03 rather than the now-nonexistent old sheet ID "AI-E-05" this module's
+docstring previously cited (see `docs/ai/requirement-traceability.md`).
 
 `environment_map.MapElement.kind` answers "무엇이 어디에 있는가" and its
 vocabulary — traversable/obstacle/landmark — has no way to say "this area was
@@ -15,7 +22,7 @@ Consequences encoded here:
 * A blind spot carries **why** it is blind, because the operator response
   differs: no source assigned, an available source occluded, a source the
   backend reports unusable, and an observation that has simply aged out are
-  four different problems (AI-E-05).
+  four different problems.
 * The materials for that verdict — source health, last good observation time —
   are **supplied by the caller**. Final device availability is integrated by
   the backend and consumed here as an input; this module never re-derives it

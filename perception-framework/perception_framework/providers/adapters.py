@@ -117,6 +117,17 @@ class ControlProvider(Protocol):
 
 
 @runtime_checkable
+class HardwareCommandProvider(Protocol):
+    """Executes/cancels one semantic physical command behind a vendor adapter."""
+
+    def execute(self, command: Any) -> tuple[bool, dict | None, str | None]: ...
+
+    def cancel(self, command_id: str) -> bool: ...
+
+    def capabilities(self) -> tuple[Any, ...]: ...
+
+
+@runtime_checkable
 class ObservabilityProvider(Protocol):
     """Metric/log/trace/event sink (AI-O-01, AI-O-02, AI-C-12).
 

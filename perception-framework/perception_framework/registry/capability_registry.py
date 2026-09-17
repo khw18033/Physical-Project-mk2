@@ -18,6 +18,7 @@ from dataclasses import dataclass, field
 from typing import Callable
 
 from perception_framework.contracts.capability import CapabilityRequirement
+from perception_framework.contracts.capability_contract import ExecutionProfile, RuntimeInstance
 from perception_framework.contracts.profile import CompatibilityProfile
 
 
@@ -34,6 +35,14 @@ class ProviderRegistration:
     supported_outputs: tuple[str, ...] = ()
     health_check: Callable[[], bool] | None = None
     registered_at: float = 0.0
+    # AI-C-18 5-layer target contract (docs/ai/design/external-technology-decisions.md
+    # §4/§10-2) linked in by reference, not required — both default to `None` so every
+    # existing registration keeps working unchanged. When present, `selection/selector.py`'s
+    # `select_for_intent` applies their extra §4.3 invariants (3: reuse measured evidence
+    # only under matching conditions; 4: TTL-expired instance excluded even with a past
+    # benchmark) on top of the existing compatibility/budget filter.
+    execution_profile: ExecutionProfile | None = None
+    runtime_instance: RuntimeInstance | None = None
 
     def is_healthy(self) -> bool:
         if self.health_check is None:

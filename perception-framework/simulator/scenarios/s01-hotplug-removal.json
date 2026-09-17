@@ -1,0 +1,32 @@
+{
+  "id": "s01-hotplug-removal",
+  "description": "핫플러그된 선택 기능을 다시 제거해도 나머지(핵심 포함)는 계속 실행된다. (AI-B-04, AI-C-11)",
+  "nodes": [
+    {
+      "id": "registry", "type": "registry_node",
+      "profile": {
+        "domain_id": "zone-1",
+        "active_capability_kinds": ["perception.detect", "sensor.thermal"],
+        "node_tags": ["cpu"]
+      },
+      "capabilities": [
+        {"kind": "perception.detect", "core": true},
+        {"kind": "sensor.thermal", "rank": 1}
+      ],
+      "providers": [
+        {"kind": "perception.detect", "provider_id": "camera_A"},
+        {"kind": "sensor.thermal", "provider_id": "thermal_camera_B"}
+      ]
+    }
+  ],
+  "couplings": [],
+  "stimuli": [
+    {"at": 5.0, "port": "control", "target": "registry", "label": "removed",
+     "msg": {"op": "unregister_provider", "kind": "sensor.thermal", "provider_id": "thermal_camera_B"}}
+  ],
+  "run_until": 10.0,
+  "expectations": [
+    {"type": "capability_state", "node": "registry", "after": "removed", "state": {"sensor.thermal": "DISABLED"}},
+    {"type": "core_kinds_running", "node": "registry", "value": true}
+  ]
+}

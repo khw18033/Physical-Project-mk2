@@ -1,0 +1,28 @@
+{
+  "id": "s02-insufficient-node",
+  "description": "필수 조건을 만족하는 provider가 있어도 자원이 부족하면 예외 없이 DISABLED + 사유로 드러난다. (AI-B-04)",
+  "nodes": [
+    {
+      "id": "registry", "type": "registry_node",
+      "profile": {
+        "domain_id": "zone-1",
+        "active_capability_kinds": ["perception.detect"],
+        "node_tags": ["cpu"]
+      },
+      "capabilities": [
+        {"kind": "perception.detect", "core": true}
+      ],
+      "providers": [
+        {"kind": "perception.detect", "provider_id": "heavy", "compute": 64.0, "memory": 8192.0}
+      ],
+      "budget": {"compute_units": 2.0, "memory_mb": 512.0}
+    }
+  ],
+  "couplings": [],
+  "stimuli": [],
+  "run_until": 0.0,
+  "expectations": [
+    {"type": "capability_state", "node": "registry", "after": 0.0, "state": {"perception.detect": "DISABLED"}},
+    {"type": "reason", "node": "registry", "after": 0.0, "reason": {"perception.detect": "no_compatible_provider_within_budget"}}
+  ]
+}

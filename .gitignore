@@ -22,3 +22,35 @@ secrets/
 # Local runtime artifacts
 *.log
 *.pid
+
+# 대용량 실험 자산 — 저장소에 커밋하지 않는다.
+# 2026-08-28: 데이터셋 ZIP 5.0G 가 Codex turn-diff 체크포인트 ref 에 붙잡혀
+# .git 이 8.6G 까지 부풀었고, 디스크 97% 로 k3s 가 DiskPressure taint 를 걸어
+# 파드가 전혀 스케줄되지 않았다. 원본은 datasets/ 에 두고 git 에는 넣지 않는다.
+datasets/
+models/
+
+# reports/ 는 매일의 고민·실험·결과를 남기는 개인 기록 용도 — git에 올리지 않는다.
+reports/
+
+# Large local-only assets (not source)
+/research/
+/weights/
+docs/*.zip
+
+# Model checkpoints and local capture outputs
+*.pt
+*.pth
+*.onnx
+*.safetensors
+/demo/test/try1/
+
+# Local authentication and machine-specific configuration
+.kube/
+kubeconfig
+kubeconfig.*
+*.kubeconfig
+credentials.json
+credentials.*.json
+*.crt
+*.cer

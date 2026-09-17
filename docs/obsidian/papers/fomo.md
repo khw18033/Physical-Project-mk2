@@ -1,8 +1,8 @@
 # Open World Object Detection in the Era of Foundation Models
 
 ## 메타데이터
-- categories: [[RWD Benchmark]], [[Attribute-based Unknown Detection]], [[Foundation Model 기반 Open World Object Detection]]
-- domain: [[Open World Object Detection]], [[Object Detection]]
+- categories: RWD Benchmark, Attribute-based Unknown Detection, Foundation Model 기반 Open World Object Detection
+- domain: [[객체 탐지·분할]]
 - source: Zohar, O., Lozano, A., Goel, S., Yeung, S., Wang, K.-C., Open World Object Detection in the Era of Foundation Models, arXiv preprint arXiv:2312.05745, 2023
 - url: https://arxiv.org/abs/2312.05745
 - year: 2023
