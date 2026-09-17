@@ -11,6 +11,7 @@ import { PendingSource } from '../shared/PendingSource.tsx';
 import { exitScenarioRender, useDevTools, useMockRender, useScenarioRender } from '../shared/renderMode.ts';
 import { useAppServices } from '../shared/appServices.ts';
 import { useConnectionStatus } from '../shared/connectionStatus.ts';
+import { useLang } from '../shared/language.ts';
 import { ConnectionsPanel } from './ConnectionsPanel.tsx';
 import { HelpOverlay } from './HelpOverlay.tsx';
 import { useMissionBridge } from './missionBridge.ts';
@@ -59,6 +60,8 @@ export function AppShell({ debuggerView, onDebuggerHome, onMissionHistory, onOpe
   // 구독과 AI 실패 알림을 주입하고, 단독 빌드는 아무것도 주입하지 않아 아무 일도 안 일어난다.
   // 전에는 여기서 `useTabsDataLayer()` 를 직접 불렀고, 그 한 줄 때문에 셸 전체가
   // 단독 빌드에서 빠져 있었다.
+  // `t()` 는 값을 줄 뿐 리렌더를 안 일으킨다 (지시서 §2 ①).
+  useLang();
   useAppServices();
   // 상단 `conn` 배지. **이 훅이 게이트웨이 연결을 시작한다** — `getTransport()` 가 첫 호출에
   // 붙기 때문이다(`shared/connectionStatus.ts` 의 ⚠). 셸이 뜨는 순간 붙으러 간다.
