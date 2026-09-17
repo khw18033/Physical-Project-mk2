@@ -605,4 +605,10 @@ export const ko: Record<string, string> = {
   'hist.nodes': '{done}/{of} 노드',
   'hist.runLine': '{label} · 그림 {images}장 · T+{sec}s',
   'plan.segmentsDash': '{n}구간 — ',
+
+  // ── 발화 패널 — 주석 제거기가 가렸던 것 ──
+  'stt.hotwordTitle': '레지스트리에 등록된 구역·장비 이름 쪽으로 인식을 맞춥니다. 끄면 편향 없이 인식합니다 — VZ-L-03 임계 실측의 대조군입니다.',
+  'stt.hotword': '등록 이름 우선',
+  'stt.hotwordHint': '**등록 이름 우선** — 레지스트리에 등록된 구역·장비 이름(`503 구역`·`엣지 노드 A` …) 쪽으로 인식을 맞춥니다. 끄면 그 편향 없이 인식합니다.',
+  'stt.transcribing': '인식 중입니다. 모델을 처음 읽는 경우 오래 걸립니다.',
 };

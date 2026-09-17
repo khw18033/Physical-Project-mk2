@@ -609,4 +609,10 @@ export const en: Record<string, string> = {
   'hist.nodes': '{done}/{of} nodes',
   'hist.runLine': '{label} · {images} images · T+{sec}s',
   'plan.segmentsDash': '{n} segments — ',
+
+  // ── 발화 패널 — 주석 제거기가 가렸던 것 ──
+  'stt.hotwordTitle': 'Biases recognition toward zone and device names registered in the registry. Turn it off to recognise without that bias — this is the control group for the VZ-L-03 threshold measurement.',
+  'stt.hotword': 'Prefer registered names',
+  'stt.hotwordHint': '**Prefer registered names** — biases recognition toward zone and device names in the registry (`503 구역` · `엣지 노드 A` …). Turn it off to recognise without that bias.',
+  'stt.transcribing': 'Transcribing. The first run takes longer while the model loads.',
 };

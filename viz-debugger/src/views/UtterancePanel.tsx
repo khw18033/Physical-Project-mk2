@@ -63,6 +63,7 @@ import placesTopology from '../../../places/places.json';
 import equipmentVocabulary from '../../../equipment/equipment.json';
 import { noteHumanAction } from '../shared/humanAction.ts';
 import { t } from '../i18n/dict.ts';
+import { Rich } from '../i18n/RichText.tsx';
 import { useLang } from '../shared/language.ts';
 
 const LEVEL_BARS = 22;
@@ -643,18 +644,17 @@ export function UtterancePanel({ fallbackText }: { fallbackText: string }) {
           <input type="file" accept="audio/*" disabled={fileDisabled}
             onChange={(event) => { const file = event.target.files?.[0]; if (file) void send(file); }} />
         </label>
-        <label className="hotword-toggle" title="레지스트리에 등록된 구역·장비 이름 쪽으로 인식을 맞춥니다. 끄면 편향 없이 인식합니다 — VZ-L-03 임계 실측의 대조군입니다.">
+        <label className="hotword-toggle" title={t('stt.hotwordTitle')}>
           <input type="checkbox" checked={useHotwords} onChange={(event) => setUseHotwords(event.target.checked)} />
-          등록 이름 우선
+          {t('stt.hotword')}
         </label>
       </div>
       <Explain id="utt-3" className="stt-hint">
-        <b>등록 이름 우선</b> — 레지스트리에 등록된 구역·장비 이름(<code>503 구역</code>·<code>엣지 노드 A</code> …)
-        쪽으로 인식을 맞춥니다. 끄면 그 편향 없이 인식합니다.
+        <Rich id="stt.hotwordHint" />
       </Explain>
 
       {able.note && <p className="stt-note">{able.note}</p>}
-      {phase === 'transcribing' && <p className="stt-note">인식 중입니다. 모델을 처음 읽는 경우 오래 걸립니다.</p>}
+      {phase === 'transcribing' && <p className="stt-note">{t('stt.transcribing')}</p>}
       {error && <p className="stt-error">{error.message}{error.detail ? <small>{error.detail}</small> : null}</p>}
 
       {/*

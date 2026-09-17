@@ -49,7 +49,60 @@ const DEV_ONLY = [
 
 const read = (rel) => readFileSync(join(root, 'src', rel), 'utf8');
 /** 주석을 지운다 — 이 저장소의 주석은 한글로 길고, 그건 옮길 대상이 아니다. */
-const code = (s) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+/**
+ * 주석을 지운다 — **문자열 안을 건드리지 않는다.**
+ *
+ * ## 260917 — 정규식 한 줄이 검사의 눈을 감겼다
+ *
+ * 전에는 이랬다.
+ *
+ * ```js
+ * s.replace(/\/\*[\s\S]*?\*\//g, '')
+ * ```
+ *
+ * `accept="audio/*"` 의 **`/*` 를 주석 시작으로 읽고** 다음 `*​/` 까지 통째로 지웠다 —
+ * `UtterancePanel.tsx` 한 곳에서 **1,145자**가 사라졌고 그 안에 한글 233자가 있었다.
+ * 「등록 이름 우선」과 「인식 중입니다…」가 거기 묻혀 있었다.
+ *
+ * 검사는 **지워진 자리를 볼 수 없으므로 초록이었다.** 사람이 화면을 보고 찾아냈다.
+ *
+ * 그래서 문자열을 먼저 알아보고 지나간다. 완전한 파서는 아니지만(정규식 리터럴은 안 가른다)
+ * **문자열 안의 `/*` 에 속지 않는다** — 그것이 이 사고의 원인이었다.
+ */
+function code(src) {
+  let out = '';
+  let i = 0;
+  while (i < src.length) {
+    const c = src[i];
+    // 문자열은 통째로 옮긴다 — 안의 `/*` 는 주석이 아니다.
+    if (c === '"' || c === "'" || c === '`') {
+      out += c;
+      i += 1;
+      while (i < src.length && src[i] !== c) {
+        if (src[i] === '\\') { out += src[i] + (src[i + 1] ?? ''); i += 2; continue; }
+        out += src[i];
+        i += 1;
+      }
+      out += src[i] ?? '';
+      i += 1;
+      continue;
+    }
+    if (c === '/' && src[i + 1] === '*') {
+      const end = src.indexOf('*/', i + 2);
+      i = end < 0 ? src.length : end + 2;
+      out += '\n';   // 줄 구조를 지켜야 뒤의 `>…<` 매칭이 안 엉킨다
+      continue;
+    }
+    if (c === '/' && src[i + 1] === '/') {
+      const end = src.indexOf('\n', i);
+      i = end < 0 ? src.length : end;
+      continue;
+    }
+    out += c;
+    i += 1;
+  }
+  return out;
+}
 
 /**
  * JSX 텍스트 노드의 한글을 찾는다.
@@ -107,9 +160,13 @@ const CODE_MARKS = [';', '=>', 'const ', 'let ', 'return ', 'function ', 'import
 
 function jsxTexts(src) {
   // 표현식을 안쪽부터 접는다 — `{a.b({c})}` 처럼 겹친 것도 `{}` 하나가 된다.
+  //
+  // **`<`·`>` 가 든 중괄호는 안 접는다** (260917). `{phase === 'x' && <p>인식 중입니다…</p>}`
+  // 처럼 조건 안에 JSX 가 든 자리를 통째로 접어 버리면 그 안의 텍스트가 사라진다 —
+  // 「인식 중입니다」가 그렇게 묻혀 있었다. 접는 것은 **순수 JS 표현식**뿐이다.
   let s = src;
   let prev;
-  do { prev = s; s = s.replace(/\{[^{}]*\}/g, '{}'); } while (s !== prev);
+  do { prev = s; s = s.replace(/\{[^{}<>]*\}/g, '{}'); } while (s !== prev);
   return [...s.matchAll(/>([^<>]*[가-힣][^<>]*)<(?=[/A-Za-z])/g)]   // ① 모양
     .map((m) => m[1].replace(/\s+/g, ' ').trim())
     .filter((v) => v !== '' && !CODE_MARKS.some((mark) => v.includes(mark)));   // ② 내용
@@ -229,10 +286,13 @@ function missingHook(src) {
 // 진짜 위반이 하나라도 있으면 대조군이 그것 때문에 통과/실패해서 무엇을 확인한 것인지
 // 알 수 없어진다 (검사 위생 260917 에서 세운 규약).
 {
+  // **실제 검사와 같은 함수를 쓴다** (260917). 전에는 여기만 옛 정규식(`[^<>{}]*`)이 남아서,
+  // 대조군은 옛 잣대로 통과하고 실제 검사는 새 잣대로 도는 어긋남이 있었다 — 대조군이 무엇을
+  // 확인하는지 흐려진다.
   const hangul = (src) => {
     const s = code(src);
     return [...[...s.matchAll(/(['"`])((?:[^\\\n]|\\.)*?)\1/g)].map((m) => m[2]).filter((v) => /[가-힣]/.test(v)),
-      ...[...s.matchAll(/>([^<>{}]*[가-힣][^<>]*)</g)].map((m) => m[1])].length;
+      ...jsxTexts(s)].length;
   };
   const cases = [
     ['JSX 에 한글을 도로 박은 사본', hangul('const a = <p>연결 예정</p>;') > 0, true],
@@ -250,6 +310,14 @@ function missingHook(src) {
     ['화살표 함수가 든 줄 (잡으면 안 된다)', jsxTexts('const f = (a) => a > 1 ? 이름 : 0 < 2;').length > 0, false],
     // **줄에 `;` 가 있어도 진짜 텍스트면 잡아야 한다** — 코드 문법 목록으로 거르면 이것이 샌다.
     ['세미콜론이 붙은 진짜 JSX (잡아야 한다)', jsxTexts('return <p>3판</p>;').length > 0, true],
+
+    // **260917 — 사람이 화면에서 찾은 구멍 둘.** 검사는 초록이었다.
+    // ① `accept="audio/*"` 의 `/*` 를 주석 시작으로 읽어 1,145자를 지웠다 — 그 안의 한글을 못 봤다
+    ['문자열 안의 /* 뒤에 온 한글 (주석 제거기가 먹던 자리)',
+      hangul('<input accept="audio/*" />\n<label>등록 이름 우선</label>\n{/* 진짜 주석 */}') > 0, true],
+    // ② `{조건 && <p>한글</p>}` 을 표현식으로 통째로 접어 안의 JSX 텍스트까지 삼켰다
+    ['조건 표현식 안의 JSX 텍스트',
+      jsxTexts("{phase === 'x' && <p className=\"a\">인식 중입니다.</p>}").length > 0, true],
 
     // §3 — **둘째 컴포넌트에서 훅을 뺀 사본이 잡혀야 조인 것이다.**
     // 파일 단위 검사는 첫 컴포넌트의 `useLang()` 을 보고 통과시킨다.
