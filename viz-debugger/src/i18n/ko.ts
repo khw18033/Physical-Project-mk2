@@ -595,4 +595,14 @@ export const ko: Record<string, string> = {
   'dev.offline': '오프라인',
   'dev.unknown': '상태 미수신',
   'dev.line': '{target} · {state}',
+
+  // ── 시연 경로 마무리 — 보간식 옆 단위·연결어 ──
+  'stt.timings': '{device}/{compute} · 추론 {infer}s · 로드 {load}s · RTF {rtf}',
+  'utter.markers': '발화에서 잡힌 말: {list} — 지금 생성 경로가 못 만드는 모양입니다. 승인 전에 사람이 봐야 합니다',
+  'act.tookSec': '{sec}초',
+  'act.bbox': '검출 상자 {values}',
+  'hist.runCount': '{n}판',
+  'hist.nodes': '{done}/{of} 노드',
+  'hist.runLine': '{label} · 그림 {images}장 · T+{sec}s',
+  'plan.segmentsDash': '{n}구간 — ',
 };

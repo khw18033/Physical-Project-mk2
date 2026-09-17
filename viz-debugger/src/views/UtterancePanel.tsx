@@ -239,7 +239,7 @@ function Numbers({ result, decision }: { result: SttResult; decision: Confidence
         {decision.reasons.map((reason) => <li key={reason}>{reason}</li>)}
       </ul>
       <Explain id="utt-2" className="hint">
-        {result.device}/{result.compute_type} · 추론 {result.elapsed_sec.toFixed(2)}s · 로드 {result.load_sec.toFixed(2)}s · RTF {result.rtf.toFixed(2)}
+        {t('stt.timings', { device: result.device, compute: result.compute_type, infer: result.elapsed_sec.toFixed(2), load: result.load_sec.toFixed(2), rtf: result.rtf.toFixed(2) })}
       </Explain>
     </details>
   );
@@ -771,7 +771,7 @@ export function UtterancePanel({ fallbackText }: { fallbackText: string }) {
           {genOutcome.provenance.shapeWarnings.map((note) => (
             <p key={note.kind} className="gen-shape-warning">
               <b>{note.kind === 'loop' ? t('plan.repeat') : t('plan.branch')}</b> {note.message}
-              <small>발화에서 잡힌 말: {note.markers.map((m) => `「${m}」`).join(' · ')} — 지금 생성 경로가 못 만드는 모양입니다. 승인 전에 사람이 봐야 합니다</small>
+              <small>{t('utter.markers', { list: note.markers.map((m) => `「${m}」`).join(' · ') })}</small>
             </p>
           ))}
           {/* 문법이 값의 범위는 못 잡는다 (7단계 §5 — confidence 5 가 문법을 통과했다).

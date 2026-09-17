@@ -352,7 +352,7 @@ function EvidenceList({ plan }: { plan: Plan }) {
             {/* 한 줄로 줄였다 (260901) — 구간 목록은 아래 마일스톤 목록과 **같은 값**이라
                 펼쳐 두면 한 화면에서 같은 것을 두 번 읽게 된다. */}
             <h3 className="evidence__title">{t('plan.perSegment')}</h3>
-            <p className="evidence__body">{plan.segments.length}구간 — <strong>{t('plan.sameAsMilestones')}</strong></p>
+            <p className="evidence__body">{t('plan.segmentsDash', { n: plan.segments.length })}<strong>{t('plan.sameAsMilestones')}</strong></p>
           </div>
         </li>
 

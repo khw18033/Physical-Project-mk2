@@ -153,7 +153,7 @@ export function MissionHistoryList({ compact = false, onReplay }: { compact?: bo
         ? <p className="history-empty">{t('hist.noSaved')}<small>{t('hist.noSavedWhy')}</small>
         </p>
         : groupByDate(runs).map(([date, items]) => <section key={date} className="history-day">
-          <h3>{dateWords(date)} <small>{items.length}판</small></h3>
+          <h3>{dateWords(date)} <small>{t('hist.runCount', { n: items.length })}</small></h3>
           <ul>
             {items.map((item) => <RunLine key={`${item.date}/${item.run}`} item={item} compact={compact}
               recordingFolder={recorder.folder}
@@ -184,8 +184,6 @@ function RunLine({ item, compact, recordingFolder, replayingKey, opening, onOpen
 }) {
   // `t()` 는 값을 줄 뿐 리렌더를 안 일으킨다 — 컴포넌트마다 건다 (지시서 §2 ①).
   useLang();
-  // `t()` 는 값을 줄 뿐 리렌더를 안 일으킨다 — 컴포넌트마다 건다 (지시서 §2 ①).
-  useLang();
   const key = `${item.date}/${item.run}`;
   const mission = item.mission;
   const outcome = mission?.outcome ?? null;
@@ -196,12 +194,12 @@ function RunLine({ item, compact, recordingFolder, replayingKey, opening, onOpen
     <time>{timeWords(item.run)}</time>
     <b>{mission?.missionId ?? item.run.slice(7)}</b>
     <span className="history-outcome">{outcomeWords}</span>
-    {mission !== null && <span className="history-count">{mission.done}/{mission.of} 노드</span>}
+    {mission !== null && <span className="history-count">{t('hist.nodes', { done: mission.done, of: mission.of })}</span>}
     <button type="button" className="history-action" disabled={opening !== null || mission === null} onClick={() => onOpen(item)}>
       {opening === key ? t('hist.opening') : current ? t('hist.reload') : t('hist.replay')}
     </button>
     {!compact && mission !== null && <small className="history-label">
-      {mission.label}{mission.testMode ? t('hist.testData') : ''} · 그림 {mission.imageCount}장 · T+{Math.round(mission.headSec)}s
+      {t('hist.runLine', { label: mission.label + (mission.testMode ? t('hist.testData') : ''), images: mission.imageCount, sec: Math.round(mission.headSec) })}
     </small>}
     {mission?.path != null && <small className="history-label">{t('hist.path', { turn: mission.path.turnInstruction, forward: mission.path.forwardM.toFixed(2) })}</small>}
     {mission?.pathFailure != null && <small className="history-why">{t('hist.pathFailed', { reason: mission.pathFailure })}</small>}
@@ -231,7 +229,7 @@ function SessionEntries({ entries, compact }: { entries: ReturnType<typeof useMi
     {entries.map((entry, index) => <li key={`${entry.missionId}-${entry.endedAtIso}-${index}`} className={`is-${entry.outcome}`}>
       <b>{entry.missionId}</b>
       <span className="history-outcome">{OUTCOME_WORDS[entry.outcome]}</span>
-      <span className="history-count">{entry.done}/{entry.of} 노드</span>
+      <span className="history-count">{t('hist.nodes', { done: entry.done, of: entry.of })}</span>
       <time>{entry.endedAtIso.slice(11, 19)}</time>
       {!compact && <small className="history-label">{entry.label}</small>}
       {/* 실패한 노드와 사유 — **없으면 아무것도 안 적는다.** */}

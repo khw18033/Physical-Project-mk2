@@ -91,7 +91,7 @@ function RobotCommands({ taskId }: { taskId: string }) {
           <b>{index + 1}. {record.action}</b>
           <span>{COMMAND_STATE[record.state]}</span>
           {/* **응답이 없으면 시간을 안 적는다.** 0초로 적으면 즉시 끝난 것으로 읽힌다. */}
-          {took !== null && <span>{took.toFixed(1)}초</span>}
+          {took !== null && <span>{t('act.tookSec', { sec: took.toFixed(1) })}</span>}
           {/* 각도 칸에서는 **이 표가 한 명령의 일부**라는 것을 적는다. */}
           {angle !== null && <span>{t('act.nthStep', { n: angle + 1 })}</span>}
           <code>{record.commandId}</code>
@@ -202,7 +202,7 @@ export function ActionModal({ task, view, device, failure, onClose }: { task: Ta
                   ? <img src={evidence.image_ref} alt={t('act.evidenceImage')} />
                   : <div className="evidence-image__empty">{t('act.evidenceMissing')}</div>}
                 {Array.isArray(evidence.bbox)
-                  ? <figcaption>검출 상자 {(evidence.bbox as number[]).map((n) => n.toFixed(2)).join(' · ')}</figcaption>
+                  ? <figcaption>{t('act.bbox', { values: (evidence.bbox as number[]).map((n) => n.toFixed(2)).join(' · ') })}</figcaption>
                   : null}
               </figure></>
           : null}

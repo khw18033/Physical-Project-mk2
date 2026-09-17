@@ -599,4 +599,14 @@ export const en: Record<string, string> = {
   'dev.offline': 'offline',
   'dev.unknown': 'status not received',
   'dev.line': '{target} · {state}',
+
+  // ── 시연 경로 마무리 — 보간식 옆 단위·연결어 ──
+  'stt.timings': '{device}/{compute} · inference {infer}s · load {load}s · RTF {rtf}',
+  'utter.markers': 'Words caught in the utterance: {list} — the current generation path cannot produce this shape. A person must look before approving',
+  'act.tookSec': '{sec}s',
+  'act.bbox': 'Detection box {values}',
+  'hist.runCount': '{n} runs',
+  'hist.nodes': '{done}/{of} nodes',
+  'hist.runLine': '{label} · {images} images · T+{sec}s',
+  'plan.segmentsDash': '{n} segments — ',
 };
