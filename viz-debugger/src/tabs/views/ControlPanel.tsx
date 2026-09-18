@@ -18,6 +18,8 @@
  *    조회했는지 알려 주는 종류 태그**다. 키를 다루는 것과는 다른 일이다.)
  */
 
+import { Rich } from '../../i18n/RichText.tsx';
+import { t } from '../../i18n/dict.ts';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { PendingSource } from '../../shared/PendingSource.tsx';
 import {
@@ -116,10 +118,9 @@ export function ControlPanel() {
     <main className="board">
       <header className="board__head">
         <div>
-          <h1 className="board__title">제어 패널 — 두 키의 수명 구간과 책임소재</h1>
+          <h1 className="board__title">{t('cp.1')}</h1>
           <Explain id="ctl-1" className="board__sub">
-            가시화는 <strong>요청 식별자</strong>만 붙여 보내고, 상관 키는 백엔드가 발급해 ACK로 내려준다.
-            화면은 ACK 전후 두 구간으로 나뉘어 동작한다
+            <Rich id="cp.sub" />
           </Explain>
         </div>
         <div className="board__meta">
@@ -128,7 +129,7 @@ export function ControlPanel() {
       </header>
 
       <section className="targetbar">
-        <span className="targetbar__label">제어 대상</span>
+        <span className="targetbar__label">{t('cp.3')}</span>
         {/* 대상 목록과 표시 이름은 레지스트리에서 온다 (VZ-I-03). 버튼 자체는 우리 것이다. */}
         <PendingSource id="registry" inline />
         {targets.map((id) => (
@@ -141,11 +142,11 @@ export function ControlPanel() {
             {store.getRegistry()?.entities.find((e) => e.id === id)?.display_name ?? id}
           </button>
         ))}
-        {targets.length === 0 && <span className="muted">이 대본에는 제어할 액추에이터가 없습니다 (1·2편)</span>}
+        {targets.length === 0 && <span className="muted">{t('cp.4')}</span>}
         <span className="targetbar__role">
-          역할 <strong>{role?.display_name ?? '조회 중'}</strong> · {describeScope(role)}
+          {t('cp.rolePrefix')} <strong>{role?.display_name ?? t('cp.5')}</strong> · {describeScope(role)}
           <button type="button" className="btn btn--tiny" onClick={refreshRole}>
-            역할 다시 조회 <em>(토큰 갱신 상황)</em>
+            {t('cp.refreshRole')} <em>{t('cp.6')}</em>
           </button>
         </span>
       </section>
@@ -154,7 +155,7 @@ export function ControlPanel() {
         {/* ── 1. 제어 (VZ-O-01 / VZ-O-05 / VZ-C-04) ─────────────────────── */}
         <section className="panel">
           <header className="panel__head">
-            <h2 className="panel__title">{record?.registry?.display_name ?? target} · 수문 제어</h2>
+            <h2 className="panel__title">{t('cp.gateControl', { name: record?.registry?.display_name ?? target })}</h2>
             <span className="panel__tag">VZ-O-01</span>
           </header>
 
@@ -175,72 +176,71 @@ export function ControlPanel() {
                 {spec.label}
               </button>
             ))}
-            {actions.length === 0 && <p className="muted">액션 카탈로그를 받지 못했다.</p>}
+            {actions.length === 0 && <p className="muted">{t('cp.7')}</p>}
           </div>
           </PendingSource>
 
           {inFlight && (
             <p className="notice notice--busy">
               <span className="spinner" aria-hidden="true" />
-              발행됨 — {latest?.tracking.linked === true ? '상관 키로 결과를 잇는 중' : '수신 확인(ACK) 대기 중'}
+              {t('cp.issued', { how: latest?.tracking.linked === true ? t('cp.8') : t('cp.9') })}
             </p>
           )}
 
           <dl className="kv">
-            <dt>현재 상태</dt>
+            <dt>{t('cp.10')}</dt>
             <dd>
               <PendingSource id="actuator-state" inline entity={target} axis="actuator">
                 <strong>{describePosition(record?.actuator?.payload?.position_pct ?? null)}</strong>
               </PendingSource>
             </dd>
-            <dt>발행 형태</dt>
+            <dt>{t('cp.11')}</dt>
             <dd>
               <code>action={actions[0]?.action ?? '—'}</code>
             </dd>
-            <dt>동봉 필드</dt>
+            <dt>{t('cp.12')}</dt>
             <dd className="muted">
-              <code>client_request_id</code> / <code>expires_at</code> / 감사 필드
+              <Rich id="cp.auditFields" />
               <br />
-              <em>상관 키는 동봉하지 않는다 — 백엔드가 발급한다 (BE-X-01)</em>
+              <em>{t('cp.13')}</em>
             </dd>
           </dl>
 
           <Explain id="ctl-2" className="note">
-            가시화는 <strong>추상 action까지만</strong> 발행한다. 디바이스 명령(<code>levee:open</code>)으로의 번역은
-            백엔드가 어휘집으로 수행한다.
+            <Rich id="cp.abstractAction" />
             {actions.some((a) => a.irreversible) && (
               <>
                 {' '}
-                이 액션들은 <strong>되돌리기 어려움</strong>으로 선언되어 ACK가 아니라 수행 결과로 확정한다.
+                <Rich id="cp.irreversible" />
               </>
             )}
           </Explain>
 
           <div className="devpanel devpanel--inline">
-            <h3 className="devpanel__title">계약 검증</h3>
+            <h3 className="devpanel__title">{t('cp.15')}</h3>
 
             <label className="check">
               <input type="checkbox" checked={forceExpired} onChange={(e) => setForceExpired(e.target.checked)} />
-              만료된 명령 보내보기 <em>(expires_at을 과거로 — 서버가 거부하는지 확인)</em>
+              {t('cp.sendExpired')} <em>{t('cp.16')}</em>
             </label>
 
             <label className="check">
               <input type="checkbox" checked={dropAck} onChange={(e) => setDropAck(e.target.checked)} />
-              ACK 없이 만료시키기 <em>(목 서버가 ACK 미발신 · TTL {SHORT_TTL_MS / 1000}초)</em>
+              {t('cp.expireNoAck')} <em>{t('cp.expireNoAckNote', { sec: SHORT_TTL_MS / 1000 })}</em>
             </label>
 
             <div className="devpanel__row">
               <button type="button" className="btn btn--small" onClick={() => playScenario('ack-late')}>
-                ACK를 진행 이벤트보다 늦게
+                {t('cp.btn.ackLate')}
               </button>
               <button type="button" className="btn btn--small" onClick={() => playScenario('command-fail')}>
-                다음 명령 실패시키기
+                {t('cp.btn.commandFail')}
               </button>
               <button type="button" className="btn btn--small" onClick={() => playScenario('control-lock')}>
-                통신 두절 → 잠금
+                {t('cp.btn.controlLock')}
               </button>
               <button type="button" className="btn btn--small" onClick={() => playScenario('control-unlock')}>
-                복구 → 재확인 후 해제
+                {t('cp.btn.controlUnlock')}
               </button>
             </div>
 
@@ -255,30 +255,30 @@ export function ControlPanel() {
                 className="btn btn--small btn--probe"
                 onClick={() => playScenario('command-roundtrip-slow')}
               >
-                왕복 지연 주입 (한 방향 60ms)
+                {t('cp.btn.slowRoundtrip')}
               </button>
               <button
                 type="button"
                 className="btn btn--small"
                 onClick={() => playScenario('command-roundtrip-zero')}
               >
-                왕복 지연 해제
+                {t('cp.btn.zeroRoundtrip')}
               </button>
               <button
                 type="button"
                 className="btn btn--small"
                 onClick={() => playScenario('cache-policy-audit')}
               >
-                캐시 정책 대조 (BE-T-06)
+                {t('cp.btn.cacheAudit')}
               </button>
             </div>
 
             <div className="devpanel__row">
               <button type="button" className="btn btn--small" onClick={() => { playScenario('role-narrow'); }}>
-                역할을 503 담당으로 좁히기
+                {t('cp.btn.roleNarrow')}
               </button>
               <button type="button" className="btn btn--small" onClick={() => { playScenario('role-full'); }}>
-                역할을 전 범위로
+                {t('cp.btn.roleFull')}
               </button>
               <button
                 type="button"
@@ -288,12 +288,11 @@ export function ControlPanel() {
                 disabled={actions.length === 0}
                 onClick={() => actions[0] && void issue(actions[0], { bypassUiLock: true })}
               >
-                화면 잠금 우회해 발행 <em>(서버가 거부하는지 확인)</em>
+                {t('cp.bypassLock')} <em>{t('cp.17')}</em>
               </button>
             </div>
             <Explain id="ctl-3" className="note note--dim">
-              역할은 로그인·토큰 갱신 시점에만 조회된다. 범위를 바꾼 뒤에는 위의 <strong>역할 다시 조회</strong>를
-              눌러야 화면에 반영된다 — 주기 조회가 없는 것이 요구사항이기 때문이다.
+              <Rich id="cp.roleNote" />
             </Explain>
           </div>
         </section>
@@ -301,7 +300,7 @@ export function ControlPanel() {
         {/* ── 2. 명령 진행 (VZ-O-02) ────────────────────────────────────── */}
         <section className="panel">
           <header className="panel__head">
-            <h2 className="panel__title">명령 진행 — 발행에서 확정까지</h2>
+            <h2 className="panel__title">{t('cp.19')}</h2>
             <span className="panel__tag">VZ-O-02</span>
           </header>
 
@@ -309,15 +308,14 @@ export function ControlPanel() {
               발행 주체는 감사에 「임무 MSN-…」로 남는다 — 사람이 누른 것이 아니다. */}
           <PendingSource id="command-result" minHeight={180} entity={target} axis="command">
             {latest === null ? (
-              <p className="muted">아직 발행한 명령이 없다. 왼쪽에서 명령을 눌러 보라.</p>
+              <p className="muted">{t('cp.20')}</p>
             ) : (
               <CommandTimeline command={latest} />
             )}
           </PendingSource>
 
           <Explain id="ctl-4" className="note">
-            프론트는 <strong>진행중 · 확정 · 실패</strong> 3상태만 그린다. ACK를 확정으로 취급하면 화면과 현실이
-            어긋난다.
+            <Rich id="cp.threeStates" />
           </Explain>
         </section>
 
@@ -326,9 +324,7 @@ export function ControlPanel() {
       </div>
 
       <p className="footnote">
-        감사 조회는 <strong>패널 열람 시점에만</strong> 질의하고, 조회 키는 <strong>상관 키</strong>다 —
-        요청부터 감사까지 사슬을 잇는 것이 그 키이기 때문이다(BE-X-01). 진행 중 명령의 상태 변화는 결과 푸시로
-        이미 도달하므로 주기 폴링은 중복이다.
+        <Rich id="cp.auditNote" />
       </p>
     </main>
   );
@@ -338,7 +334,7 @@ function describePosition(pct: number | null): string {
   if (pct === null) return '—';
   if (pct === 100) return 'open';
   if (pct === 0) return 'closed';
-  return '개도 ' + pct + '%';
+  return t('cp.openPct', { pct });
 }
 
 /**
@@ -350,7 +346,7 @@ function ControlGateBar({ gate }: { gate: ControlGate }) {
   if (!gate.locked) return null;
   return (
     <div className="lockbar">
-      <strong>제어 잠금</strong>
+      <strong>{t('cp.22')}</strong>
       {gate.reasons.map((r) => (
         <span key={r.kind} className={'lockbar__reason lockbar__reason--' + r.kind}>
           <span className="lockbar__badge">{r.label}</span>
@@ -387,8 +383,7 @@ function CommandTimeline({ command }: { command: TrackedCommand }) {
 
       {command.absorbedCount > 0 && (
         <p className="notice notice--absorbed">
-          매핑보다 먼저 도착한 이벤트 <strong>{command.absorbedCount}건</strong>을 보류했다가 흡수했다.
-          순서를 신뢰했다면 이 이벤트들은 사라졌을 것이다.
+          <Rich id="cp.absorbed" vars={{ n: command.absorbedCount }} />
         </p>
       )}
 
@@ -404,11 +399,11 @@ function CommandTimeline({ command }: { command: TrackedCommand }) {
             <span className="timeline__dot" />
             <div>
               <strong>{STAGE_LABEL[s.stage] ?? s.stage}</strong>
-              {s.absorbed === true && <span className="chip chip--absorbed">보류 후 흡수</span>}
+              {s.absorbed === true && <span className="chip chip--absorbed">{t('cp.23')}</span>}
               <div className="timeline__sub">
                 {s.detail}
                 {s.progressPct !== null && ' · ' + s.progressPct + '%'}
-                {s.reasonCode !== null && ' · 사유코드 ' + s.reasonCode}
+                {s.reasonCode !== null && t('cp.reasonCode', { code: s.reasonCode })}
               </div>
             </div>
             <time className="timeline__time">{timeOf(s.ts)}</time>
@@ -417,13 +412,13 @@ function CommandTimeline({ command }: { command: TrackedCommand }) {
       </ol>
 
       <Explain id="ctl-5" className="note note--dim">
-        만료 <code>{timeOf(command.expiresAt)}</code> · 만료 검사는 서버가 서버 시각으로 한다
+        <Rich id="cp.expiryNote" vars={{ at: timeOf(command.expiresAt) }} />
       </Explain>
 
       {command.display === 'failed' && (
         <div className="failbox">
-          <strong>실패</strong> — {command.lastDetail}
-          {command.restored && <div className="failbox__sub">이전 상태로 복원됨. 화면과 현실이 어긋나지 않는다.</div>}
+          <strong>{t('cp.24')}</strong> — {command.lastDetail}
+          {command.restored && <div className="failbox__sub">{t('cp.25')}</div>}
         </div>
       )}
     </>
@@ -472,23 +467,23 @@ function LastOperatorPanel({
 
   const queryLabel = useMemo(() => {
     if (result === null) return null;
-    if (result.queriedBy === 'command_id') return '상관 키로 조회 — ' + result.queriedKey;
-    if (result.queriedBy === 'entity') return '대상으로 조회 (상관 키 없음) — ' + result.queriedKey;
+    if (result.queriedBy === 'command_id') return t('cp.queriedByKey', { key: result.queriedKey ?? '' });
+    if (result.queriedBy === 'entity') return t('cp.queriedByEntity', { key: result.queriedKey ?? '' });
     return null;
   }, [result]);
 
   return (
     <section className="panel">
       <header className="panel__head">
-        <h2 className="panel__title">마지막 조작자</h2>
+        <h2 className="panel__title">{t('cp.26')}</h2>
         <span className="panel__tag">VZ-I-05</span>
       </header>
 
       <button type="button" className="btn btn--small" onClick={() => setOpen((v) => !v)}>
-        {open ? '패널 닫기' : '패널 열기 (열 때 1회 조회)'}
+        {open ? t('cp.27') : t('cp.28')}
       </button>
 
-      {!open && <p className="muted">닫힌 동안에는 조회하지 않는다.</p>}
+      {!open && <p className="muted">{t('cp.29')}</p>}
 
       {open && queryLabel !== null && (
         <p className={'querykey' + (result?.queriedBy === 'command_id' ? ' querykey--chain' : '')}>{queryLabel}</p>
@@ -497,7 +492,7 @@ function LastOperatorPanel({
       {open && error !== null && <p className="notice notice--warn">{error}</p>}
 
       {open && last === null && error === null && (
-        <p className="muted">조작 이력이 없다. 명령을 한 번 발행하면 기록이 생긴다.</p>
+        <p className="muted">{t('cp.30')}</p>
       )}
 
       {/* 층 3 (260901) — 축을 줬다. 3편에서는 대본 명령이 실제 엔진을 통과하므로 감사에
@@ -506,12 +501,12 @@ function LastOperatorPanel({
       {open && last !== null && (
         <PendingSource id="audit-history" minHeight={150} entity={entity} axis="command">
           <div className="actor">
-            <strong className="actor__name">{last.actorName ?? '미기록'}</strong>
+            <strong className="actor__name">{last.actorName ?? t('cp.31')}</strong>
             {last.actorRole !== null && <span className="chip">{last.actorRole}</span>}
           </div>
 
           <dl className="kv">
-            <dt>시각</dt>
+            <dt>{t('cp.32')}</dt>
             <dd>
               <strong>{last.occurredAt === null ? '—' : timeOf(last.occurredAt)}</strong>
             </dd>
@@ -521,16 +516,16 @@ function LastOperatorPanel({
           </dl>
 
           <Explain id="ctl-6" className="note note--dim">
-            상관 키 · {last.commandId ?? '—'}
+            {t('cp.correlationKey', { key: last.commandId ?? '—' })}
             <br />
-            기록 작성 — {last.writtenBy ?? '—'}
+            {t('cp.writtenBy', { who: last.writtenBy ?? '—' })}
             <br />
-            조작자·시각은 토큰·서버 시각에서 주입
+            {t('cp.injectedFrom')}
           </Explain>
 
           {result?.serverQueryCount != null && (
             <Explain id="ctl-7" className="note note--dim">
-              서버 누적 감사 조회 {result.serverQueryCount}회 (주기 폴링이 없으면 늘지 않는다)
+              {t('cp.serverQueryCount', { n: result.serverQueryCount })}
             </Explain>
           )}
         </PendingSource>
