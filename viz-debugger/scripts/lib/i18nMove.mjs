@@ -124,7 +124,30 @@ export function easyMoves(src, prefix) {
     //
     //    `>다시 받기<` 는 되고 `>탐지 {n}건<` 은 안 된다 — 뒤엣것은 보간식이 섞여
     //    있어 기계가 가르면 「탐지」와 「건」이라는 조각이 생긴다.
-    for (const m of line.matchAll(/>([^<>{}]*[가-힣][^<>{}]*)<(?=[/A-Za-z])/g)) {
+    const runs = [...line.matchAll(/>([^<>{}]*[가-힣][^<>{}]*)<(?=[/A-Za-z])/g)];
+
+    /**
+     * **한 줄에 한글 토막이 둘 이상이면 통째로 사람 몫이다.**
+     *
+     * ```jsx
+     *   <Explain>같은 구독을 유지한 채 역할에 맞춰 <strong>표시 깊이만</strong> 바꾼다 (VZ-U-03)</Explain>
+     * //          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^          ^^^^^^^^^^^^^        ^^^^^^^^^^^^^^^^
+     * ```
+     *
+     * **한 문장이 태그에 셋으로 갈려 있다.** 토막마다 키를 주면 사전에 「바꾼다 (VZ-U-03)」
+     * 같은 꼬리가 들어가고, 영어 어순에서는 그 셋을 다시 이을 수 없다.
+     *
+     * 이런 자리는 `<Rich>` 의 `**굵게**` 로 **한 문장을 한 키**에 담아야 하고, 그 판단은
+     * 사람이 한다. 260918 에 `RiskPanel` 에서 실제로 이 모양을 만들었다가 되돌렸다.
+     */
+    if (runs.length > 1) {
+      // 위 ①에서 이 줄에 담아 둔 자리도 **도로 뺀다** — 어려운 줄은 통째로 사람 몫이다.
+      for (let k = moves.length - 1; k >= 0; k -= 1) if (moves[k].line === idx + 1) moves.splice(k, 1);
+      hard.push({ line: idx + 1, text: raw[idx].trim() });
+      return;
+    }
+
+    for (const m of runs) {
       const ko = m[1];
       if (ko.trim() === '') continue;
       const trimmed = ko.trim();
