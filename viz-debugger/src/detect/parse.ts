@@ -18,6 +18,7 @@
  * 켜지고 초록도 하나 뜬다. 눈으로는 못 잡는다. `verify:detect-map` 이 그것부터 본다.
  */
 
+import { t } from '../i18n/dict.ts';
 import type { DetectFrame, DetectFrameEvidence, DetectGate } from './types.ts';
 
 /**
@@ -53,17 +54,17 @@ export function boxOf(xyxy: readonly number[] | null | undefined): number[] | nu
  * 0.2696 을 「신뢰도 27%」로 적으면 보는 사람은 「거의 못 찾았다」로 읽는다. 실제로는
  * 관문 넷을 다 통과한 **확실한** 판정이다. 이름을 바꾸는 것만으로 그 오독이 사라진다.
  */
-export const SCORE_LABEL = '특징 최고값';
+export const SCORE_LABEL = t('dps.1');
 
 /** 관문 하나를 사람이 읽는 한 조각으로. 통과 여부와 **왜**를 같이 적는다. */
 export function gateWords(name: string, gate: DetectGate): string {
-  if (gate.winning_color !== undefined) return `색 ${strip(gate.winning_color)}`;
-  if (gate.winning_shape !== undefined) return `모양 ${strip(gate.winning_shape)}`;
+  if (gate.winning_color !== undefined) return t('dps.color', { value: strip(gate.winning_color) });
+  if (gate.winning_shape !== undefined) return t('dps.shape', { value: strip(gate.winning_shape) });
   if (gate.similarity !== undefined) {
-    return `기준영상 ${gate.similarity.toFixed(2)}${gate.threshold_min === undefined ? '' : `/${gate.threshold_min}`}`;
+    return t('dps.similarity', { value: gate.similarity.toFixed(2) }) + (gate.threshold_min === undefined ? '' : `/${gate.threshold_min}`);
   }
   if (gate.median_saturation !== undefined) {
-    return `채도 ${gate.median_saturation}${gate.min_saturation === undefined ? '' : `/${gate.min_saturation}`}`;
+    return t('dps.saturation', { value: gate.median_saturation }) + (gate.min_saturation === undefined ? '' : `/${gate.min_saturation}`);
   }
   return name;
 }
@@ -84,7 +85,7 @@ export function reasonOf(
   found: boolean,
   chosen = true,
 ): string {
-  if (!found) return '문 없음';
+  if (!found) return t('dps.2');
   const score = evidence === null ? null : `${SCORE_LABEL} ${evidence.final_score.toFixed(2)}`;
 
   /**
@@ -94,13 +95,13 @@ export function reasonOf(
    * 문이 두 방향에서 잡히는 것은 측정값이다(시료의 270·315). 그때 「문 없음」이라고
    * 적는 것도 거짓이다 — 문은 거기 있었고 우리가 다른 쪽을 골랐을 뿐이다.
    */
-  if (!chosen) return `문 후보 — 점수가 더 높은 각도가 있어 안 고름${score === null ? '' : ` · ${score}`}`;
+  if (!chosen) return t('dps.candidateNotChosen') + (score === null ? '' : ` · ${score}`);
 
-  if (evidence === null) return '문 있음 (근거 미수신)';
+  if (evidence === null) return t('dps.3');
   const gates = Object.entries(evidence.mandatory_gates ?? {});
   const passed = gates.filter(([, gate]) => gate.passed).map(([name, gate]) => gateWords(name, gate));
-  if (passed.length === 0) return `문 있음 · ${score}`;
-  return `${passed.join(' · ')} 통과 · ${score}`;
+  if (passed.length === 0) return t('dps.doorFound', { score: score ?? '' });
+  return t('dps.gatesPassed', { gates: passed.join(' · '), score: score ?? '' });
 }
 
 /**

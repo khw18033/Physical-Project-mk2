@@ -8,6 +8,7 @@
  * 한 장도 못 받았는데 화면은 조용했고, 원인이 로봇인지 탐지인지 화면인지 한참 못 갈랐다.
  */
 
+import { t } from '../i18n/dict.ts';
 import type { ScanFeedMessage } from '../physical/scanFeed.ts';
 import { appendDetectLog, angleTask, DETECT_TASKS, WHOLE_DETECT_PATH } from './detectLog.ts';
 import { indexOfRotation } from './parse.ts';
@@ -19,7 +20,7 @@ import { detectState } from './store.ts';
  */
 export const RESULT_EXPECTED_WITHIN_MS = 20000;
 
-const kb = (bytes: number | null) => (bytes === null ? '크기 모름' : `${(bytes / 1024).toFixed(1)} KB`);
+const kb = (bytes: number | null) => (bytes === null ? t('flg.sizeUnknown') : `${(bytes / 1024).toFixed(1)} KB`);
 
 /** 한 건을 줄로 옮긴다. 각도는 대본의 간격·칸 수로 칸 번호를 잡는다. */
 export function noteScanFeed(message: ScanFeedMessage, stepDeg = 45, count = 8): void {
@@ -27,8 +28,8 @@ export function noteScanFeed(message: ScanFeedMessage, stepDeg = 45, count = 8):
     if (message.event === 'scan_start') {
       appendDetectLog({
         lane: 'robot', level: 'info',
-        text: `로봇이 한 판을 시작했습니다 — 예상 ${message.expectedFrames ?? '?'}장`,
-        detail: `mission_id ${message.missionId ?? '없음'} · 탐지 수신기는 이 신호에 지난 판 산출물을 지웁니다`,
+        text: t('flg.runStarted', { n: message.expectedFrames ?? '?' }),
+        detail: t('flg.runStartedDetail', { id: message.missionId ?? t('flg.none') }),
         tasks: [DETECT_TASKS.sweep],
       });
       return;
@@ -37,9 +38,9 @@ export function noteScanFeed(message: ScanFeedMessage, stepDeg = 45, count = 8):
     const failed = message.outcome !== null && message.outcome !== 'SUCCEEDED';
     appendDetectLog({
       lane: 'robot', level: short || failed ? 'warn' : 'info',
-      text: `로봇이 한 판을 끝냈습니다 — ${message.outcome ?? '결과 없음'} · ${message.framesSent ?? '?'}/${message.expectedFrames ?? '?'}장`
-        + (short || failed ? ' — 탐지가 이 판으로는 경로를 못 냅니다' : ''),
-      detail: `mission_id ${message.missionId ?? '없음'}`,
+      text: t('flg.runEnded', { outcome: message.outcome ?? t('flg.noOutcome'), sent: message.framesSent ?? '?', expected: message.expectedFrames ?? '?' })
+        + (short || failed ? t('flg.1') : ''),
+      detail: `mission_id ${message.missionId ?? t('flg.none')}`,
       tasks: [DETECT_TASKS.sweep, ...WHOLE_DETECT_PATH.slice(1)],
     });
     return;
@@ -50,8 +51,8 @@ export function noteScanFeed(message: ScanFeedMessage, stepDeg = 45, count = 8):
   appendDetectLog({
     lane: 'robot',
     level: message.duplicateOfPrev ? 'warn' : 'info',
-    text: `로봇이 ${message.rotationDeg}° 프레임을 보냈습니다 (${(message.seq ?? 0) + 1}번째)`
-      + (message.duplicateOfPrev ? ' — 직전과 같은 그림입니다. 카메라가 얼었을 수 있고, 탐지는 이 판을 버립니다' : ''),
+    text: t('flg.frameSent', { deg: message.rotationDeg, nth: (message.seq ?? 0) + 1 })
+      + (message.duplicateOfPrev ? t('flg.2') : ''),
     detail: [
       message.width !== null && message.height !== null ? `${message.width}×${message.height}` : null,
       kb(message.bytes),
@@ -69,12 +70,12 @@ export function noteScanFeed(message: ScanFeedMessage, stepDeg = 45, count = 8):
     if (state.frames.some((frame) => frame.rotation_deg === rotation)) return;
     appendDetectLog({
       lane: 'screen', level: 'warn',
-      text: `로봇이 ${rotation}° 프레임을 보낸 지 ${RESULT_EXPECTED_WITHIN_MS / 1000}초가 지났는데 탐지 결과가 없습니다`,
+      text: t('flg.noResultYet', { deg: rotation, sec: RESULT_EXPECTED_WITHIN_MS / 1000 }),
       detail: state.staleFrames !== null
-        ? `화면은 아직 지난 판(${state.staleFrames}각도)을 거르는 중입니다 — 탐지 수신기가 새 판을 시작하지 않았습니다. mqtt_stream_receiver.py 가 떠 있는지 볼 것`
+        ? t('flg.stillStale', { n: state.staleFrames })
         : state.error !== null
-          ? `탐지 창구에 못 닿습니다 — ${state.error}`
-          : '탐지 창구는 답하는데 이 각도 결과가 없습니다 — 탐지 PC 콘솔의 mqtt_stream_receiver.py 출력을 볼 것',
+          ? t('flg.endpointUnreachable', { why: state.error })
+          : t('flg.3'),
       tasks,
     });
   }, RESULT_EXPECTED_WITHIN_MS);

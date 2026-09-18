@@ -15,6 +15,7 @@
  * 것은 여덟 번의 갱신이다.
  */
 
+import { t } from '../i18n/dict.ts';
 import {
   fetchFeatures, fetchFrameEvidence, fetchLocalization, fetchPath, fetchSummary, sourceOf,
 } from './DetectClient.ts';
@@ -78,18 +79,18 @@ function admit(frames: readonly DetectFrame[]): boolean {
       gate = { phase: 'fresh' };
       appendDetectLog({
         lane: 'detect', level: 'info',
-        text: '탐지 창구가 답했습니다 — 비어 있습니다. 로봇이 돌면 각도 결과가 쌓입니다',
+        text: t('dpl.1'),
         detail: '', tasks: WHOLE_DETECT_PATH,
       });
       return true;
     }
     gate = { phase: 'stale', count: frames.length };
     markStale(frames.length);
-    const words = `탐지 서비스에 지난 판 결과(${frames.length}각도)가 남아 있어 쓰지 않습니다 — 새 스캔이 시작되면 받습니다`;
+    const words = t('dpl.staleRound', { n: frames.length });
     noteIssue('detect-stale', 'connection', words);
     appendDetectLog({
       lane: 'screen', level: 'warn', text: words,
-      detail: `남은 각도 ${frames.map((f) => `${f.rotation_deg}°`).join(' ')} · 탐지 수신기는 로봇의 scan_start 에 지난 판을 지웁니다`,
+      detail: t('dpl.staleAngles', { list: frames.map((f) => `${f.rotation_deg}°`).join(' ') }),
       tasks: WHOLE_DETECT_PATH,
     });
     return false;
@@ -98,10 +99,10 @@ function admit(frames: readonly DetectFrame[]): boolean {
     if (frames.length >= gate.count) return false;
     gate = { phase: 'fresh' };
     clearStale();
-    noteIssue('detect-stale', 'connection', '탐지 서비스가 지난 판을 지웠습니다 — 이번 판 결과를 받습니다');
+    noteIssue('detect-stale', 'connection', t('dpl.2'));
     appendDetectLog({
-      lane: 'detect', level: 'info', text: '탐지 서비스가 지난 판을 지웠습니다 — 이번 판 결과를 받습니다',
-      detail: `지금 ${frames.length}각도`, tasks: WHOLE_DETECT_PATH,
+      lane: 'detect', level: 'info', text: t('dpl.2'),
+      detail: t('dpl.nowAngles', { n: frames.length }), tasks: WHOLE_DETECT_PATH,
     });
     return true;
   }
@@ -111,8 +112,8 @@ function admit(frames: readonly DetectFrame[]): boolean {
     judgedLogged = false;
     appendDetectLog({
       lane: 'detect', level: 'warn',
-      text: '탐지가 판을 다시 시작했습니다 — 받아 둔 각도 결과와 근거를 비웁니다',
-      detail: `각도 수가 줄었습니다 (${detectState().frames.length} → ${frames.length}) · 카메라가 얼어 판을 버렸을 수 있습니다`,
+      text: t('dpl.3'),
+      detail: t('dpl.fewerAngles', { from: detectState().frames.length, to: frames.length }),
       tasks: WHOLE_DETECT_PATH,
     });
   }
@@ -127,11 +128,11 @@ function logNewFrames(previous: readonly DetectFrame[], next: readonly DetectFra
     const index = indexOfRotation(frame.rotation_deg, stepDeg, count);
     appendDetectLog({
       lane: 'detect', level: 'info',
-      text: `${frame.rotation_deg}° 탐지 결과 — ${frame.found ? '문 있음' : '문 없음'} (${next.length}/${count})`,
+      text: t('dpl.frameResult', { deg: frame.rotation_deg, verdict: t(frame.found ? 'dpl.doorYes' : 'dpl.doorNo'), n: next.length, count }),
       detail: [
         frame.frame,
         typeof frame.final_score === 'number' ? `${SCORE_LABEL} ${frame.final_score.toFixed(3)}` : null,
-        '그림 /detect/frame',
+        t('dpl.4'),
       ].filter((part) => part !== null).join(' · '),
       tasks: index === null ? [DETECT_TASKS.sweep] : [DETECT_TASKS.sweep, angleTask(index)],
     });
@@ -153,10 +154,10 @@ export async function pollOnce(expected = 8, stepDeg = 45): Promise<void> {
     const summary = await fetchSummary(source, 'door', scanElapsedSec());
     if (!firstAnswerLogged && source.kind === 'sample') {
       firstAnswerLogged = true;
-      appendDetectLog({ lane: 'detect', level: 'info', text: '「테스트」 — 받아 둔 산출물을 한 각도씩 읽습니다', detail: '', tasks: WHOLE_DETECT_PATH });
+      appendDetectLog({ lane: 'detect', level: 'info', text: t('dpl.5'), detail: '', tasks: WHOLE_DETECT_PATH });
     }
     if (detectState().error !== null) {
-      appendDetectLog({ lane: 'detect', level: 'info', text: '탐지 창구에 다시 닿았습니다', detail: '', tasks: WHOLE_DETECT_PATH });
+      appendDetectLog({ lane: 'detect', level: 'info', text: t('dpl.6'), detail: '', tasks: WHOLE_DETECT_PATH });
     }
 
     // **이번 판인지 먼저 가른다** — 자세·근거·경로도 같은 판의 산출물이라 같이 거른다.
@@ -174,8 +175,8 @@ export async function pollOnce(expected = 8, stepDeg = 45): Promise<void> {
         const [x, y] = localization.robot_position_cm;
         appendDetectLog({
           lane: 'detect', level: 'info',
-          text: `탐지가 자세를 역산했습니다 — 도면 기준 방위 ${localization.current_heading_map_deg ?? '?'}° · 위치 (${x}, ${y}) cm`,
-          detail: `${localization.method === 'door_only' ? '단상을 못 찾아 문 관측만으로 추정한 값' : '받침대 관측으로 역산한 값'} · 로봇 오도메트리 방위와 기준점이 다릅니다`,
+          text: t('dpl.localized', { deg: localization.current_heading_map_deg ?? '?', x, y }),
+          detail: t(localization.method === 'door_only' ? 'dpl.doorOnly' : 'dpl.fromPodium') + t('dpl.differentOrigin'),
           tasks: [DETECT_TASKS.pose, DETECT_TASKS.path],
         });
       }
@@ -196,8 +197,8 @@ export async function pollOnce(expected = 8, stepDeg = 45): Promise<void> {
       const index = indexOfRotation(frame.rotation_deg, stepDeg, expected);
       appendDetectLog({
         lane: 'detect', level: 'info',
-        text: `${frame.rotation_deg}° 판단 근거를 받았습니다 — ${gateLine(evidence)}`,
-        detail: `${SCORE_LABEL} ${evidence.final_score.toFixed(3)} · 상자 [${evidence.box_xyxy.map((n) => n.toFixed(1)).join(', ')}]`,
+        text: t('dpl.evidence', { deg: frame.rotation_deg, gates: gateLine(evidence) }),
+        detail: t('dpl.evidenceDetail', { label: SCORE_LABEL, score: evidence.final_score.toFixed(3), box: evidence.box_xyxy.map((n) => n.toFixed(1)).join(', ') }),
         tasks: index === null ? [DETECT_TASKS.evidence] : [angleTask(index), DETECT_TASKS.evidence],
       });
     }
@@ -210,8 +211,8 @@ export async function pollOnce(expected = 8, stepDeg = 45): Promise<void> {
       appendDetectLog({
         lane: 'screen', level: chosen === null ? 'warn' : 'info',
         text: chosen === null
-          ? `${expected}각도를 다 봤는데 문을 못 찾았습니다 — 임의로 한 방향을 고르지 않습니다`
-          : `판정 — ${chosen.rotation_deg}° 방향에 문이 있습니다`,
+          ? t('dpl.noneFound', { expected })
+          : t('dpl.judged', { deg: chosen.rotation_deg }),
         detail: detectState().frames.filter((f) => f.found).map((f) => `${f.rotation_deg}° ${(detectState().evidence[f.frame]?.final_score ?? 0).toFixed(3)}`).join(' · '),
         tasks: [DETECT_TASKS.judge],
       });
@@ -225,12 +226,12 @@ export async function pollOnce(expected = 8, stepDeg = 45): Promise<void> {
         receivePath(path);
         appendDetectLog({
           lane: 'detect', level: path.path_mode === 'door_relative' ? 'warn' : 'info',
-          text: `경로를 받았습니다 — ${path.turn_instruction} · 직진 ${(path.forward_distance_cm / 100).toFixed(2)} m`
+          text: t('dpl.pathReceived', { turn: path.turn_instruction, m: (path.forward_distance_cm / 100).toFixed(2) })
             + (path.path_mode_words ? ` · ${path.path_mode_words}` : ''),
           detail: [
             chainWords(path),
-            `정지거리 ${(path.standoff_cm / 100).toFixed(2)} m`,
-            path.path_overlay_available === false ? '도면 경로 그림 없음(로봇 위치 모름)' : '그림 /detect/path_overlay',
+            t('dpl.standoff', { m: (path.standoff_cm / 100).toFixed(2) }),
+            path.path_overlay_available === false ? t('dpl.7') : t('dpl.8'),
           ].filter((part) => part !== '').join(' · '),
           tasks: [DETECT_TASKS.path],
         });
@@ -238,8 +239,8 @@ export async function pollOnce(expected = 8, stepDeg = 45): Promise<void> {
         receivePathFailure(failure);
         appendDetectLog({
           lane: 'detect', level: 'error',
-          text: `경로 산출 실패 — ${failure.reason ?? '사유 없음'}`,
-          detail: `${chainWords(failure)} · 이동하지 않습니다`,
+          text: t('dpl.pathFailed', { reason: failure.reason ?? t('dpl.noReason') }),
+          detail: t('dpl.willNotMove', { chain: chainWords(failure) }),
           tasks: [DETECT_TASKS.path, DETECT_TASKS.approach],
         });
       }
@@ -248,13 +249,13 @@ export async function pollOnce(expected = 8, stepDeg = 45): Promise<void> {
      * **돌아오면 돌아왔다고 적는다** (260913 지시). 끊겼다는 줄만 남고 복구가 안 남으면,
      * 나중에 로그를 읽는 사람은 그 뒤로 계속 끊겨 있었다고 읽는다.
      */
-    if (detectState().error !== null) noteIssue('detect', 'connection', '탐지 서비스에서 다시 받고 있습니다');
+    if (detectState().error !== null) noteIssue('detect', 'connection', t('dpl.9'));
   } catch (error) {
     const why = error instanceof Error ? error.message : String(error);
     noteDetectError(why);
     // 폴링은 1.5초마다 돈다. 같은 사유는 `noteIssue` 가 삼키므로 한 줄만 남는다.
-    noteIssue('detect', 'connection', `탐지 서비스에 못 닿습니다 — ${why}`);
-    appendDetectLog({ lane: 'detect', level: 'error', text: `탐지 창구에 못 닿습니다 — ${why}`, detail: '', tasks: WHOLE_DETECT_PATH });
+    noteIssue('detect', 'connection', t('dpl.serviceUnreachable', { why }));
+    appendDetectLog({ lane: 'detect', level: 'error', text: t('dpl.endpointUnreachable', { why }), detail: '', tasks: WHOLE_DETECT_PATH });
   } finally {
     inFlight = false;
   }
@@ -269,7 +270,7 @@ function chainWords(path: DetectPath): string {
 /** 관문 넷을 한 줄로 — 화면 문장과 같은 함수(`gateWords`)를 쓴다. */
 function gateLine(evidence: DetectFrameEvidence): string {
   const gates = Object.entries(evidence.mandatory_gates ?? {});
-  if (gates.length === 0) return '관문 근거 없음';
+  if (gates.length === 0) return t('dpl.10');
   return gates.map(([name, gate]) => `${gate.passed ? '✓' : '✕'} ${gateWords(name, gate)}`).join(' · ');
 }
 

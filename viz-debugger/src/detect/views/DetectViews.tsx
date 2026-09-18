@@ -19,6 +19,7 @@
  * 이름을 `특징 최고값` 으로 적는 것만으로 그 오독이 사라진다 (`parse.ts` 의 `SCORE_LABEL`).
  */
 
+import { t } from '../../i18n/dict.ts';
 import { useEffect, useState } from 'react';
 import { displayMission, useMission } from '../../data/scenario.ts';
 import { foldStatuses } from '../../data/fold.ts';
@@ -44,7 +45,7 @@ function Waiting({ what }: { what: string }) {
     {what}
     {/* **지난 판을 거르고 있으면 그렇다고 적는다** (260914). 안 적으면 탐지 서비스는 결과를
         내주고 있는데 화면만 비어 있어, 「연결이 안 된다」로 읽힌다. */}
-    {staleFrames !== null && <small>탐지 서비스에 남은 지난 판 결과({staleFrames}각도)는 쓰지 않습니다 — 새 스캔이 시작되면 받습니다</small>}
+    {staleFrames !== null && <small>{t('dv.staleNote', { n: staleFrames })}</small>}
   </p>;
 }
 
@@ -88,19 +89,19 @@ export function DetectCam({ zoom = false }: { zoom?: boolean }) {
   const frame = picked ?? focus;
   // **이 뷰가 떠 있다고 문지기에 알린다** — 각도 칸은 여기 그림이 다 그려진 뒤에 넘어간다.
   useEffect(() => registerScanImageView(), []);
-  if (frame === null) return <Waiting what="탐지 영상이 아직 없습니다" />;
+  if (frame === null) return <Waiting what={t('dv.noFrameYet')} />;
 
   // 찾은 각도는 상자 입힌 것을, 못 찾은 각도는 원본을 — 없는 상자를 그린 척하지 않는다.
   const urlOf = (item: DetectFrame) => roundedImageUrl(frameImageUrl(source, item.frame, item.found ? 'target_overlay' : 'original'), state.imageRound);
   const url = urlOf(frame);
   const toggle = (item: DetectFrame) => setPickedFrame((current) => (current === item.frame ? null : item.frame));
   return <div className={`detect-cam${zoom ? ' detect-cam--zoom' : ''}`}>
-    <img src={url} alt={`${frame.rotation_deg}도 프레임`} onLoad={() => noteScanImageShown(url)} onError={() => noteScanImageFailed(url)} />
+    <img src={url} alt={t('dv.frameAlt', { deg: frame.rotation_deg })} onLoad={() => noteScanImageShown(url)} onError={() => noteScanImageFailed(url)} />
     <span className="detect-cam__at">
-      {frame.rotation_deg}도 · {frame.found ? '문 있음' : '문 없음'}
+      {t('dv.deg', { deg: frame.rotation_deg })} · {frame.found ? t('dv.1') : t('dv.2')}
       {picked !== null && picked.frame !== focus?.frame && <>
-        {' '}· 골라 본 각도
-        <button type="button" className="detect-cam__back" onClick={() => setPickedFrame(null)}>원래대로 ({focus?.rotation_deg ?? '-'}도)</button>
+        {' '}· {t('dv.pickedAngle')}
+        <button type="button" className="detect-cam__back" onClick={() => setPickedFrame(null)}>{t('dv.backTo', { deg: focus?.rotation_deg ?? '-' })}</button>
       </>}
     </span>
     {zoom && <div className="detect-strip">
@@ -108,12 +109,12 @@ export function DetectCam({ zoom = false }: { zoom?: boolean }) {
         const thumb = urlOf(item);
         return <figure key={item.frame}
           className={`${item.found ? 'is-found' : ''}${item.frame === frame.frame ? ' is-shown' : ''}`}
-          role="button" tabIndex={0} title={`${item.rotation_deg}도를 크게 보기`}
+          role="button" tabIndex={0} title={t('dv.zoomTo', { deg: item.rotation_deg })}
           onClick={() => toggle(item)}
           onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); toggle(item); } }}>
           {/* 작은 그림도 화면에 뜬 것이다 — 큰 자리를 다른 각도로 골라 둬도 문지기가 멈추지 않는다. */}
-          <img src={thumb} alt={`${item.rotation_deg}도`} onLoad={() => noteScanImageShown(thumb)} />
-          <figcaption>{item.rotation_deg}도</figcaption>
+          <img src={thumb} alt={t('dv.deg', { deg: item.rotation_deg })} onLoad={() => noteScanImageShown(thumb)} />
+          <figcaption>{t('dv.deg', { deg: item.rotation_deg })}</figcaption>
         </figure>;
       })}
     </div>}
@@ -137,31 +138,31 @@ export function DetectReason({ zoom = false, count = 8 }: { zoom?: boolean; coun
    */
   if (!sweepDone(count)) {
     return state.frames.length === 0
-      ? <Waiting what="판단 근거가 아직 없습니다" />
-      : <p className="detect-wait">탐색 중입니다 — {state.frames.length}/{count} 각도
-        <small>여덟을 다 본 뒤에 판정과 근거가 나옵니다</small></p>;
+      ? <Waiting what={t('dv.noRationaleYet')} />
+      : <p className="detect-wait">{t('dv.scanning', { n: state.frames.length, count })}
+        <small>{t('dv.3')}</small></p>;
   }
   const frame = chosenFrame(state.frames, score);
   if (frame === null) {
-    return <p className="detect-wait">여덟 각도에서 문을 못 찾았습니다<small>임의로 한 방향을 고르지 않습니다</small></p>;
+    return <p className="detect-wait">{t('dv.noneFound')}<small>{t('dv.noArbitraryPick')}</small></p>;
   }
   const evidence = state.evidence[frame.frame] ?? null;
   const gates = Object.entries(evidence?.mandatory_gates ?? {});
 
   return <div className="detect-reason">
     <div className="detect-reason__head">
-      <b>{frame.rotation_deg}도</b>
+      <b>{t('dv.deg', { deg: frame.rotation_deg })}</b>
       {evidence !== null && <span className="detect-score">{SCORE_LABEL} {evidence.final_score.toFixed(3)}</span>}
     </div>
     <ul className="detect-gates">
       {gates.map(([name, gate]) => <li key={name} className={gate.passed ? 'is-pass' : 'is-fail'}>
         {gate.passed ? '✓' : '✕'} {gateWords(name, gate)}
       </li>)}
-      {gates.length === 0 && <li>관문 근거 미수신</li>}
+      {gates.length === 0 && <li>{t('dv.4')}</li>}
     </ul>
     {zoom && <>
       {evidence !== null && <img className="detect-crop"
-        src={roundedImageUrl(frameImageUrl(source, frame.frame, 'target_crop'), state.imageRound)} alt="잘라낸 목표" />}
+        src={roundedImageUrl(frameImageUrl(source, frame.frame, 'target_crop'), state.imageRound)} alt={t('dv.cropAlt')} />}
       {/* 특징 여덟 — 무엇을 문이라고 물었고 각각 얼마나 닮았나. */}
       {evidence !== null && <table className="detect-features">
         <tbody>
@@ -174,14 +175,14 @@ export function DetectReason({ zoom = false, count = 8 }: { zoom?: boolean; coun
       </table>}
       {/* 도면 기준 **실제 방위**는 여기에만 적는다 — 화면이 가리키는 각도는 스캔 시작 기준이다. */}
       {frame.absolute_bearing_deg !== undefined && <p className="detect-note">
-        도면 기준 방위 {frame.absolute_bearing_deg}도 · 화면의 {frame.rotation_deg}도는 스캔 시작 기준입니다
+        {t('dv.bearingNote', { abs: frame.absolute_bearing_deg, shown: frame.rotation_deg })}
       </p>}
       {usableDistanceCm(frame) === null && frame.distance_cm !== undefined && <p className="detect-note">
-        깊이 추정은 보정범위 밖이라 거리로 쓰지 않습니다 — 거리는 도면 좌표로 냅니다
+        {t('dv.depthNote')}
       </p>}
       {state.features !== null && <p className="detect-note">
-        물어본 특징 {state.features.features_compared.length}개
-        {state.features.is_localization_landmark && ' · 자세 역산 기준점'}
+        {t('dv.featuresAsked', { n: state.features.features_compared.length })}
+        {state.features.is_localization_landmark && t('dv.5')}
       </p>}
     </>}
   </div>;
@@ -231,19 +232,19 @@ export function DetectMap({ zoom = false, headSec }: { zoom?: boolean; headSec?:
   if (path === null) {
     if (!mapDone) {
       return <p className="detect-wait">
-        2D 맵은 「2D 맵에서 문 위치 확인」이 끝나면 뜹니다
+        {t('dv.mapWaits')}
         {prep.map.step === 'failed' && prep.map.reason !== null && <small>{prep.map.reason}</small>}
       </p>;
     }
     return <div className="detect-map detect-map--plain">
       <FloorPlan urls={planUrls} />
       <div className="detect-map__facts">
-        <span>문 도면 위치 ({prep.map.doorCm.x.toFixed(1)}, {prep.map.doorCm.y.toFixed(1)}) cm</span>
+        <span>{t('dv.doorOnPlan', { x: prep.map.doorCm.x.toFixed(1), y: prep.map.doorCm.y.toFixed(1) })}</span>
         {/* **실패도 적는다** (260914). 대체 경로(A 단상 → B 문만 위치 → C 문 관측만)가 다 안 되면
             경로가 없고 이동도 안 한다 — 그 사유가 여기와 T-B1 액션 아이템에 있다. */}
         {state.pathFailure !== null
-          ? <span className="detect-map__failed">경로 산출 실패 — {state.pathFailure}</span>
-          : <span>경로는 스캔이 끝난 뒤에 그려집니다</span>}
+          ? <span className="detect-map__failed">{t('dv.pathFailed', { reason: state.pathFailure })}</span>
+          : <span>{t('dv.6')}</span>}
       </div>
     </div>;
   }
@@ -261,24 +262,24 @@ export function DetectMap({ zoom = false, headSec }: { zoom?: boolean; headSec?:
   const backtrace = path.path_overlay_kind === 'backtraced' ? path.backtrace ?? null : null;
 
   return <div className="detect-map">
-    {overlay ? <img src={roundedImageUrl(pathImageUrl(source), state.imageRound)} alt="도면 위의 경로" /> : <FloorPlan urls={planUrls} />}
+    {overlay ? <img src={roundedImageUrl(pathImageUrl(source), state.imageRound)} alt={t('dv.pathAlt')} /> : <FloorPlan urls={planUrls} />}
     <div className="detect-map__facts">
       <span><b>{path.turn_instruction}</b></span>
-      <span>직진 {(path.forward_distance_cm / 100).toFixed(2)}m</span>
-      <span>정지거리 {(path.standoff_cm / 100).toFixed(2)}m</span>
+      <span>{t('dv.forward', { m: (path.forward_distance_cm / 100).toFixed(2) })}</span>
+      <span>{t('dv.standoff', { m: (path.standoff_cm / 100).toFixed(2) })}</span>
       {path.path_mode_words !== undefined && <span className={overlay ? '' : 'detect-map__failed'}>{path.path_mode_words}</span>}
     </div>
     {zoom && <>
       <dl className="detect-map__rows">
-        <div><dt>로봇 위치</dt><dd>{path.robot_position_cm !== null ? `${path.robot_position_cm.map((n) => n.toFixed(1)).join(', ')} cm`
+        <div><dt>{t('dv.robotPosition')}</dt><dd>{path.robot_position_cm !== null ? `${path.robot_position_cm.map((n) => n.toFixed(1)).join(', ')} cm`
           : backtrace !== null ? `${backtrace.start_position_cm.map((n) => n.toFixed(1)).join(', ')} cm`
-            : '모름 — 문 관측만으로 산출'}</dd></div>
-        <div><dt>로봇 방위</dt><dd>{path.current_heading_map_deg !== null ? `${path.current_heading_map_deg}도 (도면 기준)`
-          : backtrace !== null ? `${backtrace.start_heading_map_deg}도 (도면 기준)` : '모름'}</dd></div>
-        <div><dt>목표 위치</dt><dd>{path.target_position_cm.map((n) => n.toFixed(1)).join(', ')} cm{path.target_resolution !== undefined && ` · ${path.target_resolution.source}`}</dd></div>
-        <div><dt>목표까지</dt><dd>{(path.distance_to_target_cm / 100).toFixed(2)} m</dd></div>
-        <div><dt>도착점</dt><dd>{path.goal_cm !== null ? `${path.goal_cm.map((n) => n.toFixed(1)).join(', ')} cm`
-          : backtrace !== null ? `${backtrace.goal_cm.map((n) => n.toFixed(1)).join(', ')} cm` : '모름'}</dd></div>
+            : t('dv.7')}</dd></div>
+        <div><dt>{t('dv.robotHeading')}</dt><dd>{path.current_heading_map_deg !== null ? t('dv.degOnPlan', { deg: path.current_heading_map_deg })
+          : backtrace !== null ? t('dv.degOnPlan', { deg: backtrace.start_heading_map_deg }) : t('dv.7')}</dd></div>
+        <div><dt>{t('dv.targetPosition')}</dt><dd>{path.target_position_cm.map((n) => n.toFixed(1)).join(', ')} cm{path.target_resolution !== undefined && ` · ${path.target_resolution.source}`}</dd></div>
+        <div><dt>{t('dv.8')}</dt><dd>{(path.distance_to_target_cm / 100).toFixed(2)} m</dd></div>
+        <div><dt>{t('dv.goal')}</dt><dd>{path.goal_cm !== null ? `${path.goal_cm.map((n) => n.toFixed(1)).join(', ')} cm`
+          : backtrace !== null ? `${backtrace.goal_cm.map((n) => n.toFixed(1)).join(', ')} cm` : t('dv.7')}</dd></div>
       </dl>
       {/* **식과 대입값을 그대로.** 우리가 다시 계산하지 않는다 — 계산이 두 곳에 있으면
           하나만 고쳐지는 날이 온다. */}
@@ -304,8 +305,8 @@ function FloorPlan({ urls }: { urls: readonly string[] }) {
   const left = (DOOR_PX.x / FLOOR_PLAN_SIZE_PX.width) * 100;
   const top = (DOOR_PX.y / FLOOR_PLAN_SIZE_PX.height) * 100;
   return <div className="detect-map__plan">
-    <img src={url} alt="2D 도면" onError={() => { if (at < urls.length - 1) setAt(at + 1); }} />
-    <span className="detect-map__door" style={{ left: `${left}%`, top: `${top}%` }} title="문 — 도면 GT 고정 위치">문</span>
+    <img src={url} alt={t('dv.planAlt')} onError={() => { if (at < urls.length - 1) setAt(at + 1); }} />
+    <span className="detect-map__door" style={{ left: `${left}%`, top: `${top}%` }} title={t('dv.doorTitle')}>{t('dv.door')}</span>
   </div>;
 }
 

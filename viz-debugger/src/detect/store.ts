@@ -11,6 +11,7 @@
  *   탐지   「거기 문이 있나」    — `found`
  */
 
+import { t } from '../i18n/dict.ts';
 import { useSyncExternalStore } from 'react';
 import { resetDetectLog } from './detectLog.ts';
 import { resetDetectTrace } from './detectTrace.ts';
@@ -130,7 +131,7 @@ export function receivePath(path: DetectPath | null): void {
 /** 경로 산출이 실패했다 — 탐지가 대체 경로를 다 해 보고도 못 냈다. */
 export function receivePathFailure(detail: DetectPath): void {
   if (state.pathFailure !== null) return;
-  commit({ ...state, path: null, pathFailure: detail.reason ?? '경로 산출 실패', pathFailureDetail: detail });
+  commit({ ...state, path: null, pathFailure: detail.reason ?? t('dst.1'), pathFailureDetail: detail });
 }
 
 export function receiveFeatures(features: DetectFeatures | null): void {

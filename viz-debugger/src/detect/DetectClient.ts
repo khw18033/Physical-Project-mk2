@@ -20,6 +20,7 @@
  * 만들지 않는다.
  */
 
+import { t } from '../i18n/dict.ts';
 import { connectionAddress, registerConnectionDefault } from '../shared/connections.ts';
 import { DETECT_PRESETS } from './presets.ts';
 import { detectImagePath, recordFileUrl } from '../record/recordClient.ts';
@@ -248,9 +249,9 @@ export async function probeDetect(source: DetectSource): Promise<{ alive: boolea
   try {
     if (source.kind === 'sample') {
       const summary = await fetchSummary(source);
-      return { alive: true, reason: `테스트 자료 · 각도 ${summary.frames.length}개` };
+      return { alive: true, reason: t('dcl.sample', { n: summary.frames.length }) };
     }
-    if (source.base.trim() === '') return { alive: false, reason: '주소가 비어 있습니다' };
+    if (source.base.trim() === '') return { alive: false, reason: t('dcl.1') };
     const response = await fetch(`${source.base}/health`);
     return response.ok
       ? { alive: true, reason: `${response.status}` }
