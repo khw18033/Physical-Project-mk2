@@ -12,18 +12,19 @@
  * 수행 결과가 로봇 상태 데이터에 실려 오므로 별도 조회 경로도 필요 없다.
  */
 
+import { t } from '../../i18n/dict.ts';
 import { getTransport } from '../../transport/index.ts';
 
 export type SegmentStatus = 'pending' | 'running' | 'done' | 'failed' | 'skipped';
 
 export const SEGMENT_STATUS_LABEL: Record<SegmentStatus, string> = {
-  pending: '대기',
-  running: '진행중',
-  done: '완료',
-  failed: '실패',
+  pending: t('pl.1'),
+  running: t('pl.2'),
+  done: t('pl.3'),
+  failed: t('pl.4'),
   // 앞 구간이 실패해 **하달 자체가 되지 않은** 구간. '대기'와 구분해야
   // "왜 5구간이 안 돌았나"가 화면에서 설명된다.
-  skipped: '건너뜀',
+  skipped: t('pl.5'),
 };
 
 export type PlanSegment = {
@@ -53,9 +54,9 @@ export type PlanSegment = {
 export type ProducedBy = 'ai' | 'backend' | 'human';
 
 export const PRODUCED_BY_LABEL: Record<ProducedBy, string> = {
-  ai: 'AI 산출',
-  backend: '백엔드 중계',
-  human: '사람 판단',
+  ai: t('pl.6'),
+  backend: t('pl.7'),
+  human: t('pl.8'),
 };
 
 export type ProvenanceStep = {
@@ -110,10 +111,10 @@ export type Plan = {
 };
 
 export const RELAY_STAGE_LABEL: Record<Plan['relay_stage'], string> = {
-  awaiting_decision: '승인 대기 — 백엔드가 전달만 한 상태',
-  decision_received: '백엔드가 승인을 받았다 — 아직 발행 전',
-  dispatched: '백엔드가 엣지·로봇으로 발행했다',
-  halted: '거부 수신 — 발행되지 않았다',
+  awaiting_decision: t('pl.9'),
+  decision_received: t('pl.10'),
+  dispatched: t('pl.11'),
+  halted: t('pl.12'),
 };
 
 /**

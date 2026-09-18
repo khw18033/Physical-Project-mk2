@@ -18,6 +18,7 @@
  * 이 파일에는 감사 **필드 이름이 없다.** 이름 해석은 auditFieldMap 한 곳에서만 한다.
  */
 
+import { t } from '../../i18n/dict.ts';
 import { GATEWAY } from '../../transport/index.ts';
 import { toAuditEntry, type AuditEntry } from '../../shared/auditFieldMap.ts';
 import { commandTracker, type TrackedCommand } from '../../shared/commandCenter.ts';
@@ -62,7 +63,7 @@ export async function fetchAuditTrail(
   try {
     const res = await fetch(GATEWAY.http + '/audit?' + params.toString());
     if (!res.ok) {
-      return { ...EMPTY, error: '감사 조회 응답 ' + res.status };
+      return { ...EMPTY, error: t('aud.httpStatus', { status: res.status }) };
     }
     const body = (await res.json()) as {
       records?: unknown[];
@@ -79,6 +80,6 @@ export async function fetchAuditTrail(
     };
   } catch (e) {
     // 감사 저장소에 닿지 못해도 제어 화면 자체는 살아 있어야 한다 (VZ-C-02).
-    return { ...EMPTY, error: '감사 조회 실패 — ' + String(e) };
+    return { ...EMPTY, error: t('aud.failed', { why: String(e) }) };
   }
 }

@@ -12,6 +12,7 @@
  * 최초 진입 시 1회 조회하고, 변경 통지가 오면 갱신한다(통지 경로는 백엔드 확정 대기).
  */
 
+import { t } from '../../i18n/dict.ts';
 import { GATEWAY } from '../../transport/index.ts';
 
 export type RegistryEntity = {
@@ -60,7 +61,7 @@ export type Registry = {
  * 화면은 "구성을 못 받았다"는 사실 자체를 표시한다(값이 없는 것과 구성이 없는 것은 다르다).
  */
 export const EMPTY_REGISTRY: Registry = {
-  registry_version: '(미수신)',
+  registry_version: t('rg.1'),
   zones: [],
   nodes: [],
   entities: [],
@@ -69,11 +70,11 @@ export const EMPTY_REGISTRY: Registry = {
 export async function fetchRegistry(signal?: AbortSignal): Promise<{ registry: Registry; error: string | null }> {
   try {
     const res = await fetch(GATEWAY.http + '/registry', { signal });
-    if (!res.ok) return { registry: EMPTY_REGISTRY, error: '레지스트리 응답 ' + res.status };
+    if (!res.ok) return { registry: EMPTY_REGISTRY, error: t('rg.httpStatus', { status: res.status }) };
     const registry = (await res.json()) as Registry;
     return { registry, error: null };
   } catch (e) {
-    return { registry: EMPTY_REGISTRY, error: '레지스트리 조회 실패 — ' + String(e) };
+    return { registry: EMPTY_REGISTRY, error: t('rg.failed', { why: String(e) }) };
   }
 }
 

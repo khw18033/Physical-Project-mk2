@@ -23,6 +23,8 @@
  *     자리를 비워 화면을 짧게 만드는 것이 맞다.
  */
 
+import { Rich } from '../i18n/RichText.tsx';
+import { t } from '../i18n/dict.ts';
 import { scriptPhrase } from '../scenarios/phrases.ts';
 import type { ReactNode } from 'react';
 import { viewNodeLabel } from '../canvas/registry.ts';
@@ -47,23 +49,24 @@ function NotInScriptCard({ what, why, elsewhere, wide }: CardProps) {
   return (
     <section className={wide === true ? 'tabskip tabskip--wide' : 'tabskip'} data-scenario-skip={what}>
       <h2 className="tabskip__title">
-        이 대본{scenario === null ? '' : `(${scenario.missionId})`}은 <b>{what}</b>을 쓰지 않습니다
+        {/* 한 문장이다 — 「이 대본은」과 「을 쓰지 않습니다」를 따로 담으면 영어에서 못 잇는다. */}
+        <Rich id="sgt.notUsed" vars={{ id: scenario === null ? '' : `(${scenario.missionId})`, what: String(what) }} />
       </h2>
       {why.map((line) => <p key={line} className="tabskip__why">{line}</p>)}
       {elsewhere.length === 0 ? (
-        <p className="tabskip__where">어느 대본도 몰지 않는 자리입니다 — 평시 데이터가 채울 자리이고, <b>일반 모드</b>에서 누가 줄 데이터인지 볼 수 있습니다.</p>
+        <p className="tabskip__where"><Rich id="sgt.noScriptDrives" /></p>
       ) : (
         <ul className="tabskip__list">
           {elsewhere.map((script) => (
             <li key={script.missionId}>
-              살아나는 편 — <code>{script.missionId}</code> 「{scriptPhrase(script.missionId, script.title)}」
+              {t('sgt.aliveIn')} <code>{script.missionId}</code> 「{scriptPhrase(script.missionId, script.title)}」
               {/* 모드 스위치의 대본 선택과 **같은 경로**다 (scenarios/enterPreview.ts). */}
-              <button type="button" onClick={() => enterScriptPreview(script.missionId)}>그 대본으로 바꾸기</button>
+              <button type="button" onClick={() => enterScriptPreview(script.missionId)}>{t('sgt.1')}</button>
             </li>
           ))}
         </ul>
       )}
-      <p className="tabskip__back">일반 모드로 돌아가면 이 자리의 원래 화면이 그대로 보입니다.</p>
+      <p className="tabskip__back">{t('sgt.2')}</p>
     </section>
   );
 }

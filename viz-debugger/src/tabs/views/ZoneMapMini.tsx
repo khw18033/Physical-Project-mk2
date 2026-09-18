@@ -18,6 +18,7 @@
  * **로봇 위치·궤적만** 그린다(RobotTrailMap — 평면은 맵 데이터가 올 때 얹는다).
  */
 
+import { t } from '../../i18n/dict.ts';
 import { useEffect, useState } from 'react';
 import { useMission } from '../../data/scenario.ts';
 import { PendingSource } from '../../shared/PendingSource.tsx';
@@ -40,8 +41,8 @@ export function ZoneMapMini() {
   return (
     <section className="panel zonemap">
       <header className="panel__head">
-        <h2 className="panel__title">구역 맵 미니뷰</h2>
-        <span className="panel__tag">VZ-U-01 · VZ-U-02(웹 축소판)</span>
+        <h2 className="panel__title">{t('zm.1')}</h2>
+        <span className="panel__tag">{t('zm.2')}</span>
       </header>
       {scenarioCast === null
         ? <PendingSource id="zone-map" minHeight={MAP_MIN_HEIGHT} />
@@ -75,7 +76,7 @@ function ScenarioMap() {
 
   return (
     <div className="zonemap__body">
-      <svg viewBox={`-0.5 -0.5 ${width + 1} ${depth + 1}`} className="zonemap__svg" role="img" aria-label="구역 맵">
+      <svg viewBox={`-0.5 -0.5 ${width + 1} ${depth + 1}`} className="zonemap__svg" role="img" aria-label={t('zm.mapAria')}>
         {/* 503호 평면 */}
         <rect x={0} y={0} width={width} height={depth} className="zonemap__room" />
         {/* 카메라 시야 (FOV 투영) */}
@@ -100,7 +101,7 @@ function ScenarioMap() {
               </rect>
               <text x={cx} y={cy - 0.35} className="zonemap__celllabel">{cell.id}</text>
               <text x={cx} y={cy + 0.75} className="zonemap__celltime">
-                {scan === null ? '미탐색' : nowSec - scan > (threshold ?? Infinity) ? `T+${scan}s · 경과 초과` : `마지막 탐지 T+${scan}s`}
+                {scan === null ? t('zm.neverScanned') : nowSec - scan > (threshold ?? Infinity) ? t('zm.overThreshold', { sec: scan }) : t('zm.lastScan', { sec: scan })}
               </text>
             </g>
           );
@@ -117,8 +118,7 @@ function ScenarioMap() {
         )}
       </svg>
       <Explain id="map-1" className="note note--dim">
-        시야(FOV)·사각지대·탐지 시각은 대본의 합성본 — 실제 원천은 백엔드 디지털 트윈(DT-04 · DT-05).
-        로봇 위치는 telemetry.position(site-global) 그대로다. 재탐색 임계 {threshold ?? '—'}초.
+        {t('zm.note1', { sec: threshold ?? '—' })}
       </Explain>
     </div>
   );
@@ -155,7 +155,7 @@ function RobotTrailMap() {
   if (points.length === 0) {
     return (
       <p className="zonemap__empty" style={{ minHeight: MAP_MIN_HEIGHT }}>
-        위치를 낼 로봇이 아직 없습니다 — 로봇이 등장하는 대본(1·2편)에서 위치·궤적이 그려집니다.
+        {t('zm.noRobotYet')}
       </p>
     );
   }
@@ -172,7 +172,7 @@ function RobotTrailMap() {
 
   return (
     <div className="zonemap__body">
-      <svg viewBox={`0 0 ${xMax - xMin} ${zMax - zMin}`} className="zonemap__svg" role="img" aria-label="로봇 위치·궤적">
+      <svg viewBox={`0 0 ${xMax - xMin} ${zMax - zMin}`} className="zonemap__svg" role="img" aria-label={t('zm.trailAria')}>
         <polyline className="zonemap__trail" points={points.map((p) => `${sx(p.x)},${sy(p.z)}`).join(' ')} />
         {trail[0] !== undefined && <circle cx={sx(trail[0].x)} cy={sy(trail[0].z)} r={0.25} className="zonemap__trailstart" />}
         {robot !== null && (
@@ -183,9 +183,7 @@ function RobotTrailMap() {
         )}
       </svg>
       <Explain id="map-2" className="note note--dim">
-        이 대본에는 평면(맵) 데이터가 없어 로봇 위치·궤적만 그립니다 — 위치는 telemetry.position
-        (site-global) 그대로, 궤적은 수신값의 누적입니다. 구역 평면·시야는 맵 데이터가 오면
-        (백엔드 DT-04) 이 위에 그려집니다.
+        {t('zm.note2')}
       </Explain>
     </div>
   );

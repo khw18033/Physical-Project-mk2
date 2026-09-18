@@ -11,6 +11,7 @@
  * `event_id` 로 중복을 막는다 — 스토어 스냅샷은 같은 이벤트를 여러 번 돌려주기 때문이다.
  */
 
+import { t } from '../i18n/dict.ts';
 import type { AiFailure } from '../transport/index.ts';
 import { pushNotification } from '../shared/notifications.ts';
 import { store } from './data/index.ts';
@@ -27,7 +28,7 @@ function sweep(): void {
     pushNotification({
       id: failure.event_id,
       source: 'external-ai',
-      message: `${failure.error_code} — ${failure.component} ${failure.model_version} · ${failure.detail} (입력 ${failure.input_ref})`,
+      message: t('afb.failure', { code: failure.error_code, component: failure.component, version: failure.model_version, detail: failure.detail, input: failure.input_ref }),
       occurredAt: failure.occurred_at,
     });
   }

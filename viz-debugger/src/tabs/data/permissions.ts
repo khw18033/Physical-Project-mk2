@@ -22,6 +22,7 @@
  * 여기에 인터벌이 없는 것이 요구사항 그 자체다.
  */
 
+import { t } from '../../i18n/dict.ts';
 import { getTransport } from '../../transport/index.ts';
 import type { ControlLock, RoleInfo } from '../../transport/index.ts';
 import type { Registry } from './registry.ts';
@@ -85,9 +86,9 @@ export function isFullScope(role: RoleInfo | null): boolean {
 
 /** 역할 범위를 사람이 읽는 한 줄로. */
 export function describeScope(role: RoleInfo | null): string {
-  if (role === null) return '역할 조회 전';
-  if (isFullScope(role)) return '전 범위 (단일 도메인)';
-  return '담당 구역 ' + role.scope.zones.join(', ');
+  if (role === null) return t('pm.1');
+  if (isFullScope(role)) return t('pm.2');
+  return t('pm.zones', { zones: role.scope.zones.join(', ') });
 }
 
 /**
@@ -108,8 +109,7 @@ export function checkScope(role: RoleInfo | null, entityId: string, registry: Re
   return {
     inScope: false,
     reason:
-      '권한 범위 밖 — 현재 역할(' + role.display_name + ')의 담당 구역은 ' +
-      role.scope.zones.join(', ') + ' 이고 이 대상은 ' + (zone ?? '구역 미지정') + ' 에 있다',
+      t('pm.outOfScope', { role: role.display_name, zones: role.scope.zones.join(', '), zone: zone ?? t('pm.3') }),
   };
 }
 
@@ -147,19 +147,19 @@ export function resolveControlGate(input: {
   if (input.lock?.locked === true) {
     reasons.push({
       kind: 'control_lock',
-      label: input.lock.phase === 'rechecking' ? '복구 후 재확인 중' : '통신 두절',
-      text: input.lock.reason ?? '제어 잠금 상태',
-      meta: input.lock.safe_state_held ? '안전 상태 유지' : null,
+      label: input.lock.phase === 'rechecking' ? t('pm.4') : t('pm.5'),
+      text: input.lock.reason ?? t('pm.6'),
+      meta: input.lock.safe_state_held ? t('pm.7') : null,
     });
   }
 
   if (!input.scope.inScope) {
     reasons.push({
       kind: 'out_of_scope',
-      label: '권한 범위 밖',
-      text: input.scope.reason ?? '담당 범위 밖 대상이다',
+      label: t('pm.8'),
+      text: input.scope.reason ?? t('pm.9'),
       // 화면 차단이 방어선이 아니라는 것을 사유 자체에 적어 둔다.
-      meta: '화면 차단은 편의이고 실제 강제는 백엔드가 한다 (BE-Q-04)',
+      meta: t('pm.10'),
     });
   }
 

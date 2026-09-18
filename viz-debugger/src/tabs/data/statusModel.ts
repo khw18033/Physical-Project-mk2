@@ -12,15 +12,16 @@
  * 클라이언트가 계산하면 사용자 PC 시계에 의존하게 된다.
  */
 
+import { t } from '../../i18n/dict.ts';
 import type { StateLayers } from '../../transport/index.ts';
 
 export type DisplayStatus = 'normal' | 'fault' | 'not_deployed' | 'unknown';
 
 export const DISPLAY_STATUS_LABEL: Record<DisplayStatus, string> = {
-  normal: '정상',
-  fault: '장애',
-  not_deployed: '의도적 미배포',
-  unknown: '판단 불가',
+  normal: t('sm.1'),
+  fault: t('sm.2'),
+  not_deployed: t('sm.3'),
+  unknown: t('sm.4'),
 };
 
 /**
@@ -78,10 +79,10 @@ export function lastSeenAgeMs(layers: StateLayers | null, envelopeTs: string | n
 }
 
 export function formatAge(ms: number | null): string {
-  if (ms === null) return '수신 이력 없음';
-  if (ms < 1000) return '최근 수신 ' + (ms / 1000).toFixed(2) + '초 전';
-  if (ms < 60_000) return '최근 수신 ' + Math.round(ms / 1000) + '초 전';
+  if (ms === null) return t('sm.5');
+  if (ms < 1000) return t('sm.lastSeenSec', { sec: (ms / 1000).toFixed(2) });
+  if (ms < 60_000) return t('sm.lastSeenSec', { sec: Math.round(ms / 1000) });
   const min = Math.floor(ms / 60_000);
   const sec = Math.round((ms % 60_000) / 1000);
-  return '최근 수신 ' + min + '분 ' + sec + '초 전';
+  return t('sm.lastSeenMin', { min, sec });
 }

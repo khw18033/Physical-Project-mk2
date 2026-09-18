@@ -21,6 +21,7 @@
  * 백엔드에 있기 때문이다. 그래서 여기에도 저장소 주소가 없다.
  */
 
+import { t } from '../../i18n/dict.ts';
 import { GATEWAY } from '../../transport/index.ts';
 import type { WireMetricsQuery } from '../../transport/index.ts';
 import { aggregationBadge, normalizeAggregation, type Aggregation, type AggregationBadge } from './aggregation.ts';
@@ -28,8 +29,8 @@ import { aggregationBadge, normalizeAggregation, type Aggregation, type Aggregat
 export type MetricsMode = 'summary' | 'raw';
 
 export const METRICS_MODE_LABEL: Record<MetricsMode, string> = {
-  summary: '구역 요약',
-  raw: '원본',
+  summary: t('mt.1'),
+  raw: t('mt.2'),
 };
 
 export type MetricPoint = { t: string; value: number };
@@ -63,9 +64,9 @@ export type MetricsQueryOutcome = {
 
 /** 조회 범위 선택지. 원본 질의에서 넓은 범위가 무겁다는 것을 화면이 알려야 한다. */
 export const RANGE_OPTIONS = [
-  { min: 15, label: '15분' },
-  { min: 60, label: '1시간' },
-  { min: 180, label: '3시간' },
+  { min: 15, label: t('mt.3') },
+  { min: 60, label: t('mt.4') },
+  { min: 180, label: t('mt.5') },
 ] as const;
 
 /** 이 범위를 넘는 **원본** 질의는 무겁다. 서버 판정과 같은 기준을 화면도 미리 안내한다. */
@@ -93,7 +94,7 @@ export async function queryMetrics(params: {
 
   try {
     const res = await fetch(url, { signal: params.signal });
-    if (!res.ok) return { series: null, error: '지표 질의 응답 ' + res.status };
+    if (!res.ok) return { series: null, error: t('mt.httpStatus', { status: res.status }) };
 
     const body = (await res.json()) as WireMetricsQuery;
     // 표기 해석은 aggregation.ts 한 곳에서만. 컴포넌트는 정규화된 값과 뱃지만 받는다.
@@ -120,7 +121,7 @@ export async function queryMetrics(params: {
   } catch (e) {
     if (e instanceof DOMException && e.name === 'AbortError') return { series: null, error: null };
     // 지표 저장소에 닿지 못해도 화면 자체는 살아 있어야 한다 (VZ-C-02).
-    return { series: null, error: '지표 질의 실패 — ' + String(e) };
+    return { series: null, error: t('mt.failed', { why: String(e) }) };
   }
 }
 
@@ -131,8 +132,7 @@ export async function queryMetrics(params: {
 export function heavyQueryNotice(mode: MetricsMode, rangeMin: number): string | null {
   if (mode !== 'raw' || rangeMin <= HEAVY_RANGE_MIN) return null;
   return (
-    '원본 질의를 ' + rangeMin + '분 범위로 걸면 무겁다 — 원본은 1초 간격이라 요약(15초)보다 ' +
-    '점이 약 15배 많고, 엣지 원본 저장소까지 중계를 거친다.'
+    t('mt.heavyReason', { min: rangeMin })
   );
 }
 

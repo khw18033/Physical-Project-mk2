@@ -12,16 +12,17 @@
  * 도메인 어휘는 "이 장비가 지금 무엇을 하고 있는가"를 말한다. 겹치지 않는다.
  */
 
+import { t } from '../../i18n/dict.ts';
 import type { ActuatorState } from '../../transport/index.ts';
 
 export type ActuatorPhase = ActuatorState['phase'];
 
 export const ACTUATOR_PHASE_LABEL: Record<ActuatorPhase, string> = {
-  idle: '대기',
-  moving: '동작 중',
-  completed: '완료',
-  error: '오류',
-  unverified: '확인 불가',
+  idle: t('am.1'),
+  moving: t('am.2'),
+  completed: t('am.3'),
+  error: t('am.4'),
+  unverified: t('am.5'),
 };
 
 /**
@@ -32,10 +33,10 @@ export const ACTUATOR_PHASE_LABEL: Record<ActuatorPhase, string> = {
  */
 
 export function describeActuator(state: ActuatorState | null): string {
-  if (state === null) return '상태 미수신';
-  if (state.control_locked) return state.lock_reason ?? '제어 잠금';
+  if (state === null) return t('am.6');
+  if (state.control_locked) return state.lock_reason ?? t('am.7');
   if (state.phase === 'moving' && state.progress_pct !== null) {
-    return '진행 ' + state.progress_pct.toFixed(0) + '% · 개도 ' + (state.position_pct ?? 0).toFixed(0) + '%';
+    return t('am.progressAndOpen', { progress: state.progress_pct.toFixed(0), open: (state.position_pct ?? 0).toFixed(0) });
   }
-  return '개도 ' + (state.position_pct ?? 0).toFixed(0) + '%';
+  return t('am.open', { open: (state.position_pct ?? 0).toFixed(0) });
 }

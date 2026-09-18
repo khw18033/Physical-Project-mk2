@@ -94,8 +94,14 @@ function isJsValue(line, index) {
  *
  * 그래서 여는 따옴표 앞이나 닫는 따옴표 뒤에 `+` 가 붙어 있으면 사람 몫으로 넘긴다.
  */
-function concatFragment(line, start, end) {
-  return /\+\s*$/.test(line.slice(0, start)) || /^\s*\+/.test(line.slice(end));
+function concatFragment(line, start, end, prev, next) {
+  if (/\+\s*$/.test(line.slice(0, start)) || /^\s*\+/.test(line.slice(end))) return true;
+  // **줄이 갈려도 이어 붙임이다** (260919). `'…' +` 로 끝난 다음 줄에 오는 리터럴,
+  // 또는 이 줄이 리터럴로 시작하고 앞 줄이 `+` 로 끝난 경우. `metrics.ts` 에서 한 문장이
+  // 두 줄에 걸쳐 있어 뒷조각만 사전에 들어갔다.
+  if (/\+\s*$/.test(prev ?? '') && line.slice(0, start).trim() === '') return true;
+  if (/^\s*\+/.test(next ?? '') && line.slice(end).trim() === '') return true;
+  return false;
 }
 
 /** 이 글이 **개발자에게만 보이는가.** `throw new Error(…)` 의 속은 화면에 안 뜬다. */
@@ -184,7 +190,7 @@ export function easyMoves(src, prefix) {
       const ko = m[1];
       if (!/[가-힣]/.test(ko)) continue;
       if (devOnly(line, m.index)) continue;
-      if (!isJsValue(line, m.index) || concatFragment(line, m.index, m.index + m[0].length)) {
+      if (!isJsValue(line, m.index) || concatFragment(line, m.index, m.index + m[0].length, clean[idx - 1], clean[idx + 1])) {
         hard.push({ line: idx + 1, text: raw[idx].trim() });
         continue;
       }

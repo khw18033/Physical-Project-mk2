@@ -34,6 +34,7 @@
  * 표시용 형태만 받는다.
  */
 
+import { t } from '../../i18n/dict.ts';
 import type { WireAggregation } from '../../transport/index.ts';
 
 /**
@@ -62,10 +63,10 @@ export const RAW: Aggregation = { mode: 'raw', level: null, method: null, window
 
 /** 계층 이름을 사람이 읽는 말로. 계약이 영문 enum이므로 표시용 사전을 여기 둔다. */
 const LEVEL_LABEL: Record<string, string> = {
-  device: '장치',
-  edge: '엣지',
-  zone: '구역',
-  server: '서버',
+  device: t('ag.1'),
+  edge: t('ag.2'),
+  zone: t('ag.3'),
+  server: t('ag.4'),
 };
 
 /** 못 읽은 표기를 진단용 문자열로. `unknown` 경로에서만 부른다. */
@@ -124,14 +125,14 @@ export function normalizeAggregation(wire: WireAggregation | undefined): Aggrega
 }
 
 export function describeAggregation(a: Aggregation): string {
-  if (a.mode === 'raw') return '원본 측정';
+  if (a.mode === 'raw') return t('ag.5');
   if (a.mode === 'unknown') {
-    return '집약 표기 불명' + (a.rawSpec === null ? '' : ' (수신값 ' + a.rawSpec + ')');
+    return t('ag.unknownSpec') + (a.rawSpec === null ? '' : t('ag.received', { value: a.rawSpec }));
   }
-  const parts = ['집약값'];
-  if (a.level) parts.push((LEVEL_LABEL[a.level] ?? a.level) + ' 계층');
+  const parts = [t('ag.6')];
+  if (a.level) parts.push(t('ag.layer', { level: LEVEL_LABEL[a.level] ?? a.level }));
   if (a.method) parts.push(a.method);
-  if (a.windowSec) parts.push(a.windowSec + '초 창');
+  if (a.windowSec) parts.push(t('ag.window', { sec: a.windowSec }));
   return parts.join(' · ');
 }
 
@@ -157,32 +158,26 @@ export type AggregationBadge = {
 export function aggregationBadge(a: Aggregation): AggregationBadge {
   if (a.mode === 'raw') {
     return {
-      short: '원본',
-      title: '원본 측정값이다. 집약 연산을 적용해도 된다.',
+      short: t('ag.7'),
+      title: t('ag.8'),
       state: 'raw',
     };
   }
 
   if (a.mode === 'unknown') {
     return {
-      short: '표기 불명',
+      short: t('ag.9'),
       title:
-        '집약 표기를 읽을 수 없어 이 값이 원본인지 집약인지 판단할 수 없다. ' +
-        'BE-S-06은 값마다 집약 계층을 표기해 전달한다고 정의하므로, 표기를 못 읽는 것 자체가 ' +
-        '계약 불일치 신호다. 판단이 되지 않는 값에는 집약 연산을 적용하지 않는다.' +
-        (a.rawSpec === null ? '' : '\n수신한 표기: ' + a.rawSpec),
+        t('ag.unknownWhy') + (a.rawSpec === null ? '' : t('ag.receivedSpec', { value: a.rawSpec })),
       state: 'unknown',
     };
   }
 
-  const level = a.level === null ? '계층 미표기' : LEVEL_LABEL[a.level] ?? a.level;
-  const window = a.windowSec === null ? '창 미표기' : a.windowSec + '초';
+  const level = a.level === null ? t('ag.10') : LEVEL_LABEL[a.level] ?? a.level;
+  const window = a.windowSec === null ? t('ag.11') : t('ag.seconds', { sec: a.windowSec });
   return {
-    short: '요약 · ' + level + ' · ' + window,
-    title:
-      '이미 ' + describeAggregation(a) + ' 이다. 평시 지표는 엣지가 raw를 보관하고 구역 요약만 ' +
-      '올라오므로(BE-S-03) 이 값에 평균·합계를 다시 적용하면 가중치가 무너진다. ' +
-      '원본이 필요하면 "원본 보기"로 별도 질의해야 한다.',
+    short: t('ag.summaryShort', { level, window }),
+    title: t('ag.aggregatedTitle', { what: describeAggregation(a) }) + t('ag.12'),
     state: 'aggregated',
   };
 }
@@ -197,8 +192,8 @@ export function aggregationBadge(a: Aggregation): AggregationBadge {
 export type BlockReason = 'aggregated' | 'unknown';
 
 export const BLOCK_REASON_LABEL: Record<BlockReason, string> = {
-  aggregated: '이미 집약된 값',
-  unknown: '표기를 읽을 수 없음',
+  aggregated: t('ag.13'),
+  unknown: t('ag.14'),
 };
 
 export type BlockRecord = {
@@ -246,18 +241,13 @@ export function blockReaggregation(
 
   const message =
     reason === 'aggregated'
-      ? context + ' 의 값은 이미 ' + describeAggregation(aggregation) + ' 인데 여기에 ' + operation +
-        ' 을(를) 적용하려 했다. 집약값을 다시 집약하면 가중치가 무너져 실제와 다른 수가 나오므로 ' +
-        '계산을 수행하지 않았다. 원본이 필요하면 원본 질의(VZ-I-04)로 받아 계산할 것.'
-      : context + ' 의 집약 표기를 읽을 수 없어 원본인지 집약인지 판단할 수 없는데 여기에 ' +
-        operation + ' 을(를) 적용하려 했다. 판단이 되지 않는 값에 집약 연산을 적용하지 않는다 — ' +
-        '원본으로 가정하고 계산하면 그 값이 실은 집약값일 때 숫자가 조용히 틀린다. ' +
-        '생산자의 표기 형식을 계약(BE-S-06)에 맞춰야 한다.' +
-        (aggregation.rawSpec === null ? '' : ' 수신한 표기: ' + aggregation.rawSpec);
+      ? t('ag.blockedAggregated', { context, what: describeAggregation(aggregation), operation }) + t('ag.15')
+      : t('ag.blockedUnknown', { context, operation })
+        + (aggregation.rawSpec === null ? '' : t('ag.rawSpecSuffix', { value: aggregation.rawSpec }));
 
   blocks.unshift({ at: Date.now(), context, operation, aggregation, reason, message });
   if (blocks.length > 20) blocks.length = 20;
-  console.warn('[VZ-C-03 차단 · ' + BLOCK_REASON_LABEL[reason] + '] ' + message);
+  console.warn(t('ag.consolePrefix', { reason: BLOCK_REASON_LABEL[reason] }) + message);
   for (const l of blockListeners) l();
   return true;
 }
