@@ -182,7 +182,7 @@ Phase 0(2026-09-04)에 8개, **Phase 2(2026-09-10)에 TimescaleDB가 더해져 9
 | OTel Collector (exporter) | — | 8889 | Prometheus가 docker 네트워크 안에서 직접 scrape |
 | **WS 게이트웨이 뷰어** | **127.0.0.1:8765** → Phase 4 단계 7부터 **`127.0.0.1` + `<서버 tailscale IP>` 둘 다** | — | 호스트 프로세스(systemd `mk2-ws-echo`). 경로 `/state`(Phase 1 echo)·`/media?source_id=…`(방식 B 영상). **URL 쿼리 토큰 `MK2_WS_TOKEN`**, 불일치·부재 close 4401. 호스트 파이썬이라 **ufw 가 진짜 통제**(사용자 컴퓨터 `/32`, VZ PC 는 주소를 받은 뒤) |
 | **WS 게이트웨이 엣지 입구** | ~~127.0.0.1:8766~~ → 단계 7 `<서버 tailscale IP>:8766` 실측 → **단계 8(2026-09-19) 닫음 — 현재 `MK2_MEDIA_INGEST_PORT=0`**, 게이트웨이 로그 `엣지 입구 닫힘` | — | 같은 프로세스의 두 번째 서버. 경로 `/ingest?source_id=…`, 토큰 `MK2_EDGE_TOKEN`. 엣지가 클라이언트로 붙는다(엣지에 인바운드 불필요). 되살릴 때 `.env` 포트 + `MK2_MEDIA_INGEST_HOST` + ufw 엣지 `/32`. 닫혀 있으면 `tests/test_media_relay.py` 12건이 skip 된다(정상) |
-| **4b 촬영본 PUT 입구** | **`<서버 tailscale IP>:8767`** (Phase 4 단계 10, 2026-09-19 — **남긴다**, 되돌림 대상 아님) | — | 호스트 프로세스(systemd **`mk2-capture`**, `backend/gateway/capture.py`). `PUT /capture/<세션>.manifest.json` → `PUT /capture/<세션>.tar.gz`, 토큰 `MK2_CAPTURE_TOKEN`(쿼리/헤더), 401·409·400. 저장 루트 `MK2_CAPTURE_DIR`(서버 `.env`, 저장소 밖) + MySQL `media_capture`. 호스트 파이썬이라 **ufw 가 진짜 통제** — pi7 `/32` 한 줄. HW 에는 입구 개통을 따로 통지한다(4b 완료 후) |
+| **4b 촬영본 PUT 입구** | **`<서버 tailscale IP>:8767`** (Phase 4 단계 10, 2026-09-19 — **남긴다**, 되돌림 대상 아님) | — | 호스트 프로세스(systemd **`mk2-capture`**, `backend/gateway/capture.py`). `PUT /capture/<세션>.manifest.json` → `PUT /capture/<세션>.tar.gz`, 토큰 `MK2_CAPTURE_TOKEN`(쿼리/헤더), 401·409·400. 저장 루트 `MK2_CAPTURE_DIR`(서버 `.env`, 저장소 밖) + MySQL `media_capture`. 호스트 파이썬이라 **ufw 가 진짜 통제** — pi7 `/32` 한 줄. HW 에는 입구 개통을 **회신 문서에 적었다**(`docs/be/hw-envelope-conformance.md` §8-8 「✅ 2026-09-19 개통됨」 · §8-12 실측) |
 | Kafka EDGE | `<서버 tailscale IP>:9095` (Phase 4 단계 6 → 실측 → **단계 8 주석**, 2026-09-19) | 9095 | 원격 엣지용 리스너(PLAINTEXT, SASL 은 Phase 6). 도커 발행 포트 — **바인딩 주소가 통제**, ufw 는 문서용(§5). 현재 compose 에 주석 판 4자리(ports 1 + env 3)로 남아 있다 |
 
 **2026-09-19 단계 8 되돌린 뒤 실제 상태(`ss -ltnp`·ufw 실측):** 열린 MK2 입구는 **8765**(`127.0.0.1` + `<서버 tailscale IP>`, ufw 사용자 컴퓨터 `/32`)와 **단계 10 에서 연 8767**(`<서버 tailscale IP>`, ufw pi7 `/32`) 둘. 8766·`<서버 tailscale IP>:4316`·9095 없음, `docker port`도 kafka `127.0.0.1:9092`·collector `127.0.0.1:4316` 만. ufw 의 Phase 4 규칙은 8765·8767 두 줄.
@@ -400,7 +400,8 @@ curl -s 'localhost:7861/api/v1/query' --data-urlencode 'query=count by (__name__
 `tests/conftest.py`의 `tsdb_conn`·`mysql_conn` fixture가 접속 실패를 `pytest.skip`으로 바꾸므로,
 **인프라가 없으면 그 테스트만 건너뛰고 나머지는 통과**한다. **Phase 3의 관측 3종도 같다** —
 `prometheus_url`·`loki_url`·`tempo_url` fixture(`tests/conftest.py`)가 `/-/healthy`·`/ready`로 확인해 없으면 skip.
-서버 전건은 **184건**(2026-09-16, skip 0).
+서버 전건은 Phase 3 뒤 **184건**(2026-09-16, skip 0) → **Phase 4 뒤 272 passed + 12 skip**
+(2026-09-19 — skip 12건은 전부 `tests/test_media_relay.py`이며 엣지 입구 8766이 닫혀 있을 때의 정상값이다).
 
 ---
 
@@ -579,7 +580,8 @@ ports:  - "<서버 tailscale IP>:9095:9095"                              # 🔴 
 > - 🔴 **8765·8766·8767 은 호스트 파이썬 프로세스**라 DNAT 를 타지 않고 `INPUT` 으로 들어온다 — **여기서는 ufw 가 진짜
 >   통제다.** 미디어 경로의 입구 셋이 전부 여기 속한다.
 >
-> **그래서 규칙은 이렇다:** 도커 발행 포트(9095·4316·4318 …)는 **바인딩 주소를 정확히 쓴다**(노출 통제) **+ ufw 도
+> **그래서 규칙은 이렇다:** 도커 발행 포트(9095·4316 … — **4318은 아직 발행하지 않는다**: Collector에
+> HTTP receiver 자체가 없고 결정 7 A로 열 때 같은 규칙을 적용한다)는 **바인딩 주소를 정확히 쓴다**(노출 통제) **+ ufw 도
 > 적는다**(장애 원인 배제·문서용 — 「통제」로 세지 않는다). 호스트 프로세스 포트(8765·8766·8767)는 **ufw 가 통제**다.
 > 바인딩과 ufw 는 층이 다르며 충돌하지 않는다 — Phase 2 의 7859(§3 주)와 같다. ⏭ 도커 발행 포트 **전반**의 노출 점검·정리는
 > 이번 범위가 아니다(Phase 0 부터 있던 상태이고 다른 파트 포트가 섞여 있다 — 분류 ③).
@@ -628,7 +630,11 @@ chmod 775 kafka_data
 | Loki | 29일 창 라벨 질의 스트림 0, chunk 23개/172K, 단일 스트림, 2026-01-26~02-09 | **7개월간 새 로그 0건** |
 | Prometheus | 950M · 1,215 시계열 · 326종 | **유일하게 살아 있었고 그 데이터는 전부 분류 ③의 것**(`rpi_*`·`thermal_*`·`conntest`·`push_*`) |
 
-Phase 3 뒤: 셋 다 흐른다 — `be_*` 21종(A 9 + C 12)·`{service_name="be-*"}` 로그·가짜 span. 판정 방법은 §4.
+Phase 3 뒤: 셋 다 흐른다 — `be_*` 21종(A 9 + C 12)·`{service_name="be-*"}` 로그·가짜 span.
+**Phase 4 뒤(2026-09-19): `be_*` 27종(A 15 + C 12)** — 미디어 5(`media_frames`·`media_gop_cut`·
+`media_coldstart`·`media_rejected`·`media_ingress`) + 4b 1(`be.gateway.capture`). 지표 **이름** 수로는
+**35**다(`media_coldstart`가 히스토그램이라 `_bucket`·`_sum`·`_count`로 갈린다 — 기준선 비교는 이 35를 쓴다).
+판정 방법은 §4.
 
 | 파일 | 확인된 것 → 처리 | 언제 |
 |---|---|---|

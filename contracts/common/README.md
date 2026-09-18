@@ -194,7 +194,7 @@ log/event 10 = 22**. `tests/test_c_layer_extract.py`가 이 숫자를 못 박는
 
 | 층 | 라벨 | 이유 |
 |---|---|---|
-| **A층** 백엔드 자기 관측(`be.ingest.*`·`be.kafka.*`·`be.storage.*`·`be.registry.*`·`be.gateway.*`·`be.pipeline.*`) | `component` · `channel` · `outcome` · `stage` — **`source_id`·`zone_id`·`entity_type`을 넣지 않는다** | 질문이 "백엔드가 잘 도는가"라 장치별로 가를 필요가 없고, 달면 장치 수만큼 시계열이 곱해진다 |
+| **A층** 백엔드 자기 관측(`be.ingest.*`·`be.kafka.*`·`be.storage.*`·`be.registry.*`·`be.gateway.*`·`be.pipeline.*`) | `component` · `channel` · `outcome` · `stage` · `endpoint`(Phase 3 추가 — `/state`·`/media` 구분) — **`source_id`·`zone_id`·`entity_type`을 넣지 않는다** | 질문이 "백엔드가 잘 도는가"라 장치별로 가를 필요가 없고, 달면 장치 수만큼 시계열이 곱해진다 |
 | **C층** 업무 값의 관측 표현(`be.telemetry.*`) | `source_id` · `zone_id` · `entity_type` · `channel` | 장치별이어야 의미가 있다 |
 
 > ⛔ **어느 층에도 넣지 않는다 — 금지 라벨 전수(2026-09-18, Phase 4 확장):**
