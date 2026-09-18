@@ -8,6 +8,8 @@
  *  - 경과 시간은 서버 시각끼리의 뺄셈 (클라이언트 시계 미사용)
  */
 
+// 이 파일은 `const t = record.telemetry…` 로 `t` 를 쓴다 — 사전은 다른 이름으로 들여온다.
+import { t as tr } from '../../i18n/dict.ts';
 import type { EntityRecord } from '../data/index.ts';
 import {
   ACTUATOR_PHASE_LABEL,
@@ -34,8 +36,8 @@ function domainLine(record: EntityRecord): string | null {
       | { battery_pct?: number; is_moving?: boolean; mission?: unknown }
       | undefined;
     if (!t) return null;
-    const battery = t.battery_pct === undefined ? '배터리 —' : '배터리 ' + t.battery_pct + '%';
-    return battery + ' · ' + (t.is_moving ? '임무 수행 중' : '대기 중');
+    const battery = t.battery_pct === undefined ? tr('dc.batteryNone') : tr('dc.battery', { pct: t.battery_pct });
+    return battery + ' · ' + tr(t.is_moving ? 'dc.onMission' : 'dc.idle');
   }
 
   if (type === 'sensor') {
@@ -43,14 +45,16 @@ function domainLine(record: EntityRecord): string | null {
       | { water_level?: { value: number; unit: string }; report_mode?: string }
       | undefined;
     if (!t?.water_level) return null;
-    const mode = t.report_mode === 'event' ? '이벤트 모드' : '평시 모드';
-    return '수위 ' + t.water_level.value.toFixed(2) + ' m · ' + mode;
+    const mode = tr(t.report_mode === 'event' ? 'dc.eventMode' : 'dc.normalMode');
+    return tr('dc.waterLevel', { m: t.water_level.value.toFixed(2) }) + ' · ' + mode;
   }
 
   if (type === 'camera') {
     const t = record.videoMeta?.payload as { fps?: number; frame_seq?: number } | undefined;
     if (!t) return null;
-    return t.fps + 'fps · 프레임 ' + t.frame_seq;
+    // 둘 다 없을 수 있다 — 옛 코드가 `t.fps + 'fps'` 로 이어 붙여 `undefined` 가 그대로
+    // 찍히던 자리다. 그 모양을 그대로 둔다(한국어 화면이 달라지면 안 된다).
+    return tr('dc.cameraMeta', { fps: String(t.fps), seq: String(t.frame_seq) });
   }
 
   if (type === 'actuator') {
@@ -85,10 +89,10 @@ export function DeviceCard({ record }: Props) {
 
   const footer =
     status === 'not_deployed'
-      ? '레지스트리 목록에만 존재'
+      ? tr('dc.registryOnly')
       : formatAge(age) +
         (layers?.availability === 'stale'
-          ? ' · 임계 ' + Math.round(layers.stale_threshold_ms / 1000) + '초'
+          ? tr('dc.staleThreshold', { sec: Math.round(layers.stale_threshold_ms / 1000) })
           : '');
 
   return (
@@ -121,7 +125,7 @@ export function DeviceCard({ record }: Props) {
       {/* BE-C-04 — 좌표 기준계는 **읽기만** 한다. 변환은 백엔드 단독 책임이다. */}
       {coordinateFrame !== null && (
         <p className="card__frame">
-          좌표계 <code>{coordinateFrame}</code> <em>변환은 백엔드가 이미 끝냈다</em>
+          {tr('dc.frame')} <code>{coordinateFrame}</code> <em>{tr('dc.frameNote')}</em>
         </p>
       )}
 
@@ -130,7 +134,7 @@ export function DeviceCard({ record }: Props) {
         <p className="card__actuator">
           <span className={'chip chip--act-' + actuator.phase}>{ACTUATOR_PHASE_LABEL[actuator.phase]}</span>
           {command !== null && <span className={'chip chip--cmd-' + command}>{COMMAND_DISPLAY_LABEL[command]}</span>}
-          {actuator.control_locked && <span className="chip chip--locked">제어 잠금</span>}
+          {actuator.control_locked && <span className="chip chip--locked">{tr('dc.controlLocked')}</span>}
         </p>
       )}
 

@@ -11,6 +11,8 @@
  *  - 명령 발행  — 만들지 않는다. 아래 시나리오 버튼은 목 서버 안의 왕복을 트리거할 뿐이다.
  */
 
+import { Rich } from '../../i18n/RichText.tsx';
+import { t } from '../../i18n/dict.ts';
 import {
   DISPLAY_STATUS_LABEL,
   RENDER_MERGE_WINDOW_MS,
@@ -36,12 +38,12 @@ const STATUS_ORDER: DisplayStatus[] = ['normal', 'fault', 'unknown', 'not_deploy
 
 /** 시나리오 버튼 — 상태 전이를 손으로 재생해야 화면이 전이 순간에 맞는지 볼 수 있다. */
 const SCENARIO_BUTTONS: Array<{ name: string; label: string }> = [
-  { name: 'camera-silence', label: 'camera-02 침묵 → 판단 불가' },
-  { name: 'camera-resume', label: 'camera-02 재개' },
-  { name: 'sensor-offline', label: 'sensor-02 끊김 → 복구' },
-  { name: 'sensor-surge', label: 'sensor-01 급변 → 이벤트 모드' },
-  { name: 'robot-idle', label: 'robot-01 대기' },
-  { name: 'robot-mission', label: 'robot-01 임무(20Hz)' },
+  { name: 'camera-silence', label: t('dg.1') },
+  { name: 'camera-resume', label: t('dg.2') },
+  { name: 'sensor-offline', label: t('dg.3') },
+  { name: 'sensor-surge', label: t('dg.4') },
+  { name: 'robot-idle', label: t('dg.5') },
+  { name: 'robot-mission', label: t('dg.6') },
 ];
 
 export function DeviceGrid() {
@@ -69,20 +71,19 @@ export function DeviceGrid() {
     <main className="board">
       <header className="board__head">
         <div>
-          <h1 className="board__title">{zone?.display_name ?? ZONE_ID} · 구역 장치 현황판</h1>
+          <h1 className="board__title">{t('dg.boardTitle', { zone: zone?.display_name ?? ZONE_ID })}</h1>
           <Explain id="grid-1" className="board__sub">
-            device_status · availability · deployment 3층을 조합해 정상 / 장애 / 의도적 미배포 / 판단 불가를 구분한다
+            {t('dg.boardSub')}
           </Explain>
         </div>
         <div className="board__meta">
-          <span>갱신 {ZONE_BOARD_REFRESH_MS / 1000}초 · 병합 {RENDER_MERGE_WINDOW_MS}ms</span>
+          <span>{t('dg.boardMeta', { sec: ZONE_BOARD_REFRESH_MS / 1000, ms: RENDER_MERGE_WINDOW_MS })}</span>
         </div>
       </header>
 
       {registryError !== null && (
         <p className="notice notice--warn">
-          레지스트리 조회 실패 — {registryError}. 존재해야 할 목록이 없으면 미배포 대상은 화면에 나타나지
-          않는다(VZ-I-03).
+          {t('dg.registryFailed', { reason: registryError })}
         </p>
       )}
 
@@ -93,15 +94,15 @@ export function DeviceGrid() {
         <section className="summary">
           <div className="summary__item summary__item--normal">
             <span className="summary__count">{records.filter((r) => scenarioCast.has(r.id)).length}</span>
-            <span className="summary__label">대본 등장 (합성값)</span>
+            <span className="summary__label">{t('dg.7')}</span>
           </div>
           <div className="summary__item summary__item--unknown">
             <span className="summary__count">{records.filter((r) => !scenarioCast.has(r.id)).length}</span>
-            <span className="summary__label">자리표시 (대본에 없음)</span>
+            <span className="summary__label">{t('dg.8')}</span>
           </div>
           <div className="summary__item summary__item--total">
             <span className="summary__count">{records.length}</span>
-            <span className="summary__label">전체</span>
+            <span className="summary__label">{t('dg.9')}</span>
           </div>
         </section>
       ) : (
@@ -115,7 +116,7 @@ export function DeviceGrid() {
             ))}
             <div className="summary__item summary__item--total">
               <span className="summary__count">{summary.total}</span>
-              <span className="summary__label">전체</span>
+              <span className="summary__label">{t('dg.9')}</span>
             </div>
           </section>
         </PendingSource>
@@ -128,7 +129,7 @@ export function DeviceGrid() {
         <section className="grid">
           {records.map((r) => scenarioCast.has(r.id)
             ? <div key={r.id} className="scenario-card"><DeviceCard record={r} /></div>
-            : <div key={r.id} className="scenario-card scenario-card--offcast"><b>{r.id}</b><span className="scenario-card__note">이 대본에 없는 장비 — 대본 중에도 자리표시</span><PendingSource id="device-cards" entity={r.id} inline /></div>)}
+            : <div key={r.id} className="scenario-card scenario-card--offcast"><b>{r.id}</b><span className="scenario-card__note">{t('dg.10')}</span><PendingSource id="device-cards" entity={r.id} inline /></div>)}
         </section>
       ) : (
         <PendingSource id="device-cards" minHeight={320}>
@@ -136,7 +137,7 @@ export function DeviceGrid() {
             {records.map((r) => (
               <DeviceCard key={r.id} record={r} />
             ))}
-            {records.length === 0 && <p className="notice">표시할 대상이 없다. 레지스트리를 받지 못했거나 구역이 비어 있다.</p>}
+            {records.length === 0 && <p className="notice">{t('dg.11')}</p>}
           </section>
         </PendingSource>
       )}
@@ -144,7 +145,7 @@ export function DeviceGrid() {
       <MappingTable records={records} />
 
       <section className="devpanel">
-        <h2 className="devpanel__title">시나리오 재생</h2>
+        <h2 className="devpanel__title">{t('dg.12')}</h2>
         <div className="devpanel__row">
           {SCENARIO_BUTTONS.map((b) => (
             <button key={b.name} type="button" className="btn" onClick={() => playScenario(b.name)}>
@@ -153,31 +154,35 @@ export function DeviceGrid() {
           ))}
         </div>
 
-        <h2 className="devpanel__title">계약 확인</h2>
+        <h2 className="devpanel__title">{t('dg.13')}</h2>
         <div className="devpanel__row devpanel__row--info">
           {/* VZ-C-04 — **자리 확보가 아니라 실사용이다.** 범위가 실제 값으로 내려온다. */}
           <PendingSource id="role-scope" inline>
             <span className={'chip' + (isFullScope(role) ? '' : ' chip--scoped')}>
-              역할 {role?.display_name ?? '조회 중'} · {describeScope(role)}
+              {t('dg.role', { name: role?.display_name ?? t('dg.14'), scope: describeScope(role) })}
               {role !== null && <em> (VZ-C-04 · {role.source})</em>}
             </span>
           </PendingSource>
           <button type="button" className="btn btn--tiny" onClick={refreshRole}>
-            역할 다시 조회 <em>(로그인 1회 + 토큰 갱신 시)</em>
+            {t('dg.refreshRole')} <em>{t('dg.15')}</em>
           </button>
           <span className="chip">
-            구독 scope <code>"all"</code> <em>(VZ-I-11 — 남은 자리 확보 항목)</em>
+            <Rich id="dg.scopeAll" /> <em>{t('dg.16')}</em>
           </span>
         </div>
         <Explain id="grid-2" className="note note--dim">
-          범위 제한은 <strong>제어 패널</strong>에서 확인한다 — zone-504의 수문이 범위 밖이 되면 버튼이 잠기고
-          사유가 뜬다. 집약 표기와 재집약 차단은 <strong>지표 조회</strong> 탭으로 옮겼다.
+          <Rich id="dg.scopeNote" />
         </Explain>
 
         {SHOW_RENDER_COUNTER && (
           <p className="devpanel__metrics">
-            현황판 리렌더 {renders.perSecond}회/초 (누적 {renders.total}) · 수신 {store.merge.stats().received}건 ·
-            병합 플러시 {store.merge.stats().flushed}회 · 즉시 반영 {store.merge.stats().immediate}회
+            {t('dg.renderMetrics', {
+              perSec: renders.perSecond,
+              total: renders.total,
+              received: store.merge.stats().received,
+              flushed: store.merge.stats().flushed,
+              immediate: store.merge.stats().immediate,
+            })}
           </p>
         )}
       </section>
@@ -227,15 +232,15 @@ function MappingTable({ records }: { records: Array<{ id: string; state: { paylo
 
   return (
     <section className="mapping">
-      <h2 className="mapping__title">3층 → 화면 표시 매핑</h2>
+      <h2 className="mapping__title">{t('dg.19')}</h2>
       <table className="mapping__table">
         <thead>
           <tr>
             <th>device_status</th>
             <th>availability</th>
             <th>deployment</th>
-            <th>화면 표시</th>
-            <th>현재 해당</th>
+            <th>{t('dg.20')}</th>
+            <th>{t('dg.21')}</th>
           </tr>
         </thead>
         <tbody>
@@ -253,9 +258,7 @@ function MappingTable({ records }: { records: Array<{ id: string; state: { paylo
         </tbody>
       </table>
       <p className="mapping__note">
-        단일 상태 값으로 뭉치면 표현 불가 — <strong>fault + online</strong>은 합치면 '정상'으로 보이고,{' '}
-        <strong>stale</strong>은 끊기지 않았으므로 '정상'으로 보인다. 3층 원본을 그대로 받아 화면이 조합해야 네 칸이
-        나온다.
+        <Rich id="dg.mappingNote" />
       </p>
     </section>
   );

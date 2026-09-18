@@ -55,6 +55,29 @@ export function blankComments(src) {
   return out;
 }
 
+/**
+ * 이 따옴표가 **자바스크립트 값 자리에 있는가.**
+ *
+ * ## 260918 — 네 번째 사각. 이것만은 화면에 그대로 떴다
+ *
+ * ```jsx
+ *   <p>… <strong>fault + online</strong>은 합치면 '정상'으로 보이고,{' '}
+ * //                                                ^^^^^^ JS 문자열이 아니다
+ * ```
+ *
+ * JSX 텍스트 안에서 **따옴표로 인용한 말**이다. 기계가 이것을 코드로 읽고 `t('dg.22')`
+ * 로 바꿨고, 그건 JSX 안에서 **글자 그대로** 렌더된다 — 화면에 `t('dg.22')` 가 떴다.
+ * 앞의 사각 셋은 조각을 만드는 정도였는데 이것은 눈에 보이는 고장이다.
+ *
+ * 그래서 **값 자리인지**를 본다. 여는 따옴표 바로 앞이 `(`·`,`·`[`·`=`·`:`·`?`·`&&`·
+ * `||`·`??` 이거나 줄의 첫 글자일 때만 값이다. `합치면 '정상'` 처럼 앞이 글자면 아니다.
+ */
+function isJsValue(line, index) {
+  const before = line.slice(0, index).trimEnd();
+  if (before === '') return true;
+  return /[([{,=:?]$|&&$|\|\|$|\?\?$|\breturn$|=>$/.test(before);
+}
+
 /** 이 글이 **개발자에게만 보이는가.** `throw new Error(…)` 의 속은 화면에 안 뜬다. */
 function devOnly(line, index) {
   const before = line.slice(0, index);
@@ -117,6 +140,7 @@ export function easyMoves(src, prefix) {
       const ko = m[1];
       if (!/[가-힣]/.test(ko)) continue;
       if (devOnly(line, m.index)) continue;
+      if (!isJsValue(line, m.index)) { hard.push({ line: idx + 1, text: raw[idx].trim() }); continue; }
       moves.push({ line: idx + 1, from: `'${ko}'`, to: `t('${keyFor(ko)}')`, ko, kind: 'str' });
     }
 

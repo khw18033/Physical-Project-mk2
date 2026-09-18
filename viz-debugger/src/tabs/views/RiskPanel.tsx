@@ -10,6 +10,8 @@
 // 답하는 화면은 이미 탭②다. 같은 질문에 답하는 화면이 둘이면 사용자가 어느 쪽을 봐야
 // 하는지 알 수 없게 된다 — 탭⑥에서 임무 관제 모드를 지운 것과 같은 이유다.
 
+import { Rich } from '../../i18n/RichText.tsx';
+import { t } from '../../i18n/dict.ts';
 import { useState } from 'react';
 import { GATEWAY, type RiskState } from '../../transport/index.ts';
 import { deriveDisplayStatus, DISPLAY_STATUS_LABEL, store } from '../data/index.ts';
@@ -21,12 +23,12 @@ import { Explain } from '../../shared/Explain.tsx';
 type Level = 'decision' | 'operation' | 'development';
 
 const LEVELS: Array<{ id: Level; label: string; note: string }> = [
-  { id: 'decision', label: '결심자', note: '판단과 권고만' },
-  { id: 'operation', label: '운영자', note: '대상과 원인' },
-  { id: 'development', label: '개발자', note: '원본 봉투·계약' },
+  { id: 'decision', label: t('rp.1'), note: t('rp.2') },
+  { id: 'operation', label: t('rp.3'), note: t('rp.4') },
+  { id: 'development', label: t('rp.5'), note: t('rp.6') },
 ];
 
-const RISK_LABEL: Record<RiskState['level'], string> = { normal: '평시', watch: '관찰', alert: '경보', recovery: '복구' };
+const RISK_LABEL: Record<RiskState['level'], string> = { normal: t('rp.7'), watch: t('rp.8'), alert: t('rp.9'), recovery: t('rp.10') };
 
 export function RiskPanel() {
   const entities = useEntities();
@@ -41,8 +43,8 @@ export function RiskPanel() {
     <section className="board insight insight--embedded">
       <header className="board__head">
         <div>
-          <h2 className="board__title">상황 판단 · 설명가능성</h2>
-          <Explain id="risk-1" className="board__sub">같은 구독을 유지한 채 역할에 맞춰 <strong>표시 깊이만</strong> 바꾼다 (VZ-U-03)</Explain>
+          <h2 className="board__title">{t('rp.11')}</h2>
+          <Explain id="risk-1" className="board__sub"><Rich id="rp.sub" /></Explain>
         </div>
         <div className="levelbar">
           {LEVELS.map((v) => (
@@ -60,11 +62,11 @@ export function RiskPanel() {
           <div className={'riskcard riskcard--' + risk.level}>
             <div><span className="riskcard__label">{RISK_LABEL[risk.level]}</span><strong>{risk.score}</strong><small>/ 100</small></div>
             <p>{risk.recommendation}</p>
-            {level !== 'decision' && <ul>{risk.reasons.map((r) => <li key={r.label}><b>{r.label}</b> {r.value} <span>기여도 {Math.round(r.contribution * 100)}%</span></li>)}</ul>}
+            {level !== 'decision' && <ul>{risk.reasons.map((r) => <li key={r.label}><b>{r.label}</b> {r.value} <span>{t('rp.contribution', { pct: Math.round(r.contribution * 100) })}</span></li>)}</ul>}
             {level === 'development' && <pre>{JSON.stringify(riskSlot, null, 2)}</pre>}
           </div>
         ) : (
-          <p className="notice">위험도 판정 수신 대기</p>
+          <p className="notice">{t('rp.12')}</p>
         )}
       </PendingSource>
 
@@ -86,16 +88,16 @@ export function RiskPanel() {
       )}
 
       <div className="devpanel">
-        <h3 className="devpanel__title">전이 재생 <small>목 게이트웨이 — 목임을 감추지 않는다</small></h3>
+        <h3 className="devpanel__title">{t('rp.replayTransitions')} <small>{t('rp.mockGateway')}</small></h3>
         <div className="devpanel__row">
           {(['normal', 'watch', 'alert', 'recovery'] as const).map((v) => (
-            <button className="btn" type="button" key={v} onClick={() => trigger('risk-' + v)}>위험도 {RISK_LABEL[v]}</button>
+            <button className="btn" type="button" key={v} onClick={() => trigger('risk-' + v)}>{t('rp.riskOf', { level: RISK_LABEL[v] })}</button>
           ))}
-          <button className="btn" type="button" onClick={() => trigger('ai-failure')}>AI 실패 1건 → 상단 알림</button>
+          <button className="btn" type="button" onClick={() => trigger('ai-failure')}>{t('rp.13')}</button>
         </div>
         <Explain id="risk-2" className="note note--dim">
-          현재 구독 대상 {store.getSnapshot().size}개. 계층을 바꿔도 <strong>재구독하지 않고</strong> 같은 원본의 표시 깊이만 바꾼다 (VZ-U-03).
-          AI 실패는 이 화면이 아니라 <strong>상단 공통 알림</strong>으로 올라간다 (VZ-I-10) — 탭을 보고 있지 않아도 알아야 하는 것이기 때문이다.
+          <Rich id="rp.note1" vars={{ n: store.getSnapshot().size }} />
+          <Rich id="rp.note2" />
         </Explain>
       </div>
     </section>
