@@ -50,12 +50,12 @@ export function Palette({ canvas, missionId, pickedTaskId, pickedTaskTitle }: {
           type="button"
           className={'palette__item' + (unused ? ' palette__item--unused' : '')}
           title={unused
-            ? t('palette.hintUnused', { hint: entry.hint })
+            ? t('palette.hintUnused', { hint: t(entry.hintKey) })
             : pickedTaskId === null
-              ? t('palette.hintGlobal', { hint: entry.hint })
-              : t('palette.hintLinked', { hint: entry.hint, task: pickedTaskId })}
+              ? t('palette.hintGlobal', { hint: t(entry.hintKey) })
+              : t('palette.hintLinked', { hint: t(entry.hintKey), task: pickedTaskId })}
           onClick={() => canvas.add(entry.kind, pickedTaskId)}
-        >+ {entry.label}{unused && <small> {t('palette.notInScript')}</small>}</button>;
+        >+ {t(entry.labelKey)}{unused && <small> {t('palette.notInScript')}</small>}</button>;
       })}
       {/* 고른 태스크가 없을 때는 아무 말도 안 한다 (260914 지시) — 늘 떠 있는 설명이라
           버튼 줄만 길어졌다. 전역 노드로 놓인다는 것은 버튼 툴팁과 카드의 「전역」이 말한다. */}

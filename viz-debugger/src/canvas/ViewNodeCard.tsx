@@ -66,7 +66,7 @@ export function ViewNodeCard({ node, entry, scope, position, size, grips, picked
   >
     {grips}
     <header className="view-node__head">
-      <b>{entry?.label ?? node.kind}</b>
+      <b>{entry === null ? node.kind : t(entry.labelKey)}</b>
       {bound
         ? <span className="view-node__scope" title={t('viewnode.scopeTitle', { span: spanLabel(scope) })}>◂ {node.taskId}</span>
         : <span className="view-node__scope view-node__scope--global" title={t('viewnode.globalTitle')}>{t('viewnode.global')}</span>}

@@ -25,7 +25,7 @@
 
 import { scriptPhrase } from '../scenarios/phrases.ts';
 import type { ReactNode } from 'react';
-import { viewNodeEntry } from '../canvas/registry.ts';
+import { viewNodeLabel } from '../canvas/registry.ts';
 import { panelAlive, panelsOfNode, scenarioPanel, type ViewNodeKindId } from '../scenarios/axes.ts';
 import { enterScriptPreview } from '../scenarios/enterPreview.ts';
 import { scriptsUsingNode, scriptsUsingPanel } from '../scenarios/scriptScope.ts';
@@ -99,7 +99,7 @@ export function NodeGate({ kind, children }: { kind: ViewNodeKindId; children: R
   return (
     <NotInScriptCard
       wide
-      what={viewNodeEntry(kind)?.label ?? kind}
+      what={viewNodeLabel(kind)}
       why={panels.map((spec) => spec.why)}
       elsewhere={scriptsUsingNode(kind)}
     />

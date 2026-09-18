@@ -15,6 +15,7 @@
  * 등록이 하나도 없으면 팔레트 자체가 뜨지 않는다 — 단독 전달본의 화면은 그대로다.
  */
 
+import { t } from '../i18n/dict.ts';
 import { useSyncExternalStore } from 'react';
 import type { ViewNodeEntry, ViewNodeKind } from './types.ts';
 
@@ -54,4 +55,15 @@ function subscribe(listener: () => void): () => void {
 /** 주입이 렌더 뒤에 일어나도 팔레트가 따라오도록 구독한다. */
 export function useViewNodeCatalog(): readonly ViewNodeEntry[] {
   return useSyncExternalStore(subscribe, viewNodeCatalog, viewNodeCatalog);
+}
+
+/**
+ * 뷰 노드 종류의 **사람이 읽는 이름** (260918 · 4단계 묶음 2).
+ *
+ * 목록은 키만 들고 있으므로(`ViewNodeEntry.labelKey`) 여기서 푼다. 등록 안 된 종류는
+ * 식별자를 그대로 쓴다 — 단독 빌드에는 렌더러가 없고, 그때 빈칸이 뜨면 안 된다.
+ */
+export function viewNodeLabel(kind: ViewNodeKind): string {
+  const entry = viewNodeEntry(kind);
+  return entry === null ? kind : t(entry.labelKey);
 }

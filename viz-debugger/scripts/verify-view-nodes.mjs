@@ -22,6 +22,9 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { registerViewNodes, viewNodeCatalog, viewNodeEntry } from '../src/canvas/registry.ts';
 
 const root = join(fileURLToPath(new URL('.', import.meta.url)), '..');
+// 260918 — 사전을 읽어 **키의 값까지** 본다 (키만 맞고 사전이 비면 화면에 키가 뜬다).
+const { ko: koDict } = await import(pathToFileURL(join(root, 'src', 'i18n', 'ko.ts')).href);
+const { en: enDict } = await import(pathToFileURL(join(root, 'src', 'i18n', 'en.ts')).href);
 const read = (...parts) => readFileSync(join(root, ...parts), 'utf8');
 const failures = [];
 const check = (ok, message) => { if (!ok) failures.push(message); };
@@ -118,9 +121,16 @@ const CANVAS_FILES = ['types.ts', 'registry.ts', 'scope.ts', 'persist.ts', 'defa
   check(new Set(kinds).size === kinds.length, `종류가 중복됐다: ${kinds.join(', ')}`);
   // 요약과 확대는 **둘 다** 있어야 한다 (VZ-N-05). 하나만 있으면 그 종류는 확대할 수 없거나
   // 접을 수 없고, 「요약 ↔ 확대」로 표시 깊이를 바꾼다는 설계가 그 칸에서만 깨진다.
-  for (const field of ['label:', 'hint:', 'summary:', 'zoom:']) {
+  // 260918 — `label`·`hint` 가 **사전 키**가 됐다 (`labelKey`·`hintKey`). 규칙은 그대로다:
+  // 종류마다 넷이 다 있어야 한다. 다만 이름만 따라가면 「키가 사전에 없다」를 못 보므로
+  // **한 칸 더 본다** — 그 키의 값이 두 사전에 실제로 있는가. 없으면 화면에 키가 그대로 뜬다.
+  for (const field of ['labelKey:', 'hintKey:', 'summary:', 'zoom:']) {
     const count = renderers.split(field).length - 1;
     check(count === kinds.length, `${field} 가 ${count}개다 — 종류 ${kinds.length}개와 어긋난다`);
+  }
+  for (const m of renderers.matchAll(/(labelKey|hintKey):\s*'([^']+)'/g)) {
+    check(koDict[m[2]] !== undefined, `${m[1]} ${m[2]} 가 한국어 사전에 없다 — 화면에 키가 그대로 뜬다`);
+    check(enDict[m[2]] !== undefined, `${m[1]} ${m[2]} 가 영어 사전에 없다 — 영문 화면에서 한국어로 남는다`);
   }
   // 확대 본문은 옛 탭의 화면이다. 접힘 규칙(PanelGate)을 지나야 한다 — 확대라고 규칙에서
   // 빠져나가면 1편(로봇)에서 수문 제어 화면이 다시 열린다.

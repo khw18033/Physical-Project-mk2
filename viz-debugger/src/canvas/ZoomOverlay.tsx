@@ -41,10 +41,10 @@ export function ZoomOverlay({ entry, scope, taskId, onClose }: {
     : <>{t('zoom.linkedTo', { task: taskId })} · {scope.deviceId ?? t('zoom.noTarget')}</>;
 
   return <div className="modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
-    <section className="modal zoom-modal" role="dialog" aria-label={t('zoom.aria', { label: entry.label })}>
+    <section className="modal zoom-modal" role="dialog" aria-label={t('zoom.aria', { label: t(entry.labelKey) })}>
       <header>
         <div>
-          <h2>⤢ {entry.label}</h2>
+          <h2>⤢ {t(entry.labelKey)}</h2>
           {/* 범위를 여기 한 줄로 적는다 — 확대해도 「무엇의 값인지」가 안 흐려져야 한다. */}
           <small>{where} · T+{Math.round(scope.fromSec)}~{Math.round(scope.toSec)}s · {t('zoom.head', { sec: Math.round(scope.headSec) })}</small>
         </div>

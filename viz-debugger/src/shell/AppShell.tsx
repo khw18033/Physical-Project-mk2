@@ -1,6 +1,6 @@
 import { scriptPhrase, translateEvents, translateView } from '../scenarios/phrases.ts';
 import { useState, type ReactNode } from 'react';
-import { viewNodeEntry } from '../canvas/registry.ts';
+import { viewNodeLabel } from '../canvas/registry.ts';
 import { useZoomTarget } from '../canvas/zoomState.ts';
 import { traceFor, useMission } from '../data/scenario.ts';
 import { libraryEntry } from '../scenarios/library.ts';
@@ -116,7 +116,7 @@ export function AppShell({ debuggerView, onDebuggerHome, onMissionHistory, onOpe
         <b>{t('banner.now')}</b> {now.text}
         {/* 「○○ 노드로」 — 없으면 만들고 있으면 하이라이트한다 (지시서 §3 ★). 이름의 원천은
             등록된 렌더러다(VZ-N-01) — 여기 손으로 적으면 팔레트와 갈라진다. */}
-        {now.nodeKinds.map((kind) => <button key={kind} className="scenario-banner__goto" onClick={() => openNode(kind, now.taskId)}>{t('banner.gotoNode', { label: viewNodeEntry(kind)?.label ?? kind })}</button>)}
+        {now.nodeKinds.map((kind) => <button key={kind} className="scenario-banner__goto" onClick={() => openNode(kind, now.taskId)}>{t('banner.gotoNode', { label: viewNodeLabel(kind) })}</button>)}
       </span>}
       <button className="scenario-banner__close" onClick={closeScript}>{t('banner.close')}</button>
     </div>}

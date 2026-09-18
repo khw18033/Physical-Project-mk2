@@ -56,9 +56,16 @@ export type ViewNodeKind = string;
 export type ViewNodeEntry = {
   kind: ViewNodeKind;
   /** 팔레트 버튼과 노드 머리에 적히는 이름. */
-  label: string;
+  /**
+   * 팔레트·카드·확대가 적는 이름의 **사전 키** (260918 · 4단계). 글자가 아니다.
+   *
+   * 목록(`VIEW_NODE_RENDERERS`)이 모듈 최상위 상수라 거기서 `t()` 를 부르면 `import`
+   * 시점 언어로 굳는다. 읽는 자리에서 푼다.
+   */
+  labelKey: string;
   /** 팔레트 버튼의 툴팁 — 이 노드가 무엇을 보여 주는지와 요구사항 번호. */
-  hint: string;
+  /** 팔레트 툴팁의 **사전 키**. 글자가 아니다. */
+  hintKey: string;
   /**
    * 접힌 요약 카드 (`VZ-N-05` 앞문장 · 260903 2단계).
    *

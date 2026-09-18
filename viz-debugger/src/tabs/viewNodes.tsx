@@ -38,6 +38,7 @@
  * 그래서 **접힘은 프레임 한 장을 받고 곧바로 구독을 끊는다.** 재생은 확대에서만 돈다.
  */
 
+import { t } from '../i18n/dict.ts';
 import { useEffect, useRef, useState } from 'react';
 import { PendingSource } from '../shared/PendingSource.tsx';
 import type { ViewNodeEntry, ViewScope } from '../canvas/types.ts';
@@ -74,7 +75,7 @@ import { relayDriven } from '../scenarios/library.ts';
 /** 화면이 쓰는 로봇 id. 하드웨어 id 로 바꾸는 것은 경계 안쪽(`hardwareTarget`) 일이다. */
 const ROBOT_ENTITY = 'robot-01';
 
-const RISK_LABEL: Record<RiskState['level'], string> = { normal: '평시', watch: '관찰', alert: '경보', recovery: '복구' };
+const RISK_LABEL: Record<RiskState['level'], string> = { normal: t('vn.level.normal'), watch: t('vn.level.watch'), alert: t('vn.level.alert'), recovery: t('vn.level.recover') };
 
 /** 영상 노드가 보는 카메라. `VideoOverlayView` 와 같은 대상이다(구역 1개 전제). */
 const VIDEO_CAMERA = 'camera-02';
@@ -92,24 +93,24 @@ function DeviceRiskBody({ scope }: { scope: ViewScope }) {
   const risk = ([...entities.values()].map((record) => record.riskState).find(Boolean)?.payload ?? null) as RiskState | null;
   const record = scope.deviceId === null ? null : entities.get(scope.deviceId) ?? null;
   const riskLine = risk === null
-    ? <em className="vn-dim">위험도 판정 수신 대기</em>
+    ? <em className="vn-dim">{t('vn.riskWaiting')}</em>
     : <b className={`vn-risk vn-risk--${risk.level}`}>{RISK_LABEL[risk.level]} {risk.score}</b>;
 
   if (scope.deviceId === null) {
     // 전역 — 구역 넷의 집계가 「이상함을 알아챌 수 있는 값」이다.
     return <>
-      <p className="vn-line">정상 {zone.counts.normal} · 장애 {zone.counts.fault} · 판단불가 {zone.counts.unknown} · 미배포 {zone.counts.not_deployed}</p>
-      <p className="vn-line">구역 {zone.total}대 · {riskLine}</p>
+      <p className="vn-line">{t('vn.deviceTally', { ok: zone.counts.normal, bad: zone.counts.fault, unknown: zone.counts.unknown, pending: zone.counts.not_deployed })}</p>
+      <p className="vn-line">{t('vn.zoneCount', { n: zone.total })} · {riskLine}</p>
     </>;
   }
   if (record === null) {
-    return <p className="vn-line"><em className="vn-dim">{scope.deviceId} 는 이 구역 레지스트리에 없습니다</em></p>;
+    return <p className="vn-line"><em className="vn-dim">{t('vn.notInRegistry', { id: scope.deviceId })}</em></p>;
   }
   const layers = record.state?.payload ?? null;
   const status = deriveDisplayStatus(layers);
   const telemetry = record.telemetry?.payload as { battery_pct?: number } | undefined;
   return <>
-    <p className="vn-line"><b className={`vn-status vn-status--${status}`}>{DISPLAY_STATUS_LABEL[status]}</b>{telemetry?.battery_pct === undefined ? null : <span> 배터리 {telemetry.battery_pct}%</span>}</p>
+    <p className="vn-line"><b className={`vn-status vn-status--${status}`}>{DISPLAY_STATUS_LABEL[status]}</b>{telemetry?.battery_pct === undefined ? null : <span>{t('vn.batterySuffix', { pct: telemetry.battery_pct })}</span>}</p>
     {/* 3층은 뭉치지 않는다 — 판정(4종)과 원본 3층을 함께 보여야 「왜 그렇게 판정됐나」가 보인다. */}
     <p className="vn-line vn-mono">{formatLayers(layers)}</p>
     <p className="vn-line">{riskLine}</p>
@@ -129,15 +130,15 @@ function ControlBody({ scope }: { scope: ViewScope }) {
   const mine = scope.deviceId === null ? commands : commands.filter((command) => command.entity === scope.deviceId);
   const last = mine.length === 0 ? null : mine[mine.length - 1];
   if (last === null) {
-    return <p className="vn-line"><em className="vn-dim">{scope.deviceId ?? '구역'} 에 발행된 명령이 없습니다</em></p>;
+    return <p className="vn-line"><em className="vn-dim">{t('vn.noCommands', { target: scope.deviceId ?? t('vn.zone') })}</em></p>;
   }
   // 추적기는 발행 시점에 `issued` 를 넣으므로 이력이 빈 명령은 없다. 그래도 여기서 죽지는
   // 않게 둔다 — 카드 한 장 때문에 캔버스 전체가 멎으면 안 된다.
   const stage = last.stages.length === 0 ? null : last.stages[last.stages.length - 1];
   return <>
-    <p className="vn-line">명령 <b>{mine.length}</b>건 · <b className={`vn-cmd vn-cmd--${last.display}`}>{COMMAND_DISPLAY_LABEL[last.display]}</b></p>
+    <p className="vn-line">{t('vn.commandCountPrefix')} <b>{mine.length}</b>{t('vn.commandCountSuffix')} · <b className={`vn-cmd vn-cmd--${last.display}`}>{COMMAND_DISPLAY_LABEL[last.display]}</b></p>
     {/* 4단계 중 어디인지가 이 카드의 핵심이다 — 「발행했는데 ACK 가 안 왔다」가 여기서 보인다. */}
-    <p className="vn-line vn-mono">{stage === null ? '단계 이력 없음' : COMMAND_STAGE_LABEL[stage.stage] ?? stage.stage}</p>
+    <p className="vn-line vn-mono">{stage === null ? t('vn.noStageHistory') : COMMAND_STAGE_LABEL[stage.stage] ?? stage.stage}</p>
     <p className="vn-line vn-dim">{last.actionLabel}{last.progressPct === null ? '' : ` · ${last.progressPct}%`}</p>
   </>;
 }
@@ -151,7 +152,7 @@ function metricFor(deviceId: string | null): (typeof METRICS)[number] {
 
 /** 점 몇 개를 잇는 선 하나. `MetricsView` 와 같은 이유로 차트 라이브러리를 들이지 않는다. */
 function Sparkline({ points }: { points: MetricPoint[] }) {
-  if (points.length < 2) return <p className="vn-line vn-dim">점이 부족합니다</p>;
+  if (points.length < 2) return <p className="vn-line vn-dim">{t('vn.notEnoughPoints')}</p>;
   const { min, max } = seriesExtent(points);
   const span = max - min || 1;
   const line = points
@@ -166,8 +167,8 @@ function MetricsBody({ scope }: { scope: ViewScope }) {
   const metric = metricFor(scope.deviceId);
   // 요약만 본다 — 원본은 엣지 중계를 거치므로 카드가 주기적으로 두드릴 것이 아니다.
   const { series, loading, error } = useMetricsQuery({ entity: metric.source, metric: metric.id, mode: 'summary', rangeMin: RANGE_OPTIONS[0].min });
-  if (error !== null) return <p className="vn-line vn-dim">질의 실패 — {error}</p>;
-  if (series === null) return <p className="vn-line vn-dim">{loading ? '질의 중…' : '아직 값이 없습니다'}</p>;
+  if (error !== null) return <p className="vn-line vn-dim">{t('vn.queryFailed', { reason: error })}</p>;
+  if (series === null) return <p className="vn-line vn-dim">{loading ? t('vn.querying') : t('vn.noValueYet')}</p>;
   const { last } = seriesExtent(series.points);
   return <>
     <p className="vn-line">{metric.label} <b>{last === null ? '—' : last.toFixed(1)}</b> {metric.unit}</p>
@@ -231,10 +232,10 @@ function VideoStill() {
   return <>
     <canvas ref={canvasRef} className="vn-still" width={164} height={34} />
     {snap === null
-      ? <p className="vn-line vn-dim">프레임 대기 중…</p>
-      : <p className="vn-line">#{snap.frameSeq} · {snap.fps}fps · 탐지 <b>{snap.detections}</b>건 · {snap.referenceMissing ? <b className="vn-warn">참조 없음</b> : '참조 있음'}</p>}
+      ? <p className="vn-line vn-dim">{t('vn.waitingFrame')}</p>
+      : <p className="vn-line">#{snap.frameSeq} · {snap.fps}fps · {t('vn.detectPrefix')} <b>{snap.detections}</b>{t('vn.detectSuffix')} · {snap.referenceMissing ? <b className="vn-warn">{t('vn.refMissing')}</b> : t('vn.refPresent')}</p>}
     {/* 정지 프레임이라는 사실과, 다시 받는 길을 함께 적는다. 재생은 확대에서만 돈다. */}
-    <p className="vn-line vn-dim">정지 프레임 <button type="button" className="vn-refresh" onPointerDown={(event) => event.stopPropagation()} onClick={() => setNonce((value) => value + 1)}>다시 받기</button></p>
+    <p className="vn-line vn-dim">{t('vn.stillFrame')} <button type="button" className="vn-refresh" onPointerDown={(event) => event.stopPropagation()} onClick={() => setNonce((value) => value + 1)}>{t('vn.fetchAgain')}</button></p>
   </>;
 }
 
@@ -282,28 +283,28 @@ function RobotBody() {
   return <div className={`robot-node${bad ? ' robot-node--bad' : ''}`}>
     <div className="robot-node-row">
       <b>{ROBOT_ENTITY}</b>
-      <span>{session.connection.state === 'open' ? '브로커 ✓' : '브로커 ✕'}</span>
+      <span>{t(session.connection.state === 'open' ? 'vn.brokerOk' : 'vn.brokerBad')}</span>
       {device === null
-        ? <span>장비 상태 미수신</span>
+        ? <span>{t('vn.noDeviceStatus')}</span>
         : <>
-          <span>{device.online === true ? '온라인' : device.online === false ? '오프라인' : '생사 미상'}</span>
-          {device.link !== null && <span>링크 {device.link}</span>}
+          <span>{t(device.online === true ? 'vn.online' : device.online === false ? 'vn.offline' : 'vn.aliveUnknown')}</span>
+          {device.link !== null && <span>{t('vn.link', { link: device.link })}</span>}
           {/* null 은 「모른다」다 — 0% 로 그리지 않는다 (연동 가이드 §3-3). */}
-          {device.batteryPct !== null && <span>배터리 {device.batteryPct}%</span>}
+          {device.batteryPct !== null && <span>{t('vn.battery', { pct: device.batteryPct })}</span>}
           {device.mode !== null && <span>{device.mode}</span>}
-          <span title="구동 브리지 — 평시에는 내려가 있습니다">
-            구동 {sdkWords(device.sdkReady, device.sdkAutostart)}
+          <span title={t('vn.sdkTitle')}>
+            {t('vn.sdk')} {sdkWords(device.sdkReady, device.sdkAutostart)}
           </span>
         </>}
     </div>
     <div className="robot-node-row robot-node-row--sub">
       {/* 지금 무엇을 하고 있나 — 진행률과 단계. 둘 다 없으면 아무 말도 안 한다. */}
-      {session.progress !== null && <span>진행 {session.progress.ack}/{session.progress.of}</span>}
+      {session.progress !== null && <span>{t('vn.progress', { ack: session.progress.ack, of: session.progress.of })}</span>}
       {session.stage !== null && <span>{session.stage}</span>}
-      {session.paused !== null && <b className="robot-node-flag">일시정지</b>}
-      {session.stopped !== null && <b className="robot-node-flag">정지됨</b>}
+      {session.paused !== null && <b className="robot-node-flag">{t('vn.paused')}</b>}
+      {session.stopped !== null && <b className="robot-node-flag">{t('vn.stopped')}</b>}
       {session.progress === null && session.stage === null
-        && session.paused === null && session.stopped === null && <span>대기 중</span>}
+        && session.paused === null && session.stopped === null && <span>{t('vn.idle')}</span>}
     </div>
   </div>;
 }
@@ -321,8 +322,8 @@ export const VIEW_NODE_RENDERERS: readonly ViewNodeEntry[] = [
     // 자율주행 편 (260915) — AI 서버의 로봇 앞 카메라 영상을 **그대로**. 접힘은 한 장씩, 실시간은 확대에서.
     // 문 찾기 시연의 「탐지 영상」과 서버도 코드도 다르다(`src/autodrive/`). 자리표시로 감싸지 않는다 — 실제로 오는 값이다.
     kind: 'autodrive-cam',
-    label: '로봇 영상',
-    hint: '자율주행 로봇 앞 카메라의 AI 영상 — 접힘은 2초마다 한 장, 확대하면 실시간',
+    labelKey: 'viewnode.robotVideo',
+    hintKey: 'viewnode.robotVideo.hint',
     showFor: onlyRelay,
     summary: () => <NodeGate kind="autodrive-cam"><AutodriveCam /></NodeGate>,
     zoom: () => <NodeGate kind="autodrive-cam"><AutodriveCam zoom /></NodeGate>,
@@ -331,24 +332,24 @@ export const VIEW_NODE_RENDERERS: readonly ViewNodeEntry[] = [
     // 탐지 셋 (260912) — 자리표시로 비어 있던 `video-stream` · `detections` · `zone-map`.
     // **자리표시로 감싸지 않는다** — 실제로 오는 값이다.
     kind: 'detect-cam',
-    label: '탐지 영상',
-    hint: '탐지가 본 그림 — 상자 입힌 프레임. 도는 동안은 마지막으로 본 각도',
+    labelKey: 'viewnode.detectVideo',
+    hintKey: 'viewnode.detectVideo.hint',
     showFor: notRelay,
     summary: () => <NodeGate kind="detect-cam"><DetectCam /></NodeGate>,
     zoom: () => <NodeGate kind="detect-cam"><DetectCam zoom /></NodeGate>,
   },
   {
     kind: 'detect-reason',
-    label: '판단 근거',
-    hint: '왜 문이라고 했나 — 관문 넷과 특징 여덟 점수. 판정은 점수가 아니라 관문이 정한다',
+    labelKey: 'viewnode.rationale',
+    hintKey: 'viewnode.rationale.hint',
     showFor: notRelay,
     summary: () => <NodeGate kind="detect-reason"><DetectReason /></NodeGate>,
     zoom: () => <NodeGate kind="detect-reason"><DetectReason zoom /></NodeGate>,
   },
   {
     kind: 'detect-map',
-    label: '2D 맵',
-    hint: '도면 위의 경로와 계산 다섯 단계 — 우리가 다시 계산하지 않는다',
+    labelKey: 'viewnode.map2d',
+    hintKey: 'viewnode.map2d.hint',
     showFor: notRelay,
     // **재생 머리를 넘긴다** (260914) — 도면은 T-A1 이 끝난 뒤에 뜨고, 되감으면 그 시각을 따른다.
     summary: (scope) => <NodeGate kind="detect-map"><DetectMap headSec={scope.headSec} /></NodeGate>,
@@ -356,8 +357,8 @@ export const VIEW_NODE_RENDERERS: readonly ViewNodeEntry[] = [
   },
   {
     kind: 'robot',
-    label: '로봇',
-    hint: '실물 로봇의 지금 상태 — 링크·배터리·구동 브리지·진행. 대본이 아니라 장비가 미는 값이다',
+    labelKey: 'viewnode.robot',
+    hintKey: 'viewnode.robot.hint',
     // pi7(문 찾기 시연) 로봇이다 — 자율주행 편(pi1)의 로봇이 아니다.
     showFor: notRelay,
     // **자리표시로 감싸지 않는다** — 지금 실제로 오고 있는 값이다.
@@ -366,8 +367,8 @@ export const VIEW_NODE_RENDERERS: readonly ViewNodeEntry[] = [
   },
   {
     kind: 'device-risk',
-    label: '장치 · 위험',
-    hint: 'VZ-U-01 · VZ-I-03 · VZ-I-08 · VZ-U-03 — 4종 상태와 3층, 위험도 등급',
+    labelKey: 'viewnode.deviceRisk',
+    hintKey: 'viewnode.deviceRisk.hint',
     summary: (scope) => <NodeGate kind="device-risk"><PendingSource id="device-cards" inline entity={scope.deviceId ?? undefined}><DeviceRiskBody scope={scope} /></PendingSource></NodeGate>,
     // 구역 맵(ZoneMapMini)이 여기로 들어왔다 (260903 3단계) — 탭②가 사라지면서 갈 곳이
     // 없어졌다. 축이 coverage·position 이라 장치·위험 노드가 그 집이다. **요구는 하나도
@@ -380,22 +381,22 @@ export const VIEW_NODE_RENDERERS: readonly ViewNodeEntry[] = [
   },
   {
     kind: 'control',
-    label: '제어',
-    hint: 'VZ-O-01 · 02 · 05 — 이 대상의 명령 수와 마지막 명령의 4단계 위치',
+    labelKey: 'viewnode.control',
+    hintKey: 'viewnode.control.hint',
     summary: (scope) => <NodeGate kind="control"><PendingSource id="command-result" inline entity={scope.deviceId ?? undefined} axis="command"><ControlBody scope={scope} /></PendingSource></NodeGate>,
     zoom: () => <NodeGate kind="control"><PanelGate id="control"><ControlPanel /></PanelGate></NodeGate>,
   },
   {
     kind: 'metrics',
-    label: '지표',
-    hint: 'VZ-I-04 · VZ-C-03 — 미니 스파크라인과 요약/원본 표기',
+    labelKey: 'viewnode.metrics',
+    hintKey: 'viewnode.metrics.hint',
     summary: (scope) => <NodeGate kind="metrics"><PendingSource id="metrics-query" inline entity={metricFor(scope.deviceId).source}><MetricsBody scope={scope} /></PendingSource></NodeGate>,
     zoom: () => <NodeGate kind="metrics"><MetricsView /></NodeGate>,
   },
   {
     kind: 'video',
-    label: '영상',
-    hint: 'VZ-I-06 · 07 · 09 — 대표 정지 프레임과 탐지 수 (재생은 확대에서만)',
+    labelKey: 'viewnode.video',
+    hintKey: 'viewnode.video.hint',
     // **팔레트에서 뺀다** (260914 지시) — 「탐지 영상」과 겹친다. 렌더러는 남긴다: 옛 대본의
     // 안내줄 「영상 노드로」와 이미 저장된 캔버스가 이 노드를 그린다.
     inPalette: false,
