@@ -65,6 +65,9 @@ const DEMO_PATH = [
 const PENDING_STAGE4 = [
   'detect/views/DetectActionLog.tsx',
   'autodrive/views/AutodriveViews.tsx',
+  // 260918 — 검사가 JSX 텍스트를 읽게 되면서 드러났다. 자율주행 편의 사실 줄이라
+  // 바로 위 `AutodriveViews` 와 한 식구다. 문 찾기 시연 경로에는 안 뜬다.
+  'physical/NavFacts.tsx',
 ];
 
 /**
@@ -100,6 +103,40 @@ function code(src) {
     i += 1;
   }
   return out;
+}
+
+/**
+ * JSX 텍스트 노드의 한글 — **문자열 리터럴이 아니다.**
+ *
+ * ## 260918 — 여기가 비어 있었다
+ *
+ * 처음 이 검사는 가져온 이름의 몸통에서 **문자열 리터럴만** 셌다. 그런데 컴포넌트를
+ * 가져다 그리는 경우 그 안의 한글은 대개 JSX 텍스트다.
+ *
+ * ```jsx
+ *   <span>배터리<strong>{device.battery}%</strong></span>
+ * //       ^^^^ 문자열 리터럴이 아니다
+ * ```
+ *
+ * `views/ActionModal.tsx`(범위 안)가 `views/DeviceStrip.tsx`(범위 밖)를 그리는데 그 안의
+ * 한글 다섯이 전부 이 모양이라 **검사는 「새는 값 0건」이라고 말했다.** 사람이 화면에서
+ * 한국어를 보고 알려 줘서 찾았다 — 2단계에서 한 번 겪은 것과 같은 모양이다.
+ *
+ * 잣대는 `verify-i18n-demo-path.mjs` 의 것과 같다.
+ */
+/** 문자열 리터럴의 속. 따옴표 셋을 다 보고, 이스케이프한 따옴표에 안 끊긴다. */
+function stringLiterals(src) {
+  return [...src.matchAll(/(['"`])((?:[^\\\n]|\\.)*?)\1/g)].map((m) => m[2]);
+}
+
+const CODE_MARKS = [';', '=>', 'const ', 'let ', 'return ', 'function ', 'import ', '&&', '||', '??'];
+function jsxTexts(src) {
+  let s = src;
+  let prev;
+  do { prev = s; s = s.replace(/\{[^{}<>]*\}/g, '{}'); } while (s !== prev);
+  return [...s.matchAll(/>([^<>]*[가-힣][^<>]*)<(?=[/A-Za-z])/g)]
+    .map((m) => m[1].replace(/\s+/g, ' ').trim())
+    .filter((v) => v !== '' && !CODE_MARKS.some((k) => v.includes(k)));
 }
 
 const relOf = (abs) => relative(srcDir, abs).split(sep).join('/');
@@ -146,6 +183,29 @@ function declaration(text, name) {
     if (eq < 0) return null;
     i = eq + 1;
   } else {
+    /**
+     * **매개변수 목록을 먼저 지나친다** (260918 두 번째 수습).
+     *
+     * 그냥 다음 `{` 부터 세면 구조 분해가 몸통으로 읽힌다.
+     *
+     * ```ts
+     *   export function DeviceStrip({ device }: { device: Device }) {
+     * //                            ^^^^^^^^^^ 여기서 열고 닫혀 몸통을 한 줄도 안 읽는다
+     * ```
+     *
+     * `views/DeviceStrip.tsx` 의 한글 다섯이 이것 때문에 안 잡혔다. 여는 `(` 를 찾아
+     * 짝이 맞는 `)` 까지 건너뛴 뒤의 `{` 가 진짜 몸통이다.
+     */
+    const paren = text.indexOf('(', i);
+    if (paren >= 0) {
+      let d = 0;
+      let k = paren;
+      for (; k < text.length; k += 1) {
+        if (text[k] === '(') d += 1;
+        else if (text[k] === ')') { d -= 1; if (d === 0) { k += 1; break; } }
+      }
+      i = k;
+    }
     const brace = text.indexOf('{', i);
     if (brace < 0) return null;
     i = brace;
@@ -184,9 +244,11 @@ function leaks(entry, sourceOf, depSourceOf = (_rel, abs) => readSource(abs)) {
       if (CONTRACT_VALUES.includes(name)) continue;
       const decl = declaration(dep, name);
       if (decl === null) continue;
-      const hits = [...decl.matchAll(/(['"`])((?:[^\\\n]|\\.)*?)\1/g)]
-        .map((x) => x[2])
-        .filter((v) => /[가-힣]/.test(v));
+      const hits = [
+        ...stringLiterals(decl).filter((v) => /[가-힣]/.test(v)),
+        // 컴포넌트를 가져다 그리면 한글은 대개 JSX 텍스트다 (위 `jsxTexts` 주석).
+        ...jsxTexts(decl),
+      ];
       if (hits.length > 0) found.push({ entry, rel, name, hits });
     }
   }

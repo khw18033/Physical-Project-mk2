@@ -318,6 +318,14 @@ export const ko: Record<string, string> = {
   'stt.lang.ko': '한국어',
   'stt.lang.en': 'English',
 
+  // 장비 상태 줄 일곱 칸 — `views/DeviceStrip.tsx` (액션 아이템과 하드웨어 카드가 같이 쓴다)
+  'strip.battery': '배터리',
+  'strip.network': '네트워크',
+  'strip.ip': 'IP',
+  'strip.firmware': '펌웨어',
+  'strip.jointTemp': '관절 온도',
+  'strip.heartbeat': '하트비트',
+
   // 모드 스위치
   'mode.normal': '일반',
   'mode.scenario': '시나리오 ▾',

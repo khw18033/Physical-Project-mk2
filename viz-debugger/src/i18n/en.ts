@@ -317,6 +317,14 @@ export const en: Record<string, string> = {
   'stt.lang.ko': '한국어',
   'stt.lang.en': 'English',
 
+  // 장비 상태 줄 일곱 칸
+  'strip.battery': 'Battery',
+  'strip.network': 'Network',
+  'strip.ip': 'IP',
+  'strip.firmware': 'Firmware',
+  'strip.jointTemp': 'Joint temp.',
+  'strip.heartbeat': 'Heartbeat',
+
   // 모드 스위치
   'mode.normal': 'Normal',
   'mode.scenario': 'Scenario ▾',
