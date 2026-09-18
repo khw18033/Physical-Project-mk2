@@ -42,7 +42,7 @@ import { issueCommand } from '../shared/commandEgress.ts';
 import { CommandAuditError } from '../shared/voiceAudit.ts';
 import type { AiProvenance } from '../shared/provenance.ts';
 import { capabilities, type SttStatus } from '../stt/availability.ts';
-import { authoredUtterance, decide, PROVISIONAL_NOTE, toUtterance, VERDICT_LABEL, type ConfidenceDecision } from '../stt/confidence.ts';
+import { authoredUtterance, decide, PROVISIONAL_NOTE, toUtterance, VERDICT_LABEL_KEY, type ConfidenceDecision } from '../stt/confidence.ts';
 import { probe, sttBaseUrl, transcribe } from '../stt/SttClient.ts';
 import { SttUnavailableError, type SttResult } from '../stt/types.ts';
 import { capabilities as generateCapabilities, type GenerateStatus } from '../generate/availability.ts';
@@ -653,7 +653,7 @@ export function UtterancePanel({ fallbackText }: { fallbackText: string }) {
         <Rich id="stt.hotwordHint" />
       </Explain>
 
-      {able.note && <p className="stt-note">{able.note}</p>}
+      {able.noteKey && <p className="stt-note">{[t(able.noteKey), able.noteDetail].filter((v) => v).join(' ')}</p>}
       {phase === 'transcribing' && <p className="stt-note">{t('stt.transcribing')}</p>}
       {error && <p className="stt-error">{error.message}{error.detail ? <small>{error.detail}</small> : null}</p>}
 
@@ -693,7 +693,7 @@ export function UtterancePanel({ fallbackText }: { fallbackText: string }) {
       </details>
 
       {/* 생성 서비스가 없으면 **이 경로만** 꺼진다. 문구를 감추지 않는다 (`verify:no-llm`). */}
-      {genAble.note && <p className="gen-note">{genAble.note}</p>}
+      {genAble.noteKey && <p className="gen-note">{[t(genAble.noteKey), genAble.noteDetail].filter((v) => v).join(' ')}</p>}
       {genStatus === 'ready' && genEngine !== null && genEngine !== 'stub' && (
         <p className="gen-note">
           {readyParts[0]}<b>{t('gen.ready.strong')}</b>{readyParts[1]}
@@ -839,7 +839,7 @@ export function UtterancePanel({ fallbackText }: { fallbackText: string }) {
             <dt>{t('stt.engine')}</dt><dd>{result.engine} · {result.model}</dd>
             <dt>{t('stt.verdict')}</dt>
             <dd className={`verdict-${decision.verdict}`}>
-              {VERDICT_LABEL[decision.verdict]} <small>{PROVISIONAL_NOTE}</small>
+              {t(VERDICT_LABEL_KEY[decision.verdict])} <small>{t('stt.provisionalNote')}</small>
             </dd>
             <dt>{t('stt.hotwords')}</dt>
             <dd>

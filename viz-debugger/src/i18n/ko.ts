@@ -229,6 +229,88 @@ export const ko: Record<string, string> = {
   'nowplaying.waiting': 'T+{sec}s · 첫 사건 대기',
   'nowplaying.issuing': '{head} → {command} 발행',
 
+  // 로봇 명령의 사유·문구 — `physical/robotCommands.ts`. 함수 안이라 만들 때 푼다.
+  'robot.published': '브로커로 발행했습니다 (로봇 수락은 uplink 가 말한다)',
+  'robot.notSent': '보내지 못했습니다',
+  'robot.noReason': '사유 없음',
+  'robot.notApproved': '승인 전이거나 정지된 상태입니다',
+  'robot.alreadyFired': '이미 쐈습니다 — 승인 한 번에 한 번만 나갑니다',
+  'robot.noBrokerScript': '브로커에 안 붙어 있습니다 — 대본이 돕니다',
+  'robot.noCommandTA3': 'T-A3 에 낼 명령이 없습니다',
+  'robot.noBrokerPath': '브로커에 안 붙어 있습니다 — 경로 명령을 보내지 못했습니다',
+  'robot.stepTimeout': '앞 명령({action})이 {sec}초 안에 안 끝났습니다 — 다음 명령을 안 냅니다',
+  'robot.stepEnded': '앞 명령({action})이 {status} 로 끝났습니다 — {detail}',
+  'robot.stepRejected': '앞 명령({action})이 거절됐습니다 — {detail}',
+  'robot.didNotMove': '이동하지 않았습니다 — {reason}',
+  'robot.noCommandPath': '경로에 낼 명령이 없습니다',
+  'robot.turnLeft': '왼쪽 {deg}도 회전',
+  'robot.turnRight': '오른쪽 {deg}도 회전',
+  'robot.arriveStop': '도착 정지',
+  'robot.forward': '직진 {m}m',
+  'robot.forwardTestSuffix': ' (시험 {m}m 만 보냅니다)',
+  'robot.pingNoAnswer': '로봇이 {ms}ms 안에 답하지 않았습니다 — 브로커는 받았습니다',
+  'robot.rejected': '로봇이 거절했습니다 — {code} {message}',
+  'robot.answered': '로봇이 답했습니다',
+  'robot.noBrokerConnection': '브로커 연결 없음',
+  'robot.stopNotSent': '정지 명령을 못 보냈습니다 — {failure}. 로봇이 계속 움직일 수 있습니다',
+  'robot.pauseNotSent': '일시정지를 못 보냈습니다 — {failure}. 로봇이 계속 움직일 수 있습니다',
+  'robot.pauseNoAnswer': '로봇이 {ms}ms 안에 답하지 않았습니다 — 계속 돌고 있을 수 있습니다',
+  'robot.pausePrefix': '일시정지 — {words}',
+
+  // pi1 중계 — 화면이 보낼 명령이 아예 없다는 사실을 적는 자리다
+  'relay.stopWords': '자율주행 로봇(pi1)에는 화면이 보낼 정지 명령이 없습니다 — 화면과 기록만 멈췄습니다. 로봇은 유니티(경로 취소)나 조종기로 세우세요',
+  'relay.pauseWords': '자율주행 로봇(pi1)에는 일시정지를 보낼 길이 없습니다 — 노드 칠하기만 멈춥니다',
+  'relay.stopPrefix': '정지 — {words}',
+  'relay.pausePrefix': '일시정지 — {words}',
+
+  // 명령 출구 · 기록 읽기 · 대본 조회
+  'egress.refused': '{action} 발행 거부 — {reason}',
+  'record.noView': 'mission.json 에 임무 정의(view)가 없습니다',
+  'record.fillStopped': '기록을 채우다 멈췄습니다 — {reason}',
+  'match.none': '맞는 대본이 없다 — 억지로 고르지 않는다 (대본 조회는 LLM이 아니다)',
+  'match.ambiguous': '문장이 대본 {ids} 에 함께 맞아 고르지 않았다',
+
+  // 서비스 가용성 — 두 파일은 **의존이 없어야 해서** 키만 돌려준다
+  'stt.avail.unreachable': 'STT 서비스에 닿지 않습니다. 음성 인식만 꺼졌고, 아래에 문장을 직접 넣을 수 있습니다.',
+  'stt.avail.checking': 'STT 서비스 확인 중입니다.',
+  'stt.avail.noRecorder': '이 브라우저가 MediaRecorder 를 지원하지 않습니다. 파일 업로드나 직접 입력을 쓰세요.',
+  'gen.avail.unreachable': '생성 서비스에 닿지 않습니다. 발화에서 임무를 만드는 길만 꺼졌고, 대본 재생·되감기·캔버스는 그대로 돕니다.',
+  'gen.avail.checking': '생성 서비스 확인 중입니다.',
+
+  // 확신도 판정 — `stt/confidence.ts`. **`PROVISIONAL_NOTE` 는 계약 값이라 그 파일에 남는다**
+  // (명령의 threshold_status 로 나간다). 아래는 화면에 적을 때 쓰는 같은 글자다.
+  'stt.provisionalNote': '잠정 — 실측 미완 (VZ-L-03)',
+  'stt.verdict.accept': '수락',
+  'stt.verdict.confirm': '재확인 필요',
+  'stt.verdict.reject': '거절',
+  'stt.reason.empty': '인식된 문장이 비어 있습니다',
+  'stt.reason.noSpeech': 'no_speech_prob {value} ≥ {threshold} — 말소리가 아닐 가능성이 높습니다',
+  'stt.reason.avgLogprob': 'avg_logprob {value} < {threshold} — 엔진이 자기 디코딩을 믿지 못하는 구간입니다',
+  'stt.reason.noMetrics': '판정에 필요한 수치가 비어 있습니다 — 사람이 확인해야 합니다',
+  'stt.reason.provisional': '세 수치가 모두 잠정 수락 구간입니다 ({note})',
+  'stt.reason.meanWordProb': '평균 단어 확률 {value} < {threshold}',
+  'stt.blocked.noUnitConfidence': '인식 단위당 확신도가 없어 계약의 confidence 를 채울 수 없습니다 (단어 {words}건 · engine={engine}). 0 으로 메우지 않습니다 — 0 은 「쟀는데 0점」이고 이 경우는 「못 쟀다」입니다.',
+  'stt.blocked.outOfRange': '인식 단위당 확신도가 확률 범위 밖입니다 ({mean} · engine={engine}). 잘라 넣지 않습니다 — 계약은 통과하고 사실만 사라집니다.',
+
+  // 서비스 클라이언트의 사유 — 화면이 그대로 적는다
+  'probe.cancelled': '확인이 취소됐습니다.',
+  'sttClient.offline': 'STT 서비스에 닿지 않습니다 ({url})',
+  'sttClient.badResponse': 'STT 응답을 해석할 수 없습니다 (HTTP {status})',
+  'sttClient.failed': 'STT 실패 (HTTP {status})',
+  'sttClient.blockedByBrowser': '서비스는 떠 있는데 브라우저가 막았습니다 ({url}) — stt/service.py 의 ALLOWED_ORIGINS 에 이 페이지 주소가 있는지 확인하세요.',
+  'sttClient.notRunning': '서비스가 떠 있지 않습니다 ({url}) — npm run dev:stt 로 따로 띄워 사유를 보세요. 원문: {raw}',
+  'genClient.offline': '생성 서비스에 닿지 않습니다 ({url})',
+  'genClient.badResponse': '생성 응답을 해석할 수 없습니다 (HTTP {status})',
+  'genClient.failed': '생성 실패 (HTTP {status})',
+  'genClient.serverError': '생성 서비스가 오류를 냈습니다 (HTTP {status}, {url})',
+  'genClient.blockedByBrowser': '서비스는 떠 있는데 브라우저가 막았습니다 ({url}) — gen-lab/server/main.py 의 ALLOWED_ORIGINS 에 이 페이지 주소가 있는지 확인하세요.',
+  'genClient.notRunning': '서비스가 떠 있지 않습니다 ({url}) — gen-lab/README.md 의 절차로 따로 띄워 사유를 보세요. 원문: {raw}',
+
+  // 언어 세그먼트의 보조 이름. **버튼 이름 「한국어」·「English」는 여기 없다** —
+  // 각 언어를 그 언어로 적는 것이 규칙이고, 그래서 사전을 타면 안 된다.
+  'lang.aria': '화면 언어',
+  'lang.label': '언어',
+
   // 모드 스위치
   'mode.normal': '일반',
   'mode.scenario': '시나리오 ▾',

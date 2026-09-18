@@ -82,7 +82,8 @@
     "verify:scan-hold": "node scripts/verify-scan-hold.mjs",
     "verify:mission-history": "node scripts/verify-mission-history.mjs",
     "verify:mission-record": "node scripts/verify-mission-record.mjs",
-    "verify:notifications": "node scripts/verify-notifications.mjs"
+    "verify:notifications": "node scripts/verify-notifications.mjs",
+    "verify:i18n-scope-leak": "node scripts/verify-i18n-scope-leak.mjs"
   },
   "dependencies": {
     "mqtt": "^5.15.2",

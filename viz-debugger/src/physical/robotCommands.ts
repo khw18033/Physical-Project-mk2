@@ -19,6 +19,7 @@
  * 누르는 것이라 승인이라는 개념 자체가 없다. 규약과 무관한 왕복 확인이다.
  */
 
+import { t } from '../i18n/dict.ts';
 import { commandTracker } from '../shared/commandCenter.ts';
 import { noteIssue } from '../shared/notifications.ts';
 import type { CommandAck, CommandRequest } from '../transport/index.ts';
@@ -62,7 +63,7 @@ function mqttEgress(client: PhysicalClient, action: PhysicalAction, parameters?:
       commandId: outcome.sent ? outcome.commandId : null,
       accepted: outcome.sent,
       reasonCode: outcome.sent ? null : 'physical_not_connected',
-      message: outcome.sent ? '브로커로 발행했습니다 (로봇 수락은 uplink 가 말한다)' : (outcome.reason ?? '보내지 못했습니다'),
+      message: outcome.sent ? t('robot.published') : (outcome.reason ?? t('robot.notSent')),
     };
   };
 }
@@ -76,7 +77,7 @@ async function issueTask(
   const command = commandForTask(taskId, missionGeometry(params));
   if (command === null) return null;
   if (!canIssueRobotCommand()) {
-    return { sent: false, commandId: '', requestId: null, reason: '승인 전이거나 정지된 상태입니다' };
+    return { sent: false, commandId: '', requestId: null, reason: t('robot.notApproved') };
   }
   return issueThroughTracker(client, taskId, command.action, command.parameters);
 }
@@ -130,10 +131,10 @@ async function issueThroughTracker(
 export async function issueScan(client: PhysicalClient, params: Record<string, unknown> | null): Promise<IssueOutcome> {
   // **막히면 왜 막혔는지 말한다.** 조용히 null 을 돌려주면 발표장에서 「왜 안 가지」가 된다.
   if (robotSession().scanIssued) {
-    return { sent: false, commandId: '', requestId: null, reason: '이미 쐈습니다 — 승인 한 번에 한 번만 나갑니다' };
+    return { sent: false, commandId: '', requestId: null, reason: t('robot.alreadyFired') };
   }
   if (!robotDrives()) {
-    return { sent: false, commandId: '', requestId: null, reason: '브로커에 안 붙어 있습니다 — 대본이 돕니다' };
+    return { sent: false, commandId: '', requestId: null, reason: t('robot.noBrokerScript') };
   }
   markScanIssued();
   // **문 방향을 하나 뽑아 둔다** — 탐지가 붙기 전까지의 임시 자리 (260910 지시).
@@ -142,7 +143,7 @@ export async function issueScan(client: PhysicalClient, params: Record<string, u
   pickDoorIndex(typeof params?.viewpoint_count === 'number' ? params.viewpoint_count : 8);
   const outcome = await issueTask(client, 'T-A3', params);
   if (outcome === null || outcome.sent !== true) clearScanIssued();
-  return outcome ?? { sent: false, commandId: '', requestId: null, reason: 'T-A3 에 낼 명령이 없습니다' };
+  return outcome ?? { sent: false, commandId: '', requestId: null, reason: t('robot.noCommandTA3') };
 }
 
 /**
@@ -179,7 +180,7 @@ export async function issueApproach(
    * 「여기서 막혔다」고 읽고 원인을 모른다. 누르게 하고 못 보냈다고 크게 말한다.
    */
   if (client === null) {
-    return { sent: false, commandId: '', requestId: null, reason: '브로커에 안 붙어 있습니다 — 경로 명령을 보내지 못했습니다' };
+    return { sent: false, commandId: '', requestId: null, reason: t('robot.noBrokerPath') };
   }
   /**
    * **산출된 경로를 따라간다** (260912 지시). 앞의 세 태스크(판단·근거·경로 산출)는
@@ -194,7 +195,7 @@ export async function issueApproach(
   void params;
   const plan = planApproach();
   if (!plan.ok) {
-    appendDetectLog({ lane: 'screen', level: 'warn', text: `이동하지 않았습니다 — ${plan.reason}`, detail: '', tasks: [DETECT_TASKS.approach] });
+    appendDetectLog({ lane: 'screen', level: 'warn', text: t('robot.didNotMove', { reason: plan.reason }), detail: '', tasks: [DETECT_TASKS.approach] });
     return { sent: false, commandId: '', requestId: null, reason: plan.reason };
   }
   logApproachPlan(plan);
@@ -203,7 +204,7 @@ export async function issueApproach(
     let last: IssueOutcome | null = null;
     for (const [order, step] of steps.entries()) {
       if (!canIssueRobotCommand()) {
-        return { sent: false, commandId: '', requestId: null, reason: '승인 전이거나 정지된 상태입니다' };
+        return { sent: false, commandId: '', requestId: null, reason: t('robot.notApproved') };
       }
       last = await issueThroughTracker(client, step.taskId, step.action, step.parameters);
       // 회전이 안 나갔으면 직진을 내면 안 된다 — 안 돌고 가면 엉뚱한 데로 간다.
@@ -225,26 +226,26 @@ export async function issueApproach(
       if (settled === null) {
         return {
           sent: false, commandId: last.commandId, requestId: last.requestId,
-          reason: `앞 명령(${step.action})이 ${STEP_TIMEOUT_MS / 1000}초 안에 안 끝났습니다 — 다음 명령을 안 냅니다`,
+          reason: t('robot.stepTimeout', { action: step.action, sec: STEP_TIMEOUT_MS / 1000 }),
         };
       }
       if (settled.kind === 'result' && settled.status !== 'SUCCEEDED') {
         return {
           sent: false, commandId: last.commandId, requestId: last.requestId,
-          reason: `앞 명령(${step.action})이 ${settled.status} 로 끝났습니다 — ${[settled.code, settled.message].filter((v) => v).join(' ') || '사유 없음'}`,
+          reason: t('robot.stepEnded', { action: step.action, status: settled.status, detail: [settled.code, settled.message].filter((v) => v).join(' ') || t('robot.noReason') }),
         };
       }
       if (settled.kind === 'acceptance' && !settled.accepted) {
         return {
           sent: false, commandId: last.commandId, requestId: last.requestId,
-          reason: `앞 명령(${step.action})이 거절됐습니다 — ${[settled.code, settled.message].filter((v) => v).join(' ') || '사유 없음'}`,
+          reason: t('robot.stepRejected', { action: step.action, detail: [settled.code, settled.message].filter((v) => v).join(' ') || t('robot.noReason') }),
         };
       }
     }
     if (last !== null) markApproachIssued();
-    return last ?? { sent: false, commandId: '', requestId: null, reason: '경로에 낼 명령이 없습니다' };
+    return last ?? { sent: false, commandId: '', requestId: null, reason: t('robot.noCommandPath') };
   }
-  return { sent: false, commandId: '', requestId: null, reason: '경로에 낼 명령이 없습니다' };
+  return { sent: false, commandId: '', requestId: null, reason: t('robot.noCommandPath') };
 }
 
 /**
@@ -319,15 +320,15 @@ export function approachWords(): string | null {
   return steps.map((step) => {
     if (step.action === 'turn') {
       const deg = step.parameters?.deg ?? 0;
-      return `${deg < 0 ? '왼쪽' : '오른쪽'} ${Math.abs(Math.round(deg))}도 회전`;
+      return t(deg < 0 ? 'robot.turnLeft' : 'robot.turnRight', { deg: Math.abs(Math.round(deg)) });
     }
-    if (step.action !== 'move_forward') return '도착 정지';
+    if (step.action !== 'move_forward') return t('robot.arriveStop');
     // **계획값을 적고, 다르면 나간 값을 괄호로 붙인다** (260912 지시). 화면은 산출된
     // 경로를 그대로 보여 주되, 적힌 숫자와 나간 숫자가 다른 것을 숨기지 않는다.
     const issued = step.parameters?.distance_m ?? 0;
-    const words = `직진 ${(planned ?? issued).toFixed(2)}m`;
+    const words = t('robot.forward', { m: (planned ?? issued).toFixed(2) });
     return planned !== null && Math.abs(planned - issued) > 0.005
-      ? `${words} (시험 ${issued.toFixed(2)}m 만 보냅니다)`
+      ? words + t('robot.forwardTestSuffix', { m: issued.toFixed(2) })
       : words;
   }).join(' · ');
 }
@@ -426,7 +427,7 @@ export async function issuePing(
   try {
     const outcome = client.send('ping');
     if (!outcome.sent) {
-      return { ok: false, roundTripMs: null, message: outcome.reason ?? '보내지 못했습니다' };
+      return { ok: false, roundTripMs: null, message: outcome.reason ?? t('robot.notSent') };
     }
     expected = outcome.commandId;
 
@@ -442,15 +443,15 @@ export async function issuePing(
       return {
         ok: false,
         roundTripMs: null,
-        message: `로봇이 ${timeoutMs}ms 안에 답하지 않았습니다 — 브로커는 받았습니다`,
+        message: t('robot.pingNoAnswer', { ms: timeoutMs }),
       };
     }
     const roundTripMs = Date.now() - startedAt;
     // 거절도 **답한 것**이다 — 로봇은 살아 있고 그 말을 그대로 옮긴다.
     if (reply.kind === 'acceptance' && !reply.accepted) {
-      return { ok: false, roundTripMs, message: `로봇이 거절했습니다 — ${reply.code ?? '사유 없음'} ${reply.message ?? ''}`.trim() };
+      return { ok: false, roundTripMs, message: t('robot.rejected', { code: reply.code ?? t('robot.noReason'), message: reply.message ?? '' }).trim() };
     }
-    return { ok: true, roundTripMs, message: '로봇이 답했습니다' };
+    return { ok: true, roundTripMs, message: t('robot.answered') };
   } finally {
     off();
     if (timer !== null) clearTimeout(timer);
@@ -472,18 +473,18 @@ export async function pauseMission(client: PhysicalClient | null): Promise<Pause
   let failure: string | null = null;
   let commandId = '';
   try {
-    if (client === null) failure = '브로커 연결 없음';
+    if (client === null) failure = t('robot.noBrokerConnection');
     else {
       // **규약 밖의 파라미터를 더하지 않는다** — reason 하나뿐이다. 사람이 누른 것이다.
       const outcome = client.send(PAUSE_ACTION, { reason: STOP_REASON.human });
       published = outcome.sent;
       commandId = outcome.commandId;
-      if (!outcome.sent) failure = outcome.reason ?? '보내지 못했습니다';
+      if (!outcome.sent) failure = outcome.reason ?? t('robot.notSent');
     }
   } catch (error) {
     failure = error instanceof Error ? error.message : String(error);
   }
-  if (!published) noteIssue('pause', 'robot', `일시정지를 못 보냈습니다 — ${failure ?? '사유 없음'}. 로봇이 계속 움직일 수 있습니다`);
+  if (!published) noteIssue('pause', 'robot', t('robot.pauseNotSent', { failure: failure ?? t('robot.noReason') }));
 
   // 2 · 3 — **위 결과를 보지 않는다.** 못 보냈어도 화면은 멈추고 크게 말한다.
   const paused = lockPaused(taskId, published, failure);
@@ -505,15 +506,15 @@ export async function pauseMission(client: PhysicalClient | null): Promise<Pause
 async function reportPauseAnswer(client: PhysicalClient, commandId: string, timeoutMs = 4000): Promise<void> {
   const answer = await firstAnswer(client, commandId, timeoutMs);
   if (answer === null) {
-    const words = `로봇이 ${timeoutMs}ms 안에 답하지 않았습니다 — 계속 돌고 있을 수 있습니다`;
+    const words = t('robot.pauseNoAnswer', { ms: timeoutMs });
     notePauseFailure(words);
-    noteIssue('pause', 'robot', `일시정지 — ${words}`);
+    noteIssue('pause', 'robot', t('robot.pausePrefix', { words }));
     return;
   }
   if (answer.kind === 'acceptance' && !answer.accepted) {
-    const words = `로봇이 거절했습니다 — ${answer.code ?? '사유 없음'} ${answer.message ?? ''}`.trim();
+    const words = t('robot.rejected', { code: answer.code ?? t('robot.noReason'), message: answer.message ?? '' }).trim();
     notePauseFailure(words);
-    noteIssue('pause', 'robot', `일시정지 — ${words}`);
+    noteIssue('pause', 'robot', t('robot.pausePrefix', { words }));
   }
 }
 
@@ -597,12 +598,12 @@ export async function emergencyStop(client: PhysicalClient | null): Promise<Stop
 
   try {
     if (client === null) {
-      failure = '브로커 연결 없음';
+      failure = t('robot.noBrokerConnection');
     } else {
       // **규약 밖의 파라미터를 더하지 않는다** — reason 하나뿐이다.
       const outcome = client.send(STOP_ACTION, { reason: STOP_REASON.human });
       published = outcome.sent;
-      if (!outcome.sent) failure = outcome.reason ?? '보내지 못했습니다';
+      if (!outcome.sent) failure = outcome.reason ?? t('robot.notSent');
     }
   } catch (error) {
     // 발행이 던져도 아래 잠금은 그대로 일어난다. 이게 이 기능의 뼈대다.
@@ -616,7 +617,7 @@ export async function emergencyStop(client: PhysicalClient | null): Promise<Stop
    * 다가가는 것이 이 기능의 가장 위험한 실패 모양이다. 잠긴 화면의 붉은 띠만으로는
    * 다른 화면으로 옮겨 가면 사라지므로, 머리줄에도 남긴다.
    */
-  if (!published) noteIssue('stop', 'robot', `정지 명령을 못 보냈습니다 — ${failure ?? '사유 없음'}. 로봇이 계속 움직일 수 있습니다`);
+  if (!published) noteIssue('stop', 'robot', t('robot.stopNotSent', { failure: failure ?? t('robot.noReason') }));
 
   // 2 · 3 · 4 — **위 결과를 보지 않는다.**
   return lockStopped(published, failure);

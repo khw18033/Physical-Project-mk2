@@ -16,6 +16,7 @@
  *     비슷한 것을 억지로 고르면 「대본 조회」가 LLM 흉내가 된다.
  */
 
+import { t } from '../i18n/dict.ts';
 import type { ScriptLibraryEntry, ScriptMatch } from './types.ts';
 
 export function normalize(text: string): string {
@@ -66,11 +67,11 @@ export function matchLibrary(sentence: string, library: readonly ScriptLibraryEn
     return { kind: 'matched', entry: hits[0], keywords: matchedKeywords(sentence, hits[0].match) };
   }
   if (hits.length === 0) {
-    return { kind: 'none', reason: '맞는 대본이 없다 — 억지로 고르지 않는다 (대본 조회는 LLM이 아니다)' };
+    return { kind: 'none', reason: t('match.none') };
   }
   return {
     kind: 'ambiguous',
     candidates: hits.map((entry) => entry.missionId),
-    reason: '문장이 대본 ' + hits.map((entry) => entry.missionId).join(', ') + ' 에 함께 맞아 고르지 않았다',
+    reason: t('match.ambiguous', { ids: hits.map((entry) => entry.missionId).join(', ') }),
   };
 }

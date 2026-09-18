@@ -20,8 +20,19 @@ export type UtteranceCapabilities = {
    * 상태에 따라 잠글 수 있게 만들면 언젠가 잠기기 때문이다.
    */
   manualInput: true;
-  /** 무엇이 왜 꺼졌는지. 화면에 그대로 보여준다 — 조용히 사라지지 않게. */
-  note: string | null;
+  /**
+   * 무엇이 왜 꺼졌는지 — **사전 키**. 화면이 `t()` 로 푼다 (260918).
+   *
+   * **이 파일은 의존이 없다**(`verify:no-stt`·`verify:no-llm` 이 그대로 불러 쓴다).
+   * 여기서 `t()` 를 부르면 사전과 언어 모듈이 딸려 들어와 그 성질이 깨진다 — 그래서
+   * 키만 돌려주고 푸는 것은 읽는 자리의 몫이다.
+   */
+  noteKey: string | null;
+  /**
+   * `probe()` 가 돌려준 **실패 사유 한 줄**. 우리가 쓴 문장이 아니므로 키가 없다 —
+   * 화면이 위 문장 뒤에 그대로 붙인다.
+   */
+  noteDetail: string | null;
 };
 
 /**
@@ -43,24 +54,21 @@ export function capabilities(
       manualInput,
       // 사유가 있으면 붙인다 — 「서비스가 없다」와 「떠 있는데 브라우저가 막았다」는
       // 고치는 방법이 전혀 다른데 8/31까지는 화면에서 구별되지 않았다.
-      note: [
-        'STT 서비스에 닿지 않습니다. 음성 인식만 꺼졌고, 아래에 문장을 직접 넣을 수 있습니다.',
-        detail ?? null,
-      ]
-        .filter((line): line is string => line !== null && line.length > 0)
-        .join(' '),
+      noteKey: 'stt.avail.unreachable',
+      noteDetail: detail !== null && detail !== undefined && detail.length > 0 ? detail : null,
     };
   }
   if (status === 'probing') {
-    return { canRecord: false, canTranscribe: false, manualInput, note: 'STT 서비스 확인 중입니다.' };
+    return { canRecord: false, canTranscribe: false, manualInput, noteKey: 'stt.avail.checking', noteDetail: null };
   }
   if (!mediaRecorderSupported) {
     return {
       canRecord: false,
       canTranscribe: true,
       manualInput,
-      note: '이 브라우저가 MediaRecorder 를 지원하지 않습니다. 파일 업로드나 직접 입력을 쓰세요.',
+      noteKey: 'stt.avail.noRecorder',
+      noteDetail: null,
     };
   }
-  return { canRecord: true, canTranscribe: true, manualInput, note: null };
+  return { canRecord: true, canTranscribe: true, manualInput, noteKey: null, noteDetail: null };
 }

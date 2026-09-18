@@ -28,7 +28,9 @@ const feed = await load('src', 'physical', 'navFeed.ts');
 const { startNavLink, drainNavEvents, NAV_TASKS, NAV_REORDER_MS } = await load('src', 'physical', 'navLink.ts');
 const { navRun, navRunState, beginNavRun, endNavRun, startArmedNavRun } = await load('src', 'physical', 'navRun.ts');
 const { receiveObstacleSnapshot, DERIVED_TASKS } = await load('src', 'physical', 'navLink.ts');
-const { stopRelayRun, pauseRelayRun, resumeRelayRun, RELAY_STOP_WORDS } = await load('src', 'physical', 'navControl.ts');
+const { stopRelayRun, pauseRelayRun, resumeRelayRun, RELAY_STOP_WORDS_KEY } = await load('src', 'physical', 'navControl.ts');
+// 260918 — 문구가 사전 키가 되었으므로 사전도 읽는다 (키만 맞고 사전이 비면 화면에 키가 뜬다).
+const { ko: koDict } = await load('src', 'i18n', 'ko.ts');
 const obstacleSnap = (atMs, near, names = []) => ({
   receivedAtMs: atMs, cameraId: 'go1_front', hasNearObstacle: near,
   detections: names.map((name) => ({ name, distanceCm: 40, riskLevel: 'near' })),
@@ -257,7 +259,11 @@ const folded = () => foldStatuses(1e9, scenario.currentMission(), scenario.trace
   if (scenario.traceEvents().length === n0) failures.push('일시정지를 풀었는데 사건을 안 칠한다');
   // 정지 — 잠그고 칠하지 않는다. 못 멈췄다는 사실을 크게 말한다.
   const stopped = stopRelayRun();
-  if (stopped.published !== false || stopped.failure !== RELAY_STOP_WORDS) failures.push('자율주행 정지가 「로봇에는 못 보냈다」를 안 남긴다');
+  // 260918 — 문구가 사전 키로 바뀌었다. 규칙은 그대로다: 정지가 **로봇에는 안 갔다**는
+  // 사실이 `failure` 에 남아야 한다. 이제는 사전이 푼 값과 대조하고, 그 값이 한국어 원문
+  // 그대로인지도 본다 — 사전이 비면 화면에 키가 그대로 뜬다.
+  if (stopped.published !== false || stopped.failure !== koDict[RELAY_STOP_WORDS_KEY]) failures.push('자율주행 정지가 「로봇에는 못 보냈다」를 안 남긴다');
+  if (!String(koDict[RELAY_STOP_WORDS_KEY] ?? '').includes('유니티')) failures.push('사전의 relay.stopWords 가 「유니티나 조종기로 세우라」는 길을 안 알려 준다');
   const n1 = scenario.traceEvents().length;
   sendEvent('path_done', { path_id: 1 }, run.startedAtMs + 4000);
   if (scenario.traceEvents().length !== n1) failures.push('정지 뒤에 온 사건을 칠했다');

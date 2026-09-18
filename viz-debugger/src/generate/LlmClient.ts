@@ -28,6 +28,7 @@
  * 다시 뽑아 대조하는 것이 다음 단계다 — 지금은 스텁이라 받은 지문을 되돌려 주기만 한다.
  */
 
+import { t } from '../i18n/dict.ts';
 import { connectionAddress, registerConnectionDefault } from '../shared/connections.ts';
 import missionContract from '../../../contracts/mission.schema.json' with { type: 'json' };
 import milestoneContract from '../../../contracts/milestone.schema.json' with { type: 'json' };
@@ -156,18 +157,18 @@ async function post(path: string, body: unknown, signal?: AbortSignal): Promise<
   } catch (error) {
     // 서비스가 안 떠 있는 흔한 경우가 여기로 온다. 화면은 이 문장을 그대로 보여주고
     // 생성 기능만 끈다.
-    throw new LlmUnavailableError('offline', `생성 서비스에 닿지 않습니다 (${generateBaseUrl()})`, String(error));
+    throw new LlmUnavailableError('offline', t('genClient.offline', { url: generateBaseUrl() }), String(error));
   }
   const text = await response.text();
   let parsed: unknown;
   try {
     parsed = JSON.parse(text);
   } catch {
-    throw new LlmUnavailableError('service', `생성 응답을 해석할 수 없습니다 (HTTP ${response.status})`, text.slice(0, 400));
+    throw new LlmUnavailableError('service', t('genClient.badResponse', { status: response.status }), text.slice(0, 400));
   }
   if (!response.ok) {
     const detail = parsed as { error?: string; traceback?: string };
-    throw new LlmUnavailableError('service', detail.error ?? `생성 실패 (HTTP ${response.status})`, detail.traceback);
+    throw new LlmUnavailableError('service', detail.error ?? t('genClient.failed', { status: response.status }), detail.traceback);
   }
   return parsed;
 }
@@ -251,7 +252,7 @@ export async function probe(signal?: AbortSignal): Promise<GenerateProbe> {
   try {
     const response = await fetch(`${generateBaseUrl()}/generate/health`, { method: 'GET', signal });
     if (!response.ok) {
-      return { alive: false, reason: `생성 서비스가 오류를 냈습니다 (HTTP ${response.status}, ${generateBaseUrl()})`, engine: null, models: [], loaded: null };
+      return { alive: false, reason: t('genClient.serverError', { status: response.status, url: generateBaseUrl() }), engine: null, models: [], loaded: null };
     }
     const body = (await response.json()) as {
       engine?: string; model?: string | null;
@@ -280,12 +281,12 @@ export async function probe(signal?: AbortSignal): Promise<GenerateProbe> {
  */
 async function describeProbeFailure(error: unknown, signal?: AbortSignal): Promise<string> {
   const raw = error instanceof Error ? `${error.name}: ${error.message}` : String(error);
-  if ((error as { name?: string } | null)?.name === 'AbortError') return '확인이 취소됐습니다.';
+  if ((error as { name?: string } | null)?.name === 'AbortError') return t('probe.cancelled');
   if (!(error instanceof TypeError)) return raw;
   try {
     await fetch(`${generateBaseUrl()}/generate/health`, { method: 'GET', mode: 'no-cors', signal });
-    return `서비스는 떠 있는데 브라우저가 막았습니다 (${generateBaseUrl()}) — gen-lab/server/main.py 의 ALLOWED_ORIGINS 에 이 페이지 주소가 있는지 확인하세요.`;
+    return t('genClient.blockedByBrowser', { url: generateBaseUrl() });
   } catch {
-    return `서비스가 떠 있지 않습니다 (${generateBaseUrl()}) — gen-lab/README.md 의 절차로 따로 띄워 사유를 보세요. 원문: ${raw}`;
+    return t('genClient.notRunning', { url: generateBaseUrl(), raw });
   }
 }

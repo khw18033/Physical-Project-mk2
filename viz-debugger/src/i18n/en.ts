@@ -230,6 +230,86 @@ export const en: Record<string, string> = {
   'nowplaying.waiting': 'T+{sec}s · waiting for the first event',
   'nowplaying.issuing': '{head} → issue {command}',
 
+  // 로봇 명령의 사유·문구
+  'robot.published': 'Published to the broker (the uplink says whether the robot accepted)',
+  'robot.notSent': 'Could not send',
+  'robot.noReason': 'no reason given',
+  'robot.notApproved': 'Not approved yet, or stopped',
+  'robot.alreadyFired': 'Already fired — one approval fires once',
+  'robot.noBrokerScript': 'Not connected to the broker — the script still runs',
+  'robot.noCommandTA3': 'There is no command to issue for T-A3',
+  'robot.noBrokerPath': 'Not connected to the broker — the path command was not sent',
+  'robot.stepTimeout': 'The previous command ({action}) did not finish within {sec}s — the next one is not issued',
+  'robot.stepEnded': 'The previous command ({action}) ended as {status} — {detail}',
+  'robot.stepRejected': 'The previous command ({action}) was rejected — {detail}',
+  'robot.didNotMove': 'Did not move — {reason}',
+  'robot.noCommandPath': 'There is no command to issue for the path',
+  'robot.turnLeft': 'Turn left {deg}°',
+  'robot.turnRight': 'Turn right {deg}°',
+  'robot.arriveStop': 'Stop on arrival',
+  'robot.forward': 'Forward {m}m',
+  'robot.forwardTestSuffix': ' (test run sends only {m}m)',
+  'robot.pingNoAnswer': 'The robot did not answer within {ms}ms — the broker did receive it',
+  'robot.rejected': 'The robot rejected it — {code} {message}',
+  'robot.answered': 'The robot answered',
+  'robot.noBrokerConnection': 'No broker connection',
+  'robot.stopNotSent': 'Could not send the stop command — {failure}. The robot may keep moving',
+  'robot.pauseNotSent': 'Could not send the pause — {failure}. The robot may keep moving',
+  'robot.pauseNoAnswer': 'The robot did not answer within {ms}ms — it may still be running',
+  'robot.pausePrefix': 'Pause — {words}',
+
+  // pi1 중계
+  'relay.stopWords': 'There is no stop command this screen can send to the self-driving robot (pi1) — only the screen and the record stopped. Stop the robot from Unity (cancel path) or with the controller',
+  'relay.pauseWords': 'There is no way to send a pause to the self-driving robot (pi1) — only node colouring stops',
+  'relay.stopPrefix': 'Stop — {words}',
+  'relay.pausePrefix': 'Pause — {words}',
+
+  // 명령 출구 · 기록 읽기 · 대본 조회
+  'egress.refused': '{action} issue refused — {reason}',
+  'record.noView': 'mission.json has no mission definition (view)',
+  'record.fillStopped': 'Stopped while filling the record — {reason}',
+  'match.none': 'No script matches — we do not force a choice (script lookup is not an LLM)',
+  'match.ambiguous': 'The sentence matched scripts {ids} at once, so none was chosen',
+
+  // 서비스 가용성
+  'stt.avail.unreachable': 'The STT service is unreachable. Only speech recognition is off — you can type a sentence below.',
+  'stt.avail.checking': 'Checking the STT service.',
+  'stt.avail.noRecorder': 'This browser does not support MediaRecorder. Use file upload or type it in.',
+  'gen.avail.unreachable': 'The generation service is unreachable. Only building a mission from an utterance is off — script playback, rewind and the canvas keep running.',
+  'gen.avail.checking': 'Checking the generation service.',
+
+  // 확신도 판정
+  'stt.provisionalNote': 'Provisional — measurement incomplete (VZ-L-03)',
+  'stt.verdict.accept': 'Accept',
+  'stt.verdict.confirm': 'Needs re-confirmation',
+  'stt.verdict.reject': 'Reject',
+  'stt.reason.empty': 'The recognised sentence is empty',
+  'stt.reason.noSpeech': 'no_speech_prob {value} ≥ {threshold} — likely not speech',
+  'stt.reason.avgLogprob': 'avg_logprob {value} < {threshold} — a range where the engine does not trust its own decoding',
+  'stt.reason.noMetrics': 'The figures the decision needs are empty — a person must check',
+  'stt.reason.provisional': 'All three figures are in the provisional-accept range ({note})',
+  'stt.reason.meanWordProb': 'Mean word probability {value} < {threshold}',
+  'stt.blocked.noUnitConfidence': 'There is no per-unit confidence, so the contract confidence cannot be filled ({words} words · engine={engine}). We do not pad it with 0 — 0 means "measured, scored 0", and this is "could not measure".',
+  'stt.blocked.outOfRange': 'The per-unit confidence is outside the probability range ({mean} · engine={engine}). We do not clamp it — the contract would pass and only the fact would disappear.',
+
+  // 서비스 클라이언트의 사유
+  'probe.cancelled': 'The check was cancelled.',
+  'sttClient.offline': 'The STT service is unreachable ({url})',
+  'sttClient.badResponse': 'Could not parse the STT response (HTTP {status})',
+  'sttClient.failed': 'STT failed (HTTP {status})',
+  'sttClient.blockedByBrowser': 'The service is up but the browser blocked it ({url}) — check that this page address is in ALLOWED_ORIGINS in stt/service.py.',
+  'sttClient.notRunning': 'The service is not running ({url}) — start it separately with npm run dev:stt to see why. Raw: {raw}',
+  'genClient.offline': 'The generation service is unreachable ({url})',
+  'genClient.badResponse': 'Could not parse the generation response (HTTP {status})',
+  'genClient.failed': 'Generation failed (HTTP {status})',
+  'genClient.serverError': 'The generation service returned an error (HTTP {status}, {url})',
+  'genClient.blockedByBrowser': 'The service is up but the browser blocked it ({url}) — check that this page address is in ALLOWED_ORIGINS in gen-lab/server/main.py.',
+  'genClient.notRunning': 'The service is not running ({url}) — start it separately as described in gen-lab/README.md to see why. Raw: {raw}',
+
+  // 언어 세그먼트의 보조 이름
+  'lang.aria': 'Display language',
+  'lang.label': 'Language',
+
   // 모드 스위치
   'mode.normal': 'Normal',
   'mode.scenario': 'Scenario ▾',

@@ -25,11 +25,17 @@
  *
  * ## 셸 전용 의존이 없다
  *
- * `shared/language.ts` 하나만 본다. `ModeSwitch` 가 `scenarios/`·`commandEgress` 를 끌어오는
- * 것과 다르다 — 260916 단독 빌드 정합에서 셸이 단독 전달본에도 들어갔으므로 이 부품은
- * 양쪽에 그대로 실린다(`verify:build-parity`).
+ * `shared/language.ts` 와 `i18n/dict.ts` 둘만 본다. `ModeSwitch` 가 `scenarios/`·`commandEgress`
+ * 를 끌어오는 것과 다르다 — 260916 단독 빌드 정합에서 셸이 단독 전달본에도 들어갔으므로
+ * 이 부품은 양쪽에 그대로 실린다(`verify:build-parity`). 사전은 `AppShell` 이 이미 끌어오므로
+ * 이 import 로 단독 빌드가 무거워지지 않는다.
+ *
+ * 260918 에 사전을 하나 들였다 — 세그먼트의 **보조 이름 둘**(`언어` 와 화면 낭독용 이름)이
+ * 영문 화면에서 한국어로 남아 있었다. **버튼 이름 「한국어」·「English」는 여전히 사전 밖이다**
+ * (위 「라벨은 각 언어를 그 언어로 적는다」).
  */
 
+import { t } from '../i18n/dict.ts';
 import { LANGS, setLang, useLang, type Lang } from '../shared/language.ts';
 
 /** 각 언어를 **그 언어로** 적은 이름. 사전을 타지 않는다. */
@@ -54,8 +60,10 @@ export function LangSwitch() {
   };
 
   return (
-    <div className="modeswitch" role="group" aria-label="화면 언어">
-      <span className="modeswitch__label">언어</span>
+    <div className="modeswitch" role="group" aria-label={t('lang.aria')}>
+      {/* 「한국어」·「English」는 각 언어를 그 언어로 적으므로 사전을 안 탄다 (위 주석).
+          앞의 이 이름은 그 둘이 무엇인지 말하는 말이라 화면 언어를 따라간다. */}
+      <span className="modeswitch__label">{t('lang.label')}</span>
       {LANGS.map((code) => (
         <button
           key={code}

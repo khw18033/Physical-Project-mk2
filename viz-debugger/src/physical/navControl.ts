@@ -20,20 +20,23 @@
  * 누른 사람은 로봇이 섰다고 믿고 다가간다.
  */
 
+import { t } from '../i18n/dict.ts';
 import { noteIssue } from '../shared/notifications.ts';
 import { lockPaused, lockStopped, releasePaused, type PauseState, type StopState } from './robotSession.ts';
 
-export const RELAY_STOP_WORDS = '자율주행 로봇(pi1)에는 화면이 보낼 정지 명령이 없습니다 — 화면과 기록만 멈췄습니다. 로봇은 유니티(경로 취소)나 조종기로 세우세요';
-export const RELAY_PAUSE_WORDS = '자율주행 로봇(pi1)에는 일시정지를 보낼 길이 없습니다 — 노드 칠하기만 멈춥니다';
+/** 260918 — **사전 키**다. 모듈 최상위 상수라 여기서 t() 를 부르면 언어가 굳는다. */
+export const RELAY_STOP_WORDS_KEY = 'relay.stopWords';
+/** 260918 — **사전 키**다. */
+export const RELAY_PAUSE_WORDS_KEY = 'relay.pauseWords';
 
 export function stopRelayRun(): StopState {
-  noteIssue('stop', 'robot', `정지 — ${RELAY_STOP_WORDS}`);
-  return lockStopped(false, RELAY_STOP_WORDS);
+  noteIssue('stop', 'robot', t('relay.stopPrefix', { words: t(RELAY_STOP_WORDS_KEY) }));
+  return lockStopped(false, t(RELAY_STOP_WORDS_KEY));
 }
 
 export function pauseRelayRun(): PauseState {
-  noteIssue('pause', 'robot', `일시정지 — ${RELAY_PAUSE_WORDS}`);
-  return lockPaused(null, false, RELAY_PAUSE_WORDS);
+  noteIssue('pause', 'robot', t('relay.pausePrefix', { words: t(RELAY_PAUSE_WORDS_KEY) }));
+  return lockPaused(null, false, t(RELAY_PAUSE_WORDS_KEY));
 }
 
 export function resumeRelayRun(): void {

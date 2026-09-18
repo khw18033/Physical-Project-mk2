@@ -34,6 +34,7 @@
  * (어디에 실을 것인가가 같은 문제다) 여기서 혼자 정하지 않았다. 다음 작업의 미결 항목이다.
  */
 
+import { t } from '../i18n/dict.ts';
 import type { SttResult } from './types.ts';
 
 export type Verdict = 'accept' | 'confirm' | 'reject';
@@ -73,6 +74,14 @@ export const PROVISIONAL_THRESHOLDS: ConfidenceThresholds = {
 };
 
 /** 화면에 그대로 붙는 문구. 값이 잠정이라는 사실을 감추지 않는다. */
+/**
+ * **계약에 실려 나가는 값이다. 옮기지 마라** (260918).
+ *
+ * `UtterancePanel` 이 이 문자열을 명령의 `threshold_status` 파라미터로 그대로 싣는다 —
+ * 게이트웨이와 기록에 남는 **기계가 읽는 값**이고, 화면 언어에 따라 달라지면 같은 판정이
+ * 두 가지 값으로 기록된다. 화면에 적을 때는 사전의 `stt.provisionalNote` 를 쓴다
+ * (한국어 값은 이것과 같은 글자다).
+ */
 export const PROVISIONAL_NOTE = '잠정 — 실측 미완 (VZ-L-03)';
 
 export type ConfidenceDecision = {
@@ -103,19 +112,19 @@ export function decide(result: SttResult, thresholds: ConfidenceThresholds = PRO
   const base: Omit<ConfidenceDecision, 'verdict'> = { reasons, metrics, provisional: true };
 
   if (!result.text.trim()) {
-    reasons.push('인식된 문장이 비어 있습니다');
+    reasons.push(t('stt.reason.empty'));
     return { ...base, verdict: 'reject' };
   }
   if (metrics.noSpeechProb !== null && metrics.noSpeechProb >= thresholds.rejectNoSpeechProbAtLeast) {
-    reasons.push(`no_speech_prob ${metrics.noSpeechProb.toFixed(3)} ≥ ${thresholds.rejectNoSpeechProbAtLeast} — 말소리가 아닐 가능성이 높습니다`);
+    reasons.push(t('stt.reason.noSpeech', { value: metrics.noSpeechProb.toFixed(3), threshold: thresholds.rejectNoSpeechProbAtLeast }));
   }
   if (metrics.avgLogprob !== null && metrics.avgLogprob < thresholds.rejectAvgLogprobBelow) {
-    reasons.push(`avg_logprob ${metrics.avgLogprob.toFixed(3)} < ${thresholds.rejectAvgLogprobBelow} — 엔진이 자기 디코딩을 믿지 못하는 구간입니다`);
+    reasons.push(t('stt.reason.avgLogprob', { value: metrics.avgLogprob.toFixed(3), threshold: thresholds.rejectAvgLogprobBelow }));
   }
   if (reasons.length) return { ...base, verdict: 'reject' };
 
   if (metrics.avgLogprob === null || metrics.noSpeechProb === null || metrics.meanWordProb === null) {
-    reasons.push('판정에 필요한 수치가 비어 있습니다 — 사람이 확인해야 합니다');
+    reasons.push(t('stt.reason.noMetrics'));
     return { ...base, verdict: 'confirm' };
   }
   const accepted =
@@ -123,19 +132,19 @@ export function decide(result: SttResult, thresholds: ConfidenceThresholds = PRO
     metrics.meanWordProb >= thresholds.acceptMeanWordProbAtLeast &&
     metrics.noSpeechProb <= thresholds.acceptNoSpeechProbAtMost;
   if (accepted) {
-    reasons.push(`세 수치가 모두 잠정 수락 구간입니다 (${PROVISIONAL_NOTE})`);
+    reasons.push(t('stt.reason.provisional', { note: t('stt.provisionalNote') }));
     return { ...base, verdict: 'accept' };
   }
   if (metrics.avgLogprob < thresholds.acceptAvgLogprobAtLeast) reasons.push(`avg_logprob ${metrics.avgLogprob.toFixed(3)} < ${thresholds.acceptAvgLogprobAtLeast}`);
-  if (metrics.meanWordProb < thresholds.acceptMeanWordProbAtLeast) reasons.push(`평균 단어 확률 ${metrics.meanWordProb.toFixed(3)} < ${thresholds.acceptMeanWordProbAtLeast}`);
+  if (metrics.meanWordProb < thresholds.acceptMeanWordProbAtLeast) reasons.push(t('stt.reason.meanWordProb', { value: metrics.meanWordProb.toFixed(3), threshold: thresholds.acceptMeanWordProbAtLeast }));
   if (metrics.noSpeechProb > thresholds.acceptNoSpeechProbAtMost) reasons.push(`no_speech_prob ${metrics.noSpeechProb.toFixed(3)} > ${thresholds.acceptNoSpeechProbAtMost}`);
   return { ...base, verdict: 'confirm' };
 }
 
-export const VERDICT_LABEL: Record<Verdict, string> = {
-  accept: '수락',
-  confirm: '재확인 필요',
-  reject: '거절',
+export const VERDICT_LABEL_KEY: Record<Verdict, string> = {
+  accept: 'stt.verdict.accept',
+  confirm: 'stt.verdict.confirm',
+  reject: 'stt.verdict.reject',
 };
 
 // ── 계약으로 옮기는 자리 (260906 · §7.8 결정) ────────────────────────────────
@@ -215,7 +224,7 @@ export function toUtterance(result: SttResult, text: string = result.text): Utte
   if (unitMean === null) {
     return {
       utterance: null,
-      blocked: `인식 단위당 확신도가 없어 계약의 confidence 를 채울 수 없습니다 (단어 ${result.word_count}건 · engine=${result.engine}). 0 으로 메우지 않습니다 — 0 은 「쟀는데 0점」이고 이 경우는 「못 쟀다」입니다.`,
+      blocked: t('stt.blocked.noUnitConfidence', { words: result.word_count, engine: result.engine }),
     };
   }
   if (unitMean < 0 || unitMean > 1) {
@@ -223,7 +232,7 @@ export function toUtterance(result: SttResult, text: string = result.text): Utte
     // 실었다는 뜻이므로 매핑을 고쳐야 한다 — 여기서 감추지 않는다.
     return {
       utterance: null,
-      blocked: `인식 단위당 확신도가 확률 범위 밖입니다 (${unitMean} · engine=${result.engine}). 잘라 넣지 않습니다 — 계약은 통과하고 사실만 사라집니다.`,
+      blocked: t('stt.blocked.outOfRange', { mean: unitMean, engine: result.engine }),
     };
   }
   return {

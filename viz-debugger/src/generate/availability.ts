@@ -32,8 +32,19 @@ export type GenerateCapabilities = {
   canvas: true;
   /** 명령 출구. 게이트웨이의 일이고 생성 서비스와 무관하다. 타입 고정. */
   commands: true;
-  /** 무엇이 왜 꺼졌는지. 화면에 그대로 보여준다 — 조용히 사라지지 않게. */
-  note: string | null;
+  /**
+   * 무엇이 왜 꺼졌는지 — **사전 키**. 화면이 `t()` 로 푼다 (260918).
+   *
+   * **이 파일은 의존이 없다**(`verify:no-stt`·`verify:no-llm` 이 그대로 불러 쓴다).
+   * 여기서 `t()` 를 부르면 사전과 언어 모듈이 딸려 들어와 그 성질이 깨진다 — 그래서
+   * 키만 돌려주고 푸는 것은 읽는 자리의 몫이다.
+   */
+  noteKey: string | null;
+  /**
+   * `probe()` 가 돌려준 **실패 사유 한 줄**. 우리가 쓴 문장이 아니므로 키가 없다 —
+   * 화면이 위 문장 뒤에 그대로 붙인다.
+   */
+  noteDetail: string | null;
 };
 
 /**
@@ -46,16 +57,12 @@ export function capabilities(status: GenerateStatus, detail?: string | null): Ge
     return {
       canGenerate: false,
       ...always,
-      note: [
-        '생성 서비스에 닿지 않습니다. 발화에서 임무를 만드는 길만 꺼졌고, 대본 재생·되감기·캔버스는 그대로 돕니다.',
-        detail ?? null,
-      ]
-        .filter((line): line is string => line !== null && line.length > 0)
-        .join(' '),
+      noteKey: 'gen.avail.unreachable',
+      noteDetail: detail !== null && detail !== undefined && detail.length > 0 ? detail : null,
     };
   }
   if (status === 'probing') {
-    return { canGenerate: false, ...always, note: '생성 서비스 확인 중입니다.' };
+    return { canGenerate: false, ...always, noteKey: 'gen.avail.checking', noteDetail: null };
   }
-  return { canGenerate: true, ...always, note: null };
+  return { canGenerate: true, ...always, noteKey: null, noteDetail: null };
 }

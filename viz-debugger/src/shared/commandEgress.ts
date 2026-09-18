@@ -15,6 +15,7 @@
  * 반대로 접었다면 `VZ-O-02`(4단계 추적)와 `VZ-O-03`(감사)이 통째로 사라졌을 것이다.
  */
 
+import { t } from '../i18n/dict.ts';
 import { currentMission } from '../data/scenario.ts';
 import type { ActionSpec } from '../transport/index.ts';
 import { commandTracker, type TrackedCommand } from './commandCenter.ts';
@@ -53,7 +54,7 @@ export async function issueCommand(command: AppCommand): Promise<TrackedCommand>
     audit = buildAudit(modality, command.voice);
   } catch (error) {
     if (error instanceof CommandAuditError) {
-      pushNotification({ id: `audit-${Date.now()}`, source: 'command', message: `${command.action} 발행 거부 — ${error.message}`, occurredAt: new Date().toISOString() });
+      pushNotification({ id: `audit-${Date.now()}`, source: 'command', message: t('egress.refused', { action: command.action, reason: error.message }), occurredAt: new Date().toISOString() });
     }
     throw error;
   }

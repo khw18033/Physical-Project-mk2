@@ -58,11 +58,17 @@ for (const status of ['probing', 'ready', 'unavailable']) {
 }
 const down = capabilities('unavailable', true);
 if (down.canRecord || down.canTranscribe) failures.push('서비스가 꺼졌는데 음성 경로가 켜져 있다');
-if (!down.note) failures.push('무엇이 왜 꺼졌는지 화면에 알려 줄 문구가 없다 — 조용히 사라진다');
+const { ko: koDict } = await import(pathToFileURL(join(srcDir, 'i18n', 'ko.ts')).href);
+
+// 260918 — 문구가 **사전 키**로 바뀌었다 (`noteKey`). 규칙은 그대로다: 조용히 사라지면 안 된다.
+// 키가 있는지만이 아니라 **사전에 그 키의 값이 있는지**까지 본다 — 없으면 화면에 키가 그대로 뜬다.
+if (!down.noteKey) failures.push('무엇이 왜 꺼졌는지 화면에 알려 줄 문구가 없다 — 조용히 사라진다');
+else if (koDict[down.noteKey] === undefined) failures.push(`사전에 ${down.noteKey} 가 없다 — 화면에 키가 그대로 뜬다`);
 // 사유가 오면 문구에 실려야 한다. 받아 놓고 안 적으면 사유를 버린 것과 같다 (260901).
 const withReason = capabilities('unavailable', true, probed?.reason ?? '테스트 사유 8801');
-if (!withReason.note?.includes('8801')) failures.push('probe() 사유를 넘겼는데 화면 문구에 실리지 않는다');
+if (!withReason.noteDetail?.includes('8801')) failures.push('probe() 사유를 넘겼는데 화면 문구에 실리지 않는다');
 if (withReason.manualInput !== true) failures.push('사유를 넘겼더니 수동 입력이 잠겼다 — note 말고는 아무것도 바뀌면 안 된다');
+if (withReason.noteKey !== down.noteKey) failures.push('사유를 넘겼더니 문구 키까지 바뀌었다 — 사유는 noteDetail 에만 실려야 한다');
 if (withReason.canRecord || withReason.canTranscribe) failures.push('사유를 넘겼더니 음성 경로 판단이 바뀌었다');
 
 // 음성 대조군 — 수동 입력을 상태에 묶은 사본은 반드시 잡혀야 한다.

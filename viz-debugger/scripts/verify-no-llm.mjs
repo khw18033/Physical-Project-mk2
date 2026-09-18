@@ -74,9 +74,13 @@ for (const status of ['probing', 'ready', 'unavailable']) {
 }
 const down = capabilities('unavailable');
 if (down.canGenerate) failures.push('서비스가 꺼졌는데 생성 경로가 켜져 있다');
-if (!down.note) failures.push('무엇이 왜 꺼졌는지 화면에 알려 줄 문구가 없다 — 조용히 사라진다');
+const { ko: koDict } = await import(pathToFileURL(join(srcDir, 'i18n', 'ko.ts')).href);
+
+// 260918 — 문구가 **사전 키**로 바뀌었다 (`stt/availability.ts` 와 같은 규칙).
+if (!down.noteKey) failures.push('무엇이 왜 꺼졌는지 화면에 알려 줄 문구가 없다 — 조용히 사라진다');
+else if (koDict[down.noteKey] === undefined) failures.push(`사전에 ${down.noteKey} 가 없다 — 화면에 키가 그대로 뜬다`);
 const withReason = capabilities('unavailable', probed?.reason ?? '테스트 사유 8802');
-if (!withReason.note?.includes('8802')) failures.push('probe() 사유를 넘겼는데 화면 문구에 실리지 않는다');
+if (!withReason.noteDetail?.includes('8802')) failures.push('probe() 사유를 넘겼는데 화면 문구에 실리지 않는다');
 for (const key of ALWAYS) {
   if (withReason[key] !== true) failures.push(`사유를 넘겼더니 ${key} 가 꺼졌다 — note 말고는 아무것도 바뀌면 안 된다`);
 }

@@ -9,6 +9,7 @@
  * 실패를 **던지기만 하고 잡지 않는다** — 무엇을 비활성화할지는 화면이 정한다.
  */
 
+import { t } from '../i18n/dict.ts';
 import { connectionAddress, registerConnectionDefault } from '../shared/connections.ts';
 import { SttUnavailableError, type SttResult } from './types.ts';
 
@@ -45,18 +46,18 @@ async function post(body: FormData, signal?: AbortSignal): Promise<SttResult> {
   } catch (error) {
     // 서비스가 안 떠 있는 흔한 경우가 여기로 온다. 화면은 이 문장을 그대로 보여주고
     // 음성 기능만 끈다.
-    throw new SttUnavailableError('offline', `STT 서비스에 닿지 않습니다 (${sttBaseUrl()})`, String(error));
+    throw new SttUnavailableError('offline', t('sttClient.offline', { url: sttBaseUrl() }), String(error));
   }
   const text = await response.text();
   let parsed: unknown;
   try {
     parsed = JSON.parse(text);
   } catch {
-    throw new SttUnavailableError('service', `STT 응답을 해석할 수 없습니다 (HTTP ${response.status})`, text.slice(0, 400));
+    throw new SttUnavailableError('service', t('sttClient.badResponse', { status: response.status }), text.slice(0, 400));
   }
   if (!response.ok) {
     const detail = parsed as { error?: string; traceback?: string };
-    throw new SttUnavailableError('service', detail.error ?? `STT 실패 (HTTP ${response.status})`, detail.traceback);
+    throw new SttUnavailableError('service', detail.error ?? t('sttClient.failed', { status: response.status }), detail.traceback);
   }
   return parsed as SttResult;
 }
@@ -112,13 +113,13 @@ export async function probe(signal?: AbortSignal): Promise<SttProbe> {
  */
 async function describeProbeFailure(error: unknown, signal?: AbortSignal): Promise<string> {
   const raw = error instanceof Error ? `${error.name}: ${error.message}` : String(error);
-  if ((error as { name?: string } | null)?.name === 'AbortError') return '확인이 취소됐습니다.';
+  if ((error as { name?: string } | null)?.name === 'AbortError') return t('probe.cancelled');
   // 망 실패가 아닌 것(그 외)은 원문 그대로 — 지어내는 것보다 낫다.
   if (!(error instanceof TypeError)) return raw;
   try {
     await fetch(transcribeUrl(), { method: 'GET', mode: 'no-cors', signal });
-    return `서비스는 떠 있는데 브라우저가 막았습니다 (${sttBaseUrl()}) — stt/service.py 의 ALLOWED_ORIGINS 에 이 페이지 주소가 있는지 확인하세요.`;
+    return t('sttClient.blockedByBrowser', { url: sttBaseUrl() });
   } catch {
-    return `서비스가 떠 있지 않습니다 (${sttBaseUrl()}) — npm run dev:stt 로 따로 띄워 사유를 보세요. 원문: ${raw}`;
+    return t('sttClient.notRunning', { url: sttBaseUrl(), raw });
   }
 }

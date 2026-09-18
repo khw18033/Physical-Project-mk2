@@ -18,10 +18,10 @@
 //      기록(감사 필드)과 계약(utterance)은 자리가 다르고, 갈라지면 화면이 보여주는 수치와
 //      임무에 실린 수치가 달라진다. `confidence` 에 **가중합을 넣은 사본**이 잡히는지도 본다 —
 //      가중합이 들어가는 순간 세 자리를 만든 이유가 사라진다.
-import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { readFileSync, writeFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import { makeScratch } from './lib/scratch.mjs';
 
 const sharedDir = new URL('../src/shared/', import.meta.url);
 const sttDir = new URL('../src/stt/', import.meta.url);
@@ -134,16 +134,28 @@ if (/buildAudit\s*\(/.test(egressSource.replace(/buildAudit\s*\(/g, 'noGuard('))
   failures.push('대조군을 만들지 못했다 (buildAudit 호출 제거 실패)');
 }
 
+/**
+ * 사본은 원본보다 **한 칸 깊은** 곳에 산다(`src/stt/.verify-…/confidence.ts`). 그래서 원본의
+ * `../i18n/dict.ts` 는 사본에서 한 칸을 더 올라가야 같은 곳을 가리킨다. 이것을 안 하면
+ * 사본이 `src/stt/i18n/dict.ts` 를 찾다 죽는다 — 260918 에 실제로 그랬다.
+ *
+ * `./` 로 시작하는 것은 안 건드린다: 그것들은 사본 옆에 같이 복사해 둔 것이다.
+ */
+const reroot = (source) => source.replace(/from '\.\.\//g, "from '../../");
+
 // --- 5. 가드 자체를 무력화한 대조군 -------------------------------------------------
-const scratch = mkdtempSync(join(tmpdir(), 'verify-voice-audit-'));
-const mutantPath = join(scratch, 'voiceAudit.ts');
-const mutant = readFileSync(guardPath, 'utf8').replace(
+// **사본은 원본 옆에 둔다** (검사 위생 §3). `os.tmpdir()` 에 두면 사본 안의 상대 import
+// (`../i18n/dict.ts` 등)가 풀리지 않는다 — 260918 에 `confidence.ts` 가 사전을 들이면서
+// 아래 ② 가 실제로 그렇게 깨졌다. 그 함정이 `lib/scratch.mjs` 머리에 적혀 있는 것이다.
+const scratch = makeScratch(dirname(fileURLToPath(guardPath)), '.verify-voice-audit-');
+const mutantPath = scratch.file('voiceAudit.ts');
+const mutant = reroot(readFileSync(guardPath, 'utf8')).replace(
   /const missing = VOICE_AUDIT_KEYS\.filter\(\(key\) => !\(key in voice\)\);/,
   'const missing = [];',
 );
 writeFileSync(mutantPath, mutant, 'utf8');
 // 옆 모듈(auditFieldMap.ts)을 타입으로만 참조하므로 사본만 옮겨도 import 가 성립한다.
-writeFileSync(join(scratch, 'auditFieldMap.ts'), readFileSync(fieldMapPath, 'utf8'), 'utf8');
+writeFileSync(scratch.file('auditFieldMap.ts'), readFileSync(fieldMapPath, 'utf8'), 'utf8');
 const mutantModule = await import(pathToFileURL(mutantPath).href);
 let mutantCaught = false;
 try {
@@ -153,6 +165,7 @@ try {
 } catch {
   mutantCaught = true;
 }
+scratch.cleanup();
 if (mutantCaught) {
   failures.push('가드를 지운 대조군이 여전히 거부됐다 — 이 검사가 무엇을 보고 있는지 불분명하다');
 }
@@ -205,12 +218,13 @@ if (mutantCaught) {
 
   // 대조군 — **가중합을 넣은 사본은 반드시 잡혀야 한다.**
   {
-    const scratch = mkdtempSync(join(tmpdir(), 'verify-utterance-'));
-    const mutantPath = join(scratch, 'confidence.ts');
-    writeFileSync(join(scratch, 'types.ts'), readFileSync(new URL('types.ts', sttDir), 'utf8'), 'utf8');
+    // 원본 옆이어야 사본의 `../i18n/dict.ts` 가 풀린다 (위 ① 의 주석).
+    const scratch = makeScratch(fileURLToPath(sttDir), '.verify-utterance-');
+    const mutantPath = scratch.file('confidence.ts');
+    writeFileSync(scratch.file('types.ts'), readFileSync(new URL('types.ts', sttDir), 'utf8'), 'utf8');
     writeFileSync(
       mutantPath,
-      readFileSync(new URL('confidence.ts', sttDir), 'utf8').replace(
+      reroot(readFileSync(new URL('confidence.ts', sttDir), 'utf8')).replace(
         '      confidence: unitMean,',
         '      confidence: 0.5 * unitMean + 0.5 * (1 - (confidence_signals.no_speech ?? 0)),',
       ),
@@ -218,6 +232,7 @@ if (mutantCaught) {
     );
     const mutant = await import(pathToFileURL(mutantPath).href);
     const weighted = mutant.toUtterance(hallucination).utterance;
+    scratch.cleanup();
     if (weighted === null || weighted.confidence === weighted.confidence_signals.unit_mean) {
       failures.push('가중합을 넣은 대조군을 만들지 못했다 — 이 검사는 무의미하다');
     }

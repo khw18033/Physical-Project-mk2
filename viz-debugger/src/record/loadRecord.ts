@@ -14,6 +14,7 @@
  * 로봇은 붙어 있는 채로 둔다. 다시보기는 로봇에 아무것도 안 보낸다(승인이 안 되살아난다).
  */
 
+import { t } from '../i18n/dict.ts';
 import type { MissionView } from '../data/scenario.ts';
 import { loadRecordedMission } from '../data/scenario.ts';
 import { sealRun } from '../data/missionHistory.ts';
@@ -59,7 +60,7 @@ export async function openRecordedRun(date: string, run: string): Promise<OpenRe
     return { ok: false, reason: error instanceof Error ? error.message : String(error) };
   }
   const view = mission.view;
-  if (view === undefined || !Array.isArray(view.tasks)) return { ok: false, reason: 'mission.json 에 임무 정의(view)가 없습니다' };
+  if (view === undefined || !Array.isArray(view.tasks)) return { ok: false, reason: t('record.noView') };
 
   sealRun();
   enterRecordReplay(date, run);
@@ -82,7 +83,7 @@ export async function openRecordedRun(date: string, run: string): Promise<OpenRe
     loadRecordedMission(view, progress.trace ?? [], progress.viewpointFrames ?? [], progress.headSec ?? 0);
   } catch (error) {
     leaveRecordReplay();
-    return { ok: false, reason: `기록을 채우다 멈췄습니다 — ${error instanceof Error ? error.message : String(error)}` };
+    return { ok: false, reason: t('record.fillStopped', { reason: error instanceof Error ? error.message : String(error) }) };
   }
   return { ok: true };
 }
