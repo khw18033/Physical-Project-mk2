@@ -85,7 +85,8 @@
     "verify:notifications": "node scripts/verify-notifications.mjs",
     "verify:i18n-scope-leak": "node scripts/verify-i18n-scope-leak.mjs",
     "verify:i18n-data": "node scripts/verify-i18n-data.mjs",
-    "verify:stt-language": "node scripts/verify-stt-language.mjs"
+    "verify:stt-language": "node scripts/verify-stt-language.mjs",
+    "verify:dict-shape": "node scripts/verify-dict-shape.mjs"
   },
   "dependencies": {
     "mqtt": "^5.15.2",
