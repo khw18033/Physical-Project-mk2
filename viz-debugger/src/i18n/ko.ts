@@ -318,7 +318,9 @@ export const ko: Record<string, string> = {
   'stt.lang.ko': '한국어',
   'stt.lang.en': 'English',
 
-  // 장비 상태 줄 일곱 칸 — `views/DeviceStrip.tsx` (액션 아이템과 하드웨어 카드가 같이 쓴다)
+  // 장비 상태 줄 일곱 칸 — `views/DeviceStrip.tsx`.
+  // **옛 편(MSN-260826-01)의 하드웨어 카드**에서 보인다. 액션 아이템 쪽은 목·개발 모드에서만
+  // 나온다(registry 세계 대본에는 hardware 가 없다) — 그 파일 주석에 경위가 있다.
   'strip.battery': '배터리',
   'strip.network': '네트워크',
   'strip.ip': 'IP',
