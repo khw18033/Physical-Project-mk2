@@ -31,6 +31,7 @@
     "verify:build-parity": "node scripts/verify-build-parity.mjs",
     "verify:lang-switch": "node scripts/verify-lang-switch.mjs",
     "verify:i18n-demo-path": "node scripts/verify-i18n-demo-path.mjs",
+    "verify:no-fake-plan": "node scripts/verify-no-fake-plan.mjs",
     "verify:verify-hygiene": "node scripts/verify-verify-hygiene.mjs",
     "verify:clean": "node scripts/verify-clean.mjs",
     "verify:stt-port": "node scripts/verify-stt-port.mjs",
