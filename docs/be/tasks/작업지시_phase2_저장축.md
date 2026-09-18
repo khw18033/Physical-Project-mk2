@@ -8,7 +8,7 @@
 | **착수** | Phase 1(얇은 파이프라인 관통, 2026-09-07) 완료 + 기반문서 보강 3라운드(2026-09-09) 이후 |
 | **근거 문서** | [`docs/be/01-standalone-implementation-plan.md`](../01-standalone-implementation-plan.md) Phase 2 절 · [`docs/be/00-architecture.md`](../00-architecture.md) §5~§6(특히 §6-2 저장 분리)·§8-3(관측 신호 3층)·§8-5(유예 항목) · [`docs/be/requirement-traceability.md`](../requirement-traceability.md) · [`../../CLAUDE.md`](../../../CLAUDE.md) §1·§1-A·§2 |
 | **관련 요구사항** | BE-S-01(시계열 저장) · BE-S-05(감사 MySQL) · BE-S-08(임무 실행 기록) · BE-C-01(공통 규격, 본문 확장) · BE-C-02(식별자 계층) · BE-Q-03(레지스트리) |
-| **저장 위치** | `docs/be/tasks/작업지시_phase2_저장축.md`. Phase 2 구현이 끝나면 `docs/be/tasks/_archive/`로 옮긴다(누적 참조 대상이 아니다) |
+| **저장 위치** | `docs/be/tasks/작업지시_phase2_저장축.md` — 끝난 뒤에도 제자리(파일 이름으로 구별. 이전 판의 "`_archive/`로 옮긴다"는 2026-09-19 백지화) |
 
 > 이 문서는 VS Code Claude Code가 읽고 구현하는 인수인계 문서다. `CLAUDE.md`와 이 지시서를 함께 읽고, 지시서 범위대로 구현한다. **설계는 끝났으므로 새로 설계하지 않는다.**
 

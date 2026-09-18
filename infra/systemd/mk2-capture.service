@@ -1,0 +1,40 @@
+# MK2 백엔드 상주 프로세스 — 촬영본 저장소 PUT 수신단 (Phase 4 4b, HW #15)
+#
+# implements: BE-S-09 (미디어 저장 모드 — 촬영본 갈래), BE-T-08 (토큰·바인딩)
+#
+# 설치(사람이 서버에서):  sudo cp infra/systemd/mk2-capture.service /etc/systemd/system/
+#                        sudo systemctl daemon-reload && sudo systemctl enable --now mk2-capture
+# 코드를 고치면:         서버 사본에 복사 → sudo systemctl restart mk2-capture
+# 로그:                  journalctl -u mk2-capture -f
+#
+# 왜 별도 유닛인가: 대용량 PUT(0.7GB/h 아카이브)은 블로킹이라 WS 게이트웨이의 asyncio 루프에 올리지 않는다.
+#   같은 프로세스의 스레드로 두면 업로드 쪽 예외·OOM 이 미디어 중계를 같이 넘어뜨린다(지시서 10-1 🟠).
+# 바인딩: MK2_CAPTURE_HOST=<서버 tailscale IP>(단일 주소) · MK2_CAPTURE_PORT=8767 · 토큰 MK2_CAPTURE_TOKEN(.env).
+#   호스트 파이썬 포트라 **ufw 가 진짜 통제**다 — pi7 /32 만 연다. loopback 이 아닌데 토큰이 비어 있으면 기동 시점에 죽는다.
+#   저장 루트 MK2_CAPTURE_DIR 은 .env 로 저장소 밖 절대 경로를 준다(비우면 WorkingDirectory/media_capture).
+# ⚠ Tailscale 주소에 바인딩하므로 tailscaled 뒤에 떠야 한다(After/Wants) — mk2-ws-echo 와 같은 이유로 RestartSec 10.
+# ⚠ StartLimit* 는 [Unit] 이다 — [Service] 에 두면 경고와 함께 무시되어 재시작 루프가 안 끊긴다(v229+).
+# ⚠ Restart=always 를 쓰지 않는다 — 설정 오류로 죽는 것을 무한 재시작하면 원인이 묻힌다.
+# 이 입구는 Phase 4 단계 8 되돌림 대상이 아니다 — 4b 뒤에도 남긴다(결정 9 ㄴ). 실제 개통은 HW 에 따로 통지.
+
+[Unit]
+Description=MK2 capture store (HTTP PUT receiver for robot capture sessions, HW #15)
+After=docker.service tailscaled.service
+Wants=docker.service tailscaled.service
+StartLimitBurst=3
+StartLimitIntervalSec=60
+
+[Service]
+Type=simple
+User=dg
+WorkingDirectory=/home/dg/capstone-db/phase1_work/Physical-Project-mk2
+EnvironmentFile=/home/dg/capstone-db/.env
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/home/dg/capstone-db/phase1_work/venv_phase1/bin/python -m backend.gateway.capture
+Restart=on-failure
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

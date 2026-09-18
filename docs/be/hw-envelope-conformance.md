@@ -4,18 +4,20 @@
 |---|---|
 | 보내는 쪽 | 백엔드(BE·DT) / 이대규 |
 | 받는 쪽 | 하드웨어(HW) / 조병현 |
-| 작성일 | 2026-09-07 (§1~§5) · **2026-09-10 후속 회신 추가(§6)** · **2026-09-16 traceparent 회신 추가(§7)** |
-| 근거 | Phase 1(얇은 파이프라인 관통) 구현·검증 결과, `contracts/common/message.schema.json` |
-| 대상 질문 | `docs/BACKEND_AGENDA.md`(HW 브랜치) **§1 스키마 필드 확정**, **§2 토픽 도메인 체계**, **§10-3 traceparent**(§7) |
+| 작성일 | 2026-09-07 (§1~§5) · **2026-09-10 후속 회신 추가(§6)** · **2026-09-16 traceparent 회신 추가(§7)** · **2026-09-19 미디어 경로 회신 추가(§8)** |
+| 근거 | Phase 1(얇은 파이프라인 관통) 구현·검증 결과, `contracts/common/message.schema.json` · (§8) Phase 4 미디어 경로 구현·검증 + HW 브랜치 0914 대조 + `media-header.schema.json` |
+| 대상 질문 | `docs/BACKEND_AGENDA.md`(HW 브랜치) **§1 스키마 필드 확정**, **§2 토픽 도메인 체계**, **§10-3 traceparent**(§7), **§8 · §10-4~§10-7 · #14~#18**(§8) |
 
 이 문서는 두 안건에 대한 **회신**이다. §1은 HW 코드 변경 4줄을 요청하고, §2는 대부분 정보성
 (HW는 MQTT만 발행하므로 코드 변경 없음)이다.
 
-> 📌 **이 문서는 세 차례로 쓰였다.** §1~§5는 Phase 1 결과(2026-09-07), **[§6](#s6)은 Phase 2(저장 축)
-> 결과(2026-09-10)**, **[§7](#s7)은 Phase 3(관측) 결과(2026-09-16)** 다. §1-3과 §3의 3번 항목에서
-> *"Phase 2에서 확정해 회신한다"* 로 미뤄 두었던 것이 §6에, §5에서 *"Phase 3 이후"* 로 미뤄 둔
-> `traceparent`가 §7에 있다.
-> **바쁘면 [§6-0 한 장 요약](#s6-0), [§7-0](#s7-0)과 각 절 끝의 「HW가 할 일」만 봐도 된다.**
+> 📌 **이 문서는 네 차례로 쓰였다.** §1~§5는 Phase 1 결과(2026-09-07), **[§6](#s6)은 Phase 2(저장 축)
+> 결과(2026-09-10)**, **[§7](#s7)은 Phase 3(관측) 결과(2026-09-16)**, **[§8](#s8)은 Phase 4(미디어 경로)
+> 결과(2026-09-19)** 다. §1-3과 §3의 3번 항목에서 *"Phase 2에서 확정해 회신한다"* 로 미뤄 두었던 것이
+> §6에, §5에서 *"Phase 3 이후"* 로 미뤄 둔 `traceparent`가 §7에, §5-1에서 *"Phase 4(미디어)"* 로 미뤄 둔
+> frame_ref·§10-4~7·#15가 §8에 있다. ⚠ **우리 §8은 우리 절 번호다** — HW `BACKEND_AGENDA`의 §8(frame_ref
+> 안건)과 다르며, 아래에서 HW 쪽 절은 항상 `BACKEND_AGENDA §…`로 출처를 붙여 적는다.
+> **바쁘면 [§6-0 한 장 요약](#s6-0), [§7-0](#s7-0), [§8-0](#s8-0)과 각 절 끝의 「HW가 할 일」만 봐도 된다.**
 
 **이 회신은 탁상 검토가 아니라 실측 결과다.** 아래 편집 4개를 적용한 `sensor_node`를 백엔드
 파이프라인(MQTT → 봉투 검증 → Kafka → 저장 sink → WebSocket)에 붙여 약 13분간 실제로 흘렸고,
@@ -279,36 +281,48 @@ Phase의 작업 항목으로 등록해 두었다.**
 
 | 안건 | 약속한 시점 | 회신 |
 |---|---|---|
-| **§1.3 `sequence_id` 범위 — 유실·역전 검출의 정확한 의미** (위 §1-3에서 "Phase 2에서 확정해 회신"으로 미뤄 둔 것) | Phase 2 | ✅ **[§6-1](#s6-1)** (2026-09-10). 파생 요청 하나가 [§6-2](#s6-2)에 있다 |
+| **`BACKEND_AGENDA` §1.3 `sequence_id` 범위 — 유실·역전 검출의 정확한 의미** (위 §1-3에서 "Phase 2에서 확정해 회신"으로 미뤄 둔 것) | Phase 2 | ✅ **[§6-1](#s6-1)** (2026-09-10). 파생 요청 하나가 [§6-2](#s6-2)에 있다 |
 | **채널 본문(payload) 스키마** (위 §3의 3번 항목에서 *"채널별로 따로 만들 때 다시 알린다"* 로 미뤄 둔 것) | 시점 미정이었음 | ✅ **[§6-8](#s6-8)** (2026-09-10). 본문 규격 6종 신설 + 2단 검증 가동 |
-| **§10-3 traceparent 전달 계획** (아래 5-1에 *"Phase 3(관측) 이후"* 로 있던 것) | Phase 3 이후 | ✅ **[§7](#s7)** (2026-09-16). **싣는다 — W3C `traceparent`, protobuf 본문 필드.** 실배선은 Phase 6 |
+| **`BACKEND_AGENDA` §10-3 traceparent 전달 계획** (아래 5-1에 *"Phase 3(관측) 이후"* 로 있던 것) | Phase 3 이후 | ✅ **[§7](#s7)** (2026-09-16). **싣는다 — W3C `traceparent`, protobuf 본문 필드.** 실배선은 Phase 6 |
+| **`BACKEND_AGENDA` §8 frame_ref** — 봉투 `timestamp`(ISO)와 frame_ref(epoch ms) 공존이 의도냐 | Phase 4 | ✅ **[§8-3](#s8-3)** (2026-09-19). **ISO 유지** — epoch ms는 우리 문서(v8 §6-9) 불일치였다. HW 조치 없음, SDD §5.5.2·SRS §9.7 O-8 문구만 |
+| **`BACKEND_AGENDA` §10-4** 온디바이스 추론 결과의 frame_ref 🟡 | Phase 4 | ✅ **[§8-4](#s8-4)** (2026-09-19). **㉰ `alignment` 정합 등급 + fail-safe.** ⓑ는 「엣지 발급값을 실어 나른다」로 읽는다 — HW 조치 없음 |
+| **`BACKEND_AGENDA` §10-5** JPEG 대역폭(홉1 무선) 🟡 | Phase 4 | ✅ **[§8-5](#s8-5)** (2026-09-19). **q 우선**, 해상도 변경은 스트림 재개 사건 |
+| **`BACKEND_AGENDA` §10-6** push/pull 🟡 | Phase 4 | ✅ **[§8-6](#s8-6)** (2026-09-19). **해석이 맞다** — 소스 종류별 정적 정책 |
+| **`BACKEND_AGENDA` §10-7** 로봇 영상 코덱 🔴 | Phase 4 | ✅ **[§8-2](#s8-2)** (2026-09-19). **권고 ① 수용 — 종단까지 native 코덱.** HW는 `HW_MEDIA_SENDER=go1_relay` 한 줄 + 홉2 송신기 규격(AU 경계·`keyframe`) |
+| **#15** 촬영 프레임 저장 🔴 | Phase 4 | ✅ **[§8-8](#s8-8)** (2026-09-19). **파일시스템 + 단순 HTTP PUT, 매니페스트 먼저 별도 PUT.** 입구가 열리는 시점은 4b 완료 후 따로 통지 |
 
 ### 5-1. 아직 남아 있는 안건
 
 | 안건 | 회신 시점 |
 |---|---|
-| §8 frame_ref — 봉투 `timestamp`(ISO)와 frame_ref(epoch ms) 공존이 의도냐 | **Phase 4(미디어)**. 백엔드 `frame-reference.schema.json`이 ISO 문자열로 정의돼 있어 v8 §6-9(epoch ms)와 어긋난다 — 어느 쪽으로 정합할지 그때 확정 |
-| §5 `device_status` 발행 주체 (HW 자기보고 수용 vs metric 파생) | **Phase 5(가용성)** |
-| §10-2 엣지 파생 `up` ↔ 백엔드 최종 판정의 관계 | **Phase 5(가용성)** |
-| §3 명령 문자열 파라미터(`set_mode(mode="normal")`가 `map<string,double>`로 불가) | **Phase 6(명령)** |
-| §7 4단계 stage 값 확인 | **Phase 6(명령)** |
-| ~~§10-3 traceparent 전달 계획~~ | ~~**Phase 3(관측)** 이후~~ → ✅ **2026-09-16 [§7](#s7)에서 회신** (5-0 표로 이동) |
-| §10-4 온디바이스 추론 결과의 frame_ref 🟡 · §10-5 JPEG 대역폭(홉1 무선) 🟡 · §10-6 push/pull 🟡 · §10-7 로봇 영상 코덱 🔴 | **Phase 4(미디어)** — 2026-09-17 등록(그전까지 이 표에 없었다). §10-7은 HW가 양끝 구현을 마친 채 대기 중 |
-| **#14** 트윈 스키마 소유(필드·타입·null·다중 소스 병합) 🔴 | **Phase 7(트윈)**. 지금 HW 기본값(모르면 null)은 우리 규격과 일치 |
-| **#15** 촬영 프레임 저장 — 0.7GB/h, S3 호환 PUT/엣지 경유, 보존 🔴 | **Phase 4(미디어) 마지막 독립 단계에서 「저장소 자체」까지**(수신 방식·저장 위치·메타 자리·보존·회신) — BE-S-09 저장 모드의 한 갈래로 수용(사용자 결정 2026-09-17). 실제 적재·운영은 그 뒤. 그전까지 HW 기본값(파이 로컬 적재)이 맞다 |
-| **#16** 로봇 상태의 서버 경유(→트윈) 🔴 | **경로는 이미 있다**(`…/state` → 브릿지 → Kafka → WS 게이트웨이, Phase 1~3). 트윈 형식·Unity 직결(15101/15201) 철거 시점은 **Phase 7** |
-| **#17** Grafana에서의 명령 트리거 API 🟡 | **Phase 6(명령)**. 원칙 2 — 명령은 관측 평면에 싣지 않는다(HW 투트랙 결론과 같다) |
-| **#18** 엣지 2개 이상 시 구역 소유권 이관의 설계 주체 ⚪ | 백엔드(BE-C-02 Zone). **Phase 5/7** |
+| ~~`BACKEND_AGENDA` §8 frame_ref~~ | ~~**Phase 4(미디어)**~~ → ✅ **2026-09-19 [§8-3](#s8-3)에서 회신** (5-0 표로 이동) |
+| `BACKEND_AGENDA` §5 `device_status` 발행 주체 (HW 자기보고 수용 vs metric 파생) | **Phase 5(가용성)** |
+| `BACKEND_AGENDA` §10-2 엣지 파생 `up` ↔ 백엔드 최종 판정의 관계 | **Phase 5(가용성)**. ⚠ 그전에 지표 이름 하나 — `edge/availability.py`가 Prometheus 예약 지표 `up`을 그대로 발행한다. `hw_entity_up` 개명을 [§8-9](#s8-9) ⑥에서 요청했다 |
+| `BACKEND_AGENDA` §3 명령 문자열 파라미터(`set_mode(mode="normal")`가 `map<string,double>`로 불가) | **Phase 6(명령).** **단 `stream`은 Phase 4에서 action 이름 우회(`stream_start`/`stream_stop`)로 먼저 푼다** — 온디맨드 개폐·길 A가 여기 걸린다([§8-11](#s8-11)) |
+| `BACKEND_AGENDA` §7 4단계 stage 값 확인 | **Phase 6(명령)** |
+| ~~`BACKEND_AGENDA` §10-3 traceparent 전달 계획~~ | ~~**Phase 3(관측)** 이후~~ → ✅ **2026-09-16 [§7](#s7)에서 회신** (5-0 표로 이동) |
+| ~~`BACKEND_AGENDA` §10-4 · §10-5 · §10-6 · §10-7~~ | ~~**Phase 4(미디어)**~~ → ✅ **2026-09-19 [§8-4](#s8-4)·[§8-5](#s8-5)·[§8-6](#s8-6)·[§8-2](#s8-2)에서 회신** (5-0 표로 이동) |
+| **#14** 트윈 스키마 소유(필드·타입·null·다중 소스 병합) 🔴 | **Phase 7(트윈)** — 미루는 이유와 4b의 임시 처리(병합 없이 세션 1행)는 [§8-7](#s8-7). 지금 HW 기본값(모르면 null)은 우리 규격과 일치 |
+| ~~**#15** 촬영 프레임 저장~~ | ~~**Phase 4(미디어) 마지막 독립 단계**~~ → ✅ **2026-09-19 [§8-8](#s8-8)에서 회신** (5-0 표로 이동). 실제 입구 개통 통지는 4b 완료 후 |
+| **#16** 로봇 상태의 서버 경유(→트윈) 🔴 | **경로는 이미 있다**(`…/state` → 브릿지 → Kafka → WS 게이트웨이, Phase 1~3) — [§8-7](#s8-7)에서 **Unity 직결 대체 여부(대체한다)·전환 시점(Phase 7, #14와 함께)**까지 답했다. 트윈 형식 자체는 **Phase 7** |
+| **#17** Grafana에서의 명령 트리거 API 🟡 | **Phase 6(명령)**. 원칙 2 — 명령은 관측 평면에 싣지 않는다(HW 투트랙 결론과 같다). [§8-7](#s8-7) |
+| **#18** 엣지 2개 이상 시 구역 소유권 이관의 설계 주체 ⚪ | 백엔드(BE-C-02 Zone). **Phase 5/7**. [§8-7](#s8-7) |
+| 🆕 **`stream` 명령 규약 경로 호출 불가** — [§8-11](#s8-11)에서 신설 | **HW 회신 대기**(`stream_start`/`stream_stop` 우회 수용 여부). 답이 없으면 Phase 6 `.proto` 개정까지 온디맨드 개폐는 열리지 않는다 |
+| 🆕 **imageai 프레임의 촬영 시각 유무** — [§8-3](#s8-3) 사실 질문 | **HW 회신 대기.** 답에 따라 Phase 7 소스별 보정 설계 유무가 갈린다 |
+| 🆕 **IDR 간격 조절 가능 여부** — [§8-2b](#s8-2b) | **HW 회신 대기.** 없으면 뷰어가 감수 |
 
 > **#14~#18의 출처**는 HW `docs/ARCHITECTURE_ALIGNMENT.md`(2026-09-10 지도 피드백 수용문)와 `BACKEND_AGENDA.md` 끝 표다.
 > HW 브랜치 0914 대조 결과는 `reports/2026-09-17_1159_팀브랜치_최신화_대조.md`. **§6 편집 4개·§6-2 순번·session_id는
 > 그 브랜치에 반영돼 있다**(5-0 표에 옮기지 않은 이유: pi7 배포본이 09-14에도 구판이라 "적용 확인"은 아직).
+> 안건 이름 앞의 `BACKEND_AGENDA §…`는 **HW 문서의 절 번호**다 — 우리 문서에도 §8이 생겨(2026-09-19) 출처 없이 적으면 오독된다.
 
-> **§3은 지금 알아둘 함정이다(Phase 6 전까지).** 회신은 Phase 6이지만, 그전에 규약(protobuf)
+> **`BACKEND_AGENDA` §3은 지금 알아둘 함정이다(Phase 6 전까지).** 회신은 Phase 6이지만, 그전에 규약(protobuf)
 > 명령 경로로 `set_mode(mode="normal")`·`levee(position="open")`처럼 **문자열/열거형 파라미터를
 > 쓰는 명령은 호출할 수 없다**(`map<string,double>`이라 double만 실린다). `set_report_interval
 > (seconds=..)` 같은 수치 명령만 규약 경로로 동작한다. 문자열 파라미터 명령 테스트는 Phase 6
 > (스키마 확장) 이후로 미뤄 달라 — 백엔드가 고칠 것이 아니라 HW가 인지할 사항이다.
+> **2026-09-19 추가: `stream`도 같은 함정이다**(`validate()`가 문자열 `action`을 요구) — 예시가 `set_mode`·`levee`뿐이라
+> 아무도 연결하지 않았다. 이것만은 Phase 6을 기다리지 않고 [§8-11](#s8-11)의 우회로 먼저 푼다.
 
 ---
 
@@ -1009,6 +1023,8 @@ JSON처럼 키 하나를 더 얹는 것과 다르다. 그래서 다음이 필요
   → cmd.result` 모양을 흉내 낸 가짜 span). **HW의 실제 span은 아직 한 건도 받지 못했다**(7-3 정보 참조).
 - pytest 184건 전건 통과(서버, 2026-09-16) — 그중 `test_fake_span_reaches_tempo`가 Collector→Tempo 경로의 근거다.
 
+<a id="s7-8"></a>
+
 ### 7-8. HW가 할 일 (§7 추가분)
 
 11. ⚪ **Phase 6 `.proto` 개정 때** `Command`에 `string traceparent` 필드 1개 추가(7-3 ①) + `otel_trace.py:77`의
@@ -1019,3 +1035,256 @@ JSON처럼 키 하나를 더 얹는 것과 다르다. 그래서 다음이 필요
 
 **답이 없어도 백엔드는 멈추지 않는다** — Phase 6에서 `traceparent`를 싣기 시작하면 필드가 있는 말단은 이어
 붙고, 없는 말단은 지금처럼 새 trace를 시작한다. 둘 다 동작한다(`BACKEND_AGENDA` §0 표의 10-3 행 그대로).
+
+---
+
+<a id="s8"></a>
+
+## §8 회신 — 미디어 경로 (BACKEND_AGENDA §8 · §10-4~§10-7 · #14~#18) (Phase 4 결과)
+
+| | |
+|---|---|
+| 보내는 쪽 | 백엔드(BE·DT) / 이대규 |
+| 받는 쪽 | 하드웨어(HW) / 조병현 |
+| 작성일 | 2026-09-19 |
+| 근거 | **Phase 4(미디어 경로) 구현·검증 결과** — 서버 pytest 256건(미디어 59 + 라벨 13 신규, 전건 통과) + 컴퓨터 임시 엣지로 서버↔엣지 2계층 실측(2026-09-19: 터널 위 미디어·Kafka EDGE·관측 동시 관통, 링크 500kbit로 조인 drop-old 실측) · **HW 브랜치 0914 사본 대조** — `pi/robot/go1_relay.py`·`pi/robot/capture_upload.py`·`pi/robot/robot_node.py`·`pi/bench/go1_cam_view.py`·`pi/bench/go1_capture_teleop.py`·`pi/bench/go1_scan_capture.py`·`schema/physical_command.proto`·`edge/media_gateway.py`·`edge/availability.py`·`pi/common/schema.py`·`pi/common/config.py`·`HW-interface/mission-command.md`·`docs/BACKEND_AGENDA.md`·`ARCHITECTURE_ALIGNMENT.md`·`SRS.md`·`SDD.md` · 백엔드 규격 [`contracts/common/media-header.schema.json`](../../contracts/common/media-header.schema.json)·[`detections.schema.json`](../../contracts/common/detections.schema.json)(초안)·[`frame-reference.schema.json`](../../contracts/common/frame-reference.schema.json) · [`02-media-path.md`](02-media-path.md) |
+| 대상 안건 | `BACKEND_AGENDA` **§8**(frame_ref 형식 — 5-1 표에서 "Phase 4"로 약속) · **§10-4**(온디바이스 frame_ref) · **§10-5**(JPEG 대역폭) · **§10-6**(push/pull) · **§10-7**(로봇 영상 코덱) · **#14~#18**(`ARCHITECTURE_ALIGNMENT` 후속) + 인식 안내 7건 + 🔴 신설 **8-11**(`stream` 명령) |
+| 우선순위 | 🔴 **8-2**(§10-7 코덱 — HW 기본값 한 줄) · **8-8**(#15 저장소 — 매니페스트 규약이 v1에서 바뀌었다) · **8-11**(`stream` 호출 불가) / 🟡 8-3·8-4·8-5·8-6 / ⚪ 8-7·8-9 |
+
+> 📌 **이 문서의 「HW가 할 일」은 세 곳에 나뉘어 있다** — §6 뒤의 「요약 — HW가 할 일」(1~10), [§7-8](#s7-8)(11~14), 그리고 이 절의
+> [8-10](#s8-10)(**15~22**). 셋을 합쳐야 전체다. 그 요약 블록이 §6과 §7 사이에 놓여 있어 전체 요약처럼 보이지만 §6까지의 것이다.
+>
+> **바쁘면 [8-0 한 장 요약](#s8-0)과 [8-10](#s8-10)만 봐도 된다.** 답이 없어도 백엔드는 멈추지 않는다 — 항목마다 기본값을 적었다.
+
+<a id="s8-0"></a>
+
+### 8-0. 한 장 요약
+
+| 안건 | 답 | 답이 없으면 |
+|---|---|---|
+| **§10-7 로봇 영상 코덱** | **① 소스별 협상 — 수용. 종단(뷰어)까지 native 코덱.** 로봇 H.264 / 고정 CCTV JPEG. 서버는 미디어 헤더의 `encoding`만 보고 페이로드를 열지 않는다([8-2](#s8-2)) | HW 쪽 변경은 `HW_MEDIA_SENDER=go1_relay` 한 줄(`config.py:139` 기본값이 `rtp_jpeg`일 뿐 구현은 둘 다 있다). 그대로 두면 JPEG로 오고 — **그래도 동작한다**, 다만 §10-7 표의 비용을 치른다 |
+| **§8 frame_ref 형식** | **ISO 유지.** `capture_timestamp`는 ISO date-time 문자열(콜론 오프셋 + 밀리초). epoch ms는 **우리 문서(v8 §6-9)가 규격 파일과 어긋난 것**이었다([8-3](#s8-3)) | HW 조치 없음 — HW는 frame_ref를 찍지 않는다(§10-4 머리말 그대로). SRS §9.7·SDD §5.5.2의 "epoch ms" 문구만 맞춰 달라 |
+| **§10-4 온디바이스 frame_ref** | **㉰ — 정합 등급을 규격에 둔다.** 탐지 메시지에 `alignment`(string) 한 칸, 뷰어는 fail-safe(`"frame"`+`frame_ref`일 때만 프레임 정합)([8-4](#s8-4)) | HW 조치 없음. 온디바이스 결과에 `alignment`를 안 실으면 뷰어가 unaligned로 그린다 — 선택지 ②와 같은 표시 |
+| **§10-5 JPEG 대역폭** | **q 우선.** 해상도 변경은 **스트림 재개 사건**이라 마지막 수단([8-5](#s8-5)) | HW 선반영(`HW_MEDIA_QUALITY`)이 곧 답이다 |
+| **§10-6 push/pull** | **해석이 맞다 — 소스 종류별 정적 정책.** 로봇 push, 표준 IP 카메라 pull([8-6](#s8-6)) | 지금 구현 그대로 |
+| **#15 촬영본 저장** | **파일시스템 + 단순 HTTP PUT 수신단**(S3 API 아님). 🔴 **PUT 두 번 — 매니페스트 먼저**([8-8](#s8-8)). **입구는 2026-09-19 개통됐다**(주소·토큰은 별도 경로) | 파이 로컬 적재를 유지해도 된다 — 올리는 시점은 HW 몫 |
+| **#14·#16·#17·#18** | 시점 배정([8-7](#s8-7)) — 14→Phase 7, 16→경로는 있음·형식은 Phase 7, 17→Phase 6, 18→Phase 5/7 | HW 기본값(null·직결 유지·관측은 보기 전용)이 우리 설계와 충돌하지 않는다 |
+| 🔴 **`stream` 명령**(신설) | **규약 경로로 호출 불가** — `action` 이름을 `stream_start`/`stream_stop`으로 쪼개 달라([8-11](#s8-11)) | 이것만은 기본값이 없다 — 온디맨드 개폐(Phase 6)와 상시 송출 프로파일이 둘 다 여기 걸린다 |
+
+**답이 없어도 백엔드는 멈추지 않는다.** Phase 4는 합성 fixture(엣지 자리)로 서버 중계·drop-old·인증·규격을 닫았고, 엣지 실물이 서면 `tests/media_publisher.py`가 하는 일을 엣지가 하면 된다. 그 실물이 지금 없다는 것(`README.md:24-25` *"미디어 게이트웨이(예정) ※ 전용 장비 확보 전"*)이 이 회신 전체의 전제다.
+
+### 8-0b. 먼저 — 미디어 평면은 봉투 규약 밖이다, 그리고 규격 초안 하나를 새로 연다
+
+우리가 [§3](#)에서 통보한 *"수신 즉시 봉투를 **strict 검증**한다 … 전환기·관용 모드는 없다"*, *"불합격은 정상 토픽으로 재발행하지 않는다"*는 **MQTT 봉투(업무 평면)** 이야기다. **미디어 헤더는 그 규율을 따르지 않는다** — 예외를 먼저 적어 두지 않으면 HW가 같은 strict 규율을 기대한다.
+
+| | 업무 평면(봉투) | 미디어 평면(방식 B 헤더) |
+|---|---|---|
+| 검증 | 공통 헤더 → 채널 본문 2단, strict | **필수·타입만**(`frame_ref`·`encoding`·`keyframe`·`width`·`height`). 값 어휘(`encoding`이 `h264`인지)는 **보지 않는다**, 페이로드는 **열지 않는다** |
+| 불합격 처리 | 격리 파일 + `be.ingest.rejected` | **그 프레임만 버리고 연결은 유지**(`be.gateway.media_rejected{stage}`). 격리 파일 없음 |
+| 모르는 필드 | 통과(느슨한 2단) | 통과(`additionalProperties:false` 없음 — 단 `frame_ref` **안**은 잠겨 있다) |
+
+그리고 §2에서 우리가 HW에 걸어 둔 *"새 채널이 필요하면 백엔드에 먼저 알려 달라"*의 **역방향**으로 통지한다 — **백엔드가 탐지 결과 규격 초안 `contracts/common/detections.schema.json`을 새로 열었다.** 생산자는 AI(진나영), 소비자는 가시화(김현우)이고, HW와 닿는 자리는 **온디바이스 안전 판단 결과(HW-R-04)를 그 형식으로 낼 때**뿐이다([8-4](#s8-4)). 채널·토픽은 아직 없다(Phase 6).
+
+### 8-1. 세 갈래 — 시연 특수 / 일반형 / 임시 경로 (2026-09-17 대조 §4-2 그대로)
+
+| 시연 특수 — 설계 대상 아님 | 일반형 — 설계 대상 | 임시 경로 — 우리 경로로 바뀜 |
+|---|---|---|
+| 45°×8 회전, `rotation_deg`가 정합 키, 문 탐지, 단상 역산 | frame_ref 시각이 상태 채널과 같은 시각 축인지(발행 `timestamp`·UTC) | **JPEG base64를 MQTT `zoneA/robot/go1-001/frame` 토픽에** |
+| `mission_id`가 8장 묶음 키 | 프레임·탐지가 어느 명령의 산출인지(`correlation_id`) | 구판 봉투(`1.3`·`device_id`·`+0900`) |
+| 정지 후 촬영·0.6초 settle·한 장씩 | 원본 무가공(좌표 기준 해상도) | 탐지 결과 AI→VZ HTTP 직결 |
+| `/scan` 경계 신호 | 카메라 프리즈는 타임스탬프로 못 잡는다 | AI→로봇 직접 명령 토픽 / HW JSON 번역 토픽 |
+
+**JPEG-on-MQTT(`zoneA/robot/go1-001/frame`)는 시연 임시이고 백엔드 인터페이스가 아니다**(원칙 3 — 영상 픽셀을 업무 메시지에 싣지 않는다). **정식 경로는 홉1 RTP + 홉2 WebSocket 방식 B다.** 우리 브릿지는 `frame`·`scan` 토픽을 **구독하지 않는다** — 구독 패턴이 `+/+/+/{state,status,heartbeat}` 셋뿐이라 배달 자체가 되지 않는다(Phase 1의 `terminal/wl-001/*`이 같은 이유로 격리됐던 선례). 시연 뒤에도 그 토픽을 유지하는 것은 자유이나 **백엔드는 소비하지 않으며 그 프레임은 저장·중계·트윈 어디에도 들어가지 않는다.**
+
+<a id="s8-2"></a>
+
+### 8-2. §10-7 회신 — 권고 ① 수용, 종단까지 native 코덱
+
+**우리는 이렇게 읽었다:** HW는 Go1 5카메라의 H.264(464×400@30, 0.55Mbps/카메라)를 **디코드 없이 RTP로 중계**하는 `go1_relay`(RFC 6184)와 JPEG 경로(`rtp_jpeg`) **양끝을 다 만들어 놓고** 엣지 수신 코덱의 결정을 기다렸다. §10-7 표(지연 0.1ms vs 37ms+디코드, CPU 0.05 vs 0.65코어, 무선 대역 0.55 vs 3.6Mbps)가 근거다.
+
+**답: ①.** 소스별로 native 코덱을 그대로 — 그리고 **엣지에서도 서버에서도 디코드하지 않고 뷰어까지 간다.** 우리 문서(v8 §5-10·`02-media-path.md` §1-2-2)의 *"JPEG로 통일. H.264 폐기"*는 근거 (1)이 *"엣지가 이미 JPEG를 쥐어 재인코딩이 필요하다"*였는데 **그 전제가 틀렸다**(엣지는 AU 재조립만 한다). 이번 Phase에서 그 문서를 정정했다. 뷰어는 JPEG를 `createImageBitmap`으로, H.264를 **WebCodecs**로 디코드한다 — 우리 확인용 뷰어에서 `avc1.42C01E` 디코드·표시를 실측했다.
+
+**규격 — 미디어 헤더** [`media-header.schema.json`](../../contracts/common/media-header.schema.json) (예시 [`examples/media-header-*.json`](../../contracts/common/examples/)):
+
+| 필드 | 필수 | 뜻 | HW 쪽 값 |
+|---|---|---|---|
+| `frame_ref` | ✅ | `frame-reference.schema.json` 그대로(`source_id`·`capture_timestamp`·`sequence_id`, 추가 필드 금지) — **엣지가 부여** | 엣지 노트북이 AU 경계를 확정한 시각·순번 |
+| `encoding` | ✅ | 페이로드 코덱 **선언**. string. 알려진 값 `h264`·`jpeg`는 `$comment` — **enum 아님** | Go1 `h264`, CCTV `jpeg` |
+| `keyframe` | ✅ | 이 AU만으로 디코드를 시작할 수 있는가(IDR). JPEG는 항상 `true` | 아래 「송신기 규격」 |
+| `width`·`height` | ✅ | 원본 해상도. 탐지의 `coord.ref_*`와 같은 값 | `464`·`400` |
+| `codec` | 선택 | RFC 6381 문자열(WebCodecs `codec`). `description` 없음 — Annex-B in-band | `avc1.42C01E`(baseline 3.0 — SPS에서 읽는다) |
+| `correlation_id` | 선택 | 명령 산출물일 때의 상관키. **frame_ref 밖**에 둔다 | 명령으로 연 스트림이면 `command_id` |
+
+**홉2 방식 B 송신기 규격(엣지 → 서버 `/ingest`)** — 엣지 실물이 서면 이것을 만든다. **우리 합성 fixture [`tests/media_publisher.py`](../../tests/media_publisher.py)가 그 참조 구현**이다(`split_annexb`·`nal_type`·`group_access_units`·`make_header`·`publish`).
+
+| 규칙 | 내용 |
+|---|---|
+| 메시지 = AU | WebSocket **바이너리 메시지 하나 = 액세스 유닛 하나**. `[4B big-endian 헤더 길이][JSON 헤더][AU 바이트]` |
+| AU 경계 | SPS(7)·PPS(8)·SEI(6)·AUD(9)는 **뒤따르는 VCL NAL과 한 AU로** 묶는다. 한 AU 안에 VCL이 여럿(슬라이스)이면 같은 프레임 |
+| `keyframe` | **NAL 5(IDR)가 하나라도 있으면 `true`**, 아니면 `false`. IDR에는 SPS/PPS를 **인밴드로**(로봇이 이미 그렇게 낸다 — `go1_relay.py:37`) |
+| `frame_ref` | 엣지가 AU 경계를 확정하는 순간 부여. `sequence_id`는 소스별 단조 증가, **재접속하면 0부터**(뷰어는 세션 경계로 끊는다) |
+| 연결 | `ws://<서버 tailscale IP>:8766/ingest?source_id=<카메라 키>&token=<엣지 토큰>` — **엣지가 클라이언트**로 붙는다(엣지에 인바운드 불필요). 토큰은 별도 경로로 전달. 같은 `source_id`의 두 번째 연결은 4409로 거부 |
+| 송신 측 drop-old | 엣지→서버 링크가 막히면 **엣지도** 서버와 같은 규칙으로 버린다 — 큐가 임계를 넘으면 **다음 IDR까지 GOP째** 버리고 IDR에서 재개. 서버는 뷰어마다 같은 것을 한 번 더 한다 |
+| 상한 | AU 하나 ≤ 8MB(`MK2_MEDIA_MAX_FRAME_BYTES`). 넘으면 그 프레임만 버린다 |
+
+🔴 **AU 경계 판정과 `keyframe` 플래그는 HW 구현에 없다 — 우리가 새로 정하는 규칙이다.** `go1_relay.py:166`은 로봇 웹소켓 청크 하나를 `split_annexb`로 NAL로 자를 뿐 **청크 = AU**라고 믿고, `edge/media_gateway.py`는 RTP 마커로 프레임을 재조립하되 **NAL 타입으로 IDR 여부를 판정하는 코드가 양끝 어디에도 없다.** 위 표의 「AU 경계」·「`keyframe`」이 그 빈자리다 — **홉2 송신기 규격으로 요청한다**([8-10](#s8-10) ①).
+
+**HW가 이미 가진 것이 어디에 쓰이나:** `go1_relay`·`media_gateway`는 **홉1 그대로**(pi7→엣지 RTP). C안(HTTP multipart, `go1_cam_view.py`의 MJPEG 대비 경로)은 우리 `02-media-path.md` §1-3-3의 **폴백 카드**다 — 이번에 구현하지 않았다.
+
+**SDP는 홉1 사안이다 — `.proto`를 앞당기지 않는다.** §10-7 끝의 *"SDP는 말단이 세션 수립 시 명령 회신에 실어 보낸다"*는 pi7↔엣지(홉1) 이야기이고, HW가 `CommandStatus.detail`(`physical_command.proto:56`, 문자열)에 JSON을 넣는 우회를 이미 쓰고 있어(`mission-command.md` §3) 그것으로 충분하다. 홉2는 헤더의 `encoding`·`codec`으로 해결된다. ⚠ **근거를 넓힌다:** `CommandResult.result`(`:62`)뿐 아니라 **`Command.parameters`도 `map<string, double>`**(`:32`)이라 명령에 문자열을 실을 자리가 **애초에 없다.** 그래서 Phase 6의 `.proto` 개정 범위가 넓고(§3 문자열 파라미터·§7-3 `traceparent`·이것), **그 대신 `stream` 하나만 [8-11](#s8-11)의 우회로 먼저 푼다.**
+
+<a id="s8-2b"></a>
+
+### 8-2b. IDR 간격 실측 요청을 철회한다 — 대신 두 가지를 묻는다
+
+우리 지시서 초안은 "IDR 간격을 실측해 달라"고 적었는데 **HW `pi/bench/go1_cam_view.py:38-39`에 실측이 이미 있다** — *"464x400 H.264 baseline, 도착 간격 33.3ms(30fps, p90 34.1 — 버스트 없음), 프레임 평균 2.4KB, 키프레임 약 0.48초 간격"*(pi7, 2026-08-31). 철회한다.
+
+**대신 묻는다:**
+1. **그 IDR 간격(≈0.5초 = GOP 15)이 `HW_*` 환경변수로 조절 가능한가.** 서버 drop-old는 GOP 경계에서만 버리고 IDR에서만 재개하므로, **느린 링크에서 뷰어 프레임률이 0.5초 단위로 끊긴다**(Phase 4 실측: 링크를 500kbit로 조이자 불연속 19개가 전부 IDR 위치). GOP를 줄이면 부드러워지고 대역이 는다 — 조절 손잡이가 있는지가 답이다.
+2. **그 값이 로봇 펌웨어 인코더의 설정에서 오는 것이라면, 말단(pi7)에서 바꿀 수 있는가.** 없으면 그대로 두고 뷰어 쪽에서 감수한다.
+
+⚠ **`go1_cam_view.py`를 「홉3 참조 구현」이라고 부르지 않는다.** 파일 자신이 *"운영 구성요소가 아니다 — 말단에서 영상이 실제로 나오는가를 사람이 확인하기 위한 것"*(`:5`)이라 적었고, 경로가 **나노 → pi7 → 브라우저**라 중앙 서버 구간이 통째로 빠져 있다. drop-old도 GOP 인지 상태기계가 아니라 **`QUEUE_MAX=8` 큐 길이 제한**(`:60`)이고 키프레임 여부를 보지 않는다(복구는 브라우저 `decodeQueueSize>30` 재동기, `:499`). **「기법 참조로 가치가 크다」** — WS 프레이밍·WebCodecs 클라이언트(`prefer-software` `:477-481`)·NTP식 시계 보정·브라우저 결함 5건 수정·**MJPEG 폴백**(`:172-`, WebCodecs 없는 브라우저로 자동 분기 — 단 파이에서 H.264→MJPEG **완전 재인코딩**이라 대가가 크다)이 전부 거기서 나왔고, 우리 확인용 뷰어와 VZ 통지에 그 다섯을 옮겨 적었다.
+
+<a id="s8-3"></a>
+
+### 8-3. §8 회신 — `capture_timestamp`는 ISO 유지, epoch ms는 우리 문서 불일치였다
+
+**답:** 기준은 [`frame-reference.schema.json`](../../contracts/common/frame-reference.schema.json) — `capture_timestamp`는 **ISO date-time 문자열**(콜론 있는 오프셋 + 밀리초 — HW `schema.py:55-60` `iso_now()`와 같은 규칙). **v8 §6-9의 "epoch ms 정수"가 규격 파일과 어긋난 것**이었고, 봉투 `timestamp`와 frame_ref가 같은 표기를 쓰는 것이 의도다. `02-media-path.md` §1-6-2 예시(`1735120000123`)는 이번 Phase에서 정정했고(회신 전에 커밋됨), 같은 서술이 있던 우리 plan·Phase 1 지시서도 고쳤다. v8 docx §6-9는 저장소 밖이라 따로 정정한다.
+
+**HW에 부탁:** **SDD §5.5.2**(*"`capture_timestamp`는 epoch 밀리초 정수"*, `SDD.md:545`)와 **SRS §9.7 「해소된 미결」 O-8 행**(`SRS.md:678`)을 ISO로 맞춰 달라. HW 코드 변경은 없다 — HW는 frame_ref를 발급하지 않는다(§10-4 머리말).
+
+**`capture_timestamp`의 뜻(규격 설명에 적었다):** **엣지가 프레임 경계(AU)를 확정한 시각**이다. 촬영 시각이 아니고, 말단 내부 지연(카메라→인코더→pi7→RTP→엣지 재조립)이 포함되며, 보정되지 않았다. 크기 근거로만 — HW `go1_cam_view.py`의 뷰어 지연 실측(순정 0.3~0.4초)이 그 상한의 감을 준다. 규격값이 아니다.
+
+**사실 질문(답이 있으면 Phase 7 보정 설계가 사라진다):** **imageai 웹소켓 프레임(로봇 → pi7)에 Go1이 찍은 촬영 시각이 실려 있는가?** 있으면 엣지가 그것을 `capture_timestamp`로 옮겨 편향이 사라지고, 없으면 소스별 보정은 Phase 7(트윈)에서 다룬다.
+
+<a id="s8-4"></a>
+
+### 8-4. §10-4 회신 — ㉰ 정합 등급을 규격에 둔다
+
+§10-4는 하위 질문이 둘이다.
+
+**ⓐ 선택지 ①②③ → ㉰(③ "백엔드가 정한 방식").** 탐지 메시지에 **메시지 단위 `alignment`**(string, 알려진 값 `frame`·`unaligned`는 `$comment` — enum 아님)를 둔다. **뷰어 규칙은 fail-safe**: `alignment=="frame"`이고 `frame_ref`가 있을 때만 프레임 정합, **그 외(부재·모르는 값 포함) 전부 unaligned**로 그린다(시각 근사 없이 "최신 프레임 위에 참고 표시"). ①의 "시각으로 근사 정합"은 쓰지 않는다 — 온디바이스 프레임은 엣지를 거치지 않아 `capture_timestamp`의 시각 축이 다르고, 근사 정합이 틀리면 **틀린 박스가 맞는 것처럼** 보인다. ②(오버레이 제외)는 ㉰의 부분집합이다 — `alignment`를 안 실으면 그렇게 된다. 온디바이스 결과의 `origin`은 `{tier:"device", kind:"safety_minimal"}`([`detections.schema.json`](../../contracts/common/detections.schema.json) 초안). **온디바이스 실물이 없어 이번에 검증하지 않았다** — HW 자신이 *"구현 전에 규약만 정하면 되는 사안"*이라 적은 그대로다.
+
+**ⓑ "BE-C-03·VZ-I-07이 「HW가 frame_ref를 쓴다」를 전제하는데 v8 엣지 단일 발급과 어긋난다 — 어느 쪽으로 정리하나."** **두 요구사항의 문면을 「엣지가 발급한 frame_ref를 그대로 실어 나른다」로 읽는다.** 말단은 발급하지 않는다 — **하드웨어 쪽 조치는 없다.** 우리 추적표 BE-C-03에 그렇게 적었다. ⚠ SRS §9.10의 `rb-01_ondevice` 제안은 §10-4 머리말(*"하드웨어는 v8을 그대로 따른다"*)로 이미 철회된 것이므로 충돌로 다루지 않는다.
+
+<a id="s8-5"></a>
+
+### 8-5. §10-5 회신 — q 우선. 해상도 변경은 스트림 재개 사건
+
+**답: ① q 상향이 기본, ② 해상도 하향은 마지막 수단, ③ 프레임 간 압축 코덱 전환은 로봇에서 이미 답(H.264 native — 8-2).** 근거는 **HW 자신의 실측**(1080p q5→12: 9.7→5.5Mbps, CPU 불변 — `SRS.md:769`) + `go1_cam_view.py` 실측(464×400 H.264 프레임 평균 2.4KB). `HW_MEDIA_QUALITY` 선반영이 곧 답이다.
+
+**해상도 변경이 "스트림 재개 사건"인 이유 셋:** ① 미디어 헤더 `width`/`height`와 탐지 `coord.ref_width/ref_height`의 기준이 바뀌어 **재선언**해야 한다 ② H.264면 SPS가 바뀌어 **새 IDR + 뷰어 디코더 재구성**이 필요하다 ③ AI가 **원본 해상도를 기대**한다(자르기·리사이즈·보정 금지, 탐지 튜닝이 464×400에 묶임 — 2026-09-17 대조 §4-2). 그래서 해상도는 값이 아니라 **세션 경계**다.
+
+**대역 상한은 우리가 정하지 않는다** — 현장 회선 미실측이고 우리 `02-media-path.md` §3-2 「평면 간 QoS」는 미결 그대로다. Phase 4 실측은 연구실 링크를 `tc`로 500kbit까지 조인 한 조건뿐이다(그 조건에서 서버 drop-old가 IDR 경계로 재개하는 것까지 확인).
+
+<a id="s8-6"></a>
+
+### 8-6. §10-6 회신 — 해석이 맞다. 소스가 정한다
+
+**답: 맞다.** v8의 *"pull 기본"*은 이번 Phase에서 **"소스 종류별 정적 정책"**으로 손질했다(`02-media-path.md` §1-2-3) — 로봇은 push(명령을 받고 말단이 송출), 표준 IP 카메라는 pull(엣지가 RTSP 접속). **런타임 협상이 아니다** — HW가 `config.py`의 `MEDIA_SENDER` 한 줄로 정하는 그대로다. HW가 쓴 *"표준 IP 카메라만 pull(RTSP)"*을 **그대로 승인한다.**
+
+⚠ **홉1의 push/pull과 홉2의 연결 방향은 다른 층이다.** 홉2(엣지→서버)는 **항상 엣지가 클라이언트**로 서버 `/ingest`에 붙는다 — 엣지에 인바운드를 열 필요가 없고, 서버는 엣지 주소를 몰라도 된다. 개폐 명령(HW-R-07 `stream`)의 **우리 쪽 배선은 Phase 6**이다 — 그리고 그 명령이 지금 규약 경로로 호출되지 않는다는 것이 [8-11](#s8-11)이다.
+
+<a id="s8-7"></a>
+
+### 8-7. #14~#18 — 시점 배정
+
+| # | 안건 | 시점 | 답이 없으면 |
+|---|---|---|---|
+| **14** | 트윈 스키마 소유(필드·타입·null·다중 소스 병합) | **Phase 7(트윈).** ⚠ `BACKEND_AGENDA:519`가 *"14·15·16이 회신 순서상 먼저다"*라 했는데 이번에 #15만 답한다 — **이유:** 트윈 형식이 좌표 규약 ENU 이행(`ARCHITECTURE_ALIGNMENT` §2-4)·객체 핸드오프(DT-06)와 한 묶음이라 그 둘 없이 필드를 정하면 두 번 정하게 된다. **다만 #14의 「다중 소스 병합 규칙」은 #15 적재에도 걸리므로, 이번 4b는 병합하지 않고 `session_id` 하나에 한 행·매니페스트 원본 통째 보존으로 간다** — 병합 규칙이 정해지면 그때 파생한다 | 지금 HW 기본값(모르면 null — §1-3 결측 규칙)이 우리 규격과 일치 |
+| **15** | 대용량 산출물 저장 | **이번 — [8-8](#s8-8)** | 파이 로컬 적재 |
+| **16** | 로봇 상태의 서버 경유(→트윈) | **경로는 이미 있다** — `…/state` → 브릿지 → Kafka → WS 게이트웨이(Phase 1~3), 상태가 TSDB에 쌓이고 `/state`로 push된다. **그 경로가 Unity 직결 UDP(15101/15201)를 대체하는가 — 대체한다. 전환 시점은 Phase 7**(트윈 형식 #14와 함께; 그전까지 직결 유지가 맞다). 트윈 형식이 정해지기 전에 직결을 걷으면 화면이 빈다 | Unity 직결 유지(HW가 적어 둔 대로) |
+| **17** | Grafana에서의 명령 트리거 API | **Phase 6(명령).** 원칙 2 — 명령은 관측 평면에 싣지 않는다. HW 투트랙 결론(`ARCHITECTURE_ALIGNMENT` §5-2 *"관측 경로로 제어하지 않는다"*)과 같다. 관측 UI가 부를 명령 API는 백엔드 명령 경로(BE-A-01·인증 BE-Q-04)에 붙는다 | 관측은 보기 전용 |
+| **18** | 엣지 2개 이상 시 구역 소유권 이관의 설계 주체 | **백엔드**(BE-C-02 Zone). **Phase 5(가용성)에서 구역 판정, Phase 7(핸드오프 DT-06)에서 이관.** 캡스톤1(엣지 1개)에서는 문제 없음 — HW가 적은 대로 | 문제 없음 |
+
+<a id="s8-8"></a>
+
+### 8-8. #15 회신 — 촬영본 저장소: 파일시스템 + 단순 HTTP PUT, 🔴 매니페스트를 먼저 따로
+
+**우리는 이렇게 읽었다:** HW 업로더 `capture_upload.py:118-125`는 S3 API가 아니라 **단순 HTTP PUT 한 방**이다(서명·presign 없음, `Content-Type: application/gzip`, 2xx면 성공). `ARCHITECTURE_ALIGNMENT` §3-4가 물은 셋 — 저장소 종류·업로드 방식 / 업로드 시점 / 보존 기간·용량 상한.
+
+**답:**
+
+| 물음 | 답 |
+|---|---|
+| 저장소 종류·업로드 방식 | **파일시스템 + 작은 HTTP PUT 수신단**(백엔드 `backend/gateway/capture.py`, 별도 프로세스). **S3 호환 저장소를 새로 들이지 않는다**(원칙 4 — 새 저장 제품은 근거가 있을 때만). HW 업로더의 PUT을 **그대로** 받는다 — `Authorization`·서명 없음, 토큰은 URL 쿼리 또는 헤더 |
+| 주소 | `http://<서버 tailscale IP>:8767/capture/`(자리표시자 — 실주소·토큰은 **별도 경로로 전달**). ufw는 pi7 `/32`(tailnet 주소 기준으로 열어 두었다). **✅ 2026-09-19 개통됨** — 합성 업로더로 저장·멱등·거부까지 실측했다(§8-12). 실물 첫 업로드는 HW 편한 때에 |
+| 업로드 시점 | **임무 종료 시 일괄**(§3-4 세 선택지 중). 실시간 스트리밍은 미디어 경로(8-2)이고 촬영본과 섞지 않는다 |
+| 보존 | **용량 상한(기본 100GB) + 오래된 세션부터 삭제.** 삭제된 세션은 MySQL 행에 `purged_at`으로 남는다 |
+| 메타 | MySQL `media_capture` 한 행 = 세션 하나(매니페스트 **원본 JSON 통째** 보존 + 주요 칼럼). `session_id` UNIQUE — 같은 세션을 다시 올리면 **멱등**(2xx, 덮어쓰지 않음) |
+
+🔴 **매니페스트 규약이 v1(2026-09-17 대조 시점의 안)에서 바뀌었다 — 아카이브 안을 뒤지지 않고 매니페스트를 먼저 따로 받는다.**
+
+| v1 | **v2(확정)** |
+|---|---|
+| tar.gz 하나 PUT, 서버가 아카이브 안 `manifest.json`을 꺼내 읽는다 | **PUT 두 번** — ① `PUT <base>/<세션>.manifest.json`(수 KB) → 2xx → ② `PUT <base>/<세션>.tar.gz` |
+
+**이유:** `pack()`이 `tarfile`의 `sorted(listdir())` 순서로 묶어 매니페스트가 **수만 장의 JPEG 뒤**에 오고, gzip은 seek이 안 되므로 **0.7GB를 통째로 풀어야 한 줄을 읽는다.** 게다가 `json.dump`가 `pack()` **뒤**(`capture_upload.py:187-189`)라 아카이브 안에 들어가는 것은 *"그 시점 디렉터리에 있던 매니페스트"*다 — `go1_capture_teleop` 세션의 첫 실행이면 **아예 없고**, 재실행이면 직전 것이다. ⚠ *"`json.dump`를 `pack()` 앞으로 옮겨 달라"*는 요청은 **철회한다** — `man["frames"]["uri"]`(`:179`)가 업로드 성공 **뒤**에 채워지므로 앞으로만 옮기면 **HW 로컬 매니페스트에 업로드 주소가 영영 안 남는다**(옮기려면 dump가 두 번이어야 한다). **별도 PUT이 양쪽에 가장 싸다.**
+
+**최종 저장 위치는 URL이 아니라 매니페스트가 정한다.** `http_put`이 `base_url + "/" + os.path.basename(path)`(`:120`)라 URL에는 `{세션디렉터리명}.tar.gz`만 실리고 **`entity_id`가 한 번도 실리지 않는다** — `session_id`는 `"{entity_id}/{name}"`(`:71`)인데 그 앞칸이 URL에 없어서, **로봇 2대가 같은 분에 세션을 시작하면 파일명이 같아 서로 덮어쓴다.** 그래서 서버는 ① 아카이브를 임시 파일로 받고 → ② **앞서 받은 매니페스트의 `source_id`·`session_id`로** 최종 경로 `<저장 루트>/<source_id>/<세션 마지막 칸>.tar.gz`를 정해 → ③ 원자적 rename 한다. 경로 순회 방어(`..`·`/`·절대경로·널바이트 거부, `session_id`의 첫 슬래시 하나만 허용)도 URL이 아니라 매니페스트 값에 건다.
+
+**`frame_ref_base`는 채우지 않는다**(`:102` *"엣지가 디코드 시점에 발급"* — 촬영본은 엣지를 거치지 않으므로 발급 주체가 없다). 프레임 n의 시각은 매니페스트의 `t0_unix + (n-1)×interval_s`(`:91-93`) 그대로 쓴다. 매니페스트에 선택 필드 **`correlation_id`** 한 칸(어느 명령·임무의 촬영인지)을 받아 주면 저장한다 — 없으면 null.
+
+**그전까지 HW 기본값(파이 로컬 적재)이 맞다.** 그리고 **촬영본이 세 곳에 쌓인다**(pi 로컬 · VZ `mission-history/images/robot/` · 우리 4b) — AI 저장본까지 포함한 중복 정리는 **Phase 5/6 안건**으로 올렸다(plan Phase 6 이월).
+
+<a id="s8-9"></a>
+
+### 8-9. 인식 안내 — HW 조치 없음이 대부분, ⑥·⑦은 확인 요청
+
+| # | 무엇 | 내용 |
+|---|---|---|
+| ① | **서버 Collector는 Phase 3부터 있다**(Gateway). `HW_OTEL_ENDPOINT`의 값은 구성에 따라 다르다 | 기대 구성은 **말단 → 엣지 Agent → 서버**이고 그 자리는 **엣지 Agent 주소**다. 엣지 실물이 없으므로 **잠정은 비워 둔다**(발신 off = 노드 정상 — `hw-node.env.example:18-19` 문구 그대로). **말단이 서버 4316에 직접 보내는 구성을 택한다면** 주소는 `<서버 tailscale IP>:4316`이고 ufw `/32`에 그 노드를 넣어야 하니 **알려 달라.** ⚠ 그 수신단은 **터널 안 평문이며 인증은 ufw `/32`로 대신한다.** TLS·토큰은 Phase 6(BE-Q-04) — 회신에 없는 인증을 있다고 적지 않는다(Phase 4에서 4316을 Tailscale에 열어 컴퓨터 임시 엣지로 실측한 뒤 **다시 닫아 둔 상태**다 — 실 엣지가 서면 연다) |
+| ② | **엣지↔서버는 이미 Kafka다**(BE-T-02) — HW가 별도 상향 경로를 만들 필요 없다 | `ARCHITECTURE_ALIGNMENT` §4-3의 Kafka 전환 조건 *"① 구독자가 3개 이상 ② 재처리(리플레이) 필요 ③ 엣지가 2개 이상"*은 **말단↔엣지(홉1)** 이야기이고 우리도 그 구간은 MQTT다. **엣지↔서버(홉2)는 Phase 1부터 Kafka**이며, Phase 4에서 원격 엣지용 **EDGE 리스너(9095, Tailscale)**로 컴퓨터에서 produce/consume 왕복까지 확인했다(실 엣지가 서면 주소만 바꿔 되살린다). 조건 셋을 인용해 답하는 이유는 "지금은 MQTT로 충분"만 인용하면 근거가 약해서다 |
+| ③ | **BE-T-05는 MAC을 라우팅 키로 쓰지 않는다** | 라우팅 근거는 논리 식별자(`node_id`·`zone_id`·`source_id`)와 Tailscale 주소다. MAC·IP는 **도달성 정보**이지 정체성이 아니다(BE-C-02, `contracts/common/README.md` 「식별자 원칙」). ⚠ **한 줄이 아니라 세 곳이다** — `pi/common/schema.py:10-11`(모듈 독스트링 *"BE-T-05의 매핑 근거로만 싣는다"*) · `:72-73`(`_mac()` *"BE-T-05가 MAC↔구역 매핑을 라우팅 근거로 쓰므로"*) · `:178-179`(`registration()`) + `BACKEND_AGENDA:475` + `SRS.md:485`(BE-T-05 행). **그 전제가 `_mac()` 폴백 로직 전체(물리 인터페이스 탐색·`HW_MAC` 강제)를 정당화하고 있으므로 문구를 고칠 때 로직도 함께 보라** — MAC은 등록 메시지의 **참고 필드**로 계속 받는다(빈 값 가드는 유지) |
+| ④ | 로봇 지표 6종(배터리·온도·RSSI 등)의 **라벨 기준** | 우리 A/C층 규칙: `robot_id`(=`source_id`)·`zone_id`는 **C층(장치별 업무 값) 라벨로 허용**, 시각·`session_id`·`sequence_id`·`internal_seq`·`frame_ref`·`command_id`·`correlation_id`·`mission_id`는 **어느 층에도 금지**(`contracts/common/README.md` 금지 표 — Phase 4에서 8종 확장). HW `otel_metrics.py`의 `hw.*` 이름·`service.name=hw-{type}-node`는 그대로 맞다 |
+| ⑤ | **JSON→protobuf 번역 토픽을 열지 마라**(`detection-protocol_0914.md` §4) | 명령 번역은 백엔드 몫(BE-A-01·원칙 13 — 브라우저·AI는 게이트웨이만 통한다). AI가 `turn_deg`·`forward_distance_cm`를 로봇에 직접 보내는 토픽도 같은 이유로 **백엔드 명령 경로**로 정리한다 — Phase 6 회신 |
+| ⑥ | 🔴 **`edge/availability.py`가 Prometheus 예약 지표 `up`을 그대로 발행한다**(`:161-171`, `hw_*_up`이 아니다) | `up`은 Prometheus가 **scrape마다 자동 생성**하는 지표라, 우리 `edge_federate` 잡이 엣지 Prometheus를 긁으면 **두 `up`이 부딪혀 엣지가 죽었는데 살아 있는 것으로 보일 수 있다**(우리는 `match[]`에 `up`을 넣지 않아 지금은 안 긁지만, 엣지 자체 Prometheus 안에서는 이미 겹친다). **HW 자신의 `SRS.md` §9.8이 "②는 `up`이 아니라 파생 지표다"라고 적어 두었다** — `hw_entity_up`(라벨 `entity_id`·`zone_id`·`state`)으로 **개명 요청** |
+| ⑦ | **매니페스트 JSON이 깨지면 재생성되어 스캔 세션의 `shots[]` 방위 대응표가 소실된다**(`capture_upload.py:148-155`) | `json.load` 실패 → `man = None` → `build_manifest()`가 `kind: capture_session`으로 새로 만든다 — **`go1_scan_capture` 세션의 8방향 `shots[]`이 사라진다.** `kind` 보존 규율(`:144-145` 주석)의 구멍. 깨진 매니페스트는 재생성하지 말고 **업로드를 거부**하는 편이 안전하다(정보 — HW 판단) |
+
+<a id="s8-10"></a>
+
+### 8-10. HW가 할 일 (§8 추가분 — 번호는 §7-8의 14 다음부터)
+
+15. 🔴 **홉2 방식 B 송신기**(엣지 실물이 서면) — [8-2](#s8-2)의 「송신기 규격」 표 + **AU 경계·`keyframe` 판정**. `go1_cam_view.py`의 WS 중계부(허브·WebCodecs 클라이언트)를 재사용할 수 있는지 함께 알려 달라. 참조 구현은 우리 `tests/media_publisher.py`.
+16. 🔴 **`HW_MEDIA_SENDER=go1_relay`로 전환**([8-2](#s8-2)) — `config.py:139` 기본값이 `rtp_jpeg`다. 한 줄.
+17. 🟡 **imageai 프레임의 촬영 시각 유무** 답([8-3](#s8-3) 사실 질문).
+18. 🟡 **`source_id` 명명 규약 — `<entity_id>_<position>`**(예 `go1-001_front`). 미디어 헤더의 `frame_ref.source_id`는 **카메라 단위**이고, 봉투의 `source_id`(`go1-001`, 개체)와 **같은 식별 체계·다른 값**이다. `capture_upload.py:80-81`의 `position` 어휘(`front`·`chin`·`left`·`right`·`belly`)를 그대로 쓴다.
+19. 🔴 **#15 — 매니페스트를 별도 PUT으로 먼저**([8-8](#s8-8)) + 선택 **`correlation_id` 한 칸** + **`started_at`에 오프셋을 붙여 달라** — before/after:
+    ```python
+    # before  (pi/bench/go1_capture_teleop.py:250 · go1_scan_capture.py:268)
+    "started_at_iso": time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime(started))
+    # after
+    "started_at_iso": datetime.fromtimestamp(started, tz=timezone.utc).astimezone().isoformat(timespec="milliseconds")
+    ```
+    지금 값은 **오프셋도 밀리초도 없는 naive 로컬 시각**이라 서버가 UTC로 변환할 수 없고, **HW 자신의 `pi/common/schema.py:55-60` 규칙(콜론 오프셋 + 밀리초)을 촬영 경로만 위반**한다. 서버는 오프셋이 없으면 `started_at`을 `NULL`로 두고 `t0_unix`로 대신한다(기본값).
+20. 🟡 **업로드 URL에 `entity_id` 포함**(`<base>/<entity_id>/<세션>.tar.gz`) — 지금은 파일명만 실려(`capture_upload.py:120`) 로봇 2대가 같은 분에 시작하면 **충돌한다.** 있으면 서버가 수신 **전에** 판정할 수 있다(없어도 매니페스트로 판정하므로 동작은 한다 — [8-8](#s8-8)).
+21. 🔴 **`up` 지표 개명**(`hw_entity_up`, [8-9](#s8-9) ⑥).
+22. 🔴 **`stream` → `stream_start`/`stream_stop`**([8-11](#s8-11)).
+23. ⚪ **최신 push** — pi7 작업 트리가 브랜치보다 앞선다(`turn`·`sdk_*`·`scan_hold/continue`·`forward_m=0`). 우리는 브랜치를 HW 실체로 믿지 않는다.
+24. ⚪ (문서) SDD §5.5.2·SRS §9.7 O-8의 "epoch ms" → ISO([8-3](#s8-3)). (권고) `otel_metrics.py:17` 60초 → 15초는 §7-6 그대로.
+
+**시점:** 15·16·22는 **엣지 실물이 서고 홉2를 붙일 때**(그전엔 백엔드가 합성 fixture로 돈다). 19·20은 **첫 실물 업로드 전**(입구는 열려 있다 — 19 없이 올리면 `started_at`이 NULL로 들어갈 뿐 거부되지는 않는다). 나머지는 기한 없음. **적용하셨으면 한 줄만 알려 달라.**
+
+<a id="s8-11"></a>
+
+### 8-11. 🔴 신설 — `stream` 명령이 규약 경로로 호출되지 않는다
+
+**사실:** `Command.parameters`가 `map<string, double>`(`physical_command.proto:32`)인데 `robot_node.py::validate()`(`:196-199`)가 `params.get("action")`이 문자열 `"start"`/`"stop"`이길 요구한다 → 규약 경로로 온 `stream`은 **ACK 이전에 100% `INVALID_ARGUMENT`(`invalid_stream_action`)로 거부**된다. 그런데 `stream`이 `ACTIONS`·`PHYSICAL_ACTIONS`(`:575-577`)에 등록돼 **Capability로는 「지원한다」고 선언**된다. HW `README.md`의 *"영상 온디맨드 6.8Mbps ✅"*는 **2026-09-03에 폐기된 레거시 JSON `cmd` 토픽**으로 한 검증이다(`HW-interface/README.md` §4).
+
+**왜 지금 문제인가:** 이것이 **길 A(엣지가 붙어 계속 보내는 상시 송출 프로파일 — Phase 4 결정 10)를 실제 로봇으로 켜는 것**과 **Phase 6의 온디맨드 개폐 배선**을 **둘 다 막는다.** 우리 §5-1 표의 §3 행에 함정 자체는 적혀 있었으나 예시가 `set_mode`·`levee`뿐이라 `stream`이 같은 함정이라는 것을 아무도 연결하지 않았다 — 이번에 §5-1 §3 행을 고쳤다.
+
+**요청:** `.proto` 개정 없이 **action 이름을 `stream_start` / `stream_stop`으로 쪼갠다** — HW가 `mission-command.md`(`:59-62` *"임무 종류는 문자열 파라미터가 아니라 action 이름 자체를 어휘로"*)에서 이미 쓰는 우회법이다. `robot_node.py:333`의 같은 원칙.
+
+⚠ **무비용이 아니다 — 둘을 같이 옮겨야 한다:**
+- ⓐ `dest_host`·`session_id`(`:544-547`)도 문자열이라 **명령별 목적지·세션 지정 능력을 잃는다** — 폴백(`config.MEDIA_DEST_HOST`, `f"s-{int(time.time())}"`)이 있으니 동작은 하지만, 세션 이름을 백엔드가 정해 줄 수 없다(Phase 6에서 `correlation_id`로 대신한다).
+- ⓑ `validate()`의 **중복 start 가드**(`:194-195` *"이미 열린 스트림에 start를 또 보내면 두 번째 ffmpeg가 같은 포트로 붙어 엣지가 두 스트림을 섞어 받는다"* → `ALREADY_EXISTS`)를 **`stream_start`로 함께 옮겨 써야** 한다.
+
+**답이 없으면:** 온디맨드 개폐는 Phase 6에서 `.proto` 개정(문자열 파라미터)까지 기다린다 — 그때까지 실물 로봇 영상은 HW가 손으로 `stream`을 켜는 방식으로만 홉1이 열린다.
+
+### 8-12. 이 회신의 근거 (실측)
+
+- **서버 pytest 256건 전건 통과**(2026-09-19, 미디어 관통 뒤) — 미디어 규격 17(`test_contract_media.py`, 음성 4) · 프레이밍 12(`test_media_frame.py`, 음성 5) · drop-old 18(`test_media_dropold.py`) · 서버 중계 12(`test_media_relay.py` — 토큰 4401 음성 2 · 불량 헤더 미전달 · 상한 초과 연결 유지 · 중복 엣지 4409 · 느린 뷰어 IDR 재개 · `/state` 무영향 2 · 지표) · 라벨 13. 되돌린 뒤 244 + 12 skip(엣지 입구 닫힘이 정상).
+- **컴퓨터 임시 엣지 실측(2026-09-19):** Tailscale 직접 경로 2ms/22ms · 미디어(8766)·Kafka EDGE(9095)·관측(4316 + 페더레이션)이 **한 터널을 동시에 관통** · 브라우저 2954장 gaps 0, 첫 프레임 keyframe, WebCodecs `avc1.42C01E` 표시 · 세션 전체 3836장 드롭 0 · **링크를 500kbit로 조이자** 송신 745 → 수신 538, 드롭 207·GOP 절단 20, **불연속 19개 전부 IDR에서 재개**, IDR 50/50 전달, 바이트 동일, 지연 p90 2.34s(= 서버 큐 + `write_limit` + 커널 `sndbuf`를 링크율로 나눈 값 — 서버 큐 몫은 ≈92ms).
+- **검증하지 않은 것(정직하게):** 실물 로봇 영상 0장 · 실물 엣지 노트북 없음 · 온디바이스 탐지 없음 · 현장 회선·DERP 경유 · VZ 뷰어 미접속 · 뷰어 **앱**이 느릴 때(링크는 빠른데)는 서버가 지연을 바운드하지 못한다(뷰어 수신 버퍼가 삼킨다 — 뷰어가 자기 큐를 관리해야 한다, VZ 통지에 적었다).
+- 합성 fixture: `tests/fixtures/synthetic_464x400.h264`(ffmpeg testsrc2, baseline, GOP 15, AU 120·IDR 8) + JPEG 3장 — **HW 실측(464×400, IDR 0.48초)에 맞춘 값**이다.
+- **4b 촬영본 저장소 실측(2026-09-19, 서버 유닛 8767):** 합성 업로더(`tests/capture_uploader.py` — `capture_upload.py` 모양, naive `started_at`·`t0_unix`·`frame_ref_base: null`)로 `capture_session` 6장 → `201 stored`(126,839B = 행 `archive_bytes`), 같은 세션 재전송 → `200 already_stored`(행 1·파일 유지), `scan_capture_session` 8장 → `kind` 보존·`shots[]` 원본 유지·`started_at NULL`, 매니페스트 없는 아카이브 → `409`, 잘못된 토큰 → `401`(파일·행 없음). pytest 28건.

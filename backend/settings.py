@@ -61,6 +61,17 @@
 | `MK2_MEDIA_WRITE_LIMIT` | `8192` | `websockets` 전송 버퍼 상한(뷰어 `/media` 소켓). 이 값이 곧 `buffered` 회계에서 빠지는 바이트 |
 | `MK2_MEDIA_SNDBUF` | `65536` (Linux 실효 128KB — 커널이 2배로 잡는다) | 뷰어 `/media` 소켓의 **커널 송신 버퍼 상한**(`SO_SNDBUF`). `0`이면 커널 자동조정. 2026-09-19 사용자 결정 A — 자동조정은 loopback MSS 64KB 탓에 cwnd 10만으로 ~1.4MB(상한 4MB)까지 커져 링크가 멈춰도 우리 회계 밖에 수십 초분을 쌓는다(서버 실측: H.264 5초 정지분·JPEG 4초 정지분이 드롭 0). 지연 바운드 = **`T_drop + write_limit + sndbuf`** |
 
+촬영본 저장소(Phase 4 4b — HW #15). 별도 프로세스 `backend/gateway/capture.py`(systemd `mk2-capture`)가 **HTTP PUT 두 번**
+(`<세션>.manifest.json` → `<세션>.tar.gz`)을 받아 파일시스템 + MySQL `media_capture` 한 행으로 놓는다.
+
+| 환경변수 | 기본값 | 누가 쓰나 |
+|---|---|---|
+| `MK2_CAPTURE_PORT` / `MK2_CAPTURE_HOST` | `8767` / `127.0.0.1` | PUT 입구. **포트 `0`이면 열지 않는다.** 서버는 `<서버 tailscale IP>`(단일 주소, ufw pi7 `/32`) |
+| `MK2_CAPTURE_TOKEN` | **없음** | PUT 토큰(URL 쿼리 `token=` 또는 헤더 `X-MK2-Token`). `MK2_WS_TOKEN`과 같은 규칙 — loopback 이 아닌데 비어 있으면 기동 시 죽는다 |
+| `MK2_CAPTURE_DIR` | `media_capture`(**실행 디렉터리 기준**, gitignore) | 저장 루트. 서버는 `.env`로 저장소 **밖**의 절대 경로를 준다. `<루트>/<source_id>/<세션>.tar.gz` + `.incoming/`(임시·매니페스트 대기) |
+| `MK2_CAPTURE_MAX_BYTES` | `107374182400`(100GB) | 보존 상한(아카이브 합계). 초과분은 **오래된 세션부터** 고른다 — Phase 4는 `--retention-dry-run` 선정까지만 |
+| `MK2_CAPTURE_URL` | `http://127.0.0.1:8767/capture`(`MK2_CAPTURE_TOKEN`이 있으면 `?token=…`) | 합성 업로더·tests 가 붙을 base URL |
+
 **토큰은 영숫자만**(특수문자 금지 — `.env`를 읽는 파서가 셋이고 인용부호 규칙이 다르다).
 
 **세션 타임존을 접속 시 명시하는 이유:** MySQL 은 `system_tz=KST` 이고 컨테이너 `TZ` 설정에
@@ -279,6 +290,39 @@ def media_sndbuf() -> int:
     처리량 상한 = sndbuf ÷ RTT — 실효 128KB / 72ms(DERP 최악) ≈ 1.8MB/s per 뷰어로 JPEG 375KB/s 를 넉넉히 넘는다.
     """
     return int(os.environ.get("MK2_MEDIA_SNDBUF", "65536"))
+
+
+# ── 촬영본 저장소 — 4b (Phase 4 단계 10, HW #15) ────────────────────────────
+
+
+def capture_port() -> int:
+    """PUT 입구 포트. **0 이면 열지 않는다.**"""
+    return int(os.environ.get("MK2_CAPTURE_PORT", "8767"))
+
+
+def capture_host() -> str:
+    """PUT 입구 바인딩(단일 주소). 기본 loopback, 서버는 `<서버 tailscale IP>`."""
+    return os.environ.get("MK2_CAPTURE_HOST", "127.0.0.1").strip() or "127.0.0.1"
+
+
+def capture_token() -> str:
+    return os.environ.get("MK2_CAPTURE_TOKEN", "").strip()
+
+
+def capture_dir() -> Path:
+    """저장 루트. 기본은 실행 디렉터리의 `media_capture`(gitignore) — 서버는 `.env`로 저장소 밖을 가리킨다."""
+    return Path(os.environ.get("MK2_CAPTURE_DIR", "media_capture")).expanduser()
+
+
+def capture_max_bytes() -> int:
+    """보존 상한(아카이브 합계). 근거 0.7GB/h × 약 143h, 공용 단일 볼륨의 4%."""
+    return int(os.environ.get("MK2_CAPTURE_MAX_BYTES", str(100 * 1024 ** 3)))
+
+
+def capture_url() -> str:
+    """합성 업로더·tests 가 PUT 할 base URL(`…/capture`). 파일명은 호출부가 뒤에 붙인다."""
+    base = os.environ.get("MK2_CAPTURE_URL") or "http://127.0.0.1:{}/capture".format(capture_port() or 8767)
+    return _with_token(base, capture_token())
 
 
 def quarantine_path() -> Path:

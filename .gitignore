@@ -66,6 +66,8 @@ backend/ingest/quarantine.jsonl
 backend/storage/telemetry_sink.jsonl
 quarantine*.jsonl
 telemetry_sink*.jsonl
+# Phase 4 4b 촬영본 저장소 — MK2_CAPTURE_DIR 기본값(실행 디렉터리 기준). 서버는 .env 로 저장소 밖을 가리킨다.
+media_capture/
 
 # ─────────────────────────────────────────────────────────────
 # 로컬 임시/로그

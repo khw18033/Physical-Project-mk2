@@ -268,7 +268,7 @@ allow_structured_metadata: false   ← 파일에 명시. 주석 사유: "v11 스
 | 엣지 실물 | **철수됨**(`EDGE_SETUP.md` §6, 2026-08-31). K3s 정지, pi7은 원래 클러스터로 복귀 |
 | 증강 분석 | **돌고 있지 않다** — 이미지 미빌드(매니페스트에 digest 자리표시자), K3s 제어평면 철수 |
 | 서버 Tailscale | **미설치**(`which tailscale` 빈손). `prometheus.yml`의 비활성 `k8s-nodes` 잡 주석이 *"서버에 tailscale 없음"*이라 적은 것과 일치 |
-| 컴퓨터 | 공인 `203.230.104.168`(공유기) · Wi-Fi 사설 `192.168.50.203` · **Docker 없음** · venv `C:\Users\asdfa\physical mk2` |
+| 컴퓨터 | 공인 `<컴퓨터 공인 IP>`(공유기) · Wi-Fi 사설 `<컴퓨터 사설 IP>` · **Docker 없음** · venv `C:\Users\asdfa\physical mk2` |
 | 서버 sshd | `gatewayports no` · `allowtcpforwarding yes` — **읽기만 했고 변경하지 않았다** |
 
 

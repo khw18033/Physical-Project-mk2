@@ -1,7 +1,7 @@
 # 작업 지시서 — Phase 4 미디어 경로
 
-> 저장 위치: `docs/be/tasks/작업지시_phase4_미디어경로.md`
-> 구현이 끝나면 `docs/be/tasks/_archive/`로 옮긴다(일회용 인수인계 문서).
+> 저장 위치: `docs/be/tasks/작업지시_phase4_미디어경로.md` — 끝난 뒤에도 제자리(일회용 인수인계 문서, 파일 이름으로 구별).
+> ✅ **2026-09-19 Phase 4 완료.** 결과는 `reports/2026-09-19_0600_phase4_미디어경로.md`. 아래 본문의 실주소는 자리표시자로 바꿨다(제약 11).
 
 ---
 
@@ -230,7 +230,7 @@
 | Kafka 클라이언트 | `[전사]` | **백엔드 3개뿐**(host 프로세스, `settings.kafka_bootstrap()` 기본 `localhost:9092`). `INTERNAL`을 쓰는 클라이언트 **0**. ⚠ compose 주석 232-233이 **사실과 반대**(단계 6-b) |
 | ufw | `[실측 09-18]` | **9092 규칙 없음** · **4316 규칙 없음** · `4317/tcp ALLOW Anywhere`[12] · 7859[8]·7862[4]·7864[2]·9101[3]·8522·5000~5002·8100·7865·7866·9000·6443 등, DENY 8종.<br>🔴 **9100이 두 줄이다** — `[6] ALLOW IN 172.16.0.0/12 # rpi pushgateway <- docker` + `[7] ALLOW IN Anywhere`. 같은 패턴이 `[36] 9110 <- 172.18.0.0/16 # node-exporter <- dg prometheus`·`[37] 9120`에도 있다. **§5 정정의 9100 실측은 [6](컨테이너→호스트) 경로였다** — 단계 6-b·7-h의 결정적 근거 |
 | LISTEN | `[실측 09-18]` | `127.0.0.1:8765`(python) · `127.0.0.1:9092` · `127.0.0.1:4316` · `127.0.0.1:7859` · `0.0.0.0:4317`(+v6) · `0.0.0.0:3100`·`3200`·`1883`·`7858`·`7860`·`7861`·`7862`·`7863`·`9100`·`9101`. **7864 없음**(AI 파트가 필요할 때만 켠다 — 건드리지 않는다). **8766·8767·9095·4318 없음** = Phase 4가 여는 자리 |
-| Tailscale | `[실측 09-18]` | 팀 공용 계정 · 서버 `100.102.8.102`. **tailnet 11대** — 서버 · **컴퓨터(임시 엣지)** · `desktop-0ib285f` · `desktop-oaujese`(AI 탐지) · `laptop-isk6l1rq`(offline) · `pi1`(offline) · `pi2` · `pi4`(offline) · `pi6` · `pi7`(offline) · `ubuntu3`. **`jin03`이라는 이름은 없다.** ⚠ **VZ 관제 노트북이 어느 것인지 확인되지 않았다**(`laptop-isk6l1rq`가 후보) — 부록 B 10①에서 직접 묻는다 |
+| Tailscale | `[실측 09-18]` | 팀 공용 계정 · 서버 `<서버 tailscale IP>`(실값 `_serverinfo/`). **tailnet 11대** — 서버 · **컴퓨터(임시 엣지)** · `desktop-0ib285f` · `desktop-oaujese`(AI 탐지) · `laptop-isk6l1rq`(offline) · `pi1`(offline) · `pi2` · `pi4`(offline) · `pi6` · `pi7`(offline) · `ubuntu3`. **`jin03`이라는 이름은 없다.** ⚠ **VZ 관제 노트북이 어느 것인지 확인되지 않았다**(`laptop-isk6l1rq`가 후보) — 부록 B 10①에서 직접 묻는다 |
 | 설정 md5 | `[실측 09-18]` | collector `e7a888c8…` · loki `678db4b0…` · tempo `416750de…` · prometheus `d7e1304d…` — **Phase 3 값과 전부 일치** |
 | **compose md5** | `[실측 09-18]` | **서버 `2fa97cc75b123162b24e8108bec02cbc` ↔ 컴퓨터 작업본 `16A704A9A7BF2736ED82F4F4B4E4EEBD` — 다르다.** 제약 18. ⚠ `infra/docker-compose.yml`은 gitignore이고 git에 추적된 적이 없어 **대조 수단이 md5뿐**이다 |
 | Collector receiver | `[실측 09-18]` | 🔴 **`http:` 블록·`4318`·`cors`가 설정 파일에 없다.** grep에 걸린 3줄은 전부 **Loki 향 exporter(`otlp_http`)**다. 결정 7 A는 **receiver 신설 + CORS + compose + ufw 네 곳**이다 |
@@ -242,7 +242,7 @@
 | **websockets 기본값** | `[실측 09-18]` | 🔴 **세 값이 전부 설계를 바꾼다** — `max_size` **1048576(1MB)** · `write_limit` **32768(32KB)** · `compression` **`deflate`**(켜져 있다) · `ping_interval`/`ping_timeout` 20/20.<br>**`write_limit` 32KB는 H.264 `T_drop ≈ 10.3KB`의 3배다** — 큐 회계에서 빠지는 바이트가 임계보다 커서 150ms 바운드가 그대로는 성립하지 않는다(단계 2-3·2-4) |
 | **pytest 기준선 N** | `[실측 09-18]` | **N = 184.** 파일별: `test_observability_labels` 45 · `payload_contract` 34 · `c_layer_extract` 24 · `registry_guards` 15 · `gap_detection` 11 · `mysql_storage` 10 · `mission_event` 10 · `storage_record` 9 · `pipeline` 8 · `tsdb_storage` 7 · `observability_pipeline` 7 · `observability_isolation` 4.<br>⚠ **단계 5-3에서 금지 라벨을 9종 더하면 `test_observability_labels.py`가 자동으로 +9 → 193**이 된다 |
 | **iptables** | `[실측 09-18]` | **제약 16의 근거.** `DOCKER-USER`가 비어 있고(규칙 0개), `FORWARD` 순서가 `… DOCKER-USER → DOCKER-FORWARD → … → ufw-before-forward …`라 **도커 발행 포트는 ufw 체인에 닿기 전에 ACCEPT된다.** nat `DOCKER`에서 `-d 127.0.0.1/32`가 붙은 것은 **9092·7859·4316 셋뿐** → **실제로 막는 것은 compose 바인딩 주소다.**<br>⚠ `-P FORWARD DROP`이고 **k3s·kube-router·flannel이 `FORWARD`를 동적 관리**한다 — 이 체인을 건드릴 일이 생기면 `iptables-save` 전체 덤프를 쓰지 않는다 |
-| 되돌린 자리 | `[전사]` | compose 4316 Tailscale 줄 **주석** · `prometheus.yml` `edge_federate` 잡 **주석**(타깃은 검증 때 쓴 컴퓨터 주소 `100.83.113.100:9090`이 그대로 — 이번 임시 엣지 검증에 그 값을 쓴다) |
+| 되돌린 자리 | `[전사]` | compose 4316 Tailscale 줄 **주석** · `prometheus.yml` `edge_federate` 잡 **주석**(타깃은 검증 때 쓴 컴퓨터 주소 `<컴퓨터 tailscale IP>:9090`이 그대로 — 이번 임시 엣지 검증에 그 값을 쓴다) |
 
 **착수 시 돌릴 명령(대조용) — 전부 읽기 전용이다. 상태를 바꾸는 명령은 이 블록에 없다.**
 

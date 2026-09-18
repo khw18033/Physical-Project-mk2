@@ -330,7 +330,17 @@ Tailscale 터널 위로.**
 뒤지지 않고, `frame_ref_base`는 채우지 않는다(엣지를 거치지 않아 발급 주체가 없다 — 시각은
 `t0_unix + n×interval_s`). 보존은 **용량 상한 + 오래된 세션부터**. MySQL `media_capture` 한 행 =
 세션 하나(매니페스트 원본 통째 보존, 다중 소스 병합은 HW #14 뒤). 입구는 Phase 4 뒤에도 남긴다.
-**구현은 Phase 4의 마지막 독립 단계(4b)** — 완료 시 이 절에 코드 위치를 적는다.
+
+**구현(Phase 4 4b, 2026-09-19):** [`backend/gateway/capture.py`](../../backend/gateway/capture.py)(별도 프로세스 —
+대용량 PUT은 블로킹이라 WS 게이트웨이의 asyncio 루프에 올리지 않는다, systemd `mk2-capture`) ·
+[`infra/sql/mk2_media_capture.sql`](../../infra/sql/mk2_media_capture.sql)(DDL + GRANT `SELECT, INSERT, UPDATE`, DELETE 없음) ·
+합성 업로더 [`tests/capture_uploader.py`](../../tests/capture_uploader.py)(HW `capture_upload.py` 모양). 순서는 **임시 수신 →
+매니페스트 검증 → `INSERT` → 원자적 rename → `COMMIT`**(rename 실패 시 롤백) — 파일만 놓이고 행이 없거나 그 반대가
+되지 않는다. 서버 실측: 저장 `201` · 재전송 `200 already_stored`(파일·행 유지) · 스캔 세션 `kind` 보존 · 매니페스트
+없는 아카이브 `409` · 잘못된 토큰 `401`(파일·행 없음) · 보존 dry-run이 오래된 세션부터 선정. 실제 삭제 경로는 이
+Phase에서 켜지 않았고(선정만), **행은 어떤 경우에도 지우지 않는다**(`purged_at`만). 실물 HW 촬영본 적재는 0건 —
+입구 개통은 HW에 따로 통지한다. ⚠ MySQL `JSON` 칼럼은 값을 보존하지 수의 표기까지 보존하지 않는다(`t0_unix` 17자리
+float의 마지막 자리) — 원본 바이트가 필요해지면 별도 칼럼을 더한다.
 
 **요구사항:** BE-T-07(중계·저장 모드)·BE-S-09(이벤트 트리거 캡처·at-rest 암호화·촬영본 저장소).
 

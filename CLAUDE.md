@@ -34,10 +34,10 @@ docker compose up -d kafka
 docker compose ps kafka
 docker exec capstone_kafka /opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list
 
-# ── 백엔드 상주 3개 (Phase 3부터 systemd — 손으로 띄우지 않는다) ──
-sudo systemctl status mk2-ingest mk2-storage-consumer mk2-ws-echo
+# ── 백엔드 상주 4개 (Phase 3부터 systemd — 손으로 띄우지 않는다. Phase 4 4b 에서 mk2-capture 추가) ──
+sudo systemctl status mk2-ingest mk2-storage-consumer mk2-ws-echo mk2-capture
 journalctl -u mk2-ingest -f
-# 코드를 고친 뒤:  서버 사본에 복사 → sudo systemctl restart mk2-ingest mk2-storage-consumer mk2-ws-echo
+# 코드를 고친 뒤:  서버 사본에 복사 → sudo systemctl restart mk2-ingest mk2-storage-consumer mk2-ws-echo mk2-capture
 #
 # ⚠ 손으로 띄워야 할 때(격리 실험 등)는 먼저 유닛을 내린다 —
 #   ingest 는 client_id=mk2-ingest 가 고정이라 둘이 붙으면 서로 밀어낸다.
@@ -47,6 +47,12 @@ journalctl -u mk2-ingest -f
 #   python -m backend.storage.consumer     # 저장 sink   (그룹 mk2-storage)
 #   python -m backend.gateway.ws_echo      # WS 게이트웨이 (그룹 mk2-ws, ws://127.0.0.1:8765 /state·/media + 8766 /ingest — Phase 4)
 #     READY 로그 두 줄("WS 게이트웨이" · "엣지 입구 …" 또는 "엣지 입구 닫힘")을 확인한다. 토큰이 없는데 loopback 밖에 바인딩하면 exit 2.
+#   python -m backend.gateway.capture      # 4b 촬영본 PUT 수신단 (8767, MySQL media_capture — 4b 뒤에도 남긴다)
+#   python -m backend.gateway.capture --retention-dry-run [--max-bytes N]   # 보존 상한 초과분 선정만(삭제 안 함)
+
+# ── 4b 합성 업로더 (HW capture_upload.py 모양 — PUT 두 번: <세션>.manifest.json → <세션>.tar.gz) ──
+python tests/capture_uploader.py --entity-id go1-001 [--kind scan_capture_session --frames 8] [--no-manifest]   # → MK2_CAPTURE_URL
+#   4b DDL 은 사람이 root 로 1회: infra/sql/mk2_media_capture.sql → 서버 ~/capstone-db/mk2_sql/ 로 복사 뒤 적용(DDL → GRANT 순서가 파일 안에 있다)
 
 # ── 테스트 (Phase 1부터 pytest. 상주 3개가 떠 있어야 한다 — Phase 3부터 systemd 가 띄운다) ──
 python -m pytest -q
@@ -54,6 +60,7 @@ python -m pytest -q tests/test_pipeline.py::test_valid_roundtrip
 python -m pytest -q tests/test_pipeline.py::test_contract_fixtures   # 인프라 없이도 도는 공통 규격 검증
 python -m pytest -q tests/test_contract_media.py tests/test_media_frame.py tests/test_media_dropold.py   # 미디어 규격·프레이밍·drop-old (소켓 없음, 컴퓨터에서도)
 #   tests/test_media_relay.py 12건은 엣지 입구 8766 이 열려 있을 때만 돈다(닫혀 있으면 skip 이 정상 — MK2_MEDIA_INGEST_PORT=0).
+python -m pytest -q tests/test_capture_upload.py   # 4b — 프로세스 안에 수신단을 띄운다. MySQL 이 닿으면 실제 media_capture, 아니면 가짜 저장소(컴퓨터)
 
 # ── 미디어 송신 fixture (Phase 4 — 홉2 방식 B 참조 구현. 엣지 실물이 없을 때 그 자리) ──
 python tests/media_publisher.py --source-id go1-001_front --encoding h264 --fps 30 --loop   # → MK2_MEDIA_INGEST_URL (기본 ws://127.0.0.1:8766/ingest)
@@ -72,7 +79,8 @@ python tests/media_publisher.py --encoding jpeg --fps 15 --count 45
   이름을 대며 죽는다**) · `MK2_WS_URL` · `MK2_MEDIA_INGEST_PORT`/`_HOST`(엣지 입구 8766, **`0`이면 닫힘** —
   실측 뒤 닫아 둔 상태) · `MK2_MEDIA_INGEST_URL` · `MK2_MEDIA_DROP_WINDOW_MS`·`MK2_MEDIA_BUFFER_MAX_BYTES`·
   `MK2_MEDIA_MAX_FRAME_BYTES`·`MK2_MEDIA_WRITE_LIMIT`·`MK2_MEDIA_SNDBUF`(drop-old 매개변수 — 지연 바운드 =
-  `T_drop + write_limit + sndbuf`). 4b(`MK2_CAPTURE_*`)는 단계 10에서 추가.
+  `T_drop + write_limit + sndbuf`) · **4b** `MK2_CAPTURE_HOST/PORT/TOKEN/DIR/MAX_BYTES/URL`(PUT 입구 8767, `0`이면
+  닫힘, 저장 루트는 서버 `.env`로 저장소 밖 절대 경로).
   ⚠ 토큰은 **영숫자만**(`.env`를 읽는 파서가 셋 — 셸 `source`·compose dotenv·systemd `EnvironmentFile`).
 - 최소 발행자(수동 확인용): `python tests/publisher.py [--channel state|status|heartbeat]
   [--invalid missing-zone|timestamp]` — MQTT만 쓰므로 컴퓨터에서도 돈다.
@@ -96,14 +104,14 @@ backend/
                  ws_echo.py = /state(상태 push) · /media(뷰어 분기) · /ingest(엣지 입구, 별도 포트) — 파일 이름은 Phase 1 그대로
                  media.py   = 방식 B 프레이밍 · 헤더 검증(필수·타입만, 페이로드 안 열음) · GOP 인지 drop-old · Relay (소켓 없음)
                  console.html = 확인용 최소 뷰어(/state + /media, WebCodecs/createImageBitmap) — VZ 앱이 아니다
-                 capture.py = 4b 촬영본 PUT 수신단 (단계 10 예정, 별도 유닛 mk2-capture)
+                 capture.py = 4b 촬영본(정지 촬영 세션) PUT 수신단 — PUT 두 번(매니페스트→tar.gz), 파일시스템 + MySQL media_capture 한 행. 별도 유닛 mk2-capture(8767)
   twin/          디지털 트윈 (위치·클래스 융합, 커버리지·사각지대, 시의성, 로봇 투입)
 contracts/common/  파트가 나뉘는 지점의 공통 규격 (JSON Schema). 이것이 기준이지 파이썬 타입이 아니다.
                    message(공통 헤더) · frame-reference · media-header(Phase 4) · detections(초안) · payload/ 본문 6종
                    파일 간 $ref 는 backend/ingest/envelope.py 의 레지스트리($id → 로컬 파일)가 푼다 — 네트워크 0
 infra/             docker-compose · Collector · Grafana 등 배포 자산
-  systemd/         상주 3개 유닛(mk2-ingest · mk2-storage-consumer · mk2-ws-echo). 커밋한다. (단계 10: + mk2-capture)
-  sql/             MySQL·TSDB DDL — 서버 적용 경로는 아래 표(이름이 다르다)
+  systemd/         상주 4개 유닛(mk2-ingest · mk2-storage-consumer · mk2-ws-echo · mk2-capture). 커밋한다
+  sql/             MySQL·TSDB DDL — 서버 적용 경로는 아래 표(이름이 다르다). mk2_media_capture.sql = 4b DDL + GRANT(순서 강제)
 tests/             pytest + 가짜 발행자(publisher.py MQTT · media_publisher.py 홉2 방식 B · edge_probe_publisher.py B층)
                    fixtures/ = 합성 H.264(464x400, IDR 15) · JPEG 3장 (커밋, *.h264 binary)
 ```

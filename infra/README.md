@@ -14,7 +14,8 @@ Phase 0(인프라 기동)에서 세운 스택의 현재 상태와 운영 방법.
 | `config/` | 서버 설정 파일 5개 사본 (mosquitto·otel-collector·prometheus·loki·tempo) | ❌ `.gitignore` |
 | `README.md` | 이 문서 | ✅ |
 | `sql/` | MK2 스키마 DDL 2 + 권한 템플릿 2 (**Phase 2 신설**) | ✅ (단 실제 비밀번호가 든 `mk2_grants_*.sql`은 ❌) |
-| `systemd/` | 백엔드 상주 3개 unit (`mk2-ingest`·`mk2-storage-consumer`·`mk2-ws-echo`) (**Phase 3 신설**) | ✅ — 비밀값 없음, `.env` **경로**만 참조 |
+| `systemd/` | 백엔드 상주 4개 unit (`mk2-ingest`·`mk2-storage-consumer`·`mk2-ws-echo` **Phase 3 신설** · `mk2-capture` **Phase 4 4b 신설**) | ✅ — 비밀값 없음, `.env` **경로**만 참조 |
+| `sql/mk2_media_capture.sql` | 4b `media_capture` DDL + GRANT(같은 파일, 순서 강제 — 없는 테이블에는 GRANT 가 안 걸린다). 서버 적용 경로는 `~/capstone-db/mk2_sql/`(이름이 다르다) | ✅ — 비밀값 없음 |
 
 **커밋하지 않는 이유:** compose에 평문 비밀번호가, `prometheus.yml` 주석에 내부망 IP·Tailscale 주소가 들어
 있다. 이 저장소는 Public이다.
@@ -115,7 +116,7 @@ Phase 0(2026-09-04)에 8개, **Phase 2(2026-09-10)에 TimescaleDB가 더해져 9
 
 | 분류 | 무엇 | 고쳐도 되나 |
 |---|---|---|
-| **① MK2가 만든 것** | Kafka `capstone_kafka` · TimescaleDB `capstone_timescaledb` · MySQL 안의 `mk2` DB·`mk2_app`·테이블 8 · 토픽 `mk2.telemetry.*` · 컨슈머 그룹 `mk2-*` · systemd 유닛 `mk2-*` 3개 · 백엔드 venv | 자유롭게 |
+| **① MK2가 만든 것** | Kafka `capstone_kafka` · TimescaleDB `capstone_timescaledb` · MySQL 안의 `mk2` DB·`mk2_app`·테이블 9(Phase 4 4b `media_capture` 포함) · 토픽 `mk2.telemetry.*` · 컨슈머 그룹 `mk2-*` · systemd 유닛 `mk2-*` 4개 · 백엔드 venv · 촬영본 저장 루트 `MK2_CAPTURE_DIR` | 자유롭게 |
 | **② 기존 가동 + MK2가 역할 배정(공유)** | **OTel Collector · Prometheus · Loki · Tempo** · Grafana · Mosquitto | **근거를 남기고.** Phase 3 근거: Collector 10일간 OTLP 수신 0건·Tempo 이력 전체 trace 0건·Loki 7개월간 로그 0건(2026-09-14 실측) — 잃을 데이터가 없었다. Prometheus만 살아 있었고 그 데이터는 전부 분류 ③의 것이라 global·잡 본문을 건드리지 않았다 |
 | **③ MK2와 무관** | Redis · MongoDB · `rpi_pushgateway` · `thermal_pushgateway` · `robot_server` 타깃 · `conntest`(출처 미상) · MySQL 컨테이너 자체(`robot_capstone`) | **설정 무변경.** `prometheus.yml`의 해당 잡 본문은 주석만 고쳤다 |
 
@@ -148,7 +149,7 @@ Phase 0(2026-09-04)에 8개, **Phase 2(2026-09-10)에 TimescaleDB가 더해져 9
 | **테이블 collation** | **`utf8mb4_bin`** — 계측 저장소(TimescaleDB)의 `TEXT`가 대소문자를 구별하는데 MySQL `ai_ci`는 안 한다. 한쪽이 `zoneA == zonea`로 보면 두 저장소를 잇는 조회에서 같은 대상이 다르게 취급된다. **테이블을 추가할 때도 반드시 `COLLATE=utf8mb4_bin`을 붙인다** |
 | 앱 계정 | `'mk2_app'@'172.18.%'` — 호스트에서 `127.0.0.1:7858`로 붙은 연결이 컨테이너에서는 **`172.18.0.1`로 보인다**(실측). `'…'@'localhost'`는 붙지 못한다 |
 | 권한 | **테이블 단위 차등.** DDL(`CREATE`·`ALTER`·`DROP`) **없음** — 코드가 스키마를 바꿀 수 없어야 한다 |
-| 테이블 8개 | 레지스트리 선언 축 3(`registry_zone`·`registry_entity_declared`·`registry_node_declared`) · 관측 축 3(`registry_entity_observed`·`registry_node_observed`·`registry_identity_history`) · `audit_log` · `mission_event` |
+| 테이블 9개 | 레지스트리 선언 축 3(`registry_zone`·`registry_entity_declared`·`registry_node_declared`) · 관측 축 3(`registry_entity_observed`·`registry_node_observed`·`registry_identity_history`) · `audit_log` · `mission_event` · **`media_capture`**(Phase 4 4b, 2026-09-19 — `infra/sql/mk2_media_capture.sql`) |
 | **append-only 강제** | `audit_log`·`mission_event`에는 **`SELECT, INSERT`만** 준다. *"수정·삭제하지 않으며"*(BE-S-08)를 **코드 규율이 아니라 DB 권한이** 지킨다 |
 | 스키마 적용 | **사람이 MySQL `root`로 1회.** `docker exec -i capstone_mysql sh -c 'mysql -uroot -p"$MYSQL_ROOT_PASSWORD"' < mk2_mysql_schema.sql` |
 | 시각 | 전부 **UTC를 담은 `DATETIME(6)`**. `TIMESTAMP`는 세션 타임존으로 자동 변환돼 쓰지 않는다(이 서버는 `system_tz=KST`) |
@@ -181,10 +182,10 @@ Phase 0(2026-09-04)에 8개, **Phase 2(2026-09-10)에 TimescaleDB가 더해져 9
 | OTel Collector (exporter) | — | 8889 | Prometheus가 docker 네트워크 안에서 직접 scrape |
 | **WS 게이트웨이 뷰어** | **127.0.0.1:8765** → Phase 4 단계 7부터 **`127.0.0.1` + `<서버 tailscale IP>` 둘 다** | — | 호스트 프로세스(systemd `mk2-ws-echo`). 경로 `/state`(Phase 1 echo)·`/media?source_id=…`(방식 B 영상). **URL 쿼리 토큰 `MK2_WS_TOKEN`**, 불일치·부재 close 4401. 호스트 파이썬이라 **ufw 가 진짜 통제**(사용자 컴퓨터 `/32`, VZ PC 는 주소를 받은 뒤) |
 | **WS 게이트웨이 엣지 입구** | ~~127.0.0.1:8766~~ → 단계 7 `<서버 tailscale IP>:8766` 실측 → **단계 8(2026-09-19) 닫음 — 현재 `MK2_MEDIA_INGEST_PORT=0`**, 게이트웨이 로그 `엣지 입구 닫힘` | — | 같은 프로세스의 두 번째 서버. 경로 `/ingest?source_id=…`, 토큰 `MK2_EDGE_TOKEN`. 엣지가 클라이언트로 붙는다(엣지에 인바운드 불필요). 되살릴 때 `.env` 포트 + `MK2_MEDIA_INGEST_HOST` + ufw 엣지 `/32`. 닫혀 있으면 `tests/test_media_relay.py` 12건이 skip 된다(정상) |
-| 4b PUT 입구 | `<서버 tailscale IP>:8767` (Phase 4 단계 10 예정 — 열리면 남긴다) | — | `backend/gateway/capture.py`, systemd `mk2-capture`, 토큰 `MK2_CAPTURE_TOKEN`, ufw pi7 `/32` |
+| **4b 촬영본 PUT 입구** | **`<서버 tailscale IP>:8767`** (Phase 4 단계 10, 2026-09-19 — **남긴다**, 되돌림 대상 아님) | — | 호스트 프로세스(systemd **`mk2-capture`**, `backend/gateway/capture.py`). `PUT /capture/<세션>.manifest.json` → `PUT /capture/<세션>.tar.gz`, 토큰 `MK2_CAPTURE_TOKEN`(쿼리/헤더), 401·409·400. 저장 루트 `MK2_CAPTURE_DIR`(서버 `.env`, 저장소 밖) + MySQL `media_capture`. 호스트 파이썬이라 **ufw 가 진짜 통제** — pi7 `/32` 한 줄. HW 에는 입구 개통을 따로 통지한다(4b 완료 후) |
 | Kafka EDGE | `<서버 tailscale IP>:9095` (Phase 4 단계 6 → 실측 → **단계 8 주석**, 2026-09-19) | 9095 | 원격 엣지용 리스너(PLAINTEXT, SASL 은 Phase 6). 도커 발행 포트 — **바인딩 주소가 통제**, ufw 는 문서용(§5). 현재 compose 에 주석 판 4자리(ports 1 + env 3)로 남아 있다 |
 
-**2026-09-19 단계 8 되돌린 뒤 실제 상태(`ss -ltnp`·ufw 실측):** 열린 MK2 입구는 **8765 하나**(`127.0.0.1` + `<서버 tailscale IP>`, ufw 사용자 컴퓨터 `/32`). 8766·`<서버 tailscale IP>:4316`·9095 없음, `docker port`도 kafka `127.0.0.1:9092`·collector `127.0.0.1:4316` 만. ufw 의 Phase 4 규칙은 8765 한 줄만 남았다.
+**2026-09-19 단계 8 되돌린 뒤 실제 상태(`ss -ltnp`·ufw 실측):** 열린 MK2 입구는 **8765**(`127.0.0.1` + `<서버 tailscale IP>`, ufw 사용자 컴퓨터 `/32`)와 **단계 10 에서 연 8767**(`<서버 tailscale IP>`, ufw pi7 `/32`) 둘. 8766·`<서버 tailscale IP>:4316`·9095 없음, `docker port`도 kafka `127.0.0.1:9092`·collector `127.0.0.1:4316` 만. ufw 의 Phase 4 규칙은 8765·8767 두 줄.
 
 ### 7859 — ufw는 이미 열려 있고, 실질 노출은 없다
 
@@ -416,7 +417,8 @@ Kafka와, Phase 3이 고친 관측 4개(§5-0)만 적는다. 나머지는 기존
 | Loki | v13/**tsdb** 단일 스키마 · `allow_structured_metadata: true` · `retention_enabled: true` · `retention_period: 14d` · `delete_request_store: filesystem` | boltdb-shipper는 구조화 메타데이터도 네이티브 OTLP 수집도 지원하지 않는다. 기존 데이터는 7개월 전 단일 스트림 172K라 백업 후 비웠다. **보존 3줄은 함께 있어야 집행된다** | `config/loki-config.yaml.bak_before_phase3` + `/home/dg/loki_data.bak_before_phase3.tgz`(옛 데이터). `loki_data`는 `root:root 777`로 재생성(Loki가 uid 10001로 쓴다) |
 | Tempo | `block_retention: 168h` | 24h면 Phase 6에서 "어제 그 명령"을 못 본다. trace는 명령 경로에만 붙어 양이 적다 | `config/tempo-config.yaml.bak_before_phase3` |
 | Prometheus | `otel_collector` 잡 `scrape_interval: 5s`. **global 무변경**(1s) · 보존 무변경(CLI 기본 15d) | 백엔드 export 15초 × 표본 3. ⚠ global `scrape_timeout > scrape_interval`인 잡이 하나라도 있으면 설정 전체가 거부된다 — `rpi`·`thermal`이 잡별 5s에 global timeout 1s를 상속하므로 global을 올리지 않는다 | `config/prometheus.yml.bak_before_phase3` |
-| 상주 3개 | systemd `mk2-ingest`·`mk2-storage-consumer`·`mk2-ws-echo`(`Restart=on-failure`, `StartLimitBurst=3/60s`, `EnvironmentFile=/home/dg/capstone-db/.env`, enabled). **Phase 4:** `mk2-ws-echo` 는 `After/Wants=docker.service tailscaled.service`·`RestartSec=10` — Tailscale 주소에 바인딩하므로 `tailscaled` 보다 먼저 뜨면 `cannot assign requested address` 로 죽는다. `.env` 의 `MK2_WS_HOST=127.0.0.1,<서버 tailscale IP>`·`MK2_WS_TOKEN`·`MK2_EDGE_TOKEN`·`MK2_MEDIA_INGEST_PORT=0` 을 읽는다 | A층은 셋이 상시 떠 있어야 계측이 나온다. `Restart=always`면 `.env` 없을 때 무한 루프 | `sudo systemctl disable --now mk2-*` |
+| 상주 4개 | systemd `mk2-ingest`·`mk2-storage-consumer`·`mk2-ws-echo`·**`mk2-capture`**(`Restart=on-failure`, `StartLimitBurst=3/60s`, `EnvironmentFile=/home/dg/capstone-db/.env`, enabled). **Phase 4:** `mk2-ws-echo`·`mk2-capture` 는 `After/Wants=docker.service tailscaled.service`·`RestartSec=10` — Tailscale 주소에 바인딩하므로 `tailscaled` 보다 먼저 뜨면 `cannot assign requested address` 로 죽는다. `.env` 의 `MK2_WS_HOST=127.0.0.1,<서버 tailscale IP>`·`MK2_WS_TOKEN`·`MK2_EDGE_TOKEN`·`MK2_MEDIA_INGEST_PORT=0`·`MK2_CAPTURE_HOST/PORT/TOKEN/DIR` 를 읽는다. `mk2-capture` 는 `service.name=be-capture` 로 관측을 낸다(`be.gateway.capture{outcome}`) | A층은 상주가 떠 있어야 계측이 나온다. `Restart=always`면 `.env` 없을 때 무한 루프 | `sudo systemctl disable --now mk2-*` |
+| **MySQL `mk2.media_capture`** (4b, 2026-09-19) | `infra/sql/mk2_media_capture.sql` 을 root 로 1회 — 테이블(utf8mb4_bin, DATETIME(6) UTC, `session_id` UNIQUE, `purged_at`) + `GRANT SELECT, INSERT, UPDATE`(**DELETE 없음**). 서버 `mk2_sql/mk2_mysql_schema.sql` 도 이때 저장소 판본(09-14 정정 포함)으로 교체(백업 `.bak_before_phase4`) | 촬영본 세션 메타. 아카이브는 `MK2_CAPTURE_DIR`(파일시스템) — 보존 상한 초과분은 아카이브만 지우고 행은 `purged_at` 으로 남긴다(Phase 4 는 dry-run 만) | `DROP TABLE mk2.media_capture`(root) + GRANT 회수 |
 
 **설정을 고치기 전에 반드시 `validate`/`promtool check config`를 돌린다** — 기동 실패로 알기보다 먼저 안다.
 
