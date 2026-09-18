@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/khw18033/Physical-Project-mk2/contracts/common/detections.schema.json",
+  "title": "탐지 결과 (Detections) — 초안",
+  "description": "프레임 한 장에 대한 탐지 박스 묶음. 생산자는 AI(온디바이스·엣지) 또는 서버 비전 소비자이고, 소비자는 가시화(뷰어 오버레이)다. 영상은 미디어 경로(방식 B)로, 탐지는 업무 경로(Kafka → 상태 WS)로 따로 흐르다 뷰어에서 frame_ref 가 F==F 로 맞을 때 겹쳐진다(02-media-path §1-6-1). 근거: BE-C-03(frame_ref 형식) · VZ-I-07(좌표계 선언·출처 구분) · AI-S-06.",
+  "$comment": "초안 — 2026-09-18 현재 어떤 검증 경로도 이 파일을 로드하지 않는다. AI(생산자)·VZ(소비자) 회신 뒤 확정한다. 채널·토픽(mk2.telemetry.detections)·ingest 구독 패턴·entity_type 판별은 이번(Phase 4) 범위가 아니다 — 그래서 payload/ 가 아니라 contracts/common/ 루트에 둔다(payload/ 는 MQTT 토픽으로 고르는 채널 본문 자리다). 값 어휘(alignment·origin.tier·origin.kind·coord.origin)는 전부 string + $comment 이며 enum 이 아니다. additionalProperties 를 false 로 두지 않는다(frame_ref 안쪽만 참조 규격이라 닫혀 있다).",
+  "type": "object",
+  "required": [
+    "coord",
+    "boxes"
+  ],
+  "properties": {
+    "type": {
+      "type": "string",
+      "description": "선택. 메시지 종류 표시. 상태 WS 로 여러 종류가 섞여 갈 때의 구분자.",
+      "$comment": "알려진 값: detections. enum 아님.",
+      "examples": ["detections"]
+    },
+    "frame_ref": {
+      "$ref": "frame-reference.schema.json",
+      "description": "선택. 이 탐지가 어느 프레임에서 나왔나. 엣지가 부여한 값을 그대로 실어 나른다 — AI·서버는 재생성하지 않는다(원칙 10). 온디바이스(말단) 결과에는 없을 수 있다 — 그때는 alignment 가 unaligned 취급이다."
+    },
+    "alignment": {
+      "type": "string",
+      "description": "선택. **메시지 단위** 정합 등급(결정 3 ㉰). 뷰어 규칙은 fail-safe 다 — alignment == \"frame\" 이고 frame_ref 가 있을 때만 프레임 정합(오버레이)하고, 그 외(부재 · 모르는 값 포함)는 전부 unaligned 로 취급한다.",
+      "$comment": "알려진 값: frame · unaligned. 메시지 단위다. **이 키가 없으면 unaligned 로 취급한다**(선택 + 기본 의미 — 필수로 두면 부재가 거부가 되어 현행 AI 메시지가 전량 격리된다). enum 아님.",
+      "examples": ["frame", "unaligned"]
+    },
+    "origin": {
+      "type": "object",
+      "description": "선택. **메시지 단위** 출처 선언(박스 단위 source 가 아니다 — VZ FrameBuffer.pushDetection 이 result.origin.tier 를 검사한다). 생산자가 자기 산출물에 기입한다. **서버는 중계하는 남의 탐지에 origin 을 채우지 않는다**(생산자가 안 보낸 것과 백엔드가 채운 것을 나중에 구분할 수 없다 — hw-envelope-conformance.md §6-5 규율). 서버 비전 소비자(결정 11)가 자기 산출물에 tier=server 를 붙이는 것은 생산자 기입이라 허용이다.",
+      "required": ["tier", "kind"],
+      "properties": {
+        "tier": {
+          "type": "string",
+          "description": "어느 층에서 탐지했나. 실제 배치와 1:1 — device = pi7 온디바이스 / edge = 엣지 노트북 / server = 서버(결정 11 — 문만 열어 두고 이번에 만들지는 않는다).",
+          "$comment": "알려진 값: device · edge · server. enum 아님. server 를 지금 넣는 이유: VZ 쪽은 tier 가 타입·Map 키·resolveAlignment 루프 세 곳에 박혀 있어 나중에 넣으면 계약 변경을 다시 요청해야 한다.",
+          "examples": ["edge"]
+        },
+        "kind": {
+          "type": "string",
+          "description": "탐지 정밀도 등급(VZ DetectionOrigin 과 같은 어휘). ⚠ 공통 헤더의 origin_kind(실물/시뮬/재생 — VZ 확정 어휘 physical · simulation · replay, VZ-C-06)와 이름이 겹치지만 **다른 축**이다. 여기 origin.kind 는 탐지 정밀도, 공통 헤더 origin_kind 는 원천 종류다.",
+          "$comment": "알려진 값: safety_minimal · precise. enum 아님. 공통 헤더의 origin_kind(실물/시뮬/재생)와는 다른 축이다.",
+          "examples": ["precise"]
+        }
+      }
+    },
+    "coord": {
+      "type": "object",
+      "description": "박스 좌표계 선언(VZ-I-07). 프레임(미디어 헤더 width/height)과 같은 기준 해상도를 공유해야 같은 화면에 겹쳐진다.",
+      "required": ["normalized", "origin", "ref_width", "ref_height"],
+      "properties": {
+        "normalized": {
+          "type": "boolean",
+          "description": "true 면 x·y·w·h 가 0~1 비율(뷰어 해상도 무관, 권장 기본값). false 면 ref_width/ref_height 기준 화소.",
+          "examples": [true]
+        },
+        "origin": {
+          "type": "string",
+          "description": "좌표 원점.",
+          "$comment": "알려진 값: top-left (하이픈 — VZ 가 리터럴로 고정한 값이며 밑줄 top_left 가 아니다). enum 아님.",
+          "examples": ["top-left"]
+        },
+        "ref_width": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "기준 해상도 가로. 미디어 헤더의 width 와 같은 값(원본 무가공 — 자르기·리사이즈·회전·보정 없음).",
+          "examples": [464]
+        },
+        "ref_height": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "기준 해상도 세로. 미디어 헤더의 height 와 같은 값.",
+          "examples": [400]
+        }
+      }
+    },
+    "boxes": {
+      "type": "array",
+      "description": "탐지 박스 목록. 비어 있을 수 있다(탐지 0건도 정상 메시지). 박스 단위 source 는 두지 않는다 — 출처는 메시지 단위 origin 이 담당한다.",
+      "items": {
+        "type": "object",
+        "required": ["x", "y", "w", "h", "label"],
+        "properties": {
+          "x": { "type": "number", "description": "좌상단 x (coord 기준)" },
+          "y": { "type": "number", "description": "좌상단 y (coord 기준)" },
+          "w": { "type": "number", "minimum": 0, "description": "너비 (coord 기준)" },
+          "h": { "type": "number", "minimum": 0, "description": "높이 (coord 기준)" },
+          "label": { "type": "string", "minLength": 1, "description": "클래스 이름. 어휘는 AI 가 정한다(enum 아님)." },
+          "confidence": { "type": ["number", "null"], "minimum": 0, "maximum": 1, "description": "선택. 0~1. 없으면 null." }
+        }
+      }
+    }
+  }
+}

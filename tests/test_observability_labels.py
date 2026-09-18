@@ -5,7 +5,11 @@
 no-op 이든 똑같이 나야 한다(코드 결함은 관측 스택 유무와 무관하게 드러나야 한다).
 
 - N1: 금지 라벨(`session_id`·`internal_seq`·`sequence_id`·`timestamp`·`ts`·`frame_id`·
-  `capture_timestamp`)이 어느 계기에도 못 붙는다.
+  `capture_timestamp` + Phase 4 확장 8종 `frame_ref`·`correlation_id`·`command_id`·`mission_id`·
+  `node_ref`·`client_request_id`·`plan_id`·`event_key`)이 어느 계기에도 못 붙는다.
+  `sorted(obs.FORBIDDEN_LABELS)`를 parametrize 하므로 목록이 늘면 수집 수가 저절로 는다(제약 24).
+- N1-b(Phase 4): `frame_ref`·`correlation_id`·`command_id` 셋이 **실제로** `ValueError`로 막힌다 —
+  VZ 통지가 "막는다"고 적었는데 코드에 없던 것. 그리고 `node_id`(물리 노드)는 **허용**된다(음성의 반대 축).
 - N2: A층 계기(`be.ingest.*` 등)에 `source_id`·`zone_id`·`entity_type`이 못 붙는다.
 - 양성: 허용 라벨(`component`·`channel`·`outcome`·`stage`)은 통과하고, C층(`be.telemetry.*`)에는
   `source_id`·`zone_id`·`entity_type`·`channel`이 붙는다.
@@ -66,6 +70,38 @@ def test_forbidden_label_rejected_on_every_instrument_kind() -> None:
         obs.gauge("be.telemetry.uptime_s", 1.0, source_id="a", zone_id="z", entity_type="sensor", channel="status", frame_id="f")
     with pytest.raises(ValueError):
         obs.observe("be.pipeline.lag", 1.0, component="storage", channel="state", capture_timestamp=1)
+
+
+# ── N1-b (Phase 4): 통지가 약속한 셋이 실제로 막히고, node_id 는 허용된다 ───────
+
+
+PHASE4_FORBIDDEN = ("frame_ref", "correlation_id", "command_id",
+                    "mission_id", "node_ref", "client_request_id", "plan_id", "event_key")
+
+
+def test_phase4_labels_are_in_forbidden_set() -> None:
+    """VZ 통지·회신에 적힌 8종이 전부 목록에 있고, `node_id`는 없다 — 목록 자체를 못 박는다."""
+    assert set(PHASE4_FORBIDDEN) <= obs.FORBIDDEN_LABELS
+    assert "node_id" not in obs.FORBIDDEN_LABELS
+
+
+@pytest.mark.parametrize("bad", ["frame_ref", "correlation_id", "command_id"])
+def test_notified_labels_actually_blocked_on_media_instrument(bad: str) -> None:
+    """`vz-observability-namespace.md` §2가 "막는다"고 적은 셋 — 미디어 계기(`be.gateway.media_*`)에서 실제로 `ValueError`.
+
+    Phase 3 코드에는 `frame_id`만 있고 `frame_ref`가 없었다(없는 방어를 근거로 쓰지 않는다 — 제약 6).
+    """
+    with pytest.raises(ValueError) as excinfo:
+        obs.count("be.gateway.media_frames", component="gateway", outcome="sent", **{bad: "x"})
+    assert bad in str(excinfo.value)
+
+
+def test_node_id_is_allowed_on_both_layers() -> None:
+    """`node_id`는 물리 노드(pi1·pi7)라 저카디널리티 — A층·C층 어디서도 막지 않는다(VZ DAG 노드는 `node_ref`)."""
+    assert obs.check_labels("be.telemetry.uptime_s",
+                            {"source_id": "wl-001", "zone_id": "zoneA", "entity_type": "sensor",
+                             "channel": "status", "node_id": "pi7"})["node_id"] == "pi7"
+    assert obs.check_labels("be.ingest.received", {"component": "ingest", "channel": "state", "node_id": "pi7"})["node_id"] == "pi7"
 
 
 # ── N2: A층에 source_id 금지 ────────────────────────────────────────────────

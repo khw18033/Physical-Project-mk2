@@ -35,19 +35,19 @@
 
 | 구분 | ID | 수 | 요약 | 상태 |
 |---|---|---:|---|---|
-| 공통 규약 | BE-C | 7 | 공통 헤더·식별자 계층·frame_ref·좌표·계약축·도메인 프로파일·원천 종류 | 완료 1 · 부분 1 · 미착수 5 |
-| 전송·연결 | BE-T | 8 | 말단 MQTT·엣지 Kafka 브릿지·WS 게이트웨이·장치 등록/가용성·사설IP·재접속 캐시·미디어 중계·보안 오버레이 | 완료 1 · 부분 2 · 미착수 5 |
+| 공통 규약 | BE-C | 7 | 공통 헤더·식별자 계층·frame_ref·좌표·계약축·도메인 프로파일·원천 종류 | 완료 1 · 부분 2 · 미착수 4 |
+| 전송·연결 | BE-T | 8 | 말단 MQTT·엣지 Kafka 브릿지·WS 게이트웨이·장치 등록/가용성·사설IP·재접속 캐시·미디어 중계·보안 오버레이 | 완료 1 · 부분 4 · 미착수 3 |
 | 번역·조립 | BE-A | 5 | 액션 어휘집·액추에이터 명령·메인 임무 하달·위험 판정 제어·환경 사전정보 | 미착수 5 |
 | 저장·관측 | BE-S | 9 | 시계열 저장·OTel 파이프라인·관측 계층화·재난 보존·감사 MySQL·집약 표기·재난 SLA·임무 추적·미디어 저장 | 완료 1 · 부분 6 · 미착수 2 |
 | 질의·소비 | BE-Q | 4 | 지표 프록시·감사 조회·레지스트리 조회·RBAC | 미착수 4 |
 | 상관·감사 | BE-X | 7 | command_id·감사 작성·4단계 승격·계획 승인·AI 실패 중계·실행 관리 접점·제어 잠금 | 미착수 7 |
 | 디지털 트윈 | DT | 7 | 위치 융합·클래스 융합·트윈 반영·커버리지/사각지대·시의성·핸드오프·로봇 투입 | 미착수 7 |
 
-**총 47건 · 완료 3 · 부분 9 · 미착수 35** (2026-09-16, Phase 3 종료 시점). 완료는
-BE-C-01(공통 헤더 범위)·BE-T-02(단일 머신 범위)·BE-S-01(계측 저장 범위)이며 pytest로
-보장됐다(양성 + 음성 대조 + 실측). 부분 9건은 BE-T-01·BE-T-03·BE-C-02·BE-S-02·BE-S-03·
-BE-S-05·BE-S-06·BE-S-07·BE-S-08이다. 각 행의 남은 범위와 gap은
-[추적표](docs/be/requirement-traceability.md).
+**총 47건 · 완료 3 · 부분 12 · 미착수 32** (2026-09-19, Phase 4 단계 8 시점 — 4b 저장소는 단계 10).
+완료는 BE-C-01(공통 헤더 범위)·BE-T-02(단일 머신 범위 + 원격 엣지 EDGE 리스너 실증)·BE-S-01(계측
+저장 범위)이며 pytest로 보장됐다(양성 + 음성 대조 + 실측). 부분 12건은 BE-T-01·BE-T-03·**BE-T-07**·
+**BE-T-08**·BE-C-02·**BE-C-03**·BE-S-02·BE-S-03·BE-S-05·BE-S-06·BE-S-07·BE-S-08이다(굵은 셋이 Phase 4에서
+미착수 → 부분). 각 행의 남은 범위와 gap은 [추적표](docs/be/requirement-traceability.md).
 
 ## 저장소 구조
 
@@ -57,13 +57,16 @@ Physical-Project-mk2/            (ldg_BE 브랜치)
 │   ├── ingest/                  MQTT 구독 → Kafka 브릿지 (엣지 소비자)
 │   ├── storage/                 TSDB writer + MySQL writer (계측 / 감사·레지스트리·실행 기록)
 │   ├── availability/            가용성 판정기 (MQTT 세션 우선)
-│   ├── gateway/                 WS 게이트웨이 (Kafka 소비자 + WebSocket 서버)
+│   ├── gateway/                 WS 게이트웨이 (Kafka 소비자 + WebSocket 서버) — ws_echo.py(/state·/media·/ingest) · media.py(방식 B·drop-old)
 │   └── twin/                    디지털 트윈 (좌표 융합·커버리지·시의성)
 ├── contracts/common/           파트 간 JSON Schema 규격 (백엔드 소유)
 │   ├── message.schema.json      공통 헤더
 │   ├── frame-reference.schema.json  frame_ref
+│   ├── media-header.schema.json  미디어 헤더(방식 B, Phase 4) — frame_ref 를 $ref 로 품는다
+│   ├── detections.schema.json   탐지 좌표·정합 선언(초안 — AI·VZ 회신 뒤 payload/ 로)
 │   ├── object-reference.schema.json  지속 객체 참조(object_id)
-│   └── examples/                정상 메시지 예제
+│   ├── payload/                 채널 본문 규격 6종
+│   └── examples/                정상·음성 예제
 ├── infra/                      docker-compose · OTel Collector · Grafana 등 설정
 ├── docs/be/                    아키텍처 · 구현 계획 · 요구사항 추적
 ├── reports/                    작업 단위 보고서 (YYYY-MM-DD_HHMM_주제.md)
@@ -83,10 +86,12 @@ Physical-Project-mk2/            (ldg_BE 브랜치)
   │  관측    │      │  ══ Tailscale ═════ │  WS 게이트웨이(서버 안)
   ├─OTLP────▶│      ├─Kafka──────────────▶│  = Kafka 소비자 + WebSocket 서버 ─▶ 화면
   │  영상    │      ├─페더레이션 요약─────▶│  질의 프록시 ◀── 조회
-  └─RTP/UDP─▶│      └─영상 WS(방식 B)─────▶│  중계 ─WSS+인증─▶ 뷰어(영상+오버레이)
+  └─RTP/UDP─▶│      └─영상 WS(방식 B)─────▶│  중계(drop-old) ─ws+토큰─▶ 뷰어(디코드+오버레이)
+   (native 코덱) AU 재조립·frame_ref        헤더만 읽음        (tailnet 안. 밖이면 WSS — Phase 6)
 ```
 
-- **엣지↔서버는 단일 Tailscale 터널**을 업무·관측·영상이 공유한다(논리 채널은 분리).
+- **엣지↔서버는 단일 Tailscale 터널**을 업무·관측·영상이 공유한다(논리 채널은 분리). **Phase 4
+  (2026-09-19)에서 미디어·Kafka·관측이 실제로 한 터널을 타는 것을 컴퓨터 임시 엣지로 실측**했다.
 - **WS 게이트웨이는 서버 내부 컴포넌트**다 — Kafka 소비자이면서 WebSocket 서버. 브라우저는
   Kafka를 모르고 이 게이트웨이하고만 대화한다.
 
@@ -107,7 +112,8 @@ Physical-Project-mk2/            (ldg_BE 브랜치)
 
 **MongoDB는 현재 채택 없음**이며 영구 배제가 아니다 — 타당한 근거가 있을 때만 도입한다.
 **인가(RBAC)는 채택한다** — 다만 저장 모델 축이 아니라 조회·명령 경로의 강제 축이라 이 표에
-없다(BE-Q-04, 구현은 Phase 6). 미디어(영상) 저장 여부는 미결(현재 배포는 중계만).
+없다(BE-Q-04, 구현은 Phase 6). 미디어(영상) 스트림 저장은 미결(현재 배포는 중계만)이고, 로봇
+**촬영본(정지 촬영 세션)은 파일시스템 + MySQL 메타 한 행**으로 받는다(Phase 4 4b, `02-media-path.md` §1-3-4).
 
 ## 구현 계획
 
@@ -123,7 +129,10 @@ Phase 4 미디어 경로 → Phase 5 가용성 판정기 → Phase 6 상관·감
 2026-09-04) → ③ 가짜 발행자로 파이프라인 관통(Phase 1, 완료 2026-09-07) → ④ 저장 축
 (Phase 2, 완료 2026-09-10 — TimescaleDB 계측 저장 + 감사·레지스트리 MySQL) → ⑤ 관측
 파이프라인(Phase 3, 완료 2026-09-16 — A층 9종·C층 12종·Collector 분배·2계층 페더레이션
-실증) → **⑥ 미디어 경로(Phase 4) ← 다음**. 엣지→서버 WS 중계와 frame_ref 정합을 세운다.
+실증) → **⑥ 미디어 경로(Phase 4, 진행 중 — 단계 0~8 완료 2026-09-19)**. 엣지→서버→뷰어 방식 B
+중계(native 코덱·GOP 인지 drop-old·터널 위 `ws`+토큰)와 frame_ref 바이트 관통이 서버 pytest +
+컴퓨터 임시 엣지 실측으로 닫혔다. 남은 것은 회신·통지 3건(HW·VZ·AI)과 4b 촬영본 저장소 →
+**⑦ 가용성 판정기(Phase 5) ← 다음**.
 
 ## 설치와 실행
 
@@ -162,6 +171,9 @@ Phase 4 미디어 경로 → Phase 5 가용성 판정기 → Phase 6 상관·감
 | Loki | 3100 | 3100 |
 | Tempo | 3200 · 4317(OTLP) | 3200 · 4317 |
 | OTel Collector | 4316 *(로컬 바인딩)* | 4317 · 8889(exporter, 미공개) |
+| **WS 게이트웨이**(호스트 python) | **8765** `/state`·`/media` *(loopback + 서버 tailscale 주소, 토큰)* | — |
+| 엣지 미디어 입구(호스트 python) | 8766 `/ingest` *(tailscale 주소 — Phase 4 실측 뒤 `MK2_MEDIA_INGEST_PORT=0`으로 닫아 둠)* | — |
+| Kafka EDGE 리스너 | 9095 *(tailscale 주소 — 실측 뒤 compose 주석, 실 엣지 시 되살림)* | 9095 |
 
 > **4316 / 4317** — OTLP gRPC 표준 포트는 4317인데 Tempo가 그 포트를 직접 받고 있어, OTel
 > Collector가 4316으로 밀렸다. **Phase 3(2026-09-16)에서 Collector가 log→Loki·trace→Tempo를
@@ -210,13 +222,15 @@ docker compose ps
   기준 확정으로 `LEGACY_DEVICE_ID` 과도기 종료.
 - **AI(진나영):** 공통 헤더·식별자·시간 규약을 따른다(AI-C-01). AI 쪽 `contracts/ai/` 공통
   헤더는 이 규격에 정렬. 가용성 최종 판정은 백엔드(진나영 `simulation/backend.py` mock을 실물로 교체).
-- **가시화(김현우):** 뷰어가 canvas 표시·탐지 오버레이(frame_ref 정합). 미디어 뷰어 출력 담당은
-  백엔드 중계 / 가시화 표시로 확정(VZ-I-06 해소).
+- **가시화(김현우):** 뷰어가 프레임을 디코드해 canvas 표시·탐지 오버레이(frame_ref 정합). 미디어 뷰어
+  출력 담당은 백엔드 중계 / 가시화 표시로 확정(VZ-I-06 해소). 방식 B 형식·`frame_ref` 객체·`/media`
+  연결 규약은 Phase 4 통지(`docs/be/vz-media-interface.md`)로 전달.
 
 ## 남은 검증 (실 하드웨어·현장 필요 — Tier C)
 
-- 미디어 회선 QoS·온디맨드 콜드스타트 지연 실측(현장 좁은 회선)
-- Tailscale 직접 연결/DERP 폴백 실측 — **연구실 환경에서는 Phase 3에서 확인**(DERP 72ms → 직접 경로 3ms). **현장 엣지-서버 배치에서의 실측은 남아 있다**
+- 미디어 회선 QoS·온디맨드 콜드스타트 지연 실측(현장 좁은 회선) — **Phase 4는 연구실 배치에서 링크를
+  500kbit로 조인 한 조건만** 실측(drop-old IDR 재개, 지연 p90 2.34s). 실물 엣지·실물 로봇 영상은 0장
+- Tailscale 직접 연결/DERP 폴백 실측 — **연구실 환경에서는 Phase 3(DERP 72ms → 직접 3ms)·Phase 4(직접 2ms/22ms)에서 확인**. **현장 엣지-서버 배치에서의 실측은 남아 있다**
 - Unity 트윈 렌더 정합(가시화 파트 통합 후)
 - 실 센서·실 AI 통합(가짜 발행자로 공통 규격·경로 검증까지 완료 후)
 - 재난 SLA 지연 상한 실측(재난 고주기 실데이터)

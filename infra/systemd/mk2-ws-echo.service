@@ -7,14 +7,19 @@
 # 코드를 고치면:         서버 사본에 복사 → sudo systemctl restart mk2-ws-echo
 # 로그:                  journalctl -u mk2-ws-echo -f
 #
-# 바인딩은 settings 기본값 127.0.0.1:8765 다(외부 노출은 Phase 4/5 — 인증과 한 묶음).
+# 바인딩: Phase 4 단계 7부터 MK2_WS_HOST=127.0.0.1,<서버 tailscale IP> (둘 다 — 하나로 옮기면 loopback pytest·console 이 끊긴다)
+#         + 엣지 입구 MK2_MEDIA_INGEST_HOST=<서버 tailscale IP>:8766(단계 8 에서 MK2_MEDIA_INGEST_PORT=0 으로 닫음).
+#         토큰(MK2_WS_TOKEN·MK2_EDGE_TOKEN)은 .env 에 있다 — loopback 이 아닌데 비어 있으면 기동 시점에 죽는다.
+# ⚠ Tailscale 주소에 바인딩하므로 tailscaled 뒤에 떠야 한다(After/Wants). 없는 IP 면 cannot assign requested address 로
+#    기동이 실패하고 StartLimitBurst(3/60s)에 걸린다 — 그래서 RestartSec 를 5 → 10 으로 올려 tailscaled 가 늦어도
+#    세 번 안에 한 번은 주소가 생긴 뒤에 시도되게 했다. 재부팅 뒤 확인: systemctl --failed | grep mk2 (infra/README.md §4).
 # .env 의 비밀값을 직접 쓰지는 않지만, 세 유닛의 환경을 한 벌로 맞추기 위해 같은 EnvironmentFile 을 읽는다.
 # ⚠ .env 를 읽는 파서가 이제 셋이다(셸 source · compose dotenv · systemd EnvironmentFile). 영숫자만 쓴다.
 
 [Unit]
-Description=MK2 WS echo gateway (Kafka consumer + WebSocket server)
-After=docker.service
-Wants=docker.service
+Description=MK2 WS gateway (Kafka consumer + WebSocket /state·/media + edge /ingest)
+After=docker.service tailscaled.service
+Wants=docker.service tailscaled.service
 # ⚠ StartLimit* 는 [Unit] 이다. [Service] 에 두면 무시된다.
 StartLimitBurst=3
 StartLimitIntervalSec=60
@@ -27,7 +32,7 @@ EnvironmentFile=/home/dg/capstone-db/.env
 Environment=PYTHONUNBUFFERED=1
 ExecStart=/home/dg/capstone-db/phase1_work/venv_phase1/bin/python -m backend.gateway.ws_echo
 Restart=on-failure
-RestartSec=5
+RestartSec=10
 StandardOutput=journal
 StandardError=journal
 

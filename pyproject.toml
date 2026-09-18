@@ -32,6 +32,14 @@ dependencies = [
     # (관측은 업무의 전제조건이 아니다) — 그래서 설치 실패가 기동 실패로 번지지 않는다.
     "opentelemetry-sdk>=1.27",                      # metric·log(·trace) SDK (BE-S-02)
     "opentelemetry-exporter-otlp-proto-grpc>=1.27",  # OTLP gRPC → 서버 Collector 127.0.0.1:4316
+    # SDK 1.44 가 자기 LoggingHandler 를 deprecated 로 표시해 대체 핸들러가 여기로 옮겨 갔다(Phase 4 단계 5-3).
+    # 판본은 SDK 와 짝이다(1.44 ↔ 0.65b0). 없으면 어댑터가 SDK 핸들러로 물러선다(경고만).
+    "opentelemetry-instrumentation-logging>=0.65b0",
+
+    # ── Phase 4 (미디어 경로) ──
+    # 새 런타임 의존성 없음 — 방식 B 프레이밍·drop-old 는 표준 라이브러리, WS 는 websockets(Phase 1), 헤더 검증은
+    # jsonschema(+동봉 referencing). 합성 fixture 생성(tests/fixtures/make_h264_fixture.sh)은 ffmpeg 가 필요하나
+    # 컴퓨터에서 1회 생성해 커밋하므로 서버·패키지 의존성이 아니다.
 ]
 
 [project.optional-dependencies]

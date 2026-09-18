@@ -196,6 +196,29 @@ def observe_timeout_s() -> float:
     return float(os.environ.get("MK2_OBSERVE_TIMEOUT", "45"))
 
 
+# ── 미디어 엣지 입구 fixture (Phase 4) — 8766 에 닿지 않으면 그 테스트만 skip ─────
+#
+# 단계 8 이 8766 을 닫는데(`MK2_MEDIA_INGEST_PORT=0`) DoD 8-4 는 "되돌린 뒤 pytest 전건 통과"를 요구한다.
+# `prometheus_url` 등과 같은 모양으로 — 도달 실패 시 `test_media_relay.py` 만 skip 되게 해서 모순을 푼다.
+# 뷰어 입구(8765)는 Phase 1 부터 상주 3개의 일부라 skip 대상이 아니다.
+
+
+@pytest.fixture(scope="session")
+def ingest_url() -> str:
+    """엣지 입구 기본 주소(`settings.media_ingest_url()`, 토큰 포함·`source_id` 없음). TCP 로 닿지 않으면 skip."""
+    import socket
+    from urllib.parse import urlsplit
+
+    base = settings.media_ingest_url()
+    parts = urlsplit(base)
+    host, port = parts.hostname or "127.0.0.1", parts.port or 8766
+    try:
+        socket.create_connection((host, port), timeout=3).close()
+    except OSError as exc:
+        _skip("엣지 입구(8766)에 닿지 않는다 — 미디어 중계 테스트를 건너뛴다({}:{})".format(host, port), exc)
+    return base
+
+
 class KafkaReader:
     """토픽 구독 + 파티션 할당까지 마친 1회용 소비자.
 

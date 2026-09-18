@@ -45,12 +45,20 @@ journalctl -u mk2-ingest -f
 #   source ~/capstone-db/phase1_work/venv_phase1/bin/activate   # Python 3.14
 #   python -m backend.ingest.bridge        # MQTT 구독 → 2단 검증 → Kafka  (READY 로그 뒤에 발행)
 #   python -m backend.storage.consumer     # 저장 sink   (그룹 mk2-storage)
-#   python -m backend.gateway.ws_echo      # WS echo     (그룹 mk2-ws, ws://127.0.0.1:8765)
+#   python -m backend.gateway.ws_echo      # WS 게이트웨이 (그룹 mk2-ws, ws://127.0.0.1:8765 /state·/media + 8766 /ingest — Phase 4)
+#     READY 로그 두 줄("WS 게이트웨이" · "엣지 입구 …" 또는 "엣지 입구 닫힘")을 확인한다. 토큰이 없는데 loopback 밖에 바인딩하면 exit 2.
 
 # ── 테스트 (Phase 1부터 pytest. 상주 3개가 떠 있어야 한다 — Phase 3부터 systemd 가 띄운다) ──
 python -m pytest -q
 python -m pytest -q tests/test_pipeline.py::test_valid_roundtrip
 python -m pytest -q tests/test_pipeline.py::test_contract_fixtures   # 인프라 없이도 도는 공통 규격 검증
+python -m pytest -q tests/test_contract_media.py tests/test_media_frame.py tests/test_media_dropold.py   # 미디어 규격·프레이밍·drop-old (소켓 없음, 컴퓨터에서도)
+#   tests/test_media_relay.py 12건은 엣지 입구 8766 이 열려 있을 때만 돈다(닫혀 있으면 skip 이 정상 — MK2_MEDIA_INGEST_PORT=0).
+
+# ── 미디어 송신 fixture (Phase 4 — 홉2 방식 B 참조 구현. 엣지 실물이 없을 때 그 자리) ──
+python tests/media_publisher.py --source-id go1-001_front --encoding h264 --fps 30 --loop   # → MK2_MEDIA_INGEST_URL (기본 ws://127.0.0.1:8766/ingest)
+python tests/media_publisher.py --encoding jpeg --fps 15 --count 45
+#   뷰어 확인: backend/gateway/console.html 을 브라우저로 열고 ws://<서버>:8765 + 토큰 + source_id (H.264 는 WebCodecs)
 ```
 
 - 설치는 필요 없다 — 저장소 루트에서 `python -m ...`으로 실행하면 임포트가 잡힌다. 새 환경을
@@ -59,6 +67,13 @@ python -m pytest -q tests/test_pipeline.py::test_contract_fixtures   # 인프라
   환경변수 표(`MK2_MQTT_HOST`·`MK2_BROKER_HOST`·`MK2_KAFKA_BOOTSTRAP`·`MK2_WS_*`·
   **`MK2_OTEL_ENDPOINT`·`MK2_OTEL_EXPORT_INTERVAL`·`MK2_OTEL_SERVICE_NAME`** 등).
   `MK2_OTEL_ENDPOINT`가 비어 있으면 관측은 **no-op**이고 업무 경로는 그대로 돈다.
+  **Phase 4(미디어)에서 더해진 것:** `MK2_WS_HOST`는 **콤마 목록**(`127.0.0.1,<서버 tailscale IP>`) ·
+  `MK2_WS_TOKEN`·`MK2_EDGE_TOKEN`(URL 쿼리 토큰 — **loopback 이 아닌 바인딩에 토큰이 비어 있으면 기동 시
+  이름을 대며 죽는다**) · `MK2_WS_URL` · `MK2_MEDIA_INGEST_PORT`/`_HOST`(엣지 입구 8766, **`0`이면 닫힘** —
+  실측 뒤 닫아 둔 상태) · `MK2_MEDIA_INGEST_URL` · `MK2_MEDIA_DROP_WINDOW_MS`·`MK2_MEDIA_BUFFER_MAX_BYTES`·
+  `MK2_MEDIA_MAX_FRAME_BYTES`·`MK2_MEDIA_WRITE_LIMIT`·`MK2_MEDIA_SNDBUF`(drop-old 매개변수 — 지연 바운드 =
+  `T_drop + write_limit + sndbuf`). 4b(`MK2_CAPTURE_*`)는 단계 10에서 추가.
+  ⚠ 토큰은 **영숫자만**(`.env`를 읽는 파서가 셋 — 셸 `source`·compose dotenv·systemd `EnvironmentFile`).
 - 최소 발행자(수동 확인용): `python tests/publisher.py [--channel state|status|heartbeat]
   [--invalid missing-zone|timestamp]` — MQTT만 쓰므로 컴퓨터에서도 돈다.
 
@@ -78,11 +93,35 @@ backend/
                  derive.py = C층(업무 값의 관측 표현 파생, 저장 소비자 안)
   availability/  가용성 판정기 (업무 평면 MQTT 세션 우선 + 관측 평면 통합)
   gateway/       WS 게이트웨이 — Kafka 소비자이면서 WebSocket 서버 (서버 내부 컴포넌트)
+                 ws_echo.py = /state(상태 push) · /media(뷰어 분기) · /ingest(엣지 입구, 별도 포트) — 파일 이름은 Phase 1 그대로
+                 media.py   = 방식 B 프레이밍 · 헤더 검증(필수·타입만, 페이로드 안 열음) · GOP 인지 drop-old · Relay (소켓 없음)
+                 console.html = 확인용 최소 뷰어(/state + /media, WebCodecs/createImageBitmap) — VZ 앱이 아니다
+                 capture.py = 4b 촬영본 PUT 수신단 (단계 10 예정, 별도 유닛 mk2-capture)
   twin/          디지털 트윈 (위치·클래스 융합, 커버리지·사각지대, 시의성, 로봇 투입)
 contracts/common/  파트가 나뉘는 지점의 공통 규격 (JSON Schema). 이것이 기준이지 파이썬 타입이 아니다.
+                   message(공통 헤더) · frame-reference · media-header(Phase 4) · detections(초안) · payload/ 본문 6종
+                   파일 간 $ref 는 backend/ingest/envelope.py 의 레지스트리($id → 로컬 파일)가 푼다 — 네트워크 0
 infra/             docker-compose · Collector · Grafana 등 배포 자산
-  systemd/         상주 3개 유닛(mk2-ingest · mk2-storage-consumer · mk2-ws-echo). 커밋한다
+  systemd/         상주 3개 유닛(mk2-ingest · mk2-storage-consumer · mk2-ws-echo). 커밋한다. (단계 10: + mk2-capture)
+  sql/             MySQL·TSDB DDL — 서버 적용 경로는 아래 표(이름이 다르다)
+tests/             pytest + 가짜 발행자(publisher.py MQTT · media_publisher.py 홉2 방식 B · edge_probe_publisher.py B층)
+                   fixtures/ = 합성 H.264(464x400, IDR 15) · JPEG 3장 (커밋, *.h264 binary)
 ```
+
+**저장소 ↔ 서버 경로 대응표(제약 30 — 이름이 다른 곳이 있다. 헷갈리면 엉뚱한 파일을 고친다):**
+
+| 저장소(컴퓨터 작업본) | 서버 |
+|---|---|
+| `infra/sql/` | **`/home/dg/capstone-db/mk2_sql/`** ← 이름이 다르다 |
+| `infra/docker-compose.yml`(gitignore 작업본 = 서버 파일 사본) | `/home/dg/capstone-db/docker-compose.yml` |
+| `infra/config/`(gitignore) | `/home/dg/capstone-db/config/` |
+| **없다**(`infra/.env`는 존재하지 않는다) | **`/home/dg/capstone-db/.env` 하나뿐**(`600 dg dg`) |
+| `infra/systemd/*.service` | `/etc/systemd/system/*.service`(사람이 복사 + `daemon-reload`) |
+| 저장소 루트 | `/home/dg/capstone-db/phase1_work/Physical-Project-mk2/`(저장소 **사본** — `git pull` 아님) |
+| — | venv `/home/dg/capstone-db/phase1_work/venv_phase1/`(시스템에 `python`이 없다) · 임시 대기 `phase1_work/phase4_new/` |
+
+서버 상태·실주소·토큰은 `_serverinfo/`(gitignore)와 서버 `.env`에만 둔다. 채팅으로 주는 **실행 명령에는 실값**을,
+**커밋되는 문서·주석에는 자리표시자**(`<서버 tailscale IP>`)를 쓴다.
 
 **흐름 요약(구간별):**
 1. **말단↔엣지** = 업무 MQTT / 관측 OTLP / 명령 하달 MQTT / 생사 LWT+하트비트.
@@ -149,8 +188,11 @@ infra/             docker-compose · Collector · Grafana 등 배포 자산
    평면에 실을 수 있다([`docs/be/00-architecture.md`](docs/be/00-architecture.md) §8-3). 단 이것은
    **파생이지 전송 대체가 아니다** — 업무 데이터의 전송은 그대로 MQTT(말단)·Kafka(백본)이고,
    관측 평면에는 사본 성격의 신호가 추가로 흐를 뿐이다. **명령과 영상은 관측 평면에 싣지 않는다.**
-3. **영상 픽셀을 업무·관측 메시지에 싣지 않는다.** MQTT/Kafka/OTLP에 JPEG를 넣지 않는다. 영상은
-   별도 미디어 경로(RTP/UDP → WS 방식 B → WSS)로만 흐른다.
+3. **영상 픽셀을 업무·관측 메시지에 싣지 않는다.** MQTT/Kafka/OTLP에 JPEG·H.264를 넣지 않는다. 영상은
+   별도 미디어 경로(RTP/UDP → WS 방식 B → WSS)로만 흐른다. **현재 프로파일(Phase 4 결정 5) — 뷰어는
+   tailnet 구성원이다. 서버→뷰어는 터널 위 `ws` + 토큰이며, tailnet 밖 뷰어용 WSS는 Phase 6.** 코덱은
+   소스 native 그대로 종단까지 간다(결정 1) — 중계 경로는 헤더만 읽고 페이로드를 열지 않는다(디코드·
+   재인코딩 금지). 시연의 `zoneA/robot/go1-001/frame` 토픽(JPEG-on-MQTT)은 구독하지 않는다.
 4. **성격별 저장 모델을 분리한다.** 계측 시계열=TSDB, 감사·레지스트리·임무 실행 기록=MySQL(테이블
    분리), 관측=Prometheus/Loki/Tempo. **MongoDB는 현재 채택하지 않는다** — 영구 배제가 아니라
    "타당한 근거 없이 도입하지 않는다"는 뜻이며, 필요해지면 근거와 함께 재검토한다. 트윈·명령
@@ -235,9 +277,15 @@ infra/             docker-compose · Collector · Grafana 등 배포 자산
   어댑터 뒤에 둔다(원칙 1). 호출부는 `setup`·`count`·`updown`·`gauge`·`observe`·`log_handler`·
   `shutdown` 목적 인터페이스만 쓴다. 관측 저장소가 죽어도 업무 경로가 멈추면 안 된다.
 - **관측 라벨에 값이 계속 달라지는 것을 넣지 않는다** — `session_id`·`internal_seq`·`sequence_id`·
-  시각(`timestamp`·`ts`·`capture_timestamp`)·프레임 식별자(`frame_id`). 어댑터가 `ValueError`로
-  막는다(조용히 버리지 않는다). **A층(백엔드 자기 관측)에는 `source_id`·`zone_id`·`entity_type`도
-  넣지 않는다** — 장치 수만큼 시계열이 곱해진다. C층(업무 값)에서만 쓴다.
+  시각(`timestamp`·`ts`·`capture_timestamp`)·프레임 식별자(`frame_id`·`frame_ref`)·상관키
+  (`correlation_id`·`command_id`·`mission_id`·`node_ref`·`client_request_id`·`plan_id`·`event_key` —
+  Phase 4 확장, `node_id`는 물리 노드라 허용). 어댑터가 `ValueError`로 막는다(조용히 버리지 않는다).
+  **A층(백엔드 자기 관측)에는 `source_id`·`zone_id`·`entity_type`도 넣지 않는다** — 장치 수만큼
+  시계열이 곱해진다. C층(업무 값)에서만 쓴다. 미디어 지표는 전부 `be.gateway.*`(A층)이며 `source_id`별
+  회계는 연결 종료 로그 한 줄로 Loki에 남긴다.
+- **미디어 헤더의 값 어휘를 `enum`으로 잠그지 않는다** — `encoding`·`codec`·`alignment`는 string +
+  `$comment`. 서버는 필수·타입만 검증한다(제약 10). `frame_ref`는 엣지가 붙인 것을 바이트 그대로
+  전파하고 서버·AI가 재생성하지 않는다(원칙 10).
 
 ---
 

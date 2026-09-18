@@ -10,8 +10,8 @@
 | `MK2_MQTT_HOST` / `MK2_MQTT_PORT` | `localhost` / `1883` | ingest — **서버 안에서** Mosquitto에 붙는다 |
 | `MK2_BROKER_HOST` / `MK2_BROKER_PORT` | `210.110.250.33` / `1883` | 발행자(tests·실노드) — **브로커 바깥에서** 서버 Mosquitto에 붙는다 |
 | `MK2_KAFKA_BOOTSTRAP` | `localhost:9092` | ingest·저장 sink·WS — Kafka는 서버 localhost 전용 |
-| `MK2_WS_HOST` / `MK2_WS_PORT` | `127.0.0.1` / `8765` | WS echo 서버가 바인딩할 주소 |
-| `MK2_WS_URL` | `ws://127.0.0.1:8765` | WS 클라이언트(tests·콘솔)가 붙을 주소 |
+| `MK2_WS_HOST` / `MK2_WS_PORT` | `127.0.0.1` / `8765` | 뷰어 입구(`/state`·`/media`) 바인딩. **콤마 구분 목록** — 단계 7 이후 `127.0.0.1,<서버 tailscale IP>` 둘 다 |
+| `MK2_WS_URL` | `ws://127.0.0.1:8765/state`(`MK2_WS_TOKEN`이 있으면 `?token=…` 부착) | WS 클라이언트(tests·콘솔)가 붙을 주소. **loopback 유지** — Tailscale 주소로 바꾸면 컴퓨터의 단위 테스트가 서버 주소를 찾는다 |
 | `MK2_QUARANTINE_PATH` | `backend/ingest/quarantine.jsonl` | 봉투 불합격 격리 기록(런타임 산출물) |
 | `MK2_SINK_PATH` | `backend/storage/telemetry_sink.jsonl` | 저장 placeholder 기록(런타임 산출물) |
 | `MK2_CONTRACTS_DIR` | `contracts/common` | 봉투 계약(JSON Schema) 위치 |
@@ -46,6 +46,23 @@
 **관측이 업무의 전제조건이 아니다.** SDK 미설치·엔드포인트 미설정·Collector 장애 어느 경우에도
 백엔드는 계측 없이 계속 돈다 — 비밀번호와 달리 여기서는 기동을 실패시키지 않는다.
 
+미디어 경로(Phase 4). 게이트웨이 한 프로세스가 **두 서버**를 연다 — 8765 뷰어(`/state`·`/media`)와
+8766 엣지(`/ingest`). 토큰은 `hmac.compare_digest`로 비교하고 불일치·부재는 close 4401.
+
+| 환경변수 | 기본값 | 누가 쓰나 |
+|---|---|---|
+| `MK2_WS_TOKEN` | **없음** | 뷰어 토큰. **loopback 바인딩이면 없어도 연다**(개발·테스트). **loopback 이 아닌데 비어 있으면 기동 시점에 이름을 대며 죽는다**(`default_writer()` 규율 — 조용히 폴백하지 않는다) |
+| `MK2_MEDIA_INGEST_PORT` / `MK2_MEDIA_INGEST_HOST` | `8766` / `127.0.0.1` | 엣지 입구(`/ingest`). **포트 `0`이면 열지 않는다**(단계 8 되돌림이 이 한 줄). 호스트는 단일 주소(단계 7에서 `<서버 tailscale IP>`) |
+| `MK2_EDGE_TOKEN` | **없음** | 엣지 토큰(`MK2_WS_TOKEN`과 같은 규칙) |
+| `MK2_MEDIA_INGEST_URL` | `ws://127.0.0.1:8766/ingest`(`MK2_EDGE_TOKEN`이 있으면 `?token=…`) | 송신 fixture·tests 가 붙을 주소(`source_id`는 호출부가 붙인다) |
+| `MK2_MEDIA_DROP_WINDOW_MS` | `150` | `T_drop`의 시간 기준(× 배출률) |
+| `MK2_MEDIA_BUFFER_MAX_BYTES` | `1048576` | `T_drop` 상한(1MB) |
+| `MK2_MEDIA_MAX_FRAME_BYTES` | `8388608` | `websockets` `max_size`(엣지 입구 수신 상한). 기본값 1MB 에 맡기면 큰 AU·JPEG 이 close 1009 로 엣지를 끊는다 — 넉넉히 올리고 **상한 판정은 우리 코드에서** 프레임만 버린다 |
+| `MK2_MEDIA_WRITE_LIMIT` | `8192` | `websockets` 전송 버퍼 상한(뷰어 `/media` 소켓). 이 값이 곧 `buffered` 회계에서 빠지는 바이트 |
+| `MK2_MEDIA_SNDBUF` | `65536` (Linux 실효 128KB — 커널이 2배로 잡는다) | 뷰어 `/media` 소켓의 **커널 송신 버퍼 상한**(`SO_SNDBUF`). `0`이면 커널 자동조정. 2026-09-19 사용자 결정 A — 자동조정은 loopback MSS 64KB 탓에 cwnd 10만으로 ~1.4MB(상한 4MB)까지 커져 링크가 멈춰도 우리 회계 밖에 수십 초분을 쌓는다(서버 실측: H.264 5초 정지분·JPEG 4초 정지분이 드롭 0). 지연 바운드 = **`T_drop + write_limit + sndbuf`** |
+
+**토큰은 영숫자만**(특수문자 금지 — `.env`를 읽는 파서가 셋이고 인용부호 규칙이 다르다).
+
 **세션 타임존을 접속 시 명시하는 이유:** MySQL 은 `system_tz=KST` 이고 컨테이너 `TZ` 설정에
 따라 실효값이 달라진다. 컨테이너 설정이 바뀌면 과거 데이터 해석이 통째로 흔들리므로
 컨테이너 값에 기대지 않고 접속마다 못 박는다(MySQL `SET time_zone='+00:00'`,
@@ -59,7 +76,7 @@ ingest와 발행자가 같은 브로커를 서로 다른 이름으로 가리키�
 섞지 않는다(Kafka 메트릭 이름 변환 충돌 회피). 장치별 토픽이 아니다 — `zone_id`·`source_id`는
 봉투 안에 있고 토픽 이름에 넣지 않는다.
 
-implements: BE-T-01, BE-T-02, BE-T-03, BE-S-02(관측 환경변수)
+implements: BE-T-01, BE-T-02, BE-T-03, BE-S-02(관측 환경변수), BE-T-07(미디어 입구·drop-old 환경변수)
 """
 
 from __future__ import annotations
@@ -145,22 +162,123 @@ def kafka_bootstrap() -> str:
     return os.environ.get("MK2_KAFKA_BOOTSTRAP", "localhost:9092")
 
 
-def ws_host() -> str:
-    """WS echo 서버 바인딩 주소. 기본은 서버 localhost — 외부 노출을 만들지 않는다."""
-    return os.environ.get("MK2_WS_HOST", "127.0.0.1")
+LOOPBACK_HOSTS = ("127.0.0.1", "::1", "localhost")
+
+
+def _host_list(raw: str) -> List[str]:
+    return [h.strip() for h in raw.split(",") if h.strip()]
+
+
+def ws_host() -> List[str]:
+    """뷰어 입구(8765) 바인딩 주소 **목록**. 기본은 서버 loopback 하나 — 외부 노출을 만들지 않는다.
+
+    단계 7부터 `127.0.0.1,<서버 tailscale IP>` 둘 다다. 하나로 「옮기면」 서버 loopback 으로 붙는
+    pytest 2건과 `console.html`이 끊긴다(`ws_url()`이 127.0.0.1 을 유지하기 때문). `websockets`의
+    `serve(host=[...])`가 `loop.create_server`에 시퀀스를 그대로 넘겨 모든 주소에 바인딩한다.
+    """
+    return _host_list(os.environ.get("MK2_WS_HOST", "127.0.0.1")) or ["127.0.0.1"]
 
 
 def ws_port() -> int:
     return int(os.environ.get("MK2_WS_PORT", "8765"))
 
 
+def is_loopback_only(hosts: List[str]) -> bool:
+    """전부 loopback 이면 True — 토큰 없이 열어도 외부 노출이 없다."""
+    return all(h in LOOPBACK_HOSTS for h in hosts)
+
+
+def ws_token() -> str:
+    """뷰어 토큰. 비어 있으면 `""` — 허용 여부는 바인딩이 loopback 인지로 `require_token()`이 판단한다."""
+    return os.environ.get("MK2_WS_TOKEN", "").strip()
+
+
+def require_token(name: str, token: str, hosts: List[str]) -> str:
+    """loopback 이 아닌 주소에 토큰 없이 여는 것을 **기동 시점에** 막는다(조용히 폴백하지 않는다).
+
+    - loopback 뿐이면 빈 토큰을 그대로 돌려준다(호출부가 "토큰 없이 연다" 한 줄을 로그에 남긴다).
+    - 그 외에 비어 있으면 `MissingSetting` — 이름을 대며 죽는다(비밀번호와 같은 규율).
+    """
+    if token or is_loopback_only(hosts):
+        return token
+    raise MissingSetting(
+        "환경변수 {} 가 없다 — 바인딩 {} 는 loopback 이 아니라 토큰 없이 열 수 없다. "
+        "서버의 /home/dg/capstone-db/.env 에 영숫자 토큰을 넣는다".format(name, ",".join(hosts))
+    )
+
+
+def _with_token(url: str, token: str) -> str:
+    if not token:
+        return url
+    sep = "&" if "?" in url else "?"
+    return "{}{}token={}".format(url, sep, token)
+
+
 def ws_url() -> str:
-    """WS 클라이언트(tests·콘솔)가 붙을 주소.
+    """WS 클라이언트(tests·콘솔)가 붙을 주소 — 기본 `/state`, `MK2_WS_TOKEN`이 있으면 `?token=` 부착.
 
     기본 바인딩(127.0.0.1)과 표기를 맞춘다 — `localhost`는 환경에 따라 IPv6(::1)로 먼저
-    풀려 127.0.0.1 전용 바인딩과 어긋날 수 있다.
+    풀려 127.0.0.1 전용 바인딩과 어긋날 수 있다. **loopback 을 유지한다** — `ws_host()`를 참조하게
+    만들면 컴퓨터에서 도는 단위 테스트가 서버 주소를 찾는다.
     """
-    return os.environ.get("MK2_WS_URL", "ws://127.0.0.1:{}".format(ws_port()))
+    explicit = os.environ.get("MK2_WS_URL")
+    if explicit:
+        return explicit
+    return _with_token("ws://127.0.0.1:{}/state".format(ws_port()), ws_token())
+
+
+def ws_media_url(source_id: str) -> str:
+    """뷰어 영상 소켓 주소 — `/media?source_id=…(&token=…)`. 소켓 하나당 소스 하나."""
+    return _with_token("ws://127.0.0.1:{}/media?source_id={}".format(ws_port(), source_id), ws_token())
+
+
+# ── 미디어 경로 — 엣지 입구·drop-old (Phase 4) ─────────────────────────────
+
+
+def media_ingest_port() -> int:
+    """엣지 입구(`/ingest`) 포트. **0 이면 열지 않는다**(단계 8 되돌림)."""
+    return int(os.environ.get("MK2_MEDIA_INGEST_PORT", "8766"))
+
+
+def media_ingest_host() -> str:
+    """엣지 입구 바인딩(단일 주소). 단계 2 = loopback, 단계 7 = `<서버 tailscale IP>`."""
+    return os.environ.get("MK2_MEDIA_INGEST_HOST", "127.0.0.1").strip() or "127.0.0.1"
+
+
+def edge_token() -> str:
+    return os.environ.get("MK2_EDGE_TOKEN", "").strip()
+
+
+def media_ingest_url(source_id: Optional[str] = None) -> str:
+    """송신 fixture·tests 가 붙을 엣지 입구 주소. `source_id`를 주면 쿼리에 붙인다."""
+    base = os.environ.get("MK2_MEDIA_INGEST_URL") or "ws://127.0.0.1:{}/ingest".format(media_ingest_port() or 8766)
+    if source_id:
+        base = "{}{}source_id={}".format(base, "&" if "?" in base else "?", source_id)
+    return _with_token(base, edge_token())
+
+
+def media_drop_window_s() -> float:
+    return float(os.environ.get("MK2_MEDIA_DROP_WINDOW_MS", "150")) / 1000.0
+
+
+def media_buffer_max_bytes() -> int:
+    return int(os.environ.get("MK2_MEDIA_BUFFER_MAX_BYTES", str(1024 * 1024)))
+
+
+def media_max_frame_bytes() -> int:
+    return int(os.environ.get("MK2_MEDIA_MAX_FRAME_BYTES", str(8 * 1024 * 1024)))
+
+
+def media_write_limit() -> int:
+    return int(os.environ.get("MK2_MEDIA_WRITE_LIMIT", "8192"))
+
+
+def media_sndbuf() -> int:
+    """뷰어 `/media` 소켓의 커널 송신 버퍼(`SO_SNDBUF`) 값. `0`이면 손대지 않는다(커널 자동조정).
+
+    처리량 상한 = sndbuf ÷ RTT — 실효 128KB / 72ms(DERP 최악) ≈ 1.8MB/s per 뷰어로 JPEG 375KB/s 를 넉넉히 넘는다.
+    """
+    return int(os.environ.get("MK2_MEDIA_SNDBUF", "65536"))
 
 
 def quarantine_path() -> Path:

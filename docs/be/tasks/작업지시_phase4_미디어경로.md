@@ -10,8 +10,8 @@
 | | |
 |---|---|
 | **대상** | **Phase 4 — 미디어 경로**: 온디맨드 영상이 뷰어까지 관통하고 frame_ref가 정합된다. 그 경로를 세우는 김에 원격 엣지가 붙을 수 있게 만든다 |
-| **착수** | 2026-09-17 설계 세션에서 **착수 결정 9개 확정** → **2026-09-18 전면 재검토 2건(설계방 49건 + Cowork 검토 29건)을 합본해 반영**(결정 10·11·12 신설). ⚠ **단계 0의 서버 상태 표는 2026-09-18 서버 실측 출력으로 교체 대기 중이다**(§5 단계 0 머리말) |
-| **판본** | **v3 (2026-09-18 2차).** v1(2026-09-17) 대비 변경점은 `reports/2026-09-18_1700_phase4_지시서_합본수정안.md`의 번호 대응표에 전건 기록돼 있다.<br>**v3에서 바뀐 것:** 단계 0 표의 `[재실행 대기]` 5행이 **전부 실측으로 채워졌고**, 그 결과 🔴 **제약 16이 전면 개정**(ufw는 도커 발행 포트의 통제가 아니다 — iptables 실측)되고 🔴 **결정 6 β가 「평문 + ufw `/32`」에서 「평문 + 바인딩 + `DOCKER-USER`」로 개정**됐다. 제약 **29·30·31**과 **§3-b**(범위 밖 노출 발견)가 신설됐다 |
+| **착수** | 2026-09-17 설계 세션에서 **착수 결정 9개 확정** → **2026-09-18 전면 재검토 2건(설계방 49건 + Cowork 검토 29건)을 합본해 반영**(결정 10·11·12 신설). ✅ **단계 0의 서버 상태 표는 2026-09-18 서버 실측본이다 — 착수 시 대조만 한다**(§5 단계 0 머리말) |
+| **판본** | **v4 (2026-09-18 최종).** v1(2026-09-17) 대비 변경점은 `reports/2026-09-18_1700_phase4_지시서_합본수정안.md`의 번호 대응표에 전건 기록돼 있다.<br>**v2·v3에서:** 단계 0 표의 `[재실행 대기]` 5행이 전부 실측으로 채워졌고, **제약 16**(ufw가 통하는 입구와 통하지 않는 입구가 다르다)과 제약 **29·30·31**이 신설됐다.<br>**v4에서: 범위를 도로 좁혔다.** 「범위 밖 노출 발견」 절 삭제 · 결정 6 β를 **바인딩 주소 한 줄**로 축소(`DOCKER-USER`는 ⏭ 다음으로) · OTLP 토큰 확장 조사 ⏭ · 7-h를 판정에서 **기록 1회**로 · 탐지 오버레이 ⏭ 선택. **⏭ 표시는 「이번에 하지 않고 다음에 한다」는 뜻이다.** |
 | **근거 문서** | [`docs/be/01-standalone-implementation-plan.md`](../01-standalone-implementation-plan.md) **Phase 4 절**(이월 전수) · [`docs/be/02-media-path.md`](../02-media-path.md) **전문**(이번 Phase의 명세) · [`docs/be/00-architecture.md`](../00-architecture.md) §5-6·§6-3·§7-5·§8-5 · [`docs/be/requirement-traceability.md`](../requirement-traceability.md) BE-T-07·T-08·T-03·T-05·T-06·BE-C-03·BE-S-09 · [`reports/2026-09-16_1900_phase3_관측파이프라인.md`](../../../reports/2026-09-16_1900_phase3_관측파이프라인.md) 「서버에 남은 것」 · [`reports/2026-09-17_1159_팀브랜치_최신화_대조.md`](../../../reports/2026-09-17_1159_팀브랜치_최신화_대조.md) · [`docs/be/hw-envelope-conformance.md`](../hw-envelope-conformance.md) §5-1 · [`docs/be/vz-observability-namespace.md`](../vz-observability-namespace.md) + [`received/2026-09-17_vz-observability-namespace-reply.md`](../received/2026-09-17_vz-observability-namespace-reply.md) · [`infra/README.md`](../../../infra/README.md) §2-0·§3·§4·§5·§6 |
 | **관련 요구사항** | BE-T-07(미디어 뷰어 중계) · BE-T-08(엣지↔서버 보안 오버레이) · BE-C-03(프레임 참조·시간 규약) · BE-T-03(WS 게이트웨이) · BE-T-05(사설 IP 중계) · BE-T-06(재접속 캐시 — 규약만) · BE-S-09(미디어 저장 모드 — #15 갈래) · BE-T-02(Kafka 원격 노출) · BE-S-02/S-03/S-06(③ 묶음) · VZ-C-07 |
 
@@ -25,7 +25,7 @@
 
 - **Phase 1** — 공통 헤더 검증 → Kafka 3토픽 → 저장 sink + WS echo가 관통한다. 토픽 규약 `mk2.telemetry.<채널>`, 파티션 키 `source_id`, Kafka value는 원본 JSON 바이트 그대로.
 - **Phase 2** — 계측은 TimescaleDB(`telemetry` 하이퍼테이블, 시간축 = **발행 `timestamp`**, UTC), 감사·레지스트리·실행 기록은 MySQL 8테이블. 채널 본문 규격 6종 + **느슨한 2단 검증**.
-- **Phase 3** — 관측 어댑터 `backend/observability.py`가 `opentelemetry`를 import하는 유일한 파일. **A층 9종 · C층 12종**. Collector가 metric→Prometheus·log→Loki·trace→Tempo로 분배. 상주 3개는 **systemd**. **Tailscale이 서버에 설치**됐다(1.102.4, 팀 공용 계정). 2계층 페더레이션을 임시 엣지(컴퓨터)로 실증한 뒤 **되돌렸다**.
+- **Phase 3** — 관측 어댑터 `backend/observability.py`가 `opentelemetry`를 import하는 유일한 파일. **A층 9계기(이름 11) · C층 12계기(이름 17 — 09-18 실측)**. Collector가 metric→Prometheus·log→Loki·trace→Tempo로 분배. 상주 3개는 **systemd**. **Tailscale이 서버에 설치**됐다(1.102.4, 팀 공용 계정). 2계층 페더레이션을 임시 엣지(컴퓨터)로 실증한 뒤 **되돌렸다**.
 - **pytest 184건**이 v1 시점의 기준선이었다(2026-09-17 재실행 확인). ⚠ **이 숫자를 DoD 기준으로 그대로 쓰지 않는다** — 단계 5-3의 라벨 확장이 `parametrize`로 수집 수를 늘린다. 기준선은 **단계 0-5에서 측정하는 N**이다(제약 24).
 
 ### 2-2. 이번 Phase는 네 묶음이다
@@ -83,7 +83,7 @@
 
 **계산 기준은 464×400 · q2 ~25KB다.** `status.media`의 `1280x720`은 테스트 패턴 송출기 값이지 카메라가 아니다.
 
-### 2-5. 착수 전 결정 9개 — **설계방이 확정했다. 다시 설계하지 않는다**
+### 2-5. 착수 전 결정 **12개**(+4-b) — **설계방이 확정했다. 다시 설계하지 않는다**
 
 | # | 결정 | 확정 내용 |
 |---|---|---|
@@ -93,7 +93,7 @@
 | **4** | 엣지 역할 | **ㄷ — 서버 안에서 먼저 관통해 pytest에 못 박고, 그다음 컴퓨터 임시 엣지로 2계층 실측 1회, 그리고 되돌린다.** 파이 실물은 쓰지 않는다 |
 | **4-b** | 연결 방향·open 신호 | 홉2는 **엣지가 클라이언트**로 서버에 붙는다. open 신호는 **연결 자체** — `/media?source_id=…`에 붙는 것이 켜기, 끊는 것이 끄기. **상시(페이지 로드 시 연결)와 온디맨드(패널 열 때 연결)가 같은 메커니즘**이고 서버는 그 차이를 모른다 |
 | **5** | WS 노출·인증·주소 | **B — 터널 위 `ws` + 토큰.** 인증은 **URL 쿼리 토큰**. **같은 포트 경로 분리**(`/state`·`/media`), **엣지 입구는 별도 포트 8766**.<br>🔴 **2026-09-18 정합 — 뷰어는 tailnet 「안」이다.** v1은 *"WSS는 뷰어가 tailnet 밖인 프로파일"*이라 적어 **뷰어가 밖에 있을 수 있다**는 전제를 남겼는데, 결정 7 A는 4318을 **Tailscale IP에만** 바인딩해 **뷰어가 안에 있다**고 전제한다. **터널로 붙지 않은 브라우저는 4318에 닿지 못하므로 두 전제가 양립하지 않는다.** VZ 코드 주석(*"관제 웹(노트북)·로봇(pi7)·탐지(데스크톱)가 전부 테일넷으로 붙는다"*)에 맞춰 **「뷰어는 tailnet 구성원」으로 통일한다.** tailnet 밖 뷰어(외부 관제·시연장 게스트)가 필요해지면 **WSS + 관측 대체 경로를 Phase 6에서 함께 연다** — 이번 범위가 아니다 |
-| **6** | Kafka 원격 노출 | **㉯ EDGE 리스너를 하나 더 둔다**(PLAINTEXT `localhost:9092`는 **한 줄도 안 바꾼다**). 🔴 **β 개정(2026-09-18): 「평문 + ufw `/32`」 → 「평문 + `<서버 tailscale IP>` 바인딩 + `DOCKER-USER` 한 줄」.** ufw는 도커 발행 포트를 통제하지 못한다(제약 16 — iptables 실측). SASL은 BE-Q-04와 함께 Phase 6 |
+| **6** | Kafka 원격 노출 | **㉯ EDGE 리스너를 하나 더 둔다**(PLAINTEXT `localhost:9092`는 **한 줄도 안 바꾼다**). **β 평문 + `<서버 tailscale IP>` 바인딩**(ufw는 도커 발행 포트에 통제가 아니다 — 제약 16). SASL은 BE-Q-04와 함께 Phase 6 |
 | **7** | BE-T-08 범위·브라우저 입구 | **(ii) 평면별 최소 인증**(OTLP 토큰은 확장 유무를 `validate`로 판정, 없거나 receiver 분리가 필요하면 (i)). 브라우저 자체 지표는 **A — Collector OTLP/HTTP 4318을 Tailscale IP에만 바인딩 + CORS + ufw `/32`** |
 | **8** | §10-5·§10-6·회신 형태 | **8-1 ㄱ**(q 우선, **해상도 변경은 스트림 재개 사건**) · **8-2 확인 회신**(소스가 정한다 + 홉1/홉2 층 구분 + 개폐 배선은 Phase 6) · **8-3 A**(`hw-envelope-conformance.md`에 **§8**로 이어 붙인다) |
 | **9** | HW #15 촬영본 저장 | **ㄱ 파일시스템 + 작은 PUT 수신단**(새 저장 제품 없음) · **ㄴ 입구는 남긴다**(4b 완료 후 HW에 통지) · **`frame_ref_base`는 채우지 않는다** + 매니페스트에 선택 `correlation_id` · 보존은 **용량 상한 + 오래된 세션부터** · **4b는 이 지시서의 마지막 독립 단계** |
@@ -109,7 +109,7 @@
 
 ### 절대 원칙(CLAUDE.md §1) 중 이번에 걸리는 것
 
-1. **영상 픽셀을 업무·관측 메시지에 싣지 않는다**(원칙 3). MQTT/Kafka/OTLP에 JPEG·H.264를 넣지 않는다. **시연의 `zoneA/robot/go1-001/frame` 토픽을 구독하지 않는다.** ⚠ 원칙 3 원문은 경로까지 적고 있다 — *"영상은 별도 미디어 경로(**RTP/UDP → WS 방식 B → WSS**)로만 흐른다."* **결정 5가 그 괄호의 `WSS`를 바꿨으므로**, 원문을 지우지 말고 `CLAUDE.md` 원칙 3과 `02-media-path.md` §1-5-0에 **프로파일 구분**을 적는다: *"뷰어가 tailnet 안이면 터널 위 `ws` + 토큰, 밖이면 WSS."* (§8 갱신 대상)
+1. **영상 픽셀을 업무·관측 메시지에 싣지 않는다**(원칙 3). MQTT/Kafka/OTLP에 JPEG·H.264를 넣지 않는다. **시연의 `zoneA/robot/go1-001/frame` 토픽을 구독하지 않는다.** ⚠ 원칙 3 원문은 경로까지 적고 있다 — *"영상은 별도 미디어 경로(**RTP/UDP → WS 방식 B → WSS**)로만 흐른다."* **결정 5가 그 괄호의 `WSS`를 바꿨으므로**, 원문을 지우지 말고 `CLAUDE.md` 원칙 3과 `02-media-path.md` §1-5-0에 **프로파일 구분**을 적는다: *"현재 프로파일 — 뷰어는 tailnet 구성원이다. 터널 위 `ws` + 토큰. **tailnet 밖 뷰어용 WSS는 Phase 6**(결정 5가 「뷰어는 tailnet 구성원」으로 통일했다)."* (§8 갱신 대상)
 2. **frame_ref는 엣지가 한 번 부여하고 전파한다**(원칙 10). **서버는 재생성하지 않는다.** 이번 Phase에서 그 "엣지"는 **합성 송신 fixture**이고, 부여 시점은 **액세스 유닛 재조립 시점**이다.
 3. **엣지↔서버는 터널이 강제다**(원칙 12). 미디어·명령(Kafka)·관측(OTLP)이 **하나의 Tailscale 터널**을 공유한다.
 4. **WS 게이트웨이는 서버 내부 컴포넌트다**(원칙 13). 브라우저는 Kafka·MQTT에 직접 붙지 않는다. **단 관측 평면은 생산자 직접 발신이 설계다**(v8 §5-3·5-8) — 결정 7 A가 원칙 13과 충돌하지 않는 이유가 이것이다.
@@ -128,13 +128,11 @@
 13. **`docker compose up -d`·`restart`에 반드시 서비스 이름을 명시한다.** 컨테이너 13개 중 4개는 다른 파트 것이다(분류 ③). **이미 도는 것을 지웠다 다시 깔지 않는다.**
 14. **이미지는 digest로 고정한다. `:latest` 금지.**
 15. **없는 IP에는 docker가 바인딩하지 못한다.** `tailscaled`가 뜨기 전에 `up -d`를 하면 `cannot assign requested address`로 기동이 실패하고, 재부팅 시 `restart: always`가 루프에 빠진다. Tailscale 인터페이스 바인딩 전에 **반드시 `tailscale ip -4`로 주소가 있는지 확인**한다.
-16. 🔴 **ufw는 도커 발행 포트의 접근 통제가 아니다 — 2026-09-18 iptables 실측으로 판정났다.** 실질 통제는 **① compose의 바인딩 주소(DNAT의 `-d`)** 와 **② `DOCKER-USER` 체인** 둘뿐이다. *(v1의 이 항목은 「둘 다 한다」였고, 그 위에 결정 6 β가 서 있었다. 근거가 무너졌으므로 전면 개정한다.)*
-    - **근거 ①** `iptables -S FORWARD` 순서가 `… → ts-forward → **DOCKER-USER** → **DOCKER-FORWARD** → … → ufw-before-forward → …`다. **도커가 발행 포트를 ufw 체인보다 먼저 ACCEPT한다.** 외부 기기 → 발행 포트 트래픽은 ufw를 **보지 못한다.**
-    - **근거 ②** `iptables -S DOCKER-USER`가 **`-N DOCKER-USER` 한 줄뿐 — 규칙이 0개다.** 지금 도커 발행 포트를 거르는 것이 아무것도 없다.
-    - **근거 ③** nat `DOCKER`에서 **`-d 127.0.0.1/32`가 붙은 것은 9092·7859·4316 셋뿐**이고 나머지는 `-d`가 없다. **compose의 바인딩 주소가 그대로 DNAT 조건이 되어 실제로 막는다** — `127.0.0.1:9092:9092`가 작동하는 메커니즘이 이것이다.
-    - **그래서 ufw 규칙은 계속 적되 「통제」라고 적지 않는다.** 남는 용도 셋: ⓐ **컨테이너·호스트發 경로**는 DNAT를 안 타고 `INPUT`으로 오므로 ufw가 적용된다(`infra/README.md` §5의 9100 실측 `[6] ALLOW IN 172.16.0.0/12 # <- docker`가 바로 그 경로다) ⓑ 장애 원인 배제 ⓒ 🔴 **도커를 안 쓰는 호스트 프로세스 — 8765·8766·8767은 호스트 파이썬이라 DNAT를 타지 않고 `INPUT`으로 들어온다. 여기서는 ufw가 진짜 통제다.**
-    - **컨테이너 포트(9095·4318)를 tailnet 안에서 좁히려면 `DOCKER-USER`에 넣는다**(단계 6·7-h).
-    - ⚠ **`infra/README.md` §5의 「실측이 compose 주석을 반증했다」는 틀렸다.** 두 문장은 서로 다른 경로였고, 이번 실측으로 **compose 주석 쪽이 옳았음이 확정**됐다 — 단계 6-b에서 고친다.
+16. **ufw가 통하는 입구와 통하지 않는 입구가 다르다**(2026-09-18 iptables 실측).
+    - 🔴 **8765·8766·8767은 호스트 파이썬 프로세스**라 DNAT를 안 타고 `INPUT`으로 들어온다 — **여기서는 ufw가 진짜 통제다.** 미디어 경로의 입구 셋이 전부 여기 속한다.
+    - 🔴 **9095·4316·4318은 도커 발행 포트**라 ufw `INPUT`을 타지 않는다(`DOCKER-FORWARD`가 ufw 체인보다 먼저 ACCEPT하고 `DOCKER-USER`는 비어 있다). **여기서 실제로 막는 것은 compose의 바인딩 주소다** — nat `DOCKER`에서 `-d 127.0.0.1/32`가 붙은 9092·7859·4316만 실제로 제한되고 있는 것이 그 증거다.
+    - **그래서 도커 포트에는 바인딩 주소를 정확히 쓰고**(단계 6), **ufw 규칙도 적되 「통제」로 세지 않는다**(장애 원인 배제·문서용).
+    - ⚠ **`infra/README.md` §5의 「실측이 compose 주석을 반증했다」는 틀렸다** — compose 주석 쪽이 옳았다. 단계 6-b에서 고친다.
 17. **`tailscale up`을 다시 치지 않는다.** 팀 공용 계정이 갈릴 수 있다. 주소는 `tailscale ip -4`로만 읽는다.
 18. **서버 파일이 기준이다.** `infra/docker-compose.yml`(작업본)은 **서버 파일과 이미 다르다**(단계 0 실측: 서버 `2fa97cc7…` ↔ 작업본 `16a704a9…`, 주석 분량 차이). **compose를 처음 고치기 전에 서버 파일을 내려받아 작업본을 덮고 md5를 기록한다.**
 19. **상주 프로세스는 systemd다.** 손으로 띄워야 하면 **먼저 유닛을 내린다**(`ingest`는 `client_id=mk2-ingest`가 고정이라 둘이 붙으면 서로 밀어낸다).
@@ -173,25 +171,6 @@
       ```
     - **Loki·Tempo 조회에는 `start`·`end`를 반드시 붙인다.** 기본 조회 범위가 **6시간**이라 데이터가 있어도 **빈 응답**(`{"status":"success"}`만, `data` 없음)이 온다.
     - **진단 명령에 `2>/dev/null`을 붙이지 않는다.** 값이 빈 이유가 「파일이 없어서」인지 「이름이 달라서」인지 구분되지 않는다.
-
----
-
-### 3-b. 범위 밖 발견 — 이번 Phase에서 고치지 않되 반드시 보고한다
-
-제약 16의 판정(ufw는 도커 발행 포트를 통제하지 못한다)은 **Phase 4가 여는 포트만이 아니라 기존 포트 전부에 소급된다.** 2026-09-18 nat `DOCKER` 실측에서 **`-d` 제한 없이 모든 인터페이스로 DNAT되는** 포트는 다음과 같다.
-
-| 포트 | 서비스 | 자체 인증 |
-|---|---|---|
-| 7858 · 7863 · 7862 | MySQL · MongoDB · Grafana | 있다(계정) |
-| **7860** | **Redis** | **없다** |
-| **7861** | **Prometheus** | **없다** |
-| **3100 · 3200 · 4317** | **Loki · Tempo 조회 · Tempo OTLP 수신** | **없다** |
-| **1883** | **Mosquitto** | **없다**(익명 허용) |
-| **9100 · 9101** | **Pushgateway 2개** | **없다** |
-
-- **위험도는 「서버가 어떤 인터페이스를 갖는가」가 가른다.** 공인 IP가 붙어 있으면 인터넷에서 닿고, 교내 사설망뿐이면 교내에서 닿는다. **확인은 단계 0 블록 10** (`ip -4 -brief addr`).
-- **이번 Phase에서 고치지 않는다** — 범위 밖이고, 다른 파트가 쓰는 포트가 섞여 있다(분류 ③). 손대면 남의 것을 끊는다.
-- **그러나 보고서와 `infra/README.md` §5에 이 표째로 적는다.** *"ufw가 막고 있다"*고 적힌 문서를 그대로 두면 **다음 사람이 같은 전제로 포트를 더 연다.** 이것이 이번 Phase가 남길 가장 값어치 있는 한 장이다.
 
 ---
 
@@ -247,7 +226,7 @@
 | digest 고정 | `[실측 09-18]` | **`otel_collector`·`timescaledb` 둘만 digest.** `:latest` 잔여 **7개** — grafana · loki · mongo · **prometheus** · tempo · pushgateway 2개. 단계 5는 Prometheus만 고정하고 **나머지 6개를 `infra/README.md` §6에 「digest 미고정 잔여」로 기록**한다 |
 | systemd 3개 | `[실측 09-18]` | `mk2-ingest`·`mk2-storage-consumer`·`mk2-ws-echo` **active·enabled**, failed 없음 |
 | Kafka 설정 | `[실측 09-18]` | `ports: 127.0.0.1:9092:9092` · `KAFKA_LISTENERS=PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093,INTERNAL://0.0.0.0:9094` · `KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://localhost:9092,INTERNAL://kafka:9094` · `INTER_BROKER_LISTENER_NAME=INTERNAL`(compose 226-229행) |
-| Kafka 런타임 | `[실측 09-18]` | 토픽 **4개**(`__consumer_offsets` + `mk2.telemetry.{heartbeat,state,status}`) · 컨슈머 그룹 **2개**(`mk2-storage`·`mk2-ws`, **LAG 전부 0**) · 오프셋 heartbeat 200 · status 140 · state 127.<br>⚠ 두 그룹의 `HOST`가 **`/172.18.0.1`**(도커 브리지 게이트웨이)다 — 호스트 프로세스가 발행 포트를 거쳐 들어온다는 뜻이고, **MySQL 계정이 `@'172.18.%'`인 이유와 같다**(제약 29·30).<br>⚠ **`KAFKA_AUTO_CREATE_TOPICS_ENABLE=false`** — 없는 토픽에 발행하면 조용히 실패한다. **Phase 4는 새 토픽을 만들지 않는다**(엣지도 기존 3개에만 쓴다). |
+| Kafka 런타임 | `[실측 09-18]` | 토픽 **4개**(`__consumer_offsets` + `mk2.telemetry.{heartbeat,state,status}`) · 컨슈머 그룹 **2개**(`mk2-storage`·`mk2-ws`, **LAG 전부 0**) · 오프셋 heartbeat 200 · status 140 · state 127.<br>⚠ 두 그룹의 `HOST`가 **`/172.18.0.1`**(도커 브리지 게이트웨이)다 — 호스트 프로세스가 발행 포트를 거쳐 들어온다는 뜻이고, **MySQL 계정이 `@'172.18.%'`인 이유와 같다**(제약 29).<br>⚠ **`KAFKA_AUTO_CREATE_TOPICS_ENABLE=false`** — 없는 토픽에 발행하면 조용히 실패한다. **Phase 4는 새 토픽을 만들지 않는다**(엣지도 기존 3개에만 쓴다). |
 | Kafka 클라이언트 | `[전사]` | **백엔드 3개뿐**(host 프로세스, `settings.kafka_bootstrap()` 기본 `localhost:9092`). `INTERNAL`을 쓰는 클라이언트 **0**. ⚠ compose 주석 232-233이 **사실과 반대**(단계 6-b) |
 | ufw | `[실측 09-18]` | **9092 규칙 없음** · **4316 규칙 없음** · `4317/tcp ALLOW Anywhere`[12] · 7859[8]·7862[4]·7864[2]·9101[3]·8522·5000~5002·8100·7865·7866·9000·6443 등, DENY 8종.<br>🔴 **9100이 두 줄이다** — `[6] ALLOW IN 172.16.0.0/12 # rpi pushgateway <- docker` + `[7] ALLOW IN Anywhere`. 같은 패턴이 `[36] 9110 <- 172.18.0.0/16 # node-exporter <- dg prometheus`·`[37] 9120`에도 있다. **§5 정정의 9100 실측은 [6](컨테이너→호스트) 경로였다** — 단계 6-b·7-h의 결정적 근거 |
 | LISTEN | `[실측 09-18]` | `127.0.0.1:8765`(python) · `127.0.0.1:9092` · `127.0.0.1:4316` · `127.0.0.1:7859` · `0.0.0.0:4317`(+v6) · `0.0.0.0:3100`·`3200`·`1883`·`7858`·`7860`·`7861`·`7862`·`7863`·`9100`·`9101`. **7864 없음**(AI 파트가 필요할 때만 켠다 — 건드리지 않는다). **8766·8767·9095·4318 없음** = Phase 4가 여는 자리 |
@@ -262,7 +241,7 @@
 | **파이썬 환경** | `[실측 09-18]` | venv = `/home/dg/capstone-db/phase1_work/venv_phase1/`(**시스템에 `python`이 없다 — venv 안에서만 있다**).<br>`jsonschema` **4.26.0** · `websockets` **17.1** · **`referencing` 설치됨 → 결정 12를 새 의존성 없이 그대로 간다** |
 | **websockets 기본값** | `[실측 09-18]` | 🔴 **세 값이 전부 설계를 바꾼다** — `max_size` **1048576(1MB)** · `write_limit` **32768(32KB)** · `compression` **`deflate`**(켜져 있다) · `ping_interval`/`ping_timeout` 20/20.<br>**`write_limit` 32KB는 H.264 `T_drop ≈ 10.3KB`의 3배다** — 큐 회계에서 빠지는 바이트가 임계보다 커서 150ms 바운드가 그대로는 성립하지 않는다(단계 2-3·2-4) |
 | **pytest 기준선 N** | `[실측 09-18]` | **N = 184.** 파일별: `test_observability_labels` 45 · `payload_contract` 34 · `c_layer_extract` 24 · `registry_guards` 15 · `gap_detection` 11 · `mysql_storage` 10 · `mission_event` 10 · `storage_record` 9 · `pipeline` 8 · `tsdb_storage` 7 · `observability_pipeline` 7 · `observability_isolation` 4.<br>⚠ **단계 5-3에서 금지 라벨을 9종 더하면 `test_observability_labels.py`가 자동으로 +9 → 193**이 된다 |
-| **iptables** | `[실측 09-18]` | 🔴 **7-h의 답이 미리 나왔다 — ufw는 도커 발행 포트의 통제가 아니다**(제약 16 전면 개정).<br>**① `DOCKER-USER`가 비어 있다** — `-N DOCKER-USER` 한 줄뿐, 규칙 0개.<br>**② `FORWARD` 순서** `… ts-forward → DOCKER-USER → DOCKER-FORWARD → … → ufw-before-forward …` — **도커가 ufw 체인보다 먼저 ACCEPT한다.** 정책은 `-P FORWARD DROP`이고 **k3s·kube-router·flannel 체인이 같이 있다**(영속화 주의 — 단계 6).<br>**③ nat `DOCKER`에서 `-d 127.0.0.1/32`가 붙은 것은 9092·7859·4316 셋뿐**이고 7858·7860·7861·7862·7863·1883·3100·3200·4317·9100·9101은 **`-d`가 없다** → **실제로 막는 것은 compose의 바인딩 주소다**(§3-b) |
+| **iptables** | `[실측 09-18]` | **제약 16의 근거.** `DOCKER-USER`가 비어 있고(규칙 0개), `FORWARD` 순서가 `… DOCKER-USER → DOCKER-FORWARD → … → ufw-before-forward …`라 **도커 발행 포트는 ufw 체인에 닿기 전에 ACCEPT된다.** nat `DOCKER`에서 `-d 127.0.0.1/32`가 붙은 것은 **9092·7859·4316 셋뿐** → **실제로 막는 것은 compose 바인딩 주소다.**<br>⚠ `-P FORWARD DROP`이고 **k3s·kube-router·flannel이 `FORWARD`를 동적 관리**한다 — 이 체인을 건드릴 일이 생기면 `iptables-save` 전체 덤프를 쓰지 않는다 |
 | 되돌린 자리 | `[전사]` | compose 4316 Tailscale 줄 **주석** · `prometheus.yml` `edge_federate` 잡 **주석**(타깃은 검증 때 쓴 컴퓨터 주소 `100.83.113.100:9090`이 그대로 — 이번 임시 엣지 검증에 그 값을 쓴다) |
 
 **착수 시 돌릴 명령(대조용) — 전부 읽기 전용이다. 상태를 바꾸는 명령은 이 블록에 없다.**
@@ -296,7 +275,7 @@ sudo iptables -S DOCKER-USER
 cd /home/dg/capstone-db
 grep -n 'KAFKA_LISTENERS\|ADVERTISED\|SECURITY_PROTOCOL_MAP\|INTER_BROKER\|9092' docker-compose.yml
 # ⚠ apache/kafka 이미지는 CLI 가 /opt/kafka/bin/*.sh 다. 확장자 없이 부르면 127 로 끝난다(09-18 실측)
-docker exec capstone_kafka /opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092 2>/dev/null | head -3
+docker exec capstone_kafka /opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092 | head -3
 docker exec capstone_kafka /opt/kafka/bin/kafka-topics.sh              --bootstrap-server localhost:9092 --list
 docker exec capstone_kafka /opt/kafka/bin/kafka-consumer-groups.sh     --bootstrap-server localhost:9092 --list
 ```
@@ -319,8 +298,8 @@ curl -s 'http://localhost:3200/api/v2/search/tag/resource.service.name/values' |
 # ── 블록 6. 저장 축 ─────────────────────────────────────────────────────
 docker exec capstone_timescaledb psql -U postgres -d mk2 -tAc "SELECT count(*) FROM telemetry;"
 docker exec capstone_timescaledb psql -U postgres -d mk2 -tAc "SELECT split_part(source_id,'-',1) AS pre, count(*) FROM telemetry GROUP BY 1 ORDER BY 2 DESC;"
-# MySQL — 비밀번호는 셸에 없다(09-18 실측: 인증 실패). .env 의 변수 이름부터 확인한다
-grep -i -o '^[A-Z0-9_]*MYSQL[A-Z0-9_]*' /home/dg/capstone-db/.env
+# MySQL — 🔴 .env 를 경유하지 않는다(제약 31). 컨테이너 자기 환경변수를 쓴다
+docker exec -i capstone_mysql sh -c 'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" mysql -uroot -N -e "SHOW TABLES IN mk2;"'
 df -h /
 ```
 
@@ -354,8 +333,7 @@ python -m pytest --collect-only -q 2>&1 | grep '::' | cut -d: -f1 | sort | uniq 
 ```
 
 ```bash
-# ── 블록 10. 노출 범위 · 서버↔저장소 SQL 대조 (§3-b · 제약 30) ─────────
-ip -4 -brief addr                                  # 공인 IP 유무 = §3-b 위험도
+# ── 블록 10. 서버↔저장소 SQL 대조 (제약 30 · 단계 10 선행) ─────────────
 ls -l /home/dg/capstone-db/mk2_sql/                # 서버 SQL 폴더 (저장소 infra/sql/ 과 이름이 다르다)
 md5sum /home/dg/capstone-db/mk2_sql/mk2_mysql_schema.sql
 docker exec -i capstone_mysql sh -c 'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" mysql -uroot -t' <<'SQL'
@@ -369,7 +347,7 @@ SQL
 
 - **0-1** `[실측 09-18]` 등급 행과 어긋나면 **멈추고 보고한다.** `[전사]` 등급 행과 어긋나면 **차이를 기록하고 진행**하되, **Kafka 리스너·ufw·바인딩**에 관한 행이 어긋나면 멈춘다.
 - **0-1b** ✅ **`[재실행 대기]` 5행이 전부 채워졌다(2026-09-18 2차).** 표는 실측본이다. 착수 시 다시 돌려 **어긋나면 멈춘다.** 기준선 넷을 그대로 쓴다:
-  - **`be_*` 28종** = A층 11 + C층 17. `observability.py:74`의 `C_LAYER_PREFIX = "be.telemetry."`가 근거이므로 **`be_telemetry_*` 17종도 우리 것이다** — 남의 이름공간이 섞인 것이 아니다. 히스토그램 하나가 `_bucket`·`_sum`·`_count` 세 이름을 만드는 것은 정상이다. **Phase 4가 `be.gateway.media_ingress`를 더하면 29종**이 된다.
+  - **`be_*` 28종** = A층 11 + C층 17. `observability.py:74`의 `C_LAYER_PREFIX = "be.telemetry."`가 근거이므로 **`be_telemetry_*` 17종도 우리 것이다** — 남의 이름공간이 섞인 것이 아니다. 히스토그램 하나가 `_bucket`·`_sum`·`_count` 세 이름을 만드는 것은 정상이다. 🔴 **Phase 4가 미디어 계기 5개를 더하는데 `media_coldstart`가 히스토그램이라 이름은 7개가 늘어 35종이 된다**(A층 11 → 18).
   - **Loki 라벨 3종**(`service_name`·`service_namespace`·`service_instance_id`), `service_name` 값 4개. **금지 라벨은 하나도 새 나가지 않았다.**
   - **Tempo에 우리 서비스가 없다**(테스트 스팬 4 + `hw-sensor-node`). **Phase 4가 이것을 바꾸지 않는다.**
   - **Kafka 토픽 4 · 그룹 2 · LAG 0.**
@@ -382,11 +360,7 @@ SQL
   - **대조:** 서버 `md5sum …/docker-compose.yml` ↔ 컴퓨터 PowerShell `Get-FileHash .\infra\docker-compose.yml -Algorithm MD5`. **두 값이 같아야 한다.**
   - ⚠ **줄바꿈이 CRLF로 바뀌면 md5가 달라진다.** 복사 후 LF인지 확인한다(제약 12).
 - **0-4** `tailscale ip -4`가 주소를 준다(제약 15의 선행 확인).
-- 🔴 **0-6 (신설)** **서버 `mk2_sql/mk2_mysql_schema.sql`과 저장소 `infra/sql/mk2_mysql_schema.sql`의 md5를 대조했다**(제약 30). 09-18 실측에서 **크기가 다르다**(서버 23,864 ↔ 저장소 26,931) — 단계 10의 DDL을 얹기 전에 **어느 쪽이 앞선 것인지** 판정하고 `reports/`에 한 줄 남긴다.
-  - **저장소가 앞선 것이면**(적용되지 않은 DDL이 남아 있으면) **단계 10에 들어가기 전에 그 차이를 먼저 처리한다** — 새 테이블을 얹은 뒤에 옛 델타를 적용하면 순서가 꼬인다.
-  - **서버가 앞선 것이면** 서버 파일을 저장소로 가져오고 커밋한다(제약 18과 같은 방향).
-  - `SHOW TABLES IN mk2`의 실제 목록(09-18 기준 8개)도 같이 기록한다 — `media_capture`가 **9번째**임을 확인하는 근거다.
-- 🔴 **0-7 (신설)** **§3-b의 노출 표를 `ip -4 -brief addr` 결과와 함께 `reports/`에 옮겨 적었다.** 고치지는 않는다.
+- **0-6** **서버 `mk2_sql/`와 저장소 `infra/sql/`의 `mk2_mysql_schema.sql` md5를 대조했다**(제약 30 — 09-18에 크기가 달랐다: 서버 23,864 ↔ 저장소 26,931). **단계 10 전에만 필요하다** — 차이가 있으면 어느 쪽이 앞선 것인지 한 줄로 `reports/`에 적고, 저장소가 앞서면 그 델타를 단계 10보다 먼저 적용한다. `SHOW TABLES IN mk2`(09-18 기준 8개)도 같이 적는다.
 - **0-4b** **tailnet 기기 목록을 실측으로 받았다**(09-18: 11대). ⚠ **VZ 관제 노트북이 그중 어느 것인지는 아직 모른다** — 부록 B 10①에서 받기 전까지 **8765·4318의 VZ 쪽 ufw `/32`를 열지 않는다.**
 - **0-5** ✅ **pytest 기준선 N = 184**(09-18 실측, 12개 파일). 이후 모든 DoD의 "184"는 **N**으로 읽고, **단계 5-3의 라벨 9종 확장이 `test_observability_labels.py`를 +9 시켜 193이 되는 것**을 정상으로 본다.
 
@@ -407,7 +381,7 @@ plan §2의 우선순위 원칙 ①이다. 여기서 정한 것이 단계 2~3의
 | `keyframe` | boolean | ✅ | **서버가 drop-old에 쓰는 유일한 값.** JPEG는 항상 `true` |
 | `width` / `height` | integer (≥1) | ✅ | 탐지 좌표의 기준 해상도(`coord.ref_width/ref_height`)와 같은 값. ⚠ **VZ는 프레임 자신에도 좌표 선언을 들고 있다**(`VideoFrame.reference{width,height}`) — 그쪽 주석이 *"탐지의 `bbox_space.reference`와 **같은 값을 공유해야** 둘을 같은 화면에 겹칠 수 있다"*고 못 박았다. **이 두 칸이 그 자리다**(부록 B 6번에 그대로 적는다) |
 | `codec` | string \| null | | RFC 6381(예 `avc1.…`). **뷰어 WebCodecs `configure()`가 쓴다.** `h264`면 채운다 |
-| `correlation_id` | string \| null | | **결정 2 ㉡** — 어느 명령의 산출인가. 발급은 백엔드 Phase 6이라 지금은 자리만 |
+| `correlation_id` | string \| null | | **결정 2** — 어느 명령의 산출인가(상관키는 `frame_ref` 밖이다). 발급은 백엔드 Phase 6이라 지금은 자리만 |
 
 - `additionalProperties`를 **`false`로 두지 않는다** — 생산자가 필드를 하나 더해 전량 거부되는 사고를 만들지 않는다(payload 6종과 같은 규칙).
   ⚠ **단 `frame_ref`가 `$ref`하는 `frame-reference.schema.json:7`에는 `additionalProperties: false`가 있다.** 즉 `frame_ref` **안쪽**에는 필드를 더할 수 없다(결정 2의 "개정하지 않는다"와 일관). 미디어 헤더 **바깥**에만 자유가 있다. 이 예외 관계가 `contracts/common/README.md:146`(*"payload에는 `additionalProperties: false`를 쓰지 않는다"*)과 충돌해 보이므로 **단계 1-4에서 한 줄로 적는다.**
@@ -418,7 +392,7 @@ plan §2의 우선순위 원칙 ①이다. 여기서 정한 것이 단계 2~3의
 
 - `capture_timestamp` description에 추가: **"엣지가 프레임 경계를 확정한 시각(도착)이며 촬영 시각이 아니다. 말단 내부 지연이 포함되고 보정되지 않았다."** 크기 근거로만 *"HW 실측 1회 ≈0.3초(상수 아님)"*. **이 숫자를 규격값으로 쓰지 않는다.**
 - 전체 description의 *"엣지가 **디코드 시점**에 단 한 번 부여"* → **"엣지가 프레임 경계를 확정하는 시점(액세스 유닛 재조립 또는 디코드)에 단 한 번 부여"**.
-- **구조는 바꾸지 않는다** — `additionalProperties: false` 유지, 필드 추가 없음(결정 2 ㉡).
+- **구조는 바꾸지 않는다** — `additionalProperties: false` 유지, 필드 추가 없음(결정 2 — 구조 무개정).
 
 #### 1-3. `contracts/common/detections.schema.json` **초안 신설**
 
@@ -507,7 +481,7 @@ plan §2의 우선순위 원칙 ①이다. 여기서 정한 것이 단계 2~3의
 - **엣지가 없는 `source_id`에 뷰어가 붙으면** 소켓은 열리고 프레임이 오지 않는다 — 정상이며 뷰어에서 staleness로 보인다(§1-5-4).
 - **같은 `source_id`로 엣지가 둘 붙으면 나중 것을 거부한다**(close 4409). 기본값이며, 다른 동작이 필요해 보이면 멈추고 묻는다.
 
-#### 2-3. drop-old 상태 기계 (결정 1 + 수정 5건)
+#### 2-3. drop-old 상태 기계 (`02-media-path.md` §1-5-2 + 2026-09-18 수정 5건)
 
 ```
 FLOWING   : keyframe=true  && buffered <= T_hard  → 보낸다
@@ -546,8 +520,8 @@ WAIT_IDR  : keyframe=false                        → 전부 버린다
 
 | 입구 | 경로 | 포트 | 인증 | 바인딩(단계 2) | 바인딩(단계 7) |
 |---|---|---|---|---|---|
-| 뷰어 상태 | `/state?token=…` | 8765 | `MK2_WS_TOKEN` | `127.0.0.1` | `<서버 tailscale IP>` |
-| 뷰어 영상 | `/media?source_id=…&token=…` | 8765 | `MK2_WS_TOKEN` | `127.0.0.1` | `<서버 tailscale IP>` |
+| 뷰어 상태 | `/state?token=…` | 8765 | `MK2_WS_TOKEN` | `127.0.0.1` | **`127.0.0.1` + `<서버 tailscale IP>` 둘 다** |
+| 뷰어 영상 | `/media?source_id=…&token=…` | 8765 | `MK2_WS_TOKEN` | `127.0.0.1` | **`127.0.0.1` + `<서버 tailscale IP>` 둘 다** |
 | 엣지 수신 | `/ingest?source_id=…&token=…` | **8766** | `MK2_EDGE_TOKEN` | `127.0.0.1` | `<서버 tailscale IP>` |
 
 - **`/media`에 붙는 것이 켜기, 끊는 것이 끄기다.** 제어 메시지가 없다. 소켓 하나당 소스 하나.
@@ -591,14 +565,14 @@ WAIT_IDR  : keyframe=false                        → 전부 버린다
 
 **판정용(필수)** — 도착 프레임 수 · keyframe 수 · `frame_ref` 원문 · 순번 연속성 · 드롭 구간을 **텍스트로** 찍는다.
 **눈 확인(보조)** — JPEG는 `createImageBitmap`+`drawImage`, H.264는 WebCodecs. HW가 문서화한 브라우저 결함 5건을 적용한다(`prefer-software` · 최신 프레임만 rAF 주기로 · 보조 타이머 · `desynchronized` 제거 · `Cache-Control: no-store`). **판정 근거로 쓰지 않는다.**
-**탐지 오버레이** — fixture가 남긴 가짜 탐지 로그(JSON 파일)를 읽어 `frame_ref` **F==F 대조 결과를 화면에 표시**한다. 뷰어 규칙은 **결정 3 fail-safe**(`alignment=="frame"` + `frame_ref` 있을 때만 정합).
+**탐지 오버레이** — ⏭ **선택.** F==F 대조는 pytest 음성 대조 M6이 이미 판정하므로 **화면 오버레이는 시간이 남을 때만** 만든다. 뷰어 규칙만 주석으로 적어 둔다 — **결정 3 fail-safe**(`alignment=="frame"` + `frame_ref` 있을 때만 정합).
 
 **DoD**
 
 - **2-1** `media.py`의 프레이밍·상태 기계가 **소켓 없이** 단위 테스트된다(패킷 배열 입력 → 전송/드롭 판정 출력).
 - **2-2** 토큰 없이 붙으면 **4401로 닫히고 프레임이 한 장도 나가지 않는다.**
 - **2-3** 새 뷰어 소켓의 첫 전송이 **반드시 keyframe**이다.
-- **2-4** `be_gateway_media_*` 4종이 어댑터를 통해 나가고 **금지 라벨이 없다.**
+- **2-4** `be_gateway_media_*` **5종**(`media_frames`·`media_gop_cut`·`media_coldstart`·`media_rejected`·**`media_ingress`**)이 어댑터를 통해 나가고 **금지 라벨이 없다.**
 - **2-5** 코드를 서버 사본(`/home/dg/capstone-db/phase1_work/Physical-Project-mk2/`)에 복사하고 `sudo systemctl restart mk2-ws-echo` 했다(제약 20).
 
 ---
@@ -688,7 +662,7 @@ WAIT_IDR  : keyframe=false                        → 전부 버린다
 **DoD**
 
 - **4-1** 서버에서 **기준선 N(단계 0-5) + 신규 전건 통과, skip 0**. ⚠ **"184"를 그대로 쓰지 않는다**(제약 24).
-- **4-2** 음성 대조 M1~M6이 **전부 실제로 거부·유지**된다.
+- **4-2** 음성 대조 **M1~M9**가 **전부 실제로 거부·유지**된다. ⚠ M7(영상이 상태를 밀지 않는다)·M8(JPEG `T_hard`)·M9(과대 프레임이 연결을 안 끊는다)는 2-3·2-4의 🔴 규칙을 보는 **유일한** 대조다.
 - **4-3** 관측 평면으로 판정한다 — 발행 전후 `be_gateway_media_frames{outcome="sent"}` **차분 증가**, 멈추면 더 안 는다(`infra/README.md` §4 「흐른다」 방식, counter는 `rate()` 규칙).
 - **4-4** 컴퓨터에서 단위 파일만 돌려도 통과한다(인프라 필요분만 skip).
 
@@ -702,8 +676,7 @@ WAIT_IDR  : keyframe=false                        → 전부 버린다
 
 1. **Tailscale 바인딩 되살리기** — compose의 주석 한 줄(`# - "<서버 tailscale IP>:4316:4317"`)을 되살린다. **제약 15·16·17을 먼저 확인**한다.
 2. **ufw** — `allow from <엣지 tailscale IP>/32 to any port 4316 proto tcp`. **`Anywhere` 금지**(이 수신단에는 인증이 없다).
-3. **OTLP 토큰(결정 7 (ii))** — Collector contrib에 인증 확장이 있는지 **`validate`로 판정**한다.
-   ⚠ **receiver가 하나(`otlp/grpc`)라 auth를 걸면 백엔드 3개(loopback)도 토큰을 보내야 한다.** receiver를 둘로 나눠야 하면 **범위 확대이므로 (i)로 떨어지고 근거를 보고한다**(터널 + ufw `/32` + 평문 = Phase 3과 같은 수준).
+3. **OTLP 토큰(결정 7)** — ⏭ **이번에는 (i)로 간다. 확장 조사를 하지 않는다.** 터널 + ufw `/32` + 평문 = Phase 3과 같은 수준이며, 엣지는 임시이고 단계 8에서 되돌린다. 근거: receiver가 `otlp/grpc` 하나뿐이라 auth를 걸면 **loopback으로 붙는 백엔드 3개도 토큰을 보내야 하고**, 나누려면 receiver 신설 = 범위 확대다. **인증은 BE-Q-04와 함께 Phase 6**이며 추적표 BE-T-08에 한 줄로 남긴다.
 4. **OTLP/HTTP 4318(결정 7 A)** — ⚠ **포트 한 줄이 아니라 receiver 신설이다.** 현재 `otel-collector-config.yaml`의 receiver에는 **`grpc:` 블록 하나뿐이고 `http:` 블록이 아예 없다**(주석이 *"gRPC만 연다"*로 못 박고 있다). 그래서 최소 네 곳이 바뀐다 — ① `receivers.otlp.protocols.http` 신설(`endpoint: "0.0.0.0:4318"`) ② `cors.allowed_origins` ③ compose `"<서버 tailscale IP>:4318:4318"` ④ ufw **VZ PC `/32`**. 컨테이너 재생성이 따라온다.
    ⚠ **`allowed_headers`도 필요할 수 있다** — 브라우저 OTLP/HTTP는 `Content-Type: application/x-protobuf`(또는 `application/json`)로 preflight를 보내고, Collector CORS 기본값이 그것을 허용하지 않으면 preflight에서 막힌다.
    🔴 **이번 Phase에서는 「준비」도 하지 않고 통째로 보류한다.** `allowed_origins`(VZ 회신 대기)와 **VZ PC의 tailnet 주소**(아무도 모른다 — 부록 B 10번에서 묻는다) 둘 다 없어 **포트를 열 수 없고**, 설정 파일을 반쯤 고쳐 두면 나중에 열 때 `validate`와 재생성을 어차피 다시 해야 한다. **결정 7 A(방향)는 유지하고, 구현 시점은 「VZ 답 이후」로 미룬다.** 단계 9 통지에서 두 값을 묻는 것까지가 이번 몫이다.
@@ -733,18 +706,13 @@ WAIT_IDR  : keyframe=false                        → 전부 버린다
 - **5-1** `ss`로 4316이 **loopback + Tailscale IP 둘 다** LISTEN. ufw에 **엣지 IP `/32`** 규칙만(Anywhere 없음).
 - **5-2** Collector `validate exit=0`, 기동 로그에 `Everything is ready`, `.Config.Image`가 digest.
 - **5-3** `edge_federate` 잡이 `up`이고 15s(단계 7에서 임시 엣지로 확인).
-- **5-4** Prometheus `.Config.Image`가 digest, 타깃 5개가 그대로, global `1s` 무변경.
+- **5-4** Prometheus `.Config.Image`가 digest, **기존 타깃 5개가 그대로이고 `edge_federate` 1개가 더해져 6개**, global **무변경**(값을 바꾸지 않았다는 뜻 — `scrape_timeout > scrape_interval` 잡이 있어 global을 건드리면 설정 전체가 거부된다).
   ⚠ **digest 미고정이 Prometheus 하나가 아니다** — compose에서 `grafana`·`loki`·`tempo`·`mongo`·pushgateway 2개도 `:latest`다. **이번에 Prometheus만 고정하고, 나머지 목록을 `infra/README.md` §6에 「digest 미고정 잔여」로 기록**한다(규율 8 — 다음 Phase가 알아야 한다).
 - **5-5** pytest 경고 2건이 **사라졌다**. **N + 8(라벨 증가분) + 신규** 전건 통과.
 - **5-6** 금지 라벨 테스트가 **추가분을 실제로 거부**한다 — **`frame_ref`·`correlation_id`·`command_id`가 실제로 `ValueError`로 막히는 것**까지 확인한다. `node_id`는 **허용**되는 것까지 음성 대조.
 - **5-7b** 4318은 **손대지 않았다**(설정·compose에 변경 0). 대신 부록 B 10번에 **CORS origin과 VZ PC tailnet 주소 문의**가 들어갔다.
-- **5-7** **다른 12개 컨테이너가 재생성되지 않았다**(매 단계 `docker compose ps`로 `Up <기간>` 확인). ⚠ **`docker compose down`을 치지 않는다**(제약 29 — 브리지 대역 미고정).
-- 🔴 **5-8 (신설) 관측 기준선 대조.** 09-18 실측값과 비교해 **설명되는 차이만** 남긴다.
-  - **`be_*` 28종 → 29종** (A층 11 **+ `be_gateway_media_ingress`** = 12, C층 17 그대로). `be.gateway.`는 **A층 접두사**이므로 `source_id`·`zone_id`·`entity_type`을 라벨로 붙이지 못한다(`A_LAYER_FORBIDDEN`). 단계 2-5의 `endpoint` 라벨은 그 목록에 없어 통과한다.
-  - **Loki 라벨은 3종 그대로여야 한다**(`service_name`·`service_namespace`·`service_instance_id`). **하나라도 늘면 금지 라벨이 샌 것**이므로 멈추고 본다. `service_name` 값도 4개 그대로.
-  - **Tempo `resource.service.name`은 그대로다** — Phase 4는 트레이스를 새로 붙이지 않는다. 테스트 스팬 4 + `hw-sensor-node`.
-  - ⚠ **조회에 `start`·`end`를 반드시 붙인다**(제약 31 — 기본 6시간).
-  - ⚠ **Prometheus 타깃 `host.docker.internal:8000`은 09-18에도 `down`이었다.** 이번 Phase가 만든 것이 아니므로 **"타깃 전부 up"을 판정 기준으로 쓰지 않는다.**
+- **5-7** **Collector·Prometheus 말고 다른 11개 컨테이너가 재생성되지 않았다**(매 단계 `docker compose ps`로 `Up <기간>` 확인). ⚠ **`docker compose down`을 치지 않는다**(제약 29 — 브리지 대역 미고정).
+- **5-8** 관측 기준선 — **`be_*` 28종 → 35종**(A층 11 → **18**. 미디어 계기 5개 중 `media_coldstart`가 히스토그램이라 `_bucket`·`_sum`·`_count` 셋을 만든다. C층 17 무변경)이고 **Loki 라벨은 3종 그대로**다(늘면 금지 라벨이 샌 것이므로 멈춘다). ⚠ 조회에 `start`·`end` 필수(제약 31). ⚠ `host.docker.internal:8000` 타깃은 09-18에도 `down`이었으므로 **"타깃 전부 up"을 판정 기준으로 쓰지 않는다.**
 
 ---
 
@@ -759,23 +727,18 @@ KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT,I
 ports:  - "<서버 tailscale IP>:9095:9095"
 ```
 
+⚠ **두 곳의 `0.0.0.0`은 뜻이 다르다.** `KAFKA_LISTENERS`의 `EDGE://0.0.0.0:9095`는 **컨테이너 안에서 듣는 주소**라 그대로 맞다. 금지되는 것은 **`ports:`의 `0.0.0.0`**(= 호스트 노출 주소)이다.
+⚠ **`ADVERTISED_LISTENERS`의 `EDGE://`에 반드시 `<서버 tailscale IP>`를 넣는다.** `localhost`로 두면 엣지가 접속은 되는데 브로커가 *"localhost로 오라"*고 답해 **엣지가 자기 자신에게 되돌아간다**(Phase 0 미결이 Phase 1까지 끌었던 바로 그 함정).
 ⚠ **`SECURITY_PROTOCOL_MAP`에 `EDGE:PLAINTEXT`를 빠뜨리면 브로커가 기동에 실패한다.**
 ⚠ **`INTER_BROKER_LISTENER_NAME`은 `INTERNAL` 그대로 둔다.**
 ⚠ 제약 15(없는 IP 바인딩) — `tailscale ip -4` 확인 뒤에 `up -d kafka`.
-🔴 **결정 6 β 개정 (2026-09-18) — 「평문 + ufw `/32`」에서 「평문 + 바인딩 + `DOCKER-USER` 한 줄」로.**
+**결정 6 β — 이번에 하는 것은 한 줄뿐이다.**
 
-> v1의 β는 **ufw가 도커 발행 포트를 막는다는 전제** 위에 서 있었다. 09-18 iptables 실측이 그 전제를 무너뜨렸다(제약 16). **없는 통제를 근거로 평문 입구를 열지 않는다.**
+- 🔴 **`ports`에 `0.0.0.0`을 쓰지 않는다. `"<서버 tailscale IP>:9095:9095"`로 적는다.** 이것이 실질 통제다 — DNAT 규칙에 `-d <서버 tailscale IP>/32`가 붙어 **tailnet 밖(공인 IP·LAN 인터페이스)에서는 매치되지 않는다.** `9095:9095`로만 적으면 `0.0.0.0`이 되어 **인증 없는 Kafka가 서버의 모든 인터페이스에 열린다.** 작업량 차이는 **문자열 하나**다.
+- **ufw 규칙도 적는다** — `allow from <엣지 tailscale IP>/32 to any port 9095 proto tcp`. 다만 도커 발행 포트에 대해서는 **통제가 아니다**(제약 16). **장애 원인 배제·문서용**이며, 보고서·추적표 **BE-T-08**에 그렇게 적는다. 없는 통제를 있다고 적지 않는다.
+- **SASL은 BE-Q-04와 함께 Phase 6.** 바뀌지 않는다.
 
-- **① 바인딩이 1차 통제다 — 이것은 실제로 작동한다.** `ports: "<서버 tailscale IP>:9095:9095"`로 발행하면 DNAT 규칙에 `-d <서버 tailscale IP>/32`가 붙어 **tailnet 밖(공인·LAN 인터페이스)에서는 매치되지 않는다.** 09-18 실측에서 `127.0.0.1` 바인딩 포트 셋(9092·7859·4316)이 정확히 이 방식으로 막혀 있음을 확인했다. **`0.0.0.0`으로 열지 않는다.**
-- **② tailnet 안에서 엣지 1대로 좁히는 것은 `DOCKER-USER`가 한다.** 체인이 **비어 있고**(규칙 0개) `FORWARD`에서 **`DOCKER-FORWARD`보다 먼저** 걸리므로 한 줄이면 된다. `-C`로 먼저 확인해 **멱등**하게 넣는다.
-  ```bash
-  sudo iptables -C DOCKER-USER -p tcp --dport 9095 ! -s <엣지 tailscale IP>/32 -j DROP \
-    || sudo iptables -I DOCKER-USER 1 -p tcp --dport 9095 ! -s <엣지 tailscale IP>/32 -j DROP
-  ```
-- **③ 🔴 영속화에 `netfilter-persistent`·`iptables-save` 전체 덤프를 쓰지 않는다.** 이 서버는 **k3s·kube-router·flannel**이 `FORWARD`를 동적으로 관리하고 정책이 `-P FORWARD DROP`이다(09-18 실측). 전체를 굳히면 **다음 부팅에 k8s 규칙과 충돌한다.** 대신 **`mk2-docker-user-rules.service`(`Type=oneshot`·`RemainAfterExit=yes`·`After=docker.service`·`Wants=docker.service`)**를 만들어 위 두 줄만 다시 넣는다. **§8 `CLAUDE.md`·`infra/README.md` 갱신 대상에 새 유닛을 넣는다.**
-  - ⚠ **이 유닛은 단계 8의 되돌림 대상이다** — 9095를 닫으면 규칙도 같이 걷는다(`mk2-capture`와 반대다).
-- **④ ufw 규칙은 계속 적는다** — `allow from <엣지 tailscale IP>/32 to any port 9095 proto tcp`. 다만 **장애 원인 배제·문서용**이지 통제가 아니다. **보고서와 추적표 BE-T-08에 그렇게 적는다.** 없는 통제를 있다고 적지 않는다.
-- **⑤ SASL은 인증 체계(BE-Q-04)와 함께 Phase 6** — 바뀌지 않는다. 다만 *"Phase 3이 OTLP 4316을 같은 방식으로 열었던 선례"*는 **근거로 쓰지 않는다.** 4316은 `127.0.0.1` 바인딩이라 tailnet에서 보이지도 않았다 — 같은 방식이 아니었다.
+> ⏭ **다음으로 미룬다 — `DOCKER-USER` 규칙.** tailnet **안**의 나머지 기기까지 막으려면 `iptables -I DOCKER-USER 1 -p tcp --dport 9095 ! -s <엣지 tailscale IP>/32 -j DROP` 한 줄과 그것을 부팅마다 다시 넣을 oneshot 유닛이 필요하다(체인이 비어 있고 `DOCKER-FORWARD`보다 먼저라 기술적으로는 된다 — 단 k3s가 `FORWARD`를 동적 관리하므로 `iptables-save` 전체 덤프는 쓰지 않는다). **이번 Phase의 엣지는 임시이고 단계 8에서 9095를 통째로 닫으므로 하지 않는다.** 실 엣지 장비가 상시로 붙을 때 한다 — `infra/README.md` §5와 추적표 **BE-T-08**에 **한 줄로만** 남긴다.
 
 #### 6-b. compose 주석 두 곳을 같은 작업에서 고친다
 
@@ -802,8 +765,8 @@ ports:  - "<서버 tailscale IP>:9095:9095"
 
 - **6-1** `kafka-broker-api-versions.sh --bootstrap-server localhost:9092`가 **여전히 `localhost:9092`로 답한다**(기존 경로 무변경).
 - **6-2** 백엔드 3개가 **재기동 없이** 계속 돈다. `ss -tnp | grep 9092`에 셋 그대로.
-- **6-3** 토픽 3개·그룹 오프셋이 그대로다.
-- **6-4** `ss`에 **`<서버 tailscale IP>:9095` LISTEN**(`0.0.0.0` 아님) · **`iptables -S DOCKER-USER`에 우리 규칙 1줄** · `systemctl is-enabled mk2-docker-user-rules` = `enabled` · ufw에 엣지 `/32` 규칙(문서용).
+- **6-3** **우리 토픽 3개(+`__consumer_offsets` = 4)**·그룹 오프셋이 그대로다.
+- **6-4** `ss`에 **`<서버 tailscale IP>:9095` LISTEN**(`0.0.0.0`이 아니다) · ufw에 엣지 `/32` 규칙(문서용).
 
 ---
 
@@ -813,21 +776,22 @@ ports:  - "<서버 tailscale IP>:9095:9095"
 
 #### 7-1. 서버 — 입구 셋을 Tailscale 인터페이스로
 
-> 🔴 **입구마다 「무엇이 실제로 막는가」가 다르다**(제약 16). **8765·8766·8767은 호스트 파이썬**이라 DNAT를 안 타고 `INPUT`으로 들어온다 — **여기서는 ufw가 진짜 통제다.** **9095·4316·4318은 도커 발행 포트**라 ufw가 통제가 아니다 — **바인딩 주소와 `DOCKER-USER`가 막는다.**
+> **입구마다 무엇이 막는지가 다르다**(제약 16). **8765·8766은 호스트 파이썬**이라 `INPUT`으로 들어오므로 **ufw가 진짜 통제**이고, **9095·4316은 도커 발행 포트**라 **바인딩 주소가 통제**다.
 
 | 입구 | 무엇이 막나 | 바인딩 | ufw |
 |---|---|---|---|
-| 8765(뷰어 `/state`·`/media`) | **ufw**(호스트 프로세스) + 토큰 | **`127.0.0.1` + `<서버 tailscale IP>` 둘 다**(단계 2-4) | **`<VZ PC tailscale IP>/32` + `<사용자 컴퓨터 tailscale IP>/32`**. ⚠ **VZ PC 주소를 아무도 모른다 — 부록 B 10번에서 받는다. 받기 전에는 사용자 컴퓨터 `/32`만 연다** |
-| 8766(엣지 `/ingest`) | **ufw**(호스트 프로세스) + 토큰 | `<서버 tailscale IP>` | `<엣지 tailscale IP>/32` |
-| 8767(4b PUT) | **ufw**(호스트 프로세스) + 토큰 | `<서버 tailscale IP>` | `pi7 /32` |
-| **9095**(Kafka EDGE) | 🔴 **바인딩 + `DOCKER-USER`** — ufw 아님 | `<서버 tailscale IP>` | 엣지 `/32`(문서용) |
-| 4316·4318 | 🔴 **바인딩** — ufw 아님 | 단계 5에서 이미 | 좌동(문서용) |
+| 8765(뷰어 `/state`·`/media`) | **ufw + 토큰** | **`127.0.0.1` + `<서버 tailscale IP>` 둘 다**(단계 2-4) | **`<사용자 컴퓨터 tailscale IP>/32`**. ⚠ **VZ PC 주소를 아무도 모른다 — 부록 B 10번에서 받는다. 받기 전에는 사용자 컴퓨터 `/32`만 연다** |
+| 8766(엣지 `/ingest`) | **ufw + 토큰** | `<서버 tailscale IP>` | `<엣지 tailscale IP>/32` |
+| **9095**(Kafka EDGE) | **바인딩** — ufw는 문서용 | `<서버 tailscale IP>` | 엣지 `/32` |
+| 4316 | **바인딩** | 단계 5에서 이미 | 엣지 `/32` |
+
+⚠ **8767(4b PUT 입구)은 여기 없다** — 단계 10에서 열리고 거기서 같은 방식(바인딩 `<서버 tailscale IP>` + ufw `pi7 /32` + 토큰)으로 연다. 순서를 앞당기지 않는다.
 
 ⚠ **8765를 Tailscale IP에 바인딩하면 `mk2-ws-echo`가 `tailscaled`에 의존한다.** 유닛에 **`After=tailscaled.service`·`Wants=tailscaled.service`**를 넣는다. 그래도 tailscaled가 늦으면 `StartLimitBurst`에 걸릴 수 있으므로 `RestartSec` 상향을 함께 검토하고, **재부팅 후 확인 절차(`systemctl --failed | grep mk2`)에 이 유닛을 포함**시킨다.
 
 #### 7-2. 컴퓨터 — 임시 엣지
 
-- **Windows 인바운드 방화벽은 `edge_federate`(서버→엣지 9090) 한 건만** 연다. 미디어·OTLP·Kafka는 **엣지→서버 outbound**라 인바운드가 필요 없다(결정 4-b ㄱ).
+- **Windows 인바운드 방화벽은 `edge_federate`(서버→엣지 9090) 한 건만** 연다. 미디어·OTLP·Kafka는 **엣지→서버 outbound**라 인바운드가 필요 없다(결정 4-b — 엣지가 클라이언트로 붙는다).
 - 엣지 Prometheus·Collector(Agent) 설정은 `_serverinfo/edge_probe_260916/`의 사본이 출발점이다(`agg_layer="edge"` external_labels, `match[]` 한정).
 - 터미널을 나눈다:
   - **터미널 1(컴퓨터)** — 엣지 Prometheus
@@ -848,14 +812,14 @@ ports:  - "<서버 tailscale IP>:9095:9095"
 | 7-e | **OTLP 2계층** | 엣지 Agent의 log·trace가 서버 Collector를 거쳐 Loki·Tempo에 도달, `be-*`와 구분 |
 | 7-f | **페더레이션** | `hw_*{agg_layer="edge"}`가 서버 Prometheus에 · **음성**: `go_*`·`up`·`system_filesystem`이 `agg_layer="edge"`로 **0건** |
 | 7-g | **백엔드 경로 유지** | 바인딩 상태에서 발행 2건 → `be_ingest_received_total` 증가 |
-| **7-h** | 🔴 **9095가 엣지 1대로만 열리는가 (음성 · 2회)** | **ufw가 통제가 아님은 09-18 iptables 실측으로 이미 판정났다**(제약 16). 여기서 확인하는 것은 **`DOCKER-USER` 한 줄이 실제로 막는가**다. **허용 목록에 없는** tailnet 기기 한 대에서 `nc -vz <서버 tailscale IP> 9095`를 **두 번** 돌린다.<br>**① 규칙을 넣기 전 — 연결되어야 한다.** 연결되지 않으면 다른 무언가가 막고 있다는 뜻이므로 **원인을 찾고 나서** 진행한다(무엇이 막는지 모르는 채로 「막혔으니 됐다」로 넘어가지 않는다).<br>**② 규칙을 넣은 뒤 — 거부되어야 한다.** ②가 실패하면 **멈추고 보고한다.**<br>**두 줄을 그대로 보고서·추적표 BE-T-08에 적는다.** ⚠ `4316`은 `127.0.0.1` 바인딩이라 애초에 tailnet에서 안 보인다 — **대조군**으로 같이 찍어 둔다(①에서도 거부되어야 정상이다) |
+| **7-h** | **9095가 tailnet 밖에서 안 보이는가 (기록 1회)** | 허용 목록에 없는 tailnet 기기 한 대에서 `nc -vz <서버 tailscale IP> 9095` **한 번** 돌리고 **결과를 그대로 적는다.** tailnet 안이므로 **연결되는 것이 정상**이다(tailnet 안까지 좁히는 `DOCKER-USER`는 미뤘다 — 단계 6). **판정이 아니라 기록**이며, 이 값이 추적표 **BE-T-08**의 「현재 통제 수준」 근거가 된다. 단계 8에서 9095를 닫으면 해소된다 |
 | **7-i** | **8765가 두 주소에 뜬다** | `ss -tlnp`에 8765가 `127.0.0.1`과 `<서버 tailscale IP>` **둘 다** LISTEN. 서버에서 pytest가, 컴퓨터 브라우저가 **동시에** 붙는다 |
 
 **DoD**
 
 - **7-1** 7-a~7-i **전부 확인**되고 값이 `_serverinfo/`에 기록됐다(커밋 금지).
-- **7-1b** **7-h ②가 "막지 못한다"로 나오면** — 즉 `DOCKER-USER` 규칙까지 넣었는데도 연결되면 — **멈추고 보고한다.** 그 상태로 진행하려면 결정 6 β를 *"tailnet 내부 신뢰 전제. SASL은 Phase 6"*으로 낮춰 적고, **보고서·추적표 BE-T-08에 「9095는 tailnet 11대 전체에 인증 없이 열려 있다」를 명시**해야 한다. **없는 통제를 있다고 적지 않는다.**
-  - **대안 사다리(이 순서로 올린다).** ⓐ 서술만 낮춘다(비용 0, 위험 잔존) → ⓑ `DOCKER-USER` 규칙을 `-i`(인터페이스) 조건으로 바꿔 본다 → ⓒ 9095를 `127.0.0.1` 바인딩으로 내리고 엣지를 다른 경로로 붙인다(구성요소 1개 추가) → ⓓ SASL을 Phase 4로 당긴다(가장 비싸다 — BE-Q-04를 앞당기는 것이므로 **혼자 정하지 않고 §3 제약 22대로 멈추고 남긴다**).
+- **7-1b** 추적표 **BE-T-08**에 현재 통제 수준을 그대로 적었다 — *"9095는 `<서버 tailscale IP>` 바인딩으로 tailnet 밖은 막히고, tailnet 안에서는 열려 있다. 좁히려면 `DOCKER-USER` 한 줄이 필요하며 실 엣지 장비 상시 연결 시 한다. SASL은 Phase 6."* **없는 통제를 있다고 적지 않는다.**
+  🔴 **`nc`가 tailnet 밖(공인 IP)에서도 연결되면 그때는 멈추고 보고한다** — 바인딩이 안 먹은 것이고, 그건 이번 Phase가 만든 문제다.
 - **7-2** 검증 중 **다른 컨테이너가 재생성되지 않았다.**
 - **7-3** pytest **N + 라벨 증가분 + 신규**가 **여전히 전건 통과**한다. ⚠ **8765를 Tailscale IP 하나로만 옮기면 여기서 깨진다** — 7-i(두 주소 LISTEN)가 선행 조건이다.
 
@@ -865,7 +829,7 @@ ports:  - "<서버 tailscale IP>:9095:9095"
 
 | | 항목 |
 |---|---|
-| **남긴다** | **8765 뷰어 입구**(**loopback + Tailscale 둘 다 바인딩** · ufw **사용자 컴퓨터 `/32`**, VZ PC는 주소를 받으면 추가 · 토큰) — VZ가 Phase 4 뒤에도 붙어야 한다(결정 5·VZ-C-07) · `mk2-ws-echo`의 `After=tailscaled.service` · 단계 1·2·3·4의 규격·코드·테스트 · 단계 5의 코드 변경(`LoggingHandler`·**라벨 8종**) · 단계 6-b의 compose 주석 수정과 그 내용을 옮긴 `infra/README.md` |
+| **남긴다** | **8765 뷰어 입구**(**loopback + Tailscale 둘 다 바인딩** · ufw **사용자 컴퓨터 `/32`**, VZ PC는 주소를 받으면 추가 · 토큰) — VZ가 Phase 4 뒤에도 붙어야 한다(결정 5·VZ-C-07) · `mk2-ws-echo`의 `After=tailscaled.service` · 단계 1·2·3·4의 규격·코드·테스트 · 단계 5의 코드 변경(`LoggingHandler`·**라벨 8종**(+「발화 원문」 1종은 VZ 회신 뒤)) · 단계 6-b의 compose 주석 수정과 그 내용을 옮긴 `infra/README.md` |
 | **되돌린다** | **8766 엣지 입구**(`MK2_MEDIA_INGEST_PORT=0`) · ufw 엣지 `/32`(8766·4316·9095) · **Collector 4316 Tailscale 바인딩**(주석으로) · **`edge_federate` 잡**(주석으로, 타깃은 다음에 교체할 수 있게 남긴다) · **Kafka `EDGE` 3줄 + `ports` 줄**(주석으로) · Windows 9090 인바운드 규칙 삭제 · 컴퓨터의 엣지 폴더(설정 사본은 `_serverinfo/`에 보관) |
 
 ⚠ **4318(브라우저 관측 입구)은 이번에 아예 손대지 않았으므로 되돌릴 것도 남길 것도 없다**(단계 5-1 #4). 결정 7 A의 방향만 문서에 남고, 구현은 VZ가 CORS origin과 tailnet 주소를 회신한 뒤다.
@@ -899,7 +863,7 @@ ports:  - "<서버 tailscale IP>:9095:9095"
 - **9-1** HW 회신 §8이 **§8·§10-4·§10-5·§10-6·§10-7 + #14~#18 + 인식 안내 + 우리가 요청하는 것**을 빠짐없이 담았다.
 - **9-2** `hw-envelope-conformance.md` **§5-1 표**에서 회신한 안건이 §5-0(처리 완료)으로 옮겨졌다(§5-0은 실재하며 이동 표기 선례도 있다).
   🔴 **같은 작업에서 §5-0·§5-1 표의 안건 이름에 출처를 박는다.** 지금 표는 `§8`·`§3`·`§10-3`처럼 **HW `BACKEND_AGENDA`의 절 번호를 맨몸으로** 쓰는데, 우리 문서에 `§8`을 새로 만드는 순간 **표의 「§8」이 자기 문서 §8로 오독된다.** `BACKEND_AGENDA §8`처럼 출처를 붙인다(제약 28은 절 **제목**만 다뤘다).
-- **9-3** VZ 통지가 **부록 B의 10항목**을 담았고 「관측 회신에 대한 답」 절이 들어 있다.
+- **9-3** VZ 통지가 **부록 B의 13항목 + 「—」 요약행**을 담았고 「관측 회신에 대한 답」 절이 들어 있다. ⚠ **10~13번(VZ tailnet 주소·CORS origin 문의 · 관측 통지 §4 정정 · `target_entity_id`↔`source_id` · `origin.kind`↔`origin_kind`)을 빠뜨리지 않는다** — 단계 5-1·5-3·7-1이 10번의 답에 걸려 있다.
 - **9-4** 세 문서에 **실주소·토큰·비밀값이 없다**(`git check-ignore`와 눈으로 확인). ⚠ **반대 방향도 본다** — 새 파일이 `.gitignore`의 `*token*`·`*secret*`에 걸려 **조용히 빠지지 않았는지** `git status`로 확인한다(제약 25).
 - **9-5** **AI 통지가 나갔고**, plan §4의 진나영 행 「7864 문의 1건」이 그 문서로 연결됐다.
 - **9-6** ⚠ **§8 문서 갱신이 회신보다 먼저 끝났다** — `git log`로 `02-media-path.md` 커밋이 회신 문서 커밋보다 앞서는지 확인한다.
@@ -921,8 +885,9 @@ ports:  - "<서버 tailscale IP>:9095:9095"
 
 - `backend/gateway/capture.py` **신설** — `PUT <base>/<파일명>`을 받는 작은 HTTP 수신단. 포트 **8767**, 토큰 `MK2_CAPTURE_TOKEN`(쿼리 또는 헤더), 바인딩은 `<서버 tailscale IP>`, ufw는 **pi7 `/32`**.
 - ⚠ **HW `capture_upload.py:118-125`는 S3 API가 아니라 단순 HTTP PUT 한 방이다**(서명·presign 없음, `Content-Type: application/gzip`, 2xx면 성공). **S3 호환 저장소를 새로 들이지 않는다**(원칙 4).
+- 🔴 **수신은 PUT 두 번이다**(10-2에서 v1을 바꿨다) — ① `PUT <base>/<session>.manifest.json`(수 KB) → 2xx → ② `PUT <base>/<session>.tar.gz`. **아카이브 안을 뒤지지 않는다.**
 - 🔴 **URL의 파일명으로 최종 저장 위치를 정하지 않는다.** HW 업로더는 `url = base.rstrip("/") + "/" + os.path.basename(path)`이고 `path`가 `{세션디렉터리명}.tar.gz`라, **`entity_id`가 URL에 한 번도 실리지 않는다**(`capture_upload.py:120`). `session_id`는 `go1-001/20260910-134818`처럼 슬래시를 포함하지만 그 앞칸이 URL에 없어서, **로봇 2대가 같은 분에 세션을 시작하면 파일명이 같아 서로 덮어쓴다.**
-  - **순서를 이렇게 한다: ① 임시 파일로 수신 → ② 매니페스트를 읽어 `source_id`·`session_id` 확정 → ③ `MK2_CAPTURE_DIR/<source_id>/<session 마지막 칸>.tar.gz`로 원자적 rename.** **최종 경로는 매니페스트가 정하고 URL은 정하지 않는다.**
+  - **순서를 이렇게 한다: ① 아카이브를 임시 파일로 수신 → ② **앞서 받아 둔 매니페스트 PUT에서** `source_id`·`session_id` 확정(아카이브를 열지 않는다) → ③ `MK2_CAPTURE_DIR/<source_id>/<session 마지막 칸>.tar.gz`로 원자적 rename.** **최종 경로는 매니페스트가 정하고 URL은 정하지 않는다.**
   - 그 위치에 이미 파일이 있으면 **`session_id` UNIQUE 충돌과 같은 취급**(멱등, 10-3)으로 본다.
   - **경로 순회 방어의 대상이 URL이 아니라 매니페스트 값으로 옮겨간다** — `source_id`·`session_id`에서 `..`·`/`·`\`·절대경로·널바이트를 거부한다(`session_id`의 첫 슬래시 하나만 허용하고 나머지는 거부).
   - 부록 A 8-10에 **"업로드 URL에 `entity_id`를 포함시켜 달라"**를 요청으로 넣는다 — 있으면 수신 **전에** 판정할 수 있다.
@@ -992,7 +957,7 @@ ports:  - "<서버 tailscale IP>:9095:9095"
 
 #### 10-5. DoD
 
-- **10-1** 가짜 업로더가 **합성 tar.gz(안에 `manifest.json` 포함)**를 PUT하면 지정 위치에 **파일이 바이트 동일하게 놓이고**, `mk2.media_capture`에 **한 행**이 생기며, **매니페스트 원본이 통째로 보존**된다.
+- **10-1** 🔴 **v2 규약으로 판정한다**(10-2에서 바꿨다 — 아카이브 안을 뒤지지 않는다). 가짜 업로더가 **① `PUT <base>/<session>.manifest.json` → 2xx → ② `PUT <base>/<session>.tar.gz`** 순서로 보내면, 지정 위치에 **아카이브가 바이트 동일하게 놓이고**, `mk2.media_capture`에 **한 행**이 생기며, **매니페스트 원본이 통째로 보존**된다.
 - **10-2** **`kind`가 그대로 남는다**(`capture_session`이 아닌 값도).
 - **10-3** **같은 세션을 두 번 PUT해도 행이 하나다.**
 - **10-4** 규약이 문서에 적혔다 — 추적표 BE-S-09 · 02-media-path §1-3-4 · `00-architecture.md` §8-5.
@@ -1002,7 +967,7 @@ ports:  - "<서버 tailscale IP>:9095:9095"
 | # | 무엇을 막는가 | 판정 |
 |---|---|---|
 | C1 | **토큰 불일치·부재** | 401 + **파일도 행도 생기지 않는다** |
-| C2 | **매니페스트 필수 누락(또는 아카이브에 매니페스트 부재)** | 거부 + **부분 적재가 남지 않는다**(파일만 놓이고 행이 없거나 그 반대가 되지 않는다). HW는 2xx가 아니면 원본을 지우지 않으므로(`:196-202`) **데이터 손실이 없다** |
+| C2 | **매니페스트 필수 누락 · 또는 매니페스트 PUT 없이 아카이브만 옴** | 거부 + **부분 적재가 남지 않는다**(파일만 놓이고 행이 없거나 그 반대가 되지 않는다). HW는 2xx가 아니면 원본을 지우지 않으므로(`:196-202`) **데이터 손실이 없다** |
 | C3 | **경로 순회**(`../../etc/passwd` 같은 파일명) | 거부 + 지정 디렉터리 밖에 아무것도 생기지 않는다 |
 | C4 | **전송 중 끊김** | 불완전 파일이 최종 위치에 남지 않는다 |
 | C5 | **보존 규칙 dry-run** | 상한 초과를 합성으로 만들어 **오래된 세션부터 골라지고 최신 세션은 안 골라지는 것**을 실제 삭제 없이 확인 |
@@ -1018,7 +983,9 @@ ports:  - "<서버 tailscale IP>:9095:9095"
 5. **가용성 판정 = Phase 5.** 관측 신호로 "장치가 살았나"를 판정하지 않는다.
 6. **명령·감사 로직과 인증·인가(RBAC) = Phase 6.** **단 외부 노출에 붙일 최소 인증(토큰)은 이번 범위다.** 역할·범위 모델을 설계하라는 뜻이 아니다.
 7. **`.proto` 개정 = Phase 6.** §10-7의 SDP는 **홉1 사안**이고 HW가 `CommandStatus.detail`(문자열)에 JSON을 넣는 우회를 이미 쓰고 있으며(`mission-command.md` §3), 홉2는 헤더의 `encoding`으로 해결된다 — **앞당길 필요가 없다**(회신에 확인 요청으로 넣는다).
-8. **Kafka SASL = Phase 6**(BE-Q-04와 함께).
+8. **Kafka SASL = Phase 6**(BE-Q-04와 함께). ⏭ **`DOCKER-USER`로 9095를 tailnet 안에서 엣지 1대로 좁히는 것도 이번에 하지 않는다**(단계 6). 이번 엣지는 임시이고 단계 8에서 9095를 통째로 닫는다. 실 엣지 장비가 상시로 붙을 때 한다 — `infra/README.md` §5·추적표 BE-T-08에 **한 줄로만** 남긴다.
+   ⏭ **OTLP 인증 확장 조사도 하지 않는다**(단계 5-1 #3 — (i) 평문으로 간다).
+   ⏭ **도커 발행 포트 전반의 노출 점검·정리도 하지 않는다.** Phase 0부터 있던 상태이고 다른 파트 포트가 섞여 있다(분류 ③). 이번 Phase가 새로 여는 9095·8765·8766만 책임진다.
 9. 🔴 **`/state`의 VZ 계약 정합 = Phase 5/7. 이번에 하지 않는다.**
    v1은 *"VZ 계약을 깨지 않는 바인딩·인증인가만 확인한다"*고 적었는데, **봉투 자체가 이미 계약을 깨고 있어 그 DoD가 참이 될 수 없다.** 우리 `ws_echo.py:79-84`가 보내는 것은 `{channel, topic, key, message}`이고 VZ `WsTransport.onMessage`는 `switch (msg.type)` + **`default: return`**이라 **`type` 필드가 없어 전량 버려진다.** 소켓은 열리고 배지는 「연결됨」인데 값이 하나도 안 온다. 게다가 `type:'data'`만 붙여도 안 된다 — `msg.sub`(구독 id)로 구독을 찾고 없으면 `return`이라 **구독 세션 관리가 선행조건**이다.
    **이번 Phase에 붙는 것은 `/media` 하나뿐이고, `/state`는 Phase 1 echo 그대로다.** 그때까지 VZ는 목 게이트웨이(8790)를 그대로 쓴다. **부록 B 3번에 이 사실을 명시하지 않으면**, 김현우 씨가 주소를 우리 8765로 바꾸고 「연결됨」을 보고 값이 안 와서 원인을 찾게 된다.
@@ -1056,7 +1023,7 @@ ports:  - "<서버 tailscale IP>:9095:9095"
 9. `encoding`·`codec`·`alignment`에 **`enum`이 없고** 알려진 값은 `$comment`에 있다.
 10. `frame-reference.schema.json`의 **구조가 바뀌지 않았고**(필드 추가 0), description에 **`capture_timestamp` 뜻**이 적혔다.
 11. `detections.schema.json` 초안에 **메시지 단위 `alignment`**와 `coord`가 있다.
-12. `contracts/common/README.md`에 파일 2행·frame_ref 뜻·**라벨 6종**이 반영됐고 **`node_id`는 들어가지 않았다**.
+12. `contracts/common/README.md`에 파일 2행·`frame_ref` 뜻·**라벨 금지 목록**이 반영됐고 **`node_id`는 들어가지 않았다**. ⚠ 종수는 **판정 61**을 따른다(코드·테스트는 8종 확정 + 「발화 원문」 1종은 VZ 회신 대기).
 
 ### 미디어 본체 (단계 2~4)
 
@@ -1070,9 +1037,9 @@ ports:  - "<서버 tailscale IP>:9095:9095"
 20. **frame_ref가 재생성 없이 관통한다**(송신 원본과 도착분 바이트 동일).
 21. **순번 역전·불연속은 기록만** 하고 거부하지 않는다.
 22. 토큰 없는 접속이 **4401**로 닫힌다.
-23. 미디어 지표 4종이 **`be.gateway.*`** 아래 있고 금지 라벨이 없다.
+23. 미디어 지표 **5종**이 **`be.gateway.*`** 아래 있고 금지 라벨이 없다(`media_ingress` 포함 — 판정 62).
 24. 확인용 뷰어가 **판정용 텍스트 출력**을 낸다(눈 확인은 보조).
-25. 탐지 오버레이 대조가 **fail-safe 규칙**(`alignment=="frame"` + `frame_ref` 있을 때만 정합)을 따른다.
+25. **(오버레이를 만들었다면)** 대조가 **fail-safe 규칙**(`alignment=="frame"` + `frame_ref` 있을 때만 정합)을 따른다. **안 만들었으면 그 규칙이 `console.html` 주석으로 적혀 있다**(2-6 — 오버레이 자체는 ⏭ 선택).
 26. **기준선 N(단계 0-5) + 라벨 증가분 + 신규 전건 통과, skip 0**(서버). ⚠ **"184"를 그대로 쓰지 않는다**(제약 24).
 27. **음성 대조 M1~M9**가 전부 실제로 거부·유지된다(**M7 = 영상이 상태를 밀지 않는다** · **M8 = JPEG 지연 바운드** · **M9 = 과대 프레임이 연결을 안 끊는다**).
 27-a. 뷰어 소켓마다 **송신 큐 + writer 태스크**가 있고, 중계 코어가 `send`를 직접 부르지 않는다(브라우저 `bufferedAmount`에 기대지 않는다).
@@ -1082,11 +1049,11 @@ ports:  - "<서버 tailscale IP>:9095:9095"
 
 ### ③ 묶음 (단계 5)
 
-28. Collector가 **loopback + Tailscale IP 둘 다** LISTEN하고 ufw는 **엣지 `/32`만**이다.
+28. Collector가 **loopback + Tailscale IP 둘 다** LISTEN하고 ufw는 **엣지 `/32`만**이다. *(단계 8 되돌림 **전** 시점 판정 — 되돌린 뒤에는 거짓이 되는 것이 정상이다)*
 29. Collector 설정이 **`validate exit=0`**으로 판정됐다.
-30. OTLP 토큰은 **확장 유무를 `validate`로 판정**했고, 없거나 receiver 분리가 필요하면 **(i)로 떨어지고 근거를 보고**했다.
-31. 4318은 **VZ CORS origin을 받기 전에는 열지 않았다**(설정·compose 줄은 준비).
-32. `edge_federate` 잡이 되살아났고 `match[]`에 **`up`·생사·치명 오류가 없다**.
+30. OTLP는 **(i) 터널 + ufw `/32` + 평문**으로 갔고 그 근거가 보고됐다. ⏭ **확장 유무 조사는 하지 않았다**(5-1 #3 — 인증은 BE-Q-04와 함께 Phase 6).
+31. 4318은 **아예 손대지 않았다** — 설정·compose에 **변경 0**이고(DoD 5-7b), 부록 B 10번에 **CORS origin과 VZ PC tailnet 주소 문의**만 나갔다. ⚠ **줄을 「준비」해 두지도 않는다**(5-1 #4).
+32. `edge_federate` 잡이 되살아났고 `match[]`에 **`up`·생사·치명 오류가 없다**. *(단계 8 되돌림 **전** 시점 판정 — 되돌린 뒤에는 거짓이 되는 것이 정상이다)*
 33. Prometheus 이미지가 **digest**이고 global·다른 잡이 무변경이다.
 34. **`LoggingHandler` 경고 2건이 사라졌다.**
 35. ~~라벨 금지 6종~~ → **판정 61로 통합됐다**(2026-09-18 합본에서 9종으로 늘었다). 여기서는 **`node_id`가 허용되는 것**만 음성 대조로 확인한다.
@@ -1096,7 +1063,7 @@ ports:  - "<서버 tailscale IP>:9095:9095"
 36. PLAINTEXT `localhost:9092`가 **한 줄도 바뀌지 않았다.**
 37. `EDGE` 리스너가 `LISTENERS`·`ADVERTISED`·`SECURITY_PROTOCOL_MAP` **셋 다**에 들어갔다.
 38. 백엔드 3개가 **재기동 없이** 계속 돌고 토픽·오프셋이 그대로다.
-39. `<서버 tailscale IP>:9095`가 LISTEN이고(**`0.0.0.0`이 아니다**) **`DOCKER-USER`에 엣지 `/32` 규칙이 있다.** ufw 규칙도 있되 **통제로 세지 않는다**(제약 16).
+39. `<서버 tailscale IP>:9095`가 LISTEN이다(**`0.0.0.0`이 아니다**). ufw 규칙도 있되 **통제로 세지 않는다**(제약 16). *(단계 8 되돌림 **전** 시점 판정 — 되돌린 뒤에는 거짓이 되는 것이 정상이다)*
 
 ### 2계층 실측 (단계 7)
 
@@ -1115,10 +1082,10 @@ ports:  - "<서버 tailscale IP>:9095:9095"
 
 ### 회신·통지 (단계 9)
 
-49. HW 회신 §8이 **§8·§10-4~7 + #14~#18 + 안내 5건 + 요청 6건**을 담았다.
+49. HW 회신 §8이 **§8·§10-4~7 + #14~#18 + 부록 A 8-9(인식 안내)·8-10(HW가 할 일) 전건 + 8-11(`stream` 요청)**을 담았다. **숫자를 세지 말고 부록 A의 표를 따른다.**
 50. `hw-envelope-conformance.md` §5-1 표가 갱신됐다(회신한 것은 §5-0으로).
-51. VZ 통지가 **부록 B 9항목**과 「관측 회신에 대한 답」 절을 담았다.
-52. 두 문서에 **실주소·토큰이 없다.**
+51. VZ 통지가 **부록 B 13항목**과 「관측 회신에 대한 답」 절을 담았다.
+52. **세 문서**(HW §8 · VZ 통지 · AI 통지)에 **실주소·토큰이 없다.**
 
 ### 4b (단계 10)
 
@@ -1132,26 +1099,24 @@ ports:  - "<서버 tailscale IP>:9095:9095"
 
 ### 2026-09-18 합본으로 더해진 판정
 
-57. **단계 0 표의 `[미확인]` 6행이 서버 명령 출력으로 채워졌고**, `pi4`·`pi6`·`be_* 28개`가 남아 있지 않다.
-58. **결정 10·11·12가 반영됐다** — §1-3-1이 「길 A·B 동시 지원」으로, 제약 9의 주어가 「중계 경로는」으로, `$ref`가 **레지스트리로** 해석된다.
+57. **단계 0 표가 2026-09-18 실측본이고 `[재실행 대기]` 5행이 전부 채워졌다.** `pi4`·`pi6`은 **실재가 확인됐고**(지우지 않는다), `be_*`는 **28종이 맞다**.
+58. **결정 10·11·12가 `02-media-path.md`에 반영됐다** — §1-3-1이 「길 A·B 동시 지원」으로, §1-1에 서버 비전 소비자 자리가, `$ref`가 **레지스트리로** 해석된다. *(지시서 §3 제약 9의 주어는 이미 「중계 경로는」이다 — 확인 대상이 아니다.)*
 59. **`02-media-path.md`가 실제로 고쳐졌고 그 커밋이 회신 문서 커밋보다 앞선다**(DoD 9-6). 부록 A·B에 **"이미 고쳤다"는 과거형이 남아 있지 않다.**
 60. **`detections.schema.json`에 메시지 단위 `origin{tier, kind}`가 있고 `tier`에 `server`가 들어 있다.** `alignment`는 **선택**이다. `coord.origin` 값이 **`top-left`(하이픈)**이다.
-61. **라벨 금지 9종**(`frame_ref`·`correlation_id`·**`command_id`** 포함)이 `FORBIDDEN_LABELS`·테스트·`contracts/common/README.md` **셋 다**에 있고, 셋이 실제로 `ValueError`로 막힌다. 「발화 원문」의 키 이름은 VZ 회신 대기라 **빠진 것이 아니라 대기**임이 보고서에 적혔다.
+61. **라벨 금지 8종(확정분)**(`frame_ref`·`correlation_id`·**`command_id`** 포함)이 `FORBIDDEN_LABELS`·테스트·`contracts/common/README.md` **셋 다**에 있고, 셋이 실제로 `ValueError`로 막힌다. **9번째 「발화 원문」은 키 이름을 VZ에게 받은 뒤이므로 빠진 것이 아니라 대기다 — README에는 자리를 표기한다**. 「발화 원문」의 키 이름은 VZ 회신 대기라 **빠진 것이 아니라 대기**임이 보고서에 적혔다.
 62. **미디어 지표에 `endpoint` 라벨을 쓴다**(`channel` 아님) — `be.gateway.push`의 `channel`과 뜻이 겹치지 않는다. **`be.gateway.media_ingress`가 있다.**
 63. **8765가 `127.0.0.1`과 `<서버 tailscale IP>` 둘 다 LISTEN**이고, `settings.ws_url()`이 `/state`(+토큰)를 만들어 **기존 테스트 2건이 그대로 통과**한다.
 64. **소켓 옵션 셋**(`max_size`·`write_limit`·`compression=None`)이 **명시적으로 지정**됐고, 지연 바운드가 **`T_drop + write_limit`**로 문서에 적혔다.
 65. **`T_hard`가 GOP 없는 스트림에서 `T_drop`으로 축소**된다(M8).
-66. **7-h(9095 음성 대조)를 규칙 전·후 **2회** 돌렸고 두 줄이 그대로 추적표 BE-T-08과 보고서에 적혔다.** ①에서 연결되지 않았으면 그 원인을 찾은 기록이 있고, ②에서 거부되지 않았으면 **멈추고 보고**했다(7-1b의 사다리).
+66. **7-h를 돌렸고 결과가 추적표 BE-T-08과 보고서에 그대로 적혔다.** 「현재 통제 수준 = tailnet 밖은 바인딩이 막고, tailnet 안은 열려 있다」가 명시됐다.
 67. **compose 주석 두 곳을 고쳤고**(단계 6-b), **그 내용이 커밋되는 `infra/README.md`에도 옮겨졌다**(compose는 gitignore다).
 68. **AI 통지가 나갔다**(부록 D). plan §4 진나영 행의 「7864 문의 1건」이 그 문서로 연결됐다.
 69. **4b:** 최종 저장 경로를 **매니페스트가 정하고 URL이 정하지 않는다** · **매니페스트를 별도 PUT으로 먼저 받는다** · `media_capture` **GRANT가 DDL 뒤에 붙었다** · `started_at`에 오프셋이 없으면 **`NULL`로 두고 `t0_unix`로 채운다** · **`mk2-capture` 유닛의 `StartLimit*`가 `[Unit]`에 있다**.
 70. **새 파일 중 `.gitignore`의 `*token*`·`*secret*`에 걸려 빠진 것이 없다**(제약 25). `*.h264 binary`가 `.gitattributes`에 있다.
-71. 🔴 **결정 6 β 개정이 반영됐다** — 9095가 `0.0.0.0`이 아니라 **`<서버 tailscale IP>`에 바인딩**돼 있고, **`DOCKER-USER`에 규칙이 있으며**, **`mk2-docker-user-rules.service`가 `enabled`**다. 문서 어디에도 *"ufw가 9095를 막는다"*가 남아 있지 않다.
-72. 🔴 **`netfilter-persistent`·`iptables-save` 전체 덤프를 쓰지 않았다**(단계 6 ③). `iptables -S DOCKER-USER`에 우리 규칙 **1줄만** 있고 k8s 체인은 건드리지 않았다.
-73. 🔴 **Phase 4 전 구간에서 `docker compose down`이 한 번도 실행되지 않았다**(제약 29). `docker network inspect capstone-db_default`의 서브넷이 **`172.18.0.0/16` 그대로**이고, `SHOW GRANTS FOR 'mk2_app'@'172.18.%'`가 여전히 답한다.
-74. **관측 기준선이 설명된다**(DoD 5-8) — `be_*` **28 → 29**, Loki 라벨 **3종 그대로**, Tempo `resource.service.name` **무변경**.
-75. **DoD 0-6의 SQL 대조 결과가 `reports/`에 한 줄 남았다** — 서버 `mk2_sql/` ↔ 저장소 `infra/sql/`.
-76. **§3-b 노출 표와 `ip -4 -brief addr` 결과가 보고서와 `infra/README.md` §5에 적혔다.** 이번 Phase에서 **고치지 않았다**는 것까지 명시했다.
+71. 🔴 **9095가 `0.0.0.0`이 아니라 `<서버 tailscale IP>`에 바인딩돼 있다**(결정 6 β). 문서 어디에도 *"ufw가 9095를 막는다"*가 남아 있지 않고, **`DOCKER-USER`는 미뤘다는 한 줄**이 `infra/README.md` §5와 추적표 BE-T-08에 있다. *(단계 8 되돌림 **전** 시점 판정 — 되돌린 뒤에는 거짓이 되는 것이 정상이다)*
+72. 🔴 **Phase 4 전 구간에서 `docker compose down`이 한 번도 실행되지 않았다**(제약 29). `docker network inspect capstone-db_default`의 서브넷이 **`172.18.0.0/16` 그대로**이고 `SHOW GRANTS FOR 'mk2_app'@'172.18.%'`가 여전히 답한다.
+73. **관측 기준선이 설명된다**(DoD 5-8) — `be_*` **28 → 35**(A층 11 → 18), Loki 라벨 **3종 그대로**.
+74. **DoD 0-6의 SQL 대조 결과가 `reports/`에 한 줄 남았다**(단계 10을 한 경우).
 
 ---
 
@@ -1165,11 +1130,11 @@ ports:  - "<서버 tailscale IP>:9095:9095"
 | 🔴 **`docs/be/02-media-path.md`** | **항상 — 이 Phase의 명세서다** | **v1에서 빠져 있던 행이다.** 결정 1·2·5·8·10·11이 이 문서의 아래를 거짓으로 만든다:<br>§1-2-2 *"JPEG로 통일. H.264 폐기"* → **소스 native 코덱 종단 중계**(결정 1) · 같은 절 폐기 이유 (1) *"엣지가 이미 JPEG를 쥐어"* → **엣지는 AU 재조립만 하고 디코드하지 않는다** · §1-2-3 *"pull 기본"* → **소스가 정한다**(결정 8-2) · §1-3-1 *"현재 배포 = 길 B"* → **길 A·B 동시 지원, 현재 개발 단계 = 길 A**(결정 10) · §1-3-3 *"왜 WebSocket인가"* 근거 (1)이 디코드 전제이므로 **근거를 갈아 끼운다**(결론은 유지 — 근거 2·3·4가 살아 있다) · §1-3-4 저장(결정 9·4b) · §1-5-0·§1-5-1 *"WSS(TLS)+인증"* → **터널 위 `ws`+토큰 프로파일**(결정 5) · §1-5-3 *"백엔드가 frame_ref 부착"* → **엣지가 부착한다** · §1-5-4 staleness 기준을 **도착 기준**으로 · §1-6-2 예시 `capture_timestamp: 1735120000123` → **ISO 문자열**, `origin:"top_left"` → **`"top-left"`** · §1-6-3 *"엣지 = 디코드 지점"* → **AU 재조립 지점** · §3-2 온디맨드 트리거 → **결정 4-b**(연결 자체가 신호) · **§1-1에 서버 비전 소비자 자리 한 절**(결정 11) |
 | `requirement-traceability.md` | **항상** | **BE-T-07**(중계 구현·drop-old·상태) · **BE-C-03**(규격 확정·`capture_timestamp` 뜻·**`$ref` 레지스트리를 Phase 4에서 세웠고 Phase 7의 `object-reference`가 같은 경로를 쓴다**·gap 갱신) · **BE-T-03**(외부 노출+토큰·경로 분리·**`/state`의 VZ 계약 정합은 Phase 5/7**) · **BE-T-08**(터널+ufw `/32`+평면별 인증, **Kafka만 평문인 이유와 Phase 6**, **7-h 결과**) · **BE-T-05**(MAC이 라우팅 키가 아님 명시) · **BE-T-06**(**캐시 10종 규약 + `video_meta`는 Phase 5 이월**) · **BE-S-09**(#15 저장소) · **BE-T-02**(*"검증됨 · 되돌림 · 실 엣지 시 되살림"*) · **BE-S-02/S-03/S-06**(③ 묶음 반영, 브라우저 입구 gap ⑦ 정정)<br>⚠ **BE-C-01을 "미디어 헤더 규격 신설"로 적지 않는다** — BE-C-01은 「공통 메시지 스키마·필드 규약」이고 **이미 완료** 상태다. 미디어 헤더는 **BE-T-07·BE-C-03** 소관이다. 새 번호가 필요하면 **BE-C-08이 비어 있다** |
 | `01-standalone-implementation-plan.md` | **항상** | Phase 4 ✅ + **DoD 문구를 결정 1·5 결과로 갱신**(353행 *"서버→뷰어 WSS+인증"* → 터널 위 `ws`+토큰 · 356행 *"합성 JPEG 프레임"* → native 코덱 · **384-385행의 `WSS`도 같은 건이다**) + 이월을 미래 Phase에(**Phase 5: `video_meta` 발행 · `/state` VZ 계약 정합 · 레지스트리로 entity↔source_id 목록** / **Phase 6: 온디맨드 개폐 배선 · `.proto` 개정 · Kafka SASL · 탐지 채널·토픽** / **Phase 7: 소스별 촬영 시각 보정 · 트윈 형식 · `object-reference` 검증 경로 편입**) + **§4 외부 의존성**은 두 종류로 — ① 이미 들어간 행(조병현 #14~18 · 진나영 Phase 4 · 김현우 Phase 4)은 **상태만 갱신**(진나영 행에 **`capture_timestamp` 뜻 통지 예정** 한 줄 추가) ② Phase 4가 새로 보내는 **회신 2건 + 통지 2건(VZ·AI)**은 **새 회신 대기 행** |
-| `CLAUDE.md` | 바뀌었으면 | **거의 확실히 해당** — 폴더 블록에 `backend/gateway/media.py`·`capture.py`, 환경변수 표에 부록 C의 새 항목, 명령 블록에 미디어 fixture, **systemd 유닛 목록에 `mk2-capture`와 `mk2-docker-user-rules`**, **원칙 3의 전송 경로 괄호에 프로파일 구분**(제약 1)<br>🔴 **폴더 블록에 「저장소 ↔ 서버 경로 대응표」를 넣는다**(제약 30). `infra/sql/` ↔ `~/capstone-db/mk2_sql/`(**이름이 다르다**) · `infra/docker-compose.yml` ↔ `~/capstone-db/docker-compose.yml` · `infra/config/` ↔ `~/capstone-db/config/` · **`.env`는 서버 `~/capstone-db/.env` 하나뿐**(저장소에 `infra/.env`는 없다) · 저장소 루트 = `~/capstone-db/phase1_work/Physical-Project-mk2/` · venv = `~/capstone-db/phase1_work/venv_phase1/`. **상시 정보라 지시서가 아니라 여기에 있어야 한다** |
+| `CLAUDE.md` | 바뀌었으면 | **거의 확실히 해당** — 폴더 블록에 `backend/gateway/media.py`·`capture.py`, 환경변수 표에 부록 C의 새 항목, 명령 블록에 미디어 fixture, **systemd 유닛 목록에 `mk2-capture`**, **원칙 3의 전송 경로 괄호에 프로파일 구분**(제약 1)<br>🔴 **폴더 블록에 「저장소 ↔ 서버 경로 대응표」를 넣는다**(제약 30). `infra/sql/` ↔ `~/capstone-db/mk2_sql/`(**이름이 다르다**) · `infra/docker-compose.yml` ↔ `~/capstone-db/docker-compose.yml` · `infra/config/` ↔ `~/capstone-db/config/` · **`.env`는 서버 `~/capstone-db/.env` 하나뿐**(저장소에 `infra/.env`는 없다) · 저장소 루트 = `~/capstone-db/phase1_work/Physical-Project-mk2/` · venv = `~/capstone-db/phase1_work/venv_phase1/`. **상시 정보라 지시서가 아니라 여기에 있어야 한다** |
 | 루트 `README.md` | 바뀌었으면 | 요구사항 상태 총계 · 「지금 당장 할 일」 ⑥ 완료·⑦ 다음 · 스택 구성(포트 추가) |
 | `00-architecture.md` | 바뀌었으면 | **해당** — §2 그림의 `RTP/UDP`·`(JPEG)` 두 줄 → **`(native 코덱)`** · §7-4 **캐시 정책 절에 `video_meta`의 실체와 발행 시점**(Phase 5 이월) · §7-5 영상 절(**어댑터가 "재생 가능 규격으로 흡수"한다는 서술이 native 중계와 어긋난다** · `WSS` 프로파일) · §8-5 **「Kafka 원격 노출」 행**(EDGE 리스너로 처리됨) · §8-5 **「미디어 저장(BE-S-09)」 행**(#15 갈래로 **유예 부분 해제** + **「개발 프로파일에서 스트림을 파일로 탭해 두는 카드」**를 함께 기록) |
-| 🔴 `infra/README.md` | 서버 설정을 건드렸으면 | **확실히 해당 — 이번 Phase에서 가장 많이 바뀐다.** §3 포트 표에 **8765·8766·8767·9095** · §5 Kafka **"3수정" 서술을 EDGE 리스너로 교체**(항목 1·3은 여전히 필요하다는 것까지) · §6 ⓗ(Collector 바인딩) 갱신 · ufw 9092 규칙 삭제 기록 · **compose 작업본↔서버 동기화 절차** · **§6에 「digest 미고정 잔여」 7개 목록**<br>🔴 **§5 정정 박스를 통째로 고친다** — 「실측이 compose 주석을 반증했다」는 **틀렸다.** 09-18 iptables 실측으로 **compose 주석 쪽이 옳았음이 확정**됐다(제약 16·단계 6-b). 두 경로(컨테이너發 `INPUT` / 외부發 `FORWARD`)로 갈라 적는다.<br>🔴 **§3-b의 노출 표를 옮겨 적는다** — `-d` 없이 DNAT되어 ufw가 못 막는 포트 11개 + 그중 인증 없는 8개. **고치지 않지만 적는다.**<br>🔴 **`DOCKER-USER` 방식과 `mk2-docker-user-rules.service`**, **`netfilter-persistent`를 쓰지 않는 이유**(k3s·kube-router·flannel이 `FORWARD`를 동적 관리).<br>🟠 **브리지 대역 `172.18.0.0/16` 미고정** — `ipam` 블록 없음. `docker compose down` 금지 이유와 함께(제약 29).<br>**7-h 결과 두 줄**(규칙 전/후) |
-| `contracts/common/README.md` | 공통 규격을 건드렸으면 | **해당** — 단계 1-4(파일 2행 · `frame_ref` 뜻 · `additionalProperties` 예외 · **라벨 금지 8종**) |
+| 🔴 `infra/README.md` | 서버 설정을 건드렸으면 | **확실히 해당 — 이번 Phase에서 가장 많이 바뀐다.** §3 포트 표에 **8765·8766·8767·9095** · §5 Kafka **"3수정" 서술을 EDGE 리스너로 교체**(항목 1·3은 여전히 필요하다는 것까지) · §6 ⓗ(Collector 바인딩) 갱신 · ufw 9092 규칙 삭제 기록 · **compose 작업본↔서버 동기화 절차** · **§6에 「digest 미고정 잔여」 7개 목록**<br>🔴 **§5 정정 박스를 고친다** — 「실측이 compose 주석을 반증했다」는 **틀렸다.** 09-18 iptables 실측으로 **compose 주석 쪽이 옳았음이 확정**됐다(제약 16·단계 6-b). 두 경로(컨테이너發 `INPUT` / 외부發 `FORWARD`)로 갈라 적고, **도커 발행 포트의 실질 통제는 바인딩 주소**임을 한 줄로 적는다.<br>**`DOCKER-USER`로 tailnet 안까지 좁히는 것은 미뤘다** — 한 줄.<br>🟠 **브리지 대역 `172.18.0.0/16` 미고정**(`ipam` 없음)과 `docker compose down` 금지 이유(제약 29).<br>**7-h 결과 한 줄** |
+| `contracts/common/README.md` | 공통 규격을 건드렸으면 | **해당** — 단계 1-4(파일 2행 · `frame_ref` 뜻 · `additionalProperties` 예외 · **라벨 금지 8종 + 「발화 원문」 자리**) |
 | 🔴 **`docs/be/설계_규칙.md` §3 · `docs/be/작업지시_템플릿.md` §8** | **이번에 해당** | 보고 대상 목록에 **「그 Phase의 명세서 문서」**를 한 줄 더한다 — *"설계방이 읽고 결정을 내린 문서이므로, 결정이 그 문서의 문장을 바꾸면 되돌려 적어야 한다."* **이 두 파일은 2026-09-18 합본에서 이미 고쳤다**(§8 맨 아래 「이미 반영된 것」 참조) — 구현방은 **확인만** 한다 |
 
 **규율 8:** 몇 Phase 뒤에 쓰일 발견은 **보고서에만 적지 말고** `plan`·`추적표`에 적는다. 보고서는 직전 세션만 읽는다.
@@ -1273,7 +1238,6 @@ backend/gateway/capture.py                         신설 (4b PUT 수신단)
 infra/sql/mk2_media_capture.sql                    신설 (4b DDL + GRANT, 사람이 root로 1회)
                                                    ⚠ 서버 적용 경로는 ~/capstone-db/mk2_sql/ — 이름이 다르다(제약 30)
 infra/systemd/mk2-capture.service                  신설 (4b 별도 유닛 — 단계 10-1)
-infra/systemd/mk2-docker-user-rules.service        신설 (결정 6 β 개정 — DOCKER-USER 규칙 영속화, oneshot)
 tests/fixtures/synthetic_464x400.h264              신설 (커밋 · .gitattributes 에 `*.h264 binary` 선행)
 tests/fixtures/make_h264_fixture.sh                신설 (생성 스크립트 + NAL 7 검산)
 tests/media_publisher.py                           신설 (합성 엣지 송신 fixture = 홉2 참조 구현)
@@ -1291,14 +1255,14 @@ docs/be/ai-detections-interface.md                 신설 (AI 통지 — 부록 
 
 머리말 표(보내는 쪽 백엔드/이대규 · 받는 쪽 AI/진나영 · 작성일 · 근거: `contracts/common/detections.schema.json` 초안 + 2026-09-17 대조 보고서 §4-2 + plan §4 · 대상 안건: 탐지 규격 · 시연/정식 경로 구분 · 7864 · 우선순위).
 
-**왜 이 문서가 필요한가:** 단계 1이 `detections.schema.json`을 신설하는데 **그 규격의 생산자가 AI다.** v1은 소비자(VZ)에게만 통지하고 생산자에게는 하지 않았다. v1 지시서 안에서 AI 언급은 네 곳뿐이고 전부 지나가는 말이었다(역할 경계 표 · `7864` · 제약 17 · §8 plan 행).
+**왜 이 문서가 필요한가:** 단계 1이 `detections.schema.json`을 신설하는데 **그 규격의 생산자가 AI다.** v1은 소비자(VZ)에게만 통지하고 생산자에게는 하지 않았다. v1 지시서 안에서 AI 언급은 네 곳뿐이고 전부 지나가는 말이었다(역할 경계 표 · `7864` · §6 울타리 17(7864를 건드리지 않는다) · §8 plan 행).
 
 | # | 담을 것 |
 |---|---|
 | 1 | **`detections.schema.json` 초안 공유** — `frame_ref`(**객체**, `$ref frame-reference`) · **메시지 단위 `origin{tier, kind}`**(박스 단위가 아니다 — VZ가 그렇게 소비한다) · `alignment`(선택, 없으면 `unaligned`) · `coord{normalized, origin:"top-left", ref_width, ref_height}` · `boxes[]`. **AI가 생산자다.** 각 필드에 「우리는 이렇게 읽었다」와 「답이 없으면 이 기본값으로 간다」를 붙인다 |
 | 2 | **시연 경로와의 구분**(대조 보고서 §4-2 세 갈래 그대로) — `zoneA/robot/go1-001/frame`(JPEG base64 + `rotation_deg`)은 **시연 임시**이고 **우리 브릿지는 구독하지 않는다**(구독 패턴이 `+/+/+/{state,status,heartbeat}` 셋뿐이라 배달 자체가 되지 않는다). 정식 경로는 **홉1 RTP + 홉2 WS 방식 B**다. 시연 뒤에도 그 토픽을 유지하는 것은 자유이나 **백엔드는 소비하지 않으며 그 프레임은 저장·중계·트윈 어디에도 들어가지 않는다**(원칙 3) |
 | 3 | **B안이 우리 경로와 같은 모양이다** — AI가 요구 문서에서 열어 둔 *"B: RTP 스트림 + MQTT 캡처 이벤트"*가 바로 이것이다. **시연 뒤 그쪽으로 합칠 수 있다**고 적는다 |
-| 4 | **질문: 7864 MJPEG 경로** — `<서버 공인 IP>:7864/stream/ai/go1_front`가 우리 서버에서 돌고 VZ가 그걸로 영상을 본다. **이 경로와 Phase 4 미디어 경로의 관계를 정리해야 한다** — 누가 켜고 끄나, Go1 영상이 거기까지 어떻게 가나, 계속 쓸 것인가. **plan §4의 「남은 문의 1건」이 이것이다** |
+| 4 | **질문: 7864 MJPEG 경로** — `<서버 공인 IP>:7864/stream/ai/go1_front`가 VZ의 영상 경로다. ⚠ **평소에는 내려 있다** — 09-18 실측에서 7864는 LISTEN에 없었고 AI 파트가 필요할 때만 켠다(§6 울타리 17). **이 경로와 Phase 4 미디어 경로의 관계를 정리해야 한다** — 누가 켜고 끄나, Go1 영상이 거기까지 어떻게 가나, 계속 쓸 것인가. **plan §4의 「남은 문의 1건」이 이것이다** |
 | 5 | **`capture_timestamp` 뜻 통지** — *"엣지가 프레임 경계를 확정한 시각이며 촬영 시각이 아니다. 말단 내부 지연이 포함되고 보정되지 않았다."* **탐지 결과에 그 값을 그대로 실어 나르고 새로 만들지 않는다**(원칙 10) |
 | 6 | **`AI-S-05` 확인** — AI가 `turn_deg`·`forward_distance_cm`를 로봇에 직접 보낼 토픽을 HW에 물었다. **명령은 백엔드 경로(BE-A-01·원칙 13)를 지나야 한다** — Phase 6에서 정리한다고 알린다 |
 | — | 끝에 **「AI가 할 일」** 요약. 규율은 부록 A·B와 같다(머리말 표·근거·기본값·우선순위) |

@@ -25,8 +25,22 @@
 `"+0900"`(콜론 없는 오프셋) 같은 값이 조용히 통과해 **검증이 무력해진다.** 그래서 검사기
 등록 여부를 기동 시점에 assert 한다.
 
-implements: BE-C-01
+**파일 간 `$ref`는 레지스트리로 해석한다(Phase 4 결정 12).** `media-header.schema.json`·
+`object-reference.schema.json`·`detections.schema.json`이 `frame-reference.schema.json`을
+`$ref`하므로, `contracts/common/` 아래 규격을 **`$id` → 로컬 파일**로 `referencing.Registry`에
+등록해 모든 검증기에 넘긴다(`schema_registry()`). `$id`가 `https://github.com/…` URL이라도
+**네트워크로 가져오지 않는다** — 레지스트리에 없는 `$ref`는 즉시 실패한다(HTML이 오거나
+tailnet 안에서 막히는 것보다 낫다). 인라인 복제를 쓰지 않는 이유는 원칙 9(규격이 기준)와
+Phase 7의 `object-reference`가 같은 경로를 쓰기 때문이다. `referencing`은 jsonschema 4.18+에
+동봉이라 새 의존성이 아니다.
+
+**검증기는 이름별로 한 번만 만들어 재사용한다.** 미디어 헤더는 30fps × 소스 수만큼 초당
+검증이 돌아가므로(`contract_validator("media-header.schema.json")`) 프레임마다
+`Draft202012Validator(...)`를 새로 만들지 않는다 — `_payload_validators` 캐시와 같은 방식.
+
+implements: BE-C-01, BE-C-03($ref 레지스트리 — 미디어 헤더·객체 참조가 frame_ref 규격을 공유)
 tests: tests/test_payload_contract.py(규격 단위, 인프라 불필요) ·
+       tests/test_contract_media.py(미디어 헤더·탐지 초안 양성/음성, $ref 레지스트리 해석) ·
        tests/test_pipeline.py(관통 왕복·불합격 격리)
 """
 
@@ -69,6 +83,8 @@ class PayloadInvalid(MessageInvalid):
 
 _validator: Optional[Draft202012Validator] = None
 _payload_validators: Dict[Tuple[str, Optional[str]], Draft202012Validator] = {}
+_contract_validators: Dict[str, Draft202012Validator] = {}
+_registry: Any = None
 
 
 def envelope_schema_path() -> Path:
@@ -86,10 +102,39 @@ def _format_checker() -> FormatChecker:
     return format_checker
 
 
+def build_registry():
+    """`contracts/common/` 아래 모든 `*.schema.json`을 **`$id` → 파일 내용**으로 등록한 레지스트리.
+
+    `$ref: "frame-reference.schema.json"`은 참조하는 규격의 `$id`를 기준으로 절대 URI가 되고,
+    그 URI가 여기 등록돼 있어야 해석된다. 등록에 없는 `$ref`는 **네트워크로 가지 않고**
+    검증 시점에 `referencing` 예외로 실패한다(결정 12 — 조용한 폴백 없음).
+    `payload/` 하위도 함께 등록한다(지금은 `$ref`가 없지만 같은 디렉터리 규약을 따른다).
+    """
+    from referencing import Registry, Resource  # jsonschema 4.18+ 동봉 — 새 의존성 아님
+
+    registry = Registry()
+    for path in sorted(settings.contracts_dir().rglob("*.schema.json")):
+        schema = json.loads(path.read_text(encoding="utf-8"))
+        schema_id = schema.get("$id")
+        if not schema_id:
+            LOG.warning("규격 파일에 $id 가 없어 $ref 대상으로 등록하지 못했다: %s", path)
+            continue
+        registry = registry.with_resource(schema_id, Resource.from_contents(schema))
+    return registry
+
+
+def schema_registry():
+    """프로세스당 한 번 만든 레지스트리. 규격 파일은 기동 중 바뀌지 않는다."""
+    global _registry
+    if _registry is None:
+        _registry = build_registry()
+    return _registry
+
+
 def build_validator() -> Draft202012Validator:
-    """공통 헤더 규격 파일을 읽어 strict 검증기를 만든다(포맷 검사 포함)."""
+    """공통 헤더 규격 파일을 읽어 strict 검증기를 만든다(포맷 검사 + $ref 레지스트리)."""
     schema = json.loads(envelope_schema_path().read_text(encoding="utf-8"))
-    return Draft202012Validator(schema, format_checker=_format_checker())
+    return Draft202012Validator(schema, format_checker=_format_checker(), registry=schema_registry())
 
 
 def validator() -> Draft202012Validator:
@@ -107,9 +152,35 @@ def payload_validator(channel: str, entity_type: Optional[str]) -> Optional[Draf
     schema = contracts.load_payload_schema(channel, entity_type)
     if schema is None:
         return None
-    built = Draft202012Validator(schema, format_checker=_format_checker())
+    built = Draft202012Validator(schema, format_checker=_format_checker(), registry=schema_registry())
     _payload_validators[key] = built
     return built
+
+
+def contract_validator(filename: str) -> Draft202012Validator:
+    """`contracts/common/<filename>` 의 검증기 — 이름별로 한 번만 만들어 재사용한다.
+
+    미디어 헤더(`media-header.schema.json`)처럼 **프레임마다** 검증하는 규격의 진입점이다.
+    같은 포맷 검사기·같은 레지스트리를 쓰므로 `frame_ref.capture_timestamp`의 `+0900`이
+    공통 헤더와 똑같이 거부된다. 파일이 없으면 `FileNotFoundError` — 조용히 통과시키지 않는다.
+    """
+    built = _contract_validators.get(filename)
+    if built is not None:
+        return built
+    path = settings.contracts_dir() / filename
+    schema = json.loads(path.read_text(encoding="utf-8"))
+    built = Draft202012Validator(schema, format_checker=_format_checker(), registry=schema_registry())
+    _contract_validators[filename] = built
+    return built
+
+
+def reset_validators_for_tests() -> None:
+    """테스트가 규격 디렉터리를 바꿔 끼울 때 캐시를 비운다."""
+    global _validator, _registry
+    _validator = None
+    _registry = None
+    _payload_validators.clear()
+    _contract_validators.clear()
 
 
 def _describe(errors) -> str:

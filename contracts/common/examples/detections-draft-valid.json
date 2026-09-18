@@ -1,0 +1,15 @@
+{
+  "type": "detections",
+  "frame_ref": {
+    "source_id": "go1-001_front",
+    "capture_timestamp": "2026-09-18T12:00:00.123+09:00",
+    "sequence_id": 4837
+  },
+  "alignment": "frame",
+  "origin": { "tier": "edge", "kind": "precise" },
+  "coord": { "normalized": true, "origin": "top-left", "ref_width": 464, "ref_height": 400 },
+  "boxes": [
+    { "x": 0.34, "y": 0.51, "w": 0.12, "h": 0.20, "label": "person", "confidence": 0.88 },
+    { "x": 0.70, "y": 0.30, "w": 0.08, "h": 0.15, "label": "obstacle", "confidence": null }
+  ]
+}

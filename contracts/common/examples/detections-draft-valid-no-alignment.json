@@ -1,0 +1,8 @@
+{
+  "type": "detections",
+  "origin": { "tier": "device", "kind": "safety_minimal" },
+  "coord": { "normalized": false, "origin": "top-left", "ref_width": 464, "ref_height": 400 },
+  "boxes": [
+    { "x": 120, "y": 80, "w": 64, "h": 96, "label": "door" }
+  ]
+}

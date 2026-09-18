@@ -18,9 +18,11 @@
    조용히 no-op 으로 떨어지고 업무 경로는 계속 돈다. HW `otel_metrics.create()`와 같은 구조다.
    기동 시 한 줄 로그로 활성/비활성을 남긴다.
 2. **라벨 가드 — 금지 라벨은 `ValueError`.** `session_id`·`internal_seq`·`sequence_id`·`timestamp`·
-   `ts`·`frame_id`·`capture_timestamp`는 값이 계속 달라져 시계열을 폭증시킨다. **조용히 버리지
-   않는다** — 버리면 나중에 누가 넣어도 아무도 모른다. 이 예외는 어댑터가 활성이든 no-op 이든
-   똑같이 난다(코드 결함은 관측 스택 유무와 무관하게 드러나야 한다). 음성 대조 N1의 대상.
+   `ts`·`frame_id`·`capture_timestamp`(Phase 3) + `frame_ref`·`correlation_id`·`command_id`·`mission_id`·
+   `node_ref`·`client_request_id`·`plan_id`·`event_key`(Phase 4)는 값이 계속 달라져 시계열을 폭증시킨다.
+   **조용히 버리지 않는다** — 버리면 나중에 누가 넣어도 아무도 모른다. 이 예외는 어댑터가 활성이든
+   no-op 이든 똑같이 난다(코드 결함은 관측 스택 유무와 무관하게 드러나야 한다). 음성 대조 N1의 대상.
+   `node_id`(물리 노드)는 허용이다.
 3. **A층에는 `source_id`를 넣지 않는다.** `be.ingest.*`·`be.kafka.*`·`be.storage.*`·`be.registry.*`·
    `be.gateway.*`·`be.pipeline.*`에 `source_id`·`zone_id`·`entity_type`이 붙으면 `ValueError`.
    A층의 질문은 "백엔드가 잘 도는가"라 장치별로 가를 필요가 없고, 달면 장치 수만큼 시계열이
@@ -61,8 +63,21 @@ LOG = logging.getLogger("mk2.observability")
 
 # ── 라벨 규약 (결정 4-b) ─────────────────────────────────────────────────────
 # 값이 계속 달라지는 것. 하나라도 라벨에 들어가면 시계열이 폭증한다.
+# Phase 4(2026-09-18)에서 8종을 더했다 — `frame_ref`·`correlation_id`·`command_id`는 VZ 통지
+# (docs/be/vz-observability-namespace.md §2)가 "코드로 막는다"고 적었는데 실제로는 없던 것이고,
+# `mission_id`·`node_ref`·`client_request_id`·`plan_id`·`event_key`는 VZ 회신(2026-09-17)이 제안한
+# VZ 식별자다. ⚠ `node_id`는 넣지 않는다 — 우리 공통 헤더의 node_id 는 물리 노드(pi1·pi7)라
+# 저카디널리티다(VZ 의 DAG 노드는 `node_ref` 로 내보내 달라고 요청했다). 9번째 「발화 원문」은
+# 키 이름을 VZ 에게 받은 뒤 넣는다(문자열 집합이라 이름 없이 못 넣는다 — 빠진 것이 아니라 대기).
+# 목록의 기준 문서는 contracts/common/README.md 「관측 신호 힌트와 라벨 금지」다.
 FORBIDDEN_LABELS = frozenset(
-    {"session_id", "internal_seq", "sequence_id", "timestamp", "ts", "frame_id", "capture_timestamp"}
+    {
+        # Phase 3
+        "session_id", "internal_seq", "sequence_id", "timestamp", "ts", "frame_id", "capture_timestamp",
+        # Phase 4 — 프레임·명령·임무 식별자
+        "frame_ref", "correlation_id", "command_id",
+        "mission_id", "node_ref", "client_request_id", "plan_id", "event_key",
+    }
 )
 # A층 계기 이름 접두사. 여기에는 장치 식별 라벨을 붙이지 않는다.
 A_LAYER_PREFIXES: Tuple[str, ...] = (
@@ -75,6 +90,10 @@ C_LAYER_PREFIX = "be.telemetry."
 # be.pipeline.lag 버킷(초). 실측 범위 -30 ~ 344,000(retained status 재유입)을 덮는다.
 LAG_BUCKETS: Tuple[float, ...] = (0.1, 0.5, 1, 5, 15, 60, 300, 1800, 7200, 86400)
 LAG_INSTRUMENT = "be.pipeline.lag"
+# be.gateway.media_coldstart 버킷(초) — 뷰어 연결 → 첫 프레임 전송. 초기 WAIT_IDR 때문에 최대 GOP 길이가
+# 더해진다(H.264 IDR 간격 실측 0.48초). 값은 항상 양수다. (Phase 4 단계 2-5)
+COLDSTART_BUCKETS: Tuple[float, ...] = (0.1, 0.25, 0.5, 1, 2, 5, 10, 30)
+COLDSTART_INSTRUMENT = "be.gateway.media_coldstart"
 
 # 계기 종류 → (unit, Prometheus 표기 규칙 메모)
 #   counter  unit "1"  → <name>_total            (be_ingest_received_total)
@@ -173,7 +192,11 @@ def _setup_metrics(resource, endpoint: str, insecure: bool, interval_s: float) -
         View(
             instrument_name=LAG_INSTRUMENT,
             aggregation=ExplicitBucketHistogramAggregation(boundaries=list(LAG_BUCKETS)),
-        )
+        ),
+        View(
+            instrument_name=COLDSTART_INSTRUMENT,
+            aggregation=ExplicitBucketHistogramAggregation(boundaries=list(COLDSTART_BUCKETS)),
+        ),
     ]
     # 전역 provider 를 건드리지 않는다 — 이 프로세스의 계기는 전부 이 meter 에서 나온다.
     _S.meter_provider = MeterProvider(resource=resource, metric_readers=[reader], views=views)
@@ -192,15 +215,32 @@ class _DropOtelInternal(logging.Filter):
 
 
 def _setup_logs(resource, endpoint: str, insecure: bool) -> None:
-    """OTel Logs SDK → OTLP → Collector → Loki (결정 4-c). 경로가 밑줄인 버전을 함께 지원한다."""
+    """OTel Logs SDK → OTLP → Collector → Loki (결정 4-c). 경로가 밑줄인 버전을 함께 지원한다.
+
+    **핸들러는 `opentelemetry-instrumentation-logging`의 것을 먼저 쓴다**(Phase 4 단계 5-3 #9). SDK 1.44 가
+    자기 `LoggingHandler`를 deprecated 로 표시했고(pytest 경고 2건), 대체 클래스는 패키지 최상위가 아니라
+    `opentelemetry.instrumentation.logging.handler.LoggingHandler`에 있다(0.65b0 실측 — 생성자 모양은
+    `(level, logger_provider, log_code_attributes=False)`로 SDK 것과 같다). `LoggingInstrumentor().instrument()`는
+    쓰지 않는다 — 루트 로거에 핸들러를 스스로 붙이고 `logging.basicConfig`를 감싸는데, 우리는 핸들러를 어디에
+    붙일지 호출부(`main()`)가 정한다. 패키지가 없으면 SDK 핸들러로 물러선다(경고만 남고 동작은 같다).
+    """
     try:
-        from opentelemetry.sdk.logs import LoggerProvider, LoggingHandler  # type: ignore[import-not-found]
+        from opentelemetry.sdk.logs import LoggerProvider  # type: ignore[import-not-found]
         from opentelemetry.sdk.logs.export import BatchLogRecordProcessor  # type: ignore[import-not-found]
         _S.logs_module = "opentelemetry.sdk.logs"
     except ImportError:
-        from opentelemetry.sdk._logs import LoggerProvider, LoggingHandler
+        from opentelemetry.sdk._logs import LoggerProvider
         from opentelemetry.sdk._logs.export import BatchLogRecordProcessor
         _S.logs_module = "opentelemetry.sdk._logs"
+    try:
+        from opentelemetry.instrumentation.logging.handler import LoggingHandler  # type: ignore[import-not-found]
+        _S.logs_module += " + instrumentation.logging.handler"
+    except ImportError:
+        try:
+            from opentelemetry.sdk.logs import LoggingHandler  # type: ignore[import-not-found]
+        except ImportError:
+            from opentelemetry.sdk._logs import LoggingHandler
+        _S.logs_module += " + sdk LoggingHandler(deprecated)"
     try:
         from opentelemetry.exporter.otlp.proto.grpc.log_exporter import OTLPLogExporter  # type: ignore[import-not-found]
     except ImportError:

@@ -64,6 +64,27 @@ Phase 0(인프라 기동)에서 세운 스택의 현재 상태와 운영 방법.
 서버에 저장소를 clone해서 `git pull`로 배포하는 방식이 **아니다.** 서버 실제 파일의 사본을
 여기 두고 편집한 뒤, 필요한 부분만 사람이 서버에 옮긴다.
 
+**compose 작업본 ↔ 서버 동기화 절차(Phase 4에서 정착, 2026-09-19 — 지시서 제약 18·20):**
+
+1. **서버 파일이 기준이다.** compose·`config/*.yml`을 처음 고치기 전에 서버 파일을 내려받아 작업본을 덮고
+   `md5sum`을 `_serverinfo/`에 적는다(Phase 4 단계 0 실측: 작업본과 서버가 주석 분량만큼 달랐다).
+2. 컴퓨터 작업본(`infra/docker-compose.yml`·`infra/config/prometheus.yml` — 둘 다 gitignore)에서 편집한다.
+3. 서버 **대기 위치** `/home/dg/capstone-db/phase1_work/phase4_new/`에 사람이 복사 → `md5sum` 일치 확인 →
+   `diff`로 바뀐 줄만 확인 → **적용 전 문법 판정**: `docker compose --project-directory /home/dg/capstone-db
+   -f <대기 파일> config --quiet` · Prometheus는 `docker cp` 뒤 `docker exec capstone_prometheus promtool check config`.
+4. 라이브 파일 백업(`…bak_before_<작업명>`) → `cp` → `docker compose up -d <서비스 이름>`(정의가 바뀐 서비스만
+   재생성된다). **설정 파일만 바뀐 Prometheus는 `up -d`로 반영되지 않는다** — `docker compose kill -s HUP prometheus`
+   로 리로드하고 로그의 `Completed loading of configuration file`을 본다.
+5. 적용 뒤 라이브 파일 `md5sum` = 작업본. 재생성된 컨테이너가 의도한 것뿐인지 `docker compose ps`로 본다.
+6. **`docker compose down`은 치지 않는다**(§6 「브리지 대역 미고정」). `restart:`는 정의 변경을 반영하지 않으므로
+   `up -d <서비스>`가 맞다.
+7. `.env`는 서버 `/home/dg/capstone-db/.env` 하나뿐이다(저장소에 없다). 한 줄 추가는 파일 끝 개행을 확인한 뒤 `>>`.
+
+**Phase 4 임시 노출의 되돌림 판(2026-09-19 단계 8)** — 실 엣지가 서면 이 네 자리만 되살린다: compose
+`otel-collector.ports`의 `# - "<서버 tailscale IP>:4316:4317"` · `kafka.ports`의 `# - "<서버 tailscale IP>:9095:9095"` +
+`environment`의 EDGE 판 3줄(주석) · `config/prometheus.yml`의 `# - job_name: 'edge_federate'` 블록(타깃 주소만 교체) ·
+`.env`의 `MK2_MEDIA_INGEST_PORT=0` 삭제(또는 8766) + ufw 엣지 `/32`(8766·9095·4316).
+
 ---
 
 ## 2. 스택 9개 — 신규 설치 vs 기존 가동
@@ -156,9 +177,14 @@ Phase 0(2026-09-04)에 8개, **Phase 2(2026-09-10)에 TimescaleDB가 더해져 9
 | Loki | 3100 | 3100 | Collector가 `http://loki:3100/otlp`(도커 망)로 log를 넣는다. 호스트 3100은 조회용 |
 | Tempo | 3200 | 3200 | 조회용 |
 | Tempo (OTLP) | 4317 | 4317 | Phase 0 유물 — **Collector 우회 입구**. Collector는 도커 망 `tempo:4317`로 넣으므로 호스트 4317은 쓰지 않는다. 닫지 않고 기록만(§6 ⓓ) |
-| **OTel Collector** | **127.0.0.1:4316** | 4317 | 백엔드 3개(호스트 프로세스)가 이 길로 metric·log를 낸다. **Tailscale 인터페이스 추가 바인딩은 Phase 3 검증 뒤 주석으로 내렸다**(§6 ⓗ) |
+| **OTel Collector** | **127.0.0.1:4316** (+ `<서버 tailscale IP>:4316` — Phase 4 단계 5-1 되살려 실측 뒤 **단계 8에서 다시 주석**, 2026-09-19) | 4317 | 백엔드 3개(호스트 프로세스)가 loopback 으로 metric·log를 낸다. Tailscale 쪽은 엣지 Agent 입구 — **인증 없음**(OTLP 토큰 확장 조사 ⏭ Phase 6), 되살릴 때 ufw 엣지 `/32`(§6 ⓗ). ⚠ 도커 발행 포트라 실질 통제는 바인딩 주소다(§5 정정) |
 | OTel Collector (exporter) | — | 8889 | Prometheus가 docker 네트워크 안에서 직접 scrape |
-| WS echo | 127.0.0.1:8765 | — | 호스트 프로세스(systemd `mk2-ws-echo`). 외부 노출은 Phase 4/5(인증과 한 묶음) |
+| **WS 게이트웨이 뷰어** | **127.0.0.1:8765** → Phase 4 단계 7부터 **`127.0.0.1` + `<서버 tailscale IP>` 둘 다** | — | 호스트 프로세스(systemd `mk2-ws-echo`). 경로 `/state`(Phase 1 echo)·`/media?source_id=…`(방식 B 영상). **URL 쿼리 토큰 `MK2_WS_TOKEN`**, 불일치·부재 close 4401. 호스트 파이썬이라 **ufw 가 진짜 통제**(사용자 컴퓨터 `/32`, VZ PC 는 주소를 받은 뒤) |
+| **WS 게이트웨이 엣지 입구** | ~~127.0.0.1:8766~~ → 단계 7 `<서버 tailscale IP>:8766` 실측 → **단계 8(2026-09-19) 닫음 — 현재 `MK2_MEDIA_INGEST_PORT=0`**, 게이트웨이 로그 `엣지 입구 닫힘` | — | 같은 프로세스의 두 번째 서버. 경로 `/ingest?source_id=…`, 토큰 `MK2_EDGE_TOKEN`. 엣지가 클라이언트로 붙는다(엣지에 인바운드 불필요). 되살릴 때 `.env` 포트 + `MK2_MEDIA_INGEST_HOST` + ufw 엣지 `/32`. 닫혀 있으면 `tests/test_media_relay.py` 12건이 skip 된다(정상) |
+| 4b PUT 입구 | `<서버 tailscale IP>:8767` (Phase 4 단계 10 예정 — 열리면 남긴다) | — | `backend/gateway/capture.py`, systemd `mk2-capture`, 토큰 `MK2_CAPTURE_TOKEN`, ufw pi7 `/32` |
+| Kafka EDGE | `<서버 tailscale IP>:9095` (Phase 4 단계 6 → 실측 → **단계 8 주석**, 2026-09-19) | 9095 | 원격 엣지용 리스너(PLAINTEXT, SASL 은 Phase 6). 도커 발행 포트 — **바인딩 주소가 통제**, ufw 는 문서용(§5). 현재 compose 에 주석 판 4자리(ports 1 + env 3)로 남아 있다 |
+
+**2026-09-19 단계 8 되돌린 뒤 실제 상태(`ss -ltnp`·ufw 실측):** 열린 MK2 입구는 **8765 하나**(`127.0.0.1` + `<서버 tailscale IP>`, ufw 사용자 컴퓨터 `/32`). 8766·`<서버 tailscale IP>:4316`·9095 없음, `docker port`도 kafka `127.0.0.1:9092`·collector `127.0.0.1:4316` 만. ufw 의 Phase 4 규칙은 8765 한 줄만 남았다.
 
 ### 7859 — ufw는 이미 열려 있고, 실질 노출은 없다
 
@@ -390,7 +416,7 @@ Kafka와, Phase 3이 고친 관측 4개(§5-0)만 적는다. 나머지는 기존
 | Loki | v13/**tsdb** 단일 스키마 · `allow_structured_metadata: true` · `retention_enabled: true` · `retention_period: 14d` · `delete_request_store: filesystem` | boltdb-shipper는 구조화 메타데이터도 네이티브 OTLP 수집도 지원하지 않는다. 기존 데이터는 7개월 전 단일 스트림 172K라 백업 후 비웠다. **보존 3줄은 함께 있어야 집행된다** | `config/loki-config.yaml.bak_before_phase3` + `/home/dg/loki_data.bak_before_phase3.tgz`(옛 데이터). `loki_data`는 `root:root 777`로 재생성(Loki가 uid 10001로 쓴다) |
 | Tempo | `block_retention: 168h` | 24h면 Phase 6에서 "어제 그 명령"을 못 본다. trace는 명령 경로에만 붙어 양이 적다 | `config/tempo-config.yaml.bak_before_phase3` |
 | Prometheus | `otel_collector` 잡 `scrape_interval: 5s`. **global 무변경**(1s) · 보존 무변경(CLI 기본 15d) | 백엔드 export 15초 × 표본 3. ⚠ global `scrape_timeout > scrape_interval`인 잡이 하나라도 있으면 설정 전체가 거부된다 — `rpi`·`thermal`이 잡별 5s에 global timeout 1s를 상속하므로 global을 올리지 않는다 | `config/prometheus.yml.bak_before_phase3` |
-| 상주 3개 | systemd `mk2-ingest`·`mk2-storage-consumer`·`mk2-ws-echo`(`Restart=on-failure`, `StartLimitBurst=3/60s`, `EnvironmentFile=/home/dg/capstone-db/.env`, enabled) | A층은 셋이 상시 떠 있어야 계측이 나온다. `Restart=always`면 `.env` 없을 때 무한 루프 | `sudo systemctl disable --now mk2-*` |
+| 상주 3개 | systemd `mk2-ingest`·`mk2-storage-consumer`·`mk2-ws-echo`(`Restart=on-failure`, `StartLimitBurst=3/60s`, `EnvironmentFile=/home/dg/capstone-db/.env`, enabled). **Phase 4:** `mk2-ws-echo` 는 `After/Wants=docker.service tailscaled.service`·`RestartSec=10` — Tailscale 주소에 바인딩하므로 `tailscaled` 보다 먼저 뜨면 `cannot assign requested address` 로 죽는다. `.env` 의 `MK2_WS_HOST=127.0.0.1,<서버 tailscale IP>`·`MK2_WS_TOKEN`·`MK2_EDGE_TOKEN`·`MK2_MEDIA_INGEST_PORT=0` 을 읽는다 | A층은 셋이 상시 떠 있어야 계측이 나온다. `Restart=always`면 `.env` 없을 때 무한 루프 | `sudo systemctl disable --now mk2-*` |
 
 **설정을 고치기 전에 반드시 `validate`/`promtool check config`를 돌린다** — 기동 실패로 알기보다 먼저 안다.
 
@@ -399,14 +425,15 @@ Kafka와, Phase 3이 고친 관측 4개(§5-0)만 적는다. 나머지는 기존
 | `KAFKA_NODE_ID` | `1` | 단일 노드 | 브로커 추가 시 |
 | `KAFKA_PROCESS_ROLES` | `broker,controller` | KRaft 겸용, ZooKeeper 불필요 | 노드 분리 시 |
 | `KAFKA_CONTROLLER_QUORUM_VOTERS` | `1@localhost:9093` | 투표자가 자기 자신뿐 | 브로커 추가 시 |
-| `KAFKA_LISTENERS` | `PLAINTEXT :9092`<br>`CONTROLLER :9093`<br>`INTERNAL :9094` | 외부 / KRaft 합의 / docker 네트워크 내부 | — |
-| **`KAFKA_ADVERTISED_LISTENERS`** | `PLAINTEXT://localhost:9092`<br>`INTERNAL://kafka:9094` | 브로커가 클라이언트에게 알려주는 자기 주소 | **서버 밖 클라이언트가 생길 때**(원격 엣지 등) — 예상 Phase 4, 아래 주의 참조 |
+| `KAFKA_LISTENERS` | `PLAINTEXT :9092`<br>`CONTROLLER :9093`<br>`INTERNAL :9094`<br>(`EDGE :9095` — Phase 4 단계 6 추가 → **단계 8 주석 판**) | 호스트 프로세스 / KRaft 합의 / docker 네트워크 내부 / **원격 엣지(Tailscale)** | EDGE 는 2026-09-19 실측 뒤 주석으로 되돌렸다(실 엣지가 오면 넷을 한 묶음으로 되살린다 — §5 「원격 엣지가 붙는 방법」) |
+| **`KAFKA_ADVERTISED_LISTENERS`** | `PLAINTEXT://localhost:9092`<br>`INTERNAL://kafka:9094`<br>(`EDGE://<서버 tailscale IP>:9095` — 주석 판) | 브로커가 클라이언트에게 알려주는 자기 주소. **EDGE 를 `localhost` 로 두면 엣지가 접속은 되는데 브로커가 "localhost 로 오라"고 답해 자기 자신으로 되돌아간다**(Phase 0 미결이 Phase 1 까지 끌었던 함정 — 2026-09-19 컴퓨터에서 `brokers(advertised): {1: '<서버 tailscale IP>:9095'}` 로 오는 것을 확인) | PLAINTEXT 는 **한 줄도 안 바꿨다** — 백엔드 3개가 그대로 붙는다 |
+| `KAFKA_LISTENER_SECURITY_PROTOCOL_MAP` | `PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT,INTERNAL:PLAINTEXT` (+`EDGE:PLAINTEXT` — 주석 판) | **EDGE 항목이 빠지면 브로커가 기동에 실패한다**(상주 3개가 붙어 있는 상태라 제일 아프다). SASL 은 Phase 6(BE-Q-04) | — |
 | 복제 인자 4종 | 전부 `1` | 기본값 3이면 내부 토픽 생성이 즉시 실패 | 브로커 추가 시 |
 | `KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS` | `0` | 기본 3000ms 대기가 개발 중 불편 | 운영 전환 시 상향 |
 | `KAFKA_LOG_DIRS` | `/var/lib/kafka/data` | 기본값 `/tmp/...` 회피 | — |
 | `KAFKA_LOG_RETENTION_HOURS` | `168` (7일) | **Kafka는 장기 저장소가 아니다**(원칙 11). 단기 버퍼·단기 replay용 | 디스크·replay 요구에 따라 |
 | `KAFKA_AUTO_CREATE_TOPICS_ENABLE` | `"false"` | 오타 토픽이 자동 생성되면, 발행자는 성공했다고 믿는데 아무도 안 읽는 상황이 생긴다 | 유지 권장 |
-| `ports` | `127.0.0.1:9092:9092` | Phase 0은 로컬 헬스체크, Phase 1은 Kafka에 붙는 코드가 전부 서버에 있어 노출 불필요 | **서버 밖 클라이언트가 생길 때** — 예상 Phase 4 |
+| `ports` | `127.0.0.1:9092:9092`<br>(`<서버 tailscale IP>:9095:9095` — Phase 4 단계 6 → **단계 8 주석 판**) | 9092 는 로컬 전용 그대로. 9095 는 **바인딩 주소가 곧 통제**다 — `9095:9095` 로 적으면 `0.0.0.0` 이 되어 인증 없는 Kafka 가 모든 인터페이스에 열린다(결정 6 β). 없는 IP 에는 바인딩 실패(제약 15 — `tailscale ip -4` 먼저) | 9095 는 2026-09-19 주석으로 되돌림. 현재 `docker port capstone_kafka` = `9092/tcp -> 127.0.0.1:9092` 만 |
 
 ### 토픽 (Phase 1에서 생성)
 
@@ -494,45 +521,69 @@ Phase 4보다 이르더라도 바꾼다(그때 이 문서를 갱신한다).
 >
 > (서버 compose 파일의 주석은 gitignore라 저장소에 남지 않으므로 커밋되는 이 문서에 적는다.)
 
-#### 바꿀 때 정확히 이 3가지 (예상 시점: Phase 4, 원격 엣지·Tailscale)
+#### 원격 엣지가 붙는 방법 — EDGE 리스너를 하나 더 둔다 (Phase 4 단계 6, 2026-09-19 · 결정 6 ㉯)
 
-포트만 열어서는 안 되고, **열더라도 모든 인터페이스에 열면 안 된다**(현재 PLAINTEXT·인증 없음).
+이 절은 원래 *"바꿀 때 정확히 이 3가지 — ① `ports` 를 Tailscale IP 로 ② `ADVERTISED` 의 PLAINTEXT 호스트를
+그 주소로 ③ ufw"* 였다. **그 방식은 PLAINTEXT 를 바꾸므로 백엔드 3개(전부 호스트 프로세스, `localhost:9092`)가
+함께 영향을 받는다.** Phase 4 는 대신 **리스너를 하나 더 둬 PLAINTEXT `localhost:9092` 를 한 줄도 바꾸지 않았다.**
+항목 ①(바인딩 주소)과 ③(ufw)이 여전히 필요하다는 것은 그대로다 — 다만 그 대상이 9092 가 아니라 **9095** 다.
 
-1. **`ports` → Tailscale 인터페이스 IP에 바인딩** (`<tailscale-ip>:9092:9092`). `9092:9092`는
-   공인 IP를 포함한 전 인터페이스 노출이라 쓰지 않는다. ~~Tailscale 설치가 선행돼야 한다.~~
-   **Tailscale은 Phase 3(2026-09-16)에서 서버에 설치됐다**(1.102.4, `tailscaled` enabled,
-   팀 공용 계정) — 설치 선행 조건은 이미 충족이다. ⚠ 다시 `tailscale up`을 치지 않는다(계정이
-   갈릴 수 있다). 주소는 `tailscale ip -4`로 읽고 `_serverinfo/`에만 적는다.
-   ⚠ **없는 IP에는 docker가 바인딩하지 못한다** — `tailscaled`가 뜨기 전에 `up -d`를 하면
-   `cannot assign requested address`로 기동이 실패하고, 재부팅 시 `restart: always`가 루프에
-   빠질 수 있다(§6 ⓗ와 같은 함정).
-2. **`KAFKA_ADVERTISED_LISTENERS`의 `PLAINTEXT` 호스트** → 엣지가 실제로 도달하는 그 주소
-   (위 1의 주소). 이걸 안 바꾸면 포트를 열어도 위 2단계 연결에서 실패한다.
-3. **ufw를 엣지 소스로 제한하고, 그 포트를 ufw에 반드시 연다.**
+**현재 상태(단계 8, 2026-09-19): 아래 네 자리는 compose 에 주석 판으로 남아 있고 활성 값은 단계 6 이전(EDGE 없음)이다.**
+컴퓨터 임시 엣지에서 produce/consume 왕복 + 저장 소비자 TSDB 적재까지 확인(advertised 가 `<서버 tailscale IP>:9095` 로
+오는 것 포함)한 뒤 되돌렸다. 실 엣지가 서면 **넷을 한 묶음으로** 되살리고 ADVERTISED 의 주소만 실 엣지가 닿는 서버
+주소로 바꾼다. 재생성은 `capstone_kafka` 1회(`kafka_data` bind mount 라 토픽·오프셋 유지).
 
-> ### ⚠️ 정정 (2026-09-10) — "ufw는 안 열어도 된다"로 읽으면 안 된다
->
-> **이 항목 3은 원래 이렇게 쓰여 있었다:**
->
-> > ~~단 **docker publish는 DNAT라 ufw INPUT을 상당부분 우회**하므로, 실질적인 통제는 3이 아니라
-> > **1의 인터페이스 바인딩**이다. ufw는 보조 수단으로 본다.~~
->
-> **실측이 이 서술을 반증했다.** 서버에서 **9100 포트를 ufw에 열자마자 Prometheus 수집이
-> 정상화됐다.** DNAT가 ufw를 우회한다는 서술이 맞다면 일어날 수 없는 일이다.
->
-> **그래서 규칙을 이렇게 고친다: 서비스의 외부 포트는 ufw에도 반드시 연다.**
-> 이유는 두 가지다 — ① 위 실측대로 **실제로 막힐 수 있다** ② 장애가 났을 때
-> **방화벽을 용의선상에서 빼기 위해서**다. 원인을 하나씩 지우지 못하면 디버깅이 몇 배로 늘어난다.
->
-> **바인딩과 ufw는 층이 다르며 충돌하지 않는다.** 바인딩이 `127.0.0.1`이면 애초에 loopback에서만
-> 듣기 때문에 **ufw를 열어도 외부 접근이 생기지 않는다.** 1(바인딩)은 "실질 노출을 만들지 않기
-> 위해", 3(ufw)은 "장애 원인에서 방화벽을 제외하기 위해" 하는 것이다. **둘 다 한다.**
->
-> 이 문장을 믿고 Phase 4에서 "ufw는 안 열어도 된다"고 판단하면 같은 사고가 반복된다.
-> Phase 2에서 TimescaleDB(7859)를 세울 때도 이 규칙을 적용했다(§3의 7859 주 참조).
+```
+KAFKA_LISTENERS:                       …,EDGE://0.0.0.0:9095          # 컨테이너 안에서 듣는 주소 — 0.0.0.0 이 맞다
+KAFKA_ADVERTISED_LISTENERS:            …,EDGE://<서버 tailscale IP>:9095   # localhost 로 두면 엣지가 자기 자신으로 되돌아간다
+KAFKA_LISTENER_SECURITY_PROTOCOL_MAP:  …,EDGE:PLAINTEXT              # 빠지면 브로커 기동 실패
+ports:  - "<서버 tailscale IP>:9095:9095"                              # 🔴 "9095:9095" 는 0.0.0.0 = 전 인터페이스 노출
+```
 
-(현재 ufw에 `9092 ALLOW Anywhere` 규칙이 있으나 바인딩이 `127.0.0.1`이라 실제 노출은 없다 —
-바로 위에서 말한 "층이 다르다"의 실례다.)
+- **두 곳의 `0.0.0.0` 은 뜻이 다르다.** `KAFKA_LISTENERS` 의 것은 컨테이너 안 수신 주소라 그대로 맞고, 금지되는 것은
+  `ports:` 의 `0.0.0.0`(= 호스트 노출 주소)이다. `INTER_BROKER_LISTENER_NAME` 은 `INTERNAL` 그대로.
+- **실질 통제는 `ports` 의 바인딩 주소다**(아래 정정 참조 — DNAT 규칙에 `-d <서버 tailscale IP>/32` 가 붙어 tailnet 밖
+  인터페이스에서는 매치되지 않는다). ufw 규칙(`allow from <엣지 tailscale IP>/32 to any port 9095 proto tcp`)도 적되
+  도커 발행 포트에 대해서는 **통제가 아니다** — 장애 원인 배제·문서용. 없는 통제를 있다고 적지 않는다.
+- ⏭ **tailnet 안의 나머지 기기까지 막는 `DOCKER-USER` 규칙은 미뤘다** — `iptables -I DOCKER-USER 1 -p tcp --dport 9095
+  ! -s <엣지 tailscale IP>/32 -j DROP` 한 줄 + 부팅마다 넣는 oneshot 유닛(k3s 가 `FORWARD` 를 동적 관리하므로
+  `iptables-save` 전체 덤프는 쓰지 않는다). 이번 엣지는 임시였고 단계 8 에서 9095 를 통째로 닫았다. 실 엣지 장비가
+  상시로 붙을 때 한다(추적표 BE-T-08).
+- **7-h(허용 목록 밖 tailnet 기기 프로브) 결과(2026-09-19):** 접근 가능한 tailnet 기기가 서버·컴퓨터뿐이라 **실행 불가**.
+  대신 기록한 것 — nat `DOCKER` 규칙에 소스 제한이 없고(`-d <서버 tailscale IP>/32 … --dport 9095 -j DNAT`) `DOCKER-USER` 는
+  비어 있어 **tailnet 안 어느 기기든 9095·4316 에 붙을 수 있었다**(바인딩만 통제, 위 ⏭ 그대로). **공인 IP 로는
+  9095·8766·8765·4316 전부 닫혀 있음**(`TcpTestSucceeded=False` 4건)을 확인했다 — 바인딩·ufw 가 먹는다.
+- SASL 은 Phase 6(BE-Q-04 와 함께). 재생성 중 백엔드 3개가 Kafka 연결 오류를 로그에 남기는 것은 정상이다(librdkafka 재연결,
+  소비자 리밸런스) — 프로세스는 죽지 않으므로 `Restart=on-failure` 가 발동하지 않는다.
+- Tailscale 은 Phase 3 에 설치됐다(1.102.4, 팀 공용 계정). ⚠ 다시 `tailscale up` 을 치지 않는다. 주소는 `tailscale ip -4`
+  로만 읽고 `_serverinfo/` 에만 적는다. ⚠ **없는 IP 에는 docker 가 바인딩하지 못한다** — `tailscaled` 가 뜨기 전에 `up -d`
+  를 하면 `cannot assign requested address` 로 기동이 실패하고 재부팅 시 `restart: always` 가 루프에 빠질 수 있다(§6 ⓗ).
+
+> ### ⚠️ 정정 (2026-09-10 → 2026-09-19 재정정) — ufw 가 「통하는 입구」와 「통하지 않는 입구」가 다르다
+>
+> **2026-09-10 판:** 이 절의 원문 *"docker publish 는 DNAT 라 ufw INPUT 을 상당부분 우회하므로 실질 통제는 바인딩이다"*
+> 를 *"실측이 반증했다 — 9100 을 ufw 에 열자마자 Prometheus 수집이 정상화됐다"* 로 뒤집었다.
+>
+> **2026-09-19 재정정: 그 「반증」이 틀렸다. 두 문장은 서로 다른 경로를 말하고 있었고 어느 쪽도 반증되지 않았다**
+> (2026-09-18 iptables 실측 — 지시서 제약 16).
+>
+> - **컨테이너·호스트에서 오는 트래픽**(9100 실측 = Prometheus 컨테이너 → `host.docker.internal:9100`)은 DNAT 를 타지
+>   않고 `INPUT` 으로 가므로 **ufw 가 적용된다.** ufw `[6] 9100 ALLOW IN 172.16.0.0/12 # rpi pushgateway <- docker`·
+>   `[36]`·`[37]`(`172.18.0.0/16`)이 바로 그 경로의 규칙이다. 그래서 9100 을 열자 수집이 정상화된 것이 맞다.
+> - **외부 기기에서 오는 트래픽**(엣지 → 발행 포트)은 DNAT 뒤 `FORWARD` 를 타는데, `FORWARD` 순서가
+>   `… → DOCKER-USER → DOCKER-FORWARD → … → ufw-before-forward …` 라 **도커가 ufw 체인보다 먼저 ACCEPT 한다.**
+>   `DOCKER-USER` 는 비어 있고(규칙 0개), nat `DOCKER` 에서 `-d 127.0.0.1/32` 가 붙은 것은 9092·7859·4316 셋뿐이다 —
+>   **compose 의 바인딩 주소가 그대로 DNAT 조건이 되어 실제로 막는다.** 이것이 원문이 옳았던 이유다.
+> - 🔴 **8765·8766·8767 은 호스트 파이썬 프로세스**라 DNAT 를 타지 않고 `INPUT` 으로 들어온다 — **여기서는 ufw 가 진짜
+>   통제다.** 미디어 경로의 입구 셋이 전부 여기 속한다.
+>
+> **그래서 규칙은 이렇다:** 도커 발행 포트(9095·4316·4318 …)는 **바인딩 주소를 정확히 쓴다**(노출 통제) **+ ufw 도
+> 적는다**(장애 원인 배제·문서용 — 「통제」로 세지 않는다). 호스트 프로세스 포트(8765·8766·8767)는 **ufw 가 통제**다.
+> 바인딩과 ufw 는 층이 다르며 충돌하지 않는다 — Phase 2 의 7859(§3 주)와 같다. ⏭ 도커 발행 포트 **전반**의 노출 점검·정리는
+> 이번 범위가 아니다(Phase 0 부터 있던 상태이고 다른 파트 포트가 섞여 있다 — 분류 ③).
+
+(ufw 의 `9092 ALLOW Anywhere` 규칙은 **2026-09-18 실측에서 없었다** — 이전 판의 "현재 있으나 …" 서술은 낡은 것이라 삭제.
+바인딩이 `127.0.0.1` 이라 어차피 노출은 없다.)
 
 ### 데이터 디렉터리 권한
 
@@ -581,14 +632,17 @@ Phase 3 뒤: 셋 다 흐른다 — `be_*` 21종(A 9 + C 12)·`{service_name="be-
 |---|---|---|
 | `otel-collector-config.yaml` | **`logs`·`traces` 파이프라인이 없었다 (metric만).** → ✅ **파이프라인 3종**(`traces`→`otlp_grpc` `tempo:4317`, `logs`→`otlp_http` `http://loki:3100/otlp`) + `batch`. Collector가 분배하는 기준 구조로 정리됐고 **호스트 포트는 무변경**(§3 ⓐ·ⓑ). 이미지 digest 고정 | ✅ Phase 3 (2026-09-15) |
 | `prometheus.yml` | `global.scrape_interval: 1s` — 기준(15초~1분)과 다르다 → ✅ **global은 그대로 두고 `otel_collector` 잡만 5s**로. global을 올리면 `rpi`·`thermal`(잡별 5s, timeout 상속 1s)이 `timeout > interval`로 설정 전체가 거부되고, 그 대시보드는 다른 파트 것이다(§5-0) | ✅ Phase 3 |
-| `prometheus.yml` | 페더레이션 없음 → ✅ **`edge_federate` 잡을 만들어 임시 엣지(컴퓨터, Tailscale)로 실증**(`agg_layer="edge"` 보존, `match[]` 한정, 음성 대조 통과) 후 **주석으로 내렸다** — 엣지 실물이 오면 주소만 바꿔 되살린다 | ✅ Phase 3 / 되살리기 Phase 4 |
+| `prometheus.yml` | 페더레이션 없음 → ✅ **`edge_federate` 잡을 만들어 임시 엣지(컴퓨터, Tailscale)로 실증**(`agg_layer="edge"` 보존, `match[]` 한정, 음성 대조 통과) 후 **주석으로 내렸다**. **Phase 4 단계 5-2 에서 되살려 재실증**(`up`·15s, `hw_*`·`system_cpu/memory` 만 도착, `go_*`·`up` 없음) 뒤 **단계 8 에서 다시 주석**(2026-09-19, HUP 리로드 — 재생성 없음). ⚠ 판정은 엣지 exporter `metric_expiration` 5m 안에 하거나 `last_over_time(…[2h])` 로 — 프로브 종료 15분 뒤 즉시 조회는 stale 로 비었다 | ✅ Phase 3 · ✅ Phase 4 재실증 → 주석 |
 | `loki-config.yaml` | ~~retention 없음 → 로그를 흘리기 전에 걸어야 한다~~ **정정:** 정확히는 **보존을 집행할 기능이 꺼져 있었다** — `retention_enabled: false`·`retention_period: 0s`·`delete_request_store: ""` **세 줄이 함께** 꺼져 있었고 하나만 켜면 조용히 아무 일도 안 일어난다. 그리고 **retention은 compactor가 나이 기준으로 소급 집행**하므로 "흘리기 전에" 걸 필요는 없었다(순서는 권장이지 강제가 아니다). → ✅ 셋 다 켜고 `retention_period: 14d` | ✅ Phase 3 |
 | `loki-config.yaml` | schema v11 + boltdb-shipper — "동작에 문제 없다"고 적었으나 **구조화 메타데이터도 네이티브 OTLP 수집도 지원하지 않아 Collector→Loki 경로가 애초에 성립하지 않았다.** → ✅ 데이터 백업(`/home/dg/loki_data.bak_before_phase3.tgz`) 후 `loki_data`를 비우고 **v13/tsdb 단일 스키마 + `allow_structured_metadata: true`** | ✅ Phase 3 |
 | `tempo-config.yaml` | OTLP 직접 수신 (4317/4318) → 구조는 ⓐ로 해소(Collector가 `tempo:4317`로 넣는다). **호스트 4317은 그대로 열려 있다 — Collector 우회 입구.** `0.0.0.0` 바인딩 + ufw `Anywhere`. 이번에 닫지 않고 기록만 — 닫으려면 compose `ports` 한 줄 삭제 + ufw 규칙 삭제 + 재생성, 그리고 그 포트로 직접 쏘는 주체가 없음을 먼저 확인 | 기록 (ⓓ) |
 | `tempo-config.yaml` | `block_retention: 24h` → ✅ **168h** | ✅ Phase 3 |
-| Prometheus 보존 | compose `command:`에 플래그 없음 → **CLI 기본값 15d에 기대고 있다.** 바꾸면 컨테이너 재생성이 따라온다. 기준 문서가 값을 규정하지 않아 그대로 둠 | 기록 (ⓔ) — Phase 4에서 digest 고정과 묶어서 |
+| Prometheus 보존 | compose `command:`에 플래그 없음 → **CLI 기본값 15d에 기대고 있다.** 바꾸면 컨테이너 재생성이 따라온다. 기준 문서가 값을 규정하지 않아 그대로 둠 | 기록 (ⓔ) — Phase 4 단계 5에서 **digest 고정만** 했고 보존은 그대로 |
+| **Prometheus 이미지** | ✅ **digest 고정**(Phase 4 단계 5-2, 2026-09-19) — `prom/prometheus@sha256:b5a5ad00…`(3.9.1). **지금 도는 이미지의 digest 를 `docker image inspect` 로 읽어 박았다**(새로 pull 하지 않았다 — pull 하면 고정이 아니라 갱신). 재생성 1회, `./prometheus_data` bind mount 라 시계열 유지(다른 파트 대시보드 데이터 포함) | ✅ Phase 4 |
+| **digest 미고정 잔여 6개** | `:latest` 가 남은 서비스 — **grafana** · **loki** · **mongo** · **tempo** · **pushgateway 2개**(`rpi_pushgateway`·`thermal_pushgateway`). Phase 4 는 Prometheus 만 고정했다(분류 ③·② 접촉 최소화). 고정할 때는 위와 같이 **도는 이미지의 digest** 를 읽어 박고, 서비스 이름을 명시해 `up -d` 한다(재생성 1회씩) | 기록 — 다음 유지보수 창 |
+| **브리지 대역 미고정** | compose 에 `ipam`·`subnet` 블록이 없어 `capstone-db_default` 의 `172.18.0.0/16` 이 **고정돼 있지 않다**(09-18 실측 grep 0건). 네트워크가 재생성되면 대역이 밀리고 **① MySQL `mk2_app@'172.18.%'` 인증 ② ufw `[36]`·`[37]` `172.18.0.0/16` 규칙**이 동시에 조용히 깨진다. 그래서 **Phase 4 전 구간에서 `docker compose down` 을 치지 않았다** — `up -d <서비스>` 만. `ipam` 고정은 네트워크 정의 변경이라 전체 스택 재기동을 부르므로 **별도 유지보수 창** | 기록 — 별도 창 |
 | `prometheus.yml` | `conntest` 잡 라벨이 들어오는데 **출처 미상**(scrape 잡이 아니라 pushgateway로 밀어 넣는 쪽). 분류 ③ | 기록 (ⓕ) |
-| Collector 4316 | **Tailscale 인터페이스 추가 바인딩(`<서버 tailscale IP>:4316:4317`)과 ufw 규칙(엣지 IP `/32` 한정)은 Phase 3 검증(8-7) 뒤 되돌렸다** — compose는 주석 한 줄로 남아 있다. 되살리는 조건: 엣지 실물 + BE-T-08(TLS·인증). 되살릴 때 ① `tailscale ip -4`가 주소를 주는지(없는 IP에는 바인딩 실패 → 재부팅 시 `restart: always` 루프) ② ufw는 엣지 IP `/32`로만(**이 수신단에는 인증이 없다** — `Anywhere` 금지) ③ 엣지 Agent exporter 주소 | 기록 (ⓗ) — Phase 4 |
+| Collector 4316 | Phase 3 검증(8-7) 뒤 되돌렸던 **Tailscale 바인딩(`<서버 tailscale IP>:4316:4317`) + ufw(엣지 `/32`)를 Phase 4 단계 5-1(2026-09-19)에서 되살렸다** — 컴퓨터 임시 엣지 2계층 실측(단계 7)용이며 **단계 8에서 다시 주석·규칙 삭제**. 절차는 ① `tailscale ip -4` 확인 ② compose 주석 해제 ③ `up -d otel-collector`(재생성 1회) ④ ufw 엣지 `/32`. **OTLP 인증은 (i) 터널 + ufw `/32` + 평문** — 토큰 확장 조사는 ⏭ Phase 6(BE-Q-04 와 함께): receiver 가 `otlp/grpc` 하나라 auth 를 걸면 loopback 백엔드 3개도 토큰을 보내야 하고, 나누려면 receiver 신설 = 범위 확대. 이 수신단에는 인증이 없다 — `Anywhere` 금지. **✅ 단계 8(2026-09-19) 되돌림 완료** — Loki `service_name=hw-sensor-node`(구조화 메타데이터)·Tempo 태그값·인덱스 라벨 3종 그대로 확인 뒤 compose 주석 + ufw 삭제, `otel_collector` 재생성 1회 | ✅ Phase 4(임시) → ✅ 단계 8 되돌림 |
 | `mosquitto.conf` | `allow_anonymous true`, ACL 없음. 개발 단계라 의도된 상태이며 **Phase 1 브릿지 연결에는 오히려 유리하다** | 운영 전환 시 |
 | `mosquitto.conf` | `persistence` 미설정 → 브로커 재시작 시 retained 소실 | Phase 1/5 |
 | (요구사항) | **가용성 판정 파라미터** — 하트비트 1초 1회, **4회 연속 미수신(약 4초)** 시 장애 판정. 기준은 조병현 HW-S-05·HW-A-05이며 김현우 VZ-U-01도 4초 판정을 전제한다. **Phase 1 실측 5초는 테스트 편의값이지 요구사항이 아니다** | Phase 5 |
@@ -599,7 +653,7 @@ Phase 3 뒤: 셋 다 흐른다 — `be_*` 21종(A 9 + C 12)·`{service_name="be-
 | **TimescaleDB** | **보존 기간·압축 정책이 없다.** 하이퍼테이블로 만들어 두어 **정책만 붙이면 된다** — BE-S-04가 별도 요구사항이고 발동 조건이 아직 아니다 | 발동 조건 충족 시 |
 | Kafka | **검증용 컨슈머 그룹 3개가 남아 있다**(§5 「컨슈머 그룹」) | 정리 여부 미결 |
 | 백엔드 상주 프로세스 | ~~터미널 수동 기동~~ → ✅ **systemd 유닛 3개**(`infra/systemd/`, enabled). ⚠ 재부팅 시 Kafka·Mosquitto 컨테이너가 `3회×5초` 안에 안 올라오면 `StartLimitBurst`에 걸려 실패 상태로 멈출 수 있다 — 그때는 `sudo systemctl start mk2-*`. 그리고 **`kill -9`·OOM처럼 신호 없이 죽으면 재기동한 소비자가 세션 타임아웃까지 파티션을 못 받는다**(SIGTERM은 Phase 3에서 그룹을 깨끗이 떠나게 고쳤다 — 정상 재기동은 6초).<br>**손잡이:** `session.timeout.ms` — Kafka 소비자 설정, `backend/storage/consumer.py::build_consumer()`·`backend/gateway/ws_echo.py::build_consumer()`의 `Consumer({...})` 딕셔너리에 키를 더하면 된다. **기본값 45000(librdkafka)** — 지금은 안 적어 기본값. 낮추면(예: `10000`) 비정상 죽음 뒤 재할당이 빨라지는 대신, 소비자가 잠깐 멈추기만 해도(GC·TSDB 재접속 대기 등) 브로커가 죽은 것으로 오판해 리밸런스가 잦아진다. 함께 보는 값 `heartbeat.interval.ms`(기본 3000, timeout의 1/3 이하). Phase 3에서는 **바꾸지 않았다**(지시서에 없음) | ✅ Phase 3 |
-| OTel Logs SDK | `LoggingHandler`가 SDK 1.44에서 **deprecated** — `opentelemetry-instrumentation-logging`의 핸들러로 옮기라는 경고(pytest 경고 2건). 동작엔 영향 없음 | Phase 4 (패키지 교체 1건) |
+| OTel Logs SDK | ~~`LoggingHandler`가 SDK 1.44에서 deprecated~~ → ✅ **Phase 4 단계 5-3(2026-09-19)에서 `opentelemetry-instrumentation-logging==0.65b0`의 `opentelemetry.instrumentation.logging.handler.LoggingHandler` 로 교체.** 생성자 모양은 SDK 것과 같고(`level, logger_provider, log_code_attributes`), 패키지 최상위가 아니라 `handler` 모듈에 있다. `LoggingInstrumentor().instrument()` 는 쓰지 않는다(루트 로거에 스스로 붙고 `basicConfig` 를 감싼다). 없으면 어댑터가 SDK 핸들러로 물러선다. 서버 venv 에 설치됨, pytest 경고 2건 소멸(256 passed, 경고 0) | ✅ Phase 4 |
 | A층 counter | **재기동마다 0으로 리셋**되고 Collector exporter가 옛 프로세스 값을 5분간 더 내보낸다. 절대값을 읽지 말고 `rate()`/`increase()`로 본다. ingest 재기동 시 retained `status` 재유입(지금 **6건** — sensor·robot·actuator·analysis wl-001 + reg-a zoneA/zoneB)만큼 `be_ingest_received_total{channel="status"}`가 튄다 — 정상.<br>**손잡이 없음** — counter가 프로세스 수명을 따르는 것은 OTel 규격이라 설정으로 못 바꾼다. 조회 규칙(`rate()`)이 답이다. "옛 값 5분"은 아래 C층 행의 `metric_expiration`과 같은 값이다 | 기록 |
 | C층 gauge | 값이 흐를 때만 존재한다 — 5분 갱신이 없으면 exporter가 내리고 Prometheus가 stale 처리한다("장치가 안 보내면 시계열도 없다"). `state.analysis` 3종은 증강 분석이 돌지 않아 **가짜 발행자로만 값이 있었다**.<br>**손잡이:** `metric_expiration` — Collector 설정 `config/otel-collector-config.yaml`의 `exporters.prometheus:` 아래에 한 줄(예: `metric_expiration: 30m`). **기본값 5m** — 지금은 안 적어 기본값. 늘리면 장치가 침묵해도 마지막 값이 그 시간만큼 `/metrics`에 남아 대시보드에 "살아 있는 것처럼" 보이고(잔상), 줄이면 더 빨리 사라진다. 이 값은 A층 counter의 "옛 프로세스 값 잔류 시간"도 함께 바꾼다(같은 exporter). 바꾸면 `validate` → `config/` 교체 → `docker compose up -d otel-collector`(단계 4-3·4-4와 같은 절차). **장치 침묵을 "시계열 부재"로 읽을지 "마지막 값 유지"로 읽을지는 가용성 판정(Phase 5)의 결정 사항**이라 Phase 3에서는 기본값을 두었다. 또 하나 관련 기본값: SDK gauge는 새 값이 들어온 주기에만 데이터를 낸다(OTel last-value 집계) — 이건 손잡이가 없다 | 기록 |
 | WS echo 로그 | `be-gateway`는 접속 사건 때만 로그를 내므로 Loki `service_name` 목록에 안 보일 때가 있다 — 이상 아님 | 기록 |

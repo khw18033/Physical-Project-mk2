@@ -78,7 +78,7 @@ Phase 순서는 이 요구 때문에 바뀌지 않는다.
 
 | 영역 | 무엇 | 검증 방법 |
 |---|---|---|
-| 미디어 온디맨드 중계 (BE-T-07) | 엣지 영상 WS(방식 B) → 서버 중계 → 뷰어 WSS | 합성 JPEG 프레임 재생으로 frame_ref 관통 확인 |
+| 미디어 중계 (BE-T-07) | 엣지 영상 WS(방식 B, native 코덱) → 서버 중계(drop-old) → 뷰어 `ws`+토큰 | 합성 H.264·JPEG 프레임 재생으로 frame_ref 관통 확인 — ✅ Phase 4 |
 | 좌표 변환·트윈 반영 (BE-C-04/DT-03) | 이미지 좌표 → 전역 좌표 변환 로직 | 합성 좌표 fixture로 변환 정확도 검증 |
 | 커버리지·사각지대 (DT-04) | FOV 바닥 투영, 사각 영역 산출 | 알려진 카메라 배치로 커버리지 계산 검증 |
 | 위치·클래스 융합 (DT-01/02) | 불확실도 가중 융합, 베이지안 클래스 융합 | 합성 다중 검출 fixture로 융합 결과 검증 |
@@ -118,7 +118,7 @@ Phase 2  저장 축            TSDB(계측) + MySQL(감사·레지스트리·실
    ↓
 Phase 3  관측 파이프라인     OTel Agent+Gateway → Prometheus/Loki/Tempo, 페더레이션   [기반 경로]
    ↓
-Phase 4  미디어 경로         온디맨드 WS 중계(방식 B), frame_ref 관통, WSS+인증        [기반 경로]
+Phase 4  미디어 경로         WS 중계(방식 B, 길 A·B), drop-old, frame_ref 관통, ws+토큰  [기반 경로]
    ↓
 Phase 5  가용성 판정기       MQTT 세션 우선 통합(진나영 mock 대체)
    ↓
@@ -345,72 +345,64 @@ Phase 7  디지털 트윈         DT 7건 (좌표 변환·융합·커버리지�
   `02-media-path.md`·HW 회신 §5-1 표·보고 대상 목록(설계_규칙·템플릿). 근거 지시서 `작업지시_phase3후_문서정합패치.md`,
   기록은 Phase 3 보고서 끝 「후속 정합 패치」.
 
-### Phase 4 — 미디어 경로 [기반 경로]
+### Phase 4 — 미디어 경로 🔄 **진행 중 (2026-09-19 — 단계 0~8 완료, 단계 9 회신·통지 3건과 단계 10 촬영본 저장소 4b 남음)** [기반 경로]
 
-**목표:** 온디맨드 영상이 뷰어까지 관통하고 frame_ref가 정합된다.
+**목표:** 영상이 엣지→서버→뷰어로 관통하고 frame_ref가 정합된다.
 
-- 엣지→서버 원본 중계 WebSocket(방식 B: `[헤더길이][JSON frame_ref][JPEG]`), Tailscale 터널
-  위. 서버→뷰어 WSS+인증. drop-old로 버퍼블로트 방지. 영상 채널과 상태·명령 채널 분리.
-- frame_ref 단일 출처(엣지가 한 번 부여, 전파). 영상(미디어 경로)과 탐지(업무 경로)가 뷰어에서
-  합류할 때 frame_ref F==F 정합.
-- **DoD:** 합성 JPEG 프레임 재생 → 엣지 WS → 서버 중계 → 뷰어 canvas 표시, frame_ref가 관통해
-  탐지 박스가 정확한 프레임에 겹쳐진다. 상세 근거는 [`02-media-path.md`](02-media-path.md).
-- **외부 의존성:** 실 카메라·현장 회선은 Tier C(실측). 여기선 합성 프레임으로 경로·정합 검증.
-- **🆕 Phase 3 이월 (여기서 처리):** ① Collector 4316의 **Tailscale 바인딩(compose 주석 한 줄) + ufw(엣지 IP `/32`)
-  되살리기** — 엣지 OTLP 수신단의 **TLS·인증은 BE-T-08**(Phase 3은 터널 안 평문이었다) ② `prometheus.yml`
-  `edge_federate` 잡(주석) 타깃을 엣지 실물 주소로 바꿔 되살리기 ③ Prometheus 이미지 digest 고정(재생성 동반)
-  ④ `LoggingHandler` → `opentelemetry-instrumentation-logging`(SDK 1.44 deprecation) ⑤ Tailscale은 서버에
-  이미 있다(1.102.4, 팀 공용 계정 — 아래 3수정의 "설치 선행"은 끝났다).
-- **Phase 1 이월 (여기서 처리):**
-  - **원격 Kafka 노출 3수정.** Phase 1은 단일 머신이라 `localhost`로 충분했으나, 원격 엣지가
-    붙으려면 ① 포트 바인딩 `127.0.0.1:9092:9092` → **Tailscale 인터페이스 IP** 바인딩(공인
-    `0.0.0.0` 노출 회피, ~~Tailscale 설치 선행~~ Phase 3에서 설치됨) ② `KAFKA_ADVERTISED_LISTENERS`의 PLAINTEXT 호스트
-    `localhost` → 엣지가 실제 도달하는 주소 ③ ufw `9092 ALLOW Anywhere` → 엣지 소스로 제한
-    **하고, 그 포트를 ufw에 반드시 연다.** 포트만 열면 브로커가 "localhost로 오라"고 답해
-    실패한다(2단계 연결).
-    > ⚠ **정정(2026-09-10).** 이 항목은 원래 *"docker publish는 DNAT라 ufw INPUT을 상당부분
-    > 우회하므로 실질 통제는 ①의 바인딩이다"* 라고 쓰여 있었다. **실측이 반증했다** — 서버에서
-    > 9100 포트를 ufw에 열자마자 Prometheus 수집이 정상화됐다. 이 문장을 믿고 "ufw는 안 열어도
-    > 된다"고 판단하면 같은 사고가 반복된다. **바인딩(노출 통제)과 ufw(장애 원인 배제)는 층이
-    > 다르며 둘 다 한다.** `infra/README.md` §5의 정정과 같은 내용이다.
-    > ⚠ **PLAINTEXT advertised를 바꾸면 백엔드 3개(ingest·저장 소비자·WS)도 함께 영향을 받는다** —
-    > 셋 다 호스트 프로세스라 `localhost:9092`(PLAINTEXT)로 붙는다. INTERNAL(9094)은 쓰는
-    > 클라이언트가 없다. `MK2_KAFKA_BOOTSTRAP`도 같이 맞춘다(`infra/README.md` §5).
-  - **frame_ref 규격 정합(팀 파급).** 우리 `contracts/common/frame-reference.schema.json`은
-    `capture_timestamp`를 **ISO date-time 문자열**로 정의했는데 HW/v8 §6-9 구현은 **epoch ms
-    정수**다. HW가 `BACKEND_AGENDA §8`에서 "봉투 timestamp(ISO)와 frame_ref(epoch ms) 공존이
-    의도냐"고 질의해 두었고, [`hw-envelope-conformance.md`](hw-envelope-conformance.md) §5에서
-    "Phase 4에서 회신"으로 답했다. **미디어 착수 전에** 어느 쪽으로 정합할지 결정하고 회신한다.
-  - **WS 게이트웨이 외부 노출.** Phase 1 echo는 `127.0.0.1` 바인딩이라 뷰어가 붙지 못한다.
-    뷰어 연결 시 바인딩·인증(WSS)을 함께 정한다.
-- **🆕 Phase 2 이월 (여기 또는 Phase 5):**
-  - **VZ-C-07 — 가시화가 WS 게이트웨이 주소를 화면에서 설정한다.** 이 요구는 **외부 노출이
-    전제**다(위 「WS 게이트웨이 외부 노출」과 같은 자리). 주소를 화면에서 바꿀 수 있다는 것은
-    바인딩이 `127.0.0.1`이 아니어야 한다는 뜻이고, 그러면 **인증이 함께 와야 한다**(지금 echo는
-    인증이 없다). 노출·인증·주소 설정 셋을 한 묶음으로 정한다.
-- **🆕 2026-09-17 대조 이월(HW 0914·VZ 0916·AI 시연 문서 2건 — `reports/2026-09-17_1159_팀브랜치_최신화_대조.md`):**
-  - **역할 경계를 지시서에 명시한다.** 백엔드가 구현하는 것 = 서버 미디어 중계(수신·분기·drop-old·WSS+최소 인증) ·
-    규격(frame_ref·미디어 헤더·좌표 선언) · 합성 엣지 송신 fixture · 뷰어 확인용 · ②③ 서버 설정 · 회신·통지 문서.
-    카메라 수집·홉1·실물 엣지 송신기는 HW(`go1_relay`·`media_gateway`), 미디어 어댑터는 AI(AI-C-08), canvas 표시는 VZ,
-    로봇 자세·트윈 형식은 Phase 7. 검증은 합성 프레임(기본값 테스트).
-  - **HW #15 촬영 프레임 저장(BE-S-09 갈래, 사용자 결정 ㉡)** — 마지막 독립 단계에서 「저장소 자체」까지(수신 방식·저장
-    위치·메타 자리·보존·`frame_ref_base` 관계·회신). 가짜 업로더로 검증. 실적재·운영은 그 뒤. 이에 따라 00-architecture
-    §8-5의 BE-S-09 유예는 "스트림 저장·이벤트 캡처"로 좁혀 읽고 **§8-5 갱신이 보고 대상**이 된다.
-  - **④ 묶음 회신 범위 확장** — §8·§10-4~7 + #14~#18 회신 시점 배정(14→7 · 15→4 · 16→경로 있음/형식 7 · 17→6 · 18→5/7)
-    + HW 인식 안내 5건(서버 Collector 있음·`OTEL_ENDPOINT`는 결정 7 결과로·구간 3은 Kafka·MAC은 라우팅 키 아님·로봇 지표
-    라벨 기준) + **세 갈래 구분**(시연 특수/일반형/임시 경로)을 회신에 명시.
-  - **VZ 통지 = 확정 산출물** — 방식 B 포맷(frame_ref 객체) · `coord`↔`bbox_space` 정합 · 영상 WS 분리 vs VZ 단일 소켓 ·
-    뷰어 JPEG 디코드 경로 · `video{open}` 트리거 · 인증 방식 · VZ §7.4 답 · §7.10은 스트림 staleness까지만.
-  - 결정 2·3 논점 추가는 **상관키 자리 하나**(frame_ref에 `correlation_id`). 자세 부착은 Phase 7, 프리즈 해시는 후보.
-  - 결정 5 범위는 그대로(바인딩·최소 인증·주소·미디어 채널 형식). 구독·명령·캐시 프로토콜 본구현은 Phase 5/7.
-  - **결정 7 확장(VZ 관측 회신 2026-09-17, `received/2026-09-17_vz-observability-namespace-reply.md`)** — 브라우저(tailnet 밖)의
-    자체 지표 발신 경로: A Collector OTLP/HTTP 4318 + CORS + TLS/토큰 공개(VZ 요청) / B WSS 게이트웨이가 받아 Collector로
-    전달(VZ 8월 D-6 안, 결정 5 인증 공용) / C 답만 이번, 구현 Phase 5. **설계방에서 결정**(우리 통지 §4가 tailnet 밖 브라우저를
-    빠뜨린 것이 원인). 함께: 라벨 금지 목록 6종 확장(`contracts/common/README.md`·`observability.py`·`test_observability_labels.py`,
-    `node_id`≠`node_ref` 구분) · VZ 통지에 "관측 회신 답" 절(60초 OK·`service.name` 셋 OK·지표만 OK).
-  - 사용자 결정: 검증은 가짜 발행자 기본값 · 엣지는 컴퓨터 임시 방식 유지 · HW 브랜치 0914에 §6 편집 반영 확인(pi7 배포본은
-    구판, 실노드 관통은 범위 밖).
-- 관련: BE-T-07(미디어 중계)·BE-C-03(frame_ref)·BE-T-08(오버레이 터널)·**VZ-C-07(WS 주소 설정)**·**BE-S-09(#15 저장소)**.
+- **한 일(단계 0~8, 지시서 [`tasks/작업지시_phase4_미디어경로.md`](tasks/작업지시_phase4_미디어경로.md) v4·작업로그
+  [`../../reports/2026-09-18_2100_phase4_작업로그.md`](../../reports/2026-09-18_2100_phase4_작업로그.md)):**
+  엣지→서버(`/ingest` 8766)→뷰어(`/media` 8765) **방식 B 중계**(`[4B 헤더길이][JSON 헤더][native AU]`, 서버는 헤더의
+  필수·타입만 검증하고 페이로드를 열지 않는다) · **GOP 인지 drop-old**(`T_drop` = 150ms × 배출률, `T_hard`, `WAIT_IDR`/
+  `FLOWING`, 첫 전송·재개는 keyframe) · **영상/상태 채널 분리**(같은 포트 경로 분리 + `write_limit`·`SO_SNDBUF`) · **터널
+  위 `ws` + URL 쿼리 토큰**(loopback이 아니면 토큰 필수, 4401) · **바인딩 두 주소**(`127.0.0.1,<서버 tailscale IP>`) ·
+  규격 `media-header.schema.json`·`detections.schema.json`(초안)·`$ref` 레지스트리(결정 12) · 라벨 금지 8종 추가 ·
+  `LoggingHandler` 교체 · Prometheus digest 고정 · Kafka **EDGE 리스너**(9095)·Collector 4316 Tailscale 바인딩·
+  `edge_federate` 잡을 되살려 **컴퓨터 임시 엣지로 2계층 실측 1회 뒤 되돌림**(단계 8 — 8765만 남김).
+  **서버 pytest 256 → 되돌림 뒤 244 passed + relay 12 skip(8766 닫힘이 정상).** 실측: 직접 경로 2ms/22ms, 브라우저 2954장
+  gaps 0·WebCodecs 표시, 링크 500kbit로 조여 드롭 207·GOP 절단 20·불연속 전부 IDR 재개, 지연 p90 2.34s
+  (= `(T_drop + write_limit + sndbuf)/링크율`). 상세 근거·정정 자리는 [`02-media-path.md`](02-media-path.md).
+- **DoD(결정 1·5로 갱신):** 합성 **native 코덱**(H.264 fixture·JPEG) 프레임 재생 → 엣지 WS → 서버 중계 → 뷰어에서
+  디코드·표시, frame_ref가 **바이트 그대로** 관통해 탐지 박스가 정확한 프레임에 겹쳐진다. 서버→뷰어는 **터널 위 `ws`+토큰**
+  (tailnet 밖 뷰어용 WSS는 Phase 6). ✅ 관통·정합·drop-old·토큰은 pytest 59건(+라벨 13)과 실측으로 닫혔고, **탐지 오버레이의
+  실제 겹침은 VZ 뷰어가 붙어야** 한다(형식 초안은 단계 9 통지).
+- **외부 의존성:** 실 카메라·현장 회선·실물 엣지 노트북은 Tier C(실측). 여기선 합성 프레임 + 컴퓨터 임시 엣지.
+- **이월 처리 결과:**
+  - **Phase 3 이월 5건 → ✅ 전부.** ① 4316 Tailscale 바인딩 + ufw `/32` 되살려 실측 뒤 다시 주석(인증 없음 — OTLP 토큰 확장
+    조사는 ⏭ Phase 6) ② `edge_federate` 되살려 `up`·15s·음성 대조 뒤 다시 주석 ③ Prometheus `sha256:b5a5ad00…` 고정
+    ④ `opentelemetry.instrumentation.logging.handler.LoggingHandler`(최상위 export 아님) ⑤ Tailscale 설치는 완료 사실.
+  - **Phase 1 이월 3건 → ✅ 전부.** **원격 Kafka 노출은 「3수정」이 아니라 EDGE 리스너 하나 추가로 풀었다**(결정 6 —
+    PLAINTEXT `localhost:9092`는 한 줄도 안 바꿔 호스트 백엔드 3개 무영향). 컴퓨터에서 produce/consume 왕복 + TSDB 적재
+    확인 뒤 주석으로 되돌림(실 엣지 시 주소만 교체). **frame_ref 규격 정합 = ISO 유지**(결정 2 — 우리 문서 쪽이 어긋나
+    있었다. epoch ms 서술은 `02-media-path.md` §1-6-2·이 문서·Phase 1 지시서에서 정정, v8 docx §6-9는 사용자 몫; HW
+    회신은 단계 9). **WS 게이트웨이 외부 노출 = 두 주소 바인딩 + 토큰**(결정 5).
+    > ⚠ **재정정(2026-09-19).** 2026-09-10 정정 박스(*"실측이 반증했다 — ufw를 열자 수집이 정상화됐다"*)는 **한 경로만
+    > 본 것이었다.** 09-18 iptables 실측: 트래픽 경로가 둘이다 — **컨테이너發 → 호스트 주소**는 DNAT를 안 타고 `INPUT`으로
+    > 가므로 ufw가 적용되고(9100 사례가 이것), **외부 기기發 → 도커 발행 포트**는 `DOCKER-FORWARD`가 ufw보다 먼저 ACCEPT
+    > 하므로 ufw가 통제가 아니다. **도커 발행 포트의 실질 통제는 compose 바인딩 주소**이고, 호스트 파이썬 포트(8765·8766·
+    > 8767)는 ufw가 진짜 통제다. ufw 규칙은 도커 포트에도 적되 「통제」로 세지 않는다. tailnet 안 다른 기기까지 막는
+    > `DOCKER-USER`는 미룸. `infra/README.md` §5의 재정정과 같은 내용이다.
+  - **Phase 2 이월(VZ-C-07) → ✅ 코드 변경 0.** 주소·토큰은 화면에서 입력(`ws://<서버 tailscale IP>:8765/media?source_id=…&token=…`).
+    `/state`의 VZ 와이어 계약 정합은 **Phase 5/7**(그때까지 VZ는 목 게이트웨이 8790).
+  - **2026-09-17 대조 이월 → 역할 경계·#15 결정 9·회신 범위·VZ 통지·결정 2/3/5/7은 지시서 §2-3·§2-5로 확정돼 그대로 이행.**
+    결정 7은 **A**(4318 Tailscale IP 바인딩 + CORS + ufw `/32`, 브라우저는 tailnet 안)이며 **구현은 VZ 주소·origin 회신 뒤**
+    — 이번에 4318은 손대지 않았다. 라벨 6종 확장은 8종으로(`frame_ref`·`correlation_id` 추가), 「발화 원문」은 키 이름
+    회신 뒤.
+- **남은 것(이 Phase 안):** 단계 9 = HW 회신 §8(`hw-envelope-conformance.md`) · VZ 통지(`vz-media-interface.md` 신설, 관측
+  회신 답 포함) · **AI 통지 신설**(`ai-detections-interface.md` — `detections` 생산자가 AI) → 셋 다 §8 문서 갱신 **뒤**에
+  커밋(DoD 9-6). 단계 10 = 4b 촬영본 저장소(`backend/gateway/capture.py` 8767 PUT 두 번 · `media_capture` DDL+GRANT ·
+  `mk2-capture` 유닛 · 합성 업로더 C1~C5). 4b는 앞 단계와 코드를 공유하지 않는다.
+- **🆕 이 Phase가 미래 Phase로 보내는 것(규율 8 — 아래 각 Phase 항목에도 적었다):**
+  - **Phase 5:** `video_meta` 상태 채널 발행(실체·시점은 정했다) · `/state` VZ 와이어 계약 정합(`hello`·`subscribed`·구독 즉시
+    스냅샷·`unsubscribe`) · 레지스트리(BE-Q-03)로 entity↔`source_id` 목록(그때까지 화면에서 직접 설정) · `MK2_MEDIA_SNDBUF`
+    하향 여부(지연 vs DERP 처리량 — 결정 항목).
+  - **Phase 6:** 서버→엣지 온디맨드 개폐 배선(길 B의 절약 — HW `stream_start`/`stream_stop` 우회 전제) · `.proto` 개정(문자열
+    파라미터·`traceparent`와 같은 커밋) · **Kafka EDGE SASL** · **OTLP 4316 토큰(확장 조사)** · **4318 브라우저 입구**(VZ 회신 뒤,
+    결정 7 A) · **tailnet 밖 뷰어용 WSS** · `DOCKER-USER`로 tailnet 안 좁히기 · 탐지 채널·토픽(AI→Kafka→`/state`) · 촬영본
+    세 곳 중복 정리(pi·VZ·4b).
+  - **Phase 7:** 소스별 촬영 시각 보정(imageai 프레임의 촬영 시각 유무 — HW 답 뒤) · 트윈 형식(#14) · `object-reference.schema.json`을
+    `$ref` 레지스트리 검증 경로에 편입 · 다중 소스 병합 규칙(#14) 뒤 `media_capture` 파생.
+- 관련: BE-T-07(미디어 중계 — 부분)·BE-C-03(frame_ref·미디어 헤더 — 부분)·BE-T-08(오버레이 터널 — 부분)·BE-T-03(경로
+  분리·토큰)·BE-T-02(EDGE 실증)·**VZ-C-07(WS 주소 설정)**·**BE-S-09(#15 저장소 — 단계 10)**.
 
 ### Phase 5 — 가용성 판정기
 
@@ -468,8 +460,22 @@ Phase 7  디지털 트윈         DT 7건 (좌표 변환·융합·커버리지�
   - **`be.pipeline.lag` 상한 판정·경보**(BE-S-07의 나머지) — 관측 평면 신호로 판정하는 첫 사례라 가용성 판정기와
     같은 자리에서.
   - **관측 신호는 가용성의 보조 평면이다.** 업무 평면(MQTT 세션) 우선 규칙은 그대로 — A층·B층 지표 침묵(`absent`)은
-    "지표 결손 플래그"이지 불가용 판정이 아니다(원칙 7). `edge_federate`가 주석 상태라 B층은 Phase 4 되살린 뒤에야 온다.
-- 관련: BE-T-04(가용성)·BE-X-07(제어 잠금)·**BE-Q-01(구간 질의)**.
+    "지표 결손 플래그"이지 불가용 판정이 아니다(원칙 7). `edge_federate`는 Phase 4에서 되살려 재실증한 뒤 **다시 주석**
+    상태다 — B층은 실 엣지가 서야 온다.
+- **🆕 Phase 4 이월 (여기서 처리):**
+  - **`video_meta` 상태 채널 발행(BE-T-06 캐시 7종의 하나).** Phase 4가 실체(`source_id`별 `encoding`·`width`·`height`·`codec`
+    + 마지막 도착 시각)와 발행 시점(`/ingest` 첫 프레임·해상도 변경 = 스트림 재개 사건)을 정했고 **발행은 하지 않았다**
+    (`02-media-path.md` §1-5-4·`00-architecture.md` §7-4). 카메라 영상 가용성은 장치 가용성과 **별개 신호** — 판정기가
+    섞지 않는다.
+  - **`/state`의 VZ 와이어 계약 정합.** 지금 `/state`는 Phase 1 echo 그대로라 VZ `WsTransport`가 붙으면 전량 버린다(`type`
+    필드 없음). `hello`·`subscribed`·**구독 즉시 캐시 1회 푸시**(화면이 실제로 비는 것은 이것뿐)·`unsubscribe`. 재접속
+    캐시(BE-T-06)와 같은 자리. `stale_threshold_ms`는 state payload의 `layers.stale_threshold_ms`가 실제 표시를 하므로 그쪽을
+    먼저 맞춘다.
+  - **레지스트리(BE-Q-03)로 entity ↔ `source_id`(카메라) 목록.** `/media`는 카메라 단위(`go1-001_front`)이고 `target_entity_id`는
+    개체 키(`go1-001`)다 — 같은 식별 체계, 다른 값. 목록이 나오기 전까지 VZ는 화면에서 `source_id`를 직접 설정한다.
+  - **`MK2_MEDIA_SNDBUF` 하향 여부(결정 항목).** 64KB(실효 128KB)가 느린 링크에서 지연의 대부분(≈2.06s @500kbit)을 차지한다.
+    16KB로 내리면 같은 링크에서 ≈0.7s이지만 DERP(72ms) 경유 처리량 상한이 444KB/s로 내려간다. 현장 회선 실측 뒤 정한다.
+- 관련: BE-T-04(가용성)·BE-X-07(제어 잠금)·**BE-Q-01(구간 질의)**·BE-T-06(`video_meta`·재접속 캐시)·BE-T-03(`/state` 계약).
 
 ### Phase 6 — 상관·감사·명령
 
@@ -557,8 +563,25 @@ Phase 7  디지털 트윈         DT 7건 (좌표 변환·융합·커버리지�
   - 조회 API: `mission_id`로 사건 열을 `seq` 순 반환 + 임무 정의. 8종 상태 파생·구간 계산은 VZ가 한다(BE-Q-01은 (대상,
     시작, 끝) 구간 질의만).
   - VZ 질문 답: 실제 Go1 `source_id` = `go1-001`, EP = `ep-001`(HW `hw-robot*.env.example`).
+- **🆕 Phase 4 이월 (여기서 처리):**
+  - **서버→엣지 온디맨드 개폐 배선(길 B의 절약).** Phase 4는 길 A·B 동시 지원(결정 10)으로 홉2를 열어 두었고 뷰어 쪽 신호는
+    연결 자체다(결정 4-b). 서버가 엣지에 스트림을 열고 닫으라고 보내는 명령(명령 평면 Kafka → HW)이 여기다. ⚠ **HW `stream`
+    명령은 지금 호출 불가**(`Command.parameters`가 `map<string,double>`인데 `validate()`가 문자열 `action`을 요구) — Phase 4
+    회신에서 `stream_start`/`stream_stop` 우회를 요청했다. 그 답 위에 배선한다.
+  - **`.proto` 개정 범위가 넓다** — 문자열/열거형 파라미터(§3)·`traceparent`(Phase 3 이월)에 더해 **`Command.parameters`가
+    `map<string,double>`이라 명령에 문자열을 실을 자리가 애초에 없다**(`physical_command.proto:32`). SDP 같은 세션 정보는
+    `CommandStatus.detail`로 충분하니 `.proto`를 앞당기지 않는다.
+  - **Kafka EDGE 리스너 SASL**(BE-Q-04와 함께 — Phase 4는 평문 + 바인딩 + ufw `/32`) · **OTLP 4316 토큰**(Collector 토큰 확장
+    조사 ⏭ — 없거나 receiver 분리가 필요하면 ufw `/32`만) · **4318 브라우저 관측 입구**(결정 7 A — VZ가 tailnet 주소·CORS
+    origin·exporter 종류·https 여부를 회신한 뒤 Tailscale IP 바인딩 + CORS + ufw `/32`) · **tailnet 밖 뷰어용 WSS**(결정 5 —
+    외부 관제·시연장 게스트가 필요해지면 관측 대체 경로와 함께) · **`DOCKER-USER`로 도커 발행 포트를 tailnet 안 특정 기기로
+    좁히기**(실 엣지 상시 연결 시).
+  - **탐지 채널·토픽(AI→Kafka→`/state`).** `detections.schema.json` 초안이 AI·VZ 회신 뒤 `payload/`로 오르면 그 규격을 싣는
+    Kafka 토픽과 `/state` 분기가 여기다(원칙 2 — 새 채널은 백엔드가 연다). AI 통지(Phase 4 단계 9)가 초안을 전달한다.
+  - **촬영본 세 곳 중복 정리** — pi 로컬(HW 기본값)·VZ `mission-history/images/robot/`·우리 4b 저장소. AI 저장본과의 관계도
+    함께. 감사·인증과 같은 Phase에서 보관 주체를 정한다.
 - 관련: BE-X-01~05(상관·감사·승격·승인·중계)·BE-A-01/02/03/04(명령 번역·임무·제어)·
-  BE-Q-02(감사 조회)·BE-Q-04(인증·인가)·**BE-S-05(감사 쓰기)·BE-S-08(실행 기록 쓰기)**.
+  BE-Q-02(감사 조회)·BE-Q-04(인증·인가)·**BE-S-05(감사 쓰기)·BE-S-08(실행 기록 쓰기)**·BE-T-08(평면별 인증 나머지).
 
 ### Phase 7 — 디지털 트윈
 
@@ -578,7 +601,17 @@ Phase 7  디지털 트윈         DT 7건 (좌표 변환·융합·커버리지�
   한 곳에 유지).
 - **전역 객체 ID(DT-06).** AI가 구역 내 지속 객체 레코드를 구성하고(AI-S-06), 백엔드는 **구역 경계를
   넘을 때 전역 객체 ID를 부여·매핑**한다. 원본 프레임 참조(frame_ref)와 지속 객체 ID는 구분해 유지한다.
-- 관련: DT-01~07·BE-C-04(좌표 규약)·BE-A-03(하달 경로).
+- **🆕 Phase 4 이월 (여기서 처리):**
+  - **`object-reference.schema.json`을 `$ref` 레지스트리 검증 경로에 편입.** Phase 4가 `backend/ingest/envelope.py::schema_registry()`
+    (`$id` → 로컬 파일, `referencing.Registry`)를 세웠고 `media-header`가 `frame-reference`를 그 경로로 참조한다(결정 12).
+    `object-reference`도 같은 경로를 쓴다 — 인라인 복제하지 않는다(`tests/test_contract_media.py::test_registry_resolves_object_reference_like_media_header`가
+    이미 해석을 확인한다).
+  - **소스별 촬영 시각 보정.** `frame_ref.capture_timestamp`는 엣지가 프레임 경계를 확정한 시각(말단 지연 포함·미보정)이다.
+    HW에 "imageai 웹소켓 프레임에 Go1이 찍은 촬영 시각이 실려 있는가"를 물었다(Phase 4 회신) — 있으면 편향이 사라지고,
+    없으면 여기서 소스별 보정을 설계한다. 시연의 자세 정합(`rotation_deg`)은 DT-01·DT-04의 pose 부착으로 일반화한다.
+  - **트윈 형식(HW #14)·다중 소스 병합 규칙.** 좌표 규약 ENU 이행·객체 핸드오프(DT-06)와 한 묶음. 병합 규칙이 정해지면
+    4b `media_capture`(세션 1행·매니페스트 원본 통째)에서 파생한다.
+- 관련: DT-01~07·BE-C-04(좌표 규약)·BE-A-03(하달 경로)·BE-C-03(`object-reference`).
 
 ---
 
@@ -613,9 +646,12 @@ Phase 7  디지털 트윈         DT 7건 (좌표 변환·융합·커버리지�
   **2계층 페더레이션과 Agent→Gateway 사슬을 임시 엣지(컴퓨터·Tailscale)로 실증**한 뒤 되돌렸다(`agg_layer="edge"` 규약 확정).
   **pytest 184건 전건 통과**(음성 대조 7건). 보고: [`../../reports/2026-09-16_1900_phase3_관측파이프라인.md`](../../reports/2026-09-16_1900_phase3_관측파이프라인.md)
   / 회신·통지: [`hw-envelope-conformance.md`](hw-envelope-conformance.md) §7 · [`vz-observability-namespace.md`](vz-observability-namespace.md)
-- [ ] **⑥ 미디어 경로 (Phase 4)** ← **다음** — 온디맨드 WS 중계(방식 B)·frame_ref 관통·WSS+인증. Phase 1·2·3 이월이
-  모여 있다: Kafka 원격 노출 3수정(Tailscale은 Phase 3에서 설치됨), frame_ref 규격 정합 회신, WS 게이트웨이 외부 노출+인증,
-  Collector Tailscale 바인딩·ufw 되살리기(BE-T-08), Prometheus digest, `LoggingHandler` 교체. 아래 Phase 4 항목 참조.
+- [ ] **⑥ 미디어 경로 (Phase 4)** ← **진행 중(2026-09-19, 단계 0~8 완료)** — 방식 B 중계(native 코덱)·GOP 인지 drop-old·
+  frame_ref 바이트 관통·경로 분리·터널 위 `ws`+토큰이 서버 pytest + 컴퓨터 임시 엣지 실측으로 닫혔다. Phase 1·2·3 이월
+  전부 처리(Kafka는 3수정 대신 EDGE 리스너, frame_ref는 ISO 유지, WS는 두 주소+토큰, 4316·`edge_federate` 재실증 뒤 되돌림,
+  Prometheus digest, `LoggingHandler`). **남은 것:** 단계 9 회신·통지 3건(HW §8·VZ·AI) · 단계 10 4b 촬영본 저장소 · 최종 보고.
+  작업로그: [`../../reports/2026-09-18_2100_phase4_작업로그.md`](../../reports/2026-09-18_2100_phase4_작업로그.md).
+- [ ] **⑦ 가용성 판정기 (Phase 5)** ← **다음** — `video_meta` 발행·`/state` VZ 계약 정합·레지스트리 목록이 Phase 4에서 이월됐다.
 
 ---
 
@@ -625,18 +661,20 @@ Phase 7  디지털 트윈         DT 7건 (좌표 변환·융합·커버리지�
 |---|---|---|
 | 조병현 (HW) | Phase 1 | `sensor_node.py`(가져와 실행 — 확보) / 실 센서 입고는 Tier C |
 | 조병현 (HW) | ~~**Phase 2 회신 대기**~~ → ✅ **반영 확인(2026-09-17, HW 브랜치 0914 대조)** ([`hw-envelope-conformance.md`](hw-envelope-conformance.md) §6) | ~~🔴 공통 헤더 편집 4개~~ · ~~🔴 `robot_node.py` 순번 결함~~ · ~~🟡 `session_id`~~ — `schema.py` 1.1·`sequence_id`·RFC3339·별칭 중단·`session_id`·`seq += 1` 전부 브랜치에 있다. ⚠ **pi7 배포본은 09-14에도 구판(1.3)** — 실노드 관통은 Phase 4 범위 밖(가짜 발행자 기본값 유지). 🟡 `reason` 어휘 확인은 남음. 근거: `reports/2026-09-17_1159_팀브랜치_최신화_대조.md` §1-1 |
-| 조병현 (HW) | **Phase 4 회신 대기** (`BACKEND_AGENDA` #14~#18, `ARCHITECTURE_ALIGNMENT.md` — 2026-09-10 지도 피드백) | 🔴 #14 트윈 스키마 소유(→Phase 7) · 🔴 **#15 촬영 프레임 저장 0.7GB/h**(→ **Phase 4 마지막 독립 단계에서 「저장소 자체」까지**(수신·위치·메타 자리·보존·회신, 가짜 업로더로 검증) — 실적재·운영은 그 뒤. BE-S-09 갈래, 사용자 결정 ㉡) · 🔴 #16 로봇 상태 서버 경유(→ 경로는 이미 있음, 트윈 형식·직결 철거는 Phase 7) · 🟡 #17 Grafana 명령 API(→Phase 6) · ⚪ #18 엣지 2개 시점(→백엔드, Phase 5/7). **답이 없어도**: HW 기본값(null·로컬 적재·직결 유지)이 우리 설계와 충돌하지 않는다. 회신에 안내 5건(서버 Collector 있음·`OTEL_ENDPOINT`는 결정 7 결과로·구간 3은 Kafka·MAC은 라우팅 키 아님·로봇 지표 6종 라벨 기준) |
+| 조병현 (HW) | **Phase 4 회신 — 단계 9에서 발송**(`BACKEND_AGENDA` §8·§10-4~7·#14~#18, `ARCHITECTURE_ALIGNMENT.md` — 2026-09-10 지도 피드백) | 상태 갱신(2026-09-19): 🔴 #14 트윈 스키마 소유(→Phase 7, 이유를 적는다 — 좌표 규약·핸드오프와 한 묶음. 단 다중 소스 병합 규칙은 4b 적재에도 걸리므로 4b는 병합 없이 세션 1행) · 🔴 **#15 촬영본 저장 0.7GB/h**(→ **결정 9 설계 확정, 구현은 단계 10** — 파일시스템 + PUT 두 번(매니페스트 먼저)·8767·`frame_ref_base` 없음·용량 상한 보존. 입구가 실제로 열리는 시점은 4b 완료 후 알린다) · 🔴 #16 로봇 상태 서버 경유(→ 경로는 이미 있음 + Unity 직결 대체 여부·전환 시점은 Phase 7) · 🟡 #17 Grafana 명령 API(→Phase 6) · ⚪ #18 엣지 2개 시점(→백엔드, Phase 5/7). **답이 없어도**: HW 기본값(null·로컬 적재·직결 유지)이 우리 설계와 충돌하지 않는다. 회신 골격은 지시서 부록 A(8-0~8-11): §10-7 = 권고 ① 수용(native 코덱, `HW_MEDIA_SENDER=go1_relay`) · §8 = ISO 유지 · §10-4 = ㉰ `alignment` · §10-5 = q 우선·해상도 변경은 재개 사건 · §10-6 = 소스가 정한다 · 인식 안내 7건(Collector 있음·`OTEL_ENDPOINT` 잠정 비움·구간 3은 Kafka·**MAC은 라우팅 키 아님(세 곳)**·라벨 기준·JSON→protobuf 번역 토픽 금지·**`up` 지표 개명**) · **신설 8-11: `stream` 명령이 규약 경로로 호출 불가** → `stream_start`/`stream_stop` 우회 요청 |
 | 조병현 (HW) | 상시 | **HW 최신 push 요청** — pi7 작업 트리가 브랜치보다 앞선다(`turn`·`sdk_*`·`scan_hold/continue`·`forward_m=0` 수정). 브랜치를 HW 실체로 믿지 않는다 |
 | 조병현 (HW) | Phase 6 | `detection-protocol_0914.md` §4 "탐지용 JSON→protobuf 번역 토픽을 열겠다" — 명령 번역은 백엔드 몫(BE-A-01·원칙 13). Phase 6 회신에서 이중화 방지 |
 | 조병현 (HW) | **Phase 6 전 회신 대기** ([`hw-envelope-conformance.md`](hw-envelope-conformance.md) §7) | ⚪ **`.proto`에 `Command.traceparent` 필드 1개** + `otel_trace.py:77` carrier를 dict로 넘기는 한 줄. `BACKEND_AGENDA` §3(문자열/열거형 파라미터) 개정과 **같은 커밋**으로. 확인 2건 — 필드 번호를 누가 정하나 · 옛 말단 호환. **답이 없어도 백엔드는 멈추지 않는다**(필드가 없으면 말단이 새 trace를 시작하는 지금 동작이 곧 기본값) |
-| 진나영 (AI) | Phase 4 | ✅ **시연 문서 2건 확보(2026-09-17)** — `_hwsrc/ai_docs_260914/탐지_로봇데이터요구_260914.md`(AI→HW) + `detection-protocol_0914.md`(HW→AI). **AI의 정식 요구는 스프레드시트(AI-C-08·AI-C-14·AI-E-*)이고 이 둘은 시연(45°×8 문 탐색)의 사례다.** 사례에서 남는 일반형: ⓐ 프레임 ↔ **촬영 시점 자세** 정합(시연의 "각도"는 특수 사례) ⓑ 프레임·탐지가 어느 명령의 산출인지 ⓒ 원본 무가공 ⓓ AI가 전송안 **B(RTP 스트림 + MQTT 캡처 이벤트)** 를 열어 둠 = 우리 경로 모양. 시연 특수(정지 후 촬영·한 장씩·스캔 경계·~2초/프레임)는 설계 대상 아님. 남은 문의 1건: 자율주행 편 영상이 우리 서버 7864에 닿는 경로 |
+| 진나영 (AI) | Phase 4 | ✅ **시연 문서 2건 확보(2026-09-17)** — `_hwsrc/ai_docs_260914/탐지_로봇데이터요구_260914.md`(AI→HW) + `detection-protocol_0914.md`(HW→AI). **AI의 정식 요구는 스프레드시트(AI-C-08·AI-C-14·AI-E-*)이고 이 둘은 시연(45°×8 문 탐색)의 사례다.** 사례에서 남는 일반형: ⓐ 프레임 ↔ **촬영 시점 자세** 정합(시연의 "각도"는 특수 사례) ⓑ 프레임·탐지가 어느 명령의 산출인지 ⓒ 원본 무가공 ⓓ AI가 전송안 **B(RTP 스트림 + MQTT 캡처 이벤트)** 를 열어 둠 = 우리 경로 모양. 시연 특수(정지 후 촬영·한 장씩·스캔 경계·~2초/프레임)는 설계 대상 아님. **2026-09-19:** `capture_timestamp` 뜻(엣지가 프레임 경계를 확정한 시각·촬영 시각 아님) **통지 예정** · 남은 문의 1건(자율주행 편 영상이 우리 서버 7864에 닿는 경로)은 **단계 9 AI 통지(`ai-detections-interface.md`)에서 닫는다** |
+| 진나영 (AI) | **Phase 4 통지 — 단계 9에서 발송**(신설, 지시서 부록 D) | **`detections.schema.json` 초안의 생산자가 AI다** — 소비자(VZ)에게만 통지하고 생산자에게 하지 않는 구조를 고친다. 담을 것: 방식 B 프레임을 `/media`에서 받는 법(뷰어와 같은 소켓, `origin.tier="server"` 자리) · `frame_ref`를 헤더에서 읽어 그대로 붙인다(재생성 금지, 원칙 10) · `alignment`·`origin{tier,kind}`·`coord`(`top-left`)·`boxes[]` · 산출물은 좌표 JSON(번인 금지) · 탐지 채널·토픽은 Phase 6 · 7864 경로 답. **답이 없으면** 초안 그대로 `payload/`로 올리지 않고 초안 상태 유지 |
 | 진나영 (AI) | Phase 6 | AI가 스캔 결과로 **이동 지시(`turn_deg`·`forward_distance_cm`)를 로봇에 직접 보낼 토픽**을 HW에 물었다(요구 §4, "지금은 보내지 않고 있다"). HW는 JSON 번역 토픽을 열겠다고 답함. **둘 다 백엔드 명령 경로(BE-A-01·원칙 8 command_id)를 우회** — Phase 6 회신에서 AI→백엔드→장치로 정리(AI-S-05 "AI는 제시만, 장치 선택·명령은 백엔드"와 같은 원칙) |
 | 진나영 (AI) | Phase 6·7 | AI 실패·위험 판정·연계 신뢰도 규격(가짜 이벤트로 검증 / 실 모델은 Tier C) · 명령 의미 규격(AI-C-20) · **모델 승인 기록의 BE-* 신설 여부**(AI-L-06/07/08 — Phase 2가 감사 테이블에 자리만 확보). **AI 요구사항은 공유 스프레드시트에서 읽으면 되고 Phase 6 전까지 별도 문의가 필요 없다** |
 | 김현우 (가시화) | Phase 4·7 | 뷰어 canvas 표시·오버레이 / Unity 트윈 렌더(Tier C). **2026-09-17 대조:** VZ-C-07 구현됨(주소 런타임 설정, 전송층에 인증 훅 없음) · 와이어 계약은 `viz-debugger/src/transport/types.ts`·`gateway/protocol.ts`(영상이 상태와 같은 소켓, `frame_ref` 정수) · 뷰어는 도형+`frame_seq` 목 상태로 **백엔드 형식 초안 대기** · VZ 미결 §7.4(뷰어 출력 분기·소유 파트)·§7.10(카메라 연결 상태) → **Phase 4 통지에서 답한다** |
+| 김현우 (가시화) | **Phase 4 통지 — 단계 9에서 발송**(`vz-media-interface.md` 신설, 지시서 부록 B 13항목) → **회신 대기 항목 5개** | **VZ가 알려 줄 것:** ① 관제 웹 기기의 **tailnet 주소**(8765·4318 ufw `/32` — 받기 전에는 VZ 입구를 열지 않는다) ② Collector **CORS origin**·exporter 종류(protobuf/json) ③ 관제 웹 **https 여부**(mixed content — https면 4318 TLS가 필요해 결정 7 범위를 넘는다) ④ 실제 `source_id`(우리 답: `go1-001`, 카메라는 `go1-001_front`) ⑤ **「발화 원문」 라벨의 실제 키 이름**(`FORBIDDEN_LABELS` 9종째). **VZ 쪽 변경:** `ws.binaryType='arraybuffer'`·텍스트/바이너리 분기·`[4B][JSON][페이로드]` 파서·WebCodecs/`createImageBitmap` 디코드·`frame_ref` 객체(정수 `frame_seq` 아님)·`coord`↔`bbox_space`·`origin.tier`에 `server`·`node_ref` 이름·`catch{return}`에 카운터. **답이 없어도**: 8765는 사용자 컴퓨터 `/32`로만 열려 있고 VZ는 목 게이트웨이를 계속 쓴다 |
 | 김현우 (가시화) | Phase 5 · Phase 6 | VZ 요구사항정의서 §7.6 — HW-C-05 60초 export vs BE-S-03 15초 pull 불일치(→Phase 5) · §7.3 — 감사 `origin.path`를 `input.mode`·`decision.source` 두 축으로 분리 요청 중(→Phase 6 감사 규격) |
 | 김현우 (가시화) | ~~**Phase 6 전 회신 대기**~~ → ✅ **회신 받음 2026-09-17** ([`received/2026-09-17_vz-mission-record-reply.md`](received/2026-09-17_vz-mission-record-reply.md)) | 골격 맞음(재작성 없음). 확정: 실패 4단계 `plan_failed`·`dispatch_failed`·`execution_failed`·`evaluation_failed` · `node_ref`·`mission_id` VZ 부여(판마다 새 `mission_id`) · 8종 파생·구간 계산 VZ · 보존 무기한 · `event_key`=`{mission_id}:{VZ 순번}`. **백엔드가 할 것(Phase 6 이월):** 임무 정의 저장 자리 · `layer`에 `mission` · `subject_kind` 3종 방식 · `origin_kind` 발행 주체 · Go1 `source_id`=`go1-001` 답 |
-| 김현우 (가시화) | ~~**지표 발행 시작 전 회신 대기**~~ → ✅ **회신 받음 2026-09-17** ([`received/2026-09-17_vz-observability-namespace-reply.md`](received/2026-09-17_vz-observability-namespace-reply.md)) | 수용: `vz.` · `service.name` = `vz-viewer`·`vz-stt`·`vz-gen` · 지표만(로그·트레이스 없음). **백엔드가 답할 것(Phase 4):** ① 발행 주기 60초 OK(우리 통지의 "15초 — HW와 같다"는 HW `config.py` 기본값이고 HW-C-05·독스트링은 60초 — 주기는 발신자 몫) ② **브라우저 발신 경로 — VZ는 Collector OTLP/HTTP 4318+CORS 개방 요청.** A(HTTP+CORS 공개) / B(WSS 게이트웨이 중계) / C(답만, 구현 Phase 5) 중 **Phase 4 결정 7에서 정한다** ③ 라벨 목록 확장 6종(`node_id`는 DAG 노드 뜻이라 `node_ref`로) — README·`observability.py`·테스트 함께, Phase 4 구현. Unity 트윈 담당 미정은 Phase 7 메모. VZ 코드에 SDK가 없어 **답이 늦어도 막히지 않는다** |
-| 현장/실측 | Phase 4·5 | 회선 QoS·콜드스타트(Tier C) · **Tailscale은 연구실 환경에서 Phase 3에 부분 실측**(DERP 72ms → 직접 3ms) — 현장 엣지-서버 배치 실측은 남아 있다 |
+| 김현우 (가시화) | ~~**지표 발행 시작 전 회신 대기**~~ → ✅ **회신 받음 2026-09-17** ([`received/2026-09-17_vz-observability-namespace-reply.md`](received/2026-09-17_vz-observability-namespace-reply.md)) | 수용: `vz.` · `service.name` = `vz-viewer`·`vz-stt`·`vz-gen` · 지표만(로그·트레이스 없음). **백엔드의 답(Phase 4 — VZ 미디어 통지 안의 「관측 회신에 대한 답」 절, 단계 9):** ① 발행 주기 60초 OK — 단 근거 정정: HW는 15초로 **공식 채택·정의서 개정 완료**(`BACKEND_AGENDA` §10-1·SRS §9.11), 주기는 발신자 몫이라 VZ 60초는 그대로 괜찮다 ② **브라우저 발신 경로 = 결정 7 A**(Collector OTLP/HTTP **4318을 Tailscale IP에만** + CORS + ufw `/32` — 뷰어는 tailnet 안이라 인터넷 노출 아님). **구현은 tailnet 주소·CORS origin·exporter 종류·https 여부 회신 뒤**(위 행) · `vz-stt`·`vz-gen`은 별도 프로세스라 발신 주소를 따로 묻는다 · 우리 통지 §4의 세 문장(4318 닫힘·4316·TLS)을 **개정 고지** ③ ✅ 라벨 8종 `FORBIDDEN_LABELS`에 반영(`node_id` 제외 → DAG 노드는 **`node_ref`라는 이름으로** 내보내 달라 요청) — 「발화 원문」은 키 이름 회신 뒤. Unity 트윈 담당 미정은 Phase 7 메모 |
+| 현장/실측 | Phase 4·5 | 회선 QoS·콜드스타트(Tier C) · **Tailscale은 연구실 환경에서 Phase 3(DERP 72ms → 직접 3ms)·Phase 4(직접 2ms/22ms, 미디어·Kafka·관측이 한 터널 공유)에 실측** · **느린 링크는 서버 `tc tbf 500kbit` 한 조건만**(drop-old IDR 재개·지연 p90 2.34s) — 현장 엣지-서버 배치·DERP 경유·실물 로봇 영상·실물 엣지 노트북·GOP 경계 프레임률 불균일은 남아 있다 |
 
 > **HW 소스의 최신본은 `_hwsrc/upstream_<날짜>/`** 에 둔다(gitignore, 절대 고치지 않는다). 새 브랜치가
 > 오면 이전 것과 해시 비교한다 — 절차는 `_hwsrc/README.md`. 우리가 편집을 얹은 실행 사본은

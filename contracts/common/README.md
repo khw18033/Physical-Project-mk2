@@ -26,12 +26,21 @@ AI 파트도 이 소유권을 전제한다 — AI-C-01: "AI가 생산·소비하
 | `message.schema.json` | 모든 메시지의 공통 헤더(머리) | BE-C-01·BE-C-02·BE-C-07 |
 | `frame-reference.schema.json` | 원본 관측 프레임 역추적 참조(frame_ref) | BE-C-03 |
 | `object-reference.schema.json` | 구역을 넘어 유지되는 지속 객체 참조(object_id) | DT-06·AI-S-06 |
+| `media-header.schema.json` | **미디어 경로(방식 B) 메시지의 JSON 헤더** — `frame_ref`(`$ref`)·`encoding`·`keyframe`·`width`·`height` (+선택 `codec`·`correlation_id`). 서버는 필수·타입만 검증하고 값 어휘를 보지 않으며 페이로드를 열지 않는다. **루트에 둔다** — `payload/`는 MQTT 토픽으로 고르는 채널 본문 자리다(**Phase 4 신설**) | BE-T-07·BE-C-03 |
+| `detections.schema.json` | **탐지 결과 초안** — 생산자 AI, 소비자 가시화. 메시지 단위 `alignment`·`origin{tier,kind}`·`coord`·`boxes[]`. ⚠ **초안이며 어떤 검증 경로도 로드하지 않는다**(AI·VZ 회신 뒤 확정). 채널·토픽은 신설하지 않았으므로 역시 **루트**(**Phase 4 신설**) | BE-C-03·VZ-I-07 |
 | `payload/state.{sensor,robot,actuator,analysis}.schema.json` | `state` 채널 본문 — **개체 타입마다 다르다** | BE-C-01 |
 | `payload/status.schema.json` | `status` 채널 본문(등록·요약·종료·급사). 타입 공통 | BE-C-01·BE-T-04 |
 | `payload/heartbeat.schema.json` | `heartbeat` 채널 — 본문 없음 | BE-C-01 |
 | `examples/envelope-valid.json` | 공통 헤더를 통과하는 정상 메시지 예제 | 위 스키마 |
 | `examples/envelope-valid-session.json` | 위와 같되 `session_id`가 실린 형태(규격 1.1) | 위 스키마 |
 | `examples/payload-*.json` | 채널 본문 예제(양성·음성). **공통 헤더 + 본문이 합쳐진 완전한 메시지**다 — 검증이 메시지 단위로 이뤄지므로 본문만 담으면 돌릴 수 없다 | 위 스키마 |
+| `examples/media-header-*.json` | 미디어 헤더 예제 — 양성 2(정상 · **모르는 `encoding`이 통과한다**) · 음성 4(`encoding` 누락 · `keyframe` 타입 · `frame_ref.capture_timestamp` `+0900` · `frame_ref` 안쪽 추가 필드). `tests/test_contract_media.py`가 돌린다 | `media-header.schema.json` |
+| `examples/detections-draft-*.json` | 탐지 초안 예제 — `alignment` 있음/없음 둘 다 통과 | `detections.schema.json` |
+
+**파일 간 `$ref`는 레지스트리로 해석한다(Phase 4 결정 12).** `media-header`·`object-reference`·`detections`가
+`frame-reference.schema.json`을 `$ref`한다. 검증기(`backend/ingest/envelope.py`)는 이 디렉터리의 규격 전부를
+`$id → 파일 내용`으로 `referencing.Registry`에 등록해 넘기며, **`$id`가 URL이어도 네트워크로 가져오지 않는다** —
+등록에 없는 참조는 즉시 실패한다. Phase 7의 `object-reference` 검증 경로도 같은 레지스트리를 쓴다.
 
 ## 프레임 참조와 객체 참조 — 다른 축
 
@@ -48,8 +57,18 @@ AI 파트도 이 소유권을 전제한다 — AI-C-01: "AI가 생산·소비하
   (DT-06 핸드오프). 구역마다 track 번호 체계가 독립이므로, 구역을 가로지르는 하나의 궤적
   (가시화 VZ-I-09)은 전역 ID 없이는 이어지지 않는다.
 
-`frame_ref`는 엣지가 디코드 시점에 한 번 부여해 전파할 뿐 백엔드·AI가 재생성하지 않는다는
-규칙(BE-C-03)이 여기서도 그대로 유지된다.
+`frame_ref`는 엣지가 **프레임 경계를 확정하는 시점(액세스 유닛 재조립 또는 디코드)**에 한 번 부여해
+전파할 뿐 백엔드·AI가 재생성하지 않는다는 규칙(BE-C-03)이 여기서도 그대로 유지된다. 말단(온디바이스)은
+부여하지 않는다.
+
+- **`capture_timestamp`의 뜻(2026-09-18 확정):** 엣지가 프레임 경계를 확정한 시각(도착)이며 **촬영 시각이
+  아니다.** 말단 내부 지연이 포함되고 보정되지 않았다(크기 근거로만 HW 실측 1회 ≈0.3초 — 상수가 아니며
+  규격값이 아니다). 형식은 **ISO date-time 문자열**이지 epoch ms 정수가 아니다(결정 2). 상관키
+  (`correlation_id`)는 `frame_ref` 밖 — 공통 헤더·미디어 헤더에 둔다.
+- **`additionalProperties: false` 예외:** 「payload에는 쓰지 않는다」(아래 「느슨한 2단」)는 **채널 본문
+  규격**에 대한 규칙이다. `frame-reference`·`object-reference` 같은 **참조 규격**은 필드 집합이 닫혀 있어야
+  정합(F==F 비교)이 성립하므로 예외다. 그래서 `media-header`·`detections`는 바깥에 필드를 더할 수 있지만
+  `frame_ref` **안쪽**에는 더할 수 없다.
 
 ## 공통 헤더와 채널의 관계
 
@@ -178,10 +197,19 @@ log/event 10 = 22**. `tests/test_c_layer_extract.py`가 이 숫자를 못 박는
 | **A층** 백엔드 자기 관측(`be.ingest.*`·`be.kafka.*`·`be.storage.*`·`be.registry.*`·`be.gateway.*`·`be.pipeline.*`) | `component` · `channel` · `outcome` · `stage` — **`source_id`·`zone_id`·`entity_type`을 넣지 않는다** | 질문이 "백엔드가 잘 도는가"라 장치별로 가를 필요가 없고, 달면 장치 수만큼 시계열이 곱해진다 |
 | **C층** 업무 값의 관측 표현(`be.telemetry.*`) | `source_id` · `zone_id` · `entity_type` · `channel` | 장치별이어야 의미가 있다 |
 
-> ⛔ **어느 층에도 넣지 않는다: `session_id` · `internal_seq` · `sequence_id` · 시각(`timestamp`·`ts`·`capture_timestamp`) ·
-> 프레임 식별자(`frame_id`).** 값이 계속 달라지는 것을 라벨에 넣으면 시계열이 폭증한다. 특히 `session_id`는
-> **재기동마다 새 값**이라 노드를 껐다 켤 때마다 시계열이 하나씩 영구히 늘어난다. 백엔드 어댑터
-> (`backend/observability.py`)는 이 목록을 **`ValueError`로 막는다** — 조용히 버리지 않는다.
+> ⛔ **어느 층에도 넣지 않는다 — 금지 라벨 전수(2026-09-18, Phase 4 확장):**
+>
+> | 묶음 | 라벨 | 왜 |
+> |---|---|---|
+> | 기존 7종(Phase 3) | `session_id` · `internal_seq` · `sequence_id` · 시각(`timestamp`·`ts`·`capture_timestamp`) · `frame_id` | 값이 계속 달라진다. 특히 `session_id`는 **재기동마다 새 값**이라 노드를 껐다 켤 때마다 시계열이 하나씩 영구히 는다 |
+> | **Phase 4 확장 8종(확정)** | `frame_ref` · `correlation_id` · `command_id` · `mission_id` · `node_ref` · `client_request_id` · `plan_id` · `event_key` | 프레임·명령·임무·판마다 다르다. 앞의 셋은 VZ 통지(`docs/be/vz-observability-namespace.md` §2)가 "막는다"고 적었는데 코드에 없던 것을 맞췄고, 뒤의 다섯은 VZ 회신(2026-09-17)이 제안한 VZ 식별자다. `command_id`·`correlation_id`는 trace 속성으로는 되지만 metric 라벨로는 안 된다 |
+> | **9번째 — 자리만(대기)** | 발화 원문(잠정 `utterance`·`transcript`) | VZ가 제안했으나 **실제 키 이름을 아직 받지 못했다**(`docs/be/vz-media-interface.md` 10⑤ 문의). `FORBIDDEN_LABELS`는 문자열 집합이라 이름 없이 넣을 수 없다 — 빠진 것이 아니라 대기다 |
+>
+> ⚠ **`node_id`는 넣지 않는다.** VZ의 `node_id`는 DAG 노드 뜻이지만 우리 공통 헤더 `node_id`는 물리 노드
+> (pi1·pi7)라 저카디널리티·허용이다. DAG 노드 식별자는 `node_ref`라는 이름으로 내보내 달라고 VZ에 요청했다.
+>
+> 백엔드 어댑터(`backend/observability.py` `FORBIDDEN_LABELS`)는 이 목록을 **`ValueError`로 막는다** — 조용히
+> 버리지 않는다(`tests/test_observability_labels.py`가 전 항목을 parametrize로 돌린다).
 
 ## 식별자 원칙 (BE-C-02)
 

@@ -159,7 +159,14 @@ def test_gateway_metrics_with_ws_client(prometheus_url, ws_url, broker, observe_
             clients_ok = await asyncio.to_thread(
                 wait_until, lambda: prom_scalar(prometheus_url, 'sum(be_gateway_clients)') >= 1, observe_timeout_s
             )
-            push_ok = counter_delta(push_before, prom_scalar(prometheus_url, 'sum(be_gateway_push_total)')) >= 1
+            # push 도 export(15s)+scrape(5s) 를 기다린다. 이전 판은 clients 대기가 그 시간을 대신 벌어 준다고 기댔는데,
+            # 다른 뷰어(브라우저 등)가 이미 붙어 있으면 clients 가 즉시 ≥1 이라 push 를 export 전에 읽어 헛되이
+            # 실패했다(Phase 4 단계 7, 2026-09-19 서버 실측).
+            push_ok = await asyncio.to_thread(
+                wait_until,
+                lambda: counter_delta(push_before, prom_scalar(prometheus_url, 'sum(be_gateway_push_total)')) >= 1,
+                observe_timeout_s,
+            )
             return {"got": got, "clients_ok": clients_ok, "push_ok": push_ok}
 
     result = asyncio.run(run())

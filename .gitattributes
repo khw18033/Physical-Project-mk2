@@ -21,3 +21,5 @@
 *.pdf   binary
 *.gz    binary
 *.zip   binary
+# Phase 4 합성 H.264 fixture(tests/fixtures/*.h264) — Annex-B 바이트스트림. EOL 변환 대상이 아니다
+*.h264  binary

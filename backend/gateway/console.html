@@ -1,45 +1,159 @@
-<!-- WS echo 확인용 최소 클라이언트 (Phase 1).
-     브라우저로 이 파일을 열고 WS 주소를 넣어 접속한다. 인증·구독 관리는 없다(Phase 5/7).
-     wscat 로도 같은 확인이 된다: wscat -c ws://<host>:8765
-     implements: BE-T-03 (확인 수단) -->
+<!-- MK2 WS 게이트웨이 확인용 뷰어 (Phase 1 echo → Phase 4 미디어).
+     브라우저로 이 파일을 열고 주소·토큰·source_id 를 넣어 접속한다. VZ 앱을 대신하지 않는다 — 판정용 텍스트 출력이
+     본체이고 눈 확인(캔버스)은 보조다(작업지시 2-6). 토큰은 화면에서 입력한다 — 파일에 넣어 커밋하지 않는다.
+
+     두 소켓 = 두 TCP:  /state  (Kafka 텔레메트리 JSON push, Phase 1 echo 그대로)
+                        /media?source_id=…  (방식 B 바이너리: [4B 헤더길이][JSON 헤더][페이로드]) — 붙는 것이 켜기, 끊는 것이 끄기
+
+     ⚠ 탐지 오버레이는 이번 Phase 에서 만들지 않았다(⏭ 선택). 만들 때의 뷰어 규칙 — 결정 3 fail-safe:
+        탐지 메시지의 alignment == "frame" 이고 frame_ref 가 있을 때만, 프레임의 frame_ref 와
+        (source_id, capture_timestamp, sequence_id) 세 값이 전부 같은 프레임(F==F) 위에 박스를 그린다.
+        그 외 — alignment 부재 · 모르는 값 · frame_ref 부재 · 세 값 중 하나라도 다름 — 는 전부 unaligned 로 취급해
+        프레임에 겹치지 않고 따로(최근 탐지 목록으로만) 보여 준다. 좌표는 detections.coord 기준이며
+        coord.ref_width/ref_height 는 미디어 헤더 width/height 와 같아야 한다(normalized:true 면 0~1 비율).
+
+     HW 가 문서화한 브라우저 결함 5건 적용(눈 확인 경로만): hardwareAcceleration:'prefer-software' ·
+     최신 프레임만 rAF 주기로 그리기 · 보조 타이머(탭 비활성 시) · desynchronized 옵션 사용 안 함 ·
+     Cache-Control: no-store 는 이 파일을 서빙할 때의 응답 헤더 사안(file:// 로 열면 해당 없음).
+
+     implements: BE-T-03, BE-T-07 (확인 수단) -->
 <meta charset="utf-8" />
-<title>MK2 WS echo 콘솔</title>
+<title>MK2 WS 게이트웨이 콘솔</title>
 <style>
   body { font-family: ui-monospace, Consolas, monospace; margin: 16px; }
-  #log { white-space: pre-wrap; border: 1px solid #ccc; padding: 8px; height: 70vh; overflow: auto; }
-  .status { color: #555; }
+  fieldset { margin-bottom: 8px; }
+  input { font-family: inherit; }
+  #log { white-space: pre-wrap; border: 1px solid #ccc; padding: 8px; height: 38vh; overflow: auto; }
+  #stats { white-space: pre; border: 1px solid #ccc; padding: 8px; background: #fafafa; }
+  .status { color: #555; margin-left: 8px; }
+  canvas { border: 1px solid #ccc; background: #000; max-width: 100%; }
 </style>
-<h3>MK2 WS echo 콘솔</h3>
-<p>
-  <input id="url" size="40" value="ws://localhost:8765" />
-  <button id="go">접속</button>
-  <span id="state" class="status">대기</span>
-</p>
+<h3>MK2 WS 게이트웨이 콘솔</h3>
+<fieldset>
+  <legend>공통</legend>
+  서버 <input id="host" size="28" value="ws://127.0.0.1:8765" />
+  토큰 <input id="token" size="24" placeholder="MK2_WS_TOKEN (loopback 이면 비워도 됨)" />
+</fieldset>
+<fieldset>
+  <legend>/state — 상태 push (Phase 1 echo)</legend>
+  <button id="go-state">접속</button> <button id="stop-state">끊기</button>
+  <span id="state-status" class="status">대기</span>
+</fieldset>
+<fieldset>
+  <legend>/media — 영상 (방식 B)</legend>
+  source_id <input id="source" size="20" value="go1-001_front" />
+  <button id="go-media">접속(=켜기)</button> <button id="stop-media">끊기(=끄기)</button>
+  <span id="media-status" class="status">대기</span>
+</fieldset>
+<div id="stats">— 판정용 —
+frames=0 keyframes=0 bytes=0 seq_first=- seq_last=- gaps=0 reversals=0 drop_intervals=[]
+last frame_ref: -</div>
+<p><canvas id="view" width="464" height="400"></canvas> <span id="decode" class="status">디코더: -</span></p>
 <div id="log"></div>
 <script>
-  const logEl = document.getElementById('log');
-  const stateEl = document.getElementById('state');
-  let ws = null;
-  function line(text) {
-    logEl.textContent += text + '\n';
-    logEl.scrollTop = logEl.scrollHeight;
-  }
-  document.getElementById('go').onclick = () => {
-    if (ws) { ws.close(); }
-    const url = document.getElementById('url').value;
-    ws = new WebSocket(url);
-    stateEl.textContent = '접속 중…';
-    ws.onopen = () => { stateEl.textContent = '연결됨'; line('-- 연결됨: ' + url); };
-    ws.onclose = () => { stateEl.textContent = '끊김'; line('-- 끊김'); };
-    ws.onerror = (e) => { stateEl.textContent = '오류'; line('-- 오류'); };
-    ws.onmessage = (ev) => {
+  const $ = (id) => document.getElementById(id);
+  const logEl = $('log');
+  function line(text) { logEl.textContent += text + '\n'; logEl.scrollTop = logEl.scrollHeight; }
+  function tokenQuery(sep) { const t = $('token').value.trim(); return t ? `${sep}token=${encodeURIComponent(t)}` : ''; }
+  function closeCodeText(ev) { return `code=${ev.code}${ev.reason ? ' reason=' + ev.reason : ''}`; }
+
+  // ── /state ────────────────────────────────────────────────────────────────
+  let wsState = null;
+  $('go-state').onclick = () => {
+    if (wsState) wsState.close();
+    const url = $('host').value + '/state' + tokenQuery('?');
+    wsState = new WebSocket(url);
+    $('state-status').textContent = '접속 중…';
+    wsState.onopen = () => { $('state-status').textContent = '연결됨'; line('-- /state 연결됨'); };
+    wsState.onclose = (ev) => { $('state-status').textContent = '끊김 ' + closeCodeText(ev); line('-- /state 끊김 ' + closeCodeText(ev)); };
+    wsState.onerror = () => { $('state-status').textContent = '오류'; };
+    wsState.onmessage = (ev) => {
       try {
         const data = JSON.parse(ev.data);
         const m = data.message || {};
-        line(`[${data.channel}] ${m.source_id} seq=${m.sequence_id} ts=${m.timestamp} :: ${ev.data}`);
-      } catch (_) {
-        line(ev.data);
-      }
+        line(`[${data.channel}] ${m.source_id} seq=${m.sequence_id} ts=${m.timestamp}`);
+      } catch (_) { line(ev.data); }
     };
   };
+  $('stop-state').onclick = () => { if (wsState) wsState.close(); };
+
+  // ── /media — 판정용 텍스트가 본체 ────────────────────────────────────────
+  const stats = { frames: 0, keyframes: 0, bytes: 0, seqFirst: null, seqLast: null, gaps: 0, reversals: 0, drops: [], lastRef: '-' };
+  function renderStats() {
+    $('stats').textContent =
+      `— 판정용 —\nframes=${stats.frames} keyframes=${stats.keyframes} bytes=${stats.bytes} ` +
+      `seq_first=${stats.seqFirst ?? '-'} seq_last=${stats.seqLast ?? '-'} gaps=${stats.gaps} reversals=${stats.reversals} ` +
+      `drop_intervals=${JSON.stringify(stats.drops.slice(-10))}\nlast frame_ref: ${stats.lastRef}`;
+  }
+  function parseMethodB(buf) {
+    const view = new DataView(buf);
+    const headerLen = view.getUint32(0, false);               // 4바이트 빅엔디언
+    const headerText = new TextDecoder('utf-8').decode(new Uint8Array(buf, 4, headerLen));
+    return { header: JSON.parse(headerText), headerRaw: headerText, payload: new Uint8Array(buf, 4 + headerLen) };
+  }
+
+  // 눈 확인(보조) — 최신 프레임만 rAF 주기로 그린다. 판정 근거로 쓰지 않는다.
+  const canvas = $('view'); const ctx = canvas.getContext('2d');
+  let latestBitmap = null, rafPending = false, decoder = null, decoderCodec = null;
+  function scheduleDraw() {
+    if (rafPending) return; rafPending = true;
+    requestAnimationFrame(() => { rafPending = false; if (latestBitmap) { ctx.drawImage(latestBitmap, 0, 0, canvas.width, canvas.height); } });
+  }
+  setInterval(() => { if (document.hidden && latestBitmap) ctx.drawImage(latestBitmap, 0, 0, canvas.width, canvas.height); }, 250); // 보조 타이머
+  async function showJpeg(payload) {
+    try { latestBitmap = await createImageBitmap(new Blob([payload], { type: 'image/jpeg' })); scheduleDraw(); }
+    catch (e) { $('decode').textContent = '디코더: JPEG 실패 ' + e; }
+  }
+  function ensureH264Decoder(header) {
+    if (!('VideoDecoder' in window)) { $('decode').textContent = '디코더: WebCodecs 없음 — 눈 확인 불가(판정에는 무관)'; return null; }
+    const codec = header.codec || 'avc1.42E01E';
+    if (decoder && decoderCodec === codec) return decoder;
+    if (decoder) { try { decoder.close(); } catch (_) {} }
+    decoder = new VideoDecoder({
+      output: (frame) => { latestBitmap = frame; scheduleDraw(); setTimeout(() => { try { frame.close(); } catch (_) {} }, 100); },
+      error: (e) => { $('decode').textContent = '디코더: H.264 오류 ' + e.message; },
+    });
+    decoder.configure({ codec, hardwareAcceleration: 'prefer-software', optimizeForLatency: true }); // Annex-B in-band SPS/PPS — description 없음
+    decoderCodec = codec;
+    $('decode').textContent = '디코더: WebCodecs ' + codec;
+    return decoder;
+  }
+  let wsMedia = null, sawKeyframe = false;
+  $('go-media').onclick = () => {
+    if (wsMedia) wsMedia.close();
+    Object.assign(stats, { frames: 0, keyframes: 0, bytes: 0, seqFirst: null, seqLast: null, gaps: 0, reversals: 0, drops: [], lastRef: '-' });
+    sawKeyframe = false; renderStats();
+    const src = encodeURIComponent($('source').value.trim());
+    const url = $('host').value + '/media?source_id=' + src + tokenQuery('&');
+    wsMedia = new WebSocket(url);
+    wsMedia.binaryType = 'arraybuffer';                        // Blob 이면 arrayBuffer() 가 비동기라 순서가 흔들린다
+    $('media-status').textContent = '접속 중…';
+    wsMedia.onopen = () => { $('media-status').textContent = '연결됨(켜짐)'; line('-- /media 연결됨 source_id=' + $('source').value); };
+    wsMedia.onclose = (ev) => { $('media-status').textContent = '끊김(꺼짐) ' + closeCodeText(ev); line('-- /media 끊김 ' + closeCodeText(ev)); };
+    wsMedia.onerror = () => { $('media-status').textContent = '오류'; };
+    wsMedia.onmessage = (ev) => {
+      if (typeof ev.data === 'string') { line('-- /media 텍스트 프레임(무시): ' + ev.data.slice(0, 80)); return; }
+      let f;
+      try { f = parseMethodB(ev.data); } catch (e) { line('-- 방식 B 파싱 실패: ' + e); return; }
+      const h = f.header, ref = h.frame_ref || {};
+      stats.frames += 1; stats.bytes += ev.data.byteLength;
+      if (h.keyframe) stats.keyframes += 1;
+      if (stats.seqFirst === null) stats.seqFirst = ref.sequence_id;
+      if (stats.seqLast !== null) {
+        if (ref.sequence_id < stats.seqLast) stats.reversals += 1;
+        else if (ref.sequence_id > stats.seqLast + 1) { stats.gaps += 1; stats.drops.push([stats.seqLast, ref.sequence_id]); }
+      }
+      stats.seqLast = ref.sequence_id;
+      stats.lastRef = JSON.stringify(ref) + ` encoding=${h.encoding} keyframe=${h.keyframe} ${h.width}x${h.height}`;
+      if (!sawKeyframe) { sawKeyframe = true; line(`-- 첫 프레임: keyframe=${h.keyframe} (반드시 true 여야 한다) seq=${ref.sequence_id}`); }
+      renderStats();
+      // 눈 확인(보조) — 모르는 encoding 은 디코드하지 않고 상태로만 표시한다
+      if (h.encoding === 'jpeg') { showJpeg(f.payload); $('decode').textContent = '디코더: JPEG(createImageBitmap)'; }
+      else if (h.encoding === 'h264') {
+        const d = ensureH264Decoder(h);
+        if (d) { try { d.decode(new EncodedVideoChunk({ type: h.keyframe ? 'key' : 'delta', timestamp: stats.frames * 33333, data: f.payload })); } catch (e) { $('decode').textContent = '디코더: decode 예외 ' + e; } }
+      } else { $('decode').textContent = `디코더: 모르는 encoding "${h.encoding}" — 표시하지 않음`; }
+    };
+  };
+  $('stop-media').onclick = () => { if (wsMedia) wsMedia.close(); };
 </script>

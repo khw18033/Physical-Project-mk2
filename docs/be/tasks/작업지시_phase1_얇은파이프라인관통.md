@@ -358,6 +358,8 @@ Mosquitto 경로). 4개 편집 덕분에 봉투 strict 검증을 통과한다(�
   `capture_timestamp`를 **ISO date-time 문자열**로 정의했는데, HW/v8 §6-9 구현은 **epoch ms 정수**다
   (`BACKEND_AGENDA §8`이 "봉투 timestamp(ISO)와 frame_ref(epoch ms) 공존이 의도냐" 질의). 미디어
   착수 전 계약을 어느 쪽으로 정합할지 결정.
+  > ✅ **Phase 4 결정 2(2026-09-18): ISO 유지.** epoch ms는 HW 구현이 아니라 **우리 문서(v8 §6-9·02-media-path
+  > §1-6-2 예시)가 규격 파일과 어긋나 있던 것**이었다. 규격 파일은 개정하지 않았고 문서 예시를 정정했다.
 - **명령 문자열 파라미터 → Phase 6.** `sensor_node`의 `set_mode(mode="normal")`·`levee(position="open")`는
   문자열 파라미터인데 protobuf 명령은 `map<string,double>`이라 현재 호출 불가(`BACKEND_AGENDA §3`).
   명령 스키마에 문자열/열거형 파라미터 지원 추가.
@@ -419,7 +421,8 @@ Mosquitto 경로). 4개 편집 덕분에 봉투 strict 검증을 통과한다(�
   - Phase 2: `store(...)` 인터페이스 뒤에 TSDB 구현 교체, `replayed:true` 지연 도착 정합,
     `sequence_id`(채널별) 기반 유실·역전 검출 의미 확정.
   - Phase 4: 원격 Kafka 노출 3수정(§6 미래작업, Tailscale 선행), **frame_ref 계약 정합**
-    (`frame-reference.schema.json` ISO 문자열 ↔ HW/v8 epoch ms).
+    (`frame-reference.schema.json` ISO 문자열 ↔ HW/v8 epoch ms). → ✅ 2026-09-19: Kafka는 3수정 대신
+    **EDGE 리스너** 추가로, frame_ref는 **ISO 유지**로 처리됐다(`01-standalone-implementation-plan.md` Phase 4).
   - Phase 5: **엣지 가용성 판정(`monitor.py`·`edge/availability.py`) ↔ BE 최종 판정 관계 정리**,
     **device_status 발행 주체**(HW 자기보고 수용 vs metric 파생).
   - Phase 6: 명령 경로 protobuf 토픽(`mk2.command.*`)·`PhysicalCommandEnvelope` 계약 정합,

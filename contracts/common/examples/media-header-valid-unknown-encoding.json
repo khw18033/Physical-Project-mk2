@@ -1,0 +1,12 @@
+{
+  "frame_ref": {
+    "source_id": "cctv-zoneA-03",
+    "capture_timestamp": "2026-09-18T03:00:00.500Z",
+    "sequence_id": 0
+  },
+  "encoding": "av1",
+  "keyframe": true,
+  "width": 1280,
+  "height": 720,
+  "producer_extra": "생산자가 더한 필드 — 헤더 바깥은 통과한다"
+}
