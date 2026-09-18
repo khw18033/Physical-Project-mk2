@@ -28,6 +28,7 @@
  * 지금 무엇으로 추적 중인지는 `tracking` 한 필드로 표시용 형태만 넘어간다.
  */
 
+import { t } from '../i18n/dict.ts';
 import { recordHuman } from '../data/scenario.ts';
 import { getTransport } from '../transport/index.ts';
 import type { ActionSpec, CommandAck, CommandRequest, CommandResult } from '../transport/index.ts';
@@ -41,9 +42,9 @@ export const COMMAND_TTL_MS = 30_000;
 export type CommandDisplay = 'in_progress' | 'confirmed' | 'failed';
 
 export const COMMAND_DISPLAY_LABEL: Record<CommandDisplay, string> = {
-  in_progress: '진행중',
-  confirmed: '확정',
-  failed: '실패',
+  in_progress: t('cc.1'),
+  confirmed: t('cc.2'),
+  failed: t('cc.3'),
 };
 
 /**
@@ -53,13 +54,13 @@ export const COMMAND_DISPLAY_LABEL: Record<CommandDisplay, string> = {
  * 고쳐져 같은 단계가 다른 이름으로 뜬다 — 이 저장소가 계속 피해 온 「두 곳이 갈라진다」다.
  */
 export const COMMAND_STAGE_LABEL: Record<string, string> = {
-  issued: '발행 — 요청 식별자로 화면 상태를 걸었다',
-  linked: '수신 확인 — 상관 키 매핑',
-  ack: '수신 확인 — 디바이스 ACK',
-  executing: '수행 중',
-  physical_state_changed: '물리 상태 변화',
-  settled: '완료 / 실패 확정',
-  expired: '만료 — 상관 키 미도착',
+  issued: t('cc.4'),
+  linked: t('cc.5'),
+  ack: t('cc.6'),
+  executing: t('cc.7'),
+  physical_state_changed: t('cc.8'),
+  settled: t('cc.9'),
+  expired: t('cc.10'),
 };
 
 /** 서버가 보내는 네 단계. 화면은 3종으로 접지만 이력에는 네 단계가 다 남는다. */
@@ -233,7 +234,7 @@ export class CommandTracker {
       expiresAt,
       issuedAtLocal: Date.now(),
       tracking: {
-        label: '요청 식별자 (가시화 발급 · ACK 대기)',
+        label: t('cc.11'),
         value: requestId,
         linked: false,
       },
@@ -241,7 +242,7 @@ export class CommandTracker {
         {
           stage: 'issued',
           status: 'local',
-          detail: '발행 — 상관 키 도착 전이라 요청 식별자로 화면 상태를 걸었다',
+          detail: t('cc.12'),
           progressPct: null,
           reasonCode: null,
           ts: new Date().toISOString(),
@@ -251,7 +252,7 @@ export class CommandTracker {
       progressPct: null,
       restored: false,
       reasonCode: null,
-      lastDetail: '발행 — 가시화 → 백엔드 (감사 필드 동봉)',
+      lastDetail: t('cc.13'),
       absorbedCount: 0,
       settled: false,
     };
@@ -294,7 +295,7 @@ export class CommandTracker {
     const held = this.correlation.link(requestId, commandId);
 
     tracked.tracking = {
-      label: '상관 키 (백엔드 발급 · BE-X-01)',
+      label: t('cc.14'),
       value: commandId,
       linked: true,
     };
@@ -302,8 +303,7 @@ export class CommandTracker {
       stage: 'linked',
       status: 'local',
       detail:
-        '수신 확인 — 백엔드가 상관 키를 발급했다. 지금부터 결과·감사는 이 키로 이어진다' +
-        (held.length > 0 ? ' (먼저 도착해 보류돼 있던 이벤트 ' + held.length + '건을 흡수)' : ''),
+        t('cc.linked') + (held.length > 0 ? t('cc.linkedAbsorbed', { n: held.length }) : ''),
       progressPct: null,
       reasonCode: null,
       ts: new Date().toISOString(),
@@ -357,8 +357,7 @@ export class CommandTracker {
       this.settleWithoutCommandId(
         tracked,
         'expired_without_ack',
-        'ACK 없이 만료 — 상관 키를 끝내 받지 못해 요청 식별자만으로 정리했다. ' +
-          '서버가 실행했는지 여부는 이 화면이 알 수 없다(감사 조회로 확인해야 한다)',
+        t('cc.expiredNoAck'),
       );
     }, Math.max(0, ttlMs));
     this.expiryTimers.set(requestId, timer);

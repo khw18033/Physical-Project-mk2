@@ -1,3 +1,4 @@
+import { t } from '../i18n/dict.ts';
 import { displayMission } from '../data/scenario.ts';
 import type { Hardware } from '../model/types.ts';
 
@@ -41,6 +42,6 @@ export function listCastIds(): readonly string[] {
 export function hardwareSourceLabel(): string {
   const { view } = displayMission();
   return view.world === 'registry'
-    ? 'registry.json (목)'
-    : `임무 시나리오 ${view.missionId} (목)`;
+    ? t('sr.1')
+    : t('sr.missionScenario', { id: view.missionId });
 }

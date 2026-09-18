@@ -36,6 +36,7 @@
  *     왜 못 재는지는 `unmeasured()` 가 문장으로 돌려준다.
  */
 
+import { t } from '../i18n/dict.ts';
 import { traceEvents, traceStats } from '../data/trace.ts';
 import { missionMergeStats } from '../data/scenario.ts';
 
@@ -287,28 +288,28 @@ export function unmeasured(): Unmeasured[] {
   if (jsHeapUsedMb() === null) {
     list.push({
       key: 'jsHeapUsedMb',
-      label: '브라우저 메모리',
-      why: '이 브라우저가 performance.memory 를 주지 않습니다 (Chromium 계열에만 있습니다). 지어내지 않습니다.',
+      label: t('ob.1'),
+      why: t('ob.2'),
     });
   }
   if (!connectionReported) {
     list.push({
       key: 'reconnects',
-      label: '재연결 횟수',
-      why: '연결 상태를 보고하는 쪽이 없습니다 — 게이트웨이에 붙지 않는 단독 빌드에서는 해당 없음입니다.',
+      label: t('ob.3'),
+      why: t('ob.4'),
     });
   }
   if (envelopeCount === 0 && windows.every((w) => w.envelopeCount === 0)) {
     list.push({
       key: 'receiveDelayMs',
-      label: '수신 지연',
-      why: '아직 받은 봉투가 없습니다. 게이트웨이가 붙어 임무 축 봉투가 들어오면 잽니다.',
+      label: t('ob.5'),
+      why: t('ob.6'),
     });
   }
   list.push({
     key: 'publish',
-    label: '관측 스택 발행',
-    why: '연결 예정 — 발행할 상대(OTLP 수집기)가 아직 없습니다. 집계 주기(60초)는 지금도 지킵니다.',
+    label: t('ob.7'),
+    why: t('ob.8'),
   });
   return list;
 }

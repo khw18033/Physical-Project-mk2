@@ -23,6 +23,7 @@
  * 그래서 「등록이 없으면 던진다」로 짜지 않았다. 없는 것이 사고가 아니라 한쪽 빌드의 정상이다.
  */
 
+import { t } from '../i18n/dict.ts';
 import type { Envelope } from '../transport/index.ts';
 
 type EnvelopeSink = (envelope: Envelope) => void;
@@ -50,7 +51,7 @@ export function fanOutEnvelope(envelope: Envelope): void {
     try {
       sink(envelope);
     } catch (error) {
-      console.error('봉투 수신처 하나가 던졌다 — 나머지는 계속 받는다', error);
+      console.error(t('es.1'), error);
     }
   }
 }

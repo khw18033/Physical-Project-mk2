@@ -17,6 +17,7 @@
  * **기록은 백엔드 audit-writer가 한다.** 브라우저는 감사 필드를 만들어 전달만 한다.
  */
 
+import { t } from '../i18n/dict.ts';
 import type { VoiceAuditPayload } from './auditFieldMap.ts';
 
 export type InputModality = 'pointer' | 'voice';
@@ -66,19 +67,19 @@ export type CheckedAudit = {
  */
 export function buildAudit(modality: InputModality, voice?: VoiceAudit): CheckedAudit {
   if (modality !== 'voice') {
-    if (voice) throw new CommandAuditError(`input_modality='${modality}' 인데 voice 필드가 실려 있습니다`);
+    if (voice) throw new CommandAuditError(t('va.voiceOnNonVoice', { modality }));
     return { inputMode: 'click' };
   }
   if (!voice || typeof voice !== 'object') {
-    throw new CommandAuditError("input_modality='voice' 인데 voice 감사 필드가 없습니다 (REQ-1305)");
+    throw new CommandAuditError(t('va.voiceMissing'));
   }
   const missing = VOICE_AUDIT_KEYS.filter((key) => !(key in voice));
   if (missing.length) {
-    throw new CommandAuditError(`voice 감사 필드 누락: ${missing.join(', ')} (REQ-1305)`);
+    throw new CommandAuditError(t('va.fieldsMissing', { fields: missing.join(', ') }));
   }
   const blank = REQUIRED_TEXT_KEYS.filter((key) => typeof voice[key] !== 'string' || !voice[key].trim());
   if (blank.length) {
-    throw new CommandAuditError(`voice 감사 필드가 비어 있습니다: ${blank.join(', ')} (REQ-1305)`);
+    throw new CommandAuditError(t('va.fieldsBlank', { fields: blank.join(', ') }));
   }
   return { inputMode: 'voice', voice: { ...voice } };
 }

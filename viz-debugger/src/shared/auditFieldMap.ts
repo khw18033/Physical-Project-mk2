@@ -110,25 +110,25 @@ function str(v: unknown): string | null {
 
 /** 코드값 → 사람이 읽는 말. 여기 말고 컴포넌트에 두면 화면마다 다른 말이 나온다. */
 const INPUT_MODE_LABEL: Record<string, string> = {
-  click: '클릭',
-  voice: '음성',
+  click: t('af.1'),
+  voice: t('af.2'),
   api: 'API',
-  keyboard: '키보드',
+  keyboard: t('af.3'),
 };
 
 const DECISION_SOURCE_LABEL: Record<string, string> = {
-  human: '사람',
-  llm_suggestion_accepted: 'LLM 제안 수락',
-  llm_suggestion_modified: 'LLM 제안 수정 후 수락',
-  automatic: '자동',
+  human: t('af.4'),
+  llm_suggestion_accepted: t('af.5'),
+  llm_suggestion_modified: t('af.6'),
+  automatic: t('af.7'),
 };
 
 const RESULT_LABEL: Record<string, string> = {
-  completed: '완료',
-  failed: '실패',
-  rejected: '거부',
-  timeout: '시간 초과',
-  accepted: '진행중',
+  completed: t('af.8'),
+  failed: t('af.9'),
+  rejected: t('af.10'),
+  timeout: t('af.11'),
+  accepted: t('af.12'),
 };
 
 export function toAuditEntry(raw: unknown): AuditEntry {
@@ -146,36 +146,36 @@ export function toAuditEntry(raw: unknown): AuditEntry {
 
   // 두 축을 **각각** 보여준다. 하나로 합치면 "잘못 들었나 / 잘못 해석했나"를 구분할 수 없다.
   rows.push({
-    label: '입력 수단',
-    value: inputMode === null ? '미기록' : (INPUT_MODE_LABEL[inputMode] ?? inputMode),
+    label: t('af.13'),
+    value: inputMode === null ? t('af.14') : (INPUT_MODE_LABEL[inputMode] ?? inputMode),
     muted: inputMode === null,
   });
   rows.push({
-    label: '판단 주체',
-    value: decisionSource === null ? '미기록' : (DECISION_SOURCE_LABEL[decisionSource] ?? decisionSource),
+    label: t('af.15'),
+    value: decisionSource === null ? t('af.14') : (DECISION_SOURCE_LABEL[decisionSource] ?? decisionSource),
     muted: decisionSource === null,
   });
 
   if (modified != null) {
-    rows.push({ label: '제안 수정', value: modified === true || modified === 'true' ? '있음' : '없음' });
+    rows.push({ label: t('af.16'), value: modified === true || modified === 'true' ? t('af.17') : t('af.18') });
   }
-  if (transcript !== null) rows.push({ label: '전사(원문)', value: transcript });
+  if (transcript !== null) rows.push({ label: t('af.19'), value: transcript });
   // 원문과 수정본을 **둘 다** 보인다. 원문만 남기면 사람이 고친 오인식을 놓치고,
   // 수정본만 남기면 STT 성능을 나중에 평가할 수 없다 (REQ-1303 · REQ-1305).
   const transcriptEdited = str(pick(record, FIELD_CANDIDATES.transcriptEdited));
   if (transcriptEdited !== null && transcriptEdited !== transcript) {
-    rows.push({ label: '전사(수정본)', value: transcriptEdited });
+    rows.push({ label: t('af.20'), value: transcriptEdited });
   }
   const sttEngine = str(pick(record, FIELD_CANDIDATES.sttEngine));
   const sttModel = str(pick(record, FIELD_CANDIDATES.sttModel));
-  if (sttEngine !== null) rows.push({ label: 'STT 엔진', value: sttModel === null ? sttEngine : sttEngine + ' · ' + sttModel });
+  if (sttEngine !== null) rows.push({ label: t('af.21'), value: sttModel === null ? sttEngine : sttEngine + ' · ' + sttModel });
   const audioRef = str(pick(record, FIELD_CANDIDATES.audioRef));
-  if (audioRef !== null) rows.push({ label: '녹음', value: audioRef });
+  if (audioRef !== null) rows.push({ label: t('af.22'), value: audioRef });
   if (llmModel !== null) rows.push({ label: 'LLM', value: llmModel });
-  if (entity !== null) rows.push({ label: '대상', value: entity });
+  if (entity !== null) rows.push({ label: t('af.23'), value: entity });
   rows.push({
-    label: '결과',
-    value: result === null ? '미기록' : (RESULT_LABEL[result] ?? result),
+    label: t('af.24'),
+    value: result === null ? t('af.14') : (RESULT_LABEL[result] ?? result),
     muted: result === null,
   });
 
@@ -228,3 +228,4 @@ export function buildAuditPayload(input: {
   }
   return payload;
 }
+import { t } from '../i18n/dict.ts';
