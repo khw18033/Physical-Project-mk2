@@ -19,6 +19,8 @@
  * 남은 것은 연결이 아니라 **임무 진행**이다 — 진행률·접근 버튼·거절 사유, 그리고 정지 표시.
  */
 
+import { Rich } from '../i18n/RichText.tsx';
+import { t } from '../i18n/dict.ts';
 import { PhysicalClient } from './PhysicalClient.ts';
 import { stopFailureMessage } from './robotCommands.ts';
 import { isStanding } from './uplink.ts';
@@ -53,19 +55,21 @@ export function RobotPanel({ client }: { client: PhysicalClient | null }) {
       돌 줄 알고 기다린다.
     */}
     {session.paused !== null && <p className="robot-paused">
-      <b>일시정지</b> {new Date(session.paused.atIso).toLocaleTimeString()}
-      {session.paused.published ? ' · 로봇에 정지를 보냈습니다' : ' · 로봇에 못 보냈습니다'}
+      <b>{t('rpn.1')}</b> {new Date(session.paused.atIso).toLocaleTimeString()}
+      {session.paused.published ? t('rpn.2') : t('rpn.3')}
       {session.paused.failure !== null && <em> — {session.paused.failure}</em>}
-      <span>진행상황은 그대로 있습니다. 재시작하면 {session.paused.taskId === null
-        ? '멈춘 자리에서 다시 시작합니다'
-        : `${session.paused.taskId} 를 처음부터 다시 합니다 — 로봇에 이어 하기가 없습니다`}.</span>
+      <span>{t('rpn.progressKept', {
+        how: session.paused.taskId === null
+          ? t('rpn.4')
+          : t('rpn.redoFromStart', { task: session.paused.taskId }),
+      })}</span>
     </p>}
 
     {stopped !== null && <p className="robot-locked">
-      <b>정지됨</b> {new Date(stopped.atIso).toLocaleTimeString()}
-      {stopped.published && ' · 정지 명령을 보냈습니다'}
+      <b>{t('rpn.5')}</b> {new Date(stopped.atIso).toLocaleTimeString()}
+      {stopped.published && t('rpn.6')}
       <button type="button" className="robot-release" onClick={() => releaseStopped()}>
-        정지 해제 — 다시 승인해야 합니다
+        {t('rpn.releaseStop')}
       </button>
     </p>}
 
@@ -79,7 +83,7 @@ export function RobotPanel({ client }: { client: PhysicalClient | null }) {
       가이드가 「화면에 그대로 드러내야 한다」고 못박은 자리다.
     */}
     {isStanding(session.stage) && <p className="robot-standing" role="status">
-      <b>로봇이 일어서는 중입니다</b> — 구동 브리지를 띄우고 있습니다. 기립에 몇 초 걸립니다.
+      <Rich id="rpn.standing" />
     </p>}
 
     <div className="robot-bar">
@@ -126,8 +130,7 @@ export function RobotPanel({ client }: { client: PhysicalClient | null }) {
       모르고 누르면 로봇이 왜 두 번 가는지 아무도 모른다. 누르기 전에 말한다.
     */}
     {session.walked !== null && <p className="robot-walked" role="alert">
-      <b>스캔 중에 로봇이 이미 앞으로 걸었습니다</b> — <code>{session.walked}</code>.
-      직진 없이(<code>forward_m 0</code>) 보냈는데도 왔습니다. 「접근 시작」을 누르면 한 번 더 갑니다.
+      <Rich id="rpn.walked" vars={{ what: session.walked }} />
     </p>}
 
     {/*
@@ -141,15 +144,15 @@ export function RobotPanel({ client }: { client: PhysicalClient | null }) {
     */}
     {session.doorTurn !== null && <p className="robot-door">
       {session.doorIndex === null
-        ? '문 방향을 아직 못 정했습니다'
-        : `${session.doorIndex + 1}번째 방향을 문으로 칩니다`}
-      <em className="robot-door-temp">임시</em>
+        ? t('rpn.9')
+        : t('rpn.doorIndex', { n: session.doorIndex + 1 })}
+      <em className="robot-door-temp">{t('rpn.10')}</em>
       <small>
         {/* 두 가지를 **갈라서** 적는다. 로봇이 바라보는 쪽과 우리가 문으로 친 쪽은 지금
             서로 무관하다 — 하나로 뭉쳐 적으면 로봇이 골랐다고 읽힌다. */}
-        문 탐지가 아직 안 붙어서 여덟 중 하나를 무작위로 정했습니다.
+        {t('rpn.doorRandom')}
         {session.doorTurn.chosenIndex !== null
-          && ` 로봇이 실제로 바라보는 쪽은 ${session.doorTurn.chosenIndex + 1}번째입니다`}
+          && t('rpn.robotFacing', { n: session.doorTurn.chosenIndex + 1 })}
         {session.doorTurn.yawDeg !== null && ` (${session.doorTurn.yawDeg}°)`}.
       </small>
     </p>}
@@ -170,7 +173,7 @@ export function RobotPanel({ client }: { client: PhysicalClient | null }) {
       지운 것은 **화면의 버튼**뿐이다.
     */}
     {client !== null && <div className="robot-sdk">
-      <span className="robot-sdk-label" title="구동 브리지(go1-sdk) — 전원을 켜면 파이가 띄웁니다">구동</span>
+      <span className="robot-sdk-label" title={t('rpn.sdkTitle')}>{t('rpn.11')}</span>
       <SdkState entityId="robot-01" />
     </div>}
 
@@ -179,7 +182,7 @@ export function RobotPanel({ client }: { client: PhysicalClient | null }) {
       <p key={c.commandId} className="robot-reject" role="alert">
         {/* 노드가 없는 명령은 **명령 이름**으로 부른다 — `no-node` 는 우리 내부의 자리
             이름이지 사람이 읽을 말이 아니다. 실제로 화면에 샜다 (260910). */}
-        {c.taskId === NO_NODE ? c.action : c.taskId} 실패 — <code>{c.code ?? '사유 없음'}</code> {c.message}
+        {t('rpn.rejected', { who: c.taskId === NO_NODE ? c.action : c.taskId })} <code>{c.code ?? t('rpn.12')}</code> {c.message}
       </p>
     ))}
   </section>;

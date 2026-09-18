@@ -21,6 +21,7 @@
  * 안 된다** — 캐시된 봉투를 현재로 그리지 않는 것과 같은 규칙이다(`CACHE_POLICY`).
  */
 
+import { t } from '../i18n/dict.ts';
 import { hardwareTarget } from './encode.ts';
 import { isStale, useDeviceStates, type DeviceState } from './deviceState.ts';
 import { useRobotSession } from './robotSession.ts';
@@ -35,7 +36,7 @@ export function HardwareLink({ entityId }: { entityId: string }) {
   if (device === null) {
     return <span className="hw-link">
       <em className="hw-dot hw-dot--unknown">
-        {session.connection.state === 'open' ? '장비 상태 미수신' : '브로커 미연결'}
+        {session.connection.state === 'open' ? t('hl.1') : t('hl.2')}
       </em>
     </span>;
   }
@@ -46,24 +47,24 @@ export function HardwareLink({ entityId }: { entityId: string }) {
   return <span className="hw-link">
     {/* 파이가 보는 생사. 끊기면 LWT 가 offline 을 넣는다. */}
     <em className={`hw-dot hw-dot--${stale ? 'unknown' : mark(device.online)}`}>
-      {device.online === true ? '온라인' : device.online === false ? '오프라인' : '생사 미상'}
+      {device.online === true ? t('hl.3') : device.online === false ? t('hl.4') : t('hl.5')}
     </em>
     {/* **로봇 자신.** ping 이 증명하지 못하던 자리다. */}
     {device.link !== null && <em
       className={`hw-dot hw-dot--${stale ? 'unknown' : mark(device.link === 'ok')}`}
-      title="로봇 ↔ 파이 내부 링크"
-    >링크 {device.link}</em>}
+      title={t('hl.linkTitle')}
+    >{t('hl.link', { link: device.link })}</em>}
     {device.health !== null && device.health !== 'ok' && <em className="hw-dot hw-dot--bad">{device.health}</em>}
     {/* 링크가 끊겨도 마지막 배터리가 계속 온다(연동 가이드 §3-3) — 멈춘 값을 살아 있는
         값으로 보이면 안 된다. `null` 은 「모른다」이지 0% 가 아니다. */}
     {device.batteryPct !== null && <em className={`hw-dot hw-dot--${held ? 'unknown' : battery(device.batteryPct)}`}>
-      배터리 {device.batteryPct}%{held ? ' (마지막 수신)' : ''}
+      {t('hl.battery', { pct: device.batteryPct })}{held ? t('hl.6') : ''}
     </em>}
     {device.mode !== null && <em className="hw-dot hw-dot--plain">{device.mode}</em>}
-    {device.simulated && <em className="hw-dot hw-dot--plain" title="목 장비입니다">모의</em>}
+    {device.simulated && <em className="hw-dot hw-dot--plain" title={t('hl.mockTitle')}>{t('hl.7')}</em>}
     {/* **낡았으면 낡았다고 말한다.** 마지막 값을 현재처럼 보이면 안 된다. */}
     {stale && <em className="hw-dot hw-dot--unknown">
-      {Math.round((Date.now() - device.lastSeenMs) / 1000)}초째 소식 없음
+      {t('hl.silentFor', { sec: Math.round((Date.now() - device.lastSeenMs) / 1000) })}
     </em>}
   </span>;
 }

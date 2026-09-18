@@ -24,6 +24,9 @@ import { join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const root = join(fileURLToPath(new URL('.', import.meta.url)), '..');
+// 260919 — 사전을 읽어 **키의 값까지** 본다 (키만 맞고 사전이 비면 화면에 키가 뜬다).
+const { ko: koDict } = await import(pathToFileURL(join(root, 'src', 'i18n', 'ko.ts')).href);
+const { en: enDict } = await import(pathToFileURL(join(root, 'src', 'i18n', 'en.ts')).href);
 const load = (...p) => import(pathToFileURL(join(root, ...p)).href);
 const read = (...p) => readFileSync(join(root, ...p), 'utf8');
 /** 주석을 걷어 낸 소스 — 「왜 이렇게 뒀는지」 적어 둔 글이 규칙에 걸리면 안 된다. */
@@ -221,9 +224,18 @@ const run = replay();
   }
   // 대신 「보고 있다」로 적는가 — 지웠는데 아무 말도 안 하면 화면이 비어 버린다.
   const panel = code(read('src', 'physical', 'RobotPanel.tsx'));
-  if (!/문으로 칩니다/.test(panel)) failures.push('어느 칸을 문으로 쳤는지 안 말한다');
-  if (!/무작위로 정했습니다/.test(panel)) failures.push('무작위로 정한 임시값이라는 사실을 화면이 안 말한다');
-  if (!/실제로 바라보는 쪽은/.test(panel)) failures.push('로봇이 바라보는 쪽을 따로 안 말한다 — 둘을 뭉치면 로봇이 골랐다고 읽힌다');
+  // 260919 — 문구가 **사전 키**로 바뀌었다 (4단계 묶음 5). 규칙은 그대로다: 셋을 갈라서
+  // 말해야 한다. 다만 이제는 화면이 그 키를 쓰는지 보고 **사전의 값까지** 본다 —
+  // 키만 맞고 사전이 비면 화면에 키가 그대로 뜨고, 영어 사전이 비면 영문에서 한국어로 남는다.
+  for (const [key, mustSay, why] of [
+    ['rpn.doorIndex', '문으로 칩니다', '어느 칸을 문으로 쳤는지 안 말한다'],
+    ['rpn.doorRandom', '무작위로 정했습니다', '무작위로 정한 임시값이라는 사실을 화면이 안 말한다'],
+    ['rpn.robotFacing', '실제로 바라보는 쪽은', '로봇이 바라보는 쪽을 따로 안 말한다 — 둘을 뭉치면 로봇이 골랐다고 읽힌다'],
+  ]) {
+    if (!panel.includes(`'${key}'`)) failures.push(why);
+    else if (!String(koDict[key] ?? '').includes(mustSay)) failures.push(`사전의 ${key} 가 「${mustSay}」를 말하지 않는다`);
+    else if (enDict[key] === undefined) failures.push(`${key} 가 영어 사전에 없다 — 영문 화면에서 한국어로 남는다`);
+  }
 }
 
 // ── 7. 안 뽑았으면 초록을 안 켠다 ───────────────────────────────────────────

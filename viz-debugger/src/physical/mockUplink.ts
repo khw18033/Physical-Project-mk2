@@ -18,6 +18,7 @@
  * 문 유무는 여기서 만들지 않는다. 로봇이 안 주는 것을 목이 주면 §6 의 경계가 흐려진다.
  */
 
+import { t } from '../i18n/dict.ts';
 import { physical } from './protocol.js';
 import type { StatusDetail } from './uplink.ts';
 
@@ -101,7 +102,7 @@ export function mockAcceptance(commandId: string, accepted: boolean, code = 'rob
     physical.PhysicalCommandEnvelope.create({
       acceptance: accepted
         ? { commandId, accepted: true }
-        : { commandId, accepted: false, rejection: { code, message: '로봇 상태를 읽을 수 없습니다' } },
+        : { commandId, accepted: false, rejection: { code, message: t('mu.1') } },
     }),
   ).finish();
 }
@@ -118,7 +119,7 @@ export function mockResult(
         commandId,
         status: physical.TerminalStatus[status],
         result,
-        ...(status === 'SUCCEEDED' ? {} : { failure: { code: 'forward_timeout', message: '전진이 시간 안에 안 끝났습니다' } }),
+        ...(status === 'SUCCEEDED' ? {} : { failure: { code: 'forward_timeout', message: t('mu.2') } }),
       },
     }),
   ).finish();

@@ -25,6 +25,7 @@
  * 두 벌 쌓인다.
  */
 
+import { t } from '../i18n/dict.ts';
 import { useSyncExternalStore } from 'react';
 import { currentMission, receiveRobotProgress } from '../data/scenario.ts';
 import { floorPlanUrls, isBundledFloorPlan, sourceOf } from '../detect/DetectClient.ts';
@@ -156,8 +157,8 @@ async function loadFloorPlan(runKey: number): Promise<void> {
         lane: bundled ? 'screen' : 'detect',
         level: tried.length > 0 ? 'warn' : 'info',
         text: bundled
-          ? '도면을 저장소 사본에서 읽었습니다 — 탐지 창구에 아직 도면이 없습니다'
-          : '탐지 창구에서 도면을 받았습니다',
+          ? t('ps.1')
+          : t('ps.2'),
         detail: [url, ...tried].join(' · '),
         tasks: [DETECT_TASKS.map],
       });
@@ -165,8 +166,8 @@ async function loadFloorPlan(runKey: number): Promise<void> {
       appendDetectLog({
         lane: 'screen',
         level: 'info',
-        text: `문의 도면 위치 (${cm.x.toFixed(1)}, ${cm.y.toFixed(1)}) cm — GT 고정값`,
-        detail: `px (${state.map.doorPx.x}, ${state.map.doorPx.y}) · 탐지 navigate_to_target_service 의 DOOR_PX`,
+        text: t('ps.doorOnPlan', { x: cm.x.toFixed(1), y: cm.y.toFixed(1) }),
+        detail: t('ps.doorPx', { x: state.map.doorPx.x, y: state.map.doorPx.y }),
         tasks: [DETECT_TASKS.map],
       });
       emit(DETECT_TASKS.map, 'done', { door_position_cm: [Number(cm.x.toFixed(1)), Number(cm.y.toFixed(1))], floor_plan: url });
@@ -177,10 +178,10 @@ async function loadFloorPlan(runKey: number): Promise<void> {
     }
   }
   if (state.runKey !== runKey) return;
-  const reason = `도면을 못 읽었습니다 — ${tried.join(' · ')}`;
+  const reason = t('ps.planUnreadable', { tried: tried.join(' · ') });
   commit({ ...state, map: { ...state.map, step: 'failed', reason } });
   appendDetectLog({ lane: 'screen', level: 'error', text: reason, detail: '', tasks: [DETECT_TASKS.map] });
-  noteIssue('prep-map', 'connection', `T-A1 ${reason} — 한 바퀴를 보류합니다`);
+  noteIssue('prep-map', 'connection', t('ps.planHold', { reason }));
 }
 
 /** **T-A2 — 로봇이 보고한 지금 방위.** 시작 무렵 한 주기 안에 온 state 만 친다. */
@@ -201,8 +202,8 @@ function checkPose(): void {
   appendDetectLog({
     lane: 'screen',
     level: 'info',
-    text: `로봇 방위(yaw) ${value.headingDeg.toFixed(1)}° · 위치 x ${value.xM.toFixed(2)} m · y ${value.yM.toFixed(2)} m`,
-    detail: `로봇 state ${value.stateTimestamp ?? '시각 없음'} · 오도메트리 기준(도면 좌표 아님)`,
+    text: t('ps.poseValue', { deg: value.headingDeg.toFixed(1), x: value.xM.toFixed(2), y: value.yM.toFixed(2) }),
+    detail: t('ps.poseDetail', { at: value.stateTimestamp ?? t('ps.noClock') }),
     tasks: [DETECT_TASKS.pose],
   });
   emit(DETECT_TASKS.pose, 'done', {
@@ -237,14 +238,14 @@ function checkSession(): void {
   emit(DETECT_TASKS.pose, 'running');
   appendDetectLog({
     lane: 'screen', level: 'info',
-    text: '준비 시작 — 도면을 받고 로봇의 지금 방위를 받습니다. 둘 다 끝나야 한 바퀴를 돕니다',
+    text: t('ps.3'),
     detail: '', tasks: [DETECT_TASKS.map, DETECT_TASKS.pose],
   });
   void loadFloorPlan(runKey);
   checkPose();
   const timer = setTimeout(() => {
     if (state.runKey !== runKey || state.pose.step === 'done') return;
-    const reason = `로봇 state 가 ${POSE_WAIT_WARN_MS / 1000}초째 안 옵니다 — 방위 없이 돌지 않습니다`;
+    const reason = t('ps.poseStale', { sec: POSE_WAIT_WARN_MS / 1000 });
     commit({ ...state, pose: { ...state.pose, reason } });
     appendDetectLog({ lane: 'screen', level: 'warn', text: reason, detail: '', tasks: [DETECT_TASKS.pose] });
     noteIssue('prep-pose', 'robot', `T-A2 ${reason}`);

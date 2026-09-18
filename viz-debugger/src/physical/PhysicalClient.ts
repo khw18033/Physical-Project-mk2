@@ -21,6 +21,7 @@
  * 종류는 봉투의 `oneof body` 가 구분한다.
  */
 
+import { t } from '../i18n/dict.ts';
 import { connectionAddress, registerConnectionDefault } from '../shared/connections.ts';
 import { encodeCommand, hardwareTarget, nextCommandId, type CommandInput, type PhysicalAction } from './encode.ts';
 import { physical } from './protocol.js';
@@ -96,7 +97,7 @@ export function resolveConnect(mod: unknown): (url: string, opts: Record<string,
   const namespace = mod as { connect?: unknown; default?: { connect?: unknown } };
   const found = typeof namespace.connect === 'function' ? namespace.connect : namespace.default?.connect;
   if (typeof found !== 'function') {
-    throw new Error('mqtt 모듈에서 connect 를 못 찾았습니다 — 빌드 모양이 바뀌었습니다');
+    throw new Error(t('pc.noConnect'));
   }
   return found as (url: string, opts: Record<string, unknown>) => unknown;
 }
@@ -201,7 +202,7 @@ export class PhysicalClient {
         if (settle !== null) { settle(status); settle = null; }
       };
       const timer = setTimeout(
-        () => finish({ state: 'closed', reason: `${timeoutMs}ms 안에 응답이 없습니다` }),
+        () => finish({ state: 'closed', reason: t('pc.noAnswer', { ms: timeoutMs }) }),
         timeoutMs,
       );
 
@@ -249,7 +250,7 @@ export class PhysicalClient {
       // close 는 붙은 뒤에도 온다 — 그때는 결론이 아니라 상태 갱신이다.
       client.on('close', (() => {
         clearTimeout(timer);
-        finish({ state: 'closed', reason: '연결이 닫혔습니다' });
+        finish({ state: 'closed', reason: t('pc.1') });
       }) as () => void);
 
       return await settled;
@@ -274,7 +275,7 @@ export class PhysicalClient {
   send(action: PhysicalAction, parameters?: Record<string, number>): { sent: boolean; commandId: string; reason?: string } {
     const commandId = nextCommandId();
     if (this.status.state !== 'open') {
-      return { sent: false, commandId, reason: '브로커에 붙어 있지 않습니다 — ' + this.status.state };
+      return { sent: false, commandId, reason: t('pc.notConnected') + this.status.state };
     }
     const input: CommandInput = { commandId, action, parameters, target: this.target };
     const client = this.client as { publish?: (t: string, p: Uint8Array, o: unknown) => void } | null;

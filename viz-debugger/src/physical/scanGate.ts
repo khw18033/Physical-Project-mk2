@@ -38,6 +38,7 @@
  * 방위 기록(`seenYaw` · `litIndices`)은 여기와 무관하게 로봇이 보고한 즉시 남는다 — 늦추는 것은 **그리기**뿐이다.
  */
 
+import { t } from '../i18n/dict.ts';
 import { advanceRobotHead, currentMission } from '../data/scenario.ts';
 import { detectBaseUrl, frameImageUrl, roundedImageUrl, viewSourceOf } from '../detect/DetectClient.ts';
 import { angleTask, appendDetectLog, DETECT_TASKS } from '../detect/detectLog.ts';
@@ -225,9 +226,9 @@ function pump(atSec?: number): number {
       appendDetectLog({
         lane: 'screen', level: 'warn',
         text: hasResult(last)
-          ? `${last}번 각도의 탐지 영상이 ${RESULT_WAIT_MS / 1000}초째 안 떠서 ${next}번 각도로 넘어갑니다`
-          : `${last}번 각도의 탐지 결과가 ${RESULT_WAIT_MS / 1000}초째 없어 ${next}번 각도로 넘어갑니다`,
-        detail: '각도 칸은 앞 칸의 탐지 결과가 온 뒤에 넘어갑니다 — 탐지 PC 콘솔의 mqtt_stream_receiver.py 출력을 볼 것',
+          ? t('sg.noFrame', { last, sec: RESULT_WAIT_MS / 1000, next })
+          : t('sg.noResult', { last, sec: RESULT_WAIT_MS / 1000, next }),
+        detail: t('sg.1'),
         tasks: [DETECT_TASKS.sweep, angleTask(last), angleTask(next)],
       });
     }
@@ -299,7 +300,7 @@ export function noteScanImageFailed(url: string): void {
   if (failedUrls.has(url)) return;
   failedUrls.add(url);
   appendDetectLog({
-    lane: 'screen', level: 'warn', text: '탐지 영상을 못 불러와 기다리지 않고 다음 각도로 넘어갑니다',
+    lane: 'screen', level: 'warn', text: t('sg.2'),
     detail: url, tasks: [DETECT_TASKS.sweep],
   });
   if (pending.size > 0) pump();

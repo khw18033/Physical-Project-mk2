@@ -8,6 +8,7 @@
  * 화면을 열자마자 브로커를 찾아 나서면, 브로커가 없는 개발 자리에서 매번 실패 로그가 쌓인다.
  */
 
+import { t } from '../i18n/dict.ts';
 import { PhysicalClient } from './PhysicalClient.ts';
 import { issuePing, issueScan, shouldIssueScan } from './robotCommands.ts';
 import { robotSession, setConnection, subscribeRobot } from './robotSession.ts';
@@ -46,8 +47,8 @@ function noteConnection(status: PhysicalStatus): void {
    */
   if (status.state === 'connecting' || status.state === 'idle') return;
   const words = status.state === 'open'
-    ? '브로커에 붙었습니다'
-    : `브로커가 끊겼습니다 — ${status.reason || '사유 없음'}`;
+    ? t('rc.1')
+    : t('rc.brokerLost', { reason: status.reason || t('rc.noReason') });
   noteIssue('robot-broker', 'connection', words);
 }
 

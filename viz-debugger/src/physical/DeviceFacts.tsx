@@ -12,6 +12,7 @@
  * 배터리의 `null` 은 **모른다**는 뜻이고 `0%` 로 그리면 안 된다 — 방전 직전과 구별되지 않는다.
  */
 
+import { t } from '../i18n/dict.ts';
 import { hardwareTarget } from './encode.ts';
 import { isStale, useDeviceStates } from './deviceState.ts';
 
@@ -20,31 +21,31 @@ export function DeviceFacts({ entityId }: { entityId: string }) {
   const device = devices[hardwareTarget(entityId)] ?? null;
 
   if (device === null) {
-    return <p className="device-facts device-facts--none">아직 이 장비의 상태가 오지 않았습니다.</p>;
+    return <p className="device-facts device-facts--none">{t('df.1')}</p>;
   }
   const stale = isStale(device);
   // 링크가 성하지 않거나 값이 낡았으면 **마지막 수신**이다 — 현재가 아니다.
   const held = stale || (device.link !== null && device.link !== 'ok');
   const rows: Array<[string, string]> = [];
 
-  if (device.online !== null) rows.push(['연결', device.online ? '온라인' : '오프라인']);
-  if (device.link !== null) rows.push(['로봇 링크', device.link]);
-  if (device.health !== null) rows.push(['상태', device.health]);
-  if (device.mode !== null) rows.push(['모드', device.mode]);
+  if (device.online !== null) rows.push([t('df.2'), device.online ? t('df.3') : t('df.4')]);
+  if (device.link !== null) rows.push([t('df.5'), device.link]);
+  if (device.health !== null) rows.push([t('df.6'), device.health]);
+  if (device.mode !== null) rows.push([t('df.7'), device.mode]);
   // **null 은 「모른다」다** — 회색으로 두고 꺼짐으로 그리지 않는다 (연동 가이드 §4-3).
-  rows.push(['구동 브리지', sdkWords(device.sdkReady, device.sdkAutostart)]);
-  if (device.inMission !== null) rows.push(['임무 중', device.inMission ? '예' : '아니오']);
+  rows.push([t('df.8'), sdkWords(device.sdkReady, device.sdkAutostart)]);
+  if (device.inMission !== null) rows.push([t('df.9'), device.inMission ? t('df.10') : t('df.11')]);
   // null 은 「모른다」다 — 0% 로 그리지 않는다.
   if (device.batteryPct !== null) {
-    rows.push(['배터리', held ? `${device.batteryPct}% (마지막 수신)` : `${device.batteryPct}%`]);
+    rows.push([t('df.battery'), held ? t('df.lastSeenValue', { value: `${device.batteryPct}%` }) : `${device.batteryPct}%`]);
   }
   if (device.position !== null) {
-    rows.push(['위치', `x ${device.position.x.toFixed(2)} · y ${device.position.y.toFixed(2)} · ${device.position.headingDeg}°${held ? ' (마지막 수신)' : ''}`]);
+    rows.push([t('df.position'), t('df.positionValue', { x: device.position.x.toFixed(2), y: device.position.y.toFixed(2), deg: device.position.headingDeg }) + (held ? t('df.heldSuffix') : '')]);
   }
-  if (device.speedMps !== null) rows.push(['속도', `${device.speedMps} m/s`]);
-  if (device.firmware !== null) rows.push(['펌웨어', device.firmware]);
-  if (device.simulated) rows.push(['종류', '모의 장비']);
-  rows.push(['마지막 수신', `${Math.round((Date.now() - device.lastSeenMs) / 1000)}초 전${device.timestamp === null ? '' : ` · ${device.timestamp}`}`]);
+  if (device.speedMps !== null) rows.push([t('df.speed'), `${device.speedMps} m/s`]);
+  if (device.firmware !== null) rows.push([t('df.12'), device.firmware]);
+  if (device.simulated) rows.push([t('df.13'), t('df.14')]);
+  rows.push([t('df.lastSeen'), t('df.secondsAgo', { sec: Math.round((Date.now() - device.lastSeenMs) / 1000) }) + (device.timestamp === null ? '' : ` · ${device.timestamp}`)]);
 
   return <dl className="device-facts">
     {rows.map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}
@@ -58,9 +59,9 @@ export function DeviceFacts({ entityId }: { entityId: string }) {
  * 「모름」이고, 그것이 사실이다 — 「내려감」이라고 적으면 거짓을 그리는 것이다.
  */
 export function sdkWords(ready: boolean | null, autostart: boolean | null): string {
-  const state = ready === null ? '모름 (상태를 안 보내옵니다)' : ready ? '서 있음' : '내려감';
+  const state = ready === null ? t('df.15') : ready ? t('df.16') : t('df.17');
   if (autostart === null) return state;
-  return `${state} · 자동 기동 ${autostart ? '켜짐' : '꺼짐'}`;
+  return t('df.sdkWithAutostart', { state, on: t(autostart ? 'df.on' : 'df.off') });
 }
 
 /**
@@ -73,6 +74,6 @@ export function SdkState({ entityId }: { entityId: string }) {
   const ready = device?.sdkReady ?? null;
   return <em
     className={`robot-sdk-dot robot-sdk-dot--${ready === null ? 'unknown' : ready ? 'ok' : 'down'}`}
-    title="구동 브리지(go1-sdk). 평시에는 내려가 있습니다 — 기동하면 로봇이 일어섭니다"
+    title={t('df.sdkTitle')}
   >{sdkWords(ready, device?.sdkAutostart ?? null)}</em>;
 }

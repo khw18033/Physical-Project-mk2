@@ -82,6 +82,8 @@ export function pathCommands(
   turnInstruction: string, turnDegAbs: number, forwardM: number,
 ): TaskCommand[] {
   const out: TaskCommand[] = [];
+  // **이 한글은 옮기지 않는다** (260919 · 4단계). 화면에 뜨는 글자가 아니라 **탐지 서비스가
+  // 보낸 한국어를 읽는 자리**다. 영어로 바꾸면 「왼쪽으로 78.7도」를 못 읽어 회전 방향이 뒤집힌다.
   const left = /왼쪽|반시계|counter/i.test(turnInstruction);
   const deg = left ? -Math.abs(turnDegAbs) : Math.abs(turnDegAbs);
   // 5도 미만은 규약이 안 받는다(§4-2 — `deg` 5~360). 그만한 각도는 안 도는 것이 맞다.

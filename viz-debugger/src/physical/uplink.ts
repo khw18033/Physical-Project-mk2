@@ -19,6 +19,7 @@
  * 대본에서 왔는지는 `src/viewpoint/fill.ts` 가 모른다 (260909 §6 과 같은 규칙).
  */
 
+import { t } from '../i18n/dict.ts';
 import { physical } from './protocol.js';
 
 /** `CommandStatus.detail` 안의 JSON. 하드웨어가 보내는 그대로다. */
@@ -320,9 +321,9 @@ function closestIndex(seen: ReadonlyMap<number, number>, yawDeg: number): number
  */
 export function uplinkWords(message: UplinkMessage): string {
   if (message.kind === 'acceptance') {
-    if (message.accepted) return '수락';
+    if (message.accepted) return t('up.1');
     // 거절 사유를 버리지 않는다 — 이것이 실패 사유 자리에 그대로 올라간다.
-    return `거절 — ${[message.code, message.message].filter((v) => v !== null && v !== '').join(' ') || '사유 없음'}`;
+    return t('up.rejected', { why: [message.code, message.message].filter((v) => v !== null && v !== '').join(' ') || t('up.noReason') });
   }
   if (message.kind === 'result') {
     const values = Object.entries(message.result).map(([key, value]) => `${key}=${value}`).join(' ');
@@ -337,12 +338,12 @@ export function uplinkWords(message: UplinkMessage): string {
   if (detail.event === 'scan_hold' || detail.event === 'scan_release') {
     const rotation = holdRotationOf(detail);
     return [
-      detail.event === 'scan_hold' ? '촬영 뒤 대기' : '대기 풀림',
+      detail.event === 'scan_hold' ? t('up.2') : t('up.3'),
       detail.event,
-      rotation === null ? `촬영 ${detail.step}` : `${rotation}°`,
-      detail.event === 'scan_hold' && detail.timeout_s != null ? `최대 ${detail.timeout_s}초` : '',
+      rotation === null ? t('up.shot', { step: detail.step }) : `${rotation}°`,
+      detail.event === 'scan_hold' && detail.timeout_s != null ? t('up.atMost', { sec: detail.timeout_s }) : '',
       detail.by != null ? `by ${detail.by}` : '',
-      detail.waited_s != null ? `${detail.waited_s}초 기다림` : '',
+      detail.waited_s != null ? t('up.waited', { sec: detail.waited_s }) : '',
       detail.note !== 'ok' && detail.note !== '' ? detail.note : '',
     ].filter((part) => part !== '').join(' · ');
   }

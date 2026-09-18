@@ -21,6 +21,16 @@
  * 「이동(n회차) 끝 → 재탐색 → 이동(n+1회차)」이다. 대본의 2회차와 같은 모양(`derived`)이다.
  */
 
+import { t } from '../i18n/dict.ts';
+
+/**
+ * 사람에게 「어디를 보라」고 말할 때 쓰는 **중계 토픽 이름**.
+ *
+ * 260919 — 이 낱말을 사전에 넣었다가 `verify:nav-feed` 에 걸렸다. **중계 토픽을 아는 면은
+ * `src/physical/` 하나**여야 하고(그 검사가 지키는 선이다), 사전은 그 밖이다. 그래서
+ * 사전에는 `{topic}` 자리만 두고 값은 여기서 넘긴다.
+ */
+const RELAY_TOPIC_WORD = 'nav_state';
 import { currentMission, receiveRobotProgress } from '../data/scenario.ts';
 import type { ScenarioEvent, TaskStatus } from '../model/types.ts';
 import { isReplayingRecord } from '../record/replayMode.ts';
@@ -151,8 +161,8 @@ function openRun(run: NavRun): void {
     warnTimer = null;
     const now = navRun();
     if (now === null || progress === null || now.serial !== progress.serial) return;
-    if (progress.battery === 'waiting') noteIssue('nav-battery', 'robot', `${NAV_TASKS.battery} pi1 배터리 값이 ${NAV_WAIT_WARN_MS / 1000}초째 안 옵니다 — 중계(nav_state)를 보세요`);
-    else if (progress.yaw === 'waiting') noteIssue('nav-yaw', 'robot', `${NAV_TASKS.yaw} pi1 방위(yaw)가 ${NAV_WAIT_WARN_MS / 1000}초째 안 옵니다 — 중계(nav_state)를 보세요`);
+    if (progress.battery === 'waiting') noteIssue('nav-battery', 'robot', t('nl.batteryStale', { task: NAV_TASKS.battery, sec: NAV_WAIT_WARN_MS / 1000, topic: RELAY_TOPIC_WORD }));
+    else if (progress.yaw === 'waiting') noteIssue('nav-yaw', 'robot', t('nl.yawStale', { task: NAV_TASKS.yaw, sec: NAV_WAIT_WARN_MS / 1000, topic: RELAY_TOPIC_WORD }));
   }, NAV_WAIT_WARN_MS);
   (warnTimer as { unref?: () => void }).unref?.();
   checkTelemetry();
@@ -183,11 +193,11 @@ function checkTelemetry(nowMs = Date.now()): void {
         progress.battery = 'done';
       } else {
         emit(run, NAV_TASKS.battery, 'failed', 'failed', {
-          code: 'battery_too_low', message: `배터리 ${telemetry.batteryPct}% — 기준 ${min}% 미만`,
+          code: 'battery_too_low', message: t('nl.batteryLow', { pct: telemetry.batteryPct, min }),
           battery_pct: telemetry.batteryPct, min_battery_pct: min, ...who,
         }, {}, nowMs);
         progress.battery = 'failed';
-        noteIssue('nav-battery', 'robot', `${NAV_TASKS.battery} 배터리 ${telemetry.batteryPct}% — 기준 ${min}% 미만입니다`);
+        noteIssue('nav-battery', 'robot', t('nl.batteryLowNote', { task: NAV_TASKS.battery, pct: telemetry.batteryPct, min }));
       }
     }
     // 배터리가 기준 미만이어도 방위는 본다 — 사실을 적는 것이지 임무를 막는 자리가 아니다.
@@ -206,7 +216,7 @@ function checkTelemetry(nowMs = Date.now()): void {
   // 위치 확인이 끝나면 경로를 기다린다 — 경로를 계산하는 것은 유니티이고, pi1 이 받는 순간 끝난다.
   if (progress.yaw === 'done' && progress.plan === 'idle' && !progress.ended) {
     progress.plan = 'waiting';
-    emit(run, DERIVED_TASKS.plan, 'running', 'started', { reason: '유니티가 보낼 경로를 기다립니다' }, {}, nowMs);
+    emit(run, DERIVED_TASKS.plan, 'running', 'started', { reason: t('nl.1') }, {}, nowMs);
   }
 }
 
@@ -283,7 +293,7 @@ function applyEvent(event: NavEvent): void {
       // 취소 없이 새 경로가 오면 브리지는 그대로 갈아탄다 — 그것도 재탐색 한 번이다.
       if (p.moveActive) {
         endMove('done', 'evaluated', { ended_by: 'new_path' });
-        startReplan('취소 없이 새 경로 수신');
+        startReplan(t('nl.2'));
       }
       if (p.replanActive) {
         emit(run, NAV_TASKS.replan, 'done', 'evaluated', {
@@ -301,7 +311,7 @@ function applyEvent(event: NavEvent): void {
     }
     case 'path_cancel':
       endMove('done', 'evaluated', { ended_by: 'path_cancel' });
-      if (!p.replanActive) startReplan('PATH_CANCEL — 유니티가 경로를 바꿨습니다');
+      if (!p.replanActive) startReplan(t('nl.3'));
       return;
     case 'cancel_ack':
       if (!p.replanActive) return;
@@ -320,8 +330,8 @@ function applyEvent(event: NavEvent): void {
       // 같은 ms 에 텔레옵 estop=1 을 한 번 보낸다. 이것을 실패로 칠하면 재탐색마다 이동이 빨개지고 알림에
       // 「비상 정지」가 뜬다. 이동을 끝내는 것은 짝인 `path_cancel` 이 한다.
       if (isCancelStop(event)) return;
-      if (p.moveActive) noteIssue('nav-estop', 'robot', `${NAV_TASKS.move} 비상 정지 — 경로가 폐기됐습니다`);
-      endMove('failed', 'failed', { code: 'estop', message: event.note ?? '비상 정지 — 경로 폐기' });
+      if (p.moveActive) noteIssue('nav-estop', 'robot', t('nl.estop', { task: NAV_TASKS.move }));
+      endMove('failed', 'failed', { code: 'estop', message: event.note ?? t('nl.4') });
       return;
     case 'feed_started':
       return;
@@ -335,7 +345,7 @@ function applyEvent(event: NavEvent): void {
  * 목적지 좌표가 없어 판정하지 않는다 — 대본의 평가 기준도 그렇게 적었다.
  */
 function arrive(run: NavRun, p: Progress, facts: Record<string, unknown>, at: number): void {
-  const criterion = '재탐색이 걸리지 않은 채 브리지가 경로 끝(mode 99)을 알린다';
+  const criterion = t('nl.5');
   emit(run, DERIVED_TASKS.arrive, 'running', 'started', {}, {}, at);
   emit(run, DERIVED_TASKS.arrive, 'awaiting_evaluation', 'evaluated', { criterion }, {}, at);
   emit(run, DERIVED_TASKS.arrive, 'done', 'evaluated', {
@@ -343,11 +353,11 @@ function arrive(run: NavRun, p: Progress, facts: Record<string, unknown>, at: nu
   }, {}, at);
   // 재탐색이 한 번도 없었다 — 0회로 끝낸다. 안 끝내면 마일스톤이 영원히 진행 중이다.
   if (p.replanAttempt === 0) {
-    emit(run, NAV_TASKS.replan, 'done', 'evaluated', { replans: 0, reason: '경로를 바꾸지 않고 도착했습니다' }, {}, at);
+    emit(run, NAV_TASKS.replan, 'done', 'evaluated', { replans: 0, reason: t('nl.6') }, {}, at);
   }
   // 장애물 탐지는 도착과 함께 끝난다. **한 번도 안 돌았으면 끝내지 않는다** — 탐지를 안 한 것을 했다고 적지 않는다.
   if (p.obstacle === 'running') {
-    emit(run, DERIVED_TASKS.obstacle, 'done', 'evaluated', { has_near_obstacle: p.lastNear, reason: '목적지 도착' }, {}, at);
+    emit(run, DERIVED_TASKS.obstacle, 'done', 'evaluated', { has_near_obstacle: p.lastNear, reason: t('nl.7') }, {}, at);
     p.obstacle = 'done';
   }
   emit(run, DERIVED_TASKS.end, 'running', 'started', {}, {}, at);

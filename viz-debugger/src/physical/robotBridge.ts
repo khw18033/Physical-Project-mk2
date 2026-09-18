@@ -8,6 +8,7 @@
  * 프레임이 로봇에서 왔는지 대본에서 왔는지 모른다 — 260909 §6 의 규칙 그대로다.
  */
 
+import { t } from '../i18n/dict.ts';
 import { useEffect } from 'react';
 import { appendViewpoint } from '../viewpoint/store.ts';
 import { hasResults } from '../detect/detectBridge.ts';
@@ -124,7 +125,7 @@ export function receiveUplink(
             confidence: chosen ? 1 : 0,
             // **탐지 결과가 아니다.** 로봇이 지금 이쪽을 보고 있다는 사실뿐이다.
             // **탐지 결과가 아니다.** 탐지가 붙기 전까지 임시로 뽑은 방향이다.
-            reason: chosen ? '임시 판정 — 문 탐지가 아직 안 붙었습니다' : '',
+            reason: chosen ? t('rb.1') : '',
           } as never,
         },
         warning: null,
@@ -159,9 +160,9 @@ export function receiveUplink(
   for (const effect of effects) {
     if (effect.kind !== 'task-failed') continue;
     const action = robotSession().commands[effect.commandId]?.action ?? null;
-    const who = effect.taskId === NO_NODE ? (action ?? '이름 없는 명령') : `${effect.taskId}${action === null ? '' : ` · ${action}`}`;
+    const who = effect.taskId === NO_NODE ? (action ?? t('rb.unnamed')) : `${effect.taskId}${action === null ? '' : ` · ${action}`}`;
     const why = [effect.code, effect.message].filter((v) => v !== null && v !== '').join(' ');
-    noteIssue(`task:${effect.taskId}`, 'robot', `${who} 실패 — ${why || '사유 없음'}`);
+    noteIssue(`task:${effect.taskId}`, 'robot', t('rb.failed', { who, why: why || t('rb.noReason') }));
   }
   return appended;
 }

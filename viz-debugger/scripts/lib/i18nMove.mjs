@@ -125,8 +125,32 @@ export function easyMoves(src, prefix) {
    * 호출하려 든다.** 타입 검사가 잡아 주기는 했지만, 기계가 그런 파일을 건드리면 안 된다 —
    * 이름을 바꿀지 `t` 를 다른 이름으로 들여올지는 사람이 정할 일이다.
    */
-  if (/(?:const|let|var|function)\s+t\b|\(\s*t\s*[,:)]|,\s*t\s*[,:)]/.test(blankComments(src))) {
-    return { moves: [], hard: raw.map((line, i) => ({ line: i + 1, text: line.trim() })).filter((r) => /[가-힣]/.test(r.text)), phrases: [], blocked: "이 파일은 `t` 라는 이름을 이미 쓴다 — 기계가 안 건드린다" };
+  /**
+   * **타입 표기는 이름을 가리지 않는다** (260919 수습).
+   *
+   * 처음에는 `\(\s*t\s*[,:)]` 까지 잡았는데, 그러면 이런 줄이 걸린다.
+   *
+   * ```ts
+   *   this.client as { publish?: (t: string, p: Uint8Array, o: unknown) => void }
+   * //                            ^^^^^^^^^ 타입 안의 매개변수 이름이다. 값이 아니다
+   * ```
+   *
+   * `PhysicalClient.ts` 가 이것 하나로 통째로 사람 몫이 됐다 — 실제 표시 한글은 **넷**인데
+   * 77줄로 보고했다. 진짜 가리는 것은 **값을 묶는 자리**뿐이다: `const/let/var t =` 와
+   * 화살표·함수의 `(t)` · `(t,`.
+   */
+  const code = blankComments(src);
+  if (/\b(?:const|let|var)\s+t\s*=|\bfunction\s+t\b|\(\s*t\s*\)\s*=>|\(\s*t\s*,/.test(code)) {
+    // **주석은 빼고 센다.** 안 그러면 이 저장소의 긴 한글 주석이 전부 「사람 몫」으로 뜬다.
+    const lines = code.split('\n');
+    return {
+      moves: [],
+      hard: raw
+        .map((line, i) => ({ line: i + 1, text: line.trim() }))
+        .filter((r) => /[가-힣]/.test(lines[r.line - 1] ?? '')),
+      phrases: [],
+      blocked: '이 파일은 `t` 라는 이름을 이미 쓴다 — 기계가 안 건드린다',
+    };
   }
 
   /** 같은 글은 같은 키를 쓴다 — 한 파일 안에서 같은 말이 두 키가 되면 사전이 부푼다. */
@@ -209,6 +233,9 @@ export function easyMoves(src, prefix) {
     }
 
     // ── 어려운 자리 — 사람이 봐야 한다 ────────────────────────────────────
+    //
+    // `line` 은 **주석을 지운** 줄이다. 원문(`raw`)으로 보면 이 저장소의 긴 한글 주석이
+    // 전부 사람 몫으로 뜬다 — 그건 옮길 대상이 아니다.
     if (/[가-힣]/.test(line) && !moves.some((mv) => mv.line === idx + 1 && line.includes(mv.from))) {
       hard.push({ line: idx + 1, text: raw[idx].trim() });
     } else if (/[가-힣]/.test(line)) {

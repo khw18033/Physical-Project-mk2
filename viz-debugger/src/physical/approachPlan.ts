@@ -24,6 +24,7 @@
  * 그 두 배다(연동 가이드 §4-2). **회전 속도는 규약에 파라미터가 없다** — pi7 쪽 설정이다.
  */
 
+import { t } from '../i18n/dict.ts';
 import { detectState } from '../detect/store.ts';
 import type { TaskCommand } from './missionLink.ts';
 import { APPROACH_VX, STOP_ACTION as ARRIVAL_STOP, STOP_REASON as STOP_WHY, TEST_FORWARD_M } from './presets.ts';
@@ -45,6 +46,8 @@ export function wrapDeg(deg: number): number {
  * 에서 방향과 각을 읽는다 — 오른쪽 +. 못 읽으면 null.
  */
 export function turnFromInstruction(instruction: string | undefined): number | null {
+  // **이 한글은 옮기지 않는다** (260919 · 4단계). 화면에 뜨는 글자가 아니라 **탐지 서비스가
+  // 보낸 한국어를 읽는 자리**다. 영어로 바꾸면 「왼쪽으로 78.7도」를 못 읽어 회전 방향이 뒤집힌다.
   const matched = /([\d.]+)\s*도/.exec(instruction ?? '');
   if (matched === null) return null;
   const deg = Number(matched[1]);
@@ -73,41 +76,40 @@ export type ApproachPlan =
 /** 지금 누르면 나갈 계획. 경로가 없거나 명령이 범위 밖이면 사유를 돌려준다 — **대신할 거리를 지어내지 않는다.** */
 export function planApproach(): ApproachPlan {
   const detect = detectState();
-  if (detect.pathFailure !== null) return { ok: false, reason: `경로 산출 실패 — ${detect.pathFailure}` };
+  if (detect.pathFailure !== null) return { ok: false, reason: t('ap.pathFailed', { reason: detect.pathFailure }) };
   const path = detect.path;
-  if (path === null) return { ok: false, reason: '경로가 아직 없습니다 — 「2D 맵 기반 경로 산출」이 끝나야 이동합니다' };
+  if (path === null) return { ok: false, reason: t('ap.1') };
   const command = path.robot_command;
   const detectionTurnDeg = command?.turn.deg ?? path.turn_deg ?? turnFromInstruction(path.turn_instruction);
   const plannedForwardM = command?.move_forward.distance_m ?? path.forward_distance_m ?? path.forward_distance_cm / 100;
-  if (detectionTurnDeg === null || !Number.isFinite(detectionTurnDeg)) return { ok: false, reason: '경로에 회전각이 없습니다' };
-  if (!Number.isFinite(plannedForwardM)) return { ok: false, reason: '경로에 직진 거리가 없습니다' };
+  if (detectionTurnDeg === null || !Number.isFinite(detectionTurnDeg)) return { ok: false, reason: t('ap.2') };
+  if (!Number.isFinite(plannedForwardM)) return { ok: false, reason: t('ap.3') };
   if (command !== undefined && !command.distance_m_in_range) {
-    return { ok: false, reason: command.warning ?? `직진 ${plannedForwardM.toFixed(2)}m 가 로봇이 받는 범위 밖입니다` };
+    return { ok: false, reason: command.warning ?? t('ap.forwardOutOfRange', { m: plannedForwardM.toFixed(2) }) };
   }
 
   const notes: string[] = [];
   const doorTurn = robotSession().doorTurn;
   if (doorTurn !== null) {
-    notes.push(`로봇이 door_turn 을 보냈습니다${doorTurn.yawDeg === null ? '' : ` (yaw ${doorTurn.yawDeg}°)`} — pi7 이 아직 스캔 뒤 한 칸 되돌아 섭니다. `
-      + '보정하지 않으므로 그만큼 어긋난 방향으로 돕니다');
+    notes.push(t('ap.doorTurnNote', { yaw: doorTurn.yawDeg === null ? '' : ` (yaw ${doorTurn.yawDeg}°)` }));
   }
 
   // 범위 안이면 그대로 — 감는 계산이 -78.7 을 -78.69999… 로 바꾼다.
   const turnDeg = detectionTurnDeg > 180 || detectionTurnDeg <= -180 ? wrapDeg(detectionTurnDeg) : detectionTurnDeg;
   // 「테스트」가 켜져 있으면 직진에 상한을 건다 — 실험실에서 6m 를 걸을 자리가 없다(presets.ts).
   const issuedForwardM = detect.testMode ? Math.min(plannedForwardM, TEST_FORWARD_M) : plannedForwardM;
-  if (issuedForwardM > FORWARD_MAX_M) return { ok: false, reason: `직진 ${issuedForwardM.toFixed(2)}m 가 ${FORWARD_MAX_M}m 를 넘습니다` };
+  if (issuedForwardM > FORWARD_MAX_M) return { ok: false, reason: t('ap.forwardTooFar', { m: issuedForwardM.toFixed(2), max: FORWARD_MAX_M }) };
 
   const steps: TaskCommand[] = [];
   if (Math.abs(turnDeg) >= TURN_MIN_DEG) {
     steps.push({ taskId: 'T-B2', action: 'turn', parameters: { deg: Number(turnDeg.toFixed(1)) } });
   } else {
-    notes.push(`회전 ${turnDeg.toFixed(1)}° 가 ${TURN_MIN_DEG}° 미만이라 돌지 않습니다 — 이미 문 쪽을 보고 있습니다`);
+    notes.push(t('ap.turnTooSmall', { deg: turnDeg.toFixed(1), min: TURN_MIN_DEG }));
   }
   if (issuedForwardM >= FORWARD_MIN_M) {
     steps.push({ taskId: 'T-B2', action: 'move_forward', parameters: { distance_m: Number(issuedForwardM.toFixed(3)), vx: APPROACH_VX } });
   }
-  if (steps.length === 0) return { ok: false, reason: '낼 명령이 없습니다 — 회전도 직진도 규약 최소값 미만입니다' };
+  if (steps.length === 0) return { ok: false, reason: t('ap.4') };
   // 도착 정지 — `T-B3`「문과 가까워지면 정지」는 순서도의 걸음이다. 화면을 잠그는 비상 정지가 아니다.
   steps.push({ taskId: 'T-B3', action: ARRIVAL_STOP, parameters: { reason: STOP_WHY.screen } });
 

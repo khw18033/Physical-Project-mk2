@@ -17,6 +17,7 @@
  *   페이로드 JSON — 뜯는 것은 `navFeed.ts`
  */
 
+import { t } from '../i18n/dict.ts';
 import type { NavProbe } from '../shared/connectionCheck.ts';
 import { connectionAddress, registerConnectionDefault } from '../shared/connections.ts';
 import { navFeedState, receiveNavMessage } from './navFeed.ts';
@@ -77,7 +78,7 @@ export class NavClient {
       this.disconnect();
     }
     if (url === '') {
-      this.setStatus({ state: 'closed', reason: '주소가 비어 있습니다 — 연결 관리에 pi1 브로커 주소를 넣으세요' });
+      this.setStatus({ state: 'closed', reason: t('nc.1') });
       return this.status;
     }
     this.setStatus({ state: 'connecting' });
@@ -94,7 +95,7 @@ export class NavClient {
         this.setStatus(status);
         if (settle !== null) { settle(status); settle = null; }
       };
-      const timer = setTimeout(() => finish({ state: 'closed', reason: `${timeoutMs}ms 안에 응답이 없습니다` }), timeoutMs);
+      const timer = setTimeout(() => finish({ state: 'closed', reason: t('nc.noAnswer', { ms: timeoutMs }) }), timeoutMs);
       client.on('connect', (() => {
         let pending = NAV_TOPICS.length;
         for (const { topic, qos } of NAV_TOPICS) {
@@ -117,7 +118,7 @@ export class NavClient {
       }) as never);
       client.on('close', (() => {
         clearTimeout(timer);
-        finish({ state: 'closed', reason: '연결이 닫혔습니다' });
+        finish({ state: 'closed', reason: t('nc.2') });
       }) as () => void);
       return await settled;
     } catch (error) {

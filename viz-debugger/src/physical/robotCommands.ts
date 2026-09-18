@@ -255,23 +255,25 @@ export async function issueApproach(
 function logApproachPlan(plan: Extract<ApproachPlan, { ok: true }>): void {
   appendDetectLog({
     lane: 'screen', level: plan.notes.length > 0 ? 'warn' : 'info',
-    text: `이동 명령 계산 — 탐지 회전 ${signedTurn(plan.detectionTurnDeg)}(스캔 시작 기준 · 로봇이 출발 방향에 서 있으므로 그대로)`
-      + ` → 보낼 명령 ${plan.steps.map(stepWords).join(' · ')}`,
+    text: t('rcm.planLine', {
+      turn: signedTurn(plan.detectionTurnDeg),
+      steps: plan.steps.map(stepWords).join(' · '),
+    }),
     detail: [
-      `경로 직진 ${plan.plannedForwardM.toFixed(3)} m`,
-      `직진 속도 ${plan.forwardVx} m/s`,
+      t('rcm.plannedForward', { m: plan.plannedForwardM.toFixed(3) }),
+      t('rcm.forwardSpeed', { vx: plan.forwardVx }),
       ...plan.notes,
     ].join(' · '),
     tasks: [DETECT_TASKS.approach],
   });
 }
 
-const signedTurn = (deg: number) => `${deg < 0 ? '왼쪽' : '오른쪽'} ${Math.abs(deg).toFixed(1)}°`;
+const signedTurn = (deg: number) => t(deg < 0 ? 'rcm.left' : 'rcm.right', { deg: Math.abs(deg).toFixed(1) });
 
 function stepWords(step: TaskCommand): string {
   if (step.action === 'turn') return `turn ${step.parameters?.deg}°`;
-  if (step.action === 'move_forward') return `move_forward ${step.parameters?.distance_m} m @ ${step.parameters?.vx ?? '기본'} m/s`;
-  return `${step.action}(도착 정지)`;
+  if (step.action === 'move_forward') return `move_forward ${step.parameters?.distance_m} m @ ${step.parameters?.vx ?? t('rcm.defaultSpeed')} m/s`;
+  return t('rcm.arriveStop', { action: step.action });
 }
 
 /**
@@ -625,7 +627,7 @@ export async function emergencyStop(client: PhysicalClient | null): Promise<Stop
 
 /** 정지 뒤 화면에 크게 띄울 문구. 조용히 성공한 척하지 않는다. */
 export function stopFailureMessage(stopped: StopState): string | null {
-  return stopped.published ? null : `정지 명령을 보내지 못했습니다 — ${stopped.failure ?? '알 수 없는 이유'}`;
+  return stopped.published ? null : t('rcm.stopNotSent', { reason: stopped.failure ?? t('rcm.unknownReason') });
 }
 
 /**

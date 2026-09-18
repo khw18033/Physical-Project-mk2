@@ -16,6 +16,7 @@
  * 보내지 않는다. `scan_hold` 가 한 번도 안 오는 판(옛 노드)에서는 아무것도 안 한다.
  */
 
+import { t } from '../i18n/dict.ts';
 import { angleTask, appendDetectLog, DETECT_TASKS } from '../detect/detectLog.ts';
 import { subscribeDetect } from '../detect/store.ts';
 import { isReplayingRecord } from '../record/replayMode.ts';
@@ -52,14 +53,14 @@ export function checkScanHold(): void {
 
   signalled.add(key);
   const tasks = [DETECT_TASKS.sweep, angleTask(hold.step)];
-  const because = why === 'result' ? '탐지 영상이 화면에 떴습니다'
-    : why === 'no-frame' ? '로봇이 사진을 못 찍었다고 합니다(no_frame) — 기다릴 결과가 없습니다'
-      : why === 'no-wait' ? '탐지 창구가 없거나 못 닿아 기다리지 않습니다'
-        : `탐지 영상이 ${RESULT_WAIT_MS / 1000}초째 안 떠서 넘깁니다`;
+  const because = why === 'result' ? t('sc.1')
+    : why === 'no-frame' ? t('sc.2')
+      : why === 'no-wait' ? t('sc.3')
+        : t('sc.noFrameSkip', { sec: RESULT_WAIT_MS / 1000 });
   appendDetectLog({
     lane: 'screen', level: why === 'result' ? 'info' : 'warn',
-    text: `${hold.rotationDeg}° ${because} → 로봇에 다음 회전 신호(scan_continue)`,
-    detail: `로봇 대기 ${((Date.now() - hold.sinceMs) / 1000).toFixed(1)}초${hold.note !== 'ok' ? ` · note ${hold.note}` : ''}`,
+    text: t('sc.signalNext', { deg: hold.rotationDeg, because }),
+    detail: t('sc.robotWaited', { sec: ((Date.now() - hold.sinceMs) / 1000).toFixed(1) }) + (hold.note !== 'ok' ? ` · note ${hold.note}` : ''),
     tasks,
   });
 
@@ -67,18 +68,18 @@ export function checkScanHold(): void {
     if (!outcome.sent) {
       // 안 나갔으면 다시 보낼 수 있게 푼다 — 로봇은 아직 서 있다.
       signalled.delete(key);
-      appendDetectLog({ lane: 'screen', level: 'warn', text: `${hold.rotationDeg}° 다음 회전 신호를 못 보냈습니다 — ${outcome.reason ?? '사유 없음'}`, detail: '다음 기회에 다시 보냅니다', tasks });
+      appendDetectLog({ lane: 'screen', level: 'warn', text: t('sc.signalFailed', { deg: hold.rotationDeg, reason: outcome.reason ?? t('sc.noReason') }), detail: t('sc.willRetry'), tasks });
       return;
     }
     if (answer === null) {
-      appendDetectLog({ lane: 'robot', level: 'warn', text: `${hold.rotationDeg}° 다음 회전 신호에 로봇 답이 없습니다`, detail: `command_id ${outcome.commandId} · 로봇은 ${hold.timeoutS ?? '?'}초 뒤 스스로 넘어갑니다`, tasks });
+      appendDetectLog({ lane: 'robot', level: 'warn', text: t('sc.noAnswer', { deg: hold.rotationDeg }), detail: t('sc.noAnswerDetail', { id: outcome.commandId, sec: hold.timeoutS ?? '?' }), tasks });
       return;
     }
     if (answer.kind === 'result' && answer.status === 'SUCCEEDED') {
       const latched = answer.result.latched === 1;
       appendDetectLog({
         lane: 'robot', level: 'info',
-        text: `로봇이 ${hold.rotationDeg}° 신호를 받았습니다${latched ? ' — 대기 들어가기 전에 와서 기억해 두었다가 풉니다' : ' — 다음 회전'}`,
+        text: t('sc.accepted', { deg: hold.rotationDeg }) + t(latched ? 'sc.latched' : 'sc.nextTurn'),
         detail: Object.entries(answer.result).map(([k, v]) => `${k}=${v}`).join(' · '),
         tasks,
       });
@@ -88,8 +89,8 @@ export function checkScanHold(): void {
     const message = answer.kind === 'status' ? '' : answer.message ?? '';
     appendDetectLog({
       lane: 'robot', level: 'warn',
-      text: `로봇이 ${hold.rotationDeg}° 신호를 거절했습니다 — ${[code.trim(), message].filter((v) => v !== '').join(' · ') || '사유 없음'}`,
-      detail: message === 'stale_rotation' ? '그 대기는 이미 지나갔습니다(시한으로 넘어갔을 수 있음) — 스캔은 계속됩니다' : '',
+      text: t('sc.rejected', { deg: hold.rotationDeg, why: [code.trim(), message].filter((v) => v !== '').join(' · ') || t('sc.noReason') }),
+      detail: message === 'stale_rotation' ? t('sc.4') : '',
       tasks,
     });
   });
