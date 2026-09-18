@@ -388,7 +388,29 @@ Phase 7  디지털 트윈         DT 7건 (좌표 변환·융합·커버리지�
     전제**다(위 「WS 게이트웨이 외부 노출」과 같은 자리). 주소를 화면에서 바꿀 수 있다는 것은
     바인딩이 `127.0.0.1`이 아니어야 한다는 뜻이고, 그러면 **인증이 함께 와야 한다**(지금 echo는
     인증이 없다). 노출·인증·주소 설정 셋을 한 묶음으로 정한다.
-- 관련: BE-T-07(미디어 중계)·BE-C-03(frame_ref)·BE-T-08(오버레이 터널)·**VZ-C-07(WS 주소 설정)**.
+- **🆕 2026-09-17 대조 이월(HW 0914·VZ 0916·AI 시연 문서 2건 — `reports/2026-09-17_1159_팀브랜치_최신화_대조.md`):**
+  - **역할 경계를 지시서에 명시한다.** 백엔드가 구현하는 것 = 서버 미디어 중계(수신·분기·drop-old·WSS+최소 인증) ·
+    규격(frame_ref·미디어 헤더·좌표 선언) · 합성 엣지 송신 fixture · 뷰어 확인용 · ②③ 서버 설정 · 회신·통지 문서.
+    카메라 수집·홉1·실물 엣지 송신기는 HW(`go1_relay`·`media_gateway`), 미디어 어댑터는 AI(AI-C-08), canvas 표시는 VZ,
+    로봇 자세·트윈 형식은 Phase 7. 검증은 합성 프레임(기본값 테스트).
+  - **HW #15 촬영 프레임 저장(BE-S-09 갈래, 사용자 결정 ㉡)** — 마지막 독립 단계에서 「저장소 자체」까지(수신 방식·저장
+    위치·메타 자리·보존·`frame_ref_base` 관계·회신). 가짜 업로더로 검증. 실적재·운영은 그 뒤. 이에 따라 00-architecture
+    §8-5의 BE-S-09 유예는 "스트림 저장·이벤트 캡처"로 좁혀 읽고 **§8-5 갱신이 보고 대상**이 된다.
+  - **④ 묶음 회신 범위 확장** — §8·§10-4~7 + #14~#18 회신 시점 배정(14→7 · 15→4 · 16→경로 있음/형식 7 · 17→6 · 18→5/7)
+    + HW 인식 안내 5건(서버 Collector 있음·`OTEL_ENDPOINT`는 결정 7 결과로·구간 3은 Kafka·MAC은 라우팅 키 아님·로봇 지표
+    라벨 기준) + **세 갈래 구분**(시연 특수/일반형/임시 경로)을 회신에 명시.
+  - **VZ 통지 = 확정 산출물** — 방식 B 포맷(frame_ref 객체) · `coord`↔`bbox_space` 정합 · 영상 WS 분리 vs VZ 단일 소켓 ·
+    뷰어 JPEG 디코드 경로 · `video{open}` 트리거 · 인증 방식 · VZ §7.4 답 · §7.10은 스트림 staleness까지만.
+  - 결정 2·3 논점 추가는 **상관키 자리 하나**(frame_ref에 `correlation_id`). 자세 부착은 Phase 7, 프리즈 해시는 후보.
+  - 결정 5 범위는 그대로(바인딩·최소 인증·주소·미디어 채널 형식). 구독·명령·캐시 프로토콜 본구현은 Phase 5/7.
+  - **결정 7 확장(VZ 관측 회신 2026-09-17, `received/2026-09-17_vz-observability-namespace-reply.md`)** — 브라우저(tailnet 밖)의
+    자체 지표 발신 경로: A Collector OTLP/HTTP 4318 + CORS + TLS/토큰 공개(VZ 요청) / B WSS 게이트웨이가 받아 Collector로
+    전달(VZ 8월 D-6 안, 결정 5 인증 공용) / C 답만 이번, 구현 Phase 5. **설계방에서 결정**(우리 통지 §4가 tailnet 밖 브라우저를
+    빠뜨린 것이 원인). 함께: 라벨 금지 목록 6종 확장(`contracts/common/README.md`·`observability.py`·`test_observability_labels.py`,
+    `node_id`≠`node_ref` 구분) · VZ 통지에 "관측 회신 답" 절(60초 OK·`service.name` 셋 OK·지표만 OK).
+  - 사용자 결정: 검증은 가짜 발행자 기본값 · 엣지는 컴퓨터 임시 방식 유지 · HW 브랜치 0914에 §6 편집 반영 확인(pi7 배포본은
+    구판, 실노드 관통은 범위 밖).
+- 관련: BE-T-07(미디어 중계)·BE-C-03(frame_ref)·BE-T-08(오버레이 터널)·**VZ-C-07(WS 주소 설정)**·**BE-S-09(#15 저장소)**.
 
 ### Phase 5 — 가용성 판정기
 
@@ -518,6 +540,23 @@ Phase 7  디지털 트윈         DT 7건 (좌표 변환·융합·커버리지�
   - **백엔드 span 생산.** Phase 3은 Collector→Tempo 경로만 가짜 span으로 확인했다. 명령 경로(요청 수신 → command_id
     발급 → 하달 → 결과)에 span을 붙이고 HW `cmd.receive`가 그 자식이 되게 한다 — 관제 클릭부터 물리 동작까지 한
     사슬(`00-architecture.md` §5-3·§6-5). 고빈도 경로(텔레메트리)에는 span을 만들지 않는다(HW와 같은 범위).
+- **🆕 VZ 회신(2026-09-17, `received/2026-09-17_vz-mission-record-reply.md`) 이월 — 실행 기록 배선(BE-S-08) 때 처리:**
+  - **임무 정의 저장 자리 신설.** 사건 열만으로는 되감기(VZ-D-04)·격리(VZ-D-05)가 안 선다 — 태스크 목록·마일스톤 소속·
+    배정 대상·deps(선행 노드 여럿, `parent_ref` 한 칸에 안 담김)가 사건과 **별도로** 필요하다. 형태는 우리가 정한다:
+    ① 임무(판)당 1행(정의 JSON + 시작·끝·결과 — VZ-D-04 이력 목록에도 쓰임) 또는 ② 첫 사건 `detail`. 파생 태스크로
+    구조가 바뀌면 새 정의를 다시 넣을 수 있어야 한다(VZ-D-01).
+  - `mission_event.layer`에 **`mission`** 값 추가(VARCHAR라 DDL 없음, COMMENT 갱신). DAG 밖 사건(장비 명령·임무 생성·승인·
+    재시작)은 `layer=mission`·`node_ref=임무 ID`·`target_entity_id=장비`.
+  - 실패 4단계 어휘 확정: `plan_failed`·`dispatch_failed`·`execution_failed`·`evaluation_failed`(자유 문자열이라 변경 없음).
+    `actor_kind`는 `ai|backend|human` 그대로, 엣지·AI 서버는 `actor_id`로(`pi1`·`detect-server`). **`audit_log.actor_kind`
+    통일(§2-14 발견)도 이때.**
+  - `event_key` = `{mission_id}:{VZ 내부 순번}`(권고 형태 대신). `mission_id`는 판마다 새로(대본 ID + 판 시작 시각).
+  - `origin_kind`: 어휘 `real|simulation|replay` 유지(VZ 표시 어휘 `physical`은 VZ가 대응). **발행 주체를 백엔드·HW가
+    정해야 한다**(VZ-C-06 — VZ는 소비자). `audit_log.subject_kind`가 모델·판단 정책·환경 지식 3종을 담는 방식 결정.
+  - `correlation_id`: VZ는 사람 조작을 **명령 발행 전에** 기록하므로 command_id는 **뒤따르는 사건**으로 잇는다(수정 아님).
+  - 조회 API: `mission_id`로 사건 열을 `seq` 순 반환 + 임무 정의. 8종 상태 파생·구간 계산은 VZ가 한다(BE-Q-01은 (대상,
+    시작, 끝) 구간 질의만).
+  - VZ 질문 답: 실제 Go1 `source_id` = `go1-001`, EP = `ep-001`(HW `hw-robot*.env.example`).
 - 관련: BE-X-01~05(상관·감사·승격·승인·중계)·BE-A-01/02/03/04(명령 번역·임무·제어)·
   BE-Q-02(감사 조회)·BE-Q-04(인증·인가)·**BE-S-05(감사 쓰기)·BE-S-08(실행 기록 쓰기)**.
 
@@ -585,17 +624,26 @@ Phase 7  디지털 트윈         DT 7건 (좌표 변환·융합·커버리지�
 | 의존 대상 | 관련 Phase | 필요한 것 |
 |---|---|---|
 | 조병현 (HW) | Phase 1 | `sensor_node.py`(가져와 실행 — 확보) / 실 센서 입고는 Tier C |
-| 조병현 (HW) | **Phase 2 회신 대기** ([`hw-envelope-conformance.md`](hw-envelope-conformance.md) §6) | 🔴 **공통 헤더 편집 4개 적용**(2026-09-09 스냅샷 기준 미반영 — **실노드 관통 검증의 선행조건**, 안 하면 전량 격리) · 🔴 `robot_node.py` 순번 결함 · 🟡 `session_id` 2줄 · 🟡 `reason` 어휘 확인. **답이 없어도 백엔드는 폴백 경로로 진행** |
+| 조병현 (HW) | ~~**Phase 2 회신 대기**~~ → ✅ **반영 확인(2026-09-17, HW 브랜치 0914 대조)** ([`hw-envelope-conformance.md`](hw-envelope-conformance.md) §6) | ~~🔴 공통 헤더 편집 4개~~ · ~~🔴 `robot_node.py` 순번 결함~~ · ~~🟡 `session_id`~~ — `schema.py` 1.1·`sequence_id`·RFC3339·별칭 중단·`session_id`·`seq += 1` 전부 브랜치에 있다. ⚠ **pi7 배포본은 09-14에도 구판(1.3)** — 실노드 관통은 Phase 4 범위 밖(가짜 발행자 기본값 유지). 🟡 `reason` 어휘 확인은 남음. 근거: `reports/2026-09-17_1159_팀브랜치_최신화_대조.md` §1-1 |
+| 조병현 (HW) | **Phase 4 회신 대기** (`BACKEND_AGENDA` #14~#18, `ARCHITECTURE_ALIGNMENT.md` — 2026-09-10 지도 피드백) | 🔴 #14 트윈 스키마 소유(→Phase 7) · 🔴 **#15 촬영 프레임 저장 0.7GB/h**(→ **Phase 4 마지막 독립 단계에서 「저장소 자체」까지**(수신·위치·메타 자리·보존·회신, 가짜 업로더로 검증) — 실적재·운영은 그 뒤. BE-S-09 갈래, 사용자 결정 ㉡) · 🔴 #16 로봇 상태 서버 경유(→ 경로는 이미 있음, 트윈 형식·직결 철거는 Phase 7) · 🟡 #17 Grafana 명령 API(→Phase 6) · ⚪ #18 엣지 2개 시점(→백엔드, Phase 5/7). **답이 없어도**: HW 기본값(null·로컬 적재·직결 유지)이 우리 설계와 충돌하지 않는다. 회신에 안내 5건(서버 Collector 있음·`OTEL_ENDPOINT`는 결정 7 결과로·구간 3은 Kafka·MAC은 라우팅 키 아님·로봇 지표 6종 라벨 기준) |
+| 조병현 (HW) | 상시 | **HW 최신 push 요청** — pi7 작업 트리가 브랜치보다 앞선다(`turn`·`sdk_*`·`scan_hold/continue`·`forward_m=0` 수정). 브랜치를 HW 실체로 믿지 않는다 |
+| 조병현 (HW) | Phase 6 | `detection-protocol_0914.md` §4 "탐지용 JSON→protobuf 번역 토픽을 열겠다" — 명령 번역은 백엔드 몫(BE-A-01·원칙 13). Phase 6 회신에서 이중화 방지 |
 | 조병현 (HW) | **Phase 6 전 회신 대기** ([`hw-envelope-conformance.md`](hw-envelope-conformance.md) §7) | ⚪ **`.proto`에 `Command.traceparent` 필드 1개** + `otel_trace.py:77` carrier를 dict로 넘기는 한 줄. `BACKEND_AGENDA` §3(문자열/열거형 파라미터) 개정과 **같은 커밋**으로. 확인 2건 — 필드 번호를 누가 정하나 · 옛 말단 호환. **답이 없어도 백엔드는 멈추지 않는다**(필드가 없으면 말단이 새 trace를 시작하는 지금 동작이 곧 기본값) |
+| 진나영 (AI) | Phase 4 | ✅ **시연 문서 2건 확보(2026-09-17)** — `_hwsrc/ai_docs_260914/탐지_로봇데이터요구_260914.md`(AI→HW) + `detection-protocol_0914.md`(HW→AI). **AI의 정식 요구는 스프레드시트(AI-C-08·AI-C-14·AI-E-*)이고 이 둘은 시연(45°×8 문 탐색)의 사례다.** 사례에서 남는 일반형: ⓐ 프레임 ↔ **촬영 시점 자세** 정합(시연의 "각도"는 특수 사례) ⓑ 프레임·탐지가 어느 명령의 산출인지 ⓒ 원본 무가공 ⓓ AI가 전송안 **B(RTP 스트림 + MQTT 캡처 이벤트)** 를 열어 둠 = 우리 경로 모양. 시연 특수(정지 후 촬영·한 장씩·스캔 경계·~2초/프레임)는 설계 대상 아님. 남은 문의 1건: 자율주행 편 영상이 우리 서버 7864에 닿는 경로 |
+| 진나영 (AI) | Phase 6 | AI가 스캔 결과로 **이동 지시(`turn_deg`·`forward_distance_cm`)를 로봇에 직접 보낼 토픽**을 HW에 물었다(요구 §4, "지금은 보내지 않고 있다"). HW는 JSON 번역 토픽을 열겠다고 답함. **둘 다 백엔드 명령 경로(BE-A-01·원칙 8 command_id)를 우회** — Phase 6 회신에서 AI→백엔드→장치로 정리(AI-S-05 "AI는 제시만, 장치 선택·명령은 백엔드"와 같은 원칙) |
 | 진나영 (AI) | Phase 6·7 | AI 실패·위험 판정·연계 신뢰도 규격(가짜 이벤트로 검증 / 실 모델은 Tier C) · 명령 의미 규격(AI-C-20) · **모델 승인 기록의 BE-* 신설 여부**(AI-L-06/07/08 — Phase 2가 감사 테이블에 자리만 확보). **AI 요구사항은 공유 스프레드시트에서 읽으면 되고 Phase 6 전까지 별도 문의가 필요 없다** |
-| 김현우 (가시화) | Phase 4·7 | 뷰어 canvas 표시·오버레이 / Unity 트윈 렌더(Tier C) |
-| 김현우 (가시화) | **Phase 6 전 회신 대기** ([`vz-mission-record-inquiry.md`](vz-mission-record-inquiry.md)) | 실행 기록 규격 확인 7항목 — 특히 **`event_type` 실패 단계 어휘**(VZ-D-05 「합의 필요」)와 **`node_ref` 부여 주체**. **답이 없어도 기본값으로 진행**, Phase 6/7 배선 전까지만 오면 재작업 없음 |
-| 김현우 (가시화) | **지표 발행 시작 전 회신 대기** ([`vz-observability-namespace.md`](vz-observability-namespace.md)) | 🟡 VZ-O-04 자체 관측 지표의 **이름 공간 `vz.`** · 금지 라벨 전수 · `service.name`은 `vz-<컴포넌트>` · 발신 대상은 서버 Collector `127.0.0.1:4316`(저장소 직접 쓰기 금지). **답이 없어도 백엔드는 멈추지 않는다**(백엔드는 `be.`만 쓴다) |
+| 김현우 (가시화) | Phase 4·7 | 뷰어 canvas 표시·오버레이 / Unity 트윈 렌더(Tier C). **2026-09-17 대조:** VZ-C-07 구현됨(주소 런타임 설정, 전송층에 인증 훅 없음) · 와이어 계약은 `viz-debugger/src/transport/types.ts`·`gateway/protocol.ts`(영상이 상태와 같은 소켓, `frame_ref` 정수) · 뷰어는 도형+`frame_seq` 목 상태로 **백엔드 형식 초안 대기** · VZ 미결 §7.4(뷰어 출력 분기·소유 파트)·§7.10(카메라 연결 상태) → **Phase 4 통지에서 답한다** |
+| 김현우 (가시화) | Phase 5 · Phase 6 | VZ 요구사항정의서 §7.6 — HW-C-05 60초 export vs BE-S-03 15초 pull 불일치(→Phase 5) · §7.3 — 감사 `origin.path`를 `input.mode`·`decision.source` 두 축으로 분리 요청 중(→Phase 6 감사 규격) |
+| 김현우 (가시화) | ~~**Phase 6 전 회신 대기**~~ → ✅ **회신 받음 2026-09-17** ([`received/2026-09-17_vz-mission-record-reply.md`](received/2026-09-17_vz-mission-record-reply.md)) | 골격 맞음(재작성 없음). 확정: 실패 4단계 `plan_failed`·`dispatch_failed`·`execution_failed`·`evaluation_failed` · `node_ref`·`mission_id` VZ 부여(판마다 새 `mission_id`) · 8종 파생·구간 계산 VZ · 보존 무기한 · `event_key`=`{mission_id}:{VZ 순번}`. **백엔드가 할 것(Phase 6 이월):** 임무 정의 저장 자리 · `layer`에 `mission` · `subject_kind` 3종 방식 · `origin_kind` 발행 주체 · Go1 `source_id`=`go1-001` 답 |
+| 김현우 (가시화) | ~~**지표 발행 시작 전 회신 대기**~~ → ✅ **회신 받음 2026-09-17** ([`received/2026-09-17_vz-observability-namespace-reply.md`](received/2026-09-17_vz-observability-namespace-reply.md)) | 수용: `vz.` · `service.name` = `vz-viewer`·`vz-stt`·`vz-gen` · 지표만(로그·트레이스 없음). **백엔드가 답할 것(Phase 4):** ① 발행 주기 60초 OK(우리 통지의 "15초 — HW와 같다"는 HW `config.py` 기본값이고 HW-C-05·독스트링은 60초 — 주기는 발신자 몫) ② **브라우저 발신 경로 — VZ는 Collector OTLP/HTTP 4318+CORS 개방 요청.** A(HTTP+CORS 공개) / B(WSS 게이트웨이 중계) / C(답만, 구현 Phase 5) 중 **Phase 4 결정 7에서 정한다** ③ 라벨 목록 확장 6종(`node_id`는 DAG 노드 뜻이라 `node_ref`로) — README·`observability.py`·테스트 함께, Phase 4 구현. Unity 트윈 담당 미정은 Phase 7 메모. VZ 코드에 SDK가 없어 **답이 늦어도 막히지 않는다** |
 | 현장/실측 | Phase 4·5 | 회선 QoS·콜드스타트(Tier C) · **Tailscale은 연구실 환경에서 Phase 3에 부분 실측**(DERP 72ms → 직접 3ms) — 현장 엣지-서버 배치 실측은 남아 있다 |
 
 > **HW 소스의 최신본은 `_hwsrc/upstream_<날짜>/`** 에 둔다(gitignore, 절대 고치지 않는다). 새 브랜치가
 > 오면 이전 것과 해시 비교한다 — 절차는 `_hwsrc/README.md`. 우리가 편집을 얹은 실행 사본은
 > `local_patched_*/`이며 **근거로 쓰지 않는다**(Phase 2 보고서 「발견한 것 ⑧」).
+> **2026-09-17 현재 최신 사본은 `_hwsrc/` 밖에 있다** — HW 0914 = `C:\Users\asdfa\physical mk2\compare\Physical-Project-mk2-HW_260917\`,
+> VZ 0916 = `…\compare\Physical-Project-mk2-khw_VZ_260917\`(이동하지 않기로 함). 대조 결과와 위치는
+> `reports/2026-09-17_1159_팀브랜치_최신화_대조.md`.
 
 ---
 

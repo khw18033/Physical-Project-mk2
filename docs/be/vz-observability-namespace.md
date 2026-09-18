@@ -9,6 +9,19 @@
 | 대상 안건 | **VZ-O-04** — 가시화가 자체 관측 지표를 같은 관측 스택에 직접 발행할 때의 **이름 공간·라벨·발신 대상** |
 | 우선순위 | 🟡 — **가시화가 지표 발행을 시작하기 전**에 읽어 주면 된다. 그전엔 할 일이 없다 |
 
+> ✅ **회신 받음 — 2026-09-17.** 원문은 [`received/2026-09-17_vz-observability-namespace-reply.md`](received/2026-09-17_vz-observability-namespace-reply.md).
+> VZ가 정한 것 5: ① 접두사 `vz.` 수용(자기 문서 `viz.*` 네 곳 정정) ② 발행 주기 **60초**(VZ-O-04·HW-C-05 원문) + "HW 실제 주기 확인" 요청
+> ③ **브라우저 발신 경로로 Collector OTLP/HTTP 4318 + CORS 개방 요청**("Phase 4 Tailscale·BE-T-08과 함께") ④ `service.name` = `vz-viewer`·`vz-stt`·`vz-gen`
+> (Unity 트윈은 담당 미정이라 제외) ⑤ 금지 라벨에 VZ 식별자 6종 추가 제안. 로그·트레이스는 안 보내고 지표만.
+> **우리 통지의 오류 하나:** §4 "주기 15초 — HW·백엔드와 같다" → HW `config.py` 기본값은 15초이나 `otel_metrics.py` 독스트링과 HW-C-05는
+> **60초**(HW 코드 내부 불일치). 주기는 발신자 몫이고 Collector(batch 5s)는 어떤 주기든 받는다 — VZ 60초 OK.
+> **답할 것:** 즉답 3(60초 OK · `service.name` 셋 OK · 로그/트레이스 없음 OK) · **결정 1 — 브라우저 발신 경로**(A Collector HTTP+CORS 공개 /
+> B WSS 게이트웨이 중계 / C 답만 Phase 4·구현 Phase 5 — **Phase 4 결정 7에서 정한다**, 우리 §4가 tailnet 밖 브라우저를 빠뜨린 것이
+> 원인) · **규격 1 — 라벨 목록 확장**(`mission_id`·`node_ref`·`client_request_id`·`plan_id`·`event_key`·발화 원문. ⚠ VZ가 적은
+> `node_id`는 DAG 노드 뜻이라 `node_ref`로만 넣는다 — 우리 공통 헤더 `node_id`는 물리 노드라 저카디널리티·허용). 라벨 확장은
+> `contracts/common/README.md`·`backend/observability.py FORBIDDEN_LABELS`·`tests/test_observability_labels.py`를 함께 고쳐야 하므로
+> **Phase 4 구현 항목**. 답은 Phase 4 VZ 통지 문서에 절로 넣는다(문서를 따로 만들지 않는다).
+
 ---
 
 <a id="s0"></a>

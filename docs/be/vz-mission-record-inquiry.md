@@ -8,6 +8,15 @@
 | 근거 | Phase 2(저장 축) 구현·검증 결과 · 요구사항 정의서 VZ-D-01·D-02·D-04·D-05·D-06·D-07·D-08·N-02·N-03·C-06·U-08 · BE-S-08 · AI-L-06/07/08 |
 | 대상 안건 | VZ-D-02 「**기록 계약 미정**」 · VZ-D-05 「**실패 단계 어휘 합의 필요**」 |
 
+> ✅ **회신 받음 — 2026-09-17.** 원문은 [`received/2026-09-17_vz-mission-record-reply.md`](received/2026-09-17_vz-mission-record-reply.md).
+> 골격 대체로 맞음(저장 구조 재작성 없음). 백엔드가 할 것: ① **임무 정의(태스크 목록·마일스톤 소속·deps·대상) 저장 자리**
+> 신설 — 형태는 우리가 정한다(판당 1행 JSON 또는 첫 사건 `detail`) ② `layer`에 `mission` 값 추가(VARCHAR라 DDL 없음, COMMENT만)
+> ③ `audit_log.subject_kind`가 3종(모델·판단 정책·환경 지식)을 담는 방식 결정 ④ `origin_kind` 발행 주체 확정(원천이 준 값을
+> 옮긴다 — 백엔드·HW 몫) ⑤ VZ 질문 답: 실제 Go1 `source_id` = `go1-001`(EP는 `ep-001`). 확정된 것: `event_type` 어휘 +
+> 실패 4단계(`plan_failed`·`dispatch_failed`·`execution_failed`·`evaluation_failed`) · `node_ref`·`mission_id` 모두 VZ 부여,
+> `mission_id`는 판마다 새로 · 8종 상태 파생과 구간 계산은 VZ(②·②) · 보존 무기한, 요약 불가 · `event_key`=`{mission_id}:{VZ 내부 순번}`.
+> 반영: `01-standalone-implementation-plan.md` §4·Phase 6 이월, 추적표 BE-S-08. **배선은 Phase 6/7 그대로.**
+
 ---
 
 <a id="s0"></a>

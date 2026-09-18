@@ -90,5 +90,5 @@
       "examples": ["state"]
     }
   },
-  "$comment": "additionalProperties 를 false 로 두지 않는다(모르는 필드는 통과·저장). ⚠ 순번 주의: robot_node.py 는 envelope(seq=self.seq) 를 쓰면서 self.seq 를 **증가시키지 않는다** — 로봇 state 의 sequence_id 는 항상 0 이다. 저장 층의 유일 키를 sequence_id 에 의존시키면 로봇 20Hz 데이터가 사라진다(스트림 좌표를 쓰는 이유)."
+  "$comment": "additionalProperties 를 false 로 두지 않는다(모르는 필드는 통과·저장). ⚠ 순번 주의: HW 0909 스냅샷의 robot_node.py 는 envelope(seq=self.seq) 를 쓰면서 self.seq 를 증가시키지 않아 로봇 state 의 sequence_id 가 항상 0 이었다. **HW 브랜치 0914 에서 고쳐졌다**(_publish_state 에 self.seq += 1 — 우리 회신 §6-2 반영, 2026-09-17 확인). 단 배포본은 늦게 따라올 수 있고, 저장 층의 유일 키는 여전히 sequence_id 에 의존하지 않는다(스트림 좌표를 쓰는 이유는 그대로다)."
 }
