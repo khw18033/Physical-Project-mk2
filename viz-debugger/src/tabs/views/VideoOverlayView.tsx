@@ -19,6 +19,8 @@
  * 매 프레임 setState 하면 결국 15Hz 리렌더가 되어 병합의 의미가 사라진다.
  */
 
+import { Rich } from '../../i18n/RichText.tsx';
+import { t } from '../../i18n/dict.ts';
 import { useEffect, useRef, useState } from 'react';
 import { PendingSource } from '../../shared/PendingSource.tsx';
 import {
@@ -110,10 +112,9 @@ export function VideoOverlayView() {
     <main className="board">
       <header className="board__head">
         <div>
-          <h1 className="board__title">탐지 결과 오버레이 정합</h1>
+          <h1 className="board__title">{t('vov.1')}</h1>
           <Explain id="vid-1" className="board__sub">
-            각 탐지에 되돌아온 <strong>프레임 참조값</strong>으로 해당 프레임에 정합시켜야 박스가 대상 위에 놓인다.
-            급이 다른 두 인지 결과는 <strong>출처를 구분해</strong> 그린다
+            <Rich id="vov.sub" />
           </Explain>
         </div>
         <div className="board__meta">
@@ -125,25 +126,24 @@ export function VideoOverlayView() {
         <label className="toggle">
           <input type="checkbox" checked={aligned} onChange={(e) => setAligned(e.target.checked)} />
           <span>
-            프레임 참조 정합 <strong>{aligned ? 'ON' : 'OFF'}</strong>
+            {t('vov.alignToggle')} <strong>{aligned ? 'ON' : 'OFF'}</strong>
           </span>
         </label>
 
         <button type="button" className="btn" onClick={() => setPanelOpen((v) => !v)}>
-          {panelOpen ? '패널 닫기 (프레임 루프 정지)' : '패널 열기'}
+          {panelOpen ? t('vov.4') : t('vov.5')}
         </button>
 
         {report !== null && (
           <span className={'lagbadge' + (report.maxLagPx > 8 ? ' lagbadge--bad' : '')}>
-            뒤처짐 최대 <strong>{report.maxLagPx.toFixed(1)} px</strong> · 평균{' '}
-            {report.avgLagPx.toFixed(1)} px · {report.frameLag}프레임
+            <Rich id="vov.lagBadge" vars={{ max: report.maxLagPx.toFixed(1), avg: report.avgLagPx.toFixed(1), frames: report.frameLag }} />
           </span>
         )}
       </div>
 
       {!panelOpen ? (
         <p className="notice">
-          패널이 닫혀 있다. 프레임 루프가 멈췄고 서버도 프레임을 발행하지 않는다 — 열린 패널만 받는다(VZ-I-06).
+          {t('vov.panelClosed')}
         </p>
       ) : (
         <>
@@ -154,22 +154,17 @@ export function VideoOverlayView() {
           */}
           {report !== null && !report.edgeAvailable && (
             <p className="notice notice--warn">
-              <strong>엣지 정밀 인지 결과가 없다</strong> — 최근 {Math.round(EDGE_SILENCE_MS / 1000)}초간 도착하지
-              않았다. 온디바이스 최소 안전 판단(진행영역·접근 변화)만으로 그리는 중이며 <strong>기본 인지는
-              끊기지 않았다</strong>. 정밀 분류·추적·궤적은 이 화면에 없다.
+              <Rich id="vov.edgeSilent" vars={{ sec: Math.round(EDGE_SILENCE_MS / 1000) }} />
               <br />
               <span className="muted">
-                미배포(AI-E-04 선택 기능)인지 장애인지는 <strong>구분할 수 없다</strong> — capability 상태를
-                가시화까지 전달하는 경로가 계약에 없다. [확인 요망]
+                <Rich id="vov.edgeSilentWhy" />
               </span>
             </p>
           )}
 
           {report !== null && report.association === 'unavailable' && (
             <p className="notice notice--warn">
-              <strong>다중 관측 연계 없음</strong> — 관측 소스별 추적을 그대로 표시한다(VZ-I-09 / AI-S-02 선택
-              기능). 같은 대상이 소스마다 따로 뜨고, <strong>연계 신뢰도는 표시하지 않는다</strong> — 묶지
-              못했는데 신뢰도를 띄우면 없는 근거를 만드는 것이다.
+              <Rich id="vov.noAssociation" />
             </p>
           )}
 
@@ -194,69 +189,65 @@ export function VideoOverlayView() {
             <div className="cols cols--3">
               <section className="panel">
                 <header className="panel__head">
-                  <h2 className="panel__title">인지 출처</h2>
+                  <h2 className="panel__title">{t('vov.10')}</h2>
                   <span className="panel__tag">VZ-I-07 / HW-R-04</span>
                 </header>
                 <ul className="tracklist">
                   {report.origins.map((o) => (
                     <li key={o.origin.tier} className="tracklist__item">
                       <span className={'prov__who prov__who--' + (o.origin.tier === 'edge' ? 'ai' : 'backend')}>
-                        {o.origin.tier === 'edge' ? '엣지' : '온보드'}
+                        {o.origin.tier === 'edge' ? t('vov.11') : t('vov.12')}
                       </span>
                       <strong>{o.origin.label}</strong>
-                      <span className="muted">{o.origin.optional ? '선택' : '필수'}</span>
-                      <span className="muted">지연 {o.inferenceDelayMs}ms</span>
-                      <span className="muted">{o.frameLag}프레임</span>
+                      <span className="muted">{o.origin.optional ? t('vov.13') : t('vov.14')}</span>
+                      <span className="muted">{t('vov.delayMs', { ms: o.inferenceDelayMs })}</span>
+                      <span className="muted">{t('vov.frames', { n: o.frameLag })}</span>
                     </li>
                   ))}
                   {!report.edgeAvailable && (
                     <li className="tracklist__item tracklist__item--uncertain">
-                      <span className="prov__who prov__who--ai">엣지</span>
-                      <strong>엣지 정밀 분류·추적</strong>
-                      <span className="muted">선택</span>
-                      <span className="muted">결과 없음</span>
+                      <span className="prov__who prov__who--ai">{t('vov.11')}</span>
+                      <strong>{t('vov.15')}</strong>
+                      <span className="muted">{t('vov.13')}</span>
+                      <span className="muted">{t('vov.16')}</span>
                       <span className="muted">—</span>
                     </li>
                   )}
                 </ul>
                 <Explain id="vid-2" className="note">
-                  로봇 온보드는 <strong>Pi와 카메라뿐</strong>이라 metric distance 센서를 전제하지 않는다. 그래서
-                  온디바이스는 <strong>진행영역과 접근 변화</strong>만 내고 의미 분류를 하지 않는다. 정밀 분류·추적은
-                  엣지에서 온다 — 두 결과를 같은 신뢰도 축으로 읽으면 안 된다.
+                  <Rich id="vov.onboardNote" />
                 </Explain>
               </section>
 
               <section className="panel">
                 <header className="panel__head">
-                  <h2 className="panel__title">정합 계측</h2>
+                  <h2 className="panel__title">{t('vov.19')}</h2>
                   <span className="panel__tag">VZ-I-07</span>
                 </header>
                 <dl className="kv">
-                  <dt>표시 프레임</dt>
+                  <dt>{t('vov.20')}</dt>
                   <dd>
                     <code>#{report.displayFrame}</code>
                   </dd>
                   {report.origins.map((o) => (
                     <ReportRows key={o.origin.tier} report={o} />
                   ))}
-                  <dt>그린 프레임</dt>
-                  <dd className="muted">{frameCount}장</dd>
+                  <dt>{t('vov.21')}</dt>
+                  <dd className="muted">{t('vov.frameCount', { n: frameCount })}</dd>
                 </dl>
                 <Explain id="vid-3" className="note">
                   {aligned
-                    ? 'frame_ref가 가리키는 프레임에 맞춰 그린다. 뒤처짐이 0에 가깝다.'
-                    : '도착 순서대로 현재 프레임에 그린다. 박스가 대상이 지나간 자리에 남는다.'}
+                    ? t('vov.22')
+                    : t('vov.23')}
                   {report.origins.some((o) => o.referenceMissing) && (
                     <>
                       {' '}
-                      <strong>참조 프레임이 버퍼에 없어</strong> 현재 프레임과 비교한 값이 섞여 있다 —
-                      정합된 수치가 아니다. 재접속 직후나 추론 지연이 버퍼 길이를 넘길 때 생긴다.
+                      <Rich id="vov.refMissingNote" />
                     </>
                   )}
                   {device !== null && (
                     <>
-                      {' '}온디바이스는 엣지보다 <strong>빠르다</strong>(
-                      {device.inferenceDelayMs}ms) — 안전 판단이 엣지 왕복을 기다릴 수 없기 때문이다.
+                      {' '}<Rich id="vov.deviceFasterNote" vars={{ ms: device.inferenceDelayMs }} />
                     </>
                   )}
                 </Explain>
@@ -264,7 +255,7 @@ export function VideoOverlayView() {
 
               <section className="panel">
                 <header className="panel__head">
-                  <h2 className="panel__title">추적 대상</h2>
+                  <h2 className="panel__title">{t('vov.26')}</h2>
                   <span className="panel__tag">VZ-I-09</span>
                 </header>
 
@@ -273,7 +264,7 @@ export function VideoOverlayView() {
                     <p className="footnote">
                       {o.origin.label}
                       {o.sourceIds.length > 1 && (
-                        <span className="muted"> · 소스 {o.sourceIds.length}개 따로</span>
+                        <span className="muted">{t('vov.sourcesApart', { n: o.sourceIds.length })}</span>
                       )}
                     </p>
                     <ul className="tracklist">
@@ -283,19 +274,19 @@ export function VideoOverlayView() {
                           className={'tracklist__item' + (b.uncertain ? ' tracklist__item--uncertain' : '')}
                         >
                           <code className={'trackkey' + (b.link !== null ? ' trackkey--linked' : '')}>
-                            {b.trackId ?? '추적 없음'}
+                            {b.trackId ?? t('vov.27')}
                           </code>
                           <strong>{b.label}</strong>
                           <span>
                             {/* 분류를 하지 않은 결과에 분류 신뢰도를 그리면 없는 값을 만드는 것이다. */}
-                            {b.classConfidence === null ? '분류 없음' : b.classConfidence.toFixed(2)}
+                            {b.classConfidence === null ? t('vov.28') : b.classConfidence.toFixed(2)}
                           </span>
                           <span className="muted">
                             {b.approach !== null
                               ? APPROACH_LABEL[b.approach]
                               : b.link !== null
-                                ? '연계 ' + b.link.link_confidence.toFixed(2)
-                                : '연계 없음'}
+                                ? t('vov.linkConfidence', { value: b.link.link_confidence.toFixed(2) })
+                                : t('vov.29')}
                           </span>
                           <span className="muted">{b.lagPx.toFixed(1)} px</span>
                         </li>
@@ -305,12 +296,10 @@ export function VideoOverlayView() {
                 ))}
 
                 <Explain id="vid-4" className="note">
-                  신뢰도 {CONFIDENCE_THRESHOLD} 미만은 <strong>점선 + 물음표</strong>로 그린다. 확실한 것과 애매한 것이
-                  똑같이 보이면 안 된다.
+                  <Rich id="vov.thresholdNote" vars={{ threshold: CONFIDENCE_THRESHOLD }} />
                   {edge !== null && edge.association === 'unavailable' && (
                     <>
-                      {' '}지금은 연계가 없어 <strong>소스별 추적이 따로</strong> 뜬다 — 추적 식별자에 소스가
-                      붙는 이유는 소스를 지우면 서로 다른 추적이 같은 id로 보이기 때문이다.
+                      {' '}<Rich id="vov.noLinkNote" />
                     </>
                   )}
                 </Explain>
@@ -321,40 +310,40 @@ export function VideoOverlayView() {
       )}
 
       <section className="devpanel">
-        <h2 className="devpanel__title">시나리오 재생 — 숫자가 바뀌는지 확인</h2>
+        <h2 className="devpanel__title">{t('vov.32')}</h2>
         <div className="devpanel__row">
           <button type="button" className="btn" onClick={() => playScenario('vision-delay-200')}>
-            추론 지연 200ms
+            {t('vov.btn.delay200')}
           </button>
           <button type="button" className="btn" onClick={() => playScenario('vision-delay-500')}>
-            추론 지연 500ms
+            {t('vov.btn.delay500')}
           </button>
           <button type="button" className="btn" onClick={() => playScenario('vision-bbox-absolute')}>
-            bbox 픽셀 절대
+            {t('vov.btn.bboxAbs')}
           </button>
           <button type="button" className="btn" onClick={() => playScenario('vision-bbox-normalized')}>
-            bbox 정규화(0~1)
+            {t('vov.btn.bboxNorm')}
           </button>
           <button type="button" className="btn" onClick={() => playScenario('vision-inference-320')}>
-            추론 해상도 320×180
+            {t('vov.btn.res320')}
           </button>
           <button type="button" className="btn" onClick={() => playScenario('vision-inference-640')}>
-            추론 해상도 640×360
+            {t('vov.btn.res640')}
           </button>
         </div>
         <div className="devpanel__row">
           {/* AI-E-04 · AI-S-02 — 선택 기능을 빼 보는 것이 이 두 줄의 목적이다. */}
           <button type="button" className="btn btn--danger" onClick={() => playScenario('vision-edge-off')}>
-            엣지 정밀 인지 미배포
+            {t('vov.btn.edgeOff')}
           </button>
           <button type="button" className="btn" onClick={() => playScenario('vision-edge-on')}>
-            엣지 정밀 인지 배치
+            {t('vov.btn.edgeOn')}
           </button>
           <button type="button" className="btn btn--danger" onClick={() => playScenario('vision-link-off')}>
-            다중 관측 연계 없음
+            {t('vov.btn.linkOff')}
           </button>
           <button type="button" className="btn" onClick={() => playScenario('vision-link-on')}>
-            다중 관측 연계 있음
+            {t('vov.btn.linkOn')}
           </button>
         </div>
       </section>
@@ -363,32 +352,32 @@ export function VideoOverlayView() {
 }
 
 const APPROACH_LABEL: Record<'closing' | 'steady' | 'receding', string> = {
-  closing: '접근 중',
-  steady: '변화 없음',
-  receding: '멀어짐',
+  closing: t('vov.33'),
+  steady: t('vov.34'),
+  receding: t('vov.35'),
 };
 
 /** 출처 하나의 정합 수치. dl 안에 들어가므로 dt/dd 쌍만 낸다. */
 function ReportRows({ report }: { report: OriginReport }) {
-  const name = report.origin.tier === 'edge' ? '엣지' : '온보드';
+  const name = report.origin.tier === 'edge' ? t('vov.11') : t('vov.12');
   return (
     <>
       <dt>{name} frame_ref</dt>
       <dd>
-        <code>#{report.detectionFrame}</code> <span className="muted">({report.frameLag}프레임 차)</span>
+        <code>#{report.detectionFrame}</code> <span className="muted">{t('vov.frameDiff', { n: report.frameLag })}</span>
         {report.referenceMissing && (
           <>
             {' '}
-            <span className="aggbadge aggbadge--unknown">참조 프레임 없음</span>
+            <span className="aggbadge aggbadge--unknown">{t('vov.36')}</span>
           </>
         )}
       </dd>
-      <dt>{name} 뒤처짐</dt>
+      <dt>{t('vov.rowLag', { name })}</dt>
       <dd>
         <strong>{report.maxLagPx.toFixed(1)} px</strong>{' '}
-        <span className="muted">평균 {report.avgLagPx.toFixed(1)} px</span>
+        <span className="muted">{t('vov.avgPx', { px: report.avgLagPx.toFixed(1) })}</span>
       </dd>
-      <dt>{name} bbox 환산</dt>
+      <dt>{t('vov.rowBbox', { name })}</dt>
       <dd>
         <code>{report.bboxFormat}</code>{' '}
         <span className="muted">
@@ -455,7 +444,7 @@ function drawScene(
       ctx.setLineDash([]);
       ctx.font = '600 11px "Malgun Gothic", sans-serif';
       ctx.fillStyle = ORIGIN_COLOR.device;
-      ctx.fillText('진행영역 (온보드)', o.corridor.x + 6, o.corridor.y + 15);
+      ctx.fillText(t('vov.37'), o.corridor.x + 6, o.corridor.y + 15);
     }
 
     // 출처별 박스. **모양이 달라야 한다** — 같은 모양이면 급이 다른 것이 안 보인다.
@@ -489,10 +478,10 @@ function drawScene(
 
         // 라벨. 온디바이스는 분류가 없으므로 **분류 신뢰도를 쓰지 않는다.**
         const label = isDevice
-          ? '영역 · ' + approachText(b.approach)
+          ? t('vov.regionLabel', { approach: approachText(b.approach) })
           : b.label + ' ' + b.confidence.toFixed(2) + (b.uncertain ? ' ?' : '') +
             (b.link === null ? ' · ' + b.sourceId : '') +
-            (aligned ? '' : ' — ' + o.frameLag + '프레임 뒤');
+            (aligned ? '' : t('vov.framesBehind', { n: o.frameLag }));
         ctx.font = '600 13px "Malgun Gothic", sans-serif';
         const tw = ctx.measureText(label).width + 12;
         ctx.fillStyle = color;
@@ -506,7 +495,7 @@ function drawScene(
   // 헤더/푸터 텍스트
   ctx.font = '600 13px "Malgun Gothic", sans-serif';
   ctx.fillStyle = '#e6e9ec';
-  ctx.fillText(CAMERA + ' · 합성 영상 · ' + frame.fps + ' fps', 14, 26);
+  ctx.fillText(t('vov.canvasHead', { cam: CAMERA, fps: frame.fps }), 14, 26);
 
   ctx.font = '12px Consolas, monospace';
   ctx.fillStyle = '#aab2ba';
@@ -519,24 +508,27 @@ function drawScene(
       alignment.origins.find((o) => o.origin.tier === 'edge') ?? alignment.origins[0];
     ctx.fillStyle = aligned ? '#8fe7b4' : '#ff9d9d';
     const foot = aligned
-      ? 'detections.frame_ref = #' + primary.detectionFrame + ' → 표시 프레임 #' + alignment.displayFrame + '  일치'
-      : 'frame_ref 무시 → 표시 프레임 #' + alignment.displayFrame + '에 #' + primary.detectionFrame +
-        ' 결과를 그림  (' + primary.maxLagPx.toFixed(0) + 'px 어긋남)';
+      ? t('vov.footAligned', { ref: primary.detectionFrame, shown: alignment.displayFrame })
+      : t('vov.footIgnored', {
+        shown: alignment.displayFrame,
+        ref: primary.detectionFrame,
+        px: primary.maxLagPx.toFixed(0),
+      });
     ctx.fillText(foot, 14, height - 16);
 
     if (!alignment.edgeAvailable) {
       ctx.fillStyle = ORIGIN_COLOR.device;
-      ctx.fillText('엣지 정밀 인지 결과 없음 — 온보드 최소 안전 판단만', 14, height - 34);
+      ctx.fillText(t('vov.38'), 14, height - 34);
     }
     if (alignment.origins.some((o) => o.referenceMissing)) {
       ctx.fillStyle = ORIGIN_COLOR.device;
-      ctx.fillText('참조 프레임이 버퍼에 없음 — 이 값은 정합된 수치가 아니다', 14, height - 52);
+      ctx.fillText(t('vov.39'), 14, height - 52);
     }
   }
 }
 
 function approachText(approach: 'closing' | 'steady' | 'receding' | null): string {
-  if (approach === null) return '판단 없음';
+  if (approach === null) return t('vov.40');
   return APPROACH_LABEL[approach];
 }
 

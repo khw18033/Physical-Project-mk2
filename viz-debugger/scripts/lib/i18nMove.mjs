@@ -78,6 +78,26 @@ function isJsValue(line, index) {
   return /[([{,=:?]$|&&$|\|\|$|\?\?$|\breturn$|=>$/.test(before);
 }
 
+/**
+ * 이 따옴표가 **`+` 로 잇는 문장의 조각인가.**
+ *
+ * ## 260918 — 다섯 번째 사각
+ *
+ * ```ts
+ *   : 'frame_ref 무시 → 표시 프레임 #' + alignment.displayFrame + '에 #' + primary.detectionFrame + …
+ *   ? '연계 ' + b.link.link_confidence.toFixed(2)
+ * ```
+ *
+ * **문법으로는 멀쩡한 문자열 리터럴**이라 위 `isJsValue` 를 통과한다. 그런데 앞뒤가
+ * `+` 로 이어져 있으면 그것은 값이 아니라 **문장의 토막**이다. 「연계 」만 사전에 넣으면
+ * 영어에서 `Link 0.87` 의 어순을 만들 수 없다 — 치환이 있는 한 문장이어야 한다.
+ *
+ * 그래서 여는 따옴표 앞이나 닫는 따옴표 뒤에 `+` 가 붙어 있으면 사람 몫으로 넘긴다.
+ */
+function concatFragment(line, start, end) {
+  return /\+\s*$/.test(line.slice(0, start)) || /^\s*\+/.test(line.slice(end));
+}
+
 /** 이 글이 **개발자에게만 보이는가.** `throw new Error(…)` 의 속은 화면에 안 뜬다. */
 function devOnly(line, index) {
   const before = line.slice(0, index);
@@ -140,7 +160,10 @@ export function easyMoves(src, prefix) {
       const ko = m[1];
       if (!/[가-힣]/.test(ko)) continue;
       if (devOnly(line, m.index)) continue;
-      if (!isJsValue(line, m.index)) { hard.push({ line: idx + 1, text: raw[idx].trim() }); continue; }
+      if (!isJsValue(line, m.index) || concatFragment(line, m.index, m.index + m[0].length)) {
+        hard.push({ line: idx + 1, text: raw[idx].trim() });
+        continue;
+      }
       moves.push({ line: idx + 1, from: `'${ko}'`, to: `t('${keyFor(ko)}')`, ko, kind: 'str' });
     }
 
