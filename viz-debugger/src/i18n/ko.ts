@@ -817,4 +817,61 @@ export const ko: Record<string, string> = {
   'stt.hotword': '등록 이름 우선',
   'stt.hotwordHint': '**등록 이름 우선** — 레지스트리에 등록된 구역·장비 이름(`503 구역`·`엣지 노드 A` …) 쪽으로 인식을 맞춥니다. 끄면 그 편향 없이 인식합니다.',
   'stt.transcribing': '인식 중입니다. 모델을 처음 읽는 경우 오래 걸립니다.',
+  // ── 4단계 묶음 1 · 마일스톤 화면 ──────────────────────────────────────────
+
+  // 단독 빌드의 승인 자리 (통합 앱에서는 PlanApproval 이 들어온다)
+  'prop.fallbackAi': 'AI 제안 `{id}` — 승인해야 캔버스에 올라갑니다 (VZ-U-07 · 로컬 재생기)',
+  'prop.fallbackScript': '대본 제안 `{id}` — 승인해야 재생이 시작됩니다 (VZ-U-07 · 로컬 재생기)',
+  'prop.approveCanvas': '승인 — 캔버스에 올린다',
+  'prop.approvePlay': '승인 — 재생 시작',
+  'prop.reject': '거부',
+
+  // 마일스톤 판
+  'ms.count': '마일스톤 · {n}건',
+  'ms.aiProposal': '**AI 제안** — `{model}` 이 만든 임무 {id} 「{label}」. 승인 전에는 아무것도 실행되지 않습니다',
+  'ms.aiMeta': '규칙 {rules}개 · 프롬프트 {digest} · 근거는 발화 패널에 폅니다',
+  'ms.promptNone': '없음(스텁)',
+  'ms.scriptProposal': '**제안 상태** — 대본 {id} 「{label}」. 승인 전에는 아무것도 재생되지 않습니다',
+  'ms.matchedKeywords': '맞은 키워드: {words}',
+  'ms.unassigned': '미배정',
+  'ms.clickToGraph': '클릭 → 태스크 그래프',
+  'ms.hardwareCount': '하드웨어 · {n}대',
+  'ms.hardwareHint': '카드를 마일스톤으로 드래그 · **더블클릭 → 대상 상태** · 원천 {source}',
+  'ms.scriptDevice': '대본 등장 장비',
+
+  // 되감기 조작
+  'replay.following': '● 따라가는 중',
+  'replay.follow': '▶ 따라가기 (live)',
+  'replay.timeAria': '임무 재생 시각',
+  'replay.aiMark': 'T+{sec}s · {kind} → {node} (produced_by=ai · {model})',
+  'replay.modelUnknown': '모델 미상',
+  'replay.noAi': '생성 기록 없음 (대본에서 읽은 임무입니다)',
+  'replay.aiCount': '{n}건 · produced_by=ai',
+  'replay.human': '사람',
+  'replay.noHuman': '조작 기록 없음',
+  'replay.humanCount': '{n}건 · produced_by=human',
+
+  // 그래프 머리줄 · 빵부스러기 · 마일스톤 이동
+  'graph.titleMission': '{label} · 임무 전체 {n}노드',
+  'graph.titleMilestone': '마일스톤 {id} · {title}',
+  'graph.hereMission': '임무 전체 {n}노드',
+  'graph.crumbsAria': '이동 경로',
+  'graph.crumbMilestones': '마일스톤',
+  'graph.stepperAria': '마일스톤 이동',
+  'graph.firstMilestone': '첫 마일스톤입니다',
+  'graph.lastMilestone': '마지막 마일스톤입니다',
+  'graph.prevMilestone': '◀ 이전 마일스톤',
+  'graph.nextMilestone': '다음 마일스톤 ▶',
+  'graph.history': '임무 이력',
+  'graph.savedRun': '저장된 판 {date}/{run} · ',
+  'graph.replay': '리플레이 · T+{sec}s',
+  'graph.failureFocus': '실패 경로 강조 · 관련 없는 노드 흐림',
+  'graph.noFailure': '이 대본에는 실패가 없습니다 — 결함 주입(REQ-1409)으로 만들 수 있습니다',
+  'graph.scopeMilestone': '이 마일스톤',
+  'graph.scopeMission': '임무 전체',
+  'graph.crossing': '↺ {edges} — 이 마일스톤 밖으로 되돌아갑니다',
+  'graph.crossingAll': '임무 전체로 보기',
+  'graph.hint': '노드를 더블클릭하면 액션 아이템 상세를 엽니다. 실패 상태 노드는 수정 화면으로 이어집니다. 뷰 노드를 더블클릭하면 그 자리에서 확대됩니다 — 캔버스는 뒤에 그대로 있습니다.',
+  'graph.openFailureModal': '실패 수정 팝업 열기',
+
 };

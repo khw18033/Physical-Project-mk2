@@ -1,3 +1,5 @@
+import { t } from './i18n/dict.ts';
+import { Rich } from './i18n/RichText.tsx';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
   acceptProposal,
@@ -107,26 +109,30 @@ function Milestones({ view, phase, milestoneStatuses, assignments, onAssign, onO
   // 모델이 낸 제안은 **재생할 것이 없다** — 대본이 아니라 계획이라 사건이 0건이다.
   // 그래서 버튼 문구가 다르다. 「재생 시작」이라고 적어 두면 눌러도 아무 일이 없고,
   // 그때 사용자는 승인이 실패했다고 읽는다.
+  // `t()` 는 값을 줄 뿐 리렌더를 안 일으킨다 — 빼면 언어를 바꿔도 이 판만 옛 언어로 남는다.
+  useLang();
   const aiProposal = mission.proposal?.origin === 'ai' ? mission.proposal : null;
   const approvalSlot = planApproval ?? (mission.proposal !== null && <div className="proposal-fallback">
     {/* 단독 빌드(게이트웨이 없음)의 승인 자리 — 통합 앱에서는 PlanApproval(VZ-U-07)이 들어온다. */}
-    <p>{aiProposal ? 'AI 제안' : '대본 제안'} <code>{mission.proposal.missionId}</code> — 승인해야 {aiProposal ? '캔버스에 올라갑니다' : '재생이 시작됩니다'} (VZ-U-07 · 로컬 재생기)</p>
+    {/* **한 문장을 한 키로 둔다.** 「승인해야 …」와 「캔버스에 올라갑니다」를 따로 담으면
+        영어 어순에서 이을 방법이 없다 — 갈래가 둘이므로 키도 둘이다 (지시서 §1). */}
+    <p><Rich id={aiProposal ? 'prop.fallbackAi' : 'prop.fallbackScript'} vars={{ id: mission.proposal.missionId }} /></p>
     {/* **승인의 문은 하나다** (`acceptProposal`). 종류마다 부르는 곳이 다르면 언젠가 한쪽만 검사가 붙는다. */}
-    <button onClick={() => acceptProposal('local')}>{aiProposal ? '승인 — 캔버스에 올린다' : '승인 — 재생 시작'}</button>
-    <button onClick={() => rejectProposal()}>거부</button>
+    <button onClick={() => acceptProposal('local')}>{t(aiProposal ? 'prop.approveCanvas' : 'prop.approvePlay')}</button>
+    <button onClick={() => rejectProposal()}>{t('prop.reject')}</button>
   </div>);
   const showApproval = phase === 'proposal' || planApproval !== undefined;
-  return <div className="milestone-layout"><UtterancePanel fallbackText={view.utteranceText} /><section className="milestone-panel"><h2>마일스톤 · {view.milestones.length}건</h2>
+  return <div className="milestone-layout"><UtterancePanel fallbackText={view.utteranceText} /><section className="milestone-panel"><h2>{t('ms.count', { n: view.milestones.length })}</h2>
     <RobotPanel client={robotClient()} />
     {showApproval && <div className="proposal-card">
       {phase === 'proposal' && (aiProposal
-        ? <p className="proposal-note proposal-ai"><b>AI 제안</b> — <code>{aiProposal.provenance.model}</code> 이 만든 임무 {view.missionId} 「{view.label}」. 승인 전에는 아무것도 실행되지 않습니다
-            <small>규칙 {aiProposal.provenance.rules?.length ?? 0}개 · 프롬프트 {aiProposal.provenance.promptDigest ?? '없음(스텁)'} · 근거는 발화 패널에 폅니다</small></p>
-        : <p className="proposal-note"><b>제안 상태</b> — 대본 {view.missionId} 「{view.label}」. 승인 전에는 아무것도 재생되지 않습니다{mission.proposal?.origin === 'script' && mission.proposal.keywords.length ? <small>맞은 키워드: {mission.proposal.keywords.join(' · ')}</small> : null}</p>)}
+        ? <p className="proposal-note proposal-ai"><Rich id="ms.aiProposal" vars={{ model: aiProposal.provenance.model, id: view.missionId, label: view.label }} />
+            <small>{t('ms.aiMeta', { rules: aiProposal.provenance.rules?.length ?? 0, digest: aiProposal.provenance.promptDigest ?? t('ms.promptNone') })}</small></p>
+        : <p className="proposal-note"><Rich id="ms.scriptProposal" vars={{ id: view.missionId, label: view.label }} />{mission.proposal?.origin === 'script' && mission.proposal.keywords.length ? <small>{t('ms.matchedKeywords', { words: mission.proposal.keywords.join(' · ') })}</small> : null}</p>)}
       {approvalSlot}
     </div>}
-    <div className="milestone-list">{view.milestones.map((item) => <button key={item.id} className={`milestone state-${milestoneStatuses[item.id] ?? 'pending'}`} onClick={() => onOpen(item.id)} onDragOver={(event) => event.preventDefault()} onDrop={(event) => onAssign(item.id, event.dataTransfer.getData('text/plain'))}><b>{item.id}</b><strong>{item.title}</strong><span>{(assignments[item.id] ?? item.assignedTargets).join(' · ') || '미배정'}</span><small>클릭 → 태스크 그래프</small></button>)}</div></section>
-    <aside className="hardware-panel"><h2>하드웨어 · {view.hardware ? hardware.length : cast.length}대</h2><p>카드를 마일스톤으로 드래그 · <b>더블클릭 → 대상 상태</b> · 원천 {hardwareSourceLabel()}</p>
+    <div className="milestone-list">{view.milestones.map((item) => <button key={item.id} className={`milestone state-${milestoneStatuses[item.id] ?? 'pending'}`} onClick={() => onOpen(item.id)} onDragOver={(event) => event.preventDefault()} onDrop={(event) => onAssign(item.id, event.dataTransfer.getData('text/plain'))}><b>{item.id}</b><strong>{item.title}</strong><span>{(assignments[item.id] ?? item.assignedTargets).join(' · ') || t('ms.unassigned')}</span><small>{t('ms.clickToGraph')}</small></button>)}</div></section>
+    <aside className="hardware-panel"><h2>{t('ms.hardwareCount', { n: view.hardware ? hardware.length : cast.length })}</h2><p><Rich id="ms.hardwareHint" vars={{ source: hardwareSourceLabel() }} /></p>
     {view.hardware
       ? hardware.map((item) => <article key={item.id} draggable onDragStart={(event) => event.dataTransfer.setData('text/plain', item.id)} onDoubleClick={() => setStatusDeviceId(item.id)}><b className={item.connection}>{item.id}</b><small>{item.kind}</small><span><PendingSource id="hardware-pool-status" inline>{item.connection} · {item.battery}% · {item.rssi} dBm</PendingSource></span></article>)
       // 대본(registry 세계) — 등장 장비는 id 만 대본에서 읽는다. 실측 3행은 여전히 자리표시다
@@ -134,7 +140,7 @@ function Milestones({ view, phase, milestoneStatuses, assignments, onAssign, onO
       // 대본(registry 세계) — 등장 장비는 id 만 대본에서 읽는다. 연결 상태는 **아는 만큼**
       // 적고(260910 지적), 실측 두 행(배터리·RSSI)은 여전히 자리표시다 — 로봇이 그 값을
       // 보내 주는 채널이 아직 없다(VZ-D-07 · 8/31 결정: 남이 줄 데이터는 지어내지 않는다).
-      : cast.map((id) => <article key={id} draggable onDragStart={(event) => event.dataTransfer.setData('text/plain', id)} onDoubleClick={() => setStatusDeviceId(id)}><b>{id}</b><small>대본 등장 장비</small><HardwareLink entityId={id} /></article>)}</aside>
+      : cast.map((id) => <article key={id} draggable onDragStart={(event) => event.dataTransfer.setData('text/plain', id)} onDoubleClick={() => setStatusDeviceId(id)}><b>{id}</b><small>{t('ms.scriptDevice')}</small><HardwareLink entityId={id} /></article>)}</aside>
     {/* 대상 상태 (260904). 목록의 **형제**로 얹힌다 — 뒤의 마일스톤·하드웨어 목록은
         언마운트되지 않으므로 닫으면 정확히 같은 자리다 (VZ-N-05 와 같은 규칙). */}
     {statusDeviceId !== null && <DeviceStatusOverlay
@@ -159,17 +165,19 @@ function ReplayControls({ second, following, playing, onChange, onFollow, view, 
    * (재생할 사건이 없다). 나눠 버리면 눈금 위치가 전부 `NaN%` 가 되고, 그것은 CSS 에서
    * 조용히 무시되어 「눈금이 왜 안 보이지」로 끝난다.
    */
+  // `t()` 는 값을 줄 뿐 리렌더를 안 일으킨다 — 빼면 언어를 바꿔도 이 판만 옛 언어로 남는다.
+  useLang();
   const span = Math.max(1, view.durationSec);
   return <section className="replay-controls"><div><button onClick={() => onChange(0)}>◀◀</button><button onClick={() => onChange(Math.max(0, shown - 1))}>◀</button><button onClick={() => onChange(Math.min(view.durationSec, shown + 1))}>▶</button><b>{shown}s / {view.durationSec}s</b>
     {/* 재생 중에는 머리를 따라가고, 뒤로 끌면 그 시점을 그린다. 재생이 끝나면 그냥 되감기 도구다. */}
     {playing && (following
-      ? <b className="follow-live">● 따라가는 중</b>
-      : <button className="follow-live" onClick={onFollow}>▶ 따라가기 (live)</button>)}
-  </div><input aria-label="임무 재생 시각" type="range" min="0" max={view.durationSec} value={shown} onChange={(event) => onChange(Number(event.target.value))} /><div className="timelines">{tasks.map((task) => <div key={task.id}><code>{task.id}</code><span className="timeline">{timelineSegments(view, trace, task.id).map((segment, index) => <em key={`${segment.start}-${index}`} className={`state-${segment.status}`} style={{ width: `${(segment.end - segment.start) / span * 100}%` }} />)}<i style={{ left: `${shown / span * 100}%` }} /></span></div>)}
+      ? <b className="follow-live">{t('replay.following')}</b>
+      : <button className="follow-live" onClick={onFollow}>{t('replay.follow')}</button>)}
+  </div><input aria-label={t('replay.timeAria')} type="range" min="0" max={view.durationSec} value={shown} onChange={(event) => onChange(Number(event.target.value))} /><div className="timelines">{tasks.map((task) => <div key={task.id}><code>{task.id}</code><span className="timeline">{timelineSegments(view, trace, task.id).map((segment, index) => <em key={`${segment.start}-${index}`} className={`state-${segment.status}`} style={{ width: `${(segment.end - segment.start) / span * 100}%` }} />)}<i style={{ left: `${shown / span * 100}%` }} /></span></div>)}
     {/* AI 줄 — 이 임무를 무엇이 만들었나 (260907 · `VZ-G-01` 역추적). 사람 줄 바로 위다. */}
-    <div className="timeline-ai"><code>AI</code><span className="timeline">{ai.map((event) => <b key={event.seq} className="ai-mark" style={{ left: `${Math.min(1, event.atSec / span) * 100}%` }} title={`T+${Math.round(event.atSec)}s · ${event.kind} → ${event.nodeId} (produced_by=ai · ${String((event.payload as { model?: unknown } | undefined)?.model ?? '모델 미상')})`} />)}<i style={{ left: `${shown / span * 100}%` }} /></span><small>{ai.length === 0 ? '생성 기록 없음 (대본에서 읽은 임무입니다)' : `${ai.length}건 · produced_by=ai`}</small></div>
+    <div className="timeline-ai"><code>AI</code><span className="timeline">{ai.map((event) => <b key={event.seq} className="ai-mark" style={{ left: `${Math.min(1, event.atSec / span) * 100}%` }} title={t('replay.aiMark', { sec: Math.round(event.atSec), kind: event.kind, node: event.nodeId, model: String((event.payload as { model?: unknown } | undefined)?.model ?? t('replay.modelUnknown')) })} />)}<i style={{ left: `${shown / span * 100}%` }} /></span><small>{ai.length === 0 ? t('replay.noAi') : t('replay.aiCount', { n: ai.length })}</small></div>
     {/* 사람 조작 줄 — 없으면 「아직 없다」고 적는다. 빈 줄은 「기록을 안 한다」로 읽힌다. */}
-    <div className="timeline-human"><code>사람</code><span className="timeline">{human.map((event) => <b key={event.seq} className="human-mark" style={{ left: `${Math.min(1, event.atSec / span) * 100}%` }} title={`T+${Math.round(event.atSec)}s · ${event.kind} → ${event.nodeId} (produced_by=human)`} />)}<i style={{ left: `${shown / span * 100}%` }} /></span><small>{human.length === 0 ? '조작 기록 없음' : `${human.length}건 · produced_by=human`}</small></div></div></section>;
+    <div className="timeline-human"><code>{t('replay.human')}</code><span className="timeline">{human.map((event) => <b key={event.seq} className="human-mark" style={{ left: `${Math.min(1, event.atSec / span) * 100}%` }} title={`T+${Math.round(event.atSec)}s · ${event.kind} → ${event.nodeId} (produced_by=human)`} />)}<i style={{ left: `${shown / span * 100}%` }} /></span><small>{human.length === 0 ? t('replay.noHuman') : t('replay.humanCount', { n: human.length })}</small></div></div></section>;
 }
 
 /**
@@ -308,8 +316,8 @@ function GraphScreen({ screen, view, trace, milestone, tasks, headSec, playing, 
    */
   const shape = useMemo(() => graphShape(tasks, refEdges), [refEdges, tasks]);
   const title = scope === 'mission'
-    ? `${view.label} · 임무 전체 ${tasks.length}노드`
-    : milestone === null ? view.label : `마일스톤 ${milestone.id.replace(/^MS-/, '')} · ${milestone.title}`;
+    ? t('graph.titleMission', { label: view.label, n: tasks.length })
+    : milestone === null ? view.label : t('graph.titleMilestone', { id: milestone.id.replace(/^MS-/, ''), title: milestone.title });
   /**
    * 이동 경로 (260901 — 후속 3건 요구 1).
    *
@@ -319,10 +327,10 @@ function GraphScreen({ screen, view, trace, milestone, tasks, headSec, playing, 
    *
    * 되감기·실패 화면(replay·failure)도 이 컴포넌트라 같이 풀린다. 그 둘도 똑같이 갇혀 있었다.
    */
-  const here = scope === 'mission' ? `임무 전체 ${tasks.length}노드` : milestone === null ? view.label : `${milestone.id} ${milestone.title}`;
-  const crumbs = <nav className="crumbs" aria-label="이동 경로">
+  const here = scope === 'mission' ? t('graph.hereMission', { n: tasks.length }) : milestone === null ? view.label : `${milestone.id} ${milestone.title}`;
+  const crumbs = <nav className="crumbs" aria-label={t('graph.crumbsAria')}>
     {/* 항상 있고 항상 눌린다. 사용자가 요구한 되돌아가기가 이것이다. */}
-    <button type="button" className="crumbs__link" onClick={onBack}>마일스톤</button>
+    <button type="button" className="crumbs__link" onClick={onBack}>{t('graph.crumbMilestones')}</button>
     <span className="crumbs__sep" aria-hidden="true">›</span>
     {openTask === null
       ? <span className="crumbs__here">{here}</span>
@@ -345,23 +353,25 @@ function GraphScreen({ screen, view, trace, milestone, tasks, headSec, playing, 
     onMilestone(target.id);
     onScope('milestone');
   };
-  const stepper = steppable.length > 1 && <nav className="milestone-stepper" aria-label="마일스톤 이동">
+  const stepper = steppable.length > 1 && <nav className="milestone-stepper" aria-label={t('graph.stepperAria')}>
     <button type="button" disabled={prevMilestone === null} onClick={() => goMilestone(prevMilestone)}
-      title={prevMilestone === null ? '첫 마일스톤입니다' : `${prevMilestone.id} ${prevMilestone.title}`}>
-      ◀ 이전 마일스톤{prevMilestone !== null && <small>{prevMilestone.id}</small>}
+      title={prevMilestone === null ? t('graph.firstMilestone') : `${prevMilestone.id} ${prevMilestone.title}`}>
+      {t('graph.prevMilestone')}{prevMilestone !== null && <small>{prevMilestone.id}</small>}
     </button>
     <span className="milestone-stepper__at">{at >= 0 ? `${at + 1} / ${steppable.length}` : `– / ${steppable.length}`}</span>
     <button type="button" disabled={nextMilestone === null} onClick={() => goMilestone(nextMilestone)}
-      title={nextMilestone === null ? '마지막 마일스톤입니다' : `${nextMilestone.id} ${nextMilestone.title}`}>
-      {nextMilestone !== null && <small>{nextMilestone.id}</small>}다음 마일스톤 ▶
+      title={nextMilestone === null ? t('graph.lastMilestone') : `${nextMilestone.id} ${nextMilestone.title}`}>
+      {nextMilestone !== null && <small>{nextMilestone.id}</small>}{t('graph.nextMilestone')}
     </button>
   </nav>;
   return <div className={replay ? 'replay-layout' : ''}>{/* **손으로 쓴 네 줄이 실제 목록이 됐다** (260912 지시). 이 세션에서 끝난 판만
         쌓이고, 그 사실을 목록이 스스로 적는다. */}
-    {replay && <aside className="history"><h2>임무 이력</h2><MissionHistoryList /></aside>}<section className="graph-panel"><header className="section-title section-title--graph"><div>{crumbs}<h2>{title}</h2><small>{replay ? `${recorded !== null ? `저장된 판 ${recorded.date}/${recorded.run} · ` : ''}리플레이 · T+${String(Math.round(second)).padStart(2, '0')}s` : failure ? (failedTask ? '실패 경로 강조 · 관련 없는 노드 흐림' : '이 대본에는 실패가 없습니다 — 결함 주입(REQ-1409)으로 만들 수 있습니다') : shapeLabel(shape)}</small></div>{stepper || <span />}<div className="toggle"><button className={scope === 'milestone' ? 'active' : ''} onClick={() => onScope('milestone')}>이 마일스톤</button><button className={scope === 'mission' ? 'active' : ''} onClick={() => onScope('mission')}>임무 전체</button></div></header><Palette canvas={canvas} missionId={view.missionId} pickedTaskId={picked?.id ?? null} pickedTaskTitle={picked?.title ?? null} /><TaskGraph tasks={tasks} hardware={listRegisteredHardware()} states={folded.tasks} selected={failure ? failedTask?.id : undefined} dimUnrelated={failure && failedTask !== null} refEdges={refEdges} viewpoints={viewpoints} viewpointFill={viewpointFill} onOpen={(task) => onOpen(task, folded.tasks[task.id]?.status === 'failed')} canvas={canvasLayer} />
+    {replay && <aside className="history"><h2>{t('graph.history')}</h2><MissionHistoryList /></aside>}<section className="graph-panel"><header className="section-title section-title--graph"><div>{crumbs}<h2>{title}</h2><small>{replay
+      ? (recorded !== null ? t('graph.savedRun', { date: recorded.date, run: recorded.run }) : '') + t('graph.replay', { sec: String(Math.round(second)).padStart(2, '0') })
+      : failure ? (failedTask ? t('graph.failureFocus') : t('graph.noFailure')) : shapeLabel(shape)}</small></div>{stepper || <span />}<div className="toggle"><button className={scope === 'milestone' ? 'active' : ''} onClick={() => onScope('milestone')}>{t('graph.scopeMilestone')}</button><button className={scope === 'mission' ? 'active' : ''} onClick={() => onScope('mission')}>{t('graph.scopeMission')}</button></div></header><Palette canvas={canvas} missionId={view.missionId} pickedTaskId={picked?.id ?? null} pickedTaskTitle={picked?.title ?? null} /><TaskGraph tasks={tasks} hardware={listRegisteredHardware()} states={folded.tasks} selected={failure ? failedTask?.id : undefined} dimUnrelated={failure && failedTask !== null} refEdges={refEdges} viewpoints={viewpoints} viewpointFill={viewpointFill} onOpen={(task) => onOpen(task, folded.tasks[task.id]?.status === 'failed')} canvas={canvasLayer} />
     {/* 마일스톤 밖으로 나가는 되돌아감 — 적지 않으면 사용자는 루프의 존재를 모른다 (결정 2). */}
-    {crossing.length > 0 && <p className="ref-crossing">↺ {crossing.map((edge) => `${edge.from} → ${edge.to} (${edge.label})`).join(' · ')} — 이 마일스톤 밖으로 되돌아갑니다 <button onClick={() => onScope('mission')}>임무 전체로 보기</button></p>}
-    {replay && <ReplayControls second={second} following={override === null} playing={playing} onChange={setOverride} onFollow={() => setOverride(null)} view={view} trace={trace} tasks={tasks} />}<StatusLegend /><Explain id="dbg-1" className="hint">노드를 더블클릭하면 액션 아이템 상세를 엽니다. 실패 상태 노드는 수정 화면으로 이어집니다. 뷰 노드를 더블클릭하면 그 자리에서 확대됩니다 — 캔버스는 뒤에 그대로 있습니다.</Explain></section>
+    {crossing.length > 0 && <p className="ref-crossing">{t('graph.crossing', { edges: crossing.map((edge) => `${edge.from} → ${edge.to} (${edge.label})`).join(' · ') })} <button onClick={() => onScope('mission')}>{t('graph.crossingAll')}</button></p>}
+    {replay && <ReplayControls second={second} following={override === null} playing={playing} onChange={setOverride} onFollow={() => setOverride(null)} view={view} trace={trace} tasks={tasks} />}<StatusLegend /><Explain id="dbg-1" className="hint">{t('graph.hint')}</Explain></section>
     {/* 확대 오버레이 (260903 2단계). **TaskGraph 의 형제**다 — 위에서 캔버스를 조건 없이
         그리고 여기에 얹기만 하므로, 확대해도 캔버스가 교체되지 않고 닫으면 같은 자리다. */}
     {zoomedNode !== null && zoomedEntry !== null && <ZoomOverlay entry={zoomedEntry} scope={viewScopeFor(zoomedNode.taskId, view, second)} taskId={zoomedNode.taskId} onClose={() => setZoomedId(null)} />}</div>;
@@ -575,7 +585,7 @@ export function MissionDebugger({ navigation, planApproval }: { navigation?: Deb
       nodeRequest={nodeRequest}
       onMilestone={setMilestoneId} />}
     {modalTask && <ActionModal task={modalTask} view={view} device={listRegisteredHardware().find((item) => item.id === modalTask.target)} failure={screen === 'failure'} onClose={() => { setModalTask(null); if (screen === 'detail') setScreen('graph'); }} />}
-    {screen === 'failure' && !modalTask && firstFailed && <button className="failure-open" onClick={() => setModalTask(firstFailed)}>실패 수정 팝업 열기</button>}
+    {screen === 'failure' && !modalTask && firstFailed && <button className="failure-open" onClick={() => setModalTask(firstFailed)}>{t('graph.openFailureModal')}</button>}
     {/* 자체 관측 (VZ-O-04) — devpanel 이라 통합 셸에서는 목·개발 모드에서만 뜨고,
         단독 빌드(측정 장비)에서는 늘 보인다. 기본은 접힘이다. */}
     <ObservabilityPanel /></div>;
