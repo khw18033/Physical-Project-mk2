@@ -122,6 +122,113 @@ export const ko: Record<string, string> = {
   'conn.checking': '확인 중…',
   'conn.check': '확인',
 
+  // 연결 대상 목록 — 원천은 `shared/connections.ts` 의 `CONNECTION_TARGETS` 다.
+  // 그 파일은 **키만** 들고 있다 (모듈 최상위 상수라 t() 를 부르면 언어가 굳는다).
+  'conn.target.physical': '로봇 (MQTT 브로커)',
+  'conn.target.detect': '객체 탐지',
+  'conn.target.autodrive': '자율주행 로봇 (pi1 중계)',
+  'conn.target.autodrive.what': '유니티가 모는 로봇의 배터리·방위·경로 사건을 받기만 합니다 — 명령을 보내지 않고, 머리줄 정지도 이 로봇에는 닿지 않습니다',
+  'conn.target.autodriveAi': '자율주행 영상 · 장애물 탐지',
+  'conn.target.autodriveAi.what': '로봇 앞 카메라의 AI 영상(스트림)과 장애물 탐지 JSON 을 받기만 합니다 — 문 찾기 시연의 객체 탐지와 다른 서버입니다',
+  'conn.target.gateway': '백엔드 WS 게이트웨이',
+  'conn.target.gateway.what': '구독·명령·레지스트리 — 화면의 값 대부분이 이 하나를 지난다',
+  'conn.target.stt': 'STT 서비스',
+  'conn.target.stt.what': '발화 전사. 꺼져 있어도 화면은 뜨고 수동 입력이 열려 있다 (VZ-C-02)',
+  'conn.target.generate': '생성 서비스',
+  'conn.target.generate.what': '발화 → 임무 객체 (VZ-G-01·VZ-G-02). 꺼져 있으면 생성만 꺼지고 대본 재생·되감기·캔버스는 그대로 돈다',
+  'conn.target.controlNode': '제어 노드',
+  'conn.target.controlNode.what': '엣지 제어 노드로의 직접 경로',
+  'conn.target.controlNode.pending': '상대 없음 — 주소를 넣어도 붙을 곳이 아직 없습니다. 자리만 잡아 둡니다',
+  'conn.target.digitalTwin': '디지털 트윈',
+  'conn.target.digitalTwin.what': '별도 네이티브 뷰어(Unity) — `VZ-U-02`',
+  'conn.target.digitalTwin.pending': '상대 없음 — 뷰어가 붙는 방식이 정해지지 않았습니다. 자리만 잡아 둡니다',
+  // 주소 칸 이름. `WebSocket`·`HTTP` 는 프로토콜 이름이라 양쪽이 같다 — 그래도 키를 둔다:
+  // 대상 목록에 글자가 남아 있으면 다음 사람이 그 옆에 한글을 적는다.
+  'conn.field.ws': 'WebSocket',
+  'conn.field.http': 'HTTP',
+  'conn.field.base': '주소',
+
+  // 연결 확인 — 줄 이름은 **구조**라 키다. 사유(`reason`)는 그 순간의 기록이라
+  // 만들 때 풀어 넣는다 (`connectionHealth.ts` 의 주석).
+  'check.line.broker': '브로커',
+  'check.line.agent': '단말',
+  'check.line.robot': '로봇',
+  'check.line.feed': '중계',
+  'check.line.probe': '서비스',
+  'check.line.sample': '테스트 자료',
+  'check.line.health': 'GET /health',
+  'check.line.control': '장애물 JSON',
+  'check.line.stream': '영상 한 장',
+  'check.line.none': '확인',
+  'check.line.error': '확인',
+  'check.reason.noClient': '클라이언트가 없습니다',
+  'check.reason.noBroker': '브로커가 없어 물어보지 못했습니다',
+  'check.reason.agentSilent': '단말이 답하지 않아 물어보지 못했습니다',
+  'check.reason.noDeviceStatus': '장비 상태가 아직 안 왔습니다',
+  'check.reason.piOffline': '파이가 오프라인으로 봅니다',
+  'check.reason.innerLink': '내부 링크 {link}',
+  'check.reason.innerLinkMissing': '내부 링크 값이 안 왔습니다',
+  'check.reason.batterySuffix': ' · 배터리 {pct}%',
+  'check.reason.detectNoAddress': '주소가 비어 있습니다 — 테스트로 먼저 볼 수 있습니다',
+  'check.reason.feedTimeout': '{sec}초 안에 중계 상태가 안 왔습니다 — 브로커는 붙었습니다. pi1 의 중계 서비스를 보세요',
+  'check.reason.obstacleShape': '받았지만 모양이 다릅니다 — detections 배열이 없습니다',
+  'check.reason.obstacleOk': '탐지 {n}건 · has_near_obstacle {near}',
+  'check.reason.viaDirect': ' · 직접',
+  'check.reason.noMethod': '이 대상은 확인 방법이 없습니다',
+  'check.feed.batteryUnknown': '배터리 모름',
+  'check.feed.battery': '배터리 {pct}%',
+  'check.feed.yawUnknown': 'yaw 모름',
+  'check.feed.yaw': 'yaw {deg}° ({source})',
+
+  // 주소 프리셋 — `physical/presets.ts` · `detect/presets.ts` 가 키만 든다
+  'preset.manual': '직접 입력',
+  'preset.manual.why': '사용자가 적는다',
+  'preset.broker.tailscale': 'Tailscale',
+  'preset.broker.tailscale.why': '기본값. 망이 바뀌어도 같은 이름으로 붙는다',
+  'preset.broker.name': '같은 랜 (mDNS)',
+  'preset.broker.name.why': '같은 랜에 있을 때. 한 홉 짧다',
+  'preset.broker.lab': '랩 Wi-Fi',
+  'preset.broker.lab.why': '고정 IP. 이름이 안 풀릴 때',
+  'preset.broker.venue': '발표장 핫스팟',
+  'preset.broker.venue.why': '정적 IP 미정 — 받는 즉시 채운다. 지어내 넣지 않는다',
+  'preset.detect.tailscale': 'Tailscale',
+  'preset.detect.tailscale.why': '기본값. 탐지 데스크톱의 테일넷 이름',
+  'preset.detect.tailscaleIp': 'Tailscale (IP)',
+  'preset.detect.tailscaleIp.why': '이름이 안 풀릴 때. 테일넷 IP 는 기기가 바뀌지 않는 한 그대로다',
+  'preset.detect.local': '같은 PC',
+  'preset.detect.local.why': '관제 웹과 탐지가 한 PC 에 있을 때',
+
+  // 임무 결과 딱지 — `data/missionHistory.ts` 가 키만 든다
+  'hist.outcome.done': '완료',
+  'hist.outcome.failed': '실패',
+  'hist.outcome.stopped': '정지',
+
+  // 알림 갈래 — `shared/notifications.ts` 가 키만 든다
+  'notify.source.externalAi': '외부 AI',
+  'notify.source.missionGeneration': '임무 생성',
+  'notify.source.command': '명령',
+  'notify.source.connection': '연결',
+  'notify.source.robot': '로봇',
+
+  // 시나리오 축 — `scenarios/axes.ts` 가 키만 든다
+  'axis.position': '위치',
+  'axis.speed': '속도',
+  'axis.water': '수위',
+  'axis.coverage': '커버리지·사각지대',
+  'axis.video': '영상·탐지',
+  'axis.actuator': '액추에이터',
+  'axis.command': '명령',
+  'axis.risk': '위험도 판정',
+  'axis.observability': '관측 지표',
+
+  // 상단 안내줄 「지금 무엇이 도는가」 — `scenarios/nowPlaying.ts`.
+  // 그 파일은 그릴 때마다 불리는 함수라 거기서 t() 를 불러도 언어가 안 굳는다.
+  'nowplaying.ended': '재생 끝 — 장치는 마지막 상태를 유지합니다',
+  'nowplaying.start': 'T+0 · 시작 상태 — 승인하면 재생됩니다 (VZ-U-07)',
+  'nowplaying.startWithMilestone': 'T+0 · 시작 상태 — 첫 마일스톤 {id} {title}. 승인하면 재생됩니다 (VZ-U-07)',
+  'nowplaying.waiting': 'T+{sec}s · 첫 사건 대기',
+  'nowplaying.issuing': '{head} → {command} 발행',
+
   // 모드 스위치
   'mode.normal': '일반',
   'mode.scenario': '시나리오 ▾',

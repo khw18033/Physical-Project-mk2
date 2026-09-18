@@ -89,29 +89,29 @@ export async function checkPhysical(
   robotSource: RobotFacts | (() => RobotFacts | null) | null = null,
 ): Promise<readonly HealthLine[]> {
   if (client === null) {
-    return [line('broker', '브로커', false, { reason: '클라이언트가 없습니다' })];
+    return [line('broker', 'check.line.broker', false, { reason: t('check.reason.noClient') })];
   }
   const status = client.getStatus().state === 'open'
     ? client.getStatus()
     : (await timed(() => client.connect())).value;
 
   const broker = status.state === 'open'
-    ? line('broker', '브로커', true)
-    : line('broker', '브로커', false, { reason: status.reason ?? status.state });
+    ? line('broker', 'check.line.broker', true)
+    : line('broker', 'check.line.broker', false, { reason: status.reason ?? status.state });
 
   // 브로커가 안 붙었으면 아래 둘은 **확인할 수 없다** — 실패가 아니라 못 물어본 것이다.
   if (broker.ok !== true) {
     return [
       broker,
-      line('agent', '단말', null, { reason: '브로커가 없어 물어보지 못했습니다' }),
-      line('robot', '로봇', null, { reason: '브로커가 없어 물어보지 못했습니다' }),
+      line('agent', 'check.line.agent', null, { reason: t('check.reason.noBroker') }),
+      line('robot', 'check.line.robot', null, { reason: t('check.reason.noBroker') }),
     ];
   }
 
   const { value: ping, ms } = await timed(() => client.ping());
   const agent = ping.ok
-    ? line('agent', '단말', true, { roundTripMs: ping.roundTripMs ?? ms })
-    : line('agent', '단말', false, { reason: ping.message });
+    ? line('agent', 'check.line.agent', true, { roundTripMs: ping.roundTripMs ?? ms })
+    : line('agent', 'check.line.agent', false, { reason: ping.message });
 
   // **붙은 뒤에 기다린다.** 붙기 전에 기다리면 구독이 없어 아무것도 안 오고, 그 시간만
   // 버린 채 「모른다」로 끝난다 — 실제로 그랬다.
@@ -127,16 +127,16 @@ export async function checkPhysical(
  * 안 온 것을 초록으로도 빨강으로도 칠하지 않는다.
  */
 function robotLine(agent: HealthLine, robot: RobotFacts | null): HealthLine {
-  if (agent.ok !== true) return line('robot', '로봇', null, { reason: '단말이 답하지 않아 물어보지 못했습니다' });
-  if (robot === null) return line('robot', '로봇', null, { reason: '장비 상태가 아직 안 왔습니다' });
+  if (agent.ok !== true) return line('robot', 'check.line.robot', null, { reason: t('check.reason.agentSilent') });
+  if (robot === null) return line('robot', 'check.line.robot', null, { reason: t('check.reason.noDeviceStatus') });
   // 시범 키 ② 치환 (영문화 1단계 §4). **영어는 어순이 반대다** — ko 는 숫자가 앞이고
   // en 은 'No signal for {sec}s' 로 뒤다. 조각을 이어붙였다면 옮길 방법이 없었다.
-  if (robot.stale) return line('robot', '로봇', null, { reason: t('check.robot.stale', { sec: robot.staleSec }) });
-  if (robot.online === false) return line('robot', '로봇', false, { reason: '파이가 오프라인으로 봅니다' });
-  if (robot.link !== null && robot.link !== 'ok') return line('robot', '로봇', false, { reason: `내부 링크 ${robot.link}` });
-  if (robot.link === null) return line('robot', '로봇', null, { reason: '내부 링크 값이 안 왔습니다' });
-  const extra = robot.batteryPct === null ? '' : ` · 배터리 ${robot.batteryPct}%`;
-  return line('robot', '로봇', true, { reason: robot.health === 'ok' ? null : `${robot.health}${extra}` });
+  if (robot.stale) return line('robot', 'check.line.robot', null, { reason: t('check.robot.stale', { sec: robot.staleSec }) });
+  if (robot.online === false) return line('robot', 'check.line.robot', false, { reason: t('check.reason.piOffline') });
+  if (robot.link !== null && robot.link !== 'ok') return line('robot', 'check.line.robot', false, { reason: t('check.reason.innerLink', { link: robot.link }) });
+  if (robot.link === null) return line('robot', 'check.line.robot', null, { reason: t('check.reason.innerLinkMissing') });
+  const extra = robot.batteryPct === null ? '' : t('check.reason.batterySuffix', { pct: robot.batteryPct });
+  return line('robot', 'check.line.robot', true, { reason: robot.health === 'ok' ? null : `${robot.health}${extra}` });
 }
 
 /**
@@ -157,16 +157,16 @@ export async function checkDetect(): Promise<readonly HealthLine[]> {
   if (source.kind === 'sample') {
     const { value, ms } = await timed(() => probeDetect(source));
     return [value.alive
-      ? line('sample', '테스트 자료', true, { roundTripMs: ms, reason: value.reason })
-      : line('sample', '테스트 자료', false, { reason: value.reason })];
+      ? line('sample', 'check.line.sample', true, { roundTripMs: ms, reason: value.reason })
+      : line('sample', 'check.line.sample', false, { reason: value.reason })];
   }
   if (source.base.trim() === '') {
-    return [line('health', 'GET /health', null, { reason: '주소가 비어 있습니다 — 테스트로 먼저 볼 수 있습니다' })];
+    return [line('health', 'check.line.health', null, { reason: t('check.reason.detectNoAddress') })];
   }
   const { value, ms } = await timed(() => probeDetect(source));
   return [value.alive
-    ? line('health', 'GET /health', true, { roundTripMs: ms })
-    : line('health', 'GET /health', false, { reason: value.reason })];
+    ? line('health', 'check.line.health', true, { roundTripMs: ms })
+    : line('health', 'check.line.health', false, { reason: value.reason })];
 }
 
 /**
@@ -191,31 +191,33 @@ export type NavProbe = {
  * 브로커는 붙었는데 중계가 안 돈다는 사실이고, 고칠 곳이 pi1 의 서비스라는 뜻이다.
  */
 export async function checkAutodrive(probe: NavProbe | null, waitMs = 6000): Promise<readonly HealthLine[]> {
-  if (probe === null) return [line('broker', '브로커', false, { reason: '클라이언트가 없습니다' })];
+  if (probe === null) return [line('broker', 'check.line.broker', false, { reason: t('check.reason.noClient') })];
   const askedAt = Date.now();
   const status = probe.getStatus().state === 'open' ? probe.getStatus() : (await timed(() => probe.connect())).value;
   if (status.state !== 'open') {
     return [
-      line('broker', '브로커', false, { reason: status.reason ?? status.state }),
-      line('feed', '중계', null, { reason: '브로커가 없어 물어보지 못했습니다' }),
+      line('broker', 'check.line.broker', false, { reason: status.reason ?? status.state }),
+      line('feed', 'check.line.feed', null, { reason: t('check.reason.noBroker') }),
     ];
   }
-  const broker = line('broker', '브로커', true);
+  const broker = line('broker', 'check.line.broker', true);
   const deadline = Date.now() + waitMs;
   for (;;) {
     const latest = probe.latest();
     if (latest !== null && latest.receivedAtMs >= askedAt) {
       const words = [
         [latest.nodeId, latest.entityId].filter((v) => v !== '').join(' · '),
-        latest.batteryPct === null ? '배터리 모름' : `배터리 ${latest.batteryPct}%`,
-        latest.yawDeg === null ? 'yaw 모름' : `yaw ${latest.yawDeg.toFixed(1)}° (${latest.yawSource})`,
+        latest.batteryPct === null ? t('check.feed.batteryUnknown') : t('check.feed.battery', { pct: latest.batteryPct }),
+        latest.yawDeg === null ? t('check.feed.yawUnknown') : // `yawSource` 는 null 일 수 있다. 옛 템플릿이 `${…}` 로 찍어 「null」이 그대로 보였고,
+        // 한국어 화면이 한 글자도 달라지면 안 되므로 그 모양을 그대로 둔다.
+        t('check.feed.yaw', { deg: latest.yawDeg.toFixed(1), source: String(latest.yawSource) }),
       ].filter((v) => v !== '').join(' · ');
-      return [broker, line('feed', '중계', true, { roundTripMs: latest.receivedAtMs - askedAt, reason: words })];
+      return [broker, line('feed', 'check.line.feed', true, { roundTripMs: latest.receivedAtMs - askedAt, reason: words })];
     }
     if (Date.now() >= deadline) break;
     await new Promise((resolve) => setTimeout(resolve, 250));
   }
-  return [broker, line('feed', '중계', false, { reason: `${waitMs / 1000}초 안에 중계 상태가 안 왔습니다 — 브로커는 붙었습니다. pi1 의 중계 서비스를 보세요` })];
+  return [broker, line('feed', 'check.line.feed', false, { reason: t('check.reason.feedTimeout', { sec: waitMs / 1000 }) })];
 }
 
 /**
@@ -226,30 +228,31 @@ export async function checkAutodriveAi(fetcher?: FetchLike): Promise<readonly He
   const { value: json, ms } = await timed(() => fetchObstacleJson(fetcher));
   const snap = json.ok ? parseObstacle(json.body) : null;
   const control = !json.ok
-    ? line('control', '장애물 JSON', false, { reason: json.reason })
+    ? line('control', 'check.line.control', false, { reason: json.reason })
     : snap === null
-      ? line('control', '장애물 JSON', false, { reason: '받았지만 모양이 다릅니다 — detections 배열이 없습니다' })
-      : line('control', '장애물 JSON', true, {
+      ? line('control', 'check.line.control', false, { reason: t('check.reason.obstacleShape') })
+      : line('control', 'check.line.control', true, {
           roundTripMs: ms,
-          reason: `탐지 ${snap.detections.length}건 · has_near_obstacle ${String(snap.hasNearObstacle)}${json.via === 'direct' ? ' · 직접' : ''}`,
+          reason: t('check.reason.obstacleOk', { n: snap.detections.length, near: String(snap.hasNearObstacle) })
+            + (json.via === 'direct' ? t('check.reason.viaDirect') : ''),
         });
   const still = await probeStill();
-  const stream = line('stream', '영상 한 장', still.ok, { roundTripMs: still.ms, reason: still.reason });
+  const stream = line('stream', 'check.line.stream', still.ok, { roundTripMs: still.ms, reason: still.reason });
   return [control, stream];
 }
 
 export async function checkStt(): Promise<readonly HealthLine[]> {
   const { value, ms } = await timed(() => sttProbe());
   return [value.alive
-    ? line('probe', '서비스', true, { roundTripMs: ms })
-    : line('probe', '서비스', false, { reason: value.reason })];
+    ? line('probe', 'check.line.probe', true, { roundTripMs: ms })
+    : line('probe', 'check.line.probe', false, { reason: value.reason })];
 }
 
 export async function checkGenerate(): Promise<readonly HealthLine[]> {
   const { value, ms } = await timed(() => generateProbe());
   return [value.alive
-    ? line('probe', '서비스', true, { roundTripMs: ms })
-    : line('probe', '서비스', false, { reason: value.reason })];
+    ? line('probe', 'check.line.probe', true, { roundTripMs: ms })
+    : line('probe', 'check.line.probe', false, { reason: value.reason })];
 }
 
 /**
@@ -270,9 +273,9 @@ export async function checkTarget(
     else if (target === 'detect') setHealth(target, await checkDetect());
     else if (target === 'stt') setHealth(target, await checkStt());
     else if (target === 'generate') setHealth(target, await checkGenerate());
-    else setHealth(target, [line('none', '확인', false, { reason: '이 대상은 확인 방법이 없습니다' })]);
+    else setHealth(target, [line('none', 'check.line.none', false, { reason: t('check.reason.noMethod') })]);
   } catch (error) {
-    setHealth(target, [line('error', '확인', false, {
+    setHealth(target, [line('error', 'check.line.error', false, {
       reason: error instanceof Error ? error.message : String(error),
     })]);
   }

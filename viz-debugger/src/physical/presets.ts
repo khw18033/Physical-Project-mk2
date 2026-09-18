@@ -109,22 +109,25 @@ export const APPROACH_VX = 0.3;
 export const SCAN_HOLD_AFTER_CAPTURE = 1;
 export const SCAN_HOLD_TIMEOUT_S = 20;
 
+/**
+ * 260918 — `label`·`why` 는 **사전 키**다. 글자가 아니다 (`DetectPreset` 과 같은 이유).
+ */
 export type BrokerPreset = {
   id: string;
-  label: string;
+  labelKey: string;
   /** 빈 문자열이면 **아직 값이 없다는 뜻**이다. 화면이 고를 수 없게 막는다. */
   url: string;
-  why: string;
+  whyKey: string;
 };
 
 export const BROKER_PRESETS: readonly BrokerPreset[] = [
   // **기본값.** 망이 바뀌어도 이름이 같다 — 노트북에서 돌리든 발표장에서 돌든 한 주소다.
-  { id: 'tailscale', label: 'Tailscale', url: 'ws://pi7.tailcb6bfb.ts.net:9001/mqtt', why: '기본값. 망이 바뀌어도 같은 이름으로 붙는다' },
-  { id: 'name', label: '같은 랜 (mDNS)', url: 'ws://pi7.local:9001', why: '같은 랜에 있을 때. 한 홉 짧다' },
-  { id: 'lab', label: '랩 Wi-Fi', url: 'ws://192.168.50.172:9001', why: '고정 IP. 이름이 안 풀릴 때' },
+  { id: 'tailscale', labelKey: 'preset.broker.tailscale', url: 'ws://pi7.tailcb6bfb.ts.net:9001/mqtt', whyKey: 'preset.broker.tailscale.why' },
+  { id: 'name', labelKey: 'preset.broker.name', url: 'ws://pi7.local:9001', whyKey: 'preset.broker.name.why' },
+  { id: 'lab', labelKey: 'preset.broker.lab', url: 'ws://192.168.50.172:9001', whyKey: 'preset.broker.lab.why' },
   // ↓ 정적 IP 를 받으면 이 줄의 url 만 채운다.
-  { id: 'venue', label: '발표장 핫스팟', url: '', why: '정적 IP 미정 — 받는 즉시 채운다. 지어내 넣지 않는다' },
-  { id: 'manual', label: '직접 입력', url: '', why: '사용자가 적는다' },
+  { id: 'venue', labelKey: 'preset.broker.venue', url: '', whyKey: 'preset.broker.venue.why' },
+  { id: 'manual', labelKey: 'preset.manual', url: '', whyKey: 'preset.manual.why' },
 ];
 
 /** 고를 수 있는 프리셋인가. 값이 빈 것은 아직 없는 것이다. */

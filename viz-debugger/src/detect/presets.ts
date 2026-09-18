@@ -15,22 +15,28 @@
  * **여기 밖에서 탐지 주소 문자열을 만들지 않는다** — 탐지를 아는 면은 `src/detect/` 하나다.
  */
 
+/**
+ * 260918 — `label`·`why` 는 **사전 키**다. 글자가 아니다.
+ *
+ * 이 목록은 모듈 최상위 상수라 `import` 때 한 번 평가된다 — 여기서 `t()` 를 부르면 그
+ * 순간의 언어로 굳는다. 연결 관리 판이 키를 받아 푼다(`BROKER_PRESETS` 와 같은 규칙).
+ */
 export type DetectPreset = {
   id: string;
-  label: string;
+  labelKey: string;
   /** 빈 문자열이면 **아직 값이 없다는 뜻**이다. 화면이 고를 수 없게 막는다. */
   url: string;
-  why: string;
+  whyKey: string;
 };
 
 export const DETECT_PRESETS: readonly DetectPreset[] = [
   // **기본값.** 노트북이 어느 망에 있든 같은 이름으로 데스크톱에 닿는다.
-  { id: 'tailscale', label: 'Tailscale', url: 'http://desktop-oaujese.tailcb6bfb.ts.net:8000', why: '기본값. 탐지 데스크톱의 테일넷 이름' },
+  { id: 'tailscale', labelKey: 'preset.detect.tailscale', url: 'http://desktop-oaujese.tailcb6bfb.ts.net:8000', whyKey: 'preset.detect.tailscale.why' },
   // 노트북에서 MagicDNS 가 꺼져 있으면 이름이 안 풀린다 — 그때는 테일넷 IP 로 붙는다.
-  { id: 'tailscale-ip', label: 'Tailscale (IP)', url: 'http://100.125.71.51:8000', why: '이름이 안 풀릴 때. 테일넷 IP 는 기기가 바뀌지 않는 한 그대로다' },
+  { id: 'tailscale-ip', labelKey: 'preset.detect.tailscaleIp', url: 'http://100.125.71.51:8000', whyKey: 'preset.detect.tailscaleIp.why' },
   // 관제 웹과 탐지를 한 PC 에서 같이 돌릴 때(데스크톱에서 개발·점검할 때).
-  { id: 'local', label: '같은 PC', url: 'http://127.0.0.1:8000', why: '관제 웹과 탐지가 한 PC 에 있을 때' },
-  { id: 'manual', label: '직접 입력', url: '', why: '사용자가 적는다' },
+  { id: 'local', labelKey: 'preset.detect.local', url: 'http://127.0.0.1:8000', whyKey: 'preset.detect.local.why' },
+  { id: 'manual', labelKey: 'preset.manual', url: '', whyKey: 'preset.manual.why' },
 ];
 
 /** 고를 수 있는 프리셋인가. 값이 빈 것은 아직 없는 것이다. */

@@ -40,31 +40,45 @@ import { useSyncExternalStore } from 'react';
 
 export type ConnectionTargetId = 'gateway' | 'stt' | 'generate' | 'physical' | 'detect' | 'autodrive' | 'autodrive-ai' | 'control-node' | 'digital-twin';
 
+/**
+ * ## 260918 — 여기 담는 것은 **글자가 아니라 사전 키**다
+ *
+ * 2단계가 `ConnectionsPanel` 의 문구를 사전으로 옮겼는데, **그 판이 그리는 이름은 이 파일에
+ * 있었다.** 그래서 영문 화면에서 판 제목은 영어인데 대상 이름 아홉이 한국어로 남았다 —
+ * 사람이 화면을 보고 260917 에 찾아냈다(「연결 관리 판이 한국어로 보인다」).
+ *
+ * **여기서 `t()` 를 부를 수는 없다.** `CONNECTION_TARGETS` 는 모듈 최상위 상수라 `import`
+ * 시점에 한 번 평가된다 — 그때 부른 `t()` 는 그 순간의 언어로 굳고 언어를 바꿔도 안 변한다
+ * (1단계 보고서 §3 ①). 그래서 **키를 담고 읽는 자리에서 푼다.** 이름을 `…Key` 로 두는 것은
+ * 다음 사람이 여기에 한글을 도로 적지 않게 하려는 것이다.
+ */
 export type ConnectionField = {
   key: string;
-  label: string;
+  /** 칸 이름의 **사전 키**. 글자가 아니다. */
+  labelKey: string;
   /** 기본값. 환경변수가 있으면 그것이 이긴다(아래 `seed`). */
   fallback: string;
 };
 
 export type ConnectionTarget = {
   id: ConnectionTargetId;
-  label: string;
+  /** 대상 이름의 **사전 키**. 글자가 아니다. */
+  labelKey: string;
   /**
-   * 무엇을 위해 붙는가. 화면이 그대로 적는다.
+   * 무엇을 위해 붙는가 — **사전 키**. 화면이 풀어서 적는다.
    *
    * **없어도 된다** (260913 지시). 늘 쓰는 대상(로봇·객체 탐지)은 매번 읽을 문장이 아니라
    * 빼 뒀다 — 자리가 그만큼 줄고, 주소 칸이 먼저 눈에 들어온다.
    */
-  what?: string;
+  whatKey?: string;
   fields: readonly ConnectionField[];
   /**
    * 지금 **실제로 붙는가.** false 면 주소를 넣어도 붙을 곳이 없다 — 자리만 두고
    * 「연결 예정」으로 표시한다. 없는 것을 있는 척하지 않는다(다른 자리표시와 같은 규칙).
    */
   live: boolean;
-  /** `live: false` 의 사유. 있는 것만 적는다. */
-  pending?: string;
+  /** `live: false` 의 사유 — **사전 키**. 있는 것만 적는다. */
+  pendingKey?: string;
 };
 
 /** **대상 목록의 유일한 원천.** 화면은 이것을 그린다. */
@@ -78,82 +92,82 @@ export type ConnectionTarget = {
 export const CONNECTION_TARGETS: readonly ConnectionTarget[] = [
   {
     id: 'physical',
-    label: '로봇 (MQTT 브로커)',
+    labelKey: 'conn.target.physical',
     live: true,
     // **주소를 여기 적지 않는다.** stt·generate 는 대비값을 여기 두지만, 로봇은
     // 주소·토픽·장비 id 가 한 곳에만 있어야 한다는 제약이 더 세다(`verify:physical-port`) —
     // 브로커를 옮기거나 중앙 서버 경유로 바꿀 때 한쪽만 고쳐지면 화면이 「붙었다」고
     // 말하면서 아무것도 못 받는다. 기본값은 `src/physical/PhysicalClient.ts` 가 심는다.
-    fields: [{ key: 'ws', label: 'WebSocket', fallback: '' }],
+    fields: [{ key: 'ws', labelKey: 'conn.field.ws', fallback: '' }],
   },
   {
     id: 'detect',
-    label: '객체 탐지',
+    labelKey: 'conn.target.detect',
     live: true,
     // 설명도 자리표시 문구도 없다 (260913 지시). 주소가 비었을 때 무엇을 할 수 있는지는
     // 아래 「상태」 줄이 그때그때 말한다 — 늘 떠 있는 문장이 아니라 그 상태의 사유다.
     //
     // **주소를 여기 적지 않는다** (260914). 로봇과 같다 — 기본값(Tailscale)은
     // `src/detect/DetectClient.ts` 가 `src/detect/presets.ts` 에서 꺼내 심는다.
-    fields: [{ key: 'base', label: '주소', fallback: '' }],
+    fields: [{ key: 'base', labelKey: 'conn.field.base', fallback: '' }],
   },
   {
     // 260915 — 자율주행 편. 문 찾기 시연(`physical`, pi7)과 **기계도 브로커도 다르다.**
     // 주소는 여기 적지 않는다 — 기본값은 `src/physical/NavClient.ts` 가 심는다(로봇과 같은 규칙).
     id: 'autodrive',
-    label: '자율주행 로봇 (pi1 중계)',
-    what: '유니티가 모는 로봇의 배터리·방위·경로 사건을 받기만 합니다 — 명령을 보내지 않고, 머리줄 정지도 이 로봇에는 닿지 않습니다',
+    labelKey: 'conn.target.autodrive',
+    whatKey: 'conn.target.autodrive.what',
     live: true,
-    fields: [{ key: 'ws', label: 'WebSocket', fallback: '' }],
+    fields: [{ key: 'ws', labelKey: 'conn.field.ws', fallback: '' }],
   },
   {
     // 260915 — 자율주행 편의 AI 서버(로봇 앞 카메라). 문 찾기 시연의 객체 탐지(`detect`)와 **다른 서버**다.
     // 주소는 여기 적지 않는다 — 기본값은 `src/autodrive/aiClient.ts` 가 심는다.
     id: 'autodrive-ai',
-    label: '자율주행 영상 · 장애물 탐지',
-    what: '로봇 앞 카메라의 AI 영상(스트림)과 장애물 탐지 JSON 을 받기만 합니다 — 문 찾기 시연의 객체 탐지와 다른 서버입니다',
+    labelKey: 'conn.target.autodriveAi',
+    whatKey: 'conn.target.autodriveAi.what',
     live: true,
-    fields: [{ key: 'base', label: '주소', fallback: '' }],
+    fields: [{ key: 'base', labelKey: 'conn.field.base', fallback: '' }],
   },
   {
     id: 'gateway',
-    label: '백엔드 WS 게이트웨이',
-    what: '구독·명령·레지스트리 — 화면의 값 대부분이 이 하나를 지난다',
+    labelKey: 'conn.target.gateway',
+    whatKey: 'conn.target.gateway.what',
     live: true,
     fields: [
-      { key: 'ws', label: 'WebSocket', fallback: 'ws://127.0.0.1:8790' },
-      { key: 'http', label: 'HTTP', fallback: 'http://127.0.0.1:8790' },
+      { key: 'ws', labelKey: 'conn.field.ws', fallback: 'ws://127.0.0.1:8790' },
+      { key: 'http', labelKey: 'conn.field.http', fallback: 'http://127.0.0.1:8790' },
     ],
   },
   {
     id: 'stt',
-    label: 'STT 서비스',
-    what: '발화 전사. 꺼져 있어도 화면은 뜨고 수동 입력이 열려 있다 (VZ-C-02)',
+    labelKey: 'conn.target.stt',
+    whatKey: 'conn.target.stt.what',
     live: true,
-    fields: [{ key: 'base', label: '주소', fallback: 'http://127.0.0.1:8801' }],
+    fields: [{ key: 'base', labelKey: 'conn.field.base', fallback: 'http://127.0.0.1:8801' }],
   },
   {
     id: 'generate',
-    label: '생성 서비스',
-    what: '발화 → 임무 객체 (VZ-G-01·VZ-G-02). 꺼져 있으면 생성만 꺼지고 대본 재생·되감기·캔버스는 그대로 돈다',
+    labelKey: 'conn.target.generate',
+    whatKey: 'conn.target.generate.what',
     live: true,
-    fields: [{ key: 'base', label: '주소', fallback: 'http://127.0.0.1:8802' }],
+    fields: [{ key: 'base', labelKey: 'conn.field.base', fallback: 'http://127.0.0.1:8802' }],
   },
   {
     id: 'control-node',
-    label: '제어 노드',
-    what: '엣지 제어 노드로의 직접 경로',
+    labelKey: 'conn.target.controlNode',
+    whatKey: 'conn.target.controlNode.what',
     live: false,
-    pending: '상대 없음 — 주소를 넣어도 붙을 곳이 아직 없습니다. 자리만 잡아 둡니다',
-    fields: [{ key: 'base', label: '주소', fallback: '' }],
+    pendingKey: 'conn.target.controlNode.pending',
+    fields: [{ key: 'base', labelKey: 'conn.field.base', fallback: '' }],
   },
   {
     id: 'digital-twin',
-    label: '디지털 트윈',
-    what: '별도 네이티브 뷰어(Unity) — `VZ-U-02`',
+    labelKey: 'conn.target.digitalTwin',
+    whatKey: 'conn.target.digitalTwin.what',
     live: false,
-    pending: '상대 없음 — 뷰어가 붙는 방식이 정해지지 않았습니다. 자리만 잡아 둡니다',
-    fields: [{ key: 'base', label: '주소', fallback: '' }],
+    pendingKey: 'conn.target.digitalTwin.pending',
+    fields: [{ key: 'base', labelKey: 'conn.field.base', fallback: '' }],
   },
 ];
 

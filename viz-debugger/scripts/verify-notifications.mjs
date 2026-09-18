@@ -134,7 +134,9 @@ const list = () => notify.notificationsNow();
   if (!/notifications\.length === 0/.test(shell)) failures.push('비어 있을 때를 안 가른다');
   // 「명령이 거부되거나 …」 안내 줄은 뺐다 (260913 지시).
   if (/여기에 쌓입니다/.test(shell)) failures.push('빈 판에 안내 문장이 남아 있다');
-  if (!/SOURCE_WORDS/.test(shell)) failures.push('갈래를 사람 말로 안 적는다');
+  // 260918 — `SOURCE_WORDS`(글자) 가 `SOURCE_WORD_KEYS`(사전 키) 로 바뀌었다.
+  // 규칙은 그대로다: 갈래를 `command` 같은 식별자로 적지 말고 사람 말로 적어라.
+  if (!/SOURCE_WORD_KEYS/.test(shell)) failures.push('갈래를 사람 말로 안 적는다');
   if (!/occurredAt/.test(shell)) failures.push('언제 난 일인지 안 적는다');
 }
 

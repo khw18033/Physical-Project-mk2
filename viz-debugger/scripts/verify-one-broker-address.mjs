@@ -20,6 +20,8 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { isScratchPath } from './lib/scratch.mjs';
 
 const root = join(fileURLToPath(new URL('.', import.meta.url)), '..');
+// 260918 — 사전을 읽어 **키의 값까지** 본다 (키만 맞고 사전이 비면 화면에 키가 뜬다).
+const { ko: koDict } = await import(pathToFileURL(join(root, 'src', 'i18n', 'ko.ts')).href);
 const srcDir = join(root, 'src');
 const load = (...p) => import(pathToFileURL(join(root, ...p)).href);
 
@@ -95,9 +97,12 @@ const MAY_WRITE = [
   // **무엇이 끊겼는지 보여야 한다** (§4).
   const { resetHealth, setHealth, line, firstBroken, CHECKED_TARGETS } = await load('src', 'shared', 'connectionHealth.ts');
   resetHealth();
-  setHealth('physical', [line('broker', '브로커', true), line('robot', '로봇', false, { reason: '죽었다' })]);
+  setHealth('physical', [line('broker', 'check.line.broker', true), line('robot', 'check.line.robot', false, { reason: '죽었다' })]);
   const broken = firstBroken(CHECKED_TARGETS);
-  if (broken?.line.label !== '로봇') failures.push('표시등이 어느 줄이 끊겼는지 못 짚는다');
+  // 260918 — 줄 이름이 사전 키다. **키를 본 뒤 그 키의 사전 값까지 본다** — 키만 맞고
+  // 사전이 비면 화면에 「check.line.robot」이 그대로 뜬다.
+  if (broken?.line.labelKey !== 'check.line.robot') failures.push('표시등이 어느 줄이 끊겼는지 못 짚는다');
+  else if (koDict['check.line.robot'] !== '로봇') failures.push('사전의 check.line.robot 이 「로봇」이 아니다 — 한국어 화면이 달라진다');
   resetHealth();
 }
 

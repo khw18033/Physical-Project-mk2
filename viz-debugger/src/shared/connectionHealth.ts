@@ -22,7 +22,12 @@ import type { ConnectionTargetId } from './connections.ts';
 export type HealthLine = {
   /** 줄 이름. `physical` 은 '브로커'와 '로봇' 둘이다. */
   id: string;
-  label: string;
+  /**
+   * 줄 이름의 **사전 키** (260918). 글자가 아니다 — 화면이 `t()` 로 푼다.
+   *
+   * 줄 이름은 **구조**라서 언어를 바꾸면 같이 바뀌어야 한다. 아래 `reason` 은 반대다.
+   */
+  labelKey: string;
   /**
    * `true` 초록 · `false` 빨강 · **`null` 은 「모른다」**.
    *
@@ -33,7 +38,14 @@ export type HealthLine = {
   ok: boolean | null;
   /** 왕복 시간(ms). 모르면 null — 발표에서 물어볼 수 있는 숫자다. */
   roundTripMs: number | null;
-  /** 실패했으면 왜. 화면이 이 문장을 그대로 적는다. */
+  /**
+   * 실패했으면 왜. 화면이 이 문장을 그대로 적는다.
+   *
+   * **여기는 키가 아니라 글자다** (260918). 이 칸에는 `error.message`·`status.reason`·
+   * 탐색기가 돌려준 사유처럼 **우리가 쓴 적 없는 문장**이 그대로 실린다 — 키로 바꿀 수 없다.
+   * 우리가 쓴 사유는 만들 때 `t()` 로 풀어 넣는다. 그래서 확인을 누른 뒤 언어를 바꾸면
+   * 그 줄의 사유는 눌렀을 때의 언어로 남는다 — **지난 사건의 기록**이므로 그것이 맞다.
+   */
   reason: string | null;
   /** 언제 확인했는가. */
   checkedAtIso: string;
@@ -84,13 +96,13 @@ export function setHealth(target: ConnectionTargetId, lines: readonly HealthLine
 /** 한 줄 만들기. 시각은 여기서 붙인다 — 부르는 쪽마다 다르게 적으면 표가 어긋난다. */
 export function line(
   id: string,
-  label: string,
+  labelKey: string,
   ok: boolean | null,
   extra: { roundTripMs?: number | null; reason?: string | null } = {},
 ): HealthLine {
   return {
     id,
-    label,
+    labelKey,
     ok,
     roundTripMs: extra.roundTripMs ?? null,
     reason: extra.reason ?? null,

@@ -23,6 +23,8 @@ import { join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const root = join(fileURLToPath(new URL('.', import.meta.url)), '..');
+// 260918 — 사전을 읽어 **키의 값까지** 본다 (키만 맞고 사전이 비면 화면에 키가 뜬다).
+const { en: enDict } = await import(pathToFileURL(join(root, 'src', 'i18n', 'en.ts')).href);
 // 사전을 직접 읽는다 — 키 대조만으로는 오타가 안 잡힌다 (260917 · 영문화 2단계 §5).
 const { ko: koDict } = await import(pathToFileURL(join(root, 'src', 'i18n', 'ko.ts')).href);
 const load = (...p) => import(pathToFileURL(join(root, ...p)).href);
@@ -108,8 +110,15 @@ const entry = (missionId, outcome, extra = {}) => ({
   if (!/세션/.test(String(koDict['hist.sessionOnly'] ?? ''))) failures.push('사전의 hist.sessionOnly 가 세션 이야기를 안 한다');
   if (!/listRecordedRuns/.test(view) || !/openRecordedRun/.test(view)) failures.push('목록이 저장된 판을 안 읽거나 다시보기가 없다');
   // 끝난 판이 셋 중 무엇인지 적어야 한다.
-  for (const word of ['완료', '실패', '정지']) {
-    if (!new RegExp(word).test(src('data', 'missionHistory.ts'))) failures.push(`결과 「${word}」 가 없다`);
+  // 260918 — 결과 딱지가 **글자에서 사전 키로** 바뀌었다 (`OUTCOME_KEYS`). 규칙은 그대로다:
+  // 끝난 판이 셋 중 무엇인지 적어야 한다. 이제는 키가 있는지 보고 **사전의 값까지** 본다 —
+  // 이 검사가 글자만 보던 탓에 영문 화면에서 이 딱지 셋이 한국어로 남아 있었다.
+  const history = src('data', 'missionHistory.ts');
+  for (const [outcome, word] of [['done', '완료'], ['failed', '실패'], ['stopped', '정지']]) {
+    const key = `hist.outcome.${outcome}`;
+    if (!history.includes(`'${key}'`)) failures.push(`결과 ${outcome} 의 키 ${key} 가 없다`);
+    if (koDict[key] !== word) failures.push(`사전의 ${key} 가 「${word}」가 아니다 — 한국어 화면이 달라진다`);
+    if (enDict[key] === undefined) failures.push(`${key} 가 영어 사전에 없다 — 영문 화면에서 「${word}」로 남는다`);
   }
 }
 

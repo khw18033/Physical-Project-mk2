@@ -40,10 +40,17 @@ export type MissionHistoryEntry = {
   reason: string;
 };
 
-export const OUTCOME_WORDS: Record<MissionOutcome, string> = {
-  done: '완료',
-  failed: '실패',
-  stopped: '정지',
+/**
+ * 결과 딱지의 **사전 키**. 글자가 아니다 (260918).
+ *
+ * 임무 이력 화면은 2단계에서 사전으로 옮겼는데 **그 화면이 그리는 딱지는 여기 있었다** —
+ * 영문 화면에서 임무 줄만 「완료·실패·정지」로 남았다. 사람이 화면을 보고 찾았다.
+ * 모듈 최상위 상수라 여기서 `t()` 를 부르면 언어가 로드 시점에 굳는다: 읽는 자리에서 푼다.
+ */
+export const OUTCOME_KEYS: Record<MissionOutcome, string> = {
+  done: 'hist.outcome.done',
+  failed: 'hist.outcome.failed',
+  stopped: 'hist.outcome.stopped',
 };
 
 let entries: readonly MissionHistoryEntry[] = [];

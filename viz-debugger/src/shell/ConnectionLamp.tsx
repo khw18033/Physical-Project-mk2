@@ -24,7 +24,20 @@ import { CONNECTION_TARGETS } from '../shared/connections.ts';
 import { t } from '../i18n/dict.ts';
 import { useLang } from '../shared/language.ts';
 
-const LABEL_OF = new Map(CONNECTION_TARGETS.map((target) => [target.id, target.label]));
+/**
+ * 대상 id → **사전 키**. 키는 언어가 바뀌어도 안 변하므로 모듈 최상위에 굳혀 둬도 된다 —
+ * 글자로 굳히면 안 된다(그것이 260918 에 고친 것이다). 푸는 것은 아래 렌더 안이다.
+ */
+const LABEL_KEY_OF = new Map(CONNECTION_TARGETS.map((target) => [target.id, target.labelKey]));
+
+/**
+ * 대상 이름. **목록에 없는 id 면 id 를 그대로 쓴다** — 빈 키로 `t()` 를 부르면 사전에 없는
+ * 키를 찾은 것이 되어 콘솔에 없는 누락을 하나 만든다.
+ */
+function targetName(id: string): string {
+  const key = LABEL_KEY_OF.get(id as never);
+  return key === undefined ? id : t(key);
+}
 
 export function ConnectionLamp({ onOpen }: { onOpen(): void }) {
   // `t()` 는 값을 줄 뿐 리렌더를 안 일으킨다 (지시서 §2 ①).
@@ -41,7 +54,7 @@ export function ConnectionLamp({ onOpen }: { onOpen(): void }) {
   }
   if (broken !== null) {
     return <button type="button" className="conn-lamp conn-lamp--bad" onClick={onOpen}>
-      {t('lamp.broken', { target: LABEL_OF.get(broken.target) ?? broken.target, line: broken.line.label })}
+      {t('lamp.broken', { target: targetName(broken.target), line: t(broken.line.labelKey) })}
     </button>;
   }
   // 빨간 줄은 없지만 「모르는」 줄이 남아 있을 수 있다 — 초록이라고 말하지 않는다.

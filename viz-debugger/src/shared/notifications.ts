@@ -34,12 +34,13 @@ export type NotificationSource =
 
 export type AppNotification = { id: string; source: NotificationSource; message: string; occurredAt: string };
 
-export const SOURCE_WORDS: Record<NotificationSource, string> = {
-  'external-ai': '외부 AI',
-  'mission-generation': '임무 생성',
-  command: '명령',
-  connection: '연결',
-  robot: '로봇',
+/** 갈래 이름의 **사전 키**. 글자가 아니다 — 모듈 최상위 상수다 (260918). */
+export const SOURCE_WORD_KEYS: Record<NotificationSource, string> = {
+  'external-ai': 'notify.source.externalAi',
+  'mission-generation': 'notify.source.missionGeneration',
+  command: 'notify.source.command',
+  connection: 'notify.source.connection',
+  robot: 'notify.source.robot',
 };
 
 /** **비어 있는 채로 시작한다.** 실제 사건이 와야 는다. */

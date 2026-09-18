@@ -45,7 +45,8 @@ import {
   useConnections,
 } from '../shared/connections.ts';
 
-type AddressPreset = { id: string; label: string; url: string; why: string };
+/** 260918 — `labelKey`·`whyKey` 는 **사전 키**다. 프리셋 목록은 모듈 최상위 상수라 글자를 못 든다. */
+type AddressPreset = { id: string; labelKey: string; url: string; whyKey: string };
 
 /**
  * **네트워크 환경을 고르는 칸이 있는 대상** (260910 로봇 · 260914 객체 탐지).
@@ -96,16 +97,18 @@ export function ConnectionsPanel({ onClose, physical }: { onClose(): void; physi
     </p>}
     {/* 목록을 그린다. 대상이 늘면 이 파일이 아니라 shared/connections.ts 가 바뀐다. */}
     {CONNECTION_TARGETS.map((target) => <section key={target.id} className={`conn-target${target.live ? '' : ' conn-target--pending'}`}>
-      <h3>{target.label}{target.live ? null : <em>{t('conn.pendingBadge')}</em>}</h3>
+      {/* 대상 이름·설명은 `shared/connections.ts` 가 **키로** 들고 있다 — 여기서 푼다.
+          그 파일에서 t() 를 부르면 모듈 최상위 상수라 언어가 로드 시점에 굳는다 (260918). */}
+      <h3>{t(target.labelKey)}{target.live ? null : <em>{t('conn.pendingBadge')}</em>}</h3>
       {/* 설명이 없는 대상도 있다 (260913 지시 — 로봇·객체 탐지). 늘 쓰는 둘이라
           매번 읽을 문장이 아니다. 자리도 그만큼 줄어든다. */}
-      {target.what !== undefined && <p>{target.what}</p>}
-      {target.pending !== undefined && <p className="conn-target__pending">{target.pending}</p>}
+      {target.whatKey !== undefined && <p>{t(target.whatKey)}</p>}
+      {target.pendingKey !== undefined && <p className="conn-target__pending">{t(target.pendingKey)}</p>}
       {target.fields.map((field) => {
         const key = connectionKey(target.id, field.key);
         const choice = ADDRESS_PRESETS[target.id];
         return <label key={key}>
-          <span>{field.label}</span>
+          <span>{t(field.labelKey)}</span>
           {/* 프리셋이 있는 대상은 네트워크 환경을 고르는 자리도 준다 (§2) — 로봇과 객체 탐지.
               이름이 안 풀릴 때 손으로 IP 를 치는 것보다 고르는 편이 빠르다. */}
           {choice !== undefined && <select
@@ -119,10 +122,10 @@ export function ConnectionsPanel({ onClose, physical }: { onClose(): void; physi
             {choice.presets.map((preset) => <option
               key={preset.id}
               value={preset.id}
-              title={preset.why}
+              title={t(preset.whyKey)}
               // 값이 빈 프리셋은 **아직 없는 것**이다 — 고를 수 없게 막는다.
               disabled={!choice.ready(preset)}
-            >{preset.label}{choice.ready(preset) || preset.id === 'manual' ? '' : t('conn.presetUndecided')}</option>)}
+            >{t(preset.labelKey)}{choice.ready(preset) || preset.id === 'manual' ? '' : t('conn.presetUndecided')}</option>)}
           </select>}
           <input
             value={draft[key] ?? ''}
@@ -170,7 +173,7 @@ function HealthRow({ target, physical }: { target: ConnectionTargetId; physical:
       {state.lines.length === 0
         ? <span className="conn-dot conn-dot--unknown">{t('conn.notChecked')}</span>
         : state.lines.map((row) => <span key={row.id} className={`conn-dot conn-dot--${row.ok === true ? 'ok' : row.ok === false ? 'bad' : 'unknown'}`}>
-          {row.label} {row.ok === true ? '✓' : row.ok === false ? '✕' : '?'}
+          {t(row.labelKey)} {row.ok === true ? '✓' : row.ok === false ? '✕' : '?'}
           {row.roundTripMs !== null && ` ${row.roundTripMs}ms`}
           {row.reason !== null && ` — ${row.reason}`}
         </span>)}

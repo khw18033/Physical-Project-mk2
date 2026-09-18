@@ -6,7 +6,7 @@ import { libraryEntry } from '../scenarios/library.ts';
 import { nowPlaying } from '../scenarios/nowPlaying.ts';
 import { issueCommand } from '../shared/commandEgress.ts';
 import { ManualScope, type ManualScopeId } from '../shared/Explain.tsx';
-import { SOURCE_WORDS, useNotifications } from '../shared/notifications.ts';
+import { SOURCE_WORD_KEYS, useNotifications } from '../shared/notifications.ts';
 import { PendingSource } from '../shared/PendingSource.tsx';
 import { exitScenarioRender, useDevTools, useMockRender, useScenarioRender } from '../shared/renderMode.ts';
 import { useAppServices } from '../shared/appServices.ts';
@@ -144,7 +144,7 @@ export function AppShell({ debuggerView, onDebuggerHome, onMissionHistory, onOpe
       ? <p className="notifications-empty">{t('panel.noNotifications')}</p>
       /* 어느 갈래·언제·무슨 일인지 셋을 한 줄에 둔다 (260913 지시). 문구는 온 값 그대로다. */
       : <ul className="notification-list">{notifications.map((item) => <li key={item.id} className={`is-${item.source}`}>
-          <b>{SOURCE_WORDS[item.source] ?? item.source}</b>
+          <b>{SOURCE_WORD_KEYS[item.source] === undefined ? item.source : t(SOURCE_WORD_KEYS[item.source])}</b>
           <time>{item.occurredAt.slice(11, 19)}</time>
           <span>{item.source === 'external-ai' ? <PendingSource id="ai-failure-alert" inline>{item.message}</PendingSource> : item.message}</span>
         </li>)}</ul>}</aside>}

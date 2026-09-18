@@ -32,16 +32,17 @@ export type ScenarioAxis =
   | 'risk'
   | 'observability';
 
-export const AXIS_LABEL: Record<ScenarioAxis, string> = {
-  position: '위치',
-  speed: '속도',
-  water: '수위',
-  coverage: '커버리지·사각지대',
-  video: '영상·탐지',
-  actuator: '액추에이터',
-  command: '명령',
-  risk: '위험도 판정',
-  observability: '관측 지표',
+/** 축 이름의 **사전 키**. 글자가 아니다 — 모듈 최상위 상수다 (260918). */
+export const AXIS_LABEL_KEY: Record<ScenarioAxis, string> = {
+  position: 'axis.position',
+  speed: 'axis.speed',
+  water: 'axis.water',
+  coverage: 'axis.coverage',
+  video: 'axis.video',
+  actuator: 'axis.actuator',
+  command: 'axis.command',
+  risk: 'axis.risk',
+  observability: 'axis.observability',
 };
 
 /**

@@ -14,6 +14,7 @@
  * 안 열려 `verify:scenario-mode` 가 이 규칙을 돌려 볼 수 없다. 부르는 쪽(셸)이 찾아 넘긴다.
  */
 
+import { t } from '../i18n/dict.ts';
 import { foldStatuses } from '../data/fold.ts';
 import type { MissionView } from '../data/scenario.ts';
 import type { ScenarioEvent } from '../model/types.ts';
@@ -57,7 +58,7 @@ export function nowPlaying(
 
   if (!playing && headSec >= view.durationSec) {
     // 재생 끝 — 마지막 상태 유지. 기존 동작 그대로다.
-    return { text: '재생 끝 — 장치는 마지막 상태를 유지합니다', nodeKinds: [], taskId: null };
+    return { text: t('nowplaying.ended'), nodeKinds: [], taskId: null };
   }
 
   const first = view.milestones[0] ?? null;
@@ -65,8 +66,8 @@ export function nowPlaying(
     // 정지 미리보기 — 사건이 하나도 없다. 시작 상태와 첫 마일스톤을 적는다.
     return {
       text: first === null
-        ? 'T+0 · 시작 상태 — 승인하면 재생됩니다 (VZ-U-07)'
-        : `T+0 · 시작 상태 — 첫 마일스톤 ${first.id} ${first.title}. 승인하면 재생됩니다 (VZ-U-07)`,
+        ? t('nowplaying.start')
+        : t('nowplaying.startWithMilestone', { id: first.id, title: first.title }),
       nodeKinds: [],
       taskId: null,
     };
@@ -90,7 +91,7 @@ export function nowPlaying(
     null;
 
   if (task === null) {
-    return { text: `T+${Math.round(headSec)}s · 첫 사건 대기`, nodeKinds: [], taskId: null };
+    return { text: t('nowplaying.waiting', { sec: Math.round(headSec) }), nodeKinds: [], taskId: null };
   }
 
   const startedAt = lastMoveAt.get(task.id) ?? 0;
@@ -121,7 +122,7 @@ export function nowPlaying(
 
   return {
     // 태스크 제목이 이미 그 명령을 말하고 있으면 덧붙이지 않는다 — 같은 말을 두 번 적지 않는다.
-    text: command === null || head.includes(command) ? head : `${head} → ${command} 발행`,
+    text: command === null || head.includes(command) ? head : t('nowplaying.issuing', { head, command }),
     nodeKinds: NODE_ORDER.filter((kind) => kinds.has(kind)),
     taskId: task.id,
   };

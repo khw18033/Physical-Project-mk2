@@ -17,6 +17,8 @@ import { join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const root = join(fileURLToPath(new URL('.', import.meta.url)), '..');
+// 260918 — 사전을 읽어 **키의 값까지** 본다 (키만 맞고 사전이 비면 화면에 키가 뜬다).
+const { ko: koDict } = await import(pathToFileURL(join(root, 'src', 'i18n', 'ko.ts')).href);
 const load = (...p) => import(pathToFileURL(join(root, ...p)).href);
 
 const { CONNECTION_TARGETS } = await load('src', 'shared', 'connections.ts');
@@ -192,13 +194,18 @@ const controls = [];
 {
   resetHealth();
   const { setHealth, line } = await load('src', 'shared', 'connectionHealth.ts');
-  setHealth('physical', [line('broker', '브로커', false, { reason: '끊김' })]);
-  setHealth('stt', [line('probe', '서비스', true, { roundTripMs: 5 })]);
+  setHealth('physical', [line('broker', 'check.line.broker', false, { reason: '끊김' })]);
+  setHealth('stt', [line('probe', 'check.line.probe', true, { roundTripMs: 5 })]);
   if (targetOk('stt') !== true) failures.push('physical 이 죽었다고 stt 까지 빨개졌다');
 
   const broken = firstBroken(CHECKED_TARGETS);
   if (broken?.target !== 'physical') failures.push('끊긴 대상을 못 짚는다 — 표시등이 무엇이 끊겼는지 말해야 한다');
-  if (!String(broken?.line.label ?? '').trim()) failures.push('끊긴 줄의 이름이 없다');
+  // 260918 — 줄 이름이 **글자에서 사전 키로** 바뀌었다. 규칙은 그대로다: 표시등이 어느 줄인지
+  // 말해야 한다. 다만 이제는 「비어 있지 않은 글자」가 아니라 **사전에 실제로 있는 키**를 본다 —
+  // 키가 있는데 사전에 없으면 화면에 키 문자열이 그대로 뜨므로, 그것까지 잡아야 한다.
+  const brokenKey = String(broken?.line.labelKey ?? '');
+  if (!brokenKey.trim()) failures.push('끊긴 줄의 이름이 없다');
+  else if (koDict[brokenKey] === undefined) failures.push(`끊긴 줄 이름의 키 ${brokenKey} 가 사전에 없다 — 화면에 키가 그대로 뜬다`);
 }
 
 // ── 6. physical 프리셋 ───────────────────────────────────────────────────────

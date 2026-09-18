@@ -26,7 +26,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { MissionView } from '../data/scenario.ts';
 import { closeRecordReplay } from '../data/scenario.ts';
 import {
-  noteMissionEnd, OUTCOME_WORDS, useMissionHistory,
+  noteMissionEnd, OUTCOME_KEYS, useMissionHistory,
   type MissionOutcome,
 } from '../data/missionHistory.ts';
 import { PendingSource } from '../shared/PendingSource.tsx';
@@ -189,7 +189,7 @@ function RunLine({ item, compact, recordingFolder, replayingKey, opening, onOpen
   const outcome = mission?.outcome ?? null;
   const current = replayingKey === key;
   // 끝 표시가 없는 판 — 지금 쓰는 중이거나, 끝나기 전에 새로고침·충돌로 끊긴 판이다.
-  const outcomeWords = outcome !== null ? OUTCOME_WORDS[outcome] : recordingFolder === key ? t('hist.recording') : t('hist.noEndMark');
+  const outcomeWords = outcome !== null ? t(OUTCOME_KEYS[outcome]) : recordingFolder === key ? t('hist.recording') : t('hist.noEndMark');
   return <li className={`${outcome === null ? 'is-open' : `is-${outcome}`}${current ? ' is-replaying' : ''}`}>
     <time>{timeWords(item.run)}</time>
     <b>{mission?.missionId ?? item.run.slice(7)}</b>
@@ -228,7 +228,7 @@ function SessionEntries({ entries, compact }: { entries: ReturnType<typeof useMi
   return <ul>
     {entries.map((entry, index) => <li key={`${entry.missionId}-${entry.endedAtIso}-${index}`} className={`is-${entry.outcome}`}>
       <b>{entry.missionId}</b>
-      <span className="history-outcome">{OUTCOME_WORDS[entry.outcome]}</span>
+      <span className="history-outcome">{t(OUTCOME_KEYS[entry.outcome])}</span>
       <span className="history-count">{t('hist.nodes', { done: entry.done, of: entry.of })}</span>
       <time>{entry.endedAtIso.slice(11, 19)}</time>
       {!compact && <small className="history-label">{entry.label}</small>}

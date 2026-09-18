@@ -19,7 +19,7 @@
  */
 
 import type { ReactNode } from 'react';
-import { AXIS_LABEL, type ScenarioAxis } from '../scenarios/axes.ts';
+import { AXIS_LABEL_KEY, type ScenarioAxis } from '../scenarios/axes.ts';
 import { scriptsWithAxis } from '../scenarios/scriptScope.ts';
 import { pendingSource } from './pendingSources.ts';
 import { t } from '../i18n/dict.ts';
@@ -100,7 +100,7 @@ export function PendingSource({ id, minHeight, fill, inline, entity, axis, child
     if (inline) {
       return (
         <span className="notinscript notinscript--inline" data-pending={id} title={summaryText(spec)}>
-          <b>{t('pending.notInScript')}</b> <em>{AXIS_LABEL[axis]}</em>
+          <b>{t('pending.notInScript')}</b> <em>{t(AXIS_LABEL_KEY[axis])}</em>
         </span>
       );
     }
@@ -108,7 +108,7 @@ export function PendingSource({ id, minHeight, fill, inline, entity, axis, child
       <section className="notinscript" data-pending={id} style={minHeight === undefined ? undefined : { minHeight }}>
         <header>
           <span className="notinscript__mark">{t('pending.notInScript')}</span>
-          <h3>{AXIS_LABEL[axis]} · {t(`pending.${spec.id}.title`)}</h3>
+          <h3>{t(AXIS_LABEL_KEY[axis])} · {t(`pending.${spec.id}.title`)}</h3>
         </header>
         <p>
           {elsewhere.length === 0
