@@ -10,6 +10,8 @@
  * 없다고 적는다.**
  */
 
+import { Rich } from '../../i18n/RichText.tsx';
+import { t } from '../../i18n/dict.ts';
 import { useEffect, useState } from 'react';
 import { planApproach, wrapDeg } from '../../physical/approachPlan.ts';
 import { commandsOfTask, useRobotSession } from '../../physical/robotSession.ts';
@@ -38,7 +40,9 @@ function useTick(ms = 1000): number {
   return now;
 }
 
-const ago = (now: number, at: number | null) => (at === null ? '받은 적 없음' : `${Math.max(0, Math.round((now - at) / 1000))}초 전`);
+const ago = (now: number, at: number | null) => (at === null
+  ? t('dlog.neverReceived')
+  : t('dlog.secondsAgo', { sec: Math.max(0, Math.round((now - at) / 1000)) }));
 
 /**
  * **T-A1 · T-A2 가 받아 온 값** (260914 지시 — 「로봇의 현재 실제 yaw 값을 T-A2 액션 아이템에서」).
@@ -58,12 +62,12 @@ export function PrepFacts({ taskId }: { taskId: string }) {
   if (taskId === DETECT_TASKS.map) {
     const map = prep.map;
     return <section className="prep-facts">
-      <h3>도면 · 문 위치</h3>
+      <h3>{t('dlog.1')}</h3>
       <dl>
-        <div><dt>상태</dt><dd>{STEP_WORDS[map.step]}{map.reason !== null && ` — ${map.reason}`}</dd></div>
-        <div><dt>도면</dt><dd>{map.url === null ? '아직 안 받았습니다' : <>{map.bundled ? '저장소 사본' : '탐지 창구'} · <code>{map.url}</code></>}</dd></div>
-        <div><dt>문 도면 위치</dt><dd>({map.doorCm.x.toFixed(1)}, {map.doorCm.y.toFixed(1)}) cm · px ({map.doorPx.x}, {map.doorPx.y}) <small>GT 고정값 — 검출값이 아닙니다</small></dd></div>
-        {map.atIso !== null && <div><dt>받은 시각</dt><dd>{map.atIso.slice(11, 23)}</dd></div>}
+        <div><dt>{t('dlog.state')}</dt><dd>{STEP_WORDS[map.step]}{map.reason !== null && ` — ${map.reason}`}</dd></div>
+        <div><dt>{t('dlog.5')}</dt><dd>{map.url === null ? t('dlog.2') : <>{map.bundled ? t('dlog.3') : t('dlog.4')} · <code>{map.url}</code></>}</dd></div>
+        <div><dt>{t('dlog.6')}</dt><dd>({map.doorCm.x.toFixed(1)}, {map.doorCm.y.toFixed(1)}) cm · px ({map.doorPx.x}, {map.doorPx.y}) <small>{t('dlog.7')}</small></dd></div>
+        {map.atIso !== null && <div><dt>{t('dlog.8')}</dt><dd>{map.atIso.slice(11, 23)}</dd></div>}
       </dl>
     </section>;
   }
@@ -76,32 +80,32 @@ export function PrepFacts({ taskId }: { taskId: string }) {
   // 다시보기면 「지금 로봇 방위」는 이 판의 값이 아니다 — 지난 판 옆에 지금 값을 놓으면 섞어 읽는다.
   const replaying = detect.recordRun !== null;
   return <section className="prep-facts">
-    <h3>로봇 방위 (yaw)</h3>
+    <h3>{t('dlog.9')}</h3>
     <dl>
       <div className="prep-facts__live">
-        <dt>지금 로봇 방위</dt>
+        <dt>{t('dlog.10')}</dt>
         <dd>{replaying
-          ? '저장된 판을 다시 보는 중이라 적지 않습니다 — 이 판의 값은 아래 두 줄입니다'
+          ? t('dlog.11')
           : live === null
-          ? '로봇 state 를 받은 적이 없습니다 — 브로커에 붙어 있는지 볼 것'
+          ? t('dlog.12')
           : <><b>{live.headingDeg.toFixed(1)}°</b> · x {live.x.toFixed(2)} m · y {live.y.toFixed(2)} m
-            <small> {ago(now, device?.positionAtMs ?? null)} · 로봇 시각 {device?.timestamp?.slice(11, 19) ?? '없음'} · 오도메트리 기준</small></>}
+            <small> {t('dlog.liveMeta', { ago: ago(now, device?.positionAtMs ?? null), clock: device?.timestamp?.slice(11, 19) ?? t('dlog.13') })}</small></>}
         </dd>
       </div>
       <div>
-        <dt>T-A2 가 잡은 방위</dt>
+        <dt>{t('dlog.14')}</dt>
         <dd>{caught === null
           ? <>{STEP_WORDS[prep.pose.step]}{prep.pose.reason !== null && ` — ${prep.pose.reason}`}</>
           : <><b>{caught.headingDeg.toFixed(1)}°</b> · x {caught.xM.toFixed(2)} m · y {caught.yM.toFixed(2)} m
-            <small> 받은 시각 {caught.receivedAtIso.slice(11, 19)} · 한 바퀴의 출발 방위</small></>}
+            <small> {t('dlog.caughtMeta', { clock: caught.receivedAtIso.slice(11, 19) })}</small></>}
         </dd>
       </div>
       <div>
-        <dt>탐지가 역산한 방위</dt>
+        <dt>{t('dlog.15')}</dt>
         <dd>{loc?.current_heading_map_deg === undefined
-          ? '아직 없습니다 — 탐지는 한 바퀴를 다 받은 뒤에 역산합니다'
-          : <><b>{loc.current_heading_map_deg}°</b> · 위치 ({loc.robot_position_cm?.map((n) => n.toFixed(1)).join(', ')}) cm
-            <small> 도면 기준 — 로봇 방위와 기준점이 다릅니다</small></>}
+          ? t('dlog.16')
+          : <><b>{loc.current_heading_map_deg}°</b> {t('dlog.positionCm', { xy: loc.robot_position_cm?.map((n) => n.toFixed(1)).join(', ') ?? '' })}
+            <small> {t('dlog.17')}</small></>}
         </dd>
       </div>
     </dl>
@@ -132,27 +136,27 @@ export function SweepFacts() {
     .filter(([index]) => index > 0)
     .sort((a, b) => a[0] - b[0]);
   return <section className="prep-facts">
-    <h3>한 바퀴 방위 (yaw)</h3>
+    <h3>{t('dlog.18')}</h3>
     <dl>
       <div>
-        <dt>출발 방위</dt>
-        <dd>{start === null ? '모름 — 0도 촬영 때 로봇 state 도, T-A2 방위도 없습니다'
-          : <><b>{start.toFixed(1)}°</b> <small>{startCapture !== undefined ? '0도 촬영 때 로봇 state' : 'T-A2 가 잡은 방위'}</small></>}</dd>
+        <dt>{t('dlog.19')}</dt>
+        <dd>{start === null ? t('dlog.20')
+          : <><b>{start.toFixed(1)}°</b> <small>{startCapture !== undefined ? t('dlog.21') : t('dlog.14')}</small></>}</dd>
       </div>
       <div className="prep-facts__live">
-        <dt>한 바퀴 뒤 방위</dt>
+        <dt>{t('dlog.22')}</dt>
         <dd>{back === null
-          ? (session.scanIssued ? '아직 없습니다 — 여덟째 회전(출발 방향 복귀) 보고가 오면 적힙니다' : '스캔 전입니다')
-          : <><b>{back.toFixed(1)}°</b> <small>여덟째 회전(출발 방향 복귀) 보고의 yaw</small></>}</dd>
+          ? (session.scanIssued ? t('dlog.23') : t('dlog.24'))
+          : <><b>{back.toFixed(1)}°</b> <small>{t('dlog.25')}</small></>}</dd>
       </div>
       <div>
-        <dt>출발과 차이</dt>
-        <dd>{drift === null ? '모름' : <><b>{drift >= 0 ? '+' : ''}{drift.toFixed(1)}°</b> <small>한 바퀴 누적 오차 · 탐지 회전각이 이만큼 어긋난 방향에서 나간다</small></>}</dd>
+        <dt>{t('dlog.26')}</dt>
+        <dd>{drift === null ? t('dlog.27') : <><b>{drift >= 0 ? '+' : ''}{drift.toFixed(1)}°</b> <small>{t('dlog.28')}</small></>}</dd>
       </div>
-      {typeof resultYaw === 'number' && <div><dt>스캔 종료 결과</dt><dd>{resultYaw.toFixed(1)}° <small>scan_mission 결과의 yaw_deg</small></dd></div>}
+      {typeof resultYaw === 'number' && <div><dt>{t('dlog.29')}</dt><dd>{resultYaw.toFixed(1)}° <small>{t('dlog.30')}</small></dd></div>}
       {turns.length > 0 && <div>
-        <dt>회전별</dt>
-        <dd>{turns.map(([index, yaw]) => `${index}번 ${yaw.toFixed(1)}°`).join(' · ')}{back !== null && ` · 복귀 ${back.toFixed(1)}°`}</dd>
+        <dt>{t('dlog.31')}</dt>
+        <dd>{turns.map(([index, yaw]) => t('dlog.turnAt', { index, yaw: yaw.toFixed(1) })).join(' · ')}{back !== null && t('dlog.turnBack', { yaw: back.toFixed(1) })}</dd>
       </div>}
     </dl>
   </section>;
@@ -160,10 +164,10 @@ export function SweepFacts() {
 
 /** 대체 경로 단계의 사람 이름. */
 const STEP_NAMES: Record<string, string> = {
-  A_pedestal: 'A · 단상으로 위치 추정',
-  B_door_only: 'B · 문만으로 위치 추정',
-  C_door_relative: 'C · 문 관측만으로 경로',
-  path_map: '도면 기반 경로 산출',
+  A_pedestal: t('dlog.32'),
+  B_door_only: t('dlog.33'),
+  C_door_relative: t('dlog.34'),
+  path_map: t('dlog.35'),
 };
 
 /**
@@ -177,17 +181,17 @@ export function PathFacts() {
   const path = detect.path ?? detect.pathFailureDetail;
   if (path === null) {
     return <section className="prep-facts">
-      <h3>경로 산출</h3>
-      <p className="robot-log__empty">아직 없습니다 — 여덟 각도를 다 보면 탐지가 곧바로 산출합니다</p>
+      <h3>{t('dlog.36')}</h3>
+      <p className="robot-log__empty">{t('dlog.37')}</p>
     </section>;
   }
   const distance = path.door_distance_estimate ?? null;
   const command = path.robot_command ?? null;
   return <section className="prep-facts">
-    <h3>경로 산출{path.ok ? '' : ' — 실패'}</h3>
+    <h3>{t(path.ok ? 'dlog.pathResult' : 'dlog.pathResultFailed')}</h3>
     <dl>
-      <div><dt>결과</dt><dd>{path.ok ? <><b>{path.turn_instruction}</b> · 직진 {(path.forward_distance_cm / 100).toFixed(2)} m</> : <span className="detect-map__failed">{path.reason}</span>}</dd></div>
-      {path.path_mode_words !== undefined && <div><dt>산출 방식</dt><dd>{path.path_mode_words}</dd></div>}
+      <div><dt>{t('dlog.39')}</dt><dd>{path.ok ? <><b>{path.turn_instruction}</b> {t('dlog.forwardM', { m: (path.forward_distance_cm / 100).toFixed(2) })}</> : <span className="detect-map__failed">{path.reason}</span>}</dd></div>
+      {path.path_mode_words !== undefined && <div><dt>{t('dlog.40')}</dt><dd>{path.path_mode_words}</dd></div>}
     </dl>
     {(path.fallback_chain ?? []).length > 0 && <ol className="path-chain">
       {(path.fallback_chain ?? []).map((step, at) => <li key={`${step.step}-${at}`} className={step.ok ? 'is-ok' : 'is-fail'}>
@@ -195,18 +199,18 @@ export function PathFacts() {
       </li>)}
     </ol>}
     {distance !== null && <>
-      <h4>문 거리 — 겉보기 크기</h4>
+      <h4>{t('dlog.41')}</h4>
       <p className="path-note"><code>{distance.formula}</code>{distance.substituted !== undefined && <> → {distance.substituted}</>}{distance.reason !== undefined && <> · <span className="detect-map__failed">{distance.reason}</span></>}</p>
-      <table className="path-table"><thead><tr><th>프레임</th><th>각도</th><th>폭 px</th><th>높이 px</th><th>폭→거리</th><th>높이→거리</th></tr></thead>
+      <table className="path-table"><thead><tr><th>{t('dlog.42')}</th><th>{t('dlog.43')}</th><th>{t('dlog.44')}</th><th>{t('dlog.45')}</th><th>{t('dlog.46')}</th><th>{t('dlog.47')}</th></tr></thead>
         <tbody>{distance.per_frame.map((row) => <tr key={row.frame}>
           <td>{row.frame}</td><td>{row.rotation_deg}°</td>
-          <td>{row.box_w_px}{row.width_clipped ? ' (잘림)' : ''}</td><td>{row.box_h_px}{row.height_clipped ? ' (잘림)' : ''}</td>
+          <td>{row.box_w_px}{row.width_clipped ? t('dlog.48') : ''}</td><td>{row.box_h_px}{row.height_clipped ? t('dlog.48') : ''}</td>
           <td>{row.distance_from_width_cm ?? '—'}</td><td>{row.distance_from_height_cm ?? row.skipped_reason ?? '—'}</td>
         </tr>)}</tbody>
       </table>
     </>}
     {Object.keys(path.path_calculation ?? {}).length > 0 && <>
-      <h4>식과 대입값</h4>
+      <h4>{t('dlog.49')}</h4>
       <ol className="detect-steps">
         {Object.entries(path.path_calculation).map(([name, step]) => <li key={name}>
           <code>{step.formula}</code>
@@ -215,8 +219,8 @@ export function PathFacts() {
       </ol>
     </>}
     {command !== null && <p className="path-note">
-      탐지가 낸 로봇 명령 — <code>turn {command.turn.deg}°</code> · <code>move_forward {command.move_forward.distance_m} m</code>
-      <small> 회전은 스캔 시작 방향 기준(오른쪽 +). 로봇이 한 바퀴 뒤 출발 방향에 서므로 그대로 보냅니다</small>
+      <Rich id="dlog.issuedCommand" vars={{ deg: command.turn.deg, m: command.move_forward.distance_m }} />
+      <small> {t('dlog.50')}</small>
       {command.warning !== undefined && <> · <span className="detect-map__failed">{command.warning}</span></>}
     </p>}
   </section>;
@@ -232,33 +236,33 @@ export function ApproachFacts() {
   useTick(2000);
   const plan = planApproach();
   return <section className="prep-facts">
-    <h3>이동 명령 계산</h3>
+    <h3>{t('dlog.51')}</h3>
     {!plan.ok
       ? <p className="robot-log__empty">{plan.reason}</p>
       : <dl>
-        <div><dt>탐지 회전</dt><dd>{turnWords(plan.detectionTurnDeg)} <small>스캔 시작 방향 기준 — 로봇은 한 바퀴 뒤 출발 방향에 서 있으므로 보정 없이 그대로 보낸다</small></dd></div>
-        <div className="prep-facts__live"><dt>보낼 명령</dt><dd><b>{plan.steps.map((step) => step.action === 'turn'
+        <div><dt>{t('dlog.52')}</dt><dd>{turnWords(plan.detectionTurnDeg)} <small>{t('dlog.53')}</small></dd></div>
+        <div className="prep-facts__live"><dt>{t('dlog.54')}</dt><dd><b>{plan.steps.map((step) => step.action === 'turn'
           ? `turn ${step.parameters?.deg}°`
-          : step.action === 'move_forward' ? `move_forward ${step.parameters?.distance_m} m` : `${step.action}(도착 정지)`).join(' → ')}</b></dd></div>
-        <div><dt>직진</dt><dd>경로 {plan.plannedForwardM.toFixed(3)} m{Math.abs(plan.plannedForwardM - plan.issuedForwardM) > 0.0005 && <> · 「테스트」라 {plan.issuedForwardM.toFixed(3)} m 만 보냄</>} · 속도 {plan.forwardVx} m/s <small>로봇 기본값 0.15 m/s 의 두 배 · 회전 속도는 pi7 설정</small></dd></div>
-        {plan.notes.map((note) => <div key={note}><dt>참고</dt><dd>{note}</dd></div>)}
+          : step.action === 'move_forward' ? `move_forward ${step.parameters?.distance_m} m` : t('dlog.arriveStop', { action: step.action })).join(' → ')}</b></dd></div>
+        <div><dt>{t('dlog.55')}</dt><dd>{t('dlog.plannedPath', { m: plan.plannedForwardM.toFixed(3) })}{Math.abs(plan.plannedForwardM - plan.issuedForwardM) > 0.0005 && t('dlog.testOnly', { m: plan.issuedForwardM.toFixed(3) })} {t('dlog.speed', { vx: plan.forwardVx })} <small>{t('dlog.56')}</small></dd></div>
+        {plan.notes.map((note) => <div key={note}><dt>{t('dlog.57')}</dt><dd>{note}</dd></div>)}
       </dl>}
   </section>;
 }
 
-const turnWords = (deg: number) => `${deg < 0 ? '왼쪽' : '오른쪽'} ${Math.abs(deg).toFixed(1)}°`;
+const turnWords = (deg: number) => t(deg < 0 ? 'dlog.turnLeft' : 'dlog.turnRight', { deg: Math.abs(deg).toFixed(1) });
 
 /** `idle` 은 「임무 시작」 전이거나, 로봇이 안 몰아 대본이 노드를 칠한 경우다. */
-const STEP_WORDS = { idle: '아직 안 했습니다 — 로봇이 몰 때 「임무 시작」 뒤에 채워집니다', running: '진행 중', done: '완료', failed: '실패' } as const;
+const STEP_WORDS = { idle: t('dlog.58'), running: t('dlog.59'), done: t('dlog.60'), failed: t('dlog.61') } as const;
 
 /** **탐지 경로에서 오간 줄.** 그 태스크에 붙은 것만, 받은 순서 그대로. */
 export function DetectLogLines({ taskId }: { taskId: string }) {
   const all = useDetectLog();
   const lines = all.filter((line) => line.tasks.includes(taskId));
   return <section className="detect-log">
-    <h3>탐지 · 오간 로그</h3>
+    <h3>{t('dlog.62')}</h3>
     {lines.length === 0
-      ? <p className="robot-log__empty">이 태스크에 붙은 탐지 쪽 줄이 아직 없습니다 — 로봇이 프레임을 보내거나 탐지 창구가 답하면 여기에 쌓입니다</p>
+      ? <p className="robot-log__empty">{t('dlog.63')}</p>
       : <ol className="detect-log__lines">
         {lines.map((line, at) => <li key={`${line.atIso}-${at}`} className={`is-${line.level} lane-${line.lane}`}>
           <time>{line.atIso.slice(11, 23)}</time>

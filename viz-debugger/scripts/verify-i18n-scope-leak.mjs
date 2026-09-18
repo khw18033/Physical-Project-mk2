@@ -63,11 +63,9 @@ const DEMO_PATH = [
  * 모양이 아니다 — 아직 안 옮긴 화면일 뿐이다. 늘면 안 된다: 새로 생기면 여기가 걸린다.
  */
 const PENDING_STAGE4 = [
-  'detect/views/DetectActionLog.tsx',
-  'autodrive/views/AutodriveViews.tsx',
-  // 260918 — 검사가 JSX 텍스트를 읽게 되면서 드러났다. 자율주행 편의 사실 줄이라
-  // 바로 위 `AutodriveViews` 와 한 식구다. 문 찾기 시연 경로에는 안 뜬다.
-  'physical/NavFacts.tsx',
+  // **비었다** (260918 · 4단계 묶음 3). `DetectActionLog`·`AutodriveViews`·`NavFacts`
+  // 145건을 옮기면서 셋 다 지웠다. 여기에 이름을 더하는 것은 「아직 안 옮긴 화면」을
+  // 잠시 봐 준다는 뜻이고, 4단계가 끝나면 다시 비어야 한다.
 ];
 
 /**
