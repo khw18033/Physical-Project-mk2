@@ -12,6 +12,7 @@
  * 구분되어 보인다. 셸에만 있다 — 탭① 단독 빌드는 게이트웨이가 없으므로 이 스위치도 없다.
  */
 
+import { scriptPhrase } from '../scenarios/phrases.ts';
 import { useEffect, useRef, useState } from 'react';
 import { enterScriptPreview } from '../scenarios/enterPreview.ts';
 import { SCRIPT_LIBRARY } from '../scenarios/library.ts';
@@ -99,7 +100,7 @@ export function ModeSwitch() {
             {SCRIPT_LIBRARY.filter((entry) => entry.script !== null).map((entry) => (
               <li key={entry.missionId}>
                 <button type="button" onClick={() => toPreview(entry.missionId)}>
-                  <b>{entry.missionId}</b> {entry.script?.title}
+                  <b>{entry.missionId}</b> {entry.script ? scriptPhrase(entry.missionId, entry.script.title) : null}
                 </button>
               </li>
             ))}

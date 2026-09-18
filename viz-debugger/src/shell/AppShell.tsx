@@ -1,3 +1,4 @@
+import { scriptPhrase, translateEvents, translateView } from '../scenarios/phrases.ts';
 import { useState, type ReactNode } from 'react';
 import { viewNodeEntry } from '../canvas/registry.ts';
 import { useZoomTarget } from '../canvas/zoomState.ts';
@@ -80,7 +81,8 @@ export function AppShell({ debuggerView, onDebuggerHome, onMissionHistory, onOpe
   // 「지금 무엇이 어디서 보이는지」 (260901 §3). 재생 머리 기준 진행 중인 노드와 갈 탭 —
   // **셸이 그린다.** 탭이 그리면 탭을 옮길 때 사라져서 「보면서 확인」이 성립하지 않는다.
   const now = scenario !== null && mission.current.missionId === scenario.missionId
-    ? nowPlaying(mission.current, libraryEntry(mission.current.missionId)?.script ?? null, mission.headSec, mission.playing, traceFor(mission.current))
+    // 안내줄이 적는 태스크 제목도 영어여야 한다 — 대본 글자를 먼저 바꿔 넘긴다 (260918).
+    ? nowPlaying(translateView(mission.current), libraryEntry(mission.current.missionId)?.script ?? null, mission.headSec, mission.playing, translateEvents(mission.current.missionId, traceFor(mission.current)))
     : null;
   // 층 1(대본이 안 쓰는 것은 흐리게)은 **팔레트로 옮겨 갔다** — 흐려질 대상이 탭 버튼에서
   // 팔레트 버튼이 됐기 때문이다 (canvas/Palette.tsx).
@@ -106,7 +108,7 @@ export function AppShell({ debuggerView, onDebuggerHome, onMissionHistory, onOpe
     {mock && <div className="mock-banner" role="status">{mockParts[0]}<b>{t('banner.mock.strong')}</b>{mockParts[1]}</div>}
     {scenario !== null && <div className="scenario-banner" role="status">
       <span className="scenario-banner__head">
-        {t('banner.script')} <b>{scenario.missionId}</b> 「{scenario.title}」 · <b>{t('banner.synthetic')}</b> · {scenarioState}
+        {t('banner.script')} <b>{scenario.missionId}</b> 「{scriptPhrase(scenario.missionId, scenario.title)}」 · <b>{t('banner.synthetic')}</b> · {scenarioState}
         {scenario.playing && !scenarioEnded && <> T+{Math.round(mission.headSec)}s</>}
         {' '}{t('banner.castNote')}
       </span>
@@ -122,7 +124,7 @@ export function AppShell({ debuggerView, onDebuggerHome, onMissionHistory, onOpe
       {legacyParts[0]}<b>{mission.current.missionId}</b>{legacyParts[1]}
     </div>}
     <header className="global-bar">
-      <button className="mission-identity" onClick={onDebuggerHome}><b>{mission.current.missionId}</b><span>{mission.current.label}</span><small>{t('bar.subtitle')}</small></button>
+      <button className="mission-identity" onClick={onDebuggerHome}><b>{mission.current.missionId}</b><span>{scriptPhrase(mission.current.missionId, mission.current.label)}</span><small>{t('bar.subtitle')}</small></button>
       {/* 안내 문단 2줄은 우상단 `?` 오버레이로 옮겼다 (사이트 개선 요구 1). */}
       <nav>
         <ModeSwitch />

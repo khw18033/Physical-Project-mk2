@@ -23,6 +23,7 @@
  *     자리를 비워 화면을 짧게 만드는 것이 맞다.
  */
 
+import { scriptPhrase } from '../scenarios/phrases.ts';
 import type { ReactNode } from 'react';
 import { viewNodeEntry } from '../canvas/registry.ts';
 import { panelAlive, panelsOfNode, scenarioPanel, type ViewNodeKindId } from '../scenarios/axes.ts';
@@ -55,7 +56,7 @@ function NotInScriptCard({ what, why, elsewhere, wide }: CardProps) {
         <ul className="tabskip__list">
           {elsewhere.map((script) => (
             <li key={script.missionId}>
-              살아나는 편 — <code>{script.missionId}</code> 「{script.title}」
+              살아나는 편 — <code>{script.missionId}</code> 「{scriptPhrase(script.missionId, script.title)}」
               {/* 모드 스위치의 대본 선택과 **같은 경로**다 (scenarios/enterPreview.ts). */}
               <button type="button" onClick={() => enterScriptPreview(script.missionId)}>그 대본으로 바꾸기</button>
             </li>

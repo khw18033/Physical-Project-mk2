@@ -1,0 +1,47 @@
+{
+  "missionId": "MSN-260826-01",
+  "note": "본문은 원본(MSN-*.json)이 든다. 여기는 **화면에 뜨는 문구의 영어**와 영어 조회 규칙뿐이다. 키가 한국어 원문인 것은 일부러다 — 평가 증거는 그 한국어로 짝지어지므로(대본 events[].payload.criterion ↔ tasks[].evaluation.criteria[]) 한국어가 키로 남아야 한다. verify:i18n-data 가 빠진 것과 죽은 항목을 잡는다.",
+  "phrases": {
+    "415호에서 503호로 이동해줘": "Move from room 415 to room 503",
+    "415호 출발 및 복도 진입": "Leave room 415 and enter the hallway",
+    "복도 통과 → 엘리베이터 홀 도달": "Cross the hallway → reach the elevator hall",
+    "엘리베이터 탑승 → 5층 하차": "Board the elevator → get off on floor 5",
+    "5층 복도 이동 → 503호 진입": "Move along the floor-5 hallway → enter room 503",
+    "503호 내부 진입 확인": "Confirm entry into room 503",
+    "도착 보고": "Report arrival",
+    "임무 종료": "Mission end",
+    "0.4s 전": "0.4s ago",
+    "매니퓰레이터": "Manipulator",
+    "연결 끊김": "Disconnected",
+    "고정 카메라 4층": "Fixed camera, floor 4",
+    "0.2s 전": "0.2s ago",
+    "고정 카메라 5층": "Fixed camera, floor 5",
+    "점검 중": "Under inspection",
+    "0.7s 전": "0.7s ago",
+    "0.3s 전": "0.3s ago",
+    "드론": "Drone",
+    "엘리베이터 홀 이동": "Move to the elevator hall",
+    "보행 모드 전환": "Switch to walking mode",
+    "직진 이동": "Move straight",
+    "좌회전": "Turn left",
+    "정지 · 자세 정렬": "Stop · align posture",
+    "상행 호출 버튼 누르기": "Press the up-call button",
+    "대기 위치 정렬": "Align to the waiting position",
+    "도어 개방 확인": "Confirm the doors opened",
+    "엘리베이터 탑승": "Board the elevator",
+    "5층 버튼 누르기": "Press the floor-5 button",
+    "5층 하차": "Get off on floor 5"
+  },
+  "match_en": {
+    "must": [
+      [
+        "415"
+      ]
+    ],
+    "any": [
+      "move",
+      "go",
+      "503"
+    ]
+  }
+}

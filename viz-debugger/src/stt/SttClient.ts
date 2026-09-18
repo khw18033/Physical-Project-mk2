@@ -9,6 +9,7 @@
  * 실패를 **던지기만 하고 잡지 않는다** — 무엇을 비활성화할지는 화면이 정한다.
  */
 
+import { sttLanguage } from './language.ts';
 import { t } from '../i18n/dict.ts';
 import { connectionAddress, registerConnectionDefault } from '../shared/connections.ts';
 import { SttUnavailableError, type SttResult } from './types.ts';
@@ -36,6 +37,13 @@ export type TranscribeOptions = {
   useHotwords?: boolean;
   vadFilter?: boolean;
   model?: string;
+  /**
+   * 인식 언어 (260918 — 영문화 3단계). 생략하면 `stt/language.ts` 가 정한 값이다.
+   *
+   * 서비스는 이 값으로 **디코딩 언어와 hotword 어휘를 함께** 고른다. 두 언어의 어휘를
+   * 한꺼번에 밀지 않는 것이 요지다 — 서로를 끌어당겨 인식을 흐린다(`stt/vocab.py`).
+   */
+  language?: string;
   signal?: AbortSignal;
 };
 
@@ -69,6 +77,9 @@ export async function transcribe(blob: Blob, options: TranscribeOptions = {}): P
   body.append('audio', blob, `utterance.${suffix}`);
   body.append('use_hotwords', String(options.useHotwords ?? true));
   body.append('vad_filter', String(options.vadFilter ?? true));
+  // **늘 싣는다.** 안 실으면 서비스가 `ko` 로 떨어지고(Form 기본값), 영어 발화가
+  // 한국어로 디코딩된다 — 화면만 영어이고 인식은 그대로인 상태가 된다.
+  body.append('language', options.language ?? sttLanguage());
   if (options.model) body.append('model', options.model);
   return post(body, options.signal);
 }

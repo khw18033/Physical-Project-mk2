@@ -111,12 +111,24 @@ const WING = { id: 'corridor-5f-wing', x: mean([...new Set(wingDoors.map((d) => 
 const corridorOf = (d) => (mainDoors.includes(d) ? MAIN.id : WING.id);
 
 // ── 지물 ───────────────────────────────────────────────────────────────────
+// 260918 — `label_en`·`aliases_en` 병기 (영문화 3단계).
+//
+// **여기서 짓는다.** 장비(`extract-equipment.mjs`)는 레지스트리의 `display_name_en` 을
+// 실어 나르지만, 장소 이름은 레지스트리에 없고 이 추출기가 유니티 프리팹 이름에서
+// 만들어 낸다 — 그래서 영어도 여기가 원천이다.
+//
+// 별칭은 **번역이 아니라 저작이다.** 사람이 영어로 그렇게 부르는 말을 적는다.
 const landmarks = [
-  { id: 'elevator-5f',   kind: 'elevator', label: '엘리베이터',     src: 'Elevator_Area',     aliases: ['엘레베이터', '승강기'] },
-  { id: 'restroom-5f',   kind: 'zone',     label: '화장실',         src: 'Restroom_Area',     aliases: ['화장실', '남녀 화장실'] },
-  { id: 'stair-5f-west', kind: 'stair',    label: '서편 계단',      src: 'Wall_Stair1',       aliases: ['계단', '비상계단'] },
-  { id: 'stair-5f-east', kind: 'stair',    label: '동편 계단',      src: 'Stair_Area',        aliases: ['계단', '비상계단'] },
-  { id: 'stair-5f-north',kind: 'stair',    label: '북편 계단',      src: 'Stair_Area_Back_2', aliases: ['계단', '비상계단'] },
+  { id: 'elevator-5f',   kind: 'elevator', label: '엘리베이터',     src: 'Elevator_Area',     aliases: ['엘레베이터', '승강기'],
+    label_en: 'Elevator',        aliases_en: ['lift'] },
+  { id: 'restroom-5f',   kind: 'zone',     label: '화장실',         src: 'Restroom_Area',     aliases: ['화장실', '남녀 화장실'],
+    label_en: 'Restroom',        aliases_en: ['toilet', 'washroom'] },
+  { id: 'stair-5f-west', kind: 'stair',    label: '서편 계단',      src: 'Wall_Stair1',       aliases: ['계단', '비상계단'],
+    label_en: 'West stairs',     aliases_en: ['stairs', 'fire stairs'] },
+  { id: 'stair-5f-east', kind: 'stair',    label: '동편 계단',      src: 'Stair_Area',        aliases: ['계단', '비상계단'],
+    label_en: 'East stairs',     aliases_en: ['stairs', 'fire stairs'] },
+  { id: 'stair-5f-north',kind: 'stair',    label: '북편 계단',      src: 'Stair_Area_Back_2', aliases: ['계단', '비상계단'],
+    label_en: 'North stairs',    aliases_en: ['stairs', 'fire stairs'] },
 ].map((l) => {
   const p = prefabs.find((q) => q.name === l.src);
   return { ...l, w: p ? prefabWorld(p) : byName(l.src) };
@@ -150,33 +162,35 @@ for (const l of landmarks) {
 const rooms = [...new Set(doors.map((d) => d.room))].sort();
 for (const r of rooms) {
   places.push({
-    place_id: `room-${r}`, label: `${r}호`,
-    aliases: [r, `${r}호`],
+    place_id: `room-${r}`, label: `${r}호`, label_en: `Room ${r}`,
+    aliases: [r, `${r}호`], aliases_en: [r, `room ${r}`],
     kind: 'room', floor: FLOOR, adjacent: [...(adj.get(`room-${r}`) ?? [])].sort(), zone_id: ZONE,
   });
 }
 for (const d of doors.sort((a, b) => (a.room + a.side).localeCompare(b.room + b.side))) {
   const id = `door-${d.room}${d.side}`;
   const sideKo = d.side === 'f' ? ' 앞문' : d.side === 'b' ? ' 뒷문' : ' 문';
+  const sideEn = d.side === 'f' ? ' front door' : d.side === 'b' ? ' back door' : ' door';
   places.push({
-    place_id: id, label: `${d.room}호${sideKo}`,
-    aliases: [`${d.room}호 문`, `${d.room} 문`],
+    place_id: id, label: `${d.room}호${sideKo}`, label_en: `Room ${d.room}${sideEn}`,
+    aliases: [`${d.room}호 문`, `${d.room} 문`], aliases_en: [`room ${d.room} door`, `${d.room} door`],
     kind: 'door', floor: FLOOR, adjacent: [...adj.get(id)].sort(), zone_id: ZONE,
   });
 }
 places.push({
-  place_id: MAIN.id, label: '5층 동서 복도',
-  aliases: ['복도', '5층 복도', '메인 복도'],
+  place_id: MAIN.id, label: '5층 동서 복도', label_en: '5F east–west corridor',
+  aliases: ['복도', '5층 복도', '메인 복도'], aliases_en: ['corridor', 'hallway', 'main corridor'],
   kind: 'corridor', floor: FLOOR, adjacent: [...adj.get(MAIN.id)].sort(), zone_id: ZONE,
 });
 places.push({
-  place_id: WING.id, label: '5층 남북 복도',
-  aliases: ['복도', '5층 복도', '측면 복도'],
+  place_id: WING.id, label: '5층 남북 복도', label_en: '5F north–south corridor',
+  aliases: ['복도', '5층 복도', '측면 복도'], aliases_en: ['corridor', 'hallway', 'side corridor'],
   kind: 'corridor', floor: FLOOR, adjacent: [...adj.get(WING.id)].sort(), zone_id: ZONE,
 });
 for (const l of landmarks) {
   places.push({
-    place_id: l.id, label: l.label, aliases: l.aliases,
+    place_id: l.id, label: l.label, label_en: l.label_en,
+    aliases: l.aliases, aliases_en: l.aliases_en,
     kind: l.kind, floor: FLOOR, adjacent: [...adj.get(l.id)].sort(), zone_id: ZONE,
   });
 }

@@ -13,9 +13,14 @@
     {
       "place_id": "room-501",
       "label": "501호",
+      "label_en": "Room 501",
       "aliases": [
         "501",
         "501호"
+      ],
+      "aliases_en": [
+        "501",
+        "room 501"
       ],
       "kind": "room",
       "floor": 5,
@@ -28,9 +33,14 @@
     {
       "place_id": "room-502",
       "label": "502호",
+      "label_en": "Room 502",
       "aliases": [
         "502",
         "502호"
+      ],
+      "aliases_en": [
+        "502",
+        "room 502"
       ],
       "kind": "room",
       "floor": 5,
@@ -43,9 +53,14 @@
     {
       "place_id": "room-503",
       "label": "503호",
+      "label_en": "Room 503",
       "aliases": [
         "503",
         "503호"
+      ],
+      "aliases_en": [
+        "503",
+        "room 503"
       ],
       "kind": "room",
       "floor": 5,
@@ -57,9 +72,14 @@
     {
       "place_id": "room-504",
       "label": "504호",
+      "label_en": "Room 504",
       "aliases": [
         "504",
         "504호"
+      ],
+      "aliases_en": [
+        "504",
+        "room 504"
       ],
       "kind": "room",
       "floor": 5,
@@ -72,9 +92,14 @@
     {
       "place_id": "room-505",
       "label": "505호",
+      "label_en": "Room 505",
       "aliases": [
         "505",
         "505호"
+      ],
+      "aliases_en": [
+        "505",
+        "room 505"
       ],
       "kind": "room",
       "floor": 5,
@@ -87,9 +112,14 @@
     {
       "place_id": "room-506",
       "label": "506호",
+      "label_en": "Room 506",
       "aliases": [
         "506",
         "506호"
+      ],
+      "aliases_en": [
+        "506",
+        "room 506"
       ],
       "kind": "room",
       "floor": 5,
@@ -101,9 +131,14 @@
     {
       "place_id": "room-507",
       "label": "507호",
+      "label_en": "Room 507",
       "aliases": [
         "507",
         "507호"
+      ],
+      "aliases_en": [
+        "507",
+        "room 507"
       ],
       "kind": "room",
       "floor": 5,
@@ -115,9 +150,14 @@
     {
       "place_id": "room-508",
       "label": "508호",
+      "label_en": "Room 508",
       "aliases": [
         "508",
         "508호"
+      ],
+      "aliases_en": [
+        "508",
+        "room 508"
       ],
       "kind": "room",
       "floor": 5,
@@ -129,9 +169,14 @@
     {
       "place_id": "room-509",
       "label": "509호",
+      "label_en": "Room 509",
       "aliases": [
         "509",
         "509호"
+      ],
+      "aliases_en": [
+        "509",
+        "room 509"
       ],
       "kind": "room",
       "floor": 5,
@@ -143,9 +188,14 @@
     {
       "place_id": "room-510",
       "label": "510호",
+      "label_en": "Room 510",
       "aliases": [
         "510",
         "510호"
+      ],
+      "aliases_en": [
+        "510",
+        "room 510"
       ],
       "kind": "room",
       "floor": 5,
@@ -157,9 +207,14 @@
     {
       "place_id": "room-511",
       "label": "511호",
+      "label_en": "Room 511",
       "aliases": [
         "511",
         "511호"
+      ],
+      "aliases_en": [
+        "511",
+        "room 511"
       ],
       "kind": "room",
       "floor": 5,
@@ -171,9 +226,14 @@
     {
       "place_id": "room-512",
       "label": "512호",
+      "label_en": "Room 512",
       "aliases": [
         "512",
         "512호"
+      ],
+      "aliases_en": [
+        "512",
+        "room 512"
       ],
       "kind": "room",
       "floor": 5,
@@ -185,9 +245,14 @@
     {
       "place_id": "room-513",
       "label": "513호",
+      "label_en": "Room 513",
       "aliases": [
         "513",
         "513호"
+      ],
+      "aliases_en": [
+        "513",
+        "room 513"
       ],
       "kind": "room",
       "floor": 5,
@@ -199,9 +264,14 @@
     {
       "place_id": "room-514",
       "label": "514호",
+      "label_en": "Room 514",
       "aliases": [
         "514",
         "514호"
+      ],
+      "aliases_en": [
+        "514",
+        "room 514"
       ],
       "kind": "room",
       "floor": 5,
@@ -213,9 +283,14 @@
     {
       "place_id": "room-515",
       "label": "515호",
+      "label_en": "Room 515",
       "aliases": [
         "515",
         "515호"
+      ],
+      "aliases_en": [
+        "515",
+        "room 515"
       ],
       "kind": "room",
       "floor": 5,
@@ -227,9 +302,14 @@
     {
       "place_id": "room-516",
       "label": "516호",
+      "label_en": "Room 516",
       "aliases": [
         "516",
         "516호"
+      ],
+      "aliases_en": [
+        "516",
+        "room 516"
       ],
       "kind": "room",
       "floor": 5,
@@ -241,9 +321,14 @@
     {
       "place_id": "room-517",
       "label": "517호",
+      "label_en": "Room 517",
       "aliases": [
         "517",
         "517호"
+      ],
+      "aliases_en": [
+        "517",
+        "room 517"
       ],
       "kind": "room",
       "floor": 5,
@@ -255,9 +340,14 @@
     {
       "place_id": "room-518",
       "label": "518호",
+      "label_en": "Room 518",
       "aliases": [
         "518",
         "518호"
+      ],
+      "aliases_en": [
+        "518",
+        "room 518"
       ],
       "kind": "room",
       "floor": 5,
@@ -270,9 +360,14 @@
     {
       "place_id": "room-519",
       "label": "519호",
+      "label_en": "Room 519",
       "aliases": [
         "519",
         "519호"
+      ],
+      "aliases_en": [
+        "519",
+        "room 519"
       ],
       "kind": "room",
       "floor": 5,
@@ -284,9 +379,14 @@
     {
       "place_id": "room-520",
       "label": "520호",
+      "label_en": "Room 520",
       "aliases": [
         "520",
         "520호"
+      ],
+      "aliases_en": [
+        "520",
+        "room 520"
       ],
       "kind": "room",
       "floor": 5,
@@ -299,9 +399,14 @@
     {
       "place_id": "door-501b",
       "label": "501호 뒷문",
+      "label_en": "Room 501 back door",
       "aliases": [
         "501호 문",
         "501 문"
+      ],
+      "aliases_en": [
+        "room 501 door",
+        "501 door"
       ],
       "kind": "door",
       "floor": 5,
@@ -314,9 +419,14 @@
     {
       "place_id": "door-501f",
       "label": "501호 앞문",
+      "label_en": "Room 501 front door",
       "aliases": [
         "501호 문",
         "501 문"
+      ],
+      "aliases_en": [
+        "room 501 door",
+        "501 door"
       ],
       "kind": "door",
       "floor": 5,
@@ -329,9 +439,14 @@
     {
       "place_id": "door-502b",
       "label": "502호 뒷문",
+      "label_en": "Room 502 back door",
       "aliases": [
         "502호 문",
         "502 문"
+      ],
+      "aliases_en": [
+        "room 502 door",
+        "502 door"
       ],
       "kind": "door",
       "floor": 5,
@@ -344,9 +459,14 @@
     {
       "place_id": "door-502f",
       "label": "502호 앞문",
+      "label_en": "Room 502 front door",
       "aliases": [
         "502호 문",
         "502 문"
+      ],
+      "aliases_en": [
+        "room 502 door",
+        "502 door"
       ],
       "kind": "door",
       "floor": 5,
@@ -359,9 +479,14 @@
     {
       "place_id": "door-503",
       "label": "503호 문",
+      "label_en": "Room 503 door",
       "aliases": [
         "503호 문",
         "503 문"
+      ],
+      "aliases_en": [
+        "room 503 door",
+        "503 door"
       ],
       "kind": "door",
       "floor": 5,
@@ -374,9 +499,14 @@
     {
       "place_id": "door-504b",
       "label": "504호 뒷문",
+      "label_en": "Room 504 back door",
       "aliases": [
         "504호 문",
         "504 문"
+      ],
+      "aliases_en": [
+        "room 504 door",
+        "504 door"
       ],
       "kind": "door",
       "floor": 5,
@@ -389,9 +519,14 @@
     {
       "place_id": "door-504f",
       "label": "504호 앞문",
+      "label_en": "Room 504 front door",
       "aliases": [
         "504호 문",
         "504 문"
+      ],
+      "aliases_en": [
+        "room 504 door",
+        "504 door"
       ],
       "kind": "door",
       "floor": 5,
@@ -404,9 +539,14 @@
     {
       "place_id": "door-505b",
       "label": "505호 뒷문",
+      "label_en": "Room 505 back door",
       "aliases": [
         "505호 문",
         "505 문"
+      ],
+      "aliases_en": [
+        "room 505 door",
+        "505 door"
       ],
       "kind": "door",
       "floor": 5,
@@ -419,9 +559,14 @@
     {
       "place_id": "door-505f",
       "label": "505호 앞문",
+      "label_en": "Room 505 front door",
       "aliases": [
         "505호 문",
         "505 문"
+      ],
+      "aliases_en": [
+        "room 505 door",
+        "505 door"
       ],
       "kind": "door",
       "floor": 5,
@@ -434,9 +579,14 @@
     {
       "place_id": "door-506",
       "label": "506호 문",
+      "label_en": "Room 506 door",
       "aliases": [
         "506호 문",
         "506 문"
+      ],
+      "aliases_en": [
+        "room 506 door",
+        "506 door"
       ],
       "kind": "door",
       "floor": 5,
@@ -449,9 +599,14 @@
     {
       "place_id": "door-507",
       "label": "507호 문",
+      "label_en": "Room 507 door",
       "aliases": [
         "507호 문",
         "507 문"
+      ],
+      "aliases_en": [
+        "room 507 door",
+        "507 door"
       ],
       "kind": "door",
       "floor": 5,
@@ -464,9 +619,14 @@
     {
       "place_id": "door-508",
       "label": "508호 문",
+      "label_en": "Room 508 door",
       "aliases": [
         "508호 문",
         "508 문"
+      ],
+      "aliases_en": [
+        "room 508 door",
+        "508 door"
       ],
       "kind": "door",
       "floor": 5,
@@ -479,9 +639,14 @@
     {
       "place_id": "door-509",
       "label": "509호 문",
+      "label_en": "Room 509 door",
       "aliases": [
         "509호 문",
         "509 문"
+      ],
+      "aliases_en": [
+        "room 509 door",
+        "509 door"
       ],
       "kind": "door",
       "floor": 5,
@@ -494,9 +659,14 @@
     {
       "place_id": "door-510",
       "label": "510호 문",
+      "label_en": "Room 510 door",
       "aliases": [
         "510호 문",
         "510 문"
+      ],
+      "aliases_en": [
+        "room 510 door",
+        "510 door"
       ],
       "kind": "door",
       "floor": 5,
@@ -509,9 +679,14 @@
     {
       "place_id": "door-511",
       "label": "511호 문",
+      "label_en": "Room 511 door",
       "aliases": [
         "511호 문",
         "511 문"
+      ],
+      "aliases_en": [
+        "room 511 door",
+        "511 door"
       ],
       "kind": "door",
       "floor": 5,
@@ -524,9 +699,14 @@
     {
       "place_id": "door-512",
       "label": "512호 문",
+      "label_en": "Room 512 door",
       "aliases": [
         "512호 문",
         "512 문"
+      ],
+      "aliases_en": [
+        "room 512 door",
+        "512 door"
       ],
       "kind": "door",
       "floor": 5,
@@ -539,9 +719,14 @@
     {
       "place_id": "door-513",
       "label": "513호 문",
+      "label_en": "Room 513 door",
       "aliases": [
         "513호 문",
         "513 문"
+      ],
+      "aliases_en": [
+        "room 513 door",
+        "513 door"
       ],
       "kind": "door",
       "floor": 5,
@@ -554,9 +739,14 @@
     {
       "place_id": "door-514",
       "label": "514호 문",
+      "label_en": "Room 514 door",
       "aliases": [
         "514호 문",
         "514 문"
+      ],
+      "aliases_en": [
+        "room 514 door",
+        "514 door"
       ],
       "kind": "door",
       "floor": 5,
@@ -569,9 +759,14 @@
     {
       "place_id": "door-515",
       "label": "515호 문",
+      "label_en": "Room 515 door",
       "aliases": [
         "515호 문",
         "515 문"
+      ],
+      "aliases_en": [
+        "room 515 door",
+        "515 door"
       ],
       "kind": "door",
       "floor": 5,
@@ -584,9 +779,14 @@
     {
       "place_id": "door-516",
       "label": "516호 문",
+      "label_en": "Room 516 door",
       "aliases": [
         "516호 문",
         "516 문"
+      ],
+      "aliases_en": [
+        "room 516 door",
+        "516 door"
       ],
       "kind": "door",
       "floor": 5,
@@ -599,9 +799,14 @@
     {
       "place_id": "door-517",
       "label": "517호 문",
+      "label_en": "Room 517 door",
       "aliases": [
         "517호 문",
         "517 문"
+      ],
+      "aliases_en": [
+        "room 517 door",
+        "517 door"
       ],
       "kind": "door",
       "floor": 5,
@@ -614,9 +819,14 @@
     {
       "place_id": "door-518b",
       "label": "518호 뒷문",
+      "label_en": "Room 518 back door",
       "aliases": [
         "518호 문",
         "518 문"
+      ],
+      "aliases_en": [
+        "room 518 door",
+        "518 door"
       ],
       "kind": "door",
       "floor": 5,
@@ -629,9 +839,14 @@
     {
       "place_id": "door-518f",
       "label": "518호 앞문",
+      "label_en": "Room 518 front door",
       "aliases": [
         "518호 문",
         "518 문"
+      ],
+      "aliases_en": [
+        "room 518 door",
+        "518 door"
       ],
       "kind": "door",
       "floor": 5,
@@ -644,9 +859,14 @@
     {
       "place_id": "door-519",
       "label": "519호 문",
+      "label_en": "Room 519 door",
       "aliases": [
         "519호 문",
         "519 문"
+      ],
+      "aliases_en": [
+        "room 519 door",
+        "519 door"
       ],
       "kind": "door",
       "floor": 5,
@@ -659,9 +879,14 @@
     {
       "place_id": "door-520b",
       "label": "520호 뒷문",
+      "label_en": "Room 520 back door",
       "aliases": [
         "520호 문",
         "520 문"
+      ],
+      "aliases_en": [
+        "room 520 door",
+        "520 door"
       ],
       "kind": "door",
       "floor": 5,
@@ -674,9 +899,14 @@
     {
       "place_id": "door-520f",
       "label": "520호 앞문",
+      "label_en": "Room 520 front door",
       "aliases": [
         "520호 문",
         "520 문"
+      ],
+      "aliases_en": [
+        "room 520 door",
+        "520 door"
       ],
       "kind": "door",
       "floor": 5,
@@ -689,10 +919,16 @@
     {
       "place_id": "corridor-5f-main",
       "label": "5층 동서 복도",
+      "label_en": "5F east–west corridor",
       "aliases": [
         "복도",
         "5층 복도",
         "메인 복도"
+      ],
+      "aliases_en": [
+        "corridor",
+        "hallway",
+        "main corridor"
       ],
       "kind": "corridor",
       "floor": 5,
@@ -724,10 +960,16 @@
     {
       "place_id": "corridor-5f-wing",
       "label": "5층 남북 복도",
+      "label_en": "5F north–south corridor",
       "aliases": [
         "복도",
         "5층 복도",
         "측면 복도"
+      ],
+      "aliases_en": [
+        "corridor",
+        "hallway",
+        "side corridor"
       ],
       "kind": "corridor",
       "floor": 5,
@@ -753,9 +995,13 @@
     {
       "place_id": "elevator-5f",
       "label": "엘리베이터",
+      "label_en": "Elevator",
       "aliases": [
         "엘레베이터",
         "승강기"
+      ],
+      "aliases_en": [
+        "lift"
       ],
       "kind": "elevator",
       "floor": 5,
@@ -768,9 +1014,14 @@
     {
       "place_id": "restroom-5f",
       "label": "화장실",
+      "label_en": "Restroom",
       "aliases": [
         "화장실",
         "남녀 화장실"
+      ],
+      "aliases_en": [
+        "toilet",
+        "washroom"
       ],
       "kind": "zone",
       "floor": 5,
@@ -783,9 +1034,14 @@
     {
       "place_id": "stair-5f-west",
       "label": "서편 계단",
+      "label_en": "West stairs",
       "aliases": [
         "계단",
         "비상계단"
+      ],
+      "aliases_en": [
+        "stairs",
+        "fire stairs"
       ],
       "kind": "stair",
       "floor": 5,
@@ -797,9 +1053,14 @@
     {
       "place_id": "stair-5f-east",
       "label": "동편 계단",
+      "label_en": "East stairs",
       "aliases": [
         "계단",
         "비상계단"
+      ],
+      "aliases_en": [
+        "stairs",
+        "fire stairs"
       ],
       "kind": "stair",
       "floor": 5,
@@ -812,9 +1073,14 @@
     {
       "place_id": "stair-5f-north",
       "label": "북편 계단",
+      "label_en": "North stairs",
       "aliases": [
         "계단",
         "비상계단"
+      ],
+      "aliases_en": [
+        "stairs",
+        "fire stairs"
       ],
       "kind": "stair",
       "floor": 5,

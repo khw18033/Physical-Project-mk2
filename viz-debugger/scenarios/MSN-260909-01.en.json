@@ -1,0 +1,51 @@
+{
+  "missionId": "MSN-260909-01",
+  "note": "본문은 원본(MSN-*.json)이 든다. 여기는 **화면에 뜨는 문구의 영어**와 영어 조회 규칙뿐이다. 키가 한국어 원문인 것은 일부러다 — 평가 증거는 그 한국어로 짝지어지므로(대본 events[].payload.criterion ↔ tasks[].evaluation.criteria[]) 한국어가 키로 남아야 한다. verify:i18n-data 가 빠진 것과 죽은 항목을 잡는다.",
+  "phrases": {
+    "문 쪽으로 이동": "Move toward the door",
+    "저기 문 쪽으로 가": "Go over toward that door",
+    "문을 찾는다": "Find the door",
+    "문에 접근한다": "Approach the door",
+    "임무 완료": "Mission complete",
+    "2D 맵에서 문 위치 확인": "Locate the door on the 2D map",
+    "로봇 현재 위치와 각도 파악": "Determine the robot’s current position and heading",
+    "로봇이 1바퀴 돈다": "The robot turns a full circle",
+    "0도 방향 탐색": "Scan the 0° direction",
+    "45도 방향 탐색": "Scan the 45° direction",
+    "90도 방향 탐색": "Scan the 90° direction",
+    "135도 방향 탐색": "Scan the 135° direction",
+    "180도 방향 탐색": "Scan the 180° direction",
+    "225도 방향 탐색": "Scan the 225° direction",
+    "270도 방향 탐색": "Scan the 270° direction",
+    "315도 방향 탐색": "Scan the 315° direction",
+    "문이 있는 방향으로 판단": "Decide which direction has the door",
+    "탐색한 여덟 방향 중 문 있음이 정확히 하나다": "Exactly one of the eight scanned directions has a door",
+    "근거 가시화": "Visualise the rationale",
+    "판단 근거 문장과 검출 상자가 함께 남는다": "The rationale sentence and the detection box are kept together",
+    "2D 맵 기반 경로 산출": "Compute the path from the 2D map",
+    "산출된 경로에 따라 이동": "Move along the computed path",
+    "문과 가까워지면 정지": "Stop when close to the door",
+    "정지 시 문까지 거리가 기준 이하다": "At the stop, the distance to the door is within the threshold",
+    "임무 종료 확인": "Confirm the mission ended",
+    "문틀 수직선 2개와 손잡이를 검출. 폭 0.9m로 추정되어 통행 가능한 문으로 판단.": "Detected two door-frame verticals and a handle. Width estimated at 0.9 m, judged a passable door.",
+    "문틀로 볼 수직선 쌍이 없다.": "There is no vertical pair that reads as a door frame."
+  },
+  "match_en": {
+    "must": [
+      [
+        "door"
+      ]
+    ],
+    "any": [
+      "go",
+      "move",
+      "toward",
+      "over"
+    ],
+    "not": [
+      "self-driving",
+      "selfdriving",
+      "autonomous"
+    ]
+  }
+}

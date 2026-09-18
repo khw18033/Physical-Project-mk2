@@ -1,0 +1,52 @@
+{
+  "missionId": "MSN-260831-01",
+  "note": "본문은 원본(MSN-*.json)이 든다. 여기는 **화면에 뜨는 문구의 영어**와 영어 조회 규칙뿐이다. 키가 한국어 원문인 것은 일부러다 — 평가 증거는 그 한국어로 짝지어지므로(대본 events[].payload.criterion ↔ tasks[].evaluation.criteria[]) 한국어가 키로 남아야 한다. verify:i18n-data 가 빠진 것과 죽은 항목을 잡는다.",
+  "phrases": {
+    "503호에서 복도 엘리베이터 앞까지": "From room 503 to the hallway elevator",
+    "503호에서 복도에 있는 엘리베이터 앞까지 이동해줘.": "Move from room 503 to the elevator in the hallway.",
+    "503호 출발점에서 문 앞까지 이동": "Move from the room 503 start point to the door",
+    "문 열림 확인": "Confirm the door is open",
+    "복도 진입": "Enter the hallway",
+    "엘리베이터까지 이동": "Move to the elevator",
+    "엘리베이터와의 거리를 계산하여 3 m 이내면 정지": "Compute the distance to the elevator and stop within 3 m",
+    "도착 보고": "Report arrival",
+    "임무 종료": "Mission end",
+    "경로 계획": "Plan the path",
+    "출발점에서 문 앞까지 주행": "Drive from the start point to the door",
+    "문 앞 도착 판정": "Decide arrival at the door",
+    "문 영역 관측": "Observe the door area",
+    "문 열림 판정": "Decide whether the door is open",
+    "문 열림이 탐지 결과로 확인된다": "The door being open is confirmed by the detection result",
+    "진입 여유 확인": "Check the entry clearance",
+    "복도 진입 주행": "Drive into the hallway",
+    "복도 경로 추종": "Follow the hallway path",
+    "위치 발행": "Publish the position",
+    "카메라 시야 이탈 확인": "Confirm it left the camera field of view",
+    "엘리베이터까지 거리 계산": "Compute the distance to the elevator",
+    "엘리베이터와의 거리 ≤ 3 m": "Distance to the elevator ≤ 3 m",
+    "정지 구동": "Actuate the stop",
+    "정지 확인": "Confirm the stop",
+    "is_moving 이 거짓이고 속도가 0이다": "is_moving is false and the speed is 0",
+    "도착 상태 스냅샷": "Snapshot of the arrival state",
+    "도착 보고 발행": "Publish the arrival report",
+    "자원 해제": "Release resources",
+    "임무 요약 기록": "Record the mission summary"
+  },
+  "match_en": {
+    "must": [
+      [
+        "503"
+      ],
+      [
+        "elevator",
+        "lift"
+      ]
+    ],
+    "any": [
+      "move",
+      "go",
+      "hallway",
+      "corridor"
+    ]
+  }
+}

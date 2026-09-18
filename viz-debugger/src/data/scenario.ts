@@ -38,6 +38,7 @@
  * 정지 미리보기**이고, 그 둘은 열이 비어 있다.
  */
 
+import { translateEvents, translateView } from '../scenarios/phrases.ts';
 import { useSyncExternalStore } from 'react';
 import { foldStatuses, type FoldedStatuses } from './fold.ts';
 import { MergeScheduler } from './mergeScheduler.ts';
@@ -353,19 +354,22 @@ export function displayMission(): {
   /** 그 임무의 기록 열. 화면은 **이것만** 접는다. */
   trace: readonly ScenarioEvent[];
 } {
+  // 260918 — **영문 화면은 여기서 대본 글자가 영어로 바뀐다** (3단계).
+  // `state.current` 는 한국어 그대로 둔다 — 그것이 기록이고 짝짓기의 키다.
+  // `ko` 면 `translateView` 가 입력을 **그대로** 돌려주므로 한국어 화면은 한 글자도 안 바뀐다.
   if (state.proposal !== null) {
     // 모델이 낸 제안은 라이브러리에 없다 — **제안이 본문을 들고 있다.**
     const view = state.proposal.origin === 'ai'
       ? state.proposal.view
       : viewForMission(state.proposal.missionId);
     // 제안은 아직 승인 전이라 흘러온 것이 없다 — 열이 비어 있는 것이 곧 그 사실이다.
-    if (view !== null) return { view, phase: 'proposal', headSec: 0, trace: traceFor(view) };
+    if (view !== null) return { view: translateView(view), phase: 'proposal', headSec: 0, trace: translateEvents(view.missionId, traceFor(view)) };
   }
   return {
-    view: state.current,
+    view: translateView(state.current),
     phase: state.playing ? 'playing' : 'idle',
     headSec: state.headSec,
-    trace: traceFor(state.current),
+    trace: translateEvents(state.current.missionId, traceFor(state.current)),
   };
 }
 

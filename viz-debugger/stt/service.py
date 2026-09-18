@@ -154,7 +154,8 @@ def transcribe(
     vocab_error = None
     if use_hotwords:
         try:
-            terms = vocab.vocabulary()
+            # 260918 — 요청의 언어로 어휘를 뽑는다. 두 언어를 한꺼번에 밀지 않는다(vocab.py 주석).
+            terms = vocab.vocabulary(language)
             hotwords = terms["hotwords"]
             hotword_count = terms["count"]
             registry_version = terms["registry_version"]

@@ -310,6 +310,13 @@ export const en: Record<string, string> = {
   'lang.aria': 'Display language',
   'lang.label': 'Language',
 
+  // 인식 언어 셋
+  'stt.lang': 'Recognition language',
+  'stt.langTitle': 'Chosen separately from the display language — you can keep the screen in English and speak Korean',
+  'stt.lang.auto': 'Follow display language',
+  'stt.lang.ko': '한국어',
+  'stt.lang.en': 'English',
+
   // 모드 스위치
   'mode.normal': 'Normal',
   'mode.scenario': 'Scenario ▾',

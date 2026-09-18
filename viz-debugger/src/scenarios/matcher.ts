@@ -16,6 +16,8 @@
  *     비슷한 것을 억지로 고르면 「대본 조회」가 LLM 흉내가 된다.
  */
 
+import { getLang } from '../shared/language.ts';
+import { matchEnOf } from './phrases.ts';
 import { t } from '../i18n/dict.ts';
 import type { ScriptLibraryEntry, ScriptMatch } from './types.ts';
 
@@ -61,10 +63,43 @@ export type MatchOutcome =
  * 라이브러리 전체 대조. 정확히 하나면 그 하나, 없거나 둘 이상이면 고르지 않는다.
  * 거부 사유 문구까지 여기서 만든다 — 게이트웨이와 화면이 같은 말을 해야 한다.
  */
+/**
+ * **영어 화면에서는 영어 규칙을 먼저 본다** (260918 — 3단계).
+ *
+ * 규칙은 한국어 키워드 대조다. 영어로 말하면 한국어 규칙에는 하나도 안 맞고, 「맞는 대본이
+ * 없다」로 끝난다. 그래서 편마다 `MSN-*.en.json` 에 `match_en` 을 두고 영어 화면에서 그것을
+ * 먼저 쓴다.
+ *
+ * **안 맞으면 한국어 규칙으로 한 번 더 본다.** 화면은 영어인데 발표자는 한국어로 말하는 —
+ * 실제로 그렇게 할 — 경우가 있고, 그때 못 고르면 시연이 선다.
+ *
+ * `ko` 에서는 한국어 규칙 하나뿐이다. 한국어 화면의 동작이 한 줄도 달라지지 않는다.
+ */
+function ruleSets(entry: ScriptLibraryEntry): readonly (ScriptMatch | undefined)[] {
+  if (getLang() !== 'en') return [entry.match];
+  const en = matchEnOf(entry.missionId);
+  return en === null ? [entry.match] : [en, entry.match];
+}
+
 export function matchLibrary(sentence: string, library: readonly ScriptLibraryEntry[]): MatchOutcome {
-  const hits = library.filter((entry) => matchesRule(sentence, entry.match));
+  // 규칙 벌 차례대로 — 영어로 하나가 맞으면 한국어 규칙은 안 본다.
+  const passes = getLang() === 'en' ? [0, 1] : [0];
+  let hits: readonly ScriptLibraryEntry[] = [];
+  let used = new Map<string, ScriptMatch>();
+  for (const pass of passes) {
+    const found: ScriptLibraryEntry[] = [];
+    const rules = new Map<string, ScriptMatch>();
+    for (const entry of library) {
+      const rule = ruleSets(entry)[pass];
+      if (rule === undefined) continue;
+      if (matchesRule(sentence, rule)) { found.push(entry); rules.set(entry.missionId, rule); }
+    }
+    if (found.length > 0) { hits = found; used = rules; break; }
+  }
   if (hits.length === 1) {
-    return { kind: 'matched', entry: hits[0], keywords: matchedKeywords(sentence, hits[0].match) };
+    // 맞은 키워드는 **실제로 쓴 규칙**에서 뽑는다 — 영어로 맞았는데 한국어 키워드를 적으면
+    // 화면이 「왜 이 대본인가」에 거짓말을 한다.
+    return { kind: 'matched', entry: hits[0], keywords: matchedKeywords(sentence, used.get(hits[0].missionId) ?? hits[0].match) };
   }
   if (hits.length === 0) {
     return { kind: 'none', reason: t('match.none') };

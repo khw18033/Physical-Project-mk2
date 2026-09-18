@@ -311,6 +311,13 @@ export const ko: Record<string, string> = {
   'lang.aria': '화면 언어',
   'lang.label': '언어',
 
+  // 인식 언어 셋 — **화면 언어와 별개다** (`stt/language.ts`)
+  'stt.lang': '인식 언어',
+  'stt.langTitle': '화면 언어와 따로 고릅니다 — 화면을 영어로 두고 한국어로 말할 수 있습니다',
+  'stt.lang.auto': '화면 언어 따름',
+  'stt.lang.ko': '한국어',
+  'stt.lang.en': 'English',
+
   // 모드 스위치
   'mode.normal': '일반',
   'mode.scenario': '시나리오 ▾',

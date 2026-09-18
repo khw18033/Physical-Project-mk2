@@ -54,12 +54,23 @@ def load_registry() -> Dict[str, Any]:
     return _cache["data"]
 
 
-def _targets(reg: Dict[str, Any]) -> List[Dict[str, Any]]:
-    """zone/node/entity 를 (kind, id, display_name, aliases, entity_type) 로 평탄화한다."""
+def _targets(reg: Dict[str, Any], language: str = "ko") -> List[Dict[str, Any]]:
+    """zone/node/entity 를 (kind, id, display_name, aliases, entity_type) 로 평탄화한다.
+
+    **언어별로 한 벌만 낸다** (260918 · 영문화 3단계). 두 언어의 어휘를 한꺼번에 밀면
+    hotword 가 서로를 끌어당긴다 — 한국어 발화에 영어 이름을, 영어 발화에 한국어 이름을
+    섞어 편향시키는 것이고, 그건 이 축이 재려는 것(등록 이름이 인식을 돕는가)을 흐린다.
+
+    영어 자리가 비어 있으면 **그 항목은 빠진다.** 한국어로 떨어뜨리지 않는다 —
+    영어 발화에 한국어 hotword 를 미는 것이 위에서 막으려는 바로 그것이기 때문이다.
+    """
+    en = language.lower().startswith("en")
+    name_field = "display_name_en" if en else "display_name"
+    alias_field = "aliases_en" if en else "aliases"
     out: List[Dict[str, Any]] = []
     for kind, singular in (("zones", "zone"), ("nodes", "node"), ("entities", "entity")):
         for item in reg.get(kind, []):
-            display = item.get("display_name")
+            display = item.get(name_field)
             if not display:
                 continue
             out.append(
@@ -67,7 +78,7 @@ def _targets(reg: Dict[str, Any]) -> List[Dict[str, Any]]:
                     "kind": singular,
                     "id": item.get("id"),
                     "display_name": display,
-                    "aliases": [a for a in item.get("aliases", []) if a],
+                    "aliases": [a for a in item.get(alias_field, []) if a],
                     "entity_type": item.get("entity_type"),
                     "zone": item.get("zone"),
                 }
@@ -75,22 +86,28 @@ def _targets(reg: Dict[str, Any]) -> List[Dict[str, Any]]:
     return out
 
 
-def _script_terms() -> List[Dict[str, str]]:
+def _script_terms(language: str = "ko") -> List[Dict[str, str]]:
     """대본 라이브러리의 match 키워드 (260831 · REQ-1304 의 확장점).
 
     파일 목록을 하드코딩하지 않고 scenarios/*.json 에서 `match` 블록이 있는 파일
     (대본 세 편 + 옛 편 사이드카)을 전부 읽는다 — 대본이 늘면 hotword 도 같이 는다.
     verify:stt-port 는 engines/*.py 만 바이트 대조하므로(확인됨) 이 파일은 그 밖이다.
     """
+    en = language.lower().startswith("en")
+    # 영어는 사이드카(`MSN-*.en.json`)의 `match_en` 을 본다. 한국어는 원본의 `match` 다.
+    key = "match_en" if en else "match"
     terms: List[Dict[str, str]] = []
     if not SCENARIO_DIR.exists():
         return terms
     for path in sorted(SCENARIO_DIR.glob("*.json")):
+        # 영어 사이드카는 영어일 때만, 원본은 한국어일 때만 본다 — 섞으면 두 언어가 같이 실린다.
+        if en != path.name.endswith(".en.json"):
+            continue
         try:
             data = json.loads(path.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError):
             continue
-        match = data.get("match")
+        match = data.get(key)
         if not isinstance(match, dict):
             continue
         mission = data.get("missionId") or path.stem
@@ -110,7 +127,7 @@ def _script_terms() -> List[Dict[str, str]]:
     return terms
 
 
-def vocabulary() -> Dict[str, Any]:
+def vocabulary(language: str = "ko") -> Dict[str, Any]:
     """hotwords 어휘 + 각 어휘가 어디서 왔는지.
 
     어디서 왔는지를 같이 내보내는 이유: hotwords를 켰을 때 인식이 좋아졌다면
@@ -119,7 +136,7 @@ def vocabulary() -> Dict[str, Any]:
     reg = load_registry()
     terms: List[Dict[str, str]] = []
     seen = set()
-    for target in _targets(reg):
+    for target in _targets(reg, language):
         for field, value in [("display_name", target["display_name"])] + [
             ("alias", a) for a in target["aliases"]
         ]:
@@ -137,12 +154,13 @@ def vocabulary() -> Dict[str, Any]:
             )
     # 대본 키워드는 레지스트리 어휘 **뒤에 더한다** (260831). 적용 수가 화면(등록 이름 N개
     # 반영)에 뜨므로 실렸는지 확인된다. 대조군(등록 이름 우선 끔)은 그대로 편향이 없다.
-    for term in _script_terms():
+    for term in _script_terms(language):
         if term["term"] in seen:
             continue
         seen.add(term["term"])
         terms.append(term)
     return {
+        "language": language,
         "registry_path": str(registry_path()),
         "registry_version": reg.get("registry_version"),
         "count": len(terms),

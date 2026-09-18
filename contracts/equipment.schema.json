@@ -15,6 +15,16 @@
       "$comment": "사람이 부르는 이름. **모르면 null 이다** — 지어내지 않는다. 정답셋에만 나오는 식별자는 레지스트리에 이름이 없고, 그 사실을 빈칸으로 남긴다(places 의 자리표시와 같은 원칙).",
       "type": ["string", "null"]
     },
+    "label_en": {
+      "$comment": "260918 영문화 3단계 — 영어 이름. **required 가 아니다**: 없으면 화면이 한국어로 떨어진다. 원천은 registry.json 의 display_name_en 이고 추출기는 실어 나르기만 한다 — 모르면 null 이고 지어내지 않는다.",
+      "type": ["string", "null"]
+    },
+    "aliases_en": {
+      "$comment": "260918 영문화 3단계 — 영어 발화용 별칭. **번역이 아니라 저작이다**: 사람이 영어로 그렇게 부르는 말을 적는다. stt/vocab.py 가 언어에 따라 이 쪽 어휘만 hotword 로 민다 — 두 언어를 한꺼번에 밀면 서로를 끌어당긴다.",
+      "type": "array",
+      "items": { "type": "string" },
+      "uniqueItems": true
+    },
     "aliases": {
       "$comment": "발화 정규화용. 원천은 registry.json 의 aliases[] 다 — stt/vocab.py 가 hotword 를 뽑는 그 필드와 같은 것을 본다. 여기서 새로 짓지 않는다.",
       "type": "array",

@@ -8,6 +8,16 @@
   "properties": {
     "place_id": { "type": "string", "minLength": 1 },
     "label": { "type": "string", "minLength": 1 },
+    "label_en": {
+      "$comment": "260918 영문화 3단계 — 영어 이름. **required 가 아니다**: 없으면 화면이 한국어로 떨어진다. 원천은 extract-places.mjs 다 — 장소 이름은 레지스트리에 없고 그 추출기가 짓는다 — 모르면 null 이고 지어내지 않는다.",
+      "type": ["string", "null"]
+    },
+    "aliases_en": {
+      "$comment": "260918 영문화 3단계 — 영어 발화용 별칭. **번역이 아니라 저작이다**: 사람이 영어로 그렇게 부르는 말을 적는다. stt/vocab.py 가 언어에 따라 이 쪽 어휘만 hotword 로 민다 — 두 언어를 한꺼번에 밀면 서로를 끌어당긴다.",
+      "type": "array",
+      "items": { "type": "string" },
+      "uniqueItems": true
+    },
     "aliases": {
       "$comment": "발화 정규화용. STT 오인식 표기도 넣는다 (엘레베이터).",
       "type": "array", "items": { "type": "string" }, "uniqueItems": true

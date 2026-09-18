@@ -59,7 +59,11 @@ for (const entity of registry.entities ?? []) {
   fromRegistry.set(entity.id, {
     equipment_id: entity.id,
     label: entity.display_name ?? null,
+    // 260918 — 영어를 **실어 나르기만** 한다 (영문화 3단계). 원천은 레지스트리 하나다.
+    // 레지스트리에 `_en` 이 없으면 null 로 둔다: 여기서 이름을 지어내지 않는다.
+    label_en: entity.display_name_en ?? null,
     aliases: [...new Set((entity.aliases ?? []).filter(Boolean))].sort(),
+    aliases_en: [...new Set((entity.aliases_en ?? []).filter(Boolean))].sort(),
     kind: entity.entity_type ?? null,
     zone_id: entity.zone ?? null,
   });
@@ -83,7 +87,7 @@ const equipment = [];
 for (const id of [...new Set([...fromRegistry.keys(), ...goldTargets])].sort()) {
   equipment.push(fromRegistry.get(id) ?? {
     // 레지스트리에 없다 — 이름도 종류도 모른다. **지어내지 않는다.**
-    equipment_id: id, label: null, aliases: [], kind: null, zone_id: null,
+    equipment_id: id, label: null, label_en: null, aliases: [], aliases_en: [], kind: null, zone_id: null,
   });
 }
 

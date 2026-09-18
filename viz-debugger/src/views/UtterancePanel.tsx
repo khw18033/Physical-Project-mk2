@@ -34,6 +34,7 @@
  * (`data/scenario.ts`), `verify:proposal-gate` 가 그 문을 지킨다.
  */
 
+import { setSttLangChoice, STT_LANG_CHOICES, useSttLangChoice, type SttLangChoice } from '../stt/language.ts';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { proposeGenerated, proposeMission, scenario as legacyScenario, type MissionView } from '../data/scenario.ts';
 import { SCRIPT_LIBRARY } from '../scenarios/library.ts';
@@ -267,6 +268,7 @@ export function UtterancePanel({ fallbackText }: { fallbackText: string }) {
   const [sentencesOpen, setSentencesOpen] = useState(false);
   const [stepsOpen, setStepsOpen] = useState(false);
   const [useHotwords, setUseHotwords] = useState(true);
+  const sttLangChoice = useSttLangChoice();
   const [error, setError] = useState<{ message: string; detail?: string } | null>(null);
   const [confirmed, setConfirmed] = useState(false);
   const [issued, setIssued] = useState<string | null>(null);
@@ -407,6 +409,7 @@ export function UtterancePanel({ fallbackText }: { fallbackText: string }) {
     setPhase('transcribing');
     setError(null);
     try {
+      // 언어는 SttClient 가 stt/language.ts 에서 읽는다 — 부를 때마다 읽어야 셋을 바꾼 것이 바로 먹는다.
       const next = await transcribe(blob, { useHotwords });
       setResult(next);
       setDecision(decide(next));
@@ -647,6 +650,15 @@ export function UtterancePanel({ fallbackText }: { fallbackText: string }) {
         <label className="hotword-toggle" title={t('stt.hotwordTitle')}>
           <input type="checkbox" checked={useHotwords} onChange={(event) => setUseHotwords(event.target.checked)} />
           {t('stt.hotword')}
+        </label>
+        {/* 인식 언어 (260918 — 3단계). **화면 언어와 따로 고른다** — 화면을 영어로 두고
+            한국어로 발표하는 경우가 실제로 있고, 그때 화면 언어를 그대로 밀면 한국어
+            발화를 영어로 디코딩한다 (`stt/language.ts`). */}
+        <label className="stt-lang" title={t('stt.langTitle')}>
+          {t('stt.lang')}
+          <select value={sttLangChoice} onChange={(event) => setSttLangChoice(event.target.value as SttLangChoice)}>
+            {STT_LANG_CHOICES.map((choice) => <option key={choice} value={choice}>{t(`stt.lang.${choice}`)}</option>)}
+          </select>
         </label>
       </div>
       <Explain id="utt-3" className="stt-hint">
