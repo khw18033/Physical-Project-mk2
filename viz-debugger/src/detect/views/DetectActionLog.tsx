@@ -19,7 +19,7 @@ import { useDeviceStates } from '../../physical/deviceState.ts';
 import { hardwareTarget } from '../../physical/encode.ts';
 import { viewpointTaskIndex } from '../../physical/missionLink.ts';
 import { usePrepStage } from '../../physical/prepStage.ts';
-import { DETECT_TASKS, LANE_WORDS, useDetectLog } from '../detectLog.ts';
+import { DETECT_TASKS, LANE_WORDS_KEY, useDetectLog } from '../detectLog.ts';
 import { useDetect } from '../store.ts';
 
 const ROBOT_ENTITY = 'robot-01';
@@ -64,7 +64,7 @@ export function PrepFacts({ taskId }: { taskId: string }) {
     return <section className="prep-facts">
       <h3>{t('dlog.1')}</h3>
       <dl>
-        <div><dt>{t('dlog.state')}</dt><dd>{STEP_WORDS[map.step]}{map.reason !== null && ` — ${map.reason}`}</dd></div>
+        <div><dt>{t('dlog.state')}</dt><dd>{t(STEP_WORDS_KEY[map.step])}{map.reason !== null && ` — ${map.reason}`}</dd></div>
         <div><dt>{t('dlog.5')}</dt><dd>{map.url === null ? t('dlog.2') : <>{map.bundled ? t('dlog.3') : t('dlog.4')} · <code>{map.url}</code></>}</dd></div>
         <div><dt>{t('dlog.6')}</dt><dd>({map.doorCm.x.toFixed(1)}, {map.doorCm.y.toFixed(1)}) cm · px ({map.doorPx.x}, {map.doorPx.y}) <small>{t('dlog.7')}</small></dd></div>
         {map.atIso !== null && <div><dt>{t('dlog.8')}</dt><dd>{map.atIso.slice(11, 23)}</dd></div>}
@@ -95,7 +95,7 @@ export function PrepFacts({ taskId }: { taskId: string }) {
       <div>
         <dt>{t('dlog.14')}</dt>
         <dd>{caught === null
-          ? <>{STEP_WORDS[prep.pose.step]}{prep.pose.reason !== null && ` — ${prep.pose.reason}`}</>
+          ? <>{t(STEP_WORDS_KEY[prep.pose.step])}{prep.pose.reason !== null && ` — ${prep.pose.reason}`}</>
           : <><b>{caught.headingDeg.toFixed(1)}°</b> · x {caught.xM.toFixed(2)} m · y {caught.yM.toFixed(2)} m
             <small> {t('dlog.caughtMeta', { clock: caught.receivedAtIso.slice(11, 19) })}</small></>}
         </dd>
@@ -163,11 +163,11 @@ export function SweepFacts() {
 }
 
 /** 대체 경로 단계의 사람 이름. */
-const STEP_NAMES: Record<string, string> = {
-  A_pedestal: t('dlog.32'),
-  B_door_only: t('dlog.33'),
-  C_door_relative: t('dlog.34'),
-  path_map: t('dlog.35'),
+const STEP_NAMES_KEY: Record<string, string> = {
+  A_pedestal: 'dlog.32',
+  B_door_only: 'dlog.33',
+  C_door_relative: 'dlog.34',
+  path_map: 'dlog.35',
 };
 
 /**
@@ -195,7 +195,7 @@ export function PathFacts() {
     </dl>
     {(path.fallback_chain ?? []).length > 0 && <ol className="path-chain">
       {(path.fallback_chain ?? []).map((step, at) => <li key={`${step.step}-${at}`} className={step.ok ? 'is-ok' : 'is-fail'}>
-        <b>{step.ok ? '✓' : '✕'} {STEP_NAMES[step.step] ?? step.step}</b> <span>{step.detail}</span>
+        <b>{step.ok ? '✓' : '✕'} {t(STEP_NAMES_KEY[step.step]) ?? step.step}</b> <span>{step.detail}</span>
       </li>)}
     </ol>}
     {distance !== null && <>
@@ -253,7 +253,7 @@ export function ApproachFacts() {
 const turnWords = (deg: number) => t(deg < 0 ? 'dlog.turnLeft' : 'dlog.turnRight', { deg: Math.abs(deg).toFixed(1) });
 
 /** `idle` 은 「임무 시작」 전이거나, 로봇이 안 몰아 대본이 노드를 칠한 경우다. */
-const STEP_WORDS = { idle: t('dlog.58'), running: t('dlog.59'), done: t('dlog.60'), failed: t('dlog.61') } as const;
+const STEP_WORDS_KEY = { idle: 'dlog.58', running: 'dlog.59', done: 'dlog.60', failed: 'dlog.61' } as const;
 
 /** **탐지 경로에서 오간 줄.** 그 태스크에 붙은 것만, 받은 순서 그대로. */
 export function DetectLogLines({ taskId }: { taskId: string }) {
@@ -266,7 +266,7 @@ export function DetectLogLines({ taskId }: { taskId: string }) {
       : <ol className="detect-log__lines">
         {lines.map((line, at) => <li key={`${line.atIso}-${at}`} className={`is-${line.level} lane-${line.lane}`}>
           <time>{line.atIso.slice(11, 23)}</time>
-          <em>{LANE_WORDS[line.lane]}</em>
+          <em>{t(LANE_WORDS_KEY[line.lane])}</em>
           <span>{line.text}</span>
           {line.detail !== '' && <code>{line.detail}</code>}
         </li>)}

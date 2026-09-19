@@ -23,7 +23,6 @@
  * **지어 쓰지 않는다.** 문장의 값은 받은 값뿐이다.
  */
 
-import { t } from '../i18n/dict.ts';
 import { useSyncExternalStore } from 'react';
 
 export type DetectLogLane = 'robot' | 'detect' | 'screen';
@@ -41,10 +40,10 @@ export type DetectLogLine = {
 };
 
 /** 구간 이름 — 화면이 줄 머리에 적는다. */
-export const LANE_WORDS: Record<DetectLogLane, string> = {
-  robot: t('dlg.1'),
-  detect: t('dlg.2'),
-  screen: t('dlg.3'),
+export const LANE_WORDS_KEY: Record<DetectLogLane, string> = {
+  robot: 'dlg.1',
+  detect: 'dlg.2',
+  screen: 'dlg.3',
 };
 
 /**

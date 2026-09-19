@@ -87,7 +87,8 @@
     "verify:i18n-data": "node scripts/verify-i18n-data.mjs",
     "verify:stt-language": "node scripts/verify-stt-language.mjs",
     "verify:dict-shape": "node scripts/verify-dict-shape.mjs",
-    "verify:no-raw-korean": "node scripts/verify-no-raw-korean.mjs"
+    "verify:no-raw-korean": "node scripts/verify-no-raw-korean.mjs",
+    "verify:i18n-no-frozen": "node scripts/verify-i18n-no-frozen.mjs"
   },
   "dependencies": {
     "mqtt": "^5.15.2",

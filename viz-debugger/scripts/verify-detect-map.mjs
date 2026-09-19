@@ -27,8 +27,13 @@ const root = join(fileURLToPath(new URL('.', import.meta.url)), '..');
 const load = (...p) => import(pathToFileURL(join(root, ...p)).href);
 const sample = (...p) => JSON.parse(readFileSync(join(root, '..', 'door_example', 'test', ...p), 'utf8'));
 
-const { indexOfRotation, boxOf, reasonOf, chosenFrame, usableDistanceCm, SCORE_LABEL } =
+const { indexOfRotation, boxOf, reasonOf, chosenFrame, usableDistanceCm, SCORE_LABEL_KEY } =
   await load('src', 'detect', 'parse.ts');
+// 260919 — `SCORE_LABEL` 이 **키**가 됐다 (최상위 상수에서 `t()` 를 부르면 로드 시점
+// 언어로 굳는다 · `verify:i18n-no-frozen`). 이름만 따라가면 「키가 사전에 없다」를 못 보므로
+// **한 칸 더 본다** — 그 키의 값이 두 사전에 다 있는가. 없으면 화면에 키가 그대로 뜬다.
+const { ko } = await load('src', 'i18n', 'ko.ts');
+const { en } = await load('src', 'i18n', 'en.ts');
 
 const failures = [];
 const controls = [];
@@ -88,7 +93,10 @@ const COUNT = 8;
 // ── 4. 문장은 관문에서 나온다 · 점수는 확률이 아니다 ────────────────────────
 {
   const words = reasonOf(found113, true);
-  for (const must of ['통과', SCORE_LABEL]) {
+  // 키가 사전에 실재하는가 — 없으면 화면에 `dps.1` 이 글자로 뜬다.
+  if (ko[SCORE_LABEL_KEY] === undefined) failures.push(`SCORE_LABEL_KEY 「${SCORE_LABEL_KEY}」 가 한국어 사전에 없다`);
+  if (en[SCORE_LABEL_KEY] === undefined) failures.push(`SCORE_LABEL_KEY 「${SCORE_LABEL_KEY}」 가 영어 사전에 없다 — 영문 화면에서 한국어로 남는다`);
+  for (const must of ['통과', ko[SCORE_LABEL_KEY]]) {
     if (!words.includes(must)) failures.push(`판단 문장에 「${must}」 가 없다 — ${words}`);
   }
   // 관문 넷이 다 통과였으니 넷이 다 문장에 있어야 한다.

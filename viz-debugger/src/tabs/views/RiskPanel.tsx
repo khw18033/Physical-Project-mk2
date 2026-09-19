@@ -14,7 +14,7 @@ import { Rich } from '../../i18n/RichText.tsx';
 import { t } from '../../i18n/dict.ts';
 import { useState } from 'react';
 import { GATEWAY, type RiskState } from '../../transport/index.ts';
-import { deriveDisplayStatus, DISPLAY_STATUS_LABEL, store } from '../data/index.ts';
+import { deriveDisplayStatus, DISPLAY_STATUS_LABEL_KEY, store } from '../data/index.ts';
 import { useEntities } from '../data/hooks.ts';
 import { PendingSource } from '../../shared/PendingSource.tsx';
 import { CURRENT_ZONE_ID } from '../../shared/registry.ts';
@@ -22,13 +22,13 @@ import { Explain } from '../../shared/Explain.tsx';
 
 type Level = 'decision' | 'operation' | 'development';
 
-const LEVELS: Array<{ id: Level; label: string; note: string }> = [
-  { id: 'decision', label: t('rp.1'), note: t('rp.2') },
-  { id: 'operation', label: t('rp.3'), note: t('rp.4') },
-  { id: 'development', label: t('rp.5'), note: t('rp.6') },
+const LEVELS: Array<{ id: Level; labelKey: string; noteKey: string }> = [
+  { id: 'decision', labelKey: 'rp.1', noteKey: 'rp.2' },
+  { id: 'operation', labelKey: 'rp.3', noteKey: 'rp.4' },
+  { id: 'development', labelKey: 'rp.5', noteKey: 'rp.6' },
 ];
 
-const RISK_LABEL: Record<RiskState['level'], string> = { normal: t('rp.7'), watch: t('rp.8'), alert: t('rp.9'), recovery: t('rp.10') };
+const RISK_LABEL_KEY: Record<RiskState['level'], string> = { normal: 'rp.7', watch: 'rp.8', alert: 'rp.9', recovery: 'rp.10' };
 
 export function RiskPanel() {
   const entities = useEntities();
@@ -49,7 +49,7 @@ export function RiskPanel() {
         <div className="levelbar">
           {LEVELS.map((v) => (
             <button key={v.id} type="button" className={'btn' + (level === v.id ? ' btn--on' : '')} onClick={() => setLevel(v.id)}>
-              {v.label}<em>{v.note}</em>
+              {t(v.labelKey)}<em>{t(v.noteKey)}</em>
             </button>
           ))}
         </div>
@@ -60,7 +60,7 @@ export function RiskPanel() {
       <PendingSource id="risk-state" minHeight={132} axis="risk">
         {risk ? (
           <div className={'riskcard riskcard--' + risk.level}>
-            <div><span className="riskcard__label">{RISK_LABEL[risk.level]}</span><strong>{risk.score}</strong><small>/ 100</small></div>
+            <div><span className="riskcard__label">{t(RISK_LABEL_KEY[risk.level])}</span><strong>{risk.score}</strong><small>/ 100</small></div>
             <p>{risk.recommendation}</p>
             {level !== 'decision' && <ul>{risk.reasons.map((r) => <li key={r.label}><b>{r.label}</b> {r.value} <span>{t('rp.contribution', { pct: Math.round(r.contribution * 100) })}</span></li>)}</ul>}
             {level === 'development' && <pre>{JSON.stringify(riskSlot, null, 2)}</pre>}
@@ -78,7 +78,7 @@ export function RiskPanel() {
             return (
               <article className="layercard" key={r.id}>
                 <b>{r.registry?.display_name ?? r.id}</b>
-                <span className={'badge badge--' + status}>{DISPLAY_STATUS_LABEL[status]}</span>
+                <span className={'badge badge--' + status}>{t(DISPLAY_STATUS_LABEL_KEY[status])}</span>
                 {level === 'development' && <pre>{JSON.stringify({ state: r.state, telemetry: r.telemetry }, null, 2)}</pre>}
               </article>
             );
@@ -91,7 +91,7 @@ export function RiskPanel() {
         <h3 className="devpanel__title">{t('rp.replayTransitions')} <small>{t('rp.mockGateway')}</small></h3>
         <div className="devpanel__row">
           {(['normal', 'watch', 'alert', 'recovery'] as const).map((v) => (
-            <button className="btn" type="button" key={v} onClick={() => trigger('risk-' + v)}>{t('rp.riskOf', { level: RISK_LABEL[v] })}</button>
+            <button className="btn" type="button" key={v} onClick={() => trigger('risk-' + v)}>{t('rp.riskOf', { level: t(RISK_LABEL_KEY[v]) })}</button>
           ))}
           <button className="btn" type="button" onClick={() => trigger('ai-failure')}>{t('rp.13')}</button>
         </div>

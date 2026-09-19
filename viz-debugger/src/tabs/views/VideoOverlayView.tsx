@@ -283,7 +283,7 @@ export function VideoOverlayView() {
                           </span>
                           <span className="muted">
                             {b.approach !== null
-                              ? APPROACH_LABEL[b.approach]
+                              ? t(APPROACH_LABEL_KEY[b.approach])
                               : b.link !== null
                                 ? t('vov.linkConfidence', { value: b.link.link_confidence.toFixed(2) })
                                 : t('vov.29')}
@@ -351,10 +351,10 @@ export function VideoOverlayView() {
   );
 }
 
-const APPROACH_LABEL: Record<'closing' | 'steady' | 'receding', string> = {
-  closing: t('vov.33'),
-  steady: t('vov.34'),
-  receding: t('vov.35'),
+const APPROACH_LABEL_KEY: Record<'closing' | 'steady' | 'receding', string> = {
+  closing: 'vov.33',
+  steady: 'vov.34',
+  receding: 'vov.35',
 };
 
 /** 출처 하나의 정합 수치. dl 안에 들어가므로 dt/dd 쌍만 낸다. */
@@ -529,7 +529,7 @@ function drawScene(
 
 function approachText(approach: 'closing' | 'steady' | 'receding' | null): string {
   if (approach === null) return t('vov.40');
-  return APPROACH_LABEL[approach];
+  return t(APPROACH_LABEL_KEY[approach]);
 }
 
 function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number): void {

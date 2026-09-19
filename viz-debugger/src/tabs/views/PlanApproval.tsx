@@ -52,8 +52,8 @@
 import { armApproval } from '../../physical/robotSession.ts';
 import { useState, type ReactNode } from 'react';
 import {
-  PRODUCED_BY_LABEL,
-  RELAY_STAGE_LABEL,
+  PRODUCED_BY_LABEL_KEY,
+  RELAY_STAGE_LABEL_KEY,
   decidePlan,
   playScenario,
   splitProvenance,
@@ -401,7 +401,7 @@ function RouteStrip({ plan }: { plan: Plan }) {
       <span className="route__hop route__hop--backend">{plan.route.decision_returns_to}</span>
       <span className="route__arrow">→</span>
       <span className="route__hop route__hop--device">{plan.route.dispatches_to}</span>
-      {devTools && <span className={'route__stage route__stage--' + plan.relay_stage}>{RELAY_STAGE_LABEL[plan.relay_stage]}</span>}
+      {devTools && <span className={'route__stage route__stage--' + plan.relay_stage}>{t(RELAY_STAGE_LABEL_KEY[plan.relay_stage])}</span>}
     </div>
   );
 }
@@ -427,7 +427,7 @@ function ProvenanceTrack({ steps }: { steps: ProvenanceStep[] }) {
       <ol className="prov__list">
         {steps.map((s, i) => (
           <li key={i} className={'prov__row prov__row--' + s.produced_by}>
-            <span className={'prov__who prov__who--' + s.produced_by}>{PRODUCED_BY_LABEL[s.produced_by]}</span>
+            <span className={'prov__who prov__who--' + s.produced_by}>{t(PRODUCED_BY_LABEL_KEY[s.produced_by])}</span>
             <div className="prov__body">
               <strong>{s.stage}</strong> <code className="prov__ref">{s.ref}</code>
               <div className="prov__detail">{s.detail}</div>

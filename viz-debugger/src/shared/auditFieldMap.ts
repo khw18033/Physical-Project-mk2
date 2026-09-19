@@ -109,26 +109,26 @@ function str(v: unknown): string | null {
 }
 
 /** 코드값 → 사람이 읽는 말. 여기 말고 컴포넌트에 두면 화면마다 다른 말이 나온다. */
-const INPUT_MODE_LABEL: Record<string, string> = {
-  click: t('af.1'),
-  voice: t('af.2'),
+const INPUT_MODE_LABEL_KEY: Record<string, string> = {
+  click: 'af.1',
+  voice: 'af.2',
   api: 'API',
-  keyboard: t('af.3'),
+  keyboard: 'af.3',
 };
 
-const DECISION_SOURCE_LABEL: Record<string, string> = {
-  human: t('af.4'),
-  llm_suggestion_accepted: t('af.5'),
-  llm_suggestion_modified: t('af.6'),
-  automatic: t('af.7'),
+const DECISION_SOURCE_LABEL_KEY: Record<string, string> = {
+  human: 'af.4',
+  llm_suggestion_accepted: 'af.5',
+  llm_suggestion_modified: 'af.6',
+  automatic: 'af.7',
 };
 
-const RESULT_LABEL: Record<string, string> = {
-  completed: t('af.8'),
-  failed: t('af.9'),
-  rejected: t('af.10'),
-  timeout: t('af.11'),
-  accepted: t('af.12'),
+const RESULT_LABEL_KEY: Record<string, string> = {
+  completed: 'af.8',
+  failed: 'af.9',
+  rejected: 'af.10',
+  timeout: 'af.11',
+  accepted: 'af.12',
 };
 
 export function toAuditEntry(raw: unknown): AuditEntry {
@@ -147,12 +147,12 @@ export function toAuditEntry(raw: unknown): AuditEntry {
   // 두 축을 **각각** 보여준다. 하나로 합치면 "잘못 들었나 / 잘못 해석했나"를 구분할 수 없다.
   rows.push({
     label: t('af.13'),
-    value: inputMode === null ? t('af.14') : (INPUT_MODE_LABEL[inputMode] ?? inputMode),
+    value: inputMode === null ? t('af.14') : (t(INPUT_MODE_LABEL_KEY[inputMode]) ?? inputMode),
     muted: inputMode === null,
   });
   rows.push({
     label: t('af.15'),
-    value: decisionSource === null ? t('af.14') : (DECISION_SOURCE_LABEL[decisionSource] ?? decisionSource),
+    value: decisionSource === null ? t('af.14') : (t(DECISION_SOURCE_LABEL_KEY[decisionSource]) ?? decisionSource),
     muted: decisionSource === null,
   });
 
@@ -175,7 +175,7 @@ export function toAuditEntry(raw: unknown): AuditEntry {
   if (entity !== null) rows.push({ label: t('af.23'), value: entity });
   rows.push({
     label: t('af.24'),
-    value: result === null ? t('af.14') : (RESULT_LABEL[result] ?? result),
+    value: result === null ? t('af.14') : (t(RESULT_LABEL_KEY[result]) ?? result),
     muted: result === null,
   });
 

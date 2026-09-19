@@ -20,9 +20,9 @@ import { t } from '../../i18n/dict.ts';
 import { useEffect, useState } from 'react';
 import {
   METRICS_AUTO_REFRESH_MS,
-  METRICS_MODE_LABEL,
+  METRICS_MODE_LABEL_KEY,
   RANGE_OPTIONS,
-  BLOCK_REASON_LABEL,
+  BLOCK_REASON_LABEL_KEY,
   aggregationBadge,
   guardedMean,
   heavyQueryNotice,
@@ -49,11 +49,11 @@ const METRIC_ENTITY = 'edge-node-a';
  * 경로**(/metrics/query · BE-Q-01)로 온다 — 별도 경로를 만들지 않는다.
  */
 export const METRICS = [
-  { id: 'cpu_pct', label: t('mv.1'), unit: '%', source: 'edge-node-a' },
-  { id: 'publish_latency_ms', label: t('mv.2'), unit: 'ms', source: 'edge-node-a' },
-  { id: 'water_level_m', label: t('mv.3'), unit: 'm', source: 'sensor-01' },
-  { id: 'coverage_pct', label: t('mv.4'), unit: '%', source: 'camera-02' },
-  { id: 'robot_speed_mps', label: t('mv.5'), unit: 'm/s', source: 'robot-01' },
+  { id: 'cpu_pct', labelKey: 'mv.1', unit: '%', source: 'edge-node-a' },
+  { id: 'publish_latency_ms', labelKey: 'mv.2', unit: 'ms', source: 'edge-node-a' },
+  { id: 'water_level_m', labelKey: 'mv.3', unit: 'm', source: 'sensor-01' },
+  { id: 'coverage_pct', labelKey: 'mv.4', unit: '%', source: 'camera-02' },
+  { id: 'robot_speed_mps', labelKey: 'mv.5', unit: 'm/s', source: 'robot-01' },
 ] as const;
 
 export function MetricsView() {
@@ -117,7 +117,7 @@ export function MetricsView() {
       <section className="panel panel--wide">
         <header className="panel__head">
           <h2 className="panel__title">
-            {METRICS.find((m) => m.id === metric)?.label} · {METRIC_ENTITY}
+            {t(METRICS.find((m) => m.id === metric)?.labelKey ?? '')} · {METRIC_ENTITY}
           </h2>
           <span className="panel__tag">VZ-I-04</span>
         </header>
@@ -135,7 +135,7 @@ export function MetricsView() {
                   title={dimmed ? t('mv.notDriven', { source: m.source }) : undefined}
                   onClick={() => setMetric(m.id)}
                 >
-                  {m.label}
+                  {t(m.labelKey)}
                 </button>
               );
             })}
@@ -149,7 +149,7 @@ export function MetricsView() {
                 className={'btn btn--small' + (rangeMin === r.min ? ' btn--on' : '')}
                 onClick={() => setRangeMin(r.min)}
               >
-                {r.label}
+                {t(r.labelKey)}
               </button>
             ))}
           </span>
@@ -396,7 +396,7 @@ function SeriesMeta({ series, unit }: { series: MetricsSeries; unit: string }) {
         <dd>{series.via}</dd>
         <dt>{t('mv.20')}</dt>
         <dd>
-          <strong>{METRICS_MODE_LABEL[series.mode]}</strong>
+          <strong>{t(METRICS_MODE_LABEL_KEY[series.mode])}</strong>
           {/* 원본은 계층·창이 없으므로 뱃지를 덧붙이면 같은 말이 두 번 나온다. */}
           {series.badge.state === 'aggregated' && <>{t('mv.aggLayer', { layer: series.badge.short.replace(t('mv.21'), '') })}</>}
           {series.badge.state === 'unknown' && <> · <strong>{t('mv.22')}</strong></>}
@@ -451,7 +451,7 @@ function ReaggregationPanel() {
     const reason = getBlockLog()[0]?.reason ?? null;
     setLastResult(
       result === null
-        ? t('mv.blocked', { reason: reason === null ? t('mv.27') : BLOCK_REASON_LABEL[reason] })
+        ? t('mv.blocked', { reason: reason === null ? t('mv.27') : t(BLOCK_REASON_LABEL_KEY[reason]) })
         : t('mv.allowed', { mean: result.toFixed(2) }),
     );
   };
@@ -479,7 +479,7 @@ function ReaggregationPanel() {
                 'aggregated'는 원본 질의로 우회하면 되고, 'unknown'은 계약을 맞춰야 한다. */}
             {blocks.slice(0, 5).map((b, i) => (
               <li key={i} className={'blocklist__item blocklist__item--' + b.reason}>
-                <span className={'blockreason blockreason--' + b.reason}>{BLOCK_REASON_LABEL[b.reason]}</span>
+                <span className={'blockreason blockreason--' + b.reason}>{t(BLOCK_REASON_LABEL_KEY[b.reason])}</span>
                 <code>{b.operation}</code> · {b.context}
                 <div className="muted">{b.message}</div>
               </li>

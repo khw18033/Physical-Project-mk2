@@ -81,7 +81,7 @@ export function PanelGate({ id, children }: { id: string; children: ReactNode })
   const spec = scenarioPanel(id);
   if (axes === null) return <>{children}</>;
   if (panelAlive(spec, axes)) return <>{children}</>;
-  return <NotInScriptCard what={spec.title} why={[spec.why]} elsewhere={scriptsUsingPanel(spec)} />;
+  return <NotInScriptCard what={t(spec.titleKey)} why={[t(spec.whyKey)]} elsewhere={scriptsUsingPanel(spec)} />;
 }
 
 /**
@@ -103,7 +103,7 @@ export function NodeGate({ kind, children }: { kind: ViewNodeKindId; children: R
     <NotInScriptCard
       wide
       what={viewNodeLabel(kind)}
-      why={panels.map((spec) => spec.why)}
+      why={panels.map((spec) => t(spec.whyKey))}
       elsewhere={scriptsUsingNode(kind)}
     />
   );

@@ -26,7 +26,7 @@ import {
   receiveFeatures, receiveFrames, receiveLocalization, receivePath, receivePathFailure,
 } from './store.ts';
 import { angleTask, appendDetectLog, DETECT_TASKS, WHOLE_DETECT_PATH } from './detectLog.ts';
-import { chosenFrame, gateWords, indexOfRotation, SCORE_LABEL } from './parse.ts';
+import { chosenFrame, gateWords, indexOfRotation, SCORE_LABEL_KEY } from './parse.ts';
 import type { DetectFrame, DetectFrameEvidence, DetectPath } from './types.ts';
 
 /** 스캔이 도는 동안. 한 각도가 4초쯤 걸리니 그보다 짧아야 칸이 제때 바뀐다. */
@@ -131,7 +131,7 @@ function logNewFrames(previous: readonly DetectFrame[], next: readonly DetectFra
       text: t('dpl.frameResult', { deg: frame.rotation_deg, verdict: t(frame.found ? 'dpl.doorYes' : 'dpl.doorNo'), n: next.length, count }),
       detail: [
         frame.frame,
-        typeof frame.final_score === 'number' ? `${SCORE_LABEL} ${frame.final_score.toFixed(3)}` : null,
+        typeof frame.final_score === 'number' ? `${t(SCORE_LABEL_KEY)} ${frame.final_score.toFixed(3)}` : null,
         t('dpl.4'),
       ].filter((part) => part !== null).join(' · '),
       tasks: index === null ? [DETECT_TASKS.sweep] : [DETECT_TASKS.sweep, angleTask(index)],
@@ -198,7 +198,7 @@ export async function pollOnce(expected = 8, stepDeg = 45): Promise<void> {
       appendDetectLog({
         lane: 'detect', level: 'info',
         text: t('dpl.evidence', { deg: frame.rotation_deg, gates: gateLine(evidence) }),
-        detail: t('dpl.evidenceDetail', { label: SCORE_LABEL, score: evidence.final_score.toFixed(3), box: evidence.box_xyxy.map((n) => n.toFixed(1)).join(', ') }),
+        detail: t('dpl.evidenceDetail', { label: t(SCORE_LABEL_KEY), score: evidence.final_score.toFixed(3), box: evidence.box_xyxy.map((n) => n.toFixed(1)).join(', ') }),
         tasks: index === null ? [DETECT_TASKS.evidence] : [angleTask(index), DETECT_TASKS.evidence],
       });
     }

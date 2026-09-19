@@ -12,19 +12,18 @@
  * 수행 결과가 로봇 상태 데이터에 실려 오므로 별도 조회 경로도 필요 없다.
  */
 
-import { t } from '../../i18n/dict.ts';
 import { getTransport } from '../../transport/index.ts';
 
 export type SegmentStatus = 'pending' | 'running' | 'done' | 'failed' | 'skipped';
 
-export const SEGMENT_STATUS_LABEL: Record<SegmentStatus, string> = {
-  pending: t('pl.1'),
-  running: t('pl.2'),
-  done: t('pl.3'),
-  failed: t('pl.4'),
+export const SEGMENT_STATUS_LABEL_KEY: Record<SegmentStatus, string> = {
+  pending: 'pl.1',
+  running: 'pl.2',
+  done: 'pl.3',
+  failed: 'pl.4',
   // 앞 구간이 실패해 **하달 자체가 되지 않은** 구간. '대기'와 구분해야
   // "왜 5구간이 안 돌았나"가 화면에서 설명된다.
-  skipped: t('pl.5'),
+  skipped: 'pl.5',
 };
 
 export type PlanSegment = {
@@ -53,10 +52,10 @@ export type PlanSegment = {
  */
 export type ProducedBy = 'ai' | 'backend' | 'human';
 
-export const PRODUCED_BY_LABEL: Record<ProducedBy, string> = {
-  ai: t('pl.6'),
-  backend: t('pl.7'),
-  human: t('pl.8'),
+export const PRODUCED_BY_LABEL_KEY: Record<ProducedBy, string> = {
+  ai: 'pl.6',
+  backend: 'pl.7',
+  human: 'pl.8',
 };
 
 export type ProvenanceStep = {
@@ -110,11 +109,11 @@ export type Plan = {
   };
 };
 
-export const RELAY_STAGE_LABEL: Record<Plan['relay_stage'], string> = {
-  awaiting_decision: t('pl.9'),
-  decision_received: t('pl.10'),
-  dispatched: t('pl.11'),
-  halted: t('pl.12'),
+export const RELAY_STAGE_LABEL_KEY: Record<Plan['relay_stage'], string> = {
+  awaiting_decision: 'pl.9',
+  decision_received: 'pl.10',
+  dispatched: 'pl.11',
+  halted: 'pl.12',
 };
 
 /**

@@ -41,10 +41,10 @@ export const COMMAND_TTL_MS = 30_000;
 
 export type CommandDisplay = 'in_progress' | 'confirmed' | 'failed';
 
-export const COMMAND_DISPLAY_LABEL: Record<CommandDisplay, string> = {
-  in_progress: t('cc.1'),
-  confirmed: t('cc.2'),
-  failed: t('cc.3'),
+export const COMMAND_DISPLAY_LABEL_KEY: Record<CommandDisplay, string> = {
+  in_progress: 'cc.1',
+  confirmed: 'cc.2',
+  failed: 'cc.3',
 };
 
 /**
@@ -53,14 +53,14 @@ export const COMMAND_DISPLAY_LABEL: Record<CommandDisplay, string> = {
  * 제어 패널과 캔버스의 제어 뷰 노드가 같은 단계를 그린다. 두 화면이 각자 적으면 한쪽만
  * 고쳐져 같은 단계가 다른 이름으로 뜬다 — 이 저장소가 계속 피해 온 「두 곳이 갈라진다」다.
  */
-export const COMMAND_STAGE_LABEL: Record<string, string> = {
-  issued: t('cc.4'),
-  linked: t('cc.5'),
-  ack: t('cc.6'),
-  executing: t('cc.7'),
-  physical_state_changed: t('cc.8'),
-  settled: t('cc.9'),
-  expired: t('cc.10'),
+export const COMMAND_STAGE_LABEL_KEY: Record<string, string> = {
+  issued: 'cc.4',
+  linked: 'cc.5',
+  ack: 'cc.6',
+  executing: 'cc.7',
+  physical_state_changed: 'cc.8',
+  settled: 'cc.9',
+  expired: 'cc.10',
 };
 
 /** 서버가 보내는 네 단계. 화면은 3종으로 접지만 이력에는 네 단계가 다 남는다. */

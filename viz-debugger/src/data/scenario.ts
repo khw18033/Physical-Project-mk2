@@ -86,6 +86,14 @@ export type MissionView = {
   missionId: string;
   /** 상단 바의 임무 이름 아래 한 줄. */
   label: string;
+  /**
+   * 이 이름이 **우리가 지은 것**이면 그 사전 키. 대본이 준 이름이면 없다.
+   *
+   * `state` 는 모듈 최상위에서 만들어진다 — 거기서 `t()` 를 부르면 **로드 시점 언어로
+   * 굳어** 언어 버튼을 따라오지 않는다. 그래서 키를 들고 있다가 `displayMission()` 에서
+   * 푼다. 260919 에 「아직 임무가 없습니다」가 영문 화면에 남아 있어 찾았다.
+   */
+  labelKey?: string;
   world: 'registry' | 'legacy';
   utteranceText: string;
   durationSec: number;
@@ -140,7 +148,8 @@ export const NO_MISSION = '';
 function emptyView(): MissionView {
   return {
     missionId: NO_MISSION,
-    label: t('sc2.noMission'),
+    label: '',
+    labelKey: 'sc2.noMission',
     world: 'registry',
     utteranceText: '',
     durationSec: 0,
@@ -160,7 +169,8 @@ function emptyView(): MissionView {
 function legacyView(): MissionView {
   return {
     missionId: scenario.missionId,
-    label: t('sc2.legacyLabel'),
+    label: '',
+    labelKey: 'sc2.legacyLabel',
     world: 'legacy',
     utteranceText: scenario.utterance.text,
     durationSec: scenario.durationSec,
@@ -348,6 +358,16 @@ export function traceFor(view: MissionView): readonly ScenarioEvent[] {
  * 화면이 그릴 임무 — 제안이 있으면 제안된 대본을 「제안 상태」로 그린다
  * (진행 사건 0건 = 시각 0의 접기 결과, 전부 pending).
  */
+/**
+ * 우리가 지은 이름(`labelKey`)을 **그릴 때** 푼다. 대본이 준 이름이면 그대로 둔다.
+ *
+ * `ko` 에서도 같은 값이 나온다 — 사전의 ko 값이 원문 그대로이기 때문이다.
+ */
+function named(view: MissionView): MissionView {
+  if (view.labelKey === undefined) return view;
+  return { ...view, label: t(view.labelKey) };
+}
+
 export function displayMission(): {
   view: MissionView;
   phase: 'proposal' | 'playing' | 'idle';
@@ -358,16 +378,20 @@ export function displayMission(): {
   // 260918 — **영문 화면은 여기서 대본 글자가 영어로 바뀐다** (3단계).
   // `state.current` 는 한국어 그대로 둔다 — 그것이 기록이고 짝짓기의 키다.
   // `ko` 면 `translateView` 가 입력을 **그대로** 돌려주므로 한국어 화면은 한 글자도 안 바뀐다.
+  //
+  // 260919 — **우리가 지은 이름은 여기서 푼다.** `state` 는 모듈 최상위에서 만들어지므로
+  // 그때 `t()` 를 부르면 로드 시점 언어로 굳는다. 「아직 임무가 없습니다」가 영문 화면에
+  // 남아 있던 것이 그 자국이다 — 이제 키를 들고 있다가 그릴 때 푼다.
   if (state.proposal !== null) {
     // 모델이 낸 제안은 라이브러리에 없다 — **제안이 본문을 들고 있다.**
     const view = state.proposal.origin === 'ai'
       ? state.proposal.view
       : viewForMission(state.proposal.missionId);
     // 제안은 아직 승인 전이라 흘러온 것이 없다 — 열이 비어 있는 것이 곧 그 사실이다.
-    if (view !== null) return { view: translateView(view), phase: 'proposal', headSec: 0, trace: translateEvents(view.missionId, traceFor(view)) };
+    if (view !== null) return { view: named(translateView(view)), phase: 'proposal', headSec: 0, trace: translateEvents(view.missionId, traceFor(view)) };
   }
   return {
-    view: translateView(state.current),
+    view: named(translateView(state.current)),
     phase: state.playing ? 'playing' : 'idle',
     headSec: state.headSec,
     trace: translateEvents(state.current.missionId, traceFor(state.current)),

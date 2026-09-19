@@ -12,9 +12,9 @@
 import { t as tr } from '../../i18n/dict.ts';
 import type { EntityRecord } from '../data/index.ts';
 import {
-  ACTUATOR_PHASE_LABEL,
-  COMMAND_DISPLAY_LABEL,
-  DISPLAY_STATUS_LABEL,
+  ACTUATOR_PHASE_LABEL_KEY,
+  COMMAND_DISPLAY_LABEL_KEY,
+  DISPLAY_STATUS_LABEL_KEY,
   aggregationBadge,
   toDisplay,
   deriveDisplayStatus,
@@ -99,7 +99,7 @@ export function DeviceCard({ record }: Props) {
     <article className={'card card--' + status} data-entity={record.id}>
       <header className="card__head">
         <h3 className="card__title">{record.id}</h3>
-        <span className={'badge badge--' + status}>{DISPLAY_STATUS_LABEL[status]}</span>
+        <span className={'badge badge--' + status}>{tr(DISPLAY_STATUS_LABEL_KEY[status])}</span>
       </header>
 
       <p className="card__name">{name}</p>
@@ -132,8 +132,8 @@ export function DeviceCard({ record }: Props) {
       {/* 액추에이터는 표준 3층과 **별개인** 자기 어휘를 따로 단다. */}
       {actuator !== null && (
         <p className="card__actuator">
-          <span className={'chip chip--act-' + actuator.phase}>{ACTUATOR_PHASE_LABEL[actuator.phase]}</span>
-          {command !== null && <span className={'chip chip--cmd-' + command}>{COMMAND_DISPLAY_LABEL[command]}</span>}
+          <span className={'chip chip--act-' + actuator.phase}>{tr(ACTUATOR_PHASE_LABEL_KEY[actuator.phase])}</span>
+          {command !== null && <span className={'chip chip--cmd-' + command}>{tr(COMMAND_DISPLAY_LABEL_KEY[command])}</span>}
           {actuator.control_locked && <span className="chip chip--locked">{tr('dc.controlLocked')}</span>}
         </p>
       )}

@@ -54,7 +54,11 @@ export function boxOf(xyxy: readonly number[] | null | undefined): number[] | nu
  * 0.2696 을 「신뢰도 27%」로 적으면 보는 사람은 「거의 못 찾았다」로 읽는다. 실제로는
  * 관문 넷을 다 통과한 **확실한** 판정이다. 이름을 바꾸는 것만으로 그 오독이 사라진다.
  */
-export const SCORE_LABEL = t('dps.1');
+/**
+ * **키를 담는다.** 최상위 상수라 여기서 `t()` 를 부르면 로드 시점 언어로 굳는다 —
+ * 언어 버튼으로 바꿔도 안 따라온다 (지시서 §1 · 260919 에 이 모양 29자리를 고쳤다).
+ */
+export const SCORE_LABEL_KEY = 'dps.1';
 
 /** 관문 하나를 사람이 읽는 한 조각으로. 통과 여부와 **왜**를 같이 적는다. */
 export function gateWords(name: string, gate: DetectGate): string {
@@ -86,7 +90,7 @@ export function reasonOf(
   chosen = true,
 ): string {
   if (!found) return t('dps.2');
-  const score = evidence === null ? null : `${SCORE_LABEL} ${evidence.final_score.toFixed(2)}`;
+  const score = evidence === null ? null : `${t(SCORE_LABEL_KEY)} ${evidence.final_score.toFixed(2)}`;
 
   /**
    * **찾았는데 안 고른 칸.** 초록은 하나이므로 나머지는 탈락으로 그려지는데, 거기에

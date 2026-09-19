@@ -23,8 +23,8 @@ import { t } from '../../i18n/dict.ts';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { PendingSource } from '../../shared/PendingSource.tsx';
 import {
-  COMMAND_DISPLAY_LABEL,
-  COMMAND_STAGE_LABEL,
+  COMMAND_DISPLAY_LABEL_KEY,
+  COMMAND_STAGE_LABEL_KEY,
   COMMAND_TTL_MS,
   commandTracker,
   describeScope,
@@ -48,7 +48,7 @@ const TARGETS = ['actuator-01', 'actuator-02'] as const;
 const SHORT_TTL_MS = 6_000;
 
 /** 단계 표기는 `shared/commandCenter.ts` 하나에 있다 — 캔버스의 제어 뷰 노드가 같은 것을 그린다. */
-const STAGE_LABEL = COMMAND_STAGE_LABEL;
+const STAGE_LABEL = COMMAND_STAGE_LABEL_KEY;
 
 function timeOf(iso: string): string {
   // 서버가 보낸 시각을 표시만 한다. 이 값으로 판정하지 않는다.
@@ -368,7 +368,7 @@ function CommandTimeline({ command }: { command: TrackedCommand }) {
   return (
     <>
       <div className="cmdhead">
-        <span className={'badge badge--cmd-' + command.display}>{COMMAND_DISPLAY_LABEL[command.display]}</span>
+        <span className={'badge badge--cmd-' + command.display}>{t(COMMAND_DISPLAY_LABEL_KEY[command.display])}</span>
         <span className={'trackkey' + (command.tracking.linked ? ' trackkey--linked' : '')}>
           <em>{command.tracking.label}</em>
           <code className="cmdhead__id">{command.tracking.value}</code>

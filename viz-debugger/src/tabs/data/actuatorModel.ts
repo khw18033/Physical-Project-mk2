@@ -17,12 +17,12 @@ import type { ActuatorState } from '../../transport/index.ts';
 
 export type ActuatorPhase = ActuatorState['phase'];
 
-export const ACTUATOR_PHASE_LABEL: Record<ActuatorPhase, string> = {
-  idle: t('am.1'),
-  moving: t('am.2'),
-  completed: t('am.3'),
-  error: t('am.4'),
-  unverified: t('am.5'),
+export const ACTUATOR_PHASE_LABEL_KEY: Record<ActuatorPhase, string> = {
+  idle: 'am.1',
+  moving: 'am.2',
+  completed: 'am.3',
+  error: 'am.4',
+  unverified: 'am.5',
 };
 
 /**

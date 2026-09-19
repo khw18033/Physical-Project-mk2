@@ -17,11 +17,11 @@ import type { StateLayers } from '../../transport/index.ts';
 
 export type DisplayStatus = 'normal' | 'fault' | 'not_deployed' | 'unknown';
 
-export const DISPLAY_STATUS_LABEL: Record<DisplayStatus, string> = {
-  normal: t('sm.1'),
-  fault: t('sm.2'),
-  not_deployed: t('sm.3'),
-  unknown: t('sm.4'),
+export const DISPLAY_STATUS_LABEL_KEY: Record<DisplayStatus, string> = {
+  normal: 'sm.1',
+  fault: 'sm.2',
+  not_deployed: 'sm.3',
+  unknown: 'sm.4',
 };
 
 /**

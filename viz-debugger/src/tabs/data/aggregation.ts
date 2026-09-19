@@ -62,11 +62,11 @@ export type Aggregation = {
 export const RAW: Aggregation = { mode: 'raw', level: null, method: null, windowSec: null, rawSpec: null };
 
 /** 계층 이름을 사람이 읽는 말로. 계약이 영문 enum이므로 표시용 사전을 여기 둔다. */
-const LEVEL_LABEL: Record<string, string> = {
-  device: t('ag.1'),
-  edge: t('ag.2'),
-  zone: t('ag.3'),
-  server: t('ag.4'),
+const LEVEL_LABEL_KEY: Record<string, string> = {
+  device: 'ag.1',
+  edge: 'ag.2',
+  zone: 'ag.3',
+  server: 'ag.4',
 };
 
 /** 못 읽은 표기를 진단용 문자열로. `unknown` 경로에서만 부른다. */
@@ -130,7 +130,7 @@ export function describeAggregation(a: Aggregation): string {
     return t('ag.unknownSpec') + (a.rawSpec === null ? '' : t('ag.received', { value: a.rawSpec }));
   }
   const parts = [t('ag.6')];
-  if (a.level) parts.push(t('ag.layer', { level: LEVEL_LABEL[a.level] ?? a.level }));
+  if (a.level) parts.push(t('ag.layer', { level: t(LEVEL_LABEL_KEY[a.level]) ?? a.level }));
   if (a.method) parts.push(a.method);
   if (a.windowSec) parts.push(t('ag.window', { sec: a.windowSec }));
   return parts.join(' · ');
@@ -173,7 +173,7 @@ export function aggregationBadge(a: Aggregation): AggregationBadge {
     };
   }
 
-  const level = a.level === null ? t('ag.10') : LEVEL_LABEL[a.level] ?? a.level;
+  const level = a.level === null ? t('ag.10') : t(LEVEL_LABEL_KEY[a.level]) ?? a.level;
   const window = a.windowSec === null ? t('ag.11') : t('ag.seconds', { sec: a.windowSec });
   return {
     short: t('ag.summaryShort', { level, window }),
@@ -191,9 +191,9 @@ export function aggregationBadge(a: Aggregation): AggregationBadge {
  */
 export type BlockReason = 'aggregated' | 'unknown';
 
-export const BLOCK_REASON_LABEL: Record<BlockReason, string> = {
-  aggregated: t('ag.13'),
-  unknown: t('ag.14'),
+export const BLOCK_REASON_LABEL_KEY: Record<BlockReason, string> = {
+  aggregated: 'ag.13',
+  unknown: 'ag.14',
 };
 
 export type BlockRecord = {
@@ -247,7 +247,7 @@ export function blockReaggregation(
 
   blocks.unshift({ at: Date.now(), context, operation, aggregation, reason, message });
   if (blocks.length > 20) blocks.length = 20;
-  console.warn(t('ag.consolePrefix', { reason: BLOCK_REASON_LABEL[reason] }) + message);
+  console.warn(t('ag.consolePrefix', { reason: t(BLOCK_REASON_LABEL_KEY[reason]) }) + message);
   for (const l of blockListeners) l();
   return true;
 }

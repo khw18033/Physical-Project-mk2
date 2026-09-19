@@ -28,9 +28,9 @@ import { aggregationBadge, normalizeAggregation, type Aggregation, type Aggregat
 
 export type MetricsMode = 'summary' | 'raw';
 
-export const METRICS_MODE_LABEL: Record<MetricsMode, string> = {
-  summary: t('mt.1'),
-  raw: t('mt.2'),
+export const METRICS_MODE_LABEL_KEY: Record<MetricsMode, string> = {
+  summary: 'mt.1',
+  raw: 'mt.2',
 };
 
 export type MetricPoint = { t: string; value: number };
@@ -64,9 +64,9 @@ export type MetricsQueryOutcome = {
 
 /** 조회 범위 선택지. 원본 질의에서 넓은 범위가 무겁다는 것을 화면이 알려야 한다. */
 export const RANGE_OPTIONS = [
-  { min: 15, label: t('mt.3') },
-  { min: 60, label: t('mt.4') },
-  { min: 180, label: t('mt.5') },
+  { min: 15, labelKey: 'mt.3' },
+  { min: 60, labelKey: 'mt.4' },
+  { min: 180, labelKey: 'mt.5' },
 ] as const;
 
 /** 이 범위를 넘는 **원본** 질의는 무겁다. 서버 판정과 같은 기준을 화면도 미리 안내한다. */

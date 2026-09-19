@@ -14,7 +14,7 @@
 import { Rich } from '../../i18n/RichText.tsx';
 import { t } from '../../i18n/dict.ts';
 import {
-  DISPLAY_STATUS_LABEL,
+  DISPLAY_STATUS_LABEL_KEY,
   RENDER_MERGE_WINDOW_MS,
   SHOW_RENDER_COUNTER,
   ZONE_BOARD_REFRESH_MS,
@@ -37,13 +37,13 @@ const ZONE_ID = CURRENT_ZONE_ID;
 const STATUS_ORDER: DisplayStatus[] = ['normal', 'fault', 'unknown', 'not_deployed'];
 
 /** 시나리오 버튼 — 상태 전이를 손으로 재생해야 화면이 전이 순간에 맞는지 볼 수 있다. */
-const SCENARIO_BUTTONS: Array<{ name: string; label: string }> = [
-  { name: 'camera-silence', label: t('dg.1') },
-  { name: 'camera-resume', label: t('dg.2') },
-  { name: 'sensor-offline', label: t('dg.3') },
-  { name: 'sensor-surge', label: t('dg.4') },
-  { name: 'robot-idle', label: t('dg.5') },
-  { name: 'robot-mission', label: t('dg.6') },
+const SCENARIO_BUTTONS: Array<{ name: string; labelKey: string }> = [
+  { name: 'camera-silence', labelKey: 'dg.1' },
+  { name: 'camera-resume', labelKey: 'dg.2' },
+  { name: 'sensor-offline', labelKey: 'dg.3' },
+  { name: 'sensor-surge', labelKey: 'dg.4' },
+  { name: 'robot-idle', labelKey: 'dg.5' },
+  { name: 'robot-mission', labelKey: 'dg.6' },
 ];
 
 export function DeviceGrid() {
@@ -111,7 +111,7 @@ export function DeviceGrid() {
             {STATUS_ORDER.map((s) => (
               <div key={s} className={'summary__item summary__item--' + s}>
                 <span className="summary__count">{summary.counts[s]}</span>
-                <span className="summary__label">{DISPLAY_STATUS_LABEL[s]}</span>
+                <span className="summary__label">{t(DISPLAY_STATUS_LABEL_KEY[s])}</span>
               </div>
             ))}
             <div className="summary__item summary__item--total">
@@ -149,7 +149,7 @@ export function DeviceGrid() {
         <div className="devpanel__row">
           {SCENARIO_BUTTONS.map((b) => (
             <button key={b.name} type="button" className="btn" onClick={() => playScenario(b.name)}>
-              {b.label}
+              {t(b.labelKey)}
             </button>
           ))}
         </div>
@@ -250,7 +250,7 @@ function MappingTable({ records }: { records: Array<{ id: string; state: { paylo
               <td>{row.avail}</td>
               <td>{row.dep}</td>
               <td>
-                <span className={'badge badge--' + row.display}>{DISPLAY_STATUS_LABEL[row.display]}</span>
+                <span className={'badge badge--' + row.display}>{t(DISPLAY_STATUS_LABEL_KEY[row.display])}</span>
               </td>
               <td className="mapping__ids">{idsByRow[i].join(', ') || '—'}</td>
             </tr>

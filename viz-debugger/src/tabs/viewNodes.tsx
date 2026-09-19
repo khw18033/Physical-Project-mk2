@@ -44,9 +44,9 @@ import { PendingSource } from '../shared/PendingSource.tsx';
 import type { ViewNodeEntry, ViewScope } from '../canvas/types.ts';
 import { NodeGate, PanelGate } from './ScenarioGate.tsx';
 import {
-  COMMAND_DISPLAY_LABEL,
-  COMMAND_STAGE_LABEL,
-  DISPLAY_STATUS_LABEL,
+  COMMAND_DISPLAY_LABEL_KEY,
+  COMMAND_STAGE_LABEL_KEY,
+  DISPLAY_STATUS_LABEL_KEY,
   FrameBuffer,
   RANGE_OPTIONS,
   deriveDisplayStatus,
@@ -75,7 +75,7 @@ import { relayDriven } from '../scenarios/library.ts';
 /** 화면이 쓰는 로봇 id. 하드웨어 id 로 바꾸는 것은 경계 안쪽(`hardwareTarget`) 일이다. */
 const ROBOT_ENTITY = 'robot-01';
 
-const RISK_LABEL: Record<RiskState['level'], string> = { normal: t('vn.level.normal'), watch: t('vn.level.watch'), alert: t('vn.level.alert'), recovery: t('vn.level.recover') };
+const RISK_LABEL_KEY: Record<RiskState['level'], string> = { normal: 'vn.level.normal', watch: 'vn.level.watch', alert: 'vn.level.alert', recovery: 'vn.level.recover' };
 
 /** 영상 노드가 보는 카메라. `VideoOverlayView` 와 같은 대상이다(구역 1개 전제). */
 const VIDEO_CAMERA = 'camera-02';
@@ -94,7 +94,7 @@ function DeviceRiskBody({ scope }: { scope: ViewScope }) {
   const record = scope.deviceId === null ? null : entities.get(scope.deviceId) ?? null;
   const riskLine = risk === null
     ? <em className="vn-dim">{t('vn.riskWaiting')}</em>
-    : <b className={`vn-risk vn-risk--${risk.level}`}>{RISK_LABEL[risk.level]} {risk.score}</b>;
+    : <b className={`vn-risk vn-risk--${risk.level}`}>{t(RISK_LABEL_KEY[risk.level])} {risk.score}</b>;
 
   if (scope.deviceId === null) {
     // 전역 — 구역 넷의 집계가 「이상함을 알아챌 수 있는 값」이다.
@@ -110,7 +110,7 @@ function DeviceRiskBody({ scope }: { scope: ViewScope }) {
   const status = deriveDisplayStatus(layers);
   const telemetry = record.telemetry?.payload as { battery_pct?: number } | undefined;
   return <>
-    <p className="vn-line"><b className={`vn-status vn-status--${status}`}>{DISPLAY_STATUS_LABEL[status]}</b>{telemetry?.battery_pct === undefined ? null : <span>{t('vn.batterySuffix', { pct: telemetry.battery_pct })}</span>}</p>
+    <p className="vn-line"><b className={`vn-status vn-status--${status}`}>{t(DISPLAY_STATUS_LABEL_KEY[status])}</b>{telemetry?.battery_pct === undefined ? null : <span>{t('vn.batterySuffix', { pct: telemetry.battery_pct })}</span>}</p>
     {/* 3층은 뭉치지 않는다 — 판정(4종)과 원본 3층을 함께 보여야 「왜 그렇게 판정됐나」가 보인다. */}
     <p className="vn-line vn-mono">{formatLayers(layers)}</p>
     <p className="vn-line">{riskLine}</p>
@@ -136,9 +136,9 @@ function ControlBody({ scope }: { scope: ViewScope }) {
   // 않게 둔다 — 카드 한 장 때문에 캔버스 전체가 멎으면 안 된다.
   const stage = last.stages.length === 0 ? null : last.stages[last.stages.length - 1];
   return <>
-    <p className="vn-line">{t('vn.commandCountPrefix')} <b>{mine.length}</b>{t('vn.commandCountSuffix')} · <b className={`vn-cmd vn-cmd--${last.display}`}>{COMMAND_DISPLAY_LABEL[last.display]}</b></p>
+    <p className="vn-line">{t('vn.commandCountPrefix')} <b>{mine.length}</b>{t('vn.commandCountSuffix')} · <b className={`vn-cmd vn-cmd--${last.display}`}>{t(COMMAND_DISPLAY_LABEL_KEY[last.display])}</b></p>
     {/* 4단계 중 어디인지가 이 카드의 핵심이다 — 「발행했는데 ACK 가 안 왔다」가 여기서 보인다. */}
-    <p className="vn-line vn-mono">{stage === null ? t('vn.noStageHistory') : COMMAND_STAGE_LABEL[stage.stage] ?? stage.stage}</p>
+    <p className="vn-line vn-mono">{stage === null ? t('vn.noStageHistory') : t(COMMAND_STAGE_LABEL_KEY[stage.stage]) ?? stage.stage}</p>
     <p className="vn-line vn-dim">{last.actionLabel}{last.progressPct === null ? '' : ` · ${last.progressPct}%`}</p>
   </>;
 }
@@ -171,7 +171,7 @@ function MetricsBody({ scope }: { scope: ViewScope }) {
   if (series === null) return <p className="vn-line vn-dim">{loading ? t('vn.querying') : t('vn.noValueYet')}</p>;
   const { last } = seriesExtent(series.points);
   return <>
-    <p className="vn-line">{metric.label} <b>{last === null ? '—' : last.toFixed(1)}</b> {metric.unit}</p>
+    <p className="vn-line">{t(metric.labelKey)} <b>{last === null ? '—' : last.toFixed(1)}</b> {metric.unit}</p>
     <Sparkline points={series.points} />
     {/* **이 화면이 존재하는 이유** — 지금 보는 값이 요약인지 원본인지가 보여야 한다 (VZ-C-03). */}
     <p className="vn-line vn-mono" title={series.badge.title}>{series.badge.short}</p>

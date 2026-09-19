@@ -17,7 +17,6 @@
  * 가른다 — 그 구분이 없으면 시연에서 "왜 여긴 비었냐"에 답할 수 없다.
  */
 
-import { t } from '../i18n/dict.ts';
 import type { ScriptScenario } from './types.ts';
 
 export type ScenarioAxis =
@@ -143,21 +142,21 @@ export type ScenarioPanelSpec = {
   /** 이 패널이 사는 뷰 노드 (260903 — `tab` 이었다). */
   node: ViewNodeKindId;
   /** 접힘 카드에 적을 이름. */
-  title: string;
+  titleKey: string;
   /** 이 축들 중 **하나라도** 대본이 몰면 패널이 산다. */
   axes: readonly ScenarioAxis[];
   /** 접혔을 때 「왜 이 편에 없는가」 한 줄. */
-  why: string;
+  whyKey: string;
 };
 
 export const SCENARIO_PANELS: readonly ScenarioPanelSpec[] = [
-  { id: 'risk', node: 'device-risk', title: t('ax.1'), axes: ['risk'], why: t('ax.2') },
-  { id: 'zone-map', node: 'device-risk', title: t('ax.3'), axes: ['coverage', 'position'], why: t('ax.4') },
-  { id: 'device-grid', node: 'device-risk', title: t('ax.5'), axes: ['position', 'water'], why: t('ax.6') },
-  { id: 'control', node: 'control', title: t('ax.7'), axes: ['actuator', 'command'], why: t('ax.8') },
-  { id: 'metrics-query', node: 'metrics', title: t('ax.9'), axes: ['speed', 'water', 'coverage'], why: t('ax.10') },
-  { id: 'metrics-push', node: 'metrics', title: t('ax.11'), axes: ['observability'], why: t('ax.12') },
-  { id: 'video', node: 'video', title: t('ax.13'), axes: ['video'], why: t('ax.14') },
+  { id: 'risk', node: 'device-risk', titleKey: 'ax.1', axes: ['risk'], whyKey: 'ax.2' },
+  { id: 'zone-map', node: 'device-risk', titleKey: 'ax.3', axes: ['coverage', 'position'], whyKey: 'ax.4' },
+  { id: 'device-grid', node: 'device-risk', titleKey: 'ax.5', axes: ['position', 'water'], whyKey: 'ax.6' },
+  { id: 'control', node: 'control', titleKey: 'ax.7', axes: ['actuator', 'command'], whyKey: 'ax.8' },
+  { id: 'metrics-query', node: 'metrics', titleKey: 'ax.9', axes: ['speed', 'water', 'coverage'], whyKey: 'ax.10' },
+  { id: 'metrics-push', node: 'metrics', titleKey: 'ax.11', axes: ['observability'], whyKey: 'ax.12' },
+  { id: 'video', node: 'video', titleKey: 'ax.13', axes: ['video'], whyKey: 'ax.14' },
 ];
 
 const PANEL_BY_ID = new Map(SCENARIO_PANELS.map((spec) => [spec.id, spec]));

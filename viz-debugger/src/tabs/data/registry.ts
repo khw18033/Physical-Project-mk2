@@ -60,21 +60,24 @@ export type Registry = {
  * 다른 파트의 진척에 가시화가 블로킹되지 않기 위한 요건이므로, 실패 시 빈 구성을 돌려주고
  * 화면은 "구성을 못 받았다"는 사실 자체를 표시한다(값이 없는 것과 구성이 없는 것은 다르다).
  */
-export const EMPTY_REGISTRY: Registry = {
-  registry_version: t('rg.1'),
-  zones: [],
-  nodes: [],
-  entities: [],
-};
+/** 최상위 **상수**였다 — 로드 시점 언어로 굳어 언어 버튼을 따라오지 않았다. 함수로 바꿨다. */
+export function emptyRegistry(): Registry {
+  return {
+    registry_version: t('rg.1'),
+    zones: [],
+    nodes: [],
+    entities: [],
+  };
+}
 
 export async function fetchRegistry(signal?: AbortSignal): Promise<{ registry: Registry; error: string | null }> {
   try {
     const res = await fetch(GATEWAY.http + '/registry', { signal });
-    if (!res.ok) return { registry: EMPTY_REGISTRY, error: t('rg.httpStatus', { status: res.status }) };
+    if (!res.ok) return { registry: emptyRegistry(), error: t('rg.httpStatus', { status: res.status }) };
     const registry = (await res.json()) as Registry;
     return { registry, error: null };
   } catch (e) {
-    return { registry: EMPTY_REGISTRY, error: t('rg.failed', { why: String(e) }) };
+    return { registry: emptyRegistry(), error: t('rg.failed', { why: String(e) }) };
   }
 }
 

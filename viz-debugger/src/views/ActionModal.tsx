@@ -36,11 +36,11 @@ import { Rich } from '../i18n/RichText.tsx';
 import { useLang } from '../shared/language.ts';
 
 /** 명령 하나의 상태를 사람 말로. 로봇이 준 상태 그대로를 옮긴다. */
-const COMMAND_STATE: Record<TaskCommandRecord['state'], string> = {
-  issued: t('cmd.published'),
-  running: t('cmd.running'),
-  done: t('task.state.done'),
-  failed: t('task.state.failed'),
+const COMMAND_STATE_KEY: Record<TaskCommandRecord['state'], string> = {
+  issued: 'cmd.published',
+  running: 'cmd.running',
+  done: 'task.state.done',
+  failed: 'task.state.failed',
 };
 
 /** 낸 시각과 마지막 응답 시각의 차. 응답이 없으면 null — 0초라고 적지 않는다. */
@@ -89,7 +89,7 @@ function RobotCommands({ taskId }: { taskId: string }) {
       return <section key={record.commandId} className={`robot-log__cmd is-${record.state}`}>
         <header>
           <b>{index + 1}. {record.action}</b>
-          <span>{COMMAND_STATE[record.state]}</span>
+          <span>{t(COMMAND_STATE_KEY[record.state])}</span>
           {/* **응답이 없으면 시간을 안 적는다.** 0초로 적으면 즉시 끝난 것으로 읽힌다. */}
           {took !== null && <span>{t('act.tookSec', { sec: took.toFixed(1) })}</span>}
           {/* 각도 칸에서는 **이 표가 한 명령의 일부**라는 것을 적는다. */}

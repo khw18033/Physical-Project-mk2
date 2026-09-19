@@ -16,7 +16,7 @@
  *
  * `final_score` 는 특징 여덟 중 최고값이지 확률이 아니다. 0.27 을 「27%」로 적으면 보는
  * 사람은 「거의 못 찾았다」로 읽는데, 실제로는 관문 넷을 다 통과한 판정이다.
- * 이름을 `특징 최고값` 으로 적는 것만으로 그 오독이 사라진다 (`parse.ts` 의 `SCORE_LABEL`).
+ * 이름을 `특징 최고값` 으로 적는 것만으로 그 오독이 사라진다 (`parse.ts` 의 `SCORE_LABEL_KEY`).
  */
 
 import { t } from '../../i18n/dict.ts';
@@ -27,7 +27,7 @@ import { usePrepStage } from '../../physical/prepStage.ts';
 import { floorPlanUrls, frameImageUrl, pathImageUrl, roundedImageUrl, viewSourceOf } from '../DetectClient.ts';
 import { DETECT_TASKS } from '../detectLog.ts';
 import { DOOR_PX, FLOOR_PLAN_SIZE_PX } from '../floorPlan.ts';
-import { chosenFrame, gateWords, indexOfRotation, SCORE_LABEL, usableDistanceCm } from '../parse.ts';
+import { chosenFrame, gateWords, indexOfRotation, SCORE_LABEL_KEY, usableDistanceCm } from '../parse.ts';
 import { sweepDone } from '../detectBridge.ts';
 import { useDetect } from '../store.ts';
 import { noteScanImageFailed, noteScanImageShown, registerScanImageView } from '../../physical/scanGate.ts';
@@ -152,7 +152,7 @@ export function DetectReason({ zoom = false, count = 8 }: { zoom?: boolean; coun
   return <div className="detect-reason">
     <div className="detect-reason__head">
       <b>{t('dv.deg', { deg: frame.rotation_deg })}</b>
-      {evidence !== null && <span className="detect-score">{SCORE_LABEL} {evidence.final_score.toFixed(3)}</span>}
+      {evidence !== null && <span className="detect-score">{t(SCORE_LABEL_KEY)} {evidence.final_score.toFixed(3)}</span>}
     </div>
     <ul className="detect-gates">
       {gates.map(([name, gate]) => <li key={name} className={gate.passed ? 'is-pass' : 'is-fail'}>
