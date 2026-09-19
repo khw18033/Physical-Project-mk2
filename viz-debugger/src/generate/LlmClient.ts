@@ -117,6 +117,11 @@ export type GenerateOptions = {
    */
   tasks?: boolean;
   /**
+   * 어느 언어로 물을 것인가 (260919 · 영문화 5단계). **안 주면 한국어다** —
+   * 지금까지의 모든 실행이 그 값이고, 그 판의 베이스라인 숫자가 거기서 나왔다.
+   */
+  lang?: 'ko' | 'en';
+  /**
    * 마일스톤에 **분기·되풀이**를 적게 할 것인가 (분기와루프 3단계 G 판).
    *
    * **없는 것이 정상이다.** 발화가 요구하지 않았는데 나오면 지어내기이고, 채점이 그것을
@@ -190,6 +195,7 @@ export async function generateMission(utterance: string, options: GenerateOption
     examples: options.examples ?? [],
     node_kinds: options.nodeKinds ?? false,
     tasks: options.tasks ?? false,
+    lang: options.lang ?? 'ko',
     branch: options.branch ?? false,
     model: options.model ?? null,
     mission_id: options.missionId ?? null,

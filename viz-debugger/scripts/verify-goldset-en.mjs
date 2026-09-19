@@ -99,6 +99,30 @@ const han = /[가-힣]/;
   }
 }
 
+// ── 6. 영어로 재는 길이 **끊긴 데 없이** 이어져 있다 ────────────────────────
+//
+// 셋이 한꺼번에 갈려야 한다 — 정답셋 · 발화 변형 · 프롬프트. 하나라도 빠지면
+// 「영어로 물었는데 한국어 정답과 맞춘다」가 되어 그 숫자는 아무 뜻이 없다.
+// 그런데 그 어긋남은 **실행이 끝나고 점수가 나온 뒤에야** 이상해 보인다.
+{
+  const links = [
+    ['scripts/run-baseline.mjs', /--lang/, '실행기가 `--lang` 을 받는다'],
+    ['scripts/run-baseline.mjs', /missions-en/, '실행기가 영어 정답셋을 읽는다'],
+    ['scripts/run-baseline.mjs', /utterances\.en\.json/, '실행기가 영어 발화 변형을 읽는다'],
+    ['scripts/run-baseline.mjs', /lang === 'en' \? '__en'/, '영어 실행이 폴더를 따로 쓴다 (한국어 판을 안 덮는다)'],
+    ['src/generate/LlmClient.ts', /lang: options\.lang \?\? 'ko'/, '요청이 언어를 싣고 기본이 한국어다'],
+  ];
+  for (const [rel, want, what] of links) {
+    const src = readFileSync(join(root, 'viz-debugger', rel), 'utf8');
+    if (!want.test(src)) failures.push(`${rel}: ${what} — 끊겼다`);
+  }
+  // 서비스 쪽도 본다 (파이썬).
+  const server = readFileSync(join(root, 'gen-lab', 'server', 'main.py'), 'utf8');
+  if (!/lang: str = "ko"/.test(server)) failures.push('gen-lab/server/main.py: 요청이 `lang` 을 안 받는다');
+  if (!/lang=request\.lang/.test(server)) failures.push('gen-lab/server/main.py: 받은 `lang` 을 프롬프트로 안 넘긴다');
+  console.log(`✅ 영어로 재는 길 ${links.length + 2}자리가 이어져 있다 — 정답셋 · 발화 · 프롬프트가 한꺼번에 갈린다`);
+}
+
 // ── 대조군 ──────────────────────────────────────────────────────────────────
 {
   // 한국어 판은 **그대로 한국어다.** 영어 판을 만들다 원본을 건드리면 베이스라인이 깨진다.

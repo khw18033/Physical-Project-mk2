@@ -32,6 +32,7 @@
 //   node scripts/run-baseline.mjs --model X --tasks --branch  분기·되풀이까지 (분기와루프 3단계 G)
 //   node scripts/run-baseline.mjs --model X --limit 2         빠른 확인용
 //   node scripts/run-baseline.mjs --rescore                   이미 낸 결과를 다시 채점만
+//   node scripts/run-baseline.mjs --model X --lang en         영어 판 (260919 · 영문화 5단계)
 //
 // ## 스위치가 넷인 이유 — 하나씩만 움직여야 원인이 갈린다
 //
@@ -73,12 +74,26 @@ import { fileURLToPath } from 'node:url';
 
 const vizRoot = join(dirname(fileURLToPath(import.meta.url)), '..');
 const repoRoot = join(vizRoot, '..');
-const goldDir = join(repoRoot, 'gen-lab', 'goldset', 'missions');
 const runsDir = join(repoRoot, 'gen-lab', 'runs');
 
 const args = process.argv.slice(2);
 const flag = (name, fallback = null) => (args.includes(name) ? args[args.indexOf(name) + 1] : fallback);
 const model = flag('--model');
+/**
+ * 어느 언어로 물을 것인가 (260919 · 영문화 5단계 L3).
+ *
+ * **셋이 한꺼번에 갈린다** — 정답셋(`missions-en/`) · 발화 변형(`utterances.en.json`) ·
+ * 프롬프트(`lang` 을 서비스에 넘긴다). 하나라도 어긋나면 「영어로 물었는데 한국어 정답과
+ * 맞춘다」가 되어 그 숫자는 아무 뜻이 없다. 그래서 갈리는 자리를 **여기 한 곳**에 둔다.
+ *
+ * 안 주면 `ko` 다 — 6~10단계의 모든 실행이 그 값이고, 그 판은 한 글자도 안 달라진다.
+ */
+const lang = flag('--lang', 'ko');
+if (lang !== 'ko' && lang !== 'en') {
+  console.error(`❌ --lang 은 ko 나 en 이다 (받은 값: ${lang})`);
+  process.exit(1);
+}
+const goldDir = join(repoRoot, 'gen-lab', 'goldset', lang === 'en' ? 'missions-en' : 'missions');
 const enforceGrammar = !args.includes('--no-grammar');
 // 7단계의 두 축. **한 번에 하나만 끈다** — 둘을 같이 끄면 어느 쪽 덕인지 못 가른다.
 const giveEquipment = !args.includes('--no-equipment');
@@ -94,7 +109,8 @@ const limit = Number(flag('--limit', '0')) || 0;
 const rescoreOnly = args.includes('--rescore');
 // 이름이 **설정을 말한다.** 6단계에 유령 llama-server 로 표가 한 번 무효가 됐고, 그때
 // 배운 것이 「기록이 스스로를 설명해야 한다」였다. 끈 것이 있으면 이름에 남는다.
-const suffix = `${enforceGrammar ? '' : '__nogrammar'}${giveEquipment ? '' : '__noequip'}${shots === 'none' ? '__noshot' : ''}${nodeKinds ? '__kinds' : ''}${withTasks ? '__tasks' : ''}${withBranch ? '__branch' : ''}`;
+// 실행 폴더가 판마다 갈린다. **영어 판은 이름이 따로여야** 한국어 판 위에 안 덮인다.
+const suffix = `${lang === 'en' ? '__en' : ''}${enforceGrammar ? '' : '__nogrammar'}${giveEquipment ? '' : '__noequip'}${shots === 'none' ? '__noshot' : ''}${nodeKinds ? '__kinds' : ''}${withTasks ? '__tasks' : ''}${withBranch ? '__branch' : ''}`;
 const label = flag('--label', model ? `${model}${suffix}` : null);
 
 if (model === null && !rescoreOnly) {
@@ -110,7 +126,8 @@ const gold = readdirSync(goldDir)
   .map((name) => JSON.parse(readFileSync(join(goldDir, name), 'utf8')))
   .sort((a, b) => a.mission_id.localeCompare(b.mission_id));
 
-const variants = JSON.parse(readFileSync(join(repoRoot, 'gen-lab', 'goldset', 'utterances.json'), 'utf8'));
+const variants = JSON.parse(readFileSync(
+  join(repoRoot, 'gen-lab', 'goldset', lang === 'en' ? 'utterances.en.json' : 'utterances.json'), 'utf8'));
 
 /**
  * 장소 위상. **기하 파일을 읽지 않는다** — 좌표를 보면 모델이 503호 전용이 된다
@@ -276,6 +293,7 @@ for (const mission of targets) {
         nodeKinds,
         tasks: withTasks,
         branch: withBranch,
+        lang,
         model,
         missionId: mission.mission_id,
         // 대본 유래라 인식 수치가 없다 — `confidence_signals` 없이 간다 (§7.8 규칙 2).

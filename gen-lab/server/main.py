@@ -279,6 +279,15 @@ class GenerateRequest(BaseModel):
     #: 분기·되풀이를 마일스톤에 적게 할 것인가 (분기와루프 3단계 G 판).
     #: **없는 것이 정상이다** — 발화가 요구하지 않았는데 나오면 지어내기이고, 채점이 센다.
     branch: bool = False
+    #: 어느 언어로 물을 것인가 (260919 · 영문화 5단계 L3).
+    #:
+    #: **안 주면 한국어다** — 지금까지의 모든 실행이 그 값으로 돌았고, 베이스라인 숫자가
+    #: 거기서 나왔다. 규칙·절 이름·장소/장비 이름이 통째로 갈리는 자리이므로 **프롬프트를
+    #: 만드는 한 곳**(`prompt.build`)에만 넘긴다 — 부르는 쪽이 문장을 만들지 않는다.
+    #:
+    #: 모르는 값이면 한국어로 떨어진다(`prompt.phrasing`). 빈 프롬프트로 모델을 돌리는
+    #: 것보다 낫다 — 그때 나온 숫자는 아무 뜻이 없기 때문이다.
+    lang: str = "ko"
     enforce_grammar: bool = True
     max_tokens: int = 2048
     temperature: float = 0.0
@@ -483,6 +492,7 @@ def generate_mission(request: GenerateRequest) -> JSONResponse:
         branch=request.branch,
         examples=request.examples,
         utterance_meta=request.utterance_meta,
+        lang=request.lang,
     )
     try:
         output = engine.generate(built["user"], GenerateOptions(
