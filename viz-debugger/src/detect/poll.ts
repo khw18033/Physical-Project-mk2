@@ -243,15 +243,19 @@ export async function pollOnce(expected = 8, stepDeg = 45): Promise<void> {
         receivePath(path);
         appendDetectLog({
           lane: 'detect', level: path.path_mode === 'door_relative' ? 'warn' : 'info',
+          // 탐지 서비스가 준 한국어는 **그릴 때 옮기고**(`foreign`), 옮겨진 경우에만
+          // **원문을 상세 줄에 남긴다**(`original`). 한국어 화면에서는 원문 자리가 비어
+          // 줄에서 빠지므로 글자가 한 자도 안 달라진다.
           say: [
-            { key: 'dpl.pathReceived', vars: { turn: path.turn_instruction, m: (path.forward_distance_cm / 100).toFixed(2) } },
-            // 탐지 서비스가 준 한국어다 — 우리 사전에 없다 (5단계 §4 에서 다룬다).
-            ...(path.path_mode_words ? [path.path_mode_words] : []),
+            { key: 'dpl.pathReceived', vars: { turn: { foreign: path.turn_instruction }, m: (path.forward_distance_cm / 100).toFixed(2) } },
+            ...(path.path_mode_words ? [{ foreign: path.path_mode_words }] : []),
           ],
           sayDetail: [
-            chainWords(path),
+            { foreign: chainWords(path) },
             { key: 'dpl.standoff', vars: { m: (path.standoff_cm / 100).toFixed(2) } },
             { key: path.path_overlay_available === false ? 'dpl.7' : 'dpl.8' },
+            // 받은 그대로 — 탐지 파트와는 이 글자로 이야기한다.
+            { original: [path.turn_instruction, path.path_mode_words, chainWords(path)].filter((v) => v !== undefined && v !== '').join(' · ') },
           ],
           tasks: [DETECT_TASKS.path],
         });
@@ -259,8 +263,11 @@ export async function pollOnce(expected = 8, stepDeg = 45): Promise<void> {
         receivePathFailure(failure);
         appendDetectLog({
           lane: 'detect', level: 'error',
-          say: { key: 'dpl.pathFailed', vars: { reason: failure.reason ?? { key: 'dpl.noReason' } } },
-          sayDetail: { key: 'dpl.willNotMove', vars: { chain: chainWords(failure) } },
+          say: { key: 'dpl.pathFailed', vars: { reason: failure.reason === undefined ? { key: 'dpl.noReason' } : { foreign: failure.reason } } },
+          sayDetail: [
+            { key: 'dpl.willNotMove', vars: { chain: { foreign: chainWords(failure) } } },
+            { original: [failure.reason, chainWords(failure)].filter((v) => v !== undefined && v !== '').join(' · ') },
+          ],
           tasks: [DETECT_TASKS.path, DETECT_TASKS.approach],
         });
       }

@@ -10,6 +10,7 @@
  * 없다고 적는다.**
  */
 
+import { serviceWords } from '../../i18n/serviceWords.ts';
 import { useLang } from '../../shared/language.ts';
 import { Rich } from '../../i18n/RichText.tsx';
 import { t } from '../../i18n/dict.ts';
@@ -180,7 +181,7 @@ const STEP_NAMES_KEY: Record<string, string> = {
  * 식과 대입값, 탐지가 낸 로봇 명령. **다시 계산하지 않는다.**
  */
 export function PathFacts() {
-  useLang();
+  const lang = useLang();
   const detect = useDetect();
   const path = detect.path ?? detect.pathFailureDetail;
   if (path === null) {
@@ -194,12 +195,14 @@ export function PathFacts() {
   return <section className="prep-facts">
     <h3>{t(path.ok ? 'dlog.pathResult' : 'dlog.pathResultFailed')}</h3>
     <dl>
-      <div><dt>{t('dlog.39')}</dt><dd>{path.ok ? <><b>{path.turn_instruction}</b> {t('dlog.forwardM', { m: (path.forward_distance_cm / 100).toFixed(2) })}</> : <span className="detect-map__failed">{path.reason}</span>}</dd></div>
-      {path.path_mode_words !== undefined && <div><dt>{t('dlog.40')}</dt><dd>{path.path_mode_words}</dd></div>}
+      {/* 탐지 서비스가 한국어로 말한다. 영문 화면에서는 옮겨 그리고, **원문은 아래
+          「받은 그대로」 줄에 남긴다** — 탐지 파트와는 서비스가 실제로 뱉은 글자로 이야기해야 한다. */}
+      <div><dt>{t('dlog.39')}</dt><dd>{path.ok ? <><b>{serviceWords(path.turn_instruction, lang)}</b> {t('dlog.forwardM', { m: (path.forward_distance_cm / 100).toFixed(2) })}</> : <span className="detect-map__failed">{serviceWords(path.reason, lang)}</span>}</dd></div>
+      {path.path_mode_words !== undefined && <div><dt>{t('dlog.40')}</dt><dd>{serviceWords(path.path_mode_words, lang)}</dd></div>}
     </dl>
     {(path.fallback_chain ?? []).length > 0 && <ol className="path-chain">
       {(path.fallback_chain ?? []).map((step, at) => <li key={`${step.step}-${at}`} className={step.ok ? 'is-ok' : 'is-fail'}>
-        <b>{step.ok ? '✓' : '✕'} {t(STEP_NAMES_KEY[step.step]) ?? step.step}</b> <span>{step.detail}</span>
+        <b>{step.ok ? '✓' : '✕'} {t(STEP_NAMES_KEY[step.step]) ?? step.step}</b> <span>{serviceWords(step.detail, lang)}</span>
       </li>)}
     </ol>}
     {distance !== null && <>

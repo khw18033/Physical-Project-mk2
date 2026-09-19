@@ -21,9 +21,26 @@
  */
 
 import { t } from './dict.ts';
+import { getLang } from '../shared/language.ts';
+import { isTranslated, serviceWords } from './serviceWords.ts';
+
+/**
+ * **남이 준 말.** 우리 사전에 없고, 그릴 때 그쪽 표로 옮긴다 (`serviceWords.ts`).
+ * 못 옮기는 문장이면 한국어 그대로 나온다 — 지어내지 않는다.
+ */
+export type LogForeign = { foreign: string };
+
+/**
+ * **원문.** 옮겨서 그린 자리에 한해 원문을 나란히 남긴다. 안 옮겨졌으면(한국어 화면이거나
+ * 모르는 문장이면) **빈 글자**라 줄에서 빠진다 — 한국어 화면에 같은 말이 두 번 뜨면 안 된다.
+ *
+ * 260919 사용자 결정 — 「화면이 영어라면 번역하고, 로그에 원문 한국어를 표시」.
+ * 탐지 파트와 이야기할 때는 화면의 영어가 아니라 **서비스가 실제로 뱉은 글자**가 필요하다.
+ */
+export type LogOriginal = { original: string };
 
 /** 치환값. **값 자리에 또 다른 문구**가 올 수 있다 — 「경로 실패 — {reason}」의 `{reason}`. */
-export type LogVar = string | number | LogPhrase;
+export type LogVar = string | number | LogPhrase | LogForeign | LogOriginal;
 
 export type LogPhrase = { key: string; vars?: Record<string, LogVar> };
 
@@ -40,6 +57,14 @@ export function isPhrase(v: LogVar): v is LogPhrase {
   return typeof v === 'object' && v !== null && typeof (v as LogPhrase).key === 'string';
 }
 
+function isForeign(v: LogVar): v is LogForeign {
+  return typeof v === 'object' && v !== null && typeof (v as LogForeign).foreign === 'string';
+}
+
+function isOriginal(v: LogVar): v is LogOriginal {
+  return typeof v === 'object' && v !== null && typeof (v as LogOriginal).original === 'string';
+}
+
 /** 담아 둔 말을 **지금 언어로**. 값 자리에 든 문구도 같이 푼다. */
 export function sayText(p: LogSay): string {
   if (Array.isArray(p)) return p.map(one).filter((part) => part !== '').join(' · ');
@@ -51,6 +76,9 @@ export function sayText(p: LogSay): string {
 }
 
 function one(v: LogVar): string {
+  if (isForeign(v)) return serviceWords(v.foreign, getLang());
+  // 옮겨진 자리에만 원문을 보탠다. 아니면 빈 글자라 줄에서 빠진다.
+  if (isOriginal(v)) return isTranslated(v.original, getLang()) ? v.original : '';
   return isPhrase(v) ? sayText(v) : String(v);
 }
 

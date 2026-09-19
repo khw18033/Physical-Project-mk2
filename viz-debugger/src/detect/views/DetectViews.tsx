@@ -19,6 +19,7 @@
  * 이름을 `특징 최고값` 으로 적는 것만으로 그 오독이 사라진다 (`parse.ts` 의 `SCORE_LABEL_KEY`).
  */
 
+import { serviceWords } from '../../i18n/serviceWords.ts';
 import { useLang } from '../../shared/language.ts';
 import { t } from '../../i18n/dict.ts';
 import { useEffect, useState } from 'react';
@@ -207,7 +208,7 @@ export function DetectReason({ zoom = false, count = 8 }: { zoom?: boolean; coun
  * 그대로 늘어놓는 것이 「왜 90도를 돌았나」에 대한 답이 된다.
  */
 export function DetectMap({ zoom = false, headSec }: { zoom?: boolean; headSec?: number }) {
-  useLang();
+  const lang = useLang();
   const state = useDetect();
   const source = viewSourceOf(state);
   const path = state.path;
@@ -269,10 +270,10 @@ export function DetectMap({ zoom = false, headSec }: { zoom?: boolean; headSec?:
   return <div className="detect-map">
     {overlay ? <img src={roundedImageUrl(pathImageUrl(source), state.imageRound)} alt={t('dv.pathAlt')} /> : <FloorPlan urls={planUrls} />}
     <div className="detect-map__facts">
-      <span><b>{path.turn_instruction}</b></span>
+      <span><b>{serviceWords(path.turn_instruction, lang)}</b></span>
       <span>{t('dv.forward', { m: (path.forward_distance_cm / 100).toFixed(2) })}</span>
       <span>{t('dv.standoff', { m: (path.standoff_cm / 100).toFixed(2) })}</span>
-      {path.path_mode_words !== undefined && <span className={overlay ? '' : 'detect-map__failed'}>{path.path_mode_words}</span>}
+      {path.path_mode_words !== undefined && <span className={overlay ? '' : 'detect-map__failed'}>{serviceWords(path.path_mode_words, lang)}</span>}
     </div>
     {zoom && <>
       <dl className="detect-map__rows">
