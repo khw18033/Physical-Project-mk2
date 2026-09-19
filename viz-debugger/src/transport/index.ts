@@ -72,7 +72,7 @@ export const GATEWAY = {
  * 주소에 얹는 이유: 봉투는 붙어 있는 모두에게 나가므로 **접속마다** 언어를 알아야 한다.
  * 3단계에서 STT 에 `language` 를 실어 보낸 것과 같은 자리다.
  */
-function withLang(url: string, lang: string): string {
+export function withLang(url: string, lang: string = getLang()): string {
   if (url === '') return url;
   const joiner = url.includes('?') ? '&' : '?';
   return `${url}${joiner}lang=${encodeURIComponent(lang)}`;

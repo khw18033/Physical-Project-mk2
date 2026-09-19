@@ -24,6 +24,7 @@
  *   보고서에 기록했다.
  */
 
+import { say, type GwLang, type Text } from './i18n.ts';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
@@ -66,7 +67,7 @@ type Deps = {
   commands: CommandEngine;
   plans: PlanEngine;
   vision: VisionEmitter;
-  log: (message: string) => void;
+  log: (message: Text) => void;
 };
 
 type PlaybackState = {
@@ -133,12 +134,12 @@ export class ScriptEngine {
    * 발화·대본 명령 접수. CommandEngine.submit() 과 같은 계약 — 상관 키를 발급하고,
    * 거부도 command_result 로 내려보내며, 감사는 같은 저장소에 남는다.
    */
-  submit(req: CommandRequest): SubmitOutcome {
+  submit(req: CommandRequest, lang: GwLang = 'ko'): SubmitOutcome {
     this.commandSeq += 1;
     const commandId = 'cmd-' + Date.now().toString(36) + '-scr' + String(this.commandSeq).padStart(2, '0');
     if (req.action === 'script_close') return this.closeScript(req, commandId);
     if (req.action === 'script_preview') return this.previewScript(req, commandId);
-    return this.handleUtterance(req, commandId);
+    return this.handleUtterance(req, commandId, lang);
   }
 
   /**
@@ -153,7 +154,7 @@ export class ScriptEngine {
     const missionId = String((req.params as { mission_id?: unknown } | undefined)?.mission_id ?? req.entity);
     const entry = this.library.find((candidate) => candidate.missionId === missionId) ?? null;
     if (!entry?.script) {
-      return this.reject(req, commandId, 'no_script_match', '미리보기할 대본이 없다 — ' + missionId);
+      return this.reject(req, commandId, 'no_script_match', say('scr.noPreview', { id: missionId }));
     }
     this.stopPlayback('미리보기로 교체');
     const script = entry.script;
@@ -182,25 +183,25 @@ export class ScriptEngine {
       if (frame.atSec === 0) this.applyWorldFrame(script, frame, playback);
     }
 
-    const detail = '대본 미리보기 — ' + missionId + ' 의 초기 조건 + t=0 프레임 반영 (정지 · 재생은 승인 뒤)';
+    const detail = say('scr.preview', { id: missionId });
     this.emitResult(req, commandId, { status: 'completed', reason_code: null, detail });
     this.deps.commands.recordExternal(req, commandId, 'completed', detail);
     this.deps.log(detail);
     return { clientRequestId: req.client_request_id, commandId, accepted: true, reasonCode: null, message: detail };
   }
 
-  private handleUtterance(req: CommandRequest, commandId: string): SubmitOutcome {
+  private handleUtterance(req: CommandRequest, commandId: string, lang: GwLang): SubmitOutcome {
     const { plans, log, commands } = this.deps;
     const text = String((req.params as { text?: unknown } | undefined)?.text ?? '').trim();
 
     if (text.length === 0) {
-      return this.reject(req, commandId, 'no_script_match', '발화 문장이 비어 있다');
+      return this.reject(req, commandId, 'no_script_match', say('scr.emptyUtterance'));
     }
 
-    const outcome = matchLibrary(text, this.library);
+    const outcome = matchLibrary(text, this.library, lang);
     if (outcome.kind !== 'matched') {
       // 없으면 없다고 한다. 모호해도 고르지 않는다 — 대본 조회는 LLM이 아니다.
-      return this.reject(req, commandId, 'no_script_match', outcome.reason + ' — 문장: 「' + text + '」');
+      return this.reject(req, commandId, 'no_script_match', say('scr.noMatch', { reason: outcome.reason, text }));
     }
 
     const entry = outcome.entry;
@@ -217,7 +218,7 @@ export class ScriptEngine {
             avg_logprob: voice.avg_logprob ?? null,
             no_speech_prob: voice.no_speech_prob ?? null,
             mean_word_prob: voice.mean_word_prob ?? null,
-            provisional: '7.8 미결 — utterance.confidence 계약 확정 전 잠정 위치',
+            provisional: say('scr.provisional'),
           },
         }
       : null;
@@ -225,9 +226,10 @@ export class ScriptEngine {
     const seed = this.seedFor(entry, text, outcome.keywords);
     const plan = plans.proposeScript(seed);
 
-    const detail =
-      '대본 매칭 — ' + entry.missionId + ' 「' + seed.title + '」 · 맞은 키워드 [' +
-      outcome.keywords.join(' · ') + '] · 계획 제안(승인 대기 ' + plan.plan_id + '). 키워드 대조이지 LLM이 아니다';
+    const detail = say('scr.matched', {
+      id: entry.missionId, title: seed.title,
+      keywords: outcome.keywords.join(' · '), plan: plan.plan_id,
+    });
     this.emitResult(req, commandId, { status: 'completed', reason_code: null, detail });
     commands.recordExternal(req, commandId, 'completed', detail);
     log('발화 매칭 — 「' + text + '」 → ' + entry.missionId + ' [' + outcome.keywords.join(', ') + ']');
@@ -249,30 +251,30 @@ export class ScriptEngine {
     }
     return {
       missionId: entry.missionId,
-      title: '415호 → 503호 이동 (구판 세계)',
+      title: say('scr.legacyTitle'),
       world: 'legacy' as const,
       utteranceText: text,
       matchedKeywords: keywords,
-      zone: '구판 세계 — registry 연결 없음',
+      zone: say('scr.legacyZone'),
       milestones: this.legacy.milestones.map((m) => ({ id: m.id, title: m.title })),
     };
   }
 
   private closeScript(req: CommandRequest, commandId: string): SubmitOutcome {
     if (this.playback === null) {
-      return this.reject(req, commandId, 'no_active_script', '닫을 대본 재생이 없다');
+      return this.reject(req, commandId, 'no_active_script', say('scr.nothingToClose'));
     }
     const missionId = this.playback.missionId;
     this.stopPlayback('대본 닫기');
     // 닫기는 자리표시 복귀다 — 장치는 평소 랜덤 워크로, 탭⑤는 평소 합성 대상으로 돌아간다.
     this.deps.vision.scriptView = null;
-    const detail = '대본 닫기 — ' + missionId + ' 재생 종료 · 장치 평시 복귀';
+    const detail = say('scr.closed', { id: missionId });
     this.emitResult(req, commandId, { status: 'completed', reason_code: null, detail });
     this.deps.commands.recordExternal(req, commandId, 'completed', detail);
     return { clientRequestId: req.client_request_id, commandId, accepted: true, reasonCode: null, message: detail };
   }
 
-  private reject(req: CommandRequest, commandId: string, reasonCode: string, detail: string): SubmitOutcome {
+  private reject(req: CommandRequest, commandId: string, reasonCode: string, detail: Text): SubmitOutcome {
     this.emitResult(req, commandId, { status: 'rejected', reason_code: reasonCode, detail });
     this.deps.commands.recordExternal(req, commandId, 'rejected', detail);
     this.deps.log('발화 거부 — ' + detail);
@@ -283,7 +285,7 @@ export class ScriptEngine {
   private emitResult(
     req: CommandRequest,
     commandId: string,
-    partial: { status: CommandResult['status']; reason_code: string | null; detail: string },
+    partial: { status: CommandResult['status']; reason_code: string | null; detail: Text },
   ): void {
     if (!this.deps.hub.runtime.has(req.entity)) return; // 미등록 대상이면 ACK 만으로 알린다.
     const result: CommandResult = {
@@ -379,7 +381,7 @@ export class ScriptEngine {
               input_mode: 'api',
               decision_source: 'automatic',
               actor_id: script.missionId,
-              actor_display_name: '임무 ' + script.missionId,
+              actor_display_name: say('scr.actorMission', { id: script.missionId }),
               actor_role: 'mission',
               produced_by: c.producedBy,
               task_id: c.taskId,

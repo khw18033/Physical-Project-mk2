@@ -43,28 +43,46 @@ export function isGwLang(v: unknown): v is GwLang {
   return v === 'ko' || v === 'en';
 }
 
-/** 표지 — 「이 자리는 받는 사람의 언어로 그린다」. `render()` 를 지나면 사라진다. */
+/**
+ * 치환값. **표지를 값으로 넣을 수 있다** — 문장 안에 다른 문장이 들어가는 자리가 있다
+ * (`{action} 명령 접수` 의 `{action}` 이 그 자체로 옮겨야 하는 이름이다). 조각을 이어
+ * 붙이는 대신 **한 문장에 한 키**를 지키려면 이 중첩이 필요하다.
+ */
+export type SayVar = string | number | Say;
+
+/** 표지 — 「이 자리는 받는 사람의 언어로 그린다」. `sayJson()` 을 지나면 사라진다. */
 export type Say = {
   readonly __say: string;
-  readonly vars?: Readonly<Record<string, string | number>>;
+  readonly vars?: Readonly<Record<string, SayVar>>;
 };
 
 const MARK = '__say';
 
 /** 표시 자리에 담는다. 글자가 아니라 **키와 값**이다. */
-export function say(key: string, vars?: Record<string, string | number>): Say {
+export function say(key: string, vars?: Record<string, SayVar>): Say {
   return vars === undefined ? { __say: key } : { __say: key, vars };
 }
+
+/**
+ * **표시 자리.** 만들 때는 표지일 수 있고, 전선에 나갈 때는 반드시 글자다.
+ *
+ * 게이트웨이 안에서만 쓰는 타입이다 — `sayJson()` 을 지나면 전부 `string` 이라
+ * 화면이 받는 모양은 한 글자도 안 바뀐다. 계약 타입(`src/transport/types.ts`)에는
+ * 이 개념이 없어야 한다. 거기까지 넓히면 「글자인 줄 알았는데 아닌」 자리가 화면에 생긴다.
+ */
+export type Text = string | Say;
 
 export function isSay(v: unknown): v is Say {
   return typeof v === 'object' && v !== null && typeof (v as Record<string, unknown>)[MARK] === 'string';
 }
 
-function fill(template: string, vars?: Readonly<Record<string, string | number>>): string {
+function fill(lang: GwLang, template: string, vars?: Readonly<Record<string, SayVar>>): string {
   if (vars === undefined) return template;
   return template.replace(/\{(\w+)\}/g, (whole, name: string) => {
     const v = vars[name];
-    return v === undefined ? whole : String(v);
+    if (v === undefined) return whole;
+    // 값 자리에 들어온 표지도 **같은 언어로** 푼다.
+    return isSay(v) ? gwT(lang, v.__say, v.vars) : String(v);
   });
 }
 
@@ -72,11 +90,11 @@ function fill(template: string, vars?: Readonly<Record<string, string | number>>
  * 표지 하나를 글자로. 영어가 없으면 **한국어로 떨어진다** — 부분 번역 상태에서도
  * 화면이 정상이어야 한다 (`src/i18n/dict.ts` 와 같은 규칙).
  */
-export function gwT(lang: GwLang, key: string, vars?: Readonly<Record<string, string | number>>): string {
+export function gwT(lang: GwLang, key: string, vars?: Readonly<Record<string, SayVar>>): string {
   const hit = lang === 'en' ? GW_EN[key] : undefined;
-  if (hit !== undefined) return fill(hit, vars);
+  if (hit !== undefined) return fill(lang, hit, vars);
   const ko = GW_KO[key];
-  if (ko !== undefined) return fill(ko, vars);
+  if (ko !== undefined) return fill(lang, ko, vars);
   // 양쪽에 다 없다 — 키가 드러나는 편이 낫다. 조용히 빈칸이 되면 못 찾는다.
   return key;
 }
@@ -135,4 +153,36 @@ export function langOf(url: string | undefined): GwLang {
   if (q === -1) return 'ko';
   const value = new URLSearchParams(url.slice(q + 1)).get('lang');
   return isGwLang(value) ? value : 'ko';
+}
+
+/**
+ * **원천이 두 벌을 들고 있는 자리**를 영어로 고른다 — 레지스트리의
+ * `display_name`/`display_name_en`, `aliases`/`aliases_en`.
+ *
+ * 사전을 타지 않는다. 그 글자는 우리가 짓는 것이 아니라 **데이터가 이미 가진 것**이고,
+ * 사전에 또 적으면 갈라질 자리가 하나 더 생긴다.
+ *
+ * 규칙 하나뿐이다 — `X_en` 이 있고 비어 있지 않으면 `X` 자리에 넣고 `X_en` 은 지운다.
+ * 없으면 한국어가 그대로 남는다(부분 번역 상태에서도 화면은 정상이어야 한다).
+ */
+export function inEnglish<T>(value: T): T {
+  return pickEn(value) as T;
+}
+
+function usable(v: unknown): boolean {
+  if (typeof v === 'string') return v.trim() !== '';
+  return Array.isArray(v) && v.length > 0;
+}
+
+function pickEn(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(pickEn);
+  if (value === null || typeof value !== 'object') return value;
+  const out: Record<string, unknown> = {};
+  const box = value as Record<string, unknown>;
+  for (const [k, v] of Object.entries(box)) {
+    if (k.endsWith('_en')) continue;                  // 아래에서 본체 자리에 넣는다
+    const en = box[`${k}_en`];
+    out[k] = en !== undefined && usable(en) ? pickEn(en) : pickEn(v);
+  }
+  return out;
 }

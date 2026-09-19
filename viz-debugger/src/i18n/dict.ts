@@ -54,7 +54,7 @@
 
 import { en } from './en.ts';
 import { ko } from './ko.ts';
-import { getLang } from '../shared/language.ts';
+import { getLang, type Lang } from '../shared/language.ts';
 
 const DICTS = { ko, en } as const;
 
@@ -78,8 +78,15 @@ function fill(template: string, vars?: Record<string, string | number>): string 
   );
 }
 
-export function t(key: string, vars?: Record<string, string | number>): string {
-  const lang = getLang();
+/**
+ * **언어를 받아서** 푼다 (260919 · 5단계).
+ *
+ * `t()` 는 지금 화면의 언어로 푸는데, 화면이 아닌 곳에서도 이 사전이 필요하다 —
+ * 목 게이트웨이가 `scenarios/matcher.ts` 를 그대로 끌어 쓴다. 거기서는 `getLang()` 이
+ * 언제나 `ko` 라(브라우저 전역이 없다) **3단계의 영어 조회 규칙이 아예 안 돌고 있었다.**
+ * 거절 문구도 늘 한국어였다. 그래서 언어를 값으로 받는 자리를 따로 낸다.
+ */
+export function tIn(lang: Lang, key: string, vars?: Record<string, string | number>): string {
   const hit = DICTS[lang]?.[key];
   if (hit !== undefined) return fill(hit, vars);
 
@@ -93,6 +100,11 @@ export function t(key: string, vars?: Record<string, string | number>): string {
   // 양쪽에 다 없다. 오타이거나 아직 안 만든 키다 — 화면에 키가 드러나는 편이 낫다.
   announce(key, `[i18n] 어느 사전에도 없는 키입니다 — ${key}`, 'warn');
   return key;
+}
+
+/** 지금 **화면**의 언어로 푼다. 부르는 순간의 값을 줄 뿐 구독이 아니다 — `useLang()` 이 필요하다. */
+export function t(key: string, vars?: Record<string, string | number>): string {
+  return tIn(getLang(), key, vars);
 }
 
 /** 검사용. 사전을 직접 읽어야 하는 곳(`verify:lang-switch`)이 쓴다. */

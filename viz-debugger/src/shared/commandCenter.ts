@@ -32,7 +32,7 @@ import { t } from '../i18n/dict.ts';
 import { recordHuman } from '../data/scenario.ts';
 import { getTransport } from '../transport/index.ts';
 import type { ActionSpec, CommandAck, CommandRequest, CommandResult } from '../transport/index.ts';
-import { GATEWAY } from '../transport/index.ts';
+import { GATEWAY, withLang } from '../transport/index.ts';
 import { buildAuditPayload, type VoiceAuditPayload } from './auditFieldMap.ts';
 import { CorrelationRegistry } from './correlation.ts';
 
@@ -436,7 +436,7 @@ export const commandTracker = new CommandTracker();
  */
 export async function fetchActions(entity: string): Promise<ActionSpec[]> {
   try {
-    const res = await fetch(GATEWAY.http + '/actions?entity=' + encodeURIComponent(entity));
+    const res = await fetch(withLang(GATEWAY.http + '/actions?entity=' + encodeURIComponent(entity)));
     if (!res.ok) return [];
     const body = (await res.json()) as { actions?: ActionSpec[] };
     return body.actions ?? [];

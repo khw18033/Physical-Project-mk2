@@ -10,6 +10,7 @@
  * 원천(하드웨어·AI)이 정한 발행 주기보다 촘촘히 그려도 새 값이 없다 — 구조도 PRINCIPLE 3.
  */
 
+import { say, type Text } from './i18n.ts';
 import type { Channel } from './protocol.ts';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -250,7 +251,7 @@ export const METRICS_QUERY = {
 // ─────────────────────────────────────────────────────────────────────────────
 export type MockRole = {
   role: string;
-  display_name: string;
+  display_name: Text;
   scope: { zones: string[] };
 };
 
@@ -258,7 +259,7 @@ export const ROLES: Record<string, MockRole> = {
   /** 기본 — 캡스톤 단일 도메인이므로 전 범위. */
   full: {
     role: 'operator',
-    display_name: '전 구역 운영자',
+    display_name: say('role.allZones'),
     scope: { zones: ['*'] },
   },
   /**
@@ -269,7 +270,7 @@ export const ROLES: Record<string, MockRole> = {
    */
   'zone-503-only': {
     role: 'operator',
-    display_name: '503 구역 담당 운영자',
+    display_name: say('role.zone503'),
     scope: { zones: ['zone-503'] },
   },
 };

@@ -1,3 +1,4 @@
+import type { Text } from './i18n.ts';
 // 이식: web-dashboard/mock-gateway/protocol.ts @ 700ed91 — trace_event 채널 추가
 /**
  * mock-gateway/protocol.ts
@@ -149,8 +150,13 @@ export type StateLayers = {
   last_seen: string | null;
   /** 화면이 "임계 60초" 같은 문구를 그릴 수 있도록 판정에 쓴 임계를 함께 내려 준다. */
   stale_threshold_ms: number;
-  /** 상태 변화의 사람이 읽는 사유. 없으면 null. */
-  reason: string | null;
+  /**
+   * 상태 변화의 사람이 읽는 사유. 없으면 null.
+   *
+   * **만들 때는 표지일 수 있다** (`gateway/i18n.ts`) — 받는 사람의 언어로 그려 내보낸다.
+   * 전선에 나갈 때는 반드시 글자이므로 화면이 받는 모양은 안 바뀐다.
+   */
+  reason: Text | null;
 };
 
 /** 액추에이터 도메인 어휘 (VZ-U-01). 표준 3층과 별개로 다룬다. */
@@ -163,7 +169,8 @@ export type ActuatorState = {
   position_pct: number | null;
   /** 제어 잠금 여부와 사유 (VZ-O-05). */
   control_locked: boolean;
-  lock_reason: string | null;
+  /** 잠금 사유 — 만들 때는 표지일 수 있다 (`gateway/i18n.ts`). */
+  lock_reason: Text | null;
   /** 이 상태를 유발한 명령의 상관 키 (BE-X-01 — **백엔드가 발급**). */
   command_id: string | null;
 };
@@ -216,7 +223,8 @@ export type CommandResult = {
   stage: 'ack' | 'executing' | 'physical_state_changed' | 'settled';
   /** 수행 중 진행률(0~100). stage=executing일 때만. */
   progress_pct: number | null;
-  detail: string;
+  /** 사람이 읽는 한 줄. 만들 때는 표지, 전선에 나갈 때는 글자다. */
+  detail: Text;
   /** 실패·거부 사유 코드. 화면이 문구를 고르는 근거. */
   reason_code: string | null;
   expires_at: string;
@@ -233,7 +241,8 @@ export type ControlLock = {
   locked: boolean;
   /** unlocked / comm_lost(두절) / rechecking(복구 후 재확인 중) */
   phase: 'unlocked' | 'comm_lost' | 'rechecking';
-  reason: string | null;
+  /** 사람이 읽는 잠금 사유. 만들 때는 표지일 수 있다. */
+  reason: Text | null;
   /** 잠금 동안 안전 상태를 유지하고 있는가. */
   safe_state_held: boolean;
   since: string;
@@ -260,13 +269,13 @@ export type RoleScope = {
 
 export type RoleInfo = {
   role: string;
-  /** 화면에 보여줄 역할 이름. */
-  display_name: string;
+  /** 화면에 보여줄 역할 이름. 만들 때는 표지일 수 있다 (`gateway/i18n.ts`). */
+  display_name: Text;
   scope: RoleScope;
   /** 이 역할·범위를 언제 받았는가(서버 시각). 토큰 갱신 시 재조회하면 갱신된다. */
   issued_at: string;
   /** 어느 API가 준 값인지. 화면이 "화면 차단은 편의, 강제는 백엔드"를 설명하는 근거. */
-  source: string;
+  source: Text;
 };
 
 // ── 지표 질의 (VZ-I-04 / BE-Q-01) ────────────────────────────────────────────

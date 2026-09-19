@@ -22,7 +22,7 @@
  */
 
 import { t } from '../../i18n/dict.ts';
-import { GATEWAY } from '../../transport/index.ts';
+import { GATEWAY, withLang } from '../../transport/index.ts';
 import type { WireMetricsQuery } from '../../transport/index.ts';
 import { aggregationBadge, normalizeAggregation, type Aggregation, type AggregationBadge } from './aggregation.ts';
 
@@ -85,12 +85,12 @@ export async function queryMetrics(params: {
   rangeMin: number;
   signal?: AbortSignal;
 }): Promise<MetricsQueryOutcome> {
-  const url =
+  const url = withLang(
     GATEWAY.http +
     '/metrics/query?entity=' + encodeURIComponent(params.entity) +
     '&metric=' + encodeURIComponent(params.metric) +
     '&mode=' + params.mode +
-    '&range_min=' + String(params.rangeMin);
+    '&range_min=' + String(params.rangeMin));
 
   try {
     const res = await fetch(url, { signal: params.signal });

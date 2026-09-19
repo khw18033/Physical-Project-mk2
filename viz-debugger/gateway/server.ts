@@ -18,7 +18,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { WebSocketServer } from 'ws';
-import { langOf, sayJson } from './i18n.ts';
+import { gwT, inEnglish, langOf, say, sayJson, type Text } from './i18n.ts';
 
 import {
   AGGREGATION,
@@ -90,10 +90,10 @@ function publishRisk(level: 'normal' | 'watch' | 'alert' | 'recovery'): void {
   currentRiskLevel = level;
   const now = new Date().toISOString();
   const values = {
-    normal: { score: 18, reasons: [{ label: '수위', value: '1.2m · 안정', contribution: 0.42 }], recommendation: '정기 감시 유지' },
-    watch: { score: 56, reasons: [{ label: '강우', value: '시간당 32mm', contribution: 0.58 }, { label: '수위 상승', value: '+0.18m/10분', contribution: 0.31 }], recommendation: '503 구역 센서와 배수 경로 확인' },
-    alert: { score: 87, reasons: [{ label: '수위', value: '경보선 92%', contribution: 0.64 }, { label: '유입량', value: '평시 대비 2.3배', contribution: 0.27 }], recommendation: '수문 개방 계획 검토 후 승인' },
-    recovery: { score: 41, reasons: [{ label: '수위', value: '정점 대비 -0.34m', contribution: 0.55 }], recommendation: '복구 추세 확인, 즉시 평시 전환 금지' },
+    normal: { score: 18, reasons: [{ label: say('risk.waterLevel'), value: say('risk.normal.water'), contribution: 0.42 }], recommendation: say('risk.normal.rec') },
+    watch: { score: 56, reasons: [{ label: say('risk.rain'), value: say('risk.watch.rain'), contribution: 0.58 }, { label: say('risk.waterRising'), value: say('risk.watch.rise'), contribution: 0.31 }], recommendation: say('risk.watch.rec') },
+    alert: { score: 87, reasons: [{ label: say('risk.waterLevel'), value: say('risk.alert.water'), contribution: 0.64 }, { label: say('risk.inflow'), value: say('risk.alert.inflow'), contribution: 0.27 }], recommendation: say('risk.alert.rec') },
+    recovery: { score: 41, reasons: [{ label: say('risk.waterLevel'), value: say('risk.recovery.water'), contribution: 0.55 }], recommendation: say('risk.recovery.rec') },
   }[level];
   // zone 자체는 레지스트리 entity가 아니므로, 구역 판단을 담당하는 엣지 노드에 싣는다.
   hub.publish('edge-node-a', 'risk_state', { level, ...values, decided_at: now }, { fromDevice: false });
@@ -107,7 +107,7 @@ function publishAiFailure(): void {
     model_version: 'tracker-2.4.1',
     input_ref: 'camera-02/frame-' + Math.floor(Date.now() / 1000),
     error_code: 'INFERENCE_TIMEOUT',
-    detail: '추론 제한 500ms 초과 — 온디바이스 최소 안전 판단은 계속 동작',
+    detail: say('ai.timeout'),
     occurred_at: now,
   }, { fromDevice: false });
 }
@@ -124,7 +124,7 @@ function currentRole(): RoleInfo {
     display_name: mock.display_name,
     scope: { zones: [...mock.scope.zones] },
     issued_at: new Date().toISOString(),
-    source: 'mock-gateway role API (BE-Q-04 대체 구현)',
+    source: say('role.source'),
   };
 }
 
@@ -138,9 +138,11 @@ function checkPermission(entity: string): PermissionVerdict {
 
   return {
     allowed: false,
-    reason:
-      '권한 범위 밖 — 현재 역할(' + role.display_name + ')의 담당 구역은 ' +
-      role.scope.zones.join(', ') + ' 이고 이 대상은 ' + (zone ?? '구역 미지정') + ' 에 있다',
+    reason: say('role.outOfScope', {
+      role: role.display_name,
+      zones: role.scope.zones.join(', '),
+      zone: zone ?? say('role.noZone'),
+    }),
   };
 }
 
@@ -397,8 +399,22 @@ const http = createServer((req, res) => {
   // VZ-I-03 / REQ-304·305 — 레지스트리는 정적 파일을 그대로 서빙한다.
   // 값을 발행하지 않는 미배포 대상(robot-03)도 여기에 반드시 있어야 화면이 그릴 수 있다.
   if (url.pathname === '/registry') {
+    /**
+     * **영어는 이미 데이터에 있다** (260919 · 5단계).
+     *
+     * 3단계가 `registry.json` 에 `display_name_en`·`aliases_en` 을 붙였는데, 그것을
+     * 읽는 곳이 **STT 어휘와 장비 추출기뿐**이었다 — 화면은 안 읽는다. 그래서 영문
+     * 화면의 장치 카드·구역 이름이 계속 한국어였다(사용자가 260919 에 찾은 「수문」).
+     *
+     * 사전에 넣지 않는다. **원천이 이미 두 벌을 들고 있다** — 그것을 또 옮겨 적으면
+     * 갈라질 자리가 하나 더 생긴다(3단계가 사이드카를 문구 사전으로 둔 것과 같은 이유).
+     * 여기서는 **요청한 언어의 자리를 골라** 내보내기만 한다.
+     *
+     * 영어 자리가 비면 **한국어로 떨어진다** — 부분 번역 상태에서도 화면이 정상이어야 한다.
+     */
     res.writeHead(200, { 'content-type': 'application/json; charset=utf-8', ...CORS });
-    res.end(readFileSync(join(REGISTRY_DIR, 'registry.json'), 'utf-8'));
+    const raw = readFileSync(join(REGISTRY_DIR, 'registry.json'), 'utf-8');
+    res.end(lang === 'en' ? JSON.stringify(inEnglish(JSON.parse(raw)), null, 2) : raw);
     return;
   }
 
@@ -616,7 +632,9 @@ wss.on('connection', (ws, upgrade) => {
         // 상관 키(command_id)는 submit 안에서, 즉 **명령 조립 단계**에서 발급된다(BE-X-01).
         // 발화(mission_from_utterance)·대본 닫기는 대본 엔진이 받는다 — 액추에이터 4단계가
         // 아니라 매칭·재생의 일이고, 상관 키 발급·감사 적재·command_result 계약은 같다.
-        const outcome = scripts.handles(cmd.action) ? scripts.submit(cmd) : commands.submit(cmd);
+        // **이 접속의 언어로 맞춘다** (260919 · 5단계). 대본 조회는 영어 규칙(`match_en`)을
+        // 먼저 보고 안 맞으면 한국어로 한 번 더 본다 — 그 판단에 언어가 필요하다.
+        const outcome = scripts.handles(cmd.action) ? scripts.submit(cmd, lang) : commands.submit(cmd);
 
         // ACK — **두 키를 함께 내려주는 유일한 메시지.** 이게 도착해야 화면이
         // client_request_id로 걸어 둔 낙관적 UI를 command_id 사슬에 이어 붙인다.
@@ -722,8 +740,16 @@ wss.on('connection', (ws, upgrade) => {
   });
 });
 
-function log(line: string): void {
-  process.stdout.write('[mock-gateway] ' + new Date().toISOString() + ' ' + line + '\n');
+/**
+ * 서버 콘솔. **언제나 한국어다** — 화면에 안 뜨는 개발자용이고, `src/` 의 DEV_ONLY 와
+ * 같은 기준이다("화면에 뜨는가"이지 "어디에 적히는가"가 아니다).
+ *
+ * 전선에 나가는 문장과 **같은 값을 찍는 자리**가 있어(`detail` 을 보내고 또 찍는다)
+ * 표지도 받는다. 안 그러면 콘솔에 `[object Object]` 가 찍힌다.
+ */
+function log(line: Text): void {
+  const text = typeof line === 'string' ? line : gwT('ko', line.__say, line.vars);
+  process.stdout.write('[mock-gateway] ' + new Date().toISOString() + ' ' + text + '\n');
 }
 
 /**

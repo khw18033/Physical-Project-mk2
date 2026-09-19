@@ -15,6 +15,7 @@
  * 백엔드 책임이므로(REQ-302) 가시화도, 이 목 서버의 소비자도 변환 로직을 갖지 않는다.
  */
 
+import { say } from './i18n.ts';
 import { AGGREGATION, INTERVALS, METRICS_QUERY } from './config.ts';
 import type { Hub } from './hub.ts';
 import type { ActuatorState, AggregationSpec } from './protocol.ts';
@@ -88,7 +89,7 @@ export class RobotDevice {
     if (rt) rt.deviceStatus = opts.deviceStatus;
     if (opts.deviceStatus === 'fault') {
       const r = this.hub.runtime.get(id);
-      if (r) r.note = '구동부 응답 없음 — 기기 자기보고 fault';
+      if (r) r.note = say('dev.driveNoAnswer');
     }
   }
 
@@ -615,7 +616,7 @@ export function createFleet(hub: Hub): Fleet {
   const r3 = hub.runtime.get('robot-03');
   if (r3) {
     r3.deployment = 'not_deployed';
-    r3.note = '배포되지 않아 값이 오지 않음 — 레지스트리 목록에만 존재';
+    r3.note = say('dev.notDeployed');
   }
 
   const s1 = new SensorDevice(hub, 'sensor-01', { level: 1.42, flow: 0.31 });
@@ -627,7 +628,7 @@ export function createFleet(hub: Hub): Fleet {
   const s4 = hub.runtime.get('sensor-04');
   if (s4) {
     s4.forcedOffline = true;
-    s4.note = 'LWT로 연결 단절 감지';
+    s4.note = say('dev.lwtLost');
   }
 
   const c2 = new CameraDevice(hub, 'camera-02');

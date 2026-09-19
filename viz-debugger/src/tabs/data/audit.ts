@@ -19,7 +19,7 @@
  */
 
 import { t } from '../../i18n/dict.ts';
-import { GATEWAY } from '../../transport/index.ts';
+import { GATEWAY, withLang } from '../../transport/index.ts';
 import { toAuditEntry, type AuditEntry } from '../../shared/auditFieldMap.ts';
 import { commandTracker, type TrackedCommand } from '../../shared/commandCenter.ts';
 
@@ -61,7 +61,7 @@ export async function fetchAuditTrail(
   params.set('limit', String(limit));
 
   try {
-    const res = await fetch(GATEWAY.http + '/audit?' + params.toString());
+    const res = await fetch(withLang(GATEWAY.http + '/audit?' + params.toString()));
     if (!res.ok) {
       return { ...EMPTY, error: t('aud.httpStatus', { status: res.status }) };
     }

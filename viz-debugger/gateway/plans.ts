@@ -23,6 +23,7 @@
  * 주기 폴링은 전부 낭비다.
  */
 
+import { say, type Text } from './i18n.ts';
 import { SCENARIO_TIMING } from './config.ts';
 import type { Hub } from './hub.ts';
 
@@ -31,9 +32,9 @@ export type SegmentStatus = 'pending' | 'running' | 'done' | 'failed' | 'skipped
 export type PlanSegment = {
   index: number;
   total: number;
-  title: string;
+  title: Text;
   /** 이 구간이 지나는 구역. 여러 구역에 걸친 계획은 구역별 구간과 순서를 함께 본다. */
-  zone: string;
+  zone: Text;
   /** 대본 계획의 구간 = 마일스톤. 재생기가 태스크 상태를 접어 이 id 로 갱신한다. */
   milestone_id?: string;
   status: SegmentStatus;
@@ -42,13 +43,13 @@ export type PlanSegment = {
   /** 실패 구간의 상세 — **어느 단계에서 왜**인지. */
   failure: {
     /** 하달 → ACK → 수행 중 어느 단계에서 멈췄나. */
-    failed_stage: string;
-    reason: string;
+    failed_stage: Text;
+    reason: Text;
     dispatched_at: string;
     acked_at: string | null;
     failed_at: string;
     /** 이 판정이 어디서 왔는가. 화면이 근거를 되짚을 수 있어야 한다. */
-    judged_by: string;
+    judged_by: Text;
   } | null;
 };
 
@@ -62,22 +63,22 @@ export type PlanSegment = {
 export type ProducedBy = 'ai' | 'backend' | 'human';
 
 export type ProvenanceStep = {
-  stage: string;
+  stage: Text;
   produced_by: ProducedBy;
   /** 어느 요구사항이 이 구간의 담당을 정하는가. */
   ref: string;
   at: string | null;
-  detail: string;
+  detail: Text;
 };
 
 /** VZ-U-07 — 승인 화면이 펼쳐 보여야 하는 근거. */
 export type PlanEvidence = {
   /** 전역 임무 — 이 계획이 어디서 나왔나. */
-  mission: { id: string; title: string; requested_by: string; created_at: string };
+  mission: { id: string; title: Text; requested_by: Text; created_at: string };
   /** 구역 분할 — 어느 구역을 어떤 순서로. */
-  zones: Array<{ zone: string; order: number; segment_count: number }>;
+  zones: Array<{ zone: Text; order: number; segment_count: number }>;
   /** 검증 결과 — 무슨 검증을 통과했나. **AI 산출물이다**(AI-D-02). */
-  validations: Array<{ rule: string; result: 'pass' | 'warn'; detail: string }>;
+  validations: Array<{ rule: Text; result: 'pass' | 'warn'; detail: Text }>;
   /** 생성기·입력 맥락 버전. 같은 입력에 다른 결과가 나올 때 되짚는 근거. */
   generator: { name: string; version: string; context_version: string };
   /** 어디까지가 AI 산출물이고 어디부터가 백엔드 중계인가. */
@@ -90,7 +91,7 @@ export type Plan = {
   /** pending → approved/rejected. **pending 동안 진행 이벤트가 없다.** */
   decision: 'pending' | 'approved' | 'rejected';
   decided_at: string | null;
-  reject_reason: string | null;
+  reject_reason: Text | null;
   evidence: PlanEvidence;
   segments: PlanSegment[];
   /**
@@ -103,10 +104,10 @@ export type Plan = {
    * 화면이 "AI와 직접 주고받는 것이 아니다"를 표시하는 근거.
    */
   route: {
-    generated_by: string;
-    delivered_by: string;
-    decision_returns_to: string;
-    dispatches_to: string;
+    generated_by: Text;
+    delivered_by: Text;
+    decision_returns_to: Text;
+    dispatches_to: Text;
   };
   /** 승인 수신 → 엣지·로봇 발행 사이의 중계 상태. */
   relay_stage: 'awaiting_decision' | 'decision_received' | 'dispatched' | 'halted';
@@ -116,7 +117,7 @@ export type Plan = {
    */
   script?: {
     mission_id: string;
-    title: string;
+    title: Text;
     matched_keywords: string[];
     world: 'registry' | 'legacy';
   };
@@ -125,12 +126,13 @@ export type Plan = {
 /** proposeScript() 의 입력 — 대본(또는 옛 편)에서 계획을 만드는 데 필요한 만큼만. */
 export type ScriptPlanSeed = {
   missionId: string;
-  title: string;
+  /** 화면이 그리는 임무 이름. 만들 때는 표지일 수 있다 (`gateway/i18n.ts`). */
+  title: Text;
   world: 'registry' | 'legacy';
   utteranceText: string;
   matchedKeywords: string[];
-  /** 등장 장비가 속한 구역. 구판 세계는 구역과 연결되지 않으므로 표기용 문자열이다. */
-  zone: string;
+  /** 등장 장비가 속한 구역. 구판 세계는 구역과 연결되지 않으므로 **표기용**이다. */
+  zone: Text;
   milestones: Array<{ id: string; title: string }>;
 };
 
@@ -139,11 +141,11 @@ function nowIso(): string {
 }
 
 const SEGMENT_TITLES = [
-  { title: '출발점 → 복도 진입', zone: 'zone-503' },
-  { title: '복도 통과', zone: 'zone-503' },
-  { title: '교차점 진입', zone: 'zone-504' },
-  { title: '장애물 회피 구간', zone: 'zone-504' },
-  { title: 'zone-503 입구 정지', zone: 'zone-503' },
+  { title: say('seg.start'), zone: 'zone-503' },
+  { title: say('seg.corridor'), zone: 'zone-503' },
+  { title: say('seg.junction'), zone: 'zone-504' },
+  { title: say('seg.avoid'), zone: 'zone-504' },
+  { title: say('seg.stopAtEntry'), zone: 'zone-503' },
 ];
 
 export class PlanEngine {
@@ -180,16 +182,16 @@ export class PlanEngine {
       command_id: null,
       relay_stage: 'awaiting_decision',
       route: {
-        generated_by: 'AI 계획 생성기 (AI-D-01)',
-        delivered_by: '백엔드 승인 중계 (BE-X-04)',
-        decision_returns_to: '백엔드 승인 중계 (BE-X-04)',
-        dispatches_to: '엣지 · 로봇 (HW-R-05)',
+        generated_by: say('relay.aiPlanner'),
+        delivered_by: say('relay.backend'),
+        decision_returns_to: say('relay.backend'),
+        dispatches_to: say('relay.edgeRobot'),
       },
       evidence: {
         mission: {
           id: 'msn-503-01',
-          title: '503 구역 수위 상승 대응 — 하류 순찰 후 게이트 앞 대기',
-          requested_by: '관제 (수동 하달)',
+          title: say('plan.demoTitle'),
+          requested_by: say('plan.byOperator'),
           created_at: nowIso(),
         },
         zones: [
@@ -197,33 +199,33 @@ export class PlanEngine {
           { zone: 'zone-504', order: 2, segment_count: 2 },
         ],
         validations: [
-          { rule: '경로 충돌 없음', result: 'pass', detail: '동시 운행 대상 2대와 시공간 충돌 0건' },
-          { rule: '배터리 충분', result: 'pass', detail: '예상 소모 18% · 현재 82%' },
-          { rule: '구역 진입 권한', result: 'pass', detail: 'zone-503 / zone-504 모두 허용' },
-          { rule: '장애물 지도 최신성', result: 'warn', detail: '지도 갱신 4분 경과 — 계획 시점 이후 변동 가능' },
+          { rule: say('val.noConflict'), result: 'pass', detail: say('val.noConflict.d') },
+          { rule: say('val.battery'), result: 'pass', detail: say('val.battery.d') },
+          { rule: say('val.zoneRight'), result: 'pass', detail: say('val.zoneRight.d') },
+          { rule: say('val.mapFresh'), result: 'warn', detail: say('val.mapFresh.d') },
         ],
         generator: { name: 'plan-generator', version: '0.4.2', context_version: 'ctx-2026-08-20T09:00Z' },
         provenance: [
           {
-            stage: '계획 생성',
+            stage: say('prov.generate'),
             produced_by: 'ai',
             ref: 'AI-D-01',
             at: generatedAt,
-            detail: '임무와 환경 맥락으로 구간 계획을 생성했다. 이 구간의 산출 책임은 AI에 있다.',
+            detail: say('prov.generate.d'),
           },
           {
-            stage: '계획 검증',
+            stage: say('prov.validate'),
             produced_by: 'ai',
             ref: 'AI-D-02',
             at: validatedAt,
-            detail: '충돌·배터리·권한·지도 최신성 4건을 검증했다. 검증 결과도 AI 산출물이다.',
+            detail: say('prov.validate.d'),
           },
           {
-            stage: '가시화 전달 (중계)',
+            stage: say('prov.deliver'),
             produced_by: 'backend',
             ref: 'BE-X-04',
             at: nowIso(),
-            detail: '백엔드가 AI 계획과 근거를 받아 가시화로 전달했다. 여기부터 백엔드 중계 구간이다.',
+            detail: say('prov.deliver.ai'),
           },
         ],
       },
@@ -282,54 +284,53 @@ export class PlanEngine {
         world: seed.world,
       },
       route: {
-        generated_by: '대본 라이브러리 조회 (키워드 대조 — LLM 아님)',
-        delivered_by: '백엔드 승인 중계 (BE-X-04)',
-        decision_returns_to: '백엔드 승인 중계 (BE-X-04)',
-        dispatches_to: '대본 재생기 (trace_event · 세계 채널 · CommandEngine)',
+        generated_by: say('relay.scriptLookup'),
+        delivered_by: say('relay.backend'),
+        decision_returns_to: say('relay.backend'),
+        dispatches_to: say('relay.scriptPlayer'),
       },
       evidence: {
         mission: {
           id: seed.missionId,
           title: seed.title,
-          requested_by: '발화 — mission_from_utterance',
+          requested_by: say('plan.byUtterance'),
           created_at: now,
         },
         zones: [{ zone: seed.zone, order: 1, segment_count: seed.milestones.length }],
         validations: [
           {
-            rule: '대본 매칭 — 키워드 대조 (LLM 아님)',
+            rule: say('val.scriptMatch'),
             result: 'pass',
-            detail: '맞은 키워드: ' + seed.matchedKeywords.join(' · ') + ' → ' + seed.missionId,
+            detail: say('val.scriptMatch.d', { keywords: seed.matchedKeywords.join(' · '), id: seed.missionId }),
           },
           seed.world === 'registry'
             ? {
-                rule: '등장 장비 실재',
+                rule: say('val.castReal'),
                 result: 'pass' as const,
-                detail: 'cast 전부 registry.json 에 실재 (verify:script-library 가 강제)',
+                detail: say('val.castReal.d'),
               }
             : {
-                rule: '세계 연결',
+                rule: say('val.worldLink'),
                 result: 'warn' as const,
-                detail: '이 대본은 구역 장비와 연결되지 않은 구판 세계다 — 탭②~⑤에 아무것도 따라 움직이지 않는다',
+                detail: say('val.worldLink.d'),
               },
         ],
         generator: { name: 'script-library', version: '260831', context_version: seed.missionId },
         provenance: [
           {
-            stage: '대본 조회',
+            stage: say('prov.lookup'),
             produced_by: 'backend',
             ref: 'REQ-1207',
             at: now,
             detail:
-              '문장 「' + seed.utteranceText + '」 을 키워드 대조로 대본에 맞췄다. ' +
-              '**LLM이 아니다** — 마일스톤·태스크는 미리 써 둔 대본에서 읽는다.',
+              say('prov.lookup.d', { text: seed.utteranceText }),
           },
           {
-            stage: '가시화 전달 (중계)',
+            stage: say('prov.deliver'),
             produced_by: 'backend',
             ref: 'BE-X-04',
             at: now,
-            detail: '백엔드가 대본 제안과 근거를 가시화로 전달했다. 승인 전에는 재생이 일어나지 않는다.',
+            detail: say('prov.deliver.script'),
           },
         ],
       },
@@ -374,14 +375,14 @@ export class PlanEngine {
    * 중계 구간을 한 박자 두어, 화면에서 "승인이 AI로 바로 간 것이 아니라 백엔드를
    * 거쳐 발행된다"가 눈에 보이게 한다. 거부도 같은 경로로 백엔드에 남는다.
    */
-  decide(planId: string, decision: 'approve' | 'reject', reason?: string): { ok: boolean; message: string; relayedBy: string } {
-    const relayedBy = '백엔드 승인 중계 (BE-X-04)';
+  decide(planId: string, decision: 'approve' | 'reject', reason?: string): { ok: boolean; message: Text; relayedBy: Text } {
+    const relayedBy = say('relay.backend');
     const plan = this.plan;
     if (plan === null || plan.plan_id !== planId) {
-      return { ok: false, message: '그런 계획이 없다: ' + planId, relayedBy };
+      return { ok: false, message: say('plan.notFound', { id: planId }), relayedBy };
     }
     if (plan.decision !== 'pending') {
-      return { ok: false, message: '이미 ' + plan.decision + ' 처리된 계획이다', relayedBy };
+      return { ok: false, message: say('plan.alreadyDecided', { decision: plan.decision }), relayedBy };
     }
 
     plan.decided_at = nowIso();
@@ -389,17 +390,17 @@ export class PlanEngine {
 
     if (decision === 'reject') {
       plan.decision = 'rejected';
-      plan.reject_reason = reason ?? '(사유 미기재)';
+      plan.reject_reason = reason ?? say('plan.noReason');
       plan.relay_stage = 'halted';
       plan.evidence.provenance.push({
-        stage: '거부 수신 · 발행 중단',
+        stage: say('prov.rejected'),
         produced_by: 'backend',
         ref: 'BE-X-04',
         at: plan.decided_at,
-        detail: '거부 사유를 백엔드가 받아 기록했다. 엣지·로봇으로 발행되지 않는다 — ' + plan.reject_reason,
+        detail: say('prov.rejected.d', { reason: plan.reject_reason }),
       });
       this.publishPlan();
-      return { ok: true, message: '계획 거부 — ' + plan.reject_reason, relayedBy };
+      return { ok: true, message: say('plan.rejected', { reason: plan.reject_reason }), relayedBy };
     }
 
     plan.decision = 'approved';
@@ -407,11 +408,11 @@ export class PlanEngine {
     // BE-X-01 — 상관 키는 백엔드가 발급하고 plan_id와의 매핑도 백엔드가 보유한다.
     plan.command_id = 'cmd-' + Date.now().toString(36) + '-p' + String(this.commandSeq).padStart(2, '0');
     plan.evidence.provenance.push({
-      stage: '승인 수신 (중계)',
+      stage: say('prov.approved'),
       produced_by: 'backend',
       ref: 'BE-X-04',
       at: plan.decided_at,
-      detail: '백엔드가 승인을 받아 상관 키 ' + plan.command_id + ' 를 발급했다. 아직 발행 전이다.',
+      detail: say('prov.approved.d', { key: plan.command_id }),
     });
     this.publishPlan();
 
@@ -423,20 +424,19 @@ export class PlanEngine {
         plan.evidence.provenance.push(
           plan.script !== undefined
             ? {
-                stage: '대본 재생 시작',
+                stage: say('prov.playback'),
                 produced_by: 'backend',
                 ref: 'BE-X-04',
                 at: nowIso(),
                 detail:
-                  '승인된 대본의 재생을 시작했다 — trace_event(탭①) · 세계 채널(탭②~⑤) · ' +
-                  '명령(CommandEngine)이 이제부터 나간다. 승인 전에는 하나도 나가지 않았다.',
+                  say('prov.playback.d'),
               }
             : {
-                stage: '엣지 · 로봇 발행',
+                stage: say('prov.dispatch'),
                 produced_by: 'backend',
                 ref: 'BE-X-04 → HW-R-05',
                 at: nowIso(),
-                detail: '승인된 계획만 엣지·로봇으로 발행했다. 승인 전에는 이 발행이 일어나지 않는다.',
+                detail: say('prov.dispatch.d'),
               },
         );
         this.publishPlan();
@@ -447,7 +447,7 @@ export class PlanEngine {
       }, SCENARIO_TIMING.PLAN_RELAY_MS),
     );
 
-    return { ok: true, message: '계획 승인 — 백엔드가 중계 발행 (command_id=' + plan.command_id + ')', relayedBy };
+    return { ok: true, message: say('plan.approved', { key: plan.command_id }), relayedBy };
   }
 
   /**
@@ -480,12 +480,12 @@ export class PlanEngine {
         if (this.failSegment !== null && seg.index === this.failSegment) {
           seg.status = 'failed';
           seg.failure = {
-            failed_stage: '수행 중 (ACK 이후)',
-            reason: '계획 시점에 없던 장애물 감지, 회피 경로 없음',
+            failed_stage: say('fail.whileRunning'),
+            reason: say('fail.obstacle'),
             dispatched_at: dispatchedAt,
             acked_at: new Date(Date.parse(dispatchedAt) + 500).toISOString(),
             failed_at: nowIso(),
-            judged_by: '로봇 상태 보고에 실린 결과로 판정 (HW-R-03)',
+            judged_by: say('fail.judgedBy'),
           };
           // 뒤 구간은 **하달하지 않는다.** '대기'가 아니라 '건너뜀'이어야
           // "왜 뒤 구간이 안 돌았나"가 화면에서 설명된다.

@@ -13,6 +13,7 @@
  *  3. **stale 판정을 서버가 한다** (REQ-205). 클라이언트가 계산하면 사용자 PC 시계에 의존한다.
  */
 
+import { say, type GwLang, type Text } from './i18n.ts';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
@@ -52,7 +53,7 @@ export type RegistryEntity = {
    * 어느 실물 대상을 가리키는지를 이 값 하나로 풀 수 있다 (REQ-1007).
    */
   component?: string;
-  note?: string;
+  note?: Text;
 };
 
 export type Registry = {
@@ -85,14 +86,13 @@ export type EntityRuntime = {
    * 대상 고유의 사유 메모(미배포 안내, fault 원인, LWT 감지 등).
    * availability에서 파생되는 문구는 여기 쓰지 않고 reasonFor()가 만든다.
    */
-  note: string | null;
+  note: Text | null;
   /** 직전에 내려보낸 availability. **전이 감지는 sweepAvailability만 소유한다.** */
   lastAvailability: StateLayers['availability'];
   /** 한 번이라도 상태를 내보냈는가. 전이가 없는 대상(미배포)도 첫 발행은 해야 한다. */
   everPublished: boolean;
 };
 
-import type { GwLang } from './i18n.ts';
 
 export type ClientConn = {
   id: string;
@@ -304,14 +304,14 @@ export class Hub {
    * 전이 순간에 한 번 써 넣는 방식이면, 그 전이를 다른 발행 경로가 먼저 가져갔을 때
    * 문구가 영영 비어 버린다. 파생이면 언제 발행되든 항상 맞는다.
    */
-  private reasonFor(rt: EntityRuntime, availability: StateLayers['availability']): string | null {
+  private reasonFor(rt: EntityRuntime, availability: StateLayers['availability']): Text | null {
     if (rt.deployment !== 'deployed') return rt.note;
     if (availability === 'offline') {
-      return rt.note ?? '하트비트 ' + THRESHOLDS.HEARTBEAT_MISS_COUNT + '회 연속 미수신 — 연결 두절';
+      return rt.note ?? say('hub.heartbeatLost', { n: THRESHOLDS.HEARTBEAT_MISS_COUNT });
     }
     if (availability === 'stale') {
       const sec = Math.round(THRESHOLDS.STALE_MS / 1000);
-      return '마지막 수신 이후 ' + sec + '초 경과 — 연결은 유지되나 값이 오래됨';
+      return say('hub.stale', { sec });
     }
     if (rt.deviceStatus === 'fault') return rt.note;
     return null;

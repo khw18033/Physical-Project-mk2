@@ -18,6 +18,7 @@
  *     실제 차단은 서버다(VZ-C-04 / BE-Q-04).
  */
 
+import { say, type Text } from './i18n.ts';
 import { INTERVALS, SCENARIO_TIMING } from './config.ts';
 import { commandLatency } from './controls.ts';
 import type { Hub } from './hub.ts';
@@ -31,7 +32,8 @@ import type { AuditRecord, CommandRequest, CommandResult, ControlLock } from './
  */
 export type ActionSpec = {
   action: string;
-  label: string;
+  /** 화면이 그리는 버튼 이름. 만들 때는 표지, 전선에 나갈 때는 글자다. */
+  label: Text;
   targetPct: number;
   irreversible: boolean;
   /** 이 액션이 만드는 물리 상태 이름. 화면의 "현재 상태" 표기에 쓴다. */
@@ -39,8 +41,8 @@ export type ActionSpec = {
 };
 
 const GATE_ACTIONS: ActionSpec[] = [
-  { action: 'open_gate', label: '수문 개방', targetPct: 100, irreversible: true, resultingState: 'open' },
-  { action: 'close_gate', label: '수문 폐쇄', targetPct: 0, irreversible: true, resultingState: 'closed' },
+  { action: 'open_gate', label: say('act.openGate'), targetPct: 100, irreversible: true, resultingState: 'open' },
+  { action: 'close_gate', label: say('act.closeGate'), targetPct: 0, irreversible: true, resultingState: 'closed' },
 ];
 
 export const ACTION_CATALOG: Record<string, ActionSpec[]> = {
@@ -50,7 +52,7 @@ export const ACTION_CATALOG: Record<string, ActionSpec[]> = {
 };
 
 /** 범위·권한 검사 결과. 서버가 실제로 막는다는 것을 화면이 확인할 수 있어야 한다. */
-export type PermissionVerdict = { allowed: boolean; reason: string | null };
+export type PermissionVerdict = { allowed: boolean; reason: Text | null };
 
 type ActiveCommand = {
   req: CommandRequest;
@@ -72,7 +74,7 @@ export type SubmitOutcome = {
   commandId: string;
   accepted: boolean;
   reasonCode: string | null;
-  message: string;
+  message: Text;
 };
 
 export class CommandEngine {
@@ -159,7 +161,7 @@ export class CommandEngine {
     this.setLock(entity, {
       locked: true,
       phase: 'rechecking',
-      reason: '통신 복구 — 실제 상태 재확인 중 (' + Math.round(SCENARIO_TIMING.CONTROL_RECHECK_MS / 1000) + '초)',
+      reason: say('lock.rechecking', { sec: Math.round(SCENARIO_TIMING.CONTROL_RECHECK_MS / 1000) }),
       safe_state_held: true,
       since: nowIso(),
     });
@@ -191,7 +193,7 @@ export class CommandEngine {
     const spec = specs.find((s) => s.action === req.action);
 
     if (!spec) {
-      return this.reject(req, commandId, 'unknown_action', '지원하지 않는 action: ' + req.action);
+      return this.reject(req, commandId, 'unknown_action', say('cmd.unknownAction', { action: req.action }));
     }
 
     // VZ-C-04 / BE-Q-04 — **화면이 막지 못했을 때 여기서 막힌다.**
@@ -199,21 +201,21 @@ export class CommandEngine {
     // 목 서버도 범위 밖 명령을 실제로 거부해야 그 계약이 검증된다.
     const verdict = this.permissionCheck?.(req.entity) ?? { allowed: true, reason: null };
     if (!verdict.allowed) {
-      return this.reject(req, commandId, 'out_of_scope', verdict.reason ?? '담당 권한 범위 밖 대상이다');
+      return this.reject(req, commandId, 'out_of_scope', verdict.reason ?? say('cmd.outOfScope'));
     }
 
     // REQ-909 — **서버 시각**으로 만료를 검사한다. 클라이언트 시계를 믿지 않는다.
     if (Date.parse(req.expires_at) <= Date.now()) {
-      return this.reject(req, commandId, 'expired', '만료 시각이 지난 명령이라 실행하지 않는다 (expires_at=' + req.expires_at + ')');
+      return this.reject(req, commandId, 'expired', say('cmd.expired', { at: String(req.expires_at) }));
     }
 
     const lock = this.locks.get(req.entity);
     if (lock?.locked) {
-      return this.reject(req, commandId, 'control_locked', lock.reason ?? '제어 잠금 상태');
+      return this.reject(req, commandId, 'control_locked', lock.reason ?? say('cmd.locked'));
     }
 
     if (this.active.has(req.entity)) {
-      return this.reject(req, commandId, 'busy', '이전 명령이 아직 수행 중이다');
+      return this.reject(req, commandId, 'busy', say('cmd.busy'));
     }
 
     this.begin(req, commandId, spec);
@@ -222,11 +224,11 @@ export class CommandEngine {
       commandId,
       accepted: true,
       reasonCode: null,
-      message: spec.label + ' 명령 접수',
+      message: say('cmd.accepted', { action: spec.label }),
     };
   }
 
-  private reject(req: CommandRequest, commandId: string, reasonCode: string, detail: string): SubmitOutcome {
+  private reject(req: CommandRequest, commandId: string, reasonCode: string, detail: Text): SubmitOutcome {
     this.emitResult(req, commandId, {
       status: 'rejected',
       stage: 'settled',
@@ -273,7 +275,7 @@ export class CommandEngine {
           status: 'accepted',
           stage: 'ack',
           progress_pct: null,
-          detail: '디바이스 ACK 수신',
+          detail: say('cmd.deviceAck'),
           reason_code: null,
           restored: false,
         });
@@ -301,7 +303,7 @@ export class CommandEngine {
 
     // 시나리오가 예약한 실패 지점 — 여기서 멈추고 되돌린다.
     if (cmd.failAt !== null && pct >= cmd.failAt) {
-      this.fail(entity, 'obstruction', '구동부 과부하 감지 — 개폐 중단');
+      this.fail(entity, 'obstruction', say('cmd.overload'));
       return;
     }
 
@@ -314,7 +316,7 @@ export class CommandEngine {
       status: 'accepted',
       stage: 'executing',
       progress_pct: pct,
-      detail: '수행 중 · 개도 ' + Math.round(pos) + '%',
+      detail: say('cmd.running', { pct: Math.round(pos) }),
       reason_code: null,
       restored: false,
     });
@@ -334,7 +336,7 @@ export class CommandEngine {
       status: 'accepted',
       stage: 'physical_state_changed',
       progress_pct: 100,
-      detail: '물리 상태 변화 확인 — ' + cmd.spec.resultingState,
+      detail: say('cmd.physicalConfirmed', { state: cmd.spec.resultingState }),
       reason_code: null,
       restored: false,
     });
@@ -343,17 +345,17 @@ export class CommandEngine {
       status: 'completed',
       stage: 'settled',
       progress_pct: 100,
-      detail: '백엔드가 수행 결과를 확인해 승격',
+      detail: say('cmd.promoted'),
       reason_code: null,
       restored: false,
     });
 
-    this.record(cmd.req, cmd.commandId, 'completed', cmd.spec.label + ' 완료');
+    this.record(cmd.req, cmd.commandId, 'completed', say('cmd.done', { action: cmd.spec.label }));
     this.clear(entity);
   }
 
   /** 실패 — **이전 상태로 복원**하고 사유를 표시한다. */
-  private fail(entity: string, reasonCode: string, detail: string): void {
+  private fail(entity: string, reasonCode: string, detail: Text): void {
     const cmd = this.active.get(entity);
     if (!cmd) return;
 
@@ -364,7 +366,7 @@ export class CommandEngine {
       status: 'failed',
       stage: 'settled',
       progress_pct: null,
-      detail: detail + ' — 이전 상태(' + cmd.previousState + ')로 복원',
+      detail: say('cmd.rolledBack', { why: detail, state: cmd.previousState }),
       reason_code: reasonCode,
       restored: true,
     });
@@ -412,7 +414,7 @@ export class CommandEngine {
    * 기록의 **1차 키는 command_id**다(BE-X-01의 사슬). 요청 식별자도 남기지만 그건
    * "어느 브라우저 요청에서 시작됐나"의 참고값이지 조회 키가 아니다.
    */
-  private record(req: CommandRequest, commandId: string, result: string, detail: string): void {
+  private record(req: CommandRequest, commandId: string, result: string, detail: Text): void {
     this.audit.unshift({
       command_id: commandId,
       // 조회 키가 아니라 출처 표시. 백엔드가 두 키의 매핑을 보유한다는 계약의 흔적이다.
@@ -440,7 +442,7 @@ export class CommandEngine {
    * **감사 저장소는 하나여야 한다** (VZ-I-05) — 발화로 낸 명령이 감사에서 사라지면
    * REQ-1305(voice 감사 필드)가 이 지점에서 끊긴다.
    */
-  recordExternal(req: CommandRequest, commandId: string, result: string, detail: string): void {
+  recordExternal(req: CommandRequest, commandId: string, result: string, detail: Text): void {
     this.record(req, commandId, result, detail);
   }
 

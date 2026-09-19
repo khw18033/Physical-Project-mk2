@@ -13,7 +13,7 @@
  */
 
 import { t } from '../../i18n/dict.ts';
-import { GATEWAY } from '../../transport/index.ts';
+import { GATEWAY, withLang } from '../../transport/index.ts';
 
 export type RegistryEntity = {
   id: string;
@@ -72,7 +72,8 @@ export function emptyRegistry(): Registry {
 
 export async function fetchRegistry(signal?: AbortSignal): Promise<{ registry: Registry; error: string | null }> {
   try {
-    const res = await fetch(GATEWAY.http + '/registry', { signal });
+    // **언어를 실어 묻는다** — 이름과 별칭의 영어는 레지스트리가 이미 갖고 있다.
+    const res = await fetch(withLang(GATEWAY.http + '/registry'), { signal });
     if (!res.ok) return { registry: emptyRegistry(), error: t('rg.httpStatus', { status: res.status }) };
     const registry = (await res.json()) as Registry;
     return { registry, error: null };

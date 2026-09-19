@@ -16,9 +16,9 @@
  *     비슷한 것을 억지로 고르면 「대본 조회」가 LLM 흉내가 된다.
  */
 
-import { getLang } from '../shared/language.ts';
+import { getLang, type Lang } from '../shared/language.ts';
 import { matchEnOf } from './phrases.ts';
-import { t } from '../i18n/dict.ts';
+import { tIn } from '../i18n/dict.ts';
 import type { ScriptLibraryEntry, ScriptMatch } from './types.ts';
 
 export function normalize(text: string): string {
@@ -75,22 +75,34 @@ export type MatchOutcome =
  *
  * `ko` 에서는 한국어 규칙 하나뿐이다. 한국어 화면의 동작이 한 줄도 달라지지 않는다.
  */
-function ruleSets(entry: ScriptLibraryEntry): readonly (ScriptMatch | undefined)[] {
-  if (getLang() !== 'en') return [entry.match];
+function ruleSets(entry: ScriptLibraryEntry, lang: Lang): readonly (ScriptMatch | undefined)[] {
+  if (lang !== 'en') return [entry.match];
   const en = matchEnOf(entry.missionId);
   return en === null ? [entry.match] : [en, entry.match];
 }
 
-export function matchLibrary(sentence: string, library: readonly ScriptLibraryEntry[]): MatchOutcome {
+/**
+ * **언어를 값으로 받는다** (260919 · 5단계). 기본값은 지금 화면의 언어다.
+ *
+ * 전에는 안에서 `getLang()` 을 불렀는데, 목 게이트웨이가 이 함수를 그대로 끌어 쓴다.
+ * 서버에는 브라우저 전역이 없어 `getLang()` 이 늘 `ko` 였고, **게이트웨이 경로에서는
+ * 3단계의 영어 조회 규칙(`match_en`)이 아예 안 돌고 있었다.** 영어로 말해도 한국어
+ * 규칙으로만 맞춰 보고 「맞는 대본이 없다」고 한국어로 답했다.
+ */
+export function matchLibrary(
+  sentence: string,
+  library: readonly ScriptLibraryEntry[],
+  lang: Lang = getLang(),
+): MatchOutcome {
   // 규칙 벌 차례대로 — 영어로 하나가 맞으면 한국어 규칙은 안 본다.
-  const passes = getLang() === 'en' ? [0, 1] : [0];
+  const passes = lang === 'en' ? [0, 1] : [0];
   let hits: readonly ScriptLibraryEntry[] = [];
   let used = new Map<string, ScriptMatch>();
   for (const pass of passes) {
     const found: ScriptLibraryEntry[] = [];
     const rules = new Map<string, ScriptMatch>();
     for (const entry of library) {
-      const rule = ruleSets(entry)[pass];
+      const rule = ruleSets(entry, lang)[pass];
       if (rule === undefined) continue;
       if (matchesRule(sentence, rule)) { found.push(entry); rules.set(entry.missionId, rule); }
     }
@@ -102,11 +114,11 @@ export function matchLibrary(sentence: string, library: readonly ScriptLibraryEn
     return { kind: 'matched', entry: hits[0], keywords: matchedKeywords(sentence, used.get(hits[0].missionId) ?? hits[0].match) };
   }
   if (hits.length === 0) {
-    return { kind: 'none', reason: t('match.none') };
+    return { kind: 'none', reason: tIn(lang, 'match.none') };
   }
   return {
     kind: 'ambiguous',
     candidates: hits.map((entry) => entry.missionId),
-    reason: t('match.ambiguous', { ids: hits.map((entry) => entry.missionId).join(', ') }),
+    reason: tIn(lang, 'match.ambiguous', { ids: hits.map((entry) => entry.missionId).join(', ') }),
   };
 }

@@ -89,7 +89,8 @@
     "verify:dict-shape": "node scripts/verify-dict-shape.mjs",
     "verify:no-raw-korean": "node scripts/verify-no-raw-korean.mjs",
     "verify:i18n-no-frozen": "node scripts/verify-i18n-no-frozen.mjs",
-    "verify:gateway-types": "node scripts/verify-gateway-types.mjs"
+    "verify:gateway-types": "node scripts/verify-gateway-types.mjs",
+    "verify:gateway-i18n": "node scripts/verify-gateway-i18n.mjs"
   },
   "dependencies": {
     "mqtt": "^5.15.2",
