@@ -119,4 +119,14 @@ export const GW_EN: Record<string, string> = {
   'risk.recovery.water': '-0.34m from the peak',
   'risk.recovery.rec': 'Confirm the recovery trend; do not switch back to normal yet',
   'ai.timeout': 'Inference exceeded the 500ms limit — the on-device minimum safety judgement keeps running',
+
+  // ── 지표 조회 · 오류 (server.ts) ───────────────────────────────────────────
+  'mq.viaSummary': 'Backend query proxy (BE-Q-01) — a zone summary already pulled in by federation',
+  'mq.viaRaw': 'Backend query proxy (BE-Q-01) → edge raw-store relay (BE-T-05)',
+  'mq.heavyRange': 'Range {min} min — the raw series is sampled every {sec}s, so it carries about {times}× the points of the summary and also goes through the edge relay',
+  'mq.truncated': 'Truncated at the {max}-point cap',
+  'err.badJson': 'Could not parse the JSON',
+  'err.badSelector': 'A subscription must be expressed on the contract axes {entity, node, channel}',
+  'err.commandFields': 'A command needs client_request_id and entity (VZ-O-01)',
+  'err.unknownType': 'Unknown message type',
 };

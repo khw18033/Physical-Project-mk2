@@ -120,4 +120,14 @@ export const GW_KO: Record<string, string> = {
   'risk.recovery.water': '정점 대비 -0.34m',
   'risk.recovery.rec': '복구 추세 확인, 즉시 평시 전환 금지',
   'ai.timeout': '추론 제한 500ms 초과 — 온디바이스 최소 안전 판단은 계속 동작',
+
+  // ── 지표 조회 · 오류 (server.ts) ───────────────────────────────────────────
+  'mq.viaSummary': '백엔드 질의 프록시 (BE-Q-01) — 페더레이션으로 이미 당겨 둔 구역 요약',
+  'mq.viaRaw': '백엔드 질의 프록시 (BE-Q-01) → 엣지 원본 저장소 중계 (BE-T-05)',
+  'mq.heavyRange': '조회 범위 {min}분 — 원본은 {sec}초 간격이라 요약보다 점이 약 {times}배 많고, 엣지 중계까지 거친다',
+  'mq.truncated': '점 개수 상한 {max}개에서 잘렸다',
+  'err.badJson': 'JSON 파싱 실패',
+  'err.badSelector': '구독은 계약 축 {entity, node, channel}로 표현해야 한다',
+  'err.commandFields': '명령에는 client_request_id와 entity가 필요하다 (VZ-O-01)',
+  'err.unknownType': '알 수 없는 메시지 타입',
 };

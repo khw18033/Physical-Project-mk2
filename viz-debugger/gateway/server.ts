@@ -264,7 +264,7 @@ async function metricsQuery(params: URLSearchParams): Promise<MetricsQueryResult
       query: { entity, metric, mode, range_min: rangeMin, requested_at: requestedAt },
       // 평시 조회는 구역 요약이다. 화면은 이 표기를 읽어 재집약을 막는다.
       aggregation: AGGREGATION.ZONE_SUMMARY,
-      route: { via: '백엔드 질의 프록시 (BE-Q-01) — 페더레이션으로 이미 당겨 둔 구역 요약', relay_ms: 0 },
+      route: { via: say('mq.viaSummary'), relay_ms: 0 },
       heavy: false,
       heavy_reason: null,
       point_interval_sec: stepSec,
@@ -287,16 +287,18 @@ async function metricsQuery(params: URLSearchParams): Promise<MetricsQueryResult
     query: { entity, metric, mode, range_min: rangeMin, requested_at: requestedAt },
     aggregation: 'raw',
     route: {
-      via: '백엔드 질의 프록시 (BE-Q-01) → 엣지 원본 저장소 중계 (BE-T-05)',
+      via: say('mq.viaRaw'),
       relay_ms: relayMs,
     },
     heavy: heavy || truncated,
     heavy_reason: heavy
-      ? '조회 범위 ' + rangeMin + '분 — 원본은 ' + METRICS_QUERY.RAW_POINT_INTERVAL_SEC +
-        '초 간격이라 요약보다 점이 약 ' + Math.round(INTERVALS.OBSERVABILITY_MS / 1000 / METRICS_QUERY.RAW_POINT_INTERVAL_SEC) +
-        '배 많고, 엣지 중계까지 거친다'
+      ? say('mq.heavyRange', {
+        min: rangeMin,
+        sec: METRICS_QUERY.RAW_POINT_INTERVAL_SEC,
+        times: Math.round(INTERVALS.OBSERVABILITY_MS / 1000 / METRICS_QUERY.RAW_POINT_INTERVAL_SEC),
+      })
       : truncated
-        ? '점 개수 상한 ' + METRICS_QUERY.MAX_POINTS + '개에서 잘렸다'
+        ? say('mq.truncated', { max: METRICS_QUERY.MAX_POINTS })
         : null,
     point_interval_sec: METRICS_QUERY.RAW_POINT_INTERVAL_SEC,
     points: raw.map((s) => ({ t: new Date(s.t).toISOString(), value: s.value })),
@@ -591,14 +593,14 @@ wss.on('connection', (ws, upgrade) => {
     try {
       msg = JSON.parse(String(raw)) as ClientMessage;
     } catch {
-      conn.send({ type: 'error', message: 'JSON 파싱 실패' });
+      conn.send({ type: 'error', message: say('err.badJson') });
       return;
     }
 
     switch (msg.type) {
       case 'subscribe': {
         if (!isSelector(msg.selector)) {
-          conn.send({ type: 'error', message: '구독은 계약 축 {entity, node, channel}로 표현해야 한다' });
+          conn.send({ type: 'error', message: say('err.badSelector') });
           return;
         }
         const scope = normalizeScope(msg.scope);
@@ -624,7 +626,7 @@ wss.on('connection', (ws, upgrade) => {
       case 'command': {
         const cmd = msg.command as CommandRequest | undefined;
         if (!cmd || typeof cmd.client_request_id !== 'string' || typeof cmd.entity !== 'string') {
-          conn.send({ type: 'error', message: '명령에는 client_request_id와 entity가 필요하다 (VZ-O-01)' });
+          conn.send({ type: 'error', message: say('err.commandFields') });
           return;
         }
 
@@ -722,7 +724,7 @@ wss.on('connection', (ws, upgrade) => {
         conn.send({ type: 'pong', t: msg.t, server_time: new Date().toISOString() });
         return;
       default:
-        conn.send({ type: 'error', message: '알 수 없는 메시지 타입' });
+        conn.send({ type: 'error', message: say('err.unknownType') });
     }
   });
 

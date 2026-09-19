@@ -30,6 +30,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
 import { matchLibrary } from '../src/scenarios/matcher.ts';
+import { scriptPhrase } from '../src/scenarios/phrases.ts';
 import { LEGACY_ID, SCRIPT_IDS } from '../src/scenarios/manifest.ts';
 import type { ScriptLibraryEntry, ScriptMatch, ScriptScenario, WorldDrive } from '../src/scenarios/types.ts';
 import { SCENARIO_TIMING } from './config.ts';
@@ -223,7 +224,7 @@ export class ScriptEngine {
         }
       : null;
 
-    const seed = this.seedFor(entry, text, outcome.keywords);
+    const seed = this.seedFor(entry, text, outcome.keywords, lang);
     const plan = plans.proposeScript(seed);
 
     const detail = say('scr.matched', {
@@ -236,7 +237,7 @@ export class ScriptEngine {
     return { clientRequestId: req.client_request_id, commandId, accepted: true, reasonCode: null, message: detail };
   }
 
-  private seedFor(entry: ScriptLibraryEntry, text: string, keywords: string[]) {
+  private seedFor(entry: ScriptLibraryEntry, text: string, keywords: string[], lang: GwLang) {
     if (entry.script !== null) {
       const zone = this.deps.hub.runtime.get(entry.script.cast[0])?.zone ?? 'zone-503';
       return {
@@ -246,7 +247,8 @@ export class ScriptEngine {
         utteranceText: text,
         matchedKeywords: keywords,
         zone,
-        milestones: entry.script.milestones.map((m) => ({ id: m.id, title: m.title })),
+        // 구간 이름은 **대본의 것**이다 — 사전이 아니라 그 편의 사이드카가 영어를 갖고 있다.
+        milestones: entry.script.milestones.map((m) => ({ id: m.id, title: scriptPhrase(entry.missionId, m.title, lang) })),
       };
     }
     return {

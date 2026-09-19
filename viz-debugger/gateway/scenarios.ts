@@ -6,6 +6,21 @@
  * **전이하는 순간**이 맞는지를 봐야 하므로 전이를 손으로 재생할 수 있어야 한다.
  *
  * 실행: `npm run scenario -- camera-silence`  또는  WS로 { type: 'scenario', name: ... }
+ *
+ * ## 이 파일의 한국어는 **옮기지 않는다** (260919 · 영문화 5단계)
+ *
+ * `title`·`expect` 89건은 **화면에 닿지 않는다.**
+ *
+ *   - `/scenarios` 를 **화면이 한 번도 안 부른다** (개발 패널은 이름으로 실행만 한다)
+ *   - WS 로 실행하면 `{type:'scenario', message}` 가 돌아오는데 **받는 쪽에 핸들러가 없다**
+ *     (`WsTransport` 의 case 목록에 `scenario` 가 없다 — 쏘고 잊는다)
+ *
+ * 즉 이것은 **개발자가 콘솔로 읽는 글**이고, `src/` 의 DEV_ONLY 와 같은 갈래다 —
+ * 기준은 「화면에 뜨는가」이지 「어디에 적히는가」가 아니다. 안 보이는 글자를 사전에 넣으면
+ * 그 키가 영구히 남아 번역 검수 대상이 되고, 「이건 어디 뜨느냐」를 다음 사람이 매번 다시 묻는다.
+ *
+ * 정적으로 세지 않고 **게이트웨이를 띄워 전선에서 받아** 가린 결과다 (`verify:gateway-wire`).
+ * 화면이 이 목록을 읽기 시작하면 그 검사가 곧바로 빨개진다.
  */
 
 import { CACHE_POLICY, CACHEABLE_CHANNELS, INTERVALS, NON_CACHEABLE_CHANNELS, ROLES, SCENARIO_TIMING, THRESHOLDS } from './config.ts';

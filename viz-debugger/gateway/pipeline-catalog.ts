@@ -1,5 +1,13 @@
 // 이식: web-dashboard/mock-gateway/pipeline-catalog.ts @ 700ed91 — pipeline-contract 경로만 조정
 /**
+ * **이 파일의 한국어는 옮기지 않는다** (260919 · 영문화 5단계).
+ *
+ * 이것을 쓰던 탭⑥(파이프라인 편집기)은 2026-08-31 에 제거됐다 — **소비하는 화면이 없다.**
+ * 4단계에서 `src/shared/pipeline-contract.ts` 를 같은 이유로 남겨 둔 것과 한 자리다.
+ *
+ * 편집기가 돌아오면 그때 같이 옮긴다. 그때까지 안 보이는 글자를 사전에 넣지 않는다.
+ */
+/**
  * mock-gateway/pipeline-catalog.ts
  *
  * REQ-1003 — 노드 카탈로그를 **등록된 디스크립터·렌더러·데이터소스에서 파생**한다.

@@ -26,7 +26,7 @@
  * 지키는 가장 싼 방법이다. 참조가 그대로라 `useSyncExternalStore` 의 같음 비교도 안 깨진다.
  */
 
-import { getLang } from '../shared/language.ts';
+import { getLang, type Lang } from '../shared/language.ts';
 import en260826 from '../../scenarios/MSN-260826-01.en.json' with { type: 'json' };
 import en260831a from '../../scenarios/MSN-260831-01.en.json' with { type: 'json' };
 import en260831b from '../../scenarios/MSN-260831-02.en.json' with { type: 'json' };
@@ -51,8 +51,15 @@ const BY_ID = new Map<string, Sidecar>(SIDECARS.map((s) => [s.missionId, s]));
  * 값이 한국어가 아니면(숫자·식별자) 찾지도 않는다. 번역 대상이 아닌 것을 사이드카에
  * 넣으라고 검사가 조르는 일이 없게 한다.
  */
-export function scriptPhrase(missionId: string | null | undefined, korean: string): string {
-  if (getLang() !== 'en' || missionId === null || missionId === undefined) return korean;
+export function scriptPhrase(
+  missionId: string | null | undefined,
+  korean: string,
+  lang: Lang = getLang(),
+): string {
+  // 260919 — **언어를 값으로 받는다.** 목 게이트웨이가 이 함수를 그대로 끌어 쓰는데,
+  // 서버에는 브라우저 전역이 없어 `getLang()` 이 늘 `ko` 다. 그래서 승인 팝업의 구간
+  // 이름(대본 마일스톤)이 영문 화면에서도 한국어로 남아 있었다 — `verify:gateway-wire` 가 찾았다.
+  if (lang !== 'en' || missionId === null || missionId === undefined) return korean;
   return BY_ID.get(missionId)?.phrases[korean] ?? korean;
 }
 

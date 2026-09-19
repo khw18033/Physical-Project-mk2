@@ -297,12 +297,14 @@ export type MetricsQueryResult = {
   aggregation: AggregationSpec;
   /** 어느 경로로 왔는가. 원본 질의는 엣지 중계를 경유하므로 지연이 붙는다. */
   route: {
-    via: string;
+    /** 어느 경로로 왔나. 만들 때는 표지일 수 있다. */
+    via: Text;
     relay_ms: number;
   };
   /** 조회 범위가 넓어 무거운 질의인가. 화면이 안내를 띄우는 근거. */
   heavy: boolean;
-  heavy_reason: string | null;
+  /** 왜 무거운가 — 만들 때는 표지일 수 있다 (`gateway/i18n.ts`). */
+  heavy_reason: Text | null;
   point_interval_sec: number;
   points: Array<{ t: string; value: number }>;
 };
