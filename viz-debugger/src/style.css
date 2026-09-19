@@ -33,8 +33,16 @@
 .robot-log__lines .is-empty span{color:#8a94a1}
 /* 탐지 · 오간 로그 (260914) — 로봇 명령 로그와 같은 모양에 구간 딱지 하나를 더한다. */
 .detect-log{margin-top:14px}
-.detect-log__lines{margin:6px 0 0;padding:0;list-style:none;display:grid;gap:4px}
-.detect-log__lines li{display:grid;grid-template-columns:88px 84px 1fr;gap:8px;font-size:12px;line-height:1.45}
+/* 칸 폭을 **내용에 맞춘다** (260919). 전에는 구간 딱지 칸이 84px 고정이었는데, 그 값은
+   한국어(`탐지 → 화면`)에 맞춘 것이라 영어(`detection → screen`)가 넘쳐 **글자 위로 겹쳤다**
+   (딱지에 `white-space:nowrap` 이 걸려 있어 줄바꿈으로도 안 빠졌다).
+   격자를 줄마다 두지 않고 **목록 하나에** 둔다 — 그래야 칸이 내용에 맞으면서도 줄끼리 맞는다. */
+.detect-log__lines{
+  margin:6px 0 0;padding:0;list-style:none;
+  display:grid;grid-template-columns:auto auto 1fr;gap:4px 8px;
+  font-size:12px;line-height:1.45;
+}
+.detect-log__lines li{display:contents}
 .detect-log__lines time{color:#8a94a1;font-variant-numeric:tabular-nums}
 .detect-log__lines em{font-style:normal;font-size:10.5px;padding:1px 6px;border-radius:9px;background:#eef1f5;color:#4a5666;align-self:start;text-align:center;white-space:nowrap}
 .detect-log__lines .lane-robot em{background:#e8f0fb;color:#2f5f9c}
