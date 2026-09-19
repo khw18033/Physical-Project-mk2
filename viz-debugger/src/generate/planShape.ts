@@ -47,6 +47,16 @@ export type PlanShapeWarning = {
  * `때까지` 를 한 덩어리로 본다 — 「찾을 **때까지**」는 루프이고 「엘리베이터**까지**」는
  * 아니다. 조사 하나가 그 둘을 가른다.
  */
+/**
+ * **이 표지들은 옮기지 않는다** (260919 · 4단계).
+ *
+ * 화면에 뜨는 글자가 아니라 **사용자 발화를 `includes()` 로 읽는 키워드**다. 영어로 바꾸면
+ * 「…할 때까지 반복해」를 못 잡아 되풀이 경고가 사라진다. 4단계 기계 패스가 한 번
+ * 사전으로 옮겼던 것을 되돌렸다.
+ *
+ * 영어 발화까지 잡으려면 영어 표지를 **새로 지어** 옆에 두어야 한다 — 3단계가
+ * `match_en` 으로 한 것과 같은 모양이고, 그건 별개의 작업이다.
+ */
 const LOOP_MARKERS = ['때까지', '반복', '계속', '재탐색', '주기적', '다시 시도', '재시도', '할 때마다', '매번'];
 
 /**
@@ -103,8 +113,7 @@ export function planShapeWarnings(
     warnings.push({
       kind: 'loop',
       markers: loop,
-      message: '발화가 되풀이를 요구하는데 이 계획에는 되돌아가는 길이 없습니다 —'
-        + ' 지금 생성 경로는 순환 없는 계획만 만들 수 있어, 조건이 안 맞아도 다시 돌아가지 않고 다음 단계로 갑니다.',
+      message: t('ps2.loopWarning'),
     });
   }
 
@@ -113,8 +122,7 @@ export function planShapeWarnings(
     warnings.push({
       kind: 'branch',
       markers: branch,
-      message: '발화가 둘 중 하나를 고르라고 하는데 이 계획은 한 줄로 이어져 있습니다 —'
-        + ' 갈라져야 할 두 갈래가 순서대로 붙어 「둘 다 차례로 한다」로 읽힙니다.',
+      message: t('ps2.branchWarning'),
     });
   }
   return warnings;
@@ -127,3 +135,4 @@ export function planShapeWarnings(
 export function warningsPayload(warnings: readonly PlanShapeWarning[]): Array<Record<string, unknown>> {
   return warnings.map((warning) => ({ kind: warning.kind, markers: [...warning.markers], message: warning.message }));
 }
+import { t } from '../i18n/dict.ts';

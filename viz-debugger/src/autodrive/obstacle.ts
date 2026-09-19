@@ -23,6 +23,7 @@
  * 끝난 쪽이 남은 쪽의 폴링을 끄면 「값이 멈췄다」로만 보인다.
  */
 
+import { t } from '../i18n/dict.ts';
 import { useSyncExternalStore } from 'react';
 import { isReplayingRecord } from '../record/replayMode.ts';
 import { fetchObstacleJson, type FetchLike } from './aiClient.ts';
@@ -78,7 +79,7 @@ export function parseObstacle(body: unknown, receivedAtMs = Date.now()): Obstacl
       : null;
     detections.push({
       id: num(d.id),
-      name: str(d.name) ?? '(이름 없음)',
+      name: str(d.name) ?? t('ob2.1'),
       group: str(d.group),
       relDepth: num(d.rel_depth),
       distanceCm: num(d.distance_cm),
@@ -155,16 +156,16 @@ const nearWords = (snap: ObstacleSnapshot) => snap.detections
 export function receiveObstacle(body: unknown, via: 'relay' | 'direct', nowMs = Date.now()): boolean {
   const snap = parseObstacle(body, nowMs);
   if (snap === null) {
-    commit({ ...state, error: '모양이 다릅니다 — detections 배열이 없습니다', log: withLog(state.log, state.error === null ? [{ atMs: nowMs, level: 'warn', text: '받은 JSON 의 모양이 다릅니다' }] : []) });
+    commit({ ...state, error: t('ob2.2'), log: withLog(state.log, state.error === null ? [{ atMs: nowMs, level: 'warn', text: t('ob2.3') }] : []) });
     return false;
   }
   const prev = state.latest;
   const lines: ObstacleLogLine[] = [];
-  if (state.error !== null) lines.push({ atMs: nowMs, level: 'info', text: '다시 받습니다' });
+  if (state.error !== null) lines.push({ atMs: nowMs, level: 'info', text: t('ob2.4') });
   if (snap.hasNearObstacle !== null && snap.hasNearObstacle !== (prev?.hasNearObstacle ?? null)) {
     lines.push(snap.hasNearObstacle
-      ? { atMs: nowMs, level: 'warn', text: `가까운 장애물 있음 — ${nearWords(snap) || 'near 표시 없음'}` }
-      : { atMs: nowMs, level: 'info', text: '가까운 장애물 없음' });
+      ? { atMs: nowMs, level: 'warn', text: t('ob2.nearPresent', { what: nearWords(snap) || t('ob2.noneMarked') }) }
+      : { atMs: nowMs, level: 'info', text: t('ob2.5') });
   }
   if (snap.stateChange === true && prev?.stateChange !== true) lines.push({ atMs: nowMs, level: 'warn', text: 'state_change: true' });
   const sameClock = prev !== null && snap.timestampSec !== null && prev.timestampSec === snap.timestampSec;
@@ -176,7 +177,7 @@ export function receiveObstacle(body: unknown, via: 'relay' | 'direct', nowMs = 
 
 /** 실패 한 건. 같은 사유가 이어지면 줄을 또 적지 않는다. */
 export function noteObstacleError(reason: string, nowMs = Date.now()): void {
-  const lines: ObstacleLogLine[] = state.error === reason ? [] : [{ atMs: nowMs, level: 'warn', text: `못 받았습니다 — ${reason}` }];
+  const lines: ObstacleLogLine[] = state.error === reason ? [] : [{ atMs: nowMs, level: 'warn', text: t('ob2.notReceived', { reason }) }];
   commit({ ...state, error: reason, log: withLog(state.log, lines) });
 }
 

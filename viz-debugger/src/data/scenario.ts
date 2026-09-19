@@ -38,6 +38,7 @@
  * 정지 미리보기**이고, 그 둘은 열이 비어 있다.
  */
 
+import { t } from '../i18n/dict.ts';
 import { translateEvents, translateView } from '../scenarios/phrases.ts';
 import { useSyncExternalStore } from 'react';
 import { foldStatuses, type FoldedStatuses } from './fold.ts';
@@ -139,7 +140,7 @@ export const NO_MISSION = '';
 function emptyView(): MissionView {
   return {
     missionId: NO_MISSION,
-    label: '아직 임무가 없습니다',
+    label: t('sc2.noMission'),
     world: 'registry',
     utteranceText: '',
     durationSec: 0,
@@ -159,7 +160,7 @@ function emptyView(): MissionView {
 function legacyView(): MissionView {
   return {
     missionId: scenario.missionId,
-    label: '415동 → 503동 이동',
+    label: t('sc2.legacyLabel'),
     world: 'legacy',
     utteranceText: scenario.utterance.text,
     durationSec: scenario.durationSec,

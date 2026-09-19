@@ -49,6 +49,7 @@
  * 그대로 돌린다.
  */
 
+import { t } from '../i18n/dict.ts';
 import type { NodeKind } from '../model/types.ts';
 
 /** 모델이 내는 것. 마일스톤별로 **일렬로** 온다 — 그 순서가 곧 계획의 순서다. */
@@ -179,7 +180,7 @@ export function solveDeps(nodes: readonly GeneratedNode[], plan: readonly Milest
   const lastAct = new Map<string, string>();
   for (const node of nodes) {
     if (node.nodeKind !== 'act') continue;
-    const key = node.target ?? '(대상 없음)';
+    const key = node.target ?? t('sd.1');
     const previous = lastAct.get(key);
     if (previous !== undefined) {
       raw.get(node.id)!.add(previous);
@@ -292,8 +293,8 @@ export function solveDeps(nodes: readonly GeneratedNode[], plan: readonly Milest
     refEdges.push({
       from,
       to,
-      label: `${block.milestoneId} 판정이 ${repeat.when} 이면 ${repeat.to} 로`,
-      note: 'deps 에 넣으면 layout.depths() 가 무한 재귀한다 — 점선 참조 엣지로만 그린다',
+      label: t('sd.repeatEdge', { milestone: block.milestoneId, when: repeat.when, to: repeat.to }),
+      note: t('sd.2'),
     });
   }
 

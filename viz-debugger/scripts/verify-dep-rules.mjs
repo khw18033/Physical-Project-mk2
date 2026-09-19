@@ -306,8 +306,11 @@ const PLAN_ANNOTATIONS = {
 {
   const scratch = makeScratch(join(vizRoot, 'src', 'generate'), '.verify-plan-');
   try {
-    const source = readFileSync(solverPath, 'utf8')
-      .replace("from '../model/types.ts'", "from '../../model/types.ts'");
+    // **사본은 한 칸 깊은 곳에 산다** — 원본의 `../x` 는 사본에서 한 칸 더 올라가야 한다.
+    // 전에는 `../model/types.ts` 한 줄만 손으로 올렸는데, 260919 에 `../i18n/dict.ts` 가
+    // 새로 생기면서 그 자리가 깨졌다. 한 줄씩 적지 말고 **전부** 올린다
+    // (`verify-voice-audit` 의 `reroot()` 와 같은 수습이다).
+    const source = readFileSync(solverPath, 'utf8').replace(/from '\.\.\//g, "from '../../");
     const branchNodes = [
       { id: 'A1', title: '관측', nodeKind: 'sense', target: 'robot-01', milestoneId: 'MS-A' },
       { id: 'A2', title: '판정', nodeKind: 'decide', target: 'robot-01', milestoneId: 'MS-A' },
@@ -356,7 +359,8 @@ const PLAN_ANNOTATIONS = {
 {
   const scratch = makeScratch(join(vizRoot, 'src', 'generate'), '.verify-dep-');
   try {
-    const source = readFileSync(solverPath, 'utf8').replace("from '../model/types.ts'", "from '../../model/types.ts'");
+    // 위 §대조군과 같은 이유로 **전부** 올린다 (한 줄씩 적으면 import 가 늘 때마다 깨진다).
+    const source = readFileSync(solverPath, 'utf8').replace(/from '\.\.\//g, "from '../../");
     const mutants = [
       ['마일스톤 경계를 없앤 사본', source.replace('    if (order === 0) continue;', '    if (order >= 0) continue;')],
       ['sense 도 직전에 매다는 사본', source.replace('  sense: [],', "  sense: ['act', 'sense', 'decide', 'verify', 'report'],")],

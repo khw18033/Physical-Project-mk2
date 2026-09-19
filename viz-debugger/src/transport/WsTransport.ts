@@ -11,6 +11,7 @@
  *  4. scope(VZ-I-11)를 구독 요청에 실어 보내고, 봉투에 실려 돌아온 값을 그대로 상위로 넘긴다.
  */
 
+import { t } from '../i18n/dict.ts';
 import { backoffDelayMs } from './backoff.ts';
 import { pushNotification } from '../shared/notifications.ts';
 import type { Transport, Unsubscribe } from './Transport.ts';
@@ -105,7 +106,7 @@ export class WsTransport implements Transport {
     ws.onmessage = (ev) => this.onMessage(ev);
 
     ws.onerror = () => {
-      this.setStatus({ lastError: '게이트웨이 연결 오류' });
+      this.setStatus({ lastError: t('ws.1') });
     };
 
     ws.onclose = () => {
@@ -203,7 +204,7 @@ export class WsTransport implements Transport {
           display_name: (msg.display_name as string | undefined) ?? (msg.role as string),
           scope: (msg.scope as RoleInfo['scope'] | undefined) ?? { zones: [] },
           issued_at: (msg.issued_at as string | undefined) ?? new Date().toISOString(),
-          source: (msg.source as string | undefined) ?? '(출처 미표기)',
+          source: (msg.source as string | undefined) ?? t('ws.2'),
         };
         const waiters = this.roleWaiters;
         this.roleWaiters = [];
@@ -224,7 +225,7 @@ export class WsTransport implements Transport {
           pushNotification({
             id: 'PLAN-DECISION-' + String(msg.plan_id),
             source: 'command',
-            message: `계획 승인이 거절됐습니다 — ${String(msg.message ?? '사유 없음')}. 다시 요청해 새 계획을 받으세요`,
+            message: t('ws.planRejected', { why: String(msg.message ?? t('ws.noReason')) }),
             occurredAt: new Date().toISOString(),
           });
         }
@@ -293,7 +294,7 @@ export class WsTransport implements Transport {
           commandId: null,
           accepted: false,
           reasonCode: 'disconnected',
-          message: '게이트웨이 연결 없음 — 명령을 보내지 않았다',
+          message: t('ws.3'),
         });
         return;
       }
@@ -319,7 +320,7 @@ export class WsTransport implements Transport {
           commandId: null,
           accepted: false,
           reasonCode: 'ack_timeout',
-          message: '접수 응답(ACK) 없음 — 상관 키를 받지 못했다',
+          message: t('ws.4'),
         });
       }, waitMs);
     });

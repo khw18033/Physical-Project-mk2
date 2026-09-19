@@ -19,6 +19,7 @@
  * 직접 두드리고, 막히면 그 사유를 그대로 말한다.
  */
 
+import { t } from '../i18n/dict.ts';
 import { connectionAddress, registerConnectionDefault } from '../shared/connections.ts';
 
 const meta = import.meta as unknown as { env?: { VITE_AUTODRIVE_AI_BASE?: string } };
@@ -58,8 +59,8 @@ export function aiFrameUrl(nonce: number): string {
  */
 export function probeStill(timeoutMs = 6000): Promise<{ ok: boolean | null; reason: string | null; ms: number | null }> {
   const ImageCtor = (globalThis as { Image?: new () => HTMLImageElement }).Image;
-  if (ImageCtor === undefined) return Promise.resolve({ ok: null, reason: '브라우저에서만 확인합니다', ms: null });
-  if (aiBase() === '') return Promise.resolve({ ok: false, reason: '주소가 비어 있습니다', ms: null });
+  if (ImageCtor === undefined) return Promise.resolve({ ok: null, reason: t('ac.1'), ms: null });
+  if (aiBase() === '') return Promise.resolve({ ok: false, reason: t('ac.2'), ms: null });
   return new Promise((resolve) => {
     const image = new ImageCtor();
     const startedAt = Date.now();
@@ -70,9 +71,9 @@ export function probeStill(timeoutMs = 6000): Promise<{ ok: boolean | null; reas
       image.src = '';
       resolve(result);
     };
-    const timer = setTimeout(() => done({ ok: false, reason: `${timeoutMs}ms 안에 한 장도 안 왔습니다 — 스트림이 멎었을 수 있습니다`, ms: null }), timeoutMs);
+    const timer = setTimeout(() => done({ ok: false, reason: t('ac.noFrameIn', { ms: timeoutMs }), ms: null }), timeoutMs);
     image.onload = () => done({ ok: true, reason: null, ms: Date.now() - startedAt });
-    image.onerror = () => done({ ok: false, reason: '한 장을 못 받았습니다 — 스트림이 멎었거나 개발 서버 창구가 없습니다', ms: null });
+    image.onerror = () => done({ ok: false, reason: t('ac.3'), ms: null });
     image.src = aiFrameUrl(Date.now());
   });
 }
@@ -94,7 +95,7 @@ export type ObstacleFetch = { ok: true; body: unknown; via: 'relay' | 'direct' }
  */
 export async function fetchObstacleJson(fetcher: FetchLike = globalThis.fetch as unknown as FetchLike, timeoutMs = 3000): Promise<ObstacleFetch> {
   const base = aiBase();
-  if (base === '') return { ok: false, reason: '주소가 비어 있습니다 — 연결 관리에 AI 서버 주소를 넣으세요' };
+  if (base === '') return { ok: false, reason: t('ac.4') };
   const once = async (url: string): Promise<{ status: number; relayed: boolean; body: unknown } | { error: string }> => {
     const abort = new AbortController();
     const timer = setTimeout(() => abort.abort(), timeoutMs);
@@ -105,7 +106,7 @@ export async function fetchObstacleJson(fetcher: FetchLike = globalThis.fetch as
       try { body = await response.json(); } catch { body = null; }
       return { status: response.status, relayed, body };
     } catch (error) {
-      return { error: error instanceof Error ? (error.name === 'AbortError' ? `${timeoutMs}ms 안에 답이 없습니다` : error.message) : String(error) };
+      return { error: error instanceof Error ? (error.name === 'AbortError' ? t('ac.noAnswerIn', { ms: timeoutMs }) : error.message) : String(error) };
     } finally {
       clearTimeout(timer);
     }
@@ -115,13 +116,13 @@ export async function fetchObstacleJson(fetcher: FetchLike = globalThis.fetch as
   if ('status' in viaRelay && viaRelay.relayed) {
     if (viaRelay.status === 200 && viaRelay.body !== null) return { ok: true, body: viaRelay.body, via: 'relay' };
     const said = (viaRelay.body as { error?: unknown } | null)?.error;
-    return { ok: false, reason: `${viaRelay.status} — ${typeof said === 'string' ? said : '창구가 실패를 옮겼습니다'}` };
+    return { ok: false, reason: t('ac.relayFailed', { status: viaRelay.status, said: typeof said === 'string' ? said : t('ac.relaySaid') }) };
   }
   // 창구가 없다(정적 빌드 · 다른 서버). 직접.
   const direct = await once(aiControlUrl());
   if ('error' in direct) {
-    return { ok: false, reason: `직접 요청 실패 — ${direct.error} (이 서버는 CORS 를 안 열어 개발 서버 창구가 필요합니다)` };
+    return { ok: false, reason: t('ac.directFailed', { why: direct.error }) };
   }
-  if (direct.status !== 200 || direct.body === null) return { ok: false, reason: `AI 서버가 ${direct.status} 로 답했습니다` };
+  if (direct.status !== 200 || direct.body === null) return { ok: false, reason: t('ac.serverStatus', { status: direct.status }) };
   return { ok: true, body: direct.body, via: 'direct' };
 }

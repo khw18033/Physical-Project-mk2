@@ -27,6 +27,7 @@
  * 필드가 추가돼야 한다. 그 칸도 자리표시 대신 없앴다.
  */
 
+import { t } from '../i18n/dict.ts';
 import { useEffect } from 'react';
 import type { Hardware } from '../model/types.ts';
 import { DeviceStrip } from './DeviceStrip.tsx';
@@ -48,19 +49,19 @@ export function DeviceStatusOverlay({ deviceId, device, source, onClose }: {
   }, [onClose]);
 
   return <div className="modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
-    <section className="modal device-modal" role="dialog" aria-label={`${deviceId} 대상 상태`}>
+    <section className="modal device-modal" role="dialog" aria-label={t('dso.aria', { id: deviceId })}>
       <header>
         <div>
-          <h2>{deviceId} · 대상 상태</h2>
-          <small>{device ? `${device.kind} · ` : ''}원천 {source} · VZ-D-07 대상 상태 조회</small>
+          <h2>{t('dso.title', { id: deviceId })}</h2>
+          <small>{device ? `${device.kind} · ` : ''}{t('dso.source', { source })}</small>
         </div>
-        <button onClick={onClose}>닫기 (Esc)</button>
+        <button onClick={onClose}>{t('dso.1')}</button>
       </header>
       {/* **오는 값만 적는다** (260910). 안 오는 칸은 자리표시로 채우지 않고 아예 안 그린다. */}
       <DeviceFacts entityId={deviceId} />
       {device !== undefined && <DeviceStrip device={device} />}
       <footer>
-        <span>이 창은 뒤의 목록을 교체하지 않습니다 — 닫으면 같은 자리입니다.</span>
+        <span>{t('dso.2')}</span>
       </footer>
     </section>
   </div>;

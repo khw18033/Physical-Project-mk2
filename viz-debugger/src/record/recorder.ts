@@ -34,6 +34,7 @@
  * 다시보기 중에는 아무것도 안 쓴다. 창구가 없으면(단독 빌드 등) 조용히 멈춘다.
  */
 
+import { t } from '../i18n/dict.ts';
 import { foldStatuses } from '../data/fold.ts';
 import {
   currentRunSerial, missionHistory, onRunSeal, subscribeMissionHistory, type MissionHistoryEntry,
@@ -256,7 +257,7 @@ function write(target: Run, bodies: { mission: string; progress: string }): void
     } catch (error) {
       const why = error instanceof Error ? error.message : String(error);
       // 창구가 아예 없으면(404) 멈춘다 — 매 주기 실패를 쌓지 않는다.
-      if (/ 404$/.test(why)) { setStatus({ state: 'unavailable', lastError: '기록 창구가 없습니다 — npm run dev 로 띄운 화면에서만 저장됩니다' }); return; }
+      if (/ 404$/.test(why)) { setStatus({ state: 'unavailable', lastError: t('rec.1') }); return; }
       target.written = { mission: '', progress: '' };   // 다음 주기에 다시 쓴다
       setStatus({ lastError: why });
     }
@@ -325,9 +326,9 @@ async function runJobs(): Promise<void> {
 
 async function fetchImage(url: string): Promise<Blob> {
   const response = await fetch(url, { cache: 'no-store' });
-  if (!response.ok) throw new Error(`그림을 못 받았습니다 — ${response.status}`);
+  if (!response.ok) throw new Error(t('rec.imageFailed', { status: response.status }));
   const blob = await response.blob();
-  if (blob.size === 0) throw new Error('빈 그림');
+  if (blob.size === 0) throw new Error(t('rec.emptyImage'));
   return blob;
 }
 

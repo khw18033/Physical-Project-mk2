@@ -17,6 +17,7 @@
  * 가른다 — 그 구분이 없으면 시연에서 "왜 여긴 비었냐"에 답할 수 없다.
  */
 
+import { t } from '../i18n/dict.ts';
 import type { ScriptScenario } from './types.ts';
 
 export type ScenarioAxis =
@@ -150,13 +151,13 @@ export type ScenarioPanelSpec = {
 };
 
 export const SCENARIO_PANELS: readonly ScenarioPanelSpec[] = [
-  { id: 'risk', node: 'device-risk', title: '상황 판단 · 설명가능성', axes: ['risk'], why: '위험도 판정은 AI 파트(VZ-I-08) 몫이라 어느 대본도 몰지 않습니다.' },
-  { id: 'zone-map', node: 'device-risk', title: '구역 맵 미니뷰', axes: ['coverage', 'position'], why: '이 편에는 움직이는 궤적도 커버리지 맵도 없습니다.' },
-  { id: 'device-grid', node: 'device-risk', title: '구역 장치 현황판', axes: ['position', 'water'], why: '이 편은 구역 장치의 값을 몰지 않습니다.' },
-  { id: 'control', node: 'control', title: '제어 · 명령 결과 · 감사 이력', axes: ['actuator', 'command'], why: '이 편에는 액추에이터 명령이 없습니다.' },
-  { id: 'metrics-query', node: 'metrics', title: '지표 조회', axes: ['speed', 'water', 'coverage'], why: '이 편이 미는 도메인 지표가 없습니다.' },
-  { id: 'metrics-push', node: 'metrics', title: '평시 관측 지표', axes: ['observability'], why: '관측 지표는 평시 ObservabilityEmitter 몫이라 어느 대본도 몰지 않습니다.' },
-  { id: 'video', node: 'video', title: '영상 · 탐지 오버레이', axes: ['video'], why: '이 편에는 카메라 시야에 드는 대상이 없습니다.' },
+  { id: 'risk', node: 'device-risk', title: t('ax.1'), axes: ['risk'], why: t('ax.2') },
+  { id: 'zone-map', node: 'device-risk', title: t('ax.3'), axes: ['coverage', 'position'], why: t('ax.4') },
+  { id: 'device-grid', node: 'device-risk', title: t('ax.5'), axes: ['position', 'water'], why: t('ax.6') },
+  { id: 'control', node: 'control', title: t('ax.7'), axes: ['actuator', 'command'], why: t('ax.8') },
+  { id: 'metrics-query', node: 'metrics', title: t('ax.9'), axes: ['speed', 'water', 'coverage'], why: t('ax.10') },
+  { id: 'metrics-push', node: 'metrics', title: t('ax.11'), axes: ['observability'], why: t('ax.12') },
+  { id: 'video', node: 'video', title: t('ax.13'), axes: ['video'], why: t('ax.14') },
 ];
 
 const PANEL_BY_ID = new Map(SCENARIO_PANELS.map((spec) => [spec.id, spec]));

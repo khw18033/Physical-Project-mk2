@@ -8,6 +8,8 @@
  * 그때 기록기는 조용히 멈추고 이력 목록은 「이 세션에서 본 것만」으로 돌아간다.
  */
 
+import { t } from '../i18n/dict.ts';
+
 const BASE = '/mission-records';
 
 /** 목록 한 줄 — `mission.json` 에서 본문(`view`)을 뺀 것. */
@@ -70,7 +72,7 @@ export async function putRecordJson(date: string, run: string, file: 'mission.js
   const response = await fetch(`${runUrl(date, run)}/${file}`, {
     method: 'PUT', headers: { 'Content-Type': 'application/json' }, body,
   });
-  if (!response.ok) throw new Error(`${file} 저장 실패 — ${response.status}`);
+  if (!response.ok) throw new Error(t('rcc.saveFailed', { file, status: response.status }));
 }
 
 /** `images/detect/x.jpg` 꼴의 경로로 그림 바이트를 올린다. */
@@ -79,7 +81,7 @@ export async function postRecordImage(date: string, run: string, path: string, b
   const response = await fetch(`${runUrl(date, run)}/images/${encodeURIComponent(dir)}/${encodeURIComponent(name)}`, {
     method: 'POST', headers: { 'Content-Type': 'image/jpeg' }, body: bytes as BodyInit,
   });
-  if (!response.ok) throw new Error(`그림 저장 실패 — ${response.status}`);
+  if (!response.ok) throw new Error(t('rcc.imageSaveFailed', { status: response.status }));
 }
 
 /** 판 목록. 창구가 없으면 null — 「못 읽었다」와 「비었다」를 가른다. */
@@ -96,6 +98,6 @@ export async function listRecordedRuns(): Promise<{ dir: string; runs: RecordedR
 
 export async function fetchRecordJson<T>(date: string, run: string, file: 'mission.json' | 'progress.json'): Promise<T> {
   const response = await fetch(recordFileUrl(date, run, file), { cache: 'no-store' });
-  if (!response.ok) throw new Error(`${date}/${run}/${file} 를 못 읽었습니다 — ${response.status}`);
+  if (!response.ok) throw new Error(t('rcc.readFailed', { path: `${date}/${run}/${file}`, status: response.status }));
   return await response.json() as T;
 }
