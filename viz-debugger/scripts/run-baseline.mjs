@@ -229,6 +229,52 @@ if (rescoreOnly) {
 const { generateMission } = await import('../src/generate/LlmClient.ts');
 // **`deps` 를 매다는 규칙은 화면과 같은 파일이다.** 여기서 다시 쓰면 두 벌이 갈라진다.
 const { withSolvedDeps } = await import('../src/generate/proposal.ts');
+const { generateBaseUrl } = await import('../src/generate/LlmClient.ts');
+
+/**
+ * **먼저 한 번 물어본다** (260919).
+ *
+ * 서비스가 안 떠 있거나 가중치가 없으면 요청이 전부 실패하는데, 실패도 **기록에 남으므로**
+ * 「15건 전부 실패」라는 실행 폴더가 하나 생긴다. 그 폴더는 나중에 보면 측정한 것처럼
+ * 보이고, `summary.json` 의 0 이 「모델이 못 냈다」인지 「서비스가 없었다」인지 안 보인다.
+ *
+ * 그래서 두드리기 전에 한 번 묻는다. **엔진이 `stub` 이면 가중치나 바이너리가 없는 것**이고,
+ * 그때는 재는 것이 아니라 준비가 안 된 것이다 — 폴더를 만들지 않고 물러난다.
+ */
+async function preflight() {
+  const url = `${generateBaseUrl()}/generate/health`;
+  let health;
+  try {
+    const response = await fetch(url, { method: 'GET' });
+    health = await response.json();
+  } catch (error) {
+    console.error(`❌ 생성 서비스에 못 닿았다 — ${url}`);
+    console.error(`   ${String(error?.message ?? error)}`);
+    console.error('');
+    console.error('   **이 명령은 서비스를 띄우지 않는다.** 다른 창에서 먼저 띄워라:');
+    console.error('     cd viz-debugger && npm run dev:generate     # gen-lab 8802');
+    console.error('   (그 서비스가 `llama-server` 8803 을 자식으로 알아서 띄운다.)');
+    process.exit(1);
+  }
+  if (health.engine === 'stub') {
+    console.error('❌ 서비스는 떠 있는데 **쓸 수 있는 모델이 없다** — 지금 재면 15건이 전부 실패로 남는다.');
+    if (health.why) console.error(`   ${health.why}`);
+    console.error('');
+    console.error('   필요한 둘 (합쳐 13 GB · 저장소에 없다 — gen-lab/README.md 의 절차):');
+    console.error('     gen-lab/vendor/llama.cpp/llama-server.exe');
+    console.error('     gen-lab/models/*.gguf');
+    console.error('   다른 곳에 있으면 GEN_LAB_LLAMA_BIN · GEN_LAB_MODEL_DIR 로 가리켜라.');
+    process.exit(1);
+  }
+  const names = (health.models ?? []).map((item) => item.id ?? item);
+  if (model !== null && names.length > 0 && !names.includes(model)) {
+    console.error(`❌ 그런 모델이 없다: ${model}`);
+    console.error(`   있는 것: ${names.join(' · ')}`);
+    process.exit(1);
+  }
+  console.log(`준비됨 — 엔진 ${health.engine} · 모델 ${names.length}개 · 언어 ${lang}`);
+}
+if (!rescoreOnly) await preflight();
 
 const outRoot = join(runsDir, label);
 
