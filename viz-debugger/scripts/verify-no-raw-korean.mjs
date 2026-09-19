@@ -88,6 +88,11 @@ function displayKorean(src) {
   return hits;
 }
 
+/** ko 에 있고 en 에 없는 키 중 **못박히지 않은 것**. §3 이 쓰고 §4 가 시험한다. */
+function unpinnedKoOnly(ko, en, pinned) {
+  return [...ko].filter((k) => !en.has(k) && !pinned.has(k));
+}
+
 const files = [];
 (function walk(dir) {
   for (const name of readdirSync(dir)) {
@@ -144,7 +149,46 @@ const relOf = (abs) => relative(srcDir, abs).split(sep).join('/');
   console.log(`✅ 예외 목록 ${KEPT.length}개가 전부 실재하고, 아직 한글이 남아 있고, 사유가 적혀 있다`);
 }
 
-// ── 3. 대조군 ───────────────────────────────────────────────────────────────
+// ── 3. 사전 자체가 낸 구멍 — **ko 에만 있는 키** ────────────────────────────
+//
+// 위 §1 은 `i18n/` 을 건너뛴다 (사전은 한국어로 가득하다). 그런데 **사전 안에도 영문
+// 화면에 한국어를 띄우는 자리가 있다** — ko 에 있고 en 에 없는 키다. 그 자리는 설계상
+// 한국어로 떨어지고(`dict.ts` fallback) 콘솔에 한 줄 남는다.
+//
+// `verify:dict-shape` 의 §1 은 「en ⊆ ko」만 본다. 반대는 **일부러** 허용한다 — 그것이
+// fallback 설계이고, 부분 번역 상태에서도 화면이 정상이어야 하기 때문이다. 그래서
+// **ko 에만 있는 키는 지금까지 아무도 세지 않았다.** 새 ko 키를 넣고 en 을 잊으면 그
+// 자리가 영문 화면에서 한국어로 뜨는데 검사는 전부 초록이다. 4단계가 막으려던 모양이다.
+//
+// 그러므로 「없어도 되는 것」이 아니라 **목록으로 못박는다.**
+{
+  const keysOf = (rel) =>
+    new Set([...readSource(join(srcDir, rel)).matchAll(/^\s*'([^']+)':/gm)].map((m) => m[1]));
+  const ko = keysOf('i18n/ko.ts');
+  const en = keysOf('i18n/en.ts');
+
+  /** 영어를 **일부러** 안 둔 키. 화면에 한국어로 뜬다 — 그래서 사유가 붙어 있다. */
+  const KO_ONLY = [
+    ['mode.mock',
+     '1단계의 **시범 키 다섯째** — 이 빈자리가 fallback 이 실제로 도는지 보는 자리다. 영문 화면에서 이 버튼만 「목·개발」로 남고 콘솔에 한 줄이 찍힌다 (`i18n/en.ts` ⑤)'],
+  ];
+  const pinned = new Map(KO_ONLY);
+
+  const missing = [...ko].filter((k) => !en.has(k));
+  const loose = unpinnedKoOnly(ko, en, pinned);
+  for (const k of loose) {
+    failures.push(`사전 키 '${k}' 가 ko 에만 있다 — 영문 화면에서 이 자리가 한국어로 뜬다. en 에 넣거나, 일부러라면 이 파일의 KO_ONLY 에 **사유와 함께** 적어라`);
+  }
+  for (const [k, why] of KO_ONLY) {
+    if (!ko.has(k)) failures.push(`KO_ONLY 의 '${k}' 가 ko 사전에 없다 — 목록에서 지워라`);
+    else if (en.has(k)) failures.push(`KO_ONLY 의 '${k}' 에 영어가 생겼다 — 목록에서 지워라 (남겨 두면 다음에 빠진 것을 눈감는다). 적어 둔 사유: 「${why}」`);
+  }
+  // **센 값을 적는다.** 「전부 못박혔다」를 글자로 박아 두면 실패할 때도 그렇게 말한다 —
+  // 3단계의 `verify:stt-language` 가 「겹치는 낱말 0건」으로 같은 거짓말을 하고 있었다.
+  console.log(`✅ 사전 ko ${ko.size} · en ${en.size} — ko 에만 있는 키 ${missing.length}건 (못박은 것 ${missing.length - loose.length} · 못박히지 않은 것 ${loose.length})`);
+}
+
+// ── 4. 대조군 ───────────────────────────────────────────────────────────────
 {
   // ① 예외 밖 파일에 한글을 심은 사본은 잡혀야 한다.
   const injected = 'export const x = <p>새로 박은 한글</p>;';
@@ -166,6 +210,16 @@ const relOf = (abs) => relative(srcDir, abs).split(sep).join('/');
   if (allow === undefined || allow.n !== 1) {
     failures.push('대조군 실패: 예외 건수 표를 못 읽었다');
   } else controls.push(`예외 건수를 세어 둔다 (LangSwitch ${allow.n}건)`);
+
+  // ④ 영어를 잊은 키는 잡고, 못박은 키는 통과시킨다.
+  const ko = new Set(['a.kept', 'a.forgotten']);
+  const en = new Set(['a.kept']);
+  const got = unpinnedKoOnly(ko, en, new Map());
+  if (got.length !== 1 || got[0] !== 'a.forgotten') {
+    failures.push('대조군 실패: 영어를 잊은 키를 못 잡는다 — 그 자리는 영문 화면에서 한국어로 뜬다');
+  } else if (unpinnedKoOnly(ko, en, new Map([['a.forgotten', '…']])).length !== 0) {
+    failures.push('대조군 실패: 못박은 키까지 잡는다 — 그러면 fallback 시범 자리를 둘 수 없다');
+  } else controls.push('영어를 잊은 키는 잡고 못박은 키는 통과시킨다');
 }
 
 if (failures.length > 0) {
