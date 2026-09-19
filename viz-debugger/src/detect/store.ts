@@ -15,6 +15,7 @@ import { t } from '../i18n/dict.ts';
 import { useSyncExternalStore } from 'react';
 import { resetDetectLog } from './detectLog.ts';
 import { resetDetectTrace } from './detectTrace.ts';
+import { normalizeFeatures } from './parse.ts';
 import type {
   DetectFeatures, DetectFrame, DetectFrameEvidence, DetectLocalization, DetectPath,
 } from './types.ts';
@@ -193,7 +194,9 @@ export function restoreDetect(saved: Partial<RecordedDetect>, recordRun: { date:
     path: saved.path ?? null,
     pathFailure: saved.pathFailure ?? null,
     pathFailureDetail: saved.pathFailureDetail ?? null,
-    features: saved.features ?? null,
+    // **기록에는 탐지가 준 묶인 모양 그대로** 들어 있다 (45판 전부). 평평하게 펴지 않으면
+    // 판단 근거를 확대할 때 `features_compared` 가 undefined 라 화면이 터진다 (parse.ts).
+    features: normalizeFeatures(saved.features),
     fetchedAtMs: Date.now(),
     imageRound: state.imageRound + 1,
     recordRun,

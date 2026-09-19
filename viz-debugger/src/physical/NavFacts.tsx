@@ -6,6 +6,7 @@
  */
 
 // 이 파일은 `const t = feed.telemetry` 로 `t` 를 쓴다 — 사전 함수는 다른 이름으로 들여온다.
+import { useLang } from '../shared/language.ts';
 import { t as tr } from '../i18n/dict.ts';
 import { DERIVED_TASKS, NAV_TASKS } from './navLink.ts';
 import { eventTimeMs, isCancelStop, NAV_FRESH_MS, useNavFeed, type NavEvent } from './navFeed.ts';
@@ -39,6 +40,7 @@ const EVENTS_OF: Record<string, ReadonlyArray<NavEvent['event']>> = {
 const clock = (ms: number) => new Date(ms).toTimeString().slice(0, 8);
 
 export function NavFacts({ taskId }: { taskId: string }) {
+  useLang();
   const feed = useNavFeed();
   const run = navRun();
   const replaying = useReplayTarget() !== null;

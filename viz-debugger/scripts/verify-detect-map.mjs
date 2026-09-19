@@ -27,7 +27,7 @@ const root = join(fileURLToPath(new URL('.', import.meta.url)), '..');
 const load = (...p) => import(pathToFileURL(join(root, ...p)).href);
 const sample = (...p) => JSON.parse(readFileSync(join(root, '..', 'door_example', 'test', ...p), 'utf8'));
 
-const { indexOfRotation, boxOf, reasonOf, chosenFrame, usableDistanceCm, SCORE_LABEL_KEY } =
+const { indexOfRotation, boxOf, reasonOf, chosenFrame, usableDistanceCm, SCORE_LABEL_KEY, normalizeFeatures } =
   await load('src', 'detect', 'parse.ts');
 // 260919 — `SCORE_LABEL` 이 **키**가 됐다 (최상위 상수에서 `t()` 를 부르면 로드 시점
 // 언어로 굳는다 · `verify:i18n-no-frozen`). 이름만 따라가면 「키가 사전에 없다」를 못 보므로
@@ -469,6 +469,61 @@ if (failures.length) {
   console.error(`❌ verify:detect-map\n- ${failures.join('\n- ')}`);
   process.exit(1);
 }
+// ── 「무엇을 물었나」는 두 모양으로 온다 · 반쪽짜리를 화면에 넘기지 않는다 ──────
+//
+// 260919 — 판단 근거를 **확대**하면 사이트가 튕겼다. `features_compared` 가 undefined 인
+// 채로 화면까지 갔고, 그 값은 확대했을 때만 읽으므로 그때만 터졌다.
+//
+// **시료와 실제의 모양이 다른 것이 이 버그를 오래 숨겼다** — 시료(`features_sent.json`)는
+// 평평한데 실제 서비스와 기록 45판은 클래스로 묶여 있다. 시료로만 보면 멀쩡하다.
+{
+  const flat = sample('door', 'features_sent.json');
+  const nested = { door: flat, _all_searched_classes: ['door', 'pedestal'] };
+
+  for (const [what, raw] of [['평평한 시료', flat], ['묶인 실제·기록', nested]]) {
+    const got = normalizeFeatures(raw);
+    if (got === null) { failures.push(`${what} 모양을 못 읽는다 — null 이 나왔다`); continue; }
+    if (!Array.isArray(got.features_compared) || got.features_compared.length === 0) {
+      failures.push(`${what}: features_compared 가 배열이 아니다 — 화면이 .length 를 읽다 터진다`);
+    }
+    if (got.target_class !== 'door') failures.push(`${what}: target_class 가 door 가 아니다`);
+  }
+
+  // 실제 기록으로도 본다 — 옛 판을 다시 열 수 있어야 한다.
+  {
+    const { readdirSync, existsSync } = await import('node:fs');
+    const histRoot = join(root, '..', 'mission-history');
+    let checked = 0;
+    let broken = 0;
+    if (existsSync(histRoot)) {
+      for (const day of readdirSync(histRoot)) {
+        for (const run of readdirSync(join(histRoot, day))) {
+          const file = join(histRoot, day, run, 'progress.json');
+          if (!existsSync(file)) continue;
+          const saved = JSON.parse(readFileSync(file, 'utf8')).detect?.features;
+          if (saved === undefined || saved === null) continue;
+          checked += 1;
+          if (normalizeFeatures(saved) === null) broken += 1;
+        }
+      }
+    }
+    if (broken > 0) failures.push(`기록 ${checked}판 중 ${broken}판의 features 를 못 읽는다 — 그 판은 판단 근거를 확대할 수 없다`);
+    controls.push(`기록 ${checked}판의 features 를 전부 편다`);
+  }
+
+  // 대조군 — 못 읽는 모양은 **null 이어야 한다.** 반쪽짜리 객체를 넘기면 화면이 터진다.
+  for (const [what, raw] of [
+    ['목록이 없는 것', { door: { requested_by_command: true } }],
+    ['목록이 배열이 아닌 것', { features_compared: 'handle' }],
+    ['숫자가 섞인 목록', { features_compared: ['handle', 7] }],
+    ['객체가 아닌 것', 'door'],
+    ['null', null],
+  ]) {
+    if (normalizeFeatures(raw) !== null) failures.push(`대조군 실패: ${what} 을 받아들였다 — 반쪽짜리가 화면까지 간다`);
+  }
+  controls.push('못 읽는 모양 다섯은 null 로 돌려보낸다');
+}
+
 console.log('✅ 여덟 각도가 0~7 로 옮는다 — 범위 밖·안 떨어지는 각도는 버리고 step_deg 를 안 박았다');
 console.log('✅ 시료도 한 각도씩 — 4초에 하나, 여덟을 다 본 뒤에 판정·근거·경로가 나온다');
 console.log('✅ 도는 동안은 「탐색 중」뿐 — 여덟째가 들어온 순간 초록 하나와 흐림 일곱으로 한 번에 갈린다');
@@ -478,5 +533,6 @@ console.log('✅ 보정범위 밖 깊이값을 거리로 안 그린다 (시료�
 console.log('✅ 탐지가 태스크 노드를 민다 — 이동·정지·종료는 안 민다(로봇이 해야 끝난다) · 회전 먼저 직진 나중');
 console.log('✅ 지난 판 결과를 이번 판으로 안 받는다 — 시작 때 남아 있으면 거르고, 지워진 뒤 쌓이는 것만 받는다');
 console.log('✅ 로봇 → 탐지(/frame · /scan)를 화면도 듣고, 각도 결과와 함께 그 칸의 액션 아이템 로그에 붙는다 — 얼어붙은 그림·중단된 판은 경고');
+console.log('✅ 「무엇을 물었나」는 평평한 모양과 묶인 모양 둘 다 편다 — 못 읽으면 null (확대했을 때만 읽는 값이라 오래 숨었다)');
 console.log('✅ 탐지를 아는 면이 src/detect/ 하나 — 시료 경로·엔드포인트가 경계 밖에 0건');
 console.log(`✅ 대조군 ${controls.length}건 전부 검출 — ${controls.join(' · ')}`);

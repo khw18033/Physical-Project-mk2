@@ -14,6 +14,7 @@
  * 걸어 두면 카드 수만큼 연결이 열린다. 실시간은 확대에서만 연다.
  */
 
+import { useLang } from '../../shared/language.ts';
 import { Rich } from '../../i18n/RichText.tsx';
 import { t } from '../../i18n/dict.ts';
 import { useEffect, useState } from 'react';
@@ -28,6 +29,7 @@ const cm = (value: number | null) => (value === null ? '—' : `${value.toFixed(
 export const CAM_STILL_MS = 2000;
 
 export function AutodriveCam({ zoom = false }: { zoom?: boolean }) {
+  useLang();
   const [nonce, setNonce] = useState(0);
   const [loadedAt, setLoadedAt] = useState<number | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
@@ -71,6 +73,7 @@ export function AutodriveCam({ zoom = false }: { zoom?: boolean }) {
 
 /** 탐지 한 줄. 받은 칸만 적는다. */
 function DetectionRow({ d }: { d: ObstacleDetection }) {
+  useLang();
   return <tr className={d.riskLevel === 'near' ? 'is-near' : undefined}>
     <td>{d.id ?? '—'}</td>
     <td><b>{d.name}</b>{d.group === null ? null : <small> {d.group}</small>}</td>
@@ -82,6 +85,7 @@ function DetectionRow({ d }: { d: ObstacleDetection }) {
 }
 
 function Freshness({ snap, error, frozen, replaying }: { snap: ObstacleSnapshot | null; error: string | null; frozen: boolean; replaying: boolean }) {
+  useLang();
   return <dl className="device-facts">
     <div><dt>{t('adv.5')}</dt><dd><code>{aiControlUrl()}</code></dd></div>
     {/* 다시보기에서는 「몇 초 전」을 안 적는다 — 지난 판의 값이라 지금과의 차이는 뜻이 없다. */}
@@ -94,6 +98,7 @@ function Freshness({ snap, error, frozen, replaying }: { snap: ObstacleSnapshot 
  * **「장애물 탐지」 액션 아이템.** 여는 동안 폴링을 붙잡는다 — 판이 안 열려 있어도(제안 중) 지금 값이 보인다.
  */
 export function ObstacleFacts() {
+  useLang();
   useEffect(() => holdObstaclePolling(), []);
   const obstacle = useObstacle();
   const snap = obstacle.latest;
@@ -130,6 +135,7 @@ export function ObstacleFacts() {
  * 근거로 그 판정에 걸린 것(`risk_level: near`)과 나머지를 거리순으로 적는다.
  */
 export function ObstacleEvidence() {
+  useLang();
   const obstacle = useObstacle();
   const snap = obstacle.latest;
   if (snap === null) {

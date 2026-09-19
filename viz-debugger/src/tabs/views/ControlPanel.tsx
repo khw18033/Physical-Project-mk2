@@ -18,6 +18,7 @@
  *    조회했는지 알려 주는 종류 태그**다. 키를 다루는 것과는 다른 일이다.)
  */
 
+import { useLang } from '../../shared/language.ts';
 import { Rich } from '../../i18n/RichText.tsx';
 import { t } from '../../i18n/dict.ts';
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -62,6 +63,7 @@ function timeOf(iso: string): string {
 }
 
 export function ControlPanel() {
+  useLang();
   const entities = useEntities();
   const commands = useCommands();
   const role = useRole();
@@ -343,6 +345,7 @@ function describePosition(pct: number | null): string {
  * 판정은 데이터 레이어가 끝냈고 여기서는 늘어놓기만 한다.
  */
 function ControlGateBar({ gate }: { gate: ControlGate }) {
+  useLang();
   if (!gate.locked) return null;
   return (
     <div className="lockbar">
@@ -365,6 +368,7 @@ function ControlGateBar({ gate }: { gate: ControlGate }) {
  * 라벨과 값으로 만들어 넘겨 준다.
  */
 function CommandTimeline({ command }: { command: TrackedCommand }) {
+  useLang();
   return (
     <>
       <div className="cmdhead">
@@ -442,6 +446,7 @@ function LastOperatorPanel({
   command: TrackedCommand | null;
   refreshKey: number;
 }) {
+  useLang();
   const [result, setResult] = useState<AuditQueryResult | null>(null);
   const [open, setOpen] = useState(true);
 

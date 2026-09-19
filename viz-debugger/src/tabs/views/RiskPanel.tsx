@@ -10,6 +10,7 @@
 // 답하는 화면은 이미 탭②다. 같은 질문에 답하는 화면이 둘이면 사용자가 어느 쪽을 봐야
 // 하는지 알 수 없게 된다 — 탭⑥에서 임무 관제 모드를 지운 것과 같은 이유다.
 
+import { useLang } from '../../shared/language.ts';
 import { Rich } from '../../i18n/RichText.tsx';
 import { t } from '../../i18n/dict.ts';
 import { useState } from 'react';
@@ -31,6 +32,7 @@ const LEVELS: Array<{ id: Level; labelKey: string; noteKey: string }> = [
 const RISK_LABEL_KEY: Record<RiskState['level'], string> = { normal: 'rp.7', watch: 'rp.8', alert: 'rp.9', recovery: 'rp.10' };
 
 export function RiskPanel() {
+  useLang();
   const entities = useEntities();
   const [level, setLevel] = useState<Level>('decision');
   const riskSlot = [...entities.values()].map((r) => r.riskState).find(Boolean) ?? null;

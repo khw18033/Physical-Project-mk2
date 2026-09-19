@@ -9,6 +9,7 @@
  */
 
 // 이 파일은 `const t = record.telemetry…` 로 `t` 를 쓴다 — 사전은 다른 이름으로 들여온다.
+import { useLang } from '../../shared/language.ts';
 import { t as tr } from '../../i18n/dict.ts';
 import type { EntityRecord } from '../data/index.ts';
 import {
@@ -71,6 +72,7 @@ function domainLine(record: EntityRecord): string | null {
 }
 
 export function DeviceCard({ record }: Props) {
+  useLang();
   const layers = record.state?.payload ?? null;
   const status = deriveDisplayStatus(layers);
   const age = lastSeenAgeMs(layers, record.state?.ts ?? null);

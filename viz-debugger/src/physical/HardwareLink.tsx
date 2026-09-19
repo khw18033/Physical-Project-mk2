@@ -21,12 +21,14 @@
  * 안 된다** — 캐시된 봉투를 현재로 그리지 않는 것과 같은 규칙이다(`CACHE_POLICY`).
  */
 
+import { useLang } from '../shared/language.ts';
 import { t } from '../i18n/dict.ts';
 import { hardwareTarget } from './encode.ts';
 import { isStale, useDeviceStates, type DeviceState } from './deviceState.ts';
 import { useRobotSession } from './robotSession.ts';
 
 export function HardwareLink({ entityId }: { entityId: string }) {
+  useLang();
   const devices = useDeviceStates();
   const session = useRobotSession();
   // 화면 id(`robot-01`) → 하드웨어 id(`go1-001`). 표는 경계 안에 있다.

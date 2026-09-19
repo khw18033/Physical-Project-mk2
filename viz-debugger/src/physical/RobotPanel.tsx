@@ -19,6 +19,7 @@
  * 남은 것은 연결이 아니라 **임무 진행**이다 — 진행률·접근 버튼·거절 사유, 그리고 정지 표시.
  */
 
+import { useLang } from '../shared/language.ts';
 import { Rich } from '../i18n/RichText.tsx';
 import { t } from '../i18n/dict.ts';
 import { PhysicalClient } from './PhysicalClient.ts';
@@ -29,6 +30,7 @@ import { NO_NODE } from './missionLink.ts';
 import { releaseStopped, useRobotSession } from './robotSession.ts';
 
 export function RobotPanel({ client }: { client: PhysicalClient | null }) {
+  useLang();
   const session = useRobotSession();
 
   // 연결 상태를 여기서 구독하지 않는다 — `robotClient()` 가 만들 때 이어 둔다.

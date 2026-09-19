@@ -19,6 +19,7 @@
  * 매 프레임 setState 하면 결국 15Hz 리렌더가 되어 병합의 의미가 사라진다.
  */
 
+import { useLang } from '../../shared/language.ts';
 import { Rich } from '../../i18n/RichText.tsx';
 import { t } from '../../i18n/dict.ts';
 import { useEffect, useRef, useState } from 'react';
@@ -48,6 +49,7 @@ const ORIGIN_COLOR = {
 } as const;
 
 export function VideoOverlayView() {
+  useLang();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const bufferRef = useRef(new FrameBuffer());
   /** 토글을 ref로도 들고 있다 — 프레임 루프가 매번 최신 값을 읽어야 하는데
@@ -359,6 +361,7 @@ const APPROACH_LABEL_KEY: Record<'closing' | 'steady' | 'receding', string> = {
 
 /** 출처 하나의 정합 수치. dl 안에 들어가므로 dt/dd 쌍만 낸다. */
 function ReportRows({ report }: { report: OriginReport }) {
+  useLang();
   const name = report.origin.tier === 'edge' ? t('vov.11') : t('vov.12');
   return (
     <>

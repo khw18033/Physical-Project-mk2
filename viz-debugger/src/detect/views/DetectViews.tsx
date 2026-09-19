@@ -19,6 +19,7 @@
  * 이름을 `특징 최고값` 으로 적는 것만으로 그 오독이 사라진다 (`parse.ts` 의 `SCORE_LABEL_KEY`).
  */
 
+import { useLang } from '../../shared/language.ts';
 import { t } from '../../i18n/dict.ts';
 import { useEffect, useState } from 'react';
 import { displayMission, useMission } from '../../data/scenario.ts';
@@ -40,6 +41,7 @@ import type { DetectFrame } from '../types.ts';
  * 「테스트」가 보이면 연결 전 시험처럼 읽힌다 — 어디서 읽는지는 연결 관리가 말한다.
  */
 function Waiting({ what }: { what: string }) {
+  useLang();
   const { staleFrames } = useDetect();
   return <p className="detect-wait">
     {what}
@@ -76,6 +78,7 @@ function viewpointCountOf(): number {
  * 있나」가 화면에 남는다. 다 돌고 나면 고른 각도에 머문다.
  */
 export function DetectCam({ zoom = false }: { zoom?: boolean }) {
+  useLang();
   const state = useDetect();
   const source = viewSourceOf(state);
   const score = (f: DetectFrame) => state.evidence[f.frame]?.final_score ?? 0;
@@ -129,6 +132,7 @@ export function DetectCam({ zoom = false }: { zoom?: boolean }) {
  * 찾았다는 판정은 **점수가 아니라 관문이 정한다.** 그래서 관문을 먼저, 점수를 뒤에 적는다.
  */
 export function DetectReason({ zoom = false, count = 8 }: { zoom?: boolean; count?: number }) {
+  useLang();
   const state = useDetect();
   const source = viewSourceOf(state);
   const score = (f: DetectFrame) => state.evidence[f.frame]?.final_score ?? 0;
@@ -203,6 +207,7 @@ export function DetectReason({ zoom = false, count = 8 }: { zoom?: boolean; coun
  * 그대로 늘어놓는 것이 「왜 90도를 돌았나」에 대한 답이 된다.
  */
 export function DetectMap({ zoom = false, headSec }: { zoom?: boolean; headSec?: number }) {
+  useLang();
   const state = useDetect();
   const source = viewSourceOf(state);
   const path = state.path;
@@ -300,6 +305,7 @@ export function DetectMap({ zoom = false, headSec }: { zoom?: boolean; headSec?:
  * 문 표시는 **GT 고정값**이다(`floorPlan.ts`). 탐지가 검출한 자리가 아니다.
  */
 function FloorPlan({ urls }: { urls: readonly string[] }) {
+  useLang();
   const [at, setAt] = useState(0);
   const url = urls[Math.min(at, urls.length - 1)] ?? '';
   const left = (DOOR_PX.x / FLOOR_PLAN_SIZE_PX.width) * 100;

@@ -2,7 +2,7 @@ import { scriptPhrase, translateEvents, translateView } from '../scenarios/phras
 import { useState, type ReactNode } from 'react';
 import { viewNodeLabel } from '../canvas/registry.ts';
 import { useZoomTarget } from '../canvas/zoomState.ts';
-import { traceFor, useMission } from '../data/scenario.ts';
+import { traceFor, missionLabel, useMission } from '../data/scenario.ts';
 import { libraryEntry } from '../scenarios/library.ts';
 import { nowPlaying } from '../scenarios/nowPlaying.ts';
 import { issueCommand } from '../shared/commandEgress.ts';
@@ -124,7 +124,7 @@ export function AppShell({ debuggerView, onDebuggerHome, onMissionHistory, onOpe
       {legacyParts[0]}<b>{mission.current.missionId}</b>{legacyParts[1]}
     </div>}
     <header className="global-bar">
-      <button className="mission-identity" onClick={onDebuggerHome}><b>{mission.current.missionId}</b><span>{scriptPhrase(mission.current.missionId, mission.current.label)}</span><small>{t('bar.subtitle')}</small></button>
+      <button className="mission-identity" onClick={onDebuggerHome}><b>{mission.current.missionId}</b><span>{scriptPhrase(mission.current.missionId, missionLabel(mission.current))}</span><small>{t('bar.subtitle')}</small></button>
       {/* 안내 문단 2줄은 우상단 `?` 오버레이로 옮겼다 (사이트 개선 요구 1). */}
       <nav>
         <ModeSwitch />

@@ -156,7 +156,94 @@ export function frozenSites(src) {
   console.log(`✅ ${scanned}개 파일 — 최상위에서 t() 를 부르는 자리 ${frozen}건`);
 }
 
-// ── 2. 대조군 ───────────────────────────────────────────────────────────────
+// ── 2. `t()` 를 쓰는 **컴포넌트마다** `useLang()` 이 있다 (저장소 전체) ──────
+//
+// `t()` 는 부르는 순간의 값을 줄 뿐 **구독이 아니다.** 이 훅이 없으면 그 부품은 자기
+// 저장소가 흔들릴 때까지 옛 언어로 남는다. 증상이 「**동작을 한 번 하고 나면 바뀐다**」라
+// 원인을 찾기 어렵다 — 260919 에 사람이 다시보기에서 그것을 봤다.
+//
+// 이 규칙 자체는 `verify:i18n-demo-path` 에 **있었다.** 다만 시연 경로 22개 파일만 봤다.
+// 4단계가 한글 검사는 저장소 전체로 넓히면서 **이 규칙은 안 넓혔다** — 그 사이에 훅 없는
+// 컴포넌트가 53개(20개 파일) 쌓여 있었다. 여기서 전체를 본다.
+//
+// **순수 함수는 대상이 아니다.** 소문자로 시작하는 함수에서 `t()` 를 부르는 것은 정상이고,
+// 그리는 컴포넌트가 훅을 가지면 된다. 그래서 대문자 함수만 본다.
+export function componentsOf(code) {
+  const marks = [...code.matchAll(/^(?:export )?function ([A-Z][A-Za-z0-9_]*)\s*\(/gm)];
+  return marks.map((m, i) => ({
+    name: m[1],
+    body: code.slice(m.index, i + 1 < marks.length ? marks[i + 1].index : code.length),
+  }));
+}
+
+/** `t()`(또는 `tr()`)를 쓰면서 `useLang()` 이 없는 컴포넌트 이름들. */
+export function missingHook(code) {
+  return componentsOf(code)
+    .filter((c) => CALLS_T.test(c.body) && !/useLang\(\)/.test(c.body))
+    .map((c) => c.name);
+}
+
+{
+  const files = [];
+  (function walk(dir) {
+    for (const name of readdirSync(dir)) {
+      if (name.startsWith('.')) continue;
+      const full = join(dir, name);
+      if (isScratchPath(full)) continue;
+      if (statSync(full).isDirectory()) walk(full);
+      // **`.tsx` 만 컴포넌트다.** `.ts` 는 순수 함수라 부르는 쪽이 훅을 갖고 있으면 된다.
+      else if (/\.tsx$/.test(name)) files.push(full);
+    }
+  })(srcDir);
+
+  let checked = 0;
+  let missing = 0;
+  for (const abs of files) {
+    const rel = relative(srcDir, abs).split(sep).join('/');
+    const code = blank(readSource(abs));
+    checked += componentsOf(code).filter((c) => CALLS_T.test(c.body)).length;
+    for (const name of missingHook(code)) {
+      missing += 1;
+      failures.push(`${rel}: ${name}() 가 t() 를 쓰는데 useLang() 이 없다 — 언어를 바꿔도 이 부품만 옛 언어로 남는다 (동작을 한 번 해야 바뀐다)`);
+    }
+  }
+  console.log(`✅ useLang() — t() 를 쓰는 컴포넌트 ${checked}개 중 훅이 없는 것 ${missing}건 (파일 단위가 아니라 **컴포넌트마다** 본다)`);
+}
+
+// ── 3. 키를 들고 있는 필드는 **푸는 함수를 거쳐** 읽는다 ────────────────────
+//
+// 최상위에서 굳는 것을 피하려고 `MissionView.label` 은 키(`labelKey`)를 들고 있다가
+// `missionLabel()` 에서 풀린다. 그런데 `useMission()` 은 **원본 상태**를 주므로, 거기서
+// `.current.label` 을 바로 읽으면 빈 글자가 나온다.
+//
+// 260919 에 내가 실제로 이걸 냈다 — `displayMission()` 하나만 고치면 되는 줄 알고 옮겼더니
+// **상단바의 「아직 임무가 없습니다」가 통째로 사라졌다.** 사람이 화면을 보고 알려 줬다.
+{
+  const files = [];
+  (function walk(dir) {
+    for (const name of readdirSync(dir)) {
+      if (name.startsWith('.')) continue;
+      const full = join(dir, name);
+      if (isScratchPath(full)) continue;
+      if (statSync(full).isDirectory()) walk(full);
+      else if (/\.tsx?$/.test(name)) files.push(full);
+    }
+  })(srcDir);
+
+  let raw = 0;
+  for (const abs of files) {
+    const rel = relative(srcDir, abs).split(sep).join('/');
+    if (rel === 'data/scenario.ts') continue;   // 푸는 함수가 사는 곳이다
+    const code = blank(readSource(abs));
+    if (/\.current\.label\b/.test(code)) {
+      raw += 1;
+      failures.push(`${rel}: 원본 상태의 \`.current.label\` 을 바로 읽는다 — \`missionLabel(view)\` 를 거쳐라 (키를 들고 있어 빈 글자가 나온다)`);
+    }
+  }
+  console.log(`✅ 임무 이름 — 원본 상태에서 바로 읽는 자리 ${raw}건 (0이어야 한다 · 나머지는 missionLabel() 을 거친다)`);
+}
+
+// ── 4. 대조군 ───────────────────────────────────────────────────────────────
 {
   const cases = [
     ["const X = t('k');", 1, '바로 부르는 최상위 상수를 잡는다'],
@@ -173,6 +260,18 @@ export function frozenSites(src) {
       failures.push(`대조군 실패: ${why} — ${want === 0 ? '잡으면 안 되는데 잡았다' : '잡아야 하는데 못 잡았다'} (${got}건)`);
     } else controls.push(why);
   }
+
+  // 훅 규칙의 대조군 — **한 파일에 컴포넌트가 여럿**인 모양이 핵심이다.
+  // 파일에 `useLang()` 이 한 번이라도 있으면 통과하는 검사는 이것을 구조적으로 못 잡는다.
+  const two = 'export function A() {\n  useLang();\n  return t(\'k\');\n}\nfunction B() {\n  return t(\'k2\');\n}';
+  const got = missingHook(two);
+  if (got.length !== 1 || got[0] !== 'B') {
+    failures.push('대조군 실패: 같은 파일의 두 번째 컴포넌트에 훅이 없는 것을 못 잡는다 — 2단계에서 네 번 밟은 모양이다');
+  } else controls.push('한 파일에 컴포넌트가 여럿일 때 훅 없는 것만 짚는다');
+
+  if (missingHook("function helper() { return t('k'); }").length !== 0) {
+    failures.push('대조군 실패: 소문자 순수 함수를 컴포넌트로 셌다 — 거기서 t() 를 부르는 것은 정상이다');
+  } else controls.push('소문자 순수 함수는 안 센다');
 }
 
 if (failures.length > 0) {

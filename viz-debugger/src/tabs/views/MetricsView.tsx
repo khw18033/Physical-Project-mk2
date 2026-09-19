@@ -15,6 +15,7 @@
  * 그건 인라인 SVG로 충분하다.
  */
 
+import { useLang } from '../../shared/language.ts';
 import { Rich } from '../../i18n/RichText.tsx';
 import { t } from '../../i18n/dict.ts';
 import { useEffect, useState } from 'react';
@@ -57,6 +58,7 @@ export const METRICS = [
 ] as const;
 
 export function MetricsView() {
+  useLang();
   const [metric, setMetric] = useState<string>(METRICS[0].id);
   const [mode, setMode] = useState<MetricsMode>('summary');
   const [rangeMin, setRangeMin] = useState<number>(RANGE_OPTIONS[0].min);
@@ -219,6 +221,7 @@ export function MetricsView() {
  * 평소의 자리(A · 백엔드 DT-05 시의성)는 위 조회 자리표시가 이미 말하고 있다.
  */
 function BlindspotAges() {
+  useLang();
   const mission = useMission();
   const entities = useEntities();
   const scenarioActive = mission.current.map !== null;
@@ -274,6 +277,7 @@ function BlindspotAges() {
  * 이 값은 원본이 아니라 15초 창의 구역 요약이다.
  */
 function LiveSummaryCard() {
+  useLang();
   const entities = useEntities();
   const slot = entities.get(METRIC_ENTITY)?.metrics ?? null;
 
@@ -346,6 +350,7 @@ function LiveSummaryCard() {
 
 /** 인라인 SVG 선 하나. 라이브러리를 들일 만한 그림이 아니다. */
 function SeriesChart({ series, unit, loading, dangerLevel = null }: { series: MetricsSeries; unit: string; loading: boolean; dangerLevel?: number | null }) {
+  useLang();
   const W = 900;
   const H = 200;
   const PAD = 8;
@@ -388,6 +393,7 @@ function SeriesChart({ series, unit, loading, dangerLevel = null }: { series: Me
 
 /** 이 시계열이 **어디서 어떻게** 왔는지. 요약과 원본을 가르는 근거를 화면에 남긴다. */
 function SeriesMeta({ series, unit }: { series: MetricsSeries; unit: string }) {
+  useLang();
   const extent = seriesExtent(series.points);
   return (
     <>
@@ -430,6 +436,7 @@ function SeriesMeta({ series, unit }: { series: MetricsSeries; unit: string }) {
  * 차단됐다는 것 자체가 보여야 검증이 성립한다.
  */
 function ReaggregationPanel() {
+  useLang();
   const entities = useEntities();
   const blocks = useReaggregationBlocks();
   const [lastResult, setLastResult] = useState<string | null>(null);

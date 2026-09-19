@@ -402,6 +402,7 @@ export type DebuggerNavigation = {
  */
 
 export function MissionDebugger({ navigation, planApproval }: { navigation?: DebuggerNavigation; planApproval?: ReactNode }) {
+  useLang();
   useMission(); // 저장소 변화(제안·승인·재생 머리)에 다시 그린다.
   const display = displayMission();
   const view = display.view;

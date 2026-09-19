@@ -27,6 +27,7 @@
  * 필드가 추가돼야 한다. 그 칸도 자리표시 대신 없앴다.
  */
 
+import { useLang } from '../shared/language.ts';
 import { t } from '../i18n/dict.ts';
 import { useEffect } from 'react';
 import type { Hardware } from '../model/types.ts';
@@ -41,6 +42,7 @@ export function DeviceStatusOverlay({ deviceId, device, source, onClose }: {
   source: string;
   onClose(): void;
 }) {
+  useLang();
   // 여는 길이 둘(더블클릭·앞으로 늘 수 있는 다른 경로)이면 닫는 길도 둘 이상이어야 한다.
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') onClose(); };

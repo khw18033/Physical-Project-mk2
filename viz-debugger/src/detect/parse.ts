@@ -19,7 +19,7 @@
  */
 
 import { t } from '../i18n/dict.ts';
-import type { DetectFrame, DetectFrameEvidence, DetectGate } from './types.ts';
+import type { DetectFeatures, DetectFrame, DetectFrameEvidence, DetectGate } from './types.ts';
 
 /**
  * **각도 → 칸 번호.** 범위 밖이면 null — 없는 칸을 만들어 그리면 화면이 대본보다 커진다.
@@ -143,4 +143,37 @@ export function usableDistanceCm(frame: DetectFrame): number | null {
   if (frame.in_valid_calibration_range !== true) return null;
   if (typeof frame.distance_cm !== 'number' || frame.distance_cm <= 0) return null;
   return frame.distance_cm;
+}
+
+/**
+ * **「무엇을 그 클래스라고 물었나」를 화면이 읽는 모양으로** (260919).
+ *
+ * 탐지가 주는 `features_sent.json` 은 **클래스로 묶여 있다.**
+ *
+ *     { "door": { "features_compared": [...], … }, "_all_searched_classes": ["door", "pedestal"] }
+ *
+ * 그런데 `DetectFeatures` 는 **한 클래스의 평평한 모양**이다. 받는 자리가 검사 없이
+ * `getJson<DetectFeatures>` 로 타입만 씌우고 있어서, `features_compared` 가 `undefined`
+ * 인 채로 화면까지 갔다. 판단 근거를 **확대**했을 때만 그 값을 읽으므로 — 그때만 터졌다.
+ * 더블클릭하면 사이트가 튕기던 것이 이것이다(260919 에 사람이 찾았다. 한·영 무관).
+ *
+ * 기록에도 묶인 모양 그대로 들어가 있다(45판 전부). 그래서 **다시보기도 여기를 거친다** —
+ * 그러지 않으면 옛 기록은 영영 못 연다.
+ *
+ * 못 읽는 모양이면 `null` 이다. 화면은 `features === null` 을 이미 다루고 있다 —
+ * **반쪽짜리 객체를 넘기는 것보다 없다고 말하는 편이 낫다.**
+ */
+export function normalizeFeatures(raw: unknown, target = 'door'): DetectFeatures | null {
+  if (raw === null || typeof raw !== 'object') return null;
+  const box = raw as Record<string, unknown>;
+  // 묶인 모양이면 그 클래스를 꺼낸다. 평평한 모양이면 그대로 본다.
+  const inner = (box[target] !== null && typeof box[target] === 'object' ? box[target] : box) as Record<string, unknown>;
+  const list = inner.features_compared;
+  if (!Array.isArray(list) || list.some((v) => typeof v !== 'string')) return null;
+  return {
+    target_class: typeof inner.target_class === 'string' ? inner.target_class : target,
+    requested_by_command: inner.requested_by_command === true,
+    is_localization_landmark: inner.is_localization_landmark === true,
+    features_compared: list as readonly string[],
+  };
 }

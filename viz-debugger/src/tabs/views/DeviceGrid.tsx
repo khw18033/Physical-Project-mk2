@@ -11,6 +11,7 @@
  *  - 명령 발행  — 만들지 않는다. 아래 시나리오 버튼은 목 서버 안의 왕복을 트리거할 뿐이다.
  */
 
+import { useLang } from '../../shared/language.ts';
 import { Rich } from '../../i18n/RichText.tsx';
 import { t } from '../../i18n/dict.ts';
 import {
@@ -47,6 +48,7 @@ const SCENARIO_BUTTONS: Array<{ name: string; labelKey: string }> = [
 ];
 
 export function DeviceGrid() {
+  useLang();
   // 데이터 레이어 기동은 App이 앱 수명 단위로 한다 — 탭을 옮길 때마다 구독을
   // 끊었다 붙이면 돌아왔을 때 화면이 비고, 서버 스냅샷을 매번 다시 받게 된다.
   const entities = useEntities();
@@ -195,6 +197,7 @@ export function DeviceGrid() {
  * "왜 이 카드가 장애인가"를 표로 되짚을 수 있어야 조합 규칙이 검증된다.
  */
 function MappingTable({ records }: { records: Array<{ id: string; state: { payload: unknown } | null }> }) {
+  useLang();
   const rows: Array<{ dev: string; avail: string; dep: string; display: DisplayStatus }> = [
     { dev: 'ok', avail: 'online', dep: 'deployed', display: 'normal' },
     { dev: 'fault', avail: 'online', dep: 'deployed', display: 'fault' },

@@ -18,6 +18,7 @@
  * **로봇 위치·궤적만** 그린다(RobotTrailMap — 평면은 맵 데이터가 올 때 얹는다).
  */
 
+import { useLang } from '../../shared/language.ts';
 import { t } from '../../i18n/dict.ts';
 import { useEffect, useState } from 'react';
 import { useMission } from '../../data/scenario.ts';
@@ -36,6 +37,7 @@ type CoveragePayload = {
 };
 
 export function ZoneMapMini() {
+  useLang();
   const scenarioCast = useScenarioCast();
 
   return (
@@ -52,6 +54,7 @@ export function ZoneMapMini() {
 }
 
 function ScenarioMap() {
+  useLang();
   const mission = useMission();
   const entities = useEntities();
   const map = mission.current.map;
@@ -133,6 +136,7 @@ function ScenarioMap() {
  * 궤적은 수신한 telemetry.position 을 화면이 쌓은 것이다(합성 아님 — 받은 값의 기록).
  */
 function RobotTrailMap() {
+  useLang();
   const mission = useMission();
   const entities = useEntities();
   const robot = robotPosition(entities, mission.current.cast);

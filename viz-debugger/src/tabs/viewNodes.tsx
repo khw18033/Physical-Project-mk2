@@ -38,6 +38,7 @@
  * 그래서 **접힘은 프레임 한 장을 받고 곧바로 구독을 끊는다.** 재생은 확대에서만 돈다.
  */
 
+import { useLang } from '../shared/language.ts';
 import { t } from '../i18n/dict.ts';
 import { useEffect, useRef, useState } from 'react';
 import { PendingSource } from '../shared/PendingSource.tsx';
@@ -88,6 +89,7 @@ const VIDEO_CAMERA = 'camera-02';
  * 개발자)은 확대 안 `RiskPanel` 의 표시 깊이 전환이다. 세 깊이가 요약 ↔ 확대로 갈린다.
  */
 function DeviceRiskBody({ scope }: { scope: ViewScope }) {
+  useLang();
   const entities = useEntities();
   const zone = useZoneSummary(scope.zoneId);
   const risk = ([...entities.values()].map((record) => record.riskState).find(Boolean)?.payload ?? null) as RiskState | null;
@@ -126,6 +128,7 @@ function DeviceRiskBody({ scope }: { scope: ViewScope }) {
  * 범위가 아니다(보고서에 남긴다).
  */
 function ControlBody({ scope }: { scope: ViewScope }) {
+  useLang();
   const commands = useCommands();
   const mine = scope.deviceId === null ? commands : commands.filter((command) => command.entity === scope.deviceId);
   const last = mine.length === 0 ? null : mine[mine.length - 1];
@@ -152,6 +155,7 @@ function metricFor(deviceId: string | null): (typeof METRICS)[number] {
 
 /** 점 몇 개를 잇는 선 하나. `MetricsView` 와 같은 이유로 차트 라이브러리를 들이지 않는다. */
 function Sparkline({ points }: { points: MetricPoint[] }) {
+  useLang();
   if (points.length < 2) return <p className="vn-line vn-dim">{t('vn.notEnoughPoints')}</p>;
   const { min, max } = seriesExtent(points);
   const span = max - min || 1;
@@ -164,6 +168,7 @@ function Sparkline({ points }: { points: MetricPoint[] }) {
 }
 
 function MetricsBody({ scope }: { scope: ViewScope }) {
+  useLang();
   const metric = metricFor(scope.deviceId);
   // 요약만 본다 — 원본은 엣지 중계를 거치므로 카드가 주기적으로 두드릴 것이 아니다.
   const { series, loading, error } = useMetricsQuery({ entity: metric.source, metric: metric.id, mode: 'summary', rangeMin: RANGE_OPTIONS[0].min });
@@ -188,6 +193,7 @@ function MetricsBody({ scope }: { scope: ViewScope }) {
  * 태스크가 무엇이든 보는 카메라가 같다. 카메라가 늘면 그때 `scope.deviceId` 로 고른다.
  */
 function VideoStill() {
+  useLang();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [snap, setSnap] = useState<{ frameSeq: number; fps: number; detections: number; referenceMissing: boolean } | null>(null);
   const [nonce, setNonce] = useState(0);
@@ -270,6 +276,7 @@ function VideoStill() {
  * 안 오는 값은 감추는 것이 아니라 **줄을 아예 안 그린다**(`DeviceFacts` 와 같은 규칙).
  */
 function RobotBody() {
+  useLang();
   const session = useRobotSession();
   const devices = useDeviceStates();
   const device = devices[hardwareTarget(ROBOT_ENTITY)] ?? null;

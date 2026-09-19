@@ -355,19 +355,30 @@ export function traceFor(view: MissionView): readonly ScenarioEvent[] {
 }
 
 /**
- * 화면이 그릴 임무 — 제안이 있으면 제안된 대본을 「제안 상태」로 그린다
- * (진행 사건 0건 = 시각 0의 접기 결과, 전부 pending).
- */
-/**
- * 우리가 지은 이름(`labelKey`)을 **그릴 때** 푼다. 대본이 준 이름이면 그대로 둔다.
+ * 우리가 지은 임무 이름을 **그릴 때** 푼다. 대본이 준 이름이면 그대로 돌려준다.
+ *
+ * `state` 는 모듈 최상위에서 만들어지므로 거기서 `t()` 를 부르면 로드 시점 언어로 굳는다
+ * (`verify:i18n-no-frozen`). 그래서 키를 들고 있다가 여기서 푼다.
+ *
+ * **`useMission()` 은 원본 상태를 준다** — 거기서 `label` 을 바로 읽는 자리는 반드시 이
+ * 함수를 거쳐야 한다. 260919 에 상단바의 「아직 임무가 없습니다」가 **빈칸이 된 것**이
+ * 그 자국이다. 나는 `displayMission()` 하나만 고치면 되는 줄 알았다.
  *
  * `ko` 에서도 같은 값이 나온다 — 사전의 ko 값이 원문 그대로이기 때문이다.
  */
-function named(view: MissionView): MissionView {
-  if (view.labelKey === undefined) return view;
-  return { ...view, label: t(view.labelKey) };
+export function missionLabel(view: MissionView): string {
+  return view.labelKey === undefined ? view.label : t(view.labelKey);
 }
 
+function named(view: MissionView): MissionView {
+  if (view.labelKey === undefined) return view;
+  return { ...view, label: missionLabel(view) };
+}
+
+/**
+ * 화면이 그릴 임무 — 제안이 있으면 제안된 대본을 「제안 상태」로 그린다
+ * (진행 사건 0건 = 시각 0의 접기 결과, 전부 pending).
+ */
 export function displayMission(): {
   view: MissionView;
   phase: 'proposal' | 'playing' | 'idle';

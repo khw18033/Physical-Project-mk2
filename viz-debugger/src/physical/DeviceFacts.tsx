@@ -12,11 +12,13 @@
  * 배터리의 `null` 은 **모른다**는 뜻이고 `0%` 로 그리면 안 된다 — 방전 직전과 구별되지 않는다.
  */
 
+import { useLang } from '../shared/language.ts';
 import { t } from '../i18n/dict.ts';
 import { hardwareTarget } from './encode.ts';
 import { isStale, useDeviceStates } from './deviceState.ts';
 
 export function DeviceFacts({ entityId }: { entityId: string }) {
+  useLang();
   const devices = useDeviceStates();
   const device = devices[hardwareTarget(entityId)] ?? null;
 
@@ -69,6 +71,7 @@ export function sdkWords(ready: boolean | null, autostart: boolean | null): stri
  * 말지를 그 자리에서 알아야 한다.
  */
 export function SdkState({ entityId }: { entityId: string }) {
+  useLang();
   const devices = useDeviceStates();
   const device = devices[hardwareTarget(entityId)] ?? null;
   const ready = device?.sdkReady ?? null;

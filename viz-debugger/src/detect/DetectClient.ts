@@ -24,6 +24,7 @@ import { t } from '../i18n/dict.ts';
 import { connectionAddress, registerConnectionDefault } from '../shared/connections.ts';
 import { DETECT_PRESETS } from './presets.ts';
 import { detectImagePath, recordFileUrl } from '../record/recordClient.ts';
+import { normalizeFeatures } from './parse.ts';
 import type {
   DetectFeatures, DetectFrameEvidence, DetectLocalization, DetectPath, DetectSummary,
 } from './types.ts';
@@ -169,7 +170,9 @@ export async function fetchFeatures(source: DetectSource, target: DetectClass = 
     ? `${SAMPLE_BASE}/${target}/features_sent.json`
     : `${source.base}/detect/features?target=${target}`;
   try {
-    return await getJson<DetectFeatures>(url);
+    // **검사 없이 타입만 씌우면 안 된다.** 서비스가 주는 모양은 클래스로 묶여 있다 —
+    // 그대로 넘기면 `features_compared` 가 undefined 인 채 화면까지 간다 (parse.ts 주석).
+    return normalizeFeatures(await getJson<unknown>(url), target);
   } catch {
     return null;
   }

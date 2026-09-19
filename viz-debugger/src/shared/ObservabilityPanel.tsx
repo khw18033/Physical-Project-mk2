@@ -19,6 +19,7 @@
  * 맞다** — 패널을 열어 두면 그 리렌더가 측정 대상에 섞인다. 그 사실도 화면에 적는다.
  */
 
+import { useLang } from '../shared/language.ts';
 import { Rich } from '../i18n/RichText.tsx';
 import { t } from '../i18n/dict.ts';
 import { useEffect, useState } from 'react';
@@ -36,6 +37,7 @@ import {
 
 /** 못 잰 값은 「해당 없음」이다. **0을 넣지 않는다** — 0은 「쟀는데 0」으로 읽힌다. */
 function Value({ value, unit, digits = 0 }: { value: number | null; unit: string; digits?: number }) {
+  useLang();
   if (value === null) return <b className="obs__na">{t('op.1')}</b>;
   return <b>{value.toFixed(digits)}<small> {unit}</small></b>;
 }
@@ -59,6 +61,7 @@ function download(report: unknown): void {
 }
 
 export function ObservabilityPanel() {
+  useLang();
   const [open, setOpen] = useState(false);
   const [, setTick] = useState(0);
   useEffect(() => {

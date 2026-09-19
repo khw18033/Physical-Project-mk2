@@ -10,6 +10,7 @@
  * 없다고 적는다.**
  */
 
+import { useLang } from '../../shared/language.ts';
 import { Rich } from '../../i18n/RichText.tsx';
 import { t } from '../../i18n/dict.ts';
 import { useEffect, useState } from 'react';
@@ -54,6 +55,7 @@ const ago = (now: number, at: number | null) => (at === null
  *   탐지가 역산한 방위  한 바퀴 뒤 탐지가 받침대로 역산한 **도면 기준** 방위 — 기준점이 다르다
  */
 export function PrepFacts({ taskId }: { taskId: string }) {
+  useLang();
   const prep = usePrepStage();
   const devices = useDeviceStates();
   const detect = useDetect();
@@ -122,6 +124,7 @@ export function PrepFacts({ taskId }: { taskId: string }) {
  * 모든 값은 로봇 오도메트리 기준이고, 로봇이 안 실은 값은 「모름」으로 둔다.
  */
 export function SweepFacts() {
+  useLang();
   const session = useRobotSession();
   const prep = usePrepStage();
   const startCapture = session.seenYaw[0];
@@ -177,6 +180,7 @@ const STEP_NAMES_KEY: Record<string, string> = {
  * 식과 대입값, 탐지가 낸 로봇 명령. **다시 계산하지 않는다.**
  */
 export function PathFacts() {
+  useLang();
   const detect = useDetect();
   const path = detect.path ?? detect.pathFailureDetail;
   if (path === null) {
@@ -231,6 +235,7 @@ export function PathFacts() {
  * 실제로 나간 명령과 로봇의 응답은 그 아래 「로봇 명령 · 오간 로그」에 있다.
  */
 export function ApproachFacts() {
+  useLang();
   useDetect();
   useRobotSession();
   useTick(2000);
@@ -257,6 +262,7 @@ const STEP_WORDS_KEY = { idle: 'dlog.58', running: 'dlog.59', done: 'dlog.60', f
 
 /** **탐지 경로에서 오간 줄.** 그 태스크에 붙은 것만, 받은 순서 그대로. */
 export function DetectLogLines({ taskId }: { taskId: string }) {
+  useLang();
   const all = useDetectLog();
   const lines = all.filter((line) => line.tasks.includes(taskId));
   return <section className="detect-log">

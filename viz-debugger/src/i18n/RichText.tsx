@@ -34,6 +34,7 @@
  * 번역 한 줄의 오타가 도움말 전체를 못 열게 만들면 안 된다.
  */
 
+import { useLang } from '../shared/language.ts';
 import { Fragment, type ReactNode } from 'react';
 import { t } from './dict.ts';
 
@@ -61,5 +62,6 @@ export function renderRich(text: string): ReactNode {
  * 받아 그릴 뿐 구독하지 않는다.
  */
 export function Rich({ id, vars }: { id: string; vars?: Record<string, string | number> }) {
+  useLang();
   return <>{renderRich(t(id, vars))}</>;
 }

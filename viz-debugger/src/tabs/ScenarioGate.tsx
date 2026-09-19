@@ -23,6 +23,7 @@
  *     자리를 비워 화면을 짧게 만드는 것이 맞다.
  */
 
+import { useLang } from '../shared/language.ts';
 import { Rich } from '../i18n/RichText.tsx';
 import { t } from '../i18n/dict.ts';
 import { scriptPhrase } from '../scenarios/phrases.ts';
@@ -45,6 +46,7 @@ type CardProps = {
 };
 
 function NotInScriptCard({ what, why, elsewhere, wide }: CardProps) {
+  useLang();
   const scenario = useScenarioRender();
   return (
     <section className={wide === true ? 'tabskip tabskip--wide' : 'tabskip'} data-scenario-skip={what}>
@@ -76,6 +78,7 @@ function NotInScriptCard({ what, why, elsewhere, wide }: CardProps) {
  * (조용히 안 접히는 것보다 낫다). `verify:node-scope` 가 화면과 표의 아귀를 검사한다.
  */
 export function PanelGate({ id, children }: { id: string; children: ReactNode }) {
+  useLang();
   // 일반·목·개발 모드에서는 axes 가 null 이다 — 전부 그린다. 접힘은 시나리오 모드에서만이다.
   const axes = useScenarioAxes();
   const spec = scenarioPanel(id);
@@ -95,6 +98,7 @@ export function PanelGate({ id, children }: { id: string; children: ReactNode })
  * 서로 다른 이름을 말하게 된다(`VZ-N-01`).
  */
 export function NodeGate({ kind, children }: { kind: ViewNodeKindId; children: ReactNode }) {
+  useLang();
   const axes = useScenarioAxes();
   if (axes === null) return <>{children}</>;
   const panels = panelsOfNode(kind);
