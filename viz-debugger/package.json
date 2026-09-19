@@ -94,7 +94,8 @@
     "verify:gateway-wire": "node scripts/verify-gateway-wire.mjs",
     "verify:log-i18n": "node scripts/verify-log-i18n.mjs",
     "verify:service-words": "node scripts/verify-service-words.mjs",
-    "verify:gen-prompt": "node scripts/verify-gen-prompt.mjs"
+    "verify:gen-prompt": "node scripts/verify-gen-prompt.mjs",
+    "verify:goldset-en": "node scripts/verify-goldset-en.mjs"
   },
   "dependencies": {
     "mqtt": "^5.15.2",

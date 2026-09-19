@@ -1,0 +1,257 @@
+{
+  "mission_id": "MSN-260831-03",
+  "world": "registry",
+  "source": "viz-debugger/scenarios/MSN-260831-03.json (읽기 전용)",
+  "utterance": {
+    "text": "Start the automatic overflow-barrier system.",
+    "engine": "script",
+    "confidence": 1,
+    "audio_ref": null
+  },
+  "milestones": [
+    {
+      "milestone_id": "MS-A",
+      "order": 0,
+      "title": "Idle by default",
+      "assigned_targets": [
+        "sensor-01"
+      ],
+      "task_ids": [
+        "T-41a",
+        "T-41b"
+      ]
+    },
+    {
+      "milestone_id": "MS-B",
+      "order": 1,
+      "title": "When the river level rises for 30 s or more, turn the process ON and enter standby",
+      "assigned_targets": [
+        "sensor-01"
+      ],
+      "task_ids": [
+        "T-42a",
+        "T-42b",
+        "T-42c"
+      ]
+    },
+    {
+      "milestone_id": "MS-C",
+      "order": 2,
+      "title": "Close once the danger level is reached and held for 10 s or more",
+      "assigned_targets": [
+        "sensor-01",
+        "actuator-01"
+      ],
+      "task_ids": [
+        "T-43a",
+        "T-43b",
+        "T-43c",
+        "T-43d",
+        "T-43e"
+      ]
+    },
+    {
+      "milestone_id": "MS-D",
+      "order": 3,
+      "title": "Reopen and turn the process OFF once the level is below the danger level and falling for 3 minutes or more",
+      "assigned_targets": [
+        "sensor-01",
+        "actuator-01"
+      ],
+      "task_ids": [
+        "T-44a",
+        "T-44b",
+        "T-44c",
+        "T-44d",
+        "T-44e",
+        "T-44f"
+      ]
+    }
+  ],
+  "tasks": [
+    {
+      "task_id": "T-41a",
+      "title": "Subscribe to the water level",
+      "milestone_id": "MS-A",
+      "node_kind": "sense",
+      "target": "sensor-01",
+      "deps": []
+    },
+    {
+      "task_id": "T-41b",
+      "title": "Decide the normal state",
+      "milestone_id": "MS-A",
+      "node_kind": "decide",
+      "target": "sensor-01",
+      "deps": [
+        "T-41a"
+      ]
+    },
+    {
+      "task_id": "T-42a",
+      "title": "Accumulate the rising interval",
+      "milestone_id": "MS-B",
+      "node_kind": "sense",
+      "target": "sensor-01",
+      "deps": [
+        "T-41b"
+      ]
+    },
+    {
+      "task_id": "T-42b",
+      "title": "Decide whether the rise held for 30 s",
+      "milestone_id": "MS-B",
+      "node_kind": "decide",
+      "target": "sensor-01",
+      "deps": [
+        "T-42a"
+      ]
+    },
+    {
+      "task_id": "T-42c",
+      "title": "Process ON",
+      "milestone_id": "MS-B",
+      "node_kind": "act",
+      "target": "sensor-01",
+      "deps": [
+        "T-42b"
+      ]
+    },
+    {
+      "task_id": "T-43a",
+      "title": "Decide whether the danger level is reached",
+      "milestone_id": "MS-C",
+      "node_kind": "decide",
+      "target": "sensor-01",
+      "deps": [
+        "T-42c"
+      ]
+    },
+    {
+      "task_id": "T-43b",
+      "title": "Decide whether the danger level held for 10 s",
+      "milestone_id": "MS-C",
+      "node_kind": "decide",
+      "target": "sensor-01",
+      "deps": [
+        "T-43a"
+      ]
+    },
+    {
+      "task_id": "T-43c",
+      "title": "Publish close_gate",
+      "milestone_id": "MS-C",
+      "node_kind": "act",
+      "target": "actuator-01",
+      "deps": [
+        "T-43b"
+      ]
+    },
+    {
+      "task_id": "T-43d",
+      "title": "Receive the ACK and correlation key",
+      "milestone_id": "MS-C",
+      "node_kind": "verify",
+      "target": "actuator-01",
+      "deps": [
+        "T-43c"
+      ]
+    },
+    {
+      "task_id": "T-43e",
+      "title": "Confirm 0% opening",
+      "milestone_id": "MS-C",
+      "node_kind": "verify",
+      "target": "actuator-01",
+      "deps": [
+        "T-43d"
+      ]
+    },
+    {
+      "task_id": "T-44a",
+      "title": "Accumulate the falling interval",
+      "milestone_id": "MS-D",
+      "node_kind": "sense",
+      "target": "sensor-01",
+      "deps": [
+        "T-43e"
+      ]
+    },
+    {
+      "task_id": "T-44b",
+      "title": "Decide whether the fall held for 3 minutes",
+      "milestone_id": "MS-D",
+      "node_kind": "decide",
+      "target": "sensor-01",
+      "deps": [
+        "T-44a"
+      ]
+    },
+    {
+      "task_id": "T-44c",
+      "title": "Publish open_gate",
+      "milestone_id": "MS-D",
+      "node_kind": "act",
+      "target": "actuator-01",
+      "deps": [
+        "T-44b"
+      ]
+    },
+    {
+      "task_id": "T-44d",
+      "title": "Receive the ACK and correlation key",
+      "milestone_id": "MS-D",
+      "node_kind": "verify",
+      "target": "actuator-01",
+      "deps": [
+        "T-44c"
+      ]
+    },
+    {
+      "task_id": "T-44e",
+      "title": "Confirm 100% opening",
+      "milestone_id": "MS-D",
+      "node_kind": "verify",
+      "target": "actuator-01",
+      "deps": [
+        "T-44d"
+      ]
+    },
+    {
+      "task_id": "T-44f",
+      "title": "Process OFF",
+      "milestone_id": "MS-D",
+      "node_kind": "act",
+      "target": "sensor-01",
+      "deps": [
+        "T-44e"
+      ]
+    }
+  ],
+  "shape": {
+    "tasks": 16,
+    "edges": 15,
+    "roots": 1,
+    "sinks": 1,
+    "joins": 0,
+    "max_depth": 15,
+    "has_cycle": false,
+    "ref_edges": 0,
+    "node_kinds": [
+      "act",
+      "decide",
+      "sense",
+      "verify"
+    ],
+    "labeled": true
+  },
+  "not_extracted": {
+    "events": "실행 기록 — 생성기가 만들 것이 아니라 실행이 만든다",
+    "worldTimeline": "세계 값 — 위와 같다",
+    "params": "편별 상수(위험 수위 등) — 임무 설계가 아니라 환경 설정이다",
+    "actionItems": "어댑터 전개 결과 — VZ-G-04 의 몫이다",
+    "refEdges": "태스크 단위 참조 엣지는 안 뽑는다 — **마일스톤 단위(milestones[].repeat_of)로 올렸다** (260908). 태스크 엣지는 규칙(solveDeps)이 그 주석에서 편다"
+  },
+  "lang": "en",
+  "source_ko": "gen-lab/goldset/missions/MSN-260831-03.json"
+}

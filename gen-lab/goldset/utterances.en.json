@@ -1,0 +1,49 @@
+{
+  "note": "발화 변형의 영어 판 (260919 · 영문화 5단계 L3). 한국어 판(`utterances.json`)과 같은 규칙으로 손으로 적었다 — 대본에 없는 문장이라 추출기가 만들지 못한다. 원본 문장은 사이드카(`MSN-*.en.json`)의 것을 그대로 쓴다.",
+  "rules": [
+    "**어휘는 사이드카가 쓴 영어 안에서만** 바꿔 적는다. 새 낱말을 지어내면 그 변형은 「다른 말투」가 아니라 다른 문제가 된다.",
+    "지시 대상을 바꾸지 않는다 — 다른 방, 다른 층, 다른 장비를 말하면 변형이 아니라 다른 임무다.",
+    "말투·어순·생략의 차이를 노린다. 한국어 판의 네 변형이 무엇을 노렸는지를 **같은 자리에서** 노린다 (줄임 · 어순 뒤집기 · 표기 흔들림 · 뒤에서 말하기).",
+    "마일스톤 정답은 원본과 같다. 변형마다 정답을 따로 두지 않는다.",
+    "**한국어 판과 한 줄씩 짝이 맞는다.** 편마다 변형 수가 같아야 두 판의 숫자를 나란히 볼 때 표본 수가 같다."
+  ],
+  "caveat": "이 판의 점수는 한국어 판과 **같은 표에 나란히 놓을 수 없다.** 발화가 다른 문장이고 정답 제목도 다른 글자이므로, 말할 수 있는 것은 「영어로도 형식·그라운딩이 서는가」까지다. 「영어가 한국어보다 낫다/못하다」는 이 설계로 말할 수 없다.",
+  "missions": [
+    {
+      "mission_id": "MSN-260831-01",
+      "original": "Move from room 503 to the elevator in the hallway.",
+      "variants": [
+        "Go from room 503 to the elevator",
+        "Leave room 503 and move to the hallway elevator",
+        "Start at room 503 and go to the lift in the hallway",
+        "Move to the elevator in the hallway, starting from room 503"
+      ]
+    },
+    {
+      "mission_id": "MSN-260831-02",
+      "original": "Detect the blind spots of the fixed camera in room 503.",
+      "variants": [
+        "Detect the blind spots the fixed camera cannot see",
+        "Find the blind spots in room 503, going by the fixed camera",
+        "Scan the fixed camera's blind spots with the robot",
+        "Run blind spot detection for the camera in room 503"
+      ]
+    },
+    {
+      "mission_id": "MSN-260831-03",
+      "original": "Start the automatic overflow-barrier system.",
+      "variants": [
+        "Turn on the automatic overflow-barrier opening and closing",
+        "Start the barrier automatic opening and closing system",
+        "Operate the floodgate automatic opening and closing",
+        "Start the automation for opening and closing the overflow barrier"
+      ]
+    }
+  ],
+  "withheld": [
+    {
+      "id": "MSN-260826-01",
+      "reason": "한국어 판과 같다 — 4층 맵 데이터가 없어 그라운딩이 성립하지 않는다 (260907)"
+    }
+  ]
+}

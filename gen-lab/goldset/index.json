@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-09-08T12:54:46.467Z",
+  "generated_at": "2026-09-19T11:44:19.751Z",
   "generated_by": "viz-debugger/scripts/extract-goldset.mjs",
   "withheld": [
     {
@@ -99,6 +99,23 @@
       "matcher_exact": 5,
       "matcher_none": 0,
       "matcher_other": 0
+    }
+  ],
+  "missions_en": [
+    {
+      "mission_id": "MSN-260831-01",
+      "milestones": 7,
+      "from": "scenarios/*.en.json"
+    },
+    {
+      "mission_id": "MSN-260831-02",
+      "milestones": 6,
+      "from": "scenarios/*.en.json"
+    },
+    {
+      "mission_id": "MSN-260831-03",
+      "milestones": 4,
+      "from": "scenarios/*.en.json"
     }
   ],
   "findings": [

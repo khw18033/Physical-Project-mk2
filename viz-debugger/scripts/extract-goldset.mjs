@@ -22,6 +22,15 @@
 // 문장은 대본에 없기 때문이다. 여기서는 그 파일을 **검사만** 한다 —
 // 임무 id 가 실재하는가, 그 문장이 대본 매처(`matcher.ts`)로도 같은 편에 붙는가.
 // 붙지 않는 변형은 「같은 임무의 다른 말투」가 아니라 다른 임무일 수 있다.
+//
+// ## 영어 판도 여기서 낸다 (260919 · 영문화 5단계)
+//
+// **손으로 적지 않는다.** 영어는 3단계가 편마다 만들어 둔 사이드카(`MSN-*.en.json`)에
+// 이미 있다 — 그 글자는 **화면에 그리려고** 쓴 것이고 채점을 염두에 두고 지은 것이
+// 아니다. 채점용으로 새로 지으면 내가 쓴 영어와 모델이 쓴 영어가 가까워져 점수가 부푼다.
+//
+// 사이드카에 없는 문장이 하나라도 있으면 **큰 소리로 멈춘다.** 조용히 한국어를 남기면
+// 영어 판 정답셋에 한국어 제목이 섞이고, 그 편의 점수는 아무 뜻이 없다.
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -255,6 +264,57 @@ mkdirSync(join(outDir, 'missions'), { recursive: true });
 for (const mission of missions) {
   writeFileSync(join(outDir, 'missions', `${mission.mission_id}.json`), JSON.stringify(mission, null, 2) + '\n', 'utf8');
 }
+
+// ── 영어 판 — 사이드카에서 뽑는다 ────────────────────────────────────────────
+//
+// 구조(마일스톤 수·차례·태스크·assigned_targets)는 **한국어 판과 같다.** 바뀌는 것은
+// 글자뿐이고, 그래서 두 판의 점수를 나란히 볼 때 「무엇이 달랐나」가 언어 하나로 좁혀진다.
+const enMissions = [];
+const missingEn = [];
+for (const mission of missions) {
+  const sidecar = join(scenarioDir, `${mission.mission_id}.en.json`);
+  let phrases = {};
+  try {
+    phrases = JSON.parse(readFileSync(sidecar, 'utf8')).phrases ?? {};
+  } catch {
+    missingEn.push(`${mission.mission_id}: 사이드카(.en.json)가 없다`);
+    continue;
+  }
+  const say = (korean) => {
+    const english = phrases[korean];
+    if (typeof english !== 'string' || english.trim() === '') {
+      missingEn.push(`${mission.mission_id}: 「${korean}」 의 영어가 사이드카에 없다`);
+      return korean;
+    }
+    return english;
+  };
+  // 조회 규칙(`match`)은 **안 싣는다.** 그것은 대본이 발화를 고르는 키워드이지 정답이
+  // 아니고, 여기서 재는 것은 생성이지 조회가 아니다. 남겨 두면 영어 정답셋에 한국어
+  // 키워드가 섞여 「이게 채점에 쓰이나」를 매번 다시 묻게 된다 (3단계의 `match_en` 은
+  // 화면·게이트웨이가 쓰는 자리에 따로 있다).
+  const { match: _lookupRules, ...withoutMatch } = mission;
+  enMissions.push({
+    ...withoutMatch,
+    lang: 'en',
+    source_ko: `gen-lab/goldset/missions/${mission.mission_id}.json`,
+    utterance: { ...mission.utterance, text: say(mission.utterance.text) },
+    // 조회 규칙은 영어 판이 따로 있다 (3단계 `match_en`). 정답셋은 그것을 안 쓴다 —
+    // 여기서 재는 것은 생성이지 조회가 아니다. 모양을 맞추려고 그대로 둔다.
+    milestones: mission.milestones.map((ms) => ({ ...ms, title: say(ms.title) })),
+    tasks: (mission.tasks ?? []).map((task) => ({ ...task, title: say(task.title) })),
+  });
+}
+if (missingEn.length > 0) {
+  console.error(`❌ 영어 정답셋을 못 만든다 — 사이드카에 없는 문장 ${missingEn.length}건`);
+  for (const line of missingEn.slice(0, 10)) console.error('  - ' + line);
+  console.error('\n   `viz-debugger/scenarios/MSN-*.en.json` 에 그 문장을 더해라.');
+  console.error('   조용히 한국어를 남기면 영어 정답셋에 한국어 제목이 섞이고 그 편의 점수는 뜻이 없다.');
+  process.exit(1);
+}
+mkdirSync(join(outDir, 'missions-en'), { recursive: true });
+for (const mission of enMissions) {
+  writeFileSync(join(outDir, 'missions-en', `${mission.mission_id}.json`), JSON.stringify(mission, null, 2) + '\n', 'utf8');
+}
 const index = {
   generated_at: new Date().toISOString(),
   generated_by: 'viz-debugger/scripts/extract-goldset.mjs',
@@ -262,6 +322,8 @@ const index = {
   note: '대본 4편에서 뽑았다. 대본은 읽기만 한다 — 이 폴더 밖으로는 아무것도 쓰지 않는다.',
   missions: table,
   utterances: variantTable,
+  // 영어 판은 **구조가 같고 글자만 다르다** — 사이드카에서 뽑았고 손으로 적지 않았다.
+  missions_en: enMissions.map((m) => ({ mission_id: m.mission_id, milestones: m.milestones.length, from: 'scenarios/*.en.json' })),
   findings,
 };
 writeFileSync(join(outDir, 'index.json'), JSON.stringify(index, null, 2) + '\n', 'utf8');
@@ -288,4 +350,4 @@ if (findings.length > 0) {
   for (const line of findings) console.log('  - ' + line);
 }
 console.log('');
-console.log(`✅ ${missions.length}편을 gen-lab/goldset/ 에 썼다 (missions/*.json · index.json). 대본은 읽기만 했다.`);
+console.log(`✅ ${missions.length}편을 gen-lab/goldset/ 에 썼다 (missions/*.json · missions-en/*.json · index.json). 대본은 읽기만 했다.`);
