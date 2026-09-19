@@ -25,6 +25,11 @@ import { isScratchPath } from './lib/scratch.mjs';
 
 const root = join(fileURLToPath(new URL('.', import.meta.url)), '..');
 const load = (...p) => import(pathToFileURL(join(root, ...p)).href);
+
+// 260919 — 로그 줄이 **글자 대신 키**를 담는다 (5단계 §3). `line.text` 를 바로 읽으면
+// 새 줄은 비어 있으므로 `lineText()` 로 푼다. 무르게 한 것이 아니라 **한 칸 더** 보는
+// 것이다 — 키가 실제로 사전에서 글자로 풀리는지까지 이 검사가 확인하게 된다.
+const { lineText, lineDetail } = await load('src', 'detect', 'detectLog.ts');
 const sample = (...p) => JSON.parse(readFileSync(join(root, '..', 'door_example', 'test', ...p), 'utf8'));
 
 const { indexOfRotation, boxOf, reasonOf, chosenFrame, usableDistanceCm, SCORE_LABEL_KEY, normalizeFeatures } =
@@ -334,11 +339,11 @@ const COUNT = 8;
     const { detectLogOf } = await load('src', 'detect', 'detectLog.ts');
     for (const [index, frame] of all.slice(0, 2).entries()) {
       const hit = detectLogOf(`T-A4-${indexOfRotation(frame.rotation_deg, STEP, COUNT)}`);
-      if (!hit.some((line) => line.lane === 'detect' && line.text.includes(`${frame.rotation_deg}°`))) {
+      if (!hit.some((line) => line.lane === 'detect' && lineText(line).includes(`${frame.rotation_deg}°`))) {
         failures.push(`${index + 1}번째 각도(${frame.rotation_deg}°) 결과가 그 칸의 액션 아이템 로그에 없다`);
       }
     }
-    if (!detectLogOf('T-A3').some((line) => line.lane === 'screen' && /지난 판/.test(line.text))) {
+    if (!detectLogOf('T-A3').some((line) => line.lane === 'screen' && /지난 판/.test(lineText(line)))) {
       failures.push('지난 판을 거른 사실이 액션 아이템 로그에 없다 — 탐지는 답하는데 화면만 비어 「연결이 안 된다」로 읽힌다');
     }
 
@@ -399,14 +404,14 @@ const COUNT = 8;
   noteScanFeed({ ...frame, seq: 7, rotationDeg: 315, duplicateOfPrev: true }, STEP, COUNT);
   noteScanFeed(end, STEP, COUNT);
 
-  if (!detectLogOf('T-A4-6').some((line) => line.lane === 'robot' && /270° 프레임/.test(line.text))) {
+  if (!detectLogOf('T-A4-6').some((line) => line.lane === 'robot' && /270° 프레임/.test(lineText(line)))) {
     failures.push('로봇이 270° 프레임을 보낸 사실이 270° 칸(T-A4-6) 액션 아이템에 없다');
   }
   const dup = detectLogOf('T-A4-7').find((line) => line.lane === 'robot');
-  if (dup?.level !== 'warn' || !/같은 그림/.test(dup.text)) failures.push('카메라가 얼어 같은 그림이 온 것을 경고로 안 적는다 — 탐지가 그 판을 버린다');
+  if (dup?.level !== 'warn' || !/같은 그림/.test(lineText(dup))) failures.push('카메라가 얼어 같은 그림이 온 것을 경고로 안 적는다 — 탐지가 그 판을 버린다');
   const sweep = detectLogOf('T-A3');
-  if (!sweep.some((line) => /시작했습니다/.test(line.text))) failures.push('scan_start 가 한 바퀴(T-A3) 로그에 없다');
-  if (!sweep.some((line) => line.level === 'warn' && /ABORTED/.test(line.text))) failures.push('중단된 판(ABORTED · 5/8장)을 경고로 안 적는다');
+  if (!sweep.some((line) => /시작했습니다/.test(lineText(line)))) failures.push('scan_start 가 한 바퀴(T-A3) 로그에 없다');
+  if (!sweep.some((line) => line.level === 'warn' && /ABORTED/.test(lineText(line)))) failures.push('중단된 판(ABORTED · 5/8장)을 경고로 안 적는다');
 
   // 화면이 실제로 그 토픽을 구독하는가 — 뜯는 함수만 있고 안 들으면 소용이 없다.
   const client = readFileSync(join(root, 'src', 'physical', 'PhysicalClient.ts'), 'utf8');

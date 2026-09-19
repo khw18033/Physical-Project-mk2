@@ -59,8 +59,11 @@ export function checkScanHold(): void {
         : t('sc.noFrameSkip', { sec: RESULT_WAIT_MS / 1000 });
   appendDetectLog({
     lane: 'screen', level: why === 'result' ? 'info' : 'warn',
-    text: t('sc.signalNext', { deg: hold.rotationDeg, because }),
-    detail: t('sc.robotWaited', { sec: ((Date.now() - hold.sinceMs) / 1000).toFixed(1) }) + (hold.note !== 'ok' ? ` · note ${hold.note}` : ''),
+    say: { key: 'sc.signalNext', vars: { deg: hold.rotationDeg, because } },
+    sayDetail: [
+      { key: 'sc.robotWaited', vars: { sec: ((Date.now() - hold.sinceMs) / 1000).toFixed(1) } },
+      ...(hold.note !== 'ok' ? [`note ${hold.note}`] : []),
+    ],
     tasks,
   });
 
@@ -68,18 +71,18 @@ export function checkScanHold(): void {
     if (!outcome.sent) {
       // 안 나갔으면 다시 보낼 수 있게 푼다 — 로봇은 아직 서 있다.
       signalled.delete(key);
-      appendDetectLog({ lane: 'screen', level: 'warn', text: t('sc.signalFailed', { deg: hold.rotationDeg, reason: outcome.reason ?? t('sc.noReason') }), detail: t('sc.willRetry'), tasks });
+      appendDetectLog({ lane: 'screen', level: 'warn', say: { key: 'sc.signalFailed', vars: { deg: hold.rotationDeg, reason: outcome.reason ?? { key: 'sc.noReason' } } }, sayDetail: { key: 'sc.willRetry' }, tasks });
       return;
     }
     if (answer === null) {
-      appendDetectLog({ lane: 'robot', level: 'warn', text: t('sc.noAnswer', { deg: hold.rotationDeg }), detail: t('sc.noAnswerDetail', { id: outcome.commandId, sec: hold.timeoutS ?? '?' }), tasks });
+      appendDetectLog({ lane: 'robot', level: 'warn', say: { key: 'sc.noAnswer', vars: { deg: hold.rotationDeg } }, sayDetail: { key: 'sc.noAnswerDetail', vars: { id: outcome.commandId, sec: hold.timeoutS ?? '?' } }, tasks });
       return;
     }
     if (answer.kind === 'result' && answer.status === 'SUCCEEDED') {
       const latched = answer.result.latched === 1;
       appendDetectLog({
         lane: 'robot', level: 'info',
-        text: t('sc.accepted', { deg: hold.rotationDeg }) + t(latched ? 'sc.latched' : 'sc.nextTurn'),
+        say: { key: latched ? 'sc.acceptedLatched' : 'sc.acceptedNext', vars: { deg: hold.rotationDeg } },
         detail: Object.entries(answer.result).map(([k, v]) => `${k}=${v}`).join(' · '),
         tasks,
       });
@@ -89,7 +92,7 @@ export function checkScanHold(): void {
     const message = answer.kind === 'status' ? '' : answer.message ?? '';
     appendDetectLog({
       lane: 'robot', level: 'warn',
-      text: t('sc.rejected', { deg: hold.rotationDeg, why: [code.trim(), message].filter((v) => v !== '').join(' · ') || t('sc.noReason') }),
+      say: { key: 'sc.rejected', vars: { deg: hold.rotationDeg, why: [code.trim(), message].filter((v) => v !== '').join(' · ') || t('sc.noReason') } },
       detail: message === 'stale_rotation' ? t('sc.4') : '',
       tasks,
     });

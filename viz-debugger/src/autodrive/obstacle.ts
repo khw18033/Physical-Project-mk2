@@ -24,6 +24,7 @@
  */
 
 import { t } from '../i18n/dict.ts';
+import { sayText, type LogSay } from '../i18n/phrase.ts';
 import { useSyncExternalStore } from 'react';
 import { isReplayingRecord } from '../record/replayMode.ts';
 import { fetchObstacleJson, type FetchLike } from './aiClient.ts';
@@ -55,7 +56,19 @@ export type ObstacleSnapshot = {
   receivedAtMs: number;
 };
 
-export type ObstacleLogLine = { atMs: number; level: 'info' | 'warn'; text: string };
+/**
+ * 바뀐 것만 적는 줄.
+ *
+ * **글자가 아니라 키를 담는다** (260919 · 5단계) — 전에는 `t()` 로 그린 글자를 담아서
+ * 그 줄이 쌓인 순간의 언어로 굳었다. 사람이 「가까운 장애물 있음/없음만 한국어」로 본 것이
+ * 이것이다. `say` 가 없으면 `text` 를 쓴다 — 값만 있는 줄(`state_change: true`)의 자리다.
+ */
+export type ObstacleLogLine = { atMs: number; level: 'info' | 'warn'; say?: LogSay; text?: string };
+
+/** 그 줄의 지금 언어. 그리는 자리는 반드시 이것을 거친다. */
+export function obstacleLineText(line: ObstacleLogLine): string {
+  return line.say === undefined ? (line.text ?? '') : sayText(line.say);
+}
 
 const num = (value: unknown): number | null => {
   if (typeof value === 'number' && Number.isFinite(value)) return value;
@@ -156,16 +169,16 @@ const nearWords = (snap: ObstacleSnapshot) => snap.detections
 export function receiveObstacle(body: unknown, via: 'relay' | 'direct', nowMs = Date.now()): boolean {
   const snap = parseObstacle(body, nowMs);
   if (snap === null) {
-    commit({ ...state, error: t('ob2.2'), log: withLog(state.log, state.error === null ? [{ atMs: nowMs, level: 'warn', text: t('ob2.3') }] : []) });
+    commit({ ...state, error: t('ob2.2'), log: withLog(state.log, state.error === null ? [{ atMs: nowMs, level: 'warn', say: { key: 'ob2.3' } }] : []) });
     return false;
   }
   const prev = state.latest;
   const lines: ObstacleLogLine[] = [];
-  if (state.error !== null) lines.push({ atMs: nowMs, level: 'info', text: t('ob2.4') });
+  if (state.error !== null) lines.push({ atMs: nowMs, level: 'info', say: { key: 'ob2.4' } });
   if (snap.hasNearObstacle !== null && snap.hasNearObstacle !== (prev?.hasNearObstacle ?? null)) {
     lines.push(snap.hasNearObstacle
-      ? { atMs: nowMs, level: 'warn', text: t('ob2.nearPresent', { what: nearWords(snap) || t('ob2.noneMarked') }) }
-      : { atMs: nowMs, level: 'info', text: t('ob2.5') });
+      ? { atMs: nowMs, level: 'warn', say: { key: 'ob2.nearPresent', vars: { what: nearWords(snap) || { key: 'ob2.noneMarked' } } } }
+      : { atMs: nowMs, level: 'info', say: { key: 'ob2.5' } });
   }
   if (snap.stateChange === true && prev?.stateChange !== true) lines.push({ atMs: nowMs, level: 'warn', text: 'state_change: true' });
   const sameClock = prev !== null && snap.timestampSec !== null && prev.timestampSec === snap.timestampSec;
@@ -177,7 +190,7 @@ export function receiveObstacle(body: unknown, via: 'relay' | 'direct', nowMs = 
 
 /** 실패 한 건. 같은 사유가 이어지면 줄을 또 적지 않는다. */
 export function noteObstacleError(reason: string, nowMs = Date.now()): void {
-  const lines: ObstacleLogLine[] = state.error === reason ? [] : [{ atMs: nowMs, level: 'warn', text: t('ob2.notReceived', { reason }) }];
+  const lines: ObstacleLogLine[] = state.error === reason ? [] : [{ atMs: nowMs, level: 'warn', say: { key: 'ob2.notReceived', vars: { reason } } }];
   commit({ ...state, error: reason, log: withLog(state.log, lines) });
 }
 

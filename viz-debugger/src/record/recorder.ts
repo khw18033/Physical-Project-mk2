@@ -59,7 +59,18 @@ import {
 } from './recordClient.ts';
 import { isReplayingRecord } from './replayMode.ts';
 
-export const RECORD_SCHEMA = 'mission-record/1';
+/**
+ * 기록의 모양 번호.
+ *
+ * **`/2` (260919 · 5단계)** — 로그 줄이 **그려진 글자 대신 키와 값**을 담는다(`say`).
+ * 그래서 한국어로 기록한 판을 영문 화면에서 다시 봐도 문장이 영어로 그려진다.
+ *
+ * **`/1` 판은 그대로 열린다.** 그 판들은 `text`·`detail` 만 들고 있고, 그리는 자리가
+ * `say` 가 없으면 그 글자를 쓴다(`detectLog.lineText`). 260914~260916 의 45판이 여기
+ * 해당하고, 그 글자는 **기록한 순간의 언어 그대로** 남는다 — 다시 그릴 재료가 없다.
+ * 그것이 맞다: 기록은 기록이다.
+ */
+export const RECORD_SCHEMA = 'mission-record/2';
 const TICK_MS = 1500;
 /** 그림 하나를 몇 번까지 다시 떠 보나. 주기가 1.5초라 대략 30초. */
 const IMAGE_ATTEMPTS = 20;

@@ -20,7 +20,7 @@ import { useDeviceStates } from '../../physical/deviceState.ts';
 import { hardwareTarget } from '../../physical/encode.ts';
 import { viewpointTaskIndex } from '../../physical/missionLink.ts';
 import { usePrepStage } from '../../physical/prepStage.ts';
-import { DETECT_TASKS, LANE_WORDS_KEY, useDetectLog } from '../detectLog.ts';
+import { DETECT_TASKS, LANE_WORDS_KEY, useDetectLog, lineText, lineDetail } from '../detectLog.ts';
 import { useDetect } from '../store.ts';
 
 const ROBOT_ENTITY = 'robot-01';
@@ -273,8 +273,10 @@ export function DetectLogLines({ taskId }: { taskId: string }) {
         {lines.map((line, at) => <li key={`${line.atIso}-${at}`} className={`is-${line.level} lane-${line.lane}`}>
           <time>{line.atIso.slice(11, 23)}</time>
           <em>{t(LANE_WORDS_KEY[line.lane])}</em>
-          <span>{line.text}</span>
-          {line.detail !== '' && <code>{line.detail}</code>}
+          {/* **반드시 이것을 거친다** — `line.text` 를 바로 읽으면 새 줄이 빈칸이다.
+              새 줄은 키를 들고 있고 여기서 지금 언어로 풀린다 (`detectLog.ts`). */}
+          <span>{lineText(line)}</span>
+          {lineDetail(line) !== '' && <code>{lineDetail(line)}</code>}
         </li>)}
       </ol>}
   </section>;

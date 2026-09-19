@@ -28,8 +28,8 @@ export function noteScanFeed(message: ScanFeedMessage, stepDeg = 45, count = 8):
     if (message.event === 'scan_start') {
       appendDetectLog({
         lane: 'robot', level: 'info',
-        text: t('flg.runStarted', { n: message.expectedFrames ?? '?' }),
-        detail: t('flg.runStartedDetail', { id: message.missionId ?? t('flg.none') }),
+        say: { key: 'flg.runStarted', vars: { n: message.expectedFrames ?? '?' } },
+        sayDetail: { key: 'flg.runStartedDetail', vars: { id: message.missionId ?? { key: 'flg.none' } } },
         tasks: [DETECT_TASKS.sweep],
       });
       return;
@@ -38,9 +38,13 @@ export function noteScanFeed(message: ScanFeedMessage, stepDeg = 45, count = 8):
     const failed = message.outcome !== null && message.outcome !== 'SUCCEEDED';
     appendDetectLog({
       lane: 'robot', level: short || failed ? 'warn' : 'info',
-      text: t('flg.runEnded', { outcome: message.outcome ?? t('flg.noOutcome'), sent: message.framesSent ?? '?', expected: message.expectedFrames ?? '?' })
-        + (short || failed ? t('flg.1') : ''),
-      detail: `mission_id ${message.missionId ?? t('flg.none')}`,
+      // **한 문장 한 키.** 꼬리를 따로 두면 ` — ` 이음매까지 사전에 들어가고, 영어
+      // 어순에서 그 둘을 다시 이을 수 없다 (1단계부터의 규칙).
+      say: {
+        key: short || failed ? 'flg.runEndedShort' : 'flg.runEnded',
+        vars: { outcome: message.outcome ?? { key: 'flg.noOutcome' }, sent: message.framesSent ?? '?', expected: message.expectedFrames ?? '?' },
+      },
+      sayDetail: { key: 'flg.missionId', vars: { id: message.missionId ?? { key: 'flg.none' } } },
       tasks: [DETECT_TASKS.sweep, ...WHOLE_DETECT_PATH.slice(1)],
     });
     return;
@@ -51,14 +55,16 @@ export function noteScanFeed(message: ScanFeedMessage, stepDeg = 45, count = 8):
   appendDetectLog({
     lane: 'robot',
     level: message.duplicateOfPrev ? 'warn' : 'info',
-    text: t('flg.frameSent', { deg: message.rotationDeg, nth: (message.seq ?? 0) + 1 })
-      + (message.duplicateOfPrev ? t('flg.2') : ''),
-    detail: [
-      message.width !== null && message.height !== null ? `${message.width}×${message.height}` : null,
+    say: {
+      key: message.duplicateOfPrev ? 'flg.frameSentDup' : 'flg.frameSent',
+      vars: { deg: message.rotationDeg, nth: (message.seq ?? 0) + 1 },
+    },
+    sayDetail: [
+      ...(message.width !== null && message.height !== null ? [`${message.width}×${message.height}`] : []),
       kb(message.bytes),
-      message.sha1 === null ? null : `sha1 ${message.sha1}`,
-      message.missionId === null ? null : `mission_id ${message.missionId}`,
-    ].filter((part) => part !== null).join(' · '),
+      ...(message.sha1 === null ? [] : [`sha1 ${message.sha1}`]),
+      ...(message.missionId === null ? [] : [`mission_id ${message.missionId}`]),
+    ],
     tasks,
   });
 
@@ -70,12 +76,12 @@ export function noteScanFeed(message: ScanFeedMessage, stepDeg = 45, count = 8):
     if (state.frames.some((frame) => frame.rotation_deg === rotation)) return;
     appendDetectLog({
       lane: 'screen', level: 'warn',
-      text: t('flg.noResultYet', { deg: rotation, sec: RESULT_EXPECTED_WITHIN_MS / 1000 }),
-      detail: state.staleFrames !== null
-        ? t('flg.stillStale', { n: state.staleFrames })
+      say: { key: 'flg.noResultYet', vars: { deg: rotation, sec: RESULT_EXPECTED_WITHIN_MS / 1000 } },
+      sayDetail: state.staleFrames !== null
+        ? { key: 'flg.stillStale', vars: { n: state.staleFrames } }
         : state.error !== null
-          ? t('flg.endpointUnreachable', { why: state.error })
-          : t('flg.3'),
+          ? { key: 'flg.endpointUnreachable', vars: { why: state.error } }
+          : { key: 'flg.3' },
       tasks,
     });
   }, RESULT_EXPECTED_WITHIN_MS);

@@ -24,6 +24,11 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const root = join(fileURLToPath(new URL('.', import.meta.url)), '..');
 const load = (...p) => import(pathToFileURL(join(root, ...p)).href);
+
+// 260919 — 로그 줄이 **글자 대신 키**를 담는다 (5단계 §3). `line.text` 를 바로 읽으면
+// 새 줄은 비어 있으므로 `lineText()` 로 푼다. 무르게 한 것이 아니라 **한 칸 더** 보는
+// 것이다 — 키가 실제로 사전에서 글자로 풀리는지까지 이 검사가 확인하게 된다.
+const { lineText, lineDetail } = await load('src', 'detect', 'detectLog.ts');
 const failures = [];
 const controls = [];
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -130,11 +135,11 @@ const releaseView = gate.registerScanImageView();
   receiveUplink({ kind: 'result', commandId: id, status: 'SUCCEEDED', result: { rotation_deg: 0, step: 0, waited_s: 1.2 }, code: null, message: null }, MISSION, 3);
   await sleep(0);
   if (traceEvents().some((event) => event.nodeId === 'T-A3' && event.status === 'done')) failures.push('scan_continue 의 결과가 T-A3 을 끝냈다 — 한 바퀴가 끝난 것처럼 보인다');
-  if (!log.detectLog().some((line) => /로봇이 0° 신호를 받았습니다/.test(line.text))) failures.push('로봇이 신호를 받은 사실을 안 적는다');
+  if (!log.detectLog().some((line) => /로봇이 0° 신호를 받았습니다/.test(lineText(line)))) failures.push('로봇이 신호를 받은 사실을 안 적는다');
   releaseAt(0);
   if (session.robotSession().scanHold !== null) failures.push('scan_release 를 받고도 대기가 안 풀린다');
   // 대기 줄은 그 촬영의 칸(0도)에 붙는다.
-  const lines = session.logAtIndex(0).flatMap((group) => group.lines).map((line) => line.text);
+  const lines = session.logAtIndex(0).flatMap((group) => group.lines).map((line) => lineText(line));
   if (!lines.some((text) => /촬영 뒤 대기 · scan_hold · 0°/.test(text))) failures.push(`0도 칸에 대기 줄이 안 붙는다 (${lines.join(' / ')})`);
   if (!/대기 풀림 · scan_release · 0° · by web · 1\.2초 기다림/.test(uplinkWords(status({ event: 'scan_release', step: 0, steps: 8, rotation_deg: 0, by: 'web', waited_s: 1.2, note: 'ok' })))) {
     failures.push('대기 풀림 줄이 누가 얼마나 기다렸는지 안 말한다');
@@ -154,7 +159,7 @@ const releaseView = gate.registerScanImageView();
   await sleep(10);                // 발행 뒤 답을 기다리기 시작할 틈
   robot.emit({ kind: 'acceptance', commandId: rejectedId, accepted: false, code: 'FAILED_PRECONDITION', message: 'stale_rotation' });
   await sleep(0);
-  if (!log.detectLog().some((line) => /45° 신호를 거절했습니다 — FAILED_PRECONDITION · stale_rotation/.test(line.text))) failures.push('거절 코드와 사유(stale_rotation)를 안 적는다');
+  if (!log.detectLog().some((line) => /45° 신호를 거절했습니다 — FAILED_PRECONDITION · stale_rotation/.test(lineText(line)))) failures.push('거절 코드와 사유(stale_rotation)를 안 적는다');
   if (session.robotSession().stopped !== null || traceEvents().some((event) => event.status === 'failed')) failures.push('신호 거절이 스캔을 실패·정지로 만든다');
   releaseAt(1, 'timeout');
   store.noteDetectError(null);
@@ -175,7 +180,7 @@ const releaseView = gate.registerScanImageView();
   hold.checkScanHold();
   Date.now = realNow;
   if (continues(robot).at(-1)?.parameters.rotation_deg !== 135) failures.push('15초가 지났는데 135° 신호를 안 보낸다');
-  if (!log.detectLog().some((line) => /135° 탐지 영상이 15초째 안 떠서 넘깁니다/.test(line.text))) failures.push('15초로 넘긴 사실을 안 적는다');
+  if (!log.detectLog().some((line) => /135° 탐지 영상이 15초째 안 떠서 넘깁니다/.test(lineText(line)))) failures.push('15초로 넘긴 사실을 안 적는다');
   releaseAt(3);
 }
 

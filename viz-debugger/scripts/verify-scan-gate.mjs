@@ -22,6 +22,11 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const root = join(fileURLToPath(new URL('.', import.meta.url)), '..');
 const load = (...p) => import(pathToFileURL(join(root, ...p)).href);
+
+// 260919 — 로그 줄이 **글자 대신 키**를 담는다 (5단계 §3). `line.text` 를 바로 읽으면
+// 새 줄은 비어 있으므로 `lineText()` 로 푼다. 무르게 한 것이 아니라 **한 칸 더** 보는
+// 것이다 — 키가 실제로 사전에서 글자로 풀리는지까지 이 검사가 확인하게 된다.
+const { lineText, lineDetail } = await load('src', 'detect', 'detectLog.ts');
 const failures = [];
 const controls = [];
 
@@ -99,7 +104,7 @@ await freshRun();
   store.receiveFeatures(null);    // 저장소가 한 번 바뀌면 문지기가 다시 본다 — 폴링 한 번과 같다
   Date.now = realNow;
   if (lit() !== '0,1,2,3,4') failures.push(`3번 결과가 15초째 없는데 4번이 안 켜진다 (${lit()}) — 화면이 멈춘다`);
-  if (!log.detectLog().some((line) => /3번 각도의 탐지 결과가 15초째 없어 4번 각도로 넘어갑니다/.test(line.text))) {
+  if (!log.detectLog().some((line) => /3번 각도의 탐지 결과가 15초째 없어 4번 각도로 넘어갑니다/.test(lineText(line)))) {
     failures.push('기다리다 넘어간 사실을 탐지 로그에 안 적는다');
   }
 
@@ -153,7 +158,7 @@ await freshRun();
   result([0, 1, 2, 3]);
   gate.noteScanImageFailed(urlOf(3));
   if (lit() !== '0,1,2,3,4') failures.push(`3번 그림을 못 받았는데 4번이 기다린다 (${lit()})`);
-  if (!log.detectLog().some((line) => /탐지 영상을 못 불러와/.test(line.text))) failures.push('그림을 못 받아 넘어간 사실을 안 적는다');
+  if (!log.detectLog().some((line) => /탐지 영상을 못 불러와/.test(lineText(line)))) failures.push('그림을 못 받아 넘어간 사실을 안 적는다');
 
   // 뷰가 없으면 같은 주소를 미리 받아 본 완료로 본다.
   releaseView();

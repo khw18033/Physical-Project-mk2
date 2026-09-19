@@ -1887,4 +1887,17 @@ export const ko: Record<string, string> = {
   'dso.aria': '{id} 대상 상태',
   'dso.title': '{id} · 대상 상태',
   'dso.source': '원천 {source} · VZ-D-07 대상 상태 조회',
+
+  // ── 5단계 · 로그 줄을 키로 (poll.ts) ──────────────────────────────────────
+  'dpl.localizedDetail': '{method} · 로봇 오도메트리 방위와 기준점이 다릅니다',
+
+  'dpl.scoreValue': '{label} {score}',
+
+  'flg.missionId': 'mission_id {id}',
+
+  // ── 5단계 · 꼬리를 합친 한 문장 한 키 ─────────────────────────────────────
+  'flg.runEndedShort': '로봇이 한 판을 끝냈습니다 — {outcome} · {sent}/{expected}장 — 탐지가 이 판으로는 경로를 못 냅니다',
+  'flg.frameSentDup': '로봇이 {deg}° 프레임을 보냈습니다 ({nth}번째) — 직전과 같은 그림입니다. 카메라가 얼었을 수 있고, 탐지는 이 판을 버립니다',
+  'sc.acceptedLatched': '로봇이 {deg}° 신호를 받았습니다 — 대기 들어가기 전에 와서 기억해 두었다가 풉니다',
+  'sc.acceptedNext': '로봇이 {deg}° 신호를 받았습니다 — 다음 회전',
 };

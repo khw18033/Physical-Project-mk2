@@ -27,6 +27,12 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 const root = join(fileURLToPath(new URL('.', import.meta.url)), '..');
 const sampleDir = join(root, '..', 'door_example', 'test');
 const load = (...p) => import(pathToFileURL(join(root, ...p)).href);
+
+// 260919 — 로그 줄이 **글자 대신 키**를 담는다 (5단계 §3). `line.text` 를 바로 읽으면
+// 새 줄은 비어 있으므로 `lineText()` 로 푼다. 무르게 한 것이 아니라 **한 칸 더** 보는
+// 것이다 — 키가 실제로 사전에서 글자로 풀리는지까지 이 검사가 확인하게 된다.
+const { lineText, lineDetail } = await load('src', 'detect', 'detectLog.ts');
+const { sayText } = await load('src', 'i18n', 'phrase.ts');
 const failures = [];
 const controls = [];
 
@@ -129,7 +135,7 @@ try {
     if (!progress.trace.some((e) => e.seq === 3_000_001)) failures.push('progress.json 에 기록 열이 없다');
     if (progress.robot.commands['cmd-rec']?.log.length !== 1) failures.push('로봇 명령과 응답 로그가 안 남는다');
     if (progress.detect.frames.length !== summary.frames.length || progress.detect.path === null) failures.push('탐지 결과·경로가 안 남는다');
-    if (!progress.detectLog.some((line) => line.text.includes('기록 검사'))) failures.push('탐지 로그가 안 남는다');
+    if (!progress.detectLog.some((line) => lineText(line).includes('기록 검사'))) failures.push('탐지 로그가 안 남는다');
     if (progress.robotFrames[0]?.file !== 'images/robot/rot_045.jpg') failures.push('로봇 촬영 목록이 안 남는다');
     const images = join(dir, folder, 'images');
     for (const file of ['detect/frame_000113_original.jpg', 'detect/frame_000113_target_overlay.jpg', 'detect/frame_000113_target_crop.jpg',
@@ -171,7 +177,7 @@ try {
       if (arrivedFrames().length !== saved.viewpointFrames.length) failures.push('뷰포인트 프레임이 저장된 것과 다르다');
       if (session.commandsOfTask('T-A3')[0]?.log.length !== 1) failures.push('액션 아이템이 읽는 로봇 명령 로그가 안 채워진다');
       if (store.detectState().path?.turn_instruction !== path.turn_instruction) failures.push('경로 산출 결과가 안 채워진다');
-      if (!log.detectLog().some((line) => line.text.includes('기록 검사'))) failures.push('탐지 로그가 안 채워진다');
+      if (!log.detectLog().some((line) => lineText(line).includes('기록 검사'))) failures.push('탐지 로그가 안 채워진다');
       const source = viewSourceOf(store.detectState());
       const imageUrl = frameImageUrl(source, 'frame_000113.jpg', 'target_overlay');
       if (imageUrl !== `/mission-records/files/${date}/${encodeURIComponent(run)}/images/detect/frame_000113_target_overlay.jpg`) {
@@ -237,7 +243,7 @@ try {
       if (saved.nav?.telemetry?.batteryPct !== 77 || saved.nav?.telemetry?.yawOdometryDeg !== -3) failures.push('pi1 중계 상태(배터리·yaw)가 기록에 안 남는다');
       if (!saved.nav?.events?.some((e) => e.pathId === 1)) failures.push('pi1 경로 사건이 기록에 안 남는다');
       if (saved.nav?.events?.some((e) => e.seq === 900)) failures.push('판을 열기 전(지난 판)의 경로 사건이 이 판 기록에 섞였다');
-      if (saved.obstacle?.latest?.raw?.detections?.[0]?.name !== 'umbrella' || !saved.obstacle?.log?.some((l) => l.text.includes('umbrella'))) failures.push('장애물 JSON(받은 그대로)과 바뀐 줄이 기록에 안 남는다');
+      if (saved.obstacle?.latest?.raw?.detections?.[0]?.name !== 'umbrella' || !saved.obstacle?.log?.some((l) => sayText(l.say ?? l.text ?? '').includes('umbrella'))) failures.push('장애물 JSON(받은 그대로)과 바뀐 줄이 기록에 안 남는다');
       if (!saved.trace.some((e) => e.nodeId === 'T-NB1' && e.status === 'done')) failures.push('자율주행 노드 사건이 기록 열에 안 남는다');
       const mission = readRun(autoFolder, 'mission.json');
       if (!('autodrive' in (mission.connections ?? {})) || !('autodriveAi' in (mission.connections ?? {}))) failures.push('기록에 pi1 · AI 서버 주소가 안 남는다');

@@ -166,8 +166,8 @@ async function loadFloorPlan(runKey: number): Promise<void> {
       appendDetectLog({
         lane: 'screen',
         level: 'info',
-        text: t('ps.doorOnPlan', { x: cm.x.toFixed(1), y: cm.y.toFixed(1) }),
-        detail: t('ps.doorPx', { x: state.map.doorPx.x, y: state.map.doorPx.y }),
+        say: { key: 'ps.doorOnPlan', vars: { x: cm.x.toFixed(1), y: cm.y.toFixed(1) } },
+        sayDetail: { key: 'ps.doorPx', vars: { x: state.map.doorPx.x, y: state.map.doorPx.y } },
         tasks: [DETECT_TASKS.map],
       });
       emit(DETECT_TASKS.map, 'done', { door_position_cm: [Number(cm.x.toFixed(1)), Number(cm.y.toFixed(1))], floor_plan: url });
@@ -202,8 +202,8 @@ function checkPose(): void {
   appendDetectLog({
     lane: 'screen',
     level: 'info',
-    text: t('ps.poseValue', { deg: value.headingDeg.toFixed(1), x: value.xM.toFixed(2), y: value.yM.toFixed(2) }),
-    detail: t('ps.poseDetail', { at: value.stateTimestamp ?? t('ps.noClock') }),
+    say: { key: 'ps.poseValue', vars: { deg: value.headingDeg.toFixed(1), x: value.xM.toFixed(2), y: value.yM.toFixed(2) } },
+    sayDetail: { key: 'ps.poseDetail', vars: { at: value.stateTimestamp ?? { key: 'ps.noClock' } } },
     tasks: [DETECT_TASKS.pose],
   });
   emit(DETECT_TASKS.pose, 'done', {
@@ -238,7 +238,7 @@ function checkSession(): void {
   emit(DETECT_TASKS.pose, 'running');
   appendDetectLog({
     lane: 'screen', level: 'info',
-    text: t('ps.3'),
+    say: { key: 'ps.3' },
     detail: '', tasks: [DETECT_TASKS.map, DETECT_TASKS.pose],
   });
   void loadFloorPlan(runKey);

@@ -1875,4 +1875,17 @@ export const en: Record<string, string> = {
   'dso.aria': '{id} target state',
   'dso.title': '{id} · target state',
   'dso.source': 'source {source} · VZ-D-07 target state query',
+
+  // ── 5단계 · 로그 줄을 키로 (poll.ts) ──────────────────────────────────────
+  'dpl.localizedDetail': '{method} · the origin differs from the robot odometry heading',
+
+  'dpl.scoreValue': '{label} {score}',
+
+  'flg.missionId': 'mission_id {id}',
+
+  // ── 5단계 · 꼬리를 합친 한 문장 한 키 ─────────────────────────────────────
+  'flg.runEndedShort': 'The robot finished a run — {outcome} · {sent}/{expected} frames — detection cannot produce a path from this run',
+  'flg.frameSentDup': 'The robot sent the {deg}° frame (#{nth}) — the same image as the previous one. The camera may have frozen, and detection discards this run',
+  'sc.acceptedLatched': 'The robot received the {deg}° signal — it arrived before the hold, so it was remembered and released',
+  'sc.acceptedNext': 'The robot received the {deg}° signal — next turn',
 };

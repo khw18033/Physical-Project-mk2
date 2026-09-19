@@ -19,7 +19,7 @@ import { Rich } from '../../i18n/RichText.tsx';
 import { t } from '../../i18n/dict.ts';
 import { useEffect, useState } from 'react';
 import { aiBase, aiControlUrl, aiFrameUrl, aiStreamUrl, AI_CAMERA } from '../aiClient.ts';
-import { holdObstaclePolling, obstacleFrozen, useObstacle, type ObstacleDetection, type ObstacleSnapshot } from '../obstacle.ts';
+import { holdObstaclePolling, obstacleFrozen, useObstacle, type ObstacleDetection, type ObstacleSnapshot, obstacleLineText } from '../obstacle.ts';
 import { useReplayTarget } from '../../record/replayMode.ts';
 
 const clock = (ms: number) => new Date(ms).toTimeString().slice(0, 8);
@@ -124,7 +124,7 @@ export function ObstacleFacts() {
       ? <p className="robot-log__empty">{t('adv.13')}</p>
       : <ol className="robot-log__lines">
           {obstacle.log.map((line, index) => <li key={`${line.atMs}-${index}`} className={line.level === 'warn' ? 'is-result' : 'is-status'}>
-            <time>{clock(line.atMs)}</time><span>{line.text}</span>
+            <time>{clock(line.atMs)}</time><span>{obstacleLineText(line)}</span>
           </li>)}
         </ol>}
   </div>;

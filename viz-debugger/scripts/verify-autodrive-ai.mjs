@@ -125,7 +125,7 @@ const SAMPLE = {
   obstacle.receiveObstacle(SAMPLE, 'relay', 1500);
   obstacle.receiveObstacle(SAMPLE, 'relay', 2000);
   obstacle.receiveObstacle({ ...SAMPLE, timestamp: '1789438646.0', has_near_obstacle: false }, 'relay', 2500);
-  const texts = obstacle.obstacleState().log.map((l) => l.text);
+  const texts = obstacle.obstacleState().log.map((l) => obstacle.obstacleLineText(l));
   if (texts.filter((t) => t.startsWith('가까운 장애물 있음')).length !== 1) failures.push(`가까운 장애물 생김이 한 번으로 안 남는다 — ${texts.join(' / ')}`);
   if (!texts.some((t) => t.includes('umbrella 44cm'))) failures.push('줄에 무엇이 가까워졌는지 안 적는다');
   if (texts.filter((t) => t === '가까운 장애물 없음').length !== 2) failures.push('사라짐이 바뀔 때마다 안 남는다');
@@ -138,7 +138,7 @@ const SAMPLE = {
   if (obstacle.obstacleFrozen(obstacle.obstacleState(), 16_500)) failures.push('서버 시각이 바뀌었는데 멈춤이 안 풀린다');
   obstacle.noteObstacleError('끊김', 17_000);
   obstacle.noteObstacleError('끊김', 17_500);
-  if (obstacle.obstacleState().log.filter((l) => l.text.includes('끊김')).length !== 1) failures.push('같은 실패가 줄마다 쌓인다');
+  if (obstacle.obstacleState().log.filter((l) => obstacle.obstacleLineText(l).includes('끊김')).length !== 1) failures.push('같은 실패가 줄마다 쌓인다');
 
   // 폴링 — 붙잡은 수. 가짜 창구.
   obstacle.resetObstacle();

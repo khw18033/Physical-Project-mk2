@@ -27,7 +27,7 @@ import type { PhysicalAction } from './encode.ts';
 import { PAUSE_ACTION, SDK_ACTIONS, TEST_FORWARD_M } from './presets.ts';
 import { NO_NODE } from './missionLink.ts';
 import { detectState } from '../detect/store.ts';
-import { appendDetectLog, DETECT_TASKS } from '../detect/detectLog.ts';
+import { appendDetectLog, DETECT_TASKS, type LogPhrase } from '../detect/detectLog.ts';
 import { commandForTask, missionGeometry, type TaskCommand } from './missionLink.ts';
 import { planApproach, type ApproachPlan } from './approachPlan.ts';
 import type { PhysicalClient } from './PhysicalClient.ts';
@@ -195,7 +195,7 @@ export async function issueApproach(
   void params;
   const plan = planApproach();
   if (!plan.ok) {
-    appendDetectLog({ lane: 'screen', level: 'warn', text: t('robot.didNotMove', { reason: plan.reason }), detail: '', tasks: [DETECT_TASKS.approach] });
+    appendDetectLog({ lane: 'screen', level: 'warn', say: { key: 'robot.didNotMove', vars: { reason: plan.reason } }, tasks: [DETECT_TASKS.approach] });
     return { sent: false, commandId: '', requestId: null, reason: plan.reason };
   }
   logApproachPlan(plan);
@@ -255,20 +255,28 @@ export async function issueApproach(
 function logApproachPlan(plan: Extract<ApproachPlan, { ok: true }>): void {
   appendDetectLog({
     lane: 'screen', level: plan.notes.length > 0 ? 'warn' : 'info',
-    text: t('rcm.planLine', {
-      turn: signedTurn(plan.detectionTurnDeg),
-      steps: plan.steps.map(stepWords).join(' · '),
-    }),
-    detail: [
-      t('rcm.plannedForward', { m: plan.plannedForwardM.toFixed(3) }),
-      t('rcm.forwardSpeed', { vx: plan.forwardVx }),
+    say: {
+      key: 'rcm.planLine',
+      vars: {
+        // 회전 방향과 걸음 설명도 **그 자체로 옮겨야 하는 말**이라 키로 담는다.
+        turn: turnPhrase(plan.detectionTurnDeg),
+        steps: plan.steps.map(stepWords).join(' · '),
+      },
+    },
+    sayDetail: [
+      { key: 'rcm.plannedForward', vars: { m: plan.plannedForwardM.toFixed(3) } },
+      { key: 'rcm.forwardSpeed', vars: { vx: plan.forwardVx } },
       ...plan.notes,
-    ].join(' · '),
+    ],
     tasks: [DETECT_TASKS.approach],
   });
 }
 
-const signedTurn = (deg: number) => t(deg < 0 ? 'rcm.left' : 'rcm.right', { deg: Math.abs(deg).toFixed(1) });
+/** 같은 말을 **키로** — 로그 줄에 담아 그릴 때 푼다. */
+const turnPhrase = (deg: number): LogPhrase => ({
+  key: deg < 0 ? 'rcm.left' : 'rcm.right',
+  vars: { deg: Math.abs(deg).toFixed(1) },
+});
 
 function stepWords(step: TaskCommand): string {
   if (step.action === 'turn') return `turn ${step.parameters?.deg}°`;

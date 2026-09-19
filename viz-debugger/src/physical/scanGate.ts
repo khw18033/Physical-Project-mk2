@@ -228,7 +228,7 @@ function pump(atSec?: number): number {
         text: hasResult(last)
           ? t('sg.noFrame', { last, sec: RESULT_WAIT_MS / 1000, next })
           : t('sg.noResult', { last, sec: RESULT_WAIT_MS / 1000, next }),
-        detail: t('sg.1'),
+        sayDetail: { key: 'sg.1' },
         tasks: [DETECT_TASKS.sweep, angleTask(last), angleTask(next)],
       });
     }
@@ -300,7 +300,7 @@ export function noteScanImageFailed(url: string): void {
   if (failedUrls.has(url)) return;
   failedUrls.add(url);
   appendDetectLog({
-    lane: 'screen', level: 'warn', text: t('sg.2'),
+    lane: 'screen', level: 'warn', say: { key: 'sg.2' },
     detail: url, tasks: [DETECT_TASKS.sweep],
   });
   if (pending.size > 0) pump();
