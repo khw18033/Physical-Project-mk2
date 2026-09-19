@@ -187,10 +187,24 @@ try {
     if (getTransport() !== transport) failures.push('주소를 바꿨더니 getTransport() 가 새 인스턴스를 돌려준다 — 그 위에 걸린 구독이 통째로 날아간다');
     // 2 — A 를 죽이지 않은 채로 **끊고 다시 붙어야** 한다. 그냥 두면 옛 연결이 멀쩡해서
     //     아무 일도 일어나지 않는데, 그때도 주소·상태는 정상으로 보인다.
+    // 주소에 **질의가 붙는다** (260919 · 5단계) — `?lang=` 으로 「어느 언어로 말해 달라」를
+    // 접속에 싣는다. 그래서 `endsWith(포트)` 로는 못 본다.
+    //
+    // **`new URL()` 은 이 파일에서 못 쓴다** — 맨 위의 `const URL = 'ws://…'` 이 전역
+    // 생성자를 가린다. 처음에 그걸 모르고 썼더니 `new URL(…)` 이 문자열을 생성자로 불러
+    // 던졌고, 내 `catch` 가 그것을 삼켜 **아무것도 못 읽은 채 시간 초과**로만 보였다.
+    const portOf = (url) => /:(\d+)(?:[/?#]|$)/.exec(url)?.[1] ?? '';
+    const queryOf = (url) => { const at = url.indexOf('?'); return at === -1 ? '' : url.slice(at + 1); };
     await waitFor(
       'B 로 끊고 다시 붙기 (A 는 살아 있다)',
-      () => opens > opensAtA && transport.getStatus().state === 'open' && transport.config.url.endsWith(String(PORT_B)),
+      () => opens > opensAtA && transport.getStatus().state === 'open' && portOf(transport.config.url) === String(PORT_B),
     );
+
+    // 그 김에 한 칸 더 — **접속이 언어를 싣는다.** 게이트웨이는 승인 팝업의 검증 문장 같은
+    // 완성된 문장을 보내므로, 이 값이 빠지면 영문 화면이 한국어 문장을 받는다.
+    if (!/(^|&)lang=/.test(queryOf(transport.config.url))) {
+      failures.push('접속 주소에 `?lang=` 이 없다 — 게이트웨이가 무슨 언어로 말해야 하는지 모른다');
+    }
 
     // 3 — 옛 게이트웨이를 죽여도 값이 계속 온다(= 정말 B 에 붙었다 + 구독이 살아 있다).
     gatewayA.kill();

@@ -56,11 +56,30 @@ function storage(): Storage | null {
   }
 }
 
+/**
+ * 브라우저 전역을 **DOM 타입 없이** 본다.
+ *
+ * 이 파일은 목 게이트웨이의 타입 검사에도 들어간다 — `gateway/script-engine.ts` →
+ * `scenarios/matcher.ts` → `i18n/dict.ts` → 여기. 게이트웨이의 `lib` 에는 DOM 이 없어서
+ * `location`·`document` 를 직접 적으면 **게이트웨이 타입 검사가 통째로 실패한다.**
+ * 260918(3단계에서 매처가 언어를 보게 된 날)부터 실제로 그러고 있었고, **아무 검사도
+ * 그것을 안 봤다** — 260919 에 찾았다. 그래서 `verify:gateway-types` 를 세웠다.
+ *
+ * 런타임 동작은 한 글자도 안 바뀐다. 아래 함수들은 원래도 `typeof x === 'undefined'` 로
+ * 막고 있었다.
+ */
+const browser = globalThis as unknown as {
+  location?: { search?: string };
+  window?: unknown;
+  document?: { documentElement?: { lang: string } };
+  navigator?: { language?: string };
+};
+
 /** `?lang=` — 결정 순서의 맨 위. 없거나 목록 밖이면 `null` 이고 다음으로 떨어진다. */
 function fromQuery(): Lang | null {
   try {
-    if (typeof location === 'undefined') return null;
-    const value = new URLSearchParams(location.search).get('lang');
+    if (browser.location === undefined) return null;
+    const value = new URLSearchParams(browser.location.search ?? '').get('lang');
     return isLang(value) ? value : null;
   } catch {
     return null;
@@ -98,9 +117,9 @@ function fromStorage(): Lang | null {
 function fromNavigator(): Lang | null {
   try {
     // 브라우저 신호다. Node 의 `navigator` 를 브라우저로 착각하면 안 된다.
-    if (typeof window === 'undefined' || typeof document === 'undefined') return null;
-    if (typeof navigator === 'undefined') return null;
-    const value = navigator.language?.slice(0, 2).toLowerCase();
+    if (browser.window === undefined || browser.document === undefined) return null;
+    if (browser.navigator === undefined) return null;
+    const value = browser.navigator.language?.slice(0, 2).toLowerCase();
     return isLang(value) ? value : null;
   } catch {
     return null;
@@ -118,7 +137,7 @@ function persist(next: Lang): void {
 /** 문서의 `lang` 속성. 없는 환경(Node 검사)에서도 안 던진다. */
 function applyDocumentLang(next: Lang): void {
   try {
-    if (typeof document !== 'undefined') document.documentElement.lang = next;
+    if (browser.document?.documentElement !== undefined) browser.document.documentElement.lang = next;
   } catch {
     // 무시한다 — 표시 보조 속성이라 여기서 앱을 세울 이유가 없다.
   }

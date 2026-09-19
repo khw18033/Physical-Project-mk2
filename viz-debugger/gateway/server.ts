@@ -18,6 +18,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { WebSocketServer } from 'ws';
+import { langOf, sayJson } from './i18n.ts';
 
 import {
   AGGREGATION,
@@ -302,9 +303,11 @@ async function metricsQuery(params: URLSearchParams): Promise<MetricsQueryResult
 
 const http = createServer((req, res) => {
   const url = new URL(req.url ?? '/', 'http://' + (req.headers.host ?? 'localhost'));
+  // 이 요청이 달라고 한 언어. 없으면 `ko` — 지금까지와 같은 답이다.
+  const lang = langOf(req.url);
   const json = (code: number, body: unknown) => {
     res.writeHead(code, { 'content-type': 'application/json; charset=utf-8', ...CORS });
-    res.end(JSON.stringify(body, null, 2));
+    res.end(sayJson(body, lang, 2));
   };
 
   if (req.method === 'OPTIONS') {
@@ -531,13 +534,19 @@ function normalizeScope(v: unknown): ScopeSpec {
   return PLACEHOLDERS.DEFAULT_SCOPE;
 }
 
-wss.on('connection', (ws) => {
+wss.on('connection', (ws, upgrade) => {
   clientSeq += 1;
+  /**
+   * **이 접속이 요청한 언어.** 봉투는 붙어 있는 모두에게 나가므로 언어는 접속마다
+   * 다를 수 있다. 그래서 만드는 자리가 아니라 **보내는 자리에서** 그린다 (`gateway/i18n.ts`).
+   */
+  const lang = langOf(upgrade.url);
   const conn: ClientConn = {
     id: 'c' + clientSeq,
+    lang,
     subs: new Map(),
     send(msg) {
-      if (ws.readyState === ws.OPEN) ws.send(JSON.stringify(msg));
+      if (ws.readyState === ws.OPEN) ws.send(sayJson(msg, lang));
     },
   };
   hub.addClient(conn);

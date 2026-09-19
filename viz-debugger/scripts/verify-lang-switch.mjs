@@ -265,11 +265,22 @@ async function loadLanguage(options) {
 
   // ④ 브라우저 판정을 걷어낸 사본 — 260916 에 실제로 있던 모양이다.
   //    이 자리가 사라지면 검사가 다시 기계 로캘을 따라가게 된다.
-  const browserGuard = "    if (typeof window === 'undefined' || typeof document === 'undefined') return null;";
-  if (!source.includes(browserGuard)) {
+  //
+  // **글자가 아니라 성질을 본다** (260919). 전에는 그 한 줄을 통째로 박아 두고 대조했는데,
+  // 게이트웨이 타입 검사를 되살리느라 같은 판정을 `browser.window === undefined` 로 다시
+  // 적자 이 검사가 빨개졌다. 성질(둘 다 보고 · `navigator` 보다 **먼저** 보고 · null 로
+  // 나간다)은 그대로다. 그래서 무르게 하는 대신 **철자에 안 걸리게** 고쳤다.
+  const body = /function fromNavigator\(\)[^{]*\{([\s\S]*?)\n\}/.exec(source)?.[1] ?? '';
+  const guard = /if\s*\([^)]*\bwindow\b[^)]*\bdocument\b[^)]*\)\s*return null;/.exec(body);
+  const readsNavigator = body.search(/\bnavigator\s*[.?]/);
+  if (body === '') {
+    failures.push('fromNavigator() 를 못 찾았다 — 이 대조군이 아무것도 안 재고 있다');
+  } else if (guard === null) {
     failures.push('fromNavigator() 의 브라우저 판정이 사라졌다 — 검사 결과가 기계 로캘을 따라간다 (260917 회귀)');
+  } else if (readsNavigator !== -1 && readsNavigator < guard.index) {
+    failures.push('fromNavigator() 가 브라우저 판정보다 **먼저** navigator 를 읽는다 — 판정이 있으나 마나다');
   } else {
-    controls.push('브라우저 판정을 걷어낸 사본');
+    controls.push('브라우저 판정이 navigator 보다 먼저 있다 (철자는 안 본다)');
   }
 
   // 대조군은 **자리가 있는지**만 본다. 실제로 돌리면 모듈 전역을 오염시켜

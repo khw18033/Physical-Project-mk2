@@ -92,8 +92,12 @@ export type EntityRuntime = {
   everPublished: boolean;
 };
 
+import type { GwLang } from './i18n.ts';
+
 export type ClientConn = {
   id: string;
+  /** 이 접속이 요청한 언어. 보낼 때 이 언어로 그린다 (`gateway/i18n.ts`). */
+  lang: GwLang;
   send(msg: unknown): void;
   subs: Map<string, { selector: Selector; scope: ScopeSpec }>;
 };

@@ -22,6 +22,7 @@
  */
 
 import { connectionAddress, subscribeConnections } from '../shared/connections.ts';
+import { getLang, subscribeLang } from '../shared/language.ts';
 import { WsTransport } from './WsTransport.ts';
 import type { Transport } from './Transport.ts';
 
@@ -62,23 +63,50 @@ export const GATEWAY = {
   get http(): string { return connectionAddress('gateway', 'http'); },
 };
 
+/**
+ * 붙을 때 **어느 언어로 말해 달라고** 함께 말한다 (260919 · 5단계).
+ *
+ * 게이트웨이는 완성된 문장을 보낸다 — 승인 팝업의 검증 문장, 명령 거절 사유, 대상 이름.
+ * 그 글자는 **우리 사전에 없다.** 만든 쪽이 그 언어로 말해야 한다.
+ *
+ * 주소에 얹는 이유: 봉투는 붙어 있는 모두에게 나가므로 **접속마다** 언어를 알아야 한다.
+ * 3단계에서 STT 에 `language` 를 실어 보낸 것과 같은 자리다.
+ */
+function withLang(url: string, lang: string): string {
+  if (url === '') return url;
+  const joiner = url.includes('?') ? '&' : '?';
+  return `${url}${joiner}lang=${encodeURIComponent(lang)}`;
+}
+
 let singleton: WsTransport | null = null;
 
 export function getTransport(): Transport {
   if (singleton === null) {
     // 주소를 **붙을 때마다** 다시 읽는다. 생성 시점에 굳히면 바꿔도 옛 주소로 붙는다.
-    singleton = new WsTransport(() => ({ url: GATEWAY.ws, httpBase: GATEWAY.http }));
+    singleton = new WsTransport(() => ({ url: withLang(GATEWAY.ws, getLang()), httpBase: GATEWAY.http }));
     singleton.connect();
-    let applied = `${GATEWAY.ws}|${GATEWAY.http}`;
-    subscribeConnections(() => {
-      const next = `${GATEWAY.ws}|${GATEWAY.http}`;
+    let applied = `${GATEWAY.ws}|${GATEWAY.http}|${getLang()}`;
+    const rebind = () => {
+      const next = `${GATEWAY.ws}|${GATEWAY.http}|${getLang()}`;
       // STT 나 자리표시 대상만 바뀐 경우까지 끊지 않는다 — 멀쩡한 연결을 흔들 이유가 없다.
       if (next === applied || singleton === null) return;
       applied = next;
       // **끊고 다시 붙는다.** 새 인스턴스가 아니므로 구독은 그대로 살아 복원된다.
       singleton.close();
       singleton.connect();
-    });
+    };
+    subscribeConnections(rebind);
+    /**
+     * **언어를 바꾸면 다시 붙는다.**
+     *
+     * 게이트웨이가 하는 말은 접속 언어로 그려져 나온다. 붙은 채로 언어만 바꾸면 그 접속은
+     * 옛 언어로 계속 말한다. 다시 붙으면 구독이 복원되면서 **허브가 갖고 있던 봉투를 새
+     * 언어로 다시 보내 주므로**, 화면이 한 번에 따라온다.
+     *
+     * 이미 받아 **화면이 들고 있는 글자**(승인된 계획의 검증 문장 등)는 안 바뀐다 —
+     * 그건 받은 기록이고, 다시 받을 일이 없으면 그대로다.
+     */
+    subscribeLang(rebind);
   }
   return singleton;
 }
