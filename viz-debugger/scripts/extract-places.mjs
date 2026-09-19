@@ -210,7 +210,10 @@ for (const l of landmarks) {
  * 4층을 재면 그때 잇는다. 그 전까지는 **없는 것을 없는 대로 둔다.**
  */
 const HELD_OPEN = [
-  { place_id: 'room-415', label: '415호', aliases: ['415', '415호'], kind: 'room', floor: 4,
+  // 260919 — 3단계가 이 손으로 적은 항목 하나에 영어를 안 붙였다. 영문 프롬프트에서
+  // 이 한 줄만 「415호」로 남아 있던 것을 5단계에 찾았다 (`verify:gen-prompt` 가 그 뒤를 본다).
+  { place_id: 'room-415', label: '415호', label_en: 'Room 415',
+    aliases: ['415', '415호'], aliases_en: ['415', 'room 415'], kind: 'room', floor: 4,
     adjacent: [] },
 ];
 for (const h of HELD_OPEN) places.push({ ...h, zone_id: null });

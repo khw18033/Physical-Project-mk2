@@ -168,6 +168,104 @@ BRANCH_RULES = [
 BRANCH_ANCHOR_PREFIX = "node_kind 는 그 자리에만 적는다"
 
 
+# ── 영어 판 (260919 · 영문화 5단계 L3) ────────────────────────────────────────
+#
+# **한국어 판 옆에 나란히 둔다.** 위의 한국어 문장은 한 글자도 안 바꾼다 —
+# 6~10단계의 베이스라인 숫자가 그 프롬프트로 나왔고, 한 자라도 달라지면 앞으로 잴
+# 숫자를 그 표에 못 놓는다. `verify:gen-prompt` 가 그것을 글자로 대조한다.
+#
+# (그 대조가 쓰는 파일 이름은 **여기 안 적는다** — `verify:no-leak` 이 이 파일에서 정답셋
+#  경로가 나오는지 보고, 주석이라도 잡는다. 문자열은 언젠가 코드가 되기 때문이다.
+#  260919 에 실제로 한 번 걸렸고, 검사를 무르게 하는 대신 이 주석을 고쳤다.)
+#
+# **번역이 아니라 같은 규칙의 영어판이다.** 뜻이 같아야 하고, 한국어 쪽 실측에서 배운
+# 것(개수를 주지 않는다 · 종류 목록이지 채울 칸이 아니다)이 영어에서도 지켜져야 한다.
+# 그래서 문장 수와 차례를 한국어와 **1:1 로** 맞춰 둔다 — 검사가 그 대응을 본다.
+
+RULES_EN = [
+    "Output exactly one JSON object. Do not add explanations, comments or code fences.",
+    "There are several milestones. Split the mission into **units a person can check in between** — restating the utterance as a single milestone is not a split.",
+    "A milestone states **what is achieved**. Do not state how it is achieved.",
+    "Do not name the robot model or product (for example the product name of a quadruped). Which equipment does the work is written only in assigned_targets.",
+    "Do not write coordinates. Writing (x, y, z) or an absolute position makes that milestone specific to this building.",
+    "Do not write speeds, accelerations or motor parameters. Execution decides those.",
+    "Conditions belonging to the mission itself (time, water level, distance thresholds the utterance asked for) may be written. What is forbidden is implementation parameters.",
+    "Use only place names from the [Places] list below. Inventing a room number, floor or facility that is not in the list is a failure.",
+    "Leave tasks as an empty array []. Task decomposition is the next stage.",
+    "status is \"pending\" for every milestone, and order starts at 0 and increases by 1.",
+    "Copy mission_id and utterance exactly as given in [Request] below.",
+]
+
+EQUIPMENT_RULE_EN = (
+    "assigned_targets may use only ids from the [Equipment] list below. "
+    "Inventing an equipment id that is not in the list is a failure."
+)
+
+NODE_KINDS_EN = ["sense", "decide", "act", "verify", "report"]
+
+NODE_KIND_RULE_EN = (
+    "A mission usually consists of "
+    + " · ".join(NODE_KINDS_EN)
+    + " steps. Do not list only movement steps — consider whether steps that check, judge and report are needed. "
+    "This does not mean use all five — use only the ones this mission actually needs."
+)
+
+TASK_RULES_EN = [
+    "Put the tasks that make up each milestone in its tasks. A task is a **unit executed one at a time**.",
+    "Make task_id unique within the mission (for example T-1, T-2 …).",
+    "node_kind is required — one of sense (observe, take in a value) · decide (judge, is the condition true) · act (drive, issue a command) · verify (check, did the action do what was meant) · report (record and notify).",
+    "target is one equipment id from the [Equipment] list that performs the task. Use null for tasks that need no equipment (closing out the mission and so on) — do not pick an arbitrary one.",
+    "Leave deps as an **empty array []**. Order between tasks is computed by rule in the next stage. Anything written here is discarded.",
+    "Set status to \"pending\", attempt to 1, derived_from to null, action_items to [], and evaluation to null. Execution fills those in.",
+    "Write node_kind only in its own field. Do not append the kind to the title, such as \"(sense)\" or \"(check)\".",
+]
+
+BRANCH_RULES_EN = [
+    "Split milestones into branches **only when the utterance asks to choose one of two**. A branched milestone carries branch — from is the id of the milestone that judged, and when says whether this is the pass side or the fail side.",
+    "Milestones branched from the same judgement run **only one of the two**. Doing both is not a branch, so do not write branch.",
+    "Write repeat_of on a milestone **only when the utterance asks for repetition** (words like \"until …\" or \"repeat\") — to is the id to go back to, and when is the condition for going back.",
+    "**If the utterance did not ask for it, write neither branch nor repeat_of. Having none is normal** — inventing them is a failure.",
+]
+
+SYSTEM_EN = (
+    "You are a mission planner that splits a person's spoken request into a **list of milestones**.\n"
+    "A milestone is one step of the mission that a person can check, and each step must stay abstract.\n"
+    "Output exactly one JSON object satisfying the contract (JSON schema)."
+)
+
+#: 규칙을 끼우는 자리. **번호가 아니라 문장 머리**로 찾는다 (한국어 쪽과 같은 이유).
+ANCHORS = {
+    "ko": {"split": "마일스톤은 여러 개다", "places": "장소는", "no_task": NO_TASK_RULE_PREFIX,
+           "branch": BRANCH_ANCHOR_PREFIX},
+    "en": {"split": "There are several milestones", "places": "Use only place names",
+           "no_task": "Leave tasks as an empty array", "branch": "Write node_kind only in its own field"},
+}
+
+#: 절 이름과 맺음말. 한국어 쪽 글자는 기존 코드에 그대로 남아 있다.
+LABELS = {
+    "ko": {
+        "rules": "[규칙]", "places": "[장소] 이 목록 밖의 장소를 만들면 실패다.",
+        "equipment": "[장비] assigned_targets 에는 이 목록의 id 만 쓴다.",
+        "examples": "[예시] {n}편. 같은 형식으로 낸다.", "request": "[요청]",
+        "utterance": "발화", "output": "출력", "ask": "위 발화의 마일스톤을 JSON 으로 내라.",
+        "no_places": "(장소 목록이 주어지지 않았습니다 — 그라운딩 없이 돕니다.)",
+        "no_equipment": "(장비 목록이 주어지지 않았습니다 — 그라운딩 없이 돕니다.)",
+        "alias": "별칭", "floor": "층", "unlinked": "(연결 예정)",
+    },
+    "en": {
+        "rules": "[Rules]", "places": "[Places] Inventing a place outside this list is a failure.",
+        "equipment": "[Equipment] assigned_targets may use only ids from this list.",
+        "examples": "[Examples] {n}. Produce the same shape.", "request": "[Request]",
+        "utterance": "Utterance", "output": "Output",
+        "ask": "Produce the milestones for the utterance above as JSON.",
+        "no_places": "(No place list was given — running without grounding.)",
+        "no_equipment": "(No equipment list was given — running without grounding.)",
+        "alias": "aliases", "floor": "F", "unlinked": "(link pending)",
+    },
+}
+
+
+
 def _insert_after(rules: list[str], prefix: str, rule: str) -> list[str]:
     """`prefix` 로 시작하는 규칙 **바로 뒤**에 한 줄을 끼운다.
 
@@ -194,6 +292,7 @@ def rules_for(
     node_kinds: bool = False,
     tasks: bool = False,
     branch: bool = False,
+    lang: str = "ko",
 ) -> list[str]:
     """이 요청에 실제로 적용되는 규칙. **화면에도 보고서에도 이 목록 그대로 쓴다.**
 
@@ -201,45 +300,73 @@ def rules_for(
     「어느 판에 어느 규칙이 붙었는가」도 여기 한 곳에서만 정해진다. 화면(§6)이 생성
     근거에 싣는 규칙 목록도 이 함수가 준 그대로다.
     """
-    rules = list(RULES)
+    bundle = phrasing(lang)
+    at = anchors(lang)
+    rules = list(bundle["rules"])
     if node_kinds:
-        rules = _insert_after(rules, "마일스톤은 여러 개다", NODE_KIND_RULE)
+        rules = _insert_after(rules, at["split"], bundle["node_kind"])
     if tasks:
-        rules = _replace_rule(rules, NO_TASK_RULE_PREFIX, TASK_RULES)
+        rules = _replace_rule(rules, at["no_task"], bundle["tasks"])
     if branch:
         # 태스크 판에서는 태스크 규칙 뒤, 아니면 분할 규칙 뒤. **어느 쪽이든 한 곳에서
         # 정해진다** — 자리를 부르는 쪽이 정하면 판마다 프롬프트가 달라진다.
-        anchor = BRANCH_ANCHOR_PREFIX if tasks else "마일스톤은 여러 개다"
-        for rule in reversed(BRANCH_RULES):
+        anchor = at["branch"] if tasks else at["split"]
+        for rule in reversed(bundle["branch"]):
             rules = _insert_after(rules, anchor, rule)
     if equipment:
-        rules = _insert_after(rules, "장소는", EQUIPMENT_RULE)
+        rules = _insert_after(rules, at["places"], bundle["equipment"])
     return rules
 
 
-def render_places(places: Any) -> str:
+def _name(entry: Any, lang: str) -> str:
+    """그 언어의 이름. **영어는 데이터가 이미 갖고 있다** — 3단계가 `label_en` 을 넣었다.
+
+    없으면 한국어로 떨어진다. 여기서 이름을 지어내면 그 이름이 프롬프트를 통해 세상에 생긴다.
+    """
+    if lang == "en":
+        english = entry.get("label_en")
+        if isinstance(english, str) and english.strip() != "":
+            return english
+    return entry.get("label") or ""
+
+
+def _aliases(entry: Any, lang: str) -> list[str]:
+    """그 언어의 별칭. 영어 자리가 비면 **영어 별칭 없이** 간다 — 한국어를 섞지 않는다.
+
+    3단계에서 STT 어휘를 가를 때와 같은 규칙이다. 영어 발화에 한국어 별칭을 주면
+    그 판이 재려는 것을 흐린다.
+    """
+    if lang == "en":
+        english = entry.get("aliases_en")
+        return [a for a in english if isinstance(a, str) and a.strip() != ""] if isinstance(english, list) else []
+    return list(entry.get("aliases", []))
+
+
+def render_places(places: Any, lang: str = "ko") -> str:
     """`places.json` → 프롬프트에 실을 장소 위상.
 
     **좌표는 애초에 `places.json` 에 없다.** 층을 나눈 것이 여기서 값을 한다 —
     실수로 좌표를 실을 방법 자체가 없다.
     """
+    say = labels(lang)
     if not places:
-        return "(장소 목록이 주어지지 않았습니다 — 그라운딩 없이 돕니다.)"
+        return say["no_places"]
     entries = places.get("places", []) if isinstance(places, dict) else list(places)
     by_id = {entry["place_id"]: entry for entry in entries}
     lines = []
     for entry in entries:
-        neighbours = [by_id[pid]["label"] for pid in entry.get("adjacent", []) if pid in by_id]
+        neighbours = [_name(by_id[pid], lang) for pid in entry.get("adjacent", []) if pid in by_id]
         floor = entry.get("floor")
-        head = f"{entry['label']} ({entry['kind']}, {floor}층)" if floor is not None else f"{entry['label']} ({entry['kind']})"
-        alias = [a for a in entry.get("aliases", []) if a != entry["label"]]
+        name = _name(entry, lang)
+        head = f"{name} ({entry['kind']}, {floor}{say['floor']})" if floor is not None else f"{name} ({entry['kind']})"
+        alias = [a for a in _aliases(entry, lang) if a != name]
         if alias:
-            head += f" [별칭: {', '.join(alias)}]"
-        lines.append(f"- {head}" + (f" ↔ {' · '.join(neighbours)}" if neighbours else " ↔ (연결 예정)"))
+            head += f" [{say['alias']}: {', '.join(alias)}]"
+        lines.append(f"- {head}" + (f" ↔ {' · '.join(neighbours)}" if neighbours else f" ↔ {say['unlinked']}"))
     return "\n".join(lines)
 
 
-def render_equipment(equipment: Any) -> str:
+def render_equipment(equipment: Any, lang: str = "ko") -> str:
     """`equipment.json` → 프롬프트에 실을 장비 어휘 (7단계).
 
     ## 왜 이 함수가 생겼나
@@ -264,12 +391,13 @@ def render_equipment(equipment: Any) -> str:
     출처·집계는 **모델이 볼 것이 아니다** — 어느 장비가 정답셋에서 왔는지가 새면 그것이
     곧 정답 누출이다. 그래서 통째로 돌리지 않고 항목을 하나씩 집는다.
     """
+    say = labels(lang)
     if not equipment:
-        return "(장비 목록이 주어지지 않았습니다 — 그라운딩 없이 돕니다.)"
+        return say["no_equipment"]
     entries = equipment.get("equipment", []) if isinstance(equipment, dict) else list(equipment)
     lines = []
     for entry in entries:
-        label = entry.get("label")
+        label = _name(entry, lang) or None
         kind = entry.get("kind")
         head = entry["equipment_id"]
         if label and kind:
@@ -278,14 +406,14 @@ def render_equipment(equipment: Any) -> str:
             head += f" — {label}"
         elif kind:
             head += f" ({kind})"
-        alias = [a for a in entry.get("aliases", []) if a and a != label]
+        alias = [a for a in _aliases(entry, lang) if a and a != label]
         if alias:
-            head += f" [별칭: {', '.join(alias)}]"
+            head += f" [{say['alias']}: {', '.join(alias)}]"
         lines.append(f"- {head}")
     return "\n".join(lines)
 
 
-def render_example(example: Any) -> str:
+def render_example(example: Any, lang: str = "ko") -> str:
     """few-shot 한 편. **정답 JSON 을 그대로 보인다.**
 
     말로 설명한 예시는 형식을 가르치지 못한다 — 형식 안정성이 이 프롬프트의 첫 목표이고,
@@ -297,9 +425,10 @@ def render_example(example: Any) -> str:
         "utterance": utterance,
         "milestones": example.get("milestones", []),
     }
+    say = labels(lang)
     return (
-        f"발화: {utterance.get('text', '')}\n"
-        f"출력:\n{json.dumps(shown, ensure_ascii=False, indent=2)}"
+        f"{say['utterance']}: {utterance.get('text', '')}\n"
+        f"{say['output']}:\n{json.dumps(shown, ensure_ascii=False, indent=2)}"
     )
 
 
@@ -308,6 +437,30 @@ SYSTEM = (
     "마일스톤은 임무를 사람이 확인할 수 있는 단계로 자른 것이고, 각 단계는 추상적이어야 한다.\n"
     "출력은 계약(JSON 스키마)을 만족하는 JSON 객체 하나뿐이다."
 )
+
+
+#: 판마다 쓰는 규칙 묶음. **`lang` 하나로 고른다** — 갈리는 자리가 여기 한 곳이어야
+#: 「한국어 판과 영어 판은 언어만 다르다」가 주장이 아니라 확인이 된다.
+PHRASING = {
+    "ko": {"rules": RULES, "equipment": EQUIPMENT_RULE, "node_kind": NODE_KIND_RULE,
+           "tasks": TASK_RULES, "branch": BRANCH_RULES, "system": SYSTEM},
+    "en": {"rules": RULES_EN, "equipment": EQUIPMENT_RULE_EN, "node_kind": NODE_KIND_RULE_EN,
+           "tasks": TASK_RULES_EN, "branch": BRANCH_RULES_EN, "system": SYSTEM_EN},
+}
+
+
+def phrasing(lang: str) -> dict:
+    """그 언어의 묶음. 모르는 언어면 **한국어로 떨어진다** — 화면 사전과 같은 규칙이다."""
+    return PHRASING.get(lang, PHRASING["ko"])
+
+
+def labels(lang: str) -> dict:
+    return LABELS.get(lang, LABELS["ko"])
+
+
+def anchors(lang: str) -> dict:
+    return ANCHORS.get(lang, ANCHORS["ko"])
+
 
 
 def build(
@@ -320,6 +473,7 @@ def build(
     node_kinds: bool = False,
     tasks: bool = False,
     branch: bool = False,
+    lang: str = "ko",
 ) -> dict[str, str]:
     """(system, user) 두 문자열. **엔진의 대화 틀은 엔진이 씌운다** (`engines/`).
 
@@ -337,26 +491,27 @@ def build(
     이 판이 재는 것이 「낼 줄 아는가」가 아니라 「예시를 베끼는가」가 된다.
     """
     examples = examples or []
+    say = labels(lang)
     parts = [
-        "[규칙]",
-        "\n".join(f"{i + 1}. {rule}" for i, rule in enumerate(rules_for(equipment, node_kinds, tasks, branch))),
+        say["rules"],
+        "\n".join(f"{i + 1}. {rule}" for i, rule in enumerate(rules_for(equipment, node_kinds, tasks, branch, lang))),
         "",
-        "[장소] 이 목록 밖의 장소를 만들면 실패다.",
-        render_places(places),
+        say["places"],
+        render_places(places, lang),
     ]
     if equipment:
-        parts += ["", "[장비] assigned_targets 에는 이 목록의 id 만 쓴다.", render_equipment(equipment)]
+        parts += ["", say["equipment"], render_equipment(equipment, lang)]
     if examples:
-        parts += ["", f"[예시] {len(examples)}편. 같은 형식으로 낸다."]
-        parts += [render_example(example) for example in examples]
+        parts += ["", say["examples"].format(n=len(examples))]
+        parts += [render_example(example, lang) for example in examples]
     meta = utterance_meta or {"audio_ref": None, "text": utterance, "engine": "script", "confidence": 1}
     parts += [
         "",
-        "[요청]",
+        say["request"],
         f"mission_id: {mission_id}",
         f"utterance: {json.dumps(meta, ensure_ascii=False)}",
-        f"발화: {utterance}",
+        f"{say['utterance']}: {utterance}",
         "",
-        "위 발화의 마일스톤을 JSON 으로 내라.",
+        say["ask"],
     ]
-    return {"system": SYSTEM, "user": "\n".join(parts)}
+    return {"system": phrasing(lang)["system"], "user": "\n".join(parts)}

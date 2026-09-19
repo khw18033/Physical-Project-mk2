@@ -93,7 +93,8 @@
     "verify:gateway-i18n": "node scripts/verify-gateway-i18n.mjs",
     "verify:gateway-wire": "node scripts/verify-gateway-wire.mjs",
     "verify:log-i18n": "node scripts/verify-log-i18n.mjs",
-    "verify:service-words": "node scripts/verify-service-words.mjs"
+    "verify:service-words": "node scripts/verify-service-words.mjs",
+    "verify:gen-prompt": "node scripts/verify-gen-prompt.mjs"
   },
   "dependencies": {
     "mqtt": "^5.15.2",

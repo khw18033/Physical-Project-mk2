@@ -1092,9 +1092,14 @@
     {
       "place_id": "room-415",
       "label": "415호",
+      "label_en": "Room 415",
       "aliases": [
         "415",
         "415호"
+      ],
+      "aliases_en": [
+        "415",
+        "room 415"
       ],
       "kind": "room",
       "floor": 4,
