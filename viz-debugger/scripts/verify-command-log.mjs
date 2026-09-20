@@ -245,7 +245,21 @@ function armed() {
     failures.push('실패 사유에 손으로 쓴 예시 문장이 남아 있다 — 일어난 적 없는 일이 실패마다 뜬다');
   }
   if (!/failureOfTask/.test(modal)) failures.push('실패 사유를 로봇이 준 것에서 안 읽는다');
-  if (!/commandsOfTask/.test(modal)) failures.push('액션 아이템 자리가 실제 명령을 안 읽는다');
+  /**
+   * 260920 — **읽는 곳이 작업대에서 기록 열로 옮겨 갔다** (명령 기록 합류 §4).
+   *
+   * 규칙은 그대로다: 액션 아이템 자리가 **실제로 오간 명령**을 읽어야 한다. 바뀐 것은
+   * 어디서 읽느냐다. 작업대(`commandsOfTask`)는 지금 값이라 되감기가 안 닿았다 — 재생
+   * 머리를 10초로 옮겨도 40초의 줄까지 떠 있었다. 이제 접은 결과를 읽는다.
+   *
+   * **빼는 것이 아니라 키를 바꾼 것이다.** 아래에 「작업대를 직접 읽으면 실패」가 붙어
+   * 옛 길로 되돌아가는 것을 막는다.
+   */
+  if (!/actionsOfTask/.test(modal)) failures.push('액션 아이템 자리가 접은 명령을 안 읽는다');
+  if (!/actionsAt\(\)/.test(modal)) failures.push('명령 표가 재생 머리를 안 읽는다 — 되감아도 표가 안 따라 움직인다');
+  if (/commandsOfTask|logAtIndex/.test(modal)) {
+    failures.push('명령 표가 작업대(robotSession)를 직접 읽는다 — 작업대는 지금 값이라 되감기가 안 닿는다');
+  }
   // 로그가 오는 대로 다시 그려야 한다 — 안 그러면 열어 둔 창이 멈춘 화면이 된다.
   if (!/useRobotSession/.test(modal)) failures.push('로그가 와도 창이 안 다시 그려진다');
 }
@@ -335,7 +349,9 @@ function armed() {
   if (after.length !== 0) failures.push('종료 응답이 0번 칸에 붙었다 — 회전 보고가 아닌 줄은 칸이 없다');
 
   const modal = src('views', 'ActionModal.tsx');
-  if (!/logAtIndex/.test(modal)) failures.push('각도 칸이 제 몫의 줄을 안 읽는다');
+  // 260920 — 가르는 재료가 작업대에서 접은 결과로 바뀌었다. **규칙은 그대로**다:
+  // 각도 칸은 그 걸음의 줄만 본다 (한 바퀴가 명령 하나라 이름으로는 못 가른다).
+  if (!/line\.index === angle/.test(modal)) failures.push('각도 칸이 제 몫의 줄을 안 읽는다');
   if (!/viewpointTaskIndex/.test(modal)) failures.push('각도 칸인지 아닌지를 안 가른다');
   session.resetRobotSession();
 }

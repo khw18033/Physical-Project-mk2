@@ -60,12 +60,35 @@ export const HUMAN_SEQ_BASE = 1_000_000;
  */
 export const AI_SEQ_BASE = 500_000;
 
+/**
+ * **액션 층의 `seq` 대역 둘** (260920 · 명령 기록 합류).
+ *
+ * 앞의 둘과 **같은 이유**로 가른다 — 대역이 안 갈리면 사건 하나가 다른 사건 하나를
+ * 중복으로 지우고(`TraceStore` 는 `seq` 를 신원으로 본다), 지워진 쪽은 **조용히 사라진다.**
+ *
+ * ## 왜 액션 층만 대역이 둘인가
+ *
+ * 이 층에는 **두 재생기가 동시에 흐를 수 있다.** 시연 편을 로봇에 붙인 채 돌리면 대본이
+ * 예정한 명령도 흐르고 실제로 오간 명령도 흐른다. 한 대역을 나눠 쓰면 둘째로 도착한
+ * 쪽이 통째로 중복 취급돼 사라진다 — 하필 **실제로 오간 쪽**이 사라질 수 있다.
+ *
+ *   `ACTION_SEQ_BASE`       대본이 정의하고 재생기가 편 것. **정해진 차례**라 게이트웨이가
+ *                           흘리든 로컬 재생기가 흘리든 같은 값이다 (`actionItemEvents`)
+ *   `LIVE_ACTION_SEQ_BASE`  실제로 오간 것. 받은 차례대로 오른다
+ *
+ * 대역 값이 순서도 정한다 — 같은 시각이면 「대본이 예정한 것」 다음에 「실제로 오간 것」이
+ * 읽힌다. 대조가 이 방향이라야 자연스럽다.
+ */
+export const ACTION_SEQ_BASE = 1_500_000;
+export const LIVE_ACTION_SEQ_BASE = 1_750_000;
+
 /** 아무 임무도 안 올라온 상태. 기동 직후와 임무 교체 사이의 한순간이다. */
 const NO_MISSION = '';
 
 let column = new TraceStore(NO_MISSION);
 let humanCount = 0;
 let aiCount = 0;
+let liveActionCount = 0;
 
 /**
  * 임무가 바뀌면 **새 열**이다. 지우는 것이 아니라 새로 만드는 것이다 —
@@ -75,6 +98,7 @@ export function resetTrace(missionId: string): void {
   column = new TraceStore(missionId);
   humanCount = 0;
   aiCount = 0;
+  liveActionCount = 0;
 }
 
 /** 지금 열이 누구의 기록인가. */
@@ -155,6 +179,26 @@ export function appendHuman(
  * 근거는 승인 전에는 제안이 들고 화면이 보여주며, 열에는 **승인된 뒤에** 들어간다.
  * 그래서 이 열의 첫 줄은 언제나 「무엇이 이 임무를 만들었나」이고 그 다음이 승인이다.
  */
+/**
+ * **실제로 오간 액션 사건의 입구** (260920 · 명령 기록 합류 §1).
+ *
+ * `appendHuman` · `appendGenerated` 와 **같은 모양**이다 — 대역을 아는 곳이 여기 하나여야
+ * `seq` 규칙이 갈라지지 않는다. 사건의 **모양**은 `actionTrace.ts` 가 만들고, 여기서는
+ * 그것에 대역 번호만 붙여 열에 넣는다. 둘을 한 파일에 두지 않은 것은 `actionTrace.ts` 를
+ * Node 가 그대로 열어야 하기 때문이다(`fold.ts` 를 갈라 둔 것과 같은 이유).
+ *
+ * `make` 가 `seq` 를 받는 함수인 것은 **대역을 부르는 쪽이 못 정하게** 하기 위해서다.
+ */
+export function appendAction(
+  missionId: string,
+  make: (seq: number) => ScenarioEvent,
+): ScenarioEvent | null {
+  const event = make(LIVE_ACTION_SEQ_BASE + liveActionCount);
+  if (!appendTrace(missionId, event)) return null;
+  liveActionCount += 1;
+  return event;
+}
+
 export function appendGenerated(
   missionId: string,
   kind: string,

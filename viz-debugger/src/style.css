@@ -31,6 +31,23 @@
 .robot-log__lines code{grid-column:2;color:#6b7888;font-size:11px;word-break:break-all}
 .robot-log__lines .is-result span{font-weight:700}
 .robot-log__lines .is-empty span{color:#8a94a1}
+/* 액션 층 (260920 — 명령 기록 합류 §4). **「아직」과 「영영」은 다른 색이다.**
+   둘 다 응답이 0줄이라 같은 회색으로 두면 화면에서 영원히 구분되지 않는다 — 느린 것과
+   죽은 것은 원인이 완전히 다르고, 그 구분이 사람 눈에 닿는 자리가 여기 하나다. */
+.robot-log__flag{font-weight:700}
+.robot-log__cmd>header .robot-log__flag.is-expired{background:#fbe3e3;color:#a33a3a}
+.robot-log__cmd>header .robot-log__flag.is-waiting{background:#fdf1d8;color:#8a6410}
+.robot-log__expired{margin:6px 0 0;font-size:12px;color:#a33a3a}
+/* 표시 깊이 (§4-5) — 판정과 숫자는 위에 있고, 줄은 한 번 더 눌러야 열린다.
+   감추는 것이 아니라 기본으로 안 펴는 것이다. */
+.robot-log__fold{margin:8px 0 0}
+.robot-log__fold>summary{cursor:pointer;font-size:12px;color:#4a5666;list-style:revert}
+.robot-log__fold>summary::marker{color:#8a94a1}
+.robot-log__adjust{margin:8px 0 0;font-size:12px}
+.robot-log__adjust>b{display:block;font-size:11px;color:#4a5666}
+.robot-log__adjust ul{margin:4px 0 0;padding-left:16px;display:grid;gap:2px}
+.robot-log__adjust li{font-variant-numeric:tabular-nums}
+.robot-log__adjust small{color:#8a94a1}
 /* 탐지 · 오간 로그 (260914) — 로봇 명령 로그와 같은 모양에 구간 딱지 하나를 더한다. */
 .detect-log{margin-top:14px}
 /* 칸 폭을 **내용에 맞춘다** (260919). 전에는 구간 딱지 칸이 84px 고정이었는데, 그 값은

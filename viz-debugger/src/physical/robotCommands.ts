@@ -31,14 +31,15 @@ import { appendDetectLog, DETECT_TASKS, type LogPhrase } from '../detect/detectL
 import { commandForTask, missionGeometry, type TaskCommand } from './missionLink.ts';
 import { planApproach, type ApproachPlan } from './approachPlan.ts';
 import type { PhysicalClient } from './PhysicalClient.ts';
-import type { UplinkMessage } from './uplink.ts';
+import { uplinkWords, type UplinkMessage } from './uplink.ts';
 import { STOP_ACTION, STOP_REASON } from './presets.ts';
 import {
-  canIssueRobotCommand, clearScanIssued, commandsOfTask, lockPaused, lockStopped, markApproachIssued,
+  canIssueRobotCommand, clearScanIssued, commandsOfTask, elapsedSec, lockPaused, lockStopped, markApproachIssued,
   markScanIssued, notePauseFailure, pickDoorIndex, recordCommand, releasePaused, robotDrives,
   robotSession, runningTaskId,
   type PauseState, type StopState,
 } from './robotSession.ts';
+import { recordAnswered, recordCommanded, recordExpired } from '../data/scenario.ts';
 
 export type IssueOutcome = {
   sent: boolean;
@@ -104,14 +105,38 @@ async function issueThroughTracker(
   );
   const sent = commandId !== '';
   if (sent) {
+    // **실려 나간 값 그대로.** 화면에 적힌 계획값이 아니라 바이트에 들어간 것이다 —
+    // 시험에서 둘이 갈리는 자리가 있어(`TEST_FORWARD_M`) 더 그렇다. 작업대와 기록 열이
+    // **같은 값**을 들도록 한 번만 만들어 둘에 나눠 준다.
+    const issued = { ...(parameters ?? {}) };
     recordCommand({
       taskId, commandId, action, requestId: tracked.requestId,
-      // **실려 나간 값 그대로.** 화면에 적힌 계획값이 아니라 바이트에 들어간 것이다 —
-      // 시험에서 둘이 갈리는 자리가 있어(`TEST_FORWARD_M`) 더 그렇다.
-      parameters: { ...(parameters ?? {}) },
+      parameters: issued,
       issuedAtIso: new Date().toISOString(),
       state: 'issued', code: null, message: null, result: {}, log: [],
     });
+    /**
+     * **기록 열에도 같은 `commandId` 로 넣는다** (260920 · 명령 기록 합류 §1).
+     *
+     * 작업대(`robotSession`)는 지금 값이라 되감기가 안 닿는다. 전까지 재생 머리를 옮겨도
+     * 명령 표가 안 따라 움직인 것이 그 때문이다 — 작업대에 남은 **마지막** 명령을 그냥
+     * 읽었다. 이제 열에도 들어가므로 되감기가 세 층에 닿는다.
+     *
+     * **로봇에 나가는 바이트는 한 줄도 안 바뀐다.** 이미 나간 뒤에 적기만 한다.
+     */
+    /**
+     * **태스크가 없는 명령은 안 넣는다** (`NO_NODE`). 브리지 기동(`sdk_start`)처럼 순서도에
+     * 자리가 없는 명령은 액션 층에 넣어도 **어느 노드도 보여 줄 수 없는 외톨이 행**이 된다.
+     * 액션 층의 행은 「어느 태스크의 명령인가」를 들고 있어야 뜻이 있다 (§1 `payload.taskId`).
+     * `verify:sdk-bridge` ④가 이 선을 지킨다.
+     */
+    if (taskId !== NO_NODE) {
+      recordCommanded({
+        commandId, taskId, action, parameters: issued, requestId: tracked.requestId,
+        // 화면이 낸 임무 명령이다. 사람이 누른 것은 일시정지와 `adjusted` 쪽이다.
+        issuedBy: 'mission', atSec: elapsedSec(),
+      });
+    }
   }
   return {
     sent,
@@ -490,6 +515,23 @@ export async function pauseMission(client: PhysicalClient | null): Promise<Pause
       published = outcome.sent;
       commandId = outcome.commandId;
       if (!outcome.sent) failure = outcome.reason ?? t('robot.notSent');
+      /**
+       * **일지에만 더한다** (260920 §2). 이 명령은 추적기를 지나지 않아 작업대에도 안
+       * 남아 있었다 — 그래서 「일시정지에 로봇이 답을 했는가」가 기록 어디에도 없었다.
+       * 아래 `expired` 가 걸릴 자리를 만드는 것이기도 하다: 접기는 `commanded` 가 있는
+       * 명령에만 응답·기한을 붙인다(`actionTrace.ts`).
+       *
+       * **동작은 한 줄도 안 바뀐다.** 이미 나간 뒤에 적기만 한다.
+       */
+      // 돌던 태스크가 없으면 안 넣는다 — 위 `NO_NODE` 와 같은 이유로 외톨이 행이 된다.
+      if (outcome.sent && taskId !== null) {
+        recordCommanded({
+          commandId, taskId, action: PAUSE_ACTION,
+          parameters: { reason: STOP_REASON.human },
+          // **사람이 누른 것이다.** 임무가 낸 명령과 갈려야 §4-3 이 실증을 얻는다.
+          issuedBy: 'human', atSec: elapsedSec(),
+        });
+      }
     }
   } catch (error) {
     failure = error instanceof Error ? error.message : String(error);
@@ -509,22 +551,43 @@ export async function pauseMission(client: PhysicalClient | null): Promise<Pause
    * 화면 멈춤은 이미 위에서 끝났다 — 여기서 듣는 것은 **문구를 채우기 위해서**다.
    * 늦게 오든 안 오든 멈춤은 그대로다.
    */
-  if (client !== null && published) void reportPauseAnswer(client, commandId);
+  // 기록은 태스크가 있을 때만 — 위와 같은 선이다. 문구 채우기는 그와 무관하게 언제나 한다.
+  if (client !== null && published) void reportPauseAnswer(client, commandId, taskId);
   return paused;
 }
 
-async function reportPauseAnswer(client: PhysicalClient, commandId: string, timeoutMs = 4000): Promise<void> {
+async function reportPauseAnswer(client: PhysicalClient, commandId: string, taskId: string | null, timeoutMs = 4000): Promise<void> {
   const answer = await firstAnswer(client, commandId, timeoutMs);
   if (answer === null) {
     const words = t('robot.pauseNoAnswer', { ms: timeoutMs });
     notePauseFailure(words);
     noteIssue('pause', 'robot', t('robot.pausePrefix', { words }));
+    /**
+     * **기다림이 끝났다는 사실을 일지에도 남긴다** (260920 §2).
+     *
+     * 안 온 응답은 일어나지 않은 일이라 적을 수 없다. 적는 것은 기다림이 끝났다는 것이고,
+     * 기다린 것은 일어난 일이다. 이 한 줄이 없으면 「아직 기다리는 중」과 「영영 안 왔다」가
+     * 기록에서 **영원히 같아 보인다** — 느린 것과 죽은 것은 원인이 완전히 다르다.
+     *
+     * **정지 경로의 동작은 한 줄도 안 바뀐다.** 화면 멈춤은 이미 위에서 끝났고, 여기는
+     * 문구를 채우는 자리다 — 거기에 기록 한 줄이 더 붙을 뿐이다
+     * (`verify:emergency-stop` 이 그 불변을 지킨다).
+     */
+    if (taskId !== null) recordExpired({ commandId, taskId, waitedMs: timeoutMs, reason: words, atSec: elapsedSec() });
     return;
   }
   if (answer.kind === 'acceptance' && !answer.accepted) {
     const words = t('robot.rejected', { code: answer.code ?? t('robot.noReason'), message: answer.message ?? '' }).trim();
     notePauseFailure(words);
     noteIssue('pause', 'robot', t('robot.pausePrefix', { words }));
+    // **거절도 답이다.** 온 것과 안 온 것이 갈려야 §2 의 구분이 선다 — 거절을 안 적으면
+    // 「답을 했는데 거절했다」가 「영영 안 왔다」와 같아 보인다.
+    if (taskId !== null) recordAnswered({ commandId, taskId, line: words, answerKind: 'acceptance', outcome: 'failed', atSec: elapsedSec() });
+    return;
+  }
+  // 수락했다 — 이것도 온 답이다.
+  if (taskId !== null) {
+    recordAnswered({ commandId, taskId, line: uplinkWords(answer), answerKind: answer.kind, atSec: elapsedSec() });
   }
 }
 

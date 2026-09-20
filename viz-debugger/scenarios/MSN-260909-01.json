@@ -107,7 +107,57 @@
       ],
       "target": "robot-01",
       "nodeKind": "act",
-      "actionItems": []
+      "actionItems": [
+        {
+          "id": "AI-0909-A3-1",
+          "label": "한 바퀴 스캔",
+          "params": {
+            "forward_m": 0,
+            "hold_after_capture": 1
+          },
+          "status": "done",
+          "command": {
+            "atSec": 6,
+            "action": "scan_mission",
+            "parameters": {
+              "forward_m": 0,
+              "hold_after_capture": 1,
+              "hold_timeout_s": 20
+            },
+            "answers": [
+              {
+                "atSec": 6,
+                "kind": "acceptance",
+                "text": "수락"
+              },
+              {
+                "atSec": 8,
+                "kind": "status",
+                "text": "촬영 뒤 대기 · 촬영 1",
+                "index": 0
+              },
+              {
+                "atSec": 12,
+                "kind": "status",
+                "text": "촬영 뒤 대기 · 촬영 3",
+                "index": 2
+              },
+              {
+                "atSec": 20,
+                "kind": "status",
+                "text": "촬영 뒤 대기 · 촬영 8",
+                "index": 7
+              },
+              {
+                "atSec": 22,
+                "kind": "result",
+                "text": "SUCCEEDED · steps=8",
+                "outcome": "done"
+              }
+            ]
+          }
+        }
+      ]
     },
     {
       "id": "T-A4-0",
@@ -251,7 +301,71 @@
       ],
       "target": "robot-01",
       "nodeKind": "act",
-      "actionItems": []
+      "actionItems": [
+        {
+          "id": "AI-0909-B2-1",
+          "label": "방위 보정 회전",
+          "params": {
+            "deg": -45
+          },
+          "status": "done",
+          "command": {
+            "atSec": 30,
+            "action": "turn",
+            "parameters": {
+              "deg": -45
+            },
+            "answers": [
+              {
+                "atSec": 30,
+                "kind": "acceptance",
+                "text": "수락"
+              },
+              {
+                "atSec": 32,
+                "kind": "result",
+                "text": "SUCCEEDED · yaw_deg=45",
+                "outcome": "done"
+              }
+            ]
+          }
+        },
+        {
+          "id": "AI-0909-B2-2",
+          "label": "직진 이동",
+          "params": {
+            "distance_m": 4.2,
+            "vx": 0.3
+          },
+          "status": "done",
+          "command": {
+            "atSec": 32,
+            "action": "move_forward",
+            "parameters": {
+              "distance_m": 1,
+              "vx": 0.3
+            },
+            "answers": [
+              {
+                "atSec": 32,
+                "kind": "acceptance",
+                "text": "수락"
+              },
+              {
+                "atSec": 35,
+                "kind": "status",
+                "text": "MOVING · travelled_m=0.6"
+              },
+              {
+                "atSec": 38,
+                "kind": "result",
+                "text": "SUCCEEDED · travelled_m=1",
+                "outcome": "done"
+              }
+            ]
+          }
+        }
+      ]
     },
     {
       "id": "T-B3",
@@ -262,7 +376,29 @@
       ],
       "target": "robot-01",
       "nodeKind": "act",
-      "actionItems": [],
+      "actionItems": [
+        {
+          "id": "AI-0909-B3-1",
+          "label": "도착 정지",
+          "params": {
+            "reason": 2
+          },
+          "status": "done",
+          "command": {
+            "atSec": 40,
+            "action": "abort",
+            "parameters": {
+              "reason": 2
+            },
+            "answers": [],
+            "expired": {
+              "atSec": 42,
+              "waitedMs": 4000,
+              "reason": "정지 응답이 4초 안에 오지 않았다"
+            }
+          }
+        }
+      ],
       "evaluation": {
         "criteria": [
           "정지 시 문까지 거리가 기준 이하다"

@@ -33,6 +33,8 @@ import { matchLibrary } from '../src/scenarios/matcher.ts';
 import { scriptPhrase } from '../src/scenarios/phrases.ts';
 import { LEGACY_ID, SCRIPT_IDS } from '../src/scenarios/manifest.ts';
 import type { ScriptLibraryEntry, ScriptMatch, ScriptScenario, WorldDrive } from '../src/scenarios/types.ts';
+import { actionItemEvents } from '../src/data/actionTrace.ts';
+import { ACTION_SEQ_BASE } from '../src/data/trace.ts';
 import { SCENARIO_TIMING } from './config.ts';
 import type { CommandEngine, SubmitOutcome } from './commands.ts';
 import type { Fleet } from './devices.ts';
@@ -435,6 +437,40 @@ export class ScriptEngine {
         }
       });
     });
+
+    /**
+     * **액션 층** (260920 §5) — 대본의 액션 아이템을 펴서 **같은 `trace_event` 채널로** 흘린다.
+     *
+     * 펴는 규칙은 `src/data/actionTrace.ts` **하나**이고 단독 빌드의 로컬 재생기가 같은
+     * 함수를 부른다 — 두 벌이면 통합 빌드와 단독 빌드의 되감기가 갈리고, 그것이 곧
+     * 측정축 D 의 오염이다. `seq` 가 정해진 차례라 두 길로 와도 열이 중복으로 흡수한다.
+     *
+     * **`layer` 가 `action_item` 이다.** `contracts/trace-event.schema.json` 에 그 값이
+     * 처음부터 있었고, 이제 실제로 쓰인다.
+     *
+     * 이게 있어야 **로봇 없이 실험을 돌린다** — 결함 60건이 컴퓨터 앞에서 끝난다.
+     */
+    for (const event of actionItemEvents(entry?.script?.tasks ?? [], ACTION_SEQ_BASE)) {
+      at(event.atSec, () => {
+        hub.publish(
+          info.mission_id,
+          'trace_event',
+          {
+            layer: 'action_item',
+            node_id: event.nodeId,        // **commandId 다.** 새 식별자를 만들지 않는다
+            kind: event.kind,
+            produced_by: event.producedBy,
+            status: event.status,
+            attempt: 1,
+            seq: event.seq,
+            at_sec: event.atSec,
+            payload: event.payload ?? {},
+            mock: true,
+          },
+          { fromDevice: false },
+        );
+      });
+    }
 
     at(durationSec, () => {
       playback.ended = true;

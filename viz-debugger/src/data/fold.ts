@@ -11,6 +11,13 @@
  * `MissionView` 는 여전히 `scenario.ts` 가 정의한다 — 여기서는 **타입만** 가져오므로
  * 실행 시에는 아무것도 끌어오지 않는다.
  *
+ * ## 260920 — 층이 셋이 됐다 (명령 기록 합류 §3)
+ *
+ * `actions` 가 늘었다. **`robotSession` 을 import 하지 않는다** — 그 파일은 React 를 끌어오고,
+ * 그러면 `verify:scenario-mode` 와 `verify:fold-actions` 가 이 함수를 Node 에서 직접 못 돌린다.
+ * 접기는 **기록 열만** 읽는다. 작업대를 보지 않는다. 명령이 기록 열로 들어와 있으므로
+ * 그럴 필요도 없다.
+ *
  * ## 260904 — 접는 대상이 대본에서 기록 열로
  *
  * 전까지 이 함수는 `view.events` 를 접었다. 그것은 **승인 시점에 읽은 대본 JSON** 이지
@@ -21,11 +28,35 @@
  */
 
 import type { ScenarioEvent, TaskStatus } from '../model/types.ts';
+import { foldActions, isActionEvent, type ActionStatus, type FoldedAction } from './actionTrace.ts';
 import type { MissionView } from './scenario.ts';
+
+export type { FoldedAction };
 
 export type FoldedStatuses = {
   tasks: Record<string, { status: TaskStatus; attempt: number }>;
   milestones: Record<string, TaskStatus>;
+  /**
+   * **액션 층** (260920 — 명령 기록 합류 §3). 키는 `commandId` 다.
+   *
+   * 이 층이 없던 동안 되감기는 세 층 중 둘에만 닿았다. 재생 머리를 옮겨도 명령 표는 안
+   * 따라 움직였고 — 작업대에 남은 **마지막** 명령을 그냥 읽었다 — 「모든 노드가 같은 재생
+   * 머리를 쓴다」(논문 §4-4)가 그 자리에서 깨져 있었다.
+   */
+  actions: Record<string, {
+    taskId: string;
+    status: ActionStatus;
+    /** 그 시점까지 온 응답 줄 수. */
+    answered: number;
+    /**
+     * 기한이 끝났는가 — **`status` 와 별개다.**
+     *
+     * 섞으면 「아직 기다리는 중」과 「영영 안 왔다」가 같아진다. 느린 것과 죽은 것은
+     * 원인이 완전히 다르므로 이 칸을 접어 없애면 디버깅에서 제일 값이 큰 구분을 잃는다
+     * (`actionTrace.ts` §「아직 기다림」과 「영영 안 옴」).
+     */
+    expired: boolean;
+  }>;
 };
 
 /**
@@ -47,6 +78,13 @@ export function foldStatuses(second: number, view: MissionView, trace: readonly 
   const known = new Set(view.tasks.map((task) => task.id));
   for (const event of trace) {
     if (event.atSec > second) break;
+    /**
+     * **액션 사건은 태스크 상태를 안 바꾼다** (260920). 대개는 `nodeId` 가 `commandId` 라
+     * 아래 `known` 에서 저절로 걸러지지만, 아직 명령이 없는 태스크의 계획값을 사람이
+     * 바꾸면 `adjusted` 의 `nodeId` 가 **태스크 자신**이다. 그것을 그냥 두면 값 하나 고친
+     * 것이 그 태스크를 `rerunning` 으로 만든다 — 아무것도 다시 돌지 않았는데.
+     */
+    if (isActionEvent(event)) continue;
     if (!known.has(event.nodeId)) continue;
     tasks[event.nodeId] = { status: event.status, attempt: event.attempt ?? tasks[event.nodeId]?.attempt ?? 1 };
   }
@@ -68,5 +106,19 @@ export function foldStatuses(second: number, view: MissionView, trace: readonly 
     else milestones[milestone.id] = 'running';
   }
 
-  return { tasks, milestones };
+  /**
+   * 액션 층 — 접는 규칙은 `actionTrace.ts` 하나에 있고 여기서는 **요약만** 든다.
+   * 두 곳에서 따로 접으면 화면이 읽는 표(`foldActions`)와 여기가 언젠가 어긋난다.
+   */
+  const actions: FoldedStatuses['actions'] = {};
+  for (const action of foldActions(second, trace)) {
+    actions[action.commandId] = {
+      taskId: action.taskId,
+      status: action.status,
+      answered: action.lines.length,
+      expired: action.expired !== null,
+    };
+  }
+
+  return { tasks, milestones, actions };
 }

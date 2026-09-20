@@ -173,7 +173,10 @@ failures.push(...checkReplay(foldStatuses));
 {
   const scratch = makeScratch(join(root, 'src', 'data'), '.verify-replay-');
   try {
-    const source = readFileSync(foldPath, 'utf8');
+    // 260920 — 사본은 `src/data/.verify-replay-*/` 안에 산다. `fold.ts` 가 이웃
+    // `./actionTrace.ts` 를 끌어오게 되면서 사본에서 그 경로가 한 칸 깊어졌다.
+    // **사본만 고친다** — 원본의 import 를 상대 위치 때문에 바꾸지 않는다.
+    const source = readFileSync(foldPath, 'utf8').replaceAll("from './actionTrace.ts'", "from '../actionTrace.ts'");
     const mutants = [
       ['시각 경계를 없앤 사본(미래 사건까지 접는다)', source.replace('if (event.atSec > second) break;', '')],
       ['되감기를 무시하는 사본(늘 마지막 상태)', source.replace('if (event.atSec > second) break;', 'if (false) break;')],

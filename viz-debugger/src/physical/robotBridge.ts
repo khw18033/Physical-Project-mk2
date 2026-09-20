@@ -14,7 +14,7 @@ import { appendViewpoint } from '../viewpoint/store.ts';
 import { hasResults } from '../detect/detectBridge.ts';
 import { effectsOf, NO_NODE, type LinkEffect } from './missionLink.ts';
 import type { PhysicalClient } from './PhysicalClient.ts';
-import { advanceRobotHead, receiveRobotProgress } from '../data/scenario.ts';
+import { advanceRobotHead, receiveRobotProgress, recordAnswered } from '../data/scenario.ts';
 import { noteIssue } from '../shared/notifications.ts';
 import type { ScenarioEvent } from '../model/types.ts';
 import { elapsedSec, applyEffects, noteCommandLog, robotSession } from './robotSession.ts';
@@ -47,6 +47,11 @@ export function receiveUplink(
    * **효과보다 먼저 적는다.** 효과는 정지·일시정지 뒤에 버려지는데, 무엇이 왔는지는
    * 그때도 알고 싶은 것이다 — 오히려 그때 가장 알고 싶다.
    */
+  const answerIndex = message.kind !== 'status' ? null
+    : (isScanHold(message.detail) || isScanRelease(message.detail)) && message.detail !== null
+      && message.detail.step >= 0 && message.detail.step < viewpointCount
+      ? message.detail.step
+      : viewpointIndexOf(message.detail, viewpointCount);
   noteCommandLog(message.commandId, {
     atIso: new Date().toISOString(),
     kind: message.kind,
@@ -55,12 +60,35 @@ export function receiveUplink(
     raw: message.kind === 'status' ? message.raw : '',
     // **몇 번째 각도의 줄인가.** 회전 보고가 아니면 null 이고, 그것이 정상이다.
     // 촬영 뒤 대기 · 풀림은 그 촬영의 칸에 붙인다 — `step` 이 촬영 순번(0부터)이다 (260914).
-    index: message.kind !== 'status' ? null
-      : (isScanHold(message.detail) || isScanRelease(message.detail)) && message.detail !== null
-        && message.detail.step >= 0 && message.detail.step < viewpointCount
-        ? message.detail.step
-        : viewpointIndexOf(message.detail, viewpointCount),
+    index: answerIndex,
   });
+
+  /**
+   * **기록 열에도 같은 줄을 넣는다** (260920 · 명령 기록 합류 §1).
+   *
+   * 작업대(`noteCommandLog`)만 채우면 되감기가 이 줄에 안 닿는다 — 재생 머리를 과거로
+   * 옮겨도 명령 표에는 **지금까지 온 줄 전부**가 떴다. 열에 들어가면 접기가 그 시점까지만
+   * 센다.
+   *
+   * 모르는 `command_id` 는 작업대가 버리는 것과 같은 이유로 여기서도 버린다 — uplink 는
+   * 토픽 하나라 남의 도구가 쏜 명령의 보고도 같이 들어온다. 접기도 `commanded` 가 없는
+   * 명령에는 응답을 안 붙이므로 규칙이 두 겹으로 같다.
+   */
+  // `NO_NODE` 는 순서도에 자리가 없는 명령(브리지 기동 등)이다 — 액션 층에 넣으면
+  // 어느 노드도 보여 줄 수 없는 외톨이 행이 된다 (`robotCommands.ts` 의 같은 선).
+  const answeredTaskId = robotSession().commands[message.commandId]?.taskId ?? null;
+  if (answeredTaskId !== null && answeredTaskId !== NO_NODE) {
+    recordAnswered({
+      commandId: message.commandId,
+      taskId: answeredTaskId,
+      line: uplinkWords(message),
+      answerKind: message.kind,
+      index: answerIndex,
+      // 종료 줄일 때만 본다. 로봇이 준 상태 그대로다 — 우리가 판정하지 않는다.
+      outcome: message.kind === 'result' && message.status !== 'SUCCEEDED' ? 'failed' : 'done',
+      atSec,
+    });
+  }
 
   const effects = effectsOf(message, {
     // 어느 태스크의 응답인가 — 발행할 때 적어 둔 표를 본다.

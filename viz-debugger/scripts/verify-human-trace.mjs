@@ -39,6 +39,17 @@ const read = (...parts) => readFileSync(join(src, ...parts), 'utf8');
       else if (/\.tsx?$/.test(name)) {
         const rel = path.slice(src.length + 1).replaceAll('\\', '/');
         if (rel === 'data/trace.ts') continue;
+        /**
+         * 260920 — **층마다 정의 자리가 하나**다. `data/trace.ts` 가 사람·AI 층의 사건
+         * 모양을 정하고, `data/actionTrace.ts` 가 액션 층(`adjusted`)의 모양을 정한다.
+         * 둘을 한 파일에 둘 수 없다 — `actionTrace.ts` 는 저장소를 모르는 순수 함수라야
+         * `verify:fold-actions` 와 `verify:scenario-mode` 가 Node 에서 직접 돌린다.
+         *
+         * **느슨해진 것이 아니다.** 이 목록 밖에서 `producedBy: 'human'` 을 적으면 여전히
+         * 실패하고, 실제로 260920 에 `physical/robotCommands.ts` 가 여기 걸려
+         * 「누가 눌렀나」(`issuedBy`)를 받는 쪽으로 고쳤다.
+         */
+        if (rel === 'data/actionTrace.ts') continue;
         // 타입 선언(model/types.ts)과 전선 필드 이름(missionBridge)은 규칙이 아니라 어휘다.
         if (rel === 'model/types.ts' || rel === 'shell/missionBridge.ts') continue;
         if (/producedBy\s*:\s*'human'/.test(readFileSync(path, 'utf8'))) offenders.push(rel);
@@ -196,7 +207,7 @@ if (failures.length) {
   console.error(`❌ verify:human-trace\n- ${failures.join('\n- ')}`);
   process.exit(1);
 }
-console.log('✅ produced_by=human 규칙은 data/trace.ts 한 곳 · 기록은 출구 본체(commandCenter.issue)가 발행 전에 · 껍데기 이중 기록 없음');
+console.log('✅ produced_by=human 규칙은 층마다 한 곳(data/trace.ts · data/actionTrace.ts) · 기록은 출구 본체(commandCenter.issue)가 발행 전에 · 껍데기 이중 기록 없음');
 console.log('✅ 같은 열 — 대본·백엔드 사건과 시각 순서로 섞이고, 조작한 그 시각에 적힌다 (seq 대역은 분리)');
 console.log('✅ 되감기 — 조작 전 시각에는 안 보이고 조작 뒤에는 보임 · 태스크 접기는 안 흔들림 · 화면에 사람 조작 줄이 있음');
 console.log(`✅ 대조군 ${controls.length}건 검출 — ${controls.join(' · ')}`);

@@ -79,7 +79,10 @@ export function hasSidecar(missionId: string): boolean {
 }
 
 /** payload 안에서 화면에 뜨는 칸. 나머지(숫자·식별자)는 건드리지 않는다. */
-const PAYLOAD_FIELDS = ['criterion', 'reason', 'phase', 'detected', 'destination'] as const;
+// 260920 — `line` 이 늘었다. 액션 층의 `answered` 가 로봇이 준 한 줄을 여기 싣는다.
+// 대본이 쓴 줄은 사이드카에 있으므로 바뀌고, **실시간으로 받은 줄은 그대로 남는다** —
+// 그것은 로봇이 준 값이지 우리가 쓴 문장이 아니다(위 주석과 같은 규칙).
+const PAYLOAD_FIELDS = ['criterion', 'reason', 'phase', 'detected', 'destination', 'line'] as const;
 
 function payload(missionId: string, value: unknown): unknown {
   if (value === null || typeof value !== 'object' || Array.isArray(value)) return value;

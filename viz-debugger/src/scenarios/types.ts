@@ -107,7 +107,8 @@ export type ScriptEvent = {
   nodeId: string;
   status: TaskStatus;
   kind: string;
-  producedBy: 'ai' | 'backend' | 'human';
+  /** 260920 — 액션 층이 붙으면서 `robot` 이 늘었다 (`src/model/types.ts` 의 사유 참조). */
+  producedBy: 'ai' | 'backend' | 'human' | 'robot';
   attempt?: number;
   /** kind: 'derived' 일 때 — 어느 태스크의 2회차인가. */
   derivedFrom?: string;

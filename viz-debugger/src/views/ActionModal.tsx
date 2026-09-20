@@ -10,11 +10,30 @@
  *
  * 그 둘을 **로봇이 실제로 주고받은 것**으로 바꿨다. 낸 명령과 그때 실린 파라미터, 그
  * 명령으로 오간 로그 줄, 종료 응답. **없으면 비운다** — 지어 채우지 않는다.
+ *
+ * ## 260920 — 명령 표가 재생 머리를 따라간다 (명령 기록 합류 §4)
+ *
+ * 전까지 이 표는 작업대(`robotSession`)를 **직접** 읽었다. 작업대는 지금 값이라 되감아도
+ * 안 따라온다 — 재생 머리를 10초로 옮겨 놓아도 표에는 40초에 온 줄까지 전부 떠 있었다.
+ * 「모든 노드가 같은 재생 머리를 쓴다」(논문 §4-4)가 이 화면에서 깨져 있던 자리다.
+ *
+ * 이제 **접은 결과**(`actionsAt()`)를 읽는다. 명령도 응답도 기록 열에 들어와 있으므로
+ * 그 시점까지의 것만 접힌다. 라이브든 목이든 읽는 곳이 같다 — 로봇 없이도 같은 표가 뜬다.
+ *
+ * ## 다 적는 것과 다 보여주는 것은 다르다 (§4-5)
+ *
+ * 기록에는 전부 남긴다. 화면은 **접힌 상태에서 판정과 숫자**만 보이고, 한 번 더 눌러야
+ * 줄이 열린다. 격리로 600줄을 40줄로 줄여 놓고 화면에서 다시 600줄을 보이면 줄인 의미가
+ * 없다 — 값을 **감추는 것이 아니라** 한 번 더 눌러야 나오게 두는 것이다.
  */
 
 import { useState } from 'react';
 import { issueCommand } from '../shared/commandEgress.ts';
-import { traceFor, type MissionView } from '../data/scenario.ts';
+import { actionsAt, displayMission, recordAdjusted, traceFor, useMission, type MissionView } from '../data/scenario.ts';
+import {
+  actionsOfTask, neverAnswered, planAdjustments, stillWaiting,
+  type ActionStatus, type FoldedAction,
+} from '../data/actionTrace.ts';
 import { relayDriven } from '../scenarios/library.ts';
 import { isNavTask } from '../physical/navLink.ts';
 import { NavFacts } from '../physical/NavFacts.tsx';
@@ -25,10 +44,7 @@ import { PendingSource } from '../shared/PendingSource.tsx';
 import { stateLabel } from '../graph/stateStyle.ts';
 import { failureOfTask } from '../physical/robotCommands.ts';
 import { viewpointTaskIndex } from '../physical/missionLink.ts';
-import {
-  commandsOfTask, logAtIndex, useRobotSession,
-  type CommandLogLine, type TaskCommandRecord,
-} from '../physical/robotSession.ts';
+import { useRobotSession } from '../physical/robotSession.ts';
 import { DeviceStrip } from './DeviceStrip.tsx';
 import { ApproachFacts, DetectLogLines, isDetectTask, PathFacts, PrepFacts, SweepFacts } from '../detect/views/DetectActionLog.tsx';
 import { t } from '../i18n/dict.ts';
@@ -36,7 +52,7 @@ import { Rich } from '../i18n/RichText.tsx';
 import { useLang } from '../shared/language.ts';
 
 /** 명령 하나의 상태를 사람 말로. 로봇이 준 상태 그대로를 옮긴다. */
-const COMMAND_STATE_KEY: Record<TaskCommandRecord['state'], string> = {
+const COMMAND_STATE_KEY: Record<ActionStatus, string> = {
   issued: 'cmd.published',
   running: 'cmd.running',
   done: 'task.state.done',
@@ -44,10 +60,33 @@ const COMMAND_STATE_KEY: Record<TaskCommandRecord['state'], string> = {
 };
 
 /** 낸 시각과 마지막 응답 시각의 차. 응답이 없으면 null — 0초라고 적지 않는다. */
-function tookSec(record: TaskCommandRecord): number | null {
-  const last = record.log.at(-1);
+function tookSec(action: FoldedAction): number | null {
+  const last = action.lines.at(-1);
   if (last === undefined) return null;
-  return (Date.parse(last.atIso) - Date.parse(record.issuedAtIso)) / 1000;
+  return last.atSec - action.issuedAtSec;
+}
+
+/** 값 하나를 그릴 수 있는 글자로. 없는 것은 「—」다 — `null` 을 0으로 적지 않는다. */
+function shown(value: unknown): string {
+  if (value === null || value === undefined || value === '') return '—';
+  return typeof value === 'string' ? value : JSON.stringify(value);
+}
+
+/**
+ * **전후 짝.** 후만 그리면 무엇이 바뀌었는지 모른다 — 그 한 줄이 §4 의 요구다.
+ */
+function AdjustList({ items }: { items: readonly { atSec: number; field: string; before: unknown; after: unknown }[] }) {
+  useLang();
+  if (items.length === 0) return null;
+  return <div className="robot-log__adjust">
+    <b>{t('act.adjusted')}</b>
+    <ul>
+      {items.map((item, at) => <li key={`${item.field}-${item.atSec}-${at}`}>
+        {t('act.adjustPair', { field: item.field, before: shown(item.before), after: shown(item.after) })}
+        <small> · T+{item.atSec.toFixed(0)}s</small>
+      </li>)}
+    </ul>
+  </div>;
 }
 
 /**
@@ -59,6 +98,8 @@ function tookSec(record: TaskCommandRecord): number | null {
 function RobotCommands({ taskId }: { taskId: string }) {
   // `t()` 는 값을 줄 뿐 리렌더를 안 일으킨다 — 컴포넌트마다 건다 (지시서 §2 ①).
   useLang();
+  // **재생 머리가 움직이면 다시 접는다.** 전에는 작업대만 구독해서, 되감아도 표가 그대로였다.
+  useMission();
   useRobotSession();                       // 로그가 오는 대로 다시 그린다
 
   /**
@@ -67,11 +108,16 @@ function RobotCommands({ taskId }: { taskId: string }) {
    * 한 바퀴는 명령 하나(`scan_mission`)인데 노드는 여덟이다. 각 칸에 그 명령 전체를
    * 붙이면 여덟 칸이 똑같은 표 여덟 개가 된다 — 「이 각도에서 무슨 일이 있었나」를
    * 물었는데 한 바퀴 전체가 나온다. 그래서 걸음 번호로 갈라 준다.
+   *
+   * 260920 — 가르는 재료가 작업대에서 **접은 결과**로 바뀌었다. 규칙은 그대로다.
    */
   const angle = viewpointTaskIndex(taskId);
+  const folded = actionsAt();
   const groups = angle === null
-    ? commandsOfTask(taskId).map((record) => ({ record, lines: record.log }))
-    : logAtIndex(angle);
+    ? actionsOfTask(folded, taskId).map((action) => ({ action, lines: action.lines }))
+    : folded
+        .map((action) => ({ action, lines: action.lines.filter((line) => line.index === angle) }))
+        .filter((group) => group.lines.length > 0);
 
   if (groups.length === 0) {
     return <p className="robot-log__empty">
@@ -83,42 +129,65 @@ function RobotCommands({ taskId }: { taskId: string }) {
     </p>;
   }
   return <div className="robot-log">
-    {groups.map(({ record, lines }, index) => {
-      const took = tookSec(record);
-      const params = Object.entries(record.parameters);
-      return <section key={record.commandId} className={`robot-log__cmd is-${record.state}`}>
+    {groups.map(({ action, lines }, index) => {
+      const took = tookSec(action);
+      const params = Object.entries(action.parameters);
+      return <section key={action.commandId} className={`robot-log__cmd is-${action.status}`}>
         <header>
-          <b>{index + 1}. {record.action}</b>
-          <span>{t(COMMAND_STATE_KEY[record.state])}</span>
+          <b>{index + 1}. {action.action}</b>
+          <span>{t(COMMAND_STATE_KEY[action.status])}</span>
+          {/**
+            * **「아직 기다림」과 「영영 안 옴」을 다르게 적는다** (§2 · §4).
+            *
+            * 둘 다 응답이 0줄이라 글자가 같으면 화면에서 영원히 구분되지 않는다. 느린 것과
+            * 죽은 것은 원인이 완전히 다르므로, 여기가 그 구분이 사람 눈에 닿는 유일한 자리다.
+            */}
+          {neverAnswered(action) && <span className="robot-log__flag is-expired">{t('act.noAnswer')}</span>}
+          {stillWaiting(action) && <span className="robot-log__flag is-waiting">{t('act.waiting')}</span>}
           {/* **응답이 없으면 시간을 안 적는다.** 0초로 적으면 즉시 끝난 것으로 읽힌다. */}
           {took !== null && <span>{t('act.tookSec', { sec: took.toFixed(1) })}</span>}
           {/* 각도 칸에서는 **이 표가 한 명령의 일부**라는 것을 적는다. */}
           {angle !== null && <span>{t('act.nthStep', { n: angle + 1 })}</span>}
-          <code>{record.commandId}</code>
+          <code>{action.commandId}</code>
         </header>
         <p className="robot-log__params">
           {params.length === 0
             ? t('act.noParams')
             : params.map(([key, value]) => `${key}=${value}`).join(' · ')}
         </p>
+        {/* 기한이 끝났으면 **얼마나 기다렸고 왜 끝났는지**까지 적는다. 그것도 디버깅 정보다. */}
+        {action.expired !== null && <p className="robot-log__expired">
+          {t('act.waitedFor', { sec: (action.expired.waitedMs / 1000).toFixed(0), reason: action.expired.reason })}
+        </p>}
+        <AdjustList items={action.adjustments} />
         <LogLines lines={lines} />
       </section>;
     })}
   </div>;
 }
 
-/** 오간 줄. 받은 순서 그대로이고 문장은 로봇이 준 값으로만 만든다. */
-function LogLines({ lines }: { lines: readonly CommandLogLine[] }) {
+/**
+ * 오간 줄. 받은 순서 그대로이고 문장은 로봇이 준 값으로만 만든다.
+ *
+ * **접힌 채로 연다** (§4-5 표시 깊이) — 판정과 줄 수는 위에 이미 있고, 줄 자체는 한 번 더
+ * 눌러야 나온다. 감추는 것이 아니라 기본으로 안 펴는 것이다. 여덟 칸이 각각 수십 줄을
+ * 펼치면 격리로 줄여 놓은 것이 화면에서 도로 늘어난다.
+ */
+function LogLines({ lines }: { lines: readonly { atSec: number; kind: string; text: string; index: number | null }[] }) {
   // `t()` 는 값을 줄 뿐 리렌더를 안 일으킨다 — 컴포넌트마다 건다 (지시서 §2 ①).
   useLang();
-  return <ol className="robot-log__lines">
-    {lines.map((line, at) => <li key={`${line.atIso}-${at}`} className={`is-${line.kind}`}>
-      <time>{line.atIso.slice(11, 23)}</time>
-      <span>{line.text}</span>
-      {line.raw !== '' && <code>{line.raw}</code>}
-    </li>)}
-    {lines.length === 0 && <li className="is-empty"><span>{t('act.noResponse')}</span></li>}
-  </ol>;
+  if (lines.length === 0) {
+    return <ol className="robot-log__lines"><li className="is-empty"><span>{t('act.noResponse')}</span></li></ol>;
+  }
+  return <details className="robot-log__fold">
+    <summary>{t('act.showLines')} · {t('act.answerCount', { n: lines.length })}</summary>
+    <ol className="robot-log__lines">
+      {lines.map((line, at) => <li key={`${line.atSec}-${at}`} className={`is-${line.kind}`}>
+        <time>T+{line.atSec.toFixed(0)}s</time>
+        <span>{line.text}</span>
+      </li>)}
+    </ol>
+  </details>;
 }
 
 /** **실패 사유 — 로봇이 준 것만.** 없으면 비운다 (260912 지시). */
@@ -140,8 +209,34 @@ function FailureReason({ taskId }: { taskId: string }) {
 export function ActionModal({ task, view, device, failure, onClose }: { task: Task; view: MissionView; device?: Hardware; failure?: boolean; onClose(): void }) {
   // `t()` 는 값을 줄 뿐 리렌더를 안 일으킨다 — 컴포넌트마다 건다 (지시서 §2 ①).
   useLang();
+  // **재생 머리를 구독한다** — 아래 명령 수와 조정 목록이 접은 결과를 읽는다.
+  useMission();
   const [speed, setSpeed] = useState('0.35'); const [clearance, setClearance] = useState('0.18');
   const action = (kind: string) => void issueCommand({ action: kind, entity: task.id, params: { speed, clearance } });
+  /**
+   * **사람이 값을 바꾸면 전후를 짝으로 남긴다** (§1 `adjusted` · §4).
+   *
+   * 글자 하나 칠 때마다 남기면 「0.3」→「0.35」가 두 줄이 된다. 칸에서 손을 뗄 때 한 번,
+   * 그리고 **실제로 달라졌을 때만** 남긴다.
+   *
+   * `nodeId` 는 그 태스크다 — 이 폼이 뜨는 자리에는 아직 낸 명령이 없고(아래 조건),
+   * 바꾸는 것이 **계획값**이기 때문이다. 명령이 있는 자리의 조정은 그 `commandId` 에
+   * 붙는다(`actionTrace.ts` 의 `planAdjustments` 주석).
+   *
+   * **값을 바꾸는 것과 재시작에 잇는 것은 다르다.** 잇는 것은 2부이고, 여기서는 기록만
+   * 한다 — 로봇에 나가는 것은 한 줄도 안 바뀐다.
+   */
+  const [beforeEdit, setBeforeEdit] = useState<Record<string, string>>({});
+  const startAdjust = (field: string, value: string) => setBeforeEdit((held) => ({ ...held, [field]: value }));
+  const noteAdjust = (field: string, after: string) => {
+    // **들어올 때의 값**과 견준다. 나갈 때 칸을 읽으면 `onChange` 가 이미 고쳐 놓은
+    // 뒤라 둘이 언제나 같고, 그러면 조정이 한 건도 안 남는다.
+    const before = beforeEdit[field];
+    if (before === undefined || before === after) return;
+    recordAdjusted({ commandId: task.id, taskId: task.id, field, before, after });
+  };
+  const planChanges = planAdjustments(displayMission().headSec, traceFor(view), task.id);
+  const foldedHere = actionsOfTask(actionsAt(), task.id);
   // 대본(registry 세계)의 평가는 대본 파일에서 읽는다 — 기준은 task.evaluation, 근거값은
   // 기록 열의 payload (예: MS-E 의 distance_m: 2.7). 옛 편은 전달본의 목 문구 그대로다.
   // **중계 편은 흘러온 기록에서 읽는다** (260915). 대본의 사건은 그 편의 정의일 뿐이라, 거기서 읽으면
@@ -154,14 +249,19 @@ export function ActionModal({ task, view, device, failure, onClose }: { task: Ta
     <header><div><h2>{failure ? '× ' : ''}{task.id} · {task.title}{failure ? t('act.failedSuffix') : ''}</h2>{/* **낸 명령 수를 적는다.** 「액션 아이템 0건」은 이 편에서 늘 0이라 아무것도 안 알려
           줬다. 대본에 목록이 실제로 들어 있는 편에서는 그 수도 같이 적는다. */}
       <small>{viewpointTaskIndex(task.id) === null
-        ? t('act.commandCount', { n: commandsOfTask(task.id).length })
-        : t('act.logAtAngle', { n: logAtIndex(viewpointTaskIndex(task.id)!).reduce((sum, group) => sum + group.lines.length, 0) })}{task.actionItems.length > 0 && t('act.actionItemCount', { n: task.actionItems.length })} · target {task.target ?? t('gen.none')}</small></div><button onClick={onClose}>{t('conn.close')}</button></header>
+        ? t('act.commandCount', { n: foldedHere.length })
+        : t('act.logAtAngle', { n: actionsAt().reduce((sum, a) => sum + a.lines.filter((line) => line.index === viewpointTaskIndex(task.id)).length, 0) })}{task.actionItems.length > 0 && t('act.actionItemCount', { n: task.actionItems.length })} · target {task.target ?? t('gen.none')}</small></div><button onClick={onClose}>{t('conn.close')}</button></header>
     {failure ? <FailureReason taskId={task.id} /> : device && <PendingSource id="robot-status-strip" minHeight={104}><DeviceStrip device={device} /></PendingSource>}
     {/* **로봇이 실제로 낸 명령이 있으면 이 폼을 안 띄운다** (260912 지시).
         「진입 속도 · 최소 클리어런스」는 구판 편의 입력칸이다. 회전·직진이 실패한 자리에
         그 둘을 띄우면 그 값을 고쳐 다시 하면 되는 것처럼 읽힌다 — 실패한 명령에는 그런
         파라미터가 아예 없다. 구판 편에서는 그대로 둔다. */}
-    {failure && commandsOfTask(task.id).length === 0 && <div className="parameter-form"><label>{t('act.entrySpeed')}<input value={speed} onChange={(event) => setSpeed(event.target.value)} /> m/s</label><label>{t('act.minClearance')}<input value={clearance} onChange={(event) => setClearance(event.target.value)} /> m</label></div>}
+    {failure && foldedHere.length === 0 && <div className="parameter-form">
+      <label>{t('act.entrySpeed')}<input value={speed} onFocus={() => startAdjust('speed', speed)} onBlur={() => noteAdjust('speed', speed)} onChange={(event) => setSpeed(event.target.value)} /> m/s</label>
+      <label>{t('act.minClearance')}<input value={clearance} onFocus={() => startAdjust('clearance', clearance)} onBlur={() => noteAdjust('clearance', clearance)} onChange={(event) => setClearance(event.target.value)} /> m</label>
+      {/* **바꾼 값은 전후로 남는다.** 후만 보이면 무엇이 바뀌었는지 화면이 답할 수 없다. */}
+      <AdjustList items={planChanges} />
+    </div>}
     {<div className="modal-grid"><div className="modal-grid__left">
       {/* **액션 아이템 자리가 실제 제어 명령이다** (260912 지시). 대본의 목록은 로봇 편에서
           늘 0건이었고, 정작 알고 싶은 것은 무엇이 나갔고 무엇이 돌아왔는가였다.

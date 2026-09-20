@@ -43,7 +43,8 @@ import { translateEvents, translateView } from '../scenarios/phrases.ts';
 import { useSyncExternalStore } from 'react';
 import { foldStatuses, type FoldedStatuses } from './fold.ts';
 import { MergeScheduler } from './mergeScheduler.ts';
-import { appendGenerated, appendHuman, appendTrace, resetTrace, traceEvents, traceMissionId } from './trace.ts';
+import { appendAction, appendGenerated, appendHuman, appendTrace, ACTION_SEQ_BASE, resetTrace, traceEvents, traceMissionId } from './trace.ts';
+import { actionItemEvents, adjustedEvent, answeredEvent, commandedEvent, expiredEvent, foldActions, type AnswerKind, type FoldedAction } from './actionTrace.ts';
 import { scriptFrames } from '../viewpoint/source.ts';
 import { appendViewpoint, resetViewpoint, type ArrivedFrame } from '../viewpoint/store.ts';
 import { clearStarted, markApproved, resetRobotSession, robotDrives } from '../physical/robotSession.ts';
@@ -294,6 +295,16 @@ let localTimer: ReturnType<typeof setInterval> | null = null;
 /** 뷰포인트 프레임을 어디까지 흘려보냈는지. 기록 열의 `localCursor` 와 같은 자리다. */
 let localViewpointCursor = 0;
 
+/**
+ * 액션 사건을 어디까지 흘려보냈는지 (260920). 대본의 `events` 와 **따로** 센다 — 액션
+ * 사건은 파일에 적혀 있는 것이 아니라 액션 아이템에서 **펴서 만든 것**이라 열이 다르다.
+ */
+let localActionCursor = 0;
+/** 이 편의 액션 사건을 편 결과. 편마다 한 번만 펴고 들고 있는다. */
+let localActionEvents: readonly ScenarioEvent[] = [];
+/** 그 결과가 **어느 편의 것인가.** 편이 바뀌면 다시 편다. */
+let localActionMission = '';
+
 /** 로컬 재생기가 대본을 어디까지 읽어 흘려보냈는지. 매 틱 처음부터 훑지 않기 위한 자리다. */
 let localCursor = 0;
 
@@ -476,6 +487,7 @@ export function activateMission(missionId: string, mode: 'remote' | 'local'): vo
   resetDetect();
   localCursor = 0;
   localViewpointCursor = 0;
+  localActionCursor = 0;
   commitNow({ current: view, proposal: null, headSec: 0, playing: true, activatedBy: 'approval' });
 
   // **중계가 모는 편은 판을 걸어만 둔다** (260915 · pi1). 칠하기는 「▶ 임무 시작」부터다 — 승인하자마자
@@ -566,6 +578,7 @@ function activateGenerated(proposal: AiProposal): boolean {
   resetRobotSession();
   localCursor = 0;
   localViewpointCursor = 0;
+  localActionCursor = 0;
   commitNow({ current: proposal.view, proposal: null, headSec: 0, playing: false, activatedBy: 'approval' });
   appendGenerated(
     proposal.view.missionId,
@@ -592,6 +605,31 @@ function feedLocalTrace(headSec: number): void {
   while (localCursor < events.length && events[localCursor].atSec <= headSec) {
     appendTrace(state.current.missionId, events[localCursor]);
     localCursor += 1;
+  }
+
+  /**
+   * 액션 층 (260920 §5) — **대본의 액션 아이템을 펴서 같은 걸음으로 흘려보낸다.**
+   *
+   * 목 게이트웨이(`script-engine.ts`)가 통합 빌드에서 하는 일을 여기서 한다. 펴는 규칙은
+   * `actionTrace.ts` **하나**이므로 두 빌드의 되감기가 갈리지 않는다. 이게 빠지면 실험
+   * 한 건마다 로봇을 켜야 한다.
+   *
+   * **로봇이 붙어 있으면 여기서도 안 흘린다** — 뷰포인트 채널과 같은 규칙이다(아래). 대본이
+   * 예정한 명령과 실제로 오간 명령이 동시에 흐르면 한 태스크에 명령 표가 두 벌 뜬다.
+   * 대역은 갈라 뒀으므로(`trace.ts`) 사라지지는 않지만, 보이는 것이 두 벌이면 그게 결함이다.
+   */
+  if (localActionMission !== state.current.missionId) {
+    // 편이 바뀌었다 — 다시 편다. 펴는 것은 파일을 읽는 일이 아니라 태스크를 훑는 일이라
+    // 싸지만, 걸음마다 펴면 재생 한 판에 수백 번이 된다.
+    localActionMission = state.current.missionId;
+    localActionEvents = actionItemEvents(state.current.tasks, ACTION_SEQ_BASE);
+    localActionCursor = 0;
+  }
+  if (!robotDrives()) {
+    while (localActionCursor < localActionEvents.length && localActionEvents[localActionCursor].atSec <= headSec) {
+      appendTrace(state.current.missionId, localActionEvents[localActionCursor]);
+      localActionCursor += 1;
+    }
   }
   // 뷰포인트 채널 (260909 §6) — 기록 열과 **같은 걸음으로** 흘려보낸다. 화면은 대본이
   // 아니라 흘러온 것을 접는다.
@@ -627,6 +665,7 @@ export function previewMission(missionId: string): void {
   resetRobotSession();
   localCursor = 0;
   localViewpointCursor = 0;
+  localActionCursor = 0;
   commitNow({ current: view, proposal: null, headSec: 0, playing: false, activatedBy: 'preview' });
 }
 
@@ -724,6 +763,98 @@ export function recordHuman(kind: string, nodeId = state.current.missionId, payl
   return event;
 }
 
+// ── 액션 층 기록 (260920 — 명령 기록 합류 §1) ────────────────────────────────
+
+/**
+ * **실제로 오간 명령이 기록 열로 들어오는 자리.**
+ *
+ * `recordHuman` 과 같은 역할이다 — 사건의 **모양**은 `actionTrace.ts` 가 정하고, 대역은
+ * `trace.ts` 가 정하며, 여기서는 **어느 임무의 몇 초인가**만 붙인다. 그 셋을 한 곳에
+ * 모으면 물리 층이 기록 규칙을 손으로 적게 되고, 손으로 적히는 순간 라이브 기록과 목
+ * 기록이 다른 모양이 된다.
+ *
+ * `atSec` 는 **일어난 그 시각의 재생 머리**다. 임무 끝에 몰아 두면 명령이 전부 타임라인
+ * 오른쪽 끝에 겹쳐 쌓여 「언제 냈는지」를 잃는다 (`appendHuman` 주석과 같은 이유).
+ */
+function actionAtSec(atSec?: number): number {
+  const at = atSec ?? state.headSec;
+  return Math.max(0, Math.min(at, state.current.durationSec));
+}
+
+function pushAction(make: (seq: number) => ScenarioEvent): ScenarioEvent | null {
+  // 다시보기는 지난 판이다 — 지금 오간 것을 그 판의 기록에 끼워 넣지 않는다
+  // (`recordHuman` · `receiveUplink` 와 같은 선).
+  if (isReplayingRecord()) return null;
+  const event = appendAction(state.current.missionId, make);
+  if (event !== null) commit({ headSec: Math.max(state.headSec, event.atSec) });
+  return event;
+}
+
+/** 명령이 실제로 나갔다. `issuedBy` 는 **그 명령을 낸 주체**다 (`actionTrace.ts` 참조). */
+export function recordCommanded(input: {
+  commandId: string; taskId: string; action: string;
+  parameters: Record<string, number>; requestId?: string | null;
+  issuedBy?: 'human' | 'mission'; atSec?: number;
+}): ScenarioEvent | null {
+  return pushAction((seq) => commandedEvent({
+    seq, atSec: actionAtSec(input.atSec), commandId: input.commandId, taskId: input.taskId,
+    action: input.action, parameters: input.parameters, requestId: input.requestId ?? null,
+    issuedBy: input.issuedBy ?? 'mission',
+  }));
+}
+
+/** 로봇 응답이 한 줄 도착했다. */
+export function recordAnswered(input: {
+  commandId: string; taskId: string; line: string; answerKind: AnswerKind;
+  index?: number | null; outcome?: 'done' | 'failed'; atSec?: number;
+}): ScenarioEvent | null {
+  return pushAction((seq) => answeredEvent({
+    seq, atSec: actionAtSec(input.atSec), commandId: input.commandId, taskId: input.taskId,
+    line: input.line, answerKind: input.answerKind, index: input.index ?? null, outcome: input.outcome,
+  }));
+}
+
+/**
+ * **기다리는 기한이 끝났는데 안 왔다** (§2).
+ *
+ * 안 온 응답은 일어나지 않은 일이라 적을 수 없다. 적는 것은 **기다림이 끝났다는 사실**
+ * 이고, 기다린 것은 일어난 일이다. 이 한 줄이 「아직 기다리는 중」과 「영영 안 왔다」를
+ * 가른다 — 이것이 없으면 둘은 영원히 같아 보인다.
+ */
+export function recordExpired(input: {
+  commandId: string; taskId: string; waitedMs: number; reason: string; atSec?: number;
+}): ScenarioEvent | null {
+  return pushAction((seq) => expiredEvent({
+    seq, atSec: actionAtSec(input.atSec), commandId: input.commandId, taskId: input.taskId,
+    waitedMs: input.waitedMs, reason: input.reason,
+  }));
+}
+
+/** 사람이 값을 바꿨다. **전후를 짝으로** 남긴다 — 후만 남기면 무엇이 바뀌었는지 모른다. */
+export function recordAdjusted(input: {
+  commandId: string; taskId: string; field: string; before: unknown; after: unknown; atSec?: number;
+}): ScenarioEvent | null {
+  return pushAction((seq) => adjustedEvent({
+    seq, atSec: actionAtSec(input.atSec), commandId: input.commandId, taskId: input.taskId,
+    field: input.field, before: input.before, after: input.after,
+  }));
+}
+
+/**
+ * 시각 t 까지의 액션 층 — 화면이 명령 표를 그릴 때 읽는다. 접는 규칙은 `actionTrace.ts` 다.
+ *
+ * **화면이 그리는 그 열을 접는다** (`displayMission().trace`). `traceFor()` 의 날것을 접으면
+ * 영문 화면에서 로봇 줄만 한국어로 남는다 — 대본이 쓴 문장은 `translateEvents` 가 푸는데
+ * 그 변환이 `displayMission()` 안에 있기 때문이다. 상태만 접는 `statusesAt` 과 갈리는 지점이
+ * 여기다: 상태에는 글자가 없다.
+ *
+ * 시각을 안 주면 **지금 재생 머리**다. 되감아 놓았으면 그 시점까지만 보인다.
+ */
+export function actionsAt(second?: number): readonly FoldedAction[] {
+  const shown = displayMission();
+  return foldActions(second ?? shown.headSec, shown.trace);
+}
+
 // ── 상태 접기 (REQ-1405 되감기 · 마일스톤은 태스크를 접은 결과) ──────────────────
 
 /**
@@ -758,6 +889,7 @@ export function resetMission(): void {
   stopLocalTimer();
   localCursor = 0;
   localViewpointCursor = 0;
+  localActionCursor = 0;
   // 임무가 없으니 열도 없다 — 다음 임무가 열릴 때 그 id 로 다시 선다.
   resetTrace(NO_MISSION);
   resetViewpoint(NO_MISSION);
@@ -819,6 +951,7 @@ export function loadRecordedMission(
   endNavRun();
   localCursor = 0;
   localViewpointCursor = 0;
+  localActionCursor = 0;
   resetTrace(view.missionId);
   for (const event of trace) appendTrace(view.missionId, event);
   resetViewpoint(view.missionId);
@@ -844,6 +977,7 @@ export function closeRecordReplay(): void {
   stopLocalTimer();
   localCursor = 0;
   localViewpointCursor = 0;
+  localActionCursor = 0;
   resetTrace(NO_MISSION);
   resetViewpoint(NO_MISSION);
   resetRobotSession();

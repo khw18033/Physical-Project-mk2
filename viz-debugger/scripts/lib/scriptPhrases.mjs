@@ -24,11 +24,16 @@ export const DISPLAY_PATHS = [
   'tasks[].title',
   'tasks[].evaluation.criteria[]',
   'tasks[].actionItems[].label',
+  // 260920 — 액션 층. 재생기가 이 둘을 `payload.line` · `payload.reason` 으로 흘리고
+  // 화면이 명령 표에 그린다 (`src/data/actionTrace.ts`).
+  'tasks[].actionItems[].command.answers[].text',
+  'tasks[].actionItems[].command.expired.reason',
   'hardware[].kind',
   'hardware[].heartbeat',
   'refEdges[].label',
   'events[].payload.criterion',
   'events[].payload.reason',
+  'events[].payload.line',
   'events[].payload.phase',
   'events[].payload.detected',
   'events[].payload.destination',
