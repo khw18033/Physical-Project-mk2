@@ -23,7 +23,7 @@
 
 import { useEffect, useState } from 'react';
 import { t } from '../../i18n/dict.ts';
-import { useLang, type Lang } from '../../shared/language.ts';
+import { useLang } from '../../shared/language.ts';
 import { capLabel, capReason } from '../labels.ts';
 import { useCapability } from '../store.ts';
 import type { CapCost, CapFunction, CapLabels, CapNode, CapNodeRow } from '../types.ts';
@@ -63,9 +63,12 @@ function kindsOf(fn: CapFunction): readonly { kind: string; required: boolean }[
   ];
 }
 
-function TierStep({ fn, nodes, labels, lang, onNode }: {
-  fn: CapFunction; nodes: readonly CapNode[]; labels: CapLabels; lang: Lang; onNode(nodeId: string): void;
+function TierStep({ fn, nodes, labels, onNode }: {
+  fn: CapFunction; nodes: readonly CapNode[]; labels: CapLabels; onNode(nodeId: string): void;
 }) {
+  // 언어는 **내려받지 않고 여기서 구독한다.** `t()` 는 부르는 순간의 값일 뿐 구독이 아니라,
+  // 훅이 없으면 이 부품만 옛 언어로 남는다 (`verify:i18n-no-frozen` §2).
+  const lang = useLang();
   const kinds = kindsOf(fn);
   const wanted = new Set(kinds.map((entry) => entry.kind));
   return <>
@@ -125,7 +128,8 @@ function TierStep({ fn, nodes, labels, lang, onNode }: {
   </>;
 }
 
-function DevStep({ fn, node, labels, lang }: { fn: CapFunction; node: CapNode; labels: CapLabels; lang: Lang }) {
+function DevStep({ fn, node, labels }: { fn: CapFunction; node: CapNode; labels: CapLabels }) {
+  const lang = useLang();
   const kinds = kindsOf(fn);
   const byKind = new Map(node.rows.map((row) => [row.kind, row]));
   const alternatives = kinds
@@ -245,8 +249,8 @@ export function CapabilityDrill({ functionId, onClose }: { functionId: string; o
       {fn === null
         ? <p className="cap-note cap-note--pad">{t('cap.drill.gone')}</p>
         : node === null
-          ? <TierStep fn={fn} nodes={nodes} labels={cap.labels} lang={lang} onNode={setNodeId} />
-          : <DevStep fn={fn} node={node} labels={cap.labels} lang={lang} />}
+          ? <TierStep fn={fn} nodes={nodes} labels={cap.labels} onNode={setNodeId} />
+          : <DevStep fn={fn} node={node} labels={cap.labels} />}
 
       <footer>
         <span>{node === null ? t('cap.tier.api') : t('cap.dev.api', { node: node.nodeId })}</span>
