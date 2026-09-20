@@ -12,6 +12,7 @@
     "dev:generate": "node scripts/dev-generate.mjs",
     "build": "tsc -b && vite build",
     "build:standalone": "tsc -b && vite build --config vite.standalone.config.ts",
+    "preview:standalone": "vite preview --config vite.standalone.config.ts",
     "typecheck": "tsc -b --force && tsc -p gateway/tsconfig.json",
     "verify:hierarchy": "node scripts/verify-hierarchy.mjs",
     "verify:adapter-swap": "node scripts/verify-adapter-swap.mjs",

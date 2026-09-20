@@ -215,6 +215,17 @@ const outside = SOURCES.filter((rel) => !rel.startsWith('src/capability/') && !r
     if (outcome === null || !('error' in outcome)) failures.push(`창구가 base 「${bad}」 를 받는다`);
   }
   if (relayTarget('/autodrive-ai/control/go1_front?base=http://x') !== null) failures.push('창구가 남의 경로를 가로챈다');
+
+  // **두 설정이 갈라지지 않는가** (260920). 단독본은 마일스톤 화면으로 열리므로 기능 판이
+  // 전달본에서 제일 먼저 보인다 — 한쪽에만 창구가 있으면 그 판만 거기서 영영 실패한다.
+  for (const config of ['vite.config.ts', 'vite.standalone.config.ts']) {
+    const src = code(readSource(config));
+    if (!/capabilityRelay\(\)/.test(src)) failures.push(`${config} 가 기능 상태 창구를 안 붙인다 — 그 빌드에서만 판이 실패한다`);
+  }
+  // 창구는 **미들웨어**다. 번들에 들어가면 측정축 D 가 오염되므로 진입점이 끌어가면 안 된다.
+  for (const rel of SOURCES) {
+    if (/capability-relay\.mjs/.test(code(readSource(rel)))) failures.push(`${rel} 이 창구 스크립트를 import 한다 — 창구는 서버 미들웨어이지 번들 코드가 아니다`);
+  }
 }
 
 // ── 7. 배지를 끌 수 없다 ─────────────────────────────────────────────────────
@@ -289,6 +300,7 @@ console.log('✅ 자료 격리 — sample.ts 를 여는 곳은 CapabilityClient 
 console.log('✅ 붙잡아 둔 응답 — 우리 파서를 지나고(node_selector·reason_data 포함) 이 PC 의 경로가 안 섞여 있다');
 console.log('✅ 분리 — 켤 때도 끌 때도 값이 통째로 빔 · 주소가 바뀌면 버림 · 늦게 온 답은 안 실림');
 console.log('✅ 창구 — config·labels·functions 만 열림(placement·whatif 차단) · base 는 경로·계정·쿼리 없는 http(s)');
+console.log('✅ 두 빌드가 같다 — 통합·단독 설정이 같은 창구를 붙이고, 창구는 번들에 안 들어간다(측정축 D 보존)');
 console.log('✅ 표시 — 「설정 기반 · 실측 아님」은 끌 수 없고, 테스트 중에는 「테스트 자료」가 함께 뜸');
 console.log('✅ 두 벌 — 화면이 쓰는 키가 ko·en 양쪽에 다 있고 경계 안에 박힌 표시용 한글 0건');
 console.log(`✅ 대조군 ${controls.length}건 전부 검출 — ${controls.join(' · ')}`);
