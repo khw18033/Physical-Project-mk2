@@ -37,6 +37,7 @@ import { RobotPanel } from './physical/RobotPanel.tsx';
 import { useRobotUplink } from './physical/robotBridge.ts';
 import { useDetectUplink } from './detect/useDetect.tsx';
 import { HardwareLink } from './physical/HardwareLink.tsx';
+import { CapabilityPanel } from './capability/views/CapabilityPanel.tsx';
 import { robotClient } from './physical/robotClient.ts';
 import { framesUpTo } from './viewpoint/store.ts';
 import { startMissionRecorder } from './record/recorder.ts';
@@ -132,6 +133,13 @@ function Milestones({ view, phase, milestoneStatuses, assignments, onAssign, onO
       {approvalSlot}
     </div>}
     <div className="milestone-list">{view.milestones.map((item) => <button key={item.id} className={`milestone state-${milestoneStatuses[item.id] ?? 'pending'}`} onClick={() => onOpen(item.id)} onDragOver={(event) => event.preventDefault()} onDrop={(event) => onAssign(item.id, event.dataTransfer.getData('text/plain'))}><b>{item.id}</b><strong>{item.title}</strong><span>{(assignments[item.id] ?? item.assignedTargets).join(' · ') || t('ms.unassigned')}</span><small>{t('ms.clickToGraph')}</small></button>)}</div></section>
+    {/*
+      **오른쪽 기둥이 둘로 갈라진다** (260920 지시 2). 위가 하드웨어(장비가 지금 살아
+      있는가 · 실측), 아래가 기능(이 배치에서 무엇이 가능한가 · 설정 계산)이다. 세로를
+      **1:1 로 나누고 각자 구른다** — 한 판에 이어 붙이면 장비가 늘 때마다 기능이 아래로
+      밀려 안 보이고, 반대도 마찬가지다. 축이 다른 둘을 한 스크롤에 태운 탓이다.
+    */}
+    <div className="right-column">
     <aside className="hardware-panel"><h2>{t('ms.hardwareCount', { n: view.hardware ? hardware.length : cast.length })}</h2><p><Rich id="ms.hardwareHint" vars={{ source: hardwareSourceLabel() }} /></p>
     {view.hardware
       ? hardware.map((item) => <article key={item.id} draggable onDragStart={(event) => event.dataTransfer.setData('text/plain', item.id)} onDoubleClick={() => setStatusDeviceId(item.id)}><b className={item.connection}>{item.id}</b><small>{item.kind}</small><span><PendingSource id="hardware-pool-status" inline>{item.connection} · {item.battery}% · {item.rssi} dBm</PendingSource></span></article>)
@@ -141,6 +149,9 @@ function Milestones({ view, phase, milestoneStatuses, assignments, onAssign, onO
       // 적고(260910 지적), 실측 두 행(배터리·RSSI)은 여전히 자리표시다 — 로봇이 그 값을
       // 보내 주는 채널이 아직 없다(VZ-D-07 · 8/31 결정: 남이 줄 데이터는 지어내지 않는다).
       : cast.map((id) => <article key={id} draggable onDragStart={(event) => event.dataTransfer.setData('text/plain', id)} onDoubleClick={() => setStatusDeviceId(id)}><b>{id}</b><small>{t('ms.scriptDevice')}</small><HardwareLink entityId={id} /></article>)}</aside>
+    {/* 기능 상태 (260920). 하드웨어와 **완전히 다른 판**이고 자기 스크롤을 갖는다. */}
+    <CapabilityPanel />
+    </div>
     {/* 대상 상태 (260904). 목록의 **형제**로 얹힌다 — 뒤의 마일스톤·하드웨어 목록은
         언마운트되지 않으므로 닫으면 정확히 같은 자리다 (VZ-N-05 와 같은 규칙). */}
     {statusDeviceId !== null && <DeviceStatusOverlay

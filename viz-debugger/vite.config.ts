@@ -7,6 +7,8 @@ import { createReadStream, cpSync, existsSync, statSync } from 'node:fs';
 import { missionRecords } from './scripts/mission-records.mjs';
 // 자율주행 편의 AI 서버(영상 · 장애물 탐지)를 옮기는 창구 (260915) — 그 서버가 CORS 를 안 연다.
 import { autodriveAiRelay } from './scripts/autodrive-ai-relay.mjs';
+// 기능 상태 서비스(k3s 안의 status_ui)를 옮기는 창구 (260920) — 그 서버도 CORS 를 안 연다.
+import { capabilityRelay } from './scripts/capability-relay.mjs';
 
 /**
  * **탐지 시료를 `/detect-sample` 로 내준다** (260912).
@@ -53,7 +55,7 @@ function detectSample() {
 
 export default defineConfig({
   base: './',
-  plugins: [react(), detectSample(), missionRecords(), autodriveAiRelay()],
+  plugins: [react(), detectSample(), missionRecords(), autodriveAiRelay(), capabilityRelay()],
   server: {
     port: 5174,
     strictPort: true,

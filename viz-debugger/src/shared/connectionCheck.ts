@@ -22,6 +22,10 @@ import { probeDetect, sourceOf } from '../detect/DetectClient.ts';
 import { detectState } from '../detect/store.ts';
 import { fetchObstacleJson, probeStill, type FetchLike } from '../autodrive/aiClient.ts';
 import { parseObstacle } from '../autodrive/obstacle.ts';
+// `sourceOf` 라는 이름이 탐지에도 있다 — 두 경계가 같은 모양의 함수를 각자 갖는 것이
+// 맞고(섞이면 안 된다), 여기서만 이름을 가른다.
+import { probeCapability, sourceOf as capabilitySourceOf, type FetchLike as CapabilityFetchLike } from '../capability/CapabilityClient.ts';
+import { capabilityState } from '../capability/store.ts';
 
 /**
  * `physical` 을 확인할 때 쓸 것. 로봇 경계를 이 파일이 직접 열지 않는다 —
@@ -241,6 +245,28 @@ export async function checkAutodriveAi(fetcher?: FetchLike): Promise<readonly He
   return [control, stream];
 }
 
+/**
+ * 기능 상태 확인 (260920). 탐지와 같은 모양이다 — **「테스트」가 켜져 있으면 받아 둔 자료를
+ * 실제로 한 번 읽어 본다.** 「켰는데 아무것도 안 뜬다」를 그때 잡는다.
+ *
+ * 주소가 비어 있으면 **모른다(null)** 로 둔다. 빨갛게 칠하면 「서비스가 죽었다」는 없는
+ * 사실이 되고, 아직 주소를 안 넣은 것뿐이다.
+ */
+export async function checkCapability(fetcher?: CapabilityFetchLike): Promise<readonly HealthLine[]> {
+  const source = capabilitySourceOf(capabilityState().testMode);
+  if (source.kind === 'sample') {
+    const { value, ms } = await timed(() => probeCapability(source, fetcher));
+    return [line('sample', 'check.line.sample', value.alive, { roundTripMs: value.alive ? ms : null, reason: value.reason })];
+  }
+  if (source.base.trim() === '') {
+    return [line('health', 'check.line.health', null, { reason: t('check.reason.capabilityNoAddress') })];
+  }
+  const { value, ms } = await timed(() => probeCapability(source, fetcher));
+  return [value.alive
+    ? line('health', 'check.line.health', true, { roundTripMs: ms, reason: value.reason })
+    : line('health', 'check.line.health', false, { reason: value.reason })];
+}
+
 export async function checkStt(): Promise<readonly HealthLine[]> {
   const { value, ms } = await timed(() => sttProbe());
   return [value.alive
@@ -271,6 +297,7 @@ export async function checkTarget(
     else if (target === 'autodrive') setHealth(target, await checkAutodrive(nav));
     else if (target === 'autodrive-ai') setHealth(target, await checkAutodriveAi());
     else if (target === 'detect') setHealth(target, await checkDetect());
+    else if (target === 'capability') setHealth(target, await checkCapability());
     else if (target === 'stt') setHealth(target, await checkStt());
     else if (target === 'generate') setHealth(target, await checkGenerate());
     else setHealth(target, [line('none', 'check.line.none', false, { reason: t('check.reason.noMethod') })]);

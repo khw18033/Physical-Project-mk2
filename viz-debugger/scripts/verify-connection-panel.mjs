@@ -185,9 +185,14 @@ const controls = [];
   // 화면에 그 체크박스가 실제로 있는가.
   const { readFileSync } = await import('node:fs');
   const panel = readFileSync(join(root, 'src', 'shell', 'ConnectionsPanel.tsx'), 'utf8');
-  if (!/conn-test/.test(panel) || !/setTestMode\(/.test(panel)) {
-    failures.push('연결 관리에 탐지 「테스트」 체크박스가 없다');
+  // 260920 — 「테스트」가 둘이 되면서(탐지 · 기능 상태) 화면이 `target === 'detect'` 분기
+  // 대신 표를 쓴다. **묻는 것은 그대로다** — 탐지 체크박스가 실재하고 그 저장소에 이어져
+  // 있는가. 표로 바뀐 것까지 못으로 박아 둔다: 세 번째가 붙을 때 한 자리가 빠지지 않는다.
+  if (!/conn-test/.test(panel)) failures.push('연결 관리에 「테스트」 체크박스가 없다');
+  if (!/detect:\s*\{[^}]*set:\s*setTestMode\b/.test(panel)) {
+    failures.push('연결 관리의 탐지 「테스트」가 setTestMode 에 안 이어져 있다');
   }
+  if (!/toggle\.set\(/.test(panel)) failures.push('「테스트」 체크박스가 표의 set 을 안 부른다 — 손으로 적힌 분기가 남아 있다');
 }
 
 // ── 5. 한 대상이 죽어도 나머지는 돈다 ────────────────────────────────────────

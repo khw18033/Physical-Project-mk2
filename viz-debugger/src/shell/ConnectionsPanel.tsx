@@ -33,6 +33,8 @@ import { checkTarget, type PhysicalProbe } from '../shared/connectionCheck.ts';
 import { robotFacts } from '../physical/robotFacts.ts';
 import { navProbe } from '../physical/NavClient.ts';
 import { setTestMode, useDetect } from '../detect/store.ts';
+import { CAPABILITY_PRESETS, capabilityPresetReady } from '../capability/presets.ts';
+import { setCapabilityTestMode, useCapability } from '../capability/store.ts';
 import { useDeviceStates } from '../physical/deviceState.ts';
 import { CHECKED_TARGETS, useConnectionHealth, type TargetHealth } from '../shared/connectionHealth.ts';
 import type { ConnectionTargetId } from '../shared/connections.ts';
@@ -58,7 +60,21 @@ type AddressPreset = { id: string; labelKey: string; url: string; whyKey: string
 const ADDRESS_PRESETS: Partial<Record<ConnectionTargetId, { presets: readonly AddressPreset[]; ready(preset: AddressPreset): boolean }>> = {
   physical: { presets: BROKER_PRESETS, ready: presetReady },
   detect: { presets: DETECT_PRESETS, ready: detectPresetReady },
+  // 260920 — 기능 상태. 실제 배치(k3s)의 주소는 아직 비어 있어 고를 수 없다.
+  capability: { presets: CAPABILITY_PRESETS, ready: capabilityPresetReady },
 };
+
+/**
+ * **「테스트」를 두는 대상** (260912 객체 탐지 · 260920 기능 상태).
+ *
+ * 켜면 그 경계가 가진 **받아 둔 자료**를 진짜처럼 읽는다. 목록으로 둔 이유는 대상마다
+ * 끄고 켜는 함수가 다르기 때문이고, 손으로 `target === '…'` 를 늘리면 세 번째가 붙을 때
+ * 한 자리가 빠진다 — 실제로 탐지 한 대상만 보던 분기가 여기 있었다.
+ *
+ * **분리는 각자의 저장소가 책임진다.** 이 표는 화면일 뿐이고, 끌 때 값을 버리는 규칙은
+ * `detect/store.ts` 와 `capability/store.ts` 안에 있다.
+ */
+type TestToggle = { on: boolean; set(next: boolean): void; titleKey: string };
 
 export function ConnectionsPanel({ onClose, physical }: { onClose(): void; physical?: PhysicalProbe | null }) {
   const current = useConnections();
@@ -137,7 +153,7 @@ export function ConnectionsPanel({ onClose, physical }: { onClose(): void; physi
       {/* 상태 · 확인 · 마지막 확인 — 나머지 세 줄 (§2). 확인 방법이 있는 대상만.
           자율주행(pi1)도 확인은 되지만 머리줄 표시등의 목록(`CHECKED_TARGETS`)에는 안 넣는다 —
           문 찾기 시연의 「n/4 확인됨」이 그대로여야 한다 (260915). */}
-      {(CHECKED_TARGETS.includes(target.id) || target.id === 'autodrive' || target.id === 'autodrive-ai') && <HealthRow
+      {(CHECKED_TARGETS.includes(target.id) || target.id === 'autodrive' || target.id === 'autodrive-ai' || target.id === 'capability') && <HealthRow
         target={target.id}
         physical={target.id === 'physical' ? (physical ?? null) : null}
       />}
@@ -166,8 +182,14 @@ function HealthRow({ target, physical }: { target: ConnectionTargetId; physical:
   // 장비 상태를 구독한다 — 로봇 줄이 그 값으로 채워진다.
   useDeviceStates();
   const state: TargetHealth = health[target] ?? { checking: false, lines: [] };
-  // 탐지 줄만 「테스트」를 쓴다. 훅은 조건 없이 부른다 — 그리기마다 수가 달라지면 안 된다.
+  // 「테스트」가 있는 대상은 둘이다. **훅은 조건 없이 부른다** — 그리기마다 수가 달라지면 안 된다.
   const detect = useDetect();
+  const capability = useCapability();
+  const test: Partial<Record<ConnectionTargetId, TestToggle>> = {
+    detect: { on: detect.testMode, set: setTestMode, titleKey: 'conn.testTitle' },
+    capability: { on: capability.testMode, set: setCapabilityTestMode, titleKey: 'conn.testTitleCapability' },
+  };
+  const toggle = test[target];
   return <div className="conn-health">
     <div className="conn-health__lines">
       {state.lines.length === 0
@@ -187,8 +209,8 @@ function HealthRow({ target, physical }: { target: ConnectionTargetId; physical:
 
       **끄면 읽어 둔 것도 같이 버린다.** 시료가 실제 결과로 남아 있으면 안 된다.
     */}
-    {target === 'detect' && <label className="conn-test" title={t('conn.testTitle')}>
-      <input type="checkbox" checked={detect.testMode} onChange={(event) => setTestMode(event.target.checked)} />
+    {toggle !== undefined && <label className="conn-test" title={t(toggle.titleKey)}>
+      <input type="checkbox" checked={toggle.on} onChange={(event) => toggle.set(event.target.checked)} />
       {t('conn.test')}
     </label>}
     <button

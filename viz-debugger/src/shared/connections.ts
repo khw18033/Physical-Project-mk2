@@ -38,7 +38,7 @@
 
 import { useSyncExternalStore } from 'react';
 
-export type ConnectionTargetId = 'gateway' | 'stt' | 'generate' | 'physical' | 'detect' | 'autodrive' | 'autodrive-ai' | 'control-node' | 'digital-twin';
+export type ConnectionTargetId = 'gateway' | 'stt' | 'generate' | 'physical' | 'detect' | 'autodrive' | 'autodrive-ai' | 'capability' | 'control-node' | 'digital-twin';
 
 /**
  * ## 260918 — 여기 담는 것은 **글자가 아니라 사전 키**다
@@ -126,6 +126,16 @@ export const CONNECTION_TARGETS: readonly ConnectionTarget[] = [
     id: 'autodrive-ai',
     labelKey: 'conn.target.autodriveAi',
     whatKey: 'conn.target.autodriveAi.what',
+    live: true,
+    fields: [{ key: 'base', labelKey: 'conn.field.base', fallback: '' }],
+  },
+  {
+    // 260920 — 기능 상태 서비스(`perception-framework/tools/status_ui`). **실제 배치는 k3s 안이라
+    // 주소를 우리가 미리 못 적는다** — 여기서 넣는다. 기본값(검토용 로컬)은
+    // `src/capability/CapabilityClient.ts` 가 심는다(로봇·탐지와 같은 규칙).
+    id: 'capability',
+    labelKey: 'conn.target.capability',
+    whatKey: 'conn.target.capability.what',
     live: true,
     fields: [{ key: 'base', labelKey: 'conn.field.base', fallback: '' }],
   },

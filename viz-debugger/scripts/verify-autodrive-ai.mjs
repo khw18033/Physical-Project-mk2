@@ -202,7 +202,12 @@ const SAMPLE = {
       if (/from\s+['"][^'"]*\/detect\//.test(source)) failures.push(`${rel}: 문 찾기 탐지(src/detect)를 import 한다`);
       if (/PhysicalClient|robotClient|robotSession|robotCommands/.test(code(source))) failures.push(`${rel}: pi7 로봇 경계를 쓴다`);
     } else {
-      if (/210\.110\.250\.33|:7864|go1_front/.test(source) && !rel.startsWith(autodriveDir)) failures.push(`${rel}: AI 서버 주소·카메라 이름이 경계 밖에 있다`);
+      // 260920 — `sensor.camera.go1_front` 은 perception-framework 설정의 **하드웨어 태그**이고
+      // AI 서버의 카메라 이름이 아니다. 글자가 같을 뿐 다른 세계다(기능 상태 경계가 그 태그를
+      // 자료로 들고 있다). 태그 꼴로 적힌 것만 빼고 보므로, 그 폴더에 진짜 AI 카메라 이름이나
+      // 서버 주소가 들어오면 **그대로 잡힌다.**
+      const bare = source.replaceAll('sensor.camera.go1_front', '');
+      if (/210\.110\.250\.33|:7864|go1_front/.test(bare) && !rel.startsWith(autodriveDir)) failures.push(`${rel}: AI 서버 주소·카메라 이름이 경계 밖에 있다`);
     }
     if (rel.startsWith(join('src', 'detect')) && /autodrive/.test(source)) failures.push(`${rel}: 문 찾기 탐지가 자율주행 폴더를 안다`);
   }

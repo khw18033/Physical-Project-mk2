@@ -1,5 +1,5 @@
 :root{font-family:Inter,"Noto Sans KR",system-ui,sans-serif;color:#17202b;background:#f3f5f8;font-synthesis:none}*{box-sizing:border-box}body{margin:0}button,input{font:inherit}button{cursor:pointer}main{min-width:1180px;padding:22px 28px 40px}.global-bar{min-height:72px;display:grid;grid-template-columns:300px 1fr;align-items:center;gap:20px;padding:12px 18px;background:#fff;border:1px solid #d9dee6;border-radius:10px}.global-bar p{color:#687587;font-size:13px}.global-bar nav,.mission-debugger .toggle{display:flex;gap:7px}.global-bar nav{justify-self:end;flex-wrap:wrap;justify-content:flex-end}.global-bar button,.mission-debugger .toggle button{border:1px solid #cbd3de;background:#fff;border-radius:7px;padding:9px 12px}.mission-debugger .toggle .active{color:#fff;border-color:#1768c5;background:#1768c5}.mission-identity{display:grid!important;grid-template-columns:auto 1fr;gap:3px 8px;text-align:left;border:0!important;padding:0!important}.mission-identity small{grid-column:1/-1;color:#1473d2}.tab-placeholder{min-height:560px;display:grid;place-content:center;justify-items:center;background:#fff;border:1px solid #d9dee6;border-radius:10px}.tab-placeholder>span{display:grid;place-items:center;width:58px;height:58px;border-radius:50%;background:#e7f0fb;color:#1768c5;font-size:28px}.tab-placeholder h1{margin:16px 0 8px}.tab-placeholder strong{color:#1768c5}.tab-placeholder p{color:#687587}.global-panel{position:absolute;z-index:15;right:28px;top:104px;width:430px;padding:16px;background:#fff;border:1px solid #ccd4df;border-radius:10px;box-shadow:0 14px 38px #17202b2b}.global-panel header{display:flex;justify-content:space-between}.global-panel li{margin:10px 0}.standalone{padding-top:22px}
-.milestone-layout{display:grid;grid-template-columns:380px minmax(360px,1fr) 320px;gap:16px}.utterance-panel,.milestone-panel,.hardware-panel,.graph-panel,.history{background:#fff;border:1px solid #d9dee6;border-radius:10px;padding:18px}h2{margin:0 0 14px;font-size:18px}.waveform{color:#659ee4;font-size:25px;letter-spacing:4px;background:#f4f7fb;padding:16px 8px}.utterance-panel blockquote{margin:8px 0 22px;font-weight:700}.utterance-panel dl{display:grid;grid-template-columns:100px 1fr;gap:10px;font-size:13px}.utterance-panel dd{margin:0;font-family:monospace}.progress-steps{display:flex;gap:8px;margin-bottom:14px}.progress-steps span{flex:1;padding:8px;border-bottom:3px solid #35a36a;font-size:12px}.milestone-list{display:grid;gap:9px;align-content:start;flex:1;min-height:0;overflow:auto}.milestone{min-height:75px;display:grid;grid-template-columns:70px 1fr auto;align-items:center;gap:10px;text-align:left;border:2px solid #d6dce5;border-radius:9px;padding:12px;background:#fff}.milestone span{grid-column:2;font-size:12px}.milestone small{grid-column:3;grid-row:1/3;color:#6d7a8b}.hardware-panel article{display:grid;grid-template-columns:1fr auto;gap:5px;padding:11px;margin:8px 0;border:1px solid #d6dce5;border-radius:8px;background:#fff}.hardware-panel article:active{outline:2px solid #1768c5}.hardware-panel article{cursor:grab;user-select:none}.hardware-panel article span{grid-column:1/-1;font-size:12px}.online{color:#168f50}.offline{color:#cc3434}.maintenance{color:#b78000}
+.milestone-layout{display:grid;grid-template-columns:380px minmax(360px,1fr) 348px;gap:16px}.utterance-panel,.milestone-panel,.hardware-panel,.graph-panel,.history{background:#fff;border:1px solid #d9dee6;border-radius:10px;padding:18px}h2{margin:0 0 14px;font-size:18px}.waveform{color:#659ee4;font-size:25px;letter-spacing:4px;background:#f4f7fb;padding:16px 8px}.utterance-panel blockquote{margin:8px 0 22px;font-weight:700}.utterance-panel dl{display:grid;grid-template-columns:100px 1fr;gap:10px;font-size:13px}.utterance-panel dd{margin:0;font-family:monospace}.progress-steps{display:flex;gap:8px;margin-bottom:14px}.progress-steps span{flex:1;padding:8px;border-bottom:3px solid #35a36a;font-size:12px}.milestone-list{display:grid;gap:9px;align-content:start;flex:1;min-height:0;overflow:auto}.milestone{min-height:75px;display:grid;grid-template-columns:70px 1fr auto;align-items:center;gap:10px;text-align:left;border:2px solid #d6dce5;border-radius:9px;padding:12px;background:#fff}.milestone span{grid-column:2;font-size:12px}.milestone small{grid-column:3;grid-row:1/3;color:#6d7a8b}.hardware-panel article{display:grid;grid-template-columns:1fr auto;gap:5px;padding:11px;margin:8px 0;border:1px solid #d6dce5;border-radius:8px;background:#fff}.hardware-panel article:active{outline:2px solid #1768c5}.hardware-panel article{cursor:grab;user-select:none}.hardware-panel article span{grid-column:1/-1;font-size:12px}.online{color:#168f50}.offline{color:#cc3434}.maintenance{color:#b78000}
 .replay-layout{display:grid;grid-template-columns:240px 1fr;gap:16px}.history button{width:100%;text-align:left;padding:13px 8px;margin-bottom:8px;border:1px solid #d8dee7;border-radius:7px;background:#fff}.section-title{display:flex;justify-content:space-between;align-items:flex-start}.section-title small{color:#657286}.graph-scroll{overflow-x:auto;overflow-y:hidden}.graph-canvas{position:relative;overflow:hidden;margin-top:8px;border-bottom:1px solid #e0e4ea}.edges{position:absolute;inset:0;overflow:visible;pointer-events:none}.edge{fill:none;stroke:#8392a3;stroke-width:2}.edge.dimmed{opacity:.16}.task-node{position:absolute;width:180px;min-height:110px;display:flex;flex-direction:column;gap:7px;text-align:left;padding:10px;border:2px solid #cfd6df;border-radius:9px;background:#fff;color:inherit;cursor:grab;touch-action:none;user-select:none}.task-node:active,.is-dragging .task-node{cursor:grabbing}.task-node small{color:#6b7888}.task-node strong{font-size:14px}.state-label{font-size:13px}.device{border-top:1px dashed #ccd3dc;padding-top:6px;font-size:11px}.task-node.selected{box-shadow:0 0 0 4px #f2baba}.dimmed{opacity:.23}
 .state-pending{border-color:#cbd3dc!important;background:#f7f8fa!important}.state-running{border-color:#4c8fe8!important;background:#e9f2ff!important}.state-done{border-color:#55b77a!important;background:#edf9f1!important}.state-failed{border-color:#e15a5a!important;background:#fff0f0!important}.state-skipped{border:2px dashed #d4ad44!important;background:#fff9e9!important}.state-awaiting_evaluation,.state-awaiting{border-color:#9a6bd8!important;background:#f5efff!important}.state-not_executed,.state-not-executed{border:2px dashed #9ba7b5!important;background:repeating-linear-gradient(135deg,#f2f4f6,#f2f4f6 7px,#e7eaee 7px,#e7eaee 14px)!important}.state-rerunning{border:3px double #ed8c42!important;background:#fff2e7!important}.legend{display:flex;flex-wrap:wrap;gap:8px;padding-top:12px}.legend span{padding:6px 9px;border:2px solid;border-radius:6px;font-size:12px}.hint{color:#687587;font-size:12px}
 .replay-controls{padding-top:12px}.replay-controls>div:first-child{display:flex;gap:5px;align-items:center}.replay-controls button{padding:5px 9px}.replay-controls input[type=range]{width:100%;margin:12px 0}.timelines{display:grid;gap:4px}.timelines>div{display:grid;grid-template-columns:55px 1fr}.mission-debugger .timeline{position:relative;display:flex;height:13px;border:1px solid #d1d7df}.mission-debugger .timeline em{display:block;height:100%;border:0!important;border-radius:0!important}.mission-debugger .timeline i{position:absolute;top:-4px;width:2px;height:19px;background:#145fb4}
@@ -766,3 +766,110 @@ button.robot-resume{padding:6px 12px;border:1px solid #2f9e5f;border-radius:6px;
 .evidence-reason--warn{border-left-color:#d9534f;background:#fff4f1;color:#7a2a26}
 .obstacle-evidence{margin:4px 0 10px;padding-left:18px;font-size:12px;line-height:1.6}
 .obstacle-evidence li.is-near{color:#a3342f}
+
+/* ── 기능 상태 (260920 — 기능 상태 패널 이식) ──────────────────────────────────
+   오른쪽 기둥이 둘로 갈라진다. 위가 하드웨어(실측), 아래가 기능(설정 계산)이고
+   **세로 1:1 · 각자 스크롤**이다 — 축이 다른 둘을 한 스크롤에 태우면 하나가 늘 때
+   다른 하나가 화면 밖으로 밀린다(지시 2). */
+.milestone-layout>.right-column{min-height:0;display:grid;grid-template-rows:1fr 1fr;gap:16px}
+.right-column>.hardware-panel,.right-column>.capability-panel{min-height:0;display:flex;flex-direction:column;overflow:auto;background:#fff;border:1px solid #d9dee6;border-radius:10px;padding:18px}
+.hardware-panel>article{flex:0 0 auto}
+/* 판 안에서 구르는 것은 **목록뿐**이다 — 제목·배지·바닥줄은 제자리에 남아야
+   「무엇을 보고 있는지」와 「이 값이 어디서 왔는지」가 스크롤에 안 쓸려 나간다. */
+.capability-panel__head{flex:0 0 auto;display:flex;align-items:baseline;justify-content:space-between;gap:8px}
+.capability-panel__head h2{margin:0 0 6px}
+.capability-badges{display:flex;flex-wrap:wrap;gap:4px;justify-content:flex-end}
+.capability-panel__hint{flex:0 0 auto;margin:0 0 8px;color:#687587;font-size:11px;line-height:1.5}
+.capability-panel__fallback{flex:0 0 auto;margin:0 0 8px;padding:7px 9px;border:1px solid #e3c98a;border-radius:6px;background:#fdf8ec;color:#7a5c12;font-size:11.5px;line-height:1.5}
+.capability-panel__body{flex:1;min-height:0;overflow:auto}
+.capability-panel__note{margin:6px 0;color:#6a7686;font-size:12px}
+.capability-panel__error{margin:6px 0;padding:8px;border:1px solid #efb2b2;border-radius:6px;background:#fff0f0;color:#8f2b2b;font-size:12px;line-height:1.5}
+.capability-panel__foot{flex:0 0 auto;display:flex;align-items:center;gap:8px;margin-top:10px;padding-top:8px;border-top:1px solid #e4e8ee}
+.capability-panel__foot span{flex:1;color:#8a94a1;font-size:10.5px;line-height:1.5;word-break:break-all}
+.capability-panel__foot button{padding:5px 9px;border:1px solid #cbd3de;border-radius:6px;background:#fff;font-size:11.5px}
+.capability-panel__foot button:disabled{color:#9aa5b3;background:#f2f4f7}
+
+/* 칩 — 하드웨어 카드의 `hw-dot` 과 **같은 색표**를 쓴다. 두 판이 나란히 서므로
+   같은 뜻에 다른 색을 쓰면 눈이 둘을 다른 척도로 읽는다. */
+.cap-chip{display:inline-block;padding:1px 6px;border-radius:8px;font-size:10px;font-style:normal;font-weight:600;white-space:nowrap}
+.cap-chip--ok{background:#e7f6ee;color:#125c33}
+.cap-chip--bad{background:#fdeceb;color:#8f2b26}
+.cap-chip--warn{background:#fdf6e3;color:#7a5c12}
+.cap-chip--unknown{background:#eef2f7;color:#6b7888}
+.cap-chip--plain{background:#f2f4f7;color:#5c6a7c;font-weight:400}
+/* 테스트 자료 배지는 연결 관리의 「테스트」와 **같은 주황**이다 — 어디서 켰는지가 보인다. */
+.cap-chip--sample{border:1px dashed #c07a1a;background:#fdf6ea;color:#7a4d08}
+
+.cap-fn{width:100%;display:grid;grid-template-columns:1fr auto;gap:4px;align-items:center;text-align:left;padding:9px 10px;margin:6px 0;border:1px solid #d6dce5;border-radius:8px;background:#fff;color:inherit}
+.cap-fn:hover{border-color:#1768c5;background:#f6faff}
+.cap-fn strong{font-size:13px}
+.cap-fn__grade{display:flex;align-items:center;gap:5px}
+.cap-fn__grade b{color:#8a94a1;font-size:12px}
+.cap-fn code{grid-column:1/-1;color:#8a94a1;font-size:10px}
+.cap-fn small{grid-column:1/-1;color:#6b7888;font-size:11px;line-height:1.45}
+
+/* 드릴다운 — `.modal` 위에 얹힌다. 탭이 아니라 이동 경로(`crumbs`)로 단계를 오간다. */
+.cap-modal{width:min(1180px,94vw)}
+.cap-modal>footer button{padding:9px 13px;border:1px solid #bec8d5;border-radius:7px;background:#fff}
+.cap-strip{display:grid;grid-template-columns:1.1fr repeat(3,1fr);gap:14px;padding:15px 22px;background:#eef5fb}
+.cap-strip b,.cap-strip span{display:flex;flex-direction:column;gap:5px;font-size:13px;min-width:0}
+.cap-strip small{color:#4a5666;font-weight:400}
+.cap-strip b em{align-self:flex-start}
+.cap-strip span b{font-size:12px;line-height:1.5;word-break:keep-all}
+.cap-note{margin:10px 22px;color:#8a94a1;font-size:11.5px;line-height:1.55}
+.cap-note--pad{padding:18px 0}
+.cap-supplement{margin:14px 22px 0;padding:0;list-style:none;display:grid;gap:5px}
+.cap-supplement li{display:grid;grid-template-columns:150px 140px 1fr;gap:10px;align-items:baseline;padding:7px 10px;border:1px solid #efb2b2;border-radius:7px;background:#fff7f7;font-size:12px}
+.cap-supplement em{font-style:normal;color:#6b7888}
+
+.cap-table{border-top:1px solid #e1e5eb}
+.cap-table__head{display:grid;gap:12px;padding:9px 22px;background:#f7f9fc;border-bottom:1px solid #e1e5eb;font-size:11px;color:#6b7888;font-weight:700}
+.cap-table--tier .cap-table__head{grid-template-columns:150px 120px 1fr 130px 16px}
+.cap-table--dev .cap-table__head{grid-template-columns:1.2fr 120px 1fr 1.2fr}
+.cap-noderow{width:100%;display:grid;grid-template-columns:150px 120px 1fr 130px 16px;gap:12px;align-items:center;text-align:left;padding:11px 22px;border:0;border-bottom:1px solid #e1e5eb;background:#fff;color:inherit}
+.cap-noderow:hover{background:#f6faff}
+.cap-noderow__role{font-size:12px;color:#4a5666}
+.cap-noderow code{font-size:13px;font-weight:700}
+.cap-noderow__serves{display:flex;flex-wrap:wrap;gap:4px}
+.cap-noderow__budget{font-size:12px;font-variant-numeric:tabular-nums}
+.cap-noderow b{color:#8a94a1}
+
+.cap-dev{display:grid;grid-template-columns:1fr 300px}
+.cap-dev__main{padding:16px 22px;min-width:0}
+.cap-dev__main>h3{margin:0 0 10px;font-size:13px;color:#4a5666}
+.cap-dev__main>h3+.cap-table{margin-bottom:6px}
+.cap-dev__main>.cap-alts+h3,.cap-dev__main>.cap-table+h3{margin-top:20px}
+.cap-dev .cap-table{border:1px solid #e1e5eb;border-radius:8px;overflow:hidden}
+.cap-dev .cap-table__head{padding:9px 12px}
+.cap-devrow{display:grid;grid-template-columns:1.2fr 120px 1fr 1.2fr;gap:12px;padding:11px 12px;border-bottom:1px solid #e1e5eb;font-size:12px}
+.cap-devrow:last-child{border-bottom:0}
+.cap-devrow>span{display:flex;flex-direction:column;gap:3px;min-width:0}
+.cap-devrow small{color:#8a94a1;font-size:11px;line-height:1.4;word-break:break-word}
+.cap-devrow code{font-size:12px;word-break:break-all}
+.cap-devrow>span>em{align-self:flex-start}
+.cap-token{color:#8f2b26;font-size:11px}
+.cap-alts{display:grid;gap:8px}
+.cap-alt{border:1px solid #dde3ea;border-radius:8px;padding:10px 12px}
+.cap-alt>div{display:flex;flex-wrap:wrap;align-items:baseline;gap:8px}
+.cap-alt>div>b{font-size:13px}
+.cap-alt>div>.cap-token{margin-left:auto}
+.cap-alt p{margin:6px 0 0;font-size:12px;color:#26303c;line-height:1.5}
+.cap-dev__side{padding:18px;border-left:1px solid #e1e5eb}
+.cap-dev__side h3{margin:0 0 8px;font-size:13px;color:#4a5666}
+.cap-dev__side h3~h3{margin-top:18px}
+.cap-dev__side p{margin:0 0 12px;font-size:12px;color:#4a5666;line-height:1.65}
+.cap-dev__facts{display:grid;grid-template-columns:70px 1fr;gap:6px 10px;margin:0;font-size:12px}
+.cap-dev__facts dt{color:#6b7888;font-weight:700}
+.cap-dev__facts dd{margin:0;word-break:break-word}
+
+/* 오른쪽 기둥의 가로 폭 (260920 지시 1 — 「조금만 늘리기」).
+   기본값은 `main{min-width:1180px}` 바닥에서도 가운데가 안 찌그러지는 한계(348px)라 더
+   못 늘린다. **바닥은 바닥일 뿐 보통 쓰는 폭이 아니므로** 화면이 넓으면 그만큼 넓힌다 —
+   장비 칩 네 개와 기능 줄의 사유가 한 줄에 들어가는 것이 여기서 갈린다.
+   가운데(그래프로 들어가기 전 마일스톤 목록)는 최소값을 같이 올려 눌리지 않게 둔다. */
+@media (min-width: 1400px){
+  .milestone-layout{grid-template-columns:380px minmax(380px,1fr) 420px}
+}
+@media (min-width: 1700px){
+  .milestone-layout{grid-template-columns:400px minmax(430px,1fr) 470px}
+}
