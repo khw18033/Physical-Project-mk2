@@ -2048,6 +2048,8 @@ export const en: Record<string, string> = {
   'preset.media.server': 'Measurement server',
   'preset.media.server.why': 'The server address is a tailnet value, so it is not stored in the repository — it arrives once this machine is allowed through the firewall and is entered by hand',
 
+  'media.cameraOfThis': 'Appears to be this device’s camera — key {source}',
+  'media.cameraUnmapped': 'There is no device-to-camera table yet (registry is Phase 5/6) — for now this connects with the single camera key {source} set in connection settings.',
   'media.title': 'Video receive',
   'media.hint': 'Connecting is the on switch and disconnecting is the off switch — there are no control messages. The first frame is always a keyframe.',
   'media.badge.local': 'counted here',

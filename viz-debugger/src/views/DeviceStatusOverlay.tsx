@@ -25,6 +25,15 @@
  *
  * 카메라 연결 상태는 여전히 MQTT 로 안 나온다(연동 가이드 §3-4) — 노드 상태 요약에
  * 필드가 추가돼야 한다. 그 칸도 자리표시 대신 없앴다.
+ *
+ * ## 260921 — 카메라 칸이 돌아왔다
+ *
+ * 위 문단이 없앤 그 칸이다. **줄 값이 없어서 뺐던 것**이고 이제 생겼다 — `/media` 소켓이
+ * 바이트를 준다(`src/media/`). 백엔드도 카메라 상태를 **「VZ-D-07 대상 상태 조회의 한 칸」**
+ * 으로 봤다(`vz-media-interface.md` §8).
+ *
+ * MQTT 로 오는 **연결 상태**는 여전히 없다. 이 칸이 말하는 것은 다른 것이다 —
+ * 「지금 이 소켓으로 바이트가 흐르는가」이고, 그건 우리가 세어서 안다.
  */
 
 import { useLang } from '../shared/language.ts';
@@ -33,6 +42,7 @@ import { useEffect } from 'react';
 import type { Hardware } from '../model/types.ts';
 import { DeviceStrip } from './DeviceStrip.tsx';
 import { DeviceFacts } from '../physical/DeviceFacts.tsx';
+import { MediaSection } from '../media/views/MediaSection.tsx';
 
 export function DeviceStatusOverlay({ deviceId, device, source, onClose }: {
   deviceId: string;
@@ -62,6 +72,8 @@ export function DeviceStatusOverlay({ deviceId, device, source, onClose }: {
       {/* **오는 값만 적는다** (260910). 안 오는 칸은 자리표시로 채우지 않고 아예 안 그린다. */}
       <DeviceFacts entityId={deviceId} />
       {device !== undefined && <DeviceStrip device={device} />}
+      {/* 카메라 영상 — **닫으면 끊긴다.** 붙는 것이 켜기이고 끊는 것이 끄기다. */}
+      <MediaSection deviceId={deviceId} />
       <footer>
         <span>{t('dso.2')}</span>
       </footer>

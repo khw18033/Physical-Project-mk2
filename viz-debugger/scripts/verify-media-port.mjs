@@ -6,14 +6,15 @@
 // 계층이 `JSON.parse` 로 시작해 `catch { return }` 하던 자리가 정확히 그것이었다.
 // 그래서 이 검사는 「잘 되는가」보다 **「안 될 때 그 사실이 남는가」**를 본다.
 //
-// 보는 것 일곱.
+// 보는 것 여덟.
 //  1. 경계 — 영상 소켓 주소·경로를 아는 면이 `src/media/` 하나인가
 //  2. 파서 — `[4B][JSON][페이로드]` 를 실제로 흘려서. **던지지 않는가**
 //  3. 망가진 입력마다 **사유가 다른가** (한 덩어리로 뭉치면 어느 단계인지 모른다)
 //  4. 세션 — 순번이 줄면 새 세션인가
 //  5. 끊김 — 4401·4404·4400 은 재시도하지 않는가
 //  6. 바이너리 갈래 — `binaryType`·문자열 분기가 클라이언트에 있는가
-//  7. 한글·영어 두 벌
+//  7. 자리 — 상설 판이 아니라 대상 상태 오버레이 안인가
+//  8. 한글·영어 두 벌
 //
 // 대조군 포함 — 검사를 무력화한 사본이 반드시 실패로 잡히는지까지 본다.
 
@@ -170,6 +171,25 @@ const outside = SOURCES.filter((rel) => !rel.startsWith('src/media/') && !rel.st
   }
 }
 
+// ── 6b. 자리 — 상설 판이 아니라 대상 상태 오버레이 안이다 ────────────────────
+{
+  // 260921 — 처음엔 마일스톤 오른쪽 기둥에 상설 판으로 뒀다가 옮겼다. 영상은 늘 보는
+  // 값이 아니라 **한 장비의 카메라에 딸린 것**이고, 기둥을 셋으로 나누면 다른 둘이 좁아진다.
+  const overlay = code(readSource('src/views/DeviceStatusOverlay.tsx'));
+  if (!/<MediaSection deviceId=\{deviceId\} \/>/.test(overlay)) {
+    failures.push('대상 상태 오버레이에 카메라 칸이 없다 — 하드웨어 카드를 더블클릭해도 영상을 볼 수 없다');
+  }
+  const main = code(readSource('src/main.tsx'));
+  if (/MediaSection|MediaPanel/.test(main)) {
+    failures.push('마일스톤 화면이 영상 칸을 상설로 그린다 — 하드웨어·기능 기둥이 그만큼 좁아진다');
+  }
+  // **대응표가 없다는 사실을 적는가.** 장비마다 다른 카메라가 뜨는 척하면 안 된다.
+  const section = code(readSource('src/media/views/MediaSection.tsx'));
+  if (!/media\.cameraUnmapped/.test(section)) {
+    failures.push('장비-카메라 대응표가 없다는 사실을 화면이 안 적는다 — 아무 장비에서나 같은 카메라가 뜬다');
+  }
+}
+
 // ── 7. 한글·영어 두 벌 ───────────────────────────────────────────────────────
 {
   const { ko } = await load('src', 'i18n', 'ko.ts');
@@ -219,6 +239,7 @@ console.log('✅ 사유 — 짧음·길이초과·JSON아님·필수칸없음이
 console.log('✅ 세션 — 순번 역전·소스 변경만 새 세션이고, 정상 증가는 아니다');
 console.log('✅ 끊김 — 4400·4401·4404 는 재시도하지 않고, 평범한 끊김은 되붙는다');
 console.log('✅ 수신 — binaryType 이 arraybuffer 이고 문자열/바이너리가 갈리며, 전송 계층도 버린 수를 센다');
+console.log('✅ 자리 — 대상 상태 오버레이 안의 한 칸이고 마일스톤 화면에는 상설로 없다');
 console.log('✅ 두 벌 — 화면이 쓰는 키가 ko·en 양쪽에 다 있고 경계 안에 박힌 표시용 한글 0건');
 console.log(`✅ 대조군 ${controls.length}건 전부 검출 — ${controls.join(' · ')}`);
 process.exit(0);

@@ -788,10 +788,8 @@ button.robot-resume{padding:6px 12px;border:1px solid #2f9e5f;border-radius:6px;
    오른쪽 기둥이 둘로 갈라진다. 위가 하드웨어(실측), 아래가 기능(설정 계산)이고
    **세로 1:1 · 각자 스크롤**이다 — 축이 다른 둘을 한 스크롤에 태우면 하나가 늘 때
    다른 하나가 화면 밖으로 밀린다(지시 2). */
-/* 260921 — 기둥이 셋이 됐다(하드웨어 · 기능 · 영상). 셋 다 축이 달라 한 스크롤에
-   태우지 않는다 — 하나가 늘면 다른 둘이 화면 밖으로 밀린다. */
-.milestone-layout>.right-column{min-height:0;display:grid;grid-template-rows:1fr 1fr 1fr;gap:16px}
-.right-column>.hardware-panel,.right-column>.capability-panel,.right-column>.media-panel{min-height:0;display:flex;flex-direction:column;overflow:auto;background:#fff;border:1px solid #d9dee6;border-radius:10px;padding:18px}
+.milestone-layout>.right-column{min-height:0;display:grid;grid-template-rows:1fr 1fr;gap:16px}
+.right-column>.hardware-panel,.right-column>.capability-panel{min-height:0;display:flex;flex-direction:column;overflow:auto;background:#fff;border:1px solid #d9dee6;border-radius:10px;padding:18px}
 .hardware-panel>article{flex:0 0 auto}
 /* 판 안에서 구르는 것은 **목록뿐**이다 — 제목·배지·바닥줄은 제자리에 남아야
    「무엇을 보고 있는지」와 「이 값이 어디서 왔는지」가 스크롤에 안 쓸려 나간다. */
@@ -973,24 +971,26 @@ button.robot-resume{padding:6px 12px;border:1px solid #2f9e5f;border-radius:6px;
 .card__raw summary{cursor:pointer;color:#1768c5}
 .card__raw pre{margin:6px 0 0;padding:8px;max-height:220px;overflow:auto;border:1px solid #e1e5eb;border-radius:6px;background:#f7f9fc;font-size:11px;line-height:1.5;white-space:pre-wrap;word-break:break-all}
 
-/* 영상 수신 (260921 — /media · 관문 B). 그림과 **왜 안 나오는지**가 한 판에 있다. */
-.media-panel__head{flex:0 0 auto;display:flex;align-items:baseline;justify-content:space-between;gap:8px;flex-wrap:wrap}
-.media-panel__head h2{margin:0 0 6px}
-.media-panel__badges{display:flex;flex-wrap:wrap;gap:4px}
-.media-panel__hint{flex:0 0 auto;margin:0 0 8px;color:#5c6a7c;font-size:11px;line-height:1.5}
-.media-panel__note{margin:6px 0;color:#5c6a7c;font-size:11.5px;line-height:1.5}
-.media-panel__error{margin:6px 0;padding:7px 9px;border:1px solid #efb2b2;border-radius:6px;background:#fff0f0;color:#8f2b2b;font-size:11.5px;line-height:1.5}
-.media-panel__stage{position:relative;flex:0 0 auto;margin:0 0 9px;border:1px solid #d9dee6;border-radius:8px;background:#11161d;overflow:hidden;min-height:150px;display:grid;place-items:center}
-.media-canvas{display:block;max-width:100%;max-height:260px}
+/* 카메라 영상 (260921 — /media · 관문 B). **대상 상태 오버레이 안의 한 칸**이다 —
+   상설 판이 아니다. 영상은 늘 보는 값이 아니라 한 장비의 카메라에 딸린 것이다. */
+.media-section{padding:15px 22px;border-top:1px solid #e1e5eb}
+.media-section__head{display:flex;align-items:baseline;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.media-section__head h3{margin:0 0 6px;font-size:14px}
+.media-section__badges{display:flex;flex-wrap:wrap;gap:4px}
+.media-section__hint{margin:0 0 8px;color:#5c6a7c;font-size:11px;line-height:1.5}
+.media-section__note{margin:6px 0;color:#5c6a7c;font-size:11.5px;line-height:1.5}
+.media-section__error{margin:6px 0;padding:7px 9px;border:1px solid #efb2b2;border-radius:6px;background:#fff0f0;color:#8f2b2b;font-size:11.5px;line-height:1.5}
+.media-section__stage{position:relative;margin:0 0 9px;border:1px solid #d9dee6;border-radius:8px;background:#11161d;overflow:hidden;min-height:170px;display:grid;place-items:center}
+.media-canvas{display:block;max-width:100%;max-height:340px}
 .media-canvas__empty{position:absolute;margin:0;padding:0 14px;color:#9aa5b3;font-size:11.5px;text-align:center;line-height:1.6}
-.media-panel__counts{display:grid;grid-template-columns:repeat(5,1fr);gap:7px;margin:0 0 9px}
-.media-panel__counts>div{display:flex;flex-direction:column;gap:2px;padding:6px 7px;border:1px solid #e4e8ee;border-radius:7px;background:#f7f9fc}
-.media-panel__counts dt{color:#5c6a7c;font-size:10px}
-.media-panel__counts dd{margin:0;font-size:14px;font-weight:700;font-variant-numeric:tabular-nums}
-.media-panel__facts{display:grid;grid-template-columns:130px 1fr;gap:3px 10px;margin:0 0 9px;font-size:11.5px}
-.media-panel__facts dt{color:#5c6a7c}
-.media-panel__facts dd{margin:0;word-break:break-all;font-family:monospace;font-size:11px}
-.media-panel__foot{flex:0 0 auto;display:flex;align-items:center;gap:8px;margin-top:auto;padding-top:8px;border-top:1px solid #e4e8ee}
-.media-panel__foot span{flex:1;color:#6b7684;font-size:10.5px;line-height:1.5;word-break:break-all}
-.media-panel__foot button{padding:5px 11px;border:1px solid #cbd3de;border-radius:6px;background:#fff;font:inherit;font-size:11.5px}
-.media-panel__foot button:disabled{color:#9aa5b3;background:#f2f4f7}
+.media-section__counts{display:grid;grid-template-columns:repeat(5,1fr);gap:7px;margin:0 0 9px}
+.media-section__counts>div{display:flex;flex-direction:column;gap:2px;padding:6px 7px;border:1px solid #e4e8ee;border-radius:7px;background:#f7f9fc}
+.media-section__counts dt{color:#5c6a7c;font-size:10px}
+.media-section__counts dd{margin:0;font-size:14px;font-weight:700;font-variant-numeric:tabular-nums}
+.media-section__facts{display:grid;grid-template-columns:150px 1fr;gap:3px 10px;margin:0 0 9px;font-size:11.5px}
+.media-section__facts dt{color:#5c6a7c}
+.media-section__facts dd{margin:0;word-break:break-all;font-family:monospace;font-size:11px}
+.media-section__foot{display:flex;align-items:center;gap:8px;padding-top:8px;border-top:1px solid #e4e8ee}
+.media-section__foot span{flex:1;color:#6b7684;font-size:10.5px;line-height:1.5;word-break:break-all}
+.media-section__foot button{padding:5px 11px;border:1px solid #cbd3de;border-radius:6px;background:#fff;font:inherit;font-size:11.5px}
+.media-section__foot button:disabled{color:#9aa5b3;background:#f2f4f7}

@@ -2062,6 +2062,8 @@ export const ko: Record<string, string> = {
   'preset.media.server': '실측 서버',
   'preset.media.server.why': '서버 주소는 tailnet 값이라 저장소에 적어 두지 않습니다 — 방화벽에 이 기기가 등록된 뒤 받아서 손으로 넣습니다',
 
+  'media.cameraOfThis': '이 장비의 카메라로 보입니다 — 카메라 키 {source}',
+  'media.cameraUnmapped': '장비와 카메라의 대응표가 아직 없습니다(레지스트리는 Phase 5/6) — 지금은 연결 관리에 넣은 카메라 키 {source} 하나로 붙습니다.',
   'media.title': '영상 수신',
   'media.hint': '붙는 것이 켜기이고 끊는 것이 끄기입니다 — 제어 메시지가 없습니다. 첫 프레임은 항상 키프레임입니다.',
   'media.badge.local': '우리 쪽에서 센 값',
