@@ -27,13 +27,10 @@ import {
 } from '../data/index.ts';
 import { useEntities, useRenderRate, useRole, useRoleRefresh, useZoneSummary } from '../data/hooks.ts';
 import { PendingSource } from '../../shared/PendingSource.tsx';
-import { CURRENT_ZONE_ID } from '../../shared/registry.ts';
+import { useZoneId } from '../../shared/registry.ts';
 import { useScenarioCast } from '../../shared/renderMode.ts';
 import { DeviceCard } from './DeviceCard.tsx';
 import { Explain } from '../../shared/Explain.tsx';
-
-/** 현재 설계 전제는 구역 1개(VZ-C-05). 구역이 늘면 이 값이 선택 상태가 된다. */
-const ZONE_ID = CURRENT_ZONE_ID;
 
 const STATUS_ORDER: DisplayStatus[] = ['normal', 'fault', 'unknown', 'not_deployed'];
 
@@ -49,6 +46,9 @@ const SCENARIO_BUTTONS: Array<{ name: string; labelKey: string }> = [
 
 export function DeviceGrid() {
   useLang();
+  // 구역은 연결 설정에서 온다 — 바뀌면 다시 그린다 (260921). **아래 훅들보다 먼저 읽는다**:
+  // `useZoneSummary(ZONE_ID)` 가 이 값을 인자로 받는다.
+  const ZONE_ID = useZoneId();
   // 데이터 레이어 기동은 App이 앱 수명 단위로 한다 — 탭을 옮길 때마다 구독을
   // 끊었다 붙이면 돌아왔을 때 화면이 비고, 서버 스냅샷을 매번 다시 받게 된다.
   const entities = useEntities();

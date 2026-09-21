@@ -8,7 +8,7 @@
  */
 
 import type { MissionView } from '../data/scenario.ts';
-import { CURRENT_ZONE_ID } from '../shared/registry.ts';
+import { currentZoneId } from '../shared/registry.ts';
 import type { ViewScope } from './types.ts';
 
 /**
@@ -43,8 +43,8 @@ export function taskSpan(taskId: string, view: MissionView): { fromSec: number; 
 export function viewScopeFor(taskId: string | null, view: MissionView, headSec: number): ViewScope {
   const task = taskId === null ? null : view.tasks.find((item) => item.id === taskId) ?? null;
   if (task === null) {
-    return { deviceId: null, zoneId: CURRENT_ZONE_ID, fromSec: 0, toSec: view.durationSec, headSec };
+    return { deviceId: null, zoneId: currentZoneId(), fromSec: 0, toSec: view.durationSec, headSec };
   }
   const span = taskSpan(task.id, view);
-  return { deviceId: task.target, zoneId: CURRENT_ZONE_ID, fromSec: span.fromSec, toSec: span.toSec, headSec };
+  return { deviceId: task.target, zoneId: currentZoneId(), fromSec: span.fromSec, toSec: span.toSec, headSec };
 }

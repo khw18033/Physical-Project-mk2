@@ -22,7 +22,6 @@
  */
 
 import { startAiFailureNotifications } from './aiFailureBridge.ts';
-import { CURRENT_ZONE_ID } from '../shared/registry.ts';
 import { startDataLayer } from './data/index.ts';
 import './views/styles.css';
 
@@ -35,9 +34,6 @@ export { PlanApproval } from './views/PlanApproval.tsx';
  */
 export { VIEW_NODE_RENDERERS } from './viewNodes.tsx';
 
-/** 현재 설계 전제는 구역 1개 (VZ-C-05). 값은 레지스트리 경계 한 곳에 있다. */
-const ZONE_ID = CURRENT_ZONE_ID;
-
 /**
  * 데이터 계층 기동. **앱 수명과 같다** — 화면을 옮겨도 구독을 끊지 않는다.
  * 두 번 불려도 `startDataLayer` 가 스스로 막는다.
@@ -48,7 +44,7 @@ const ZONE_ID = CURRENT_ZONE_ID;
  * 묶여 있었던 것이 문제였다.
  *
  * ```
- * startDataLayer(ZONE_ID)       구역 축 구독      — tabs 전용
+ * startDataLayer()              구역 축 구독      — tabs 전용
  * useAiFailureNotifications()   외부 AI 실패 알림 — tabs 전용
  * useConnectionStatus()         conn 배지         — getTransport() 만 본다
  * ```
@@ -64,7 +60,9 @@ const ZONE_ID = CURRENT_ZONE_ID;
  * 익명 화살표로 감싸면 HMR 때 중복 등록 방어가 무력해진다.
  */
 export function startTabsServices(): () => void {
-  const stopDataLayer = startDataLayer(ZONE_ID);
+  // 구역은 인자가 아니라 연결 설정에서 읽는다 — 붙는 게이트웨이마다 값이 다르고,
+  // 바뀌면 `startDataLayer` 가 스스로 구독을 다시 건다 (260921).
+  const stopDataLayer = startDataLayer();
   // VZ-I-10 — 외부 AI 실패는 탭 하나가 아니라 **상단 공통 알림**으로 올라간다.
   const stopAiFailures = startAiFailureNotifications();
   return () => { stopAiFailures(); stopDataLayer(); };

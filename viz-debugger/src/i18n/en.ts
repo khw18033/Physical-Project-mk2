@@ -150,6 +150,7 @@ export const en: Record<string, string> = {
   'conn.field.ws': 'WebSocket',
   'conn.field.http': 'HTTP',
   'conn.field.base': 'Address',
+  'conn.field.zone': 'Zone id',
 
   // 연결 확인
   'check.line.broker': 'Broker',

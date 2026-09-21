@@ -147,6 +147,7 @@ export const ko: Record<string, string> = {
   'conn.field.ws': 'WebSocket',
   'conn.field.http': 'HTTP',
   'conn.field.base': '주소',
+  'conn.field.zone': '구역 식별자',
 
   // 연결 확인 — 줄 이름은 **구조**라 키다. 사유(`reason`)는 그 순간의 기록이라
   // 만들 때 풀어 넣는다 (`connectionHealth.ts` 의 주석).

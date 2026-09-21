@@ -18,7 +18,7 @@ import { GATEWAY, type RiskState } from '../../transport/index.ts';
 import { deriveDisplayStatus, DISPLAY_STATUS_LABEL_KEY, store } from '../data/index.ts';
 import { useEntities } from '../data/hooks.ts';
 import { PendingSource } from '../../shared/PendingSource.tsx';
-import { CURRENT_ZONE_ID } from '../../shared/registry.ts';
+import { useZoneId } from '../../shared/registry.ts';
 import { Explain } from '../../shared/Explain.tsx';
 
 type Level = 'decision' | 'operation' | 'development';
@@ -33,11 +33,15 @@ const RISK_LABEL_KEY: Record<RiskState['level'], string> = { normal: 'rp.7', wat
 
 export function RiskPanel() {
   useLang();
+  // 구역은 연결 설정에서 온다 — 바뀌면 다시 그린다 (260921).
+  const zoneId = useZoneId();
   const entities = useEntities();
   const [level, setLevel] = useState<Level>('decision');
   const riskSlot = [...entities.values()].map((r) => r.riskState).find(Boolean) ?? null;
   const risk = riskSlot?.payload as RiskState | undefined;
-  const records = [...entities.values()].filter((r) => r.registry?.zone === CURRENT_ZONE_ID);
+  // DeviceGrid 와 **같은 축**이다 — 레지스트리의 구역으로 거른다. 구독 구역과 같은 값을
+  // 쓰는 것이 맞다(판단 근거는 보고서 §3).
+  const records = [...entities.values()].filter((r) => r.registry?.zone === zoneId);
 
   const trigger = (name: string) => void fetch(GATEWAY.http + '/insight/' + name, { method: 'POST' });
 

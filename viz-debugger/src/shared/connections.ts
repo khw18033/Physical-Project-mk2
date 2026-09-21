@@ -147,6 +147,18 @@ export const CONNECTION_TARGETS: readonly ConnectionTarget[] = [
     fields: [
       { key: 'ws', labelKey: 'conn.field.ws', fallback: 'ws://127.0.0.1:8790' },
       { key: 'http', labelKey: 'conn.field.http', fallback: 'http://127.0.0.1:8790' },
+      /**
+       * **구역 식별자.** 주소가 아닌 칸이 여기 있는 이유는, 이 값이 **붙는 게이트웨이를
+       * 따라가야** 하기 때문이다 (260921).
+       *
+       * 목 게이트웨이(8790)는 `zone-503` 으로 발행하고 백엔드 `/state` 는 `zoneA` 로 발행한다.
+       * 상수로 두면 한쪽에 붙을 때 반드시 다른 쪽이 **연결은 되고 화면만 비는** 상태가 된다 —
+       * 구독 selector 의 `node` 축이 안 맞아 매칭이 0건이 되기 때문이고, 영상 쪽의
+       * 「연결됨인데 영상만 안 옴」과 같은 종류의 진단하기 나쁜 실패다.
+       *
+       * 그래서 **주소와 한 묶음**으로 둔다. 주소를 바꾸는 사람이 구역도 같이 바꾼다.
+       */
+      { key: 'zone', labelKey: 'conn.field.zone', fallback: 'zone-503' },
     ],
   },
   {
