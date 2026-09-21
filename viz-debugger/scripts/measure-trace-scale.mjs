@@ -26,8 +26,10 @@ const load = (...p) => import(pathToFileURL(join(root, ...p)).href);
 const scenarioDir = join(root, 'scenarios');
 const historyDir = join(root, '..', 'mission-history');
 
-const { actionItemEvents, ACTION_KINDS } = await load('src', 'data', 'actionTrace.ts');
-const { ACTION_SEQ_BASE } = await load('src', 'data', 'trace.ts');
+const { actionItemEvents, ACTION_KINDS, ACTION_KIND_LIST } = await load('src', 'data', 'actionTrace.ts');
+/** 액션 층 어휘. `actionTrace.ts` 의 목록을 그대로 쓴다 — 여기서 새로 적으면 갈린다. */
+const ACTION_KIND_SET = new Set(ACTION_KIND_LIST);
+const { ACTION_SEQ_BASE, LIVE_ACTION_SEQ_BASE } = await load('src', 'data', 'trace.ts');
 const { NO_NODE } = await load('src', 'physical', 'missionLink.ts');
 
 /** 착수 전 실측. 이 작업이 분모를 얼마나 키웠는지를 말하려면 출발점이 있어야 한다. */
@@ -173,8 +175,18 @@ function readRun(dir) {
 /** 이 명령이 기록 열에 들어가는가. `NO_NODE` 는 순서도에 자리가 없어 안 들어간다. */
 const inColumn = (command) => command.taskId != null && command.taskId !== NO_NODE;
 
-/** 옛 명령 줄인가 — 260920 앞에 사람 층에 적힌 명령. `payload.task_id` 는 명령만 단다. */
+/** 옛 명령 줄인가 — 사람 층에 적히는 명령. `payload.task_id`(밑줄)는 이 줄만 단다. */
 const isLegacyCommandEvent = (event) => event?.payload?.task_id !== undefined;
+
+/** 260920 정식 액션 사건인가. */
+const isActionEvent = (event) => ACTION_KIND_SET.has(event?.kind);
+
+/**
+ * **실제로 오간 것인가, 대본이 편 것인가.** `seq` 대역이 가른다 —
+ * 대본 1.5M · 라이브 1.75M (`trace.ts`). 두 재생기가 같이 흐를 수 있어 일부러 갈라 둔
+ * 대역이고, 여기서 그대로 쓴다. **로봇 없이 대본만 돌린 판을 실물로 세지 않기 위해서다.**
+ */
+const isLiveEvent = (event) => Number(event?.seq) >= LIVE_ACTION_SEQ_BASE;
 
 function liveRow(folder, run) {
   const { mission, progress } = run;
@@ -183,15 +195,48 @@ function liveRow(folder, run) {
   const answered = columned.reduce((sum, c) => sum + (c.log?.length ?? 0), 0);
 
   const trace = progress.trace ?? [];
-  // 명령 줄을 걷어 낸 태스크·마일스톤 층. 걷어 낸 것은 아래 `commanded` 로 다시 센다.
-  const taskLayer = trace.filter((e) => !isLegacyCommandEvent(e)).length;
-  // 두 자리에서 센 명령 수가 어긋나면 복원 규칙이 틀린 것이다 — 조용히 넘기지 않는다.
-  const fromTrace = trace.filter((e) => isLegacyCommandEvent(e) && e.payload.task_id !== NO_NODE).length;
-  const mismatch = fromTrace !== columned.length ? ` ⚠ trace ${fromTrace} ≠ commands ${columned.length}` : '';
-  // 일시정지·중단이 답을 못 받은 것만 기한이다. 보관된 판에서는 줄이 없으므로 0 이 아니면
-  // 알 수 없다 — 아래 `expiredKnown` 으로 그 한계를 같이 내놓는다.
+
+  // ── 판이 어느 시대인가 ────────────────────────────────────────────────────
+  //
+  // 260920 뒤의 판은 `commanded`·`answered` 가 **열에 직접 들어 있다.** 그때는 복원하지
+  // 말고 열을 그대로 세야 한다 — 복원해서 더하면 같은 명령을 두 번 센다.
+  const actionInTrace = trace.filter(isActionEvent);
+  const modern = actionInTrace.length > 0;
+
+  // 태스크·마일스톤 층 — 옛 명령 줄과 액션 사건을 **둘 다** 걷어 낸 나머지.
+  const taskLayer = trace.filter((e) => !isLegacyCommandEvent(e) && !isActionEvent(e)).length;
+
+  // 일시정지·중단이 답을 못 받은 것만 기한이다. 260920 앞의 판에서는 줄로 안 남으므로
+  // 이 모양으로만 셀 수 있다 (한계).
   const silentPause = columned.filter((c) => /abort|pause|stop/i.test(String(c.action)) && (c.log?.length ?? 0) === 0);
-  const adjusted = trace.filter((e) => e.kind === 'adjusted').length;
+
+  const countKind = (kind) => actionInTrace.filter((e) => e.kind === kind).length;
+  const action = modern
+    ? {
+      commanded: countKind(ACTION_KINDS.commanded),
+      answered: countKind(ACTION_KINDS.answered),
+      expired: countKind(ACTION_KINDS.expired),
+      adjusted: countKind(ACTION_KINDS.adjusted),
+    }
+    : { commanded: columned.length, answered, expired: silentPause.length, adjusted: 0 };
+
+  // 두 자리에서 센 명령 수가 어긋나면 규칙이 틀린 것이다 — 조용히 넘기지 않는다.
+  const fromTrace = modern
+    ? countKind(ACTION_KINDS.commanded)
+    : trace.filter((e) => isLegacyCommandEvent(e) && e.payload.task_id !== NO_NODE).length;
+  const mismatch = fromTrace !== columned.length ? ` ⚠ 열 ${fromTrace} ≠ 작업대 ${columned.length}` : '';
+
+  /**
+   * **옛 명령 줄이 아직 같이 적힌다.** 260920 이 액션 층을 더하면서 사람 층의 옛 명령
+   * 줄을 안 지웠다. 그래서 260920 뒤의 판에는 같은 명령이 **두 벌** 있다. 정식 분모는
+   * 액션 층 쪽이고, 중복분은 따로 내놓는다 — 지울지는 이 스크립트가 정할 일이 아니다.
+   */
+  const legacyDuplicates = modern
+    ? trace.filter((e) => isLegacyCommandEvent(e) && e.payload.task_id !== NO_NODE).length
+    : 0;
+
+  /** 실제로 오간 액션 사건이 있나 — 대본만 돌린 판과 가른다. */
+  const liveActions = actionInTrace.filter(isLiveEvent).length;
 
   const lines = columned.map((c) => c.log?.length ?? 0);
   const scan = columned.filter((c) => String(c.action) === 'scan_mission').map((c) => c.log?.length ?? 0);
@@ -204,17 +249,27 @@ function liveRow(folder, run) {
     missionId: mission.missionId,
     outcome: mission.outcome ?? 'null',
     done: `${mission.done}/${mission.of}`,
-    robotDriven: mission.robotDriven === true && mission.testMode !== true,
+    /**
+     * **실물 로봇이 몬 판인가.**
+     *
+     * `mission.robotDriven` 은 **믿을 수 없다** — `robotDrives()` 가 「지금 브로커에 붙어
+     * 있나」이고 기록은 판이 끝난 뒤에도 계속 덮어써진다. 실제로 260921/114930 은 실물로
+     * 완주했는데 250초 뒤 마지막 기록 때 로봇이 떨어져 있어 `false` 로 남았다.
+     *
+     * 그래서 **증거로 판정한다.** 260920 뒤의 판은 라이브 대역 액션 사건이 있으면 실물이고,
+     * 그 앞의 판은 로봇이 준 응답 줄이 있으면 실물이다. 목(`mockScanUplink`)은
+     * `verify:*` 만 쓰고 앱은 안 쓰므로 응답 줄이 있으면 실물에서 온 것이다.
+     */
+    robotDriven: mission.testMode !== true && (modern ? liveActions > 0 : answered > 0),
+    /** 기록에 적힌 값 그대로. 위 판정과 어긋나는 것을 보이기 위해 같이 든다. */
+    robotDrivenFlag: mission.robotDriven === true,
+    modern,
+    legacyDuplicates,
     broker: mission.connections?.robot ?? '',
     milestones: mission.view?.milestones?.length ?? 0,
     tasks: mission.view?.tasks?.length ?? 0,
     actionItems: 0,
-    ...tally(taskLayer, {
-      commanded: columned.length,
-      answered,
-      expired: silentPause.length,
-      adjusted,
-    }),
+    ...tally(taskLayer, action),
     /** 열 밖 — `NO_NODE` 명령과 그 응답. 계측 범위 밖이라는 사실을 숫자로 남긴다. */
     outsideCommands: commands.length - columned.length,
     outsideLines: commands.filter((c) => !inColumn(c)).reduce((s, c) => s + (c.log?.length ?? 0), 0),
@@ -248,7 +303,20 @@ if (runs.length === 0) {
   const real = runs.filter((r) => r.robotDriven);
   /** **완주한 판만 「한 판」이다.** 중간에 멈춘 판은 분모를 과소평가한다. */
   const complete = real.filter((r) => r.outcome === 'done' && r.done.split('/')[0] === r.done.split('/')[1]);
-  console.log(`보관 ${runs.length}판 · 실물(robotDriven, testMode 아님) ${real.length}판 · 완주 ${complete.length}판\n`);
+  const modern = runs.filter((r) => r.modern);
+  console.log(`보관 ${runs.length}판 · 실물 ${real.length}판 · 완주 ${complete.length}판`);
+  console.log(`그중 260920 뒤(액션 층이 열에 직접 있는) 판 ${modern.length}판 — 있으면 복원하지 않고 열을 그대로 센다\n`);
+
+  // **기록의 robotDriven 과 어긋나는 판을 드러낸다.** 그 값은 「지금 붙어 있나」라서
+  // 판이 끝난 뒤 로봇이 떨어지면 실물 판도 false 로 남는다.
+  const misflagged = real.filter((r) => !r.robotDrivenFlag);
+  if (misflagged.length > 0) {
+    console.log(`⚠ mission.json 의 robotDriven 이 false 인데 실물로 판정한 판 ${misflagged.length}건 —`);
+    for (const r of misflagged) {
+      console.log(`    ${r.name}  (${r.modern ? '라이브 대역 액션 사건이 있다' : '로봇이 준 응답 줄이 있다'})`);
+    }
+    console.log('    robotDrives() 는 「지금 브로커에 붙어 있나」이고 기록은 판이 끝난 뒤에도 덮어써진다.\n');
+  }
 
   const shown = complete.length > 0 ? complete : real;
   printRows(shown, 30, '판');
@@ -282,6 +350,16 @@ if (runs.length === 0) {
     console.log('');
     console.log(`열 밖(NO_NODE) — 명령 중앙 ${median(complete.map((r) => r.outsideCommands))}건 · 응답 중앙 ${median(complete.map((r) => r.outsideLines))}줄`);
     console.log('  이만큼이 **계측 범위 밖**이다 (논문 §6-2). 기록 열이 분모이므로 위 합계에 안 들어간다.');
+
+    // 260920 뒤의 판에만 있는 중복. 정식 분모에는 안 넣되 크기는 보인다.
+    const dup = complete.filter((r) => r.modern);
+    if (dup.length > 0) {
+      const d = dup.map((r) => r.legacyDuplicates);
+      console.log('');
+      console.log(`⚠ 옛 명령 줄 중복 — 260920 뒤 완주 판에서 판마다 ${Math.min(...d)}~${Math.max(...d)}건`);
+      console.log('    260920 이 액션 층을 더하면서 사람 층의 옛 명령 줄을 안 지웠다. 같은 명령이 두 벌 있다.');
+      console.log('    정식 분모는 액션 층 쪽이라 위 합계에는 안 넣었다. 지울지는 따로 정할 일이다.');
+    }
 
     // ── 완주하지 못한 판도 같이 낸다 ─────────────────────────────────────────
     //
