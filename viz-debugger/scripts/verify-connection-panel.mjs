@@ -268,6 +268,56 @@ const controls = [];
   if (!/BROKER_PRESETS/.test(panel)) failures.push('연결 관리가 프리셋을 안 그린다');
 }
 
+// ── 6-2. 「직접 입력」을 고르면 실제로 골라지는가 (260921 — 사람이 화면에서 찾아냈다) ──
+//
+// **고른 것이 화면에 안 남았다.** 「직접 입력」을 골라도 목록이 곧바로 옛 프리셋으로
+// 되돌아간다. 원인은 그 항목의 `url` 이 빈 문자열이라 `if (preset.url)` 이 거짓이 되고,
+// 주소가 안 바뀌니 값을 내는 식이 여전히 옛 프리셋을 찾아내는 것이었다.
+//
+// 주소를 손으로 고치면 그때는 어느 프리셋과도 안 맞아 넘어갔다 — 그래서 「고칠 때만 되는」
+// 것처럼 보였다. **글자로 읽는 검사는 이것을 볼 수 없다.** 그래서 식을 함수로 꺼내 잰다.
+{
+  const { selectedPresetId, applyPresetChoice, MANUAL_ID } = await load('src', 'shell', 'presetChoice.ts');
+  const panel = readFileSync(join(root, 'src', 'shell', 'ConnectionsPanel.tsx'), 'utf8');
+  const tail = BROKER_PRESETS.find((p) => p.id === 'tailscale');
+  const drone = BROKER_PRESETS.find((p) => p.id === 'drone-tailscale');
+
+  // ① 고른 것이 그대로 남는다 — 이것이 고친 버그다.
+  const chose = applyPresetChoice(BROKER_PRESETS, MANUAL_ID);
+  if (chose.manual !== true) failures.push('직접 입력을 골랐는데 기억하지 않는다');
+  if (selectedPresetId(BROKER_PRESETS, tail.url, chose.manual) !== MANUAL_ID) {
+    failures.push('직접 입력을 골랐는데 목록이 옛 프리셋으로 돌아간다 — 260921 의 그 버그다');
+  }
+  // ② 주소는 안 건드린다 — 고쳐 쓰려던 값을 잃으면 안 된다.
+  if (chose.url !== null) failures.push(`직접 입력이 주소를 ${chose.url} 로 바꿨다 — 그대로 둬야 한다`);
+
+  // ③ 프리셋을 고르면 주소가 들어가고 기억이 풀린다.
+  const back = applyPresetChoice(BROKER_PRESETS, 'drone-tailscale');
+  if (back.manual !== false) failures.push('프리셋을 고른 뒤에도 직접 입력으로 남아 있다');
+  if (back.url !== drone.url) failures.push(`고른 프리셋의 주소가 안 들어간다 — ${back.url}`);
+  if (selectedPresetId(BROKER_PRESETS, drone.url, back.manual) !== 'drone-tailscale') {
+    failures.push('프리셋을 골랐는데 목록이 그것을 안 가리킨다');
+  }
+
+  // ④ 손으로 고친 주소는 어느 프리셋도 아니다 — 전에도 되던 것이고 그대로 둔다.
+  if (selectedPresetId(BROKER_PRESETS, 'ws://10.0.0.9:9001', false) !== MANUAL_ID) {
+    failures.push('손으로 넣은 주소가 직접 입력으로 안 보인다');
+  }
+  // ⑤ 빈 주소를 값이 빈 프리셋과 짝지으면 안 된다.
+  if (selectedPresetId(BROKER_PRESETS, '', false) !== MANUAL_ID) {
+    failures.push('주소가 비었는데 직접 입력이 아니다');
+  }
+
+  // 판이 그 함수를 실제로 쓰는가 — 안 쓰면 위 넷을 다 통과해도 화면은 그대로 깨져 있다.
+  if (!/selectedPresetId\(/.test(panel) || !/applyPresetChoice\(/.test(panel)) {
+    failures.push('연결 관리가 presetChoice 를 안 쓴다 — 검사가 화면과 다른 것을 재고 있다');
+  }
+  // 옛 모양이 남아 있으면 되돌아간 것이다.
+  if (/if\s*\(preset\s*&&\s*preset\.url\)/.test(panel)) {
+    failures.push('옛 분기(if (preset && preset.url))가 남아 있다 — 직접 입력이 다시 안 먹는다');
+  }
+}
+
 // ── 7. detect 프리셋 (260914) ────────────────────────────────────────────────
 //
 // 로봇과 같은 모양으로 네트워크 환경을 고른다. 탐지는 시연장 밖 데스크톱에서 돌므로
@@ -299,6 +349,25 @@ const controls = [];
 function control(name, hit) {
   if (!hit) failures.push(`대조군 실패: ${name} — 변조 사본이 잡히지 않았다`);
   controls.push(name);
+}
+{
+  /**
+   * **옛 구현을 그대로 흉내 내면 반드시 되돌아가야 한다** (260921 의 그 버그).
+   *
+   * 고친 것이 진짜 고쳐진 것인지 보려면, 안 고친 것이 어떻게 틀렸는지도 재야 한다.
+   * 아래 둘은 고치기 전 판에 있던 식 그대로다.
+   */
+  const { selectedPresetId, applyPresetChoice, MANUAL_ID } = await load('src', 'shell', 'presetChoice.ts');
+  const tail = BROKER_PRESETS.find((p) => p.id === 'tailscale');
+  const oldValue = (presets, url) => presets.find((p) => p.url === url)?.id ?? MANUAL_ID;
+  const oldChange = (presets, id) => { const p = presets.find((x) => x.id === id); return p && p.url ? p.url : null; };
+  control('옛 구현은 직접 입력을 골라도 주소를 안 바꾼다',
+    oldChange(BROKER_PRESETS, MANUAL_ID) === null);
+  control('옛 구현은 그래서 목록이 옛 프리셋으로 되돌아간다',
+    oldValue(BROKER_PRESETS, tail.url) === 'tailscale');
+  // 반대 대조군 — 지금 구현은 같은 자리에서 직접 입력을 지킨다.
+  control('지금 구현은 직접 입력을 지킨다',
+    selectedPresetId(BROKER_PRESETS, tail.url, applyPresetChoice(BROKER_PRESETS, MANUAL_ID).manual) === MANUAL_ID);
 }
 {
   // 브로커와 로봇을 한 줄로 뭉친 사본 — 로봇이 죽으면 브로커까지 빨개진다.

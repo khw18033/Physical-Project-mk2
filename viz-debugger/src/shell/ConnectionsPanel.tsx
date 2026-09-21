@@ -40,6 +40,7 @@ import { MEDIA_PRESETS, mediaPresetReady } from '../media/presets.ts';
 import { setCapabilityTestMode, useCapability } from '../capability/store.ts';
 import { useDeviceStates } from '../physical/deviceState.ts';
 import { CHECKED_TARGETS, healthOf, useConnectionHealth, type TargetHealth } from '../shared/connectionHealth.ts';
+import { applyPresetChoice, selectedPresetId } from './presetChoice.ts';
 import type { ConnectionTargetId } from '../shared/connections.ts';
 import {
   CONNECTION_TARGETS,
@@ -85,6 +86,11 @@ export function ConnectionsPanel({ onClose, physical }: { onClose(): void; physi
   const current = useConnections();
   /** 편집 중인 값. 저장을 눌러야 적용된다 — 한 글자 칠 때마다 끊고 다시 붙으면 못 쓴다. */
   const [draft, setDraft] = useState<Record<string, string>>({ ...current });
+  /**
+   * **「직접 입력」을 고른 칸.** 주소와 따로 들고 있어야 하는 이유는 `presetChoice.ts` 에
+   * 적어 두었다 — 주소만 보고는 「사람이 직접 입력을 골랐다」를 알 수 없다.
+   */
+  const [manual, setManual] = useState<Record<string, boolean>>({});
   const [note, setNote] = useState<string | null>(null);
   // 언어가 바뀌면 다시 그린다 — `t()` 는 값을 줄 뿐 리렌더를 일으키지 않는다 (§4).
   useLang();
@@ -103,6 +109,8 @@ export function ConnectionsPanel({ onClose, physical }: { onClose(): void; physi
   const restore = () => {
     resetConnections();
     setDraft({});
+    // 기본값으로 되돌리면 고름도 되돌린다 — 안 그러면 주소는 프리셋인데 목록만 직접 입력이다.
+    setManual({});
     setNote(t('conn.restored'));
   };
 
@@ -134,10 +142,15 @@ export function ConnectionsPanel({ onClose, physical }: { onClose(): void; physi
               이름이 안 풀릴 때 손으로 IP 를 치는 것보다 고르는 편이 빠르다. */}
           {choice !== undefined && <select
             className="conn-preset"
-            value={choice.presets.find((preset) => preset.url === (draft[key] ?? ''))?.id ?? 'manual'}
+            /* 고름은 **주소에서 되풀이해 유도할 수 없다** — 「직접 입력」은 주소가 아니라
+               사람의 뜻이다. 그래서 고른 것을 기억하고 그 둘로 정한다 (`presetChoice.ts`). */
+            value={selectedPresetId(choice.presets, draft[key] ?? '', manual[key] === true)}
             onChange={(event) => {
-              const preset = choice.presets.find((p) => p.id === event.target.value);
-              if (preset && preset.url) setDraft((prev) => ({ ...prev, [key]: preset.url }));
+              const next = applyPresetChoice(choice.presets, event.target.value);
+              setManual((prev) => ({ ...prev, [key]: next.manual }));
+              // `null` 이면 주소를 안 건드린다 — 직접 입력으로 넘어갈 때 칸을 비우면
+              // 고쳐 쓰려던 주소를 잃는다.
+              if (next.url !== null) setDraft((prev) => ({ ...prev, [key]: next.url as string }));
             }}
           >
             {choice.presets.map((preset) => <option
