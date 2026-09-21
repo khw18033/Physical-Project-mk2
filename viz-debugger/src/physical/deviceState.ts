@@ -20,6 +20,8 @@
  */
 
 import { useSyncExternalStore } from 'react';
+import { noteDeviceReport, resetDeviceIdentity } from './deviceIdentity.ts';
+import { noteConnectedEntity } from '../shared/connectedDevices.ts';
 
 /** 우리가 읽는 만큼. 스키마 전체를 옮기지 않는다 — 안 쓰는 필드를 옮기면 낡는다. */
 export type DeviceState = {
@@ -157,6 +159,14 @@ export function receiveDeviceMessage(topic: string, body: Record<string, unknown
   const parsed = parseTopic(topic);
   if (parsed === null) return false;
   devices = { ...devices, [parsed.entityId]: applyDeviceMessage(devices[parsed.entityId], parsed, body) };
+  /**
+   * **누가 붙어 있는지도 여기서 안다** (260921). 규약의 `Capability` 가 retained 가 아니라
+   * 늦게 붙은 웹은 못 받는데(계약 §4), retained `status` 는 구독 즉시 온다 — 그 안의
+   * `registration` 이 장비 id 와 종류를 말한다. 그것이 없으면 토픽의 두·세 번째 칸이 말한다.
+   */
+  noteDeviceReport(parsed.entityId, parsed.entityType, body);
+  // 하드웨어 카드가 보는 목록에도 올린다 — Go1 이 `/state` 로 옮겨 가기 전까지의 길이다.
+  noteConnectedEntity(parsed.entityId, 'mqtt');
   for (const listener of listeners) listener();
   return true;
 }
@@ -172,5 +182,7 @@ export function useDeviceStates(): Readonly<Record<string, DeviceState>> {
 
 export function resetDevices(): void {
   devices = {};
+  // 장비를 다 잊었으면 「누가 붙어 있나」도 같이 잊는다 — 한쪽만 남으면 없는 장비를 가리킨다.
+  resetDeviceIdentity();
   for (const listener of listeners) listener();
 }

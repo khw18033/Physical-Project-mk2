@@ -31,13 +31,15 @@ import { DETECT_PRESETS, detectPresetReady } from '../detect/presets.ts';
 import { BROKER_PRESETS, presetReady } from '../physical/presets.ts';
 import { checkTarget, type PhysicalProbe } from '../shared/connectionCheck.ts';
 import { robotFacts } from '../physical/robotFacts.ts';
+import { armLinkWatch } from '../physical/linkWatch.ts';
 import { navProbe } from '../physical/NavClient.ts';
+import { robotProbe } from '../physical/robotClient.ts';
 import { setTestMode, useDetect } from '../detect/store.ts';
 import { CAPABILITY_PRESETS, capabilityPresetReady } from '../capability/presets.ts';
 import { MEDIA_PRESETS, mediaPresetReady } from '../media/presets.ts';
 import { setCapabilityTestMode, useCapability } from '../capability/store.ts';
 import { useDeviceStates } from '../physical/deviceState.ts';
-import { CHECKED_TARGETS, useConnectionHealth, type TargetHealth } from '../shared/connectionHealth.ts';
+import { CHECKED_TARGETS, healthOf, useConnectionHealth, type TargetHealth } from '../shared/connectionHealth.ts';
 import type { ConnectionTargetId } from '../shared/connections.ts';
 import {
   CONNECTION_TARGETS,
@@ -220,7 +222,13 @@ function HealthRow({ target, physical }: { target: ConnectionTargetId; physical:
       type="button"
       className="conn-check"
       disabled={state.checking}
-      onClick={() => void checkTarget(target, physical, robotFacts, target === 'autodrive' ? navProbe() : null)}
+      /**
+       * 확인이 끝나면 **FC 링크 줄이 있는 장비에 한해** 그 줄을 계속 다시 재게 한다
+       * (260921). 브로커·단말과 달리 FC 링크는 시연 도중에 바뀌므로, 눌렀을 때의 값을
+       * 계속 보여 주면 점퍼가 빠진 것을 무대에서 모른다. Go1 은 그 줄이 없어 안 켜진다.
+       */
+      onClick={() => void checkTarget(target, physical, robotFacts, target === 'autodrive' ? navProbe() : null)
+        .then(() => { if (target === 'physical') armLinkWatch(healthOf('physical').lines, robotProbe, robotFacts); })}
     >{state.checking ? t('conn.checking') : t('conn.check')}</button>
     {state.lines.length > 0 && <small className="conn-health__at">
       {new Date(state.lines[0].checkedAtIso).toLocaleTimeString()}

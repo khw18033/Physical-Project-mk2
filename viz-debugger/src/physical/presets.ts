@@ -120,6 +120,16 @@ export type BrokerPreset = {
   whyKey: string;
 };
 
+/**
+ * ## 260921 — 드론(pi3) 셋이 붙었다
+ *
+ * **같은 칸이다.** 연결 관리에 드론 칸을 따로 만들지 않는다 — pi3 도 자체 브로커(9001
+ * WebSocket)를 띄우고 같은 봉투·같은 토픽 규칙을 쓴다(계약 §0). 주소만 바꾸면 드론이다.
+ *
+ * 골라서 붙고 나면 **무엇에 붙었는지는 장비가 말한다** — 프리셋 이름이 아니라 그쪽이
+ * 근거다(`deviceIdentity.ts`). 여기 `pi3` 라고 적힌 것은 사람이 고르기 위한 이름일 뿐이고,
+ * 코드가 이 문자열을 보고 기종을 가르지 않는다.
+ */
 export const BROKER_PRESETS: readonly BrokerPreset[] = [
   // **기본값.** 망이 바뀌어도 이름이 같다 — 노트북에서 돌리든 발표장에서 돌든 한 주소다.
   { id: 'tailscale', labelKey: 'preset.broker.tailscale', url: 'ws://pi7.tailcb6bfb.ts.net:9001/mqtt', whyKey: 'preset.broker.tailscale.why' },
@@ -127,6 +137,12 @@ export const BROKER_PRESETS: readonly BrokerPreset[] = [
   { id: 'lab', labelKey: 'preset.broker.lab', url: 'ws://192.168.50.172:9001', whyKey: 'preset.broker.lab.why' },
   // ↓ 정적 IP 를 받으면 이 줄의 url 만 채운다.
   { id: 'venue', labelKey: 'preset.broker.venue', url: '', whyKey: 'preset.broker.venue.why' },
+  // ── 드론 pi3 (계약 §1 — 값은 전부 그쪽이 실제로 재서 준 것이다) ──────────────
+  { id: 'drone-name', labelKey: 'preset.broker.droneName', url: 'ws://pi3.local:9001', whyKey: 'preset.broker.droneName.why' },
+  { id: 'drone-lab', labelKey: 'preset.broker.droneLab', url: 'ws://192.168.50.254:9001', whyKey: 'preset.broker.droneLab.why' },
+  // **9001 은 이 주소로 아직 확인 안 됐다** — 계약 §1 이 1883 왕복만 ✅ 로 적었다.
+  // 값을 지어낸 것이 아니라 그쪽이 준 주소이므로 넣되, 사유에 그 사실을 적는다.
+  { id: 'drone-tailscale', labelKey: 'preset.broker.droneTailscale', url: 'ws://100.85.243.54:9001', whyKey: 'preset.broker.droneTailscale.why' },
   { id: 'manual', labelKey: 'preset.manual', url: '', whyKey: 'preset.manual.why' },
 ];
 

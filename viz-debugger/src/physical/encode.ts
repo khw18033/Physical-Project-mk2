@@ -16,18 +16,50 @@
  * `SttClient` 가 STT 주소를 혼자 아는 것과 같은 규칙이다(`verify:physical-port`).
  */
 
+import { commandTarget } from './deviceIdentity.ts';
 import { physical } from './protocol.js';
 import { STOP_ACTION } from './presets.ts';
 
-/** 하드웨어가 부르는 장비 이름. **이 디렉터리 밖에 적지 않는다.** */
+/**
+ * 하드웨어가 부르는 장비 이름. **이 디렉터리 밖에 적지 않는다.**
+ *
+ * ## 260921 — 이 값은 이제 **조회의 마지막 수단**이다
+ *
+ * 전에는 이것이 답이었다. 주소를 pi3 로 바꿔도 발행 대상과 구독 토픽이 `go1-001` 에 남아
+ * 「붙었다고 말하면서 아무것도 못 받는」 모양이 된다. 그래서 **붙은 장비가 스스로 밝힌 id**
+ * 가 먼저 오고(`deviceIdentity.ts`), 이 상수는 아직 아무 말도 못 들었을 때 **화면 조회**만
+ * 물러서는 자리다.
+ *
+ * **발행은 물러서지 않는다** — `commandTarget()` 이 `null` 이면 명령이 안 나간다.
+ */
 export const HARDWARE_TARGET = 'go1-001';
 
 /** 화면·대본의 장비 id → 하드웨어의 장비 id. 지금은 하나뿐이라 표가 짧다. */
 const TARGET_OF: Record<string, string> = { 'robot-01': HARDWARE_TARGET };
 
-/** 화면 id 를 하드웨어 id 로. 모르는 id 는 그대로 보낸다 — 지어내지 않는다. */
+/**
+ * 화면이 **상태를 찾아볼** 장비 id.
+ *
+ * 붙은 장비가 자기를 밝혔으면 그것이다 — 드론에 붙으면 `x500-001` 이고, 화면 코드는
+ * 자기가 무엇을 보고 있는지 몰라도 된다. 아직 아무 말도 못 들었으면 옛 표로 물러선다.
+ *
+ * **물러서도 해롭지 않다.** 조회가 빗나가면 `deviceStates[…]` 가 `undefined` 이고 화면은
+ * 「아직 아무것도 안 왔습니다」를 그린다 — 이미 그렇게 짜여 있다. 위험한 것은 발행 쪽이고,
+ * 그쪽은 `commandTarget()` 이 따로 막는다.
+ */
 export function hardwareTarget(vizEntityId: string): string {
-  return TARGET_OF[vizEntityId] ?? vizEntityId;
+  return commandTarget() ?? TARGET_OF[vizEntityId] ?? vizEntityId;
+}
+
+/**
+ * 화면·대본 id 를 표로만 바꾼다. **붙은 장비를 보지 않는다.**
+ *
+ * `hardwareTarget` 과 가르는 이유: 봉투를 만드는 쪽은 이미 정해진 대상을 받는다
+ * (`PhysicalClient.send` 가 `commandTarget()` 으로 정해 넘긴다). 거기서 또 붙은 장비를
+ * 보면 **부르는 쪽이 지정한 대상을 조용히 덮어쓴다** — 지정한 것과 나간 것이 달라진다.
+ */
+function mappedTarget(target: string): string {
+  return TARGET_OF[target] ?? target;
 }
 
 /**
@@ -68,7 +100,7 @@ export const SCAN_REFERENCE_BYTES = 79;
 export function encodeCommand(input: CommandInput): Uint8Array {
   const command: Record<string, unknown> = {
     commandId: input.commandId,
-    target: hardwareTarget(input.target ?? 'robot-01'),
+    target: mappedTarget(input.target ?? 'robot-01'),
     action: input.action,
   };
   // 파라미터가 없으면 **필드를 아예 안 넣는다.** 빈 맵을 넣어도 바이트는 같지만,

@@ -26,14 +26,35 @@ import { t } from '../i18n/dict.ts';
 import { hardwareTarget } from './encode.ts';
 import { isStale, useDeviceStates, type DeviceState } from './deviceState.ts';
 import { useRobotSession } from './robotSession.ts';
+import { connectedDevice, useConnectedDevices } from '../shared/connectedDevices.ts';
 
 export function HardwareLink({ entityId }: { entityId: string }) {
   useLang();
   const devices = useDeviceStates();
   const session = useRobotSession();
+  // `/state` 로 오는 장비도 이 줄이 말해야 한다 — 구독해야 붙거나 조용해질 때 다시 그린다.
+  useConnectedDevices();
   // 화면 id(`robot-01`) → 하드웨어 id(`go1-001`). 표는 경계 안에 있다.
   const device: DeviceState | null = devices[hardwareTarget(entityId)] ?? null;
 
+  /**
+   * MQTT 장비 상태가 없다. 두 경우가 섞여 있어 가른다 (260921).
+   *
+   * **값이 `/state` 로 오는 장비**(드론·앞으로의 Go1)는 이 카드가 보는 MQTT 저장소에
+   * 애초에 안 들어온다. 그런데 「아직 아무것도 안 왔습니다」로 그리면 **붙어 있는 장비를
+   * 조용한 장비로 적는 거짓말**이 된다 — 카드가 뜬 이유가 값이 흐르기 때문인데.
+   *
+   * 자세한 항목은 상세 보기(현황판의 그 개체)가 그린다. 여기서는 살아 있다는 것과
+   * 언제 마지막으로 왔는지만 적는다 — 카드 한 줄에 들어갈 만큼이다.
+   */
+  const viaState = connectedDevice(entityId);
+  if (device === null && viaState !== null) {
+    const ago = Math.round((Date.now() - viaState.lastSeenMs) / 1000);
+    return <span className="hw-link">
+      <em className="hw-dot hw-dot--ok">{t('hl.connected')}</em>
+      <em className="hw-dot hw-dot--plain">{t('hl.secondsAgo', { sec: ago })}</em>
+    </span>;
+  }
   // 아직 아무것도 안 왔다 — 브로커에 안 붙었거나 그 장비가 조용하다.
   if (device === null) {
     return <span className="hw-link">

@@ -59,7 +59,8 @@ export type UplinkMessage =
 
 /**
  * 봉투 하나 → 화면이 읽는 모양. **형식에 안 맞으면 null 이다** — 지어 채우지 않는다.
- * 우리가 안 쓰는 body(취소 응답·Capability)도 null 이다.
+ * 우리가 안 쓰는 body(취소 응답·Capability)는 null 이다 — **`Capability` 는 명령 응답이
+ * 아니라 자기소개**라 축이 다르다. 그쪽은 아래 `decodeCapability` 가 따로 뜯는다.
  */
 export function decodeUplink(payload: Uint8Array): UplinkMessage | null {
   let envelope;
@@ -99,6 +100,30 @@ export function decodeUplink(payload: Uint8Array): UplinkMessage | null {
     };
   }
   return null;
+}
+
+/**
+ * **자기소개를 뜯는다** (260921 — 드론 계약 §4). 명령 응답이 아니므로 `UplinkMessage` 에
+ * 넣지 않는다 — 넣으면 `commandId` 로 짝을 맞추는 자리 넷이 전부 「id 없는 응답」을 받게 되고,
+ * 그 넷은 이 메시지와 아무 상관이 없다.
+ *
+ * `Capability` 는 **노드가 브로커에 붙는 순간 한 번** 오고 retained 가 아니다. 늦게 붙은
+ * 웹은 못 받는 것이 정상이고, 그때는 상태 쪽 `registration` 이 같은 일을 한다.
+ *
+ * 우리가 시킨 것이 아니라서 `null` 이 흔하다 — 아무 봉투나 들어와도 조용히 넘긴다.
+ */
+export function decodeCapability(payload: Uint8Array): { deviceId: string; actions: readonly string[] } | null {
+  let envelope;
+  try {
+    envelope = physical.PhysicalCommandEnvelope.decode(payload);
+  } catch {
+    return null;
+  }
+  const capability = envelope.capability;
+  if (!capability) return null;
+  // 이름이 없으면 자기소개가 아니다 — 빈 id 로 토픽을 만들면 `terminal//downlink` 가 된다.
+  if (!capability.deviceId) return null;
+  return { deviceId: capability.deviceId, actions: [...(capability.actions ?? [])] };
 }
 
 /** `detail` 은 JSON 문자열로 온다. 깨져 있으면 null — 그 사실이 화면에 남아야 한다. */

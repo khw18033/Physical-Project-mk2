@@ -23,7 +23,8 @@ import { ObservabilityPanel } from './shared/ObservabilityPanel.tsx';
 import { measureFold, startObservability } from './shared/observability.ts';
 import { PendingSource } from './shared/PendingSource.tsx';
 import { MissionHistoryList, useMissionEndWatch } from './views/MissionHistory.tsx';
-import { hardwareSourceLabel, listCastIds, listRegisteredHardware } from './shared/registry.ts';
+import { deviceCardOrigin, hardwareSourceLabel, listRegisteredHardware, useDeviceCardIds } from './shared/registry.ts';
+import { startConnectedSweep } from './shared/connectedDevices.ts';
 import { graphShape, shapeLabel } from './graph/shape.ts';
 import { useLang } from './shared/language.ts';
 import { ActionModal } from './views/ActionModal.tsx';
@@ -95,7 +96,14 @@ function Milestones({ view, phase, milestoneStatuses, assignments, onAssign, onO
   planApproval?: ReactNode;
 }) {
   const hardware = listRegisteredHardware();
-  const cast = listCastIds();
+  /**
+   * **하드웨어 카드는 「연결되면 항상」이다** (260921 지시).
+   *
+   * 전에는 대본 배역뿐이라 대본에 안 적힌 장비는 붙어 있어도 안 보였다 — 드론이 그랬다.
+   * 이제 배역 ∪ 지금 값이 흐르는 장비이고, 그중 쓸 것만 끌어다 배정한다. 대본 시연은
+   * 배역이 그대로 남으므로 하던 대로 돈다.
+   */
+  const cast = useDeviceCardIds();
   const mission = useMission();
   /**
    * 더블클릭으로 연 **대상 상태** (260904 — `VZ-D-07` 의 미구현분). 카드가 드래그로 배정만
@@ -148,7 +156,9 @@ function Milestones({ view, phase, milestoneStatuses, assignments, onAssign, onO
       // 대본(registry 세계) — 등장 장비는 id 만 대본에서 읽는다. 연결 상태는 **아는 만큼**
       // 적고(260910 지적), 실측 두 행(배터리·RSSI)은 여전히 자리표시다 — 로봇이 그 값을
       // 보내 주는 채널이 아직 없다(VZ-D-07 · 8/31 결정: 남이 줄 데이터는 지어내지 않는다).
-      : cast.map((id) => <article key={id} draggable onDragStart={(event) => event.dataTransfer.setData('text/plain', id)} onDoubleClick={() => setStatusDeviceId(id)}><b>{id}</b><small>{t('ms.scriptDevice')}</small><HardwareLink entityId={id} /></article>)}</aside>
+      // **배역인지 붙어서 뜬 것인지 적는다.** 「연결됨」과 「이번 편 등장」은 다른 말이고,
+      // 뭉치면 꺼진 배역을 붙은 것으로 읽는다.
+      : cast.map((id) => <article key={id} draggable onDragStart={(event) => event.dataTransfer.setData('text/plain', id)} onDoubleClick={() => setStatusDeviceId(id)}><b>{id}</b><small>{t(deviceCardOrigin(id) === 'cast' ? 'ms.scriptDevice' : 'ms.connectedDevice')}</small><HardwareLink entityId={id} /></article>)}</aside>
     {/* 기능 상태 (260920). 하드웨어와 **완전히 다른 판**이고 자기 스크롤을 갖는다. */}
     <CapabilityPanel />
     </div>
@@ -457,6 +467,11 @@ export function MissionDebugger({ navigation, planApproval }: { navigation?: Deb
   useEffect(() => startNavLink(), []);
   // 자율주행 판이 열린 동안 장애물 JSON 을 받는다 (260915). 시연 편에서는 판이 안 열려 안 돈다.
   useEffect(() => startObstacleWatch(), []);
+  /**
+   * 하드웨어 카드의 창을 쓸어 준다 (260921). **조용해지는 것은 값이 안 올 때 일어나므로**
+   * 아무도 저장소를 안 건드리고, 그러면 꺼진 장비의 카드가 그대로 남는다.
+   */
+  useEffect(() => startConnectedSweep(), []);
 
   /**
    * **로봇 응답 수신** (260910). 여기 두는 이유는 위 관측과 같다 — 이 화면은 두 빌드가

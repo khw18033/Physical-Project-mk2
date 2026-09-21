@@ -33,6 +33,7 @@ import { planApproach, type ApproachPlan } from './approachPlan.ts';
 import type { PhysicalClient } from './PhysicalClient.ts';
 import { uplinkWords, type UplinkMessage } from './uplink.ts';
 import { STOP_ACTION, STOP_REASON } from './presets.ts';
+import { supportsAction } from './deviceIdentity.ts';
 import {
   canIssueRobotCommand, clearScanIssued, commandsOfTask, elapsedSec, lockPaused, lockStopped, markApproachIssued,
   markScanIssued, notePauseFailure, pickDoorIndex, recordCommand, releasePaused, robotDrives,
@@ -439,11 +440,42 @@ export function canApproach(): boolean {
  *
  * 「붙었다」와 「답한다」를 가른 것이 연결 관리의 요점인데, 정작 로봇 줄이 브로커를 다시
  * 재고 있었다. 이제 **그 command_id 의 uplink 가 올 때까지 기다린다.** 안 오면 빨갛다.
+ *
+ * ## 260921 — `ping` 이 FC 링크도 물어 온다 (드론 계약 §5)
+ *
+ * 드론의 `result` 에 `fc_link` 가 **링크가 있든 없든 항상** 실린다(1.0 = 있음 / 0.0 = 없음).
+ * 「라즈베리파이는 켜졌는데 FC 와 안 붙었다」를 가르는 값이 이것 하나이고, 무대 전에 그걸
+ * 못 갈라서 반나절을 썼다.
+ *
+ * **응답은 네 건이 순서대로 온다** — `acceptance` → `status` ×2 → `result`. 왕복 시간은
+ * 첫 건으로 재고(그것이 「답한다」의 증거다), `fc_link` 는 마지막 `result` 에 있다.
+ * 그래서 첫 건에 결론을 내되 **`result` 를 짧게 더 기다린다.**
+ *
+ * 더 기다리는 것을 `ok` 의 조건으로 삼지 않는다 — `result` 를 안 보내는 노드가 있어도
+ * 「답했다」는 그대로 참이어야 한다. 그때 `fcLink` 는 `null`(모름)이다.
+ *
+ * 없는 키는 **모름**이다 (계약 §5). `map<string,double>` 이라 `null` 을 못 실어서 키를
+ * 통째로 뺀다 — 0 으로 읽으면 「쟀더니 0」이 되어 뜻이 뒤집힌다.
  */
+export type PingOutcome = {
+  ok: boolean;
+  roundTripMs: number | null;
+  message: string;
+  /** FC 링크 유무. **`null` 은 모른다** — 안 실렸거나 `result` 를 못 받았다. */
+  fcLink: boolean | null;
+  /** 마지막 FC heartbeat 이후 경과(초). 한 번도 못 받았으면 키가 없고, 그때 `null`. */
+  fcLinkAgeSec: number | null;
+  /** 단말이 떠 있던 시간(초). Go1 도 드론도 같은 키를 쓴다. */
+  uptimeSec: number | null;
+};
+
+/** 응답 넷 중 마지막(`result`)을 더 기다리는 시간. 붙어 있으면 곧바로 온다. */
+const PING_RESULT_GRACE_MS = 1500;
+
 export async function issuePing(
   client: PhysicalClient,
   timeoutMs = 4000,
-): Promise<{ ok: boolean; roundTripMs: number | null; message: string }> {
+): Promise<PingOutcome> {
   // **귀를 먼저 연다.** 보내고 나서 열면 빠른 응답을 놓친다.
   let expected: string | null = null;
   let settle: ((message: UplinkMessage) => void) | null = null;
@@ -462,7 +494,7 @@ export async function issuePing(
   try {
     const outcome = client.send('ping');
     if (!outcome.sent) {
-      return { ok: false, roundTripMs: null, message: outcome.reason ?? t('robot.notSent') };
+      return { ...UNKNOWN_LINK, ok: false, roundTripMs: null, message: outcome.reason ?? t('robot.notSent') };
     }
     expected = outcome.commandId;
 
@@ -476,6 +508,7 @@ export async function issuePing(
     if (reply === null) {
       // **브로커는 받았는데 로봇이 답을 안 했다.** 이게 로봇이 꺼져 있을 때의 모습이다.
       return {
+        ...UNKNOWN_LINK,
         ok: false,
         roundTripMs: null,
         message: t('robot.pingNoAnswer', { ms: timeoutMs }),
@@ -484,13 +517,45 @@ export async function issuePing(
     const roundTripMs = Date.now() - startedAt;
     // 거절도 **답한 것**이다 — 로봇은 살아 있고 그 말을 그대로 옮긴다.
     if (reply.kind === 'acceptance' && !reply.accepted) {
-      return { ok: false, roundTripMs, message: t('robot.rejected', { code: reply.code ?? t('robot.noReason'), message: reply.message ?? '' }).trim() };
+      return {
+        ...UNKNOWN_LINK,
+        ok: false,
+        roundTripMs,
+        message: t('robot.rejected', { code: reply.code ?? t('robot.noReason'), message: reply.message ?? '' }).trim(),
+      };
     }
-    return { ok: true, roundTripMs, message: t('robot.answered') };
+    // 첫 건이 이미 `result` 면 그것을 읽고, 아니면 짧게 더 기다린다.
+    const terminal = reply.kind === 'result'
+      ? reply
+      : seen.find((m) => m.commandId === expected && m.kind === 'result')
+        ?? await terminalAnswer(client, expected, PING_RESULT_GRACE_MS);
+    return { ...linkFromResult(terminal), ok: true, roundTripMs, message: t('robot.answered') };
   } finally {
     off();
     if (timer !== null) clearTimeout(timer);
   }
+}
+
+/** 아무것도 못 읽었을 때. **0 이 아니라 모름이다.** */
+const UNKNOWN_LINK = { fcLink: null, fcLinkAgeSec: null, uptimeSec: null } as const;
+
+/**
+ * `ping` 의 `result` 에서 FC 링크를 읽는다 (계약 §5).
+ *
+ * `map<string,double>` 이라 **키가 없으면 모름**이다. `fc_link` 는 계약이 「항상 실린다」고
+ * 적었지만 그 말을 코드가 전제하지 않는다 — 옛 노드나 Go1 은 안 싣고, 그때 `false` 로
+ * 읽으면 「FC 가 끊겼다」는 없는 사실이 화면에 뜬다.
+ */
+function linkFromResult(message: UplinkMessage | null): {
+  fcLink: boolean | null; fcLinkAgeSec: number | null; uptimeSec: number | null;
+} {
+  if (message === null || message.kind !== 'result') return { ...UNKNOWN_LINK };
+  const values = message.result;
+  return {
+    fcLink: 'fc_link' in values ? values.fc_link === 1 : null,
+    fcLinkAgeSec: 'fc_link_age_s' in values ? values.fc_link_age_s : null,
+    uptimeSec: 'uptime_s' in values ? values.uptime_s : null,
+  };
 }
 
 /**
@@ -665,6 +730,32 @@ export async function resumeMission(
  * `abort` 는 **자기 `command_id`** 를 새로 만든다 — 돌던 임무의 id 를 재사용하면 응답이 섞인다.
  * `client.send()` 가 부를 때마다 새 id 를 만드므로 그 조건은 저절로 지켜진다.
  */
+/**
+ * **이 장비가 화면 정지를 지원하는가** (260921 — 드론 계약 §4).
+ *
+ * 드론은 `Capability` 에 `ping` 하나만 선언한다. 정지(`abort`)는 **선언하지 않는다** —
+ * 드론을 멈추는 것은 조종기의 일이고, 그 사실이 규약에 적혀 있다.
+ *
+ * **기종으로 판정하지 않는다.** 근거는 장비가 준 `actions` 목록 하나다. Go1 이 내일
+ * 정지를 빼면 같은 코드가 같은 결론을 내고, 드론이 나중에 정지를 넣으면 저절로 풀린다.
+ *
+ * 세 값인 이유: `Capability` 는 **retained 가 아니라** 늦게 붙은 웹은 못 받는다(계약 §11-4).
+ * 「못 받았다」를 「지원 안 한다」로 읽으면, 멈출 수 있는 로봇 앞에서 화면이 「정지를
+ * 지원하지 않습니다」를 띄운다 — 그것이 이 기능의 가장 위험한 거짓말이다.
+ *
+ *   yes      선언했다 — 보낸다
+ *   no       선언 안 했거나, 보냈더니 `UNIMPLEMENTED` 로 돌아왔다 — 안 보내고 안내한다
+ *   unknown  아직 목록을 못 받았다 — **보낸다.** 못 멈추는 것보다 낫다
+ */
+export type StopSupport = 'yes' | 'no' | 'unknown';
+
+export function stopSupport(): StopSupport {
+  const declared = supportsAction(STOP_ACTION);
+  if (declared !== null) return declared ? 'yes' : 'no';
+  // 목록을 못 받았어도 **쏴 봐서 거절당한 적이 있으면** 그것도 장비가 한 말이다 (260910).
+  return robotSession().unsupported[STOP_ACTION] === true ? 'no' : 'unknown';
+}
+
 export async function emergencyStop(client: PhysicalClient | null): Promise<StopState> {
   let published = false;
   let failure: string | null = null;
@@ -672,6 +763,16 @@ export async function emergencyStop(client: PhysicalClient | null): Promise<Stop
   try {
     if (client === null) {
       failure = t('robot.noBrokerConnection');
+    } else if (stopSupport() === 'no') {
+      /**
+       * **안 보낸다.** 장치가 거부할 것을 알면서 보내면 화면에 거절 한 줄이 남고, 누른
+       * 사람은 그것을 「실패했지만 시도는 했다」로 읽는다. 여기서 필요한 말은 그게 아니라
+       * **「조종기로 멈추세요」**이고, 그 말이 늦으면 안 된다.
+       *
+       * 화면 잠금은 **그대로 일어난다** — 아래 `lockStopped` 는 이 분기와 무관하다.
+       * 사람이 정지를 눌렀으면 화면은 멈춘 것으로 다뤄야 한다.
+       */
+      failure = t('robot.stopUnsupported');
     } else {
       // **규약 밖의 파라미터를 더하지 않는다** — reason 하나뿐이다.
       const outcome = client.send(STOP_ACTION, { reason: STOP_REASON.human });

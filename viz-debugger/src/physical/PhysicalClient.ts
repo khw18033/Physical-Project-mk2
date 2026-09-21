@@ -13,20 +13,30 @@
  * ## 채널 (하드웨어가 실제로 쏴 보고 확인한 값)
  *
  *   브로커   ws://pi7.tailcb6bfb.ts.net:9001/mqtt (WebSocket) · MQTT 5 · 인증 없음
- *   발행     terminal/go1-001/downlink  QoS 1
- *   수신     terminal/go1-001/uplink    QoS 1
+ *   발행     terminal/<붙은 장비>/downlink  QoS 1
+ *   수신     terminal/+/uplink              QoS 1
  *   페이로드 protobuf 바이너리 — JSON 문자열이 아니다
  *
  * 응답 세 종(Acceptance · CommandStatus · CommandResult)이 **모두 uplink 하나로** 온다.
  * 종류는 봉투의 `oneof body` 가 구분한다.
+ *
+ * ## 260921 — 장비 id 가 상수가 아니다
+ *
+ * 이 클라이언트는 이제 **누구에게 쏠지 모르는 채로 붙는다.** 붙은 뒤 장비가
+ * `Capability` 로(또는 상태의 `registration` 으로) 자기 이름을 대면 그때 정해진다
+ * (`deviceIdentity.ts`). 주소를 pi7 에서 pi3 로 바꾸면 같은 코드가 드론에 붙는 이유다.
+ *
+ * 아직 아무 말도 못 들었으면 **아무것도 발행하지 않는다** — 짐작한 이름으로 쏘면 남의
+ * 토픽에 명령이 떨어지거나 아무 데도 안 간다.
  */
 
 import { t } from '../i18n/dict.ts';
 import { connectionAddress, registerConnectionDefault } from '../shared/connections.ts';
-import { encodeCommand, hardwareTarget, nextCommandId, type CommandInput, type PhysicalAction } from './encode.ts';
+import { commandTarget, noteCapability, resetDeviceIdentity } from './deviceIdentity.ts';
+import { encodeCommand, nextCommandId, type CommandInput, type PhysicalAction } from './encode.ts';
 import { physical } from './protocol.js';
 import { parseScanFeed, scanFeedChannel, type ScanFeedMessage } from './scanFeed.ts';
-import { decodeUplink, type UplinkMessage } from './uplink.ts';
+import { decodeCapability, decodeUplink, type UplinkMessage } from './uplink.ts';
 
 const meta = import.meta as unknown as { env?: { VITE_PHYSICAL_WS?: string } };
 
@@ -51,12 +61,27 @@ export function physicalWsUrl(): string {
   return connectionAddress('physical', 'ws');
 }
 
-/** 토픽. 장비 id 가 토픽에 들어가므로 **이 파일 밖에 적지 않는다.** */
-function topics(target: string) {
-  return {
-    downlink: `terminal/${target}/downlink`,
-    uplink: `terminal/${target}/uplink`,
-  };
+/** 내려보내는 토픽. 장비 id 가 토픽에 들어가므로 **이 파일 밖에 적지 않는다.** */
+function downlinkTopic(target: string): string {
+  return `terminal/${target}/downlink`;
+}
+
+/**
+ * **올라오는 토픽은 `+` 로 받는다** (260921 — 드론 계약 §4).
+ *
+ * 전에는 `terminal/go1-001/uplink` 하나를 구독했다. 붙을 때 장비 id 를 이미 안다는
+ * 전제였고, 그 전제가 틀렸다 — **`Capability` 가 바로 그 id 를 알려 주는 메시지인데
+ * 그것이 이 토픽으로 온다.** 아는 id 로만 구독하면 모르는 장비의 자기소개는 영영 못 듣고,
+ * 주소를 pi3 로 바꿔도 `go1-001` 의 uplink 만 기다리게 된다.
+ *
+ * 상태 토픽을 `zoneA/+/+/…` 로 받는 것과 같은 규칙이고, 계약 §3-1 이 상태 쪽에 대해 적은
+ * 이유("기종·장비가 늘어도 그대로")가 여기에도 그대로 적용된다.
+ */
+const UPLINK_TOPIC = 'terminal/+/uplink';
+
+/** 올라온 것인가. 와일드카드로 받으므로 모양으로 가른다. */
+function isUplinkTopic(topic: string): boolean {
+  return /^terminal\/[^/]+\/uplink$/.test(topic);
 }
 
 /**
@@ -137,11 +162,18 @@ export class PhysicalClient {
   private readonly deviceListeners = new Set<DeviceListener>();
   private readonly scanFeedListeners = new Set<ScanFeedListener>();
   private readonly statusListeners = new Set<StatusListener>();
-  /** 붙을 대상. 화면 id 를 받아 하드웨어 id 로 바꿔 둔다. */
-  private readonly target: string;
-
-  constructor(vizEntityId = 'robot-01') {
-    this.target = hardwareTarget(vizEntityId);
+  /**
+   * **대상을 생성자에서 굳히지 않는다** (260921).
+   *
+   * 전에는 `hardwareTarget(vizEntityId)` 를 여기서 한 번 읽어 `readonly` 로 두었다.
+   * 싱글턴이라 그 값이 **앱이 사는 내내 고정**되고, 주소를 pi3 로 바꿔 드론에 붙어도
+   * 구독·발행은 `go1-001` 에 남는다. 그 상태가 정확히 「붙었다고 말하면서 아무것도
+   * 못 받는」 모양이다.
+   *
+   * 이제 대상은 **쏠 때마다 지금 붙어 있는 장비**를 읽는다(`commandTarget()`).
+   */
+  constructor() {
+    // 붙을 대상을 미리 정하지 않는다 — 장비가 말해 준다.
   }
 
   getStatus(): PhysicalStatus {
@@ -189,10 +221,27 @@ export class PhysicalClient {
     if (this.status.state === 'open') return this.status;
     if (this.status.state === 'connecting') return this.status;
     this.setStatus({ state: 'connecting' });
+    /**
+     * **붙기 전에 「누가 붙어 있나」를 비운다** (260921). 주소를 바꿔 다른 브로커로 가면
+     * 거기 있는 장비는 다른 장비다. 안 비우면 pi7 에서 본 `go1-001` 이 pi3 에 붙은 뒤에도
+     * 남아 「장비가 둘」이 되고, 애매하다는 이유로 명령이 통째로 막힌다.
+     */
+    resetDeviceIdentity();
     try {
-      const client = (await mqttConnect())(physicalWsUrl(), { protocolVersion: 5, reconnectPeriod: 0 }) as MqttLike;
+      const client = (await mqttConnect())(physicalWsUrl(), {
+        protocolVersion: 5,
+        reconnectPeriod: 0,
+        /**
+         * **clientId 를 우리가 정한다** (드론 계약 §2).
+         *
+         * 브로커에서 clientId 는 유일해야 하고, 웹이 `x500-001` 로 붙으면 **드론 노드를
+         * 밀어낸다** — 노드가 20초에 3회 재접속을 감지하면 치명 경보를 찍는다. 라이브러리
+         * 기본값도 겹치지는 않지만, 겹치면 안 된다는 사실이 코드에 안 적혀 있으면 다음
+         * 사람이 장비 id 를 그대로 넣는다.
+         */
+        clientId: `web-${Math.random().toString(36).slice(2, 10)}`,
+      }) as MqttLike;
       this.client = client;
-      const { uplink } = topics(this.target);
 
       // 처음 한 번만 결론을 낸다 — 뒤이어 오는 close 가 open 을 덮어쓰면 안 된다.
       let settle: ((status: PhysicalStatus) => void) | null = null;
@@ -214,7 +263,7 @@ export class PhysicalClient {
         // 하드웨어 팀 클라이언트로 재 보니 **첫 명령만** 응답을 놓쳤다. 붙자마자 발행하면
         // SUBACK 이 오기 전에 로봇의 답이 지나가 버린다. 「붙었다고 말하면서 아무것도 못
         // 받는다」가 정확히 이 모양이고, 시연 직전 첫 연결 확인에서 나기 딱 좋다.
-        client.subscribe(uplink, { qos: 1 }, () => {
+        client.subscribe(UPLINK_TOPIC, { qos: 1 }, () => {
           clearTimeout(timer);
           finish({ state: 'open' });
         });
@@ -225,7 +274,7 @@ export class PhysicalClient {
       client.on('message', ((topic: string, payload: Uint8Array) => {
         // 장비 상태는 **JSON** 이고 명령 응답은 **protobuf** 다. 토픽으로 가른다 —
         // 한쪽 디코더에 남의 바이트를 넣으면 조용히 null 이 되고 원인을 못 찾는다.
-        if (topic !== uplink) {
+        if (!isUplinkTopic(topic)) {
           let body: unknown;
           try { body = JSON.parse(new TextDecoder().decode(payload)); } catch { return; }
           if (typeof body !== 'object' || body === null) return;
@@ -236,6 +285,16 @@ export class PhysicalClient {
             return;
           }
           for (const listener of this.deviceListeners) listener(topic, body as Record<string, unknown>);
+          return;
+        }
+        /**
+         * **자기소개가 먼저다** (드론 계약 §4). 같은 토픽으로 오지만 명령 응답이 아니다 —
+         * `commandId` 가 없어서 짝을 맞출 수 없고, 맞출 이유도 없다. 이것이 오면 발행
+         * 대상과 이 장비가 할 수 있는 action 이 정해진다.
+         */
+        const capability = decodeCapability(payload);
+        if (capability !== null) {
+          noteCapability(capability.deviceId, capability.actions);
           return;
         }
         const message = decodeUplink(payload);
@@ -265,21 +324,37 @@ export class PhysicalClient {
     const client = this.client as { end?: (force?: boolean) => void } | null;
     client?.end?.(true);
     this.client = null;
+    // 끊었으면 붙어 있던 장비도 없다 — 남겨 두면 끊긴 채로 명령이 나간다.
+    resetDeviceIdentity();
     this.setStatus({ state: 'idle' });
   }
 
   /**
    * 명령 하나. **바이트로 바꾸는 것은 `encode.ts`, 쏘는 것은 여기.**
    * 붙어 있지 않으면 쏘지 않고 그 사실을 돌려준다 — 조용히 삼키지 않는다.
+   *
+   * ## 대상을 모르면 안 쏜다 (260921)
+   *
+   * 대상은 **쏘는 순간** 정해진다 — 붙은 장비가 밝힌 id 다. 아직 아무 말도 못 들었으면
+   * `null` 이고, 그러면 **발행하지 않는다.**
+   *
+   * 옛 상수(`go1-001`)로 물러서지 않는 이유: 드론에 붙은 채로 물러서면 명령이
+   * `terminal/go1-001/downlink` 로 떨어진다. pi3 브로커에는 그 토픽을 듣는 사람이 없어
+   * 조용히 사라지고, 화면은 「보냈다」고 적는다 — 무대에서 가장 찾기 어려운 실패다.
+   * 같은 랜에 pi7 이 살아 있으면 더 나쁘다.
    */
   send(action: PhysicalAction, parameters?: Record<string, number>): { sent: boolean; commandId: string; reason?: string } {
     const commandId = nextCommandId();
     if (this.status.state !== 'open') {
       return { sent: false, commandId, reason: t('pc.notConnected') + this.status.state };
     }
-    const input: CommandInput = { commandId, action, parameters, target: this.target };
+    const target = commandTarget();
+    if (target === null) {
+      return { sent: false, commandId, reason: t('pc.noDevice') };
+    }
+    const input: CommandInput = { commandId, action, parameters, target };
     const client = this.client as { publish?: (t: string, p: Uint8Array, o: unknown) => void } | null;
-    client?.publish?.(topics(this.target).downlink, encodeCommand(input), { qos: 1 });
+    client?.publish?.(downlinkTopic(target), encodeCommand(input), { qos: 1 });
     return { sent: true, commandId };
   }
 }

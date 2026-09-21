@@ -10,6 +10,7 @@
 
 import { subscribeConnections } from '../../shared/connections.ts';
 import { currentZoneId } from '../../shared/registry.ts';
+import { noteConnectedEntity } from '../../shared/connectedDevices.ts';
 import { getTransport } from '../../transport/index.ts';
 import { DataStore } from './store.ts';
 import { fetchRegistry } from './registry.ts';
@@ -74,6 +75,14 @@ export function startDataLayer(): () => void {
     (envelope) => {
       observeEnvelope(envelope);
       store.apply(envelope);
+      /**
+       * **값이 오면 그 장비는 붙어 있는 것이다** (260921). 하드웨어 카드가 임무와
+       * 무관하게 이 목록을 그린다 — 대본에 안 적힌 장비(드론)도 뜬다.
+       *
+       * 그리는 쪽이 이 저장소를 직접 읽게 하면 단독 빌드에 대시보드 계층이 딸려
+       * 들어간다(`verify:standalone`). 그래서 **받는 쪽이 밀어 넣는다.**
+       */
+      noteConnectedEntity(envelope.entity, 'state');
     },
     // VZ-I-11 — 현 단계 'all' 고정. 대상이 늘면 여기를 좁힌다.
     'all',

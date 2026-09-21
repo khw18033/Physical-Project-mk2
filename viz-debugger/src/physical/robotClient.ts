@@ -18,6 +18,7 @@ import { deviceState, receiveDeviceMessage } from './deviceState.ts';
 import { noteScanFeed } from '../detect/feedLog.ts';
 import { indexOfRotation } from '../detect/parse.ts';
 import { hardwareTarget } from './encode.ts';
+import { awaitDeviceIdentity } from './deviceIdentity.ts';
 import { receiveScanCapture } from './robotBridge.ts';
 import { elapsedSec } from './robotSession.ts';
 import { initPrepStage } from './prepStage.ts';
@@ -58,7 +59,8 @@ let lastScanAttempt = '';
 
 export function robotClient(): PhysicalClient {
   if (singleton === null) {
-    singleton = new PhysicalClient('robot-01');
+    // 대상을 넘기지 않는다 — 붙은 장비가 자기 이름을 댄다 (260921 · `deviceIdentity.ts`).
+    singleton = new PhysicalClient();
     // **연결 상태는 만들 때 잇는다** (260910). 화면 부품이 구독하게 두면 그 부품이 안 떠
     // 있는 동안의 변화를 놓치고, 「붙었는데 세션은 모른다」가 된다 — 승인 순간에 그게
     // 나면 대본 타이머가 돌아 로봇보다 화면이 앞서 간다.
@@ -143,5 +145,14 @@ export function robotProbe() {
     connect: () => client.connect(),
     getStatus: () => client.getStatus(),
     ping: () => issuePing(client),
+    /**
+     * **누구와 말하고 있는가** (260921). 팝업은 장비 이름을 여기서만 받는다 — 주소로
+     * 짐작하지 않는다. 아직 아무 말도 못 들었으면 잠깐 기다렸다가 `null` 이다.
+     */
+    identity: () => awaitDeviceIdentity().then((found) => (found === null ? null : {
+      deviceId: found.deviceId,
+      kind: found.kind,
+      deviceType: found.deviceType,
+    })),
   };
 }

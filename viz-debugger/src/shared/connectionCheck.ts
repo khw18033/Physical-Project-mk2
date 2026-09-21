@@ -35,7 +35,21 @@ import { capabilityState } from '../capability/store.ts';
 export type PhysicalProbe = {
   connect(): Promise<{ state: string; reason?: string }>;
   getStatus(): { state: string; reason?: string };
-  ping(): Promise<{ ok: boolean; roundTripMs: number | null; message: string }>;
+  /**
+   * `ping` 왕복. `fcLink` 는 **드론이 답에 실어 주는 값**이고(계약 §5) Go1 은 안 싣는다 —
+   * 그래서 없을 수 있고, 없으면 모름이다. 0 으로 읽으면 「FC 가 끊겼다」는 없는 사실이 된다.
+   */
+  ping(): Promise<{
+    ok: boolean; roundTripMs: number | null; message: string;
+    fcLink?: boolean | null; fcLinkAgeSec?: number | null;
+  }>;
+  /**
+   * **붙은 장비가 누구인가.** 주소가 아니라 장비가 밝힌 것이다 — 이 판은 어디에 어떻게
+   * 붙는지 모르는 채로 「누구와 말하고 있는지」만 받아 적는다.
+   *
+   * 없을 수 있다(`undefined`) — 옛 목이 이 면을 안 갖고 있어도 확인은 돌아야 한다.
+   */
+  identity?(): Promise<{ deviceId: string; kind: string | null; deviceType: string | null } | null>;
 };
 
 async function timed<T>(run: () => Promise<T>): Promise<{ value: T; ms: number }> {
@@ -112,15 +126,67 @@ export async function checkPhysical(
     ];
   }
 
+  /**
+   * **누구와 말하는지 먼저 묻는다** (260921). `ping` 은 장비 id 로 주소를 만들어 나가므로,
+   * 장비가 자기를 밝히기 전에 쏘면 나갈 곳이 없다. 붙자마자 오는 retained `status` 가
+   * 보통 한 바퀴 안에 답을 준다.
+   */
+  const who = client.identity === undefined ? null : await client.identity();
+
   const { value: ping, ms } = await timed(() => client.ping());
   const agent = ping.ok
-    ? line('agent', 'check.line.agent', true, { roundTripMs: ping.roundTripMs ?? ms })
+    // **무엇과 말했는지 적는다.** 「단말 ✓ 12ms」만으로는 pi7 에 붙은 건지 pi3 에 붙은 건지
+    // 알 수 없다 — 주소를 바꿔 놓고 안 바뀐 줄 알았던 적이 실제로 있다.
+    ? line('agent', 'check.line.agent', true, { roundTripMs: ping.roundTripMs ?? ms, reason: deviceWords(who) })
     : line('agent', 'check.line.agent', false, { reason: ping.message });
+
+  /**
+   * **FC 링크를 답에 실어 준 장비면 거기서 끝난다.** 장비 상태를 기다리지 않는다 —
+   * 그 장비의 상태는 MQTT 가 아니라 백엔드 `/state` 로 오고, 여기서 6초를 기다려 봐야
+   * 영영 안 온다. 실제로 기다리면 확인 한 번에 6초가 그냥 날아간다.
+   */
+  const fcLink = fcLinkLine(agent, ping);
+  if (fcLink !== null) return [broker, agent, fcLink];
 
   // **붙은 뒤에 기다린다.** 붙기 전에 기다리면 구독이 없어 아무것도 안 오고, 그 시간만
   // 버린 채 「모른다」로 끝난다 — 실제로 그랬다.
   const robot = typeof robotSource === 'function' ? await waitForRobot(robotSource) : robotSource;
   return [broker, agent, robotLine(agent, robot)];
+}
+
+/** 장비 줄에 적을 말 — 종류와 이름. 장비가 안 밝혔으면 아무 말도 안 한다. */
+function deviceWords(who: { deviceId: string; kind: string | null } | null): string | null {
+  if (who === null) return null;
+  return who.kind === null ? who.deviceId : `${who.kind} ${who.deviceId}`;
+}
+
+/**
+ * **셋째 줄 — FC 링크** (260921 · 드론 계약 §5).
+ *
+ * 줄을 넷으로 늘리지 않는다. 셋째 줄은 원래부터 「단말 너머의 그 장비 자신이 붙어 있는가」
+ * 였고(Go1 은 `status.link`), 드론에서 그 자리에 해당하는 것이 FC 링크다. 같은 물음이라
+ * 같은 줄에 두고 **이름만 장비에 맞춘다.**
+ *
+ * **기종으로 가르지 않는다.** `fc_link` 를 실어 보낸 장비면 이 줄이고, 안 실었으면 옛
+ * 로봇 줄이다 — 판정 근거가 주소도 기종 목록도 아니라 장비가 보낸 키 하나다.
+ *
+ * 링크가 없으면 빨갛다. 「라즈베리파이는 켜졌는데 FC 와 안 붙었다」가 정확히 이 모양이고,
+ * 무대 전에 이것만 빨간 것을 봐야 한다.
+ */
+function fcLinkLine(
+  agent: HealthLine,
+  ping: { fcLink?: boolean | null; fcLinkAgeSec?: number | null },
+): HealthLine | null {
+  const fcLink = ping.fcLink ?? null;
+  if (fcLink === null) return null;
+  // 단말이 안 답했으면 그 답에 실려 온 값도 없다 — 앞 줄이 이미 그 사실을 말한다.
+  if (agent.ok !== true) return line('robot', 'check.line.fcLink', null, { reason: t('check.reason.agentSilent') });
+  const age = ping.fcLinkAgeSec ?? null;
+  // 나이는 **있을 때만** 덧붙인다. 한 번도 못 받았으면 키가 없고, 0 으로 적으면 방금 받은 것이 된다.
+  const suffix = age === null ? null : t('check.fcLink.age', { sec: age.toFixed(1) });
+  return fcLink
+    ? line('robot', 'check.line.fcLink', true, { reason: suffix })
+    : line('robot', 'check.line.fcLink', false, { reason: t('check.fcLink.down') });
 }
 
 /**
