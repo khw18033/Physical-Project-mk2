@@ -951,3 +951,22 @@ button.robot-resume{padding:6px 12px;border:1px solid #2f9e5f;border-radius:6px;
 @media (min-width: 1700px){
   .milestone-layout{grid-template-columns:400px minmax(430px,1fr) 470px}
 }
+
+/* 레지스트리 밖 개체 (260921 — 관문 C-a). 값은 왔는데 목록에 없는 것들.
+   **판정을 그리지 않는다** — 적는 것은 우리가 실제로 아는 넷뿐이다. */
+.stray{margin:18px 0 0;padding:16px 18px;border:1px dashed #c8a94f;border-radius:10px;background:#fffdf5}
+.stray__title{display:flex;align-items:baseline;gap:9px;margin:0 0 6px;font-size:15px;color:#6b5410}
+.stray__count{padding:1px 7px;border-radius:8px;background:#f3e6bc;color:#6b5410;font-size:11px;font-weight:600}
+.stray__sub{margin:0 0 12px;color:#6d6a5a;font-size:12px;line-height:1.55}
+.card--stray{border-color:#dcc98a;background:#fff}
+.card__badge--stray{background:#f3e6bc;color:#6b5410}
+.card__line{margin:4px 0;font-size:12px}
+.card__line--dim{color:#6b7684;word-break:break-all;font-family:monospace;font-size:11px}
+.card__slots{display:grid;gap:3px;margin:8px 0 0}
+.card__slots>div{display:grid;grid-template-columns:110px 1fr;gap:8px;align-items:baseline;font-size:11.5px}
+.card__slots dt code{font-weight:700}
+.card__slots dd{margin:0;display:flex;gap:8px;align-items:baseline;color:#4a5666}
+.card__slots small{color:#8a94a1;font-variant-numeric:tabular-nums}
+.card__raw{margin-top:8px;font-size:11.5px}
+.card__raw summary{cursor:pointer;color:#1768c5}
+.card__raw pre{margin:6px 0 0;padding:8px;max-height:220px;overflow:auto;border:1px solid #e1e5eb;border-radius:6px;background:#f7f9fc;font-size:11px;line-height:1.5;white-space:pre-wrap;word-break:break-all}

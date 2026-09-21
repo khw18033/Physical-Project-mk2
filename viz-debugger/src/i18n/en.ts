@@ -1115,6 +1115,16 @@ export const en: Record<string, string> = {
   'dg.9': 'All',
   'dg.10': 'Not in this script — a placeholder even during playback',
   'dg.11': 'Nothing to show. The registry was not received, or the zone is empty.',
+
+  // 레지스트리 밖 개체 (260921 — 관문 C-a)
+  'dg.stray.title': 'Entities not in the registry',
+  'dg.stray.count': '{n}',
+  'dg.stray.sub': 'Values arrived for these, but they are not in the registry listing — either a configuration-change notice was missed, or they have not been registered yet. This is a debugging tool, so what arrived is shown as-is. No status is inferred.',
+  'dg.stray.badge': 'unregistered',
+  'dg.stray.envelopes': '{n} envelope(s) received',
+  'dg.stray.noChannel': 'No channel has delivered a value',
+  'dg.stray.payload': 'raw state payload',
+  'dg.stray.unreadable': '(unreadable value)',
   'dg.12': 'Scenario playback',
   'dg.13': 'Contract check',
   'dg.14': 'querying',

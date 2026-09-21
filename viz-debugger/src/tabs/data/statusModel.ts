@@ -45,6 +45,19 @@ export function deriveDisplayStatus(layers: StateLayers | null): DisplayStatus {
   // 상태 봉투를 아직 한 번도 못 받았다면 판단할 근거가 없다.
   if (layers === null) return 'unknown';
 
+  /**
+   * **3층 모양이 아닌 payload 는 「알 수 없음」이다** (260921).
+   *
+   * 아래 첫 줄이 `deployment !== 'deployed'` 라, 그 칸이 아예 **없는** payload 가 오면
+   * `undefined !== 'deployed'` 로 참이 되어 **「미배포」로 단정**된다. 미배포는 「배포된 적이
+   * 없다」는 사실 주장인데, 우리가 아는 것은 「모양을 모른다」뿐이다.
+   *
+   * 실제로 온다 — 백엔드 `/state` 와이어 어댑터가 실측대비용이라 **원래 메시지를 통째로**
+   * payload 에 넣고, 가용성 판정은 Phase 5 라 `availability`·`deployment` 가 없다.
+   * 없는 상태를 지어내느니 판단 불가로 둔다.
+   */
+  if (layers.deployment !== 'deployed' && layers.deployment !== 'not_deployed') return 'unknown';
+
   if (layers.deployment !== 'deployed') return 'not_deployed';
   if (layers.availability === 'offline') return 'fault';
   if (layers.availability === 'stale') return 'unknown';

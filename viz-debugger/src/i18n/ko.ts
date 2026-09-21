@@ -1127,6 +1127,16 @@ export const ko: Record<string, string> = {
   'dg.9': '전체',
   'dg.10': '이 대본에 없는 장비 — 대본 중에도 자리표시',
   'dg.11': '표시할 대상이 없다. 레지스트리를 받지 못했거나 구역이 비어 있다.',
+
+  // 레지스트리 밖 개체 (260921 — 관문 C-a)
+  'dg.stray.title': '레지스트리에 없는 개체',
+  'dg.stray.count': '{n}개',
+  'dg.stray.sub': '값은 도착했는데 레지스트리 목록에 없는 개체입니다. 구성 변경 통지를 놓쳤거나, 아직 레지스트리에 안 올라간 개체입니다 — 디버깅 도구라 받은 것을 그대로 적습니다. 상태 판정은 하지 않습니다.',
+  'dg.stray.badge': '레지스트리 밖',
+  'dg.stray.envelopes': '받은 봉투 {n}건',
+  'dg.stray.noChannel': '값이 들어온 채널이 없습니다',
+  'dg.stray.payload': 'state payload 원문',
+  'dg.stray.unreadable': '(읽을 수 없는 값)',
   'dg.12': '시나리오 재생',
   'dg.13': '계약 확인',
   'dg.14': '조회 중',

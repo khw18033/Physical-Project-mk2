@@ -30,6 +30,7 @@ import { PendingSource } from '../../shared/PendingSource.tsx';
 import { useZoneId } from '../../shared/registry.ts';
 import { useScenarioCast } from '../../shared/renderMode.ts';
 import { DeviceCard } from './DeviceCard.tsx';
+import { UnregisteredCard } from './UnregisteredCard.tsx';
 import { Explain } from '../../shared/Explain.tsx';
 
 const STATUS_ORDER: DisplayStatus[] = ['normal', 'fault', 'unknown', 'not_deployed'];
@@ -67,6 +68,20 @@ export function DeviceGrid() {
   // 미배포처럼 값이 한 번도 안 온 대상도 목록에 있으므로 카드가 나온다.
   const records = [...entities.values()]
     .filter((r) => r.registry?.zone === ZONE_ID)
+    .sort((a, b) => a.id.localeCompare(b.id));
+
+  /**
+   * **값은 왔는데 레지스트리에 없는 개체** (260921 · 관문 C-a).
+   *
+   * 위 `records` 는 레지스트리 구역으로 거르므로 이들이 통째로 빠진다 — 저장소는 받아
+   * 두는데(`DataStore.apply`) 화면에만 없는 상태다. 디버깅 도구라 **보여줄 수 있는 값은
+   * 다 보여준다**: 봉투가 한 건이라도 온 것만 모아 따로 구획으로 그린다.
+   *
+   * `envelopeCount > 0` 으로 거르는 이유는, 레지스트리가 아직 안 왔을 때 만들어진 빈
+   * 기록이 섞이면 「값이 왔다」는 이 구획의 뜻이 흐려지기 때문이다.
+   */
+  const strays = [...entities.values()]
+    .filter((r) => r.registry === null && r.envelopeCount > 0)
     .sort((a, b) => a.id.localeCompare(b.id));
 
   return (
@@ -142,6 +157,21 @@ export function DeviceGrid() {
             {records.length === 0 && <p className="notice">{t('dg.11')}</p>}
           </section>
         </PendingSource>
+      )}
+
+      {/* 레지스트리 밖 개체. **비어 있으면 아예 안 그린다** — 평소에는 없는 것이 정상이고,
+          빈 구획이 늘 떠 있으면 진짜로 하나 생겼을 때 눈에 안 들어온다. */}
+      {strays.length > 0 && (
+        <section className="stray">
+          <h2 className="stray__title">
+            {t('dg.stray.title')}
+            <span className="stray__count">{t('dg.stray.count', { n: strays.length })}</span>
+          </h2>
+          <Explain id="grid-stray" className="stray__sub">{t('dg.stray.sub')}</Explain>
+          <div className="grid">
+            {strays.map((r) => <UnregisteredCard key={r.id} record={r} />)}
+          </div>
+        </section>
       )}
 
       <MappingTable records={records} />
