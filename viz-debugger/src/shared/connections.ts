@@ -38,7 +38,7 @@
 
 import { useSyncExternalStore } from 'react';
 
-export type ConnectionTargetId = 'gateway' | 'stt' | 'generate' | 'physical' | 'detect' | 'autodrive' | 'autodrive-ai' | 'capability' | 'control-node' | 'digital-twin';
+export type ConnectionTargetId = 'gateway' | 'media' | 'stt' | 'generate' | 'physical' | 'detect' | 'autodrive' | 'autodrive-ai' | 'capability' | 'control-node' | 'digital-twin';
 
 /**
  * ## 260918 — 여기 담는 것은 **글자가 아니라 사전 키**다
@@ -159,6 +159,29 @@ export const CONNECTION_TARGETS: readonly ConnectionTarget[] = [
        * 그래서 **주소와 한 묶음**으로 둔다. 주소를 바꾸는 사람이 구역도 같이 바꾼다.
        */
       { key: 'zone', labelKey: 'conn.field.zone', fallback: 'zone-503' },
+    ],
+  },
+  {
+    /**
+     * 260921 — **영상 소켓**(`/media`). 게이트웨이 바로 아래에 두는 이유는 실제로
+     * **두 번째 소켓**이기 때문이다. 백엔드에서는 주소·포트가 같고 경로만 다르지만,
+     * 목 게이트웨이(8790)를 그대로 두고 이것만 실측 서버로 붙이는 판이 있으므로 칸을 가른다.
+     *
+     * **주소를 여기 적지 않는다** — tailnet 값이라 커밋할 수 없고, 애초에 방화벽에
+     * 우리 기기가 등록된 뒤에야 받는다. 기본값은 `src/media/MediaClient.ts` 가 심는다.
+     *
+     * 칸이 셋인 이유: 토큰을 주소에 섞어 한 칸으로 받으면 **카메라를 바꿀 때마다 토큰을
+     * 다시 붙여 넣어야** 하고, 그러다 토큰이 화면 밖 어딘가에 복사되어 남는다.
+     * 카메라 키는 레지스트리가 생기기 전까지 화면에서 직접 넣는다(Phase 5/6).
+     */
+    id: 'media',
+    labelKey: 'conn.target.media',
+    whatKey: 'conn.target.media.what',
+    live: true,
+    fields: [
+      { key: 'ws', labelKey: 'conn.field.ws', fallback: '' },
+      { key: 'source', labelKey: 'conn.field.source', fallback: '' },
+      { key: 'token', labelKey: 'conn.field.token', fallback: '' },
     ],
   },
   {

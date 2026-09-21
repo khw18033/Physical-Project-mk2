@@ -167,6 +167,17 @@ export class WsTransport implements Transport {
     });
   }
 
+  /**
+   * 읽지 못해 버린 메시지 수. **바이너리는 여기로 오지 않는다** — 영상은 별도 소켓
+   * (`src/media/`)이고, 이 수는 「게이트웨이가 JSON 이 아닌 것을 보냈다」는 뜻이다.
+   */
+  private dropped = 0;
+
+  /** 버린 수. 화면·검사가 읽는다. */
+  droppedMessages(): number {
+    return this.dropped;
+  }
+
   private send(msg: unknown): void {
     if (this.ws?.readyState === WebSocket.OPEN) this.ws.send(JSON.stringify(msg));
   }
@@ -178,6 +189,17 @@ export class WsTransport implements Transport {
     try {
       msg = JSON.parse(String(ev.data)) as Record<string, unknown>;
     } catch {
+      /**
+       * **버린 것을 센다** (260921 · 백엔드 요청).
+       *
+       * 전에는 그냥 `return` 이었다. 그러면 게이트웨이가 형식을 어겼을 때 화면에
+       * **아무 신호가 없다** — 「연결됨인데 값이 안 옴」이 되고, 그 상태에서는 주소가
+       * 틀린 것인지·서버가 이상한 것인지·우리가 못 읽는 것인지 구분할 수가 없다.
+       *
+       * 세는 것으로 끝낸다. 여기서 던지면 소켓 한 건이 앱을 멈추고, 로그를 찍으면
+       * 깨진 서버에 붙었을 때 콘솔이 초당 수십 줄로 덮인다.
+       */
+      this.dropped += 1;
       return;
     }
 

@@ -34,6 +34,7 @@ import { robotFacts } from '../physical/robotFacts.ts';
 import { navProbe } from '../physical/NavClient.ts';
 import { setTestMode, useDetect } from '../detect/store.ts';
 import { CAPABILITY_PRESETS, capabilityPresetReady } from '../capability/presets.ts';
+import { MEDIA_PRESETS, mediaPresetReady } from '../media/presets.ts';
 import { setCapabilityTestMode, useCapability } from '../capability/store.ts';
 import { useDeviceStates } from '../physical/deviceState.ts';
 import { CHECKED_TARGETS, useConnectionHealth, type TargetHealth } from '../shared/connectionHealth.ts';
@@ -62,6 +63,8 @@ const ADDRESS_PRESETS: Partial<Record<ConnectionTargetId, { presets: readonly Ad
   detect: { presets: DETECT_PRESETS, ready: detectPresetReady },
   // 260920 — 기능 상태. 실제 배치(k3s)의 주소는 아직 비어 있어 고를 수 없다.
   capability: { presets: CAPABILITY_PRESETS, ready: capabilityPresetReady },
+  // 260921 — 영상 소켓. 서버 주소가 tailnet 값이라 아직 비어 있어 고를 수 없다.
+  media: { presets: MEDIA_PRESETS, ready: mediaPresetReady },
 };
 
 /**

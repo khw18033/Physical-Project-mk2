@@ -38,6 +38,7 @@ import { useRobotUplink } from './physical/robotBridge.ts';
 import { useDetectUplink } from './detect/useDetect.tsx';
 import { HardwareLink } from './physical/HardwareLink.tsx';
 import { CapabilityPanel } from './capability/views/CapabilityPanel.tsx';
+import { MediaPanel } from './media/views/MediaPanel.tsx';
 import { robotClient } from './physical/robotClient.ts';
 import { framesUpTo } from './viewpoint/store.ts';
 import { startMissionRecorder } from './record/recorder.ts';
@@ -151,6 +152,9 @@ function Milestones({ view, phase, milestoneStatuses, assignments, onAssign, onO
       : cast.map((id) => <article key={id} draggable onDragStart={(event) => event.dataTransfer.setData('text/plain', id)} onDoubleClick={() => setStatusDeviceId(id)}><b>{id}</b><small>{t('ms.scriptDevice')}</small><HardwareLink entityId={id} /></article>)}</aside>
     {/* 기능 상태 (260920). 하드웨어와 **완전히 다른 판**이고 자기 스크롤을 갖는다. */}
     <CapabilityPanel />
+    {/* 영상 수신 (260921 · 관문 B). 기능 판과 **또 다른 축**이다 — 저쪽은 「무엇이
+        가능한가」(계산)이고 이쪽은 「지금 바이트가 흐르는가」(실측)다. */}
+    <MediaPanel />
     </div>
     {/* 대상 상태 (260904). 목록의 **형제**로 얹힌다 — 뒤의 마일스톤·하드웨어 목록은
         언마운트되지 않으므로 닫으면 정확히 같은 자리다 (VZ-N-05 와 같은 규칙). */}

@@ -83,7 +83,11 @@ if (outside.length) {
 {
   const source = readFileSync(join(srcDir, 'shared', 'connections.ts'), 'utf8');
   if (!/id:\s*'generate'/.test(source)) failures.push("CONNECTION_TARGETS 에 'generate' 가 없다 — 화면에서 주소를 바꿀 수 없다 (VZ-C-07)");
-  if (!/'gateway'\s*\|\s*'stt'\s*\|\s*'generate'/.test(source)) failures.push("ConnectionTargetId 에 'generate' 가 없다");
+  // **순서를 고정하지 않는다** (260921). 전에는 `'gateway' | 'stt' | 'generate'` 를 그대로
+  // 찾았는데, 그러면 union 에 대상을 하나 더 끼워 넣기만 해도 이 검사가 깨진다 —
+  // 묻는 것은 「generate 가 목록에 있는가」이지 「이웃이 누구인가」가 아니다.
+  const union = /export type ConnectionTargetId\s*=([^;]+);/.exec(source)?.[1] ?? '';
+  if (!/(^|\|)\s*'generate'\s*($|\|)/.test(union)) failures.push("ConnectionTargetId 에 'generate' 가 없다");
   // **기본값은 연결 저장소가 아니라 src/generate/ 가 심는다** — 그래야 면이 하나로 남는다.
   const client = readFileSync(join(srcDir, 'generate', 'LlmClient.ts'), 'utf8');
   if (!/registerConnectionDefault\('generate',\s*'base'/.test(client)) {
