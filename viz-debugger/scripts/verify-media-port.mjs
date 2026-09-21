@@ -188,6 +188,12 @@ const outside = SOURCES.filter((rel) => !rel.startsWith('src/media/') && !rel.st
   if (!/media\.cameraUnmapped/.test(section)) {
     failures.push('장비-카메라 대응표가 없다는 사실을 화면이 안 적는다 — 아무 장비에서나 같은 카메라가 뜬다');
   }
+  // **열면 붙는다** — 백엔드 표현으로 「패널 열 때 붙으면 온디맨드」다. `/media` 는 붙는 것이
+  // 켜기라 칸이 뜨는 것과 소켓이 붙는 것이 같은 일이고, 한 번 더 누르게 하면 관문 B 에서
+  // 「왜 안 나오지」의 첫 원인이 그 버튼이 된다.
+  if (!/const \[on, setOn\] = useState\(true\);/.test(section)) {
+    failures.push('오버레이를 열어도 안 붙는다 — /media 는 붙는 것이 켜기다(온디맨드)');
+  }
 }
 
 // ── 7. 한글·영어 두 벌 ───────────────────────────────────────────────────────
@@ -239,7 +245,7 @@ console.log('✅ 사유 — 짧음·길이초과·JSON아님·필수칸없음이
 console.log('✅ 세션 — 순번 역전·소스 변경만 새 세션이고, 정상 증가는 아니다');
 console.log('✅ 끊김 — 4400·4401·4404 는 재시도하지 않고, 평범한 끊김은 되붙는다');
 console.log('✅ 수신 — binaryType 이 arraybuffer 이고 문자열/바이너리가 갈리며, 전송 계층도 버린 수를 센다');
-console.log('✅ 자리 — 대상 상태 오버레이 안의 한 칸이고 마일스톤 화면에는 상설로 없다');
+console.log('✅ 자리 — 대상 상태 오버레이 안의 한 칸 · 마일스톤에는 상설로 없음 · 열면 붙는다(온디맨드)');
 console.log('✅ 두 벌 — 화면이 쓰는 키가 ko·en 양쪽에 다 있고 경계 안에 박힌 표시용 한글 0건');
 console.log(`✅ 대조군 ${controls.length}건 전부 검출 — ${controls.join(' · ')}`);
 process.exit(0);

@@ -84,13 +84,26 @@ export function MediaSection({ deviceId }: { deviceId: string }) {
   const connections = useConnections();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [stats, setStats] = useState<DecodeStats>(EMPTY_DECODE_STATS);
-  const [on, setOn] = useState(false);
+  /**
+   * **열면 붙는다** (260921 — 백엔드 표현: *"패널 열 때 붙으면 온디맨드"*).
+   *
+   * `/media` 는 **붙는 것이 켜기**이고 제어 메시지가 없다. 그래서 이 칸이 뜨는 것과
+   * 소켓이 붙는 것이 같은 일이고, 오버레이를 닫으면 언마운트되면서 끊긴다 — 그것이 끄기다.
+   * 서버는 상시인지 온디맨드인지 구분하지 않는다(Phase 4 결정 4-b).
+   *
+   * 버튼은 **끄는 길**로 남긴다. 주소가 틀렸을 때 재시도가 도는 것을 멈출 자리가 필요하고,
+   * 그건 오버레이를 닫는 것 말고 다른 길이어야 한다.
+   */
+  const [on, setOn] = useState(true);
 
   const base = mediaBaseUrl();
   const source = mediaSourceId();
+  const ready = base !== '' && source !== '';
 
   useEffect(() => {
-    if (!on) return undefined;
+    // 주소가 없으면 붙지 않는다 — 빈 주소로 소켓을 열면 사유가 「소켓 오류」로만 남아
+    // 「주소를 안 넣었다」가 안 보인다.
+    if (!on || !ready) return undefined;
 
     const decoder = createDecoder();
     // **판정을 한 자리에서 한다.** 순번 역전은 `parse.isNewSession` 만 본다.
@@ -138,11 +151,10 @@ export function MediaSection({ deviceId }: { deviceId: string }) {
       resetMedia();
     };
     // 주소 묶음이 바뀌면 붙던 것을 끊고 새로 붙는다.
-  }, [on, connections]);
+  }, [on, ready, connections]);
 
   const header = media.lastHeader;
   const parseFailed = Object.values(media.parseErrors).reduce((a, b) => a + b, 0);
-  const ready = base !== '' && source !== '';
 
   return <section className="media-section">
     <header className="media-section__head">
@@ -210,7 +222,7 @@ export function MediaSection({ deviceId }: { deviceId: string }) {
     <footer className="media-section__foot">
       <span>{ready ? t('media.source', { base, source }) : t('media.noAddressShort')}</span>
       <button type="button" disabled={!ready} onClick={() => setOn(!on)}>
-        {on ? t('media.stop') : t('media.start')}
+          {on ? t('media.stop') : t('media.start')}
       </button>
     </footer>
   </section>;
