@@ -33,6 +33,11 @@ export type VisionObject = {
 };
 
 export type VideoFrame = {
+  /**
+   * 어느 카메라의 프레임인가. **옛 계약(목 게이트웨이)에는 없다** — 그 세계는 카메라가
+   * 하나라 구분할 것이 없었다. 없으면 `undefined` 이고 지어 채우지 않는다.
+   */
+  source_id?: string;
   frame_seq: number;
   captured_at: string;
   fps: number;
@@ -55,7 +60,14 @@ export type BboxSpace = {
  *   시뮬레이션인가"이고 이쪽은 "어느 급의 인지인가"다.
  */
 export type DetectionOrigin = {
-  tier: 'device' | 'edge';
+  /**
+   * 어디서 낸 결과인가. **셋이 실제 배치와 1:1 이다** (260921 · 백엔드 요청) —
+   * `device`=로봇 온디바이스 · `edge`=엣지 노트북 · `server`=서버 비전.
+   *
+   * `server` 가 없으면 서버가 낸 탐지를 `pushDetection` 이 **통째로 드롭**한다.
+   * 나중에 넣으면 타입·Map 키·순회 세 곳을 다시 고쳐야 하므로 지금 넣는다.
+   */
+  tier: 'device' | 'edge' | 'server';
   kind: 'safety_minimal' | 'precise';
   label: string;
   /** 선택 기능인가 (AI-E-04). 없는 배치가 있을 수 있다는 뜻이다. */
@@ -80,8 +92,52 @@ export type Detection = {
   link: DetectionLink | null;
 };
 
+/**
+ * 탐지가 가리키는 프레임. **객체다 — 정수 하나가 아니다**
+ * (`frame-reference.schema.json`, 260921).
+ *
+ * 옛 계약(목 게이트웨이)은 정수 하나를 보낸다. 그때 `sourceId`·`captureTimestamp` 는
+ * **모르는 것**이므로 `null` 이다 — 지어 채우지 않는다. 입구에서 `toFrameRef` 하나로 모은다.
+ */
+export type DetectionFrameRef = {
+  /** 어느 카메라의 프레임인가. 옛 계약에서는 모른다. */
+  sourceId: string | null;
+  /** 엣지가 프레임 경계를 확정한 시각. 촬영 시각이 아니다. 옛 계약에서는 모른다. */
+  captureTimestamp: string | null;
+  sequenceId: number;
+};
+
+/**
+ * 받은 값을 프레임 참조로. **정수와 객체를 둘 다 받는다.**
+ *
+ * 모양이 아니면 `null` 이고, 그때 그 탐지는 **정합 대상이 아니다** — 가리키는 프레임을
+ * 모르는 채로 「정합했다」고 그리면 그 화면이 거짓이 된다.
+ */
+export function toFrameRef(raw: unknown): DetectionFrameRef | null {
+  if (typeof raw === 'number' && Number.isFinite(raw)) {
+    return { sourceId: null, captureTimestamp: null, sequenceId: raw };
+  }
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return null;
+  const obj = raw as Record<string, unknown>;
+  const seq = obj.sequence_id;
+  if (typeof seq !== 'number' || !Number.isFinite(seq)) return null;
+  const str = (v: unknown): string | null => (typeof v === 'string' && v !== '' ? v : null);
+  return { sourceId: str(obj.source_id), captureTimestamp: str(obj.capture_timestamp), sequenceId: seq };
+}
+
 export type DetectionResult = {
-  frame_ref: number;
+  frame_ref: DetectionFrameRef;
+  /**
+   * 정합 규칙 (260921 · Phase 4 결정 3). **없으면 `null`** — 옛 계약이다.
+   *
+   *   `'frame'`  프레임 정합. `frame_ref` 가 가리키는 프레임과 견준다
+   *   그 밖의 값  **정합하지 않는다.** 최신 프레임 위에 참고 표시로만 그린다
+   *   `null`     옛 계약 — 사용자의 정합 토글이 정한다(목 게이트웨이의 시연이 그것이다)
+   *
+   * 부재를 unaligned 로 단정하지 않는 이유: 그러면 목 게이트웨이의 정합 시연이 통째로
+   * 죽는다. 그 시연은 옛 계약이고, 새 계약이 오면 이 칸이 실려 온다.
+   */
+  alignment: string | null;
   emitted_at: string;
   inference_delay_ms: number;
   origin: DetectionOrigin;
@@ -174,6 +230,17 @@ export type OriginReport = {
    * 재접속 직후나 추론 지연이 버퍼 길이를 넘길 때 일어난다.
    */
   referenceMissing: boolean;
+  /**
+   * 이 결과를 **프레임에 정합했는가** (260921).
+   *
+   * 사용자 토글과 다르다 — 토글은 「정합해 보고 싶다」이고 이 값은 「실제로 했다」다.
+   * 발신자가 `alignment` 로 정합 대상이 아니라고 말하면 토글이 켜져 있어도 `false` 다
+   * (Phase 4 결정 3 fail-safe). 화면이 그 사실을 적을 근거가 없으면, 정합 안 된 박스가
+   * **정합된 것처럼** 보인다.
+   */
+  aligned: boolean;
+  /** 발신자가 선언한 정합 규칙. `null` 이면 옛 계약(선언 없음)이다. */
+  declaredAlignment: string | null;
 };
 
 export type AlignmentReport = {
@@ -198,6 +265,47 @@ export type AlignmentReport = {
 };
 
 /**
+ * **받은 것을 우리 모양으로.** 입구가 여기 하나다.
+ *
+ * 전에는 `envelope.payload as DetectionResult` 로 통째로 단언했다. 그러면 타입 검사는
+ * 통과하고 **런타임에 조용히 어긋난다** — 목 게이트웨이가 보내는 `frame_ref` 는 정수이고
+ * 백엔드 규격은 객체라, 단언만 두면 `frame_ref.sequenceId` 가 `undefined` 가 된다.
+ *
+ * 가리키는 프레임을 모르면 `null` 을 돌려준다. 그 탐지는 **버린다** — 모르는 채로
+ * 「정합했다」고 그리는 것보다 안 그리는 쪽이 낫다.
+ */
+export function normalizeDetection(raw: unknown): DetectionResult | null {
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return null;
+  const obj = raw as Record<string, unknown>;
+  const ref = toFrameRef(obj.frame_ref);
+  if (ref === null) return null;
+  return {
+    ...(obj as unknown as DetectionResult),
+    frame_ref: ref,
+    // 없으면 **옛 계약**이다. `null` 과 「모르는 값」을 가른다 — 뜻이 다르다.
+    alignment: typeof obj.alignment === 'string' ? obj.alignment : null,
+  };
+}
+
+/**
+ * 받는 출처 셋. **실제 배치와 1:1 이다** — 여기 없는 tier 의 결과는 버린다
+ * (조용히 device 로 취급하면 거친 결과가 정밀 결과처럼 보인다).
+ */
+export const DETECTION_TIERS = ['device', 'edge', 'server'] as const;
+
+/**
+ * 새 세션인가 — **순번이 줄었나.**
+ *
+ * 소스가 바뀐 것도 새 세션으로 본다. 다른 카메라의 순번과 견줄 이유가 없다.
+ * 한쪽이라도 소스를 모르면(옛 계약) 순번만 본다.
+ */
+export function isNewFrameSession(prev: VideoFrame, next: VideoFrame): boolean {
+  if (prev.source_id !== undefined && next.source_id !== undefined
+    && prev.source_id !== next.source_id) return true;
+  return next.frame_seq < prev.frame_seq;
+}
+
+/**
  * 프레임 버퍼.
  *
  * 지나간 프레임을 들고 있어야 `frame_ref`가 가리키는 프레임을 되찾을 수 있다.
@@ -209,7 +317,16 @@ export class FrameBuffer {
   private readonly detections = new Map<DetectionOrigin['tier'], DetectionResult>();
   private readonly receivedAt = new Map<DetectionOrigin['tier'], number>();
 
+  /**
+   * 프레임 한 장. **순번이 줄면 새 세션이다** (260921).
+   *
+   * 엣지가 다시 붙으면 `sequence_id` 가 0부터 시작하는데 헤더에 세션 식별자가 없다 —
+   * 역전으로만 안다. 안 비우면 옛 세션의 프레임이 버퍼에 남아 `frameAt` 이 **다른 세션의
+   * 같은 번호**를 돌려주고, 그때 지연 계산이 음수·거대값이 된다.
+   */
   pushFrame(frame: VideoFrame): void {
+    const last = this.frames[this.frames.length - 1];
+    if (last !== undefined && isNewFrameSession(last, frame)) this.clear();
     this.frames.push(frame);
     if (this.frames.length > FRAME_BUFFER_SIZE) this.frames.shift();
   }
@@ -218,7 +335,7 @@ export class FrameBuffer {
     // 출처 표기가 없는 결과는 옛 계약이거나 표기를 빼먹은 발신자다.
     // 조용히 device로 취급하면 거친 결과가 정밀 결과처럼 보이므로, 판단 불가로 둔다.
     const tier = result.origin?.tier;
-    if (tier !== 'device' && tier !== 'edge') return;
+    if (tier === undefined || !(DETECTION_TIERS as readonly string[]).includes(tier)) return;
     this.detections.set(tier, result);
     this.receivedAt.set(tier, Date.now());
   }
@@ -237,8 +354,19 @@ export class FrameBuffer {
     return at !== undefined && Date.now() - at <= withinMs;
   }
 
-  frameAt(seq: number): VideoFrame | null {
-    return this.frames.find((f) => f.frame_seq === seq) ?? null;
+  /**
+   * 그 참조가 가리키는 프레임. **키는 `(source_id, sequence_id)` 쌍**이다.
+   *
+   * 다만 옛 계약의 프레임에는 `source_id` 가 없다. 그때는 **순번만으로** 짚는다 —
+   * 그 세계는 카메라가 하나라 구분할 것이 없었다. 양쪽 다 소스를 알 때만 대조한다.
+   * 한쪽만 알 때 억지로 안 맞다고 하면 목 게이트웨이의 정합 시연이 통째로 죽는다.
+   */
+  frameAt(ref: DetectionFrameRef): VideoFrame | null {
+    return this.frames.find((f) => {
+      if (f.frame_seq !== ref.sequenceId) return false;
+      if (f.source_id === undefined || ref.sourceId === null) return true;
+      return f.source_id === ref.sourceId;
+    }) ?? null;
   }
 
   get bufferedCount(): number {
@@ -278,11 +406,20 @@ function resolveOrigin(
   const scaleY = space.format === 'normalized' ? display.height : display.height / space.reference.height;
 
   // 정합 on이면 결과가 가리키는 프레임을, off면 지금 그리는 프레임을 기준으로 삼는다.
-  const referenced = aligned ? buffer.frameAt(detection.frame_ref) : null;
+  /**
+   * **정합 규칙은 발신자가 정한다** (Phase 4 결정 3). 사용자 토글은 옛 계약에서만 정한다.
+   *
+   *   `alignment === 'frame'`  프레임 정합
+   *   그 밖의 값이 실려 옴      정합하지 않는다 — 최신 프레임 위에 참고 표시
+   *   `null`(부재)             옛 계약 — 토글이 정한다
+   */
+  const declared = detection.alignment;
+  const wantAligned = declared === null ? aligned : declared === 'frame';
+  const referenced = wantAligned ? buffer.frameAt(detection.frame_ref) : null;
   const referenceFrame = referenced ?? displayFrame;
   // 정합을 켰는데 참조 프레임이 없으면 **정합한 것이 아니다.** 조용히 현재 프레임으로
   // 떨어지면 그 값이 정합 결과로 읽힌다.
-  const referenceMissing = aligned && referenced === null;
+  const referenceMissing = wantAligned && referenced === null;
   const objScaleX = display.width / referenceFrame.reference.width;
   const objScaleY = display.height / referenceFrame.reference.height;
 
@@ -333,8 +470,10 @@ function resolveOrigin(
 
   return {
     origin: detection.origin,
-    detectionFrame: detection.frame_ref,
-    frameLag: displayFrame.frame_seq - detection.frame_ref,
+    aligned: wantAligned && referenced !== null,
+    declaredAlignment: declared,
+    detectionFrame: detection.frame_ref.sequenceId,
+    frameLag: displayFrame.frame_seq - detection.frame_ref.sequenceId,
     inferenceDelayMs: detection.inference_delay_ms,
     bboxFormat: space.format,
     scale: { x: scaleX, y: scaleY },
@@ -387,7 +526,7 @@ export function resolveAlignment(
 
   const origins: OriginReport[] = [];
   // 표시 순서를 고정한다 — 온디바이스가 먼저다. 안전 판단이 목록 아래로 밀리면 안 된다.
-  for (const tier of ['device', 'edge'] as const) {
+  for (const tier of DETECTION_TIERS) {
     const detection = buffer.detectionOf(tier);
     if (detection === null) continue;
     if (!buffer.isFresh(tier, EDGE_SILENCE_MS)) continue;
@@ -441,7 +580,11 @@ export function subscribeVision(entity: string, buffer: FrameBuffer): () => void
     { entity, node: '*', channel: '*' },
     (envelope) => {
       if (envelope.channel === 'video_frame') buffer.pushFrame(envelope.payload as VideoFrame);
-      else if (envelope.channel === 'detections') buffer.pushDetection(envelope.payload as DetectionResult);
+      else if (envelope.channel === 'detections') {
+        // **단언하지 않는다.** 정수 `frame_ref`(옛 계약)와 객체(백엔드 규격)를 여기서 모은다.
+        const detection = normalizeDetection(envelope.payload);
+        if (detection !== null) buffer.pushDetection(detection);
+      }
     },
     'all',
   );

@@ -62,6 +62,7 @@
     "verify:scenario-mode": "node scripts/verify-scenario-mode.mjs",
     "verify:node-scope": "node scripts/verify-node-scope.mjs",
     "verify:canvas-persist": "node scripts/verify-canvas-persist.mjs",
+    "verify:frame-ref": "node scripts/verify-frame-ref.mjs",
     "verify:media-port": "node scripts/verify-media-port.mjs",
     "verify:stray-entity": "node scripts/verify-stray-entity.mjs",
     "verify:view-nodes": "node scripts/verify-view-nodes.mjs",

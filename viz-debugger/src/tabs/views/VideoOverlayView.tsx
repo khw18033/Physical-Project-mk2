@@ -247,6 +247,19 @@ export function VideoOverlayView() {
                       <Rich id="vov.refMissingNote" />
                     </>
                   )}
+                  {/* **발신자가 정합 대상이 아니라고 말한 결과** (260921 · Phase 4 결정 3).
+                      토글이 켜져 있어도 정합하지 않는다 — 온디바이스 결과는 엣지를 거치지
+                      않아 시각 축이 다르므로 시각 근사 정합을 하지 않는다. 그 사실을 안 적으면
+                      정합 안 된 박스가 정합된 것처럼 보인다. */}
+                  {aligned && report.origins.some((o) => o.declaredAlignment !== null && !o.aligned) && (
+                    <>
+                      {' '}
+                      {t('vov.declaredUnaligned', {
+                        list: report.origins.filter((o) => o.declaredAlignment !== null && !o.aligned)
+                          .map((o) => o.origin.label).join(' · '),
+                      })}
+                    </>
+                  )}
                   {device !== null && (
                     <>
                       {' '}<Rich id="vov.deviceFasterNote" vars={{ ms: device.inferenceDelayMs }} />

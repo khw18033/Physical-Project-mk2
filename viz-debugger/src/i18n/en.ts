@@ -1219,6 +1219,7 @@ export const en: Record<string, string> = {
   'vov.frames': '{n} frames',
   'vov.onboardNote': 'The robot onboard is **only a Pi and a camera**, so it assumes no metric distance sensor. On-device therefore emits **traversable region and approach change** only, and does no semantic classification. Fine-grained class and tracking come from the edge — the two results must not be read on the same confidence axis.',
   'vov.frameCount': '{n}',
+  'vov.declaredUnaligned': 'The {list} result declares itself not frame-aligned, so even with alignment on it is drawn over the latest frame as a reference only.',
   'vov.refMissingNote': 'Because **the reference frame is not in the buffer**, values compared against the current frame are mixed in — these are not aligned measurements. It happens right after a reconnect, or when inference delay exceeds the buffer length.',
   'vov.deviceFasterNote': 'On-device is **faster** than the edge ({ms}ms) — a safety judgement cannot wait for an edge round trip.',
   'vov.sourcesApart': ' · {n} sources, separately',

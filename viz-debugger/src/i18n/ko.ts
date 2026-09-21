@@ -1231,6 +1231,7 @@ export const ko: Record<string, string> = {
   'vov.frames': '{n}프레임',
   'vov.onboardNote': '로봇 온보드는 **Pi와 카메라뿐**이라 metric distance 센서를 전제하지 않는다. 그래서 온디바이스는 **진행영역과 접근 변화**만 내고 의미 분류를 하지 않는다. 정밀 분류·추적은 엣지에서 온다 — 두 결과를 같은 신뢰도 축으로 읽으면 안 된다.',
   'vov.frameCount': '{n}장',
+  'vov.declaredUnaligned': '{list} 결과는 발신자가 정합 대상이 아니라고 표시해서, 정합을 켜도 최신 프레임 위에 참고 표시로만 그립니다.',
   'vov.refMissingNote': '**참조 프레임이 버퍼에 없어** 현재 프레임과 비교한 값이 섞여 있다 — 정합된 수치가 아니다. 재접속 직후나 추론 지연이 버퍼 길이를 넘길 때 생긴다.',
   'vov.deviceFasterNote': '온디바이스는 엣지보다 **빠르다**({ms}ms) — 안전 판단이 엣지 왕복을 기다릴 수 없기 때문이다.',
   'vov.sourcesApart': ' · 소스 {n}개 따로',
