@@ -183,6 +183,68 @@ def test_ws_delivery(broker, ws_url, timeout_s) -> None:
     assert received["message"] == payload
 
 
+def test_ws_delivery_vz_wire(broker, ws_url, timeout_s) -> None:
+    """팬아웃 ②-b — **구독을 보낸 클라이언트**는 VZ 와이어 계약으로 받는다.
+
+    위 `test_ws_delivery` 와 **같은 경로를 같은 소켓 계층으로** 지나되, 접속 직후 `subscribe` 를
+    한 줄 보낸다는 것만 다르다. 그러면 같은 발행이 `{channel, topic, key, message}` 가 아니라
+    `{type:"data", sub, envelope}` 로 온다 — **이중 형식이 진짜 소켓에서도 갈리는지**가 판정이다
+    (실측대비 v2 §3-1-1. 소켓 없는 단위 검증은 `tests/test_ws_state_wire.py`).
+
+    선택자는 **VZ 가 실제로 보내는 모양 그대로**다 — `{entity:'*', node:<구역>, channel:'*'}`
+    (`viz-debugger/src/tabs/data/index.ts`). ⚠ `node` 축에 **구역 식별자**가 온다. VZ 주석의 규약이고
+    서버가 그것을 받도록 맞췄다 — 이 조건이 깨지면 **연결은 되고 화면만 비는** 실패가 된다.
+    """
+    try:
+        from websockets.asyncio.client import connect as ws_connect
+    except ImportError:  # pragma: no cover — websockets 12 이하
+        from websockets import connect as ws_connect  # type: ignore[attr-defined]
+
+    source_id = publisher.unique_source_id()
+    payload = publisher.make_state_message(source_id=source_id, sequence_id=4)
+    selector = {"entity": "*", "node": payload["zone_id"], "channel": "*"}
+
+    async def run() -> Optional[Dict[str, Any]]:
+        async with ws_connect(ws_url, open_timeout=10) as client:
+            await client.send(json.dumps(
+                {"type": "subscribe", "id": "sub-1", "selector": selector, "scope": "all"}))
+            # ⚠ 구독은 서버의 수신 루프가 **비동기로** 처리한다(접속처럼 즉시가 아니다).
+            #    반영 전에 발행하면 그 한 건을 놓치므로 잠깐 기다렸다 발행한다.
+            await asyncio.sleep(0.5)
+            publisher.publish(
+                publisher.topic_for("state", eid=source_id), payload, host=broker["host"], port=broker["port"]
+            )
+            deadline = time.time() + timeout_s
+            while time.time() < deadline:
+                try:
+                    raw = await asyncio.wait_for(client.recv(), timeout=max(1.0, deadline - time.time()))
+                except asyncio.TimeoutError:
+                    return None
+                data = json.loads(raw)
+                # 🔴 구독한 소켓에는 지금 형식이 섞여 오면 안 된다(이중 형식이 갈리는 자리).
+                assert data.get("type") == "data", f"구독했는데 지금 형식이 왔다: {sorted(data)}"
+                if data["envelope"]["payload"].get("source_id") == source_id:
+                    return data
+        return None
+
+    received = asyncio.run(run())
+    assert received is not None, f"WS({ws_url})로 VZ 형식이 도달하지 않았다"
+    assert received["sub"] == "sub-1", "VZ 가 붙인 구독 ID 를 그대로 돌려줘야 찾을 수 있다"
+    env = received["envelope"]
+    assert set(env) == {"zone", "node", "entity", "channel", "ts", "seq",
+                        "payload", "quality", "aggregation", "scope", "coordinate_frame"}
+    assert env["channel"] == "state"
+    assert env["zone"] == payload["zone_id"]
+    assert env["node"] == payload["node_id"]
+    assert env["entity"] == source_id          # entity_id 가 없으면 source_id 가 개체를 가리킨다
+    assert env["ts"] == payload["timestamp"]
+    assert env["seq"] == payload["sequence_id"]
+    assert env["payload"] == payload           # 봉투를 통째로 싣는다(걷어내지 않는다)
+    assert env["scope"] == "all"               # 구독 요청의 값을 되돌려준다
+    # 잠정값 셋 — 진짜 값이 아니다(Phase 5 에서 바뀐다). 바뀌면 여기가 먼저 걸린다.
+    assert (env["quality"], env["aggregation"], env["coordinate_frame"]) == ("good", "raw", None)
+
+
 # ── 음성 대조 (불합격은 토픽에 뜨지 않고 격리된다) ──────────────────────────
 
 

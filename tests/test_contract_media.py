@@ -111,17 +111,25 @@ def test_detections_draft_without_alignment_passes(detections_validator) -> None
 
 
 def test_detections_draft_shape_and_vocab_not_enum() -> None:
-    """메시지 단위 `alignment`·`origin{tier,kind}`·`coord` 가 있고, `tier` 에 `server` 가 적혀 있으며, 어휘는 enum 이 아니다."""
+    """메시지 단위 `alignment`·`origin{tier,kind}`·`bbox_space` 가 있고, `tier` 에 `server` 가 적혀 있으며, 어휘는 enum 이 아니다.
+
+    ⚠ 좌표 선언의 이름은 **소비자(VZ)의 것**이다 — 2026-09-21 VZ 회신으로 `coord{normalized,ref_*}` 를
+    `bbox_space{format,reference{width,height}}` 로 바꿨다(초안이라 비용 0). `format` 기본값은 **normalized** 이고
+    생산자(AI) 회신으로 확정한다.
+    """
     schema = json.loads((settings.contracts_dir() / "detections.schema.json").read_text(encoding="utf-8"))
     props = schema["properties"]
     assert "alignment" in props and "alignment" not in schema["required"]
     assert set(props["origin"]["required"]) == {"tier", "kind"}
     assert "server" in props["origin"]["properties"]["tier"]["$comment"]
     assert "origin_kind" in props["origin"]["properties"]["kind"]["$comment"], "공통 헤더 origin_kind 와 다른 축임을 적어야 한다"
-    assert set(props["coord"]["required"]) == {"normalized", "origin", "ref_width", "ref_height"}
-    assert "top-left" in props["coord"]["properties"]["origin"]["$comment"]
+    assert "coord" not in props, "2026-09-21 VZ 회신으로 bbox_space 로 옮겼다 — 옛 이름이 남으면 둘이 갈린다"
+    assert set(props["bbox_space"]["required"]) == {"format", "origin", "reference"}
+    assert set(props["bbox_space"]["properties"]["reference"]["required"]) == {"width", "height"}
+    assert "top-left" in props["bbox_space"]["properties"]["origin"]["$comment"]
+    assert "normalized" in props["bbox_space"]["properties"]["format"]["$comment"]
     for spec in (props["alignment"], props["origin"]["properties"]["tier"], props["origin"]["properties"]["kind"],
-                 props["coord"]["properties"]["origin"]):
+                 props["bbox_space"]["properties"]["format"], props["bbox_space"]["properties"]["origin"]):
         assert "enum" not in spec
     box = props["boxes"]["items"]
     assert "source" not in box["properties"], "박스 단위 source 는 버렸다 — 출처는 메시지 단위 origin"
@@ -129,13 +137,18 @@ def test_detections_draft_shape_and_vocab_not_enum() -> None:
 
 
 def test_detections_draft_rejects_bad_box(detections_validator) -> None:
-    """초안이라도 검증기는 돈다 — 박스에 `label` 이 없거나 `coord` 가 없으면 거부."""
+    """초안이라도 검증기는 돈다 — 박스에 `label` 이 없거나 메시지에 `bbox_space` 가 없으면 거부.
+
+    ⚠ 2026-09-21 VZ 회신으로 `coord` → `bbox_space` 로 옮겼을 때 **예시 파일도 같이 바뀐다** —
+    여기서 옛 이름을 지우려 들면 시험이 `KeyError` 로 깨진다(실제로 한 번 깨졌다, 실측 작업로그 참고).
+    이름을 또 바꾸면 규격·예시·이 시험 **셋을 같이** 고쳐야 한다.
+    """
     message = _load("detections-draft-valid.json")
     del message["boxes"][0]["label"]
     assert any("label" in e for e in _errors(detections_validator, message))
     message = _load("detections-draft-valid.json")
-    del message["coord"]
-    assert any("'coord' is a required property" in e for e in _errors(detections_validator, message))
+    del message["bbox_space"]
+    assert any("'bbox_space' is a required property" in e for e in _errors(detections_validator, message))
 
 
 # ── frame-reference: 구조 무개정 ─────────────────────────────────────────────

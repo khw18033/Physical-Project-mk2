@@ -4,7 +4,7 @@
 |---|---|
 | 보내는 쪽 | 백엔드(BE·DT) / 이대규 |
 | 받는 쪽 | AI(인지) / 진나영 |
-| 작성일 | 2026-09-19 |
+| 작성일 | 2026-09-19 작성 · **2026-09-21 개정**(좌표 선언 이름 `coord` → `bbox_space` 확정 — §0 1-b · §1 표) |
 | 근거 | [`contracts/common/detections.schema.json`](../../contracts/common/detections.schema.json) 초안 + 예시 [`examples/detections-draft-*.json`](../../contracts/common/examples/) · [`media-header.schema.json`](../../contracts/common/media-header.schema.json)·[`frame-reference.schema.json`](../../contracts/common/frame-reference.schema.json) · Phase 4(미디어 경로) 구현·검증 결과 · 2026-09-17 팀 브랜치 대조 보고서 §4-2(세 갈래) · AI 시연 문서 2건(`_hwsrc/ai_docs_260914/탐지_로봇데이터요구_260914.md`·HW `detection-protocol_0914.md`) · [`01-standalone-implementation-plan.md`](01-standalone-implementation-plan.md) §4 「남은 문의 1건」 · [`02-media-path.md`](02-media-path.md) |
 | 대상 안건 | **탐지 결과 규격 초안**(생산자 = AI) · **시연 경로 / 정식 경로 구분** · **7864 MJPEG 경로의 자리** · `capture_timestamp` 뜻 · AI-S-05(이동 지시 토픽) |
 | 우선순위 | 🔴 §1(규격 초안 — AI가 생산자인데 지금까지 소비자(VZ)에게만 통지돼 있었다) · §4(7864 경로 답) / 🟡 §2·§3·§5 / ⚪ §6 |
@@ -21,10 +21,11 @@
 
 | # | 무엇 | 한 줄 | 답이 없으면 |
 |---|---|---|---|
-| 1 | 🔴 탐지 규격 초안 | `frame_ref`(**객체**)·메시지 단위 `origin{tier,kind}`·`alignment`(선택)·`coord{normalized, origin:"top-left", ref_width, ref_height}`·`boxes[]`. **AI가 생산자** | 초안 그대로 확정하지 않고 **초안 상태 유지**(어떤 검증 경로도 로드하지 않는다). 시연은 지금 경로 그대로 |
+| 1 | 🔴 탐지 규격 초안 | `frame_ref`(**객체**)·메시지 단위 `origin{tier,kind}`·`alignment`(선택)·**`bbox_space{format:"normalized", origin:"top-left", reference{width,height}}`**·`boxes[]`. **AI가 생산자** | 초안 그대로 확정하지 않고 **초안 상태 유지**(어떤 검증 경로도 로드하지 않는다). 시연은 지금 경로 그대로 |
 | 2 | 시연 경로 ≠ 정식 경로 | `zoneA/robot/go1-001/frame`(JPEG base64 + `rotation_deg`)은 **시연 임시** — 백엔드는 구독하지 않는다. 정식은 홉1 RTP + 홉2 WS 방식 B | 시연 뒤에도 그 토픽을 쓰는 것은 자유이나 백엔드는 소비하지 않는다 |
 | 3 | B안 = 우리 경로 | AI가 요구 문서에서 열어 둔 *"B: RTP 스트림 + MQTT 캡처 이벤트"*가 곧 이것이다 — 시연 뒤 합칠 수 있다 | — |
 | 4 | 🔴 7864 MJPEG 경로 | `<서버 공인 IP>:7864/stream/ai/go1_front`(평소 내려 있음)와 Phase 4 미디어 경로의 관계 — **누가 켜고 끄나, Go1 영상이 거기까지 어떻게 가나, 계속 쓸 것인가** | 백엔드는 7864를 건드리지 않는다. 시연 전용으로 간주 |
+| 1-b | 🔄 **좌표 선언 이름이 바뀌었다** | `coord` → **`bbox_space`**. 2026-09-21 VZ 회신으로 `coord{normalized, origin, ref_width, ref_height}` → `bbox_space{format, origin, reference{width,height}}` 로 확정됐다. ⚠ **`origin` 은 안 바뀐 칸이다**(값도 `top-left` 그대로). **값의 뜻은 그대로**이고 이름·중첩만 바뀐다(§1 표) | `format:"normalized"` 로 간다 |
 | 5 | `capture_timestamp` 뜻 | **엣지가 프레임 경계를 확정한 시각**, 촬영 시각 아님, 미보정. 탐지에 **그대로 실어 나르고 새로 만들지 않는다**(원칙 10) | — (규격 설명에 적혀 있다) |
 | 6 | AI-S-05 이동 지시 | AI→로봇 직접 토픽·HW JSON 번역 토픽 **둘 다 백엔드 명령 경로를 우회** — Phase 6에서 정리 | 그때까지 시연 경로 유지 |
 
@@ -35,7 +36,7 @@
 ## §1 🔴 탐지 결과 규격 초안 — AI가 생산자다
 
 파일: [`contracts/common/detections.schema.json`](../../contracts/common/detections.schema.json) · 예시 [`detections-draft-valid.json`](../../contracts/common/examples/detections-draft-valid.json)·[`detections-draft-valid-no-alignment.json`](../../contracts/common/examples/detections-draft-valid-no-alignment.json).
-**초안이며 2026-09-19 현재 백엔드의 어떤 검증 경로도 이 파일을 로드하지 않는다** — AI(생산자)·가시화(소비자) 회신 뒤 `contracts/common/payload/`로 올리고 채널·토픽을 연다(Phase 6).
+**초안이며 2026-09-21 현재 백엔드의 어떤 검증 경로도 이 파일을 로드하지 않는다** — AI(생산자)·가시화(소비자) 회신 뒤 `contracts/common/payload/`로 올리고 채널·토픽을 연다(Phase 6).
 
 ```json
 {
@@ -43,7 +44,7 @@
   "frame_ref": { "source_id": "go1-001_front", "capture_timestamp": "2026-09-18T12:00:00.123+09:00", "sequence_id": 4837 },
   "alignment": "frame",
   "origin": { "tier": "edge", "kind": "precise" },
-  "coord": { "normalized": true, "origin": "top-left", "ref_width": 464, "ref_height": 400 },
+  "bbox_space": { "format": "normalized", "origin": "top-left", "reference": { "width": 464, "height": 400 } },
   "boxes": [
     { "x": 0.34, "y": 0.51, "w": 0.12, "h": 0.20, "label": "person", "confidence": 0.88 },
     { "x": 0.70, "y": 0.30, "w": 0.08, "h": 0.15, "label": "obstacle", "confidence": null }
@@ -56,7 +57,7 @@
 | `frame_ref` | 선택(정합하려면 필수) | **객체** `{source_id, capture_timestamp, sequence_id}` — [`frame-reference.schema.json`](../../contracts/common/frame-reference.schema.json) 그대로, 추가 필드 금지. **엣지가 미디어 헤더에 붙인 값을 그대로 옮긴다**(원칙 10 — AI가 자기 번호를 새로 만들면 오버레이가 어긋난다). `source_id`는 **카메라 키**(`go1-001_front`)이지 개체 키(`go1-001`)가 아니다 | 없으면 `alignment`가 `frame`이어도 unaligned로 그려진다 |
 | `origin` | 선택 | **메시지 단위** `{tier, kind}` — 박스 단위가 아니다(VZ가 그렇게 소비한다: `tier`별 `Map`). `tier`: `device`(pi7 온디바이스, HW-R-04) / `edge`(엣지 노트북 — AI 정밀 탐지) / `server`(서버 비전, 자리만 — Phase 4 결정 11). `kind`: `safety_minimal` / `precise`. string + `$comment`, **enum 아님** | 없으면 VZ가 출처 구분 없이 그린다 — `tier`는 꼭 실어 달라 |
 | `alignment` | 선택 | `"frame"` = 이 탐지의 `frame_ref`가 가리키는 프레임과 **정합**(엣지 프레임에서 추론했다). 그 외·부재 = **unaligned**(최신 프레임 위 참고 표시). **fail-safe** — 모르는 값도 unaligned. 온디바이스(pi7) 결과는 엣지를 거치지 않아 `unaligned`가 정상 | 부재 = unaligned |
-| `coord` | ✅ | `normalized:true`(0~1 비율, 권장) / `origin:"top-left"`(**하이픈** — VZ 리터럴) / `ref_width`·`ref_height` = **미디어 헤더의 `width`·`height`와 같은 값**(원본 해상도, 464×400). ⚠ 가시화가 `bbox_space{format, origin, reference{width,height}}` 이름을 쓰고 있어 **이름을 어느 쪽으로 맞출지 VZ와 정하는 중**이다 — AI는 값(정규화·원점·기준 해상도)만 지키면 이름 변경은 우리가 흡수한다 | 우리 이름 그대로 |
+| **`bbox_space`** | ✅ | 🔄 **2026-09-21 이름 확정** — 전에 `coord{normalized, ref_width, ref_height}` 로 통지했으나 **VZ 회신으로 VZ 이름을 채택**했다(초안이라 비용 0). `format:"normalized"`(0~1 비율 — **우리 기본값이다**, `"absolute"` 도 읽힌다) / `origin:"top-left"`(**하이픈** — VZ 리터럴) / `reference{width, height}` = **미디어 헤더의 `width`·`height`와 같은 값**(원본 해상도, 464×400). **값의 뜻은 하나도 안 바뀌었다 — 이름과 중첩 모양만 바뀌었다** | `format` 은 `normalized` 로 간다 |
 | `boxes[]` | ✅ | `{x, y, w, h, label, confidence?}` — 좌상단 기준 폭·높이. `confidence`는 `null` 허용(온디바이스는 분류를 안 한다). **박스 단위 `source`는 없다**(출처는 메시지 단위 `origin`) | — |
 | `type` | 선택 | `"detections"` — 상태 채널 분기용 | — |
 
@@ -138,7 +139,8 @@ AI가 스캔 결과로 **이동 지시(`turn_deg`·`forward_distance_cm`)를 로
 
 ## AI가 할 일
 
-1. 🔴 **§1 규격 초안 회신** — 필드별로 "이대로" 또는 "이렇게 바꿔 달라"(특히 `origin.tier/kind` 어휘, `alignment`를 엣지 추론에서 `frame`으로 낼 수 있는지, `label` 어휘, `confidence null` 허용). 답이 없으면 초안 상태로 둔다.
+1. 🔴 **§1 규격 초안 회신** — 필드별로 "이대로" 또는 "이렇게 바꿔 달라"(특히 `origin.tier/kind` 어휘, `alignment`를 엣지 추론에서 `frame`으로 낼 수 있는지, `label` 어휘, `confidence null` 허용, 🔴 **`bbox_space.format` 을 `normalized` 로 보내도 되는지**). 답이 없으면 초안 상태로 둔다.
+   > 🔴 **`format` 하나만은 꼭 답해 달라.** 규격에 *"기본값은 생산자(AI) 회신으로 확정한다"* 라고 적어 두었고, **지금 그것 하나 때문에 이 규격이 열려 있다.** 가시화는 `normalized`·`absolute` **둘 다 읽으므로** 어느 쪽이든 동작한다 — 다만 **`normalized` 를 권한다**: 기준 해상도가 어긋나도 비율은 맞는데, `absolute` 인데 `reference` 가 미디어 헤더 `width`/`height` 와 다르면 **박스가 통째로 밀린다.**
 2. 🔴 **§4 7864 세 물음** — 누가 켜고 끄나 · Go1 영상이 거기까지 간 경로 · 계속 쓸 것인가.
 3. 🟡 **`frame_ref`를 재생성하지 않는다** — 엣지 헤더의 값을 그대로 옮긴다(§5). `source_id`는 카메라 키.
 4. 🟡 **산출물은 좌표 JSON** — 번인 이미지 없음(§1).

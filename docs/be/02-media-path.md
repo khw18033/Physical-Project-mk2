@@ -601,7 +601,7 @@ AU 또는 JPEG). (base64로 JSON에 넣으면 33% 부풀어 배제.) 규격 파�
 | `frame_ref` | ✅ | `frame-reference.schema.json` 그대로(`$ref`, `additionalProperties:false`) — 엣지가 부여 |
 | `encoding` | ✅ | 페이로드 코덱 선언. string, `$comment` `h264`·`jpeg` — **enum 아님** |
 | `keyframe` | ✅ | 이 AU만으로 디코드 시작 가능한가(IDR). JPEG는 항상 `true`. **서버 drop-old의 유일한 페이로드 지식** |
-| `width`·`height` | ✅ | 원본 해상도(탐지 `coord.ref_*`와 같은 값). 바뀌면 스트림 재개 사건(§10-5 회신) |
+| `width`·`height` | ✅ | 원본 해상도(탐지 `bbox_space.reference.{width,height}`와 같은 값). 바뀌면 스트림 재개 사건(§10-5 회신) |
 | `codec` | 선택 | RFC 6381 문자열(WebCodecs `VideoDecoderConfig.codec`). `description` 없음 — Annex-B in-band |
 | `correlation_id` | 선택 | 명령 산출물일 때의 상관키. frame_ref 밖에 둔다(결정 2) |
 
@@ -612,21 +612,24 @@ AU 또는 JPEG). (base64로 JSON에 넣으면 33% 부풀어 배제.) 규격 파�
 
 **bbox 좌표계(탐지 — 상태 WS로 전달, 규격 초안 [`detections.schema.json`](../../contracts/common/detections.schema.json)):**
 
+> 🔄 **2026-09-21 개명.** 2026-09-21 VZ 회신으로 `coord{normalized, ref_width, ref_height}` → `bbox_space{format, origin, reference{width,height}}` 로 확정됐다 — 소비자(VZ)가 이미 그 이름으로 구현해 두었고 초안이라 비용이 0이었다. **값의 뜻은 하나도 안 바뀌었다.**
+
 ```json
 {
   "type": "detections",
   "frame_ref": { "source_id": "go1-001_front", "capture_timestamp": "2026-09-18T12:00:00.123+09:00", "sequence_id": 4837 },
   "alignment": "frame",
   "origin": { "tier": "edge", "kind": "precise" },
-  "coord": { "normalized": true, "origin": "top-left", "ref_width": 464, "ref_height": 400 },
+  "bbox_space": { "format": "normalized", "origin": "top-left", "reference": { "width": 464, "height": 400 } },
   "boxes": [
     { "x": 0.34, "y": 0.51, "w": 0.12, "h": 0.20, "label": "person", "confidence": 0.88 },
     { "x": 0.70, "y": 0.30, "w": 0.08, "h": 0.15, "label": "obstacle", "confidence": null }
   ]
 }
 ```
-- `normalized:true`(권장): 0~1 비율(뷰어 해상도 무관). **`origin:"top-left"`(하이픈)** — VZ가 리터럴로
-  고정한 값이고 이전 예시의 `top_left`(밑줄)는 값이 달랐다. `ref_width/height`: 기준 해상도 = 미디어
+- **`format:"normalized"`**(우리 기본값): 0~1 비율(뷰어 해상도 무관). `"absolute"` 도 규격이 받는다 —
+  최종 확정은 생산자(AI) 회신 뒤다. **`origin:"top-left"`(하이픈)** — VZ가 리터럴로 고정한 값이고
+  이전 예시의 `top_left`(밑줄)는 값이 달랐다. **`reference{width, height}`**: 기준 해상도 = 미디어
   헤더의 `width`/`height`.
 - **[Phase 4 정정] 출처는 `boxes[].source`가 아니라 메시지 단위 `origin{tier, kind}`다.** `tier`
   (`device`=pi7 온디바이스 / `edge`=엣지 노트북 / `server`=서버 — 결정 11)·`kind`(`safety_minimal`

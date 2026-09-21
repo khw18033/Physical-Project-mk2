@@ -3,10 +3,10 @@
   "$id": "https://github.com/khw18033/Physical-Project-mk2/contracts/common/detections.schema.json",
   "title": "탐지 결과 (Detections) — 초안",
   "description": "프레임 한 장에 대한 탐지 박스 묶음. 생산자는 AI(온디바이스·엣지) 또는 서버 비전 소비자이고, 소비자는 가시화(뷰어 오버레이)다. 영상은 미디어 경로(방식 B)로, 탐지는 업무 경로(Kafka → 상태 WS)로 따로 흐르다 뷰어에서 frame_ref 가 F==F 로 맞을 때 겹쳐진다(02-media-path §1-6-1). 근거: BE-C-03(frame_ref 형식) · VZ-I-07(좌표계 선언·출처 구분) · AI-S-06.",
-  "$comment": "초안 — 2026-09-18 현재 어떤 검증 경로도 이 파일을 로드하지 않는다. AI(생산자)·VZ(소비자) 회신 뒤 확정한다. 채널·토픽(mk2.telemetry.detections)·ingest 구독 패턴·entity_type 판별은 이번(Phase 4) 범위가 아니다 — 그래서 payload/ 가 아니라 contracts/common/ 루트에 둔다(payload/ 는 MQTT 토픽으로 고르는 채널 본문 자리다). 값 어휘(alignment·origin.tier·origin.kind·coord.origin)는 전부 string + $comment 이며 enum 이 아니다. additionalProperties 를 false 로 두지 않는다(frame_ref 안쪽만 참조 규격이라 닫혀 있다).",
+  "$comment": "초안 — 2026-09-18 현재 어떤 검증 경로도 이 파일을 로드하지 않는다. AI(생산자)·VZ(소비자) 회신 뒤 확정한다. 채널·토픽(mk2.telemetry.detections)·ingest 구독 패턴·entity_type 판별은 이번(Phase 4) 범위가 아니다 — 그래서 payload/ 가 아니라 contracts/common/ 루트에 둔다(payload/ 는 MQTT 토픽으로 고르는 채널 본문 자리다). 값 어휘(alignment·origin.tier·origin.kind·bbox_space.format·bbox_space.origin)는 전부 string + $comment 이며 enum 이 아니다. 2026-09-21 VZ 회신으로 coord{normalized,ref_width,ref_height} 를 VZ 이름 bbox_space{format,origin,reference{width,height}} 로 바꿨다(origin 은 이름도 값도 안 바뀐 칸이다) — 초안이라 비용이 0 이고, 소비자(VZ)가 이미 그 이름으로 구현해 두었다. additionalProperties 를 false 로 두지 않는다(frame_ref 안쪽만 참조 규격이라 닫혀 있다).",
   "type": "object",
   "required": [
-    "coord",
+    "bbox_space",
     "boxes"
   ],
   "properties": {
@@ -45,15 +45,16 @@
         }
       }
     },
-    "coord": {
+    "bbox_space": {
       "type": "object",
-      "description": "박스 좌표계 선언(VZ-I-07). 프레임(미디어 헤더 width/height)과 같은 기준 해상도를 공유해야 같은 화면에 겹쳐진다.",
-      "required": ["normalized", "origin", "ref_width", "ref_height"],
+      "description": "박스 좌표계 선언(VZ-I-07). 프레임(미디어 헤더 width/height)과 같은 기준 해상도를 공유해야 같은 화면에 겹쳐진다. 이름은 소비자(VZ VideoFrame·DetectionOrigin 계약)의 것을 따랐다 — 2026-09-21 VZ 회신이 bbox_space·format·reference 로 해 달라 했고 초안이라 비용이 0 이었다.",
+      "required": ["format", "origin", "reference"],
       "properties": {
-        "normalized": {
-          "type": "boolean",
-          "description": "true 면 x·y·w·h 가 0~1 비율(뷰어 해상도 무관, 권장 기본값). false 면 ref_width/ref_height 기준 화소.",
-          "examples": [true]
+        "format": {
+          "type": "string",
+          "description": "좌표 표현. normalized 면 x·y·w·h 가 0~1 비율(뷰어 해상도 무관), absolute 면 reference 기준 화소.",
+          "$comment": "알려진 값: normalized · absolute. enum 아님. **권장 기본값은 normalized** — 2026-09-21 결정. VZ 화면은 둘 다 읽으며 기본값을 두지 않는다(무엇을 보낼지는 생산자가 정한다). normalized 를 권하는 이유: reference 가 미디어 헤더 width/height 와 어긋나도 비율은 맞는다. absolute 인데 reference 가 틀리면 박스가 통째로 밀린다. 생산자가 AI 이므로 AI 회신으로 확정한다.",
+          "examples": ["normalized"]
         },
         "origin": {
           "type": "string",
@@ -61,17 +62,14 @@
           "$comment": "알려진 값: top-left (하이픈 — VZ 가 리터럴로 고정한 값이며 밑줄 top_left 가 아니다). enum 아님.",
           "examples": ["top-left"]
         },
-        "ref_width": {
-          "type": "integer",
-          "minimum": 1,
-          "description": "기준 해상도 가로. 미디어 헤더의 width 와 같은 값(원본 무가공 — 자르기·리사이즈·회전·보정 없음).",
-          "examples": [464]
-        },
-        "ref_height": {
-          "type": "integer",
-          "minimum": 1,
-          "description": "기준 해상도 세로. 미디어 헤더의 height 와 같은 값.",
-          "examples": [400]
+        "reference": {
+          "type": "object",
+          "description": "기준 해상도. 미디어 헤더의 width·height 와 같은 값이어야 한다(원본 무가공 — 자르기·리사이즈·회전·보정 없음). 프레임과 탐지가 같은 기준을 공유해야 같은 화면에 겹쳐진다.",
+          "required": ["width", "height"],
+          "properties": {
+            "width": { "type": "integer", "minimum": 1, "description": "기준 해상도 가로. 미디어 헤더 width 와 같은 값.", "examples": [464] },
+            "height": { "type": "integer", "minimum": 1, "description": "기준 해상도 세로. 미디어 헤더 height 와 같은 값.", "examples": [400] }
+          }
         }
       }
     },
@@ -82,10 +80,10 @@
         "type": "object",
         "required": ["x", "y", "w", "h", "label"],
         "properties": {
-          "x": { "type": "number", "description": "좌상단 x (coord 기준)" },
-          "y": { "type": "number", "description": "좌상단 y (coord 기준)" },
-          "w": { "type": "number", "minimum": 0, "description": "너비 (coord 기준)" },
-          "h": { "type": "number", "minimum": 0, "description": "높이 (coord 기준)" },
+          "x": { "type": "number", "description": "좌상단 x (bbox_space 기준)" },
+          "y": { "type": "number", "description": "좌상단 y (bbox_space 기준)" },
+          "w": { "type": "number", "minimum": 0, "description": "너비 (bbox_space 기준)" },
+          "h": { "type": "number", "minimum": 0, "description": "높이 (bbox_space 기준)" },
           "label": { "type": "string", "minLength": 1, "description": "클래스 이름. 어휘는 AI 가 정한다(enum 아님)." },
           "confidence": { "type": ["number", "null"], "minimum": 0, "maximum": 1, "description": "선택. 0~1. 없으면 null." }
         }

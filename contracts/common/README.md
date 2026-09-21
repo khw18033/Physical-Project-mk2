@@ -27,7 +27,7 @@ AI 파트도 이 소유권을 전제한다 — AI-C-01: "AI가 생산·소비하
 | `frame-reference.schema.json` | 원본 관측 프레임 역추적 참조(frame_ref) | BE-C-03 |
 | `object-reference.schema.json` | 구역을 넘어 유지되는 지속 객체 참조(object_id) | DT-06·AI-S-06 |
 | `media-header.schema.json` | **미디어 경로(방식 B) 메시지의 JSON 헤더** — `frame_ref`(`$ref`)·`encoding`·`keyframe`·`width`·`height` (+선택 `codec`·`correlation_id`). 서버는 필수·타입만 검증하고 값 어휘를 보지 않으며 페이로드를 열지 않는다. **루트에 둔다** — `payload/`는 MQTT 토픽으로 고르는 채널 본문 자리다(**Phase 4 신설**) | BE-T-07·BE-C-03 |
-| `detections.schema.json` | **탐지 결과 초안** — 생산자 AI, 소비자 가시화. 메시지 단위 `alignment`·`origin{tier,kind}`·`coord`·`boxes[]`. ⚠ **초안이며 어떤 검증 경로도 로드하지 않는다**(AI·VZ 회신 뒤 확정). 채널·토픽은 신설하지 않았으므로 역시 **루트**(**Phase 4 신설**) | BE-C-03·VZ-I-07 |
+| `detections.schema.json` | **탐지 결과 초안** — 생산자 AI, 소비자 가시화. 메시지 단위 `alignment`·`origin{tier,kind}`·`bbox_space{format,origin,reference}`·`boxes[]`. ⚠ **초안이다**(생산자 AI 회신 뒤 확정). **좌표 선언 이름은 2026-09-21 VZ 회신으로 VZ 것(`bbox_space`)을 따랐다** — `format` 기본값은 `normalized`. 채널·토픽은 신설하지 않았으므로 역시 **루트**(**Phase 4 신설**) | BE-C-03·VZ-I-07 |
 | `payload/state.{sensor,robot,actuator,analysis}.schema.json` | `state` 채널 본문 — **개체 타입마다 다르다** | BE-C-01 |
 | `payload/status.schema.json` | `status` 채널 본문(등록·요약·종료·급사). 타입 공통 | BE-C-01·BE-T-04 |
 | `payload/heartbeat.schema.json` | `heartbeat` 채널 — 본문 없음 | BE-C-01 |
@@ -203,10 +203,11 @@ log/event 10 = 22**. `tests/test_c_layer_extract.py`가 이 숫자를 못 박는
 > |---|---|---|
 > | 기존 7종(Phase 3) | `session_id` · `internal_seq` · `sequence_id` · 시각(`timestamp`·`ts`·`capture_timestamp`) · `frame_id` | 값이 계속 달라진다. 특히 `session_id`는 **재기동마다 새 값**이라 노드를 껐다 켤 때마다 시계열이 하나씩 영구히 는다 |
 > | **Phase 4 확장 8종(확정)** | `frame_ref` · `correlation_id` · `command_id` · `mission_id` · `node_ref` · `client_request_id` · `plan_id` · `event_key` | 프레임·명령·임무·판마다 다르다. 앞의 셋은 VZ 통지(`docs/be/vz-observability-namespace.md` §2)가 "막는다"고 적었는데 코드에 없던 것을 맞췄고, 뒤의 다섯은 VZ 회신(2026-09-17)이 제안한 VZ 식별자다. `command_id`·`correlation_id`는 trace 속성으로는 되지만 metric 라벨로는 안 된다 |
-> | **9번째 — 자리만(대기)** | 발화 원문(잠정 `utterance`·`transcript`) | VZ가 제안했으나 **실제 키 이름을 아직 받지 못했다**(`docs/be/vz-media-interface.md` 10⑤ 문의). `FORBIDDEN_LABELS`는 문자열 집합이라 이름 없이 넣을 수 없다 — 빠진 것이 아니라 대기다 |
+> | **9번째 — 확정(2026-09-21)** | `utterance_text` | 발화 원문. VZ 회신(2026-09-21)이 이름을 확정했다 — 임무 계약 `contracts/mission.schema.json` 의 `utterance.text` 이고, **라벨로 평탄화하면 `utterance_text`** 로 내보내겠다고 했다. ⚠ **VZ 는 오늘 기준 이것을 라벨로 내보내지 않는다**(자체 관측은 숫자 여섯뿐이고 라벨이 0개다). 그래도 미리 막아 둔다 — *"그 이름으로 넣어 두면 우리가 실수해도 막힌다"*(VZ 요청) |
 >
 > ⚠ **`node_id`는 넣지 않는다.** VZ의 `node_id`는 DAG 노드 뜻이지만 우리 공통 헤더 `node_id`는 물리 노드
-> (pi1·pi7)라 저카디널리티·허용이다. DAG 노드 식별자는 `node_ref`라는 이름으로 내보내 달라고 VZ에 요청했다.
+> (pi1·pi7)라 저카디널리티·허용이다. DAG 노드 식별자는 `node_ref`라는 이름으로 내보내 달라고 VZ에 요청했고,
+> **VZ가 2026-09-21 회신에서 수락했다**(*"그러겠다"*).
 >
 > 백엔드 어댑터(`backend/observability.py` `FORBIDDEN_LABELS`)는 이 목록을 **`ValueError`로 막는다** — 조용히
 > 버리지 않는다(`tests/test_observability_labels.py`가 전 항목을 parametrize로 돌린다).

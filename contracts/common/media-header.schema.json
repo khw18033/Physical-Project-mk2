@@ -32,13 +32,13 @@
     "width": {
       "type": "integer",
       "minimum": 1,
-      "description": "프레임 가로 화소. 탐지 좌표의 기준 해상도(detections.schema.json coord.ref_width)와 같은 값 — 프레임과 탐지가 같은 기준을 공유해야 같은 화면에 겹쳐진다. 해상도 변경은 스트림 재개 사건이다(결정 8-1).",
+      "description": "프레임 가로 화소. 탐지 좌표의 기준 해상도(detections.schema.json bbox_space.reference.width)와 같은 값 — 프레임과 탐지가 같은 기준을 공유해야 같은 화면에 겹쳐진다. 해상도 변경은 스트림 재개 사건이다(결정 8-1).",
       "examples": [464]
     },
     "height": {
       "type": "integer",
       "minimum": 1,
-      "description": "프레임 세로 화소. coord.ref_height 와 같은 값.",
+      "description": "프레임 세로 화소. detections.schema.json bbox_space.reference.height 와 같은 값.",
       "examples": [400]
     },
     "codec": {

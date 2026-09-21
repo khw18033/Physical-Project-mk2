@@ -7,7 +7,7 @@
   },
   "alignment": "frame",
   "origin": { "tier": "edge", "kind": "precise" },
-  "coord": { "normalized": true, "origin": "top-left", "ref_width": 464, "ref_height": 400 },
+  "bbox_space": { "format": "normalized", "origin": "top-left", "reference": { "width": 464, "height": 400 } },
   "boxes": [
     { "x": 0.34, "y": 0.51, "w": 0.12, "h": 0.20, "label": "person", "confidence": 0.88 },
     { "x": 0.70, "y": 0.30, "w": 0.08, "h": 0.15, "label": "obstacle", "confidence": null }

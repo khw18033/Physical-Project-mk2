@@ -77,6 +77,11 @@ FORBIDDEN_LABELS = frozenset(
         # Phase 4 — 프레임·명령·임무 식별자
         "frame_ref", "correlation_id", "command_id",
         "mission_id", "node_ref", "client_request_id", "plan_id", "event_key",
+        # 9번째 — 발화 원문(2026-09-21 VZ 회신으로 이름 확정).
+        # VZ 임무 계약(`contracts/mission.schema.json`)의 `utterance.text` 가 라벨로 평탄화되면 이 이름이다.
+        # ⚠ VZ 는 **오늘 기준 이것을 라벨로 내보내지 않는다** — 자체 관측은 숫자 여섯뿐이고 라벨이 0개다.
+        #    그래도 미리 막아 둔다: 나중에 평탄화할 때 실수해도 여기서 걸린다(VZ 가 그렇게 요청했다).
+        "utterance_text",
     }
 )
 # A층 계기 이름 접두사. 여기에는 장치 식별 라벨을 붙이지 않는다.

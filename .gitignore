@@ -101,3 +101,6 @@ desktop.ini
 .idea/
 .vscode/
 *.swp
+
+# Claude Code 로컬 설정 — 사람마다 다르고 공유할 것이 아니다
+.claude/

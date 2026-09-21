@@ -9,8 +9,9 @@
         탐지 메시지의 alignment == "frame" 이고 frame_ref 가 있을 때만, 프레임의 frame_ref 와
         (source_id, capture_timestamp, sequence_id) 세 값이 전부 같은 프레임(F==F) 위에 박스를 그린다.
         그 외 — alignment 부재 · 모르는 값 · frame_ref 부재 · 세 값 중 하나라도 다름 — 는 전부 unaligned 로 취급해
-        프레임에 겹치지 않고 따로(최근 탐지 목록으로만) 보여 준다. 좌표는 detections.coord 기준이며
-        coord.ref_width/ref_height 는 미디어 헤더 width/height 와 같아야 한다(normalized:true 면 0~1 비율).
+        프레임에 겹치지 않고 따로(최근 탐지 목록으로만) 보여 준다. 좌표는 detections.bbox_space 기준이며
+        bbox_space.reference.width/height 는 미디어 헤더 width/height 와 같아야 한다
+        (bbox_space.format == "normalized" 면 0~1 비율 — 우리가 보내는 기본값이다).
 
      HW 가 문서화한 브라우저 결함 5건 적용(눈 확인 경로만): hardwareAcceleration:'prefer-software' ·
      최신 프레임만 rAF 주기로 그리기 · 보조 타이머(탭 비활성 시) · desynchronized 옵션 사용 안 함 ·

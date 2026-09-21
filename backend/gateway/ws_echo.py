@@ -2,9 +2,13 @@
 
 파일명·유닛명(`mk2-ws-echo`)은 Phase 1 그대로다(범위 확대 금지 — 단계 §6-16). 하는 일은 셋이다:
 
-1. **`/state`(8765)** — Phase 1 echo 그대로. Kafka 3토픽(컨슈머 그룹 `mk2-ws`, 저장 그룹과 오프셋 독립)을
-   붙은 클라이언트에 그대로 push 한다. 구독 관리·재접속 캐시·명령 번역·VZ 와이어 계약(`{type,sub,envelope}`)은
-   **Phase 5/7** — 지금 붙으면 VZ `WsTransport.onMessage`의 `default: return`으로 버려진다(통지에 적었다).
+1. **`/state`(8765)** — Kafka 3토픽(컨슈머 그룹 `mk2-ws`, 저장 그룹과 오프셋 독립)을 붙은 클라이언트에
+   내보낸다. **이중 형식이다**(2026-09-21, 실측대비 v2 §3-1-1 — 실측대비를 위한 임시 구현):
+     · 구독을 **안 보낸** 클라이언트(회귀 시험·`console.html`·스크립트 뷰어) → `{channel, topic, key, message}`
+       **Phase 1 echo 그대로.**
+     · 구독을 **보낸** 클라이언트(VZ 앱) → `{type:"data", sub, envelope}`. `sub` 가 VZ 가 붙인 ID 라
+       구독 메시지를 읽어야만 만들 수 있다 — 변환은 `vz_wire.py`, 구독표는 `state_session`.
+   **재접속 캐시(VZ-I-02)·`hello`·명령 번역은 여전히 Phase 5/7** 이다. 지금 형식 가지를 지우면 정식이 된다.
    루트 경로 `/`는 `/state`로 취급한다(Phase 1 호환).
 2. **`/media?source_id=…`(8765)** — 뷰어 영상. 붙는 것이 켜기, 끊는 것이 끄기(결정 4-b — 제어 메시지 없음).
    소켓 하나당 소스 하나. 뷰어 소켓마다 **송신 큐 + 전용 writer 태스크**를 둔다 — 중계 코어(`media.py`)는
@@ -37,7 +41,8 @@ A층 계측(전부 `be.gateway.*`, 라벨에 `source_id`·`frame_ref`·시각 �
 라벨 이름을 `channel`로 쓰지 않는다 — `be.gateway.push`의 `channel`은 업무 채널 뜻이다.
 
 implements: BE-T-03, BE-T-02, BE-T-07(미디어 중계·drop-old·토큰), BE-S-02(A층 — be.gateway.*)
-tests: tests/test_pipeline.py — 발행값이 /state 클라이언트에 도달(팬아웃 ②) ·
+tests: tests/test_vz_wire.py — 계약 축 매칭·봉투 변환·구독표(소켓 없이) ·
+       tests/test_pipeline.py — 발행값이 /state 클라이언트에 도달(팬아웃 ②) ·
        tests/test_observability_pipeline.py — be_gateway_push_total·be_gateway_clients 도달 ·
        tests/test_media_relay.py — 송신 fixture → /ingest → /media 도착 · 토큰 4401 · frame_ref 바이트 동일 · 느린 뷰어 드롭
 """
@@ -55,7 +60,7 @@ import socket
 import sys
 import threading
 import time
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, Dict, List, Optional
 from urllib.parse import parse_qs, urlsplit
 
 from confluent_kafka import Consumer, KafkaError
@@ -70,7 +75,7 @@ except ImportError:  # pragma: no cover — websockets 12 이하
 
 from backend import observability as obs
 from backend import settings
-from backend.gateway import media
+from backend.gateway import media, vz_wire
 
 LOG = logging.getLogger("mk2.gateway")
 
@@ -162,21 +167,47 @@ def _consume_loop(loop: asyncio.AbstractEventLoop, queue: "asyncio.Queue[Dict[st
         LOG.info("WS Kafka 소비 종료")
 
 
-async def _broadcast(queue: "asyncio.Queue[Dict[str, Any]]", clients: Set[Any]) -> None:
-    """`/state` 클라이언트 전원에게 Kafka 메시지를 그대로 push 한다(Phase 1 echo)."""
+async def _broadcast(queue: "asyncio.Queue[Dict[str, Any]]",
+                     clients: Dict[Any, Dict[str, Dict[str, Any]]]) -> None:
+    """`/state` 로 내보낸다 — **이중 형식**(실측대비 v2 §3-1-1 (c)).
+
+    - 구독표가 **빈** 클라이언트 → `{channel, topic, key, message}` **지금 형식 그대로**(Phase 1 echo).
+      회귀 시험(`test_pipeline.py` 가 `channel`·`message` 두 칸을 단언한다)과 `console.html` 이 그 가지다.
+    - 구독표가 **찬** 클라이언트(VZ 앱) → `{type:"data", sub, envelope}`. 선택자에 맞는 구독마다 한 번씩.
+
+    ⚠ **직렬화가 클라이언트별이 됐다.** 전에는 한 번 만든 문자열을 전원에게 보냈는데 `sub` id 가 달라
+    구독한 클라이언트마다 따로 만든다. `/state` 클라이언트가 관제 화면 한둘이면 문제 없지만 알고 바꾼다.
+
+    계측은 **메시지 1건 × 클라이언트 1명 = 1** 이다 — 구독 둘이 맞아 두 번 보내도 1 로 센다(Phase 1 의 뜻 유지).
+    """
     while True:
         item = await queue.get()
         if not clients:
             continue
-        payload = json.dumps(item, ensure_ascii=False)
-        for client in list(clients):
+        channel = item["channel"]
+        message = item.get("message") or {}
+        raw_payload = None            # 지금 형식은 한 번만 만든다(구독 없는 클라이언트가 여럿이어도)
+        for client, subs in list(clients.items()):
             try:
-                await client.send(payload)
+                if not subs:
+                    if raw_payload is None:
+                        raw_payload = json.dumps(item, ensure_ascii=False)
+                    await client.send(raw_payload)
+                else:
+                    sent = False
+                    for sub_id, sub in list(subs.items()):
+                        if not vz_wire.selector_matches(sub["selector"], message, channel):
+                            continue
+                        await client.send(json.dumps(
+                            vz_wire.data_message(sub_id, channel, message, sub["scope"]), ensure_ascii=False))
+                        sent = True
+                    if not sent:
+                        continue      # 이 클라이언트의 구독 어디에도 안 맞는다 — 계측하지 않는다
             except Exception as exc:  # 끊긴 클라이언트는 조용히 정리한다
                 LOG.info("클라이언트 전송 실패(정리): %s", exc)
-                clients.discard(client)
+                clients.pop(client, None)
                 continue
-            obs.count("be.gateway.push", component=COMPONENT, channel=item["channel"])
+            obs.count("be.gateway.push", component=COMPONENT, channel=channel)
 
 
 class _ViewerConn:
@@ -205,10 +236,13 @@ class _ViewerConn:
 
 
 class Gateway:
-    """한 프로세스의 게이트웨이 상태 — `/state` 클라이언트 집합 + 미디어 라우팅(`media.Relay`)."""
+    """한 프로세스의 게이트웨이 상태 — `/state` 클라이언트 **구독표** + 미디어 라우팅(`media.Relay`)."""
 
     def __init__(self) -> None:
-        self.state_clients: Set[Any] = set()
+        # 소켓 → 구독표 `{sub_id: {selector, scope}}`. Phase 1 은 집합이었는데 구독을 읽기 시작하면서
+        # 사전이 됐다(실측대비 v2 §3-1-1 (a)). **구독표가 빈 클라이언트는 지금 형식 그대로 받는다** —
+        # 회귀 시험·확인용 뷰어가 그 가지로 간다(`_broadcast` 의 이중 형식).
+        self.state_clients: Dict[Any, Dict[str, Dict[str, Any]]] = {}
         self.relay = media.Relay(media.DropOldConfig(
             drop_window_s=settings.media_drop_window_s(),
             buffer_max_bytes=settings.media_buffer_max_bytes(),
@@ -235,16 +269,27 @@ class Gateway:
         if not token_matches(query.get("token"), self.ws_token):
             await self._reject(websocket, CLOSE_UNAUTHORIZED, "token", endpoint="state")
             return
-        self.state_clients.add(websocket)
+        subs: Dict[str, Dict[str, Any]] = {}
+        self.state_clients[websocket] = subs
         obs.updown("be.gateway.clients", +1, component=COMPONENT, endpoint="state")
         LOG.info("/state 접속 (현재 %s명)", len(self.state_clients))
         try:
-            async for _ in websocket:      # 단방향 push — 클라이언트가 보낸 것은 버린다(구독 관리는 Phase 5/7)
-                pass
+            # 구독 메시지를 읽는다(실측대비 v2 §3-1-1 (b)). Phase 1 은 받은 것을 버렸는데, VZ 가
+            # `case 'data'` 에서 **자기가 붙인 구독 ID** 로 찾으므로 그 ID 를 알아야 한다.
+            # 구독을 보내지 않는 클라이언트는 구독표가 빈 채로 남아 `_broadcast` 가 지금 형식으로 보낸다.
+            # ⚠ 토큰·인증은 접속 시점에 이미 끝났다 — 여기서 다시 보지 않는다.
+            async for raw in websocket:
+                try:
+                    msg = json.loads(raw)
+                except (TypeError, ValueError):
+                    continue           # 제어 메시지가 아니면 조용히 버린다(Phase 1 동작 그대로)
+                kind = vz_wire.apply_subscription(subs, msg)
+                if kind is not None:
+                    LOG.info("/state %s id=%s (구독 %s건)", kind, msg.get("id"), len(subs))
         except Exception as exc:
             LOG.info("/state 연결 종료(사유: %s)", exc)
         finally:
-            self.state_clients.discard(websocket)
+            self.state_clients.pop(websocket, None)
             obs.updown("be.gateway.clients", -1, component=COMPONENT, endpoint="state")
             LOG.info("/state 종료 (현재 %s명)", len(self.state_clients))
 

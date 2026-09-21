@@ -6,7 +6,7 @@ no-op 이든 똑같이 나야 한다(코드 결함은 관측 스택 유무와 �
 
 - N1: 금지 라벨(`session_id`·`internal_seq`·`sequence_id`·`timestamp`·`ts`·`frame_id`·
   `capture_timestamp` + Phase 4 확장 8종 `frame_ref`·`correlation_id`·`command_id`·`mission_id`·
-  `node_ref`·`client_request_id`·`plan_id`·`event_key`)이 어느 계기에도 못 붙는다.
+  `node_ref`·`client_request_id`·`plan_id`·`event_key` + 9번째 `utterance_text`)이 어느 계기에도 못 붙는다.
   `sorted(obs.FORBIDDEN_LABELS)`를 parametrize 하므로 목록이 늘면 수집 수가 저절로 는다(제약 24).
 - N1-b(Phase 4): `frame_ref`·`correlation_id`·`command_id` 셋이 **실제로** `ValueError`로 막힌다 —
   VZ 통지가 "막는다"고 적었는데 코드에 없던 것. 그리고 `node_id`(물리 노드)는 **허용**된다(음성의 반대 축).
@@ -77,12 +77,25 @@ def test_forbidden_label_rejected_on_every_instrument_kind() -> None:
 
 PHASE4_FORBIDDEN = ("frame_ref", "correlation_id", "command_id",
                     "mission_id", "node_ref", "client_request_id", "plan_id", "event_key")
+# 9번째 — 발화 원문. VZ 회신(2026-09-21)이 이름을 확정했다(임무 계약 `utterance.text` → 라벨 평탄화 시 이 이름).
+UTTERANCE_FORBIDDEN = "utterance_text"
 
 
 def test_phase4_labels_are_in_forbidden_set() -> None:
     """VZ 통지·회신에 적힌 8종이 전부 목록에 있고, `node_id`는 없다 — 목록 자체를 못 박는다."""
     assert set(PHASE4_FORBIDDEN) <= obs.FORBIDDEN_LABELS
     assert "node_id" not in obs.FORBIDDEN_LABELS
+
+
+def test_발화_원문_라벨이_이름으로_막힌다() -> None:
+    """9번째. VZ 가 2026-09-21 회신에서 이름을 확정했다 — 그전까지는 이름이 없어 넣을 수 없었다.
+
+    ⚠ VZ 는 **오늘 기준 이것을 라벨로 내보내지 않는다**(자체 관측은 숫자 여섯뿐, 라벨 0개).
+    미리 막아 두는 것은 VZ 요청이다 — *"그 이름으로 넣어 두면 우리가 실수해도 막힌다."*
+    """
+    assert UTTERANCE_FORBIDDEN in obs.FORBIDDEN_LABELS
+    # 임무 계약의 원래 이름(`utterance.text`)은 점이 들어가 라벨이 될 수 없다 — 평탄화 이름만 막는다.
+    assert "utterance" not in obs.FORBIDDEN_LABELS and "transcript" not in obs.FORBIDDEN_LABELS
 
 
 @pytest.mark.parametrize("bad", ["frame_ref", "correlation_id", "command_id"])

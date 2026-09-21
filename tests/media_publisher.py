@@ -11,7 +11,7 @@
   `encoding="jpeg"`.
 - 방식 B(`[4B 헤더길이][JSON 헤더][페이로드]`)로 인코드해 `/ingest?source_id=…&token=…`에 보낸다.
 - 같은 `frame_ref`를 담은 **가짜 탐지 메시지**를 JSON 파일로 남길 수 있다(`--detections-out`) —
-  `alignment:"frame"`, `coord.normalized:true`, `origin{edge, precise}`. 뷰어 오버레이 대조 재료.
+  `alignment:"frame"`, `bbox_space.format:"normalized"`, `origin{edge, precise}`. 뷰어 오버레이 대조 재료.
 - **MQTT·Kafka에 붙지 않는다**(원칙 3 — 영상은 미디어 경로로만).
 
 액세스 유닛 경계 규칙(지시서 3-1 — 우리가 새로 정한 것이고 HW 양끝에는 아직 없다):
@@ -21,12 +21,28 @@
 - `keyframe = AU 안에 타입 5 가 있는가`.
 같은 규칙이 홉2 송신기 규격의 전제다 — 로봇이 한 메시지에 AU 2개를 실으면 두 규칙이 갈린다.
 
+🔴 **`frame_ref` 를 매기는 시점 — 「AU 경계를 확정하는 순간」이지 「보내는 순간」이 아니다.**
+이 파일은 **버리지 않으므로 둘이 같은 순간**이고, 그래서 여기서는 증상이 드러나지 않는다.
+**실물 엣지는 다르다** — 송신 측 drop-old 를 하므로 두 시점이 갈린다. 거기서 **전송 시점에** 매기면
+버린 프레임이 순번을 소비하지 않아 **순번이 연속으로 보이고, 뷰어가 손실을 알 방법이 사라진다.**
+
+    (HW 실측 2026-09-21) 홉2 송신기를 처음 그렇게 만들었더니 64장을 버렸는데도 서버가
+    「순번 0~624 · 불연속 0회」로 봤다. `capture_timestamp` 와 같은 시점으로 옮기니 불연속이 나타났다.
+    HW 가 발견해 고쳤고, 그 지적으로 이 참조 구현도 같은 구조임을 확인했다.
+
+⚠ **이 파일의 구조가 그 함정을 그대로 보여 준다** — `iter_frames()` 가 제너레이터이고 `publish()` 가
+지연 소비하므로 `make_header()`(= 순번·시각 부여)가 **전송 직전**에 실행된다. 버리지 않아서 잠복해
+있을 뿐이다. **이 파일을 베껴 버리기를 더하면 그 순간 함정에 빠진다** — 헤더를 먼저 만들어 두고
+버릴 때도 순번을 소비해야 한다.
+
 CLI:
     python tests/media_publisher.py --source-id go1-001_front --encoding h264 --fps 30 --loop
     python tests/media_publisher.py --source-id cctv-zoneA-03 --encoding jpeg --fps 15 --count 45
     (--url 기본값 = settings.media_ingest_url(source_id) — MK2_MEDIA_INGEST_URL·MK2_EDGE_TOKEN 을 읽는다)
 
 implements: BE-T-07 (홉2 송신기 참조 구현 — 합성), BE-C-03 (frame_ref 부여 지점 = AU 재조립)
+⚠ 이 파일은 **버리지 않는 송신기**다. 버리기를 더할 때의 순번 규율은 모듈 독스트링 🔴 를 보라
+   (HW 실측 2026-09-21 로 확인된 함정).
 tests: tests/test_media_relay.py 가 `publish()`를 직접 부른다 · 컴퓨터 임시 엣지(단계 7)에서 CLI 로 쓴다
 """
 
@@ -159,14 +175,22 @@ def make_detections(header: Dict[str, Any]) -> Dict[str, Any]:
         "frame_ref": dict(header["frame_ref"]),
         "alignment": "frame",
         "origin": {"tier": "edge", "kind": "precise"},
-        "coord": {"normalized": True, "origin": "top-left", "ref_width": header["width"], "ref_height": header["height"]},
+        "bbox_space": {"format": "normalized", "origin": "top-left",
+                       "reference": {"width": header["width"], "height": header["height"]}},
         "boxes": [{"x": 0.30, "y": 0.30, "w": 0.25, "h": 0.30, "label": "synthetic", "confidence": 0.5}],
     }
 
 
 def iter_frames(encoding: str, *, source_id: str, width: int, height: int, loop: bool, start_seq: int = 0,
                 h264_path: Path = H264_FIXTURE, jpeg_dir: Path = FIXTURES) -> Iterator[Tuple[Dict[str, Any], bytes]]:
-    """(헤더, 페이로드) 열. `loop=True` 면 파일을 되풀이하되 `sequence_id`는 계속 증가한다."""
+    """(헤더, 페이로드) 열. `loop=True` 면 파일을 되풀이하되 `sequence_id`는 계속 증가한다.
+
+    🔴 **`make_header()` 가 `yield` 시점에 실행된다** — 즉 순번·`capture_timestamp` 가 호출자가 이 열을
+    한 칸 당기는 순간에 매겨진다. `publish()` 가 보내면서 당기므로 **사실상 전송 시점**이다.
+    이 파일은 버리지 않아 순번이 연속이고 증상이 없지만, **실물 엣지가 이 모양을 베끼면 안 된다**
+    (모듈 독스트링의 🔴 참조). 실물은 AU 를 재조립한 순간 헤더를 만들어 두고, **버릴 때도 그 순번을
+    소비**해야 뷰어가 불연속으로 손실을 본다.
+    """
     seq = start_seq
     if encoding == "h264":
         units = load_access_units(h264_path)
@@ -211,6 +235,9 @@ async def publish(url: str, frames: Iterator[Tuple[Dict[str, Any], bytes]], *, f
 
     `count` 가 있으면 그만큼 보내고 닫는다. `stop` 이벤트가 켜지면 멈춘다. 엣지 입구에서는 버리지 않으므로
     송신기는 그냥 fps 로 밀어 넣는다(버림은 서버 뷰어 슬롯 몫).
+
+    🔴 **그래서 이 함수에는 송신 측 drop-old 가 없다** — 홉2 송신기 규격(§8-2)은 「엣지도 서버와 같은
+    규칙으로 버린다」를 요구한다. 그것을 더할 때 **순번을 전송 시점에 매기지 마라**(모듈 독스트링 🔴).
     """
     try:
         from websockets.asyncio.client import connect as ws_connect
