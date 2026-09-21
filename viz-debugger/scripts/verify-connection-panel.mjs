@@ -215,12 +215,29 @@ const controls = [];
 
 // ── 6. physical 프리셋 ───────────────────────────────────────────────────────
 //
-// 네 자리(기본·같은 랜·발표장·직접 입력)가 다 있어야 한다. 260913 에 Tailscale 이 하나 더
-// 붙어 다섯이 됐다 — 수를 못박는 대신 **있어야 하는 것이 있는지**를 본다.
+// ## 260921 — 목록을 **테일넷 둘 + 직접 입력**으로 줄였다
+//
+// 전에는 기계마다 셋(테일넷·같은 랜·랩 IP)씩 두고 발표장 자리를 빈 채로 뒀다. 드론이
+// 붙으면서 여덟이 됐고, 그중 둘은 고를 수도 없는 줄이었다 — **무대에서 여덟 중 하나를
+// 고르는 것은 고르는 게 아니라 찾는 것**이다. 실제로 골라야 하는 것은 기계 하나뿐이다.
+//
+// 그래서 보는 것이 바뀐다. 「넷 이상 있는가」가 아니라 **「골라야 하는 둘이 있고, 나머지는
+// 직접 입력으로 갔는가」**다. 수를 늘리는 쪽이 아니라 줄이는 쪽이 규칙이 됐다.
 {
-  if (BROKER_PRESETS.length < 4) failures.push(`프리셋이 ${BROKER_PRESETS.length}개 — 넷 이상이어야 한다`);
-  for (const id of ['tailscale', 'name', 'venue', 'manual']) {
+  if (BROKER_PRESETS.length !== 3) {
+    failures.push(`프리셋이 ${BROKER_PRESETS.length}개 — 테일넷 둘 + 직접 입력 셋이어야 한다`);
+  }
+  for (const id of ['tailscale', 'drone-tailscale', 'manual']) {
     if (!BROKER_PRESETS.some((p) => p.id === id)) failures.push(`프리셋 ${id} 가 없다`);
+  }
+  /**
+   * **빈 프리셋이 없다.** 주소를 모르면 줄을 안 만든다 — 직접 입력으로 넣는다.
+   * 옛 규칙(빈 줄은 고를 수 없다)을 포함하면서 더 세다.
+   */
+  for (const preset of BROKER_PRESETS) {
+    if (preset.id === 'manual') continue;
+    if (preset.url.trim() === '') failures.push(`빈 프리셋 ${preset.id} — 주소를 모르면 줄을 만들지 않는다`);
+    if (!presetReady(preset)) failures.push(`${preset.id} 를 고를 수 없다`);
   }
   /**
    * **기본 주소와 프리셋이 갈리면 안 된다** (260913 지시 — 기본을 Tailscale 로 옮겼다).
@@ -235,13 +252,18 @@ const controls = [];
   if (tail !== undefined && seeded !== tail.url) {
     failures.push(`기본 주소가 ${seeded} — Tailscale 프리셋(${tail.url})과 같아야 한다`);
   }
-  if (tail !== undefined && !/\.ts\.net/.test(tail.url)) failures.push('Tailscale 프리셋이 ts.net 주소가 아니다');
-
-  const venue = BROKER_PRESETS.find((p) => p.id === 'venue');
-  if (venue === undefined) failures.push('발표장 핫스팟 프리셋이 없다');
-  // **비어 있어야 한다** — 정적 IP 를 받으면 채운다. 지어내 넣지 않는다.
-  if (venue !== undefined && venue.url.trim() !== '') failures.push(`발표장 주소가 채워져 있다 — ${venue.url}`);
-  if (venue !== undefined && presetReady(venue)) failures.push('값이 빈 프리셋을 고를 수 있다');
+  /**
+   * **둘 다 테일넷 이름이어야 한다** (260921 지시 — 「드론도 로봇과 동일하게 tailnet 으로」).
+   *
+   * IP 로 두면 기계마다 규칙이 갈린다 — 「망이 바뀌면 이쪽」이라는 한 문장이 Go1 에만
+   * 맞고 드론에는 안 맞게 된다. 무대에서 그 차이를 기억해야 하는 사람이 생긴다.
+   */
+  for (const id of ['tailscale', 'drone-tailscale']) {
+    const preset = BROKER_PRESETS.find((p) => p.id === id);
+    if (preset !== undefined && !/\.ts\.net/.test(preset.url)) {
+      failures.push(`${id} 프리셋이 ts.net 이름이 아니다 — ${preset.url}`);
+    }
+  }
   const panel = readFileSync(join(root, 'src', 'shell', 'ConnectionsPanel.tsx'), 'utf8');
   if (!/BROKER_PRESETS/.test(panel)) failures.push('연결 관리가 프리셋을 안 그린다');
 }
@@ -308,7 +330,7 @@ console.log('✅ 링크가 끊기면 로봇만 빨갛고 단말은 초록 · 낡
 console.log('✅ 브로커가 없으면 아래 둘은 「못 물어봤다」 · 모르는 줄이 있으면 초록이라고 말하지 않는다');
 console.log('✅ 확인 버튼이 실제 왕복을 한 번 돌린다 · 던져도 사유가 남는다 (팝업이 안 날아간다)');
 console.log('✅ detect 는 상대가 없으면 모름 — 2단계-B 에서 잇는다 · 한 대상이 죽어도 나머지는 돈다');
-console.log('✅ 프리셋 넷 · 발표장 핫스팟은 빈 채로 고를 수 없다');
+console.log('✅ 프리셋 셋 — 테일넷 둘(Go1 · 드론) + 직접 입력 · 빈 줄 0건');
 console.log('✅ 탐지도 네트워크 환경을 고른다 — 기본 주소가 Tailscale 프리셋과 같고, 주소는 src/detect/ 에만 있다');
 console.log(`✅ 대조군 ${controls.length}건 전부 검출 — ${controls.join(' · ')}`);
 process.exit(0);

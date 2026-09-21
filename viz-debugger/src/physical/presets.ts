@@ -121,32 +121,53 @@ export type BrokerPreset = {
 };
 
 /**
- * ## 260921 — 드론(pi3) 셋이 붙었다
+ * ## 260921 — 목록을 **테일넷 둘 + 직접 입력**으로 줄였다
  *
  * **같은 칸이다.** 연결 관리에 드론 칸을 따로 만들지 않는다 — pi3 도 자체 브로커(9001
  * WebSocket)를 띄우고 같은 봉투·같은 토픽 규칙을 쓴다(계약 §0). 주소만 바꾸면 드론이다.
  *
+ * 전에는 기계마다 셋(테일넷·같은 랜·랩 IP)씩 두고 발표장 자리를 빈 채로 뒀다. 드론이
+ * 붙으면서 여덟이 됐고, **무대에서 여덟 중 하나를 고르는 것은 고르는 게 아니라 찾는 것**이다.
+ * 실제로 골라야 하는 것은 「Go1 이냐 드론이냐」 하나뿐이다.
+ *
+ * 규칙이 하나로 정리된다: **주소를 모르면 프리셋을 안 만든다.** 빈 프리셋을 두고 「아직
+ * 없음」이라고 적던 자리가 사라졌다 — 없는 것은 목록에 없고, 필요하면 직접 입력에 넣는다.
+ * mDNS·랩 IP·발표장 주소는 계약 문서(§1)와 이 주석에 남아 있으므로 잃어버리지 않는다.
+ *
+ *     Go1   ws://pi7.local:9001        ws://192.168.50.172:9001
+ *     드론  ws://pi3.local:9001        ws://192.168.50.254:9001   (계약 §1 · 9001 확인됨)
+ *
  * 골라서 붙고 나면 **무엇에 붙었는지는 장비가 말한다** — 프리셋 이름이 아니라 그쪽이
- * 근거다(`deviceIdentity.ts`). 여기 `pi3` 라고 적힌 것은 사람이 고르기 위한 이름일 뿐이고,
- * 코드가 이 문자열을 보고 기종을 가르지 않는다.
+ * 근거다(`deviceIdentity.ts`). 여기 `Go1`·`드론` 이라고 적힌 것은 사람이 고르기 위한
+ * 이름일 뿐이고, 코드가 이 문자열을 보고 기종을 가르지 않는다.
  */
 export const BROKER_PRESETS: readonly BrokerPreset[] = [
   // **기본값.** 망이 바뀌어도 이름이 같다 — 노트북에서 돌리든 발표장에서 돌든 한 주소다.
   { id: 'tailscale', labelKey: 'preset.broker.tailscale', url: 'ws://pi7.tailcb6bfb.ts.net:9001/mqtt', whyKey: 'preset.broker.tailscale.why' },
-  { id: 'name', labelKey: 'preset.broker.name', url: 'ws://pi7.local:9001', whyKey: 'preset.broker.name.why' },
-  { id: 'lab', labelKey: 'preset.broker.lab', url: 'ws://192.168.50.172:9001', whyKey: 'preset.broker.lab.why' },
-  // ↓ 정적 IP 를 받으면 이 줄의 url 만 채운다.
-  { id: 'venue', labelKey: 'preset.broker.venue', url: '', whyKey: 'preset.broker.venue.why' },
-  // ── 드론 pi3 (계약 §1 — 값은 전부 그쪽이 실제로 재서 준 것이다) ──────────────
-  { id: 'drone-name', labelKey: 'preset.broker.droneName', url: 'ws://pi3.local:9001', whyKey: 'preset.broker.droneName.why' },
-  { id: 'drone-lab', labelKey: 'preset.broker.droneLab', url: 'ws://192.168.50.254:9001', whyKey: 'preset.broker.droneLab.why' },
-  // **9001 은 이 주소로 아직 확인 안 됐다** — 계약 §1 이 1883 왕복만 ✅ 로 적었다.
-  // 값을 지어낸 것이 아니라 그쪽이 준 주소이므로 넣되, 사유에 그 사실을 적는다.
-  { id: 'drone-tailscale', labelKey: 'preset.broker.droneTailscale', url: 'ws://100.85.243.54:9001', whyKey: 'preset.broker.droneTailscale.why' },
+  /**
+   * 드론도 **테일넷 이름**으로 둔다 — Go1 과 같은 꼴이라야 「망이 바뀌면 이쪽」이라는 규칙이
+   * 기계마다 갈리지 않는다.
+   *
+   * ⚠ **이름은 계약이 준 값이 아니다.** 계약 §1 이 준 것은 테일넷 **IP**(`100.85.243.54`)이고
+   * 그마저 1883 왕복만 확인됐다. 이름은 pi7(`pi7.tailcb6bfb.ts.net`)·pi1
+   * (`pi1.tailcb6bfb.ts.net`, `NavClient.ts`)이 쓰는 테일넷을 그대로 따른 것이다 —
+   * 같은 테일넷에 MagicDNS 로 `pi3` 가 올라 있어야 풀린다. **실기에서 먼저 확인할 것.**
+   * 안 풀리면 직접 입력에 `ws://100.85.243.54:9001` 을 넣으면 된다.
+   *
+   * 경로(`/mqtt`)를 안 붙인 이유: 계약이 9001 을 확인한 형태가 경로 없는 쪽이다(§1).
+   * Go1 쪽은 `/mqtt` 로 돌고 있으므로 각자 확인된 모양을 그대로 둔다.
+   */
+  { id: 'drone-tailscale', labelKey: 'preset.broker.droneTailscale', url: 'ws://pi3.tailcb6bfb.ts.net:9001', whyKey: 'preset.broker.droneTailscale.why' },
   { id: 'manual', labelKey: 'preset.manual', url: '', whyKey: 'preset.manual.why' },
 ];
 
-/** 고를 수 있는 프리셋인가. 값이 빈 것은 아직 없는 것이다. */
+/**
+ * 고를 수 있는 프리셋인가. 값이 빈 것은 아직 없는 것이다.
+ *
+ * 260921 부터 **빈 프리셋을 안 만든다**(위 주석)이라 이 함수는 늘 참이다. 그래도 남긴다 —
+ * 다음 사람이 「주소는 나중에」 하며 빈 줄을 또 넣을 때 화면이 그것을 고르지 못하게 막는
+ * 마지막 그물이고, `verify:physical-port` 가 그런 줄이 생기는 것 자체를 먼저 잡는다.
+ */
 export function presetReady(preset: BrokerPreset): boolean {
   return preset.id === 'manual' || preset.url.trim() !== '';
 }

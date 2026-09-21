@@ -42,6 +42,14 @@ function walk(dir) {
 const FORBIDDEN = [
   { pattern: /pi7\.local/, what: 'MQTT 브로커 이름' },
   { pattern: /192\.168\.50\.172/, what: '랩 Wi-Fi 고정 IP' },
+  // 드론(pi3)도 같은 규칙이다 (260921). 기계가 둘이 됐는데 한쪽만 막으면, 새로 붙는
+  // 쪽 주소가 경계 밖으로 새 나가는 것을 아무도 안 잡는다.
+  //
+  // **테일넷을 통째로 막지 않는다** — `src/detect/` 가 같은 테일넷의 다른 기계를 쓰고
+  // 그것은 그 경계 안에 있는 것이 맞다(`verify:capability-source` 와 같은 규칙).
+  { pattern: /pi3\.local/, what: '드론 MQTT 브로커 이름' },
+  { pattern: /pi3\.tailcb6bfb/, what: '드론 테일넷 이름' },
+  { pattern: /192\.168\.50\.254|100\.85\.243\.54/, what: '드론 브로커 IP' },
   { pattern: /terminal\/[^\s'"`]*\/(downlink|uplink)/, what: 'MQTT 명령 토픽' },
   // 장비 상태 토픽도 경계 안에 있어야 한다 (260910). 구역 이름이 바뀌면 한 곳만 고친다.
   { pattern: /zoneA\/\+\/\+\//, what: 'MQTT 장비 상태 토픽' },
@@ -85,12 +93,32 @@ failures.push(...scan(files));
   // 주소 자체는 경계 파일이 심는다 — 여기 fallback 은 화면이 그릴 대비값이다.
 }
 
-// 핫스팟 IP 를 짐작해 넣지 않았는가 (§2 · 지시서가 못박은 자리).
+/**
+ * 주소를 **짐작해 넣지 않았는가** (§2 · 지시서가 못박은 자리).
+ *
+ * ## 260921 — 규칙이 한 단계 세졌다
+ *
+ * 전에는 발표장 자리를 **빈 프리셋**으로 두고 「url 이 비어 있어야 한다」를 봤다. IP 를
+ * 받으면 그 한 줄만 채우려던 것인데, 기계가 둘이 되면서 목록이 여덟이 됐고 그중 둘이
+ * 고를 수 없는 줄이었다 — **무대에서 여덟 중 하나를 고르는 것은 고르는 게 아니라 찾는 것**이다.
+ *
+ * 그래서 목록을 테일넷 둘 + 직접 입력으로 줄이고 규칙을 이렇게 바꿨다:
+ *
+ *   > **주소를 모르면 프리셋을 아예 안 만든다.** 필요하면 직접 입력에 넣는다.
+ *
+ * 옛 규칙(빈 줄은 고를 수 없다)을 **포함하면서 더 세다** — 빈 줄 자체가 없어야 하므로
+ * 지어낸 주소가 들어갈 자리도 같이 사라진다.
+ */
 {
   const source = readFileSync(join(srcDir, 'physical', 'presets.ts'), 'utf8');
-  const venue = source.match(/id:\s*'venue'[^}]*url:\s*'([^']*)'/);
-  if (venue === null) failures.push('presets.ts 에 발표장 프리셋이 없다');
-  else if (venue[1].trim() !== '') failures.push(`발표장 핫스팟 주소가 채워져 있다 — ${venue[1]} · IP 는 아직 없다`);
+  const blanks = [...source.matchAll(/id:\s*'([^']+)'[^}]*url:\s*'([^']*)'/g)]
+    .filter(([, id, url]) => id !== 'manual' && url.trim() === '')
+    .map(([, id]) => id);
+  if (blanks.length > 0) {
+    failures.push(`빈 프리셋이 있다 — ${blanks.join(' · ')} · 주소를 모르면 줄을 만들지 말고 직접 입력을 쓴다`);
+  }
+  // 검사가 헛돌지 않게 — 프리셋이 실제로 있어야 한다.
+  if (!/id:\s*'manual'/.test(source)) failures.push('presets.ts 에 직접 입력 자리가 없다');
 }
 
 // ── 대조군 ───────────────────────────────────────────────────────────────────
@@ -114,11 +142,19 @@ function control(name, hit) {
   // 경계 안을 포함해 훑으면 반드시 걸려야 한다 — 규칙이 실제로 무언가를 보고 있다는 뜻.
   control('경계를 포함해 훑으면 걸린다', scan(files, { skipBoundary: false }).length > 0);
 }
+{
+  // 빈 프리셋 규칙 — 주소를 모르는 줄을 심은 사본이 잡혀야 한다.
+  const blanksOf = (source) => [...source.matchAll(/id:\s*'([^']+)'[^}]*url:\s*'([^']*)'/g)]
+    .filter(([, id, url]) => id !== 'manual' && url.trim() === '');
+  control('빈 프리셋을 심은 사본', blanksOf("{ id: 'venue', labelKey: 'x', url: '', whyKey: 'y' },").length === 1);
+  // 반대 대조군 — 직접 입력은 원래 비어 있다. 그것까지 잡으면 규칙이 못 쓰게 된다.
+  control('직접 입력은 안 잡는다', blanksOf("{ id: 'manual', labelKey: 'x', url: '', whyKey: 'y' },").length === 0);
+}
 
 if (failures.length) {
   console.error(`❌ verify:physical-port\n- ${failures.join('\n- ')}`);
   process.exit(1);
 }
 console.log(`✅ 로봇을 아는 면이 src/physical/ 하나 — 주소·토픽·go1-001·mqtt·protobufjs 가 경계 밖에 0건 (${files.length}개 파일)`);
-console.log('✅ 연결 대상 physical 등록됨 · 발표장 핫스팟 주소는 빈 채로 (지어내지 않았다)');
+console.log('✅ 연결 대상 physical 등록됨 · 빈 프리셋 0건 — 주소를 모르면 줄을 안 만든다 (지어내지 않았다)');
 console.log(`✅ 대조군 ${controls.length}건 전부 검출 — ${controls.join(' · ')}`);
