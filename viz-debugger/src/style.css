@@ -797,6 +797,10 @@ button.robot-resume{padding:6px 12px;border:1px solid #2f9e5f;border-radius:6px;
 .capability-panel__head h2{margin:0 0 6px}
 .capability-badges{display:flex;flex-wrap:wrap;gap:4px;justify-content:flex-end}
 .capability-panel__hint{flex:0 0 auto;margin:0 0 8px;color:#687587;font-size:11px;line-height:1.5}
+/* 계층 전체 보기 입구 (260921). 힌트 줄 안의 작은 글자 버튼 — 기능 목록과 같은 무게로
+   보이면 「기능이 하나 더 있다」로 읽힌다. */
+.capability-panel__fleet{margin-left:6px;padding:2px 7px;border:1px solid #cbd3de;border-radius:6px;background:#fff;color:#1768c5;font:inherit;font-size:11px}
+.capability-panel__fleet:hover{border-color:#1768c5;background:#1768c5;color:#fff}
 .capability-panel__fallback{flex:0 0 auto;margin:0 0 8px;padding:7px 9px;border:1px solid #e3c98a;border-radius:6px;background:#fdf8ec;color:#7a5c12;font-size:11.5px;line-height:1.5}
 .capability-panel__body{flex:1;min-height:0;overflow:auto}
 .capability-panel__note{margin:6px 0;color:#6a7686;font-size:12px}
@@ -816,9 +820,14 @@ button.robot-resume{padding:6px 12px;border:1px solid #2f9e5f;border-radius:6px;
 .cap-chip--plain{background:#f2f4f7;color:#5c6a7c;font-weight:400}
 /* 테스트 자료 배지는 연결 관리의 「테스트」와 **같은 주황**이다 — 어디서 켰는지가 보인다. */
 .cap-chip--sample{border:1px dashed #c07a1a;background:#fdf6ea;color:#7a4d08}
+/* 가상 조건 (260921). 앱의 대기 보라(#9a6bd8/#f5efff)와 같은 계열이라 새 색이 아니다. */
+.cap-chip--whatif{border:1px solid #c1a8e8;background:#f5efff;color:#4a2d86}
+/* 조건 때문에 사라진 것 — **자리를 남긴다.** 지우면 「원래 없었다」로 읽힌다. */
+.cap-chip--gone{background:#fdeceb;color:#8f2b26;font-weight:400;text-decoration:line-through}
 
 .cap-fn{width:100%;display:grid;grid-template-columns:1fr auto;gap:4px;align-items:center;text-align:left;padding:9px 10px;margin:6px 0;border:1px solid #d6dce5;border-radius:8px;background:#fff;color:inherit}
 .cap-fn:hover{border-color:#1768c5;background:#f6faff}
+.cap-fn.is-changed{border-color:#c1a8e8;background:#fdfcff}
 .cap-fn strong{font-size:13px}
 .cap-fn__grade{display:flex;align-items:center;gap:5px}
 .cap-fn__grade b{color:#8a94a1;font-size:12px}
@@ -835,21 +844,73 @@ button.robot-resume{padding:6px 12px;border:1px solid #2f9e5f;border-radius:6px;
 .cap-strip span b{font-size:12px;line-height:1.5;word-break:keep-all}
 .cap-note{margin:10px 22px;color:#8a94a1;font-size:11.5px;line-height:1.55}
 .cap-note--pad{padding:18px 0}
+.cap-note--flush{margin:9px 0 0}
 .cap-supplement{margin:14px 22px 0;padding:0;list-style:none;display:grid;gap:5px}
-.cap-supplement li{display:grid;grid-template-columns:150px 140px 1fr;gap:10px;align-items:baseline;padding:7px 10px;border:1px solid #efb2b2;border-radius:7px;background:#fff7f7;font-size:12px}
+.cap-supplement li{display:grid;grid-template-columns:150px 190px 1fr;gap:10px;align-items:baseline;padding:7px 10px;border:1px solid #efb2b2;border-radius:7px;background:#fff7f7;font-size:12px}
 .cap-supplement em{font-style:normal;color:#6b7888}
 
 .cap-table{border-top:1px solid #e1e5eb}
 .cap-table__head{display:grid;gap:12px;padding:9px 22px;background:#f7f9fc;border-bottom:1px solid #e1e5eb;font-size:11px;color:#6b7888;font-weight:700}
-.cap-table--tier .cap-table__head{grid-template-columns:150px 120px 1fr 130px 16px}
 .cap-table--dev .cap-table__head{grid-template-columns:1.2fr 120px 1fr 1.2fr}
-.cap-noderow{width:100%;display:grid;grid-template-columns:150px 120px 1fr 130px 16px;gap:12px;align-items:center;text-align:left;padding:11px 22px;border:0;border-bottom:1px solid #e1e5eb;background:#fff;color:inherit}
-.cap-noderow:hover{background:#f6faff}
-.cap-noderow__role{font-size:12px;color:#4a5666}
-.cap-noderow code{font-size:13px;font-weight:700}
+
+/* 계층 섹션 (260921) — role 이 열 하나가 아니라 **분류**다. 계층마다 「이 계층이 제공하는
+   것」이 붙고, 그것이 평면 표에서는 물을 자리가 없던 질문이다. */
+.cap-role{border-top:1px solid #e1e5eb}
+.cap-role__head{padding:12px 22px 10px;background:#f7f9fc;border-bottom:1px solid #eef1f5}
+.cap-role__title{display:flex;align-items:baseline;flex-wrap:wrap;gap:10px;margin-bottom:7px}
+.cap-role__title strong{font-size:13px}
+.cap-role__title code{font-size:11px;color:#6b7684}
+.cap-role__title>span{margin-left:auto;font-size:11px;color:#5c6a7c}
+.cap-role__serves{display:flex;flex-wrap:wrap;align-items:baseline;gap:5px}
+.cap-role__serves>span{margin-right:3px;font-size:11px;color:#5c6a7c}
+.cap-role__serves small{font-size:10.5px;color:#8f2b26}
+
+/* 노드 줄 — **줄은 조건을 펴고, 오른쪽 › 가 개발자 단계로 간다.** 둘을 한 버튼에 걸면
+   태그 하나 켜려다 화면이 넘어간다. */
+.cap-noderow{display:grid;grid-template-columns:1fr 26px;border-bottom:1px solid #e1e5eb;background:#fff}
+.cap-noderow.is-open{background:#faf7ff}
+.cap-noderow__main{display:grid;grid-template-columns:170px 1fr 120px 90px;gap:12px;align-items:center;text-align:left;padding:11px 0 11px 22px;border:0;background:transparent;color:inherit;font:inherit}
+.cap-noderow__main:hover{background:#f6faff}
+.cap-noderow.is-open .cap-noderow__main:hover{background:transparent}
+.cap-noderow__id{display:flex;flex-direction:column;gap:2px;min-width:0}
+.cap-noderow__id code{font-size:13px;font-weight:700}
+.cap-noderow__id small{font-size:10.5px;color:#6b7684}
 .cap-noderow__serves{display:flex;flex-wrap:wrap;gap:4px}
 .cap-noderow__budget{font-size:12px;font-variant-numeric:tabular-nums}
-.cap-noderow b{color:#8a94a1}
+.cap-noderow__cond{display:flex;align-items:center;justify-content:flex-end;gap:6px;padding-right:6px}
+.cap-noderow__cond b{font-size:11px;font-weight:600;color:#5c6a7c}
+.cap-noderow.is-changed .cap-noderow__cond b{color:#4a2d86}
+.cap-noderow__go{align-self:stretch;padding:0 6px 0 0;border:0;background:transparent;color:#7a8592;font-size:15px}
+.cap-noderow__go:hover{color:#1768c5}
+
+/* 조건 조작면 — 태그 핀 · 예산 · provider 제외. 줄 안에서 펴지므로 두 칸을 다 덮는다. */
+.cap-cond{grid-column:1/-1;display:grid;grid-template-columns:1.25fr 1fr;gap:20px;margin:2px 22px 16px;padding:14px 16px;border:1px solid #ddd3f0;border-radius:9px;background:#fff}
+.cap-cond--global{margin:12px 22px;background:#faf7ff}
+.cap-cond__col{min-width:0}
+.cap-cond h4{margin:0 0 7px;font-size:11px;font-weight:400;color:#5c6a7c}
+.cap-cond__col>.cap-fields{margin-bottom:14px}
+.cap-pins{display:flex;flex-wrap:wrap;gap:5px}
+.cap-pin{display:inline-flex;align-items:center;gap:5px;padding:5px 9px;border:1px solid #d6dce5;border-radius:14px;background:#fff;color:#5c6a7c;font-size:11px;cursor:pointer}
+.cap-pin.is-on{border-color:#1768c5;background:#f6faff;color:#17202b}
+.cap-pin input{margin:0}
+.cap-fields{display:flex;gap:10px}
+.cap-fields label{display:grid;gap:4px;font-size:11px;color:#5c6a7c}
+.cap-fields input{width:110px;padding:6px 8px;border:1px solid #cbd3de;border-radius:6px;font:inherit;font-size:12px}
+.cap-checks{display:grid;gap:4px;max-height:132px;overflow:auto;padding-right:4px}
+.cap-checks label{display:flex;align-items:center;gap:7px;font-size:11.5px;color:#46525f;cursor:pointer}
+.cap-checks input{margin:0}
+.cap-checks code{font-size:11.5px}
+
+/* 가상 조건 막대 — 기능 판과 드릴다운이 **같은 부품**을 쓴다(모양만 다르다). */
+.cap-whatif{border:1px solid #c1a8e8;border-radius:8px;background:#faf7ff}
+.cap-whatif--panel{flex:0 0 auto;margin:0 0 10px;padding:9px 10px}
+.cap-whatif--drill{border-width:0 0 1px;border-radius:0;padding:11px 22px}
+.cap-whatif__line{display:flex;align-items:center;flex-wrap:wrap;gap:7px}
+.cap-whatif__line strong{font-size:12px;color:#4a2d86}
+.cap-whatif__buttons{margin-left:auto;display:flex;gap:6px}
+.cap-whatif__buttons button{padding:5px 10px;border:1px solid #c1a8e8;border-radius:6px;background:#fff;color:#4a2d86;font:inherit;font-size:11.5px}
+.cap-whatif__chips{display:flex;flex-wrap:wrap;gap:4px;margin-top:7px}
+.cap-whatif__error{margin:7px 0 0;color:#8f2b26;font-size:11.5px;line-height:1.5}
 
 .cap-dev{display:grid;grid-template-columns:1fr 300px}
 .cap-dev__main{padding:16px 22px;min-width:0}

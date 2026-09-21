@@ -16,8 +16,9 @@
  */
 
 import type {
-  CapAlternative, CapControl, CapCost, CapFunction, CapKindRow, CapLabelGroup, CapLabels,
-  CapNode, CapNodeRow, CapServedBy, CapSnapshot, CapSupplement, CapWhy,
+  CapAlternative, CapControl, CapCost, CapDiff, CapFunction, CapKindRow, CapLabelGroup, CapLabels,
+  CapNode, CapNodeRow, CapOverride, CapOverrides, CapServedBy, CapSnapshot, CapSupplement,
+  CapWhatif, CapWhy,
 } from './types.ts';
 
 const num = (value: unknown): number | null => (typeof value === 'number' && Number.isFinite(value) ? value : null);
@@ -195,6 +196,18 @@ function fn(value: unknown): CapFunction | null {
 }
 
 /**
+ * `served` — kind → 그것을 제공하는 노드들. **순서를 안 바꾼다**: 서버가 선택 규칙대로
+ * 정렬해서 주고(`served[kind][0]` 이 실제로 뽑힌 항목), 우리가 다시 정렬하면 그 뜻이 사라진다.
+ */
+function servedMap(value: unknown): Readonly<Record<string, readonly CapServedBy[]>> {
+  const out: Record<string, readonly CapServedBy[]> = {};
+  for (const [kind, entries] of Object.entries(obj(value))) {
+    out[kind] = arr(entries).map(servedBy).filter((v): v is CapServedBy => v !== null);
+  }
+  return out;
+}
+
+/**
  * `GET /api/functions` 한 건. 모양이 아니면 `null` — `functions` 가 배열이 아니면 그것은
  * 이 서비스의 응답이 아니다(엉뚱한 주소에 붙었을 때 빈 화면 대신 사유가 뜬다).
  */
@@ -204,8 +217,83 @@ export function parseSnapshot(body: unknown, receivedAtMs = Date.now()): CapSnap
   return {
     functions: raw.functions.map(fn).filter((v): v is CapFunction => v !== null),
     nodes: arr(raw.nodes).map(node).filter((v): v is CapNode => v !== null),
+    served: servedMap(raw.served),
     receivedAtMs,
   };
+}
+
+function diffRow(value: unknown): CapDiff | null {
+  const raw = obj(value);
+  const functionId = str(raw.function_id);
+  const afterState = str(raw.after_state);
+  if (functionId === null || afterState === null) return null;
+  return {
+    functionId,
+    beforeState: str(raw.before_state),
+    afterState,
+    // **서버가 낸 값을 옮긴다.** 여기서 두 상태를 비교해 다시 계산하지 않는다 —
+    // 판정을 다시 하지 않는 이 파일의 규칙 그대로다.
+    changed: raw.changed === true,
+  };
+}
+
+/**
+ * `POST /api/functions/whatif` 한 건. `before`·`after` 가 `GET /api/functions` 와 같은 모양이라
+ * **같은 파서를 태운다** — 한쪽만 모양이 어긋나면 그건 이 서비스의 응답이 아니다.
+ *
+ * `overrides` 는 우리가 보낸 조건이 아니라 **서버가 정규화해서 돌려준 것**이다. 화면이
+ * 「무엇이 걸렸는가」를 우리 기억이 아니라 답신에서 읽게 하려고 같이 판다.
+ */
+export function parseWhatif(body: unknown, receivedAtMs = Date.now()): CapWhatif | null {
+  const raw = obj(body);
+  const before = parseSnapshot(raw.before, receivedAtMs);
+  const after = parseSnapshot(raw.after, receivedAtMs);
+  if (before === null || after === null) return null;
+  return {
+    before,
+    after,
+    diff: arr(raw.diff).map(diffRow).filter((v): v is CapDiff => v !== null),
+    overrides: parseOverrides(obj(raw.after).overrides),
+  };
+}
+
+/** 서버가 돌려준 조건 묶음 → 우리 모양. */
+export function parseOverrides(value: unknown): CapOverrides {
+  const out: Record<string, CapOverride> = {};
+  for (const [nodeId, entry] of Object.entries(obj(value))) {
+    const raw = obj(entry);
+    const tags = Array.isArray(raw.tags) ? strList(raw.tags) : null;
+    const exclude = Array.isArray(raw.exclude_providers) ? strList(raw.exclude_providers) : null;
+    const budget = cost(raw.budget);
+    // 셋 다 비었으면 「안 건드린 노드」다 — 서버는 그런 항목도 빈 객체로 돌려준다.
+    if (tags === null && exclude === null && budget === null) continue;
+    out[nodeId] = { tags, budget, excludeProviders: exclude };
+  }
+  return out;
+}
+
+/**
+ * 우리 모양 → 보낼 JSON. **`null` 인 칸은 아예 안 싣는다** — 서버는 없는 칸을 「설정 그대로」로
+ * 읽고, `null` 을 실어 보내면 그것대로 값이 된다(전달본: 「예산 일부만 넘기면 나머지는 기존
+ * 설정을 유지한다」).
+ *
+ * 아무것도 안 건 노드는 통째로 빠진다 — 빈 항목을 보내면 서버가 `unknown_node` 검사만 더 한다.
+ */
+export function encodeOverrides(overrides: CapOverrides): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [nodeId, entry] of Object.entries(overrides)) {
+    const one: Record<string, unknown> = {};
+    if (entry.tags !== null) one.tags = [...entry.tags];
+    if (entry.excludeProviders !== null) one.exclude_providers = [...entry.excludeProviders];
+    if (entry.budget !== null) {
+      const budget: Record<string, number> = {};
+      if (entry.budget.computeUnits !== null) budget.compute_units = entry.budget.computeUnits;
+      if (entry.budget.memoryMb !== null) budget.memory_mb = entry.budget.memoryMb;
+      if (Object.keys(budget).length > 0) one.budget = budget;
+    }
+    if (Object.keys(one).length > 0) out[nodeId] = one;
+  }
+  return out;
 }
 
 /** `GET /api/config` 중 배치 모드만. 없으면 null — 「모른다」이지 local 이 아니다. */

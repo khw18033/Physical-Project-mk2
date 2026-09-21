@@ -13,6 +13,16 @@
  * 배지가 없으면 계산된 `가능` 이 「카메라가 실제로 돌고 있다」로 읽힌다. 전달본이 두 번
  * 못박은 자리다.
  *
+ * ## 배지가 둘이 된다 (260921)
+ *
+ * 가상 조건이 걸려 있는 동안 **「가상 조건」 배지가 하나 더 붙고, 그것도 끌 수 없다.**
+ * 이유가 같다 — 이 판의 값은 이미 한 단계 약한 주장(계산)인데, 거기에 「그것도 실제
+ * 설정이 아니라 가정」이 겹친다. 두 겹을 적어 두지 않으면 남이 본 화면이 현재 상태가 된다.
+ *
+ * 조건은 이 판에서 **걸지 않는다.** 거는 자리는 드릴다운의 계층·자원 단계 하나이고
+ * (`NodeConditions`), 여기는 결과와 「기준선으로」만 보인다 — 좁은 기둥에 조작면을 우겨
+ * 넣으면 체크박스가 기능 목록을 밀어낸다.
+ *
  * ## 세 단계 (사용자 지시 · 260919 논의)
  *
  *   기능        여기 (접힌 목록)
@@ -28,9 +38,10 @@ import { t } from '../../i18n/dict.ts';
 import { useLang } from '../../shared/language.ts';
 import { capabilityBaseUrl } from '../CapabilityClient.ts';
 import { capLabel, capReason } from '../labels.ts';
-import { clearCapabilityForAddressChange, loadCapability, useCapability } from '../store.ts';
+import { clearCapabilityForAddressChange, loadCapability, shownSnapshot, useCapability } from '../store.ts';
 import type { CapFunction, CapKindRow } from '../types.ts';
 import { CapabilityDrill } from './CapabilityDrill.tsx';
+import { WhatifBar } from './WhatifBar.tsx';
 
 /** 원본 `CapabilityState` → 칩 색. 모르는 값은 회색이다 — 초록도 빨강도 거짓이 된다. */
 function stateClass(state: string): string {
@@ -49,10 +60,11 @@ export function CapabilityPanel() {
   const lang = useLang();
   const cap = useCapability();
   /**
-   * 열려 있는 드릴다운. **문자열 하나다** — 배열이면 둘이 열리고, 둘이 열리면 분할 화면이고,
-   * 분할 화면은 곧 탭이 된다 (`VZ-N-05` · `DeviceStatusOverlay` 와 같은 규칙).
+   * 열려 있는 드릴다운. **상태 하나다** — 기능을 고른 것과 계층 전체 보기가 같은 칸을 쓴다.
+   * 둘을 각자 상태로 두면 둘이 동시에 열릴 수 있고, 둘이 열리면 분할 화면이고, 분할 화면은
+   * 곧 탭이 된다 (`VZ-N-05` · `DeviceStatusOverlay` 와 같은 규칙).
    */
-  const [openFn, setOpenFn] = useState<string | null>(null);
+  const [open, setOpen] = useState<{ fn: string } | { fleet: true } | null>(null);
   const base = capabilityBaseUrl();
 
   /**
@@ -69,8 +81,12 @@ export function CapabilityPanel() {
     void loadCapability();
   }, [cap.testMode, base]);
 
-  const functions = cap.snapshot?.functions ?? [];
+  // 조건이 걸려 있으면 가상값을 그린다. 갈림은 저장소의 한 함수다 — 부품마다 고르면
+  // 언젠가 한 칸만 기준선이 남는다.
+  const functions = shownSnapshot(cap)?.functions ?? [];
   const sample = cap.via === 'sample';
+  /** 기능별 전·후. 서버가 낸 `diff` 를 옮기기만 한다 — 두 상태를 여기서 비교하지 않는다. */
+  const diffById = new Map((cap.whatif?.diff ?? []).map((row) => [row.functionId, row]));
 
   return <aside className="capability-panel">
     <div className="capability-panel__head">
@@ -78,11 +94,20 @@ export function CapabilityPanel() {
       <div className="capability-badges">
         {/* **끌 수 없다.** 위 카드는 실측이고 이 판은 계산이다 — 같은 무게로 읽히면 안 된다. */}
         <em className="cap-chip cap-chip--warn" title={t('cap.badge.configTitle')}>{t('cap.badge.config')}</em>
+        {/* **이것도 끌 수 없다.** 조건이 걸려 있는 동안에는 늘 뜬다 — 가리는 길이 없어야 한다. */}
+        {cap.whatif !== null && <em className="cap-chip cap-chip--whatif" title={t('cap.badge.whatifTitle')}>{t('cap.badge.whatif')}</em>}
         {sample && <em className="cap-chip cap-chip--sample" title={t('cap.badge.sampleTitle')}>{t('cap.badge.sample')}</em>}
         {cap.via === 'direct' && <em className="cap-chip cap-chip--plain" title={t('cap.badge.directTitle')}>{t('cap.badge.direct')}</em>}
       </div>
     </div>
-    <p className="capability-panel__hint">{t('cap.hint')}</p>
+    <p className="capability-panel__hint">
+      {t('cap.hint')}
+      {/* 계층 전체 보기 — 기능과 무관한 축이라 기능 목록 **안**에 둘 수 없다. 오버레이는
+          기능 드릴다운과 같은 것을 쓴다(탭이 아니다 · 동시 하나). */}
+      <button type="button" className="capability-panel__fleet" onClick={() => setOpen({ fleet: true })}>
+        {t('cap.fleet.open')}
+      </button>
+    </p>
 
     {/* 배치 모드가 폴백했으면 그 사실을 적는다 — k3s 를 요청했는데 local 로 떨어진 것은
         「왜 클러스터가 안 바뀌지」의 답이다(전달본 「배치 모드와 한계」). */}
@@ -94,6 +119,8 @@ export function CapabilityPanel() {
       })}
     </p>}
 
+    <WhatifBar variant="panel" />
+
     <div className="capability-panel__body">
       {cap.loading && functions.length === 0 && <p className="capability-panel__note">{t('cap.loading')}</p>}
       {cap.error !== null && <p className="capability-panel__error">{t('cap.error', { reason: cap.error })}</p>}
@@ -102,14 +129,21 @@ export function CapabilityPanel() {
       {functions.map((fn) => {
         const gap = firstGap(fn);
         const gapWhy = gap === null ? null : gap.why[0] ?? null;
+        const diff = diffById.get(fn.functionId) ?? null;
+        // 안 바뀐 기능에는 화살표를 안 붙인다 — 붙이면 전부 바뀐 것처럼 보인다.
+        const before = diff !== null && diff.changed ? diff.beforeState : null;
         return <button
           key={fn.functionId}
           type="button"
-          className="cap-fn"
-          onClick={() => setOpenFn(fn.functionId)}
+          className={`cap-fn${before !== null ? ' is-changed' : ''}`}
+          onClick={() => setOpen({ fn: fn.functionId })}
         >
           <strong>{capLabel(cap.labels.functions, fn.functionId, lang)}</strong>
           <span className="cap-fn__grade">
+            {before !== null && <>
+              <em className="cap-chip cap-chip--plain">{capLabel(cap.labels.states, before, lang)}</em>
+              <b aria-hidden="true">→</b>
+            </>}
             <em className={`cap-chip cap-chip--${stateClass(fn.state)}`}>{capLabel(cap.labels.states, fn.state, lang)}</em>
             <b aria-hidden="true">›</b>
           </span>
@@ -140,6 +174,8 @@ export function CapabilityPanel() {
     </footer>
 
     {/* 드릴다운은 오버레이다 — 뒤의 두 판은 언마운트되지 않고, 닫으면 정확히 같은 자리다. */}
-    {openFn !== null && <CapabilityDrill functionId={openFn} onClose={() => setOpenFn(null)} />}
+    {open !== null && <CapabilityDrill
+      functionId={'fn' in open ? open.fn : null}
+      onClose={() => setOpen(null)} />}
   </aside>;
 }

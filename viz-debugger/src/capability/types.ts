@@ -118,13 +118,62 @@ export type CapFunction = {
   supplement: readonly CapSupplement[];
 };
 
-/** `GET /api/functions` 한 건 — 기능·노드가 같이 온다. */
+/** `GET /api/functions` 한 건 — 기능·노드·계층별 제공 목록이 같이 온다. */
 export type CapSnapshot = {
   functions: readonly CapFunction[];
   nodes: readonly CapNode[];
+  /**
+   * kind → 그것을 제공하는 노드들. **서버가 이미 주던 칸이다**(`served`) — 이식 때 파서가
+   * 버리고 있었고(260921), 그래서 계층마다 「이 계층이 제공하는 것」을 적을 수가 없었다.
+   * 정렬은 서버의 선택 규칙 순서다: `served[kind][0]` 이 그 kind 로 실제 뽑힌 항목이다.
+   */
+  served: Readonly<Record<string, readonly CapServedBy[]>>;
   /** 받은 시각(이 노트북 시계, ms). */
   receivedAtMs: number;
 };
+
+/**
+ * 한 노드에 걸어 본 **가상 조건**. `null` 인 칸은 「안 건드렸다」이고 설정값을 그대로 쓴다 —
+ * 빈 배열(`[]`)과 다르다. 빈 배열은 「전부 지웠다」는 뜻이라 서버에 그대로 보낸다.
+ */
+export type CapOverride = {
+  tags: readonly string[] | null;
+  budget: CapCost | null;
+  excludeProviders: readonly string[] | null;
+};
+
+/**
+ * 노드 ID → 조건. 키 `'*'` 는 **전체 노드의 기본값**이고 노드별 항목이 그 위에 덮인다
+ * (전달본 「API 연결 기준」). 전달본의 확인 순서 3번(「전체 노드에서 unidepth 제외」)이
+ * 그 `'*'` 하나로 되는 일이다.
+ */
+export const OVERRIDE_ALL = '*';
+export type CapOverrides = Readonly<Record<string, CapOverride>>;
+
+/** 조건을 걸기 전과 후, 기능 하나의 판정이 어떻게 달라졌는가. */
+export type CapDiff = {
+  functionId: string;
+  beforeState: string | null;
+  afterState: string;
+  changed: boolean;
+};
+
+/**
+ * `POST /api/functions/whatif` 한 건.
+ *
+ * `before` 와 `after` 는 **`GET /api/functions` 와 똑같은 모양**이라 같은 파서를 탄다.
+ * 그래서 화면은 「지금 무엇을 그리는가」만 고르면 된다 — `after` 가 있으면 그것, 없으면 기준선.
+ */
+export type CapWhatif = {
+  before: CapSnapshot;
+  after: CapSnapshot;
+  diff: readonly CapDiff[];
+  /** 이 결과를 만든 조건. 화면이 「무엇을 걸었는지」를 값에서 읽게 한다. */
+  overrides: CapOverrides;
+};
+
+/** 아무것도 안 건 조건 한 칸. */
+export const EMPTY_OVERRIDE: CapOverride = { tags: null, budget: null, excludeProviders: null };
 
 /** `GET /api/config` 중 화면이 쓰는 만큼 — 배치 모드가 폴백했는지. */
 export type CapControl = {
