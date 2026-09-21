@@ -20,6 +20,7 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { makeScratch } from './lib/scratch.mjs';
+import { readSource } from './lib/source.mjs';
 
 const root = join(fileURLToPath(new URL('.', import.meta.url)), '..');
 const load = (...p) => import(pathToFileURL(join(root, ...p)).href);
@@ -41,7 +42,7 @@ const { actionItemEvents } = await load('src', 'data', 'actionTrace.ts');
 {
   const banned = ['robotSession', 'react', 'scenarios/library', "with { type: 'json' }"];
   for (const [label, path] of [['fold.ts', foldPath], ['actionTrace.ts', actionPath]]) {
-    const source = readFileSync(path, 'utf8');
+    const source = readSource(path);
     // `import type { ... }` 은 실행 시 아무것도 안 끌어온다 — 그것만 통과시킨다.
     const runtimeImports = source
       .split('\n')
@@ -144,7 +145,9 @@ failures.push(...judgeFold(foldStatuses));
   const scratch = makeScratch(join(root, 'src', 'data'), '.verify-foldactions-');
   try {
     // 사본은 한 칸 깊은 곳에 산다 — 이웃 모듈 경로를 그만큼 올려 준다.
-    const source = readFileSync(foldPath, 'utf8')
+    // **LF 로 정규화한 원본에서 만든다** (lib/source.mjs) — 자리표에 `\n` 이 든
+    // 사본은 CRLF 작업본에서 아무것도 못 찾고 원본 그대로 돌아온다.
+    const source = readSource(foldPath)
       .replaceAll("from './actionTrace.ts'", "from '../actionTrace.ts'")
       .replaceAll("from './scenario.ts'", "from '../scenario.ts'");
     const mutants = [

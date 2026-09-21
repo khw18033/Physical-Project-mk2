@@ -21,9 +21,9 @@
 // 로캘에서만 실패한다. 2단계에서 한글을 대조하는 검사 7종이 같은 함정을 밟는다.
 //
 // 대조군 포함 — 번짐을 일부러 만든 사본이 반드시 잡혀야 한다.
-import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { readSource } from './lib/source.mjs';
 
 const vizRoot = join(dirname(fileURLToPath(import.meta.url)), '..');
 const srcUrl = (...parts) => pathToFileURL(join(vizRoot, 'src', ...parts)).href;
@@ -239,7 +239,10 @@ async function loadLanguage(options) {
 
 // ── 대조군 — 번짐을 일부러 만든 사본이 잡혀야 한다 ────────────────────────────
 {
-  const source = readFileSync(join(vizRoot, 'src', 'shared', 'language.ts'), 'utf8');
+  // **LF 로 정규화한 원본에서 만든다** — 지금은 자리표가 한 줄이라 CRLF 에서도 맞지만,
+  // 갈아 낀 쪽에 `\n` 이 들어 있어 여러 줄 자리표로 바뀌는 순간 조용히 죽는다
+  // (`verify:crlf-safe`).
+  const source = readSource(vizRoot, 'src', 'shared', 'language.ts');
 
   // ① 언어를 바꾸면서 렌더 모드까지 건드리는 사본.
   const leak = source.replace(
@@ -258,7 +261,7 @@ async function loadLanguage(options) {
   else controls.push('목록 밖 값에 던지는 사본');
 
   // ③ 사전 — 렌더마다 콘솔을 찍는 사본.
-  const dictSource = readFileSync(join(vizRoot, 'src', 'i18n', 'dict.ts'), 'utf8');
+  const dictSource = readSource(vizRoot, 'src', 'i18n', 'dict.ts');
   const spam = dictSource.replace('  if (announced.has(key)) return;', '  if (false) return;');
   if (spam === dictSource) failures.push('대조군을 만들지 못했다 — 사전의 중복 방지 줄이 사라졌다');
   else controls.push('같은 키를 렌더마다 찍는 사본');

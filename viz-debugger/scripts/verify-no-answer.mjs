@@ -24,10 +24,11 @@
 //  5. **화면이 둘을 다른 글자로 적는다** — 기록에서 갈려도 화면에서 같으면 사람은 못 본다
 //
 // 대조군 — 기한을 무시한 사본 · 응답을 무시한 사본이 반드시 잡혀야 한다.
-import { readFileSync, writeFileSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { makeScratch } from './lib/scratch.mjs';
+import { readSource } from './lib/source.mjs';
 
 const root = join(fileURLToPath(new URL('.', import.meta.url)), '..');
 const load = (...p) => import(pathToFileURL(join(root, ...p)).href);
@@ -129,9 +130,9 @@ failures.push(...judgeNoAnswer(mod));
 // 기록에서 갈려도 화면에서 같은 글자면 사람은 끝내 못 본다. 그 구분이 사람 눈에 닿는
 // 자리가 명령 표 하나뿐이라 여기서 같이 본다.
 {
-  const modal = readFileSync(join(root, 'src', 'views', 'ActionModal.tsx'), 'utf8');
-  const ko = readFileSync(join(root, 'src', 'i18n', 'ko.ts'), 'utf8');
-  const en = readFileSync(join(root, 'src', 'i18n', 'en.ts'), 'utf8');
+  const modal = readSource(root, 'src', 'views', 'ActionModal.tsx');
+  const ko = readSource(root, 'src', 'i18n', 'ko.ts');
+  const en = readSource(root, 'src', 'i18n', 'en.ts');
   if (!/neverAnswered\(/.test(modal)) failures.push('명령 표가 「영영 안 왔다」를 안 묻는다');
   if (!/stillWaiting\(/.test(modal)) failures.push('명령 표가 「아직 기다리는 중」을 안 묻는다');
   for (const key of ['act.noAnswer', 'act.waiting', 'act.waitedFor']) {
@@ -156,7 +157,9 @@ failures.push(...judgeNoAnswer(mod));
 {
   const scratch = makeScratch(join(root, 'src', 'data'), '.verify-noanswer-');
   try {
-    const source = readFileSync(actionPath, 'utf8').replaceAll("from '../model/types.ts'", "from '../../model/types.ts'");
+    // **LF 로 정규화한 원본에서 만든다** (lib/source.mjs) — 자리표에 `\n` 이 든
+    // 사본은 CRLF 작업본에서 아무것도 못 찾고 원본 그대로 돌아온다.
+    const source = readSource(actionPath).replaceAll("from '../model/types.ts'", "from '../../model/types.ts'");
     const mutants = [
       ['기한을 안 보는 사본 (느린 것을 죽은 것이라 한다)',
         source.replace('return action.lines.length === 0 && action.expired !== null;', 'return action.lines.length === 0;')],

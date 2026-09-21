@@ -34,6 +34,7 @@
     "verify:i18n-demo-path": "node scripts/verify-i18n-demo-path.mjs",
     "verify:no-fake-plan": "node scripts/verify-no-fake-plan.mjs",
     "verify:verify-hygiene": "node scripts/verify-verify-hygiene.mjs",
+    "verify:crlf-safe": "node scripts/verify-crlf-safe.mjs",
     "verify:clean": "node scripts/verify-clean.mjs",
     "verify:stt-port": "node scripts/verify-stt-port.mjs",
     "verify:voice-audit": "node scripts/verify-voice-audit.mjs",

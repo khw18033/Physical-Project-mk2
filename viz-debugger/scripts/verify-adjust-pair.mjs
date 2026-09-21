@@ -18,10 +18,11 @@
 //  4. **화면이 둘 다 그린다** — 기록에 남아도 화면이 후만 그리면 사람은 못 본다
 //
 // 대조군 — **후만 남긴 사본이 반드시 잡혀야 한다.**
-import { readFileSync, writeFileSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { makeScratch } from './lib/scratch.mjs';
+import { readSource } from './lib/source.mjs';
 
 const root = join(fileURLToPath(new URL('.', import.meta.url)), '..');
 const load = (...p) => import(pathToFileURL(join(root, ...p)).href);
@@ -97,9 +98,9 @@ console.log('✅ 되감기 — 바꾸기 전 시각에는 그 조정이 안 보�
 
 // ── 4. 화면이 전후를 둘 다 그린다 ──────────────────────────────────────────
 {
-  const modal = readFileSync(join(root, 'src', 'views', 'ActionModal.tsx'), 'utf8');
-  const ko = readFileSync(join(root, 'src', 'i18n', 'ko.ts'), 'utf8');
-  const en = readFileSync(join(root, 'src', 'i18n', 'en.ts'), 'utf8');
+  const modal = readSource(root, 'src', 'views', 'ActionModal.tsx');
+  const ko = readSource(root, 'src', 'i18n', 'ko.ts');
+  const en = readSource(root, 'src', 'i18n', 'en.ts');
   if (!/recordAdjusted\(/.test(modal)) failures.push('화면이 값 변경을 기록하지 않는다 — 사람이 만든 값이 기록에 0건으로 남는다');
   if (!/planAdjustments\(/.test(modal)) failures.push('화면이 계획값 조정을 안 읽는다');
   if (!/adjustments/.test(modal)) failures.push('화면이 명령에 붙은 조정을 안 읽는다');
@@ -118,7 +119,9 @@ console.log('✅ 되감기 — 바꾸기 전 시각에는 그 조정이 안 보�
 {
   const scratch = makeScratch(join(root, 'src', 'data'), '.verify-adjust-');
   try {
-    const source = readFileSync(actionPath, 'utf8').replaceAll("from '../model/types.ts'", "from '../../model/types.ts'");
+    // **LF 로 정규화한 원본에서 만든다** (lib/source.mjs) — 자리표에 `\n` 이 든
+    // 사본은 CRLF 작업본에서 아무것도 못 찾고 원본 그대로 돌아온다.
+    const source = readSource(actionPath).replaceAll("from '../model/types.ts'", "from '../../model/types.ts'");
     const mutants = [
       ['후만 남긴 사본',
         source.replace('payload: { taskId: input.taskId, field: input.field, before: input.before, after: input.after },',

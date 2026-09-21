@@ -19,6 +19,7 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { makeScratch } from './lib/scratch.mjs';
+import { readSource } from './lib/source.mjs';
 
 const root = join(fileURLToPath(new URL('.', import.meta.url)), '..');
 const load = (...p) => import(pathToFileURL(join(root, ...p)).href);
@@ -207,7 +208,9 @@ async function issueAll(robot) {
    */
   const scratch = makeScratch(join(root, 'src', 'physical'), '.verify-action-');
   try {
-    const original = readFileSync(join(root, 'src', 'physical', 'robotCommands.ts'), 'utf8');
+    // **LF 로 정규화한 원본에서 만든다** (lib/source.mjs) — 자리표에 `\n` 이 든
+    // 사본은 CRLF 작업본에서 아무것도 못 찾고 원본 그대로 돌아온다.
+    const original = readSource(root, 'src', 'physical', 'robotCommands.ts');
     const deepened = original
       .replaceAll("from '../", "from '\u0000/")
       .replaceAll("from './", "from '../")

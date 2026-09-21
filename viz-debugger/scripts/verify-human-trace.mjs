@@ -12,10 +12,11 @@
 //  4. **되감기 화면이 그것을 그린다** — 열에만 있고 화면에 없으면 1번과 같은 상태다.
 //
 // 대조군 포함 — 기록을 무력화한 사본이 반드시 실패로 잡히는지까지 본다.
-import { readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
+import { readdirSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { isScratchPath, makeScratch } from './lib/scratch.mjs';
+import { readSource } from './lib/source.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const src = join(root, 'src');
@@ -25,7 +26,7 @@ const foldPath = join(src, 'data', 'fold.ts');
 const failures = [];
 const controls = [];
 
-const read = (...parts) => readFileSync(join(src, ...parts), 'utf8');
+const read = (...parts) => readSource(src, ...parts);
 
 // ── ① 규칙이 한 곳에만 있다 ──────────────────────────────────────────────────
 {
@@ -52,7 +53,7 @@ const read = (...parts) => readFileSync(join(src, ...parts), 'utf8');
         if (rel === 'data/actionTrace.ts') continue;
         // 타입 선언(model/types.ts)과 전선 필드 이름(missionBridge)은 규칙이 아니라 어휘다.
         if (rel === 'model/types.ts' || rel === 'shell/missionBridge.ts') continue;
-        if (/producedBy\s*:\s*'human'/.test(readFileSync(path, 'utf8'))) offenders.push(rel);
+        if (/producedBy\s*:\s*'human'/.test(readSource(path))) offenders.push(rel);
       }
     }
   })(src);
@@ -180,7 +181,10 @@ if (checkScreen(mainSource.replaceAll('humanMarks', 'xxx')).length === 0) {
     // 환경의 관례를 따르므로(`core.autocrlf`) Windows 체크아웃에서는 CRLF 다. 자리표에
     // `\n` 이 들어간 사본은 그때 안 만들어지고, 검사는 「원본이 바뀌었나?」라고 말한다 —
     // 원본은 그대로인데. 사본은 임시 파일이라 줄끝이 무엇이든 상관없다.
-    const source = readFileSync(tracePath, 'utf8').replaceAll('\r\n', '\n');
+    //
+    // 260921 — 손으로 적던 정규화를 `readSource()` 로 옮겼다. 이 파일만 맞고 나머지 넷이
+    // 틀렸던 것이 문제였으므로, 맞는 쪽도 같은 자리를 지나게 한다 (`verify:crlf-safe`).
+    const source = readSource(tracePath);
     const mutants = [
       ["producedBy 를 backend 로 바꾼 사본", source.replace("producedBy: 'human',", "producedBy: 'backend',")],
       ['사람 조작을 열에 안 넣는 사본', source.replace('if (!appendTrace(missionId, event)) return null;', 'return event;')],
