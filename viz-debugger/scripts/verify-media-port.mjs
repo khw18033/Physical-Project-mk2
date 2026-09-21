@@ -13,7 +13,7 @@
 //  4. 세션 — 순번이 줄면 새 세션인가
 //  5. 끊김 — 4401·4404·4400 은 재시도하지 않는가
 //  6. 바이너리 갈래 — `binaryType`·문자열 분기가 클라이언트에 있는가
-//  7. 자리 — 상설 판이 아니라 대상 상태 오버레이 안인가
+//  7. 자리 — 상설 판이 아니라 대상 상태 오버레이 안인가 · **수신 전용인가**
 //  8. 한글·영어 두 벌
 //
 // 대조군 포함 — 검사를 무력화한 사본이 반드시 실패로 잡히는지까지 본다.
@@ -196,6 +196,22 @@ const outside = SOURCES.filter((rel) => !rel.startsWith('src/media/') && !rel.st
   }
 }
 
+// ── 6c. 수신 전용 — 이 소켓은 아무것도 안 내보낸다 ──────────────────────────
+{
+  // `VZ-C-07` 의 「나가는 길은 하나」가 깨지지 않는 근거다. `/media` 는 제어 메시지가
+  // 없고(붙는 것이 켜기) 우리도 아무것도 보내지 않는다 — 명령 출구는 여전히
+  // `shared/commandCenter.ts` 하나다. 여기서 한 줄이라도 보내기 시작하면 그 문면이
+  // 그때 진짜로 깨지므로, 그 순간을 검사로 잡는다.
+  for (const rel of SOURCES.filter((r) => r.startsWith('src/media/'))) {
+    const src = code(readSource(rel));
+    for (const mark of [/\.send\(/, /ws\.send/, /method: 'POST'/, /method: 'PUT'/]) {
+      if (mark.test(src)) {
+        failures.push(`${rel} 가 영상 소켓으로 무언가를 내보낸다 (${mark}) — 이 소켓은 수신 전용이고, 나가는 길은 명령 출구 하나여야 한다 (VZ-C-07)`);
+      }
+    }
+  }
+}
+
 // ── 7. 한글·영어 두 벌 ───────────────────────────────────────────────────────
 {
   const { ko } = await load('src', 'i18n', 'ko.ts');
@@ -246,6 +262,7 @@ console.log('✅ 세션 — 순번 역전·소스 변경만 새 세션이고, �
 console.log('✅ 끊김 — 4400·4401·4404 는 재시도하지 않고, 평범한 끊김은 되붙는다');
 console.log('✅ 수신 — binaryType 이 arraybuffer 이고 문자열/바이너리가 갈리며, 전송 계층도 버린 수를 센다');
 console.log('✅ 자리 — 대상 상태 오버레이 안의 한 칸 · 마일스톤에는 상설로 없음 · 열면 붙는다(온디맨드)');
+console.log('✅ 수신 전용 — 영상 소켓으로 내보내는 것 0건 (나가는 길은 명령 출구 하나)');
 console.log('✅ 두 벌 — 화면이 쓰는 키가 ko·en 양쪽에 다 있고 경계 안에 박힌 표시용 한글 0건');
 console.log(`✅ 대조군 ${controls.length}건 전부 검출 — ${controls.join(' · ')}`);
 process.exit(0);
