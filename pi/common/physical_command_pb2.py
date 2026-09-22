@@ -24,7 +24,7 @@ _sym_db = _symbol_database.Default()
 
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x16physical_command.proto\x12\x08physical\"\xf2\x02\n\x17PhysicalCommandEnvelope\x12$\n\x07\x63ommand\x18\x01 \x01(\x0b\x32\x11.physical.CommandH\x00\x12\x38\n\x0e\x63\x61ncel_request\x18\x02 \x01(\x0b\x32\x1e.physical.CancelCommandRequestH\x00\x12\x31\n\nacceptance\x18\x03 \x01(\x0b\x32\x1b.physical.CommandAcceptanceH\x00\x12)\n\x06status\x18\x04 \x01(\x0b\x32\x17.physical.CommandStatusH\x00\x12)\n\x06result\x18\x05 \x01(\x0b\x32\x17.physical.CommandResultH\x00\x12:\n\x0f\x63\x61ncel_response\x18\x06 \x01(\x0b\x32\x1f.physical.CancelCommandResponseH\x00\x12*\n\ncapability\x18\x07 \x01(\x0b\x32\x14.physical.CapabilityH\x00\x42\x06\n\x04\x62ody\"\xc1\x01\n\x07\x43ommand\x12\x12\n\ncommand_id\x18\x01 \x01(\t\x12\x0e\n\x06target\x18\x02 \x01(\t\x12\x0e\n\x06\x61\x63tion\x18\x03 \x01(\t\x12\x35\n\nparameters\x18\x04 \x03(\x0b\x32!.physical.Command.ParametersEntry\x12\x18\n\x10\x64\x65\x61\x64line_unix_ms\x18\x05 \x01(\x03\x1a\x31\n\x0fParametersEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\x01:\x02\x38\x01\"*\n\x14\x43\x61ncelCommandRequest\x12\x12\n\ncommand_id\x18\x01 \x01(\t\"*\n\tRejection\x12\x0c\n\x04\x63ode\x18\x01 \x01(\t\x12\x0f\n\x07message\x18\x02 \x01(\t\"(\n\x07\x46\x61ilure\x12\x0c\n\x04\x63ode\x18\x01 \x01(\t\x12\x0f\n\x07message\x18\x02 \x01(\t\"a\n\x11\x43ommandAcceptance\x12\x12\n\ncommand_id\x18\x01 \x01(\t\x12\x10\n\x08\x61\x63\x63\x65pted\x18\x02 \x01(\x08\x12&\n\trejection\x18\x03 \x01(\x0b\x32\x13.physical.Rejection\"B\n\rCommandStatus\x12\x12\n\ncommand_id\x18\x01 \x01(\t\x12\r\n\x05state\x18\x02 \x01(\t\x12\x0e\n\x06\x64\x65tail\x18\x03 \x01(\t\"\xd5\x01\n\rCommandResult\x12\x12\n\ncommand_id\x18\x01 \x01(\t\x12(\n\x06status\x18\x02 \x01(\x0e\x32\x18.physical.TerminalStatus\x12\x33\n\x06result\x18\x03 \x03(\x0b\x32#.physical.CommandResult.ResultEntry\x12\"\n\x07\x66\x61ilure\x18\x04 \x01(\x0b\x32\x11.physical.Failure\x1a-\n\x0bResultEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\x01:\x02\x38\x01\"=\n\x15\x43\x61ncelCommandResponse\x12\x12\n\ncommand_id\x18\x01 \x01(\t\x12\x10\n\x08\x61\x63\x63\x65pted\x18\x02 \x01(\x08\"0\n\nCapability\x12\x11\n\tdevice_id\x18\x01 \x01(\t\x12\x0f\n\x07\x61\x63tions\x18\x02 \x03(\t*[\n\x0eTerminalStatus\x12\x1f\n\x1bTERMINAL_STATUS_UNSPECIFIED\x10\x00\x12\r\n\tSUCCEEDED\x10\x01\x12\x0b\n\x07\x41\x42ORTED\x10\x02\x12\x0c\n\x08\x43\x41NCELED\x10\x03\x62\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x16physical_command.proto\x12\x08physical\"\xf2\x02\n\x17PhysicalCommandEnvelope\x12$\n\x07\x63ommand\x18\x01 \x01(\x0b\x32\x11.physical.CommandH\x00\x12\x38\n\x0e\x63\x61ncel_request\x18\x02 \x01(\x0b\x32\x1e.physical.CancelCommandRequestH\x00\x12\x31\n\nacceptance\x18\x03 \x01(\x0b\x32\x1b.physical.CommandAcceptanceH\x00\x12)\n\x06status\x18\x04 \x01(\x0b\x32\x17.physical.CommandStatusH\x00\x12)\n\x06result\x18\x05 \x01(\x0b\x32\x17.physical.CommandResultH\x00\x12:\n\x0f\x63\x61ncel_response\x18\x06 \x01(\x0b\x32\x1f.physical.CancelCommandResponseH\x00\x12*\n\ncapability\x18\x07 \x01(\x0b\x32\x14.physical.CapabilityH\x00\x42\x06\n\x04\x62ody\"\xd6\x01\n\x07\x43ommand\x12\x12\n\ncommand_id\x18\x01 \x01(\t\x12\x0e\n\x06target\x18\x02 \x01(\t\x12\x0e\n\x06\x61\x63tion\x18\x03 \x01(\t\x12\x35\n\nparameters\x18\x04 \x03(\x0b\x32!.physical.Command.ParametersEntry\x12\x18\n\x10\x64\x65\x61\x64line_unix_ms\x18\x05 \x01(\x03\x12\x13\n\x0btraceparent\x18\x06 \x01(\t\x1a\x31\n\x0fParametersEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\x01:\x02\x38\x01\"*\n\x14\x43\x61ncelCommandRequest\x12\x12\n\ncommand_id\x18\x01 \x01(\t\"*\n\tRejection\x12\x0c\n\x04\x63ode\x18\x01 \x01(\t\x12\x0f\n\x07message\x18\x02 \x01(\t\"(\n\x07\x46\x61ilure\x12\x0c\n\x04\x63ode\x18\x01 \x01(\t\x12\x0f\n\x07message\x18\x02 \x01(\t\"a\n\x11\x43ommandAcceptance\x12\x12\n\ncommand_id\x18\x01 \x01(\t\x12\x10\n\x08\x61\x63\x63\x65pted\x18\x02 \x01(\x08\x12&\n\trejection\x18\x03 \x01(\x0b\x32\x13.physical.Rejection\"B\n\rCommandStatus\x12\x12\n\ncommand_id\x18\x01 \x01(\t\x12\r\n\x05state\x18\x02 \x01(\t\x12\x0e\n\x06\x64\x65tail\x18\x03 \x01(\t\"\xd5\x01\n\rCommandResult\x12\x12\n\ncommand_id\x18\x01 \x01(\t\x12(\n\x06status\x18\x02 \x01(\x0e\x32\x18.physical.TerminalStatus\x12\x33\n\x06result\x18\x03 \x03(\x0b\x32#.physical.CommandResult.ResultEntry\x12\"\n\x07\x66\x61ilure\x18\x04 \x01(\x0b\x32\x11.physical.Failure\x1a-\n\x0bResultEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\x01:\x02\x38\x01\"=\n\x15\x43\x61ncelCommandResponse\x12\x12\n\ncommand_id\x18\x01 \x01(\t\x12\x10\n\x08\x61\x63\x63\x65pted\x18\x02 \x01(\x08\"0\n\nCapability\x12\x11\n\tdevice_id\x18\x01 \x01(\t\x12\x0f\n\x07\x61\x63tions\x18\x02 \x03(\t*[\n\x0eTerminalStatus\x12\x1f\n\x1bTERMINAL_STATUS_UNSPECIFIED\x10\x00\x12\r\n\tSUCCEEDED\x10\x01\x12\x0b\n\x07\x41\x42ORTED\x10\x02\x12\x0c\n\x08\x43\x41NCELED\x10\x03\x62\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -35,30 +35,30 @@ if not _descriptor._USE_C_DESCRIPTORS:
   _globals['_COMMAND_PARAMETERSENTRY']._serialized_options = b'8\001'
   _globals['_COMMANDRESULT_RESULTENTRY']._loaded_options = None
   _globals['_COMMANDRESULT_RESULTENTRY']._serialized_options = b'8\001'
-  _globals['_TERMINALSTATUS']._serialized_start=1231
-  _globals['_TERMINALSTATUS']._serialized_end=1322
+  _globals['_TERMINALSTATUS']._serialized_start=1252
+  _globals['_TERMINALSTATUS']._serialized_end=1343
   _globals['_PHYSICALCOMMANDENVELOPE']._serialized_start=37
   _globals['_PHYSICALCOMMANDENVELOPE']._serialized_end=407
   _globals['_COMMAND']._serialized_start=410
-  _globals['_COMMAND']._serialized_end=603
-  _globals['_COMMAND_PARAMETERSENTRY']._serialized_start=554
-  _globals['_COMMAND_PARAMETERSENTRY']._serialized_end=603
-  _globals['_CANCELCOMMANDREQUEST']._serialized_start=605
-  _globals['_CANCELCOMMANDREQUEST']._serialized_end=647
-  _globals['_REJECTION']._serialized_start=649
-  _globals['_REJECTION']._serialized_end=691
-  _globals['_FAILURE']._serialized_start=693
-  _globals['_FAILURE']._serialized_end=733
-  _globals['_COMMANDACCEPTANCE']._serialized_start=735
-  _globals['_COMMANDACCEPTANCE']._serialized_end=832
-  _globals['_COMMANDSTATUS']._serialized_start=834
-  _globals['_COMMANDSTATUS']._serialized_end=900
-  _globals['_COMMANDRESULT']._serialized_start=903
-  _globals['_COMMANDRESULT']._serialized_end=1116
-  _globals['_COMMANDRESULT_RESULTENTRY']._serialized_start=1071
-  _globals['_COMMANDRESULT_RESULTENTRY']._serialized_end=1116
-  _globals['_CANCELCOMMANDRESPONSE']._serialized_start=1118
-  _globals['_CANCELCOMMANDRESPONSE']._serialized_end=1179
-  _globals['_CAPABILITY']._serialized_start=1181
-  _globals['_CAPABILITY']._serialized_end=1229
+  _globals['_COMMAND']._serialized_end=624
+  _globals['_COMMAND_PARAMETERSENTRY']._serialized_start=575
+  _globals['_COMMAND_PARAMETERSENTRY']._serialized_end=624
+  _globals['_CANCELCOMMANDREQUEST']._serialized_start=626
+  _globals['_CANCELCOMMANDREQUEST']._serialized_end=668
+  _globals['_REJECTION']._serialized_start=670
+  _globals['_REJECTION']._serialized_end=712
+  _globals['_FAILURE']._serialized_start=714
+  _globals['_FAILURE']._serialized_end=754
+  _globals['_COMMANDACCEPTANCE']._serialized_start=756
+  _globals['_COMMANDACCEPTANCE']._serialized_end=853
+  _globals['_COMMANDSTATUS']._serialized_start=855
+  _globals['_COMMANDSTATUS']._serialized_end=921
+  _globals['_COMMANDRESULT']._serialized_start=924
+  _globals['_COMMANDRESULT']._serialized_end=1137
+  _globals['_COMMANDRESULT_RESULTENTRY']._serialized_start=1092
+  _globals['_COMMANDRESULT_RESULTENTRY']._serialized_end=1137
+  _globals['_CANCELCOMMANDRESPONSE']._serialized_start=1139
+  _globals['_CANCELCOMMANDRESPONSE']._serialized_end=1200
+  _globals['_CAPABILITY']._serialized_start=1202
+  _globals['_CAPABILITY']._serialized_end=1250
 # @@protoc_insertion_point(module_scope)

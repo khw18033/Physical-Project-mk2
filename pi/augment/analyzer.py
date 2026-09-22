@@ -35,7 +35,11 @@ MIN_SPAN_S = float(os.environ.get("HW_ANALYZER_MIN_SPAN_S", 60))
 
 ZONE = config.ZONE_ID
 samples = defaultdict(lambda: deque())     # entity -> deque[(t, value)]
-seq = 0
+# 순번은 **대상별로** 센다. 전역 하나로 세면 대상이 셋일 때 한 대상의 순번이
+# 3 -> 11 -> 27 처럼 띄엄띄엄해져, 받는 쪽이 유실과 구분할 수 없다.
+# 백엔드는 이 노드를 갭 검출에서 빼는 것으로 대응했지만(회신 §6-6 ②),
+# 그러면 실제로 유실이 나도 아무도 모른다. 세는 쪽을 고치는 편이 싸다.
+seq = defaultdict(int)                     # entity -> 그 대상에게 보낸 횟수
 
 
 def slope_per_min(points):
@@ -121,9 +125,13 @@ def main():
             slope = slope_per_min(pts)
             eta = eta_to_threshold(value, slope)
             ident = schema.Identity(dev, node_id, ZONE, "", "", "analysis")
-            payload = schema.envelope(ident, seq=seq)
+            payload = schema.envelope(ident, seq=seq[dev])
             payload.update({
-                "channel": "analysis",
+                # 토픽 마지막 칸(.../state)과 같은 값이어야 한다. 예전에는 여기가
+                # "analysis" 라 토픽과 어긋났다 - 백엔드는 라우팅을 토픽으로 하므로
+                # 무해했지만, 한 메시지가 자기를 두 이름으로 부르는 상태였다.
+                # 어느 칸인지는 subject_id 와 토픽 두 번째 칸(analysis)이 이미 말한다.
+                "channel": "state",
                 "subject_id": dev,                 # 분석 대상 (자기 자신이 아니다)
                 "window_s": WINDOW_S,
                 "samples": len(pts),
@@ -135,7 +143,7 @@ def main():
             })
             c.publish(f"{ZONE}/analysis/{dev}/state",
                       json.dumps(payload, ensure_ascii=False), qos=0)
-            seq += 1
+            seq[dev] += 1
             if value >= config.THRESHOLD:
                 eta_txt = "임계 초과 상태"
             elif eta is None:

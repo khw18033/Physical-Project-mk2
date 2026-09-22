@@ -73,8 +73,16 @@ class _CmdTrace:
         )
         self._ot = ot
         self._tracer = tracer
-        # 백엔드가 traceparent 를 실어 보냈으면 그 trace 의 자식으로 붙는다
-        parent = TraceContextTextMapPropagator().extract(carrier=cmd)
+        # 백엔드가 traceparent 를 실어 보냈으면 그 trace 의 자식으로 붙는다.
+        #
+        # carrier 는 **.get() 이 있는 매핑**이어야 한다. 여기 넘어오는 cmd 는
+        # protobuf Command 객체(physical_command.py:164 의 _on_command)라
+        # 그대로 주면 extract 가 실패한다 - 한 칸짜리 dict 로 옮긴다.
+        # 필드가 비어 있으면 빈 dict 를 주어 **새 trace 로 시작**한다
+        # (백엔드 회신 §7-3 ②, §7-5 3 — 그것이 곧 기본 동작이다).
+        tp = getattr(cmd, "traceparent", "") or ""
+        parent = TraceContextTextMapPropagator().extract(
+            carrier={"traceparent": tp} if tp else {})
         self._receive = tracer.start_span(
             "cmd.receive", context=parent, kind=ot.SpanKind.SERVER)
         self._receive_ctx = ot.set_span_in_context(self._receive)
