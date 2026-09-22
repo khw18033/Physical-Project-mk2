@@ -184,7 +184,9 @@ public:
     // 실제 GO1이 초록/노란 waypoint 라인에서 벗어나지 않도록 보수적으로 조정
     // vx를 낮추고, yaw 보정을 강하게 하며, 방향 오차가 작아야 전진하도록 한다.
     wp_reach_radius=0.10; path_kp_dist=0.35; path_kp_yaw=2.0;
-    path_max_vx=0.07; path_max_wz=0.45; path_turn_only_thresh=0.20;
+    // 2026-09-15 실측: Go1 보행 데드밴드가 0.10~0.13 m/s 사이다.
+    // 그 아래 전진 명령은 로봇이 발만 구르고 실제로 나아가지 않는다.
+    path_max_vx=0.20; path_min_vx=0.16; path_max_wz=0.45; path_turn_only_thresh=0.20;
     path_lookahead_dist=0.25;
     path_anchor_robot_x=0.0; path_anchor_robot_z=0.0; path_anchor_robot_yaw=0.0;
     path_yaw_reach_tol_rad=8.0*M_PI/180.0;
@@ -419,6 +421,13 @@ private:
         world_x=0.0; world_z=0.0;
         last_dr_time=std::chrono::steady_clock::now();
         yaw0_initialized=false;   // 다음 상태 갱신에서 현재 raw_yaw 를 0 기준으로 재설정
+        // 2026-09-15: 오프셋도 같이 리셋한다.
+        // yaw0 만 리셋하면 yaw_rel 은 0 이 되는데 UNITY_YAW_OFFSET_RAD 에 이전 값이
+        // 남아 yaw_unity 가 그 스테일 오프셋을 그대로 가리킨다. 실측으로 Unity 를
+        // Play 할 때마다 화면이 -180 을 보는 증상이 여기서 나왔다(경로를 한 번
+        // 보내기 전까지 오프셋이 갱신되지 않는다). "좌표 원점 리셋"이라고 찍으면서
+        // 위치만 0 으로 하고 yaw 기준을 놔두는 것은 일관성이 없다.
+        UNITY_YAW_OFFSET_RAD=0.0;
         std::printf("[YAW_CALIB] Unity Z키 -> 좌표 원점 리셋 (pos=0, yaw0 재설정, unity_offset=%.2f deg)\n",
                     calib_deg);
         std::fflush(stdout);
@@ -846,6 +855,13 @@ private:
       if(yaw_scale < 0.0) yaw_scale = 0.0;
       cmd_vx *= yaw_scale;
     }
+
+    // 데드밴드 하한. 정속 구간의 명령은 path_kp_dist*path_lookahead_dist
+    // (=0.0875) 라 상한을 올려도 데드밴드 아래에 남는다. 값을 작게 내려보내면
+    // 로봇이 제자리걸음만 하므로, 전진할 생각이면 최소한 하한은 준다.
+    // 위 yaw 테이퍼가 사실상 이분화되지만, 데드밴드 아래는 어차피 로봇이
+    // 못 내는 속도라 전진 금지(turn_only_thresh)와 하한 둘로 나누는 편이 정직하다.
+    if(cmd_vx > 0.0 && cmd_vx < path_min_vx) cmd_vx = path_min_vx;
 
     auto now=std::chrono::steady_clock::now();
     double since_pf_print=std::chrono::duration_cast<std::chrono::duration<double>>(
@@ -1329,7 +1345,7 @@ private:
   int current_waypoint_idx,current_path_id;
 
   double wp_reach_radius,path_kp_dist,path_kp_yaw;
-  double path_max_vx,path_max_wz,path_turn_only_thresh;
+  double path_max_vx,path_min_vx,path_max_wz,path_turn_only_thresh;
   double path_lookahead_dist;
   double path_anchor_robot_x,path_anchor_robot_z,path_anchor_robot_yaw;
   double path_yaw_reach_tol_rad;
