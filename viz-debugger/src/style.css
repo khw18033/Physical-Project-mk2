@@ -435,7 +435,15 @@ b.follow-live{cursor:default}
    (`ws://pi7.tailcb6bfb.ts.net:9001/mqtt`) 끝이 잘리면 무엇을 보고 있는지 모른다. */
 .conn-target label:has(.conn-preset){grid-template-columns:78px auto 1fr}
 .conn-target--pending input{background:#f4f6f9;color:#95a0ad}
-.connections__actions{display:flex;align-items:center;gap:8px;padding-top:13px;border-top:1px solid #e6eaf0}
+/* 저장 안 된 칸 (260922). 주소 칸 **바로 아래**에 붙어야 한다 — 판 아래 어딘가에 모아
+   두면 어느 칸 이야기인지 다시 찾아야 하고, 그게 이 문제의 원인이었다. 이름 칸을 건너뛰고
+   줄 전체를 쓴다(`label` 이 격자라 안 그러면 78px 칸에 끼어 세로로 무너진다). */
+.conn-unsaved{grid-column:1/-1;margin:0!important;padding:5px 9px;border-radius:6px;background:#fff8ec;color:#8a6300;font-size:11px!important}
+/* **아래로 내려가지 않아도 보인다** (260922 지시 — 「아래로 내려야 하는 것이 불편함」).
+   판이 길어서 「적용」이 스크롤 끝에 숨어 있었고, 그래서 주소를 고치고도 적용을 안 누른
+   채 확인만 누르는 일이 생겼다. 확인이 있는 대상은 확인이 저장까지 하지만, 확인 버튼이
+   없는 칸(게이트웨이·영상)은 여전히 이 버튼이 유일한 길이다 — 그 길을 늘 보이게 둔다. */
+.connections__actions{position:sticky;bottom:0;z-index:1;display:flex;align-items:center;gap:8px;margin:4px -16px -16px;padding:13px 16px 16px;border-top:1px solid #e6eaf0;background:#fff}
 .connections__note{flex:1;color:#5a6675;font-size:12px;line-height:1.5}
 .connections__actions button{padding:8px 12px;border:1px solid #cbd3de;border-radius:7px;background:#fff}
 .connections__apply:not(:disabled){color:#fff;border-color:#1768c5;background:#1768c5}

@@ -22,6 +22,24 @@
  *
  * 상단의 `conn` 배지는 여전히 게이트웨이 연결 하나를 말한다 — 그건 늘 붙어 있어야 하는
  * 것이라 성격이 다르다.
+ *
+ * ## 260922 — **「확인」이 곧 적용이다** (사람이 화면에서 걸렸다)
+ *
+ * 드론 프리셋을 골라 주소가 `pi3` 로 보이는데 **확인을 누르면 `pi7` 로 나갔다.** 콘솔에도
+ * `pi7` 만 찍혔다. 버그가 아니라 설계였다 — 입력칸은 초안이고, 저장은 판 맨 아래 「적용」이
+ * 하며, 「확인」은 **저장된 주소**로 붙어 본다. 그래서 적용을 안 누르면 화면에 적힌 주소와
+ * 확인하는 주소가 갈린다.
+ *
+ * 초안을 둔 이유 자체는 맞다 — 한 글자 칠 때마다 끊고 다시 붙으면 못 쓴다. 틀린 것은
+ * **초안을 끝내는 자리**였다. 주소를 고친 사람이 다음에 누르는 것은 바로 옆의 「확인」이지
+ * 스크롤 끝의 「적용」이 아니다.
+ *
+ * 그래서 **「확인」이 그 대상의 초안을 먼저 저장하고 확인한다.** 초안은 남기되 끝내는 자리를
+ * 옮긴 것이고, 「적용」은 확인 버튼이 없는 칸(게이트웨이·영상)을 위해 남는다.
+ *
+ * **최상단 안내는 여전히 없다** (260913 지시 — 시연 직전에 여는 사람에게 매번 같은 자리를
+ * 차지한다). 대신 **초안이 저장값과 다를 때만** 그 칸 아래 한 줄이 뜬다. 늘 떠 있는 설명이
+ * 아니라 그 상태의 사유다 — 「상태」 줄이 이미 그 규칙으로 돈다.
  */
 
 import { useState } from 'react';
@@ -41,7 +59,8 @@ import { setCapabilityTestMode, useCapability } from '../capability/store.ts';
 import { useDeviceStates } from '../physical/deviceState.ts';
 import { CHECKED_TARGETS, healthOf, useConnectionHealth, type TargetHealth } from '../shared/connectionHealth.ts';
 import { applyPresetChoice, selectedPresetId } from './presetChoice.ts';
-import type { ConnectionTargetId } from '../shared/connections.ts';
+import { commitDraft } from './draftCommit.ts';
+import type { ConnectionTarget, ConnectionTargetId } from '../shared/connections.ts';
 import {
   CONNECTION_TARGETS,
   connectionKey,
@@ -82,9 +101,24 @@ const ADDRESS_PRESETS: Partial<Record<ConnectionTargetId, { presets: readonly Ad
  */
 type TestToggle = { on: boolean; set(next: boolean): void; titleKey: string };
 
+/**
+ * **「확인」 버튼이 있는 대상인가.** 두 곳이 이 목록을 묻는다 — 확인 줄을 그릴 때와,
+ * 저장 안 된 칸이 「무엇을 누르면 되는지」 적을 때다 (260922).
+ *
+ * 손으로 `target === '…'` 를 두 번 늘어놓으면 대상이 하나 붙을 때 **한쪽만 는다** — 그러면
+ * 확인 버튼은 있는데 안내는 「아래 적용」이라고 말하는 칸이 생긴다. 표와 같은 이유로 함수 하나다.
+ */
+function hasCheck(target: ConnectionTargetId): boolean {
+  return CHECKED_TARGETS.includes(target)
+    || target === 'autodrive' || target === 'autodrive-ai' || target === 'capability';
+}
+
 export function ConnectionsPanel({ onClose, physical }: { onClose(): void; physical?: PhysicalProbe | null }) {
   const current = useConnections();
-  /** 편집 중인 값. 저장을 눌러야 적용된다 — 한 글자 칠 때마다 끊고 다시 붙으면 못 쓴다. */
+  /**
+   * 편집 중인 값. **누르기 전까지는 안 적용된다** — 한 글자 칠 때마다 끊고 다시 붙으면
+   * 못 쓴다. 끝내는 자리가 둘이다: 그 대상의 「확인」(260922)과 판 아래 「적용」.
+   */
   const [draft, setDraft] = useState<Record<string, string>>({ ...current });
   /**
    * **「직접 입력」을 고른 칸.** 주소와 따로 들고 있어야 하는 이유는 `presetChoice.ts` 에
@@ -105,6 +139,17 @@ export function ConnectionsPanel({ onClose, physical }: { onClose(): void; physi
     setNote(saved
       ? t('conn.applied')
       : t('conn.appliedSession'));
+  };
+  /**
+   * **이 대상의 초안만 저장한다.** 「확인」이 붙어 보기 직전에 부른다 (260922 — 위 §260922).
+   *
+   * 얹는 규칙과 「안 바뀌었으면 `null`」은 `draftCommit.ts` 에 있다 — 여기 두면 검사가
+   * 글자로만 읽어서 무엇을 넘기는지 못 본다(`presetChoice.ts` 와 같은 이유).
+   */
+  const commit = (target: ConnectionTarget) => {
+    const next = commitDraft(current, draft, target.fields.map((field) => connectionKey(target.id, field.key)));
+    if (next === null) return;
+    setNote(saveConnections(next) ? t('conn.applied') : t('conn.appliedSession'));
   };
   const restore = () => {
     resetConnections();
@@ -166,14 +211,21 @@ export function ConnectionsPanel({ onClose, physical }: { onClose(): void; physi
             disabled={!target.live}
             placeholder={target.live ? field.fallback : t('conn.placeholderPending')}
             onChange={(event) => setDraft((prev) => ({ ...prev, [key]: event.target.value }))} />
+          {/* **저장 안 된 칸만 말한다** (260922). 늘 떠 있는 안내는 260913 에 걷어냈고
+              그 결정은 그대로다 — 이 줄은 설명이 아니라 **이 칸이 지금 어떤 상태인지**다.
+              무엇을 누르면 되는지까지 적는다: 확인이 있는 대상은 확인이 저장까지 한다. */}
+          {target.live && (draft[key] ?? '') !== (current[key] ?? '') && <p className="conn-unsaved">
+            {t(hasCheck(target.id) ? 'conn.unsavedCheck' : 'conn.unsavedApply')}
+          </p>}
         </label>;
       })}
       {/* 상태 · 확인 · 마지막 확인 — 나머지 세 줄 (§2). 확인 방법이 있는 대상만.
           자율주행(pi1)도 확인은 되지만 머리줄 표시등의 목록(`CHECKED_TARGETS`)에는 안 넣는다 —
           문 찾기 시연의 「n/4 확인됨」이 그대로여야 한다 (260915). */}
-      {(CHECKED_TARGETS.includes(target.id) || target.id === 'autodrive' || target.id === 'autodrive-ai' || target.id === 'capability') && <HealthRow
+      {hasCheck(target.id) && <HealthRow
         target={target.id}
         physical={target.id === 'physical' ? (physical ?? null) : null}
+        onCommit={() => commit(target)}
       />}
     </section>)}
     <footer className="connections__actions">
@@ -191,7 +243,15 @@ export function ConnectionsPanel({ onClose, physical }: { onClose(): void; physi
  * 줄이 여럿일 수 있다 — `physical` 이 브로커와 로봇 둘이다. 한 줄로 뭉치면 발표 직전에
  * 주소를 봐야 하는지 로봇 전원을 봐야 하는지 못 가른다 (§3).
  */
-function HealthRow({ target, physical }: { target: ConnectionTargetId; physical: PhysicalProbe | null }) {
+function HealthRow({ target, physical, onCommit }: {
+  target: ConnectionTargetId;
+  physical: PhysicalProbe | null;
+  /**
+   * **누르기 직전에 이 대상의 초안을 저장한다** (260922). 확인이 저장된 주소로 붙기
+   * 때문에, 이것이 없으면 화면에 적힌 주소와 확인하는 주소가 갈린다 — 파일 머리 §260922.
+   */
+  onCommit(): void;
+}) {
   // **같은 파일 안이어도 별개 컴포넌트는 자기 훅이 필요하다** (지시서 §2 ①).
   // 위 `ConnectionsPanel` 의 `useLang()` 은 이 부품을 다시 그리게 하지 않는다 — 빼면
   // 언어를 바꿔도 「확인」 버튼과 「아직 확인하지 않았습니다」만 옛 언어로 남는다.
@@ -240,8 +300,13 @@ function HealthRow({ target, physical }: { target: ConnectionTargetId; physical:
        * (260921). 브로커·단말과 달리 FC 링크는 시연 도중에 바뀌므로, 눌렀을 때의 값을
        * 계속 보여 주면 점퍼가 빠진 것을 무대에서 모른다. Go1 은 그 줄이 없어 안 켜진다.
        */
-      onClick={() => void checkTarget(target, physical, robotFacts, target === 'autodrive' ? navProbe() : null)
-        .then(() => { if (target === 'physical') armLinkWatch(healthOf('physical').lines, robotProbe, robotFacts); })}
+      onClick={() => {
+        // **저장이 먼저다.** 확인은 저장된 주소로 붙으므로, 여기서 안 끝내면 방금 고친
+        // 주소가 아니라 옛 주소를 확인한다 (260922 — 파일 머리 §260922).
+        onCommit();
+        void checkTarget(target, physical, robotFacts, target === 'autodrive' ? navProbe() : null)
+          .then(() => { if (target === 'physical') armLinkWatch(healthOf('physical').lines, robotProbe, robotFacts); });
+      }}
     >{state.checking ? t('conn.checking') : t('conn.check')}</button>
     {state.lines.length > 0 && <small className="conn-health__at">
       {new Date(state.lines[0].checkedAtIso).toLocaleTimeString()}

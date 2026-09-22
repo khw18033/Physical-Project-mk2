@@ -116,6 +116,10 @@ export const ko: Record<string, string> = {
   'conn.placeholderPending': '상대가 정해지면 열립니다',
   'conn.restore': '기본값 복원',
   'conn.apply': '적용',
+  // 260922 — **저장 안 된 칸만** 이 줄을 단다. 늘 떠 있는 안내가 아니라 그 칸의 상태다.
+  // 무엇을 누르면 되는지까지 적는다 — 그것을 몰라서 화면과 실제 주소가 갈렸다.
+  'conn.unsavedCheck': '저장 안 됨 — 「확인」을 누르면 이 주소로 저장하고 확인합니다',
+  'conn.unsavedApply': '저장 안 됨 — 아래 「적용」을 눌러야 이 주소가 쓰입니다',
   'conn.notChecked': '아직 확인하지 않았습니다',
   'conn.testTitle': '탐지 담당이 준 실제 산출물을 진짜 결과처럼 읽습니다',
   'conn.test': '테스트',
@@ -845,7 +849,9 @@ export const ko: Record<string, string> = {
   'ms.unassigned': '미배정',
   'ms.clickToGraph': '클릭 → 태스크 그래프',
   'ms.hardwareCount': '하드웨어 · {n}대',
-  'ms.hardwareHint': '카드를 마일스톤으로 드래그 · **더블클릭 → 대상 상태** · 원천 {source}',
+  // 260922 — **왜 이 카드가 여기 있는지**까지 적는다. 목록이 「대본 배역 ∪ 붙어 있는 장비」로
+  // 바뀌면서 원천이 하나가 아니게 됐다 — 원천만 적으면 붙어서 뜬 드론까지 목(mock)으로 읽힌다.
+  'ms.hardwareHint': '카드를 마일스톤으로 드래그 · **더블클릭 → 대상 상태** · 대본 원천 {source} · 붙어 있는 장비는 임무와 상관없이 뜹니다',
   'ms.scriptDevice': '대본 등장 장비',
   'ms.connectedDevice': '연결된 장비',
 

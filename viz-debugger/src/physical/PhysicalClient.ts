@@ -158,6 +158,14 @@ export type StatusListener = (status: PhysicalStatus) => void;
 export class PhysicalClient {
   private client: unknown = null;
   private status: PhysicalStatus = { state: 'idle' };
+  /**
+   * **지금 붙어 있는 연결이 어느 주소로 열렸는가** (260922).
+   *
+   * 주소를 바꿔도 이미 열린 소켓은 그대로다. 이 값이 없으면 `connect()` 의 「이미 열려
+   * 있다」가 **어느 브로커에 열려 있는지 모른 채** 성공을 돌려준다 — 화면에는 pi3 라고
+   * 적혀 있는데 실제로는 pi7 에 붙은 채로 초록이 뜬다. `NavClient` 가 같은 값을 든다.
+   */
+  private connectedUrl: string | null = null;
   private readonly listeners = new Set<PhysicalListener>();
   private readonly deviceListeners = new Set<DeviceListener>();
   private readonly scanFeedListeners = new Set<ScanFeedListener>();
@@ -218,8 +226,15 @@ export class PhysicalClient {
    * 돌아오지 않는다.
    */
   async connect(timeoutMs = 6000): Promise<PhysicalStatus> {
-    if (this.status.state === 'open') return this.status;
+    const url = physicalWsUrl();
     if (this.status.state === 'connecting') return this.status;
+    if (this.status.state === 'open') {
+      if (url === this.connectedUrl) return this.status;
+      // 연결 관리에서 주소를 바꿨다 — 옛 주소에 붙은 채로 「붙었다」고 말하지 않는다
+      // (260922 · `NavClient` 와 같은 규칙). 「확인」이 곧 적용이 되면서 이 자리를
+      // 매번 지나간다: 브로커 둘이 다 살아 있으면 기계를 바꿔도 옛 것이 초록으로 남는다.
+      this.disconnect();
+    }
     this.setStatus({ state: 'connecting' });
     /**
      * **붙기 전에 「누가 붙어 있나」를 비운다** (260921). 주소를 바꿔 다른 브로커로 가면
@@ -228,7 +243,7 @@ export class PhysicalClient {
      */
     resetDeviceIdentity();
     try {
-      const client = (await mqttConnect())(physicalWsUrl(), {
+      const client = (await mqttConnect())(url, {
         protocolVersion: 5,
         reconnectPeriod: 0,
         /**
@@ -242,6 +257,7 @@ export class PhysicalClient {
         clientId: `web-${Math.random().toString(36).slice(2, 10)}`,
       }) as MqttLike;
       this.client = client;
+      this.connectedUrl = url;
 
       // 처음 한 번만 결론을 낸다 — 뒤이어 오는 close 가 open 을 덮어쓰면 안 된다.
       let settle: ((status: PhysicalStatus) => void) | null = null;
@@ -324,6 +340,7 @@ export class PhysicalClient {
     const client = this.client as { end?: (force?: boolean) => void } | null;
     client?.end?.(true);
     this.client = null;
+    this.connectedUrl = null;
     // 끊었으면 붙어 있던 장비도 없다 — 남겨 두면 끊긴 채로 명령이 나간다.
     resetDeviceIdentity();
     this.setStatus({ state: 'idle' });

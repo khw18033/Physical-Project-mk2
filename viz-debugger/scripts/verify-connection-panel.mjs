@@ -318,6 +318,81 @@ const controls = [];
   }
 }
 
+// ── 6-3. 「확인」이 곧 적용인가 (260922 — 사람이 화면에서 걸렸다) ────────────
+//
+// **화면에는 pi3 라고 적혀 있는데 확인은 pi7 로 나갔다.** 콘솔에도 pi7 만 찍혔다.
+// 버그가 아니라 설계였다 — 입력칸은 초안이고, 저장은 판 맨 아래 「적용」이 하며, 「확인」은
+// **저장된 주소**로 붙어 본다. 적용을 안 누르면 적힌 주소와 확인하는 주소가 갈린다.
+//
+// 고친 방식은 **초안을 끝내는 자리를 옮긴 것**이다. 주소를 고친 사람이 다음에 누르는 것은
+// 바로 옆의 「확인」이지 스크롤 끝의 「적용」이 아니다.
+//
+// 보는 것 둘. ① 얹는 규칙이 맞는가(다른 대상의 주소를 안 잃는가) ② 화면이 그것을 실제로
+// 확인 직전에 부르는가. ②가 없으면 ①이 다 맞아도 화면은 그대로 갈린 채다.
+{
+  const { commitDraft } = await load('src', 'shell', 'draftCommit.ts');
+  const panel = readFileSync(join(root, 'src', 'shell', 'ConnectionsPanel.tsx'), 'utf8');
+
+  // ① 바뀐 칸이 얹힌다.
+  const current = { 'physical.ws': 'ws://pi7.x:9001/mqtt', 'detect.base': 'http://desk.x' };
+  const draft = { 'physical.ws': 'ws://pi3.x:9001', 'detect.base': 'http://desk.x' };
+  const next = commitDraft(current, draft, ['physical.ws']);
+  if (next === null) failures.push('주소를 고쳤는데 저장할 것이 없다고 한다');
+  if (next?.['physical.ws'] !== 'ws://pi3.x:9001') failures.push('고친 주소가 안 얹혔다');
+  /**
+   * **다른 대상의 주소를 잃으면 안 된다.** `saveConnections` 는 받은 묶음으로 통째로
+   * 갈아치우므로, 이 대상 칸만 넘기면 탐지 주소를 손으로 넣어 둔 사람이 로봇 확인 한 번에
+   * 그것을 잃는다. 조용히 틀리는 종류라 검사가 아니면 무대에서 안다.
+   */
+  if (next?.['detect.base'] !== 'http://desk.x') {
+    failures.push('한 대상을 저장했더니 다른 대상의 주소가 사라졌다');
+  }
+
+  // ② 안 바뀌었으면 저장도 알림도 없다 — 「적용했습니다」가 확인 결과처럼 읽히면 안 된다.
+  if (commitDraft(current, { ...current }, ['physical.ws']) !== null) {
+    failures.push('바뀐 것이 없는데 저장한다 — 확인할 때마다 「적용했습니다」가 뜬다');
+  }
+  // 빈 칸으로 지운 것도 바뀐 것이다.
+  if (commitDraft(current, { 'physical.ws': '' }, ['physical.ws']) === null) {
+    failures.push('주소를 지운 것을 안 바뀐 것으로 본다');
+  }
+
+  // ③ 화면이 확인 **직전에** 부르는가. 순서가 뒤집히면 이번 확인은 옛 주소로 나간다.
+  if (!/onCommit=\{\(\) => commit\(target\)\}/.test(panel)) {
+    failures.push('확인 줄이 이 대상의 저장을 안 넘겨받는다');
+  }
+  const order = /onCommit\(\);[\s\S]{0,200}?checkTarget\(/.test(panel);
+  if (!order) failures.push('확인 버튼이 저장보다 먼저 붙어 본다 — 이번 확인이 옛 주소로 나간다');
+  if (!/commitDraft\(/.test(panel)) failures.push('연결 관리가 draftCommit 을 안 쓴다 — 검사가 화면과 다른 것을 재고 있다');
+
+  /**
+   * ④ **저장 안 된 칸이 그 사실을 말하는가.** 최상단 안내는 260913 에 걷어냈고 그 결정은
+   * 그대로다 — 늘 떠 있는 설명이 아니라 그 칸의 상태다. 무엇을 누르면 되는지까지 적는다.
+   */
+  if (!/conn-unsaved/.test(panel)) failures.push('저장 안 된 칸이 아무 말도 안 한다');
+  for (const key of ['conn.unsavedCheck', 'conn.unsavedApply']) {
+    if (koDict[key] === undefined) failures.push(`${key} 가 사전에 없다 — 화면에 키가 그대로 뜬다`);
+  }
+  // 확인이 있는 대상과 없는 대상이 **다른 문장**을 봐야 한다 — 확인 버튼이 없는 칸에
+  // 「확인을 누르세요」라고 적으면 누를 것이 없다.
+  if (!/hasCheck\(target\.id\) \? 'conn\.unsavedCheck' : 'conn\.unsavedApply'/.test(panel)) {
+    failures.push('저장 안 됨 안내가 확인 버튼 유무를 안 가린다');
+  }
+  // 목록이 두 곳으로 갈라지면 대상이 하나 붙을 때 한쪽만 는다.
+  if ((panel.match(/target\.id === 'autodrive-ai'/g) ?? []).length > 0) {
+    failures.push('확인 대상 목록이 판에 손으로 또 적혀 있다 — hasCheck 하나여야 한다');
+  }
+
+  /**
+   * ⑤ **「적용」이 스크롤 끝에 숨지 않는가** (260922 지시 — 「아래로 내려야 하는 것이 불편함」).
+   * 확인이 없는 칸(게이트웨이·영상)은 이 버튼이 유일한 길이다.
+   */
+  const css = readFileSync(join(root, 'src', 'style.css'), 'utf8');
+  if (!/\.connections__actions\{[^}]*position:sticky/.test(css)) {
+    failures.push('「적용」이 판 아래에 고정돼 있지 않다 — 길게 내려야 보인다');
+  }
+}
+
 // ── 7. detect 프리셋 (260914) ────────────────────────────────────────────────
 //
 // 로봇과 같은 모양으로 네트워크 환경을 고른다. 탐지는 시연장 밖 데스크톱에서 돌므로
@@ -370,6 +445,25 @@ function control(name, hit) {
     selectedPresetId(BROKER_PRESETS, tail.url, applyPresetChoice(BROKER_PRESETS, MANUAL_ID).manual) === MANUAL_ID);
 }
 {
+  /**
+   * **옛 구현은 확인 전에 저장하지 않는다** — 260922 의 그 버그다.
+   *
+   * 고친 것이 진짜 고쳐진 것인지 보려면 안 고친 것이 어떻게 틀렸는지도 재야 한다.
+   * 옛 판은 초안을 그대로 두고 저장된 값으로 붙었다 — 그래서 화면은 pi3, 소켓은 pi7.
+   */
+  const { commitDraft } = await load('src', 'shell', 'draftCommit.ts');
+  const saved = { 'physical.ws': 'ws://pi7.x:9001/mqtt' };
+  const typed = { 'physical.ws': 'ws://pi3.x:9001' };
+  const oldUsedUrl = saved['physical.ws'];                       // 옛 구현이 붙던 주소
+  const nowUsedUrl = commitDraft(saved, typed, ['physical.ws'])['physical.ws'];
+  control('옛 구현은 화면의 주소가 아니라 저장된 옛 주소로 붙는다',
+    oldUsedUrl !== typed['physical.ws']);
+  control('지금 구현은 화면에 적힌 주소로 붙는다',
+    nowUsedUrl === typed['physical.ws']);
+  control('한 대상을 저장해도 다른 대상은 그대로',
+    commitDraft({ ...saved, 'detect.base': 'http://desk.x' }, typed, ['physical.ws'])['detect.base'] === 'http://desk.x');
+}
+{
   // 브로커와 로봇을 한 줄로 뭉친 사본 — 로봇이 죽으면 브로커까지 빨개진다.
   const merged = (brokerOk, robotOk) => [{ id: 'both', ok: brokerOk && robotOk }];
   const ours = await checkPhysical({
@@ -400,6 +494,7 @@ console.log('✅ 브로커가 없으면 아래 둘은 「못 물어봤다」 · 
 console.log('✅ 확인 버튼이 실제 왕복을 한 번 돌린다 · 던져도 사유가 남는다 (팝업이 안 날아간다)');
 console.log('✅ detect 는 상대가 없으면 모름 — 2단계-B 에서 잇는다 · 한 대상이 죽어도 나머지는 돈다');
 console.log('✅ 프리셋 셋 — 테일넷 둘(Go1 · 드론) + 직접 입력 · 빈 줄 0건');
+console.log('✅ 「확인」이 그 대상의 초안을 먼저 저장한다 — 화면에 적힌 주소로 붙는다 (다른 대상은 안 잃는다)');
 console.log('✅ 탐지도 네트워크 환경을 고른다 — 기본 주소가 Tailscale 프리셋과 같고, 주소는 src/detect/ 에만 있다');
 console.log(`✅ 대조군 ${controls.length}건 전부 검출 — ${controls.join(' · ')}`);
 process.exit(0);

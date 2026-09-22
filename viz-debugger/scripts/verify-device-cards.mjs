@@ -115,6 +115,47 @@ const cast = listCastIds();
   }
 }
 
+// ── 6. **화면이 그 목록을 그리는가** (260922 — 5절까지 초록인데 드론이 안 보였다) ──
+//
+// 1~5절은 `listDeviceCardIds()` 를 쟀고 전부 초록이었다. 그런데 화면에는 드론이 없었다 —
+// **판이 그 함수를 안 쓰는 갈래를 갖고 있었기** 때문이다.
+//
+// ```jsx
+// {view.hardware ? hardware.map(…) : cast.map(…)}
+// //              ^^^^^^^^^^^^^^^^ 대본에 실측 목록이 있으면 합집합을 통째로 건너뛴다
+// ```
+//
+// 임무를 안 연 상태(`hardware: []`)도 빈 배열이 참이라 그 갈래로 갔고, 그래서 **카드가 한
+// 장도 안 떴다.** 붙어 있는 드론을 볼 자리가 화면 어디에도 없었다.
+//
+// 검사가 화면과 다른 것을 재고 있었던 것이다. 그 자리를 메운다.
+{
+  const main = readFileSync(join(root, 'src', 'main.tsx'), 'utf8');
+
+  // ① 판이 합집합을 그린다.
+  if (!/useDeviceCardIds\(\)/.test(main)) failures.push('판이 카드 목록을 안 불러온다');
+  if (!/cards\.map\(/.test(main)) failures.push('판이 카드 목록을 안 그린다 — 검사가 화면과 다른 것을 재고 있다');
+
+  // ② **목록을 가르던 갈래가 없다.** 이것이 그 버그다.
+  if (/view\.hardware\s*$/m.test(main) || /\{view\.hardware\s*\?/.test(main)) {
+    failures.push('대본 실측 목록이 있으면 합집합을 건너뛰는 갈래가 남아 있다 — 260922 의 그 버그다');
+  }
+  // 세는 것도 합집합이어야 한다 — 「장비 n」과 실제 카드 수가 다르면 무엇을 믿을지 모른다.
+  if (/hardwareCount[^}]*view\.hardware/.test(main)) {
+    failures.push('머리줄의 장비 수가 합집합이 아니다');
+  }
+
+  // ③ 대본이 실측 행을 든 장비는 그것을 그리고, 아닌 것은 살아 있는 줄을 그린다.
+  //    갈래는 **카드마다**여야 한다 — 목록을 가르는 조건이 아니다.
+  if (!/hardware\.find\(/.test(main)) failures.push('카드마다 대본 실측 행을 찾지 않는다');
+  if (!/HardwareLink/.test(main)) failures.push('붙어서 뜬 카드가 살아 있는 줄을 안 그린다');
+
+  // ④ 더블클릭으로 상태를 열 수 있다 — **드론을 확인할 방법**이 그것이다 (260922 지시 2).
+  if (!/onDoubleClick=\{\(\) => setStatusDeviceId\(id\)\}/.test(main)) {
+    failures.push('카드를 더블클릭해도 상태가 안 열린다 — 드론을 확인할 방법이 없어진다');
+  }
+}
+
 // ── 대조군 ───────────────────────────────────────────────────────────────────
 function control(name, hit) {
   if (!hit) failures.push(`대조군 실패: ${name}`);
@@ -127,6 +168,25 @@ function control(name, hit) {
   control('빈 id 는 안 담는다', connectedDevices().length === 0);
   noteConnectedEntity('cam-4f', 'state');
   control('카메라도 붙으면 뜬다 (로봇만이 아니다)', listDeviceCardIds().includes('cam-4f'));
+}
+{
+  /**
+   * **옛 갈래를 흉내 내면 드론이 사라져야 한다** — 260922 의 그 버그다.
+   *
+   * 고친 것이 진짜 고쳐진 것인지 보려면 안 고친 것이 어떻게 틀렸는지도 재야 한다.
+   * 옛 판은 `view.hardware` 가 있으면 그쪽만 그렸다. 빈 배열도 참이라 임무를 안 열었을
+   * 때조차 그 갈래로 갔다 — 그래서 카드가 한 장도 안 떴다.
+   */
+  resetConnectedDevices();
+  noteConnectedEntity(DRONE.entityId, 'state');
+  const union = listDeviceCardIds();
+  const oldBranch = (viewHardware) => (viewHardware ? viewHardware.map((h) => h.id) : union);
+  control('옛 갈래는 대본 실측 목록이 있으면 드론을 버린다',
+    !oldBranch([{ id: 'go1-001' }]).includes(DRONE.entityId));
+  control('옛 갈래는 임무를 안 열면 카드가 한 장도 없다 (빈 배열도 참이다)',
+    oldBranch([]).length === 0 && union.length > 0);
+  control('지금 목록은 임무와 상관없이 드론을 든다',
+    union.includes(DRONE.entityId));
 }
 {
   // 받는 쪽이 실제로 밀어 넣는가 — 배선이 빠지면 카드가 영영 안 뜬다.
@@ -144,5 +204,6 @@ if (failures.length) {
 }
 console.log('✅ 붙은 장비는 대본에 없어도 카드로 뜬다 — 배역은 값이 안 와도 남는다');
 console.log(`✅ ${CONNECTED_WINDOW_MS / 1000}초 조용하면 빠지고, 다시 오면 돌아온다 · 두 길로 와도 한 장`);
+console.log('✅ 화면이 그 목록을 그린다 — 대본 실측 목록이 있어도 합집합을 안 건너뛴다 (더블클릭으로 상태를 연다)');
 console.log('✅ 단독 빌드가 tabs/ 를 안 끌어온다 — 받는 쪽이 밀어 넣고 그리는 쪽은 shared/ 만 읽는다');
 console.log(`✅ 대조군 ${controls.length}건 — ${controls.join(' · ')}`);

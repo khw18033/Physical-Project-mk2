@@ -122,6 +122,8 @@ export const en: Record<string, string> = {
   'conn.placeholderPending': 'Opens once the counterpart is decided',
   'conn.restore': 'Restore defaults',
   'conn.apply': 'Apply',
+  'conn.unsavedCheck': 'Not saved — pressing Check saves this address, then checks it',
+  'conn.unsavedApply': 'Not saved — press Apply at the bottom for this address to take effect',
   'conn.notChecked': 'Not checked yet',
   'conn.testTitle': 'Reads the real output handed over by the detection team as if it were a live result',
   'conn.test': 'Test',
@@ -838,7 +840,7 @@ export const en: Record<string, string> = {
   'ms.unassigned': 'Unassigned',
   'ms.clickToGraph': 'Click → task graph',
   'ms.hardwareCount': 'Hardware · {n}',
-  'ms.hardwareHint': 'Drag a card onto a milestone · **double-click → target state** · source {source}',
+  'ms.hardwareHint': 'Drag a card onto a milestone · **double-click → target state** · script source {source} · connected devices appear regardless of the mission',
   'ms.scriptDevice': 'Device in the script',
   'ms.connectedDevice': 'Connected device',
 

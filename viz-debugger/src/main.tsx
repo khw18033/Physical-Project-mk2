@@ -102,8 +102,12 @@ function Milestones({ view, phase, milestoneStatuses, assignments, onAssign, onO
    * 전에는 대본 배역뿐이라 대본에 안 적힌 장비는 붙어 있어도 안 보였다 — 드론이 그랬다.
    * 이제 배역 ∪ 지금 값이 흐르는 장비이고, 그중 쓸 것만 끌어다 배정한다. 대본 시연은
    * 배역이 그대로 남으므로 하던 대로 돈다.
+   *
+   * **260922 — 그런데 아래가 이 목록을 안 썼다.** 대본에 실측 목록이 실려 있으면 그쪽만
+   * 그리는 갈래가 남아 있어서, 260921 의 합집합이 그 경우에 통째로 건너뛰어졌다. 드론이
+   * 여전히 안 보였던 이유가 그것이다 — 자세한 것은 아래 하드웨어 판의 주석.
    */
-  const cast = useDeviceCardIds();
+  const cards = useDeviceCardIds();
   const mission = useMission();
   /**
    * 더블클릭으로 연 **대상 상태** (260904 — `VZ-D-07` 의 미구현분). 카드가 드래그로 배정만
@@ -148,17 +152,33 @@ function Milestones({ view, phase, milestoneStatuses, assignments, onAssign, onO
       밀려 안 보이고, 반대도 마찬가지다. 축이 다른 둘을 한 스크롤에 태운 탓이다.
     */}
     <div className="right-column">
-    <aside className="hardware-panel"><h2>{t('ms.hardwareCount', { n: view.hardware ? hardware.length : cast.length })}</h2><p><Rich id="ms.hardwareHint" vars={{ source: hardwareSourceLabel() }} /></p>
-    {view.hardware
-      ? hardware.map((item) => <article key={item.id} draggable onDragStart={(event) => event.dataTransfer.setData('text/plain', item.id)} onDoubleClick={() => setStatusDeviceId(item.id)}><b className={item.connection}>{item.id}</b><small>{item.kind}</small><span><PendingSource id="hardware-pool-status" inline>{item.connection} · {item.battery}% · {item.rssi} dBm</PendingSource></span></article>)
-      // 대본(registry 세계) — 등장 장비는 id 만 대본에서 읽는다. 실측 3행은 여전히 자리표시다
-      // (VZ-D-07 · 8/31 결정 — registry 장비의 실측값은 남이 줄 데이터라 지어내지 않는다).
-      // 대본(registry 세계) — 등장 장비는 id 만 대본에서 읽는다. 연결 상태는 **아는 만큼**
-      // 적고(260910 지적), 실측 두 행(배터리·RSSI)은 여전히 자리표시다 — 로봇이 그 값을
-      // 보내 주는 채널이 아직 없다(VZ-D-07 · 8/31 결정: 남이 줄 데이터는 지어내지 않는다).
-      // **배역인지 붙어서 뜬 것인지 적는다.** 「연결됨」과 「이번 편 등장」은 다른 말이고,
-      // 뭉치면 꺼진 배역을 붙은 것으로 읽는다.
-      : cast.map((id) => <article key={id} draggable onDragStart={(event) => event.dataTransfer.setData('text/plain', id)} onDoubleClick={() => setStatusDeviceId(id)}><b>{id}</b><small>{t(deviceCardOrigin(id) === 'cast' ? 'ms.scriptDevice' : 'ms.connectedDevice')}</small><HardwareLink entityId={id} /></article>)}</aside>
+    <aside className="hardware-panel"><h2>{t('ms.hardwareCount', { n: cards.length })}</h2><p><Rich id="ms.hardwareHint" vars={{ source: hardwareSourceLabel() }} /></p>
+    {/*
+      **목록은 언제나 배역 ∪ 붙어 있는 장비다** (260922 지시 — 「드론은 확인할 방법이 지금은 없어」).
+
+      260921 에 `listDeviceCardIds()` 가 그 합집합을 내게 했는데, **여기가 그것을 안 썼다** —
+      대본에 실측 목록(`view.hardware`)이 실려 있으면 그쪽만 그리고 합집합을 통째로 건너뛰었다.
+      임무를 안 연 상태(`hardware: []`)도 그 갈래로 가서 **카드가 한 장도 안 떴다.** 붙어 있는
+      드론을 볼 자리가 화면 어디에도 없었던 것이 이 분기다.
+
+      `verify:device-cards` 는 초록이었다 — 그 검사가 잰 것은 `listDeviceCardIds()` 이고
+      **화면이 그것을 그리는지는 안 봤다.** 그 자리도 같이 메운다.
+
+      그래서 갈래는 **카드마다**로 내려간다: 대본이 그 장비의 실측 행을 들고 있으면 그것을
+      그리고, 없으면 살아 있는 줄(`HardwareLink`)을 그린다. 목록을 가르던 조건이 아니다.
+    */}
+    {cards.map((id) => {
+      const item = hardware.find((row) => row.id === id);
+      return <article key={id} draggable onDragStart={(event) => event.dataTransfer.setData('text/plain', id)} onDoubleClick={() => setStatusDeviceId(id)}>
+        <b className={item?.connection}>{id}</b>
+        {/* 대본이 아는 장비는 그 종류를, 붙어서 뜬 것은 **배역인지 연결인지**를 적는다 —
+            「연결됨」과 「이번 편 등장」은 다른 말이고, 뭉치면 꺼진 배역을 붙은 것으로 읽는다. */}
+        <small>{item === undefined ? t(deviceCardOrigin(id) === 'cast' ? 'ms.scriptDevice' : 'ms.connectedDevice') : item.kind}</small>
+        {item === undefined
+          ? <HardwareLink entityId={id} />
+          : <span><PendingSource id="hardware-pool-status" inline>{item.connection} · {item.battery}% · {item.rssi} dBm</PendingSource></span>}
+      </article>;
+    })}</aside>
     {/* 기능 상태 (260920). 하드웨어와 **완전히 다른 판**이고 자기 스크롤을 갖는다. */}
     <CapabilityPanel />
     </div>
