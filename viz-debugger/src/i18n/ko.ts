@@ -120,6 +120,8 @@ export const ko: Record<string, string> = {
   // 무엇을 누르면 되는지까지 적는다 — 그것을 몰라서 화면과 실제 주소가 갈렸다.
   'conn.unsavedCheck': '저장 안 됨 — 「확인」을 누르면 이 주소로 저장하고 확인합니다',
   'conn.unsavedApply': '저장 안 됨 — 아래 「적용」을 눌러야 이 주소가 쓰입니다',
+  'conn.addAddress': '주소를 더 넣으면 로봇이 하나 더 붙습니다',
+  'conn.dropAddress': '이 주소를 뺍니다',
   'conn.notChecked': '아직 확인하지 않았습니다',
   'conn.testTitle': '탐지 담당이 준 실제 산출물을 진짜 결과처럼 읽습니다',
   'conn.test': '테스트',

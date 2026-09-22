@@ -124,6 +124,8 @@ export const en: Record<string, string> = {
   'conn.apply': 'Apply',
   'conn.unsavedCheck': 'Not saved — pressing Check saves this address, then checks it',
   'conn.unsavedApply': 'Not saved — press Apply at the bottom for this address to take effect',
+  'conn.addAddress': 'Add an address to connect one more robot',
+  'conn.dropAddress': 'Remove this address',
   'conn.notChecked': 'Not checked yet',
   'conn.testTitle': 'Reads the real output handed over by the detection team as if it were a live result',
   'conn.test': 'Test',

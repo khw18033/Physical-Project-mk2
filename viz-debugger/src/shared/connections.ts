@@ -65,7 +65,35 @@ export type ConnectionField = {
   labelKey: string;
   /** 기본값. 환경변수가 있으면 그것이 이긴다(아래 `seed`). */
   fallback: string;
+  /**
+   * **주소를 여럿 담는 칸** (260922 — 로봇 N대 동시 연결 1단계).
+   *
+   * 로봇이 여럿이면 브로커도 여럿이다(Go1 은 pi7, 드론은 pi3). 칸을 기종마다 하나씩
+   * 늘리면 로봇이 늘 때마다 화면이 자라므로, **한 칸이 목록을 든다.**
+   *
+   * 저장은 여전히 문자열 하나다 — 이 저장소가 `Record<string, string>` 이고, 모양을
+   * 바꾸면 저장된 설정이 통째로 버려진다(판 키 `v1`). **줄바꿈으로 잇는다.** 화면은
+   * 줄마다 칸을 하나씩 그리므로 사람은 줄바꿈을 보지 않는다.
+   *
+   * 옛 값(주소 한 줄)이 그대로 목록 한 줄이 된다 — 옮길 것이 없다.
+   */
+  list?: true;
 };
+
+/**
+ * 목록 칸을 푼다. 빈 줄과 앞뒤 공백은 버린다 — 사람이 칸을 비워 두고 저장한 것이다.
+ *
+ * **여기 하나에서만 푼다.** 읽는 쪽마다 `split('\n')` 을 적으면 한쪽만 공백을 안 버리는
+ * 날이 오고, 그러면 빈 주소로 소켓을 여는 클라이언트가 하나 생긴다.
+ */
+export function splitAddressList(value: string): readonly string[] {
+  return value.split('\n').map((line) => line.trim()).filter((line) => line !== '');
+}
+
+/** 목록 칸으로 되돌린다. 화면이 줄 배열을 들고 있다가 저장할 때 부른다. */
+export function joinAddressList(values: readonly string[]): string {
+  return values.map((line) => line.trim()).filter((line) => line !== '').join('\n');
+}
 
 export type ConnectionTarget = {
   id: ConnectionTargetId;
@@ -105,7 +133,8 @@ export const CONNECTION_TARGETS: readonly ConnectionTarget[] = [
     // 주소·토픽·장비 id 가 한 곳에만 있어야 한다는 제약이 더 세다(`verify:physical-port`) —
     // 브로커를 옮기거나 중앙 서버 경유로 바꿀 때 한쪽만 고쳐지면 화면이 「붙었다」고
     // 말하면서 아무것도 못 받는다. 기본값은 `src/physical/PhysicalClient.ts` 가 심는다.
-    fields: [{ key: 'ws', labelKey: 'conn.field.ws', fallback: '' }],
+    // **주소가 여럿이다** (260922). 로봇이 늘면 줄이 는다 — 칸이 늘지 않는다.
+    fields: [{ key: 'ws', labelKey: 'conn.field.ws', fallback: '', list: true }],
   },
   {
     id: 'detect',
@@ -325,6 +354,8 @@ export function connectionsWritable(): boolean {
 export function saveConnections(next: Readonly<Record<string, string>>): boolean {
   const cleaned: Record<string, string> = {};
   for (const [key, value] of Object.entries(next)) {
+    // 목록 칸도 그대로 지나간다 — 줄 단위 정리는 `joinAddressList` 가 이미 했고,
+    // 여기서는 앞뒤 공백만 턴다(줄 사이의 줄바꿈은 남는다).
     const trimmed = value.trim();
     if (trimmed === '' || trimmed === defaults.get(key)) continue;
     cleaned[key] = trimmed;

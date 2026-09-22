@@ -440,6 +440,12 @@ b.follow-live{cursor:default}
 /* 저장 안 된 칸 (260922). 주소 칸 **바로 아래**에 붙어야 한다 — 판 아래 어딘가에 모아
    두면 어느 칸 이야기인지 다시 찾아야 하고, 그게 이 문제의 원인이었다. 이름 칸을 건너뛰고
    줄 전체를 쓴다(`label` 이 격자라 안 그러면 78px 칸에 끼어 세로로 무너진다). */
+/* 주소 여러 줄 (260922 — 로봇 N대). 줄마다 이름 칸을 반복하지 않는다 — 첫 줄만 적는다. */
+.conn-list label:not(:first-child) span{visibility:hidden}
+.conn-list label:has(.conn-row-drop){grid-template-columns:78px auto 1fr auto}
+.conn-row-drop{padding:4px 9px;border:1px solid #d9c2c2;border-radius:6px;background:#fff;color:#a2413c;line-height:1}
+/* 상태 줄이 어느 주소의 것인지 (260922). 줄 이름 앞에 작게 붙는다. */
+.conn-dot__scope{margin-right:5px;padding:1px 5px;border-radius:5px;background:#00000014;font-style:normal;font-weight:400;font-family:monospace;font-size:10px}
 .conn-unsaved{grid-column:1/-1;margin:0!important;padding:5px 9px;border-radius:6px;background:#fff8ec;color:#8a6300;font-size:11px!important}
 /* **아래로 내려가지 않아도 보인다** (260922 지시 — 「아래로 내려야 하는 것이 불편함」).
    판이 길어서 「적용」이 스크롤 끝에 숨어 있었고, 그래서 주소를 고치고도 적용을 안 누른

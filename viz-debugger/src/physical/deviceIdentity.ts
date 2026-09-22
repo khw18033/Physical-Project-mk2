@@ -64,9 +64,20 @@ export type DeviceIdentity = {
   atMs: number;
 };
 
-/** 한 장비에 대해 지금까지 모은 것. 원천이 섞여 들어오므로 칸마다 따로 찬다. */
+/**
+ * 한 장비에 대해 지금까지 모은 것. 원천이 섞여 들어오므로 칸마다 따로 찬다.
+ *
+ * **260922 — `origin`(어느 브로커에서 봤나)이 생겼다.** 로봇이 여럿이면 브로커도 여럿이고,
+ * 한 브로커가 끊길 때 **그 브로커의 장비만** 지워야 한다. 전역으로 비우면 pi3 를 다시 붙일
+ * 때마다 pi7 의 Go1 이 사라진다.
+ *
+ * `origin` 은 주소 문자열이지만 **판정에 쓰지 않는다** — 장비가 누구인지는 여전히 장비가
+ * 말한 것으로 정한다(§원칙 1). 여기서는 「어느 소켓이 물어 왔나」라는 살림살이일 뿐이다.
+ */
 type Candidate = {
   deviceId: string;
+  /** 이 장비를 본 브로커. 그 브로커가 끊기면 이 후보만 사라진다. */
+  origin: string;
   kind: string | null;
   deviceType: string | null;
   actions: readonly string[] | null;
@@ -90,16 +101,28 @@ function notify(): void {
 /**
  * 지금 붙어 있다고 말할 수 있는 장비. **애매하면 `null`.**
  *
+ * **260922 — 로봇이 여럿이면 여기는 `null` 이다.** 그것이 맞다: 대상을 안 받는 명령은
+ * 로봇이 둘일 때 갈 곳이 정해지지 않는다. 고르는 것은 **배정**의 일이고(3단계), 그때
+ * 명령은 대상을 인자로 받는다(2단계). 그 전까지 둘을 붙이면 명령이 막히고, 화면이
+ * 그 사실을 적는다 — 조용히 한 대를 골라 쏘는 것보다 낫다.
+ *
  * Capability 가 왔으면 그것이다 — 규약 평면에서 자기 이름을 댄 장비이므로 다툼이 없다.
  * 안 왔으면 자기소개(`registration`)를 한 장비가 **정확히 하나**일 때만 그것으로 본다.
  * 그마저 없으면 상태를 보낸 장비가 **정확히 하나**일 때만.
  */
 export function deviceIdentity(): DeviceIdentity | null {
-  const all = Object.values(candidates);
+  return resolve(Object.values(candidates));
+}
+
+/**
+ * 후보 묶음에서 **하나를 고르거나 고르지 않는다.** 전역판과 브로커별판이 같은 규칙을 쓴다 —
+ * 두 벌로 적으면 한쪽만 고쳐지는 날 명령이 엉뚱한 장비로 나간다.
+ */
+function resolve(all: readonly Candidate[]): DeviceIdentity | null {
   if (all.length === 0) return null;
   const byCapability = all.filter((c) => c.source === 'capability');
   if (byCapability.length === 1) return byCapability[0];
-  // Capability 가 둘이면 브로커에 장비가 둘이다 — 고르지 않는다.
+  // Capability 가 둘이면 장비가 둘이다 — 고르지 않는다.
   if (byCapability.length > 1) return null;
   const introduced = all.filter((c) => c.source === 'registration');
   if (introduced.length === 1) return introduced[0];
@@ -138,6 +161,9 @@ function upsert(next: Candidate): void {
       ...candidates,
       [next.deviceId]: {
         deviceId: next.deviceId,
+        // **브로커는 마지막으로 본 쪽이다.** 같은 장비가 두 소켓에 보이면 그건 같은
+        // 장비이고, 그 장비에 닿는 길로는 최근 것을 쓴다(`connectedDevices` 와 같은 규칙).
+        origin: next.origin || previous.origin,
         // **한 번 안 값을 `null` 로 지우지 않는다.** `state` 는 `registration` 을 안 싣는다.
         kind: next.kind ?? previous.kind,
         deviceType: next.deviceType ?? previous.deviceType,
@@ -157,9 +183,14 @@ function upsert(next: Candidate): void {
  *
  * 이것이 오면 장비 종류는 몰라도 **누구인지와 무엇을 할 수 있는지**는 확실하다.
  */
-export function noteCapability(deviceId: string, actions: readonly string[], nowMs = Date.now()): void {
+export function noteCapability(
+  deviceId: string,
+  actions: readonly string[],
+  origin = '',
+  nowMs = Date.now(),
+): void {
   if (deviceId === '') return;
-  upsert({ deviceId, kind: null, deviceType: null, actions: [...actions], source: 'capability', atMs: nowMs });
+  upsert({ deviceId, origin, kind: null, deviceType: null, actions: [...actions], source: 'capability', atMs: nowMs });
 }
 
 /**
@@ -172,6 +203,7 @@ export function noteDeviceReport(
   entityId: string,
   entityType: string,
   body: Record<string, unknown>,
+  origin = '',
   nowMs = Date.now(),
 ): void {
   if (entityId === '') return;
@@ -184,6 +216,7 @@ export function noteDeviceReport(
   const introduced = registration !== undefined && (registeredId !== null || registeredKind !== null);
   upsert({
     deviceId,
+    origin,
     kind: registeredKind ?? (entityType === '' ? null : entityType),
     deviceType,
     actions: null,
@@ -193,14 +226,41 @@ export function noteDeviceReport(
 }
 
 /**
- * **붙을 때마다 비운다.** 주소를 바꿔 다른 브로커에 붙으면 거기 있는 장비는 다른 장비다.
- * 안 비우면 pi7 에서 본 `go1-001` 이 pi3 에 붙은 뒤에도 남아 「장비가 둘」이 되고,
- * 그러면 애매해져서 명령이 통째로 막힌다.
+ * **그 브로커에서 본 장비를 비운다.** 붙을 때와 끊을 때 부른다.
+ *
+ * 주소를 바꿔 다른 브로커에 붙으면 거기 있는 장비는 다른 장비다. 안 비우면 pi7 에서 본
+ * `go1-001` 이 pi3 에 붙은 뒤에도 남아 「장비가 둘」이 되고, 그러면 애매해져서 명령이
+ * 통째로 막힌다.
+ *
+ * **260922 — 브로커 하나만 비운다.** 로봇이 여럿이면 소켓도 여럿이고, 그중 하나가 다시
+ * 붙을 때마다 전부 비우면 나머지 로봇이 화면에서 사라진다. `origin` 을 안 주면 전부
+ * 비우던 옛 동작이다 — 검사와 화면 전환이 그렇게 쓴다.
  */
-export function resetDeviceIdentity(): void {
-  if (Object.keys(candidates).length === 0) return;
-  candidates = {};
+export function resetDeviceIdentity(origin?: string): void {
+  const keys = Object.keys(candidates);
+  if (keys.length === 0) return;
+  if (origin === undefined) {
+    candidates = {};
+    notify();
+    return;
+  }
+  const next: Record<string, Candidate> = {};
+  for (const [id, candidate] of Object.entries(candidates)) {
+    if (candidate.origin !== origin) next[id] = candidate;
+  }
+  if (Object.keys(next).length === keys.length) return;
+  candidates = next;
   notify();
+}
+
+/**
+ * **그 브로커에서 본 장비 하나.** 2단계(명령 대상을 명시로)가 이 함수를 쓴다 — 명령이
+ * 「어느 소켓으로 나가는가」와 「어느 장비에게 가는가」가 같은 답을 내야 하기 때문이다.
+ *
+ * 애매하면 `null` 인 것은 전역판과 같다 — 한 브로커에 장비가 둘이면 고르지 않는다.
+ */
+export function deviceIdentityFor(origin: string): DeviceIdentity | null {
+  return resolve(Object.values(candidates).filter((c) => c.origin === origin));
 }
 
 export function subscribeDeviceIdentity(listener: () => void): () => void {

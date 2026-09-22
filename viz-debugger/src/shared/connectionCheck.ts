@@ -102,6 +102,30 @@ async function waitForRobot(get: (() => RobotFacts | null) | null, timeoutMs = 6
   }
 }
 
+/**
+ * **브로커마다 줄 셋** (260922 — 로봇 N대 동시 연결 1단계).
+ *
+ * 로봇이 여럿이면 소켓도 여럿이고, 「어느 주소가 안 붙었나」를 줄이 말해야 한다. 그래서
+ * 줄 id 에 주소를 붙이고(`broker@<주소>`) `scope` 에 그 주소를 적는다 — 화면이 줄 앞에 단다.
+ *
+ * 주소를 `reason` 에 섞지 않는다. 그 칸은 **실패 사유**이고, 성공한 줄에도 주소는 붙어야 한다.
+ */
+export async function checkPhysicalAll(
+  clients: readonly { probe: PhysicalProbe; address: string }[],
+  robotSource: RobotFacts | (() => RobotFacts | null) | null = null,
+): Promise<readonly HealthLine[]> {
+  if (clients.length === 0) return checkPhysical(null, robotSource);
+  const out: HealthLine[] = [];
+  for (const { probe, address } of clients) {
+    // **한 줄로 합치지 않는다.** 하나가 죽어도 나머지 주소의 결과는 그대로 보여야 한다.
+    const lines = await checkPhysical(probe, robotSource);
+    for (const row of lines) {
+      out.push(clients.length === 1 ? row : { ...row, id: `${row.id}@${address}`, scope: address });
+    }
+  }
+  return out;
+}
+
 export async function checkPhysical(
   client: PhysicalProbe | null,
   robotSource: RobotFacts | (() => RobotFacts | null) | null = null,
@@ -356,10 +380,19 @@ export async function checkTarget(
   physical: PhysicalProbe | null,
   robot: RobotFacts | (() => RobotFacts | null) | null = null,
   nav: NavProbe | null = null,
+  /**
+   * **주소가 여럿일 때의 상대들** (260922). 주면 이쪽이 이긴다 — `physical` 인자는 상대가
+   * 하나뿐이던 시절의 자리이고, 검사들이 그 모양으로 재고 있어 그대로 둔다.
+   */
+  physicalAll: readonly { probe: PhysicalProbe; address: string }[] | null = null,
 ): Promise<void> {
   setChecking(target, true);
   try {
-    if (target === 'physical') setHealth(target, await checkPhysical(physical, robot));
+    if (target === 'physical') {
+      setHealth(target, physicalAll === null
+        ? await checkPhysical(physical, robot)
+        : await checkPhysicalAll(physicalAll, robot));
+    }
     else if (target === 'autodrive') setHealth(target, await checkAutodrive(nav));
     else if (target === 'autodrive-ai') setHealth(target, await checkAutodriveAi());
     else if (target === 'detect') setHealth(target, await checkDetect());

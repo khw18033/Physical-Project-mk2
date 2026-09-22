@@ -51,7 +51,7 @@ import { checkTarget, type PhysicalProbe } from '../shared/connectionCheck.ts';
 import { robotFacts } from '../physical/robotFacts.ts';
 import { armLinkWatch } from '../physical/linkWatch.ts';
 import { navProbe } from '../physical/NavClient.ts';
-import { robotProbe } from '../physical/robotClient.ts';
+import { robotProbe, robotProbes } from '../physical/robotClient.ts';
 import { setTestMode, useDetect } from '../detect/store.ts';
 import { CAPABILITY_PRESETS, capabilityPresetReady } from '../capability/presets.ts';
 import { MEDIA_PRESETS, mediaPresetReady } from '../media/presets.ts';
@@ -66,7 +66,9 @@ import {
   connectionKey,
   connectionsWritable,
   resetConnections,
+  joinAddressList,
   saveConnections,
+  splitAddressList,
   useConnections,
 } from '../shared/connections.ts';
 
@@ -181,6 +183,60 @@ export function ConnectionsPanel({ onClose, physical }: { onClose(): void; physi
       {target.fields.map((field) => {
         const key = connectionKey(target.id, field.key);
         const choice = ADDRESS_PRESETS[target.id];
+        /**
+         * **주소가 여럿인 칸** (260922 — 로봇 N대). 줄마다 입력을 하나씩 그리고, 저장할 때
+         * 줄바꿈으로 이어 붙인다(`joinAddressList`). 사람은 줄바꿈을 보지 않는다.
+         *
+         * 빈 줄 하나를 늘 뒤에 둔다 — 「+ 추가」를 누르고 나서 어디에 쓰는지 찾는 것보다,
+         * 빈 칸이 이미 있고 거기 쓰면 되는 편이 빠르다.
+         */
+        if (field.list === true) {
+          const rows = splitAddressList(draft[key] ?? '');
+          const shown = [...rows, ''];
+          const write = (next: readonly string[]) =>
+            setDraft((prev) => ({ ...prev, [key]: joinAddressList(next) }));
+          return <div key={key} className="conn-list">
+            {shown.map((row, index) => <label key={index}>
+              <span>{index === 0 ? t(field.labelKey) : ''}</span>
+              {choice !== undefined && <select
+                className="conn-preset"
+                value={selectedPresetId(choice.presets, row, manual[`${key}.${index}`] === true)}
+                onChange={(event) => {
+                  const next = applyPresetChoice(choice.presets, event.target.value);
+                  setManual((prev) => ({ ...prev, [`${key}.${index}`]: next.manual }));
+                  if (next.url !== null) {
+                    const copy = [...shown];
+                    copy[index] = next.url;
+                    write(copy);
+                  }
+                }}
+              >
+                {choice.presets.map((preset) => <option
+                  key={preset.id}
+                  value={preset.id}
+                  title={t(preset.whyKey)}
+                  disabled={!choice.ready(preset)}
+                >{t(preset.labelKey)}{choice.ready(preset) || preset.id === 'manual' ? '' : t('conn.presetUndecided')}</option>)}
+              </select>}
+              <input
+                value={row}
+                placeholder={index === rows.length ? t('conn.addAddress') : field.fallback}
+                onChange={(event) => {
+                  const copy = [...shown];
+                  copy[index] = event.target.value;
+                  write(copy);
+                }} />
+              {/* 지우는 길. 빈 줄에는 안 붙는다 — 지울 것이 없다. */}
+              {index < rows.length && <button type="button" className="conn-row-drop"
+                title={t('conn.dropAddress')}
+                onClick={() => write(rows.filter((_, i) => i !== index))}
+              >×</button>}
+            </label>)}
+            {(draft[key] ?? '') !== (current[key] ?? '') && <p className="conn-unsaved">
+              {t(hasCheck(target.id) ? 'conn.unsavedCheck' : 'conn.unsavedApply')}
+            </p>}
+          </div>;
+        }
         return <label key={key}>
           <span>{t(field.labelKey)}</span>
           {/* 프리셋이 있는 대상은 네트워크 환경을 고르는 자리도 준다 (§2) — 로봇과 객체 탐지.
@@ -273,6 +329,8 @@ function HealthRow({ target, physical, onCommit }: {
       {state.lines.length === 0
         ? <span className="conn-dot conn-dot--unknown">{t('conn.notChecked')}</span>
         : state.lines.map((row) => <span key={row.id} className={`conn-dot conn-dot--${row.ok === true ? 'ok' : row.ok === false ? 'bad' : 'unknown'}`}>
+          {/* **어느 주소의 줄인가** (260922). 상대가 하나면 안 적는다 — 반복하면 읽을 것만 는다. */}
+          {row.scope !== undefined && <em className="conn-dot__scope">{row.scope}</em>}
           {t(row.labelKey)} {row.ok === true ? '✓' : row.ok === false ? '✕' : '?'}
           {row.roundTripMs !== null && ` ${row.roundTripMs}ms`}
           {row.reason !== null && ` — ${row.reason}`}
@@ -304,8 +362,15 @@ function HealthRow({ target, physical, onCommit }: {
         // **저장이 먼저다.** 확인은 저장된 주소로 붙으므로, 여기서 안 끝내면 방금 고친
         // 주소가 아니라 옛 주소를 확인한다 (260922 — 파일 머리 §260922).
         onCommit();
-        void checkTarget(target, physical, robotFacts, target === 'autodrive' ? navProbe() : null)
-          .then(() => { if (target === 'physical') armLinkWatch(healthOf('physical').lines, robotProbe, robotFacts); });
+        /**
+         * **주소가 여럿이면 줄마다 확인한다** (260922). 로봇이 둘이면 「하나는 붙고 하나는
+         * 안 붙은」 상태가 정상적으로 생기고, 한 줄로 뭉치면 어느 쪽인지 못 가른다.
+         */
+        void checkTarget(
+          target, physical, robotFacts,
+          target === 'autodrive' ? navProbe() : null,
+          target === 'physical' ? robotProbes() : null,
+        ).then(() => { if (target === 'physical') armLinkWatch(healthOf('physical').lines, robotProbe, robotFacts); });
       }}
     >{state.checking ? t('conn.checking') : t('conn.check')}</button>
     {state.lines.length > 0 && <small className="conn-health__at">

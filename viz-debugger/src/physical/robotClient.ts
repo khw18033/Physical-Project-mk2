@@ -9,7 +9,7 @@
  */
 
 import { t } from '../i18n/dict.ts';
-import { PhysicalClient } from './PhysicalClient.ts';
+import { PhysicalClient, physicalWsUrls } from './PhysicalClient.ts';
 import { issuePing, issueScan, shouldIssueScan } from './robotCommands.ts';
 import { robotSession, setConnection, subscribeRobot } from './robotSession.ts';
 import { currentMission } from '../data/scenario.ts';
@@ -18,7 +18,7 @@ import { deviceState, receiveDeviceMessage } from './deviceState.ts';
 import { noteScanFeed } from '../detect/feedLog.ts';
 import { indexOfRotation } from '../detect/parse.ts';
 import { hardwareTarget } from './encode.ts';
-import { awaitDeviceIdentity } from './deviceIdentity.ts';
+import { awaitDeviceIdentity, deviceIdentityFor } from './deviceIdentity.ts';
 import { receiveScanCapture } from './robotBridge.ts';
 import { elapsedSec } from './robotSession.ts';
 import { initPrepStage } from './prepStage.ts';
@@ -53,18 +53,81 @@ function noteConnection(status: PhysicalStatus): void {
   noteIssue('robot-broker', 'connection', words);
 }
 
-let singleton: PhysicalClient | null = null;
+/**
+ * **브로커마다 클라이언트 하나** (260922 — 로봇 N대 동시 연결 1단계).
+ *
+ * 전에는 싱글턴 하나였다. 로봇이 둘이면 브로커도 둘이고(Go1 은 pi7, 드론은 pi3) 소켓
+ * 하나로는 둘을 못 본다 — 주소를 바꾸면 앞엣것이 끊겼다.
+ *
+ * 주소를 키로 둔다. 연결 관리에서 줄을 지우면 그 클라이언트는 **끊고 버린다** — 안 버리면
+ * 지운 주소에 소켓이 남아 카드가 계속 뜬다.
+ */
+const pool = new Map<string, PhysicalClient>();
 /** 마지막으로 스캔을 시도한 조건. 같은 조건이면 다시 안 쏜다 (아래 주석). */
 let lastScanAttempt = '';
+/** 임무를 모는 배선이 붙어 있는 주소. 첫 줄이 바뀌면 옮겨 단다. */
+let drivingUrl: string | null = null;
 
+/**
+ * **지금 주소 목록대로 풀을 맞춘다.** 없는 것은 만들고, 사라진 줄은 끊어서 버린다.
+ *
+ * 부르는 쪽은 화면과 연결 관리다 — 주소가 바뀌는 순간이 그때뿐이라 여기서 맞춘다.
+ */
+export function syncRobotClients(): readonly PhysicalClient[] {
+  const urls = physicalWsUrls();
+  for (const [url, client] of pool) {
+    if (urls.includes(url)) continue;
+    // 줄이 지워졌다 — 소켓을 남겨 두면 없는 설정의 로봇이 카드에 계속 뜬다.
+    client.disconnect();
+    pool.delete(url);
+  }
+  for (const url of urls) if (!pool.has(url)) pool.set(url, makeClient(url));
+  attachDriver(urls[0] ?? null);
+  return urls.map((url) => pool.get(url)!).filter((client) => client !== undefined);
+}
+
+/** 지금 있는 클라이언트 전부. 연결 관리와 표시등이 줄마다 상태를 묻는다. */
+export function robotClients(): readonly PhysicalClient[] {
+  return syncRobotClients();
+}
+
+/**
+ * **대상을 안 받는 옛 호출이 쓰는 클라이언트** — 목록의 첫 줄이다.
+ *
+ * 2단계(명령 대상을 명시 인자로)가 이 함수를 걷어낸다. 그때까지는 임무를 모는 로봇이
+ * 첫 줄이고, 화면이 그 사실을 적는다. **조용히 한 대를 고르지 않는다** — 로봇이 둘이면
+ * `deviceIdentity()` 가 `null` 을 내어 명령 자체가 막힌다(`deviceIdentity.ts`).
+ */
 export function robotClient(): PhysicalClient {
-  if (singleton === null) {
-    // 대상을 넘기지 않는다 — 붙은 장비가 자기 이름을 댄다 (260921 · `deviceIdentity.ts`).
-    singleton = new PhysicalClient();
+  const urls = physicalWsUrls();
+  const url = urls[0] ?? '';
+  syncRobotClients();
+  const found = pool.get(url);
+  if (found !== undefined) return found;
+  // 주소가 하나도 없을 때도 면은 있어야 한다 — 붙지 못할 뿐이다.
+  const empty = makeClient(url);
+  pool.set(url, empty);
+  return empty;
+}
+
+/** 브로커 하나에 대한 클라이언트. **중립 배선만** 단다 — 임무는 아래 `attachDriver` 가 단다. */
+function makeClient(url: string): PhysicalClient {
+  {
+    // 붙을 **장비**는 넘기지 않는다 — 붙은 장비가 자기 이름을 댄다 (260921 · `deviceIdentity.ts`).
+    const singleton = new PhysicalClient(url);
     // **연결 상태는 만들 때 잇는다** (260910). 화면 부품이 구독하게 두면 그 부품이 안 떠
     // 있는 동안의 변화를 놓치고, 「붙었는데 세션은 모른다」가 된다 — 승인 순간에 그게
     // 나면 대본 타이머가 돌아 로봇보다 화면이 앞서 간다.
     singleton.onStatus((status) => {
+      /**
+       * **모는 클라이언트의 상태만 세션에 민다** (260922).
+       *
+       * 세션은 임무 하나를 따라가는 것이다. 로봇이 둘이면 둘의 연결 상태가 번갈아
+       * 덮어써서 「붙었다 · 끊겼다」가 이유 없이 반복되고, 대본 타이머가 그것을 보고 돈다.
+       *
+       * 줄마다의 상태는 **연결 관리가 줄마다 따로** 보여 준다 — 그쪽이 그 물음의 자리다.
+       */
+      if (url !== drivingUrl) return;
       // 알림을 먼저 적고 세션을 민다 — 순서가 뒤면 화면이 새 상태로 다시 그려진 뒤에
       // 알림이 붙어, 로그를 되짚을 때 한 칸씩 어긋나 보인다.
       noteConnection(status);
@@ -73,6 +136,31 @@ export function robotClient(): PhysicalClient {
     // 장비 상태도 만들 때 잇는다 — 화면 부품이 안 떠 있는 동안의 값을 놓치면
     // 하드웨어 카드가 「모른다」로 남는다.
     singleton.onDevice(receiveDeviceMessage);
+    // **임무 배선은 여기 없다.** 아래 `attachDriver` 가 첫 줄 하나에만 단다 —
+    // 모든 클라이언트에 달면 드론에도 스캔 명령이 나간다.
+    return singleton;
+  }
+}
+
+/**
+ * **임무를 모는 배선.** 스캔 발행·준비 단계·촬영 대기 해제·탐지 흐름이 여기 붙는다.
+ *
+ * **클라이언트 하나에만 단다.** 전부에 달면 드론에도 `scan_mission` 이 나가고, 드론은
+ * 그 action 을 선언한 적이 없다(계약 §4) — 거절당하는 것이 그나마 다행인 실패다.
+ *
+ * 지금은 **주소 목록의 첫 줄**이 그 자리다. 3단계에서 **배정**이 이 자리를 대신한다 —
+ * 「어느 로봇이 이 임무를 모나」는 원래 배정이 답할 물음이고, 첫 줄은 그때까지의 임시값이다.
+ *
+ * 첫 줄이 바뀌면 옮겨 단다. 옛 자리의 구독은 끊지 않는다 — `subscribeRobot` 이 세션을
+ * 보고 돌기 때문에 클라이언트가 바뀌어도 조건이 같으면 같은 답을 낸다. 대신 **누가 몰고
+ * 있는지**를 한 곳에 적어 둔다(`drivingUrl`).
+ */
+function attachDriver(url: string | null): void {
+  if (url === null || url === drivingUrl) return;
+  const singleton = pool.get(url);
+  if (singleton === undefined) return;
+  drivingUrl = url;
+  {
     /**
      * **로봇 → 탐지 흐름도 만들 때 잇는다** (260914). 탐지 그림이 안 올 때 로봇이 보냈는지를
      * 화면이 스스로 말할 수 있어야 한다. 각도 → 칸은 지금 올라온 임무의 간격·칸 수로 잡는다.
@@ -132,15 +220,19 @@ export function robotClient(): PhysicalClient {
       void issueScan(singleton as PhysicalClient, currentMission().params);
     });
   }
-  return singleton;
 }
+
 
 /**
  * 연결 관리가 쓰는 얇은 면 (`PhysicalProbe`). **주소·토픽은 여기서도 안 샌다** —
  * 팝업은 「붙어라 · 물어봐라」만 알고 어디에 어떻게 붙는지는 모른다.
  */
 export function robotProbe() {
-  const client = robotClient();
+  return probeFor(robotClient());
+}
+
+/** 클라이언트 하나에 대한 면. `robotProbe` 와 `robotProbes` 가 같은 것을 쓴다. */
+function probeFor(client: PhysicalClient) {
   return {
     connect: () => client.connect(),
     getStatus: () => client.getStatus(),
@@ -149,10 +241,28 @@ export function robotProbe() {
      * **누구와 말하고 있는가** (260921). 팝업은 장비 이름을 여기서만 받는다 — 주소로
      * 짐작하지 않는다. 아직 아무 말도 못 들었으면 잠깐 기다렸다가 `null` 이다.
      */
-    identity: () => awaitDeviceIdentity().then((found) => (found === null ? null : {
-      deviceId: found.deviceId,
-      kind: found.kind,
-      deviceType: found.deviceType,
-    })),
+    /**
+     * **그 브로커의 장비를 본다** (260922). 전역판(`awaitDeviceIdentity`)은 로봇이 둘이면
+     * `null` 이고 — 그건 명령을 막으려는 판정이라 맞다 — 여기서 쓰면 줄마다의 확인이
+     * 둘 다 「모른다」가 된다. 이 줄이 묻는 것은 **이 주소에 누가 있나**다.
+     */
+    identity: () => awaitDeviceIdentity().then(() => {
+      const found = deviceIdentityFor(client.address());
+      return found === null ? null : {
+        deviceId: found.deviceId,
+        kind: found.kind,
+        deviceType: found.deviceType,
+      };
+    }),
   };
+}
+
+/**
+ * **주소마다 하나씩, 연결 관리가 쓰는 얇은 면** (260922).
+ *
+ * 주소·토픽은 여기서도 안 샌다 — 팝업은 「붙어라 · 물어봐라」와 **어느 줄의 것인가**만 안다.
+ * 그 주소는 팝업이 이미 화면에 적고 있는 값이라 새로 새는 것이 아니다.
+ */
+export function robotProbes(): readonly { probe: ReturnType<typeof robotProbe>; address: string }[] {
+  return syncRobotClients().map((client) => ({ probe: probeFor(client), address: client.address() }));
 }

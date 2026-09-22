@@ -31,7 +31,7 @@
  */
 
 import { t } from '../i18n/dict.ts';
-import { connectionAddress, registerConnectionDefault } from '../shared/connections.ts';
+import { connectionAddress, registerConnectionDefault, splitAddressList } from '../shared/connections.ts';
 import { commandTarget, noteCapability, resetDeviceIdentity } from './deviceIdentity.ts';
 import { encodeCommand, nextCommandId, type CommandInput, type PhysicalAction } from './encode.ts';
 import { physical } from './protocol.js';
@@ -56,9 +56,23 @@ const meta = import.meta as unknown as { env?: { VITE_PHYSICAL_WS?: string } };
  */
 registerConnectionDefault('physical', 'ws', meta.env?.VITE_PHYSICAL_WS ?? 'ws://pi7.tailcb6bfb.ts.net:9001/mqtt');
 
-/** 지금 쓰는 브로커 주소. 상수가 아니라 **읽을 때마다 지금 값**이다. */
+/**
+ * 지금 쓰는 브로커 주소들. 상수가 아니라 **읽을 때마다 지금 값**이다.
+ *
+ * **260922 — 한 칸에 여러 줄이 들어온다.** 로봇이 여럿이면 브로커도 여럿이고(Go1 은 pi7,
+ * 드론은 pi3), 둘을 동시에 봐야 한다. 저장 모양은 `connections.ts` 의 목록 칸 규약이고
+ * 여기서는 그것을 풀어 쓰기만 한다.
+ *
+ * 순서가 뜻을 갖는다 — **첫 줄이 임무를 모는 로봇**이다(`robotClient.ts`). 배정이 그 자리를
+ * 대신할 때까지의 임시 규칙이고, 그 사실을 화면이 적는다.
+ */
+export function physicalWsUrls(): readonly string[] {
+  return splitAddressList(connectionAddress('physical', 'ws'));
+}
+
+/** 첫 줄. 대상을 안 받는 옛 호출들이 쓰는 자리다 — 2단계에서 인자로 바뀐다. */
 export function physicalWsUrl(): string {
-  return connectionAddress('physical', 'ws');
+  return physicalWsUrls()[0] ?? '';
 }
 
 /** 내려보내는 토픽. 장비 id 가 토픽에 들어가므로 **이 파일 밖에 적지 않는다.** */
@@ -143,7 +157,7 @@ export type PhysicalStatus =
 
 export type PhysicalListener = (message: UplinkMessage) => void;
 /** 장비 상태 한 건. 토픽과 본문을 그대로 넘긴다 — 뜯는 것은 `deviceState.ts` 다. */
-export type DeviceListener = (topic: string, body: Record<string, unknown>) => void;
+export type DeviceListener = (topic: string, body: Record<string, unknown>, origin: string) => void;
 /** 로봇 → 탐지 한 건. 뜯은 값만 넘긴다 — 그림은 여기서 버린다. */
 export type ScanFeedListener = (message: ScanFeedMessage) => void;
 export type StatusListener = (status: PhysicalStatus) => void;
@@ -180,8 +194,22 @@ export class PhysicalClient {
    *
    * 이제 대상은 **쏠 때마다 지금 붙어 있는 장비**를 읽는다(`commandTarget()`).
    */
-  constructor() {
-    // 붙을 대상을 미리 정하지 않는다 — 장비가 말해 준다.
+  /**
+   * @param url 이 클라이언트가 붙을 브로커. **비우면 목록의 첫 줄**을 읽는다 — 대상을
+   *            안 받던 옛 호출이 그대로 돈다.
+   *
+   * 붙을 **장비**는 여전히 미리 정하지 않는다 — 장비가 말해 준다(`deviceIdentity.ts`).
+   * 주소를 받는 것과 장비를 고르는 것은 다른 일이다.
+   */
+  private readonly url: string | null;
+
+  constructor(url: string | null = null) {
+    this.url = url;
+  }
+
+  /** 이 클라이언트가 붙는 곳. 장비 정체성의 `origin` 이기도 하다. */
+  address(): string {
+    return this.url ?? physicalWsUrl();
   }
 
   getStatus(): PhysicalStatus {
@@ -226,7 +254,7 @@ export class PhysicalClient {
    * 돌아오지 않는다.
    */
   async connect(timeoutMs = 6000): Promise<PhysicalStatus> {
-    const url = physicalWsUrl();
+    const url = this.address();
     if (this.status.state === 'connecting') return this.status;
     if (this.status.state === 'open') {
       if (url === this.connectedUrl) return this.status;
@@ -241,7 +269,7 @@ export class PhysicalClient {
      * 거기 있는 장비는 다른 장비다. 안 비우면 pi7 에서 본 `go1-001` 이 pi3 에 붙은 뒤에도
      * 남아 「장비가 둘」이 되고, 애매하다는 이유로 명령이 통째로 막힌다.
      */
-    resetDeviceIdentity();
+    resetDeviceIdentity(url);
     try {
       const client = (await mqttConnect())(url, {
         protocolVersion: 5,
@@ -300,7 +328,7 @@ export class PhysicalClient {
             if (feed !== null) for (const listener of this.scanFeedListeners) listener(feed);
             return;
           }
-          for (const listener of this.deviceListeners) listener(topic, body as Record<string, unknown>);
+          for (const listener of this.deviceListeners) listener(topic, body as Record<string, unknown>, this.address());
           return;
         }
         /**
@@ -310,7 +338,7 @@ export class PhysicalClient {
          */
         const capability = decodeCapability(payload);
         if (capability !== null) {
-          noteCapability(capability.deviceId, capability.actions);
+          noteCapability(capability.deviceId, capability.actions, this.address());
           return;
         }
         const message = decodeUplink(payload);
@@ -340,9 +368,11 @@ export class PhysicalClient {
     const client = this.client as { end?: (force?: boolean) => void } | null;
     client?.end?.(true);
     this.client = null;
+    const gone = this.connectedUrl ?? this.address();
     this.connectedUrl = null;
-    // 끊었으면 붙어 있던 장비도 없다 — 남겨 두면 끊긴 채로 명령이 나간다.
-    resetDeviceIdentity();
+    // 끊었으면 그 브로커에 있던 장비도 없다 — 남겨 두면 끊긴 채로 명령이 나간다.
+    // **그 브로커 것만** 지운다: 다른 소켓의 로봇은 아직 붙어 있다.
+    resetDeviceIdentity(gone);
     this.setStatus({ state: 'idle' });
   }
 

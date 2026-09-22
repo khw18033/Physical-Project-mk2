@@ -157,7 +157,7 @@ export function deviceState(entityId: string): DeviceState | null {
   return devices[entityId] ?? null;
 }
 
-export function receiveDeviceMessage(topic: string, body: Record<string, unknown>): boolean {
+export function receiveDeviceMessage(topic: string, body: Record<string, unknown>, origin = ''): boolean {
   const parsed = parseTopic(topic);
   if (parsed === null) return false;
   devices = { ...devices, [parsed.entityId]: applyDeviceMessage(devices[parsed.entityId], parsed, body) };
@@ -166,7 +166,8 @@ export function receiveDeviceMessage(topic: string, body: Record<string, unknown
    * 늦게 붙은 웹은 못 받는데(계약 §4), retained `status` 는 구독 즉시 온다 — 그 안의
    * `registration` 이 장비 id 와 종류를 말한다. 그것이 없으면 토픽의 두·세 번째 칸이 말한다.
    */
-  noteDeviceReport(parsed.entityId, parsed.entityType, body);
+  // **어느 브로커에서 봤는지**도 같이 넘긴다 — 그 소켓이 끊길 때 이 장비만 지운다.
+  noteDeviceReport(parsed.entityId, parsed.entityType, body, origin);
   // 하드웨어 카드가 보는 목록에도 올린다 — Go1 이 `/state` 로 옮겨 가기 전까지의 길이다.
   noteConnectedEntity(parsed.entityId, 'mqtt');
   /**
