@@ -12,6 +12,7 @@
 // 보는 것 다섯.
 //  1. 값이 오는 장비는 **임무와 상관없이** 카드가 된다
 //  2. **대본 배역은 카드가 아니다** — 아무것도 안 붙으면 한 장도 안 뜬다
+//  2-2. **목 게이트웨이의 가짜 함대도 카드가 아니다** — 목 렌더를 켰을 때만 그린다
 //  3. 조용해지면 **빠진다** — 꺼진 장비를 붙은 것처럼 두지 않는다
 //  4. 두 길(`/state` · MQTT)로 같은 id 가 오면 **한 장으로** 센다
 //  5. **단독 빌드가 `tabs/` 를 안 끌어온다** — 카드 때문에 대시보드 계층이 딸려 오면 안 된다
@@ -81,7 +82,7 @@ const cast = listCastIds();
   if (typeof listCastIds !== 'function') failures.push('배역을 읽는 길이 사라졌다');
 
   // 드론이 들어온다. **대본에는 없다.**
-  noteConnectedEntity(DRONE.entityId, 'state');
+  noteConnectedEntity(DRONE.entityId, 'mqtt');
   const after = listDeviceCardIds();
   if (!after.includes(DRONE.entityId)) failures.push('붙은 드론이 카드에 없다 — 대본에 없으면 안 보인다');
   /**
@@ -93,17 +94,63 @@ const cast = listCastIds();
   if (deviceCardOrigin(DRONE.entityId) !== 'connected') failures.push('붙어서 뜬 카드를 배역으로 적었다');
 }
 
+// ── 2-2. **목 게이트웨이의 가짜 함대는 카드가 아니다** (260922 두 번째) ──────
+//
+// 배역을 걷어냈는데도 카드가 아홉 장 떠 있었다 — `robot-01`·`robot-02`·`sensor-04`·
+// `edge-node-a` … `gateway/devices.ts` 의 목 함대다. 1Hz 로 봉투를 흘리고, 받는 자리가
+// 그것을 「붙어 있다」로 적고 있었다.
+//
+// 값이 흐르는 것은 사실이다. 다만 그 값은 **우리가 만든 것**이고, 카드의 「붙어 있다」는
+// 무대에서 「저 장비가 저기 있다」로 읽힌다.
+//
+// **들어온 길로 가른다.** 카드가 되는 것은 `mqtt` — 연결 관리에서 주소를 넣고 「확인」을
+// 눌러 붙은 브로커다. 사람이 그 장비를 지목했고, 그래서 「붙어 있다」라고 말할 근거가 있다.
+//
+// 렌더 모드로 가르지 않는다. 목 렌더를 읽는 자리는 `PendingSource` 하나여야 하고
+// (`verify:placeholder-default`), 여기서 읽으면 그 규칙에 구멍이 난다.
+{
+  resetConnectedDevices();
+
+  // 목 게이트웨이가 흘리는 것들 — 전부 `/state` 로 들어온다.
+  for (const id of ['robot-01', 'robot-02', 'sensor-04', 'edge-node-a']) {
+    noteConnectedEntity(id, 'state');
+  }
+  const hidden = listDeviceCardIds();
+  if (hidden.length !== 0) {
+    failures.push(`목 함대가 카드로 떴다 — ${hidden.join(',')}`);
+  }
+
+  // **우리가 직접 붙인 것은 거르지 않는다.**
+  noteConnectedEntity(DRONE.entityId, 'mqtt');
+  const ours = listDeviceCardIds();
+  if (!ours.includes(DRONE.entityId)) failures.push('직접 붙인 장비까지 걸러졌다');
+  if (ours.length !== 1) failures.push(`직접 붙인 것은 하나인데 카드가 ${ours.length}장 — ${ours.join(',')}`);
+
+  /**
+   * **저장소는 그대로 기록한다.** 가리는 것은 카드 목록 하나이고, 무엇이 흘렀는지는 남아야
+   * 한다 — 대시보드 탭이 그것을 「레지스트리에 없는 개체」로 그린다(`verify:drone-via-state`).
+   */
+  if (connectedDevices().length !== 5) {
+    failures.push(`저장소가 목 함대를 안 담았다 — ${connectedDevices().length}건`);
+  }
+  // 카드 목록이 렌더 모드를 읽지 않는다 — 그 규칙에 구멍을 내는 길이다.
+  const registrySource = readSource(join(root, 'src', 'shared', 'registry.ts'));
+  if (/useMockRender|getRenderMode/.test(registrySource)) {
+    failures.push('카드 목록이 렌더 모드를 읽는다 — 자리표시를 우회하는 길이 생긴다');
+  }
+}
+
 // ── 3. 조용해지면 빠진다 ─────────────────────────────────────────────────────
 {
   resetConnectedDevices();
   const longAgo = Date.now() - CONNECTED_WINDOW_MS - 1_000;
-  noteConnectedEntity(DRONE.entityId, 'state', longAgo);
+  noteConnectedEntity(DRONE.entityId, 'mqtt', longAgo);
   if (connectedDevice(DRONE.entityId) !== null) failures.push('창 밖인데 붙어 있다고 한다');
   if (listDeviceCardIds().includes(DRONE.entityId)) {
     failures.push('꺼진 장비가 카드에 남아 있다 — 끌어다 배정해도 아무 일이 안 일어난다');
   }
   // 다시 오면 돌아온다.
-  noteConnectedEntity(DRONE.entityId, 'state');
+  noteConnectedEntity(DRONE.entityId, 'mqtt');
   if (!listDeviceCardIds().includes(DRONE.entityId)) failures.push('다시 왔는데 안 돌아온다');
 }
 
@@ -113,11 +160,12 @@ const cast = listCastIds();
 // 서버 연결로」). 그때 카드가 둘로 갈라지면 안 된다.
 {
   resetConnectedDevices();
-  noteConnectedEntity('go1-001', 'mqtt');
   noteConnectedEntity('go1-001', 'state');
+  noteConnectedEntity('go1-001', 'mqtt');
   const rows = connectedDevices().filter((d) => d.entityId === 'go1-001');
   if (rows.length !== 1) failures.push(`같은 장비가 ${rows.length}장으로 갈라졌다`);
-  if (rows[0]?.source !== 'state') failures.push('나중에 온 길이 안 이겼다');
+  if (rows[0]?.source !== 'mqtt') failures.push('나중에 온 길이 안 이겼다');
+  // 두 길로 왔어도 카드는 한 장이다 — 나중 길이 `mqtt` 라 카드가 된다.
   if (listDeviceCardIds().filter((id) => id === 'go1-001').length !== 1) failures.push('카드 목록에 중복이 있다');
 }
 
@@ -222,9 +270,15 @@ function control(name, hit) {
   control('붙은 것만 읽는 지금은 안 잡힌다',
     !'return connectedDevices().map((device) => device.entityId);'.includes('.cast'));
   control('지금 규칙은 연결 0건이면 0장', listDeviceCardIds().length === 0);
-  noteConnectedEntity('', 'state');
+  // 목 함대를 안 거르던 사본 — 길을 안 보면 목 게이트웨이만 떠 있어도 카드가 생긴다.
+  noteConnectedEntity('robot-02', 'state');
+  const ignorePath = () => connectedDevices().map((d) => d.entityId);
+  control('길을 안 보던 사본은 목 함대를 카드로 그린다', ignorePath().length === 1);
+  control('지금은 목 함대를 안 그린다', listDeviceCardIds().length === 0);
+  resetConnectedDevices();
+  noteConnectedEntity('', 'mqtt');
   control('빈 id 는 안 담는다', connectedDevices().length === 0);
-  noteConnectedEntity('cam-4f', 'state');
+  noteConnectedEntity('cam-4f', 'mqtt');
   control('카메라도 붙으면 뜬다 (로봇만이 아니다)', listDeviceCardIds().includes('cam-4f'));
 }
 {
@@ -236,7 +290,7 @@ function control(name, hit) {
    * 때조차 그 갈래로 갔다 — 그래서 카드가 한 장도 안 떴다.
    */
   resetConnectedDevices();
-  noteConnectedEntity(DRONE.entityId, 'state');
+  noteConnectedEntity(DRONE.entityId, 'mqtt');
   const union = listDeviceCardIds();
   const oldBranch = (viewHardware) => (viewHardware ? viewHardware.map((h) => h.id) : union);
   control('옛 갈래는 대본 실측 목록이 있으면 드론을 버린다',
@@ -261,6 +315,7 @@ if (failures.length) {
   process.exit(1);
 }
 console.log('✅ 카드는 「지금 붙어 있다」 하나만 뜻한다 — 연결 0건이면 0장, 드론만 붙으면 1장');
+console.log('✅ 목 게이트웨이의 가짜 함대는 카드가 아니다 — 카드는 우리가 직접 붙인 길(mqtt)만 (저장소는 그대로 기록한다)');
 console.log(`✅ ${CONNECTED_WINDOW_MS / 1000}초 조용하면 빠지고, 다시 오면 돌아온다 · 두 길로 와도 한 장`);
 console.log('✅ 화면이 그 목록을 그리고, 0장일 때 그 사실을 적는다 (더블클릭으로 상태를 연다)');
 console.log('✅ 단독 빌드가 tabs/ 를 안 끌어온다 — 받는 쪽이 밀어 넣고 그리는 쪽은 shared/ 만 읽는다');
