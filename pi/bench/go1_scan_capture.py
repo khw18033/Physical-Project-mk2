@@ -3,7 +3,7 @@
 피지컬팀 mk2 — 8방향 스캔 촬영 (HW-R-05 / HW-R-07)
 =====================================================
 오른쪽 45도씩 8번 돌면서 **멈춘 자리마다 사진 한 장**을 찍는다. 한 바퀴 = 8장.
-마지막에 문 방향(왼쪽 45도)으로 돌면서 한 장 더. **전진은 하지 않는다.**
+한 바퀴 뒤 추가 회전은 없다. **전진은 하지 않는다.**
 
     python3 -m bench.go1_scan_capture                      (pi/ 디렉터리에서)
     python3 -m bench.go1_scan_capture --steps 12 --step_deg 30    # 12방향
@@ -25,7 +25,6 @@ H.264 스트림에서 원하는 순간의 한 장을 바로 뽑을 수는 없다
 ## 산출물
 
     <out>/shot_01_scan_turn_1.jpg …   방향마다 한 장
-    <out>/shot_09_door_turn.jpg
     <out>/manifest.json               사진 <-> ACK(방위·단계) 대응표
 
 manifest 의 `shots[]` 가 사진과 그때의 yaw 를 묶어 준다. 이게 이 도구의 핵심이다 —
@@ -40,96 +39,24 @@ import subprocess
 import sys
 import threading
 import time
+from datetime import datetime, timezone
+
+def iso_now_from(unix_ts):
+    """유닉스 시각을 콜론 오프셋 + 밀리초 ISO 로. schema.iso_now() 와 같은 형식이다.
+
+    회신 §8-10 19: 촬영 경로만 naive 로컬 시각을 써서 HW 자신의
+    pi/common/schema.py 규칙을 위반하고 있었다."""
+    return datetime.fromtimestamp(unix_ts, tz=timezone.utc).astimezone().isoformat(
+        timespec="milliseconds")
+
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from robot.go1_camera import Go1CameraSource      # noqa: E402
 from robot import go1_mission                      # noqa: E402
 
-RING_FPS = 5.0        # 링 버퍼에 떨어뜨리는 속도. ACK 시점 근처 프레임을 확보할 정도면 된다
-RING_KEEP = 40        # 링에 유지하는 파일 수(오래된 것부터 지운다)
-
-
-class FrameRing:
-    """Go1 정면 H.264 -> ffmpeg -> 링 디렉터리에 JPEG 를 계속 떨어뜨린다."""
-
-    def __init__(self, ring_dir, cam_id=1, fps=RING_FPS, quality=2):
-        self.dir = ring_dir
-        self.cam_id = cam_id
-        self.fps = fps
-        self.quality = quality
-        self.stop_flag = threading.Event()
-        self.error = None
-        self.bytes_in = 0
-
-    def start(self):
-        os.makedirs(self.dir, exist_ok=True)
-        self.ff = subprocess.Popen(
-            ["ffmpeg", "-hide_banner", "-loglevel", "error",
-             "-f", "h264", "-use_wallclock_as_timestamps", "1", "-i", "pipe:0",
-             "-vf", f"fps={self.fps}", "-q:v", str(self.quality),
-             "-f", "image2", os.path.join(self.dir, "r_%06d.jpg")],
-            stdin=subprocess.PIPE)
-        self.reader = threading.Thread(target=self._read, daemon=True)
-        self.reader.start()
-        self.sweeper = threading.Thread(target=self._sweep, daemon=True)
-        self.sweeper.start()
-
-    def _read(self):
-        try:
-            with Go1CameraSource(self.cam_id) as src:
-                for chunk in src:
-                    if self.stop_flag.is_set():
-                        break
-                    self.bytes_in += len(chunk)
-                    try:
-                        self.ff.stdin.write(chunk)
-                    except (BrokenPipeError, ValueError):
-                        break
-        except Exception as e:
-            self.error = f"{type(e).__name__}: {e}"
-
-    def _sweep(self):
-        """오래된 프레임을 지운다. 안 지우면 5fps x 촬영시간만큼 쌓인다."""
-        while not self.stop_flag.wait(2.0):
-            files = sorted(glob.glob(os.path.join(self.dir, "r_*.jpg")))
-            for f in files[:-RING_KEEP]:
-                try:
-                    os.remove(f)
-                except OSError:
-                    pass
-
-    def wait_ready(self, timeout=10.0):
-        """첫 프레임이 나올 때까지. 카메라가 없으면 여기서 걸러진다."""
-        end = time.time() + timeout
-        while time.time() < end:
-            if self.error:
-                return False
-            if len(glob.glob(os.path.join(self.dir, "r_*.jpg"))) >= 2:
-                return True
-            time.sleep(0.2)
-        return False
-
-    def grab(self, dest):
-        """지금 시점의 **완성된** 최신 프레임을 dest 로 복사한다.
-        마지막 파일은 ffmpeg 가 쓰는 중일 수 있어 그 앞의 것을 고른다."""
-        files = sorted(glob.glob(os.path.join(self.dir, "r_*.jpg")))
-        if len(files) < 2:
-            return None
-        src = files[-2]
-        shutil.copy2(src, dest)
-        return os.path.getsize(dest)
-
-    def close(self):
-        self.stop_flag.set()
-        try:
-            self.ff.stdin.close()
-        except Exception:
-            pass
-        try:
-            self.ff.wait(timeout=5)
-        except Exception:
-            self.ff.kill()
+# 링 버퍼는 robot/frame_ring.py 가 정본이다(탐지 연동도 같은 것을 쓴다).
+from robot.frame_ring import FrameRing, RING_FPS, RING_KEEP   # noqa: F401,E402
 
 
 def follow_acks_mqtt(device_id, broker, timeout_s):
@@ -207,8 +134,8 @@ def main():
 
     started = time.time()
     shots = []
-    # 스캔 회전 steps + 문 방향 1. **전진은 하지 않는다(forward_m=0).**
-    expected = args.steps + 1
+    # 스캔 회전 steps. **전진은 하지 않는다(forward_m=0).**
+    expected = args.steps
 
     if args.follow:
         print(f"규약 uplink 를 본다 — terminal/{args.device}/uplink "
@@ -228,8 +155,8 @@ def main():
             print("[중단] 로봇이 상태를 올려보내지 않는다(전원/기립 확인)")
             ring.close()
             return 2
-        print(f"미션 시작 — 오른쪽 {args.step_deg:.0f}도 x{args.steps} -> 문 방향 "
-              f"{args.step_deg:.0f}도, 전진 없음. 방향마다 1장씩 찍는다.")
+        print(f"미션 시작 — 오른쪽 {args.step_deg:.0f}도 x{args.steps}, "
+              f"전진 없음. 방향마다 1장씩 찍는다.")
         mc.start(args.steps, args.step_deg, forward_m=0)
         source = mc.acks(expected, go1_mission.MissionClient.budget(
             args.steps, args.step_deg, 0))
@@ -265,11 +192,12 @@ def main():
         "schema_version": "1.0",
         "kind": "scan_capture_session",
         "session": os.path.basename(out),
-        "started_at_iso": time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime(started)),
+        # 회신 §8-10 19: 콜론 오프셋 + 밀리초. naive 면 서버가 NULL 로 둔다.
+        "started_at_iso": iso_now_from(started),
         "started_at": started,
         "duration_s": round(time.time() - started, 1),
         "mission": {"steps": args.steps, "step_deg": args.step_deg,
-                    "forward_m": 0, "door_turn": True},
+                    "forward_m": 0, "door_turn": False},
         "sensor": {"type": "camera", "camera_id": args.cam,
                    "format": "jpeg", "jpeg_quality": args.quality},
         "shots": shots,

@@ -33,6 +33,7 @@ import os
 import sys
 import tarfile
 import time
+import urllib.error
 import urllib.request
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -115,14 +116,60 @@ def pack(session_dir, out_dir):
     return path
 
 
+def _put(url, body, content_type, token, timeout=120):
+    """PUT 한 번. 토큰은 헤더로 보낸다 — URL 쿼리에 실으면 서버 접근 로그에 남는다."""
+    req = urllib.request.Request(url, data=body, method="PUT")
+    req.add_header("Content-Type", content_type)
+    if token:
+        req.add_header("X-MK2-Token", token)
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as r:
+            return r.status, r.read(400).decode("utf-8", "replace")
+    except urllib.error.HTTPError as e:
+        return e.code, e.read(400).decode("utf-8", "replace")
+
+
+def upload_session(archive, man, base_url, token, entity_path=False, timeout=120):
+    """회신 §8-8 — **PUT 이 두 번이고 매니페스트가 먼저다.**
+
+    서버는 매니페스트를 받아야 그 세션을 받을지 판정한다. 아카이브만 올리면 409 다.
+    매니페스트가 2xx 가 아니면 아카이브를 보내지 않는다 — 판정 없이 올린 바이트는
+    서버에서 오갈 데가 없다.
+
+    entity_path=True 면 `<base>/<entity_id>/<세션>.tar.gz` 로 올린다(§8-10 20).
+    끄면 `<base>/<세션>.tar.gz` — 백엔드가 실측한 형태다.
+    """
+    stem = os.path.basename(archive)
+    if stem.endswith(".tar.gz"):
+        stem = stem[:-7]
+
+    prefix = base_url.rstrip("/")
+    if entity_path:
+        ent = man.get("source_id") or ""
+        if ent:
+            prefix = prefix + "/" + ent
+
+    man_url = prefix + "/" + stem + ".manifest.json"
+    arc_url = prefix + "/" + stem + ".tar.gz"
+
+    body = json.dumps(man, ensure_ascii=False).encode("utf-8")
+    st, msg = _put(man_url, body, "application/json", token, timeout)
+    print("[매니페스트] " + man_url + " (" + str(st) + ") " + msg.strip()[:120])
+    if not (200 <= st < 300):
+        return arc_url, st, False
+
+    with open(archive, "rb") as f:
+        st2, msg2 = _put(arc_url, f.read(), "application/gzip", token, timeout)
+    print("[아카이브]   " + arc_url + " (" + str(st2) + ") " + msg2.strip()[:120])
+    return arc_url, st2, 200 <= st2 < 300
+
+
 def http_put(path, base_url, timeout=120):
-    """S3 호환 PUT. base_url 은 디렉터리로 보고 파일명을 뒤에 붙인다."""
+    """구형 단일 PUT. 매니페스트를 먼저 보내지 않아 409 가 난다 — upload_session 을 쓸 것."""
     url = base_url.rstrip("/") + "/" + os.path.basename(path)
     with open(path, "rb") as f:
-        req = urllib.request.Request(url, data=f.read(), method="PUT")
-        req.add_header("Content-Type", "application/gzip")
-        with urllib.request.urlopen(req, timeout=timeout) as r:
-            return url, r.status
+        st, _ = _put(url, f.read(), "application/gzip", None, timeout)
+    return url, st
 
 
 def main():
@@ -132,6 +179,12 @@ def main():
                     help="tar.gz 로 묶어 이 디렉터리에 적재 (목적지 미정일 때)")
     ap.add_argument("--put", default=None,
                     help="이 base URL 로 HTTP PUT (S3 호환). --stage 와 같이 쓸 수 있다")
+    ap.add_argument("--token", default=os.environ.get("MK2_CAPTURE_TOKEN", ""),
+                    help="업로드 토큰. 환경변수 MK2_CAPTURE_TOKEN 이 기본값이다 "
+                         "(명령줄에 그대로 치면 셸 히스토리와 ps 에 남는다)")
+    ap.add_argument("--entity-path", action="store_true",
+                    help="<base>/<entity_id>/<세션> 형태로 올린다 (회신 §8-10 20). "
+                         "끄면 <base>/<세션> — 백엔드가 실측한 형태다")
     ap.add_argument("--delete-after", action="store_true",
                     help="업로드가 확인된 세션만 원본 삭제")
     args = ap.parse_args()
@@ -145,12 +198,22 @@ def main():
         # 만든 것을 그대로 존중한다. 여기서 덮어쓰면 사진과 방위의 대응이 사라진다.
         mpath = os.path.join(sess, "manifest.json")
         man = None
+        broken = False
         if os.path.exists(mpath):
             try:
                 with open(mpath, encoding="utf-8") as f:
                     man = json.load(f)
             except ValueError:
+                # 회신 §8-9 ⑦: 여기서 재생성하면 스캔 세션의 8방향 shots[] 대응표가
+                # 조용히 사라진다. 깨진 것은 고치거나 지우고 다시 올리는 편이 낫다.
                 man = None
+                broken = True
+
+        if broken:
+            print("[거부] 매니페스트 JSON 이 깨졌다: " + mpath)
+            print("       재생성하면 스캔 세션의 shots[] 가 사라진다 (§8-9 ⑦).")
+            continue
+
         if man is None or man.get("kind") == "capture_session":
             man = build_manifest(sess)
 
@@ -174,13 +237,13 @@ def main():
             if archive is None:
                 archive = pack(sess, "/tmp")
             try:
-                uri, status = http_put(archive, args.put)
+                uri, status, ok = upload_session(
+                    archive, man, args.put, args.token, args.entity_path)
                 if man.get("kind") == "capture_session":
                     man["frames"]["uri"] = uri
                 else:
                     man["uri"] = uri
-                uploaded = 200 <= status < 300
-                print(f"[업로드] {uri} ({status})")
+                uploaded = ok
             except Exception as e:
                 print(f"[업로드 실패] {type(e).__name__}: {e}")
 

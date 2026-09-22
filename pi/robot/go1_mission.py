@@ -11,10 +11,12 @@
   Unity·수동 조작과 같은 입구를 공유해야 "누가 걸었든 같은 미션"이 된다.
 
   보냄   127.0.0.1:15100  "MISSION SCAN <steps> <step_deg> <forward_m> <vx>"
+                          "MISSION FORWARD <m> [vx]" / "MISSION TURN <deg>"
+                          "MISSION CONTINUE <step>"  (촬영 뒤 대기 해제)
                           "MISSION CANCEL" / "MISSION PING"
   받음   127.0.0.1:15106  ACK JSON 1건/1단계 (go1_sdk_pc --ack_ip/--ack_port)
 
-ACK 는 스캔 회전 steps 건 + 문 방향 회전 1건 + 직진 1건 = steps+2 건이다.
+ACK 는 스캔 회전 steps 건 + 직진 1건 = steps+1 건이다(forward_m=0 이면 steps 건).
 마지막(event="forward")을 받으면 미션이 끝난 것으로 본다.
 """
 import json
@@ -66,17 +68,41 @@ class MissionClient:
         self._ack.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self._ack.bind(("127.0.0.1", self.ack_port))
 
-    def start(self, steps=8, step_deg=45.0, forward_m=1.0, vx=0.0):
-        """스캔 미션. forward_m=0 이면 스캔만 하고 전진하지 않는다."""
+    def start(self, steps=8, step_deg=45.0, forward_m=1.0, vx=0.0, hold_s=0.0):
+        """스캔 미션. forward_m=0 이면 스캔만 하고 전진하지 않는다.
+
+        hold_s>0 이면 촬영 자리(출발 방향 포함 steps 곳)마다 멈춰 `continue_scan(step)` 을
+        기다린다. hold_s 는 브리지 쪽 최후 시한이다 — 이 노드가 죽어도 영영 서 있지 않게."""
         self._open_ack()
         msg = "MISSION SCAN %d %g %g %g" % (steps, step_deg, forward_m, vx)
+        if hold_s > 0:
+            msg += " %g" % hold_s
         self._tx.sendto(msg.encode(), (self.host, self.cmd_port))
         return msg
+
+    def continue_scan(self, step):
+        """step 번 촬영 뒤 대기를 푼다. 브리지는 대기 진입 전에 와도 기억해 둔다."""
+        self._tx.sendto(b"MISSION CONTINUE %d" % step, (self.host, self.cmd_port))
+
+    @property
+    def canceled(self):
+        return self._canceled
 
     def start_forward(self, distance_m, vx=0.0):
         """전진만. 스캔 회전 없이 곧바로 직진한다(ACK 1건)."""
         self._open_ack()
         msg = "MISSION FORWARD %g %g" % (distance_m, vx)
+        self._tx.sendto(msg.encode(), (self.host, self.cmd_port))
+        return msg
+
+    def start_turn(self, deg):
+        """제자리 회전만. **오른쪽(시계)이 +** 다(ACK 1건).
+
+        스캔의 회전과 달리 **되돌아오지 않는다** — 돈 방향에 그대로 선다.
+        `scan_mission` 의 회전은 문 탐색 절차의 일부라 마지막에 원위치로 돌아오게
+        되어 있어서, "45도만 돌려"를 표현할 수단이 없었다."""
+        self._open_ack()
+        msg = "MISSION TURN %g" % deg
         self._tx.sendto(msg.encode(), (self.host, self.cmd_port))
         return msg
 
@@ -141,10 +167,16 @@ class MissionClient:
 
     # ---------- 시한 산정 ----------
     @staticmethod
+    def turn_budget():
+        """회전 1건의 시한. go1_sdk_pc 의 회전 상한(15s)과 정지 구간(settle)에
+        여유를 더한다. 여기가 짧으면 정상 회전을 실패로 만든다."""
+        return 15.0 + 4.0 + 10.0
+
+    @staticmethod
     def budget(steps, step_deg, forward_m, vx=0.15):
         """단계별 최악 시간의 합. go1_sdk_pc 쪽 상한(회전 15s, 직진 거리/vx*4+5s)과
         정지 구간(settle)을 그대로 반영한다. 여기가 짧으면 정상 미션을 실패로 만든다."""
         vx = vx or 0.15
         turn = 15.0 + 4.0                      # 회전 상한 + settle/점멸
         forward = forward_m / vx * 4.0 + 5.0 + 4.0
-        return (steps + 1) * turn + forward + 10.0
+        return steps * turn + forward + 10.0

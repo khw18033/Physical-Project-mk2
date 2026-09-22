@@ -119,14 +119,48 @@ EP_CONN_TYPE = _s("EP_CONN_TYPE", "rndis")    # rndis(USB) | sta(공유기) | ap
 # 실측(pi1 + EP, 2026-09-14): 위치가 계속 0.0 으로 고정되고 배터리가 6·11 같은
 # 거짓값으로 읽혔다(실제 46). 오류가 나지 않아 알아채기 어렵다 — 10 에서는 24초간
 # 배터리 31.0 고정, 3초 전진에 x=0.558m 로 정상이었다.
-# 로봇 20Hz 보고(HW-R-03)에 10Hz 수집이면 표본이 부족해 보이지만, 부족한 표본보다
-# 썩은 표본이 나쁘다. 20 이 필요해지면 그 주기에서 위 두 값을 다시 실측하고 올린다.
 EP_SUB_FREQ = _i("EP_SUB_FREQ", 10)
 EP_STALE_S = _f("EP_STALE_S", 1.0)            # 위치 표본이 이보다 오래되면 fault
 EP_BATTERY_STALE_S = _f("EP_BATTERY_STALE_S", 15.0)
 EP_MISSION_SPEED = _f("EP_MISSION_SPEED", 0.3)  # start_mission 기본 전진 속도
 EP_MAX_SPEED = _f("EP_MAX_SPEED", 0.5)        # 링크 클램프 상한. 상위가 뭘 보내든 이 값
 EP_CMD_TIMEOUT_S = _f("EP_CMD_TIMEOUT_S", 1.0)  # 워치독 — 갱신 없으면 정지
+
+# --- 구동 브리지 온디맨드 기동 (HW-R-06) ---
+# 평시에는 브리지를 내려 두고 "연결만 된 상태"로 있다가 이동 명령이 올 때 띄운다.
+# ⚠ 브리지가 기동하는 순간 로봇이 force-stand 로 **일어선다.** 그래서 부팅 자동시작을
+#   켜지 않고 명령 시점에만 띄운다 — 사람이 의도한 때에만 일어서게 하는 것이 목적이다.
+SDK_UNIT = _s("SDK_UNIT", "go1-sdk.service")
+# 이동 명령이 왔는데 브리지가 없으면 자동으로 띄운다. 끄면 거부(go1_sdk_not_running)한다.
+# 관제에서 sdk_auto 명령으로 런타임에 바꿀 수 있다.
+SDK_AUTOSTART = _b("SDK_AUTOSTART", "1")
+# 기동 후 로봇 상태(HighState)가 올라올 때까지의 상한. 기립에 실제로 몇 초 걸린다.
+SDK_START_TIMEOUT = _f("SDK_START_TIMEOUT", 25.0)
+
+# --- 객체탐지 담당 쪽 송신 (HW-R-07 연동) ---
+# 스캔 한 바퀴를 도는 동안 방향마다 사진 한 장을 탐지 노트북으로 보낸다. 단방향이다 —
+# 탐지 결과는 여기로 오지 않고 탐지 쪽이 가시화 웹으로 직접 보낸다.
+# 비어 있으면 송신을 끈다(로봇은 그대로 동작한다).
+#   예: http://ubuntu3-15ug50p-gp55kn:8000   (테일넷 MagicDNS 이름)
+# ⚠ 테일넷 이름을 쓰면 IP 가 바뀌어도 따라간다. 다만 이 파이의 DNS 가 테일스케일을
+#   거쳐야 풀린다 — 안 풀리면 100.x 주소를 직접 적는다.
+# 전송 경로. 탐지 담당 요구(2026-09-14)가 A안(MQTT 한 메시지에 사진+각도)이라 기본이 mqtt.
+#   mqtt  — zoneA/robot/go1-001/frame 로 발행. 각도와 사진이 같은 메시지에 있다
+#   http  — 탐지 쪽 엔드포인트로 POST (그쪽이 열어 두어야 한다)
+#   both  — 둘 다
+DETECT_TRANSPORT = _s("DETECT_TRANSPORT", "mqtt")
+DETECT_URL = _s("DETECT_URL", "")
+DETECT_TIMEOUT = _f("DETECT_TIMEOUT", 5.0)
+# 큐가 차면 오래된 것부터 버린다. 탐지가 느려도 로봇 임무는 밀리지 않아야 한다.
+DETECT_QUEUE_MAX = _i("DETECT_QUEUE_MAX", 32)
+DETECT_CAM_ID = _i("DETECT_CAM_ID", 1)                # 1=정면
+DETECT_RING_DIR = _s("DETECT_RING_DIR", "/tmp/hw-detect-ring")
+# ACK 는 로봇이 막 멈춘 순간에 온다. 조금 기다렸다 집어야 흔들리지 않은 그림이 나온다.
+DETECT_SETTLE_S = _f("DETECT_SETTLE_S", 0.6)
+DETECT_JPEG_QUALITY = _i("DETECT_JPEG_QUALITY", 2)    # ffmpeg -q:v (2=최고)
+# 촬영 다리가 /frame 을 내보낸 직후 로봇 노드에 알리는 로컬 UDP 포트. 스캔의
+# "촬영 뒤 대기(hold_after_capture)"가 이 알림을 받고서야 대기에 들어간다.
+DETECT_NOTIFY_PORT = _i("DETECT_NOTIFY_PORT", 15107)
 
 # 토픽 도메인 체계(BACKEND_AGENDA #2)는 백엔드 회신 대기 중이다. 확정을 기다리며
 # 멈추지 않도록 체계를 설정으로 뺐다 — 어떤 체계가 오든 여기 한 줄만 바뀐다.

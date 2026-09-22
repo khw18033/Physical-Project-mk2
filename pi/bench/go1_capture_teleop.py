@@ -46,8 +46,18 @@ import subprocess
 import sys
 import termios
 import threading
+from datetime import datetime, timezone
 import time
 import tty
+
+def iso_now_from(unix_ts):
+    """유닉스 시각을 콜론 오프셋 + 밀리초 ISO 로. schema.iso_now() 와 같은 형식이다.
+
+    회신 §8-10 19: 촬영 경로만 naive 로컬 시각을 써서 HW 자신의
+    pi/common/schema.py 규칙을 위반하고 있었다."""
+    return datetime.fromtimestamp(unix_ts, tz=timezone.utc).astimezone().isoformat(
+        timespec="milliseconds")
+
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -247,8 +257,9 @@ def main():
         cap.start()
         with open(os.path.join(out, "session.json"), "w", encoding="utf-8") as f:
             json.dump({"started_at": started,
-                       "started_at_iso": time.strftime("%Y-%m-%dT%H:%M:%S",
-                                                       time.localtime(started)),
+                       # 회신 §8-10 19: naive 로컬 시각이면 서버가 UTC 변환을 못 해
+                       # started_at 을 NULL 로 둔다. schema.py 의 규칙과 같은 형식으로.
+                       "started_at_iso": iso_now_from(started),
                        "camera": args.cam, "fps": args.fps,
                        "jpeg_quality": args.quality,
                        "speed": {"vx": args.vx, "vy": args.vy, "wz": args.wz},

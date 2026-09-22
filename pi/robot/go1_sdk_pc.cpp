@@ -183,11 +183,18 @@ public:
 
     // 실제 GO1이 초록/노란 waypoint 라인에서 벗어나지 않도록 보수적으로 조정
     // vx를 낮추고, yaw 보정을 강하게 하며, 방향 오차가 작아야 전진하도록 한다.
-    wp_reach_radius=0.10; path_kp_dist=0.35; path_kp_yaw=2.0;
-    // 2026-09-15 실측: Go1 보행 데드밴드가 0.10~0.13 m/s 사이다.
-    // 그 아래 전진 명령은 로봇이 발만 구르고 실제로 나아가지 않는다.
-    path_max_vx=0.20; path_min_vx=0.16; path_max_wz=0.45; path_turn_only_thresh=0.20;
-    path_lookahead_dist=0.25;
+    // 2026-09-22: 경로 추종 속도를 약 3배로. **상한 하나로는 안 된다.**
+    // 순항 중 명령은 cmd_vx = path_kp_dist * dist 이고 dist 는 사실상
+    // path_lookahead_dist 다. 그래서 천장이 0.35*0.25 = 0.0875 였고,
+    // path_max_vx 만 올려도 거기서 더 안 나간다. 곱해서 목표 속도가 되도록
+    // 둘을 같이 올린다 — 0.50*0.45 = 0.225 (이전 실효 0.07 의 3.2배).
+    //
+    // lookahead 를 같이 늘리는 데는 이유가 하나 더 있다. 목표점이 멀수록
+    // yaw_err 가 작아져 아래 테이퍼(1 - |err|/thresh)가 덜 깎는다.
+    // 속도만 올리고 lookahead 를 두면 조향이 급해져 선을 넘나든다.
+    wp_reach_radius=0.12; path_kp_dist=0.50; path_kp_yaw=2.0;
+    path_max_vx=0.22; path_min_vx=0.14; path_max_wz=0.90; path_turn_only_thresh=0.20;
+    path_lookahead_dist=0.45;
     path_anchor_robot_x=0.0; path_anchor_robot_z=0.0; path_anchor_robot_yaw=0.0;
     path_yaw_reach_tol_rad=8.0*M_PI/180.0;
     path_done_notify=false;
@@ -208,10 +215,21 @@ public:
     mission_request=false; mission_cancel_request=false;
     mission_scan_steps=8; mission_step_deg=45.0; mission_forward_m=1.0;
     // 회전 판정 여유. 목표각은 '미션 시작 방향 기준 절대 누적각'이라 스텝 오차가
-    // 쌓이지 않는다(구현: begin_turn). 그래도 스텝당 정확도를 위해 3도로 조인다.
+    // 쌓이지 않는다(구현: begin_turn).
     // 최소 회전속도는 다리가 실제로 떨어지는 값(0.2)으로 둔다.
-    mission_turn_kp=1.6; mission_turn_max_wz=0.55; mission_turn_min_wz=0.20;
-    mission_turn_tol_rad=3.0*M_PI/180.0;
+    // 회전 속도는 2026-09-14 시연 요청으로 2배(kp 1.6->3.2, 상한 0.55->1.1).
+    // 45도에 6.4초 -> 약 3.2초 목표. 되돌리려면 --mission_turn_kp/--mission_turn_max_wz.
+    //
+    // 도달 판정은 두 문턱 + 머무름이다(2026-09-14 실측 뒤 변경). 예전엔 3도 안에 처음
+    // 닿은 순간 멈췄더니 8스텝 전부 목표보다 2.9~3.0도 모자란 채 ACK 가 나갔다.
+    //   tol   안에 들어오면 속도 0 으로 세운다.
+    //   retol 을 벗어나면(관성으로 밀림) 다시 돌아 맞춘다. tol<retol 이라 경계에서 떨지 않는다.
+    //   dwell 동안 retol 안에 머물러야 도달이다 — ACK 는 멈춘 자세로 나간다.
+    // 최소 회전속도 0.2rad/s 의 관성 밀림이 1~2도라 tol 을 이보다 작게 잡으면 목표를
+    // 넘나들며 헌팅한다. 조정은 --mission_turn_tol_deg/--mission_turn_retol_deg/--mission_turn_dwell_sec.
+    mission_turn_kp=3.2; mission_turn_max_wz=1.1; mission_turn_min_wz=0.20;
+    mission_turn_tol_rad=1.5*M_PI/180.0; mission_turn_retol_rad=2.5*M_PI/180.0;
+    mission_turn_dwell_sec=0.3; mission_turn_fix_max=2;
     mission_turn_timeout_sec=15.0; mission_settle_sec=1.5;
     mission_forward_vx=0.15; mission_forward_kp_yaw=1.2; mission_forward_max_wz=0.35;
     mission_forward_timeout_sec=0.0;
@@ -321,9 +339,37 @@ public:
     // 그래서 "안 줬다"는 음수로 표현한다(상위는 항상 명시적으로 준다).
     if(forward_m>=0) mission_forward_m=forward_m;
     if(vx>0) mission_forward_vx=vx;
-    std::printf("[CONFIG] 미션: 오른쪽 %.0fdeg x%d -> 왼쪽 %.0fdeg -> %.1fm 직진(vx=%.2f)\n",
-                mission_step_deg,mission_scan_steps,mission_step_deg,
+    std::printf("[CONFIG] 미션: 오른쪽 %.0fdeg x%d -> %.1fm 직진(vx=%.2f)\n",
+                mission_step_deg,mission_scan_steps,
                 mission_forward_m,mission_forward_vx);
+    std::fflush(stdout);
+  }
+
+  // 미션 회전 속도 덮어쓰기. 0 이하를 주면 기본값을 유지한다.
+  void configure_turn_speed(double kp,double max_wz)
+  {
+    if(kp>0) mission_turn_kp=kp;
+    if(max_wz>0) mission_turn_max_wz=max_wz;
+    std::printf("[CONFIG] 미션 회전 kp=%.2f 상한=%.2frad/s\n",
+                mission_turn_kp,mission_turn_max_wz);
+    std::fflush(stdout);
+  }
+
+  // 미션 회전 도달 판정 덮어쓰기. 0 이하를 주면 기본값을 유지한다.
+  // retol 은 tol 보다 커야 한다 — 같거나 작으면 경계에서 멈춤/재출발을 반복한다.
+  void configure_turn_band(double tol_deg,double retol_deg,double dwell_sec)
+  {
+    if(tol_deg>0) mission_turn_tol_rad=tol_deg*M_PI/180.0;
+    if(retol_deg>0) mission_turn_retol_rad=retol_deg*M_PI/180.0;
+    if(dwell_sec>0) mission_turn_dwell_sec=dwell_sec;
+    if(mission_turn_retol_rad<=mission_turn_tol_rad)
+    {
+      mission_turn_retol_rad=mission_turn_tol_rad+1.0*M_PI/180.0;
+      std::printf("[WARN] retol<=tol — retol 을 tol+1도로 올린다\n");
+    }
+    std::printf("[CONFIG] 미션 회전 판정 tol=%.1fdeg retol=%.1fdeg dwell=%.2fs\n",
+                mission_turn_tol_rad*180.0/M_PI,mission_turn_retol_rad*180.0/M_PI,
+                mission_turn_dwell_sec);
     std::fflush(stdout);
   }
 
@@ -352,8 +398,10 @@ private:
 
   // 문 탐색 미션의 단계. TURN/FORWARD 는 움직이는 구간, SETTLE 은 ACK 를 내고
   // 사람이 라이트로 확인할 수 있게 서 있는 구간이다.
+  // SCAN_HOLD 는 촬영 뒤 상위의 "MISSION CONTINUE <step>" 을 기다리며 서 있는 구간이다.
   enum MissionPhase { MP_IDLE=0, MP_SCAN_TURN, MP_SCAN_SETTLE,
-                      MP_DOOR_TURN, MP_DOOR_SETTLE, MP_FORWARD, MP_FORWARD_SETTLE };
+                      MP_DOOR_TURN, MP_DOOR_SETTLE, MP_FORWARD, MP_FORWARD_SETTLE,
+                      MP_TURN, MP_SCAN_HOLD };
 
   void resetCmdBase();
   void note_key_event(const std::chrono::steady_clock::time_point& now);
@@ -421,12 +469,12 @@ private:
         world_x=0.0; world_z=0.0;
         last_dr_time=std::chrono::steady_clock::now();
         yaw0_initialized=false;   // 다음 상태 갱신에서 현재 raw_yaw 를 0 기준으로 재설정
-        // 2026-09-15: 오프셋도 같이 리셋한다.
-        // yaw0 만 리셋하면 yaw_rel 은 0 이 되는데 UNITY_YAW_OFFSET_RAD 에 이전 값이
-        // 남아 yaw_unity 가 그 스테일 오프셋을 그대로 가리킨다. 실측으로 Unity 를
-        // Play 할 때마다 화면이 -180 을 보는 증상이 여기서 나왔다(경로를 한 번
-        // 보내기 전까지 오프셋이 갱신되지 않는다). "좌표 원점 리셋"이라고 찍으면서
-        // 위치만 0 으로 하고 yaw 기준을 놔두는 것은 일관성이 없다.
+        // 오프셋도 같이 리셋한다. yaw0 만 리셋하면 yaw_rel 은 0 이 되는데
+        // UNITY_YAW_OFFSET_RAD 에 이전 값이 남아 yaw_unity 가 그 스테일 오프셋을
+        // 그대로 가리킨다. 실측으로 Unity 를 Play 할 때마다 화면이 -180 을 보는
+        // 증상이 여기서 나왔다(경로를 한 번 보내기 전까지 오프셋이 갱신되지 않는다).
+        // "좌표 원점 리셋"이라고 찍으면서 위치만 0 으로 하고 yaw 기준을 놔두는 것은
+        // 일관성이 없다.
         UNITY_YAW_OFFSET_RAD=0.0;
         std::printf("[YAW_CALIB] Unity Z키 -> 좌표 원점 리셋 (pos=0, yaw0 재설정, unity_offset=%.2f deg)\n",
                     calib_deg);
@@ -437,6 +485,10 @@ private:
 
     // 문 탐색 미션 트리거.
     //   "MISSION SCAN [steps] [step_deg] [forward_m] [vx]"  숫자는 생략 가능(기본값 유지)
+    //   "MISSION FORWARD <m> [vx]"                          스캔 없이 전진만
+    //   "MISSION TURN <deg>"                                제자리 회전만(오른쪽 +)
+    //   "MISSION SCAN ... <vx> <hold_s>"                    촬영 뒤마다 CONTINUE 를 기다린다
+    //   "MISSION CONTINUE <step>"                           step 번 촬영 뒤 대기를 푼다
     //   "MISSION CANCEL"                                    즉시 중단
     //   "MISSION PING"                                      살아있음 확인 — 보낸 쪽에 PONG
     // 상위(규약 노드)가 이 한 줄로 미션을 건다. 여기서는 IMU 각을 모르므로
@@ -456,6 +508,16 @@ private:
         sendto(sock_rx_unity,pong,strlen(pong),0,(sockaddr*)&from,fromlen);
         return false;
       }
+      if(strstr(buf,"CONTINUE"))
+      {
+        // "MISSION CONTINUE <step>" — step 번 촬영 뒤 대기를 푼다. 미션을 새로 걸지 않는다.
+        // (아래 SCAN 분기가 나머지를 전부 받으므로 반드시 그보다 먼저 본다.)
+        int cs=-1;
+        std::sscanf(strstr(buf,"CONTINUE")+8,"%d",&cs);
+        if(cs>mission_continue_upto) mission_continue_upto=cs;
+        std::printf("[MISSION] CONTINUE %d\n",cs); std::fflush(stdout);
+        return false;
+      }
       if(strstr(buf,"CANCEL")) mission_cancel_request=true;
       else if(strstr(buf,"FORWARD"))
       {
@@ -464,16 +526,38 @@ private:
         const char* q=strstr(buf,"FORWARD");
         std::sscanf(q+7,"%lf %lf",&fm,&mvx);
         configure_mission(0,0,fm,mvx);
+        mission_hold_backstop_sec=0.0;
         mission_forward_only=true;
+        mission_turn_only=false;
+        mission_request=true;
+      }
+      else if(strstr(buf,"TURN"))
+      {
+        // "MISSION TURN <deg>" — 스캔 없이 제자리 회전만. **오른쪽(시계)이 +** 다.
+        // 다 돌면 그 방향에 그대로 선다 — 스캔처럼 원위치로 되돌아오지 않는다.
+        // 각을 IMU 로 닫는 폐루프라 열린 루프 텔레옵보다 각이 정확하다.
+        double td=0;
+        const char* q=strstr(buf,"TURN");
+        std::sscanf(q+4,"%lf",&td);
+        configure_mission(0,0,0,0);        // 전진 0 — 회전 뒤 곧바로 끝낸다
+        mission_hold_backstop_sec=0.0;
+        mission_turn_deg=td;
+        mission_turn_only=true;
+        mission_forward_only=false;
         mission_request=true;
       }
       else
       {
-        int st=0; double sd=0,fm=-1,mvx=0;
+        // "MISSION SCAN <steps> <step_deg> <forward_m> <vx> [hold_s]"
+        // hold_s>0 이면 촬영 뒤마다 CONTINUE 를 기다린다. hold_s 는 그 대기의 최후 시한이다.
+        int st=0; double sd=0,fm=-1,mvx=0,hs=0;
         const char* q=strstr(buf,"SCAN");
-        if(q) std::sscanf(q+4,"%d %lf %lf %lf",&st,&sd,&fm,&mvx);
+        if(q) std::sscanf(q+4,"%d %lf %lf %lf %lf",&st,&sd,&fm,&mvx,&hs);
         configure_mission(st,sd,fm,mvx);
+        mission_hold_backstop_sec=(hs>0?hs:0.0);
+        mission_continue_upto=-1;          // 지난 판의 신호가 새 판을 풀지 않게
         mission_forward_only=false;
+        mission_turn_only=false;
         mission_request=true;
       }
       std::printf("[MISSION] UDP 요청: %s\n",buf); std::fflush(stdout);
@@ -856,11 +940,12 @@ private:
       cmd_vx *= yaw_scale;
     }
 
-    // 데드밴드 하한. 정속 구간의 명령은 path_kp_dist*path_lookahead_dist
-    // (=0.0875) 라 상한을 올려도 데드밴드 아래에 남는다. 값을 작게 내려보내면
-    // 로봇이 제자리걸음만 하므로, 전진할 생각이면 최소한 하한은 준다.
-    // 위 yaw 테이퍼가 사실상 이분화되지만, 데드밴드 아래는 어차피 로봇이
-    // 못 내는 속도라 전진 금지(turn_only_thresh)와 하한 둘로 나누는 편이 정직하다.
+    // 보행 데드밴드 하한. 실측상 Go1 은 0.10~0.13 m/s 아래 명령에는
+    // 발만 구르고 실제로 나아가지 않는다. 위 테이퍼가 명령을 그 아래로
+    // 떨어뜨리면 「가는 중인데 안 간다」가 되어 오히려 더 느려진다.
+    // 테이퍼가 사실상 이분화되지만, 데드밴드 아래는 어차피 로봇이 못 내는
+    // 속도라 전진 금지(turn_only_thresh)와 하한 둘로 나누는 편이 정직하다.
+    // 방향이 크게 틀리면 위에서 cmd_vx=0.0 으로 못박으므로 제자리 회전은 그대로다.
     if(cmd_vx > 0.0 && cmd_vx < path_min_vx) cmd_vx = path_min_vx;
 
     auto now=std::chrono::steady_clock::now();
@@ -969,8 +1054,8 @@ private:
   }
 
   // ===================================================================
-  // 문 탐색 미션 — 오른쪽 45도 x8(회전마다 ACK) -> 왼쪽 45도(문 방향) ACK
-  //                -> 5m 직진 ACK
+  // 문 탐색 미션 — 오른쪽 45도 x8(회전마다 ACK, 한 바퀴) -> 직진 ACK
+  //                (한 바퀴 뒤 추가 회전은 없다)
   // 회전은 IMU yaw 로 닫는다(명령 시간적분이 아니라 실제 각도로 판정). 직진 거리는
   // 로봇 자체 odometry(HighState.position)를 1차로 쓰되, odometry 가 안 움직이면
   // 명령 dead-reckoning 으로 내려간다(이 파일의 기존 규약).
@@ -992,11 +1077,29 @@ private:
   {
     // IMU yaw_rel 은 반시계(+) 규약이라 "오른쪽 회전"은 음수 각이다.
     mission_turn_target_rel=wrap_pi(mission_yaw0+cum_deg*M_PI/180.0);
+    mission_turn_in_band=false; mission_turn_correcting=false; mission_turn_fix_count=0;
     enter_phase(phase,now);
     std::printf("[MISSION] %s 누적%+.0fdeg (IMU %.1f -> %.1f deg)\n",
-                phase==MP_SCAN_TURN?"스캔회전":"문방향회전",cum_deg,
+                phase==MP_SCAN_TURN?"스캔회전":(phase==MP_TURN?"회전":"문방향회전"),cum_deg,
                 yaw_rel*180.0/M_PI,mission_turn_target_rel*180.0/M_PI);
     std::fflush(stdout);
+  }
+
+  // captured 번 촬영 자리(0=출발 방향)에서 다음 스캔 회전으로 넘어간다. 대기가 켜져
+  // 있으면 곧바로 돌지 않고 SCAN_HOLD 에서 상위의 CONTINUE 를 기다린다.
+  void scan_next_or_hold(int captured,double yaw_rel,
+                         const std::chrono::steady_clock::time_point& now)
+  {
+    if(mission_hold_backstop_sec>0.0)
+    {
+      mission_hold_step=captured;
+      enter_phase(MP_SCAN_HOLD,now);
+      std::printf("[MISSION] 촬영 %d 뒤 대기 (최후 시한 %.0fs)\n",
+                  captured,mission_hold_backstop_sec);
+      std::fflush(stdout);
+      return;
+    }
+    begin_turn(MP_SCAN_TURN,-mission_step_deg*(captured+1),yaw_rel,now);
   }
 
   void begin_forward(double yaw_rel,const std::chrono::steady_clock::time_point& now)
@@ -1032,14 +1135,19 @@ private:
     last_key_time=now; last_move_cmd_time=now;
     if(mission_forward_only)
       std::printf("[MISSION] 시작 — 전진만 %.1fm (ACK 1건)\n",mission_forward_m);
+    else if(mission_turn_only)
+      std::printf("[MISSION] 시작 — 회전만 %+.0fdeg (오른쪽 +, ACK 1건)\n",mission_turn_deg);
     else
-      std::printf("[MISSION] 시작 — 오른쪽 %.0fdeg x%d -> 왼쪽 %.0fdeg -> %.1fm 직진 "
+      std::printf("[MISSION] 시작 — 오른쪽 %.0fdeg x%d -> %.1fm 직진 "
                   "(각 단계마다 ACK+라이트)\n",
-                  mission_step_deg,mission_scan_steps,mission_step_deg,mission_forward_m);
+                  mission_step_deg,mission_scan_steps,mission_forward_m);
     std::fflush(stdout);
     mission_yaw0=yaw_rel;                       // 이 방향이 0 도 기준 — 8번 뒤 여기로 돌아온다
     if(mission_forward_only){ begin_forward(yaw_rel,now); return; }
-    begin_turn(MP_SCAN_TURN,-mission_step_deg,yaw_rel,now);
+    // 노출 규약은 **오른쪽(시계)이 +** 인데 begin_turn 의 cum_deg 는 IMU 규약(반시계 +)
+    // 이라 부호를 뒤집어 넘긴다 — 스캔이 -step_deg 로 오른쪽을 도는 것과 같은 이유다.
+    if(mission_turn_only){ begin_turn(MP_TURN,-mission_turn_deg,yaw_rel,now); return; }
+    scan_next_or_hold(0,yaw_rel,now);           // 0도(출발 방향) 촬영 자리
   }
 
   void mission_cancel(const char* why)
@@ -1180,38 +1288,83 @@ private:
     {
       case MP_SCAN_TURN:
       case MP_DOOR_TURN:
+      case MP_TURN:
       {
         double err=wrap_pi(yaw_rel-mission_turn_target_rel);
-        bool reached=(std::fabs(err)<=mission_turn_tol_rad);
+        double abs_err=std::fabs(err);
+        // 두 문턱 + 머무름(생성자 주석 참고). tol 에 닿으면 세우고, retol 밖으로 밀리면 다시 돈다.
+        if(mission_turn_in_band)
+        {
+          if(abs_err>mission_turn_retol_rad) mission_turn_in_band=false;
+        }
+        else if(abs_err<=mission_turn_tol_rad)
+        {
+          mission_turn_in_band=true; mission_turn_band_since=now;
+        }
+        bool reached=(mission_turn_in_band&&
+                      sec_between(mission_turn_band_since,now)>=mission_turn_dwell_sec);
         bool timeout=(in_phase>=mission_turn_timeout_sec);
         if(reached||timeout)
         {
-          if(mission_phase==MP_SCAN_TURN)
+          if(mission_turn_correcting)
+          {
+            // 마지막 스텝 보정 회전. 이미 ACK 를 냈으니 새로 내지 않고 다시 확인하러 간다.
+            std::printf("[MISSION] 보정회전 %s err=%.1fdeg\n",
+                        timeout?"타임아웃":"완료",err*180.0/M_PI);
+            std::fflush(stdout);
+            mission_turn_correcting=false;
+            enter_phase(MP_SCAN_SETTLE,now);
+          }
+          else if(mission_phase==MP_SCAN_TURN)
           {
             mission_step++;
             emit_ack("scan_turn",mission_step,mission_scan_steps,yaw_unity,
                      timeout?"turn_timeout":"ok");
             enter_phase(MP_SCAN_SETTLE,now);
           }
+          else if(mission_phase==MP_TURN)
+          {
+            // 회전만 하는 명령. mission_forward_m 이 0 이라 다음 SETTLE 에서 끝난다.
+            emit_ack("turn",1,1,yaw_unity,timeout?"turn_timeout":"ok");
+            enter_phase(MP_DOOR_SETTLE,now);
+          }
           else
           {
-            emit_ack("door_turn",1,1,yaw_unity,timeout?"turn_timeout":"ok");
+            // step 에 **문 방향에 해당하는 스캔 걸음 번호**를 싣는다. 관제가 각도를
+            // 견주지 않고 곧바로 노드를 고를 수 있게 하려는 것이다.
+            //
+            // ⚠ 이것은 "로봇이 고른 방향"이 아니다. 문 탐지는 아직 없다. 이 회전의
+            //   목표는 -step_deg*(steps-1) 로 **고정된 기하값**이라, 언제나 스캔
+            //   걸음 (steps-1) 번과 같은 방향을 본다. 탐지가 붙기 전까지는 그렇다.
+            emit_ack("door_turn",mission_scan_steps-1,mission_scan_steps,
+                     yaw_unity,timeout?"turn_timeout":"ok");
             enter_phase(MP_DOOR_SETTLE,now);
           }
           return true;   // 이번 프레임은 정지
         }
-        double wz=-mission_turn_kp*err;
-        if(wz>mission_turn_max_wz) wz=mission_turn_max_wz;
-        if(wz<-mission_turn_max_wz) wz=-mission_turn_max_wz;
-        // 너무 느리면 다리가 안 떨어져 각이 멎는다 — 최소 회전속도를 둔다.
-        if(std::fabs(wz)<mission_turn_min_wz) wz=(wz>=0?mission_turn_min_wz:-mission_turn_min_wz);
+        double wz=0.0;
+        if(!mission_turn_in_band)   // 세워 둔 동안은 0 — 최소속도를 걸면 목표를 넘나든다
+        {
+          wz=-mission_turn_kp*err;
+          if(wz>mission_turn_max_wz) wz=mission_turn_max_wz;
+          if(wz<-mission_turn_max_wz) wz=-mission_turn_max_wz;
+          // 너무 느리면 다리가 안 떨어져 각이 멎는다 — 최소 회전속도를 둔다.
+          if(std::fabs(wz)<mission_turn_min_wz) wz=(wz>=0?mission_turn_min_wz:-mission_turn_min_wz);
+        }
         owz=(float)wz;
         if(in_phase-mission_log_mark>=1.0)
         {
           mission_log_mark=in_phase;
-          if(mission_phase==MP_SCAN_TURN)
-            std::printf("[MISSION] 스캔회전중 %d/%d err=%.1fdeg wz=%.2f\n",
-                        mission_step+1,mission_scan_steps,err*180.0/M_PI,wz);
+          if(mission_turn_correcting)
+            std::printf("[MISSION] 보정회전중 err=%.1fdeg wz=%.2f%s\n",
+                        err*180.0/M_PI,wz,mission_turn_in_band?" (정지확인)":"");
+          else if(mission_phase==MP_SCAN_TURN)
+            std::printf("[MISSION] 스캔회전중 %d/%d err=%.1fdeg wz=%.2f%s\n",
+                        mission_step+1,mission_scan_steps,err*180.0/M_PI,wz,
+                        mission_turn_in_band?" (정지확인)":"");
+          else if(mission_phase==MP_TURN)
+            std::printf("[MISSION] 회전중 목표%+.0fdeg err=%.1fdeg wz=%.2f\n",
+                        mission_turn_deg,err*180.0/M_PI,wz);
           else
             std::printf("[MISSION] 문방향회전중 err=%.1fdeg wz=%.2f\n",
                         err*180.0/M_PI,wz);
@@ -1227,11 +1380,48 @@ private:
         {
           mission_log_mark=0.0;
           if(mission_step>=mission_scan_steps)
-            // 한 바퀴(-360도)를 돈 뒤 왼쪽 45도 = 시작 기준 -360+45 도.
-            begin_turn(MP_DOOR_TURN,
-                       -mission_step_deg*mission_scan_steps+mission_step_deg,yaw_rel,now);
+          {
+            // 한 바퀴를 마친 자세가 출발 방향과 얼마나 다른지가 이 미션의 정확도다.
+            // 서 있는 동안 밀렸으면 ACK 없이 보정 회전으로 되돌린다(횟수 제한).
+            // 중간 스텝은 보정하지 않는다 — 촬영 중 몸이 돌면 안 되고, 목표가 절대 누적각이라
+            // 남은 오차는 다음 스텝이 흡수한다.
+            double ferr=wrap_pi(yaw_rel-mission_turn_target_rel);
+            if(std::fabs(ferr)>mission_turn_retol_rad&&mission_turn_fix_count<mission_turn_fix_max)
+            {
+              mission_turn_fix_count++;
+              mission_turn_correcting=true; mission_turn_in_band=false;
+              std::printf("[MISSION] 한바퀴 뒤 오차 %.1fdeg — 보정회전 %d/%d\n",
+                          ferr*180.0/M_PI,mission_turn_fix_count,mission_turn_fix_max);
+              std::fflush(stdout);
+              enter_phase(MP_SCAN_TURN,now);
+            }
+            else
+            {
+              std::printf("[MISSION] 한바퀴 종료 — 출발 대비 %.1fdeg (보정 %d회)\n",
+                          wrap_pi(yaw_rel-mission_yaw0)*180.0/M_PI,mission_turn_fix_count);
+              std::fflush(stdout);
+              enter_phase(MP_DOOR_SETTLE,now);
+            }
+          }
           else
-            begin_turn(MP_SCAN_TURN,-mission_step_deg*(mission_step+1),yaw_rel,now);
+            scan_next_or_hold(mission_step,yaw_rel,now);
+        }
+        return true;
+      }
+
+      case MP_SCAN_HOLD:
+      {
+        // 제자리에 서 있는다(속도 0). 상위가 그 각도의 결과를 화면에 띄운 뒤 CONTINUE 를
+        // 보낸다. 상위가 죽어도 로봇이 영영 서 있지 않도록 최후 시한이 지나면 스스로 간다.
+        bool released=(mission_continue_upto>=mission_hold_step);
+        bool backstop=(in_phase>=mission_hold_backstop_sec);
+        if(released||backstop)
+        {
+          std::printf("[MISSION] 촬영 %d 대기 해제 (%s, %.1fs)\n",mission_hold_step,
+                      released?"CONTINUE":"최후 시한",in_phase);
+          std::fflush(stdout);
+          mission_log_mark=0.0;
+          begin_turn(MP_SCAN_TURN,-mission_step_deg*(mission_hold_step+1),yaw_rel,now);
         }
         return true;
       }
@@ -1370,11 +1560,20 @@ private:
   // ── 문 탐색 미션 상태 ──
   bool mission_active,mission_request,mission_cancel_request;
   bool mission_forward_only=false;   // 스캔 없이 전진만(상위 move_forward)
+  bool mission_turn_only=false;      // 스캔 없이 제자리 회전만(상위 turn)
+  double mission_turn_deg=0.0;       // 회전량(도). **오른쪽(시계)이 +** 다
   MissionPhase mission_phase;
   int mission_step,mission_scan_steps;
   double mission_step_deg,mission_forward_m;
   double mission_turn_kp,mission_turn_max_wz,mission_turn_min_wz,mission_turn_tol_rad;
+  double mission_turn_retol_rad,mission_turn_dwell_sec;
   double mission_turn_timeout_sec,mission_settle_sec;
+  // 회전 도달 판정 상태. in_band 는 tol 안에 들어와 세워 둔 중, band_since 는 그 시작 시각.
+  bool mission_turn_in_band=false;
+  std::chrono::steady_clock::time_point mission_turn_band_since;
+  // 한 바퀴 마지막 스텝의 보정 회전(ACK 없음). fix_count 는 이번 목표에서 한 횟수.
+  bool mission_turn_correcting=false;
+  int mission_turn_fix_count=0,mission_turn_fix_max;
   double mission_forward_vx,mission_forward_kp_yaw,mission_forward_max_wz;
   double mission_forward_timeout_sec;
   double mission_turn_target_rel,mission_forward_yaw_ref,mission_yaw0;
@@ -1382,6 +1581,12 @@ private:
   bool mission_use_odo;
   double mission_log_mark=0.0;
   std::chrono::steady_clock::time_point mission_phase_start,mission_last_tick;
+  // 촬영 뒤 대기. hold_backstop_sec>0 이면 켜진다(상위가 신호를 못 줄 때의 최후 시한).
+  // continue_upto 는 UDP 스레드가 올린다 — 대기 진입보다 신호가 먼저 와도 잃지 않게
+  // "여기까지 풀어도 된다"는 순번으로 기억한다.
+  double mission_hold_backstop_sec=0.0;
+  int mission_continue_upto=-1;
+  int mission_hold_step=-1;
 
   // ── ACK / 라이트 ──
   unsigned long long ack_seq;
@@ -1826,6 +2031,16 @@ int main(int argc,char** argv)
                            md.empty()?0.0:std::atof(md.c_str()),
                            mf.empty()?0.0:std::atof(mf.c_str()),
                            mv.empty()?0.0:std::atof(mv.c_str()));
+  std::string tk=get_arg_value(argc,argv,"--mission_turn_kp");
+  std::string tw=get_arg_value(argc,argv,"--mission_turn_max_wz");
+  custom.configure_turn_speed(tk.empty()?0.0:std::atof(tk.c_str()),
+                              tw.empty()?0.0:std::atof(tw.c_str()));
+  std::string tt=get_arg_value(argc,argv,"--mission_turn_tol_deg");
+  std::string tr=get_arg_value(argc,argv,"--mission_turn_retol_deg");
+  std::string td=get_arg_value(argc,argv,"--mission_turn_dwell_sec");
+  custom.configure_turn_band(tt.empty()?0.0:std::atof(tt.c_str()),
+                             tr.empty()?0.0:std::atof(tr.c_str()),
+                             td.empty()?0.0:std::atof(td.c_str()));
 
   LoopFunc loop_control("control_loop",custom.dt,boost::bind(&Custom::RobotControl,&custom));
   LoopFunc loop_udpSend("udp_send",custom.dt,3,boost::bind(&Custom::UDPSend,&custom));
