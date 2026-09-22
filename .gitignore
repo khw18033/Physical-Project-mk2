@@ -61,6 +61,7 @@ mission-history/
 .venv/
 physical_demo/
 mk2-jny/
+jny-drone/
 # 별도 전달된 실값 — **커밋하지 않는다.** (260921)
 #
 # 인계문서는 자리표시자로만 적혀 있고 실값은 별도 파일로 전달된다. 그 파일에
