@@ -158,8 +158,11 @@ class AvailabilityTracker:
         now = time.time() if now is None else now
         self.evaluate(now)
         lines = [
-            "# HELP up 말단 생사 — 엣지가 하트비트·LWT 로 파생 (push 전용 말단은 scrape 불가)",
-            "# TYPE up gauge",
+            # 이름이 `up` 이면 **Prometheus 내장 지표와 충돌한다.** 내장 `up` 은
+            # 「스크랩이 성공했는가」이고 이것은 「말단이 살아 있는가」다 —
+            # 같은 이름으로 섞이면 쿼리가 둘을 못 가른다(백엔드 할 일 21).
+            "# HELP hw_entity_up 말단 생사 — 엣지가 하트비트·LWT 로 파생 (push 전용 말단은 scrape 불가)",
+            "# TYPE hw_entity_up gauge",
         ]
         state_lines = ["# HELP hw_availability_state 0=online 1=offline_planned 2=offline_fault 3=stale",
                        "# TYPE hw_availability_state gauge"]
@@ -168,7 +171,7 @@ class AvailabilityTracker:
         with self._lock:
             for (zone, etype, eid), e in sorted(self.entities.items()):
                 label = f'{{zone="{zone}",entity_type="{etype}",entity_id="{eid}"}}'
-                lines.append(f"up{label} {UP if e.state == ONLINE else DOWN}")
+                lines.append(f"hw_entity_up{label} {UP if e.state == ONLINE else DOWN}")
                 state_lines.append(f"hw_availability_state{label} {_STATE_CODE[e.state]}")
                 if e.last_hb is not None:
                     age_lines.append(f"hw_heartbeat_age_seconds{label} {now - e.last_hb:.1f}")

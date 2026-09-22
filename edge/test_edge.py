@@ -7,7 +7,7 @@
   1. birth→online, shutdown→offline_planned(장애 아님), LWT→offline_fault
   2. 하트비트 침묵 → stale (주기는 관측 학습 — 중앙값)
   3. 하트비트 없는 노드(임무 중 로봇)는 침묵 판정 제외, summary 가 생존 신호
-  4. Prometheus 텍스트 출력: up / hw_availability_state / 나이
+  4. Prometheus 텍스트 출력: hw_entity_up / hw_availability_state / 나이
   5. 깨진 payload 는 상태를 바꾸지 못한다
 
 미디어 게이트웨이 (media_gateway.py):
@@ -94,8 +94,8 @@ def test_prometheus():
     tr.on_message(*hb(), now=t)
     tr.on_message(*status("death", reason="lwt", eid="s-02"), now=t)
     text = tr.prometheus(now=t + 1)
-    assert 'up{zone="zoneA",entity_type="sensor",entity_id="s-01"} 1' in text
-    assert 'up{zone="zoneA",entity_type="sensor",entity_id="s-02"} 0' in text
+    assert 'hw_entity_up{zone="zoneA",entity_type="sensor",entity_id="s-01"} 1' in text
+    assert 'hw_entity_up{zone="zoneA",entity_type="sensor",entity_id="s-02"} 0' in text
     assert 'hw_availability_state{zone="zoneA",entity_type="sensor",entity_id="s-02"} 2' in text
     # HTTP 로도 나가는지 — 기존 Prometheus 가 엣지만 scrape 하면 되는 형태
     srv = serve_metrics(tr, port=0)
@@ -103,8 +103,8 @@ def test_prometheus():
     import urllib.request
     body = urllib.request.urlopen(f"http://127.0.0.1:{port}/metrics", timeout=5).read().decode()
     srv.shutdown()
-    assert "up{" in body and "hw_heartbeat_age_seconds" in body
-    print(f"  4) Prometheus 노출: up 1/0·상태 코드·나이, HTTP /metrics ✓")
+    assert "hw_entity_up{" in body and "hw_heartbeat_age_seconds" in body
+    print(f"  4) Prometheus 노출: hw_entity_up 1/0·상태 코드·나이, HTTP /metrics ✓")
 
 
 def test_malformed():
