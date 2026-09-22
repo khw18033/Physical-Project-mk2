@@ -446,6 +446,15 @@ b.follow-live{cursor:default}
 .conn-row-drop{padding:4px 9px;border:1px solid #d9c2c2;border-radius:6px;background:#fff;color:#a2413c;line-height:1}
 /* 상태 줄이 어느 주소의 것인지 (260922). 줄 이름 앞에 작게 붙는다. */
 .conn-dot__scope{margin-right:5px;padding:1px 5px;border-radius:5px;background:#00000014;font-style:normal;font-weight:400;font-family:monospace;font-size:10px}
+/* 정량 명령 줄 (260922). 머리줄 안이라 좁다 — 읽은 결과는 아래로 흐른다. */
+.stepbar{display:flex;align-items:center;gap:6px;flex-wrap:wrap;max-width:520px}
+.stepbar__input{min-width:210px;flex:1;padding:7px 9px;border:1px solid #cbd3de;border-radius:6px;font-size:12px}
+.stepbar__send:not(:disabled){color:#fff;border-color:#1768c5;background:#1768c5}
+.stepbar__read{flex-basis:100%;display:flex;flex-wrap:wrap;gap:5px;align-items:center}
+.stepbar__read em{padding:2px 7px;border-radius:10px;background:#eef2f7;color:#243447;font-style:normal;font-family:monospace;font-size:11px}
+.stepbar__read small{flex-basis:100%;color:#8a6300;font-size:11px}
+.stepbar__reject{flex-basis:100%;color:#8f2b26;font-size:11px}
+.stepbar__outcome{flex-basis:100%;color:#5a6675;font-size:11px}
 .conn-unsaved{grid-column:1/-1;margin:0!important;padding:5px 9px;border-radius:6px;background:#fff8ec;color:#8a6300;font-size:11px!important}
 /* **아래로 내려가지 않아도 보인다** (260922 지시 — 「아래로 내려야 하는 것이 불편함」).
    판이 길어서 「적용」이 스크롤 끝에 숨어 있었고, 그래서 주소를 고치고도 적용을 안 누른

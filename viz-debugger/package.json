@@ -63,6 +63,7 @@
     "verify:drone-via-state": "node scripts/verify-drone-via-state.mjs",
     "verify:device-cards": "node scripts/verify-device-cards.mjs",
     "verify:multi-robot": "node scripts/verify-multi-robot.mjs",
+    "verify:step-script": "node scripts/verify-step-script.mjs",
     "verify:no-detect": "node scripts/verify-no-detect.mjs",
     "verify:viewpoint-layout": "node scripts/verify-viewpoint-layout.mjs",
     "verify:viewpoint-fill": "node scripts/verify-viewpoint-fill.mjs",

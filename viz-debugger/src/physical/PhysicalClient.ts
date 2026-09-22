@@ -32,7 +32,7 @@
 
 import { t } from '../i18n/dict.ts';
 import { connectionAddress, registerConnectionDefault, splitAddressList } from '../shared/connections.ts';
-import { commandTarget, noteCapability, resetDeviceIdentity } from './deviceIdentity.ts';
+import { noteCapability, resetDeviceIdentity, deviceIdentityFor } from './deviceIdentity.ts';
 import { encodeCommand, nextCommandId, type CommandInput, type PhysicalAction } from './encode.ts';
 import { physical } from './protocol.js';
 import { parseScanFeed, scanFeedChannel, type ScanFeedMessage } from './scanFeed.ts';
@@ -395,7 +395,20 @@ export class PhysicalClient {
     if (this.status.state !== 'open') {
       return { sent: false, commandId, reason: t('pc.notConnected') + this.status.state };
     }
-    const target = commandTarget();
+    /**
+     * **대상은 이 소켓의 장비다** (260922 — 2단계).
+     *
+     * 전에는 전역 `commandTarget()` 이었다. 소켓이 하나뿐일 때는 같은 답이었지만, 로봇이
+     * 여럿이면 두 가지가 동시에 틀린다 — ① 후보가 둘이라 `null` 이 되어 **아무것도 못
+     * 쏘고**, ② 어쩌다 하나를 골라도 그 장비가 **이 소켓에 없을 수** 있다. 그러면 명령이
+     * 엉뚱한 브로커의 토픽으로 떨어져 조용히 사라진다 — 무대에서 가장 찾기 어려운 실패다.
+     *
+     * 이 소켓에 있는 장비로 좁히면 둘 다 사라진다. **어느 로봇에게 보낼지는 어느
+     * 클라이언트로 보낼지와 같은 물음**이고, 그 답은 `clientForDevice()` 가 낸다.
+     *
+     * 판정 규칙은 전역판과 같은 함수를 쓴다 — 한 브로커에 장비가 둘이면 여전히 안 고른다.
+     */
+    const target = deviceIdentityFor(this.address())?.deviceId ?? null;
     if (target === null) {
       return { sent: false, commandId, reason: t('pc.noDevice') };
     }

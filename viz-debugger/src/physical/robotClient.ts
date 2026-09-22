@@ -266,3 +266,22 @@ function probeFor(client: PhysicalClient) {
 export function robotProbes(): readonly { probe: ReturnType<typeof robotProbe>; address: string }[] {
   return syncRobotClients().map((client) => ({ probe: probeFor(client), address: client.address() }));
 }
+
+/**
+ * **그 장비에게 닿는 클라이언트** (260922 — 2단계).
+ *
+ * 「어느 로봇에게 보낼까」는 「어느 소켓으로 보낼까」와 같은 물음이다. 장비가 자기를 밝힌
+ * 브로커가 그 답이고, **주소로 짐작하지 않는다** — 장비가 말한 것으로 정한다(§원칙 1).
+ *
+ * 3단계에서 **배정**이 이 함수의 입구가 된다: 배정이 장비 id 를 주면 여기가 소켓을 찾는다.
+ *
+ * 못 찾으면 `null` 이다. 그러면 부르는 쪽이 **안 쏜다** — 아무 소켓으로나 물러서면 명령이
+ * 엉뚱한 브로커의 토픽으로 떨어져 조용히 사라진다.
+ */
+export function clientForDevice(deviceId: string): PhysicalClient | null {
+  if (deviceId === '') return null;
+  for (const client of syncRobotClients()) {
+    if (deviceIdentityFor(client.address())?.deviceId === deviceId) return client;
+  }
+  return null;
+}

@@ -33,8 +33,14 @@ const failures = [];
 const controls = [];
 
 /** 붙은 척하고 **실제로 발행된 토픽과 바이트**를 받아 적는 클라이언트. */
+/**
+ * **260922 — 주소를 준다.** 대상이 이제 「이 소켓에 있는 장비」라(`PhysicalClient.send`),
+ * 장비를 등록할 때도 같은 주소를 `origin` 으로 준다. 규칙은 그대로다 — **장비가 밝힌
+ * 이름으로 나간다.** 달라진 것은 「어느 소켓의 장비인가」까지 본다는 것이다.
+ */
+const WIRE = 'ws://test.broker:9001/mqtt';
 function wired() {
-  const client = new PhysicalClient();
+  const client = new PhysicalClient(WIRE);
   const sent = [];
   // 소켓 대신 받아 적는 것을 꽂는다 — 진짜 `send()` 경로를 그대로 지난다.
   client.client = { publish: (topic, payload) => sent.push({ topic, payload }) };
@@ -50,7 +56,7 @@ function targetOf(payload) {
 // ── 1. 밝힌 이름으로 나간다 ──────────────────────────────────────────────────
 {
   resetDeviceIdentity();
-  noteCapability(DRONE.entityId, ['ping']);
+  noteCapability(DRONE.entityId, ['ping'], WIRE);
   const { client, sent } = wired();
   const outcome = client.send('ping');
   if (!outcome.sent) failures.push(`장비를 아는데 안 보냈다 — ${outcome.reason}`);
@@ -84,10 +90,10 @@ function targetOf(payload) {
 {
   resetDeviceIdentity();
   const { client, sent } = wired();
-  noteCapability('go1-001', ['ping', 'abort']);
+  noteCapability('go1-001', ['ping', 'abort'], WIRE);
   client.send('ping');
   resetDeviceIdentity();
-  noteDeviceReport(DRONE.entityId, DRONE.entityType, statusBody());
+  noteDeviceReport(DRONE.entityId, DRONE.entityType, statusBody(), WIRE);
   client.send('ping');
   const topics = sent.map((s) => s.topic);
   if (topics[0] !== 'terminal/go1-001/downlink') failures.push(`첫 장비에 ${topics[0]}`);
@@ -96,12 +102,14 @@ function targetOf(payload) {
 
 // ── 4. 둘로 보이면 고르지 않는다 ─────────────────────────────────────────────
 {
+  // **한 브로커에 장비가 둘** — 같은 소켓에 둘이 보이는 경우다. 로봇이 여럿이어서
+  // 소켓이 여럿인 것과 다르다: 그때는 소켓마다 하나씩이라 고를 것이 없다(`verify:multi-robot`).
   resetDeviceIdentity();
   noteDeviceReport('go1-001', 'robot', statusBody({
     source_id: 'go1-001',
     registration: { entity_id: 'go1-001', entity_type: 'robot' },
-  }));
-  noteDeviceReport(DRONE.entityId, DRONE.entityType, statusBody());
+  }), WIRE);
+  noteDeviceReport(DRONE.entityId, DRONE.entityType, statusBody(), WIRE);
   if (commandTarget() !== null) failures.push(`장비가 둘인데 ${commandTarget()} 를 골랐다`);
   const { client, sent } = wired();
   if (client.send('ping').sent) failures.push('애매한데 보냈다 — 둘 중 하나는 남의 장비다');
@@ -116,7 +124,7 @@ function control(name, hit) {
 {
   // 봉투 인코더는 **부르는 쪽이 지정한 대상을 안 덮어쓴다** — 덮어쓰면 지정한 것과 나간 것이 달라진다.
   resetDeviceIdentity();
-  noteCapability(DRONE.entityId, ['ping']);
+  noteCapability(DRONE.entityId, ['ping'], WIRE);
   const explicit = encodeCommand({ commandId: 'cmd-00000001', action: 'ping', target: 'go1-001' });
   control('인코더가 지정한 대상을 안 덮어쓴다', targetOf(explicit) === 'go1-001');
   // 화면 **조회**는 붙은 장비를 먼저 본다 — 발행과 달리 여기는 따라가야 한다.

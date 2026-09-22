@@ -226,7 +226,34 @@ export async function issueApproach(
   }
   logApproachPlan(plan);
   const steps = plan.steps;
-  if (steps.length > 0) {
+  /**
+   * **발행은 `issueSteps` 하나로 모았다** (260922). 정량 명령(`stepScript.ts`)도 같은
+   * 함수를 지나간다 — 추적기·감사·정지 관문을 **한 벌만** 지나게 하려는 것이다
+   * (`verify:command-through-tracker` · `verify:single-egress`).
+   *
+   * 여기서 하는 일은 그대로다: 경로가 낸 걸음을 넘기고, 나갔으면 관문을 닫는다.
+   */
+  const outcome = await issueSteps(client, steps);
+  if (outcome.sent === true) markApproachIssued();
+  return outcome;
+}
+
+/**
+ * **걸음 목록을 차례로 낸다.** 앞엣것이 끝나야 다음을 낸다.
+ *
+ * 260922 에 `issueApproach` 안에서 떼어냈다. 경로 산출(탐지)과 정량 명령(사람이 적은
+ * 문장)이 **같은 발행기**를 써야 하기 때문이다 — 두 벌이면 한쪽만 정지 관문을 안 묻는
+ * 날이 오고, 그 날은 정지를 눌렀는데 로봇이 계속 걷는 날이다.
+ *
+ * **걸음이 어디서 왔는지 모른다.** 그것이 이 함수가 공용일 수 있는 이유다.
+ */
+export async function issueSteps(
+  client: PhysicalClient | null,
+  steps: readonly TaskCommand[],
+): Promise<IssueOutcome> {
+  if (client === null) return { sent: false, commandId: '', requestId: null, reason: t('robot.noBrokerPath') };
+  if (steps.length === 0) return { sent: false, commandId: '', requestId: null, reason: t('robot.noCommandPath') };
+  {
     let last: IssueOutcome | null = null;
     for (const [order, step] of steps.entries()) {
       if (!canIssueRobotCommand()) {
@@ -268,10 +295,10 @@ export async function issueApproach(
         };
       }
     }
-    if (last !== null) markApproachIssued();
+    // **관문 닫기는 여기 없다.** `markApproachIssued()` 는 경로 이동 전용이고,
+    // 정량 명령은 그 관문과 무관하다 — 부르는 쪽이 자기 관문을 닫는다.
     return last ?? { sent: false, commandId: '', requestId: null, reason: t('robot.noCommandPath') };
   }
-  return { sent: false, commandId: '', requestId: null, reason: t('robot.noCommandPath') };
 }
 
 /**
