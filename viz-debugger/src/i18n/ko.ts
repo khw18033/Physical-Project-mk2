@@ -1479,6 +1479,42 @@ export const ko: Record<string, string> = {
   'df.battery': '배터리',
   'df.position': '위치',
   'df.speed': '속도',
+  // ── 장비 상태 항목 (260922 — 드론 카드 안) ─────────────────────────────────
+  //
+  // **이름만 여기 있고 표는 여기 없다.** 어느 필드가 어느 이름인지는 받는 쪽
+  // (`tabs/data/stateRows.ts`)이 들고, 이 사전은 그 키를 사람 말로 바꾸기만 한다.
+  //
+  // 값은 번역하지 않는다 — `AUTO.LOITER`·`ON_GROUND`·`3D` 는 장비가 보낸 규약
+  // 문자열이고, 번역하면 계약 문서와 화면을 대조할 수 없다.
+  'dt.deviceStatus': '장치 자기보고',
+  'dt.link': 'FC 링크 건강',
+  'dt.fcLink': 'FC 링크',
+  'dt.routerMode': 'mavlink-router',
+  'dt.battery': '배터리 잔량',
+  'dt.voltage': '전압',
+  'dt.current': '전류',
+  'dt.consumed': '소비 용량',
+  'dt.armed': 'arm',
+  'dt.flightMode': '비행 모드',
+  'dt.landedState': '착륙 상태',
+  'dt.altRelative': '상대 고도',
+  'dt.altAmsl': '해발 고도',
+  'dt.yaw': '방위(yaw)',
+  'dt.roll': 'roll',
+  'dt.pitch': 'pitch',
+  'dt.gpsFix': 'GPS fix',
+  'dt.satellites': '위성 수',
+  'dt.eph': '수평 오차',
+  'dt.lat': '위도',
+  'dt.lon': '경도',
+  'dt.warning': '경고',
+  'dt.yes': '있음',
+  'dt.no': '없음',
+  'dt.armedYes': 'armed',
+  'dt.armedNo': 'disarmed',
+  'dt.note.suspect': '(참고값)',
+  'dt.ageSuffix': '({sec}초 전)',
+  'dt.reportedAt': '장비가 찍은 시각',
   'df.lastSeen': '마지막 수신',
   'df.lastSeenValue': '{value} (마지막 수신)',
   'df.heldSuffix': ' (마지막 수신)',

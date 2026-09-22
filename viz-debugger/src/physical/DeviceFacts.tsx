@@ -16,13 +16,28 @@ import { useLang } from '../shared/language.ts';
 import { t } from '../i18n/dict.ts';
 import { hardwareTarget } from './encode.ts';
 import { isStale, useDeviceStates } from './deviceState.ts';
+import { isTelemetryStale, useDeviceTelemetry, type DeviceTelemetry, type TelemetryRow } from '../shared/deviceTelemetry.ts';
 
 export function DeviceFacts({ entityId }: { entityId: string }) {
   useLang();
   const devices = useDeviceStates();
+  const reports = useDeviceTelemetry();
   const device = devices[hardwareTarget(entityId)] ?? null;
 
+  /**
+   * **MQTT 가 비면 `/state` 보고를 그린다** (260922).
+   *
+   * 드론 상태는 백엔드 `/state` 로만 온다(`verify:drone-via-state` — 경로가 둘이면 어느
+   * 쪽이 진짜인지가 생긴다). 그래서 이 칸은 지금까지 드론에 대해 「아직 상태가 오지
+   * 않았습니다」라고 적었다 — **값은 오고 있는데** 이쪽 저장소에 안 들어올 뿐이었고,
+   * 그 문장은 사실이 아니었다.
+   *
+   * 차례는 MQTT 가 먼저다. Go1 이 `/state` 로 옮겨 가는 동안 두 길이 겹치고, 그때 지금
+   * 화면을 채우고 있는 쪽이 이겨야 카드가 깜빡이지 않는다.
+   */
   if (device === null) {
+    const report = reports[entityId] ?? null;
+    if (report !== null) return <TelemetryFacts report={report} />;
     return <p className="device-facts device-facts--none">{t('df.1')}</p>;
   }
   const stale = isStale(device);
@@ -53,6 +68,59 @@ export function DeviceFacts({ entityId }: { entityId: string }) {
     {rows.map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}
   </dl>;
 }
+
+/**
+ * **장비가 보고한 항목을 그대로 그린다** (260922 — 드론 카드 안).
+ *
+ * 무엇을 그릴지 **여기서 안 고른다.** 줄은 이미 만들어져서 온다(`tabs/data/stateRows.ts`) —
+ * 요구사항이 「화면 코드에 기종별 항목표를 두지 않는다」이고, 여기에 `if (드론)` 이 한 줄
+ * 생기면 기종이 늘 때마다 이 파일이 자란다.
+ *
+ * 그래서 이 부품이 아는 것은 셋뿐이다: 이름은 **키**라 풀어야 한다는 것, 값은 **장비가 보낸
+ * 그대로**라 번역하지 않는다는 것, 그리고 **낡았으면 낡았다고 말해야** 한다는 것.
+ */
+function TelemetryFacts({ report }: { report: DeviceTelemetry }) {
+  // **별개 컴포넌트는 자기 훅이 필요하다.** 위 `DeviceFacts` 의 `useLang()` 은 이 부품을
+  // 다시 그리게 하지 않는다 — 빼면 언어를 바꿔도 이 판만 옛 언어로 남는다
+  // (`verify:i18n-no-frozen` 이 그것을 잡았다).
+  useLang();
+  const stale = isTelemetryStale(report);
+  return <dl className={`device-facts${stale ? ' device-facts--held' : ''}`}>
+    {/* **낡았으면 맨 위에서 한 번 말한다.** 줄마다 달면 읽을 수 없고, 안 달면 멈춘 값을
+        현재로 읽는다 — `DeviceFacts` 가 링크 끊김을 다루는 방식과 같다. */}
+    {stale && <div><dt>{t('df.lastSeen')}</dt>
+      <dd>{t('df.secondsAgo', { sec: Math.round((Date.now() - report.receivedAtMs) / 1000) })}</dd></div>}
+    {report.rows.map((row, index) => <div key={`${row.labelKey ?? row.rawLabel ?? ''}-${index}`}>
+      {/* 사전에 없는 이름은 **그대로** 적는다 — 번역된 척하지 않는다(`stateRows.ts`). */}
+      <dt>{row.labelKey === null ? row.rawLabel : t(row.labelKey)}</dt>
+      <dd>{telemetryValue(row)}</dd>
+    </div>)}
+    {/* 장비가 찍은 시각. **우리 시계가 아니다** — 그래서 따로 적는다. */}
+    {report.timestamp !== null && <div><dt>{t('dt.reportedAt')}</dt>
+      <dd>{report.timestamp}{report.reason === null ? '' : ` · ${report.reason}`}</dd></div>}
+  </dl>;
+}
+
+/**
+ * 줄 하나의 값. **나이는 낡았을 때만 적는다** — 계약이 표본마다 `age_s` 를 주는데
+ * 매 줄에 「0.2초 전」을 달면 읽을 수 없고, 안 달면 30초 된 고도를 지금 고도로 읽는다.
+ */
+export function telemetryValue(row: TelemetryRow): string {
+  const shown = row.valueKey === undefined ? row.value : t(row.valueKey);
+  const note = row.noteKey === undefined ? '' : ` ${t(row.noteKey)}`;
+  const age = row.ageS !== null && row.ageS >= STALE_SAMPLE_S
+    ? ` ${t('dt.ageSuffix', { sec: row.ageS.toFixed(1) })}`
+    : '';
+  return `${shown}${note}${age}`;
+}
+
+/**
+ * 이 나이를 넘은 표본은 **나이를 같이 적는다**(초).
+ *
+ * 계약의 `state` 가 1Hz 이므로 성한 표본은 1초 안쪽이다. 2초로 두면 한 건 놓친 것은
+ * 조용히 넘어가고, 실제로 멈춘 값은 드러난다.
+ */
+const STALE_SAMPLE_S = 2;
 
 /**
  * 구동 브리지의 상태를 한 줄로. **`null` 을 「꺼짐」으로 그리지 않는다** (연동 가이드 §4-3).

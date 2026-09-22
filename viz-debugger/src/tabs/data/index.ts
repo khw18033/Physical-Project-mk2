@@ -11,6 +11,8 @@
 import { subscribeConnections } from '../../shared/connections.ts';
 import { currentZoneId } from '../../shared/registry.ts';
 import { noteConnectedEntity } from '../../shared/connectedDevices.ts';
+import { noteDeviceTelemetry } from '../../shared/deviceTelemetry.ts';
+import { stateRows } from './stateRows.ts';
 import { getTransport } from '../../transport/index.ts';
 import { DataStore } from './store.ts';
 import { fetchRegistry } from './registry.ts';
@@ -57,6 +59,13 @@ let started = false;
  * 대상만 한 층 위일 뿐 `transport/index.ts` 의 `rebind` 와 같은 문법이다:
  * 값이 실제로 달라졌을 때만, 끊고, 다시.
  */
+/** 봉투 본문에서 문자열 한 칸. 모양을 모르는 것이 와도 던지지 않는다. */
+function readString(body: unknown, key: string): string | null {
+  if (body === null || typeof body !== 'object') return null;
+  const value = (body as Record<string, unknown>)[key];
+  return typeof value === 'string' && value !== '' ? value : null;
+}
+
 export function startDataLayer(): () => void {
   if (started) return () => undefined;
   started = true;
@@ -83,6 +92,22 @@ export function startDataLayer(): () => void {
        * 들어간다(`verify:standalone`). 그래서 **받는 쪽이 밀어 넣는다.**
        */
       noteConnectedEntity(envelope.entity, 'state');
+      /**
+       * **값이 무엇이었는지도 밀어 넣는다** (260922). 위 한 줄은 「붙어 있다」만 말하고,
+       * 그것만으로는 카드가 이름과 「n초 전」 밖에 못 적는다 — 드론이 그랬다.
+       *
+       * 줄로 바꾸는 표는 `stateRows.ts` 에 있다. 여기서 뜯으면 계약 필드 이름이 구독
+       * 배선에 섞이고, 필드가 하나 늘 때 고칠 자리가 둘이 된다.
+       *
+       * **채널을 안 가린다.** `state` 만 받겠다고 적으면 `status`(10초 요약, retained)로
+       * 먼저 오는 첫 화면을 버린다 — 늦게 붙은 웹이 구독 즉시 받는 것이 그쪽이다(계약 §7-2).
+       * 뜯을 것이 없는 채널은 줄이 0개라 저장소가 알아서 안 담는다.
+       */
+      const body = envelope.payload;
+      noteDeviceTelemetry(envelope.entity, stateRows(body), {
+        timestamp: readString(body, 'timestamp'),
+        reason: readString(body, 'reason'),
+      });
     },
     // VZ-I-11 — 현 단계 'all' 고정. 대상이 늘면 여기를 좁힌다.
     'all',

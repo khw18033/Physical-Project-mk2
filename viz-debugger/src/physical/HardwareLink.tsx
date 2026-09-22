@@ -27,6 +27,8 @@ import { hardwareTarget } from './encode.ts';
 import { isStale, useDeviceStates, type DeviceState } from './deviceState.ts';
 import { useRobotSession } from './robotSession.ts';
 import { connectedDevice, useConnectedDevices } from '../shared/connectedDevices.ts';
+import { useDeviceTelemetry } from '../shared/deviceTelemetry.ts';
+import { telemetryValue } from './DeviceFacts.tsx';
 
 export function HardwareLink({ entityId }: { entityId: string }) {
   useLang();
@@ -34,6 +36,8 @@ export function HardwareLink({ entityId }: { entityId: string }) {
   const session = useRobotSession();
   // `/state` 로 오는 장비도 이 줄이 말해야 한다 — 구독해야 붙거나 조용해질 때 다시 그린다.
   useConnectedDevices();
+  // 그 장비가 **무엇을 보고했는지**도 이 줄에 나온다 (260922).
+  const reports = useDeviceTelemetry();
   // 화면 id(`robot-01`) → 하드웨어 id(`go1-001`). 표는 경계 안에 있다.
   const device: DeviceState | null = devices[hardwareTarget(entityId)] ?? null;
 
@@ -50,8 +54,21 @@ export function HardwareLink({ entityId }: { entityId: string }) {
   const viaState = connectedDevice(entityId);
   if (device === null && viaState !== null) {
     const ago = Math.round((Date.now() - viaState.lastSeenMs) / 1000);
+    /**
+     * **보고한 값 중 카드 몫만 여기 나온다** (260922). 위 주석이 「자세한 항목은 상세
+     * 보기가 그린다」고 적어 둔 자리인데, 그 말이 맞으려면 **카드에도 최소한 무엇이
+     * 살아 있는지**는 있어야 한다 — 이름과 「n초 전」만으로는 배터리가 몇 %인지 보려고
+     * 매번 더블클릭해야 한다.
+     *
+     * 어느 줄이 카드 몫인지는 **여기서 안 고른다.** 줄에 `onCard` 가 붙어서 온다
+     * (`tabs/data/stateRows.ts`) — 기종별 항목표를 화면 코드에 두지 않는다는 규칙이다.
+     */
+    const card = (reports[entityId]?.rows ?? []).filter((row) => row.onCard === true);
     return <span className="hw-link">
       <em className="hw-dot hw-dot--ok">{t('hl.connected')}</em>
+      {card.map((row, index) => <em key={`${row.labelKey ?? ''}-${index}`} className="hw-dot hw-dot--plain"
+        title={row.labelKey === null ? row.rawLabel : t(row.labelKey)}
+      >{telemetryValue(row)}</em>)}
       <em className="hw-dot hw-dot--plain">{t('hl.secondsAgo', { sec: ago })}</em>
     </span>;
   }
