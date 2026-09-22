@@ -256,3 +256,70 @@ function readTurn(deg: number): string {
 function readForward(metres: number, vx: number): string {
   return `↑ ${metres.toFixed(2)} m (vx ${vx.toFixed(2)})`;
 }
+
+/**
+ * **읽은 걸음으로 임무 하나를 만든다** (260922 — 발화로 들어온 정량 명령).
+ *
+ * 머리줄의 입력칸이 아니라 **발화·문장 입력**으로 들어온 정량 명령이 지나는 길이다.
+ * 「Go1이 1m 앞으로 전진해」는 대본에도 없고 모델이 만들 것도 아니다 — 사람이 이미
+ * 숫자로 다 적었으므로, 그것을 그대로 임무로 세운다.
+ *
+ * **모델이 낸 임무와 구별해야 한다.** 이 임무의 출처는 규칙이고, 근거는 사람이 적은
+ * 문장 그 자체다. 모델 이름을 지어 붙이면 「누가 만든 값인가」가 틀어진다.
+ *
+ * 마일스톤 하나에 걸음마다 태스크 하나다. **차례대로 매달린다**(`deps`) — 돌기 전에
+ * 가면 엉뚱한 데로 가므로 순서가 그림에도 남아야 한다.
+ */
+export function stepMissionView(sentence: string, script: StepScript, missionId: string): {
+  missionId: string;
+  label: string;
+  world: 'registry';
+  utteranceText: string;
+  durationSec: number;
+  milestones: { id: string; title: string; assignedTargets: string[]; staticStatus: null }[];
+  tasks: { id: string; title: string; deps: string[]; target: string | null; actionItems: never[]; milestone: string }[];
+  events: never[];
+  cast: string[];
+  hardware: null;
+  params: Record<string, unknown>;
+  map: null;
+  refEdges: never[];
+  viewpoints: null;
+  viewpointTimeline: never[];
+} {
+  const tasks = script.steps.map((step, index) => ({
+    id: `T-Q${index + 1}`,
+    // **읽은 줄을 그대로 제목으로 쓴다.** 「↑ 1.00 m (vx 0.30)」 — 사람이 보낸 것과
+    // 화면에 적힌 것이 같은 글자여야 나중에 대조할 수 있다.
+    title: script.reads[index] ?? step.action,
+    deps: index === 0 ? [] : [`T-Q${index}`],
+    target: null,
+    actionItems: [] as never[],
+    milestone: 'MS-Q',
+  }));
+  return {
+    missionId,
+    label: sentence,
+    world: 'registry',
+    utteranceText: sentence,
+    durationSec: 0,
+    milestones: [{ id: 'MS-Q', title: sentence, assignedTargets: [], staticStatus: null }],
+    tasks,
+    events: [],
+    cast: [],
+    hardware: null,
+    // **걸음을 임무에 실어 둔다.** 승인 뒤 발행하는 쪽이 이것을 읽는다 — 화면이 그린
+    // 태스크와 로봇에 나갈 걸음이 **같은 출처**여야 둘이 갈리지 않는다.
+    params: { step_commands: script.steps },
+    map: null,
+    refEdges: [],
+    viewpoints: null,
+    viewpointTimeline: [],
+  };
+}
+
+/** 이 임무가 정량 명령으로 세워진 것인가. `params` 가 그 사실을 든다. */
+export function stepCommandsOf(params: Record<string, unknown> | null | undefined): readonly TaskCommand[] {
+  const raw = params?.step_commands;
+  return Array.isArray(raw) ? (raw as TaskCommand[]) : [];
+}

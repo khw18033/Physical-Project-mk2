@@ -10,7 +10,8 @@
 
 import { t } from '../i18n/dict.ts';
 import { PhysicalClient, physicalWsUrls } from './PhysicalClient.ts';
-import { issuePing, issueScan, shouldIssueScan } from './robotCommands.ts';
+import { stepCommandsOf } from './stepScript.ts';
+import { issuePing, issueScan, shouldIssueScan, issueStepMission, shouldIssueStepMission } from './robotCommands.ts';
 import { robotSession, setConnection, subscribeRobot } from './robotSession.ts';
 import { currentMission } from '../data/scenario.ts';
 import { noteIssue } from '../shared/notifications.ts';
@@ -200,6 +201,21 @@ function attachDriver(url: string | null): void {
      * 연결 상태·장비 상태를 여기서 잇는 것과 같은 이유이고 같은 자리다.
      */
     subscribeRobot(() => {
+      /**
+       * **정량 명령 임무가 올라와 있으면 그것을 낸다** (260922).
+       *
+       * 사람이 발화·문장으로 적은 숫자가 임무가 된 경우다(`stepScript.ts`). 스캔과 같은
+       * 관문을 쓰고 같은 자리에서 나간다 — 승인 뒤 한 번, 시작을 누른 뒤에.
+       */
+      const stepParams = currentMission().params;
+      if (stepCommandsOf(stepParams).length > 0) {
+        if (!shouldIssueStepMission()) return;
+        const attempt = `steps|${robotSession().startedAtMs ?? 0}`;
+        if (attempt === lastScanAttempt) return;
+        lastScanAttempt = attempt;
+        void issueStepMission(singleton, stepParams);
+        return;
+      }
       if (!shouldIssueScan()) return;
       /**
        * **같은 조건으로 두 번 시도하지 않는다** (260912 — 브라우저가 멎었다).

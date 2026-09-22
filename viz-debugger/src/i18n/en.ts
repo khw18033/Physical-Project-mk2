@@ -145,6 +145,8 @@ export const en: Record<string, string> = {
   'step.note.turnSplit': 'Splitting the {deg}° turn into {max}° pieces',
   'step.note.forwardTooSmall': 'Not sending a {m}m move — the protocol minimum is {min}m',
   'step.note.forwardSplit': 'Splitting {total}m into {pieces} moves of {each}m',
+  'utter.quantitative': 'Read as a quantitative command and built a mission — no script lookup',
+  'ms.stepProposal': '**A quantitative command you wrote** — “{sentence}” was read by rules into {n} step(s). Not a script, not a model',
   'conn.notChecked': 'Not checked yet',
   'conn.testTitle': 'Reads the real output handed over by the detection team as if it were a live result',
   'conn.test': 'Test',

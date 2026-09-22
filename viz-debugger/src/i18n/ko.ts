@@ -141,6 +141,8 @@ export const ko: Record<string, string> = {
   'step.note.turnSplit': '{deg}도 회전을 {max}도씩 나눠 보냅니다',
   'step.note.forwardTooSmall': '{m}m 직진은 안 보냅니다 — 규약 최소가 {min}m 입니다',
   'step.note.forwardSplit': '직진 {total}m 를 {each}m 씩 {pieces}번으로 나눠 보냅니다',
+  'utter.quantitative': '정량 명령으로 읽어 임무를 세웠습니다 — 대본을 찾지 않았습니다',
+  'ms.stepProposal': '**사람이 적은 정량 명령**입니다 — 「{sentence}」를 규칙으로 읽어 걸음 {n}개를 세웠습니다. 대본도 모델도 아닙니다',
   'conn.notChecked': '아직 확인하지 않았습니다',
   'conn.testTitle': '탐지 담당이 준 실제 산출물을 진짜 결과처럼 읽습니다',
   'conn.test': '테스트',

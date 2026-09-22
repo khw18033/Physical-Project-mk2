@@ -266,7 +266,30 @@ export type AiProposal = {
  * 「이 마일스톤은 누가 썼나」에 답할 수 없다 — 대본에서 읽은 것과 모델이 낸 것이 같은
  * 모양으로 뜨는 순간 그 물음이 사라진다.
  */
-export type MissionProposal = ScriptProposal | AiProposal;
+/**
+ * **사람이 숫자로 적은 명령** (260922 — 발화로 들어온 정량 명령).
+ *
+ * 대본도 아니고 모델이 낸 것도 아니다. 「Go1이 1m 앞으로 전진해」는 **사람이 이미 다
+ * 적었고**, 우리는 규칙으로 읽기만 했다(`physical/stepScript.ts`).
+ *
+ * 모델 제안으로 뭉치지 않는 이유는 **근거가 다르기 때문**이다. `AiProvenance` 는 모델
+ * 이름과 프롬프트 지문을 든다 — 여기에 그것을 지어 넣으면 「AI·백엔드·사람 중 누가 만든
+ * 값인가」(논문 §4-3)가 사람의 문장을 모델의 산출로 답하게 된다.
+ *
+ * 대본 제안으로 뭉칠 수도 없다. 대본 제안은 `missionId` 만 들고 본문을 라이브러리에서
+ * 찾는데, 이 임무는 **방금 만들어져 어디에도 없다** — 그래서 본문을 스스로 든다.
+ */
+export type StepProposal = {
+  origin: 'steps';
+  missionId: string;
+  title: string;
+  /** 방금 세운 임무. 라이브러리에 없다 — 이것이 원본이다. */
+  view: MissionView;
+  /** 사람이 적은 문장 그대로. **근거가 사는 자리**이고, 모델 지문의 대응물이다. */
+  sentence: string;
+};
+
+export type MissionProposal = ScriptProposal | AiProposal | StepProposal;
 
 export type MissionState = {
   current: MissionView;
@@ -406,9 +429,11 @@ export function displayMission(): {
   // 남아 있던 것이 그 자국이다 — 이제 키를 들고 있다가 그릴 때 푼다.
   if (state.proposal !== null) {
     // 모델이 낸 제안은 라이브러리에 없다 — **제안이 본문을 들고 있다.**
-    const view = state.proposal.origin === 'ai'
-      ? state.proposal.view
-      : viewForMission(state.proposal.missionId);
+    // **대본 제안만 라이브러리에서 찾는다.** 모델이 낸 것과 사람이 숫자로 적은 것은
+    // 방금 만들어진 임무라 어디에도 없고, 그래서 제안이 본문을 들고 다닌다.
+    const view = state.proposal.origin === 'script'
+      ? viewForMission(state.proposal.missionId)
+      : state.proposal.view;
     // 제안은 아직 승인 전이라 흘러온 것이 없다 — 열이 비어 있는 것이 곧 그 사실이다.
     if (view !== null) return { view: named(translateView(view)), phase: 'proposal', headSec: 0, trace: translateEvents(view.missionId, traceFor(view)) };
   }
@@ -452,6 +477,19 @@ export function proposeGenerated(view: MissionView, provenance: AiProvenance, ti
       provenance,
     },
   });
+  return true;
+}
+
+/**
+ * **사람이 숫자로 적은 명령을 제안으로 올린다** (260922).
+ *
+ * `proposeGenerated` 와 같은 자리에 선다 — **승인 전에는 아무것도 실행되지 않는다**
+ * (`VZ-U-07`). 사람이 문장을 적었다는 것과 그 문장대로 로봇을 움직여도 좋다는 것은
+ * 다른 말이고, 그 사이에 승인이 있다.
+ */
+export function proposeSteps(view: MissionView, sentence: string): boolean {
+  if (view.tasks.length === 0) return false;
+  commitNow({ proposal: { origin: 'steps', missionId: view.missionId, title: view.label, view, sentence } });
   return true;
 }
 
@@ -570,7 +608,7 @@ export function acceptProposal(mode: 'remote' | 'local' = 'local'): boolean {
  * 하나에서 「무엇이 만들었나 → 누가 받아들였나」로 거슬러 올라갈 수 있다
  * (`VZ-G-01` 의 「역추적이 맨 위까지 닿는다」).
  */
-function activateGenerated(proposal: AiProposal): boolean {
+function activateGenerated(proposal: AiProposal | StepProposal): boolean {
   beforeNewRun();
   stopLocalTimer();
   resetTrace(proposal.view.missionId);
@@ -580,16 +618,25 @@ function activateGenerated(proposal: AiProposal): boolean {
   localViewpointCursor = 0;
   localActionCursor = 0;
   commitNow({ current: proposal.view, proposal: null, headSec: 0, playing: false, activatedBy: 'approval' });
+  /**
+   * **근거를 적는 자리는 하나지만 근거는 같지 않다** (260922).
+   *
+   * 모델이 낸 것은 모델 이름·규칙·프롬프트 지문이 근거다. 사람이 숫자로 적은 것은
+   * **그 문장 자체**가 근거다 — 거기에 모델 지문을 지어 넣으면 「누가 만든 값인가」가
+   * 틀어진다(논문 §4-3). 그래서 칸은 같고 값이 다르다.
+   */
   appendGenerated(
     proposal.view.missionId,
     'mission_generated',
     proposal.view.missionId,
     0,
-    provenancePayload(proposal.provenance),
+    proposal.origin === 'ai'
+      ? provenancePayload(proposal.provenance)
+      : { origin: 'steps', sentence: proposal.sentence, read_by: 'rules' },
   );
   // 승인도 사람 조작이다 — `VZ-D-08` 은 예외를 두지 않는다.
   recordHuman('proposal_accepted', proposal.view.missionId, {
-    origin: 'ai',
+    origin: proposal.origin,
     milestones: proposal.view.milestones.length,
     tasks: proposal.view.tasks.length,
   });

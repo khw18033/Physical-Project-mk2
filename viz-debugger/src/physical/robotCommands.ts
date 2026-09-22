@@ -20,6 +20,7 @@
  */
 
 import { t } from '../i18n/dict.ts';
+import { stepCommandsOf } from './stepScript.ts';
 import { commandTracker } from '../shared/commandCenter.ts';
 import { noteIssue } from '../shared/notifications.ts';
 import type { CommandAck, CommandRequest } from '../transport/index.ts';
@@ -178,6 +179,38 @@ export async function issueScan(client: PhysicalClient, params: Record<string, u
  * 브로커에 안 붙어 있으면 안 쏜다. **그때 대신 도는 대본은 이제 없다**(260910) — 진행이
  * 아예 없는 것이 맞다. 없는 진행을 대본으로 지어 보이면 무대에서 「되는 줄」 알고 넘어간다.
  */
+/**
+ * **사람이 숫자로 적은 임무의 걸음을 한 번만 쏜다** (260922 — 발화로 들어온 정량 명령).
+ *
+ * `shouldIssueScan` 과 같은 자리·같은 규칙이다. 다른 것은 **준비 단계를 안 본다** —
+ * 이 임무에는 `T-A1`·`T-A2` 가 없다. 사람이 적은 것이 곧 걸음 전부다.
+ *
+ * **승인만으로는 안 쏜다.** 승인은 「이 문장대로 해도 좋다」이고, 시작은 「지금 하라」다.
+ * 문장을 말한 것만으로 로봇이 걷기 시작하면 되돌릴 자리가 없다.
+ */
+export function shouldIssueStepMission(): boolean {
+  const session = robotSession();
+  return session.started && session.approved
+    && !session.scanIssued && session.stopped === null && robotDrives();
+}
+
+/**
+ * 그 임무의 걸음을 낸다. **관문은 스캔과 같은 것을 쓴다** — 한 임무에 한 번이면 되고,
+ * 관문을 둘로 두면 어느 쪽이 열렸는지 세는 자리가 둘이 된다.
+ */
+export async function issueStepMission(
+  client: PhysicalClient | null,
+  params: Record<string, unknown> | null,
+): Promise<IssueOutcome | null> {
+  const steps = stepCommandsOf(params);
+  if (steps.length === 0) return null;
+  markScanIssued();
+  const outcome = await issueSteps(client, steps);
+  // 안 나갔으면 표시를 도로 내린다 — 안 나간 것을 나갔다고 둘 수 없다.
+  if (outcome.sent !== true) clearScanIssued();
+  return outcome;
+}
+
 export function shouldIssueScan(): boolean {
   const session = robotSession();
   // **승인만으로는 안 쏜다** (260912 지시). 사람이 「임무 시작」을 눌러야 나간다 —

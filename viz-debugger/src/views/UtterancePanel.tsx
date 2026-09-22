@@ -63,6 +63,8 @@ import { Explain } from '../shared/Explain.tsx';
 import placesTopology from '../../../places/places.json';
 import equipmentVocabulary from '../../../equipment/equipment.json';
 import { noteHumanAction } from '../shared/humanAction.ts';
+import { parseStepScript, stepMissionView } from '../physical/stepScript.ts';
+import { proposeSteps } from '../data/scenario.ts';
 import { t } from '../i18n/dict.ts';
 import { Rich } from '../i18n/RichText.tsx';
 import { useLang } from '../shared/language.ts';
@@ -195,6 +197,27 @@ const DEMO_SENTENCES = SCRIPT_LIBRARY.map((entry) => ({
  * 게이트웨이(있으면)가 같은 매처·같은 대본으로 권위 있는 제안(plan)을 만들고,
  * 단독 빌드에서는 이 로컬 매칭이 곧 제안이다 — **같은 파일을 import 하므로 결과가 같다.**
  */
+/**
+ * **문장이 통째로 정량 명령이면 그것으로 임무를 세운다** (260922).
+ *
+ * 「Go1이 1m 앞으로 전진해」는 대본에 없고 모델에게 물을 것도 없다 — 사람이 이미 숫자로
+ * 다 적었다. 전에는 이런 문장이 대본 매칭에서 떨어지고 생성으로 넘어가, 모델이 만들 수
+ * 없는 것을 만들려다 아무 일도 안 일어났다.
+ *
+ * **통째로 읽혔을 때만** 이 길로 온다. 「90도 회전시킨 후 거울 위치를 탐지」처럼 정량과
+ * 임무 어휘가 섞인 문장은 `reject` 가 붙고, 그때는 **손대지 않고 지나보낸다** — 대본
+ * 매칭과 생성이 하던 대로 받는다. 절반만 읽고 나머지를 지어내지 않는다는 규칙이
+ * 여기서도 그대로다(`stepScript.ts`).
+ *
+ * @returns 정량 명령으로 세웠으면 `true`. 그러면 부르는 쪽이 생성을 걸지 않는다.
+ */
+function proposeQuantitative(text: string): boolean {
+  const script = parseStepScript(text);
+  if (script.reject !== null || script.steps.length === 0) return false;
+  const missionId = `MSN-Q-${Date.now().toString(36)}`;
+  return proposeSteps(stepMissionView(text, script, missionId) as unknown as MissionView, text);
+}
+
 function matchScript(text: string): MatchOutcome {
   const outcome = matchLibrary(text, SCRIPT_LIBRARY);
   if (outcome.kind === 'matched') {
@@ -541,7 +564,11 @@ export function UtterancePanel({ fallbackText }: { fallbackText: string }) {
     if (!result || !decision) return;
     // 매칭은 발행 전에 로컬에서도 한다 — 게이트웨이와 **같은 매처·같은 대본**이라 결과가
     // 같고, 단독 빌드(게이트웨이 없음)에서는 이 결과가 곧 제안이 된다.
-    const matched = matchScript(edited.trim());
+    // **정량 명령이면 여기서 임무가 선다** (260922). 아니면 하던 대로 대본·생성으로 간다.
+    const quantitative = proposeQuantitative(edited.trim());
+    const matched: MatchOutcome = quantitative
+      ? { kind: 'none', reason: t('utter.quantitative') }
+      : matchScript(edited.trim());
     setScriptMatch(matched);
     try {
       // 임계 미만이면 여기 오지 못한다. 조용히 통과시키지 않는다.
@@ -584,7 +611,10 @@ export function UtterancePanel({ fallbackText }: { fallbackText: string }) {
 
   const submitManual = useCallback(async () => {
     if (!manual.trim()) return;
-    const matched = matchScript(manual.trim());
+    const quantitative = proposeQuantitative(manual.trim());
+    const matched: MatchOutcome = quantitative
+      ? { kind: 'none', reason: t('utter.quantitative') }
+      : matchScript(manual.trim());
     setScriptMatch(matched);
     try {
       noteHumanAction();   // 사람이 냈다 — 이 뒤부터 계획 채널을 받는다

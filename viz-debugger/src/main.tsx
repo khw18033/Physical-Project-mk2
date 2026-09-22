@@ -125,6 +125,11 @@ function Milestones({ view, phase, milestoneStatuses, assignments, onAssign, onO
   // `t()` 는 값을 줄 뿐 리렌더를 안 일으킨다 — 빼면 언어를 바꿔도 이 판만 옛 언어로 남는다.
   useLang();
   const aiProposal = mission.proposal?.origin === 'ai' ? mission.proposal : null;
+  /**
+   * **사람이 숫자로 적은 임무** (260922). 대본도 모델도 아니다 — 카드가 「대본을
+   * 골랐습니다」라고 적으면 거짓말이고, 「모델이 만들었습니다」는 더 나쁘다.
+   */
+  const stepProposal = mission.proposal?.origin === 'steps' ? mission.proposal : null;
   const approvalSlot = planApproval ?? (mission.proposal !== null && <div className="proposal-fallback">
     {/* 단독 빌드(게이트웨이 없음)의 승인 자리 — 통합 앱에서는 PlanApproval(VZ-U-07)이 들어온다. */}
     {/* **한 문장을 한 키로 둔다.** 「승인해야 …」와 「캔버스에 올라갑니다」를 따로 담으면
@@ -138,7 +143,9 @@ function Milestones({ view, phase, milestoneStatuses, assignments, onAssign, onO
   return <div className="milestone-layout"><UtterancePanel fallbackText={view.utteranceText} /><section className="milestone-panel"><h2>{t('ms.count', { n: view.milestones.length })}</h2>
     <RobotPanel client={robotClient()} />
     {showApproval && <div className="proposal-card">
-      {phase === 'proposal' && (aiProposal
+      {phase === 'proposal' && (stepProposal
+        ? <p className="proposal-note proposal-steps"><Rich id="ms.stepProposal" vars={{ sentence: stepProposal.sentence, n: stepProposal.view.tasks.length }} /></p>
+        : aiProposal
         ? <p className="proposal-note proposal-ai"><Rich id="ms.aiProposal" vars={{ model: aiProposal.provenance.model, id: view.missionId, label: view.label }} />
             <small>{t('ms.aiMeta', { rules: aiProposal.provenance.rules?.length ?? 0, digest: aiProposal.provenance.promptDigest ?? t('ms.promptNone') })}</small></p>
         : <p className="proposal-note"><Rich id="ms.scriptProposal" vars={{ id: view.missionId, label: view.label }} />{mission.proposal?.origin === 'script' && mission.proposal.keywords.length ? <small>{t('ms.matchedKeywords', { words: mission.proposal.keywords.join(' · ') })}</small> : null}</p>)}

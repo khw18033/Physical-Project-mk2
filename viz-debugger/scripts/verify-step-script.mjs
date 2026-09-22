@@ -189,6 +189,58 @@ const shape = (script) => script.steps.map((step) => [step.action, step.paramete
   if (/fetch\(|\/generate\/|LlmClient/.test(parser)) failures.push('문장 해석이 바깥을 부른다 — 규칙으로만 읽어야 한다');
 }
 
+// ── 7. **발화·문장으로 들어와도 작동한다** (260922 지시) ────────────────────
+//
+// 머리줄 입력칸은 도구이지 유일한 입구가 아니다. 사람이 말하거나 적은 문장이 정량 명령이면
+// 그것으로 **임무가 서야** 한다 — 「Go1이 1m 앞으로 전진해」는 대본에 없고 모델에게 물을
+// 것도 없다(사람이 이미 숫자로 다 적었다).
+//
+// **섞인 문장은 손대지 않고 지나보낸다.** 「90도 회전시킨 후 거울 위치를 탐지한 후…」는
+// 정량과 임무 어휘가 섞여 있어 우리가 통째로 읽을 수 없다. 앞부분만 내면 사람이 적은 것과
+// 다른 것이 로봇에게 가므로, 그때는 대본 매칭과 생성이 하던 대로 받는다.
+{
+  const { stepMissionView, stepCommandsOf } = await load('src', 'physical', 'stepScript.ts');
+
+  // ① 정량 명령만 — 임무가 선다.
+  const only = read('Go1이 1m 앞으로 전진해');
+  if (only.reject !== null) failures.push(`정량 명령만인 문장을 거부했다 — ${only.reject.key}`);
+  const view = stepMissionView('Go1이 1m 앞으로 전진해', only, 'MSN-Q-test');
+  if (view.tasks.length !== 1) failures.push(`태스크가 ${view.tasks.length}개 — 걸음 수와 같아야 한다`);
+  if (view.milestones.length !== 1) failures.push('마일스톤이 없다 — 승인 판단 재료가 없어진다');
+  // **걸음이 임무에 실려 있다.** 화면이 그린 태스크와 로봇에 나갈 걸음이 같은 출처여야 한다.
+  if (stepCommandsOf(view.params).length !== only.steps.length) {
+    failures.push('임무에 실린 걸음 수가 읽은 것과 다르다');
+  }
+  // 차례가 매달려 있다 — 돌기 전에 가면 엉뚱한 데로 간다.
+  const three = read('오른쪽 90도 회전 후 1m 전진 후 왼쪽 90도 회전');
+  const chained = stepMissionView('x', three, 'MSN-Q-x');
+  if (chained.tasks[0].deps.length !== 0) failures.push('첫 걸음에 선행이 붙었다');
+  for (let i = 1; i < chained.tasks.length; i += 1) {
+    if (chained.tasks[i].deps[0] !== chained.tasks[i - 1].id) failures.push('걸음이 차례대로 안 매달렸다');
+  }
+
+  // ② 섞인 문장 — **지나보낸다.** 여기서 임무를 세우면 절반만 실행된다.
+  const mixed = read('Go1을 90도 왼쪽으로 회전시킨 후 거울 위치를 탐지한 후 거기까지 이동해');
+  if (mixed.reject === null) failures.push('섞인 문장을 통째로 읽었다고 했다 — 절반만 나간다');
+  if (mixed.steps.length !== 0) failures.push(`섞인 문장에서 ${mixed.steps.length}걸음을 냈다`);
+
+  // ③ 화면이 그 갈래를 실제로 쓰는가. 안 쓰면 위가 다 맞아도 발화는 그대로 떨어진다.
+  const panel = readSource(join(root, 'src', 'views', 'UtterancePanel.tsx'));
+  if (!/proposeQuantitative\(/.test(panel)) failures.push('발화 경로가 정량 명령을 안 본다');
+  if (!/script\.reject !== null \|\| script\.steps\.length === 0/.test(panel)) {
+    failures.push('통째로 읽혔을 때만 세우는 조건이 없다 — 섞인 문장이 반만 실행된다');
+  }
+  // ④ **모델 제안으로 뭉치지 않는다.** 근거가 다르다(논문 §4-3).
+  const store = readSource(join(root, 'src', 'data', 'scenario.ts'));
+  if (!/origin: 'steps'/.test(store)) failures.push('정량 명령 제안이 따로 서지 않는다');
+  if (/proposeSteps[\s\S]{0,400}origin: 'ai'/.test(store)) failures.push('정량 명령을 모델이 낸 것으로 적었다');
+  // ⑤ **승인 전에는 안 나간다.** 시작을 눌러야 걸음이 나간다.
+  const commands = readSource(join(root, 'src', 'physical', 'robotCommands.ts'));
+  if (!/session\.started && session\.approved/.test(commands)) {
+    failures.push('승인·시작 없이 걸음이 나간다');
+  }
+}
+
 // ── 대조군 ───────────────────────────────────────────────────────────────────
 function control(name, hit) {
   if (!hit) failures.push(`대조군 실패: ${name}`);
@@ -221,4 +273,5 @@ console.log('✅ 못 읽으면 한 걸음도 안 낸다 — 방향 없는 회전
 console.log(`✅ 규약으로 자른다 — 한 건 ${FORWARD_MAX_M}m·${TURN_MAX_DEG}도, 최소 ${FORWARD_MIN_M}m·${TURN_MIN_DEG}도, 시한 ${STEP_BUDGET_S}초 예산 (합이 보존된다)`);
 console.log('✅ 자른 것을 숨기지 않는다 · 뒤로 가기는 안 쏜다 (쏴 본 적 없는 값이다)');
 console.log('✅ 문구가 전부 사전에 있고 화면이 그것을 푼다 · 읽기 전에는 보내기가 안 열린다');
+console.log('✅ 발화·문장으로 들어온 정량 명령이 임무가 된다 — 섞인 문장은 지나보낸다 (승인·시작 뒤에 나간다)');
 console.log(`✅ 대조군 ${controls.length}건 — ${controls.join(' · ')}`);
