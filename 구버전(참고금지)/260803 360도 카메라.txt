@@ -1,0 +1,28 @@
+(unidepth) dg@sysai-server2:~$ python3 ~/capstone-db/docx2026/detect_ground_3b1.py /home/dg/capstone-db/image_server/pano_captures/sliced_test/new1_u+230_v-35.jpg /home/dg/capstone-db/image_server/unidepth_dual_yolo_config.yaml /home/dg/capstone-db/image_server/pano_captures/sliced_test/new_230.jpg 640 1.85 -35
+슬라이스 720x720, fx=fy=360.0, cx=cy=360 | 높이=1.85m, 하향=-35.0deg
+필터 통과(HARD/AGENT+접지) 6개 (NMS 후)
+name          group          conf  하단중앙px      X(m)   Z(m)  D=√(X²+Z²)    접지잘림
+chair         HARD_OBSTACLE  0.80  (355,506)    -0.03   1.20        1.20     아니오   wy=-0.906
+cardboard box HARD_OBSTACLE  0.56  ( 26,683)    -1.31   0.43        1.38     아니오   wy=-1.309
+box           HARD_OBSTACLE  0.48  ( 45,540)    -1.65   1.00        1.93     아니오   wy=-0.983
+table         HARD_OBSTACLE  0.25  (435,423)     0.54   1.85        1.93     아니오   wy=-0.717
+box           HARD_OBSTACLE  0.17  (675,258)     4.74   5.32        7.12     아니오   wy=-0.341
+fire extinguisherHARD_OBSTACLE  0.17  (440,560)     0.40   0.90        0.98     아니오   wy=-1.029
+저장: /home/dg/capstone-db/image_server/pano_captures/sliced_test/new_230.jpg
+
+(unidepth) dg@sysai-server2:~$ python3 ~/capstone-db/docx2026/detect_ground_3b1.py /home/dg/capstone-db/image_server/pano_captures/sliced_test/new1_u+50_v-35.jpg /home/dg/capstone-db/image_server/unidepth_dual_yolo_config.yaml /home/dg/capstone-db/image_server/pano_captures/sliced_test/new_50.jpg 640 1.85 -35
+슬라이스 720x720, fx=fy=360.0, cx=cy=360 | 높이=1.85m, 하향=-35.0deg
+필터 통과(HARD/AGENT+접지) 11개 (NMS 후)
+name          group          conf  하단중앙px      X(m)   Z(m)  D=√(X²+Z²)    접지잘림
+chair         HARD_OBSTACLE  0.76  (401,486)     0.24   1.33        1.35     아니오   wy=-0.860
+cardboard box HARD_OBSTACLE  0.73  (252,365)    -0.95   2.57        2.74     아니오   wy=-0.585
+chair         HARD_OBSTACLE  0.59  (128,421)    -1.67   1.87        2.51     아니오   wy=-0.712
+person        AGENT          0.58  (142,369)    -1.89   2.51        3.14     아니오   wy=-0.594
+chair         HARD_OBSTACLE  0.36  ( 31,383)    -2.70   2.31        3.56     아니오   wy=-0.626
+cardboard box HARD_OBSTACLE  0.33  (240,253)    -1.87   5.55        5.85     아니오   wy=-0.330
+cardboard box HARD_OBSTACLE  0.32  ( 51,682)    -1.22   0.43        1.29     아니오   wy=-1.306
+cardboard box HARD_OBSTACLE  0.26  (388,376)     0.24   2.41        2.42     아니오   wy=-0.610
+cardboard box HARD_OBSTACLE  0.24  (275,453)    -0.56   1.58        1.68     아니오   wy=-0.785
+cardboard box HARD_OBSTACLE  0.20  (334,368)    -0.23   2.52        2.53     아니오   wy=-0.592
+box           HARD_OBSTACLE  0.13  ( 76,257)    -4.30   5.36        6.88     아니오   wy=-0.339
+저장: /home/dg/capstone-db/image_server/pano_captures/sliced_test/new_50.jpg

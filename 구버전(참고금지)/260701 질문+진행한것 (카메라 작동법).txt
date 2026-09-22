@@ -1,0 +1,210 @@
+
+★★★★ 현재 설계방 (mast3r 필요성과 insta360 pro2 통합 파이프라인 설계), 구현방 (insta360 pro2 farsighr를 통한~). 2개 다 너무 채팅방 길어져서 토큰 다 잡아먹음.
+
+따라서 설계방, 구현방 모두 새로 파서 진행하기.
+논문 관련 설계 문서 <- 폴더에서 자료 참고해서 인수인계하기.
+새 설계방엔 A+C+설계내용+D. 이렇게 4개 전달.
+전체 구현방엔 구현작업절차+시스템 구현 통합문서(통합 문서가 기능인수인계 c 문서 흡수). 이렇게 2개.
+
++) mast3r은 지금 260630_MASt3R_속도최적화_상세구현.md + 구현방 인수인계 자료. 2개로 진행하기.
+--> sonnet으로 진행중. 필요하면 opus로 바꾸기.
+
+=====> 채팅방 토큰 이슈로 컴파일 이후 빠른 실행까지 확인할 수 있을듯.
+그 다음은 mast3r 최적화 마저 진행하고 실제 카메라 연동하고 마저 진행할 것.
+
+=================260701
+-새로운 구현방 : Insta360 Pro2 카메라 삼각대 고정 작업 계획 <- 에서 진행중.
+-카메라 삼각대 고정 완료.
+--> 컴퓨터에선 C:\Users\asdfa\docx2026_code>python pro2_auto_bg.py --count 3 돌리고
+서버에서는 (venv_stitch) dg@sysai-server2:~/capstone-db/image_server$ python3 pano_receiver.py <- 이거 돌려서 사진 보내고 받고, 서버 저장 확인함.
+
+/home/dg/capstone-db/image_server/pano_captures/pro2_anchor/PIC_20160212_013411__20260711_123419/equirect.jpg
+
+/home/dg/capstone-db/image_server/pano_captures/pro2_anchor/PIC_20160212_012944__20260711_141532/equirect.jpg
+
+python3 ~/capstone-db/docx2026/e2p.py ~/capstone-db/image_server/pano_captures/pro2_anchor/PIC_20160212_012944__20260711_141532/equirect.jpg ~/capstone-db/image_server/pano_captures/sliced_test/moved_u+150_v-35.jpg 150 -35
+--> 이게 E2P 돌려서 360도 사진 90도로 자르는 명령어. 음수 u값이 카메라 정면 기준 왼쪽이다. -180 ~ +180.
+==> e2p.py 돌리려면 venv_match 돌릴것. docx2026 폴더 안에 있다.
+
+=========1. 360도 카메라 이미지 perspective하게 자르기
+python3 ~/capstone-db/docx2026/e2p.py ~/capstone-db/image_server/pano_captures/pro2_anchor/PIC_20160212_012956__20260803_224133/equirect.jpg ~/capstone-db/image_server/pano_captures/sliced_test/new1_u+230_v-35.jpg 230 -35
+
+conda activate unidepth
+cd /home/dg/capstone-db/docx2026 && python detect_send_3b2_timed.py <슬라이스경로> /home/dg/capstone-db/image_server/unidepth_dual_yolo_config.yaml 640 1.85 -35 127.0.0.1 5010 obstacles_now.json
+
+=============2. conda unidepth 키고 detect 돌리기
+source /home/jny/miniconda3/etc/profile.d/conda.sh && conda activate unidepth
+
+
+# u+230 (우측 — 소화기·박스·의자)
+python3 ~/capstone-db/docx2026/detect_ground_3b1.py /home/dg/capstone-db/image_server/pano_captures/sliced_test/new1_u+230_v-35.jpg /home/dg/capstone-db/image_server/unidepth_dual_yolo_config.yaml /home/dg/capstone-db/image_server/pano_captures/sliced_test/new_230.jpg 640 1.85 -35
+
+# u+50 (좌측)
+python3 ~/capstone-db/docx2026/detect_ground_3b1.py /home/dg/capstone-db/image_server/pano_captures/sliced_test/new1_u+50_v-35.jpg /home/dg/capstone-db/image_server/unidepth_dual_yolo_config.yaml /home/dg/capstone-db/image_server/pano_captures/sliced_test/new_50.jpg 640 1.85 -35
+
+
+/home/dg/capstone-db/image_server/pano_captures/sliced_test/new1_u+50_v-35.jpg
+/home/dg/capstone-db/image_server/pano_captures/sliced_test/new1_u+230_v-35.jpg
+
+PIC_20160212_012956__20260803_224133/equirect.jpg
+
+b로봇 시점 이미지 4장 촬영함
+1. crop따서 반절만.
+python crop_go1.py go1_robot.jpg go1_left.jpg
+
+for n in 1 2 3 4; do python3 crop_center.py b_${n}_left.jpg b_${n}_left_tight.jpg; done
+
+2. B안 360도 이미지 perspective하기.
+(venv_match) dg@sysai-server2:~/capstone-db/docx2026$ for u in -90 -95 -100 -105; do python3 ~/capstone-db/docx2026/e2p.py ~/capstone-db/image_server/pano_captures/pro2_anchor/PIC_20160212_013539/equirect.jpg ~/capstone-db/image_server/pano_captures/sliced_test/360cam_u${u}_v-35.jpg $u -35; done
+저장: /home/dg/capstone-db/image_server/pano_captures/sliced_test/360cam_u-90_v-35.jpg
+저장: /home/dg/capstone-db/image_server/pano_captures/sliced_test/360cam_u-95_v-35.jpg
+저장: /home/dg/capstone-db/image_server/pano_captures/sliced_test/360cam_u-100_v-35.jpg
+저장: /home/dg/capstone-db/image_server/pano_captures/sliced_test/360cam_u-105_v-35.jpg
+==> 경로랑 각도 보기. u -90, -95, -100, 105. 이렇게 4장 뽑음.
+--> 360도 이미ㅣ지 perspective 자를때는 venv_match 켜기. 크롭도 마찬가지.
+=================================================
+
+
+3. 그거랑 mast3r로 자세 뽑기.
+--> 여러 u 각도에 하나의 b_1, b_2... 이런식으로. u 각도 여러개로 b 사진 하나씩 돌려보고
+결과 채팅방에 가져가기.
+
+for u in -90 -95 -100 -105; do python check_pose_sparse.py ~/capstone-db/image_server/pano_captures/sliced_test/360cam_u${u}_v-35.jpg ~/capstone-db/docx2026/images/b_1_left_tight.jpg --niter1 300 --niter2 300 --opt_depth 1; done
+
+for u in -90 -95 -100 -105; do python check_pose_sparse.py ~/capstone-db/image_server/pano_captures/sliced_test/360cam_u${u}_v-35.jpg ~/capstone-db/docx2026/images/b_1_left_tight.jpg; done
+
+==> 여기서 b_4_left. 숫자만 바꾸면 됨. b_1_left, b_2_left... 이렇게.
+
+==> b_1, b_2, b_3는 대략 카메라로부터 175cm.
+b_4는 대략 190cm정도 떨어져있음. 정확한 수치가 아니라 대략적임을 밝힘.
+165 / 180정도 --> 이건 카메라 밑둥 기준. 카메라 광학 기준으로는 10cm 추가해야 함.
+
+==> 위치는 b_3, B 각도는 u = -95, v = -35.
+
+
+
+
+=================================================
+4. 현재 b_1, b_2, b_3 로봇 이미지 찍은 위치가 굉장히 비슷했음에도 결과가 굉장히 변동성있었음.
+따라서 go1 원본 이미지를 잘 자르는게 중요.
+
+1. go1 원본 이미지 크롭따는 새 코드 생성
+2. 그걸로 원본 이미지 다시 크롭따기.
+--> venv_match) dg@sysai-server2:~/capstone-db/docx2026$ for n in 1 2 3 4; do python3 crop_center.py images/b_${n}_left.jpg images/b_${n}_left_tight.jpg; done
+
+★ dg@sysai-server2:~/capstone-db/docx2026/mast3에서 venv_match 키고 crop_center.py로 크롭따기. 
+
+3. 다시 반복 테스트 (pose sparse 32번.)
+※ dg@sysai-server2:~/capstone-db/docx2026/mast3에서 venv_mast3r 켜고 반복 테스트하기.
+
+for u in -90 -95 -100 -105; do TQDM_DISABLE=1 python check_pose_sparse.py ~/capstone-db/image_server/pano_captures/sliced_test/360cam_u${u}_v-35.jpg ~/capstone-db/docx2026/images/b_1_left_tight.jpg --niter1 300 --niter2 300 --opt_depth 1; done
+
+for u in -90 -95 -100 -105; do TQDM_DISABLE=1 python check_pose_sparse.py ~/capstone-db/image_server/pano_captures/sliced_test/360cam_u${u}_v-35.jpg ~/capstone-db/docx2026/images/b_1_left_tight.jpg; done
+
+이거 각각 돌리고 옴.
+
+4. 결과 가져가기.
+
+=========260630
+1. 카메라 촬영, stitch 이후 서버 전송 과정 자동화 구현
+-1. 카메라 키고 연결하고 기기 키기(260626 insta360 pro 작업내용.txt 참고)
+2. docx2026 폴더에서 pro2_auto 작동시키기
+3. 서버에서 image server로 이동, venv_stitch 가상환경 키고 pano_receiver.py 작동시키기
+
+## 현재 달성 요약
+
+기존 (원본 파일만 전송):
+촬영 → 다운로드 → 서버 전송 = 약 21초
+(서버엔 origin 6장 + pro.prj만 도착, stitch 안 됨)
+
+지금 (stitch까지 포함, 백그라운드 자동화):
+1번째 사진: 약 30초
+  (촬영계열 18.6s + stitch 11s, 첫 장은 stitch가 안 겹쳐서 지연 받음)
+
+2번째부터: 약 18.6초 주기로 1장씩
+  (촬영하는 18.6초 동안 직전 사진 stitch가 백그라운드로 끝남
+   → stitch 11초가 촬영 시간에 완전히 숨어서 체감 0초)
+
+핵심 정리:
+- 기존엔 원본만 21초에 보냈는데, 지금은 **stitch된 360 이미지**까지 만들어서 보내는데도 정상 주기가 **18.6초**로 오히려 더 빨라. (전송량이 origin 6장(13MB)에서 stitch 1장(3MB)으로 줄어든 덕도 있음)
+- stitch 품질은 **공식 Insta360 Stitcher와 동일** (같은 ai 엔진/설정).
+- 첫 장만 워밍업으로 ~11초 더 걸리는데, 이건 구조상 불가피(stitch는 사진이 찍혀야 시작 가능). 단, "로봇 켜기 전 미리 촬영" 운영이면 첫 지연은 실험 시작 전에 끝나서 체감 안 됨.
+
+한 줄로: **원본만 보내던 21초 → 이제 같은 시간대(18.6초)에 공식 품질 360 이미지까지 서버에 자동 적재.**
+정리 완료.
+
+==> 다음에 할것
+-mast3r 최적화 하기. 기존 사진 비교본이랑 비교해서 속도 줄이면서도 빠르게.
+--> 그 다음엔 카메라 실제로 삼각대에 배치하고 하기.
+
+====오늘 한 일
+1. 사진 촬영 > 저장 후 stitch > 서버에 360도 이미지 전송 자동 파이프라인 구축.
+2. 논문 outline 작성(오전)
+3. 캡스톤2 계획서 작성(오후)
+4. mast3r 최적화 완료하기
+--> mast3r은 매칭점, 자세뽑기. 이 2가지로 썼었는데 매칭점은 lightglue 대비 비교용(즉 논문 작성 용도)이고,
+go1 - 360도 카메라를 한 좌표계 묶는게 mast3r의 실 목적이고 그 결과가 자세(변환 행렬T). 즉 mast3r에서 자세 뽑는것만 최적화 하면 된다. 그리고 자세 추출 과정에서 매칭을 먼저하고 자세 계산이 한 묶음. 그래서 현재 18초 과정이 매칭+자세 전체 포함 시간임.
+
+정리하면
+MASt3R(360 perspective, GO1 이미지) → 변환행렬 T 산출
+이 T로 GO1이 검출한 장애물을 360° 기준 좌표계로 옮김
+Unity는 Anchor360 기준으로 그 좌표에 장애물 배치
+
+==> Sparse_global_alignment 하나가 내부에서 매칭→자세 순으로 처리하는 것. 이거 하나만 최적화하면 끝난다.
+=====> 채팅방 토큰 이슈로 컴파일 이후 빠른 실행까지 확인할 수 있을듯.
+그 다음은 mast3r 최적화 마저 진행하고 실제 카메라 연동하고 마저 진행할 것.
+컴파일 진행했는데 결과 미미함. 내일 다시 살펴보고 어떻게든 10초 이내로 줄여볼 것.
+
+결론 : mast3r 최적화(niter. 반복쪽 최적화)로 한 3초 줄임. 최종 mast3r 사이클은 14초. 성능에도 크게 영향 안미치면서 최선의 성능 나옴.
+
+
+----과정
+컴파일 위해서 miniconda 설치함.
+-> 이후 터미널 켤때마다 (base)가 앞에 붙음. 나중에 끌 수 있다. conda 기본환경이 자동 활성화 되는거.
+==> base 상태에서도 . venv_mast3r/bin/activate 하면 venv 켜짐. 
+자동 활성화가 싫으면 나중에 conda config --set auto_activate_base false로 끌 수 있음.
+conda deactivate -> 비활성화 명령어
+
+설치 로그.
+(base) dg@sysai-server2:~$ which conda
+/home/dg/miniconda3/bin/conda
+(base) dg@sysai-server2:~$ conda --version
+conda 26.3.2
+
+
+------
+
+
+
+
+
+
+==> 지금 정리할거
+-A+C+260629 설계내용+모호설계 정리 : 새 설계방에 전달해서 맥락 전체 이해 가능하게 하는 문서들
+--> D_설계결정근거_Rationale.md로 정리함. 나중에 설계방 새로 파면 A+B+설계내용+D. 이렇게 4개 주기.
+-260630_구현_작업_단계_절차.md : 기존 텍스트 파일은 의존도 기반 순위였는데 아예 정식으로 정리한 문서.
+--> 작업 이거 보고 진행하기.
+-260630_MASt3R_속도최적화_상세구현.md : 지금 만들었음. 이거대로 작업하기.
++) 260630_작업요약_pro2_stitch_자동화.md : stitch랑 사진 촬영, 전송 자동화 작업기록 요약본.
+
+===>260629
+1. 오늘 목표
+- 서버에 있는 pro2 카메라 원본 이미지 etangular하고 perspective하게 자른게
+공식 프로그램으로 한거랑 퀄리티가 비슷하도록 구현하기
+--> 360도 이미지 stitching 과정 잘 구현하는게 오늘 목표.
+==> stitching한 이미지 perspective하고 그걸로 mast3r 하고, 퀄리티 타협하면서 시간 신속하게 하는거 고안하기. 작업 자체가 반복 최적화 루프, 각 반복이 앞 결과에 의존하는 순차 작업이라 코어,gpu 많이 써도 순차 의존 루프는 병렬로 못쪼갬. 처리량 관련해서는 동시에 할 수 있으나 1번의 등록은 빠르게 못함. go1 2대 동시 돌리거나 perspective 3장 mast3r 매칭. 이런건 가능하나 1번 돌리는건 단축 크게 불가.
+
+-stitching 하고, 그거 mast3r 돌리고. stitching 구현이랑 mast3r 속도 높이고 퀄리티 타협. 2개 하기.
+
+오늘 한 것
+-설계 보강 (논문계획서(A) / 기능구현 인수인계 문서(C) / 260629 설계내용 (기반설계).TXT 참고하기.)
+-구현 작업 우선순위 초안 (260629 구현 작업 우선 순위.txt)
+
+-stitching 구현 : 컴퓨터 프로그램을 cli로 구현함. 공식 방법은 리눅스를 지원 안하거나 pro2를 지원 안함.
+=> 오늘은 stitch를 컴퓨터 자원으로 cli 구동하고 결과 받고, 그거 perspective하고 기존거랑 비교해보기.
+오늘은 stitch 최적화까지만. 그 다음에 mast3r 속도 빠르게.
+==> 이론상 최적화는 완료. 이제 촬영+다운로드+stitch 비동기 겹치기+서버 전송(stitch된 1장 이미지) 구동은 내일.
+
+내일 할 것
+mast3r 속도개선(최적화) 해야함
+-insta pro2 구동, 연결과 관련해서는 '260626 insta360 pro 관련 작업내용.txt' 참고하기

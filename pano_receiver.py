@@ -5,7 +5,7 @@ pano_receiver.py — Insta360 Pro2 파노라마 재료 수신 서버
   노트북에서 Pro2 촬영 파일(thumbnail / origin_1~6 / pro.prj 등)을 받아
   서버의 폴더에 '세트 단위'로 저장한다.
   - 기존 server_stream_depth_v2(포트 7864, GO1 스트리밍용)와 완전히 분리됨.
-  - 이 파일은 Pro2 전용 별도 경로. 포트 7865 사용.
+  - 이 파일은 Pro2 전용 별도 경로. 포트 7866 사용.
 
 [엔드포인트]
   POST /upload_pano
@@ -41,6 +41,17 @@ import uvicorn
 PANO_ROOT = "pano_captures"
 
 app = FastAPI()
+from fastapi.responses import FileResponse
+
+LATEST_JSON = os.path.expanduser(
+    "~/capstone-db/docx2026/live_out/anchor360_latest.json")
+
+@app.get("/anchor360_latest")
+async def anchor360_latest():
+    """360° 검출 결과 JSON. 랩실 PC가 당겨가서 유니티로 중계한다."""
+    if not os.path.exists(LATEST_JSON):
+        return {"status": "empty"}
+    return FileResponse(LATEST_JSON, media_type="application/json")
 
 
 def _safe_name(name: str) -> str:
@@ -67,8 +78,10 @@ async def upload_pano(
         save_path = os.path.join(save_dir, filename)
 
         data = await file.read()
-        with open(save_path, "wb") as f:
+        tmp_path = save_path + ".part"
+        with open(tmp_path, "wb") as f:
             f.write(data)
+        os.replace(tmp_path, save_path)
 
         size_kb = len(data) / 1024
         print(f"[pano] saved: {save_path} ({size_kb:.0f}KB)")
