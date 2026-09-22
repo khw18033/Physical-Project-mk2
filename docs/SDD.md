@@ -542,7 +542,9 @@ MQTT  stream{action:stop}
 `frame_ref = {source_id, capture_timestamp, sequence_id}` 를 프레임과 인지 결과 양쪽에
 실어 결합한다. 타임스탬프만으로는 두 평면의 지연 차 때문에 정합이 깨진다(SRS §9.5).
 
-v8 §6-9가 형식을 확정했다 — **`capture_timestamp` 는 epoch 밀리초 정수**다.
+v8 §6-9 는 epoch 밀리초 정수로 적었으나 **그것이 백엔드 문서 내부의 불일치였다**
+(백엔드 회신 §8-3, 2026-09-21). 실제 규약은 **오프셋 있는 ISO 8601 문자열**이고
+서버 수신단도 그것으로 검증한다.
 업무 메시지 봉투의 `timestamp`(ISO 8601 문자열)와 표기가 다르므로, 영상 경로에서는
 `schema.py` 의 봉투를 그대로 쓰지 않고 frame_ref 전용 표기를 따른다(SRS O-13 확인 대상).
 

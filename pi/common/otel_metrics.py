@@ -14,7 +14,8 @@ metric 5종 (노드 공통) — 여기에 더해 노드가 자기 도메인 지�
   4) hw.publish.count            발행 성공/실패 (outcome 속성으로 구분)
   5) hw.publish.duration         발행 지연(ms)
 
-export 주기 60초(HW-C-05). 계획서 초안의 15초와 상충하여 요구사항 정의서를 따랐다.
+export 주기 15초(HW-C-05). 2026-08-31 백엔드 값 채택으로 정의서가 개정됐다
+(SRS §9.11 · BACKEND_AGENDA §10-1). config.OTEL_EXPORT_INTERVAL 기본값도 15.0 이다.
 
 SDK 미설치·엔드포인트 미설정이면 조용히 no-op으로 떨어진다. 관측이 없다고 해서
 말단이 계측을 멈추면 안 되기 때문이다(관측은 업무의 전제조건이 아니다).
