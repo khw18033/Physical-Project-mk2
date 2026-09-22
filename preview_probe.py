@@ -1,0 +1,338 @@
+"""
+preview_probe.py — Insta360 Pro2 인카메라 실시간 스티칭 프리뷰 확인용 (0단계)
+
+[왜 필요한가]
+  curl 두 줄로는 안 된다. Pro2 는 camera._connect 로 Fingerprint 를 발급한 뒤
+  /osc/state 폴링(1초 주기)이 끊기면 세션을 "연결 끊김"으로 본다.
+  그래서 두 번째 curl 이 도착할 때쯤이면 disabledCommand 가 난다.
+  이 스크립트는 하트비트를 돌리면서 명령을 보내고 그대로 유지한다.
+
+[중요 — 주소]
+  camera._startPreview 응답의 _previewUrl 은 rtmp://127.0.0.1/live/preview 이다.
+  이건 "카메라 자기 자신 기준" 주소다. RTMP 서버는 카메라 안에서 돌고 있다.
+  PC 에서 열 때는 호스트를 카메라 IP 로 바꿔야 한다:
+      rtmp://192.168.100.124:1935/live/preview
+  이 스크립트가 자동으로 치환해서 출력한다.
+
+[세션은 하나뿐]
+  "already connected by another" 가 뜨면 다른 인스턴스나 Insta360 Pro 앱이
+  세션을 쥐고 있는 것이다. Pro2 는 제어 클라이언트를 하나만 붙인다.
+
+[사용]
+  python preview_probe.py                     # 3840x1920 @30fps 시작 후 유지
+  python preview_probe.py --fps 5             # 5fps 가 받아들여지는지 확인
+  python preview_probe.py --measure 10        # 10초간 실제 계측 (opencv 필요)
+  python preview_probe.py --restart --measure 10
+  python preview_probe.py --stop              # 프리뷰만 끄고 종료
+  python preview_probe.py --url rtmp://...    # 주소 직접 지정
+
+[의존]
+  requests (필수).  --measure 쓸 때만 opencv-python.
+"""
+
+import re
+import sys
+import json
+import time
+import signal
+import argparse
+import threading
+
+import requests
+
+DEF_IP = "192.168.100.124"
+
+fingerprint = None
+cam_ip_hint = [DEF_IP]
+hb_stop = threading.Event()
+hb_thread = None
+CMD_URL = None
+STATE_URL = None
+
+
+# ── 헤더 / 하트비트 ──────────────────────────────────────
+def headers():
+    h = {"Content-Type": "application/json"}
+    if fingerprint:
+        h["Fingerprint"] = fingerprint
+    return h
+
+
+def heartbeat():
+    """pro2_auto_bg.py 와 동일: /osc/state 를 1초마다 친다."""
+    while not hb_stop.is_set():
+        try:
+            requests.post(STATE_URL, json={}, headers=headers(), timeout=3)
+        except Exception:
+            pass
+        time.sleep(1)
+
+
+def start_heartbeat():
+    global hb_thread
+    hb_stop.clear()
+    hb_thread = threading.Thread(target=heartbeat, daemon=True)
+    hb_thread.start()
+
+
+def stop_heartbeat():
+    hb_stop.set()
+    if hb_thread:
+        hb_thread.join(timeout=3)
+
+
+# ── 카메라 ───────────────────────────────────────────────
+def connect(max_retry=3):
+    global fingerprint
+    for attempt in range(1, max_retry + 1):
+        try:
+            r = requests.post(
+                CMD_URL, json={"name": "camera._connect", "parameters": {}},
+                timeout=10)
+            body = r.json()
+            fp = body.get("results", {}).get("Fingerprint")
+            if fp:
+                fingerprint = fp
+                info = body.get("results", {}).get("last_info", {})
+                print("[연결] Fingerprint=%s  state=%s" % (fp, info.get("state")))
+                return True
+            err = body.get("error", {})
+            print("[연결] 시도 %d: %s — %s"
+                  % (attempt, err.get("code"), err.get("description")))
+            if err.get("description") == "already connected by another":
+                print("        → 다른 preview_probe 창이나 Insta360 Pro 앱이")
+                print("          세션을 쥐고 있습니다. 그것부터 닫으세요.")
+                return False
+        except Exception as e:
+            print("[연결] 시도 %d 실패: %s" % (attempt, e))
+        time.sleep(1.5)
+    return False
+
+
+def send(name, params=None, timeout=20):
+    body = {"name": name}
+    if params is not None:
+        body["parameters"] = params
+    r = requests.post(CMD_URL, json=body, headers=headers(), timeout=timeout)
+    try:
+        return r.json()
+    except Exception:
+        return {"state": "exception", "raw": r.text}
+
+
+def stop_preview(quiet=False):
+    res = send("camera._stopPreview", {})
+    if not quiet:
+        print("[정지] %s  %s" % (res.get("state"), res.get("error", "")))
+    return res
+
+
+def start_preview(args):
+    params = {
+        "origin": {
+            "mime": "h264", "width": 1920, "height": 1440,
+            "framerate": 30, "bitrate": 20480,
+        },
+        "stiching": {                     # 공식 API 철자 그대로 (stitching 아님)
+            "mode": "pano",
+            "mime": "h264",
+            "width": args.width,
+            "height": args.height,
+            "framerate": args.fps,
+            "bitrate": args.bitrate,
+        },
+        "stabilization": (not args.no_stab),
+    }
+    print("\n[요청] camera._startPreview  (stabilization=%s)"
+          % params["stabilization"])
+    print(json.dumps(params["stiching"], indent=2))
+    res = send("camera._startPreview", params)
+    print("\n[응답 전문]")
+    print(json.dumps(res, indent=2, ensure_ascii=False))
+    return res
+
+
+# ── 스트림 주소 ──────────────────────────────────────────
+def rewrite_host(url, cam_ip):
+    """
+    카메라가 준 127.0.0.1 을 카메라 IP 로 바꾸고, 포트가 없으면 기본값을 넣는다.
+    """
+    u = re.sub(r"//(127\.0\.0\.1|localhost)", "//" + cam_ip, url)
+    m = re.match(r"^(rtmp|rtsp)://([^/:]+)(/.*)$", u)      # 포트가 없는 경우
+    if m:
+        port = "1935" if m.group(1) == "rtmp" else "554"
+        u = "%s://%s:%s%s" % (m.group(1), m.group(2), port, m.group(3))
+    return u
+
+
+def find_preview_url(res, cam_ip):
+    """_previewUrl 이 어느 깊이에 오는지 문서에 확정이 없어 전수 탐색."""
+    found = []
+
+    def walk(node, path=""):
+        if isinstance(node, dict):
+            for k, v in node.items():
+                if isinstance(v, str) and ("rtmp://" in v or "rtsp://" in v):
+                    found.append((path + "/" + k, v, rewrite_host(v, cam_ip)))
+                walk(v, path + "/" + k)
+        elif isinstance(node, list):
+            for i, v in enumerate(node):
+                walk(v, "%s[%d]" % (path, i))
+
+    walk(res)
+    return found
+
+
+# ── 계측 (선택) ──────────────────────────────────────────
+def measure(url, seconds, out_jpg):
+    try:
+        import cv2
+    except ImportError:
+        print("\n[계측] opencv-python 이 없습니다.")
+        print("       pip install opencv-python")
+        print("       설치 후:  python preview_probe.py --restart --measure %d" % seconds)
+        print("       또는 ffmpeg 설치 후:")
+        print('         ffprobe -v error -show_streams "%s"' % url)
+        print('         ffplay "%s"' % url)
+        return
+
+    print("\n[계측] 스트림 여는 중... %s" % url)
+    t_open = time.time()
+    cap = cv2.VideoCapture(url)
+    if not cap.isOpened():
+        print("[계측] 열기 실패 (%.1fs)" % (time.time() - t_open))
+        print("  - 주소를 직접 지정해 보세요:")
+        print("      --url rtmp://%s:1935/live/preview" % cam_ip_hint[0])
+        print("  - opencv 가 rtmp 를 못 열면 ffmpeg 설치 후 ffprobe/ffplay 로 확인")
+        return
+    print("[계측] 열림 (%.2fs)  ← 콜드스타트 지연" % (time.time() - t_open))
+
+    n, first = 0, None
+    t0 = time.time()
+    while time.time() - t0 < seconds:
+        ok, frame = cap.read()
+        if not ok:
+            print("[계측] read 실패 — 스트림이 끊겼습니다. (%d프레임에서)" % n)
+            break
+        if first is None:
+            first = frame
+            h, w = frame.shape[:2]
+            ratio = (w / h) if h else 0
+            verdict = ("← equirect(2:1) 맞음" if abs(ratio - 2.0) < 0.05
+                       else "← 2:1 아님. 확인 필요")
+            print("[계측] 첫 프레임 %dx%d  종횡비 %.2f  %s" % (w, h, ratio, verdict))
+        n += 1
+    dt = time.time() - t0
+    cap.release()
+
+    if dt > 0:
+        print("[계측] %d프레임 / %.1f초 = 실측 %.1f fps" % (n, dt, n / dt))
+    if first is not None:
+        cv2.imwrite(out_jpg, first)
+        print("[계측] 첫 프레임 저장: %s" % out_jpg)
+        print("       → 이 파일을 서버로 올려 live.py --replay 로 돌리면")
+        print("         현행 ProStitcher 결과와 검출 좌표를 직접 대조할 수 있습니다.")
+
+
+# ── main ─────────────────────────────────────────────────
+def main():
+    global CMD_URL, STATE_URL
+
+    ap = argparse.ArgumentParser(description="Pro2 실시간 스티칭 프리뷰 확인")
+    ap.add_argument("--ip", default=DEF_IP, help="카메라 IP")
+    ap.add_argument("--width", type=int, default=3840)
+    ap.add_argument("--height", type=int, default=1920)
+    ap.add_argument("--fps", type=int, default=30, help="stiching framerate")
+    ap.add_argument("--bitrate", type=int, default=10240, help="kbps")
+    ap.add_argument("--measure", type=int, default=0,
+                    help="스트림을 N초간 열어 실제 fps/해상도 계측 (opencv 필요)")
+    ap.add_argument("--out", default="preview_frame.jpg",
+                    help="--measure 시 첫 프레임 저장 경로")
+    ap.add_argument("--url", default=None,
+                    help="스트림 주소 직접 지정 (자동 탐색 결과를 무시)")
+    ap.add_argument("--stop", action="store_true", help="프리뷰만 끄고 종료")
+    ap.add_argument("--restart", action="store_true", help="껐다 다시 켜기")
+    ap.add_argument("--no-stab", action="store_true",
+                    help="자이로 안정화를 끈다. ProStitcher 는 자이로 비활성으로 "
+                         "스티칭하므로, 두 경로의 피치 차이 원인을 가릴 때 쓴다")
+    args = ap.parse_args()
+
+    cam_ip_hint[0] = args.ip
+    CMD_URL = "http://%s:20000/osc/commands/execute" % args.ip
+    STATE_URL = "http://%s:20000/osc/state" % args.ip
+
+    print("=" * 66)
+    print("preview_probe — %s" % args.ip)
+    print("=" * 66)
+
+    if not connect():
+        print("\n카메라 연결 실패.")
+        print("  - 도달 확인:  ping -n 2 %s" % args.ip)
+        print("  - 다른 preview_probe 창 / Insta360 Pro 앱을 닫으세요")
+        sys.exit(1)
+
+    start_heartbeat()
+    time.sleep(0.5)          # 하트비트가 최소 1회 나간 뒤 명령
+
+    if args.stop:
+        stop_preview()
+        stop_heartbeat()
+        return
+
+    if args.restart:
+        stop_preview(quiet=True)
+        time.sleep(1.0)
+
+    res = start_preview(args)
+
+    if res.get("state") != "done":
+        err = res.get("error", {})
+        print("\n실패: %s — %s" % (err.get("code"), err.get("description")))
+        if err.get("code") == "disabledCommand":
+            print("  → 세션 문제. 다른 창/앱을 닫고 다시 실행하세요.")
+        else:
+            print("  → 이미 켜져 있을 수 있습니다:  --restart")
+        stop_heartbeat()
+        sys.exit(2)
+
+    urls = find_preview_url(res, args.ip)
+    if urls:
+        print("\n" + "=" * 66)
+        for path, raw, fixed in urls:
+            print("  카메라가 준 값 (%s) : %s" % (path, raw))
+            print("  PC 에서 열 주소             : %s" % fixed)
+            if fixed != raw:
+                print("    (카메라 자기 자신 기준 주소라 호스트를 카메라 IP 로 바꿨습니다)")
+        print("=" * 66)
+        stream_url = urls[0][2]
+    else:
+        print("\n응답에 rtmp/rtsp 주소가 없습니다. 위 응답 전문을 확인해 주세요.")
+        stream_url = "rtmp://%s:1935/live/preview" % args.ip
+
+    if args.url:
+        stream_url = args.url
+        print("\n[수동] 지정하신 주소를 씁니다: %s" % stream_url)
+
+    if args.measure:
+        measure(stream_url, args.measure, args.out)
+
+    print("\n하트비트 유지 중. 다른 창에서 스트림을 열어보세요:")
+    print('  ffplay "%s"' % stream_url)
+    print("Ctrl+C 로 프리뷰 정지 후 종료.\n")
+
+    def bye(sig, frm):
+        print("\n[종료] 프리뷰 정지 중...")
+        try:
+            stop_preview()
+        except Exception as e:
+            print("[종료] stopPreview 실패: %s" % e)
+        stop_heartbeat()
+        sys.exit(0)
+
+    signal.signal(signal.SIGINT, bye)
+    while True:
+        time.sleep(1)
+
+
+if __name__ == "__main__":
+    main()

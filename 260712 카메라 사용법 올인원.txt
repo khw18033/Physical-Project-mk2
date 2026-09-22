@@ -1,0 +1,102 @@
+
+1. 사진찍기
+-카메라 키고, 송신기 켜고 15초 기다리고 수신기 켜고 파란불 들어올때까지 기다리기
+-먼저 서버에서  (venv_stitch) dg@sysai-server2:~/capstone-db/image_server$ python3 pano_receiver.py 돌리기. 그래야 사진 받음
+--> venv_stitch는 image server 폴더 안에 있음.
+==> . venv_stitch/bin/activate
+
+-컴퓨터에선 C:\Users\asdfa\docx2026_code>python pro2_auto_bg.py --count 3 실행
+--> 서버에 360도 카메라 사진 들어올 것.
+
+/home/dg/capstone-db/image_server/pano_captures/pro2_anchor/PIC_20160212_012903__20260712_162240/equirect.jpg
+
+2. 사진 자르기
+python3 ~/capstone-db/docx2026/e2p.py ~/capstone-db/image_server/pano_captures/pro2_anchor/PIC_20160212_012903__20260712_162240/equirect.jpg ~/capstone-db/image_server/pano_captures/sliced_test/20260712_f2_u+230_v-35.jpg 230 -35
+---> 폴더 이름이랑 결과 사진 이름 알아서 잘 변경하기.
+==> venv_match 돌리기.docx2026쪽.
+====> . venv_match/bin/activate
+
+python3 ~/capstone-db/docx2026/e2p.py ~/capstone-db/image_server/pano_captures/pro2_anchor/PIC_20160212_012920__20260712_233711/equirect.jpg ~/capstone-db/image_server/pano_captures/sliced_test/20260712_f3_u+230_v-35.jpg 230 -35
+
+/home/dg/capstone-db/image_server/pano_captures/pro2_anchor/PIC_20160212_012928__20260712_145541/equirect.jpg
+
+
+==> 최신 : /home/dg/capstone-db/image_server/pano_captures/pro2_anchor/PIC_20160212_013201__20260712_155411/equirect.jpg
+
+python3 ~/capstone-db/docx2026/e2p.py ~/capstone-db/image_server/pano_captures/pro2_anchor/PIC_20160212_013201__20260712_155411/equirect.jpg ~/capstone-db/image_server/pano_captures/sliced_test/20260712_f1_u-60_v-35.jpg -60 -35
+
+
+for i in {1..4}; do u=$((225 + i * 5)); python3 ~/capstone-db/docx2026/e2p.py ~/capstone-db/image_server/pano_captures/pro2_anchor/PIC_20160212_012928__20260712_145541/equirect.jpg ~/capstone-db/image_server/pano_captures/sliced_test/20260712_t${i}_u+${u}_v-35.jpg ${u} -35; done
+
+
+3. zeroshot 명령어
+source /home/jny/miniconda3/etc/profile.d/conda.sh && conda activate unidepth && python3 ~/capstone-db/docx2026/detect_ground_3b1.py /home/dg/capstone-db/image_server/pano_captures/sliced_test/moved_u+150_v-35.jpg /home/dg/capstone-db/image_server/unidepth_dual_yolo_config.yaml /home/dg/capstone-db/image_server/pano_captures/sliced_test/new_test_1.jpg 640 1.85 -35
+--> 폴더 이름, 결과 사진 이름 변경 필요. 이게 zeroshot 돌리고 json 뽑고 제로샷 사진 저장하고, json 유니티로 전송하는것.
+
+==================
+
+지금 왼쪽 복도 끝 가장 잘 보이는건 u+50, v -35도.
+/home/dg/capstone-db/image_server/pano_captures/sliced_test/20260712_t2_u+50_v-35.jpg
+중앙쪽은 u+150, v-35도. 
+/home/dg/capstone-db/image_server/pano_captures/sliced_test/20260712_t3_u+150_v-35.jpg
+
+오른쪽은 u+230, v-35도.
+/home/dg/capstone-db/image_server/pano_captures/sliced_test/20260712_t1_u+230_v-35.jpg
+
+
+사진찍고 경로 받아서 50, 150, 230. 시도해보기.
+
+python3 ~/capstone-db/docx2026/e2p.py ~/capstone-db/image_server/pano_captures/pro2_anchor/PIC_20160212_013201__20260712_155411/equirect.jpg ~/capstone-db/image_server/pano_captures/sliced_test/20260712_f1_u+50_v-35.jpg 50 -35
+
+python3 ~/capstone-db/docx2026/e2p.py ~/capstone-db/image_server/pano_captures/pro2_anchor/PIC_20160212_013201__20260712_155411/equirect.jpg ~/capstone-db/image_server/pano_captures/sliced_test/20260712_f1_u+150_v-35.jpg 150 -35
+
+python3 ~/capstone-db/docx2026/e2p.py ~/capstone-db/image_server/pano_captures/pro2_anchor/PIC_20160212_013201__20260712_155411/equirect.jpg ~/capstone-db/image_server/pano_captures/sliced_test/20260712_f1_u+230_v-35.jpg 230 -35
+
+/home/dg/capstone-db/image_server/pano_captures/sliced_test/20260712_f1_u+50_v-35.jpg
+/home/dg/capstone-db/image_server/pano_captures/sliced_test/20260712_f1_u+150_v-35.jpg
+/home/dg/capstone-db/image_server/pano_captures/sliced_test/20260712_f1_u+230_v-35.jpg
+--> /home/dg/capstone-db/image_server/pano_captures/sliced_test/20260712_f2_u+230_v-35.jpg (230도만 이걸로 교체)
+
+===========이제 제로샷.
+
+source /home/jny/miniconda3/etc/profile.d/conda.sh && conda activate unidepth && python3 ~/capstone-db/docx2026/detect_ground_3b1.py /home/dg/capstone-db/image_server/pano_captures/sliced_test/20260712_f2_u+230_v-35.jpg /home/dg/capstone-db/image_server/unidepth_dual_yolo_config.yaml /home/dg/capstone-db/image_server/pano_captures/sliced_test/f3_3_230.jpg 640 1.85 -35
+
+20260712_f3_u+230_v-35.jpg
+
+source /home/jny/miniconda3/etc/profile.d/conda.sh && conda activate unidepth && python3 ~/capstone-db/docx2026/detect_ground_3b1.py /home/dg/capstone-db/image_server/pano_captures/sliced_test/20260712_f3_u+230_v-35.jpg /home/dg/capstone-db/image_server/unidepth_dual_yolo_config.yaml /home/dg/capstone-db/image_server/pano_captures/sliced_test/f_test_230.jpg 640 1.85 -35
+=> 
+
+===> 지금 소화기만 위치 옮겼음. 이거 확인 필요.
+이미지 까지 뽑고 
+
+dg@sysai-server2:~/capstone-db/image_server$ source /home/jny/miniconda3/etc/profile.d/conda.sh && conda activate unidepth && python3 ~/capstone-db/docx2026/detect_ground_3b1.py /home/dg/capstone-db/image_server/pano_captures/sliced_test/20260712_f3_u+230_v-35.jpg /home/dg/capstone-db/image_server/unidepth_dual_yolo_config.yaml /home/dg/capstone-db/image_server/pano_captures/sliced_test/f_test_230.jpg 640 1.85 -35
+WARNING: the configured environment variable(s) for prefix '/home/jny/miniconda3/envs/unidepth' are reserved and will be ignored: PATH.
+
+Remove the invalid configuration with `conda env config vars unset -p /home/jny/miniconda3/envs/unidepth PATH`.
+
+슬라이스 720x720, fx=fy=360.0, cx=cy=360 | 높이=1.85m, 하향=-35.0deg
+필터 통과(HARD/AGENT+접지) 13개 (NMS 후)
+name          group          conf  하단중앙px      X(m)   Z(m)  D=√(X²+Z²)    접지잘림
+fire extinguisherHARD_OBSTACLE  0.74  (433,556)     0.37   0.92        0.99     아니오   wy=-1.020
+cardboard box HARD_OBSTACLE  0.59  (428,354)     0.62   2.74        2.81     아니오   wy=-0.560
+storage box   HARD_OBSTACLE  0.51  ( 52,503)    -1.76   1.22        2.14     아니오   wy=-0.899
+storage box   HARD_OBSTACLE  0.49  ( 92,551)    -1.37   0.94        1.66     아니오   wy=-1.008
+box           HARD_OBSTACLE  0.42  (425,299)     0.77   3.90        3.97     아니오   wy=-0.435
+chair         HARD_OBSTACLE  0.41  (626,717)     0.99   0.33        1.04     아니오   wy=-1.386
+storage box   HARD_OBSTACLE  0.36  (464,259)     1.55   5.27        5.50     아니오   wy=-0.344
+table         HARD_OBSTACLE  0.30  (436,408)     0.57   2.01        2.09     아니오   wy=-0.683
+bench         HARD_OBSTACLE  0.26  (617,436)     1.77   1.73        2.47     아니오   wy=-0.747
+storage box   HARD_OBSTACLE  0.21  (137,481)    -1.35   1.37        1.92     아니오   wy=-0.849
+cardboard box HARD_OBSTACLE  0.20  (503,339)     1.40   3.00        3.31     아니오   wy=-0.526
+cardboard box HARD_OBSTACLE  0.17  (214,326)    -1.51   3.26        3.59     아니오   wy=-0.496
+cardboard box HARD_OBSTACLE  0.15  ( 39,412)    -2.38   1.97        3.09     아니오   wy=-0.692
+저장: /home/dg/capstone-db/image_server/pano_captures/sliced_test/f_test_230.jpg
+
+[검증] 슬라이스에서 그 큰 박스의 D 값을 실측 1.45m와 비교하세요.
+
+이렇게 뽑아둠. 지금 소화기는 책상으로 가깝게 10cm 가로, 박스와 가까워지게 10cm 옮겼음. 세로.
+이거 반영해서 5개 json 바꿔야하는지. 아니면 일단 실측 더 돌리고 할지 결정.
+==> 일단 재촬영 없이 그대로 유지. 로봇에서 얼마나 회전했냐만 받음. 이대로 실측(주행)데이터 3번 정도 쌓아보고 결과 나오게 하기.
+
+그리고 설계방 인수인계(로봇 2대 협력 주행 시스템 설계 및 실행 전략) 파일 받았음. 이걸로 설계방 인수인계 할것
+--> 그리고 F9로 받은 로봇 csv 데이터 이전 설계방에 주고 잘 되는지 확인하기.

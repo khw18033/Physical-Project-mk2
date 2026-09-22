@@ -1,0 +1,993 @@
+=======서버 1
+dg@sysai-server2:~$ cd ~/capstone-db && . venv_image/bin/activate
+(venv_image) dg@sysai-server2:~/capstone-db$ cd ~/capstone-db/image_server && python3 pano_receiver.py
+✅ pano_receiver starting on 0.0.0.0:7866
+   save root: /home/dg/capstone-db/image_server/pano_captures
+INFO:     Started server process [3180958]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:7866 (Press CTRL+C to quit)
+INFO:     203.230.104.168:63822 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:63823 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:63824 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:63826 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:63828 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:63829 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:63830 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:63832 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:63833 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:63834 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:63835 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:63838 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:63840 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:63841 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:63842 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:63843 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:63844 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:63845 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:63846 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:63851 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:63852 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:63853 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:63854 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:63855 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:63858 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:63860 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:63861 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:63862 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:63863 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:63867 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:63869 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:63870 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:63872 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:63875 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:63880 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:63881 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:63884 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:63885 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:63886 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:63887 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:63889 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:63890 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:63891 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:63892 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:63893 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:63895 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:63897 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:63898 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:63899 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:51208 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:51312 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:51434 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:50697 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:50779 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:57510 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:57626 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:57753 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:57810 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:53291 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:60927 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:61055 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:61185 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:61331 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:61416 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:61484 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:61623 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:61639 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:61745 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:61860 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:61885 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:61996 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:62061 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:62143 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:62276 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:62318 - "GET /anchor360_latest HTTP/1.1" 200 OK
+[pano] saved: pano_captures/pro2_anchor/PIC_20160212_012937__20260921_144645/equirect.jpg (3338KB)
+INFO:     203.230.104.168:62428 - "POST /upload_pano HTTP/1.1" 200 OK
+INFO:     203.230.104.168:62431 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:62565 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:62572 - "GET /anchor360_latest HTTP/1.1" 200 OK
+[pano] saved: pano_captures/pro2_anchor/PIC_20160212_012959__20260921_144702/equirect.jpg (3322KB)
+INFO:     203.230.104.168:63249 - "POST /upload_pano HTTP/1.1" 200 OK
+[pano] saved: pano_captures/pro2_anchor/PIC_20160212_013020__20260921_144726/equirect.jpg (3340KB)
+INFO:     203.230.104.168:63942 - "POST /upload_pano HTTP/1.1" 200 OK
+[pano] saved: pano_captures/pro2_anchor/PIC_20160212_013040__20260921_144746/equirect.jpg (3336KB)
+INFO:     203.230.104.168:64535 - "POST /upload_pano HTTP/1.1" 200 OK
+[pano] saved: pano_captures/pro2_anchor/PIC_20160212_013103__20260921_144811/equirect.jpg (3343KB)
+INFO:     203.230.104.168:65210 - "POST /upload_pano HTTP/1.1" 200 OK
+[pano] saved: pano_captures/pro2_anchor/PIC_20160212_013128__20260921_144830/equirect.jpg (3313KB)
+INFO:     203.230.104.168:49563 - "POST /upload_pano HTTP/1.1" 200 OK
+[pano] saved: pano_captures/pro2_anchor/PIC_20160212_013146__20260921_144848/equirect.jpg (3339KB)
+INFO:     203.230.104.168:50302 - "POST /upload_pano HTTP/1.1" 200 OK
+[pano] saved: pano_captures/pro2_anchor/PIC_20160212_013203__20260921_144909/equirect.jpg (3350KB)
+INFO:     203.230.104.168:50973 - "POST /upload_pano HTTP/1.1" 200 OK
+[pano] saved: pano_captures/pro2_anchor/PIC_20160212_013223__20260921_144929/equirect.jpg (3326KB)
+INFO:     203.230.104.168:51538 - "POST /upload_pano HTTP/1.1" 200 OK
+[pano] saved: pano_captures/pro2_anchor/PIC_20160212_013243__20260921_144949/equirect.jpg (3340KB)
+INFO:     203.230.104.168:52255 - "POST /upload_pano HTTP/1.1" 200 OK
+[pano] saved: pano_captures/pro2_anchor/PIC_20160212_013303__20260921_145009/equirect.jpg (3340KB)
+INFO:     203.230.104.168:53117 - "POST /upload_pano HTTP/1.1" 200 OK
+INFO:     203.230.104.168:53659 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:53800 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:53868 - "GET /anchor360_latest HTTP/1.1" 200 OK
+[pano] saved: pano_captures/pro2_anchor/PIC_20160212_013323__20260921_145025/equirect.jpg (3342KB)
+INFO:     203.230.104.168:53938 - "POST /upload_pano HTTP/1.1" 200 OK
+INFO:     203.230.104.168:53947 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:53958 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:54096 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:54125 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:54249 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:54322 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:54390 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:54536 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:54611 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:54669 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:54698 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:54804 - "GET /anchor360_latest HTTP/1.1" 200 OK
+[pano] saved: pano_captures/pro2_anchor/PIC_20160212_013341__20260921_145043/equirect.jpg (3282KB)
+INFO:     203.230.104.168:54808 - "POST /upload_pano HTTP/1.1" 200 OK
+INFO:     203.230.104.168:54822 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:54929 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:54948 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:54969 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:55107 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:55229 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:55253 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:55389 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:55425 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:55525 - "GET /anchor360_latest HTTP/1.1" 200 OK
+[pano] saved: pano_captures/pro2_anchor/PIC_20160212_013357__20260921_145059/equirect.jpg (3340KB)
+INFO:     203.230.104.168:55527 - "POST /upload_pano HTTP/1.1" 200 OK
+INFO:     203.230.104.168:55546 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:55676 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:55695 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:55746 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:55829 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:55897 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:55963 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:56035 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:56124 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:56133 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:56137 - "GET /anchor360_latest HTTP/1.1" 200 OK
+[pano] saved: pano_captures/pro2_anchor/PIC_20160212_013413__20260921_145119/equirect.jpg (3336KB)
+INFO:     203.230.104.168:56284 - "POST /upload_pano HTTP/1.1" 200 OK
+INFO:     203.230.104.168:56296 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:56370 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:56436 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:56440 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:56528 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:56665 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:56693 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:56813 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:56879 - "GET /anchor360_latest HTTP/1.1" 200 OK
+[pano] saved: pano_captures/pro2_anchor/PIC_20160212_013433__20260921_145136/equirect.jpg (3340KB)
+INFO:     203.230.104.168:56958 - "POST /upload_pano HTTP/1.1" 200 OK
+INFO:     203.230.104.168:56968 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:57030 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:57046 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:57057 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:57084 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:57122 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:57228 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:57356 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:57386 - "GET /anchor360_latest HTTP/1.1" 200 OK
+[pano] saved: pano_captures/pro2_anchor/PIC_20160212_013450__20260921_145156/equirect.jpg (3332KB)
+INFO:     203.230.104.168:57387 - "POST /upload_pano HTTP/1.1" 200 OK
+INFO:     203.230.104.168:57402 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:57511 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:57522 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:57535 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:57669 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:57727 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:57758 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:57848 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:57870 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:57994 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:58115 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:58141 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:58230 - "GET /anchor360_latest HTTP/1.1" 200 OK
+[pano] saved: pano_captures/pro2_anchor/PIC_20160212_013511__20260921_145217/equirect.jpg (3334KB)
+INFO:     203.230.104.168:58231 - "POST /upload_pano HTTP/1.1" 200 OK
+INFO:     203.230.104.168:58241 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:58321 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:58387 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:58416 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:58425 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:58525 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:58543 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:58667 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:58685 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:58778 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:58818 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:58925 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:58968 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:58978 - "GET /anchor360_latest HTTP/1.1" 200 OK
+[pano] saved: pano_captures/pro2_anchor/PIC_20160212_013531__20260921_145237/equirect.jpg (3333KB)
+INFO:     203.230.104.168:59048 - "POST /upload_pano HTTP/1.1" 200 OK
+INFO:     203.230.104.168:59051 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:59119 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:59183 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:59191 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:59334 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:59460 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:59474 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:59599 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:59733 - "GET /anchor360_latest HTTP/1.1" 200 OK
+[pano] saved: pano_captures/pro2_anchor/PIC_20160212_013553__20260921_145259/equirect.jpg (3331KB)
+INFO:     203.230.104.168:59737 - "POST /upload_pano HTTP/1.1" 200 OK
+INFO:     203.230.104.168:59742 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:59870 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:59893 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:59903 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:59977 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:60106 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:60186 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:60253 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:60334 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:60444 - "GET /anchor360_latest HTTP/1.1" 200 OK
+[pano] saved: pano_captures/pro2_anchor/PIC_20160212_013613__20260921_145319/equirect.jpg (3350KB)
+INFO:     203.230.104.168:60478 - "POST /upload_pano HTTP/1.1" 200 OK
+INFO:     203.230.104.168:60485 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:60587 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:60623 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:60629 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:60720 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:60744 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:60872 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:60949 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:61034 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:61049 - "GET /anchor360_latest HTTP/1.1" 200 OK
+[pano] saved: pano_captures/pro2_anchor/PIC_20160212_013634__20260921_145339/equirect.jpg (3336KB)
+INFO:     203.230.104.168:61145 - "POST /upload_pano HTTP/1.1" 200 OK
+INFO:     203.230.104.168:61157 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:61301 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:61317 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:61344 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:61419 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:61563 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:61584 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:61702 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:61847 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:61870 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:61958 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:61961 - "GET /anchor360_latest HTTP/1.1" 200 OK
+[pano] saved: pano_captures/pro2_anchor/PIC_20160212_013658__20260921_145404/equirect.jpg (3338KB)
+INFO:     203.230.104.168:61971 - "POST /upload_pano HTTP/1.1" 200 OK
+INFO:     203.230.104.168:61998 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:62105 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:62107 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:62109 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:62232 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:62347 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:62362 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:62427 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:62430 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:62432 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:62516 - "GET /anchor360_latest HTTP/1.1" 200 OK
+[pano] saved: pano_captures/pro2_anchor/PIC_20160212_013720__20260921_145425/equirect.jpg (3340KB)
+INFO:     203.230.104.168:62519 - "POST /upload_pano HTTP/1.1" 200 OK
+INFO:     203.230.104.168:62554 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:62630 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:62631 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:62767 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:62838 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:62887 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:63005 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:63008 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:63009 - "GET /anchor360_latest HTTP/1.1" 200 OK
+^CINFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [3180958]
+(venv_image) dg@sysai-server2:~/capstone-db/image_server$ 
+
+
+
+
+
+========서버 2
+(venv_image) dg@sysai-server2:~/capstone-db$ cd ~/capstone-db/docx2026
+(venv_image) dg@sysai-server2:~/capstone-db/docx2026$ python3 anchor360_live.py --drop-clipped --max-dist 8 --debug-img --save-slice
+==============================================================
+anchor360_live — 360° 실시간 장애물 파이프라인
+  슬라이스   : u=+50.0deg, v=-35.0deg, 720x720
+  카메라     : 높이 1.85m, 하향 -35.0deg
+  Unity      : UDP 192.168.50.246:5010
+  필터       : 접지잘림제외=ON, 최대거리=8m
+  감시 대상  : /home/dg/capstone-db/image_server/pano_captures/pro2_anchor
+  출력       : /home/dg/capstone-db/docx2026/live_out
+  슬라이스백업: /home/dg/capstone-db/docx2026/live_out/slices
+  작업 디렉터리: /home/dg/capstone-db/docx2026  (CLIP 캐시 기준)
+==============================================================
+[live] config : /home/dg/capstone-db/image_server/unidepth_dual_yolo_config.yaml
+[live] weight : /home/dg/capstone-db/image_server/yolov8s-world.pt
+[live] classes: 59개, conf=0.12, iou=0.45
+[live] 모델 로드 8.58s + 워밍업 0.84s — 상주 완료
+
+[live] 기존 최신 사진은 건너뜁니다: PIC_20160212_013401__20260915_164030
+[live] 새 사진 대기 중... (Ctrl+C 로 종료)
+
+[live] #1 PIC_20160212_012937__20260921_144645  전송 8개 (걸러냄 1개)  | read 0.09s  slice 0.09s  infer 0.05s  총 0.25s  | UDP OK → 192.168.50.246:5010
+        chair           HARD_OBSTACLE  pos3d=(-0.23, 0, +0.73) D= 0.76  conf=0.77  wy=-1.117
+        person          AGENT          pos3d=(-2.08, 0, +2.35) D= 3.14  conf=0.77  wy=-0.620
+        chair           HARD_OBSTACLE  pos3d=(-1.03, 0, +0.74) D= 1.27  conf=0.67  wy=-1.112
+        chair           HARD_OBSTACLE  pos3d=(-1.84, 0, +1.81) D= 2.59  conf=0.45  wy=-0.726
+        fire extinguisherHARD_OBSTACLE  pos3d=(+1.25, 0, +0.80) D= 1.48  conf=0.40  wy=-1.080
+        cardboard box   HARD_OBSTACLE  pos3d=(-1.87, 0, +5.33) D= 5.65  conf=0.30  wy=-0.341
+        cardboard box   HARD_OBSTACLE  pos3d=(+0.85, 0, +2.57) D= 2.71  conf=0.17  wy=-0.584
+        cardboard box   HARD_OBSTACLE  pos3d=(+0.21, 0, +2.38) D= 2.38  conf=0.16  wy=-0.615
+        [제외:     >8m] storage box     D=11.48  conf=0.25
+[live] #2 PIC_20160212_012959__20260921_144702  전송 6개 (걸러냄 1개)  | read 0.09s  slice 0.01s  infer 0.05s  총 0.15s  | UDP OK → 192.168.50.246:5010
+        chair           HARD_OBSTACLE  pos3d=(-0.23, 0, +0.73) D= 0.76  conf=0.78  wy=-1.117
+        chair           HARD_OBSTACLE  pos3d=(-1.03, 0, +0.74) D= 1.26  conf=0.68  wy=-1.111
+        chair           HARD_OBSTACLE  pos3d=(-1.70, 0, +1.61) D= 2.34  conf=0.58  wy=-0.778
+        fire extinguisherHARD_OBSTACLE  pos3d=(+1.25, 0, +0.79) D= 1.49  conf=0.40  wy=-1.081
+        cardboard box   HARD_OBSTACLE  pos3d=(-1.88, 0, +5.37) D= 5.69  conf=0.27  wy=-0.339
+        storage box     HARD_OBSTACLE  pos3d=(+0.85, 0, +2.58) D= 2.71  conf=0.17  wy=-0.583
+        [제외:     >8m] storage box     D=11.49  conf=0.25
+[live] #3 PIC_20160212_013020__20260921_144726  전송 8개 (걸러냄 1개)  | read 0.07s  slice 0.01s  infer 0.05s  총 0.14s  | UDP OK → 192.168.50.246:5010
+        chair           HARD_OBSTACLE  pos3d=(-0.23, 0, +0.73) D= 0.76  conf=0.77  wy=-1.117
+        person          AGENT          pos3d=(-1.81, 0, +2.25) D= 2.88  conf=0.73  wy=-0.638
+        chair           HARD_OBSTACLE  pos3d=(-1.03, 0, +0.74) D= 1.27  conf=0.66  wy=-1.111
+        chair           HARD_OBSTACLE  pos3d=(-1.80, 0, +1.86) D= 2.59  conf=0.43  wy=-0.717
+        fire extinguisherHARD_OBSTACLE  pos3d=(+1.26, 0, +0.80) D= 1.49  conf=0.39  wy=-1.081
+        cardboard box   HARD_OBSTACLE  pos3d=(-1.84, 0, +5.25) D= 5.57  conf=0.34  wy=-0.345
+        cardboard box   HARD_OBSTACLE  pos3d=(+0.21, 0, +2.38) D= 2.38  conf=0.22  wy=-0.615
+        storage box     HARD_OBSTACLE  pos3d=(+0.85, 0, +2.57) D= 2.71  conf=0.15  wy=-0.584
+        [제외:     >8m] storage box     D=11.48  conf=0.25
+[live] #4 PIC_20160212_013040__20260921_144746  전송 6개 (걸러냄 1개)  | read 0.07s  slice 0.01s  infer 0.04s  총 0.13s  | UDP OK → 192.168.50.246:5010
+        person          AGENT          pos3d=(-1.36, 0, +1.90) D= 2.34  conf=0.93  wy=-0.706
+        chair           HARD_OBSTACLE  pos3d=(-0.23, 0, +0.73) D= 0.76  conf=0.80  wy=-1.117
+        chair           HARD_OBSTACLE  pos3d=(-1.03, 0, +0.74) D= 1.27  conf=0.75  wy=-1.111
+        fire extinguisherHARD_OBSTACLE  pos3d=(+1.26, 0, +0.80) D= 1.49  conf=0.40  wy=-1.079
+        cardboard box   HARD_OBSTACLE  pos3d=(+0.21, 0, +2.37) D= 2.38  conf=0.29  wy=-0.616
+        storage box     HARD_OBSTACLE  pos3d=(+0.86, 0, +2.60) D= 2.74  conf=0.18  wy=-0.580
+        [제외:     >8m] storage box     D=11.62  conf=0.24
+[live] #5 PIC_20160212_013103__20260921_144811  전송 8개 (걸러냄 1개)  | read 0.07s  slice 0.01s  infer 0.04s  총 0.13s  | UDP OK → 192.168.50.246:5010
+        person          AGENT          pos3d=(-1.84, 0, +2.29) D= 2.93  conf=0.85  wy=-0.631
+        chair           HARD_OBSTACLE  pos3d=(-0.23, 0, +0.73) D= 0.76  conf=0.79  wy=-1.116
+        chair           HARD_OBSTACLE  pos3d=(-1.03, 0, +0.74) D= 1.26  conf=0.70  wy=-1.111
+        chair           HARD_OBSTACLE  pos3d=(-1.86, 0, +1.86) D= 2.63  conf=0.60  wy=-0.716
+        fire extinguisherHARD_OBSTACLE  pos3d=(+1.26, 0, +0.80) D= 1.49  conf=0.42  wy=-1.079
+        cardboard box   HARD_OBSTACLE  pos3d=(+0.21, 0, +2.37) D= 2.38  conf=0.30  wy=-0.616
+        box             HARD_OBSTACLE  pos3d=(-1.78, 0, +5.09) D= 5.40  conf=0.23  wy=-0.353
+        box             HARD_OBSTACLE  pos3d=(+0.86, 0, +2.59) D= 2.73  conf=0.18  wy=-0.581
+        [제외:     >8m] storage box     D=11.63  conf=0.26
+[live] #6 PIC_20160212_013128__20260921_144830  전송 8개 (걸러냄 1개)  | read 0.07s  slice 0.01s  infer 0.04s  총 0.14s  | UDP OK → 192.168.50.246:5010
+        person          AGENT          pos3d=(-1.84, 0, +2.29) D= 2.94  conf=0.85  wy=-0.630
+        chair           HARD_OBSTACLE  pos3d=(-0.23, 0, +0.73) D= 0.76  conf=0.78  wy=-1.117
+        chair           HARD_OBSTACLE  pos3d=(-1.03, 0, +0.74) D= 1.26  conf=0.69  wy=-1.111
+        chair           HARD_OBSTACLE  pos3d=(-1.86, 0, +1.86) D= 2.64  conf=0.61  wy=-0.715
+        fire extinguisherHARD_OBSTACLE  pos3d=(+1.26, 0, +0.80) D= 1.49  conf=0.47  wy=-1.079
+        cardboard box   HARD_OBSTACLE  pos3d=(+0.21, 0, +2.37) D= 2.38  conf=0.24  wy=-0.616
+        box             HARD_OBSTACLE  pos3d=(-1.80, 0, +5.13) D= 5.44  conf=0.24  wy=-0.352
+        storage box     HARD_OBSTACLE  pos3d=(+0.86, 0, +2.60) D= 2.73  conf=0.23  wy=-0.580
+        [제외:     >8m] storage box     D=11.65  conf=0.25
+[live] #7 PIC_20160212_013146__20260921_144848  전송 8개 (걸러냄 1개)  | read 0.07s  slice 0.01s  infer 0.05s  총 0.14s  | UDP OK → 192.168.50.246:5010
+        person          AGENT          pos3d=(-1.85, 0, +2.30) D= 2.95  conf=0.82  wy=-0.629
+        chair           HARD_OBSTACLE  pos3d=(-0.23, 0, +0.72) D= 0.76  conf=0.79  wy=-1.118
+        chair           HARD_OBSTACLE  pos3d=(-1.03, 0, +0.74) D= 1.26  conf=0.70  wy=-1.111
+        chair           HARD_OBSTACLE  pos3d=(-1.87, 0, +1.86) D= 2.64  conf=0.59  wy=-0.715
+        fire extinguisherHARD_OBSTACLE  pos3d=(+1.26, 0, +0.80) D= 1.49  conf=0.45  wy=-1.079
+        cardboard box   HARD_OBSTACLE  pos3d=(+0.21, 0, +2.37) D= 2.38  conf=0.27  wy=-0.616
+        cardboard box   HARD_OBSTACLE  pos3d=(-1.86, 0, +5.30) D= 5.62  conf=0.26  wy=-0.342
+        storage box     HARD_OBSTACLE  pos3d=(+0.86, 0, +2.60) D= 2.74  conf=0.20  wy=-0.580
+        [제외:     >8m] storage box     D=11.66  conf=0.25
+[live] #8 PIC_20160212_013203__20260921_144909  전송 8개 (걸러냄 1개)  | read 0.07s  slice 0.01s  infer 0.05s  총 0.14s  | UDP OK → 192.168.50.246:5010
+        person          AGENT          pos3d=(-1.86, 0, +2.31) D= 2.97  conf=0.79  wy=-0.626
+        chair           HARD_OBSTACLE  pos3d=(-0.23, 0, +0.72) D= 0.76  conf=0.79  wy=-1.118
+        chair           HARD_OBSTACLE  pos3d=(-1.03, 0, +0.74) D= 1.26  conf=0.73  wy=-1.111
+        chair           HARD_OBSTACLE  pos3d=(-1.87, 0, +1.87) D= 2.64  conf=0.61  wy=-0.714
+        fire extinguisherHARD_OBSTACLE  pos3d=(+1.26, 0, +0.80) D= 1.50  conf=0.41  wy=-1.079
+        cardboard box   HARD_OBSTACLE  pos3d=(+0.21, 0, +2.37) D= 2.38  conf=0.27  wy=-0.616
+        cardboard box   HARD_OBSTACLE  pos3d=(-1.84, 0, +5.22) D= 5.54  conf=0.26  wy=-0.347
+        storage box     HARD_OBSTACLE  pos3d=(+0.86, 0, +2.60) D= 2.73  conf=0.20  wy=-0.580
+        [제외:     >8m] storage box     D=11.63  conf=0.26
+[live] #9 PIC_20160212_013223__20260921_144929  전송 8개 (걸러냄 1개)  | read 0.05s  slice 0.01s  infer 0.05s  총 0.11s  | UDP OK → 192.168.50.246:5010
+        person          AGENT          pos3d=(-1.89, 0, +2.30) D= 2.98  conf=0.81  wy=-0.628
+        chair           HARD_OBSTACLE  pos3d=(-0.23, 0, +0.72) D= 0.76  conf=0.79  wy=-1.118
+        chair           HARD_OBSTACLE  pos3d=(-1.03, 0, +0.74) D= 1.26  conf=0.73  wy=-1.111
+        chair           HARD_OBSTACLE  pos3d=(-1.85, 0, +1.84) D= 2.61  conf=0.58  wy=-0.720
+        fire extinguisherHARD_OBSTACLE  pos3d=(+1.26, 0, +0.80) D= 1.49  conf=0.40  wy=-1.079
+        cardboard box   HARD_OBSTACLE  pos3d=(+0.21, 0, +2.37) D= 2.38  conf=0.32  wy=-0.616
+        cardboard box   HARD_OBSTACLE  pos3d=(-1.86, 0, +5.30) D= 5.62  conf=0.27  wy=-0.342
+        storage box     HARD_OBSTACLE  pos3d=(+0.86, 0, +2.59) D= 2.73  conf=0.19  wy=-0.581
+        [제외:     >8m] storage box     D=11.63  conf=0.25
+[live] #10 PIC_20160212_013243__20260921_144949  전송 8개 (걸러냄 1개)  | read 0.07s  slice 0.01s  infer 0.05s  총0.14s  | UDP OK → 192.168.50.246:5010
+        chair           HARD_OBSTACLE  pos3d=(-0.23, 0, +0.72) D= 0.76  conf=0.81  wy=-1.119
+        chair           HARD_OBSTACLE  pos3d=(-1.02, 0, +0.73) D= 1.26  conf=0.77  wy=-1.112
+        chair           HARD_OBSTACLE  pos3d=(-1.69, 0, +1.79) D= 2.46  conf=0.61  wy=-0.732
+        fire extinguisherHARD_OBSTACLE  pos3d=(+1.26, 0, +0.80) D= 1.49  conf=0.45  wy=-1.079
+        cardboard box   HARD_OBSTACLE  pos3d=(+0.21, 0, +2.37) D= 2.38  conf=0.27  wy=-0.616
+        chair           HARD_OBSTACLE  pos3d=(-0.69, 0, +2.04) D= 2.15  conf=0.23  wy=-0.677
+        box             HARD_OBSTACLE  pos3d=(-1.79, 0, +5.12) D= 5.43  conf=0.21  wy=-0.352
+        storage box     HARD_OBSTACLE  pos3d=(+0.86, 0, +2.59) D= 2.73  conf=0.17  wy=-0.581
+        [제외:     >8m] storage box     D=11.63  conf=0.25
+[live] #11 PIC_20160212_013303__20260921_145009  전송 8개 (걸러냄 1개)  | read 0.07s  slice 0.01s  infer 0.05s  총0.14s  | UDP OK → 192.168.50.246:5010
+        chair           HARD_OBSTACLE  pos3d=(-0.23, 0, +0.72) D= 0.76  conf=0.81  wy=-1.118
+        chair           HARD_OBSTACLE  pos3d=(-1.02, 0, +0.74) D= 1.26  conf=0.76  wy=-1.112
+        person          AGENT          pos3d=(-1.89, 0, +2.26) D= 2.95  conf=0.60  wy=-0.635
+        chair           HARD_OBSTACLE  pos3d=(-1.76, 0, +1.78) D= 2.50  conf=0.54  wy=-0.735
+        fire extinguisherHARD_OBSTACLE  pos3d=(+1.26, 0, +0.80) D= 1.49  conf=0.44  wy=-1.079
+        cardboard box   HARD_OBSTACLE  pos3d=(+0.21, 0, +2.37) D= 2.38  conf=0.27  wy=-0.616
+        storage box     HARD_OBSTACLE  pos3d=(+0.86, 0, +2.60) D= 2.73  conf=0.20  wy=-0.580
+        cardboard box   HARD_OBSTACLE  pos3d=(-1.86, 0, +5.30) D= 5.62  conf=0.19  wy=-0.342
+        [제외:     >8m] storage box     D=11.64  conf=0.23
+[live] #12 PIC_20160212_013323__20260921_145025  전송 8개 (걸러냄 1개)  | read 0.07s  slice 0.01s  infer 0.05s  총0.14s  | UDP OK → 192.168.50.246:5010
+        chair           HARD_OBSTACLE  pos3d=(-0.23, 0, +0.73) D= 0.76  conf=0.80  wy=-1.118
+        chair           HARD_OBSTACLE  pos3d=(-1.03, 0, +0.74) D= 1.26  conf=0.75  wy=-1.111
+        person          AGENT          pos3d=(-1.90, 0, +2.28) D= 2.96  conf=0.63  wy=-0.632
+        chair           HARD_OBSTACLE  pos3d=(-1.75, 0, +1.77) D= 2.49  conf=0.56  wy=-0.736
+        fire extinguisherHARD_OBSTACLE  pos3d=(+1.26, 0, +0.80) D= 1.49  conf=0.45  wy=-1.079
+        cardboard box   HARD_OBSTACLE  pos3d=(+0.21, 0, +2.37) D= 2.38  conf=0.31  wy=-0.616
+        cardboard box   HARD_OBSTACLE  pos3d=(-1.86, 0, +5.32) D= 5.63  conf=0.23  wy=-0.342
+        cardboard box   HARD_OBSTACLE  pos3d=(+0.86, 0, +2.59) D= 2.73  conf=0.18  wy=-0.581
+        [제외:     >8m] storage box     D=11.62  conf=0.24
+[live] #13 PIC_20160212_013341__20260921_145043  전송 8개 (걸러냄 1개)  | read 0.07s  slice 0.01s  infer 0.05s  총0.14s  | UDP OK → 192.168.50.246:5010
+        chair           HARD_OBSTACLE  pos3d=(-0.23, 0, +0.72) D= 0.76  conf=0.79  wy=-1.118
+        chair           HARD_OBSTACLE  pos3d=(-1.03, 0, +0.74) D= 1.26  conf=0.73  wy=-1.111
+        person          AGENT          pos3d=(-1.89, 0, +2.25) D= 2.94  conf=0.59  wy=-0.637
+        chair           HARD_OBSTACLE  pos3d=(-1.77, 0, +1.78) D= 2.51  conf=0.53  wy=-0.735
+        fire extinguisherHARD_OBSTACLE  pos3d=(+1.26, 0, +0.80) D= 1.49  conf=0.41  wy=-1.078
+        cardboard box   HARD_OBSTACLE  pos3d=(+0.21, 0, +2.37) D= 2.38  conf=0.25  wy=-0.616
+        cardboard box   HARD_OBSTACLE  pos3d=(-1.87, 0, +5.32) D= 5.64  conf=0.21  wy=-0.341
+        box             HARD_OBSTACLE  pos3d=(+0.86, 0, +2.60) D= 2.73  conf=0.16  wy=-0.580
+        [제외:     >8m] storage box     D=11.64  conf=0.22
+[live] #14 PIC_20160212_013357__20260921_145059  전송 8개 (걸러냄 2개)  | read 0.07s  slice 0.01s  infer 0.04s  총0.13s  | UDP OK → 192.168.50.246:5010
+        chair           HARD_OBSTACLE  pos3d=(-0.23, 0, +0.73) D= 0.76  conf=0.79  wy=-1.117
+        chair           HARD_OBSTACLE  pos3d=(-1.03, 0, +0.74) D= 1.26  conf=0.73  wy=-1.111
+        person          AGENT          pos3d=(-1.90, 0, +2.28) D= 2.97  conf=0.59  wy=-0.632
+        chair           HARD_OBSTACLE  pos3d=(-1.77, 0, +1.78) D= 2.51  conf=0.53  wy=-0.735
+        fire extinguisherHARD_OBSTACLE  pos3d=(+1.26, 0, +0.80) D= 1.49  conf=0.41  wy=-1.078
+        cardboard box   HARD_OBSTACLE  pos3d=(+0.21, 0, +2.38) D= 2.38  conf=0.28  wy=-0.615
+        cardboard box   HARD_OBSTACLE  pos3d=(-1.85, 0, +5.28) D= 5.59  conf=0.24  wy=-0.343
+        storage box     HARD_OBSTACLE  pos3d=(+0.86, 0, +2.59) D= 2.73  conf=0.19  wy=-0.581
+        [제외:     >8m] storage box     D=11.65  conf=0.24
+        [제외:    접지잘림] storage box     D= 0.41  conf=0.16
+[live] #15 PIC_20160212_013413__20260921_145119  전송 8개 (걸러냄 1개)  | read 0.07s  slice 0.01s  infer 0.04s  총0.13s  | UDP OK → 192.168.50.246:5010
+        chair           HARD_OBSTACLE  pos3d=(-0.23, 0, +0.72) D= 0.76  conf=0.81  wy=-1.118
+        chair           HARD_OBSTACLE  pos3d=(-1.03, 0, +0.74) D= 1.26  conf=0.75  wy=-1.112
+        person          AGENT          pos3d=(-1.89, 0, +2.25) D= 2.94  conf=0.61  wy=-0.636
+        chair           HARD_OBSTACLE  pos3d=(-1.77, 0, +1.78) D= 2.51  conf=0.54  wy=-0.734
+        fire extinguisherHARD_OBSTACLE  pos3d=(+1.26, 0, +0.80) D= 1.49  conf=0.44  wy=-1.079
+        cardboard box   HARD_OBSTACLE  pos3d=(-1.86, 0, +5.30) D= 5.62  conf=0.25  wy=-0.342
+        cardboard box   HARD_OBSTACLE  pos3d=(+0.21, 0, +2.37) D= 2.38  conf=0.23  wy=-0.616
+        storage box     HARD_OBSTACLE  pos3d=(+0.86, 0, +2.60) D= 2.73  conf=0.20  wy=-0.580
+        [제외:     >8m] storage box     D=11.64  conf=0.24
+[live] #16 PIC_20160212_013433__20260921_145136  전송 8개 (걸러냄 2개)  | read 0.07s  slice 0.01s  infer 0.04s  총0.13s  | UDP OK → 192.168.50.246:5010
+        chair           HARD_OBSTACLE  pos3d=(-0.23, 0, +0.72) D= 0.76  conf=0.81  wy=-1.118
+        chair           HARD_OBSTACLE  pos3d=(-1.02, 0, +0.74) D= 1.26  conf=0.76  wy=-1.112
+        person          AGENT          pos3d=(-1.89, 0, +2.27) D= 2.96  conf=0.62  wy=-0.634
+        chair           HARD_OBSTACLE  pos3d=(-1.76, 0, +1.78) D= 2.50  conf=0.56  wy=-0.735
+        fire extinguisherHARD_OBSTACLE  pos3d=(+1.26, 0, +0.80) D= 1.49  conf=0.46  wy=-1.079
+        cardboard box   HARD_OBSTACLE  pos3d=(+0.21, 0, +2.37) D= 2.38  conf=0.27  wy=-0.616
+        cardboard box   HARD_OBSTACLE  pos3d=(-1.85, 0, +5.27) D= 5.59  conf=0.26  wy=-0.344
+        storage box     HARD_OBSTACLE  pos3d=(+0.86, 0, +2.59) D= 2.73  conf=0.20  wy=-0.581
+        [제외:     >8m] storage box     D=11.62  conf=0.24
+        [제외:    접지잘림] storage box     D= 0.41  conf=0.15
+[live] #17 PIC_20160212_013450__20260921_145156  전송 8개 (걸러냄 2개)  | read 0.08s  slice 0.01s  infer 0.04s  총0.13s  | UDP OK → 192.168.50.246:5010
+        chair           HARD_OBSTACLE  pos3d=(-0.22, 0, +0.73) D= 0.76  conf=0.79  wy=-1.116
+        chair           HARD_OBSTACLE  pos3d=(-1.03, 0, +0.74) D= 1.26  conf=0.74  wy=-1.111
+        person          AGENT          pos3d=(-1.89, 0, +2.26) D= 2.95  conf=0.61  wy=-0.635
+        chair           HARD_OBSTACLE  pos3d=(-1.76, 0, +1.77) D= 2.50  conf=0.55  wy=-0.736
+        fire extinguisherHARD_OBSTACLE  pos3d=(+1.26, 0, +0.80) D= 1.49  conf=0.46  wy=-1.078
+        cardboard box   HARD_OBSTACLE  pos3d=(+0.21, 0, +2.37) D= 2.38  conf=0.27  wy=-0.616
+        cardboard box   HARD_OBSTACLE  pos3d=(-1.87, 0, +5.32) D= 5.64  conf=0.24  wy=-0.341
+        storage box     HARD_OBSTACLE  pos3d=(+0.86, 0, +2.59) D= 2.73  conf=0.20  wy=-0.581
+        [제외:     >8m] storage box     D=11.68  conf=0.24
+        [제외:    접지잘림] storage box     D= 0.41  conf=0.16
+[live] #18 PIC_20160212_013511__20260921_145217  전송 8개 (걸러냄 1개)  | read 0.07s  slice 0.01s  infer 0.05s  총0.14s  | UDP OK → 192.168.50.246:5010
+        chair           HARD_OBSTACLE  pos3d=(-0.23, 0, +0.72) D= 0.76  conf=0.80  wy=-1.119
+        chair           HARD_OBSTACLE  pos3d=(-1.03, 0, +0.74) D= 1.26  conf=0.74  wy=-1.112
+        person          AGENT          pos3d=(-1.90, 0, +2.26) D= 2.96  conf=0.59  wy=-0.635
+        chair           HARD_OBSTACLE  pos3d=(-1.76, 0, +1.78) D= 2.50  conf=0.57  wy=-0.735
+        fire extinguisherHARD_OBSTACLE  pos3d=(+1.26, 0, +0.80) D= 1.49  conf=0.43  wy=-1.079
+        cardboard box   HARD_OBSTACLE  pos3d=(+0.21, 0, +2.37) D= 2.38  conf=0.26  wy=-0.616
+        cardboard box   HARD_OBSTACLE  pos3d=(-1.86, 0, +5.29) D= 5.61  conf=0.24  wy=-0.343
+        storage box     HARD_OBSTACLE  pos3d=(+0.86, 0, +2.59) D= 2.73  conf=0.21  wy=-0.581
+        [제외:     >8m] storage box     D=11.69  conf=0.24
+[live] #19 PIC_20160212_013531__20260921_145237  전송 8개 (걸러냄 1개)  | read 0.07s  slice 0.01s  infer 0.04s  총0.13s  | UDP OK → 192.168.50.246:5010
+        chair           HARD_OBSTACLE  pos3d=(-0.23, 0, +0.72) D= 0.76  conf=0.80  wy=-1.118
+        chair           HARD_OBSTACLE  pos3d=(-1.03, 0, +0.74) D= 1.26  conf=0.76  wy=-1.111
+        person          AGENT          pos3d=(-1.87, 0, +2.24) D= 2.92  conf=0.61  wy=-0.638
+        chair           HARD_OBSTACLE  pos3d=(-1.76, 0, +1.77) D= 2.50  conf=0.55  wy=-0.736
+        fire extinguisherHARD_OBSTACLE  pos3d=(+1.26, 0, +0.80) D= 1.49  conf=0.41  wy=-1.079
+        cardboard box   HARD_OBSTACLE  pos3d=(+0.21, 0, +2.37) D= 2.38  conf=0.31  wy=-0.616
+        cardboard box   HARD_OBSTACLE  pos3d=(-1.86, 0, +5.29) D= 5.61  conf=0.24  wy=-0.343
+        cardboard box   HARD_OBSTACLE  pos3d=(+0.86, 0, +2.59) D= 2.73  conf=0.19  wy=-0.582
+        [제외:     >8m] storage box     D=11.65  conf=0.24
+[live] #20 PIC_20160212_013553__20260921_145259  전송 8개 (걸러냄 2개)  | read 0.07s  slice 0.01s  infer 0.04s  총0.13s  | UDP OK → 192.168.50.246:5010
+        chair           HARD_OBSTACLE  pos3d=(-0.23, 0, +0.73) D= 0.76  conf=0.79  wy=-1.117
+        chair           HARD_OBSTACLE  pos3d=(-1.03, 0, +0.74) D= 1.26  conf=0.72  wy=-1.111
+        person          AGENT          pos3d=(-1.89, 0, +2.29) D= 2.97  conf=0.67  wy=-0.630
+        chair           HARD_OBSTACLE  pos3d=(-1.76, 0, +1.78) D= 2.50  conf=0.50  wy=-0.735
+        fire extinguisherHARD_OBSTACLE  pos3d=(+1.26, 0, +0.80) D= 1.49  conf=0.41  wy=-1.078
+        cardboard box   HARD_OBSTACLE  pos3d=(+0.21, 0, +2.37) D= 2.38  conf=0.28  wy=-0.617
+        cardboard box   HARD_OBSTACLE  pos3d=(-1.86, 0, +5.31) D= 5.63  conf=0.24  wy=-0.342
+        storage box     HARD_OBSTACLE  pos3d=(+0.86, 0, +2.60) D= 2.73  conf=0.22  wy=-0.580
+        [제외:     >8m] storage box     D=11.63  conf=0.24
+        [제외:    접지잘림] storage box     D= 0.41  conf=0.15
+[live] #21 PIC_20160212_013613__20260921_145319  전송 8개 (걸러냄 1개)  | read 0.07s  slice 0.01s  infer 0.05s  총0.14s  | UDP OK → 192.168.50.246:5010
+        chair           HARD_OBSTACLE  pos3d=(-0.23, 0, +0.72) D= 0.76  conf=0.80  wy=-1.118
+        chair           HARD_OBSTACLE  pos3d=(-1.03, 0, +0.74) D= 1.26  conf=0.74  wy=-1.111
+        person          AGENT          pos3d=(-1.90, 0, +2.27) D= 2.96  conf=0.60  wy=-0.634
+        chair           HARD_OBSTACLE  pos3d=(-1.76, 0, +1.77) D= 2.50  conf=0.54  wy=-0.736
+        fire extinguisherHARD_OBSTACLE  pos3d=(+1.26, 0, +0.80) D= 1.49  conf=0.44  wy=-1.079
+        cardboard box   HARD_OBSTACLE  pos3d=(+0.21, 0, +2.38) D= 2.38  conf=0.29  wy=-0.615
+        cardboard box   HARD_OBSTACLE  pos3d=(-1.85, 0, +5.26) D= 5.58  conf=0.21  wy=-0.345
+        storage box     HARD_OBSTACLE  pos3d=(+0.86, 0, +2.59) D= 2.73  conf=0.20  wy=-0.581
+        [제외:     >8m] storage box     D=11.62  conf=0.24
+[live] #22 PIC_20160212_013634__20260921_145339  전송 8개 (걸러냄 2개)  | read 0.07s  slice 0.01s  infer 0.05s  총0.14s  | UDP OK → 192.168.50.246:5010
+        chair           HARD_OBSTACLE  pos3d=(-0.23, 0, +0.72) D= 0.76  conf=0.80  wy=-1.118
+        chair           HARD_OBSTACLE  pos3d=(-1.03, 0, +0.74) D= 1.26  conf=0.74  wy=-1.111
+        person          AGENT          pos3d=(-1.89, 0, +2.25) D= 2.94  conf=0.57  wy=-0.637
+        chair           HARD_OBSTACLE  pos3d=(-1.77, 0, +1.78) D= 2.51  conf=0.57  wy=-0.734
+        fire extinguisherHARD_OBSTACLE  pos3d=(+1.26, 0, +0.80) D= 1.49  conf=0.39  wy=-1.078
+        cardboard box   HARD_OBSTACLE  pos3d=(+0.21, 0, +2.37) D= 2.38  conf=0.28  wy=-0.616
+        cardboard box   HARD_OBSTACLE  pos3d=(-1.86, 0, +5.30) D= 5.62  conf=0.25  wy=-0.342
+        box             HARD_OBSTACLE  pos3d=(+0.86, 0, +2.59) D= 2.72  conf=0.19  wy=-0.582
+        [제외:     >8m] storage box     D=11.65  conf=0.26
+        [제외:    접지잘림] storage box     D= 0.41  conf=0.17
+[live] #23 PIC_20160212_013658__20260921_145404  전송 8개 (걸러냄 2개)  | read 0.07s  slice 0.01s  infer 0.05s  총0.14s  | UDP OK → 192.168.50.246:5010
+        chair           HARD_OBSTACLE  pos3d=(-0.23, 0, +0.72) D= 0.76  conf=0.81  wy=-1.119
+        chair           HARD_OBSTACLE  pos3d=(-1.02, 0, +0.74) D= 1.26  conf=0.76  wy=-1.112
+        person          AGENT          pos3d=(-1.88, 0, +2.25) D= 2.93  conf=0.59  wy=-0.637
+        chair           HARD_OBSTACLE  pos3d=(-1.77, 0, +1.78) D= 2.51  conf=0.54  wy=-0.735
+        fire extinguisherHARD_OBSTACLE  pos3d=(+1.26, 0, +0.80) D= 1.49  conf=0.46  wy=-1.079
+        cardboard box   HARD_OBSTACLE  pos3d=(+0.21, 0, +2.37) D= 2.38  conf=0.27  wy=-0.616
+        cardboard box   HARD_OBSTACLE  pos3d=(-1.85, 0, +5.27) D= 5.59  conf=0.25  wy=-0.344
+        storage box     HARD_OBSTACLE  pos3d=(+0.86, 0, +2.59) D= 2.73  conf=0.18  wy=-0.581
+        [제외:     >8m] storage box     D=11.64  conf=0.25
+        [제외:    접지잘림] storage box     D= 0.42  conf=0.15
+[live] #24 PIC_20160212_013720__20260921_145425  전송 8개 (걸러냄 2개)  | read 0.07s  slice 0.01s  infer 0.05s  총0.14s  | UDP OK → 192.168.50.246:5010
+        chair           HARD_OBSTACLE  pos3d=(-0.23, 0, +0.72) D= 0.76  conf=0.81  wy=-1.118
+        chair           HARD_OBSTACLE  pos3d=(-1.02, 0, +0.74) D= 1.26  conf=0.77  wy=-1.112
+        person          AGENT          pos3d=(-1.90, 0, +2.30) D= 2.99  conf=0.68  wy=-0.628
+        chair           HARD_OBSTACLE  pos3d=(-1.76, 0, +1.77) D= 2.50  conf=0.59  wy=-0.736
+        fire extinguisherHARD_OBSTACLE  pos3d=(+1.26, 0, +0.80) D= 1.49  conf=0.45  wy=-1.079
+        box             HARD_OBSTACLE  pos3d=(-1.80, 0, +5.13) D= 5.44  conf=0.30  wy=-0.351
+        cardboard box   HARD_OBSTACLE  pos3d=(+0.21, 0, +2.37) D= 2.38  conf=0.30  wy=-0.616
+        storage box     HARD_OBSTACLE  pos3d=(+0.86, 0, +2.59) D= 2.73  conf=0.20  wy=-0.581
+        [제외:     >8m] storage box     D=11.61  conf=0.25
+        [제외:    접지잘림] storage box     D= 0.41  conf=0.17
+^C
+[live] 종료 요청 — 현재 작업 마치고 정리합니다.
+
+[live] 종료. 처리한 사진 24장.
+
+
+
+
+
+==========컴퓨터 1 (중간에 카메라 껐음)
+:\Users\asdfa\docx2026_code>python pro2_auto_bg.py
+=======================================================
+pro2 auto (background stitch)
+  count=무한, interval=0s
+  stitch: ai, tf=1, 3840x1920
+  Ctrl+C로 종료 (남은 stitch 작업 마치고 정리)
+=======================================================
+[+   1.2s] camera connected
+
+[+   1.2s] ── 촬영 #1 ──
+[+  22.9s] 촬영 #1 완료 → 큐에 추가 (PIC_20160212_012937__20260921_144645, 촬영계열 21.7s, 큐 대기 0)
+
+[+  22.9s] ── 촬영 #2 ──
+[+  42.7s] 촬영 #2 완료 → 큐에 추가 (PIC_20160212_012959__20260921_144702, 촬영계열 19.8s, 큐 대기 0)
+
+[+  42.8s] ── 촬영 #3 ──
+[+  64.3s] 촬영 #3 완료 → 큐에 추가 (PIC_20160212_013020__20260921_144726, 촬영계열 21.5s, 큐 대기 1)
+
+[+  64.3s] ── 촬영 #4 ──
+[+  87.0s] 촬영 #4 완료 → 큐에 추가 (PIC_20160212_013040__20260921_144746, 촬영계열 22.6s, 큐 대기 2)
+
+[+  87.0s] ── 촬영 #5 ──
+[+  89.3s] [worker] stitched PIC_20160212_012937__20260921_144645 (66.4s)
+[+  89.6s] [worker] ✅ uploaded PIC_20160212_012937__20260921_144645 (total 66.7s)
+[+ 111.8s] 촬영 #5 완료 → 큐에 추가 (PIC_20160212_013103__20260921_144811, 촬영계열 24.9s, 큐 대기 2)
+
+[+ 111.8s] ── 촬영 #6 ──
+[+ 129.8s] 촬영 #6 완료 → 큐에 추가 (PIC_20160212_013128__20260921_144830, 촬영계열 18.0s, 큐 대기 3)
+[+ 129.8s] ⚠️ 큐 3개 적체 — stitch가 촬영을 못 따라감
+
+[+ 129.9s] ── 촬영 #7 ──
+[+ 139.1s] [worker] stitched PIC_20160212_012959__20260921_144702 (49.3s)
+[+ 139.4s] [worker] ✅ uploaded PIC_20160212_012959__20260921_144702 (total 49.6s)
+[+ 147.3s] 촬영 #7 완료 → 큐에 추가 (PIC_20160212_013146__20260921_144848, 촬영계열 17.4s, 큐 대기 3)
+[+ 147.3s] ⚠️ 큐 3개 적체 — stitch가 촬영을 못 따라감
+
+[+ 147.3s] ── 촬영 #8 ──
+[+ 166.9s] 촬영 #8 완료 → 큐에 추가 (PIC_20160212_013203__20260921_144909, 촬영계열 19.6s, 큐 대기 4)
+[+ 166.9s] ⚠️ 큐 4개 적체 — stitch가 촬영을 못 따라감
+
+[+ 166.9s] ── 촬영 #9 ──
+[+ 183.6s] [worker] stitched PIC_20160212_013020__20260921_144726 (44.2s)
+[+ 183.8s] [worker] ✅ uploaded PIC_20160212_013020__20260921_144726 (total 44.4s)
+[+ 186.9s] 촬영 #9 완료 → 큐에 추가 (PIC_20160212_013223__20260921_144929, 촬영계열 20.0s, 큐 대기 4)
+[+ 186.9s] ⚠️ 큐 4개 적체 — stitch가 촬영을 못 따라감
+
+[+ 186.9s] ── 촬영 #10 ──
+[+ 206.7s] 촬영 #10 완료 → 큐에 추가 (PIC_20160212_013243__20260921_144949, 촬영계열 19.8s, 큐 대기 5)
+[+ 206.7s] ⚠️ 큐 5개 적체 — stitch가 촬영을 못 따라감
+
+[+ 206.7s] ── 촬영 #11 ──
+[+ 226.8s] 촬영 #11 완료 → 큐에 추가 (PIC_20160212_013303__20260921_145009, 촬영계열 20.1s, 큐 대기 6)
+[+ 226.8s] ⚠️ 큐 6개 적체 — stitch가 촬영을 못 따라감
+
+[+ 226.8s] ── 촬영 #12 ──
+[+ 230.1s] [worker] stitched PIC_20160212_013040__20260921_144746 (46.3s)
+[+ 230.4s] [worker] ✅ uploaded PIC_20160212_013040__20260921_144746 (total 46.5s)
+[+ 243.6s] 촬영 #12 완료 → 큐에 추가 (PIC_20160212_013323__20260921_145025, 촬영계열 16.8s, 큐 대기 6)
+[+ 243.8s] ⚠️ 큐 6개 적체 — stitch가 촬영을 못 따라감
+
+[+ 243.8s] ── 촬영 #13 ──
+[+ 260.9s] 촬영 #13 완료 → 큐에 추가 (PIC_20160212_013341__20260921_145043, 촬영계열 17.1s, 큐 대기 7)
+[+ 260.9s] ⚠️ 큐 7개 적체 — stitch가 촬영을 못 따라감
+
+[+ 260.9s] ── 촬영 #14 ──
+[+ 277.1s] 촬영 #14 완료 → 큐에 추가 (PIC_20160212_013357__20260921_145059, 촬영계열 16.2s, 큐 대기 8)
+[+ 277.1s] ⚠️ 큐 8개 적체 — stitch가 촬영을 못 따라감
+
+[+ 277.1s] ── 촬영 #15 ──
+[+ 280.0s] [worker] stitched PIC_20160212_013103__20260921_144811 (49.6s)
+[+ 280.1s] [worker] ✅ uploaded PIC_20160212_013103__20260921_144811 (total 49.8s)
+[+ 297.4s] 촬영 #15 완료 → 큐에 추가 (PIC_20160212_013413__20260921_145119, 촬영계열 20.3s, 큐 대기 8)
+[+ 297.4s] ⚠️ 큐 8개 적체 — stitch가 촬영을 못 따라감
+
+[+ 297.4s] ── 촬영 #16 ──
+[+ 313.9s] 촬영 #16 완료 → 큐에 추가 (PIC_20160212_013433__20260921_145136, 촬영계열 16.5s, 큐 대기 9)
+[+ 313.9s] ⚠️ 큐 9개 적체 — stitch가 촬영을 못 따라감
+
+[+ 313.9s] ── 촬영 #17 ──
+[+ 328.8s] [worker] stitched PIC_20160212_013128__20260921_144830 (48.7s)
+[+ 329.0s] [worker] ✅ uploaded PIC_20160212_013128__20260921_144830 (total 48.9s)
+[+ 335.0s] 촬영 #17 완료 → 큐에 추가 (PIC_20160212_013450__20260921_145156, 촬영계열 21.1s, 큐 대기 9)
+[+ 335.0s] ⚠️ 큐 9개 적체 — stitch가 촬영을 못 따라감
+
+[+ 335.0s] ── 촬영 #18 ──
+[+ 355.3s] 촬영 #18 완료 → 큐에 추가 (PIC_20160212_013511__20260921_145217, 촬영계열 20.3s, 큐 대기 10)
+[+ 355.3s] ⚠️ 큐 10개 적체 — stitch가 촬영을 못 따라감
+
+[+ 355.3s] ── 촬영 #19 ──
+[+ 377.0s] 촬영 #19 완료 → 큐에 추가 (PIC_20160212_013531__20260921_145237, 촬영계열 21.7s, 큐 대기 11)
+[+ 377.0s] ⚠️ 큐 11개 적체 — stitch가 촬영을 못 따라감
+
+[+ 377.0s] ── 촬영 #20 ──
+[+ 385.6s] [worker] stitched PIC_20160212_013146__20260921_144848 (56.6s)
+[+ 385.9s] [worker] ✅ uploaded PIC_20160212_013146__20260921_144848 (total 56.9s)
+[+ 397.1s] 촬영 #20 완료 → 큐에 추가 (PIC_20160212_013553__20260921_145259, 촬영계열 20.1s, 큐 대기 11)
+[+ 397.1s] ⚠️ 큐 11개 적체 — stitch가 촬영을 못 따라감
+
+[+ 397.2s] ── 촬영 #21 ──
+[+ 417.7s] 촬영 #21 완료 → 큐에 추가 (PIC_20160212_013613__20260921_145319, 촬영계열 20.5s, 큐 대기 12)
+[+ 417.7s] ⚠️ 큐 12개 적체 — stitch가 촬영을 못 따라감
+
+[+ 417.7s] ── 촬영 #22 ──
+[+ 428.8s] [worker] stitched PIC_20160212_013203__20260921_144909 (42.8s)
+[+ 429.1s] [worker] ✅ uploaded PIC_20160212_013203__20260921_144909 (total 43.1s)
+[+ 441.1s] 촬영 #22 완료 → 큐에 추가 (PIC_20160212_013634__20260921_145339, 촬영계열 23.4s, 큐 대기 12)
+[+ 441.1s] ⚠️ 큐 12개 적체 — stitch가 촬영을 못 따라감
+
+[+ 441.1s] ── 촬영 #23 ──
+[+ 463.2s] 촬영 #23 완료 → 큐에 추가 (PIC_20160212_013658__20260921_145404, 촬영계열 22.0s, 큐 대기 13)
+[+ 463.2s] ⚠️ 큐 13개 적체 — stitch가 촬영을 못 따라감
+
+[+ 463.2s] ── 촬영 #24 ──
+[+ 476.2s] [worker] stitched PIC_20160212_013223__20260921_144929 (47.1s)
+[+ 476.4s] [worker] ✅ uploaded PIC_20160212_013223__20260921_144929 (total 47.4s)
+[+ 483.0s] 촬영 #24 완료 → 큐에 추가 (PIC_20160212_013720__20260921_145425, 촬영계열 19.8s, 큐 대기 13)
+[+ 483.0s] ⚠️ 큐 13개 적체 — stitch가 촬영을 못 따라감
+
+[+ 483.0s] ── 촬영 #25 ──
+[+ 503.8s] 촬영 #25 완료 → 큐에 추가 (PIC_20160212_013740__20260921_145445, 촬영계열 20.7s, 큐 대기 14)
+[+ 503.8s] ⚠️ 큐 14개 적체 — stitch가 촬영을 못 따라감
+
+[+ 503.8s] ── 촬영 #26 ──
+[+ 523.8s] 촬영 #26 완료 → 큐에 추가 (PIC_20160212_013800__20260921_145505, 촬영계열 20.0s, 큐 대기 15)
+[+ 523.8s] ⚠️ 큐 15개 적체 — stitch가 촬영을 못 따라감
+
+[+ 523.8s] ── 촬영 #27 ──
+[+ 542.6s] [worker] stitched PIC_20160212_013243__20260921_144949 (66.1s)
+[+ 542.6s] 촬영 #27 완료 → 큐에 추가 (PIC_20160212_013820__20260921_145523, 촬영계열 18.8s, 큐 대기 16)
+[+ 542.7s] ⚠️ 큐 16개 적체 — stitch가 촬영을 못 따라감
+
+[+ 542.8s] ── 촬영 #28 ──
+[+ 543.1s] [worker] ✅ uploaded PIC_20160212_013243__20260921_144949 (total 66.6s)
+[+ 563.8s] 촬영 #28 완료 → 큐에 추가 (PIC_20160212_013839__20260921_145546, 촬영계열 21.1s, 큐 대기 16)
+[+ 563.8s] ⚠️ 큐 16개 적체 — stitch가 촬영을 못 따라감
+
+[+ 563.9s] ── 촬영 #29 ──
+[+ 583.7s] 촬영 #29 완료 → 큐에 추가 (PIC_20160212_013900__20260921_145606, 촬영계열 19.8s, 큐 대기 17)
+[+ 583.7s] ⚠️ 큐 17개 적체 — stitch가 촬영을 못 따라감
+
+[+ 583.7s] ── 촬영 #30 ──
+[+ 612.4s] 촬영 #30 완료 → 큐에 추가 (PIC_20160212_013920__20260921_145631, 촬영계열 28.7s, 큐 대기 18)
+[+ 612.4s] ⚠️ 큐 18개 적체 — stitch가 촬영을 못 따라감
+
+[+ 612.4s] ── 촬영 #31 ──
+[+ 625.0s] [worker] stitched PIC_20160212_013303__20260921_145009 (81.9s)
+[+ 625.5s] [worker] ✅ uploaded PIC_20160212_013303__20260921_145009 (total 82.4s)
+[+ 641.3s] 촬영 #31 완료 → 큐에 추가 (PIC_20160212_013948__20260921_145703, 촬영계열 28.9s, 큐 대기 18)
+[+ 641.3s] ⚠️ 큐 18개 적체 — stitch가 촬영을 못 따라감
+
+[+ 641.6s] ── 촬영 #32 ──
+[+ 667.0s] 촬영 #32 완료 → 큐에 추가 (PIC_20160212_014019__20260921_145728, 촬영계열 25.5s, 큐 대기 19)
+[+ 667.0s] ⚠️ 큐 19개 적체 — stitch가 촬영을 못 따라감
+
+[+ 667.0s] ── 촬영 #33 ──
+[+ 687.6s] 촬영 #33 완료 → 큐에 추가 (PIC_20160212_014043__20260921_145749, 촬영계열 20.6s, 큐 대기 20)
+[+ 687.6s] ⚠️ 큐 20개 적체 — stitch가 촬영을 못 따라감
+
+[+ 687.6s] ── 촬영 #34 ──
+[+ 693.5s] [worker] stitched PIC_20160212_013323__20260921_145025 (68.1s)
+[+ 693.7s] [worker] ✅ uploaded PIC_20160212_013323__20260921_145025 (total 68.3s)
+[+ 708.3s] 촬영 #34 완료 → 큐에 추가 (PIC_20160212_014104__20260921_145810, 촬영계열 20.7s, 큐 대기 20)
+[+ 708.3s] ⚠️ 큐 20개 적체 — stitch가 촬영을 못 따라감
+
+[+ 708.3s] ── 촬영 #35 ──
+[+ 728.3s] 촬영 #35 완료 → 큐에 추가 (PIC_20160212_014124__20260921_145830, 촬영계열 20.0s, 큐 대기 21)
+[+ 728.3s] ⚠️ 큐 21개 적체 — stitch가 촬영을 못 따라감
+
+[+ 728.3s] ── 촬영 #36 ──
+[+ 752.6s] 촬영 #36 완료 → 큐에 추가 (PIC_20160212_014144__20260921_145850, 촬영계열 24.3s, 큐 대기 22)
+[+ 752.6s] ⚠️ 큐 22개 적체 — stitch가 촬영을 못 따라감
+
+[+ 752.6s] ── 촬영 #37 ──
+[+ 756.9s] [worker] stitched PIC_20160212_013341__20260921_145043 (63.2s)
+[+ 757.4s] [worker] ✅ uploaded PIC_20160212_013341__20260921_145043 (total 63.6s)
+[+ 773.8s] 촬영 #37 완료 → 큐에 추가 (PIC_20160212_014209__20260921_145914, 촬영계열 21.2s, 큐 대기 22)
+[+ 773.8s] ⚠️ 큐 22개 적체 — stitch가 촬영을 못 따라감
+
+[+ 773.9s] ── 촬영 #38 ──
+[+ 795.1s] 촬영 #38 완료 → 큐에 추가 (PIC_20160212_014230__20260921_145936, 촬영계열 21.3s, 큐 대기 23)
+[+ 795.4s] ⚠️ 큐 23개 적체 — stitch가 촬영을 못 따라감
+
+[+ 795.4s] ── 촬영 #39 ──
+[+ 809.6s] [worker] stitched PIC_20160212_013357__20260921_145059 (52.2s)
+[+ 809.8s] [worker] ✅ uploaded PIC_20160212_013357__20260921_145059 (total 52.4s)
+[+ 816.4s] 촬영 #39 완료 → 큐에 추가 (PIC_20160212_014251__20260921_145958, 촬영계열 21.0s, 큐 대기 23)
+[+ 816.4s] ⚠️ 큐 23개 적체 — stitch가 촬영을 못 따라감
+
+[+ 816.4s] ── 촬영 #40 ──
+[+ 837.0s] 촬영 #40 완료 → 큐에 추가 (PIC_20160212_014312__20260921_150019, 촬영계열 20.6s, 큐 대기 24)
+[+ 837.0s] ⚠️ 큐 24개 적체 — stitch가 촬영을 못 따라감
+
+[+ 837.0s] ── 촬영 #41 ──
+[+ 857.7s] 촬영 #41 완료 → 큐에 추가 (PIC_20160212_014333__20260921_150039, 촬영계열 20.8s, 큐 대기 25)
+[+ 857.8s] ⚠️ 큐 25개 적체 — stitch가 촬영을 못 따라감
+
+[+ 857.9s] ── 촬영 #42 ──
+[+ 875.9s] [worker] stitched PIC_20160212_013413__20260921_145119 (66.1s)
+[+ 876.2s] [worker] ✅ uploaded PIC_20160212_013413__20260921_145119 (total 66.4s)
+[+ 876.9s] 촬영 #42 완료 → 큐에 추가 (PIC_20160212_014355__20260921_150058, 촬영계열 19.0s, 큐 대기 25)
+[+ 876.9s] ⚠️ 큐 25개 적체 — stitch가 촬영을 못 따라감
+
+[+ 876.9s] ── 촬영 #43 ──
+[+ 896.9s] 촬영 #43 완료 → 큐에 추가 (PIC_20160212_014413__20260921_150119, 촬영계열 20.0s, 큐 대기 26)
+[+ 896.9s] ⚠️ 큐 26개 적체 — stitch가 촬영을 못 따라감
+
+[+ 896.9s] ── 촬영 #44 ──
+[+ 917.0s] 촬영 #44 완료 → 큐에 추가 (PIC_20160212_014433__20260921_150138, 촬영계열 20.1s, 큐 대기 27)
+[+ 917.0s] ⚠️ 큐 27개 적체 — stitch가 촬영을 못 따라감
+
+[+ 917.0s] ── 촬영 #45 ──
+[+ 921.6s] [worker] stitched PIC_20160212_013433__20260921_145136 (45.4s)
+[+ 921.9s] [worker] ✅ uploaded PIC_20160212_013433__20260921_145136 (total 45.6s)
+[+ 947.3s] 촬영 #45 완료 → 큐에 추가 (PIC_20160212_014453__20260921_150201, 촬영계열 30.3s, 큐 대기 27)
+[+ 947.3s] ⚠️ 큐 27개 적체 — stitch가 촬영을 못 따라감
+
+[+ 947.3s] ── 촬영 #46 ──
+[+ 966.8s] 촬영 #46 완료 → 큐에 추가 (PIC_20160212_014523__20260921_150229, 촬영계열 19.6s, 큐 대기 28)
+[+ 966.8s] ⚠️ 큐 28개 적체 — stitch가 촬영을 못 따라감
+
+[+ 966.8s] ── 촬영 #47 ──
+[+ 971.3s] [worker] stitched PIC_20160212_013450__20260921_145156 (49.4s)
+[+ 971.6s] [worker] ✅ uploaded PIC_20160212_013450__20260921_145156 (total 49.7s)
+[+ 982.9s] 촬영 #47 완료 → 큐에 추가 (PIC_20160212_014543__20260921_150245, 촬영계열 16.1s, 큐 대기 28)
+[+ 982.9s] ⚠️ 큐 28개 적체 — stitch가 촬영을 못 따라감
+
+[+ 982.9s] ── 촬영 #48 ──
+[+1004.9s] 촬영 #48 완료 → 큐에 추가 (PIC_20160212_014559__20260921_150306, 촬영계열 22.0s, 큐 대기 29)
+[+1005.0s] ⚠️ 큐 29개 적체 — stitch가 촬영을 못 따라감
+
+[+1005.1s] ── 촬영 #49 ──
+[+1027.1s] 촬영 #49 완료 → 큐에 추가 (PIC_20160212_014622__20260921_150328, 촬영계열 21.9s, 큐 대기 30)
+[+1027.1s] ⚠️ 큐 30개 적체 — stitch가 촬영을 못 따라감
+
+[+1027.1s] ── 촬영 #50 ──
+[+1044.7s] [worker] stitched PIC_20160212_013511__20260921_145217 (73.1s)
+[+1045.0s] [worker] ✅ uploaded PIC_20160212_013511__20260921_145217 (total 73.4s)
+[+1047.2s] 촬영 #50 완료 → 큐에 추가 (PIC_20160212_014643__20260921_150349, 촬영계열 20.0s, 큐 대기 30)
+[+1047.2s] ⚠️ 큐 30개 적체 — stitch가 촬영을 못 따라감
+
+[+1047.2s] ── 촬영 #51 ──
+[+1068.4s] 촬영 #51 완료 → 큐에 추가 (PIC_20160212_014703__20260921_150409, 촬영계열 21.2s, 큐 대기 31)
+[+1068.5s] ⚠️ 큐 31개 적체 — stitch가 촬영을 못 따라감
+
+[+1068.6s] ── 촬영 #52 ──
+[+1095.6s] 촬영 #52 완료 → 큐에 추가 (PIC_20160212_014730__20260921_150436, 촬영계열 27.0s, 큐 대기 32)
+[+1095.6s] ⚠️ 큐 32개 적체 — stitch가 촬영을 못 따라감
+
+[+1095.6s] ── 촬영 #53 ──
+[+1122.2s] 촬영 #53 완료 → 큐에 추가 (PIC_20160212_014752__20260921_150458, 촬영계열 26.6s, 큐 대기 33)
+[+1122.3s] ⚠️ 큐 33개 적체 — stitch가 촬영을 못 따라감
+
+[+1122.3s] ── 촬영 #54 ──
+[+1126.2s] [worker] stitched PIC_20160212_013531__20260921_145237 (81.2s)
+[+1126.5s] [worker] ✅ uploaded PIC_20160212_013531__20260921_145237 (total 81.5s)
+[+1148.0s] 촬영 #54 완료 → 큐에 추가 (PIC_20160212_014818__20260921_150526, 촬영계열 25.7s, 큐 대기 33)
+[+1148.0s] ⚠️ 큐 33개 적체 — stitch가 촬영을 못 따라감
+
+[+1148.0s] ── 촬영 #55 ──
+[+1168.3s] 촬영 #55 완료 → 큐에 추가 (PIC_20160212_014844__20260921_150550, 촬영계열 20.3s, 큐 대기 34)
+[+1168.3s] ⚠️ 큐 34개 적체 — stitch가 촬영을 못 따라감
+
+[+1168.3s] ── 촬영 #56 ──
+[+1170.7s] [worker] stitched PIC_20160212_013553__20260921_145259 (44.2s)
+[+1170.9s] [worker] ✅ uploaded PIC_20160212_013553__20260921_145259 (total 44.4s)
+[+1194.5s] 촬영 #56 완료 → 큐에 추가 (PIC_20160212_014904__20260921_150610, 촬영계열 26.2s, 큐 대기 34)
+[+1194.5s] ⚠️ 큐 34개 적체 — stitch가 촬영을 못 따라감
+
+[+1194.5s] ── 촬영 #57 ──
+[+1215.9s] 촬영 #57 완료 → 큐에 추가 (PIC_20160212_014931__20260921_150637, 촬영계열 21.4s, 큐 대기 35)
+[+1215.9s] ⚠️ 큐 35개 적체 — stitch가 촬영을 못 따라감
+
+[+1215.9s] ── 촬영 #58 ──
+[+1225.8s] [worker] stitched PIC_20160212_013613__20260921_145319 (54.9s)
+[+1226.0s] [worker] ✅ uploaded PIC_20160212_013613__20260921_145319 (total 55.1s)
+[+1241.9s] 촬영 #58 완료 → 큐에 추가 (PIC_20160212_014952__20260921_150658, 촬영계열 26.0s, 큐 대기 35)
+[+1242.0s] ⚠️ 큐 35개 적체 — stitch가 촬영을 못 따라감
+
+[+1242.1s] ── 촬영 #59 ──
+[+1263.0s] 촬영 #59 완료 → 큐에 추가 (PIC_20160212_015019__20260921_150725, 촬영계열 20.9s, 큐 대기 36)
+[+1263.0s] ⚠️ 큐 36개 적체 — stitch가 촬영을 못 따라감
+
+[+1263.0s] ── 촬영 #60 ──
+[+1276.3s] [worker] stitched PIC_20160212_013634__20260921_145339 (50.2s)
+[+1276.5s] [worker] ✅ uploaded PIC_20160212_013634__20260921_145339 (total 50.5s)
+[+1284.5s] 촬영 #60 완료 → 큐에 추가 (PIC_20160212_015039__20260921_150746, 촬영계열 21.5s, 큐 대기 36)
+[+1284.5s] ⚠️ 큐 36개 적체 — stitch가 촬영을 못 따라감
+
+[+1284.5s] ── 촬영 #61 ──
+[+1304.3s] 촬영 #61 완료 → 큐에 추가 (PIC_20160212_015100__20260921_150806, 촬영계열 19.9s, 큐 대기 37)
+[+1304.3s] ⚠️ 큐 37개 적체 — stitch가 촬영을 못 따라감
+
+[+1304.3s] ── 촬영 #62 ──
+[+1317.9s] 촬영 #62 완료 → 큐에 추가 (PIC_20160212_015120__20260921_150822, 촬영계열 13.5s, 큐 대기 38)
+[+1317.9s] ⚠️ 큐 38개 적체 — stitch가 촬영을 못 따라감
+
+[+1317.9s] ── 촬영 #63 ──
+[+1337.8s] [worker] stitched PIC_20160212_013658__20260921_145404 (61.3s)
+[+1338.2s] [worker] ✅ uploaded PIC_20160212_013658__20260921_145404 (total 61.7s)
+[+1396.2s] [worker] stitched PIC_20160212_013720__20260921_145425 (57.9s)
+[+1396.3s] [worker] ✅ uploaded PIC_20160212_013720__20260921_145425 (total 58.1s)
+[+1410.5s] 촬영 #63 실패, 건너뜀
+
+[+1410.7s] ── 촬영 #64 ──
+Traceback (most recent call last):
+  File "C:\Users\asdfa\AppData\Local\Programs\Python\Python312\Lib\site-packages\urllib3\connection.py", line 204, in _new_conn
+    sock = connection.create_connection(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\asdfa\AppData\Local\Programs\Python\Python312\Lib\site-packages\urllib3\util\connection.py", line 85, in create_connection
+    raise err
+  File "C:\Users\asdfa\AppData\Local\Programs\Python\Python312\Lib\site-packages\urllib3\util\connection.py", line 73, in create_connection
+    sock.connect(sa)
+TimeoutError: [WinError 10060] 연결된 구성원으로부터 응답이 없어 연결하지 못했거나, 호스트로부터 응답이 없어 연결이 끊어졌습니다
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\asdfa\AppData\Local\Programs\Python\Python312\Lib\site-packages\urllib3\connectionpool.py", line 788, in urlopen
+    response = self._make_request(
+               ^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\asdfa\AppData\Local\Programs\Python\Python312\Lib\site-packages\urllib3\connectionpool.py", line 493, in _make_request
+    conn.request(
+  File "C:\Users\asdfa\AppData\Local\Programs\Python\Python312\Lib\site-packages\urllib3\connection.py", line 500, in request
+    self.endheaders()
+  File "C:\Users\asdfa\AppData\Local\Programs\Python\Python312\Lib\http\client.py", line 1333, in endheaders
+    self._send_output(message_body, encode_chunked=encode_chunked)
+  File "C:\Users\asdfa\AppData\Local\Programs\Python\Python312\Lib\http\client.py", line 1093, in _send_output
+    self.send(msg)
+  File "C:\Users\asdfa\AppData\Local\Programs\Python\Python312\Lib\http\client.py", line 1037, in send
+    self.connect()
+  File "C:\Users\asdfa\AppData\Local\Programs\Python\Python312\Lib\site-packages\urllib3\connection.py", line 331, in connect
+    self.sock = self._new_conn()
+                ^^^^^^^^^^^^^^^^
+  File "C:\Users\asdfa\AppData\Local\Programs\Python\Python312\Lib\site-packages\urllib3\connection.py", line 213, in _new_conn
+    raise ConnectTimeoutError(
+urllib3.exceptions.ConnectTimeoutError: (<HTTPConnection(host='192.168.100.124', port=20000) at 0x18a163272f0>, 'Connection to 192.168.100.124 timed out. (connect timeout=120)')
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\asdfa\AppData\Local\Programs\Python\Python312\Lib\site-packages\requests\adapters.py", line 696, in send
+    resp = conn.urlopen(
+           ^^^^^^^^^^^^^
+  File "C:\Users\asdfa\AppData\Local\Programs\Python\Python312\Lib\site-packages\urllib3\connectionpool.py", line 842, in urlopen
+    retries = retries.increment(
+              ^^^^^^^^^^^^^^^^^^
+  File "C:\Users\asdfa\AppData\Local\Programs\Python\Python312\Lib\site-packages\urllib3\util\retry.py", line 543, in increment
+    raise MaxRetryError(_pool, url, reason) from reason  # type: ignore[arg-type]
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+urllib3.exceptions.MaxRetryError: HTTPConnectionPool(host='192.168.100.124', port=20000): Max retries exceeded with url: /osc/commands/execute (Caused by ConnectTimeoutError(<HTTPConnection(host='192.168.100.124', port=20000) at 0x18a163272f0>, 'Connection to 192.168.100.124 timed out. (connect timeout=120)'))
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\asdfa\docx2026_code\pro2_auto_bg.py", line 401, in <module>
+    main()
+  File "C:\Users\asdfa\docx2026_code\pro2_auto_bg.py", line 349, in main
+    seq = take_picture()
+          ^^^^^^^^^^^^^^
+  File "C:\Users\asdfa\docx2026_code\pro2_auto_bg.py", line 187, in take_picture
+    resp = requests.post(CMD_URL, json={
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\asdfa\AppData\Local\Programs\Python\Python312\Lib\site-packages\requests\api.py", line 134, in post
+    return request("post", url, data=data, json=json, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\asdfa\AppData\Local\Programs\Python\Python312\Lib\site-packages\requests\api.py", line 71, in request
+    return session.request(method=method, url=url, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\asdfa\AppData\Local\Programs\Python\Python312\Lib\site-packages\requests\sessions.py", line 651, in request
+    resp = self.send(prep, **send_kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\asdfa\AppData\Local\Programs\Python\Python312\Lib\site-packages\requests\sessions.py", line 784, in send
+    r = adapter.send(request, **kwargs)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\asdfa\AppData\Local\Programs\Python\Python312\Lib\site-packages\requests\adapters.py", line 717, in send
+    raise ConnectTimeout(e, request=request)
+requests.exceptions.ConnectTimeout: HTTPConnectionPool(host='192.168.100.124', port=20000): Max retries exceeded with url: /osc/commands/execute (Caused by ConnectTimeoutError(<HTTPConnection(host='192.168.100.124', port=20000) at 0x18a163272f0>, 'Connection to 192.168.100.124 timed out. (connect timeout=120)'))
+
+C:\Users\asdfa\docx2026_code>
+
+
+
+
+
+
+
+
+=============컴퓨터 2
+
+
+C:\Users\asdfa\docx2026_code>python anchor360_bridge.py --unity-ip 192.168.50.244
+==============================================================
+anchor360_bridge — 서버 JSON → 유니티 UDP 중계
+  가져올 곳 : http://210.110.250.33:7866/anchor360_latest
+  보낼 곳   : UDP 192.168.50.244:5010
+  주기      : 2.0s  (하트비트 겸용)
+  Ctrl+C 로 종료
+==============================================================
+[14:43:04] NEW  ts=1789458055.007  검출 6개  2747B  → 192.168.50.244:5010
+[14:44:02]      (재송출) 검출 6개  누적 30회 / 신규 1건
+[14:44:04] 종료. 송출 30회 (신규 1건).
+
+C:\Users\asdfa\docx2026_code>python anchor360_bridge.py --unity-ip 192.168.50.244 --poll 5
+==============================================================
+anchor360_bridge — 서버 JSON → 유니티 UDP 중계
+  가져올 곳 : http://210.110.250.33:7866/anchor360_latest
+  보낼 곳   : UDP 192.168.50.244:5010
+  주기      : 5.0s  (하트비트 겸용)
+  Ctrl+C 로 종료
+==============================================================
+[14:44:07] NEW  ts=1789458055.007  검출 6개  2747B  → 192.168.50.244:5010
+[14:48:00] NEW  ts=1789969675.940  검출 8개  3610B  → 192.168.50.244:5010
+[14:57:46] NEW  ts=1789970212.110  검출 8개  3613B  → 192.168.50.244:5010
+[14:58:01] NEW  ts=1789970279.652  검출 8개  3614B  → 192.168.50.244:5010
+[14:59:05] NEW  ts=1789970343.190  검출 8개  3603B  → 192.168.50.244:5010
+[14:59:59] NEW  ts=1789970395.706  검출 8개  3608B  → 192.168.50.244:5010
+[15:01:02] NEW  ts=1789970462.242  검출 8개  3608B  → 192.168.50.244:5010
+[15:01:49] NEW  ts=1789970507.746  검출 8개  3616B  → 192.168.50.244:5010
+[15:02:41] NEW  ts=1789970558.260  검출 8개  3613B  → 192.168.50.244:5010
+[15:03:55] NEW  ts=1789970631.819  검출 8개  3606B  → 192.168.50.244:5010
+[15:05:12] NEW  ts=1789970712.381  검출 8개  3617B  → 192.168.50.244:5010
+[15:06:00] NEW  ts=1789970756.890  검출 8개  3607B  → 192.168.50.244:5010
+[15:06:52] NEW  ts=1789970812.421  검출 8개  3604B  → 192.168.50.244:5010
+[15:07:44] NEW  ts=1789970862.940  검출 8개  3605B  → 192.168.50.244:5010
+[15:08:47] NEW  ts=1789970924.483  검출 8개  3612B  → 192.168.50.244:5010
+[15:09:46] NEW  ts=1789970983.026  검출 8개  3603B  → 192.168.50.244:5010
+[15:10:28]      (재송출) 검출 8개  누적 190회 / 신규 16건
+[15:10:33] 종료. 송출 190회 (신규 16건).
+
+C:\Users\asdfa\docx2026_code>
+

@@ -1,0 +1,175 @@
+
+C:\Users\asdfa\physical mk2\360camera_work>curl -F "capture_id=PAIR_0921" -F "camera_id=pro2_anchor" -F "file=@preview_frame.jpg;filename=equirect.jpg" http://210.110.250.33:7866/upload_pano
+{"status":"saved","camera_id":"pro2_anchor","capture_id":"PAIR_0921","filename":"equirect.jpg","size_kb":846.4,"path":"pano_captures/pro2_anchor/PAIR_0921/equirect.jpg"}
+C:\Users\asdfa\physical mk2\360camera_work>curl -F "capture_id=PAIR2_0921" -F "camera_id=pro2_anchor" -F "file=@pair_live.jpg;filename=equirect.jpg" http://210.110.250.33:7866/upload_pano
+{"status":"saved","camera_id":"pro2_anchor","capture_id":"PAIR2_0921","filename":"equirect.jpg","size_kb":960.1,"path":"pano_captures/pro2_anchor/PAIR2_0921/equirect.jpg"}
+C:\Users\asdfa\physical mk2\360camera_work>
+
+(venv_image) dg@sysai-server2:~/capstone-db/docx2026$ mkdir -p p2_live_v35/slices p2_live_v3625/slices p2_proj/slices
+(venv_image) dg@sysai-server2:~/capstone-db/docx2026$ python3 anchor360_live.py \
+  --replay ~/capstone-db/image_server/pano_captures/pro2_anchor/PAIR2_0921/equirect.jpg \
+  --u 230 --v -35 --drop-clipped --max-dist 8 --debug-img --save-slice \
+  --out-dir ~/capstone-db/docx2026/p2_live_v35 \
+  --slice-dir ~/capstone-db/docx2026/p2_live_v35/slices
+==============================================================
+anchor360_live — 360° 실시간 장애물 파이프라인
+  슬라이스   : u=+230.0deg, v=-35.0deg, 720x720
+  카메라     : 높이 1.85m, 하향 -35.0deg
+  Unity      : UDP 192.168.50.246:5010
+  필터       : 접지잘림제외=ON, 최대거리=8m
+  감시 대상  : /home/dg/capstone-db/image_server/pano_captures/pro2_anchor
+  출력       : /home/dg/capstone-db/docx2026/p2_live_v35
+  슬라이스백업: /home/dg/capstone-db/docx2026/p2_live_v35/slices
+  작업 디렉터리: /home/dg/capstone-db/docx2026  (CLIP 캐시 기준)
+==============================================================
+[live] config : /home/dg/capstone-db/image_server/unidepth_dual_yolo_config.yaml
+[live] weight : /home/dg/capstone-db/image_server/yolov8s-world.pt
+[live] classes: 59개, conf=0.12, iou=0.45
+[live] 모델 로드 8.57s + 워밍업 0.87s — 상주 완료
+
+[live] #1 PAIR2_0921  전송 6개 (걸러냄 3개)  | read 0.03s  slice 0.09s  infer 0.02s  총 0.16s  | UDP OK → 192.168.50.246:5010
+        chair           HARD_OBSTACLE  pos3d=(-0.18, 0, +0.57) D= 0.60  conf=0.65  wy=-1.210
+        chair           HARD_OBSTACLE  pos3d=(-0.91, 0, +0.65) D= 1.12  conf=0.62  wy=-1.162
+        chair           HARD_OBSTACLE  pos3d=(-1.57, 0, +1.82) D= 2.40  conf=0.61  wy=-0.726
+        fire extinguisherHARD_OBSTACLE  pos3d=(+1.15, 0, +0.65) D= 1.32  conf=0.44  wy=-1.162
+        box             HARD_OBSTACLE  pos3d=(-1.49, 0, +4.78) D= 5.00  conf=0.40  wy=-0.372
+        cardboard box   HARD_OBSTACLE  pos3d=(+0.28, 0, +2.16) D= 2.18  conf=0.27  wy=-0.653
+        [제외:    접지잘림] open box        D= 0.54  conf=0.18
+        [제외:     >8m] box             D=10.14  conf=0.15
+        [제외:    접지잘림] box             D= 0.33  conf=0.14
+
+[live] 종료. 처리한 사진 1장.
+(venv_image) dg@sysai-server2:~/capstone-db/docx2026$ python3 anchor360_live.py \
+  --replay ~/capstone-db/image_server/pano_captures/pro2_anchor/PAIR2_0921/equirect.jpg \
+  --u 230 --v -36.25 --pitch -35 --drop-clipped --max-dist 8 --debug-img --save-slice \
+  --out-dir ~/capstone-db/docx2026/p2_live_v3625 \
+  --slice-dir ~/capstone-db/docx2026/p2_live_v3625/slices
+==============================================================
+anchor360_live — 360° 실시간 장애물 파이프라인
+  슬라이스   : u=+230.0deg, v=-36.2deg, 720x720
+  카메라     : 높이 1.85m, 하향 -35.0deg
+  Unity      : UDP 192.168.50.246:5010
+  필터       : 접지잘림제외=ON, 최대거리=8m
+  감시 대상  : /home/dg/capstone-db/image_server/pano_captures/pro2_anchor
+  출력       : /home/dg/capstone-db/docx2026/p2_live_v3625
+  슬라이스백업: /home/dg/capstone-db/docx2026/p2_live_v3625/slices
+  작업 디렉터리: /home/dg/capstone-db/docx2026  (CLIP 캐시 기준)
+==============================================================
+[live] config : /home/dg/capstone-db/image_server/unidepth_dual_yolo_config.yaml
+[live] weight : /home/dg/capstone-db/image_server/yolov8s-world.pt
+[live] classes: 59개, conf=0.12, iou=0.45
+[live] 모델 로드 8.60s + 워밍업 0.82s — 상주 완료
+
+[live] #1 PAIR2_0921  전송 7개 (걸러냄 1개)  | read 0.03s  slice 0.09s  infer 0.02s  총 0.16s  | UDP OK → 192.168.50.246:5010
+        chair           HARD_OBSTACLE  pos3d=(-0.19, 0, +0.62) D= 0.64  conf=0.70  wy=-1.182
+        chair           HARD_OBSTACLE  pos3d=(-0.93, 0, +0.70) D= 1.16  conf=0.65  wy=-1.133
+        chair           HARD_OBSTACLE  pos3d=(-1.63, 0, +1.91) D= 2.51  conf=0.56  wy=-0.705
+        cardboard box   HARD_OBSTACLE  pos3d=(+0.29, 0, +2.26) D= 2.27  conf=0.35  wy=-0.636
+        cardboard box   HARD_OBSTACLE  pos3d=(-1.58, 0, +5.08) D= 5.32  conf=0.33  wy=-0.354
+        fire extinguisherHARD_OBSTACLE  pos3d=(+1.17, 0, +0.69) D= 1.36  conf=0.25  wy=-1.135
+        box             HARD_OBSTACLE  pos3d=(+2.17, 0, +5.90) D= 6.29  conf=0.14  wy=-0.314
+        [제외:     >8m] box             D=11.40  conf=0.21
+
+[live] 종료. 처리한 사진 1장.
+(venv_image) dg@sysai-server2:~/capstone-db/docx2026$ 
+
+(venv_image) dg@sysai-server2:~/capstone-db/docx2026$ python3 anchor360_live.py \
+  --replay ~/capstone-db/image_server/pano_captures/pro2_anchor/PIC_20160212_022003__20260921_161145/equirect.jpg \ 
+  --u 50 --v -35 --drop-clipped --max-dist 8 --debug-img --save-slice \
+  --out-dir ~/capstone-db/docx2026/p2_proj \
+  --slice-dir ~/capstone-db/docx2026/p2_proj/slices
+==============================================================
+anchor360_live — 360° 실시간 장애물 파이프라인
+  슬라이스   : u=+50.0deg, v=-35.0deg, 720x720
+  카메라     : 높이 1.85m, 하향 -35.0deg
+  Unity      : UDP 192.168.50.246:5010
+  필터       : 접지잘림제외=ON, 최대거리=8m
+  감시 대상  : /home/dg/capstone-db/image_server/pano_captures/pro2_anchor
+  출력       : /home/dg/capstone-db/docx2026/p2_proj
+  슬라이스백업: /home/dg/capstone-db/docx2026/p2_proj/slices
+  작업 디렉터리: /home/dg/capstone-db/docx2026  (CLIP 캐시 기준)
+==============================================================
+[live] config : /home/dg/capstone-db/image_server/unidepth_dual_yolo_config.yaml
+[live] weight : /home/dg/capstone-db/image_server/yolov8s-world.pt
+[live] classes: 59개, conf=0.12, iou=0.45
+[live] 모델 로드 8.63s + 워밍업 0.81s — 상주 완료
+
+[live] #1 PIC_20160212_022003__20260921_161145  전송 7개 (걸러냄 1개)  | read 0.06s  slice 0.09s  infer 0.02s  총 0.19s  | UDP OK → 192.168.50.246:5010
+        chair           HARD_OBSTACLE  pos3d=(-0.20, 0, +0.72) D= 0.75  conf=0.80  wy=-1.121
+        chair           HARD_OBSTACLE  pos3d=(-0.98, 0, +0.77) D= 1.25  conf=0.67  wy=-1.094
+        person          AGENT          pos3d=(-1.70, 0, +2.40) D= 2.94  conf=0.66  wy=-0.612
+        chair           HARD_OBSTACLE  pos3d=(-1.72, 0, +1.97) D= 2.62  conf=0.61  wy=-0.692
+        fire extinguisherHARD_OBSTACLE  pos3d=(+1.30, 0, +0.73) D= 1.49  conf=0.45  wy=-1.115
+        cardboard box   HARD_OBSTACLE  pos3d=(-1.56, 0, +5.25) D= 5.48  conf=0.34  wy=-0.345
+        box             HARD_OBSTACLE  pos3d=(+2.21, 0, +5.99) D= 6.38  conf=0.12  wy=-0.310
+        [제외:     >8m] storage box     D=11.56  conf=0.29
+
+[live] 종료. 처리한 사진 1장.
+(venv_image) dg@sysai-server2:~/capstone-db/docx2026$ 
+
+==========
+C:\Users\asdfa\physical mk2\360camera_work>cd "C:\Users\asdfa\physical mk2\360camera_work"
+
+C:\Users\asdfa\physical mk2\360camera_work>python preview_probe.py --restart --no-stab --measure 3 --out nostab_live.jpg
+==================================================================
+preview_probe — 192.168.100.124
+==================================================================
+[연결] Fingerprint=45ZMvNuBY8E=  state=idle
+
+[요청] camera._startPreview  (stabilization=False)
+{
+  "mode": "pano",
+  "mime": "h264",
+  "width": 3840,
+  "height": 1920,
+  "framerate": 30,
+  "bitrate": 10240
+}
+
+[응답 전문]
+{
+  "name": "camera._startPreview",
+  "sequence": 35,
+  "state": "done",
+  "results": {
+    "_previewUrl": "rtmp://127.0.0.1/live/preview"
+  }
+}
+
+==================================================================
+  카메라가 준 값 (/results/_previewUrl) : rtmp://127.0.0.1/live/preview
+  PC 에서 열 주소             : rtmp://192.168.100.124:1935/live/preview
+    (카메라 자기 자신 기준 주소라 호스트를 카메라 IP 로 바꿨습니다)
+==================================================================
+
+[계측] 스트림 여는 중... rtmp://192.168.100.124:1935/live/preview
+[계측] 열림 (4.65s)  ← 콜드스타트 지연
+[계측] 첫 프레임 3840x1920  종횡비 2.00  ← equirect(2:1) 맞음
+[계측] 34프레임 / 3.1초 = 실측 11.1 fps
+[계측] 첫 프레임 저장: nostab_live.jpg
+       → 이 파일을 서버로 올려 live.py --replay 로 돌리면
+         현행 ProStitcher 결과와 검출 좌표를 직접 대조할 수 있습니다.
+
+하트비트 유지 중. 다른 창에서 스트림을 열어보세요:
+  ffplay "rtmp://192.168.100.124:1935/live/preview"
+Ctrl+C 로 프리뷰 정지 후 종료.
+
+
+[종료] 프리뷰 정지 중...
+[정지] done
+
+C:\Users\asdfa\physical mk2\360camera_work>scp -P 8522 "dg@210.110.250.33:~/capstone-db/docx2026/p2_live_v3625/slices/*.jpg" p2_live_slice.jpg
+dg@210.110.250.33's password:
+20260921_072438__PAIR2_0921__u+230_v-36.jpg                                           100%  116KB   2.4MB/s   00:00
+
+C:\Users\asdfa\physical mk2\360camera_work>scp -P 8522 "dg@210.110.250.33:~/capstone-db/docx2026/p2_proj/slices/*.jpg" p2_proj_slice.jpg
+dg@210.110.250.33's password:
+20260921_072511__PIC_20160212_022003__20260921_161145__u+50_v-35.jpg                  100%  143KB   2.6MB/s   00:00
+
+C:\Users\asdfa\physical mk2\360camera_work>
+
+
+
+
+
+d

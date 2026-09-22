@@ -1,0 +1,236 @@
+
+C:\Users\asdfa>cd "C:\Users\asdfa\physical mk2\360camera_work"
+
+C:\Users\asdfa\physical mk2\360camera_work>python stream_to_server.py --fps 5 --count 60
+======================================================================
+stream_to_server — 카메라 192.168.100.124 → http://210.110.250.33:7866/upload_pano
+  목표 5.0 fps | JPEG q92 | capture_id=LIVE_STREAM
+======================================================================
+[연결] Fingerprint=9cKevnoIYRY=
+[프리뷰] rtmp://192.168.100.124:1935/live/preview  (3840x1920, 10240 kbps)
+[스트림] 열림 4.34s
+
+프레임나이 = 카메라에서 받은 뒤 집을 때까지 기다린 시간 (작을수록 실시간)
+PC구간     = 나이 + JPEG인코딩 + 업로드
+
+  #1    나이    14ms  인코딩   57ms  업로드    55ms  | PC구간   126ms   685KB  saved
+  #2    나이    18ms  인코딩   54ms  업로드    39ms  | PC구간   111ms   733KB  saved
+  #3    나이     9ms  인코딩   70ms  업로드    45ms  | PC구간   124ms   761KB  saved
+  #4    나이     7ms  인코딩  107ms  업로드    41ms  | PC구간   155ms   778KB  saved
+  #5    나이    21ms  인코딩   80ms  업로드    43ms  | PC구간   143ms   786KB  saved
+  #6    나이    36ms  인코딩   74ms  업로드    42ms  | PC구간   152ms   749KB  saved
+  #7    나이     3ms  인코딩   66ms  업로드    35ms  | PC구간   104ms   776KB  saved
+  #8    나이    20ms  인코딩   54ms  업로드    39ms  | PC구간   114ms   791KB  saved
+  #9    나이    19ms  인코딩   88ms  업로드    42ms  | PC구간   149ms   797KB  saved
+  #10   나이    31ms  인코딩   80ms  업로드    44ms  | PC구간   155ms   811KB  saved
+  #11   나이    15ms  인코딩   66ms  업로드    44ms  | PC구간   125ms   751KB  saved
+  #12   나이     4ms  인코딩   81ms  업로드    49ms  | PC구간   134ms   763KB  saved
+  #13   나이    13ms  인코딩   63ms  업로드    35ms  | PC구간   112ms   774KB  saved
+  #14   나이    28ms  인코딩   91ms  업로드    45ms  | PC구간   164ms   780KB  saved
+  #15   나이    25ms  인코딩   78ms  업로드    37ms  | PC구간   140ms   793KB  saved
+  #16   나이    19ms  인코딩   73ms  업로드    35ms  | PC구간   127ms   752KB  saved
+  #17   나이    15ms  인코딩   71ms  업로드    46ms  | PC구간   133ms   765KB  saved
+  #18   나이    20ms  인코딩   59ms  업로드    35ms  | PC구간   115ms   774KB  saved
+  #19   나이    29ms  인코딩   82ms  업로드    41ms  | PC구간   152ms   788KB  saved
+  #20   나이    18ms  인코딩   80ms  업로드    43ms  | PC구간   141ms   741KB  saved
+  #21   나이    31ms  인코딩   53ms  업로드    39ms  | PC구간   124ms   755KB  saved
+  #22   나이    26ms  인코딩   65ms  업로드    36ms  | PC구간   127ms   776KB  saved
+  #23   나이     4ms  인코딩   71ms  업로드    40ms  | PC구간   115ms   780KB  saved
+  #24   나이    22ms  인코딩   79ms  업로드    39ms  | PC구간   140ms   781KB  saved
+  #25   나이    19ms  인코딩  151ms  업로드    43ms  | PC구간   213ms   793KB  saved
+  #26   나이    23ms  인코딩   71ms  업로드    41ms  | PC구간   135ms   742KB  saved
+  #27   나이     4ms  인코딩   69ms  업로드    41ms  | PC구간   114ms   779KB  saved
+  #28   나이    11ms  인코딩   80ms  업로드    40ms  | PC구간   132ms   800KB  saved
+  #29   나이    12ms  인코딩   77ms  업로드    43ms  | PC구간   132ms   813KB  saved
+  #30   나이    10ms  인코딩   80ms  업로드    41ms  | PC구간   131ms   820KB  saved
+  #31   나이     5ms  인코딩   75ms  업로드    41ms  | PC구간   121ms   741KB  saved
+  #32   나이    12ms  인코딩   64ms  업로드    36ms  | PC구간   112ms   754KB  saved
+  #33   나이     4ms  인코딩   79ms  업로드    35ms  | PC구간   118ms   765KB  saved
+  #34   나이    30ms  인코딩   81ms  업로드    40ms  | PC구간   152ms   780KB  saved
+  #35   나이    66ms  인코딩   92ms  업로드    53ms  | PC구간   210ms   794KB  saved
+  #36   나이    11ms  인코딩   89ms  업로드    42ms  | PC구간   142ms   794KB  saved
+  #37   나이     7ms  인코딩   64ms  업로드    38ms  | PC구간   109ms   761KB  saved
+  #38   나이     4ms  인코딩   85ms  업로드    42ms  | PC구간   130ms   781KB  saved
+  #39   나이    16ms  인코딩   81ms  업로드    42ms  | PC구간   139ms   792KB  saved
+  #40   나이    44ms  인코딩   73ms  업로드    49ms  | PC구간   166ms   802KB  saved
+  #41   나이    25ms  인코딩   81ms  업로드    38ms  | PC구간   144ms   812KB  saved
+  #42   나이    29ms  인코딩   71ms  업로드    46ms  | PC구간   146ms   769KB  saved
+  #43   나이     4ms  인코딩   74ms  업로드    42ms  | PC구간   119ms   783KB  saved
+  #44   나이     7ms  인코딩   93ms  업로드    43ms  | PC구간   143ms   801KB  saved
+  #45   나이    30ms  인코딩   80ms  업로드    39ms  | PC구간   149ms   806KB  saved
+  #46   나이    24ms  인코딩   60ms  업로드    39ms  | PC구간   123ms   757KB  saved
+  #47   나이    33ms  인코딩   77ms  업로드    34ms  | PC구간   144ms   780KB  saved
+  #48   나이    40ms  인코딩   65ms  업로드    39ms  | PC구간   143ms   789KB  saved
+  #49   나이     6ms  인코딩   78ms  업로드    47ms  | PC구간   131ms   802KB  saved
+  #50   나이    12ms  인코딩   78ms  업로드    36ms  | PC구간   126ms   747KB  saved
+  #51   나이    25ms  인코딩  141ms  업로드    37ms  | PC구간   203ms   770KB  saved
+  #52   나이    33ms  인코딩   84ms  업로드    38ms  | PC구간   155ms   784KB  saved
+  #53   나이    11ms  인코딩   85ms  업로드    42ms  | PC구간   138ms   786KB  saved
+  #54   나이    34ms  인코딩   87ms  업로드    42ms  | PC구간   162ms   792KB  saved
+  #55   나이    10ms  인코딩   86ms  업로드    41ms  | PC구간   137ms   805KB  saved
+  #56   나이    20ms  인코딩   66ms  업로드    40ms  | PC구간   126ms   803KB  saved
+  #57   나이    14ms  인코딩   84ms  업로드    38ms  | PC구간   136ms   776KB  saved
+  #58   나이    23ms  인코딩   90ms  업로드    38ms  | PC구간   151ms   790KB  saved
+  #59   나이     4ms  인코딩   88ms  업로드    39ms  | PC구간   130ms   796KB  saved
+  #60   나이    31ms  인코딩   81ms  업로드    43ms  | PC구간   155ms   799KB  saved
+Assertion fctx->async_lock failed at libavcodec/pthread_frame.c:178
+
+C:\Users\asdfa\physical mk2\360camera_work>
+
+==========터미널 2
+
+(venv_image) dg@sysai-server2:~/capstone-db/docx2026$ 
+(venv_image) dg@sysai-server2:~/capstone-db/docx2026$ python3 anchor360_live.py \
+  --u 230 --v -36.35 --pitch -35 \
+  --poll 0.1 \
+  --drop-clipped --max-dist 8 --debug-img
+==============================================================
+anchor360_live — 360° 실시간 장애물 파이프라인
+  슬라이스   : u=+230.0deg, v=-36.4deg, 720x720
+  카메라     : 높이 1.85m, 하향 -35.0deg
+  Unity      : UDP 192.168.50.246:5010
+  필터       : 접지잘림제외=ON, 최대거리=8m
+  감시 대상  : /home/dg/capstone-db/image_server/pano_captures/pro2_anchor
+  출력       : /home/dg/capstone-db/docx2026/live_out
+  작업 디렉터리: /home/dg/capstone-db/docx2026  (CLIP 캐시 기준)
+==============================================================
+[live] config : /home/dg/capstone-db/image_server/unidepth_dual_yolo_config.yaml
+[live] weight : /home/dg/capstone-db/image_server/yolov8s-world.pt
+[live] classes: 59개, conf=0.12, iou=0.45
+[live] 모델 로드 8.54s + 워밍업 0.81s — 상주 완료
+
+[live] 기존 최신 사진은 건너뜁니다: BR40_0921
+[live] 새 사진 대기 중... (Ctrl+C 로 종료)
+
+[live] #1 LIVE_STREAM  전송 8개 (걸러냄 4개)  | read 0.06s  slice 0.09s  infer 0.04s  총 0.21s  | UDP OK → 192.168.50.246:5010
+        person          AGENT          pos3d=(-1.78, 0, +1.74) D= 2.49  conf=0.91  wy=-0.744
+        chair           HARD_OBSTACLE  pos3d=(-0.26, 0, +0.64) D= 0.69  conf=0.72  wy=-1.169
+        chair           HARD_OBSTACLE  pos3d=(-1.00, 0, +0.68) D= 1.21  conf=0.68  wy=-1.143
+        person          AGENT          pos3d=(-2.16, 0, +1.50) D= 2.64  conf=0.49  wy=-0.806
+        fire extinguisherHARD_OBSTACLE  pos3d=(+1.11, 0, +0.78) D= 1.36  conf=0.45  wy=-1.090
+        cardboard box   HARD_OBSTACLE  pos3d=(+0.15, 0, +2.31) D= 2.31  conf=0.24  wy=-0.627
+        storage box     HARD_OBSTACLE  pos3d=(+1.03, 0, +1.71) D= 2.00  conf=0.16  wy=-0.751
+        box             HARD_OBSTACLE  pos3d=(-1.89, 0, +5.21) D= 5.54  conf=0.15  wy=-0.347
+        [제외:    접지잘림] table           D= 0.62  conf=0.24
+        [제외:    접지잘림] open box        D= 0.58  conf=0.20
+        [제외:     >8m] storage box     D=11.71  conf=0.19
+        [제외:    접지잘림] cardboard box   D= 0.35  conf=0.17
+[live] #2 LIVE_STREAM  전송 7개 (걸러냄 3개)  | read 0.06s  slice 0.01s  infer 0.01s  총 0.09s  | UDP OK → 192.168.50.246:5010
+        person          AGENT          pos3d=(-1.78, 0, +1.75) D= 2.49  conf=0.90  wy=-0.743
+        chair           HARD_OBSTACLE  pos3d=(-0.26, 0, +0.64) D= 0.69  conf=0.72  wy=-1.168
+        chair           HARD_OBSTACLE  pos3d=(-1.00, 0, +0.68) D= 1.21  conf=0.65  wy=-1.144
+        fire extinguisherHARD_OBSTACLE  pos3d=(+1.11, 0, +0.78) D= 1.36  conf=0.41  wy=-1.089
+        cardboard box   HARD_OBSTACLE  pos3d=(+0.15, 0, +2.31) D= 2.31  conf=0.20  wy=-0.627
+        storage box     HARD_OBSTACLE  pos3d=(+1.04, 0, +1.72) D= 2.01  conf=0.18  wy=-0.748
+        box             HARD_OBSTACLE  pos3d=(-1.89, 0, +5.19) D= 5.52  conf=0.13  wy=-0.348
+        [제외:    접지잘림] cardboard box   D= 0.36  conf=0.22
+        [제외:     >8m] storage box     D=11.73  conf=0.18
+        [제외:    접지잘림] open box        D= 0.58  conf=0.15
+[live] #3 LIVE_STREAM  전송 7개 (걸러냄 3개)  | read 0.04s  slice 0.02s  infer 0.01s  총 0.08s  | UDP OK → 192.168.50.246:5010
+        person          AGENT          pos3d=(-1.78, 0, +1.74) D= 2.49  conf=0.90  wy=-0.743
+        chair           HARD_OBSTACLE  pos3d=(-0.26, 0, +0.64) D= 0.69  conf=0.72  wy=-1.169
+        chair           HARD_OBSTACLE  pos3d=(-1.00, 0, +0.68) D= 1.21  conf=0.65  wy=-1.143
+        fire extinguisherHARD_OBSTACLE  pos3d=(+1.11, 0, +0.78) D= 1.36  conf=0.43  wy=-1.090
+        cardboard box   HARD_OBSTACLE  pos3d=(+0.15, 0, +2.30) D= 2.31  conf=0.20  wy=-0.627
+        storage box     HARD_OBSTACLE  pos3d=(+1.03, 0, +1.71) D= 2.00  conf=0.17  wy=-0.751
+        box             HARD_OBSTACLE  pos3d=(-1.89, 0, +5.24) D= 5.57  conf=0.15  wy=-0.346
+        [제외:    접지잘림] cardboard box   D= 0.35  conf=0.25
+        [제외:     >8m] storage box     D=11.74  conf=0.19
+        [제외:    접지잘림] open box        D= 0.58  conf=0.19
+[live] #4 LIVE_STREAM  전송 7개 (걸러냄 4개)  | read 0.04s  slice 0.01s  infer 0.01s  총 0.07s  | UDP OK → 192.168.50.246:5010
+        person          AGENT          pos3d=(-1.77, 0, +1.74) D= 2.48  conf=0.91  wy=-0.745
+        chair           HARD_OBSTACLE  pos3d=(-0.26, 0, +0.64) D= 0.69  conf=0.74  wy=-1.169
+        person          AGENT          pos3d=(-2.04, 0, +1.47) D= 2.51  conf=0.68  wy=-0.818
+        chair           HARD_OBSTACLE  pos3d=(-1.00, 0, +0.68) D= 1.21  conf=0.67  wy=-1.143
+        fire extinguisherHARD_OBSTACLE  pos3d=(+1.11, 0, +0.78) D= 1.36  conf=0.42  wy=-1.089
+        storage box     HARD_OBSTACLE  pos3d=(+1.04, 0, +1.72) D= 2.01  conf=0.21  wy=-0.749
+        box             HARD_OBSTACLE  pos3d=(-1.89, 0, +5.21) D= 5.54  conf=0.12  wy=-0.347
+        [제외:    접지잘림] table           D= 0.62  conf=0.23
+        [제외:    접지잘림] cardboard box   D= 0.36  conf=0.21
+        [제외:    접지잘림] open box        D= 0.58  conf=0.16
+        [제외:     >8m] storage box     D=11.73  conf=0.15
+[live] #5 LIVE_STREAM  전송 8개 (걸러냄 3개)  | read 0.04s  slice 0.02s  infer 0.01s  총 0.08s  | UDP OK → 192.168.50.246:5010
+        person          AGENT          pos3d=(-1.77, 0, +1.74) D= 2.48  conf=0.91  wy=-0.745
+        chair           HARD_OBSTACLE  pos3d=(-0.26, 0, +0.64) D= 0.69  conf=0.74  wy=-1.168
+        chair           HARD_OBSTACLE  pos3d=(-1.00, 0, +0.68) D= 1.21  conf=0.67  wy=-1.144
+        fire extinguisherHARD_OBSTACLE  pos3d=(+1.11, 0, +0.78) D= 1.36  conf=0.41  wy=-1.089
+        person          AGENT          pos3d=(-2.09, 0, +1.47) D= 2.55  conf=0.37  wy=-0.817
+        storage box     HARD_OBSTACLE  pos3d=(+0.15, 0, +2.31) D= 2.32  conf=0.19  wy=-0.626
+        storage box     HARD_OBSTACLE  pos3d=(+1.04, 0, +1.72) D= 2.01  conf=0.16  wy=-0.749
+        box             HARD_OBSTACLE  pos3d=(-1.88, 0, +5.16) D= 5.49  conf=0.13  wy=-0.350
+        [제외:    접지잘림] cardboard box   D= 0.36  conf=0.26
+        [제외:    접지잘림] open box        D= 0.58  conf=0.19
+        [제외:     >8m] storage box     D=11.72  conf=0.18
+[live] #6 LIVE_STREAM  전송 7개 (걸러냄 2개)  | read 0.04s  slice 0.02s  infer 0.01s  총 0.08s  | UDP OK → 192.168.50.246:5010
+        person          AGENT          pos3d=(-1.77, 0, +1.74) D= 2.48  conf=0.90  wy=-0.744
+        chair           HARD_OBSTACLE  pos3d=(-0.26, 0, +0.64) D= 0.69  conf=0.73  wy=-1.169
+        chair           HARD_OBSTACLE  pos3d=(-1.00, 0, +0.68) D= 1.21  conf=0.67  wy=-1.144
+        fire extinguisherHARD_OBSTACLE  pos3d=(+1.11, 0, +0.78) D= 1.36  conf=0.45  wy=-1.090
+        person          AGENT          pos3d=(-2.08, 0, +1.46) D= 2.54  conf=0.40  wy=-0.820
+        cardboard box   HARD_OBSTACLE  pos3d=(+0.15, 0, +2.31) D= 2.31  conf=0.21  wy=-0.626
+        storage box     HARD_OBSTACLE  pos3d=(+1.03, 0, +1.71) D= 2.00  conf=0.16  wy=-0.752
+        [제외:    접지잘림] cardboard box   D= 0.36  conf=0.21
+        [제외:    접지잘림] open box        D= 0.58  conf=0.16
+[live] #7 LIVE_STREAM  전송 7개 (걸러냄 4개)  | read 0.04s  slice 0.02s  infer 0.01s  총 0.08s  | UDP OK → 192.168.50.246:5010
+        person          AGENT          pos3d=(-1.77, 0, +1.72) D= 2.46  conf=0.92  wy=-0.750
+        chair           HARD_OBSTACLE  pos3d=(-0.26, 0, +0.64) D= 0.69  conf=0.71  wy=-1.169
+        chair           HARD_OBSTACLE  pos3d=(-1.00, 0, +0.68) D= 1.21  conf=0.70  wy=-1.143
+        person          AGENT          pos3d=(-1.99, 0, +1.47) D= 2.48  conf=0.62  wy=-0.817
+        fire extinguisherHARD_OBSTACLE  pos3d=(+1.11, 0, +0.78) D= 1.36  conf=0.42  wy=-1.090
+        storage box     HARD_OBSTACLE  pos3d=(+1.04, 0, +1.72) D= 2.00  conf=0.18  wy=-0.750
+        box             HARD_OBSTACLE  pos3d=(-1.88, 0, +5.19) D= 5.52  conf=0.16  wy=-0.348
+        [제외:    접지잘림] table           D= 0.62  conf=0.23
+        [제외:    접지잘림] cardboard box   D= 0.36  conf=0.18
+        [제외:     >8m] storage box     D=11.74  conf=0.18
+        [제외:    접지잘림] open box        D= 0.58  conf=0.18
+[live] #8 LIVE_STREAM  전송 8개 (걸러냄 4개)  | read 0.02s  slice 0.01s  infer 0.01s  총 0.05s  | UDP OK → 192.168.50.246:5010
+        person          AGENT          pos3d=(-1.76, 0, +1.72) D= 2.46  conf=0.91  wy=-0.749
+        chair           HARD_OBSTACLE  pos3d=(-0.26, 0, +0.64) D= 0.69  conf=0.71  wy=-1.169
+        chair           HARD_OBSTACLE  pos3d=(-1.00, 0, +0.68) D= 1.21  conf=0.69  wy=-1.144
+        person          AGENT          pos3d=(-1.99, 0, +1.47) D= 2.47  conf=0.60  wy=-0.818
+        fire extinguisherHARD_OBSTACLE  pos3d=(+1.11, 0, +0.78) D= 1.35  conf=0.39  wy=-1.090
+        box             HARD_OBSTACLE  pos3d=(-1.87, 0, +5.16) D= 5.49  conf=0.17  wy=-0.350
+        storage box     HARD_OBSTACLE  pos3d=(+1.04, 0, +1.72) D= 2.01  conf=0.17  wy=-0.748
+        cardboard box   HARD_OBSTACLE  pos3d=(+0.15, 0, +2.31) D= 2.31  conf=0.17  wy=-0.627
+        [제외:    접지잘림] table           D= 0.62  conf=0.23
+        [제외:    접지잘림] open box        D= 0.58  conf=0.18
+        [제외:    접지잘림] cardboard box   D= 0.36  conf=0.17
+        [제외:     >8m] storage box     D=11.74  conf=0.16
+
+=================서버 터미널 2
+
+C:\Users\asdfa\docx2026_code>python anchor360_bridge.py --unity-ip 192.168.50.244 --poll 1
+==============================================================
+anchor360_bridge — 서버 JSON → 유니티 UDP 중계
+  가져올 곳 : http://210.110.250.33:7866/anchor360_latest
+  보낼 곳   : UDP 192.168.50.244:5010
+  주기      : 1.0s  (하트비트 겸용)
+  Ctrl+C 로 종료
+==============================================================
+[17:34:09] NEW  ts=1789970983.026  검출 8개  3603B  → 192.168.50.244:5010
+[17:37:03] NEW  ts=1789979823.328  검출 8개  3591B  → 192.168.50.244:5010
+[17:37:05] NEW  ts=1789979825.041  검출 7개  3180B  → 192.168.50.244:5010
+[17:37:06] NEW  ts=1789979826.719  검출 7개  3172B  → 192.168.50.244:5010
+[17:37:08] NEW  ts=1789979828.396  검출 7개  3162B  → 192.168.50.244:5010
+[17:37:11] NEW  ts=1789979830.074  검출 8개  3590B  → 192.168.50.244:5010
+[17:37:12] NEW  ts=1789979831.752  검출 7개  3169B  → 192.168.50.244:5010
+[17:37:14] NEW  ts=1789979833.884  검출 8개  3590B  → 192.168.50.244:5010
+[17:40:12]      (재송출) 검출 8개  누적 357회 / 신규 8건
+
+
+==========================브릿지
+
+
+그리고 유니티에서 큐브가 실제로 갱신 돼.
+다만.... 어느정도 정확한 부분이 있고, 아닌 부분이 있어.
+이건 사진 첨부해줄게. 'anchor360_latest_260921.jpg'이거랑 'KakaoTalk_20260921_174546411.jpg' 이거.
+latest 사진에서 사람 2개랑 의자 2개는 얼추 비슷하게(여기도 정확하게는 아니지만. 얼추 비슷하지.) 나오는데.
+박스와 카드보드 하나는 거리가 좀 멀게 나오고.
+storage box는 우리 복사기거든. 원래 사진 보면 내가 오차가 큰건 화살표 2개로 해놨어.
+오른쪽 2개 storage box가 원래 있어야할 곳. 그리고 소화기도 원래 있어야할 곳으로 옮겨놨어.
+원래는 소화기가 의자 2개와 같은 선에 있어야하거든. 일단... 이건 참고용으로만. 탐지의 정확성이 위치에 따라서 좀 달라지지만, 이건 일단 파이프라인의 완결 이후 해봐야할 문제고. 지금은 파이프라인이 완결될 수 있는가. 기존 사진찍기 > 영상 처리로 파이프라인이 변경될 수 있는가. 이게 먼저니까.
+
+일단 영상 파이프라인 자체는 성공한거야? 이것도 사진 찍는것처럼 계속 켜놔도 되는거야?
+
+
+d

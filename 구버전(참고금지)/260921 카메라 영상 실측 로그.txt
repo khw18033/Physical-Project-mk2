@@ -1,0 +1,2196 @@
+
+===========서버 1 (pano receiver. 너무 길어서 맨 마지막 최근 로그만 가져옴.)
+[pano] saved: pano_captures/pro2_anchor/LIVE_STREAM/equirect.jpg (807KB)
+INFO:     203.230.104.168:59895 - "POST /upload_pano HTTP/1.1" 200 OK
+INFO:     203.230.104.168:60391 - "GET /anchor360_latest HTTP/1.1" 200 OK
+[pano] saved: pano_captures/pro2_anchor/LIVE_STREAM/equirect.jpg (740KB)
+INFO:     203.230.104.168:59895 - "POST /upload_pano HTTP/1.1" 200 OK
+INFO:     203.230.104.168:60392 - "GET /anchor360_latest HTTP/1.1" 200 OK
+[pano] saved: pano_captures/pro2_anchor/LIVE_STREAM/equirect.jpg (751KB)
+INFO:     203.230.104.168:59895 - "POST /upload_pano HTTP/1.1" 200 OK
+INFO:     203.230.104.168:60394 - "GET /anchor360_latest HTTP/1.1" 200 OK
+[pano] saved: pano_captures/pro2_anchor/LIVE_STREAM/equirect.jpg (760KB)
+INFO:     203.230.104.168:59895 - "POST /upload_pano HTTP/1.1" 200 OK
+INFO:     203.230.104.168:60395 - "GET /anchor360_latest HTTP/1.1" 200 OK
+[pano] saved: pano_captures/pro2_anchor/LIVE_STREAM/equirect.jpg (763KB)
+INFO:     203.230.104.168:59895 - "POST /upload_pano HTTP/1.1" 200 OK
+INFO:     203.230.104.168:60396 - "GET /anchor360_latest HTTP/1.1" 200 OK
+[pano] saved: pano_captures/pro2_anchor/LIVE_STREAM/equirect.jpg (772KB)
+INFO:     203.230.104.168:59895 - "POST /upload_pano HTTP/1.1" 200 OK
+INFO:     203.230.104.168:60398 - "GET /anchor360_latest HTTP/1.1" 200 OK
+[pano] saved: pano_captures/pro2_anchor/LIVE_STREAM/equirect.jpg (773KB)
+INFO:     203.230.104.168:59895 - "POST /upload_pano HTTP/1.1" 200 OK
+INFO:     203.230.104.168:60399 - "GET /anchor360_latest HTTP/1.1" 200 OK
+[pano] saved: pano_captures/pro2_anchor/LIVE_STREAM/equirect.jpg (781KB)
+INFO:     203.230.104.168:59895 - "POST /upload_pano HTTP/1.1" 200 OK
+INFO:     203.230.104.168:60400 - "GET /anchor360_latest HTTP/1.1" 200 OK
+[pano] saved: pano_captures/pro2_anchor/LIVE_STREAM/equirect.jpg (808KB)
+INFO:     203.230.104.168:59895 - "POST /upload_pano HTTP/1.1" 200 OK
+INFO:     203.230.104.168:60402 - "GET /anchor360_latest HTTP/1.1" 200 OK
+[pano] saved: pano_captures/pro2_anchor/LIVE_STREAM/equirect.jpg (756KB)
+INFO:     203.230.104.168:59895 - "POST /upload_pano HTTP/1.1" 200 OK
+INFO:     203.230.104.168:60403 - "GET /anchor360_latest HTTP/1.1" 200 OK
+[pano] saved: pano_captures/pro2_anchor/LIVE_STREAM/equirect.jpg (758KB)
+INFO:     203.230.104.168:59895 - "POST /upload_pano HTTP/1.1" 200 OK
+INFO:     203.230.104.168:60404 - "GET /anchor360_latest HTTP/1.1" 200 OK
+[pano] saved: pano_captures/pro2_anchor/LIVE_STREAM/equirect.jpg (768KB)
+INFO:     203.230.104.168:59895 - "POST /upload_pano HTTP/1.1" 200 OK
+[pano] saved: pano_captures/pro2_anchor/LIVE_STREAM/equirect.jpg (770KB)
+INFO:     203.230.104.168:59895 - "POST /upload_pano HTTP/1.1" 200 OK
+INFO:     203.230.104.168:60406 - "GET /anchor360_latest HTTP/1.1" 200 OK
+[pano] saved: pano_captures/pro2_anchor/LIVE_STREAM/equirect.jpg (774KB)
+INFO:     203.230.104.168:59895 - "POST /upload_pano HTTP/1.1" 200 OK
+[pano] saved: pano_captures/pro2_anchor/LIVE_STREAM/equirect.jpg (779KB)
+INFO:     203.230.104.168:59895 - "POST /upload_pano HTTP/1.1" 200 OK
+INFO:     203.230.104.168:60407 - "GET /anchor360_latest HTTP/1.1" 200 OK
+[pano] saved: pano_captures/pro2_anchor/LIVE_STREAM/equirect.jpg (793KB)
+INFO:     203.230.104.168:59895 - "POST /upload_pano HTTP/1.1" 200 OK
+INFO:     203.230.104.168:60408 - "GET /anchor360_latest HTTP/1.1" 200 OK
+[pano] saved: pano_captures/pro2_anchor/LIVE_STREAM/equirect.jpg (804KB)
+INFO:     203.230.104.168:59895 - "POST /upload_pano HTTP/1.1" 200 OK
+INFO:     203.230.104.168:60410 - "GET /anchor360_latest HTTP/1.1" 200 OK
+[pano] saved: pano_captures/pro2_anchor/LIVE_STREAM/equirect.jpg (815KB)
+INFO:     203.230.104.168:59895 - "POST /upload_pano HTTP/1.1" 200 OK
+INFO:     203.230.104.168:60411 - "GET /anchor360_latest HTTP/1.1" 200 OK
+[pano] saved: pano_captures/pro2_anchor/LIVE_STREAM/equirect.jpg (826KB)
+INFO:     203.230.104.168:59895 - "POST /upload_pano HTTP/1.1" 200 OK
+[pano] saved: pano_captures/pro2_anchor/LIVE_STREAM/equirect.jpg (755KB)
+INFO:     203.230.104.168:59895 - "POST /upload_pano HTTP/1.1" 200 OK
+INFO:     203.230.104.168:60412 - "GET /anchor360_latest HTTP/1.1" 200 OK
+[pano] saved: pano_captures/pro2_anchor/LIVE_STREAM/equirect.jpg (761KB)
+INFO:     203.230.104.168:59895 - "POST /upload_pano HTTP/1.1" 200 OK
+INFO:     203.230.104.168:60414 - "GET /anchor360_latest HTTP/1.1" 200 OK
+[pano] saved: pano_captures/pro2_anchor/LIVE_STREAM/equirect.jpg (769KB)
+INFO:     203.230.104.168:59895 - "POST /upload_pano HTTP/1.1" 200 OK
+INFO:     203.230.104.168:60415 - "GET /anchor360_latest HTTP/1.1" 200 OK
+[pano] saved: pano_captures/pro2_anchor/LIVE_STREAM/equirect.jpg (781KB)
+INFO:     203.230.104.168:59895 - "POST /upload_pano HTTP/1.1" 200 OK
+[pano] saved: pano_captures/pro2_anchor/LIVE_STREAM/equirect.jpg (788KB)
+INFO:     203.230.104.168:59895 - "POST /upload_pano HTTP/1.1" 200 OK
+INFO:     203.230.104.168:60416 - "GET /anchor360_latest HTTP/1.1" 200 OK
+[pano] saved: pano_captures/pro2_anchor/LIVE_STREAM/equirect.jpg (801KB)
+INFO:     203.230.104.168:59895 - "POST /upload_pano HTTP/1.1" 200 OK
+INFO:     203.230.104.168:60418 - "GET /anchor360_latest HTTP/1.1" 200 OK
+[pano] saved: pano_captures/pro2_anchor/LIVE_STREAM/equirect.jpg (745KB)
+INFO:     203.230.104.168:59895 - "POST /upload_pano HTTP/1.1" 200 OK
+[pano] saved: pano_captures/pro2_anchor/LIVE_STREAM/equirect.jpg (764KB)
+INFO:     203.230.104.168:59895 - "POST /upload_pano HTTP/1.1" 200 OK
+INFO:     203.230.104.168:60419 - "GET /anchor360_latest HTTP/1.1" 200 OK
+[pano] saved: pano_captures/pro2_anchor/LIVE_STREAM/equirect.jpg (763KB)
+INFO:     203.230.104.168:59895 - "POST /upload_pano HTTP/1.1" 200 OK
+INFO:     203.230.104.168:60420 - "GET /anchor360_latest HTTP/1.1" 200 OK
+[pano] saved: pano_captures/pro2_anchor/LIVE_STREAM/equirect.jpg (765KB)
+INFO:     203.230.104.168:59895 - "POST /upload_pano HTTP/1.1" 200 OK
+INFO:     203.230.104.168:60422 - "GET /anchor360_latest HTTP/1.1" 200 OK
+[pano] saved: pano_captures/pro2_anchor/LIVE_STREAM/equirect.jpg (773KB)
+INFO:     203.230.104.168:59895 - "POST /upload_pano HTTP/1.1" 200 OK
+INFO:     203.230.104.168:60423 - "GET /anchor360_latest HTTP/1.1" 200 OK
+[pano] saved: pano_captures/pro2_anchor/LIVE_STREAM/equirect.jpg (785KB)
+INFO:     203.230.104.168:59895 - "POST /upload_pano HTTP/1.1" 200 OK
+[pano] saved: pano_captures/pro2_anchor/LIVE_STREAM/equirect.jpg (790KB)
+INFO:     203.230.104.168:59895 - "POST /upload_pano HTTP/1.1" 200 OK
+INFO:     203.230.104.168:60424 - "GET /anchor360_latest HTTP/1.1" 200 OK
+[pano] saved: pano_captures/pro2_anchor/LIVE_STREAM/equirect.jpg (817KB)
+INFO:     203.230.104.168:59895 - "POST /upload_pano HTTP/1.1" 200 OK
+INFO:     203.230.104.168:60426 - "GET /anchor360_latest HTTP/1.1" 200 OK
+[pano] saved: pano_captures/pro2_anchor/LIVE_STREAM/equirect.jpg (827KB)
+INFO:     203.230.104.168:59895 - "POST /upload_pano HTTP/1.1" 200 OK
+INFO:     203.230.104.168:60427 - "GET /anchor360_latest HTTP/1.1" 200 OK
+[pano] saved: pano_captures/pro2_anchor/LIVE_STREAM/equirect.jpg (828KB)
+INFO:     203.230.104.168:59895 - "POST /upload_pano HTTP/1.1" 200 OK
+[pano] saved: pano_captures/pro2_anchor/LIVE_STREAM/equirect.jpg (753KB)
+INFO:     203.230.104.168:59895 - "POST /upload_pano HTTP/1.1" 200 OK
+INFO:     203.230.104.168:60428 - "GET /anchor360_latest HTTP/1.1" 200 OK
+[pano] saved: pano_captures/pro2_anchor/LIVE_STREAM/equirect.jpg (758KB)
+INFO:     203.230.104.168:59895 - "POST /upload_pano HTTP/1.1" 200 OK
+INFO:     203.230.104.168:60429 - "GET /anchor360_latest HTTP/1.1" 200 OK
+[pano] saved: pano_captures/pro2_anchor/LIVE_STREAM/equirect.jpg (767KB)
+INFO:     203.230.104.168:59895 - "POST /upload_pano HTTP/1.1" 200 OK
+INFO:     203.230.104.168:60431 - "GET /anchor360_latest HTTP/1.1" 200 OK
+[pano] saved: pano_captures/pro2_anchor/LIVE_STREAM/equirect.jpg (767KB)
+INFO:     203.230.104.168:59895 - "POST /upload_pano HTTP/1.1" 200 OK
+INFO:     203.230.104.168:60433 - "GET /anchor360_latest HTTP/1.1" 200 OK
+[pano] saved: pano_captures/pro2_anchor/LIVE_STREAM/equirect.jpg (782KB)
+INFO:     203.230.104.168:59895 - "POST /upload_pano HTTP/1.1" 200 OK
+[pano] saved: pano_captures/pro2_anchor/LIVE_STREAM/equirect.jpg (793KB)
+INFO:     203.230.104.168:59895 - "POST /upload_pano HTTP/1.1" 200 OK
+INFO:     203.230.104.168:60434 - "GET /anchor360_latest HTTP/1.1" 200 OK
+[pano] saved: pano_captures/pro2_anchor/LIVE_STREAM/equirect.jpg (807KB)
+INFO:     203.230.104.168:59895 - "POST /upload_pano HTTP/1.1" 200 OK
+INFO:     203.230.104.168:60436 - "GET /anchor360_latest HTTP/1.1" 200 OK
+[pano] saved: pano_captures/pro2_anchor/LIVE_STREAM/equirect.jpg (814KB)
+INFO:     203.230.104.168:59895 - "POST /upload_pano HTTP/1.1" 200 OK
+[pano] saved: pano_captures/pro2_anchor/LIVE_STREAM/equirect.jpg (835KB)
+INFO:     203.230.104.168:59895 - "POST /upload_pano HTTP/1.1" 200 OK
+INFO:     203.230.104.168:60437 - "GET /anchor360_latest HTTP/1.1" 200 OK
+[pano] saved: pano_captures/pro2_anchor/LIVE_STREAM/equirect.jpg (745KB)
+INFO:     203.230.104.168:59895 - "POST /upload_pano HTTP/1.1" 200 OK
+[pano] saved: pano_captures/pro2_anchor/LIVE_STREAM/equirect.jpg (747KB)
+INFO:     203.230.104.168:59895 - "POST /upload_pano HTTP/1.1" 200 OK
+INFO:     203.230.104.168:60438 - "GET /anchor360_latest HTTP/1.1" 200 OK
+[pano] saved: pano_captures/pro2_anchor/LIVE_STREAM/equirect.jpg (753KB)
+INFO:     203.230.104.168:59895 - "POST /upload_pano HTTP/1.1" 200 OK
+INFO:     203.230.104.168:60440 - "GET /anchor360_latest HTTP/1.1" 200 OK
+[pano] saved: pano_captures/pro2_anchor/LIVE_STREAM/equirect.jpg (765KB)
+INFO:     203.230.104.168:59895 - "POST /upload_pano HTTP/1.1" 200 OK
+[pano] saved: pano_captures/pro2_anchor/LIVE_STREAM/equirect.jpg (787KB)
+INFO:     203.230.104.168:59895 - "POST /upload_pano HTTP/1.1" 200 OK
+INFO:     203.230.104.168:60441 - "GET /anchor360_latest HTTP/1.1" 200 OK
+[pano] saved: pano_captures/pro2_anchor/LIVE_STREAM/equirect.jpg (770KB)
+INFO:     203.230.104.168:59895 - "POST /upload_pano HTTP/1.1" 200 OK
+[pano] saved: pano_captures/pro2_anchor/LIVE_STREAM/equirect.jpg (773KB)
+INFO:     203.230.104.168:59895 - "POST /upload_pano HTTP/1.1" 200 OK
+INFO:     203.230.104.168:60442 - "GET /anchor360_latest HTTP/1.1" 200 OK
+[pano] saved: pano_captures/pro2_anchor/LIVE_STREAM/equirect.jpg (772KB)
+INFO:     203.230.104.168:59895 - "POST /upload_pano HTTP/1.1" 200 OK
+[pano] saved: pano_captures/pro2_anchor/LIVE_STREAM/equirect.jpg (776KB)
+INFO:     203.230.104.168:59895 - "POST /upload_pano HTTP/1.1" 200 OK
+INFO:     203.230.104.168:60444 - "GET /anchor360_latest HTTP/1.1" 200 OK
+[pano] saved: pano_captures/pro2_anchor/LIVE_STREAM/equirect.jpg (780KB)
+INFO:     203.230.104.168:59895 - "POST /upload_pano HTTP/1.1" 200 OK
+INFO:     203.230.104.168:60445 - "GET /anchor360_latest HTTP/1.1" 200 OK
+[pano] saved: pano_captures/pro2_anchor/LIVE_STREAM/equirect.jpg (782KB)
+INFO:     203.230.104.168:59895 - "POST /upload_pano HTTP/1.1" 200 OK
+[pano] saved: pano_captures/pro2_anchor/LIVE_STREAM/equirect.jpg (786KB)
+INFO:     203.230.104.168:59895 - "POST /upload_pano HTTP/1.1" 200 OK
+INFO:     203.230.104.168:60446 - "GET /anchor360_latest HTTP/1.1" 200 OK
+[pano] saved: pano_captures/pro2_anchor/LIVE_STREAM/equirect.jpg (840KB)
+INFO:     203.230.104.168:59895 - "POST /upload_pano HTTP/1.1" 200 OK
+INFO:     203.230.104.168:60448 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:60449 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:60450 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:60452 - "GET /anchor360_latest HTTP/1.1" 200 OK
+[pano] saved: pano_captures/pro2_anchor/LIVE_STREAM/equirect.jpg (789KB)
+INFO:     203.230.104.168:59895 - "POST /upload_pano HTTP/1.1" 200 OK
+[pano] saved: pano_captures/pro2_anchor/LIVE_STREAM/equirect.jpg (794KB)
+INFO:     203.230.104.168:59895 - "POST /upload_pano HTTP/1.1" 200 OK
+INFO:     203.230.104.168:60453 - "GET /anchor360_latest HTTP/1.1" 200 OK
+[pano] saved: pano_captures/pro2_anchor/LIVE_STREAM/equirect.jpg (810KB)
+INFO:     203.230.104.168:59895 - "POST /upload_pano HTTP/1.1" 200 OK
+INFO:     203.230.104.168:60454 - "GET /anchor360_latest HTTP/1.1" 200 OK
+[pano] saved: pano_captures/pro2_anchor/LIVE_STREAM/equirect.jpg (744KB)
+INFO:     203.230.104.168:59895 - "POST /upload_pano HTTP/1.1" 200 OK
+[pano] saved: pano_captures/pro2_anchor/LIVE_STREAM/equirect.jpg (753KB)
+INFO:     203.230.104.168:59895 - "POST /upload_pano HTTP/1.1" 200 OK
+INFO:     203.230.104.168:60455 - "GET /anchor360_latest HTTP/1.1" 200 OK
+[pano] saved: pano_captures/pro2_anchor/LIVE_STREAM/equirect.jpg (771KB)
+INFO:     203.230.104.168:59895 - "POST /upload_pano HTTP/1.1" 200 OK
+INFO:     203.230.104.168:60457 - "GET /anchor360_latest HTTP/1.1" 200 OK
+[pano] saved: pano_captures/pro2_anchor/LIVE_STREAM/equirect.jpg (781KB)
+INFO:     203.230.104.168:59895 - "POST /upload_pano HTTP/1.1" 200 OK
+[pano] saved: pano_captures/pro2_anchor/LIVE_STREAM/equirect.jpg (800KB)
+INFO:     203.230.104.168:59895 - "POST /upload_pano HTTP/1.1" 200 OK
+INFO:     203.230.104.168:60459 - "GET /anchor360_latest HTTP/1.1" 200 OK
+[pano] saved: pano_captures/pro2_anchor/LIVE_STREAM/equirect.jpg (823KB)
+INFO:     203.230.104.168:59895 - "POST /upload_pano HTTP/1.1" 200 OK
+INFO:     203.230.104.168:60461 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:60463 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:60464 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:60465 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:60467 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:60468 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:60469 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:60471 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:60472 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:60473 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:60474 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:60475 - "GET /anchor360_latest HTTP/1.1" 200 OK
+INFO:     203.230.104.168:60476 - "GET /anchor360_latest HTTP/1.1" 200 OK
+^CINFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [3575952]
+(venv_image) dg@sysai-server2:~/capstone-db/image_server$ 
+
+====================서버 2 (live.py. 가장 최근 로그들만 가져옴.)
+        person          AGENT          pos3d=(-1.99, 0, +2.35) D= 3.08  conf=0.62  wy=-0.619
+        chair           HARD_OBSTACLE  pos3d=(-0.99, 0, +0.68) D= 1.20  conf=0.50  wy=-1.144
+        chair           HARD_OBSTACLE  pos3d=(-1.77, 0, +1.78) D= 2.51  conf=0.49  wy=-0.734
+        fire extinguisherHARD_OBSTACLE  pos3d=(+1.11, 0, +0.78) D= 1.36  conf=0.39  wy=-1.089
+        storage box     HARD_OBSTACLE  pos3d=(+1.04, 0, +1.71) D= 2.00  conf=0.19  wy=-0.751
+        box             HARD_OBSTACLE  pos3d=(-1.87, 0, +5.12) D= 5.45  conf=0.15  wy=-0.352
+        [제외:    접지잘림] cardboard box   D= 0.35  conf=0.21
+        [제외:     >8m] storage box     D=11.73  conf=0.16
+[live] #527 LIVE_STREAM  전송 7개 (걸러냄 2개)  | read 0.02s  slice 0.01s  infer 0.01s  총 0.05s  | UDP OK → 192.168.50.246:5010
+        chair           HARD_OBSTACLE  pos3d=(-0.26, 0, +0.64) D= 0.69  conf=0.76  wy=-1.168
+        person          AGENT          pos3d=(-1.99, 0, +2.35) D= 3.08  conf=0.62  wy=-0.620
+        chair           HARD_OBSTACLE  pos3d=(-0.99, 0, +0.68) D= 1.20  conf=0.50  wy=-1.144
+        chair           HARD_OBSTACLE  pos3d=(-1.78, 0, +1.78) D= 2.52  conf=0.49  wy=-0.734
+        fire extinguisherHARD_OBSTACLE  pos3d=(+1.11, 0, +0.78) D= 1.36  conf=0.40  wy=-1.089
+        storage box     HARD_OBSTACLE  pos3d=(+1.04, 0, +1.71) D= 2.00  conf=0.20  wy=-0.751
+        box             HARD_OBSTACLE  pos3d=(-1.87, 0, +5.12) D= 5.45  conf=0.15  wy=-0.352
+        [제외:    접지잘림] cardboard box   D= 0.36  conf=0.19
+        [제외:     >8m] storage box     D=11.72  conf=0.17
+[live] #528 LIVE_STREAM  전송 8개 (걸러냄 2개)  | read 0.02s  slice 0.01s  infer 0.01s  총 0.05s  | UDP OK → 192.168.50.246:5010
+        chair           HARD_OBSTACLE  pos3d=(-0.26, 0, +0.64) D= 0.69  conf=0.76  wy=-1.168
+        person          AGENT          pos3d=(-1.98, 0, +2.34) D= 3.07  conf=0.61  wy=-0.621
+        chair           HARD_OBSTACLE  pos3d=(-0.99, 0, +0.68) D= 1.20  conf=0.49  wy=-1.144
+        chair           HARD_OBSTACLE  pos3d=(-1.77, 0, +1.78) D= 2.51  conf=0.48  wy=-0.735
+        fire extinguisherHARD_OBSTACLE  pos3d=(+1.11, 0, +0.78) D= 1.36  conf=0.41  wy=-1.089
+        storage box     HARD_OBSTACLE  pos3d=(+1.03, 0, +1.71) D= 2.00  conf=0.18  wy=-0.752
+        box             HARD_OBSTACLE  pos3d=(-1.87, 0, +5.13) D= 5.46  conf=0.15  wy=-0.352
+        cardboard box   HARD_OBSTACLE  pos3d=(+0.15, 0, +2.31) D= 2.32  conf=0.15  wy=-0.626
+        [제외:    접지잘림] cardboard box   D= 0.36  conf=0.18
+        [제외:     >8m] storage box     D=11.72  conf=0.17
+[live] #529 LIVE_STREAM  전송 6개 (걸러냄 3개)  | read 0.02s  slice 0.01s  infer 0.01s  총 0.05s  | UDP OK → 192.168.50.246:5010
+        chair           HARD_OBSTACLE  pos3d=(-0.26, 0, +0.64) D= 0.69  conf=0.71  wy=-1.169
+        person          AGENT          pos3d=(-1.98, 0, +2.35) D= 3.08  conf=0.58  wy=-0.619
+        chair           HARD_OBSTACLE  pos3d=(-1.78, 0, +1.77) D= 2.51  conf=0.50  wy=-0.737
+        fire extinguisherHARD_OBSTACLE  pos3d=(+1.11, 0, +0.78) D= 1.36  conf=0.48  wy=-1.089
+        chair           HARD_OBSTACLE  pos3d=(-0.99, 0, +0.68) D= 1.20  conf=0.45  wy=-1.145
+        storage box     HARD_OBSTACLE  pos3d=(+0.15, 0, +2.31) D= 2.31  conf=0.15  wy=-0.627
+        [제외:    접지잘림] open box        D= 0.58  conf=0.19
+        [제외:    접지잘림] cardboard box   D= 0.36  conf=0.19
+        [제외:     >8m] storage box     D=11.72  conf=0.18
+[live] #530 LIVE_STREAM  전송 6개 (걸러냄 3개)  | read 0.02s  slice 0.01s  infer 0.01s  총 0.05s  | UDP OK → 192.168.50.246:5010
+        chair           HARD_OBSTACLE  pos3d=(-0.26, 0, +0.64) D= 0.69  conf=0.71  wy=-1.169
+        person          AGENT          pos3d=(-1.98, 0, +2.35) D= 3.08  conf=0.57  wy=-0.619
+        chair           HARD_OBSTACLE  pos3d=(-1.77, 0, +1.77) D= 2.51  conf=0.52  wy=-0.736
+        chair           HARD_OBSTACLE  pos3d=(-0.99, 0, +0.68) D= 1.20  conf=0.47  wy=-1.144
+        fire extinguisherHARD_OBSTACLE  pos3d=(+1.11, 0, +0.78) D= 1.36  conf=0.45  wy=-1.089
+        box             HARD_OBSTACLE  pos3d=(-1.89, 0, +5.20) D= 5.54  conf=0.12  wy=-0.348
+        [제외:    접지잘림] cardboard box   D= 0.36  conf=0.22
+        [제외:    접지잘림] open box        D= 0.58  conf=0.18
+        [제외:     >8m] storage box     D=11.71  conf=0.15
+[live] #531 LIVE_STREAM  전송 6개 (걸러냄 3개)  | read 0.02s  slice 0.01s  infer 0.01s  총 0.05s  | UDP OK → 192.168.50.246:5010
+        chair           HARD_OBSTACLE  pos3d=(-0.26, 0, +0.64) D= 0.69  conf=0.72  wy=-1.170
+        person          AGENT          pos3d=(-1.99, 0, +2.36) D= 3.08  conf=0.57  wy=-0.619
+        chair           HARD_OBSTACLE  pos3d=(-1.77, 0, +1.77) D= 2.51  conf=0.54  wy=-0.736
+        fire extinguisherHARD_OBSTACLE  pos3d=(+1.11, 0, +0.78) D= 1.36  conf=0.50  wy=-1.089
+        chair           HARD_OBSTACLE  pos3d=(-0.99, 0, +0.68) D= 1.20  conf=0.44  wy=-1.144
+        box             HARD_OBSTACLE  pos3d=(-1.89, 0, +5.20) D= 5.54  conf=0.12  wy=-0.348
+        [제외:    접지잘림] cardboard box   D= 0.36  conf=0.23
+        [제외:    접지잘림] open box        D= 0.58  conf=0.17
+        [제외:     >8m] storage box     D=11.71  conf=0.16
+[live] #532 LIVE_STREAM  전송 7개 (걸러냄 3개)  | read 0.02s  slice 0.01s  infer 0.01s  총 0.05s  | UDP OK → 192.168.50.246:5010
+        chair           HARD_OBSTACLE  pos3d=(-0.26, 0, +0.63) D= 0.68  conf=0.69  wy=-1.171
+        person          AGENT          pos3d=(-1.98, 0, +2.36) D= 3.08  conf=0.58  wy=-0.618
+        chair           HARD_OBSTACLE  pos3d=(-1.77, 0, +1.77) D= 2.50  conf=0.54  wy=-0.737
+        fire extinguisherHARD_OBSTACLE  pos3d=(+1.11, 0, +0.78) D= 1.35  conf=0.47  wy=-1.089
+        chair           HARD_OBSTACLE  pos3d=(-0.99, 0, +0.68) D= 1.20  conf=0.47  wy=-1.144
+        storage box     HARD_OBSTACLE  pos3d=(+0.15, 0, +2.31) D= 2.31  conf=0.17  wy=-0.627
+        box             HARD_OBSTACLE  pos3d=(-1.88, 0, +5.17) D= 5.50  conf=0.13  wy=-0.349
+        [제외:    접지잘림] cardboard box   D= 0.36  conf=0.24
+        [제외:    접지잘림] open box        D= 0.58  conf=0.16
+        [제외:     >8m] storage box     D=11.71  conf=0.15
+[live] #533 LIVE_STREAM  전송 7개 (걸러냄 3개)  | read 0.04s  slice 0.01s  infer 0.01s  총 0.07s  | UDP OK → 192.168.50.246:5010
+        chair           HARD_OBSTACLE  pos3d=(-0.26, 0, +0.63) D= 0.68  conf=0.70  wy=-1.170
+        chair           HARD_OBSTACLE  pos3d=(-1.77, 0, +1.77) D= 2.50  conf=0.54  wy=-0.738
+        person          AGENT          pos3d=(-1.99, 0, +2.37) D= 3.09  conf=0.54  wy=-0.617
+        chair           HARD_OBSTACLE  pos3d=(-0.99, 0, +0.68) D= 1.20  conf=0.48  wy=-1.144
+        fire extinguisherHARD_OBSTACLE  pos3d=(+1.11, 0, +0.78) D= 1.36  conf=0.48  wy=-1.089
+        storage box     HARD_OBSTACLE  pos3d=(+0.15, 0, +2.31) D= 2.31  conf=0.17  wy=-0.627
+        box             HARD_OBSTACLE  pos3d=(-1.88, 0, +5.17) D= 5.50  conf=0.14  wy=-0.349
+        [제외:    접지잘림] cardboard box   D= 0.36  conf=0.21
+        [제외:    접지잘림] open box        D= 0.58  conf=0.16
+        [제외:     >8m] storage box     D=11.72  conf=0.15
+[live] #534 LIVE_STREAM  전송 7개 (걸러냄 3개)  | read 0.02s  slice 0.01s  infer 0.01s  총 0.05s  | UDP OK → 192.168.50.246:5010
+        chair           HARD_OBSTACLE  pos3d=(-0.26, 0, +0.63) D= 0.68  conf=0.72  wy=-1.171
+        person          AGENT          pos3d=(-1.98, 0, +2.36) D= 3.09  conf=0.58  wy=-0.617
+        chair           HARD_OBSTACLE  pos3d=(-1.77, 0, +1.77) D= 2.50  conf=0.55  wy=-0.737
+        fire extinguisherHARD_OBSTACLE  pos3d=(+1.11, 0, +0.78) D= 1.36  conf=0.49  wy=-1.089
+        chair           HARD_OBSTACLE  pos3d=(-0.99, 0, +0.68) D= 1.20  conf=0.48  wy=-1.144
+        storage box     HARD_OBSTACLE  pos3d=(+0.15, 0, +2.30) D= 2.31  conf=0.16  wy=-0.627
+        box             HARD_OBSTACLE  pos3d=(-1.88, 0, +5.17) D= 5.50  conf=0.13  wy=-0.349
+        [제외:    접지잘림] cardboard box   D= 0.36  conf=0.21
+        [제외:    접지잘림] open box        D= 0.58  conf=0.17
+        [제외:     >8m] storage box     D=11.71  conf=0.15
+[live] #535 LIVE_STREAM  전송 6개 (걸러냄 3개)  | read 0.02s  slice 0.01s  infer 0.01s  총 0.05s  | UDP OK → 192.168.50.246:5010
+        chair           HARD_OBSTACLE  pos3d=(-0.26, 0, +0.63) D= 0.68  conf=0.71  wy=-1.171
+        person          AGENT          pos3d=(-1.98, 0, +2.36) D= 3.08  conf=0.62  wy=-0.618
+        chair           HARD_OBSTACLE  pos3d=(-1.77, 0, +1.77) D= 2.51  conf=0.54  wy=-0.737
+        chair           HARD_OBSTACLE  pos3d=(-0.99, 0, +0.68) D= 1.20  conf=0.47  wy=-1.144
+        fire extinguisherHARD_OBSTACLE  pos3d=(+1.11, 0, +0.78) D= 1.36  conf=0.47  wy=-1.089
+        storage box     HARD_OBSTACLE  pos3d=(+0.15, 0, +2.31) D= 2.31  conf=0.17  wy=-0.627
+        [제외:    접지잘림] cardboard box   D= 0.36  conf=0.20
+        [제외:     >8m] storage box     D=11.73  conf=0.16
+        [제외:    접지잘림] open box        D= 0.58  conf=0.15
+[live] #536 LIVE_STREAM  전송 6개 (걸러냄 2개)  | read 0.02s  slice 0.01s  infer 0.01s  총 0.05s  | UDP OK → 192.168.50.246:5010
+        chair           HARD_OBSTACLE  pos3d=(-0.26, 0, +0.64) D= 0.69  conf=0.72  wy=-1.169
+        person          AGENT          pos3d=(-1.98, 0, +2.36) D= 3.08  conf=0.62  wy=-0.618
+        chair           HARD_OBSTACLE  pos3d=(-1.77, 0, +1.77) D= 2.50  conf=0.53  wy=-0.737
+        fire extinguisherHARD_OBSTACLE  pos3d=(+1.11, 0, +0.78) D= 1.36  conf=0.49  wy=-1.089
+        chair           HARD_OBSTACLE  pos3d=(-0.99, 0, +0.68) D= 1.20  conf=0.40  wy=-1.144
+        storage box     HARD_OBSTACLE  pos3d=(+0.15, 0, +2.31) D= 2.31  conf=0.16  wy=-0.627
+        [제외:    접지잘림] cardboard box   D= 0.36  conf=0.23
+        [제외:     >8m] storage box     D=11.73  conf=0.16
+[live] #537 LIVE_STREAM  전송 6개 (걸러냄 2개)  | read 0.02s  slice 0.01s  infer 0.01s  총 0.05s  | UDP OK → 192.168.50.246:5010
+        chair           HARD_OBSTACLE  pos3d=(-0.26, 0, +0.64) D= 0.69  conf=0.70  wy=-1.169
+        person          AGENT          pos3d=(-1.98, 0, +2.36) D= 3.08  conf=0.64  wy=-0.618
+        chair           HARD_OBSTACLE  pos3d=(-1.77, 0, +1.77) D= 2.51  conf=0.53  wy=-0.737
+        fire extinguisherHARD_OBSTACLE  pos3d=(+1.11, 0, +0.78) D= 1.36  conf=0.52  wy=-1.089
+        chair           HARD_OBSTACLE  pos3d=(-1.00, 0, +0.68) D= 1.21  conf=0.38  wy=-1.144
+        storage box     HARD_OBSTACLE  pos3d=(+0.15, 0, +2.30) D= 2.31  conf=0.16  wy=-0.627
+        [제외:    접지잘림] cardboard box   D= 0.36  conf=0.25
+        [제외:    접지잘림] open box        D= 0.58  conf=0.16
+[live] #538 LIVE_STREAM  전송 6개 (걸러냄 2개)  | read 0.02s  slice 0.01s  infer 0.01s  총 0.05s  | UDP OK → 192.168.50.246:5010
+        chair           HARD_OBSTACLE  pos3d=(-0.26, 0, +0.64) D= 0.69  conf=0.71  wy=-1.169
+        person          AGENT          pos3d=(-1.98, 0, +2.35) D= 3.08  conf=0.64  wy=-0.619
+        chair           HARD_OBSTACLE  pos3d=(-1.77, 0, +1.77) D= 2.50  conf=0.54  wy=-0.737
+        fire extinguisherHARD_OBSTACLE  pos3d=(+1.11, 0, +0.78) D= 1.36  conf=0.53  wy=-1.089
+        chair           HARD_OBSTACLE  pos3d=(-1.00, 0, +0.68) D= 1.21  conf=0.38  wy=-1.144
+        storage box     HARD_OBSTACLE  pos3d=(+0.15, 0, +2.31) D= 2.31  conf=0.17  wy=-0.627
+        [제외:    접지잘림] cardboard box   D= 0.35  conf=0.24
+        [제외:    접지잘림] open box        D= 0.58  conf=0.17
+[live] #539 LIVE_STREAM  전송 6개 (걸러냄 2개)  | read 0.02s  slice 0.01s  infer 0.01s  총 0.05s  | UDP OK → 192.168.50.246:5010
+        chair           HARD_OBSTACLE  pos3d=(-0.26, 0, +0.64) D= 0.69  conf=0.69  wy=-1.169
+        person          AGENT          pos3d=(-1.98, 0, +2.36) D= 3.08  conf=0.64  wy=-0.618
+        fire extinguisherHARD_OBSTACLE  pos3d=(+1.11, 0, +0.78) D= 1.36  conf=0.53  wy=-1.088
+        chair           HARD_OBSTACLE  pos3d=(-1.77, 0, +1.77) D= 2.50  conf=0.53  wy=-0.737
+        chair           HARD_OBSTACLE  pos3d=(-0.99, 0, +0.68) D= 1.21  conf=0.38  wy=-1.144
+        storage box     HARD_OBSTACLE  pos3d=(+0.15, 0, +2.31) D= 2.31  conf=0.16  wy=-0.627
+        [제외:    접지잘림] cardboard box   D= 0.35  conf=0.27
+        [제외:    접지잘림] open box        D= 0.58  conf=0.16
+[live] #540 LIVE_STREAM  전송 7개 (걸러냄 2개)  | read 0.02s  slice 0.01s  infer 0.01s  총 0.05s  | UDP OK → 192.168.50.246:5010
+        chair           HARD_OBSTACLE  pos3d=(-0.26, 0, +0.64) D= 0.69  conf=0.73  wy=-1.169
+        person          AGENT          pos3d=(-1.90, 0, +2.35) D= 3.02  conf=0.55  wy=-0.620
+        chair           HARD_OBSTACLE  pos3d=(-1.78, 0, +1.76) D= 2.50  conf=0.54  wy=-0.739
+        chair           HARD_OBSTACLE  pos3d=(-0.99, 0, +0.68) D= 1.20  conf=0.46  wy=-1.144
+        fire extinguisherHARD_OBSTACLE  pos3d=(+1.11, 0, +0.78) D= 1.36  conf=0.35  wy=-1.089
+        cardboard box   HARD_OBSTACLE  pos3d=(+0.15, 0, +2.31) D= 2.31  conf=0.20  wy=-0.627
+        storage box     HARD_OBSTACLE  pos3d=(+1.03, 0, +1.70) D= 1.99  conf=0.17  wy=-0.753
+        [제외:     >8m] storage box     D=11.73  conf=0.24
+        [제외:    접지잘림] cardboard box   D= 0.35  conf=0.20
+[live] #541 LIVE_STREAM  전송 7개 (걸러냄 2개)  | read 0.02s  slice 0.01s  infer 0.01s  총 0.05s  | UDP OK → 192.168.50.246:5010
+        chair           HARD_OBSTACLE  pos3d=(-0.26, 0, +0.64) D= 0.69  conf=0.74  wy=-1.169
+        person          AGENT          pos3d=(-1.98, 0, +2.36) D= 3.08  conf=0.55  wy=-0.618
+        chair           HARD_OBSTACLE  pos3d=(-1.78, 0, +1.76) D= 2.50  conf=0.54  wy=-0.739
+        chair           HARD_OBSTACLE  pos3d=(-0.99, 0, +0.68) D= 1.20  conf=0.44  wy=-1.144
+        fire extinguisherHARD_OBSTACLE  pos3d=(+1.11, 0, +0.78) D= 1.36  conf=0.32  wy=-1.089
+        storage box     HARD_OBSTACLE  pos3d=(+1.04, 0, +1.72) D= 2.01  conf=0.19  wy=-0.749
+        storage box     HARD_OBSTACLE  pos3d=(+0.15, 0, +2.32) D= 2.32  conf=0.17  wy=-0.625
+        [제외:    접지잘림] cardboard box   D= 0.35  conf=0.22
+        [제외:     >8m] storage box     D=11.74  conf=0.22
+[live] #542 LIVE_STREAM  전송 6개 (걸러냄 2개)  | read 0.02s  slice 0.01s  infer 0.01s  총 0.05s  | UDP OK → 192.168.50.246:5010
+        chair           HARD_OBSTACLE  pos3d=(-0.26, 0, +0.64) D= 0.69  conf=0.74  wy=-1.169
+        person          AGENT          pos3d=(-1.98, 0, +2.36) D= 3.08  conf=0.58  wy=-0.618
+        chair           HARD_OBSTACLE  pos3d=(-1.78, 0, +1.76) D= 2.50  conf=0.54  wy=-0.739
+        chair           HARD_OBSTACLE  pos3d=(-0.99, 0, +0.68) D= 1.20  conf=0.41  wy=-1.144
+        fire extinguisherHARD_OBSTACLE  pos3d=(+1.11, 0, +0.78) D= 1.36  conf=0.35  wy=-1.089
+        cardboard box   HARD_OBSTACLE  pos3d=(+0.15, 0, +2.31) D= 2.31  conf=0.17  wy=-0.627
+        [제외:     >8m] storage box     D=11.74  conf=0.21
+        [제외:    접지잘림] cardboard box   D= 0.36  conf=0.20
+[live] #543 LIVE_STREAM  전송 6개 (걸러냄 2개)  | read 0.02s  slice 0.01s  infer 0.01s  총 0.05s  | UDP OK → 192.168.50.246:5010
+        chair           HARD_OBSTACLE  pos3d=(-0.26, 0, +0.64) D= 0.69  conf=0.75  wy=-1.169
+        chair           HARD_OBSTACLE  pos3d=(-1.77, 0, +1.76) D= 2.50  conf=0.55  wy=-0.739
+        person          AGENT          pos3d=(-1.91, 0, +2.35) D= 3.03  conf=0.54  wy=-0.620
+        chair           HARD_OBSTACLE  pos3d=(-0.99, 0, +0.68) D= 1.20  conf=0.43  wy=-1.144
+        fire extinguisherHARD_OBSTACLE  pos3d=(+1.11, 0, +0.78) D= 1.36  conf=0.39  wy=-1.089
+        cardboard box   HARD_OBSTACLE  pos3d=(+0.15, 0, +2.31) D= 2.31  conf=0.21  wy=-0.626
+        [제외:    접지잘림] cardboard box   D= 0.36  conf=0.23
+        [제외:     >8m] storage box     D=11.73  conf=0.19
+[live] #544 LIVE_STREAM  전송 6개 (걸러냄 2개)  | read 0.02s  slice 0.01s  infer 0.01s  총 0.05s  | UDP OK → 192.168.50.246:5010
+        chair           HARD_OBSTACLE  pos3d=(-0.26, 0, +0.64) D= 0.69  conf=0.73  wy=-1.169
+        person          AGENT          pos3d=(-1.99, 0, +2.36) D= 3.08  conf=0.55  wy=-0.618
+        chair           HARD_OBSTACLE  pos3d=(-1.77, 0, +1.76) D= 2.50  conf=0.54  wy=-0.739
+        chair           HARD_OBSTACLE  pos3d=(-0.99, 0, +0.68) D= 1.21  conf=0.39  wy=-1.144
+        fire extinguisherHARD_OBSTACLE  pos3d=(+1.11, 0, +0.78) D= 1.36  conf=0.35  wy=-1.089
+        cardboard box   HARD_OBSTACLE  pos3d=(+0.15, 0, +2.31) D= 2.31  conf=0.20  wy=-0.627
+        [제외:    접지잘림] cardboard box   D= 0.35  conf=0.23
+        [제외:     >8m] storage box     D=11.71  conf=0.22
+[live] #545 LIVE_STREAM  전송 7개 (걸러냄 2개)  | read 0.02s  slice 0.01s  infer 0.01s  총 0.05s  | UDP OK → 192.168.50.246:5010
+        chair           HARD_OBSTACLE  pos3d=(-0.26, 0, +0.64) D= 0.69  conf=0.73  wy=-1.169
+        person          AGENT          pos3d=(-1.91, 0, +2.34) D= 3.02  conf=0.55  wy=-0.621
+        chair           HARD_OBSTACLE  pos3d=(-1.78, 0, +1.76) D= 2.50  conf=0.53  wy=-0.739
+        chair           HARD_OBSTACLE  pos3d=(-0.99, 0, +0.68) D= 1.21  conf=0.40  wy=-1.144
+        fire extinguisherHARD_OBSTACLE  pos3d=(+1.11, 0, +0.78) D= 1.36  conf=0.28  wy=-1.089
+        cardboard box   HARD_OBSTACLE  pos3d=(+0.15, 0, +2.31) D= 2.31  conf=0.19  wy=-0.627
+        box             HARD_OBSTACLE  pos3d=(-1.88, 0, +5.16) D= 5.49  conf=0.13  wy=-0.350
+        [제외:    접지잘림] cardboard box   D= 0.35  conf=0.22
+        [제외:     >8m] storage box     D=11.70  conf=0.21
+[live] #546 LIVE_STREAM  전송 8개 (걸러냄 2개)  | read 0.02s  slice 0.01s  infer 0.01s  총 0.05s  | UDP OK → 192.168.50.246:5010
+        chair           HARD_OBSTACLE  pos3d=(-0.26, 0, +0.64) D= 0.69  conf=0.73  wy=-1.169
+        person          AGENT          pos3d=(-1.89, 0, +2.32) D= 3.00  conf=0.55  wy=-0.624
+        chair           HARD_OBSTACLE  pos3d=(-1.78, 0, +1.76) D= 2.50  conf=0.53  wy=-0.739
+        chair           HARD_OBSTACLE  pos3d=(-0.99, 0, +0.68) D= 1.21  conf=0.40  wy=-1.144
+        fire extinguisherHARD_OBSTACLE  pos3d=(+1.11, 0, +0.78) D= 1.36  conf=0.29  wy=-1.089
+        cardboard box   HARD_OBSTACLE  pos3d=(+0.15, 0, +2.31) D= 2.31  conf=0.22  wy=-0.627
+        storage box     HARD_OBSTACLE  pos3d=(+1.04, 0, +1.72) D= 2.01  conf=0.15  wy=-0.749
+        box             HARD_OBSTACLE  pos3d=(-1.88, 0, +5.15) D= 5.48  conf=0.13  wy=-0.350
+        [제외:    접지잘림] cardboard box   D= 0.35  conf=0.20
+        [제외:     >8m] storage box     D=11.71  conf=0.19
+[live] #547 LIVE_STREAM  전송 8개 (걸러냄 2개)  | read 0.02s  slice 0.01s  infer 0.01s  총 0.05s  | UDP OK → 192.168.50.246:5010
+        chair           HARD_OBSTACLE  pos3d=(-0.26, 0, +0.64) D= 0.69  conf=0.72  wy=-1.169
+        person          AGENT          pos3d=(-1.98, 0, +2.35) D= 3.08  conf=0.57  wy=-0.619
+        chair           HARD_OBSTACLE  pos3d=(-1.78, 0, +1.76) D= 2.50  conf=0.52  wy=-0.739
+        chair           HARD_OBSTACLE  pos3d=(-0.99, 0, +0.68) D= 1.21  conf=0.40  wy=-1.144
+        fire extinguisherHARD_OBSTACLE  pos3d=(+1.11, 0, +0.78) D= 1.36  conf=0.30  wy=-1.089
+        cardboard box   HARD_OBSTACLE  pos3d=(+0.15, 0, +2.31) D= 2.31  conf=0.20  wy=-0.627
+        storage box     HARD_OBSTACLE  pos3d=(+1.04, 0, +1.72) D= 2.01  conf=0.15  wy=-0.749
+        box             HARD_OBSTACLE  pos3d=(-1.87, 0, +5.13) D= 5.46  conf=0.14  wy=-0.351
+        [제외:     >8m] storage box     D=11.70  conf=0.19
+        [제외:    접지잘림] cardboard box   D= 0.35  conf=0.17
+[live] #548 LIVE_STREAM  전송 7개 (걸러냄 3개)  | read 0.02s  slice 0.01s  infer 0.01s  총 0.05s  | UDP OK → 192.168.50.246:5010
+        chair           HARD_OBSTACLE  pos3d=(-0.26, 0, +0.64) D= 0.69  conf=0.72  wy=-1.169
+        person          AGENT          pos3d=(-1.90, 0, +2.33) D= 3.00  conf=0.55  wy=-0.623
+        chair           HARD_OBSTACLE  pos3d=(-1.78, 0, +1.76) D= 2.50  conf=0.52  wy=-0.739
+        chair           HARD_OBSTACLE  pos3d=(-0.99, 0, +0.68) D= 1.20  conf=0.42  wy=-1.144
+        fire extinguisherHARD_OBSTACLE  pos3d=(+1.11, 0, +0.78) D= 1.36  conf=0.28  wy=-1.088
+        cardboard box   HARD_OBSTACLE  pos3d=(+0.15, 0, +2.31) D= 2.31  conf=0.19  wy=-0.627
+        box             HARD_OBSTACLE  pos3d=(-1.87, 0, +5.14) D= 5.47  conf=0.12  wy=-0.351
+        [제외:    접지잘림] table           D= 0.62  conf=0.23
+        [제외:    접지잘림] cardboard box   D= 0.36  conf=0.20
+        [제외:     >8m] storage box     D=11.71  conf=0.18
+[live] #549 LIVE_STREAM  전송 7개 (걸러냄 3개)  | read 0.02s  slice 0.01s  infer 0.01s  총 0.05s  | UDP OK → 192.168.50.246:5010
+        chair           HARD_OBSTACLE  pos3d=(-0.26, 0, +0.64) D= 0.69  conf=0.71  wy=-1.170
+        person          AGENT          pos3d=(-1.99, 0, +2.37) D= 3.10  conf=0.64  wy=-0.615
+        chair           HARD_OBSTACLE  pos3d=(-1.77, 0, +1.76) D= 2.50  conf=0.53  wy=-0.738
+        chair           HARD_OBSTACLE  pos3d=(-0.99, 0, +0.68) D= 1.20  conf=0.47  wy=-1.144
+        fire extinguisherHARD_OBSTACLE  pos3d=(+1.11, 0, +0.78) D= 1.36  conf=0.36  wy=-1.089
+        cardboard box   HARD_OBSTACLE  pos3d=(+0.15, 0, +2.31) D= 2.31  conf=0.20  wy=-0.627
+        storage box     HARD_OBSTACLE  pos3d=(+1.03, 0, +1.70) D= 1.99  conf=0.17  wy=-0.754
+        [제외:    접지잘림] cardboard box   D= 0.36  conf=0.23
+        [제외:    접지잘림] open box        D= 0.58  conf=0.16
+        [제외:     >8m] storage box     D=11.74  conf=0.16
+[live] #550 LIVE_STREAM  전송 7개 (걸러냄 3개)  | read 0.02s  slice 0.01s  infer 0.01s  총 0.05s  | UDP OK → 192.168.50.246:5010
+        chair           HARD_OBSTACLE  pos3d=(-0.26, 0, +0.64) D= 0.69  conf=0.70  wy=-1.170
+        person          AGENT          pos3d=(-1.99, 0, +2.37) D= 3.10  conf=0.61  wy=-0.616
+        chair           HARD_OBSTACLE  pos3d=(-1.77, 0, +1.77) D= 2.50  conf=0.53  wy=-0.738
+        chair           HARD_OBSTACLE  pos3d=(-0.99, 0, +0.68) D= 1.20  conf=0.41  wy=-1.144
+        fire extinguisherHARD_OBSTACLE  pos3d=(+1.11, 0, +0.78) D= 1.36  conf=0.33  wy=-1.089
+        cardboard box   HARD_OBSTACLE  pos3d=(+0.15, 0, +2.31) D= 2.31  conf=0.18  wy=-0.627
+        storage box     HARD_OBSTACLE  pos3d=(+1.03, 0, +1.71) D= 2.00  conf=0.17  wy=-0.752
+        [제외:    접지잘림] cardboard box   D= 0.35  conf=0.24
+        [제외:     >8m] storage box     D=11.72  conf=0.17
+        [제외:    접지잘림] open box        D= 0.58  conf=0.16
+[live] #551 LIVE_STREAM  전송 7개 (걸러냄 3개)  | read 0.02s  slice 0.01s  infer 0.01s  총 0.05s  | UDP OK → 192.168.50.246:5010
+        chair           HARD_OBSTACLE  pos3d=(-0.26, 0, +0.64) D= 0.69  conf=0.72  wy=-1.169
+        person          AGENT          pos3d=(-1.99, 0, +2.38) D= 3.10  conf=0.62  wy=-0.615
+        chair           HARD_OBSTACLE  pos3d=(-1.78, 0, +1.77) D= 2.51  conf=0.54  wy=-0.736
+        chair           HARD_OBSTACLE  pos3d=(-0.99, 0, +0.68) D= 1.21  conf=0.41  wy=-1.144
+        fire extinguisherHARD_OBSTACLE  pos3d=(+1.11, 0, +0.78) D= 1.36  conf=0.34  wy=-1.089
+        cardboard box   HARD_OBSTACLE  pos3d=(+0.15, 0, +2.31) D= 2.31  conf=0.21  wy=-0.627
+        storage box     HARD_OBSTACLE  pos3d=(+1.03, 0, +1.71) D= 2.00  conf=0.16  wy=-0.751
+        [제외:    접지잘림] cardboard box   D= 0.36  conf=0.21
+        [제외:     >8m] storage box     D=11.71  conf=0.18
+        [제외:    접지잘림] open box        D= 0.58  conf=0.16
+[live] #552 LIVE_STREAM  전송 6개 (걸러냄 2개)  | read 0.03s  slice 0.02s  infer 0.01s  총 0.07s  | UDP OK → 192.168.50.246:5010
+        chair           HARD_OBSTACLE  pos3d=(-0.26, 0, +0.64) D= 0.69  conf=0.73  wy=-1.170
+        person          AGENT          pos3d=(-1.99, 0, +2.37) D= 3.10  conf=0.63  wy=-0.616
+        chair           HARD_OBSTACLE  pos3d=(-1.78, 0, +1.77) D= 2.51  conf=0.55  wy=-0.736
+        chair           HARD_OBSTACLE  pos3d=(-0.99, 0, +0.68) D= 1.20  conf=0.43  wy=-1.144
+        fire extinguisherHARD_OBSTACLE  pos3d=(+1.11, 0, +0.78) D= 1.36  conf=0.33  wy=-1.089
+        cardboard box   HARD_OBSTACLE  pos3d=(+0.15, 0, +2.31) D= 2.31  conf=0.20  wy=-0.627
+        [제외:    접지잘림] cardboard box   D= 0.36  conf=0.22
+        [제외:     >8m] storage box     D=11.73  conf=0.20
+[live] #553 LIVE_STREAM  전송 6개 (걸러냄 2개)  | read 0.03s  slice 0.01s  infer 0.01s  총 0.07s  | UDP OK → 192.168.50.246:5010
+        chair           HARD_OBSTACLE  pos3d=(-0.26, 0, +0.64) D= 0.69  conf=0.74  wy=-1.169
+        person          AGENT          pos3d=(-1.99, 0, +2.37) D= 3.09  conf=0.63  wy=-0.616
+        chair           HARD_OBSTACLE  pos3d=(-1.78, 0, +1.77) D= 2.51  conf=0.53  wy=-0.737
+        chair           HARD_OBSTACLE  pos3d=(-0.99, 0, +0.68) D= 1.20  conf=0.41  wy=-1.144
+        fire extinguisherHARD_OBSTACLE  pos3d=(+1.11, 0, +0.78) D= 1.36  conf=0.36  wy=-1.089
+        cardboard box   HARD_OBSTACLE  pos3d=(+0.15, 0, +2.31) D= 2.31  conf=0.20  wy=-0.627
+        [제외:    접지잘림] cardboard box   D= 0.36  conf=0.21
+        [제외:     >8m] storage box     D=11.73  conf=0.19
+[live] #554 LIVE_STREAM  전송 6개 (걸러냄 2개)  | read 0.04s  slice 0.01s  infer 0.01s  총 0.07s  | UDP OK → 192.168.50.246:5010
+        chair           HARD_OBSTACLE  pos3d=(-0.26, 0, +0.64) D= 0.69  conf=0.73  wy=-1.170
+        person          AGENT          pos3d=(-1.99, 0, +2.37) D= 3.09  conf=0.63  wy=-0.617
+        chair           HARD_OBSTACLE  pos3d=(-1.78, 0, +1.77) D= 2.51  conf=0.53  wy=-0.737
+        chair           HARD_OBSTACLE  pos3d=(-0.99, 0, +0.68) D= 1.21  conf=0.42  wy=-1.144
+        fire extinguisherHARD_OBSTACLE  pos3d=(+1.11, 0, +0.78) D= 1.36  conf=0.34  wy=-1.089
+        cardboard box   HARD_OBSTACLE  pos3d=(+0.15, 0, +2.31) D= 2.31  conf=0.19  wy=-0.627
+        [제외:     >8m] storage box     D=11.73  conf=0.21
+        [제외:    접지잘림] cardboard box   D= 0.36  conf=0.20
+[live] #555 LIVE_STREAM  전송 7개 (걸러냄 3개)  | read 0.02s  slice 0.01s  infer 0.01s  총 0.05s  | UDP OK → 192.168.50.246:5010
+        chair           HARD_OBSTACLE  pos3d=(-0.26, 0, +0.64) D= 0.69  conf=0.75  wy=-1.169
+        person          AGENT          pos3d=(-1.98, 0, +2.36) D= 3.08  conf=0.63  wy=-0.618
+        chair           HARD_OBSTACLE  pos3d=(-1.78, 0, +1.77) D= 2.51  conf=0.53  wy=-0.737
+        chair           HARD_OBSTACLE  pos3d=(-0.99, 0, +0.68) D= 1.20  conf=0.43  wy=-1.144
+        fire extinguisherHARD_OBSTACLE  pos3d=(+1.11, 0, +0.78) D= 1.36  conf=0.33  wy=-1.089
+        cardboard box   HARD_OBSTACLE  pos3d=(+0.15, 0, +2.31) D= 2.31  conf=0.20  wy=-0.627
+        box             HARD_OBSTACLE  pos3d=(-1.88, 0, +5.15) D= 5.49  conf=0.12  wy=-0.350
+        [제외:    접지잘림] cardboard box   D= 0.36  conf=0.20
+        [제외:     >8m] storage box     D=11.73  conf=0.18
+        [제외:    접지잘림] open box        D= 0.58  conf=0.16
+[live] #556 LIVE_STREAM  전송 7개 (걸러냄 4개)  | read 0.04s  slice 0.01s  infer 0.01s  총 0.07s  | UDP OK → 192.168.50.246:5010
+        chair           HARD_OBSTACLE  pos3d=(-0.26, 0, +0.64) D= 0.69  conf=0.74  wy=-1.169
+        person          AGENT          pos3d=(-1.99, 0, +2.36) D= 3.08  conf=0.63  wy=-0.618
+        chair           HARD_OBSTACLE  pos3d=(-1.78, 0, +1.77) D= 2.51  conf=0.50  wy=-0.737
+        chair           HARD_OBSTACLE  pos3d=(-0.99, 0, +0.68) D= 1.20  conf=0.46  wy=-1.144
+        fire extinguisherHARD_OBSTACLE  pos3d=(+1.11, 0, +0.78) D= 1.36  conf=0.36  wy=-1.089
+        cardboard box   HARD_OBSTACLE  pos3d=(+0.15, 0, +2.31) D= 2.31  conf=0.21  wy=-0.627
+        box             HARD_OBSTACLE  pos3d=(-1.89, 0, +5.17) D= 5.51  conf=0.13  wy=-0.349
+        [제외:    접지잘림] table           D= 0.62  conf=0.22
+        [제외:    접지잘림] cardboard box   D= 0.36  conf=0.18
+        [제외:     >8m] storage box     D=11.71  conf=0.17
+        [제외:    접지잘림] open box        D= 0.58  conf=0.16
+[live] #557 LIVE_STREAM  전송 6개 (걸러냄 3개)  | read 0.02s  slice 0.01s  infer 0.01s  총 0.05s  | UDP OK → 192.168.50.246:5010
+        chair           HARD_OBSTACLE  pos3d=(-0.26, 0, +0.64) D= 0.69  conf=0.73  wy=-1.169
+        person          AGENT          pos3d=(-1.98, 0, +2.36) D= 3.08  conf=0.59  wy=-0.618
+        chair           HARD_OBSTACLE  pos3d=(-1.78, 0, +1.77) D= 2.51  conf=0.49  wy=-0.737
+        chair           HARD_OBSTACLE  pos3d=(-1.00, 0, +0.68) D= 1.21  conf=0.40  wy=-1.143
+        fire extinguisherHARD_OBSTACLE  pos3d=(+1.11, 0, +0.78) D= 1.36  conf=0.37  wy=-1.089
+        cardboard box   HARD_OBSTACLE  pos3d=(+0.15, 0, +2.31) D= 2.31  conf=0.20  wy=-0.627
+        [제외:    접지잘림] cardboard box   D= 0.35  conf=0.25
+        [제외:     >8m] storage box     D=11.73  conf=0.20
+        [제외:    접지잘림] open box        D= 0.58  conf=0.15
+[live] #558 LIVE_STREAM  전송 6개 (걸러냄 3개)  | read 0.02s  slice 0.01s  infer 0.01s  총 0.05s  | UDP OK → 192.168.50.246:5010
+        chair           HARD_OBSTACLE  pos3d=(-0.26, 0, +0.64) D= 0.69  conf=0.72  wy=-1.170
+        person          AGENT          pos3d=(-1.99, 0, +2.36) D= 3.09  conf=0.60  wy=-0.617
+        chair           HARD_OBSTACLE  pos3d=(-1.78, 0, +1.77) D= 2.52  conf=0.49  wy=-0.736
+        chair           HARD_OBSTACLE  pos3d=(-1.00, 0, +0.68) D= 1.21  conf=0.40  wy=-1.144
+        fire extinguisherHARD_OBSTACLE  pos3d=(+1.11, 0, +0.78) D= 1.36  conf=0.36  wy=-1.090
+        cardboard box   HARD_OBSTACLE  pos3d=(+0.15, 0, +2.31) D= 2.31  conf=0.20  wy=-0.627
+        [제외:    접지잘림] cardboard box   D= 0.36  conf=0.21
+        [제외:     >8m] storage box     D=11.72  conf=0.19
+        [제외:    접지잘림] open box        D= 0.58  conf=0.16
+[live] #559 LIVE_STREAM  전송 7개 (걸러냄 3개)  | read 0.02s  slice 0.01s  infer 0.01s  총 0.05s  | UDP OK → 192.168.50.246:5010
+        chair           HARD_OBSTACLE  pos3d=(-0.26, 0, +0.64) D= 0.69  conf=0.72  wy=-1.169
+        person          AGENT          pos3d=(-1.99, 0, +2.36) D= 3.09  conf=0.62  wy=-0.617
+        chair           HARD_OBSTACLE  pos3d=(-1.78, 0, +1.76) D= 2.51  conf=0.51  wy=-0.738
+        chair           HARD_OBSTACLE  pos3d=(-0.99, 0, +0.68) D= 1.21  conf=0.42  wy=-1.144
+        fire extinguisherHARD_OBSTACLE  pos3d=(+1.11, 0, +0.78) D= 1.36  conf=0.35  wy=-1.089
+        cardboard box   HARD_OBSTACLE  pos3d=(+0.15, 0, +2.31) D= 2.31  conf=0.23  wy=-0.627
+        box             HARD_OBSTACLE  pos3d=(-1.89, 0, +5.17) D= 5.50  conf=0.12  wy=-0.350
+        [제외:    접지잘림] cardboard box   D= 0.35  conf=0.24
+        [제외:     >8m] storage box     D=11.71  conf=0.20
+        [제외:    접지잘림] open box        D= 0.58  conf=0.15
+[live] #560 LIVE_STREAM  전송 7개 (걸러냄 3개)  | read 0.02s  slice 0.01s  infer 0.01s  총 0.05s  | UDP OK → 192.168.50.246:5010
+        chair           HARD_OBSTACLE  pos3d=(-0.26, 0, +0.64) D= 0.69  conf=0.72  wy=-1.169
+        person          AGENT          pos3d=(-1.99, 0, +2.36) D= 3.09  conf=0.58  wy=-0.618
+        chair           HARD_OBSTACLE  pos3d=(-1.78, 0, +1.76) D= 2.51  conf=0.50  wy=-0.738
+        chair           HARD_OBSTACLE  pos3d=(-0.99, 0, +0.68) D= 1.21  conf=0.41  wy=-1.144
+        fire extinguisherHARD_OBSTACLE  pos3d=(+1.11, 0, +0.78) D= 1.36  conf=0.35  wy=-1.089
+        cardboard box   HARD_OBSTACLE  pos3d=(+0.15, 0, +2.31) D= 2.31  conf=0.21  wy=-0.627
+        box             HARD_OBSTACLE  pos3d=(-1.88, 0, +5.15) D= 5.48  conf=0.12  wy=-0.351
+        [제외:    접지잘림] cardboard box   D= 0.36  conf=0.21
+        [제외:     >8m] storage box     D=11.72  conf=0.19
+        [제외:    접지잘림] open box        D= 0.58  conf=0.15
+[live] #561 LIVE_STREAM  전송 7개 (걸러냄 3개)  | read 0.02s  slice 0.01s  infer 0.01s  총 0.05s  | UDP OK → 192.168.50.246:5010
+        chair           HARD_OBSTACLE  pos3d=(-0.26, 0, +0.64) D= 0.69  conf=0.72  wy=-1.170
+        person          AGENT          pos3d=(-1.99, 0, +2.37) D= 3.09  conf=0.59  wy=-0.617
+        chair           HARD_OBSTACLE  pos3d=(-1.78, 0, +1.77) D= 2.51  conf=0.52  wy=-0.738
+        chair           HARD_OBSTACLE  pos3d=(-0.99, 0, +0.68) D= 1.21  conf=0.40  wy=-1.144
+        fire extinguisherHARD_OBSTACLE  pos3d=(+1.11, 0, +0.78) D= 1.36  conf=0.34  wy=-1.089
+        cardboard box   HARD_OBSTACLE  pos3d=(+0.15, 0, +2.31) D= 2.31  conf=0.21  wy=-0.627
+        box             HARD_OBSTACLE  pos3d=(-1.88, 0, +5.15) D= 5.48  conf=0.12  wy=-0.350
+        [제외:    접지잘림] cardboard box   D= 0.36  conf=0.21
+        [제외:     >8m] storage box     D=11.72  conf=0.19
+        [제외:    접지잘림] open box        D= 0.58  conf=0.16
+[live] #562 LIVE_STREAM  전송 7개 (걸러냄 3개)  | read 0.02s  slice 0.01s  infer 0.01s  총 0.05s  | UDP OK → 192.168.50.246:5010
+        chair           HARD_OBSTACLE  pos3d=(-0.26, 0, +0.64) D= 0.69  conf=0.73  wy=-1.169
+        person          AGENT          pos3d=(-1.99, 0, +2.36) D= 3.09  conf=0.60  wy=-0.617
+        chair           HARD_OBSTACLE  pos3d=(-1.78, 0, +1.76) D= 2.50  conf=0.51  wy=-0.739
+        chair           HARD_OBSTACLE  pos3d=(-0.99, 0, +0.68) D= 1.21  conf=0.41  wy=-1.144
+        fire extinguisherHARD_OBSTACLE  pos3d=(+1.11, 0, +0.78) D= 1.36  conf=0.33  wy=-1.089
+        cardboard box   HARD_OBSTACLE  pos3d=(+0.15, 0, +2.31) D= 2.31  conf=0.21  wy=-0.627
+        box             HARD_OBSTACLE  pos3d=(-1.88, 0, +5.16) D= 5.49  conf=0.13  wy=-0.350
+        [제외:    접지잘림] cardboard box   D= 0.36  conf=0.21
+        [제외:     >8m] storage box     D=11.72  conf=0.19
+        [제외:    접지잘림] open box        D= 0.58  conf=0.16
+[live] #563 LIVE_STREAM  전송 7개 (걸러냄 3개)  | read 0.03s  slice 0.02s  infer 0.01s  총 0.07s  | UDP OK → 192.168.50.246:5010
+        chair           HARD_OBSTACLE  pos3d=(-0.26, 0, +0.64) D= 0.69  conf=0.74  wy=-1.169
+        person          AGENT          pos3d=(-1.98, 0, +2.35) D= 3.08  conf=0.58  wy=-0.619
+        chair           HARD_OBSTACLE  pos3d=(-1.78, 0, +1.76) D= 2.50  conf=0.49  wy=-0.739
+        chair           HARD_OBSTACLE  pos3d=(-0.99, 0, +0.68) D= 1.21  conf=0.43  wy=-1.144
+        fire extinguisherHARD_OBSTACLE  pos3d=(+1.11, 0, +0.78) D= 1.36  conf=0.35  wy=-1.089
+        cardboard box   HARD_OBSTACLE  pos3d=(+0.15, 0, +2.31) D= 2.31  conf=0.22  wy=-0.627
+        box             HARD_OBSTACLE  pos3d=(-1.87, 0, +5.14) D= 5.47  conf=0.14  wy=-0.351
+        [제외:    접지잘림] cardboard box   D= 0.36  conf=0.20
+        [제외:     >8m] storage box     D=11.71  conf=0.18
+        [제외:    접지잘림] open box        D= 0.58  conf=0.16
+[live] #564 LIVE_STREAM  전송 7개 (걸러냄 4개)  | read 0.02s  slice 0.01s  infer 0.01s  총 0.05s  | UDP OK → 192.168.50.246:5010
+        chair           HARD_OBSTACLE  pos3d=(-0.26, 0, +0.64) D= 0.69  conf=0.72  wy=-1.169
+        person          AGENT          pos3d=(-1.98, 0, +2.35) D= 3.08  conf=0.59  wy=-0.619
+        chair           HARD_OBSTACLE  pos3d=(-1.78, 0, +1.76) D= 2.51  conf=0.48  wy=-0.738
+        chair           HARD_OBSTACLE  pos3d=(-1.00, 0, +0.68) D= 1.21  conf=0.40  wy=-1.144
+        fire extinguisherHARD_OBSTACLE  pos3d=(+1.11, 0, +0.78) D= 1.36  conf=0.36  wy=-1.089
+        cardboard box   HARD_OBSTACLE  pos3d=(+0.15, 0, +2.31) D= 2.31  conf=0.20  wy=-0.627
+        box             HARD_OBSTACLE  pos3d=(-1.88, 0, +5.14) D= 5.47  conf=0.14  wy=-0.351
+        [제외:    접지잘림] table           D= 0.62  conf=0.22
+        [제외:     >8m] storage box     D=11.71  conf=0.21
+        [제외:    접지잘림] cardboard box   D= 0.36  conf=0.20
+        [제외:    접지잘림] open box        D= 0.58  conf=0.17
+[live] #565 LIVE_STREAM  전송 7개 (걸러냄 3개)  | read 0.02s  slice 0.01s  infer 0.01s  총 0.05s  | UDP OK → 192.168.50.246:5010
+        chair           HARD_OBSTACLE  pos3d=(-0.26, 0, +0.64) D= 0.69  conf=0.73  wy=-1.170
+        person          AGENT          pos3d=(-1.98, 0, +2.36) D= 3.08  conf=0.59  wy=-0.618
+        chair           HARD_OBSTACLE  pos3d=(-1.78, 0, +1.77) D= 2.51  conf=0.50  wy=-0.737
+        chair           HARD_OBSTACLE  pos3d=(-0.99, 0, +0.68) D= 1.20  conf=0.40  wy=-1.144
+        fire extinguisherHARD_OBSTACLE  pos3d=(+1.11, 0, +0.78) D= 1.36  conf=0.37  wy=-1.089
+        cardboard box   HARD_OBSTACLE  pos3d=(+0.15, 0, +2.31) D= 2.31  conf=0.23  wy=-0.627
+        box             HARD_OBSTACLE  pos3d=(-1.87, 0, +5.14) D= 5.47  conf=0.15  wy=-0.351
+        [제외:    접지잘림] cardboard box   D= 0.36  conf=0.20
+        [제외:     >8m] storage box     D=11.71  conf=0.19
+        [제외:    접지잘림] open box        D= 0.59  conf=0.16
+[live] #566 LIVE_STREAM  전송 7개 (걸러냄 4개)  | read 0.02s  slice 0.01s  infer 0.01s  총 0.05s  | UDP OK → 192.168.50.246:5010
+        chair           HARD_OBSTACLE  pos3d=(-0.26, 0, +0.64) D= 0.69  conf=0.72  wy=-1.169
+        person          AGENT          pos3d=(-1.98, 0, +2.36) D= 3.08  conf=0.55  wy=-0.618
+        chair           HARD_OBSTACLE  pos3d=(-1.78, 0, +1.77) D= 2.51  conf=0.52  wy=-0.737
+        chair           HARD_OBSTACLE  pos3d=(-1.00, 0, +0.68) D= 1.21  conf=0.40  wy=-1.144
+        fire extinguisherHARD_OBSTACLE  pos3d=(+1.11, 0, +0.78) D= 1.36  conf=0.37  wy=-1.089
+        cardboard box   HARD_OBSTACLE  pos3d=(+0.15, 0, +2.31) D= 2.31  conf=0.24  wy=-0.627
+        box             HARD_OBSTACLE  pos3d=(-1.88, 0, +5.16) D= 5.49  conf=0.13  wy=-0.350
+        [제외:    접지잘림] cardboard box   D= 0.36  conf=0.24
+        [제외:    접지잘림] table           D= 0.62  conf=0.22
+        [제외:     >8m] storage box     D=11.72  conf=0.21
+        [제외:    접지잘림] open box        D= 0.58  conf=0.15
+[live] #567 LIVE_STREAM  전송 8개 (걸러냄 2개)  | read 0.02s  slice 0.01s  infer 0.01s  총 0.05s  | UDP OK → 192.168.50.246:5010
+        chair           HARD_OBSTACLE  pos3d=(-0.26, 0, +0.64) D= 0.69  conf=0.72  wy=-1.169
+        person          AGENT          pos3d=(-1.99, 0, +2.37) D= 3.09  conf=0.61  wy=-0.616
+        chair           HARD_OBSTACLE  pos3d=(-1.78, 0, +1.77) D= 2.52  conf=0.53  wy=-0.736
+        chair           HARD_OBSTACLE  pos3d=(-0.99, 0, +0.68) D= 1.20  conf=0.39  wy=-1.144
+        fire extinguisherHARD_OBSTACLE  pos3d=(+1.11, 0, +0.78) D= 1.36  conf=0.38  wy=-1.089
+        storage box     HARD_OBSTACLE  pos3d=(+1.03, 0, +1.71) D= 1.99  conf=0.16  wy=-0.752
+        cardboard box   HARD_OBSTACLE  pos3d=(+0.15, 0, +2.31) D= 2.31  conf=0.15  wy=-0.627
+        box             HARD_OBSTACLE  pos3d=(-1.88, 0, +5.15) D= 5.48  conf=0.12  wy=-0.351
+        [제외:     >8m] storage box     D=11.71  conf=0.22
+        [제외:    접지잘림] cardboard box   D= 0.36  conf=0.21
+[live] #568 LIVE_STREAM  전송 8개 (걸러냄 2개)  | read 0.02s  slice 0.01s  infer 0.01s  총 0.05s  | UDP OK → 192.168.50.246:5010
+        chair           HARD_OBSTACLE  pos3d=(-0.26, 0, +0.64) D= 0.69  conf=0.72  wy=-1.169
+        person          AGENT          pos3d=(-1.99, 0, +2.37) D= 3.10  conf=0.63  wy=-0.616
+        chair           HARD_OBSTACLE  pos3d=(-1.78, 0, +1.78) D= 2.52  conf=0.53  wy=-0.735
+        chair           HARD_OBSTACLE  pos3d=(-0.99, 0, +0.68) D= 1.20  conf=0.39  wy=-1.144
+        fire extinguisherHARD_OBSTACLE  pos3d=(+1.11, 0, +0.78) D= 1.36  conf=0.34  wy=-1.089
+        storage box     HARD_OBSTACLE  pos3d=(+1.03, 0, +1.70) D= 1.99  conf=0.16  wy=-0.753
+        storage box     HARD_OBSTACLE  pos3d=(+0.15, 0, +2.31) D= 2.31  conf=0.15  wy=-0.627
+        box             HARD_OBSTACLE  pos3d=(-1.88, 0, +5.16) D= 5.49  conf=0.13  wy=-0.350
+        [제외:    접지잘림] cardboard box   D= 0.36  conf=0.22
+        [제외:     >8m] storage box     D=11.72  conf=0.18
+[live] #569 LIVE_STREAM  전송 8개 (걸러냄 2개)  | read 0.03s  slice 0.01s  infer 0.01s  총 0.07s  | UDP OK → 192.168.50.246:5010
+        chair           HARD_OBSTACLE  pos3d=(-0.26, 0, +0.64) D= 0.69  conf=0.73  wy=-1.168
+        person          AGENT          pos3d=(-1.99, 0, +2.37) D= 3.09  conf=0.63  wy=-0.617
+        chair           HARD_OBSTACLE  pos3d=(-1.79, 0, +1.78) D= 2.52  conf=0.52  wy=-0.735
+        chair           HARD_OBSTACLE  pos3d=(-0.99, 0, +0.68) D= 1.20  conf=0.43  wy=-1.144
+        fire extinguisherHARD_OBSTACLE  pos3d=(+1.11, 0, +0.78) D= 1.36  conf=0.39  wy=-1.089
+        cardboard box   HARD_OBSTACLE  pos3d=(+0.15, 0, +2.31) D= 2.31  conf=0.17  wy=-0.627
+        storage box     HARD_OBSTACLE  pos3d=(+1.03, 0, +1.71) D= 1.99  conf=0.15  wy=-0.752
+        box             HARD_OBSTACLE  pos3d=(-1.88, 0, +5.15) D= 5.48  conf=0.13  wy=-0.350
+        [제외:    접지잘림] cardboard box   D= 0.36  conf=0.21
+        [제외:     >8m] storage box     D=11.72  conf=0.18
+[live] #570 LIVE_STREAM  전송 7개 (걸러냄 4개)  | read 0.02s  slice 0.01s  infer 0.01s  총 0.05s  | UDP OK → 192.168.50.246:5010
+        chair           HARD_OBSTACLE  pos3d=(-0.26, 0, +0.64) D= 0.69  conf=0.73  wy=-1.169
+        person          AGENT          pos3d=(-1.99, 0, +2.37) D= 3.09  conf=0.63  wy=-0.617
+        chair           HARD_OBSTACLE  pos3d=(-1.78, 0, +1.77) D= 2.51  conf=0.50  wy=-0.736
+        chair           HARD_OBSTACLE  pos3d=(-0.99, 0, +0.68) D= 1.20  conf=0.41  wy=-1.144
+        fire extinguisherHARD_OBSTACLE  pos3d=(+1.11, 0, +0.78) D= 1.36  conf=0.37  wy=-1.089
+        cardboard box   HARD_OBSTACLE  pos3d=(+0.15, 0, +2.31) D= 2.31  conf=0.20  wy=-0.627
+        storage box     HARD_OBSTACLE  pos3d=(+1.03, 0, +1.71) D= 2.00  conf=0.16  wy=-0.751
+        [제외:    접지잘림] table           D= 0.62  conf=0.22
+        [제외:    접지잘림] cardboard box   D= 0.36  conf=0.21
+        [제외:     >8m] storage box     D=11.72  conf=0.18
+        [제외:    접지잘림] open box        D= 0.58  conf=0.17
+[live] #571 LIVE_STREAM  전송 7개 (걸러냄 4개)  | read 0.02s  slice 0.01s  infer 0.01s  총 0.05s  | UDP OK → 192.168.50.246:5010
+        chair           HARD_OBSTACLE  pos3d=(-0.26, 0, +0.64) D= 0.69  conf=0.73  wy=-1.169
+        person          AGENT          pos3d=(-1.99, 0, +2.37) D= 3.10  conf=0.59  wy=-0.617
+        chair           HARD_OBSTACLE  pos3d=(-0.99, 0, +0.68) D= 1.20  conf=0.41  wy=-1.144
+        fire extinguisherHARD_OBSTACLE  pos3d=(+1.11, 0, +0.78) D= 1.36  conf=0.39  wy=-1.088
+        storage box     HARD_OBSTACLE  pos3d=(+0.15, 0, +2.31) D= 2.32  conf=0.22  wy=-0.625
+        storage box     HARD_OBSTACLE  pos3d=(+1.03, 0, +1.71) D= 2.00  conf=0.19  wy=-0.750
+        box             HARD_OBSTACLE  pos3d=(-1.88, 0, +5.15) D= 5.48  conf=0.12  wy=-0.350
+        [제외:    접지잘림] table           D= 0.62  conf=0.22
+        [제외:    접지잘림] cardboard box   D= 0.36  conf=0.21
+        [제외:     >8m] storage box     D=11.72  conf=0.18
+        [제외:    접지잘림] open box        D= 0.58  conf=0.17
+[live] #572 LIVE_STREAM  전송 8개 (걸러냄 4개)  | read 0.04s  slice 0.01s  infer 0.01s  총 0.07s  | UDP OK → 192.168.50.246:5010
+        chair           HARD_OBSTACLE  pos3d=(-0.26, 0, +0.64) D= 0.69  conf=0.71  wy=-1.169
+        person          AGENT          pos3d=(-1.99, 0, +2.36) D= 3.09  conf=0.58  wy=-0.617
+        chair           HARD_OBSTACLE  pos3d=(-1.78, 0, +1.77) D= 2.52  conf=0.49  wy=-0.736
+        chair           HARD_OBSTACLE  pos3d=(-0.99, 0, +0.68) D= 1.20  conf=0.43  wy=-1.144
+        fire extinguisherHARD_OBSTACLE  pos3d=(+1.11, 0, +0.78) D= 1.36  conf=0.36  wy=-1.088
+        storage box     HARD_OBSTACLE  pos3d=(+0.15, 0, +2.31) D= 2.32  conf=0.23  wy=-0.626
+        storage box     HARD_OBSTACLE  pos3d=(+1.03, 0, +1.71) D= 2.00  conf=0.20  wy=-0.750
+        box             HARD_OBSTACLE  pos3d=(-1.88, 0, +5.16) D= 5.49  conf=0.12  wy=-0.350
+        [제외:    접지잘림] table           D= 0.62  conf=0.23
+        [제외:     >8m] storage box     D=11.71  conf=0.19
+        [제외:    접지잘림] cardboard box   D= 0.36  conf=0.19
+        [제외:    접지잘림] open box        D= 0.58  conf=0.17
+[live] #573 LIVE_STREAM  전송 8개 (걸러냄 3개)  | read 0.02s  slice 0.01s  infer 0.01s  총 0.05s  | UDP OK → 192.168.50.246:5010
+        chair           HARD_OBSTACLE  pos3d=(-0.26, 0, +0.64) D= 0.69  conf=0.73  wy=-1.169
+        person          AGENT          pos3d=(-1.99, 0, +2.37) D= 3.10  conf=0.63  wy=-0.616
+        chair           HARD_OBSTACLE  pos3d=(-1.77, 0, +1.76) D= 2.50  conf=0.52  wy=-0.738
+        chair           HARD_OBSTACLE  pos3d=(-0.99, 0, +0.68) D= 1.20  conf=0.46  wy=-1.144
+        fire extinguisherHARD_OBSTACLE  pos3d=(+1.11, 0, +0.78) D= 1.36  conf=0.38  wy=-1.089
+        cardboard box   HARD_OBSTACLE  pos3d=(+0.15, 0, +2.31) D= 2.31  conf=0.23  wy=-0.627
+        storage box     HARD_OBSTACLE  pos3d=(+1.03, 0, +1.70) D= 1.99  conf=0.16  wy=-0.754
+        box             HARD_OBSTACLE  pos3d=(-1.88, 0, +5.18) D= 5.51  conf=0.14  wy=-0.349
+        [제외:    접지잘림] cardboard box   D= 0.36  conf=0.22
+        [제외:     >8m] storage box     D=11.69  conf=0.20
+        [제외:    접지잘림] open box        D= 0.58  conf=0.17
+[live] #574 LIVE_STREAM  전송 7개 (걸러냄 3개)  | read 0.02s  slice 0.01s  infer 0.01s  총 0.05s  | UDP OK → 192.168.50.246:5010
+        chair           HARD_OBSTACLE  pos3d=(-0.26, 0, +0.64) D= 0.69  conf=0.73  wy=-1.169
+        person          AGENT          pos3d=(-1.99, 0, +2.37) D= 3.10  conf=0.63  wy=-0.616
+        chair           HARD_OBSTACLE  pos3d=(-1.78, 0, +1.76) D= 2.51  conf=0.50  wy=-0.738
+        chair           HARD_OBSTACLE  pos3d=(-0.99, 0, +0.68) D= 1.20  conf=0.40  wy=-1.144
+        fire extinguisherHARD_OBSTACLE  pos3d=(+1.11, 0, +0.78) D= 1.36  conf=0.33  wy=-1.089
+        cardboard box   HARD_OBSTACLE  pos3d=(+0.15, 0, +2.31) D= 2.31  conf=0.29  wy=-0.627
+        box             HARD_OBSTACLE  pos3d=(-1.88, 0, +5.15) D= 5.48  conf=0.15  wy=-0.350
+        [제외:    접지잘림] cardboard box   D= 0.36  conf=0.21
+        [제외:     >8m] storage box     D=11.70  conf=0.20
+        [제외:    접지잘림] open box        D= 0.58  conf=0.18
+[live] #575 LIVE_STREAM  전송 7개 (걸러냄 3개)  | read 0.03s  slice 0.02s  infer 0.01s  총 0.07s  | UDP OK → 192.168.50.246:5010
+        chair           HARD_OBSTACLE  pos3d=(-0.26, 0, +0.64) D= 0.69  conf=0.74  wy=-1.169
+        person          AGENT          pos3d=(-2.00, 0, +2.37) D= 3.10  conf=0.60  wy=-0.616
+        chair           HARD_OBSTACLE  pos3d=(-1.78, 0, +1.76) D= 2.50  conf=0.50  wy=-0.740
+        chair           HARD_OBSTACLE  pos3d=(-0.99, 0, +0.68) D= 1.20  conf=0.42  wy=-1.144
+        fire extinguisherHARD_OBSTACLE  pos3d=(+1.11, 0, +0.78) D= 1.36  conf=0.33  wy=-1.089
+        cardboard box   HARD_OBSTACLE  pos3d=(+0.15, 0, +2.31) D= 2.31  conf=0.23  wy=-0.627
+        box             HARD_OBSTACLE  pos3d=(-1.88, 0, +5.16) D= 5.49  conf=0.15  wy=-0.350
+        [제외:    접지잘림] cardboard box   D= 0.36  conf=0.24
+        [제외:     >8m] storage box     D=11.71  conf=0.18
+        [제외:    접지잘림] open box        D= 0.58  conf=0.18
+[live] #576 LIVE_STREAM  전송 8개 (걸러냄 3개)  | read 0.02s  slice 0.01s  infer 0.01s  총 0.05s  | UDP OK → 192.168.50.246:5010
+        chair           HARD_OBSTACLE  pos3d=(-0.26, 0, +0.64) D= 0.69  conf=0.73  wy=-1.169
+        person          AGENT          pos3d=(-1.99, 0, +2.37) D= 3.10  conf=0.58  wy=-0.616
+        chair           HARD_OBSTACLE  pos3d=(-1.78, 0, +1.76) D= 2.50  conf=0.51  wy=-0.740
+        chair           HARD_OBSTACLE  pos3d=(-1.00, 0, +0.68) D= 1.21  conf=0.40  wy=-1.144
+        fire extinguisherHARD_OBSTACLE  pos3d=(+1.11, 0, +0.78) D= 1.36  conf=0.32  wy=-1.089
+        cardboard box   HARD_OBSTACLE  pos3d=(+0.15, 0, +2.31) D= 2.31  conf=0.19  wy=-0.627
+        storage box     HARD_OBSTACLE  pos3d=(+1.04, 0, +1.72) D= 2.01  conf=0.17  wy=-0.750
+        box             HARD_OBSTACLE  pos3d=(-1.88, 0, +5.16) D= 5.49  conf=0.14  wy=-0.350
+        [제외:    접지잘림] cardboard box   D= 0.36  conf=0.25
+        [제외:     >8m] storage box     D=11.72  conf=0.19
+        [제외:    접지잘림] open box        D= 0.58  conf=0.17
+[live] #577 LIVE_STREAM  전송 8개 (걸러냄 4개)  | read 0.02s  slice 0.01s  infer 0.01s  총 0.05s  | UDP OK → 192.168.50.246:5010
+        chair           HARD_OBSTACLE  pos3d=(-0.26, 0, +0.64) D= 0.69  conf=0.74  wy=-1.170
+        person          AGENT          pos3d=(-1.99, 0, +2.36) D= 3.08  conf=0.62  wy=-0.618
+        chair           HARD_OBSTACLE  pos3d=(-1.78, 0, +1.76) D= 2.50  conf=0.51  wy=-0.740
+        chair           HARD_OBSTACLE  pos3d=(-0.99, 0, +0.68) D= 1.20  conf=0.44  wy=-1.144
+        fire extinguisherHARD_OBSTACLE  pos3d=(+1.11, 0, +0.78) D= 1.36  conf=0.36  wy=-1.089
+        cardboard box   HARD_OBSTACLE  pos3d=(+0.15, 0, +2.31) D= 2.31  conf=0.19  wy=-0.627
+        storage box     HARD_OBSTACLE  pos3d=(+1.04, 0, +1.72) D= 2.00  conf=0.17  wy=-0.750
+        box             HARD_OBSTACLE  pos3d=(-1.88, 0, +5.17) D= 5.50  conf=0.14  wy=-0.349
+        [제외:    접지잘림] cardboard box   D= 0.36  conf=0.23
+        [제외:    접지잘림] table           D= 0.62  conf=0.22
+        [제외:     >8m] storage box     D=11.71  conf=0.19
+        [제외:    접지잘림] open box        D= 0.58  conf=0.18
+[live] #578 LIVE_STREAM  전송 8개 (걸러냄 3개)  | read 0.02s  slice 0.01s  infer 0.01s  총 0.05s  | UDP OK → 192.168.50.246:5010
+        chair           HARD_OBSTACLE  pos3d=(-0.26, 0, +0.64) D= 0.69  conf=0.76  wy=-1.169
+        person          AGENT          pos3d=(-1.99, 0, +2.36) D= 3.08  conf=0.56  wy=-0.618
+        chair           HARD_OBSTACLE  pos3d=(-1.78, 0, +1.76) D= 2.50  conf=0.51  wy=-0.738
+        chair           HARD_OBSTACLE  pos3d=(-0.99, 0, +0.68) D= 1.20  conf=0.40  wy=-1.144
+        fire extinguisherHARD_OBSTACLE  pos3d=(+1.11, 0, +0.78) D= 1.36  conf=0.35  wy=-1.090
+        storage box     HARD_OBSTACLE  pos3d=(+1.04, 0, +1.72) D= 2.01  conf=0.19  wy=-0.749
+        cardboard box   HARD_OBSTACLE  pos3d=(+0.15, 0, +2.31) D= 2.31  conf=0.16  wy=-0.627
+        box             HARD_OBSTACLE  pos3d=(-1.88, 0, +5.17) D= 5.50  conf=0.14  wy=-0.349
+        [제외:    접지잘림] cardboard box   D= 0.36  conf=0.21
+        [제외:     >8m] storage box     D=11.72  conf=0.21
+        [제외:    접지잘림] open box        D= 0.58  conf=0.16
+[live] #579 LIVE_STREAM  전송 8개 (걸러냄 3개)  | read 0.02s  slice 0.01s  infer 0.01s  총 0.05s  | UDP OK → 192.168.50.246:5010
+        chair           HARD_OBSTACLE  pos3d=(-0.26, 0, +0.64) D= 0.69  conf=0.75  wy=-1.169
+        person          AGENT          pos3d=(-1.99, 0, +2.37) D= 3.09  conf=0.56  wy=-0.617
+        chair           HARD_OBSTACLE  pos3d=(-1.78, 0, +1.77) D= 2.51  conf=0.52  wy=-0.737
+        chair           HARD_OBSTACLE  pos3d=(-0.99, 0, +0.68) D= 1.20  conf=0.41  wy=-1.144
+        fire extinguisherHARD_OBSTACLE  pos3d=(+1.11, 0, +0.78) D= 1.36  conf=0.37  wy=-1.089
+        cardboard box   HARD_OBSTACLE  pos3d=(+0.15, 0, +2.31) D= 2.31  conf=0.19  wy=-0.627
+        storage box     HARD_OBSTACLE  pos3d=(+1.04, 0, +1.72) D= 2.01  conf=0.15  wy=-0.750
+        box             HARD_OBSTACLE  pos3d=(-1.88, 0, +5.16) D= 5.50  conf=0.13  wy=-0.350
+        [제외:    접지잘림] cardboard box   D= 0.36  conf=0.23
+        [제외:     >8m] storage box     D=11.71  conf=0.19
+        [제외:    접지잘림] open box        D= 0.58  conf=0.15
+[live] #580 LIVE_STREAM  전송 7개 (걸러냄 3개)  | read 0.02s  slice 0.01s  infer 0.01s  총 0.05s  | UDP OK → 192.168.50.246:5010
+        chair           HARD_OBSTACLE  pos3d=(-0.25, 0, +0.63) D= 0.68  conf=0.74  wy=-1.172
+        person          AGENT          pos3d=(-1.99, 0, +2.38) D= 3.10  conf=0.63  wy=-0.615
+        chair           HARD_OBSTACLE  pos3d=(-1.78, 0, +1.78) D= 2.51  conf=0.51  wy=-0.735
+        fire extinguisherHARD_OBSTACLE  pos3d=(+1.11, 0, +0.78) D= 1.36  conf=0.40  wy=-1.089
+        chair           HARD_OBSTACLE  pos3d=(-0.99, 0, +0.68) D= 1.21  conf=0.40  wy=-1.144
+        cardboard box   HARD_OBSTACLE  pos3d=(+0.15, 0, +2.31) D= 2.31  conf=0.15  wy=-0.627
+        box             HARD_OBSTACLE  pos3d=(-1.87, 0, +5.14) D= 5.47  conf=0.13  wy=-0.351
+        [제외:    접지잘림] table           D= 0.62  conf=0.25
+        [제외:    접지잘림] cardboard box   D= 0.36  conf=0.19
+        [제외:     >8m] storage box     D=11.71  conf=0.18
+[live] #581 LIVE_STREAM  전송 7개 (걸러냄 3개)  | read 0.04s  slice 0.01s  infer 0.01s  총 0.07s  | UDP OK → 192.168.50.246:5010
+        chair           HARD_OBSTACLE  pos3d=(-0.26, 0, +0.64) D= 0.69  conf=0.73  wy=-1.169
+        person          AGENT          pos3d=(-1.99, 0, +2.37) D= 3.10  conf=0.61  wy=-0.616
+        chair           HARD_OBSTACLE  pos3d=(-1.78, 0, +1.78) D= 2.52  conf=0.50  wy=-0.734
+        fire extinguisherHARD_OBSTACLE  pos3d=(+1.11, 0, +0.78) D= 1.36  conf=0.44  wy=-1.089
+        chair           HARD_OBSTACLE  pos3d=(-0.99, 0, +0.68) D= 1.20  conf=0.41  wy=-1.144
+        cardboard box   HARD_OBSTACLE  pos3d=(+0.15, 0, +2.31) D= 2.31  conf=0.16  wy=-0.627
+        box             HARD_OBSTACLE  pos3d=(-1.87, 0, +5.14) D= 5.47  conf=0.14  wy=-0.351
+        [제외:    접지잘림] table           D= 0.62  conf=0.25
+        [제외:     >8m] storage box     D=11.70  conf=0.20
+        [제외:    접지잘림] cardboard box   D= 0.36  conf=0.18
+[live] #582 LIVE_STREAM  전송 7개 (걸러냄 3개)  | read 0.02s  slice 0.01s  infer 0.01s  총 0.05s  | UDP OK → 192.168.50.246:5010
+        chair           HARD_OBSTACLE  pos3d=(-0.26, 0, +0.63) D= 0.68  conf=0.73  wy=-1.171
+        person          AGENT          pos3d=(-1.99, 0, +2.37) D= 3.10  conf=0.60  wy=-0.616
+        chair           HARD_OBSTACLE  pos3d=(-1.78, 0, +1.78) D= 2.52  conf=0.51  wy=-0.735
+        fire extinguisherHARD_OBSTACLE  pos3d=(+1.11, 0, +0.78) D= 1.36  conf=0.45  wy=-1.089
+        chair           HARD_OBSTACLE  pos3d=(-0.99, 0, +0.68) D= 1.20  conf=0.41  wy=-1.144
+        storage box     HARD_OBSTACLE  pos3d=(+1.03, 0, +1.72) D= 2.00  conf=0.15  wy=-0.750
+        box             HARD_OBSTACLE  pos3d=(-1.88, 0, +5.15) D= 5.48  conf=0.12  wy=-0.350
+        [제외:    접지잘림] table           D= 0.62  conf=0.23
+        [제외:    접지잘림] cardboard box   D= 0.36  conf=0.23
+        [제외:     >8m] storage box     D=11.69  conf=0.19
+[live] #583 LIVE_STREAM  전송 6개 (걸러냄 3개)  | read 0.02s  slice 0.01s  infer 0.01s  총 0.05s  | UDP OK → 192.168.50.246:5010
+        chair           HARD_OBSTACLE  pos3d=(-0.26, 0, +0.64) D= 0.69  conf=0.72  wy=-1.169
+        person          AGENT          pos3d=(-1.99, 0, +2.37) D= 3.09  conf=0.61  wy=-0.617
+        chair           HARD_OBSTACLE  pos3d=(-1.77, 0, +1.77) D= 2.50  conf=0.52  wy=-0.737
+        chair           HARD_OBSTACLE  pos3d=(-0.99, 0, +0.68) D= 1.20  conf=0.41  wy=-1.144
+        fire extinguisherHARD_OBSTACLE  pos3d=(+1.11, 0, +0.78) D= 1.36  conf=0.40  wy=-1.089
+        cardboard box   HARD_OBSTACLE  pos3d=(+0.15, 0, +2.31) D= 2.31  conf=0.19  wy=-0.627
+        [제외:    접지잘림] cardboard box   D= 0.36  conf=0.24
+        [제외:     >8m] storage box     D=11.74  conf=0.18
+        [제외:    접지잘림] open box        D= 0.58  conf=0.16
+[live] #584 LIVE_STREAM  전송 6개 (걸러냄 2개)  | read 0.03s  slice 0.01s  infer 0.01s  총 0.07s  | UDP OK → 192.168.50.246:5010
+        chair           HARD_OBSTACLE  pos3d=(-0.26, 0, +0.64) D= 0.69  conf=0.72  wy=-1.169
+        person          AGENT          pos3d=(-1.98, 0, +2.36) D= 3.08  conf=0.60  wy=-0.618
+        chair           HARD_OBSTACLE  pos3d=(-1.77, 0, +1.77) D= 2.50  conf=0.50  wy=-0.738
+        chair           HARD_OBSTACLE  pos3d=(-0.99, 0, +0.68) D= 1.20  conf=0.42  wy=-1.144
+        fire extinguisherHARD_OBSTACLE  pos3d=(+1.11, 0, +0.78) D= 1.36  conf=0.39  wy=-1.089
+        cardboard box   HARD_OBSTACLE  pos3d=(+0.15, 0, +2.31) D= 2.31  conf=0.17  wy=-0.627
+        [제외:    접지잘림] cardboard box   D= 0.36  conf=0.26
+        [제외:     >8m] storage box     D=11.73  conf=0.17
+[live] #585 LIVE_STREAM  전송 6개 (걸러냄 2개)  | read 0.02s  slice 0.01s  infer 0.01s  총 0.05s  | UDP OK → 192.168.50.246:5010
+        chair           HARD_OBSTACLE  pos3d=(-0.26, 0, +0.64) D= 0.69  conf=0.73  wy=-1.169
+        person          AGENT          pos3d=(-1.98, 0, +2.36) D= 3.08  conf=0.61  wy=-0.618
+        chair           HARD_OBSTACLE  pos3d=(-1.77, 0, +1.77) D= 2.50  conf=0.51  wy=-0.737
+        chair           HARD_OBSTACLE  pos3d=(-0.99, 0, +0.68) D= 1.20  conf=0.41  wy=-1.144
+        fire extinguisherHARD_OBSTACLE  pos3d=(+1.11, 0, +0.78) D= 1.36  conf=0.34  wy=-1.089
+        cardboard box   HARD_OBSTACLE  pos3d=(+0.15, 0, +2.30) D= 2.31  conf=0.20  wy=-0.627
+        [제외:    접지잘림] cardboard box   D= 0.36  conf=0.23
+        [제외:     >8m] storage box     D=11.73  conf=0.17
+[live] #586 LIVE_STREAM  전송 6개 (걸러냄 2개)  | read 0.02s  slice 0.01s  infer 0.01s  총 0.05s  | UDP OK → 192.168.50.246:5010
+        chair           HARD_OBSTACLE  pos3d=(-0.26, 0, +0.64) D= 0.69  conf=0.71  wy=-1.169
+        person          AGENT          pos3d=(-1.98, 0, +2.36) D= 3.08  conf=0.61  wy=-0.618
+        chair           HARD_OBSTACLE  pos3d=(-1.77, 0, +1.77) D= 2.50  conf=0.51  wy=-0.737
+        chair           HARD_OBSTACLE  pos3d=(-0.99, 0, +0.68) D= 1.20  conf=0.42  wy=-1.144
+        fire extinguisherHARD_OBSTACLE  pos3d=(+1.11, 0, +0.78) D= 1.36  conf=0.33  wy=-1.089
+        cardboard box   HARD_OBSTACLE  pos3d=(+0.15, 0, +2.30) D= 2.31  conf=0.20  wy=-0.627
+        [제외:    접지잘림] cardboard box   D= 0.36  conf=0.22
+        [제외:     >8m] storage box     D=11.72  conf=0.16
+[live] #587 LIVE_STREAM  전송 6개 (걸러냄 2개)  | read 0.02s  slice 0.01s  infer 0.01s  총 0.05s  | UDP OK → 192.168.50.246:5010
+        chair           HARD_OBSTACLE  pos3d=(-0.26, 0, +0.64) D= 0.69  conf=0.73  wy=-1.169
+        person          AGENT          pos3d=(-1.98, 0, +2.36) D= 3.08  conf=0.60  wy=-0.618
+        chair           HARD_OBSTACLE  pos3d=(-1.78, 0, +1.77) D= 2.51  conf=0.50  wy=-0.736
+        chair           HARD_OBSTACLE  pos3d=(-0.99, 0, +0.68) D= 1.21  conf=0.41  wy=-1.143
+        fire extinguisherHARD_OBSTACLE  pos3d=(+1.11, 0, +0.78) D= 1.36  conf=0.31  wy=-1.089
+        cardboard box   HARD_OBSTACLE  pos3d=(+0.15, 0, +2.30) D= 2.31  conf=0.19  wy=-0.627
+        [제외:    접지잘림] cardboard box   D= 0.36  conf=0.23
+        [제외:     >8m] storage box     D=11.73  conf=0.16
+[live] #588 LIVE_STREAM  전송 6개 (걸러냄 1개)  | read 0.03s  slice 0.02s  infer 0.01s  총 0.07s  | UDP OK → 192.168.50.246:5010
+        chair           HARD_OBSTACLE  pos3d=(-0.26, 0, +0.64) D= 0.69  conf=0.70  wy=-1.170
+        person          AGENT          pos3d=(-1.98, 0, +2.35) D= 3.08  conf=0.57  wy=-0.619
+        chair           HARD_OBSTACLE  pos3d=(-1.77, 0, +1.77) D= 2.51  conf=0.51  wy=-0.737
+        chair           HARD_OBSTACLE  pos3d=(-0.99, 0, +0.68) D= 1.21  conf=0.41  wy=-1.144
+        fire extinguisherHARD_OBSTACLE  pos3d=(+1.11, 0, +0.78) D= 1.36  conf=0.34  wy=-1.089
+        cardboard box   HARD_OBSTACLE  pos3d=(+0.15, 0, +2.31) D= 2.31  conf=0.20  wy=-0.627
+        [제외:    접지잘림] cardboard box   D= 0.36  conf=0.23
+[live] #589 LIVE_STREAM  전송 6개 (걸러냄 3개)  | read 0.02s  slice 0.01s  infer 0.01s  총 0.05s  | UDP OK → 192.168.50.246:5010
+        chair           HARD_OBSTACLE  pos3d=(-0.26, 0, +0.63) D= 0.68  conf=0.70  wy=-1.172
+        person          AGENT          pos3d=(-1.98, 0, +2.36) D= 3.08  conf=0.59  wy=-0.619
+        chair           HARD_OBSTACLE  pos3d=(-1.78, 0, +1.77) D= 2.51  conf=0.52  wy=-0.736
+        chair           HARD_OBSTACLE  pos3d=(-1.00, 0, +0.68) D= 1.21  conf=0.40  wy=-1.144
+        fire extinguisherHARD_OBSTACLE  pos3d=(+1.12, 0, +0.78) D= 1.36  conf=0.32  wy=-1.089
+        cardboard box   HARD_OBSTACLE  pos3d=(+0.15, 0, +2.31) D= 2.31  conf=0.18  wy=-0.627
+        [제외:    접지잘림] table           D= 0.62  conf=0.24
+        [제외:    접지잘림] cardboard box   D= 0.36  conf=0.20
+        [제외:     >8m] storage box     D=11.72  conf=0.16
+[live] #590 LIVE_STREAM  전송 6개 (걸러냄 3개)  | read 0.02s  slice 0.01s  infer 0.01s  총 0.05s  | UDP OK → 192.168.50.246:5010
+        chair           HARD_OBSTACLE  pos3d=(-0.26, 0, +0.63) D= 0.68  conf=0.70  wy=-1.171
+        person          AGENT          pos3d=(-1.98, 0, +2.35) D= 3.07  conf=0.59  wy=-0.620
+        chair           HARD_OBSTACLE  pos3d=(-1.77, 0, +1.77) D= 2.51  conf=0.51  wy=-0.736
+        chair           HARD_OBSTACLE  pos3d=(-0.99, 0, +0.68) D= 1.21  conf=0.41  wy=-1.144
+        fire extinguisherHARD_OBSTACLE  pos3d=(+1.11, 0, +0.78) D= 1.36  conf=0.32  wy=-1.089
+        cardboard box   HARD_OBSTACLE  pos3d=(+0.15, 0, +2.31) D= 2.31  conf=0.18  wy=-0.627
+        [제외:    접지잘림] table           D= 0.62  conf=0.23
+        [제외:    접지잘림] cardboard box   D= 0.35  conf=0.21
+        [제외:    접지잘림] open box        D= 0.58  conf=0.15
+[live] #591 LIVE_STREAM  전송 7개 (걸러냄 2개)  | read 0.02s  slice 0.01s  infer 0.01s  총 0.05s  | UDP OK → 192.168.50.246:5010
+        chair           HARD_OBSTACLE  pos3d=(-0.26, 0, +0.64) D= 0.69  conf=0.71  wy=-1.170
+        person          AGENT          pos3d=(-1.88, 0, +2.28) D= 2.95  conf=0.55  wy=-0.632
+        chair           HARD_OBSTACLE  pos3d=(-1.78, 0, +1.77) D= 2.51  conf=0.53  wy=-0.736
+        chair           HARD_OBSTACLE  pos3d=(-0.99, 0, +0.68) D= 1.21  conf=0.39  wy=-1.143
+        fire extinguisherHARD_OBSTACLE  pos3d=(+1.11, 0, +0.78) D= 1.36  conf=0.28  wy=-1.090
+        cardboard box   HARD_OBSTACLE  pos3d=(+0.15, 0, +2.31) D= 2.31  conf=0.18  wy=-0.627
+        storage box     HARD_OBSTACLE  pos3d=(+1.03, 0, +1.71) D= 2.00  conf=0.16  wy=-0.750
+        [제외:    접지잘림] table           D= 0.62  conf=0.22
+        [제외:    접지잘림] cardboard box   D= 0.35  conf=0.21
+[live] #592 LIVE_STREAM  전송 8개 (걸러냄 3개)  | read 0.02s  slice 0.01s  infer 0.01s  총 0.05s  | UDP OK → 192.168.50.246:5010
+        chair           HARD_OBSTACLE  pos3d=(-0.26, 0, +0.64) D= 0.69  conf=0.73  wy=-1.169
+        person          AGENT          pos3d=(-1.99, 0, +2.37) D= 3.09  conf=0.66  wy=-0.616
+        chair           HARD_OBSTACLE  pos3d=(-1.78, 0, +1.76) D= 2.50  conf=0.52  wy=-0.739
+        chair           HARD_OBSTACLE  pos3d=(-0.99, 0, +0.68) D= 1.20  conf=0.43  wy=-1.144
+        fire extinguisherHARD_OBSTACLE  pos3d=(+1.11, 0, +0.78) D= 1.36  conf=0.34  wy=-1.089
+        cardboard box   HARD_OBSTACLE  pos3d=(+0.15, 0, +2.31) D= 2.31  conf=0.16  wy=-0.627
+        storage box     HARD_OBSTACLE  pos3d=(+1.03, 0, +1.69) D= 1.98  conf=0.16  wy=-0.755
+        box             HARD_OBSTACLE  pos3d=(-1.88, 0, +5.16) D= 5.49  conf=0.13  wy=-0.350
+        [제외:    접지잘림] cardboard box   D= 0.36  conf=0.22
+        [제외:     >8m] storage box     D=11.73  conf=0.20
+        [제외:    접지잘림] open box        D= 0.58  conf=0.17
+[live] #593 LIVE_STREAM  전송 8개 (걸러냄 3개)  | read 0.02s  slice 0.01s  infer 0.01s  총 0.05s  | UDP OK → 192.168.50.246:5010
+        chair           HARD_OBSTACLE  pos3d=(-0.26, 0, +0.64) D= 0.69  conf=0.73  wy=-1.169
+        person          AGENT          pos3d=(-1.99, 0, +2.37) D= 3.09  conf=0.64  wy=-0.616
+        chair           HARD_OBSTACLE  pos3d=(-1.78, 0, +1.76) D= 2.50  conf=0.51  wy=-0.738
+        chair           HARD_OBSTACLE  pos3d=(-0.99, 0, +0.68) D= 1.20  conf=0.42  wy=-1.144
+        fire extinguisherHARD_OBSTACLE  pos3d=(+1.11, 0, +0.78) D= 1.36  conf=0.35  wy=-1.089
+        cardboard box   HARD_OBSTACLE  pos3d=(+0.15, 0, +2.31) D= 2.31  conf=0.19  wy=-0.627
+        storage box     HARD_OBSTACLE  pos3d=(+1.03, 0, +1.70) D= 1.99  conf=0.15  wy=-0.754
+        box             HARD_OBSTACLE  pos3d=(-1.89, 0, +5.17) D= 5.51  conf=0.12  wy=-0.349
+        [제외:    접지잘림] cardboard box   D= 0.36  conf=0.20
+        [제외:    접지잘림] open box        D= 0.58  conf=0.17
+        [제외:     >8m] storage box     D=11.74  conf=0.17
+[live] #594 LIVE_STREAM  전송 6개 (걸러냄 3개)  | read 0.02s  slice 0.01s  infer 0.01s  총 0.05s  | UDP OK → 192.168.50.246:5010
+        chair           HARD_OBSTACLE  pos3d=(-0.26, 0, +0.64) D= 0.69  conf=0.73  wy=-1.169
+        person          AGENT          pos3d=(-1.99, 0, +2.37) D= 3.09  conf=0.65  wy=-0.617
+        chair           HARD_OBSTACLE  pos3d=(-1.78, 0, +1.77) D= 2.51  conf=0.51  wy=-0.738
+        chair           HARD_OBSTACLE  pos3d=(-0.99, 0, +0.68) D= 1.20  conf=0.44  wy=-1.144
+        fire extinguisherHARD_OBSTACLE  pos3d=(+1.11, 0, +0.78) D= 1.36  conf=0.33  wy=-1.090
+        cardboard box   HARD_OBSTACLE  pos3d=(+0.15, 0, +2.31) D= 2.31  conf=0.18  wy=-0.626
+        [제외:    접지잘림] cardboard box   D= 0.36  conf=0.21
+        [제외:     >8m] storage box     D=11.73  conf=0.21
+        [제외:    접지잘림] open box        D= 0.58  conf=0.16
+[live] #595 LIVE_STREAM  전송 8개 (걸러냄 3개)  | read 0.02s  slice 0.01s  infer 0.01s  총 0.05s  | UDP OK → 192.168.50.246:5010
+        chair           HARD_OBSTACLE  pos3d=(-0.26, 0, +0.64) D= 0.69  conf=0.74  wy=-1.168
+        person          AGENT          pos3d=(-1.99, 0, +2.37) D= 3.10  conf=0.60  wy=-0.616
+        chair           HARD_OBSTACLE  pos3d=(-1.77, 0, +1.76) D= 2.50  conf=0.51  wy=-0.738
+        chair           HARD_OBSTACLE  pos3d=(-0.99, 0, +0.68) D= 1.20  conf=0.43  wy=-1.144
+        fire extinguisherHARD_OBSTACLE  pos3d=(+1.11, 0, +0.78) D= 1.36  conf=0.34  wy=-1.088
+        cardboard box   HARD_OBSTACLE  pos3d=(+0.15, 0, +2.31) D= 2.31  conf=0.17  wy=-0.626
+        box             HARD_OBSTACLE  pos3d=(-1.88, 0, +5.16) D= 5.49  conf=0.13  wy=-0.350
+        box             HARD_OBSTACLE  pos3d=(+1.20, 0, +4.45) D= 4.61  conf=0.12  wy=-0.393
+        [제외:    접지잘림] cardboard box   D= 0.36  conf=0.22
+        [제외:     >8m] storage box     D=11.72  conf=0.22
+        [제외:    접지잘림] open box        D= 0.58  conf=0.15
+[live] #596 LIVE_STREAM  전송 7개 (걸러냄 3개)  | read 0.02s  slice 0.01s  infer 0.01s  총 0.05s  | UDP OK → 192.168.50.246:5010
+        chair           HARD_OBSTACLE  pos3d=(-0.26, 0, +0.64) D= 0.69  conf=0.73  wy=-1.169
+        person          AGENT          pos3d=(-1.99, 0, +2.37) D= 3.09  conf=0.60  wy=-0.617
+        chair           HARD_OBSTACLE  pos3d=(-1.77, 0, +1.77) D= 2.51  conf=0.51  wy=-0.737
+        chair           HARD_OBSTACLE  pos3d=(-0.99, 0, +0.68) D= 1.21  conf=0.39  wy=-1.144
+        fire extinguisherHARD_OBSTACLE  pos3d=(+1.11, 0, +0.78) D= 1.36  conf=0.31  wy=-1.089
+        cardboard box   HARD_OBSTACLE  pos3d=(+0.15, 0, +2.31) D= 2.31  conf=0.17  wy=-0.627
+        storage box     HARD_OBSTACLE  pos3d=(+1.03, 0, +1.71) D= 1.99  conf=0.16  wy=-0.753
+        [제외:     >8m] storage box     D=11.72  conf=0.22
+        [제외:    접지잘림] cardboard box   D= 0.36  conf=0.20
+        [제외:    접지잘림] open box        D= 0.58  conf=0.15
+[live] #597 LIVE_STREAM  전송 6개 (걸러냄 3개)  | read 0.02s  slice 0.01s  infer 0.01s  총 0.05s  | UDP OK → 192.168.50.246:5010
+        chair           HARD_OBSTACLE  pos3d=(-0.26, 0, +0.64) D= 0.69  conf=0.74  wy=-1.169
+        person          AGENT          pos3d=(-1.92, 0, +2.36) D= 3.04  conf=0.57  wy=-0.618
+        chair           HARD_OBSTACLE  pos3d=(-1.79, 0, +1.78) D= 2.52  conf=0.50  wy=-0.735
+        chair           HARD_OBSTACLE  pos3d=(-0.99, 0, +0.68) D= 1.20  conf=0.41  wy=-1.144
+        fire extinguisherHARD_OBSTACLE  pos3d=(+1.11, 0, +0.78) D= 1.36  conf=0.39  wy=-1.089
+        cardboard box   HARD_OBSTACLE  pos3d=(+0.15, 0, +2.31) D= 2.31  conf=0.20  wy=-0.627
+        [제외:    접지잘림] cardboard box   D= 0.36  conf=0.21
+        [제외:     >8m] storage box     D=11.71  conf=0.19
+        [제외:    접지잘림] open box        D= 0.58  conf=0.16
+[live] #598 LIVE_STREAM  전송 6개 (걸러냄 3개)  | read 0.02s  slice 0.01s  infer 0.01s  총 0.05s  | UDP OK → 192.168.50.246:5010
+        chair           HARD_OBSTACLE  pos3d=(-0.26, 0, +0.64) D= 0.69  conf=0.73  wy=-1.169
+        person          AGENT          pos3d=(-1.92, 0, +2.37) D= 3.05  conf=0.56  wy=-0.617
+        chair           HARD_OBSTACLE  pos3d=(-1.78, 0, +1.77) D= 2.52  conf=0.54  wy=-0.736
+        chair           HARD_OBSTACLE  pos3d=(-0.99, 0, +0.68) D= 1.20  conf=0.38  wy=-1.144
+        fire extinguisherHARD_OBSTACLE  pos3d=(+1.11, 0, +0.78) D= 1.36  conf=0.36  wy=-1.089
+        cardboard box   HARD_OBSTACLE  pos3d=(+0.15, 0, +2.31) D= 2.31  conf=0.17  wy=-0.627
+        [제외:    접지잘림] cardboard box   D= 0.36  conf=0.22
+        [제외:     >8m] storage box     D=11.71  conf=0.19
+        [제외:    접지잘림] open box        D= 0.58  conf=0.16
+[live] #599 LIVE_STREAM  전송 6개 (걸러냄 3개)  | read 0.02s  slice 0.01s  infer 0.01s  총 0.05s  | UDP OK → 192.168.50.246:5010
+        chair           HARD_OBSTACLE  pos3d=(-0.26, 0, +0.64) D= 0.69  conf=0.74  wy=-1.169
+        person          AGENT          pos3d=(-1.99, 0, +2.36) D= 3.09  conf=0.59  wy=-0.618
+        chair           HARD_OBSTACLE  pos3d=(-1.78, 0, +1.77) D= 2.51  conf=0.55  wy=-0.736
+        chair           HARD_OBSTACLE  pos3d=(-0.99, 0, +0.68) D= 1.20  conf=0.41  wy=-1.144
+        fire extinguisherHARD_OBSTACLE  pos3d=(+1.11, 0, +0.78) D= 1.36  conf=0.35  wy=-1.089
+        cardboard box   HARD_OBSTACLE  pos3d=(+0.15, 0, +2.31) D= 2.31  conf=0.18  wy=-0.627
+        [제외:    접지잘림] cardboard box   D= 0.36  conf=0.22
+        [제외:    접지잘림] open box        D= 0.58  conf=0.17
+        [제외:     >8m] storage box     D=11.70  conf=0.17
+[live] #600 LIVE_STREAM  전송 6개 (걸러냄 3개)  | read 0.02s  slice 0.01s  infer 0.01s  총 0.05s  | UDP OK → 192.168.50.246:5010
+        chair           HARD_OBSTACLE  pos3d=(-0.26, 0, +0.64) D= 0.69  conf=0.74  wy=-1.168
+        person          AGENT          pos3d=(-1.99, 0, +2.36) D= 3.09  conf=0.59  wy=-0.617
+        chair           HARD_OBSTACLE  pos3d=(-1.77, 0, +1.77) D= 2.50  conf=0.54  wy=-0.738
+        chair           HARD_OBSTACLE  pos3d=(-0.99, 0, +0.68) D= 1.20  conf=0.40  wy=-1.144
+        fire extinguisherHARD_OBSTACLE  pos3d=(+1.11, 0, +0.78) D= 1.36  conf=0.37  wy=-1.089
+        cardboard box   HARD_OBSTACLE  pos3d=(+0.15, 0, +2.31) D= 2.31  conf=0.21  wy=-0.627
+        [제외:    접지잘림] cardboard box   D= 0.36  conf=0.23
+        [제외:     >8m] storage box     D=11.70  conf=0.19
+        [제외:    접지잘림] open box        D= 0.58  conf=0.17
+[live] #601 LIVE_STREAM  전송 7개 (걸러냄 3개)  | read 0.02s  slice 0.01s  infer 0.01s  총 0.05s  | UDP OK → 192.168.50.246:5010
+        chair           HARD_OBSTACLE  pos3d=(-0.26, 0, +0.64) D= 0.69  conf=0.74  wy=-1.169
+        person          AGENT          pos3d=(-1.99, 0, +2.36) D= 3.09  conf=0.60  wy=-0.618
+        chair           HARD_OBSTACLE  pos3d=(-1.77, 0, +1.77) D= 2.50  conf=0.53  wy=-0.738
+        chair           HARD_OBSTACLE  pos3d=(-0.99, 0, +0.68) D= 1.20  conf=0.43  wy=-1.144
+        fire extinguisherHARD_OBSTACLE  pos3d=(+1.11, 0, +0.78) D= 1.36  conf=0.34  wy=-1.089
+        cardboard box   HARD_OBSTACLE  pos3d=(+0.15, 0, +2.31) D= 2.31  conf=0.22  wy=-0.627
+        box             HARD_OBSTACLE  pos3d=(-1.88, 0, +5.15) D= 5.48  conf=0.13  wy=-0.350
+        [제외:    접지잘림] cardboard box   D= 0.36  conf=0.23
+        [제외:     >8m] storage box     D=11.71  conf=0.18
+        [제외:    접지잘림] open box        D= 0.58  conf=0.15
+[live] #602 LIVE_STREAM  전송 7개 (걸러냄 3개)  | read 0.02s  slice 0.01s  infer 0.01s  총 0.05s  | UDP OK → 192.168.50.246:5010
+        chair           HARD_OBSTACLE  pos3d=(-0.26, 0, +0.64) D= 0.69  conf=0.74  wy=-1.169
+        person          AGENT          pos3d=(-1.99, 0, +2.37) D= 3.09  conf=0.63  wy=-0.617
+        chair           HARD_OBSTACLE  pos3d=(-1.77, 0, +1.76) D= 2.50  conf=0.54  wy=-0.739
+        chair           HARD_OBSTACLE  pos3d=(-0.99, 0, +0.68) D= 1.20  conf=0.43  wy=-1.144
+        fire extinguisherHARD_OBSTACLE  pos3d=(+1.11, 0, +0.78) D= 1.36  conf=0.34  wy=-1.089
+        cardboard box   HARD_OBSTACLE  pos3d=(+0.15, 0, +2.31) D= 2.31  conf=0.21  wy=-0.627
+        box             HARD_OBSTACLE  pos3d=(-1.88, 0, +5.15) D= 5.48  conf=0.12  wy=-0.350
+        [제외:    접지잘림] cardboard box   D= 0.36  conf=0.23
+        [제외:     >8m] storage box     D=11.72  conf=0.17
+        [제외:    접지잘림] open box        D= 0.58  conf=0.15
+[live] #603 LIVE_STREAM  전송 7개 (걸러냄 3개)  | read 0.02s  slice 0.01s  infer 0.01s  총 0.05s  | UDP OK → 192.168.50.246:5010
+        chair           HARD_OBSTACLE  pos3d=(-0.26, 0, +0.64) D= 0.69  conf=0.73  wy=-1.169
+        person          AGENT          pos3d=(-1.99, 0, +2.36) D= 3.08  conf=0.60  wy=-0.618
+        chair           HARD_OBSTACLE  pos3d=(-1.78, 0, +1.76) D= 2.50  conf=0.50  wy=-0.739
+        chair           HARD_OBSTACLE  pos3d=(-0.99, 0, +0.68) D= 1.20  conf=0.45  wy=-1.144
+        fire extinguisherHARD_OBSTACLE  pos3d=(+1.11, 0, +0.78) D= 1.36  conf=0.33  wy=-1.089
+        cardboard box   HARD_OBSTACLE  pos3d=(+0.15, 0, +2.31) D= 2.31  conf=0.18  wy=-0.627
+        box             HARD_OBSTACLE  pos3d=(-1.88, 0, +5.16) D= 5.49  conf=0.14  wy=-0.350
+        [제외:    접지잘림] cardboard box   D= 0.36  conf=0.21
+        [제외:     >8m] storage box     D=11.73  conf=0.18
+        [제외:    접지잘림] open box        D= 0.58  conf=0.16
+[live] #604 LIVE_STREAM  전송 7개 (걸러냄 3개)  | read 0.04s  slice 0.02s  infer 0.01s  총 0.07s  | UDP OK → 192.168.50.246:5010
+        chair           HARD_OBSTACLE  pos3d=(-0.26, 0, +0.64) D= 0.69  conf=0.72  wy=-1.169
+        person          AGENT          pos3d=(-1.98, 0, +2.36) D= 3.08  conf=0.60  wy=-0.618
+        chair           HARD_OBSTACLE  pos3d=(-1.78, 0, +1.77) D= 2.51  conf=0.51  wy=-0.736
+        chair           HARD_OBSTACLE  pos3d=(-1.00, 0, +0.68) D= 1.21  conf=0.42  wy=-1.144
+        fire extinguisherHARD_OBSTACLE  pos3d=(+1.11, 0, +0.78) D= 1.36  conf=0.37  wy=-1.089
+        cardboard box   HARD_OBSTACLE  pos3d=(+0.15, 0, +2.31) D= 2.31  conf=0.20  wy=-0.627
+        box             HARD_OBSTACLE  pos3d=(-1.88, 0, +5.15) D= 5.48  conf=0.14  wy=-0.350
+        [제외:    접지잘림] cardboard box   D= 0.36  conf=0.18
+        [제외:     >8m] storage box     D=11.73  conf=0.16
+        [제외:    접지잘림] open box        D= 0.58  conf=0.15
+[live] #605 LIVE_STREAM  전송 6개 (걸러냄 4개)  | read 0.04s  slice 0.01s  infer 0.01s  총 0.08s  | UDP OK → 192.168.50.246:5010
+        chair           HARD_OBSTACLE  pos3d=(-0.26, 0, +0.63) D= 0.68  conf=0.74  wy=-1.171
+        person          AGENT          pos3d=(-1.99, 0, +2.36) D= 3.09  conf=0.58  wy=-0.617
+        chair           HARD_OBSTACLE  pos3d=(-1.77, 0, +1.77) D= 2.51  conf=0.56  wy=-0.736
+        fire extinguisherHARD_OBSTACLE  pos3d=(+1.12, 0, +0.78) D= 1.36  conf=0.41  wy=-1.090
+        chair           HARD_OBSTACLE  pos3d=(-1.00, 0, +0.68) D= 1.21  conf=0.39  wy=-1.144
+        cardboard box   HARD_OBSTACLE  pos3d=(+0.15, 0, +2.31) D= 2.31  conf=0.17  wy=-0.627
+        [제외:    접지잘림] table           D= 0.62  conf=0.22
+        [제외:    접지잘림] cardboard box   D= 0.35  conf=0.20
+        [제외:     >8m] storage box     D=11.67  conf=0.19
+        [제외:    접지잘림] open box        D= 0.58  conf=0.17
+[live] #606 LIVE_STREAM  전송 7개 (걸러냄 3개)  | read 0.02s  slice 0.01s  infer 0.01s  총 0.05s  | UDP OK → 192.168.50.246:5010
+        chair           HARD_OBSTACLE  pos3d=(-0.26, 0, +0.63) D= 0.68  conf=0.73  wy=-1.171
+        chair           HARD_OBSTACLE  pos3d=(-1.78, 0, +1.78) D= 2.52  conf=0.53  wy=-0.734
+        person          AGENT          pos3d=(-1.98, 0, +2.36) D= 3.08  conf=0.49  wy=-0.617
+        fire extinguisherHARD_OBSTACLE  pos3d=(+1.12, 0, +0.78) D= 1.36  conf=0.42  wy=-1.090
+        chair           HARD_OBSTACLE  pos3d=(-0.99, 0, +0.68) D= 1.20  conf=0.40  wy=-1.144
+        cardboard box   HARD_OBSTACLE  pos3d=(+0.15, 0, +2.31) D= 2.31  conf=0.17  wy=-0.627
+        box             HARD_OBSTACLE  pos3d=(-1.89, 0, +5.17) D= 5.51  conf=0.14  wy=-0.349
+        [제외:    접지잘림] cardboard box   D= 0.35  conf=0.21
+        [제외:     >8m] storage box     D=11.68  conf=0.19
+        [제외:    접지잘림] open box        D= 0.58  conf=0.16
+[live] #607 LIVE_STREAM  전송 7개 (걸러냄 3개)  | read 0.02s  slice 0.01s  infer 0.01s  총 0.05s  | UDP OK → 192.168.50.246:5010
+        chair           HARD_OBSTACLE  pos3d=(-0.26, 0, +0.63) D= 0.68  conf=0.73  wy=-1.171
+        chair           HARD_OBSTACLE  pos3d=(-1.77, 0, +1.78) D= 2.51  conf=0.54  wy=-0.735
+        person          AGENT          pos3d=(-1.98, 0, +2.36) D= 3.08  conf=0.53  wy=-0.617
+        chair           HARD_OBSTACLE  pos3d=(-0.99, 0, +0.68) D= 1.20  conf=0.43  wy=-1.144
+        fire extinguisherHARD_OBSTACLE  pos3d=(+1.12, 0, +0.78) D= 1.36  conf=0.41  wy=-1.089
+        cardboard box   HARD_OBSTACLE  pos3d=(+0.15, 0, +2.31) D= 2.31  conf=0.19  wy=-0.627
+        box             HARD_OBSTACLE  pos3d=(-1.89, 0, +5.18) D= 5.51  conf=0.13  wy=-0.349
+        [제외:    접지잘림] cardboard box   D= 0.36  conf=0.19
+        [제외:    접지잘림] open box        D= 0.58  conf=0.18
+        [제외:     >8m] storage box     D=11.70  conf=0.16
+[live] #608 LIVE_STREAM  전송 7개 (걸러냄 3개)  | read 0.02s  slice 0.01s  infer 0.01s  총 0.05s  | UDP OK → 192.168.50.246:5010
+        chair           HARD_OBSTACLE  pos3d=(-0.26, 0, +0.64) D= 0.69  conf=0.71  wy=-1.169
+        chair           HARD_OBSTACLE  pos3d=(-1.78, 0, +1.78) D= 2.52  conf=0.53  wy=-0.735
+        chair           HARD_OBSTACLE  pos3d=(-0.99, 0, +0.68) D= 1.20  conf=0.45  wy=-1.144
+        fire extinguisherHARD_OBSTACLE  pos3d=(+1.11, 0, +0.78) D= 1.36  conf=0.38  wy=-1.089
+        person          AGENT          pos3d=(-1.98, 0, +2.37) D= 3.09  conf=0.37  wy=-0.616
+        cardboard box   HARD_OBSTACLE  pos3d=(+0.15, 0, +2.31) D= 2.31  conf=0.22  wy=-0.627
+        box             HARD_OBSTACLE  pos3d=(-1.88, 0, +5.15) D= 5.48  conf=0.14  wy=-0.350
+        [제외:    접지잘림] cardboard box   D= 0.36  conf=0.19
+        [제외:     >8m] storage box     D=11.69  conf=0.18
+        [제외:    접지잘림] open box        D= 0.58  conf=0.16
+[live] #609 LIVE_STREAM  전송 6개 (걸러냄 3개)  | read 0.02s  slice 0.01s  infer 0.01s  총 0.05s  | UDP OK → 192.168.50.246:5010
+        chair           HARD_OBSTACLE  pos3d=(-0.26, 0, +0.64) D= 0.69  conf=0.73  wy=-1.169
+        person          AGENT          pos3d=(-1.95, 0, +2.35) D= 3.05  conf=0.53  wy=-0.620
+        chair           HARD_OBSTACLE  pos3d=(-1.78, 0, +1.77) D= 2.51  conf=0.46  wy=-0.736
+        chair           HARD_OBSTACLE  pos3d=(-0.99, 0, +0.68) D= 1.20  conf=0.45  wy=-1.144
+        fire extinguisherHARD_OBSTACLE  pos3d=(+1.11, 0, +0.78) D= 1.36  conf=0.36  wy=-1.089
+        box             HARD_OBSTACLE  pos3d=(-1.87, 0, +5.14) D= 5.47  conf=0.15  wy=-0.351
+        [제외:    접지잘림] cardboard box   D= 0.36  conf=0.20
+        [제외:     >8m] storage box     D=11.68  conf=0.17
+        [제외:    접지잘림] open box        D= 0.58  conf=0.15
+[live] #610 LIVE_STREAM  전송 7개 (걸러냄 2개)  | read 0.02s  slice 0.01s  infer 0.01s  총 0.05s  | UDP OK → 192.168.50.246:5010
+        chair           HARD_OBSTACLE  pos3d=(-0.26, 0, +0.64) D= 0.69  conf=0.71  wy=-1.169
+        person          AGENT          pos3d=(-1.95, 0, +2.33) D= 3.04  conf=0.66  wy=-0.623
+        chair           HARD_OBSTACLE  pos3d=(-0.99, 0, +0.68) D= 1.20  conf=0.45  wy=-1.144
+        chair           HARD_OBSTACLE  pos3d=(-1.78, 0, +1.78) D= 2.52  conf=0.44  wy=-0.735
+        fire extinguisherHARD_OBSTACLE  pos3d=(+1.11, 0, +0.78) D= 1.36  conf=0.38  wy=-1.089
+        cardboard box   HARD_OBSTACLE  pos3d=(+0.15, 0, +2.31) D= 2.31  conf=0.17  wy=-0.627
+        box             HARD_OBSTACLE  pos3d=(-1.87, 0, +5.14) D= 5.47  conf=0.15  wy=-0.351
+        [제외:    접지잘림] cardboard box   D= 0.36  conf=0.21
+        [제외:     >8m] storage box     D=11.69  conf=0.15
+[live] #611 LIVE_STREAM  전송 6개 (걸러냄 1개)  | read 0.02s  slice 0.01s  infer 0.01s  총 0.05s  | UDP OK → 192.168.50.246:5010
+        chair           HARD_OBSTACLE  pos3d=(-0.26, 0, +0.64) D= 0.69  conf=0.71  wy=-1.169
+        person          AGENT          pos3d=(-1.94, 0, +2.33) D= 3.03  conf=0.69  wy=-0.624
+        chair           HARD_OBSTACLE  pos3d=(-1.78, 0, +1.77) D= 2.51  conf=0.45  wy=-0.735
+        chair           HARD_OBSTACLE  pos3d=(-0.99, 0, +0.68) D= 1.20  conf=0.41  wy=-1.144
+        fire extinguisherHARD_OBSTACLE  pos3d=(+1.11, 0, +0.78) D= 1.36  conf=0.37  wy=-1.089
+        box             HARD_OBSTACLE  pos3d=(-1.86, 0, +5.13) D= 5.46  conf=0.17  wy=-0.352
+        [제외:    접지잘림] cardboard box   D= 0.36  conf=0.19
+[live] #612 LIVE_STREAM  전송 7개 (걸러냄 3개)  | read 0.02s  slice 0.01s  infer 0.01s  총 0.05s  | UDP OK → 192.168.50.246:5010
+        chair           HARD_OBSTACLE  pos3d=(-0.26, 0, +0.64) D= 0.69  conf=0.68  wy=-1.169
+        person          AGENT          pos3d=(-1.95, 0, +2.33) D= 3.04  conf=0.66  wy=-0.622
+        chair           HARD_OBSTACLE  pos3d=(-1.78, 0, +1.78) D= 2.51  conf=0.46  wy=-0.735
+        chair           HARD_OBSTACLE  pos3d=(-0.99, 0, +0.68) D= 1.20  conf=0.45  wy=-1.144
+        fire extinguisherHARD_OBSTACLE  pos3d=(+1.11, 0, +0.78) D= 1.36  conf=0.38  wy=-1.089
+        box             HARD_OBSTACLE  pos3d=(-1.87, 0, +5.14) D= 5.47  conf=0.17  wy=-0.351
+        storage box     HARD_OBSTACLE  pos3d=(+1.03, 0, +1.70) D= 1.99  conf=0.16  wy=-0.754
+        [제외:     >8m] storage box     D=11.69  conf=0.17
+        [제외:    접지잘림] cardboard box   D= 0.36  conf=0.17
+        [제외:    접지잘림] open box        D= 0.58  conf=0.16
+[live] #613 LIVE_STREAM  전송 7개 (걸러냄 3개)  | read 0.02s  slice 0.01s  infer 0.01s  총 0.05s  | UDP OK → 192.168.50.246:5010
+        chair           HARD_OBSTACLE  pos3d=(-0.26, 0, +0.64) D= 0.69  conf=0.71  wy=-1.169
+        person          AGENT          pos3d=(-1.95, 0, +2.34) D= 3.04  conf=0.68  wy=-0.622
+        chair           HARD_OBSTACLE  pos3d=(-1.78, 0, +1.78) D= 2.52  conf=0.48  wy=-0.735
+        chair           HARD_OBSTACLE  pos3d=(-0.99, 0, +0.68) D= 1.20  conf=0.47  wy=-1.144
+        fire extinguisherHARD_OBSTACLE  pos3d=(+1.11, 0, +0.78) D= 1.36  conf=0.37  wy=-1.089
+        cardboard box   HARD_OBSTACLE  pos3d=(+0.15, 0, +2.31) D= 2.31  conf=0.16  wy=-0.627
+        box             HARD_OBSTACLE  pos3d=(-1.87, 0, +5.15) D= 5.48  conf=0.16  wy=-0.350
+        [제외:    접지잘림] table           D= 0.62  conf=0.23
+        [제외:     >8m] storage box     D=11.68  conf=0.19
+        [제외:    접지잘림] cardboard box   D= 0.36  conf=0.17
+^C
+[live] 종료 요청 — 현재 작업 마치고 정리합니다.
+
+[live] 종료. 처리한 사진 613장.
+(venv_image) dg@sysai-server2:~/capstone-db/docx2026$ 
+
+================컴퓨터 1
+:\Users\asdfa\docx2026_code>
+C:\Users\asdfa\docx2026_code>python anchor360_bridge.py --unity-ip 192.168.50.244 --poll 0.3
+==============================================================
+anchor360_bridge — 서버 JSON → 유니티 UDP 중계
+  가져올 곳 : http://210.110.250.33:7866/anchor360_latest
+  보낼 곳   : UDP 192.168.50.244:5010
+  주기      : 0.3s  (하트비트 겸용)
+  Ctrl+C 로 종료
+==============================================================
+[18:28:18] NEW  ts=1789979833.884  검출 8개  3590B  → 192.168.50.244:5010
+[18:28:52] NEW  ts=1789982932.751  검출 5개  2334B  → 192.168.50.244:5010
+[18:28:53] NEW  ts=1789982933.186  검출 7개  3176B  → 192.168.50.244:5010
+[18:28:53] NEW  ts=1789982933.337  검출 7개  3173B  → 192.168.50.244:5010
+[18:28:53] NEW  ts=1789982933.739  검출 7개  3169B  → 192.168.50.244:5010
+[18:28:54] NEW  ts=1789982934.142  검출 7개  3175B  → 192.168.50.244:5010
+[18:28:54] NEW  ts=1789982934.394  검출 7개  3172B  → 192.168.50.244:5010
+[18:28:54] NEW  ts=1789982934.796  검출 7개  3179B  → 192.168.50.244:5010
+[18:28:55] NEW  ts=1789982934.948  검출 6개  2752B  → 192.168.50.244:5010
+[18:28:55] NEW  ts=1789982935.350  검출 7개  3174B  → 192.168.50.244:5010
+[18:28:55] NEW  ts=1789982935.750  검출 7개  3175B  → 192.168.50.244:5010
+[18:28:56] NEW  ts=1789982936.002  검출 7개  3176B  → 192.168.50.244:5010
+[18:28:56] NEW  ts=1789982936.405  검출 7개  3175B  → 192.168.50.244:5010
+[18:28:56] NEW  ts=1789982936.657  검출 7개  3177B  → 192.168.50.244:5010
+[18:28:57] NEW  ts=1789982936.955  검출 7개  3173B  → 192.168.50.244:5010
+[18:28:57] NEW  ts=1789982937.357  검출 8개  3607B  → 192.168.50.244:5010
+[18:28:57] NEW  ts=1789982937.609  검출 7개  3177B  → 192.168.50.244:5010
+[18:28:58] NEW  ts=1789982938.012  검출 8개  3606B  → 192.168.50.244:5010
+[18:28:58] NEW  ts=1789982938.164  검출 8개  3608B  → 192.168.50.244:5010
+[18:28:58] NEW  ts=1789982938.670  검출 8개  3609B  → 192.168.50.244:5010
+[18:28:59] NEW  ts=1789982938.971  검출 8개  3606B  → 192.168.50.244:5010
+[18:28:59] NEW  ts=1789982939.224  검출 7개  3177B  → 192.168.50.244:5010
+[18:28:59] NEW  ts=1789982939.626  검출 7개  3174B  → 192.168.50.244:5010
+[18:29:00] NEW  ts=1789982939.924  검출 7개  3169B  → 192.168.50.244:5010
+[18:29:00] NEW  ts=1789982940.176  검출 7개  3173B  → 192.168.50.244:5010
+[18:29:00] NEW  ts=1789982940.577  검출 7개  3173B  → 192.168.50.244:5010
+[18:29:01] NEW  ts=1789982940.831  검출 7개  3170B  → 192.168.50.244:5010
+[18:29:01] NEW  ts=1789982941.233  검출 8개  3608B  → 192.168.50.244:5010
+[18:29:01] NEW  ts=1789982941.633  검출 7개  3171B  → 192.168.50.244:5010
+[18:29:02] NEW  ts=1789982941.785  검출 7개  3173B  → 192.168.50.244:5010
+[18:29:02] NEW  ts=1789982942.190  검출 7개  3176B  → 192.168.50.244:5010
+[18:29:02] NEW  ts=1789982942.591  검출 7개  3174B  → 192.168.50.244:5010
+[18:29:03] NEW  ts=1789982942.740  검출 7개  3170B  → 192.168.50.244:5010
+[18:29:03] NEW  ts=1789982943.245  검출 7개  3175B  → 192.168.50.244:5010
+[18:29:03] NEW  ts=1789982943.544  검출 7개  3180B  → 192.168.50.244:5010
+[18:29:03] NEW  ts=1789982943.796  검출 8개  3609B  → 192.168.50.244:5010
+[18:29:04] NEW  ts=1789982944.198  검출 8개  3601B  → 192.168.50.244:5010
+[18:29:04] NEW  ts=1789982944.450  검출 8개  3607B  → 192.168.50.244:5010
+[18:29:04] NEW  ts=1789982944.853  검출 8개  3608B  → 192.168.50.244:5010
+[18:29:05] NEW  ts=1789982945.155  검출 8개  3602B  → 192.168.50.244:5010
+[18:29:05] NEW  ts=1789982945.407  검출 7개  3176B  → 192.168.50.244:5010
+[18:29:05] NEW  ts=1789982945.810  검출 7개  3173B  → 192.168.50.244:5010
+[18:29:06] NEW  ts=1789982946.063  검출 7개  3170B  → 192.168.50.244:5010
+[18:29:06] NEW  ts=1789982946.363  검출 7개  3177B  → 192.168.50.244:5010
+[18:29:06] NEW  ts=1789982946.765  검출 7개  3176B  → 192.168.50.244:5010
+[18:29:07] NEW  ts=1789982947.168  검출 8개  3606B  → 192.168.50.244:5010
+[18:29:07] NEW  ts=1789982947.421  검출 8개  3607B  → 192.168.50.244:5010
+[18:29:07] NEW  ts=1789982947.794  검출 8개  3599B  → 192.168.50.244:5010
+[18:29:08] NEW  ts=1789982948.095  검출 7개  3171B  → 192.168.50.244:5010
+[18:29:08] NEW  ts=1789982948.395  검출 7개  3175B  → 192.168.50.244:5010
+[18:29:08] NEW  ts=1789982948.799  검출 7개  3173B  → 192.168.50.244:5010
+[18:29:09] NEW  ts=1789982949.172  검출 8개  3602B  → 192.168.50.244:5010
+[18:29:09] NEW  ts=1789982949.472  검출 8개  3603B  → 192.168.50.244:5010
+[18:29:09] NEW  ts=1789982949.771  검출 7개  3169B  → 192.168.50.244:5010
+[18:29:10] NEW  ts=1789982950.025  검출 7개  3174B  → 192.168.50.244:5010
+[18:29:10] NEW  ts=1789982950.427  검출 7개  3177B  → 192.168.50.244:5010
+[18:29:10] NEW  ts=1789982950.578  검출 7개  3171B  → 192.168.50.244:5010
+[18:29:11] NEW  ts=1789982950.983  검출 7개  3175B  → 192.168.50.244:5010
+[18:29:11] NEW  ts=1789982951.385  검출 7개  3177B  → 192.168.50.244:5010
+[18:29:11] NEW  ts=1789982951.636  검출 7개  3176B  → 192.168.50.244:5010
+[18:29:12] NEW  ts=1789982952.039  검출 7개  3173B  → 192.168.50.244:5010
+[18:29:12] NEW  ts=1789982952.189  검출 7개  3176B  → 192.168.50.244:5010
+[18:29:12] NEW  ts=1789982952.592  검출 7개  3168B  → 192.168.50.244:5010
+[18:29:13] NEW  ts=1789982952.994  검출 7개  3170B  → 192.168.50.244:5010
+[18:29:13] NEW  ts=1789982953.396  검출 7개  3175B  → 192.168.50.244:5010
+[18:29:13] NEW  ts=1789982953.647  검출 7개  3173B  → 192.168.50.244:5010
+[18:29:14] NEW  ts=1789982954.048  검출 7개  3167B  → 192.168.50.244:5010
+[18:29:14] NEW  ts=1789982954.301  검출 7개  3177B  → 192.168.50.244:5010
+[18:29:14] NEW  ts=1789982954.673  검출 7개  3172B  → 192.168.50.244:5010
+[18:29:15] NEW  ts=1789982954.974  검출 8개  3598B  → 192.168.50.244:5010
+[18:29:15] NEW  ts=1789982955.227  검출 7개  3173B  → 192.168.50.244:5010
+[18:29:15] NEW  ts=1789982955.630  검출 8개  3603B  → 192.168.50.244:5010
+[18:29:16] NEW  ts=1789982955.779  검출 7개  3174B  → 192.168.50.244:5010
+[18:29:16] NEW  ts=1789982956.181  검출 7개  3173B  → 192.168.50.244:5010
+[18:29:16] NEW  ts=1789982956.554  검출 7개  3173B  → 192.168.50.244:5010
+[18:29:17] NEW  ts=1789982957.003  검출 7개  3173B  → 192.168.50.244:5010
+[18:29:17] NEW  ts=1789982957.255  검출 7개  3171B  → 192.168.50.244:5010
+[18:29:17] NEW  ts=1789982957.656  검출 7개  3172B  → 192.168.50.244:5010
+[18:29:18] NEW  ts=1789982957.805  검출 7개  3171B  → 192.168.50.244:5010
+[18:29:18] NEW  ts=1789982958.206  검출 8개  3601B  → 192.168.50.244:5010
+[18:29:18] NEW  ts=1789982958.606  검출 6개  2744B  → 192.168.50.244:5010
+[18:29:19] NEW  ts=1789982958.857  검출 7개  3176B  → 192.168.50.244:5010
+[18:29:19] NEW  ts=1789982959.157  검출 7개  3179B  → 192.168.50.244:5010
+[18:29:19] NEW  ts=1789982959.409  검출 7개  3175B  → 192.168.50.244:5010
+[18:29:20] NEW  ts=1789982959.661  검출 7개  3174B  → 192.168.50.244:5010
+[18:29:20] NEW  ts=1789982960.174  검출 7개  3178B  → 192.168.50.244:5010
+[18:29:20] NEW  ts=1789982960.476  검출 7개  3175B  → 192.168.50.244:5010
+[18:29:21] NEW  ts=1789982960.878  검출 7개  3176B  → 192.168.50.244:5010
+[18:29:21] NEW  ts=1789982961.281  검출 7개  3175B  → 192.168.50.244:5010
+[18:29:21] NEW  ts=1789982961.533  검출 7개  3176B  → 192.168.50.244:5010
+[18:29:22] NEW  ts=1789982961.784  검출 7개  3176B  → 192.168.50.244:5010
+[18:29:22] NEW  ts=1789982962.289  검출 7개  3175B  → 192.168.50.244:5010
+[18:29:22] NEW  ts=1789982962.542  검출 7개  3173B  → 192.168.50.244:5010
+[18:29:23] NEW  ts=1789982962.918  검출 7개  3172B  → 192.168.50.244:5010
+[18:29:23] NEW  ts=1789982963.069  검출 7개  3174B  → 192.168.50.244:5010
+[18:29:23] NEW  ts=1789982963.623  검출 8개  3604B  → 192.168.50.244:5010
+[18:29:24] NEW  ts=1789982963.875  검출 7개  3176B  → 192.168.50.244:5010
+[18:29:24] NEW  ts=1789982964.176  검출 6개  2749B  → 192.168.50.244:5010
+[18:29:24] NEW  ts=1789982964.476  검출 7개  3176B  → 192.168.50.244:5010
+[18:29:25] NEW  ts=1789982964.980  검출 7개  3171B  → 192.168.50.244:5010
+[18:29:25] NEW  ts=1789982965.282  검출 8개  3600B  → 192.168.50.244:5010
+[18:29:25] NEW  ts=1789982965.764  검출 7개  3177B  → 192.168.50.244:5010
+[18:29:26] NEW  ts=1789982966.133  검출 7개  3177B  → 192.168.50.244:5010
+[18:29:26] NEW  ts=1789982966.385  검출 7개  3175B  → 192.168.50.244:5010
+[18:29:26] NEW  ts=1789982966.788  검출 8개  3607B  → 192.168.50.244:5010
+[18:29:27] NEW  ts=1789982967.161  검출 7개  3175B  → 192.168.50.244:5010
+[18:29:27] NEW  ts=1789982967.414  검출 7개  3177B  → 192.168.50.244:5010
+[18:29:27] NEW  ts=1789982967.867  검출 7개  3177B  → 192.168.50.244:5010
+[18:29:28] NEW  ts=1789982968.120  검출 7개  3169B  → 192.168.50.244:5010
+[18:29:28] NEW  ts=1789982968.521  검출 7개  3173B  → 192.168.50.244:5010
+[18:29:28] NEW  ts=1789982968.774  검출 7개  3175B  → 192.168.50.244:5010
+[18:29:29] NEW  ts=1789982969.177  검출 6개  2750B  → 192.168.50.244:5010
+[18:29:29] NEW  ts=1789982969.326  검출 6개  2751B  → 192.168.50.244:5010
+[18:29:29] NEW  ts=1789982969.728  검출 6개  2750B  → 192.168.50.244:5010
+[18:29:30] NEW  ts=1789982970.098  검출 6개  2748B  → 192.168.50.244:5010
+[18:29:30] NEW  ts=1789982970.499  검출 6개  2747B  → 192.168.50.244:5010
+[18:29:30] NEW  ts=1789982970.752  검출 7개  3169B  → 192.168.50.244:5010
+[18:29:31] NEW  ts=1789982971.155  검출 5개  2319B  → 192.168.50.244:5010
+[18:29:31] NEW  ts=1789982971.556  검출 6개  2740B  → 192.168.50.244:5010
+[18:29:32] NEW  ts=1789982971.807  검출 7개  3178B  → 192.168.50.244:5010
+[18:29:32] NEW  ts=1789982972.210  검출 7개  3177B  → 192.168.50.244:5010
+[18:29:32] NEW  ts=1789982972.511  검출 8개  3604B  → 192.168.50.244:5010
+[18:29:32] NEW  ts=1789982972.764  검출 8개  3606B  → 192.168.50.244:5010
+[18:29:33] NEW  ts=1789982973.167  검출 6개  2750B  → 192.168.50.244:5010
+[18:29:33] NEW  ts=1789982973.569  검출 7개  3171B  → 192.168.50.244:5010
+[18:29:34] NEW  ts=1789982973.822  검출 7개  3171B  → 192.168.50.244:5010
+[18:29:34] NEW  ts=1789982974.224  검출 7개  3176B  → 192.168.50.244:5010
+[18:29:34] NEW  ts=1789982974.523  검출 7개  3175B  → 192.168.50.244:5010
+[18:29:34] NEW  ts=1789982974.775  검출 7개  3177B  → 192.168.50.244:5010
+[18:29:35] NEW  ts=1789982975.176  검출 7개  3174B  → 192.168.50.244:5010
+[18:29:35] NEW  ts=1789982975.429  검출 7개  3177B  → 192.168.50.244:5010
+[18:29:35] NEW  ts=1789982975.831  검출 7개  3176B  → 192.168.50.244:5010
+[18:29:36] NEW  ts=1789982976.131  검출 7개  3177B  → 192.168.50.244:5010
+[18:29:36] NEW  ts=1789982976.532  검출 7개  3176B  → 192.168.50.244:5010
+[18:29:36] NEW  ts=1789982976.784  검출 7개  3173B  → 192.168.50.244:5010
+[18:29:37] NEW  ts=1789982977.037  검출 7개  3173B  → 192.168.50.244:5010
+[18:29:37] NEW  ts=1789982977.541  검출 7개  3178B  → 192.168.50.244:5010
+[18:29:38] NEW  ts=1789982977.692  검출 7개  3176B  → 192.168.50.244:5010
+[18:29:38] NEW  ts=1789982978.096  검출 6개  2749B  → 192.168.50.244:5010
+[18:29:38] NEW  ts=1789982978.497  검출 6개  2751B  → 192.168.50.244:5010
+[18:29:38] NEW  ts=1789982978.749  검출 6개  2746B  → 192.168.50.244:5010
+[18:29:39] NEW  ts=1789982979.153  검출 8개  3598B  → 192.168.50.244:5010
+[18:29:39] NEW  ts=1789982979.557  검출 8개  3590B  → 192.168.50.244:5010
+[18:29:39] NEW  ts=1789982979.707  검출 8개  3599B  → 192.168.50.244:5010
+[18:29:40] NEW  ts=1789982980.110  검출 7개  3177B  → 192.168.50.244:5010
+[18:29:40] NEW  ts=1789982980.614  검출 6개  2753B  → 192.168.50.244:5010
+[18:29:41] NEW  ts=1789982980.868  검출 5개  2319B  → 192.168.50.244:5010
+[18:29:41] NEW  ts=1789982981.273  검출 6개  2743B  → 192.168.50.244:5010
+[18:29:41] NEW  ts=1789982981.526  검출 7개  3175B  → 192.168.50.244:5010
+[18:29:42] NEW  ts=1789982981.779  검출 6개  2740B  → 192.168.50.244:5010
+[18:29:42] NEW  ts=1789982982.152  검출 7개  3171B  → 192.168.50.244:5010
+[18:29:42] NEW  ts=1789982982.553  검출 8개  3607B  → 192.168.50.244:5010
+[18:29:43] NEW  ts=1789982982.704  검출 7개  3175B  → 192.168.50.244:5010
+[18:29:43] NEW  ts=1789982983.208  검출 7개  3179B  → 192.168.50.244:5010
+[18:29:43] NEW  ts=1789982983.508  검출 6개  2743B  → 192.168.50.244:5010
+[18:29:44] NEW  ts=1789982983.760  검출 7개  3173B  → 192.168.50.244:5010
+[18:29:44] NEW  ts=1789982984.266  검출 7개  3171B  → 192.168.50.244:5010
+[18:29:44] NEW  ts=1789982984.571  검출 7개  3182B  → 192.168.50.244:5010
+[18:29:45] NEW  ts=1789982984.824  검출 6개  2747B  → 192.168.50.244:5010
+[18:29:45] NEW  ts=1789982985.229  검출 8개  3603B  → 192.168.50.244:5010
+[18:29:45] NEW  ts=1789982985.634  검출 8개  3601B  → 192.168.50.244:5010
+[18:29:46] NEW  ts=1789982985.937  검출 7개  3171B  → 192.168.50.244:5010
+[18:29:46] NEW  ts=1789982986.240  검출 7개  3171B  → 192.168.50.244:5010
+[18:29:46] NEW  ts=1789982986.640  검출 7개  3180B  → 192.168.50.244:5010
+[18:29:47] NEW  ts=1789982986.893  검출 7개  3178B  → 192.168.50.244:5010
+[18:29:47] NEW  ts=1789982987.298  검출 7개  3180B  → 192.168.50.244:5010
+[18:29:47] NEW  ts=1789982987.448  검출 7개  3181B  → 192.168.50.244:5010
+[18:29:48] NEW  ts=1789982987.953  검출 7개  3172B  → 192.168.50.244:5010
+[18:29:48] NEW  ts=1789982988.105  검출 8개  3609B  → 192.168.50.244:5010
+[18:29:48] NEW  ts=1789982988.629  검출 8개  3607B  → 192.168.50.244:5010
+[18:29:49] NEW  ts=1789982988.781  검출 8개  3599B  → 192.168.50.244:5010
+[18:29:49] NEW  ts=1789982989.185  검출 6개  2749B  → 192.168.50.244:5010
+[18:29:49] NEW  ts=1789982989.587  검출 7개  3174B  → 192.168.50.244:5010
+[18:29:50] NEW  ts=1789982989.839  검출 8개  3604B  → 192.168.50.244:5010
+[18:29:50] NEW  ts=1789982990.240  검출 7개  3176B  → 192.168.50.244:5010
+[18:29:50] NEW  ts=1789982990.492  검출 8개  3600B  → 192.168.50.244:5010
+[18:29:51] NEW  ts=1789982990.998  검출 7개  3178B  → 192.168.50.244:5010
+[18:29:51] NEW  ts=1789982991.370  검출 8개  3607B  → 192.168.50.244:5010
+[18:29:51] NEW  ts=1789982991.671  검출 7개  3182B  → 192.168.50.244:5010
+[18:29:52] NEW  ts=1789982991.924  검출 8개  3605B  → 192.168.50.244:5010
+[18:29:52] NEW  ts=1789982992.330  검출 8개  3602B  → 192.168.50.244:5010
+[18:29:52] NEW  ts=1789982992.480  검출 7개  3169B  → 192.168.50.244:5010
+[18:29:53] NEW  ts=1789982992.988  검출 8개  3599B  → 192.168.50.244:5010
+[18:29:53] NEW  ts=1789982993.290  검출 5개  2327B  → 192.168.50.244:5010
+[18:29:53] NEW  ts=1789982993.693  검출 7개  3175B  → 192.168.50.244:5010
+[18:29:54] NEW  ts=1789982993.945  검출 7개  3174B  → 192.168.50.244:5010
+[18:29:54] NEW  ts=1789982994.348  검출 7개  3183B  → 192.168.50.244:5010
+[18:29:54] NEW  ts=1789982994.499  검출 7개  3180B  → 192.168.50.244:5010
+[18:29:55] NEW  ts=1789982994.905  검출 7개  3178B  → 192.168.50.244:5010
+[18:29:55] NEW  ts=1789982995.306  검출 8개  3604B  → 192.168.50.244:5010
+[18:29:55] NEW  ts=1789982995.560  검출 8개  3606B  → 192.168.50.244:5010
+[18:29:56] NEW  ts=1789982995.962  검출 8개  3607B  → 192.168.50.244:5010
+[18:29:56] NEW  ts=1789982996.588  검출 8개  3606B  → 192.168.50.244:5010
+[18:29:57] NEW  ts=1789982996.739  검출 8개  3604B  → 192.168.50.244:5010
+[18:29:57] NEW  ts=1789982997.291  검출 7개  3174B  → 192.168.50.244:5010
+[18:29:57] NEW  ts=1789982997.663  검출 7개  3173B  → 192.168.50.244:5010
+[18:29:58] NEW  ts=1789982997.962  검출 6개  2751B  → 192.168.50.244:5010
+[18:29:58] NEW  ts=1789982998.214  검출 6개  2747B  → 192.168.50.244:5010
+[18:29:58] NEW  ts=1789982998.515  검출 6개  2745B  → 192.168.50.244:5010
+[18:29:59] NEW  ts=1789982998.767  검출 7개  3171B  → 192.168.50.244:5010
+[18:29:59] NEW  ts=1789982999.020  검출 8개  3603B  → 192.168.50.244:5010
+[18:29:59] NEW  ts=1789982999.543  검출 6개  2750B  → 192.168.50.244:5010
+[18:30:04] NEW  ts=1789983003.894  검출 5개  2323B  → 192.168.50.244:5010
+[18:30:04] NEW  ts=1789983004.044  검출 6개  2756B  → 192.168.50.244:5010
+[18:30:04] NEW  ts=1789983004.445  검출 6개  2748B  → 192.168.50.244:5010
+[18:30:05] NEW  ts=1789983004.697  검출 6개  2748B  → 192.168.50.244:5010
+[18:30:05] NEW  ts=1789983005.073  검출 6개  2757B  → 192.168.50.244:5010
+[18:30:05] NEW  ts=1789983005.325  검출 6개  2756B  → 192.168.50.244:5010
+[18:30:06] NEW  ts=1789983005.950  검출 6개  2756B  → 192.168.50.244:5010
+[18:30:06] NEW  ts=1789983006.202  검출 6개  2756B  → 192.168.50.244:5010
+[18:30:06] NEW  ts=1789983006.454  검출 6개  2758B  → 192.168.50.244:5010
+[18:30:07] NEW  ts=1789983006.960  검출 6개  2756B  → 192.168.50.244:5010
+[18:30:07] NEW  ts=1789983007.584  검출 6개  2756B  → 192.168.50.244:5010
+[18:30:08] NEW  ts=1789983007.956  검출 6개  2754B  → 192.168.50.244:5010
+[18:30:08] NEW  ts=1789983008.209  검출 5개  2326B  → 192.168.50.244:5010
+[18:30:08] NEW  ts=1789983008.614  검출 6개  2758B  → 192.168.50.244:5010
+[18:30:09] NEW  ts=1789983008.866  검출 6개  2755B  → 192.168.50.244:5010
+[18:30:09] NEW  ts=1789983009.119  검출 6개  2755B  → 192.168.50.244:5010
+[18:30:09] NEW  ts=1789983009.625  검출 5개  2326B  → 192.168.50.244:5010
+[18:30:10] NEW  ts=1789983009.996  검출 5개  2324B  → 192.168.50.244:5010
+[18:30:10] NEW  ts=1789983010.147  검출 5개  2327B  → 192.168.50.244:5010
+[18:30:10] NEW  ts=1789983010.519  검출 7개  3187B  → 192.168.50.244:5010
+[18:30:11] NEW  ts=1789983010.923  검출 7개  3176B  → 192.168.50.244:5010
+[18:30:11] NEW  ts=1789983011.294  검출 7개  3178B  → 192.168.50.244:5010
+[18:30:11] NEW  ts=1789983011.593  검출 7개  3177B  → 192.168.50.244:5010
+[18:30:12] NEW  ts=1789983011.995  검출 7개  3175B  → 192.168.50.244:5010
+[18:30:12] NEW  ts=1789983012.367  검출 7개  3169B  → 192.168.50.244:5010
+[18:30:12] NEW  ts=1789983012.674  검출 6개  2751B  → 192.168.50.244:5010
+[18:30:13] NEW  ts=1789983012.925  검출 7개  3173B  → 192.168.50.244:5010
+[18:30:13] NEW  ts=1789983013.223  검출 7개  3175B  → 192.168.50.244:5010
+[18:30:13] NEW  ts=1789983013.595  검출 6개  2757B  → 192.168.50.244:5010
+[18:30:14] NEW  ts=1789983013.999  검출 6개  2757B  → 192.168.50.244:5010
+[18:30:14] NEW  ts=1789983014.296  검출 5개  2324B  → 192.168.50.244:5010
+[18:30:14] NEW  ts=1789983014.698  검출 6개  2755B  → 192.168.50.244:5010
+[18:30:15] NEW  ts=1789983014.950  검출 6개  2753B  → 192.168.50.244:5010
+[18:30:15] NEW  ts=1789983015.322  검출 6개  2761B  → 192.168.50.244:5010
+[18:30:15] NEW  ts=1789983015.723  검출 6개  2760B  → 192.168.50.244:5010
+[18:30:16] NEW  ts=1789983016.612  검출 6개  2759B  → 192.168.50.244:5010
+[18:30:17] NEW  ts=1789983017.119  검출 7개  3169B  → 192.168.50.244:5010
+[18:30:17] NEW  ts=1789983017.743  검출 7개  3179B  → 192.168.50.244:5010
+[18:30:18] NEW  ts=1789983017.995  검출 7개  3172B  → 192.168.50.244:5010
+[18:30:18] NEW  ts=1789983018.399  검출 7개  3176B  → 192.168.50.244:5010
+[18:30:18] NEW  ts=1789983018.651  검출 7개  3173B  → 192.168.50.244:5010
+[18:30:19] NEW  ts=1789983019.024  검출 7개  3175B  → 192.168.50.244:5010
+[18:30:19] NEW  ts=1789983019.428  검출 7개  3176B  → 192.168.50.244:5010
+[18:30:19] NEW  ts=1789983019.577  검출 6개  2754B  → 192.168.50.244:5010
+[18:30:20] NEW  ts=1789983019.980  검출 7개  3175B  → 192.168.50.244:5010
+[18:30:20] NEW  ts=1789983020.393  검출 7개  3173B  → 192.168.50.244:5010
+[18:30:20] NEW  ts=1789983020.543  검출 7개  3176B  → 192.168.50.244:5010
+[18:30:21] NEW  ts=1789983020.947  검출 8개  3599B  → 192.168.50.244:5010
+[18:30:21] NEW  ts=1789983021.349  검출 8개  3608B  → 192.168.50.244:5010
+[18:30:21] NEW  ts=1789983021.601  검출 8개  3599B  → 192.168.50.244:5010
+[18:30:22] NEW  ts=1789983022.106  검출 8개  3605B  → 192.168.50.244:5010
+[18:30:22] NEW  ts=1789983022.359  검출 8개  3604B  → 192.168.50.244:5010
+[18:30:22] NEW  ts=1789983022.610  검출 6개  2742B  → 192.168.50.244:5010
+[18:30:23] NEW  ts=1789983023.114  검출 7개  3184B  → 192.168.50.244:5010
+[18:30:23] NEW  ts=1789983023.366  검출 7개  3179B  → 192.168.50.244:5010
+[18:30:23] NEW  ts=1789983023.767  검출 7개  3175B  → 192.168.50.244:5010
+[18:30:24] NEW  ts=1789983023.917  검출 7개  3178B  → 192.168.50.244:5010
+[18:30:24] NEW  ts=1789983024.319  검출 7개  3167B  → 192.168.50.244:5010
+[18:30:24] NEW  ts=1789983024.721  검출 8개  3602B  → 192.168.50.244:5010
+[18:30:25] NEW  ts=1789983025.122  검출 8개  3601B  → 192.168.50.244:5010
+[18:30:25] NEW  ts=1789983025.271  검출 7개  3175B  → 192.168.50.244:5010
+[18:30:25] NEW  ts=1789983025.775  검출 7개  3173B  → 192.168.50.244:5010
+[18:30:26] NEW  ts=1789983025.923  검출 7개  3170B  → 192.168.50.244:5010
+[18:30:26] NEW  ts=1789983026.429  검출 7개  3168B  → 192.168.50.244:5010
+[18:30:26] NEW  ts=1789983026.682  검출 7개  3173B  → 192.168.50.244:5010
+[18:30:27] NEW  ts=1789983027.086  검출 6개  2756B  → 192.168.50.244:5010
+[18:30:27] NEW  ts=1789983027.342  검출 7개  3173B  → 192.168.50.244:5010
+[18:30:27] NEW  ts=1789983027.743  검출 6개  2745B  → 192.168.50.244:5010
+[18:30:28] NEW  ts=1789983027.893  검출 6개  2750B  → 192.168.50.244:5010
+[18:30:28] NEW  ts=1789983028.295  검출 6개  2750B  → 192.168.50.244:5010
+[18:30:28] NEW  ts=1789983028.445  검출 6개  2747B  → 192.168.50.244:5010
+[18:30:29] NEW  ts=1789983028.968  검출 7개  3173B  → 192.168.50.244:5010
+[18:30:29] NEW  ts=1789983029.370  검출 6개  2753B  → 192.168.50.244:5010
+[18:30:29] NEW  ts=1789983029.622  검출 6개  2753B  → 192.168.50.244:5010
+[18:30:30] NEW  ts=1789983030.023  검출 6개  2751B  → 192.168.50.244:5010
+[18:30:30] NEW  ts=1789983030.323  검출 7개  3173B  → 192.168.50.244:5010
+[18:30:30] NEW  ts=1789983030.724  검출 6개  2754B  → 192.168.50.244:5010
+[18:30:31] NEW  ts=1789983030.976  검출 6개  2754B  → 192.168.50.244:5010
+[18:30:31] NEW  ts=1789983031.378  검출 8개  3602B  → 192.168.50.244:5010
+[18:30:31] NEW  ts=1789983031.530  검출 8개  3606B  → 192.168.50.244:5010
+[18:30:32] NEW  ts=1789983032.080  검출 5개  2326B  → 192.168.50.244:5010
+[18:30:32] NEW  ts=1789983032.331  검출 6개  2741B  → 192.168.50.244:5010
+[18:30:32] NEW  ts=1789983032.733  검출 8개  3593B  → 192.168.50.244:5010
+[18:30:33] NEW  ts=1789983032.882  검출 7개  3165B  → 192.168.50.244:5010
+[18:30:33] NEW  ts=1789983033.255  검출 6개  2739B  → 192.168.50.244:5010
+[18:30:33] NEW  ts=1789983033.658  검출 7개  3171B  → 192.168.50.244:5010
+[18:30:34] NEW  ts=1789983033.911  검출 5개  2334B  → 192.168.50.244:5010
+[18:30:34] NEW  ts=1789983034.314  검출 4개  1902B  → 192.168.50.244:5010
+[18:30:34] NEW  ts=1789983034.567  검출 5개  2321B  → 192.168.50.244:5010
+[18:30:35] NEW  ts=1789983034.966  검출 6개  2751B  → 192.168.50.244:5010
+[18:30:35] NEW  ts=1789983035.218  검출 5개  2335B  → 192.168.50.244:5010
+[18:30:35] NEW  ts=1789983035.470  검출 5개  2320B  → 192.168.50.244:5010
+[18:30:36] NEW  ts=1789983035.990  검출 5개  2325B  → 192.168.50.244:5010
+[18:30:36] NEW  ts=1789983036.242  검출 7개  3173B  → 192.168.50.244:5010
+[18:30:36] NEW  ts=1789983036.643  검출 6개  2746B  → 192.168.50.244:5010
+[18:30:37] NEW  ts=1789983037.016  검출 6개  2759B  → 192.168.50.244:5010
+[18:30:37] NEW  ts=1789983037.268  검출 6개  2752B  → 192.168.50.244:5010
+[18:30:37] NEW  ts=1789983037.628  검출 6개  2752B  → 192.168.50.244:5010
+[18:30:38] NEW  ts=1789983037.880  검출 6개  2749B  → 192.168.50.244:5010
+[18:30:38] NEW  ts=1789983038.502  검출 6개  2752B  → 192.168.50.244:5010
+[18:30:38] NEW  ts=1789983038.754  검출 7개  3174B  → 192.168.50.244:5010
+[18:30:39] NEW  ts=1789983039.005  검출 7개  3176B  → 192.168.50.244:5010
+[18:30:39] NEW  ts=1789983039.257  검출 7개  3174B  → 192.168.50.244:5010
+[18:30:39] NEW  ts=1789983039.779  검출 7개  3174B  → 192.168.50.244:5010
+[18:30:40] NEW  ts=1789983040.030  검출 7개  3178B  → 192.168.50.244:5010
+[18:30:40] NEW  ts=1789983040.534  검출 7개  3175B  → 192.168.50.244:5010
+[18:30:40] NEW  ts=1789983040.786  검출 7개  3175B  → 192.168.50.244:5010
+[18:30:41] NEW  ts=1789983041.039  검출 7개  3174B  → 192.168.50.244:5010
+[18:30:41] NEW  ts=1789983041.441  검출 7개  3173B  → 192.168.50.244:5010
+[18:30:41] NEW  ts=1789983041.692  검출 7개  3173B  → 192.168.50.244:5010
+[18:30:42] NEW  ts=1789983042.195  검출 7개  3168B  → 192.168.50.244:5010
+[18:30:42] NEW  ts=1789983042.346  검출 6개  2754B  → 192.168.50.244:5010
+[18:30:43] NEW  ts=1789983042.717  검출 6개  2751B  → 192.168.50.244:5010
+[18:30:43] NEW  ts=1789983043.087  검출 6개  2752B  → 192.168.50.244:5010
+[18:30:43] NEW  ts=1789983043.592  검출 6개  2755B  → 192.168.50.244:5010
+[18:30:44] NEW  ts=1789983043.743  검출 6개  2753B  → 192.168.50.244:5010
+[18:30:44] NEW  ts=1789983044.247  검출 6개  2743B  → 192.168.50.244:5010
+[18:30:44] NEW  ts=1789983044.544  검출 6개  2750B  → 192.168.50.244:5010
+[18:30:44] NEW  ts=1789983044.795  검출 6개  2750B  → 192.168.50.244:5010
+[18:30:45] NEW  ts=1789983045.094  검출 7개  3175B  → 192.168.50.244:5010
+[18:30:45] NEW  ts=1789983045.496  검출 7개  3178B  → 192.168.50.244:5010
+[18:30:45] NEW  ts=1789983045.747  검출 7개  3177B  → 192.168.50.244:5010
+[18:30:46] NEW  ts=1789983046.148  검출 6개  2753B  → 192.168.50.244:5010
+[18:30:46] NEW  ts=1789983046.399  검출 7개  3175B  → 192.168.50.244:5010
+[18:30:46] NEW  ts=1789983046.799  검출 7개  3174B  → 192.168.50.244:5010
+[18:30:47] NEW  ts=1789983047.051  검출 7개  3173B  → 192.168.50.244:5010
+[18:30:47] NEW  ts=1789983047.350  검출 8개  3606B  → 192.168.50.244:5010
+[18:30:47] NEW  ts=1789983047.750  검출 7개  3183B  → 192.168.50.244:5010
+[18:30:48] NEW  ts=1789983048.152  검출 7개  3181B  → 192.168.50.244:5010
+[18:30:48] NEW  ts=1789983048.403  검출 8개  3607B  → 192.168.50.244:5010
+[18:30:48] NEW  ts=1789983048.806  검출 7개  3188B  → 192.168.50.244:5010
+[18:30:49] NEW  ts=1789983048.955  검출 8개  3605B  → 192.168.50.244:5010
+[18:30:49] NEW  ts=1789983049.355  검출 6개  2750B  → 192.168.50.244:5010
+[18:30:49] NEW  ts=1789983049.756  검출 6개  2753B  → 192.168.50.244:5010
+[18:30:50] NEW  ts=1789983050.155  검출 7개  3173B  → 192.168.50.244:5010
+[18:30:50] NEW  ts=1789983050.407  검출 7개  3173B  → 192.168.50.244:5010
+[18:30:50] NEW  ts=1789983050.782  검출 7개  3172B  → 192.168.50.244:5010
+[18:30:51] NEW  ts=1789983051.036  검출 7개  3173B  → 192.168.50.244:5010
+[18:30:51] NEW  ts=1789983051.438  검출 8개  3609B  → 192.168.50.244:5010
+[18:30:51] NEW  ts=1789983051.587  검출 6개  2748B  → 192.168.50.244:5010
+[18:30:52] NEW  ts=1789983051.989  검출 6개  2742B  → 192.168.50.244:5010
+[18:30:52] NEW  ts=1789983052.139  검출 7개  3172B  → 192.168.50.244:5010
+[18:30:52] NEW  ts=1789983052.662  검출 7개  3175B  → 192.168.50.244:5010
+[18:30:53] NEW  ts=1789983053.065  검출 6개  2750B  → 192.168.50.244:5010
+[18:30:53] NEW  ts=1789983053.469  검출 6개  2749B  → 192.168.50.244:5010
+[18:30:53] NEW  ts=1789983053.619  검출 6개  2748B  → 192.168.50.244:5010
+[18:30:54] NEW  ts=1789983054.121  검출 7개  3181B  → 192.168.50.244:5010
+[18:30:54] NEW  ts=1789983054.419  검출 6개  2752B  → 192.168.50.244:5010
+[18:30:54] NEW  ts=1789983054.670  검출 6개  2753B  → 192.168.50.244:5010
+[18:30:55] NEW  ts=1789983055.072  검출 8개  3606B  → 192.168.50.244:5010
+[18:30:55] NEW  ts=1789983055.325  검출 8개  3608B  → 192.168.50.244:5010
+[18:30:55] NEW  ts=1789983055.726  검출 7개  3183B  → 192.168.50.244:5010
+[18:30:56] NEW  ts=1789983055.977  검출 7개  3185B  → 192.168.50.244:5010
+[18:30:56] NEW  ts=1789983056.229  검출 7개  3182B  → 192.168.50.244:5010
+[18:30:56] NEW  ts=1789983056.600  검출 6개  2754B  → 192.168.50.244:5010
+[18:30:57] NEW  ts=1789983056.970  검출 6개  2754B  → 192.168.50.244:5010
+[18:30:57] NEW  ts=1789983057.804  검출 7개  3175B  → 192.168.50.244:5010
+[18:30:58] NEW  ts=1789983058.176  검출 7개  3177B  → 192.168.50.244:5010
+[18:30:58] NEW  ts=1789983058.428  검출 6개  2752B  → 192.168.50.244:5010
+[18:30:58] NEW  ts=1789983058.679  검출 6개  2749B  → 192.168.50.244:5010
+[18:30:59] NEW  ts=1789983059.183  검출 7개  3177B  → 192.168.50.244:5010
+[18:30:59] NEW  ts=1789983059.436  검출 7개  3170B  → 192.168.50.244:5010
+[18:30:59] NEW  ts=1789983059.586  검출 7개  3174B  → 192.168.50.244:5010
+[18:31:00] NEW  ts=1789983060.211  검출 7개  3176B  → 192.168.50.244:5010
+[18:31:00] NEW  ts=1789983060.464  검출 7개  3175B  → 192.168.50.244:5010
+[18:31:00] NEW  ts=1789983060.716  검출 7개  3171B  → 192.168.50.244:5010
+[18:31:01] NEW  ts=1789983061.117  검출 8개  3605B  → 192.168.50.244:5010
+[18:31:01] NEW  ts=1789983061.487  검출 8개  3603B  → 192.168.50.244:5010
+[18:31:01] NEW  ts=1789983061.888  검출 7개  3174B  → 192.168.50.244:5010
+[18:31:02] NEW  ts=1789983062.410  검출 8개  3606B  → 192.168.50.244:5010
+[18:31:02] NEW  ts=1789983062.561  검출 7개  3177B  → 192.168.50.244:5010
+[18:31:03] NEW  ts=1789983063.184  검출 8개  3600B  → 192.168.50.244:5010
+[18:31:03] NEW  ts=1789983063.436  검출 8개  3606B  → 192.168.50.244:5010
+[18:31:03] NEW  ts=1789983063.688  검출 8개  3604B  → 192.168.50.244:5010
+[18:31:04] NEW  ts=1789983064.193  검출 7개  3172B  → 192.168.50.244:5010
+[18:31:04] NEW  ts=1789983064.818  검출 7개  3175B  → 192.168.50.244:5010
+[18:31:05] NEW  ts=1789983064.966  검출 6개  2755B  → 192.168.50.244:5010
+[18:31:05] NEW  ts=1789983065.337  검출 6개  2754B  → 192.168.50.244:5010
+[18:31:05] NEW  ts=1789983065.738  검출 6개  2748B  → 192.168.50.244:5010
+[18:31:06] NEW  ts=1789983065.990  검출 6개  2753B  → 192.168.50.244:5010
+[18:31:06] NEW  ts=1789983066.512  검출 6개  2749B  → 192.168.50.244:5010
+[18:31:06] NEW  ts=1789983066.662  검출 6개  2751B  → 192.168.50.244:5010
+[18:31:07] NEW  ts=1789983067.167  검출 8개  3607B  → 192.168.50.244:5010
+[18:31:07] NEW  ts=1789983067.465  검출 6개  2750B  → 192.168.50.244:5010
+[18:31:07] NEW  ts=1789983067.867  검출 7개  3183B  → 192.168.50.244:5010
+[18:31:08] NEW  ts=1789983068.120  검출 6개  2751B  → 192.168.50.244:5010
+[18:31:08] NEW  ts=1789983068.425  검출 6개  2753B  → 192.168.50.244:5010
+[18:31:08] NEW  ts=1789983068.826  검출 7개  3172B  → 192.168.50.244:5010
+[18:31:09] NEW  ts=1789983068.975  검출 7개  3177B  → 192.168.50.244:5010
+[18:31:09] NEW  ts=1789983069.226  검출 7개  3177B  → 192.168.50.244:5010
+[18:31:09] NEW  ts=1789983069.599  검출 7개  3172B  → 192.168.50.244:5010
+[18:31:10] NEW  ts=1789983070.691  검출 6개  2751B  → 192.168.50.244:5010
+[18:31:11] NEW  ts=1789983070.945  검출 7개  3174B  → 192.168.50.244:5010
+[18:31:11] NEW  ts=1789983071.347  검출 7개  3176B  → 192.168.50.244:5010
+[18:31:11] NEW  ts=1789983071.746  검출 7개  3173B  → 192.168.50.244:5010
+[18:31:12] NEW  ts=1789983071.997  검출 6개  2742B  → 192.168.50.244:5010
+[18:31:12] NEW  ts=1789983072.399  검출 7개  3177B  → 192.168.50.244:5010
+[18:31:16]      (재송출) 검출 7개  누적 539회 / 신규 399건
+[18:31:16] 종료. 송출 539회 (신규 399건).
+
+C:\Users\asdfa\docx2026_code>
+C:\Users\asdfa\docx2026_code>
+
+================컴퓨터 2
+C:\Users\asdfa\physical mk2\360camera_work>
+C:\Users\asdfa\physical mk2\360camera_work>python stream_to_server.py --fps 5
+======================================================================
+stream_to_server — 카메라 192.168.100.124 → http://210.110.250.33:7866/upload_pano
+  목표 5.0 fps | JPEG q92 | capture_id=LIVE_STREAM  (고정)
+======================================================================
+[연결] Fingerprint=986lLI8xebU=
+[프리뷰] rtmp://192.168.100.124:1935/live/preview  (3840x1920, 10240 kbps)
+[스트림] 열림 4.18s
+
+프레임나이 = 카메라에서 받은 뒤 집을 때까지 기다린 시간 (작을수록 실시간)
+PC구간     = 나이 + JPEG인코딩 + 업로드
+
+  #1    나이    12ms  인코딩   45ms  업로드    58ms  | PC구간   115ms   694KB  saved
+  #2    나이    21ms  인코딩  101ms  업로드    40ms  | PC구간   162ms   743KB  saved
+  #3    나이    21ms  인코딩   65ms  업로드    38ms  | PC구간   124ms   751KB  saved
+  #4    나이    15ms  인코딩   67ms  업로드    38ms  | PC구간   119ms   777KB  saved
+  #5    나이    23ms  인코딩   56ms  업로드    41ms  | PC구간   120ms   794KB  saved
+  #6    나이    20ms  인코딩   57ms  업로드    46ms  | PC구간   122ms   762KB  saved
+  #7    나이    14ms  인코딩   62ms  업로드    38ms  | PC구간   114ms   773KB  saved
+  #8    나이    15ms  인코딩   59ms  업로드    38ms  | PC구간   112ms   781KB  saved
+  #9    나이    29ms  인코딩   68ms  업로드    59ms  | PC구간   155ms   789KB  saved
+  #10   나이    77ms  인코딩  110ms  업로드    39ms  | PC구간   227ms   755KB  saved
+  #11   나이    10ms  인코딩   55ms  업로드    38ms  | PC구간   103ms   766KB  saved
+  #12   나이    14ms  인코딩   62ms  업로드    39ms  | PC구간   115ms   781KB  saved
+  #13   나이    13ms  인코딩   76ms  업로드    46ms  | PC구간   135ms   785KB  saved
+  #14   나이    43ms  인코딩   76ms  업로드    42ms  | PC구간   161ms   788KB  saved
+  #15   나이    17ms  인코딩   68ms  업로드    37ms  | PC구간   122ms   795KB  saved
+  #16   나이    40ms  인코딩  128ms  업로드    42ms  | PC구간   210ms   761KB  saved
+  #17   나이    39ms  인코딩   68ms  업로드    47ms  | PC구간   155ms   760KB  saved
+  #18   나이    24ms  인코딩   92ms  업로드    39ms  | PC구간   156ms   778KB  saved
+  #19   나이    40ms  인코딩   89ms  업로드    53ms  | PC구간   182ms   782KB  saved
+  #20   나이    12ms  인코딩   93ms  업로드    44ms  | PC구간   149ms   784KB  saved
+  #21   나이    41ms  인코딩  112ms  업로드    45ms  | PC구간   197ms   794KB  saved
+  #22   나이    30ms  인코딩   82ms  업로드    46ms  | PC구간   157ms   744KB  saved
+  #23   나이    14ms  인코딩   87ms  업로드    40ms  | PC구간   141ms   762KB  saved
+  #24   나이    93ms  인코딩   92ms  업로드    38ms  | PC구간   222ms   765KB  saved
+  #25   나이     4ms  인코딩   64ms  업로드    43ms  | PC구간   111ms   781KB  saved
+  #26   나이    18ms  인코딩   76ms  업로드    43ms  | PC구간   136ms   786KB  saved
+  #27   나이    28ms  인코딩   71ms  업로드    58ms  | PC구간   156ms   786KB  saved
+  #28   나이    19ms  인코딩   63ms  업로드    45ms  | PC구간   127ms   740KB  saved
+  #29   나이    29ms  인코딩   80ms  업로드    39ms  | PC구간   148ms   763KB  saved
+  #30   나이    40ms  인코딩  127ms  업로드    55ms  | PC구간   221ms   764KB  saved
+  #31   나이    60ms  인코딩  128ms  업로드    41ms  | PC구간   229ms   773KB  saved
+  #32   나이    25ms  인코딩   82ms  업로드    49ms  | PC구간   156ms   808KB  saved
+  #33   나이    25ms  인코딩   75ms  업로드    45ms  | PC구간   145ms   823KB  saved
+  #34   나이    10ms  인코딩   86ms  업로드    44ms  | PC구간   140ms   834KB  saved
+  #35   나이     6ms  인코딩   69ms  업로드    46ms  | PC구간   120ms   841KB  saved
+  #36   나이    36ms  인코딩   75ms  업로드    42ms  | PC구간   153ms   757KB  saved
+  #37   나이    30ms  인코딩   77ms  업로드    47ms  | PC구간   155ms   778KB  saved
+  #38   나이    32ms  인코딩   62ms  업로드    51ms  | PC구간   144ms   790KB  saved
+  #39   나이    38ms  인코딩   89ms  업로드    36ms  | PC구간   164ms   751KB  saved
+  #40   나이    33ms  인코딩   85ms  업로드    42ms  | PC구간   160ms   756KB  saved
+  #41   나이    42ms  인코딩   89ms  업로드    38ms  | PC구간   169ms   767KB  saved
+  #42   나이    28ms  인코딩   99ms  업로드    50ms  | PC구간   177ms   777KB  saved
+  #43   나이     7ms  인코딩  175ms  업로드    41ms  | PC구간   223ms   784KB  saved
+  #44   나이    60ms  인코딩   96ms  업로드    38ms  | PC구간   195ms   793KB  saved
+  #45   나이    12ms  인코딩   75ms  업로드    37ms  | PC구간   124ms   741KB  saved
+  #46   나이    22ms  인코딩   80ms  업로드    41ms  | PC구간   143ms   766KB  saved
+  #47   나이    40ms  인코딩   90ms  업로드    41ms  | PC구간   171ms   767KB  saved
+  #48   나이    20ms  인코딩   91ms  업로드    42ms  | PC구간   153ms   776KB  saved
+  #49   나이    42ms  인코딩   90ms  업로드    48ms  | PC구간   180ms   787KB  saved
+  #50   나이    54ms  인코딩   79ms  업로드    41ms  | PC구간   174ms   797KB  saved
+  #51   나이    23ms  인코딩   90ms  업로드    42ms  | PC구간   155ms   750KB  saved
+  #52   나이     6ms  인코딩   75ms  업로드    40ms  | PC구간   122ms   769KB  saved
+  #53   나이    96ms  인코딩   99ms  업로드    41ms  | PC구간   236ms   768KB  saved
+  #54   나이   123ms  인코딩   91ms  업로드    49ms  | PC구간   263ms   774KB  saved
+  #55   나이    37ms  인코딩   67ms  업로드    43ms  | PC구간   148ms   789KB  saved
+  #56   나이    15ms  인코딩   84ms  업로드    43ms  | PC구간   142ms   757KB  saved
+  #57   나이    41ms  인코딩   77ms  업로드    45ms  | PC구간   164ms   763KB  saved
+  #58   나이    10ms  인코딩   83ms  업로드    41ms  | PC구간   134ms   779KB  saved
+  #59   나이    42ms  인코딩  101ms  업로드    55ms  | PC구간   198ms   776KB  saved
+  #60   나이   151ms  인코딩  102ms  업로드    43ms  | PC구간   296ms   780KB  saved
+  #61   나이    19ms  인코딩  121ms  업로드    44ms  | PC구간   185ms   834KB  saved
+  #62   나이    63ms  인코딩   93ms  업로드    55ms  | PC구간   211ms   837KB  saved
+  #63   나이    14ms  인코딩   67ms  업로드    43ms  | PC구간   123ms   839KB  saved
+  #64   나이    15ms  인코딩   93ms  업로드    41ms  | PC구간   149ms   845KB  saved
+  #65   나이    29ms  인코딩   86ms  업로드    46ms  | PC구간   161ms   766KB  saved
+  #66   나이    39ms  인코딩   76ms  업로드    42ms  | PC구간   158ms   790KB  saved
+  #67   나이    26ms  인코딩   98ms  업로드    45ms  | PC구간   169ms   801KB  saved
+  #68   나이    70ms  인코딩  161ms  업로드    42ms  | PC구간   272ms   801KB  saved
+  #69   나이   118ms  인코딩   94ms  업로드    44ms  | PC구간   257ms   806KB  saved
+  #70   나이    29ms  인코딩   98ms  업로드    45ms  | PC구간   172ms   807KB  saved
+  #71   나이     9ms  인코딩   87ms  업로드    43ms  | PC구간   139ms   816KB  saved
+  #72   나이    29ms  인코딩   95ms  업로드    43ms  | PC구간   167ms   776KB  saved
+  #73   나이    47ms  인코딩  100ms  업로드    41ms  | PC구간   189ms   797KB  saved
+  #74   나이    42ms  인코딩   82ms  업로드    38ms  | PC구간   162ms   799KB  saved
+  #75   나이    45ms  인코딩  143ms  업로드    44ms  | PC구간   232ms   808KB  saved
+  #76   나이    21ms  인코딩  224ms  업로드    44ms  | PC구간   289ms   807KB  saved
+  #77   나이    21ms  인코딩   93ms  업로드    52ms  | PC구간   166ms   810KB  saved
+  #78   나이    29ms  인코딩  116ms  업로드    42ms  | PC구간   187ms   755KB  saved
+  #79   나이    23ms  인코딩  104ms  업로드    39ms  | PC구간   166ms   769KB  saved
+  #80   나이    29ms  인코딩   84ms  업로드    41ms  | PC구간   154ms   800KB  saved
+  #81   나이    40ms  인코딩   73ms  업로드    47ms  | PC구간   161ms   802KB  saved
+  #82   나이     5ms  인코딩   78ms  업로드    43ms  | PC구간   126ms   750KB  saved
+  #83   나이     5ms  인코딩  163ms  업로드    76ms  | PC구간   244ms   756KB  saved
+  #84   나이    81ms  인코딩   87ms  업로드    38ms  | PC구간   207ms   764KB  saved
+  #85   나이    29ms  인코딩   88ms  업로드    60ms  | PC구간   176ms   783KB  saved
+  #86   나이    24ms  인코딩   78ms  업로드    41ms  | PC구간   143ms   754KB  saved
+  #87   나이    47ms  인코딩   85ms  업로드    47ms  | PC구간   179ms   764KB  saved
+  #88   나이    15ms  인코딩   79ms  업로드    37ms  | PC구간   131ms   770KB  saved
+  #89   나이    35ms  인코딩   96ms  업로드    39ms  | PC구간   171ms   780KB  saved
+  #90   나이    38ms  인코딩  138ms  업로드    46ms  | PC구간   222ms   783KB  saved
+  #91   나이    47ms  인코딩  118ms  업로드    43ms  | PC구간   208ms   816KB  saved
+  #92   나이    10ms  인코딩  116ms  업로드    50ms  | PC구간   176ms   828KB  saved
+  #93   나이    44ms  인코딩  103ms  업로드    45ms  | PC구간   191ms   832KB  saved
+  #94   나이    31ms  인코딩   91ms  업로드    47ms  | PC구간   169ms   763KB  saved
+  #95   나이    34ms  인코딩   95ms  업로드    38ms  | PC구간   167ms   767KB  saved
+  #96   나이    40ms  인코딩   91ms  업로드    41ms  | PC구간   171ms   776KB  saved
+  #97   나이    41ms  인코딩  154ms  업로드    40ms  | PC구간   234ms   780KB  saved
+  #98   나이    12ms  인코딩  103ms  업로드    44ms  | PC구간   159ms   784KB  saved
+  #99   나이    34ms  인코딩  102ms  업로드    42ms  | PC구간   177ms   783KB  saved
+  #100  나이    72ms  인코딩   96ms  업로드    45ms  | PC구간   213ms   788KB  saved
+  #101  나이    53ms  인코딩  104ms  업로드    52ms  | PC구간   208ms   788KB  saved
+  #102  나이    36ms  인코딩  102ms  업로드    42ms  | PC구간   180ms   799KB  saved
+  #103  나이    34ms  인코딩  104ms  업로드    39ms  | PC구간   177ms   772KB  saved
+  #104  나이    45ms  인코딩   94ms  업로드    41ms  | PC구간   180ms   794KB  saved
+  #105  나이    24ms  인코딩   97ms  업로드    44ms  | PC구간   165ms   750KB  saved
+  #106  나이    63ms  인코딩  107ms  업로드    43ms  | PC구간   213ms   763KB  saved
+  #107  나이    18ms  인코딩   87ms  업로드    46ms  | PC구간   151ms   766KB  saved
+  #108  나이    13ms  인코딩  107ms  업로드    42ms  | PC구간   162ms   769KB  saved
+  #109  나이    13ms  인코딩  154ms  업로드    53ms  | PC구간   219ms   778KB  saved
+  #110  나이    27ms  인코딩  141ms  업로드    55ms  | PC구간   224ms   849KB  saved
+  #111  나이    10ms  인코딩  122ms  업로드    46ms  | PC구간   178ms   850KB  saved
+  #112  나이    50ms  인코딩  105ms  업로드    53ms  | PC구간   207ms   857KB  saved
+  #113  나이    59ms  인코딩  149ms  업로드    51ms  | PC구간   259ms   859KB  saved
+  #114  나이    39ms  인코딩  107ms  업로드    54ms  | PC구간   200ms   859KB  saved
+  #115  나이    76ms  인코딩  110ms  업로드    50ms  | PC구간   235ms   866KB  saved
+  #116  나이     7ms  인코딩  123ms  업로드    40ms  | PC구간   170ms   763KB  saved
+  #117  나이    53ms  인코딩  104ms  업로드    39ms  | PC구간   196ms   788KB  saved
+  #118  나이     6ms  인코딩  108ms  업로드    42ms  | PC구간   155ms   787KB  saved
+  #119  나이    73ms  인코딩  212ms  업로드    65ms  | PC구간   350ms   793KB  saved
+  #120  나이    72ms  인코딩  106ms  업로드    41ms  | PC구간   219ms   798KB  saved
+  #121  나이    51ms  인코딩  106ms  업로드    43ms  | PC구간   200ms   797KB  saved
+  #122  나이    52ms  인코딩  110ms  업로드    48ms  | PC구간   209ms   806KB  saved
+  #123  나이    19ms  인코딩  137ms  업로드    46ms  | PC구간   202ms   808KB  saved
+  #124  나이    20ms  인코딩  117ms  업로드    38ms  | PC구간   175ms   755KB  saved
+  #125  나이    85ms  인코딩  157ms  업로드    43ms  | PC구간   286ms   780KB  saved
+  #126  나이    16ms  인코딩  128ms  업로드    44ms  | PC구간   188ms   787KB  saved
+  #127  나이    36ms  인코딩  128ms  업로드    46ms  | PC구간   209ms   806KB  saved
+  #128  나이    30ms  인코딩  119ms  업로드    38ms  | PC구간   187ms   746KB  saved
+  #129  나이     5ms  인코딩  123ms  업로드    47ms  | PC구간   175ms   761KB  saved
+  #130  나이    80ms  인코딩  120ms  업로드    51ms  | PC구간   251ms   735KB  saved
+  #131  나이    17ms  인코딩  107ms  업로드    41ms  | PC구간   165ms   751KB  saved
+  #132  나이    54ms  인코딩  101ms  업로드    39ms  | PC구간   194ms   757KB  saved
+  #133  나이    31ms  인코딩   87ms  업로드    40ms  | PC구간   158ms   768KB  saved
+  #134  나이    49ms  인코딩   99ms  업로드    41ms  | PC구간   189ms   773KB  saved
+  #135  나이    14ms  인코딩  206ms  업로드    44ms  | PC구간   264ms   778KB  saved
+  #136  나이    74ms  인코딩  197ms  업로드    51ms  | PC구간   322ms   790KB  saved
+  #137  나이   100ms  인코딩  127ms  업로드    48ms  | PC구간   275ms   793KB  saved
+  #138  나이    19ms  인코딩  133ms  업로드    50ms  | PC구간   202ms   800KB  saved
+  #139  나이    10ms  인코딩  116ms  업로드    51ms  | PC구간   177ms   812KB  saved
+  #140  나이    65ms  인코딩  136ms  업로드    49ms  | PC구간   250ms   743KB  saved
+  #141  나이    31ms  인코딩  120ms  업로드    47ms  | PC구간   197ms   760KB  saved
+  #142  나이    30ms  인코딩  127ms  업로드    54ms  | PC구간   211ms   760KB  saved
+  #143  나이    16ms  인코딩  171ms  업로드    57ms  | PC구간   244ms   768KB  saved
+  #144  나이    15ms  인코딩  182ms  업로드    42ms  | PC구간   240ms   773KB  saved
+  #145  나이    10ms  인코딩  136ms  업로드    50ms  | PC구간   196ms   774KB  saved
+  #146  나이    12ms  인코딩  207ms  업로드    53ms  | PC구간   272ms   787KB  saved
+  #147  나이   205ms  인코딩  211ms  업로드    51ms  | PC구간   467ms   786KB  saved
+  #148  나이    25ms  인코딩  166ms  업로드    57ms  | PC구간   247ms   851KB  saved
+  #149  나이    86ms  인코딩  247ms  업로드    65ms  | PC구간   397ms   863KB  saved
+  #150  나이    45ms  인코딩  158ms  업로드    50ms  | PC구간   253ms   865KB  saved
+  #151  나이    31ms  인코딩  151ms  업로드    54ms  | PC구간   236ms   863KB  saved
+  #152  나이    11ms  인코딩  116ms  업로드    49ms  | PC구간   177ms   876KB  saved
+  #153  나이    39ms  인코딩  140ms  업로드    47ms  | PC구간   226ms   757KB  saved
+  #154  나이    30ms  인코딩  139ms  업로드    51ms  | PC구간   219ms   779KB  saved
+  #155  나이    36ms  인코딩  108ms  업로드    47ms  | PC구간   191ms   798KB  saved
+  #156  나이     4ms  인코딩  126ms  업로드    48ms  | PC구간   178ms   752KB  saved
+  #157  나이    50ms  인코딩  122ms  업로드    43ms  | PC구간   215ms   759KB  saved
+  #158  나이    16ms  인코딩   98ms  업로드    42ms  | PC구간   156ms   758KB  saved
+  #159  나이    68ms  인코딩  117ms  업로드    48ms  | PC구간   233ms   761KB  saved
+  #160  나이     8ms  인코딩  170ms  업로드    49ms  | PC구간   227ms   799KB  saved
+  #161  나이    23ms  인코딩  102ms  업로드    45ms  | PC구간   170ms   806KB  saved
+  #162  나이    24ms  인코딩  120ms  업로드    53ms  | PC구간   198ms   813KB  saved
+  #163  나이    82ms  인코딩  230ms  업로드   166ms  | PC구간   478ms   765KB  saved
+  #164  나이   122ms  인코딩  317ms  업로드    54ms  | PC구간   493ms   768KB  saved
+  #165  나이   123ms  인코딩  208ms  업로드    44ms  | PC구간   375ms   777KB  saved
+  #166  나이    48ms  인코딩  136ms  업로드    57ms  | PC구간   241ms   783KB  saved
+  #167  나이    62ms  인코딩  123ms  업로드    48ms  | PC구간   233ms   823KB  saved
+  #168  나이    46ms  인코딩  309ms  업로드    67ms  | PC구간   422ms   845KB  saved
+  #169  나이    41ms  인코딩  122ms  업로드    51ms  | PC구간   214ms   842KB  saved
+  #170  나이    73ms  인코딩  120ms  업로드    47ms  | PC구간   240ms   846KB  saved
+  #171  나이   103ms  인코딩  114ms  업로드    50ms  | PC구간   268ms   850KB  saved
+  #172  나이   110ms  인코딩  129ms  업로드    47ms  | PC구간   286ms   850KB  saved
+  #173  나이    63ms  인코딩  151ms  업로드    53ms  | PC구간   267ms   858KB  saved
+  #174  나이    19ms  인코딩  140ms  업로드    46ms  | PC구간   204ms   746KB  saved
+  #175  나이    57ms  인코딩  146ms  업로드    55ms  | PC구간   258ms   787KB  saved
+  #176  나이    65ms  인코딩  144ms  업로드    49ms  | PC구간   257ms   791KB  saved
+  #177  나이   117ms  인코딩  127ms  업로드    46ms  | PC구간   291ms   791KB  saved
+  #178  나이    36ms  인코딩  154ms  업로드    52ms  | PC구간   242ms   800KB  saved
+  #179  나이    48ms  인코딩  165ms  업로드    54ms  | PC구간   267ms   804KB  saved
+  #180  나이    87ms  인코딩  154ms  업로드    46ms  | PC구간   286ms   757KB  saved
+  #181  나이    58ms  인코딩  138ms  업로드    84ms  | PC구간   281ms   758KB  saved
+  #182  나이    72ms  인코딩  252ms  업로드    54ms  | PC구간   378ms   788KB  saved
+  #183  나이    49ms  인코딩  132ms  업로드    51ms  | PC구간   232ms   797KB  saved
+  #184  나이    70ms  인코딩  144ms  업로드    60ms  | PC구간   274ms   815KB  saved
+  #185  나이    22ms  인코딩  158ms  업로드    54ms  | PC구간   234ms   835KB  saved
+  #186  나이    10ms  인코딩  136ms  업로드    51ms  | PC구간   197ms   830KB  saved
+  #187  나이     8ms  인코딩  159ms  업로드    45ms  | PC구간   212ms   748KB  saved
+  #188  나이    62ms  인코딩  133ms  업로드    49ms  | PC구간   244ms   753KB  saved
+  #189  나이    79ms  인코딩  197ms  업로드    48ms  | PC구간   323ms   758KB  saved
+  #190  나이    57ms  인코딩  158ms  업로드    54ms  | PC구간   269ms   770KB  saved
+  #191  나이    54ms  인코딩  128ms  업로드    53ms  | PC구간   235ms   794KB  saved
+  #192  나이    63ms  인코딩  111ms  업로드    42ms  | PC구간   216ms   797KB  saved
+  #193  나이    10ms  인코딩  113ms  업로드    44ms  | PC구간   167ms   811KB  saved
+  #194  나이    61ms  인코딩  116ms  업로드    53ms  | PC구간   231ms   814KB  saved
+  #195  나이   100ms  인코딩  159ms  업로드    45ms  | PC구간   303ms   814KB  saved
+  #196  나이    81ms  인코딩  122ms  업로드    50ms  | PC구간   253ms   825KB  saved
+  #197  나이    29ms  인코딩  143ms  업로드    49ms  | PC구간   220ms   829KB  saved
+  #198  나이    17ms  인코딩  117ms  업로드    42ms  | PC구간   176ms   754KB  saved
+  #199  나이    83ms  인코딩  232ms  업로드    47ms  | PC구간   362ms   775KB  saved
+  #200  나이    10ms  인코딩  126ms  업로드    46ms  | PC구간   182ms   784KB  saved
+  #201  나이    64ms  인코딩  142ms  업로드    55ms  | PC구간   261ms   792KB  saved
+  #202  나이    50ms  인코딩  144ms  업로드    43ms  | PC구간   237ms   769KB  saved
+  #203  나이    32ms  인코딩  122ms  업로드    40ms  | PC구간   195ms   767KB  saved
+  #204  나이    31ms  인코딩  129ms  업로드    46ms  | PC구간   207ms   769KB  saved
+  #205  나이    69ms  인코딩  174ms  업로드    49ms  | PC구간   292ms   776KB  saved
+  #206  나이    57ms  인코딩  140ms  업로드    50ms  | PC구간   247ms   773KB  saved
+  #207  나이    14ms  인코딩  165ms  업로드    48ms  | PC구간   227ms   778KB  saved
+  #208  나이    39ms  인코딩  139ms  업로드    55ms  | PC구간   233ms   806KB  saved
+  #209  나이    28ms  인코딩  142ms  업로드    49ms  | PC구간   220ms   735KB  saved
+  #210  나이    20ms  인코딩  124ms  업로드    53ms  | PC구간   197ms   747KB  saved
+  #211  나이     8ms  인코딩  101ms  업로드    47ms  | PC구간   156ms   756KB  saved
+  #212  나이    47ms  인코딩  154ms  업로드    47ms  | PC구간   248ms   767KB  saved
+  #213  나이    58ms  인코딩  140ms  업로드    46ms  | PC구간   244ms   768KB  saved
+  #214  나이    16ms  인코딩  121ms  업로드    44ms  | PC구간   181ms   776KB  saved
+  #215  나이    14ms  인코딩  142ms  업로드    57ms  | PC구간   213ms   778KB  saved
+  #216  나이   112ms  인코딩  207ms  업로드    58ms  | PC구간   378ms   780KB  saved
+  #217  나이    91ms  인코딩  177ms  업로드    49ms  | PC구간   316ms   837KB  saved
+  #218  나이   116ms  인코딩  129ms  업로드    62ms  | PC구간   307ms   841KB  saved
+  #219  나이    62ms  인코딩  151ms  업로드    54ms  | PC구간   267ms   843KB  saved
+  #220  나이    62ms  인코딩  148ms  업로드    58ms  | PC구간   268ms   857KB  saved
+  #221  나이     9ms  인코딩  124ms  업로드    41ms  | PC구간   174ms   742KB  saved
+  #222  나이    17ms  인코딩  142ms  업로드    54ms  | PC구간   212ms   782KB  saved
+  #223  나이    13ms  인코딩  126ms  업로드    55ms  | PC구간   194ms   784KB  saved
+  #224  나이    63ms  인코딩  143ms  업로드    54ms  | PC구간   260ms   790KB  saved
+  #225  나이    60ms  인코딩  130ms  업로드    53ms  | PC구간   242ms   807KB  saved
+  #226  나이     9ms  인코딩  157ms  업로드    54ms  | PC구간   220ms   818KB  saved
+  #227  나이    37ms  인코딩  122ms  업로드    69ms  | PC구간   229ms   823KB  saved
+  #228  나이    85ms  인코딩  111ms  업로드    54ms  | PC구간   250ms   836KB  saved
+  #229  나이    42ms  인코딩  136ms  업로드    59ms  | PC구간   236ms   839KB  saved
+  #230  나이    53ms  인코딩  130ms  업로드    51ms  | PC구간   234ms   836KB  saved
+  #231  나이    18ms  인코딩  121ms  업로드    46ms  | PC구간   185ms   786KB  saved
+  #232  나이    53ms  인코딩  160ms  업로드    57ms  | PC구간   269ms   797KB  saved
+  #233  나이    86ms  인코딩  227ms  업로드    56ms  | PC구간   369ms   821KB  saved
+  #234  나이    53ms  인코딩  134ms  업로드    49ms  | PC구간   236ms   826KB  saved
+  #235  나이    10ms  인코딩  146ms  업로드    52ms  | PC구간   208ms   838KB  saved
+  #236  나이    46ms  인코딩  189ms  업로드    52ms  | PC구간   287ms   841KB  saved
+  #237  나이     8ms  인코딩  159ms  업로드    53ms  | PC구간   220ms   859KB  saved
+  #238  나이    29ms  인코딩  202ms  업로드    58ms  | PC구간   288ms   857KB  saved
+  #239  나이    12ms  인코딩  137ms  업로드    56ms  | PC구간   206ms   891KB  saved
+  #240  나이    29ms  인코딩  112ms  업로드    49ms  | PC구간   190ms   745KB  saved
+  #241  나이    63ms  인코딩  153ms  업로드    50ms  | PC구간   266ms   763KB  saved
+  #242  나이    47ms  인코딩  119ms  업로드    47ms  | PC구간   213ms   762KB  saved
+  #243  나이    75ms  인코딩  155ms  업로드    57ms  | PC구간   287ms   764KB  saved
+  #244  나이    57ms  인코딩  182ms  업로드    59ms  | PC구간   298ms   802KB  saved
+  #245  나이    79ms  인코딩  139ms  업로드    55ms  | PC구간   273ms   806KB  saved
+  #246  나이    60ms  인코딩  110ms  업로드    46ms  | PC구간   216ms   822KB  saved
+  #247  나이    57ms  인코딩  150ms  업로드    41ms  | PC구간   248ms   824KB  saved
+  #248  나이   103ms  인코딩  230ms  업로드    45ms  | PC구간   378ms   836KB  saved
+  #249  나이   152ms  인코딩  133ms  업로드    51ms  | PC구간   337ms   843KB  saved
+  #250  나이    61ms  인코딩  111ms  업로드    51ms  | PC구간   223ms   841KB  saved
+  #251  나이    31ms  인코딩  138ms  업로드    55ms  | PC구간   225ms   849KB  saved
+  #252  나이    23ms  인코딩  130ms  업로드    45ms  | PC구간   198ms   767KB  saved
+  #253  나이    30ms  인코딩  146ms  업로드    50ms  | PC구간   226ms   790KB  saved
+  #254  나이    51ms  인코딩  114ms  업로드    55ms  | PC구간   220ms   805KB  saved
+  #255  나이    10ms  인코딩  156ms  업로드    53ms  | PC구간   219ms   810KB  saved
+  #256  나이    20ms  인코딩  132ms  업로드    51ms  | PC구간   203ms   817KB  saved
+  #257  나이    70ms  인코딩  101ms  업로드    46ms  | PC구간   217ms   817KB  saved
+  #258  나이    34ms  인코딩  126ms  업로드    43ms  | PC구간   203ms   825KB  saved
+  #259  나이    60ms  인코딩  114ms  업로드    48ms  | PC구간   222ms   831KB  saved
+  #260  나이    21ms  인코딩  104ms  업로드    61ms  | PC구간   186ms   837KB  saved
+  #261  나이    36ms  인코딩  146ms  업로드    50ms  | PC구간   232ms   740KB  saved
+  #262  나이    42ms  인코딩  102ms  업로드    46ms  | PC구간   190ms   769KB  saved
+  #263  나이    50ms  인코딩  103ms  업로드    46ms  | PC구간   199ms   780KB  saved
+  #264  나이    26ms  인코딩  109ms  업로드    50ms  | PC구간   185ms   792KB  saved
+  #265  나이   115ms  인코딩  125ms  업로드    46ms  | PC구간   287ms   793KB  saved
+  #266  나이    11ms  인코딩  115ms  업로드    51ms  | PC구간   178ms   810KB  saved
+  #267  나이    15ms  인코딩  141ms  업로드    48ms  | PC구간   203ms   772KB  saved
+  #268  나이    60ms  인코딩  142ms  업로드    51ms  | PC구간   253ms   790KB  saved
+  #269  나이    30ms  인코딩  105ms  업로드    44ms  | PC구간   179ms   809KB  saved
+  #270  나이    46ms  인코딩  277ms  업로드    49ms  | PC구간   372ms   817KB  saved
+  #271  나이    25ms  인코딩  133ms  업로드    45ms  | PC구간   203ms   822KB  saved
+  #272  나이     9ms  인코딩  143ms  업로드    43ms  | PC구간   194ms   826KB  saved
+  #273  나이    19ms  인코딩  111ms  업로드    44ms  | PC구간   174ms   833KB  saved
+  #274  나이    57ms  인코딩  140ms  업로드    47ms  | PC구간   244ms   738KB  saved
+  #275  나이     4ms  인코딩  153ms  업로드    49ms  | PC구간   206ms   759KB  saved
+  #276  나이    70ms  인코딩  148ms  업로드    46ms  | PC구간   264ms   776KB  saved
+  #277  나이    39ms  인코딩  199ms  업로드    58ms  | PC구간   296ms   786KB  saved
+  #278  나이    14ms  인코딩  127ms  업로드    45ms  | PC구간   185ms   760KB  saved
+  #279  나이    14ms  인코딩  115ms  업로드    43ms  | PC구간   171ms   759KB  saved
+  #280  나이    24ms  인코딩  248ms  업로드    48ms  | PC구간   321ms   762KB  saved
+  #281  나이   110ms  인코딩  177ms  업로드    54ms  | PC구간   341ms   771KB  saved
+  #282  나이    54ms  인코딩  122ms  업로드    48ms  | PC구간   225ms   774KB  saved
+  #283  나이    75ms  인코딩  258ms  업로드    46ms  | PC구간   379ms   784KB  saved
+  #284  나이    34ms  인코딩  116ms  업로드    44ms  | PC구간   194ms   821KB  saved
+  #285  나이    29ms  인코딩  153ms  업로드    62ms  | PC구간   244ms   837KB  saved
+  #286  나이    47ms  인코딩  183ms  업로드    41ms  | PC구간   271ms   841KB  saved
+  #287  나이    82ms  인코딩  129ms  업로드    51ms  | PC구간   262ms   839KB  saved
+  #288  나이    48ms  인코딩  125ms  업로드    57ms  | PC구간   230ms   842KB  saved
+  #289  나이    10ms  인코딩  114ms  업로드    44ms  | PC구간   168ms   753KB  saved
+  #290  나이   106ms  인코딩  176ms  업로드    58ms  | PC구간   340ms   763KB  saved
+  #291  나이    55ms  인코딩  143ms  업로드    45ms  | PC구간   244ms   779KB  saved
+  #292  나이    10ms  인코딩  124ms  업로드    53ms  | PC구간   187ms   809KB  saved
+  #293  나이    18ms  인코딩  111ms  업로드    50ms  | PC구간   180ms   752KB  saved
+  #294  나이    59ms  인코딩  148ms  업로드    51ms  | PC구간   258ms   754KB  saved
+  #295  나이    58ms  인코딩  126ms  업로드    48ms  | PC구간   233ms   767KB  saved
+  #296  나이    53ms  인코딩  145ms  업로드    45ms  | PC구간   243ms   766KB  saved
+  #297  나이    77ms  인코딩  148ms  업로드    52ms  | PC구간   276ms   767KB  saved
+  #298  나이    61ms  인코딩  128ms  업로드    49ms  | PC구간   239ms   779KB  saved
+  #299  나이    50ms  인코딩  140ms  업로드    50ms  | PC구간   239ms   804KB  saved
+  #300  나이    28ms  인코딩  129ms  업로드    45ms  | PC구간   202ms   757KB  saved
+  #301  나이    15ms  인코딩  110ms  업로드    45ms  | PC구간   170ms   759KB  saved
+  #302  나이    56ms  인코딩  130ms  업로드    49ms  | PC구간   235ms   764KB  saved
+  #303  나이    60ms  인코딩  111ms  업로드    42ms  | PC구간   213ms   775KB  saved
+  #304  나이    15ms  인코딩  125ms  업로드    53ms  | PC구간   193ms   774KB  saved
+  #305  나이    82ms  인코딩  143ms  업로드    46ms  | PC구간   270ms   780KB  saved
+  #306  나이    58ms  인코딩  176ms  업로드    49ms  | PC구간   283ms   782KB  saved
+  #307  나이    71ms  인코딩  123ms  업로드    42ms  | PC구간   236ms   833KB  saved
+  #308  나이    98ms  인코딩  158ms  업로드    52ms  | PC구간   308ms   841KB  saved
+  #309  나이     8ms  인코딩  133ms  업로드    46ms  | PC구간   186ms   841KB  saved
+  #310  나이    19ms  인코딩  139ms  업로드    50ms  | PC구간   208ms   748KB  saved
+  #311  나이     9ms  인코딩  152ms  업로드    49ms  | PC구간   210ms   782KB  saved
+  #312  나이    68ms  인코딩  116ms  업로드    39ms  | PC구간   222ms   788KB  saved
+  #313  나이    44ms  인코딩  190ms  업로드    53ms  | PC구간   287ms   794KB  saved
+  #314  나이    24ms  인코딩  117ms  업로드    39ms  | PC구간   181ms   755KB  saved
+  #315  나이    37ms  인코딩  117ms  업로드    51ms  | PC구간   205ms   756KB  saved
+  #316  나이    83ms  인코딩  165ms  업로드    54ms  | PC구간   302ms   757KB  saved
+  #317  나이    32ms  인코딩  124ms  업로드    44ms  | PC구간   200ms   770KB  saved
+  #318  나이    65ms  인코딩  144ms  업로드    49ms  | PC구간   259ms   769KB  saved
+  #319  나이    32ms  인코딩  200ms  업로드    52ms  | PC구간   283ms   779KB  saved
+  #320  나이    47ms  인코딩  159ms  업로드    58ms  | PC구간   264ms   806KB  saved
+  #321  나이    44ms  인코딩  227ms  업로드    51ms  | PC구간   322ms   811KB  saved
+  #322  나이    40ms  인코딩  139ms  업로드    57ms  | PC구간   237ms   811KB  saved
+  #323  나이    26ms  인코딩  107ms  업로드    44ms  | PC구간   178ms   813KB  saved
+  #324  나이    19ms  인코딩  108ms  업로드    41ms  | PC구간   167ms   750KB  saved
+  #325  나이    10ms  인코딩  130ms  업로드    47ms  | PC구간   188ms   756KB  saved
+  #326  나이    10ms  인코딩  147ms  업로드    48ms  | PC구간   204ms   770KB  saved
+  #327  나이    73ms  인코딩  215ms  업로드    51ms  | PC구간   339ms   769KB  saved
+  #328  나이    44ms  인코딩  226ms  업로드    56ms  | PC구간   326ms   769KB  saved
+  #329  나이    17ms  인코딩  192ms  업로드    62ms  | PC구간   271ms   778KB  saved
+  #330  나이   118ms  인코딩  333ms  업로드    59ms  | PC구간   509ms   777KB  saved
+  #331  나이    36ms  인코딩  207ms  업로드    56ms  | PC구간   298ms   825KB  saved
+  #332  나이    33ms  인코딩  176ms  업로드    58ms  | PC구간   267ms   831KB  saved
+  #333  나이    54ms  인코딩  182ms  업로드    61ms  | PC구간   297ms   836KB  saved
+  #334  나이   101ms  인코딩  158ms  업로드    49ms  | PC구간   308ms   836KB  saved
+  #335  나이    63ms  인코딩  196ms  업로드    62ms  | PC구간   321ms   838KB  saved
+  #336  나이    41ms  인코딩  257ms  업로드    51ms  | PC구간   349ms   761KB  saved
+  #337  나이    32ms  인코딩  213ms  업로드    64ms  | PC구간   309ms   771KB  saved
+  #338  나이   229ms  인코딩  276ms  업로드    57ms  | PC구간   562ms   780KB  saved
+  #339  나이    66ms  인코딩  202ms  업로드    59ms  | PC구간   327ms   803KB  saved
+  #340  나이    71ms  인코딩  157ms  업로드    43ms  | PC구간   272ms   801KB  saved
+  #341  나이    70ms  인코딩  141ms  업로드    49ms  | PC구간   261ms   766KB  saved
+  #342  나이    17ms  인코딩  217ms  업로드    42ms  | PC구간   276ms   773KB  saved
+  #343  나이    27ms  인코딩  182ms  업로드    50ms  | PC구간   260ms   770KB  saved
+  #344  나이    37ms  인코딩  193ms  업로드    67ms  | PC구간   297ms   787KB  saved
+  #345  나이    20ms  인코딩  188ms  업로드    52ms  | PC구간   260ms   807KB  saved
+  #346  나이    66ms  인코딩  212ms  업로드    48ms  | PC구간   326ms   809KB  saved
+  #347  나이   163ms  인코딩  195ms  업로드    57ms  | PC구간   415ms   819KB  saved
+  #348  나이    93ms  인코딩  197ms  업로드    64ms  | PC구간   354ms   823KB  saved
+  #349  나이    40ms  인코딩  204ms  업로드    53ms  | PC구간   297ms   836KB  saved
+  #350  나이    37ms  인코딩  181ms  업로드    48ms  | PC구간   266ms   744KB  saved
+  #351  나이    26ms  인코딩  205ms  업로드    47ms  | PC구간   279ms   752KB  saved
+  #352  나이    95ms  인코딩  110ms  업로드    40ms  | PC구간   245ms   765KB  saved
+  #353  나이    24ms  인코딩  163ms  업로드    45ms  | PC구간   232ms   765KB  saved
+  #354  나이    84ms  인코딩  146ms  업로드    51ms  | PC구간   282ms   778KB  saved
+  #355  나이    90ms  인코딩  134ms  업로드    50ms  | PC구간   274ms   787KB  saved
+  #356  나이    24ms  인코딩  215ms  업로드    45ms  | PC구간   284ms   796KB  saved
+  #357  나이    56ms  인코딩  136ms  업로드    49ms  | PC구간   242ms   814KB  saved
+  #358  나이    18ms  인코딩  156ms  업로드    44ms  | PC구간   219ms   744KB  saved
+  #359  나이    23ms  인코딩  136ms  업로드    50ms  | PC구간   209ms   752KB  saved
+  #360  나이    43ms  인코딩  116ms  업로드    45ms  | PC구간   204ms   765KB  saved
+  #361  나이    71ms  인코딩  119ms  업로드    41ms  | PC구간   231ms   764KB  saved
+  #362  나이    59ms  인코딩  244ms  업로드    50ms  | PC구간   353ms   765KB  saved
+  #363  나이   137ms  인코딩  151ms  업로드    42ms  | PC구간   331ms   771KB  saved
+  #364  나이    21ms  인코딩  125ms  업로드    40ms  | PC구간   185ms   791KB  saved
+  #365  나이     2ms  인코딩  128ms  업로드    40ms  | PC구간   171ms   747KB  saved
+  #366  나이    62ms  인코딩  108ms  업로드    45ms  | PC구간   215ms   751KB  saved
+  #367  나이    20ms  인코딩  148ms  업로드    56ms  | PC구간   224ms   765KB  saved
+  #368  나이    11ms  인코딩  117ms  업로드    42ms  | PC구간   171ms   763KB  saved
+  #369  나이    45ms  인코딩  163ms  업로드    57ms  | PC구간   266ms   767KB  saved
+  #370  나이    57ms  인코딩  254ms  업로드    51ms  | PC구간   362ms   776KB  saved
+  #371  나이    13ms  인코딩  145ms  업로드    43ms  | PC구간   202ms   779KB  saved
+  #372  나이    11ms  인코딩  245ms  업로드    47ms  | PC구간   303ms   784KB  saved
+  #373  나이    98ms  인코딩  156ms  업로드    86ms  | PC구간   341ms   862KB  saved
+  #374  나이    10ms  인코딩  198ms  업로드    60ms  | PC구간   269ms   866KB  saved
+  #375  나이    41ms  인코딩  214ms  업로드    52ms  | PC구간   307ms   758KB  saved
+  #376  나이    15ms  인코딩  223ms  업로드    56ms  | PC구간   293ms   794KB  saved
+  #377  나이    34ms  인코딩  205ms  업로드    54ms  | PC구간   293ms   805KB  saved
+  #378  나이    18ms  인코딩  201ms  업로드    53ms  | PC구간   273ms   825KB  saved
+  #379  나이    33ms  인코딩  161ms  업로드    54ms  | PC구간   247ms   825KB  saved
+  #380  나이    19ms  인코딩  156ms  업로드    56ms  | PC구간   231ms   833KB  saved
+  #381  나이    55ms  인코딩  181ms  업로드    62ms  | PC구간   298ms   836KB  saved
+  #382  나이   237ms  인코딩  237ms  업로드    52ms  | PC구간   526ms   836KB  saved
+  #383  나이   165ms  인코딩  140ms  업로드    53ms  | PC구간   358ms   847KB  saved
+  #384  나이    11ms  인코딩  158ms  업로드    48ms  | PC구간   217ms   847KB  saved
+  #385  나이    31ms  인코딩  135ms  업로드    47ms  | PC구간   212ms   756KB  saved
+  #386  나이    20ms  인코딩  163ms  업로드    53ms  | PC구간   236ms   779KB  saved
+  #387  나이    47ms  인코딩  138ms  업로드    52ms  | PC구간   237ms   794KB  saved
+  #388  나이     9ms  인코딩  136ms  업로드    49ms  | PC구간   194ms   817KB  saved
+  #389  나이    60ms  인코딩  122ms  업로드    49ms  | PC구간   231ms   820KB  saved
+  #390  나이    43ms  인코딩  133ms  업로드    49ms  | PC구간   225ms   818KB  saved
+  #391  나이    10ms  인코딩  139ms  업로드    47ms  | PC구간   196ms   824KB  saved
+  #392  나이    58ms  인코딩  126ms  업로드    57ms  | PC구간   241ms   825KB  saved
+  #393  나이    14ms  인코딩  161ms  업로드    52ms  | PC구간   228ms   825KB  saved
+  #394  나이    22ms  인코딩  138ms  업로드    42ms  | PC구간   203ms   777KB  saved
+  #395  나이    73ms  인코딩  138ms  업로드    51ms  | PC구간   262ms   802KB  saved
+  #396  나이    36ms  인코딩  178ms  업로드    56ms  | PC구간   271ms   799KB  saved
+  #397  나이    11ms  인코딩  195ms  업로드    54ms  | PC구간   260ms   798KB  saved
+  #398  나이    47ms  인코딩  194ms  업로드    56ms  | PC구간   298ms   814KB  saved
+  #399  나이    69ms  인코딩  226ms  업로드    75ms  | PC구간   370ms   733KB  saved
+  #400  나이   105ms  인코딩  171ms  업로드    52ms  | PC구간   328ms   745KB  saved
+  #401  나이    63ms  인코딩  140ms  업로드    48ms  | PC구간   251ms   742KB  saved
+  #402  나이    45ms  인코딩  177ms  업로드    50ms  | PC구간   272ms   758KB  saved
+  #403  나이    10ms  인코딩  130ms  업로드    58ms  | PC구간   197ms   763KB  saved
+  #404  나이    75ms  인코딩  150ms  업로드    59ms  | PC구간   284ms   765KB  saved
+  #405  나이    50ms  인코딩  129ms  업로드    50ms  | PC구간   229ms   777KB  saved
+  #406  나이    10ms  인코딩  109ms  업로드    48ms  | PC구간   167ms   780KB  saved
+  #407  나이    24ms  인코딩  103ms  업로드    44ms  | PC구간   170ms   792KB  saved
+  #408  나이   103ms  인코딩  128ms  업로드    58ms  | PC구간   290ms   789KB  saved
+  #409  나이    62ms  인코딩  139ms  업로드    57ms  | PC구간   258ms   820KB  saved
+  #410  나이     7ms  인코딩  124ms  업로드    46ms  | PC구간   176ms   836KB  saved
+  #411  나이    34ms  인코딩  121ms  업로드    40ms  | PC구간   194ms   749KB  saved
+  #412  나이    27ms  인코딩   95ms  업로드    44ms  | PC구간   166ms   758KB  saved
+  #413  나이    53ms  인코딩   92ms  업로드    38ms  | PC구간   184ms   759KB  saved
+  #414  나이     7ms  인코딩  141ms  업로드    47ms  | PC구간   195ms   771KB  saved
+  #415  나이    12ms  인코딩  163ms  업로드    48ms  | PC구간   224ms   770KB  saved
+  #416  나이     2ms  인코딩  101ms  업로드    47ms  | PC구간   149ms   808KB  saved
+  #417  나이    71ms  인코딩  232ms  업로드    70ms  | PC구간   373ms   815KB  saved
+  #418  나이    10ms  인코딩  172ms  업로드    47ms  | PC구간   228ms   835KB  saved
+  #419  나이    40ms  인코딩  129ms  업로드    57ms  | PC구간   226ms   832KB  saved
+  #420  나이    17ms  인코딩  138ms  업로드    50ms  | PC구간   206ms   842KB  saved
+  #421  나이    12ms  인코딩  163ms  업로드    46ms  | PC구간   220ms   847KB  saved
+  #422  나이    34ms  인코딩  129ms  업로드    45ms  | PC구간   209ms   737KB  saved
+  #423  나이    48ms  인코딩  177ms  업로드    47ms  | PC구간   272ms   757KB  saved
+  #424  나이    59ms  인코딩  142ms  업로드    59ms  | PC구간   261ms   804KB  saved
+  #425  나이    51ms  인코딩  121ms  업로드    49ms  | PC구간   221ms   803KB  saved
+  #426  나이     7ms  인코딩  111ms  업로드    49ms  | PC구간   167ms   814KB  saved
+  #427  나이    53ms  인코딩  105ms  업로드    50ms  | PC구간   209ms   814KB  saved
+  #428  나이    50ms  인코딩  242ms  업로드    53ms  | PC구간   345ms   818KB  saved
+  #429  나이    24ms  인코딩  152ms  업로드    47ms  | PC구간   223ms   825KB  saved
+  #430  나이    63ms  인코딩  128ms  업로드    44ms  | PC구간   235ms   829KB  saved
+  #431  나이    56ms  인코딩  170ms  업로드    56ms  | PC구간   282ms   743KB  saved
+  #432  나이     6ms  인코딩  171ms  업로드    47ms  | PC구간   224ms   760KB  saved
+  #433  나이     9ms  인코딩  131ms  업로드    48ms  | PC구간   189ms   791KB  saved
+  #434  나이     6ms  인코딩  115ms  업로드    47ms  | PC구간   168ms   745KB  saved
+  #435  나이    59ms  인코딩  137ms  업로드    43ms  | PC구간   238ms   746KB  saved
+  #436  나이    61ms  인코딩  111ms  업로드    43ms  | PC구간   214ms   760KB  saved
+  #437  나이    15ms  인코딩  104ms  업로드    49ms  | PC구간   168ms   764KB  saved
+  #438  나이    79ms  인코딩  156ms  업로드    41ms  | PC구간   276ms   764KB  saved
+  #439  나이    44ms  인코딩  121ms  업로드    48ms  | PC구간   212ms   774KB  saved
+  #440  나이    62ms  인코딩  118ms  업로드    40ms  | PC구간   220ms   802KB  saved
+  #441  나이    58ms  인코딩  121ms  업로드    44ms  | PC구간   224ms   818KB  saved
+  #442  나이    15ms  인코딩  105ms  업로드    45ms  | PC구간   165ms   820KB  saved
+  #443  나이     9ms  인코딩  116ms  업로드    47ms  | PC구간   172ms   839KB  saved
+  #444  나이     8ms  인코딩  135ms  업로드    50ms  | PC구간   193ms   740KB  saved
+  #445  나이    65ms  인코딩  110ms  업로드    46ms  | PC구간   221ms   749KB  saved
+  #446  나이     5ms  인코딩   97ms  업로드    36ms  | PC구간   139ms   762KB  saved
+  #447  나이    25ms  인코딩  149ms  업로드    56ms  | PC구간   229ms   764KB  saved
+  #448  나이    27ms  인코딩  124ms  업로드    47ms  | PC구간   197ms   801KB  saved
+  #449  나이    31ms  인코딩  108ms  업로드    43ms  | PC구간   182ms   806KB  saved
+  #450  나이    26ms  인코딩  196ms  업로드    75ms  | PC구간   297ms   817KB  saved
+  #451  나이   104ms  인코딩  164ms  업로드    53ms  | PC구간   321ms   818KB  saved
+  #452  나이    63ms  인코딩  148ms  업로드    58ms  | PC구간   269ms   822KB  saved
+  #453  나이     7ms  인코딩  144ms  업로드    57ms  | PC구간   208ms   833KB  saved
+  #454  나이    16ms  인코딩  186ms  업로드    46ms  | PC구간   248ms   835KB  saved
+  #455  나이    39ms  인코딩  146ms  업로드    51ms  | PC구간   236ms   833KB  saved
+  #456  나이    65ms  인코딩  141ms  업로드    55ms  | PC구간   260ms   748KB  saved
+  #457  나이    55ms  인코딩  161ms  업로드    50ms  | PC구간   266ms   761KB  saved
+  #458  나이    64ms  인코딩  169ms  업로드    52ms  | PC구간   285ms   759KB  saved
+  #459  나이    63ms  인코딩  177ms  업로드    57ms  | PC구간   297ms   770KB  saved
+  #460  나이    68ms  인코딩  170ms  업로드    62ms  | PC구간   299ms   773KB  saved
+  #461  나이    62ms  인코딩  225ms  업로드    53ms  | PC구간   341ms   777KB  saved
+  #462  나이    90ms  인코딩  199ms  업로드    41ms  | PC구간   330ms   781KB  saved
+  #463  나이    50ms  인코딩  161ms  업로드    47ms  | PC구간   258ms   780KB  saved
+  #464  나이    80ms  인코딩  141ms  업로드    50ms  | PC구간   271ms   808KB  saved
+  #465  나이    59ms  인코딩  158ms  업로드    66ms  | PC구간   283ms   811KB  saved
+  #466  나이    58ms  인코딩  263ms  업로드    62ms  | PC구간   384ms   825KB  saved
+  #467  나이    37ms  인코딩  195ms  업로드    69ms  | PC구간   301ms   739KB  saved
+  #468  나이   105ms  인코딩  211ms  업로드    49ms  | PC구간   365ms   743KB  saved
+  #469  나이    32ms  인코딩  262ms  업로드    66ms  | PC구간   360ms   757KB  saved
+  #470  나이   209ms  인코딩  218ms  업로드    46ms  | PC구간   473ms   759KB  saved
+  #471  나이    73ms  인코딩  262ms  업로드    52ms  | PC구간   388ms   768KB  saved
+  #472  나이   103ms  인코딩  187ms  업로드    50ms  | PC구간   339ms   744KB  saved
+  #473  나이    69ms  인코딩  160ms  업로드    50ms  | PC구간   280ms   764KB  saved
+  #474  나이    66ms  인코딩  189ms  업로드    90ms  | PC구간   345ms   765KB  saved
+  #475  나이    20ms  인코딩  208ms  업로드    63ms  | PC구간   292ms   770KB  saved
+  #476  나이    82ms  인코딩  178ms  업로드    49ms  | PC구간   309ms   769KB  saved
+  #477  나이    27ms  인코딩  184ms  업로드    50ms  | PC구간   261ms   776KB  saved
+  #478  나이    47ms  인코딩  177ms  업로드    47ms  | PC구간   271ms   779KB  saved
+  #479  나이    52ms  인코딩  205ms  업로드    53ms  | PC구간   311ms   788KB  saved
+  #480  나이   260ms  인코딩  168ms  업로드    47ms  | PC구간   475ms   792KB  saved
+  #481  나이    56ms  인코딩  173ms  업로드    52ms  | PC구간   281ms   838KB  saved
+  #482  나이    68ms  인코딩  159ms  업로드    54ms  | PC구간   282ms   838KB  saved
+  #483  나이    18ms  인코딩  142ms  업로드    44ms  | PC구간   205ms   747KB  saved
+  #484  나이    33ms  인코딩  205ms  업로드    61ms  | PC구간   300ms   754KB  saved
+  #485  나이    40ms  인코딩  177ms  업로드    57ms  | PC구간   274ms   770KB  saved
+  #486  나이    51ms  인코딩  131ms  업로드    46ms  | PC구간   228ms   771KB  saved
+  #487  나이    54ms  인코딩  168ms  업로드    54ms  | PC구간   277ms   775KB  saved
+  #488  나이    21ms  인코딩  204ms  업로드    57ms  | PC구간   283ms   779KB  saved
+  #489  나이    95ms  인코딩  244ms  업로드   112ms  | PC구간   452ms   779KB  saved
+  #490  나이    10ms  인코딩  191ms  업로드    59ms  | PC구간   260ms   784KB  saved
+  #491  나이    70ms  인코딩  208ms  업로드    56ms  | PC구간   334ms   787KB  saved
+  #492  나이    16ms  인코딩  143ms  업로드    47ms  | PC구간   205ms   785KB  saved
+  #493  나이    30ms  인코딩  164ms  업로드    50ms  | PC구간   245ms   808KB  saved
+  #494  나이    58ms  인코딩  159ms  업로드    61ms  | PC구간   278ms   826KB  saved
+  #495  나이     8ms  인코딩  120ms  업로드    47ms  | PC구간   174ms   739KB  saved
+  #496  나이    11ms  인코딩  119ms  업로드    48ms  | PC구간   178ms   751KB  saved
+  #497  나이    17ms  인코딩  155ms  업로드    48ms  | PC구간   220ms   755KB  saved
+  #498  나이    60ms  인코딩  105ms  업로드    44ms  | PC구간   209ms   764KB  saved
+  #499  나이    31ms  인코딩  143ms  업로드    41ms  | PC구간   215ms   771KB  saved
+  #500  나이    45ms  인코딩  146ms  업로드    51ms  | PC구간   242ms   771KB  saved
+  #501  나이    51ms  인코딩  127ms  업로드    44ms  | PC구간   222ms   780KB  saved
+  #502  나이    27ms  인코딩  135ms  업로드    57ms  | PC구간   219ms   779KB  saved
+  #503  나이    15ms  인코딩  188ms  업로드    45ms  | PC구간   248ms   783KB  saved
+  #504  나이    32ms  인코딩  164ms  업로드    53ms  | PC구간   249ms   785KB  saved
+  #505  나이    53ms  인코딩  133ms  업로드    43ms  | PC구간   229ms   754KB  saved
+  #506  나이   108ms  인코딩  140ms  업로드    54ms  | PC구간   302ms   766KB  saved
+  #507  나이    41ms  인코딩  149ms  업로드    50ms  | PC구간   240ms   764KB  saved
+  #508  나이    30ms  인코딩  161ms  업로드    44ms  | PC구간   235ms   770KB  saved
+  #509  나이    26ms  인코딩  130ms  업로드    53ms  | PC구간   208ms   766KB  saved
+  #510  나이    49ms  인코딩  115ms  업로드    42ms  | PC구간   205ms   772KB  saved
+  #511  나이    54ms  인코딩  149ms  업로드    48ms  | PC구간   251ms   773KB  saved
+  #512  나이    93ms  인코딩  158ms  업로드    46ms  | PC구간   297ms   775KB  saved
+  #513  나이    10ms  인코딩  128ms  업로드    49ms  | PC구간   187ms   780KB  saved
+  #514  나이     9ms  인코딩  150ms  업로드    54ms  | PC구간   214ms   784KB  saved
+  #515  나이    73ms  인코딩  145ms  업로드    44ms  | PC구간   261ms   787KB  saved
+  #516  나이   100ms  인코딩  134ms  업로드    54ms  | PC구간   288ms   785KB  saved
+  #517  나이    42ms  인코딩  143ms  업로드    53ms  | PC구간   238ms   791KB  saved
+  #518  나이    54ms  인코딩  157ms  업로드    53ms  | PC구간   264ms   815KB  saved
+  #519  나이     2ms  인코딩  129ms  업로드    41ms  | PC구간   172ms   743KB  saved
+  #520  나이    65ms  인코딩  138ms  업로드    49ms  | PC구간   252ms   747KB  saved
+  #521  나이    11ms  인코딩  142ms  업로드    51ms  | PC구간   204ms   764KB  saved
+  #522  나이    65ms  인코딩  127ms  업로드    46ms  | PC구간   238ms   763KB  saved
+  #523  나이    59ms  인코딩  122ms  업로드    47ms  | PC구간   228ms   769KB  saved
+  #524  나이    29ms  인코딩  145ms  업로드    74ms  | PC구간   248ms   777KB  saved
+  #525  나이   129ms  인코딩  186ms  업로드    51ms  | PC구간   365ms   774KB  saved
+  #526  나이    36ms  인코딩  121ms  업로드    47ms  | PC구간   203ms   851KB  saved
+  #527  나이     4ms  인코딩  115ms  업로드    56ms  | PC구간   175ms   856KB  saved
+  #528  나이    12ms  인코딩  124ms  업로드    54ms  | PC구간   190ms   858KB  saved
+  #529  나이    16ms  인코딩  143ms  업로드    47ms  | PC구간   206ms   861KB  saved
+  #530  나이     9ms  인코딩  136ms  업로드    40ms  | PC구간   185ms   785KB  saved
+  #531  나이    67ms  인코딩  127ms  업로드    46ms  | PC구간   240ms   798KB  saved
+  #532  나이    58ms  인코딩  112ms  업로드    42ms  | PC구간   212ms   800KB  saved
+  #533  나이    31ms  인코딩  100ms  업로드    41ms  | PC구간   171ms   813KB  saved
+  #534  나이    24ms  인코딩  174ms  업로드    45ms  | PC구간   243ms   818KB  saved
+  #535  나이    52ms  인코딩  184ms  업로드    48ms  | PC구간   284ms   822KB  saved
+  #536  나이    24ms  인코딩  132ms  업로드    46ms  | PC구간   202ms   830KB  saved
+  #537  나이    19ms  인코딩  115ms  업로드    45ms  | PC구간   178ms   835KB  saved
+  #538  나이     8ms  인코딩  116ms  업로드    51ms  | PC구간   175ms   834KB  saved
+  #539  나이    40ms  인코딩  162ms  업로드    51ms  | PC구간   253ms   838KB  saved
+  #540  나이    16ms  인코딩  150ms  업로드    51ms  | PC구간   216ms   846KB  saved
+  #541  나이    18ms  인코딩  132ms  업로드    50ms  | PC구간   200ms   763KB  saved
+  #542  나이    70ms  인코딩  165ms  업로드    45ms  | PC구간   280ms   770KB  saved
+  #543  나이    18ms  인코딩  120ms  업로드    44ms  | PC구간   182ms   770KB  saved
+  #544  나이    20ms  인코딩  136ms  업로드    49ms  | PC구간   206ms   780KB  saved
+  #545  나이    58ms  인코딩  178ms  업로드    46ms  | PC구간   283ms   779KB  saved
+  #546  나이    40ms  인코딩  133ms  업로드    58ms  | PC구간   232ms   785KB  saved
+  #547  나이    52ms  인코딩  151ms  업로드    42ms  | PC구간   245ms   786KB  saved
+  #548  나이    66ms  인코딩  133ms  업로드    59ms  | PC구간   257ms   796KB  saved
+  #549  나이    62ms  인코딩  126ms  업로드    41ms  | PC구간   230ms   807KB  saved
+  #550  나이    36ms  인코딩  153ms  업로드    54ms  | PC구간   243ms   739KB  saved
+  #551  나이    44ms  인코딩  199ms  업로드    73ms  | PC구간   316ms   750KB  saved
+  #552  나이    66ms  인코딩  240ms  업로드    59ms  | PC구간   364ms   760KB  saved
+  #553  나이    25ms  인코딩  267ms  업로드    71ms  | PC구간   363ms   762KB  saved
+  #554  나이    21ms  인코딩  262ms  업로드    83ms  | PC구간   366ms   772KB  saved
+  #555  나이   236ms  인코딩  480ms  업로드    95ms  | PC구간   811ms   772KB  saved
+  #556  나이    62ms  인코딩  202ms  업로드    51ms  | PC구간   316ms   781KB  saved
+  #557  나이    35ms  인코딩  207ms  업로드    73ms  | PC구간   314ms   808KB  saved
+  #558  나이    72ms  인코딩  217ms  업로드    60ms  | PC구간   349ms   755KB  saved
+  #559  나이    16ms  인코딩  210ms  업로드    56ms  | PC구간   282ms   757KB  saved
+  #560  나이    14ms  인코딩  187ms  업로드    59ms  | PC구간   259ms   767KB  saved
+  #561  나이    25ms  인코딩  199ms  업로드    41ms  | PC구간   266ms   770KB  saved
+  #562  나이    29ms  인코딩  135ms  업로드    41ms  | PC구간   204ms   774KB  saved
+  #563  나이    32ms  인코딩  131ms  업로드    52ms  | PC구간   215ms   778KB  saved
+  #564  나이    11ms  인코딩  280ms  업로드    54ms  | PC구간   345ms   792KB  saved
+  #565  나이    10ms  인코딩  212ms  업로드    70ms  | PC구간   292ms   804KB  saved
+  #566  나이    12ms  인코딩  165ms  업로드    57ms  | PC구간   234ms   814KB  saved
+  #567  나이    35ms  인코딩  174ms  업로드    54ms  | PC구간   264ms   825KB  saved
+  #568  나이   104ms  인코딩  159ms  업로드    47ms  | PC구간   310ms   754KB  saved
+  #569  나이    14ms  인코딩  167ms  업로드    50ms  | PC구간   231ms   760KB  saved
+  #570  나이    25ms  인코딩  232ms  업로드    54ms  | PC구간   311ms   768KB  saved
+  #571  나이   210ms  인코딩  205ms  업로드    46ms  | PC구간   461ms   780KB  saved
+  #572  나이    59ms  인코딩  138ms  업로드    50ms  | PC구간   247ms   787KB  saved
+  #573  나이    22ms  인코딩  219ms  업로드    55ms  | PC구간   296ms   801KB  saved
+  #574  나이    31ms  인코딩  143ms  업로드    51ms  | PC구간   225ms   744KB  saved
+  #575  나이    13ms  인코딩  141ms  업로드    50ms  | PC구간   205ms   763KB  saved
+  #576  나이    13ms  인코딩  212ms  업로드    60ms  | PC구간   286ms   762KB  saved
+  #577  나이   105ms  인코딩  230ms  업로드    51ms  | PC구간   385ms   764KB  saved
+  #578  나이    84ms  인코딩  195ms  업로드    59ms  | PC구간   338ms   773KB  saved
+  #579  나이    78ms  인코딩  217ms  업로드    49ms  | PC구간   344ms   784KB  saved
+  #580  나이    59ms  인코딩  175ms  업로드    49ms  | PC구간   282ms   789KB  saved
+  #581  나이   133ms  인코딩  167ms  업로드    64ms  | PC구간   363ms   817KB  saved
+  #582  나이    51ms  인코딩  257ms  업로드    60ms  | PC구간   368ms   827KB  saved
+  #583  나이    71ms  인코딩  177ms  업로드    45ms  | PC구간   293ms   827KB  saved
+  #584  나이    37ms  인코딩  177ms  업로드    53ms  | PC구간   267ms   752KB  saved
+  #585  나이     9ms  인코딩  241ms  업로드    47ms  | PC구간   297ms   758KB  saved
+  #586  나이     2ms  인코딩  215ms  업로드    48ms  | PC구간   265ms   766KB  saved
+  #587  나이    34ms  인코딩  137ms  업로드    46ms  | PC구간   217ms   766KB  saved
+  #588  나이    18ms  인코딩  176ms  업로드    66ms  | PC구간   260ms   781KB  saved
+  #589  나이    56ms  인코딩  202ms  업로드    45ms  | PC구간   303ms   792KB  saved
+  #590  나이    34ms  인코딩  129ms  업로드    50ms  | PC구간   214ms   807KB  saved
+  #591  나이    60ms  인코딩  159ms  업로드    45ms  | PC구간   264ms   814KB  saved
+  #592  나이    17ms  인코딩  167ms  업로드    56ms  | PC구간   240ms   834KB  saved
+  #593  나이    25ms  인코딩  129ms  업로드    42ms  | PC구간   196ms   744KB  saved
+  #594  나이    21ms  인코딩  126ms  업로드    42ms  | PC구간   189ms   746KB  saved
+  #595  나이    33ms  인코딩  150ms  업로드    45ms  | PC구간   228ms   752KB  saved
+  #596  나이    84ms  인코딩  138ms  업로드    51ms  | PC구간   273ms   764KB  saved
+  #597  나이    45ms  인코딩  116ms  업로드    46ms  | PC구간   208ms   786KB  saved
+  #598  나이    53ms  인코딩  147ms  업로드    49ms  | PC구간   248ms   770KB  saved
+  #599  나이    60ms  인코딩  117ms  업로드    39ms  | PC구간   216ms   772KB  saved
+  #600  나이    54ms  인코딩  130ms  업로드    43ms  | PC구간   226ms   771KB  saved
+  #601  나이    32ms  인코딩  112ms  업로드    49ms  | PC구간   194ms   776KB  saved
+  #602  나이    80ms  인코딩  144ms  업로드    46ms  | PC구간   269ms   780KB  saved
+  #603  나이    22ms  인코딩  143ms  업로드    50ms  | PC구간   215ms   782KB  saved
+  #604  나이    40ms  인코딩  200ms  업로드    57ms  | PC구간   298ms   785KB  saved
+  #605  나이    15ms  인코딩  130ms  업로드    59ms  | PC구간   204ms   839KB  saved
+  #606  나이    52ms  인코딩  109ms  업로드    41ms  | PC구간   202ms   788KB  saved
+  #607  나이    18ms  인코딩  118ms  업로드    47ms  | PC구간   182ms   793KB  saved
+  #608  나이    54ms  인코딩  174ms  업로드    45ms  | PC구간   273ms   810KB  saved
+  #609  나이    24ms  인코딩  135ms  업로드    45ms  | PC구간   204ms   743KB  saved
+  #610  나이    14ms  인코딩  119ms  업로드    42ms  | PC구간   175ms   752KB  saved
+  #611  나이    36ms  인코딩  172ms  업로드    53ms  | PC구간   260ms   771KB  saved
+  #612  나이    30ms  인코딩  182ms  업로드    47ms  | PC구간   259ms   780KB  saved
+  #613  나이    39ms  인코딩  127ms  업로드    47ms  | PC구간   213ms   799KB  saved
+  #614  나이    58ms  인코딩  145ms  업로드    48ms  | PC구간   252ms   823KB  saved
+
+======================================================================
+종료 — 142.6초 동안 614장 업로드 (4.31 fps 실측)
+  리더 스레드 수신 1909프레임 (13.4 fps), read 실패 0
+  버린 프레임 1294장  ← 목표 fps 로 솎아낸 결과 (정상)
+  프레임 나이       중앙     38ms   p90     82ms   최대    260ms
+  JPEG 인코딩     중앙    137ms   p90    207ms   최대    480ms
+  업로드          중앙     49ms   p90     58ms   최대    166ms
+  PC 구간 합계     중앙    228ms   p90    323ms   최대    811ms
+
+  ※ 종단 지연 = 위 'PC 구간 합계' + 서버 live.py 감시주기 + live 총처리시간
+======================================================================
+
+C:\Users\asdfa\physical mk2\360camera_work>
+
+==================

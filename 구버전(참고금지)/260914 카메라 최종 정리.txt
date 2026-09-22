@@ -1,0 +1,81 @@
+
+
+/home/dg/capstone-db/image_server/pano_captures/pro2_anchor/PIC_20160212_012903__20260712_162240/equirect.jpg
+
+-기본적인 설정값
+--카메라 equirect 값 (360도 카메라에서 왼쪽, 가운데, 오른쪽 복도로 90도씩 자른 각도) : 왼쪽 50, 가운데 150, 오른쪽 230
+--유니티 안에서 yawOffsetDeg : 왼쪽 복도 : -35, 가운데 : 150, 오른쪽 복도 : -45
++) u+50 json도 yaw -35를 주니까 현실과 가장 비슷하였음.
+u+150 json은 yaw 150, 실제와 가장 비슷함.
+u+230 json도 yaw -45를 했더니 현실과 가장 비슷해졌다. 
+===> 그런데 이건 과거의 기록. 예전에는 이게 가장 정확했는데 현재 latest로 한 결과, -65나 -50이 그나마 비슷했다.
+이게 일시적인 환경 변화에 따른 오류인지. 카메라의 각도가 좀 바뀐건지. live.py로 실행 변경에 따른 오차인지 정확히 모르겠음.
+그러면 할때마다 가장 현실과 비슷한 yaw값을 찾아야 하나? 카메라가 고정이면 상관 없지만 나중에 실측 환경이 바뀔때
+카메라도 이동시켜야 하니 yaw값은 환경, 카메라 각도에 따라 조금씩 바뀔 수 있으니 고정값이 아니라 최대한 가까운 값으로 그때 그때 고정이 필요할지도 모르겠음. 카메라 수평각도가 휘어진걸 의심했는데, 애초에 휘어졌으면 u+50에서 예전 사진과 다른 각도였을것. 하지만 그건 거의 비슷했음. 그럼 카메라 각도는 그대로인데, 왜 이전에 쓴 yaw값이 잘 적용되지 않는가? 카메라 물리적 요소는 달라지는게 없다면. 환경이 일시적으로 복잡해서 그런건지, json 계산 과정에서 문제가 생긴건지. 아니면 live.py로 바꾸면서 오차가 생긴건지. 알지 못하겠음.
+
+※ 카메라에서 사진 찍기
+1. 카메라 켜기
+1-0. 우선 360도 카메라 켜고, 송신기 켜고 15초 기다리기. 그리고 수신기 켜고 파란불 들어올때까지 기다리기.
+
+2. 서버 기동 (터미널 2개)
+2-1. 서버에서 사진 받는 파일 켜기. (서버 터미널 1)
+- cd ~/capstone-db && . venv_image/bin/activate
+- cd ~/capstone-db/image_server && python3 pano_receiver.py
+
+2-2. 서버에서 사진 자르기+검출+JSON 생성 파일 켜기. (서버 터미널 2)
+cd ~/capstone-db && . venv_image/bin/activate
+cd ~/capstone-db/docx2026
+python3 anchor360_live.py --drop-clipped --max-dist 8 --debug-img --save-slice
+==> [새 사진 대기 중...]이 뜨면 준비 완료
+
+3. 컴퓨터 기동 (터미널 2개)
+3-1. 컴퓨터에서 유니티 중계기 파일 실행 (컴퓨터 터미널 1)
+cd C:\Users\asdfa\docx2026_code
+python anchor360_bridge.py --unity-ip 192.168.50.244
+
+3-2. 컴퓨터에서 촬영 자동화 파일 실행 (컴퓨터 터미널 2. 이미 기본값이 무한, 연속 촬영이라 아래 1줄이면 됨)
+cd C:\Users\asdfa\docx2026_code
+python pro2_auto_bg.py
+
+4. 유니티에서 scene 재생하기. 
+-Hierarchy에서 Anchor360 선택 → Inspector Yaw Offset Deg = -50
+브릿지가 2초마다 재송출하므로 유니티는 언제 켜도 몇 초 안에 큐브가 채워짐
+
+5. 정상 동작 확인 — 다섯 곳이 이어져야 함
+
+| 위치 | 떠야 하는 것 |
+|---|---|
+| PC 촬영 | `촬영 #N 완료` → `[worker] stitched` → `✅ uploaded` |
+| 서버 `pano.log` | `[pano] saved: .../equirect.jpg (~3200KB)` |
+| 서버 live | `[live] #N ... 전송 N개 ... UDP OK` |
+| PC 브릿지 | `NEW ts=...` (타임스탬프가 바뀜) |
+| 유니티 | `[Anchor360] RX:` + `Anchor360_Obstacles` 아래 큐브 |
+
+**브릿지의 `ts`와 유니티 `RX`의 `timestamp`가 같으면 관통 확인.**
+
+6. 종료 (역순)
+
+```
+3-2 촬영      Ctrl+C   (큐에 남은 stitch 마치고 종료)
+3-1 브릿지    Ctrl+C
+2-2 live      Ctrl+C
+유니티        재생 정지
+2-1 receiver  그대로 두거나  pkill -f pano_receiver
+카메라·송수신기 전원
+```
+
+7. 자주 걸리는 것
+
+| 증상 | 원인 | 조치 |
+|---|---|---|
+| 브릿지 `연결 거부 (10061)` | `pano_receiver`가 꺼져 있음 | 2-1 먼저 |
+| `camera connect failed` | 카메라 IP 변경 / Farsight 미연결 | 1-1, 1-2 |
+| 첫 stitch 25초 | TRT 엔진 콜드 스타트 | 2장째부터 12~19초로 정상화 |
+| `⚠️ 큐 N개 적체` | stitch가 촬영을 못 따라감 | `--interval 30` 또는 `--topfixer 0` |
+| 유니티에 큐브 안 뜸 | 브릿지 `NEW`는 뜨는데 `RX` 없으면 방화벽 | UDP 5010 인바운드 허용 |
+| 새 사진 1장 놓침 | live를 촬영보다 늦게 띄움 | 2-2 → 3-2 순서 |
+
+**디스크**: `captures/` 시간당 약 3GB, `live_out/slices/` 시간당 13MB. 오래 돌릴 땐 가끔 정리.
+
+
+d
