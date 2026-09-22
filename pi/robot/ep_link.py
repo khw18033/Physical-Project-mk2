@@ -90,7 +90,12 @@ class EpLink(ControllerLink):
         if len(v) < 2:
             return
         with self._lock:
-            self._pos = (float(v[0]), float(v[1]))
+            # EP 섀시는 NED 계열이다 - x 전방, **y 오른쪽 +**.
+            # 이 코드베이스의 제어기 계약은 ENU 계열 - x 전방, **y 왼쪽 +**.
+            # 그래서 여기서 뒤집는다. 어댑터가 계약을 지키게 하는 것이 맞고,
+            # 하류(twin_relay_out.to_unity_frame)는 모든 기종이 공유하므로
+            # 거기에 EP 사정을 넣으면 Go1 이 틀어진다.
+            self._pos = (float(v[0]), -float(v[1]))
             self._pos_at = time.time()
 
     def _on_attitude(self, *a):
@@ -98,7 +103,10 @@ class EpLink(ControllerLink):
         if not v:
             return
         with self._lock:
-            self._yaw = float(v[0])          # yaw, pitch, roll 순
+            # yaw, pitch, roll 순. EP 는 **시계 +**, 계약은 **반시계 +** 라 뒤집는다.
+            # y 부호와 짝이다 - 둘 중 하나만 뒤집으면 거울상이 되어
+            # 직진은 맞는데 회전만 반대로 도는 증상이 난다(실측).
+            self._yaw = -float(v[0])
             self._att_at = time.time()
 
     def _on_velocity(self, *a):

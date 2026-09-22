@@ -33,7 +33,7 @@ from common.physical_command import CommandError
 from common.node import BaseNode
 from common.schema import envelope
 from common.spool import CONTINUOUS, EVENT
-from robot import controller_link, go1_mission, media
+from robot import controller_link, go1_mission, media, twin_relay_out
 
 
 def _odo_from_note(note):
@@ -134,6 +134,16 @@ class RobotNode(BaseNode):
             self._publish_state(now, "periodic", kind=CONTINUOUS,
                                 qos=config.ROBOT_STATE_QOS)
             self.last_state_pub = now
+
+        # 트윈(Unity 표시)은 **업무 평면과 다른 주기로 간다.**
+        # MQTT state 는 대기 중 5초에 한 번인데, 그 주기로 화면을 그리면
+        # 로봇이 5초마다 순간이동하는 것처럼 보인다. 기록은 드물어도 되지만
+        # 화면은 이어져야 한다 - 목적이 다르므로 주기도 다르다.
+        #
+        # 여기서는 매 틱 부르고, 솎는 것은 twin_relay_out 이 한다(기본 10Hz).
+        # 그래야 이 호출부가 트윈 주기를 몰라도 된다.
+        twin_relay_out.send_state(config.DEVICE_TYPE, self.identity.entity_id,
+                                  self.state)
 
     def in_mission(self):
         return self.mission is not None and self.mission.get("status") == "executing"
