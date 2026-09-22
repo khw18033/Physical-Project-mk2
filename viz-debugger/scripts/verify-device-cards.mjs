@@ -1,13 +1,17 @@
 // verify:device-cards (260921 신설 — 드론 연결 · 하드웨어 카드)
 //
-// **연결이 유지되는 장비는 임무와 상관없이 카드로 뜨는가.**
+// **카드는 「지금 붙어 있다」 하나만 뜻하는가.**
 //
-// 카드는 지금까지 **대본 배역**이었다. 그래서 대본에 안 적힌 장비는 붙어 있어도 안 보였고,
-// 드론이 정확히 그 경우였다. 의도는 원래 「붙어 있으면 다 뜨고, 그중 쓸 것만 끌어다 쓴다」다.
+// 두 번 고친 자리다. 카드는 원래 **대본 배역**이었고, 그래서 대본에 안 적힌 드론은 붙어
+// 있어도 안 보였다(260921). 그래서 「배역 ∪ 붙어 있는 것」으로 합쳤더니, 이번에는
+// **아무것도 안 붙어도 옛 편의 자리표시 일곱 장이 떠 있었다** — 사람이 그것을 보고
+// 「이건 더미 카드인가」라고 물었다(260922). 물어야 알 수 있으면 화면이 말한 것이 아니다.
+//
+// 그래서 뜻을 하나로 줄였다: **카드가 있다 = 지금 값이 흐른다.**
 //
 // 보는 것 다섯.
-//  1. 대본에 없는 장비도 **값이 오면** 카드 목록에 든다
-//  2. **대본 배역은 값이 안 와도 남는다** — 하던 시연이 그대로 돈다
+//  1. 값이 오는 장비는 **임무와 상관없이** 카드가 된다
+//  2. **대본 배역은 카드가 아니다** — 아무것도 안 붙으면 한 장도 안 뜬다
 //  3. 조용해지면 **빠진다** — 꺼진 장비를 붙은 것처럼 두지 않는다
 //  4. 두 길(`/state` · MQTT)로 같은 id 가 오면 **한 장으로** 센다
 //  5. **단독 빌드가 `tabs/` 를 안 끌어온다** — 카드 때문에 대시보드 계층이 딸려 오면 안 된다
@@ -18,10 +22,14 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join, normalize, relative } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+// 자리표에 줄바꿈이 들어간다 — **LF 로 정규화한 원본**에서 만든다 (`verify:crlf-safe`).
+import { readSource } from './lib/source.mjs';
 import { DRONE } from './lib/droneFixtures.mjs';
 
 const root = join(fileURLToPath(new URL('.', import.meta.url)), '..');
 const load = (...p) => import(pathToFileURL(join(root, ...p)).href);
+// 사전을 읽어 **키의 값까지** 본다 — 키만 맞고 사전이 비면 화면에 키가 그대로 뜬다.
+const { ko: koDict } = await import(pathToFileURL(join(root, 'src', 'i18n', 'ko.ts')).href);
 
 const {
   CONNECTED_WINDOW_MS, connectedDevice, connectedDevices, noteConnectedEntity, resetConnectedDevices,
@@ -34,27 +42,55 @@ const controls = [];
 
 const cast = listCastIds();
 
-// ── 1·2. 붙은 장비는 들고, 대본 배역은 남는다 ───────────────────────────────
+// ── 1·2. 붙은 것만 카드가 된다 ──────────────────────────────────────────────
 {
   resetConnectedDevices();
-  // 아무것도 안 붙은 상태 — 카드는 대본 배역 그대로여야 한다 (하던 시연이 안 깨진다).
+  /**
+   * **아무것도 안 붙었으면 한 장도 없다** (260922 지시 — 「더미 카드는 제거」).
+   *
+   * 여기가 이번에 뒤집힌 자리다. 전에는 대본 배역이 그대로 카드가 됐고, 옛 편
+   * (`MSN-260826-01`)이 `go1-02`·`arm-03`·`cam-4f` … 일곱을 들고 있어서 연결이 0건인데도
+   * 카드가 일곱 장이었다. 그 카드의 배터리·RSSI 는 자리표시이고 끌어다 배정해도 아무 일도
+   * 안 일어난다 — 없는 장비를 그려 둔 자리다.
+   */
   const before = listDeviceCardIds();
-  if (before.join(',') !== cast.join(',')) {
-    failures.push(`아무것도 안 붙었는데 카드가 대본과 다르다 — ${before.join(',')}`);
+  if (before.length !== 0) {
+    failures.push(`아무것도 안 붙었는데 카드가 ${before.length}장 — ${before.join(',')}`);
   }
+  /**
+   * **배역을 아예 안 읽는가** — 원본으로 잰다.
+   *
+   * 돌려서 재고 싶었지만 검사 기본 상태는 임무가 없어 `cast` 가 비어 있다. 그대로 재면
+   * 「배역을 합친 사본」과 「안 합친 지금」이 **같은 답을 낸다** — 그러면 이 검사는 아무것도
+   * 안 잰다. 실제로 260922 에 그 상태로 한 번 통과했고, 대조군이 그것을 잡아 줬다.
+   * (대본을 열어 재려 했으나 `enterScriptPreview` 가 Node 에서 안 끝난다 — 브라우저 몫이다.)
+   *
+   * 그래서 **함수가 배역을 읽는지**를 원본에서 본다. 배역은 여전히 읽을 수 있고
+   * (`listCastIds` · 마일스톤의 `assignedTargets`) 카드가 되지 않을 뿐이라, 파일 전체가
+   * 아니라 **이 함수 몸통**만 본다.
+   */
+  const registry = readSource(join(root, 'src', 'shared', 'registry.ts'));
+  const after1 = registry.slice(registry.indexOf('export function listDeviceCardIds'));
+  // 함수 몸통만 잘라 본다 — 파일 전체를 보면 `listCastIds` 가 걸려 헛돈다.
+  const fnBody = after1.slice(0, after1.indexOf(String.fromCharCode(10) + '}') + 2);
+  if (fnBody.includes('.cast')) {
+    failures.push('카드 목록이 대본 배역을 읽는다 — 붙지 않은 장비가 카드로 뜬다');
+  }
+  if (!fnBody.includes('connectedDevices()')) failures.push('카드 목록이 붙은 장비를 안 읽는다');
+  // 배역을 읽는 길 자체는 남아 있어야 한다 — 없애는 것이 아니라 카드에서 뺀 것이다.
+  if (typeof listCastIds !== 'function') failures.push('배역을 읽는 길이 사라졌다');
 
-  // 드론이 `/state` 로 들어온다. **대본에는 없다.**
+  // 드론이 들어온다. **대본에는 없다.**
   noteConnectedEntity(DRONE.entityId, 'state');
   const after = listDeviceCardIds();
   if (!after.includes(DRONE.entityId)) failures.push('붙은 드론이 카드에 없다 — 대본에 없으면 안 보인다');
-  for (const id of cast) {
-    if (!after.includes(id)) failures.push(`대본 배역 ${id} 가 사라졌다 — 하던 시연이 깨진다`);
-  }
-  // 차례 — 배역이 먼저다.
-  if (after.slice(0, cast.length).join(',') !== cast.join(',')) failures.push('배역이 앞에 안 온다');
+  /**
+   * **드론 하나만** (260922 지시 — 「드론 연결했으면 드론 하나만 띄우는 게 맞아」).
+   * 대본이 열린 채로 잰다 — 배역 둘이 딸려 오면 여기서 3장이 된다.
+   */
+  if (after.length !== 1) failures.push(`드론 하나만 붙었는데 카드가 ${after.length}장 — ${after.join(',')}`);
   // 무엇으로 떴는지 화면이 가릴 수 있어야 한다.
   if (deviceCardOrigin(DRONE.entityId) !== 'connected') failures.push('붙어서 뜬 카드를 배역으로 적었다');
-  if (cast.length > 0 && deviceCardOrigin(cast[0]) !== 'cast') failures.push('배역을 연결됨으로 적었다');
 }
 
 // ── 3. 조용해지면 빠진다 ─────────────────────────────────────────────────────
@@ -154,6 +190,16 @@ const cast = listCastIds();
   if (!/onDoubleClick=\{\(\) => setStatusDeviceId\(id\)\}/.test(main)) {
     failures.push('카드를 더블클릭해도 상태가 안 열린다 — 드론을 확인할 방법이 없어진다');
   }
+
+  /**
+   * ⑤ **한 장도 없을 때 그 사실을 적는가** (260922).
+   * 빈 자리는 「고장인가」로 읽힌다 — 아무것도 안 붙었다는 것과 화면이 못 그렸다는 것은
+   * 다른 말이고, 그 차이를 화면이 말해야 한다.
+   */
+  if (!/cards\.length === 0/.test(main)) failures.push('카드가 0장일 때 아무 말도 안 한다');
+  if (koDict['ms.noConnectedDevice'] === undefined) {
+    failures.push('빈 자리 문구가 사전에 없다 — 화면에 키가 그대로 뜬다');
+  }
 }
 
 // ── 대조군 ───────────────────────────────────────────────────────────────────
@@ -163,7 +209,19 @@ function control(name, hit) {
 }
 {
   resetConnectedDevices();
-  control('빈 목록이면 카드는 대본 그대로', listDeviceCardIds().join(',') === cast.join(','));
+  /**
+   * **옛 규칙(배역도 카드가 된다)을 흉내 내면 연결 0건에 카드가 생겨야 한다** — 260922 의
+   * 그 불만이다. 고친 것이 진짜 고쳐졌는지 보려면 안 고친 것이 어떻게 틀렸는지도 재야 한다.
+   */
+  const oldUnion = (castIds) => [...castIds, ...connectedDevices().map((d) => d.entityId)];
+  control('옛 규칙은 아무것도 안 붙어도 배역을 카드로 그린다',
+    oldUnion(['robot-01', 'camera-02']).length === 2);
+  // 원본 판정도 반대쪽을 잰다 — 배역을 읽는 사본은 반드시 잡혀야 한다.
+  control('배역을 읽는 사본은 잡힌다',
+    'return [...displayMission().view.cast, ...connectedDevices()];'.includes('.cast'));
+  control('붙은 것만 읽는 지금은 안 잡힌다',
+    !'return connectedDevices().map((device) => device.entityId);'.includes('.cast'));
+  control('지금 규칙은 연결 0건이면 0장', listDeviceCardIds().length === 0);
   noteConnectedEntity('', 'state');
   control('빈 id 는 안 담는다', connectedDevices().length === 0);
   noteConnectedEntity('cam-4f', 'state');
@@ -202,8 +260,8 @@ if (failures.length) {
   console.error(`❌ verify:device-cards\n- ${failures.join('\n- ')}`);
   process.exit(1);
 }
-console.log('✅ 붙은 장비는 대본에 없어도 카드로 뜬다 — 배역은 값이 안 와도 남는다');
+console.log('✅ 카드는 「지금 붙어 있다」 하나만 뜻한다 — 연결 0건이면 0장, 드론만 붙으면 1장');
 console.log(`✅ ${CONNECTED_WINDOW_MS / 1000}초 조용하면 빠지고, 다시 오면 돌아온다 · 두 길로 와도 한 장`);
-console.log('✅ 화면이 그 목록을 그린다 — 대본 실측 목록이 있어도 합집합을 안 건너뛴다 (더블클릭으로 상태를 연다)');
+console.log('✅ 화면이 그 목록을 그리고, 0장일 때 그 사실을 적는다 (더블클릭으로 상태를 연다)');
 console.log('✅ 단독 빌드가 tabs/ 를 안 끌어온다 — 받는 쪽이 밀어 넣고 그리는 쪽은 shared/ 만 읽는다');
 console.log(`✅ 대조군 ${controls.length}건 — ${controls.join(' · ')}`);

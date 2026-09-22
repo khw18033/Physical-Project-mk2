@@ -74,10 +74,18 @@ const controls = [];
   if (payload?.gps?.lat !== null) failures.push('fix 없을 때의 lat: null 을 0 으로 바꿨다');
 }
 
-// ── 3. MQTT 경로가 드론 본문을 안 뜯는다 ────────────────────────────────────
+// ── 3. MQTT 의 **Go1 표**가 드론 본문을 안 뜯는다 ───────────────────────────
 //
-// 여기서 뜯기 시작하면 **경로가 둘**이 된다. 연결 관리가 같은 소켓에 붙어 있어 `state` 가
-// 지나가기는 하지만, 화면에 그리는 값은 `/state` 쪽 하나여야 한다.
+// `applyDeviceMessage` 는 Go1 모양의 고정 칸이다(`battery_pct`·`robot_mode`…). 드론을 그
+// 표에 끼워 넣으면 기종이 늘 때마다 칸이 늘고, 「어느 칸이 어느 기종 것이냐」가 생긴다.
+//
+// **260922 — 다만 MQTT 가 드론 상태를 아예 안 나르는 것은 아니다.** 계약 §3-1 을 보면 pi3 가
+// `zoneA/drone/x500-001/state` 를 1Hz 로 직접 발행하고 웹이 그 브로커에 붙어 있다. 실제로
+// 값이 들어오는 길은 지금 그쪽뿐이라, 받는 자리가 **줄로 바꾸는 표 하나**(`shared/stateRows.ts`)를
+// 지나 **한 저장소**에 밀어 넣는다. `/state` 로 받는 쪽도 같은 표·같은 저장소를 쓴다.
+//
+// 「경로가 둘이면 어느 쪽이 진짜냐가 생긴다」는 그대로다 — 그 규칙이 막는 것은 **해석이
+// 둘**인 것이고, 표도 저장소도 하나면 같은 본문은 어느 길로 와도 같은 줄이 된다.
 {
   const parsed = { entityType: DRONE.entityType, entityId: DRONE.entityId, channel: 'state' };
   const device = applyDeviceMessage(undefined, parsed, liveStateBody());
@@ -88,6 +96,33 @@ const controls = [];
   if ('fcLink' in device) failures.push('MQTT 경로가 fc_link 를 담는다 — FC 링크는 ping 이 본다');
   // 그래도 **식별은 한다** — 그건 상태가 아니라 「누가 붙어 있나」다.
   if (device.entityType !== DRONE.entityType) failures.push('토픽의 종류 칸을 안 담았다');
+
+  /**
+   * **그런데 화면은 값을 봐야 한다** (260922 — 사람이 상세를 열고 비어 있는 것을 봤다).
+   *
+   * Go1 표가 못 뜯은 것과, 화면이 못 보는 것은 다른 말이다. 받는 자리가 같은 본문을
+   * 줄로도 밀어 넣는지 본다 — 이것이 없으면 값이 오는데도 상세가 영영 빈다.
+   */
+  const mqtt = readSource(join(root, 'src', 'physical', 'deviceState.ts'));
+  if (!/noteDeviceTelemetry\(/.test(mqtt)) {
+    failures.push('MQTT 받는 자리가 상태 줄을 안 밀어 넣는다 — 값이 오는데 상세가 빈다');
+  }
+  // **두 받는 쪽이 같은 표를 지난다.** 표가 갈리면 같은 본문이 길마다 다른 줄이 된다.
+  const gateway = readSource(join(root, 'src', 'tabs', 'data', 'index.ts'));
+  for (const [name, source] of [['deviceState.ts', mqtt], ['tabs/data/index.ts', gateway]]) {
+    if (!/stateRows\(/.test(source)) failures.push(`${name} 가 공용 표를 안 지난다`);
+    if (!/shared\/stateRows\.ts/.test(source)) failures.push(`${name} 가 공용 표를 shared/ 에서 안 가져온다`);
+  }
+
+  /**
+   * **Go1 표가 알맹이를 못 채웠을 때만 줄로 간다.** 그 판정이 없으면 드론은 `device_status`
+   * 하나 때문에 「채워졌다」로 읽혀 상세가 계속 빈다 — 260922 에 실제로 그랬다.
+   */
+  const facts = readSource(join(root, 'src', 'physical', 'DeviceFacts.tsx'));
+  if (!/mqttFilled\(/.test(facts)) failures.push('Go1 표가 못 채운 장비를 가리는 판정이 없다');
+  if (/entityType === 'drone'|=== 'x500-001'/.test(facts)) {
+    failures.push('화면이 기종으로 갈랐다 — 장비가 말하게 두어야 한다');
+  }
 }
 
 // ── 3-2. **그 본문이 화면에 그릴 줄이 되는가** (260922 — 카드 안을 채운다) ───
@@ -99,7 +134,7 @@ const controls = [];
 // 값은 전부 계약이 준 실측 본문(`liveStateBody`)에서 나온다 — 지어낸 값으로 재면 그 검사는
 // 우리 상상을 확인하는 것이 된다.
 {
-  const { stateRows } = await load('src', 'tabs', 'data', 'stateRows.ts');
+  const { stateRows } = await load('src', 'shared', 'stateRows.ts');
   const rows = stateRows(liveStateBody());
   const find = (key) => rows.find((row) => row.labelKey === key) ?? null;
 
@@ -214,7 +249,7 @@ function control(name, hit) {
    * 없어서 그리는 쪽이 읽을 것이 없었기 때문이다. 고친 것이 진짜 고쳐졌는지 보려면
    * 안 고친 것이 어떻게 비어 있었는지도 재야 한다.
    */
-  const { stateRows } = await load('src', 'tabs', 'data', 'stateRows.ts');
+  const { stateRows } = await load('src', 'shared', 'stateRows.ts');
   const rows = stateRows(liveStateBody());
   const oldCard = [];                                   // 옛 화면이 들고 있던 줄
   control('옛 화면은 카드에 적을 줄이 하나도 없다', oldCard.length === 0);
@@ -246,7 +281,7 @@ if (failures.length) {
   process.exit(1);
 }
 console.log('✅ /state 봉투 한 건이면 x500-001 이 「레지스트리에 없는 개체」로 뜬다 — 원문 그대로');
-console.log('✅ MQTT 장비 상태 경로는 드론 본문을 안 뜯는다 — 상태 경로가 하나다');
+console.log('✅ MQTT 의 Go1 표는 드론 본문을 안 뜯되, 같은 본문이 공용 표를 지나 줄이 된다 (해석은 하나)');
 console.log('✅ 그 본문이 카드·상세의 줄이 된다 — 규약 문자열은 그대로, 안 온 것은 줄이 안 생긴다');
 console.log('✅ 상태 구독이 두 번째 칸을 + 로 받는다 (robot 을 박은 곳 0건)');
 console.log(`✅ 대조군 ${controls.length}건 — ${controls.join(' · ')}`);

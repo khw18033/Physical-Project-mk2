@@ -435,6 +435,8 @@ b.follow-live{cursor:default}
    (`ws://pi7.tailcb6bfb.ts.net:9001/mqtt`) 끝이 잘리면 무엇을 보고 있는지 모른다. */
 .conn-target label:has(.conn-preset){grid-template-columns:78px auto 1fr}
 .conn-target--pending input{background:#f4f6f9;color:#95a0ad}
+/* 붙은 장비가 한 대도 없을 때 (260922). 빈 자리는 「고장인가」로 읽히므로 그 사실을 적는다. */
+.hardware-panel__none{margin:0;padding:14px 12px;border:1px dashed #d6dce5;border-radius:8px;color:#6a7686;font-size:12px}
 /* 저장 안 된 칸 (260922). 주소 칸 **바로 아래**에 붙어야 한다 — 판 아래 어딘가에 모아
    두면 어느 칸 이야기인지 다시 찾아야 하고, 그게 이 문제의 원인이었다. 이름 칸을 건너뛰고
    줄 전체를 쓴다(`label` 이 격자라 안 그러면 78px 칸에 끼어 세로로 무너진다). */

@@ -154,19 +154,20 @@ function Milestones({ view, phase, milestoneStatuses, assignments, onAssign, onO
     <div className="right-column">
     <aside className="hardware-panel"><h2>{t('ms.hardwareCount', { n: cards.length })}</h2><p><Rich id="ms.hardwareHint" vars={{ source: hardwareSourceLabel() }} /></p>
     {/*
-      **목록은 언제나 배역 ∪ 붙어 있는 장비다** (260922 지시 — 「드론은 확인할 방법이 지금은 없어」).
+      **목록은 지금 붙어 있는 장비다** (260922 지시 — 「드론 연결했으면 드론 하나만」).
 
-      260921 에 `listDeviceCardIds()` 가 그 합집합을 내게 했는데, **여기가 그것을 안 썼다** —
-      대본에 실측 목록(`view.hardware`)이 실려 있으면 그쪽만 그리고 합집합을 통째로 건너뛰었다.
-      임무를 안 연 상태(`hardware: []`)도 그 갈래로 가서 **카드가 한 장도 안 떴다.** 붙어 있는
-      드론을 볼 자리가 화면 어디에도 없었던 것이 이 분기다.
+      두 번 고친 자리다. 처음에는 대본에 실측 목록(`view.hardware`)이 실려 있으면 그쪽만
+      그리는 갈래가 있어서 붙어 있는 드론이 안 보였다. 그래서 「배역 ∪ 붙어 있는 것」으로
+      합쳤더니, 이번에는 **아무것도 안 붙어도 옛 편의 자리표시 일곱 장이 떠 있었다.**
 
-      `verify:device-cards` 는 초록이었다 — 그 검사가 잰 것은 `listDeviceCardIds()` 이고
-      **화면이 그것을 그리는지는 안 봤다.** 그 자리도 같이 메운다.
+      그래서 목록의 뜻을 하나로 줄였다 — **지금 붙어 있다.** 규칙은 `registry.ts` 에 있다.
 
-      그래서 갈래는 **카드마다**로 내려간다: 대본이 그 장비의 실측 행을 들고 있으면 그것을
-      그리고, 없으면 살아 있는 줄(`HardwareLink`)을 그린다. 목록을 가르던 조건이 아니다.
+      갈래는 **카드마다**로 남는다: 대본이 그 장비의 실측 행을 들고 있으면 그것을 그리고,
+      없으면 살아 있는 줄(`HardwareLink`)을 그린다. 목록을 가르던 조건이 아니다.
     */}
+    {/* **한 장도 없으면 그 사실을 적는다** (260922). 빈 자리는 「고장인가」로 읽힌다 —
+        아무것도 안 붙었다는 것과 화면이 못 그렸다는 것은 다른 말이고, 그 차이를 여기서 말한다. */}
+    {cards.length === 0 && <p className="hardware-panel__none">{t('ms.noConnectedDevice')}</p>}
     {cards.map((id) => {
       const item = hardware.find((row) => row.id === id);
       return <article key={id} draggable onDragStart={(event) => event.dataTransfer.setData('text/plain', id)} onDoubleClick={() => setStatusDeviceId(id)}>

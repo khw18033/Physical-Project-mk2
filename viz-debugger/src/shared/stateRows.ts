@@ -1,5 +1,5 @@
 /**
- * src/tabs/data/stateRows.ts (260922 신설 — 드론 카드 안을 채운다)
+ * src/shared/stateRows.ts (260922 신설 — 드론 카드 안을 채운다)
  *
  * **`/state` 본문을 화면이 그릴 줄로 바꾼다.** 표 하나와 함수 하나다.
  *
@@ -16,6 +16,22 @@
  *
  * 지시서(260921 §원칙 2)가 그 경우를 미리 적어 두었다 — 「계약상 불가능하면 최소한 항목표를
  * 한 곳에 두고 **보고서에 한계로 적는다**」. 보고서에 적었다.
+ *
+ * ## 260922 — **`shared/` 로 옮겼다. 받는 길이 둘이기 때문이다**
+ *
+ * 처음에 `tabs/data/` 에 두었다. 드론 상태가 백엔드 `/state` 로 온다고 보았기 때문이다.
+ * **실물은 그 길로 안 온다** — 계약 §3-1 을 보면 pi3 가 `zoneA/drone/x500-001/state` 를
+ * 1Hz 로 **직접 발행**하고, 웹은 연결 관리에서 그 브로커에 붙어 있다. 그래서 상세를 열면
+ * 값이 오고 있는데도 비어 있었다.
+ *
+ * 그래서 **표를 두 받는 쪽이 같이 쓴다.** `physical/deviceState.ts`(MQTT)와
+ * `tabs/data/index.ts`(`/state`)가 둘 다 이 함수를 지나 **한 저장소**에 밀어 넣는다
+ * (`shared/deviceTelemetry.ts`). `src/physical/` 은 `tabs/` 를 못 부르므로(단독 빌드)
+ * 둘 다 닿는 자리는 `shared/` 뿐이다.
+ *
+ * **「경로가 둘이면 어느 쪽이 진짜냐가 생긴다」는 규칙은 그대로다.** 그 규칙이 막는 것은
+ * **해석이 둘**인 것이지 받는 소켓이 둘인 것이 아니다 — 표도 하나, 저장소도 하나이므로
+ * 같은 본문은 어느 길로 와도 같은 줄이 된다. `connectedDevices.ts` 가 이미 그 모양이다.
  *
  * ## 기종으로 가르지 않는다
  *
@@ -34,7 +50,7 @@
  * 한 줄이 이유를 말한다.**
  */
 
-import type { TelemetryRow } from '../../shared/deviceTelemetry.ts';
+import type { TelemetryRow } from './deviceTelemetry.ts';
 
 /** 표 한 줄. `path` 는 본문에서 찾아갈 자리다. */
 type FieldSpec = {

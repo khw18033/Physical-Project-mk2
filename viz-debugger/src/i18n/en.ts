@@ -840,6 +840,7 @@ export const en: Record<string, string> = {
   'ms.unassigned': 'Unassigned',
   'ms.clickToGraph': 'Click → task graph',
   'ms.hardwareCount': 'Hardware · {n}',
+  'ms.noConnectedDevice': 'No device connected — connect one in Connections and it appears here',
   'ms.hardwareHint': 'Drag a card onto a milestone · **double-click → target state** · script source {source} · connected devices appear regardless of the mission',
   'ms.scriptDevice': 'Device in the script',
   'ms.connectedDevice': 'Connected device',

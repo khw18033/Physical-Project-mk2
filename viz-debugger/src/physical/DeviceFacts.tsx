@@ -15,7 +15,7 @@
 import { useLang } from '../shared/language.ts';
 import { t } from '../i18n/dict.ts';
 import { hardwareTarget } from './encode.ts';
-import { isStale, useDeviceStates } from './deviceState.ts';
+import { isStale, useDeviceStates, type DeviceState } from './deviceState.ts';
 import { isTelemetryStale, useDeviceTelemetry, type DeviceTelemetry, type TelemetryRow } from '../shared/deviceTelemetry.ts';
 
 export function DeviceFacts({ entityId }: { entityId: string }) {
@@ -25,19 +25,19 @@ export function DeviceFacts({ entityId }: { entityId: string }) {
   const device = devices[hardwareTarget(entityId)] ?? null;
 
   /**
-   * **MQTT 가 비면 `/state` 보고를 그린다** (260922).
+   * **Go1 표가 이 장비를 못 뜯었으면 장비가 보고한 줄을 그린다** (260922).
    *
-   * 드론 상태는 백엔드 `/state` 로만 온다(`verify:drone-via-state` — 경로가 둘이면 어느
-   * 쪽이 진짜인지가 생긴다). 그래서 이 칸은 지금까지 드론에 대해 「아직 상태가 오지
-   * 않았습니다」라고 적었다 — **값은 오고 있는데** 이쪽 저장소에 안 들어올 뿐이었고,
-   * 그 문장은 사실이 아니었다.
+   * 위 `devices` 는 `applyDeviceMessage` 가 채우는데 그 표는 **Go1 모양의 고정 칸**이다.
+   * 드론이 그 표를 지나면 `device_status`·`registration` 만 걸리고 배터리·모드·위치는
+   * 전부 `null` 로 남는다 — 그래서 상세를 열면 **값이 오고 있는데도** 거의 비어 있었다
+   * (260922 사람이 화면에서 걸렸다).
    *
-   * 차례는 MQTT 가 먼저다. Go1 이 `/state` 로 옮겨 가는 동안 두 길이 겹치고, 그때 지금
-   * 화면을 채우고 있는 쪽이 이겨야 카드가 깜빡이지 않는다.
+   * 그 상태를 「알맹이가 없다」로 읽는다. 기종을 묻지 않는다 — **저 표가 이 장비에 대해
+   * 아무것도 못 채웠다**는 사실만 본다. Go1 은 `batteryPct` 가 차므로 지금 그대로 간다.
    */
+  const report = reports[entityId] ?? null;
+  if (report !== null && !mqttFilled(device)) return <TelemetryFacts report={report} />;
   if (device === null) {
-    const report = reports[entityId] ?? null;
-    if (report !== null) return <TelemetryFacts report={report} />;
     return <p className="device-facts device-facts--none">{t('df.1')}</p>;
   }
   const stale = isStale(device);
@@ -67,6 +67,20 @@ export function DeviceFacts({ entityId }: { entityId: string }) {
   return <dl className="device-facts">
     {rows.map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}
   </dl>;
+}
+
+/**
+ * **Go1 표가 이 장비의 알맹이를 채웠는가.**
+ *
+ * 기종을 묻는 함수가 아니다 — `applyDeviceMessage` 의 고정 칸 중 **사람이 무대에서 보는
+ * 것들**이 하나라도 찼는지만 본다. 생사(`online`)와 자기보고(`health`)는 안 센다: 그 둘은
+ * 봉투 모양이 달라도 우연히 채워지고(드론 `status` 가 그렇다), 그러면 알맹이가 없는데도
+ * 「채워졌다」가 된다.
+ */
+export function mqttFilled(device: DeviceState | null): boolean {
+  if (device === null) return false;
+  return device.batteryPct !== null || device.mode !== null || device.position !== null
+    || device.speedMps !== null || device.inMission !== null;
 }
 
 /**

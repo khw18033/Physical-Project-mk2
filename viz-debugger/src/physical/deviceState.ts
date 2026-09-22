@@ -22,6 +22,8 @@
 import { useSyncExternalStore } from 'react';
 import { noteDeviceReport, resetDeviceIdentity } from './deviceIdentity.ts';
 import { noteConnectedEntity } from '../shared/connectedDevices.ts';
+import { noteDeviceTelemetry } from '../shared/deviceTelemetry.ts';
+import { stateRows } from '../shared/stateRows.ts';
 
 /** 우리가 읽는 만큼. 스키마 전체를 옮기지 않는다 — 안 쓰는 필드를 옮기면 낡는다. */
 export type DeviceState = {
@@ -167,6 +169,23 @@ export function receiveDeviceMessage(topic: string, body: Record<string, unknown
   noteDeviceReport(parsed.entityId, parsed.entityType, body);
   // 하드웨어 카드가 보는 목록에도 올린다 — Go1 이 `/state` 로 옮겨 가기 전까지의 길이다.
   noteConnectedEntity(parsed.entityId, 'mqtt');
+  /**
+   * **본문을 화면이 그릴 줄로도 밀어 넣는다** (260922).
+   *
+   * 위 `applyDeviceMessage` 는 **Go1 모양의 고정 칸**이라 드론 본문을 못 뜯는다 —
+   * 그건 그대로 둔다(`verify:drone-via-state` §3). 드론의 배터리는 `battery.remaining_pct`
+   * 이고 Go1 은 `battery_pct` 라, 저 표에 드론을 끼워 넣으면 기종이 늘 때마다 칸이 는다.
+   *
+   * 대신 **줄로 바꾸는 표 하나**를 지난다(`shared/stateRows.ts`). `/state` 로 받는 쪽도
+   * 같은 표·같은 저장소를 쓰므로, 같은 본문은 어느 길로 와도 같은 줄이 된다 —
+   * 「경로가 둘이면 어느 쪽이 진짜냐가 생긴다」가 막는 것은 **해석이 둘**인 것이다.
+   *
+   * 뜯을 것이 없는 채널(heartbeat)은 줄이 0개라 저장소가 알아서 안 담는다.
+   */
+  noteDeviceTelemetry(parsed.entityId, stateRows(body), {
+    timestamp: typeof body.timestamp === 'string' ? body.timestamp : null,
+    reason: typeof body.reason === 'string' ? body.reason : null,
+  });
   for (const listener of listeners) listener();
   return true;
 }

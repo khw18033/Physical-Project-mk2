@@ -12,7 +12,7 @@ import { subscribeConnections } from '../../shared/connections.ts';
 import { currentZoneId } from '../../shared/registry.ts';
 import { noteConnectedEntity } from '../../shared/connectedDevices.ts';
 import { noteDeviceTelemetry } from '../../shared/deviceTelemetry.ts';
-import { stateRows } from './stateRows.ts';
+import { stateRows } from '../../shared/stateRows.ts';
 import { getTransport } from '../../transport/index.ts';
 import { DataStore } from './store.ts';
 import { fetchRegistry } from './registry.ts';

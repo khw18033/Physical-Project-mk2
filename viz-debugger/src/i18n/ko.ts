@@ -851,6 +851,7 @@ export const ko: Record<string, string> = {
   'ms.hardwareCount': '하드웨어 · {n}대',
   // 260922 — **왜 이 카드가 여기 있는지**까지 적는다. 목록이 「대본 배역 ∪ 붙어 있는 장비」로
   // 바뀌면서 원천이 하나가 아니게 됐다 — 원천만 적으면 붙어서 뜬 드론까지 목(mock)으로 읽힌다.
+  'ms.noConnectedDevice': '붙어 있는 장비가 없습니다 — 연결 관리에서 붙이면 여기 뜹니다',
   'ms.hardwareHint': '카드를 마일스톤으로 드래그 · **더블클릭 → 대상 상태** · 대본 원천 {source} · 붙어 있는 장비는 임무와 상관없이 뜹니다',
   'ms.scriptDevice': '대본 등장 장비',
   'ms.connectedDevice': '연결된 장비',

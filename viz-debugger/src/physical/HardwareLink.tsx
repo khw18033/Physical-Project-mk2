@@ -28,7 +28,7 @@ import { isStale, useDeviceStates, type DeviceState } from './deviceState.ts';
 import { useRobotSession } from './robotSession.ts';
 import { connectedDevice, useConnectedDevices } from '../shared/connectedDevices.ts';
 import { useDeviceTelemetry } from '../shared/deviceTelemetry.ts';
-import { telemetryValue } from './DeviceFacts.tsx';
+import { mqttFilled, telemetryValue } from './DeviceFacts.tsx';
 
 export function HardwareLink({ entityId }: { entityId: string }) {
   useLang();
@@ -51,9 +51,17 @@ export function HardwareLink({ entityId }: { entityId: string }) {
    * 자세한 항목은 상세 보기(현황판의 그 개체)가 그린다. 여기서는 살아 있다는 것과
    * 언제 마지막으로 왔는지만 적는다 — 카드 한 줄에 들어갈 만큼이다.
    */
+  /**
+   * **Go1 표가 이 장비를 못 뜯었으면 장비가 보고한 줄로 간다** (260922 — `DeviceFacts` 와
+   * 같은 판정이다). 카드와 상세가 서로 다른 근거로 갈리면, 카드는 비었는데 상세는 차 있는
+   * (또는 그 반대의) 상태가 설명 없이 생긴다.
+   */
+  const report = reports[entityId] ?? null;
   const viaState = connectedDevice(entityId);
-  if (device === null && viaState !== null) {
-    const ago = Math.round((Date.now() - viaState.lastSeenMs) / 1000);
+  if (!mqttFilled(device) && (viaState !== null || report !== null)) {
+    const ago = viaState === null
+      ? Math.round((Date.now() - (report?.receivedAtMs ?? Date.now())) / 1000)
+      : Math.round((Date.now() - viaState.lastSeenMs) / 1000);
     /**
      * **보고한 값 중 카드 몫만 여기 나온다** (260922). 위 주석이 「자세한 항목은 상세
      * 보기가 그린다」고 적어 둔 자리인데, 그 말이 맞으려면 **카드에도 최소한 무엇이
@@ -63,7 +71,7 @@ export function HardwareLink({ entityId }: { entityId: string }) {
      * 어느 줄이 카드 몫인지는 **여기서 안 고른다.** 줄에 `onCard` 가 붙어서 온다
      * (`tabs/data/stateRows.ts`) — 기종별 항목표를 화면 코드에 두지 않는다는 규칙이다.
      */
-    const card = (reports[entityId]?.rows ?? []).filter((row) => row.onCard === true);
+    const card = (report?.rows ?? []).filter((row) => row.onCard === true);
     return <span className="hw-link">
       <em className="hw-dot hw-dot--ok">{t('hl.connected')}</em>
       {card.map((row, index) => <em key={`${row.labelKey ?? ''}-${index}`} className="hw-dot hw-dot--plain"
