@@ -40,6 +40,8 @@ export const DISPLAY_PATHS = [
   'viewpointTimeline[].payload.reason',
   'map.blind_cells[].reason',
   'params.destination',
+  // 260927 — 장치 두 대 편의 자리 이름. 마일스톤 카드의 배정 줄과 가상 맵 범례에 뜬다.
+  'slots[].label',
 ];
 
 const DISPLAY = new Set(DISPLAY_PATHS);

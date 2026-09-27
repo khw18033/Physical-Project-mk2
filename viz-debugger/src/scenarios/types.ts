@@ -49,6 +49,11 @@ export type ScriptMilestone = {
   id: string;
   title: string;
   assignedTargets: string[];
+  /**
+   * 이 마일스톤이 쓰는 **장치 자리** (260927 — 장치 두 대 편). 차례가 곧 자리 차례다.
+   * 하드웨어 카드를 여기에 놓으면 이 자리에 앉는다(`data/slots.ts`). 없으면 지금까지처럼 `assignedTargets`.
+   */
+  slots?: string[];
   /** 옛 파일 호환용. 대본에는 적지 않는다 — 태스크 상태를 접은 결과가 마일스톤 상태다. */
   status?: TaskStatus;
 };
@@ -151,12 +156,35 @@ export type ScriptMap = {
   }>;
 };
 
+/**
+ * **문구의 빈칸** (260927 — 장치 두 대 편). 대본 문구에 `token`(`@`)을 두면, 발화에서 `patterns` 의
+ * 첫 번째 묶음으로 잘라 온 낱말이 그 자리에 들어간다(`scenarios/target.ts`). 못 자르면 빈칸 그대로다.
+ */
+export type ScriptTarget = {
+  token: string;
+  /** 한국어 문장에 거는 정규식. 첫 묶음(`(...)`)이 대상이다. 차례대로 본다. */
+  patterns: string[];
+  /** 영어 문장에 거는 정규식. 영어 화면에서 먼저 본다. */
+  patterns_en?: string[];
+  note?: string;
+};
+
+/** 장치 자리 하나 (260927). 대본은 장비를 정하지 않고 자리만 둔다 — 앉히는 것은 사람이다. */
+export type ScriptSlot = { id: string; label: string };
+
 export type ScriptScenario = {
   missionId: string;
   title: string;
   world: 'registry';
   utterance: ScriptUtterance;
   match: ScriptMatch;
+  /** 문구의 빈칸 (260927). 없으면 채울 것이 없다. */
+  target?: ScriptTarget;
+  /**
+   * 장치 자리 (260927). 있으면 태스크의 `target` 이 장비 id 가 아니라 **자리 id** 일 수 있고,
+   * `cast` 는 비어도 된다 — 무엇이 올지 대본이 모르기 때문이다(`verify:script-library`).
+   */
+  slots?: ScriptSlot[];
   /** 탭②~⑤에서 그려도 되는 장비. 전부 registry.json 에 실재해야 한다(verify:script-library). */
   cast: string[];
   /**
@@ -170,9 +198,13 @@ export type ScriptScenario = {
    *            게이트웨이 합성 진행을 안 받고(일반 모드), 승인이 로봇 관문을 **안 연다** — 화면은
    *            아무것도 보내지 않는다. 승인하는 순간부터 중계를 칠한다(`physical/navLink.ts`)
    *
-   * 가르는 자리는 `library.ts` 의 `scriptDriven()` · `relayDriven()` · `opensRobotGate()` 셋이다.
+   *  - 'local'  **이 화면이 모는 편** (260927 · 장치 두 대). 일반 모드로 돈다 — 시나리오 모드 띠가 안 뜨고
+   *            게이트웨이 합성 진행도 안 받는다. 승인은 판을 걸어만 두고, 「▶ 임무 시작」을 누르면 화면 안 진행기가
+   *            제 시각(1배속)으로 민다. 로봇 관문은 **안 연다** — 문 찾기 편의 스캔이 나가면 안 된다
+   *
+   * 가르는 자리는 `library.ts` 의 `scriptDriven()` · `relayDriven()` · `localDriven()` · `opensRobotGate()` 다.
    */
-  driver?: 'script' | 'relay';
+  driver?: 'script' | 'relay' | 'local';
   durationSec: number;
   /** 편별 상수 — 위험 수위 선(탭④)·정지 거리·재탐색 임계 등. 화면이 읽는다. */
   params?: Record<string, unknown>;

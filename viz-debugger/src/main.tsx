@@ -44,7 +44,9 @@ import { framesUpTo } from './viewpoint/store.ts';
 import { startMissionRecorder } from './record/recorder.ts';
 import { startNavLink } from './physical/navLink.ts';
 import { startObstacleWatch } from './autodrive/watch.ts';
+import { startSlotMove } from './physical/slotMove.ts';
 import { useReplayTarget } from './record/replayMode.ts';
+import { dropOnSlots, holdSlotsFor, useSlotBindings } from './data/slots.ts';
 
 type Screen = 'milestones' | 'graph' | 'detail' | 'replay' | 'failure';
 
@@ -140,6 +142,15 @@ function Milestones({ view, phase, milestoneStatuses, assignments, onAssign, onO
     <button onClick={() => rejectProposal()}>{t('prop.reject')}</button>
   </div>);
   const showApproval = phase === 'proposal' || planApproval !== undefined;
+  /**
+   * **자리를 쓰는 편의 배정 줄** (260927). 「첫 번째 장치: (끌어 놓은 장비) · 두 번째 장치: 미배정」 — 누가 어느
+   * 자리에 앉았는지가 마일스톤마다 같은 말이어야 한다. 자리가 없는 편은 지금까지와 같다.
+   */
+  const bindings = useSlotBindings();
+  const slotLabel = (id: string) => view.slots?.find((slot) => slot.id === id)?.label ?? id;
+  const assignedLine = (item: MissionMilestone) => (item.slots !== undefined && item.slots.length > 0
+    ? item.slots.map((slot) => t('ms.slotLine', { slot: slotLabel(slot), device: bindings[slot] ?? t('ms.slotEmpty') })).join(' · ')
+    : (assignments[item.id] ?? item.assignedTargets).join(' · ') || t('ms.unassigned'));
   return <div className="milestone-layout"><UtterancePanel fallbackText={view.utteranceText} /><section className="milestone-panel"><h2>{t('ms.count', { n: view.milestones.length })}</h2>
     <RobotPanel client={robotClient()} />
     {showApproval && <div className="proposal-card">
@@ -151,7 +162,7 @@ function Milestones({ view, phase, milestoneStatuses, assignments, onAssign, onO
         : <p className="proposal-note"><Rich id="ms.scriptProposal" vars={{ id: view.missionId, label: view.label }} />{mission.proposal?.origin === 'script' && mission.proposal.keywords.length ? <small>{t('ms.matchedKeywords', { words: mission.proposal.keywords.join(' · ') })}</small> : null}</p>)}
       {approvalSlot}
     </div>}
-    <div className="milestone-list">{view.milestones.map((item) => <button key={item.id} className={`milestone state-${milestoneStatuses[item.id] ?? 'pending'}`} onClick={() => onOpen(item.id)} onDragOver={(event) => event.preventDefault()} onDrop={(event) => onAssign(item.id, event.dataTransfer.getData('text/plain'))}><b>{item.id}</b><strong>{item.title}</strong><span>{(assignments[item.id] ?? item.assignedTargets).join(' · ') || t('ms.unassigned')}</span><small>{t('ms.clickToGraph')}</small></button>)}</div></section>
+    <div className="milestone-list">{view.milestones.map((item) => <button key={item.id} className={`milestone state-${milestoneStatuses[item.id] ?? 'pending'}`} onClick={() => onOpen(item.id)} onDragOver={(event) => event.preventDefault()} onDrop={(event) => onAssign(item.id, event.dataTransfer.getData('text/plain'))}><b>{item.id}</b><strong>{item.title}</strong><span>{assignedLine(item)}</span><small>{t('ms.clickToGraph')}</small></button>)}</div></section>
     {/*
       **오른쪽 기둥이 둘로 갈라진다** (260920 지시 2). 위가 하드웨어(장비가 지금 살아
       있는가 · 실측), 아래가 기능(이 배치에서 무엇이 가능한가 · 설정 계산)이다. 세로를
@@ -423,7 +434,7 @@ function GraphScreen({ screen, view, trace, milestone, tasks, headSec, playing, 
     {replay && <ReplayControls second={second} following={override === null} playing={playing} onChange={setOverride} onFollow={() => setOverride(null)} view={view} trace={trace} tasks={tasks} />}<StatusLegend /><Explain id="dbg-1" className="hint">{t('graph.hint')}</Explain></section>
     {/* 확대 오버레이 (260903 2단계). **TaskGraph 의 형제**다 — 위에서 캔버스를 조건 없이
         그리고 여기에 얹기만 하므로, 확대해도 캔버스가 교체되지 않고 닫으면 같은 자리다. */}
-    {zoomedNode !== null && zoomedEntry !== null && <ZoomOverlay entry={zoomedEntry} scope={viewScopeFor(zoomedNode.taskId, view, second)} taskId={zoomedNode.taskId} onClose={() => setZoomedId(null)} />}</div>;
+    {zoomedNode !== null && zoomedEntry !== null && <ZoomOverlay entry={zoomedEntry} scope={viewScopeFor(zoomedNode.taskId, view, second)} taskId={zoomedNode.taskId} node={zoomedNode} onClose={() => setZoomedId(null)} />}</div>;
 }
 
 /**
@@ -467,6 +478,12 @@ export function MissionDebugger({ navigation, planApproval }: { navigation?: Deb
   // 임무가 바뀌면(대본 승인) 한 편에 묶였던 화면 상태를 처음으로 되돌린다.
   useEffect(() => { setScreen('milestones'); setModalTask(null); setAssignments({}); setMilestoneId(null); setScope('milestone'); }, [view.missionId]);
   /**
+   * 장치 자리 (260927). 임무가 바뀌면 비우고, **같은 임무면 남긴다** — 제안 중에 카드를 끌어 앉혀 두고
+   * 승인하면 그 배정이 그대로 가야 한다(제안과 승인은 같은 임무 id 다).
+   */
+  const bindings = useSlotBindings();
+  useEffect(() => { holdSlotsFor(view.missionId); }, [view.missionId]);
+  /**
    * **저장된 판을 열면 리플레이 화면의 임무 전체로** (260914). 위 효과 **뒤에** 둔다 — 다른 임무의
    * 판을 열면 같은 그리기에서 둘이 같이 돌고, 나중 것이 이긴다.
    */
@@ -496,6 +513,11 @@ export function MissionDebugger({ navigation, planApproval }: { navigation?: Deb
   // 자율주행 판이 열린 동안 장애물 JSON 을 받는다 (260915). 시연 편에서는 판이 안 열려 안 돈다.
   useEffect(() => startObstacleWatch(), []);
   /**
+   * **장치 두 대 편의 실제 이동** (260927). 자리에 앉은 장비가 걸을 수 있으면 그 장비의 이동을 로봇이 칠한다.
+   * 같은 이유로 여기 둔다 — 화면을 옮겨도 걷고 있는 로봇의 응답을 놓치면 안 된다.
+   */
+  useEffect(() => startSlotMove(), []);
+  /**
    * 하드웨어 카드의 창을 쓸어 준다 (260921). **조용해지는 것은 값이 안 올 때 일어나므로**
    * 아무도 저장소를 안 건드리고, 그러면 꺼진 장비의 카드가 그대로 남는다.
    */
@@ -521,8 +543,19 @@ export function MissionDebugger({ navigation, planApproval }: { navigation?: Deb
   const graphTasks = useMemo(
     () => view.tasks
       .filter((task) => scope === 'mission' || task.milestone === graphMilestone?.id)
-      .map((task) => assignments[task.milestone ?? '']?.length ? { ...task, target: assignments[task.milestone ?? ''][0] } : task),
-    [assignments, graphMilestone, scope, view],
+      .map((task) => {
+        /**
+         * **자리를 쓰는 편은 자리로 푼다** (260927). 태스크의 대상이 `device-1` 이면 그 자리에 앉은 장비다.
+         * 아직 비어 있으면 자리 이름(「첫 번째 장치」)을 적는다 — `device-1` 은 장비 id 처럼 읽힌다.
+         */
+        if (view.slots !== undefined && task.target !== null) {
+          const slot = view.slots.find((item) => item.id === task.target);
+          if (slot !== undefined) return { ...task, target: bindings[slot.id] ?? slot.label };
+          return task;
+        }
+        return assignments[task.milestone ?? '']?.length ? { ...task, target: assignments[task.milestone ?? ''][0] } : task;
+      }),
+    [assignments, bindings, graphMilestone, scope, view],
   );
 
   // 참조 엣지 — 보이는 범위 안에 양끝이 다 있으면 그리고, 밖으로 나가면 한 줄로 적는다.
@@ -630,7 +663,12 @@ export function MissionDebugger({ navigation, planApproval }: { navigation?: Deb
   const firstFailed = graphTasks.find((task) => folded.tasks[task.id]?.status === 'failed') ?? null;
 
   return <div className="mission-debugger">{screen === 'milestones'
-    ? <Milestones view={view} phase={display.phase} milestoneStatuses={milestoneStatuses} assignments={assignments} onAssign={(id, hardware) => setAssignments((current) => ({ ...current, [id]: [...new Set([...(current[id] ?? []), hardware])] }))} onOpen={(id) => { setMilestoneId(id); navigate('graph'); }} planApproval={planApproval} />
+    ? <Milestones view={view} phase={display.phase} milestoneStatuses={milestoneStatuses} assignments={assignments} onAssign={(id, hardware) => {
+      // 자리를 쓰는 마일스톤이면 자리에 앉힌다 (260927) — 한 번 앉히면 그 자리를 쓰는 마일스톤 전부가 같은 장비다.
+      const slots = view.milestones.find((item) => item.id === id)?.slots;
+      if (slots !== undefined && slots.length > 0) { dropOnSlots(slots, hardware); return; }
+      setAssignments((current) => ({ ...current, [id]: [...new Set([...(current[id] ?? []), hardware])] }));
+    }} onOpen={(id) => { setMilestoneId(id); navigate('graph'); }} planApproval={planApproval} />
     : <GraphScreen screen={screen} view={view} trace={trace} milestone={graphMilestone} tasks={graphTasks} headSec={display.headSec} playing={display.phase === 'playing'} scope={scope} onScope={setScope} refEdges={visibleRefEdges} crossing={crossingRefEdges} viewpoints={visibleViewpoints} viewpointFill={viewpointFill} onOpen={openTask}
       // navigate() 를 쓴다 — 그것이 modalTask 정리까지 함께 한다. setScreen 을 직접 부르면 팝업이 남는다.
       // 범위도 함께 되돌린다: 「임무 전체」로 보다 목록으로 나갔다 다시 들어왔는데 전체로 남아 있으면 어리둥절하다.

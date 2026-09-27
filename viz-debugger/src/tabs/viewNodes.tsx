@@ -70,8 +70,11 @@ import { useDeviceStates } from '../physical/deviceState.ts';
 import { hardwareTarget } from '../physical/encode.ts';
 import { useRobotSession } from '../physical/robotSession.ts';
 import { DetectCam, DetectMap, DetectReason } from '../detect/views/DetectViews.tsx';
-import { AutodriveCam } from '../autodrive/views/AutodriveViews.tsx';
-import { relayDriven } from '../scenarios/library.ts';
+import { AutodriveCam, ObstacleFacts, ObstacleLogCard } from '../autodrive/views/AutodriveViews.tsx';
+import { relayDriven, slotDriven } from '../scenarios/library.ts';
+import { VirtualMap } from '../virtualmap/VirtualMap.tsx';
+import { DeviceCamera } from '../media/views/DeviceCamera.tsx';
+import { resolveSlot } from '../data/slots.ts';
 
 /** 화면이 쓰는 로봇 id. 하드웨어 id 로 바꾸는 것은 경계 안쪽(`hardwareTarget`) 일이다. */
 const ROBOT_ENTITY = 'robot-01';
@@ -321,10 +324,45 @@ function RobotBody() {
  * (`driver: 'relay'`)의 팔레트에 두지 않고, 자율주행 편의 로봇 영상은 그 편에만 둔다. 시연 편의 팔레트는
  * 전과 한 칸도 다르지 않다.
  */
-const notRelay = (missionId: string) => !relayDriven(missionId);
+const notRelay = (missionId: string) => !relayDriven(missionId) && !slotDriven(missionId);
 const onlyRelay = (missionId: string) => relayDriven(missionId);
+/**
+ * **장치 두 대 편의 노드** (260927). 문 찾기 시연의 노드(탐지 셋 · pi7 로봇)는 이 편에서 꺼낼 일이 없어
+ * `notRelay` 가 이 편도 뺀다. 이 편의 셋은 다른 편에 두지 않는다.
+ */
+const onlySlots = (missionId: string) => slotDriven(missionId);
 
 export const VIEW_NODE_RENDERERS: readonly ViewNodeEntry[] = [
+  {
+    // 장치 두 대 편 (260927). **Unity 인지 2D 맵인지는 연결 관리가 정한다** — 버튼을 둘로 늘리지 않는다.
+    // 재생 머리를 넘긴다 — 장치 위치와 경로가 되감기를 따라간다.
+    kind: 'virtual-map',
+    labelKey: 'viewnode.virtualMap',
+    hintKey: 'viewnode.virtualMap.hint',
+    showFor: onlySlots,
+    summary: (scope) => <NodeGate kind="virtual-map"><VirtualMap headSec={scope.headSec} /></NodeGate>,
+    zoom: (scope) => <NodeGate kind="virtual-map"><VirtualMap headSec={scope.headSec} zoom /></NodeGate>,
+  },
+  {
+    // 장치 두 대 편 (260927). **장치마다 버튼을 늘리지 않는다** — 같은 노드를 두 장 놓고 확대(더블클릭)에서
+    // 각자 장치를 고른다. 고르지 않았으면 연결한 태스크의 장치(자리를 푼 값)를 쓴다.
+    kind: 'device-cam',
+    labelKey: 'viewnode.camera',
+    hintKey: 'viewnode.camera.hint',
+    showFor: onlySlots,
+    summary: (scope, node) => <NodeGate kind="device-cam"><DeviceCamera nodeId={node?.id ?? 'device-cam'} taskDeviceId={resolveSlot(scope.deviceId)} /></NodeGate>,
+    zoom: (scope, node) => <NodeGate kind="device-cam"><DeviceCamera nodeId={node?.id ?? 'device-cam'} taskDeviceId={resolveSlot(scope.deviceId)} zoom /></NodeGate>,
+  },
+  {
+    // 장치 두 대 편 (260927). 자율주행 편의 「장애물 탐지」 액션 아이템을 **그대로** 쓴다(`ObstacleFacts`).
+    // 자리표시로 감싸지 않는다 — AI 서버가 실제로 미는 값이다.
+    kind: 'obstacle-log',
+    labelKey: 'viewnode.detectLog',
+    hintKey: 'viewnode.detectLog.hint',
+    showFor: onlySlots,
+    summary: () => <NodeGate kind="obstacle-log"><ObstacleLogCard /></NodeGate>,
+    zoom: () => <NodeGate kind="obstacle-log"><ObstacleFacts /></NodeGate>,
+  },
   {
     // 자율주행 편 (260915) — AI 서버의 로봇 앞 카메라 영상을 **그대로**. 접힘은 한 장씩, 실시간은 확대에서.
     // 문 찾기 시연의 「탐지 영상」과 서버도 코드도 다르다(`src/autodrive/`). 자리표시로 감싸지 않는다 — 실제로 오는 값이다.

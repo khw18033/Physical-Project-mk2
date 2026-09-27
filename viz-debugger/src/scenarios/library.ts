@@ -17,10 +17,11 @@ import script02 from '../../scenarios/MSN-260831-02.json' with { type: 'json' };
 import script03 from '../../scenarios/MSN-260831-03.json' with { type: 'json' };
 import script04 from '../../scenarios/MSN-260909-01.json' with { type: 'json' };
 import script05 from '../../scenarios/MSN-260915-01.json' with { type: 'json' };
+import script06 from '../../scenarios/MSN-260927-01.json' with { type: 'json' };
 import { LEGACY_ID, SCRIPT_IDS } from './manifest.ts';
 import type { ScriptLibraryEntry, ScriptScenario } from './types.ts';
 
-const scripts = [script01, script02, script03, script04, script05] as unknown as ScriptScenario[];
+const scripts = [script01, script02, script03, script04, script05, script06] as unknown as ScriptScenario[];
 
 // 목록(manifest)과 실물(import)의 대조 — 대본을 더할 때 한쪽만 늘면 여기서 즉시 죽는다.
 {
@@ -78,9 +79,30 @@ export function relayDriven(missionId: string): boolean {
 }
 
 /**
+ * **이 화면이 진행을 모는 편인가** (260927 — 장치 두 대 편 · `driver: 'local'`).
+ *
+ * 문 찾기 편처럼 **일반 모드**로 돈다 — 승인은 판을 걸어만 두고, 「▶ 임무 시작」이 진행을 연다. 진행은 화면 안
+ * 진행기가 제 시각으로 민다(`data/scenario.ts` 의 `startLocalRun`). 게이트웨이 합성 진행은 안 받는다 —
+ * 두 진행이 같은 노드를 칠하면 무엇이 판의 진행인지 모른다.
+ */
+export function localDriven(missionId: string): boolean {
+  return libraryEntry(missionId)?.script?.driver === 'local';
+}
+
+/**
+ * **장비를 자리로 두는 편인가** (260927 — 장치 두 대 편 · `slots`).
+ *
+ * 참이면 하드웨어 카드를 마일스톤에 놓는 것이 **자리 배정**이 되고(`data/slots.ts`), 팔레트에 그 편의
+ * 뷰 노드(가상 맵 · 카메라 · 객체 탐지 로그)가 선다. 문 찾기 시연의 노드는 이 편에서 꺼낼 일이 없다.
+ */
+export function slotDriven(missionId: string): boolean {
+  return (libraryEntry(missionId)?.script?.slots?.length ?? 0) > 0;
+}
+
+/**
  * **승인이 로봇 관문을 여는 편인가.** 관문 뒤의 경로(준비 · 스캔 · 접근)는 문 찾기 편(pi7)의
  * 것이라, 자기 방식으로 도는 편(`script` · `relay`)에서는 열지 않는다. 선언 없는 편은 그대로 연다.
  */
 export function opensRobotGate(missionId: string): boolean {
-  return !scriptDriven(missionId) && !relayDriven(missionId);
+  return !scriptDriven(missionId) && !relayDriven(missionId) && !localDriven(missionId);
 }

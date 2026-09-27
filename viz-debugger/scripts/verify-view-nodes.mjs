@@ -111,8 +111,10 @@ const CANVAS_FILES = ['types.ts', 'registry.ts', 'scope.ts', 'persist.ts', 'defa
   // 260912 — 탐지 셋이 늘었다. 자리표시(`video-stream` · `detections` · `zone-map`)로
   // 비어 있던 곳이고, 축 표에는 안 들어간다(대본이 아니라 탐지가 미는 값이다).
   // 260915 — `autodrive-cam` 이 늘었다. 자율주행 편의 로봇 영상이고 그 편 팔레트에만 뜬다(`showFor`).
+  // 260927 — 장치 두 대 편의 셋(`virtual-map` · `device-cam` · `obstacle-log`). 그 편 팔레트에만 뜬다.
   const EXPECTED = [
-    'autodrive-cam', 'control', 'detect-cam', 'detect-map', 'detect-reason', 'device-risk', 'metrics', 'robot', 'video',
+    'autodrive-cam', 'control', 'detect-cam', 'detect-map', 'detect-reason', 'device-cam', 'device-risk', 'metrics',
+    'obstacle-log', 'robot', 'video', 'virtual-map',
   ];
   check(
     [...kinds].sort().join(',') === EXPECTED.join(','),

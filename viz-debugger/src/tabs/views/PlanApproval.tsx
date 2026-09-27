@@ -68,6 +68,7 @@ import { humanActed, noteHumanAction } from '../../shared/humanAction.ts';
 import { t } from '../../i18n/dict.ts';
 import { Rich } from '../../i18n/RichText.tsx';
 import { useLang } from '../../shared/language.ts';
+import { missionTitle } from '../../data/scenario.ts';
 
 /**
  * **계획 대상을 코드에 적지 않는다.** 계획이 도착한 대상이 곧 임무 대상이고,
@@ -323,7 +324,8 @@ function EvidenceList({ plan }: { plan: Plan }) {
           <span className="evidence__no">1</span>
           <div>
             <h3 className="evidence__title">{t('plan.globalMission')}</h3>
-            <p className="evidence__body">{ev.mission.title}</p>
+            {/* 게이트웨이는 발화가 정한 대상(`@`)을 모른다 — 그릴 때 채운다 (260927). 빈칸 없는 편은 그대로다. */}
+            <p className="evidence__body">{missionTitle(ev.mission.id, ev.mission.title)}</p>
             <p className="evidence__meta">
               <code>{ev.mission.id}</code> {t('plan.dispatchedBy', { by: ev.mission.requested_by, at: timeOf(ev.mission.created_at) })}
             </p>

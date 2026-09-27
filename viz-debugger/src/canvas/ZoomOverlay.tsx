@@ -17,13 +17,15 @@
 
 import { useEffect, type ReactNode } from 'react';
 import { ManualScope, type ManualScopeId } from '../shared/Explain.tsx';
-import type { ViewNodeEntry, ViewScope } from './types.ts';
+import type { ViewNodeEntry, ViewNodeInstance, ViewScope } from './types.ts';
 import { t } from '../i18n/dict.ts';
 import { useLang } from '../shared/language.ts';
 
-export function ZoomOverlay({ entry, scope, taskId, onClose }: {
+export function ZoomOverlay({ entry, scope, taskId, node, onClose }: {
   entry: ViewNodeEntry;
   scope: ViewScope;
+  /** 확대한 노드 한 장 (260927). 노드마다 고름이 다른 렌더러(카메라)가 쓴다. */
+  node?: ViewNodeInstance;
   /** 연결한 태스크. 전역 노드면 null — 머리줄이 범위를 그대로 적는다. */
   taskId: string | null;
   onClose(): void;
@@ -53,7 +55,7 @@ export function ZoomOverlay({ entry, scope, taskId, onClose }: {
       {/* 확대 본문 안의 `<Explain>` 문단들이 **이 노드의 설명서**로 등록된다 (260903 3단계).
           우상단 `?` 가 확대 중에는 그 노드 것을 보인다 — 탭별 설명서가 있던 자리다. */}
       <div className="zoom-modal__body">
-        <ManualScope.Provider value={entry.kind as ManualScopeId}>{entry.zoom(scope)}</ManualScope.Provider>
+        <ManualScope.Provider value={entry.kind as ManualScopeId}>{entry.zoom(scope, node)}</ManualScope.Provider>
       </div>
       <footer>
         <span>{t('zoom.note')}</span>

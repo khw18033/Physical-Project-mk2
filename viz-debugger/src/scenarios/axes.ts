@@ -92,11 +92,13 @@ export function axesOfScript(script: ScriptScenario): ReadonlySet<ScenarioAxis> 
 export type ViewNodeKindId =
   | 'device-risk' | 'control' | 'metrics' | 'video' | 'robot'
   | 'detect-cam' | 'detect-reason' | 'detect-map'
-  | 'autodrive-cam';
+  | 'autodrive-cam'
+  | 'virtual-map' | 'device-cam' | 'obstacle-log';
 
 /** 표에 등장하는 종류들. 등록된 렌더러와 어긋나면 `verify:node-scope` 가 잡는다. */
 export const SCENARIO_NODE_KINDS: readonly ViewNodeKindId[] =
-  ['device-risk', 'control', 'metrics', 'video', 'robot', 'detect-cam', 'detect-reason', 'detect-map', 'autodrive-cam'];
+  ['device-risk', 'control', 'metrics', 'video', 'robot', 'detect-cam', 'detect-reason', 'detect-map', 'autodrive-cam',
+    'virtual-map', 'device-cam', 'obstacle-log'];
 
 // `robot` 은 **축 표(`AXIS_NODES`)에 없다** — 일부러다 (260910).
 //
@@ -107,7 +109,8 @@ export const SCENARIO_NODE_KINDS: readonly ViewNodeKindId[] =
 // 그래서 접힘 판정도 안 받고 팔레트에서 흐려지지도 않는다 — 실행 노드가 표에 없는 것과
 // 같은 이유다. 탐지 셋(`detect-cam` · `detect-reason` · `detect-map`)도 마찬가지로,
 // 대본이 아니라 **탐지 서비스가 미는 값**을 그린다. 자율주행 편의 `autodrive-cam`(260915)도 같다 —
-// AI 서버가 미는 영상이라 축 표에 없다.
+// AI 서버가 미는 영상이라 축 표에 없다. 장치 두 대 편의 셋(260927 — 가상 맵 · 카메라 · 객체 탐지 로그)도
+// 연결 관리가 가리키는 곳(Unity · 영상 소켓 · AI 서버)의 값이라 축 표에 없다.
 
 /**
  * 이 축이 나타나는 뷰 노드. **실행 노드(태스크 그래프)는 이 표에 없다** — 임무 축이라
@@ -128,6 +131,16 @@ export const AXIS_NODES: Record<ScenarioAxis, readonly ViewNodeKindId[]> = {
   risk: ['device-risk'],
   observability: ['metrics'],
 };
+
+/**
+ * **축 판정을 받는 종류** (260927). 축 표에 한 번이라도 나오는 종류만이다.
+ *
+ * 표 밖의 종류(로봇 · 탐지 셋 · 자율주행 영상 · 장치 두 대 편의 셋)는 대본이 아니라 장비·서버가 미는 값을
+ * 그린다 — 위 주석대로 「접힘 판정도 안 받고 팔레트에서 흐려지지도 않는다」. 팔레트가 이것으로 가른다.
+ * 전까지는 시나리오 모드에서 표 밖의 종류까지 「이 대본엔 없음」으로 흐렸다 — 대본 편인 장치 두 대 편에서
+ * 그 편의 노드 셋이 전부 흐려져 드러났다.
+ */
+export const AXIS_JUDGED_KINDS: ReadonlySet<ViewNodeKindId> = new Set(Object.values(AXIS_NODES).flat());
 
 /**
  * 시나리오 모드에서 **접힘 판정을 받는 패널**. 화면과 검사가 같은 목록을 본다.

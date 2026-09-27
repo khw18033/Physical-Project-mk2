@@ -73,8 +73,19 @@ function checkScript(s) {
     }
   }
 
+  // slots (260927) — 장비를 정하지 않는 편의 **자리**. 자리 id 는 레지스트리 id 와 겹치면 안 된다 —
+  // 겹치면 「자리」와 「그 장비」가 같은 글자가 되어 배정 전인지 후인지 화면이 못 가른다.
+  const slotIds = new Set();
+  for (const slot of s.slots ?? []) {
+    if (!slot?.id?.trim() || !slot?.label?.trim()) f.push(`${at}: slots 의 id/label 이 비었다`);
+    if (slotIds.has(slot.id)) f.push(`${at}: slots id 중복 — ${slot.id}`);
+    if (registryIds.has(slot.id)) f.push(`${at}: slots 의 ${slot.id} 가 registry.json 장비 id 와 같다 — 자리는 장비가 아니다`);
+    slotIds.add(slot.id);
+  }
+
   // cast — 탭②~⑤에 그려도 되는 장비. 전부 레지스트리에 실재해야 한다.
-  if (!Array.isArray(s.cast) || s.cast.length === 0) f.push(`${at}: cast가 비었다`);
+  // 자리를 쓰는 편(260927)은 비어도 된다 — 무엇이 올지 대본이 모른다. 그 대신 자리가 있어야 한다.
+  if (!Array.isArray(s.cast) || (s.cast.length === 0 && slotIds.size === 0)) f.push(`${at}: cast가 비었다`);
   const cast = new Set(s.cast ?? []);
   if (cast.size !== (s.cast ?? []).length) f.push(`${at}: cast에 중복이 있다`);
   for (const id of cast) {
@@ -91,6 +102,9 @@ function checkScript(s) {
     for (const t of m.assignedTargets ?? []) {
       if (!cast.has(t)) f.push(`${at}/${m.id}: assignedTargets의 ${t}가 cast에 없다`);
     }
+    for (const slot of m.slots ?? []) {
+      if (!slotIds.has(slot)) f.push(`${at}/${m.id}: 마일스톤 slots 의 ${slot} 가 대본 slots 에 없다`);
+    }
   }
 
   // tasks — 제목의 하드웨어 어휘 · deps DAG · target ∈ cast.
@@ -100,7 +114,12 @@ function checkScript(s) {
     if (taskIds.has(t.id)) f.push(`${at}: 태스크 id 중복 — ${t.id}`);
     taskIds.add(t.id);
     if (!milestoneIds.has(t.milestone)) f.push(`${at}/${t.id}: milestone ${t.milestone}이 없다`);
-    if (t.target !== null && !cast.has(t.target)) f.push(`${at}/${t.id}: target ${t.target}이 cast에 없다`);
+    if (t.target !== null && !cast.has(t.target) && !slotIds.has(t.target)) f.push(`${at}/${t.id}: target ${t.target}이 cast에 없다`);
+    // 자리를 대상으로 삼는 태스크는 그 자리를 쓰는 마일스톤 안에 있어야 한다 — 아니면 카드를 어디에 놓아도 안 풀린다.
+    if (slotIds.has(t.target)) {
+      const owner = (s.milestones ?? []).find((m) => m.id === t.milestone);
+      if (!(owner?.slots ?? []).includes(t.target)) f.push(`${at}/${t.id}: target ${t.target} 자리를 마일스톤 ${t.milestone} 이 안 쓴다`);
+    }
     for (const d of t.deps ?? []) {
       if (d === t.id) f.push(`${at}/${t.id}: 자기 자신에 의존한다`);
     }
@@ -345,6 +364,12 @@ function expectOnly(sentence, wantedId) {
 }
 
 for (const s of scripts) expectOnly(s.utterance.text, s.missionId);
+// 빈칸을 채운 문장도 그 편에만 맞아야 한다 (260927) — 「문 앞까지」가 문 찾기 편과 겹쳐 모호 거부되면 시연이 선다.
+if ('MSN-260927-01' in byId) {
+  expectOnly('장치 두 가지를 문까지 이동시켜', 'MSN-260927-01');
+  expectOnly('장치 두 가지를 문 앞까지 이동시켜', 'MSN-260927-01');
+  expectOnly('두 장치를 소화기까지 보내', 'MSN-260927-01');
+}
 expectOnly(legacy.utterance.text, legacy.missionId);
 expectOnly('안녕하세요', null);
 
@@ -387,6 +412,14 @@ function control(name, failuresOfMutant, marker) {
     if (e.status === 'done' && e.payload && typeof e.payload.hold_sec === 'number') delete e.payload;
   }
   control('평가 근거값 삭제', checkScript(m), '근거값');
+}
+if ('MSN-260927-01' in byId) {
+  const m = structuredClone(byId['MSN-260927-01']);
+  m.tasks[0].target = 'device-9';
+  control('선언 안 된 자리(device-9)를 대상으로', checkScript(m), 'device-9');
+  const n = structuredClone(byId['MSN-260927-01']);
+  n.slots = [];
+  control('자리도 cast 도 없는 편', checkScript(n), 'cast가 비었다');
 }
 {
   const m = structuredClone(byId['MSN-260831-01'] ?? scripts[0]);

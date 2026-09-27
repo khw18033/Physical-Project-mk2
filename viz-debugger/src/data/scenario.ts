@@ -39,7 +39,8 @@
  */
 
 import { t } from '../i18n/dict.ts';
-import { translateEvents, translateView } from '../scenarios/phrases.ts';
+import { scriptPhrase, translateEvents, translateView } from '../scenarios/phrases.ts';
+import { fillPayload, fillText } from '../scenarios/target.ts';
 import { useSyncExternalStore } from 'react';
 import { foldStatuses, type FoldedStatuses } from './fold.ts';
 import { MergeScheduler } from './mergeScheduler.ts';
@@ -54,7 +55,7 @@ import { isReplayingRecord, leaveRecordReplay } from '../record/replayMode.ts';
 import { armNotifications, resetNotifications } from '../shared/notifications.ts';
 import { provenancePayload, type AiProvenance } from '../shared/provenance.ts';
 import rawScenario from '../../scenarios/MSN-260826-01.json' with { type: 'json' };
-import { libraryEntry, opensRobotGate, relayDriven, scriptDriven } from '../scenarios/library.ts';
+import { libraryEntry, localDriven, opensRobotGate, relayDriven, scriptDriven } from '../scenarios/library.ts';
 import { armNavRun, endNavRun } from '../physical/navRun.ts';
 import { resetNavFeed } from '../physical/navFeed.ts';
 import { clearObstacleData } from '../autodrive/obstacle.ts';
@@ -81,6 +82,8 @@ export type MissionMilestone = {
   assignedTargets: string[];
   /** 옛 파일의 정적 status. 태스크가 없는 마일스톤의 마지막 근거다. 대본에는 없다. */
   staticStatus: TaskStatus | null;
+  /** 이 마일스톤이 쓰는 장치 자리 (260927). 없으면 지금까지의 마일스톤별 배정이다. */
+  slots?: string[];
 };
 
 export type MissionView = {
@@ -126,6 +129,18 @@ export type MissionView = {
    * (`src/viewpoint/source.ts`) — 노드 갱신 코드는 대본을 모른다.
    */
   viewpointTimeline: ScriptViewpointFrame[];
+  /**
+   * 장치 자리 (260927 — 장치 두 대 편). 선언한 편만 있다 — 없으면 배정이 지금까지와 같다.
+   * 태스크의 `target` 이 이 id 면 그리는 순간 `data/slots.ts` 의 배정으로 푼다.
+   */
+  slots?: Array<{ id: string; label: string }>;
+  /** 문구의 빈칸 표시 (260927). 대본이 선언했을 때만 있다. */
+  targetToken?: string;
+  /**
+   * **발화가 정한 대상** (260927). 본문에는 빈칸(`@`)을 둔 채로 두고 **그릴 때** 채운다 —
+   * 대본 문구가 영어 사이드카의 키라서, 먼저 채우면 번역을 못 찾는다(`scenarios/target.ts`).
+   */
+  targetWord?: string | null;
 };
 
 /**
@@ -206,6 +221,7 @@ function scriptToView(script: ScriptScenario): MissionView {
       title: m.title,
       assignedTargets: m.assignedTargets,
       staticStatus: null,
+      ...(m.slots === undefined ? {} : { slots: m.slots }),
     })),
     tasks: script.tasks,
     events: script.events,
@@ -216,7 +232,55 @@ function scriptToView(script: ScriptScenario): MissionView {
     refEdges: script.refEdges ?? [],
     viewpoints: script.viewpoints ?? null,
     viewpointTimeline: script.viewpointTimeline ?? [],
+    ...(script.slots === undefined ? {} : { slots: script.slots }),
+    ...(script.target === undefined ? {} : { targetToken: script.target.token, targetWord: null }),
   };
+}
+
+/**
+ * **빈칸을 채운다** (260927). 번역한 **뒤에** 부른다 — 대본 문구가 사이드카의 키이기 때문이다.
+ * 자리 이름(「첫 번째 장치」)도 여기서 번역한다. `translateView` 가 모르는 칸이다.
+ *
+ * 빈칸도 자리도 없는 편은 **입력을 그대로** 돌려준다 — 다른 편의 화면은 한 글자도 안 바뀐다.
+ */
+let filledCache: { src: MissionView; word: string | null; out: MissionView } | null = null;
+
+function filled(view: MissionView, word: string | null): MissionView {
+  if (view.targetToken === undefined && view.slots === undefined) return view;
+  if (filledCache !== null && filledCache.src === view && filledCache.word === word) return filledCache.out;
+  const token = view.targetToken ?? '';
+  const f = (text: string) => (token === '' ? text : fillText(text, token, word));
+  const out: MissionView = {
+    ...view,
+    targetWord: word,
+    label: f(view.label),
+    utteranceText: f(view.utteranceText),
+    milestones: view.milestones.map((m) => ({ ...m, title: f(m.title) })),
+    tasks: view.tasks.map((task) => ({
+      ...task,
+      title: f(task.title),
+      evaluation: task.evaluation ? { ...task.evaluation, criteria: task.evaluation.criteria.map(f) } : task.evaluation,
+    })),
+    events: token === '' ? view.events : view.events.map((e) => ({ ...e, payload: fillPayload(e.payload, token, word) as ScenarioEvent['payload'] })),
+    slots: view.slots?.map((slot) => ({ ...slot, label: scriptPhrase(view.missionId, slot.label) })),
+  };
+  filledCache = { src: view, word, out };
+  return out;
+}
+
+/** 기록 열의 빈칸. 열은 덧붙일 때만 신원이 바뀌므로 같은 열이면 같은 결과를 돌려준다. */
+let traceCache: { src: readonly ScenarioEvent[]; word: string | null; out: readonly ScenarioEvent[] } | null = null;
+
+function filledTrace(view: MissionView, trace: readonly ScenarioEvent[], word: string | null): readonly ScenarioEvent[] {
+  const token = view.targetToken;
+  if (token === undefined || word === null) return trace;
+  if (traceCache !== null && traceCache.src === trace && traceCache.word === word) return traceCache.out;
+  const out = trace.map((e) => {
+    const payload = fillPayload(e.payload, token, word);
+    return payload === e.payload ? e : { ...e, payload: payload as ScenarioEvent['payload'] };
+  });
+  traceCache = { src: trace, word, out };
+  return out;
 }
 
 /** 라이브러리의 임무를 화면 형태로. 모르는 id 면 null — 지어내지 않는다. */
@@ -240,6 +304,11 @@ export type ScriptProposal = {
   keywords: string[];
   planId: string | null;
   world: 'registry' | 'legacy';
+  /**
+   * 발화에서 잘라 온 대상 (260927). 대본에 빈칸이 없거나 못 잘랐으면 없다.
+   * 게이트웨이의 plan 은 이것을 모른다 — 같은 제안이 다시 오면 앞의 값을 이어받는다(`proposeMission`).
+   */
+  target?: string | null;
 };
 
 /**
@@ -361,6 +430,11 @@ function subscribe(listener: () => void): () => void {
   return () => listeners.delete(listener);
 }
 
+/** 저장소 구독 — 화면 밖 배선(`physical/slotMove.ts`)이 판의 진행을 지켜본다 (260927). */
+export function subscribeMission(listener: () => void): () => void {
+  return subscribe(listener);
+}
+
 export function getMissionState(): MissionState {
   return state;
 }
@@ -404,6 +478,23 @@ export function missionLabel(view: MissionView): string {
   return view.labelKey === undefined ? view.label : t(view.labelKey);
 }
 
+/**
+ * **임무 이름 한 줄을 화면에 그릴 모양으로** (260927). 번역한 뒤 빈칸(`@`)을 채운다.
+ *
+ * 머리줄 · 대본 띠 · 승인 카드는 `displayMission()` 을 안 지나고 이름만 따로 받아 그린다 — 거기서도
+ * 「장치 두 대를 @까지 이동」이 아니라 「장치 두 대를 문까지 이동」이어야 한다. 채울 낱말은 지금 임무가
+ * 들고 있거나(승인 뒤), 제안이 들고 있다(승인 전). 빈칸이 없는 편은 번역만 한다 — 전과 같다.
+ */
+export function missionTitle(missionId: string, korean: string): string {
+  const translated = scriptPhrase(missionId, korean);
+  const token = libraryEntry(missionId)?.script?.target?.token;
+  if (token === undefined) return translated;
+  const word = state.current.missionId === missionId
+    ? state.current.targetWord ?? null
+    : state.proposal?.origin === 'script' && state.proposal.missionId === missionId ? state.proposal.target ?? null : null;
+  return fillText(translated, token, word);
+}
+
 function named(view: MissionView): MissionView {
   if (view.labelKey === undefined) return view;
   return { ...view, label: missionLabel(view) };
@@ -434,14 +525,18 @@ export function displayMission(): {
     const view = state.proposal.origin === 'script'
       ? viewForMission(state.proposal.missionId)
       : state.proposal.view;
+    const word = state.proposal.origin === 'script' ? state.proposal.target ?? null : null;
     // 제안은 아직 승인 전이라 흘러온 것이 없다 — 열이 비어 있는 것이 곧 그 사실이다.
-    if (view !== null) return { view: named(translateView(view)), phase: 'proposal', headSec: 0, trace: translateEvents(view.missionId, traceFor(view)) };
+    if (view !== null) {
+      return { view: filled(named(translateView(view)), word), phase: 'proposal', headSec: 0, trace: filledTrace(view, translateEvents(view.missionId, traceFor(view)), word) };
+    }
   }
+  const word = state.current.targetWord ?? null;
   return {
-    view: named(translateView(state.current)),
+    view: filled(named(translateView(state.current)), word),
     phase: state.playing ? 'playing' : 'idle',
     headSec: state.headSec,
-    trace: translateEvents(state.current.missionId, traceFor(state.current)),
+    trace: filledTrace(state.current, translateEvents(state.current.missionId, traceFor(state.current)), word),
   };
 }
 
@@ -450,9 +545,15 @@ export function displayMission(): {
 /** 발화 매칭 결과를 제안으로 올린다. 게이트웨이(plan 수신)와 단독 빌드(로컬 매칭)가 부른다. */
 export function proposeMission(proposal: ScriptProposal): void {
   if (viewForMission(proposal.missionId) === null) return;
+  const previous = state.proposal?.origin === 'script' && state.proposal.missionId === proposal.missionId ? state.proposal : null;
   // 같은 제안의 중복(로컬 매칭 직후 게이트웨이 plan 도착)은 planId 만 갱신한다.
-  if (state.proposal?.origin === 'script' && state.proposal.missionId === proposal.missionId && proposal.planId === null) return;
-  commitNow({ proposal });
+  // 발화가 정한 대상은 같이 갱신한다 — 같은 편을 「문까지」에서 「의자까지」로 다시 말하면 대상만 바뀐다 (260927).
+  if (previous !== null && proposal.planId === null) {
+    if ((proposal.target ?? null) !== (previous.target ?? null)) commitNow({ proposal: { ...previous, target: proposal.target ?? null } });
+    return;
+  }
+  // **게이트웨이의 plan 은 대상을 모른다** (260927). 같은 편이면 앞선 로컬 제안의 대상을 이어받는다.
+  commitNow({ proposal: proposal.target === undefined && previous !== null ? { ...proposal, target: previous.target ?? null } : proposal });
 }
 
 /**
@@ -506,9 +607,16 @@ export function rejectProposal(): void {
  * **어느 쪽이든 기록은 같은 입구로 들어간다** (`appendTrace`). 입구가 둘이면 단독 빌드와
  * 통합 빌드의 되감기가 달라지고, 그게 곧 논문 측정축 D의 오염이다.
  */
-export function activateMission(missionId: string, mode: 'remote' | 'local'): void {
-  const view = viewForMission(missionId);
-  if (view === null) return;
+export function activateMission(missionId: string, mode: 'remote' | 'local', target?: string | null): void {
+  const found = viewForMission(missionId);
+  if (found === null) return;
+  /**
+   * 발화가 정한 대상 (260927). 부르는 쪽이 안 주면 **지금 제안**에서 가져온다 — 게이트웨이의 승인
+   * (`shell/missionBridge.ts`)은 plan 채널로 들어와 대상을 모른다. 제안이 사라지기 전(아래 commit)에 읽는다.
+   */
+  const pending = state.proposal?.origin === 'script' && state.proposal.missionId === missionId ? state.proposal.target ?? null : null;
+  const word = target === undefined ? pending : target;
+  const view = found.targetToken === undefined ? found : { ...found, targetWord: word };
   beforeNewRun();
   stopLocalTimer();
   resetTrace(view.missionId);
@@ -536,25 +644,223 @@ export function activateMission(missionId: string, mode: 'remote' | 'local'): vo
     return;
   }
 
+  // **화면이 모는 편도 판을 걸어만 둔다** (260927 · 장치 두 대). 중계 편과 같은 순서다 — 승인하자마자
+  // 노드에 불이 켜지면 계획을 설명할 틈이 없다. 「▶ 임무 시작」이 `startLocalRun()` 으로 연다.
+  if (localDriven(view.missionId)) {
+    commitNow({ playing: false });
+    setLocalRun('armed');
+    return;
+  }
+
   // **로봇이 몰면 타이머를 안 세운다** (260910 지적). 대본 시각이 저 혼자 흐르면 로봇이
   // 아직 첫 걸음도 안 뗐는데 화면은 끝나 있다. 대본이 모는 편(`driver: 'script'` · 260915)은
   // 브로커가 붙어 있어도 로봇이 그 편을 몰지 않으므로 그대로 세운다.
-  if (mode === 'local' && (!robotDrives() || scriptDriven(missionId))) {
-    const stepMs = 200;
-    localTimer = setInterval(() => {
-      const nextHead = state.headSec + (stepMs / 1000) * LOCAL_SPEED;
-      if (nextHead >= state.current.durationSec) {
-        stopLocalTimer();
-        // 남은 사건을 마저 흘려보낸 **뒤에** 머리를 끝에 세운다 — 순서가 바뀌면
-        // 마지막 한 틱 동안 화면이 「끝났는데 아직 안 온」 상태를 그린다.
-        feedLocalTrace(state.current.durationSec);
-        commitNow({ headSec: state.current.durationSec, playing: false });
-        return;
-      }
-      feedLocalTrace(nextHead);
-      commit({ headSec: nextHead });
-    }, stepMs);
+  if (mode === 'local' && (!robotDrives() || scriptDriven(missionId))) runLocalTimer(LOCAL_SPEED);
+}
+
+/**
+ * 진행기 한 벌. `speed` 배속으로 머리를 밀며 대본을 기록 열로 흘려보낸다. 끝에 닿으면 선다.
+ * 대본 편(재생 배속 20)과 화면이 모는 편(1배속)이 같은 걸음을 쓴다 — 기록 열로 들어가는 입구가 하나다.
+ */
+function runLocalTimer(speed: number): void {
+  stopLocalTimer();
+  const stepMs = 200;
+  localTimer = setInterval(() => {
+    // 실제 장치가 맡은 태스크를 기다리는 사건 앞에서는 선다 (260927) — 로봇이 아직 걷는데 「임무 완료」가 칠해지면 안 된다.
+    const nextHead = Math.max(state.headSec, Math.min(state.headSec + (stepMs / 1000) * speed, liveHoldAt()));
+    if (nextHead >= state.current.durationSec) {
+      stopLocalTimer();
+      // 남은 사건을 마저 흘려보낸 **뒤에** 머리를 끝에 세운다 — 순서가 바뀌면
+      // 마지막 한 틱 동안 화면이 「끝났는데 아직 안 온」 상태를 그린다.
+      feedLocalTrace(state.current.durationSec);
+      commitNow({ headSec: state.current.durationSec, playing: false });
+      if (localRun !== null) setLocalRun('done');
+      return;
+    }
+    feedLocalTrace(nextHead);
+    commit({ headSec: nextHead });
+  }, stepMs);
+}
+
+// ── 실제 장치가 맡은 태스크 (260927 — 장치 두 대 편 · Go1 실동작) ─────────────────
+
+/**
+ * **판 안에서 실제 장치가 맡은 태스크.** 이 편에서 자리에 앉은 장비가 실제로 걸을 수 있으면, 그 장비의
+ * 「이동 시작」「이동 완료 확인」은 대본이 아니라 **로봇의 응답**이 칠한다. 드론처럼 아직 못 걷는 장비의
+ * 태스크는 그대로 대본이 칠한다 — 한 판 안에 두 진행이 섞이되, 노드마다 누가 칠하는지는 하나다.
+ *
+ * 무엇을 맡길지는 이 파일이 모른다 — 장비를 아는 면은 `src/physical/` 하나다(`verify:physical-port`).
+ * 그쪽이 훅을 걸어 두고(`registerLiveMoveHooks`), 판이 열릴 때 이 파일이 묻는다.
+ */
+export type LiveMoveHooks = {
+  /** 판이 열린다 — 맡을 태스크 id 들을 돌려준다. 없으면 빈 목록(전부 대본이 칠한다). */
+  claim(view: MissionView): readonly string[];
+  /** 사람이 멈췄다 — 걷고 있는 장비에 정지를 보낸다. */
+  halt(kind: 'pause' | 'stop'): void;
+  /** 사람이 이어 가라고 했다 — 장비 쪽 잠금을 푼다. */
+  resume(): void;
+};
+
+let liveHooks: LiveMoveHooks | null = null;
+let liveClaims: ReadonlySet<string> = new Set();
+/** 로봇이 민 사건의 `seq` 대역. 로봇 응답(3,000,000)과 같은 주체이되 칸을 가른다 — 둘이 한 편에 같이 뜨지 않는다. */
+const LIVE_MOVE_SEQ_BASE = 3_500_000;
+let liveMoveCount = 0;
+
+export function registerLiveMoveHooks(hooks: LiveMoveHooks | null): void {
+  liveHooks = hooks;
+}
+
+export function liveClaimedTasks(): ReadonlySet<string> {
+  return liveClaims;
+}
+
+/**
+ * **로봇이 한 일을 기록 열에 넣는다.** 맡은 태스크에만 — 맡지 않은 노드를 여기서 칠하면 대본과 로봇이 한 노드를
+ * 같이 칠하게 된다. 시각은 **판의 머리**다(대본과 같은 축).
+ */
+export function appendLiveEvent(
+  missionId: string,
+  taskId: string,
+  status: TaskStatus,
+  kind: string,
+  payload?: Record<string, unknown>,
+): boolean {
+  if (missionId !== state.current.missionId || !liveClaims.has(taskId) || isReplayingRecord()) return false;
+  const appended = appendTrace(missionId, {
+    seq: LIVE_MOVE_SEQ_BASE + liveMoveCount,
+    atSec: state.headSec,
+    nodeId: taskId,
+    status,
+    kind,
+    producedBy: 'robot',
+    ...(payload === undefined ? {} : { payload }),
+  });
+  if (appended) liveMoveCount += 1;
+  commitNow({});
+  return appended;
+}
+
+/** 로봇이 맡은 이동이 끝나지 못했다 — 판을 세운다. 사람이 누른 정지가 아니므로 사람 조작으로 안 적는다. */
+export function haltLocalRunOnFailure(): void {
+  if (localRun !== 'running') return;
+  stopLocalTimer();
+  setLocalRun('stopped');
+  commitNow({ playing: false });
+}
+
+/**
+ * 머리가 넘으면 안 되는 시각. 다음에 흘릴 사건이 **아직 안 끝난 맡은 태스크**를 기다리면 그 사건 바로 앞이다.
+ * 맡은 것이 없으면 끝이 없다(∞) — 다른 편은 전과 한 틱도 다르지 않다.
+ */
+function liveHoldAt(): number {
+  if (liveClaims.size === 0) return Infinity;
+  const events = state.current.events;
+  const done = new Set(traceFor(state.current).filter((e) => e.status === 'done').map((e) => e.nodeId));
+  // **남은 사건 전부를 본다** — 바로 다음 하나만 보면, 그 사이 사건들이 한 틱에 같이 흘러갈 때 기다려야 할
+  // 사건까지 넘어간다(배속이 크면 실제로 그랬다 — 로봇이 도착하기 전에 「임무 완료」가 칠해졌다).
+  for (let index = localCursor; index < events.length; index += 1) {
+    const event = events[index];
+    if (liveClaims.has(event.nodeId) || event.status === 'pending') continue;
+    const task = state.current.tasks.find((item) => item.id === event.nodeId);
+    if (task?.deps.some((dep) => liveClaims.has(dep) && !done.has(dep)) ?? false) return event.atSec - 0.01;
   }
+  return Infinity;
+}
+
+// ── 화면이 모는 편의 판 (260927 — `driver: 'local'`) ───────────────────────────
+
+/**
+ * 판의 자리. 머리줄의 시작·일시정지·정지 버튼이 이것을 보고 무엇을 할지 정한다.
+ *
+ *   armed    승인됐고 「▶ 임무 시작」을 기다린다
+ *   running  진행기가 민다
+ *   paused   멈췄다 — 「재시작」이 그 자리에서 잇는다
+ *   stopped  정지했다 — 「재시작」이 그 자리에서 잇는다(되돌리려면 「처음부터」)
+ *   done     끝까지 갔다 — 「재시작」이 처음부터 다시 연다
+ */
+export type LocalRunPhase = 'armed' | 'running' | 'paused' | 'stopped' | 'done';
+
+let localRun: LocalRunPhase | null = null;
+const localRunListeners = new Set<() => void>();
+
+function setLocalRun(next: LocalRunPhase | null): void {
+  if (localRun === next) return;
+  localRun = next;
+  for (const listener of localRunListeners) listener();
+}
+
+export function localRunPhase(): LocalRunPhase | null {
+  return localRun;
+}
+
+export function useLocalRun(): LocalRunPhase | null {
+  return useSyncExternalStore(
+    (listener) => { localRunListeners.add(listener); return () => { localRunListeners.delete(listener); }; },
+    localRunPhase,
+    localRunPhase,
+  );
+}
+
+/** 이 편의 배속. 대본의 `params.play_speed` — 없으면 1(제 시각)이다. */
+function localSpeed(): number {
+  const value = Number(state.current.params.play_speed ?? 1);
+  return Number.isFinite(value) && value > 0 ? value : 1;
+}
+
+/**
+ * **「▶ 임무 시작」** — 걸어 둔 판을 연다. 걸린 판이 없으면 아무것도 안 한다(승인을 우회하지 않는다).
+ * 끝난 판이면 처음부터 다시 연다.
+ */
+export function startLocalRun(): boolean {
+  if (!localDriven(state.current.missionId)) return false;
+  if (localRun === 'done') {
+    const missionId = state.current.missionId;
+    activateMission(missionId, 'remote', state.current.targetWord ?? null);
+    recordHuman('mission_restarted', missionId, { from: 'button' });
+  }
+  if (localRun !== 'armed') return false;
+  // 어느 태스크를 실제 장치가 맡는지 **판이 열리는 순간** 정한다 — 카드 배정과 연결이 그때 확정이다.
+  liveClaims = new Set(liveHooks?.claim(state.current) ?? []);
+  liveMoveCount = 0;
+  setLocalRun('running');
+  recordHuman('mission_started', state.current.missionId, { from: 'button', live_tasks: [...liveClaims].join(',') });
+  commitNow({ playing: true });
+  runLocalTimer(localSpeed());
+  return true;
+}
+
+/** 일시정지 — 머리를 그 자리에 세운다. */
+export function pauseLocalRun(): boolean {
+  if (localRun !== 'running') return false;
+  stopLocalTimer();
+  liveHooks?.halt('pause');
+  setLocalRun('paused');
+  recordHuman('mission_paused', state.current.missionId, { at_sec: Math.round(state.headSec) });
+  commitNow({ playing: false });
+  return true;
+}
+
+/** 정지 — 일시정지와 같이 머리를 세우되, 사람이 「멈춰라」라고 한 것으로 남긴다. */
+export function stopLocalRun(): boolean {
+  if (localRun !== 'running' && localRun !== 'paused') return false;
+  stopLocalTimer();
+  liveHooks?.halt('stop');
+  setLocalRun('stopped');
+  recordHuman('mission_stopped', state.current.missionId, { at_sec: Math.round(state.headSec) });
+  commitNow({ playing: false });
+  return true;
+}
+
+/** 재시작 — 멈춘 자리에서 잇는다. */
+export function resumeLocalRun(): boolean {
+  if (localRun !== 'paused' && localRun !== 'stopped') return false;
+  liveHooks?.resume();
+  setLocalRun('running');
+  recordHuman('mission_resumed', state.current.missionId, { at_sec: Math.round(state.headSec) });
+  commitNow({ playing: true });
+  runLocalTimer(localSpeed());
+  return true;
 }
 
 /**
@@ -576,7 +882,7 @@ export function acceptProposal(mode: 'remote' | 'local' = 'local'): boolean {
   const proposal = state.proposal;
   if (proposal === null) return false;
   if (proposal.origin === 'script') {
-    activateMission(proposal.missionId, mode);
+    activateMission(proposal.missionId, mode, proposal.target ?? null);
     const accepted = state.activatedBy === 'approval' && state.current.missionId === proposal.missionId;
     // **승인이 로봇 관문을 연다** (260910 · `VZ-U-07`). 이 줄 앞에서는 MQTT 로 나가는
     // 바이트가 없다 — `verify:no-publish-before-approval` 이 그것을 센다.
@@ -650,7 +956,10 @@ function activateGenerated(proposal: AiProposal | StepProposal): boolean {
 function feedLocalTrace(headSec: number): void {
   const events = state.current.events;
   while (localCursor < events.length && events[localCursor].atSec <= headSec) {
-    appendTrace(state.current.missionId, events[localCursor]);
+    // **실제 장치가 맡은 태스크의 대본 사건은 안 흘린다** (260927). 그 노드는 로봇의 응답이 칠한다
+    // (`appendLiveEvent`) — 둘 다 흘리면 로봇이 아직 걷는데 대본이 「도착」을 칠한다. 생성 사건(pending)은 둔다.
+    const event = events[localCursor];
+    if (!liveClaims.has(event.nodeId) || event.status === 'pending') appendTrace(state.current.missionId, event);
     localCursor += 1;
   }
 
@@ -727,6 +1036,10 @@ function stopLocalTimer(): void {
  */
 function beforeNewRun(): void {
   sealRun();
+  // 맡긴 태스크도 판과 함께 푼다 (260927). 다음 판이 열릴 때 다시 정한다.
+  liveClaims = new Set();
+  // 화면이 모는 판도 닫는다 — 다음 판이 그 편이면 activateMission 이 다시 건다 (260927).
+  setLocalRun(null);
   // 중계 판도 닫는다 — 다음 판이 중계 편이면 activateMission 이 다시 연다.
   endNavRun();
   if (!isReplayingRecord()) return;
@@ -1004,6 +1317,7 @@ export function loadRecordedMission(
   resetViewpoint(view.missionId);
   for (const entry of frames) appendViewpoint(view.missionId, entry.atSec, entry.frame);
   const reach = Math.max(headSec, ...trace.map((event) => event.atSec), ...frames.map((entry) => entry.atSec));
+  setLocalRun(null);
   commitNow({
     current: { ...view, durationSec: Math.max(view.durationSec, Math.ceil(reach)) },
     proposal: null,

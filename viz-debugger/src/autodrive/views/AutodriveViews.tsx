@@ -162,3 +162,32 @@ export function ObstacleEvidence() {
     </ul>}
   </>;
 }
+
+/**
+ * **객체 탐지 로그의 접힘 카드** (260927 — 장치 두 대 편).
+ *
+ * 확대는 「장애물 탐지」 액션 아이템과 **같은 것**(`ObstacleFacts`)을 그대로 쓴다 — 자율주행 편에서 쓰던
+ * 것을 그대로 쓰라는 지시다. 카드에는 확대하지 않고도 이상함을 알아챌 값만 둔다: 판정 한 줄과 마지막 줄 셋.
+ * 여는 동안 폴링을 붙잡는 것도 같다 — 판이 안 열려 있어도(대본 편) 지금 값이 보인다.
+ */
+export function ObstacleLogCard() {
+  useLang();
+  useEffect(() => holdObstaclePolling(), []);
+  const obstacle = useObstacle();
+  const snap = obstacle.latest;
+  const replaying = useReplayTarget() !== null;
+  const recent = obstacle.log.slice(-3);
+  return <div className="obstacle-facts obstacle-facts--card">
+    {snap === null
+      ? <p className="vn-line vn-dim">{obstacle.error === null ? t('adv.7') : t('adv.notReceiving', { reason: obstacle.error })}</p>
+      : <p className="vn-line"><Rich id="adv.snapLine" vars={{ n: snap.detections.length, near: String(snap.hasNearObstacle), change: String(snap.stateChange) }} />
+          <small> · {clock(snap.receivedAtMs)}{obstacleFrozen(obstacle) && !replaying ? t('adv.frozen5s') : ''}</small></p>}
+    {recent.length === 0
+      ? <p className="vn-line vn-dim">{t('adv.13')}</p>
+      : <ol className="robot-log__lines">
+          {recent.map((line, index) => <li key={`${line.atMs}-${index}`} className={line.level === 'warn' ? 'is-result' : 'is-status'}>
+            <time>{clock(line.atMs)}</time><span>{obstacleLineText(line)}</span>
+          </li>)}
+        </ol>}
+  </div>;
+}

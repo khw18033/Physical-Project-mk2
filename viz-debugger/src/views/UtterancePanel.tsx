@@ -39,6 +39,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { proposeGenerated, proposeMission, scenario as legacyScenario, type MissionView } from '../data/scenario.ts';
 import { SCRIPT_LIBRARY } from '../scenarios/library.ts';
 import { matchLibrary, type MatchOutcome } from '../scenarios/matcher.ts';
+import { extractTarget } from '../scenarios/target.ts';
 import { issueCommand } from '../shared/commandEgress.ts';
 import { CommandAuditError } from '../shared/voiceAudit.ts';
 import type { AiProvenance } from '../shared/provenance.ts';
@@ -67,7 +68,7 @@ import { parseStepScript, stepMissionView } from '../physical/stepScript.ts';
 import { proposeSteps } from '../data/scenario.ts';
 import { t } from '../i18n/dict.ts';
 import { Rich } from '../i18n/RichText.tsx';
-import { useLang } from '../shared/language.ts';
+import { getLang, useLang } from '../shared/language.ts';
 
 const LEVEL_BARS = 22;
 /** 레벨 갱신 주기. 60fps로 setState 하면 이 작은 패널이 렌더 예산을 먹는다. */
@@ -228,6 +229,8 @@ function matchScript(text: string): MatchOutcome {
       keywords: outcome.keywords,
       planId: null,
       world: outcome.entry.world,
+      // 대본에 빈칸(`@`)이 있으면 **이 문장에서** 채울 낱말을 잘라 온다 (260927). 못 자르면 빈칸 그대로다.
+      ...(outcome.entry.script?.target === undefined ? {} : { target: extractTarget(text, outcome.entry.script.target, getLang()) }),
     });
   }
   return outcome;

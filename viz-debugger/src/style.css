@@ -705,6 +705,32 @@ button.robot-stop:hover{background:#b8271f}
 .detect-map__rows>div{display:flex;gap:10px;font-size:12px}
 .detect-map__rows dt{min-width:76px;color:#6b7888}
 .detect-map__rows dd{margin:0;color:#26303c;font-weight:600}
+/* 260927 — 장치 두 대 편 · 가상 맵 · 카메라 */
+.vmap{display:grid;gap:5px}
+.vmap__svg{width:100%;height:auto;display:block;background:#f7f9fc;border-radius:5px}
+.vmap--zoom .vmap__svg{max-height:min(62vh,640px)}
+.vmap__room{fill:#fff;stroke:#51606f;stroke-width:.08}
+.vmap__grid{stroke:#e3e8ef;stroke-width:.03}
+.vmap__door{stroke:#1f8a4d;stroke-width:.22;stroke-linecap:round}
+.vmap__path{fill:none;stroke-width:.1;stroke-dasharray:.28 .18;stroke-linejoin:round;opacity:.85}
+.vmap__target circle{fill:#d83b3b;stroke:#fff;stroke-width:.08}
+.vmap__device circle{stroke:#fff;stroke-width:.08}
+.vmap__device--moving circle{stroke:#26303c}
+.vmap__mark{font-size:.34px;font-weight:700;fill:#fff}
+.vmap__label{font-size:.38px;fill:#26303c}
+.vmap__legend{margin:0;padding:0;list-style:none;display:grid;gap:2px;font-size:11px;color:#26303c}
+.vmap__legend i{display:inline-block;width:14px;height:14px;margin-right:5px;border-radius:50%;color:#fff;font-style:normal;font-size:10px;font-weight:700;text-align:center;line-height:14px}
+.vmap__unity{width:100%;aspect-ratio:16/10;border:0;border-radius:5px;background:#11161d;display:block}
+.vmap--zoom .vmap__unity{height:min(62vh,640px);aspect-ratio:auto}
+.vmap__fallback summary{cursor:pointer;font-size:12px}
+.device-cam{display:grid;gap:4px}
+.device-cam__pick{display:flex;flex-wrap:wrap;gap:10px;align-items:center;font-size:12px}
+.device-cam__pick label{display:flex;gap:5px;align-items:center}
+.device-cam__stage{display:grid;gap:3px}
+.device-cam__canvas{width:100%;height:auto;display:block;border-radius:5px;background:#11161d;min-height:40px}
+.device-cam--zoom .device-cam__canvas{max-height:min(60vh,620px);object-fit:contain}
+.device-cam__meta{margin:0;font-size:11px;color:#4a5666}
+.obstacle-facts--card .robot-log__lines{margin:2px 0 0}
 .detect-steps{margin:6px 0 0;padding-left:18px;display:grid;gap:5px}
 .detect-steps code{display:block;font-size:11px;color:#39434f}
 .detect-steps small{color:#6b7888;font-size:11px}

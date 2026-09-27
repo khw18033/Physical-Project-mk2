@@ -283,6 +283,11 @@ export async function issueApproach(
 export async function issueSteps(
   client: PhysicalClient | null,
   steps: readonly TaskCommand[],
+  /**
+   * 한 걸음이 나갈 때마다 (260927 — 장치 두 대 편). 첫 걸음이 나간 순간이 「이동 시작」이다.
+   * 없으면 전과 같다 — 발행 순서·관문·기다림은 한 줄도 안 바뀐다.
+   */
+  onIssued?: (order: number, outcome: IssueOutcome) => void,
 ): Promise<IssueOutcome> {
   if (client === null) return { sent: false, commandId: '', requestId: null, reason: t('robot.noBrokerPath') };
   if (steps.length === 0) return { sent: false, commandId: '', requestId: null, reason: t('robot.noCommandPath') };
@@ -295,6 +300,7 @@ export async function issueSteps(
       last = await issueThroughTracker(client, step.taskId, step.action, step.parameters);
       // 회전이 안 나갔으면 직진을 내면 안 된다 — 안 돌고 가면 엉뚱한 데로 간다.
       if (last.sent !== true) return last;
+      onIssued?.(order, last);
       if (order === steps.length - 1) break;
 
       /**
@@ -332,6 +338,34 @@ export async function issueSteps(
     // 정량 명령은 그 관문과 무관하다 — 부르는 쪽이 자기 관문을 닫는다.
     return last ?? { sent: false, commandId: '', requestId: null, reason: t('robot.noCommandPath') };
   }
+}
+
+/**
+ * **걸음 목록을 내고, 마지막 걸음이 끝날 때까지 기다린다** (260927 — 장치 두 대 편 · Go1 실동작).
+ *
+ * `issueSteps` 는 마지막 걸음을 **낸 순간** 돌아온다 — 「도착했다」는 그 뒤 로봇의 종료 응답이 말한다.
+ * 이동 완료 확인 노드가 그 응답을 근거로 칠해져야 하므로, 마지막 것도 앞 걸음들과 같은 규칙으로 기다린다.
+ * 사이 걸음과 똑같이 판정한다 — 성공만 성공이고, 시한 안에 안 오면 실패다.
+ */
+export async function issueStepsToEnd(
+  client: PhysicalClient | null,
+  steps: readonly TaskCommand[],
+  onIssued?: (order: number, outcome: IssueOutcome) => void,
+): Promise<IssueOutcome> {
+  const last = await issueSteps(client, steps, onIssued);
+  if (last.sent !== true || client === null) return last;
+  const action = steps[steps.length - 1]?.action ?? '';
+  const settled = await terminalAnswer(client, last.commandId, STEP_TIMEOUT_MS);
+  if (settled === null) {
+    return { ...last, sent: false, reason: t('robot.stepTimeout', { action, sec: STEP_TIMEOUT_MS / 1000 }) };
+  }
+  if (settled.kind === 'result' && settled.status !== 'SUCCEEDED') {
+    return { ...last, sent: false, reason: t('robot.stepEnded', { action, status: settled.status, detail: [settled.code, settled.message].filter((v) => v).join(' ') || t('robot.noReason') }) };
+  }
+  if (settled.kind === 'acceptance' && !settled.accepted) {
+    return { ...last, sent: false, reason: t('robot.stepRejected', { action, detail: [settled.code, settled.message].filter((v) => v).join(' ') || t('robot.noReason') }) };
+  }
+  return last;
 }
 
 /**

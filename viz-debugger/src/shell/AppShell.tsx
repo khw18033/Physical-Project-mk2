@@ -1,8 +1,8 @@
-import { scriptPhrase, translateEvents, translateView } from '../scenarios/phrases.ts';
+import { translateEvents, translateView } from '../scenarios/phrases.ts';
 import { useState, type ReactNode } from 'react';
 import { viewNodeLabel } from '../canvas/registry.ts';
 import { useZoomTarget } from '../canvas/zoomState.ts';
-import { traceFor, missionLabel, useMission } from '../data/scenario.ts';
+import { traceFor, missionLabel, missionTitle, useMission } from '../data/scenario.ts';
 import { libraryEntry } from '../scenarios/library.ts';
 import { nowPlaying } from '../scenarios/nowPlaying.ts';
 import { issueCommand } from '../shared/commandEgress.ts';
@@ -109,7 +109,7 @@ export function AppShell({ debuggerView, onDebuggerHome, onMissionHistory, onOpe
     {mock && <div className="mock-banner" role="status">{mockParts[0]}<b>{t('banner.mock.strong')}</b>{mockParts[1]}</div>}
     {scenario !== null && <div className="scenario-banner" role="status">
       <span className="scenario-banner__head">
-        {t('banner.script')} <b>{scenario.missionId}</b> 「{scriptPhrase(scenario.missionId, scenario.title)}」 · <b>{t('banner.synthetic')}</b> · {scenarioState}
+        {t('banner.script')} <b>{scenario.missionId}</b> 「{missionTitle(scenario.missionId, scenario.title)}」 · <b>{t('banner.synthetic')}</b> · {scenarioState}
         {scenario.playing && !scenarioEnded && <> T+{Math.round(mission.headSec)}s</>}
         {' '}{t('banner.castNote')}
       </span>
@@ -125,7 +125,7 @@ export function AppShell({ debuggerView, onDebuggerHome, onMissionHistory, onOpe
       {legacyParts[0]}<b>{mission.current.missionId}</b>{legacyParts[1]}
     </div>}
     <header className="global-bar">
-      <button className="mission-identity" onClick={onDebuggerHome}><b>{mission.current.missionId}</b><span>{scriptPhrase(mission.current.missionId, missionLabel(mission.current))}</span><small>{t('bar.subtitle')}</small></button>
+      <button className="mission-identity" onClick={onDebuggerHome}><b>{mission.current.missionId}</b><span>{missionTitle(mission.current.missionId, missionLabel(mission.current))}</span><small>{t('bar.subtitle')}</small></button>
       {/* 안내 문단 2줄은 우상단 `?` 오버레이로 옮겼다 (사이트 개선 요구 1). */}
       <nav>
         <ModeSwitch />

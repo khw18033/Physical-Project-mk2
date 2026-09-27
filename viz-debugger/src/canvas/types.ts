@@ -72,7 +72,7 @@ export type ViewNodeEntry = {
    * 접는 기준은 **"확대하지 않고도 이상함을 알아챌 수 있는 값"** 이다(지시서 §5).
    * 카드가 예쁜 요약이 아니라 **눈에 걸리는 값**을 담아야 확대가 선택이 된다.
    */
-  summary(scope: ViewScope): ReactNode;
+  summary(scope: ViewScope, node?: ViewNodeInstance): ReactNode;
   /**
    * 확대 오버레이의 본문 (`VZ-N-05` 뒷문장 — **확대는 캔버스를 교체하지 않는다**).
    *
@@ -80,7 +80,12 @@ export type ViewNodeEntry = {
    * `VideoOverlayView`)이다. **그래도 탭이 아니다** — 캔버스가 뒤에 남아 있고, 닫으면
    * 정확히 같은 자리이며, 한 번에 하나만 열린다(지시서 §6 · `verify:no-tabs`).
    */
-  zoom(scope: ViewScope): ReactNode;
+  /**
+   * `node` 는 **이 노드 한 장** (260927 — 카메라 노드). 같은 종류를 두 장 놓고 각자 다른 것을 고르는
+   * 노드가 생겼다(「첫 번째 장치 카메라」·「두 번째 장치 카메라」). 범위(`scope`)는 태스크가 정하지만
+   * 그 고름은 노드의 것이라, 노드 id 로 찾아 쓴다. 안 쓰는 렌더러는 받지 않아도 된다.
+   */
+  zoom(scope: ViewScope, node?: ViewNodeInstance): ReactNode;
   /**
    * **팔레트에 버튼을 두는가** (260914). 없으면 둔다.
    *

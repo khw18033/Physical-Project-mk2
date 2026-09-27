@@ -323,3 +323,44 @@ export function stepCommandsOf(params: Record<string, unknown> | null | undefine
   const raw = params?.step_commands;
   return Array.isArray(raw) ? (raw as TaskCommand[]) : [];
 }
+
+/**
+ * **가상 맵의 경로를 걸음으로 푼다** (260927 — 장치 두 대 편 · Go1 실동작).
+ *
+ * 경로는 꼭짓점 목록이고(site-global · m), 로봇이 받는 말은 「돌아라 · 가라」뿐이다. 그래서 구간마다
+ * **먼저 그 방향으로 돌고, 그다음 그 길이만큼 간다.** 돌기 전에 가면 엉뚱한 데로 간다(문 찾기 편의 접근과 같은 순서).
+ *
+ * 방위는 Unity 규약이다 — +z 가 0°, **시계 방향이 +** 이고 규약의 `turn` 도 오른쪽이 + 라 부호를 바꾸지 않는다.
+ * 출발 방위는 대본이 준다(`start_yaw_deg`). 로봇이 실제로 그 방향을 보고 서 있어야 경로가 맞는다 —
+ * 화면은 로봇의 절대 방위를 모른다. 그 사실을 숨기지 않고 액션 아이템·보고서에 적는다.
+ *
+ * 규약 한계는 정량 명령과 **같은 함수**로 자른다 — 5° 미만 회전은 안 내고, 직진은 시한 안에 끝나게 나눈다.
+ */
+export function pathStepCommands(
+  path: ReadonlyArray<readonly [number, number]>,
+  startYawDeg: number,
+  taskId: string,
+  vx: number = STEP_VX,
+): { steps: TaskCommand[]; reads: string[]; notes: { key: string; vars?: Record<string, string | number> }[]; lengthM: number } {
+  const steps: TaskCommand[] = [];
+  const reads: string[] = [];
+  const notes: { key: string; vars?: Record<string, string | number> }[] = [];
+  const chunk = forwardChunkM(vx);
+  let yaw = startYawDeg;
+  let lengthM = 0;
+  for (let index = 1; index < path.length; index += 1) {
+    const dx = path[index][0] - path[index - 1][0];
+    const dz = path[index][1] - path[index - 1][1];
+    const metres = Math.hypot(dx, dz);
+    if (metres < FORWARD_MIN_M) continue;
+    const heading = (Math.atan2(dx, dz) * 180) / Math.PI;
+    // -180 ~ 180 으로 접는다 — 270° 오른쪽이 아니라 90° 왼쪽으로 돈다.
+    const turn = ((heading - yaw + 540) % 360) - 180;
+    pushTurn(Number(turn.toFixed(1)), steps, reads, notes);
+    // 안 돈 만큼(5° 미만)은 방위에 안 더한다 — 로봇은 그만큼 안 돌았다.
+    if (Math.abs(turn) >= TURN_MIN_DEG) yaw = heading;
+    pushForward(metres, vx, chunk, steps, reads, notes);
+    lengthM += metres;
+  }
+  return { steps: steps.map((step) => ({ ...step, taskId })), reads, notes, lengthM };
+}

@@ -36,7 +36,8 @@ import { robotClient } from './robotClient.ts';
 import { markStarted, useRobotSession } from './robotSession.ts';
 import { useDetect } from '../detect/store.ts';
 import { currentMission } from '../data/scenario.ts';
-import { relayDriven } from '../scenarios/library.ts';
+import { localDriven, relayDriven } from '../scenarios/library.ts';
+import { pauseLocalRun, resumeLocalRun, startLocalRun, stopLocalRun, useLocalRun } from '../data/scenario.ts';
 import { startArmedNavRun, useNavRunState } from './navRun.ts';
 import { pauseRelayRun, resumeRelayRun, stopRelayRun } from './navControl.ts';
 import { t } from '../i18n/dict.ts';
@@ -45,13 +46,16 @@ import { useLang } from '../shared/language.ts';
 export function StopButton() {
   useLang();
   const session = useRobotSession();
-  const locked = session.stopped !== null;
+  const run = useLocalRun();
+  const local = localDriven(currentMission().missionId);
+  const locked = local ? run === 'stopped' : session.stopped !== null;
   return <button
     type="button"
     className={`robot-stop${locked ? ' robot-stop--locked' : ''}`}
     // **비활성화하지 않는다.** 연결이 없어도 누를 수 있어야 한다 — 2·3·4 는 그래도 일어난다.
     // 자율주행 편(pi1 중계)은 pi7 로 abort 를 보내지 않는다 — 엉뚱한 로봇이 선다 (`navControl.ts` · 260915).
-    onClick={() => void (relayDriven(currentMission().missionId) ? stopRelayRun() : emergencyStop(robotClient()))}
+    // 장치 두 대 편(260927)은 화면이 모는 판을 세운다 — 그 편은 pi7 에 아무것도 안 보냈다.
+    onClick={() => void (local ? stopLocalRun() : relayDriven(currentMission().missionId) ? stopRelayRun() : emergencyStop(robotClient()))}
     title={t('stop.stopTitle')}
   >
     {t('stop.stop')}
@@ -67,11 +71,13 @@ export function StopButton() {
 export function PauseButton() {
   useLang();
   const session = useRobotSession();
-  const paused = session.paused !== null;
+  const run = useLocalRun();
+  const local = localDriven(currentMission().missionId);
+  const paused = local ? run === 'paused' : session.paused !== null;
   return <button
     type="button"
     className={`robot-pause${paused ? ' robot-pause--held' : ''}`}
-    onClick={() => void (relayDriven(currentMission().missionId) ? pauseRelayRun() : pauseMission(robotClient()))}
+    onClick={() => void (local ? pauseLocalRun() : relayDriven(currentMission().missionId) ? pauseRelayRun() : pauseMission(robotClient()))}
     title={t('stop.pauseTitle')}
   >
     {paused ? t('stop.paused') : t('stop.pause')}
@@ -102,11 +108,23 @@ export function ResumeButton() {
    */
   const nav = useNavRunState();
   const relay = relayDriven(currentMission().missionId);
-  const started = relay ? nav.run !== null : session.started;
+  /**
+   * **장치 두 대 편은 화면이 모는 판이 시작의 뜻이다** (260927). 로봇 세션의 `started` 를 쓰지 않는 이유는
+   * 자율주행 편과 같다 — 그 값은 문 찾기 편의 준비 단계·스캔·탐지 폴링을 깨운다.
+   */
+  const run = useLocalRun();
+  const local = localDriven(currentMission().missionId);
+  const started = local ? run !== null && run !== 'armed' : relay ? nav.run !== null : session.started;
   return <button
     type="button"
     className={started ? 'robot-resume' : 'robot-resume robot-resume--start'}
     onClick={() => {
+      if (local) {
+        // 걸린 판이면 시작, 멈춘 판이면 그 자리에서 잇고, 끝난 판이면 처음부터 다시 연다.
+        if (run === 'paused' || run === 'stopped') resumeLocalRun();
+        else startLocalRun();
+        return;
+      }
       if (relay) {
         if (!started) { startArmedNavRun(); return; }
         resumeRelayRun();
@@ -115,7 +133,9 @@ export function ResumeButton() {
       if (!started) { markStarted(); return; }
       void resumeMission(robotClient(), currentMission().params);
     }}
-    title={relay
+    title={local
+      ? (run === null ? t('stop.noApproved') : started ? t('stop.restartLocalTitle') : t('stop.startLocalTitle'))
+      : relay
       ? (started
         ? t('stop.resumeNavTitle')
         : nav.armed === null

@@ -180,6 +180,7 @@ function applyPlan(envelope: Envelope): void {
     //
     // 옛 편(`world: 'legacy'`, MSN-260826-01)은 그대로 시나리오 모드로 간다. 실물 연동 전인
     // 편(`driver: 'script'`)도 간다 — 그 편의 진행은 정말로 합성이라 띠가 사실을 말한다.
+    // 화면이 모는 편(`driver: 'local'` · 260927 장치 두 대)은 안 간다 — 문 찾기 편과 같이 일반 모드로 돈다.
     if (plan.script.world !== 'registry' || scriptDriven(plan.script.mission_id)) {
       const view = viewForMission(plan.script.mission_id);
       if (view !== null) {

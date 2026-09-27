@@ -22,6 +22,7 @@ import { robotClient } from './robotClient.ts';
 import { isScanHold, isScanRelease, uplinkWords, viewpointIndexOf, type UplinkMessage } from './uplink.ts';
 import { isReplayingRecord } from '../record/replayMode.ts';
 import { offerScanFrame } from './scanGate.ts';
+import { localDriven } from '../scenarios/library.ts';
 
 /**
  * uplink 하나를 화면 상태로. 되돌려주는 것은 뷰포인트 열에 넣은 프레임 수다.
@@ -170,11 +171,20 @@ export function receiveUplink(
   // 하나도 안 만들고(진행률과 door-turn 효과뿐이다) 판정 여덟 칸만 만든다. 그래서 머리가
   // 안 밀렸고, **여덟 칸이 「회전 중」에서 영영 안 넘어갔다.** 로봇은 다 돌고 문까지
   // 골랐는데 화면만 도는 중이었다. 넣은 것을 다 세어야 한다.
-  if (appended > 0) advanceRobotHead(missionId, atSec);
+  /**
+   * **화면이 모는 편은 여기서 노드를 안 칠한다** (260927 — 장치 두 대 편).
+   *
+   * 그 편의 이동은 걸음 여럿(회전 · 직진 …)이 태스크 하나다. 여기서 칠하면 **첫 회전이 끝나자마자** 「이동 완료
+   * 확인」이 완료로 칠해진다 — 걸음 하나의 끝이 이동 전체의 끝처럼 읽힌다. 그 편은 이동 전체가 끝났을 때
+   * `slotMove.ts` 가 한 번 칠한다. 시각 축도 다르다 — 여기 `atSec` 은 승인 뒤 초이고 그 편의 머리는 판의 시각이다.
+   * 응답 줄(`noteCommandLog` · `recordAnswered`)은 위에서 이미 적었고, 아래 실패 알림도 그대로 올린다.
+   */
+  const paintsNodes = !localDriven(missionId);
+  if (paintsNodes && appended > 0) advanceRobotHead(missionId, atSec);
 
   // **태스크 노드도 로봇이 민다** (260910 지적). 대본 타이머가 멈춰 있으므로 노드 상태가
   // 저절로 바뀌지 않는다 — 응답을 기록 열의 사건으로 옮겨야 화면이 따라온다.
-  for (const event of traceEventsOf(effects, atSec)) receiveRobotProgress(missionId, event);
+  if (paintsNodes) for (const event of traceEventsOf(effects, atSec)) receiveRobotProgress(missionId, event);
 
   /**
    * **실패는 알림에도 올린다** (260913 지시 — 「어떤 태스크에서 어떤 문제인지」).

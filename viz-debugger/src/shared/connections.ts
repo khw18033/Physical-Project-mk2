@@ -243,12 +243,19 @@ export const CONNECTION_TARGETS: readonly ConnectionTarget[] = [
     fields: [{ key: 'base', labelKey: 'conn.field.base', fallback: '' }],
   },
   {
+    /**
+     * 260927 — **가상 맵.** 전까지 자리만 잡아 둔 「디지털 트윈」이었다(상대 없음). 장치 두 대 편의
+     * 가상 맵 노드가 이 칸을 읽는다: Unity 화면 주소(WebGL 빌드 · 스트리밍 페이지)를 넣으면 그것을 띄우고,
+     * **비워 두면 2D 맵을 그린다.** 노드 버튼을 Unity · 2D 둘로 늘리지 않고 여기서 가른다(260927 지시).
+     *
+     * id 는 그대로 둔다 — 저장된 설정(`viz.connections.v1`)의 키가 이 id 로 만들어져 있다.
+     * 화면은 이 주소를 틀에 띄우기만 하고 Unity 와 말을 주고받지 않는다 — 명령 출구는 여전히 하나다.
+     */
     id: 'digital-twin',
     labelKey: 'conn.target.digitalTwin',
     whatKey: 'conn.target.digitalTwin.what',
-    live: false,
-    pendingKey: 'conn.target.digitalTwin.pending',
-    fields: [{ key: 'base', labelKey: 'conn.field.base', fallback: '' }],
+    live: true,
+    fields: [{ key: 'base', labelKey: 'conn.field.unity', fallback: '' }],
   },
 ];
 

@@ -78,8 +78,11 @@ for (const id of SCRIPT_IDS) {
 }
 if (matchOf('안녕하세요') !== 'none') failures.push('「안녕하세요」가 거부되지 않았다');
 // 제외어는 시연 편 **한 곳에만** 있다 — 다른 편에 퍼지면 그 편의 문장을 조용히 버리게 된다.
-if (JSON.stringify(door.match.not) !== JSON.stringify(['자율주행'])) {
-  failures.push(`시연 편의 제외어가 [${(door.match.not ?? []).join(', ')}] — 「자율주행」 하나여야 한다`);
+// 260927 — 장치 두 대 편의 「장치 두 가지를 문 앞까지」도 같은 이유로 시연 편이 내어 준다(「장치두」 넷).
+// 목록을 고정해 두는 것은 그대로다 — 늘어날 때마다 이 줄을 고치는 사람이 이유를 적게 된다.
+const DOOR_NOT = ['자율주행', '장치두', '장치2', '장치둘', '두장치'];
+if (JSON.stringify(door.match.not) !== JSON.stringify(DOOR_NOT)) {
+  failures.push(`시연 편의 제외어가 [${(door.match.not ?? []).join(', ')}] — [${DOOR_NOT.join(', ')}] 여야 한다`);
 }
 for (const id of SCRIPT_IDS) {
   if (id !== DOOR_ID && readScript(id).match.not !== undefined) failures.push(`${id} 에 제외어가 생겼다 — 시연 편만 둔다`);
@@ -144,7 +147,8 @@ if (auto.driver !== 'relay') failures.push(`driver 가 ${auto.driver} — 유니
 if (!relayDriven(AUTO_ID)) failures.push('relayDriven() 이 새 편을 중계 편으로 안 본다');
 if (scriptDriven(AUTO_ID)) failures.push('scriptDriven() 이 새 편을 대본 편으로 본다 — 합성 진행이 돈다');
 if (opensRobotGate(AUTO_ID)) failures.push('opensRobotGate() 가 새 편에서 참이다');
-for (const id of [...SCRIPT_IDS.filter((id) => id !== AUTO_ID), LEGACY_ID]) {
+// **선언 없는** 편만 본다 — 장치 두 대 편(260927)은 `driver: 'script'` 를 선언했다(verify:script-two-devices 가 본다).
+for (const id of [...SCRIPT_IDS.filter((id) => id !== AUTO_ID && readScript(id).driver === undefined), LEGACY_ID]) {
   if (scriptDriven(id) || relayDriven(id)) failures.push(`${id} 가 대본·중계 편으로 읽힌다 — 선언 없는 편은 그대로여야 한다`);
   if (!opensRobotGate(id)) failures.push(`opensRobotGate() 가 ${id} 에서 거짓이다 — 선언 없는 편은 그대로 관문을 연다`);
 }

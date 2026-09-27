@@ -60,9 +60,10 @@ export function mediaSourceId(): string {
  * 토큰을 화면에서 받는 이유가 그것이다 — 코드·설정 파일·시나리오 JSON 에 넣어 커밋하지
  * 않는다. 값은 연결 관리에만 있고 `localStorage` 에 머문다.
  */
-export function mediaUrl(): { ok: true; url: string } | { ok: false; reason: string } {
+export function mediaUrl(sourceOverride?: string): { ok: true; url: string } | { ok: false; reason: string } {
   const base = mediaBaseUrl();
-  const source = mediaSourceId();
+  // 카메라 노드(260927)는 **자기가 고른 장치의 카메라 키**로 붙는다. 주소·토큰은 여전히 연결 관리의 것이다.
+  const source = sourceOverride?.trim() || mediaSourceId();
   const token = connectionAddress('media', 'token').trim();
   if (base === '') return { ok: false, reason: t('media.noAddress') };
   if (source === '') return { ok: false, reason: t('media.noSource') };
@@ -96,13 +97,13 @@ const RETRY_MS = 2000;
  *
  * 돌려주는 것으로 끊는다 — 그것이 끄기다.
  */
-export function openMedia(events: MediaEvents, factory?: SocketFactory): MediaSocket {
+export function openMedia(events: MediaEvents, factory?: SocketFactory, sourceId?: string): MediaSocket {
   let closedByUs = false;
   let socket: WebSocket | null = null;
   let timer: ReturnType<typeof setTimeout> | null = null;
 
   const connect = (): void => {
-    const target = mediaUrl();
+    const target = mediaUrl(sourceId);
     if (!target.ok) { events.onError(target.reason); return; }
 
     let ws: WebSocket;

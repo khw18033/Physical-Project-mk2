@@ -44,6 +44,7 @@
     "verify:script-library": "node scripts/verify-script-library.mjs",
     "verify:script-door": "node scripts/verify-script-door.mjs",
     "verify:script-autodrive": "node scripts/verify-script-autodrive.mjs",
+    "verify:script-two-devices": "node scripts/verify-script-two-devices.mjs",
     "verify:nav-feed": "node scripts/verify-nav-feed.mjs",
     "verify:autodrive-ai": "node scripts/verify-autodrive-ai.mjs",
     "verify:capability-source": "node scripts/verify-capability-source.mjs",

@@ -54,7 +54,10 @@
     "not": [
       "self-driving",
       "selfdriving",
-      "autonomous"
+      "autonomous",
+      "twodevices",
+      "bothdevices",
+      "2devices"
     ]
   }
 }

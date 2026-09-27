@@ -82,7 +82,7 @@ export function ViewNodeCard({ node, entry, scope, position, size, grips, picked
     <div className="view-node__body">
       {entry === null
         ? <p className="view-node__missing">{missingParts[0]}<code>{node.kind}</code>{missingParts[1]}</p>
-        : entry.summary(scope)}
+        : entry.summary(scope, node)}
     </div>
     <footer className="view-node__foot">{scope.deviceId ?? t('viewnode.noTarget')} · {spanLabel(scope)}</footer>
   </div>;

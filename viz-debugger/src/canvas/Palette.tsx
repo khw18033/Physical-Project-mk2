@@ -12,7 +12,7 @@
  * 전역은 허용된 상태이지 오류가 아니다(확정된 결정 3). 둘은 화면에서 구별된다.
  */
 
-import { nodeKindsOfAxes, type ViewNodeKindId } from '../scenarios/axes.ts';
+import { AXIS_JUDGED_KINDS, nodeKindsOfAxes, type ViewNodeKindId } from '../scenarios/axes.ts';
 import { useScenarioAxes } from '../shared/renderMode.ts';
 import type { CanvasApi } from './useCanvas.ts';
 import { useViewNodeCatalog } from './registry.ts';
@@ -44,7 +44,8 @@ export function Palette({ canvas, missionId, pickedTaskId, pickedTaskTitle }: {
     <div className="palette__row">
       <b className="palette__title">{t('palette.title')}</b>
       {catalog.filter((entry) => entry.inPalette !== false && (entry.showFor?.(missionId) ?? true)).map((entry) => {
-        const unused = scriptKinds !== null && !scriptKinds.has(entry.kind as ViewNodeKindId);
+        // 축 표 밖의 종류는 판정하지 않는다 (260927) — 대본이 아니라 장비·서버의 값이다(`AXIS_JUDGED_KINDS`).
+        const unused = scriptKinds !== null && AXIS_JUDGED_KINDS.has(entry.kind as ViewNodeKindId) && !scriptKinds.has(entry.kind as ViewNodeKindId);
         return <button
           key={entry.kind}
           type="button"
