@@ -18,7 +18,7 @@ import { advanceRobotHead, receiveRobotProgress, recordAnswered } from '../data/
 import { noteIssue } from '../shared/notifications.ts';
 import type { ScenarioEvent } from '../model/types.ts';
 import { elapsedSec, applyEffects, noteCommandLog, robotSession } from './robotSession.ts';
-import { robotClient } from './robotClient.ts';
+import { robotClients } from './robotClient.ts';
 import { isScanHold, isScanRelease, uplinkWords, viewpointIndexOf, type UplinkMessage } from './uplink.ts';
 import { isReplayingRecord } from '../record/replayMode.ts';
 import { offerScanFrame } from './scanGate.ts';
@@ -335,11 +335,15 @@ function seenYawOf(index: number): number {
  */
 export function useRobotUplink(missionId: string, params: Record<string, unknown> | null): void {
   useEffect(() => {
-    const client = robotClient();
-    return client.onMessage((message) => {
+    /**
+     * **붙은 브로커 전부에서 듣는다** (260928). 전에는 첫 줄 하나뿐이라, 정량 명령이 첫 줄이 아닌 Go1 브로커로
+     * 나가면 응답을 못 들어 노드가 안 칠해졌다. 남의 명령 응답은 `commandId` 로 거르므로(모르는 id 는 버린다) 섞이지 않는다.
+     */
+    const offs = robotClients().map((client) => client.onMessage((message) => {
       // 시각은 **승인 뒤 몇 초째**다. 대본 시각이 아니다 — 화면이 로봇을 따라간다.
       receiveUplink(message, missionId, elapsedSec());
-    });
+    }));
+    return () => { for (const off of offs) off(); };
   }, [missionId]);
 
   // **스캔 발행은 여기 없다** (260911). 그리기 타이밍에 매이면 두 판째에 안 나간다 —

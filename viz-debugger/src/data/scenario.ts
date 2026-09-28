@@ -925,6 +925,17 @@ function activateGenerated(proposal: AiProposal | StepProposal): boolean {
   localActionCursor = 0;
   commitNow({ current: proposal.view, proposal: null, headSec: 0, playing: false, activatedBy: 'approval' });
   /**
+   * **정량 명령은 승인이 로봇 관문을 연다** (260928 — 「정량 명령 임무가 시작이 안 된다」).
+   *
+   * 대본 편은 `acceptProposal` 이 관문을 여는데, 이 길(`activateGenerated`)에는 그 줄이 없었다. 그래서 승인해도
+   * `markStarted()` 가 첫 줄(「승인 없이는 시작도 없다」)에서 돌아가 「임무 시작」이 아무 일도 안 했다.
+   * 걸음은 여전히 「임무 시작」 뒤에 나간다(`shouldIssueStepMission` — 승인 **그리고** 시작).
+   *
+   * **모델이 낸 임무는 열지 않는다.** 그 임무에는 로봇에 보낼 걸음이 없고, 관문이 열린 채 「임무 시작」을 누르면
+   * 발행 배선이 문 찾기 편의 스캔 조건을 보게 된다 — 모델이 만든 계획에 스캔이 따라 나가면 안 된다.
+   */
+  if (proposal.origin === 'steps') markApproved();
+  /**
    * **근거를 적는 자리는 하나지만 근거는 같지 않다** (260922).
    *
    * 모델이 낸 것은 모델 이름·규칙·프롬프트 지문이 근거다. 사람이 숫자로 적은 것은
@@ -1278,6 +1289,24 @@ export function resetMission(): void {
 export function restartMission(): boolean {
   const missionId = state.current.missionId;
   if (missionId === NO_MISSION) return false;
+  /**
+   * **정량 명령 임무도 다시 세운다** (260928 — 「정지 후 재시작해도 반응이 없다」). 그 임무는 대본 목록에 없어
+   * `viewForMission` 이 null 이고, 그래서 「처음부터」가 아무 일도 안 했다. 지금 판의 본문을 그대로 다시 쓴다 —
+   * 사람이 이미 승인한 같은 걸음이다.
+   */
+  if (viewForMission(missionId) === null && Array.isArray(state.current.params.step_commands)) {
+    const view = state.current;
+    beforeNewRun();
+    stopLocalTimer();
+    resetTrace(view.missionId);
+    resetViewpoint(view.missionId);
+    resetRobotSession();
+    commitNow({ current: view, proposal: null, headSec: 0, playing: false, activatedBy: 'approval' });
+    markApproved();
+    clearStarted();
+    recordHuman('mission_restarted', missionId, { from: 'button' });
+    return true;
+  }
   if (viewForMission(missionId) === null) return false;
   activateMission(missionId, 'remote');
   if (opensRobotGate(missionId)) markApproved();

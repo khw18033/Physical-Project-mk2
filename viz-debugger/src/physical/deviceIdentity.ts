@@ -131,8 +131,19 @@ function resolve(every: readonly Candidate[]): DeviceIdentity | null {
    * 그것까지 장비로 세면 「한 브로커에 장비가 둘」이 되어 **Go1 명령이 전부 막혔다** — ping 조차 안 나갔다.
    * 꺼졌다는 것도 장비가 한 말이다(§원칙 1). 모르는 것(`null`)은 빼지 않는다 — 못 들은 것을 꺼진 것으로 읽지 않는다.
    */
-  const all = every.filter((c) => c.online !== false);
-  if (all.length === 0) return null;
+  const live = every.filter((c) => c.online !== false);
+  if (live.length === 0) return null;
+  /**
+   * **센서는 명령 대상 후보에서 뺀다** (260928 — pi7 재부팅 뒤 실측). pi7 에는 Go1 과 수위 센서(`wl-001`)가 같은
+   * 브로커에 산다. 센서가 **살아 있으면** 「장비가 둘」이 되어 Go1 명령이 전부 막혔고, 같은 판정을 쓰는 카메라
+   * 주소도 안 만들어졌다 — 정량 명령과 카메라가 같이 멎은 이유가 이것이다.
+   *
+   * 센서 노드에는 명령 창구가 없다(HW 구조 — 명령은 로봇·액추에이터가 받는다). 그래서 명령을 받을 수 있는 장비가
+   * 있으면 그중에서만 고른다. 센서만 있는 브로커는 지금처럼 센서를 본다. 명령을 받는 장비가 둘 이상이면(로봇 두 대)
+   * 여전히 고르지 않는다 — 애매하면 안 쏜다는 규칙은 그대로다.
+   */
+  const commandable = live.filter((c) => c.kind !== 'sensor');
+  const all = commandable.length > 0 ? commandable : live;
   const byCapability = all.filter((c) => c.source === 'capability');
   if (byCapability.length === 1) return byCapability[0];
   // Capability 가 둘이면 장비가 둘이다 — 고르지 않는다.

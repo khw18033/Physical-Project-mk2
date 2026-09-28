@@ -11,7 +11,7 @@
 import { t } from '../i18n/dict.ts';
 import { PhysicalClient, physicalWsUrls } from './PhysicalClient.ts';
 import { stepCommandsOf } from './stepScript.ts';
-import { issuePing, issueScan, shouldIssueScan, issueStepMission, shouldIssueStepMission } from './robotCommands.ts';
+import { issuePing, issueScan, shouldIssueScan, issueStepMission, wantsStepMission } from './robotCommands.ts';
 import { robotSession, setConnection, subscribeRobot } from './robotSession.ts';
 import { currentMission } from '../data/scenario.ts';
 import { noteIssue } from '../shared/notifications.ts';
@@ -209,11 +209,24 @@ function attachDriver(url: string | null): void {
        */
       const stepParams = currentMission().params;
       if (stepCommandsOf(stepParams).length > 0) {
-        if (!shouldIssueStepMission()) return;
+        if (!wantsStepMission()) return;
         const attempt = `steps|${robotSession().startedAtMs ?? 0}`;
         if (attempt === lastScanAttempt) return;
+        /**
+         * **걸을 수 있는 장비가 붙은 브로커로 낸다** (260928). 첫 줄(`singleton`)로 내던 것을 바꿨다 — 목록에
+         * 드론(pi3)이 먼저 있으면 걸음이 드론으로 가거나(거절), 그 줄이 끊겨 있으면 아무것도 안 나갔다. 조용히.
+         * 못 고르면 **안 내고 사유를 적는다** — 버튼을 눌렀는데 아무 일도 없는 것이 제일 나쁘다.
+         */
+        const walker = walkingClient();
+        if (walker.client === null) {
+          // 「시도함」으로 적지 않는다 — Go1 이 나중에 붙으면 다음 세션 변화에서 다시 본다.
+          noteIssue('steps', 'robot', walker.reason);
+          return;
+        }
         lastScanAttempt = attempt;
-        void issueStepMission(singleton, stepParams);
+        void issueStepMission(walker.client, stepParams).then((outcome) => {
+          if (outcome !== null && outcome.sent !== true) noteIssue('steps', 'robot', t('robot.stepsNotSent', { reason: outcome.reason ?? t('robot.noReason') }));
+        });
         return;
       }
       if (!shouldIssueScan()) return;
@@ -238,6 +251,22 @@ function attachDriver(url: string | null): void {
   }
 }
 
+
+/**
+ * **정량 명령을 받을 클라이언트** (260928). 붙어 있고(`open`), 그 브로커의 장비가 **걸을 수 있다** —
+ * 장비가 밝힌 action 에 `move_forward` 가 있거나, 목록을 아직 못 받았으면 장비 종류가 `robot` 이다.
+ * 그런 것이 **정확히 하나**일 때만 고른다. 없거나 둘 이상이면 고르지 않고 사유를 돌려준다.
+ */
+export function walkingClient(): { client: PhysicalClient | null; reason: string } {
+  const walkers = syncRobotClients().filter((client) => {
+    if (client.getStatus().state !== 'open') return false;
+    const identity = deviceIdentityFor(client.address());
+    if (identity === null) return false;
+    return identity.actions !== null ? identity.actions.includes('move_forward') : identity.kind === 'robot';
+  });
+  if (walkers.length === 1) return { client: walkers[0], reason: '' };
+  return { client: null, reason: walkers.length === 0 ? t('robot.noWalker') : t('robot.manyWalkers', { n: walkers.length }) };
+}
 
 /**
  * 연결 관리가 쓰는 얇은 면 (`PhysicalProbe`). **주소·토픽은 여기서도 안 샌다** —

@@ -212,11 +212,31 @@ const DEMO_SENTENCES = SCRIPT_LIBRARY.map((entry) => ({
  *
  * @returns 정량 명령으로 세웠으면 `true`. 그러면 부르는 쪽이 생성을 걸지 않는다.
  */
-function proposeQuantitative(text: string): boolean {
+function proposeQuantitative(text: string): boolean | { key: string; vars?: Record<string, string | number> } {
   const script = parseStepScript(text);
-  if (script.reject !== null || script.steps.length === 0) return false;
+  /**
+   * **정량 명령으로 읽다가 멈춘 사유를 돌려준다** (260928). 머리줄 입력칸이 있을 때는 거기에 사유가 떴는데,
+   * 입력칸을 없앤 뒤로 발화 경로는 조용히 대본·생성으로 넘어가 「맞는 대본이 없다」만 남았다 — 진짜 이유
+   * (「180도 회전에 방향이 없다」 같은 것)가 어디에도 안 보였다.
+   *
+   * 「무엇을 하라는지 못 읽었다」(`unknown`)와 빈 문장은 **사유로 안 올린다** — 임무 어휘가 섞인 문장이
+   * 거기에 걸리고, 그것은 원래 대본·생성이 받을 문장이다.
+   */
+  if (script.reject !== null) {
+    return script.reject.key === 'step.reject.unknown' || script.reject.key === 'step.reject.empty' ? false : script.reject;
+  }
+  if (script.steps.length === 0) return false;
   const missionId = `MSN-Q-${Date.now().toString(36)}`;
   return proposeSteps(stepMissionView(text, script, missionId) as unknown as MissionView, text);
+}
+
+/** 정량으로 읽다 멈춘 문장이 대본에도 안 맞으면, 「맞는 대본이 없다」 대신 **멈춘 사유**를 적는다. */
+function quantitativeOutcome(text: string): MatchOutcome {
+  const quantitative = proposeQuantitative(text);
+  if (quantitative === true) return { kind: 'none', reason: t('utter.quantitative') };
+  const matched = matchScript(text);
+  if (quantitative === false || matched.kind !== 'none') return matched;
+  return { kind: 'none', reason: t('utter.quantStopped', { why: t(quantitative.key, quantitative.vars) }) };
 }
 
 function matchScript(text: string): MatchOutcome {
@@ -568,10 +588,7 @@ export function UtterancePanel({ fallbackText }: { fallbackText: string }) {
     // 매칭은 발행 전에 로컬에서도 한다 — 게이트웨이와 **같은 매처·같은 대본**이라 결과가
     // 같고, 단독 빌드(게이트웨이 없음)에서는 이 결과가 곧 제안이 된다.
     // **정량 명령이면 여기서 임무가 선다** (260922). 아니면 하던 대로 대본·생성으로 간다.
-    const quantitative = proposeQuantitative(edited.trim());
-    const matched: MatchOutcome = quantitative
-      ? { kind: 'none', reason: t('utter.quantitative') }
-      : matchScript(edited.trim());
+    const matched: MatchOutcome = quantitativeOutcome(edited.trim());
     setScriptMatch(matched);
     try {
       // 임계 미만이면 여기 오지 못한다. 조용히 통과시키지 않는다.
@@ -614,10 +631,7 @@ export function UtterancePanel({ fallbackText }: { fallbackText: string }) {
 
   const submitManual = useCallback(async () => {
     if (!manual.trim()) return;
-    const quantitative = proposeQuantitative(manual.trim());
-    const matched: MatchOutcome = quantitative
-      ? { kind: 'none', reason: t('utter.quantitative') }
-      : matchScript(manual.trim());
+    const matched: MatchOutcome = quantitativeOutcome(manual.trim());
     setScriptMatch(matched);
     try {
       noteHumanAction();   // 사람이 냈다 — 이 뒤부터 계획 채널을 받는다

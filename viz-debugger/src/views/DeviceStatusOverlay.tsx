@@ -85,14 +85,15 @@ export function DeviceStatusOverlay({ deviceId, device, source, onClose }: {
       {directUrl !== null && <section className="media-section device-cam device-cam--zoom">
         <header className="media-section__head">
           <h3>{t('dso.robotCamera')}</h3>
-          <label className="device-cam__pick">{t('dcam.position')}
+          {/* 카메라가 한 대인 길(드론 말단)은 위치를 안 가린다 — 칸을 두면 바꿔도 아무 일이 없다. */}
+          {directUrl.kind === 'stream' && <label className="device-cam__pick">{t('dcam.position')}
             <select value={position} onChange={(event) => setPosition(event.target.value as CameraPosition)}>
               {CAMERA_POSITIONS.map((item) => <option key={item} value={item}>{item}</option>)}
             </select>
-          </label>
+          </label>}
         </header>
         {/* 닫으면 끊긴다 — 모달이 내려가면 `<img>` 가 사라지고 연결이 닫힌다. */}
-        <DirectCamera url={directUrl} live />
+        <DirectCamera url={directUrl.url} frames={directUrl.kind === 'frames'} live />
       </section>}
       {/* 카메라 영상 — **닫으면 끊긴다.** 붙는 것이 켜기이고 끊는 것이 끄기다.
           로봇 카메라를 바로 보고 있으면 이 칸은 접는다 — 같은 영상을 두 길로 동시에 열 이유가 없다. */}

@@ -9,6 +9,7 @@ import { missionRecords } from './scripts/mission-records.mjs';
 import { autodriveAiRelay } from './scripts/autodrive-ai-relay.mjs';
 // 기능 상태 서비스(k3s 안의 status_ui)를 옮기는 창구 (260920) — 그 서버도 CORS 를 안 연다.
 import { capabilityRelay } from './scripts/capability-relay.mjs';
+import { droneCamRelay } from './scripts/drone-cam-relay.mjs';
 
 /**
  * **탐지 시료를 `/detect-sample` 로 내준다** (260912).
@@ -55,7 +56,7 @@ function detectSample() {
 
 export default defineConfig({
   base: './',
-  plugins: [react(), detectSample(), missionRecords(), autodriveAiRelay(), capabilityRelay()],
+  plugins: [react(), detectSample(), missionRecords(), autodriveAiRelay(), capabilityRelay(), droneCamRelay()],
   server: {
     port: 5174,
     strictPort: true,

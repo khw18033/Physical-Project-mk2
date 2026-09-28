@@ -165,7 +165,15 @@ export function parseStepScript(sentence: string, vx: number = STEP_VX): StepScr
        */
       const left = LEFT.test(part);
       const right = RIGHT.test(part);
-      if (!left && !right && deg >= 0) {
+      /**
+       * **반 바퀴·한 바퀴는 방향이 없어도 받는다** (260928 — 「로봇 180도 회전 후 1미터 전진」이 거부됐다).
+       * 어느 쪽으로 돌든 **끝나는 방향이 같다** — 방향을 지어내도 로봇이 다른 곳을 보고 서지 않는다. 오른쪽(+)으로
+       * 돌고, 그렇게 했다고 적는다. 그 밖의 각도(90도 등)는 지금처럼 되묻는다 — 거기서는 방향이 곧 결과다.
+       */
+      const halfOrFull = Math.abs(deg) === 180 || Math.abs(deg) === 360;
+      if (!left && !right && deg >= 0 && halfOrFull) {
+        notes.push({ key: 'step.note.sideAssumed', vars: { deg: Math.abs(deg) } });
+      } else if (!left && !right && deg >= 0) {
         return { ...EMPTY, reject: { key: 'step.reject.noSide', vars: { part } } };
       }
       if (left && right) {

@@ -174,16 +174,10 @@ const shape = (script) => script.steps.map((step) => [step.action, step.paramete
   for (const key of keys) {
     if (koDict[key] === undefined) failures.push(`${key} 가 사전에 없다 — 화면에 키가 그대로 뜬다`);
   }
-  // 화면이 그 값을 실제로 푸는가 — 키만 맞고 안 그리면 아무것도 안 바뀐다.
-  const bar = readSource(join(root, 'src', 'physical', 'StepCommandBar.tsx'));
-  if (!/t\(read\.reject\.key, read\.reject\.vars\)/.test(bar)) failures.push('화면이 거부 사유를 안 그린다');
-  if (!/t\(note\.key, note\.vars\)/.test(bar)) failures.push('화면이 알림을 안 그린다');
-  /**
-   * **승인 전에 바이트가 나가지 않는다**(`VZ-U-07`). 읽기와 보내기가 한 번에 일어나면
-   * 잘못 읽은 문장이 그대로 로봇에게 간다.
-   */
-  if (!/disabled=\{!ready \|\| busy\}/.test(bar)) failures.push('읽기 전에 보내기가 열려 있다');
-  if (!/setRead\(null\)/.test(bar)) failures.push('문장을 고쳐도 읽은 것이 남는다 — 고치기 전 문장을 승인한 채로 보낸다');
+  // 260928 — **머리줄 입력칸(`StepCommandBar`)은 없어졌다** (사용자 지시). 정량 명령의 입구는 발화·문장 입력
+  // 하나이고, 승인은 제안 카드의 승인 버튼, 발행은 「임무 시작」이다(아래 7 · 8). 입력칸이 돌아오면 안 된다.
+  const shell = readSource(join(root, 'src', 'shell', 'AppShell.tsx'));
+  if (/StepCommandBar/.test(shell)) failures.push('머리줄에 정량 명령 입력칸이 다시 생겼다 — 없애기로 했다');
   // **모델을 안 부른다.** 숫자를 지어내면 로봇이 그만큼 움직인다.
   const parser = readSource(join(root, 'src', 'physical', 'stepScript.ts'));
   if (/fetch\(|\/generate\/|LlmClient/.test(parser)) failures.push('문장 해석이 바깥을 부른다 — 규칙으로만 읽어야 한다');
@@ -227,7 +221,9 @@ const shape = (script) => script.steps.map((step) => [step.action, step.paramete
   // ③ 화면이 그 갈래를 실제로 쓰는가. 안 쓰면 위가 다 맞아도 발화는 그대로 떨어진다.
   const panel = readSource(join(root, 'src', 'views', 'UtterancePanel.tsx'));
   if (!/proposeQuantitative\(/.test(panel)) failures.push('발화 경로가 정량 명령을 안 본다');
-  if (!/script\.reject !== null \|\| script\.steps\.length === 0/.test(panel)) {
+  // 260928 — 조건이 두 줄로 갈렸다(거부면 사유를 돌려주고, 걸음이 0이면 false). 둘 다 `proposeSteps` 앞에 있어야 한다.
+  const quant = panel.slice(panel.indexOf('function proposeQuantitative'), panel.indexOf('return proposeSteps('));
+  if (!/if \(script\.reject !== null\)/.test(quant) || !/if \(script\.steps\.length === 0\) return false;/.test(quant)) {
     failures.push('통째로 읽혔을 때만 세우는 조건이 없다 — 섞인 문장이 반만 실행된다');
   }
   // ④ **모델 제안으로 뭉치지 않는다.** 근거가 다르다(논문 §4-3).
@@ -239,6 +235,110 @@ const shape = (script) => script.steps.map((step) => [step.action, step.paramete
   if (!/session\.started && session\.approved/.test(commands)) {
     failures.push('승인·시작 없이 걸음이 나간다');
   }
+}
+
+// ── 9. **반 바퀴·한 바퀴는 방향이 없어도 받는다** (260928 — 「로봇 180도 회전 후 1미터 전진」) ───────────
+{
+  const half = read('로봇 180도 회전 후 1미터 전진');
+  if (half.reject !== null) failures.push(`방향 없는 180도 회전을 거부했다 — ${half.reject.key}`);
+  else {
+    if (JSON.stringify(shape(half)) !== JSON.stringify([['turn', { deg: 180 }], ['move_forward', { distance_m: 1, vx: half.steps[1]?.parameters?.vx }]])) failures.push(`180도 + 1m 가 ${JSON.stringify(shape(half))} 로 읽혔다`);
+    if (!half.notes.some((note) => note.key === 'step.note.sideAssumed')) failures.push('방향을 정해 돌면서 그 사실을 안 적는다');
+  }
+  // 그 밖의 각도는 여전히 되묻는다 — 거기서는 방향이 곧 결과다.
+  if (read('로봇 90도 회전 후 1미터 전진').reject?.key !== 'step.reject.noSide') failures.push('방향 없는 90도 회전을 받았다');
+  // 발화 경로가 멈춘 사유를 띄운다 — 입력칸이 없어진 뒤 사유가 사라졌었다.
+  const panel = readSource(join(root, 'src', 'views', 'UtterancePanel.tsx'));
+  if (!/utter\.quantStopped/.test(panel)) failures.push('정량 명령으로 읽다 멈춘 사유를 화면에 안 띄운다');
+}
+
+// ── 8. **승인하면 「임무 시작」이 된다** (260928 — 「정량 명령 임무가 시작이 안 된다」) ──────────────
+//
+// 두 겹으로 막혀 있었다. ① 통합 앱의 승인 칸은 게이트웨이 계획만 그려서 정량 명령에는 승인 버튼이 없었고,
+// ② 승인해도 이 길(`activateGenerated`)은 로봇 관문을 안 열어 `markStarted()` 가 「승인 없이는 시작도 없다」에서 돌아갔다.
+{
+  const scenario = await load('src', 'data', 'scenario.ts');
+  const session = await load('src', 'physical', 'robotSession.ts');
+  const { stepMissionView } = await load('src', 'physical', 'stepScript.ts');
+  const script = read('Go1이 1m 앞으로 전진해');
+  scenario.proposeSteps(stepMissionView('Go1이 1m 앞으로 전진해', script, 'MSN-Q-verify'), 'Go1이 1m 앞으로 전진해');
+  if (session.robotSession().approved) failures.push('제안만으로 로봇 관문이 열렸다 — 승인 전에 열리면 안 된다');
+  scenario.acceptProposal('local');
+  if (!session.robotSession().approved) failures.push('정량 명령을 승인했는데 로봇 관문이 안 열렸다 — 「임무 시작」이 아무 일도 안 한다');
+  session.markStarted();
+  if (!session.robotSession().started) failures.push('승인 뒤 「임무 시작」을 눌렀는데 시작되지 않았다');
+  session.resetRobotSession();
+  // 모델이 낸 임무는 열지 않는다 — 보낼 걸음이 없고, 열면 「임무 시작」에 스캔 조건이 돈다.
+  scenario.proposeGenerated({ ...stepMissionView('모델 계획', script, 'MSN-AI-verify'), params: {} }, { producedBy: 'ai', engine: 'verify', model: 'verify', stub: true, promptDigest: null, promptChars: null, grammar: null, rules: [], overwritten: [], schemaErrors: [], elapsedSec: 0, shapeWarnings: [], examplesGiven: 0, placesGiven: false, equipmentGiven: false, nodeKindsGiven: false });
+  scenario.acceptProposal('local');
+  if (session.robotSession().approved) failures.push('모델이 낸 임무의 승인이 로봇 관문을 열었다');
+  scenario.resetMission();
+  session.resetRobotSession();
+  // ① 통합 앱에서도 게이트웨이를 안 거친 제안은 화면이 승인한다.
+  const main = readSource(join(root, 'src', 'main.tsx'));
+  if (!/origin !== 'script'/.test(main) || !/localOnly \? undefined : planApproval/.test(main)) {
+    failures.push('통합 앱에서 정량 명령 제안에 승인 버튼이 없다 — 게이트웨이 칸만 그린다');
+  }
+}
+
+// ── 10. **걸음은 걸을 수 있는 장비로 · 정지 뒤 재시작이 된다** (260928 — 「Go1 을 붙이고 시작해도 안 움직인다」) ──
+//
+// 걸음이 연결 관리 **첫 줄** 브로커로만 나갔다. 첫 줄에 드론(pi3)이 있으면 Go1 이 붙어 있어도 조용히 안 나갔다.
+// 정지 뒤 「재시작」은 일시정지만 풀어 반응이 없었고, 「처음부터」는 정량 명령 임무를 다시 못 세웠다.
+{
+  const scenario = await load('src', 'data', 'scenario.ts');
+  const session = await load('src', 'physical', 'robotSession.ts');
+  const { robotClients } = await load('src', 'physical', 'robotClient.ts');
+  const { registerConnectionDefault } = await load('src', 'shared', 'connections.ts');
+  const di = await load('src', 'physical', 'deviceIdentity.ts');
+  const { PhysicalClient } = await load('src', 'physical', 'PhysicalClient.ts');
+  const { emergencyStop } = await load('src', 'physical', 'robotCommands.ts');
+  const notes = await load('src', 'shared', 'notifications.ts');
+  const { stepMissionView } = await load('src', 'physical', 'stepScript.ts');
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  const sent = [];
+  let n = 0;
+  const origSend = PhysicalClient.prototype.send;
+  const origStatus = PhysicalClient.prototype.getStatus;
+  PhysicalClient.prototype.getStatus = function getStatus() { return { state: 'open' }; };
+  PhysicalClient.prototype.send = function send(action) {
+    n += 1;
+    const commandId = `v-${n}`;
+    sent.push(`${this.address().includes('pi7') ? 'pi7' : 'pi3'}:${action}`);
+    const emit = (m) => { for (const l of this.listeners) l(m); };
+    setTimeout(() => {
+      if (action === 'abort') return;
+      emit({ kind: 'acceptance', commandId, accepted: true, code: null, message: null });
+      setTimeout(() => emit({ kind: 'result', commandId, status: 'SUCCEEDED', result: {}, code: null, message: null }), 50);
+    }, 5);
+    return { sent: true, commandId };
+  };
+  registerConnectionDefault('physical', 'ws', ['ws://pi3.test:9001', 'ws://pi7.test:9001/mqtt'].join(String.fromCharCode(10)));
+  const [pi3, pi7] = robotClients();
+  di.noteDeviceReport('x500-001', 'drone', { channel: 'status', status: 'online', registration: { entity_id: 'x500-001', entity_type: 'drone' } }, pi3.address());
+  di.noteDeviceReport('go1-001', 'robot', { channel: 'status', status: 'online', registration: { entity_id: 'go1-001', entity_type: 'robot' } }, pi7.address());
+  const sentence = '로봇 180도 회전 후 1미터 전진';
+  scenario.proposeSteps(stepMissionView(sentence, read(sentence), 'MSN-Q-route'), sentence);
+  scenario.acceptProposal('local');
+  session.markStarted();
+  await sleep(600);
+  if (sent.join(',') !== 'pi7:turn,pi7:move_forward') failures.push(`첫 줄이 드론일 때 걸음이 ${sent.join(',') || '안 나갔다'} — pi7 로 turn · move_forward 여야 한다`);
+  sent.length = 0;
+  await emergencyStop(pi7);
+  if (scenario.restartMission()) session.markStarted();
+  await sleep(600);
+  if (!sent.includes('pi7:turn')) failures.push(`정지 뒤 재시작이 걸음을 다시 안 냈다 — ${sent.join(',') || '없음'}`);
+  sent.length = 0;
+  di.resetDeviceIdentity(pi7.address());
+  if (scenario.restartMission()) session.markStarted();
+  await sleep(200);
+  if (sent.length !== 0) failures.push(`걸을 장비가 없는데 ${sent.join(',')} 가 나갔다`);
+  if (!notes.notificationsNow().some((x) => String(x.message).includes('걸을 수 있는 로봇이 붙어 있지 않습니다'))) failures.push('걸을 장비가 없을 때 사유를 알림에 안 적었다 — 아무 반응이 없는 것처럼 보인다');
+  PhysicalClient.prototype.send = origSend;
+  PhysicalClient.prototype.getStatus = origStatus;
+  scenario.resetMission();
+  session.resetRobotSession();
+  di.resetDeviceIdentity();
 }
 
 // ── 대조군 ───────────────────────────────────────────────────────────────────
@@ -272,6 +372,8 @@ console.log('✅ 숫자를 읽는다 — 거리(m·cm·미터)·각도·방향(�
 console.log('✅ 못 읽으면 한 걸음도 안 낸다 — 방향 없는 회전·수치 없는 문장·절반만 읽히는 문장');
 console.log(`✅ 규약으로 자른다 — 한 건 ${FORWARD_MAX_M}m·${TURN_MAX_DEG}도, 최소 ${FORWARD_MIN_M}m·${TURN_MIN_DEG}도, 시한 ${STEP_BUDGET_S}초 예산 (합이 보존된다)`);
 console.log('✅ 자른 것을 숨기지 않는다 · 뒤로 가기는 안 쏜다 (쏴 본 적 없는 값이다)');
-console.log('✅ 문구가 전부 사전에 있고 화면이 그것을 푼다 · 읽기 전에는 보내기가 안 열린다');
+console.log('✅ 문구가 전부 사전에 있다 · 머리줄 입력칸은 없다(입구는 발화·문장 하나)');
 console.log('✅ 발화·문장으로 들어온 정량 명령이 임무가 된다 — 섞인 문장은 지나보낸다 (승인·시작 뒤에 나간다)');
+console.log('✅ 걸음은 걸을 수 있는 장비의 브로커로(첫 줄 무관) · 정지 뒤 재시작은 처음부터 다시 · 걸을 장비가 없으면 알림에 사유');
+console.log('✅ 승인하면 로봇 관문이 열리고 「임무 시작」이 된다 · 통합 앱에도 승인 버튼이 있다 · 모델이 낸 임무는 관문을 안 연다');
 console.log(`✅ 대조군 ${controls.length}건 — ${controls.join(' · ')}`);

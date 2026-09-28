@@ -37,7 +37,7 @@ import { markStarted, useRobotSession } from './robotSession.ts';
 import { useDetect } from '../detect/store.ts';
 import { currentMission } from '../data/scenario.ts';
 import { localDriven, relayDriven } from '../scenarios/library.ts';
-import { pauseLocalRun, resumeLocalRun, startLocalRun, stopLocalRun, useLocalRun } from '../data/scenario.ts';
+import { pauseLocalRun, restartMission, resumeLocalRun, startLocalRun, stopLocalRun, useLocalRun } from '../data/scenario.ts';
 import { startArmedNavRun, useNavRunState } from './navRun.ts';
 import { pauseRelayRun, resumeRelayRun, stopRelayRun } from './navControl.ts';
 import { t } from '../i18n/dict.ts';
@@ -131,6 +131,15 @@ export function ResumeButton() {
         return;
       }
       if (!started) { markStarted(); return; }
+      /**
+       * **정지 뒤의 재시작은 처음부터 다시 세우고 시작한다** (260928 — 「정지 후 재시작해도 반응이 없다」).
+       * 정지는 명령 잠금(`stopped`)을 걸고, `resumeMission` 은 일시정지만 푼다 — 그래서 눌러도 아무 일이 없었다.
+       * 규약에 이어 하기가 없으니 정지한 판은 처음부터다. 일시정지 뒤의 재시작은 전과 같다.
+       */
+      if (session.stopped !== null) {
+        if (restartMission()) markStarted();
+        return;
+      }
       void resumeMission(robotClient(), currentMission().params);
     }}
     title={local

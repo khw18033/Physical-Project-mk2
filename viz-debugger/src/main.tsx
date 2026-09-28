@@ -132,13 +132,21 @@ function Milestones({ view, phase, milestoneStatuses, assignments, onAssign, onO
    * 골랐습니다」라고 적으면 거짓말이고, 「모델이 만들었습니다」는 더 나쁘다.
    */
   const stepProposal = mission.proposal?.origin === 'steps' ? mission.proposal : null;
-  const approvalSlot = planApproval ?? (mission.proposal !== null && <div className="proposal-fallback">
+  /**
+   * **게이트웨이를 안 거친 제안은 화면이 승인한다** (260928 — 「정량 명령 임무가 시작이 안 된다」).
+   *
+   * 통합 앱의 승인 칸(`PlanApproval`)은 **게이트웨이의 계획**만 그린다. 정량 명령과 모델 제안은 브라우저에서
+   * 세워져 게이트웨이에 계획이 없으므로, 그 칸에는 「승인 대기 중인 계획이 없다」만 떴다 — 승인할 버튼이 없었다.
+   * 그래서 그 둘은 통합 앱에서도 아래 로컬 승인 자리를 쓴다. 승인의 문은 여전히 `acceptProposal` 하나다.
+   */
+  const localOnly = mission.proposal !== null && mission.proposal.origin !== 'script';
+  const approvalSlot = (localOnly ? undefined : planApproval) ?? (mission.proposal !== null && <div className="proposal-fallback">
     {/* 단독 빌드(게이트웨이 없음)의 승인 자리 — 통합 앱에서는 PlanApproval(VZ-U-07)이 들어온다. */}
     {/* **한 문장을 한 키로 둔다.** 「승인해야 …」와 「캔버스에 올라갑니다」를 따로 담으면
-        영어 어순에서 이을 방법이 없다 — 갈래가 둘이므로 키도 둘이다 (지시서 §1). */}
-    <p><Rich id={aiProposal ? 'prop.fallbackAi' : 'prop.fallbackScript'} vars={{ id: mission.proposal.missionId }} /></p>
+        영어 어순에서 이을 방법이 없다 — 갈래가 셋이므로 키도 셋이다 (지시서 §1). */}
+    <p><Rich id={stepProposal ? 'prop.fallbackSteps' : aiProposal ? 'prop.fallbackAi' : 'prop.fallbackScript'} vars={{ id: mission.proposal.missionId }} /></p>
     {/* **승인의 문은 하나다** (`acceptProposal`). 종류마다 부르는 곳이 다르면 언젠가 한쪽만 검사가 붙는다. */}
-    <button onClick={() => acceptProposal('local')}>{t(aiProposal ? 'prop.approveCanvas' : 'prop.approvePlay')}</button>
+    <button onClick={() => acceptProposal('local')}>{t(stepProposal ? 'prop.approveSteps' : aiProposal ? 'prop.approveCanvas' : 'prop.approvePlay')}</button>
     <button onClick={() => rejectProposal()}>{t('prop.reject')}</button>
   </div>);
   const showApproval = phase === 'proposal' || planApproval !== undefined;

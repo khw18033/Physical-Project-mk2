@@ -153,9 +153,16 @@ function control(name, hit) {
   noteDeviceReport('go1-001', 'robot', { channel: 'status', status: 'online', registration: { entity_id: 'go1-001', entity_type: 'robot' } });
   noteDeviceReport('wl-001', 'sensor', { channel: 'status', status: 'offline', event: 'shutdown', registration: { entity_id: 'wl-001', entity_type: 'sensor' } });
   if (deviceIdentity()?.deviceId !== 'go1-001') failures.push('꺼진 센서(status offline)가 남아 있으면 살아 있는 Go1 이 명령 대상이 안 된다 — 명령이 막힌다');
-  // 반대 — 센서가 **살아 있으면** 여전히 둘이고, 고르지 않는다(애매하면 안 쏜다는 규칙은 그대로).
+  // 260928 — 센서가 **살아 있어도** Go1 이다. 센서에는 명령 창구가 없다 — 이것 때문에 pi7 재부팅 뒤 명령·카메라가 같이 멎었다.
   noteDeviceReport('wl-001', 'sensor', { channel: 'heartbeat' });
-  control('살아 있는 장비 둘이면 여전히 고르지 않는다', deviceIdentity() === null);
+  if (deviceIdentity()?.deviceId !== 'go1-001') failures.push('살아 있는 센서가 같은 브로커에 있으면 Go1 이 명령 대상이 안 된다 — 명령과 카메라가 멎는다');
+  // 반대 — 명령을 받는 장비가 **둘**이면 여전히 고르지 않는다(애매하면 안 쏜다는 규칙은 그대로).
+  noteDeviceReport('go1-002', 'robot', { channel: 'status', status: 'online', registration: { entity_id: 'go1-002', entity_type: 'robot' } });
+  control('명령을 받는 장비 둘이면 여전히 고르지 않는다', deviceIdentity() === null);
+  // 센서만 있는 브로커는 센서를 그대로 본다.
+  resetDeviceIdentity();
+  noteDeviceReport('wl-001', 'sensor', { channel: 'heartbeat' });
+  if (deviceIdentity()?.deviceId !== 'wl-001') failures.push('센서만 있는 브로커에서 센서를 못 본다');
 }
 
 resetDeviceIdentity();

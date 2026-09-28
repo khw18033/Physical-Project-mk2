@@ -136,16 +136,46 @@ function CameraCanvas({ cameraKey, live, nonce }: { cameraKey: string; live: boo
 }
 
 /**
+ * 장비에서 바로 받는 길 (260928). `stream` 은 끝나지 않는 MJPEG(Go1 뷰어), `frames` 는 한 번에 한 장(드론 영상 말단 —
+ * 화면이 이어서 당긴다). 주소를 만드는 쪽(`physical/cameraView.ts`)과 **모양으로만** 맞춘다 — 이 폴더가 로봇 면을 import 하지 않게.
+ */
+export type DirectSource = { url: string; kind: 'stream' | 'frames' };
+
+/** 한 장씩 받는 길에서 다음 장을 청하기까지 쉬는 시간. 말단 카메라가 8 fps 라 그보다 빨리 당겨도 같은 장이다. */
+const FRAME_GAP_MS = 100;
+/** 한 장씩 받는 길이 실패했을 때 다시 청하기까지. 매 틱 두드리면 말단이 꺼졌을 때 요청만 쌓인다. */
+const FRAME_RETRY_MS = 2000;
+
+/**
  * **장비에서 바로 받는 영상** (260928 — pi7 실측). 주소는 `src/physical/cameraView.ts` 가 만들어 넘긴다.
  *
  * MJPEG 라 `<img>` 로 받는다. 접힘은 **한 장을 그리고 곧바로 끊는다** — `<img>` 의 주소를 비우면 연결이 닫힌다.
  * 다른 출처라 캔버스에서 픽셀을 읽을 수는 없지만 그리는 것은 된다.
  */
-export function DirectCamera({ url, live, nonce = 0, compact = false }: { url: string; live: boolean; nonce?: number; /** 카드 — 설명 줄을 짧게, 주소는 툴팁으로. */ compact?: boolean }) {
+export function DirectCamera({ url, live, nonce = 0, compact = false, frames = false }: {
+  url: string; live: boolean; nonce?: number;
+  /** 카드 — 설명 줄을 짧게, 주소는 툴팁으로. */
+  compact?: boolean;
+  /** 한 번에 한 장 주는 길(드론 말단). 실시간이면 그림이 도착할 때마다 다음 장을 청한다. */
+  frames?: boolean;
+}) {
   useLang();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [phase, setPhase] = useState<'waiting' | 'painted' | 'timeout' | 'failed'>('waiting');
   const [paintedAt, setPaintedAt] = useState<number | null>(null);
+  /**
+   * 한 장씩 받는 길의 차례 번호 (260928 — 드론). 주소 뒤에 붙여 매번 새 요청이 되게 한다. **앞 장이 도착한 뒤에**
+   * 올린다 — 타이머로 올리면 느린 망에서 요청이 겹쳐 쌓이고, 그림이 뒤죽박죽 순서로 도착한다.
+   */
+  const [frameNo, setFrameNo] = useState(0);
+  const retryRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => { if (retryRef.current !== null) clearTimeout(retryRef.current); }, []);
+  const nextFrame = (delayMs: number) => {
+    if (!frames || !live) return;
+    if (retryRef.current !== null) clearTimeout(retryRef.current);
+    retryRef.current = setTimeout(() => setFrameNo((value) => value + 1), delayMs);
+  };
+  const liveSrc = frames ? `${url}${url.includes('?') ? '&' : '?'}n=${frameNo}` : url;
 
   useEffect(() => {
     if (live) return undefined;
@@ -177,7 +207,9 @@ export function DirectCamera({ url, live, nonce = 0, compact = false }: { url: s
 
   return <div className={`device-cam__stage${live ? ' device-cam__stage--live' : ''}`}>
     {live
-      ? <img className="device-cam__canvas" src={url} alt={url} onError={() => setPhase('failed')} onLoad={() => setPhase('painted')} />
+      ? <img className="device-cam__canvas" src={liveSrc} alt={url}
+          onError={() => { setPhase('failed'); nextFrame(FRAME_RETRY_MS); }}
+          onLoad={() => { setPhase('painted'); nextFrame(FRAME_GAP_MS); }} />
       : <canvas ref={canvasRef} className="device-cam__canvas" />}
     <p className="device-cam__meta" title={url}>
       {phase === 'failed'
@@ -203,7 +235,7 @@ export function DeviceCamera({ nodeId, taskDeviceId, zoom = false, directUrlOf }
   nodeId: string;
   taskDeviceId: string | null;
   zoom?: boolean;
-  directUrlOf?: (deviceId: string, position: string) => string | null;
+  directUrlOf?: (deviceId: string, position: string) => DirectSource | null;
 }) {
   useLang();
   const choice = useCameraChoice(nodeId);
@@ -252,7 +284,7 @@ export function DeviceCamera({ nodeId, taskDeviceId, zoom = false, directUrlOf }
      */
     body = <>
       {chosenOffline && <p className="vn-line vn-warn">{t('dcam.notConnectedNow', { device: deviceId })}</p>}
-      <DirectCamera url={directUrlOf(deviceId, choice.position)!} live nonce={nonce} compact={!zoom} />
+      <DirectCamera url={directUrlOf(deviceId, choice.position)!.url} frames={directUrlOf(deviceId, choice.position)!.kind === 'frames'} live nonce={nonce} compact={!zoom} />
     </>;
   } else if (mediaBaseUrl() === '') {
     body = <p className="vn-line vn-dim">{t('dcam.noAddress')}</p>;

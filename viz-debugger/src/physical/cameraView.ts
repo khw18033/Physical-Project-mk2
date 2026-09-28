@@ -21,22 +21,32 @@ import { deviceIdentityFor } from './deviceIdentity.ts';
 /** HW `go1-camview.service` 의 포트. 바뀌면 여기 한 곳만 고친다. */
 export const GO1_CAMVIEW_PORT = 8090;
 
+/**
+ * pi3 **영상 말단**(`drone_rpi` · `drone-agent.service`)의 포트 (260928). 엣지가 당겨 가는 창구이고, 한 번에
+ * 메타 + JPEG 한 장을 multipart 로 준다. 브라우저가 그 형식도 CORS 도 못 넘으므로 개발 서버 중계
+ * (`scripts/drone-cam-relay.mjs`)를 거친다.
+ */
+export const DRONE_AGENT_PORT = 8890;
+
+/**
+ * 받는 방식. Go1 뷰어는 끝나지 않는 MJPEG(`stream`)이고, 드론 말단은 한 번에 한 장(`frames`)이라 화면이 이어서 당긴다.
+ * 모양은 `media/views/DeviceCamera.tsx` 의 `DirectSource` 와 같다 — 그쪽이 이 파일을 import 하지 않게 모양으로만 맞춘다.
+ */
+export type DirectCameraSource = { url: string; kind: 'stream' | 'frames' };
+
 /** 카메라 위치 → 뷰어의 카메라 번호 (`robot/go1_camera.py` 의 `CAMS`). */
 const GO1_CAMERA_INDEX: Readonly<Record<string, number>> = { front: 1, chin: 2, left: 3, right: 4, belly: 5 };
 
 /**
  * 그 장비의 그 카메라를 직접 보는 주소. **못 만들면 null** — 그러면 카메라 노드는 `/media` 로 간다.
  *
- * Go1 뷰어가 있는 것은 Go1 을 태운 노드뿐이다. 장비가 밝힌 기종(`go1_robot`)으로 가른다 — 드론 브로커(pi3)에는
- * 이 뷰어가 없고, 거기에 주소를 지어 붙이면 「영상이 안 온다」의 원인을 엉뚱한 데서 찾게 된다.
+ * 어느 길인지는 장비가 밝힌 것으로 가른다 — Go1(`go1_robot`)은 pi7 의 Go1 뷰어, 드론(`drone`)은 pi3 의 영상 말단.
+ * 둘 다 아니면 null 이고, 그 장비는 `/media` 로 간다. 주소를 지어 붙이면 「영상이 안 온다」의 원인을 엉뚱한 데서 찾게 된다.
  */
-export function directCameraUrl(deviceId: string, position: string): string | null {
-  const index = GO1_CAMERA_INDEX[position];
-  if (index === undefined) return null;
+export function directCameraUrl(deviceId: string, position: string): DirectCameraSource | null {
   const client = clientForDevice(deviceId);
   if (client === null) return null;
   const identity = deviceIdentityFor(client.address());
-  if (identity?.deviceType !== 'go1_robot') return null;
   let host: string;
   try {
     host = new URL(client.address()).hostname;
@@ -44,5 +54,17 @@ export function directCameraUrl(deviceId: string, position: string): string | nu
     return null;
   }
   if (host === '') return null;
-  return `http://${host}:${GO1_CAMVIEW_PORT}/stream/${index}`;
+  if (identity?.deviceType === 'go1_robot') {
+    const index = GO1_CAMERA_INDEX[position];
+    return index === undefined ? null : { url: `http://${host}:${GO1_CAMVIEW_PORT}/stream/${index}`, kind: 'stream' };
+  }
+  /**
+   * **드론은 기체에 실린 pi3 의 카메라 모듈이다** (260928 지시 — 「pi3 의 카메라 말단 노드를 활용」). 카메라가 한 대라
+   * 위치 칸은 뜻이 없다 — 어느 위치를 골라도 0번 한 대다. 말단은 브로커와 같은 호스트에 있다.
+   */
+  if (identity?.kind === 'drone') {
+    const base = encodeURIComponent(`http://${host}:${DRONE_AGENT_PORT}`);
+    return { url: `/drone-cam/frame?base=${base}&cam=0`, kind: 'frames' };
+  }
+  return null;
 }

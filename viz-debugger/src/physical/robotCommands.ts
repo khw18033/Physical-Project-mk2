@@ -195,6 +195,18 @@ export function shouldIssueStepMission(): boolean {
 }
 
 /**
+ * **사람 쪽 조건만** (260928). 승인했고 시작을 눌렀고 아직 안 냈고 정지되지 않았다.
+ *
+ * `shouldIssueStepMission` 은 끝에 `robotDrives()` — **연결 관리 첫 줄** 브로커가 붙어 있는가 — 를 본다. 정량 명령은
+ * 이제 첫 줄이 아니라 **걸을 수 있는 장비가 붙은 브로커**로 나가므로(`robotClient.ts` 의 `walkingClient`), 연결 조건은
+ * 그쪽이 따로 본다. 첫 줄에 드론(pi3)이 있으면 Go1 이 붙어 있어도 조용히 아무것도 안 나갔다(260928 실측 추정).
+ */
+export function wantsStepMission(): boolean {
+  const session = robotSession();
+  return session.started && session.approved && !session.scanIssued && session.stopped === null;
+}
+
+/**
  * 그 임무의 걸음을 낸다. **관문은 스캔과 같은 것을 쓴다** — 한 임무에 한 번이면 되고,
  * 관문을 둘로 두면 어느 쪽이 열렸는지 세는 자리가 둘이 된다.
  */
