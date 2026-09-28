@@ -146,6 +146,17 @@ function control(name, hit) {
   noteDeviceReport(DRONE.entityId, DRONE.entityType, { channel: 'state' });
   control('registration 이 없으면 토픽 칸으로 판정', deviceIdentity()?.kind === 'drone');
 }
+{
+  // 260928 pi7 실측 — 꺼진 센서의 retained `status: offline` 이 남아 있어도 살아 있는 Go1 이 명령 대상이다.
+  // 그것까지 세면 「장비가 둘」이 되어 ping 조차 막혔다.
+  resetDeviceIdentity();
+  noteDeviceReport('go1-001', 'robot', { channel: 'status', status: 'online', registration: { entity_id: 'go1-001', entity_type: 'robot' } });
+  noteDeviceReport('wl-001', 'sensor', { channel: 'status', status: 'offline', event: 'shutdown', registration: { entity_id: 'wl-001', entity_type: 'sensor' } });
+  if (deviceIdentity()?.deviceId !== 'go1-001') failures.push('꺼진 센서(status offline)가 남아 있으면 살아 있는 Go1 이 명령 대상이 안 된다 — 명령이 막힌다');
+  // 반대 — 센서가 **살아 있으면** 여전히 둘이고, 고르지 않는다(애매하면 안 쏜다는 규칙은 그대로).
+  noteDeviceReport('wl-001', 'sensor', { channel: 'heartbeat' });
+  control('살아 있는 장비 둘이면 여전히 고르지 않는다', deviceIdentity() === null);
+}
 
 resetDeviceIdentity();
 

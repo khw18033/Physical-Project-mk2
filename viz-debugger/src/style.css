@@ -729,6 +729,7 @@ button.robot-stop:hover{background:#b8271f}
 .device-cam__stage{display:grid;gap:3px}
 .device-cam__canvas{width:100%;height:auto;display:block;border-radius:5px;background:#11161d;min-height:40px}
 .device-cam--zoom .device-cam__canvas{max-height:min(60vh,620px);object-fit:contain}
+.device-cam:not(.device-cam--zoom) .device-cam__canvas{max-height:140px;object-fit:contain}
 .device-cam__meta{margin:0;font-size:11px;color:#4a5666}
 .obstacle-facts--card .robot-log__lines{margin:2px 0 0}
 .detect-steps{margin:6px 0 0;padding-left:18px;display:grid;gap:5px}

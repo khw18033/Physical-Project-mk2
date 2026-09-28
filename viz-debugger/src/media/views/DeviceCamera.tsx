@@ -136,9 +136,75 @@ function CameraCanvas({ cameraKey, live, nonce }: { cameraKey: string; live: boo
 }
 
 /**
- * 카메라 노드의 본문. `taskDeviceId` 는 연결한 태스크의 대상(자리를 푼 값)이다.
+ * **장비에서 바로 받는 영상** (260928 — pi7 실측). 주소는 `src/physical/cameraView.ts` 가 만들어 넘긴다.
+ *
+ * MJPEG 라 `<img>` 로 받는다. 접힘은 **한 장을 그리고 곧바로 끊는다** — `<img>` 의 주소를 비우면 연결이 닫힌다.
+ * 다른 출처라 캔버스에서 픽셀을 읽을 수는 없지만 그리는 것은 된다.
  */
-export function DeviceCamera({ nodeId, taskDeviceId, zoom = false }: { nodeId: string; taskDeviceId: string | null; zoom?: boolean }) {
+export function DirectCamera({ url, live, nonce = 0, compact = false }: { url: string; live: boolean; nonce?: number; /** 카드 — 설명 줄을 짧게, 주소는 툴팁으로. */ compact?: boolean }) {
+  useLang();
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const [phase, setPhase] = useState<'waiting' | 'painted' | 'timeout' | 'failed'>('waiting');
+  const [paintedAt, setPaintedAt] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (live) return undefined;
+    setPhase('waiting');
+    const image = new Image();
+    let done = false;
+    // 주소를 비우면 연결이 닫히는데, 그때 브라우저가 `error` 를 낸다. 그것을 실패로 적으면 **잘 받은 뒤에**
+    // 「못 붙었습니다」가 뜬다(260928 — 실제로 그랬다). 닫기 전에 귀를 뗀다.
+    const close = () => { if (!done) { done = true; image.onerror = null; image.src = ''; } };
+    image.onerror = () => { close(); setPhase('failed'); };
+    image.src = url;
+    const startedAt = Date.now();
+    const timer = window.setInterval(() => {
+      const canvas = canvasRef.current;
+      if (image.naturalWidth > 0 && canvas !== null) {
+        canvas.width = image.naturalWidth;
+        canvas.height = image.naturalHeight;
+        canvas.getContext('2d')?.drawImage(image, 0, 0);
+        window.clearInterval(timer);
+        close();
+        setPaintedAt(Date.now());
+        setPhase('painted');
+        return;
+      }
+      if (Date.now() - startedAt > STILL_TIMEOUT_MS) { window.clearInterval(timer); close(); setPhase('timeout'); }
+    }, 200);
+    return () => { window.clearInterval(timer); close(); };
+  }, [url, live, nonce]);
+
+  return <div className={`device-cam__stage${live ? ' device-cam__stage--live' : ''}`}>
+    {live
+      ? <img className="device-cam__canvas" src={url} alt={url} onError={() => setPhase('failed')} onLoad={() => setPhase('painted')} />
+      : <canvas ref={canvasRef} className="device-cam__canvas" />}
+    <p className="device-cam__meta" title={url}>
+      {phase === 'failed'
+        ? <b className="vn-warn">{t('dcam.directFailed', { url })}</b>
+        : compact && live
+          ? t('dcam.directLiveShort')
+        : phase === 'timeout'
+          ? <b className="vn-warn">{t('dcam.directTimeout', { sec: STILL_TIMEOUT_MS / 1000, url })}</b>
+          : live
+            ? t('dcam.directLive', { url })
+            : paintedAt === null ? t('dcam.directWaiting', { url }) : t('dcam.directStill', { url, clock: clock(paintedAt) })}
+    </p>
+  </div>;
+}
+
+/**
+ * 카메라 노드의 본문. `taskDeviceId` 는 연결한 태스크의 대상(자리를 푼 값)이다.
+ *
+ * `directUrlOf` 가 주소를 주면 장비에서 **바로** 받고, 안 주면 백엔드 `/media` 로 받는다 (260928).
+ * 주소를 만드는 것은 이 파일이 아니다 — 로봇 주소를 아는 면은 `src/physical/` 하나다.
+ */
+export function DeviceCamera({ nodeId, taskDeviceId, zoom = false, directUrlOf }: {
+  nodeId: string;
+  taskDeviceId: string | null;
+  zoom?: boolean;
+  directUrlOf?: (deviceId: string, position: string) => string | null;
+}) {
   useLang();
   const choice = useCameraChoice(nodeId);
   const connected = useConnectedDevices();
@@ -176,6 +242,18 @@ export function DeviceCamera({ nodeId, taskDeviceId, zoom = false }: { nodeId: s
     body = <p className="vn-line vn-dim">{t('dcam.replay')}</p>;
   } else if (deviceId === null || cameraKey === null) {
     body = <p className="vn-line vn-dim">{t(zoom ? 'dcam.pickAbove' : 'dcam.pickDevice')}</p>;
+  } else if (directUrlOf?.(deviceId, choice.position) != null) {
+    /**
+     * **로봇 노드에서 바로 받는 영상은 카드에서도 흐른다** (260928 지시 — 「확대하면 되는데 그래프에서는 안 움직인다」).
+     *
+     * `/media` 카드는 여전히 한 장이다(`VZ-I-06`). 이쪽은 로봇 노드가 보는 사람 수와 상관없이 상류 연결 하나로
+     * 나눠 주고(`go1_cam_view` — 아무도 안 보면 20초 뒤 끊는다), 카드 하나가 여는 것은 MJPEG 한 줄이다.
+     * 카드를 지우거나 화면을 떠나면 `<img>` 가 사라지면서 닫힌다.
+     */
+    body = <>
+      {chosenOffline && <p className="vn-line vn-warn">{t('dcam.notConnectedNow', { device: deviceId })}</p>}
+      <DirectCamera url={directUrlOf(deviceId, choice.position)!} live nonce={nonce} compact={!zoom} />
+    </>;
   } else if (mediaBaseUrl() === '') {
     body = <p className="vn-line vn-dim">{t('dcam.noAddress')}</p>;
   } else {

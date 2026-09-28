@@ -75,6 +75,7 @@ import { relayDriven, slotDriven } from '../scenarios/library.ts';
 import { VirtualMap } from '../virtualmap/VirtualMap.tsx';
 import { DeviceCamera } from '../media/views/DeviceCamera.tsx';
 import { resolveSlot } from '../data/slots.ts';
+import { directCameraUrl } from '../physical/cameraView.ts';
 
 /** 화면이 쓰는 로봇 id. 하드웨어 id 로 바꾸는 것은 경계 안쪽(`hardwareTarget`) 일이다. */
 const ROBOT_ENTITY = 'robot-01';
@@ -350,8 +351,8 @@ export const VIEW_NODE_RENDERERS: readonly ViewNodeEntry[] = [
     labelKey: 'viewnode.camera',
     hintKey: 'viewnode.camera.hint',
     showFor: onlySlots,
-    summary: (scope, node) => <NodeGate kind="device-cam"><DeviceCamera nodeId={node?.id ?? 'device-cam'} taskDeviceId={resolveSlot(scope.deviceId)} /></NodeGate>,
-    zoom: (scope, node) => <NodeGate kind="device-cam"><DeviceCamera nodeId={node?.id ?? 'device-cam'} taskDeviceId={resolveSlot(scope.deviceId)} zoom /></NodeGate>,
+    summary: (scope, node) => <NodeGate kind="device-cam"><DeviceCamera nodeId={node?.id ?? 'device-cam'} taskDeviceId={resolveSlot(scope.deviceId)} directUrlOf={directCameraUrl} /></NodeGate>,
+    zoom: (scope, node) => <NodeGate kind="device-cam"><DeviceCamera nodeId={node?.id ?? 'device-cam'} taskDeviceId={resolveSlot(scope.deviceId)} zoom directUrlOf={directCameraUrl} /></NodeGate>,
   },
   {
     // 장치 두 대 편 (260927). 자율주행 편의 「장애물 탐지」 액션 아이템을 **그대로** 쓴다(`ObstacleFacts`).

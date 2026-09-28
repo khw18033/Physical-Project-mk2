@@ -84,6 +84,11 @@ type Candidate = {
   /** 가장 센 원천. capability > registration > topic. */
   source: 'capability' | 'registration' | 'topic';
   atMs: number;
+  /**
+   * **장비가 스스로 말한 생사** (260928). `status` 의 `"offline"`(종료 알림 · LWT)이면 `false`,
+   * `"online"` 이거나 `state`·`heartbeat` 를 보내고 있으면 `true`, 아직 모르면 `null`.
+   */
+  online?: boolean | null;
 };
 
 const RANK: Record<Candidate['source'], number> = { topic: 0, registration: 1, capability: 2 };
@@ -118,7 +123,15 @@ export function deviceIdentity(): DeviceIdentity | null {
  * 후보 묶음에서 **하나를 고르거나 고르지 않는다.** 전역판과 브로커별판이 같은 규칙을 쓴다 —
  * 두 벌로 적으면 한쪽만 고쳐지는 날 명령이 엉뚱한 장비로 나간다.
  */
-function resolve(all: readonly Candidate[]): DeviceIdentity | null {
+function resolve(every: readonly Candidate[]): DeviceIdentity | null {
+  /**
+   * **스스로 꺼졌다고 말한 장비는 세지 않는다** (260928 — pi7 실측).
+   *
+   * pi7 브로커에는 9/21 에 꺼진 수위 센서(`wl-001`)의 `status: offline` 이 retained 로 남아 있었다.
+   * 그것까지 장비로 세면 「한 브로커에 장비가 둘」이 되어 **Go1 명령이 전부 막혔다** — ping 조차 안 나갔다.
+   * 꺼졌다는 것도 장비가 한 말이다(§원칙 1). 모르는 것(`null`)은 빼지 않는다 — 못 들은 것을 꺼진 것으로 읽지 않는다.
+   */
+  const all = every.filter((c) => c.online !== false);
   if (all.length === 0) return null;
   const byCapability = all.filter((c) => c.source === 'capability');
   if (byCapability.length === 1) return byCapability[0];
@@ -170,6 +183,8 @@ function upsert(next: Candidate): void {
         actions: next.actions ?? previous.actions,
         source: keepSource,
         atMs: next.atMs,
+        // 생사는 **말한 것만** 바꾼다 — Capability 는 생사를 안 싣는다.
+        online: next.online ?? previous.online ?? null,
       },
     };
   } else {
@@ -214,6 +229,12 @@ export function noteDeviceReport(
   // 자기소개가 있으면 그쪽 id 가 맞다 — 토픽은 발행자가 실수할 수 있고 본문은 노드가 짓는다.
   const deviceId = registeredId ?? entityId;
   const introduced = registration !== undefined && (registeredId !== null || registeredKind !== null);
+  // 생사 — `status` 는 본문이 말하고, `state`·`heartbeat` 는 오고 있다는 것 자체가 살아 있다는 말이다.
+  const said = str(body.status);
+  const channel = str(body.channel);
+  const online = said === 'offline' ? false
+    : said === 'online' || channel === 'state' || channel === 'heartbeat' ? true
+    : null;
   upsert({
     deviceId,
     origin,
@@ -222,6 +243,7 @@ export function noteDeviceReport(
     actions: null,
     source: introduced ? 'registration' : 'topic',
     atMs: nowMs,
+    online,
   });
 }
 

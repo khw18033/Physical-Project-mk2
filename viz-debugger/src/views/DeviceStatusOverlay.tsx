@@ -38,11 +38,14 @@
 
 import { useLang } from '../shared/language.ts';
 import { t } from '../i18n/dict.ts';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import type { Hardware } from '../model/types.ts';
 import { DeviceStrip } from './DeviceStrip.tsx';
 import { DeviceFacts } from '../physical/DeviceFacts.tsx';
 import { MediaSection } from '../media/views/MediaSection.tsx';
+import { DirectCamera } from '../media/views/DeviceCamera.tsx';
+import { CAMERA_POSITIONS, type CameraPosition } from '../media/cameraChoice.ts';
+import { directCameraUrl } from '../physical/cameraView.ts';
 
 export function DeviceStatusOverlay({ deviceId, device, source, onClose }: {
   deviceId: string;
@@ -53,6 +56,13 @@ export function DeviceStatusOverlay({ deviceId, device, source, onClose }: {
   onClose(): void;
 }) {
   useLang();
+  /**
+   * **로봇 카메라를 카드에서 바로** (260928). Go1 이면 로봇 노드(pi7)의 카메라 뷰어에서 바로 받는다 —
+   * 백엔드 `/media` 는 실물 영상이 아직 안 오는 길이라(`physical/cameraView.ts`) 그 칸만 두면 늘 비어 있다.
+   * 주소를 못 만드는 장비(드론 등)는 이 칸이 없고, 아래 `/media` 칸이 그대로 연다.
+   */
+  const [position, setPosition] = useState<CameraPosition>('front');
+  const directUrl = directCameraUrl(deviceId, position);
   // 여는 길이 둘(더블클릭·앞으로 늘 수 있는 다른 경로)이면 닫는 길도 둘 이상이어야 한다.
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') onClose(); };
@@ -72,8 +82,23 @@ export function DeviceStatusOverlay({ deviceId, device, source, onClose }: {
       {/* **오는 값만 적는다** (260910). 안 오는 칸은 자리표시로 채우지 않고 아예 안 그린다. */}
       <DeviceFacts entityId={deviceId} />
       {device !== undefined && <DeviceStrip device={device} />}
-      {/* 카메라 영상 — **닫으면 끊긴다.** 붙는 것이 켜기이고 끊는 것이 끄기다. */}
-      <MediaSection deviceId={deviceId} />
+      {directUrl !== null && <section className="media-section device-cam device-cam--zoom">
+        <header className="media-section__head">
+          <h3>{t('dso.robotCamera')}</h3>
+          <label className="device-cam__pick">{t('dcam.position')}
+            <select value={position} onChange={(event) => setPosition(event.target.value as CameraPosition)}>
+              {CAMERA_POSITIONS.map((item) => <option key={item} value={item}>{item}</option>)}
+            </select>
+          </label>
+        </header>
+        {/* 닫으면 끊긴다 — 모달이 내려가면 `<img>` 가 사라지고 연결이 닫힌다. */}
+        <DirectCamera url={directUrl} live />
+      </section>}
+      {/* 카메라 영상 — **닫으면 끊긴다.** 붙는 것이 켜기이고 끊는 것이 끄기다.
+          로봇 카메라를 바로 보고 있으면 이 칸은 접는다 — 같은 영상을 두 길로 동시에 열 이유가 없다. */}
+      {directUrl === null
+        ? <MediaSection deviceId={deviceId} />
+        : <details className="media-section__fold"><summary>{t('dso.mediaFold')}</summary><MediaSection deviceId={deviceId} /></details>}
       <footer>
         <span>{t('dso.2')}</span>
       </footer>
