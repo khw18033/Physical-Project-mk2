@@ -771,6 +771,8 @@ function onStartupError(err: NodeJS.ErrnoException): void {
     log('  1) 남은 프로세스 종료 — PowerShell:');
     log('     Get-NetTCPConnection -LocalPort ' + SERVER.PORT + ' -State Listen |');
     log('       ForEach-Object { Stop-Process -Id $_.OwningProcess -Force }');
+    log('     cmd 창이면(프롬프트가 C:\\...>) 위 명령이 안 먹는다 — 대신 한 줄로:');
+    log('     powershell -NoProfile -Command "Get-NetTCPConnection -LocalPort ' + SERVER.PORT + ' -State Listen | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force }"');
     log('  2) 다른 포트로 기동 — MOCK_PORT=8788 npm run dev:mock');
     log('     (이때 .env.local 의 VITE_GATEWAY_WS / VITE_GATEWAY_HTTP 도 같이 바꾼다)');
   } else {

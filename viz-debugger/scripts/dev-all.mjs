@@ -52,6 +52,8 @@ for (const child of children) child.on('exit', (code) => {
     console.error('[dev] 이전 세션이 살아 있는 것이고, 그때 브라우저는 옛 세션에 붙어 있어 화면은 멀쩡해 보인다.');
     console.error('[dev]   Get-NetTCPConnection -LocalPort 8790,5174,8801,8802,8803 -State Listen |');
     console.error('[dev]     ForEach-Object { Stop-Process -Id $_.OwningProcess -Force }');
+    console.error('[dev] cmd 창이면(프롬프트가 C:\\...>) 위 명령이 안 먹는다 — 대신 한 줄로:');
+    console.error('[dev]   powershell -NoProfile -Command "Get-NetTCPConnection -LocalPort 8790,5174,8801,8802,8803 -State Listen | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force }"');
   }
   stop();
   process.exit(code ?? 0);
