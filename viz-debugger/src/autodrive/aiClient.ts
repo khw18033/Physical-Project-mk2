@@ -20,12 +20,18 @@
  */
 
 import { t } from '../i18n/dict.ts';
-import { connectionAddress, registerConnectionDefault } from '../shared/connections.ts';
+import { connectionAddress, registerConnectionDefault, splitAddressList } from '../shared/connections.ts';
+import { AI_DRONE_BASE, AI_GO1_BASE } from './presets.ts';
 
 const meta = import.meta as unknown as { env?: { VITE_AUTODRIVE_AI_BASE?: string } };
 
-/** 사용자가 준 주소 그대로(260915). 연결 관리에서 덮어쓸 수 있다. */
-registerConnectionDefault('autodrive-ai', 'base', meta.env?.VITE_AUTODRIVE_AI_BASE ?? 'http://210.110.250.33:7864');
+/**
+ * 사용자가 준 주소 그대로. 연결 관리에서 덮어쓸 수 있다.
+ *
+ * **기본값이 두 줄이다** (260929 지시) — Go1(260915)과 드론(260929). 첫 줄(Go1)이 자율주행 편의 판정이 보는
+ * 주소라 순서를 바꾸지 않는다. 환경변수가 있으면 그것이 이긴다(줄바꿈으로 여럿).
+ */
+registerConnectionDefault('autodrive-ai', 'base', meta.env?.VITE_AUTODRIVE_AI_BASE ?? [AI_GO1_BASE, AI_DRONE_BASE].join('\n'));
 
 /** 로봇 앞 카메라. 사용자가 준 두 주소가 같은 이름을 쓴다. */
 export const AI_CAMERA = 'go1_front';
@@ -33,34 +39,47 @@ export const AI_CAMERA = 'go1_front';
 /** 개발 서버 창구 — `scripts/autodrive-ai-relay.mjs` 의 `AI_RELAY_URL` 과 같아야 한다. */
 const RELAY = '/autodrive-ai';
 
-/** 지금 쓰는 서버 주소. 끝의 `/` 는 뗀다. 읽을 때마다 지금 값이다. */
+const trimBase = (value: string) => value.trim().replace(/\/+$/, '');
+
+/**
+ * **연결 관리에 적힌 장애물 탐지 주소 전부** (260929 — 둘 이상 동시 연결). 로봇 브로커와 같은 목록 칸이다 —
+ * 줄마다 주소 하나. 탐지 영상 · 객체 탐지 로그 노드가 이 중 하나를 고른다.
+ */
+export function aiBases(): readonly string[] {
+  return splitAddressList(connectionAddress('autodrive-ai', 'base')).map(trimBase).filter((base) => base !== '');
+}
+
+/**
+ * 지금 쓰는 서버 주소 — **목록의 첫 줄**이다. 자율주행 편의 「장애물 탐지」(T-NB2)와 주소를 고르지 않은 노드가
+ * 이것을 본다. 한 줄만 적혀 있던 옛 설정은 그대로 이 값이다.
+ */
 export function aiBase(): string {
-  return connectionAddress('autodrive-ai', 'base').trim().replace(/\/+$/, '');
+  return aiBases()[0] ?? '';
 }
 
 /** 실시간 영상 — 사용자가 준 주소 그대로. 확대에서 `<img>` 로 연다. */
-export function aiStreamUrl(): string {
-  return `${aiBase()}/stream/ai/${AI_CAMERA}`;
+export function aiStreamUrl(base: string = aiBase()): string {
+  return `${trimBase(base)}/stream/ai/${AI_CAMERA}`;
 }
 
 /** 장애물 JSON — 사용자가 준 주소 그대로. 화면에 적는 용도이고 요청은 `fetchObstacleJson` 이 한다. */
-export function aiControlUrl(): string {
-  return `${aiBase()}/control/${AI_CAMERA}`;
+export function aiControlUrl(base: string = aiBase()): string {
+  return `${trimBase(base)}/control/${AI_CAMERA}`;
 }
 
 /** 접힌 카드의 **한 장** — 창구가 스트림의 첫 JPEG 만 잘라 준다. `nonce` 로 새로 받는다. */
-export function aiFrameUrl(nonce: number): string {
-  return `${RELAY}/frame/${AI_CAMERA}?base=${encodeURIComponent(aiBase())}&n=${nonce}`;
+export function aiFrameUrl(nonce: number, base: string = aiBase()): string {
+  return `${RELAY}/frame/${AI_CAMERA}?base=${encodeURIComponent(trimBase(base))}&n=${nonce}`;
 }
 
 /**
  * 영상이 한 장이라도 오는가 — 연결 관리의 「확인」. 창구가 자른 한 장을 `Image` 로 받아 본다.
  * 브라우저가 아니면(검사) 확인할 수 없다고 돌려준다 — 성공으로 치지 않는다.
  */
-export function probeStill(timeoutMs = 6000): Promise<{ ok: boolean | null; reason: string | null; ms: number | null }> {
+export function probeStill(timeoutMs = 6000, base: string = aiBase()): Promise<{ ok: boolean | null; reason: string | null; ms: number | null }> {
   const ImageCtor = (globalThis as { Image?: new () => HTMLImageElement }).Image;
   if (ImageCtor === undefined) return Promise.resolve({ ok: null, reason: t('ac.1'), ms: null });
-  if (aiBase() === '') return Promise.resolve({ ok: false, reason: t('ac.2'), ms: null });
+  if (trimBase(base) === '') return Promise.resolve({ ok: false, reason: t('ac.2'), ms: null });
   return new Promise((resolve) => {
     const image = new ImageCtor();
     const startedAt = Date.now();
@@ -74,7 +93,7 @@ export function probeStill(timeoutMs = 6000): Promise<{ ok: boolean | null; reas
     const timer = setTimeout(() => done({ ok: false, reason: t('ac.noFrameIn', { ms: timeoutMs }), ms: null }), timeoutMs);
     image.onload = () => done({ ok: true, reason: null, ms: Date.now() - startedAt });
     image.onerror = () => done({ ok: false, reason: t('ac.3'), ms: null });
-    image.src = aiFrameUrl(Date.now());
+    image.src = aiFrameUrl(Date.now(), base);
   });
 }
 
@@ -93,8 +112,13 @@ export type ObstacleFetch = { ok: true; body: unknown; via: 'relay' | 'direct' }
  * 창구 먼저. 창구가 없는 서버면(응답에 `X-Autodrive-Relay` 가 없다) 직접 두드린다 — 그 서버가 CORS 를
  * 안 열어 두었으면 브라우저가 막고, 그 사실을 사유로 돌려준다.
  */
-export async function fetchObstacleJson(fetcher: FetchLike = globalThis.fetch as unknown as FetchLike, timeoutMs = 3000): Promise<ObstacleFetch> {
-  const base = aiBase();
+export async function fetchObstacleJson(
+  fetcher: FetchLike = globalThis.fetch as unknown as FetchLike,
+  timeoutMs = 3000,
+  /** 어느 주소에 묻는가 (260929 — 여러 주소). 안 주면 첫 줄이다. */
+  target: string = aiBase(),
+): Promise<ObstacleFetch> {
+  const base = trimBase(target);
   if (base === '') return { ok: false, reason: t('ac.4') };
   const once = async (url: string): Promise<{ status: number; relayed: boolean; body: unknown } | { error: string }> => {
     const abort = new AbortController();
@@ -119,7 +143,7 @@ export async function fetchObstacleJson(fetcher: FetchLike = globalThis.fetch as
     return { ok: false, reason: t('ac.relayFailed', { status: viaRelay.status, said: typeof said === 'string' ? said : t('ac.relaySaid') }) };
   }
   // 창구가 없다(정적 빌드 · 다른 서버). 직접.
-  const direct = await once(aiControlUrl());
+  const direct = await once(aiControlUrl(base));
   if ('error' in direct) {
     return { ok: false, reason: t('ac.directFailed', { why: direct.error }) };
   }

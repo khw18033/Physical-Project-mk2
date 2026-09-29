@@ -20,7 +20,7 @@ import type { ConnectionTargetId } from './connections.ts';
 import { line, setChecking, setHealth, type HealthLine } from './connectionHealth.ts';
 import { probeDetect, sourceOf } from '../detect/DetectClient.ts';
 import { detectState } from '../detect/store.ts';
-import { fetchObstacleJson, probeStill, type FetchLike } from '../autodrive/aiClient.ts';
+import { aiBases, fetchObstacleJson, probeStill, type FetchLike } from '../autodrive/aiClient.ts';
 import { parseObstacle } from '../autodrive/obstacle.ts';
 // `sourceOf` 라는 이름이 탐지에도 있다 — 두 경계가 같은 모양의 함수를 각자 갖는 것이
 // 맞고(섞이면 안 된다), 여기서만 이름을 가른다.
@@ -319,7 +319,21 @@ export async function checkAutodrive(probe: NavProbe | null, waitMs = 6000): Pro
  * JSON 은 오는데 스트림만 멎는 일이 실제로 있었다(같은 날 실측).
  */
 export async function checkAutodriveAi(fetcher?: FetchLike): Promise<readonly HealthLine[]> {
-  const { value: json, ms } = await timed(() => fetchObstacleJson(fetcher));
+  /**
+   * **주소가 여럿이면 주소마다 두 줄** (260929 — 장애물 탐지 둘 이상). 로봇 브로커와 같은 규칙이다 — 줄 id 에
+   * 주소를 붙이고 `scope` 에 적는다. 하나면 전과 한 글자도 같다.
+   */
+  const bases = aiBases();
+  if (bases.length <= 1) return checkAutodriveAiAt(fetcher, bases[0] ?? '');
+  const out: HealthLine[] = [];
+  for (const base of bases) {
+    for (const row of await checkAutodriveAiAt(fetcher, base)) out.push({ ...row, id: `${row.id}@${base}`, scope: base });
+  }
+  return out;
+}
+
+async function checkAutodriveAiAt(fetcher: FetchLike | undefined, base: string): Promise<readonly HealthLine[]> {
+  const { value: json, ms } = await timed(() => fetchObstacleJson(fetcher, undefined, base));
   const snap = json.ok ? parseObstacle(json.body) : null;
   const control = !json.ok
     ? line('control', 'check.line.control', false, { reason: json.reason })
@@ -330,7 +344,7 @@ export async function checkAutodriveAi(fetcher?: FetchLike): Promise<readonly He
           reason: t('check.reason.obstacleOk', { n: snap.detections.length, near: String(snap.hasNearObstacle) })
             + (json.via === 'direct' ? t('check.reason.viaDirect') : ''),
         });
-  const still = await probeStill();
+  const still = await probeStill(undefined, base);
   const stream = line('stream', 'check.line.stream', still.ok, { roundTripMs: still.ms, reason: still.reason });
   return [control, stream];
 }

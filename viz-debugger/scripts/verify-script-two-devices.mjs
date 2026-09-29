@@ -189,9 +189,14 @@ if (!/bindings\[slot\.id\] \?\? slot\.label/.test(main)) failures.push('태스�
 
 // ── 6. 뷰 노드 — 이 편의 셋은 이 편에만, 시연 편의 넷은 이 편에서 빠진다 ──────────────
 const renderers = read('src', 'tabs', 'viewNodes.tsx');
-for (const kind of ['virtual-map', 'device-cam', 'obstacle-log']) {
+// 260929 — 객체 탐지 로그는 **모든 임무**에 선다(지시). 가상 맵 · 카메라 둘만 이 편 팔레트에 남는다.
+for (const kind of ['virtual-map', 'device-cam']) {
   const block = renderers.match(new RegExp(`kind: '${kind}'[\\s\\S]*?showFor: (\\w+)`));
   if (block?.[1] !== 'onlySlots') failures.push(`${kind} 가 이 편 팔레트에만 서지 않는다 (showFor: ${block?.[1]})`);
+}
+{
+  const block = renderers.slice(renderers.indexOf("kind: 'obstacle-log'"), renderers.indexOf('zoom:', renderers.indexOf("kind: 'obstacle-log'")));
+  if (/showFor:/.test(block)) failures.push('객체 탐지 로그가 일부 편에만 선다 — 모든 임무에 떠야 한다(260929)');
 }
 if (!/const notRelay = \(missionId: string\) => !relayDriven\(missionId\) && !slotDriven\(missionId\)/.test(renderers)) {
   failures.push('문 찾기 시연의 노드(탐지 셋 · 로봇)가 이 편 팔레트에도 선다');
@@ -295,6 +300,6 @@ if (failures.length) {
 console.log('✅ 문장 5개가 이 편 하나에만 · 시연 문장은 여전히 시연 편 · @ 는 발화에서만 채우고 못 자르면 빈칸 그대로');
 console.log('✅ 마일스톤 다섯 · 연결 확인 넷씩 · 경로 탐지와 장치 이동의 같은 일은 같은 부모 · 같은 시각에 나란히 → 합류');
 console.log('✅ 일반 모드(시나리오 띠 없음) · 화면이 모는 판 · 로봇 관문 안 엶 · cast 없이 자리 둘 · 한 장비 한 자리(맞바꿈)');
-console.log('✅ 가상 맵 · 카메라 · 객체 탐지 로그는 이 편 팔레트에만 · 맵 종류는 연결 관리가 가른다');
+console.log('✅ 가상 맵 · 카메라는 이 편 팔레트에만(객체 탐지 로그는 260929 부터 모든 임무) · 맵 종류는 연결 관리가 가른다');
 console.log('✅ 실행기 — 연결 확인 여덟은 장비 값(배터리 78 · 64) · 넘기는 일곱은 5초를 채우고 판 기록에 적힘 · 나머지는 곧바로 · Go1 만 실제로 걷고(직진 합 = 경로) 드론엔 ping 만 · 임무 완료는 두 도착 뒤');
 console.log(`✅ 대조군 ${controls.length}건 — ${controls.join(' · ')}`);

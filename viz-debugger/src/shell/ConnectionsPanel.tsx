@@ -55,6 +55,7 @@ import { robotProbe, robotProbes } from '../physical/robotClient.ts';
 import { setTestMode, useDetect } from '../detect/store.ts';
 import { CAPABILITY_PRESETS, capabilityPresetReady } from '../capability/presets.ts';
 import { MEDIA_PRESETS, mediaPresetReady } from '../media/presets.ts';
+import { AI_PRESETS, aiPresetReady } from '../autodrive/presets.ts';
 import { setCapabilityTestMode, useCapability } from '../capability/store.ts';
 import { useDeviceStates } from '../physical/deviceState.ts';
 import { CHECKED_TARGETS, healthOf, useConnectionHealth, type TargetHealth } from '../shared/connectionHealth.ts';
@@ -90,6 +91,8 @@ const ADDRESS_PRESETS: Partial<Record<ConnectionTargetId, { presets: readonly Ad
   capability: { presets: CAPABILITY_PRESETS, ready: capabilityPresetReady },
   // 260921 — 영상 소켓. 서버 주소가 tailnet 값이라 아직 비어 있어 고를 수 없다.
   media: { presets: MEDIA_PRESETS, ready: mediaPresetReady },
+  // 260929 — 장애물 탐지 영상. 로봇처럼 줄마다 Go1 · 드론 · 직접 입력을 고른다.
+  'autodrive-ai': { presets: AI_PRESETS, ready: aiPresetReady },
 };
 
 /**

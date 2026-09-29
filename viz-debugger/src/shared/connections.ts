@@ -45,7 +45,7 @@
 
 import { useSyncExternalStore } from 'react';
 
-export type ConnectionTargetId = 'gateway' | 'media' | 'stt' | 'generate' | 'physical' | 'detect' | 'autodrive' | 'autodrive-ai' | 'capability' | 'control-node' | 'digital-twin' | 'sar' | 'recon-3d';
+export type ConnectionTargetId = 'gateway' | 'media' | 'stt' | 'generate' | 'physical' | 'detect' | 'autodrive' | 'autodrive-ai' | 'capability' | 'control-node' | 'digital-twin' | 'virtual-3d' | 'sar' | 'recon-3d';
 
 /**
  * ## 260918 — 여기 담는 것은 **글자가 아니라 사전 키**다
@@ -168,7 +168,9 @@ export const CONNECTION_TARGETS: readonly ConnectionTarget[] = [
     labelKey: 'conn.target.autodriveAi',
     whatKey: 'conn.target.autodriveAi.what',
     live: true,
-    fields: [{ key: 'base', labelKey: 'conn.field.base', fallback: '' }],
+    // 260929 — **둘 이상 동시에.** 로봇 브로커와 같은 목록 칸이다. 첫 줄이 기본이고, 탐지 영상 · 객체 탐지 로그
+    // 노드가 확대에서 주소를 고른다. 한 줄만 적힌 옛 설정은 그대로 첫 줄이 된다 — 옮길 것이 없다.
+    fields: [{ key: 'base', labelKey: 'conn.field.base', fallback: '', list: true }],
   },
   {
     // 260920 — 기능 상태 서비스(`perception-framework/tools/status_ui`). **실제 배치는 k3s 안이라
@@ -264,6 +266,17 @@ export const CONNECTION_TARGETS: readonly ConnectionTarget[] = [
   },
   {
     /**
+     * 260929 — **3D 가상환경.** 3D 디지털트윈 가상환경 화면의 주소다. 모든 편의 「3D 가상환경」 노드가 이 칸을 읽는다.
+     * 기본값은 사용자가 준 주소이고, 환경변수(`VITE_VIRTUAL_3D_BASE`)가 있으면 그것이 이긴다.
+     */
+    id: 'virtual-3d',
+    labelKey: 'conn.target.virtual3d',
+    whatKey: 'conn.target.virtual3d.what',
+    live: true,
+    fields: [{ key: 'base', labelKey: 'conn.field.base', fallback: 'http://100.68.72.33:8080/' }],
+  },
+  {
+    /**
      * 260929 — **SAR 노드가 띄울 것.** 지금은 이미지 한 장을 붙인다(`imageStore.ts` — 이 브라우저 안). 주소 칸에
      * 이미지 주소를 넣으면 그 주소가 이긴다 — 서비스가 생기면 주소만 넣으면 되고 이 판을 다시 만들지 않는다.
      */
@@ -309,6 +322,7 @@ for (const target of CONNECTION_TARGETS) {
 }
 defaults.set('gateway.ws', env.VITE_GATEWAY_WS ?? defaults.get('gateway.ws')!);
 defaults.set('gateway.http', env.VITE_GATEWAY_HTTP ?? defaults.get('gateway.http')!);
+defaults.set('virtual-3d.base', env.VITE_VIRTUAL_3D_BASE ?? defaults.get('virtual-3d.base')!);
 
 /**
  * 자기 환경변수를 읽는 모듈이 **기본값만** 심는다. 사용자가 덮어쓴 값은 건드리지 않는다.

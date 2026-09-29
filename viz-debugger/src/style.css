@@ -443,6 +443,9 @@ b.follow-live{cursor:default}
 /* 주소 여러 줄 (260922 — 로봇 N대). 줄마다 이름 칸을 반복하지 않는다 — 첫 줄만 적는다. */
 .conn-list label:not(:first-child) span{visibility:hidden}
 .conn-list label:has(.conn-row-drop){grid-template-columns:78px auto 1fr auto}
+/* 고르는 칸이 없는 목록(260929) — 없으면 입력이 auto 칸에 들어가 × 가 넓은 칸을 먹었다. */
+.conn-list label:has(.conn-row-drop):not(:has(.conn-preset)){grid-template-columns:78px 1fr auto}
+.conn-list label:not(:has(.conn-preset)):not(:has(.conn-row-drop)){grid-template-columns:78px 1fr}
 .conn-row-drop{padding:4px 9px;border:1px solid #d9c2c2;border-radius:6px;background:#fff;color:#a2413c;line-height:1}
 /* 상태 줄이 어느 주소의 것인지 (260922). 줄 이름 앞에 작게 붙는다. */
 .conn-dot__scope{margin-right:5px;padding:1px 5px;border-radius:5px;background:#00000014;font-style:normal;font-weight:400;font-family:monospace;font-size:10px}
@@ -1055,3 +1058,9 @@ button.robot-resume{padding:6px 12px;border:1px solid #2f9e5f;border-radius:6px;
 .conn-image__pick{display:inline-block;padding:4px 10px;border:1px solid #c8d0da;border-radius:6px;background:#fff;cursor:pointer;font-size:12px}
 .conn-image__pick input{display:none}
 .conn-image__status{color:#6a7686;font-size:11px}
+/* 장애물 탐지 주소 고르기 (260929). 확대 위쪽 한 줄 — 여러 장의 탐지 영상이 각자 주소를 본다. */
+.ai-source{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:0 0 6px;font-size:12px}
+.ai-source select{max-width:100%;padding:3px 6px;border:1px solid #c8d0da;border-radius:6px;background:#fff}
+.ai-source small,.ai-source__at{color:#6a7686;font-size:11px}
+.v3d__frame{min-height:220px}
+.vmap--zoom .v3d__frame{min-height:min(66vh,680px)}

@@ -77,6 +77,7 @@ import { DeviceCamera } from '../media/views/DeviceCamera.tsx';
 import { resolveSlot } from '../data/slots.ts';
 import { directCameraUrl } from '../physical/cameraView.ts';
 import { AttachedImage } from '../imagery/AttachedImage.tsx';
+import { Virtual3D } from '../virtualmap/Virtual3D.tsx';
 
 /** 화면이 쓰는 로봇 id. 하드웨어 id 로 바꾸는 것은 경계 안쪽(`hardwareTarget`) 일이다. */
 const ROBOT_ENTITY = 'robot-01';
@@ -327,7 +328,6 @@ function RobotBody() {
  * 전과 한 칸도 다르지 않다.
  */
 const notRelay = (missionId: string) => !relayDriven(missionId) && !slotDriven(missionId);
-const onlyRelay = (missionId: string) => relayDriven(missionId);
 /**
  * **장치 두 대 편의 노드** (260927). 문 찾기 시연의 노드(탐지 셋 · pi7 로봇)는 이 편에서 꺼낼 일이 없어
  * `notRelay` 가 이 편도 뺀다. 이 편의 셋은 다른 편에 두지 않는다.
@@ -361,9 +361,17 @@ export const VIEW_NODE_RENDERERS: readonly ViewNodeEntry[] = [
     kind: 'obstacle-log',
     labelKey: 'viewnode.detectLog',
     hintKey: 'viewnode.detectLog.hint',
-    showFor: onlySlots,
-    summary: () => <NodeGate kind="obstacle-log"><ObstacleLogCard /></NodeGate>,
-    zoom: () => <NodeGate kind="obstacle-log"><ObstacleFacts /></NodeGate>,
+    // 260929 — **모든 편에 선다.** 장애물 탐지 주소가 여럿이면 확대에서 주소를 고른다(노드마다 따로).
+    summary: (_scope, node) => <NodeGate kind="obstacle-log"><ObstacleLogCard nodeId={node?.id ?? 'obstacle-log'} /></NodeGate>,
+    zoom: (_scope, node) => <NodeGate kind="obstacle-log"><ObstacleFacts nodeId={node?.id ?? 'obstacle-log'} /></NodeGate>,
+  },
+  {
+    // 260929 — **3D 가상환경.** 연결 관리의 「3D 가상환경」 주소(기본 사용자가 준 주소)를 틀에 띄운다. 모든 편에 선다.
+    kind: 'virtual-3d',
+    labelKey: 'viewnode.virtual3d',
+    hintKey: 'viewnode.virtual3d.hint',
+    summary: () => <NodeGate kind="virtual-3d"><Virtual3D /></NodeGate>,
+    zoom: () => <NodeGate kind="virtual-3d"><Virtual3D zoom /></NodeGate>,
   },
   {
     // 260929 — **SAR.** 연결 관리의 「SAR 영상」에 붙인 것을 띄운다(주소가 있으면 주소, 없으면 붙인 파일).
@@ -385,12 +393,13 @@ export const VIEW_NODE_RENDERERS: readonly ViewNodeEntry[] = [
   {
     // 자율주행 편 (260915) — AI 서버의 로봇 앞 카메라 영상을 **그대로**. 접힘은 한 장씩, 실시간은 확대에서.
     // 문 찾기 시연의 「탐지 영상」과 서버도 코드도 다르다(`src/autodrive/`). 자리표시로 감싸지 않는다 — 실제로 오는 값이다.
+    // 260929 — **「탐지 영상」으로 이름을 바꾸고 모든 편에 선다.** 연결 관리의 「장애물 탐지 영상」 주소가 여럿이면
+    // 같은 노드를 여러 장 놓고 확대에서 각자 주소를 고른다(노드마다 따로 · `autodrive/sourceChoice.ts`).
     kind: 'autodrive-cam',
-    labelKey: 'viewnode.robotVideo',
-    hintKey: 'viewnode.robotVideo.hint',
-    showFor: onlyRelay,
-    summary: () => <NodeGate kind="autodrive-cam"><AutodriveCam /></NodeGate>,
-    zoom: () => <NodeGate kind="autodrive-cam"><AutodriveCam zoom /></NodeGate>,
+    labelKey: 'viewnode.obstacleVideo',
+    hintKey: 'viewnode.obstacleVideo.hint',
+    summary: (_scope, node) => <NodeGate kind="autodrive-cam"><AutodriveCam nodeId={node?.id ?? 'autodrive-cam'} /></NodeGate>,
+    zoom: (_scope, node) => <NodeGate kind="autodrive-cam"><AutodriveCam zoom nodeId={node?.id ?? 'autodrive-cam'} /></NodeGate>,
   },
   {
     // 탐지 셋 (260912) — 자리표시로 비어 있던 `video-stream` · `detections` · `zone-map`.

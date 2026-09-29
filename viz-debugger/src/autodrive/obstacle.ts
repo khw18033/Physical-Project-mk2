@@ -27,7 +27,7 @@ import { t } from '../i18n/dict.ts';
 import { sayText, type LogSay } from '../i18n/phrase.ts';
 import { useSyncExternalStore } from 'react';
 import { isReplayingRecord } from '../record/replayMode.ts';
-import { fetchObstacleJson, type FetchLike } from './aiClient.ts';
+import { aiBase, fetchObstacleJson, type FetchLike } from './aiClient.ts';
 
 /** 이 값을 붙이는 노드 — 자율주행 편(`MSN-260915-01`)의 「장애물 탐지」. */
 export const OBSTACLE_TASK = 'T-NB2';
@@ -133,25 +133,73 @@ export const OBSTACLE_POLL_MS = 500;
 export const OBSTACLE_FROZEN_MS = 5000;
 
 const EMPTY: ObstacleState = { latest: null, error: null, via: null, frozenSinceMs: null, log: [], polling: false };
-let state: ObstacleState = EMPTY;
-const listeners = new Set<() => void>();
 
-function commit(next: ObstacleState): void {
-  state = next;
-  for (const listener of listeners) listener();
+/**
+ * **주소 하나의 열** (260929 — 장애물 탐지 주소 둘 이상). 주소마다 값 · 줄 · 폴링이 따로다 — 한 열에 섞으면
+ * 두 로봇의 장애물이 한 줄로 번갈아 적혀 어느 쪽 것인지 모른다.
+ *
+ * `base` 는 **물을 때마다** 읽는다. 첫 줄 열(`primary`)은 연결 관리에서 첫 줄을 바꾸면 새 주소에 묻는다 —
+ * 지금까지 한 열이던 때와 같은 동작이다.
+ */
+type Channel = {
+  base: () => string;
+  state: ObstacleState;
+  listeners: Set<() => void>;
+  holders: number;
+  timer: ReturnType<typeof setTimeout> | null;
+  fetcher: FetchLike | undefined;
+  inFlight: boolean;
+};
+
+function makeChannel(base: () => string): Channel {
+  return { base, state: EMPTY, listeners: new Set(), holders: 0, timer: null, fetcher: undefined, inFlight: false };
+}
+
+/** 첫 줄 — 자율주행 편의 「장애물 탐지」(T-NB2)와 주소를 고르지 않은 노드가 본다. */
+const primary = makeChannel(aiBase);
+/** 첫 줄이 아닌 주소들. 노드가 그 주소를 고를 때 생긴다. */
+const others = new Map<string, Channel>();
+
+/**
+ * 그 주소의 열. **`null` 이거나 지금 첫 줄이면 첫 줄 열**이다 — 같은 주소에 열이 둘 생기면 같은 서버를 두 번 묻는다.
+ */
+export function obstacleChannelFor(base: string | null): Channel {
+  const key = base === null ? '' : base.trim().replace(/\/+$/, '');
+  if (key === '' || key === aiBase()) return primary;
+  let channel = others.get(key);
+  if (channel === undefined) {
+    channel = makeChannel(() => key);
+    others.set(key, channel);
+  }
+  return channel;
+}
+
+function commitTo(channel: Channel, next: ObstacleState): void {
+  channel.state = next;
+  for (const listener of channel.listeners) listener();
 }
 
 export function obstacleState(): ObstacleState {
-  return state;
+  return primary.state;
 }
 
 export function subscribeObstacle(listener: () => void): () => void {
-  listeners.add(listener);
-  return () => listeners.delete(listener);
+  primary.listeners.add(listener);
+  return () => primary.listeners.delete(listener);
 }
 
 export function useObstacle(): ObstacleState {
   return useSyncExternalStore(subscribeObstacle, obstacleState, obstacleState);
+}
+
+/** 고른 주소의 값을 구독한다 (260929). `null` 이면 첫 줄. */
+export function useObstacleAt(base: string | null): ObstacleState {
+  const channel = obstacleChannelFor(base);
+  return useSyncExternalStore(
+    (listener) => { channel.listeners.add(listener); return () => { channel.listeners.delete(listener); }; },
+    () => channel.state,
+    () => channel.state,
+  );
 }
 
 function withLog(log: readonly ObstacleLogLine[], lines: ObstacleLogLine[]): readonly ObstacleLogLine[] {
@@ -165,11 +213,11 @@ const nearWords = (snap: ObstacleSnapshot) => snap.detections
   .map((d) => `${d.name}${d.distanceCm === null ? '' : ` ${d.distanceCm.toFixed(0)}cm`}`)
   .join(', ');
 
-/** 받은 한 건을 얹는다. 바뀐 것만 줄로 남긴다. 검사가 시각을 넣어 부른다. */
-export function receiveObstacle(body: unknown, via: 'relay' | 'direct', nowMs = Date.now()): boolean {
+function receiveInto(channel: Channel, body: unknown, via: 'relay' | 'direct', nowMs: number): boolean {
+  const state = channel.state;
   const snap = parseObstacle(body, nowMs);
   if (snap === null) {
-    commit({ ...state, error: t('ob2.2'), log: withLog(state.log, state.error === null ? [{ atMs: nowMs, level: 'warn', say: { key: 'ob2.3' } }] : []) });
+    commitTo(channel, { ...state, error: t('ob2.2'), log: withLog(state.log, state.error === null ? [{ atMs: nowMs, level: 'warn', say: { key: 'ob2.3' } }] : []) });
     return false;
   }
   const prev = state.latest;
@@ -184,89 +232,109 @@ export function receiveObstacle(body: unknown, via: 'relay' | 'direct', nowMs = 
   const sameClock = prev !== null && snap.timestampSec !== null && prev.timestampSec === snap.timestampSec;
   // 멈춤은 줄로 안 적는다 — 판정은 화면이 시각으로 한다(`obstacleFrozen`).
   const frozenSinceMs = sameClock ? (state.frozenSinceMs ?? prev.receivedAtMs) : null;
-  commit({ ...state, latest: snap, error: null, via, frozenSinceMs, log: withLog(state.log, lines) });
+  commitTo(channel, { ...state, latest: snap, error: null, via, frozenSinceMs, log: withLog(state.log, lines) });
   return true;
 }
 
-/** 실패 한 건. 같은 사유가 이어지면 줄을 또 적지 않는다. */
-export function noteObstacleError(reason: string, nowMs = Date.now()): void {
+function errorInto(channel: Channel, reason: string, nowMs: number): void {
+  const state = channel.state;
   const lines: ObstacleLogLine[] = state.error === reason ? [] : [{ atMs: nowMs, level: 'warn', say: { key: 'ob2.notReceived', vars: { reason } } }];
-  commit({ ...state, error: reason, log: withLog(state.log, lines) });
+  commitTo(channel, { ...state, error: reason, log: withLog(state.log, lines) });
+}
+
+/** 받은 한 건을 얹는다(첫 줄 열). 바뀐 것만 줄로 남긴다. 검사가 시각을 넣어 부른다. */
+export function receiveObstacle(body: unknown, via: 'relay' | 'direct', nowMs = Date.now()): boolean {
+  return receiveInto(primary, body, via, nowMs);
+}
+
+/** 실패 한 건(첫 줄 열). 같은 사유가 이어지면 줄을 또 적지 않는다. */
+export function noteObstacleError(reason: string, nowMs = Date.now()): void {
+  errorInto(primary, reason, nowMs);
 }
 
 /** 서버 값이 멈췄나 — 서버 시계가 5초 넘게 그대로다. */
-export function obstacleFrozen(current: ObstacleState = state, nowMs = Date.now()): boolean {
+export function obstacleFrozen(current: ObstacleState = primary.state, nowMs = Date.now()): boolean {
   return current.frozenSinceMs !== null && nowMs - current.frozenSinceMs >= OBSTACLE_FROZEN_MS;
 }
 
 // ── 폴링 — 붙잡은 수를 센다 ────────────────────────────────────────────────────
 
-let holders = 0;
-let timer: ReturnType<typeof setTimeout> | null = null;
-let fetcher: FetchLike | undefined;
-let inFlight = false;
-
-async function tick(): Promise<void> {
-  timer = null;
-  if (holders === 0) return;
-  if (!inFlight) {
-    inFlight = true;
+async function tick(channel: Channel): Promise<void> {
+  channel.timer = null;
+  if (channel.holders === 0) return;
+  if (!channel.inFlight) {
+    channel.inFlight = true;
     try {
-      const outcome = await fetchObstacleJson(fetcher);
-      if (holders > 0 && !isReplayingRecord()) {
-        if (outcome.ok) receiveObstacle(outcome.body, outcome.via);
-        else noteObstacleError(outcome.reason);
+      const outcome = await fetchObstacleJson(channel.fetcher, undefined, channel.base());
+      if (channel.holders > 0 && !isReplayingRecord()) {
+        if (outcome.ok) receiveInto(channel, outcome.body, outcome.via, Date.now());
+        else errorInto(channel, outcome.reason, Date.now());
       }
     } finally {
-      inFlight = false;
+      channel.inFlight = false;
     }
   }
-  if (holders > 0 && timer === null) timer = setTimeout(() => void tick(), OBSTACLE_POLL_MS);
+  if (channel.holders > 0 && channel.timer === null) channel.timer = setTimeout(() => void tick(channel), OBSTACLE_POLL_MS);
 }
 
-/**
- * 폴링을 붙잡는다. 되돌려주는 함수를 부르면 놓는다 — 마지막으로 놓을 때만 멈춘다.
- * @param customFetcher 검사가 갈아 끼운다.
- */
-export function holdObstaclePolling(customFetcher?: FetchLike): () => void {
+function holdChannel(channel: Channel, customFetcher?: FetchLike): () => void {
   // **다시보기 중에는 묻지 않는다** (260915) — 지금 값이 그 판의 기록을 덮으면 다시보기가 거짓말을 한다.
   if (isReplayingRecord()) return () => undefined;
-  if (customFetcher !== undefined) fetcher = customFetcher;
-  holders += 1;
-  if (holders === 1) {
-    commit({ ...state, polling: true });
-    void tick();
+  if (customFetcher !== undefined) channel.fetcher = customFetcher;
+  channel.holders += 1;
+  if (channel.holders === 1) {
+    commitTo(channel, { ...channel.state, polling: true });
+    void tick(channel);
   }
   let released = false;
   return () => {
     if (released) return;
     released = true;
-    holders -= 1;
-    if (holders === 0) {
-      if (timer !== null) { clearTimeout(timer); timer = null; }
-      commit({ ...state, polling: false });
+    channel.holders -= 1;
+    if (channel.holders === 0) {
+      if (channel.timer !== null) { clearTimeout(channel.timer); channel.timer = null; }
+      commitTo(channel, { ...channel.state, polling: false });
     }
   };
 }
 
-export function obstacleHolders(): number {
-  return holders;
+/**
+ * 폴링을 붙잡는다(첫 줄 열). 되돌려주는 함수를 부르면 놓는다 — 마지막으로 놓을 때만 멈춘다.
+ * @param customFetcher 검사가 갈아 끼운다.
+ */
+export function holdObstaclePolling(customFetcher?: FetchLike): () => void {
+  return holdChannel(primary, customFetcher);
 }
 
-/** 검사가 판을 비울 때. */
+/** 고른 주소의 폴링을 붙잡는다 (260929). `null` 이면 첫 줄. */
+export function holdObstaclePollingAt(base: string | null, customFetcher?: FetchLike): () => void {
+  return holdChannel(obstacleChannelFor(base), customFetcher);
+}
+
+export function obstacleHolders(): number {
+  return primary.holders;
+}
+
+/** 검사가 판을 비울 때. 첫 줄이 아닌 주소의 열도 같이 걷는다. */
 export function resetObstacle(): void {
-  if (timer !== null) { clearTimeout(timer); timer = null; }
-  holders = 0;
-  fetcher = undefined;
-  commit(EMPTY);
+  for (const channel of [primary, ...others.values()]) {
+    if (channel.timer !== null) { clearTimeout(channel.timer); channel.timer = null; }
+    channel.holders = 0;
+    channel.fetcher = undefined;
+    commitTo(channel, EMPTY);
+  }
+  others.clear();
 }
 
 /** 판이 새로 서면 지난 판의 줄을 걷는다 — 최신 값은 남긴다(같은 카메라의 지금 값이다). */
 export function clearObstacleLog(): void {
-  commit({ ...state, log: [] });
+  commitTo(primary, { ...primary.state, log: [] });
 }
 
 // ── 임무 기록 · 다시보기 (260915) ─────────────────────────────────────────────
+//
+// 기록은 **첫 줄 열**만 뜬다 — 자율주행 편의 「장애물 탐지」가 보는 열이다. 다른 주소의 값은 노드에서 보는
+// 지금 값이고 판의 판정에 안 들어간다.
 
 export type RecordedObstacle = {
   latest: ObstacleSnapshot | null;
@@ -277,13 +345,14 @@ export type RecordedObstacle = {
 
 /** 기록기가 뜨는 몫 — 마지막 값(받은 JSON 그대로 포함)과 이 판의 바뀐 줄. */
 export function recordableObstacle(): RecordedObstacle {
+  const state = primary.state;
   return { latest: state.latest, log: [...state.log], error: state.error, via: state.via };
 }
 
 /** 다시보기 — 그 판의 값으로 채운다. **붙잡은 수와 타이머는 건드리지 않는다** — 셈이 어긋나면 폴링이 안 멈춘다. */
 export function restoreObstacle(saved: Partial<RecordedObstacle> | undefined): void {
-  commit({
-    ...state,
+  commitTo(primary, {
+    ...primary.state,
     latest: saved?.latest ?? null,
     log: Array.isArray(saved?.log) ? saved.log : [],
     error: saved?.error ?? null,
@@ -294,5 +363,5 @@ export function restoreObstacle(saved: Partial<RecordedObstacle> | undefined): v
 
 /** 값만 비운다 — 다시보기를 닫을 때. 붙잡은 수와 타이머는 그대로 둔다. */
 export function clearObstacleData(): void {
-  commit({ ...state, latest: null, log: [], error: null, via: null, frozenSinceMs: null });
+  commitTo(primary, { ...primary.state, latest: null, log: [], error: null, via: null, frozenSinceMs: null });
 }

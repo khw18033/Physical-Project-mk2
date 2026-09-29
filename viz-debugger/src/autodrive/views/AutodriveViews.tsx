@@ -18,8 +18,10 @@ import { useLang } from '../../shared/language.ts';
 import { Rich } from '../../i18n/RichText.tsx';
 import { t } from '../../i18n/dict.ts';
 import { useEffect, useState } from 'react';
-import { aiBase, aiControlUrl, aiFrameUrl, aiStreamUrl, AI_CAMERA } from '../aiClient.ts';
-import { holdObstaclePolling, obstacleFrozen, useObstacle, type ObstacleDetection, type ObstacleSnapshot, obstacleLineText } from '../obstacle.ts';
+import { aiBase, aiBases, aiControlUrl, aiFrameUrl, aiStreamUrl, AI_CAMERA } from '../aiClient.ts';
+import { holdObstaclePollingAt, obstacleFrozen, useObstacleAt, type ObstacleDetection, type ObstacleSnapshot, obstacleLineText } from '../obstacle.ts';
+import { setObstacleSource, useObstacleSource } from '../sourceChoice.ts';
+import { useConnections } from '../../shared/connections.ts';
 import { useReplayTarget } from '../../record/replayMode.ts';
 
 const clock = (ms: number) => new Date(ms).toTimeString().slice(0, 8);
@@ -28,8 +30,41 @@ const cm = (value: number | null) => (value === null ? '—' : `${value.toFixed(
 /** 접힌 카드가 새 한 장을 받는 주기. */
 export const CAM_STILL_MS = 2000;
 
-export function AutodriveCam({ zoom = false }: { zoom?: boolean }) {
+/**
+ * **이 노드가 볼 주소** (260929 — 장애물 탐지 주소 둘 이상). 노드가 고른 주소, 없으면 연결 관리 목록의 첫 줄.
+ * `nodeId` 가 없으면(액션 아이템 · 판단 근거) 언제나 첫 줄이다 — 자율주행 편의 판정이 보는 열이다.
+ */
+function useAiSource(nodeId: string | undefined): { base: string; chosen: string | null } {
+  useConnections();
+  const chosen = useObstacleSource(nodeId ?? '');
+  const picked = nodeId === undefined ? null : chosen;
+  return { base: picked ?? aiBase(), chosen: picked };
+}
+
+/**
+ * **주소 고르기** — 확대에서만 그린다. 카드는 끌기가 먼저라 고르는 칸을 두지 않는다(카메라 노드와 같다).
+ * 목록에서 빠진 주소를 골라 두었으면 그 주소를 그대로 보이고 「목록에 없음」을 붙인다 — 말없이 첫 줄로 바꾸지 않는다.
+ */
+export function AiSourcePicker({ nodeId }: { nodeId: string }) {
   useLang();
+  useConnections();
+  const chosen = useObstacleSource(nodeId);
+  const bases = aiBases();
+  const missing = chosen !== null && !bases.includes(chosen);
+  return <label className="ai-source">
+    <span>{t('adv.sourcePick')}</span>
+    <select value={chosen ?? ''} onChange={(event) => setObstacleSource(nodeId, event.target.value === '' ? null : event.target.value)}>
+      <option value="">{t('adv.sourceFirst', { url: bases[0] ?? t('adv.sourceNone') })}</option>
+      {bases.slice(1).map((base) => <option key={base} value={base}>{base}</option>)}
+      {missing && <option value={chosen}>{t('adv.sourceMissing', { url: chosen })}</option>}
+    </select>
+    {bases.length <= 1 && <small>{t('adv.sourceOnlyOne')}</small>}
+  </label>;
+}
+
+export function AutodriveCam({ zoom = false, nodeId }: { zoom?: boolean; nodeId?: string }) {
+  useLang();
+  const { base } = useAiSource(nodeId);
   const [nonce, setNonce] = useState(0);
   const [loadedAt, setLoadedAt] = useState<number | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
@@ -47,26 +82,28 @@ export function AutodriveCam({ zoom = false }: { zoom?: boolean }) {
   if (replaying !== null) {
     return <p className="vn-line vn-dim">{t('adv.1')}</p>;
   }
-  if (aiBase() === '') {
+  if (base === '') {
     return <p className="vn-line vn-dim">{t('adv.2')}</p>;
   }
-  const src = zoom ? aiStreamUrl() : aiFrameUrl(nonce);
+  const src = zoom ? aiStreamUrl(base) : aiFrameUrl(nonce, base);
   return <div className={`detect-cam autodrive-cam${zoom ? ' detect-cam--zoom' : ''}`}>
+    {zoom && nodeId !== undefined && <AiSourcePicker nodeId={nodeId} />}
     <img
       // 확대는 주소가 안 바뀌어야 스트림이 안 끊긴다. 접힘은 한 장마다 새 요소가 아니라 새 주소다.
       src={src}
       alt={t('adv.camAlt', { cam: AI_CAMERA })}
       onLoad={() => { setLoadedAt(Date.now()); setFailed(null); }}
       onError={() => setFailed(zoom
-        ? t('adv.streamFailed', { url: aiStreamUrl() })
+        ? t('adv.streamFailed', { url: aiStreamUrl(base) })
         : t('adv.3'))}
     />
     <p className="detect-cam__at">
       {failed !== null
         ? <b className="vn-warn">{failed}</b>
         : zoom
-          ? <>{t('adv.4')} <code>{aiStreamUrl()}</code></>
-          : loadedAt === null ? t('adv.firstFrame') : t('adv.stillMeta', { clock: clock(loadedAt), sec: CAM_STILL_MS / 1000 })}
+          ? <>{t('adv.4')} <code>{aiStreamUrl(base)}</code></>
+          : <>{loadedAt === null ? t('adv.firstFrame') : t('adv.stillMeta', { clock: clock(loadedAt), sec: CAM_STILL_MS / 1000 })}
+              {aiBases().length > 1 && <small className="ai-source__at"> · {base}</small>}</>}
     </p>
   </div>;
 }
@@ -84,10 +121,10 @@ function DetectionRow({ d }: { d: ObstacleDetection }) {
   </tr>;
 }
 
-function Freshness({ snap, error, frozen, replaying }: { snap: ObstacleSnapshot | null; error: string | null; frozen: boolean; replaying: boolean }) {
+function Freshness({ snap, error, frozen, replaying, base }: { snap: ObstacleSnapshot | null; error: string | null; frozen: boolean; replaying: boolean; base: string }) {
   useLang();
   return <dl className="device-facts">
-    <div><dt>{t('adv.5')}</dt><dd><code>{aiControlUrl()}</code></dd></div>
+    <div><dt>{t('adv.5')}</dt><dd><code>{aiControlUrl(base)}</code></dd></div>
     {/* 다시보기에서는 「몇 초 전」을 안 적는다 — 지난 판의 값이라 지금과의 차이는 뜻이 없다. */}
     {snap !== null && <div><dt>{t(replaying ? 'adv.recordedLast' : 'adv.lastReceived')}</dt><dd>{clock(snap.receivedAtMs)}{replaying ? '' : t('adv.secondsAgo', { sec: Math.round((Date.now() - snap.receivedAtMs) / 1000) })}{snap.timestampSec === null ? '' : t('adv.serverClock', { sec: snap.timestampSec.toFixed(3) })}{frozen && !replaying ? t('adv.frozen5s') : ''}</dd></div>}
     {error !== null && <div><dt>{t('adv.6')}</dt><dd className="vn-warn">{t('adv.notReceiving', { reason: error })}</dd></div>}
@@ -97,15 +134,17 @@ function Freshness({ snap, error, frozen, replaying }: { snap: ObstacleSnapshot 
 /**
  * **「장애물 탐지」 액션 아이템.** 여는 동안 폴링을 붙잡는다 — 판이 안 열려 있어도(제안 중) 지금 값이 보인다.
  */
-export function ObstacleFacts() {
+export function ObstacleFacts({ nodeId }: { nodeId?: string } = {}) {
   useLang();
-  useEffect(() => holdObstaclePolling(), []);
-  const obstacle = useObstacle();
+  const { base, chosen } = useAiSource(nodeId);
+  useEffect(() => holdObstaclePollingAt(chosen), [chosen]);
+  const obstacle = useObstacleAt(chosen);
   const snap = obstacle.latest;
   const frozen = obstacleFrozen(obstacle);
   const replaying = useReplayTarget() !== null;
   return <div className="obstacle-facts">
-    <Freshness snap={snap} error={obstacle.error} frozen={frozen} replaying={replaying} />
+    {nodeId !== undefined && <AiSourcePicker nodeId={nodeId} />}
+    <Freshness snap={snap} error={obstacle.error} frozen={frozen} replaying={replaying} base={base} />
     {snap === null
       ? <p className="robot-log__empty">{obstacle.error === null ? t('adv.7') : t('adv.8')}</p>
       : <>
@@ -136,7 +175,7 @@ export function ObstacleFacts() {
  */
 export function ObstacleEvidence() {
   useLang();
-  const obstacle = useObstacle();
+  const obstacle = useObstacleAt(null);
   const snap = obstacle.latest;
   if (snap === null) {
     return <p className="evidence-image__empty">{t('adv.noVerdictYet', { how: obstacle.polling ? t('adv.14') : t('adv.15') })}</p>;
@@ -170,10 +209,11 @@ export function ObstacleEvidence() {
  * 것을 그대로 쓰라는 지시다. 카드에는 확대하지 않고도 이상함을 알아챌 값만 둔다: 판정 한 줄과 마지막 줄 셋.
  * 여는 동안 폴링을 붙잡는 것도 같다 — 판이 안 열려 있어도(대본 편) 지금 값이 보인다.
  */
-export function ObstacleLogCard() {
+export function ObstacleLogCard({ nodeId }: { nodeId?: string } = {}) {
   useLang();
-  useEffect(() => holdObstaclePolling(), []);
-  const obstacle = useObstacle();
+  const { base, chosen } = useAiSource(nodeId);
+  useEffect(() => holdObstaclePollingAt(chosen), [chosen]);
+  const obstacle = useObstacleAt(chosen);
   const snap = obstacle.latest;
   const replaying = useReplayTarget() !== null;
   const recent = obstacle.log.slice(-3);
@@ -181,7 +221,7 @@ export function ObstacleLogCard() {
     {snap === null
       ? <p className="vn-line vn-dim">{obstacle.error === null ? t('adv.7') : t('adv.notReceiving', { reason: obstacle.error })}</p>
       : <p className="vn-line"><Rich id="adv.snapLine" vars={{ n: snap.detections.length, near: String(snap.hasNearObstacle), change: String(snap.stateChange) }} />
-          <small> · {clock(snap.receivedAtMs)}{obstacleFrozen(obstacle) && !replaying ? t('adv.frozen5s') : ''}</small></p>}
+          <small> · {clock(snap.receivedAtMs)}{obstacleFrozen(obstacle) && !replaying ? t('adv.frozen5s') : ''}{aiBases().length > 1 ? ` · ${base}` : ''}</small></p>}
     {recent.length === 0
       ? <p className="vn-line vn-dim">{t('adv.13')}</p>
       : <ol className="robot-log__lines">

@@ -219,7 +219,8 @@ const SAMPLE = {
     // tsx 는 Node 에서 안 열린다 — 소스로 본다.
     const nodes = read('src', 'tabs', 'viewNodes.tsx');
     const entryOf = (kind) => nodes.slice(nodes.indexOf(`kind: '${kind}'`), nodes.indexOf('zoom:', nodes.indexOf(`kind: '${kind}'`)));
-    if (!/showFor:\s*onlyRelay/.test(entryOf('autodrive-cam'))) failures.push('로봇 영상 노드가 자율주행 편에만 뜨게 걸려 있지 않다 — 시연 편 팔레트에 버튼이 는다');
+    // 260929 지시 — **「탐지 영상」으로 이름을 바꿔 모든 임무에 띄운다.** 전에는 자율주행 편에만 뜨게 걸었다(onlyRelay).
+    if (/showFor:/.test(entryOf('autodrive-cam'))) failures.push('탐지 영상(autodrive-cam) 노드가 일부 편에만 뜬다 — 모든 임무에 떠야 한다(260929)');
     for (const kind of ['detect-cam', 'detect-reason', 'detect-map', 'robot']) {
       if (!/showFor:\s*notRelay/.test(entryOf(kind))) failures.push(`${kind} 가 자율주행 편 팔레트에도 뜬다 — 시연 노드가 섞인다`);
     }
@@ -227,9 +228,8 @@ const SAMPLE = {
       if (/showFor:/.test(entryOf(kind))) failures.push(`${kind} 의 팔레트 조건이 바뀌었다 — 시연 편 팔레트가 달라진다`);
     }
     if (!/const notRelay = \(missionId: string\) => !relayDriven\(missionId\)/.test(nodes)) failures.push('notRelay 가 중계 편만 가르는 규칙이 아니다');
-    if (!/const onlyRelay = \(missionId: string\) => relayDriven\(missionId\)/.test(nodes)) failures.push('onlyRelay 가 중계 편만 고르는 규칙이 아니다');
   } else {
-    if (shown('MSN-260909-01').includes('autodrive-cam')) failures.push('시연 편 팔레트에 로봇 영상이 뜬다');
+    if (!shown('MSN-260909-01').includes('autodrive-cam')) failures.push('문 찾기 편 팔레트에 탐지 영상이 안 뜬다 — 모든 임무에 떠야 한다(260929)');
   }
   const palette = read('src', 'canvas', 'Palette.tsx');
   if (!/entry\.showFor\?\.\(missionId\) \?\? true/.test(palette)) failures.push('팔레트가 showFor 를 안 본다 — 조건이 있어도 모든 임무에 뜬다');
