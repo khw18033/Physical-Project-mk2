@@ -37,7 +37,8 @@
     "첫 번째 장치 이동 완료 확인": "Confirm the first device arrived",
     "두 번째 장치 이동 완료 확인": "Confirm the second device arrived",
     "정지 시 @까지 거리가 1m 이하다": "At the stop, the distance to @ is 1 m or less",
-    "임무 완료": "Mission complete"
+    "임무 완료": "Mission complete",
+    "왼쪽 45° 회전 → 2.00 m 전진": "Turn left 45° → move forward 2.00 m"
   },
   "match_en": {
     "must": [

@@ -516,12 +516,13 @@ function mapJudge(r: Run, judge: MapJudge): Outcome {
     case 'map-path': {
       const device = mapDevice(r, judge.slot);
       if (device === null) return { ok: false, reason: t('runner.noMapDevice', { slot: slotLabel(r, judge.slot) }) };
-      const plan = pathStepCommands(device.path, r.yaw[judge.slot] ?? 0, device.arrive_task, STEP_VX);
+      const plan = planOf(r, device);
       return {
         ok: true,
         payload: {
           source: 'virtual-map',
           ...(deviceOfSlot(r, judge.slot) === null ? {} : { device: deviceOfSlot(r, judge.slot) }),
+          route: routeWords(plan.steps),
           waypoints: device.path.length,
           path_length_m: r2(plan.lengthM),
           steps: plan.reads.join(' · '),
@@ -557,6 +558,34 @@ function mapJudge(r: Run, judge: MapJudge): Outcome {
   return { ok: false, reason: t('runner.noMap') };
 }
 
+/**
+ * **경로를 사람이 읽는 한 줄로** (260929). 「왼쪽 45° 회전 → 2.00 m 전진」. 가상 맵 경로에서 푼 걸음을 그대로
+ * 말로 옮긴다 — 경로 탐지 노드의 근거값이 「이렇게 산출됐다」를 이 줄로 보인다.
+ */
+function routeWords(steps: readonly TaskCommand[]): string {
+  const words: string[] = [];
+  let forward = 0;
+  const flush = () => {
+    if (forward > 0) words.push(t('runner.route.forward', { m: forward.toFixed(2) }));
+    forward = 0;
+  };
+  for (const step of steps) {
+    if (step.action === 'move_forward') { forward += Number(step.parameters?.distance_m ?? 0); continue; }
+    flush();
+    if (step.action === 'turn') {
+      const deg = Number(step.parameters?.deg ?? 0);
+      words.push(t(deg < 0 ? 'runner.route.left' : 'runner.route.right', { deg: Number(Math.abs(deg).toFixed(1)) }));
+    }
+  }
+  flush();
+  return words.join(' → ');
+}
+
+/** 그 자리 장치의 경로를 지금 방위에서 푼다. */
+function planOf(r: Run, device: MapDevice) {
+  return pathStepCommands(device.path, r.yaw[device.slot] ?? device.start_yaw_deg ?? 0, device.arrive_task, STEP_VX);
+}
+
 function holdPayload(r: Run, judge: Extract<Judge, { kind: 'hold' }>): Record<string, unknown> {
   const spec = r.spec;
   if (spec === null || judge.show === undefined) return {};
@@ -571,7 +600,16 @@ function holdPayload(r: Run, judge: Extract<Judge, { kind: 'hold' }>): Record<st
     case 'path': {
       const device = judge.slot === undefined ? null : mapDevice(r, judge.slot);
       if (device === null) return {};
-      return { source: 'virtual-map', waypoints: device.path.length, path_length_m: r2(pathLengthM(device.path)) };
+      // 걸을 수 없는 장치(드론)도 경로 산출 결과는 같은 꼴로 남긴다 — 명령을 안 낼 뿐 경로는 같은 계산이다.
+      const plan = planOf(r, device);
+      return {
+        source: 'virtual-map',
+        ...(deviceOfSlot(r, device.slot) === null ? {} : { device: deviceOfSlot(r, device.slot) }),
+        route: routeWords(plan.steps),
+        waypoints: device.path.length,
+        path_length_m: r2(pathLengthM(device.path)),
+        steps: plan.reads.join(' · '),
+      };
     }
     case 'rationale':
       return { reason: t('runner.rationale', { x: spec.target.x, z: spec.target.z }), image_ref: null };

@@ -249,7 +249,14 @@ if (!/connectionAddress\('digital-twin', 'base'\)/.test(vmap)) failures.push('�
     const done = eventOf(ok.trace, id, 'done');
     if (run === null || done === null || done.atSec - run.atSec > 1) failures.push(`${id} 가 곧바로 판정되지 않았다 (${run?.atSec} → ${done?.atSec})`);
   }
-  if (eventOf(ok.trace, 'T-D3', 'done')?.payload?.min_gap_m !== 1.3) failures.push(`두 경로 간격을 가상 맵으로 안 쟀다 — ${JSON.stringify(eventOf(ok.trace, 'T-D3', 'done')?.payload)}`);
+  // 260929 — 두 장치 모두 가상 맵에서 「왼쪽 45° 회전 → 2 m 전진」으로 산출된다(드론은 명령 없이 결과만).
+  for (const id of ['T-D1', 'T-D2']) {
+    const route = eventOf(ok.trace, id, 'done')?.payload?.route;
+    if (route !== '왼쪽 45° 회전 → 2.00 m 전진') failures.push(`${id} 의 경로 산출 결과가 「${route}」 — 「왼쪽 45° 회전 → 2.00 m 전진」이어야 한다`);
+  }
+  const go1Moves = ok.sent.filter((s) => s.action !== 'ping');
+  if (go1Moves.length !== 2 || go1Moves[0].action !== 'turn' || go1Moves[0].parameters.deg !== -45 || go1Moves[1].action !== 'move_forward' || Math.abs(go1Moves[1].parameters.distance_m - 2) > 0.01) failures.push(`Go1 명령이 왼쪽 45° · 2 m 가 아니다 — ${JSON.stringify(go1Moves)}`);
+  if (eventOf(ok.trace, 'T-D3', 'done')?.payload?.min_gap_m !== 1.13) failures.push(`두 경로 간격을 가상 맵으로 안 쟀다 — ${JSON.stringify(eventOf(ok.trace, 'T-D3', 'done')?.payload)}`);
   const e3 = eventOf(ok.trace, 'T-E3', 'done');
   const e4 = eventOf(ok.trace, 'T-E4', 'done');
   const e5 = eventOf(ok.trace, 'T-E5', 'running');
