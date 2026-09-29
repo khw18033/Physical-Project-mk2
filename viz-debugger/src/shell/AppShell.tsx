@@ -19,6 +19,7 @@ import { useMissionBridge } from './missionBridge.ts';
 import { LangSwitch } from './LangSwitch.tsx';
 import { ModeSwitch } from './ModeSwitch.tsx';
 import { ApproachButton, PauseButton, ResumeButton, StopButton } from '../physical/StopButton.tsx';
+import { MoveGateButton } from '../physical/MoveGateButton.tsx';
 import { MissionHistoryList } from '../views/MissionHistory.tsx';
 import { ResetButton, RestartButton } from '../views/ResetButton.tsx';
 import { robotProbe } from '../physical/robotClient.ts';
@@ -149,7 +150,7 @@ export function AppShell({ debuggerView, onDebuggerHome, onMissionHistory, onOpe
         {/* **셋이 한 부품에서 온다** (260910). 전에는 여기서 게이트웨이로 `mission_pause` 를
             쏘고 그 옆에 실제로 동작하는 「중단」이 따로 있었다 — 같은 뜻의 버튼이 둘인데
             하나만 동작했다. 동작하는 쪽을 「정지」에 넣고 중단을 지웠다. */}
-        <StopButton /><PauseButton /><ResumeButton /><ApproachButton /><ConnectionLamp onOpen={() => togglePanel('connections')} /><button aria-pressed={panel === 'history'} onClick={() => { if (panel !== 'history') onMissionHistory(); togglePanel('history'); }}>{t('bar.history')}</button><button aria-pressed={panel === 'notifications'} onClick={() => togglePanel('notifications')}>{t('bar.notifications')} <b>{notifications.length}</b></button><RestartButton /><ResetButton /><button aria-pressed={panel === 'connections'} onClick={() => togglePanel('connections')}>{t('bar.connections')}</button>
+        <StopButton /><PauseButton /><ResumeButton /><ApproachButton /><MoveGateButton /><ConnectionLamp onOpen={() => togglePanel('connections')} /><button aria-pressed={panel === 'history'} onClick={() => { if (panel !== 'history') onMissionHistory(); togglePanel('history'); }}>{t('bar.history')}</button><button aria-pressed={panel === 'notifications'} onClick={() => togglePanel('notifications')}>{t('bar.notifications')} <b>{notifications.length}</b></button><RestartButton /><ResetButton /><button aria-pressed={panel === 'connections'} onClick={() => togglePanel('connections')}>{t('bar.connections')}</button>
       </nav>
     </header>
     {/* 연결 관리는 폼이라 목록 판과 모양이 다르다 — 자기 부품이 그린다 (`VZ-C-07`). */}

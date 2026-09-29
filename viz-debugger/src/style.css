@@ -1064,3 +1064,8 @@ button.robot-resume{padding:6px 12px;border:1px solid #2f9e5f;border-radius:6px;
 .ai-source small,.ai-source__at{color:#6a7686;font-size:11px}
 .v3d__frame{min-height:220px}
 .vmap--zoom .v3d__frame{min-height:min(66vh,680px)}
+/* 다음 장치 출발 승인 (260929). 머리줄에서 눈에 띄어야 한다 — 누르기 전까지 판이 기다린다. */
+.move-gate{border:1px solid #2f7d46;background:#e9f7ee;color:#1f5c33;border-radius:8px;padding:6px 12px;animation:move-gate-pulse 1.6s ease-in-out infinite}
+.move-gate small{color:#2f6b42}
+.move-gate:disabled{animation:none;opacity:.6}
+@keyframes move-gate-pulse{0%,100%{box-shadow:0 0 0 0 #2f7d4600}50%{box-shadow:0 0 0 4px #2f7d4633}}

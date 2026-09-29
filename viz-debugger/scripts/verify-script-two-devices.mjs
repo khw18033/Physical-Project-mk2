@@ -144,7 +144,7 @@ if (relayDriven(ID) || !localDriven(ID)) failures.push('localDriven() 이 이 �
 if (opensRobotGate(ID)) failures.push('opensRobotGate() 가 이 편에서 참이다 — 승인하면 문 찾기 스캔이 로봇으로 나간다');
 if (!slotDriven(ID)) failures.push('slotDriven() 이 이 편을 자리 편으로 안 본다');
 // 260929 — 8편(장치 하나를 @까지)도 자리 편 · 화면이 모는 편이다. 그 편의 규칙은 `verify:script-at-move` 가 본다.
-for (const id of SCRIPT_IDS.filter((id) => id !== ID && id !== 'MSN-260929-01')) {
+for (const id of SCRIPT_IDS.filter((id) => id !== ID && id !== 'MSN-260929-01' && id !== 'MSN-260929-02')) {
   if (slotDriven(id) || localDriven(id)) failures.push(`${id} 가 자리 편·화면이 모는 편으로 읽힌다 — 선언 없는 편은 그대로여야 한다`);
 }
 if (script.cast.length !== 0) failures.push(`cast 가 [${script.cast}] — 장비를 대본이 정하지 않는다`);

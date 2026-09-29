@@ -46,6 +46,7 @@
     "verify:script-autodrive": "node scripts/verify-script-autodrive.mjs",
     "verify:script-two-devices": "node scripts/verify-script-two-devices.mjs",
     "verify:script-at-move": "node scripts/verify-script-at-move.mjs",
+    "verify:script-anomaly": "node scripts/verify-script-anomaly.mjs",
     "verify:panels-imagery": "node scripts/verify-panels-imagery.mjs",
     "verify:obstacle-sources": "node scripts/verify-obstacle-sources.mjs",
     "verify:nav-feed": "node scripts/verify-nav-feed.mjs",

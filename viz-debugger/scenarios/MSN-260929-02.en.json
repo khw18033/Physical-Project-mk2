@@ -1,0 +1,53 @@
+{
+  "missionId": "MSN-260929-02",
+  "note": "본문은 원본(MSN-*.json)이 든다. 여기는 화면에 뜨는 문구의 영어와 영어 조회 규칙뿐이다.",
+  "phrases": {
+    "장치 두 가지로 이상 탐지": "Anomaly detection with two devices",
+    "장치 두 가지로 이상 탐지를 진행해": "Run anomaly detection with the two devices",
+    "첫 번째 장치": "First device",
+    "두 번째 장치": "Second device",
+    "첫 번째 장치 연결 확인": "Check the first device’s connection",
+    "두 번째 장치 연결 확인": "Check the second device’s connection",
+    "가상 맵 모니터링": "Virtual-map monitoring",
+    "경로 탐지": "Find the path",
+    "장치 이동": "Move the devices",
+    "첫 번째 장치 응답 확인": "Check the first device responds",
+    "첫 번째 장치 통신 링크 확인": "Check the first device’s link",
+    "첫 번째 장치 배터리 확인": "Check the first device’s battery",
+    "첫 번째 장치 카메라 영상 확인": "Check the first device’s camera feed",
+    "두 번째 장치 응답 확인": "Check the second device responds",
+    "두 번째 장치 통신 링크 확인": "Check the second device’s link",
+    "두 번째 장치 배터리 확인": "Check the second device’s battery",
+    "두 번째 장치 카메라 영상 확인": "Check the second device’s camera feed",
+    "배터리 잔량이 이동 기준(30%) 이상이다": "Battery charge is at or above the travel threshold (30%)",
+    "모니터링 진행": "Monitor",
+    "이상 현상 감지": "Detect the anomaly",
+    "첫 번째 장치 경로 탐지": "Find the first device’s path",
+    "첫 번째 장치 이동": "Move the first device",
+    "두 번째 장치 경로 추정": "Estimate the second device’s path",
+    "두 번째 장치 이동": "Move the second device",
+    "임무 완료": "Mission complete"
+  },
+  "match_en": {
+    "must": [
+      [
+        "two devices",
+        "twodevices",
+        "both devices",
+        "bothdevices",
+        "2 devices",
+        "2devices"
+      ],
+      [
+        "anomal"
+      ]
+    ],
+    "any": [
+      "run",
+      "start",
+      "detect",
+      "detection",
+      "proceed"
+    ]
+  }
+}

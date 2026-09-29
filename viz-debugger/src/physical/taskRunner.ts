@@ -35,7 +35,7 @@
 
 import { t } from '../i18n/dict.ts';
 import {
-  appendLiveEvent, currentMission, getMissionState, haltLocalRunOnFailure, localRunPhase, registerLiveMoveHooks,
+  appendLiveEvent, currentMission, getMissionState, haltLocalRunOnFailure, localRunPhase, recordHuman, registerLiveMoveHooks,
   subscribeMission, traceEvents, type MissionView,
 } from '../data/scenario.ts';
 import { slotBindings } from '../data/slots.ts';
@@ -76,8 +76,14 @@ type Judge =
   | { kind: 'online' | 'link' | 'battery' | 'ready' | 'camera'; slot: string }
   | MapJudge
   | { kind: 'face'; slot: string }
-  | { kind: 'move'; slot: string; phase: MovePhase }
-  | { kind: 'hold'; show?: 'target' | 'pose' | 'path' | 'rationale'; slot?: string }
+  /**
+   * `confirm` 이 있으면 (260929 — 이상 탐지 편) 이 이동은 **사람이 승인해야 끝난다.** 기다리는 동안 머리줄에
+   * `confirm` 자리 장치의 산출 경로와 승인 버튼이 뜬다(`MoveGateButton`) — 드론 이동이 끝난 것을 눈으로 보고
+   * Go1 을 출발시키는 자리다.
+   */
+  | { kind: 'move'; slot: string; phase: MovePhase; confirm?: string }
+  /** `sec` 이 있으면 그 노드만 그만큼 유지한다 (260929 — 이상 탐지 편의 「모니터링 진행」 12초). 없으면 `hold_sec`. */
+  | { kind: 'hold'; show?: 'target' | 'pose' | 'path' | 'rationale'; slot?: string; sec?: number }
   | { kind: 'report' };
 
 type Producer = 'robot' | 'backend';
@@ -135,6 +141,52 @@ type Run = {
 };
 
 let run: Run | null = null;
+
+// ── 사람 승인 (260929) ────────────────────────────────────────────────────────
+
+/** 머리줄이 그리는 승인 대기. 없으면 null. */
+export type MoveGate = {
+  missionId: string;
+  taskId: string;
+  /** 승인하면 출발할 장치의 자리 · 장비 · 산출 경로. */
+  slot: string;
+  deviceId: string | null;
+  route: string;
+  lengthM: number;
+};
+
+let gate: MoveGate | null = null;
+/** 승인된 태스크 — 판마다 비운다. */
+let approvedGates = new Set<string>();
+const gateListeners = new Set<() => void>();
+
+function setGate(next: MoveGate | null): void {
+  if (gate === next || (gate !== null && next !== null && gate.taskId === next.taskId && gate.route === next.route)) return;
+  gate = next;
+  for (const listener of gateListeners) listener();
+}
+
+export function moveGate(): MoveGate | null {
+  return gate;
+}
+
+export function subscribeMoveGate(listener: () => void): () => void {
+  gateListeners.add(listener);
+  return () => { gateListeners.delete(listener); };
+}
+
+/**
+ * **승인** — 기다리던 이동을 끝내고 다음으로 넘긴다. 사람 조작이라 판 기록에 남긴다(`VZ-D-08`). 판이 멈춰
+ * 있으면(일시정지 · 정지) 받지 않는다 — 멈춘 판에서 Go1 이 출발하면 안 된다.
+ */
+export function approveMoveGate(): boolean {
+  if (gate === null || localRunPhase() !== 'running') return false;
+  approvedGates.add(gate.taskId);
+  recordHuman('move_gate_approved', gate.taskId, { slot: gate.slot, device: gate.deviceId, route: gate.route });
+  setGate(null);
+  tick();
+  return true;
+}
 
 // ── 걸을 수 있는가 ────────────────────────────────────────────────────────────
 
@@ -201,6 +253,8 @@ export function runnerDrives(view: MissionView): boolean {
 
 function claim(view: MissionView): readonly string[] {
   run = null;
+  approvedGates = new Set();
+  setGate(null);
   if (!runnerDrives(view)) return [];
   const judges = judgesOf(view)!;
   const spec = mapSpecOf(view.params);
@@ -288,6 +342,7 @@ function tick(): void {
 }
 
 function step(): void {
+  if (gate !== null && (run === null || currentMission().missionId !== gate.missionId || localRunPhase() === null || localRunPhase() === 'done')) setGate(null);
   if (run === null || localRunPhase() !== 'running') return;
   if (currentMission().missionId !== run.missionId) return;
   const head = getMissionState().headSec;
@@ -344,7 +399,13 @@ function fail(r: Run, task: TaskRun, reason: string): void {
 
 /** 정해진 시간을 채웠는가. 판의 머리로 잰다 — 일시정지하면 시간도 선다. */
 function held(r: Run, task: TaskRun, head: number): boolean {
-  return head - task.startedAt >= r.holdSec;
+  return head - task.startedAt >= holdSecOf(r, task);
+}
+
+/** 이 노드의 유지 시간. 노드가 따로 적었으면 그것, 아니면 판의 `hold_sec`. */
+function holdSecOf(r: Run, task: TaskRun): number {
+  const own = task.judge.kind === 'hold' ? task.judge.sec : undefined;
+  return typeof own === 'number' && Number.isFinite(own) && own > 0 ? own : r.holdSec;
 }
 
 /** 값을 기다리다 한도를 넘었는가. */
@@ -364,7 +425,7 @@ function poll(r: Run, task: TaskRun, head: number): void {
   }
   switch (judge.kind) {
     case 'hold':
-      if (held(r, task, head)) finish(r, task, { ...holdPayload(r, judge), hold_s: r.holdSec });
+      if (held(r, task, head)) finish(r, task, { ...holdPayload(r, judge), hold_s: holdSecOf(r, task) });
       return;
     case 'report':
       finish(r, task, {
@@ -670,6 +731,25 @@ function progress(r: Run, task: TaskRun, slot: string, fraction: number, head: n
   appendLiveEvent(r.missionId, task.id, 'running', 'progress', { slot, fraction: r2(Math.max(0, Math.min(1, fraction))) }, producerOf(task));
 }
 
+/**
+ * 승인을 기다려야 하면 참을 돌려준다(끝내지 않는다). 기다리는 동안 머리줄에 승인 대기를 건다.
+ */
+function awaitingApproval(r: Run, task: TaskRun): boolean {
+  const confirm = task.judge.kind === 'move' ? task.judge.confirm : undefined;
+  if (confirm === undefined || approvedGates.has(task.id)) return false;
+  const device = mapDevice(r, confirm);
+  const plan = device === null ? null : planOf(r, device);
+  setGate({
+    missionId: r.missionId,
+    taskId: task.id,
+    slot: confirm,
+    deviceId: deviceOfSlot(r, confirm),
+    route: plan === null ? '' : routeWords(plan.steps),
+    lengthM: plan === null ? 0 : r2(plan.lengthM),
+  });
+  return true;
+}
+
 function moveJudge(r: Run, task: TaskRun, slot: string, phase: MovePhase, head: number): void {
   const walk = r.walks.get(slot);
   if (walk === undefined) { fail(r, task, t('runner.noMapDevice', { slot: slotLabel(r, slot) })); return; }
@@ -680,9 +760,10 @@ function moveJudge(r: Run, task: TaskRun, slot: string, phase: MovePhase, head: 
   })();
 
   if (task.held) {
-    if (moving) progress(r, task, slot, (head - task.startedAt) / r.holdSec, head);
+    if (moving && !held(r, task, head)) progress(r, task, slot, (head - task.startedAt) / holdSecOf(r, task), head);
     if (!held(r, task, head)) return;
-    if (moving) progress(r, task, slot, 1, head, true);
+    if (moving && task.lastProgressAt < task.startedAt + holdSecOf(r, task)) progress(r, task, slot, 1, head, true);
+    if (awaitingApproval(r, task)) return;
     if (phase === 'arrive' && plannedToTargetM !== null && plannedToTargetM > r.stopMaxM) {
       fail(r, task, t('runner.tooFar', { dist: plannedToTargetM, max: r.stopMaxM }));
       return;
@@ -694,6 +775,7 @@ function moveJudge(r: Run, task: TaskRun, slot: string, phase: MovePhase, head: 
       planned_path_m: r2(pathLengthM(walk.device.path)),
       ...(phase === 'arrive' && plannedToTargetM !== null ? { planned_distance_to_target_m: plannedToTargetM } : {}),
       hold_s: r.holdSec,
+      ...(approvedGates.has(task.id) ? { approved_by: 'human' } : {}),
     });
     return;
   }
@@ -701,6 +783,7 @@ function moveJudge(r: Run, task: TaskRun, slot: string, phase: MovePhase, head: 
   if (walk.state === 'idle') startWalk(r, walk);
   if (walk.failure !== null) { fail(r, task, walk.failure); return; }
   if (!walk.marks.has(phase)) return;
+  if (awaitingApproval(r, task)) return;
   const base = { device: walk.deviceId, planned_path_m: r2(walk.lengthM) };
   switch (phase) {
     case 'prepare':

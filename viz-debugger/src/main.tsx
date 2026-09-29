@@ -45,6 +45,7 @@ import { startMissionRecorder } from './record/recorder.ts';
 import { startNavLink } from './physical/navLink.ts';
 import { startObstacleWatch } from './autodrive/watch.ts';
 import { startTaskRunner } from './physical/taskRunner.ts';
+import { connectionAddress, useConnections } from './shared/connections.ts';
 import { useReplayTarget } from './record/replayMode.ts';
 import { dropOnSlots, holdSlotsFor, useSlotBindings } from './data/slots.ts';
 
@@ -155,8 +156,11 @@ function Milestones({ view, phase, milestoneStatuses, assignments, onAssign, onO
    * 자리에 앉았는지가 마일스톤마다 같은 말이어야 한다. 자리가 없는 편은 지금까지와 같다.
    */
   const bindings = useSlotBindings();
+  useConnections();
   const slotLabel = (id: string) => view.slots?.find((slot) => slot.id === id)?.label ?? id;
-  const assignedLine = (item: MissionMilestone) => (item.slots !== undefined && item.slots.length > 0
+  const assignedLine = (item: MissionMilestone) => (item.feed === 'virtual-3d'
+    ? t('ms.feedVirtual3d', { url: connectionAddress('virtual-3d', 'base').trim() || t('ms.slotEmpty') })
+    : item.slots !== undefined && item.slots.length > 0
     ? item.slots.map((slot) => t('ms.slotLine', { slot: slotLabel(slot), device: bindings[slot] ?? t('ms.slotEmpty') })).join(' · ')
     : (assignments[item.id] ?? item.assignedTargets).join(' · ') || t('ms.unassigned'));
   return <div className="milestone-layout"><UtterancePanel fallbackText={view.utteranceText} /><section className="milestone-panel"><h2>{t('ms.count', { n: view.milestones.length })}</h2>
@@ -170,7 +174,7 @@ function Milestones({ view, phase, milestoneStatuses, assignments, onAssign, onO
         : <p className="proposal-note"><Rich id="ms.scriptProposal" vars={{ id: view.missionId, label: view.label }} />{mission.proposal?.origin === 'script' && mission.proposal.keywords.length ? <small>{t('ms.matchedKeywords', { words: mission.proposal.keywords.join(' · ') })}</small> : null}</p>)}
       {approvalSlot}
     </div>}
-    <div className="milestone-list">{view.milestones.map((item) => <button key={item.id} className={`milestone state-${milestoneStatuses[item.id] ?? 'pending'}`} onClick={() => onOpen(item.id)} onDragOver={(event) => event.preventDefault()} onDrop={(event) => onAssign(item.id, event.dataTransfer.getData('text/plain'))}><b>{item.id}</b><strong>{item.title}</strong><span>{assignedLine(item)}</span><small>{t('ms.clickToGraph')}</small></button>)}</div></section>
+    <div className="milestone-list">{view.milestones.map((item) => <button key={item.id} className={`milestone state-${milestoneStatuses[item.id] ?? 'pending'}`} onClick={() => onOpen(item.id)} onDragOver={(event) => event.preventDefault()} onDrop={(event) => { if (item.feed === undefined) onAssign(item.id, event.dataTransfer.getData('text/plain')); }}><b>{item.id}</b><strong>{item.title}</strong><span>{assignedLine(item)}</span><small>{t('ms.clickToGraph')}</small></button>)}</div></section>
     {/*
       **오른쪽 기둥이 둘로 갈라진다** (260920 지시 2). 위가 하드웨어(장비가 지금 살아
       있는가 · 실측), 아래가 기능(이 배치에서 무엇이 가능한가 · 설정 계산)이다. 세로를

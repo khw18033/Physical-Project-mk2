@@ -159,6 +159,8 @@ const EXPECTED = {
   'MSN-260927-01': [],
   // 8편(260929 장치 하나를 @까지) — 7편과 같은 까닭으로 세계 채널을 하나도 안 몬다.
   'MSN-260929-01': [],
+  // 9편(260929 장치 두 가지로 이상 탐지) — 7편 복사본이라 같은 까닭으로 비었다.
+  'MSN-260929-02': [],
 };
 function checkScripts(list) {
   const f = [];
@@ -191,6 +193,7 @@ const PANEL_EXPECTED = {
   // 7편 — 축이 없으니 패널이 전부 접힌다. 이 편은 대본 편(`driver: 'script'`)이라 실제로 시나리오 모드로 들어간다.
   'MSN-260927-01': ['risk', 'zone-map', 'device-grid', 'control', 'metrics-query', 'metrics-push', 'video'],
   'MSN-260929-01': ['risk', 'zone-map', 'device-grid', 'control', 'metrics-query', 'metrics-push', 'video'],
+  'MSN-260929-02': ['risk', 'zone-map', 'device-grid', 'control', 'metrics-query', 'metrics-push', 'video'],
 };
 for (const script of scripts) {
   const got = collapsedPanels(script).sort();

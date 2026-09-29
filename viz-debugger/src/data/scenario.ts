@@ -84,6 +84,11 @@ export type MissionMilestone = {
   staticStatus: TaskStatus | null;
   /** 이 마일스톤이 쓰는 장치 자리 (260927). 없으면 지금까지의 마일스톤별 배정이다. */
   slots?: string[];
+  /**
+   * **장치 대신 보는 화면** (260929 — 이상 탐지 편 「가상 맵 모니터링」). `'virtual-3d'` 면 이 마일스톤은 장치를 받지
+   * 않고 연결 관리의 「3D 가상환경」 주소를 본다 — 배정 줄에 「미배정」 대신 그 주소가 적히고, 카드를 놓아도 안 앉는다.
+   */
+  feed?: 'virtual-3d';
 };
 
 export type MissionView = {
@@ -222,6 +227,7 @@ function scriptToView(script: ScriptScenario): MissionView {
       assignedTargets: m.assignedTargets,
       staticStatus: null,
       ...(m.slots === undefined ? {} : { slots: m.slots }),
+      ...(m.feed === undefined ? {} : { feed: m.feed }),
     })),
     tasks: script.tasks,
     events: script.events,

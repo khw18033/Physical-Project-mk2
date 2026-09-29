@@ -43,6 +43,8 @@ type MapSpec = {
   door?: Point;
   locate_task: string;
   target: Point;
+  /** @ 빈칸이 없는 편의 대상 이름 — **사전 키** (260929 — 이상 탐지 편 「이상 지점」). 있으면 @ 대신 이것을 적는다. */
+  target_label_key?: string;
   devices: MapDevice[];
 };
 
@@ -98,7 +100,7 @@ function TwoDMap({ headSec, zoom }: { headSec: number; zoom: boolean }) {
 
   const word = view.targetWord ?? null;
   const token = '@';
-  const targetName = word ?? token;
+  const targetName = word ?? (spec.target_label_key === undefined ? token : t(spec.target_label_key));
   const { x_min, x_max, z_min, z_max } = spec.bounds;
   const width = x_max - x_min + PAD * 2;
   const height = z_max - z_min + PAD * 2;
