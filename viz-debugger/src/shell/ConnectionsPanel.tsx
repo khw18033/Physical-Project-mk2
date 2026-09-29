@@ -42,7 +42,7 @@
  * 아니라 그 상태의 사유다 — 「상태」 줄이 이미 그 규칙으로 돈다.
  */
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { t } from '../i18n/dict.ts';
 import { useLang } from '../shared/language.ts';
 import { DETECT_PRESETS, detectPresetReady } from '../detect/presets.ts';
@@ -60,6 +60,7 @@ import { useDeviceStates } from '../physical/deviceState.ts';
 import { CHECKED_TARGETS, healthOf, useConnectionHealth, type TargetHealth } from '../shared/connectionHealth.ts';
 import { applyPresetChoice, selectedPresetId } from './presetChoice.ts';
 import { commitDraft } from './draftCommit.ts';
+import { removeImage, saveImage, useStoredImage } from '../shared/imageStore.ts';
 import type { ConnectionTarget, ConnectionTargetId } from '../shared/connections.ts';
 import {
   CONNECTION_TARGETS,
@@ -115,18 +116,51 @@ function hasCheck(target: ConnectionTargetId): boolean {
     || target === 'autodrive' || target === 'autodrive-ai' || target === 'capability';
 }
 
+/**
+ * **닫아도 남는 초안** (260929 지시 4-B). 저장하지 않은 채 판을 닫으면(버튼 다시 누르기 · ESC · 닫기) 적던 값을
+ * 여기 두었다가 다시 열 때 얹는다. ESC 는 실수로 누르기 쉽고, 주소를 반쯤 친 채 닫혔다고 다시 치게 하면 안 된다.
+ *
+ * **저장값과 다른 칸만** 둔다. 그 사이 다른 길로 저장값이 바뀌었으면(기본값 되돌리기 등) 같은 칸은 저장값이 이긴다 —
+ * 다르지 않은 칸까지 들고 있으면 옛 값이 새 저장값을 덮는다. 앱을 다시 열면 없다(메모리만).
+ */
+let heldDraft: Record<string, string> = {};
+let heldManual: Record<string, boolean> = {};
+
+/** 검사가 부른다 — 남은 초안을 비운다. */
+export function resetHeldDraft(): void {
+  heldDraft = {};
+  heldManual = {};
+}
+
+/** 닫을 때 남길 칸 — 저장값과 다른 것만. 순수 함수라 검사가 따로 돌린다. */
+export function unsavedDraft(
+  draft: Readonly<Record<string, string>>,
+  current: Readonly<Record<string, string>>,
+): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [key, value] of Object.entries(draft)) if (value !== (current[key] ?? '')) out[key] = value;
+  return out;
+}
+
 export function ConnectionsPanel({ onClose, physical }: { onClose(): void; physical?: PhysicalProbe | null }) {
   const current = useConnections();
   /**
    * 편집 중인 값. **누르기 전까지는 안 적용된다** — 한 글자 칠 때마다 끊고 다시 붙으면
    * 못 쓴다. 끝내는 자리가 둘이다: 그 대상의 「확인」(260922)과 판 아래 「적용」.
    */
-  const [draft, setDraft] = useState<Record<string, string>>({ ...current });
+  const [draft, setDraft] = useState<Record<string, string>>(() => ({ ...current, ...heldDraft }));
   /**
    * **「직접 입력」을 고른 칸.** 주소와 따로 들고 있어야 하는 이유는 `presetChoice.ts` 에
    * 적어 두었다 — 주소만 보고는 「사람이 직접 입력을 골랐다」를 알 수 없다.
    */
-  const [manual, setManual] = useState<Record<string, boolean>>({});
+  const [manual, setManual] = useState<Record<string, boolean>>(() => ({ ...heldManual }));
+  // 닫히는 순간(언마운트)의 값을 남긴다. 효과 정리 함수는 마지막 그리기의 값을 못 보므로 참조로 든다.
+  const latest = useRef({ draft, manual, current });
+  latest.current = { draft, manual, current };
+  useEffect(() => () => {
+    heldDraft = unsavedDraft(latest.current.draft, latest.current.current);
+    heldManual = latest.current.manual;
+  }, []);
   const [note, setNote] = useState<string | null>(null);
   // 언어가 바뀌면 다시 그린다 — `t()` 는 값을 줄 뿐 리렌더를 일으키지 않는다 (§4).
   useLang();
@@ -156,6 +190,7 @@ export function ConnectionsPanel({ onClose, physical }: { onClose(): void; physi
   const restore = () => {
     resetConnections();
     setDraft({});
+    heldDraft = {};
     // 기본값으로 되돌리면 고름도 되돌린다 — 안 그러면 주소는 프리셋인데 목록만 직접 입력이다.
     setManual({});
     setNote(t('conn.restored'));
@@ -190,6 +225,8 @@ export function ConnectionsPanel({ onClose, physical }: { onClose(): void; physi
          * 빈 줄 하나를 늘 뒤에 둔다 — 「+ 추가」를 누르고 나서 어디에 쓰는지 찾는 것보다,
          * 빈 칸이 이미 있고 거기 쓰면 되는 편이 빠르다.
          */
+        // **이미지 칸** (260929 — SAR · 3D 복원). 주소가 아니라 파일이라 초안 · 적용을 안 탄다 — 고르는 순간 붙는다.
+        if (field.image === true) return <ImageField key={key} storageKey={key} labelKey={field.labelKey} />;
         if (field.list === true) {
           const rows = splitAddressList(draft[key] ?? '');
           const shown = [...rows, ''];
@@ -291,6 +328,42 @@ export function ConnectionsPanel({ onClose, physical }: { onClose(): void; physi
       <button className="connections__apply" onClick={apply} disabled={!dirty}>{t('conn.apply')}</button>
     </footer>
   </aside>;
+}
+
+/**
+ * **이미지 한 장을 붙이는 칸** (260929). 파일을 고르거나 끌어다 놓으면 곧바로 이 브라우저에 저장된다
+ * (`shared/imageStore.ts`). 노드가 같은 키로 읽으므로 판을 닫지 않아도 노드가 바뀐다.
+ */
+function ImageField({ storageKey, labelKey }: { storageKey: string; labelKey: string }) {
+  useLang();
+  const stored = useStoredImage(storageKey);
+  const [status, setStatus] = useState<string | null>(null);
+  const attach = (file: File | undefined) => {
+    if (file === undefined) return;
+    if (!file.type.startsWith('image/')) { setStatus(t('conn.image.notImage', { type: file.type || file.name })); return; }
+    void saveImage(storageKey, file, file.name).then((kept) => {
+      setStatus(t(kept ? 'conn.image.saved' : 'conn.image.sessionOnly', { name: file.name }));
+    });
+  };
+  return <div
+    className="conn-image"
+    onDragOver={(event) => event.preventDefault()}
+    onDrop={(event) => { event.preventDefault(); attach(event.dataTransfer.files[0]); }}
+  >
+    <span>{t(labelKey)}</span>
+    {stored === null
+      ? <p className="conn-image__none">{t('conn.image.none')}</p>
+      : <img className="conn-image__thumb" src={stored.url} alt={stored.name} />}
+    <div className="conn-image__actions">
+      <label className="conn-image__pick">
+        {t(stored === null ? 'conn.image.pick' : 'conn.image.replace')}
+        <input type="file" accept="image/*" onChange={(event) => { attach(event.target.files?.[0]); event.target.value = ''; }} />
+      </label>
+      {stored !== null && <button type="button" onClick={() => { void removeImage(storageKey); setStatus(null); }}>{t('conn.image.remove')}</button>}
+    </div>
+    {(status ?? (stored === null ? null : t('conn.image.saved', { name: stored.name }))) !== null
+      && <small className="conn-image__status">{status ?? t('conn.image.saved', { name: stored!.name })}</small>}
+  </div>;
 }
 
 /**

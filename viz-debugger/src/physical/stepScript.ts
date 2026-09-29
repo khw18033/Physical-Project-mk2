@@ -337,6 +337,17 @@ export function stepCommandsOf(params: Record<string, unknown> | null | undefine
 }
 
 /**
+ * **제자리에서 한 번 돈다** (260929 — @까지 이동 편 「@ 쪽으로 방향 맞추기」). 정량 명령 · 경로와 **같은 함수**로
+ * 자른다 — 5° 미만이면 안 내고(빈 목록), 360° 를 넘으면 나눈다.
+ */
+export function turnStepCommands(deg: number, taskId: string): { steps: TaskCommand[]; reads: string[] } {
+  const steps: TaskCommand[] = [];
+  const reads: string[] = [];
+  pushTurn(Number(deg.toFixed(1)), steps, reads, []);
+  return { steps: steps.map((step) => ({ ...step, taskId })), reads };
+}
+
+/**
  * **가상 맵의 경로를 걸음으로 푼다** (260927 — 장치 두 대 편 · Go1 실동작).
  *
  * 경로는 꼭짓점 목록이고(site-global · m), 로봇이 받는 말은 「돌아라 · 가라」뿐이다. 그래서 구간마다

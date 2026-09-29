@@ -34,6 +34,7 @@ import en260831c from '../../scenarios/MSN-260831-03.en.json' with { type: 'json
 import en260909 from '../../scenarios/MSN-260909-01.en.json' with { type: 'json' };
 import en260915 from '../../scenarios/MSN-260915-01.en.json' with { type: 'json' };
 import en260927 from '../../scenarios/MSN-260927-01.en.json' with { type: 'json' };
+import en260929 from '../../scenarios/MSN-260929-01.en.json' with { type: 'json' };
 import type { ScriptMatch } from './types.ts';
 
 type Sidecar = {
@@ -42,7 +43,7 @@ type Sidecar = {
   match_en?: ScriptMatch;
 };
 
-const SIDECARS = [en260826, en260831a, en260831b, en260831c, en260909, en260915, en260927] as unknown as Sidecar[];
+const SIDECARS = [en260826, en260831a, en260831b, en260831c, en260909, en260915, en260927, en260929] as unknown as Sidecar[];
 
 const BY_ID = new Map<string, Sidecar>(SIDECARS.map((s) => [s.missionId, s]));
 

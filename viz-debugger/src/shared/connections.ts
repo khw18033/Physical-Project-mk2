@@ -45,7 +45,7 @@
 
 import { useSyncExternalStore } from 'react';
 
-export type ConnectionTargetId = 'gateway' | 'media' | 'stt' | 'generate' | 'physical' | 'detect' | 'autodrive' | 'autodrive-ai' | 'capability' | 'control-node' | 'digital-twin';
+export type ConnectionTargetId = 'gateway' | 'media' | 'stt' | 'generate' | 'physical' | 'detect' | 'autodrive' | 'autodrive-ai' | 'capability' | 'control-node' | 'digital-twin' | 'sar' | 'recon-3d';
 
 /**
  * ## 260918 — 여기 담는 것은 **글자가 아니라 사전 키**다
@@ -78,6 +78,11 @@ export type ConnectionField = {
    * 옛 값(주소 한 줄)이 그대로 목록 한 줄이 된다 — 옮길 것이 없다.
    */
   list?: true;
+  /**
+   * **이미지를 붙이는 칸** (260929 — SAR · 3D 복원 노드). 주소가 아니라 파일이라 이 저장소(문자열 묶음)에 안 담고
+   * `shared/imageStore.ts` 에 둔다. 키는 같은 `대상.칸` 이다 — 노드가 그 키로 찾는다.
+   */
+  image?: true;
 };
 
 /**
@@ -256,6 +261,31 @@ export const CONNECTION_TARGETS: readonly ConnectionTarget[] = [
     whatKey: 'conn.target.digitalTwin.what',
     live: true,
     fields: [{ key: 'base', labelKey: 'conn.field.unity', fallback: '' }],
+  },
+  {
+    /**
+     * 260929 — **SAR 노드가 띄울 것.** 지금은 이미지 한 장을 붙인다(`imageStore.ts` — 이 브라우저 안). 주소 칸에
+     * 이미지 주소를 넣으면 그 주소가 이긴다 — 서비스가 생기면 주소만 넣으면 되고 이 판을 다시 만들지 않는다.
+     */
+    id: 'sar',
+    labelKey: 'conn.target.sar',
+    whatKey: 'conn.target.sar.what',
+    live: true,
+    fields: [
+      { key: 'image', labelKey: 'conn.field.image', fallback: '', image: true },
+      { key: 'base', labelKey: 'conn.field.imageUrl', fallback: '' },
+    ],
+  },
+  {
+    /** 260929 — **3D 복원 노드가 띄울 것.** SAR 과 같은 규칙이다. */
+    id: 'recon-3d',
+    labelKey: 'conn.target.recon3d',
+    whatKey: 'conn.target.recon3d.what',
+    live: true,
+    fields: [
+      { key: 'image', labelKey: 'conn.field.image', fallback: '', image: true },
+      { key: 'base', labelKey: 'conn.field.imageUrl', fallback: '' },
+    ],
   },
 ];
 

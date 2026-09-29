@@ -76,6 +76,7 @@ import { VirtualMap } from '../virtualmap/VirtualMap.tsx';
 import { DeviceCamera } from '../media/views/DeviceCamera.tsx';
 import { resolveSlot } from '../data/slots.ts';
 import { directCameraUrl } from '../physical/cameraView.ts';
+import { AttachedImage } from '../imagery/AttachedImage.tsx';
 
 /** 화면이 쓰는 로봇 id. 하드웨어 id 로 바꾸는 것은 경계 안쪽(`hardwareTarget`) 일이다. */
 const ROBOT_ENTITY = 'robot-01';
@@ -363,6 +364,23 @@ export const VIEW_NODE_RENDERERS: readonly ViewNodeEntry[] = [
     showFor: onlySlots,
     summary: () => <NodeGate kind="obstacle-log"><ObstacleLogCard /></NodeGate>,
     zoom: () => <NodeGate kind="obstacle-log"><ObstacleFacts /></NodeGate>,
+  },
+  {
+    // 260929 — **SAR.** 연결 관리의 「SAR 영상」에 붙인 것을 띄운다(주소가 있으면 주소, 없으면 붙인 파일).
+    // 모든 편 팔레트에 선다(결정 12-A) — `showFor` 가 없다. 자리표시로 감싸지 않는다: 사람이 붙인 것을 그대로 보인다.
+    kind: 'sar',
+    labelKey: 'viewnode.sar',
+    hintKey: 'viewnode.sar.hint',
+    summary: () => <NodeGate kind="sar"><AttachedImage target="sar" /></NodeGate>,
+    zoom: () => <NodeGate kind="sar"><AttachedImage target="sar" zoom /></NodeGate>,
+  },
+  {
+    // 260929 — **3D 복원.** SAR 과 같은 규칙이다. 지금은 결과 이미지 한 장이고, 뷰어가 생기면 렌더러만 바꾼다(종류 id 는 그대로).
+    kind: 'recon-3d',
+    labelKey: 'viewnode.recon3d',
+    hintKey: 'viewnode.recon3d.hint',
+    summary: () => <NodeGate kind="recon-3d"><AttachedImage target="recon-3d" /></NodeGate>,
+    zoom: () => <NodeGate kind="recon-3d"><AttachedImage target="recon-3d" zoom /></NodeGate>,
   },
   {
     // 자율주행 편 (260915) — AI 서버의 로봇 앞 카메라 영상을 **그대로**. 접힘은 한 장씩, 실시간은 확대에서.

@@ -44,7 +44,7 @@ import { framesUpTo } from './viewpoint/store.ts';
 import { startMissionRecorder } from './record/recorder.ts';
 import { startNavLink } from './physical/navLink.ts';
 import { startObstacleWatch } from './autodrive/watch.ts';
-import { startSlotMove } from './physical/slotMove.ts';
+import { startTaskRunner } from './physical/taskRunner.ts';
 import { useReplayTarget } from './record/replayMode.ts';
 import { dropOnSlots, holdSlotsFor, useSlotBindings } from './data/slots.ts';
 
@@ -524,7 +524,7 @@ export function MissionDebugger({ navigation, planApproval }: { navigation?: Deb
    * **장치 두 대 편의 실제 이동** (260927). 자리에 앉은 장비가 걸을 수 있으면 그 장비의 이동을 로봇이 칠한다.
    * 같은 이유로 여기 둔다 — 화면을 옮겨도 걷고 있는 로봇의 응답을 놓치면 안 된다.
    */
-  useEffect(() => startSlotMove(), []);
+  useEffect(() => startTaskRunner(), []);
   /**
    * 하드웨어 카드의 창을 쓸어 준다 (260921). **조용해지는 것은 값이 안 올 때 일어나므로**
    * 아무도 저장소를 안 건드리고, 그러면 꺼진 장비의 카드가 그대로 남는다.

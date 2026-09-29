@@ -18,10 +18,11 @@ import script03 from '../../scenarios/MSN-260831-03.json' with { type: 'json' };
 import script04 from '../../scenarios/MSN-260909-01.json' with { type: 'json' };
 import script05 from '../../scenarios/MSN-260915-01.json' with { type: 'json' };
 import script06 from '../../scenarios/MSN-260927-01.json' with { type: 'json' };
+import script07 from '../../scenarios/MSN-260929-01.json' with { type: 'json' };
 import { LEGACY_ID, SCRIPT_IDS } from './manifest.ts';
 import type { ScriptLibraryEntry, ScriptScenario } from './types.ts';
 
-const scripts = [script01, script02, script03, script04, script05, script06] as unknown as ScriptScenario[];
+const scripts = [script01, script02, script03, script04, script05, script06, script07] as unknown as ScriptScenario[];
 
 // 목록(manifest)과 실물(import)의 대조 — 대본을 더할 때 한쪽만 늘면 여기서 즉시 죽는다.
 {

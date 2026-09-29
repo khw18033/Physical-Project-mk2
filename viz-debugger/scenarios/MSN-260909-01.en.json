@@ -57,7 +57,10 @@
       "autonomous",
       "twodevices",
       "bothdevices",
-      "2devices"
+      "2devices",
+      "onedevice",
+      "adevice",
+      "singledevice"
     ]
   }
 }

@@ -1,0 +1,1069 @@
+{
+  "missionId": "MSN-260929-01",
+  "title": "장치 하나를 @까지 이동",
+  "world": "registry",
+  "driver": "local",
+  "utterance": {
+    "text": "장치 하나를 @까지 이동시켜",
+    "engine": "script",
+    "confidence": 1,
+    "audioRef": null
+  },
+  "match": {
+    "must": [
+      [
+        "장치하나",
+        "장치한개",
+        "장치한대",
+        "장치1개",
+        "장치1대",
+        "한장치",
+        "하나의장치"
+      ],
+      [
+        "까지"
+      ]
+    ],
+    "any": [
+      "이동",
+      "옮겨",
+      "보내",
+      "가"
+    ],
+    "normalize": "공백 제거 · 소문자"
+  },
+  "target": {
+    "token": "@",
+    "patterns": [
+      "(?:를|을)\\s*(.+?)\\s*까지",
+      "(\\S+?)\\s*까지"
+    ],
+    "patterns_en": [
+      "\\bto\\s+(.+?)\\s*[.!?]?\\s*$"
+    ],
+    "note": "@ 는 발화가 정한다. 「장치 하나를 문까지 이동시켜」면 문이다. 문장에서 못 찾거나 @ 그대로면 @ 로 둔다 — 지어 넣지 않는다"
+  },
+  "slots": [
+    {
+      "id": "device",
+      "label": "장치"
+    }
+  ],
+  "cast": [],
+  "durationSec": 68,
+  "params": {
+    "min_battery_pct": 30,
+    "match_tolerance_m": 0.5,
+    "stop_distance_max_m": 1,
+    "play_speed": 1,
+    "hold_sec": 5,
+    "camera_fov_deg": 59,
+    "judges_note": "260929 — 문 쪽으로 이동 편을 고친 편. 360° 회전 없이 가상 맵과 출발 자세로 @ 방향을 셈하고, 시야 밖일 때만 한 번 돈다(T-B5). 걸을 수 있는 장비면 돌기 · 이동이 실제 명령이고, 아니면(드론 — 연결만) hold_sec 을 채워 넘긴다. @ 탐지(T-B6~B8)는 탐지기가 붙을 때까지 가상 맵 위치로 넘긴다",
+    "judges": {
+      "T-A1": {
+        "kind": "online",
+        "slot": "device"
+      },
+      "T-A2": {
+        "kind": "link",
+        "slot": "device"
+      },
+      "T-A3": {
+        "kind": "battery",
+        "slot": "device"
+      },
+      "T-A4": {
+        "kind": "ready",
+        "slot": "device"
+      },
+      "T-A5": {
+        "kind": "camera",
+        "slot": "device"
+      },
+      "T-B1": {
+        "kind": "map-target"
+      },
+      "T-B2": {
+        "kind": "map-pose",
+        "slots": [
+          "device"
+        ]
+      },
+      "T-B3": {
+        "kind": "map-bearing",
+        "slot": "device"
+      },
+      "T-B4": {
+        "kind": "map-view",
+        "slot": "device"
+      },
+      "T-B5": {
+        "kind": "face",
+        "slot": "device"
+      },
+      "T-B6": {
+        "kind": "hold",
+        "show": "target"
+      },
+      "T-B7": {
+        "kind": "hold",
+        "show": "target"
+      },
+      "T-B8": {
+        "kind": "hold",
+        "show": "rationale"
+      },
+      "T-C1": {
+        "kind": "map-path",
+        "slot": "device"
+      },
+      "T-C2": {
+        "kind": "move",
+        "slot": "device",
+        "phase": "prepare"
+      },
+      "T-C3": {
+        "kind": "move",
+        "slot": "device",
+        "phase": "follow"
+      },
+      "T-C4": {
+        "kind": "move",
+        "slot": "device",
+        "phase": "stop"
+      },
+      "T-C5": {
+        "kind": "move",
+        "slot": "device",
+        "phase": "arrive"
+      },
+      "T-C6": {
+        "kind": "move",
+        "slot": "device",
+        "phase": "end"
+      },
+      "T-D1": {
+        "kind": "report"
+      }
+    },
+    "virtual_map": {
+      "frame": "site-global",
+      "place": "room-503",
+      "bounds": {
+        "x_min": -40.46,
+        "x_max": -33.06,
+        "z_min": -55.26,
+        "z_max": -45.86
+      },
+      "door": {
+        "x": -37.84,
+        "z": -45.97
+      },
+      "locate_task": "T-B1",
+      "target": {
+        "x": -35.3,
+        "z": -53.4
+      },
+      "start_note": "출발 자세는 맵에 미리 정한다(260929 결정 9-A) — 실내 GPS 오차가 판정 허용치보다 커서 장치를 이 자리 · 이 방향에 놓고 시작한다",
+      "devices": [
+        {
+          "slot": "device",
+          "start": {
+            "x": -38.9,
+            "z": -47.3
+          },
+          "start_yaw_deg": 90,
+          "path": [
+            [
+              -38.9,
+              -47.3
+            ],
+            [
+              -38.7,
+              -50.6
+            ],
+            [
+              -35.9,
+              -52.8
+            ]
+          ],
+          "path_task": "T-C1",
+          "move_start_task": "T-C3",
+          "arrive_task": "T-C5"
+        }
+      ]
+    }
+  },
+  "milestones": [
+    {
+      "id": "MS-A",
+      "title": "장치 준비",
+      "assignedTargets": [],
+      "slots": [
+        "device"
+      ]
+    },
+    {
+      "id": "MS-B",
+      "title": "@ 찾기",
+      "assignedTargets": [],
+      "slots": [
+        "device"
+      ]
+    },
+    {
+      "id": "MS-C",
+      "title": "@까지 이동",
+      "assignedTargets": [],
+      "slots": [
+        "device"
+      ]
+    },
+    {
+      "id": "MS-D",
+      "title": "임무 완료",
+      "assignedTargets": []
+    }
+  ],
+  "tasks": [
+    {
+      "id": "T-A1",
+      "title": "장치 응답 확인",
+      "milestone": "MS-A",
+      "deps": [],
+      "target": "device",
+      "nodeKind": "sense",
+      "actionItems": []
+    },
+    {
+      "id": "T-A2",
+      "title": "장치 통신 링크 확인",
+      "milestone": "MS-A",
+      "deps": [
+        "T-A1"
+      ],
+      "target": "device",
+      "nodeKind": "sense",
+      "actionItems": []
+    },
+    {
+      "id": "T-A3",
+      "title": "장치 배터리 확인",
+      "milestone": "MS-A",
+      "deps": [
+        "T-A2"
+      ],
+      "target": "device",
+      "nodeKind": "sense",
+      "actionItems": [],
+      "evaluation": {
+        "criteria": [
+          "배터리 잔량이 이동 기준(30%) 이상이다"
+        ],
+        "judgedBy": "backend"
+      }
+    },
+    {
+      "id": "T-A4",
+      "title": "장치 이동 준비 상태 확인",
+      "milestone": "MS-A",
+      "deps": [
+        "T-A3"
+      ],
+      "target": "device",
+      "nodeKind": "sense",
+      "actionItems": []
+    },
+    {
+      "id": "T-A5",
+      "title": "장치 카메라 영상 확인",
+      "milestone": "MS-A",
+      "deps": [
+        "T-A4"
+      ],
+      "target": "device",
+      "nodeKind": "sense",
+      "actionItems": []
+    },
+    {
+      "id": "T-B1",
+      "title": "가상 맵에서 @ 위치 확인",
+      "milestone": "MS-B",
+      "deps": [
+        "T-A5"
+      ],
+      "target": null,
+      "nodeKind": "sense",
+      "actionItems": []
+    },
+    {
+      "id": "T-B2",
+      "title": "장치 위치와 방향 추정",
+      "milestone": "MS-B",
+      "deps": [
+        "T-B1"
+      ],
+      "target": "device",
+      "nodeKind": "sense",
+      "actionItems": []
+    },
+    {
+      "id": "T-B3",
+      "title": "@ 방향과 거리 계산",
+      "milestone": "MS-B",
+      "deps": [
+        "T-B2"
+      ],
+      "target": "device",
+      "nodeKind": "decide",
+      "actionItems": []
+    },
+    {
+      "id": "T-B4",
+      "title": "@가 카메라 시야 안인지 판정",
+      "milestone": "MS-B",
+      "deps": [
+        "T-B3"
+      ],
+      "target": "device",
+      "nodeKind": "decide",
+      "actionItems": []
+    },
+    {
+      "id": "T-B5",
+      "title": "@ 쪽으로 방향 맞추기",
+      "milestone": "MS-B",
+      "deps": [
+        "T-B4"
+      ],
+      "target": "device",
+      "nodeKind": "act",
+      "actionItems": []
+    },
+    {
+      "id": "T-B6",
+      "title": "장치 카메라로 @ 탐지",
+      "milestone": "MS-B",
+      "deps": [
+        "T-B5"
+      ],
+      "target": "device",
+      "nodeKind": "sense",
+      "actionItems": []
+    },
+    {
+      "id": "T-B7",
+      "title": "@ 위치 판단",
+      "milestone": "MS-B",
+      "deps": [
+        "T-B6"
+      ],
+      "target": null,
+      "nodeKind": "decide",
+      "actionItems": [],
+      "evaluation": {
+        "criteria": [
+          "가상 맵의 @ 위치와 카메라 탐지 위치가 0.5m 안에서 맞는다"
+        ],
+        "judgedBy": "backend"
+      }
+    },
+    {
+      "id": "T-B8",
+      "title": "근거 가시화",
+      "milestone": "MS-B",
+      "deps": [
+        "T-B7"
+      ],
+      "target": null,
+      "nodeKind": "verify",
+      "actionItems": []
+    },
+    {
+      "id": "T-C1",
+      "title": "가상 맵 경로 산출",
+      "milestone": "MS-C",
+      "deps": [
+        "T-B8"
+      ],
+      "target": "device",
+      "nodeKind": "decide",
+      "actionItems": []
+    },
+    {
+      "id": "T-C2",
+      "title": "이동 준비",
+      "milestone": "MS-C",
+      "deps": [
+        "T-C1"
+      ],
+      "target": "device",
+      "nodeKind": "act",
+      "actionItems": []
+    },
+    {
+      "id": "T-C3",
+      "title": "경로 따라 이동",
+      "milestone": "MS-C",
+      "deps": [
+        "T-C2"
+      ],
+      "target": "device",
+      "nodeKind": "act",
+      "actionItems": []
+    },
+    {
+      "id": "T-C4",
+      "title": "@ 앞 정지",
+      "milestone": "MS-C",
+      "deps": [
+        "T-C3"
+      ],
+      "target": "device",
+      "nodeKind": "act",
+      "actionItems": []
+    },
+    {
+      "id": "T-C5",
+      "title": "도착 확인",
+      "milestone": "MS-C",
+      "deps": [
+        "T-C4"
+      ],
+      "target": "device",
+      "nodeKind": "verify",
+      "actionItems": [],
+      "evaluation": {
+        "criteria": [
+          "정지 시 @까지 거리가 1m 이하다"
+        ],
+        "judgedBy": "backend"
+      }
+    },
+    {
+      "id": "T-C6",
+      "title": "이동 종료",
+      "milestone": "MS-C",
+      "deps": [
+        "T-C5"
+      ],
+      "target": "device",
+      "nodeKind": "act",
+      "actionItems": []
+    },
+    {
+      "id": "T-D1",
+      "title": "임무 종료 확인",
+      "milestone": "MS-D",
+      "deps": [
+        "T-C6"
+      ],
+      "target": null,
+      "nodeKind": "report",
+      "actionItems": []
+    }
+  ],
+  "events": [
+    {
+      "seq": 1,
+      "atSec": 0,
+      "nodeId": "T-A1",
+      "status": "pending",
+      "kind": "created",
+      "producedBy": "backend"
+    },
+    {
+      "seq": 2,
+      "atSec": 0,
+      "nodeId": "T-A2",
+      "status": "pending",
+      "kind": "created",
+      "producedBy": "backend"
+    },
+    {
+      "seq": 3,
+      "atSec": 0,
+      "nodeId": "T-A3",
+      "status": "pending",
+      "kind": "created",
+      "producedBy": "backend"
+    },
+    {
+      "seq": 4,
+      "atSec": 0,
+      "nodeId": "T-A4",
+      "status": "pending",
+      "kind": "created",
+      "producedBy": "backend"
+    },
+    {
+      "seq": 5,
+      "atSec": 0,
+      "nodeId": "T-A5",
+      "status": "pending",
+      "kind": "created",
+      "producedBy": "backend"
+    },
+    {
+      "seq": 6,
+      "atSec": 0,
+      "nodeId": "T-B1",
+      "status": "pending",
+      "kind": "created",
+      "producedBy": "backend"
+    },
+    {
+      "seq": 7,
+      "atSec": 0,
+      "nodeId": "T-B2",
+      "status": "pending",
+      "kind": "created",
+      "producedBy": "backend"
+    },
+    {
+      "seq": 8,
+      "atSec": 0,
+      "nodeId": "T-B3",
+      "status": "pending",
+      "kind": "created",
+      "producedBy": "backend"
+    },
+    {
+      "seq": 9,
+      "atSec": 0,
+      "nodeId": "T-B4",
+      "status": "pending",
+      "kind": "created",
+      "producedBy": "backend"
+    },
+    {
+      "seq": 10,
+      "atSec": 0,
+      "nodeId": "T-B5",
+      "status": "pending",
+      "kind": "created",
+      "producedBy": "backend"
+    },
+    {
+      "seq": 11,
+      "atSec": 0,
+      "nodeId": "T-B6",
+      "status": "pending",
+      "kind": "created",
+      "producedBy": "backend"
+    },
+    {
+      "seq": 12,
+      "atSec": 0,
+      "nodeId": "T-B7",
+      "status": "pending",
+      "kind": "created",
+      "producedBy": "backend"
+    },
+    {
+      "seq": 13,
+      "atSec": 0,
+      "nodeId": "T-B8",
+      "status": "pending",
+      "kind": "created",
+      "producedBy": "backend"
+    },
+    {
+      "seq": 14,
+      "atSec": 0,
+      "nodeId": "T-C1",
+      "status": "pending",
+      "kind": "created",
+      "producedBy": "backend"
+    },
+    {
+      "seq": 15,
+      "atSec": 0,
+      "nodeId": "T-C2",
+      "status": "pending",
+      "kind": "created",
+      "producedBy": "backend"
+    },
+    {
+      "seq": 16,
+      "atSec": 0,
+      "nodeId": "T-C3",
+      "status": "pending",
+      "kind": "created",
+      "producedBy": "backend"
+    },
+    {
+      "seq": 17,
+      "atSec": 0,
+      "nodeId": "T-C4",
+      "status": "pending",
+      "kind": "created",
+      "producedBy": "backend"
+    },
+    {
+      "seq": 18,
+      "atSec": 0,
+      "nodeId": "T-C5",
+      "status": "pending",
+      "kind": "created",
+      "producedBy": "backend"
+    },
+    {
+      "seq": 19,
+      "atSec": 0,
+      "nodeId": "T-C6",
+      "status": "pending",
+      "kind": "created",
+      "producedBy": "backend"
+    },
+    {
+      "seq": 20,
+      "atSec": 0,
+      "nodeId": "T-D1",
+      "status": "pending",
+      "kind": "created",
+      "producedBy": "backend"
+    },
+    {
+      "seq": 21,
+      "atSec": 1,
+      "nodeId": "T-A1",
+      "status": "running",
+      "kind": "started",
+      "producedBy": "backend"
+    },
+    {
+      "seq": 22,
+      "atSec": 2,
+      "nodeId": "T-A1",
+      "status": "done",
+      "kind": "evaluated",
+      "producedBy": "backend",
+      "payload": {
+        "online": true,
+        "heartbeat_age_s": 2
+      }
+    },
+    {
+      "seq": 23,
+      "atSec": 2,
+      "nodeId": "T-A2",
+      "status": "running",
+      "kind": "started",
+      "producedBy": "backend"
+    },
+    {
+      "seq": 24,
+      "atSec": 4,
+      "nodeId": "T-A2",
+      "status": "done",
+      "kind": "evaluated",
+      "producedBy": "backend",
+      "payload": {
+        "link": "ok",
+        "rtt_ms": 41
+      }
+    },
+    {
+      "seq": 25,
+      "atSec": 4,
+      "nodeId": "T-A3",
+      "status": "running",
+      "kind": "started",
+      "producedBy": "backend"
+    },
+    {
+      "seq": 26,
+      "atSec": 5.5,
+      "nodeId": "T-A3",
+      "status": "awaiting_evaluation",
+      "kind": "evaluated",
+      "producedBy": "backend",
+      "payload": {
+        "criterion": "배터리 잔량이 이동 기준(30%) 이상이다"
+      }
+    },
+    {
+      "seq": 27,
+      "atSec": 6,
+      "nodeId": "T-A3",
+      "status": "done",
+      "kind": "evaluated",
+      "producedBy": "backend",
+      "payload": {
+        "battery_pct": 76,
+        "min_battery_pct": 30
+      }
+    },
+    {
+      "seq": 28,
+      "atSec": 6,
+      "nodeId": "T-A4",
+      "status": "running",
+      "kind": "started",
+      "producedBy": "backend"
+    },
+    {
+      "seq": 29,
+      "atSec": 7,
+      "nodeId": "T-A4",
+      "status": "done",
+      "kind": "evaluated",
+      "producedBy": "backend",
+      "payload": {
+        "device_status": "ok"
+      }
+    },
+    {
+      "seq": 30,
+      "atSec": 7,
+      "nodeId": "T-A5",
+      "status": "running",
+      "kind": "started",
+      "producedBy": "backend"
+    },
+    {
+      "seq": 31,
+      "atSec": 9,
+      "nodeId": "T-A5",
+      "status": "done",
+      "kind": "evaluated",
+      "producedBy": "backend",
+      "payload": {
+        "camera_frames": true
+      }
+    },
+    {
+      "seq": 32,
+      "atSec": 9,
+      "nodeId": "T-B1",
+      "status": "running",
+      "kind": "started",
+      "producedBy": "backend"
+    },
+    {
+      "seq": 33,
+      "atSec": 10,
+      "nodeId": "T-B1",
+      "status": "done",
+      "kind": "evaluated",
+      "producedBy": "backend",
+      "payload": {
+        "source": "virtual-map",
+        "x": -35.3,
+        "z": -53.4,
+        "frame": "site-global"
+      }
+    },
+    {
+      "seq": 34,
+      "atSec": 10,
+      "nodeId": "T-B2",
+      "status": "running",
+      "kind": "started",
+      "producedBy": "backend"
+    },
+    {
+      "seq": 35,
+      "atSec": 11,
+      "nodeId": "T-B2",
+      "status": "done",
+      "kind": "evaluated",
+      "producedBy": "backend",
+      "payload": {
+        "source": "virtual-map",
+        "pose_frame": "site-global",
+        "device": {
+          "x": -38.9,
+          "z": -47.3,
+          "yaw_deg": 90
+        }
+      }
+    },
+    {
+      "seq": 36,
+      "atSec": 11,
+      "nodeId": "T-B3",
+      "status": "running",
+      "kind": "started",
+      "producedBy": "backend"
+    },
+    {
+      "seq": 37,
+      "atSec": 12,
+      "nodeId": "T-B3",
+      "status": "done",
+      "kind": "evaluated",
+      "producedBy": "backend",
+      "payload": {
+        "source": "virtual-map",
+        "bearing_deg": 149.45,
+        "relative_deg": 59.45,
+        "distance_m": 7.08
+      }
+    },
+    {
+      "seq": 38,
+      "atSec": 12,
+      "nodeId": "T-B4",
+      "status": "running",
+      "kind": "started",
+      "producedBy": "backend"
+    },
+    {
+      "seq": 39,
+      "atSec": 13,
+      "nodeId": "T-B4",
+      "status": "done",
+      "kind": "evaluated",
+      "producedBy": "backend",
+      "payload": {
+        "relative_deg": 59.45,
+        "half_fov_deg": 29.5,
+        "in_view": false
+      }
+    },
+    {
+      "seq": 40,
+      "atSec": 13,
+      "nodeId": "T-B5",
+      "status": "running",
+      "kind": "started",
+      "producedBy": "backend"
+    },
+    {
+      "seq": 41,
+      "atSec": 17,
+      "nodeId": "T-B5",
+      "status": "done",
+      "kind": "evaluated",
+      "producedBy": "backend",
+      "payload": {
+        "in_view": false,
+        "turned_deg": 59.45
+      }
+    },
+    {
+      "seq": 42,
+      "atSec": 17,
+      "nodeId": "T-B6",
+      "status": "running",
+      "kind": "started",
+      "producedBy": "backend"
+    },
+    {
+      "seq": 43,
+      "atSec": 22,
+      "nodeId": "T-B6",
+      "status": "done",
+      "kind": "evaluated",
+      "producedBy": "backend",
+      "payload": {
+        "source": "virtual-map",
+        "x": -35.3,
+        "z": -53.4
+      }
+    },
+    {
+      "seq": 44,
+      "atSec": 22,
+      "nodeId": "T-B7",
+      "status": "running",
+      "kind": "started",
+      "producedBy": "backend"
+    },
+    {
+      "seq": 45,
+      "atSec": 26.5,
+      "nodeId": "T-B7",
+      "status": "awaiting_evaluation",
+      "kind": "evaluated",
+      "producedBy": "backend",
+      "payload": {
+        "criterion": "가상 맵의 @ 위치와 카메라 탐지 위치가 0.5m 안에서 맞는다"
+      }
+    },
+    {
+      "seq": 46,
+      "atSec": 27,
+      "nodeId": "T-B7",
+      "status": "done",
+      "kind": "evaluated",
+      "producedBy": "backend",
+      "payload": {
+        "source": "virtual-map",
+        "x": -35.3,
+        "z": -53.4,
+        "hold_s": 5
+      }
+    },
+    {
+      "seq": 47,
+      "atSec": 27,
+      "nodeId": "T-B8",
+      "status": "running",
+      "kind": "started",
+      "producedBy": "backend"
+    },
+    {
+      "seq": 48,
+      "atSec": 32,
+      "nodeId": "T-B8",
+      "status": "done",
+      "kind": "evaluated",
+      "producedBy": "backend",
+      "payload": {
+        "reason": "@ 자리는 가상 맵 좌표 (-35.3, -53.4) 로 정했습니다.",
+        "image_ref": null
+      }
+    },
+    {
+      "seq": 49,
+      "atSec": 32,
+      "nodeId": "T-C1",
+      "status": "running",
+      "kind": "started",
+      "producedBy": "backend"
+    },
+    {
+      "seq": 50,
+      "atSec": 33,
+      "nodeId": "T-C1",
+      "status": "done",
+      "kind": "evaluated",
+      "producedBy": "backend",
+      "payload": {
+        "source": "virtual-map",
+        "waypoints": 3,
+        "path_length_m": 6.86
+      }
+    },
+    {
+      "seq": 51,
+      "atSec": 33,
+      "nodeId": "T-C2",
+      "status": "running",
+      "kind": "started",
+      "producedBy": "backend"
+    },
+    {
+      "seq": 52,
+      "atSec": 34,
+      "nodeId": "T-C2",
+      "status": "done",
+      "kind": "evaluated",
+      "producedBy": "backend",
+      "payload": {
+        "planned_path_m": 6.86
+      }
+    },
+    {
+      "seq": 53,
+      "atSec": 34,
+      "nodeId": "T-C3",
+      "status": "running",
+      "kind": "started",
+      "producedBy": "backend"
+    },
+    {
+      "seq": 54,
+      "atSec": 58,
+      "nodeId": "T-C3",
+      "status": "done",
+      "kind": "evaluated",
+      "producedBy": "backend",
+      "payload": {
+        "commands": 5
+      }
+    },
+    {
+      "seq": 55,
+      "atSec": 58,
+      "nodeId": "T-C4",
+      "status": "running",
+      "kind": "started",
+      "producedBy": "backend"
+    },
+    {
+      "seq": 56,
+      "atSec": 61,
+      "nodeId": "T-C4",
+      "status": "done",
+      "kind": "evaluated",
+      "producedBy": "backend",
+      "payload": {
+        "ended_by": "SUCCEEDED"
+      }
+    },
+    {
+      "seq": 57,
+      "atSec": 61,
+      "nodeId": "T-C5",
+      "status": "running",
+      "kind": "started",
+      "producedBy": "backend"
+    },
+    {
+      "seq": 58,
+      "atSec": 61.5,
+      "nodeId": "T-C5",
+      "status": "awaiting_evaluation",
+      "kind": "evaluated",
+      "producedBy": "backend",
+      "payload": {
+        "criterion": "정지 시 @까지 거리가 1m 이하다"
+      }
+    },
+    {
+      "seq": 59,
+      "atSec": 62,
+      "nodeId": "T-C5",
+      "status": "done",
+      "kind": "evaluated",
+      "producedBy": "backend",
+      "payload": {
+        "ended_by": "SUCCEEDED",
+        "planned_distance_to_target_m": 0.85
+      }
+    },
+    {
+      "seq": 60,
+      "atSec": 62,
+      "nodeId": "T-C6",
+      "status": "running",
+      "kind": "started",
+      "producedBy": "backend"
+    },
+    {
+      "seq": 61,
+      "atSec": 63,
+      "nodeId": "T-C6",
+      "status": "done",
+      "kind": "evaluated",
+      "producedBy": "backend",
+      "payload": {
+        "ended_by": "SUCCEEDED"
+      }
+    },
+    {
+      "seq": 62,
+      "atSec": 63,
+      "nodeId": "T-D1",
+      "status": "running",
+      "kind": "started",
+      "producedBy": "backend"
+    },
+    {
+      "seq": 63,
+      "atSec": 64,
+      "nodeId": "T-D1",
+      "status": "done",
+      "kind": "evaluated",
+      "producedBy": "backend",
+      "payload": {
+        "tasks_done": 19,
+        "devices_moved": 1
+      }
+    }
+  ]
+}

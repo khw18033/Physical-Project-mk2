@@ -65,7 +65,7 @@ import placesTopology from '../../../places/places.json';
 import equipmentVocabulary from '../../../equipment/equipment.json';
 import { noteHumanAction } from '../shared/humanAction.ts';
 import { parseStepScript, stepMissionView } from '../physical/stepScript.ts';
-import { proposeSteps } from '../data/scenario.ts';
+import { proposeSteps, rejectProposal } from '../data/scenario.ts';
 import { t } from '../i18n/dict.ts';
 import { Rich } from '../i18n/RichText.tsx';
 import { getLang, useLang } from '../shared/language.ts';
@@ -252,6 +252,12 @@ function matchScript(text: string): MatchOutcome {
       // 대본에 빈칸(`@`)이 있으면 **이 문장에서** 채울 낱말을 잘라 온다 (260927). 못 자르면 빈칸 그대로다.
       ...(outcome.entry.script?.target === undefined ? {} : { target: extractTarget(text, outcome.entry.script.target, getLang()) }),
     });
+  } else {
+    /**
+     * **새 문장이 안 받아들여졌으면 앞 제안을 치운다** (260929 지시 16-A). 남겨 두면 방금 거절된 문장 아래에 앞 문장의
+     * 승인 카드가 그대로 서 있고, 그것을 누르면 사람이 지금 말한 것이 아닌 임무가 선다. 모델이 새로 만들면 그것이 다시 뜬다.
+     */
+    rejectProposal();
   }
   return outcome;
 }

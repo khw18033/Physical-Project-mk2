@@ -430,7 +430,7 @@ function subscribe(listener: () => void): () => void {
   return () => listeners.delete(listener);
 }
 
-/** 저장소 구독 — 화면 밖 배선(`physical/slotMove.ts`)이 판의 진행을 지켜본다 (260927). */
+/** 저장소 구독 — 화면 밖 배선(`physical/taskRunner.ts`)이 판의 진행을 지켜본다 (260927). */
 export function subscribeMission(listener: () => void): () => void {
   return subscribe(listener);
 }
@@ -668,6 +668,20 @@ function runLocalTimer(speed: number): void {
   localTimer = setInterval(() => {
     // 실제 장치가 맡은 태스크를 기다리는 사건 앞에서는 선다 (260927) — 로봇이 아직 걷는데 「임무 완료」가 칠해지면 안 된다.
     const nextHead = Math.max(state.headSec, Math.min(state.headSec + (stepMs / 1000) * speed, liveHoldAt()));
+    /**
+     * **실행기가 모는 판은 대본 길이로 끝나지 않는다** (260929). 태스크마다 실제 값으로 판정하므로 몇 초가 걸릴지
+     * 판을 열 때 모른다 — Go1 이 느리게 걸으면 대본의 56초를 넘는다. 그래서 끝은 「태스크가 다 끝났다」이고,
+     * 그 전에 대본 길이에 닿으면 축을 늘린다. 끝나면 축을 실제로 걸린 시간으로 줄인다 — 되감기 축이 실제와 같아야 한다.
+     */
+    if (liveClaims.size > 0) {
+      if (liveRunSettled()) {
+        finishLiveRun();
+        return;
+      }
+      if (nextHead >= state.current.durationSec - 1) {
+        commitNow({ current: { ...state.current, durationSec: Math.ceil(nextHead) + LIVE_STRETCH_SEC } });
+      }
+    }
     if (nextHead >= state.current.durationSec) {
       stopLocalTimer();
       // 남은 사건을 마저 흘려보낸 **뒤에** 머리를 끝에 세운다 — 순서가 바뀌면
@@ -680,6 +694,26 @@ function runLocalTimer(speed: number): void {
     feedLocalTrace(nextHead);
     commit({ headSec: nextHead });
   }, stepMs);
+}
+
+/** 실행기가 모는 판이 대본 길이에 닿았을 때 한 번에 늘리는 초. */
+const LIVE_STRETCH_SEC = 30;
+
+/** 실행기가 맡은 판의 태스크가 **전부** 끝났는가. 맡은 것이 없으면 거짓이다 — 대본 판은 대본 길이로 끝난다. */
+function liveRunSettled(): boolean {
+  if (liveClaims.size === 0) return false;
+  const done = new Set(traceFor(state.current).filter((event) => event.status === 'done').map((event) => event.nodeId));
+  return state.current.tasks.every((task) => !liveClaims.has(task.id) || done.has(task.id))
+    && state.current.tasks.some((task) => liveClaims.has(task.id));
+}
+
+/** 다 끝났다 — 축을 걸린 시간으로 줄이고 판을 닫는다. */
+function finishLiveRun(): void {
+  stopLocalTimer();
+  const end = Math.max(1, Math.ceil(state.headSec));
+  feedLocalTrace(end);
+  commitNow({ current: { ...state.current, durationSec: end }, headSec: end, playing: false });
+  setLocalRun('done');
 }
 
 // ── 실제 장치가 맡은 태스크 (260927 — 장치 두 대 편 · Go1 실동작) ─────────────────
@@ -699,6 +733,8 @@ export type LiveMoveHooks = {
   halt(kind: 'pause' | 'stop'): void;
   /** 사람이 이어 가라고 했다 — 장비 쪽 잠금을 푼다. */
   resume(): void;
+  /** 판을 연 순간 「정해진 시간을 채워 넘기기로 한」 태스크들 (260929). 판 기록에만 남긴다. */
+  heldTasks?(): readonly string[];
 };
 
 let liveHooks: LiveMoveHooks | null = null;
@@ -725,6 +761,11 @@ export function appendLiveEvent(
   status: TaskStatus,
   kind: string,
   payload?: Record<string, unknown>,
+  /**
+   * 누가 만든 값인가 (260929 — 임무 실행기). 장비가 준 값·장비의 응답이면 `robot`, 화면이 가상 맵으로 계산했거나
+   * 정해진 시간을 채워 넘긴 것이면 `backend` 다. 「누가 만든 값인가」(논문 §4-3)에 로봇이 계산한 것처럼 남으면 안 된다.
+   */
+  producedBy: 'robot' | 'backend' = 'robot',
 ): boolean {
   if (missionId !== state.current.missionId || !liveClaims.has(taskId) || isReplayingRecord()) return false;
   const appended = appendTrace(missionId, {
@@ -733,7 +774,7 @@ export function appendLiveEvent(
     nodeId: taskId,
     status,
     kind,
-    producedBy: 'robot',
+    producedBy,
     ...(payload === undefined ? {} : { payload }),
   });
   if (appended) liveMoveCount += 1;
@@ -823,8 +864,16 @@ export function startLocalRun(): boolean {
   // 어느 태스크를 실제 장치가 맡는지 **판이 열리는 순간** 정한다 — 카드 배정과 연결이 그때 확정이다.
   liveClaims = new Set(liveHooks?.claim(state.current) ?? []);
   liveMoveCount = 0;
+  // 0초의 생성 사건(pending)을 **먼저** 흘린다 (260929) — 실행기가 첫 태스크를 곧바로 「진행 중」으로 칠하는데,
+  // 그 뒤에 pending 이 들어오면 그 노드가 대기로 되돌아간다.
+  feedLocalTrace(state.headSec);
   setLocalRun('running');
-  recordHuman('mission_started', state.current.missionId, { from: 'button', live_tasks: [...liveClaims].join(',') });
+  recordHuman('mission_started', state.current.missionId, {
+    from: 'button',
+    live_tasks: [...liveClaims].join(','),
+    // **정해진 시간을 채워 넘기는 태스크** (260929). 화면은 다른 완료 노드와 똑같이 칠하고(지시 3-A), 그 사실은 판 기록의 이 줄이 남긴다.
+    held_tasks: (liveHooks?.heldTasks?.() ?? []).join(','),
+  });
   commitNow({ playing: true });
   runLocalTimer(localSpeed());
   return true;

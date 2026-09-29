@@ -1,0 +1,63 @@
+{
+  "missionId": "MSN-260929-01",
+  "note": "본문은 원본(MSN-*.json)이 든다. 여기는 **화면에 뜨는 문구의 영어**와 영어 조회 규칙뿐이다. @ 는 번역한 뒤에 발화가 정한 대상으로 채운다 — 그래서 키와 값 양쪽에 @ 가 그대로 있다.",
+  "phrases": {
+    "장치 하나를 @까지 이동": "Move one device to @",
+    "장치 하나를 @까지 이동시켜": "Move one device to @",
+    "장치": "Device",
+    "장치 준비": "Prepare the device",
+    "@ 찾기": "Find @",
+    "@까지 이동": "Move to @",
+    "임무 완료": "Mission complete",
+    "장치 응답 확인": "Check the device responds",
+    "장치 통신 링크 확인": "Check the device’s link",
+    "장치 배터리 확인": "Check the device’s battery",
+    "장치 이동 준비 상태 확인": "Check the device is ready to move",
+    "장치 카메라 영상 확인": "Check the device’s camera feed",
+    "가상 맵에서 @ 위치 확인": "Locate @ on the virtual map",
+    "장치 위치와 방향 추정": "Estimate the device’s position and heading",
+    "@ 방향과 거리 계산": "Compute the bearing and distance to @",
+    "@가 카메라 시야 안인지 판정": "Decide whether @ is in the camera’s view",
+    "@ 쪽으로 방향 맞추기": "Turn toward @",
+    "장치 카메라로 @ 탐지": "Detect @ with the device camera",
+    "@ 위치 판단": "Decide where @ is",
+    "근거 가시화": "Visualise the rationale",
+    "가상 맵 경로 산출": "Plan the path on the virtual map",
+    "이동 준비": "Prepare to move",
+    "경로 따라 이동": "Follow the path",
+    "@ 앞 정지": "Stop in front of @",
+    "도착 확인": "Confirm arrival",
+    "이동 종료": "Finish moving",
+    "임무 종료 확인": "Confirm the mission ended",
+    "배터리 잔량이 이동 기준(30%) 이상이다": "Battery charge is at or above the travel threshold (30%)",
+    "가상 맵의 @ 위치와 카메라 탐지 위치가 0.5m 안에서 맞는다": "The virtual-map position of @ and the camera detection agree within 0.5 m",
+    "정지 시 @까지 거리가 1m 이하다": "At the stop, the distance to @ is 1 m or less",
+    "@ 자리는 가상 맵 좌표 (-35.3, -53.4) 로 정했습니다.": "@ was placed at virtual-map coordinates (-35.3, -53.4)."
+  },
+  "match_en": {
+    "must": [
+      [
+        "one device",
+        "onedevice",
+        "a device",
+        "adevice",
+        "single device",
+        "singledevice"
+      ],
+      [
+        "to"
+      ]
+    ],
+    "any": [
+      "move",
+      "send",
+      "go",
+      "bring"
+    ],
+    "not": [
+      "twodevices",
+      "bothdevices",
+      "2devices"
+    ]
+  }
+}

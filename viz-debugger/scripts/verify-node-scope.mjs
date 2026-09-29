@@ -157,6 +157,8 @@ const EXPECTED = {
   // 7편(260927 장치 두 대) — 세계 채널을 하나도 안 몬다(worldTimeline · commands · map 없음). 장비를 대본이
   // 정하지 않으니 몰 대상도 없다. 이 편이 쓰는 노드(가상 맵 · 카메라 · 객체 탐지 로그)는 축 표 밖이다.
   'MSN-260927-01': [],
+  // 8편(260929 장치 하나를 @까지) — 7편과 같은 까닭으로 세계 채널을 하나도 안 몬다.
+  'MSN-260929-01': [],
 };
 function checkScripts(list) {
   const f = [];
@@ -188,6 +190,7 @@ const PANEL_EXPECTED = {
   'MSN-260915-01': ['risk', 'control', 'metrics-push', 'video'],
   // 7편 — 축이 없으니 패널이 전부 접힌다. 이 편은 대본 편(`driver: 'script'`)이라 실제로 시나리오 모드로 들어간다.
   'MSN-260927-01': ['risk', 'zone-map', 'device-grid', 'control', 'metrics-query', 'metrics-push', 'video'],
+  'MSN-260929-01': ['risk', 'zone-map', 'device-grid', 'control', 'metrics-query', 'metrics-push', 'video'],
 };
 for (const script of scripts) {
   const got = collapsedPanels(script).sort();

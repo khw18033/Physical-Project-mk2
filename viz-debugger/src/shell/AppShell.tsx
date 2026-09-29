@@ -1,5 +1,5 @@
 import { translateEvents, translateView } from '../scenarios/phrases.ts';
-import { useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { viewNodeLabel } from '../canvas/registry.ts';
 import { useZoomTarget } from '../canvas/zoomState.ts';
 import { traceFor, missionLabel, missionTitle, useMission } from '../data/scenario.ts';
@@ -54,6 +54,20 @@ export function AppShell({ debuggerView, onDebuggerHome, onMissionHistory, onOpe
   onOpenNode(kind: string, taskId: string | null): void;
 }) {
   const [panel, setPanel] = useState<'history' | 'notifications' | 'connections' | null>(null);
+  /**
+   * **머리줄 버튼은 여닫기다** (260929 지시). 열린 판의 버튼을 다시 누르면 닫힌다 — 전에는 여는 것만 해서 닫으려면
+   * 판 안의 「닫기」를 찾아야 했다. 셋(연결 관리 · 이력 · 알림)이 같은 규칙이다.
+   */
+  const togglePanel = (which: 'history' | 'notifications' | 'connections') => setPanel((open) => (open === which ? null : which));
+  // **ESC 로도 닫는다** (260929 지시). 연결 관리에서 적던 주소는 사라지지 않는다 — 다시 열면 그대로다(`ConnectionsPanel`).
+  useEffect(() => {
+    if (panel === null) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && !event.defaultPrevented) setPanel(null);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [panel]);
   const notifications = useNotifications();
   // 배경 작업은 앱 수명과 같다. **여기서 한 번만 기동한다.**
   //
@@ -135,7 +149,7 @@ export function AppShell({ debuggerView, onDebuggerHome, onMissionHistory, onOpe
         {/* **셋이 한 부품에서 온다** (260910). 전에는 여기서 게이트웨이로 `mission_pause` 를
             쏘고 그 옆에 실제로 동작하는 「중단」이 따로 있었다 — 같은 뜻의 버튼이 둘인데
             하나만 동작했다. 동작하는 쪽을 「정지」에 넣고 중단을 지웠다. */}
-        <StopButton /><PauseButton /><ResumeButton /><ApproachButton /><ConnectionLamp onOpen={() => setPanel('connections')} /><button onClick={() => { setPanel('history'); onMissionHistory(); }}>{t('bar.history')}</button><button onClick={() => setPanel('notifications')}>{t('bar.notifications')} <b>{notifications.length}</b></button><RestartButton /><ResetButton /><button onClick={() => setPanel('connections')}>{t('bar.connections')}</button>
+        <StopButton /><PauseButton /><ResumeButton /><ApproachButton /><ConnectionLamp onOpen={() => togglePanel('connections')} /><button aria-pressed={panel === 'history'} onClick={() => { if (panel !== 'history') onMissionHistory(); togglePanel('history'); }}>{t('bar.history')}</button><button aria-pressed={panel === 'notifications'} onClick={() => togglePanel('notifications')}>{t('bar.notifications')} <b>{notifications.length}</b></button><RestartButton /><ResetButton /><button aria-pressed={panel === 'connections'} onClick={() => togglePanel('connections')}>{t('bar.connections')}</button>
       </nav>
     </header>
     {/* 연결 관리는 폼이라 목록 판과 모양이 다르다 — 자기 부품이 그린다 (`VZ-C-07`). */}

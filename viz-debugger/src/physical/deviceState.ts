@@ -186,6 +186,7 @@ export function receiveDeviceMessage(topic: string, body: Record<string, unknown
   noteDeviceTelemetry(parsed.entityId, stateRows(body), {
     timestamp: typeof body.timestamp === 'string' ? body.timestamp : null,
     reason: typeof body.reason === 'string' ? body.reason : null,
+    body,
   });
   for (const listener of listeners) listener();
   return true;

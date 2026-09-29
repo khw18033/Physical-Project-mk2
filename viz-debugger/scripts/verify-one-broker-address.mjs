@@ -90,7 +90,8 @@ const MAY_WRITE = [
   if (!/onOpen/.test(lamp)) failures.push('표시등을 눌러도 연결 관리가 안 열린다');
 
   const shell = readFileSync(join(srcDir, 'shell', 'AppShell.tsx'), 'utf8');
-  if (!/<ConnectionLamp\s+onOpen=\{\(\) => setPanel\('connections'\)\}/.test(shell)) {
+  // 260929 — 머리줄 판은 여닫기다(`togglePanel`). 표시등을 다시 누르면 닫힌다.
+  if (!/<ConnectionLamp\s+onOpen=\{\(\) => togglePanel\('connections'\)\}/.test(shell)) {
     failures.push('셸이 표시등을 안 그리거나 연결 관리로 안 잇는다');
   }
 

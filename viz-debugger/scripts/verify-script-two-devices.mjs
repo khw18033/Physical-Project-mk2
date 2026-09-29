@@ -143,7 +143,8 @@ if (scriptDriven(ID)) failures.push('scriptDriven() 이 참이다 — 승인하�
 if (relayDriven(ID) || !localDriven(ID)) failures.push('localDriven() 이 이 편을 화면이 모는 편으로 안 본다');
 if (opensRobotGate(ID)) failures.push('opensRobotGate() 가 이 편에서 참이다 — 승인하면 문 찾기 스캔이 로봇으로 나간다');
 if (!slotDriven(ID)) failures.push('slotDriven() 이 이 편을 자리 편으로 안 본다');
-for (const id of SCRIPT_IDS.filter((id) => id !== ID)) {
+// 260929 — 8편(장치 하나를 @까지)도 자리 편 · 화면이 모는 편이다. 그 편의 규칙은 `verify:script-at-move` 가 본다.
+for (const id of SCRIPT_IDS.filter((id) => id !== ID && id !== 'MSN-260929-01')) {
   if (slotDriven(id) || localDriven(id)) failures.push(`${id} 가 자리 편·화면이 모는 편으로 읽힌다 — 선언 없는 편은 그대로여야 한다`);
 }
 if (script.cast.length !== 0) failures.push(`cast 가 [${script.cast}] — 장비를 대본이 정하지 않는다`);
@@ -202,79 +203,88 @@ if (!/id: 'digital-twin',[\s\S]{0,200}?live: true/.test(connections)) failures.p
 const vmap = read('src', 'virtualmap', 'VirtualMap.tsx');
 if (!/connectionAddress\('digital-twin', 'base'\)/.test(vmap)) failures.push('가상 맵 노드가 연결 관리의 주소로 Unity · 2D 를 가르지 않는다');
 
-// ── 7. Go1 실동작 — 걷는 장비만 실제로 걷고, 드론은 대본이 칠한다 (260927 셋째 지시) ─────────────
-// 가짜 브로커 둘(pi7 · pi3)에 Go1 과 드론이 자기를 밝힌 상태로 판을 끝까지 돌린다. 로봇 응답은 `send` 를 가로채 만든다.
+// ── 7. 실행기 — 노드마다 실제 값으로 판정하고, 정해 준 노드만 5초를 채워 넘긴다 (260929 지시) ─────────────
+// 가짜 브로커 둘(pi7 · pi3)에 Go1 과 드론을 세우고 판을 끝까지 돌린다. 드론은 연결만 한다 — 이동 명령이 안 간다.
 {
-  const scenario = await load('src', 'data', 'scenario.ts');
-  const { startSlotMove, canWalk } = await load('src', 'physical', 'slotMove.ts');
-  const { robotClients } = await load('src', 'physical', 'robotClient.ts');
-  const { noteDeviceReport } = await load('src', 'physical', 'deviceIdentity.ts');
-  const { PhysicalClient } = await load('src', 'physical', 'PhysicalClient.ts');
-  const { registerConnectionDefault } = await load('src', 'shared', 'connections.ts');
-  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-  const original = PhysicalClient.prototype.send;
+  const { makeRig, eventOf, startedLine } = await import(pathToFileURL(join(root, 'scripts', 'lib', 'runnerRig.mjs')).href);
+  const rig = await makeRig(root);
+  const GO1 = { id: 'go1-001', type: 'robot', deviceType: 'go1_robot', broker: 'pi7', body: { battery_pct: 78 } };
+  const DRONE = { id: 'x500-001', type: 'drone', deviceType: 'x500', broker: 'pi3', body: { fc_link: true, battery: { remaining_pct: 64 } } };
+  const HELD = ['T-C2', 'T-C3', 'T-C4', 'T-C5', 'T-D2', 'T-E2', 'T-E4'];
+  const bindings = { 'device-1': 'go1-001', 'device-2': 'x500-001' };
 
-  async function run(rejectAt) {
-    const sent = [];
-    let n = 0;
-    PhysicalClient.prototype.send = function send(action, parameters) {
-      n += 1;
-      const commandId = `cmd-${n}`;
-      const order = n;
-      sent.push({ to: this.address(), action, parameters });
-      const emit = (message) => { for (const listener of this.listeners) listener(message); };
-      setTimeout(() => {
-        if (action === 'abort') return;
-        if (order === rejectAt) { emit({ kind: 'acceptance', commandId, accepted: false, code: 'UNIMPLEMENTED', message: 'no' }); return; }
-        emit({ kind: 'acceptance', commandId, accepted: true, code: null, message: null });
-        setTimeout(() => emit({ kind: 'result', commandId, status: 'SUCCEEDED', result: {}, code: null, message: null }), 150);
-      }, 10);
-      return { sent: true, commandId };
-    };
-    registerConnectionDefault('physical', 'ws', ['ws://pi7.test:9001', 'ws://pi3.test:9001'].join('\n'));
-    const [go1, drone] = robotClients();
-    noteDeviceReport('go1-001', 'robot', {}, go1.address());
-    noteDeviceReport('x500-001', 'drone', {}, drone.address());
-    startSlotMove();
-    scenario.proposeMission({ origin: 'script', missionId: ID, title: script.title, keywords: [], planId: null, world: 'registry', target: '문' });
-    slots.holdSlotsFor(ID);
-    slots.dropOnSlots(['device-1'], 'go1-001');
-    slots.dropOnSlots(['device-2'], 'x500-001');
-    scenario.acceptProposal('local');
-    const beforeStart = sent.length;
-    scenario.getMissionState().current.params.play_speed = 20;   // 1배속이면 56초 — 판의 규칙은 그대로다
-    scenario.startLocalRun();
-    for (let i = 0; i < 80 && scenario.localRunPhase() === 'running'; i += 1) await sleep(200);
-    const trace = scenario.traceEvents();
-    PhysicalClient.prototype.send = original;
-    return { sent, beforeStart, trace, phase: scenario.localRunPhase(), canWalk: [canWalk('go1-001'), canWalk('x500-001')] };
-  }
-
-  const ok = await run(null);
-  if (JSON.stringify(ok.canWalk) !== '[true,false]') failures.push(`걸을 수 있는 장비 판정이 ${ok.canWalk} — Go1 은 걷고 드론은 못 걸어야 한다`);
+  const ok = await rig.run({ missionId: ID, bindings, devices: [GO1, DRONE] });
+  if (JSON.stringify(ok.canWalk) !== JSON.stringify({ 'go1-001': true, 'x500-001': false })) failures.push(`걸을 수 있는 장비 판정이 ${JSON.stringify(ok.canWalk)} — Go1 은 걷고 드론은 못 걸어야 한다`);
   if (ok.beforeStart !== 0) failures.push(`승인만으로 로봇에 명령이 ${ok.beforeStart}건 나갔다 — 「임무 시작」 전에는 0건이어야 한다`);
-  if (ok.sent.some((s) => !s.to.includes('pi7'))) failures.push('Go1 브로커(pi7) 밖으로 명령이 나갔다 — 드론에는 이동 명령이 없다');
-  const actions = ok.sent.map((s) => `${s.action}:${JSON.stringify(s.parameters)}`);
+  const moves = ok.sent.filter((s) => s.action !== 'ping');
+  if (moves.some((s) => !s.to.includes('pi7'))) failures.push('드론(pi3)에 이동 명령이 나갔다 — 드론은 연결만 한다');
+  if (moves.length === 0 || moves.some((s) => !['turn', 'move_forward'].includes(s.action))) failures.push(`경로 걸음이 turn · move_forward 가 아니다 — ${moves.map((s) => s.action).join(' | ')}`);
   const plan = script.params.virtual_map.devices[0];
-  if (ok.sent.length === 0 || ok.sent.some((s) => !['turn', 'move_forward'].includes(s.action))) failures.push(`경로 걸음이 turn · move_forward 가 아니다 — ${actions.join(' | ')}`);
-  const walked = ok.sent.filter((s) => s.action === 'move_forward').reduce((sum, s) => sum + s.parameters.distance_m, 0);
+  const walked = moves.filter((s) => s.action === 'move_forward').reduce((sum, s) => sum + s.parameters.distance_m, 0);
   const planned = plan.path.slice(1).reduce((sum, p, i) => sum + Math.hypot(p[0] - plan.path[i][0], p[1] - plan.path[i][1]), 0);
   if (Math.abs(walked - planned) > 0.05) failures.push(`낸 직진 합 ${walked.toFixed(2)}m 가 가상 맵 경로 ${planned.toFixed(2)}m 와 다르다`);
-  const at = (id, status) => ok.trace.find((e) => e.nodeId === id && e.status === status) ?? null;
-  const e3 = at('T-E3', 'done');
-  const e5 = at('T-E5', 'running');
-  if (e3?.producedBy !== 'robot') failures.push('「첫 번째 장치 이동 완료 확인」을 로봇 응답이 아니라 대본이 칠했다');
-  if (at('T-E4', 'done')?.producedBy === 'robot') failures.push('드론의 이동 완료를 로봇이 칠했다 — 드론은 대본이어야 한다');
-  if (e3 === null || e5 === null || e5.atSec < e3.atSec || ok.trace.indexOf(e5) < ok.trace.indexOf(e3)) failures.push('「임무 완료」가 Go1 도착보다 먼저 칠해졌다');
+  if (!ok.sent.some((s) => s.action === 'ping' && s.to.includes('pi3'))) failures.push('두 번째 장치(드론)의 통신 링크를 ping 으로 안 쟀다 — MS-B 는 pi3 상태를 본다');
+  // 연결 확인 여덟은 장비 값으로 — 대본의 값이 아니다.
+  for (const [id, key, want] of [['T-A3', 'battery_pct', 78], ['T-B3', 'battery_pct', 64], ['T-A1', 'device', 'go1-001'], ['T-B1', 'device', 'x500-001']]) {
+    const done = eventOf(ok.trace, id, 'done');
+    if (done?.producedBy !== 'robot' || done.payload?.[key] !== want) failures.push(`${id} 가 장비 값으로 안 칠해졌다 — ${JSON.stringify(done?.payload)} (${key}=${want} 이어야 한다)`);
+  }
+  // 넘기는 노드 — 5초를 채우고, 판 기록에 적힌다.
+  const line = startedLine(ok.trace);
+  if (line?.payload?.held_tasks !== HELD.join(',')) failures.push(`판 기록의 넘긴 태스크가 「${line?.payload?.held_tasks}」 — 「${HELD.join(',')}」 여야 한다`);
+  for (const id of HELD) {
+    const run = eventOf(ok.trace, id, 'running');
+    const done = eventOf(ok.trace, id, 'done');
+    if (run === null || done === null || done.atSec - run.atSec < 5 - 0.01) failures.push(`${id} 가 5초를 안 채우고 넘어갔다 (${run?.atSec} → ${done?.atSec})`);
+    if (done?.payload?.hold_s !== 5) failures.push(`${id} 의 근거값에 hold_s: 5 가 없다 — 넘긴 사실이 기록에 안 남는다`);
+  }
+  // 넘기지 않는 노드는 5초를 안 기다린다(결정 2-A) — 위치 확인 · 경로 탐지 · 간격 확인은 곧바로.
+  for (const id of ['T-C1', 'T-D1', 'T-D3']) {
+    const run = eventOf(ok.trace, id, 'running');
+    const done = eventOf(ok.trace, id, 'done');
+    if (run === null || done === null || done.atSec - run.atSec > 1) failures.push(`${id} 가 곧바로 판정되지 않았다 (${run?.atSec} → ${done?.atSec})`);
+  }
+  if (eventOf(ok.trace, 'T-D3', 'done')?.payload?.min_gap_m !== 1.3) failures.push(`두 경로 간격을 가상 맵으로 안 쟀다 — ${JSON.stringify(eventOf(ok.trace, 'T-D3', 'done')?.payload)}`);
+  const e3 = eventOf(ok.trace, 'T-E3', 'done');
+  const e4 = eventOf(ok.trace, 'T-E4', 'done');
+  const e5 = eventOf(ok.trace, 'T-E5', 'running');
+  if (e3?.producedBy !== 'robot') failures.push('「첫 번째 장치 이동 완료 확인」을 로봇 응답이 아니라 다른 것이 칠했다');
+  if (e4?.producedBy === 'robot') failures.push('드론의 이동 완료를 로봇이 칠했다 — 드론은 넘긴다');
+  if (e3 === null || e4 === null || e5 === null || e5.atSec < Math.max(e3.atSec, e4.atSec)) failures.push('「임무 완료」가 두 장치 도착보다 먼저 칠해졌다');
+  if (!ok.trace.some((e) => e.kind === 'progress' && e.payload?.slot === 'device-1')) failures.push('Go1 이 걷는 동안 지도에 진행을 안 남겼다 — 가상 맵이 장치를 못 옮긴다');
   if (ok.phase !== 'done') failures.push(`판이 끝까지 안 갔다 — ${ok.phase}`);
+  if (ok.view.durationSec < Math.ceil(e5?.atSec ?? 0)) failures.push(`판의 축(${ok.view.durationSec}s)이 실제로 걸린 시간보다 짧다`);
 
-  const rejected = await run(2);
+  const rejected = await rig.run({ missionId: ID, bindings, devices: [GO1, DRONE], rejectMoveAt: 2 });
   const failed = rejected.trace.find((e) => e.status === 'failed');
-  if (failed?.nodeId !== 'T-E3' || failed.producedBy !== 'robot') failures.push('로봇이 걸음을 거절했는데 이동 완료 확인이 실패로 안 칠해졌다');
+  if (failed?.nodeId !== 'T-E3' || failed.producedBy !== 'robot') failures.push(`로봇이 걸음을 거절했는데 이동 완료 확인이 실패로 안 칠해졌다 — ${failed?.nodeId}`);
   if (rejected.trace.some((e) => e.nodeId === 'T-E5' && e.status !== 'pending')) failures.push('로봇이 못 갔는데 「임무 완료」가 진행됐다');
   if (rejected.phase !== 'stopped') failures.push(`로봇이 못 갔는데 판이 안 섰다 — ${rejected.phase}`);
-  if (rejected.sent.length !== 2) failures.push(`거절 뒤에도 걸음이 나갔다 — ${rejected.sent.length}건`);
+  if (rejected.sent.filter((s) => s.action !== 'ping').length !== 2) failures.push(`거절 뒤에도 걸음이 나갔다 — ${rejected.sent.filter((s) => s.action !== 'ping').length}건`);
   controls.push('로봇이 둘째 걸음을 거절한 판');
+
+  // 배터리가 기준 미만이면 그 노드에서 선다 — 그리고 갈고 재시작하면 그 확인부터 다시 한다(확인은 다시 한다).
+  const low = { ...GO1, body: { battery_pct: 12 } };
+  const lowRun = await rig.run({
+    missionId: ID, bindings, devices: [low, DRONE],
+    during: async ({ report, scenario: store }) => {
+      low.body = { battery_pct: 81 };
+      report(low);
+      store.resumeLocalRun();
+    },
+  });
+  const lowFail = lowRun.trace.find((e) => e.status === 'failed');
+  if (lowFail?.nodeId !== 'T-A3') failures.push(`배터리 12% 인데 T-A3 이 실패로 안 섰다 — ${lowFail?.nodeId}`);
+  const lowFailAt = lowRun.trace.indexOf(lowFail);
+  if (lowRun.trace.some((e, index) => e.nodeId === 'T-A4' && e.status !== 'pending' && index < lowFailAt)) failures.push('배터리 확인이 실패했는데 다음 노드가 돌았다');
+  if (eventOf(lowRun.trace, 'T-A3', 'done')?.payload?.battery_pct !== 81 || lowRun.phase !== 'done') failures.push(`배터리를 갈고 재시작했는데 T-A3 부터 다시 판정해 끝까지 가지 않았다 — ${lowRun.phase}`);
+  controls.push('배터리 기준 미만 → 서고, 갈고 재시작하면 이어 간다');
+
+  // 두 번째 자리를 비워 두면 그 연결 확인에서 선다 — 지어 넣지 않는다.
+  const empty = await rig.run({ missionId: ID, bindings: { 'device-1': 'go1-001' }, devices: [GO1, DRONE] });
+  const emptyFail = empty.trace.find((e) => e.status === 'failed');
+  if (emptyFail?.nodeId !== 'T-B1' || empty.phase !== 'stopped') failures.push(`두 번째 자리가 비었는데 T-B1 에서 안 섰다 — ${emptyFail?.nodeId} · ${empty.phase}`);
+  controls.push('두 번째 자리를 비운 판');
 }
 
 // ── 결과 ─────────────────────────────────────────────────────────────────────
@@ -286,5 +296,5 @@ console.log('✅ 문장 5개가 이 편 하나에만 · 시연 문장은 여전�
 console.log('✅ 마일스톤 다섯 · 연결 확인 넷씩 · 경로 탐지와 장치 이동의 같은 일은 같은 부모 · 같은 시각에 나란히 → 합류');
 console.log('✅ 일반 모드(시나리오 띠 없음) · 화면이 모는 판 · 로봇 관문 안 엶 · cast 없이 자리 둘 · 한 장비 한 자리(맞바꿈)');
 console.log('✅ 가상 맵 · 카메라 · 객체 탐지 로그는 이 편 팔레트에만 · 맵 종류는 연결 관리가 가른다');
-console.log('✅ Go1 실동작 — 시작 전 0건 · pi7 에만 경로 걸음(직진 합 = 경로 길이) · 도착은 로봇이, 드론은 대본이 칠한다 · 임무 완료는 도착 뒤 · 거절이면 실패로 서고 멈춘다');
+console.log('✅ 실행기 — 연결 확인 여덟은 장비 값(배터리 78 · 64) · 넘기는 일곱은 5초를 채우고 판 기록에 적힘 · 나머지는 곧바로 · Go1 만 실제로 걷고(직진 합 = 경로) 드론엔 ping 만 · 임무 완료는 두 도착 뒤');
 console.log(`✅ 대조군 ${controls.length}건 — ${controls.join(' · ')}`);

@@ -109,16 +109,22 @@ function TwoDMap({ headSec, zoom }: { headSec: number; zoom: boolean }) {
   const located = firstAt(trace, spec.locate_task, headSec, ['done']) !== null;
   const slotLabel = (slot: string) => view.slots?.find((item) => item.id === slot)?.label ?? slot;
 
+  // **실행기가 모는 판은 진행을 기록으로 남긴다** (260929). 그 판에서는 대본 시각으로 옮기지 않는다 — 실제 걸음이
+  // 대본보다 느리거나 빠르면 지도만 앞서 간다.
+  const liveProgress = trace.some((event) => event.kind === 'progress' && typeof event.payload?.slot === 'string');
   const devices = spec.devices.map((device, index) => {
     const pathShown = firstAt(trace, device.path_task, headSec, ['done']) !== null;
     const started = firstAt(trace, device.move_start_task, headSec, ['running', 'done']);
     const arrived = firstAt(trace, device.arrive_task, headSec, ['awaiting_evaluation', 'done']);
+    const progressed = trace.filter((event) => event.kind === 'progress' && event.atSec <= headSec
+      && event.payload?.slot === device.slot && typeof event.payload?.fraction === 'number').at(-1);
     // 도착 시각은 대본이 정한 것을 쓴다 — 아직 안 흘러온 사건을 기다리면 이동 중에 비율을 낼 수 없다.
     const plannedArrive = view.events.find((event) => event.nodeId === device.arrive_task
       && (event.status === 'awaiting_evaluation' || event.status === 'done'))?.atSec ?? null;
     let fraction = 0;
     if (arrived !== null) fraction = 1;
-    else if (started !== null && plannedArrive !== null && plannedArrive > started.atSec) {
+    else if (progressed !== undefined) fraction = Math.max(0, Math.min(1, progressed.payload!.fraction as number));
+    else if (!liveProgress && started !== null && plannedArrive !== null && plannedArrive > started.atSec) {
       fraction = Math.max(0, Math.min(1, (headSec - started.atSec) / (plannedArrive - started.atSec)));
     }
     const at = fraction === 0 ? device.start : along(device.path, fraction);
@@ -128,7 +134,7 @@ function TwoDMap({ headSec, zoom }: { headSec: number; zoom: boolean }) {
       mark: String(index + 1),
       bound: bindings[device.slot] ?? null,
       pathShown,
-      moving: started !== null && arrived === null,
+      moving: (started !== null || progressed !== undefined) && arrived === null && fraction < 1,
       fraction,
       at,
     };

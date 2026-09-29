@@ -34,7 +34,7 @@ import {
   actionsOfTask, neverAnswered, planAdjustments, stillWaiting,
   type ActionStatus, type FoldedAction,
 } from '../data/actionTrace.ts';
-import { relayDriven } from '../scenarios/library.ts';
+import { localDriven, relayDriven } from '../scenarios/library.ts';
 import { isNavTask } from '../physical/navLink.ts';
 import { NavFacts } from '../physical/NavFacts.tsx';
 import { OBSTACLE_TASK } from '../autodrive/obstacle.ts';
@@ -242,8 +242,10 @@ export function ActionModal({ task, view, device, failure, onClose }: { task: Ta
   // **중계 편은 흘러온 기록에서 읽는다** (260915). 대본의 사건은 그 편의 정의일 뿐이라, 거기서 읽으면
   // pi1 이 아무것도 안 보냈는데 「배터리 82%」 같은 대본 값이 근거로 뜬다.
   const relay = relayDriven(view.missionId);
+  // **화면이 모는 판도 흘러온 기록에서 읽는다** (260929 — 임무 실행기). 대본의 사건은 계획일 뿐이라 거기서 읽으면
+  // 실제로 잰 배터리 대신 대본의 「76%」가 근거로 뜬다.
   const evidence = view.world === 'registry'
-    ? (relay ? traceFor(view) : view.events).filter((e) => e.nodeId === task.id && e.payload && Object.keys(e.payload).length > 0).at(-1)?.payload ?? null
+    ? (relay || localDriven(view.missionId) ? traceFor(view) : view.events).filter((e) => e.nodeId === task.id && e.payload && Object.keys(e.payload).length > 0).at(-1)?.payload ?? null
     : null;
   return <div className="modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}><section className={`modal ${failure ? 'failure-modal' : ''}`}>
     <header><div><h2>{failure ? '× ' : ''}{task.id} · {task.title}{failure ? t('act.failedSuffix') : ''}</h2>{/* **낸 명령 수를 적는다.** 「액션 아이템 0건」은 이 편에서 늘 0이라 아무것도 안 알려

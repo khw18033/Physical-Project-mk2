@@ -176,7 +176,7 @@ export function receiveUplink(
    *
    * 그 편의 이동은 걸음 여럿(회전 · 직진 …)이 태스크 하나다. 여기서 칠하면 **첫 회전이 끝나자마자** 「이동 완료
    * 확인」이 완료로 칠해진다 — 걸음 하나의 끝이 이동 전체의 끝처럼 읽힌다. 그 편은 이동 전체가 끝났을 때
-   * `slotMove.ts` 가 한 번 칠한다. 시각 축도 다르다 — 여기 `atSec` 은 승인 뒤 초이고 그 편의 머리는 판의 시각이다.
+   * `taskRunner.ts` 가 한 번 칠한다. 시각 축도 다르다 — 여기 `atSec` 은 승인 뒤 초이고 그 편의 머리는 판의 시각이다.
    * 응답 줄(`noteCommandLog` · `recordAnswered`)은 위에서 이미 적었고, 아래 실패 알림도 그대로 올린다.
    */
   const paintsNodes = !localDriven(missionId);

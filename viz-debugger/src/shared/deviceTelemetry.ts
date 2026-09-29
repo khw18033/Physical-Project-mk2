@@ -70,6 +70,14 @@ export type DeviceTelemetry = {
   receivedAtMs: number;
   /** 무엇이 왜 보냈는가 — 계약 §7-1 의 `reason`. 그대로 적는다. */
   reason: string | null;
+  /**
+   * **판정에 쓸 원값** (260929 — 임무 실행기). 줄(`rows`)은 사람이 읽을 글자라 숫자로 되돌릴 수 없다 —
+   * 「배터리가 기준 이상인가」를 가르려면 `battery.remaining_pct` 의 숫자가 필요하다.
+   *
+   * 채널마다 싣는 칸이 달라서(`status` 는 요약, `state` 는 1Hz, heartbeat 는 빈 몸) **최상위 칸 단위로
+   * 얹는다** — 온 칸만 바꾸고 안 온 칸은 전 값을 둔다. 줄과 달리 빈 몸이 와도 지우지 않는다.
+   */
+  values: Readonly<Record<string, unknown>>;
 };
 
 let devices: Readonly<Record<string, DeviceTelemetry>> = {};
@@ -88,9 +96,13 @@ function notify(): void {
 export function noteDeviceTelemetry(
   entityId: string,
   rows: readonly TelemetryRow[],
-  meta: { timestamp?: string | null; reason?: string | null; atMs?: number } = {},
+  meta: { timestamp?: string | null; reason?: string | null; atMs?: number; body?: unknown } = {},
 ): void {
   if (entityId === '' || rows.length === 0) return;
+  const previous = devices[entityId]?.values ?? {};
+  const body = meta.body !== null && typeof meta.body === 'object' && !Array.isArray(meta.body)
+    ? meta.body as Record<string, unknown>
+    : {};
   devices = {
     ...devices,
     [entityId]: {
@@ -99,9 +111,23 @@ export function noteDeviceTelemetry(
       timestamp: meta.timestamp ?? null,
       reason: meta.reason ?? null,
       receivedAtMs: meta.atMs ?? Date.now(),
+      values: { ...previous, ...body },
     },
   };
   notify();
+}
+
+/**
+ * 한 장비의 원값 한 칸 (260929). `battery.remaining_pct` 처럼 점으로 잇는다. **없으면 `undefined`** —
+ * 0 이나 빈 값으로 바꾸지 않는다(「쟀더니 0」과 「안 왔다」는 다른 사실이다).
+ */
+export function telemetryValue(entityId: string, path: string): unknown {
+  let at: unknown = devices[entityId]?.values;
+  for (const part of path.split('.')) {
+    if (at === null || typeof at !== 'object' || Array.isArray(at)) return undefined;
+    at = (at as Record<string, unknown>)[part];
+  }
+  return at;
 }
 
 /** 한 장비의 마지막 보고. 없으면 `null` — 지어내지 않는다. */

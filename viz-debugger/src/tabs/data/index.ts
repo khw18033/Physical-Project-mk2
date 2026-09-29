@@ -107,6 +107,7 @@ export function startDataLayer(): () => void {
       noteDeviceTelemetry(envelope.entity, stateRows(body), {
         timestamp: readString(body, 'timestamp'),
         reason: readString(body, 'reason'),
+        body,
       });
     },
     // VZ-I-11 — 현 단계 'all' 고정. 대상이 늘면 여기를 좁힌다.
