@@ -1,0 +1,23 @@
+{
+  "_why_valid": "가시화 전달 문서 §13-5 의 **실제 브로커 캡처**(2026-09-21 21:06, FC 분리 상태). 공통 헤더 다섯 + 선택 session_id·sequence_id + 드론 본문 12칸. battery·flight·gps·attitude·altitude 다섯이 null 인 것이 **정상 동작**이다.",
+  "schema_version": "1.1",
+  "source_id": "x500-001",
+  "node_id": "pi3",
+  "zone_id": "zoneA",
+  "timestamp": "2026-09-21T21:06:50.795+09:00",
+  "session_id": "a93f81192e02",
+  "sequence_id": 173,
+  "channel": "state",
+  "reason": "periodic",
+  "device_status": "degraded",
+  "link": "degraded",
+  "fc_link": false,
+  "fc_link_age_s": null,
+  "router_mode": "none",
+  "battery": null,
+  "flight": null,
+  "gps": null,
+  "attitude": null,
+  "altitude": null,
+  "warnings": []
+}

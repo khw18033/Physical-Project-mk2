@@ -1,0 +1,22 @@
+{
+  "schema_version": "1.1",
+  "source_id": "x500-001",
+  "node_id": "pi3",
+  "zone_id": "zoneA",
+  "timestamp": "2026-09-21T21:06:50.795+09:00",
+  "session_id": "a93f81192e02",
+  "sequence_id": 173,
+  "channel": "state",
+  "reason": "periodic",
+  "device_status": "degraded",
+  "link": "degraded",
+  "fc_link_age_s": null,
+  "router_mode": "none",
+  "battery": null,
+  "flight": null,
+  "gps": null,
+  "attitude": null,
+  "altitude": null,
+  "warnings": [],
+  "_why_invalid": "필수 `fc_link` 가 없다. 드론 규격은 값이 없는 것을 `null` 로 적고 **키는 항상 있다** — 키가 통째로 빠지는 것은 규격 위반이고, `fc_link` 는 FC 링크 생사의 유일한 근거라 빠지면 화면이 생사를 판정할 수 없다. **공통 헤더(1단)는 통과하고 본문(2단)에서 걸린다.**"
+}

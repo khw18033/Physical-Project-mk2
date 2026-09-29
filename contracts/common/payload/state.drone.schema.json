@@ -1,0 +1,469 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/khw18033/Physical-Project-mk2/contracts/common/payload/state.drone.schema.json",
+  "title": "채널 본문 — state / drone",
+  "description": "드론 노드가 `{zone}/drone/{eid}/state` 로 발행하는 본문. **1Hz(QoS 1, retained 아님) + 사건 즉시**. 실물 근거: 가시화 파트가 2026-09-23 에 전달한 드론 연결 계약 문서 `CONTRACT_x500.md` **§13**(백엔드 규격용으로 따로 쓴 절) — 값이 전부 코드(`pi/drone/drone_link.py`·`drone_node.py`·`pi/common/schema.py`)와 **2026-09-21 21:06 브로커 캡처**에서 확인된 것이고 추정값이 없다. ⚠ 그 캡처는 **비행 제어기(FC)가 분리된 상태**라 `battery`·`flight`·`gps`·`attitude`·`altitude` 다섯이 전부 `null` 이었다 — **그것이 정상 동작이고, 그래서 이 다섯은 `null` 을 반드시 허용한다.**",
+  "type": "object",
+  "required": [
+    "reason",
+    "device_status",
+    "link",
+    "fc_link",
+    "fc_link_age_s",
+    "router_mode",
+    "battery",
+    "flight",
+    "gps",
+    "attitude",
+    "altitude",
+    "warnings"
+  ],
+  "properties": {
+    "reason": {
+      "type": "string",
+      "minLength": 1,
+      "description": "이 메시지를 발행한 사유.",
+      "$comment": "관측된 어휘는 periodic · fc_link_lost · fc_link_up · armed_changed · mode_changed · battery_low **여섯**(§13-4). Go1 의 셋(periodic·mode_changed·battery_low)을 포함하고 드론 고유 셋이 더 있다. enum 으로 고정하지 않는다 — 어휘가 늘 때 전량 격리되는 사고를 만들지 않는다. 형제 규격의 reason·device_status·actuator_state·status.event 도 같은 이유로 enum 이 없다. ⚠ 첫 관측에서는 전환 이벤트를 쏘지 않고, FC 링크가 끊기면 arm·모드 기억을 버린다(§13-4).",
+      "examples": [
+        "periodic",
+        "fc_link_lost",
+        "fc_link_up",
+        "armed_changed",
+        "mode_changed",
+        "battery_low"
+      ]
+    },
+    "device_status": {
+      "type": "string",
+      "minLength": 1,
+      "description": "**장치 자기보고** 상태. 서버 판정 가용성과 다른 층이다(상태 3층).",
+      "$comment": "어휘 ok · degraded · fault. 라우터가 none 이면 degraded, 라우터는 drone 인데 FC heartbeat 가 없으면 fault(§13-2).",
+      "examples": [
+        "ok",
+        "degraded",
+        "fault"
+      ]
+    },
+    "link": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "**FC 링크 건강**. `device_status` 와 **같은 어휘를 쓰지만 다른 축**이다 — 이쪽은 비행 제어기와의 연결만 본다. 둘을 뭉치면 '노드는 멀쩡한데 FC 만 끊긴' 상태를 표현할 수 없다.",
+      "examples": [
+        "ok",
+        "degraded",
+        "fault"
+      ]
+    },
+    "fc_link": {
+      "type": "boolean",
+      "description": "**FC 링크 유무.** 생사 판정의 유일한 근거다 — `warnings` 는 끊긴 뒤에도 남으므로 '지금 FC 가 살아 있다'의 근거가 아니다(§13-2).",
+      "examples": [
+        true,
+        false
+      ]
+    },
+    "fc_link_age_s": {
+      "type": [
+        "number",
+        "null"
+      ],
+      "description": "마지막 FC heartbeat 이후 경과(초). `null` = **한 번도 못 받았다.** ⚠ 0 으로 치환하면 '방금 받았다'와 구별되지 않는다(§13-0 결측 규칙).",
+      "examples": [
+        0.8,
+        null
+      ]
+    },
+    "router_mode": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "mavlink-router 상태. `drone`(기체 연결됨) / `none`.",
+      "examples": [
+        "drone",
+        "none"
+      ]
+    },
+    "battery": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "description": "배터리. 기준은 SYS_STATUS(5Hz), 보조는 BATTERY_STATUS(0.5Hz). **FC 링크가 없으면 통째로 `null`.**",
+      "required": [
+        "voltage_v",
+        "current_a",
+        "remaining_pct",
+        "consumed_mah",
+        "source",
+        "age_s"
+      ],
+      "properties": {
+        "voltage_v": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "전압(V). `null` = 모름(PX4 의 0·65535 를 옮긴 것)."
+        },
+        "current_a": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "전류(A). ⚠ **참고값이다** — 실측에서 디스암 상태인데 12.2A 로 읽혔다(스케일 의심). `null` = PX4 -1."
+        },
+        "remaining_pct": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "잔량(%). 0~100 범위를 강제하지 않는다 — 이상값이 격리되면 원인 추적 재료가 사라진다. `null` = PX4 -1."
+        },
+        "consumed_mah": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "소모량(mAh)."
+        },
+        "source": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "이 표본의 출처. `SYS_STATUS` / `BATTERY_STATUS`."
+        },
+        "age_s": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "이 표본의 나이(초)."
+        }
+      },
+      "examples": [
+        null,
+        {
+          "voltage_v": 15.75,
+          "current_a": null,
+          "remaining_pct": 74.0,
+          "consumed_mah": null,
+          "source": "SYS_STATUS",
+          "age_s": 0.2
+        }
+      ]
+    },
+    "flight": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "description": "비행 상태. **FC 링크가 없으면 통째로 `null`.**",
+      "required": [
+        "armed",
+        "mode",
+        "custom_mode",
+        "base_mode",
+        "system_status",
+        "landed_state",
+        "age_s"
+      ],
+      "properties": {
+        "armed": {
+          "type": [
+            "boolean",
+            "null"
+          ],
+          "description": "HEARTBEAT `base_mode` 의 SAFETY_ARMED 비트. 객체가 있으면 항상 bool 이다."
+        },
+        "mode": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "PX4 비행 모드 문자열. 모르는 값은 `main=N` 형태로 온다."
+        },
+        "custom_mode": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "description": "원본 정수."
+        },
+        "base_mode": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "description": "원본 정수."
+        },
+        "system_status": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "description": "원본 정수. 🔴 **arm 판정에 쓰지 말 것** — 실측에서 0(UNINIT)으로 온다. arm 은 `armed` 를 본다."
+        },
+        "landed_state": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "`ON_GROUND`·`IN_AIR`·`TAKEOFF`·`LANDING`·`UNDEFINED`. `null` = EXTENDED_SYS_STATE 미수신."
+        },
+        "age_s": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "이 표본의 나이(초)."
+        }
+      },
+      "examples": [
+        null,
+        {
+          "armed": false,
+          "mode": "AUTO.LOITER",
+          "custom_mode": 0,
+          "base_mode": 81,
+          "system_status": 0,
+          "landed_state": "ON_GROUND",
+          "age_s": 0.1
+        }
+      ]
+    },
+    "gps": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "description": "GPS. **FC 링크가 없으면 통째로 `null`.**",
+      "required": [
+        "fix_type",
+        "fix",
+        "satellites",
+        "lat",
+        "lon",
+        "eph_m",
+        "age_s"
+      ],
+      "properties": {
+        "fix_type": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "description": "0~6."
+        },
+        "fix": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "`NO_GPS`(0)·`NO_FIX`(1)·`2D`·`3D`·`DGPS`·`RTK_FLOAT`·`RTK_FIXED`. 모르는 값은 숫자의 문자열."
+        },
+        "satellites": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "description": "위성 수."
+        },
+        "lat": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "위도(WGS84). 🔴 **`fix_type < 2` 면 `null`** — fix 없을 때의 0,0 은 좌표가 아니라 데이터 부재다."
+        },
+        "lon": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "경도. 위와 같다."
+        },
+        "eph_m": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "수평 오차(m). `null` = 모름(PX4 0·65535·9999)."
+        },
+        "age_s": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "이 표본의 나이(초)."
+        }
+      },
+      "examples": [
+        null,
+        {
+          "fix_type": 0,
+          "fix": "NO_GPS",
+          "satellites": 0,
+          "lat": null,
+          "lon": null,
+          "eph_m": null,
+          "age_s": 0.3
+        }
+      ]
+    },
+    "attitude": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "description": "자세. ATTITUDE(100Hz) 기준이고 **1초가 넘으면 객체가 통째로 `null`** 이 된다.",
+      "required": [
+        "roll_deg",
+        "pitch_deg",
+        "yaw_deg",
+        "age_s"
+      ],
+      "properties": {
+        "roll_deg": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "롤(도, 소수 2자리)."
+        },
+        "pitch_deg": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "피치(도)."
+        },
+        "yaw_deg": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "요(도)."
+        },
+        "age_s": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "이 표본의 나이(초)."
+        }
+      },
+      "examples": [
+        null,
+        {
+          "roll_deg": -0.29,
+          "pitch_deg": 1.46,
+          "yaw_deg": 108.5,
+          "age_s": 0.02
+        }
+      ]
+    },
+    "altitude": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "description": "고도. ALTITUDE 기준이고 **3초가 넘으면 `null`** 이 된다.",
+      "required": [
+        "relative_m",
+        "amsl_m",
+        "age_s"
+      ],
+      "properties": {
+        "relative_m": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "이륙 지점 기준 고도(m)."
+        },
+        "amsl_m": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "해발 고도(m)."
+        },
+        "age_s": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "이 표본의 나이(초)."
+        }
+      },
+      "examples": [
+        null,
+        {
+          "relative_m": 0.1,
+          "amsl_m": 71.4,
+          "age_s": 0.05
+        }
+      ]
+    },
+    "warnings": {
+      "type": "array",
+      "description": "FC STATUSTEXT 최근 5줄(120초 이내). 🔴 **FC 링크가 없어도 비워지지 않는다** — 끊긴 직전의 경고가 끊긴 이유일 때가 많아 일부러 남긴다. 값이 없으면 `null` 이 아니라 **빈 배열**이다.",
+      "items": {
+        "type": "object",
+        "required": [
+          "severity",
+          "text",
+          "age_s"
+        ],
+        "properties": {
+          "severity": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`EMERGENCY`·`ALERT`·`CRITICAL`·`ERROR`·`WARNING`·`NOTICE`·`INFO`·`DEBUG`(MAVLink 0~7 이름). 모르는 값이면 숫자 그대로."
+          },
+          "text": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "FC STATUSTEXT 원문."
+          },
+          "age_s": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "description": "경과(초)."
+          }
+        }
+      },
+      "examples": [
+        [],
+        [
+          {
+            "severity": "WARNING",
+            "text": "Preflight Fail: Compass",
+            "age_s": 3.2
+          }
+        ]
+      ]
+    },
+    "channel": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "생산자가 붙이는 채널 이름. 백엔드는 검증하지 않는다(라우팅은 토픽 기준).",
+      "examples": [
+        "state"
+      ]
+    }
+  },
+  "$comment": "설계 결정 넷을 여기 적어 둔다 — 형제 규격과 다른 자리가 있어서다.\n\n① **`required` 에 본문 12칸을 전부 넣었다.** 생산자가 '키는 항상 있고 없는 것은 값이다' 로 만들었기 때문이다(§13-0). FC 링크가 없어도 `battery` 키는 사라지지 않고 `null` 로 온다. `channel` 만 뺐다 — 형제 규격 넷도 전부 `channel` 을 선언만 하고 `required` 밖에 둔다(라우팅 기준은 토픽이고, 본문 `channel` 불일치는 기록만 하고 통과시킨다).\n\n② **`x-mk2-absence: stateful` 을 쓰지 않는다.** sensor 의 `water_level_m`·robot 의 `battery_pct` 가 그 표시를 쓰는 이유는 '해당 없음'과 '읽지 못함'을 본문만으로 구분할 수 없어서인데, 드론은 **`fc_link`·`link`·`router_mode` 세 칸이 부재 사유를 이미 본문에 싣는다.** 게다가 `battery` 는 스칼라가 아니라 객체라 `{value,state}` 형태가 생산자의 실제 모양과 어긋난다. 규격은 실물을 따른다.\n\n③ **관측 신호 힌트(`관측 신호 힌트: …`)를 넣지 않았다.** 이번 목적은 본문 검증을 켜는 것이고, 드론 업무값을 관측 C층에 올리는 것은 관측 축의 일이다(Phase 5/6 에서 같이 정한다). 그래서 `contracts/common/README.md` 의 힌트 전수 숫자와 `tests/test_c_layer_extract.py` 가 움직이지 않는다.\n\n④ **`replayed` 를 선언하지 않았다.** §13 에 없어서다. `additionalProperties` 를 막지 않으므로 오면 통과·저장된다.\n\n⚠ `additionalProperties` 를 false 로 두지 않는다(`contracts/common/README.md` 「채널 본문 검증 — 느슨한 2단」) — 생산자가 필드를 하나 더 붙이는 순간 전량 격리되는 사고를 만들지 않는다.\n\n⚠ 공통 헤더(`schema_version`·`source_id`·`node_id`·`zone_id`·`timestamp` + 선택 `session_id`·`sequence_id`)는 이 파일이 아니라 `message.schema.json` 이 본다. 드론은 `session_id`·`sequence_id` 를 **둘 다 보낸다** (`status` 채널에는 `sequence_id` 가 없다 — 순번 기반 유실 검출 대상이 아니다)."
+}

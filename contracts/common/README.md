@@ -28,7 +28,7 @@ AI 파트도 이 소유권을 전제한다 — AI-C-01: "AI가 생산·소비하
 | `object-reference.schema.json` | 구역을 넘어 유지되는 지속 객체 참조(object_id) | DT-06·AI-S-06 |
 | `media-header.schema.json` | **미디어 경로(방식 B) 메시지의 JSON 헤더** — `frame_ref`(`$ref`)·`encoding`·`keyframe`·`width`·`height` (+선택 `codec`·`correlation_id`). 서버는 필수·타입만 검증하고 값 어휘를 보지 않으며 페이로드를 열지 않는다. **루트에 둔다** — `payload/`는 MQTT 토픽으로 고르는 채널 본문 자리다(**Phase 4 신설**) | BE-T-07·BE-C-03 |
 | `detections.schema.json` | **탐지 결과 초안** — 생산자 AI, 소비자 가시화. 메시지 단위 `alignment`·`origin{tier,kind}`·`bbox_space{format,origin,reference}`·`boxes[]`. ⚠ **초안이다**(생산자 AI 회신 뒤 확정). **좌표 선언 이름은 2026-09-21 VZ 회신으로 VZ 것(`bbox_space`)을 따랐다** — `format` 기본값은 `normalized`. 채널·토픽은 신설하지 않았으므로 역시 **루트**(**Phase 4 신설**) | BE-C-03·VZ-I-07 |
-| `payload/state.{sensor,robot,actuator,analysis}.schema.json` | `state` 채널 본문 — **개체 타입마다 다르다** | BE-C-01 |
+| `payload/state.{sensor,robot,actuator,analysis,drone}.schema.json` | `state` 채널 본문 — **개체 타입마다 다르다**. 🔄 **2026-09-29 `drone` 신설** — 근거는 가시화 파트가 전달한 드론 연결 계약 §13. 어휘가 **넷 → 다섯**이 됐고 `backend/contracts.py::known_entity_types()` 가 디렉터리에서 유도하므로 **파이썬 변경은 0**이다(시험·문서는 같이 고쳤다) | BE-C-01 |
 | `payload/status.schema.json` | `status` 채널 본문(등록·요약·종료·급사). 타입 공통 | BE-C-01·BE-T-04 |
 | `payload/heartbeat.schema.json` | `heartbeat` 채널 — 본문 없음 | BE-C-01 |
 | `examples/envelope-valid.json` | 공통 헤더를 통과하는 정상 메시지 예제 | 위 스키마 |
@@ -177,6 +177,10 @@ c가 채워진다.
 **전수(2026-09-16, 규격 6종):** 힌트가 붙은 곳 **27**(sensor 4 · robot 5 · actuator 6 · analysis 4 · status 8 ·
 heartbeat 0), 항목 이름으로 중복(`reason` ×3 · `device_status` ×4)을 접으면 **gauge 9 · counter 3 ·
 log/event 10 = 22**. `tests/test_c_layer_extract.py`가 이 숫자를 못 박는다.
+
+> 🔄 **2026-09-29:** `state.drone` 이 신설됐지만 **관측 신호 힌트를 일부러 넣지 않았다** — 이번 목적은 본문
+> 검증을 켜는 것이고, 드론 업무값을 C층에 올리는 것은 관측 축의 일이라 Phase 5/6 에서 같이 정한다.
+> **그래서 위 숫자는 그대로다**(규격은 7종이 됐지만 힌트가 붙은 곳은 여전히 27이다).
 
 | 종류 | 해당 항목 (전수) | Phase 3 처리 |
 |---|---|---|

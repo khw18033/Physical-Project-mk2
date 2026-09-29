@@ -12,7 +12,7 @@ Kafka·Mosquitto·저장소가 없어도 돈다. 관통(발행 → 격리 파일
 - 증강 분석 형식은 **격리되지 않는다**       — 가동 중인 생산자다
 
 implements: BE-C-01
-tests: 본문 4종 양성, status birth·LWT 양성, 필수 누락 음성, 모르는 필드 통과,
+tests: 본문 5종 양성(2026-09-29 drone 추가), status birth·LWT 양성, 필수 누락 음성(로봇·드론), 모르는 필드 통과,
        모르는 etype 통과, analysis 비격리, normalize_payload 키 채움
 """
 
@@ -40,7 +40,7 @@ def _example(name: str) -> Dict[str, Any]:
 
 def test_payload_schemas_present() -> None:
     """`state` 타입 어휘를 파이썬이 아니라 규격 파일에서 얻는다."""
-    assert contracts.known_entity_types() == ("actuator", "analysis", "robot", "sensor")
+    assert contracts.known_entity_types() == ("actuator", "analysis", "drone", "robot", "sensor")
     for channel in ("status", "heartbeat"):
         assert contracts.payload_schema_path(channel, None) is not None, channel
 
@@ -53,7 +53,7 @@ def test_entity_type_of_mqtt_topic() -> None:
     assert settings.entity_type_of_mqtt_topic("terminal/wl-001/downlink") is None
 
 
-# ── 양성: 본문 4종 + status 2종 + heartbeat ────────────────────────────────
+# ── 양성: 본문 5종 + status 2종 + heartbeat ────────────────────────────────
 
 
 @pytest.mark.parametrize(
@@ -63,11 +63,12 @@ def test_entity_type_of_mqtt_topic() -> None:
         ("payload-state-sensor-valid.json", "sensor"),
         ("payload-state-actuator-valid.json", "actuator"),
         ("payload-state-analysis-valid.json", "analysis"),
+        ("payload-state-drone-valid.json", "drone"),
     ],
-    ids=["robot", "sensor", "actuator", "analysis"],
+    ids=["robot", "sensor", "actuator", "analysis", "drone"],
 )
 def test_payload_valid(fixture: str, entity_type: str) -> None:
-    """4종 본문이 공통 헤더·본문 2단을 모두 통과한다."""
+    """5종 본문이 공통 헤더·본문 2단을 모두 통과한다."""
     message = _example(fixture)
     validate_envelope(message)                       # 1단
     validate_payload("state", entity_type, message)  # 2단
@@ -114,6 +115,21 @@ def test_payload_invalid_missing_required() -> None:
     with pytest.raises(PayloadInvalid) as excinfo:
         validate_payload("state", "robot", message)
     assert "device_status" in str(excinfo.value)
+
+
+def test_payload_drone_invalid_missing_fc_link() -> None:
+    """★음성 — `state/drone`의 필수 `fc_link`가 없으면 **거부**된다.
+
+    드론 규격은 값이 없는 것을 `null`로 적고 **키는 항상 있다**(가시화 전달 문서 §13-0).
+    그래서 본문 12칸을 전부 `required`에 넣었다 — 키가 통째로 빠지는 것은 규격 위반이다.
+    `fc_link`로 음성을 거는 이유는 그것이 **FC 링크 생사의 유일한 근거**이기 때문이다.
+    `warnings`는 끊긴 뒤에도 남아서 생사의 근거가 되지 못한다.
+    """
+    message = _example("payload-state-drone-invalid-missing-fc-link.json")
+    validate_envelope(message)  # 1단은 통과한다
+    with pytest.raises(PayloadInvalid) as excinfo:
+        validate_payload("state", "drone", message)
+    assert "fc_link" in str(excinfo.value)
 
 
 def test_payload_invalid_wrong_type_rejected() -> None:
