@@ -104,5 +104,16 @@ export function slotDriven(missionId: string): boolean {
  * 것이라, 자기 방식으로 도는 편(`script` · `relay`)에서는 열지 않는다. 선언 없는 편은 그대로 연다.
  */
 export function opensRobotGate(missionId: string): boolean {
-  return !scriptDriven(missionId) && !relayDriven(missionId) && !localDriven(missionId);
+  return doorScanFlow(missionId);
+}
+
+/**
+ * **문 찾기 흐름을 쓰는 편인가** (260928). 대본이 `robotFlow: 'door-scan'` 을 선언했을 때만 참이다.
+ *
+ * 로봇 쪽 문 찾기 부품(관문 · 준비 단계 · 스캔 발행 · 탐지 조회)은 전부 이것을 본다. 전에는 「선언이 없으면 연다」
+ * 였고, 그래서 체계 전체가 한 임무에 귀속돼 있었다 — 정량 명령 판에서도 도면을 받으러 갔고, 1~3편을 승인하고
+ * 시작을 누르면 실물 로봇이 스캔을 돌 수 있었다. 이제 **선언한 편만** 그 흐름을 탄다.
+ */
+export function doorScanFlow(missionId: string): boolean {
+  return libraryEntry(missionId)?.script?.robotFlow === 'door-scan';
 }

@@ -14,6 +14,7 @@ import { stepCommandsOf } from './stepScript.ts';
 import { issuePing, issueScan, shouldIssueScan, issueStepMission, wantsStepMission } from './robotCommands.ts';
 import { robotSession, setConnection, subscribeRobot } from './robotSession.ts';
 import { currentMission } from '../data/scenario.ts';
+import { doorScanFlow } from '../scenarios/library.ts';
 import { noteIssue } from '../shared/notifications.ts';
 import { deviceState, receiveDeviceMessage } from './deviceState.ts';
 import { noteScanFeed } from '../detect/feedLog.ts';
@@ -229,7 +230,8 @@ function attachDriver(url: string | null): void {
         });
         return;
       }
-      if (!shouldIssueScan()) return;
+      // **문 찾기 흐름을 선언한 편만 스캔을 낸다** (260928 — 귀속을 걷는다). 관문이 열려 있어도 다른 임무에는 안 나간다.
+      if (!shouldIssueScan() || !doorScanFlow(currentMission().missionId)) return;
       /**
        * **같은 조건으로 두 번 시도하지 않는다** (260912 — 브라우저가 멎었다).
        *

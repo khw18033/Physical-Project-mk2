@@ -2,6 +2,7 @@
   "missionId": "MSN-260909-01",
   "title": "문 쪽으로 이동",
   "world": "registry",
+  "robotFlow": "door-scan",
   "utterance": {
     "text": "저기 문 쪽으로 가",
     "engine": "script",

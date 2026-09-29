@@ -317,12 +317,25 @@ const shape = (script) => script.steps.map((step) => [step.action, step.paramete
   const [pi3, pi7] = robotClients();
   di.noteDeviceReport('x500-001', 'drone', { channel: 'status', status: 'online', registration: { entity_id: 'x500-001', entity_type: 'drone' } }, pi3.address());
   di.noteDeviceReport('go1-001', 'robot', { channel: 'status', status: 'online', registration: { entity_id: 'go1-001', entity_type: 'robot' } }, pi7.address());
+  // 화면이 하는 것과 같게 응답 수신기를 붙인다(`useRobotUplink` — 붙은 브로커 전부).
+  const { receiveUplink } = await load('src', 'physical', 'robotBridge.ts');
+  const offs = [pi3, pi7].map((client) => client.onMessage((message) => receiveUplink(message, 'MSN-Q-route', session.elapsedSec())));
   const sentence = '로봇 180도 회전 후 1미터 전진';
   scenario.proposeSteps(stepMissionView(sentence, read(sentence), 'MSN-Q-route'), sentence);
   scenario.acceptProposal('local');
   session.markStarted();
   await sleep(600);
   if (sent.join(',') !== 'pi7:turn,pi7:move_forward') failures.push(`첫 줄이 드론일 때 걸음이 ${sent.join(',') || '안 나갔다'} — pi7 로 turn · move_forward 여야 한다`);
+  /**
+   * **노드에 불이 들어온다** (260928 — 「임무는 진행되는데 노드에 불이 안 들어온다」). 걸음이 `T-STEP` 을 들고 나가서
+   * 응답이 아무 노드도 못 칠했다. 이제 걸음마다 그 노드의 id(`T-Q1` · `T-Q2`)를 든다.
+   */
+  const painted = (id) => scenario.traceEvents().filter((e) => e.nodeId === id).map((e) => e.status);
+  for (const id of ['T-Q1', 'T-Q2']) {
+    if (!painted(id).includes('done')) failures.push(`${id} 가 로봇 응답으로 안 칠해졌다 — [${painted(id).join(',')}]`);
+  }
+  if (scenario.traceEvents().some((e) => e.nodeId === 'T-STEP')) failures.push('없는 노드(T-STEP)에 사건이 붙었다');
+  for (const off of offs) off();
   sent.length = 0;
   await emergencyStop(pi7);
   if (scenario.restartMission()) session.markStarted();
@@ -374,6 +387,7 @@ console.log(`✅ 규약으로 자른다 — 한 건 ${FORWARD_MAX_M}m·${TURN_MA
 console.log('✅ 자른 것을 숨기지 않는다 · 뒤로 가기는 안 쏜다 (쏴 본 적 없는 값이다)');
 console.log('✅ 문구가 전부 사전에 있다 · 머리줄 입력칸은 없다(입구는 발화·문장 하나)');
 console.log('✅ 발화·문장으로 들어온 정량 명령이 임무가 된다 — 섞인 문장은 지나보낸다 (승인·시작 뒤에 나간다)');
+console.log('✅ 걸음마다 그 노드의 id 를 들고 가서 로봇 응답이 T-Q1 · T-Q2 를 칠한다');
 console.log('✅ 걸음은 걸을 수 있는 장비의 브로커로(첫 줄 무관) · 정지 뒤 재시작은 처음부터 다시 · 걸을 장비가 없으면 알림에 사유');
 console.log('✅ 승인하면 로봇 관문이 열리고 「임무 시작」이 된다 · 통합 앱에도 승인 버튼이 있다 · 모델이 낸 임무는 관문을 안 연다');
 console.log(`✅ 대조군 ${controls.length}건 — ${controls.join(' · ')}`);

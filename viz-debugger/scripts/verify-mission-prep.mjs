@@ -42,6 +42,12 @@ const session = await load('src', 'physical', 'robotSession.ts');
 const { shouldIssueScan } = await load('src', 'physical', 'robotCommands.ts');
 const { sampleRevealed } = await load('src', 'detect', 'DetectClient.ts');
 const { PREP_SEC, afterPrep } = session;
+/**
+ * 260928 — **문 찾기 편을 올려 놓고 시험한다.** 준비 단계는 이제 `robotFlow: 'door-scan'` 을 선언한 편에서만 돈다.
+ * 전까지 이 검사는 임무를 하나도 안 올린 채로 돌았고, 그래도 준비 단계가 돌았다 — 그것이 곧 귀속이었다.
+ */
+const scenarioStore = await load('src', 'data', 'scenario.ts');
+scenarioStore.previewMission('MSN-260909-01');
 
 // ── 1. 준비 창이 닫히기 전에는 스캔이 안 나간다 ─────────────────────────────
 {
@@ -221,7 +227,8 @@ const { PREP_SEC, afterPrep } = session;
    * 안 했는데.
    */
   const uplink = src('detect', 'useDetect.tsx');
-  if (!/if \(!started\) return;/.test(uplink)) {
+  // 260928 — 조건에 「문 찾기 흐름 선언」이 붙었다(`!started || !flow`). 시작 전에 안 묻는다는 것은 그대로다.
+  if (!/if \(!started(?: \|\| !flow)?\) return;/.test(uplink)) {
     failures.push('시작 전에도 탐지를 묻는다 — 승인만 했는데 T-A1·T-A2 가 완료로 뜬다');
   }
   if (!/\[started, /.test(uplink)) failures.push('시작이 바뀌어도 폴링이 다시 서지 않는다');
@@ -351,6 +358,23 @@ function control(name, hit) {
   session.markPrepTasksDone();
   const copyRotates = shouldIssueScan();      // 1절의 「창만 닫혔는데 스캔이 나간다」가 걸리는 상태
   control('창만 닫히면 도는 사본 (T-A1·T-A2 대기 중 회전)', oursBlocks && copyRotates);
+  session.resetRobotSession();
+}
+
+// ── 260928 · 다른 임무에서는 문 찾기 준비 단계도 스캔도 돌지 않는다 (귀속을 걷는다) ─────────────
+{
+  const { prepState } = await load('src', 'physical', 'prepStage.ts');
+  for (const other of ['MSN-260831-01', 'MSN-260927-01']) {
+    scenarioStore.previewMission(other);
+    session.resetRobotSession();
+    session.setConnection({ state: 'open' });
+    session.markApproved();
+    session.markStarted();
+    await new Promise((r) => setTimeout(r, 50));
+    const prep = typeof prepState === 'function' ? prepState() : null;
+    if (prep !== null && prep.runKey !== null) failures.push(`${other} 에서 「임무 시작」이 문 찾기 준비 단계(도면·방위)를 켰다`);
+  }
+  scenarioStore.previewMission('MSN-260909-01');
   session.resetRobotSession();
 }
 

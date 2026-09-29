@@ -205,6 +205,15 @@ export type ScriptScenario = {
    * 가르는 자리는 `library.ts` 의 `scriptDriven()` · `relayDriven()` · `localDriven()` · `opensRobotGate()` 다.
    */
   driver?: 'script' | 'relay' | 'local';
+  /**
+   * **이 편이 쓰는 로봇 흐름** (260928 — 체계가 한 임무에 귀속돼 있던 것을 걷는다).
+   *
+   * `'door-scan'` 이면 문 찾기 흐름 — 승인이 로봇 관문을 열고, 「임무 시작」이 준비 단계(도면 · 방위)와 탐지 조회를
+   * 켜고, 준비가 끝나면 `scan_mission` 이 나간다. **선언이 없으면 그 넷이 하나도 안 돈다.** 전에는 반대였다 — 선언
+   * 없는 편이 전부 그 흐름을 탔고, 그래서 다른 임무의 「임무 시작」에도 실물 로봇이 문 찾기 스캔을 돌 수 있었다.
+   * 가르는 자리는 `library.ts` 의 `doorScanFlow()` 하나다.
+   */
+  robotFlow?: 'door-scan';
   durationSec: number;
   /** 편별 상수 — 위험 수위 선(탭④)·정지 거리·재탐색 임계 등. 화면이 읽는다. */
   params?: Record<string, unknown>;

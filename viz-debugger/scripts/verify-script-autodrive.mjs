@@ -150,7 +150,10 @@ if (opensRobotGate(AUTO_ID)) failures.push('opensRobotGate() 가 새 편에서 �
 // **선언 없는** 편만 본다 — 장치 두 대 편(260927)은 `driver: 'script'` 를 선언했다(verify:script-two-devices 가 본다).
 for (const id of [...SCRIPT_IDS.filter((id) => id !== AUTO_ID && readScript(id).driver === undefined), LEGACY_ID]) {
   if (scriptDriven(id) || relayDriven(id)) failures.push(`${id} 가 대본·중계 편으로 읽힌다 — 선언 없는 편은 그대로여야 한다`);
-  if (!opensRobotGate(id)) failures.push(`opensRobotGate() 가 ${id} 에서 거짓이다 — 선언 없는 편은 그대로 관문을 연다`);
+  // 260928 — **선언 없는 편은 관문을 안 연다.** 전에는 반대였고, 그래서 체계 전체가 문 찾기 편에 귀속돼 있었다.
+  // 관문을 여는 것은 `robotFlow: 'door-scan'` 을 선언한 편(지금은 시연 편 하나)뿐이다.
+  const wants = readScript(id)?.robotFlow === 'door-scan';
+  if (opensRobotGate(id) !== wants) failures.push(`opensRobotGate() 가 ${id} 에서 ${opensRobotGate(id)} — 문 찾기 흐름을 선언한 편만 연다`);
 }
 
 const scenario = await load('src', 'data', 'scenario.ts');
@@ -274,14 +277,14 @@ function control(name, hit) {
   control('되돌아감 참조 엣지 삭제', checkChain(m).some((msg) => msg.includes('되돌아감')));
 }
 {
-  // 선언을 지우면 새 편이 로봇 편으로 돌아가 관문이 열린다 — 지금 규칙이 그 선언 하나에 달려 있다.
+  // 260928 — 관문은 **문 찾기 흐름 선언** 하나에 달려 있다. 시연 편에서 그 선언을 지우면 관문이 닫히고 스캔이 안 나간다.
   const { SCRIPT_LIBRARY } = await load('src', 'scenarios', 'library.ts');
-  const entry = SCRIPT_LIBRARY.find((e) => e.missionId === AUTO_ID);
-  const saved = entry.script.driver;
-  delete entry.script.driver;
-  const run = await approveAndStart(AUTO_ID);
-  entry.script.driver = saved;
-  control('driver 선언 삭제(관문이 열린다)', run.approved && run.sent.includes('scan_mission'));
+  const entry = SCRIPT_LIBRARY.find((e) => e.missionId === DOOR_ID);
+  const saved = entry.script.robotFlow;
+  delete entry.script.robotFlow;
+  const run = await approveAndStart(DOOR_ID);
+  entry.script.robotFlow = saved;
+  control('시연 편의 robotFlow 선언 삭제(관문이 닫힌다)', !run.approved && !run.sent.includes('scan_mission'));
 }
 
 // ── 결과 ─────────────────────────────────────────────────────────────────────

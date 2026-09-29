@@ -13,6 +13,7 @@
  * 여덟을 다 보기 전에는 짧게, 다 보고 나면 길게 묻는다.
  */
 
+import { doorScanFlow } from '../scenarios/library.ts';
 import { useEffect } from 'react';
 import { advanceRobotHead } from '../data/scenario.ts';
 import { elapsedSec, useRobotSession } from '../physical/robotSession.ts';
@@ -39,19 +40,25 @@ export function useDetectUplink(missionId: string, params: Record<string, unknow
    * 시작을 누른 뒤에 시작한다.
    */
   const started = useRobotSession().started;
+  /**
+   * **문 찾기 흐름을 선언한 편에서만 탐지를 부른다** (260928 — 귀속을 걷는다). 전에는 어떤 임무든 「임무 시작」만
+   * 누르면 탐지 서비스를 두드렸고, 정량 명령 판에 「탐지 서비스에 못 닿습니다」가 떴다.
+   */
+  const flow = doorScanFlow(missionId);
 
   // 상대가 있고 **임무가 시작됐을 때만** 묻는다. 주소가 바뀌거나 테스트를 켜면 다시 선다.
   useEffect(() => {
-    if (!started) return;
+    if (!started || !flow) return;
     if (!state.testMode && base.trim() === '') return;
     return startDetectPolling(() => detectState().frames.length < count, count, stepDeg);
-  }, [started, state.testMode, base, count, stepDeg]);
+  }, [started, flow, state.testMode, base, count, stepDeg]);
 
   /**
    * 받은 것을 여덟 칸에 얹는다. **머리도 같이 민다** — 안 그러면 방금 넣은 프레임이
    * 「아직 안 온 것」으로 걸러진다(로봇 연동에서 그대로 겪은 자리다).
    */
   useEffect(() => subscribeDetect(() => {
+    if (!flow) return;
     // **다시보기가 채운 결과로는 칠하지 않는다** (260914) — 칸과 노드 상태는 기록 열에 이미 있다.
     if (isReplayingRecord()) return;
     const at = elapsedSec();
@@ -60,5 +67,5 @@ export function useDetectUplink(missionId: string, params: Record<string, unknow
     // 안 끝나고 다음 마일스톤으로도 안 넘어간다 — 실제로 그랬다.
     const moved = advanceDetectTasks(missionId, at, stepDeg, count);
     if (put > 0 || moved > 0) advanceRobotHead(missionId, at);
-  }), [missionId, stepDeg, count]);
+  }), [missionId, flow, stepDeg, count]);
 }

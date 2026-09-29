@@ -318,7 +318,11 @@ export function stepMissionView(sentence: string, script: StepScript, missionId:
     hardware: null,
     // **걸음을 임무에 실어 둔다.** 승인 뒤 발행하는 쪽이 이것을 읽는다 — 화면이 그린
     // 태스크와 로봇에 나갈 걸음이 **같은 출처**여야 둘이 갈리지 않는다.
-    params: { step_commands: script.steps },
+    //
+    // **걸음마다 그 노드의 태스크 id 를 싣는다** (260928 — 「임무는 진행되는데 노드에 불이 안 들어온다」). 전에는
+    // 읽기 단계의 자리표시(`T-STEP`)가 그대로 나갔다. 로봇 응답은 명령 → 태스크 id 로 노드를 칠하는데(`robotBridge.ts`)
+    // `T-STEP` 이라는 노드가 없으니 아무 데도 안 칠해졌다. 칠하는 길은 범용이다 — 명령이 제 태스크를 들고 가면 된다.
+    params: { step_commands: script.steps.map((step, index) => ({ ...step, taskId: `T-Q${index + 1}` })) },
     map: null,
     refEdges: [],
     viewpoints: null,

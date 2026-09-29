@@ -28,7 +28,7 @@
 import { t } from '../i18n/dict.ts';
 import { useSyncExternalStore } from 'react';
 import { currentMission, receiveRobotProgress } from '../data/scenario.ts';
-import { stepCommandsOf } from './stepScript.ts';
+import { doorScanFlow } from '../scenarios/library.ts';
 import { floorPlanUrls, isBundledFloorPlan, sourceOf } from '../detect/DetectClient.ts';
 import { appendDetectLog, DETECT_TASKS, resetDetectLog } from '../detect/detectLog.ts';
 import { DOOR_PX, doorCm } from '../detect/floorPlan.ts';
@@ -227,10 +227,10 @@ function checkSession(): void {
   // 로봇이 안 몰면 대본이 칠한다. 나중에 브로커가 붙으면 이 함수가 다시 불려 그때 시작한다.
   if (!robotDrives()) return;
   /**
-   * **정량 명령 임무에는 준비 단계가 없다** (260928). 이 단계는 문 찾기 편의 `T-A1`(도면)·`T-A2`(방위)이고, 사람이 적은
-   * 걸음만 있는 임무에서 돌면 탐지 서비스를 두드려 「탐지 서비스에 못 닿습니다」가 뜨고, 없는 노드를 칠한다.
+   * **문 찾기 흐름을 선언한 편에서만 돈다** (260928 — 귀속을 걷는다). 이 단계는 문 찾기 편의 `T-A1`(도면)·`T-A2`(방위)
+   * 이고, 다른 임무에서 돌면 탐지 서비스를 두드려 「탐지 서비스에 못 닿습니다」가 뜨고 없는 노드를 칠한다.
    */
-  if (stepCommandsOf(currentMission().params).length > 0) return;
+  if (!doorScanFlow(currentMission().missionId)) return;
 
   const runKey = session.startedAtMs;
   resetDetectLog();                                     // 지난 판의 줄이 새 판 노드에 붙으면 안 된다
