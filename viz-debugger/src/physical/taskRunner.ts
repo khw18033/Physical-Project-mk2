@@ -73,7 +73,11 @@ type MapJudge =
   | { kind: 'map-gap' };
 
 type Judge =
-  | { kind: 'online' | 'link' | 'battery' | 'ready' | 'camera'; slot: string }
+  /**
+   * `soft` 가 있으면 (260929 — 이상 탐지 편의 첫 번째 장치) 실제 판정이 통과하면 그 값으로, 아니면(값이 없거나 실패)
+   * `soft` 초 뒤 완료로 칠한다. pi3 는 붙이되 드론(FC)은 안 붙이는 시연 구성이다 — 판 기록의 `held_tasks` 에 적힌다.
+   */
+  | { kind: 'online' | 'link' | 'battery' | 'ready' | 'camera'; slot: string; soft?: number }
   | MapJudge
   | { kind: 'face'; slot: string }
   /**
@@ -288,7 +292,7 @@ function claim(view: MissionView): readonly string[] {
       asked: false,
       outcome: null,
       retry: !moves,
-      held: judge.kind === 'hold' || (moves && walk?.mode !== 'walking'),
+      held: judge.kind === 'hold' || (moves && walk?.mode !== 'walking') || ('soft' in judge && typeof judge.soft === 'number'),
       lastProgressAt: -Infinity,
       haltedBy: null,
     });
@@ -413,8 +417,46 @@ function timedOut(task: TaskRun, head: number): boolean {
   return head - task.startedAt >= CHECK_TIMEOUT_SEC;
 }
 
+/** 이 확인 노드의 유예(초). 없으면 null — 실제 판정 그대로다. */
+function softSecOf(task: TaskRun): number | null {
+  const judge = task.judge;
+  if (judge.kind !== 'online' && judge.kind !== 'link' && judge.kind !== 'battery' && judge.kind !== 'ready' && judge.kind !== 'camera') return null;
+  return typeof judge.soft === 'number' && Number.isFinite(judge.soft) && judge.soft >= 0 ? judge.soft : null;
+}
+
+/**
+ * **유예가 있는 확인** (260929). 실제 판정이 먼저다 — 통과하면 그 값으로 끝낸다. 실패하거나 값이 안 오면 실패로 세우지
+ * 않고, 유예 시간이 지나면 완료로 칠한다. 근거값에는 받은 만큼만 적는다(지어 넣지 않는다).
+ */
+function pollSoft(r: Run, task: TaskRun, head: number, soft: number): void {
+  const judge = task.judge as Extract<Judge, { kind: 'online' | 'link' | 'battery' | 'ready' | 'camera' }>;
+  const deviceId = deviceOfSlot(r, judge.slot);
+  if (task.outcome !== null && task.outcome.ok) { const payload = task.outcome.payload; task.outcome = null; finish(r, task, payload); return; }
+  if (deviceId !== null) {
+    if (judge.kind === 'online' || judge.kind === 'battery' || judge.kind === 'ready') {
+      const outcome = deviceJudge(r, judge.kind, deviceId);
+      if (outcome !== null && outcome.ok) { finish(r, task, outcome.payload); return; }
+    } else if (!task.asked) {
+      task.asked = true;
+      void (judge.kind === 'link' ? linkJudge(deviceId) : cameraJudge(deviceId)).then((outcome) => {
+        if (task.phase !== 'running') return;
+        task.outcome = outcome;
+        tick();
+      });
+    }
+  }
+  if (head - task.startedAt < soft) return;
+  finish(r, task, {
+    ...(deviceId === null ? {} : { device: deviceId }),
+    ...(judge.kind === 'battery' ? { min_battery_pct: r.minBatteryPct } : {}),
+    hold_s: soft,
+  });
+}
+
 function poll(r: Run, task: TaskRun, head: number): void {
   const judge = task.judge;
+  const soft = softSecOf(task);
+  if (soft !== null) { pollSoft(r, task, head, soft); return; }
   // 비동기 판정의 답이 와 있으면 그것으로 끝낸다.
   if (task.outcome !== null) {
     const outcome = task.outcome;

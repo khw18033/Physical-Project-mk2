@@ -230,6 +230,7 @@ export function ConnectionsPanel({ onClose, physical }: { onClose(): void; physi
          */
         // **이미지 칸** (260929 — SAR · 3D 복원). 주소가 아니라 파일이라 초안 · 적용을 안 탄다 — 고르는 순간 붙는다.
         if (field.image === true) return <ImageField key={key} storageKey={key} labelKey={field.labelKey} />;
+        if (field.video === true) return <ImageField key={key} storageKey={key} labelKey={field.labelKey} video />;
         if (field.list === true) {
           const rows = splitAddressList(draft[key] ?? '');
           const shown = [...rows, ''];
@@ -275,6 +276,15 @@ export function ConnectionsPanel({ onClose, physical }: { onClose(): void; physi
             {(draft[key] ?? '') !== (current[key] ?? '') && <p className="conn-unsaved">
               {t(hasCheck(target.id) ? 'conn.unsavedCheck' : 'conn.unsavedApply')}
             </p>}
+            {/* **저장된 주소마다 동영상 한 칸** (260929 — 주소마다 따로). 적는 중인 줄이 아니라 저장된 줄에 붙인다 —
+                주소를 고치는 도중에 키가 바뀌면 붙인 영상이 사라진 것처럼 보인다. */}
+            {field.videoPerRow === true && splitAddressList(current[key] ?? '').map((row) => <ImageField
+              key={`${key}.video@${row}`}
+              storageKey={`${target.id}.video@${row.trim().replace(/\/+$/, '')}`}
+              labelKey="conn.field.videoFor"
+              labelVars={{ url: row }}
+              video
+            />)}
           </div>;
         }
         return <label key={key}>
@@ -337,13 +347,15 @@ export function ConnectionsPanel({ onClose, physical }: { onClose(): void; physi
  * **이미지 한 장을 붙이는 칸** (260929). 파일을 고르거나 끌어다 놓으면 곧바로 이 브라우저에 저장된다
  * (`shared/imageStore.ts`). 노드가 같은 키로 읽으므로 판을 닫지 않아도 노드가 바뀐다.
  */
-function ImageField({ storageKey, labelKey }: { storageKey: string; labelKey: string }) {
+function ImageField({ storageKey, labelKey, labelVars, video = false }: { storageKey: string; labelKey: string; labelVars?: Record<string, string>; video?: boolean }) {
   useLang();
   const stored = useStoredImage(storageKey);
   const [status, setStatus] = useState<string | null>(null);
+  // 260929 — 같은 칸이 동영상도 받는다(이상 탐지 편). 종류만 다르고 저장 · 떼기는 같다.
+  const kind = video ? 'video/' : 'image/';
   const attach = (file: File | undefined) => {
     if (file === undefined) return;
-    if (!file.type.startsWith('image/')) { setStatus(t('conn.image.notImage', { type: file.type || file.name })); return; }
+    if (!file.type.startsWith(kind)) { setStatus(t(video ? 'conn.video.notVideo' : 'conn.image.notImage', { type: file.type || file.name })); return; }
     void saveImage(storageKey, file, file.name).then((kept) => {
       setStatus(t(kept ? 'conn.image.saved' : 'conn.image.sessionOnly', { name: file.name }));
     });
@@ -353,14 +365,16 @@ function ImageField({ storageKey, labelKey }: { storageKey: string; labelKey: st
     onDragOver={(event) => event.preventDefault()}
     onDrop={(event) => { event.preventDefault(); attach(event.dataTransfer.files[0]); }}
   >
-    <span>{t(labelKey)}</span>
+    <span>{t(labelKey, labelVars)}</span>
     {stored === null
-      ? <p className="conn-image__none">{t('conn.image.none')}</p>
-      : <img className="conn-image__thumb" src={stored.url} alt={stored.name} />}
+      ? <p className="conn-image__none">{t(video ? 'conn.video.none' : 'conn.image.none')}</p>
+      : video
+        ? <video className="conn-image__thumb" src={stored.url} muted preload="metadata" />
+        : <img className="conn-image__thumb" src={stored.url} alt={stored.name} />}
     <div className="conn-image__actions">
       <label className="conn-image__pick">
         {t(stored === null ? 'conn.image.pick' : 'conn.image.replace')}
-        <input type="file" accept="image/*" onChange={(event) => { attach(event.target.files?.[0]); event.target.value = ''; }} />
+        <input type="file" accept={video ? 'video/*' : 'image/*'} onChange={(event) => { attach(event.target.files?.[0]); event.target.value = ''; }} />
       </label>
       {stored !== null && <button type="button" onClick={() => { void removeImage(storageKey); setStatus(null); }}>{t('conn.image.remove')}</button>}
     </div>

@@ -15,6 +15,7 @@
  */
 
 import type { PointerEvent as ReactPointerEvent, ReactNode } from 'react';
+import type { CSSProperties } from 'react';
 import type { ViewNodeEntry, ViewNodeInstance, ViewScope } from './types.ts';
 import { t } from '../i18n/dict.ts';
 import { useLang } from '../shared/language.ts';
@@ -57,7 +58,8 @@ export function ViewNodeCard({ node, entry, scope, position, size, grips, picked
   const bound = node.taskId !== null;
   return <div
     className={`view-node ${bound ? 'view-node--bound' : 'view-node--global'}${zoomed ? ' view-node--zoomed' : ''}${highlighted ? ' view-node--flash' : ''}`}
-    style={{ left: position.x, top: position.y, width: size?.w, height: size?.h }}
+    // `--card-h` (260929) — 사람이 키운 카드면 안의 영상 · 지도 · 화면이 그 높이를 따라 커진다(아래 style.css). 안 키웠으면 없다.
+    style={{ left: position.x, top: position.y, width: size?.w, height: size?.h, ...(size?.h === undefined ? {} : { '--card-h': `${size.h}px` }) } as CSSProperties}
     onPointerDown={onPointerDown}
     // 확대는 **더블클릭**이다 (확정된 결정 2). 아래 ⤢ 버튼은 같은 길의 보이는 입구다 —
     // 더블클릭만 두면 발견할 수 없는 길이 된다.

@@ -50,7 +50,15 @@ export function ZoomOverlay({ entry, scope, taskId, node, onClose }: {
           {/* 범위를 여기 한 줄로 적는다 — 확대해도 「무엇의 값인지」가 안 흐려져야 한다. */}
           <small>{where} · T+{Math.round(scope.fromSec)}~{Math.round(scope.toSec)}s · {t('zoom.head', { sec: Math.round(scope.headSec) })}</small>
         </div>
-        <button onClick={onClose}>{t('zoom.close')}</button>
+        <span className="zoom-modal__acts">
+          {/* **화면 가득** (260929 — 「더 크게 볼 수 있게」). 브라우저 전체 화면으로 이 확대 창만 띄운다. ESC 로 돌아온다. */}
+          <button type="button" onClick={(event) => {
+            const box = event.currentTarget.closest('.zoom-modal');
+            if (document.fullscreenElement !== null) void document.exitFullscreen().catch(() => undefined);
+            else if (box instanceof HTMLElement) void box.requestFullscreen().catch(() => undefined);
+          }}>{t('zoom.fullscreen')}</button>
+          <button onClick={onClose}>{t('zoom.close')}</button>
+        </span>
       </header>
       {/* 확대 본문 안의 `<Explain>` 문단들이 **이 노드의 설명서**로 등록된다 (260903 3단계).
           우상단 `?` 가 확대 중에는 그 노드 것을 보인다 — 탭별 설명서가 있던 자리다. */}

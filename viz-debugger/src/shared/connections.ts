@@ -83,6 +83,15 @@ export type ConnectionField = {
    * `shared/imageStore.ts` 에 둔다. 키는 같은 `대상.칸` 이다 — 노드가 그 키로 찾는다.
    */
   image?: true;
+  /**
+   * **동영상을 붙이는 칸** (260929 — 이상 탐지 편). 이미지 칸과 같은 저장소(`imageStore.ts`)에 둔다. 붙인 영상은
+   * 대본이 정한 노드가 시작될 때 재생된다(`params.media_cues`).
+   */
+  video?: true;
+  /**
+   * **목록의 줄마다 동영상을 붙인다** (260929 — 장애물 탐지 영상 · 주소마다 따로). 키는 `대상.video@<주소>` 다.
+   */
+  videoPerRow?: true;
 };
 
 /**
@@ -170,7 +179,7 @@ export const CONNECTION_TARGETS: readonly ConnectionTarget[] = [
     live: true,
     // 260929 — **둘 이상 동시에.** 로봇 브로커와 같은 목록 칸이다. 첫 줄이 기본이고, 탐지 영상 · 객체 탐지 로그
     // 노드가 확대에서 주소를 고른다. 한 줄만 적힌 옛 설정은 그대로 첫 줄이 된다 — 옮길 것이 없다.
-    fields: [{ key: 'base', labelKey: 'conn.field.base', fallback: '', list: true }],
+    fields: [{ key: 'base', labelKey: 'conn.field.base', fallback: '', list: true, videoPerRow: true }],
   },
   {
     // 260920 — 기능 상태 서비스(`perception-framework/tools/status_ui`). **실제 배치는 k3s 안이라
@@ -273,7 +282,12 @@ export const CONNECTION_TARGETS: readonly ConnectionTarget[] = [
     labelKey: 'conn.target.virtual3d',
     whatKey: 'conn.target.virtual3d.what',
     live: true,
-    fields: [{ key: 'base', labelKey: 'conn.field.base', fallback: 'http://100.68.72.33:8080/' }],
+    fields: [
+      { key: 'base', labelKey: 'conn.field.base', fallback: 'http://100.68.72.33:8080/' },
+      // 260929 — 영상 둘. 어느 노드가 시작될 때 틀지는 대본(`params.media_cues`)이 정하고, 칸 이름이 그것을 사람에게 말한다.
+      { key: 'video', labelKey: 'conn.field.video3dMonitor', fallback: '', video: true },
+      { key: 'video2', labelKey: 'conn.field.video3dMove', fallback: '', video: true },
+    ],
   },
   {
     /**

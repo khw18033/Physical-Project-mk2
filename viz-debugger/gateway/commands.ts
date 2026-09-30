@@ -401,6 +401,16 @@ export class CommandEngine {
       ts: nowIso(),
       ...partial,
     };
+    /**
+     * **레지스트리에 없는 대상이면 흘려보내지 않는다** (260929 실측 — 게이트웨이가 죽었다). 노드 상세의 「단독 재실행」
+     * 같은 버튼이 태스크 id(`T-E3`)를 대상으로 보내면 거부는 맞지만, 그 거부를 허브에 싣는 순간 허브가 「레지스트리에 없는
+     * entity」로 던졌고 잡는 곳이 없어 게이트웨이가 통째로 내려갔다(개발 스택 전체가 같이). 거부 사유는 제출 응답
+     * (`SubmitOutcome`)으로 화면에 이미 간다 — 허브로 한 번 더 보낼 곳이 없을 뿐이다.
+     */
+    if (!this.hub.knows(req.entity)) {
+      console.log('[mock-gateway] command_result 를 흘려보내지 않음 — 레지스트리에 없는 대상 ' + req.entity + ' (' + req.action + ' · ' + String(partial.status) + ')');
+      return;
+    }
     this.hub.publish(req.entity, 'command_result', result, { fromDevice: false });
   }
 

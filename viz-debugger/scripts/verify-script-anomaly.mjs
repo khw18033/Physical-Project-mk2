@@ -90,7 +90,7 @@ if (opensRobotGate(ID) || !localDriven(ID) || !slotDriven(ID)) failures.push('�
   offGate();
   if (beforeApproval === null) failures.push('첫 번째 장치 이동이 승인을 기다리지 않았다');
   else {
-    if (beforeApproval.gate.taskId !== 'T-E1' || beforeApproval.gate.route !== '왼쪽 45° 회전 → 2.00 m 전진' || beforeApproval.gate.deviceId !== 'go1-001') failures.push(`승인 대기가 Go1 경로를 안 보인다 — ${JSON.stringify(beforeApproval.gate)}`);
+    if (beforeApproval.gate.taskId !== 'T-E1' || beforeApproval.gate.route !== '2.00 m 전진' || beforeApproval.gate.deviceId !== 'go1-001') failures.push(`승인 대기가 Go1 경로를 안 보인다 — ${JSON.stringify(beforeApproval.gate)}`);
     if (beforeApproval.e1.includes('done') || !beforeApproval.e1.includes('running')) failures.push('승인 전에 첫 번째 장치 이동이 끝났다 — 진행 중에 멈춰 있어야 한다');
     if (beforeApproval.e2) failures.push('승인 전에 두 번째 장치 경로 추정이 시작됐다');
   }
@@ -100,12 +100,36 @@ if (opensRobotGate(ID) || !localDriven(ID) || !slotDriven(ID)) failures.push('�
   const c1 = [eventOf(ok.trace, 'T-C1', 'running'), eventOf(ok.trace, 'T-C1', 'done')];
   if (c1.includes(null) || c1[1].atSec - c1[0].atSec < 12 - 0.01) failures.push(`모니터링 진행이 12초를 안 채웠다 (${c1[0]?.atSec} → ${c1[1]?.atSec})`);
   if (c1[1]?.payload?.hold_s !== 12) failures.push('모니터링 진행 근거값에 hold_s: 12 가 없다');
-  if (startedLine(ok.trace)?.payload?.held_tasks !== 'T-C1,T-C2,T-E1') failures.push(`넘긴 태스크가 「${startedLine(ok.trace)?.payload?.held_tasks}」 — 모니터링 · 감지 · 드론 이동이어야 한다`);
+  // 260929 — 첫 번째 장치 연결 확인은 드론(FC)이 안 붙어도 0.5초 뒤 통과한다(이 편에서만). 두 번째 장치는 그대로 실제 판정.
+  const noFc = await rig.run({
+    missionId: ID, bindings: { 'device-1': 'x500-001', 'device-2': 'go1-001' },
+    devices: [{ ...DRONE, body: { fc_link: false, link: 'degraded', battery: null } }, GO1], maxTicks: 40,
+    // 1배속으로 본다 — 시험대의 20배속이면 한 걸음이 4초라 0.5초를 볼 수 없다.
+    tweak: (view) => { view.params.play_speed = 1; },
+  });
+  for (const id of ['T-A1', 'T-A2', 'T-A3', 'T-A4']) {
+    const run = eventOf(noFc.trace, id, 'running');
+    const done = eventOf(noFc.trace, id, 'done');
+    if (run === null || done === null || done.atSec - run.atSec > 0.8) failures.push(`드론 FC 가 없는데 ${id} 가 0.5초 뒤 통과하지 않았다 (${run?.atSec} → ${done?.atSec})`);
+  }
+  if (noFc.trace.some((e) => e.status === 'failed' && e.nodeId.startsWith('T-A'))) failures.push('첫 번째 장치 연결 확인이 실패로 칠해졌다');
+  rig.scenario.stopLocalRun();
+  const lowGo1 = await rig.run({
+    missionId: ID, bindings: { 'device-1': 'x500-001', 'device-2': 'go1-001' },
+    devices: [DRONE, { ...GO1, body: { battery_pct: 10 } }], maxTicks: 60,
+  });
+  if (lowGo1.trace.find((e) => e.status === 'failed')?.nodeId !== 'T-B3') failures.push('두 번째 장치(Go1) 배터리가 부족한데 T-B3 이 실패로 안 섰다 — 유예는 첫 번째 장치에만');
+  controls.push('Go1 배터리 부족(두 번째 장치는 실제 판정)');
+  // 다른 편에는 유예가 없다.
+  for (const other of ['MSN-260927-01', 'MSN-260929-01']) {
+    if (Object.values(readScript(other).params.judges ?? {}).some((j) => j.soft !== undefined)) failures.push(`${other} 에 유예(soft)가 있다 — 이상 탐지 편에서만`);
+  }
+  if (startedLine(ok.trace)?.payload?.held_tasks !== 'T-A1,T-A2,T-A3,T-A4,T-C1,T-C2,T-E1') failures.push(`넘긴 태스크가 「${startedLine(ok.trace)?.payload?.held_tasks}」 — 모니터링 · 감지 · 드론 이동이어야 한다`);
   if (eventOf(ok.trace, 'T-D1', 'done')?.payload?.route !== '왼쪽 45° 회전 → 2.00 m 전진') failures.push(`드론 경로 결과가 「${eventOf(ok.trace, 'T-D1', 'done')?.payload?.route}」`);
-  // 260929 — Go1 도 「왼쪽 45° 회전 → 2 m 전진」으로 드론 자리까지 간다(실제 명령).
-  if (eventOf(ok.trace, 'T-E2', 'done')?.payload?.route !== '왼쪽 45° 회전 → 2.00 m 전진') failures.push(`Go1 경로 결과가 「${eventOf(ok.trace, 'T-E2', 'done')?.payload?.route}」`);
+  // 260929 — Go1 은 회전 없이 「2 m 전진」만으로 드론 자리까지 간다(실제 명령).
+  if (eventOf(ok.trace, 'T-E2', 'done')?.payload?.route !== '2.00 m 전진') failures.push(`Go1 경로 결과가 「${eventOf(ok.trace, 'T-E2', 'done')?.payload?.route}」`);
   const go1Steps = ok.sent.filter((s) => s.action !== 'ping');
-  if (go1Steps.length !== 2 || go1Steps[0].action !== 'turn' || go1Steps[0].parameters.deg !== -45 || go1Steps[1].action !== 'move_forward' || Math.abs(go1Steps[1].parameters.distance_m - 2) > 0.01) failures.push(`Go1 명령이 왼쪽 45° · 2 m 가 아니다 — ${JSON.stringify(go1Steps)}`);
+  if (go1Steps.length !== 1 || go1Steps[0].action !== 'move_forward' || Math.abs(go1Steps[0].parameters.distance_m - 2) > 0.01) failures.push(`Go1 명령이 회전 없는 2 m 전진이 아니다 — ${JSON.stringify(go1Steps)}`);
   const moves = ok.sent.filter((s) => s.action !== 'ping');
   if (moves.some((s) => !s.to.includes('pi7'))) failures.push('드론(pi3)에 이동 명령이 나갔다');
   const walked = moves.filter((s) => s.action === 'move_forward').reduce((sum, s) => sum + s.parameters.distance_m, 0);
@@ -122,7 +146,7 @@ if (opensRobotGate(ID) || !localDriven(ID) || !slotDriven(ID)) failures.push('�
   const swapped = await rig.run({ missionId: ID, bindings: { 'device-1': 'go1-001', 'device-2': 'x500-001' }, devices: [DRONE, GO1] });
   offSwap();
   const swappedHeld = startedLine(swapped.trace)?.payload?.held_tasks;
-  if (swappedHeld !== 'T-C1,T-C2,T-E3') failures.push(`장치를 바꿔 앉혔는데 넘긴 태스크가 「${swappedHeld}」`);
+  if (swappedHeld !== 'T-A1,T-A2,T-A3,T-A4,T-C1,T-C2,T-E3') failures.push(`장치를 바꿔 앉혔는데 넘긴 태스크가 「${swappedHeld}」`);
   // 승인 없이 두면 판이 거기서 기다린다 — 끝나지 않는다.
   const waiting = await rig.run({ missionId: ID, bindings: { 'device-1': 'x500-001', 'device-2': 'go1-001' }, devices: [DRONE, GO1], maxTicks: 120 });
   if (waiting.phase === 'done' || waiting.sent.some((s) => s.action !== 'ping')) failures.push('승인하지 않았는데 판이 끝났거나 Go1 이 움직였다');

@@ -210,6 +210,11 @@ export class Hub {
     return true;
   }
 
+  /** 레지스트리에 있는 대상인가 (260929). 발행 전에 묻는다 — `publish` 는 모르는 대상에 던진다. */
+  knows(entity: string): boolean {
+    return this.runtime.has(entity);
+  }
+
   // ── 발행 ───────────────────────────────────────────────────────────────────
 
   /**

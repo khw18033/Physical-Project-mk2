@@ -49,6 +49,8 @@
     "verify:script-anomaly": "node scripts/verify-script-anomaly.mjs",
     "verify:panels-imagery": "node scripts/verify-panels-imagery.mjs",
     "verify:obstacle-sources": "node scripts/verify-obstacle-sources.mjs",
+    "verify:media-cues": "node scripts/verify-media-cues.mjs",
+    "verify:gateway-unknown-target": "node scripts/verify-gateway-unknown-target.mjs",
     "verify:nav-feed": "node scripts/verify-nav-feed.mjs",
     "verify:autodrive-ai": "node scripts/verify-autodrive-ai.mjs",
     "verify:capability-source": "node scripts/verify-capability-source.mjs",

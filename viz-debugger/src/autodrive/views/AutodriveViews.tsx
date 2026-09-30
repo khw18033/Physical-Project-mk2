@@ -22,6 +22,7 @@ import { aiBase, aiBases, aiControlUrl, aiFrameUrl, aiStreamUrl, AI_CAMERA } fro
 import { holdObstaclePollingAt, obstacleFrozen, useObstacleAt, type ObstacleDetection, type ObstacleSnapshot, obstacleLineText } from '../obstacle.ts';
 import { setObstacleSource, useObstacleSource } from '../sourceChoice.ts';
 import { useConnections } from '../../shared/connections.ts';
+import { CuedVideo } from '../../imagery/CuedVideo.tsx';
 import { useReplayTarget } from '../../record/replayMode.ts';
 
 const clock = (ms: number) => new Date(ms).toTimeString().slice(0, 8);
@@ -62,7 +63,21 @@ export function AiSourcePicker({ nodeId }: { nodeId: string }) {
   </label>;
 }
 
-export function AutodriveCam({ zoom = false, nodeId }: { zoom?: boolean; nodeId?: string }) {
+/**
+ * **탐지 영상 노드** (260929). 고른 주소에 동영상을 붙였고 이 편이 재생 시점을 적었으면(이상 탐지 편 「첫 번째 장치
+ * 이동」) 그 영상을, 아니면 실시간 영상을 그린다. 동영상은 **주소마다 따로**다 — 키가 `autodrive-ai.video@<주소>`.
+ */
+export function AiCuedCam({ zoom = false, nodeId }: { zoom?: boolean; nodeId: string }) {
+  const { base } = useAiSource(nodeId);
+  return <>
+    {zoom && <AiSourcePicker nodeId={nodeId} />}
+    <CuedVideo target="autodrive-ai" storageKey={`autodrive-ai.video@${base}`} zoom={zoom}>
+      <AutodriveCam zoom={zoom} nodeId={nodeId} hidePicker />
+    </CuedVideo>
+  </>;
+}
+
+export function AutodriveCam({ zoom = false, nodeId, hidePicker = false }: { zoom?: boolean; nodeId?: string; hidePicker?: boolean }) {
   useLang();
   const { base } = useAiSource(nodeId);
   const [nonce, setNonce] = useState(0);
@@ -87,7 +102,7 @@ export function AutodriveCam({ zoom = false, nodeId }: { zoom?: boolean; nodeId?
   }
   const src = zoom ? aiStreamUrl(base) : aiFrameUrl(nonce, base);
   return <div className={`detect-cam autodrive-cam${zoom ? ' detect-cam--zoom' : ''}`}>
-    {zoom && nodeId !== undefined && <AiSourcePicker nodeId={nodeId} />}
+    {zoom && nodeId !== undefined && !hidePicker && <AiSourcePicker nodeId={nodeId} />}
     <img
       // 확대는 주소가 안 바뀌어야 스트림이 안 끊긴다. 접힘은 한 장마다 새 요소가 아니라 새 주소다.
       src={src}

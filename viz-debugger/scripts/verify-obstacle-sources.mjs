@@ -96,7 +96,7 @@ if (ko['viewnode.virtual3d'] !== '3D 가상환경') failures.push('3D 가상환�
   choice.setObstacleSource('node-2', null);
   if (choice.obstacleSource('node-1') !== 'http://b.test:7864' || choice.obstacleSource('node-2') !== null) failures.push('노드마다 고른 주소가 따로 남지 않는다');
   const views = read('src', 'autodrive', 'views', 'AutodriveViews.tsx');
-  if (!/export function AiSourcePicker/.test(views) || !/zoom && nodeId !== undefined && <AiSourcePicker/.test(views)) failures.push('탐지 영상 확대에 주소 고르기가 없다');
+  if (!/export function AiSourcePicker/.test(views) || !/\{zoom && <AiSourcePicker nodeId=\{nodeId\} \/>\}/.test(views)) failures.push('탐지 영상 확대에 주소 고르기가 없다');
   for (const kind of ['autodrive-cam', 'obstacle-log']) {
     const block = renderers.slice(renderers.indexOf(`kind: '${kind}'`), renderers.indexOf('},', renderers.indexOf(`kind: '${kind}'`)));
     if (!/nodeId=\{node\?\.id/.test(block)) failures.push(`${kind} 노드가 자기 id 로 주소를 고르지 않는다 — 여러 장이 같은 주소를 본다`);

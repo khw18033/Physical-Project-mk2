@@ -394,7 +394,10 @@ b.follow-live{cursor:default}
 
 /* 확대 = 오버레이. **캔버스를 교체하지 않는다** — 배경(.modal-backdrop 은 반투명)에
    캔버스가 그대로 남아 보이고, 닫으면 정확히 같은 자리다 (지시서 §6). */
-.zoom-modal{width:min(1400px,95vw);max-height:90vh;display:flex;flex-direction:column}
+.zoom-modal{width:min(1800px,97vw);max-height:95vh;display:flex;flex-direction:column}
+/* 화면 가득 (260929). 전체 화면에서는 창 테두리 없이 화면을 다 쓴다. */
+.zoom-modal:fullscreen{width:100vw;max-height:100vh;height:100vh;border-radius:0}
+.zoom-modal__acts{display:flex;gap:6px}
 .zoom-modal__body{flex:1;overflow:auto;padding:14px 18px;background:#f3f5f8}
 .zoom-modal__body>*+*{margin-top:14px}
 .zoom-modal>footer span{color:#6a7686;font-size:12px}
@@ -654,7 +657,7 @@ button.robot-stop:hover{background:#b8271f}
 
 .detect-cam{display:grid;gap:4px}
 .detect-cam img{width:100%;height:auto;display:block;border-radius:5px}
-.detect-cam--zoom img{max-height:min(60vh,620px);object-fit:contain;background:#11161d}
+.detect-cam--zoom img{max-height:78vh;object-fit:contain;background:#11161d}
 .detect-cam__at{font-size:11px;color:#4a5666}
 .detect-strip{display:flex;gap:6px;overflow-x:auto;padding-bottom:4px}
 .detect-strip figure{margin:0;flex:0 0 96px}
@@ -703,7 +706,7 @@ button.robot-stop:hover{background:#b8271f}
 /* 260927 — 장치 두 대 편 · 가상 맵 · 카메라 */
 .vmap{display:grid;gap:5px}
 .vmap__svg{width:100%;height:auto;display:block;background:#f7f9fc;border-radius:5px}
-.vmap--zoom .vmap__svg{max-height:min(62vh,640px)}
+.vmap--zoom .vmap__svg{max-height:78vh}
 .vmap__room{fill:#fff;stroke:#51606f;stroke-width:.08}
 .vmap__grid{stroke:#e3e8ef;stroke-width:.03}
 .vmap__door{stroke:#1f8a4d;stroke-width:.22;stroke-linecap:round}
@@ -716,14 +719,14 @@ button.robot-stop:hover{background:#b8271f}
 .vmap__legend{margin:0;padding:0;list-style:none;display:grid;gap:2px;font-size:11px;color:#26303c}
 .vmap__legend i{display:inline-block;width:14px;height:14px;margin-right:5px;border-radius:50%;color:#fff;font-style:normal;font-size:10px;font-weight:700;text-align:center;line-height:14px}
 .vmap__unity{width:100%;aspect-ratio:16/10;border:0;border-radius:5px;background:#11161d;display:block}
-.vmap--zoom .vmap__unity{height:min(62vh,640px);aspect-ratio:auto}
+.vmap--zoom .vmap__unity{height:78vh;aspect-ratio:auto}
 .vmap__fallback summary{cursor:pointer;font-size:12px}
 .device-cam{display:grid;gap:4px}
 .device-cam__pick{display:flex;flex-wrap:wrap;gap:10px;align-items:center;font-size:12px}
 .device-cam__pick label{display:flex;gap:5px;align-items:center}
 .device-cam__stage{display:grid;gap:3px}
 .device-cam__canvas{width:100%;height:auto;display:block;border-radius:5px;background:#11161d;min-height:40px}
-.device-cam--zoom .device-cam__canvas{max-height:min(60vh,620px);object-fit:contain}
+.device-cam--zoom .device-cam__canvas{max-height:78vh;object-fit:contain}
 .device-cam:not(.device-cam--zoom) .device-cam__canvas{max-height:140px;object-fit:contain}
 .device-cam__meta{margin:0;font-size:11px;color:#4a5666}
 .obstacle-facts--card .robot-log__lines{margin:2px 0 0}
@@ -1046,7 +1049,7 @@ button.robot-resume{padding:6px 12px;border:1px solid #2f9e5f;border-radius:6px;
 .attached-img{display:grid;gap:4px;margin:0}
 .attached-img__still{width:100%;max-height:180px;object-fit:contain;background:#0d1117;border-radius:5px;display:block}
 .attached-img__caption{color:#6a7686;font-size:11px;overflow-wrap:anywhere}
-.attached-img__stage{height:min(66vh,680px);overflow:hidden;background:#0d1117;border-radius:6px;cursor:grab;display:flex;align-items:center;justify-content:center}
+.attached-img__stage{height:78vh;overflow:hidden;background:#0d1117;border-radius:6px;cursor:grab;display:flex;align-items:center;justify-content:center}
 .attached-img__stage.is-dragging{cursor:grabbing}
 .attached-img__stage img{max-width:100%;max-height:100%;object-fit:contain;transform-origin:center;user-select:none}
 /* 연결 관리의 이미지 칸 (260929). 끌어다 놓을 수 있게 칸 전체가 받는다. */
@@ -1063,9 +1066,20 @@ button.robot-resume{padding:6px 12px;border:1px solid #2f9e5f;border-radius:6px;
 .ai-source select{max-width:100%;padding:3px 6px;border:1px solid #c8d0da;border-radius:6px;background:#fff}
 .ai-source small,.ai-source__at{color:#6a7686;font-size:11px}
 .v3d__frame{min-height:220px}
-.vmap--zoom .v3d__frame{min-height:min(66vh,680px)}
+.vmap--zoom .v3d__frame{min-height:78vh}
 /* 다음 장치 출발 승인 (260929). 머리줄에서 눈에 띄어야 한다 — 누르기 전까지 판이 기다린다. */
 .move-gate{border:1px solid #2f7d46;background:#e9f7ee;color:#1f5c33;border-radius:8px;padding:6px 12px;animation:move-gate-pulse 1.6s ease-in-out infinite}
 .move-gate small{color:#2f6b42}
 .move-gate:disabled{animation:none;opacity:.6}
 @keyframes move-gate-pulse{0%,100%{box-shadow:0 0 0 0 #2f7d4600}50%{box-shadow:0 0 0 4px #2f7d4633}}
+/* 붙인 동영상 재생 (260929 — 이상 탐지 편). 카드는 칸에 맞춰, 확대는 크게. */
+.cued-video{display:grid;gap:4px}
+.cued-video video{width:100%;max-height:200px;object-fit:contain;background:#0d1117;border-radius:5px;display:block}
+.cued-video--zoom video{max-height:80vh}
+/* 화면 가득일 때는 안쪽도 화면을 다 쓴다 (260929). */
+.zoom-modal:fullscreen .detect-cam--zoom img,.zoom-modal:fullscreen .vmap--zoom .vmap__svg,.zoom-modal:fullscreen .device-cam--zoom .device-cam__canvas,.zoom-modal:fullscreen .cued-video--zoom video{max-height:86vh}
+.zoom-modal:fullscreen .vmap--zoom .v3d__frame,.zoom-modal:fullscreen .attached-img__stage{min-height:86vh;height:86vh}
+/* 사람이 키운 카드 (260929 — 「크게 늘려도 안이 안 커진다」). 카드 안의 영상 · 지도 · 이미지 · 화면이 고정 상한(140~220px)에
+   묶여 있었다. 키운 카드에서는 카드 높이(`--card-h`)에서 머리줄 · 캡션 자리를 뺀 만큼까지 커진다. */
+.view-node[style*="--card-h"] :is(.device-cam__canvas,.attached-img__still,.cued-video video,.detect-cam img,.vmap__svg){max-height:calc(var(--card-h) - 72px);object-fit:contain}
+.view-node[style*="--card-h"] :is(.vmap__unity,.v3d__frame,.autodrive-cam__page){height:calc(var(--card-h) - 72px);min-height:0;aspect-ratio:auto}

@@ -69,6 +69,7 @@ export const en: Record<string, string> = {
   // 확대 오버레이
   'zoom.noTarget': 'No target',
   'zoom.globalNode': 'Global node · whole mission',
+  'zoom.fullscreen': 'Full screen',
   'zoom.close': 'Close (Esc)',
   'zoom.note': 'Zooming does not replace the canvas — it stays behind, and closing returns you to the same place.',
 
@@ -192,6 +193,13 @@ export const en: Record<string, string> = {
   'conn.target.recon3d.what': 'What the 3D reconstruction node shows. Attach a file or enter an image address — an address takes precedence',
   'conn.field.image': 'Image file',
   'conn.field.imageUrl': 'Image address (optional)',
+  'conn.field.video3dMonitor': 'Video 1 — plays when “Monitor” starts',
+  'conn.field.video3dMove': 'Video 2 — plays when “Move the second device” starts',
+  'conn.field.videoFor': 'Video to play · {url}',
+  'conn.video.none': 'No video attached — choose a file or drop one here',
+  'conn.video.notVideo': 'Not a video file — {type}',
+  'cue.noPicture': 'This browser cannot decode the video picture (codec) — convert to H.264 MP4 and attach again',
+  'cue.cannotOpen': 'Cannot open the video (error {code}) — convert to H.264 MP4 and attach again',
   'conn.image.pick': 'Choose file',
   'conn.image.replace': 'Replace',
   'conn.image.remove': 'Remove',

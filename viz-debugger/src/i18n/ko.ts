@@ -63,6 +63,7 @@ export const ko: Record<string, string> = {
   // 확대 오버레이 — 「캔버스를 교체하지 않는다」가 요지다
   'zoom.noTarget': '대상 없음',
   'zoom.globalNode': '전역 노드 · 임무 전체 구간',
+  'zoom.fullscreen': '화면 가득',
   'zoom.close': '닫기 (Esc)',
   'zoom.note': '확대는 캔버스를 교체하지 않습니다 — 뒤에 그대로 있고, 닫으면 같은 자리입니다.',
 
@@ -191,6 +192,13 @@ export const ko: Record<string, string> = {
   'conn.target.recon3d.what': '3D 복원 노드에 띄울 결과입니다. 파일을 붙이거나 이미지 주소를 넣으세요 — 주소가 있으면 주소가 먼저입니다',
   'conn.field.image': '이미지 파일',
   'conn.field.imageUrl': '이미지 주소 (선택)',
+  'conn.field.video3dMonitor': '재생할 동영상 1 — 「모니터링 진행」 시작 때',
+  'conn.field.video3dMove': '재생할 동영상 2 — 「두 번째 장치 이동」 시작 때',
+  'conn.field.videoFor': '재생할 동영상 · {url}',
+  'conn.video.none': '붙인 동영상이 없습니다 — 파일을 고르거나 여기에 끌어다 놓으세요',
+  'conn.video.notVideo': '동영상 파일이 아닙니다 — {type}',
+  'cue.noPicture': '이 브라우저가 영상 그림을 못 엽니다(코덱) — H.264 MP4 로 바꿔 다시 붙이세요',
+  'cue.cannotOpen': '영상을 열 수 없습니다 (오류 {code}) — H.264 MP4 로 바꿔 다시 붙이세요',
   'conn.image.pick': '파일 고르기',
   'conn.image.replace': '바꾸기',
   'conn.image.remove': '지우기',

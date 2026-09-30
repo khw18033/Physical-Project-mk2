@@ -289,6 +289,22 @@ export function TaskGraph({ tasks, hardware, states, selected, dimUnrelated, onO
   // 「임무 전체」 보기는 열일곱이라, 상수 높이면 아래쪽 노드와 참조 엣지 문구가 잘린다.
   // 바닥값이 **잰 높이**다 (260904) — 작은 그래프도 화면 아래까지 자리를 차지한다. 옛 390 은
   // 16:9 모니터에서 아래를 통째로 비웠고, 노드를 아래로 끌어 놓을 자리도 없었다.
+  const [taskSizes, setTaskSizes] = useState<Record<string, { w: number; h: number }>>({});
+  const [resizing, setResizing] = useState<
+    { id: string; kind: 'task' | 'view'; edge: 'e' | 's' | 'se'; startX: number; startY: number; w: number; h: number } | null
+  >(null);
+  const [viewSize, setViewSize] = useState<{ id: string; w: number; h: number } | null>(null);
+  /**
+   * **뷰 노드의 실제 크기** (260929 — 「크게 늘려도 한계가 있다」). 캔버스 크기를 기본 카드 크기(180×104)로만 쟀더니,
+   * 사람이 키운 카드가 캔버스 끝에서 잘려 더 늘릴 수 없었다. 저장된 크기 · 지금 끌고 있는 크기로 잰다.
+   */
+  const viewBoxOf = (id: string): { w: number; h: number } => {
+    if (viewSize !== null && viewSize.id === id) return { w: viewSize.w, h: viewSize.h };
+    const node = (canvas?.nodes ?? []).find((item) => item.id === id);
+    return { w: node?.w ?? VIEW_NODE_WIDTH, h: node?.h ?? VIEW_NODE_HEIGHT };
+  };
+  /** 크기를 조절하는 동안에는 캔버스에 여유를 둔다 — 끝에 닿으면 더 끌어 늘릴 자리가 없다. */
+  const RESIZE_SLACK = resizing !== null ? 600 : 0;
   const height = Math.max(
     layoutHeight ?? MIN_CANVAS_HEIGHT,
     // 뷰포인트 노드는 낮은 카드다 (260910) — 여기서 기본 높이로 재면 캔버스가 52px 씩
@@ -298,7 +314,7 @@ export function TaskGraph({ tasks, hardware, states, selected, dimUnrelated, onO
       // 되돌아감이 있으면 그 곡선과 문구가 들어갈 자리까지 (260915 — 곡선을 더 깊게 했다).
       + ((refEdges?.length ?? 0) > 0 ? REF_EDGE_DEPTH + 58 : 30)),
     // 뷰 노드가 세로를 밀어낸다 — 캔버스가 따라 커지지 않으면 아래쪽 카드가 잘린다.
-    ...Object.values(viewPositions).map((position) => position.y + VIEW_NODE_HEIGHT + 30),
+    ...Object.entries(viewPositions).map(([id, position]) => position.y + viewBoxOf(id).h + 30 + RESIZE_SLACK),
   );
   // 폭은 **잰 자리 폭**과 실제 내용 중 큰 쪽이다 (260901). 접힌 배치는 잰 폭 안에 들어오므로
   // 보통 자리 폭 그대로이고, 사용자가 노드를 오른쪽으로 끌었거나 접기를 포기한 좁은 창
@@ -306,7 +322,7 @@ export function TaskGraph({ tasks, hardware, states, selected, dimUnrelated, onO
   const width = Math.max(
     layoutWidth,
     ...Object.values(positions).map((position) => position.x + NODE_WIDTH + 30),
-    ...Object.values(viewPositions).map((position) => position.x + VIEW_NODE_WIDTH + 30),
+    ...Object.entries(viewPositions).map(([id, position]) => position.x + viewBoxOf(id).w + 30 + RESIZE_SLACK),
   );
   /**
    * 밴드를 넘어가는 deps — **기준 배치**로 판정한다. 사용자가 노드를 끌었다고 선 모양이
@@ -335,11 +351,6 @@ export function TaskGraph({ tasks, hardware, states, selected, dimUnrelated, onO
    * 태스크 노드는 **이 화면에 사는 동안만** 기억한다 — 자리(`movedPositions`)를 그렇게
    * 두는 것과 같다. 뷰 노드는 사람이 짜 두는 구성이라 좌표와 같은 자리에 저장한다.
    */
-  const [taskSizes, setTaskSizes] = useState<Record<string, { w: number; h: number }>>({});
-  const [resizing, setResizing] = useState<
-    { id: string; kind: 'task' | 'view'; edge: 'e' | 's' | 'se'; startX: number; startY: number; w: number; h: number } | null
-  >(null);
-  const [viewSize, setViewSize] = useState<{ id: string; w: number; h: number } | null>(null);
 
   /**
    * 사람이 **직접 바꾼** 크기. 안 바꿨으면 null 이다.

@@ -70,7 +70,7 @@ import { useDeviceStates } from '../physical/deviceState.ts';
 import { hardwareTarget } from '../physical/encode.ts';
 import { useRobotSession } from '../physical/robotSession.ts';
 import { DetectCam, DetectMap, DetectReason } from '../detect/views/DetectViews.tsx';
-import { AutodriveCam, ObstacleFacts, ObstacleLogCard } from '../autodrive/views/AutodriveViews.tsx';
+import { ObstacleFacts, ObstacleLogCard } from '../autodrive/views/AutodriveViews.tsx';
 import { relayDriven, slotDriven } from '../scenarios/library.ts';
 import { VirtualMap } from '../virtualmap/VirtualMap.tsx';
 import { DeviceCamera } from '../media/views/DeviceCamera.tsx';
@@ -78,6 +78,8 @@ import { resolveSlot } from '../data/slots.ts';
 import { directCameraUrl } from '../physical/cameraView.ts';
 import { AttachedImage } from '../imagery/AttachedImage.tsx';
 import { Virtual3D } from '../virtualmap/Virtual3D.tsx';
+import { CuedVideo } from '../imagery/CuedVideo.tsx';
+import { AiCuedCam } from '../autodrive/views/AutodriveViews.tsx';
 
 /** 화면이 쓰는 로봇 id. 하드웨어 id 로 바꾸는 것은 경계 안쪽(`hardwareTarget`) 일이다. */
 const ROBOT_ENTITY = 'robot-01';
@@ -370,8 +372,9 @@ export const VIEW_NODE_RENDERERS: readonly ViewNodeEntry[] = [
     kind: 'virtual-3d',
     labelKey: 'viewnode.virtual3d',
     hintKey: 'viewnode.virtual3d.hint',
-    summary: () => <NodeGate kind="virtual-3d"><Virtual3D /></NodeGate>,
-    zoom: () => <NodeGate kind="virtual-3d"><Virtual3D zoom /></NodeGate>,
+    // 260929 — 연결 관리에 동영상을 붙였고 이 편이 재생 시점을 적었으면(이상 탐지 편) 그 영상을, 아니면 3D 화면을.
+    summary: () => <NodeGate kind="virtual-3d"><CuedVideo target="virtual-3d" storageKey="virtual-3d.video"><Virtual3D /></CuedVideo></NodeGate>,
+    zoom: () => <NodeGate kind="virtual-3d"><CuedVideo target="virtual-3d" storageKey="virtual-3d.video" zoom><Virtual3D zoom /></CuedVideo></NodeGate>,
   },
   {
     // 260929 — **SAR.** 연결 관리의 「SAR 영상」에 붙인 것을 띄운다(주소가 있으면 주소, 없으면 붙인 파일).
@@ -398,8 +401,9 @@ export const VIEW_NODE_RENDERERS: readonly ViewNodeEntry[] = [
     kind: 'autodrive-cam',
     labelKey: 'viewnode.obstacleVideo',
     hintKey: 'viewnode.obstacleVideo.hint',
-    summary: (_scope, node) => <NodeGate kind="autodrive-cam"><AutodriveCam nodeId={node?.id ?? 'autodrive-cam'} /></NodeGate>,
-    zoom: (_scope, node) => <NodeGate kind="autodrive-cam"><AutodriveCam zoom nodeId={node?.id ?? 'autodrive-cam'} /></NodeGate>,
+    // 260929 — 고른 주소에 동영상을 붙였고 이 편이 재생 시점을 적었으면 그 영상을 튼다(`AiCuedCam`). 주소마다 따로다.
+    summary: (_scope, node) => <NodeGate kind="autodrive-cam"><AiCuedCam nodeId={node?.id ?? 'autodrive-cam'} /></NodeGate>,
+    zoom: (_scope, node) => <NodeGate kind="autodrive-cam"><AiCuedCam zoom nodeId={node?.id ?? 'autodrive-cam'} /></NodeGate>,
   },
   {
     // 탐지 셋 (260912) — 자리표시로 비어 있던 `video-stream` · `detections` · `zone-map`.

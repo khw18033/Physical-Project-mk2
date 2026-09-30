@@ -110,6 +110,16 @@ function subscribe(listener: () => void): () => void {
   return () => { listeners.delete(listener); };
 }
 
+/**
+ * 여러 칸을 한 번에 구독한다 (260929 — 3D 가상환경 영상 둘). 칸 수가 임무마다 달라도 훅 수는 하나다.
+ */
+export function useStoredImages(keys: readonly string[]): Readonly<Record<string, StoredImage | null>> {
+  const snapshot = useSyncExternalStore(subscribe, () => cache, () => cache);
+  const out: Record<string, StoredImage | null> = {};
+  for (const key of keys) out[key] = snapshot[key] ?? storedImage(key);
+  return out;
+}
+
 /** 그리는 쪽이 구독한다 — 연결 관리에서 붙이면 노드가 곧바로 바뀐다. */
 export function useStoredImage(key: string): StoredImage | null {
   return useSyncExternalStore(subscribe, () => storedImage(key), () => storedImage(key));
