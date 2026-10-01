@@ -47,16 +47,22 @@
 2. 서버 기동 (터미널 2개)
 
 2-1. 사진 받는 파일 (서버 터미널 1)
-cd ~/capstone-db && . venv_image/bin/activate
-cd ~/capstone-db/image_server && python3 pano_receiver.py
+※ 먼저 이미 떠 있는지 확인. 떠 있으면 2-1은 건너뛴다 (서버 전체에서 1개만 가능, 포트 중복).
+  ps -eo user,pid,cmd | grep [p]ano_receiver
+
+umask 000
+source /home/dg/capstone-db/venv_image/bin/activate
+cd /home/dg/capstone-db/image_server
+python3 pano_receiver.py
 
 ※ 위의 명령어로도 보통 충분함. 그러나 SSH 세션이 끊기면 같이 죽어서 확실하게 오래 켜둘 거면 아래 명령어를 사용하기:
   nohup python3 pano_receiver.py > pano.log 2>&1 &
   tail -f pano.log
 
 2-2. 자르기+검출+JSON (서버 터미널 2)
-cd ~/capstone-db && . venv_image/bin/activate
-cd ~/capstone-db/docx2026
+umask 000
+source /home/dg/capstone-db/venv_image/bin/activate
+cd /home/dg/capstone-db/docx2026
 python3 anchor360_live.py --u 230 --v -36.35 --pitch -35 \
   --poll 0.1 --no-wait-stable --drop-clipped --max-dist 8 --debug-img
 
