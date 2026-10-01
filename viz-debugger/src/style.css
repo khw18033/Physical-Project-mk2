@@ -1,14 +1,14 @@
-:root{font-family:"Malgun Gothic","Apple SD Gothic Neo","Noto Sans KR",system-ui,sans-serif;color:#17202b;background:#f3f5f8;font-synthesis:none}*{box-sizing:border-box}body{margin:0}button,input{font:inherit}button{cursor:pointer}main{min-width:1180px;padding:22px 28px 40px}.global-bar{min-height:72px;display:grid;grid-template-columns:300px 1fr;align-items:center;gap:20px;padding:12px 18px;background:#fff;border:1px solid #d9dee6;border-radius:10px}.global-bar p{color:#687587;font-size:13px}.global-bar nav,.mission-debugger .toggle{display:flex;gap:7px}.global-bar nav{justify-self:end;flex-wrap:wrap;justify-content:flex-end}.global-bar button,.mission-debugger .toggle button{border:1px solid #cbd3de;background:#fff;border-radius:7px;padding:9px 12px}.mission-debugger .toggle .active{color:#fff;border-color:#1768c5;background:#1768c5}.mission-identity{display:grid!important;grid-template-columns:auto 1fr;gap:3px 8px;text-align:left;border:0!important;padding:0!important}.mission-identity small{grid-column:1/-1;color:#1473d2}.tab-placeholder{min-height:560px;display:grid;place-content:center;justify-items:center;background:#fff;border:1px solid #d9dee6;border-radius:10px}.tab-placeholder>span{display:grid;place-items:center;width:58px;height:58px;border-radius:50%;background:#e7f0fb;color:#1768c5;font-size:28px}.tab-placeholder h1{margin:16px 0 8px}.tab-placeholder strong{color:#1768c5}.tab-placeholder p{color:#687587}.global-panel{position:absolute;z-index:15;right:28px;top:104px;width:430px;padding:16px;background:#fff;border:1px solid #ccd4df;border-radius:10px;box-shadow:0 14px 38px #17202b2b}.global-panel header{display:flex;justify-content:space-between}.global-panel li{margin:10px 0}.standalone{padding-top:22px}
-.milestone-layout{display:grid;grid-template-columns:380px minmax(360px,1fr) 348px;gap:16px}.utterance-panel,.milestone-panel,.hardware-panel,.graph-panel,.history{background:#fff;border:1px solid #d9dee6;border-radius:10px;padding:18px}h2{margin:0 0 14px;font-size:18px}.waveform{color:#659ee4;font-size:25px;letter-spacing:4px;background:#f4f7fb;padding:16px 8px}.utterance-panel blockquote{margin:8px 0 22px;font-weight:700}.utterance-panel dl{display:grid;grid-template-columns:100px 1fr;gap:10px;font-size:13px}.utterance-panel dd{margin:0;font-family:monospace}.progress-steps{display:flex;gap:8px;margin-bottom:14px}.progress-steps span{flex:1;padding:8px;border-bottom:3px solid #35a36a;font-size:12px}.milestone-list{display:grid;gap:9px;align-content:start;flex:1;min-height:0;overflow:auto}.milestone{min-height:75px;display:grid;grid-template-columns:70px 1fr auto;align-items:center;gap:10px;text-align:left;border:2px solid #d6dce5;border-radius:9px;padding:12px;background:#fff}.milestone span{grid-column:2;font-size:12px}.milestone small{grid-column:3;grid-row:1/3;color:#6d7a8b}.hardware-panel article{display:grid;grid-template-columns:1fr auto;gap:5px;padding:11px;margin:8px 0;border:1px solid #d6dce5;border-radius:8px;background:#fff}.hardware-panel article:active{outline:2px solid #1768c5}.hardware-panel article{cursor:grab;user-select:none}.hardware-panel article span{grid-column:1/-1;font-size:12px}.online{color:#168f50}.offline{color:#cc3434}.maintenance{color:#b78000}
-.replay-layout{display:grid;grid-template-columns:240px 1fr;gap:16px}.history button{width:100%;text-align:left;padding:13px 8px;margin-bottom:8px;border:1px solid #d8dee7;border-radius:7px;background:#fff}.section-title{display:flex;justify-content:space-between;align-items:flex-start}.section-title small{color:#657286}.graph-scroll{overflow-x:auto;overflow-y:hidden}.graph-canvas{position:relative;overflow:hidden;margin-top:8px;border-bottom:1px solid #e0e4ea}.edges{position:absolute;inset:0;overflow:visible;pointer-events:none}.edge{fill:none;stroke:#8392a3;stroke-width:2}.edge.dimmed{opacity:.16}.task-node{position:absolute;width:180px;min-height:110px;display:flex;flex-direction:column;gap:7px;text-align:left;padding:10px;border:2px solid #cfd6df;border-radius:9px;background:#fff;color:inherit;cursor:grab;touch-action:none;user-select:none}.task-node:active,.is-dragging .task-node{cursor:grabbing}.task-node small{color:#6b7888}.task-node strong{font-size:14px}.state-label{font-size:13px}.device{border-top:1px dashed #ccd3dc;padding-top:6px;font-size:11px}.task-node.selected{box-shadow:0 0 0 4px #f2baba}.dimmed{opacity:.23}
-.state-pending{border-color:#cbd3dc!important;background:#f7f8fa!important}.state-running{border-color:#4c8fe8!important;background:#e9f2ff!important}.state-done{border-color:#55b77a!important;background:#edf9f1!important}.state-failed{border-color:#e15a5a!important;background:#fff0f0!important}.state-skipped{border:2px dashed #d4ad44!important;background:#fff9e9!important}.state-awaiting_evaluation,.state-awaiting{border-color:#9a6bd8!important;background:#f5efff!important}.state-not_executed,.state-not-executed{border:2px dashed #9ba7b5!important;background:repeating-linear-gradient(135deg,#f2f4f6,#f2f4f6 7px,#e7eaee 7px,#e7eaee 14px)!important}.state-rerunning{border:3px double #ed8c42!important;background:#fff2e7!important}.legend{display:flex;flex-wrap:wrap;gap:8px;padding-top:12px}.legend span{padding:6px 9px;border:2px solid;border-radius:6px;font-size:12px}.hint{color:#687587;font-size:12px}
+:root{--radius-xs:4px;--radius-sm:6px;--radius-md:8px;--radius-lg:10px;--radius-xl:12px;font-family:"Malgun Gothic","Apple SD Gothic Neo","Noto Sans KR",system-ui,sans-serif;color:#17202b;background:#f3f5f8;font-synthesis:none}*{box-sizing:border-box}body{margin:0}button,input{font:inherit}button{cursor:pointer}main{min-width:1180px;padding:22px 28px 40px}.global-bar{min-height:72px;display:grid;grid-template-columns:300px 1fr;align-items:center;gap:20px;padding:12px 18px;background:#fff;border:1px solid #d9dee6;border-radius:var(--radius-lg)}.global-bar p{color:#687587;font-size:13px}.global-bar nav,.mission-debugger .toggle{display:flex;gap:7px}.global-bar nav{justify-self:end;flex-wrap:wrap;justify-content:flex-end}.global-bar button,.mission-debugger .toggle button{border:1px solid #cbd3de;background:#fff;border-radius:var(--radius-sm);padding:9px 12px}.mission-debugger .toggle .active{color:#fff;border-color:#1768c5;background:#1768c5}.mission-identity{display:grid!important;grid-template-columns:auto 1fr;gap:3px 8px;text-align:left;border:0!important;padding:0!important}.mission-identity small{grid-column:1/-1;color:#1473d2}.tab-placeholder{min-height:560px;display:grid;place-content:center;justify-items:center;background:#fff;border:1px solid #d9dee6;border-radius:var(--radius-lg)}.tab-placeholder>span{display:grid;place-items:center;width:58px;height:58px;border-radius:50%;background:#e7f0fb;color:#1768c5;font-size:28px}.tab-placeholder h1{margin:16px 0 8px}.tab-placeholder strong{color:#1768c5}.tab-placeholder p{color:#687587}.global-panel{position:absolute;z-index:15;right:28px;top:104px;width:430px;padding:16px;background:#fff;border:1px solid #ccd4df;border-radius:var(--radius-lg);box-shadow:0 14px 38px #17202b2b}.global-panel header{display:flex;justify-content:space-between}.global-panel li{margin:10px 0}.standalone{padding-top:22px}
+.milestone-layout{display:grid;grid-template-columns:380px minmax(360px,1fr) 348px;gap:16px}.utterance-panel,.milestone-panel,.hardware-panel,.graph-panel,.history{background:#fff;border:1px solid #d9dee6;border-radius:var(--radius-lg);padding:18px}h2{margin:0 0 14px;font-size:18px}.waveform{color:#659ee4;font-size:25px;letter-spacing:4px;background:#f4f7fb;padding:16px 8px}.utterance-panel blockquote{margin:8px 0 22px;font-weight:700}.utterance-panel dl{display:grid;grid-template-columns:100px 1fr;gap:10px;font-size:13px}.utterance-panel dd{margin:0;font-family:monospace}.progress-steps{display:flex;gap:8px;margin-bottom:14px}.progress-steps span{flex:1;padding:8px;border-bottom:3px solid #35a36a;font-size:12px}.milestone-list{display:grid;gap:9px;align-content:start;flex:1;min-height:0;overflow:auto}.milestone{min-height:75px;display:grid;grid-template-columns:70px 1fr auto;align-items:center;gap:10px;text-align:left;border:2px solid #d6dce5;border-radius:var(--radius-md);padding:12px;background:#fff}.milestone span{grid-column:2;font-size:12px}.milestone small{grid-column:3;grid-row:1/3;color:#6d7a8b}.hardware-panel article{display:grid;grid-template-columns:1fr auto;gap:5px;padding:11px;margin:8px 0;border:1px solid #d6dce5;border-radius:var(--radius-md);background:#fff}.hardware-panel article:active{outline:2px solid #1768c5}.hardware-panel article{cursor:grab;user-select:none}.hardware-panel article span{grid-column:1/-1;font-size:12px}.online{color:#168f50}.offline{color:#cc3434}.maintenance{color:#b78000}
+.replay-layout{display:grid;grid-template-columns:240px 1fr;gap:16px}.history button{width:100%;text-align:left;padding:13px 8px;margin-bottom:8px;border:1px solid #d8dee7;border-radius:var(--radius-sm);background:#fff}.section-title{display:flex;justify-content:space-between;align-items:flex-start}.section-title small{color:#657286}.graph-scroll{overflow-x:auto;overflow-y:hidden}.graph-canvas{position:relative;overflow:hidden;margin-top:8px;border-bottom:1px solid #e0e4ea}.edges{position:absolute;inset:0;overflow:visible;pointer-events:none}.edge{fill:none;stroke:#8392a3;stroke-width:2}.edge.dimmed{opacity:.16}.task-node{position:absolute;width:180px;min-height:110px;display:flex;flex-direction:column;gap:7px;text-align:left;padding:10px;border:2px solid #cfd6df;border-radius:var(--radius-md);background:#fff;color:inherit;cursor:grab;touch-action:none;user-select:none}.task-node:active,.is-dragging .task-node{cursor:grabbing}.task-node small{color:#6b7888}.task-node strong{font-size:14px}.state-label{font-size:13px}.device{border-top:1px dashed #ccd3dc;padding-top:6px;font-size:11px}.task-node.selected{box-shadow:0 0 0 4px #f2baba}.dimmed{opacity:.23}
+.state-pending{border-color:#cbd3dc!important;background:#f7f8fa!important}.state-running{border-color:#4c8fe8!important;background:#e9f2ff!important}.state-done{border-color:#55b77a!important;background:#edf9f1!important}.state-failed{border-color:#e15a5a!important;background:#fff0f0!important}.state-skipped{border:2px dashed #d4ad44!important;background:#fff9e9!important}.state-awaiting_evaluation,.state-awaiting{border-color:#9a6bd8!important;background:#f5efff!important}.state-not_executed,.state-not-executed{border:2px dashed #9ba7b5!important;background:repeating-linear-gradient(135deg,#f2f4f6,#f2f4f6 7px,#e7eaee 7px,#e7eaee 14px)!important}.state-rerunning{border:3px double #ed8c42!important;background:#fff2e7!important}.legend{display:flex;flex-wrap:wrap;gap:8px;padding-top:12px}.legend span{padding:6px 9px;border:2px solid;border-radius:var(--radius-sm);font-size:12px}.hint{color:#687587;font-size:12px}
 .replay-controls{padding-top:12px}.replay-controls>div:first-child{display:flex;gap:5px;align-items:center}.replay-controls button{padding:5px 9px}.replay-controls input[type=range]{width:100%;margin:12px 0}.timelines{display:grid;gap:4px}.timelines>div{display:grid;grid-template-columns:55px 1fr}.mission-debugger .timeline{position:relative;display:flex;height:13px;border:1px solid #d1d7df}.mission-debugger .timeline em{display:block;height:100%;border:0!important;border-radius:0!important}.mission-debugger .timeline i{position:absolute;top:-4px;width:2px;height:19px;background:#145fb4}
 /* 사람 조작 줄 (260904 · VZ-D-08) — 태스크 줄과 같은 축, 다만 구간이 아니라 순간이라 점이다. */
 .timelines>div.timeline-human{grid-template-columns:55px 1fr auto;gap:8px;align-items:center;margin-top:4px;border-top:1px dashed #d1d7df;padding-top:6px}
 .timeline-human small{color:#5d6b7a;font-size:11px;white-space:nowrap}
 .mission-debugger .timeline-human .timeline{border-style:dashed}
 .mission-debugger .timeline b.human-mark{position:absolute;top:-3px;width:3px;height:17px;margin-left:-1px;background:#b4530f;border-radius:1px}
-.modal-backdrop{position:fixed;inset:0;z-index:20;display:grid;place-items:center;padding:55px;background:#1a222c55}.modal{width:min(1280px,94vw);max-height:88vh;overflow:auto;background:#fff;border-radius:12px;box-shadow:0 20px 70px #1e293b55}.modal>header,.modal>footer{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:16px 22px;border-bottom:1px solid #dce1e8}.modal h2{margin:0 0 5px}.device-strip{display:grid;grid-template-columns:1.2fr repeat(6,1fr);gap:14px;padding:15px 22px;background:#eef5fb}.device-strip b,.device-strip span{display:flex;flex-direction:column;gap:5px}.device-strip small{font-weight:400}.modal-grid{display:grid;grid-template-columns:1fr 300px}.modal table{width:calc(100% - 32px);border-collapse:collapse;margin:16px}.modal th,.modal td{padding:12px;border-bottom:1px solid #e1e5eb;text-align:left}.modal td small{display:block}.modal aside{padding:18px;border-left:1px solid #e1e5eb}.modal footer{border-top:1px solid #dce1e8;border-bottom:0;justify-content:flex-end}.modal footer span{margin-right:auto;color:#6a7686}.modal footer button,.modal>header button,.failure-open{padding:9px 13px;border:1px solid #bec8d5;background:#fff;border-radius:7px}.modal footer button:last-child{color:#fff;background:#1768c5}.failure-reason{margin:16px 22px;padding:15px;border:1px solid #efb2b2;background:#fff0f0}.parameter-form{display:grid;gap:12px;padding:15px 22px 35px}.parameter-form label{display:grid;grid-template-columns:200px 160px 1fr;gap:8px;align-items:center}.parameter-form input{padding:8px;border:1px solid #1768c5}.failure-open{position:fixed;right:45px;bottom:35px;color:#fff;background:#c62f35}
+.modal-backdrop{position:fixed;inset:0;z-index:20;display:grid;place-items:center;padding:55px;background:#1a222c55}.modal{width:min(1280px,94vw);max-height:88vh;overflow:auto;background:#fff;border-radius:var(--radius-xl);box-shadow:0 20px 70px #1e293b55}.modal>header,.modal>footer{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:16px 22px;border-bottom:1px solid #dce1e8}.modal h2{margin:0 0 5px}.device-strip{display:grid;grid-template-columns:1.2fr repeat(6,1fr);gap:14px;padding:15px 22px;background:#eef5fb}.device-strip b,.device-strip span{display:flex;flex-direction:column;gap:5px}.device-strip small{font-weight:400}.modal-grid{display:grid;grid-template-columns:1fr 300px}.modal table{width:calc(100% - 32px);border-collapse:collapse;margin:16px}.modal th,.modal td{padding:12px;border-bottom:1px solid #e1e5eb;text-align:left}.modal td small{display:block}.modal aside{padding:18px;border-left:1px solid #e1e5eb}.modal footer{border-top:1px solid #dce1e8;border-bottom:0;justify-content:flex-end}.modal footer span{margin-right:auto;color:#6a7686}.modal footer button,.modal>header button,.failure-open{padding:9px 13px;border:1px solid #bec8d5;background:#fff;border-radius:var(--radius-sm)}.modal footer button:last-child{color:#fff;background:#1768c5}.failure-reason{margin:16px 22px;padding:15px;border:1px solid #efb2b2;background:#fff0f0}.parameter-form{display:grid;gap:12px;padding:15px 22px 35px}.parameter-form label{display:grid;grid-template-columns:200px 160px 1fr;gap:8px;align-items:center}.parameter-form input{padding:8px;border:1px solid #1768c5}.failure-open{position:fixed;right:45px;bottom:35px;color:#fff;background:#c62f35}
 /* 실패 사유가 비었을 때 — **비었다는 것 자체가 정보다.** 붉게 칠하지 않는다. */
 .failure-reason--empty{color:#6a7686}
 /* 로봇과 실제로 오간 것. 지어낸 문장이 없으므로 값이 그대로 읽히게만 한다. */
@@ -17,12 +17,12 @@
 .modal-grid__left table{width:100%;margin:16px 0 0}
 .robot-log{display:grid;gap:12px}
 .robot-log__empty{margin:0;color:#6a7686;font-size:13px}
-.robot-log__cmd{border:1px solid #dde3ea;border-radius:8px;padding:10px 12px}
+.robot-log__cmd{border:1px solid #dde3ea;border-radius:var(--radius-md);padding:10px 12px}
 .robot-log__cmd.is-failed{border-color:#efb2b2;background:#fff7f7}
 .robot-log__cmd.is-done{border-color:#bfe0cd}
 .robot-log__cmd>header{display:flex;flex-wrap:wrap;align-items:baseline;gap:8px;padding:0;border:0}
 .robot-log__cmd>header b{font-size:13px}
-.robot-log__cmd>header span{padding:1px 8px;border-radius:9px;background:#eef1f5;color:#4a5666;font-size:11px}
+.robot-log__cmd>header span{padding:1px 8px;border-radius:var(--radius-md);background:#eef1f5;color:#4a5666;font-size:11px}
 .robot-log__cmd>header code{margin-left:auto;color:#8a94a1;font-size:11px}
 .robot-log__params{margin:6px 0 0;font-size:12px;color:#26303c;font-variant-numeric:tabular-nums}
 .robot-log__lines{margin:8px 0 0;padding:0;list-style:none;display:grid;gap:3px}
@@ -61,14 +61,14 @@
 }
 .detect-log__lines li{display:contents}
 .detect-log__lines time{color:#8a94a1;font-variant-numeric:tabular-nums}
-.detect-log__lines em{font-style:normal;font-size:10.5px;padding:1px 6px;border-radius:9px;background:#eef1f5;color:#4a5666;align-self:start;text-align:center;white-space:nowrap}
+.detect-log__lines em{font-style:normal;font-size:10.5px;padding:1px 6px;border-radius:var(--radius-md);background:#eef1f5;color:#4a5666;align-self:start;text-align:center;white-space:nowrap}
 .detect-log__lines .lane-robot em{background:#e8f0fb;color:#2f5f9c}
 .detect-log__lines .lane-detect em{background:#eaf6ef;color:#2f6f52}
 .detect-log__lines code{grid-column:3;color:#6b7888;font-size:11px;word-break:break-all}
 .detect-log__lines .is-warn span{color:#8a5a00;font-weight:600}
 .detect-log__lines .is-error span{color:#b3261e;font-weight:600}
 /* 준비 두 걸음이 받아 온 값 (260914) — T-A1 도면·문 자리, T-A2 로봇 방위. */
-.prep-facts{margin:0 0 12px;padding:10px 12px;border:1px solid #dde3ea;border-radius:8px;background:#fbfcfd}
+.prep-facts{margin:0 0 12px;padding:10px 12px;border:1px solid #dde3ea;border-radius:var(--radius-md);background:#fbfcfd}
 .prep-facts h3{margin:0 0 6px}
 .prep-facts dl{display:grid;gap:4px;margin:0}
 .prep-facts dl>div{display:grid;grid-template-columns:120px 1fr;gap:8px;font-size:12.5px}
@@ -94,12 +94,12 @@
 .history-empty{margin:0;color:#6a7686;font-size:13px;display:grid;gap:4px}
 .history-empty small{color:#8a94a1}
 .history-list ul{margin:0;padding:0;list-style:none;display:grid;gap:6px}
-.history-list li{display:flex;flex-wrap:wrap;align-items:baseline;gap:7px;padding:8px 10px;border:1px solid #dde3ea;border-radius:7px;font-size:12px}
+.history-list li{display:flex;flex-wrap:wrap;align-items:baseline;gap:7px;padding:8px 10px;border:1px solid #dde3ea;border-radius:var(--radius-sm);font-size:12px}
 .history-list li.is-done{border-color:#bfe0cd;background:#f4fbf7}
 .history-list li.is-failed{border-color:#efb2b2;background:#fff7f7}
 .history-list li.is-stopped{border-color:#e2c79a;background:#fdfaf3}
 .history-list b{font-size:13px}
-.history-outcome{padding:1px 8px;border-radius:9px;background:#eef1f5;color:#39434f;font-weight:700}
+.history-outcome{padding:1px 8px;border-radius:var(--radius-md);background:#eef1f5;color:#39434f;font-weight:700}
 .history-list .is-done .history-outcome{background:#d8efe2;color:#125c33}
 .history-list .is-failed .history-outcome{background:#fbdcda;color:#8f2b26}
 .history-list .is-stopped .history-outcome{background:#f6e6c8;color:#7a4d08}
@@ -117,18 +117,18 @@
 .history-list li time{margin-left:0;color:#4a5666}
 .history-list li.is-open{border-style:dashed}
 .history-list li.is-replaying{box-shadow:0 0 0 2px #1768c5}
-.history .history-action,.history-list .history-action{width:auto;margin:0 0 0 auto;padding:2px 9px;border:1px solid #b9c6d6;border-radius:6px;background:#f4f7fb;font-size:11px;text-align:center;cursor:pointer}
+.history .history-action,.history-list .history-action{width:auto;margin:0 0 0 auto;padding:2px 9px;border:1px solid #b9c6d6;border-radius:var(--radius-sm);background:#f4f7fb;font-size:11px;text-align:center;cursor:pointer}
 .history-list .history-action:disabled{opacity:.5;cursor:default}
 .history-note .history-action{margin-left:6px}
 .history-recorder{margin:0 0 8px;font-size:11px;color:#125c33}
 .history-recorder code,.history-note code,.history-replaying code{font-size:10px;word-break:break-all}
-.history-replaying{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:0 0 10px;padding:8px 10px;border:1px solid #9cc0ea;border-radius:7px;background:#eef5fd;font-size:12px}
+.history-replaying{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:0 0 10px;padding:8px 10px;border:1px solid #9cc0ea;border-radius:var(--radius-sm);background:#eef5fd;font-size:12px}
 .history-replaying small{flex-basis:100%;color:#4a5666}
 /* 통합 알림 (260913) — 어느 갈래·언제·무슨 일인지 셋을 한 줄에. 문구는 온 값 그대로다. */
 .notifications-empty{margin:0;color:#6a7686;font-size:13px}
 .notification-list{margin:0;padding:0;list-style:none;display:grid;gap:6px}
-.notification-list li{display:grid;grid-template-columns:auto auto 1fr;align-items:baseline;gap:8px;padding:8px 10px;border:1px solid #dde3ea;border-radius:7px;font-size:12px;line-height:1.5}
-.notification-list b{padding:1px 8px;border-radius:9px;background:#eef1f5;color:#39434f;font-size:11px}
+.notification-list li{display:grid;grid-template-columns:auto auto 1fr;align-items:baseline;gap:8px;padding:8px 10px;border:1px solid #dde3ea;border-radius:var(--radius-sm);font-size:12px;line-height:1.5}
+.notification-list b{padding:1px 8px;border-radius:var(--radius-md);background:#eef1f5;color:#39434f;font-size:11px}
 .notification-list time{color:#8a94a1;font-variant-numeric:tabular-nums}
 .notification-list .is-robot{border-color:#efb2b2;background:#fff7f7}
 .notification-list .is-robot b{background:#fbdcda;color:#8f2b26}
@@ -153,12 +153,12 @@ main:has(.milestone-layout) .milestone-layout{flex:1;min-height:0}
 .milestone-layout>.milestone-panel,
 .milestone-layout>.hardware-panel{min-height:0;display:flex;flex-direction:column;overflow:auto}
 .milestone-layout>.hardware-panel>article{flex:0 0 auto}
-.waveform{display:flex;align-items:flex-end;gap:2px;height:62px;padding:6px 8px;background:#f4f7fb;font-size:0}.waveform i{flex:1;min-height:3px;background:#b9cde6;border-radius:1px;transition:height .06s linear}.waveform.live i{background:#2f7fd6}.stt-controls{display:flex;align-items:center;gap:8px;margin:10px 0 6px;font-size:12px;flex-wrap:wrap}.stt-controls>button{padding:7px 11px;border:1px solid #cbd3de;border-radius:7px;background:#fff}.stt-controls>button:disabled{color:#9aa5b3;background:#f2f4f7}.stt-controls .rec-stop{color:#fff;border-color:#c62f35;background:#c62f35}.file-fallback input{width:104px;font-size:11px}.hotword-toggle{display:flex;align-items:center;gap:4px}.stt-lang{display:flex;align-items:center;gap:4px}.stt-lang select{padding:3px 4px;border:1px solid #cbd3de;border-radius:5px;background:#fff;font:inherit;font-size:11px}.stt-note{margin:6px 0;color:#687587;font-size:12px}.stt-error{margin:6px 0;padding:8px;border:1px solid #efb2b2;background:#fff0f0;color:#8f2b2b;font-size:12px}.stt-error small{display:block;margin-top:5px;font-family:monospace;white-space:pre-wrap;color:#a35a5a}.stt-issued{margin:8px 0 0;padding:8px;border:1px solid #b7ddc4;background:#eef9f1;font-size:12px}.progress-steps span{border-bottom-color:#cbd3dc;color:#8a95a3}.progress-steps .step-active{border-bottom-color:#4c8fe8;color:#17202b}.progress-steps .step-done{border-bottom-color:#35a36a;color:#17202b}.progress-steps .step-failed{border-bottom-color:#d94b4b;color:#a83232}.progress-steps .step-mock{border-bottom:3px dashed #b9c2cd;background:repeating-linear-gradient(135deg,#fafbfc,#fafbfc 6px,#f1f3f6 6px,#f1f3f6 12px)}.progress-steps .step-mock b{margin-right:3px;padding:1px 4px;border-radius:3px;background:#e3e7ec;color:#5f6b7a;font-size:10px}.transcript-edit{display:grid;gap:4px;margin:12px 0 6px;font-size:12px}.transcript-edit textarea,.manual-input textarea{width:100%;padding:8px;border:1px solid #1768c5;border-radius:6px;font:inherit;font-size:13px;resize:vertical}.transcript-original{margin:0 0 10px;color:#7a6a2f;font-size:12px}.transcript-original small{display:block;color:#98a2b0}.utterance-panel dd small{display:block;color:#8a95a3;font-weight:400}.verdict-accept{color:#168f50}.verdict-confirm{color:#a97a00}.verdict-reject{color:#cc3434}.stt-numbers{margin:12px 0;border:1px solid #dfe4ea;border-radius:7px;background:#fafbfc;font-size:12px}.stt-numbers>summary{padding:8px 10px;cursor:pointer}.stt-numbers>*:not(summary){margin:0;padding:0 12px 10px}.stt-numbers dl{display:grid;grid-template-columns:130px 1fr;gap:6px;font-family:monospace}.stt-numbers ul{padding-left:28px}.reconfirm{display:flex;align-items:flex-start;gap:6px;margin:8px 0;font-size:12px}.submit-utterance{width:100%;padding:10px;border:1px solid #1768c5;border-radius:7px;background:#1768c5;color:#fff}.submit-utterance:disabled{border-color:#c8d0da;background:#eef1f5;color:#98a2b0}.manual-input{margin-top:14px;border-top:1px dashed #d6dce5;padding-top:10px;font-size:12px}.manual-input summary{cursor:pointer;font-weight:700}.manual-input button{margin-top:6px;padding:7px 11px;border:1px solid #cbd3de;border-radius:7px;background:#fff}
+.waveform{display:flex;align-items:flex-end;gap:2px;height:62px;padding:6px 8px;background:#f4f7fb;font-size:0}.waveform i{flex:1;min-height:3px;background:#b9cde6;border-radius:1px;transition:height .06s linear}.waveform.live i{background:#2f7fd6}.stt-controls{display:flex;align-items:center;gap:8px;margin:10px 0 6px;font-size:12px;flex-wrap:wrap}.stt-controls>button{padding:7px 11px;border:1px solid #cbd3de;border-radius:var(--radius-sm);background:#fff}.stt-controls>button:disabled{color:#9aa5b3;background:#f2f4f7}.stt-controls .rec-stop{color:#fff;border-color:#c62f35;background:#c62f35}.file-fallback input{width:104px;font-size:11px}.hotword-toggle{display:flex;align-items:center;gap:4px}.stt-lang{display:flex;align-items:center;gap:4px}.stt-lang select{padding:3px 4px;border:1px solid #cbd3de;border-radius:var(--radius-xs);background:#fff;font:inherit;font-size:11px}.stt-note{margin:6px 0;color:#687587;font-size:12px}.stt-error{margin:6px 0;padding:8px;border:1px solid #efb2b2;background:#fff0f0;color:#8f2b2b;font-size:12px}.stt-error small{display:block;margin-top:5px;font-family:monospace;white-space:pre-wrap;color:#a35a5a}.stt-issued{margin:8px 0 0;padding:8px;border:1px solid #b7ddc4;background:#eef9f1;font-size:12px}.progress-steps span{border-bottom-color:#cbd3dc;color:#8a95a3}.progress-steps .step-active{border-bottom-color:#4c8fe8;color:#17202b}.progress-steps .step-done{border-bottom-color:#35a36a;color:#17202b}.progress-steps .step-failed{border-bottom-color:#d94b4b;color:#a83232}.progress-steps .step-mock{border-bottom:3px dashed #b9c2cd;background:repeating-linear-gradient(135deg,#fafbfc,#fafbfc 6px,#f1f3f6 6px,#f1f3f6 12px)}.progress-steps .step-mock b{margin-right:3px;padding:1px 4px;border-radius:3px;background:#e3e7ec;color:#5f6b7a;font-size:10px}.transcript-edit{display:grid;gap:4px;margin:12px 0 6px;font-size:12px}.transcript-edit textarea,.manual-input textarea{width:100%;padding:8px;border:1px solid #1768c5;border-radius:var(--radius-sm);font:inherit;font-size:13px;resize:vertical}.transcript-original{margin:0 0 10px;color:#7a6a2f;font-size:12px}.transcript-original small{display:block;color:#98a2b0}.utterance-panel dd small{display:block;color:#8a95a3;font-weight:400}.verdict-accept{color:#168f50}.verdict-confirm{color:#a97a00}.verdict-reject{color:#cc3434}.stt-numbers{margin:12px 0;border:1px solid #dfe4ea;border-radius:var(--radius-sm);background:#fafbfc;font-size:12px}.stt-numbers>summary{padding:8px 10px;cursor:pointer}.stt-numbers>*:not(summary){margin:0;padding:0 12px 10px}.stt-numbers dl{display:grid;grid-template-columns:130px 1fr;gap:6px;font-family:monospace}.stt-numbers ul{padding-left:28px}.reconfirm{display:flex;align-items:flex-start;gap:6px;margin:8px 0;font-size:12px}.submit-utterance{width:100%;padding:10px;border:1px solid #1768c5;border-radius:var(--radius-sm);background:#1768c5;color:#fff}.submit-utterance:disabled{border-color:#c8d0da;background:#eef1f5;color:#98a2b0}.manual-input{margin-top:14px;border-top:1px dashed #d6dce5;padding-top:10px;font-size:12px}.manual-input summary{cursor:pointer;font-weight:700}.manual-input button{margin-top:6px;padding:7px 11px;border:1px solid #cbd3de;border-radius:var(--radius-sm);background:#fff}
 .progress-steps{display:grid;grid-template-columns:repeat(auto-fit,minmax(96px,1fr));gap:6px}.progress-steps span{padding:7px 6px;font-size:11px;line-height:1.35;word-break:keep-all}.milestone{grid-template-columns:62px 1fr auto}.milestone small{max-width:96px;font-size:11px;line-height:1.35;text-align:right;word-break:keep-all}
-.file-fallback{padding:7px 11px;border:1px solid #cbd3de;border-radius:7px;background:#fff;cursor:pointer}.file-fallback input{display:none}.file-fallback.is-disabled{color:#9aa5b3;background:#f2f4f7;cursor:default}.stt-hint{margin:0 0 10px;color:#687587;font-size:11px;line-height:1.5}.stt-hint code{padding:0 3px;border-radius:3px;background:#eef1f5;font-size:11px}
-.tab-stage--ported{margin-top:0}.tab-stage--ported .board{padding:0}.board--embedded{margin-top:14px;padding:14px;border:1px solid #d9dee6;border-radius:10px;background:#fbfcfd}.board--embedded .board__title{font-size:16px;margin:0}.global-bar .conn{align-self:center;padding:6px 10px;border-radius:7px;font-size:12px;white-space:nowrap}.global-bar .conn--open{background:#eef9f1;color:#168f50}.global-bar .conn--connecting,.global-bar .conn--reconnecting{background:#fff6e6;color:#a97a00}.global-bar .conn--closed{background:#fff0f0;color:#cc3434}
+.file-fallback{padding:7px 11px;border:1px solid #cbd3de;border-radius:var(--radius-sm);background:#fff;cursor:pointer}.file-fallback input{display:none}.file-fallback.is-disabled{color:#9aa5b3;background:#f2f4f7;cursor:default}.stt-hint{margin:0 0 10px;color:#687587;font-size:11px;line-height:1.5}.stt-hint code{padding:0 3px;border-radius:3px;background:#eef1f5;font-size:11px}
+.tab-stage--ported{margin-top:0}.tab-stage--ported .board{padding:0}.board--embedded{margin-top:14px;padding:14px;border:1px solid #d9dee6;border-radius:var(--radius-lg);background:#fbfcfd}.board--embedded .board__title{font-size:16px;margin:0}.global-bar .conn{align-self:center;padding:6px 10px;border-radius:var(--radius-sm);font-size:12px;white-space:nowrap}.global-bar .conn--open{background:#eef9f1;color:#168f50}.global-bar .conn--connecting,.global-bar .conn--reconnecting{background:#fff6e6;color:#a97a00}.global-bar .conn--closed{background:#fff0f0;color:#cc3434}
 .insight--embedded{margin-bottom:16px}.insight--embedded .board__title{font-size:17px;margin:0}
-.pending{display:flex;flex-direction:column;gap:10px;padding:16px 18px;border:2px dashed #b6c2d2;border-radius:10px;background:repeating-linear-gradient(135deg,#fbfcfe,#fbfcfe 10px,#f3f6fa 10px,#f3f6fa 20px);color:#3c4a5c}.pending--fill{height:100%}.pending__head{display:flex;align-items:baseline;gap:9px;flex-wrap:wrap}.pending__mark{padding:3px 8px;border-radius:20px;background:#1768c5;color:#fff;font-size:11px;letter-spacing:.5px}.pending__title{margin:0;font-size:15px}.pending__rows{display:grid;grid-template-columns:78px 1fr;gap:7px 12px;margin:0;font-size:12.5px;line-height:1.55}.pending__rows dt{color:#6b7888;font-weight:700}.pending__rows dd{margin:0}.pending__from{display:grid;gap:4px;margin:0;padding:0;list-style:none}.pending__from li{display:flex;align-items:baseline;gap:6px;flex-wrap:wrap}.pending__part{flex:none;min-width:48px;padding:1px 6px;border-radius:4px;font-size:11px;text-align:center}.pending__part--하드웨어{background:#e6f1e8;color:#1f6b3a}.pending__part--AI{background:#efe8fb;color:#5a3ba0}.pending__part--백엔드{background:#e5eefb;color:#14508f}.pending code{padding:0 4px;border-radius:3px;background:#e7ecf3;font-size:11.5px}.pending__why{display:block;color:#7d8896;font-size:11.5px}.pending__missing{display:inline-block;padding:2px 8px;border-radius:5px;background:#c62f35;color:#fff;font-size:12px}.pending--inline{display:inline-flex;align-items:baseline;gap:6px;padding:2px 8px;border:1px dashed #b6c2d2;border-radius:6px;background:#f5f8fc;color:#4a5768;font-size:11.5px;font-weight:400;white-space:normal}.pending--inline b{font-weight:700}.pending--inline em{color:#7d8896;font-style:normal}.pending--inline .pending__missing{padding:0 5px;font-size:11px}.mockwrap{position:relative;border:2px solid #e0a33a;border-radius:10px;padding:22px 8px 8px}.mockwrap--inline{display:inline-block;padding:14px 4px 2px}.mockwrap__badge{position:absolute;top:2px;left:8px;padding:1px 7px;border-radius:4px;background:#e0a33a;color:#3a2c08;font-size:10.5px;font-weight:700;letter-spacing:.3px}.mock-banner{position:sticky;top:0;z-index:30;margin:-22px -28px 14px;padding:9px 28px;background:#c62f35;color:#fff;font-size:13px}.mock-toggle{align-self:center;padding:9px 12px;border:1px solid #cbd3de;border-radius:7px;background:#fff;font-size:13px;white-space:nowrap}.mock-toggle--on{border-color:#c62f35;background:#c62f35;color:#fff}.global-bar p small{display:block;margin-top:3px;color:#8794a4;font-size:11.5px;line-height:1.5}
+.pending{display:flex;flex-direction:column;gap:10px;padding:16px 18px;border:2px dashed #b6c2d2;border-radius:var(--radius-lg);background:repeating-linear-gradient(135deg,#fbfcfe,#fbfcfe 10px,#f3f6fa 10px,#f3f6fa 20px);color:#3c4a5c}.pending--fill{height:100%}.pending__head{display:flex;align-items:baseline;gap:9px;flex-wrap:wrap}.pending__mark{padding:3px 8px;border-radius:999px;background:#1768c5;color:#fff;font-size:11px;letter-spacing:.5px}.pending__title{margin:0;font-size:15px}.pending__rows{display:grid;grid-template-columns:78px 1fr;gap:7px 12px;margin:0;font-size:12.5px;line-height:1.55}.pending__rows dt{color:#6b7888;font-weight:700}.pending__rows dd{margin:0}.pending__from{display:grid;gap:4px;margin:0;padding:0;list-style:none}.pending__from li{display:flex;align-items:baseline;gap:6px;flex-wrap:wrap}.pending__part{flex:none;min-width:48px;padding:1px 6px;border-radius:var(--radius-xs);font-size:11px;text-align:center}.pending__part--하드웨어{background:#e6f1e8;color:#1f6b3a}.pending__part--AI{background:#efe8fb;color:#5a3ba0}.pending__part--백엔드{background:#e5eefb;color:#14508f}.pending code{padding:0 4px;border-radius:3px;background:#e7ecf3;font-size:11.5px}.pending__why{display:block;color:#7d8896;font-size:11.5px}.pending__missing{display:inline-block;padding:2px 8px;border-radius:var(--radius-xs);background:#c62f35;color:#fff;font-size:12px}.pending--inline{display:inline-flex;align-items:baseline;gap:6px;padding:2px 8px;border:1px dashed #b6c2d2;border-radius:var(--radius-sm);background:#f5f8fc;color:#4a5768;font-size:11.5px;font-weight:400;white-space:normal}.pending--inline b{font-weight:700}.pending--inline em{color:#7d8896;font-style:normal}.pending--inline .pending__missing{padding:0 5px;font-size:11px}.mockwrap{position:relative;border:2px solid #e0a33a;border-radius:var(--radius-lg);padding:22px 8px 8px}.mockwrap--inline{display:inline-block;padding:14px 4px 2px}.mockwrap__badge{position:absolute;top:2px;left:8px;padding:1px 7px;border-radius:var(--radius-xs);background:#e0a33a;color:#3a2c08;font-size:10.5px;font-weight:700;letter-spacing:.3px}.mock-banner{position:sticky;top:0;z-index:30;margin:-22px -28px 14px;padding:9px 28px;background:#c62f35;color:#fff;font-size:13px}.mock-toggle{align-self:center;padding:9px 12px;border:1px solid #cbd3de;border-radius:var(--radius-sm);background:#fff;font-size:13px;white-space:nowrap}.mock-toggle--on{border-color:#c62f35;background:#c62f35;color:#fff}.global-bar p small{display:block;margin-top:3px;color:#8794a4;font-size:11.5px;line-height:1.5}
 .overlaypending{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0 0}.videoframe .pending{max-width:960px}
 
 /* 대본 재생 (260831) — 발화 뒤 세 칸의 `대본` 배지: `목`(빗금 회색)과 색·문구를 가른다.
@@ -177,25 +177,25 @@ main:has(.milestone-layout) .milestone-layout{flex:1;min-height:0}
 .proposal-note small{display:block;color:#5b7797;font-size:11px}
 .proposal-fallback{margin-top:12px;padding:10px;border:1px solid #7aa7d9;background:#f0f6fd;font-size:12px}
 .proposal-fallback p{margin:0 0 8px;line-height:1.5}
-.proposal-fallback button{margin-right:6px;padding:6px 12px;border:1px solid #4c8fe8;border-radius:6px;background:#fff;cursor:pointer}
+.proposal-fallback button{margin-right:6px;padding:6px 12px;border:1px solid #4c8fe8;border-radius:var(--radius-sm);background:#fff;cursor:pointer}
 .proposal-fallback button:first-of-type{background:#4c8fe8;color:#fff}
-.follow-live{margin-left:10px;padding:3px 8px;border:1px solid #4f9e7d;border-radius:6px;background:#eef8f3;color:#20654a;font-size:11px;cursor:pointer}
+.follow-live{margin-left:10px;padding:3px 8px;border:1px solid #4f9e7d;border-radius:var(--radius-sm);background:#eef8f3;color:#20654a;font-size:11px;cursor:pointer}
 b.follow-live{cursor:default}
 
 /* scenario 렌더 모드 (260831) — 대본 띠·합성 배지. 목 렌더의 붉은 계열과 색·문구를 가른다. */
 .scenario-banner{position:sticky;top:0;z-index:60;display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:8px 14px;background:#0f5132;color:#eafff3;font-size:12px;line-height:1.5}
 .scenario-banner b{color:#fff}
-.scenario-banner button{margin-left:auto;padding:4px 10px;border:1px solid #9ad7b6;border-radius:6px;background:#eafff3;color:#0f5132;font-size:11px;cursor:pointer}
+.scenario-banner button{margin-left:auto;padding:4px 10px;border:1px solid #9ad7b6;border-radius:var(--radius-sm);background:#eafff3;color:#0f5132;font-size:11px;cursor:pointer}
 .legacy-banner{position:sticky;top:0;z-index:59;padding:8px 14px;background:#4a4436;color:#fdf6e3;font-size:12px;line-height:1.5}
-.scenariowrap{position:relative;border:1px solid #4f9e7d;border-radius:6px}
-.scenariowrap__badge{position:absolute;top:-1px;right:-1px;z-index:5;padding:2px 7px;border-radius:0 6px 0 6px;background:#0f5132;color:#eafff3;font-size:10px;letter-spacing:.02em}
+.scenariowrap{position:relative;border:1px solid #4f9e7d;border-radius:var(--radius-sm)}
+.scenariowrap__badge{position:absolute;top:-1px;right:-1px;z-index:5;padding:2px 7px;border-radius:0 var(--radius-sm) 0 var(--radius-sm);background:#0f5132;color:#eafff3;font-size:10px;letter-spacing:.02em}
 .scenariowrap--inline{display:inline-flex;align-items:center;gap:6px;border:none;border-bottom:2px solid #4f9e7d;border-radius:0}
 .scenariowrap--inline .scenariowrap__badge{position:static;border-radius:3px}
 .scenario-card{position:relative}
-.scenario-card--offcast{display:grid;gap:6px;padding:10px;border:1px dashed #b9c2cd;border-radius:8px;background:#fafbfc;font-size:12px;align-content:start}
+.scenario-card--offcast{display:grid;gap:6px;padding:10px;border:1px dashed #b9c2cd;border-radius:var(--radius-md);background:#fafbfc;font-size:12px;align-content:start}
 .scenario-card--offcast b{font-size:12px;color:#5f6b7a}
 .zonemap__body{display:grid;gap:6px}
-.zonemap__svg{width:100%;max-height:340px;background:#f6f8fa;border:1px solid #dde3ea;border-radius:8px}
+.zonemap__svg{width:100%;max-height:340px;background:#f6f8fa;border:1px solid #dde3ea;border-radius:var(--radius-md)}
 .zonemap__room{fill:#fff;stroke:#8a95a3;stroke-width:.12}
 .zonemap__fov{fill:rgba(76,143,232,.14);stroke:#4c8fe8;stroke-width:.08;stroke-dasharray:.4 .25}
 .zonemap__cell{fill:rgba(217,75,75,.10);stroke:#d94b4b;stroke-width:.08;stroke-dasharray:.3 .2}
@@ -204,11 +204,11 @@ b.follow-live{cursor:default}
 .zonemap__celltime{font-size:.5px;fill:#68758a}
 .zonemap__camera{fill:#4c8fe8}
 .zonemap__robot{fill:#e08b2d;stroke:#8f5312;stroke-width:.08}
-.zonemap__empty{display:flex;align-items:center;justify-content:center;margin:0;padding:12px;border:1px dashed #cbd3de;border-radius:8px;color:#687587;font-size:12px}
+.zonemap__empty{display:flex;align-items:center;justify-content:center;margin:0;padding:12px;border:1px dashed #cbd3de;border-radius:var(--radius-md);color:#687587;font-size:12px}
 .chart__danger{stroke:#d94b4b;stroke-width:2;stroke-dasharray:8 5}
 
 /* 시연 문장 목록 (260831) — 발화 패널 아래. 대본 라이브러리에서 읽어 그린다. */
-.script-sentences{margin:12px 0 6px;padding:10px;border:1px solid #dde3ea;border-radius:8px;background:#f8fafc}
+.script-sentences{margin:12px 0 6px;padding:10px;border:1px solid #dde3ea;border-radius:var(--radius-md);background:#f8fafc}
 /* 260910 — 제목이 `h3` 에서 `summary` 로 바뀌었다(접을 수 있게). 두 선택자를 같이 둔다. */
 .script-sentences h3,.script-sentences>summary{margin:0 0 8px;font-size:12px;color:#3d4756;font-weight:700;cursor:pointer}
 .script-sentences>summary{margin:0;list-style:revert}
@@ -222,7 +222,7 @@ b.follow-live{cursor:default}
 .steps-box[open]>summary{margin-bottom:6px}
 .script-sentences ul{margin:0;padding:0;list-style:none;display:grid;gap:7px}
 .script-sentences li{display:grid;gap:2px}
-.script-sentences button{padding:7px 9px;border:1px solid #cbd3de;border-radius:7px;background:#fff;color:#17202b;font-size:12px;line-height:1.5;text-align:left;cursor:pointer;word-break:keep-all}
+.script-sentences button{padding:7px 9px;border:1px solid #cbd3de;border-radius:var(--radius-sm);background:#fff;color:#17202b;font-size:12px;line-height:1.5;text-align:left;cursor:pointer;word-break:keep-all}
 .script-sentences button:hover{border-color:#4c8fe8;background:#f0f6fd}
 .script-sentences li small{color:#8a95a3;font-size:10px}
 
@@ -240,26 +240,26 @@ b.follow-live{cursor:default}
 .modeswitch{display:inline-flex;align-items:center;gap:0;margin-right:6px;position:relative}
 .modeswitch__label{margin-right:6px;font-size:11px;color:#8ea0b8}
 .global-bar .modeswitch__seg{padding:7px 11px;border:1px solid #aeb9c8;background:#fff;color:#3c4a5c;font-size:11px;cursor:pointer}
-.modeswitch__seg:first-of-type{border-radius:6px 0 0 6px}
+.modeswitch__seg:first-of-type{border-radius:var(--radius-sm) 0 0 var(--radius-sm)}
 .modeswitch__drop .modeswitch__seg{border-left:none;border-radius:0}
 .global-bar .modeswitch__seg--on{border-color:#1768c5;background:#1768c5;color:#fff;font-weight:700}
 .global-bar .modeswitch__seg--on.modeswitch__seg--scenario{border-color:#168f50;background:#168f50;color:#fff}
 .global-bar .modeswitch__seg--on.modeswitch__seg--mock{border-color:#c62f35;background:#c62f35;color:#fff}
-.modeswitch > .modeswitch__seg:last-child,.modeswitch button:last-child{border-left:none;border-radius:0 6px 6px 0}
+.modeswitch > .modeswitch__seg:last-child,.modeswitch button:last-child{border-left:none;border-radius:0 var(--radius-sm) var(--radius-sm) 0}
 .modeswitch__drop{position:relative;display:inline-block}
-.modeswitch__menu{position:absolute;top:calc(100% + 4px);left:0;z-index:80;min-width:280px;margin:0;padding:4px;list-style:none;border:1px solid #cbd3de;border-radius:8px;background:#fff;box-shadow:0 8px 24px rgba(20,30,45,.18)}
-.modeswitch__menu li button{display:block;width:100%;padding:8px 10px;border:none;border-radius:6px;background:none;color:#17202b;font-size:12px;text-align:left;cursor:pointer}
+.modeswitch__menu{position:absolute;top:calc(100% + 4px);left:0;z-index:80;min-width:280px;margin:0;padding:4px;list-style:none;border:1px solid #cbd3de;border-radius:var(--radius-md);background:#fff;box-shadow:0 8px 24px rgba(20,30,45,.18)}
+.modeswitch__menu li button{display:block;width:100%;padding:8px 10px;border:none;border-radius:var(--radius-sm);background:none;color:#17202b;font-size:12px;text-align:left;cursor:pointer}
 .modeswitch__menu li button:hover{background:#f0f6fd}
 .modeswitch__menu li button b{margin-right:6px;font-size:11px;color:#20654a}
 .modeswitch__menunote{padding:6px 10px;border-top:1px solid #e4e9ef;color:#687587;font-size:10px}
 .global-bar .help-btn{width:30px;height:30px;margin-right:8px;padding:0;border:1px solid #1768c5;border-radius:50%;background:#fff;color:#1768c5;font-size:14px;font-weight:800;cursor:pointer}
 .global-bar .help-btn:hover{background:#1768c5;color:#fff}
 .help-backdrop{position:fixed;inset:0;z-index:90;display:flex;align-items:flex-start;justify-content:center;padding:48px 16px;background:rgba(15,22,32,.45);overflow:auto}
-.help-modal{width:min(760px,100%);border-radius:12px;background:#fff;box-shadow:0 16px 48px rgba(10,16,26,.35)}
+.help-modal{width:min(760px,100%);border-radius:var(--radius-xl);background:#fff;box-shadow:0 16px 48px rgba(10,16,26,.35)}
 .help-modal>header{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:16px 18px;border-bottom:1px solid #e4e9ef}
 .help-modal>header h2{margin:0 0 4px;font-size:16px}
 .help-modal>header p{margin:0;color:#5a6779;font-size:12px;line-height:1.5}
-.help-modal>header button{padding:6px 12px;border:1px solid #cbd3de;border-radius:6px;background:#fff;cursor:pointer}
+.help-modal>header button{padding:6px 12px;border:1px solid #cbd3de;border-radius:var(--radius-sm);background:#fff;cursor:pointer}
 .help-body{padding:14px 18px 18px;font-size:12px;line-height:1.6;color:#2c3646}
 .help-entry{margin:0 0 4px;padding:8px 10px;border-left:3px solid #dbe3ec;background:#f8fafc}
 .help-entry p{margin:0}
@@ -270,10 +270,10 @@ b.follow-live{cursor:default}
 .help-modes{margin:0;padding-left:16px}
 .help-modes li{margin-bottom:6px}
 .help-devtoggle{display:flex;gap:8px;align-items:flex-start;margin-top:12px;padding-top:10px;border-top:1px solid #e4e9ef;color:#5a6779;font-size:11px}
-.notinscript{display:grid;gap:6px;padding:12px;border:1px dashed #b9a86a;border-radius:8px;background:#fbf8ee;font-size:12px;line-height:1.55;color:#4a4436}
+.notinscript{display:grid;gap:6px;padding:12px;border:1px dashed #b9a86a;border-radius:var(--radius-md);background:#fbf8ee;font-size:12px;line-height:1.55;color:#4a4436}
 .notinscript header{display:flex;align-items:center;gap:8px}
 .notinscript h3{margin:0;font-size:12px}
-.notinscript__mark{padding:2px 7px;border-radius:4px;background:#8a7a3d;color:#fdf6e3;font-size:10px;white-space:nowrap}
+.notinscript__mark{padding:2px 7px;border-radius:var(--radius-xs);background:#8a7a3d;color:#fdf6e3;font-size:10px;white-space:nowrap}
 .notinscript p{margin:0}
 .notinscript__why{color:#8a7f61;font-size:11px}
 .notinscript--inline{display:inline-flex;gap:6px;align-items:center;padding:2px 6px;border-bottom:2px solid #b9a86a;font-size:11px;color:#6b5f36}
@@ -297,8 +297,8 @@ b.follow-live{cursor:default}
 .edge--wrap{fill:none;stroke:#1768c5;stroke-width:2;opacity:.8}
 .edge__wrapmark{fill:#1768c5;font-size:11px;font-weight:700}
 .edge__label{fill:#8a6a1d;font-size:11px}
-.ref-crossing{margin:8px 0 0;padding:8px 10px;border:1px dashed #b9862d;border-radius:7px;background:#fdf8ec;color:#6b5316;font-size:12px;line-height:1.5}
-.ref-crossing button{margin-left:8px;padding:3px 9px;border:1px solid #b9862d;border-radius:6px;background:#fff;color:#6b5316;font-size:11px;cursor:pointer}
+.ref-crossing{margin:8px 0 0;padding:8px 10px;border:1px dashed #b9862d;border-radius:var(--radius-sm);background:#fdf8ec;color:#6b5316;font-size:12px;line-height:1.5}
+.ref-crossing button{margin-left:8px;padding:3px 9px;border:1px solid #b9862d;border-radius:var(--radius-sm);background:#fff;color:#6b5316;font-size:11px;cursor:pointer}
 
 /* 개발 도구는 목·개발 모드(또는 ? 오버레이 토글)에서만 (260831 요구 1).
    단독 빌드에는 셸이 없어 이 규칙이 적용되지 않는다 — 전달본은 그대로다. */
@@ -322,7 +322,7 @@ b.follow-live{cursor:default}
    그래프에서 마일스톤으로 돌아가는 길이 화면에 없었다 — 유일한 길이던 상단 바의 임무 이름
    버튼은 그게 되돌아가기라는 것을 어디에도 적어 두지 않았다. 발견할 수 없는 길은 없는 길이다. */
 .crumbs{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:0 0 6px;font-size:12px;color:#657286}
-.crumbs__link{padding:2px 8px;border:1px solid #cbd3de;border-radius:6px;background:#fff;color:#1768c5;font-size:12px;cursor:pointer}
+.crumbs__link{padding:2px 8px;border:1px solid #cbd3de;border-radius:var(--radius-sm);background:#fff;color:#1768c5;font-size:12px;cursor:pointer}
 .crumbs__link:hover{border-color:#1768c5;background:#1768c5;color:#fff}
 .crumbs__sep{color:#a6b0bd}
 .crumbs__here{padding:2px 4px;color:#3c4a5c;font-weight:700}
@@ -330,27 +330,27 @@ b.follow-live{cursor:default}
 /* ── 노드 캔버스 1단계 (260903) — 팔레트 · 뷰 노드 · 범위 엣지 ───────────────────
    탭 다섯은 아직 그대로다. 이 층이 붙어도 지금 화면이 깨지지 않아야 한다.
    렌더러 주입이 없는 빌드(단독 전달본)에서는 `.palette` 자체가 그려지지 않는다. */
-.palette{margin:8px 0 0;padding:8px 10px;border:1px solid #d3dbe4;border-radius:8px;background:#fbfcfe}
+.palette{margin:8px 0 0;padding:8px 10px;border:1px solid #d3dbe4;border-radius:var(--radius-md);background:#fbfcfe}
 .palette__row{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
 .palette__title{font-size:12px;color:#4b5766}
-.palette__item{padding:5px 10px;border:1px solid #b9cbe2;border-radius:7px;background:#fff;color:#1768c5;font-size:12px}
+.palette__item{padding:5px 10px;border:1px solid #b9cbe2;border-radius:var(--radius-sm);background:#fff;color:#1768c5;font-size:12px}
 .palette__item:hover{border-color:#1768c5;background:#eef5fd}
 .palette__target{margin-left:4px;color:#687587;font-size:11.5px}
 .palette__target b{color:#2f6f52}
-.palette__reset{margin-left:auto;padding:4px 9px;border:1px solid #cbd3de;border-radius:7px;background:#fff;color:#687587;font-size:11.5px}
+.palette__reset{margin-left:auto;padding:4px 9px;border:1px solid #cbd3de;border-radius:var(--radius-sm);background:#fff;color:#687587;font-size:11.5px}
 .palette__notice{margin:6px 0 0;color:#8a6a1d;font-size:11.5px;line-height:1.5}
 
 /* 뷰 노드 — 실행 노드와 **다르게 생겨야 한다**. 상태 색(8상태)을 쓰지 않고 테두리도
    가늘다. 연결된 것은 초록 실선 + `◂ T-xx`, 전역은 회색 파선 + `전역` 뱃지다. */
-.view-node{position:absolute;width:180px;height:104px;display:flex;flex-direction:column;gap:4px;padding:7px 8px;border:1.5px solid #a9c8b8;border-radius:9px;background:#fff;cursor:grab;touch-action:none;user-select:none;overflow:hidden}
+.view-node{position:absolute;width:180px;height:104px;display:flex;flex-direction:column;gap:4px;padding:7px 8px;border:1.5px solid #a9c8b8;border-radius:var(--radius-md);background:#fff;cursor:grab;touch-action:none;user-select:none;overflow:hidden}
 .is-dragging .view-node,.view-node:active{cursor:grabbing}
 .view-node--global{border-style:dashed;border-color:#c3ccd7}
 .view-node__head{display:flex;align-items:center;gap:5px;font-size:11.5px}
 .view-node__head b{flex:0 0 auto;color:#25405c}
-.view-node__scope{padding:1px 5px;border-radius:4px;background:#e7f3ec;color:#2f6f52;font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.view-node__scope{padding:1px 5px;border-radius:var(--radius-xs);background:#e7f3ec;color:#2f6f52;font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .view-node__scope--global{background:#eef1f5;color:#69737f}
 .view-node__acts{margin-left:auto;display:flex;gap:3px}
-.view-node__acts button{padding:0 4px;border:1px solid #dde3ea;border-radius:4px;background:#fff;color:#69737f;font-size:11px;line-height:1.5}
+.view-node__acts button{padding:0 4px;border:1px solid #dde3ea;border-radius:var(--radius-xs);background:#fff;color:#69737f;font-size:11px;line-height:1.5}
 .view-node__acts button:disabled{opacity:.35;cursor:not-allowed}
 .view-node__body{flex:1;overflow:hidden;font-size:11px;line-height:1.4}
 .view-node__missing{margin:0;color:#8a6a1d}
@@ -388,7 +388,7 @@ b.follow-live{cursor:default}
 /* 대표 정지 프레임. 재생이 아니라 **한 장**이다 — 캔버스에서는 노드가 떠나지 않으므로
    루프를 켜 두면 카드 수만큼 프레임 루프가 돈다 (VZ-I-06). */
 .vn-still{display:block;width:100%;height:34px;border-radius:3px;background:#1d2733}
-.vn-refresh{padding:0 5px;border:1px solid #dde3ea;border-radius:4px;background:#fff;color:#69737f;font-size:9.5px}
+.vn-refresh{padding:0 5px;border:1px solid #dde3ea;border-radius:var(--radius-xs);background:#fff;color:#69737f;font-size:9.5px}
 /* 자리표시(PendingSource inline)가 카드 안에서 폭을 넘지 않게. */
 .view-node__body .pending--inline,.view-node__body .notinscript--inline,.view-node__body .mockwrap--inline,.view-node__body .scenariowrap--inline{display:block;font-size:10px;line-height:1.35;overflow:hidden}
 
@@ -425,21 +425,21 @@ b.follow-live{cursor:default}
    `ws://pi7.tailcb6bfb.ts.net:9001/mqtt` 는 520px 칸에서 끝이 잘렸다.
    이력·알림 판은 그대로 430px 다. */
 .global-panel--connections{width:min(760px,94vw);max-height:calc(100vh - 140px);overflow:auto}
-.connections__warn{margin:0 0 12px;padding:9px 11px;border:1px solid #e8c893;border-radius:7px;background:#fff8ec;color:#8a6300;font-size:12px}
+.connections__warn{margin:0 0 12px;padding:9px 11px;border:1px solid #e8c893;border-radius:var(--radius-sm);background:#fff8ec;color:#8a6300;font-size:12px}
 .conn-target{padding:12px 0;border-top:1px solid #e6eaf0}
 .conn-target h3{display:flex;align-items:center;gap:8px;margin:0 0 4px;font-size:14px}
-.conn-target h3 em{padding:2px 7px;border-radius:99px;background:#eef2f7;color:#6a7686;font-size:11px;font-style:normal}
+.conn-target h3 em{padding:2px 7px;border-radius:999px;background:#eef2f7;color:#6a7686;font-size:11px;font-style:normal}
 .conn-target p{margin:0 0 8px;color:#6a7686;font-size:12px}
 .conn-target__pending{color:#a2691a}
 .conn-target label{display:grid;grid-template-columns:78px 1fr;gap:9px;align-items:center;margin:6px 0}
 .conn-target label span{color:#5a6675;font-size:12px}
-.conn-target input{width:100%;min-width:0;padding:7px 9px;border:1px solid #cbd3de;border-radius:6px;font-family:monospace;font-size:12px}
+.conn-target input{width:100%;min-width:0;padding:7px 9px;border:1px solid #cbd3de;border-radius:var(--radius-sm);font-family:monospace;font-size:12px}
 /* 프리셋이 있는 줄은 고르는 칸과 주소 칸이 한 줄을 나눠 쓴다 — 주소가 길어서
    (`ws://pi7.tailcb6bfb.ts.net:9001/mqtt`) 끝이 잘리면 무엇을 보고 있는지 모른다. */
 .conn-target label:has(.conn-preset){grid-template-columns:78px auto 1fr}
 .conn-target--pending input{background:#f4f6f9;color:#95a0ad}
 /* 붙은 장비가 한 대도 없을 때 (260922). 빈 자리는 「고장인가」로 읽히므로 그 사실을 적는다. */
-.hardware-panel__none{margin:0;padding:14px 12px;border:1px dashed #d6dce5;border-radius:8px;color:#6a7686;font-size:12px}
+.hardware-panel__none{margin:0;padding:14px 12px;border:1px dashed #d6dce5;border-radius:var(--radius-md);color:#6a7686;font-size:12px}
 /* 저장 안 된 칸 (260922). 주소 칸 **바로 아래**에 붙어야 한다 — 판 아래 어딘가에 모아
    두면 어느 칸 이야기인지 다시 찾아야 하고, 그게 이 문제의 원인이었다. 이름 칸을 건너뛰고
    줄 전체를 쓴다(`label` 이 격자라 안 그러면 78px 칸에 끼어 세로로 무너진다). */
@@ -449,31 +449,31 @@ b.follow-live{cursor:default}
 /* 고르는 칸이 없는 목록(260929) — 없으면 입력이 auto 칸에 들어가 × 가 넓은 칸을 먹었다. */
 .conn-list label:has(.conn-row-drop):not(:has(.conn-preset)){grid-template-columns:78px 1fr auto}
 .conn-list label:not(:has(.conn-preset)):not(:has(.conn-row-drop)){grid-template-columns:78px 1fr}
-.conn-row-drop{padding:4px 9px;border:1px solid #d9c2c2;border-radius:6px;background:#fff;color:#a2413c;line-height:1}
+.conn-row-drop{padding:4px 9px;border:1px solid #d9c2c2;border-radius:var(--radius-sm);background:#fff;color:#a2413c;line-height:1}
 /* 상태 줄이 어느 주소의 것인지 (260922). 줄 이름 앞에 작게 붙는다. */
-.conn-dot__scope{margin-right:5px;padding:1px 5px;border-radius:5px;background:#00000014;font-style:normal;font-weight:400;font-family:monospace;font-size:10px}
+.conn-dot__scope{margin-right:5px;padding:1px 5px;border-radius:var(--radius-xs);background:#00000014;font-style:normal;font-weight:400;font-family:monospace;font-size:10px}
 /* 정량 명령 줄 (260922). 머리줄 안이라 좁다 — 읽은 결과는 아래로 흐른다. */
-.conn-unsaved{grid-column:1/-1;margin:0!important;padding:5px 9px;border-radius:6px;background:#fff8ec;color:#8a6300;font-size:11px!important}
+.conn-unsaved{grid-column:1/-1;margin:0!important;padding:5px 9px;border-radius:var(--radius-sm);background:#fff8ec;color:#8a6300;font-size:11px!important}
 /* **아래로 내려가지 않아도 보인다** (260922 지시 — 「아래로 내려야 하는 것이 불편함」).
    판이 길어서 「적용」이 스크롤 끝에 숨어 있었고, 그래서 주소를 고치고도 적용을 안 누른
    채 확인만 누르는 일이 생겼다. 확인이 있는 대상은 확인이 저장까지 하지만, 확인 버튼이
    없는 칸(게이트웨이·영상)은 여전히 이 버튼이 유일한 길이다 — 그 길을 늘 보이게 둔다. */
 .connections__actions{position:sticky;bottom:0;z-index:1;display:flex;align-items:center;gap:8px;margin:4px -16px -16px;padding:13px 16px 16px;border-top:1px solid #e6eaf0;background:#fff}
 .connections__note{flex:1;color:#5a6675;font-size:12px;line-height:1.5}
-.connections__actions button{padding:8px 12px;border:1px solid #cbd3de;border-radius:7px;background:#fff}
+.connections__actions button{padding:8px 12px;border:1px solid #cbd3de;border-radius:var(--radius-sm);background:#fff}
 .connections__apply:not(:disabled){color:#fff;border-color:#1768c5;background:#1768c5}
 .connections__actions button:disabled{opacity:.5;cursor:default}
 
 /* ── 자체 관측 패널 (260904 · VZ-O-04) ────────────────────────────────────────
    devpanel 이라 통합 셸에서는 목·개발 모드에서만 뜨고(위 .devpanel 규칙), 셸이 없는
    단독 빌드에서는 늘 보인다 — 단독 빌드가 곧 측정 장비다. 기본은 접힘. */
-.obs{margin-top:16px;border:1px solid #d1d7df;border-radius:6px;background:#f7f9fb;padding:10px 12px;font-size:12px}
+.obs{margin-top:16px;border:1px solid #d1d7df;border-radius:var(--radius-sm);background:#f7f9fb;padding:10px 12px;font-size:12px}
 .obs--closed{padding:4px 8px}
 .obs__toggle{background:none;border:0;padding:2px 0;font:inherit;font-weight:700;color:#243447;cursor:pointer;text-align:left}
 .obs__head{display:flex;flex-wrap:wrap;gap:4px 12px;align-items:baseline;margin-bottom:8px}
 .obs__head small{color:#5d6b7a}
 .obs__grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(215px,1fr));gap:10px}
-.obs__group{background:#fff;border:1px solid #e3e8ee;border-radius:5px;padding:8px 10px}
+.obs__group{background:#fff;border:1px solid #e3e8ee;border-radius:var(--radius-xs);padding:8px 10px}
 .obs__group h4{margin:0 0 6px;font-size:12px;color:#243447}
 .obs__group h4 small{font-weight:400;color:#5d6b7a}
 .obs__row{display:flex;gap:6px;align-items:baseline;padding:2px 0}
@@ -504,16 +504,16 @@ b.follow-live{cursor:default}
 .gen-progress{margin:8px 0;font-size:12px;color:#4a3489}
 .gen-progress small{margin-left:6px;color:#8a84a5;font-weight:400}
 .gen-progress progress{display:block;width:100%;height:6px;margin-top:5px}
-.gen-result{margin:10px 0 0;padding:9px 10px;border:1px solid #d4c9f2;border-radius:7px;background:#faf8ff;font-size:12px}
+.gen-result{margin:10px 0 0;padding:9px 10px;border:1px solid #d4c9f2;border-radius:var(--radius-sm);background:#faf8ff;font-size:12px}
 .gen-result h3{margin:0 0 7px;font-size:12px}
 .gen-result h3 code{padding:0 3px;border-radius:3px;background:#ece5fb;font-size:11px}
 .gen-result h3 small{display:block;margin-top:3px;color:#7d759a;font-weight:400;font-size:11px}
 .gen-milestones{margin:0 0 8px;padding-left:20px;line-height:1.6}
 .gen-milestones b{margin-right:4px;color:#4a3489;font-size:11px}
 .gen-milestones small{display:block;color:#8a84a5;font-size:11px}
-.gen-switch{width:100%;padding:8px;border:1px solid #7a5cc4;border-radius:7px;background:#fff;color:#4a3489}
+.gen-switch{width:100%;padding:8px;border:1px solid #7a5cc4;border-radius:var(--radius-sm);background:#fff;color:#4a3489}
 .gen-switch small{display:block;margin-top:2px;color:#8a84a5;font-size:11px;font-weight:400}
-.gen-provenance{margin-top:8px;border:1px solid #ddd4f3;border-radius:6px;background:#fff}
+.gen-provenance{margin-top:8px;border:1px solid #ddd4f3;border-radius:var(--radius-sm);background:#fff}
 .gen-provenance>summary{padding:7px 9px;cursor:pointer;color:#4a3489}
 .gen-provenance>*:not(summary){margin:0;padding:0 11px 9px}
 .gen-provenance dl{display:grid;grid-template-columns:96px 1fr;gap:5px}
@@ -529,7 +529,7 @@ b.follow-live{cursor:default}
 .mission-debugger .timeline b.ai-mark{position:absolute;top:-3px;width:3px;height:17px;margin-left:-1px;background:#7a5cc4;border-radius:1px}
 .proposal-note.proposal-ai{border-color:#b6a6e0;background:#faf8ff;color:#3b3160}
 .gen-model{display:flex;align-items:center;gap:6px;margin-top:6px;flex-wrap:wrap}
-.gen-model select{max-width:230px;padding:3px 5px;border:1px solid #cbc0e8;border-radius:5px;font:inherit;font-size:11px}
+.gen-model select{max-width:230px;padding:3px 5px;border:1px solid #cbc0e8;border-radius:var(--radius-xs);font:inherit;font-size:11px}
 .gen-model small{color:#8a84a5;font-size:11px}
 /* 발화와 계획의 모양이 어긋난 자리 (11단계). **경고이지 차단이 아니다** — 스키마 실패의
    빨강과 다른 색이어야 한다. 이건 「계약을 어겼다」가 아니라 「못 만드는 모양이다」이다. */
@@ -600,28 +600,28 @@ b.follow-live{cursor:default}
    더미 이미지를 그려 넣지 않는다: 발표에서 「이건 가짜입니다」를 말하게 되는 자리다. */
 .evidence-reason{margin:4px 0 8px;padding:8px 10px;border-left:3px solid #2f9e5f;background:#f3faf6;color:#24503a;font-size:13px;line-height:1.6}
 .evidence-image{margin:0 0 10px}
-.evidence-image img{display:block;width:100%;border:1px solid #d8dee7;border-radius:6px}
-.evidence-image__empty{display:flex;align-items:center;justify-content:center;min-height:88px;padding:10px;border:1px dashed #c6ced8;border-radius:6px;background:#fbfcfd;color:#7c8797;font-size:11px;text-align:center;line-height:1.5}
+.evidence-image img{display:block;width:100%;border:1px solid #d8dee7;border-radius:var(--radius-sm)}
+.evidence-image__empty{display:flex;align-items:center;justify-content:center;min-height:88px;padding:10px;border:1px dashed #c6ced8;border-radius:var(--radius-sm);background:#fbfcfd;color:#7c8797;font-size:11px;text-align:center;line-height:1.5}
 .evidence-image figcaption{margin-top:4px;color:#7c8797;font-size:11px}
 
 /* ── 로봇 패널 (260910 화면 연결) ─────────────────────────────────────────────
    정지 버튼은 크고, 색이 다르고, 다른 버튼과 멀리 떨어져 있다 — **잘못 누르는 것보다
    못 누르는 게 나쁘다.** 연결이 없어도 비활성화하지 않는다. */
-.robot-panel{margin:8px 0;padding:10px 12px;border:1px solid #dfe4ea;border-radius:8px;background:#fbfcfd}
+.robot-panel{margin:8px 0;padding:10px 12px;border:1px solid #dfe4ea;border-radius:var(--radius-md);background:#fbfcfd}
 .robot-bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
-.robot-preset,.robot-address{padding:5px 7px;border:1px solid #cfd6df;border-radius:6px;font-size:12px}
+.robot-preset,.robot-address{padding:5px 7px;border:1px solid #cfd6df;border-radius:var(--radius-sm);font-size:12px}
 .robot-address{min-width:190px}
-.robot-ping{padding:6px 12px;border:1px solid #b6c2d0;border-radius:6px;background:#fff;font-size:12px}
+.robot-ping{padding:6px 12px;border:1px solid #b6c2d0;border-radius:var(--radius-sm);background:#fff;font-size:12px}
 .robot-ping--ok{color:#1f8a4d;font-weight:600;font-size:12px}
 .robot-ping--fail{color:#b3352f;font-weight:600;font-size:12px}
 /* **`button.` 을 붙인 이유는 정지 버튼과 같다** — 머리줄의 `.global-bar button` 이
    `background:#fff` 를 걸고 있고 그쪽이 더 구체적이다. 클래스만 쓰면 초록이 안 뜬다. */
-button.robot-approach{padding:7px 14px;border:2px solid #2f9e5f;border-radius:7px;background:#e7f6ee;color:#125c33;font-weight:700;font-size:13px}
+button.robot-approach{padding:7px 14px;border:2px solid #2f9e5f;border-radius:var(--radius-sm);background:#e7f6ee;color:#125c33;font-weight:700;font-size:13px}
 button.robot-approach small{font-weight:600;opacity:.8}
 /* 눌렀는데 안 나갔다 — 감추지 않고 버튼 자리에 그대로 적는다. */
 button.robot-approach--failed{border-color:#a3241f;background:#fdeceb;color:#8f2b26}
 /* 브로커 연결 — 로봇이 안 움직이는 것과 **다른 축**이다. 둘을 같은 표시로 뭉치지 않는다. */
-.robot-conn{padding:3px 9px;border-radius:10px;font-size:12px;font-weight:600}
+.robot-conn{padding:3px 9px;border-radius:var(--radius-lg);font-size:12px;font-weight:600}
 .robot-conn--open{background:#e7f6ee;color:#125c33}
 .robot-conn--connecting{background:#fdf6e3;color:#7a5c12}
 .robot-conn--closed{background:#fdeceb;color:#8f2b26}
@@ -631,16 +631,16 @@ button.robot-approach--failed{border-color:#a3241f;background:#fdeceb;color:#8f2
    `background:#fff` 를 걸고 있고 그쪽이 더 구체적이라, 그냥 `.robot-stop` 이면 빨간 바탕이
    덮여 **흰 글씨에 흰 바탕**이 된다 — 정지 버튼이 빈 상자로 보였다. 눌러야 할 때 안 보이는
    버튼이 이 기능의 최악이라 여기만 특정도를 맞춘다. 셋 다 같다. */
-button.robot-stop{margin-left:auto;padding:11px 22px;border:2px solid #a3241f;border-radius:8px;background:#d5322b;color:#fff;font-size:15px;font-weight:800;letter-spacing:.5px;cursor:pointer}
+button.robot-stop{margin-left:auto;padding:11px 22px;border:2px solid #a3241f;border-radius:var(--radius-md);background:#d5322b;color:#fff;font-size:15px;font-weight:800;letter-spacing:.5px;cursor:pointer}
 button.robot-stop:hover{background:#b8271f}
 /* 정지 실패 — 크게, 빨갛게. 누른 사람은 로봇이 멈춘 줄 알고 다가간다. */
-.robot-stopfail{margin:0 0 8px;padding:12px 14px;border:2px solid #a3241f;border-radius:8px;background:#fdeceb;color:#8f2b26;font-size:15px;font-weight:800}
+.robot-stopfail{margin:0 0 8px;padding:12px 14px;border:2px solid #a3241f;border-radius:var(--radius-md);background:#fdeceb;color:#8f2b26;font-size:15px;font-weight:800}
 /* 구동 브리지 (260910) — 「붙어 있다」와 「움직일 수 있다」는 다르다. */
-.robot-standing{margin:0 0 8px;padding:9px 12px;border-left:4px solid #c07a1a;border-radius:0 6px 6px 0;background:#fdf6ea;color:#7a4d08;font-size:13px}
+.robot-standing{margin:0 0 8px;padding:9px 12px;border-left:4px solid #c07a1a;border-radius:0 var(--radius-sm) var(--radius-sm) 0;background:#fdf6ea;color:#7a4d08;font-size:13px}
 .robot-sdk{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:10px;padding-top:9px;border-top:1px dashed #dfe4ea}
 .robot-sdk-label{color:#6b7888;font-size:12px;font-weight:700;letter-spacing:.04em}
-.robot-sdk button{padding:5px 10px;border:1px solid #ccd4dd;border-radius:6px;background:#fff;color:#39434f;font-size:12px}
-.robot-sdk-dot{padding:3px 8px;border-radius:10px;font-size:12px;font-style:normal;font-weight:600}
+.robot-sdk button{padding:5px 10px;border:1px solid #ccd4dd;border-radius:var(--radius-sm);background:#fff;color:#39434f;font-size:12px}
+.robot-sdk-dot{padding:3px 8px;border-radius:var(--radius-lg);font-size:12px;font-style:normal;font-weight:600}
 /* 모름이 기본이다 — 회색. 꺼짐(빨강)으로 그리지 않는다. */
 .robot-sdk-dot--unknown{background:#eef1f5;color:#6b7888}
 .robot-sdk-dot--ok{background:#e7f6ee;color:#125c33}
@@ -649,14 +649,14 @@ button.robot-stop:hover{background:#b8271f}
 .robot-walked{margin:8px 0 0;padding:9px 12px;border-left:4px solid #c07a1a;background:#fdf6ea;color:#7a4d08;font-size:13px}
 .robot-walked code{background:#fff;padding:1px 4px;border-radius:3px}
 .robot-sdk-none code{background:#fdf3f2;padding:1px 4px;border-radius:3px}
-.robot-door-temp{margin-left:6px;padding:2px 7px;border-radius:9px;background:#fdf6ea;color:#7a4d08;font-style:normal;font-size:11px;font-weight:700}
+.robot-door-temp{margin-left:6px;padding:2px 7px;border-radius:var(--radius-md);background:#fdf6ea;color:#7a4d08;font-style:normal;font-size:11px;font-weight:700}
 
 /* 탐지 셋 (260912) — 영상 · 근거 · 2D 맵. 값이 없으면 감추지 않고 적는다. */
 .detect-wait{margin:0;padding:6px 2px;color:#6b7888;font-size:12px}
 .detect-wait small{display:block;margin-top:3px;font-size:11px;color:#8a95a3}
 
 .detect-cam{display:grid;gap:4px}
-.detect-cam img{width:100%;height:auto;display:block;border-radius:5px}
+.detect-cam img{width:100%;height:auto;display:block;border-radius:var(--radius-xs)}
 .detect-cam--zoom img{max-height:78vh;object-fit:contain;background:#11161d}
 .detect-cam__at{font-size:11px;color:#4a5666}
 .detect-strip{display:flex;gap:6px;overflow-x:auto;padding-bottom:4px}
@@ -664,7 +664,7 @@ button.robot-stop:hover{background:#b8271f}
 .detect-strip img{max-height:72px;border:1px solid #dde3ea}
 .detect-strip .is-found img{border:2px solid #2f9e5f}
 .detect-strip figcaption{font-size:10px;color:#6b7888;text-align:center}
-.detect-strip figure{cursor:pointer;border-radius:4px}
+.detect-strip figure{cursor:pointer;border-radius:var(--radius-xs)}
 .detect-strip figure:focus-visible{outline:2px solid #1768c5;outline-offset:2px}
 .detect-strip .is-shown img{outline:2px solid #1768c5;outline-offset:1px}
 .detect-strip .is-shown figcaption{color:#1768c5;font-weight:700}
@@ -672,20 +672,20 @@ button.robot-stop:hover{background:#b8271f}
 .section-title--graph{display:grid;grid-template-columns:1fr auto 1fr;align-items:start;gap:12px}
 .section-title--graph>.toggle{justify-self:end}
 .milestone-stepper{display:flex;align-items:center;gap:8px;align-self:center}
-.milestone-stepper button{display:inline-flex;align-items:center;gap:6px;border:1px solid #cbd3de;background:#fff;border-radius:7px;padding:9px 12px}
+.milestone-stepper button{display:inline-flex;align-items:center;gap:6px;border:1px solid #cbd3de;background:#fff;border-radius:var(--radius-sm);padding:9px 12px}
 .milestone-stepper button:disabled{opacity:.45;cursor:default}
 .milestone-stepper button small{color:#1768c5;font-weight:700}
 .milestone-stepper__at{font-size:12px;color:#657286;font-variant-numeric:tabular-nums;min-width:44px;text-align:center}
-.detect-cam__back{margin-left:6px;padding:1px 8px;border:1px solid #b9c6d6;border-radius:6px;background:#f4f7fb;font-size:11px;cursor:pointer}
+.detect-cam__back{margin-left:6px;padding:1px 8px;border:1px solid #b9c6d6;border-radius:var(--radius-sm);background:#f4f7fb;font-size:11px;cursor:pointer}
 
 .detect-reason{display:grid;gap:5px;font-size:12px}
 .detect-reason__head{display:flex;align-items:center;gap:7px}
-.detect-score{padding:1px 7px;border-radius:9px;background:#eef1f5;color:#4a5666;font-size:11px}
+.detect-score{padding:1px 7px;border-radius:var(--radius-md);background:#eef1f5;color:#4a5666;font-size:11px}
 .detect-gates{display:flex;flex-wrap:wrap;gap:4px;margin:0;padding:0;list-style:none}
-.detect-gates li{padding:2px 7px;border-radius:9px;font-size:11px}
+.detect-gates li{padding:2px 7px;border-radius:var(--radius-md);font-size:11px}
 .detect-gates .is-pass{background:#e7f6ee;color:#125c33}
 .detect-gates .is-fail{background:#fdf3f2;color:#8f2b26}
-.detect-crop{width:100%;height:auto;display:block;border:1px solid #dde3ea;border-radius:5px;image-rendering:pixelated}
+.detect-crop{width:100%;height:auto;display:block;border:1px solid #dde3ea;border-radius:var(--radius-xs);image-rendering:pixelated}
 .detect-features{width:100%;border-collapse:collapse;font-size:11px}
 .detect-features th{text-align:left;font-weight:400;color:#4a5666;padding:2px 0}
 .detect-features td{text-align:right;color:#26303c;font-variant-numeric:tabular-nums}
@@ -694,18 +694,18 @@ button.robot-stop:hover{background:#b8271f}
 .detect-map{display:grid;gap:5px}
 /* 경로가 나오기 전의 도면. 같은 자리에 같은 크기로 선다 — 그림이 바뀔 때 칸이 안 흔들린다. */
 .detect-map--plain img{opacity:.9}
-.detect-map img{width:100%;height:auto;display:block;border-radius:5px;background:#fff}
+.detect-map img{width:100%;height:auto;display:block;border-radius:var(--radius-xs);background:#fff}
 .detect-map__facts{display:flex;flex-wrap:wrap;gap:8px;font-size:11px;color:#4a5666}
 /* 도면 위의 문 자리 (260914) — GT 고정값을 퍼센트로 얹는다. 그림이 줄어도 같은 자리다. */
 .detect-map__plan{position:relative}
-.detect-map__door{position:absolute;transform:translate(-50%,-50%);padding:1px 5px;border-radius:9px;background:#1f8a4d;color:#fff;font-size:10px;font-weight:700;box-shadow:0 0 0 2px rgba(255,255,255,.85)}
+.detect-map__door{position:absolute;transform:translate(-50%,-50%);padding:1px 5px;border-radius:var(--radius-md);background:#1f8a4d;color:#fff;font-size:10px;font-weight:700;box-shadow:0 0 0 2px rgba(255,255,255,.85)}
 .detect-map__rows{display:grid;gap:2px;margin:4px 0 0}
 .detect-map__rows>div{display:flex;gap:10px;font-size:12px}
 .detect-map__rows dt{min-width:76px;color:#6b7888}
 .detect-map__rows dd{margin:0;color:#26303c;font-weight:600}
 /* 260927 — 장치 두 대 편 · 가상 맵 · 카메라 */
 .vmap{display:grid;gap:5px}
-.vmap__svg{width:100%;height:auto;display:block;background:#f7f9fc;border-radius:5px}
+.vmap__svg{width:100%;height:auto;display:block;background:#f7f9fc;border-radius:var(--radius-xs)}
 .vmap--zoom .vmap__svg{max-height:78vh}
 .vmap__room{fill:#fff;stroke:#51606f;stroke-width:.08}
 .vmap__grid{stroke:#e3e8ef;stroke-width:.03}
@@ -718,14 +718,14 @@ button.robot-stop:hover{background:#b8271f}
 .vmap__label{font-size:.38px;fill:#26303c}
 .vmap__legend{margin:0;padding:0;list-style:none;display:grid;gap:2px;font-size:11px;color:#26303c}
 .vmap__legend i{display:inline-block;width:14px;height:14px;margin-right:5px;border-radius:50%;color:#fff;font-style:normal;font-size:10px;font-weight:700;text-align:center;line-height:14px}
-.vmap__unity{width:100%;aspect-ratio:16/10;border:0;border-radius:5px;background:#11161d;display:block}
+.vmap__unity{width:100%;aspect-ratio:16/10;border:0;border-radius:var(--radius-xs);background:#11161d;display:block}
 .vmap--zoom .vmap__unity{height:78vh;aspect-ratio:auto}
 .vmap__fallback summary{cursor:pointer;font-size:12px}
 .device-cam{display:grid;gap:4px}
 .device-cam__pick{display:flex;flex-wrap:wrap;gap:10px;align-items:center;font-size:12px}
 .device-cam__pick label{display:flex;gap:5px;align-items:center}
 .device-cam__stage{display:grid;gap:3px}
-.device-cam__canvas{width:100%;height:auto;display:block;border-radius:5px;background:#11161d;min-height:40px}
+.device-cam__canvas{width:100%;height:auto;display:block;border-radius:var(--radius-xs);background:#11161d;min-height:40px}
 .device-cam--zoom .device-cam__canvas{max-height:78vh;object-fit:contain}
 .device-cam:not(.device-cam--zoom) .device-cam__canvas{max-height:140px;object-fit:contain}
 .device-cam__meta{margin:0;font-size:11px;color:#4a5666}
@@ -738,7 +738,7 @@ button.robot-stop:hover{background:#b8271f}
 .robot-node{display:grid;gap:5px;padding:2px 0}
 .robot-node-row{display:flex;flex-wrap:wrap;align-items:center;gap:6px;font-size:12px}
 .robot-node-row b{font-size:13px;color:#26303c}
-.robot-node-row span{padding:2px 7px;border-radius:9px;background:#eef1f5;color:#4a5666}
+.robot-node-row span{padding:2px 7px;border-radius:var(--radius-md);background:#eef1f5;color:#4a5666}
 .robot-node-row--sub span{background:transparent;padding:2px 0;color:#6b7888}
 .robot-node--bad .robot-node-row span{background:#fdf3f2;color:#8f2b26}
 .robot-node-flag{color:#8f2b26}
@@ -762,21 +762,21 @@ button.robot-stop:hover{background:#b8271f}
 
 /* 아직 안 돌린 임무면 시작 버튼이다 — 눌러야 로봇이 움직인다 (260912). */
 button.robot-resume--start{border-color:#2f9e5f;background:#2f9e5f;color:#fff}
-button.mission-restart{padding:6px 12px;border:1px solid #4c8fe8;border-radius:6px;background:#eef5fd;color:#1a4f8f;font-weight:600}
-button.mission-reset{padding:6px 12px;border:1px solid #ccd4dd;border-radius:6px;background:#fff;color:#4a5666}
+button.mission-restart{padding:6px 12px;border:1px solid #4c8fe8;border-radius:var(--radius-sm);background:#eef5fd;color:#1a4f8f;font-weight:600}
+button.mission-reset{padding:6px 12px;border:1px solid #ccd4dd;border-radius:var(--radius-sm);background:#fff;color:#4a5666}
 button.mission-reset--confirm{border-color:#a3241f;background:#fdf3f2;color:#8f2b26;font-weight:700}
 .mission-reset-ask{display:inline-flex;align-items:center;gap:6px}
-button.mission-reset-cancel{padding:6px 10px;border:1px solid #ccd4dd;border-radius:6px;background:#fff;color:#6b7888}
+button.mission-reset-cancel{padding:6px 10px;border:1px solid #ccd4dd;border-radius:var(--radius-sm);background:#fff;color:#6b7888}
 
 /* 임무 조작 셋 (260910) — 정지는 끝내고, 일시정지는 남긴다. */
-button.robot-pause{padding:6px 12px;border:1px solid #c07a1a;border-radius:6px;background:#fdf6ea;color:#7a4d08;font-weight:600}
+button.robot-pause{padding:6px 12px;border:1px solid #c07a1a;border-radius:var(--radius-sm);background:#fdf6ea;color:#7a4d08;font-weight:600}
 button.robot-pause--held{background:#c07a1a;color:#fff}
-button.robot-resume{padding:6px 12px;border:1px solid #2f9e5f;border-radius:6px;background:#e7f6ee;color:#125c33;font-weight:600}
+button.robot-resume{padding:6px 12px;border:1px solid #2f9e5f;border-radius:var(--radius-sm);background:#e7f6ee;color:#125c33;font-weight:600}
 .robot-paused{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:0 0 8px;padding:9px 12px;border-left:4px solid #c07a1a;background:#fdf6ea;color:#7a4d08;font-size:13px}
 .robot-paused span{flex-basis:100%;color:#6b5227;font-size:12px}
 .robot-paused em{font-style:normal;color:#8f2b26;font-weight:600}
 .robot-locked{display:flex;align-items:center;gap:10px;margin:0 0 8px;padding:9px 12px;border-left:4px solid #a3241f;background:#fdf3f2;color:#8f2b26;font-size:13px}
-.robot-release{margin-left:auto;padding:5px 11px;border:1px solid #a3241f;border-radius:6px;background:#fff;color:#8f2b26;font-size:12px}
+.robot-release{margin-left:auto;padding:5px 11px;border:1px solid #a3241f;border-radius:var(--radius-sm);background:#fff;color:#8f2b26;font-size:12px}
 .robot-yawoff{margin:8px 0 0;padding:8px 10px;border-left:3px solid #e2a13a;background:#fdf8ec;color:#6b5520;font-size:12px}
 .robot-reject{margin:8px 0 0;padding:9px 11px;border-left:3px solid #a3241f;background:#fdeceb;color:#8f2b26;font-size:13px;font-weight:600}
 .robot-reject code{margin:0 4px;padding:1px 5px;border-radius:3px;background:#f6d9d7}
@@ -787,20 +787,20 @@ button.robot-resume{padding:6px 12px;border:1px solid #2f9e5f;border-radius:6px;
    못 가른다(주소·포트·망이냐, 로봇 전원이냐). */
 .conn-health{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:6px}
 .conn-health__lines{display:flex;gap:6px;flex-wrap:wrap;flex:1}
-.conn-dot{padding:3px 9px;border-radius:10px;font-size:11px;font-weight:600}
+.conn-dot{padding:3px 9px;border-radius:var(--radius-lg);font-size:11px;font-weight:600}
 .conn-dot--ok{background:#e7f6ee;color:#125c33}
 .conn-dot--bad{background:#fdeceb;color:#8f2b26}
 .conn-dot--unknown{background:#eef2f7;color:#6b7888;font-weight:400}
-.conn-test{display:inline-flex;align-items:center;gap:5px;margin-right:8px;padding:5px 9px;border:1px dashed #c07a1a;border-radius:6px;background:#fdf6ea;color:#7a4d08;font-size:12px;cursor:pointer}
+.conn-test{display:inline-flex;align-items:center;gap:5px;margin-right:8px;padding:5px 9px;border:1px dashed #c07a1a;border-radius:var(--radius-sm);background:#fdf6ea;color:#7a4d08;font-size:12px;cursor:pointer}
 .conn-test input{margin:0}
-.conn-check{padding:4px 12px;border:1px solid #b6c2d0;border-radius:6px;background:#fff;font-size:12px}
+.conn-check{padding:4px 12px;border:1px solid #b6c2d0;border-radius:var(--radius-sm);background:#fff;font-size:12px}
 .conn-check:disabled{opacity:.5}
 .conn-health__at{color:#8a94a2;font-size:11px;font-variant-numeric:tabular-nums}
-.conn-preset{margin-right:6px;padding:4px 6px;border:1px solid #cfd6df;border-radius:5px;font-size:12px}
+.conn-preset{margin-right:6px;padding:4px 6px;border:1px solid #cfd6df;border-radius:var(--radius-xs);font-size:12px}
 
 /* 시연 화면 표시등 — **읽기 전용**이다. 누르면 연결 관리가 열리고 거기서 고친다.
    주소 입력도 프리셋도 여기 없다(§4). */
-.conn-lamp{padding:3px 10px;border-radius:10px;border:1px solid transparent;font-size:12px;font-weight:600;cursor:pointer}
+.conn-lamp{padding:3px 10px;border-radius:var(--radius-lg);border:1px solid transparent;font-size:12px;font-weight:600;cursor:pointer}
 .conn-lamp--ok{background:#e7f6ee;color:#125c33;border-color:#bfe3ce}
 .conn-lamp--bad{background:#fdeceb;color:#8f2b26;border-color:#f0c4c1}
 .conn-lamp--unknown{background:#eef2f7;color:#5c6a7c;border-color:#dfe4ea}
@@ -808,7 +808,7 @@ button.robot-resume{padding:6px 12px;border:1px solid #2f9e5f;border-radius:6px;
 /* 하드웨어 카드의 연결 층 (260910) — 브로커·단말·로봇 셋을 뭉치지 않는다.
    로봇은 늘 「?」다: ping 은 단말까지만 증명한다. */
 .hw-link{display:flex;flex-wrap:wrap;gap:4px;align-items:center}
-.hw-dot{padding:1px 6px;border-radius:8px;font-size:10px;font-style:normal;font-weight:600}
+.hw-dot{padding:1px 6px;border-radius:var(--radius-md);font-size:10px;font-style:normal;font-weight:600}
 .hw-dot--ok{background:#e7f6ee;color:#125c33}
 .hw-dot--bad{background:#fdeceb;color:#8f2b26}
 .hw-dot--unknown{background:#eef2f7;color:#6b7888}
@@ -820,7 +820,7 @@ button.robot-resume{padding:6px 12px;border:1px solid #2f9e5f;border-radius:6px;
 .device-facts>div{display:flex;gap:10px;padding:5px 8px;border-bottom:1px solid #eef1f5;font-size:13px}
 .device-facts dt{min-width:88px;color:#6b7888}
 .device-facts dd{margin:0;color:#26303c;font-weight:600}
-.device-facts--none{margin:12px 0;padding:10px;border:1px dashed #d5dbe3;border-radius:6px;color:#6b7888;font-size:13px}
+.device-facts--none{margin:12px 0;padding:10px;border:1px dashed #d5dbe3;border-radius:var(--radius-sm);color:#6b7888;font-size:13px}
 /* 자율주행 편 — 로봇 영상 · 장애물 탐지 (260915). 문 찾기 시연 화면의 규칙은 건드리지 않는다. */
 .autodrive-cam img{min-height:48px;background:#11161d}
 .obstacle-facts h4{margin:12px 0 4px;font-size:12px;color:#4a5666}
@@ -829,7 +829,7 @@ button.robot-resume{padding:6px 12px;border:1px solid #2f9e5f;border-radius:6px;
 .obstacle-table small{display:block;color:#8a94a1;font-size:10px}
 .obstacle-table tr.is-near td{background:#fff4f1}
 .obstacle-raw{margin:6px 0}
-.obstacle-raw pre{max-height:260px;overflow:auto;margin:4px 0 0;padding:8px;border-radius:6px;background:#11161d;color:#d7e0ea;font-size:11px;line-height:1.45}
+.obstacle-raw pre{max-height:260px;overflow:auto;margin:4px 0 0;padding:8px;border-radius:var(--radius-sm);background:#11161d;color:#d7e0ea;font-size:11px;line-height:1.45}
 .evidence-reason--warn{border-left-color:#d9534f;background:#fff4f1;color:#7a2a26}
 .obstacle-evidence{margin:4px 0 10px;padding-left:18px;font-size:12px;line-height:1.6}
 .obstacle-evidence li.is-near{color:#a3342f}
@@ -839,7 +839,7 @@ button.robot-resume{padding:6px 12px;border:1px solid #2f9e5f;border-radius:6px;
    **세로 1:1 · 각자 스크롤**이다 — 축이 다른 둘을 한 스크롤에 태우면 하나가 늘 때
    다른 하나가 화면 밖으로 밀린다(지시 2). */
 .milestone-layout>.right-column{min-height:0;display:grid;grid-template-rows:1fr 1fr;gap:16px}
-.right-column>.hardware-panel,.right-column>.capability-panel{min-height:0;display:flex;flex-direction:column;overflow:auto;background:#fff;border:1px solid #d9dee6;border-radius:10px;padding:18px}
+.right-column>.hardware-panel,.right-column>.capability-panel{min-height:0;display:flex;flex-direction:column;overflow:auto;background:#fff;border:1px solid #d9dee6;border-radius:var(--radius-lg);padding:18px}
 .hardware-panel>article{flex:0 0 auto}
 /* 판 안에서 구르는 것은 **목록뿐**이다 — 제목·배지·바닥줄은 제자리에 남아야
    「무엇을 보고 있는지」와 「이 값이 어디서 왔는지」가 스크롤에 안 쓸려 나간다. */
@@ -849,20 +849,20 @@ button.robot-resume{padding:6px 12px;border:1px solid #2f9e5f;border-radius:6px;
 .capability-panel__hint{flex:0 0 auto;margin:0 0 8px;color:#687587;font-size:11px;line-height:1.5}
 /* 계층 전체 보기 입구 (260921). 힌트 줄 안의 작은 글자 버튼 — 기능 목록과 같은 무게로
    보이면 「기능이 하나 더 있다」로 읽힌다. */
-.capability-panel__fleet{margin-left:6px;padding:2px 7px;border:1px solid #cbd3de;border-radius:6px;background:#fff;color:#1768c5;font:inherit;font-size:11px}
+.capability-panel__fleet{margin-left:6px;padding:2px 7px;border:1px solid #cbd3de;border-radius:var(--radius-sm);background:#fff;color:#1768c5;font:inherit;font-size:11px}
 .capability-panel__fleet:hover{border-color:#1768c5;background:#1768c5;color:#fff}
-.capability-panel__fallback{flex:0 0 auto;margin:0 0 8px;padding:7px 9px;border:1px solid #e3c98a;border-radius:6px;background:#fdf8ec;color:#7a5c12;font-size:11.5px;line-height:1.5}
+.capability-panel__fallback{flex:0 0 auto;margin:0 0 8px;padding:7px 9px;border:1px solid #e3c98a;border-radius:var(--radius-sm);background:#fdf8ec;color:#7a5c12;font-size:11.5px;line-height:1.5}
 .capability-panel__body{flex:1;min-height:0;overflow:auto}
 .capability-panel__note{margin:6px 0;color:#6a7686;font-size:12px}
-.capability-panel__error{margin:6px 0;padding:8px;border:1px solid #efb2b2;border-radius:6px;background:#fff0f0;color:#8f2b2b;font-size:12px;line-height:1.5}
+.capability-panel__error{margin:6px 0;padding:8px;border:1px solid #efb2b2;border-radius:var(--radius-sm);background:#fff0f0;color:#8f2b2b;font-size:12px;line-height:1.5}
 .capability-panel__foot{flex:0 0 auto;display:flex;align-items:center;gap:8px;margin-top:10px;padding-top:8px;border-top:1px solid #e4e8ee}
 .capability-panel__foot span{flex:1;color:#8a94a1;font-size:10.5px;line-height:1.5;word-break:break-all}
-.capability-panel__foot button{padding:5px 9px;border:1px solid #cbd3de;border-radius:6px;background:#fff;font-size:11.5px}
+.capability-panel__foot button{padding:5px 9px;border:1px solid #cbd3de;border-radius:var(--radius-sm);background:#fff;font-size:11.5px}
 .capability-panel__foot button:disabled{color:#9aa5b3;background:#f2f4f7}
 
 /* 칩 — 하드웨어 카드의 `hw-dot` 과 **같은 색표**를 쓴다. 두 판이 나란히 서므로
    같은 뜻에 다른 색을 쓰면 눈이 둘을 다른 척도로 읽는다. */
-.cap-chip{display:inline-block;padding:1px 6px;border-radius:8px;font-size:10px;font-style:normal;font-weight:600;white-space:nowrap}
+.cap-chip{display:inline-block;padding:1px 6px;border-radius:var(--radius-md);font-size:10px;font-style:normal;font-weight:600;white-space:nowrap}
 .cap-chip--ok{background:#e7f6ee;color:#125c33}
 .cap-chip--bad{background:#fdeceb;color:#8f2b26}
 .cap-chip--warn{background:#fdf6e3;color:#7a5c12}
@@ -875,7 +875,7 @@ button.robot-resume{padding:6px 12px;border:1px solid #2f9e5f;border-radius:6px;
 /* 조건 때문에 사라진 것 — **자리를 남긴다.** 지우면 「원래 없었다」로 읽힌다. */
 .cap-chip--gone{background:#fdeceb;color:#8f2b26;font-weight:400;text-decoration:line-through}
 
-.cap-fn{width:100%;display:grid;grid-template-columns:1fr auto;gap:4px;align-items:center;text-align:left;padding:9px 10px;margin:6px 0;border:1px solid #d6dce5;border-radius:8px;background:#fff;color:inherit}
+.cap-fn{width:100%;display:grid;grid-template-columns:1fr auto;gap:4px;align-items:center;text-align:left;padding:9px 10px;margin:6px 0;border:1px solid #d6dce5;border-radius:var(--radius-md);background:#fff;color:inherit}
 .cap-fn:hover{border-color:#1768c5;background:#f6faff}
 .cap-fn.is-changed{border-color:#c1a8e8;background:#fdfcff}
 .cap-fn strong{font-size:13px}
@@ -886,7 +886,7 @@ button.robot-resume{padding:6px 12px;border:1px solid #2f9e5f;border-radius:6px;
 
 /* 드릴다운 — `.modal` 위에 얹힌다. 탭이 아니라 이동 경로(`crumbs`)로 단계를 오간다. */
 .cap-modal{width:min(1180px,94vw)}
-.cap-modal>footer button{padding:9px 13px;border:1px solid #bec8d5;border-radius:7px;background:#fff}
+.cap-modal>footer button{padding:9px 13px;border:1px solid #bec8d5;border-radius:var(--radius-sm);background:#fff}
 .cap-strip{display:grid;grid-template-columns:1.1fr repeat(3,1fr);gap:14px;padding:15px 22px;background:#eef5fb}
 .cap-strip b,.cap-strip span{display:flex;flex-direction:column;gap:5px;font-size:13px;min-width:0}
 .cap-strip small{color:#4a5666;font-weight:400}
@@ -896,7 +896,7 @@ button.robot-resume{padding:6px 12px;border:1px solid #2f9e5f;border-radius:6px;
 .cap-note--pad{padding:18px 0}
 .cap-note--flush{margin:9px 0 0}
 .cap-supplement{margin:14px 22px 0;padding:0;list-style:none;display:grid;gap:5px}
-.cap-supplement li{display:grid;grid-template-columns:150px 190px 1fr;gap:10px;align-items:baseline;padding:7px 10px;border:1px solid #efb2b2;border-radius:7px;background:#fff7f7;font-size:12px}
+.cap-supplement li{display:grid;grid-template-columns:150px 190px 1fr;gap:10px;align-items:baseline;padding:7px 10px;border:1px solid #efb2b2;border-radius:var(--radius-sm);background:#fff7f7;font-size:12px}
 .cap-supplement em{font-style:normal;color:#6b7888}
 
 .cap-table{border-top:1px solid #e1e5eb}
@@ -934,31 +934,31 @@ button.robot-resume{padding:6px 12px;border:1px solid #2f9e5f;border-radius:6px;
 .cap-noderow__go:hover{color:#1768c5}
 
 /* 조건 조작면 — 태그 핀 · 예산 · provider 제외. 줄 안에서 펴지므로 두 칸을 다 덮는다. */
-.cap-cond{grid-column:1/-1;display:grid;grid-template-columns:1.25fr 1fr;gap:20px;margin:2px 22px 16px;padding:14px 16px;border:1px solid #ddd3f0;border-radius:9px;background:#fff}
+.cap-cond{grid-column:1/-1;display:grid;grid-template-columns:1.25fr 1fr;gap:20px;margin:2px 22px 16px;padding:14px 16px;border:1px solid #ddd3f0;border-radius:var(--radius-md);background:#fff}
 .cap-cond--global{margin:12px 22px;background:#faf7ff}
 .cap-cond__col{min-width:0}
 .cap-cond h4{margin:0 0 7px;font-size:11px;font-weight:400;color:#5c6a7c}
 .cap-cond__col>.cap-fields{margin-bottom:14px}
 .cap-pins{display:flex;flex-wrap:wrap;gap:5px}
-.cap-pin{display:inline-flex;align-items:center;gap:5px;padding:5px 9px;border:1px solid #d6dce5;border-radius:14px;background:#fff;color:#5c6a7c;font-size:11px;cursor:pointer}
+.cap-pin{display:inline-flex;align-items:center;gap:5px;padding:5px 9px;border:1px solid #d6dce5;border-radius:var(--radius-xl);background:#fff;color:#5c6a7c;font-size:11px;cursor:pointer}
 .cap-pin.is-on{border-color:#1768c5;background:#f6faff;color:#17202b}
 .cap-pin input{margin:0}
 .cap-fields{display:flex;gap:10px}
 .cap-fields label{display:grid;gap:4px;font-size:11px;color:#5c6a7c}
-.cap-fields input{width:110px;padding:6px 8px;border:1px solid #cbd3de;border-radius:6px;font:inherit;font-size:12px}
+.cap-fields input{width:110px;padding:6px 8px;border:1px solid #cbd3de;border-radius:var(--radius-sm);font:inherit;font-size:12px}
 .cap-checks{display:grid;gap:4px;max-height:132px;overflow:auto;padding-right:4px}
 .cap-checks label{display:flex;align-items:center;gap:7px;font-size:11.5px;color:#46525f;cursor:pointer}
 .cap-checks input{margin:0}
 .cap-checks code{font-size:11.5px}
 
 /* 가상 조건 막대 — 기능 판과 드릴다운이 **같은 부품**을 쓴다(모양만 다르다). */
-.cap-whatif{border:1px solid #c1a8e8;border-radius:8px;background:#faf7ff}
+.cap-whatif{border:1px solid #c1a8e8;border-radius:var(--radius-md);background:#faf7ff}
 .cap-whatif--panel{flex:0 0 auto;margin:0 0 10px;padding:9px 10px}
 .cap-whatif--drill{border-width:0 0 1px;border-radius:0;padding:11px 22px}
 .cap-whatif__line{display:flex;align-items:center;flex-wrap:wrap;gap:7px}
 .cap-whatif__line strong{font-size:12px;color:#4a2d86}
 .cap-whatif__buttons{margin-left:auto;display:flex;gap:6px}
-.cap-whatif__buttons button{padding:5px 10px;border:1px solid #c1a8e8;border-radius:6px;background:#fff;color:#4a2d86;font:inherit;font-size:11.5px}
+.cap-whatif__buttons button{padding:5px 10px;border:1px solid #c1a8e8;border-radius:var(--radius-sm);background:#fff;color:#4a2d86;font:inherit;font-size:11.5px}
 .cap-whatif__chips{display:flex;flex-wrap:wrap;gap:4px;margin-top:7px}
 .cap-whatif__error{margin:7px 0 0;color:#8f2b26;font-size:11.5px;line-height:1.5}
 
@@ -967,7 +967,7 @@ button.robot-resume{padding:6px 12px;border:1px solid #2f9e5f;border-radius:6px;
 .cap-dev__main>h3{margin:0 0 10px;font-size:13px;color:#4a5666}
 .cap-dev__main>h3+.cap-table{margin-bottom:6px}
 .cap-dev__main>.cap-alts+h3,.cap-dev__main>.cap-table+h3{margin-top:20px}
-.cap-dev .cap-table{border:1px solid #e1e5eb;border-radius:8px;overflow:hidden}
+.cap-dev .cap-table{border:1px solid #e1e5eb;border-radius:var(--radius-md);overflow:hidden}
 .cap-dev .cap-table__head{padding:9px 12px}
 .cap-devrow{display:grid;grid-template-columns:1.2fr 120px 1fr 1.2fr;gap:12px;padding:11px 12px;border-bottom:1px solid #e1e5eb;font-size:12px}
 .cap-devrow:last-child{border-bottom:0}
@@ -977,7 +977,7 @@ button.robot-resume{padding:6px 12px;border:1px solid #2f9e5f;border-radius:6px;
 .cap-devrow>span>em{align-self:flex-start}
 .cap-token{color:#8f2b26;font-size:11px}
 .cap-alts{display:grid;gap:8px}
-.cap-alt{border:1px solid #dde3ea;border-radius:8px;padding:10px 12px}
+.cap-alt{border:1px solid #dde3ea;border-radius:var(--radius-md);padding:10px 12px}
 .cap-alt>div{display:flex;flex-wrap:wrap;align-items:baseline;gap:8px}
 .cap-alt>div>b{font-size:13px}
 .cap-alt>div>.cap-token{margin-left:auto}
@@ -1004,9 +1004,9 @@ button.robot-resume{padding:6px 12px;border:1px solid #2f9e5f;border-radius:6px;
 
 /* 레지스트리 밖 개체 (260921 — 관문 C-a). 값은 왔는데 목록에 없는 것들.
    **판정을 그리지 않는다** — 적는 것은 우리가 실제로 아는 넷뿐이다. */
-.stray{margin:18px 0 0;padding:16px 18px;border:1px dashed #c8a94f;border-radius:10px;background:#fffdf5}
+.stray{margin:18px 0 0;padding:16px 18px;border:1px dashed #c8a94f;border-radius:var(--radius-lg);background:#fffdf5}
 .stray__title{display:flex;align-items:baseline;gap:9px;margin:0 0 6px;font-size:15px;color:#6b5410}
-.stray__count{padding:1px 7px;border-radius:8px;background:#f3e6bc;color:#6b5410;font-size:11px;font-weight:600}
+.stray__count{padding:1px 7px;border-radius:var(--radius-md);background:#f3e6bc;color:#6b5410;font-size:11px;font-weight:600}
 .stray__sub{margin:0 0 12px;color:#6d6a5a;font-size:12px;line-height:1.55}
 .card--stray{border-color:#dcc98a;background:#fff}
 .card__badge--stray{background:#f3e6bc;color:#6b5410}
@@ -1019,7 +1019,7 @@ button.robot-resume{padding:6px 12px;border:1px solid #2f9e5f;border-radius:6px;
 .card__slots small{color:#8a94a1;font-variant-numeric:tabular-nums}
 .card__raw{margin-top:8px;font-size:11.5px}
 .card__raw summary{cursor:pointer;color:#1768c5}
-.card__raw pre{margin:6px 0 0;padding:8px;max-height:220px;overflow:auto;border:1px solid #e1e5eb;border-radius:6px;background:#f7f9fc;font-size:11px;line-height:1.5;white-space:pre-wrap;word-break:break-all}
+.card__raw pre{margin:6px 0 0;padding:8px;max-height:220px;overflow:auto;border:1px solid #e1e5eb;border-radius:var(--radius-sm);background:#f7f9fc;font-size:11px;line-height:1.5;white-space:pre-wrap;word-break:break-all}
 
 /* 카메라 영상 (260921 — /media · 관문 B). **대상 상태 오버레이 안의 한 칸**이다 —
    상설 판이 아니다. 영상은 늘 보는 값이 아니라 한 장비의 카메라에 딸린 것이다. */
@@ -1029,12 +1029,12 @@ button.robot-resume{padding:6px 12px;border:1px solid #2f9e5f;border-radius:6px;
 .media-section__badges{display:flex;flex-wrap:wrap;gap:4px}
 .media-section__hint{margin:0 0 8px;color:#5c6a7c;font-size:11px;line-height:1.5}
 .media-section__note{margin:6px 0;color:#5c6a7c;font-size:11.5px;line-height:1.5}
-.media-section__error{margin:6px 0;padding:7px 9px;border:1px solid #efb2b2;border-radius:6px;background:#fff0f0;color:#8f2b2b;font-size:11.5px;line-height:1.5}
-.media-section__stage{position:relative;margin:0 0 9px;border:1px solid #d9dee6;border-radius:8px;background:#11161d;overflow:hidden;min-height:170px;display:grid;place-items:center}
+.media-section__error{margin:6px 0;padding:7px 9px;border:1px solid #efb2b2;border-radius:var(--radius-sm);background:#fff0f0;color:#8f2b2b;font-size:11.5px;line-height:1.5}
+.media-section__stage{position:relative;margin:0 0 9px;border:1px solid #d9dee6;border-radius:var(--radius-md);background:#11161d;overflow:hidden;min-height:170px;display:grid;place-items:center}
 .media-canvas{display:block;max-width:100%;max-height:340px}
 .media-canvas__empty{position:absolute;margin:0;padding:0 14px;color:#9aa5b3;font-size:11.5px;text-align:center;line-height:1.6}
 .media-section__counts{display:grid;grid-template-columns:repeat(5,1fr);gap:7px;margin:0 0 9px}
-.media-section__counts>div{display:flex;flex-direction:column;gap:2px;padding:6px 7px;border:1px solid #e4e8ee;border-radius:7px;background:#f7f9fc}
+.media-section__counts>div{display:flex;flex-direction:column;gap:2px;padding:6px 7px;border:1px solid #e4e8ee;border-radius:var(--radius-sm);background:#f7f9fc}
 .media-section__counts dt{color:#5c6a7c;font-size:10px}
 .media-section__counts dd{margin:0;font-size:14px;font-weight:700;font-variant-numeric:tabular-nums}
 .media-section__facts{display:grid;grid-template-columns:150px 1fr;gap:3px 10px;margin:0 0 9px;font-size:11.5px}
@@ -1042,39 +1042,39 @@ button.robot-resume{padding:6px 12px;border:1px solid #2f9e5f;border-radius:6px;
 .media-section__facts dd{margin:0;word-break:break-all;font-family:monospace;font-size:11px}
 .media-section__foot{display:flex;align-items:center;gap:8px;padding-top:8px;border-top:1px solid #e4e8ee}
 .media-section__foot span{flex:1;color:#6b7684;font-size:10.5px;line-height:1.5;word-break:break-all}
-.media-section__foot button{padding:5px 11px;border:1px solid #cbd3de;border-radius:6px;background:#fff;font:inherit;font-size:11.5px}
+.media-section__foot button{padding:5px 11px;border:1px solid #cbd3de;border-radius:var(--radius-sm);background:#fff;font:inherit;font-size:11.5px}
 .media-section__foot button:disabled{color:#9aa5b3;background:#f2f4f7}
 
 /* SAR · 3D 복원 노드 (260929). 카드는 칸에 맞춰 한 장, 확대는 휠·끌기로 본다. */
 .attached-img{display:grid;gap:4px;margin:0}
-.attached-img__still{width:100%;max-height:180px;object-fit:contain;background:#0d1117;border-radius:5px;display:block}
+.attached-img__still{width:100%;max-height:180px;object-fit:contain;background:#0d1117;border-radius:var(--radius-xs);display:block}
 .attached-img__caption{color:#6a7686;font-size:11px;overflow-wrap:anywhere}
-.attached-img__stage{height:78vh;overflow:hidden;background:#0d1117;border-radius:6px;cursor:grab;display:flex;align-items:center;justify-content:center}
+.attached-img__stage{height:78vh;overflow:hidden;background:#0d1117;border-radius:var(--radius-sm);cursor:grab;display:flex;align-items:center;justify-content:center}
 .attached-img__stage.is-dragging{cursor:grabbing}
 .attached-img__stage img{max-width:100%;max-height:100%;object-fit:contain;transform-origin:center;user-select:none}
 /* 연결 관리의 이미지 칸 (260929). 끌어다 놓을 수 있게 칸 전체가 받는다. */
-.conn-image{display:grid;gap:6px;padding:8px;border:1px dashed #cfd6df;border-radius:8px}
+.conn-image{display:grid;gap:6px;padding:8px;border:1px dashed #cfd6df;border-radius:var(--radius-md)}
 .conn-image>span{font-size:12px;color:#51606f}
 .conn-image__none{margin:0;color:#8994a3;font-size:12px}
-.conn-image__thumb{max-width:100%;max-height:120px;object-fit:contain;border-radius:5px;background:#0d1117}
+.conn-image__thumb{max-width:100%;max-height:120px;object-fit:contain;border-radius:var(--radius-xs);background:#0d1117}
 .conn-image__actions{display:flex;gap:6px;flex-wrap:wrap}
-.conn-image__pick{display:inline-block;padding:4px 10px;border:1px solid #c8d0da;border-radius:6px;background:#fff;cursor:pointer;font-size:12px}
+.conn-image__pick{display:inline-block;padding:4px 10px;border:1px solid #c8d0da;border-radius:var(--radius-sm);background:#fff;cursor:pointer;font-size:12px}
 .conn-image__pick input{display:none}
 .conn-image__status{color:#6a7686;font-size:11px}
 /* 장애물 탐지 주소 고르기 (260929). 확대 위쪽 한 줄 — 여러 장의 탐지 영상이 각자 주소를 본다. */
 .ai-source{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:0 0 6px;font-size:12px}
-.ai-source select{max-width:100%;padding:3px 6px;border:1px solid #c8d0da;border-radius:6px;background:#fff}
+.ai-source select{max-width:100%;padding:3px 6px;border:1px solid #c8d0da;border-radius:var(--radius-sm);background:#fff}
 .ai-source small,.ai-source__at{color:#6a7686;font-size:11px}
 .v3d__frame{min-height:220px}
 .vmap--zoom .v3d__frame{min-height:78vh}
 /* 다음 장치 출발 승인 (260929). 머리줄에서 눈에 띄어야 한다 — 누르기 전까지 판이 기다린다. */
-.move-gate{border:1px solid #2f7d46;background:#e9f7ee;color:#1f5c33;border-radius:8px;padding:6px 12px;animation:move-gate-pulse 1.6s ease-in-out infinite}
+.move-gate{border:1px solid #2f7d46;background:#e9f7ee;color:#1f5c33;border-radius:var(--radius-md);padding:6px 12px;animation:move-gate-pulse 1.6s ease-in-out infinite}
 .move-gate small{color:#2f6b42}
 .move-gate:disabled{animation:none;opacity:.6}
 @keyframes move-gate-pulse{0%,100%{box-shadow:0 0 0 0 #2f7d4600}50%{box-shadow:0 0 0 4px #2f7d4633}}
 /* 붙인 동영상 재생 (260929 — 이상 탐지 편). 카드는 칸에 맞춰, 확대는 크게. */
 .cued-video{display:grid;gap:4px}
-.cued-video video{width:100%;max-height:200px;object-fit:contain;background:#0d1117;border-radius:5px;display:block}
+.cued-video video{width:100%;max-height:200px;object-fit:contain;background:#0d1117;border-radius:var(--radius-xs);display:block}
 .cued-video--zoom video{max-height:80vh}
 /* 화면 가득일 때는 안쪽도 화면을 다 쓴다 (260929). */
 .zoom-modal:fullscreen .detect-cam--zoom img,.zoom-modal:fullscreen .vmap--zoom .vmap__svg,.zoom-modal:fullscreen .device-cam--zoom .device-cam__canvas,.zoom-modal:fullscreen .cued-video--zoom video{max-height:86vh}
@@ -1084,5 +1084,5 @@ button.robot-resume{padding:6px 12px;border:1px solid #2f9e5f;border-radius:6px;
 .view-node[style*="--card-h"] :is(.device-cam__canvas,.attached-img__still,.cued-video video,.detect-cam img,.vmap__svg){max-height:calc(var(--card-h) - 72px);object-fit:contain}
 .view-node[style*="--card-h"] :is(.vmap__unity,.v3d__frame,.autodrive-cam__page){height:calc(var(--card-h) - 72px);min-height:0;aspect-ratio:auto}
 /* 백엔드 서버 카드 (261001 · 임시). 장비 카드와 같은 자리 · 점선 테두리로 장비가 아님을 보인다 · 끌 수 없다. */
-.server-card{display:grid;gap:3px;padding:8px 10px;margin-bottom:8px;border:1px dashed #8fa3bd;border-radius:8px;background:#f6f8fb}
+.server-card{display:grid;gap:3px;padding:8px 10px;margin-bottom:8px;border:1px dashed #8fa3bd;border-radius:var(--radius-md);background:#f6f8fb}
 .server-card small{color:#6a7686;font-size:11px}

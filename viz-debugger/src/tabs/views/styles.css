@@ -92,7 +92,7 @@ body {
 .notice {
   background: var(--surface);
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   padding: 12px 14px;
   color: var(--muted);
 }
@@ -114,7 +114,7 @@ body {
 .summary__item {
   background: var(--surface);
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   padding: 10px 18px;
   min-width: 108px;
   display: flex;
@@ -148,7 +148,7 @@ body {
   background: var(--surface);
   border: 1px solid var(--line);
   border-left: 5px solid var(--nodeploy);
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   padding: 14px 16px;
 }
 .card--normal { border-left-color: var(--normal); }
@@ -207,7 +207,7 @@ body {
 
 .badge {
   padding: 3px 10px;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   font-size: 12px;
   font-weight: 600;
   white-space: nowrap;
@@ -242,7 +242,7 @@ body {
 .mapping {
   background: var(--surface);
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   padding: 16px 18px;
   margin-bottom: 20px;
 }
@@ -280,7 +280,7 @@ body {
 .devpanel {
   background: var(--surface);
   border: 1px dashed var(--line);
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   padding: 16px 18px;
 }
 .devpanel__row {
@@ -300,7 +300,7 @@ body {
 .btn {
   border: 1px solid var(--line);
   background: #fbfbfc;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   padding: 7px 12px;
   font-size: 13px;
   font-family: inherit;
@@ -328,7 +328,7 @@ body {
 .tabs__btn {
   border: 1px solid transparent;
   background: transparent;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   padding: 6px 12px;
   font-family: inherit;
   font-size: 13px;
@@ -363,7 +363,7 @@ body {
 .panel {
   background: var(--surface);
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   padding: 16px 18px;
 }
 .panel__head {
@@ -386,7 +386,7 @@ body {
 .lockbar {
   background: var(--fault-bg);
   border: 1px solid var(--fault);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   padding: 10px 12px;
   margin-bottom: 12px;
   display: flex;
@@ -409,7 +409,7 @@ body {
 
 .note {
   background: #f7f8f9;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   padding: 10px 12px;
   font-size: 12px;
   color: #4a5158;
@@ -476,7 +476,7 @@ body {
 .failbox {
   background: var(--fault-bg);
   border: 1px solid var(--fault);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   padding: 10px 12px;
   font-size: 13px;
   color: var(--fault);
@@ -523,7 +523,7 @@ body {
 .vallist__item { display: flex; gap: 8px; align-items: baseline; padding: 3px 0; }
 .vallist__mark {
   font-size: 11px; font-weight: 700;
-  padding: 1px 7px; border-radius: 4px;
+  padding: 1px 7px; border-radius: var(--radius-xs);
   background: var(--normal-bg); color: var(--normal);
   white-space: nowrap;
 }
@@ -536,7 +536,7 @@ body {
 .input {
   flex: 1;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   padding: 7px 10px;
   font-family: inherit;
   font-size: 13px;
@@ -553,7 +553,7 @@ body {
   align-items: center;
   gap: 2px;
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   background: #fbfbfc;
   padding: 14px 10px;
   font-family: inherit;
@@ -579,7 +579,7 @@ body {
 .faildetail {
   background: var(--fault-bg);
   border: 1px solid #f3bcbc;
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   padding: 14px 16px;
   margin-bottom: 12px;
 }
@@ -611,13 +611,13 @@ body {
 
 .videoframe {
   background: #1e2227;
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   padding: 8px;
   margin-bottom: 14px;
   display: flex;
   justify-content: center;
 }
-.videocanvas { max-width: 100%; height: auto; border-radius: 6px; display: block; }
+.videocanvas { max-width: 100%; height: auto; border-radius: var(--radius-sm); display: block; }
 
 .tracklist { list-style: none; margin: 0 0 10px; padding: 0; font-size: 13px; }
 .tracklist__item {
@@ -644,7 +644,7 @@ body {
   flex-wrap: wrap;
   background: var(--surface);
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   padding: 10px 14px;
   margin-bottom: 14px;
 }
@@ -741,7 +741,7 @@ body {
 .stat__unit { font-size: 14px; color: var(--muted); }
 .stat__label { font-size: 13px; color: var(--muted); margin-left: 5px; }
 
-.chart { background: #fbfcfd; border: 1px solid var(--line); border-radius: 10px; padding: 10px; }
+.chart { background: #fbfcfd; border: 1px solid var(--line); border-radius: var(--radius-lg); padding: 10px; }
 .chart--loading { opacity: .45; }
 .chart__head { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
 .chart__scale { font-size: 12px; color: var(--muted); margin-left: auto; }
@@ -778,7 +778,7 @@ body {
   flex-wrap: wrap;
   background: #fbfcfd;
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   padding: 9px 12px;
   margin-bottom: 12px;
   font-size: 12px;
@@ -824,7 +824,7 @@ body {
 .levelbar { display: flex; gap: 6px; flex-wrap: wrap; }
 .levelbar .btn { display: flex; flex-direction: column; align-items: flex-start; }
 .levelbar em { font-size: 10px; font-style: normal; opacity: .75; }
-.riskcard { border: 2px solid var(--line); border-radius: 14px; padding: 18px; margin-bottom: 16px; background: var(--surface); }
+.riskcard { border: 2px solid var(--line); border-radius: var(--radius-xl); padding: 18px; margin-bottom: 16px; background: var(--surface); }
 .riskcard--normal { border-color: var(--normal); }
 .riskcard--watch, .riskcard--recovery { border-color: var(--unknown); }
 .riskcard--alert { border-color: var(--fault); background: var(--fault-bg); }
@@ -834,9 +834,9 @@ body {
 .riskcard li span { color: var(--muted); margin-left: 8px; }
 .riskcard pre, .layercard pre, .failure pre { overflow: auto; max-height: 260px; background: #f6f8fa; padding: 10px; font-size: 11px; }
 .layergrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px; margin-bottom: 16px; }
-.layercard { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 12px; }
+.layercard { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-lg); padding: 12px; }
 .layercard > .badge { float: right; }
-.failurebox { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 16px; margin-bottom: 16px; }
+.failurebox { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-xl); padding: 16px; margin-bottom: 16px; }
 .failurebox h2 { margin-top: 0; font-size: 16px; }
 .failurebox h2 small { color: var(--muted); font-weight: 400; margin-left: 8px; }
 .failure { border-left: 4px solid var(--fault); background: var(--fault-bg); padding: 10px 12px; margin-top: 8px; }
@@ -846,32 +846,32 @@ body {
 /* ── 노드 그래프 편집기 (VZ-U-04) ─────────────────────────────────── */
 .graphactions { display: flex; gap: 7px; flex-wrap: wrap; }
 .grapheditor { display: grid; grid-template-columns: 230px 1fr; gap: 12px; margin-top: 14px; }
-.catalog { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 12px; }
+.catalog { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-lg); padding: 12px; }
 .catalog h2 { margin: 0 0 8px; font-size: 15px; }
-.catalog__node { width: 100%; text-align: left; padding: 8px; margin: 4px 0; border: 1px solid var(--line); border-radius: 7px; background: #fbfcfd; cursor: pointer; }
+.catalog__node { width: 100%; text-align: left; padding: 8px; margin: 4px 0; border: 1px solid var(--line); border-radius: var(--radius-sm); background: #fbfcfd; cursor: pointer; }
 .catalog__node span { display: block; color: var(--muted); font-size: 10px; }
-.canvas { position: relative; min-height: 530px; overflow: hidden; border: 1px solid var(--line); border-radius: 10px; background-color: #fbfcfd; background-image: radial-gradient(#d8dde3 1px, transparent 1px); background-size: 18px 18px; touch-action: none; }
+.canvas { position: relative; min-height: 530px; overflow: hidden; border: 1px solid var(--line); border-radius: var(--radius-lg); background-color: #fbfcfd; background-image: radial-gradient(#d8dde3 1px, transparent 1px); background-size: 18px 18px; touch-action: none; }
 .canvas__edges { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
 .canvas__edges line { stroke: #6b7280; stroke-width: 2; }
-.graphnode { position: absolute; width: 185px; min-height: 76px; padding: 10px; border: 2px solid #7fa8d0; border-radius: 10px; background: var(--surface); box-shadow: 0 2px 8px rgba(0,0,0,.08); cursor: move; user-select: none; }
+.graphnode { position: absolute; width: 185px; min-height: 76px; padding: 10px; border: 2px solid #7fa8d0; border-radius: var(--radius-lg); background: var(--surface); box-shadow: 0 2px 8px rgba(0,0,0,.08); cursor: move; user-select: none; }
 .graphnode--transform { border-color: #a992d0; }
 .graphnode--sink { border-color: #d9a86a; }
 .graphnode--selected { outline: 3px solid #2f6feb; }
 .graphnode small { display: block; color: var(--muted); font-size: 10px; }
 .graphnode__remove { position: absolute; right: 4px; top: 2px; border: 0; background: transparent; cursor: pointer; color: var(--fault); font-size: 18px; }
 .graphnode__port { margin-top: 8px; width: 100%; border: 1px solid var(--line); border-radius: 999px; background: #f6f8fa; font-size: 10px; cursor: pointer; }
-.graphresult { margin-top: 14px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 12px; }
+.graphresult { margin-top: 14px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-lg); padding: 12px; }
 .graphresult h2 { margin: 0 0 8px; font-size: 15px; }
 .graphresult h2 small, .graphobserve h2 small { font-weight: 400; color: var(--muted); font-size: 11px; margin-left: 6px; }
 
 /* REQ-1002 — 계약 JSON 확인창. 좌표가 없다는 것을 화면에서 보는 자리. */
-.contractio { margin-top: 12px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 12px; }
+.contractio { margin-top: 12px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-lg); padding: 12px; }
 .contractio h2 { margin: 0 0 4px; font-size: 15px; }
 .contractio p { margin: 0 0 8px; color: var(--muted); font-size: 12px; }
-.contractio textarea { width: 100%; min-height: 220px; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 11px; border: 1px solid var(--line); border-radius: 8px; padding: 8px; resize: vertical; }
+.contractio textarea { width: 100%; min-height: 220px; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 11px; border: 1px solid var(--line); border-radius: var(--radius-md); padding: 8px; resize: vertical; }
 
 /* REQ-1007 — 운영 그래프 관측. 시험 결과와 **다른 상자**여야 한다. */
-.graphobserve { margin-top: 14px; background: #f3f8f4; border: 1px solid #b9d6c0; border-left: 5px solid #4f8a5c; border-radius: 10px; padding: 12px; }
+.graphobserve { margin-top: 14px; background: #f3f8f4; border: 1px solid #b9d6c0; border-left: 5px solid #4f8a5c; border-radius: var(--radius-lg); padding: 12px; }
 .graphobserve h2 { margin: 0 0 8px; font-size: 15px; }
 .graphobserve p { margin: 6px 0; font-size: 12px; }
 .observetable { width: 100%; border-collapse: collapse; font-size: 12px; }
@@ -885,18 +885,18 @@ body {
 .graphnode__live--mock-propagated { background: #f1efe4; color: #7a6a2f; }
 .catalog__note { margin: 0 0 8px; color: var(--muted); font-size: 10px; line-height: 1.45; }
 .missionpick { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
-.missionpick select { font-size: 12px; padding: 3px 6px; border: 1px solid var(--line); border-radius: 6px; }
+.missionpick select { font-size: 12px; padding: 3px 6px; border: 1px solid var(--line); border-radius: var(--radius-sm); }
 @media (max-width: 850px) { .grapheditor { grid-template-columns: 1fr; } .canvas { min-height: 600px; } }
 
 /* 임무 관제 그래프 — 서브태스크 실행과 관측 근거를 한 화면에서 잇는다. */
-.missionbar, .pipelineeditor__head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; }
+.missionbar, .pipelineeditor__head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-lg); padding: 12px 14px; }
 .missionbar div, .pipelineeditor__head div:first-child { display: flex; flex-direction: column; margin-right: auto; }
 .missionbar span, .pipelineeditor__head p { color: var(--muted); margin: 0; }
-.missioncanvaswrap { overflow: auto; border: 1px solid var(--line); border-radius: 10px; background: #fbfcfd; }
+.missioncanvaswrap { overflow: auto; border: 1px solid var(--line); border-radius: var(--radius-lg); background: #fbfcfd; }
 .missioncanvas { position: relative; height: 500px; background-image: radial-gradient(#d8dde3 1px, transparent 1px); background-size: 18px 18px; }
 .missionedges { z-index: 0; }
 .missionedges__evidence { stroke: #7a5cd6 !important; stroke-dasharray: 5 3; }
-.missionnode, .evidencenode { position: absolute; z-index: 1; width: 190px; min-height: 86px; text-align: left; border: 2px solid var(--line); border-radius: 10px; padding: 10px; background: var(--surface); }
+.missionnode, .evidencenode { position: absolute; z-index: 1; width: 190px; min-height: 86px; text-align: left; border: 2px solid var(--line); border-radius: var(--radius-lg); padding: 10px; background: var(--surface); }
 .missionnode span, .missionnode small, .evidencenode span, .evidencenode small { display: block; font-size: 11px; color: var(--muted); }
 .missionnode em { display: block; color: var(--fault); font-size: 10px; font-style: normal; margin-top: 4px; }
 .missionnode--root { width: 135px; border-color: #5b3fb5; }
@@ -910,7 +910,7 @@ body {
 .evidencenode--video { border-color: #d36b9b; }
 .evidencenode--sensor { border-color: #2f9e44; }
 .evidencenode--control { border-color: #d98b1e; }
-.evidencetools { margin: 14px 0; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 12px; }
+.evidencetools { margin: 14px 0; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-lg); padding: 12px; }
 .evidencetools h2 { margin: 0 0 8px; font-size: 15px; }
 .evidencetools .btn { margin: 3px; }
 .pipelineeditor { margin-top: 4px; }
@@ -920,15 +920,15 @@ body {
    자리표시(.pending)와 반대로 **자리 크기를 지키지 않는다.** 자리표시는 「나중에 이 자리에
    그대로 들어간다」를 보이려 크기를 유지하지만, 접힘은 「이 이야기에 없다」이므로 화면을
    짧게 만드는 것이 맞다. */
-.tabskip { margin: 12px 0; padding: 18px 20px; border: 1px solid #cfd8e4; border-left: 4px solid #7c8ea6; border-radius: 10px; background: #f7f9fc; color: #3c4a5c; }
+.tabskip { margin: 12px 0; padding: 18px 20px; border: 1px solid #cfd8e4; border-left: 4px solid #7c8ea6; border-radius: var(--radius-lg); background: #f7f9fc; color: #3c4a5c; }
 .tabskip--wide { min-height: 240px; display: flex; flex-direction: column; justify-content: center; }
 .tabskip__title { margin: 0 0 10px; font-size: 16px; font-weight: 700; color: #26313f; }
 .tabskip__title b { color: #1768c5; }
 .tabskip__why { margin: 0 0 6px; font-size: 13px; line-height: 1.6; }
 .tabskip__list { margin: 10px 0 0; padding: 0; list-style: none; display: grid; gap: 6px; font-size: 13px; }
 .tabskip__list li { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
-.tabskip__list code { padding: 1px 5px; border-radius: 4px; background: #e7ecf3; font-size: 12px; }
-.tabskip__list button { padding: 4px 11px; border: 1px solid #1768c5; border-radius: 6px; background: #fff; color: #1768c5; font-size: 12px; cursor: pointer; }
+.tabskip__list code { padding: 1px 5px; border-radius: var(--radius-xs); background: #e7ecf3; font-size: 12px; }
+.tabskip__list button { padding: 4px 11px; border: 1px solid #1768c5; border-radius: var(--radius-sm); background: #fff; color: #1768c5; font-size: 12px; cursor: pointer; }
 .tabskip__list button:hover { background: #1768c5; color: #fff; }
 .tabskip__where { margin: 10px 0 0; font-size: 13px; line-height: 1.6; }
 .tabskip__back { margin: 12px 0 0; font-size: 12px; color: #6b7888; }
@@ -937,7 +937,7 @@ body {
    승인/거부가 끝나면 이 화면에서 결정할 것이 없다. 마일스톤 화면의 주인은 마일스톤이므로
    자리를 비우고 「무엇이 언제 어느 계획으로 결정됐는가」만 남긴다. */
 .board--receipt { margin-top: 0; padding: 0; border: 0; background: none; }
-.planreceipt { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 0; padding: 8px 12px; border: 1px solid var(--line); border-left: 4px solid #168f50; border-radius: 8px; background: var(--surface); font-size: 12.5px; }
+.planreceipt { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 0; padding: 8px 12px; border: 1px solid var(--line); border-left: 4px solid #168f50; border-radius: var(--radius-md); background: var(--surface); font-size: 12.5px; }
 .planreceipt--rejected { border-left-color: #c62f35; }
 .planreceipt__time { font-variant-numeric: tabular-nums; color: #4a5768; }
 .planreceipt__tag { color: #8794a4; font-size: 11.5px; }
