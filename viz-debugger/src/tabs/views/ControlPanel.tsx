@@ -421,7 +421,7 @@ function CommandTimeline({ command }: { command: TrackedCommand }) {
 
       {command.display === 'failed' && (
         <div className="failbox">
-          <strong>{t('cp.24')}</strong> — {command.lastDetail}
+          <strong>{t('cp.24')}</strong>: {command.lastDetail}
           {command.restored && <div className="failbox__sub">{t('cp.25')}</div>}
         </div>
       )}

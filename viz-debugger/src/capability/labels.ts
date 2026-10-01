@@ -39,7 +39,7 @@ export function capReason(
   // 말하고 *어느* 태그인지가 사라진다 — 고칠 수 있게 하는 값은 그쪽이다.
   if (token !== null) {
     const label = capLabel(group, token, lang);
-    return data === null || data === '' ? label : `${label} — ${data}`;
+    return data === null || data === '' ? label : `${label}: ${data}`;
   }
   return raw;
 }

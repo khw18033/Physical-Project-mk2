@@ -36,7 +36,7 @@ body {
   margin: 0;
   background: var(--bg);
   color: var(--text);
-  font-family: 'Malgun Gothic', 'Segoe UI', system-ui, sans-serif;
+  font-family: 'Malgun Gothic', 'Apple SD Gothic Neo', 'Noto Sans KR', system-ui, sans-serif;
   font-size: 14px;
   line-height: 1.55;
 }

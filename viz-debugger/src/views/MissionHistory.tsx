@@ -122,7 +122,7 @@ export function MissionHistoryList({ compact = false, onReplay }: { compact?: bo
     setOpenError(null);
     void openRecordedRun(run.date, run.run).then((result) => {
       setOpening(null);
-      if (!result.ok) { setOpenError(`${key} — ${result.reason}`); return; }
+      if (!result.ok) { setOpenError(`${key}: ${result.reason}`); return; }
       onReplay?.();
     });
   };

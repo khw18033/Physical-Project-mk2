@@ -159,7 +159,7 @@ const releaseView = gate.registerScanImageView();
   await sleep(10);                // 발행 뒤 답을 기다리기 시작할 틈
   robot.emit({ kind: 'acceptance', commandId: rejectedId, accepted: false, code: 'FAILED_PRECONDITION', message: 'stale_rotation' });
   await sleep(0);
-  if (!log.detectLog().some((line) => /45° 신호를 거절했습니다 — FAILED_PRECONDITION · stale_rotation/.test(lineText(line)))) failures.push('거절 코드와 사유(stale_rotation)를 안 적는다');
+  if (!log.detectLog().some((line) => /45° 신호를 거절했습니다: FAILED_PRECONDITION · stale_rotation/.test(lineText(line)))) failures.push('거절 코드와 사유(stale_rotation)를 안 적는다');
   if (session.robotSession().stopped !== null || traceEvents().some((event) => event.status === 'failed')) failures.push('신호 거절이 스캔을 실패·정지로 만든다');
   releaseAt(1, 'timeout');
   store.noteDetectError(null);

@@ -67,7 +67,7 @@ export function PrepFacts({ taskId }: { taskId: string }) {
     return <section className="prep-facts">
       <h3>{t('dlog.1')}</h3>
       <dl>
-        <div><dt>{t('dlog.state')}</dt><dd>{t(STEP_WORDS_KEY[map.step])}{map.reason !== null && ` — ${map.reason}`}</dd></div>
+        <div><dt>{t('dlog.state')}</dt><dd>{t(STEP_WORDS_KEY[map.step])}{map.reason !== null && `: ${map.reason}`}</dd></div>
         <div><dt>{t('dlog.5')}</dt><dd>{map.url === null ? t('dlog.2') : <>{map.bundled ? t('dlog.3') : t('dlog.4')} · <code>{map.url}</code></>}</dd></div>
         <div><dt>{t('dlog.6')}</dt><dd>({map.doorCm.x.toFixed(1)}, {map.doorCm.y.toFixed(1)}) cm · px ({map.doorPx.x}, {map.doorPx.y}) <small>{t('dlog.7')}</small></dd></div>
         {map.atIso !== null && <div><dt>{t('dlog.8')}</dt><dd>{map.atIso.slice(11, 23)}</dd></div>}
@@ -98,7 +98,7 @@ export function PrepFacts({ taskId }: { taskId: string }) {
       <div>
         <dt>{t('dlog.14')}</dt>
         <dd>{caught === null
-          ? <>{t(STEP_WORDS_KEY[prep.pose.step])}{prep.pose.reason !== null && ` — ${prep.pose.reason}`}</>
+          ? <>{t(STEP_WORDS_KEY[prep.pose.step])}{prep.pose.reason !== null && `: ${prep.pose.reason}`}</>
           : <><b>{caught.headingDeg.toFixed(1)}°</b> · x {caught.xM.toFixed(2)} m · y {caught.yM.toFixed(2)} m
             <small> {t('dlog.caughtMeta', { clock: caught.receivedAtIso.slice(11, 19) })}</small></>}
         </dd>

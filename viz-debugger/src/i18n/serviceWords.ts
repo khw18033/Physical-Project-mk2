@@ -54,11 +54,11 @@ const RULES: readonly Rule[] = [
 
   // 경로를 어떤 근거로 냈나 (A·B·C 세 갈래).
   [/^도면 위 로봇 자리에서 목표까지 산출 \(A -- 단상 기반 위치\)$/,
-    () => 'Computed on the plan from the robot to the target (A — position from the podium)'],
+    () => 'Computed on the plan from the robot to the target (A: position from the podium)'],
   [/^도면 위 로봇 자리에서 목표까지 산출 \(B -- 문만으로 추정한 위치\)$/,
-    () => 'Computed on the plan from the robot to the target (B — position estimated from the door alone)'],
+    () => 'Computed on the plan from the robot to the target (B: position estimated from the door alone)'],
   [/^C -- 로봇 위치를 못 잡아 문 관측\(방위·겉보기 크기\)만으로 산출\. 도면 위 경로 그림 없음$/,
-    () => 'C — the robot position could not be fixed, so this comes from door observations alone (bearing · apparent size). No path drawing on the plan'],
+    () => 'C: the robot position could not be fixed, so this comes from door observations alone (bearing · apparent size). No path drawing on the plan'],
 
   // 실패·대체 경로의 각 걸음.
   [/^경로 산출 실패$/, () => 'Path computation failed'],
@@ -76,7 +76,7 @@ const RULES: readonly Rule[] = [
   [/^문 거리 ([\d.]+)cm\(겉보기 크기\) · 문 방위 ([\d.]+)도\(bearing_refinement\)$/,
     (m) => `Door distance ${m[1]} cm (apparent size) · door bearing ${m[2]}° (bearing_refinement)`],
   [/^문 방위 ([\d.]+)도 · 문 거리 ([\d.]+)cm -- 도면 위치 없이 산출$/,
-    (m) => `Door bearing ${m[1]}° · door distance ${m[2]} cm — computed without a position on the plan`],
+    (m) => `Door bearing ${m[1]}° · door distance ${m[2]} cm, computed without a position on the plan`],
 
   // 괄호 안의 라벨 둘.
   [/^위치 추정: (.*)$/s, (m) => `position estimate: ${translateParts(m[1])}`],
@@ -116,7 +116,7 @@ function translateParts(korean: string): string {
 
   for (const sep of [' -- ', ' · ', ' / ']) {
     if (korean.includes(sep)) {
-      return korean.split(sep).map(translateParts).join(sep === ' -- ' ? ' — ' : sep);
+      return korean.split(sep).map(translateParts).join(sep === ' -- ' ? ': ' : sep);
     }
   }
   return one;

@@ -74,11 +74,11 @@ export function ViewNodeCard({ node, entry, scope, position, size, grips, picked
         : <span className="view-node__scope view-node__scope--global" title={t('viewnode.globalTitle')}>{t('viewnode.global')}</span>}
       {/* 손잡이 버튼은 끌기와 섞이면 안 된다 — pointerdown 을 여기서 멈춘다. */}
       <span className="view-node__acts" onPointerDown={(event) => event.stopPropagation()}>
-        <button type="button" onClick={onZoom} disabled={entry === null} title={entry === null ? t('viewnode.noRenderer') : t('viewnode.zoomTitle')}>⤢</button>
+        <button type="button" onClick={onZoom} disabled={entry === null} title={entry === null ? t('viewnode.noRenderer') : t('viewnode.zoomTitle')} aria-label={t('viewnode.zoomTitle')}>⤢</button>
         {bound
-          ? <button type="button" onClick={() => onBind(null)} title={t('viewnode.unlink')}>⛓</button>
-          : <button type="button" onClick={() => onBind(picked)} disabled={picked === null} title={picked === null ? t('viewnode.pickTaskFirst') : t('viewnode.linkTo', { task: picked })}>⛓</button>}
-        <button type="button" onClick={onRemove} title={t('viewnode.remove')}>×</button>
+          ? <button type="button" onClick={() => onBind(null)} title={t('viewnode.unlink')}>{t('viewnode.unlinkShort')}</button>
+          : <button type="button" onClick={() => onBind(picked)} disabled={picked === null} title={picked === null ? t('viewnode.pickTaskFirst') : t('viewnode.linkTo', { task: picked })}>{t('viewnode.linkShort')}</button>}
+        <button type="button" onClick={onRemove} title={t('viewnode.remove')} aria-label={t('viewnode.remove')}>×</button>
       </span>
     </header>
     <div className="view-node__body">

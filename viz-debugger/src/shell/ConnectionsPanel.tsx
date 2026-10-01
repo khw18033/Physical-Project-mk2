@@ -424,7 +424,7 @@ function HealthRow({ target, physical, onCommit }: {
           {row.scope !== undefined && <em className="conn-dot__scope">{row.scope}</em>}
           {t(row.labelKey)} {row.ok === true ? '✓' : row.ok === false ? '✕' : '?'}
           {row.roundTripMs !== null && ` ${row.roundTripMs}ms`}
-          {row.reason !== null && ` — ${row.reason}`}
+          {row.reason !== null && ` (${row.reason})`}
         </span>)}
     </div>
     {/*
