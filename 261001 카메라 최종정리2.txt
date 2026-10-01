@@ -75,7 +75,7 @@ python3 anchor360_live.py --u 230 --v -36.35 --pitch -35 \
 3. 컴퓨터 기동 (터미널 2개)
 
 3-1. 유니티 중계기 (컴퓨터 터미널 1)
-cd C:\Users\asdfa\docx2026_code
+cd "C:\Users\asdfa\physical mk2\360camera_work"
 python anchor360_bridge.py --unity-ip 192.168.50.244 --poll 0.3
 
 3-2. 스트림 공급 (컴퓨터 터미널 2) ※ pro2_auto_bg.py 를 대체하는 자리
@@ -84,6 +84,29 @@ python stream_to_server.py --fps 5
 
 ※ --count 60 을 붙이면 60장만 올리고 통계를 내고 종료한다(측정용).
 
+=====================
+3-A. 윈도우 노트북 기동 (터미널 2개. cmd)
+
+3-0. 공통 실행 코드 (2개 터미널 모두 각각)
+cd /d C:\Users\Admin\capstone
+venv360\Scripts\activate
+cd 360camera_work
+
+3-1. 유니티 중계기 (노트북 터미널 1)
+python anchor360_bridge.py --unity-ip <유니티 PC IP> --poll 0.3
+
+※ 유니티 PC IP 확인: 유니티 PC 에서 ipconfig → IPv4 주소 (예전 값 192.168.50.244, 매번 확인)
+※ 유니티를 이 노트북에서 돌리면 --unity-ip 127.0.0.1
+※ 이때, 360도 카메라 영상을 받는 노트북과 유니티 돌리는 노트북은 같은 네트워크(와이파이)에 연결되어야 함.
+
+3-2. 스트림 공급 (노트북 터미널 2)
+python stream_to_server.py --fps 2 --upload http://210.110.250.33:10001/upload_pano
+
+※ 팀원 핸드폰 핫스팟으로 해본 결과, 5fps 목표로 전송해도 2.3fps 정도가 실측되었음. 따라서 2fps로 하였음.
+※ 목적지가 서버가 아닌 엣지(노트북 내)일 경우, 'http://210.110.250.33:10001/upload_pano' 코드가 달라져야 함. 이건 server_stream_multi_source.py 참고해서 엣지(노트북)에서 server_stream_multi_source를 돌릴때, stream_to_server 변경 사항을 알아야 함.
+※ bridge 파일 자체도 나중에 multi_source.py에서 360도 카메라 비전처리 결과(json)가 나오는 경로를 반영해야함. 지금은 수정 전.
+
+=====================
 
 4. 유니티에서 scene 재생하기
   Hierarchy 에서 Anchor360 선택 → Inspector Yaw Offset Deg = -50 (만약 현실과 잘 방향이 안맞으면 임의로 조절할 것.)
