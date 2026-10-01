@@ -22,6 +22,8 @@ import { probeDetect, sourceOf } from '../detect/DetectClient.ts';
 import { detectState } from '../detect/store.ts';
 import { aiBases, fetchObstacleJson, probeStill, type FetchLike } from '../autodrive/aiClient.ts';
 import { parseObstacle } from '../autodrive/obstacle.ts';
+import { gatewayFeed, maskToken } from './gatewayFeed.ts';
+import { connectionAddress } from './connections.ts';
 // `sourceOf` 라는 이름이 탐지에도 있다 — 두 경계가 같은 모양의 함수를 각자 갖는 것이
 // 맞고(섞이면 안 된다), 여기서만 이름을 가른다.
 import { probeCapability, sourceOf as capabilitySourceOf, type FetchLike as CapabilityFetchLike } from '../capability/CapabilityClient.ts';
@@ -378,6 +380,43 @@ export async function checkStt(): Promise<readonly HealthLine[]> {
     : line('probe', 'check.line.probe', false, { reason: value.reason })];
 }
 
+/**
+ * **백엔드 게이트웨이 확인** (261001 — 「서버와 통신은 되는데 화면에 안 뜬다」). 세 줄.
+ *
+ *   소켓      게이트웨이 소켓이 열려 있는가 (주소 · 토큰이 맞는가 — 토큰이 틀리면 4401 로 닫힌다)
+ *   값 수신   누른 뒤 `waitMs` 안에 봉투가 **새로** 오는가 — 구독이 맞아야(구역 식별자) 온다
+ *   구역      지금 구역 식별자. 판정하지 않는다(정보) — 백엔드는 `zoneA`, 목은 `zone-503`
+ *
+ * 「소켓은 열렸는데 값이 0」이면 원인은 셋 중 하나다 — 서버 발행기가 꺼져 있다 · 구역이 안 맞는다 · 오는 채널이
+ * `status` 뿐이다. 그 사유를 줄에 적는다.
+ */
+export async function checkGateway(waitMs = 6000): Promise<readonly HealthLine[]> {
+  const url = connectionAddress('gateway', 'ws').trim();
+  const zone = connectionAddress('gateway', 'zone').trim();
+  const before = gatewayFeed();
+  const socket = line('socket', 'check.line.gatewaySocket', before.socket === 'open' ? true : before.socket === 'closed' ? false : null, {
+    reason: t(`srv.socket.${before.socket}`) + ' · ' + maskToken(url),
+  });
+  const startedAt = Date.now();
+  const startCount = before.count;
+  while (Date.now() - startedAt < waitMs) {
+    const now = gatewayFeed();
+    if (now.count > startCount || (now.socket === 'open' && before.socket !== 'open' && now.count > 0)) break;
+    await new Promise((resolve) => setTimeout(resolve, 200));
+  }
+  const after = gatewayFeed();
+  const got = after.count - startCount;
+  const devices = Object.keys(after.serverEntities);
+  const feed = got > 0
+    ? line('feed', 'check.line.gatewayFeed', true, {
+      roundTripMs: Date.now() - startedAt,
+      reason: t('check.reason.gatewayFeed', { n: got, devices: devices.length === 0 ? t('check.reason.gatewayNoServerDevice') : devices.join(', ') }),
+    })
+    : line('feed', 'check.line.gatewayFeed', false, { reason: t('check.reason.gatewayNoFeed', { sec: waitMs / 1000, zone }) });
+  const zoneLine = line('zone', 'check.line.gatewayZone', null, { reason: zone === '' ? t('srv.zoneEmpty') : zone });
+  return [socket, feed, zoneLine];
+}
+
 export async function checkGenerate(): Promise<readonly HealthLine[]> {
   const { value, ms } = await timed(() => generateProbe());
   return [value.alive
@@ -411,6 +450,7 @@ export async function checkTarget(
     else if (target === 'autodrive-ai') setHealth(target, await checkAutodriveAi());
     else if (target === 'detect') setHealth(target, await checkDetect());
     else if (target === 'capability') setHealth(target, await checkCapability());
+    else if (target === 'gateway') setHealth(target, await checkGateway());
     else if (target === 'stt') setHealth(target, await checkStt());
     else if (target === 'generate') setHealth(target, await checkGenerate());
     else setHealth(target, [line('none', 'check.line.none', false, { reason: t('check.reason.noMethod') })]);

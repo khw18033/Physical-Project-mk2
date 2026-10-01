@@ -45,6 +45,8 @@ import { startMissionRecorder } from './record/recorder.ts';
 import { startNavLink } from './physical/navLink.ts';
 import { startObstacleWatch } from './autodrive/watch.ts';
 import { startTaskRunner } from './physical/taskRunner.ts';
+import { ServerCard } from './shell/ServerCard.tsx';
+import { connectedDevice } from './shared/connectedDevices.ts';
 import { connectionAddress, useConnections } from './shared/connections.ts';
 import { useReplayTarget } from './record/replayMode.ts';
 import { dropOnSlots, holdSlotsFor, useSlotBindings } from './data/slots.ts';
@@ -197,6 +199,8 @@ function Milestones({ view, phase, milestoneStatuses, assignments, onAssign, onO
     */}
     {/* **한 장도 없으면 그 사실을 적는다** (260922). 빈 자리는 「고장인가」로 읽힌다 —
         아무것도 안 붙었다는 것과 화면이 못 그렸다는 것은 다른 말이고, 그 차이를 여기서 말한다. */}
+    {/* 백엔드 서버 (261001 · 임시). 게이트웨이가 우리 컴퓨터의 목이면 안 그린다. 끌어서 놓을 수 없다. */}
+    <ServerCard />
     {cards.length === 0 && <p className="hardware-panel__none">{t('ms.noConnectedDevice')}</p>}
     {cards.map((id) => {
       const item = hardware.find((row) => row.id === id);
@@ -204,7 +208,7 @@ function Milestones({ view, phase, milestoneStatuses, assignments, onAssign, onO
         <b className={item?.connection}>{id}</b>
         {/* 대본이 아는 장비는 그 종류를, 붙어서 뜬 것은 **배역인지 연결인지**를 적는다 —
             「연결됨」과 「이번 편 등장」은 다른 말이고, 뭉치면 꺼진 배역을 붙은 것으로 읽는다. */}
-        <small>{item === undefined ? t(deviceCardOrigin(id) === 'cast' ? 'ms.scriptDevice' : 'ms.connectedDevice') : item.kind}</small>
+        <small>{item === undefined ? t(deviceCardOrigin(id) === 'cast' ? 'ms.scriptDevice' : connectedDevice(id)?.source === 'server' ? 'ms.serverDevice' : 'ms.connectedDevice') : item.kind}</small>
         {item === undefined
           ? <HardwareLink entityId={id} />
           : <span><PendingSource id="hardware-pool-status" inline>{item.connection} · {item.battery}% · {item.rssi} dBm</PendingSource></span>}

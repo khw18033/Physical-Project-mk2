@@ -11,6 +11,7 @@
 import { subscribeConnections } from '../../shared/connections.ts';
 import { currentZoneId } from '../../shared/registry.ts';
 import { noteConnectedEntity } from '../../shared/connectedDevices.ts';
+import { noteGatewayEnvelope, noteGatewaySocket, selfIntroduced } from '../../shared/gatewayFeed.ts';
 import { noteDeviceTelemetry } from '../../shared/deviceTelemetry.ts';
 import { stateRows } from '../../shared/stateRows.ts';
 import { getTransport } from '../../transport/index.ts';
@@ -72,6 +73,9 @@ export function startDataLayer(): () => void {
 
   const transport = getTransport();
   const abort = new AbortController();
+  // 서버 연결 확인 · 서버 카드가 소켓 상태를 본다 (261001).
+  noteGatewaySocket(transport.getStatus().state);
+  const offSocket = transport.onStatus((status) => noteGatewaySocket(status.state));
 
   void fetchRegistry(abort.signal).then(({ registry, error }) => {
     store.setRegistry(registry, error);
@@ -91,7 +95,12 @@ export function startDataLayer(): () => void {
        * 그리는 쪽이 이 저장소를 직접 읽게 하면 단독 빌드에 대시보드 계층이 딸려
        * 들어간다(`verify:standalone`). 그래서 **받는 쪽이 밀어 넣는다.**
        */
-      noteConnectedEntity(envelope.entity, 'state');
+      /**
+       * **서버가 준 실물 장비는 카드가 된다** (261001). 백엔드 `/state` 는 원래 메시지를 통째로 싣고 그 안에 공통 헤더가
+       * 있다 — 그것으로 목 함대(헤더 없음)와 가른다. 목 함대는 전처럼 `state` 로 남아 카드가 안 된다(`registry.ts`).
+       */
+      noteGatewayEnvelope(envelope.entity, envelope.payload);
+      noteConnectedEntity(envelope.entity, selfIntroduced(envelope.payload) ? 'server' : 'state');
       /**
        * **값이 무엇이었는지도 밀어 넣는다** (260922). 위 한 줄은 「붙어 있다」만 말하고,
        * 그것만으로는 카드가 이름과 「n초 전」 밖에 못 적는다 — 드론이 그랬다.
@@ -134,6 +143,7 @@ export function startDataLayer(): () => void {
     stopConnections();
     unsubscribe();
     stopObservability();
+    offSocket();
     started = false;
   };
 }

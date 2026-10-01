@@ -1083,3 +1083,6 @@ button.robot-resume{padding:6px 12px;border:1px solid #2f9e5f;border-radius:6px;
    묶여 있었다. 키운 카드에서는 카드 높이(`--card-h`)에서 머리줄 · 캡션 자리를 뺀 만큼까지 커진다. */
 .view-node[style*="--card-h"] :is(.device-cam__canvas,.attached-img__still,.cued-video video,.detect-cam img,.vmap__svg){max-height:calc(var(--card-h) - 72px);object-fit:contain}
 .view-node[style*="--card-h"] :is(.vmap__unity,.v3d__frame,.autodrive-cam__page){height:calc(var(--card-h) - 72px);min-height:0;aspect-ratio:auto}
+/* 백엔드 서버 카드 (261001 · 임시). 장비 카드와 같은 자리 · 점선 테두리로 장비가 아님을 보인다 · 끌 수 없다. */
+.server-card{display:grid;gap:3px;padding:8px 10px;margin-bottom:8px;border:1px dashed #8fa3bd;border-radius:8px;background:#f6f8fb}
+.server-card small{color:#6a7686;font-size:11px}

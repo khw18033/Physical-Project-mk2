@@ -114,7 +114,8 @@ export function listCastIds(): readonly string[] {
  */
 export function listDeviceCardIds(): readonly string[] {
   return connectedDevices()
-    .filter((device) => device.source === 'mqtt')
+    // 261001 — 서버(`/state`)로 온 실물 장비도 카드다. 목 함대만 뺀다(공통 헤더 없음 → `state`). 위 ⚠ 의 그 줄이다.
+    .filter((device) => device.source === 'mqtt' || device.source === 'server')
     .map((device) => device.entityId);
 }
 

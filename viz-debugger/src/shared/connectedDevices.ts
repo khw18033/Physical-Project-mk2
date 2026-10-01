@@ -45,7 +45,8 @@ import { useSyncExternalStore } from 'react';
 export const CONNECTED_WINDOW_MS = 30_000;
 
 /** 어느 길로 들어왔는가. 화면이 「무엇을 보고 있는지」를 감추지 않는다. */
-export type ConnectedSource = 'state' | 'mqtt';
+/** `server` (261001) — 백엔드 `/state` 로 온 실물 장비(공통 헤더를 밝힌 메시지). 목 함대는 `state`. */
+export type ConnectedSource = 'state' | 'mqtt' | 'server';
 
 export type ConnectedDevice = {
   entityId: string;
