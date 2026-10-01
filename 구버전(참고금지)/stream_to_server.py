@@ -7,22 +7,6 @@ stream_to_server.py — pro2_auto_bg.py 의 영상판 (사진 촬영 → 실시�
 
   서버(pano_receiver, anchor360_live)와 유니티는 한 줄도 바꾸지 않는다.
   같은 /upload_pano 에 같은 equirect.jpg 를 올리므로 live.py 감시 루프가 그대로 집어간다.
-  (2026-10-01 부터 같은 사진을 10001 데이터 스트림에도 보낸다 — 아래 [2026-10-01 수정])
-
-[2026-10-01 수정 — 데이터 스트림(server_stream_multi_source.py) 연결]
-  1) 기본으로 서버 두 곳에 보낸다
-       7866  pano_receiver → anchor360_live → 유니티 (예전 그대로. 응답을 기다리고 시간을 잰다)
-       10001 데이터 스트림 파일의 360 입구 (같은 /upload_pano 모양. 따로 보내서 7866 을 막지 않는다)
-     --upload 를 주면 기본 두 곳 대신 준 곳들로만 보낸다.
-  2) 장마다 두 칸을 더 보낸다 (나머지 칸·파일은 그대로)
-       seq       = 보낸 순번 n_up (1부터, 화면의 #번호와 같다)
-       timestamp = 그 장을 카메라 스트림에서 받은 시각 t_frame (이 노트북 시계, epoch 초)
-     pano_receiver(7866)는 모르는 칸을 무시하므로 그쪽에는 영향이 없다.
-  3) --upload 를 여러 번 주면 같은 사진을 모두에 보낸다.
-     첫 번째는 지금처럼 응답까지 기다린다 (업로드·PC구간 측정이 예전과 같다).
-     두 번째부터는 따로 보낸다 — 느리거나 꺼진 곳이 첫 번째와 카메라 읽기를 막지 않는다.
-  4) 영상이 끊기면 스스로 다시 붙는다. 새 프레임이 RECONNECT_S(5초) 넘게 없으면
-     같은 주소로 다시 열기 → 카메라 프리뷰 다시 켜기 → 제어 세션부터 다시 잡기 순으로 될 때까지 시도한다.
 
 [지연 누적 방지 — 이 스크립트의 핵심]
   cv2.VideoCapture 는 RTMP 프레임을 내부 버퍼에 쌓는다. 메인 루프가 5fps 로
@@ -32,8 +16,7 @@ stream_to_server.py — pro2_auto_bg.py 의 영상판 (사진 촬영 → 실시�
   메인 루프는 그 최신 장만 집어간다. 오래된 프레임은 즉시 버린다.
 
 [디스크]
-  서버에 capture_id 폴더 하나를 계속 덮어쓴다. 디스크 증가 0.  (7866 pano_receiver 기준.
-  10001 데이터 스트림은 받은 장을 전부 파일로 남긴다)
+  서버에 capture_id 폴더 하나를 계속 덮어쓴다. 디스크 증가 0.
   PC 에는 아무것도 저장하지 않는다(메모리에서 바로 업로드).
 
 [서버 쪽 주의]
@@ -41,14 +24,10 @@ stream_to_server.py — pro2_auto_bg.py 의 영상판 (사진 촬영 → 실시�
   반드시 --poll 0.1 로 낮춰서 띄울 것.
 
 [사용]
-  python stream_to_server.py                      # 서버 7866 + 10001 로 5fps 무한
+  python stream_to_server.py                      # 5fps 무한
   python stream_to_server.py --fps 3              # 3fps
   python stream_to_server.py --count 30           # 30장만 올리고 종료(측정용)
   python stream_to_server.py --dry-run --count 20 # 업로드 없이 스트림 성능만
-  python stream_to_server.py --upload http://210.110.250.33:7866/upload_pano
-                                                  # 예전처럼 7866 한 곳만
-  python stream_to_server.py --upload http://210.110.250.33:7866/upload_pano --upload http://127.0.0.1:10001/upload_pano
-                                                  # 7866 + 이 노트북에서 도는 데이터 스트림 파일
 
 [의존]
   requests, opencv-python
@@ -70,13 +49,8 @@ import requests
 
 DEF_IP         = "192.168.100.124"
 DEF_UPLOAD     = "http://210.110.250.33:7866/upload_pano"
-DEF_UPLOAD_STREAM = "http://210.110.250.33:10001/upload_pano"  # 데이터 스트림 360 입구 (2026-10-01 추가)
 DEF_CAPTURE_ID = "LIVE_STREAM"
 DEF_CAMERA_ID  = "pro2_anchor"
-
-RECONNECT_S     = 5.0     # 새 프레임이 이만큼 없으면 끊긴 것으로 보고 다시 붙는다
-READ_TIMEOUT_MS = 5000    # 프레임 읽기 제한시간 (OpenCV 4.6 이상). 기본 30초 대신 5초 안에 멈춘 연결을 알아챈다
-                          # 열기 제한시간은 기본(30초) 그대로 둔다 — 실측 콜드스타트 1.9~5초
 
 fingerprint = None
 hb_stop = threading.Event()
@@ -186,128 +160,28 @@ class Latest:
             return f, t, s
 
 
-def open_capture(url):
-    """스트림을 연다. 열리면 cap, 못 열면 None.
-    OpenCV 4.6 이상이면 읽기 제한시간을 건다 — 멈춘 연결에서 read() 가 30초씩 묶이지 않게."""
-    cap = None
-    if hasattr(cv2, "CAP_PROP_READ_TIMEOUT_MSEC"):
-        try:
-            cap = cv2.VideoCapture(url, cv2.CAP_FFMPEG,
-                                   [cv2.CAP_PROP_READ_TIMEOUT_MSEC, READ_TIMEOUT_MS])
-        except Exception:                      # 제한시간 인자를 못 받는 OpenCV
-            cap = None
-    if cap is None:
-        cap = cv2.VideoCapture(url)
-    if cap.isOpened():
-        return cap
-    cap.release()
-    return None
-
-
-def reader(cap, latest, stop, stat, reopen):
+def reader(cap, latest, stop, stat):
     """
     cap.read() 가 진행 중일 때 다른 스레드가 cap.release() 를 부르면
     libavcodec 이 'Assertion fctx->async_lock failed' 로 프로세스를 죽인다.
     그래서 cap 의 수명을 이 스레드가 전적으로 소유하고, 여기서만 해제한다.
-    끊긴 스트림을 풀고 다시 여는 것도 같은 이유로 이 스레드가 한다 (2026-10-01).
     """
-    last_ok = time.time()
     try:
         while not stop.is_set():
-            try:
-                ok, f = cap.read() if cap is not None else (False, None)
-            except Exception:                  # 읽기 중 예외도 끊김과 같이 다룬다
-                ok, f = False, None
-            if ok:
-                stat["read_ok"] += 1
-                last_ok = time.time()
-                latest.put(f, last_ok)
-                continue
-            stat["read_fail"] += 1
-            if stop.is_set():
-                break
-            if time.time() - last_ok < RECONNECT_S:
+            ok, f = cap.read()
+            if not ok:
+                stat["read_fail"] += 1
+                if stop.is_set():
+                    break
                 time.sleep(0.05)
                 continue
-            # ── 끊김: 쥐고 있던 cap 을 풀고 다시 연다 ──
-            print("\n[스트림] %.0f초 동안 새 프레임이 없습니다 — 다시 붙습니다" % (time.time() - last_ok))
-            if cap is not None:
-                try:
-                    cap.release()
-                except Exception:
-                    pass
-                cap = None
-            cap = reopen()                     # 될 때까지 시도한다. 멈추라고 하면 None
-            if cap is not None:
-                stat["reconnect"] += 1
-            last_ok = time.time()
+            stat["read_ok"] += 1
+            latest.put(f, time.time())
     finally:
-        if cap is not None:
-            try:
-                cap.release()
-            except Exception:
-                pass
-
-
-# ── 두 번째부터의 보낼 곳 (2026-10-01) ───────────────────
-def short_name(url):
-    """'http://210.110.250.33:7866/upload_pano' → '210.110.250.33:7866'"""
-    return url.split("://", 1)[-1].split("/", 1)[0]
-
-
-class ExtraUploader:
-    """
-    --upload 두 번째부터. 따로 도는 스레드가 보낸다 — 느리거나 꺼진 곳이
-    첫 번째 업로드와 카메라 읽기를 막지 않게. 보내는 중에 새 장이 오면
-    못 보낸 장은 버리고 최신 장으로 바꾼다 (Latest 와 같은 원리).
-    """
-
-    def __init__(self, url):
-        self.url = url
-        self.name = short_name(url)
-        self.cv = threading.Condition()
-        self.item = None
-        self.closing = False
-        self.sent = self.failed = self.skipped = 0
-        self.status = "-"
-        self.ups = []
-        self.th = threading.Thread(target=self._run, daemon=True)
-        self.th.start()
-
-    def put(self, form, data):
-        with self.cv:
-            if self.item is not None:
-                self.skipped += 1              # 아직 못 보낸 장 = 최신 장으로 바꿔치기
-            self.item = (form, data)
-            self.cv.notify()
-
-    def close(self, timeout=3.0):
-        with self.cv:
-            self.closing = True
-            self.cv.notify()
-        self.th.join(timeout)
-
-    def _run(self):
-        sess = requests.Session()
-        while True:
-            with self.cv:
-                while self.item is None and not self.closing:
-                    self.cv.wait(0.5)
-                if self.item is None:
-                    return
-                form, data = self.item
-                self.item = None
-            t1 = time.perf_counter()
-            try:
-                r = sess.post(self.url, data=form,
-                              files={"file": ("equirect.jpg", data, "image/jpeg")},
-                              timeout=15)
-                self.status = r.json().get("status", "?")
-                self.sent += 1
-            except Exception as e:
-                self.status = "ERR:%s" % type(e).__name__     # 한 줄에 여러 곳이 찍히므로 짧게
-                self.failed += 1
-            self.ups.append(time.perf_counter() - t1)
+        try:
+            cap.release()
+        except Exception:
+            pass
 
 
 # ── main ─────────────────────────────────────────────────
@@ -316,9 +190,7 @@ def main():
 
     ap = argparse.ArgumentParser(description="Pro2 실시간 스트림 → 서버 업로드")
     ap.add_argument("--ip", default=DEF_IP)
-    ap.add_argument("--upload", action="append", default=None, metavar="URL",
-                    help="보낼 곳. 여러 번 주면 같은 사진을 모두에 보낸다. "
-                         "안 주면 %s 와 %s 두 곳" % (DEF_UPLOAD, DEF_UPLOAD_STREAM))
+    ap.add_argument("--upload", default=DEF_UPLOAD)
     ap.add_argument("--capture-id", default=DEF_CAPTURE_ID,
                     help="서버에 덮어쓸 폴더명. 고정이라 디스크가 늘지 않는다")
     ap.add_argument("--camera-id", default=DEF_CAMERA_ID)
@@ -336,17 +208,11 @@ def main():
     ap.add_argument("--url", default=None, help="스트림 주소 직접 지정")
     args = ap.parse_args()
 
-    # 첫 번째(7866)는 예전처럼 응답을 기다리고, 두 번째(10001)부터는 따로 보낸다.
-    # --upload 를 주면 기본 두 곳 대신 준 곳들로만 보낸다.
-    uploads = args.upload or [DEF_UPLOAD, DEF_UPLOAD_STREAM]
-
     CMD_URL   = "http://%s:20000/osc/commands/execute" % args.ip
     STATE_URL = "http://%s:20000/osc/state" % args.ip
 
     print("=" * 70)
-    print("stream_to_server — 카메라 %s → %s" % (args.ip, uploads[0]))
-    for u in uploads[1:]:
-        print("  + 같은 사진을 따로 보낼 곳 → %s" % u)
+    print("stream_to_server — 카메라 %s → %s" % (args.ip, args.upload))
     print("  목표 %.1f fps | JPEG q%d | capture_id=%s%s%s"
           % (args.fps, args.quality, args.capture_id,
              ("  (%d개 회전)" % args.rotate) if args.rotate > 0 else "  (고정)",
@@ -366,8 +232,8 @@ def main():
         sys.exit(2)
 
     t_open = time.time()
-    cap = open_capture(url)
-    if cap is None:
+    cap = cv2.VideoCapture(url)
+    if not cap.isOpened():
         print("[스트림] 열기 실패: %s" % url)
         send("camera._stopPreview", {})
         hb_stop.set()
@@ -376,44 +242,11 @@ def main():
 
     latest = Latest()
     stop = threading.Event()
-    rstat = {"read_ok": 0, "read_fail": 0, "reconnect": 0}
-    url_box = [url]
-
-    def reopen():
-        """끊긴 스트림을 다시 연다 (리더 스레드가 부른다). 될 때까지 시도하고, 멈추라고 하면 None.
-        1번째: 같은 주소로 다시 열기 → 2번째부터: 카메라 프리뷰를 다시 켜고 열기
-        (프리뷰가 안 켜지면 제어 세션부터 다시 잡는다 — 카메라가 재부팅됐거나 세션이 끊긴 경우)"""
-        attempt = 0
-        while not stop.is_set():
-            attempt += 1
-            if attempt >= 2 and not args.url:
-                new_url = start_preview(args)
-                if not new_url and not stop.is_set():
-                    print("[재연결] 프리뷰가 안 켜집니다 — 카메라 제어 세션부터 다시 잡습니다")
-                    if connect():
-                        new_url = start_preview(args)
-                    else:
-                        print("[재연결] 세션을 새로 못 잡음 — 이 스크립트의 세션이 아직 살아 있어도"
-                              " 이렇게 나온다. 다음 시도에서 프리뷰부터 다시 켠다")
-                if new_url:
-                    url_box[0] = new_url
-            if stop.is_set():
-                return None
-            t0 = time.time()
-            c = open_capture(url_box[0])
-            if c is not None:
-                print("[재연결] 스트림 다시 열림 (%d번째 시도, 여는 데 %.1fs)" % (attempt, time.time() - t0))
-                return c
-            wait = min(10.0, 2.0 * attempt)
-            print("[재연결] %d번째 시도 실패 — %.0f초 뒤 다시" % (attempt, wait))
-            stop.wait(wait)
-        return None
-
-    th = threading.Thread(target=reader, args=(cap, latest, stop, rstat, reopen), daemon=True)
+    rstat = {"read_ok": 0, "read_fail": 0}
+    th = threading.Thread(target=reader, args=(cap, latest, stop, rstat), daemon=True)
     th.start()
 
     sess = requests.Session()
-    extras = [] if args.dry_run else [ExtraUploader(u) for u in uploads[1:]]
     ages, encs, ups, totals = [], [], [], []
     n_up = 0
     t_start = time.time()
@@ -452,22 +285,16 @@ def main():
 
         cap_id = (args.capture_id if args.rotate <= 0
                   else "%s_%02d" % (args.capture_id, n_up % args.rotate))
-        form = {"capture_id": cap_id,
-                "camera_id": args.camera_id,
-                "seq": str(n_up + 1),             # 프레임 번호 = 이 장의 n_up (화면의 #번호와 같다)
-                "timestamp": "%.6f" % t_frame}    # 카메라 스트림에서 이 장을 받은 시각 (epoch 초)
 
-        if not args.dry_run:
-            for x in extras:                      # 두 번째부터는 따로 보낸다 — 기다리지 않는다
-                x.put(form, data)
         t1 = time.perf_counter()
         if args.dry_run:
             t_up = 0.0
             status = "dry"
         else:
             try:
-                r = sess.post(uploads[0],
-                              data=form,
+                r = sess.post(args.upload,
+                              data={"capture_id": cap_id,
+                                    "camera_id": args.camera_id},
                               files={"file": ("equirect.jpg", data, "image/jpeg")},
                               timeout=15)
                 status = r.json().get("status", "?")
@@ -479,16 +306,13 @@ def main():
         tot = age + t_enc + t_up
         ages.append(age); encs.append(t_enc); ups.append(t_up); totals.append(tot)
         print("  #%-4d 나이 %5.0fms  인코딩 %4.0fms  업로드 %5.0fms  | PC구간 %5.0fms"
-              "  %4dKB  %s%s" % (n_up, age*1000, t_enc*1000, t_up*1000, tot*1000,
-                                 len(data)//1024, status,
-                                 "".join("  | %s %s" % (x.name, x.status) for x in extras)))
+              "  %4dKB  %s" % (n_up, age*1000, t_enc*1000, t_up*1000, tot*1000,
+                               len(data)//1024, status))
 
     # ── 정리 ──
     stop.set()
     send("camera._stopPreview", {})   # 스트림을 끊어야 read() 가 즉시 반환된다
     th.join(timeout=3.0)              # 리더가 스스로 cap.release() 하고 빠져나감
-    for x in extras:
-        x.close()                     # 보내던 장까지만 마치고 끝낸다
     hb_stop.set()
 
     el = time.time() - t_start
@@ -497,12 +321,6 @@ def main():
     print("  리더 스레드 수신 %d프레임 (%.1f fps), read 실패 %d"
           % (rstat["read_ok"], rstat["read_ok"]/el if el else 0, rstat["read_fail"]))
     print("  버린 프레임 %d장  ← 목표 fps 로 솎아낸 결과 (정상)" % latest.dropped)
-    if rstat["reconnect"]:
-        print("  스트림이 끊겨 다시 붙은 횟수 %d" % rstat["reconnect"])
-    for x in extras:
-        print("  + %s  보냄 %d · 실패 %d · 밀려서 최신 장으로 바꿈 %d · 업로드 중앙 %.0fms"
-              % (x.name, x.sent, x.failed, x.skipped,
-                 statistics.median(x.ups) * 1000 if x.ups else 0.0))
     if totals:
         def s(v):
             v = sorted(v)
