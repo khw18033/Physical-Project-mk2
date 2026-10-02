@@ -1,0 +1,52 @@
+{
+  "missionId": "MSN-260831-02",
+  "note": "본문은 원본(MSN-*.json)이 든다. 여기는 **화면에 뜨는 문구의 영어**와 영어 조회 규칙뿐이다. 키가 한국어 원문인 것은 일부러다 — 평가 증거는 그 한국어로 짝지어지므로(대본 events[].payload.criterion ↔ tasks[].evaluation.criteria[]) 한국어가 키로 남아야 한다. verify:i18n-data 가 빠진 것과 죽은 항목을 잡는다.",
+  "phrases": {
+    "503호 내 고정 카메라 사각지대 탐지": "Detect fixed-camera blind spots in room 503",
+    "503호 내에서 고정 카메라의 사각지대를 탐지해줘.": "Detect the blind spots of the fixed camera in room 503.",
+    "서측 남쪽 모서리 — 시야각 밖": "West side, south corner — outside the field of view",
+    "서측 벽 중앙 — 시야각 밖": "West wall, centre — outside the field of view",
+    "고정 카메라 작동 중 (확인)": "Fixed camera running (confirmed)",
+    "가상 맵에 고정 카메라 데이터가 안 들어오는 사각지대 표시": "Mark on the virtual map the blind spots the fixed camera sends no data for",
+    "표시된 사각지대로 이동하여 카메라로 해당 사각지대 탐색": "Move to a marked blind spot and scan it with the camera",
+    "가상 맵에 데이터가 채워짐": "The virtual map fills with data",
+    "다 채워졌다면 다음 사각지대로 이동": "Once filled, move to the next blind spot",
+    "특정 사각지대의 마지막 탐지 시각이 10분 초과 시 재탐색": "Re-scan a blind spot when its last detection is more than 10 minutes old",
+    "하트비트·프레임 수신 확인": "Confirm heartbeat and frame reception",
+    "작동 판정": "Decide whether it is running",
+    "시야(FOV) 투영": "Project the field of view (FOV)",
+    "미커버 칸 산출": "Compute the uncovered cells",
+    "맵 칸 표시 발행": "Publish the map cell markings",
+    "대상 칸 선택": "Select the target cell",
+    "대상 칸으로 이동": "Move to the target cell",
+    "칸 스캔": "Scan the cell",
+    "칸 채움 판정": "Decide whether the cell is filled",
+    "해당 칸의 마지막 탐지 시각이 갱신됐는가": "Has the cell’s last detection time been updated",
+    "커버리지 갱신 발행": "Publish the coverage update",
+    "남은 칸 확인": "Check the remaining cells",
+    "다음 칸으로 이동": "Move to the next cell",
+    "칸별 마지막 탐지 시각 감시": "Watch the last detection time per cell",
+    "재탐색 임계 초과 판정": "Decide whether the re-scan threshold is exceeded",
+    "칸의 마지막 탐지 이후 경과 ≤ 600초": "Time since the cell’s last detection ≤ 600 s",
+    "재탐색 요청": "Request a re-scan",
+    "재탐색 요청 → 대상 칸 재선택": "Re-scan request → reselect the target cell",
+    "도착": "Arrived",
+    "마지막 탐지 이후 경과 초과": "Time since the last detection exceeded",
+    "재도착": "Arrived again",
+    "재탐색분 채움 재판정": "Re-decide the fill for the re-scanned part"
+  },
+  "match_en": {
+    "must": [
+      [
+        "blind spot",
+        "blindspot"
+      ]
+    ],
+    "any": [
+      "detect",
+      "camera",
+      "fixed",
+      "scan"
+    ]
+  }
+}

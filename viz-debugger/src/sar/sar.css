@@ -1,0 +1,85 @@
+/* src/sar/sar.css (261002 — 드론 파트 · RTK · SAR 패스). 색은 style.css 의 상태색을 따른다. */
+.sar-zoom{display:grid;gap:14px;padding:4px 2px}
+.sar-lead{margin:0;color:#4a5666;font-size:14px;line-height:1.5}
+.sar-section{border:1px solid #dde3ea;border-radius:var(--radius-md);padding:12px 14px;background:#fff}
+.sar-section>h3,.sar-section__head h3{margin:0 0 10px;font-size:15px}
+.sar-section__head{display:flex;align-items:center;gap:10px;margin-bottom:6px}
+.sar-section__head h3{margin:0}
+.sar-empty{margin:4px 0;color:#6b7888;font-size:14px}
+.sar-hint{color:#687587;font-size:13px}
+.sar-ok{color:#168f50;font-weight:600}
+.sar-bad{color:#c62f35;font-weight:600}
+.sar-warn{color:#8a6410;font-style:normal}
+.is-stale{opacity:.6}
+
+/* RTK 등급 — 고정이 초록, 부동이 주황, 그 밖은 회색/빨강 */
+.rtk-badge{display:inline-block;padding:2px 9px;border-radius:999px;font-size:12px;font-weight:700;border:1px solid;white-space:nowrap}
+.rtk-badge--fixed{color:#125c33;background:#d8f0e2;border-color:#1f8a4d}
+.rtk-badge--float{color:#7a4a07;background:#fdf1d8;border-color:#d39b2a}
+.rtk-badge--dgps{color:#1d4f86;background:#e7f0fb;border-color:#4a8fd4}
+.rtk-badge--gps{color:#3d4756;background:#f2f4f6;border-color:#aab4c0}
+.rtk-badge--none{color:#a33a3a;background:#fbe3e3;border-color:#e15a5a}
+.rtk-badge--unknown{color:#6b7888;background:#fff;border-color:#cbd3dc;border-style:dashed}
+.rtk-card{list-style:none;margin:0;padding:0;display:grid;gap:6px}
+.rtk-card li{display:flex;flex-wrap:wrap;align-items:center;gap:8px;font-size:13px}
+.rtk-legend{list-style:none;margin:0;padding:0;display:grid;gap:6px;font-size:13px}
+
+/* SAR 카드 */
+.sar-card{display:grid;gap:6px;font-size:13px}
+.sar-card__row{display:flex;flex-wrap:wrap;align-items:center;gap:10px}
+.sar-state{padding:2px 9px;border-radius:var(--radius-sm);background:#eef1f5;color:#26303c}
+.sar-state--capture{background:#d8f0e2;color:#125c33}
+.sar-state--accel,.sar-state--decel,.sar-state--transit,.sar-state--gap,.sar-state--preflight{background:#e9f2ff;color:#1d4f86}
+.sar-state--aborted,.sar-state--failed{background:#fbe3e3;color:#a33a3a}
+.sar-state--done{background:#edf9f1;color:#168f50}
+.sar-cap{padding:2px 9px;border-radius:999px;border:1px solid #cbd3dc;color:#6b7888}
+.sar-cap.is-on{border-color:#c62f35;color:#fff;background:#c62f35;animation:sar-blink 1s steps(2) infinite}
+@keyframes sar-blink{50%{opacity:.55}}
+
+/* 계획 폼 */
+.sar-plan-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.sar-plan-grid>div{display:grid;gap:8px;align-content:start}
+.sar-field{display:grid;grid-template-columns:140px 110px auto;align-items:center;gap:8px;font-size:14px}
+.sar-field input,.sar-coord input{padding:6px 8px;border:1px solid #cbd3de;border-radius:var(--radius-xs);font-variant-numeric:tabular-nums}
+.sar-coord{display:grid;grid-template-columns:140px 1fr 1fr;align-items:center;gap:6px;font-size:14px}
+.sar-check{display:flex;align-items:center;gap:6px;font-size:14px}
+.sar-zoom button{border:1px solid #cbd3de;background:#fff;border-radius:var(--radius-sm);padding:6px 10px;justify-self:start}
+.sar-zoom button:disabled{opacity:.45;cursor:not-allowed}
+.sar-seg{display:flex;gap:4px}
+.sar-seg button.active{color:#fff;border-color:#1768c5;background:#1768c5}
+.sar-problems{margin:10px 0 0;padding-left:18px;color:#c62f35;font-size:14px}
+
+/* 실행 */
+.sar-confirm{margin:8px 0;padding:8px 10px;border:1px dashed #d39b2a;border-radius:var(--radius-sm);background:#fffaf0}
+.sar-actions{display:flex;gap:10px}
+.sar-zoom .sar-start{color:#fff;border-color:#1768c5;background:#1768c5;padding:9px 16px;font-weight:700}
+.sar-zoom .sar-abort{color:#fff;border-color:#c62f35;background:#c62f35;padding:9px 16px;font-weight:700}
+
+/* 진행 */
+.sar-steps{display:flex;gap:4px;margin:0 0 10px;padding:0;list-style:none;font-size:12px}
+.sar-steps li{flex:1;padding:6px;border-bottom:3px solid #dfe3e8;color:#8a94a1;text-align:center}
+.sar-steps li.is-now{border-color:#1768c5;color:#1768c5;font-weight:700}
+.sar-bar{height:8px;margin:8px 0;border-radius:4px;background:#eef1f5;overflow:hidden}
+.sar-bar i{display:block;height:100%;background:#1f8a4d}
+
+/* 기록 */
+.sar-table{width:100%;border-collapse:collapse;font-size:13px;font-variant-numeric:tabular-nums}
+.sar-table th,.sar-table td{padding:6px 8px;border-bottom:1px solid #e1e5eb;text-align:left;vertical-align:top}
+.sar-table td small{display:block;color:#8a94a1;font-size:11px}
+.sar-table tr.is-missed td{color:#a33a3a}
+.sar-download{display:inline-block;margin-top:8px;font-size:13px;color:#1768c5}
+
+/* 미리보기 */
+.sar-preview{margin:0}
+.sar-preview svg{width:100%;max-width:640px;height:auto;background:#f7f9fb;border:1px solid #e1e5eb;border-radius:var(--radius-sm)}
+.sar-pv-cap{stroke:#1f8a4d;stroke-width:5;stroke-linecap:round}
+.sar-pv-cap.is-on{stroke:#c62f35}
+.sar-pv-lead{stroke:#8392a3;stroke-width:2;stroke-dasharray:6 5}
+.sar-pv-arrow{fill:#1f8a4d}
+.sar-pv-pt{fill:#fff;stroke:#1f8a4d;stroke-width:2}
+.sar-pv-lead-pt{fill:#fff;stroke:#8392a3;stroke-width:2}
+.sar-pv-drone{fill:#1768c5;stroke:#fff;stroke-width:2}
+.sar-pv-north{fill:#26303c}
+.sar-pv-scale{stroke:#26303c;stroke-width:2}
+.sar-pv-label{font-size:12px;fill:#26303c}
+.sar-pv-label--dim{fill:#8392a3}

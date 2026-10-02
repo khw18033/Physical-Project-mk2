@@ -1,0 +1,69 @@
+/**
+ * src/tabs/index.tsx
+ *
+ * 이식한 화면들의 출입구. **통합 셸은 여기서만 import 한다.**
+ *
+ * 이 파일이 있는 이유는 셸이 이식한 화면들을 각각 알 필요가 없기 때문이고, 더 중요하게는
+ * **단독 빌드가 이 경계 밖에 있다**는 것을 코드로 보이기 위해서다. `verify:standalone` 은
+ * 단독 진입점의 의존 그래프에 `tabs/` 가 나타나면 실패한다.
+ *
+ * ## 2026-09-03 (3단계) — 탭이 사라졌다
+ *
+ * `TabView`(탭 본문 라우팅)와 `TabGate`(탭 단위 접힘)는 **여기서 죽었다.** 화면 넷은
+ * 이제 뷰 노드의 **확대 본문**으로 들어간다(`viewNodes.tsx`) — 셸이 탭으로 고르는 것이
+ * 아니라 사용자가 캔버스에 놓은 노드를 확대해서 본다.
+ *
+ * **폴더 이름은 `tabs/` 그대로 둔다.** 이 이름은 이제 「탭이었던 화면들」이 아니라
+ * **「단독 빌드에 들어가면 안 되는 것들」**이라는 뜻이고, `verify:standalone` 이 그 경계를
+ * 그 이름으로 검사한다. 바꾸면 검사·문서·보고서 열 곳이 한꺼번에 흔들린다.
+ *
+ * 데이터 계층 기동은 **여기 그대로 남는다** — 앱 수명과 같아야 하고 탭과 무관했다.
+ * 끊으면 돌아왔을 때 화면이 비고, 평시 1분 주기 센서는 최대 1분간 빈 칸이 된다.
+ */
+
+import { startAiFailureNotifications } from './aiFailureBridge.ts';
+import { startDataLayer } from './data/index.ts';
+import './views/styles.css';
+
+export { PlanApproval } from './views/PlanApproval.tsx';
+
+/**
+ * 캔버스에 주입할 뷰 노드 4종 (260903). `PlanApproval` 과 **같은 경계**를 지난다 —
+ * 통합 진입점만 이것을 가져가 `registerViewNodes()` 로 등록하고, 단독 빌드는 가져가지
+ * 않는다(`verify:standalone` · `verify:view-nodes`).
+ */
+export { VIEW_NODE_RENDERERS } from './viewNodes.tsx';
+
+/**
+ * 데이터 계층 기동. **앱 수명과 같다** — 화면을 옮겨도 구독을 끊지 않는다.
+ * 두 번 불려도 `startDataLayer` 가 스스로 막는다.
+ *
+ * ## 260916 — 셸이 이걸 직접 부르지 않는다 (단독 빌드 정합 §2)
+ *
+ * 전에는 `useTabsDataLayer()` 라는 훅이었고 **셸이 불렀다.** 그 안에 성질이 다른 셋이
+ * 묶여 있었던 것이 문제였다.
+ *
+ * ```
+ * startDataLayer()              구역 축 구독      — tabs 전용
+ * useAiFailureNotifications()   외부 AI 실패 알림 — tabs 전용
+ * useConnectionStatus()         conn 배지         — getTransport() 만 본다
+ * ```
+ *
+ * 셸이 원한 것은 **셋째뿐**인데 앞의 둘이 같이 딸려 갔다. 그래서 셸이 `tabs/` 에 닿는 것으로
+ * 잡혔고, 셸 전체가 단독 빌드 금지 목록에 올라 모드 스위치·연결 관리·긴급정지까지
+ * 19일간 전달본에서 빠져 있었다.
+ *
+ * 지금은 셋째가 `shared/connectionStatus.ts` 로 나갔고, 남은 둘을 이 함수가 묶어
+ * **통합 진입점이 `registerAppService()` 로 주입한다.** 셸은 무엇이 도는지 모른다.
+ *
+ * `registerAppService` 는 함수 참조로 모으므로 **이름 있는 이 함수를 그대로 넘겨야 한다** —
+ * 익명 화살표로 감싸면 HMR 때 중복 등록 방어가 무력해진다.
+ */
+export function startTabsServices(): () => void {
+  // 구역은 인자가 아니라 연결 설정에서 읽는다 — 붙는 게이트웨이마다 값이 다르고,
+  // 바뀌면 `startDataLayer` 가 스스로 구독을 다시 건다 (260921).
+  const stopDataLayer = startDataLayer();
+  // VZ-I-10 — 외부 AI 실패는 탭 하나가 아니라 **상단 공통 알림**으로 올라간다.
+  const stopAiFailures = startAiFailureNotifications();
+  return () => { stopAiFailures(); stopDataLayer(); };
+}

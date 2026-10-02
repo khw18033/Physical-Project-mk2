@@ -1,0 +1,40 @@
+{
+  "missionId": "MSN-260915-01",
+  "note": "본문은 원본(MSN-*.json)이 든다. 여기는 **화면에 뜨는 문구의 영어**와 영어 조회 규칙뿐이다. 키가 한국어 원문인 것은 일부러다 — 평가 증거는 그 한국어로 짝지어지므로(대본 events[].payload.criterion ↔ tasks[].evaluation.criteria[]) 한국어가 키로 남아야 한다. verify:i18n-data 가 빠진 것과 죽은 항목을 잡는다.",
+  "phrases": {
+    "문 앞까지 자율주행": "Self-drive to the door",
+    "문 앞까지 자율주행 진행해": "Self-drive to the door",
+    "문 앞": "The door",
+    "로봇 상태 확인": "Check the robot state",
+    "자율주행 시작": "Start self-driving",
+    "임무 종료": "Mission end",
+    "로봇 배터리 확인": "Check the robot battery",
+    "배터리 잔량이 주행 기준(30%) 이상이다": "Battery charge is at or above the driving threshold (30%)",
+    "로봇 위치 확인": "Check the robot position",
+    "이동경로 탐색": "Search for a travel path",
+    "장애물 탐지": "Detect obstacles",
+    "경로 재탐색": "Re-search the path",
+    "목적지까지 이동": "Move to the destination",
+    "목적지 도착": "Reached the destination",
+    "재탐색이 걸리지 않은 채 브리지가 경로 끝(mode 99)을 알린다": "The bridge reports the end of the path (mode 99) with no re-search in between",
+    "장애물 탐지부터 반복": "Repeat from obstacle detection",
+    "목적지 전 — 장애물 탐지부터 반복": "Before the destination — repeat from obstacle detection"
+  },
+  "match_en": {
+    "must": [
+      [
+        "self-driving",
+        "selfdriving",
+        "self drive",
+        "autonomous"
+      ]
+    ],
+    "any": [
+      "door",
+      "proceed",
+      "start",
+      "move",
+      "go"
+    ]
+  }
+}

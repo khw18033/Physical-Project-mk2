@@ -1,0 +1,49 @@
+{
+  "missionId": "MSN-260927-01",
+  "note": "본문은 원본(MSN-*.json)이 든다. 여기는 **화면에 뜨는 문구의 영어**와 영어 조회 규칙뿐이다. 키가 한국어 원문인 것은 일부러다 — 평가 증거는 그 한국어로 짝지어지므로(대본 events[].payload.criterion ↔ tasks[].evaluation.criteria[]) 한국어가 키로 남아야 한다. @ 는 번역한 뒤에 발화가 정한 대상으로 채운다 — 그래서 키와 값 양쪽에 @ 가 그대로 있다.",
+  "phrases": {
+    "장치 두 대를 @까지 이동": "Move both devices to @",
+    "장치 두 가지를 @까지 이동시켜": "Move both devices to @",
+    "첫 번째 장치": "First device",
+    "두 번째 장치": "Second device",
+    "첫 번째 장치 연결 확인": "Check the first device’s connection",
+    "두 번째 장치 연결 확인": "Check the second device’s connection",
+    "@ 위치 추정": "Estimate where @ is",
+    "경로 탐지": "Find the paths",
+    "장치 이동": "Move the devices",
+    "첫 번째 장치 응답 확인": "Check the first device responds",
+    "첫 번째 장치 통신 링크 확인": "Check the first device’s link",
+    "첫 번째 장치 배터리 확인": "Check the first device’s battery",
+    "첫 번째 장치 카메라 영상 확인": "Check the first device’s camera feed",
+    "두 번째 장치 응답 확인": "Check the second device responds",
+    "두 번째 장치 통신 링크 확인": "Check the second device’s link",
+    "두 번째 장치 배터리 확인": "Check the second device’s battery",
+    "두 번째 장치 카메라 영상 확인": "Check the second device’s camera feed",
+    "배터리 잔량이 이동 기준(30%) 이상이다": "Battery charge is at or above the travel threshold (30%)",
+    "가상 맵에서 @ 위치 확인": "Locate @ on the virtual map",
+    "장치 두 대의 현재 위치와 방향 파악": "Determine both devices’ current position and heading",
+    "장치 카메라로 @ 탐지": "Detect @ with the device cameras",
+    "@ 위치 판단": "Decide where @ is",
+    "가상 맵의 @ 위치와 카메라 탐지 위치가 0.5m 안에서 맞는다": "The virtual-map position of @ and the camera detection agree within 0.5 m",
+    "근거 가시화": "Visualise the rationale",
+    "판단 근거 문장과 검출 상자가 함께 남는다": "The rationale sentence and the detection box are kept together",
+    "두 장치 카메라가 모두 @ 를 검출했고, 검출 위치가 가상 맵의 @ 자리와 0.18m 차이로 맞는다.": "Both device cameras detected @, and the detected position matches @ on the virtual map within 0.18 m.",
+    "첫 번째 장치 경로 탐지": "Find the first device’s path",
+    "두 번째 장치 경로 탐지": "Find the second device’s path",
+    "이동 경로 확인": "Confirm the travel paths",
+    "두 경로가 서로 1m 이상 떨어져 겹치지 않는다": "The two paths stay at least 1 m apart and do not overlap",
+    "첫 번째 장치 이동 시작": "Start moving the first device",
+    "두 번째 장치 이동 시작": "Start moving the second device",
+    "첫 번째 장치 이동 완료 확인": "Confirm the first device arrived",
+    "두 번째 장치 이동 완료 확인": "Confirm the second device arrived",
+    "정지 시 @까지 거리가 1m 이하다": "At the stop, the distance to @ is 1 m or less",
+    "임무 완료": "Mission complete"
+  },
+  "match_en": {
+    "must": [
+      ["two devices", "twodevices", "both devices", "bothdevices", "2 devices", "2devices"],
+      ["to"]
+    ],
+    "any": ["move", "send", "go", "bring"]
+  }
+}

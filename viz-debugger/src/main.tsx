@@ -1,0 +1,716 @@
+import { t } from './i18n/dict.ts';
+import { Rich } from './i18n/RichText.tsx';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import {
+  acceptProposal,
+  displayMission,
+  rejectProposal,
+  useMission,
+  type MissionMilestone,
+  type MissionView,
+} from './data/scenario.ts';
+import { foldStatuses } from './data/fold.ts';
+import { TaskGraph, type CanvasLayer } from './graph/TaskGraph.tsx';
+import { Palette } from './canvas/Palette.tsx';
+import { ZoomOverlay } from './canvas/ZoomOverlay.tsx';
+import { viewNodeEntry } from './canvas/registry.ts';
+import { viewScopeFor } from './canvas/scope.ts';
+import { MISSION_SLOT } from './canvas/persist.ts';
+import { useCanvas } from './canvas/useCanvas.ts';
+import { setZoomTarget, useZoomTarget } from './canvas/zoomState.ts';
+import type { ScenarioEvent, Task, TaskStatus } from './model/types.ts';
+import { ObservabilityPanel } from './shared/ObservabilityPanel.tsx';
+import { measureFold, startObservability } from './shared/observability.ts';
+import { PendingSource } from './shared/PendingSource.tsx';
+import { MissionHistoryList, useMissionEndWatch } from './views/MissionHistory.tsx';
+import { deviceCardOrigin, hardwareSourceLabel, listRegisteredHardware, useDeviceCardIds } from './shared/registry.ts';
+import { startConnectedSweep } from './shared/connectedDevices.ts';
+import { startFixedCameraWatch } from './fixedcam/fixedCamera.ts';
+import { graphShape, shapeLabel } from './graph/shape.ts';
+import { useLang } from './shared/language.ts';
+import { ActionModal } from './views/ActionModal.tsx';
+import { DeviceStatusOverlay } from './views/DeviceStatusOverlay.tsx';
+import { AllCamerasOverlay } from './views/AllCamerasOverlay.tsx';
+import { UtterancePanel } from './views/UtterancePanel.tsx';
+import { StatusLegend } from './views/StatusLegend.tsx';
+import './style.css';
+import { Explain } from './shared/Explain.tsx';
+import { emptyFill, reduceFrames, type ViewpointFill } from './viewpoint/fill.ts';
+import { RobotPanel } from './physical/RobotPanel.tsx';
+import { useRobotUplink } from './physical/robotBridge.ts';
+import { useDetectUplink } from './detect/useDetect.tsx';
+import { HardwareLink } from './physical/HardwareLink.tsx';
+import { VisionCardLine } from './vision/views/VisionViews.tsx';
+import { CapabilityPanel } from './capability/views/CapabilityPanel.tsx';
+import { robotClient } from './physical/robotClient.ts';
+import { framesUpTo } from './viewpoint/store.ts';
+import { startMissionRecorder } from './record/recorder.ts';
+import { startNavLink } from './physical/navLink.ts';
+import { startObstacleWatch } from './autodrive/watch.ts';
+import { startTaskRunner } from './physical/taskRunner.ts';
+import { ServerCard } from './shell/ServerCard.tsx';
+import { connectedDevice } from './shared/connectedDevices.ts';
+import { connectionAddress, useConnections } from './shared/connections.ts';
+import { useReplayTarget } from './record/replayMode.ts';
+import { dropOnSlots, holdSlotsFor, useSlotBindings } from './data/slots.ts';
+
+type Screen = 'milestones' | 'graph' | 'detail' | 'replay' | 'failure';
+
+/**
+ * 한 편(MSN-260826-01)에 맞춰 손으로 적혀 있던 값들 — 되감기 시각(41·95) · 마일스톤 수(7건) ·
+ * 배정 대상(MS-C) · 실패 태스크(T-35) — 은 전부 현재 임무 저장소에서 파생한다 (260831).
+ * 화면 구조는 HCI 전달본 그대로다.
+ */
+
+/**
+ * 되감기 타임라인의 한 줄. **접는 대상은 기록 열이다** (260904) — 전까지는 대본
+ * (`view.events`)을 그려서, 아직 오지 않은 사건까지 미리 칠해져 있었다.
+ */
+function timelineSegments(view: MissionView, trace: readonly ScenarioEvent[], taskId: string) {
+  const events = trace.filter((event) => event.nodeId === taskId);
+  const points = events[0]?.atSec === 0 ? events : [{ atSec: 0, status: 'pending' as const }, ...events];
+  return points.map((point, index) => ({ status: point.status, start: point.atSec, end: points[index + 1]?.atSec ?? view.durationSec }));
+}
+
+/**
+ * 사람 조작 줄 (260904 · `VZ-D-08`). 태스크 줄과 **같은 축**에 찍힌다 — 「모든 조작은
+ * `produced_by=human` 으로 기록된다」가 화면에서 확인되는 자리다.
+ *
+ * 조작은 구간이 아니라 **순간**이라 태스크 줄처럼 칠하지 않고 점으로 찍는다. 대상이
+ * 태스크가 아니라 장비·임무인 경우가 대부분이라(`recordHuman` 의 nodeId) 태스크 줄에
+ * 얹으면 그 태스크가 그때 무슨 상태였는지를 거짓으로 만든다.
+ */
+function humanMarks(trace: readonly ScenarioEvent[]) {
+  return trace.filter((event) => event.producedBy === 'human');
+}
+
+/**
+ * AI 가 만든 것의 줄 (260907 · 9단계 · `VZ-G-01`). 사람 줄과 **같은 축**에 찍힌다 —
+ * 「이 임무는 누가 만들었나 → 누가 받아들였나」가 한 화면에서 위아래로 읽힌다.
+ *
+ * 빈 줄로 두지 않는다. 없으면 「없다」고 적는다 — 사람 줄과 같은 규칙이다.
+ */
+function aiMarks(trace: readonly ScenarioEvent[]) {
+  return trace.filter((event) => event.producedBy === 'ai');
+}
+
+function Milestones({ view, phase, milestoneStatuses, assignments, onAssign, onOpen, planApproval }: {
+  view: MissionView;
+  phase: 'proposal' | 'playing' | 'idle';
+  milestoneStatuses: Record<string, TaskStatus>;
+  assignments: Record<string, string[]>;
+  onAssign(id: string, hardware: string): void;
+  onOpen(id: string): void;
+  planApproval?: ReactNode;
+}) {
+  const hardware = listRegisteredHardware();
+  /**
+   * **하드웨어 카드는 「연결되면 항상」이다** (260921 지시).
+   *
+   * 전에는 대본 배역뿐이라 대본에 안 적힌 장비는 붙어 있어도 안 보였다 — 드론이 그랬다.
+   * 이제 배역 ∪ 지금 값이 흐르는 장비이고, 그중 쓸 것만 끌어다 배정한다. 대본 시연은
+   * 배역이 그대로 남으므로 하던 대로 돈다.
+   *
+   * **260922 — 그런데 아래가 이 목록을 안 썼다.** 대본에 실측 목록이 실려 있으면 그쪽만
+   * 그리는 갈래가 남아 있어서, 260921 의 합집합이 그 경우에 통째로 건너뛰어졌다. 드론이
+   * 여전히 안 보였던 이유가 그것이다 — 자세한 것은 아래 하드웨어 판의 주석.
+   */
+  const cards = useDeviceCardIds();
+  const mission = useMission();
+  /**
+   * 더블클릭으로 연 **대상 상태** (260904 — `VZ-D-07` 의 미구현분). 카드가 드래그로 배정만
+   * 되고 눌러도 아무 일이 없었다. **문자열 하나다** — 배열이면 둘이 열리고, 둘이 열리면
+   * 분할 화면이고, 분할 화면은 곧 탭이 된다 (`VZ-N-05` 와 같은 규칙).
+   */
+  const [statusDeviceId, setStatusDeviceId] = useState<string | null>(null);
+  /** 「전체 카메라 확인」 판 (261002). 장비 상세와 같이 형제로 얹고, 동시에 하나만 연다. */
+  const [allCamerasOpen, setAllCamerasOpen] = useState(false);
+  // 승인·거부는 **마일스톤 목록 위 제안 카드 안**에 있다 (260901). 통합 빌드는 이 슬롯에
+  // PlanApproval(근거 4층 + 승인·거부)이 들어오고, 단독 빌드는 로컬 재생기용 폴백이 들어온다 —
+  // **같은 자리**다. 근거의 「구간별 계획」이 「아래 마일스톤과 같음」이라고 적으므로
+  // 카드는 목록보다 위에 있어야 한다.
+  // 모델이 낸 제안은 **재생할 것이 없다** — 대본이 아니라 계획이라 사건이 0건이다.
+  // 그래서 버튼 문구가 다르다. 「재생 시작」이라고 적어 두면 눌러도 아무 일이 없고,
+  // 그때 사용자는 승인이 실패했다고 읽는다.
+  // `t()` 는 값을 줄 뿐 리렌더를 안 일으킨다 — 빼면 언어를 바꿔도 이 판만 옛 언어로 남는다.
+  useLang();
+  const aiProposal = mission.proposal?.origin === 'ai' ? mission.proposal : null;
+  /**
+   * **사람이 숫자로 적은 임무** (260922). 대본도 모델도 아니다 — 카드가 「대본을
+   * 골랐습니다」라고 적으면 거짓말이고, 「모델이 만들었습니다」는 더 나쁘다.
+   */
+  const stepProposal = mission.proposal?.origin === 'steps' ? mission.proposal : null;
+  /**
+   * **게이트웨이를 안 거친 제안은 화면이 승인한다** (260928 — 「정량 명령 임무가 시작이 안 된다」).
+   *
+   * 통합 앱의 승인 칸(`PlanApproval`)은 **게이트웨이의 계획**만 그린다. 정량 명령과 모델 제안은 브라우저에서
+   * 세워져 게이트웨이에 계획이 없으므로, 그 칸에는 「승인 대기 중인 계획이 없다」만 떴다 — 승인할 버튼이 없었다.
+   * 그래서 그 둘은 통합 앱에서도 아래 로컬 승인 자리를 쓴다. 승인의 문은 여전히 `acceptProposal` 하나다.
+   */
+  const localOnly = mission.proposal !== null && mission.proposal.origin !== 'script';
+  const approvalSlot = (localOnly ? undefined : planApproval) ?? (mission.proposal !== null && <div className="proposal-fallback">
+    {/* 단독 빌드(게이트웨이 없음)의 승인 자리 — 통합 앱에서는 PlanApproval(VZ-U-07)이 들어온다. */}
+    {/* **한 문장을 한 키로 둔다.** 「승인해야 …」와 「캔버스에 올라갑니다」를 따로 담으면
+        영어 어순에서 이을 방법이 없다 — 갈래가 셋이므로 키도 셋이다 (지시서 §1). */}
+    <p><Rich id={stepProposal ? 'prop.fallbackSteps' : aiProposal ? 'prop.fallbackAi' : 'prop.fallbackScript'} vars={{ id: mission.proposal.missionId }} /></p>
+    {/* **승인의 문은 하나다** (`acceptProposal`). 종류마다 부르는 곳이 다르면 언젠가 한쪽만 검사가 붙는다. */}
+    <button onClick={() => acceptProposal('local')}>{t(stepProposal ? 'prop.approveSteps' : aiProposal ? 'prop.approveCanvas' : 'prop.approvePlay')}</button>
+    <button onClick={() => rejectProposal()}>{t('prop.reject')}</button>
+  </div>);
+  const showApproval = phase === 'proposal' || planApproval !== undefined;
+  /**
+   * **자리를 쓰는 편의 배정 줄** (260927). 「첫 번째 장치: (끌어 놓은 장비) · 두 번째 장치: 미배정」 — 누가 어느
+   * 자리에 앉았는지가 마일스톤마다 같은 말이어야 한다. 자리가 없는 편은 지금까지와 같다.
+   */
+  const bindings = useSlotBindings();
+  useConnections();
+  const slotLabel = (id: string) => view.slots?.find((slot) => slot.id === id)?.label ?? id;
+  const assignedLine = (item: MissionMilestone) => (item.feed === 'virtual-3d'
+    ? t('ms.feedVirtual3d', { url: connectionAddress('virtual-3d', 'base').trim() || t('ms.slotEmpty') })
+    : item.slots !== undefined && item.slots.length > 0
+    ? item.slots.map((slot) => t('ms.slotLine', { slot: slotLabel(slot), device: bindings[slot] ?? t('ms.slotEmpty') })).join(' · ')
+    : (assignments[item.id] ?? item.assignedTargets).join(' · ') || t('ms.unassigned'));
+  return <div className="milestone-layout"><UtterancePanel fallbackText={view.utteranceText} /><section className="milestone-panel"><h2>{t('ms.count', { n: view.milestones.length })}</h2>
+    <RobotPanel client={robotClient()} />
+    {showApproval && <div className="proposal-card">
+      {phase === 'proposal' && (stepProposal
+        ? <p className="proposal-note proposal-steps"><Rich id="ms.stepProposal" vars={{ sentence: stepProposal.sentence, n: stepProposal.view.tasks.length }} /></p>
+        : aiProposal
+        ? <p className="proposal-note proposal-ai"><Rich id="ms.aiProposal" vars={{ model: aiProposal.provenance.model, id: view.missionId, label: view.label }} />
+            <small>{t('ms.aiMeta', { rules: aiProposal.provenance.rules?.length ?? 0, digest: aiProposal.provenance.promptDigest ?? t('ms.promptNone') })}</small></p>
+        : <p className="proposal-note"><Rich id="ms.scriptProposal" vars={{ id: view.missionId, label: view.label }} />{mission.proposal?.origin === 'script' && mission.proposal.keywords.length ? <small>{t('ms.matchedKeywords', { words: mission.proposal.keywords.join(' · ') })}</small> : null}</p>)}
+      {approvalSlot}
+    </div>}
+    <div className="milestone-list">{view.milestones.map((item) => <button key={item.id} className={`milestone state-${milestoneStatuses[item.id] ?? 'pending'}`} onClick={() => onOpen(item.id)} onDragOver={(event) => event.preventDefault()} onDrop={(event) => { if (item.feed === undefined) onAssign(item.id, event.dataTransfer.getData('text/plain')); }}><b>{item.id}</b><strong>{item.title}</strong><span>{assignedLine(item)}</span><small>{t('ms.clickToGraph')}</small></button>)}</div></section>
+    {/*
+      **오른쪽 기둥이 둘로 갈라진다** (260920 지시 2). 위가 하드웨어(장비가 지금 살아
+      있는가 · 실측), 아래가 기능(이 배치에서 무엇이 가능한가 · 설정 계산)이다. 세로를
+      **1:1 로 나누고 각자 구른다** — 한 판에 이어 붙이면 장비가 늘 때마다 기능이 아래로
+      밀려 안 보이고, 반대도 마찬가지다. 축이 다른 둘을 한 스크롤에 태운 탓이다.
+    */}
+    <div className="right-column">
+    {/* **백엔드 서버는 제 칸이다** (261001 지시 — 하드웨어 카드 말고 다른 곳에). 장비가 아니라서 하드웨어 패널에
+        두지 않는다. 높이는 내용만큼이고 아래 하드웨어 · 기능이 1:1 을 나눈다. 목 게이트웨이면 칸째 없다. */}
+    <ServerCard />
+    <aside className="hardware-panel"><header className="hardware-panel__head"><h2>{t('ms.hardwareCount', { n: cards.length })}</h2>
+      {/* 261002 지시 — 제목 오른쪽 빈자리. 장비가 여럿일 때 카메라 상황을 한 번에 본다. */}
+      <button type="button" className="hardware-panel__cams" onClick={() => { setStatusDeviceId(null); setAllCamerasOpen(true); }}>{t('acam.open')}</button>
+    </header><p><Rich id="ms.hardwareHint" vars={{ source: hardwareSourceLabel() }} /></p>
+    {/*
+      **목록은 지금 붙어 있는 장비다** (260922 지시 — 「드론 연결했으면 드론 하나만」).
+
+      두 번 고친 자리다. 처음에는 대본에 실측 목록(`view.hardware`)이 실려 있으면 그쪽만
+      그리는 갈래가 있어서 붙어 있는 드론이 안 보였다. 그래서 「배역 ∪ 붙어 있는 것」으로
+      합쳤더니, 이번에는 **아무것도 안 붙어도 옛 편의 자리표시 일곱 장이 떠 있었다.**
+
+      그래서 목록의 뜻을 하나로 줄였다 — **지금 붙어 있다.** 규칙은 `registry.ts` 에 있다.
+
+      갈래는 **카드마다**로 남는다: 대본이 그 장비의 실측 행을 들고 있으면 그것을 그리고,
+      없으면 살아 있는 줄(`HardwareLink`)을 그린다. 목록을 가르던 조건이 아니다.
+    */}
+    {/* **한 장도 없으면 그 사실을 적는다** (260922). 빈 자리는 「고장인가」로 읽힌다 —
+        아무것도 안 붙었다는 것과 화면이 못 그렸다는 것은 다른 말이고, 그 차이를 여기서 말한다. */}
+    {cards.length === 0 && <p className="hardware-panel__none">{t('ms.noConnectedDevice')}</p>}
+    {cards.map((id) => {
+      const item = hardware.find((row) => row.id === id);
+      return <article key={id} draggable onDragStart={(event) => event.dataTransfer.setData('text/plain', id)} onDoubleClick={() => setStatusDeviceId(id)}>
+        <b className={item?.connection}>{id}</b>
+        {/* 대본이 아는 장비는 그 종류를, 붙어서 뜬 것은 **배역인지 연결인지**를 적는다 —
+            「연결됨」과 「이번 편 등장」은 다른 말이고, 뭉치면 꺼진 배역을 붙은 것으로 읽는다. */}
+        <small>{item === undefined ? t(deviceCardOrigin(id) === 'cast' ? 'ms.scriptDevice' : connectedDevice(id)?.source === 'server' ? 'ms.serverDevice' : connectedDevice(id)?.source === 'camera' ? 'ms.fixedCameraDevice' : 'ms.connectedDevice') : item.kind}</small>
+        {item === undefined
+          ? <HardwareLink entityId={id} />
+          : <span><PendingSource id="hardware-pool-status" inline>{item.connection} · {item.battery}% · {item.rssi} dBm</PendingSource></span>}
+        {/* 261001 — 이 장비에 묶인 객체 탐지 추론 스트림. 묶인 포트가 없으면 아무것도 안 그린다. */}
+        <VisionCardLine entityId={id} />
+      </article>;
+    })}</aside>
+    {/* 기능 상태 (260920). 하드웨어와 **완전히 다른 판**이고 자기 스크롤을 갖는다. */}
+    <CapabilityPanel />
+    </div>
+    {/* 대상 상태 (260904). 목록의 **형제**로 얹힌다 — 뒤의 마일스톤·하드웨어 목록은
+        언마운트되지 않으므로 닫으면 정확히 같은 자리다 (VZ-N-05 와 같은 규칙). */}
+    {statusDeviceId !== null && <DeviceStatusOverlay
+      deviceId={statusDeviceId}
+      device={hardware.find((item) => item.id === statusDeviceId)}
+      source={hardwareSourceLabel()}
+      onClose={() => setStatusDeviceId(null)} />}
+    {allCamerasOpen && <AllCamerasOverlay onClose={() => setAllCamerasOpen(false)} />}</div>;
+}
+
+function ReplayControls({ second, following, playing, onChange, onFollow, view, trace, tasks }: {
+  second: number; following: boolean; playing: boolean;
+  onChange(value: number): void; onFollow(): void; view: MissionView;
+  /** 되감기가 보는 것은 대본이 아니라 **흘러온 기록**이다 (260904). */
+  trace: readonly ScenarioEvent[];
+  tasks: Task[];
+}) {
+  const shown = Math.min(view.durationSec, Math.round(second));
+  const human = humanMarks(trace);
+  const ai = aiMarks(trace);
+  /**
+   * 축의 길이. **0으로 나누지 않는다** — 모델이 낸 임무는 `durationSec` 이 0이다
+   * (재생할 사건이 없다). 나눠 버리면 눈금 위치가 전부 `NaN%` 가 되고, 그것은 CSS 에서
+   * 조용히 무시되어 「눈금이 왜 안 보이지」로 끝난다.
+   */
+  // `t()` 는 값을 줄 뿐 리렌더를 안 일으킨다 — 빼면 언어를 바꿔도 이 판만 옛 언어로 남는다.
+  useLang();
+  const span = Math.max(1, view.durationSec);
+  return <section className="replay-controls"><div><button onClick={() => onChange(0)}>◀◀</button><button onClick={() => onChange(Math.max(0, shown - 1))}>◀</button><button onClick={() => onChange(Math.min(view.durationSec, shown + 1))}>▶</button><b>{shown}s / {view.durationSec}s</b>
+    {/* 재생 중에는 머리를 따라가고, 뒤로 끌면 그 시점을 그린다. 재생이 끝나면 그냥 되감기 도구다. */}
+    {playing && (following
+      ? <b className="follow-live">{t('replay.following')}</b>
+      : <button className="follow-live" onClick={onFollow}>{t('replay.follow')}</button>)}
+  </div><input aria-label={t('replay.timeAria')} type="range" min="0" max={view.durationSec} value={shown} onChange={(event) => onChange(Number(event.target.value))} /><div className="timelines">{tasks.map((task) => <div key={task.id}><code>{task.id}</code><span className="timeline">{timelineSegments(view, trace, task.id).map((segment, index) => <em key={`${segment.start}-${index}`} className={`state-${segment.status}`} style={{ width: `${(segment.end - segment.start) / span * 100}%` }} />)}<i style={{ left: `${shown / span * 100}%` }} /></span></div>)}
+    {/* AI 줄 — 이 임무를 무엇이 만들었나 (260907 · `VZ-G-01` 역추적). 사람 줄 바로 위다. */}
+    <div className="timeline-ai"><code>AI</code><span className="timeline">{ai.map((event) => <b key={event.seq} className="ai-mark" style={{ left: `${Math.min(1, event.atSec / span) * 100}%` }} title={t('replay.aiMark', { sec: Math.round(event.atSec), kind: event.kind, node: event.nodeId, model: String((event.payload as { model?: unknown } | undefined)?.model ?? t('replay.modelUnknown')) })} />)}<i style={{ left: `${shown / span * 100}%` }} /></span><small>{ai.length === 0 ? t('replay.noAi') : t('replay.aiCount', { n: ai.length })}</small></div>
+    {/* 사람 조작 줄 — 없으면 「아직 없다」고 적는다. 빈 줄은 「기록을 안 한다」로 읽힌다. */}
+    <div className="timeline-human"><code>{t('replay.human')}</code><span className="timeline">{human.map((event) => <b key={event.seq} className="human-mark" style={{ left: `${Math.min(1, event.atSec / span) * 100}%` }} title={`T+${Math.round(event.atSec)}s · ${event.kind} → ${event.nodeId} (produced_by=human)`} />)}<i style={{ left: `${shown / span * 100}%` }} /></span><small>{human.length === 0 ? t('replay.noHuman') : t('replay.humanCount', { n: human.length })}</small></div></div></section>;
+}
+
+/**
+ * 노드 분화(260831) 이후 그래프의 **보기 범위.**
+ * 분기·합류는 대부분 마일스톤을 건넌다 — 1편의 합류(T-15a ← MS-D 셋)도, 2편의
+ * 되돌아감(MS-F → MS-C)도. 그래서 「임무 전체」 보기를 둔다. 기본은 여전히 마일스톤이다 —
+ * HCI 전달본의 화면 흐름(마일스톤 클릭 → 그 마일스톤의 그래프)을 지킨다.
+ */
+export type GraphScope = 'milestone' | 'mission';
+
+function GraphScreen({ screen, view, trace, milestone, tasks, headSec, playing, scope, onScope, refEdges, crossing, viewpoints, viewpointFill, onOpen, onBack, onGraph, openTask, nodeRequest, onMilestone }: {
+  screen: Screen; view: MissionView; milestone: MissionMilestone | null; tasks: Task[];
+  /** 이전 · 다음 마일스톤으로 (260914 지시). 태스크가 있는 마일스톤만 오간다. */
+  onMilestone(id: string): void;
+  /** 흘러온 기록 열. 접기·되감기·타임라인이 전부 이것만 본다 (260904). */
+  trace: readonly ScenarioEvent[];
+  headSec: number; playing: boolean;
+  scope: GraphScope; onScope(value: GraphScope): void;
+  refEdges: MissionView['refEdges']; crossing: MissionView['refEdges'];
+  viewpoints: MissionView['viewpoints'];
+  viewpointFill: ViewpointFill | null;
+  onOpen(task: Task, failed: boolean): void;
+  /** 이동 경로의 「마일스톤」 칸 (260901). 되돌아갈 길이 화면에 없으면 없는 길이다. */
+  onBack(): void;
+  /** 가운데 칸 — 지금 보고 있는 그래프로. 액션 팝업이 열려 있으면 닫힌다. */
+  onGraph(): void;
+  /** 마지막 칸은 액션 아이템 팝업이 열려 있을 때만 나온다. */
+  openTask: Task | null;
+  /**
+   * 대본 띠의 「○○ 노드로」 (260903 3단계). **없으면 만들고, 있으면 하이라이트한다.**
+   * 탭 시절에는 갈 곳이 이미 있어 이동만 하면 됐지만 노드는 캔버스에 아직 없을 수 있다.
+   */
+  nodeRequest: { kind: string; taskId: string | null; requestId: number } | null;
+}) {
+  // **범위 밖이지만 한 줄 넣었다** (260917 — 영문화 2단계). 머리줄이 그리는
+  // `shapeLabel()` 이 사전을 타는데, 이 훅이 없으면 언어를 바꿔도 그 한 줄만 안 따라온다.
+  useLang();
+  const replay = screen === 'replay'; const failure = screen === 'failure';
+  /** 저장된 판을 다시 보는 중이면 그 판 (260914). 머리줄에 어느 판인지 적는다. */
+  const recorded = useReplayTarget();
+  /** 되감기 위치. null 이면 재생 머리를 따라간다(live). */
+  const [override, setOverride] = useState<number | null>(null);
+  useEffect(() => setOverride(null), [view.missionId, screen]);
+  const second = replay ? (override ?? headSec) : headSec;
+  /**
+   * 노드 캔버스 (260903 — 1단계). **슬롯은 지금 보고 있는 범위**다 — 마일스톤 하나면 그
+   * 마일스톤, 「임무 전체」면 별도 슬롯(`__mission__`). 마일스톤별 저장만으로는 임무 전체
+   * 보기의 구성이 미아가 된다 (`VZ-N-04`).
+   */
+  const slot = scope === 'mission' ? MISSION_SLOT : milestone?.id ?? MISSION_SLOT;
+  const canvas = useCanvas(view.missionId, slot, tasks);
+  /** 팔레트가 뷰 노드를 붙일 태스크. 범위가 바뀌면 고르기를 푼다. */
+  const [pickedTaskId, setPickedTaskId] = useState<string | null>(null);
+  useEffect(() => setPickedTaskId(null), [slot, view.missionId]);
+  const picked = tasks.find((task) => task.id === pickedTaskId) ?? null;
+  /**
+   * 확대된 뷰 노드 (260903 2단계 · `VZ-N-05`). **`activeTab` 류가 아니다** — 「몇 번째 탭」이
+   * 아니라 「어느 노드」이고, 값이 하나라 한 번에 하나만 열린다(지시서 §6).
+   *
+   * 3단계에 **모듈 저장소로 올렸다**(`canvas/zoomState.ts`) — 셸의 `?` 설명서가 「확대가
+   * 열려 있으면 그 노드의 설명서」를 보여야 하는데, 상태를 양쪽에 복제하면 갈라진다.
+   * 범위를 옮기면(다른 마일스톤·임무) 그 노드가 화면에 없으므로 함께 닫는다.
+   */
+  const zoomTarget = useZoomTarget();
+  const zoomedId = zoomTarget?.id ?? null;
+  const setZoomedId = (id: string | null) => {
+    const node = id === null ? null : canvas.nodes.find((item) => item.id === id) ?? null;
+    setZoomTarget(node === null ? null : { id: node.id, kind: node.kind });
+  };
+  useEffect(() => { setZoomTarget(null); }, [slot, view.missionId]);
+  // 그래프를 떠나면(마일스톤 목록으로) 확대도 함께 닫는다 — 뒤에 캔버스가 없으면 오버레이만 남는다.
+  useEffect(() => () => setZoomTarget(null), []);
+  const zoomedNode = canvas.nodes.find((node) => node.id === zoomedId) ?? null;
+  const zoomedEntry = zoomedNode === null ? null : viewNodeEntry(zoomedNode.kind);
+
+  /**
+   * 안내줄이 가리킨 노드 — 잠깐 반짝인다. 만들어 주고 어디 생겼는지 말하지 않으면
+   * 사용자가 캔버스를 훑어야 한다.
+   */
+  const [highlightedId, setHighlightedId] = useState<string | null>(null);
+  useEffect(() => {
+    if (highlightedId === null) return;
+    const timer = setTimeout(() => setHighlightedId(null), 2600);
+    return () => clearTimeout(timer);
+  }, [highlightedId]);
+
+  /**
+   * 「○○ 노드로」 — **없으면 만들고(진행 중인 태스크에 연결한 채로), 있으면 하이라이트한다.**
+   * 사용자가 팔레트를 몰라도 배너가 가르쳐 주는 두 번째 진입점이다 (지시서 §3 ★).
+   *
+   * **두 걸음으로 나눈 이유**: 안내줄이 가리키는 태스크가 지금 보고 있는 마일스톤 **밖**일
+   * 수 있다. 그때 셸의 요청 한 번이 마일스톤 이동과 노드 요청을 함께 일으키는데, 이동 직후
+   * 첫 렌더에는 `canvas.nodes` 가 아직 **옛 마일스톤의 구성**이다. 거기서 바로 판정하면
+   * 「이미 있다」를 잘못 읽어 아무것도 안 뜬다. 그래서 요청을 일단 세워 두고(pending),
+   * 캔버스 구성이 그 슬롯 것으로 바뀐 다음 렌더에서 처리한다.
+   */
+  const requestSeen = useRef(0);
+  const [pendingNode, setPendingNode] = useState<{ kind: string; taskId: string | null } | null>(null);
+  useEffect(() => {
+    if (nodeRequest === null || nodeRequest.requestId === requestSeen.current) return;
+    requestSeen.current = nodeRequest.requestId;
+    setPendingNode({ kind: nodeRequest.kind, taskId: nodeRequest.taskId });
+  }, [nodeRequest?.requestId]);
+  useEffect(() => {
+    if (pendingNode === null) return;
+    // 같은 종류가 이미 있으면 만들지 않는다 — 누를 때마다 카드가 쌓이면 캔버스가 금세 지저분해진다.
+    const existing = canvas.nodes.find((node) => node.kind === pendingNode.kind) ?? null;
+    // 그 태스크가 지금 범위 안에 있을 때만 연결한다. 밖이면 전역 노드가 된다(강등과 같은 규칙).
+    const boundTask = tasks.some((task) => task.id === pendingNode.taskId) ? pendingNode.taskId : null;
+    setHighlightedId(existing !== null ? existing.id : canvas.add(pendingNode.kind, boundTask));
+    setPendingNode(null);
+  }, [pendingNode, canvas.nodes, tasks]);
+  const canvasLayer = useMemo<CanvasLayer>(() => ({
+    nodes: canvas.nodes,
+    entryOf: viewNodeEntry,
+    // **재생 머리는 캔버스 전체가 같은 값을 쓴다** (`VZ-N-03`) — 되감기 중이면 그 시각이다.
+    scopeOf: (taskId) => viewScopeFor(taskId, view, second),
+    pickedTaskId: picked?.id ?? null,
+    onPick: setPickedTaskId,
+    onMove: canvas.move,
+    onResize: canvas.resize,
+    fitDeadline: canvas.fitDeadline,
+    onBind: canvas.bind,
+    onRemove: canvas.remove,
+    zoomedId,
+    onZoom: setZoomedId,
+    highlightedId,
+  }), [canvas.bind, canvas.fitDeadline, canvas.move, canvas.nodes, canvas.remove, canvas.resize, highlightedId, picked, second, view, zoomedId]);
+  // **기록 열이 자라면 다시 접는다** — 열은 덧붙일 때만 신원이 바뀌므로(TraceStore.snapshot)
+  // 사건이 없는 렌더에서는 접지 않는다.
+  const folded = useMemo(() => measureFold(() => foldStatuses(second, view, trace)), [second, trace, view]);
+  const failedTask = tasks.find((task) => folded.tasks[task.id]?.status === 'failed') ?? null;
+  /**
+   * 머리줄이 적을 **이 임무 자신의 모양** (260904). 고정 문구(「분기와 합류가 있는 태스크
+   * DAG」)는 대본에 따라 거짓이었다 — 3편은 합류가 하나도 없다. 트리는 언급하지 않는다:
+   * 배치 모드 토글이 없어졌고, 없는 기능을 설명하면 "그게 뭔데?"가 생긴다 (§7.10).
+   */
+  const shape = useMemo(() => graphShape(tasks, refEdges), [refEdges, tasks]);
+  const title = scope === 'mission'
+    ? t('graph.titleMission', { label: view.label, n: tasks.length })
+    : milestone === null ? view.label : t('graph.titleMilestone', { id: milestone.id.replace(/^MS-/, ''), title: milestone.title });
+  /**
+   * 이동 경로 (260901 — 후속 3건 요구 1).
+   *
+   * 탭①의 이동은 마일스톤 → 그래프 → 액션 아이템 한 방향뿐이었다. 그래프에서 마일스톤으로
+   * 돌아가는 길은 상단 공통 바의 임무 이름 버튼 하나였는데 그게 「마일스톤으로 돌아가기」라는
+   * 것을 화면 어디에도 적어 두지 않았다 — **발견할 수 없는 길은 없는 길이다.**
+   *
+   * 되감기·실패 화면(replay·failure)도 이 컴포넌트라 같이 풀린다. 그 둘도 똑같이 갇혀 있었다.
+   */
+  const here = scope === 'mission' ? t('graph.hereMission', { n: tasks.length }) : milestone === null ? view.label : `${milestone.id} ${milestone.title}`;
+  const crumbs = <nav className="crumbs" aria-label={t('graph.crumbsAria')}>
+    {/* 항상 있고 항상 눌린다. 사용자가 요구한 되돌아가기가 이것이다. */}
+    <button type="button" className="crumbs__link" onClick={onBack}>{t('graph.crumbMilestones')}</button>
+    <span className="crumbs__sep" aria-hidden="true">›</span>
+    {openTask === null
+      ? <span className="crumbs__here">{here}</span>
+      : <button type="button" className="crumbs__link" onClick={onGraph}>{here}</button>}
+    {openTask !== null && <><span className="crumbs__sep" aria-hidden="true">›</span><span className="crumbs__here">{openTask.id} {openTask.title}</span></>}
+  </nav>;
+  /**
+   * **이전 · 다음 마일스톤** (260914 지시 — 「메인 화면으로 나가서 마일스톤을 골라야 했다」).
+   *
+   * 머리줄 가운데에 둔다. 태스크가 없는 마일스톤(옛 편의 MS-A·B 등)은 그래프가 비므로 건너뛴다 —
+   * 그래프에 들어갈 마일스톤을 고르는 규칙(`graphMilestone`)과 같다. 「임무 전체」로 보고 있으면 오갈
+   * 마일스톤이 없으므로 누르면 그 마일스톤 보기로 돌아간다.
+   */
+  const steppable = view.milestones.filter((item) => view.tasks.some((task) => task.milestone === item.id));
+  const at = milestone === null ? -1 : steppable.findIndex((item) => item.id === milestone.id);
+  const prevMilestone = at > 0 ? steppable[at - 1] : null;
+  const nextMilestone = at >= 0 && at < steppable.length - 1 ? steppable[at + 1] : null;
+  const goMilestone = (target: MissionMilestone | null) => {
+    if (target === null) return;
+    onMilestone(target.id);
+    onScope('milestone');
+  };
+  const stepper = steppable.length > 1 && <nav className="milestone-stepper" aria-label={t('graph.stepperAria')}>
+    <button type="button" disabled={prevMilestone === null} onClick={() => goMilestone(prevMilestone)}
+      title={prevMilestone === null ? t('graph.firstMilestone') : `${prevMilestone.id} ${prevMilestone.title}`}>
+      {t('graph.prevMilestone')}{prevMilestone !== null && <small>{prevMilestone.id}</small>}
+    </button>
+    <span className="milestone-stepper__at">{at >= 0 ? `${at + 1} / ${steppable.length}` : `– / ${steppable.length}`}</span>
+    <button type="button" disabled={nextMilestone === null} onClick={() => goMilestone(nextMilestone)}
+      title={nextMilestone === null ? t('graph.lastMilestone') : `${nextMilestone.id} ${nextMilestone.title}`}>
+      {nextMilestone !== null && <small>{nextMilestone.id}</small>}{t('graph.nextMilestone')}
+    </button>
+  </nav>;
+  return <div className={replay ? 'replay-layout' : ''}>{/* **손으로 쓴 네 줄이 실제 목록이 됐다** (260912 지시). 이 세션에서 끝난 판만
+        쌓이고, 그 사실을 목록이 스스로 적는다. */}
+    {replay && <aside className="history"><h2>{t('graph.history')}</h2><MissionHistoryList /></aside>}<section className="graph-panel"><header className="section-title section-title--graph"><div>{crumbs}<h2>{title}</h2><small>{replay
+      ? (recorded !== null ? t('graph.savedRun', { date: recorded.date, run: recorded.run }) : '') + t('graph.replay', { sec: String(Math.round(second)).padStart(2, '0') })
+      : failure ? (failedTask ? t('graph.failureFocus') : t('graph.noFailure')) : shapeLabel(shape)}</small></div>{stepper || <span />}<div className="toggle"><button className={scope === 'milestone' ? 'active' : ''} onClick={() => onScope('milestone')}>{t('graph.scopeMilestone')}</button><button className={scope === 'mission' ? 'active' : ''} onClick={() => onScope('mission')}>{t('graph.scopeMission')}</button></div></header><Palette canvas={canvas} missionId={view.missionId} pickedTaskId={picked?.id ?? null} pickedTaskTitle={picked?.title ?? null} /><TaskGraph tasks={tasks} hardware={listRegisteredHardware()} states={folded.tasks} selected={failure ? failedTask?.id : undefined} dimUnrelated={failure && failedTask !== null} refEdges={refEdges} viewpoints={viewpoints} viewpointFill={viewpointFill} onOpen={(task) => onOpen(task, folded.tasks[task.id]?.status === 'failed')} canvas={canvasLayer} />
+    {/* 마일스톤 밖으로 나가는 되돌아감 — 적지 않으면 사용자는 루프의 존재를 모른다 (결정 2). */}
+    {crossing.length > 0 && <p className="ref-crossing">{t('graph.crossing', { edges: crossing.map((edge) => `${edge.from} → ${edge.to} (${edge.label})`).join(' · ') })} <button onClick={() => onScope('mission')}>{t('graph.crossingAll')}</button></p>}
+    {replay && <ReplayControls second={second} following={override === null} playing={playing} onChange={setOverride} onFollow={() => setOverride(null)} view={view} trace={trace} tasks={tasks} />}<StatusLegend /><Explain id="dbg-1" className="hint">{t('graph.hint')}</Explain></section>
+    {/* 확대 오버레이 (260903 2단계). **TaskGraph 의 형제**다 — 위에서 캔버스를 조건 없이
+        그리고 여기에 얹기만 하므로, 확대해도 캔버스가 교체되지 않고 닫으면 같은 자리다. */}
+    {zoomedNode !== null && zoomedEntry !== null && <ZoomOverlay entry={zoomedEntry} scope={viewScopeFor(zoomedNode.taskId, view, second)} taskId={zoomedNode.taskId} node={zoomedNode} onClose={() => setZoomedId(null)} />}</div>;
+}
+
+/**
+ * 셸 → 캔버스 요청 (260903 3단계에 `node` 가 늘었다).
+ *
+ * `node` 는 대본 띠의 「○○ 노드로」다 — 그 태스크가 든 마일스톤으로 데려간 다음, 캔버스에
+ * 그 종류가 없으면 만들고 있으면 하이라이트한다. 셸은 캔버스 안을 모른 채 **요청만** 넣는다.
+ */
+export type DebuggerNavigation = {
+  screen: 'milestones' | 'replay' | 'node';
+  requestId: number;
+  node?: { kind: string; taskId: string | null };
+};
+
+/**
+ * `planApproval` — VZ-U-07 승인·거부 패널. **통합 셸이 프롭으로 넣는다.**
+ *
+ * 자리는 마일스톤 목록 **위**의 제안 카드다 (260901). 단독 빌드는 이 프롭을 받지 않고
+ * 같은 자리에 로컬 승인 폴백을 그린다 — 통합·단독이 같은 슬롯을 쓴다.
+ *
+ * 여기서 직접 import 하지 않는 이유: 그 패널은 `tabs/data/` 의 스토어를 보는데,
+ * 탭① 단독 빌드가 그걸 끌어오면 대시보드 데이터 계층이 통째로 딸려 들어와
+ * 논문 측정축 D(계측 오버헤드)가 오염된다. 단독 빌드는 이 프롭을 주지 않고,
+ * 그때는 제안에 로컬 승인 자리가 뜬다(위 Milestones 의 proposal-fallback).
+ */
+
+export function MissionDebugger({ navigation, planApproval }: { navigation?: DebuggerNavigation; planApproval?: ReactNode }) {
+  useLang();
+  useMission(); // 저장소 변화(제안·승인·재생 머리)에 다시 그린다.
+  const display = displayMission();
+  const view = display.view;
+
+  const [screen, setScreen] = useState<Screen>('milestones');
+  const [scope, setScope] = useState<GraphScope>('milestone');
+  const [modalTask, setModalTask] = useState<Task | null>(null);
+  const [assignments, setAssignments] = useState<Record<string, string[]>>({});
+  const [milestoneId, setMilestoneId] = useState<string | null>(null);
+  /** 셸이 넣은 「○○ 노드로」 요청. 그래프 화면이 처리한다. */
+  const [nodeRequest, setNodeRequest] = useState<{ kind: string; taskId: string | null; requestId: number } | null>(null);
+
+  // 임무가 바뀌면(대본 승인) 한 편에 묶였던 화면 상태를 처음으로 되돌린다.
+  useEffect(() => { setScreen('milestones'); setModalTask(null); setAssignments({}); setMilestoneId(null); setScope('milestone'); }, [view.missionId]);
+  /**
+   * 장치 자리 (260927). 임무가 바뀌면 비우고, **같은 임무면 남긴다** — 제안 중에 카드를 끌어 앉혀 두고
+   * 승인하면 그 배정이 그대로 가야 한다(제안과 승인은 같은 임무 id 다).
+   */
+  const bindings = useSlotBindings();
+  useEffect(() => { holdSlotsFor(view.missionId); }, [view.missionId]);
+  /**
+   * **저장된 판을 열면 리플레이 화면의 임무 전체로** (260914). 위 효과 **뒤에** 둔다 — 다른 임무의
+   * 판을 열면 같은 그리기에서 둘이 같이 돌고, 나중 것이 이긴다.
+   */
+  const recordedRun = useReplayTarget();
+  useEffect(() => {
+    if (recordedRun === null) return;
+    setScreen('replay'); setModalTask(null); setScope('mission');
+  }, [recordedRun?.loadSerial]);
+
+  /**
+   * 자체 관측 집계 (`VZ-O-04` · 260904). **두 빌드가 공유하는 이 화면**이 켠다 —
+   * 셸이 켜면 단독 빌드에서 안 돌고, 축 D는 바로 그 단독 빌드에서 재는 숫자다.
+   */
+  useEffect(() => startObservability(), []);
+
+  /**
+   * **임무 기록** (260914 — 「새로고침하면 다 날아간다」). 판마다 저장소 루트 `mission-history/` 에
+   * 쓴다. 여기 두는 이유는 위 관측과 같다 — 이 화면은 앱이 살아 있는 동안 안 사라진다.
+   */
+  useEffect(() => startMissionRecorder(), []);
+
+  /**
+   * **pi1 중계 → 자율주행 노드** (260915). 같은 이유로 여기 둔다 — 노드를 눌러 그래프로 들어가도
+   * 받는 귀가 끊기면 안 된다. 중계 편이 아니면 판이 안 열려 아무것도 안 칠한다.
+   */
+  useEffect(() => startNavLink(), []);
+  // 자율주행 판이 열린 동안 장애물 JSON 을 받는다 (260915). 시연 편에서는 판이 안 열려 안 돈다.
+  useEffect(() => startObstacleWatch(), []);
+  /**
+   * **장치 두 대 편의 실제 이동** (260927). 자리에 앉은 장비가 걸을 수 있으면 그 장비의 이동을 로봇이 칠한다.
+   * 같은 이유로 여기 둔다 — 화면을 옮겨도 걷고 있는 로봇의 응답을 놓치면 안 된다.
+   */
+  useEffect(() => startTaskRunner(), []);
+  /**
+   * 하드웨어 카드의 창을 쓸어 준다 (260921). **조용해지는 것은 값이 안 올 때 일어나므로**
+   * 아무도 저장소를 안 건드리고, 그러면 꺼진 장비의 카드가 그대로 남는다.
+   */
+  useEffect(() => startConnectedSweep(), []);
+  // 261002 — 고정 카메라. 연결 관리에 적힌 주소에서 10초마다 한 장씩 받아 보고, 받아지면 카드가 뜬다.
+  useEffect(() => startFixedCameraWatch(), []);
+
+  /**
+   * **로봇 응답 수신** (260910). 여기 두는 이유는 위 관측과 같다 — 이 화면은 두 빌드가
+   * 공유하고 앱이 살아 있는 동안 안 사라진다. 패널 안에 뒀다가 노드를 누르는 순간
+   * 구독이 끊겨 `door_turn` 을 통째로 놓쳤다.
+   */
+  useRobotUplink(view.missionId, view.params);
+  // 탐지도 같은 자리에서 받는다 (260912) — 상대가 있을 때만 묻는다.
+  useDetectUplink(view.missionId, view.params);
+
+  // 그래프에 들어갈 마일스톤 — 클릭한 것. 태스크가 없으면(옛 파일의 MS-A 등)
+  // 태스크를 가진 마일스톤으로 간다(옛 편은 전부 MS-C라 기존 화면 그대로다).
+  const graphMilestone = useMemo(() => {
+    const hasTasks = (id: string) => view.tasks.some((task) => task.milestone === id);
+    if (milestoneId !== null && hasTasks(milestoneId)) return view.milestones.find((m) => m.id === milestoneId) ?? null;
+    return view.milestones.find((m) => hasTasks(m.id)) ?? view.milestones[0] ?? null;
+  }, [milestoneId, view]);
+
+  const graphTasks = useMemo(
+    () => view.tasks
+      .filter((task) => scope === 'mission' || task.milestone === graphMilestone?.id)
+      .map((task) => {
+        /**
+         * **자리를 쓰는 편은 자리로 푼다** (260927). 태스크의 대상이 `device-1` 이면 그 자리에 앉은 장비다.
+         * 아직 비어 있으면 자리 이름(「첫 번째 장치」)을 적는다 — `device-1` 은 장비 id 처럼 읽힌다.
+         */
+        if (view.slots !== undefined && task.target !== null) {
+          const slot = view.slots.find((item) => item.id === task.target);
+          if (slot !== undefined) return { ...task, target: bindings[slot.id] ?? slot.label };
+          return task;
+        }
+        return assignments[task.milestone ?? '']?.length ? { ...task, target: assignments[task.milestone ?? ''][0] } : task;
+      }),
+    [assignments, bindings, graphMilestone, scope, view],
+  );
+
+  // 참조 엣지 — 보이는 범위 안에 양끝이 다 있으면 그리고, 밖으로 나가면 한 줄로 적는다.
+  const graphTaskIds = useMemo(() => new Set(graphTasks.map((task) => task.id)), [graphTasks]);
+  const visibleRefEdges = useMemo(
+    () => view.refEdges.filter((edge) => graphTaskIds.has(edge.from) && graphTaskIds.has(edge.to)),
+    [graphTaskIds, view],
+  );
+  const crossingRefEdges = useMemo(
+    () => view.refEdges.filter((edge) => graphTaskIds.has(edge.from) !== graphTaskIds.has(edge.to)),
+    [graphTaskIds, view],
+  );
+  /**
+   * 8분할 묶음 (260909) — **여덟이 다 보일 때만** 넘긴다. 「이 마일스톤」으로 MS-B 를 보고
+   * 있으면 여덟이 화면에 없고, 그때 원을 그릴 중심도 없다. 참조 엣지가 범위를 벗어나면
+   * 안 그리는 것과 같은 규칙이다.
+   */
+  /**
+   * 뷰포인트가 지금 어디까지 채워졌는가 (260909 §4). **재생 머리까지의 프레임을 처음부터
+   * 다시 접는다** — 상태를 들고 있다가 이어 붙이면 슬라이더를 뒤로 끌었을 때 이미 켜진
+   * 초록이 안 꺼진다. 되감기가 기존 노드와 같은 규칙으로 돌아야 한다.
+   *
+   * 대본을 아는 것은 `scriptFrames` 한 곳뿐이다 — 로봇이 붙는 날 그 자리만 갈아끼운다(§6).
+   */
+  const viewpointFill = useMemo(() => {
+    const group = view.viewpoints;
+    if (group === null) return null;
+    // **흘러온 것만 접는다** — 대본(`view.viewpointTimeline`)이 아니라 열이다
+    // (`src/viewpoint/store.ts` 머리말). 머리까지를 처음부터 다시 접으므로 되감기가
+    // 기록 열과 같은 규칙으로 돈다.
+    return reduceFrames(emptyFill(group.taskIds.length), framesUpTo(display.headSec));
+  }, [view, display.headSec]);
+  const visibleViewpoints = useMemo(() => {
+    const group = view.viewpoints;
+    if (group === null) return null;
+    const whole = group.taskIds.every((id) => graphTaskIds.has(id)) && graphTaskIds.has(group.parentTaskId);
+    return whole ? group : null;
+  }, [graphTaskIds, view]);
+
+  const trace = display.trace;
+  const milestoneStatuses = useMemo(
+    () => measureFold(() => foldStatuses(display.headSec, view, trace)).milestones,
+    [display.headSec, trace, view],
+  );
+
+  /** 머리 시각의 접기 결과 — 실패 태스크를 찾는 두 자리가 같은 값을 본다. */
+  const folded = useMemo(() => measureFold(() => foldStatuses(display.headSec, view, trace)), [display.headSec, trace, view]);
+
+  /**
+   * **한 판이 끝나면 이력에 한 줄** (260912 지시). 완료·실패·정지 셋 중 하나로 끝났을 때다.
+   * 여기서 보는 이유는 접기 결과가 이 화면에 있기 때문이다 — 셸은 임무 구조를 모른다.
+   */
+  useMissionEndWatch(view, folded);
+
+  const navigate = (next: Screen) => {
+    setScreen(next);
+    setModalTask(next === 'detail' ? graphTasks[0] ?? null : next === 'failure' ? graphTasks.find((task) => folded.tasks[task.id]?.status === 'failed') ?? null : null);
+  };
+  const openTask = (task: Task, failed: boolean) => { setModalTask(task); setScreen(failed ? 'failure' : 'detail'); };
+
+  /**
+   * **마일스톤이 끝나면 다음 마일스톤 그래프로 넘어간다** (260911 지시).
+   *
+   * 시연에서 MS-A 가 끝나면 발표자가 마일스톤 목록으로 돌아가 MS-B 를 다시 눌러야 했다.
+   * 로봇은 이미 다음 걸음을 기다리는데 화면만 뒤에 있다.
+   *
+   * ## 이미 끝난 것을 열었을 때는 안 넘어간다
+   *
+   * 끝난 마일스톤을 되짚어 보려고 연 것인데 곧바로 다음으로 튀면 **되짚어 볼 수가 없다.**
+   * 그래서 **열 때 안 끝나 있던 것이 끝났을 때만** 넘어간다.
+   *
+   * 한 박자 쉬고 넘어간다. 끝나자마자 화면이 바뀌면 무엇이 끝났는지 볼 틈이 없다.
+   * 그 사이에 사람이 다른 데로 가면 취소된다.
+   */
+  const watching = useRef<string | null>(null);
+  const currentMilestoneStatus = milestoneId === null ? null : milestoneStatuses[milestoneId] ?? 'pending';
+  useEffect(() => {
+    if (screen !== 'graph' || milestoneId === null) { watching.current = null; return; }
+    // 열 때 이미 끝나 있었으면 이 마일스톤에서는 안 넘어간다.
+    if (watching.current !== milestoneId) {
+      watching.current = milestoneId;
+      if (currentMilestoneStatus === 'done') return;
+    }
+    if (currentMilestoneStatus !== 'done') return;
+    const order = view.milestones.map((item) => item.id);
+    const next = order[order.indexOf(milestoneId) + 1];
+    if (next === undefined) return;   // 마지막이면 그대로 둔다
+    const timer = setTimeout(() => setMilestoneId(next), 1200);
+    return () => clearTimeout(timer);
+  }, [screen, milestoneId, currentMilestoneStatus, view]);
+  useEffect(() => {
+    if (!navigation) return;
+    if (navigation.screen !== 'node') { navigate(navigation.screen); return; }
+    // 「○○ 노드로」 — 진행 중인 태스크가 든 마일스톤의 캔버스로 데려간다. 그 태스크가 어느
+    // 마일스톤인지는 여기서만 알 수 있다(셸은 임무 구조를 모른다).
+    const request = navigation.node;
+    if (request === undefined) return;
+    const owner = view.tasks.find((task) => task.id === request.taskId) ?? null;
+    if (owner?.milestone !== undefined) setMilestoneId(owner.milestone);
+    setScope('milestone');
+    navigate('graph');
+    setNodeRequest({ ...request, requestId: navigation.requestId });
+  }, [navigation?.requestId]);
+
+  const firstFailed = graphTasks.find((task) => folded.tasks[task.id]?.status === 'failed') ?? null;
+
+  return <div className="mission-debugger">{screen === 'milestones'
+    ? <Milestones view={view} phase={display.phase} milestoneStatuses={milestoneStatuses} assignments={assignments} onAssign={(id, hardware) => {
+      // 자리를 쓰는 마일스톤이면 자리에 앉힌다 (260927) — 한 번 앉히면 그 자리를 쓰는 마일스톤 전부가 같은 장비다.
+      const slots = view.milestones.find((item) => item.id === id)?.slots;
+      if (slots !== undefined && slots.length > 0) { dropOnSlots(slots, hardware); return; }
+      setAssignments((current) => ({ ...current, [id]: [...new Set([...(current[id] ?? []), hardware])] }));
+    }} onOpen={(id) => { setMilestoneId(id); navigate('graph'); }} planApproval={planApproval} />
+    : <GraphScreen screen={screen} view={view} trace={trace} milestone={graphMilestone} tasks={graphTasks} headSec={display.headSec} playing={display.phase === 'playing'} scope={scope} onScope={setScope} refEdges={visibleRefEdges} crossing={crossingRefEdges} viewpoints={visibleViewpoints} viewpointFill={viewpointFill} onOpen={openTask}
+      // navigate() 를 쓴다 — 그것이 modalTask 정리까지 함께 한다. setScreen 을 직접 부르면 팝업이 남는다.
+      // 범위도 함께 되돌린다: 「임무 전체」로 보다 목록으로 나갔다 다시 들어왔는데 전체로 남아 있으면 어리둥절하다.
+      onBack={() => { setScope('milestone'); navigate('milestones'); }}
+      onGraph={() => navigate('graph')}
+      openTask={modalTask}
+      nodeRequest={nodeRequest}
+      onMilestone={setMilestoneId} />}
+    {modalTask && <ActionModal task={modalTask} view={view} device={listRegisteredHardware().find((item) => item.id === modalTask.target)} failure={screen === 'failure'} onClose={() => { setModalTask(null); if (screen === 'detail') setScreen('graph'); }} />}
+    {screen === 'failure' && !modalTask && firstFailed && <button className="failure-open" onClick={() => setModalTask(firstFailed)}>{t('graph.openFailureModal')}</button>}
+    {/* 자체 관측 (VZ-O-04) — devpanel 이라 통합 셸에서는 목·개발 모드에서만 뜨고,
+        단독 빌드(측정 장비)에서는 늘 보인다. 기본은 접힘이다. */}
+    <ObservabilityPanel /></div>;
+}

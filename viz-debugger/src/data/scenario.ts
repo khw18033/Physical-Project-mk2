@@ -1,0 +1,1433 @@
+/**
+ * src/data/scenario.ts
+ *
+ * **현재 임무 저장소** (260831 — 대본 재생에서 개조).
+ *
+ * 통합 전에는 `MSN-260826-01.json` 한 편이 모듈 상수로 박혀 있었고, 되감기 시각(41·95)·
+ * 마일스톤 수(7건)·배정 대상(MS-C)까지 그 한 편에 맞춰 손으로 적혀 있었다. 이제 이
+ * 저장소가 「어느 대본이든」 현재 임무로 든다 — **기동 시 기본은 여전히 `MSN-260826-01`**
+ * (HCI 전달본 그대로)이고, 대본이 승인되면 바뀐다.
+ *
+ * 세 가지 상태:
+ *  - current  : 확정 임무. 화면이 이걸 그린다.
+ *  - proposal : 발화가 대본에 매칭돼 **제안 상태**로 뜬 것 (VZ-U-07 · REQ-1506).
+ *               승인 전에는 진행 사건이 하나도 없다 — 화면은 전부 pending 으로 그린다.
+ *  - headSec  : 재생 머리. 게이트웨이의 trace_event 수신(통합) 또는 로컬 재생기(단독)가
+ *               민다. 재생이 끝나면 durationSec 에 서고 슬라이더는 되감기 도구가 된다.
+ *
+ * **마일스톤 상태는 정적 필드가 아니라 태스크 상태를 접은 결과다** — `statusesAt()` 이
+ * 태스크와 마일스톤을 함께 돌려준다. 옛 파일의 정적 status 는 무시하되 지우지 않고,
+ * 태스크가 없는 마일스톤(옛 파일의 MS-A·B·D~G)만 그 값으로 그린다(접을 재료가 없다).
+ *
+ * 이 파일은 `tabs/` 를 import 하지 않는다 — 탭① 단독 빌드의 경계다(verify:standalone).
+ *
+ * ## 260904 — 화면이 접는 것이 대본에서 기록 열로 바뀌었다
+ *
+ * `view.events` 는 이제 **대본의 정의**다. 화면의 원천은 `data/trace.ts` 의 기록 열이고,
+ * 거기에 넣는 길은 하나뿐이다(`appendTrace`). 이 파일에서 그 입구를 부르는 자리는 셋이다.
+ *
+ * | 부르는 자리 | 언제 | 무엇을 넣나 |
+ * |---|---|---|
+ * | `receiveTrace()` | 통합 빌드 — 게이트웨이 `trace_event` | 받은 봉투 |
+ * | 로컬 재생기 (`activateMission(_, 'local')`) | 단독 빌드 — 게이트웨이 없음 | 대본을 시각까지 읽어 흘려보낸다 |
+ * | `recordHuman()` | 화면에서 나가는 모든 명령 | `produced_by=human` (`VZ-D-08`) |
+ *
+ * 기동 직후(`activatedBy: 'boot'`)의 옛 편은 **이미 끝난 과거 임무의 기록**이라 열을 통째로
+ * 채워 둔다 — 재생 머리가 처음부터 `durationSec` 에 서 있고 슬라이더가 되감기 도구인 것이
+ * 그 뜻이다. 승인을 우회하는 것이 아니다: 승인 선(`VZ-U-07`)이 걸린 것은 **제안과
+ * 정지 미리보기**이고, 그 둘은 열이 비어 있다.
+ */
+
+import { t } from '../i18n/dict.ts';
+import { scriptPhrase, translateEvents, translateView } from '../scenarios/phrases.ts';
+import { fillPayload, fillText } from '../scenarios/target.ts';
+import { useSyncExternalStore } from 'react';
+import { foldStatuses, type FoldedStatuses } from './fold.ts';
+import { MergeScheduler } from './mergeScheduler.ts';
+import { appendAction, appendGenerated, appendHuman, appendTrace, ACTION_SEQ_BASE, resetTrace, traceEvents, traceMissionId } from './trace.ts';
+import { actionItemEvents, adjustedEvent, answeredEvent, commandedEvent, expiredEvent, foldActions, type AnswerKind, type FoldedAction } from './actionTrace.ts';
+import { scriptFrames } from '../viewpoint/source.ts';
+import { appendViewpoint, resetViewpoint, type ArrivedFrame } from '../viewpoint/store.ts';
+import { clearStarted, markApproved, resetRobotSession, robotDrives } from '../physical/robotSession.ts';
+import { resetDetect } from '../detect/store.ts';
+import { armMissionHistory, resetMissionHistory, sealRun } from './missionHistory.ts';
+import { isReplayingRecord, leaveRecordReplay } from '../record/replayMode.ts';
+import { armNotifications, resetNotifications } from '../shared/notifications.ts';
+import { provenancePayload, type AiProvenance } from '../shared/provenance.ts';
+import rawScenario from '../../scenarios/MSN-260826-01.json' with { type: 'json' };
+import { libraryEntry, localDriven, opensRobotGate, relayDriven, scriptDriven } from '../scenarios/library.ts';
+import { armNavRun, endNavRun } from '../physical/navRun.ts';
+import { resetNavFeed } from '../physical/navFeed.ts';
+import { clearObstacleData } from '../autodrive/obstacle.ts';
+import type { ScriptMap, ScriptScenario, ScriptViewpointFrame, ScriptViewpoints } from '../scenarios/types.ts';
+import type { Hardware, RefEdge, Scenario, ScenarioEvent, TaskStatus, Task } from '../model/types.ts';
+
+export type { FoldedStatuses };
+export { traceEvents, traceStats } from './trace.ts';
+
+/** 옛 파일 원본. HCI 전달본·논문용 — 한 글자도 고치지 않는다(verify:scenario). */
+export const scenario = rawScenario as Scenario;
+
+/**
+ * 로컬 재생 배속(단독 빌드). 게이트웨이의 VIZ_SCENARIO_SPEED 기본값과 같은 20이다 —
+ * 대본마다·환경마다 다른 배속을 두면 둘을 비교할 때 축이 달라진다.
+ */
+export const LOCAL_SPEED = 20;
+
+// ── 화면이 그리는 형태 ────────────────────────────────────────────────────────
+
+export type MissionMilestone = {
+  id: string;
+  title: string;
+  assignedTargets: string[];
+  /** 옛 파일의 정적 status. 태스크가 없는 마일스톤의 마지막 근거다. 대본에는 없다. */
+  staticStatus: TaskStatus | null;
+  /** 이 마일스톤이 쓰는 장치 자리 (260927). 없으면 지금까지의 마일스톤별 배정이다. */
+  slots?: string[];
+  /**
+   * **장치 대신 보는 화면** (260929 — 이상 탐지 편 「가상 맵 모니터링」). `'virtual-3d'` 면 이 마일스톤은 장치를 받지
+   * 않고 연결 관리의 「3D 가상환경」 주소를 본다 — 배정 줄에 「미배정」 대신 그 주소가 적히고, 카드를 놓아도 안 앉는다.
+   */
+  feed?: 'virtual-3d';
+};
+
+export type MissionView = {
+  missionId: string;
+  /** 상단 바의 임무 이름 아래 한 줄. */
+  label: string;
+  /**
+   * 이 이름이 **우리가 지은 것**이면 그 사전 키. 대본이 준 이름이면 없다.
+   *
+   * `state` 는 모듈 최상위에서 만들어진다 — 거기서 `t()` 를 부르면 **로드 시점 언어로
+   * 굳어** 언어 버튼을 따라오지 않는다. 그래서 키를 들고 있다가 `displayMission()` 에서
+   * 푼다. 260919 에 「아직 임무가 없습니다」가 영문 화면에 남아 있어 찾았다.
+   */
+  labelKey?: string;
+  world: 'registry' | 'legacy';
+  utteranceText: string;
+  durationSec: number;
+  milestones: MissionMilestone[];
+  /** milestone 필드가 반드시 채워져 있다 — 옛 파일은 전부 MS-C(태스크 7개가 다 그 소속). */
+  tasks: Task[];
+  /**
+   * **대본의 정의**다 — 화면의 원천이 아니다 (260904). 로컬 재생기와 목 게이트웨이가 이걸
+   * 읽어 기록 열로 흘려보내고, 화면은 흘러온 것만 접는다.
+   */
+  events: ScenarioEvent[];
+  /** 뷰 노드에서 그려도 되는 장비. 옛 편은 hardware 목록의 id 들이다. */
+  cast: string[];
+  /** 옛 편만 있다. 대본(registry 세계)은 cast 로 그린다 — 실측값을 지어내지 않는다. */
+  hardware: Hardware[] | null;
+  /** 대본의 편별 상수(위험 수위 선 등). 화면이 읽는다. */
+  params: Record<string, unknown>;
+  /** 2편의 구역 맵(503호 평면·카메라 시야·사각지대 칸). 다른 편은 null — 맵이 없다고 적는다. */
+  map: ScriptMap | null;
+  /** 되돌아가는 참조 엣지 (260831 노드 분화). deps 가 아니다 — 그리기 전용. */
+  refEdges: RefEdge[];
+  /**
+   * 8분할 뷰포인트 묶음 (260909). 선언한 편만 원형 배치를 받는다 — 나머지는 null 이고
+   * 배치가 지금까지와 같다. `map` 과 같은 자리·같은 규칙이다.
+   */
+  viewpoints: ScriptViewpoints | null;
+  /**
+   * 뷰포인트 채널의 대본 (260909 §6). 화면은 이것을 **프레임으로 바꿔서만** 읽는다
+   * (`src/viewpoint/source.ts`) — 노드 갱신 코드는 대본을 모른다.
+   */
+  viewpointTimeline: ScriptViewpointFrame[];
+  /**
+   * 장치 자리 (260927 — 장치 두 대 편). 선언한 편만 있다 — 없으면 배정이 지금까지와 같다.
+   * 태스크의 `target` 이 이 id 면 그리는 순간 `data/slots.ts` 의 배정으로 푼다.
+   */
+  slots?: Array<{ id: string; label: string }>;
+  /** 문구의 빈칸 표시 (260927). 대본이 선언했을 때만 있다. */
+  targetToken?: string;
+  /**
+   * **발화가 정한 대상** (260927). 본문에는 빈칸(`@`)을 둔 채로 두고 **그릴 때** 채운다 —
+   * 대본 문구가 영어 사이드카의 키라서, 먼저 채우면 번역을 못 찾는다(`scenarios/target.ts`).
+   */
+  targetWord?: string | null;
+};
+
+/**
+ * **아무 임무도 없는 화면** (260910 지시 — 「비어 있는 걸 기본으로」).
+ *
+ * 부팅 기본값이 옛 편(MSN-260826-01)이었다. 그러면 앱을 열자마자 시연에서 쓰지도 않는
+ * 구판 대본의 마일스톤 일곱과 **하드웨어 자리표시 일곱 장**이 뜬다 — 무대에 올라 처음
+ * 보이는 화면이 그것이었다. 발화를 넣으면 넘어가긴 하지만, 그 전까지 화면이 목으로 차 있다.
+ *
+ * 그래서 **비운 채로 시작한다.** 옛 편은 사라지지 않는다 — 「415호에서 503호로 이동해줘」를
+ * 넣으면 그대로 온다.
+ *
+ * `world` 는 `registry` 다. 비어 있는 화면이 시나리오 모드로 들어갈 일은 없지만, 기본값이
+ * `legacy` 면 「구판 세계」 안내줄이 임무도 없는데 뜬다.
+ *
+ * `hardware` 를 `null` 이 아니라 **빈 배열**로 둔다 — `null` 은 「cast 를 써라」는 뜻이라
+ * 자리표시 카드가 다시 살아난다. 빈 배열은 「장비가 없다」다.
+ */
+export const NO_MISSION = '';
+
+function emptyView(): MissionView {
+  return {
+    missionId: NO_MISSION,
+    label: '',
+    labelKey: 'sc2.noMission',
+    world: 'registry',
+    utteranceText: '',
+    durationSec: 0,
+    milestones: [],
+    tasks: [],
+    events: [],
+    cast: [],
+    hardware: [],
+    params: {},
+    map: null,
+    refEdges: [],
+    viewpoints: null,
+    viewpointTimeline: [],
+  };
+}
+
+function legacyView(): MissionView {
+  return {
+    missionId: scenario.missionId,
+    label: '',
+    labelKey: 'sc2.legacyLabel',
+    world: 'legacy',
+    utteranceText: scenario.utterance.text,
+    durationSec: scenario.durationSec,
+    milestones: scenario.milestones.map((m) => ({
+      id: m.id,
+      title: m.title,
+      assignedTargets: m.assignedTargets,
+      staticStatus: m.status ?? null,
+    })),
+    // 옛 파일의 태스크는 전부 MS-C 소속이다(파일에 필드가 없어 여기서 채운다).
+    tasks: scenario.tasks.map((t) => ({ ...t, milestone: t.milestone ?? 'MS-C' })),
+    events: scenario.events,
+    cast: (scenario.hardware ?? []).map((h) => h.id),
+    hardware: scenario.hardware ?? null,
+    params: {},
+    map: null,
+    refEdges: [],
+    viewpoints: null,
+    viewpointTimeline: [],
+  };
+}
+
+function scriptToView(script: ScriptScenario): MissionView {
+  return {
+    missionId: script.missionId,
+    label: script.title,
+    world: 'registry',
+    utteranceText: script.utterance.text,
+    durationSec: script.durationSec,
+    milestones: script.milestones.map((m) => ({
+      id: m.id,
+      title: m.title,
+      assignedTargets: m.assignedTargets,
+      staticStatus: null,
+      ...(m.slots === undefined ? {} : { slots: m.slots }),
+      ...(m.feed === undefined ? {} : { feed: m.feed }),
+    })),
+    tasks: script.tasks,
+    events: script.events,
+    cast: script.cast,
+    hardware: null,
+    params: script.params ?? {},
+    map: script.map ?? null,
+    refEdges: script.refEdges ?? [],
+    viewpoints: script.viewpoints ?? null,
+    viewpointTimeline: script.viewpointTimeline ?? [],
+    ...(script.slots === undefined ? {} : { slots: script.slots }),
+    ...(script.target === undefined ? {} : { targetToken: script.target.token, targetWord: null }),
+  };
+}
+
+/**
+ * **빈칸을 채운다** (260927). 번역한 **뒤에** 부른다 — 대본 문구가 사이드카의 키이기 때문이다.
+ * 자리 이름(「첫 번째 장치」)도 여기서 번역한다. `translateView` 가 모르는 칸이다.
+ *
+ * 빈칸도 자리도 없는 편은 **입력을 그대로** 돌려준다 — 다른 편의 화면은 한 글자도 안 바뀐다.
+ */
+let filledCache: { src: MissionView; word: string | null; out: MissionView } | null = null;
+
+function filled(view: MissionView, word: string | null): MissionView {
+  if (view.targetToken === undefined && view.slots === undefined) return view;
+  if (filledCache !== null && filledCache.src === view && filledCache.word === word) return filledCache.out;
+  const token = view.targetToken ?? '';
+  const f = (text: string) => (token === '' ? text : fillText(text, token, word));
+  const out: MissionView = {
+    ...view,
+    targetWord: word,
+    label: f(view.label),
+    utteranceText: f(view.utteranceText),
+    milestones: view.milestones.map((m) => ({ ...m, title: f(m.title) })),
+    tasks: view.tasks.map((task) => ({
+      ...task,
+      title: f(task.title),
+      evaluation: task.evaluation ? { ...task.evaluation, criteria: task.evaluation.criteria.map(f) } : task.evaluation,
+    })),
+    events: token === '' ? view.events : view.events.map((e) => ({ ...e, payload: fillPayload(e.payload, token, word) as ScenarioEvent['payload'] })),
+    slots: view.slots?.map((slot) => ({ ...slot, label: scriptPhrase(view.missionId, slot.label) })),
+  };
+  filledCache = { src: view, word, out };
+  return out;
+}
+
+/** 기록 열의 빈칸. 열은 덧붙일 때만 신원이 바뀌므로 같은 열이면 같은 결과를 돌려준다. */
+let traceCache: { src: readonly ScenarioEvent[]; word: string | null; out: readonly ScenarioEvent[] } | null = null;
+
+function filledTrace(view: MissionView, trace: readonly ScenarioEvent[], word: string | null): readonly ScenarioEvent[] {
+  const token = view.targetToken;
+  if (token === undefined || word === null) return trace;
+  if (traceCache !== null && traceCache.src === trace && traceCache.word === word) return traceCache.out;
+  const out = trace.map((e) => {
+    const payload = fillPayload(e.payload, token, word);
+    return payload === e.payload ? e : { ...e, payload: payload as ScenarioEvent['payload'] };
+  });
+  traceCache = { src: trace, word, out };
+  return out;
+}
+
+/** 라이브러리의 임무를 화면 형태로. 모르는 id 면 null — 지어내지 않는다. */
+export function viewForMission(missionId: string): MissionView | null {
+  if (missionId === scenario.missionId) return legacyView();
+  const entry = libraryEntry(missionId);
+  if (entry?.script) return scriptToView(entry.script);
+  return null;
+}
+
+// ── 저장소 ───────────────────────────────────────────────────────────────────
+
+/**
+ * 대본이 골라진 제안. **키워드 대조의 결과이지 모델이 아니다.**
+ */
+export type ScriptProposal = {
+  origin: 'script';
+  missionId: string;
+  title: string;
+  /** 어느 키워드가 맞아서 이 대본이 골라졌는지 — 화면이 그 자리에서 보여준다. */
+  keywords: string[];
+  planId: string | null;
+  world: 'registry' | 'legacy';
+  /**
+   * 발화에서 잘라 온 대상 (260927). 대본에 빈칸이 없거나 못 잘랐으면 없다.
+   * 게이트웨이의 plan 은 이것을 모른다 — 같은 제안이 다시 오면 앞의 값을 이어받는다(`proposeMission`).
+   */
+  target?: string | null;
+};
+
+/**
+ * 모델이 낸 제안 (260907 · 9단계 · `VZ-G-01`).
+ *
+ * 대본 제안과 **다른 종류다.** 대본 제안은 「미리 써 둔 편 중 하나를 고른 것」이라
+ * `missionId` 만 있으면 본문을 라이브러리에서 찾을 수 있지만, 이쪽은 **방금 만들어진
+ * 것**이라 어디에도 없다. 그래서 본문(`view`)을 스스로 들고 다닌다.
+ *
+ * 그리고 근거를 함께 든다. 승인되기 전에는 기록 열에 아무것도 넣지 않으므로
+ * (「승인 전에는 진행 사건이 하나도 없다」), 근거가 사는 곳은 승인 전까지 여기 하나다.
+ */
+export type AiProposal = {
+  origin: 'ai';
+  missionId: string;
+  title: string;
+  /** 모델이 낸 임무. 대본 라이브러리에 없다 — 이것이 원본이다. */
+  view: MissionView;
+  provenance: AiProvenance;
+};
+
+/**
+ * **제안은 두 종류다.** 화면이 배지를 갈라 붙이는 근거가 이 합집합이고, 갈라 두지 않으면
+ * 「이 마일스톤은 누가 썼나」에 답할 수 없다 — 대본에서 읽은 것과 모델이 낸 것이 같은
+ * 모양으로 뜨는 순간 그 물음이 사라진다.
+ */
+/**
+ * **사람이 숫자로 적은 명령** (260922 — 발화로 들어온 정량 명령).
+ *
+ * 대본도 아니고 모델이 낸 것도 아니다. 「Go1이 1m 앞으로 전진해」는 **사람이 이미 다
+ * 적었고**, 우리는 규칙으로 읽기만 했다(`physical/stepScript.ts`).
+ *
+ * 모델 제안으로 뭉치지 않는 이유는 **근거가 다르기 때문**이다. `AiProvenance` 는 모델
+ * 이름과 프롬프트 지문을 든다 — 여기에 그것을 지어 넣으면 「AI·백엔드·사람 중 누가 만든
+ * 값인가」(논문 §4-3)가 사람의 문장을 모델의 산출로 답하게 된다.
+ *
+ * 대본 제안으로 뭉칠 수도 없다. 대본 제안은 `missionId` 만 들고 본문을 라이브러리에서
+ * 찾는데, 이 임무는 **방금 만들어져 어디에도 없다** — 그래서 본문을 스스로 든다.
+ */
+export type StepProposal = {
+  origin: 'steps';
+  missionId: string;
+  title: string;
+  /** 방금 세운 임무. 라이브러리에 없다 — 이것이 원본이다. */
+  view: MissionView;
+  /** 사람이 적은 문장 그대로. **근거가 사는 자리**이고, 모델 지문의 대응물이다. */
+  sentence: string;
+};
+
+export type MissionProposal = ScriptProposal | AiProposal | StepProposal;
+
+export type MissionState = {
+  current: MissionView;
+  proposal: MissionProposal | null;
+  /** 재생 머리(대본 시각 초). 재생 중이 아니면 durationSec — 슬라이더는 되감기 도구다. */
+  headSec: number;
+  playing: boolean;
+  /**
+   * 기동 기본(boot) / 승인 활성화(approval) / 모드 스위치의 정지 미리보기(preview) /
+   * 저장된 기록 다시보기(record · 260914). 구판 세계 안내 띠와 「정지 미리보기」 표기의 근거다.
+   */
+  activatedBy: 'boot' | 'approval' | 'preview' | 'record';
+};
+
+let state: MissionState = {
+  // **비운 채로 시작한다** (260910). 옛 편은 발화로 부르면 온다.
+  current: emptyView(),
+  proposal: null,
+  headSec: 0,
+  playing: false,
+  activatedBy: 'boot',
+};
+
+const listeners = new Set<() => void>();
+let localTimer: ReturnType<typeof setInterval> | null = null;
+/** 뷰포인트 프레임을 어디까지 흘려보냈는지. 기록 열의 `localCursor` 와 같은 자리다. */
+let localViewpointCursor = 0;
+
+/**
+ * 액션 사건을 어디까지 흘려보냈는지 (260920). 대본의 `events` 와 **따로** 센다 — 액션
+ * 사건은 파일에 적혀 있는 것이 아니라 액션 아이템에서 **펴서 만든 것**이라 열이 다르다.
+ */
+let localActionCursor = 0;
+/** 이 편의 액션 사건을 편 결과. 편마다 한 번만 펴고 들고 있는다. */
+let localActionEvents: readonly ScenarioEvent[] = [];
+/** 그 결과가 **어느 편의 것인가.** 편이 바뀌면 다시 편다. */
+let localActionMission = '';
+
+/** 로컬 재생기가 대본을 어디까지 읽어 흘려보냈는지. 매 틱 처음부터 훑지 않기 위한 자리다. */
+let localCursor = 0;
+
+/**
+ * 알림 병합 창 (VZ-I-01 · 100 ms).
+ *
+ * 20 Hz 수신에서 사건마다 구독자를 깨우면 초당 20번 접고 20번 그린다 — 렌더 예산을 넘긴다.
+ * **데이터는 전량 받는다**(열에는 매 건이 들어간다). 묶는 것은 *알림*뿐이고, 규칙도 창
+ * 크기도 이미 있는 것을 그대로 쓴다 (`mergeScheduler.ts` · `RENDER_MERGE_WINDOW_MS`).
+ *
+ * 재생 머리는 창으로 묶고, **제안·승인·미리보기·재생 끝은 창을 건너뛴다**(`commitNow`) —
+ * 승인 버튼이 100 ms 늦게 반응하면 그건 그냥 느린 화면이다 (mergeScheduler 규칙 3).
+ */
+const renderMerge = new MergeScheduler();
+renderMerge.subscribe(() => { for (const listener of listeners) listener(); });
+
+/** 상태를 바꾸고 **병합 창**으로 알린다. 재생 머리처럼 초당 여러 번 바뀌는 값. */
+function commit(next: Partial<MissionState>): void {
+  state = { ...state, ...next };
+  renderMerge.mark();
+}
+
+/** 상태를 바꾸고 **즉시** 알린다. 늦으면 안 되는 전이. */
+function commitNow(next: Partial<MissionState>): void {
+  state = { ...state, ...next };
+  renderMerge.flushNow();
+}
+
+function subscribe(listener: () => void): () => void {
+  listeners.add(listener);
+  return () => listeners.delete(listener);
+}
+
+/** 저장소 구독 — 화면 밖 배선(`physical/taskRunner.ts`)이 판의 진행을 지켜본다 (260927). */
+export function subscribeMission(listener: () => void): () => void {
+  return subscribe(listener);
+}
+
+export function getMissionState(): MissionState {
+  return state;
+}
+
+export function useMission(): MissionState {
+  return useSyncExternalStore(subscribe, getMissionState, getMissionState);
+}
+
+export function currentMission(): MissionView {
+  return state.current;
+}
+
+/** 알림 병합 실측값. 자체 관측(`VZ-O-04`)이 읽는다. */
+export function missionMergeStats() {
+  return renderMerge.stats();
+}
+
+const EMPTY_TRACE: readonly ScenarioEvent[] = Object.freeze([]);
+
+/**
+ * 그 임무의 기록 열. 열은 임무당 하나이므로, **아직 아무것도 흘러오지 않은 임무**
+ * (제안된 대본 · 다른 편)는 빈 열이다 — 지어내지 않는다.
+ */
+export function traceFor(view: MissionView): readonly ScenarioEvent[] {
+  return traceMissionId() === view.missionId ? traceEvents() : EMPTY_TRACE;
+}
+
+/**
+ * 우리가 지은 임무 이름을 **그릴 때** 푼다. 대본이 준 이름이면 그대로 돌려준다.
+ *
+ * `state` 는 모듈 최상위에서 만들어지므로 거기서 `t()` 를 부르면 로드 시점 언어로 굳는다
+ * (`verify:i18n-no-frozen`). 그래서 키를 들고 있다가 여기서 푼다.
+ *
+ * **`useMission()` 은 원본 상태를 준다** — 거기서 `label` 을 바로 읽는 자리는 반드시 이
+ * 함수를 거쳐야 한다. 260919 에 상단바의 「아직 임무가 없습니다」가 **빈칸이 된 것**이
+ * 그 자국이다. 나는 `displayMission()` 하나만 고치면 되는 줄 알았다.
+ *
+ * `ko` 에서도 같은 값이 나온다 — 사전의 ko 값이 원문 그대로이기 때문이다.
+ */
+export function missionLabel(view: MissionView): string {
+  return view.labelKey === undefined ? view.label : t(view.labelKey);
+}
+
+/**
+ * **임무 이름 한 줄을 화면에 그릴 모양으로** (260927). 번역한 뒤 빈칸(`@`)을 채운다.
+ *
+ * 머리줄 · 대본 띠 · 승인 카드는 `displayMission()` 을 안 지나고 이름만 따로 받아 그린다 — 거기서도
+ * 「장치 두 대를 @까지 이동」이 아니라 「장치 두 대를 문까지 이동」이어야 한다. 채울 낱말은 지금 임무가
+ * 들고 있거나(승인 뒤), 제안이 들고 있다(승인 전). 빈칸이 없는 편은 번역만 한다 — 전과 같다.
+ */
+export function missionTitle(missionId: string, korean: string): string {
+  const translated = scriptPhrase(missionId, korean);
+  const token = libraryEntry(missionId)?.script?.target?.token;
+  if (token === undefined) return translated;
+  const word = state.current.missionId === missionId
+    ? state.current.targetWord ?? null
+    : state.proposal?.origin === 'script' && state.proposal.missionId === missionId ? state.proposal.target ?? null : null;
+  return fillText(translated, token, word);
+}
+
+function named(view: MissionView): MissionView {
+  if (view.labelKey === undefined) return view;
+  return { ...view, label: missionLabel(view) };
+}
+
+/**
+ * 화면이 그릴 임무 — 제안이 있으면 제안된 대본을 「제안 상태」로 그린다
+ * (진행 사건 0건 = 시각 0의 접기 결과, 전부 pending).
+ */
+export function displayMission(): {
+  view: MissionView;
+  phase: 'proposal' | 'playing' | 'idle';
+  headSec: number;
+  /** 그 임무의 기록 열. 화면은 **이것만** 접는다. */
+  trace: readonly ScenarioEvent[];
+} {
+  // 260918 — **영문 화면은 여기서 대본 글자가 영어로 바뀐다** (3단계).
+  // `state.current` 는 한국어 그대로 둔다 — 그것이 기록이고 짝짓기의 키다.
+  // `ko` 면 `translateView` 가 입력을 **그대로** 돌려주므로 한국어 화면은 한 글자도 안 바뀐다.
+  //
+  // 260919 — **우리가 지은 이름은 여기서 푼다.** `state` 는 모듈 최상위에서 만들어지므로
+  // 그때 `t()` 를 부르면 로드 시점 언어로 굳는다. 「아직 임무가 없습니다」가 영문 화면에
+  // 남아 있던 것이 그 자국이다 — 이제 키를 들고 있다가 그릴 때 푼다.
+  if (state.proposal !== null) {
+    // 모델이 낸 제안은 라이브러리에 없다 — **제안이 본문을 들고 있다.**
+    // **대본 제안만 라이브러리에서 찾는다.** 모델이 낸 것과 사람이 숫자로 적은 것은
+    // 방금 만들어진 임무라 어디에도 없고, 그래서 제안이 본문을 들고 다닌다.
+    const view = state.proposal.origin === 'script'
+      ? viewForMission(state.proposal.missionId)
+      : state.proposal.view;
+    const word = state.proposal.origin === 'script' ? state.proposal.target ?? null : null;
+    // 제안은 아직 승인 전이라 흘러온 것이 없다 — 열이 비어 있는 것이 곧 그 사실이다.
+    if (view !== null) {
+      return { view: filled(named(translateView(view)), word), phase: 'proposal', headSec: 0, trace: filledTrace(view, translateEvents(view.missionId, traceFor(view)), word) };
+    }
+  }
+  const word = state.current.targetWord ?? null;
+  return {
+    view: filled(named(translateView(state.current)), word),
+    phase: state.playing ? 'playing' : 'idle',
+    headSec: state.headSec,
+    trace: filledTrace(state.current, translateEvents(state.current.missionId, traceFor(state.current)), word),
+  };
+}
+
+// ── 제안 · 승인 · 재생 ────────────────────────────────────────────────────────
+
+/** 발화 매칭 결과를 제안으로 올린다. 게이트웨이(plan 수신)와 단독 빌드(로컬 매칭)가 부른다. */
+export function proposeMission(proposal: ScriptProposal): void {
+  if (viewForMission(proposal.missionId) === null) return;
+  const previous = state.proposal?.origin === 'script' && state.proposal.missionId === proposal.missionId ? state.proposal : null;
+  // 같은 제안의 중복(로컬 매칭 직후 게이트웨이 plan 도착)은 planId 만 갱신한다.
+  // 발화가 정한 대상은 같이 갱신한다 — 같은 편을 「문까지」에서 「의자까지」로 다시 말하면 대상만 바뀐다 (260927).
+  if (previous !== null && proposal.planId === null) {
+    if ((proposal.target ?? null) !== (previous.target ?? null)) commitNow({ proposal: { ...previous, target: proposal.target ?? null } });
+    return;
+  }
+  // **게이트웨이의 plan 은 대상을 모른다** (260927). 같은 편이면 앞선 로컬 제안의 대상을 이어받는다.
+  commitNow({ proposal: proposal.target === undefined && previous !== null ? { ...proposal, target: previous.target ?? null } : proposal });
+}
+
+/**
+ * 모델이 낸 임무를 제안으로 올린다 (260907 · 9단계 · `VZ-G-01`).
+ *
+ * **여기서 실행되는 것은 없다.** 대본 제안과 정확히 같은 자리에 서고, 승인 전에는 기록
+ * 열이 비어 있다 — 「승인 없이는 아무것도 실행되지 않는다」(`VZ-U-07` · `REQ-1506`)가
+ * 모델이 낸 것에도 그대로 걸린다는 뜻이다.
+ *
+ * 대본 제안과 달리 **`viewForMission` 으로 걸러 낼 수 없다.** 방금 만들어진 임무라
+ * 라이브러리에 없는 것이 정상이다. 대신 그리 볼 수 없는 것은 막는다 — 마일스톤이 하나도
+ * 없는 임무는 화면에 올려 봐야 빈 목록이고, 사람이 승인을 판단할 재료가 없다.
+ */
+export function proposeGenerated(view: MissionView, provenance: AiProvenance, title?: string): boolean {
+  if (view.milestones.length === 0) return false;
+  commitNow({
+    proposal: {
+      origin: 'ai',
+      missionId: view.missionId,
+      title: title ?? view.label,
+      view,
+      provenance,
+    },
+  });
+  return true;
+}
+
+/**
+ * **사람이 숫자로 적은 명령을 제안으로 올린다** (260922).
+ *
+ * `proposeGenerated` 와 같은 자리에 선다 — **승인 전에는 아무것도 실행되지 않는다**
+ * (`VZ-U-07`). 사람이 문장을 적었다는 것과 그 문장대로 로봇을 움직여도 좋다는 것은
+ * 다른 말이고, 그 사이에 승인이 있다.
+ */
+export function proposeSteps(view: MissionView, sentence: string): boolean {
+  if (view.tasks.length === 0) return false;
+  commitNow({ proposal: { origin: 'steps', missionId: view.missionId, title: view.label, view, sentence } });
+  return true;
+}
+
+export function rejectProposal(): void {
+  if (state.proposal === null) return;
+  commitNow({ proposal: null });
+}
+
+/**
+ * 승인 → 현재 임무 교체 + 재생 시작.
+ * mode 'remote' 는 게이트웨이의 trace_event 가 머리를 밀고(통합),
+ * 'local' 은 로컬 재생기가 같은 배속으로 민다(단독 빌드 — 게이트웨이 없음).
+ *
+ * **어느 쪽이든 기록은 같은 입구로 들어간다** (`appendTrace`). 입구가 둘이면 단독 빌드와
+ * 통합 빌드의 되감기가 달라지고, 그게 곧 논문 측정축 D의 오염이다.
+ */
+export function activateMission(missionId: string, mode: 'remote' | 'local', target?: string | null): void {
+  const found = viewForMission(missionId);
+  if (found === null) return;
+  /**
+   * 발화가 정한 대상 (260927). 부르는 쪽이 안 주면 **지금 제안**에서 가져온다 — 게이트웨이의 승인
+   * (`shell/missionBridge.ts`)은 plan 채널로 들어와 대상을 모른다. 제안이 사라지기 전(아래 commit)에 읽는다.
+   */
+  const pending = state.proposal?.origin === 'script' && state.proposal.missionId === missionId ? state.proposal.target ?? null : null;
+  const word = target === undefined ? pending : target;
+  const view = found.targetToken === undefined ? found : { ...found, targetWord: word };
+  beforeNewRun();
+  stopLocalTimer();
+  resetTrace(view.missionId);
+  resetViewpoint(view.missionId);
+  resetRobotSession();
+  // 새 판이 선다 — 이력은 **판마다 한 줄**이라 여기서 표시를 내려야 같은 편을 두 번
+  // 돌렸을 때 두 줄이 남는다 (260912).
+  armMissionHistory();
+  // 지난 판의 「직전 문구」가 새 판의 첫 줄을 삼키면 안 된다 — 같은 사유로 또 끊겨도
+  // 새 판에서는 새로 적혀야 한다.
+  armNotifications();
+  // 탐지도 같이 비운다 (260912) — 지난 판의 각도와 「이미 끝났다」는 기억이 남으면
+  // 새 판이 처음부터 다 끝난 채로 뜬다.
+  resetDetect();
+  localCursor = 0;
+  localViewpointCursor = 0;
+  localActionCursor = 0;
+  commitNow({ current: view, proposal: null, headSec: 0, playing: true, activatedBy: 'approval' });
+
+  // **중계가 모는 편은 판을 걸어만 둔다** (260915 · pi1). 칠하기는 「▶ 임무 시작」부터다 — 승인하자마자
+  // 노드에 불이 켜지면 계획을 설명할 틈이 없다(문 찾기 편과 같은 순서). 대본 타이머도 안 세운다 —
+  // 합성 진행이 중계와 같은 노드를 칠하면 무엇이 진짜인지 모른다.
+  if (relayDriven(view.missionId)) {
+    armNavRun(view.missionId);
+    return;
+  }
+
+  // **화면이 모는 편도 판을 걸어만 둔다** (260927 · 장치 두 대). 중계 편과 같은 순서다 — 승인하자마자
+  // 노드에 불이 켜지면 계획을 설명할 틈이 없다. 「▶ 임무 시작」이 `startLocalRun()` 으로 연다.
+  if (localDriven(view.missionId)) {
+    commitNow({ playing: false });
+    setLocalRun('armed');
+    return;
+  }
+
+  // **로봇이 몰면 타이머를 안 세운다** (260910 지적). 대본 시각이 저 혼자 흐르면 로봇이
+  // 아직 첫 걸음도 안 뗐는데 화면은 끝나 있다. 대본이 모는 편(`driver: 'script'` · 260915)은
+  // 브로커가 붙어 있어도 로봇이 그 편을 몰지 않으므로 그대로 세운다.
+  if (mode === 'local' && (!robotDrives() || scriptDriven(missionId))) runLocalTimer(LOCAL_SPEED);
+}
+
+/**
+ * 진행기 한 벌. `speed` 배속으로 머리를 밀며 대본을 기록 열로 흘려보낸다. 끝에 닿으면 선다.
+ * 대본 편(재생 배속 20)과 화면이 모는 편(1배속)이 같은 걸음을 쓴다 — 기록 열로 들어가는 입구가 하나다.
+ */
+function runLocalTimer(speed: number): void {
+  stopLocalTimer();
+  const stepMs = 200;
+  localTimer = setInterval(() => {
+    // 실제 장치가 맡은 태스크를 기다리는 사건 앞에서는 선다 (260927) — 로봇이 아직 걷는데 「임무 완료」가 칠해지면 안 된다.
+    const nextHead = Math.max(state.headSec, Math.min(state.headSec + (stepMs / 1000) * speed, liveHoldAt()));
+    /**
+     * **실행기가 모는 판은 대본 길이로 끝나지 않는다** (260929). 태스크마다 실제 값으로 판정하므로 몇 초가 걸릴지
+     * 판을 열 때 모른다 — Go1 이 느리게 걸으면 대본의 56초를 넘는다. 그래서 끝은 「태스크가 다 끝났다」이고,
+     * 그 전에 대본 길이에 닿으면 축을 늘린다. 끝나면 축을 실제로 걸린 시간으로 줄인다 — 되감기 축이 실제와 같아야 한다.
+     */
+    if (liveClaims.size > 0) {
+      if (liveRunSettled()) {
+        finishLiveRun();
+        return;
+      }
+      if (nextHead >= state.current.durationSec - 1) {
+        commitNow({ current: { ...state.current, durationSec: Math.ceil(nextHead) + LIVE_STRETCH_SEC } });
+      }
+    }
+    if (nextHead >= state.current.durationSec) {
+      stopLocalTimer();
+      // 남은 사건을 마저 흘려보낸 **뒤에** 머리를 끝에 세운다 — 순서가 바뀌면
+      // 마지막 한 틱 동안 화면이 「끝났는데 아직 안 온」 상태를 그린다.
+      feedLocalTrace(state.current.durationSec);
+      commitNow({ headSec: state.current.durationSec, playing: false });
+      if (localRun !== null) setLocalRun('done');
+      return;
+    }
+    feedLocalTrace(nextHead);
+    commit({ headSec: nextHead });
+  }, stepMs);
+}
+
+/** 실행기가 모는 판이 대본 길이에 닿았을 때 한 번에 늘리는 초. */
+const LIVE_STRETCH_SEC = 30;
+
+/** 실행기가 맡은 판의 태스크가 **전부** 끝났는가. 맡은 것이 없으면 거짓이다 — 대본 판은 대본 길이로 끝난다. */
+function liveRunSettled(): boolean {
+  if (liveClaims.size === 0) return false;
+  const done = new Set(traceFor(state.current).filter((event) => event.status === 'done').map((event) => event.nodeId));
+  return state.current.tasks.every((task) => !liveClaims.has(task.id) || done.has(task.id))
+    && state.current.tasks.some((task) => liveClaims.has(task.id));
+}
+
+/** 다 끝났다 — 축을 걸린 시간으로 줄이고 판을 닫는다. */
+function finishLiveRun(): void {
+  stopLocalTimer();
+  const end = Math.max(1, Math.ceil(state.headSec));
+  feedLocalTrace(end);
+  commitNow({ current: { ...state.current, durationSec: end }, headSec: end, playing: false });
+  setLocalRun('done');
+}
+
+// ── 실제 장치가 맡은 태스크 (260927 — 장치 두 대 편 · Go1 실동작) ─────────────────
+
+/**
+ * **판 안에서 실제 장치가 맡은 태스크.** 이 편에서 자리에 앉은 장비가 실제로 걸을 수 있으면, 그 장비의
+ * 「이동 시작」「이동 완료 확인」은 대본이 아니라 **로봇의 응답**이 칠한다. 드론처럼 아직 못 걷는 장비의
+ * 태스크는 그대로 대본이 칠한다 — 한 판 안에 두 진행이 섞이되, 노드마다 누가 칠하는지는 하나다.
+ *
+ * 무엇을 맡길지는 이 파일이 모른다 — 장비를 아는 면은 `src/physical/` 하나다(`verify:physical-port`).
+ * 그쪽이 훅을 걸어 두고(`registerLiveMoveHooks`), 판이 열릴 때 이 파일이 묻는다.
+ */
+export type LiveMoveHooks = {
+  /** 판이 열린다 — 맡을 태스크 id 들을 돌려준다. 없으면 빈 목록(전부 대본이 칠한다). */
+  claim(view: MissionView): readonly string[];
+  /** 사람이 멈췄다 — 걷고 있는 장비에 정지를 보낸다. */
+  halt(kind: 'pause' | 'stop'): void;
+  /** 사람이 이어 가라고 했다 — 장비 쪽 잠금을 푼다. */
+  resume(): void;
+  /** 판을 연 순간 「정해진 시간을 채워 넘기기로 한」 태스크들 (260929). 판 기록에만 남긴다. */
+  heldTasks?(): readonly string[];
+};
+
+let liveHooks: LiveMoveHooks | null = null;
+let liveClaims: ReadonlySet<string> = new Set();
+/** 로봇이 민 사건의 `seq` 대역. 로봇 응답(3,000,000)과 같은 주체이되 칸을 가른다 — 둘이 한 편에 같이 뜨지 않는다. */
+const LIVE_MOVE_SEQ_BASE = 3_500_000;
+let liveMoveCount = 0;
+
+export function registerLiveMoveHooks(hooks: LiveMoveHooks | null): void {
+  liveHooks = hooks;
+}
+
+export function liveClaimedTasks(): ReadonlySet<string> {
+  return liveClaims;
+}
+
+/**
+ * **로봇이 한 일을 기록 열에 넣는다.** 맡은 태스크에만 — 맡지 않은 노드를 여기서 칠하면 대본과 로봇이 한 노드를
+ * 같이 칠하게 된다. 시각은 **판의 머리**다(대본과 같은 축).
+ */
+export function appendLiveEvent(
+  missionId: string,
+  taskId: string,
+  status: TaskStatus,
+  kind: string,
+  payload?: Record<string, unknown>,
+  /**
+   * 누가 만든 값인가 (260929 — 임무 실행기). 장비가 준 값·장비의 응답이면 `robot`, 화면이 가상 맵으로 계산했거나
+   * 정해진 시간을 채워 넘긴 것이면 `backend` 다. 「누가 만든 값인가」(논문 §4-3)에 로봇이 계산한 것처럼 남으면 안 된다.
+   */
+  producedBy: 'robot' | 'backend' = 'robot',
+): boolean {
+  if (missionId !== state.current.missionId || !liveClaims.has(taskId) || isReplayingRecord()) return false;
+  const appended = appendTrace(missionId, {
+    seq: LIVE_MOVE_SEQ_BASE + liveMoveCount,
+    atSec: state.headSec,
+    nodeId: taskId,
+    status,
+    kind,
+    producedBy,
+    ...(payload === undefined ? {} : { payload }),
+  });
+  if (appended) liveMoveCount += 1;
+  commitNow({});
+  return appended;
+}
+
+/** 로봇이 맡은 이동이 끝나지 못했다 — 판을 세운다. 사람이 누른 정지가 아니므로 사람 조작으로 안 적는다. */
+export function haltLocalRunOnFailure(): void {
+  if (localRun !== 'running') return;
+  stopLocalTimer();
+  setLocalRun('stopped');
+  commitNow({ playing: false });
+}
+
+/**
+ * 머리가 넘으면 안 되는 시각. 다음에 흘릴 사건이 **아직 안 끝난 맡은 태스크**를 기다리면 그 사건 바로 앞이다.
+ * 맡은 것이 없으면 끝이 없다(∞) — 다른 편은 전과 한 틱도 다르지 않다.
+ */
+function liveHoldAt(): number {
+  if (liveClaims.size === 0) return Infinity;
+  const events = state.current.events;
+  const done = new Set(traceFor(state.current).filter((e) => e.status === 'done').map((e) => e.nodeId));
+  // **남은 사건 전부를 본다** — 바로 다음 하나만 보면, 그 사이 사건들이 한 틱에 같이 흘러갈 때 기다려야 할
+  // 사건까지 넘어간다(배속이 크면 실제로 그랬다 — 로봇이 도착하기 전에 「임무 완료」가 칠해졌다).
+  for (let index = localCursor; index < events.length; index += 1) {
+    const event = events[index];
+    if (liveClaims.has(event.nodeId) || event.status === 'pending') continue;
+    const task = state.current.tasks.find((item) => item.id === event.nodeId);
+    if (task?.deps.some((dep) => liveClaims.has(dep) && !done.has(dep)) ?? false) return event.atSec - 0.01;
+  }
+  return Infinity;
+}
+
+// ── 화면이 모는 편의 판 (260927 — `driver: 'local'`) ───────────────────────────
+
+/**
+ * 판의 자리. 머리줄의 시작·일시정지·정지 버튼이 이것을 보고 무엇을 할지 정한다.
+ *
+ *   armed    승인됐고 「▶ 임무 시작」을 기다린다
+ *   running  진행기가 민다
+ *   paused   멈췄다 — 「재시작」이 그 자리에서 잇는다
+ *   stopped  정지했다 — 「재시작」이 그 자리에서 잇는다(되돌리려면 「처음부터」)
+ *   done     끝까지 갔다 — 「재시작」이 처음부터 다시 연다
+ */
+export type LocalRunPhase = 'armed' | 'running' | 'paused' | 'stopped' | 'done';
+
+let localRun: LocalRunPhase | null = null;
+const localRunListeners = new Set<() => void>();
+
+function setLocalRun(next: LocalRunPhase | null): void {
+  if (localRun === next) return;
+  localRun = next;
+  for (const listener of localRunListeners) listener();
+}
+
+export function localRunPhase(): LocalRunPhase | null {
+  return localRun;
+}
+
+export function useLocalRun(): LocalRunPhase | null {
+  return useSyncExternalStore(
+    (listener) => { localRunListeners.add(listener); return () => { localRunListeners.delete(listener); }; },
+    localRunPhase,
+    localRunPhase,
+  );
+}
+
+/** 이 편의 배속. 대본의 `params.play_speed` — 없으면 1(제 시각)이다. */
+function localSpeed(): number {
+  const value = Number(state.current.params.play_speed ?? 1);
+  return Number.isFinite(value) && value > 0 ? value : 1;
+}
+
+/**
+ * **「▶ 임무 시작」** — 걸어 둔 판을 연다. 걸린 판이 없으면 아무것도 안 한다(승인을 우회하지 않는다).
+ * 끝난 판이면 처음부터 다시 연다.
+ */
+export function startLocalRun(): boolean {
+  if (!localDriven(state.current.missionId)) return false;
+  if (localRun === 'done') {
+    const missionId = state.current.missionId;
+    activateMission(missionId, 'remote', state.current.targetWord ?? null);
+    recordHuman('mission_restarted', missionId, { from: 'button' });
+  }
+  if (localRun !== 'armed') return false;
+  // 어느 태스크를 실제 장치가 맡는지 **판이 열리는 순간** 정한다 — 카드 배정과 연결이 그때 확정이다.
+  liveClaims = new Set(liveHooks?.claim(state.current) ?? []);
+  liveMoveCount = 0;
+  // 0초의 생성 사건(pending)을 **먼저** 흘린다 (260929) — 실행기가 첫 태스크를 곧바로 「진행 중」으로 칠하는데,
+  // 그 뒤에 pending 이 들어오면 그 노드가 대기로 되돌아간다.
+  feedLocalTrace(state.headSec);
+  setLocalRun('running');
+  recordHuman('mission_started', state.current.missionId, {
+    from: 'button',
+    live_tasks: [...liveClaims].join(','),
+    // **정해진 시간을 채워 넘기는 태스크** (260929). 화면은 다른 완료 노드와 똑같이 칠하고(지시 3-A), 그 사실은 판 기록의 이 줄이 남긴다.
+    held_tasks: (liveHooks?.heldTasks?.() ?? []).join(','),
+  });
+  commitNow({ playing: true });
+  runLocalTimer(localSpeed());
+  return true;
+}
+
+/** 일시정지 — 머리를 그 자리에 세운다. */
+export function pauseLocalRun(): boolean {
+  if (localRun !== 'running') return false;
+  stopLocalTimer();
+  liveHooks?.halt('pause');
+  setLocalRun('paused');
+  recordHuman('mission_paused', state.current.missionId, { at_sec: Math.round(state.headSec) });
+  commitNow({ playing: false });
+  return true;
+}
+
+/** 정지 — 일시정지와 같이 머리를 세우되, 사람이 「멈춰라」라고 한 것으로 남긴다. */
+export function stopLocalRun(): boolean {
+  if (localRun !== 'running' && localRun !== 'paused') return false;
+  stopLocalTimer();
+  liveHooks?.halt('stop');
+  setLocalRun('stopped');
+  recordHuman('mission_stopped', state.current.missionId, { at_sec: Math.round(state.headSec) });
+  commitNow({ playing: false });
+  return true;
+}
+
+/** 재시작 — 멈춘 자리에서 잇는다. */
+export function resumeLocalRun(): boolean {
+  if (localRun !== 'paused' && localRun !== 'stopped') return false;
+  liveHooks?.resume();
+  setLocalRun('running');
+  recordHuman('mission_resumed', state.current.missionId, { at_sec: Math.round(state.headSec) });
+  commitNow({ playing: true });
+  runLocalTimer(localSpeed());
+  return true;
+}
+
+/**
+ * 승인 — **제안을 캔버스에 올리는 유일한 문** (`VZ-U-07` · `REQ-1506` · 260907).
+ *
+ * ## 왜 문이 하나여야 하나
+ *
+ * 9단계에 제안이 두 종류가 됐다(대본 · 모델). 승인 경로가 종류마다 따로 있으면, 나중에
+ * 한쪽에 검사를 더하면서 다른 쪽을 빠뜨려도 아무도 모른다 — 그리고 빠뜨린 쪽이 하필
+ * 모델이 낸 것이면, **사람이 안 본 계획이 캔버스에 올라간다.** 그래서 문을 하나로 두고
+ * `verify:proposal-gate` 가 이 함수 하나를 지킨다.
+ *
+ * 제안이 없으면 **아무 일도 하지 않는다.** 「승인할 것이 없는데 승인이 됐다」가 곧
+ * 승인 선을 우회하는 길이다.
+ *
+ * @returns 실제로 승인이 일어났는가.
+ */
+export function acceptProposal(mode: 'remote' | 'local' = 'local'): boolean {
+  const proposal = state.proposal;
+  if (proposal === null) return false;
+  if (proposal.origin === 'script') {
+    activateMission(proposal.missionId, mode, proposal.target ?? null);
+    const accepted = state.activatedBy === 'approval' && state.current.missionId === proposal.missionId;
+    // **승인이 로봇 관문을 연다** (260910 · `VZ-U-07`). 이 줄 앞에서는 MQTT 로 나가는
+    // 바이트가 없다 — `verify:no-publish-before-approval` 이 그것을 센다.
+    // 승인의 문이 하나이므로 관문도 여기 한 곳에서만 열린다.
+    // 자기 방식으로 도는 편(`driver: 'script'` · `'relay'` · 260915)은 열지 않는다 — 로봇 경로가 문 찾기 편에 묶여 있다.
+    if (accepted && opensRobotGate(proposal.missionId)) markApproved();
+    return accepted;
+  }
+  return activateGenerated(proposal);
+}
+
+/**
+ * 모델이 낸 제안의 승인 (260907 · 9단계).
+ *
+ * `activateMission` 과 갈라지는 곳은 둘뿐이다.
+ *  - 라이브러리에서 찾지 않는다. **제안이 든 본문이 원본이다.**
+ *  - 재생기를 세우지 않는다. 흘려보낼 사건이 없다(`events: []` · `durationSec: 0`) —
+ *    이것은 실행 기록이 아니라 **계획**이다. 타이머를 세우면 있지도 않은 기록을 향해
+ *    머리가 굴러간다.
+ *
+ * 열에 들어가는 첫 두 줄이 이 함수의 요점이다.
+ *
+ * ```
+ * seq 2,000,000  produced_by=ai      mission_generated   ← 모델·프롬프트 지문·규칙 목록
+ * seq 1,000,000  produced_by=human   proposal_accepted   ← 사람이 수락했다 (VZ-D-08)
+ * ```
+ *
+ * **순서가 뜻이다.** 생성이 먼저고 승인이 그 뒤다 — 그 두 줄이 있어야 화면에 뜬 마일스톤
+ * 하나에서 「무엇이 만들었나 → 누가 받아들였나」로 거슬러 올라갈 수 있다
+ * (`VZ-G-01` 의 「역추적이 맨 위까지 닿는다」).
+ */
+function activateGenerated(proposal: AiProposal | StepProposal): boolean {
+  beforeNewRun();
+  stopLocalTimer();
+  resetTrace(proposal.view.missionId);
+  resetViewpoint(proposal.view.missionId);
+  resetRobotSession();
+  localCursor = 0;
+  localViewpointCursor = 0;
+  localActionCursor = 0;
+  commitNow({ current: proposal.view, proposal: null, headSec: 0, playing: false, activatedBy: 'approval' });
+  /**
+   * **정량 명령은 승인이 로봇 관문을 연다** (260928 — 「정량 명령 임무가 시작이 안 된다」).
+   *
+   * 대본 편은 `acceptProposal` 이 관문을 여는데, 이 길(`activateGenerated`)에는 그 줄이 없었다. 그래서 승인해도
+   * `markStarted()` 가 첫 줄(「승인 없이는 시작도 없다」)에서 돌아가 「임무 시작」이 아무 일도 안 했다.
+   * 걸음은 여전히 「임무 시작」 뒤에 나간다(`shouldIssueStepMission` — 승인 **그리고** 시작).
+   *
+   * **모델이 낸 임무는 열지 않는다.** 그 임무에는 로봇에 보낼 걸음이 없고, 관문이 열린 채 「임무 시작」을 누르면
+   * 발행 배선이 문 찾기 편의 스캔 조건을 보게 된다 — 모델이 만든 계획에 스캔이 따라 나가면 안 된다.
+   */
+  if (proposal.origin === 'steps') markApproved();
+  /**
+   * **근거를 적는 자리는 하나지만 근거는 같지 않다** (260922).
+   *
+   * 모델이 낸 것은 모델 이름·규칙·프롬프트 지문이 근거다. 사람이 숫자로 적은 것은
+   * **그 문장 자체**가 근거다 — 거기에 모델 지문을 지어 넣으면 「누가 만든 값인가」가
+   * 틀어진다(논문 §4-3). 그래서 칸은 같고 값이 다르다.
+   */
+  appendGenerated(
+    proposal.view.missionId,
+    'mission_generated',
+    proposal.view.missionId,
+    0,
+    proposal.origin === 'ai'
+      ? provenancePayload(proposal.provenance)
+      : { origin: 'steps', sentence: proposal.sentence, read_by: 'rules' },
+  );
+  // 승인도 사람 조작이다 — `VZ-D-08` 은 예외를 두지 않는다.
+  recordHuman('proposal_accepted', proposal.view.missionId, {
+    origin: proposal.origin,
+    milestones: proposal.view.milestones.length,
+    tasks: proposal.view.tasks.length,
+  });
+  return true;
+}
+
+/**
+ * 로컬 재생기 — **대본을 읽어 게이트웨이와 같은 입구로 기록을 흘려보낸다.**
+ * 목 게이트웨이가 하는 일(`gateway/mission-trace.ts`)을 단독 빌드에서 대신하는 자리다.
+ */
+function feedLocalTrace(headSec: number): void {
+  const events = state.current.events;
+  while (localCursor < events.length && events[localCursor].atSec <= headSec) {
+    // **실제 장치가 맡은 태스크의 대본 사건은 안 흘린다** (260927). 그 노드는 로봇의 응답이 칠한다
+    // (`appendLiveEvent`) — 둘 다 흘리면 로봇이 아직 걷는데 대본이 「도착」을 칠한다. 생성 사건(pending)은 둔다.
+    const event = events[localCursor];
+    if (!liveClaims.has(event.nodeId) || event.status === 'pending') appendTrace(state.current.missionId, event);
+    localCursor += 1;
+  }
+
+  /**
+   * 액션 층 (260920 §5) — **대본의 액션 아이템을 펴서 같은 걸음으로 흘려보낸다.**
+   *
+   * 목 게이트웨이(`script-engine.ts`)가 통합 빌드에서 하는 일을 여기서 한다. 펴는 규칙은
+   * `actionTrace.ts` **하나**이므로 두 빌드의 되감기가 갈리지 않는다. 이게 빠지면 실험
+   * 한 건마다 로봇을 켜야 한다.
+   *
+   * **로봇이 붙어 있으면 여기서도 안 흘린다** — 뷰포인트 채널과 같은 규칙이다(아래). 대본이
+   * 예정한 명령과 실제로 오간 명령이 동시에 흐르면 한 태스크에 명령 표가 두 벌 뜬다.
+   * 대역은 갈라 뒀으므로(`trace.ts`) 사라지지는 않지만, 보이는 것이 두 벌이면 그게 결함이다.
+   */
+  if (localActionMission !== state.current.missionId) {
+    // 편이 바뀌었다 — 다시 편다. 펴는 것은 파일을 읽는 일이 아니라 태스크를 훑는 일이라
+    // 싸지만, 걸음마다 펴면 재생 한 판에 수백 번이 된다.
+    localActionMission = state.current.missionId;
+    localActionEvents = actionItemEvents(state.current.tasks, ACTION_SEQ_BASE);
+    localActionCursor = 0;
+  }
+  if (!robotDrives()) {
+    while (localActionCursor < localActionEvents.length && localActionEvents[localActionCursor].atSec <= headSec) {
+      appendTrace(state.current.missionId, localActionEvents[localActionCursor]);
+      localActionCursor += 1;
+    }
+  }
+  // 뷰포인트 채널 (260909 §6) — 기록 열과 **같은 걸음으로** 흘려보낸다. 화면은 대본이
+  // 아니라 흘러온 것을 접는다.
+  //
+  // **로봇이 붙어 있으면 대본이 이 자리를 채우지 않는다** (260910 지적). 진행은 uplink 의
+  // `CommandStatus` 가 몬다 — 대본과 로봇이 같이 채우면 여덟 칸이 두 번 차고, 화면이
+  // 로봇보다 앞서 간다.
+  if (robotDrives()) return;
+  const timeline = state.current.viewpointTimeline;
+  while (localViewpointCursor < timeline.length && timeline[localViewpointCursor].atSec <= headSec) {
+    const entry = timeline[localViewpointCursor];
+    for (const frame of scriptFrames([entry], entry.atSec)) {
+      appendViewpoint(state.current.missionId, entry.atSec, frame);
+    }
+    localViewpointCursor += 1;
+  }
+}
+
+/**
+ * 정지 미리보기 (260831 — 사이트 개선 요구 4 · 우상단 모드 스위치).
+ *
+ * 현재 임무를 그 대본으로 올리되 **기록 열이 비어 있다** — headSec 0 · playing false 라
+ * 탭①은 전부 pending 으로 그린다(제안 상태와 같은 성질). **재생은 여전히 승인 뒤다** —
+ * 이 함수는 「그린다」까지이고 승인 선(VZ-U-07 · REQ-1506)을 우회하지 않는다.
+ */
+export function previewMission(missionId: string): void {
+  const view = viewForMission(missionId);
+  if (view === null) return;
+  beforeNewRun();
+  stopLocalTimer();
+  resetTrace(view.missionId);
+  resetViewpoint(view.missionId);
+  resetRobotSession();
+  localCursor = 0;
+  localViewpointCursor = 0;
+  localActionCursor = 0;
+  commitNow({ current: view, proposal: null, headSec: 0, playing: false, activatedBy: 'preview' });
+}
+
+function stopLocalTimer(): void {
+  if (localTimer !== null) clearInterval(localTimer);
+  localTimer = null;
+}
+
+/**
+ * **판을 비우기 전에** (260914 — 임무 기록). 기록기가 지난 판의 마지막 모습을 뜨게 하고,
+ * 다시보기 중이었으면 그것을 푼다 — 다시보기로 채운 탐지 결과·로봇 명령이 새 판에 남으면 안 된다.
+ */
+function beforeNewRun(): void {
+  sealRun();
+  // 맡긴 태스크도 판과 함께 푼다 (260927). 다음 판이 열릴 때 다시 정한다.
+  liveClaims = new Set();
+  // 화면이 모는 판도 닫는다 — 다음 판이 그 편이면 activateMission 이 다시 건다 (260927).
+  setLocalRun(null);
+  // 중계 판도 닫는다 — 다음 판이 중계 편이면 activateMission 이 다시 연다.
+  endNavRun();
+  if (!isReplayingRecord()) return;
+  leaveRecordReplay();
+  resetRobotSession();
+  resetDetect();
+  // 다시보기가 채운 자율주행 기록도 걷는다 (260915) — 지난 판의 경로 사건·장애물 값이 새 판에 남으면 안 된다.
+  resetNavFeed();
+  clearObstacleData();
+}
+
+/**
+ * 게이트웨이 trace_event 수신 (통합 셸의 브리지가 부른다).
+ * 다른 임무의 사건은 버린다 — 승인 전에는 애초에 오지 않는다(게이트웨이 규칙).
+ *
+ * 중복(재접속 뒤 다시 온 같은 `seq`)은 열이 흡수한다 — 새로 생긴 것이 없고 머리도 안
+ * 움직이면 화면을 다시 그리지 않는다.
+ */
+/**
+ * **로봇이 민 진행** (260910). `receiveTrace` 와 갈라 둔 이유는 **대본 끝 판정** 때문이다.
+ *
+ * `receiveTrace` 는 대본의 마지막 사건 시각을 넘으면 「재생 끝」으로 보고 머리를
+ * `durationSec` 에 세운다. 로봇은 대본보다 느릴 수도 빠를 수도 있어서 그 판정을 쓰면
+ * 로봇이 아직 도는 중에 화면이 끝나 버린다. 여기서는 **머리를 사건 시각까지만** 민다.
+ */
+export function receiveRobotProgress(missionId: string, event: ScenarioEvent): void {
+  // 다시보기 중에는 지난 판의 열에 아무것도 안 붙인다 — 같은 임무 id 의 새 사건이어도.
+  if (missionId !== state.current.missionId || isReplayingRecord()) return;
+  appendTrace(missionId, event);
+  commit({ headSec: Math.max(state.headSec, event.atSec), playing: true });
+}
+
+/**
+ * **로봇이 민 재생 머리** (260910). 사건 없이 시각만 민다.
+ *
+ * 뷰포인트 프레임은 기록 열의 사건이 아니라 별도 열로 들어간다(`viewpoint/store.ts`).
+ * 화면은 그 열을 **머리까지만** 접으므로, 머리가 안 움직이면 로봇이 여덟 걸음을 다
+ * 흘려도 화면은 비어 있다 — 실제로 그랬다. 회전 사건에는 태스크 상태 변화가 없어서
+ * 머리를 밀 사건이 하나도 없었기 때문이다.
+ */
+export function advanceRobotHead(missionId: string, atSec: number): void {
+  if (missionId !== state.current.missionId || isReplayingRecord()) return;
+  if (atSec <= state.headSec) return;
+  commit({ headSec: atSec, playing: true });
+}
+
+export function receiveTrace(missionId: string, event: ScenarioEvent): void {
+  if (missionId !== state.current.missionId || isReplayingRecord()) return;
+  const fresh = appendTrace(missionId, event);
+  const lastAt = state.current.events.at(-1)?.atSec ?? state.current.durationSec;
+  if (event.atSec >= lastAt) {
+    // 마지막 사건 — 재생 끝. 머리를 durationSec 에 세우고 슬라이더를 되감기 도구로 돌려준다.
+    commitNow({ headSec: state.current.durationSec, playing: false });
+    return;
+  }
+  if (!fresh && event.atSec <= state.headSec) return;
+  commit({ headSec: Math.max(state.headSec, event.atSec), playing: true });
+}
+
+// ── 사람 조작 기록 (260904 — 같은 열로 합쳤다) ───────────────────────────────
+
+/**
+ * 화면에서 나가는 명령을 기록한다 (`VZ-D-08`). 전까지는 별도 배열과 `console.log` 가
+ * 끝이라 **되감기에 안 보였다** — 기록이라고 부를 수 없었다.
+ *
+ * `atSec` 는 조작한 그 시각의 재생 머리다. 사건을 만드는 규칙 자체는 `trace.ts` 에 있다 —
+ * `produced_by=human` 이 여기저기서 손으로 적히면 그 규칙이 갈라진다.
+ */
+export function recordHuman(kind: string, nodeId = state.current.missionId, payload: Record<string, unknown> = {}) {
+  // 다시보기는 지난 판이다 — 지금 누른 것을 그 판의 기록에 끼워 넣지 않는다.
+  if (isReplayingRecord()) return null;
+  const event = appendHuman(
+    state.current.missionId,
+    kind,
+    nodeId,
+    Math.min(state.headSec, state.current.durationSec),
+    payload,
+  );
+  // 열이 자랐으면 화면을 다시 그린다 — 되감기 타임라인에 그 조작이 떠야 한다.
+  if (event !== null) commitNow({});
+  return event;
+}
+
+// ── 액션 층 기록 (260920 — 명령 기록 합류 §1) ────────────────────────────────
+
+/**
+ * **실제로 오간 명령이 기록 열로 들어오는 자리.**
+ *
+ * `recordHuman` 과 같은 역할이다 — 사건의 **모양**은 `actionTrace.ts` 가 정하고, 대역은
+ * `trace.ts` 가 정하며, 여기서는 **어느 임무의 몇 초인가**만 붙인다. 그 셋을 한 곳에
+ * 모으면 물리 층이 기록 규칙을 손으로 적게 되고, 손으로 적히는 순간 라이브 기록과 목
+ * 기록이 다른 모양이 된다.
+ *
+ * `atSec` 는 **일어난 그 시각의 재생 머리**다. 임무 끝에 몰아 두면 명령이 전부 타임라인
+ * 오른쪽 끝에 겹쳐 쌓여 「언제 냈는지」를 잃는다 (`appendHuman` 주석과 같은 이유).
+ */
+function actionAtSec(atSec?: number): number {
+  const at = atSec ?? state.headSec;
+  return Math.max(0, Math.min(at, state.current.durationSec));
+}
+
+function pushAction(make: (seq: number) => ScenarioEvent): ScenarioEvent | null {
+  // 다시보기는 지난 판이다 — 지금 오간 것을 그 판의 기록에 끼워 넣지 않는다
+  // (`recordHuman` · `receiveUplink` 와 같은 선).
+  if (isReplayingRecord()) return null;
+  const event = appendAction(state.current.missionId, make);
+  if (event !== null) commit({ headSec: Math.max(state.headSec, event.atSec) });
+  return event;
+}
+
+/** 명령이 실제로 나갔다. `issuedBy` 는 **그 명령을 낸 주체**다 (`actionTrace.ts` 참조). */
+export function recordCommanded(input: {
+  commandId: string; taskId: string; action: string;
+  parameters: Record<string, number>; requestId?: string | null;
+  issuedBy?: 'human' | 'mission'; atSec?: number;
+}): ScenarioEvent | null {
+  return pushAction((seq) => commandedEvent({
+    seq, atSec: actionAtSec(input.atSec), commandId: input.commandId, taskId: input.taskId,
+    action: input.action, parameters: input.parameters, requestId: input.requestId ?? null,
+    issuedBy: input.issuedBy ?? 'mission',
+  }));
+}
+
+/** 로봇 응답이 한 줄 도착했다. */
+export function recordAnswered(input: {
+  commandId: string; taskId: string; line: string; answerKind: AnswerKind;
+  index?: number | null; outcome?: 'done' | 'failed'; atSec?: number;
+}): ScenarioEvent | null {
+  return pushAction((seq) => answeredEvent({
+    seq, atSec: actionAtSec(input.atSec), commandId: input.commandId, taskId: input.taskId,
+    line: input.line, answerKind: input.answerKind, index: input.index ?? null, outcome: input.outcome,
+  }));
+}
+
+/**
+ * **기다리는 기한이 끝났는데 안 왔다** (§2).
+ *
+ * 안 온 응답은 일어나지 않은 일이라 적을 수 없다. 적는 것은 **기다림이 끝났다는 사실**
+ * 이고, 기다린 것은 일어난 일이다. 이 한 줄이 「아직 기다리는 중」과 「영영 안 왔다」를
+ * 가른다 — 이것이 없으면 둘은 영원히 같아 보인다.
+ */
+export function recordExpired(input: {
+  commandId: string; taskId: string; waitedMs: number; reason: string; atSec?: number;
+}): ScenarioEvent | null {
+  return pushAction((seq) => expiredEvent({
+    seq, atSec: actionAtSec(input.atSec), commandId: input.commandId, taskId: input.taskId,
+    waitedMs: input.waitedMs, reason: input.reason,
+  }));
+}
+
+/** 사람이 값을 바꿨다. **전후를 짝으로** 남긴다 — 후만 남기면 무엇이 바뀌었는지 모른다. */
+export function recordAdjusted(input: {
+  commandId: string; taskId: string; field: string; before: unknown; after: unknown; atSec?: number;
+}): ScenarioEvent | null {
+  return pushAction((seq) => adjustedEvent({
+    seq, atSec: actionAtSec(input.atSec), commandId: input.commandId, taskId: input.taskId,
+    field: input.field, before: input.before, after: input.after,
+  }));
+}
+
+/**
+ * 시각 t 까지의 액션 층 — 화면이 명령 표를 그릴 때 읽는다. 접는 규칙은 `actionTrace.ts` 다.
+ *
+ * **화면이 그리는 그 열을 접는다** (`displayMission().trace`). `traceFor()` 의 날것을 접으면
+ * 영문 화면에서 로봇 줄만 한국어로 남는다 — 대본이 쓴 문장은 `translateEvents` 가 푸는데
+ * 그 변환이 `displayMission()` 안에 있기 때문이다. 상태만 접는 `statusesAt` 과 갈리는 지점이
+ * 여기다: 상태에는 글자가 없다.
+ *
+ * 시각을 안 주면 **지금 재생 머리**다. 되감아 놓았으면 그 시점까지만 보인다.
+ */
+export function actionsAt(second?: number): readonly FoldedAction[] {
+  const shown = displayMission();
+  return foldActions(second ?? shown.headSec, shown.trace);
+}
+
+// ── 상태 접기 (REQ-1405 되감기 · 마일스톤은 태스크를 접은 결과) ──────────────────
+
+/**
+ * 시각 t 의 계층 상태. 접는 규칙은 `fold.ts` 하나에 있고 여기서는 **접는 대상**만
+ * 정한다 — 화면이 그리는 임무(제안 중이면 제안된 대본)의 **기록 열**이다.
+ */
+export function statusesAt(second: number, view: MissionView = displayMission().view): FoldedStatuses {
+  return foldStatuses(second, view, traceFor(view));
+}
+
+/**
+ * 기동 직후의 옛 편 — **이미 끝난 과거 임무의 기록**이라 열을 채워 둔다.
+ * 게이트웨이가 있으면 같은 사건이 `trace_event` 로 다시 오는데, `seq` 가 같으므로
+ * 열이 중복으로 흡수한다 (`VZ-I-02` 와 같은 성질).
+ */
+resetTrace(state.current.missionId);
+resetViewpoint(state.current.missionId);
+for (const event of state.current.events) appendTrace(state.current.missionId, event);
+
+
+/**
+ * **화면을 처음 상태로** (260910 지시).
+ *
+ * 시연을 한 판 돌리고 나면 마일스톤도 여덟 칸도 차 있다. 다시 보이려면 새로고침해야 했는데,
+ * 새로고침하면 **브로커 연결이 끊긴다** — 무대에서 그걸 다시 붙이는 시간이 아깝다.
+ *
+ * 그래서 여기서 비운다. 임무·제안·기록 열이 지워지고, 연결은 그대로 남는다
+ * (`resetRobotSession` 이 연결과 ping 을 남기는 것과 같은 이유다).
+ */
+export function resetMission(): void {
+  beforeNewRun();
+  stopLocalTimer();
+  localCursor = 0;
+  localViewpointCursor = 0;
+  localActionCursor = 0;
+  // 임무가 없으니 열도 없다 — 다음 임무가 열릴 때 그 id 로 다시 선다.
+  resetTrace(NO_MISSION);
+  resetViewpoint(NO_MISSION);
+  resetRobotSession();
+  resetDetect();
+  // 「초기화」는 화면을 처음 상태로 되돌리는 것이라 이력도 알림도 같이 비운다.
+  resetMissionHistory();
+  resetNotifications();
+  commitNow({ current: emptyView(), proposal: null, headSec: 0, playing: false, activatedBy: 'boot' });
+}
+
+
+/**
+ * **지금 임무를 처음부터 다시** (260911 지시).
+ *
+ * 한 판이 끝났거나 정지한 뒤 같은 편을 다시 보려면 발화부터 다시 해야 했다 — 문장을 누르고,
+ * 요청하고, 승인하고. 시연 중에 그 셋을 다시 하는 것은 번거롭고, 그동안 화면이 제안 상태로
+ * 돌아가 보는 사람이 「방금 것이 실패했나」로 읽는다.
+ *
+ * `activateMission` 과 같은 일을 한다 — 기록·여덟 칸·로봇 세션을 비우고 시각을 0으로.
+ * **승인은 다시 안 받는다.** 이 편은 이미 승인된 편이고, 버튼을 누른 것이 사람의 행위다.
+ * 그래서 로봇 관문도 같이 연다 — 안 그러면 눌러도 로봇이 안 움직여 「또 안 되네」가 된다.
+ *
+ * 임무가 없으면 아무것도 안 한다.
+ */
+export function restartMission(): boolean {
+  const missionId = state.current.missionId;
+  if (missionId === NO_MISSION) return false;
+  /**
+   * **정량 명령 임무도 다시 세운다** (260928 — 「정지 후 재시작해도 반응이 없다」). 그 임무는 대본 목록에 없어
+   * `viewForMission` 이 null 이고, 그래서 「처음부터」가 아무 일도 안 했다. 지금 판의 본문을 그대로 다시 쓴다 —
+   * 사람이 이미 승인한 같은 걸음이다.
+   */
+  if (viewForMission(missionId) === null && Array.isArray(state.current.params.step_commands)) {
+    const view = state.current;
+    beforeNewRun();
+    stopLocalTimer();
+    resetTrace(view.missionId);
+    resetViewpoint(view.missionId);
+    resetRobotSession();
+    commitNow({ current: view, proposal: null, headSec: 0, playing: false, activatedBy: 'approval' });
+    markApproved();
+    clearStarted();
+    recordHuman('mission_restarted', missionId, { from: 'button' });
+    return true;
+  }
+  if (viewForMission(missionId) === null) return false;
+  activateMission(missionId, 'remote');
+  if (opensRobotGate(missionId)) markApproved();
+  // **시작까지 자동으로 넘어가지 않는다** (260912). 「처음부터」는 판을 비우는 것이고,
+  // 로봇을 움직이는 것은 사람이 「임무 시작」을 누르는 일이다 — 관문을 우회하지 않는다.
+  clearStarted();
+  recordHuman('mission_restarted', missionId, { from: 'button' });
+  return true;
+}
+
+
+// ── 저장된 기록 다시보기 (260914) ────────────────────────────────────────────
+
+/**
+ * **지난 판을 화면에 올린다.** 기록 파일의 기록 열 · 뷰포인트 프레임을 새 열에 그대로 붓고,
+ * 재생 머리를 그 판이 끝난 자리에 세운다 — 슬라이더가 되감기 도구다(기동 직후 옛 편과 같은 성질).
+ *
+ * 로봇 명령·탐지 결과는 부르는 쪽(`record/loadRecord.ts`)이 먼저 채운다. 여기서는 임무와 두 열만.
+ * **재생기는 안 세운다** — 흘려보낼 대본이 아니라 이미 일어난 일이다.
+ *
+ * 축 길이는 대본 길이와 기록이 간 곳 중 긴 쪽이다. 로봇이 몬 판은 대본보다 오래 걸린다.
+ */
+export function loadRecordedMission(
+  view: MissionView,
+  trace: readonly ScenarioEvent[],
+  frames: readonly ArrivedFrame[],
+  headSec: number,
+): void {
+  stopLocalTimer();
+  // 다시보기는 지난 판이다 — 지금 오는 중계로 그 판의 노드를 칠하지 않는다.
+  endNavRun();
+  localCursor = 0;
+  localViewpointCursor = 0;
+  localActionCursor = 0;
+  resetTrace(view.missionId);
+  for (const event of trace) appendTrace(view.missionId, event);
+  resetViewpoint(view.missionId);
+  for (const entry of frames) appendViewpoint(view.missionId, entry.atSec, entry.frame);
+  const reach = Math.max(headSec, ...trace.map((event) => event.atSec), ...frames.map((entry) => entry.atSec));
+  setLocalRun(null);
+  commitNow({
+    current: { ...view, durationSec: Math.max(view.durationSec, Math.ceil(reach)) },
+    proposal: null,
+    headSec: Math.max(headSec, reach),
+    playing: false,
+    activatedBy: 'record',
+  });
+}
+
+/**
+ * **다시보기를 닫는다.** 「초기화」와 같이 비우되 이 세션의 이력 목록과 알림은 남긴다 —
+ * 다시보기는 지난 판을 들여다본 것이지 화면을 처음으로 돌린 것이 아니다.
+ */
+export function closeRecordReplay(): void {
+  if (!isReplayingRecord()) return;
+  leaveRecordReplay();
+  endNavRun();
+  stopLocalTimer();
+  localCursor = 0;
+  localViewpointCursor = 0;
+  localActionCursor = 0;
+  resetTrace(NO_MISSION);
+  resetViewpoint(NO_MISSION);
+  resetRobotSession();
+  resetDetect();
+  resetNavFeed();
+  clearObstacleData();
+  commitNow({ current: emptyView(), proposal: null, headSec: 0, playing: false, activatedBy: 'boot' });
+}

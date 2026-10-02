@@ -1,0 +1,929 @@
+/**
+ * src/physical/robotCommands.ts (260910 신설 — 화면 연결 §1 · §2 · §4 · §5)
+ *
+ * **화면이 로봇에게 명령을 내는 자리.** 버튼은 여기를 부르고, 여기는 `CommandTracker` 를 지난다.
+ *
+ * ## 왜 추적기를 지나는가
+ *
+ * 로봇 명령이 추적기를 우회하면 `VZ-O-02`(4단계 추적)와 `VZ-O-03`(감사)이 **그 명령만**
+ * 못 본다. 탭 이식 때 추적기를 출구 본체로 삼은 이유가 그것이다. 그래서 출구는 그대로 두고
+ * **나가는 수단만** MQTT 로 갈아 끼운다(`IssueOptions.publish`).
+ *
+ * ## 승인 전에는 바이트가 안 나간다
+ *
+ * 매칭 결과는 제안이고 사람이 승인하기 전에는 아무것도 나가지 않는다(`VZ-U-07`).
+ * 아래 모든 임무 명령이 `canIssueRobotCommand()` 를 먼저 묻는다. `verify:no-publish-before-approval`
+ * 이 승인 전 발행 0건을 확인한다.
+ *
+ * **`ping` 은 예외다** — 임무 명령이 아니라 연결 확인이고, 발표 직전에 무대에 오르기 전
+ * 누르는 것이라 승인이라는 개념 자체가 없다. 규약과 무관한 왕복 확인이다.
+ */
+
+import { t } from '../i18n/dict.ts';
+import { stepCommandsOf } from './stepScript.ts';
+import { commandTracker } from '../shared/commandCenter.ts';
+import { noteIssue } from '../shared/notifications.ts';
+import type { CommandAck, CommandRequest } from '../transport/index.ts';
+import type { PhysicalAction } from './encode.ts';
+import { PAUSE_ACTION, SDK_ACTIONS, TEST_FORWARD_M } from './presets.ts';
+import { NO_NODE } from './missionLink.ts';
+import { detectState } from '../detect/store.ts';
+import { appendDetectLog, DETECT_TASKS, type LogPhrase } from '../detect/detectLog.ts';
+import { commandForTask, missionGeometry, type TaskCommand } from './missionLink.ts';
+import { planApproach, type ApproachPlan } from './approachPlan.ts';
+import type { PhysicalClient } from './PhysicalClient.ts';
+import { uplinkWords, type UplinkMessage } from './uplink.ts';
+import { STOP_ACTION, STOP_REASON } from './presets.ts';
+import { supportsAction } from './deviceIdentity.ts';
+import {
+  canIssueRobotCommand, clearScanIssued, commandsOfTask, elapsedSec, lockPaused, lockStopped, markApproachIssued,
+  markScanIssued, notePauseFailure, pickDoorIndex, recordCommand, releasePaused, robotDrives,
+  robotSession, runningTaskId,
+  type PauseState, type StopState,
+} from './robotSession.ts';
+import { recordAnswered, recordCommanded, recordExpired } from '../data/scenario.ts';
+
+export type IssueOutcome = {
+  sent: boolean;
+  commandId: string;
+  requestId: string | null;
+  reason?: string;
+};
+
+/**
+ * 추적기의 발행 수단을 MQTT 로 갈아 끼운다. **추적·감사는 갈리지 않는다** — 추적기가
+ * 이미 기록했고 아래에서 같은 자리로 ACK 를 돌려준다.
+ *
+ * MQTT 는 QoS 1 이라 브로커가 받았다는 것까지만 안다. 로봇이 받았는지는 uplink 의
+ * `Acceptance` 가 말한다 — 그래서 여기서는 「보냈다」까지만 참이라고 말한다.
+ */
+function mqttEgress(client: PhysicalClient, action: PhysicalAction, parameters?: Record<string, number>) {
+  return async (request: CommandRequest): Promise<CommandAck> => {
+    const outcome = client.send(action, parameters);
+    return {
+      clientRequestId: request.client_request_id,
+      // 상관 키는 우리가 만든 command_id 다 — uplink 가 이 키로 돌아온다.
+      commandId: outcome.sent ? outcome.commandId : null,
+      accepted: outcome.sent,
+      reasonCode: outcome.sent ? null : 'physical_not_connected',
+      message: outcome.sent ? t('robot.published') : (outcome.reason ?? t('robot.notSent')),
+    };
+  };
+}
+
+/** 태스크 하나가 자기 명령을 낸다. 무엇을 쏘는지는 `commandForTask()` 가 정한다. */
+async function issueTask(
+  client: PhysicalClient,
+  taskId: string,
+  params: Record<string, unknown> | null,
+): Promise<IssueOutcome | null> {
+  const command = commandForTask(taskId, missionGeometry(params));
+  if (command === null) return null;
+  if (!canIssueRobotCommand()) {
+    return { sent: false, commandId: '', requestId: null, reason: t('robot.notApproved') };
+  }
+  return issueThroughTracker(client, taskId, command.action, command.parameters);
+}
+
+async function issueThroughTracker(
+  client: PhysicalClient,
+  taskId: string,
+  action: PhysicalAction,
+  parameters?: Record<string, number>,
+): Promise<IssueOutcome> {
+  let commandId = '';
+  const tracked = await commandTracker.issue(
+    // 대상은 화면의 장비 id 다 — 하드웨어 id 로 바꾸는 것은 경계 안쪽 일이다.
+    'robot-01',
+    { action, label: action, targetPct: 0, irreversible: false, resultingState: '' },
+    {
+      params: { ...(parameters ?? {}), task_id: taskId },
+      publish: async (request) => {
+        const ack = await mqttEgress(client, action, parameters)(request);
+        commandId = ack.commandId ?? '';
+        return ack;
+      },
+    },
+  );
+  const sent = commandId !== '';
+  if (sent) {
+    // **실려 나간 값 그대로.** 화면에 적힌 계획값이 아니라 바이트에 들어간 것이다 —
+    // 시험에서 둘이 갈리는 자리가 있어(`TEST_FORWARD_M`) 더 그렇다. 작업대와 기록 열이
+    // **같은 값**을 들도록 한 번만 만들어 둘에 나눠 준다.
+    const issued = { ...(parameters ?? {}) };
+    recordCommand({
+      taskId, commandId, action, requestId: tracked.requestId,
+      parameters: issued,
+      issuedAtIso: new Date().toISOString(),
+      state: 'issued', code: null, message: null, result: {}, log: [],
+    });
+    /**
+     * **기록 열에도 같은 `commandId` 로 넣는다** (260920 · 명령 기록 합류 §1).
+     *
+     * 작업대(`robotSession`)는 지금 값이라 되감기가 안 닿는다. 전까지 재생 머리를 옮겨도
+     * 명령 표가 안 따라 움직인 것이 그 때문이다 — 작업대에 남은 **마지막** 명령을 그냥
+     * 읽었다. 이제 열에도 들어가므로 되감기가 세 층에 닿는다.
+     *
+     * **로봇에 나가는 바이트는 한 줄도 안 바뀐다.** 이미 나간 뒤에 적기만 한다.
+     */
+    /**
+     * **태스크가 없는 명령은 안 넣는다** (`NO_NODE`). 브리지 기동(`sdk_start`)처럼 순서도에
+     * 자리가 없는 명령은 액션 층에 넣어도 **어느 노드도 보여 줄 수 없는 외톨이 행**이 된다.
+     * 액션 층의 행은 「어느 태스크의 명령인가」를 들고 있어야 뜻이 있다 (§1 `payload.taskId`).
+     * `verify:sdk-bridge` ④가 이 선을 지킨다.
+     */
+    if (taskId !== NO_NODE) {
+      recordCommanded({
+        commandId, taskId, action, parameters: issued, requestId: tracked.requestId,
+        // 화면이 낸 임무 명령이다. 사람이 누른 것은 일시정지와 `adjusted` 쪽이다.
+        issuedBy: 'mission', atSec: elapsedSec(),
+      });
+    }
+  }
+  return {
+    sent,
+    commandId,
+    requestId: tracked.requestId,
+    ...(sent ? {} : { reason: tracked.lastDetail }),
+  };
+}
+
+/**
+ * 승인 → `T-A3` 가 `scan_mission` 을 쏜다. `forward_m=0` 이라 스캔만 돈다.
+ *
+ * **표시를 먼저 세운다.** 발행을 기다렸다가 세우면 그 사이의 다시 그리기에서 관문이
+ * 아직 열려 있어 스캔이 여러 번 나간다 — 260910 에 진행률이 「40 / 10」으로 찍혔다.
+ * 로봇이 네 번 돈 것이다. 실패하면 도로 내린다.
+ */
+export async function issueScan(client: PhysicalClient, params: Record<string, unknown> | null): Promise<IssueOutcome> {
+  // **막히면 왜 막혔는지 말한다.** 조용히 null 을 돌려주면 발표장에서 「왜 안 가지」가 된다.
+  if (robotSession().scanIssued) {
+    return { sent: false, commandId: '', requestId: null, reason: t('robot.alreadyFired') };
+  }
+  if (!robotDrives()) {
+    return { sent: false, commandId: '', requestId: null, reason: t('robot.noBrokerScript') };
+  }
+  markScanIssued();
+  // **문 방향을 하나 뽑아 둔다** — 탐지가 붙기 전까지의 임시 자리 (260910 지시).
+  // 판이 시작할 때 한 번만 뽑는다. `door_turn` 이 올 때 뽑으면 이미 늦고, 다시 그릴
+  // 때마다 뽑으면 초록 칸이 돌아다닌다.
+  pickDoorIndex(typeof params?.viewpoint_count === 'number' ? params.viewpoint_count : 8);
+  const outcome = await issueTask(client, 'T-A3', params);
+  if (outcome === null || outcome.sent !== true) clearScanIssued();
+  return outcome ?? { sent: false, commandId: '', requestId: null, reason: t('robot.noCommandTA3') };
+}
+
+/**
+ * 승인 뒤 스캔을 **한 번만** 쏜다. 화면이 다시 그려질 때마다 부르면 로봇이 여러 번 돈다.
+ *
+ * 브로커에 안 붙어 있으면 안 쏜다. **그때 대신 도는 대본은 이제 없다**(260910) — 진행이
+ * 아예 없는 것이 맞다. 없는 진행을 대본으로 지어 보이면 무대에서 「되는 줄」 알고 넘어간다.
+ */
+/**
+ * **사람이 숫자로 적은 임무의 걸음을 한 번만 쏜다** (260922 — 발화로 들어온 정량 명령).
+ *
+ * `shouldIssueScan` 과 같은 자리·같은 규칙이다. 다른 것은 **준비 단계를 안 본다** —
+ * 이 임무에는 `T-A1`·`T-A2` 가 없다. 사람이 적은 것이 곧 걸음 전부다.
+ *
+ * **승인만으로는 안 쏜다.** 승인은 「이 문장대로 해도 좋다」이고, 시작은 「지금 하라」다.
+ * 문장을 말한 것만으로 로봇이 걷기 시작하면 되돌릴 자리가 없다.
+ */
+export function shouldIssueStepMission(): boolean {
+  const session = robotSession();
+  return session.started && session.approved
+    && !session.scanIssued && session.stopped === null && robotDrives();
+}
+
+/**
+ * **사람 쪽 조건만** (260928). 승인했고 시작을 눌렀고 아직 안 냈고 정지되지 않았다.
+ *
+ * `shouldIssueStepMission` 은 끝에 `robotDrives()` — **연결 관리 첫 줄** 브로커가 붙어 있는가 — 를 본다. 정량 명령은
+ * 이제 첫 줄이 아니라 **걸을 수 있는 장비가 붙은 브로커**로 나가므로(`robotClient.ts` 의 `walkingClient`), 연결 조건은
+ * 그쪽이 따로 본다. 첫 줄에 드론(pi3)이 있으면 Go1 이 붙어 있어도 조용히 아무것도 안 나갔다(260928 실측 추정).
+ */
+export function wantsStepMission(): boolean {
+  const session = robotSession();
+  return session.started && session.approved && !session.scanIssued && session.stopped === null;
+}
+
+/**
+ * 그 임무의 걸음을 낸다. **관문은 스캔과 같은 것을 쓴다** — 한 임무에 한 번이면 되고,
+ * 관문을 둘로 두면 어느 쪽이 열렸는지 세는 자리가 둘이 된다.
+ */
+export async function issueStepMission(
+  client: PhysicalClient | null,
+  params: Record<string, unknown> | null,
+): Promise<IssueOutcome | null> {
+  const steps = stepCommandsOf(params);
+  if (steps.length === 0) return null;
+  markScanIssued();
+  const outcome = await issueSteps(client, steps);
+  // 안 나갔으면 표시를 도로 내린다 — 안 나간 것을 나갔다고 둘 수 없다.
+  if (outcome.sent !== true) clearScanIssued();
+  return outcome;
+}
+
+export function shouldIssueScan(): boolean {
+  const session = robotSession();
+  // **승인만으로는 안 쏜다** (260912 지시). 사람이 「임무 시작」을 눌러야 나간다 —
+  // 승인은 「이 계획대로 해도 좋다」이고 시작은 「지금 하라」다.
+  //
+  // **시작만으로도 안 쏜다** (260912 지시). 앞에 `T-A1`·`T-A2` 가 있고, 도는 것은 그
+  // 뒤의 일이다. 눌렀는데 로봇이 곧바로 돌면 화면에서는 한 바퀴 다 돌고 나서 그 둘에
+  // 완료가 떠서 순서가 거꾸로 보인다.
+  return session.started && session.prepared && session.approved
+    && !session.scanIssued && session.stopped === null && robotDrives();
+}
+
+/**
+ * 「접근 시작」 → `T-B2` 가 `move_forward` 를 쏜다.
+ *
+ * **자동으로 이어지지 않는다** (§1). 스캔이 끝나면 화면이 초록 노드를 보여 주고 거기서 한
+ * 박자 쉰다 — 발표자가 "이 방향으로 갑니다"를 말하고 누르면 로봇이 간다. 그 한 박자가
+ * 시연에서 가장 좋은 자리다.
+ */
+export async function issueApproach(
+  client: PhysicalClient | null, params: Record<string, unknown> | null,
+): Promise<IssueOutcome | null> {
+  /**
+   * **연결이 없어도 누를 수 있다** (정지 버튼과 같은 규칙). 전에는 버튼 자체를 감췄는데,
+   * 그러면 경로까지 다 나온 화면에서 **다음 칸이 아예 없는 것처럼** 보인다 — 발표자는
+   * 「여기서 막혔다」고 읽고 원인을 모른다. 누르게 하고 못 보냈다고 크게 말한다.
+   */
+  if (client === null) {
+    return { sent: false, commandId: '', requestId: null, reason: t('robot.noBrokerPath') };
+  }
+  /**
+   * **산출된 경로를 따라간다** (260912 지시). 앞의 세 태스크(판단·근거·경로 산출)는
+   * 로봇을 안 움직이고, 움직이는 것은 이 하나다.
+   *
+   * 경로가 와 있으면 **회전 먼저, 직진 나중**으로 둘을 낸다 — 돌기 전에 직진하면 엉뚱한
+   * 데로 간다.
+   *
+   * **경로가 없으면 안 움직인다** (260914 리허설). 전에는 대본 거리(4.2m)로 직진 하나를
+   * 냈다 — 방향도 모른 채 걸었다. 이제 사유를 돌려주고 끝낸다.
+   */
+  void params;
+  const plan = planApproach();
+  if (!plan.ok) {
+    appendDetectLog({ lane: 'screen', level: 'warn', say: { key: 'robot.didNotMove', vars: { reason: plan.reason } }, tasks: [DETECT_TASKS.approach] });
+    return { sent: false, commandId: '', requestId: null, reason: plan.reason };
+  }
+  logApproachPlan(plan);
+  const steps = plan.steps;
+  /**
+   * **발행은 `issueSteps` 하나로 모았다** (260922). 정량 명령(`stepScript.ts`)도 같은
+   * 함수를 지나간다 — 추적기·감사·정지 관문을 **한 벌만** 지나게 하려는 것이다
+   * (`verify:command-through-tracker` · `verify:single-egress`).
+   *
+   * 여기서 하는 일은 그대로다: 경로가 낸 걸음을 넘기고, 나갔으면 관문을 닫는다.
+   */
+  const outcome = await issueSteps(client, steps);
+  if (outcome.sent === true) markApproachIssued();
+  return outcome;
+}
+
+/**
+ * **걸음 목록을 차례로 낸다.** 앞엣것이 끝나야 다음을 낸다.
+ *
+ * 260922 에 `issueApproach` 안에서 떼어냈다. 경로 산출(탐지)과 정량 명령(사람이 적은
+ * 문장)이 **같은 발행기**를 써야 하기 때문이다 — 두 벌이면 한쪽만 정지 관문을 안 묻는
+ * 날이 오고, 그 날은 정지를 눌렀는데 로봇이 계속 걷는 날이다.
+ *
+ * **걸음이 어디서 왔는지 모른다.** 그것이 이 함수가 공용일 수 있는 이유다.
+ */
+export async function issueSteps(
+  client: PhysicalClient | null,
+  steps: readonly TaskCommand[],
+  /**
+   * 한 걸음이 나갈 때마다 (260927 — 장치 두 대 편). 첫 걸음이 나간 순간이 「이동 시작」이다.
+   * 없으면 전과 같다 — 발행 순서·관문·기다림은 한 줄도 안 바뀐다.
+   */
+  onIssued?: (order: number, outcome: IssueOutcome) => void,
+): Promise<IssueOutcome> {
+  if (client === null) return { sent: false, commandId: '', requestId: null, reason: t('robot.noBrokerPath') };
+  if (steps.length === 0) return { sent: false, commandId: '', requestId: null, reason: t('robot.noCommandPath') };
+  {
+    let last: IssueOutcome | null = null;
+    for (const [order, step] of steps.entries()) {
+      if (!canIssueRobotCommand()) {
+        return { sent: false, commandId: '', requestId: null, reason: t('robot.notApproved') };
+      }
+      last = await issueThroughTracker(client, step.taskId, step.action, step.parameters);
+      // 회전이 안 나갔으면 직진을 내면 안 된다 — 안 돌고 가면 엉뚱한 데로 간다.
+      if (last.sent !== true) return last;
+      onIssued?.(order, last);
+      if (order === steps.length - 1) break;
+
+      /**
+       * **앞 명령이 끝나야 다음을 낸다** (260912 실측 — 「이동을 마쳤는데 실패로 떴다」).
+       *
+       * 전에는 둘을 **연달아 쏘았다.** `issueThroughTracker` 는 브로커가 받은 시점에
+       * 돌아오지 로봇이 다 돌았을 때 돌아오지 않는다 — 그래서 회전이 시작하자마자 직진이
+       * 나갔다. 규약에 대기열이 없으니 뒤엣것이 앞엣것을 밀어내거나 거절당한다.
+       * 태스크는 하나(`T-B2`)인데 명령이 둘이라, 그 거절 하나가 노드를 실패로 만든다.
+       *
+       * 여기서 기다리는 것은 **종료 응답**이다. 수락은 「받았다」일 뿐이라 그것으로
+       * 다음을 내면 같은 자리로 돌아온다.
+       */
+      const settled = await terminalAnswer(client, last.commandId, STEP_TIMEOUT_MS);
+      if (settled === null) {
+        return {
+          sent: false, commandId: last.commandId, requestId: last.requestId,
+          reason: t('robot.stepTimeout', { action: step.action, sec: STEP_TIMEOUT_MS / 1000 }),
+        };
+      }
+      if (settled.kind === 'result' && settled.status !== 'SUCCEEDED') {
+        return {
+          sent: false, commandId: last.commandId, requestId: last.requestId,
+          reason: t('robot.stepEnded', { action: step.action, status: settled.status, detail: [settled.code, settled.message].filter((v) => v).join(' ') || t('robot.noReason') }),
+        };
+      }
+      if (settled.kind === 'acceptance' && !settled.accepted) {
+        return {
+          sent: false, commandId: last.commandId, requestId: last.requestId,
+          reason: t('robot.stepRejected', { action: step.action, detail: [settled.code, settled.message].filter((v) => v).join(' ') || t('robot.noReason') }),
+        };
+      }
+    }
+    // **관문 닫기는 여기 없다.** `markApproachIssued()` 는 경로 이동 전용이고,
+    // 정량 명령은 그 관문과 무관하다 — 부르는 쪽이 자기 관문을 닫는다.
+    return last ?? { sent: false, commandId: '', requestId: null, reason: t('robot.noCommandPath') };
+  }
+}
+
+/**
+ * **걸음 목록을 내고, 마지막 걸음이 끝날 때까지 기다린다** (260927 — 장치 두 대 편 · Go1 실동작).
+ *
+ * `issueSteps` 는 마지막 걸음을 **낸 순간** 돌아온다 — 「도착했다」는 그 뒤 로봇의 종료 응답이 말한다.
+ * 이동 완료 확인 노드가 그 응답을 근거로 칠해져야 하므로, 마지막 것도 앞 걸음들과 같은 규칙으로 기다린다.
+ * 사이 걸음과 똑같이 판정한다 — 성공만 성공이고, 시한 안에 안 오면 실패다.
+ */
+export async function issueStepsToEnd(
+  client: PhysicalClient | null,
+  steps: readonly TaskCommand[],
+  onIssued?: (order: number, outcome: IssueOutcome) => void,
+): Promise<IssueOutcome> {
+  const last = await issueSteps(client, steps, onIssued);
+  if (last.sent !== true || client === null) return last;
+  const action = steps[steps.length - 1]?.action ?? '';
+  const settled = await terminalAnswer(client, last.commandId, STEP_TIMEOUT_MS);
+  if (settled === null) {
+    return { ...last, sent: false, reason: t('robot.stepTimeout', { action, sec: STEP_TIMEOUT_MS / 1000 }) };
+  }
+  if (settled.kind === 'result' && settled.status !== 'SUCCEEDED') {
+    return { ...last, sent: false, reason: t('robot.stepEnded', { action, status: settled.status, detail: [settled.code, settled.message].filter((v) => v).join(' ') || t('robot.noReason') }) };
+  }
+  if (settled.kind === 'acceptance' && !settled.accepted) {
+    return { ...last, sent: false, reason: t('robot.stepRejected', { action, detail: [settled.code, settled.message].filter((v) => v).join(' ') || t('robot.noReason') }) };
+  }
+  return last;
+}
+
+/**
+ * **경로 → 명령 계산을 액션 아이템에 남긴다** (260914 지시 — 「최종적으로 내려진 제어 명령들」).
+ * 실제로 나간 바이트는 로봇 명령 표(`commandsOfTask('T-B2')`)에 따로 쌓인다.
+ */
+function logApproachPlan(plan: Extract<ApproachPlan, { ok: true }>): void {
+  appendDetectLog({
+    lane: 'screen', level: plan.notes.length > 0 ? 'warn' : 'info',
+    say: {
+      key: 'rcm.planLine',
+      vars: {
+        // 회전 방향과 걸음 설명도 **그 자체로 옮겨야 하는 말**이라 키로 담는다.
+        turn: turnPhrase(plan.detectionTurnDeg),
+        steps: plan.steps.map(stepWords).join(' · '),
+      },
+    },
+    sayDetail: [
+      { key: 'rcm.plannedForward', vars: { m: plan.plannedForwardM.toFixed(3) } },
+      { key: 'rcm.forwardSpeed', vars: { vx: plan.forwardVx } },
+      ...plan.notes,
+    ],
+    tasks: [DETECT_TASKS.approach],
+  });
+}
+
+/** 같은 말을 **키로** — 로그 줄에 담아 그릴 때 푼다. */
+const turnPhrase = (deg: number): LogPhrase => ({
+  key: deg < 0 ? 'rcm.left' : 'rcm.right',
+  vars: { deg: Math.abs(deg).toFixed(1) },
+});
+
+function stepWords(step: TaskCommand): string {
+  if (step.action === 'turn') return `turn ${step.parameters?.deg}°`;
+  if (step.action === 'move_forward') return `move_forward ${step.parameters?.distance_m} m @ ${step.parameters?.vx ?? t('rcm.defaultSpeed')} m/s`;
+  return t('rcm.arriveStop', { action: step.action });
+}
+
+/**
+ * **지금 누르면 나갈 명령들.** 버튼에 적는 문구와 실제로 내는 것이 같은 함수를 쓴다 —
+ * 둘이 갈리면 「회전 90도」라고 적힌 버튼이 다른 각도를 낸다. 계산은 `approachPlan.ts` 하나다.
+ *
+ * 경로가 없으면 빈 목록이다 — **대본 거리로 대신하지 않는다** (260914).
+ *
+ * 끝의 도착 정지(`T-B3`)는 「확인사살용」이다(260912 지시) — 직진이 끝나면 이미 서 있지만
+ * 순서도의 걸음이고, 직진이 덜 끝났을 때 그것을 접는다. 화면을 잠그지 않는다.
+ */
+export function approachSteps(): readonly TaskCommand[] {
+  const plan = planApproach();
+  return plan.ok ? plan.steps : [];
+}
+
+/** 경로 산출이 낸 **계획** 거리(m). 화면이 적는 값이다. 없으면 null. */
+export function plannedForwardM(): number | null {
+  const path = detectState().path;
+  return path === null ? null : path.forward_distance_cm / 100;
+}
+
+/**
+ * **실제로 나가는** 거리(m). 「테스트」가 켜져 있으면 상한이 걸린다 (260912 지시).
+ *
+ * 계획값과 갈릴 수 있는 유일한 자리다. 그래서 이 둘을 **다른 함수로 갈라 둔다** — 한
+ * 함수가 때에 따라 다른 값을 내면, 화면이 어느 쪽을 적고 있는지 읽는 사람이 알 수 없다.
+ */
+export function issuedForwardM(): number | null {
+  const planned = plannedForwardM();
+  if (planned === null) return null;
+  return detectState().testMode ? Math.min(planned, TEST_FORWARD_M) : planned;
+}
+
+/**
+ * **무엇이 나가는지 한 줄로.** 누르기 전에 로봇이 무엇을 할지 발표자가 알아야 한다.
+ * 문구와 실제 명령이 같은 함수(`approachSteps`)에서 나온다 — 둘이 갈리면 「회전 90도」라고
+ * 적힌 버튼이 다른 각도를 낸다.
+ */
+export function approachWords(): string | null {
+  const steps = approachSteps();
+  if (steps.length === 0) return null;
+  // **부호를 사람 말로 푼다.** 규약에서 오른쪽이 + 라 왼쪽 회전은 `-90` 으로 나간다.
+  // 버튼에 「회전 -90도」라고 적으면 보는 사람은 그것이 방향인지 오차인지 모른다.
+  const planned = plannedForwardM();
+  return steps.map((step) => {
+    if (step.action === 'turn') {
+      const deg = step.parameters?.deg ?? 0;
+      return t(deg < 0 ? 'robot.turnLeft' : 'robot.turnRight', { deg: Math.abs(Math.round(deg)) });
+    }
+    if (step.action !== 'move_forward') return t('robot.arriveStop');
+    // **계획값을 적고, 다르면 나간 값을 괄호로 붙인다** (260912 지시). 화면은 산출된
+    // 경로를 그대로 보여 주되, 적힌 숫자와 나간 숫자가 다른 것을 숨기지 않는다.
+    const issued = step.parameters?.distance_m ?? 0;
+    const words = t('robot.forward', { m: (planned ?? issued).toFixed(2) });
+    return planned !== null && Math.abs(planned - issued) > 0.005
+      ? words + t('robot.forwardTestSuffix', { m: issued.toFixed(2) })
+      : words;
+  }).join(' · ');
+}
+
+/**
+ * **구동 브리지를 사람이 쥔다** (연동 가이드 §4-3 · 260910 지시).
+ *
+ * 로봇은 평시에 「연결만 된 상태」다. 브리지(`go1-sdk`)는 내려가 있고, 기동하는 순간
+ * 로봇이 **일어선다.** 그래서 부팅 자동시작이 꺼져 있다.
+ *
+ * 임무 쪽은 손댈 것이 없다 — 이동 명령이 알아서 브리지를 띄우고 그 사이 `sdk_starting`
+ * 을 보고한다. 여기 있는 셋은 **사람이 미리 쥐고 싶을 때**의 손잡이다.
+ *
+ *   준비    무대 오르기 전에 세워 둔다. 일어서는 몇 초를 시연 중에 안 쓴다
+ *   내림    선 채로 남는다. 리허설 사이에 내려 둔다
+ *   자동    끄면 이동 명령이 `go1_sdk_not_running` 으로 거절된다 —
+ *           「로봇이 스스로 일어서는 일이 절대 없게」 하고 싶을 때
+ *
+ * ## 승인과 무관하다 (ping 과 같은 자리)
+ *
+ * 임무 명령이 아니다. 「승인 전에 나가는 바이트가 없어야 한다」는 대본 실행을 막는
+ * 규칙이고, 이것은 사람이 버튼을 눌러 장비를 준비시키는 일이다. 대신 **추적기를
+ * 지난다** — 로봇을 일으켜 세우는 명령이라 감사에 남을 이유가 더 크다.
+ */
+export async function issueSdkStart(client: PhysicalClient): Promise<IssueOutcome> {
+  return issueThroughTracker(client, NO_NODE, SDK_ACTIONS.start);
+}
+
+/**
+ * **「그 각도 그림이 화면에 떴다 — 다음 회전」** (260914 · pi7 `scan_continue`).
+ *
+ * 스캔 도중에 나가는 명령이지만 로봇을 움직이지 않고 태스크 노드도 없다(`NO_NODE`) — 결과가 `T-A3` 을 끝낸 것으로
+ * 읽히면 안 된다. 거절(`FAILED_PRECONDITION` · 사유는 message 의 `stale_rotation` / `no_scan_in_progress`)은
+ * 로그에만 남긴다. 로봇이 그 대기를 이미 시한으로 넘겼다는 뜻이라 스캔은 계속된다.
+ *
+ * 돌려주는 것은 발행 결과와 **종료 응답**(없으면 null)이다.
+ */
+export async function issueScanContinue(
+  client: PhysicalClient, rotationDeg: number, timeoutMs = 5000,
+): Promise<{ outcome: IssueOutcome; answer: UplinkMessage | null }> {
+  const outcome = await issueThroughTracker(client, NO_NODE, 'scan_continue', { rotation_deg: rotationDeg });
+  if (!outcome.sent) return { outcome, answer: null };
+  return { outcome, answer: await terminalAnswer(client, outcome.commandId, timeoutMs) };
+}
+
+export async function issueSdkStop(client: PhysicalClient): Promise<IssueOutcome> {
+  return issueThroughTracker(client, NO_NODE, SDK_ACTIONS.stop);
+}
+
+/** 자동 기동 켜기/끄기. 규약이 `map<string, double>` 이라 참·거짓을 1·0 으로 싣는다. */
+export async function issueSdkAuto(client: PhysicalClient, on: boolean): Promise<IssueOutcome> {
+  return issueThroughTracker(client, NO_NODE, SDK_ACTIONS.auto, { on: on ? 1 : 0 });
+}
+
+/** 접근을 눌러도 되는가 — 경로가 있고, 아직 안 쐈고, 잠기지 않았을 때. */
+export function canApproach(): boolean {
+  const session = robotSession();
+  // **경로가 있을 때만 연다** (260914 리허설). 전에는 로봇의 `door_turn` 만 와도 열렸다 —
+  // `door_turn` 은 pi7 의 고정 기하값이지 경로가 아니다. 그 문으로 대본 거리(4.2m) 직진이 나갔다.
+  const ready = detectState().path !== null && detectState().pathFailure === null;
+  return ready && !session.approachIssued && canIssueRobotCommand();
+}
+
+/**
+ * **연결 확인.** `ping` **왕복**. 발표 직전에 이걸 눌러 초록을 보고 무대에 오른다.
+ * 임무 명령이 아니라 승인과 무관하다.
+ *
+ * ## 발행 성공은 왕복 성공이 아니다 (260910 — 실제로 났던 거짓말)
+ *
+ * 처음에 `client.send()` 가 참을 돌려주면 곧바로 `ok: true` 로 적었다. 그건 **브로커가
+ * 받았다**는 뜻이지 로봇이 답했다는 뜻이 아니다. 로봇을 꺼 놓고 눌렀는데 「로봇 ✓ 1ms」가
+ * 떴다 — 1ms 는 왕복이 아니라 `send()` 가 걸린 시간이었다.
+ *
+ * 「붙었다」와 「답한다」를 가른 것이 연결 관리의 요점인데, 정작 로봇 줄이 브로커를 다시
+ * 재고 있었다. 이제 **그 command_id 의 uplink 가 올 때까지 기다린다.** 안 오면 빨갛다.
+ *
+ * ## 260921 — `ping` 이 FC 링크도 물어 온다 (드론 계약 §5)
+ *
+ * 드론의 `result` 에 `fc_link` 가 **링크가 있든 없든 항상** 실린다(1.0 = 있음 / 0.0 = 없음).
+ * 「라즈베리파이는 켜졌는데 FC 와 안 붙었다」를 가르는 값이 이것 하나이고, 무대 전에 그걸
+ * 못 갈라서 반나절을 썼다.
+ *
+ * **응답은 네 건이 순서대로 온다** — `acceptance` → `status` ×2 → `result`. 왕복 시간은
+ * 첫 건으로 재고(그것이 「답한다」의 증거다), `fc_link` 는 마지막 `result` 에 있다.
+ * 그래서 첫 건에 결론을 내되 **`result` 를 짧게 더 기다린다.**
+ *
+ * 더 기다리는 것을 `ok` 의 조건으로 삼지 않는다 — `result` 를 안 보내는 노드가 있어도
+ * 「답했다」는 그대로 참이어야 한다. 그때 `fcLink` 는 `null`(모름)이다.
+ *
+ * 없는 키는 **모름**이다 (계약 §5). `map<string,double>` 이라 `null` 을 못 실어서 키를
+ * 통째로 뺀다 — 0 으로 읽으면 「쟀더니 0」이 되어 뜻이 뒤집힌다.
+ */
+export type PingOutcome = {
+  ok: boolean;
+  roundTripMs: number | null;
+  message: string;
+  /** FC 링크 유무. **`null` 은 모른다** — 안 실렸거나 `result` 를 못 받았다. */
+  fcLink: boolean | null;
+  /** 마지막 FC heartbeat 이후 경과(초). 한 번도 못 받았으면 키가 없고, 그때 `null`. */
+  fcLinkAgeSec: number | null;
+  /** 단말이 떠 있던 시간(초). Go1 도 드론도 같은 키를 쓴다. */
+  uptimeSec: number | null;
+};
+
+/** 응답 넷 중 마지막(`result`)을 더 기다리는 시간. 붙어 있으면 곧바로 온다. */
+const PING_RESULT_GRACE_MS = 1500;
+
+export async function issuePing(
+  client: PhysicalClient,
+  timeoutMs = 4000,
+): Promise<PingOutcome> {
+  // **귀를 먼저 연다.** 보내고 나서 열면 빠른 응답을 놓친다.
+  let expected: string | null = null;
+  let settle: ((message: UplinkMessage) => void) | null = null;
+  const answered = new Promise<UplinkMessage>((resolve) => { settle = resolve; });
+  const seen: UplinkMessage[] = [];
+  const off = client.onMessage((message) => {
+    seen.push(message);
+    if (expected !== null && message.commandId === expected && settle !== null) {
+      settle(message);
+      settle = null;
+    }
+  });
+
+  const startedAt = Date.now();
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  try {
+    const outcome = client.send('ping');
+    if (!outcome.sent) {
+      return { ...UNKNOWN_LINK, ok: false, roundTripMs: null, message: outcome.reason ?? t('robot.notSent') };
+    }
+    expected = outcome.commandId;
+
+    // 보내는 사이에 이미 왔을 수도 있다.
+    const early = seen.find((m) => m.commandId === expected);
+    const reply = early ?? await Promise.race([
+      answered,
+      new Promise<null>((resolve) => { timer = setTimeout(() => resolve(null), timeoutMs); }),
+    ]);
+
+    if (reply === null) {
+      // **브로커는 받았는데 로봇이 답을 안 했다.** 이게 로봇이 꺼져 있을 때의 모습이다.
+      return {
+        ...UNKNOWN_LINK,
+        ok: false,
+        roundTripMs: null,
+        message: t('robot.pingNoAnswer', { ms: timeoutMs }),
+      };
+    }
+    const roundTripMs = Date.now() - startedAt;
+    // 거절도 **답한 것**이다 — 로봇은 살아 있고 그 말을 그대로 옮긴다.
+    if (reply.kind === 'acceptance' && !reply.accepted) {
+      return {
+        ...UNKNOWN_LINK,
+        ok: false,
+        roundTripMs,
+        message: t('robot.rejected', { code: reply.code ?? t('robot.noReason'), message: reply.message ?? '' }).trim(),
+      };
+    }
+    // 첫 건이 이미 `result` 면 그것을 읽고, 아니면 짧게 더 기다린다.
+    const terminal = reply.kind === 'result'
+      ? reply
+      : seen.find((m) => m.commandId === expected && m.kind === 'result')
+        ?? await terminalAnswer(client, expected, PING_RESULT_GRACE_MS);
+    return { ...linkFromResult(terminal), ok: true, roundTripMs, message: t('robot.answered') };
+  } finally {
+    off();
+    if (timer !== null) clearTimeout(timer);
+  }
+}
+
+/** 아무것도 못 읽었을 때. **0 이 아니라 모름이다.** */
+const UNKNOWN_LINK = { fcLink: null, fcLinkAgeSec: null, uptimeSec: null } as const;
+
+/**
+ * `ping` 의 `result` 에서 FC 링크를 읽는다 (계약 §5).
+ *
+ * `map<string,double>` 이라 **키가 없으면 모름**이다. `fc_link` 는 계약이 「항상 실린다」고
+ * 적었지만 그 말을 코드가 전제하지 않는다 — 옛 노드나 Go1 은 안 싣고, 그때 `false` 로
+ * 읽으면 「FC 가 끊겼다」는 없는 사실이 화면에 뜬다.
+ */
+function linkFromResult(message: UplinkMessage | null): {
+  fcLink: boolean | null; fcLinkAgeSec: number | null; uptimeSec: number | null;
+} {
+  if (message === null || message.kind !== 'result') return { ...UNKNOWN_LINK };
+  const values = message.result;
+  return {
+    fcLink: 'fc_link' in values ? values.fc_link === 1 : null,
+    fcLinkAgeSec: 'fc_link_age_s' in values ? values.fc_link_age_s : null,
+    uptimeSec: 'uptime_s' in values ? values.uptime_s : null,
+  };
+}
+
+/**
+ * **일시정지.** 정지와 뼈대가 같다 — 발행이 실패해도 멈춤은 그대로 일어난다.
+ *
+ *   1. `abort_mission` 발행    ← 실패할 수 있다
+ *   2. 타이머 정지 · 3. 새 명령 차단  ← **1의 결과와 무관하게 일어난다**
+ *
+ * 정지와 다른 점은 **아무것도 안 버린다**는 것뿐이다. 여덟 칸도 진행률도 문 방향도 그대로
+ * 남고, 재시작하면 그 자리에서 이어 간다.
+ */
+export async function pauseMission(client: PhysicalClient | null): Promise<PauseState> {
+  const taskId = runningTaskId();
+  let published = false;
+  let failure: string | null = null;
+  let commandId = '';
+  try {
+    if (client === null) failure = t('robot.noBrokerConnection');
+    else {
+      // **규약 밖의 파라미터를 더하지 않는다** — reason 하나뿐이다. 사람이 누른 것이다.
+      const outcome = client.send(PAUSE_ACTION, { reason: STOP_REASON.human });
+      published = outcome.sent;
+      commandId = outcome.commandId;
+      if (!outcome.sent) failure = outcome.reason ?? t('robot.notSent');
+      /**
+       * **일지에만 더한다** (260920 §2). 이 명령은 추적기를 지나지 않아 작업대에도 안
+       * 남아 있었다 — 그래서 「일시정지에 로봇이 답을 했는가」가 기록 어디에도 없었다.
+       * 아래 `expired` 가 걸릴 자리를 만드는 것이기도 하다: 접기는 `commanded` 가 있는
+       * 명령에만 응답·기한을 붙인다(`actionTrace.ts`).
+       *
+       * **동작은 한 줄도 안 바뀐다.** 이미 나간 뒤에 적기만 한다.
+       */
+      // 돌던 태스크가 없으면 안 넣는다 — 위 `NO_NODE` 와 같은 이유로 외톨이 행이 된다.
+      if (outcome.sent && taskId !== null) {
+        recordCommanded({
+          commandId, taskId, action: PAUSE_ACTION,
+          parameters: { reason: STOP_REASON.human },
+          // **사람이 누른 것이다.** 임무가 낸 명령과 갈려야 §4-3 이 실증을 얻는다.
+          issuedBy: 'human', atSec: elapsedSec(),
+        });
+      }
+    }
+  } catch (error) {
+    failure = error instanceof Error ? error.message : String(error);
+  }
+  if (!published) noteIssue('pause', 'robot', t('robot.pauseNotSent', { failure: failure ?? t('robot.noReason') }));
+
+  // 2 · 3 — **위 결과를 보지 않는다.** 못 보냈어도 화면은 멈추고 크게 말한다.
+  const paused = lockPaused(taskId, published, failure);
+
+  /**
+   * **로봇이 뭐라 했는지까지 듣는다** (260910 지적 — 「돌고 있는 도중 일시정지가 안 된다」).
+   *
+   * 발행 성공은 브로커가 받았다는 뜻일 뿐이다. 로봇이 `abort_mission` 을 거절하면
+   * (돌던 임무가 없다거나, 그 이름을 모른다거나) **로봇은 계속 도는데 화면만 멈춘다.**
+   * 그때 아무 말이 없으면 「일시정지가 안 먹는다」로만 보이고 원인을 알 수 없다.
+   *
+   * 화면 멈춤은 이미 위에서 끝났다 — 여기서 듣는 것은 **문구를 채우기 위해서**다.
+   * 늦게 오든 안 오든 멈춤은 그대로다.
+   */
+  // 기록은 태스크가 있을 때만 — 위와 같은 선이다. 문구 채우기는 그와 무관하게 언제나 한다.
+  if (client !== null && published) void reportPauseAnswer(client, commandId, taskId);
+  return paused;
+}
+
+async function reportPauseAnswer(client: PhysicalClient, commandId: string, taskId: string | null, timeoutMs = 4000): Promise<void> {
+  const answer = await firstAnswer(client, commandId, timeoutMs);
+  if (answer === null) {
+    const words = t('robot.pauseNoAnswer', { ms: timeoutMs });
+    notePauseFailure(words);
+    noteIssue('pause', 'robot', t('robot.pausePrefix', { words }));
+    /**
+     * **기다림이 끝났다는 사실을 일지에도 남긴다** (260920 §2).
+     *
+     * 안 온 응답은 일어나지 않은 일이라 적을 수 없다. 적는 것은 기다림이 끝났다는 것이고,
+     * 기다린 것은 일어난 일이다. 이 한 줄이 없으면 「아직 기다리는 중」과 「영영 안 왔다」가
+     * 기록에서 **영원히 같아 보인다** — 느린 것과 죽은 것은 원인이 완전히 다르다.
+     *
+     * **정지 경로의 동작은 한 줄도 안 바뀐다.** 화면 멈춤은 이미 위에서 끝났고, 여기는
+     * 문구를 채우는 자리다 — 거기에 기록 한 줄이 더 붙을 뿐이다
+     * (`verify:emergency-stop` 이 그 불변을 지킨다).
+     */
+    if (taskId !== null) recordExpired({ commandId, taskId, waitedMs: timeoutMs, reason: words, atSec: elapsedSec() });
+    return;
+  }
+  if (answer.kind === 'acceptance' && !answer.accepted) {
+    const words = t('robot.rejected', { code: answer.code ?? t('robot.noReason'), message: answer.message ?? '' }).trim();
+    notePauseFailure(words);
+    noteIssue('pause', 'robot', t('robot.pausePrefix', { words }));
+    // **거절도 답이다.** 온 것과 안 온 것이 갈려야 §2 의 구분이 선다 — 거절을 안 적으면
+    // 「답을 했는데 거절했다」가 「영영 안 왔다」와 같아 보인다.
+    if (taskId !== null) recordAnswered({ commandId, taskId, line: words, answerKind: 'acceptance', outcome: 'failed', atSec: elapsedSec() });
+    return;
+  }
+  // 수락했다 — 이것도 온 답이다.
+  if (taskId !== null) {
+    recordAnswered({ commandId, taskId, line: uplinkWords(answer), answerKind: answer.kind, atSec: elapsedSec() });
+  }
+}
+
+/**
+ * **한 걸음이 끝날 때까지 기다리는 시간.** 90도 회전에 로봇이 붙이는 직진 한 걸음까지
+ * 치면 십수 초다. 넉넉히 두되 무한정은 아니다 — 안 끝나면 다음 명령을 안 내고 그렇게 말한다.
+ */
+const STEP_TIMEOUT_MS = 60_000;
+
+/**
+ * 그 `command_id` 가 **끝날 때까지**. 수락은 끝이 아니라 시작이라 그냥 흘려보낸다.
+ * 거절은 끝이다 — 그 명령은 더 이상 진행하지 않는다.
+ */
+function terminalAnswer(client: PhysicalClient, commandId: string, timeoutMs: number): Promise<UplinkMessage | null> {
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => { off(); resolve(null); }, timeoutMs);
+    const off = client.onMessage((message) => {
+      if (message.commandId !== commandId) return;
+      // 진행 보고는 끝이 아니다. 수락도 마찬가지 — 「받았다」일 뿐이다.
+      if (message.kind === 'status') return;
+      if (message.kind === 'acceptance' && message.accepted) return;
+      clearTimeout(timer);
+      off();
+      resolve(message);
+    });
+  });
+}
+
+/** 그 `command_id` 의 첫 응답. 안 오면 null. */
+function firstAnswer(client: PhysicalClient, commandId: string, timeoutMs: number): Promise<UplinkMessage | null> {
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => { off(); resolve(null); }, timeoutMs);
+    const off = client.onMessage((message) => {
+      if (message.commandId !== commandId) return;
+      clearTimeout(timer);
+      off();
+      resolve(message);
+    });
+  });
+}
+
+/**
+ * **재시작.** 멈춰 있던 태스크를 다시 낸다.
+ *
+ * **그 단계를 처음부터 다시 한다.** 로봇 규약에 이어 하기가 없어서다 — 스캔을 세 걸음째에
+ * 세웠으면 여덟 걸음을 다시 돈다. 화면이 그렇게 적어 둔다.
+ *
+ * 멈출 때 돌던 태스크가 없었으면(승인 직후에 눌렀다든지) 관문만 풀고 아무것도 안 쏜다 —
+ * 그때는 원래 흐름이 알아서 스캔을 낸다.
+ */
+export async function resumeMission(
+  client: PhysicalClient,
+  params: Record<string, unknown> | null,
+): Promise<IssueOutcome | null> {
+  const taskId = robotSession().paused?.taskId ?? null;
+  releasePaused();
+  if (taskId === null) return null;
+  // **이동 걸음은 경로로 다시 낸다** (260914). 전에는 `issueTask('T-B2')` 가 대본 거리로 직진을 냈다.
+  if (taskId === 'T-B2' || taskId === 'T-B3') return issueApproach(client, params);
+  if (taskId === 'T-A3') markScanIssued();      // 관문을 다시 걸어 두 번 안 나가게
+  const outcome = await issueTask(client, taskId, params);
+  if (taskId === 'T-A3' && (outcome === null || outcome.sent !== true)) clearScanIssued();
+  return outcome;
+}
+
+/**
+ * **긴급 정지.** 누르면 넷이 일어난다.
+ *
+ *   1. `abort` 발행        ← 실패할 수 있다
+ *   2. 추적 중단 · 3. 타이머 정지 · 4. 화면 잠금  ← **1의 결과와 무관하게 일어난다**
+ *
+ * 순서가 이렇다는 것이 중요하다. 발행을 먼저 시도하되 **그 결과를 기다렸다가 잠그는 것이
+ * 아니라**, 결과가 무엇이든 잠근다. 발행이 예외를 던져도 잠근다.
+ *
+ * `abort` 는 **자기 `command_id`** 를 새로 만든다 — 돌던 임무의 id 를 재사용하면 응답이 섞인다.
+ * `client.send()` 가 부를 때마다 새 id 를 만드므로 그 조건은 저절로 지켜진다.
+ */
+/**
+ * **이 장비가 화면 정지를 지원하는가** (260921 — 드론 계약 §4).
+ *
+ * 드론은 `Capability` 에 `ping` 하나만 선언한다. 정지(`abort`)는 **선언하지 않는다** —
+ * 드론을 멈추는 것은 조종기의 일이고, 그 사실이 규약에 적혀 있다.
+ *
+ * **기종으로 판정하지 않는다.** 근거는 장비가 준 `actions` 목록 하나다. Go1 이 내일
+ * 정지를 빼면 같은 코드가 같은 결론을 내고, 드론이 나중에 정지를 넣으면 저절로 풀린다.
+ *
+ * 세 값인 이유: `Capability` 는 **retained 가 아니라** 늦게 붙은 웹은 못 받는다(계약 §11-4).
+ * 「못 받았다」를 「지원 안 한다」로 읽으면, 멈출 수 있는 로봇 앞에서 화면이 「정지를
+ * 지원하지 않습니다」를 띄운다 — 그것이 이 기능의 가장 위험한 거짓말이다.
+ *
+ *   yes      선언했다 — 보낸다
+ *   no       선언 안 했거나, 보냈더니 `UNIMPLEMENTED` 로 돌아왔다 — 안 보내고 안내한다
+ *   unknown  아직 목록을 못 받았다 — **보낸다.** 못 멈추는 것보다 낫다
+ */
+export type StopSupport = 'yes' | 'no' | 'unknown';
+
+export function stopSupport(): StopSupport {
+  const declared = supportsAction(STOP_ACTION);
+  if (declared !== null) return declared ? 'yes' : 'no';
+  // 목록을 못 받았어도 **쏴 봐서 거절당한 적이 있으면** 그것도 장비가 한 말이다 (260910).
+  return robotSession().unsupported[STOP_ACTION] === true ? 'no' : 'unknown';
+}
+
+export async function emergencyStop(client: PhysicalClient | null): Promise<StopState> {
+  let published = false;
+  let failure: string | null = null;
+
+  try {
+    if (client === null) {
+      failure = t('robot.noBrokerConnection');
+    } else if (stopSupport() === 'no') {
+      /**
+       * **안 보낸다.** 장치가 거부할 것을 알면서 보내면 화면에 거절 한 줄이 남고, 누른
+       * 사람은 그것을 「실패했지만 시도는 했다」로 읽는다. 여기서 필요한 말은 그게 아니라
+       * **「조종기로 멈추세요」**이고, 그 말이 늦으면 안 된다.
+       *
+       * 화면 잠금은 **그대로 일어난다** — 아래 `lockStopped` 는 이 분기와 무관하다.
+       * 사람이 정지를 눌렀으면 화면은 멈춘 것으로 다뤄야 한다.
+       */
+      failure = t('robot.stopUnsupported');
+    } else {
+      // **규약 밖의 파라미터를 더하지 않는다** — reason 하나뿐이다.
+      const outcome = client.send(STOP_ACTION, { reason: STOP_REASON.human });
+      published = outcome.sent;
+      if (!outcome.sent) failure = outcome.reason ?? t('robot.notSent');
+    }
+  } catch (error) {
+    // 발행이 던져도 아래 잠금은 그대로 일어난다. 이게 이 기능의 뼈대다.
+    failure = error instanceof Error ? error.message : String(error);
+  }
+
+  /**
+   * **못 보낸 정지는 알림에도 올린다** (260913 지시).
+   *
+   * 화면은 어차피 잠긴다. 그런데 **로봇은 안 멈췄을 수 있다** — 누른 사람이 멈춘 줄 알고
+   * 다가가는 것이 이 기능의 가장 위험한 실패 모양이다. 잠긴 화면의 붉은 띠만으로는
+   * 다른 화면으로 옮겨 가면 사라지므로, 머리줄에도 남긴다.
+   */
+  if (!published) noteIssue('stop', 'robot', t('robot.stopNotSent', { failure: failure ?? t('robot.noReason') }));
+
+  // 2 · 3 · 4 — **위 결과를 보지 않는다.**
+  return lockStopped(published, failure);
+}
+
+/** 정지 뒤 화면에 크게 띄울 문구. 조용히 성공한 척하지 않는다. */
+export function stopFailureMessage(stopped: StopState): string | null {
+  return stopped.published ? null : t('rcm.stopNotSent', { reason: stopped.failure ?? t('rcm.unknownReason') });
+}
+
+/**
+ * **그 태스크가 실패한 사유 — 로봇이 준 것만** (260912 지시).
+ *
+ * 전에는 실패 화면에 손으로 쓴 예시 문장이 박혀 있었다. 「진입 중 측면 클리어런스
+ * 0.06 m」는 실제로 일어난 적이 없는 일인데 실패할 때마다 떴고, 발표장에서 그 문장을
+ * 읽고 원인을 찾으면 아무 데도 안 닿는다.
+ *
+ * 찾는 순서가 둘이다. 먼저 로봇이 준 **코드와 문구**, 그것이 비어 있으면 그 명령의
+ * **마지막 로그 줄**. 둘 다 없으면 **null 이고, 그때 화면은 비운다** — 지어내지 않는다.
+ */
+export function failureOfTask(taskId: string): { words: string; atIso: string | null } | null {
+  const failed = commandsOfTask(taskId).filter((record) => record.state === 'failed').at(-1);
+  if (failed === undefined) return null;
+  const said = [failed.code, failed.message].filter((v) => v !== null && v !== '').join(' ');
+  const lastLine = failed.log.at(-1) ?? null;
+  if (said !== '') return { words: said, atIso: lastLine?.atIso ?? null };
+  if (lastLine !== null) return { words: lastLine.text, atIso: lastLine.atIso };
+  return null;
+}

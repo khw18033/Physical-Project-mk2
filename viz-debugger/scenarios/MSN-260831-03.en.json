@@ -1,0 +1,48 @@
+{
+  "missionId": "MSN-260831-03",
+  "note": "본문은 원본(MSN-*.json)이 든다. 여기는 **화면에 뜨는 문구의 영어**와 영어 조회 규칙뿐이다. 키가 한국어 원문인 것은 일부러다 — 평가 증거는 그 한국어로 짝지어지므로(대본 events[].payload.criterion ↔ tasks[].evaluation.criteria[]) 한국어가 키로 남아야 한다. verify:i18n-data 가 빠진 것과 죽은 항목을 잡는다.",
+  "phrases": {
+    "월류방어벽 자동 개폐": "Automatic overflow-barrier operation",
+    "월류방어벽 자동 개폐 시스템을 가동해.": "Start the automatic overflow-barrier system.",
+    "기본적으로 대기 중": "Idle by default",
+    "하천 수위가 30초 이상 상승 곡선을 그릴 시 프로세스 ON, 대기 상태로 진입": "When the river level rises for 30 s or more, turn the process ON and enter standby",
+    "위험 수위에 도달하고 10초 이상 유지 시 닫기": "Close once the danger level is reached and held for 10 s or more",
+    "수위가 위험 수위보다 낮으면서 하락 곡선을 3분 이상 그릴 시 다시 열기, 프로세스 OFF": "Reopen and turn the process OFF once the level is below the danger level and falling for 3 minutes or more",
+    "수위 구독": "Subscribe to the water level",
+    "평시 판정": "Decide the normal state",
+    "상승 구간 누적": "Accumulate the rising interval",
+    "상승 30초 지속 판정": "Decide whether the rise held for 30 s",
+    "수위 상승 지속 ≥ 30초": "Water level rising for ≥ 30 s",
+    "프로세스 ON": "Process ON",
+    "위험 수위 도달 판정": "Decide whether the danger level is reached",
+    "위험 수위 10초 유지 판정": "Decide whether the danger level held for 10 s",
+    "위험 수위 도달 후 유지 ≥ 10초": "Held ≥ 10 s after reaching the danger level",
+    "close_gate 발행": "Publish close_gate",
+    "ACK·상관 키 수신": "Receive the ACK and correlation key",
+    "개도율 0% 확인": "Confirm 0% opening",
+    "하락 구간 누적": "Accumulate the falling interval",
+    "하락 3분 지속 판정": "Decide whether the fall held for 3 minutes",
+    "위험 수위 미만에서 하락 지속 ≥ 180초": "Falling below the danger level for ≥ 180 s",
+    "open_gate 발행": "Publish open_gate",
+    "개도율 100% 확인": "Confirm 100% opening",
+    "프로세스 OFF": "Process OFF",
+    "상승 시작": "Rise started"
+  },
+  "match_en": {
+    "must": [
+      [
+        "overflow barrier",
+        "flood barrier",
+        "floodgate",
+        "barrier"
+      ]
+    ],
+    "any": [
+      "operate",
+      "open",
+      "close",
+      "start",
+      "run"
+    ]
+  }
+}

@@ -1,0 +1,367 @@
+/**
+ * src/autodrive/obstacle.ts (260915 신설 — 자율주행 편 · 장애물 탐지)
+ *
+ * **AI 서버의 장애물 JSON 을 받아 들고 있는 열.** 「장애물 탐지」(T-NB2)의 액션 아이템과 판단 근거가
+ * 이것을 읽는다. 값은 **받은 그대로** 두고(`raw`), 화면이 읽기 쉽게 몇 칸만 뜯어 둔다.
+ *
+ * ## 받은 모양 (260915 실측 · `GET /control/go1_front`)
+ *
+ * ```json
+ * {"timestamp":"1789438645.4756753","camera_id":"go1_front",
+ *  "detections":[{"id":1,"name":"umbrella","group":"HARD_OBSTACLE","rel_depth":1.31,
+ *                 "distance_cm":43.59,"distance_cm_raw":43.18,"risk_level":"near","bbox_xyxy":[91,221,230,379]}],
+ *  "has_near_obstacle":true,"state_change":false}
+ * ```
+ *
+ * 뜯지 못한 칸은 null 이다 — 지어 채우지 않는다. **판정(`has_near_obstacle`)은 AI 서버가 낸 것**이고
+ * 화면이 거리로 다시 계산하지 않는다(탐지 편과 같은 규칙).
+ *
+ * ## 언제 묻는가
+ *
+ * 0.5초마다 — 서버가 그 주기로 값을 바꾼다. **누가 보고 있을 때만** 묻는다: 자율주행 판이 열려 있거나
+ * (`startObstacleWatch`) 액션 아이템이 떠 있을 때(`holdObstaclePolling`). 붙잡은 수를 센다 — 둘 중 먼저
+ * 끝난 쪽이 남은 쪽의 폴링을 끄면 「값이 멈췄다」로만 보인다.
+ */
+
+import { t } from '../i18n/dict.ts';
+import { sayText, type LogSay } from '../i18n/phrase.ts';
+import { useSyncExternalStore } from 'react';
+import { isReplayingRecord } from '../record/replayMode.ts';
+import { aiBase, fetchObstacleJson, type FetchLike } from './aiClient.ts';
+
+/** 이 값을 붙이는 노드 — 자율주행 편(`MSN-260915-01`)의 「장애물 탐지」. */
+export const OBSTACLE_TASK = 'T-NB2';
+
+export type ObstacleDetection = {
+  id: number | null;
+  name: string;
+  group: string | null;
+  relDepth: number | null;
+  distanceCm: number | null;
+  distanceCmRaw: number | null;
+  riskLevel: string | null;
+  bbox: [number, number, number, number] | null;
+};
+
+export type ObstacleSnapshot = {
+  cameraId: string | null;
+  /** AI 서버 시계(초). 문자열로 오므로 숫자로 바꾼다. 표시·멈춤 판정용. */
+  timestampSec: number | null;
+  detections: readonly ObstacleDetection[];
+  hasNearObstacle: boolean | null;
+  stateChange: boolean | null;
+  /** **받은 JSON 그대로.** 액션 아이템이 이것을 그대로 보여 준다. */
+  raw: Record<string, unknown>;
+  /** 받은 시각(이 노트북 시계, ms). */
+  receivedAtMs: number;
+};
+
+/**
+ * 바뀐 것만 적는 줄.
+ *
+ * **글자가 아니라 키를 담는다** (260919 · 5단계) — 전에는 `t()` 로 그린 글자를 담아서
+ * 그 줄이 쌓인 순간의 언어로 굳었다. 사람이 「가까운 장애물 있음/없음만 한국어」로 본 것이
+ * 이것이다. `say` 가 없으면 `text` 를 쓴다 — 값만 있는 줄(`state_change: true`)의 자리다.
+ */
+export type ObstacleLogLine = { atMs: number; level: 'info' | 'warn'; say?: LogSay; text?: string };
+
+/** 그 줄의 지금 언어. 그리는 자리는 반드시 이것을 거친다. */
+export function obstacleLineText(line: ObstacleLogLine): string {
+  return line.say === undefined ? (line.text ?? '') : sayText(line.say);
+}
+
+const num = (value: unknown): number | null => {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value === 'string' && value.trim() !== '' && Number.isFinite(Number(value))) return Number(value);
+  return null;
+};
+const str = (value: unknown): string | null => (typeof value === 'string' && value !== '' ? value : null);
+const bool = (value: unknown): boolean | null => (typeof value === 'boolean' ? value : null);
+
+/** 받은 객체 → 스냅샷. 모양이 아니면 null(`detections` 가 배열이 아니다). */
+export function parseObstacle(body: unknown, receivedAtMs = Date.now()): ObstacleSnapshot | null {
+  if (typeof body !== 'object' || body === null || Array.isArray(body)) return null;
+  const raw = body as Record<string, unknown>;
+  if (!Array.isArray(raw.detections)) return null;
+  const detections: ObstacleDetection[] = [];
+  for (const item of raw.detections) {
+    if (typeof item !== 'object' || item === null) continue;
+    const d = item as Record<string, unknown>;
+    const box = Array.isArray(d.bbox_xyxy) && d.bbox_xyxy.length === 4 && d.bbox_xyxy.every((v) => num(v) !== null)
+      ? (d.bbox_xyxy.map((v) => num(v) as number) as [number, number, number, number])
+      : null;
+    detections.push({
+      id: num(d.id),
+      name: str(d.name) ?? t('ob2.1'),
+      group: str(d.group),
+      relDepth: num(d.rel_depth),
+      distanceCm: num(d.distance_cm),
+      distanceCmRaw: num(d.distance_cm_raw),
+      riskLevel: str(d.risk_level),
+      bbox: box,
+    });
+  }
+  return {
+    cameraId: str(raw.camera_id),
+    timestampSec: num(raw.timestamp),
+    detections,
+    hasNearObstacle: bool(raw.has_near_obstacle),
+    stateChange: bool(raw.state_change),
+    raw,
+    receivedAtMs,
+  };
+}
+
+// ── 열 ───────────────────────────────────────────────────────────────────────
+
+export type ObstacleState = {
+  latest: ObstacleSnapshot | null;
+  /** 마지막 요청이 실패했으면 그 사유. 성공하면 비운다. */
+  error: string | null;
+  /** 창구로 받았나 직접 받았나. */
+  via: 'relay' | 'direct' | null;
+  /** 서버 시계가 이 시각(이 노트북 ms)부터 안 바뀌었다. 바뀌고 있으면 null. */
+  frozenSinceMs: number | null;
+  /** 바뀐 것만 적는 줄 — 가까운 장애물 생김/사라짐 · state_change · 끊김/복구. */
+  log: readonly ObstacleLogLine[];
+  polling: boolean;
+};
+
+export const OBSTACLE_LOG_KEEP = 300;
+export const OBSTACLE_POLL_MS = 500;
+/** 서버 시계가 이만큼 안 바뀌면 멈춘 것으로 적는다 — 0.5초 주기의 열 배. */
+export const OBSTACLE_FROZEN_MS = 5000;
+
+const EMPTY: ObstacleState = { latest: null, error: null, via: null, frozenSinceMs: null, log: [], polling: false };
+
+/**
+ * **주소 하나의 열** (260929 — 장애물 탐지 주소 둘 이상). 주소마다 값 · 줄 · 폴링이 따로다 — 한 열에 섞으면
+ * 두 로봇의 장애물이 한 줄로 번갈아 적혀 어느 쪽 것인지 모른다.
+ *
+ * `base` 는 **물을 때마다** 읽는다. 첫 줄 열(`primary`)은 연결 관리에서 첫 줄을 바꾸면 새 주소에 묻는다 —
+ * 지금까지 한 열이던 때와 같은 동작이다.
+ */
+type Channel = {
+  base: () => string;
+  state: ObstacleState;
+  listeners: Set<() => void>;
+  holders: number;
+  timer: ReturnType<typeof setTimeout> | null;
+  fetcher: FetchLike | undefined;
+  inFlight: boolean;
+};
+
+function makeChannel(base: () => string): Channel {
+  return { base, state: EMPTY, listeners: new Set(), holders: 0, timer: null, fetcher: undefined, inFlight: false };
+}
+
+/** 첫 줄 — 자율주행 편의 「장애물 탐지」(T-NB2)와 주소를 고르지 않은 노드가 본다. */
+const primary = makeChannel(aiBase);
+/** 첫 줄이 아닌 주소들. 노드가 그 주소를 고를 때 생긴다. */
+const others = new Map<string, Channel>();
+
+/**
+ * 그 주소의 열. **`null` 이거나 지금 첫 줄이면 첫 줄 열**이다 — 같은 주소에 열이 둘 생기면 같은 서버를 두 번 묻는다.
+ */
+export function obstacleChannelFor(base: string | null): Channel {
+  const key = base === null ? '' : base.trim().replace(/\/+$/, '');
+  if (key === '' || key === aiBase()) return primary;
+  let channel = others.get(key);
+  if (channel === undefined) {
+    channel = makeChannel(() => key);
+    others.set(key, channel);
+  }
+  return channel;
+}
+
+function commitTo(channel: Channel, next: ObstacleState): void {
+  channel.state = next;
+  for (const listener of channel.listeners) listener();
+}
+
+export function obstacleState(): ObstacleState {
+  return primary.state;
+}
+
+export function subscribeObstacle(listener: () => void): () => void {
+  primary.listeners.add(listener);
+  return () => primary.listeners.delete(listener);
+}
+
+export function useObstacle(): ObstacleState {
+  return useSyncExternalStore(subscribeObstacle, obstacleState, obstacleState);
+}
+
+/** 고른 주소의 값을 구독한다 (260929). `null` 이면 첫 줄. */
+export function useObstacleAt(base: string | null): ObstacleState {
+  const channel = obstacleChannelFor(base);
+  return useSyncExternalStore(
+    (listener) => { channel.listeners.add(listener); return () => { channel.listeners.delete(listener); }; },
+    () => channel.state,
+    () => channel.state,
+  );
+}
+
+function withLog(log: readonly ObstacleLogLine[], lines: ObstacleLogLine[]): readonly ObstacleLogLine[] {
+  if (lines.length === 0) return log;
+  const next = [...log, ...lines];
+  return next.length > OBSTACLE_LOG_KEEP ? next.slice(-OBSTACLE_LOG_KEEP) : next;
+}
+
+const nearWords = (snap: ObstacleSnapshot) => snap.detections
+  .filter((d) => d.riskLevel === 'near')
+  .map((d) => `${d.name}${d.distanceCm === null ? '' : ` ${d.distanceCm.toFixed(0)}cm`}`)
+  .join(', ');
+
+function receiveInto(channel: Channel, body: unknown, via: 'relay' | 'direct', nowMs: number): boolean {
+  const state = channel.state;
+  const snap = parseObstacle(body, nowMs);
+  if (snap === null) {
+    commitTo(channel, { ...state, error: t('ob2.2'), log: withLog(state.log, state.error === null ? [{ atMs: nowMs, level: 'warn', say: { key: 'ob2.3' } }] : []) });
+    return false;
+  }
+  const prev = state.latest;
+  const lines: ObstacleLogLine[] = [];
+  if (state.error !== null) lines.push({ atMs: nowMs, level: 'info', say: { key: 'ob2.4' } });
+  if (snap.hasNearObstacle !== null && snap.hasNearObstacle !== (prev?.hasNearObstacle ?? null)) {
+    lines.push(snap.hasNearObstacle
+      ? { atMs: nowMs, level: 'warn', say: { key: 'ob2.nearPresent', vars: { what: nearWords(snap) || { key: 'ob2.noneMarked' } } } }
+      : { atMs: nowMs, level: 'info', say: { key: 'ob2.5' } });
+  }
+  if (snap.stateChange === true && prev?.stateChange !== true) lines.push({ atMs: nowMs, level: 'warn', text: 'state_change: true' });
+  const sameClock = prev !== null && snap.timestampSec !== null && prev.timestampSec === snap.timestampSec;
+  // 멈춤은 줄로 안 적는다 — 판정은 화면이 시각으로 한다(`obstacleFrozen`).
+  const frozenSinceMs = sameClock ? (state.frozenSinceMs ?? prev.receivedAtMs) : null;
+  commitTo(channel, { ...state, latest: snap, error: null, via, frozenSinceMs, log: withLog(state.log, lines) });
+  return true;
+}
+
+function errorInto(channel: Channel, reason: string, nowMs: number): void {
+  const state = channel.state;
+  const lines: ObstacleLogLine[] = state.error === reason ? [] : [{ atMs: nowMs, level: 'warn', say: { key: 'ob2.notReceived', vars: { reason } } }];
+  commitTo(channel, { ...state, error: reason, log: withLog(state.log, lines) });
+}
+
+/** 받은 한 건을 얹는다(첫 줄 열). 바뀐 것만 줄로 남긴다. 검사가 시각을 넣어 부른다. */
+export function receiveObstacle(body: unknown, via: 'relay' | 'direct', nowMs = Date.now()): boolean {
+  return receiveInto(primary, body, via, nowMs);
+}
+
+/** 실패 한 건(첫 줄 열). 같은 사유가 이어지면 줄을 또 적지 않는다. */
+export function noteObstacleError(reason: string, nowMs = Date.now()): void {
+  errorInto(primary, reason, nowMs);
+}
+
+/** 서버 값이 멈췄나 — 서버 시계가 5초 넘게 그대로다. */
+export function obstacleFrozen(current: ObstacleState = primary.state, nowMs = Date.now()): boolean {
+  return current.frozenSinceMs !== null && nowMs - current.frozenSinceMs >= OBSTACLE_FROZEN_MS;
+}
+
+// ── 폴링 — 붙잡은 수를 센다 ────────────────────────────────────────────────────
+
+async function tick(channel: Channel): Promise<void> {
+  channel.timer = null;
+  if (channel.holders === 0) return;
+  if (!channel.inFlight) {
+    channel.inFlight = true;
+    try {
+      const outcome = await fetchObstacleJson(channel.fetcher, undefined, channel.base());
+      if (channel.holders > 0 && !isReplayingRecord()) {
+        if (outcome.ok) receiveInto(channel, outcome.body, outcome.via, Date.now());
+        else errorInto(channel, outcome.reason, Date.now());
+      }
+    } finally {
+      channel.inFlight = false;
+    }
+  }
+  if (channel.holders > 0 && channel.timer === null) channel.timer = setTimeout(() => void tick(channel), OBSTACLE_POLL_MS);
+}
+
+function holdChannel(channel: Channel, customFetcher?: FetchLike): () => void {
+  // **다시보기 중에는 묻지 않는다** (260915) — 지금 값이 그 판의 기록을 덮으면 다시보기가 거짓말을 한다.
+  if (isReplayingRecord()) return () => undefined;
+  if (customFetcher !== undefined) channel.fetcher = customFetcher;
+  channel.holders += 1;
+  if (channel.holders === 1) {
+    commitTo(channel, { ...channel.state, polling: true });
+    void tick(channel);
+  }
+  let released = false;
+  return () => {
+    if (released) return;
+    released = true;
+    channel.holders -= 1;
+    if (channel.holders === 0) {
+      if (channel.timer !== null) { clearTimeout(channel.timer); channel.timer = null; }
+      commitTo(channel, { ...channel.state, polling: false });
+    }
+  };
+}
+
+/**
+ * 폴링을 붙잡는다(첫 줄 열). 되돌려주는 함수를 부르면 놓는다 — 마지막으로 놓을 때만 멈춘다.
+ * @param customFetcher 검사가 갈아 끼운다.
+ */
+export function holdObstaclePolling(customFetcher?: FetchLike): () => void {
+  return holdChannel(primary, customFetcher);
+}
+
+/** 고른 주소의 폴링을 붙잡는다 (260929). `null` 이면 첫 줄. */
+export function holdObstaclePollingAt(base: string | null, customFetcher?: FetchLike): () => void {
+  return holdChannel(obstacleChannelFor(base), customFetcher);
+}
+
+export function obstacleHolders(): number {
+  return primary.holders;
+}
+
+/** 검사가 판을 비울 때. 첫 줄이 아닌 주소의 열도 같이 걷는다. */
+export function resetObstacle(): void {
+  for (const channel of [primary, ...others.values()]) {
+    if (channel.timer !== null) { clearTimeout(channel.timer); channel.timer = null; }
+    channel.holders = 0;
+    channel.fetcher = undefined;
+    commitTo(channel, EMPTY);
+  }
+  others.clear();
+}
+
+/** 판이 새로 서면 지난 판의 줄을 걷는다 — 최신 값은 남긴다(같은 카메라의 지금 값이다). */
+export function clearObstacleLog(): void {
+  commitTo(primary, { ...primary.state, log: [] });
+}
+
+// ── 임무 기록 · 다시보기 (260915) ─────────────────────────────────────────────
+//
+// 기록은 **첫 줄 열**만 뜬다 — 자율주행 편의 「장애물 탐지」가 보는 열이다. 다른 주소의 값은 노드에서 보는
+// 지금 값이고 판의 판정에 안 들어간다.
+
+export type RecordedObstacle = {
+  latest: ObstacleSnapshot | null;
+  log: ObstacleLogLine[];
+  error: string | null;
+  via: 'relay' | 'direct' | null;
+};
+
+/** 기록기가 뜨는 몫 — 마지막 값(받은 JSON 그대로 포함)과 이 판의 바뀐 줄. */
+export function recordableObstacle(): RecordedObstacle {
+  const state = primary.state;
+  return { latest: state.latest, log: [...state.log], error: state.error, via: state.via };
+}
+
+/** 다시보기 — 그 판의 값으로 채운다. **붙잡은 수와 타이머는 건드리지 않는다** — 셈이 어긋나면 폴링이 안 멈춘다. */
+export function restoreObstacle(saved: Partial<RecordedObstacle> | undefined): void {
+  commitTo(primary, {
+    ...primary.state,
+    latest: saved?.latest ?? null,
+    log: Array.isArray(saved?.log) ? saved.log : [],
+    error: saved?.error ?? null,
+    via: saved?.via ?? null,
+    frozenSinceMs: null,
+  });
+}
+
+/** 값만 비운다 — 다시보기를 닫을 때. 붙잡은 수와 타이머는 그대로 둔다. */
+export function clearObstacleData(): void {
+  commitTo(primary, { ...primary.state, latest: null, log: [], error: null, via: null, frozenSinceMs: null });
+}

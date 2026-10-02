@@ -1,0 +1,275 @@
+/**
+ * src/scenarios/types.ts
+ *
+ * 시나리오 대본(`scenarios/MSN-260831-0N.json`)의 형식.
+ *
+ * `src/model/types.ts`의 `Scenario` 위에 **얹는** 확장이다 — 대체가 아니다.
+ * 새 필드는 전부 선택이라 옛 파일(`MSN-260826-01.json`)은 한 글자도 안 고치고 유효하다.
+ * 옛 파일과 대본이 갈라지는 지점:
+ *   - `world: 'registry'` — cast·worldTimeline·commands 가 registry.json 세계의 ID 를 쓴다.
+ *     없으면 legacy (구판 세계 — 탭②~⑤와 연결되지 않는다).
+ *   - 마일스톤에 정적 `status` 를 적지 않는다 — 상태는 태스크 상태를 접은 결과다.
+ *     옛 파일의 정적 status 는 무시하되 지우지 않는다.
+ *   - `utterance.engine: 'script'` — 이 문장은 인식이 아니라 저작이다. confidence 는
+ *     정의상 1이고 audioRef 는 null (음성이 없다 — 계약의 audio_ref: string|null 과 같다).
+ *
+ * 게이트웨이·브라우저·검증 스크립트가 **같은 이 파일**을 본다. 두 벌이면 갈라진다.
+ */
+
+import type { ActionItem, TaskStatus } from '../model/types.ts';
+
+/**
+ * 키워드 대조 규칙. **이것은 LLM이 아니다** — 바깥 배열은 AND, 안쪽 배열은
+ * OR(동의어·오인식 변형)이고, any 는 하나라도 맞으면 된다.
+ */
+export type ScriptMatch = {
+  must: string[][];
+  any?: string[];
+  /**
+   * 제외어 (260915 — 자율주행 편). 하나라도 들어 있으면 이 편은 **맞지 않는다.**
+   *
+   * 「문 앞까지 자율주행 진행해」가 시연 편(MSN-260909-01)의 must 「문앞」에도 걸려 두 편이
+   * 모호 거부됐다. 매처는 모호하면 고르지 않는다(억지로 고르면 LLM 흉내다) — 그래서 우선순위를
+   * 두지 않고, 시연 편이 「자율주행」이 든 문장은 자기 것이 아니라고 **스스로 말하게** 한다.
+   */
+  not?: string[];
+  /** 사람이 읽는 정규화 규칙 설명. 실제 규칙은 matcher.ts 의 normalize() 하나다. */
+  normalize?: string;
+};
+
+export type ScriptUtterance = {
+  text: string;
+  /** 'script' = 저작된 문장. 실제 STT 발화의 세 수치는 명령의 voice 감사 필드에 실린다. */
+  engine: string;
+  confidence: number;
+  audioRef: string | null;
+};
+
+export type ScriptMilestone = {
+  id: string;
+  title: string;
+  assignedTargets: string[];
+  /**
+   * 이 마일스톤이 쓰는 **장치 자리** (260927 — 장치 두 대 편). 차례가 곧 자리 차례다.
+   * 하드웨어 카드를 여기에 놓으면 이 자리에 앉는다(`data/slots.ts`). 없으면 지금까지처럼 `assignedTargets`.
+   */
+  slots?: string[];
+  /**
+   * **장치 대신 보는 화면** (260929 — 이상 탐지 편 「가상 맵 모니터링」). `'virtual-3d'` 면 이 마일스톤은 장치를 받지
+   * 않고 연결 관리의 「3D 가상환경」 주소를 본다 — 배정 줄에 「미배정」 대신 그 주소가 적히고, 카드를 놓아도 안 앉는다.
+   */
+  feed?: 'virtual-3d';
+  /** 옛 파일 호환용. 대본에는 적지 않는다 — 태스크 상태를 접은 결과가 마일스톤 상태다. */
+  status?: TaskStatus;
+};
+
+export type ScriptTaskEvaluation = {
+  /** 평가 기준 문장. 근거값은 이벤트 payload 에 실린다 (REQ-1403 · REQ-1505). */
+  criteria: string[];
+  judgedBy: 'ai' | 'backend' | 'human';
+};
+
+/**
+ * 노드 문법 5종 (260831 — 노드 분화). 마일스톤을 임의로 쪼개지 않기 위한 규칙 —
+ * 한 마일스톤은 이 다섯의 작은 부분그래프로 **펴진다.** 단계를 더하거나 빼는 것이 아니다.
+ *  - sense  : 값을 받아 온다 (telemetry · coverage · vision)
+ *  - decide : 조건이 참인가 (evaluation.judgedBy)
+ *  - act    : 명령을 낸다 (commands[] · CommandEngine)
+ *  - verify : 구동 결과가 의도대로인가 (evaluation.criteria)
+ *  - report : 기록·발행 (trace_event · 감사)
+ */
+export type NodeKind = 'sense' | 'decide' | 'act' | 'verify' | 'report';
+
+export type ScriptTask = {
+  id: string;
+  title: string;
+  /** 노드 문법 (260831). 옛 파일에는 없다 — 없으면 화면이 칩을 그리지 않는다. */
+  nodeKind?: NodeKind;
+  /** 이 태스크가 접히는 마일스톤. 옛 파일에는 없다(전부 MS-C 암묵). */
+  milestone: string;
+  deps: string[];
+  /** 대상 장비. 장비가 없는 태스크(임무 종료 처리)는 null — 지어 넣지 않는다. */
+  target: string | null;
+  actionItems: ActionItem[];
+  /** 있으면 「평가로 끝나는 태스크」 — awaiting_evaluation → done 전이가 있어야 한다. */
+  evaluation?: ScriptTaskEvaluation;
+};
+
+/**
+ * 되돌아가는 참조 엣지 (260831 — 2편 재탐색 루프).
+ *
+ * **`deps` 가 아니다.** `graph/layout.ts` 의 depths() 에 순환이 들어가면 무한 재귀한다.
+ * 그런데 루프를 안 그리면 사용자는 이 대본이 되돌아간다는 것을 모른다 — 시각화의 의미가
+ * 사라진다. 그래서 레이아웃·깊이 계산에는 넣지 않고 **점선으로 그리기만 하는** 별도 목록이다.
+ */
+export type ScriptRefEdge = {
+  from: string;
+  to: string;
+  /** 그래프에 붙는 짧은 문구. */
+  label: string;
+  /** 왜 deps 가 아닌지 — 파일을 여는 사람에게 남기는 근거. */
+  note?: string;
+};
+
+export type ScriptEvent = {
+  seq: number;
+  atSec: number;
+  nodeId: string;
+  status: TaskStatus;
+  kind: string;
+  /** 260920 — 액션 층이 붙으면서 `robot` 이 늘었다 (`src/model/types.ts` 의 사유 참조). */
+  producedBy: 'ai' | 'backend' | 'human' | 'robot';
+  attempt?: number;
+  /** kind: 'derived' 일 때 — 어느 태스크의 2회차인가. */
+  derivedFrom?: string;
+  /** 평가 근거값(distance_m 등)·파생 사유. trace-event.schema 의 payload 와 같은 자리다. */
+  payload?: Record<string, unknown>;
+};
+
+/** 탭②~⑤용 세계 채널 값. 봉투를 직접 적지 않는다 — 장치의 평소 발행 경로로 나간다. */
+export type WorldDrive = {
+  atSec: number;
+  entity: string;
+  drive: Record<string, unknown>;
+};
+
+/** CommandEngine.submit() 을 실제로 통과하는 명령. 발행 주체는 사람이 아니다. */
+export type ScriptCommand = {
+  atSec: number;
+  entity: string;
+  action: string;
+  producedBy: 'backend';
+  taskId: string;
+};
+
+/** 2편 구역 맵. 좌표계는 로봇 telemetry 와 같은 site-global — 화면에 변환이 없어야 한다. */
+export type ScriptMap = {
+  frame: string;
+  room: { id: string; x_min: number; x_max: number; z_min: number; z_max: number };
+  camera: {
+    entity: string;
+    position: { x: number; y: number; z: number };
+    fov_polygon: Array<[number, number]>;
+  };
+  blind_cells: Array<{
+    id: string;
+    x_min: number;
+    x_max: number;
+    z_min: number;
+    z_max: number;
+    reason: string;
+  }>;
+};
+
+/**
+ * **문구의 빈칸** (260927 — 장치 두 대 편). 대본 문구에 `token`(`@`)을 두면, 발화에서 `patterns` 의
+ * 첫 번째 묶음으로 잘라 온 낱말이 그 자리에 들어간다(`scenarios/target.ts`). 못 자르면 빈칸 그대로다.
+ */
+export type ScriptTarget = {
+  token: string;
+  /** 한국어 문장에 거는 정규식. 첫 묶음(`(...)`)이 대상이다. 차례대로 본다. */
+  patterns: string[];
+  /** 영어 문장에 거는 정규식. 영어 화면에서 먼저 본다. */
+  patterns_en?: string[];
+  note?: string;
+};
+
+/** 장치 자리 하나 (260927). 대본은 장비를 정하지 않고 자리만 둔다 — 앉히는 것은 사람이다. */
+export type ScriptSlot = { id: string; label: string };
+
+export type ScriptScenario = {
+  missionId: string;
+  title: string;
+  world: 'registry';
+  utterance: ScriptUtterance;
+  match: ScriptMatch;
+  /** 문구의 빈칸 (260927). 없으면 채울 것이 없다. */
+  target?: ScriptTarget;
+  /**
+   * 장치 자리 (260927). 있으면 태스크의 `target` 이 장비 id 가 아니라 **자리 id** 일 수 있고,
+   * `cast` 는 비어도 된다 — 무엇이 올지 대본이 모르기 때문이다(`verify:script-library`).
+   */
+  slots?: ScriptSlot[];
+  /** 탭②~⑤에서 그려도 되는 장비. 전부 registry.json 에 실재해야 한다(verify:script-library). */
+  cast: string[];
+  /**
+   * **이 편의 진행을 누가 모는가** (260915 — 자율주행 편).
+   *
+   *  - 없음    지금까지 그대로 — registry 편은 로봇이 몬다(게이트웨이 합성 진행을 안 받고,
+   *            승인이 로봇 관문을 연다). 1~3편 · 5편(시연)이 이 값이다
+   *  - 'script' 실물 연동이 아직 없는 편 — 옛 편처럼 **대본 재생이 몰고**(시나리오 모드 띠),
+   *            승인이 로봇 관문을 **안 연다.** 「임무 시작」을 눌러도 문 찾기 스캔이 나가지 않는다
+   *  - 'relay'  로봇을 **다른 쪽(유니티)이 몰고** 라즈베리파이가 본 것을 전해 주는 편 (260915 · pi1).
+   *            게이트웨이 합성 진행을 안 받고(일반 모드), 승인이 로봇 관문을 **안 연다** — 화면은
+   *            아무것도 보내지 않는다. 승인하는 순간부터 중계를 칠한다(`physical/navLink.ts`)
+   *
+   *  - 'local'  **이 화면이 모는 편** (260927 · 장치 두 대). 일반 모드로 돈다 — 시나리오 모드 띠가 안 뜨고
+   *            게이트웨이 합성 진행도 안 받는다. 승인은 판을 걸어만 두고, 「▶ 임무 시작」을 누르면 화면 안 진행기가
+   *            제 시각(1배속)으로 민다. 로봇 관문은 **안 연다** — 문 찾기 편의 스캔이 나가면 안 된다
+   *
+   * 가르는 자리는 `library.ts` 의 `scriptDriven()` · `relayDriven()` · `localDriven()` · `opensRobotGate()` 다.
+   */
+  driver?: 'script' | 'relay' | 'local';
+  /**
+   * **이 편이 쓰는 로봇 흐름** (260928 — 체계가 한 임무에 귀속돼 있던 것을 걷는다).
+   *
+   * `'door-scan'` 이면 문 찾기 흐름 — 승인이 로봇 관문을 열고, 「임무 시작」이 준비 단계(도면 · 방위)와 탐지 조회를
+   * 켜고, 준비가 끝나면 `scan_mission` 이 나간다. **선언이 없으면 그 넷이 하나도 안 돈다.** 전에는 반대였다 — 선언
+   * 없는 편이 전부 그 흐름을 탔고, 그래서 다른 임무의 「임무 시작」에도 실물 로봇이 문 찾기 스캔을 돌 수 있었다.
+   * 가르는 자리는 `library.ts` 의 `doorScanFlow()` 하나다.
+   */
+  robotFlow?: 'door-scan';
+  durationSec: number;
+  /** 편별 상수 — 위험 수위 선(탭④)·정지 거리·재탐색 임계 등. 화면이 읽는다. */
+  params?: Record<string, unknown>;
+  /** 대본 시작 시 세계의 초기 조건 (예: 수문 열림 100%). 재생기가 시작 시 1회 반영한다. */
+  initial?: Record<string, Record<string, unknown>>;
+  milestones: ScriptMilestone[];
+  tasks: ScriptTask[];
+  events: ScriptEvent[];
+  /** 되돌아가는 참조 엣지 — deps 와 분리돼 있다 (위 ScriptRefEdge 주석). */
+  refEdges?: ScriptRefEdge[];
+  worldTimeline?: WorldDrive[];
+  commands?: ScriptCommand[];
+  map?: ScriptMap;
+  /**
+   * 8분할 뷰포인트 묶음 (260909 시연 대본 §4). **배치 특례가 걸리는 유일한 자리다** —
+   * 이 선언이 없는 편은 배치가 지금까지와 한 픽셀도 다르지 않다. 태스크 id 를 배치
+   * 코드에 적어 두는 대신 대본이 선언한다(`src/graph/fanLayout.ts`).
+   */
+  viewpoints?: ScriptViewpoints;
+  /**
+   * 뷰포인트 채널의 대본 (260909 §6). **라이브 채널과 같은 형식이다** — 로봇이 붙는 날
+   * 이 줄들을 게이트웨이 수신으로 갈아끼우면 노드 갱신 코드는 한 줄도 안 고친다.
+   * 가르는 자리는 `src/viewpoint/source.ts` 하나다.
+   */
+  viewpointTimeline?: ScriptViewpointFrame[];
+};
+
+/** 뷰포인트 채널 한 줄. 봉투가 아니라 값이다 — 봉투는 재생기가 만든다. */
+export type ScriptViewpointFrame = {
+  atSec: number;
+  /** 'robot_state' 또는 'detection'. 실제 채널 이름과 같다. */
+  channel: string;
+  payload: Record<string, unknown>;
+};
+
+/** 여덟이 한 부모에 매달려 원 둘레에 서는 묶음. 배열 차례가 곧 각도 차례다. */
+export type ScriptViewpoints = {
+  parentTaskId: string;
+  taskIds: string[];
+  startAngleDeg?: number;
+  stepDeg?: number;
+};
+
+/**
+ * 라이브러리 항목. 옛 편(MSN-260826-01)은 파일 무수정 제약 때문에 match 를
+ * 사이드카(`MSN-260826-01.match.json`)에 두고, script 는 legacy 형식 그대로 든다.
+ */
+export type ScriptLibraryEntry = {
+  missionId: string;
+  world: 'registry' | 'legacy';
+  match: ScriptMatch;
+  /** registry 세계 대본만 담는다. legacy 편은 화면이 기존 경로(번들 Scenario)로 그린다. */
+  script: ScriptScenario | null;
+};
