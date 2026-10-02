@@ -144,3 +144,6 @@
 .satmap-tip{position:absolute;display:grid;gap:2px;min-width:170px;padding:6px 9px;background:#fffffff2;border-radius:var(--radius-sm);font-size:12px;box-shadow:0 4px 14px #0005;pointer-events:none;font-variant-numeric:tabular-nums}
 .satmap-tip small{color:#6b7888}
 .satmap-attr{position:absolute;right:6px;bottom:4px;font-size:10px;color:#fff;background:#0007;padding:1px 5px;border-radius:3px}
+.satmap-area--swath{fill:#ffd40026;stroke:#ffd400;stroke-width:1.5;stroke-dasharray:5 4}
+.satmap-mk--reflector.is-good polygon{fill:#3df07a}
+.satmap-mk--reflector.is-bad polygon{fill:#ff3b3b}

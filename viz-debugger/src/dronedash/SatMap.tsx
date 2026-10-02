@@ -17,7 +17,9 @@ import './dronedash.css';
 
 export type LatLon = { lat: number; lon: number };
 export type TrackPoint = LatLon & { t: number; alt?: number | null; speed?: number | null; fix?: string | null; capture?: boolean };
-export type Marker = LatLon & { kind: 'home' | 'base' | 'reflector' | 'pick'; label?: string };
+export type Marker = LatLon & { kind: 'home' | 'base' | 'reflector' | 'pick'; label?: string; tone?: 'good' | 'bad' };
+/** 지도에 깔 면 — 안테나 관측 띠 등. */
+export type Area = { points: readonly LatLon[]; kind: 'swath' };
 
 type Layer = 'satellite' | 'street' | 'none';
 const TILE = 256;
@@ -42,7 +44,7 @@ function tileUrl(template: string, z: number, x: number, y: number): string {
 }
 
 export function SatMap({
-  track = [], drone, droneYaw, sarLine, capturing, markers = [], onPick, pickHint, height = 380,
+  track = [], drone, droneYaw, sarLine, capturing, markers = [], areas = [], onPick, pickHint, height = 380,
 }: {
   track?: readonly TrackPoint[];
   drone?: LatLon | null;
@@ -50,6 +52,7 @@ export function SatMap({
   sarLine?: { start: LatLon; end: LatLon; leadIn?: LatLon | null } | null;
   capturing?: boolean;
   markers?: readonly Marker[];
+  areas?: readonly Area[];
   onPick?: (p: LatLon) => void;
   pickHint?: string;
   height?: number;
@@ -209,6 +212,8 @@ export function SatMap({
         {tiles.map((tl) => <img key={tl.key} src={tl.src} alt="" draggable={false} style={{ left: tl.x, top: tl.y, width: tl.size, height: tl.size }} />)}
       </div>
       <svg width={W} height={H} className="satmap-svg">
+        {areas.map((ar, i) => <polygon key={i} className={`satmap-area satmap-area--${ar.kind}`}
+          points={ar.points.map((p) => { const q = P(p); return `${q.x.toFixed(1)},${q.y.toFixed(1)}`; }).join(' ')} />)}
         {sarLine && <>
           {sarLine.leadIn && <line x1={P(sarLine.leadIn).x} y1={P(sarLine.leadIn).y} x2={P(sarLine.start).x} y2={P(sarLine.start).y} className="satmap-lead" />}
           <line x1={P(sarLine.start).x} y1={P(sarLine.start).y} x2={P(sarLine.end).x} y2={P(sarLine.end).y} className={`satmap-sar${capturing ? ' is-on' : ''}`} />
@@ -218,7 +223,7 @@ export function SatMap({
           <text x={P(sarLine.end).x + 9} y={P(sarLine.end).y - 8} className="satmap-label">{t('map.capEnd')}</text>
         </>}
         {trackSegs.map((s, i) => <polyline key={i} points={s.pts} className={`satmap-track${s.capture ? ' is-capture' : ''}`} />)}
-        {markers.map((mk, i) => { const q = P(mk); return <g key={i} transform={`translate(${q.x} ${q.y})`} className={`satmap-mk satmap-mk--${mk.kind}`}>
+        {markers.map((mk, i) => { const q = P(mk); return <g key={i} transform={`translate(${q.x} ${q.y})`} className={`satmap-mk satmap-mk--${mk.kind}${mk.tone ? ` is-${mk.tone}` : ''}`}>
           {mk.kind === 'reflector' ? <polygon points="0,-8 7,6 -7,6" /> : <circle r={9} />}
           <text y={mk.kind === 'reflector' ? 4 : 4} textAnchor="middle">{mk.kind === 'home' ? 'H' : mk.kind === 'base' ? 'B' : mk.kind === 'pick' ? '•' : ''}</text>
           {mk.label && <text x={12} y={4} className="satmap-label">{mk.label}</text>}

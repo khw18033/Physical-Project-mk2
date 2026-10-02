@@ -28,10 +28,23 @@ import {
 import { RTK_LABEL_KEY, rtkLevel } from './rtk.ts';
 import { RtkBadge } from './RtkView.tsx';
 import { useTick } from './useTick.ts';
-import { SatMap, type Marker } from '../dronedash/SatMap.tsx';
+import { SatMap, type Area, type Marker } from '../dronedash/SatMap.tsx';
+import { checkReflector, defaultAntenna, radarJson, swathPolygon, type AntennaDraft } from './coverage.ts';
 import './sar.css';
 
 const DRAFT_KEY = 'viz.sar.draft.v1';
+const CR_KEY = 'viz.sar.reflectors.v1';
+const ANT_KEY = 'viz.sar.antenna.v1';
+
+function loadJson<T>(key: string, fallback: T): T {
+  try { const raw = localStorage.getItem(key); if (raw !== null) return { ...fallback, ...JSON.parse(raw) } as T; } catch { /* */ }
+  return fallback;
+}
+function loadList<T>(key: string): T[] {
+  try { const raw = localStorage.getItem(key); if (raw !== null) { const v = JSON.parse(raw); if (Array.isArray(v)) return v as T[]; } } catch { /* */ }
+  return [];
+}
+function saveJson(key: string, v: unknown): void { try { localStorage.setItem(key, JSON.stringify(v)); } catch { /* */ } }
 
 function loadDraft(): SarPlanDraft {
   try {
@@ -178,6 +191,11 @@ export function SarPassZoom() {
   const fcx = useFcxReports();
   const [draft, setDraftState] = useState<SarPlanDraft>(loadDraft);
   const [pickNext, setPickNext] = useState<'start' | 'end'>(() => (loadDraft().start === null ? 'start' : 'end'));
+  const [mapMode, setMapMode] = useState<'line' | 'reflector'>('line');
+  const [reflectors, setReflectorsState] = useState<LatLon[]>(() => loadList<LatLon>(CR_KEY));
+  const [antenna, setAntennaState] = useState<AntennaDraft>(() => loadJson(ANT_KEY, defaultAntenna()));
+  const setReflectors = (v: LatLon[]) => { setReflectorsState(v); saveJson(CR_KEY, v); };
+  const setAntenna = (v: AntennaDraft) => { setAntennaState(v); saveJson(ANT_KEY, v); };
   const [confirmed, setConfirmed] = useState(false);
   const [busy, setBusy] = useState<'start' | 'abort' | null>(null);
   const [outcome, setOutcome] = useState<{ action: 'start' | 'abort'; result: SarIssueOutcome } | null>(null);
@@ -258,6 +276,7 @@ export function SarPassZoom() {
   }
 
   function pick(p: LatLon) {
+    if (mapMode === 'reflector') { setReflectors([...reflectors, p]); return; }
     if (pickNext === 'start') {
       setDraft({ ...draft, start: p, end: draft.end });
       setPickNext('end');
@@ -295,6 +314,21 @@ export function SarPassZoom() {
   if (home?.lat != null && home.lon != null) markers.push({ lat: home.lat, lon: home.lon, kind: 'home' });
   if (rtcmReport?.base?.lat != null && rtcmReport.base.lon != null) markers.push({ lat: rtcmReport.base.lat, lon: rtcmReport.base.lon, kind: 'base', label: t('map.base') });
   if (draft.start && !draft.end) markers.push({ ...draft.start, kind: 'pick', label: t('map.capStart') });
+  const crChecks = reflectors.map((cr) => (draft.start && draft.end && Number.isFinite(draft.altM)
+    ? checkReflector(antenna, draft.start, draft.end, draft.altM, cr) : null));
+  reflectors.forEach((cr, i) => markers.push({ ...cr, kind: 'reflector', label: `CR${i + 1}`,
+    ...(crChecks[i] ? { tone: crChecks[i]!.ok ? 'good' as const : 'bad' as const } : {}) }));
+  const swath = draft.start && draft.end && Number.isFinite(draft.altM) ? swathPolygon(antenna, draft.start, draft.end, draft.altM) : null;
+  const areas: Area[] = swath ? [{ points: swath, kind: 'swath' }] : [];
+  const crCsv = ['name,lat,lon,ok,ground_range_m,along_m,slant_m,aperture_pct',
+    ...reflectors.map((cr, i) => [`CR${i + 1}`, cr.lat.toFixed(8), cr.lon.toFixed(8), crChecks[i]?.ok ?? '',
+      crChecks[i]?.groundRangeM.toFixed(2) ?? '', crChecks[i]?.alongM.toFixed(2) ?? '', crChecks[i]?.slantRangeM.toFixed(2) ?? '',
+      crChecks[i] ? Math.round(crChecks[i]!.apertureFraction * 100) : ''].join(','))].join('\n');
+  const antField = (labelKey: string, key: keyof AntennaDraft, step: number, unit: string) =>
+    <label className="sar-field"><span>{t(labelKey)}</span>
+      <input type="number" step={step} value={(antenna[key] as number | null) ?? ''}
+        onChange={(e) => setAntenna({ ...antenna, [key]: e.target.value === '' ? null : Number(e.target.value) })} />
+      <small>{unit}</small></label>;
 
   return <div className="sar-zoom sar-guide">
     <p className="sar-lead">{t('sar.lead')}</p>
@@ -305,13 +339,18 @@ export function SarPassZoom() {
     </Step>
 
     <Step n={2} title={t('sar.step.line')} help={t('sar.step.lineHelp')} level={step2 === 'unknown' ? 'now' : step2} open>
+      <div className="satmap-seg sar-mapmode" role="group">
+        <button type="button" className={mapMode === 'line' ? 'on' : ''} onClick={() => setMapMode('line')}>{t('cr.mode.line')}</button>
+        <button type="button" className={mapMode === 'reflector' ? 'on' : ''} onClick={() => setMapMode('reflector')}>{t('cr.mode.reflector')}</button>
+      </div>
       <SatMap
         drone={here} droneYaw={yaw}
         sarLine={draft.start && draft.end ? { start: draft.start, end: draft.end, leadIn } : null}
         capturing={report?.capturing}
         markers={markers}
+        areas={areas}
         onPick={pick}
-        pickHint={pickNext === 'start' ? t('sar.pick.start') : t('sar.pick.end')}
+        pickHint={mapMode === 'reflector' ? t('cr.pick') : pickNext === 'start' ? t('sar.pick.start') : t('sar.pick.end')}
         height={360}
       />
       <div className="sar-line-tools">
@@ -322,6 +361,42 @@ export function SarPassZoom() {
         <button type="button" onClick={() => { setDraft({ ...draft, start: null, end: null }); setPickNext('start'); }}>{t('sar.plan.clear')}</button>
       </div>
       {line && <p className={step2 === 'bad' ? 'sar-bad' : 'sar-ok'}>{t('sar.plan.lineInfo', { m: line.lengthM.toFixed(1), deg: line.headingDeg.toFixed(0), lead: lead.toFixed(0) })}</p>}
+      <div className="sar-cr">
+        <div className="sar-cr-head"><b>{t('cr.title')}</b><small>{t('cr.help')}</small></div>
+        {reflectors.length === 0 ? <p className="sar-hint">{t('cr.none')}</p> : <table className="sar-table"><tbody>
+          {reflectors.map((cr, i) => { const c = crChecks[i]; return <tr key={i} className={c && !c.ok ? 'is-missed' : ''}>
+            <td><b>CR{i + 1}</b><small>{cr.lat.toFixed(7)}, {cr.lon.toFixed(7)}</small></td>
+            <td>{c === null ? '—' : c.ok ? <span className="sar-ok">✓ {t('cr.seen')}</span> : <span className="sar-bad">✕ {t('cr.notSeen')}</span>}</td>
+            <td>{c === null ? t('cr.needLine') : t('cr.detail', { g: c.groundRangeM.toFixed(1), a: c.alongM.toFixed(1), r: c.slantRangeM.toFixed(1), ap: c.apertureM.toFixed(1), pct: Math.round(c.apertureFraction * 100) })}
+              {c?.why.map((w) => <small key={w.key} className="sar-bad">{t(w.key, w.vars)}</small>)}</td>
+            <td><button type="button" onClick={() => setReflectors(reflectors.filter((_, j) => j !== i))}>{t('cr.remove')}</button></td>
+          </tr>; })}
+        </tbody></table>}
+        <div className="sar-line-tools">
+          <button type="button" disabled={reflectors.length === 0} onClick={() => setReflectors([])}>{t('cr.clear')}</button>
+          <a className="sar-btn" download="reflectors.csv" href={`data:text/csv;charset=utf-8,${encodeURIComponent(crCsv)}`}>{t('cr.csv')}</a>
+          <a className="sar-btn" download="radar.json" href={`data:application/json;charset=utf-8,${encodeURIComponent(radarJson(antenna))}`}>{t('cr.radarJson')}</a>
+        </div>
+        <p className="sar-hint">{t('cr.tip')}</p>
+        <details className="sar-more"><summary>{t('cr.antenna')}</summary>
+          <p className="sar-hint">{t('cr.antennaHelp')}</p>
+          <div className="sar-seg sar-mapmode" role="group">
+            {(['right', 'left'] as const).map((sd) => <button key={sd} type="button" className={antenna.side === sd ? 'active' : ''}
+              onClick={() => setAntenna({ ...antenna, side: sd })}>{t(`cr.side.${sd}`)}</button>)}
+          </div>
+          <div className="sar-plan-grid"><div>
+            {antField('cr.depression', 'depressionDeg', 1, '°')}
+            {antField('cr.elBw', 'elBeamwidthDeg', 1, '°')}
+            {antField('cr.azBw', 'azBeamwidthDeg', 1, '°')}
+          </div><div>
+            {antField('cr.rangeMin', 'rangeMinM', 1, 'm')}
+            {antField('cr.rangeMax', 'rangeMaxM', 1, 'm')}
+            {antField('cr.wavelength', 'wavelengthM', 0.0001, 'm')}
+            {antField('cr.bandwidth', 'bandwidthHz', 1e6, 'Hz')}
+            {antField('cr.prf', 'prfHz', 10, 'Hz')}
+          </div></div>
+        </details>
+      </div>
       <details className="sar-more"><summary>{t('sar.plan.byNumbers')}</summary>
         {coordField('sar.plan.start', draft.start, (p) => setDraft({ ...draft, start: p }))}
         {coordField('sar.plan.end', draft.end, (p) => setDraft({ ...draft, end: p }))}

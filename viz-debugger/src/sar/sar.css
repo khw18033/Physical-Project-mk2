@@ -135,3 +135,11 @@
 .sar-btn--main{background:#1768c5;border-color:#1768c5;color:#fff;font-weight:700}
 .sar-image-next{display:flex;flex-wrap:wrap;gap:10px;align-items:center;padding:8px 10px;border:1px dashed #cbd3dc;border-radius:var(--radius-sm)}
 .sar-image-next small{color:#6b7888}
+
+.sar-mapmode{display:inline-flex;gap:0}
+.sar-mapmode button{border-radius:0;margin-left:-1px}
+.sar-mapmode button.on,.sar-mapmode button.active{background:#1768c5;color:#fff;border-color:#1768c5}
+.sar-cr{display:grid;gap:6px;padding:10px;border:1px dashed #d39b2a;border-radius:var(--radius-sm);background:#fffdf6}
+.sar-cr-head{display:flex;gap:10px;align-items:baseline}
+.sar-cr-head small{color:#6b7888}
+.sar-cr .sar-table small{display:block}

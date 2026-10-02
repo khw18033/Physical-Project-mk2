@@ -269,6 +269,31 @@ const params = plan.toStartParams({
   console.log('✅ 드론 상태판 — fcx 뜯기 · 숫자 아닌 값 거름 · 안 온 값은 모름 · 이력 900점 · 구독');
 }
 
+// ── 10. 코너리플렉터 판정 — drone/sar_image/coverage.py 와 같은 식 ─────────────
+{
+  const cov = await load('src', 'sar', 'coverage.ts');
+  const a = cov.defaultAntenna();
+  const { near, far } = cov.swathGroundRanges(a, 20);
+  check(Math.abs(near - 20 / Math.tan(65 * Math.PI / 180)) < 1e-9 && Math.abs(far - 20 / Math.tan(25 * Math.PI / 180)) < 1e-9,
+    `관측 띠가 드론 쪽 식과 다르다: ${near}, ${far}`);
+  const start = { lat: 37.5665, lon: 126.978 };
+  const end = plan.endFrom(start, 45, 80);
+  // 진행 방향 f = (n cos h, e sin h), 오른쪽 r = (n −sin h, e cos h) — h = 45°
+  const h45 = Math.PI / 4;
+  const at = (al, cr) => plan.toGlobal(start, al * Math.cos(h45) - cr * Math.sin(h45), al * Math.sin(h45) + cr * Math.cos(h45));
+  const good = cov.checkReflector(a, start, end, 20, at(40, 20));
+  check(good.ok && Math.abs(good.alongM - 40) < 0.05 && Math.abs(good.groundRangeM - 20) < 0.05, `가운데 · 오른쪽 20 m 리플렉터를 못 본다고 한다: ${JSON.stringify(good)}`);
+  check(Math.abs(good.apertureM - 2 * Math.hypot(20, 20) * Math.tan(15 * Math.PI / 180)) < 0.05, '개구 길이가 2R·tan(β/2) 가 아니다');
+  check(!cov.checkReflector(a, start, end, 20, at(40, -20)).ok, '안테나 반대쪽 리플렉터를 보인다고 한다');
+  check(!cov.checkReflector(a, start, end, 20, at(3, 20)).ok, '선 끝에 붙은 리플렉터(개구 부족)를 보인다고 한다');
+  check(!cov.checkReflector(a, start, end, 20, at(40, 70)).ok, '관측 띠 밖 리플렉터를 보인다고 한다');
+  const py = read('drone', 'sar_image', 'example_radar.json');
+  const ex = JSON.parse(py);
+  check(ex.depression_deg === a.depressionDeg && ex.el_beamwidth_deg === a.elBeamwidthDeg && ex.az_beamwidth_deg === a.azBeamwidthDeg
+    && ex.range_max_m === a.rangeMaxM && ex.side === a.side, '화면 기본 안테나 값이 drone/sar_image/example_radar.json 과 다르다');
+  console.log('✅ 코너리플렉터 — 관측 띠 · 개구 · 반대쪽 · 끝 · 띠 밖 판정이 드론 쪽 식과 같다');
+}
+
 // ── 7. RTK 등급 ─────────────────────────────────────────────────────────────
 {
   const cases = [
