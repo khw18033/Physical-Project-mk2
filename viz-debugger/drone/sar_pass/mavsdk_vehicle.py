@@ -45,6 +45,8 @@ class MavsdkVehicle:
         self._ned: tuple[float, float, float] | None = None
         self._origin: tuple[float, float, float] | None = None   # EKF 원점 (lat, lon, alt_amsl)
         self._home_amsl: float | None = None
+        self._home_ll: tuple[float, float] | None = None
+        self._battery: float | None = None
         self._tasks: list[asyncio.Task] = []
 
     async def connect(self, timeout_s: float = 30.0) -> None:
@@ -75,6 +77,7 @@ class MavsdkVehicle:
             asyncio.create_task(self._pump(t.attitude_euler(), self._on_euler)),
             asyncio.create_task(self._pump(t.position_velocity_ned(), self._on_ned)),
             asyncio.create_task(self._pump(t.home(), self._on_home)),
+            asyncio.create_task(self._pump(t.battery(), self._on_battery)),
         ]
         # 궤적 기록은 50 Hz 로 한다 — 스트림도 그만큼 올려 둔다(PX4 가 못 주면 주는 만큼).
         for setter in (t.set_rate_position, t.set_rate_velocity_ned, t.set_rate_attitude_euler,
@@ -139,6 +142,13 @@ class MavsdkVehicle:
 
     def _on_home(self, h) -> None:  # noqa: ANN001
         self._home_amsl = h.absolute_altitude_m
+        self._home_ll = (h.latitude_deg, h.longitude_deg)
+
+    def _on_battery(self, b) -> None:  # noqa: ANN001
+        r = b.remaining_percent
+        if r is None or r != r or r < 0:
+            return
+        self._battery = r * 100.0 if r <= 1.0 else float(r)     # MAVSDK 버전에 따라 0~1 또는 0~100
 
     def _on_euler(self, e) -> None:  # noqa: ANN001
         self._roll, self._pitch = e.roll_deg, e.pitch_deg
@@ -156,6 +166,7 @@ class MavsdkVehicle:
             armed=self._armed, in_air=self._in_air, flight_mode=self._mode,
             gps_fix=self._fix, satellites=self._sats, clock_offset_s=self._clock_offset,
             roll_deg=self._roll, pitch_deg=self._pitch, alt_amsl_m=self._amsl, ned=self._ned,
+            battery_pct=self._battery, home=self._home_ll,
         )
 
     async def get_param_int(self, name: str) -> int | None:

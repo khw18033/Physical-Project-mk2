@@ -28,6 +28,11 @@ log = logging.getLogger("sitl")
 
 async def takeoff(v: MavsdkVehicle, alt_m: float) -> None:
     sysm = v.system
+    # SITL 가상 배터리는 기본으로 1 분 만에 닳는다 — 실기체처럼 20 분으로 (배터리 점검이 진짜로 막는 것을 봤다)
+    try:
+        await sysm.param.set_param_float("SIM_BAT_DRAIN", 1200.0)
+    except Exception:  # noqa: BLE001
+        log.warning("SIM_BAT_DRAIN 을 못 바꿨다")
     async for health in sysm.telemetry.health():
         if health.is_global_position_ok and health.is_home_position_ok:
             break

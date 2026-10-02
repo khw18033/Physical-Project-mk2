@@ -99,3 +99,21 @@ def test_quality_uses_capture_window_only(tmp_path):
     assert asyncio.run(m.run()) == "done"
     for r in m.records:
         assert r.valid and r.max_speed_err_mps < plan.q_speed_mps and r.max_cross_track_m < plan.q_cross_m
+
+
+def test_low_battery_stops_before_next_pass(tmp_path):
+    plan, sim, cap, m, st = build(tmp_path, ack=False)
+    sim.battery_pct = 52.0
+    sim.battery_drain_pct_s = 0.25          # 빨리 닳는 배터리
+    assert asyncio.run(m.run()) == "incomplete"
+    assert "배터리" in (m.message or "")
+    assert 0 < len(m.records) < 2                  # 첫 패스는 했고 둘째는 시작하지 않았다
+    assert st[-1]["battery"]["need_pct"] > 0
+    assert sim.mode in ("HOLD", "RTL") and not cap.path.exists()
+
+
+def test_enough_battery_flies_all(tmp_path):
+    plan, sim, cap, m, st = build(tmp_path, ack=False)
+    sim.battery_pct = 95.0
+    assert asyncio.run(m.run()) == "done"
+    assert st[-1]["battery"]["battery_pct"] < 95.0

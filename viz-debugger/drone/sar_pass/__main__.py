@@ -74,6 +74,7 @@ def build_parser() -> argparse.ArgumentParser:
         q.add_argument("--extra-passes", type=int, default=2, help="무효 패스를 다시 날 최대 횟수")
         q.add_argument("--cap-ack", type=Path, help="레이더 확인 파일 경로 (예: /home/physical/CAP_ACK)")
         q.add_argument("--cap-lead", type=float, help="미리 켜고 끄는 시간(s). 안 주면 잰 레이더 지연으로 자동")
+        q.add_argument("--min-battery", type=float, default=30.0, help="다음 패스 + 복귀 뒤에도 남아야 할 배터리 %%")
     sub.choices["run"].add_argument("--connect", default="udpin://0.0.0.0:14540", help="MAVSDK 주소")
     ts = sub.add_parser("timesync", help="파이 시계와 FC(GPS) 시각의 차이를 재고, --apply 면 맞춘다")
     ts.add_argument("--connect", default="udpin://0.0.0.0:14540")
@@ -107,7 +108,7 @@ def make_plan(a: argparse.Namespace, here: tuple[float, float] | None) -> SarPla
         speed_tol=a.speed_tol, heading_tol=a.heading_tol, cross_tol=a.cross_tol, stable_hold_s=a.stable_hold,
         allow_clock_skew=a.allow_clock_skew,
         q_cross_m=a.q_cross, q_speed_mps=a.q_speed, q_alt_m=a.q_alt, q_heading_deg=a.q_heading, q_edge_m=a.q_edge,
-        extra_passes=a.extra_passes, cap_lead_s=a.cap_lead,
+        extra_passes=a.extra_passes, cap_lead_s=a.cap_lead, min_battery_pct=a.min_battery,
     )
 
 

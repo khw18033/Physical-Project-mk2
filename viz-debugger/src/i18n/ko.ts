@@ -2817,4 +2817,10 @@ export const ko: Record<string, string> = {
   'cr.wavelength': '파장',
   'cr.bandwidth': '대역폭',
   'cr.prf': 'PRF',
+  'sar.plan.minBattery': '예비 배터리',
+  'sar.plan.minBatteryHint': '다음 패스와 홈 복귀를 마친 뒤에도 이만큼은 남아야 다음 패스를 시작합니다',
+  'sar.rule.battery': '예비 배터리는 10~80 % 입니다',
+  'sar.live.battery': '배터리 어림',
+  'sar.live.batteryValue': '남음 {b}% · 다음 패스+복귀 {need}% · 소모 {rate}%/분',
+  'sar.data.report': '비행 보고서',
 };

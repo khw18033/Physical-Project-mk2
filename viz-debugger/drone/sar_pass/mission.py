@@ -88,6 +88,10 @@ class MissionAborted(Exception):
     pass
 
 
+class LowBattery(Exception):
+    pass
+
+
 class PilotOverride(Exception):
     pass
 
@@ -125,6 +129,7 @@ class SarPlan:
     q_edge_m: float = 2.0          # 실제 기록이 구간 시작보다 늦게 · 끝보다 일찍 끝난 허용 거리
     extra_passes: int = 2          # 무효 패스를 다시 날 수 있는 최대 횟수
     cap_lead_s: float | None = None  # None 이면 잰 레이더 지연으로 자동
+    min_battery_pct: float = 30.0    # 다음 패스 + 홈 복귀 뒤에도 이만큼은 남아야 시작한다
 
     @property
     def line(self) -> PassLine:
@@ -154,6 +159,8 @@ class SarPlan:
         if not (0 < self.speed_tol <= 1.0 and 0 < self.heading_tol <= 30 and 0 < self.cross_tol <= 10
                 and 0 <= self.stable_hold_s <= 5):
             out.append("등속 판정 기준이 범위 밖 (speed_tol ≤1 · heading_tol ≤30 · cross_tol ≤10 · stable_hold_s ≤5)")
+        if not (10 <= self.min_battery_pct <= 80):
+            out.append("min_battery_pct 는 10~80")
         if not (0 <= self.extra_passes <= 10):
             out.append("extra_passes 는 0~10")
         if self.cap_lead_s is not None and not (0 <= self.cap_lead_s <= MAX_CAP_LEAD_S):
@@ -190,6 +197,8 @@ class SarPlan:
                 kw[key] = float(p[key])
         if "extra_passes" in p:
             kw["extra_passes"] = int(round(p["extra_passes"]))
+        if "min_battery_pct" in p:
+            kw["min_battery_pct"] = float(p["min_battery_pct"])
         if "cap_lead_s" in p and p["cap_lead_s"] >= 0:
             kw["cap_lead_s"] = float(p["cap_lead_s"])
         return cls(**kw)
@@ -277,6 +286,8 @@ class SarMission:
         self._on_latencies: list[float] = []
         self._off_latencies: list[float] = []
         self.extra_lead_m = 0.0     # 적응형 가속 구간 — 등속이 늦게 잡힌 만큼 다음 패스 앞을 늘린다
+        self._battery_log: list[tuple[float, float]] = []
+        self.battery_estimate: dict | None = None
 
     # ── 바깥에서 부르는 것 ──────────────────────────────────────────────────
     def abort(self) -> None:
@@ -297,6 +308,7 @@ class SarMission:
             attempt = 0
             limit = self.plan.passes + self.plan.extra_passes
             while self.valid_passes < self.plan.passes and attempt < limit:
+                await self._check_battery()
                 attempt += 1
                 await self._fly_pass(attempt)
             if self.valid_passes >= self.plan.passes:
@@ -305,6 +317,10 @@ class SarMission:
             else:
                 outcome = "incomplete"
                 self.message = f"유효 패스 {self.valid_passes}/{self.plan.passes} — 시도 {attempt}회를 다 썼다"
+        except LowBattery as exc:
+            outcome = "incomplete"
+            self.message = f"배터리 때문에 멈췄다 — {exc} (유효 {self.valid_passes}/{self.plan.passes})"
+            log.warning(self.message)
         except MissionAborted:
             outcome = "aborted"
             self.message = "사람이 중단했다"
@@ -372,6 +388,32 @@ class SarMission:
             log.warning(self.warnings[-1])
         if self.cap.ack_path is None:
             self.warnings.append("레이더 확인(CAP_ACK) 경로가 없다 — 실제 기록 시각은 모르고 요청 시각만 남는다")
+
+    async def _check_battery(self) -> None:
+        """다음 패스 + 홈 복귀에 쓸 배터리를 **비행 중 잰 소모율**로 어림한다. 모자라면 시작하지 않는다."""
+        tel = await self._tel()
+        if tel.battery_pct is None:
+            return
+        now = self.v.clock.now()
+        self._battery_log.append((now, tel.battery_pct))
+        rate = 0.08                                   # 처음 값 (X500 이 20 분 남짓) — 잰 값이 생기면 그것
+        if len(self._battery_log) >= 2 and now - self._battery_log[0][0] > 20:
+            t0, b0 = self._battery_log[0]
+            rate = max(0.02, (b0 - tel.battery_pct) / (now - t0))
+        p, line = self.plan, self.plan.line
+        lead = p.effective_lead_in_m + self.extra_lead_m
+        pass_s = (line.length_m + 2 * lead) / p.speed_mps + 2 * p.speed_mps / p.accel_mps2 + p.gap_s + 20.0
+        home_s = 0.0
+        if tel.home is not None and tel.lat is not None:
+            from .geometry import LocalFrame
+            n, e = LocalFrame(*tel.home).to_local(tel.lat, tel.lon)
+            far = math.hypot(n, e) + line.length_m + 2 * lead
+            home_s = far / 5.0 + p.alt_m / 1.0 + 15.0         # 5 m/s 로 돌아와 1 m/s 로 내린다 + 여유
+        need = rate * (pass_s + home_s)
+        self.battery_estimate = {"battery_pct": round(tel.battery_pct, 1), "drain_pct_s": round(rate, 4),
+                                 "next_pass_s": round(pass_s, 1), "home_s": round(home_s, 1), "need_pct": round(need, 1)}
+        if tel.battery_pct - need < p.min_battery_pct:
+            raise LowBattery(f"남은 {tel.battery_pct:.0f}% − 다음 패스·복귀 {need:.0f}% < 예비 {p.min_battery_pct:.0f}%")
 
     def _lead_s(self) -> float:
         """이번 패스의 선행 트리거(초). 지정이 없으면 잰 레이더 지연의 중앙값."""
@@ -757,6 +799,7 @@ class SarMission:
             },
             "clock_offset_s": None if self.clock_offset_s is None else round(self.clock_offset_s, 3),
             "ekf2_hgt_ref": self.hgt_ref,
+            "battery": self.battery_estimate,
             "warnings": list(self.warnings),
             "live": live,
             "passes": [r.public() for r in self.records],

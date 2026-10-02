@@ -71,6 +71,10 @@ def test_list_files_and_bundles(flown):
             with pytest.raises(urllib.error.HTTPError) as e:
                 get(base + bad)
             assert e.value.code == 404
+        _s, h, rb = get(f"{base}/api/flights/{fl[0]['id']}/report.html")
+        page = rb.decode()
+        assert h["Content-Type"].startswith("text/html") and "SAR 비행 보고서" in page and "✓ 유효" in page and "<svg" in page
+        assert "report.html" in zipfile.ZipFile(io.BytesIO(get(f"{base}/api/flights/{fl[0]['id']}/bundle.zip?raw=0")[2])).namelist()
         _s, _h, hb = get(f"{base}/api/health")
         assert json.loads(hb)["disk_free_bytes"] > 0
     finally:

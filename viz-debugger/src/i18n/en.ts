@@ -2793,4 +2793,10 @@ export const en: Record<string, string> = {
   'cr.wavelength': 'Wavelength',
   'cr.bandwidth': 'Bandwidth',
   'cr.prf': 'PRF',
+  'sar.plan.minBattery': 'Battery reserve',
+  'sar.plan.minBatteryHint': 'The next pass starts only if this much remains after it and the return home',
+  'sar.rule.battery': 'Battery reserve is 10–80 %',
+  'sar.live.battery': 'Battery estimate',
+  'sar.live.batteryValue': '{b}% left · next pass + return {need}% · {rate}%/min',
+  'sar.data.report': 'Flight report',
 };

@@ -100,6 +100,11 @@ export function parseSarStatus(body: Record<string, unknown>, topic = ''): SarSt
     maxAttempts: num(body.max_attempts),
     capAck: typeof body.cap_ack === 'boolean' ? body.cap_ack : null,
     ekf2HgtRef: num(body.ekf2_hgt_ref),
+    battery: (() => {
+      const b = obj(body.battery);
+      const bp = num(b?.battery_pct); const need = num(b?.need_pct); const rate = num(b?.drain_pct_s);
+      return bp === null || need === null || rate === null ? null : { batteryPct: bp, needPct: need, drainPctS: rate };
+    })(),
     clockOffsetS: num(body.clock_offset_s),
     warnings: Array.isArray(body.warnings) ? body.warnings.map(str).filter((w): w is string => w !== null) : [],
     message: str(body.message),

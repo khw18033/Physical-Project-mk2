@@ -5,6 +5,7 @@
   GET /api/health                              살아 있나 · 디스크 여유
   GET /api/flights                             비행 목록 (패스 · 유효 여부 · 궤적/메타 파일 · 맞는 레이더 원시 파일)
   GET /api/flights/<id>/files/<name>           궤적 CSV · 메타 JSON 하나
+  GET /api/flights/<id>/report.html           비행 보고서 한 장 (팀원에게 공유)
   GET /api/flights/<id>/bundle.zip[?pass=N][&raw=0|1]
                                                위치 데이터(+원시 레이더) 묶음. raw 기본 1
 
@@ -129,6 +130,11 @@ class Store:
                     "note": "궤적 CSV 의 t_fc 는 FC GPS 시각(UTC 초). 레이더 원시 파일은 cansar 가 쓴 그대로다."}
         with zipfile.ZipFile(tmp.name, "w", compression=zipfile.ZIP_DEFLATED, allowZip64=True) as z:
             z.writestr("manifest.json", json.dumps(manifest, ensure_ascii=False, indent=2))
+            try:
+                from .report import flight_report
+                z.writestr("report.html", flight_report(d, self.passes(d)))
+            except Exception:  # noqa: BLE001 — 보고서가 실패해도 데이터는 묶는다
+                pass
             for f in sorted(d.iterdir()):
                 if not f.is_file():
                     continue
@@ -216,6 +222,19 @@ def make_handler(store: Store):  # noqa: ANN201
                         return self._file(z, f"{parts[2]}{suffix}{'' if raw else '_position'}.zip", "application/zip")
                     finally:
                         os.unlink(z)
+                if len(parts) == 4 and parts[:2] == ["api", "flights"] and parts[3] == "report.html":
+                    d = store.flight(parts[2])
+                    if d is None:
+                        return self._json({"error": "not found"}, 404)
+                    from .report import flight_report
+                    data = flight_report(d, store.passes(d)).encode()
+                    self.send_response(200)
+                    self._cors()
+                    self.send_header("Content-Type", "text/html; charset=utf-8")
+                    self.send_header("Content-Length", str(len(data)))
+                    self.end_headers()
+                    self.wfile.write(data)
+                    return None
                 if parts and parts[0] == "api" and len(parts) >= 3 and parts[-1] == "image":
                     # 다음 단계: 버튼 하나로 SAR 영상 만들기 — 레이더 원시 형식을 받으면 여기에 붙인다.
                     return self._json({"error": "not implemented yet", "todo": "radar raw format needed"}, 501)

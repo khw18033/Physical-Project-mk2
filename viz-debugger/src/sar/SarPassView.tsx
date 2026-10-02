@@ -424,6 +424,7 @@ export function SarPassZoom() {
             {numberField('sar.plan.leadIn', draft.leadInM, (v) => setDraft({ ...draft, leadInM: v }), { step: 1, min: 0, unit: 'm' })}
             <small className="sar-hint">{t('sar.plan.leadInAuto', { m: autoLeadInM(Number.isFinite(draft.speedMps) ? draft.speedMps : SAR_RULES.defaultSpeed).toFixed(1) })}</small>
             {numberField('sar.plan.extraPasses', draft.extraPasses, (v) => setDraft({ ...draft, extraPasses: v }), { step: 1, min: 0, max: 10 })}
+            {numberField('sar.plan.minBattery', draft.minBatteryPct, (v) => setDraft({ ...draft, minBatteryPct: v }), { step: 5, min: 10, max: 80, unit: '%', hintKey: 'sar.plan.minBatteryHint' })}
           </div>
           <div>
             {numberField('sar.plan.qCross', draft.qCrossM, (v) => setDraft({ ...draft, qCrossM: v }), { step: 0.1, min: 0.1, unit: 'm' })}
@@ -509,6 +510,7 @@ function Progress({ report }: { report: SarReport }) {
       <div><dt>{t('sar.live.cross')}</dt><dd>{fmt(live?.crossTrackM, 2)} m</dd></div>
       <div><dt>{t('sar.live.along')}</dt><dd>{fmt(along)} / {fmt(lengthM)} m</dd></div>
       <div><dt>{t('sar.live.mode')}</dt><dd>{live?.flightMode ?? '—'} · {live?.gpsFix ?? '—'}</dd></div>
+      {report.battery && <div><dt>{t('sar.live.battery')}</dt><dd>{t('sar.live.batteryValue', { b: report.battery.batteryPct.toFixed(0), need: report.battery.needPct.toFixed(0), rate: (report.battery.drainPctS * 60).toFixed(1) })}</dd></div>}
       <div><dt>{t('sar.live.learned')}</dt><dd>{t('sar.live.learnedValue', { lead: fmt(last?.leadInM, 0), cap: fmt(last?.capLeadS, 2) })}</dd></div>
       <div><dt>{t('sar.live.clock')}</dt>
         <dd className={report.clockOffsetS !== null && Math.abs(report.clockOffsetS) > 1 ? 'sar-bad' : ''}>
@@ -576,6 +578,7 @@ function DataPanel({ data }: { data: ReturnType<typeof useDataServer> }) {
       <div className="sar-flight-row" onClick={() => setOpen(open === f.id ? null : f.id)}>
         <b>{new Date(f.started_unix * 1000).toLocaleString(undefined, { hour12: false })}</b>
         <span>{t('sar.data.flightInfo', { n: f.passes.length, v: f.valid_passes, size: bytes(f.size_bytes) })}</span>
+        <a className="sar-btn" href={url(f.id, 'report.html')} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}>{t('sar.data.report')}</a>
         <a className="sar-btn" href={url(f.id, 'bundle.zip?raw=0')} onClick={(e) => e.stopPropagation()}>{t('sar.data.positionAll')}</a>
         <a className="sar-btn sar-btn--main" href={url(f.id, 'bundle.zip')} onClick={(e) => e.stopPropagation()}>{t('sar.data.all')}</a>
       </div>

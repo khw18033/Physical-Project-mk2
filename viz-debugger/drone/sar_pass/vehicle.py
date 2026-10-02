@@ -36,6 +36,8 @@ class Telemetry:
     pitch_deg: float | None = None
     alt_amsl_m: float | None = None
     ned: tuple[float, float, float] | None = None   # PX4 로컬 위치(EKF 원점 기준) — 궤적 기록용
+    battery_pct: float | None = None                 # 남은 배터리 % (0~100). 모르면 None
+    home: tuple[float, float] | None = None          # 홈 위경도 — 복귀 거리 계산용
 
     @property
     def ground_speed(self) -> float:
@@ -115,6 +117,8 @@ class SimVehicle:
     tau_s: float = 0.4
     mode: str = "HOLD"
     vel_noise: float = 0.0   # 돌풍 흉내 — 매 걸음 속도에 더하는 표준편차(m/s)
+    battery_pct: float | None = 90.0
+    battery_drain_pct_s: float = 0.08     # X500 이 20 분 남짓 나는 정도
     clock_offset_s: float | None = 0.0
     seed: int = 0
 
@@ -157,6 +161,8 @@ class SimVehicle:
         if self.vel_noise > 0:
             self.vn += self._rng.gauss(0.0, self.vel_noise) * math.sqrt(dt)
             self.ve += self._rng.gauss(0.0, self.vel_noise) * math.sqrt(dt)
+        if self.battery_pct is not None and self.in_air:
+            self.battery_pct = max(0.0, self.battery_pct - self.battery_drain_pct_s * dt)
         self.n += self.vn * dt
         self.e += self.ve * dt
         self.rel_alt_m -= self.vd * dt
@@ -169,7 +175,7 @@ class SimVehicle:
             armed=self.armed, in_air=self.in_air, flight_mode=self.mode,
             gps_fix=self.gps_fix, satellites=24, clock_offset_s=self.clock_offset_s,
             roll_deg=0.0, pitch_deg=-min(12.0, math.hypot(self.vn, self.ve) * 2.0), alt_amsl_m=self.rel_alt_m + 85.0,
-            ned=(self.n, self.e, -self.rel_alt_m),
+            ned=(self.n, self.e, -self.rel_alt_m), battery_pct=self.battery_pct, home=(self.home_lat, self.home_lon),
         )
 
     async def goto(self, lat: float, lon: float, rel_alt_m: float, yaw_deg: float) -> None:

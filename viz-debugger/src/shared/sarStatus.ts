@@ -76,6 +76,8 @@ export type SarStatus = {
   /** 레이더가 지금 「기록 중」이라고 확인하고 있나. null = 확인 경로가 없다. */
   capAck: boolean | null;
   ekf2HgtRef: number | null;
+  /** 다음 패스 전에 드론이 어림한 배터리 — 남은 % · 다음 패스와 복귀에 쓸 % · 잰 소모율(%/s). */
+  battery: { batteryPct: number; needPct: number; drainPctS: number } | null;
   /** 이 컴퓨터(파이) 시계 − FC(GPS) 시각, 초. null 은 모름. */
   clockOffsetS: number | null;
   /** 실행기가 남긴 주의 문장(시계를 모름 · 지난 CAP_ON 을 지움 등). 드론이 쓴 글자 그대로다. */
