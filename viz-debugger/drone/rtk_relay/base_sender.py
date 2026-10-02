@@ -34,6 +34,18 @@ def open_source(args: argparse.Namespace):  # noqa: ANN201
     return serial.Serial(args.port, args.baud, timeout=0.2)
 
 
+def reopen_serial(args: argparse.Namespace):  # noqa: ANN201
+    """USB 가 빠졌다 꽂히면 다시 연다 — 2초마다 시도. 그 사이 보정은 끊기지만 스크립트는 안 죽는다."""
+    while True:
+        try:
+            src = open_source(args)
+            print(f"[base_sender] {args.port} 다시 열었다", flush=True)
+            return src
+        except OSError as exc:
+            print(f"[base_sender] {args.port} 열기 실패 ({exc}) — 2초 뒤 다시", flush=True)
+            time.sleep(2.0)
+
+
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(prog="rtk_relay.base_sender", description="베이스 RTCM3 → Pi (UDP)")
     src = p.add_mutually_exclusive_group(required=True)
@@ -52,16 +64,34 @@ def main(argv: list[str] | None = None) -> int:
     source = open_source(args)
     last_print = 0.0
     print(f"[base_sender] {args.port or args.file} → udp://{dest[0]}:{dest[1]}", flush=True)
+    send_errors = 0
     try:
         while True:
-            chunk = source.read(1024)
+            try:
+                chunk = source.read(1024)
+            except OSError as exc:            # serial.SerialException 도 OSError 다 — USB 빠짐
+                print(f"[base_sender] 베이스 읽기 실패 ({exc})", flush=True)
+                source.close()
+                source = reopen_serial(args)
+                continue
             if not chunk:
                 if args.file:
                     break
                 continue
             for frame in framer.feed(chunk):
                 # 프레임 하나 = UDP 데이터그램 하나 (최대 1029 바이트 — MTU 안쪽)
-                sock.sendto(frame, dest)
+                try:
+                    sock.sendto(frame, dest)
+                except OSError as exc:
+                    # 핫스팟이 끊기면 Windows 는 sendto 에서 「네트워크 연결 불가」를 던진다.
+                    # 여기서 죽으면 와이파이가 돌아와도 보정이 영영 안 간다 — 세고 넘어간다.
+                    send_errors += 1
+                    if send_errors in (1, 10) or send_errors % 100 == 0:
+                        print(f"[base_sender] 전송 실패 {send_errors}회 ({exc}) — 와이파이가 돌아오면 저절로 이어진다", flush=True)
+                    continue
+                if send_errors:
+                    print(f"[base_sender] 전송 다시 됨 (그동안 {send_errors}개 버림)", flush=True)
+                    send_errors = 0
                 stats.note(frame)
                 if args.file:
                     time.sleep(0.02 / max(args.rate, 1e-3))

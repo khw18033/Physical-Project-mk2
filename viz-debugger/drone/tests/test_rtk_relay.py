@@ -138,3 +138,25 @@ def test_stats_receiving_then_stale():
     snap = s.snapshot()
     assert snap["receiving"] is False and snap["age_s"] == 5.0
     assert "끊김" in s.line()
+
+
+def test_sender_survives_network_errors(tmp_path, monkeypatch):
+    """핫스팟이 끊겨 sendto 가 던져도 죽지 않고, 돌아오면 다시 보낸다."""
+    frames = [msm(1077, 50) for _ in range(6)]
+    rec = tmp_path / "b.rtcm"
+    rec.write_bytes(b"".join(frames))
+    real_sendto = socket.socket.sendto
+    calls = {"n": 0}
+    delivered = []
+
+    def flaky(self, data, addr):
+        calls["n"] += 1
+        if 2 <= calls["n"] <= 4:
+            raise OSError(10051, "network unreachable")
+        delivered.append(data)
+        return len(data)
+
+    monkeypatch.setattr(socket.socket, "sendto", flaky)
+    assert base_sender.main(["--file", str(rec), "--to", "127.0.0.1:9", "--rate", "100", "--quiet"]) == 0
+    monkeypatch.setattr(socket.socket, "sendto", real_sendto)
+    assert delivered == [frames[0]] + frames[4:]
