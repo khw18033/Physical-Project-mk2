@@ -53,7 +53,7 @@ viz-debugger(컴퓨터공학과 GUI)에 드론 파트 기능을 붙였다. 화�
 ```bash
 cd viz-debugger/drone
 uv venv --python 3.12 .venv && uv pip install --python .venv/bin/python -e '.[test]'
-.venv/bin/python -m pytest -q          # 49건 — CAP_ON · 시계 · RTK 기록 · RTCM 전달 · 상태판 텔레메트리
+.venv/bin/python -m pytest -q          # 61건 — CAP_ON · 품질/재비행 · 레이더 확인 · RTCM · 상태판 · 데이터 서버 · SAR 영상
 
 # 시뮬레이터를 실제 시간으로 돌리며 상태를 MQTT 로 보낸다 (화면 연습용 — 드론 없이)
 .venv/bin/python -m sar_pass sim --heading 45 --length 80 --cap /tmp/CAP_ON --mqtt <브로커>:1883
@@ -260,6 +260,44 @@ python -m rtk_relay.base_sender --port COM12 --baud 115200 --to <Pi 핫스팟 IP
 - EKF 표시는 PX4 의 `ESTIMATOR_STATUS` 비율로 판정한다(0.5 미만 ✓ · 1 미만 ! · 그 이상 ✕). QGC 와 MicoConfigurator 와 같은 기준이다.
   PX4 가 Onboard 링크로 이 메시지를 안 보내면 칩이 안 뜬다. 그때는 QGC 의 MAVLink 콘솔에서 `mavlink stream -d /dev/ttyS? -s ESTIMATOR_STATUS -r 2` 처럼 켠다.
 
+## 코너리플렉터 확인 · SAR 영상 (`sar_image`)
+
+> 레이더 정보는 `radar.json` 하나다(`sar_image/example_radar.json` 은 **예시 값** — X대역 9.6 GHz · 300 MHz 가정).
+> 파장 · 대역폭 · PRF · 기록 거리 · 안테나 방향(좌/우) · 내려다보는 각 · 빔폭을 레이더 팀이 채운다.
+
+```bash
+# ① 리플렉터가 보일까 — 계획 선과 실제 비행 궤적 둘 다로 판정한다
+python -m sar_image coverage --traj sar_logs/flight_*/pass02_*.csv --radar radar.json --cr 37.56650,126.97839
+#   CR1: ✓ 보인다 · 지상거리 20.0 m · 경사 28.39 m · 진행 40.0 m · 개구 15.21 m (100%) · 빔 안 4.0 s
+
+# ② 레이더 거리-시간 영상에 겹쳐 볼 예상 쌍곡선 (시각 = FC GPS UTC)
+python -m sar_image predict --traj pass02.csv --radar radar.json --cr 37.56650,126.97839 --out cr1_range.csv
+
+# ③ 레이더 없이 영상 형성까지 시험 (실제 궤적 + 합성 리플렉터 신호 → 백프로젝션)
+python -m sar_image simulate --traj pass02.csv --radar radar.json --cr 37.56650,126.97839 --pos-error-mm 20 --autofocus --png out.png
+
+# ④ 실제 영상 — 레이더 원시 형식에 맞춘 어댑터 하나만 쓰면 된다 (sar_image/adapters.py 의 규약)
+python -m sar_image form --traj pass02.csv --radar radar.json --raw radar/pass02 --adapter mymod:load --autofocus-cr 37.5665,126.9784 --png img.png
+```
+
+### 알아낸 것 (PX4 SITL 궤적 · 예시 X대역 기준) — 레이더 팀과 공유할 것
+
+| 궤적 위치 오차 | 리플렉터 봉우리 | 비고 |
+|---|---|---|
+| 0 | 0 dB | 정확한 위치 · 방위 해상도 측정 0.025 m = 이론 0.026 m |
+| 4 mm (λ/8) | −2.5 dB | 한계 |
+| 1 cm | −7.9 dB | |
+| **2 cm (보통 RTK)** | **−13 dB · 0.45 m 엉뚱한 자리** | `screenshots/13_SAR영상_2_*` |
+
+- **RTK 궤적만으로는 X대역 초점이 안 맞는다.** 초점에는 시선 방향 위치를 λ/8(≈4 mm)까지 알아야 한다.
+- **리플렉터 1개 자동 초점**(`--autofocus`): 그 리플렉터는 −13 dB → −1.3 dB 로 돌아오고 제자리에 맺힌다.
+  리플렉터 확인 · 위치 검증에는 충분하다. 다만 둘레 몇 m 만 맞는다(시선 방향이 달라지면 오차가 달라진다).
+- **장면 전체**를 맞추려면 궤적 오차를 3차원으로 알아야 한다 — 리플렉터 **4개 이상이 동시에 빔 안에** 있으면
+  `estimate_trajectory_error` 가 그 구간의 오차를 λ/8 아래로 푼다(3개로는 리플렉터별 상수가 안 풀린다).
+  장면 전체를 덮으려면 선을 따라 리플렉터를 촘촘히 깔거나, 데이터 기반 자동 초점(PGA · 최소 엔트로피)이 다음 단계다.
+- 파장이 길수록(L · C대역) 요구 정밀도가 그만큼 풀린다.
+- 빔폭은 **안테나 면에서** 잰다 — 수평면에서 재면 개구가 짧게 잡힌다(28 m 에서 10.7 m vs 실제 15.2 m).
+
 ## 실행
 
 ```bash
@@ -392,6 +430,9 @@ def act_sar_abort(node, params):
 | `drone/sar_pass/check.py` | 비행 전 점검(`python -m sar_pass check`) |
 | `drone/rtk_relay/base_sender.py` | 노트북: 베이스 RTCM3 → UDP |
 | `drone/rtk_relay/fc_injector.py` | Pi: UDP → GPS_RTCM_DATA → FC, 상태 MQTT `…/rtcm` |
+| `drone/sar_image/` | 리플렉터 커버리지 · 예상 거리 이력 · 백프로젝션 · 리플렉터 자동 초점 · 레이더 어댑터 규약 |
+| `drone/sar_data/` | Pi: 비행 데이터 서버(위치 · 레이더 원시 ZIP) |
+| `drone/sitl/` | PX4 SITL 비행 스크립트 · 흉내 레이더 |
 | `drone/fc_watch/` | Pi: FC MAVLink → 상태판 텔레메트리 `…/fcx` (수신 전용) · 시험용 가짜 FC |
 | `src/dronedash/` · `src/physical/fcxFeed.ts` · `src/shared/fcxStatus.ts` | 화면: 드론 상태판 |
 | `drone/rtk_relay/rtcm3.py` · `inject.py` | RTCM3 프레임 · CRC · 1005 베이스 위치 · 조각내기 |

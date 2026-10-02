@@ -9,10 +9,12 @@ dependencies = ["mavsdk-grpc>=3.0", "paho-mqtt>=2.0", "pymavlink>=2.4"]
 test = ["pytest>=8"]
 # 노트북(베이스 쪽)에는 이것만 있으면 된다: pip install pyserial
 base = ["pyserial>=3.5"]
+# 영상 도구(노트북 · 서버): pip install -e ".[image]"
+image = ["numpy>=1.26", "matplotlib>=3.8"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = [".", "tests"]
 
 [tool.setuptools]
-packages = ["sar_pass", "rtk_relay", "fc_watch"]
+packages = ["sar_pass", "rtk_relay", "fc_watch", "sar_data", "sar_image"]

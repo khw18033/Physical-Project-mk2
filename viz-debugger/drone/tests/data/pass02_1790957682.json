@@ -1,0 +1,86 @@
+{
+  "schema": "sar-pass-meta-0.1",
+  "pass": {
+    "pass_no": 2,
+    "start_unix": 1790957696.4834704,
+    "end_unix": 1790957716.4637508,
+    "captured": true,
+    "along_at_start_m": -1.61,
+    "mean_speed_mps": 4.016,
+    "max_speed_err_mps": 0.12199999999999989,
+    "max_cross_track_m": 0.516,
+    "max_alt_err_m": 0.2370014190673828,
+    "max_heading_err_deg": 0.19000000038593612,
+    "fc_start_unix": 1790957696.482,
+    "fc_end_unix": 1790957716.462,
+    "worst_fix": "FIX_3D",
+    "ack_start_unix": 1790957696.884798,
+    "ack_end_unix": 1790957717.0238523,
+    "ack_on_latency_s": 0.401,
+    "ack_off_latency_s": 0.56,
+    "cap_lead_s": 0.42,
+    "lead_in_m": null,
+    "eff_start_along_m": 0.02,
+    "eff_end_along_m": 80.92,
+    "valid": true,
+    "reasons": [],
+    "traj_csv": "pass02_1790957682.csv",
+    "meta_json": "pass02_1790957682.json",
+    "note": "",
+    "duration_s": 19.98
+  },
+  "plan": {
+    "start_lat": 37.56637085270738,
+    "start_lon": 126.9779052688197,
+    "end_lat": 37.56687901657062,
+    "end_lon": 126.97854636562887,
+    "alt_m": 20.0,
+    "speed_mps": 4.0,
+    "passes": 2,
+    "gap_s": 10.0,
+    "lead_in_m": 0.0,
+    "accel_mps2": 1.0,
+    "require_rtk": false,
+    "on_abort": "hold",
+    "on_done": "rtl",
+    "speed_tol": 0.2,
+    "heading_tol": 5.0,
+    "cross_tol": 2.0,
+    "stable_hold_s": 1.0,
+    "max_clock_offset_s": 1.0,
+    "allow_clock_skew": false,
+    "q_cross_m": 1.0,
+    "q_speed_mps": 0.3,
+    "q_alt_m": 0.5,
+    "q_heading_deg": 3.0,
+    "q_edge_m": 2.0,
+    "extra_passes": 2,
+    "cap_lead_s": null
+  },
+  "line": {
+    "length_m": 80.0,
+    "heading_deg": 45.0,
+    "lead_in_m": 28.0
+  },
+  "clock": {
+    "offset_pi_minus_fc_s": 0.001436471939086914,
+    "note": "t_fc = t_pi - offset. t_fc 는 FC 가 GPS 로 맞춘 UTC(초)"
+  },
+  "ekf2_hgt_ref": 1,
+  "base_station": null,
+  "cap": {
+    "path": "/tmp/claude-1005/-home-jhjeong-drone-gui/54f9fa2c-1c31-47f6-90a0-094c0e4c0ee1/scratchpad/sitl7/CAP_ON",
+    "ack_path": "/tmp/claude-1005/-home-jhjeong-drone-gui/54f9fa2c-1c31-47f6-90a0-094c0e4c0ee1/scratchpad/sitl7/CAP_ACK",
+    "measured_on_latencies_s": [
+      0.42,
+      0.401
+    ],
+    "measured_off_latencies_s": [
+      0.338,
+      0.56
+    ]
+  },
+  "control_hz": 50.0,
+  "traj_csv": "pass02_1790957682.csv",
+  "warnings": []
+}
