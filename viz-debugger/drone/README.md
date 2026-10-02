@@ -53,7 +53,7 @@ viz-debugger(컴퓨터공학과 GUI)에 드론 파트 기능을 붙였다. 화�
 ```bash
 cd viz-debugger/drone
 uv venv --python 3.12 .venv && uv pip install --python .venv/bin/python -e '.[test]'
-.venv/bin/python -m pytest -q          # 27건 — 시뮬레이터로 CAP_ON · 시계 · RTK 기록 규칙을 확인한다
+.venv/bin/python -m pytest -q          # 40건 — CAP_ON · 시계 · RTK 기록 · RTCM 전달 규칙을 확인한다
 
 # 시뮬레이터를 실제 시간으로 돌리며 상태를 MQTT 로 보낸다 (화면 연습용 — 드론 없이)
 .venv/bin/python -m sar_pass sim --heading 45 --length 80 --cap /tmp/CAP_ON --mqtt <브로커>:1883
@@ -69,9 +69,10 @@ uv venv --python 3.12 .venv && uv pip install --python .venv/bin/python -e '.[te
 ### 연결 구성
 
 ```
- FC TELEM2 ──UART── Raspberry Pi 5 ── mavlink-router ─┬─ UDP 14541  sar_pass (오프보드 · CAP_ON)
-                                                      ├─ UDP 14543  기존 드론 에이전트 (state · ping)
-                                                      └─ TCP 5760   ◀── 핫스팟 와이파이 ── QGC (노트북)
+ FC TELEM2 ──UART── Raspberry Pi 5 ── mavlink-router ─┬─ UDP 14540  sar_pass (오프보드 · CAP_ON) — MAVSDK 제어 끝점
+   (Pi 팀 drone-mavlink-router)                       ├─ UDP 14541  linkmon · 14542 detect (팀 서비스)
+                                                      ├─ UDP 14543  드론 에이전트 drone-node (state · ping, 수신 전용)
+                                                      └─ TCP 5760   ◀── 핫스팟 와이파이 ── QGC (노트북) · rtk_relay
                      Pi 5: MQTT 브로커 (ws 9001) ◀──── 핫스팟 와이파이 ── 브라우저 (viz-debugger)
 ```
 
@@ -93,21 +94,10 @@ uv venv --python 3.12 .venv && uv pip install --python .venv/bin/python -e '.[te
      - `MAV_1_CONFIG = TELEM 2`
      - `MAV_1_MODE = Onboard`
      - `SER_TEL2_BAUD = 921600`
-2. **mavlink-router** (`/etc/mavlink-router/main.conf`): 기존 에이전트가 이미 쓰고 있으면 이미 있는 블록은 두고, 없는 칸만 더한다.
-   ```ini
-   [General]
-   TcpServerPort = 5760          # QGC 가 여기로 붙는다 — 핫스팟 IP 가 바뀌어도 설정을 안 고친다
-
-   [UartEndpoint fc]
-   Device = /dev/ttyAMA0
-   Baud = 921600
-
-   [UdpEndpoint sar_pass]        # sar_pass 가 udpin://0.0.0.0:14541 에서 기다린다
-   Mode = Normal
-   Address = 127.0.0.1
-   Port = 14541
-   ```
-   QGC: Application Settings → Comm Links → Add → **TCP**, Host = Pi 의 핫스팟 IP, Port = 5760.
+2. **mavlink-router**: Pi 팀의 `drone-mavlink-router`(설정 `~/drone/config/mavlink-router.conf`)가 이미 끝점을 열어 두었다
+   (14540 MAVSDK 제어 · 14541 linkmon · 14542 detect · 14543 drone-node · TCP 5760 QGC). **설정을 바꿀 필요가 없다.**
+   - `sar_pass` 는 14540 에 붙는다. 이 끝점은 「한 번에 하나」라 SAR 비행 중에는 점검 스크립트(`check_link` 등)를 같이 돌리지 않는다.
+   - QGC: Application Settings → Comm Links → Add → **TCP**, Host = Pi 의 핫스팟 IP, Port = 5760.
 3. **브라우저 → MQTT**: 화면 ⇄ 연결 관리의 물리 장비 칸에 `ws://<Pi 핫스팟 IP>:9001` 을 적는다.
    - 기본 프리셋(`pi3.tailcb6bfb.ts.net`)은 Tailscale 이름이라, 핫스팟에 인터넷이 없으면 안 닿는다.
    - 핫스팟이 IP 를 바꿀 수 있으니, 핫스팟 기기에서 Pi 에 고정 IP 를 주거나 `<호스트명>.local`(mDNS)을 쓴다.
@@ -119,12 +109,8 @@ uv venv --python 3.12 .venv && uv pip install --python .venv/bin/python -e '.[te
    - `NAV_DLL_ACT` · `COM_DL_LOSS_T`: **지상국(QGC) 링크가 끊겼을 때의 페일세이프.** 핫스팟이라 실제로 끊길 수 있다.
      이것이 RTL 등으로 모드를 바꾸면 실행기는 조종기 개입과 같게 보고 CAP_ON 을 지운 뒤 멈춘다(안전한 쪽).
      오프보드 제어는 파이 안에서 닫히므로, 와이파이 순단 때문에 패스가 끊기는 것이 싫다면 이 동작을 팀이 정한다.
-5. **RTK**:
-   - 지상 베이스 수신기를 QGC 가 도는 PC 에 연결한다.
-   - QGC 의 RTK 설정에서 Survey-in 을 마치면 QGC 가 RTCM 을 텔레메트리로 FC 에 주입한다.
-   - 화면의 「RTK 상태」 노드는 드론 에이전트가 보내는 `gps.fix_type`(또는 `gps.fix`)을 읽는다.
-     에이전트가 `fix_type` 5/6 을 그대로 실어 주면 RTK Float/Fixed 가 바로 구분된다.
-   - 실행기는 기본으로 **RTK Fixed 가 아니면 시작을 거절한다**. 끄려면 `--no-rtk` 를 주거나 화면에서 체크를 해제한다.
+5. **RTK**: 보정(RTCM) 넣는 길은 둘이다. 아래 「RTK 보정 넣기」를 본다. **둘 중 하나만 쓴다.**
+   실행기는 기본으로 **RTK Fixed 가 아니면 시작을 거절한다**. 끄려면 `--no-rtk` 를 주거나 화면에서 체크를 해제한다.
 6. **설치 (Pi 5)**:
    ```bash
    cd drone && python3 -m venv .venv && .venv/bin/pip install -e .   # mavsdk-grpc 가 aarch64 용 mavsdk_server 를 같이 받는다
@@ -138,7 +124,7 @@ uv venv --python 3.12 .venv && uv pip install --python .venv/bin/python -e '.[te
 ## 비행 전 점검 — 날지 않는다
 
 ```bash
-.venv/bin/python -m sar_pass check --connect udpin://0.0.0.0:14541 --mqtt 127.0.0.1:1883
+.venv/bin/python -m sar_pass check --connect udpin://0.0.0.0:14540 --mqtt 127.0.0.1:1883
 ```
 
 ```
@@ -146,7 +132,7 @@ uv venv --python 3.12 .venv && uv pip install --python .venv/bin/python -e '.[te
  ✓  시계 동기화       NTP 동기화됨
  ✓  cansar.service    active
  ✓  MQTT 브로커       127.0.0.1:1883
- ✓  FC 연결           udpin://0.0.0.0:14541
+ ✓  FC 연결           udpin://0.0.0.0:14540
  ✓  GPS fix           RTK_FIXED · 위성 27개
  ✓  시계 오차         이 컴퓨터 − FC(GPS) = +0.041 s
 ```
@@ -181,6 +167,57 @@ python -m sar_pass run ... --speed-tol 0.3 --heading-tol 5 --cross-tol 2 --stabl
 
 화면에서 보낼 때는 `sar_start` 파라미터 `speed_tol` · `heading_tol` · `cross_tol` · `stable_hold_s` 로 실린다.
 안 주면 기본값(0.2 m/s · 5° · 2 m · 1 s)이다.
+
+## RTK 보정 넣기 (PX4 · QGroundControl)
+
+PX4 는 MAVLink `GPS_RTCM_DATA` 로 들어온 보정을 GPS 모듈로 그대로 흘린다. 보내는 쪽이 QGC 든 스크립트든 PX4 쪽 설정은 같다.
+**두 방법을 동시에 쓰지 않는다.** 같은 베이스를 둘이 열 수 없고, 같이 넣으면 FC 에 보정이 두 번 들어간다.
+
+### 방법 A — QGC 내장 기능 (스크립트 없음)
+
+```
+ 베이스 ─USB─▶ 노트북 QGC ─TCP 5760(핫스팟)─▶ Pi mavlink-router ─▶ FC
+```
+
+1. 베이스 수신기를 QGC 노트북에 USB 로 꽂는다(u-blox M8P/F9P 계열은 QGC 가 자동 인식).
+2. QGC → Application Settings → **RTK GPS**: Survey-in 정확도·시간을 정하거나 고정 기지국 좌표를 넣는다.
+3. QGC 상단에 RTK 아이콘이 생기고, Survey-in 이 끝나면 QGC 가 보정을 기체 링크(TCP 5760)로 보낸다.
+4. 화면 「RTK 상태」의 fix 가 RTK Float → Fixed 로 오르는지 본다. 「보정(RTCM)」 줄은 「전달기 보고 없음」으로 남는다(정상).
+
+### 방법 B — 스크립트 직접 전달 (`rtk_relay`, 추천)
+
+```
+ 베이스 ─USB─▶ 노트북 base_sender.py ─UDP 14660(핫스팟)─▶ Pi fc_injector.py ─GPS_RTCM_DATA─▶ mavlink-router(TCP 5760) ─▶ FC
+```
+
+- QGC 를 안 켜도 된다. Pi 팀 mavlink-router 설정도 바꾸지 않는다(QGC 와 같은 TCP 5760 에 손님으로 붙는다).
+- 화면 「RTK 상태」에 **보정 수신 중 / 끊김**, 초당 프레임, 베이스 위치(1005/1006)가 뜬다. 그래서 Float 로 떨어졌을 때
+  보정이 끊겨서인지 하늘이 나빠서인지 가를 수 있다.
+
+```bash
+# Pi (상주 — 보정이 이륙 전부터 계속 흘러야 Fixed 가 잡힌다)
+.venv/bin/python -m rtk_relay.fc_injector --listen 0.0.0.0:14660 --fc tcp:127.0.0.1:5760 --mqtt 127.0.0.1:1883
+
+# 노트북 (Windows 예 — pip install pyserial, drone/ 폴더에서)
+python -m rtk_relay.base_sender --port COM5 --baud 115200 --to <Pi 핫스팟 IP>:14660
+```
+
+- **베이스 설정**: 베이스가 이미 RTCM3 를 내보내고 있어야 한다.
+  - u-blox 면 u-center 에서 Survey-in(또는 고정 좌표)을 설정한다.
+  - 출력 메시지는 1005, MSM(1077 · 1087 · 1097 · 1127), 1230 을 켠다.
+  - 설정은 플래시에 저장해 둔다(방법 A 는 QGC 가 이것을 대신 해 준다).
+- 노트북 스크립트는 CRC 가 맞는 RTCM3 프레임만 보낸다(NMEA 등이 섞여도 걸러진다). 5초마다 「보정 수신 중 · B/s · 메시지 · 베이스 위치」를 찍는다.
+- Pi 스크립트는 받은 프레임을 다시 검사한다. 180 바이트씩 최대 4조각으로 나눠 `GPS_RTCM_DATA` 로 넣는다(QGC 와 같은 규칙).
+  MAVLink 시스템 ID 는 252 를 쓴다(QGC 255 · MAVSDK 245 와 안 겹치게).
+- 기존 MAVLink 프로그램(예: `cansar_pi.py`)에 직접 붙이려면 아래 한 줄이면 된다. 그 프로그램의 pymavlink 연결을 쓴다.
+  ```python
+  from rtk_relay.inject import PymavlinkInjector
+  from rtk_relay.rtcm3 import Framer
+  inj, framer = PymavlinkInjector(master), Framer()
+  for frame in framer.feed(udp_bytes): inj.send_frame(frame)
+  ```
+- 핫스팟 와이파이에 의존하는 것은 방법 A 와 같다. 끊기면 화면에 「보정 끊김 · N초째」가 뜨고, 몇 초 뒤 Fixed 가 Float 로 떨어질 수 있다.
+  캡처 중 가장 나빴던 fix 는 패스 기록의 「RTK 최저」에 남는다.
 
 ## 실행
 
@@ -244,29 +281,61 @@ Ctrl-C 를 누르면 중단한다. CAP_ON 을 지우고 hold 한다(`--rtl-on-ab
 
 ### 드론 에이전트 연동 (Pi 쪽 할 일)
 
-`terminal/<id>/downlink` 를 받는 기존 에이전트에 아래를 더하면 된다.
+pi3 의 드론 에이전트(`drone-node.service`)는 **저장소 어느 브랜치에도 없고 Pi 에만 있다**
+(`~/hw/pi/drone/drone_node.py` · `drone_link.py`). HW 브랜치의 공통 틀 `pi/common/` 을 상속한다.
+정확한 패치는 그 파일을 Pi 에서 받아 와서 쓴다. 공통 틀에서 확인한 사실은 다음과 같다.
+- **Capability**: 노드의 `ACTIONS` 사전의 키가 그대로 선언된다(`pi/common/physical_command.py`).
+- **처리 순서**: 명령이 오면 미선언 확인(UNIMPLEMENTED) → `validate(action, params)` → Acceptance → 스레드에서 실행.
+- **스레드 방식이다(asyncio 아님).** paho 망 스레드에서 받아 명령마다 데몬 스레드로 돈다.
+
+`SarController` 는 asyncio 라 전용 루프 하나를 데몬 스레드로 띄워 붙인다. `common/` 은 고치지 않는다.
 
 ```python
-from sar_pass.controller import SarController, ACTIONS
+import asyncio, threading
+from pathlib import Path
+from sar_pass.controller import SarController, ACTIONS as SAR_ACTIONS
 from sar_pass.capture import CaptureFlag
 from sar_pass.mavsdk_vehicle import MavsdkVehicle
-from sar_pass.status import MqttStatusPublisher
+from common.physical_command import CommandError
 
-async def make_vehicle():
-    v = MavsdkVehicle("udpin://0.0.0.0:14541"); await v.connect(); return v
+class DroneNode(BaseNode):
+    ACTIONS = {"ping": act_ping_drone, "sar_start": act_sar_start, "sar_abort": act_sar_abort}  # ① 선언
 
-sar = SarController(make_vehicle, CaptureFlag(), MqttStatusPublisher("127.0.0.1", 1883, device_id="x500-001"),
-                    log_dir=Path("/home/physical/sar_logs"))
+    def __init__(self, ...):
+        self._aloop = asyncio.new_event_loop()                        # BaseNode.__init__ 이 곧바로 붙으므로 그 전에
+        threading.Thread(target=self._aloop.run_forever, daemon=True).start()
+        async def make_vehicle():
+            v = MavsdkVehicle("udpin://0.0.0.0:14540"); await v.connect(); return v
+        self.sar = SarController(make_vehicle, CaptureFlag(), status_sink=self._publish_sar,
+                                 log_dir=Path("/var/lib/drone-node/sar"))  # ProtectSystem=strict → StateDirectory
+        super().__init__(...)
 
-capability_actions = ["ping", *ACTIONS]                      # ① Capability 에 선언
-...
-if command.action in ACTIONS:                                # ② 받으면 넘기고
-    reply = await sar.handle(command.action, dict(command.parameters))
-    send_acceptance(command.command_id, reply["accepted"],   # ③ Acceptance 로 답한다
-                    code=reply["code"], message=reply["message"])
+    def _sar_call(self, action, params, timeout=10):
+        return asyncio.run_coroutine_threadsafe(self.sar.handle(action, dict(params)), self._aloop).result(timeout)
+
+    def validate(self, action, params):                                # ② Acceptance 전에 — 거절은 거절로
+        if action in SAR_ACTIONS:
+            r = self._sar_call(action, params)
+            if not r["accepted"]:
+                raise CommandError(r["code"] or "FAILED_PRECONDITION", r["message"])
+
+def act_sar_start(node, params):                                       # ③ 실행 단계 보고
+    yield "executing", None
+    yield "completed", {"started": 1.0}
+
+def act_sar_abort(node, params):
+    yield "completed", {"aborted": 1.0}
 ```
 
-연동 전에도 쓸 수 있다. pi3 에서 `python -m sar_pass run … --mqtt` 로 직접 돌리면 화면은 감시용으로 그대로 동작한다.
+- `_publish_sar` 는 MQTT `zoneA/drone/x500-001/sar`(retained)로 낸다. `sar_pass.status.MqttStatusPublisher` 와 같은 모양이다.
+- `validate` 는 paho 망 스레드에서 돈다. MAVSDK 연결(최대 수 초)이 길어지면 MQTT 입출력이 그동안 멈춘다.
+  기동 때 미리 붙여 두거나 시한을 짧게 둔다.
+- 협의할 것(HW 담당):
+  - 계약 §0·§4 의 「보기 전용 · FC 로 0 바이트」가 바뀐다. `drone_link` 의 `tx_bytes` 는 여전히 0 이다(MAVSDK 는 자기 소켓을 쓴다).
+  - 14540 은 점검 스크립트와 한 번에 하나씩 쓴다.
+  - `drone-node.service` 가 쓰는 venv 에 `mavsdk-grpc` 를 넣어야 한다.
+
+연동 전에도 쓸 수 있다. Pi 에서 `python -m sar_pass run … --mqtt` 로 직접 돌리면 화면은 감시용으로 그대로 동작한다.
 
 ## 파일
 
@@ -280,6 +349,10 @@ if command.action in ACTIONS:                                # ② 받으면 넘
 | `drone/sar_pass/controller.py` | 에이전트가 부르는 `sar_start` / `sar_abort` 처리 |
 | `drone/sar_pass/status.py` | 화면으로 상태 보고(MQTT) |
 | `drone/sar_pass/check.py` | 비행 전 점검(`python -m sar_pass check`) |
+| `drone/rtk_relay/base_sender.py` | 노트북: 베이스 RTCM3 → UDP |
+| `drone/rtk_relay/fc_injector.py` | Pi: UDP → GPS_RTCM_DATA → FC, 상태 MQTT `…/rtcm` |
+| `drone/rtk_relay/rtcm3.py` · `inject.py` | RTCM3 프레임 · CRC · 1005 베이스 위치 · 조각내기 |
+| `src/physical/rtcmFeed.ts` · `src/shared/rtcmStatus.ts` | 화면: 보정 전달 상태 수신 |
 | `src/sar/` | 화면: RTK 노드, SAR 패스 노드, 계획 계산 |
 | `src/physical/sarFeed.ts` · `sarCommands.ts` | 화면: 상태 수신, 명령 발행 |
 | `src/shared/sarStatus.ts` | 화면: SAR 상태 저장소 |

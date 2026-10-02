@@ -250,6 +250,12 @@ class SarMission:
             self._close_open_record("중단으로 캡처 종료")
             await self._after(outcome)
             self.state = outcome
+            # 마지막 보고는 hold/RTL 로 바뀐 뒤의 값으로 — 안 그러면 화면에 OFFBOARD 가 남는다.
+            try:
+                await self.v.clock.sleep(0.3)
+                await self._tel()
+            except Exception:  # noqa: BLE001
+                pass
             self._publish(force=True)
         return outcome
 

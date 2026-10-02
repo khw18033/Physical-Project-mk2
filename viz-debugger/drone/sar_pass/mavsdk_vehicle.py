@@ -1,7 +1,9 @@
 """PX4 실기체 — MAVSDK(gRPC 래퍼, `mavsdk-grpc`).
 
 pi3 의 mavlink-router 에 이 프로세스용 UDP 끝점을 하나 더 열어 두고 거기에 붙는다
-(기본 `udpin://0.0.0.0:14541`). 기존 드론 에이전트의 포트(14543)와 겹치지 않게 한다.
+(기본 `udpin://0.0.0.0:14540`). Pi 의 mavlink-router 가 이미 열어 둔 MAVSDK 제어 끝점이다
+— 14541 은 linkmon, 14542 는 detect, 14543 은 드론 에이전트(drone-node)가 쓴다. 14540 은 「한 번에 하나」라
+SAR 비행 중에는 점검 스크립트(check_link 등)를 같이 돌리지 않는다.
 """
 
 from __future__ import annotations
@@ -25,7 +27,7 @@ _MODE = {"RETURN_TO_LAUNCH": "RTL"}
 
 
 class MavsdkVehicle:
-    def __init__(self, system_address: str = "udpin://0.0.0.0:14541") -> None:
+    def __init__(self, system_address: str = "udpin://0.0.0.0:14540") -> None:
         self.address = system_address
         self.clock = WallClock()
         self.system = mavsdk.System()

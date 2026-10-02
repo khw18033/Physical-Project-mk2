@@ -390,7 +390,8 @@ function PassPreview({ draft, here, live }: { draft: SarPlanDraft; here: LatLon 
       <text className="sar-pv-label sar-pv-label--dim" x={x(pts.leadIn) + 8} y={y(pts.leadIn) + 16}>{t('sar.preview.leadIn')}</text>
       {drone !== null && <>
         <circle className="sar-pv-drone" cx={x(drone)} cy={y(drone)} r={7} />
-        <text className="sar-pv-label" x={x(drone) + 10} y={y(drone) + 4}>{t('sar.preview.drone')}</text>
+        {/* 선의 라벨(캡처 시작·끝)과 겹치지 않게 드론 라벨은 점의 왼쪽 아래에 둔다. */}
+        <text className="sar-pv-label sar-pv-label--drone" x={x(drone) - 10} y={y(drone) + 18} textAnchor="end">{t('sar.preview.drone')}</text>
       </>}
       {/* 북 화살표 · 축척 */}
       <g transform={`translate(${W - 24},28)`}>

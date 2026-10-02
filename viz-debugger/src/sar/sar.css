@@ -83,3 +83,10 @@
 .sar-pv-scale{stroke:#26303c;stroke-width:2}
 .sar-pv-label{font-size:12px;fill:#26303c}
 .sar-pv-label--dim{fill:#8392a3}
+/* RTK 보정(RTCM) 전달 상태 */
+.rtcm-line{display:inline-block;padding:1px 8px;border-radius:999px;font-size:12px;border:1px solid}
+.rtcm-line--on{color:#125c33;background:#edf9f1;border-color:#55b77a}
+.rtcm-line--off{color:#a33a3a;background:#fbe3e3;border-color:#e15a5a}
+.rtcm-line--never{color:#8a6410;background:#fdf1d8;border-color:#d39b2a}
+.rtcm-line--unknown{color:#6b7888;background:#fff;border-color:#cbd3dc;border-style:dashed}
+.sar-pv-label--drone{fill:#1768c5;font-weight:700}

@@ -8,7 +8,7 @@
   python -m sar_pass sim --mqtt 127.0.0.1:1883 --cap /tmp/CAP_ON
 
   # 비행 전 점검 (날지 않는다)
-  python -m sar_pass check --connect udpin://0.0.0.0:14541 --mqtt 127.0.0.1:1883
+  python -m sar_pass check --connect udpin://0.0.0.0:14540 --mqtt 127.0.0.1:1883
 
 Ctrl-C · SIGTERM 은 중단이다 — CAP_ON 을 지우고 hold(또는 --rtl-on-abort 면 RTL).
 """
@@ -62,7 +62,7 @@ def build_parser() -> argparse.ArgumentParser:
         g.add_argument("--cross-tol", type=float, default=CROSS_TOL, help="횡오차 허용(m)")
         g.add_argument("--stable-hold", type=float, default=STABLE_HOLD_S, help="위 조건 유지 시간(s)")
         g.add_argument("--allow-clock-skew", action="store_true", help="시계 오차가 커도 시작한다(기록에 남김)")
-    sub.choices["run"].add_argument("--connect", default="udpin://0.0.0.0:14541", help="MAVSDK 주소")
+    sub.choices["run"].add_argument("--connect", default="udpin://0.0.0.0:14540", help="MAVSDK 주소")
     c = sub.add_parser("check", help="비행 전 점검 — 날지 않는다")
     c.add_argument("--cap", type=Path, default=DEFAULT_CAP_PATH)
     c.add_argument("--connect", help="MAVSDK 주소 (주면 FC · GPS · 시계 오차까지 본다)")

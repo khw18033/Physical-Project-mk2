@@ -210,6 +210,25 @@ const params = plan.toStartParams({
   console.log('✅ 계획 — 경계값 다섯이 드론과 같다 · 자동 가속 구간 같은 식 · 위반 다섯을 잡는다');
 }
 
+// ── 8. RTK 보정 전달기 보고 ─────────────────────────────────────────────────
+{
+  const { parseRtcmStatus, rtcmChannel, RTCM_TOPIC } = await load('src', 'physical', 'rtcmFeed.ts');
+  const body = { source_id: 'x500-001', receiving: true, age_s: 0.4, frames_per_s: 4.1, rate_bps: 812.5, frames: 120,
+    types: { '1005': 3, '1077': 40, junk: 1 }, base: { station_id: 7, lat: 36.35, lon: 127.29, alt_m: 85.1 },
+    sender: '192.168.43.20:51234', injected_messages: 200, bad_crc: 0 };
+  const r = parseRtcmStatus(body, 'zoneA/drone/x500-001/rtcm');
+  check(r !== null && r.receiving && r.ageS === 0.4 && r.base?.stationId === 7, '보정 전달기 보고를 못 뜯었다');
+  check(r?.types.join() === '1005,1077', '메시지 번호가 아닌 키를 걸러 내지 않았다');
+  check(parseRtcmStatus({ ...body, receiving: 'yes' }) === null, 'receiving 이 참거짓이 아닌 보고를 받아들였다');
+  check(parseRtcmStatus({ ...body, base: null, age_s: null })?.base === null, '베이스 위치가 없을 때 모름(null)이 아니다');
+  check(rtcmChannel('zoneA/drone/x500-001/rtcm') && RTCM_TOPIC.split('/')[2] === '+', 'RTCM 토픽 규칙이 틀렸다');
+  const src = read('src', 'physical', 'PhysicalClient.ts');
+  check(/client\.subscribe\(RTCM_TOPIC/.test(src), 'PhysicalClient 가 RTCM 토픽을 구독하지 않는다');
+  check(src.indexOf('if (rtcmChannel(topic))') < src.indexOf('for (const listener of this.deviceListeners)'),
+    'RTCM 보고가 장비 상태 표보다 먼저 갈라지지 않는다');
+  console.log('✅ 보정 전달기 — 보고 뜯기 · 숫자 아닌 메시지 키 거름 · 베이스 모름 · 구독과 분기');
+}
+
 // ── 7. RTK 등급 ─────────────────────────────────────────────────────────────
 {
   const cases = [

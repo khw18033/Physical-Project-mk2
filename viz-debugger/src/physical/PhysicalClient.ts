@@ -38,6 +38,8 @@ import { physical } from './protocol.js';
 import { parseScanFeed, scanFeedChannel, type ScanFeedMessage } from './scanFeed.ts';
 import { parseSarStatus, SAR_TOPIC, sarChannel } from './sarFeed.ts';
 import { noteSarStatus } from '../shared/sarStatus.ts';
+import { parseRtcmStatus, RTCM_TOPIC, rtcmChannel } from './rtcmFeed.ts';
+import { noteRtcmStatus } from '../shared/rtcmStatus.ts';
 import { decodeCapability, decodeUplink, type UplinkMessage } from './uplink.ts';
 
 const meta = import.meta as unknown as { env?: { VITE_PHYSICAL_WS?: string } };
@@ -318,6 +320,8 @@ export class PhysicalClient {
         for (const topic of SCAN_FEED_TOPICS) client.subscribe(topic, { qos: 1 });
         // 드론 SAR 패스 상태 (261002). retained 라 늦게 붙어도 마지막 상태(특히 「캡처 중」)가 곧바로 온다.
         client.subscribe(SAR_TOPIC, { qos: 0 });
+        // RTK 보정 전달기 상태 (261002) — 「보정이 FC 로 들어가고 있는가」. retained.
+        client.subscribe(RTCM_TOPIC, { qos: 0 });
       }) as () => void);
       client.on('message', ((topic: string, payload: Uint8Array) => {
         // 장비 상태는 **JSON** 이고 명령 응답은 **protobuf** 다. 토픽으로 가른다 —
@@ -330,6 +334,11 @@ export class PhysicalClient {
           if (sarChannel(topic)) {
             const sar = parseSarStatus(body as Record<string, unknown>, topic);
             if (sar !== null) noteSarStatus(sar, this.address());
+            return;
+          }
+          if (rtcmChannel(topic)) {
+            const rtcm = parseRtcmStatus(body as Record<string, unknown>, topic);
+            if (rtcm !== null) noteRtcmStatus(rtcm);
             return;
           }
           // 로봇 → 탐지 흐름은 장비 상태가 아니다 — 다른 귀로 보낸다.

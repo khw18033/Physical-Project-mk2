@@ -3,10 +3,12 @@ name = "sar-pass"
 version = "0.1.0"
 description = "SAR 직선 패스 실행기 — CAP_ON 캡처 트리거, MAVSDK(PX4), GUI 상태 보고"
 requires-python = ">=3.10"
-dependencies = ["mavsdk-grpc>=3.0", "paho-mqtt>=2.0"]
+dependencies = ["mavsdk-grpc>=3.0", "paho-mqtt>=2.0", "pymavlink>=2.4"]
 
 [project.optional-dependencies]
 test = ["pytest>=8"]
+# 노트북(베이스 쪽)에는 이것만 있으면 된다: pip install pyserial
+base = ["pyserial>=3.5"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
