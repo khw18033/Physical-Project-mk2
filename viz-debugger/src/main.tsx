@@ -25,10 +25,12 @@ import { PendingSource } from './shared/PendingSource.tsx';
 import { MissionHistoryList, useMissionEndWatch } from './views/MissionHistory.tsx';
 import { deviceCardOrigin, hardwareSourceLabel, listRegisteredHardware, useDeviceCardIds } from './shared/registry.ts';
 import { startConnectedSweep } from './shared/connectedDevices.ts';
+import { startFixedCameraWatch } from './fixedcam/fixedCamera.ts';
 import { graphShape, shapeLabel } from './graph/shape.ts';
 import { useLang } from './shared/language.ts';
 import { ActionModal } from './views/ActionModal.tsx';
 import { DeviceStatusOverlay } from './views/DeviceStatusOverlay.tsx';
+import { AllCamerasOverlay } from './views/AllCamerasOverlay.tsx';
 import { UtterancePanel } from './views/UtterancePanel.tsx';
 import { StatusLegend } from './views/StatusLegend.tsx';
 import './style.css';
@@ -121,6 +123,8 @@ function Milestones({ view, phase, milestoneStatuses, assignments, onAssign, onO
    * 분할 화면이고, 분할 화면은 곧 탭이 된다 (`VZ-N-05` 와 같은 규칙).
    */
   const [statusDeviceId, setStatusDeviceId] = useState<string | null>(null);
+  /** 「전체 카메라 확인」 판 (261002). 장비 상세와 같이 형제로 얹고, 동시에 하나만 연다. */
+  const [allCamerasOpen, setAllCamerasOpen] = useState(false);
   // 승인·거부는 **마일스톤 목록 위 제안 카드 안**에 있다 (260901). 통합 빌드는 이 슬롯에
   // PlanApproval(근거 4층 + 승인·거부)이 들어오고, 단독 빌드는 로컬 재생기용 폴백이 들어온다 —
   // **같은 자리**다. 근거의 「구간별 계획」이 「아래 마일스톤과 같음」이라고 적으므로
@@ -188,7 +192,10 @@ function Milestones({ view, phase, milestoneStatuses, assignments, onAssign, onO
     {/* **백엔드 서버는 제 칸이다** (261001 지시 — 하드웨어 카드 말고 다른 곳에). 장비가 아니라서 하드웨어 패널에
         두지 않는다. 높이는 내용만큼이고 아래 하드웨어 · 기능이 1:1 을 나눈다. 목 게이트웨이면 칸째 없다. */}
     <ServerCard />
-    <aside className="hardware-panel"><h2>{t('ms.hardwareCount', { n: cards.length })}</h2><p><Rich id="ms.hardwareHint" vars={{ source: hardwareSourceLabel() }} /></p>
+    <aside className="hardware-panel"><header className="hardware-panel__head"><h2>{t('ms.hardwareCount', { n: cards.length })}</h2>
+      {/* 261002 지시 — 제목 오른쪽 빈자리. 장비가 여럿일 때 카메라 상황을 한 번에 본다. */}
+      <button type="button" className="hardware-panel__cams" onClick={() => { setStatusDeviceId(null); setAllCamerasOpen(true); }}>{t('acam.open')}</button>
+    </header><p><Rich id="ms.hardwareHint" vars={{ source: hardwareSourceLabel() }} /></p>
     {/*
       **목록은 지금 붙어 있는 장비다** (260922 지시 — 「드론 연결했으면 드론 하나만」).
 
@@ -210,7 +217,7 @@ function Milestones({ view, phase, milestoneStatuses, assignments, onAssign, onO
         <b className={item?.connection}>{id}</b>
         {/* 대본이 아는 장비는 그 종류를, 붙어서 뜬 것은 **배역인지 연결인지**를 적는다 —
             「연결됨」과 「이번 편 등장」은 다른 말이고, 뭉치면 꺼진 배역을 붙은 것으로 읽는다. */}
-        <small>{item === undefined ? t(deviceCardOrigin(id) === 'cast' ? 'ms.scriptDevice' : connectedDevice(id)?.source === 'server' ? 'ms.serverDevice' : 'ms.connectedDevice') : item.kind}</small>
+        <small>{item === undefined ? t(deviceCardOrigin(id) === 'cast' ? 'ms.scriptDevice' : connectedDevice(id)?.source === 'server' ? 'ms.serverDevice' : connectedDevice(id)?.source === 'camera' ? 'ms.fixedCameraDevice' : 'ms.connectedDevice') : item.kind}</small>
         {item === undefined
           ? <HardwareLink entityId={id} />
           : <span><PendingSource id="hardware-pool-status" inline>{item.connection} · {item.battery}% · {item.rssi} dBm</PendingSource></span>}
@@ -227,7 +234,8 @@ function Milestones({ view, phase, milestoneStatuses, assignments, onAssign, onO
       deviceId={statusDeviceId}
       device={hardware.find((item) => item.id === statusDeviceId)}
       source={hardwareSourceLabel()}
-      onClose={() => setStatusDeviceId(null)} />}</div>;
+      onClose={() => setStatusDeviceId(null)} />}
+    {allCamerasOpen && <AllCamerasOverlay onClose={() => setAllCamerasOpen(false)} />}</div>;
 }
 
 function ReplayControls({ second, following, playing, onChange, onFollow, view, trace, tasks }: {
@@ -543,6 +551,8 @@ export function MissionDebugger({ navigation, planApproval }: { navigation?: Deb
    * 아무도 저장소를 안 건드리고, 그러면 꺼진 장비의 카드가 그대로 남는다.
    */
   useEffect(() => startConnectedSweep(), []);
+  // 261002 — 고정 카메라. 연결 관리에 적힌 주소에서 10초마다 한 장씩 받아 보고, 받아지면 카드가 뜬다.
+  useEffect(() => startFixedCameraWatch(), []);
 
   /**
    * **로봇 응답 수신** (260910). 여기 두는 이유는 위 관측과 같다 — 이 화면은 두 빌드가

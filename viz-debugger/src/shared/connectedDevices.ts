@@ -46,7 +46,8 @@ export const CONNECTED_WINDOW_MS = 30_000;
 
 /** 어느 길로 들어왔는가. 화면이 「무엇을 보고 있는지」를 감추지 않는다. */
 /** `server` (261001) — 백엔드 `/state` 로 온 실물 장비(공통 헤더를 밝힌 메시지). 목 함대는 `state`. */
-export type ConnectedSource = 'state' | 'mqtt' | 'server';
+/** `camera` (261002) — 고정 카메라. 서버 링크 주소에서 이미지가 받아졌다(`src/fixedcam/`). */
+export type ConnectedSource = 'state' | 'mqtt' | 'server' | 'camera';
 
 export type ConnectedDevice = {
   entityId: string;
@@ -58,6 +59,14 @@ let devices: Readonly<Record<string, ConnectedDevice>> = {};
 const listeners = new Set<() => void>();
 
 function notify(): void {
+  /**
+   * **알리기 전에 캐시를 버린다** (261002 — 「드론이 붙었는데 카드에 안 뜬다」).
+   *
+   * 아래 `snapshot()` 은 500ms 동안 같은 참조를 돌려준다. 그 사이에 장비가 들어와 알리면 React 가 옛 목록을
+   * 받아 「안 바뀌었다」로 보고 다시 안 그린다 — 연결 확인 직후 세션이 열려 다시 그린 바로 뒤에 retained
+   * `status` 가 오는 순서가 정확히 그렇다. 그 뒤로는 1초 안에 계속 오므로 다시 알리지도 않아 카드가 영영 안 떴다.
+   */
+  cachedAtMs = 0;
   for (const listener of listeners) listener();
 }
 
@@ -132,8 +141,8 @@ function snapshot(): readonly ConnectedDevice[] {
   const now = Date.now();
   if (now - cachedAtMs < 500) return cached;
   const next = connectedDevices(now);
-  // 내용이 같으면 **참조를 안 바꾼다.**
-  if (next.length === cached.length && next.every((d, i) => d.entityId === cached[i]?.entityId)) {
+  // 내용이 같으면 **참조를 안 바꾼다.** 들어온 길도 내용이다 — `state` → `server` 로 바뀌면 카드가 된다(`registry.ts`).
+  if (next.length === cached.length && next.every((d, i) => d.entityId === cached[i]?.entityId && d.source === cached[i]?.source)) {
     cachedAtMs = now;
     return cached;
   }

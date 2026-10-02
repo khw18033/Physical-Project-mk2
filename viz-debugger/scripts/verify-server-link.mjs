@@ -9,6 +9,7 @@
 //  3. **연결 확인** — 소켓 · 값 수신 · 구역 세 줄. 값이 안 오면 구역 · 발행기를 사유로 적는다.
 //  4. **서버 카드** — 게이트웨이가 우리 컴퓨터의 목이면 안 그린다 · 끌어서 놓을 수 없다.
 
+import { createRequire } from 'node:module';
 import { join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { readSource } from './lib/source.mjs';
@@ -50,6 +51,39 @@ controls.push('공통 헤더가 빠진 봉투');
   if (!/noteGatewayEnvelope\(envelope\.entity, envelope\.payload\)/.test(index)) failures.push('받는 쪽이 게이트웨이 수신을 적지 않는다 — 연결 확인이 셀 것이 없다');
 }
 
+// ── 2-b. 화면이 다시 그려지는가 (261002 — 「드론이 붙었는데 카드에 안 뜬다 · 임무를 걸면 뜬다」) ──────────
+//
+// 저장소에는 들어왔는데 구독 스냅샷이 500ms 캐시의 옛 목록을 돌려줘서 React 가 「안 바뀌었다」로 보고 넘어갔다.
+// 연결 확인 직후 세션이 열려 다시 그린 **바로 뒤**에 retained `status` 가 오는 순서다. 그 뒤로는 1초 안에 계속
+// 와서 다시 알리지도 않으므로, 한 번 놓치면 다른 이유로 판이 다시 그려질 때까지 카드가 안 떴다.
+{
+  const require = createRequire(join(root, 'package.json'));
+  const { createElement } = require('react');
+  const { renderToString } = require('react-dom/server');
+  let seen = null;
+  const Probe = () => { seen = connected.useConnectedDevices(); return null; };
+  const snap = () => { renderToString(createElement(Probe)); return seen; };
+
+  connected.resetConnectedDevices();
+  const before = snap();
+  connected.noteConnectedEntity('x500-001', 'mqtt');
+  const after = snap();
+  if (after === before || !after.some((d) => d.entityId === 'x500-001')) failures.push('그린 직후 들어온 장비가 구독 스냅샷에 안 잡힌다 — 카드가 다시 안 그려진다');
+
+  // 같은 장비가 다른 길로 오면(목 `state` → 서버 `server`) 카드 대상이 바뀐다 — id 가 같아도 새 참조여야 한다.
+  connected.resetConnectedDevices();
+  connected.noteConnectedEntity('go1-001', 'state');
+  const asState = snap();
+  connected.noteConnectedEntity('go1-001', 'server');
+  if (snap() === asState) failures.push('들어온 길이 바뀌었는데 스냅샷이 그대로다 — 서버 장비가 카드로 안 바뀐다');
+
+  // 대조군: 아무것도 안 바뀌면 같은 참조여야 한다(매번 새 배열이면 무한히 다시 그린다).
+  const still = snap();
+  if (snap() !== still) failures.push('대조군 실패: 바뀐 것이 없는데 스냅샷 참조가 바뀐다');
+  controls.push('바뀐 것 없는 스냅샷');
+  connected.resetConnectedDevices();
+}
+
 // ── 3. 연결 확인 ───────────────────────────────────────────────────────────────
 {
   const { checkGateway } = await load('src', 'shared', 'connectionCheck.ts');
@@ -80,7 +114,8 @@ controls.push('공통 헤더가 빠진 봉투');
 {
   const card = read('src', 'shell', 'ServerCard.tsx');
   if (/draggable/.test(card)) failures.push('서버 카드를 끌 수 있다 — 장치 자리에 서버가 앉는다');
-  if (!/isLocalGateway\(url\)\) return null/.test(card)) failures.push('목 게이트웨이일 때도 서버 카드가 뜬다');
+  // 261002 — 서버 상태를 묻는 훅이 판정과 return 사이에 들어가 두 줄로 갈렸다(`local`). 규칙은 같다.
+  if (!/isLocalGateway\(url\)\) return null/.test(card) && !(/const local = url === '' \|\| isLocalGateway\(url\);/.test(card) && /if \(local\) return null;/.test(card))) failures.push('목 게이트웨이일 때도 서버 카드가 뜬다');
   const main = read('src', 'main.tsx');
   if (!/<ServerCard \/>/.test(main)) failures.push('오른쪽 기둥에 서버 칸이 없다');
   // 261001 — 서버는 장비가 아니라서 하드웨어 패널 **밖**, 오른쪽 기둥의 제 칸이다.
@@ -97,7 +132,8 @@ if (failures.length) {
   process.exit(1);
 }
 console.log('✅ 서버 봉투(공통 헤더)와 목 함대를 가른다 · 서버 장비와 MQTT 장비는 카드, 목 함대는 아니다');
-console.log('✅ 연결 확인 — 소켓 · 값 수신(받은 서버 장비 이름) · 구역 · 값이 안 오면 구역을 사유로 · 토큰은 가린다');
+console.log('✅ 그린 직후 들어온 장비도 스냅샷에 잡힌다 · 들어온 길이 바뀌어도 다시 그린다');
+console.log('✅ 연결 확인 —소켓 · 값 수신(받은 서버 장비 이름) · 구역 · 값이 안 오면 구역을 사유로 · 토큰은 가린다');
 console.log('✅ 서버 칸 — 하드웨어 패널 밖 · 목 게이트웨이면 안 뜨고 끌 수 없다 · 더블클릭하면 상세(Esc · 배경으로 닫힘 · 토큰 가림)');
 console.log(`✅ 대조군 ${controls.length}건 — ${controls.join(' · ')}`);
 process.exit(0);

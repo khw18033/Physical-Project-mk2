@@ -55,6 +55,8 @@
     "verify:nav-feed": "node scripts/verify-nav-feed.mjs",
     "verify:autodrive-ai": "node scripts/verify-autodrive-ai.mjs",
     "verify:vision-stream": "node scripts/verify-vision-stream.mjs",
+    "verify:fixed-camera": "node scripts/verify-fixed-camera.mjs",
+    "verify:server-status": "node scripts/verify-server-status.mjs",
     "verify:capability-source": "node scripts/verify-capability-source.mjs",
     "verify:status-index": "node scripts/verify-status-index.mjs",
     "verify:no-publish-before-approval": "node scripts/verify-no-publish-before-approval.mjs",

@@ -47,6 +47,8 @@ import { DirectCamera } from '../media/views/DeviceCamera.tsx';
 import { CAMERA_POSITIONS, type CameraPosition } from '../media/cameraChoice.ts';
 import { directCameraUrl } from '../physical/cameraView.ts';
 import { VisionDeviceSection } from '../vision/views/VisionViews.tsx';
+import { FixedCameraSection } from '../fixedcam/FixedCameraSection.tsx';
+import { isFixedCamera } from '../fixedcam/fixedCamera.ts';
 
 export function DeviceStatusOverlay({ deviceId, device, source, onClose }: {
   deviceId: string;
@@ -64,6 +66,11 @@ export function DeviceStatusOverlay({ deviceId, device, source, onClose }: {
    */
   const [position, setPosition] = useState<CameraPosition>('front');
   const directUrl = directCameraUrl(deviceId, position);
+  /**
+   * **고정 카메라** (261002). 로봇이 아니라 서버 링크에서 이미지를 받는 상대라 장비 상태 · 로봇 카메라 · `/media` 칸이
+   * 다 맞지 않는다 — 그 셋 대신 받는 이미지를 띄우고, 추론 스트림 칸은 로봇과 같은 것을 쓴다.
+   */
+  const fixedCamera = isFixedCamera(deviceId);
   // 여는 길이 둘(더블클릭·앞으로 늘 수 있는 다른 경로)이면 닫는 길도 둘 이상이어야 한다.
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') onClose(); };
@@ -81,9 +88,9 @@ export function DeviceStatusOverlay({ deviceId, device, source, onClose }: {
         <button onClick={onClose}>{t('dso.1')}</button>
       </header>
       {/* **오는 값만 적는다** (260910). 안 오는 칸은 자리표시로 채우지 않고 아예 안 그린다. */}
-      <DeviceFacts entityId={deviceId} />
+      {fixedCamera ? <FixedCameraSection entityId={deviceId} /> : <DeviceFacts entityId={deviceId} />}
       {device !== undefined && <DeviceStrip device={device} />}
-      {directUrl !== null && <section className="media-section device-cam device-cam--zoom">
+      {!fixedCamera && directUrl !== null && <section className="media-section device-cam device-cam--zoom">
         <header className="media-section__head">
           <h3>{t('dso.robotCamera')}</h3>
           {/* 카메라가 한 대인 길(드론 말단)은 위치를 안 가린다 — 칸을 두면 바꿔도 아무 일이 없다. */}
@@ -100,7 +107,7 @@ export function DeviceStatusOverlay({ deviceId, device, source, onClose }: {
       <VisionDeviceSection entityId={deviceId} />
       {/* 카메라 영상 — **닫으면 끊긴다.** 붙는 것이 켜기이고 끊는 것이 끄기다.
           로봇 카메라를 바로 보고 있으면 이 칸은 접는다 — 같은 영상을 두 길로 동시에 열 이유가 없다. */}
-      {directUrl === null
+      {fixedCamera ? null : directUrl === null
         ? <MediaSection deviceId={deviceId} />
         : <details className="media-section__fold"><summary>{t('dso.mediaFold')}</summary><MediaSection deviceId={deviceId} /></details>}
       <footer>

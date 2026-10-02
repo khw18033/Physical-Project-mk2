@@ -1121,3 +1121,30 @@ button.robot-resume{padding:6px 12px;border:1px solid #2f9e5f;border-radius:var(
 .hw-vision{grid-column:1/-1}
 .hw-vision__thumb{display:block;width:100%;max-height:96px;object-fit:contain;margin-top:4px;border-radius:var(--radius-xs);background:#11161d}
 .vision-section{margin-top:12px}
+/* 261002 — 하드웨어 패널 제목 줄 · 「전체 카메라 확인」. 제목 오른쪽 빈자리에 단추를 둔다. */
+.hardware-panel__head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:0 0 14px}
+.hardware-panel__head h2{margin:0}
+.hardware-panel__cams{flex:0 0 auto;padding:5px 10px;font-size:13px;border:1px solid #bec8d5;border-radius:var(--radius-sm);background:#fff;color:#1768c5;cursor:pointer}
+.hardware-panel__cams:hover{border-color:#1768c5}
+/* 261002 — 전체 카메라 판. 화면의 80% 넘게 쓴다(지시). 장비마다 한 칸이고 칸 머리가 장비를 가른다. */
+.modal.all-cams{width:96vw;height:92vh;max-height:92vh;display:flex;flex-direction:column;overflow:hidden}
+.all-cams__body{flex:1 1 auto;min-height:0;overflow:auto;padding:14px 18px;display:grid;gap:12px;align-content:start}
+.all-cams__grid{display:grid;gap:12px;grid-template-columns:minmax(0,1fr);align-items:start}
+/* 261002 — 한 장비의 바로 받는 영상(왼쪽)과 추론(오른쪽)을 가로로. 좁으면(칸이 760px 미만) 다시 위아래로 쌓인다. */
+.all-cams__pair{display:grid;gap:12px;grid-template-columns:minmax(0,1fr);align-items:end}
+.all-cams__pair--2{grid-template-columns:repeat(auto-fit,minmax(min(340px,100%),1fr))}
+.all-cams__pair>*{min-width:0}
+.all-cams__tile{display:grid;gap:8px;align-content:start;min-width:0;padding:0 12px 12px;border:1px solid #d6dce5;border-radius:var(--radius-md);background:#fff}
+.all-cams__head{position:sticky;top:0;z-index:1;display:flex;align-items:baseline;gap:10px;margin:0 -12px;padding:9px 12px;border-bottom:3px solid #1768c5;border-radius:var(--radius-md) var(--radius-md) 0 0;background:#eef5fb}
+.all-cams__head b{font-size:17px}
+.all-cams__head small{color:#4a5666;font-size:12px}
+.all-cams__feed{display:grid;gap:4px}
+.all-cams__feed>header{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:13px}
+.all-cams__feed label{display:flex;align-items:center;gap:6px;font-size:12px;color:#4a5666}
+/* 261002 — 한 칸 안의 영상은 높이가 모두 `--cam-h` 하나다(판이 한 화면에 들어가게 계산한 값 — AllCamerasOverlay). 바로 받는 영상과
+   추론 영상의 높이가 같아진다. 위아래 설명 줄이 한 줄씩이라 칸을 아래로 맞추면(align-items:end) 영상의 위아래 변도 맞는다. */
+.modal.all-cams .all-cams__feed .device-cam__canvas,.modal.all-cams .vision-grid .vision-cell img{height:var(--cam-h,360px);max-height:none;min-height:0;width:100%;object-fit:contain;background:#11161d}
+.all-cams .vision-section{margin-top:0}
+/* 모델을 여럿 고르면 아래로 쌓지 않고 가로로 선다 — 한 칸에 영상 줄이 하나여야 높이 계산이 맞는다. */
+.all-cams .vision-grid{grid-template-columns:none;grid-auto-flow:column;grid-auto-columns:minmax(0,1fr)}
+.all-cams__without{margin:0;color:#6a7686;font-size:13px}

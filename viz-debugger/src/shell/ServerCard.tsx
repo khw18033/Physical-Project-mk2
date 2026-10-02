@@ -17,12 +17,13 @@
  * **더블클릭하면 상세**(`ServerStatusOverlay`)를 연다. 장비 카드와 같은 손짓이다.
  */
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { t } from '../i18n/dict.ts';
 import { useLang } from '../shared/language.ts';
 import { connectionAddress, useConnections } from '../shared/connections.ts';
 import { maskToken, useGatewayFeed } from '../shared/gatewayFeed.ts';
 import { ServerStatusOverlay } from './ServerStatusOverlay.tsx';
+import { holdServerStatus, useServerStatus } from './serverStatus.ts';
 
 /** 우리 컴퓨터의 목 게이트웨이인가. */
 export function isLocalGateway(url: string): boolean {
@@ -45,19 +46,34 @@ export function ServerCard() {
   const feed = useGatewayFeed();
   const [open, setOpen] = useState(false);
   const url = connectionAddress('gateway', 'ws').trim();
-  if (url === '' || isLocalGateway(url)) return null;
+  const local = url === '' || isLocalGateway(url);
+  /**
+   * **서버 이름과 자원** (261002 지시 — 「백엔드 서버」 말고 연결된 서버명 · 읽을 수 있으면 CPU 등). 칸이 떠 있는 동안만
+   * 묻는다. 이름은 기계가 밝힌 것만이고, 없으면 제목은 그대로 「백엔드 서버」다(`serverStatus.ts`).
+   */
+  useEffect(() => (local ? undefined : holdServerStatus()), [local]);
+  const server = useServerStatus();
+  if (local) return null;
+  const res = server.resources;
   const ago = feed.lastAtMs === null ? null : Math.max(0, Math.round((Date.now() - feed.lastAtMs) / 1000));
   const devices = Object.keys(feed.serverEntities).length;
   const state = feed.socket === 'open' ? 'ok' : feed.socket === 'closed' ? 'bad' : 'unknown';
   return <aside className="server-panel">
     <article className="server-card" title={t('srv.openHint')} onDoubleClick={() => setOpen(true)}>
-      <header><b>{t('srv.title')}</b><small>{serverHost(url)}</small></header>
+      <header><b title={server.name === null ? undefined : t('srv.titleNamed')}>{server.name ?? t('srv.title')}</b><small>{serverHost(url)}</small></header>
       <span className="hw-link">
         <em className={`hw-dot hw-dot--${state}`}>{t(`srv.socket.${feed.socket}`)}</em>
         <em className={`hw-dot hw-dot--${ago === null ? 'unknown' : ago <= 15 ? 'ok' : 'unknown'}`}>
           {ago === null ? t('srv.noData') : t('srv.lastData', { sec: ago, n: feed.count })}
         </em>
         <em className="hw-dot hw-dot--plain">{t('srv.devices', { n: devices })}</em>
+        {/* 자원은 읽혔을 때만 적는다 — 못 읽은 사유는 상세(더블클릭)가 말한다. 한 줄 칸에 사유까지 넣으면 칸이 자란다. */}
+        {res !== null && <em className={`hw-dot hw-dot--${res.cpuPct === null ? 'unknown' : res.cpuPct >= 90 ? 'bad' : res.cpuPct >= 70 ? 'warn' : 'ok'}`}>
+          {t('srvm.cardCpu', { pct: res.cpuPct === null ? '…' : Math.round(res.cpuPct) })}
+        </em>}
+        {res?.memUsedPct != null && <em className={`hw-dot hw-dot--${res.memUsedPct >= 90 ? 'bad' : res.memUsedPct >= 75 ? 'warn' : 'ok'}`}>
+          {t('srvm.cardMem', { pct: Math.round(res.memUsedPct) })}
+        </em>}
       </span>
     </article>
     {/* 상세는 **형제로 얹는다** — 칸은 언마운트되지 않으므로 닫으면 같은 자리다 (`DeviceStatusOverlay` 와 같은 규칙). */}

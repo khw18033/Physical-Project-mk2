@@ -44,9 +44,10 @@ import {
 } from '../visionClient.ts';
 import { holdAllVisionSources, holdVisionSource, useVisionSources, type VisionSourceState } from '../store.ts';
 import {
-  deviceBrokerHost, resolveVisionBinding, setVisionBinding, useVisionBindingChoice, VISION_UNBOUND, type VisionBinding,
+  deviceBrokerHost, deviceDirectBase, resolveVisionBinding, setVisionBinding, useVisionBindingChoice, VISION_UNBOUND, type VisionBinding,
 } from '../binding.ts';
 import { setVisionNodeChoice, useVisionNodeChoice } from '../nodeChoice.ts';
+import { isFixedCamera } from '../../fixedcam/fixedCamera.ts';
 
 /** 접힌 카드가 새 한 장을 받는 주기 — 탐지 영상 노드와 같다. */
 export const VISION_STILL_MS = 2000;
@@ -66,7 +67,7 @@ export function useVisionBinding(entityId: string | null): VisionBinding {
   const chosen = useVisionBindingChoice(entityId ?? '');
   useEffect(() => (entityId === null ? undefined : holdAllVisionSources()), [entityId]);
   if (entityId === null || entityId === '') return { base: null, how: 'none', candidates: [] };
-  return resolveVisionBinding(chosen, deviceBrokerHost(entityId), sources, visionBases());
+  return resolveVisionBinding(chosen, deviceBrokerHost(entityId), sources, visionBases(), deviceDirectBase(entityId));
 }
 
 /** 2초마다 한 장. 창구가 그 스트림의 첫 JPEG 를 잘라 준다. */
@@ -230,11 +231,13 @@ function SummaryTable({ state }: { state: VisionSourceState }) {
  * **추론 영상 노드.** `taskDeviceId` 는 노드를 붙인 태스크의 장비 — 그 장비에 묶인 포트가 기본이다.
  * `lockSource` 면 포트 고르기를 안 그린다(하드웨어 카드 상세 — 포트는 그 위의 묶음 칸이 정한다).
  */
-export function VisionCam({ nodeId, taskDeviceId = null, zoom = false, lockSource = false }: {
+export function VisionCam({ nodeId, taskDeviceId = null, zoom = false, lockSource = false, compact = false }: {
   nodeId: string;
   taskDeviceId?: string | null;
   zoom?: boolean;
   lockSource?: boolean;
+  /** 요약 표를 뺀다 — 장비 여럿을 나란히 보는 화면(전체 카메라, 261002). 고르는 칸과 영상은 그대로다. */
+  compact?: boolean;
 }) {
   useLang();
   useConnections();
@@ -294,7 +297,7 @@ export function VisionCam({ nodeId, taskDeviceId = null, zoom = false, lockSourc
             {!zoom && <small className="ai-source__at"> · {t('vis.stillMeta', { sec: VISION_STILL_MS / 1000 })}</small>}
             {zoom && <small className="ai-source__at"> · <code>{base}</code></small>}
           </p>
-          {zoom && state !== null && <SummaryTable state={state} />}
+          {zoom && !compact && state !== null && <SummaryTable state={state} />}
         </>}
   </div>;
 }
@@ -326,18 +329,24 @@ export function VisionCardLine({ entityId }: { entityId: string }) {
 }
 
 /** 묶음이 어떻게 정해졌는가 — 한 줄. */
-function bindingWhy(binding: VisionBinding, host: string | null, sources: Readonly<Record<string, VisionSourceState>>): string {
+/** 고정 카메라(261002)는 브로커가 아니라 이미지 주소로 맞춘다 — 같은 갈래라도 「브로커 주소」라고 적지 않는다. */
+function bindingWhy(binding: VisionBinding, host: string | null, sources: Readonly<Record<string, VisionSourceState>>, camera = false): string {
   switch (binding.how) {
     case 'chosen': return t('vis.bindChosen');
     case 'unbound': return t('vis.bindUnbound');
-    case 'matched': return t('vis.bindMatched', { host: host ?? '', name: sourceName(binding.base ?? '', sources) });
-    case 'ambiguous': return t('vis.bindAmbiguous', { host: host ?? '', list: binding.candidates.map((b) => sourceName(b, sources)).join(', ') });
-    default: return host === null ? t('vis.bindNoHost') : t('vis.bindNoMatch', { host });
+    case 'same': return t('vis.bindSame', { name: sourceName(binding.base ?? '', sources), base: binding.base ?? '' });
+    case 'matched': return t(camera ? 'vis.bindMatchedCamera' : 'vis.bindMatched', { host: host ?? '', name: sourceName(binding.base ?? '', sources) });
+    case 'ambiguous': return t(camera ? 'vis.bindAmbiguousCamera' : 'vis.bindAmbiguous', { host: host ?? '', list: binding.candidates.map((b) => sourceName(b, sources)).join(', ') });
+    default: return host === null ? t(camera ? 'vis.bindNoHostCamera' : 'vis.bindNoHost') : t(camera ? 'vis.bindNoMatchCamera' : 'vis.bindNoMatch', { host });
   }
 }
 
-/** **하드웨어 카드 상세의 추론 스트림 칸.** 포트를 고르고(자동 맞춤이 기본) 그 포트의 실시간 영상을 연다. */
-export function VisionDeviceSection({ entityId }: { entityId: string }) {
+/**
+ * **하드웨어 카드 상세의 추론 스트림 칸.** 포트를 고르고(자동 맞춤이 기본) 그 포트의 실시간 영상을 연다.
+ * 전체 카메라 화면(261002)도 이것을 `compact` 로 그린다 — 고름의 저장 키가 같아서(`hw:<장비 id>` · 장비별 포트) 두 화면이
+ * 같은 고름을 본다. 한쪽에서 모델을 바꾸면 다른 쪽도 바뀐다.
+ */
+export function VisionDeviceSection({ entityId, compact = false }: { entityId: string; compact?: boolean }) {
   useLang();
   useConnections();
   const binding = useVisionBinding(entityId);
@@ -365,7 +374,7 @@ export function VisionDeviceSection({ entityId }: { entityId: string }) {
         </select>
       </label>
     </header>
-    <p className="vn-line vn-dim">{bindingWhy(binding, host, sources)}</p>
-    {binding.base !== null && <VisionCam nodeId={`hw:${entityId}`} taskDeviceId={entityId} zoom lockSource />}
+    <p className="vn-line vn-dim">{bindingWhy(binding, host, sources, isFixedCamera(entityId))}</p>
+    {binding.base !== null && <VisionCam nodeId={`hw:${entityId}`} taskDeviceId={entityId} zoom lockSource compact={compact} />}
   </section>;
 }

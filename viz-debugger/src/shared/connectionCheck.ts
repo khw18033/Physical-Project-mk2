@@ -29,6 +29,7 @@ import { connectionAddress } from './connections.ts';
 // 맞고(섞이면 안 된다), 여기서만 이름을 가른다.
 import { probeCapability, sourceOf as capabilitySourceOf, type FetchLike as CapabilityFetchLike } from '../capability/CapabilityClient.ts';
 import { capabilityState } from '../capability/store.ts';
+import { checkFixedCameras } from '../fixedcam/fixedCamera.ts';
 
 /**
  * `physical` 을 확인할 때 쓸 것. 로봇 경계를 이 파일이 직접 열지 않는다 —
@@ -483,6 +484,8 @@ export async function checkTarget(
         ? await checkPhysical(physical, robot)
         : await checkPhysicalAll(physicalAll, robot));
     }
+    // 261002 — 고정 카메라. 카메라마다 이미지 한 장이 받아지는가(`src/fixedcam/`).
+    else if (target === 'fixed-camera') setHealth(target, await checkFixedCameras());
     else if (target === 'autodrive') setHealth(target, await checkAutodrive(nav));
     else if (target === 'autodrive-ai') setHealth(target, await checkAutodriveAi());
     else if (target === 'vision') setHealth(target, await checkVisionStream());

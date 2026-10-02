@@ -16,7 +16,9 @@
  * | 서버 경유 장비 | `gatewayFeed.serverEntities` — 봉투가 공통 헤더로 스스로 밝힌 장비만 |
  * | 연결 확인 | 연결 관리의 「확인」과 **같은 결과**(`connectionHealth` 의 `gateway`). 여기서 눌러도 같은 자리에 적힌다 |
  *
- * 서버가 따로 내주는 상태(버전 · 부하 등)는 아직 길이 없다. 지어내지 않는다.
+ * | 이름 · 자원(CPU · 메모리 · 부하 · 디스크 · 가동 시간) | `serverStatus.ts` (261002). 못 읽으면 그 사유와 두드린 주소를 적는다 |
+ *
+ * 서버가 따로 내주는 상태(버전 등)는 아직 길이 없다. 지어내지 않는다.
  */
 
 import { useEffect, useState } from 'react';
@@ -26,6 +28,30 @@ import { connectionAddress } from '../shared/connections.ts';
 import { maskToken, useGatewayFeed } from '../shared/gatewayFeed.ts';
 import { useConnectionHealth } from '../shared/connectionHealth.ts';
 import { checkTarget } from '../shared/connectionCheck.ts';
+import { useServerStatus, type ServerResources } from './serverStatus.ts';
+
+const pct = (value: number | null) => (value === null ? '—' : `${value.toFixed(1)}%`);
+const fixed = (value: number | null) => (value === null ? '—' : value.toFixed(2));
+
+/** 가동 시간 — 일 · 시 · 분. */
+function uptimeText(seconds: number | null): string {
+  if (seconds === null) return '—';
+  const d = Math.floor(seconds / 86400);
+  const h = Math.floor((seconds % 86400) / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  return t('srvm.uptimeValue', { d, h, m });
+}
+
+function ResourceFacts({ res }: { res: ServerResources }) {
+  useLang();
+  return <dl className="server-modal__facts">
+    <div><dt>{t('srvm.cpu')}</dt><dd>{res.cpuPct === null ? t('srvm.cpuMeasuring') : pct(res.cpuPct)}{res.cores === null ? '' : t('srvm.cores', { n: res.cores })}</dd></div>
+    <div><dt>{t('srvm.mem')}</dt><dd>{pct(res.memUsedPct)}{res.memTotalBytes === null ? '' : t('srvm.memTotal', { gb: (res.memTotalBytes / 1024 ** 3).toFixed(1) })}</dd></div>
+    <div><dt>{t('srvm.load')}</dt><dd>{`${fixed(res.load1)} · ${fixed(res.load5)} · ${fixed(res.load15)}`}</dd></div>
+    <div><dt>{t('srvm.disk')}</dt><dd>{pct(res.diskUsedPct)}</dd></div>
+    <div><dt>{t('srvm.uptime')}</dt><dd>{uptimeText(res.uptimeS)}</dd></div>
+  </dl>;
+}
 
 /** 몇 초 전인가. 모르면 null. */
 function secondsAgo(atMs: number | null, nowMs: number): number | null {
@@ -36,6 +62,7 @@ export function ServerStatusOverlay({ url, host, onClose }: { url: string; host:
   useLang();
   const feed = useGatewayFeed();
   const health = useConnectionHealth().gateway ?? { checking: false, lines: [] };
+  const server = useServerStatus();
   // 「n초 전」이 멈춰 보이지 않게 1초마다 다시 그린다 — 봉투는 1초 안의 것을 다시 그리지 않는다(`gatewayFeed`).
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
@@ -56,8 +83,9 @@ export function ServerStatusOverlay({ url, host, onClose }: { url: string; host:
     <section className="modal server-modal" role="dialog" aria-label={t('srv.title')}>
       <header>
         <div>
-          <h2>{t('srv.title')}</h2>
-          <small>{host}</small>
+          <h2>{server.name ?? t('srv.title')}</h2>
+          {/* 이름이 어디서 왔는지 적는다 — 게이트웨이 소켓은 이름을 안 준다(`serverStatus.ts`). */}
+          <small>{server.name === null ? host : t(server.nameFrom === 'metrics' ? 'srvm.nameFromMetrics' : 'srvm.nameFromVision', { host })}</small>
         </div>
         <button onClick={onClose}>{t('dso.1')}</button>
       </header>
@@ -71,6 +99,16 @@ export function ServerStatusOverlay({ url, host, onClose }: { url: string; host:
             <div><dt>{t('srv.detail.lastData')}</dt><dd>{ago === null ? t('srv.noData') : t('srv.detail.ago', { sec: ago })}</dd></div>
             <div><dt>{t('srv.detail.count')}</dt><dd>{feed.count}</dd></div>
           </dl>
+        </section>
+        <section>
+          <h3>{t('srvm.title')}</h3>
+          {server.resources !== null
+            ? <ResourceFacts res={server.resources} />
+            : <p className="server-modal__none">{server.checkedAtMs === null ? t('srvm.waiting') : t('srvm.unavailable', { reason: server.metricsError ?? '—' })}</p>}
+          {server.metricsUrl !== null && <small className="conn-health__at">
+            {t(server.metricsAuto ? 'srvm.sourceAuto' : 'srvm.source', { url: server.metricsUrl })}
+            {server.checkedAtMs === null ? '' : ` · ${new Date(server.checkedAtMs).toLocaleTimeString()}`}
+          </small>}
         </section>
         <section>
           <h3>{t('srv.detail.devices', { n: devices.length })}</h3>

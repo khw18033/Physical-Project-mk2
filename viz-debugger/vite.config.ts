@@ -12,6 +12,8 @@ import { capabilityRelay } from './scripts/capability-relay.mjs';
 import { droneCamRelay } from './scripts/drone-cam-relay.mjs';
 // 객체 탐지 추론 스트림 서버(포트 = 소스)를 옮기는 창구 (261001) — 그 서버도 CORS 를 안 연다.
 import { visionStreamRelay } from './scripts/vision-stream-relay.mjs';
+// 서버 기계의 지표(`/metrics` — CPU · 메모리)를 옮기는 창구 (261002) — 지표 서버도 CORS 를 안 연다.
+import { serverMetricsRelay } from './scripts/server-metrics-relay.mjs';
 
 /**
  * **탐지 시료를 `/detect-sample` 로 내준다** (260912).
@@ -58,7 +60,7 @@ function detectSample() {
 
 export default defineConfig({
   base: './',
-  plugins: [react(), detectSample(), missionRecords(), autodriveAiRelay(), capabilityRelay(), droneCamRelay(), visionStreamRelay()],
+  plugins: [react(), detectSample(), missionRecords(), autodriveAiRelay(), capabilityRelay(), droneCamRelay(), visionStreamRelay(), serverMetricsRelay()],
   server: {
     port: 5174,
     strictPort: true,

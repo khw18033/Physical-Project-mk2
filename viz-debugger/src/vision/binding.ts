@@ -15,12 +15,16 @@
  * 브로커가 호스트 이름(`.local`)이고 서버가 IP 로 붙어 있으면 2번이 못 맞춘다 — 그때는 1번이다.
  * `/state` 로만 오는 장비(브로커 없음)도 1번이다.
  *
+ * **고정 카메라** (261002)는 브로커 대신 이미지 주소가 있다. 그 주소가 추론 서버의 한 포트와 **같은 주소**면(서버 링크로
+ * 받는 경우 — `http://<서버>:10001/stream`) 그 포트다. 아니면 그 주소의 호스트로 2번을 한다.
+ *
  * 고름은 **장비 id 마다** 이 브라우저에 남는다(`viz.visionBinding.v1`). 연결 관리 설정에 넣지 않는 이유는
  * 노드 고름(`media/cameraChoice.ts`)과 같다 — 칸 하나 때문에 판을 올리면 저장된 설정이 버려진다.
  */
 
 import { useSyncExternalStore } from 'react';
 import { clientForDevice } from '../physical/robotClient.ts';
+import { fixedCameraHost, fixedCameraOrigin, isFixedCamera } from '../fixedcam/fixedCamera.ts';
 import type { VisionSourceState } from './store.ts';
 
 const STORAGE_KEY = 'viz.visionBinding.v1';
@@ -56,6 +60,11 @@ export function visionBindingChoice(entityId: string): string | null {
   return choices[entityId] ?? null;
 }
 
+/** 고름 전부 — 장비 여럿을 한 번에 그리는 화면(전체 카메라)이 구독한다. 같은 참조를 돌려준다. */
+export function useVisionBindingChoices(): Readonly<Record<string, string>> {
+  return useSyncExternalStore(subscribe, () => choices, () => choices);
+}
+
 export function useVisionBindingChoice(entityId: string): string | null {
   return useSyncExternalStore(subscribe, () => visionBindingChoice(entityId), () => visionBindingChoice(entityId));
 }
@@ -74,8 +83,9 @@ export function setVisionBinding(entityId: string, base: string | null): void {
   for (const listener of listeners) listener();
 }
 
-/** 장비가 붙어 있는 브로커의 호스트. 브로커로 붙지 않은 장비면 null. */
+/** 장비가 붙어 있는 브로커의 호스트. 브로커로 붙지 않은 장비면 null. 고정 카메라면 이미지 주소의 호스트다(261002). */
 export function deviceBrokerHost(entityId: string): string | null {
+  if (isFixedCamera(entityId)) return fixedCameraHost(entityId);
   const client = clientForDevice(entityId);
   if (client === null) return null;
   try {
@@ -92,9 +102,15 @@ export function basesForHost(host: string | null, sources: Readonly<Record<strin
   return bases.filter((base) => sources[base]?.health?.upstreamHosts.includes(host) === true);
 }
 
+/** 장비의 영상 주소 자체가 추론 서버의 한 포트일 때 그 `스킴://호스트:포트` — 지금은 고정 카메라만 있다. */
+export function deviceDirectBase(entityId: string): string | null {
+  return isFixedCamera(entityId) ? fixedCameraOrigin(entityId) : null;
+}
+
 export type VisionBinding = {
   base: string | null;
-  how: 'chosen' | 'unbound' | 'matched' | 'ambiguous' | 'none';
+  /** `same` (261002) — 장비의 영상 주소가 곧 그 포트다(고정 카메라를 서버 링크로 받는 경우). */
+  how: 'chosen' | 'unbound' | 'same' | 'matched' | 'ambiguous' | 'none';
   /** 주소가 같은 포트들 — `ambiguous` 면 둘 이상이다. */
   candidates: readonly string[];
 };
@@ -105,10 +121,13 @@ export function resolveVisionBinding(
   host: string | null,
   sources: Readonly<Record<string, VisionSourceState>>,
   bases: readonly string[],
+  /** 장비의 영상 주소가 가리키는 포트(`deviceDirectBase`). 목록에 있으면 주소 맞대기보다 앞선다 — 같은 주소다. */
+  direct: string | null = null,
 ): VisionBinding {
   const candidates = basesForHost(host, sources, bases);
   if (chosen === VISION_UNBOUND) return { base: null, how: 'unbound', candidates };
   if (chosen !== null) return { base: chosen, how: 'chosen', candidates };
+  if (direct !== null && bases.includes(direct)) return { base: direct, how: 'same', candidates: [direct] };
   if (candidates.length === 1) return { base: candidates[0], how: 'matched', candidates };
   if (candidates.length > 1) return { base: null, how: 'ambiguous', candidates };
   return { base: null, how: 'none', candidates };

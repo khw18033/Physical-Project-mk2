@@ -128,6 +128,8 @@ type TestToggle = { on: boolean; set(next: boolean): void; titleKey: string };
 function hasCheck(target: ConnectionTargetId): boolean {
   return CHECKED_TARGETS.includes(target)
     // 261001 — 백엔드 게이트웨이도 확인한다(소켓 · 값 수신 · 구역). 머리줄 표시등의 「n/4」에는 안 넣는다.
+    // 261002 — 고정 카메라도 확인한다(이미지가 받아지는가). 이것도 「n/4」에는 안 넣는다.
+    || target === 'fixed-camera'
     || target === 'autodrive' || target === 'autodrive-ai' || target === 'vision' || target === 'capability' || target === 'gateway';
 }
 

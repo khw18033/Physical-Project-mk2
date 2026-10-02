@@ -45,9 +45,10 @@ const controls = [];
     if (live?.pending !== undefined) failures.push(`${id} 에 늘 떠 있는 자리표시 문구가 남아 있다`);
   }
   // **지금 쓰는 둘이 맨 위다** (260912 지시). 시연 직전에 확인하는 것이 로봇과 탐지다.
-  const top = CONNECTION_TARGETS.slice(0, 2).map((t) => t.id).join(',');
-  if (top !== 'physical,detect') {
-    failures.push(`연결 관리 맨 위 둘이 [${top}] 다 — physical,detect 여야 한다`);
+  // 261002 지시 — 고정 카메라는 **로봇 바로 아래**다. 그래서 맨 위 셋이 로봇 · 고정 카메라 · 탐지다.
+  const top = CONNECTION_TARGETS.slice(0, 3).map((t) => t.id).join(',');
+  if (top !== 'physical,fixed-camera,detect') {
+    failures.push(`연결 관리 맨 위 셋이 [${top}] 다 — physical,fixed-camera,detect 여야 한다`);
   }
 }
 
@@ -157,7 +158,7 @@ if (failures.length) {
   console.error(`❌ verify:no-detect\n- ${failures.join('\n- ')}`);
   process.exit(1);
 }
-console.log('✅ detect 자리가 맨 위 둘(로봇·탐지)에 있고, 늘 떠 있는 설명 없이 상태 줄이 그때 사유를 말한다');
+console.log('✅ detect 자리가 맨 위(로봇 · 고정 카메라 다음)에 있고, 늘 떠 있는 설명 없이 상태 줄이 그때 사유를 말한다');
 console.log('✅ detect 확인이 던지지 않는다 — 눌러도 팝업이 안 날아간다');
 console.log('✅ 상대 없는 detect 가 나머지 셋을 안 끌어내린다 — 표시등이 아무도 안 짚는다 (모름은 끊김이 아니다)');
 console.log('✅ 탐지 없이도 대본으로 뷰포인트가 찬다 · 테스트를 켜면 받아 둔 실제 산출물로 돈다');

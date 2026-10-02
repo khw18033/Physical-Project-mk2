@@ -45,7 +45,7 @@
 
 import { useSyncExternalStore } from 'react';
 
-export type ConnectionTargetId = 'gateway' | 'media' | 'stt' | 'generate' | 'physical' | 'detect' | 'autodrive' | 'autodrive-ai' | 'vision' | 'capability' | 'control-node' | 'digital-twin' | 'virtual-3d' | 'sar' | 'recon-3d';
+export type ConnectionTargetId = 'gateway' | 'media' | 'stt' | 'generate' | 'physical' | 'fixed-camera' | 'detect' | 'autodrive' | 'autodrive-ai' | 'vision' | 'capability' | 'control-node' | 'digital-twin' | 'virtual-3d' | 'sar' | 'recon-3d';
 
 /**
  * ## 260918 — 여기 담는 것은 **글자가 아니라 사전 키**다
@@ -156,6 +156,17 @@ export const CONNECTION_TARGETS: readonly ConnectionTarget[] = [
     fields: [{ key: 'ws', labelKey: 'conn.field.ws', fallback: '', list: true }],
   },
   {
+    /**
+     * 261002 — **고정 카메라** (360 카메라). 로봇 바로 아래다(지시). 브로커 — 단말이 아니라 **서버 링크 주소로 이미지를
+     * 받는** 상대라, 이미지가 받아지면 연결된 것으로 본다(`src/fixedcam/fixedCamera.ts`). 줄 하나가 카메라 한 대다.
+     */
+    id: 'fixed-camera',
+    labelKey: 'conn.target.fixedCamera',
+    whatKey: 'conn.target.fixedCamera.what',
+    live: true,
+    fields: [{ key: 'url', labelKey: 'conn.field.imageLink', fallback: '', list: true, addKey: 'conn.addCamera' }],
+  },
+  {
     id: 'detect',
     labelKey: 'conn.target.detect',
     live: true,
@@ -230,6 +241,11 @@ export const CONNECTION_TARGETS: readonly ConnectionTarget[] = [
        * 그래서 **주소와 한 묶음**으로 둔다. 주소를 바꾸는 사람이 구역도 같이 바꾼다.
        */
       { key: 'zone', labelKey: 'conn.field.zone', fallback: 'zone-503' },
+      /**
+       * **서버 지표 주소** (261002 — 서버 칸의 CPU · 메모리). node_exporter 의 `/metrics` 다. 비우면 게이트웨이 호스트의
+       * 9100 을 두드려 본다(`shell/serverStatus.ts`). 게이트웨이와 한 묶음인 이유는 구역과 같다 — 붙는 서버를 따라간다.
+       */
+      { key: 'metrics', labelKey: 'conn.field.metrics', fallback: '' },
     ],
   },
   {
