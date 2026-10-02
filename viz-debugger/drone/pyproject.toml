@@ -13,3 +13,6 @@ base = ["pyserial>=3.5"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = [".", "tests"]
+
+[tool.setuptools]
+packages = ["sar_pass", "rtk_relay", "fc_watch"]

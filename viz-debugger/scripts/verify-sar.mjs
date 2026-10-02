@@ -229,6 +229,36 @@ const params = plan.toStartParams({
   console.log('✅ 보정 전달기 — 보고 뜯기 · 숫자 아닌 메시지 키 거름 · 베이스 모름 · 구독과 분기');
 }
 
+// ── 9. 드론 상태판 텔레메트리(fcx) ───────────────────────────────────────────
+{
+  const { parseFcx, fcxChannel, FCX_TOPIC } = await load('src', 'physical', 'fcxFeed.ts');
+  const { noteFcx, fcxReports, resetFcx } = await load('src', 'shared', 'fcxStatus.ts');
+  const body = {
+    source_id: 'x500-001', link: { heartbeat_age_s: 0.2, msgs_per_s: 31, fc_sysid: 1 }, armed: true, mode: 'OFFBOARD',
+    attitude: { roll_deg: 1.2, pitch_deg: -6.5, yaw_deg: 45 }, hud: { groundspeed: 4.0, climb: 0.1 },
+    position: { lat: 37.5665, lon: 126.978, alt_rel_m: 20.1 }, gps: { fix_type: 6, fix: 'RTK_FIXED', satellites: 27, hdop: 0.62 },
+    battery: { voltage_v: 15.9, cells_v: [3.97, 3.98, 'x', 3.96] }, sensors: [{ name: 'GPS', enabled: true, healthy: false }, { bad: 1 }],
+    ekf: { pos: 0.08, vel: 'nan', mag: 1.2 }, console: [{ t: 1, severity: 'WARNING', level: 4, text: 'Yaw' }, { t: 2 }],
+  };
+  const f = parseFcx(body, 'zoneA/drone/x500-001/fcx');
+  check(f !== null && f.mode === 'OFFBOARD' && f.attitude?.pitchDeg === -6.5 && f.gps?.fix === 'RTK_FIXED', 'fcx 보고를 못 뜯었다');
+  check(f?.battery?.cellsV.length === 3, '숫자가 아닌 셀 전압을 걸러 내지 않았다');
+  check(f?.sensors?.length === 1 && f.sensors[0].healthy === false, '센서 목록을 잘못 옮겼다');
+  check(f?.ekf?.vel === null && f.ekf.mag === 1.2, 'EKF 비율의 모름을 지키지 않았다');
+  check(f?.console.length === 1, '글자 없는 콘솔 줄을 받아들였다');
+  check(f?.hud?.airspeed === null && f.home === null && f.vibration === null, '안 온 값을 지어 채웠다');
+  check(parseFcx({ source_id: 'x' }) === null, 'link 없는 보고를 받아들였다');
+  check(fcxChannel('zoneA/drone/x500-001/fcx') && FCX_TOPIC.split('/')[2] === '+', 'fcx 토픽 규칙이 틀렸다');
+  resetFcx();
+  for (let i = 0; i < 905; i++) noteFcx(f, 1000 + i * 200);
+  const r = fcxReports()['x500-001'];
+  check(r.history.length === 900 && r.history.at(-1).atMs === 1000 + 904 * 200, '이력이 900 점으로 잘리지 않는다');
+  resetFcx();
+  const src = read('src', 'physical', 'PhysicalClient.ts');
+  check(/client\.subscribe\(FCX_TOPIC/.test(src), 'PhysicalClient 가 fcx 토픽을 구독하지 않는다');
+  console.log('✅ 드론 상태판 — fcx 뜯기 · 숫자 아닌 값 거름 · 안 온 값은 모름 · 이력 900점 · 구독');
+}
+
 // ── 7. RTK 등급 ─────────────────────────────────────────────────────────────
 {
   const cases = [

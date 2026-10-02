@@ -80,6 +80,7 @@ import { directCameraUrl } from '../physical/cameraView.ts';
 import { AttachedImage } from '../imagery/AttachedImage.tsx';
 import { RtkCard, RtkZoom } from '../sar/RtkView.tsx';
 import { SarPassCard, SarPassZoom } from '../sar/SarPassView.tsx';
+import { DroneDashCard, DroneDashZoom } from '../dronedash/DroneDash.tsx';
 import { Virtual3D } from '../virtualmap/Virtual3D.tsx';
 import { CuedVideo } from '../imagery/CuedVideo.tsx';
 import { AiCuedCam } from '../autodrive/views/AutodriveViews.tsx';
@@ -412,6 +413,15 @@ export const VIEW_NODE_RENDERERS: readonly ViewNodeEntry[] = [
     hintKey: 'viewnode.sarPass.hint',
     summary: () => <NodeGate card kind="sar-pass"><SarPassCard /></NodeGate>,
     zoom: () => <NodeGate kind="sar-pass"><SarPassZoom /></NodeGate>,
+  },
+  {
+    // 261002 — **드론 상태판 (드론 파트).** MicoConfigurator · QGC 의 상태 화면을 노드 하나로 — 자세계 · 지도 · 그래프 ·
+    // GPS/RTK · EKF · 센서 건강 · 진동 · 배터리 셀 · 메시지. FC 확장 텔레메트리(fcx)가 있으면 전부, 없으면 기본 상태만.
+    kind: 'drone-dash',
+    labelKey: 'viewnode.droneDash',
+    hintKey: 'viewnode.droneDash.hint',
+    summary: () => <NodeGate card kind="drone-dash"><DroneDashCard /></NodeGate>,
+    zoom: () => <NodeGate kind="drone-dash"><DroneDashZoom /></NodeGate>,
   },
   {
     // 자율주행 편 (260915) — AI 서버의 로봇 앞 카메라 영상을 **그대로**. 접힘은 한 장씩, 실시간은 확대에서.

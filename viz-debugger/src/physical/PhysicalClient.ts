@@ -40,6 +40,8 @@ import { parseSarStatus, SAR_TOPIC, sarChannel } from './sarFeed.ts';
 import { noteSarStatus } from '../shared/sarStatus.ts';
 import { parseRtcmStatus, RTCM_TOPIC, rtcmChannel } from './rtcmFeed.ts';
 import { noteRtcmStatus } from '../shared/rtcmStatus.ts';
+import { FCX_TOPIC, fcxChannel, parseFcx } from './fcxFeed.ts';
+import { noteFcx } from '../shared/fcxStatus.ts';
 import { decodeCapability, decodeUplink, type UplinkMessage } from './uplink.ts';
 
 const meta = import.meta as unknown as { env?: { VITE_PHYSICAL_WS?: string } };
@@ -322,6 +324,8 @@ export class PhysicalClient {
         client.subscribe(SAR_TOPIC, { qos: 0 });
         // RTK 보정 전달기 상태 (261002) — 「보정이 FC 로 들어가고 있는가」. retained.
         client.subscribe(RTCM_TOPIC, { qos: 0 });
+        // FC 확장 텔레메트리 (261002 · 드론 상태판) — 5 Hz, retained.
+        client.subscribe(FCX_TOPIC, { qos: 0 });
       }) as () => void);
       client.on('message', ((topic: string, payload: Uint8Array) => {
         // 장비 상태는 **JSON** 이고 명령 응답은 **protobuf** 다. 토픽으로 가른다 —
@@ -339,6 +343,11 @@ export class PhysicalClient {
           if (rtcmChannel(topic)) {
             const rtcm = parseRtcmStatus(body as Record<string, unknown>, topic);
             if (rtcm !== null) noteRtcmStatus(rtcm);
+            return;
+          }
+          if (fcxChannel(topic)) {
+            const fcx = parseFcx(body as Record<string, unknown>, topic);
+            if (fcx !== null) noteFcx(fcx);
             return;
           }
           // 로봇 → 탐지 흐름은 장비 상태가 아니다 — 다른 귀로 보낸다.

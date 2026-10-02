@@ -53,7 +53,7 @@ viz-debugger(컴퓨터공학과 GUI)에 드론 파트 기능을 붙였다. 화�
 ```bash
 cd viz-debugger/drone
 uv venv --python 3.12 .venv && uv pip install --python .venv/bin/python -e '.[test]'
-.venv/bin/python -m pytest -q          # 40건 — CAP_ON · 시계 · RTK 기록 · RTCM 전달 규칙을 확인한다
+.venv/bin/python -m pytest -q          # 49건 — CAP_ON · 시계 · RTK 기록 · RTCM 전달 · 상태판 텔레메트리
 
 # 시뮬레이터를 실제 시간으로 돌리며 상태를 MQTT 로 보낸다 (화면 연습용 — 드론 없이)
 .venv/bin/python -m sar_pass sim --heading 45 --length 80 --cap /tmp/CAP_ON --mqtt <브로커>:1883
@@ -173,7 +173,13 @@ python -m sar_pass run ... --speed-tol 0.3 --heading-tol 5 --cross-tol 2 --stabl
 PX4 는 MAVLink `GPS_RTCM_DATA` 로 들어온 보정을 GPS 모듈로 그대로 흘린다. 보내는 쪽이 QGC 든 스크립트든 PX4 쪽 설정은 같다.
 **두 방법을 동시에 쓰지 않는다.** 같은 베이스를 둘이 열 수 없고, 같이 넣으면 FC 에 보정이 두 번 들어간다.
 
-### 방법 A — QGC 내장 기능 (스크립트 없음)
+> **우리 베이스는 MicoAir M-RTK 다(배터리 내장형).** 이 베이스는 공식적으로 Mission Planner 만 지원하고,
+> Mission Planner 의 「RTK Inject」는 베이스 COM 포트의 RTCM 을 FC 로 그대로 넘겨 주는 기능이다.
+> QGC 의 내장 RTK(방법 A)는 QGC 가 직접 설정할 줄 아는 수신기(u-blox 등)만 다루므로 이 베이스에는 맞지 않을 가능성이 높다.
+> **그래서 이 구성의 기본은 방법 B 다.** 비행 · 설정은 PX4 + QGC 로 하고, 보정만 스크립트가 넣는다.
+> 베이스 설정(Survey-in · 출력 메시지)은 MicoAir 쪽 도구에서 미리 해 둔다. 스크립트는 나오는 RTCM 을 옮기기만 한다.
+
+### 방법 A — QGC 내장 기능 (스크립트 없음 · QGC 가 지원하는 베이스일 때만)
 
 ```
  베이스 ─USB─▶ 노트북 QGC ─TCP 5760(핫스팟)─▶ Pi mavlink-router ─▶ FC
@@ -184,7 +190,7 @@ PX4 는 MAVLink `GPS_RTCM_DATA` 로 들어온 보정을 GPS 모듈로 그대로 
 3. QGC 상단에 RTK 아이콘이 생기고, Survey-in 이 끝나면 QGC 가 보정을 기체 링크(TCP 5760)로 보낸다.
 4. 화면 「RTK 상태」의 fix 가 RTK Float → Fixed 로 오르는지 본다. 「보정(RTCM)」 줄은 「전달기 보고 없음」으로 남는다(정상).
 
-### 방법 B — 스크립트 직접 전달 (`rtk_relay`, 추천)
+### 방법 B — 스크립트 직접 전달 (`rtk_relay`, MicoAir M-RTK 는 이것)
 
 ```
  베이스 ─USB─▶ 노트북 base_sender.py ─UDP 14660(핫스팟)─▶ Pi fc_injector.py ─GPS_RTCM_DATA─▶ mavlink-router(TCP 5760) ─▶ FC
@@ -199,16 +205,20 @@ PX4 는 MAVLink `GPS_RTCM_DATA` 로 들어온 보정을 GPS 모듈로 그대로 
 .venv/bin/python -m rtk_relay.fc_injector --listen 0.0.0.0:14660 --fc tcp:127.0.0.1:5760 --mqtt 127.0.0.1:1883
 
 # 노트북 (Windows 예 — pip install pyserial, drone/ 폴더에서)
-python -m rtk_relay.base_sender --port COM5 --baud 115200 --to <Pi 핫스팟 IP>:14660
+python -m rtk_relay.base_sender --port COM12 --baud 115200 --to <Pi 핫스팟 IP>:14660   # M-RTK (CH340)
 ```
 
 - **베이스 설정**: 베이스가 이미 RTCM3 를 내보내고 있어야 한다.
+  - MicoAir M-RTK: Mission Planner 에서 쓰던 그대로 둔다. 같은 COM 포트를 Mission Planner 가 잡고 있으면 스크립트가 못 연다.
   - u-blox 면 u-center 에서 Survey-in(또는 고정 좌표)을 설정한다.
   - 출력 메시지는 1005, MSM(1077 · 1087 · 1097 · 1127), 1230 을 켠다.
   - 설정은 플래시에 저장해 둔다(방법 A 는 QGC 가 이것을 대신 해 준다).
 - 노트북 스크립트는 CRC 가 맞는 RTCM3 프레임만 보낸다(NMEA 등이 섞여도 걸러진다). 5초마다 「보정 수신 중 · B/s · 메시지 · 베이스 위치」를 찍는다.
 - Pi 스크립트는 받은 프레임을 다시 검사한다. 180 바이트씩 최대 4조각으로 나눠 `GPS_RTCM_DATA` 로 넣는다(QGC 와 같은 규칙).
   MAVLink 시스템 ID 는 252 를 쓴다(QGC 255 · MAVSDK 245 와 안 겹치게).
+- 이미 쓰던 노트북 스크립트 `cansar_rtcm_send.py` 도 그대로 Pi 의 `fc_injector` 와 맞물린다(같은 UDP 14660 ·
+  프레임 하나 = 데이터그램 하나). 단, `sendto` 를 `try/except OSError` 로 감싸야 와이파이가 끊겼을 때 스크립트가 안 죽는다.
+- Pi 에서 `cansar_pi.py` 가 이미 14660 을 받아 주입하고 있다면 `fc_injector` 는 켜지 않는다(포트가 겹친다).
 - 기존 MAVLink 프로그램(예: `cansar_pi.py`)에 직접 붙이려면 아래 한 줄이면 된다. 그 프로그램의 pymavlink 연결을 쓴다.
   ```python
   from rtk_relay.inject import PymavlinkInjector
@@ -218,6 +228,37 @@ python -m rtk_relay.base_sender --port COM5 --baud 115200 --to <Pi 핫스팟 IP>
   ```
 - 핫스팟 와이파이에 의존하는 것은 방법 A 와 같다. 끊기면 화면에 「보정 끊김 · N초째」가 뜨고, 몇 초 뒤 Fixed 가 Float 로 떨어질 수 있다.
   캡처 중 가장 나빴던 fix 는 패스 기록의 「RTK 최저」에 남는다.
+
+## 드론 상태판 (MicoConfigurator 처럼)
+
+캔버스 팔레트의 **「드론 상태판」** 노드. 접힘은 상태 줄 한 줄이고, 확대(더블클릭)하면 아래가 다 나온다.
+
+| 영역 | 내용 | 원천 |
+|---|---|---|
+| 상태 줄 | 링크(heartbeat 나이 · 초당 메시지) · 모드 · ARMED · GPS/RTK · **EKF POS·VEL·MAG·TER·VER** · 배터리 · RC RSSI · 보정 수신 · 시계 오차 | fcx (+state) |
+| 자세 · 방위 | 인공수평의(롤 · 피치) · 나침반(기수 · 홈 방향) | fcx 또는 state |
+| 지도 · 궤적 | 최근 3분 궤적 · 홈 · 드론 방향 · SAR 선(캡처 중 빨강) · 축척. 「지도 배경」을 켜면 OpenStreetMap(인터넷 필요) | fcx · sar |
+| 그래프 | 고도 · 지면 속도 · 상승률 · 배터리 전압 (최근 2분, 십자선 툴팁) | fcx |
+| GPS · RTK | fix · 위성 · HDOP/VDOP · 정확도 · RTK 기선/정확도/IAR · 위치 · 홈 | fcx (+state) |
+| 센서 건강 | SYS_STATUS 의 센서마다 ✓/✕ · FC 부하 · 통신 손실 | fcx |
+| 진동 | X/Y/Z m/s² (30 주의 · 60 위험) · 가속도 포화 | fcx |
+| 배터리 | 전압 · 잔량 · 전류 · 소모 · 온도 · **셀 전압과 편차** | fcx (+state) |
+| 메시지 | FC STATUSTEXT 콘솔 (경고 이상만 거르기) | fcx (없으면 state 의 최근 5줄) |
+
+`fcx` 는 Pi 의 **수신 전용** 수집기 `fc_watch` 가 FC MAVLink 를 읽어 MQTT `zoneA/drone/<id>/fcx`(5 Hz, retained)로 낸다.
+드론 에이전트의 `state`(1 Hz)에는 EKF · 센서 건강 · 진동 · 셀 전압 · 속도가 없어서, `fc_watch` 없이는 자세 · GPS · 배터리 · 모드만 나온다.
+화면이 그 사실(「기본 상태만」)을 적는다.
+
+```bash
+# Pi — 따로 띄우거나
+.venv/bin/python -m fc_watch --fc tcp:127.0.0.1:5760 --mqtt 127.0.0.1:1883
+# 보정 주입기에 같이 태운다 (TCP 연결 하나로 둘 다)
+.venv/bin/python -m rtk_relay.fc_injector --listen 0.0.0.0:14660 --fc tcp:127.0.0.1:5760 --mqtt 127.0.0.1:1883 --telemetry
+```
+
+- FC 로 아무것도 보내지 않는다. Pi 팀 mavlink-router 설정도 그대로다(QGC 와 같은 TCP 5760 에 손님으로 붙는다).
+- EKF 표시는 PX4 의 `ESTIMATOR_STATUS` 비율로 판정한다(0.5 미만 ✓ · 1 미만 ! · 그 이상 ✕). QGC 와 MicoConfigurator 와 같은 기준이다.
+  PX4 가 Onboard 링크로 이 메시지를 안 보내면 칩이 안 뜬다. 그때는 QGC 의 MAVLink 콘솔에서 `mavlink stream -d /dev/ttyS? -s ESTIMATOR_STATUS -r 2` 처럼 켠다.
 
 ## 실행
 
@@ -351,6 +392,8 @@ def act_sar_abort(node, params):
 | `drone/sar_pass/check.py` | 비행 전 점검(`python -m sar_pass check`) |
 | `drone/rtk_relay/base_sender.py` | 노트북: 베이스 RTCM3 → UDP |
 | `drone/rtk_relay/fc_injector.py` | Pi: UDP → GPS_RTCM_DATA → FC, 상태 MQTT `…/rtcm` |
+| `drone/fc_watch/` | Pi: FC MAVLink → 상태판 텔레메트리 `…/fcx` (수신 전용) · 시험용 가짜 FC |
+| `src/dronedash/` · `src/physical/fcxFeed.ts` · `src/shared/fcxStatus.ts` | 화면: 드론 상태판 |
 | `drone/rtk_relay/rtcm3.py` · `inject.py` | RTCM3 프레임 · CRC · 1005 베이스 위치 · 조각내기 |
 | `src/physical/rtcmFeed.ts` · `src/shared/rtcmStatus.ts` | 화면: 보정 전달 상태 수신 |
 | `src/sar/` | 화면: RTK 노드, SAR 패스 노드, 계획 계산 |

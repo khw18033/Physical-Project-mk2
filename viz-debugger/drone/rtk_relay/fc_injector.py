@@ -62,7 +62,7 @@ def connect_fc(url: str):  # noqa: ANN201
 
 
 def run(listen: tuple[str, int], injector: RtcmInjector, master=None, publish=None,  # noqa: ANN001
-        stop_after_s: float | None = None) -> RtcmStats:
+        stop_after_s: float | None = None, on_fc_message=None, tick=None) -> RtcmStats:
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sock.bind(listen)
     sock.settimeout(0.2)
@@ -87,8 +87,12 @@ def run(listen: tuple[str, int], injector: RtcmInjector, master=None, publish=No
                         stats.note(frame)
             if master is not None:
                 # 라우터가 FC 메시지를 TCP 로도 밀어준다 — 읽어 비우지 않으면 버퍼가 차서 끊긴다.
-                while master.recv_msg() is not None:
-                    pass
+                # `--telemetry` 면 버리지 않고 상태판 수집기(fc_watch)에 넘긴다 — TCP 연결 하나로 둘 다.
+                while (msg := master.recv_msg()) is not None:
+                    if on_fc_message is not None:
+                        on_fc_message(msg)
+            if tick is not None:
+                tick()
             now = time.time()
             if now - last_status >= 1.0:
                 last_status = now
@@ -117,6 +121,8 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--mqtt", help="host:port — 주면 화면에 「보정 수신 중/끊김」을 보낸다")
     p.add_argument("--device", default="x500-001")
     p.add_argument("--zone", default="zoneA")
+    p.add_argument("--telemetry", action="store_true",
+                   help="FC 메시지로 「드론 상태판」 텔레메트리(fcx)도 낸다 (--mqtt 필요)")
     args = p.parse_args(argv)
 
     master = None
@@ -129,8 +135,17 @@ def main(argv: list[str] | None = None) -> int:
     if args.mqtt:
         host, _, port = args.mqtt.partition(":")
         publish = StatusPublisher(host, int(port or 1883), args.device, args.zone)
+    on_fc_message = tick = None
+    if args.telemetry and args.mqtt and master is not None:
+        from fc_watch.__main__ import FcxPublisher
+        from fc_watch.collector import FcTelemetry
+
+        tel = FcTelemetry()
+        fcx = FcxPublisher(host, int(port or 1883), args.device, args.zone)
+        on_fc_message = tel.on_message
+        tick = lambda: fcx.maybe_publish(tel)  # noqa: E731
     try:
-        run(parse_addr(args.listen), injector, master, publish)
+        run(parse_addr(args.listen), injector, master, publish, on_fc_message=on_fc_message, tick=tick)
     except KeyboardInterrupt:
         pass
     return 0

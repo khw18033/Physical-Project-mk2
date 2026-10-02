@@ -1,0 +1,106 @@
+/* src/dronedash/dronedash.css (261002 — 드론 상태판). 상태색은 style.css 의 것과 같다: 초록 좋음 · 주황 주의 · 빨강 나쁨.
+   색만으로 말하지 않는다 — 칩마다 ✓ ! ✕ ? 기호가 같이 붙는다. */
+.dash-zoom{gap:12px}
+.dash-head{display:flex;align-items:center;gap:12px}
+.dash-head h3{margin:0;font-size:17px}
+.dash-head select{padding:4px 8px;border:1px solid #cbd3de;border-radius:var(--radius-sm)}
+
+.dash-status{display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding:8px 10px;border:1px solid #dde3ea;border-radius:var(--radius-md);background:#17202b}
+.dash-status--compact{background:transparent;border:0;padding:4px 0}
+.dash-chip{display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:999px;font-size:12px;border:1px solid;white-space:nowrap;font-variant-numeric:tabular-nums}
+.dash-chip i{font-style:normal;font-weight:700}
+.dash-chip span{font-weight:400}
+.dash-chip--good{color:#125c33;background:#d8f0e2;border-color:#1f8a4d}
+.dash-chip--warn{color:#7a4a07;background:#fdf1d8;border-color:#d39b2a}
+.dash-chip--bad{color:#a33a3a;background:#fbe3e3;border-color:#e15a5a}
+.dash-chip--unknown{color:#6b7888;background:#fff;border-color:#cbd3dc;border-style:dashed}
+.dash-gps{display:inline-flex;align-items:center;gap:6px;padding:2px 8px;border-radius:999px;background:#fff}
+.dash-gps small{font-size:12px;color:#26303c}
+.dash-status .rtcm-line{background:#fff}
+
+.dash-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.dash-panel{border:1px solid #dde3ea;border-radius:var(--radius-md);padding:10px 12px;background:#fff;min-width:0}
+.dash-panel--wide{grid-column:1/-1}
+.dash-panel h4{margin:0 0 8px;font-size:14px;color:#26303c}
+@media (max-width:900px){.dash-grid{grid-template-columns:1fr}}
+
+/* 자세계 · 나침반 */
+.dash-instruments{display:flex;gap:12px;justify-content:center;flex-wrap:wrap}
+.dash-att{margin:0;text-align:center}
+.dash-att svg{width:200px;height:200px}
+.dash-att figcaption{font-size:12px;color:#4a5666;font-variant-numeric:tabular-nums}
+.dash-att-sky{fill:#4a90d9}
+.dash-att-ground{fill:#8a5a2b}
+.dash-att-horizon{stroke:#fff;stroke-width:2}
+.dash-att-ladder{stroke:#fff;stroke-width:1.5}
+.dash-att-ladder-text{fill:#fff;font-size:10px}
+.dash-att-tick{stroke:#26303c;stroke-width:2}
+.dash-att-pointer{fill:#f2b705}
+.dash-att-aircraft{fill:none;stroke:#f2b705;stroke-width:4;stroke-linecap:round;stroke-linejoin:round}
+.dash-att-dot{fill:#f2b705}
+.dash-att-rim{fill:none;stroke:#26303c;stroke-width:3}
+.dash-cmp-face{fill:#f7f9fb;stroke:#26303c;stroke-width:3}
+.dash-cmp-card{font-size:16px;font-weight:700;fill:#26303c}
+.dash-cmp-card.is-n{fill:#c62f35}
+.dash-cmp-home{font-size:13px;font-weight:700;fill:#1f8a4d}
+.dash-cmp-needle{fill:#1768c5}
+.dash-cmp-value{font-size:20px;font-weight:700;fill:#26303c;font-variant-numeric:tabular-nums}
+
+/* 지도 */
+.dash-map{margin:0}
+.dash-map svg{width:100%;height:auto;border-radius:var(--radius-sm)}
+.dash-map-bg{fill:#eef2f6}
+.dash-map-grid{stroke:#dde3ea;stroke-width:1}
+.dash-map-track{fill:none;stroke:#1768c5;stroke-width:2;stroke-linejoin:round;stroke-linecap:round}
+.dash-map-sar{stroke:#1f8a4d;stroke-width:6;stroke-linecap:round;opacity:.75}
+.dash-map-sar.is-on{stroke:#c62f35}
+.dash-map-home{fill:#fff;stroke:#1f8a4d;stroke-width:2}
+.dash-map-home-text{font-size:11px;font-weight:700;fill:#1f8a4d}
+.dash-map-drone{fill:#f2b705;stroke:#17202b;stroke-width:1.5}
+.dash-map-north{fill:#26303c}
+.dash-map-scale{stroke:#26303c;stroke-width:2}
+.dash-map-text{font-size:12px;fill:#26303c}
+.dash-map-caption{display:flex;flex-wrap:wrap;gap:12px;align-items:center;margin-top:6px;font-size:12px;color:#4a5666;font-variant-numeric:tabular-nums}
+
+/* 그래프 — 한 장에 한 계열. 2px 선 · 10% 면 · 머리카락 격자 · 끝점 */
+.dash-charts{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px}
+.dash-chart{margin:0;position:relative}
+.dash-chart figcaption{display:flex;align-items:baseline;gap:6px;font-size:13px;color:#26303c}
+.dash-chart figcaption small{color:#6b7888}
+.dash-chart-now{margin-left:auto;font-weight:700;font-variant-numeric:tabular-nums}
+.dash-chart svg{width:100%;height:auto;touch-action:none}
+.dash-chart-grid{stroke:#eef1f5;stroke-width:1}
+.dash-chart-axis{font-size:9px;fill:#6b7888}
+.dash-chart-line{fill:none;stroke:#1768c5;stroke-width:2;stroke-linejoin:round;stroke-linecap:round}
+.dash-chart-area{fill:#1768c5;opacity:.1}
+.dash-chart-end{fill:#1768c5;stroke:#fff;stroke-width:2}
+.dash-chart-cross{stroke:#8392a3;stroke-width:1}
+.dash-chart-tip{position:absolute;top:22px;right:4px;padding:3px 8px;background:#fff;border:1px solid #dde3ea;border-radius:var(--radius-xs);font-size:12px;box-shadow:0 2px 8px #17202b1f}
+.dash-chart-tip span{color:#6b7888}
+
+/* 표 · 막대 */
+.dash-rows{display:grid;gap:1px;margin:0}
+.dash-row{display:flex;gap:10px;padding:4px 6px;border-bottom:1px solid #eef1f5;font-size:13px}
+.dash-row dt{min-width:110px;color:#6b7888}
+.dash-row dd{margin:0;color:#26303c;font-weight:600;font-variant-numeric:tabular-nums}
+.dash-v--good{color:#168f50!important}.dash-v--warn{color:#8a6410!important}.dash-v--bad{color:#c62f35!important}
+.dash-sensors{display:flex;flex-wrap:wrap;gap:5px}
+.dash-bars{display:grid;gap:6px;margin-top:6px}
+.dash-bar{display:grid;grid-template-columns:52px 1fr 52px;gap:8px;align-items:center;font-size:12px;font-variant-numeric:tabular-nums}
+.dash-bar b{text-align:right}
+.dash-bar-track{position:relative;height:10px;border-radius:5px;background:#eef1f5;overflow:hidden}
+.dash-bar-track em{position:absolute;top:0;bottom:0;width:1px;background:#8392a3}
+.dash-bar-fill{display:block;height:100%;border-radius:0 4px 4px 0}
+.dash-bar-fill--good{background:#1f8a4d}.dash-bar-fill--warn{background:#d39b2a}.dash-bar-fill--bad{background:#e15a5a}.dash-bar-fill--unknown{background:#cbd3dc}
+
+/* 메시지 콘솔 */
+.dash-console ol{list-style:none;margin:6px 0 0;padding:0;max-height:220px;overflow:auto;font-size:12px;font-family:ui-monospace,Consolas,monospace}
+.dash-console li{display:grid;grid-template-columns:70px 84px 1fr;gap:8px;padding:3px 4px;border-bottom:1px solid #f1f3f6}
+.dash-console time{color:#8a94a1}
+.dash-sev{font-weight:700}
+.dash-sev--bad{color:#c62f35}.dash-sev--warn{color:#8a6410}.dash-sev--good{color:#4a5666}
+
+/* 접힌 카드 */
+.dash-card{display:grid;gap:8px;font-size:13px}
+.dash-card-numbers{display:flex;gap:12px;color:#4a5666;font-variant-numeric:tabular-nums}
+.dash-card-numbers b{color:#26303c}
