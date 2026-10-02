@@ -102,6 +102,10 @@ python anchor360_bridge.py --unity-ip <유니티 PC IP> --poll 0.3
 3-2. 스트림 공급 (노트북 터미널 2)
 python stream_to_server.py --fps 2 --upload http://210.110.250.33:10001/upload_pano
 
+★ 만약 360도 카메라가 data stream 돌리는 노트북과 같은 노트북에 연결되어 있으면 
+python stream_to_server.py --fps 3 http://127.0.0.1:10001/upload_pano
+아래 명령어를 돌려야 함.
+
 ※ 팀원 핸드폰 핫스팟으로 해본 결과, 5fps 목표로 전송해도 2.3fps 정도가 실측되었음. 따라서 2fps로 하였음.
 ※ 목적지가 서버가 아닌 엣지(노트북 내)일 경우, 'http://210.110.250.33:10001/upload_pano' 코드가 달라져야 함. 이건 server_stream_multi_source.py 참고해서 엣지(노트북)에서 server_stream_multi_source를 돌릴때, stream_to_server 변경 사항을 알아야 함.
 ※ bridge 파일 자체도 나중에 multi_source.py에서 360도 카메라 비전처리 결과(json)가 나오는 경로를 반영해야함. 지금은 수정 전.
