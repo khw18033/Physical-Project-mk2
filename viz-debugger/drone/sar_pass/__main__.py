@@ -10,6 +10,9 @@
   # 비행 전 점검 (날지 않는다)
   python -m sar_pass check --connect udpin://0.0.0.0:14540 --mqtt 127.0.0.1:1883
 
+  # 파이 시계를 FC 의 GPS 시각에 맞춘다 (핫스팟에 인터넷이 없을 때)
+  sudo python -m sar_pass timesync --connect udpin://0.0.0.0:14540 --apply
+
 Ctrl-C · SIGTERM 은 중단이다 — CAP_ON 을 지우고 hold(또는 --rtl-on-abort 면 RTL).
 """
 
@@ -26,7 +29,7 @@ from pathlib import Path
 from .capture import DEFAULT_CAP_PATH, CaptureFlag
 from .geometry import LocalFrame
 from .mission import CROSS_TOL, HEADING_TOL, SPEED_TOL, STABLE_HOLD_S, SarMission, SarPlan
-from .status import MqttStatusPublisher, PrintStatus
+from .status import MqttStatusPublisher, PrintStatus, RtcmBaseListener
 
 
 def latlon(text: str) -> tuple[float, float]:
@@ -62,12 +65,25 @@ def build_parser() -> argparse.ArgumentParser:
         g.add_argument("--cross-tol", type=float, default=CROSS_TOL, help="횡오차 허용(m)")
         g.add_argument("--stable-hold", type=float, default=STABLE_HOLD_S, help="위 조건 유지 시간(s)")
         g.add_argument("--allow-clock-skew", action="store_true", help="시계 오차가 커도 시작한다(기록에 남김)")
+        q = s.add_argument_group("품질 판정 · 재비행 · 레이더 확인")
+        q.add_argument("--q-cross", type=float, default=1.0, help="캡처 중 횡오차 허용(m)")
+        q.add_argument("--q-speed", type=float, default=0.3, help="캡처 중 속도 오차 허용(m/s, 0.5 s 평균)")
+        q.add_argument("--q-alt", type=float, default=0.5, help="캡처 중 고도 오차 허용(m)")
+        q.add_argument("--q-heading", type=float, default=3.0, help="캡처 중 yaw 오차 허용(°)")
+        q.add_argument("--q-edge", type=float, default=2.0, help="실제 기록이 구간 끝에서 모자라도 되는 거리(m)")
+        q.add_argument("--extra-passes", type=int, default=2, help="무효 패스를 다시 날 최대 횟수")
+        q.add_argument("--cap-ack", type=Path, help="레이더 확인 파일 경로 (예: /home/physical/CAP_ACK)")
+        q.add_argument("--cap-lead", type=float, help="미리 켜고 끄는 시간(s). 안 주면 잰 레이더 지연으로 자동")
     sub.choices["run"].add_argument("--connect", default="udpin://0.0.0.0:14540", help="MAVSDK 주소")
+    ts = sub.add_parser("timesync", help="파이 시계와 FC(GPS) 시각의 차이를 재고, --apply 면 맞춘다")
+    ts.add_argument("--connect", default="udpin://0.0.0.0:14540")
+    ts.add_argument("--apply", action="store_true", help="시계를 실제로 바꾼다 (root 필요)")
     c = sub.add_parser("check", help="비행 전 점검 — 날지 않는다")
     c.add_argument("--cap", type=Path, default=DEFAULT_CAP_PATH)
     c.add_argument("--connect", help="MAVSDK 주소 (주면 FC · GPS · 시계 오차까지 본다)")
     c.add_argument("--mqtt", help="host:port")
     c.add_argument("--service", default="cansar.service")
+    c.add_argument("--cap-ack", type=Path, help="레이더 확인 파일 경로")
     return p
 
 
@@ -90,6 +106,8 @@ def make_plan(a: argparse.Namespace, here: tuple[float, float] | None) -> SarPla
         on_abort="rtl" if a.rtl_on_abort else "hold", on_done="rtl" if a.rtl_on_done else "hold",
         speed_tol=a.speed_tol, heading_tol=a.heading_tol, cross_tol=a.cross_tol, stable_hold_s=a.stable_hold,
         allow_clock_skew=a.allow_clock_skew,
+        q_cross_m=a.q_cross, q_speed_mps=a.q_speed, q_alt_m=a.q_alt, q_heading_deg=a.q_heading, q_edge_m=a.q_edge,
+        extra_passes=a.extra_passes, cap_lead_s=a.cap_lead,
     )
 
 
@@ -97,7 +115,11 @@ async def amain(a: argparse.Namespace) -> int:
     if a.cmd == "check":
         from .check import report, run_checks
 
-        return report(await run_checks(a.cap, a.connect, a.mqtt, a.service))
+        return report(await run_checks(a.cap, a.connect, a.mqtt, a.service, a.cap_ack))
+    if a.cmd == "timesync":
+        from .timesync import timesync
+
+        return await timesync(a.connect, a.apply)
     if a.cmd == "sim":
         from .vehicle import SimClock, SimVehicle
 
@@ -120,9 +142,11 @@ async def amain(a: argparse.Namespace) -> int:
 
     sink = PrintStatus()
     publisher = None
+    base_listener = None
     if a.mqtt:
         host, _, port = a.mqtt.partition(":")
         publisher = MqttStatusPublisher(host, int(port or 1883), device_id=a.device, zone=a.zone)
+        base_listener = RtcmBaseListener(host, int(port or 1883), device_id=a.device, zone=a.zone)
 
         def both(status: dict) -> None:
             publisher(status)
@@ -132,10 +156,12 @@ async def amain(a: argparse.Namespace) -> int:
     else:
         status_sink = sink
 
-    cap = CaptureFlag(a.cap, install_handlers=False)  # 신호는 아래에서 중단으로 받는다
+    cap = CaptureFlag(a.cap, install_handlers=False, ack_path=a.cap_ack)  # 신호는 아래에서 중단으로 받는다
     a.log_dir.mkdir(parents=True, exist_ok=True)
-    mission = SarMission(vehicle, plan, cap, status_sink,
-                         a.log_dir / f"sar_passes_{int(vehicle.clock.now())}.jsonl")
+    stamp = int(vehicle.clock.now())
+    mission = SarMission(vehicle, plan, cap, status_sink, a.log_dir / f"sar_passes_{stamp}.jsonl",
+                         traj_dir=a.log_dir / f"flight_{stamp}",
+                         base_provider=None if base_listener is None else base_listener.base)
 
     loop = asyncio.get_running_loop()
     for sig in (signal.SIGINT, signal.SIGTERM):
@@ -153,9 +179,9 @@ async def amain(a: argparse.Namespace) -> int:
     for w in mission.warnings:
         logging.warning("주의: %s", w)
     for r in mission.records:
-        logging.info("PASS %d start=%s end=%s (FC %s~%s) captured=%s mean=%.2f m/s worst_fix=%s %s", r.pass_no,
-                     r.start_unix, r.end_unix, r.fc_start_unix, r.fc_end_unix, r.captured, r.mean_speed_mps or 0.0,
-                     r.worst_fix, r.note)
+        logging.info("PASS %d %s start=%s end=%s (FC %s~%s) 레이더지연=%s 실제기록=%s~%s m worst_fix=%s %s",
+                     r.pass_no, "유효" if r.valid else "무효", r.start_unix, r.end_unix, r.fc_start_unix, r.fc_end_unix,
+                     r.ack_on_latency_s, r.eff_start_along_m, r.eff_end_along_m, r.worst_fix, "; ".join(r.reasons))
     logging.info("결과 %s %s", outcome, mission.message or mission.error or "")
     return 0 if outcome == "done" else 1
 

@@ -4,15 +4,25 @@
 - 고도 일정(기본 20 m), 직선 캡처 구간 60 m 이상, 그 구간에서 3~5 m/s 등속.
   가속·감속은 캡처 구간 밖(앞 lead-in · 뒤 lead-out)에서 한다.
 - 캡처 구간 동안 yaw 는 진행 방향으로 고정.
-- 같은 선을 같은 방향으로 2회 이상.
+- 같은 선을 같은 방향으로 2회 이상 — **품질 기준을 넘은 「유효」 패스로 센다.** 무효면 그 자리에서 다시 난다.
+
+[제어]
+- **속도 명령 + 우리 쪽 보정**: 진행 방향 = 목표 속도 + 적분(anti-windup), 옆 = 횡오차 비례, 위아래 = 고도 비례.
+  PX4 SITL(2026-10-02)에서 셋을 비교했다:
+    ① 속도만 → 3.9 m/s 에 머묾(정상상태 오차)   ② 앞서 가는 위치 기준점 → 출발 지연을 메우느라 4.6 m/s 과속
+    ③ 선 위로 내린 위치 + 속도 앞먹임 → 텔레메트리 지연만큼 목표점이 뒤에 찍혀 브레이크가 걸림
+  ①에 적분을 더한 지금 방식이 가장 빨리 · 정확히 등속에 들어갔다. 진행 방향 위치는 PX4 에 넘기지 않는다.
+- 등속 판정은 0.5 s 이동평균 속도로 한다 — 순간 흔들림에 판정이 끊기지 않게.
 
 [캡처]
 - 등속에 들어선 직후 CAP_ON 생성, 캡처 구간 끝(감속 시작 전)에 삭제.
-- 중단 · RTL · 예외 · 조종기 개입에도 `finally` 에서 삭제.
-- 한 패스 끝(삭제)과 다음 패스 시작(생성) 사이는 최소 `gap_s`(≥10 s).
+- 레이더가 CAP_ACK 를 주면(capture.py) 실제 시작·멈춤 시각과 지연을 잰다. 잰 지연만큼 **미리 켜고 미리 끈다**
+  (자동 선행 트리거) — 실제 기록 구간이 캡처 구간과 맞도록.
+- 중단 · RTL · 예외 · 조종기 개입에도 `finally` 에서 삭제. 패스 사이 최소 `gap_s`(≥10 s).
 
-[로그]
-- 패스마다 번호와 시작/끝 시각(time.time())을 남긴다.
+[기록]
+- 패스마다 번호 · 시작/끝 시각(파이 시계와 FC GPS 시각) · 품질 판정을 남긴다.
+- 패스마다 50 Hz 궤적 CSV 와 메타데이터 JSON(계획 · 품질 · 시계 오차 · 베이스 좌표 · EKF2_HGT_REF)을 남긴다.
 
 한 패스의 흐름:  transit(lead-in 점으로) → gap(간격 채우기) → accel → capture → decel → (다음 패스)
 """
@@ -20,13 +30,16 @@
 from __future__ import annotations
 
 import asyncio
+import csv
 import json
 import logging
 import math
 import os
+import statistics
+from collections import deque
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Callable
+from typing import Any, Callable
 
 from .capture import CaptureFlag
 from .geometry import PassLine, angle_diff_deg, lead_in_m
@@ -42,10 +55,11 @@ MIN_PASSES = 2
 MIN_GAP_S = 10.0
 
 # 「등속이다」 판정 — 기본값. 실비행 로그를 보고 계획마다 바꿀 수 있다(`SarPlan.speed_tol` 등).
-SPEED_TOL = 0.2      # m/s
+SPEED_TOL = 0.2      # m/s (0.5 s 이동평균)
 HEADING_TOL = 5.0    # deg
 CROSS_TOL = 2.0      # m
 STABLE_HOLD_S = 1.0  # 위 조건이 이만큼 이어져야 등속으로 본다
+SPEED_AVG_S = 0.5    # 이동평균 창
 
 # 이 컴퓨터 시계와 FC 의 GPS 시각 차이가 이보다 크면 시작하지 않는다 — 패스 시각을 .ulg · 레이더와 맞출 수 없다.
 MAX_CLOCK_OFFSET_S = 1.0
@@ -53,13 +67,21 @@ MAX_CLOCK_OFFSET_S = 1.0
 # GPS fix 의 좋고 나쁨 차례 — 캡처 중 가장 나빴던 것을 패스 기록에 남긴다.
 FIX_ORDER = ("NO_GPS", "NO_FIX", "FIX_2D", "FIX_3D", "FIX_DGPS", "RTK_FLOAT", "RTK_FIXED")
 
-
-def fix_rank(fix: str) -> int:
-    return FIX_ORDER.index(fix) if fix in FIX_ORDER else -1
-
-CONTROL_HZ = 20.0
+CONTROL_HZ = 50.0     # 제어 · 궤적 기록 주기
+SETTLE_S = 5.0        # 가속 뒤 등속 안정에 주는 시간 (SITL: 2·3 s 로는 모자랐다). 모자라면 적응형으로 늘린다
+MAX_EXTRA_LEAD_M = 80.0  # 적응형으로 더할 수 있는 가속 구간의 상한
+MAX_CAP_LEAD_S = 1.0  # 자동 선행 트리거의 상한
+ACK_WAIT_S = 3.0      # 레이더 확인을 이만큼 기다린다
 
 PILOT_MODES = ("POSCTL", "ALTCTL", "MANUAL", "STABILIZED", "ACRO", "RTL", "LAND")
+
+TRAJ_FIELDS = ["t_pi", "t_fc", "lat", "lon", "alt_rel_m", "alt_amsl_m", "ned_n", "ned_e", "ned_d",
+               "vn", "ve", "vd", "speed", "speed_avg", "roll_deg", "pitch_deg", "yaw_deg",
+               "along_m", "cross_m", "ref_along_m", "ref_speed", "gps_fix", "phase", "cap_on", "cap_ack"]
+
+
+def fix_rank(fix: str | None) -> int:
+    return FIX_ORDER.index(fix) if fix in FIX_ORDER else -1
 
 
 class MissionAborted(Exception):
@@ -82,19 +104,27 @@ class SarPlan:
     end_lon: float
     alt_m: float = 20.0
     speed_mps: float = 4.0
-    passes: int = 2
+    passes: int = 2                # 필요한 **유효** 패스 수
     gap_s: float = 10.0
-    lead_in_m: float = 0.0       # 0 이면 속도에서 계산
+    lead_in_m: float = 0.0         # 0 이면 속도에서 계산
     accel_mps2: float = 1.0
     require_rtk: bool = True
-    on_abort: str = "hold"       # hold | rtl
-    on_done: str = "hold"        # hold | rtl
+    on_abort: str = "hold"         # hold | rtl
+    on_done: str = "hold"          # hold | rtl
     speed_tol: float = SPEED_TOL
     heading_tol: float = HEADING_TOL
     cross_tol: float = CROSS_TOL
     stable_hold_s: float = STABLE_HOLD_S
     max_clock_offset_s: float = MAX_CLOCK_OFFSET_S
     allow_clock_skew: bool = False
+    # 품질 판정 (캡처 구간 안에서) — 넘으면 무효, 다시 난다
+    q_cross_m: float = 1.0
+    q_speed_mps: float = 0.3
+    q_alt_m: float = 0.5
+    q_heading_deg: float = 3.0
+    q_edge_m: float = 2.0          # 실제 기록이 구간 시작보다 늦게 · 끝보다 일찍 끝난 허용 거리
+    extra_passes: int = 2          # 무효 패스를 다시 날 수 있는 최대 횟수
+    cap_lead_s: float | None = None  # None 이면 잰 레이더 지연으로 자동
 
     @property
     def line(self) -> PassLine:
@@ -102,7 +132,7 @@ class SarPlan:
 
     @property
     def effective_lead_in_m(self) -> float:
-        auto = lead_in_m(self.speed_mps, self.accel_mps2, settle_s=2.0)
+        auto = lead_in_m(self.speed_mps, self.accel_mps2, settle_s=SETTLE_S)
         return max(self.lead_in_m, auto)
 
     def problems(self) -> list[str]:
@@ -124,6 +154,10 @@ class SarPlan:
         if not (0 < self.speed_tol <= 1.0 and 0 < self.heading_tol <= 30 and 0 < self.cross_tol <= 10
                 and 0 <= self.stable_hold_s <= 5):
             out.append("등속 판정 기준이 범위 밖 (speed_tol ≤1 · heading_tol ≤30 · cross_tol ≤10 · stable_hold_s ≤5)")
+        if not (0 <= self.extra_passes <= 10):
+            out.append("extra_passes 는 0~10")
+        if self.cap_lead_s is not None and not (0 <= self.cap_lead_s <= MAX_CAP_LEAD_S):
+            out.append(f"cap_lead_s 는 0~{MAX_CAP_LEAD_S}")
         return out
 
     # 명령 규약은 map<string, double> 이다 — 문자열·참거짓을 숫자로 싣는다.
@@ -134,7 +168,7 @@ class SarPlan:
                 raise ValueError(f"파라미터 {key} 가 없다")
             return float(p[key])
 
-        return cls(
+        kw: dict[str, Any] = dict(
             start_lat=need("start_lat"), start_lon=need("start_lon"),
             end_lat=need("end_lat"), end_lon=need("end_lon"),
             alt_m=float(p.get("alt_m", 20.0)),
@@ -151,13 +185,21 @@ class SarPlan:
             stable_hold_s=float(p.get("stable_hold_s", STABLE_HOLD_S)),
             allow_clock_skew=bool(round(p.get("allow_clock_skew", 0))),
         )
+        for key in ("q_cross_m", "q_speed_mps", "q_alt_m", "q_heading_deg", "q_edge_m"):
+            if key in p:
+                kw[key] = float(p[key])
+        if "extra_passes" in p:
+            kw["extra_passes"] = int(round(p["extra_passes"]))
+        if "cap_lead_s" in p and p["cap_lead_s"] >= 0:
+            kw["cap_lead_s"] = float(p["cap_lead_s"])
+        return cls(**kw)
 
 
 @dataclass
 class PassRecord:
-    pass_no: int
-    start_unix: float | None = None
-    end_unix: float | None = None
+    pass_no: int                       # 몇 번째 시도인가 (1, 2, 3 …)
+    start_unix: float | None = None    # CAP_ON 을 만든 시각 (요청)
+    end_unix: float | None = None      # CAP_ON 을 지운 시각 (요청)
     captured: bool = False
     along_at_start_m: float | None = None
     mean_speed_mps: float | None = None
@@ -170,6 +212,20 @@ class PassRecord:
     fc_end_unix: float | None = None
     # 캡처 중 가장 나빴던 fix. RTK_FIXED 가 아니었던 순간이 있으면 그 패스 데이터는 의심한다.
     worst_fix: str | None = None
+    # 레이더 확인(CAP_ACK) — 실제 기록 시작 · 멈춤
+    ack_start_unix: float | None = None
+    ack_end_unix: float | None = None
+    ack_on_latency_s: float | None = None
+    ack_off_latency_s: float | None = None
+    cap_lead_s: float = 0.0            # 이 패스에 쓴 선행 트리거
+    lead_in_m: float | None = None     # 이 패스에 쓴 가속 구간(적응형 포함)
+    # 실제 기록 구간(ACK 가 있으면 ACK 기준, 없으면 요청 기준)이 선 위 어디서 어디까지였나
+    eff_start_along_m: float | None = None
+    eff_end_along_m: float | None = None
+    valid: bool | None = None
+    reasons: list[str] = field(default_factory=list)
+    traj_csv: str | None = None
+    meta_json: str | None = None
     note: str = ""
     _speed_sum: float = field(default=0.0, repr=False)
     _speed_n: int = field(default=0, repr=False)
@@ -196,12 +252,16 @@ class SarMission:
         cap: CaptureFlag,
         status_sink: StatusSink | None = None,
         pass_log_path: Path | None = None,
+        traj_dir: Path | None = None,
+        base_provider: Callable[[], dict | None] | None = None,
     ) -> None:
         self.v = vehicle
         self.plan = plan
         self.cap = cap
         self.sink = status_sink
         self.pass_log_path = pass_log_path
+        self.traj_dir = traj_dir
+        self.base_provider = base_provider
         self.state = "idle"
         self.pass_no = 0
         self.records: list[PassRecord] = []
@@ -213,23 +273,38 @@ class SarMission:
         self._last_publish = 0.0
         self.clock_offset_s: float | None = None
         self.warnings: list[str] = []
+        self.hgt_ref: int | None = None
+        self._on_latencies: list[float] = []
+        self._off_latencies: list[float] = []
+        self.extra_lead_m = 0.0     # 적응형 가속 구간 — 등속이 늦게 잡힌 만큼 다음 패스 앞을 늘린다
 
     # ── 바깥에서 부르는 것 ──────────────────────────────────────────────────
     def abort(self) -> None:
         self._abort.set()
 
+    @property
+    def valid_passes(self) -> int:
+        return sum(1 for r in self.records if r.valid)
+
     async def run(self) -> str:
-        """끝난 상태(done · aborted · failed)를 돌려준다. CAP_ON 은 어떤 경로로든 지워진다."""
+        """끝난 상태(done · incomplete · aborted · failed)를 돌려준다. CAP_ON 은 어떤 경로로든 지워진다."""
         outcome = "failed"
         try:
             problems = self.plan.problems()
             if problems:
                 raise PreflightFailed("; ".join(problems))
             await self._preflight()
-            for n in range(1, self.plan.passes + 1):
-                await self._fly_pass(n)
-            outcome = "done"
-            self.message = f"{self.plan.passes}회 패스 완료"
+            attempt = 0
+            limit = self.plan.passes + self.plan.extra_passes
+            while self.valid_passes < self.plan.passes and attempt < limit:
+                attempt += 1
+                await self._fly_pass(attempt)
+            if self.valid_passes >= self.plan.passes:
+                outcome = "done"
+                self.message = f"유효 패스 {self.valid_passes}/{self.plan.passes} (시도 {attempt}회)"
+            else:
+                outcome = "incomplete"
+                self.message = f"유효 패스 {self.valid_passes}/{self.plan.passes} — 시도 {attempt}회를 다 썼다"
         except MissionAborted:
             outcome = "aborted"
             self.message = "사람이 중단했다"
@@ -266,9 +341,11 @@ class SarMission:
         parent = self.cap.path.parent
         if not parent.is_dir() or not os.access(parent, os.W_OK):
             raise PreflightFailed(f"CAP_ON 자리({parent})가 없거나 쓸 수 없다")
-        # 지난 비행이 남긴 CAP_ON 은 지우고 시작한다 — 남아 있으면 이동 중에도 캡처된다.
+        # 지난 비행이 남긴 CAP_ON · CAP_ACK 는 지우고 시작한다.
         if self.cap.off("비행 전 정리"):
             self.warnings.append("지난 비행의 CAP_ON 이 남아 있어 지웠다")
+        if self.cap.clear_stale_ack():
+            self.warnings.append("지난 비행의 CAP_ACK 가 남아 있어 지웠다")
         tel = await self._tel()
         if tel.lat is None or tel.lon is None:
             raise PreflightFailed("위치가 없다")
@@ -282,19 +359,42 @@ class SarMission:
             log.warning(self.warnings[-1])
         elif abs(tel.clock_offset_s) > self.plan.max_clock_offset_s:
             msg = (f"이 컴퓨터 시계가 FC(GPS) 시각과 {tel.clock_offset_s:+.2f} s 어긋난다 "
-                   f"(허용 ±{self.plan.max_clock_offset_s} s) — 시계를 맞추고 시작한다 (chrony/NTP)")
+                   f"(허용 ±{self.plan.max_clock_offset_s} s) — `python -m sar_pass timesync --apply` 로 맞추고 시작한다")
             if not self.plan.allow_clock_skew:
                 raise PreflightFailed(msg)
             self.warnings.append(msg)
             log.warning(msg)
+        # 높이 기준 — RTK 를 쓰는데 기압계 기준이면 몇 분 사이 0.5~1 m 가 흔들린다.
+        getter = getattr(self.v, "get_param_int", None)
+        self.hgt_ref = await getter("EKF2_HGT_REF") if getter is not None else None
+        if self.plan.require_rtk and self.hgt_ref is not None and self.hgt_ref != 1:
+            self.warnings.append(f"EKF2_HGT_REF={self.hgt_ref} (1=GNSS 가 아니다) — 고도가 기압계 기준이라 패스마다 흔들릴 수 있다")
+            log.warning(self.warnings[-1])
+        if self.cap.ack_path is None:
+            self.warnings.append("레이더 확인(CAP_ACK) 경로가 없다 — 실제 기록 시각은 모르고 요청 시각만 남는다")
 
-    async def _fly_pass(self, n: int) -> None:
+    def _lead_s(self) -> float:
+        """이번 패스의 선행 트리거(초). 지정이 없으면 잰 레이더 지연의 중앙값."""
+        if self.plan.cap_lead_s is not None:
+            return self.plan.cap_lead_s
+        if not self._on_latencies:
+            return 0.0
+        return max(0.0, min(MAX_CAP_LEAD_S, statistics.median(self._on_latencies)))
+
+    def _off_lead_s(self) -> float:
+        if self.plan.cap_lead_s is not None:
+            return self.plan.cap_lead_s
+        if not self._off_latencies:
+            return 0.0
+        return max(0.0, min(MAX_CAP_LEAD_S, statistics.median(self._off_latencies)))
+
+    async def _fly_pass(self, n: int) -> PassRecord:
         plan, line = self.plan, self.plan.line
         heading = line.heading_deg
         length = line.length_m
-        lead = plan.effective_lead_in_m
+        lead = plan.effective_lead_in_m + self.extra_lead_m
         self.pass_no = n
-        record = PassRecord(pass_no=n)
+        record = PassRecord(pass_no=n, lead_in_m=round(lead, 1))
         self.records.append(record)
 
         # 1. lead-in 점으로
@@ -313,13 +413,24 @@ class SarMission:
                 self._publish()
 
         # 3~5. 가속 → 캡처 → 감속
+        on_lead_m = self._lead_s() * plan.speed_mps
+        off_lead_m = self._off_lead_s() * plan.speed_mps
+        record.cap_lead_s = round(self._lead_s(), 3)
         self._set_state("accel")
         await self.v.start_offboard(heading)
         dt = 1.0 / CONTROL_HZ
-        v_cmd = 0.0
+        tel = await self._tel()
+        s_ref, _ = line.along_cross(tel.lat, tel.lon)  # type: ignore[arg-type]
+        v_ref = 0.0
+        v_int = 0.0      # 속도 적분 보정 (PX4 정상상태 오차를 지운다)
         stable_since: float | None = None
+        speeds: deque[tuple[float, float]] = deque()
         un, ue = line.unit
         max_on = length / plan.speed_mps * 1.5 + 10.0
+        rows: list[dict] = []
+        off_requested_at: float | None = None
+        prev = self.v.clock.now()
+        next_tick = prev
         try:
             while True:
                 self._check_abort()
@@ -327,75 +438,206 @@ class SarMission:
                 self._check_pilot(tel)
                 along, cross = line.along_cross(tel.lat, tel.lon)  # type: ignore[arg-type]
                 gs = tel.ground_speed
+                now = self.v.clock.now()
+                # **실제로 흐른 시간**으로 기준점을 민다. 고정 dt 로 밀면 루프가 늦게 돌 때 기준점이 느려진다
+                # (PX4 SITL 2026-10-02: 45.8 Hz 로 돌아 기준점이 3.7 m/s 로 움직였다).
+                step = min(max(now - prev, 0.0), 0.2)
+                prev = now
+                speeds.append((now, gs))
+                while speeds and now - speeds[0][0] > SPEED_AVG_S:
+                    speeds.popleft()
+                gs_avg = sum(x for _t, x in speeds) / len(speeds)
                 alt_err = (tel.rel_alt_m or 0.0) - plan.alt_m
                 hdg_err = abs(angle_diff_deg(tel.yaw_deg or 0.0, heading))
-                now = self.v.clock.now()
 
+                # 기준점: 가속 → 등속 → 감속. 기체에서 너무 멀어지지 않게 묶는다.
                 if self.state in ("accel", "capture"):
-                    v_cmd = min(plan.speed_mps, v_cmd + plan.accel_mps2 * dt)
-                else:  # decel
-                    v_cmd = max(0.0, v_cmd - plan.accel_mps2 * dt)
-
-                # 선 위로 끌어당기는 횡방향 보정, 고도 보정
-                k_cross, k_alt = 0.6, 0.8
-                c_corr = max(-1.5, min(1.5, -k_cross * cross))
-                vel_n = un * v_cmd + (-ue) * c_corr
-                vel_e = ue * v_cmd + un * c_corr
-                vel_d = max(-1.0, min(1.0, k_alt * alt_err))
-                await self.v.set_velocity(vel_n, vel_e, vel_d, heading)
-
-                stable_now = (
-                    abs(gs - plan.speed_mps) <= plan.speed_tol and hdg_err <= plan.heading_tol
-                    and abs(cross) <= plan.cross_tol
-                )
-                if stable_now:
-                    stable_since = stable_since if stable_since is not None else now
+                    v_ref = min(plan.speed_mps, v_ref + plan.accel_mps2 * step)
                 else:
-                    stable_since = None
+                    v_ref = max(0.0, v_ref - plan.accel_mps2 * step)
+                # 적분은 목표 속도에 다다른 뒤, 오차가 작을 때만 쌓는다(anti-windup) — 가속 지연을 쌓으면 과속으로 돌려준다.
+                err = plan.speed_mps - gs_avg
+                if v_ref >= plan.speed_mps and self.state in ("accel", "capture") and abs(err) < 0.5:
+                    v_int = max(-0.4, min(0.4, v_int + 0.8 * err * step))
+                elif self.state == "decel":
+                    v_int = 0.0
+                v_cmd = max(0.0, v_ref + v_int)
+                s_ref = along
+                c_corr = max(-1.5, min(1.5, -0.8 * cross))         # 선 위로 끌어당김
+                vel_d = max(-1.0, min(1.0, 0.8 * alt_err))          # 고도 유지
+                await self.v.set_velocity(un * v_cmd - ue * c_corr, ue * v_cmd + un * c_corr, vel_d, heading)
+
+                stable_now = (abs(gs_avg - plan.speed_mps) <= plan.speed_tol and hdg_err <= plan.heading_tol
+                              and abs(cross) <= plan.cross_tol)
+                stable_since = (stable_since if stable_since is not None else now) if stable_now else None
                 stable = stable_since is not None and now - stable_since >= plan.stable_hold_s
 
+                ack = self.cap.read_ack()
                 if self.state == "accel":
-                    if along >= length:
+                    if along >= length - off_lead_m:
                         record.note = "등속에 못 들어선 채 캡처 구간을 지났다 — 캡처 없음"
                         log.warning("패스 %d: %s", n, record.note)
                         self._set_state("decel")
-                    elif along >= 0.0 and stable:
+                    elif along >= -on_lead_m and stable:
                         self.cap.on(max_on_s=max_on)
                         record.captured = True
                         record.start_unix = now
                         record.fc_start_unix = self._fc_time(now)
-                        record.worst_fix = tel.gps_fix
                         record.along_at_start_m = round(along, 2)
                         self._log_pass_event(record, "start")
                         self._set_state("capture")
                 elif self.state == "capture":
                     record._speed_sum += gs
                     record._speed_n += 1
-                    record.max_speed_err_mps = max(record.max_speed_err_mps, abs(gs - plan.speed_mps))
-                    record.max_cross_track_m = max(record.max_cross_track_m, abs(cross))
-                    record.max_alt_err_m = max(record.max_alt_err_m, abs(alt_err))
-                    record.max_heading_err_deg = max(record.max_heading_err_deg, hdg_err)
-                    if fix_rank(tel.gps_fix) < fix_rank(record.worst_fix or "RTK_FIXED"):
-                        record.worst_fix = tel.gps_fix
-                    if along >= length:
-                        # **감속 전에 끈다.**
+                    if ack is not None and record.ack_start_unix is None and ack >= (record.start_unix or 0) - 0.5:
+                        record.ack_start_unix = ack
+                        record.ack_on_latency_s = round(ack - (record.start_unix or ack), 3)
+                        self._on_latencies.append(max(0.0, record.ack_on_latency_s))
+                    if along >= length - off_lead_m:
+                        # **감속 전에 끈다.** (선행 트리거만큼 미리)
                         self.cap.off(f"패스 {n} 끝")
                         record.end_unix = now
                         record.fc_end_unix = self._fc_time(now)
                         record.mean_speed_mps = round(record._speed_sum / max(1, record._speed_n), 3)
                         self._last_cap_off = now
+                        off_requested_at = now
                         self._log_pass_event(record, "end")
                         self._set_state("decel")
-                elif self.state == "decel" and v_cmd <= 0.0 and gs < 0.3:
-                    break
+                elif self.state == "decel":
+                    if record.ack_start_unix is None and ack is not None and record.start_unix is not None:
+                        record.ack_start_unix = ack       # 늦게 온 시작 확인
+                        record.ack_on_latency_s = round(ack - record.start_unix, 3)
+                    if (off_requested_at is not None and record.ack_start_unix is not None
+                            and record.ack_end_unix is None and ack is None):
+                        record.ack_end_unix = now          # 레이더가 ACK 를 지운 것을 본 순간
+                        record.ack_off_latency_s = round(now - off_requested_at, 3)
+                        self._off_latencies.append(record.ack_off_latency_s)
+                    ack_settled = (self.cap.ack_path is None or record.ack_end_unix is not None
+                                   or off_requested_at is None or now - off_requested_at > ACK_WAIT_S)
+                    if v_ref <= 0.0 and gs < 0.3 and ack_settled:
+                        break
 
+                row = self._row(tel, now, along, cross, gs, gs_avg, self.state, ack)
+                row["ref_along_m"], row["ref_speed"] = round(s_ref, 3), round(v_cmd, 3)
+                rows.append(row)
                 self._publish(tel=tel, along=along, cross=cross)
-                await self.v.clock.sleep(dt)
+                # 다음 틱 시각까지만 잔다 — 처리 시간만큼 주기가 늘어지지 않게
+                next_tick = max(next_tick + dt, self.v.clock.now())
+                await self.v.clock.sleep(max(0.0, next_tick - self.v.clock.now()))
         finally:
             await self.v.stop_offboard()
+            self._judge(record, rows)
+            self._write_traj(record, rows)
+        # 적응형 가속 구간: 캡처 요청이 「켤 자리」보다 늦었으면 그만큼(+여유 5 m) 다음 패스의 앞을 늘린다.
+        late = (record.along_at_start_m if record.captured else length) + on_lead_m
+        if late > 0.5:
+            self.extra_lead_m = min(MAX_EXTRA_LEAD_M, self.extra_lead_m + late + 5.0)
+            log.info("등속이 %.1f m 늦게 잡혔다 — 다음 패스 가속 구간 +%.1f m (합 %.1f m)",
+                     late, late + 5.0, plan.effective_lead_in_m + self.extra_lead_m)
+        return record
+
+    # ── 품질 판정 ───────────────────────────────────────────────────────────
+    def _judge(self, record: PassRecord, rows: list[dict]) -> None:
+        plan = self.plan
+        length = plan.line.length_m
+        reasons: list[str] = []
+        if not record.captured:
+            reasons.append("캡처 안 됨")
+        # 실제 기록 구간: ACK 가 있으면 ACK, 없으면 요청
+        t0 = record.ack_start_unix if record.ack_start_unix is not None else record.start_unix
+        t1 = record.ack_end_unix if record.ack_end_unix is not None else record.end_unix
+        if self.cap.ack_path is not None and record.captured and record.ack_start_unix is None:
+            reasons.append("레이더 확인(CAP_ACK) 없음")
+        window = [r for r in rows if t0 is not None and t1 is not None and t0 <= r["t_pi"] <= t1]
+        if window:
+            record.eff_start_along_m = round(window[0]["along_m"], 2)
+            record.eff_end_along_m = round(window[-1]["along_m"], 2)
+            if record.eff_start_along_m > plan.q_edge_m:
+                reasons.append(f"기록 시작이 {record.eff_start_along_m:.1f} m 늦다 (허용 {plan.q_edge_m} m)")
+            if record.eff_end_along_m < length - plan.q_edge_m:
+                reasons.append(f"기록 끝이 {length - record.eff_end_along_m:.1f} m 이르다 (허용 {plan.q_edge_m} m)")
+            # 캡처 구간(0~length) 안의 표본으로 품질을 본다
+            inside = [r for r in window if 0.0 <= r["along_m"] <= length] or window
+            record.max_cross_track_m = max(abs(r["cross_m"]) for r in inside)
+            record.max_speed_err_mps = max(abs(r["speed_avg"] - plan.speed_mps) for r in inside)
+            record.max_alt_err_m = max(abs((r["alt_rel_m"] or 0) - plan.alt_m) for r in inside)
+            record.max_heading_err_deg = max(abs(angle_diff_deg(r["yaw_deg"] or 0, plan.line.heading_deg)) for r in inside)
+            worst = min((r["gps_fix"] for r in inside), key=fix_rank)
+            record.worst_fix = worst
+            if record.max_cross_track_m > plan.q_cross_m:
+                reasons.append(f"횡오차 {record.max_cross_track_m:.2f} m > {plan.q_cross_m}")
+            if record.max_speed_err_mps > plan.q_speed_mps:
+                reasons.append(f"속도 오차 {record.max_speed_err_mps:.2f} m/s > {plan.q_speed_mps}")
+            if record.max_alt_err_m > plan.q_alt_m:
+                reasons.append(f"고도 오차 {record.max_alt_err_m:.2f} m > {plan.q_alt_m}")
+            if record.max_heading_err_deg > plan.q_heading_deg:
+                reasons.append(f"yaw 오차 {record.max_heading_err_deg:.1f}° > {plan.q_heading_deg}")
+            if plan.require_rtk and worst != "RTK_FIXED":
+                reasons.append(f"캡처 중 RTK 가 {worst} 로 떨어졌다")
+        elif record.captured:
+            reasons.append("기록 구간의 궤적이 없다")
+        record.reasons = reasons
+        record.valid = not reasons
+        log.info("PASS %d %s %s", record.pass_no, "유효" if record.valid else "무효", "; ".join(reasons))
+
+    # ── 궤적 · 메타데이터 ───────────────────────────────────────────────────
+    def _row(self, tel: Telemetry, now: float, along: float, cross: float, gs: float, gs_avg: float,
+             phase: str, ack: float | None) -> dict:
+        ned = tel.ned or (None, None, None)
+        return {
+            "t_pi": round(now, 4), "t_fc": self._fc_time4(now),
+            "lat": tel.lat, "lon": tel.lon, "alt_rel_m": tel.rel_alt_m, "alt_amsl_m": tel.alt_amsl_m,
+            "ned_n": ned[0], "ned_e": ned[1], "ned_d": ned[2],
+            "vn": round(tel.vel_n, 3), "ve": round(tel.vel_e, 3), "vd": round(tel.vel_d, 3),
+            "speed": round(gs, 3), "speed_avg": round(gs_avg, 3),
+            "roll_deg": tel.roll_deg, "pitch_deg": tel.pitch_deg, "yaw_deg": tel.yaw_deg,
+            "along_m": round(along, 3), "cross_m": round(cross, 3), "gps_fix": tel.gps_fix,
+            "phase": phase, "cap_on": int(self.cap.is_on), "cap_ack": int(ack is not None),
+        }
+
+    def _write_traj(self, record: PassRecord, rows: list[dict]) -> None:
+        if self.traj_dir is None or not rows:
+            return
+        try:
+            self.traj_dir.mkdir(parents=True, exist_ok=True)
+            stamp = int(rows[0]["t_pi"])
+            base = self.traj_dir / f"pass{record.pass_no:02d}_{stamp}"
+            csv_path = base.with_suffix(".csv")
+            with csv_path.open("w", newline="", encoding="utf-8") as f:
+                w = csv.DictWriter(f, fieldnames=TRAJ_FIELDS)
+                w.writeheader()
+                w.writerows(rows)
+            record.traj_csv = csv_path.name
+            meta_path = base.with_suffix(".json")
+            record.meta_json = meta_path.name
+            base_station = None
+            if self.base_provider is not None:
+                try:
+                    base_station = self.base_provider()
+                except Exception:  # noqa: BLE001
+                    base_station = None
+            meta = {
+                "schema": "sar-pass-meta-0.1",
+                "pass": record.public(),
+                "plan": {k: v for k, v in asdict(self.plan).items()},
+                "line": {"length_m": round(self.plan.line.length_m, 3), "heading_deg": round(self.plan.line.heading_deg, 3),
+                         "lead_in_m": round(self.plan.effective_lead_in_m, 2)},
+                "clock": {"offset_pi_minus_fc_s": self.clock_offset_s,
+                          "note": "t_fc = t_pi - offset. t_fc 는 FC 가 GPS 로 맞춘 UTC(초)"},
+                "ekf2_hgt_ref": self.hgt_ref,
+                "base_station": base_station,
+                "cap": {"path": str(self.cap.path), "ack_path": None if self.cap.ack_path is None else str(self.cap.ack_path),
+                        "measured_on_latencies_s": self._on_latencies, "measured_off_latencies_s": self._off_latencies},
+                "control_hz": CONTROL_HZ,
+                "traj_csv": csv_path.name,
+                "warnings": self.warnings,
+            }
+            meta_path.write_text(json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
+        except Exception:  # noqa: BLE001 — 기록 실패가 비행 · 캡처를 멈추지 않는다
+            log.exception("궤적 기록 실패")
 
     async def _after(self, outcome: str) -> None:
-        mode = self.plan.on_done if outcome == "done" else self.plan.on_abort
+        mode = self.plan.on_done if outcome in ("done", "incomplete") else self.plan.on_abort
         try:
             if mode == "rtl":
                 self._set_state("returning")
@@ -445,12 +687,18 @@ class SarMission:
     def _fc_time(self, local: float) -> float | None:
         return None if self.clock_offset_s is None else round(local - self.clock_offset_s, 3)
 
+    def _fc_time4(self, local: float) -> float | None:
+        return None if self.clock_offset_s is None else round(local - self.clock_offset_s, 4)
+
     def _close_open_record(self, note: str) -> None:
         for record in self.records:
             if record.captured and record.end_unix is None:
                 record.end_unix = self.v.clock.now()
                 record.fc_end_unix = self._fc_time(record.end_unix)
                 record.note = note
+                if record.valid is None:
+                    record.valid = False
+                    record.reasons = [note]
                 self._log_pass_event(record, "end")
 
     def _set_state(self, state: str) -> None:
@@ -487,12 +735,16 @@ class SarMission:
                 "flight_mode": tel.flight_mode,
             }
         return {
-            "schema_version": "sar-0.1",
+            "schema_version": "sar-0.2",
             "channel": "sar",
             "state": self.state,
             "pass": self.pass_no,
             "passes_total": p.passes,
+            "valid_passes": self.valid_passes,
+            "max_attempts": p.passes + p.extra_passes,
             "capturing": self.cap.is_on,
+            "cap_ack": None if self.cap.ack_path is None else self.cap.read_ack() is not None,
+            "cap_lead_s": round(self._lead_s(), 3),
             "plan": {
                 "start_lat": p.start_lat, "start_lon": p.start_lon, "end_lat": p.end_lat, "end_lon": p.end_lon,
                 "alt_m": p.alt_m, "speed_mps": p.speed_mps, "passes": p.passes, "gap_s": p.gap_s,
@@ -500,8 +752,11 @@ class SarMission:
                 "heading_deg": round(p.line.heading_deg, 1), "require_rtk": p.require_rtk,
                 "speed_tol": p.speed_tol, "heading_tol": p.heading_tol, "cross_tol": p.cross_tol,
                 "stable_hold_s": p.stable_hold_s,
+                "q_cross_m": p.q_cross_m, "q_speed_mps": p.q_speed_mps, "q_alt_m": p.q_alt_m,
+                "q_heading_deg": p.q_heading_deg, "q_edge_m": p.q_edge_m, "extra_passes": p.extra_passes,
             },
             "clock_offset_s": None if self.clock_offset_s is None else round(self.clock_offset_s, 3),
+            "ekf2_hgt_ref": self.hgt_ref,
             "warnings": list(self.warnings),
             "live": live,
             "passes": [r.public() for r in self.records],

@@ -33,11 +33,13 @@ class SarController:
         cap: CaptureFlag,
         status_sink: Callable[[dict], None] | None = None,
         log_dir: Path | None = None,
+        base_provider: Callable[[], dict | None] | None = None,
     ) -> None:
         self._factory = vehicle_factory
         self.cap = cap
         self.sink = status_sink
         self.log_dir = log_dir
+        self.base_provider = base_provider
         self.mission: SarMission | None = None
         self.task: asyncio.Task | None = None
 
@@ -63,11 +65,13 @@ class SarController:
         if problems:
             return {"accepted": False, "code": "INVALID_ARGUMENT", "message": "; ".join(problems)}
         vehicle = await self._factory()
-        pass_log = None
+        pass_log = traj = None
         if self.log_dir is not None:
-            stamp = vehicle.clock.now()
-            pass_log = self.log_dir / f"sar_passes_{int(stamp)}.jsonl"
-        self.mission = SarMission(vehicle, plan, self.cap, self.sink, pass_log)
+            stamp = int(vehicle.clock.now())
+            pass_log = self.log_dir / f"sar_passes_{stamp}.jsonl"
+            traj = self.log_dir / f"flight_{stamp}"
+        self.mission = SarMission(vehicle, plan, self.cap, self.sink, pass_log, traj_dir=traj,
+                                  base_provider=self.base_provider)
         self.task = asyncio.create_task(self.mission.run())
         return {"accepted": True, "code": None, "message": "SAR mission started"}
 

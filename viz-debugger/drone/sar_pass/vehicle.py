@@ -31,6 +31,11 @@ class Telemetry:
     satellites: int = 0
     # 이 컴퓨터 시계 − FC 의 GPS 시각(초). None 은 모름(FC 가 아직 GPS 시각을 안 줬다).
     clock_offset_s: float | None = None
+    # 궤적 기록용 — 영상 형성(움직임 보정)에 자세와 해발고도가 필요하다. 모르면 None.
+    roll_deg: float | None = None
+    pitch_deg: float | None = None
+    alt_amsl_m: float | None = None
+    ned: tuple[float, float, float] | None = None   # PX4 로컬 위치(EKF 원점 기준) — 궤적 기록용
 
     @property
     def ground_speed(self) -> float:
@@ -57,9 +62,13 @@ class Vehicle(Protocol):
     async def goto(self, lat: float, lon: float, rel_alt_m: float, yaw_deg: float) -> None: ...
     async def start_offboard(self, yaw_deg: float) -> None: ...
     async def set_velocity(self, vel_n: float, vel_e: float, vel_d: float, yaw_deg: float) -> None: ...
+    async def track(self, lat: float, lon: float, rel_alt_m: float,
+                    vel_n: float, vel_e: float, vel_d: float, yaw_deg: float) -> None: ...
     async def stop_offboard(self) -> None: ...
     async def hold(self) -> None: ...
     async def return_to_launch(self) -> None: ...
+    # 선택: PX4 파라미터 읽기. 없으면 None 을 돌려준다(시뮬레이터).
+    async def get_param_int(self, name: str) -> int | None: ...
 
 
 # ── 시뮬레이터 ────────────────────────────────────────────────────────────────
@@ -68,7 +77,7 @@ class Vehicle(Protocol):
 class SimClock:
     """`sleep` 이 기다리지 않고 시간을 민다. 시작값은 실제 시각 — 로그 시각이 그럴듯하게 나온다."""
 
-    def __init__(self, start: float | None = None, step_s: float = 0.05, realtime: bool = False) -> None:
+    def __init__(self, start: float | None = None, step_s: float = 0.02, realtime: bool = False) -> None:
         self.t = time.time() if start is None else start
         self.step_s = step_s
         self.realtime = realtime  # 화면 연습용 — 실제 시간으로 흘린다
@@ -159,6 +168,8 @@ class SimVehicle:
             vel_n=self.vn, vel_e=self.ve, vel_d=self.vd, yaw_deg=self.yaw,
             armed=self.armed, in_air=self.in_air, flight_mode=self.mode,
             gps_fix=self.gps_fix, satellites=24, clock_offset_s=self.clock_offset_s,
+            roll_deg=0.0, pitch_deg=-min(12.0, math.hypot(self.vn, self.ve) * 2.0), alt_amsl_m=self.rel_alt_m + 85.0,
+            ned=(self.n, self.e, -self.rel_alt_m),
         )
 
     async def goto(self, lat: float, lon: float, rel_alt_m: float, yaw_deg: float) -> None:
@@ -179,6 +190,20 @@ class SimVehicle:
         self._cmd = (vel_n, vel_e, vel_d)
         self.yaw = yaw_deg
 
+    async def track(self, lat: float, lon: float, rel_alt_m: float,
+                    vel_n: float, vel_e: float, vel_d: float, yaw_deg: float) -> None:
+        """PX4 위치 제어기 흉내 — 속도 앞먹임 + 위치 오차 비례."""
+        if self.mode != "OFFBOARD":
+            return
+        n, e = self.frame.to_local(lat, lon)
+        kp = 1.0
+        cn = vel_n + kp * (n - self.n)
+        ce = vel_e + kp * (e - self.e)
+        cd = vel_d - kp * (rel_alt_m - self.rel_alt_m)
+        lim = self.max_speed
+        self._cmd = (max(-lim, min(lim, cn)), max(-lim, min(lim, ce)), max(-2.0, min(2.0, cd)))
+        self.yaw = yaw_deg
+
     async def stop_offboard(self) -> None:
         if self.mode == "OFFBOARD":
             self.mode = "HOLD"
@@ -191,3 +216,8 @@ class SimVehicle:
     async def return_to_launch(self) -> None:
         self.mode = "RTL"
         self.history.append((self.clock.now(), "rtl"))
+
+    params: dict = field(default_factory=dict)
+
+    async def get_param_int(self, name: str) -> int | None:
+        return self.params.get(name)

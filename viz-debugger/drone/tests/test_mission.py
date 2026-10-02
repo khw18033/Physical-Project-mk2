@@ -280,7 +280,8 @@ def test_tolerances_are_tunable(tmp_path):
     tight = [r.captured for r in mission.records]
 
     (tmp_path / "loose").mkdir()
-    plan, sim, cap, mission, rec, _ = setup(tmp_path / "loose", speed_tol=0.5, stable_hold_s=0.5)
+    plan, sim, cap, mission, rec, _ = setup(tmp_path / "loose", speed_tol=0.5, stable_hold_s=0.5,
+                                            q_speed_mps=1.5, q_cross_m=3.0, q_heading_deg=10.0)
     sim.vel_noise = 0.6
     assert asyncio.run(mission.run()) == "done"
     assert not all(tight)

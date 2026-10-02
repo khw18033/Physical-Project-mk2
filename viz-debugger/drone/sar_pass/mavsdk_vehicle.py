@@ -14,11 +14,12 @@ import time
 
 try:  # 새 이름이 먼저다. 옛 설치(mavsdk<4)도 받는다.
     import mavsdk_grpc as mavsdk
-    from mavsdk_grpc.offboard import OffboardError, VelocityNedYaw
+    from mavsdk_grpc.offboard import OffboardError, PositionNedYaw, VelocityNedYaw
 except ImportError:  # pragma: no cover
     import mavsdk  # type: ignore[no-redef]
-    from mavsdk.offboard import OffboardError, VelocityNedYaw  # type: ignore[no-redef]
+    from mavsdk.offboard import OffboardError, PositionNedYaw, VelocityNedYaw  # type: ignore[no-redef]
 
+from .geometry import LocalFrame
 from .vehicle import Telemetry, WallClock
 
 log = logging.getLogger("sar_pass.mavsdk")
@@ -40,6 +41,10 @@ class MavsdkVehicle:
         self._fix = "NO_GPS"
         self._sats = 0
         self._clock_offset: float | None = None
+        self._roll = self._pitch = None
+        self._ned: tuple[float, float, float] | None = None
+        self._origin: tuple[float, float, float] | None = None   # EKF 원점 (lat, lon, alt_amsl)
+        self._home_amsl: float | None = None
         self._tasks: list[asyncio.Task] = []
 
     async def connect(self, timeout_s: float = 30.0) -> None:
@@ -67,7 +72,17 @@ class MavsdkVehicle:
             asyncio.create_task(self._pump(t.flight_mode(), self._on_mode)),
             asyncio.create_task(self._pump(t.gps_info(), self._on_gps)),
             asyncio.create_task(self._pump(t.unix_epoch_time(), self._on_epoch)),
+            asyncio.create_task(self._pump(t.attitude_euler(), self._on_euler)),
+            asyncio.create_task(self._pump(t.position_velocity_ned(), self._on_ned)),
+            asyncio.create_task(self._pump(t.home(), self._on_home)),
         ]
+        # 궤적 기록은 50 Hz 로 한다 — 스트림도 그만큼 올려 둔다(PX4 가 못 주면 주는 만큼).
+        for setter in (t.set_rate_position, t.set_rate_velocity_ned, t.set_rate_attitude_euler,
+                       t.set_rate_position_velocity_ned):
+            try:
+                await setter(50.0)
+            except Exception:  # noqa: BLE001
+                log.warning("텔레메트리 주기 설정 실패: %s", getattr(setter, "__name__", setter))
         # 첫 위치가 올 때까지 잠깐 기다린다 — 없으면 임무가 비행 전 점검에서 거절한다.
         for _ in range(50):
             if self._lat is not None:
@@ -118,6 +133,16 @@ class MavsdkVehicle:
         self._fix = g.fix_type.name
         self._sats = g.num_satellites
 
+    def _on_ned(self, pv) -> None:  # noqa: ANN001
+        p = pv.position
+        self._ned = (p.north_m, p.east_m, p.down_m)
+
+    def _on_home(self, h) -> None:  # noqa: ANN001
+        self._home_amsl = h.absolute_altitude_m
+
+    def _on_euler(self, e) -> None:  # noqa: ANN001
+        self._roll, self._pitch = e.roll_deg, e.pitch_deg
+
     def _on_epoch(self, time_us: int) -> None:
         # FC 가 GPS 로 맞춘 UTC. 0 이나 옛 값이면 아직 GPS 시각이 없다는 뜻이다 — 모름으로 둔다.
         if time_us > 1_600_000_000_000_000:  # 2020-09 이후만 믿는다
@@ -130,7 +155,14 @@ class MavsdkVehicle:
             vel_n=self._vel[0], vel_e=self._vel[1], vel_d=self._vel[2], yaw_deg=self._yaw,
             armed=self._armed, in_air=self._in_air, flight_mode=self._mode,
             gps_fix=self._fix, satellites=self._sats, clock_offset_s=self._clock_offset,
+            roll_deg=self._roll, pitch_deg=self._pitch, alt_amsl_m=self._amsl, ned=self._ned,
         )
+
+    async def get_param_int(self, name: str) -> int | None:
+        try:
+            return await self.system.param.get_param_int(name)
+        except Exception:  # noqa: BLE001
+            return None
 
     async def goto(self, lat: float, lon: float, rel_alt_m: float, yaw_deg: float) -> None:
         if self._amsl is None or self._rel is None:
@@ -154,6 +186,27 @@ class MavsdkVehicle:
 
     async def set_velocity(self, vel_n: float, vel_e: float, vel_d: float, yaw_deg: float) -> None:
         await self.system.offboard.set_velocity_ned(VelocityNedYaw(vel_n, vel_e, vel_d, yaw_deg))
+
+    async def track(self, lat: float, lon: float, rel_alt_m: float,
+                    vel_n: float, vel_e: float, vel_d: float, yaw_deg: float) -> None:
+        """목표점(위치)과 그 점의 속도(앞먹임)를 같이 준다. PX4 위치 제어기가 속도 · 횡오차 · 고도를 함께 잡는다.
+
+        목표 위경도 → PX4 로컬 NED 는 EKF 원점 기준으로 바꾼다(수백 m 안쪽이라 평면 근사 오차는 mm 수준).
+        원점을 아직 모르면 속도 명령으로 물러선다.
+        """
+        if self._origin is None:
+            try:
+                o = await self.system.telemetry.get_gps_global_origin()
+                self._origin = (o.latitude_deg, o.longitude_deg, o.altitude_m)
+            except Exception:  # noqa: BLE001
+                self._origin = None
+        if self._origin is None or self._home_amsl is None:
+            await self.set_velocity(vel_n, vel_e, vel_d, yaw_deg)
+            return
+        n, e = LocalFrame(self._origin[0], self._origin[1]).to_local(lat, lon)
+        d = -((self._home_amsl + rel_alt_m) - self._origin[2])
+        await self.system.offboard.set_position_velocity_ned(
+            PositionNedYaw(n, e, d, yaw_deg), VelocityNedYaw(vel_n, vel_e, vel_d, yaw_deg))
 
     async def stop_offboard(self) -> None:
         try:

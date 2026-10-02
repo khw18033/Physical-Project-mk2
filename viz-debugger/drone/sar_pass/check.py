@@ -31,6 +31,14 @@ def _run(cmd: list[str]) -> str | None:
         return None
 
 
+def check_ack(path: Path | None) -> list[Item]:
+    if path is None:
+        return [Item("!", "레이더 확인", "CAP_ACK 경로를 안 줬다 — 실제 기록 시각을 모른 채 난다 (--cap-ack)")]
+    if path.exists():
+        return [Item("!", "레이더 확인", f"{path} 가 남아 있다 — 시작 때 지운다")]
+    return [Item("✓", "레이더 확인", f"{path} (cansar 가 기록 시작 시 쓴다)")]
+
+
 def check_cap(path: Path) -> list[Item]:
     out = []
     parent = path.parent
@@ -87,6 +95,14 @@ async def check_fc(address: str, wait_s: float = 8.0) -> list[Item]:
                         f"이 컴퓨터 − FC(GPS) = {tel.clock_offset_s:+.3f} s"
                         + ("" if ok else f" (허용 ±{MAX_CLOCK_OFFSET_S} s) — 시계를 맞춘다: sudo date -s @<GPS시각> 또는 chrony")))
     out.append(Item("✓", "비행 상태", f"mode {tel.flight_mode} · armed {tel.armed} · in_air {tel.in_air}"))
+    hgt = await v.get_param_int("EKF2_HGT_REF")
+    names = {0: "기압계", 1: "GNSS", 2: "거리센서", 3: "비전"}
+    if hgt is None:
+        out.append(Item("!", "높이 기준", "EKF2_HGT_REF 를 못 읽었다"))
+    else:
+        out.append(Item("✓" if hgt == 1 else "!", "높이 기준",
+                        f"EKF2_HGT_REF={hgt} ({names.get(hgt, '?')})"
+                        + ("" if hgt == 1 else " — RTK 를 쓰면 1(GNSS) 을 검토한다. 기압계는 몇 분 사이 0.5~1 m 흔들린다")))
     await v.close()
     return out
 
@@ -103,8 +119,9 @@ def check_mqtt(host: str, port: int) -> list[Item]:
         return [Item("✗", "MQTT 브로커", f"{host}:{port} — {exc}")]
 
 
-async def run_checks(cap: Path, connect: str | None, mqtt_addr: str | None, service: str) -> list[Item]:
-    items = check_cap(cap) + check_clock() + check_service(service)
+async def run_checks(cap: Path, connect: str | None, mqtt_addr: str | None, service: str,
+                     ack: Path | None = None) -> list[Item]:
+    items = check_cap(cap) + check_ack(ack) + check_clock() + check_service(service)
     if mqtt_addr:
         host, _, port = mqtt_addr.partition(":")
         items += check_mqtt(host, int(port or 1883))

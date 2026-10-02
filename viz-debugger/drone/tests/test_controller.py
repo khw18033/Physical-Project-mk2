@@ -55,7 +55,7 @@ def test_abort_clears_flag_immediately(tmp_path):
         c, cap, sim = make(tmp_path)
         await c.handle("sar_start", params())
         while not cap.is_on:
-            await sim.clock.sleep(0.05)
+            await asyncio.sleep(0)      # 시간은 임무가 민다 — 여기서 또 밀면 시뮬레이터 시간이 두 배로 흐른다
         reply = await c.handle("sar_abort", {})
         on_right_after = cap.is_on
         return reply, on_right_after, await c.wait()
@@ -70,7 +70,7 @@ def test_abort_after_external_unlink_still_logs_end(tmp_path):
         c, cap, sim = make(tmp_path)
         await c.handle("sar_start", params())
         while not cap.is_on:
-            await sim.clock.sleep(0.05)
+            await asyncio.sleep(0)      # 시간은 임무가 민다 — 여기서 또 밀면 시뮬레이터 시간이 두 배로 흐른다
         cap.off("signal")
         c.mission.abort()
         await c.wait()

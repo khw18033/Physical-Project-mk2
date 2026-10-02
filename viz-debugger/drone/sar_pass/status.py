@@ -54,3 +54,31 @@ class PrintStatus:
         if key != self._last:
             self._last = key
             log.info("[status] %s pass=%s/%s capturing=%s", *key[:2], status["passes_total"], key[2])
+
+
+class RtcmBaseListener:
+    """보정 전달기(rtk_relay)가 내는 `…/rtcm` 상태에서 베이스 좌표(RTCM 1005/1006)를 받아 둔다.
+    패스 메타데이터에 실어 영상 처리 쪽이 기준점을 알게 한다. 못 받았으면 None."""
+
+    def __init__(self, host: str, port: int, device_id: str = "x500-001", zone: str = "zoneA",
+                 entity_type: str = "drone") -> None:
+        import paho.mqtt.client as mqtt
+
+        self._base: dict | None = None
+        self.topic = f"{zone}/{entity_type}/{device_id}/rtcm"
+        self.client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2, client_id=f"sar-pass-base-{device_id}")
+        self.client.on_connect = lambda c, *_a, **_k: c.subscribe(self.topic, qos=0)
+        self.client.on_message = self._on_message
+        self.client.connect_async(host, port)
+        self.client.loop_start()
+
+    def _on_message(self, _client, _userdata, msg) -> None:  # noqa: ANN001
+        try:
+            body = json.loads(msg.payload)
+        except ValueError:
+            return
+        if isinstance(body, dict) and isinstance(body.get("base"), dict):
+            self._base = body["base"]
+
+    def base(self) -> dict | None:
+        return self._base
