@@ -192,9 +192,19 @@ const params = plan.toStartParams({
   }
   // 대조군 — 없는 이름은 NaN 이라 같다고 나오면 안 된다
   check(Number.isNaN(pyNum('NO_SUCH_RULE')), '대조군 실패: 없는 상수를 찾았다고 한다');
-  // lead-in 자동 계산: v²/(2a) + v·settle — 드론과 같은 식
-  check(Math.abs(plan.autoLeadInM(4) - 16) < 1e-9, `자동 가속 구간이 드론(16 m)과 다르다: ${plan.autoLeadInM(4)}`);
-  check(/settle_s=2\.0/.test(py) && /accel_mps2: float = 1\.0/.test(py), '드론 쪽 가속·안정 기본값이 화면(1 m/s² · 2 s)과 다르다');
+  // lead-in 자동 계산: v²/(2a) + v·settle — 드론과 같은 식 · 같은 상수
+  const settle = pyNum('SETTLE_S');
+  check(settle === plan.SAR_RULES.settleS, `등속 안정 시간이 드론(${settle} s)과 화면(${plan.SAR_RULES.settleS} s)에서 다르다`);
+  check(Math.abs(plan.autoLeadInM(4) - (8 + 4 * settle)) < 1e-9, `자동 가속 구간이 드론과 다르다: ${plan.autoLeadInM(4)}`);
+  check(/accel_mps2: float = 1\.0/.test(py) && plan.SAR_RULES.accelMps2 === 1, '드론 쪽 가속 기본값이 화면(1 m/s²)과 다르다');
+  // 품질 판정 기본값 — 화면이 보내는 값과 드론이 받지 않았을 때의 값이 같아야 한다
+  const pyField = (name) => Number(py.match(new RegExp(`^\\s+${name}: (?:float|int) = ([0-9.]+)`, 'm'))?.[1]);
+  for (const [f, j] of [['q_cross_m', 'qCrossM'], ['q_speed_mps', 'qSpeedMps'], ['q_alt_m', 'qAltM'], ['q_heading_deg', 'qHeadingDeg'], ['q_edge_m', 'qEdgeM'], ['extra_passes', 'extraPasses']]) {
+    check(pyField(f) === plan.SAR_RULES[j], `품질 기본값 ${f}(드론 ${pyField(f)}) 와 SAR_RULES.${j}(화면 ${plan.SAR_RULES[j]}) 가 다르다`);
+  }
+  const sent = plan.toStartParams({ ...plan.defaultDraft(), start: { lat: 1, lon: 1 }, end: { lat: 1.001, lon: 1 } });
+  check(['q_cross_m', 'q_speed_mps', 'q_alt_m', 'q_heading_deg', 'q_edge_m', 'extra_passes'].every((k) => typeof sent[k] === 'number'),
+    '품질 기준이 sar_start 파라미터에 안 실린다');
 
   const good = { ...plan.defaultDraft(), start: { lat: 37.5665, lon: 126.978 } };
   good.end = plan.endFrom(good.start, 45, 80);

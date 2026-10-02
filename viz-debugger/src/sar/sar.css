@@ -90,3 +90,48 @@
 .rtcm-line--never{color:#8a6410;background:#fdf1d8;border-color:#d39b2a}
 .rtcm-line--unknown{color:#6b7888;background:#fff;border-color:#cbd3dc;border-style:dashed}
 .sar-pv-label--drone{fill:#1768c5;font-weight:700}
+
+/* 처음 쓰는 사람용 여섯 단계 (261002) */
+.sar-guide{gap:10px}
+.sar-next{display:flex;flex-wrap:wrap;gap:10px;align-items:center;padding:12px 14px;border-radius:var(--radius-md);background:#1768c5;color:#fff;font-size:15px}
+.sar-next b{padding:2px 9px;border-radius:999px;background:#ffffff2e;font-size:13px}
+.sar-next.is-running{background:#c62f35}
+.sar-guide-step{border:1px solid #dde3ea;border-left-width:5px;border-radius:var(--radius-md);background:#fff}
+.sar-guide-step>summary{display:flex;flex-wrap:wrap;align-items:center;gap:10px;padding:10px 12px;cursor:pointer;list-style:none}
+.sar-guide-step>summary::-webkit-details-marker{display:none}
+.sar-guide-step>summary b{font-size:15px}
+.sar-guide-step>summary small{color:#6b7888;font-size:12px}
+.sar-guide-n{display:inline-grid;place-items:center;width:26px;height:26px;border-radius:50%;background:#eef1f5;color:#26303c;font-weight:700;font-size:13px}
+.sar-guide-body{display:grid;gap:10px;padding:0 14px 14px}
+.sar-guide-step--good{border-left-color:#1f8a4d}.sar-guide-step--good .sar-guide-n{background:#1f8a4d;color:#fff}
+.sar-guide-step--now{border-left-color:#1768c5}.sar-guide-step--now .sar-guide-n{background:#1768c5;color:#fff}
+.sar-guide-step--warn{border-left-color:#d39b2a}.sar-guide-step--warn .sar-guide-n{background:#d39b2a;color:#fff}
+.sar-guide-step--bad{border-left-color:#c62f35}.sar-guide-step--bad .sar-guide-n{background:#c62f35;color:#fff}
+.sar-guide-step--todo{border-left-color:#cbd3dc}
+.sar-checklist{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:6px}
+.sar-check-item{display:grid;grid-template-columns:24px 1fr;gap:8px;align-items:start;padding:8px 10px;border-radius:var(--radius-sm);border:1px solid #e1e5eb;font-size:13px}
+.sar-check-item i{font-style:normal;font-weight:700;text-align:center;border-radius:50%;width:22px;height:22px;line-height:22px}
+.sar-check-item div{display:grid;gap:2px}
+.sar-check-item span{color:#4a5666}
+.sar-check-item em{font-style:normal;color:#7a4a07;font-size:12px}
+.sar-check-item--good i{background:#d8f0e2;color:#125c33}
+.sar-check-item--warn i{background:#fdf1d8;color:#7a4a07}
+.sar-check-item--bad{border-color:#efb2b2;background:#fff7f7}.sar-check-item--bad i{background:#fbe3e3;color:#a33a3a}
+.sar-check-item--unknown i{background:#eef1f5;color:#6b7888}
+.sar-line-tools{display:flex;flex-wrap:wrap;gap:6px}
+.sar-more>summary{cursor:pointer;color:#1768c5;font-size:13px;margin:4px 0}
+.sar-ack{padding:2px 9px;border-radius:999px;border:1px solid #cbd3dc;color:#6b7888;font-size:12px}
+.sar-ack.is-on{border-color:#7b3fe4;color:#fff;background:#7b3fe4}
+.sar-table td small{display:block}
+.sar-data{display:grid;gap:8px}
+.sar-data-head{display:flex;gap:10px;align-items:center}
+.sar-data-head small{color:#6b7888}
+.sar-flight{border:1px solid #e1e5eb;border-radius:var(--radius-sm);padding:8px 10px}
+.sar-flight-row{display:flex;flex-wrap:wrap;gap:10px;align-items:center;cursor:pointer;font-size:13px}
+.sar-flight-row span{color:#4a5666}
+.sar-flight-row .sar-btn:first-of-type{margin-left:auto}
+.sar-data-btns{display:flex;flex-wrap:wrap;gap:6px}
+.sar-btn{display:inline-block;padding:5px 10px;border:1px solid #cbd3de;border-radius:var(--radius-sm);background:#fff;color:#1768c5;font-size:12px;text-decoration:none;white-space:nowrap}
+.sar-btn--main{background:#1768c5;border-color:#1768c5;color:#fff;font-weight:700}
+.sar-image-next{display:flex;flex-wrap:wrap;gap:10px;align-items:center;padding:8px 10px;border:1px dashed #cbd3dc;border-radius:var(--radius-sm)}
+.sar-image-next small{color:#6b7888}

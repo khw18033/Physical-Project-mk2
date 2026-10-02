@@ -18,9 +18,16 @@ export const SAR_RULES = {
   maxAltM: 120,
   defaultAltM: 20,
   defaultSpeed: 4,
-  /** 가속 한계와 등속 안정 시간 — lead-in 자동 계산(`lead_in_m`)의 입력이다. */
+  /** 가속 한계와 등속 안정 시간 — lead-in 자동 계산(`lead_in_m`)의 입력이다. 드론의 SETTLE_S 와 같다. */
   accelMps2: 1,
-  settleS: 2,
+  settleS: 5,
+  /** 품질 판정 기본값 — 드론 `SarPlan.q_*` 와 같다. 넘으면 그 패스는 무효이고 드론이 다시 난다. */
+  qCrossM: 1.0,
+  qSpeedMps: 0.3,
+  qAltM: 0.5,
+  qHeadingDeg: 3.0,
+  qEdgeM: 2.0,
+  extraPasses: 2,
 } as const;
 
 const EARTH_RADIUS_M = 6_378_137;
@@ -81,6 +88,12 @@ export type SarPlanDraft = {
   requireRtk: boolean;
   rtlOnAbort: boolean;
   rtlOnDone: boolean;
+  qCrossM: number;
+  qSpeedMps: number;
+  qAltM: number;
+  qHeadingDeg: number;
+  qEdgeM: number;
+  extraPasses: number;
 };
 
 export function defaultDraft(): SarPlanDraft {
@@ -88,6 +101,8 @@ export function defaultDraft(): SarPlanDraft {
     start: null, end: null,
     altM: SAR_RULES.defaultAltM, speedMps: SAR_RULES.defaultSpeed, passes: SAR_RULES.minPasses,
     gapS: SAR_RULES.minGapS, leadInM: 0, requireRtk: true, rtlOnAbort: false, rtlOnDone: false,
+    qCrossM: SAR_RULES.qCrossM, qSpeedMps: SAR_RULES.qSpeedMps, qAltM: SAR_RULES.qAltM,
+    qHeadingDeg: SAR_RULES.qHeadingDeg, qEdgeM: SAR_RULES.qEdgeM, extraPasses: SAR_RULES.extraPasses,
   };
 }
 
@@ -113,6 +128,8 @@ export function planProblems(d: SarPlanDraft): PlanProblem[] {
     out.push({ key: 'sar.rule.alt', vars: { m: d.altM, min: SAR_RULES.minAltM, max: SAR_RULES.maxAltM } });
   }
   if (!(d.leadInM >= 0)) out.push({ key: 'sar.rule.leadIn' });
+  if (!(d.qCrossM > 0 && d.qSpeedMps > 0 && d.qAltM > 0 && d.qHeadingDeg > 0 && d.qEdgeM >= 0)) out.push({ key: 'sar.rule.quality' });
+  if (!(Number.isInteger(d.extraPasses) && d.extraPasses >= 0 && d.extraPasses <= 10)) out.push({ key: 'sar.rule.extra' });
   return out;
 }
 
@@ -138,5 +155,7 @@ export function toStartParams(d: SarPlanDraft) {
     start_lat: d.start.lat, start_lon: d.start.lon, end_lat: d.end.lat, end_lon: d.end.lon,
     alt_m: d.altM, speed_mps: d.speedMps, passes: d.passes, gap_s: d.gapS, lead_in_m: d.leadInM,
     require_rtk: d.requireRtk ? 1 : 0, rtl_on_abort: d.rtlOnAbort ? 1 : 0, rtl_on_done: d.rtlOnDone ? 1 : 0,
+    q_cross_m: d.qCrossM, q_speed_mps: d.qSpeedMps, q_alt_m: d.qAltM, q_heading_deg: d.qHeadingDeg,
+    q_edge_m: d.qEdgeM, extra_passes: d.extraPasses,
   };
 }

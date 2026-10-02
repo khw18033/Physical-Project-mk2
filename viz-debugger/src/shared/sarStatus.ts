@@ -12,10 +12,10 @@ import { useSyncExternalStore } from 'react';
 
 export type SarState =
   | 'idle' | 'preflight' | 'transit' | 'gap' | 'accel' | 'capture' | 'decel' | 'returning'
-  | 'done' | 'aborted' | 'failed';
+  | 'done' | 'incomplete' | 'aborted' | 'failed';
 
 /** 끝난 상태. 이때는 새 임무를 시작할 수 있다. */
-export const SAR_FINISHED: readonly SarState[] = ['idle', 'done', 'aborted', 'failed'];
+export const SAR_FINISHED: readonly SarState[] = ['idle', 'done', 'incomplete', 'aborted', 'failed'];
 
 export type SarPassRecord = {
   passNo: number;
@@ -35,6 +35,21 @@ export type SarPassRecord = {
   fcEndUnix: number | null;
   /** 캡처 중 가장 나빴던 GPS fix (`RTK_FIXED` 가 아니었던 순간이 있었는가). */
   worstFix: string | null;
+  /** 품질 판정 — 무효면 드론이 그 자리에서 다시 난다. null 은 아직 판정 전. */
+  valid: boolean | null;
+  reasons: readonly string[];
+  /** 레이더 확인(CAP_ACK): 실제 기록 시작 · 멈춤과 지연. 레이더가 확인을 안 주면 null. */
+  ackStartUnix: number | null;
+  ackEndUnix: number | null;
+  ackOnLatencyS: number | null;
+  /** 이 패스에 쓴 선행 트리거(초)와 가속 구간(m). 둘 다 드론이 배워서 늘린다. */
+  capLeadS: number | null;
+  leadInM: number | null;
+  /** 실제 기록이 선 위 어디서 어디까지였나(m). 목표는 0 ~ 구간 길이. */
+  effStartAlongM: number | null;
+  effEndAlongM: number | null;
+  trajCsv: string | null;
+  metaJson: string | null;
   note: string | null;
 };
 
@@ -55,6 +70,12 @@ export type SarStatus = {
     alongM: number | null; crossTrackM: number | null; gpsFix: string | null; flightMode: string | null;
   } | null;
   passes: readonly SarPassRecord[];
+  /** 유효 패스 수와 허용된 최대 시도 수(필요 + 재비행). */
+  validPasses: number | null;
+  maxAttempts: number | null;
+  /** 레이더가 지금 「기록 중」이라고 확인하고 있나. null = 확인 경로가 없다. */
+  capAck: boolean | null;
+  ekf2HgtRef: number | null;
   /** 이 컴퓨터(파이) 시계 − FC(GPS) 시각, 초. null 은 모름. */
   clockOffsetS: number | null;
   /** 실행기가 남긴 주의 문장(시계를 모름 · 지난 CAP_ON 을 지움 등). 드론이 쓴 글자 그대로다. */

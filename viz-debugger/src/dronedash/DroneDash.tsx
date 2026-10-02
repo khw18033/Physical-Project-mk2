@@ -20,6 +20,8 @@ import { useRtcmReports } from '../shared/rtcmStatus.ts';
 import { rtkLevel } from '../sar/rtk.ts';
 import { RtkBadge, RtcmLine } from '../sar/RtkView.tsx';
 import { useTick } from '../sar/useTick.ts';
+import { SatMap, type Marker, type TrackPoint } from './SatMap.tsx';
+import { autoLeadInM } from '../sar/plan.ts';
 import '../sar/sar.css';
 import './dronedash.css';
 
@@ -198,15 +200,6 @@ function Compass({ yaw, homeBearing }: { yaw: number | null; homeBearing: number
 
 // ── 지도 · 궤적 ────────────────────────────────────────────────────────────
 
-const TILE = 256;
-function mercator(lat: number, lon: number, z: number): { x: number; y: number } {
-  const s = TILE * 2 ** z;
-  const sin = Math.sin((lat * Math.PI) / 180);
-  return { x: ((lon + 180) / 360) * s, y: (0.5 - Math.log((1 + sin) / (1 - sin)) / (4 * Math.PI)) * s };
-}
-function metersPerPixel(lat: number, z: number): number {
-  return (156543.03392 * Math.cos((lat * Math.PI) / 180)) / 2 ** z;
-}
 function bearing(a: { lat: number; lon: number }, b: { lat: number; lon: number }): number {
   const la1 = (a.lat * Math.PI) / 180;
   const la2 = (b.lat * Math.PI) / 180;
@@ -215,84 +208,6 @@ function bearing(a: { lat: number; lon: number }, b: { lat: number; lon: number 
   const x = Math.cos(la1) * Math.sin(la2) - Math.sin(la1) * Math.cos(la2) * Math.cos(dl);
   return (((Math.atan2(y, x) * 180) / Math.PI) + 360) % 360;
 }
-function distanceM(a: { lat: number; lon: number }, b: { lat: number; lon: number }): number {
-  const R = 6371000;
-  const dLat = ((b.lat - a.lat) * Math.PI) / 180;
-  const dLon = ((b.lon - a.lon) * Math.PI) / 180;
-  const h = Math.sin(dLat / 2) ** 2 + Math.cos((a.lat * Math.PI) / 180) * Math.cos((b.lat * Math.PI) / 180) * Math.sin(dLon / 2) ** 2;
-  return 2 * R * Math.asin(Math.sqrt(h));
-}
-
-const TILES_KEY = 'viz.dash.tiles.v1';
-
-function TrackMap({ v }: { v: View }) {
-  useLang();
-  const sar = useSarReports()[v.deviceId];
-  const [tiles, setTiles] = useState<boolean>(() => { try { return localStorage.getItem(TILES_KEY) === '1'; } catch { return false; } });
-  const history = v.fcx?.history ?? [];
-  const track = history.filter((s): s is FcxSample & { lat: number; lon: number } => s.lat !== null && s.lon !== null);
-  const home = v.fcx?.home?.lat != null && v.fcx.home.lon != null ? { lat: v.fcx.home.lat, lon: v.fcx.home.lon } : null;
-  const plan = sar?.plan;
-  const line = plan?.startLat != null && plan.startLon != null && plan.endLat != null && plan.endLon != null
-    ? [{ lat: plan.startLat, lon: plan.startLon }, { lat: plan.endLat, lon: plan.endLon }] : null;
-  const here = v.lat !== null && v.lon !== null ? { lat: v.lat, lon: v.lon } : null;
-  const pts = [...track, ...(home ? [home] : []), ...(line ?? []), ...(here ? [here] : [])];
-  if (pts.length === 0) return <p className="sar-empty">{t('dash.noPosition')}</p>;
-
-  const W = 560;
-  const H = 360;
-  const center = { lat: (Math.min(...pts.map((p) => p.lat)) + Math.max(...pts.map((p) => p.lat))) / 2, lon: (Math.min(...pts.map((p) => p.lon)) + Math.max(...pts.map((p) => p.lon))) / 2 };
-  // 다 들어가는 가장 큰 줌 (최소 60 m 폭)
-  let z = 20;
-  for (; z > 3; z--) {
-    const ps = pts.map((p) => mercator(p.lat, p.lon, z));
-    const w = Math.max(...ps.map((p) => p.x)) - Math.min(...ps.map((p) => p.x));
-    const h = Math.max(...ps.map((p) => p.y)) - Math.min(...ps.map((p) => p.y));
-    if (w < W * 0.8 && h < H * 0.8 && metersPerPixel(center.lat, z) * W >= 60) break;
-  }
-  const c = mercator(center.lat, center.lon, z);
-  const ox = c.x - W / 2;
-  const oy = c.y - H / 2;
-  const P = (p: { lat: number; lon: number }) => { const m = mercator(p.lat, p.lon, z); return { x: m.x - ox, y: m.y - oy }; };
-  const mpp = metersPerPixel(center.lat, z);
-  const scaleM = [5, 10, 20, 50, 100, 200, 500, 1000].find((m) => m / mpp > 70) ?? 1000;
-  const tileList: { x: number; y: number }[] = [];
-  if (tiles) {
-    for (let tx = Math.floor(ox / TILE); tx <= Math.floor((ox + W) / TILE); tx++) {
-      for (let ty = Math.floor(oy / TILE); ty <= Math.floor((oy + H) / TILE); ty++) tileList.push({ x: tx, y: ty });
-    }
-  }
-  const d = here ? P(here) : null;
-  const yaw = v.yawDeg ?? 0;
-  return <figure className="dash-map">
-    <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label={t('dash.map')}>
-      <rect width={W} height={H} className="dash-map-bg" />
-      {tileList.map((tl) => <image key={`${tl.x}-${tl.y}`} href={`https://tile.openstreetmap.org/${z}/${tl.x}/${tl.y}.png`}
-        x={tl.x * TILE - ox} y={tl.y * TILE - oy} width={TILE} height={TILE} opacity={0.85} />)}
-      {!tiles && Array.from({ length: 12 }, (_, i) => <g key={i}>
-        <line x1={(i * scaleM) / mpp} y1={0} x2={(i * scaleM) / mpp} y2={H} className="dash-map-grid" />
-        <line x1={0} y1={(i * scaleM) / mpp} x2={W} y2={(i * scaleM) / mpp} className="dash-map-grid" />
-      </g>)}
-      {line && <line x1={P(line[0]!).x} y1={P(line[0]!).y} x2={P(line[1]!).x} y2={P(line[1]!).y} className={`dash-map-sar${sar?.capturing ? ' is-on' : ''}`} />}
-      {track.length > 1 && <polyline points={track.map((s) => { const q = P(s); return `${q.x.toFixed(1)},${q.y.toFixed(1)}`; }).join(' ')} className="dash-map-track" />}
-      {home && <g transform={`translate(${P(home).x} ${P(home).y})`}><circle r={9} className="dash-map-home" /><text y={4} textAnchor="middle" className="dash-map-home-text">H</text></g>}
-      {d && <g transform={`translate(${d.x} ${d.y}) rotate(${yaw})`}>
-        <polygon points="0,-13 9,10 0,5 -9,10" className="dash-map-drone" />
-      </g>}
-      <g transform={`translate(${W - 22},26)`}><polygon points="0,-12 5,4 0,0 -5,4" className="dash-map-north" /><text x={-4} y={16} className="dash-map-text">N</text></g>
-      <g transform={`translate(12,${H - 12})`}><line x1={0} y1={0} x2={scaleM / mpp} y2={0} className="dash-map-scale" /><text x={0} y={-5} className="dash-map-text">{scaleM} m</text></g>
-    </svg>
-    <figcaption className="dash-map-caption">
-      <label className="sar-check"><input type="checkbox" checked={tiles} onChange={(e) => {
-        setTiles(e.target.checked); try { localStorage.setItem(TILES_KEY, e.target.checked ? '1' : '0'); } catch { /* */ }
-      }} />{t('dash.tiles')}</label>
-      {home && here && <span>{t('dash.homeDist', { m: fmt(distanceM(home, here), 1), deg: Math.round(bearing(here, home)) })}</span>}
-      {here && <span>{here.lat.toFixed(7)}, {here.lon.toFixed(7)}</span>}
-      {tiles && <small>© OpenStreetMap</small>}
-    </figcaption>
-  </figure>;
-}
-
 // ── 그래프 (한 장에 한 계열 · 십자선 툴팁) ──────────────────────────────────
 
 const WINDOW_MS = 120_000;
@@ -497,7 +412,7 @@ export function DroneDashZoom() {
     {!v.extended && <p className="sar-hint">{t('dash.howTo')}</p>}
     <div className="dash-grid">
       <Panel title={t('dash.attitude')}><div className="dash-instruments"><Attitude roll={v.rollDeg} pitch={v.pitchDeg} /><Compass yaw={v.yawDeg} homeBearing={homeBearing} /></div></Panel>
-      <Panel title={t('dash.map')}><TrackMap v={v} /></Panel>
+      <Panel title={t('dash.map')}><DashMap v={v} /></Panel>
       <Panel title={t('dash.charts')} wide>
         {v.extended ? <div className="dash-charts">
           <LineChart title={t('dash.chart.alt')} unit="m" samples={samples} pick={(s) => s.altRelM} />
@@ -513,4 +428,33 @@ export function DroneDashZoom() {
       <Panel title={t('dash.console')} wide><ConsolePanel v={v} /></Panel>
     </div>
   </div>;
+}
+
+/** 상태판의 위성 지도 — 궤적(캡처 구간은 빨강) · 홈 · 베이스 · SAR 선 · 드론. */
+function DashMap({ v }: { v: View }) {
+  useLang();
+  const sar = useSarReports()[v.deviceId];
+  const rtcm = useRtcmReports()[v.deviceId];
+  const track: TrackPoint[] = (v.fcx?.history ?? [])
+    .filter((s): s is FcxSample & { lat: number; lon: number } => s.lat !== null && s.lon !== null)
+    .map((s) => ({ lat: s.lat, lon: s.lon, t: s.atMs, alt: s.altRelM, speed: s.groundspeed, capture: s.capture,
+      fix: v.fcx?.gps?.fix ?? null }));
+  const markers: Marker[] = [];
+  const home = v.fcx?.home;
+  if (home?.lat != null && home.lon != null) markers.push({ lat: home.lat, lon: home.lon, kind: 'home' });
+  const base = rtcm?.base;
+  if (base?.lat != null && base.lon != null) markers.push({ lat: base.lat, lon: base.lon, kind: 'base', label: t('map.base') });
+  const plan = sar?.plan;
+  const sarLine = plan?.startLat != null && plan.startLon != null && plan.endLat != null && plan.endLon != null ? (() => {
+    const start = { lat: plan.startLat!, lon: plan.startLon! };
+    const end = { lat: plan.endLat!, lon: plan.endLon! };
+    const lead = plan.leadInM ?? autoLeadInM(plan.speedMps ?? 4);
+    const len = plan.lengthM ?? 1;
+    const k = lead / Math.max(len, 1e-6);
+    const dn = (end.lat - start.lat) * k;
+    const de = (end.lon - start.lon) * k;
+    return { start, end, leadIn: { lat: start.lat - dn, lon: start.lon - de } };
+  })() : null;
+  return <SatMap track={track} drone={v.lat !== null && v.lon !== null ? { lat: v.lat, lon: v.lon } : null}
+    droneYaw={v.yawDeg} sarLine={sarLine} capturing={sar?.capturing} markers={markers} />;
 }

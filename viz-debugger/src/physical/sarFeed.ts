@@ -20,7 +20,7 @@ export function sarChannel(topic: string): boolean {
 }
 
 const STATES: readonly SarState[] = [
-  'idle', 'preflight', 'transit', 'gap', 'accel', 'capture', 'decel', 'returning', 'done', 'aborted', 'failed',
+  'idle', 'preflight', 'transit', 'gap', 'accel', 'capture', 'decel', 'returning', 'done', 'incomplete', 'aborted', 'failed',
 ];
 
 const num = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) ? v : null);
@@ -47,6 +47,17 @@ function passRecord(raw: unknown): SarPassRecord | null {
     fcStartUnix: num(r.fc_start_unix),
     fcEndUnix: num(r.fc_end_unix),
     worstFix: str(r.worst_fix),
+    valid: typeof r.valid === 'boolean' ? r.valid : null,
+    reasons: Array.isArray(r.reasons) ? r.reasons.filter((x): x is string => typeof x === 'string') : [],
+    ackStartUnix: num(r.ack_start_unix),
+    ackEndUnix: num(r.ack_end_unix),
+    ackOnLatencyS: num(r.ack_on_latency_s),
+    capLeadS: num(r.cap_lead_s),
+    leadInM: num(r.lead_in_m),
+    effStartAlongM: num(r.eff_start_along_m),
+    effEndAlongM: num(r.eff_end_along_m),
+    trajCsv: str(r.traj_csv),
+    metaJson: str(r.meta_json),
     note: str(r.note),
   };
 }
@@ -85,6 +96,10 @@ export function parseSarStatus(body: Record<string, unknown>, topic = ''): SarSt
     passes: Array.isArray(body.passes)
       ? body.passes.map(passRecord).filter((r): r is SarPassRecord => r !== null)
       : [],
+    validPasses: num(body.valid_passes),
+    maxAttempts: num(body.max_attempts),
+    capAck: typeof body.cap_ack === 'boolean' ? body.cap_ack : null,
+    ekf2HgtRef: num(body.ekf2_hgt_ref),
     clockOffsetS: num(body.clock_offset_s),
     warnings: Array.isArray(body.warnings) ? body.warnings.map(str).filter((w): w is string => w !== null) : [],
     message: str(body.message),

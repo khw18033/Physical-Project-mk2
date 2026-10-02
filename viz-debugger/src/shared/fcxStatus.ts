@@ -6,6 +6,7 @@
  */
 
 import { useSyncExternalStore } from 'react';
+import { sarReports } from './sarStatus.ts';
 
 export type FcxSensor = { name: string; enabled: boolean; healthy: boolean };
 export type FcxConsoleLine = { t: number; severity: string; level: number; text: string };
@@ -43,6 +44,8 @@ export type FcxSample = {
   voltageV: number | null;
   lat: number | null;
   lon: number | null;
+  /** 이 순간 SAR 캡처(CAP_ON) 중이었나 — 지도가 궤적의 그 부분을 빨갛게 칠한다. */
+  capture: boolean;
 };
 
 export type FcxReport = Fcx & { receivedAtMs: number; history: readonly FcxSample[] };
@@ -62,6 +65,7 @@ export function noteFcx(fcx: Fcx, atMs = Date.now()): void {
     voltageV: fcx.battery?.voltageV ?? null,
     lat: fcx.position?.lat ?? null,
     lon: fcx.position?.lon ?? null,
+    capture: sarReports()[fcx.deviceId]?.capturing === true,
   };
   const history = previous.length >= HISTORY ? [...previous.slice(previous.length - HISTORY + 1), sample] : [...previous, sample];
   reports = { ...reports, [fcx.deviceId]: { ...fcx, receivedAtMs: atMs, history } };

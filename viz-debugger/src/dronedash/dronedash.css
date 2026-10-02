@@ -104,3 +104,43 @@
 .dash-card{display:grid;gap:8px;font-size:13px}
 .dash-card-numbers{display:flex;gap:12px;color:#4a5666;font-variant-numeric:tabular-nums}
 .dash-card-numbers b{color:#26303c}
+
+/* 위성 지도 (SatMap) */
+.satmap-wrap{display:grid;gap:6px}
+.satmap-tools{display:flex;flex-wrap:wrap;gap:6px;align-items:center;font-size:12px}
+.satmap-tools button{border:1px solid #cbd3de;background:#fff;border-radius:var(--radius-sm);padding:4px 9px;font-size:12px}
+.satmap-seg{display:inline-flex}
+.satmap-seg button{border-radius:0;margin-left:-1px}
+.satmap-seg button:first-child{border-radius:var(--radius-sm) 0 0 var(--radius-sm)}
+.satmap-seg button:last-child{border-radius:0 var(--radius-sm) var(--radius-sm) 0}
+.satmap-seg button.on{background:#1768c5;color:#fff;border-color:#1768c5}
+.satmap-pick{padding:3px 9px;border-radius:999px;background:#fff7e0;border:1px solid #d39b2a;color:#7a4a07;font-weight:600}
+.satmap{position:relative;overflow:hidden;border-radius:var(--radius-md);background:#1e2833;cursor:grab;touch-action:none;user-select:none}
+.satmap:active{cursor:grabbing}
+.satmap--pick{cursor:crosshair}
+.satmap--empty{display:grid;place-items:center;color:#cbd3de;font-size:13px;background:#26303c}
+.satmap-tiles img{position:absolute;pointer-events:none;image-rendering:auto}
+.satmap-svg{position:absolute;inset:0;pointer-events:none}
+.satmap-track{fill:none;stroke:#2ec4ff;stroke-width:2.5;stroke-linejoin:round;stroke-linecap:round;filter:drop-shadow(0 0 1px #000)}
+.satmap-track.is-capture{stroke:#ff3b3b;stroke-width:3.5}
+.satmap-sar{stroke:#3df07a;stroke-width:7;stroke-linecap:round;opacity:.8}
+.satmap-sar.is-on{stroke:#ff3b3b}
+.satmap-lead{stroke:#ffffff;stroke-width:2;stroke-dasharray:6 5;opacity:.85}
+.satmap-sar-pt{fill:#fff;stroke:#1f8a4d;stroke-width:3}
+.satmap-sar-pt--end{stroke:#c62f35}
+.satmap-label{font-size:12px;font-weight:700;fill:#fff;paint-order:stroke;stroke:#000;stroke-width:3px}
+.satmap-mk circle{fill:#fff;stroke-width:2.5}
+.satmap-mk text{font-size:11px;font-weight:700}
+.satmap-mk--home circle{stroke:#1f8a4d}.satmap-mk--home text{fill:#1f8a4d}
+.satmap-mk--base circle{stroke:#7b3fe4}.satmap-mk--base text{fill:#7b3fe4}
+.satmap-mk--pick circle{stroke:#d39b2a;r:6}
+.satmap-mk--reflector polygon{fill:#ffd400;stroke:#000;stroke-width:1.5}
+.satmap-drone{fill:#f2b705;stroke:#17202b;stroke-width:1.5}
+.satmap-drone-halo{fill:#f2b70533;stroke:#f2b705;stroke-width:1}
+.satmap-hover{fill:#fff;stroke:#17202b;stroke-width:2}
+.satmap-north{fill:#fff;stroke:#000;stroke-width:1}
+.satmap-scale{stroke:#fff;stroke-width:3}
+.satmap-scale-bg{fill:#00000066}
+.satmap-tip{position:absolute;display:grid;gap:2px;min-width:170px;padding:6px 9px;background:#fffffff2;border-radius:var(--radius-sm);font-size:12px;box-shadow:0 4px 14px #0005;pointer-events:none;font-variant-numeric:tabular-nums}
+.satmap-tip small{color:#6b7888}
+.satmap-attr{position:absolute;right:6px;bottom:4px;font-size:10px;color:#fff;background:#0007;padding:1px 5px;border-radius:3px}

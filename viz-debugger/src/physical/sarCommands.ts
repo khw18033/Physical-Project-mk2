@@ -95,6 +95,8 @@ export type SarStartParams = {
   start_lat: number; start_lon: number; end_lat: number; end_lon: number;
   alt_m: number; speed_mps: number; passes: number; gap_s: number; lead_in_m: number;
   require_rtk: number; rtl_on_abort: number; rtl_on_done: number;
+  q_cross_m?: number; q_speed_mps?: number; q_alt_m?: number; q_heading_deg?: number; q_edge_m?: number;
+  extra_passes?: number;
 };
 
 export type SarIssueOutcome = {
