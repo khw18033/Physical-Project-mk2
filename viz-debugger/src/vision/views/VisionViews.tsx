@@ -122,6 +122,8 @@ function VisionCell({ base, model, summary, rate, zoom, lagMs, framesNow, gapFra
 }) {
   useLang();
   const [failed, setFailed] = useState<string | null>(null);
+  // 확대 스트림이 첫 장을 받았는가. 안 왔으면 `<img>` 는 높이 0 으로 비어 있고 오류도 안 난다 — 여는 주소를 글로 적는다.
+  const [loaded, setLoaded] = useState<string | null>(null);
   const url = model === null ? rawStreamUrl(base) : overlayStreamUrl(base, model);
   return <figure className="vision-cell">
     <figcaption>
@@ -137,10 +139,11 @@ function VisionCell({ base, model, summary, rate, zoom, lagMs, framesNow, gapFra
       : zoom
       // 확대는 주소가 안 바뀌어야 스트림이 안 끊긴다. 닫으면 `<img>` 가 사라지고 연결이 닫힌다.
       ? <img src={url} alt={model ?? t('vis.raw')}
-          onLoad={() => setFailed(null)}
+          onLoad={() => { setFailed(null); setLoaded(url); }}
           onError={() => setFailed(t('vis.streamFailed', { url }))} />
       : <Still base={base} model={model} />}
     {failed !== null && <small className="vn-warn">{failed}</small>}
+    {available && zoom && failed === null && loaded !== url && <small className="vn-dim">{t('vis.streamOpening', { url })}</small>}
   </figure>;
 }
 
@@ -193,7 +196,7 @@ function ModelPicker({ nodeId, models }: { nodeId: string; models: readonly Visi
 }
 
 /** 확대 아래의 요약 표 — 모델마다 한 줄. 서버가 준 값 그대로다. */
-function SummaryTable({ state }: { state: VisionSourceState }) {
+function SummaryTable({ state, base }: { state: VisionSourceState; base: string }) {
   useLang();
   const health = state.health;
   if (health === null) return null;
@@ -205,6 +208,7 @@ function SummaryTable({ state }: { state: VisionSourceState }) {
       {health.state !== null && <div><dt>{t('vis.factState')}</dt><dd>{health.state}</dd></div>}
       {health.visionError !== null && <div><dt>{t('vis.factVisionError')}</dt><dd className="vn-warn">{health.visionError}</dd></div>}
     </dl>
+    {(health.video !== null || health.state !== null) && <p className="vn-line vn-dim">{t('vis.upstreamNote', { base })}</p>}
     {health.models.length > 0 && <table className="obstacle-table">
       <thead><tr><th>{t('vis.colModel')}</th><th>{t('vis.colN')}</th><th>{t('vis.colGap')}</th><th>{t('vis.colDet')}</th><th>lag_ms</th><th>infer_ms</th><th>{t('vis.colRate')}</th><th>{t('vis.colAge')}</th><th>{t('vis.colResults')}</th></tr></thead>
       <tbody>{health.models.map((m) => <tr key={m.model} className={modelStale(m) ? 'is-near' : undefined}>
@@ -297,7 +301,7 @@ export function VisionCam({ nodeId, taskDeviceId = null, zoom = false, lockSourc
             {!zoom && <small className="ai-source__at"> · {t('vis.stillMeta', { sec: VISION_STILL_MS / 1000 })}</small>}
             {zoom && <small className="ai-source__at"> · <code>{base}</code></small>}
           </p>
-          {zoom && !compact && state !== null && <SummaryTable state={state} />}
+          {zoom && !compact && state !== null && <SummaryTable state={state} base={base} />}
         </>}
   </div>;
 }
