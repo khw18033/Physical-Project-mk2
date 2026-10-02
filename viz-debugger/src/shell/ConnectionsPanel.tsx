@@ -56,6 +56,7 @@ import { setTestMode, useDetect } from '../detect/store.ts';
 import { CAPABILITY_PRESETS, capabilityPresetReady } from '../capability/presets.ts';
 import { MEDIA_PRESETS, mediaPresetReady } from '../media/presets.ts';
 import { AI_PRESETS, aiPresetReady } from '../autodrive/presets.ts';
+import { VISION_HOST_PRESETS, VISION_PORT_PRESETS, visionPresetReady } from '../vision/presets.ts';
 import { setCapabilityTestMode, useCapability } from '../capability/store.ts';
 import { useDeviceStates } from '../physical/deviceState.ts';
 import { CHECKED_TARGETS, healthOf, useConnectionHealth, type TargetHealth } from '../shared/connectionHealth.ts';
@@ -84,7 +85,8 @@ type AddressPreset = { id: string; labelKey: string; url: string; whyKey: string
  * 각자의 경계(`src/physical/` · `src/detect/`)에 두고, 이 화면은 고르는 칸만 그린다.
  * 대상이 늘면 여기 한 줄을 더한다.
  */
-const ADDRESS_PRESETS: Partial<Record<ConnectionTargetId, { presets: readonly AddressPreset[]; ready(preset: AddressPreset): boolean }>> = {
+type PresetChoice = { presets: readonly AddressPreset[]; ready(preset: AddressPreset): boolean };
+const ADDRESS_PRESETS: Partial<Record<ConnectionTargetId, PresetChoice>> = {
   physical: { presets: BROKER_PRESETS, ready: presetReady },
   detect: { presets: DETECT_PRESETS, ready: detectPresetReady },
   // 260920 — 기능 상태. 실제 배치(k3s)의 주소는 아직 비어 있어 고를 수 없다.
@@ -93,6 +95,15 @@ const ADDRESS_PRESETS: Partial<Record<ConnectionTargetId, { presets: readonly Ad
   media: { presets: MEDIA_PRESETS, ready: mediaPresetReady },
   // 260929 — 장애물 탐지 영상. 로봇처럼 줄마다 Go1 · 드론 · 직접 입력을 고른다.
   'autodrive-ai': { presets: AI_PRESETS, ready: aiPresetReady },
+};
+
+/**
+ * **칸마다 다른 프리셋** (261001 — 객체 탐지 추론 스트림). 위 표는 대상 단위라 칸이 둘 이상이면 같은 목록이 양쪽에
+ * 붙는다. 추론 스트림은 IP 칸과 포트 줄이 고르는 것이 달라 `대상.칸` 키로 따로 둔다. 있으면 이쪽이 이긴다.
+ */
+const FIELD_PRESETS: Partial<Record<string, PresetChoice>> = {
+  'vision.host': { presets: VISION_HOST_PRESETS, ready: visionPresetReady },
+  'vision.ports': { presets: VISION_PORT_PRESETS, ready: visionPresetReady },
 };
 
 /**
@@ -117,7 +128,7 @@ type TestToggle = { on: boolean; set(next: boolean): void; titleKey: string };
 function hasCheck(target: ConnectionTargetId): boolean {
   return CHECKED_TARGETS.includes(target)
     // 261001 — 백엔드 게이트웨이도 확인한다(소켓 · 값 수신 · 구역). 머리줄 표시등의 「n/4」에는 안 넣는다.
-    || target === 'autodrive' || target === 'autodrive-ai' || target === 'capability' || target === 'gateway';
+    || target === 'autodrive' || target === 'autodrive-ai' || target === 'vision' || target === 'capability' || target === 'gateway';
 }
 
 /**
@@ -221,7 +232,7 @@ export function ConnectionsPanel({ onClose, physical }: { onClose(): void; physi
       {target.pendingKey !== undefined && <p className="conn-target__pending">{t(target.pendingKey)}</p>}
       {target.fields.map((field) => {
         const key = connectionKey(target.id, field.key);
-        const choice = ADDRESS_PRESETS[target.id];
+        const choice = FIELD_PRESETS[key] ?? ADDRESS_PRESETS[target.id];
         /**
          * **주소가 여럿인 칸** (260922 — 로봇 N대). 줄마다 입력을 하나씩 그리고, 저장할 때
          * 줄바꿈으로 이어 붙인다(`joinAddressList`). 사람은 줄바꿈을 보지 않는다.
@@ -262,7 +273,7 @@ export function ConnectionsPanel({ onClose, physical }: { onClose(): void; physi
               </select>}
               <input
                 value={row}
-                placeholder={index === rows.length ? t('conn.addAddress') : field.fallback}
+                placeholder={index === rows.length ? t(field.addKey ?? 'conn.addAddress') : field.fallback}
                 onChange={(event) => {
                   const copy = [...shown];
                   copy[index] = event.target.value;

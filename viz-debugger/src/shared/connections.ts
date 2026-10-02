@@ -45,7 +45,7 @@
 
 import { useSyncExternalStore } from 'react';
 
-export type ConnectionTargetId = 'gateway' | 'media' | 'stt' | 'generate' | 'physical' | 'detect' | 'autodrive' | 'autodrive-ai' | 'capability' | 'control-node' | 'digital-twin' | 'virtual-3d' | 'sar' | 'recon-3d';
+export type ConnectionTargetId = 'gateway' | 'media' | 'stt' | 'generate' | 'physical' | 'detect' | 'autodrive' | 'autodrive-ai' | 'vision' | 'capability' | 'control-node' | 'digital-twin' | 'virtual-3d' | 'sar' | 'recon-3d';
 
 /**
  * ## 260918 — 여기 담는 것은 **글자가 아니라 사전 키**다
@@ -92,6 +92,11 @@ export type ConnectionField = {
    * **목록의 줄마다 동영상을 붙인다** (260929 — 장애물 탐지 영상 · 주소마다 따로). 키는 `대상.video@<주소>` 다.
    */
   videoPerRow?: true;
+  /**
+   * 목록 칸의 빈 줄에 띄울 안내 — **사전 키** (261001). 없으면 「주소를 더 넣으면 로봇이 하나 더 붙습니다」다.
+   * 주소가 아니라 포트 번호를 받는 목록(객체 탐지 추론 스트림)이 다른 말을 해야 해서 생겼다.
+   */
+  addKey?: string;
 };
 
 /**
@@ -180,6 +185,20 @@ export const CONNECTION_TARGETS: readonly ConnectionTarget[] = [
     // 260929 — **둘 이상 동시에.** 로봇 브로커와 같은 목록 칸이다. 첫 줄이 기본이고, 탐지 영상 · 객체 탐지 로그
     // 노드가 확대에서 주소를 고른다. 한 줄만 적힌 옛 설정은 그대로 첫 줄이 된다 — 옮길 것이 없다.
     fields: [{ key: 'base', labelKey: 'conn.field.base', fallback: '', list: true, videoPerRow: true }],
+  },
+  {
+    // 261001 — 객체 탐지 추론 스트림(`server_stream_multi_source.py` · `vision_infer.py`). 포트 하나가 소스 하나라
+    // **줄마다 포트 하나**다. 장애물 탐지(`autodrive-ai`) · 문 찾기(`detect`)와 다른 서버다.
+    // 주소는 여기 적지 않는다 — 기본값은 `src/vision/visionClient.ts` 가 심는다.
+    // **IP 와 포트를 가른다** (261001 지시) — IP 만 바뀌고 포트는 그대로인 일이 있다. IP 칸 하나를 고치면 포트 줄이 다 따라간다.
+    id: 'vision',
+    labelKey: 'conn.target.vision',
+    whatKey: 'conn.target.vision.what',
+    live: true,
+    fields: [
+      { key: 'host', labelKey: 'conn.field.host', fallback: '' },
+      { key: 'ports', labelKey: 'conn.field.ports', fallback: '', list: true, addKey: 'conn.addPort' },
+    ],
   },
   {
     // 260920 — 기능 상태 서비스(`perception-framework/tools/status_ui`). **실제 배치는 k3s 안이라

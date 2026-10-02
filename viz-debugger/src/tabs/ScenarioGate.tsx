@@ -43,9 +43,14 @@ type CardProps = {
   elsewhere: Array<{ missionId: string; title: string }>;
   /** 노드 카드 전체를 대체하는 한 장인가 (패널 하나가 아니라). */
   wide?: boolean;
+  /**
+   * 캔버스의 **접힌 카드** 안인가 (261001). 카드는 내용만큼 자라므로 다른 대본 목록을 다 펼치면 한 장이
+   * 화면 높이를 넘는다. 카드에서는 목록을 접고, 확대에서는 지금처럼 다 펼친다.
+   */
+  card?: boolean;
 };
 
-function NotInScriptCard({ what, why, elsewhere, wide }: CardProps) {
+function NotInScriptCard({ what, why, elsewhere, wide, card }: CardProps) {
   useLang();
   const scenario = useScenarioRender();
   return (
@@ -57,6 +62,18 @@ function NotInScriptCard({ what, why, elsewhere, wide }: CardProps) {
       {why.map((line) => <p key={line} className="tabskip__why">{line}</p>)}
       {elsewhere.length === 0 ? (
         <p className="tabskip__where"><Rich id="sgt.noScriptDrives" /></p>
+      ) : card === true ? (
+        <details className="tabskip__more" onPointerDown={(event) => event.stopPropagation()}>
+          <summary>{t('sgt.otherScripts', { n: elsewhere.length })}</summary>
+          <ul className="tabskip__list">
+            {elsewhere.map((script) => (
+              <li key={script.missionId}>
+                <code>{script.missionId}</code> 「{scriptPhrase(script.missionId, script.title)}」
+                <button type="button" onClick={() => enterScriptPreview(script.missionId)}>{t('sgt.1')}</button>
+              </li>
+            ))}
+          </ul>
+        </details>
       ) : (
         <ul className="tabskip__list">
           {elsewhere.map((script) => (
@@ -68,7 +85,7 @@ function NotInScriptCard({ what, why, elsewhere, wide }: CardProps) {
           ))}
         </ul>
       )}
-      <p className="tabskip__back">{t('sgt.2')}</p>
+      {card !== true && <p className="tabskip__back">{t('sgt.2')}</p>}
     </section>
   );
 }
@@ -97,7 +114,7 @@ export function PanelGate({ id, children }: { id: string; children: ReactNode })
  * **이름은 등록된 렌더러에서 얻는다** — 여기 손으로 적으면 팔레트 버튼과 접힘 카드가
  * 서로 다른 이름을 말하게 된다(`VZ-N-01`).
  */
-export function NodeGate({ kind, children }: { kind: ViewNodeKindId; children: ReactNode }) {
+export function NodeGate({ kind, card, children }: { kind: ViewNodeKindId; card?: boolean; children: ReactNode }) {
   useLang();
   const axes = useScenarioAxes();
   if (axes === null) return <>{children}</>;
@@ -106,6 +123,7 @@ export function NodeGate({ kind, children }: { kind: ViewNodeKindId; children: R
   return (
     <NotInScriptCard
       wide
+      card={card}
       what={viewNodeLabel(kind)}
       why={panels.map((spec) => t(spec.whyKey))}
       elsewhere={scriptsUsingNode(kind)}

@@ -4,7 +4,7 @@ import type { ViewNodeEntry, ViewNodeInstance, ViewScope } from '../canvas/types
 import type { Hardware, RefEdge, Task, TaskStatus } from '../model/types.ts';
 import { cellClass, doorCell, scanHead, type ViewpointFill } from '../viewpoint/fill.ts';
 import { applyFanLayout, fanGeometry, VIEWPOINT_NODE_HEIGHT, type ViewpointGroup } from './fanLayout.ts';
-import { dagLayout, viewNodeLayout, NODE_HEIGHT, NODE_WIDTH, VIEW_NODE_HEIGHT, VIEW_NODE_WIDTH, type Attached, type Position } from './layout.ts';
+import { dagLayout, viewNodeLayout, NODE_HEIGHT, NODE_WIDTH, VIEW_MEDIA_SIZE, VIEW_NODE_GAP, VIEW_TEXT_GUESS_HEIGHT, VIEW_TEXT_WIDTH, type Attached, type Position } from './layout.ts';
 import { STATE_STYLE, stateLabel } from './stateStyle.ts';
 import { t } from '../i18n/dict.ts';
 import { useLang } from '../shared/language.ts';
@@ -56,6 +56,8 @@ export type CanvasLayer = {
   onMove(id: string, position: Position): void;
   /** 사람이 테두리를 끌어 크기를 바꿨다 (260911). 좌표와 같은 자리에 저장된다. */
   onResize(id: string, size: { w: number; h: number }): void;
+  /** 방금 꺼낸 노드면 크기를 자료에 맞춰도 되는 마감 시각, 아니면 null (261001). */
+  fitDeadline?(id: string): number | null;
   onBind(id: string, taskId: string | null): void;
   onRemove(id: string): void;
   /**
@@ -187,18 +189,68 @@ export function TaskGraph({ tasks, hardware, states, selected, dimUnrelated, onO
   /** 아직 못 쟀으면 `undefined` — 배치는 높이를 모른 채 옛 규칙(폭 최대 열)으로 붙인다. */
   const layoutHeight = available?.height;
 
+  /** 테두리를 끌고 있는 뷰 노드의 크기. 손을 떼면 저장되고 null 로 돌아간다. */
+  const [viewSize, setViewSize] = useState<{ id: string; w: number; h: number } | null>(null);
   /**
-   * 태스크마다 붙은 뷰 노드 수. 배치가 이만큼 아래를 밀어내지 않으면 뷰 노드가 그 열의
-   * 다음 태스크와 겹친다 (`verify:layout` 의 겹침·최대 y 검사).
+   * **화면에 그려진 뷰 노드의 실제 크기** (261001). 글 카드는 높이를 내용이 정하므로 그려 보기 전에는
+   * 모른다 — 재서 배치에 돌려준다. 안 재면 긴 카드가 아래 카드를 덮는다.
+   */
+  const [measured, setMeasured] = useState<Record<string, { w: number; h: number }>>({});
+  const nodeIds = (canvas?.nodes ?? []).map((node) => node.id).join(',');
+  useEffect(() => {
+    const host = hostRef.current;
+    if (host === null || typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver((records) => {
+      setMeasured((current) => {
+        let next = current;
+        for (const record of records) {
+          const el = record.target as HTMLElement;
+          const id = el.dataset.nodeId;
+          if (id === undefined) continue;
+          const size = { w: el.offsetWidth, h: el.offsetHeight };
+          const old = current[id];
+          if (old !== undefined && old.w === size.w && old.h === size.h) continue;
+          if (next === current) next = { ...current };
+          next[id] = size;
+        }
+        return next;
+      });
+    });
+    host.querySelectorAll<HTMLElement>('.view-node[data-node-id]').forEach((el) => observer.observe(el));
+    return () => observer.disconnect();
+  }, [nodeIds]);
+
+  /** 이 종류의 기본 크기. 글 카드는 높이가 없다(null) — 내용이 정한다. */
+  const defaultViewSize = (kind: string): { w: number; h: number | null } => (
+    canvas?.entryOf(kind)?.shape === 'media' ? { ...VIEW_MEDIA_SIZE } : { w: VIEW_TEXT_WIDTH, h: null }
+  );
+  /**
+   * 뷰 노드 상자 하나 — 배치 · 캔버스 크기 · 선이 붙는 자리가 모두 이것을 쓴다.
+   * 끄는 중인 크기 > 사람이 정한 크기 > 잰 크기 > 종류의 기본 크기 순이다.
+   */
+  const viewBox = (id: string): { w: number; h: number } => {
+    if (viewSize !== null && viewSize.id === id) return { w: viewSize.w, h: viewSize.h };
+    const node = (canvas?.nodes ?? []).find((item) => item.id === id);
+    if (node?.w !== undefined && node?.h !== undefined) return { w: node.w, h: node.h };
+    const base = defaultViewSize(node?.kind ?? '');
+    return { w: base.w, h: measured[id]?.h ?? base.h ?? VIEW_TEXT_GUESS_HEIGHT };
+  };
+
+  /**
+   * 태스크마다 붙은 뷰 노드의 **쌓인 높이와 가장 넓은 폭**. 배치가 이만큼 아래를 밀어내고 열을
+   * 넓히지 않으면 뷰 노드가 그 열의 다음 태스크나 옆 열의 카드와 겹친다 (`verify:layout`).
+   * viewBox 는 노드 구성 · 잰 크기 · 끄는 크기 셋에서만 값이 바뀐다.
    */
   const attached = useMemo<Attached>(() => {
-    const counts = new Map<string, number>();
+    const stacks = new Map<string, { height: number; width: number }>();
     for (const node of canvas?.nodes ?? []) {
       if (node.taskId === null) continue;
-      counts.set(node.taskId, (counts.get(node.taskId) ?? 0) + 1);
+      const box = viewBox(node.id);
+      const stack = stacks.get(node.taskId) ?? { height: 0, width: 0 };
+      stacks.set(node.taskId, { height: stack.height + box.h + VIEW_NODE_GAP, width: Math.max(stack.width, box.w) });
     }
-    return counts;
-  }, [canvas?.nodes]);
+    return stacks;
+  }, [canvas?.nodes, measured, viewSize]);
   /**
    * 기준 배치. **DAG 하나다** (260904 — 요구사항정의서 §7.10). 배치 모드 토글이 없어졌고
    * `treeLayout()` 은 지워지지 않은 채 부르는 곳만 `scripts/measure-representation.mjs` 로
@@ -275,8 +327,8 @@ export function TaskGraph({ tasks, hardware, states, selected, dimUnrelated, onO
    * 딸린 뷰 노드도 따라온다(옮긴 자리 기준으로 계산한다).
    */
   const viewBase = useMemo(
-    () => viewNodeLayout(canvas?.nodes ?? [], positions, layoutWidth),
-    [canvas?.nodes, positions, layoutWidth],
+    () => viewNodeLayout(canvas?.nodes ?? [], positions, layoutWidth, viewBox),
+    [canvas?.nodes, positions, layoutWidth, measured, viewSize],
   );
   const viewPositions = useMemo(() => Object.fromEntries((canvas?.nodes ?? []).map((node) => {
     if (viewDrag !== null && viewDrag.id === node.id) return [node.id, { x: viewDrag.x, y: viewDrag.y }];
@@ -293,16 +345,6 @@ export function TaskGraph({ tasks, hardware, states, selected, dimUnrelated, onO
   const [resizing, setResizing] = useState<
     { id: string; kind: 'task' | 'view'; edge: 'e' | 's' | 'se'; startX: number; startY: number; w: number; h: number } | null
   >(null);
-  const [viewSize, setViewSize] = useState<{ id: string; w: number; h: number } | null>(null);
-  /**
-   * **뷰 노드의 실제 크기** (260929 — 「크게 늘려도 한계가 있다」). 캔버스 크기를 기본 카드 크기(180×104)로만 쟀더니,
-   * 사람이 키운 카드가 캔버스 끝에서 잘려 더 늘릴 수 없었다. 저장된 크기 · 지금 끌고 있는 크기로 잰다.
-   */
-  const viewBoxOf = (id: string): { w: number; h: number } => {
-    if (viewSize !== null && viewSize.id === id) return { w: viewSize.w, h: viewSize.h };
-    const node = (canvas?.nodes ?? []).find((item) => item.id === id);
-    return { w: node?.w ?? VIEW_NODE_WIDTH, h: node?.h ?? VIEW_NODE_HEIGHT };
-  };
   /** 크기를 조절하는 동안에는 캔버스에 여유를 둔다 — 끝에 닿으면 더 끌어 늘릴 자리가 없다. */
   const RESIZE_SLACK = resizing !== null ? 600 : 0;
   const height = Math.max(
@@ -314,7 +356,7 @@ export function TaskGraph({ tasks, hardware, states, selected, dimUnrelated, onO
       // 되돌아감이 있으면 그 곡선과 문구가 들어갈 자리까지 (260915 — 곡선을 더 깊게 했다).
       + ((refEdges?.length ?? 0) > 0 ? REF_EDGE_DEPTH + 58 : 30)),
     // 뷰 노드가 세로를 밀어낸다 — 캔버스가 따라 커지지 않으면 아래쪽 카드가 잘린다.
-    ...Object.entries(viewPositions).map(([id, position]) => position.y + viewBoxOf(id).h + 30 + RESIZE_SLACK),
+    ...Object.entries(viewPositions).map(([id, position]) => position.y + viewBox(id).h + 30 + RESIZE_SLACK),
   );
   // 폭은 **잰 자리 폭**과 실제 내용 중 큰 쪽이다 (260901). 접힌 배치는 잰 폭 안에 들어오므로
   // 보통 자리 폭 그대로이고, 사용자가 노드를 오른쪽으로 끌었거나 접기를 포기한 좁은 창
@@ -322,7 +364,7 @@ export function TaskGraph({ tasks, hardware, states, selected, dimUnrelated, onO
   const width = Math.max(
     layoutWidth,
     ...Object.values(positions).map((position) => position.x + NODE_WIDTH + 30),
-    ...Object.entries(viewPositions).map(([id, position]) => position.x + viewBoxOf(id).w + 30 + RESIZE_SLACK),
+    ...Object.entries(viewPositions).map(([id, position]) => position.x + viewBox(id).w + 30 + RESIZE_SLACK),
   );
   /**
    * 밴드를 넘어가는 deps — **기준 배치**로 판정한다. 사용자가 노드를 끌었다고 선 모양이
@@ -374,9 +416,7 @@ export function TaskGraph({ tasks, hardware, states, selected, dimUnrelated, onO
         ? { w: NODE_WIDTH, h: VIEWPOINT_NODE_HEIGHT }
         : { w: NODE_WIDTH, h: NODE_HEIGHT });
     }
-    if (viewSize !== null && viewSize.id === id) return { w: viewSize.w, h: viewSize.h };
-    const node = (canvas?.nodes ?? []).find((item) => item.id === id);
-    return { w: node?.w ?? VIEW_NODE_WIDTH, h: node?.h ?? VIEW_NODE_HEIGHT };
+    return viewBox(id);
   };
 
   /** 좌표 + 크기. 선이 붙는 자리를 이것 하나로 정한다. */
@@ -606,6 +646,9 @@ export function TaskGraph({ tasks, hardware, states, selected, dimUnrelated, onO
       scope={canvas!.scopeOf(node.taskId)}
       position={viewPositions[node.id] ?? { x: 30, y: 55 }}
       size={setSize(node.id, 'view') ?? undefined}
+      defaultSize={defaultViewSize(node.kind)}
+      fitUntil={canvas!.fitDeadline?.(node.id) ?? null}
+      onFit={(size) => canvas!.onResize(node.id, size)}
       grips={handles(node.id, 'view')}
       picked={canvas!.pickedTaskId}
       zoomed={canvas!.zoomedId === node.id}

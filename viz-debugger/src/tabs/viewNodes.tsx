@@ -65,12 +65,13 @@ import { METRICS, MetricsView } from './views/MetricsView.tsx';
 import { RiskPanel } from './views/RiskPanel.tsx';
 import { VideoOverlayView } from './views/VideoOverlayView.tsx';
 import { ZoneMapMini } from './views/ZoneMapMini.tsx';
-import { DeviceFacts, sdkWords } from '../physical/DeviceFacts.tsx';
+import { DeviceFacts } from '../physical/DeviceFacts.tsx';
 import { useDeviceStates } from '../physical/deviceState.ts';
 import { hardwareTarget } from '../physical/encode.ts';
 import { useRobotSession } from '../physical/robotSession.ts';
 import { DetectCam, DetectMap, DetectReason } from '../detect/views/DetectViews.tsx';
 import { ObstacleFacts, ObstacleLogCard } from '../autodrive/views/AutodriveViews.tsx';
+import { VisionCam } from '../vision/views/VisionViews.tsx';
 import { relayDriven, slotDriven } from '../scenarios/library.ts';
 import { VirtualMap } from '../virtualmap/VirtualMap.tsx';
 import { DeviceCamera } from '../media/views/DeviceCamera.tsx';
@@ -301,16 +302,7 @@ function RobotBody() {
       <span>{t(session.connection.state === 'open' ? 'vn.brokerOk' : 'vn.brokerBad')}</span>
       {device === null
         ? <span>{t('vn.noDeviceStatus')}</span>
-        : <>
-          <span>{t(device.online === true ? 'vn.online' : device.online === false ? 'vn.offline' : 'vn.aliveUnknown')}</span>
-          {device.link !== null && <span>{t('vn.link', { link: device.link })}</span>}
-          {/* null 은 「모른다」다 — 0% 로 그리지 않는다 (연동 가이드 §3-3). */}
-          {device.batteryPct !== null && <span>{t('vn.battery', { pct: device.batteryPct })}</span>}
-          {device.mode !== null && <span>{device.mode}</span>}
-          <span title={t('vn.sdkTitle')}>
-            {t('vn.sdk')} {sdkWords(device.sdkReady, device.sdkAutostart)}
-          </span>
-        </>}
+        : <span>{t(device.online === true ? 'vn.online' : device.online === false ? 'vn.offline' : 'vn.aliveUnknown')}</span>}
     </div>
     <div className="robot-node-row robot-node-row--sub">
       {/* 지금 무엇을 하고 있나 — 진행률과 단계. 둘 다 없으면 아무 말도 안 한다. */}
@@ -321,6 +313,9 @@ function RobotBody() {
       {session.progress === null && session.stage === null
         && session.paused === null && session.stopped === null && <span>{t('vn.idle')}</span>}
     </div>
+    {/* **장비 값은 확대와 같은 표로 전부** (261001 — 가독성). 링크 · 배터리 · 위치 · 속도 · SDK 가 확대 안에만
+        있으면 로봇이 도는 동안 값이 바뀌는 것을 못 본다. 안 오는 값은 줄을 안 그리는 규칙도 그 표의 것이다. */}
+    {device !== null && <DeviceFacts entityId={ROBOT_ENTITY} />}
   </div>;
 }
 
@@ -341,20 +336,22 @@ export const VIEW_NODE_RENDERERS: readonly ViewNodeEntry[] = [
     // 장치 두 대 편 (260927). **Unity 인지 2D 맵인지는 연결 관리가 정한다** — 버튼을 둘로 늘리지 않는다.
     // 재생 머리를 넘긴다 — 장치 위치와 경로가 되감기를 따라간다.
     kind: 'virtual-map',
+    shape: 'media',
     labelKey: 'viewnode.virtualMap',
     hintKey: 'viewnode.virtualMap.hint',
     showFor: onlySlots,
-    summary: (scope) => <NodeGate kind="virtual-map"><VirtualMap headSec={scope.headSec} /></NodeGate>,
+    summary: (scope) => <NodeGate card kind="virtual-map"><VirtualMap headSec={scope.headSec} /></NodeGate>,
     zoom: (scope) => <NodeGate kind="virtual-map"><VirtualMap headSec={scope.headSec} zoom /></NodeGate>,
   },
   {
     // 장치 두 대 편 (260927). **장치마다 버튼을 늘리지 않는다** — 같은 노드를 두 장 놓고 확대(더블클릭)에서
     // 각자 장치를 고른다. 고르지 않았으면 연결한 태스크의 장치(자리를 푼 값)를 쓴다.
     kind: 'device-cam',
+    shape: 'media',
     labelKey: 'viewnode.camera',
     hintKey: 'viewnode.camera.hint',
     showFor: onlySlots,
-    summary: (scope, node) => <NodeGate kind="device-cam"><DeviceCamera nodeId={node?.id ?? 'device-cam'} taskDeviceId={resolveSlot(scope.deviceId)} directUrlOf={directCameraUrl} /></NodeGate>,
+    summary: (scope, node) => <NodeGate card kind="device-cam"><DeviceCamera nodeId={node?.id ?? 'device-cam'} taskDeviceId={resolveSlot(scope.deviceId)} directUrlOf={directCameraUrl} /></NodeGate>,
     zoom: (scope, node) => <NodeGate kind="device-cam"><DeviceCamera nodeId={node?.id ?? 'device-cam'} taskDeviceId={resolveSlot(scope.deviceId)} zoom directUrlOf={directCameraUrl} /></NodeGate>,
   },
   {
@@ -364,33 +361,36 @@ export const VIEW_NODE_RENDERERS: readonly ViewNodeEntry[] = [
     labelKey: 'viewnode.detectLog',
     hintKey: 'viewnode.detectLog.hint',
     // 260929 — **모든 편에 선다.** 장애물 탐지 주소가 여럿이면 확대에서 주소를 고른다(노드마다 따로).
-    summary: (_scope, node) => <NodeGate kind="obstacle-log"><ObstacleLogCard nodeId={node?.id ?? 'obstacle-log'} /></NodeGate>,
+    summary: (_scope, node) => <NodeGate card kind="obstacle-log"><ObstacleLogCard nodeId={node?.id ?? 'obstacle-log'} /></NodeGate>,
     zoom: (_scope, node) => <NodeGate kind="obstacle-log"><ObstacleFacts nodeId={node?.id ?? 'obstacle-log'} /></NodeGate>,
   },
   {
     // 260929 — **3D 가상환경.** 연결 관리의 「3D 가상환경」 주소(기본 사용자가 준 주소)를 틀에 띄운다. 모든 편에 선다.
     kind: 'virtual-3d',
+    shape: 'media',
     labelKey: 'viewnode.virtual3d',
     hintKey: 'viewnode.virtual3d.hint',
     // 260929 — 연결 관리에 동영상을 붙였고 이 편이 재생 시점을 적었으면(이상 탐지 편) 그 영상을, 아니면 3D 화면을.
-    summary: () => <NodeGate kind="virtual-3d"><CuedVideo target="virtual-3d" storageKey="virtual-3d.video"><Virtual3D /></CuedVideo></NodeGate>,
+    summary: () => <NodeGate card kind="virtual-3d"><CuedVideo target="virtual-3d" storageKey="virtual-3d.video"><Virtual3D /></CuedVideo></NodeGate>,
     zoom: () => <NodeGate kind="virtual-3d"><CuedVideo target="virtual-3d" storageKey="virtual-3d.video" zoom><Virtual3D zoom /></CuedVideo></NodeGate>,
   },
   {
     // 260929 — **SAR.** 연결 관리의 「SAR 영상」에 붙인 것을 띄운다(주소가 있으면 주소, 없으면 붙인 파일).
     // 모든 편 팔레트에 선다(결정 12-A) — `showFor` 가 없다. 자리표시로 감싸지 않는다: 사람이 붙인 것을 그대로 보인다.
     kind: 'sar',
+    shape: 'media',
     labelKey: 'viewnode.sar',
     hintKey: 'viewnode.sar.hint',
-    summary: () => <NodeGate kind="sar"><AttachedImage target="sar" /></NodeGate>,
+    summary: () => <NodeGate card kind="sar"><AttachedImage target="sar" /></NodeGate>,
     zoom: () => <NodeGate kind="sar"><AttachedImage target="sar" zoom /></NodeGate>,
   },
   {
     // 260929 — **3D 복원.** SAR 과 같은 규칙이다. 지금은 결과 이미지 한 장이고, 뷰어가 생기면 렌더러만 바꾼다(종류 id 는 그대로).
     kind: 'recon-3d',
+    shape: 'media',
     labelKey: 'viewnode.recon3d',
     hintKey: 'viewnode.recon3d.hint',
-    summary: () => <NodeGate kind="recon-3d"><AttachedImage target="recon-3d" /></NodeGate>,
+    summary: () => <NodeGate card kind="recon-3d"><AttachedImage target="recon-3d" /></NodeGate>,
     zoom: () => <NodeGate kind="recon-3d"><AttachedImage target="recon-3d" zoom /></NodeGate>,
   },
   {
@@ -399,20 +399,33 @@ export const VIEW_NODE_RENDERERS: readonly ViewNodeEntry[] = [
     // 260929 — **「탐지 영상」으로 이름을 바꾸고 모든 편에 선다.** 연결 관리의 「장애물 탐지 영상」 주소가 여럿이면
     // 같은 노드를 여러 장 놓고 확대에서 각자 주소를 고른다(노드마다 따로 · `autodrive/sourceChoice.ts`).
     kind: 'autodrive-cam',
+    shape: 'media',
     labelKey: 'viewnode.obstacleVideo',
     hintKey: 'viewnode.obstacleVideo.hint',
     // 260929 — 고른 주소에 동영상을 붙였고 이 편이 재생 시점을 적었으면 그 영상을 튼다(`AiCuedCam`). 주소마다 따로다.
-    summary: (_scope, node) => <NodeGate kind="autodrive-cam"><AiCuedCam nodeId={node?.id ?? 'autodrive-cam'} /></NodeGate>,
+    summary: (_scope, node) => <NodeGate card kind="autodrive-cam"><AiCuedCam nodeId={node?.id ?? 'autodrive-cam'} /></NodeGate>,
     zoom: (_scope, node) => <NodeGate kind="autodrive-cam"><AiCuedCam zoom nodeId={node?.id ?? 'autodrive-cam'} /></NodeGate>,
+  },
+  {
+    // 261001 — **객체 탐지 추론 영상.** 스트림 서버(포트 = 소스)의 모델별 오버레이를 나란히 보인다. 모든 편에 선다.
+    // 포트는 연결한 태스크의 장비에 묶인 포트가 기본이고(`vision/binding.ts`), 확대에서 포트 · 모델(여럿)을 고른다.
+    // 문 찾기 시연(`detect-cam`) · 장애물 탐지(`autodrive-cam`)와 서버도 코드도 다르다(`src/vision/`).
+    kind: 'vision-stream',
+    shape: 'media',
+    labelKey: 'viewnode.visionCam',
+    hintKey: 'viewnode.visionCam.hint',
+    summary: (scope, node) => <NodeGate card kind="vision-stream"><VisionCam nodeId={node?.id ?? 'vision-stream'} taskDeviceId={resolveSlot(scope.deviceId)} /></NodeGate>,
+    zoom: (scope, node) => <NodeGate kind="vision-stream"><VisionCam zoom nodeId={node?.id ?? 'vision-stream'} taskDeviceId={resolveSlot(scope.deviceId)} /></NodeGate>,
   },
   {
     // 탐지 셋 (260912) — 자리표시로 비어 있던 `video-stream` · `detections` · `zone-map`.
     // **자리표시로 감싸지 않는다** — 실제로 오는 값이다.
     kind: 'detect-cam',
+    shape: 'media',
     labelKey: 'viewnode.detectVideo',
     hintKey: 'viewnode.detectVideo.hint',
     showFor: notRelay,
-    summary: () => <NodeGate kind="detect-cam"><DetectCam /></NodeGate>,
+    summary: () => <NodeGate card kind="detect-cam"><DetectCam /></NodeGate>,
     zoom: () => <NodeGate kind="detect-cam"><DetectCam zoom /></NodeGate>,
   },
   {
@@ -420,16 +433,17 @@ export const VIEW_NODE_RENDERERS: readonly ViewNodeEntry[] = [
     labelKey: 'viewnode.rationale',
     hintKey: 'viewnode.rationale.hint',
     showFor: notRelay,
-    summary: () => <NodeGate kind="detect-reason"><DetectReason /></NodeGate>,
+    summary: () => <NodeGate card kind="detect-reason"><DetectReason /></NodeGate>,
     zoom: () => <NodeGate kind="detect-reason"><DetectReason zoom /></NodeGate>,
   },
   {
     kind: 'detect-map',
+    shape: 'media',
     labelKey: 'viewnode.map2d',
     hintKey: 'viewnode.map2d.hint',
     showFor: notRelay,
     // **재생 머리를 넘긴다** (260914) — 도면은 T-A1 이 끝난 뒤에 뜨고, 되감으면 그 시각을 따른다.
-    summary: (scope) => <NodeGate kind="detect-map"><DetectMap headSec={scope.headSec} /></NodeGate>,
+    summary: (scope) => <NodeGate card kind="detect-map"><DetectMap headSec={scope.headSec} /></NodeGate>,
     zoom: (scope) => <NodeGate kind="detect-map"><DetectMap zoom headSec={scope.headSec} /></NodeGate>,
   },
   {
@@ -439,14 +453,14 @@ export const VIEW_NODE_RENDERERS: readonly ViewNodeEntry[] = [
     // pi7(문 찾기 시연) 로봇이다 — 자율주행 편(pi1)의 로봇이 아니다.
     showFor: notRelay,
     // **자리표시로 감싸지 않는다** — 지금 실제로 오고 있는 값이다.
-    summary: () => <NodeGate kind="robot"><RobotBody /></NodeGate>,
+    summary: () => <NodeGate card kind="robot"><RobotBody /></NodeGate>,
     zoom: () => <NodeGate kind="robot"><DeviceFacts entityId={ROBOT_ENTITY} /></NodeGate>,
   },
   {
     kind: 'device-risk',
     labelKey: 'viewnode.deviceRisk',
     hintKey: 'viewnode.deviceRisk.hint',
-    summary: (scope) => <NodeGate kind="device-risk"><PendingSource id="device-cards" inline entity={scope.deviceId ?? undefined}><DeviceRiskBody scope={scope} /></PendingSource></NodeGate>,
+    summary: (scope) => <NodeGate card kind="device-risk"><PendingSource id="device-cards" inline entity={scope.deviceId ?? undefined}><DeviceRiskBody scope={scope} /></PendingSource></NodeGate>,
     // 구역 맵(ZoneMapMini)이 여기로 들어왔다 (260903 3단계) — 탭②가 사라지면서 갈 곳이
     // 없어졌다. 축이 coverage·position 이라 장치·위험 노드가 그 집이다. **요구는 하나도
     // 죽지 않는다**(VZ-I-03). 패널마다 축이 달라 각자 접히는 것은 그대로다.
@@ -460,25 +474,26 @@ export const VIEW_NODE_RENDERERS: readonly ViewNodeEntry[] = [
     kind: 'control',
     labelKey: 'viewnode.control',
     hintKey: 'viewnode.control.hint',
-    summary: (scope) => <NodeGate kind="control"><PendingSource id="command-result" inline entity={scope.deviceId ?? undefined} axis="command"><ControlBody scope={scope} /></PendingSource></NodeGate>,
+    summary: (scope) => <NodeGate card kind="control"><PendingSource id="command-result" inline entity={scope.deviceId ?? undefined} axis="command"><ControlBody scope={scope} /></PendingSource></NodeGate>,
     zoom: () => <NodeGate kind="control"><PanelGate id="control"><ControlPanel /></PanelGate></NodeGate>,
   },
   {
     kind: 'metrics',
     labelKey: 'viewnode.metrics',
     hintKey: 'viewnode.metrics.hint',
-    summary: (scope) => <NodeGate kind="metrics"><PendingSource id="metrics-query" inline entity={metricFor(scope.deviceId).source}><MetricsBody scope={scope} /></PendingSource></NodeGate>,
+    summary: (scope) => <NodeGate card kind="metrics"><PendingSource id="metrics-query" inline entity={metricFor(scope.deviceId).source}><MetricsBody scope={scope} /></PendingSource></NodeGate>,
     zoom: () => <NodeGate kind="metrics"><MetricsView /></NodeGate>,
   },
   {
     kind: 'video',
+    shape: 'media',
     labelKey: 'viewnode.video',
     hintKey: 'viewnode.video.hint',
     // **팔레트에서 뺀다** (260914 지시) — 「탐지 영상」과 겹친다. 렌더러는 남긴다: 옛 대본의
     // 안내줄 「영상 노드로」와 이미 저장된 캔버스가 이 노드를 그린다.
     inPalette: false,
     // 카메라가 하나라 범위를 안 쓴다 — 위 VideoStill 의 주석이 그 이유다.
-    summary: () => <NodeGate kind="video"><PendingSource id="video-stream" inline entity={VIDEO_CAMERA} axis="video"><VideoStill /></PendingSource></NodeGate>,
+    summary: () => <NodeGate card kind="video"><PendingSource id="video-stream" inline entity={VIDEO_CAMERA} axis="video"><VideoStill /></PendingSource></NodeGate>,
     zoom: () => <NodeGate kind="video"><PanelGate id="video"><VideoOverlayView /></PanelGate></NodeGate>,
   },
 ];

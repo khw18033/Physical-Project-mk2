@@ -165,11 +165,10 @@ export function DetectReason({ zoom = false, count = 8 }: { zoom?: boolean; coun
       </li>)}
       {gates.length === 0 && <li>{t('dv.4')}</li>}
     </ul>
-    {zoom && <>
-      {evidence !== null && <img className="detect-crop"
-        src={roundedImageUrl(frameImageUrl(source, frame.frame, 'target_crop'), state.imageRound)} alt={t('dv.cropAlt')} />}
-      {/* 특징 여덟 — 무엇을 문이라고 물었고 각각 얼마나 닮았나. */}
-      {evidence !== null && <table className="detect-features">
+    {zoom && evidence !== null && <img className="detect-crop"
+      src={roundedImageUrl(frameImageUrl(source, frame.frame, 'target_crop'), state.imageRound)} alt={t('dv.cropAlt')} />}
+    {/* 특징 여덟 — 무엇을 문이라고 물었고 각각 얼마나 닮았나. **카드에도 둔다** (261001) — 수치는 확대 없이 보여야 한다. */}
+    {evidence !== null && <table className="detect-features">
         <tbody>
           {Object.entries(evidence.feature_similarities)
             .sort((a, b) => b[1] - a[1])
@@ -178,6 +177,7 @@ export function DetectReason({ zoom = false, count = 8 }: { zoom?: boolean; coun
             </tr>)}
         </tbody>
       </table>}
+    {zoom && <>
       {/* 도면 기준 **실제 방위**는 여기에만 적는다 — 화면이 가리키는 각도는 스캔 시작 기준이다. */}
       {frame.absolute_bearing_deg !== undefined && <p className="detect-note">
         {t('dv.bearingNote', { abs: frame.absolute_bearing_deg, shown: frame.rotation_deg })}

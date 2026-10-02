@@ -87,11 +87,33 @@ export function viewStackHeight(count: number): number {
   return count <= 0 ? 0 : count * (VIEW_NODE_HEIGHT + VIEW_NODE_GAP);
 }
 
-/** 태스크별 뷰 노드 수. `dagLayout`·`treeLayout` 이 이만큼 아래를 밀어낸다. */
-export type Attached = ReadonlyMap<string, number>;
+/**
+ * 뷰 노드 기본 크기 (261001 — 가독성). 180×104 카드에서는 글이 잘리고 영상이 띠처럼 납작했다.
+ * 영상·이미지는 16:9 화면 한 장이 들어가는 크기이고, 글 카드는 폭만 정한다 — 높이는 내용이 정한다
+ * (`.view-node--text`). 위 두 상수는 크기를 모를 때(검사 · 개수만 넘긴 배치)의 값으로 남는다.
+ */
+export const VIEW_MEDIA_SIZE = { w: 360, h: 264 } as const;
+export const VIEW_TEXT_WIDTH = 320;
+/** 글 카드의 높이를 아직 못 쟀을 때 배치가 잡아 두는 값. 재면 곧바로 그 값으로 바뀐다. */
+export const VIEW_TEXT_GUESS_HEIGHT = 160;
+
+/**
+ * 태스크별로 붙은 뷰 노드. 값이 **수**면 기본 상자(`VIEW_NODE_*`)로 셈하고, **크기**면 그대로 쓴다
+ * (261001). 카드마다 크기가 달라진 뒤로 「장 수 × 104」는 다음 태스크와 겹쳤다.
+ */
+export type AttachedStack = { height: number; width: number };
+export type Attached = ReadonlyMap<string, number | AttachedStack>;
 
 function extraOf(attached: Attached | undefined, id: string): number {
-  return viewStackHeight(attached?.get(id) ?? 0);
+  const value = attached?.get(id) ?? 0;
+  return typeof value === 'number' ? viewStackHeight(value) : value.height;
+}
+
+/** 이 태스크 아래 카드 중 가장 넓은 폭. 없으면 0 — 열이 넓어지지 않는다. */
+function attachedWidthOf(attached: Attached | undefined, id: string): number {
+  const value = attached?.get(id) ?? 0;
+  if (typeof value === 'number') return value > 0 ? VIEW_NODE_WIDTH : 0;
+  return value.width;
 }
 
 /**
@@ -231,12 +253,25 @@ export function dagLayout(
     top += (bandHeight.get(band) ?? ROW) + BAND_GAP;
   }
 
+  // 열 폭 (261001). 붙은 카드가 태스크보다 넓으면 그 열을 넓힌다 — 아니면 옆 열의 카드와 겹친다.
+  // 개수만 받은 배치(기본 상자 180)는 `COL` 그대로라 옛 좌표가 한 픽셀도 달라지지 않는다.
+  const columnWidth = new Map<number, number>();
+  for (const [column, nodes] of columns) {
+    const widest = Math.max(0, ...nodes.map((task) => attachedWidthOf(attached, task.id)));
+    columnWidth.set(column, Math.max(COL, widest + 40));
+  }
+  const columnX = (column: number): number => {
+    const first = column - (column % perBand);
+    let x = PAD;
+    for (let c = first; c < column; c += 1) x += columnWidth.get(c) ?? COL;
+    return x;
+  };
+
   return Object.fromEntries(
     [...columns].flatMap(([column, nodes]) => {
       const band = Math.floor(column / perBand);
-      const col = column % perBand;
       const ys = offsets.get(column) ?? [];
-      return nodes.map((task, row) => [task.id, { x: PAD + col * COL, y: (bandTop.get(band) ?? TOP) + (ys[row] ?? row * ROW) }]);
+      return nodes.map((task, row) => [task.id, { x: columnX(column), y: (bandTop.get(band) ?? TOP) + (ys[row] ?? row * ROW) }]);
     }),
   ) as Record<string, Position>;
 }
@@ -280,8 +315,11 @@ export function viewNodeLayout(
   nodes: ReadonlyArray<{ id: string; taskId: string | null }>,
   taskPositions: Record<string, Position>,
   availableWidth?: number,
+  /** 카드 크기 (261001). 안 주면 기본 상자다 — 검사와 옛 호출부가 그 길이다. */
+  sizeOf: (id: string) => { w: number; h: number } = () => ({ w: VIEW_NODE_WIDTH, h: VIEW_NODE_HEIGHT }),
 ): Record<string, Position> {
   const result: Record<string, Position> = {};
+  /** 태스크마다 다음 카드가 놓일 y. 카드 높이가 제각각이라 장 수로 셈하지 않는다. */
   const stacked = new Map<string, number>();
   const global: string[] = [];
   for (const node of nodes) {
@@ -292,26 +330,34 @@ export function viewNodeLayout(
       global.push(node.id);
       continue;
     }
-    const index = stacked.get(node.taskId) ?? 0;
-    stacked.set(node.taskId, index + 1);
-    result[node.id] = {
-      x: anchor.x,
-      y: anchor.y + NODE_HEIGHT + VIEW_NODE_GAP + index * (VIEW_NODE_HEIGHT + VIEW_NODE_GAP),
-    };
+    const y = stacked.get(node.taskId) ?? anchor.y + NODE_HEIGHT + VIEW_NODE_GAP;
+    stacked.set(node.taskId, y + sizeOf(node.id).h + VIEW_NODE_GAP);
+    result[node.id] = { x: anchor.x, y };
   }
   if (global.length > 0) {
     const bottoms = [
       ...Object.values(taskPositions).map((position) => position.y + NODE_HEIGHT),
-      ...Object.values(result).map((position) => position.y + VIEW_NODE_HEIGHT),
+      ...Object.entries(result).map(([id, position]) => position.y + sizeOf(id).h),
     ];
     const laneTop = (bottoms.length === 0 ? 55 : Math.max(...bottoms)) + BAND_GAP;
-    const perRow = Math.max(1, Math.floor(((availableWidth ?? PAD + VIEW_COL) - PAD) / VIEW_COL));
-    global.forEach((id, index) => {
-      result[id] = {
-        x: PAD + (index % perRow) * VIEW_COL,
-        y: laneTop + Math.floor(index / perRow) * (VIEW_NODE_HEIGHT + VIEW_NODE_GAP),
-      };
-    });
+    // 왼쪽부터 폭만큼 늘어놓고, 다음 카드가 자리 폭을 넘으면 줄을 바꾼다. 줄 높이는 그 줄에서 가장 큰 카드다.
+    // 폭을 모르면(검사) 옛 규칙과 같다 — 한 줄에 한 장.
+    const limit = availableWidth ?? PAD + VIEW_COL;
+    let x = PAD;
+    let y = laneTop;
+    let rowHeight = 0;
+    for (const id of global) {
+      const size = sizeOf(id);
+      const step = Math.max(VIEW_COL, size.w + 40);
+      if (x > PAD && x + step > limit) {
+        x = PAD;
+        y += rowHeight + VIEW_NODE_GAP;
+        rowHeight = 0;
+      }
+      result[id] = { x, y };
+      x += step;
+      rowHeight = Math.max(rowHeight, size.h);
+    }
   }
   return result;
 }

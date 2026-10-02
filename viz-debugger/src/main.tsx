@@ -38,6 +38,7 @@ import { RobotPanel } from './physical/RobotPanel.tsx';
 import { useRobotUplink } from './physical/robotBridge.ts';
 import { useDetectUplink } from './detect/useDetect.tsx';
 import { HardwareLink } from './physical/HardwareLink.tsx';
+import { VisionCardLine } from './vision/views/VisionViews.tsx';
 import { CapabilityPanel } from './capability/views/CapabilityPanel.tsx';
 import { robotClient } from './physical/robotClient.ts';
 import { framesUpTo } from './viewpoint/store.ts';
@@ -184,6 +185,9 @@ function Milestones({ view, phase, milestoneStatuses, assignments, onAssign, onO
       밀려 안 보이고, 반대도 마찬가지다. 축이 다른 둘을 한 스크롤에 태운 탓이다.
     */}
     <div className="right-column">
+    {/* **백엔드 서버는 제 칸이다** (261001 지시 — 하드웨어 카드 말고 다른 곳에). 장비가 아니라서 하드웨어 패널에
+        두지 않는다. 높이는 내용만큼이고 아래 하드웨어 · 기능이 1:1 을 나눈다. 목 게이트웨이면 칸째 없다. */}
+    <ServerCard />
     <aside className="hardware-panel"><h2>{t('ms.hardwareCount', { n: cards.length })}</h2><p><Rich id="ms.hardwareHint" vars={{ source: hardwareSourceLabel() }} /></p>
     {/*
       **목록은 지금 붙어 있는 장비다** (260922 지시 — 「드론 연결했으면 드론 하나만」).
@@ -199,8 +203,6 @@ function Milestones({ view, phase, milestoneStatuses, assignments, onAssign, onO
     */}
     {/* **한 장도 없으면 그 사실을 적는다** (260922). 빈 자리는 「고장인가」로 읽힌다 —
         아무것도 안 붙었다는 것과 화면이 못 그렸다는 것은 다른 말이고, 그 차이를 여기서 말한다. */}
-    {/* 백엔드 서버 (261001 · 임시). 게이트웨이가 우리 컴퓨터의 목이면 안 그린다. 끌어서 놓을 수 없다. */}
-    <ServerCard />
     {cards.length === 0 && <p className="hardware-panel__none">{t('ms.noConnectedDevice')}</p>}
     {cards.map((id) => {
       const item = hardware.find((row) => row.id === id);
@@ -212,6 +214,8 @@ function Milestones({ view, phase, milestoneStatuses, assignments, onAssign, onO
         {item === undefined
           ? <HardwareLink entityId={id} />
           : <span><PendingSource id="hardware-pool-status" inline>{item.connection} · {item.battery}% · {item.rssi} dBm</PendingSource></span>}
+        {/* 261001 — 이 장비에 묶인 객체 탐지 추론 스트림. 묶인 포트가 없으면 아무것도 안 그린다. */}
+        <VisionCardLine entityId={id} />
       </article>;
     })}</aside>
     {/* 기능 상태 (260920). 하드웨어와 **완전히 다른 판**이고 자기 스크롤을 갖는다. */}
@@ -375,12 +379,13 @@ function GraphScreen({ screen, view, trace, milestone, tasks, headSec, playing, 
     onPick: setPickedTaskId,
     onMove: canvas.move,
     onResize: canvas.resize,
+    fitDeadline: canvas.fitDeadline,
     onBind: canvas.bind,
     onRemove: canvas.remove,
     zoomedId,
     onZoom: setZoomedId,
     highlightedId,
-  }), [canvas.bind, canvas.move, canvas.nodes, canvas.remove, canvas.resize, highlightedId, picked, second, view, zoomedId]);
+  }), [canvas.bind, canvas.fitDeadline, canvas.move, canvas.nodes, canvas.remove, canvas.resize, highlightedId, picked, second, view, zoomedId]);
   // **기록 열이 자라면 다시 접는다** — 열은 덧붙일 때만 신원이 바뀌므로(TraceStore.snapshot)
   // 사건이 없는 렌더에서는 접지 않는다.
   const folded = useMemo(() => measureFold(() => foldStatuses(second, view, trace)), [second, trace, view]);

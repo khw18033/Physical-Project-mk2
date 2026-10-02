@@ -44,7 +44,15 @@ export type CanvasApi = {
   /** 사람이 테두리를 끌어 크기를 바꿨다 (260911). 좌표와 같은 자리에 저장된다. */
   resize(id: string, size: { w: number; h: number }): void;
   reset(): void;
+  /**
+   * 이 노드의 크기를 자료에 맞춰도 되는 마감 시각 (261001). **이 화면에서 방금 꺼낸 노드만** 값이 있다 —
+   * 저장돼 있던 노드를 다시 그릴 때 크기가 저절로 바뀌면 사람이 짜 둔 구성이 흔들린다.
+   */
+  fitDeadline(id: string): number | null;
 };
+
+/** 새로 꺼낸 영상 노드가 송출 중인 자료를 기다려 비율을 맞추는 시간. 넘으면 기본 크기 그대로 둔다. */
+const FIT_WINDOW_MS = 15_000;
 
 /** 새 뷰 노드의 id. 새로고침 뒤에도 겹치지 않게 시각 + 난수 다섯 자다. */
 function newId(kind: ViewNodeKind): string {
@@ -62,6 +70,8 @@ export function useCanvas(missionId: string, slot: string, tasks: readonly Task[
   // 이벤트 처리에서 최신 구성을 읽는 자리. setState 안에서 저장하면 StrictMode 가 갱신
   // 함수를 두 번 부르며 저장도 두 번 일어난다 — 부수효과는 이벤트 쪽에 둔다.
   const configRef = useRef<CanvasConfig>(state.config);
+  /** 이 화면에서 꺼낸 노드와 그 시각. 새로고침하면 비는 것이 맞다 — 그때는 이미 「만든 직후」가 아니다. */
+  const createdAt = useRef(new Map<string, number>());
   configRef.current = state.config;
 
   useEffect(() => {
@@ -83,6 +93,7 @@ export function useCanvas(missionId: string, slot: string, tasks: readonly Task[
 
   const add = useCallback((kind: ViewNodeKind, taskId: string | null) => {
     const node: ViewNodeInstance = { id: newId(kind), kind, taskId, x: null, y: null };
+    createdAt.current.set(node.id, Date.now());
     commit({ ...configRef.current, nodes: [...configRef.current.nodes, node] });
     return node.id;
   }, [commit]);
@@ -116,6 +127,11 @@ export function useCanvas(missionId: string, slot: string, tasks: readonly Task[
     });
   }, [commit]);
 
+  const fitDeadline = useCallback((id: string) => {
+    const at = createdAt.current.get(id);
+    return at === undefined ? null : at + FIT_WINDOW_MS;
+  }, []);
+
   const reset = useCallback(() => {
     clearCanvas(missionId, slot, deps);
     setState(loadCanvas(missionId, slot, taskIds, deps));
@@ -127,5 +143,6 @@ export function useCanvas(missionId: string, slot: string, tasks: readonly Task[
     writable: state.writable,
     restorable: state.source === 'user' || state.config.nodes.length > 0,
     add, remove, bind, move, resize, reset,
+    fitDeadline,
   };
 }

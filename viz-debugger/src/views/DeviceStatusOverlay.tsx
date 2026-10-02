@@ -46,6 +46,7 @@ import { MediaSection } from '../media/views/MediaSection.tsx';
 import { DirectCamera } from '../media/views/DeviceCamera.tsx';
 import { CAMERA_POSITIONS, type CameraPosition } from '../media/cameraChoice.ts';
 import { directCameraUrl } from '../physical/cameraView.ts';
+import { VisionDeviceSection } from '../vision/views/VisionViews.tsx';
 
 export function DeviceStatusOverlay({ deviceId, device, source, onClose }: {
   deviceId: string;
@@ -95,6 +96,8 @@ export function DeviceStatusOverlay({ deviceId, device, source, onClose }: {
         {/* 닫으면 끊긴다 — 모달이 내려가면 `<img>` 가 사라지고 연결이 닫힌다. */}
         <DirectCamera url={directUrl.url} frames={directUrl.kind === 'frames'} live />
       </section>}
+      {/* 261001 — 객체 탐지 추론 스트림. 포트를 고르고(자동 맞춤이 기본) 모델별 오버레이를 연다. 닫으면 끊긴다. */}
+      <VisionDeviceSection entityId={deviceId} />
       {/* 카메라 영상 — **닫으면 끊긴다.** 붙는 것이 켜기이고 끊는 것이 끄기다.
           로봇 카메라를 바로 보고 있으면 이 칸은 접는다 — 같은 영상을 두 길로 동시에 열 이유가 없다. */}
       {directUrl === null

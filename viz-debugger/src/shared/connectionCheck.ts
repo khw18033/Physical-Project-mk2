@@ -22,6 +22,7 @@ import { probeDetect, sourceOf } from '../detect/DetectClient.ts';
 import { detectState } from '../detect/store.ts';
 import { aiBases, fetchObstacleJson, probeStill, type FetchLike } from '../autodrive/aiClient.ts';
 import { parseObstacle } from '../autodrive/obstacle.ts';
+import { fetchStreamHealth, modelLive, visionBases, type FetchLike as VisionFetchLike } from '../vision/visionClient.ts';
 import { gatewayFeed, maskToken } from './gatewayFeed.ts';
 import { connectionAddress } from './connections.ts';
 // `sourceOf` 라는 이름이 탐지에도 있다 — 두 경계가 같은 모양의 함수를 각자 갖는 것이
@@ -352,6 +353,42 @@ async function checkAutodriveAiAt(fetcher: FetchLike | undefined, base: string):
 }
 
 /**
+ * `vision` — 객체 탐지 추론 스트림 (261001). **포트마다 두 줄**: 서버가 답하는가(소스 이름 · 받은 장 수 · 연결 상태)와
+ * 추론 결과가 오는가(돌고 있는 모델). 둘은 따로 죽는다 — 서버는 살아 있는데 `vision_infer.py` 가 안 돌 수 있다.
+ *
+ * 결과가 없으면 **모른다(null)** 로 둔다. 추론을 아직 안 띄운 것일 수 있고, 그것을 빨갛게 칠하면 「서버가 죽었다」로 읽힌다.
+ */
+export async function checkVisionStream(fetcher?: VisionFetchLike): Promise<readonly HealthLine[]> {
+  const bases = visionBases();
+  if (bases.length === 0) return [line('health', 'check.line.visionServer', null, { reason: t('vis.noAddress') })];
+  const out: HealthLine[] = [];
+  for (const base of bases) {
+    const { value: got, ms } = await timed(() => fetchStreamHealth(base, fetcher));
+    const rows: HealthLine[] = [];
+    if (!got.ok) {
+      rows.push(line('health', 'check.line.visionServer', false, { reason: got.reason }));
+    } else {
+      const h = got.health;
+      rows.push(line('health', 'check.line.visionServer', true, {
+        roundTripMs: ms,
+        reason: t('check.reason.visionServer', { source: h.source ?? '?', frames: h.frames ?? '—', video: h.video ?? '—' })
+          + (got.via === 'direct' ? t('check.reason.viaDirect') : ''),
+      }));
+      const live = h.models.filter(modelLive);
+      rows.push(h.visionError !== null
+        ? line('vision', 'check.line.visionResult', false, { reason: h.visionError })
+        : live.length === 0
+          ? line('vision', 'check.line.visionResult', null, { reason: t('check.reason.visionNone') })
+          : line('vision', 'check.line.visionResult', true, {
+              reason: live.map((m) => t('check.reason.visionModel', { model: m.model, n: m.n ?? '—', age: m.ageS ?? '—' })).join(' · '),
+            }));
+    }
+    for (const row of rows) out.push(bases.length > 1 ? { ...row, id: `${row.id}@${base}`, scope: got.ok && got.health.source !== null ? `${got.health.source} ${base}` : base } : row);
+  }
+  return out;
+}
+
+/**
  * 기능 상태 확인 (260920). 탐지와 같은 모양이다 — **「테스트」가 켜져 있으면 받아 둔 자료를
  * 실제로 한 번 읽어 본다.** 「켰는데 아무것도 안 뜬다」를 그때 잡는다.
  *
@@ -448,6 +485,7 @@ export async function checkTarget(
     }
     else if (target === 'autodrive') setHealth(target, await checkAutodrive(nav));
     else if (target === 'autodrive-ai') setHealth(target, await checkAutodriveAi());
+    else if (target === 'vision') setHealth(target, await checkVisionStream());
     else if (target === 'detect') setHealth(target, await checkDetect());
     else if (target === 'capability') setHealth(target, await checkCapability());
     else if (target === 'gateway') setHealth(target, await checkGateway());

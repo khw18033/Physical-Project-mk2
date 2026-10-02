@@ -237,6 +237,12 @@ export function ObstacleLogCard({ nodeId }: { nodeId?: string } = {}) {
       ? <p className="vn-line vn-dim">{obstacle.error === null ? t('adv.7') : t('adv.notReceiving', { reason: obstacle.error })}</p>
       : <p className="vn-line"><Rich id="adv.snapLine" vars={{ n: snap.detections.length, near: String(snap.hasNearObstacle), change: String(snap.stateChange) }} />
           <small> · {clock(snap.receivedAtMs)}{obstacleFrozen(obstacle) && !replaying ? t('adv.frozen5s') : ''}{aiBases().length > 1 ? ` · ${base}` : ''}</small></p>}
+    {/* **탐지 하나하나의 값도 카드에 둔다** (261001 — 가독성). 확대해야 거리 · 위험도가 보이면 실시간으로
+        바뀌는 값을 놓친다. 원문 JSON 과 주소 고르기만 확대에 남는다. */}
+    {snap !== null && snap.detections.length > 0 && <table className="obstacle-table obstacle-table--card">
+      <thead><tr><th>id</th><th>{t('adv.9')}</th><th>{t('adv.10')}</th><th>rel_depth</th><th>risk</th><th>bbox_xyxy</th></tr></thead>
+      <tbody>{snap.detections.map((d, index) => <DetectionRow key={`${d.id ?? 'x'}-${index}`} d={d} />)}</tbody>
+    </table>}
     {recent.length === 0
       ? <p className="vn-line vn-dim">{t('adv.13')}</p>
       : <ol className="robot-log__lines">

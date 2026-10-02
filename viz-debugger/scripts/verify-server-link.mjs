@@ -82,7 +82,14 @@ controls.push('공통 헤더가 빠진 봉투');
   if (/draggable/.test(card)) failures.push('서버 카드를 끌 수 있다 — 장치 자리에 서버가 앉는다');
   if (!/isLocalGateway\(url\)\) return null/.test(card)) failures.push('목 게이트웨이일 때도 서버 카드가 뜬다');
   const main = read('src', 'main.tsx');
-  if (!/<ServerCard \/>/.test(main)) failures.push('하드웨어 패널에 서버 카드가 없다');
+  if (!/<ServerCard \/>/.test(main)) failures.push('오른쪽 기둥에 서버 칸이 없다');
+  // 261001 — 서버는 장비가 아니라서 하드웨어 패널 **밖**, 오른쪽 기둥의 제 칸이다.
+  const hardwarePanel = main.slice(main.indexOf('<aside className="hardware-panel"'), main.indexOf('<CapabilityPanel />'));
+  if (/<ServerCard \/>/.test(hardwarePanel)) failures.push('서버 카드가 아직 하드웨어 패널 안에 있다');
+  if (!/onDoubleClick=\{\(\) => setOpen\(true\)\}/.test(card)) failures.push('서버 카드를 더블클릭해도 상세가 안 열린다');
+  const overlay = read('src', 'shell', 'ServerStatusOverlay.tsx');
+  if (!/'Escape'/.test(overlay) || !/event\.target === event\.currentTarget/.test(overlay)) failures.push('서버 상세를 닫는 길이 하나뿐이다 — Esc · 배경 누르기');
+  if (!/maskToken\(url\)/.test(overlay)) failures.push('서버 상세가 토큰을 가리지 않는다');
 }
 
 if (failures.length) {
@@ -91,6 +98,6 @@ if (failures.length) {
 }
 console.log('✅ 서버 봉투(공통 헤더)와 목 함대를 가른다 · 서버 장비와 MQTT 장비는 카드, 목 함대는 아니다');
 console.log('✅ 연결 확인 — 소켓 · 값 수신(받은 서버 장비 이름) · 구역 · 값이 안 오면 구역을 사유로 · 토큰은 가린다');
-console.log('✅ 서버 카드 — 목 게이트웨이면 안 뜨고 끌 수 없다');
+console.log('✅ 서버 칸 — 하드웨어 패널 밖 · 목 게이트웨이면 안 뜨고 끌 수 없다 · 더블클릭하면 상세(Esc · 배경으로 닫힘 · 토큰 가림)');
 console.log(`✅ 대조군 ${controls.length}건 — ${controls.join(' · ')}`);
 process.exit(0);
