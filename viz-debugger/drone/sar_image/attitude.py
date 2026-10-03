@@ -91,3 +91,29 @@ def tilt_motion_mm(lever_frd, roll_deg, pitch_deg) -> float:  # noqa: ANN001
 
 
 __all__ = ["frd_to_enu", "lever_arm", "phase_center", "rot_ned_from_frd", "tilt_motion_mm"]
+
+
+def beam_pointing(depression_deg: float, side_sign: float, pitch_deg: float, roll_deg: float, squint_deg: float = 0.0) -> dict:
+    """자세가 (피치, 롤) 일 때 기체 고정 안테나 빔 중심이 실제로 향하는 곳 — 진행 방향 기준.
+
+    squint_deg: + 면 빔이 앞쪽으로, − 면 뒤쪽으로 비스듬(수평면에서 잰 각). depression_deg: 수평에서 내려다보는 각.
+    """
+    d, q = np.radians(depression_deg), np.radians(squint_deg)
+    b = np.array([np.cos(d) * np.sin(q), side_sign * np.cos(d) * np.cos(q), np.sin(d)])     # FRD
+    e, n, u = frd_to_enu(b, 0.0, pitch_deg, roll_deg)                                          # yaw 0 → 북 = 앞
+    side = e * side_sign
+    return {"squint_deg": float(np.degrees(np.arctan2(n, side))), "depression_deg": float(np.degrees(np.arctan2(-u, np.hypot(n, e))))}
+
+
+def mount_advice(depression_deg: float, side_sign: float, pitch_deg: float, roll_deg: float) -> dict:
+    """등속 비행의 평균 자세에서 빔이 옆으로 똑바로(스퀸트 0) · 원래 내려다보는 각으로 가도록 장착을 얼마나 돌리나.
+    두 번 고쳐 보면 거의 맞는다(작은 각에서 선형)."""
+    now = beam_pointing(depression_deg, side_sign, pitch_deg, roll_deg)
+    q, dep = 0.0, depression_deg
+    for _ in range(3):
+        got = beam_pointing(dep, side_sign, pitch_deg, roll_deg, q)
+        q -= got["squint_deg"]
+        dep -= got["depression_deg"] - depression_deg
+    return {"pitch_deg": round(pitch_deg, 2), "roll_deg": round(roll_deg, 2),
+            "squint_now_deg": round(now["squint_deg"], 2), "depression_now_deg": round(now["depression_deg"], 2),
+            "mount_squint_deg": round(q, 1), "mount_depression_deg": round(dep, 1)}

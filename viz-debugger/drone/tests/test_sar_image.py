@@ -185,3 +185,17 @@ def test_fast_backprojection_matches_reference_even_with_big_coordinates(setup):
         assert 20 * math.log10(err) < -50
         m, m0 = peak_metrics(img, along, cross), peak_metrics(ref, along, cross)
         assert m["peak_along_m"] == m0["peak_along_m"] and m["peak_cross_m"] == m0["peak_cross_m"]
+
+
+def test_mount_advice_points_beam_broadside():
+    """등속 자세(앞 숙임 · 기울임)에서 추천대로 달면 빔이 옆으로 똑바로 · 설계 내려다보는 각."""
+    from sar_image.attitude import beam_pointing, mount_advice
+
+    level = beam_pointing(45, 1, 0.0, 0.0)
+    assert abs(level["squint_deg"]) < 1e-9 and abs(level["depression_deg"] - 45) < 1e-9
+    nose_down = beam_pointing(45, 1, -8.0, 0.0)
+    assert nose_down["squint_deg"] < -4                                  # 앞 숙임 → 빔이 뒤로
+    for side in (1, -1):
+        a = mount_advice(45, side, -8.0, 2.0 * side)
+        got = beam_pointing(a["mount_depression_deg"], side, -8.0, 2.0 * side, a["mount_squint_deg"])
+        assert abs(got["squint_deg"]) < 0.2 and abs(got["depression_deg"] - 45) < 0.2

@@ -52,6 +52,41 @@ def _track_svg(csv_path: Path, length_m: float | None, width: int = 640, height:
     return "".join(parts)
 
 
+def attitude_section(flight_dir: Path, metas: list[dict]) -> str:
+    """캡처 구간의 평균 자세 → 빔이 실제로 향한 곳 · 장착을 얼마나 돌리면 똑바로 보나 (sar_image.attitude.mount_advice)."""
+    pitch, roll = [], []
+    for m in metas:
+        f = flight_dir / (m.get("traj_csv") or "")
+        if not f.is_file():
+            continue
+        for r in csv.DictReader(f.open(encoding="utf-8")):
+            if r.get("cap_on") == "1" and r.get("pitch_deg") not in (None, "") and r.get("roll_deg") not in (None, ""):
+                pitch.append(float(r["pitch_deg"]))
+                roll.append(float(r["roll_deg"]))
+    if len(pitch) < 20:
+        return ""
+    rc = (metas[0].get("radar_config") or {}) if metas else {}
+    dep = float(rc.get("depression_deg") or 45.0)
+    side = -1.0 if rc.get("side") == "left" else 1.0
+    from sar_image.attitude import mount_advice
+    p_mean, r_mean = sum(pitch) / len(pitch), sum(roll) / len(roll)
+    p_sd = (sum((x - p_mean) ** 2 for x in pitch) / len(pitch)) ** 0.5
+    r_sd = (sum((x - r_mean) ** 2 for x in roll) / len(roll)) ** 0.5
+    a = mount_advice(dep, side, p_mean, r_mean)
+    src = "비행 때 radar.json" if rc.get("depression_deg") is not None else "radar.json 이 기록에 없어 예시 45° · 오른쪽으로 계산"
+    big = abs(a["squint_now_deg"]) > 5 or abs(a["depression_now_deg"] - dep) > 5
+    return (f"<section><h2>안테나 장착 각도 (등속 구간 자세에서)</h2><ul>"
+            f"<li>캡처 중 평균 자세: 피치 {p_mean:+.1f}° (흔들림 ±{p_sd:.1f}°) · 롤 {r_mean:+.1f}° (±{r_sd:.1f}°) — 표본 {len(pitch)}개</li>"
+            f"<li>그래서 빔 중심은 진행 방향에 대해 <b>{a['squint_now_deg']:+.1f}°</b> 비스듬(− = 뒤쪽) · 내려다보는 각 <b>{a['depression_now_deg']:.1f}°</b> (설계 {dep:.0f}°)</li>"
+            f"<li>{'<b>' if big else ''}똑바로 옆을 보게 하려면: 안테나를 앞쪽으로 {a['mount_squint_deg']:+.1f}° 돌리고, 내려다보는 각을 {a['mount_depression_deg']:.1f}° 로 단다{'</b>' if big else ''}"
+            f" (영상 처리는 기울어도 맞게 하지만, 빔이 리플렉터를 비추는 시간 · 관측 띠가 달라진다)</li>"
+            f"<li><small>{esc_(src)} · sar_image/attitude.py mount_advice</small></li></ul></section>")
+
+
+def esc_(s: str) -> str:
+    return html.escape(s)
+
+
 def flight_report(flight_dir: Path, radar_passes: list[dict] | None = None) -> str:
     metas = []
     for mp in sorted(flight_dir.glob("pass*.json")):
@@ -118,6 +153,7 @@ ul{{margin:0;padding-left:18px}} .wrap{{overflow-x:auto}}
 <tbody>{''.join(rows)}</tbody></table>
 <small>품질 기준: 횡 {f(plan.get('q_cross_m'),1)} m · 속도 {f(plan.get('q_speed_mps'))} m/s · 고도 {f(plan.get('q_alt_m'),1)} m · yaw {f(plan.get('q_heading_deg'),1)}° · 진행 방향 {f(plan.get('q_course_deg'),1)}° · 기록 끝 여유 {f(plan.get('q_edge_m'),1)} m</small></section>
 <section><h2>궤적</h2>{''.join(figs) or '<p>궤적 파일이 없습니다</p>'}</section>
+{attitude_section(flight_dir, metas)}
 <section><h2>기준 · 주의</h2><ul>
 <li>캡처 구간 시작 {f(plan.get('start_lat'),7)}, {f(plan.get('start_lon'),7)} → 끝 {f(plan.get('end_lat'),7)}, {f(plan.get('end_lon'),7)}</li>
 <li>베이스(RTCM 1005): {esc(json.dumps(base, ensure_ascii=False)) if base else '모름'}</li>
