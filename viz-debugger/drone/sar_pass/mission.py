@@ -65,6 +65,9 @@ SPEED_AVG_S = 0.5    # 이동평균 창
 #   0.8 → 진행 방향 오차 5.5~6.3° · 횡 0.62~0.68 m / 0.5 → 3.4~4.7° · 0.49~0.67 m / 0.3 → 2.6~2.8° · 0.66~0.97 m
 # 0.8 은 선 위로 세게 당겨 좌우로 흔들고, 0.3 은 선에서 밀려난다. 실기체에서 바람과 함께 다시 본다.
 CROSS_KP = 0.5
+# SITL(게인 0.5): 가속 중 덜 붙은 채 캡처가 시작돼 첫 몇 m 횡오차 1.1~1.4 m 가 나왔다 → 멀 때는 0.8, 캡처는 0.5 m 안에서만
+CROSS_KP_FAR = 0.8
+CROSS_NEAR_M = 0.5
 
 # 이 컴퓨터 시계와 FC 의 GPS 시각 차이가 이보다 크면 시작하지 않는다 — 패스 시각을 .ulg · 레이더와 맞출 수 없다.
 MAX_CLOCK_OFFSET_S = 1.0
@@ -610,12 +613,15 @@ class SarMission:
                     v_int = 0.0
                 v_cmd = max(0.0, v_ref + v_int)
                 s_ref = along
-                c_corr = max(-1.5, min(1.5, -plan.cross_kp * cross))   # 선 위로 끌어당김
+                # 선 위로 끌어당김 — 멀면 세게(빨리 붙게), 가까우면 약하게(좌우로 흔들지 않게)
+                kp = plan.cross_kp if abs(cross) < CROSS_NEAR_M else max(plan.cross_kp, CROSS_KP_FAR)
+                c_corr = max(-1.5, min(1.5, -kp * cross))
                 vel_d = max(-1.0, min(1.0, 0.8 * alt_err))          # 고도 유지
                 await self.v.set_velocity(un * v_cmd - ue * c_corr, ue * v_cmd + un * c_corr, vel_d, heading)
 
+                # 캡처는 선 위에 붙은 뒤에만 — 품질 기준(q_cross_m)의 절반 안. 느슨하면 캡처 첫 몇 m 가 무효가 된다
                 stable_now = (abs(gs_avg - plan.speed_mps) <= plan.speed_tol and hdg_err <= plan.heading_tol
-                              and abs(cross) <= plan.cross_tol)
+                              and abs(cross) <= min(plan.cross_tol, 0.5 * plan.q_cross_m))
                 stable_since = (stable_since if stable_since is not None else now) if stable_now else None
                 stable = stable_since is not None and now - stable_since >= plan.stable_hold_s
 
