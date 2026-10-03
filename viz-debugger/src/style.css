@@ -1153,6 +1153,8 @@ button.robot-resume{padding:6px 12px;border:1px solid #2f9e5f;border-radius:var(
 .topcam{display:flex;flex-direction:column;gap:6px}
 .topcam__grid{display:grid;gap:8px;grid-template-columns:repeat(2,minmax(0,1fr))}
 .topcam__grid--1{grid-template-columns:minmax(0,1fr)}
+.topcam__grid--3{grid-template-columns:repeat(3,minmax(0,1fr))}
+.topcam--zoom .topcam__grid--3 .topcam__img{max-height:50vh}
 .topcam__pane{margin:0;display:flex;flex-direction:column;gap:4px;min-width:0}
 .topcam__cap{display:flex;gap:8px;align-items:baseline;flex-wrap:wrap;font-size:12px}
 .topcam__img{width:100%;aspect-ratio:4/3;object-fit:contain;background:#11161d;border-radius:var(--radius-xs);display:block;user-select:none;touch-action:none}
@@ -1166,3 +1168,6 @@ button.robot-resume{padding:6px 12px;border:1px solid #2f9e5f;border-radius:var(
 .topcam__height{display:flex;align-items:center;gap:6px;font-size:12px;margin-left:6px}
 .topcam__height input{width:120px}
 .view-node[style*="--card-h"] .topcam__img{max-height:calc(var(--card-h) - 140px)}
+.topcam__num{display:inline-flex;align-items:center;gap:4px;font-size:12px}
+.topcam__num input{width:64px;padding:3px 4px;border:1px solid #4a5568;border-radius:4px;background:#11161d;color:#e6edf3;font:inherit;text-align:right}
+.topcam__num input:focus{outline:2px solid #2d5d9f;outline-offset:0}
