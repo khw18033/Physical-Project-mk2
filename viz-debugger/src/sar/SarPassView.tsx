@@ -31,6 +31,7 @@ import { useTick } from './useTick.ts';
 import { SatMap, type Area, type Marker } from '../dronedash/SatMap.tsx';
 import { checkReflector, defaultAntenna, radarJson, swathPolygon, type AntennaDraft } from './coverage.ts';
 import { ANT_KEY, CR_KEY, liveBeam } from './liveBeam.ts';
+import { PassInspector } from './PassInspector.tsx';
 import { ComparePanel, ImageButton, ImagingStatus, SarImageView, type ImageSummary, type Imaging, type MirrorState } from './SarImageView.tsx';
 import './sar.css';
 
@@ -671,6 +672,7 @@ function DataPanel({ data, reflectors }: { data: ReturnType<typeof useDataServer
   useLang();
   const [open, setOpen] = useState<string | null>(null);
   const [view, setView] = useState<string | null>(null);
+  const [inspect, setInspect] = useState<string | null>(null);
   if (data.base === '') return <p className="sar-hint">{t('sar.data.noUrl')}</p>;
   if (data.ok === false) return <div><p className="sar-warn">{t('sar.data.fail', { url: data.base, why: data.error ?? '' })}</p>
     <p className="sar-hint">{t('sar.data.howTo')}</p><button type="button" onClick={data.refresh}>{t('sar.data.retry')}</button></div>;
@@ -693,6 +695,7 @@ function DataPanel({ data, reflectors }: { data: ReturnType<typeof useDataServer
           <td>{p.valid ? <span className="sar-ok">✓ {t('sar.log.valid')}</span> : <span className="sar-bad">✕ {t('sar.log.invalid')}</span>}</td>
           <td>{t('sar.data.radarFiles', { n: p.radar_files.length, size: bytes(p.radar_bytes) })}</td>
           <td className="sar-data-btns">
+            {p.traj_csv && <button type="button" className="sar-btn--main" onClick={() => setInspect(inspect === `${f.id}:${p.pass_no}` ? null : `${f.id}:${p.pass_no}`)}>{t('pi.open')}</button>}
             {p.traj_csv && <a className="sar-btn" href={url(f.id, `files/${encodeURIComponent(p.traj_csv)}`)}>{t('sar.data.trajCsv')}</a>}
             <a className="sar-btn" href={url(f.id, `files/${encodeURIComponent(p.meta_json)}`)}>{t('sar.data.meta')}</a>
             <a className="sar-btn sar-btn--main" href={url(f.id, `bundle.zip?pass=${p.pass_no}`)}>{t('sar.data.passZip')}</a>
@@ -701,6 +704,9 @@ function DataPanel({ data, reflectors }: { data: ReturnType<typeof useDataServer
               onOpen={() => { setView(`${f.id}:${p.pass_no}`); data.refresh(); }} />
           </td>
         </tr>,
+        inspect === `${f.id}:${p.pass_no}` && p.traj_csv && <tr key={`${p.pass_no}-pi`} className="sar-img-row"><td colSpan={4}>
+          <PassInspector base={data.base} flight={f.id} csvName={p.traj_csv} metaName={p.meta_json} />
+        </td></tr>,
         view === `${f.id}:${p.pass_no}` && <tr key={`${p.pass_no}-img`} className="sar-img-row"><td colSpan={4}>
           <SarImageView base={data.base} flight={f.id} pass={p.pass_no} />
           <button type="button" onClick={() => setView(null)}>{t('img.close')}</button>
