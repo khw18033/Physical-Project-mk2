@@ -61,6 +61,24 @@ git diff --stat origin/khw_VZ origin/Junho_drone -- viz-debugger ':!viz-debugger
   받는 쪽으로 바뀌므로 HW 담당과도 협의합니다. 에이전트 쪽은 HW 파일을 고치지 않고 systemd 덮어쓰기로 붙였습니다.
 - **새 HTTP 서버**: Pi 의 드론 데이터 서버(:8765, 읽기 전용)를 화면이 직접 부릅니다. 게이트웨이를 거치지 않습니다.
 
+## 의존성 · 영향 범위
+
+- **npm 의존성 추가 없음** — `package.json` 은 스크립트 두 줄만 늘었습니다. 지도 · 차트도 라이브러리 없이 SVG 로 그렸습니다.
+- 파이썬 의존성(`mavsdk-grpc` · `pymavlink` · `paho-mqtt` · `numpy` · `matplotlib`)은 `viz-debugger/drone/` 안에서만 씁니다.
+  화면 빌드 · 게이트웨이 · 다른 노드와는 상관없습니다.
+- 드론 노드 3개는 드론 토픽이 안 오면 「보고 없음」만 보입니다. 다른 편의 화면 · 대본 · 노드 동작은 그대로입니다.
+
+## 아직 확인 못 한 것
+
+- 실기체 비행 · 실제 레이더 — PX4 SITL(시뮬레이터)과 가짜 레이더 데이터로만 확인했습니다.
+- Pi 에서 실제 설치(`viz-debugger/drone/deploy/pi/install.sh`) — 이 PC 에서 문법 · 명령 기동 · dry-run 까지만 했습니다.
+- 전체 앱 안에서는 2026-10-02 에 한 번 띄워 봤고(`screenshots/7_전체앱_캔버스.png`), 그 뒤 화면 수정은 드론 노드만 따로 띄워 확인했습니다.
+
+## 유지보수
+
+- 드론 파트 파일(`src/sar/` · `src/dronedash/` · `src/physical/` 의 sar · rtcm · fcx 파일 · `viz-debugger/drone/`)은 드론 파트가 고칩니다.
+- 컴공 쪽 공용 파일을 바꾸실 때 드론 노드가 깨지면 `npm run verify:sar` · `verify:view-nodes` 가 먼저 알려 줍니다. 알려 주시면 맞추겠습니다.
+
 ## 직접 보기
 
 ```bash
