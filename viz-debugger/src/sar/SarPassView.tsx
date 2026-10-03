@@ -68,12 +68,13 @@ function focusDevice(link: SarLink, reports: Readonly<Record<string, SarReport>>
   return link.deviceId ?? Object.keys(reports)[0] ?? null;
 }
 
-function useSarView() {
+/** `pinned` 가 있으면 고르지 않고 그 장비를 본다 — 하드웨어 카드의 상세보기(261003). */
+function useSarView(pinned?: string) {
   useTick(1000);
   const reports = useSarReports();
   useDeviceTelemetry();
   const link = sarLink();
-  const deviceId = focusDevice(link, reports);
+  const deviceId = pinned ?? focusDevice(link, reports);
   const report = deviceId === null ? null : reports[deviceId] ?? null;
   return { link, deviceId, report };
 }
@@ -188,9 +189,13 @@ function CheckList({ items }: { items: readonly CheckItem[] }) {
   </ul>;
 }
 
-export function SarPassZoom() {
+/**
+ * `deviceId` — 그 장비만 본다. `readOnly` — **명령을 안 낸다**(261003 · 하드웨어 카드의 상세보기). 시작 확인 · 시작/중단
+ * 버튼과 「명령 선언」 점검이 빠지고 그 자리에 보기 전용이라는 말이 선다. 계획 · 지도 · 진행 · 결과는 그대로다.
+ */
+export function SarPassZoom({ deviceId: pinned, readOnly = false }: { deviceId?: string; readOnly?: boolean } = {}) {
   useLang();
-  const { link, deviceId, report } = useSarView();
+  const { link, deviceId, report } = useSarView(pinned);
   const rtcm = useRtcmReports();
   const fcx = useFcxReports();
   const [draft, setDraftState] = useState<SarPlanDraft>(loadDraft);
@@ -254,8 +259,8 @@ export function SarPassZoom() {
         : rtcmReport.receiving ? t('rtcm.on', { fps: (rtcmReport.framesPerS ?? 0).toFixed(1), age: (rtcmReport.ageS ?? 0).toFixed(1) })
           : t('rtcm.off', { age: (rtcmReport.ageS ?? 0).toFixed(0) }),
       fix: t('sar.check.rtcmFix') },
-    { key: 'cmd', level: link.start === 'yes' ? 'good' : link.start === 'unknown' ? 'warn' : 'bad', label: t('sar.check.cmd'),
-      detail: t(`sar.support.${link.start}`), fix: t('sar.check.cmdFix') },
+    ...(readOnly ? [] : [{ key: 'cmd', level: (link.start === 'yes' ? 'good' : link.start === 'unknown' ? 'warn' : 'bad') as Level,
+      label: t('sar.check.cmd'), detail: t(`sar.support.${link.start}`), fix: t('sar.check.cmdFix') }]),
     { key: 'clock', level: clock === null ? 'warn' : Math.abs(clock) <= 1 ? 'good' : 'bad', label: t('sar.check.clock'),
       detail: clock === null ? t('sar.live.clockUnknown') : `${clock >= 0 ? '+' : ''}${clock.toFixed(3)} s`, fix: t('sar.check.clockFix') },
     { key: 'radar', level: report === null ? 'unknown' : report.capAck === null ? 'warn' : 'good', label: t('sar.check.radar'),
@@ -278,8 +283,9 @@ export function SarPassZoom() {
       : draft.start === null ? t('sar.next.pickStart')
         : draft.end === null ? t('sar.next.pickEnd')
           : problems.length > 0 ? t('sar.next.fixPlan', { what: t(problems[0]!.key, problems[0]!.vars) })
-            : !confirmed ? t('sar.next.confirm')
-              : finished ? t('sar.next.download') : t('sar.next.start');
+            : readOnly ? (finished ? t('sar.next.download') : t('sar.next.readOnly'))
+              : !confirmed ? t('sar.next.confirm')
+                : finished ? t('sar.next.download') : t('sar.next.start');
 
   async function start() {
     setBusy('start');
@@ -495,9 +501,10 @@ export function SarPassZoom() {
     <Step n={4} title={t('sar.step.run')} help={t('sar.step.runHelp')} level={running ? 'good' : canStart ? 'now' : 'todo'} open>
       <dl className="device-facts">
         <div><dt>{t('sar.run.device')}</dt><dd>{deviceId ?? t('sar.run.noDevice')}</dd></div>
-        {link.client !== null && <div><dt>{t('sar.run.declared')}</dt><dd>{t(`sar.support.${link.start}`)} · sar_abort {t(`sar.support.${link.abort}`)}</dd></div>}
+        {!readOnly && link.client !== null && <div><dt>{t('sar.run.declared')}</dt><dd>{t(`sar.support.${link.start}`)} · sar_abort {t(`sar.support.${link.abort}`)}</dd></div>}
         <div><dt>{t('sar.run.rtk')}</dt><dd><RtkBadge level={rtk} />{draft.requireRtk && rtk !== 'fixed' && <em className="sar-warn"> {t('sar.run.rtkBlocks', { level: t(RTK_LABEL_KEY[rtk]) })}</em>}</dd></div>
       </dl>
+      {readOnly ? <p className="sar-hint">{t('sar.run.readOnly')}</p> : <>
       <label className="sar-check sar-confirm">
         <input type="checkbox" checked={confirmed} disabled={problems.length > 0 || running} onChange={(e) => setConfirmed(e.target.checked)} />
         {t('sar.run.confirm')}
@@ -515,6 +522,7 @@ export function SarPassZoom() {
         {t(outcome.action === 'start' ? 'sar.run.startResult' : 'sar.run.abortResult', { message: outcome.result.message })}
       </p>}
       {link.client !== null && link.abort === 'no' && <p className="sar-bad">{t('sar.cmd.abortUnsupported')}</p>}
+      </>}
     </Step>
 
     <Step n={5} title={t('sar.step.progress')} help={t('sar.step.progressHelp')} level={running ? 'now' : report ? 'good' : 'todo'} open={running}>

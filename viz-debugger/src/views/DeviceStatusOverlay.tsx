@@ -49,6 +49,7 @@ import { directCameraUrl } from '../physical/cameraView.ts';
 import { VisionDeviceSection } from '../vision/views/VisionViews.tsx';
 import { FixedCameraSection } from '../fixedcam/FixedCameraSection.tsx';
 import { isFixedCamera } from '../fixedcam/fixedCamera.ts';
+import { DroneDetailModal, useIsDrone } from './DroneDetailModal.tsx';
 
 export function DeviceStatusOverlay({ deviceId, device, source, onClose }: {
   deviceId: string;
@@ -71,12 +72,18 @@ export function DeviceStatusOverlay({ deviceId, device, source, onClose }: {
    * 다 맞지 않는다 — 그 셋 대신 받는 이미지를 띄우고, 추론 스트림 칸은 로봇과 같은 것을 쓴다.
    */
   const fixedCamera = isFixedCamera(deviceId);
+  /**
+   * **드론이면 탭 판** (261003). 상태판 · 카메라 · 탐지 · RTK · SAR 패스를 탭으로 오간다(`DroneDetailModal.tsx`).
+   * 닫는 길(Esc)은 아래 효과가 그대로 맡는다 — 갈래를 효과 뒤에 둔다.
+   */
+  const drone = useIsDrone(deviceId);
   // 여는 길이 둘(더블클릭·앞으로 늘 수 있는 다른 경로)이면 닫는 길도 둘 이상이어야 한다.
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') onClose(); };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
+  if (drone && !fixedCamera) return <DroneDetailModal deviceId={deviceId} source={source} onClose={onClose} />;
 
   return <div className="modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
     <section className="modal device-modal" role="dialog" aria-label={t('dso.aria', { id: deviceId })}>

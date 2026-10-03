@@ -422,12 +422,16 @@ export function DroneDashCard() {
   </div>;
 }
 
-export function DroneDashZoom() {
+/**
+ * `deviceId` 를 주면 **그 장비만** 본다 — 하드웨어 카드의 상세보기가 그렇게 연다(261003). 드론이 여럿일 때
+ * 다른 카드를 열었는데 첫 장비가 뜨면 안 되기 때문이다. 안 주면 지금처럼 고르는 칸이 선다(뷰 노드).
+ */
+export function DroneDashZoom({ deviceId }: { deviceId?: string } = {}) {
   useLang();
   useTick(500);
   const views = useDroneViews();
   const [pick, setPick] = useState<string | null>(null);
-  const v = views.find((x) => x.deviceId === pick) ?? views[0];
+  const v = deviceId !== undefined ? views.find((x) => x.deviceId === deviceId) : views.find((x) => x.deviceId === pick) ?? views[0];
   const homeBearing = useMemo(() => {
     const h = v?.fcx?.home;
     return v && h?.lat != null && h.lon != null && v.lat !== null && v.lon !== null ? bearing({ lat: v.lat, lon: v.lon }, { lat: h.lat, lon: h.lon }) : null;
@@ -436,7 +440,7 @@ export function DroneDashZoom() {
   const samples = v.fcx?.history ?? [];
   return <div className="sar-zoom dash-zoom">
     <div className="dash-head">
-      {views.length > 1 ? <select value={v.deviceId} onChange={(e) => setPick(e.target.value)}>
+      {deviceId === undefined && views.length > 1 ? <select value={v.deviceId} onChange={(e) => setPick(e.target.value)}>
         {views.map((x) => <option key={x.deviceId} value={x.deviceId}>{x.deviceId}</option>)}
       </select> : <h3>{v.deviceId}</h3>}
       <span className={v.extended ? 'sar-ok' : 'sar-warn'}>{v.extended ? t('dash.extended') : t('dash.basicOnly')}</span>

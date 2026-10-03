@@ -7,18 +7,24 @@
  * 가상 맵 노드(Unity · 2D)와 다른 노드다 — 그쪽은 자리 편의 경로 · 장치를 그리고, 이것은 가상환경 화면을
  * 그대로 띄운다. 화면은 이 틀과 말을 주고받지 않는다 — 명령 출구는 여전히 하나다.
  *
+ * 261003 — 주소가 Unity 상공 카메라 서버(`CameraMjpegServer`)면 틀 대신 `TopCamView` 를 그린다(시점 조절 포함).
+ *
  * 카드에서는 누름을 막는다(끌기가 먼저다). 조작은 확대에서 한다 — 가상 맵의 Unity 틀과 같은 규칙이다.
  */
 
 import { t } from '../i18n/dict.ts';
 import { useLang } from '../shared/language.ts';
 import { connectionAddress, useConnections } from '../shared/connections.ts';
+import { TopCamView, useTopCamProbe } from './TopCamView.tsx';
 
 export function Virtual3D({ zoom = false }: { zoom?: boolean }) {
   useLang();
   useConnections();
   const url = connectionAddress('virtual-3d', 'base').trim();
+  // 261003 — 주소가 Unity 상공 카메라 서버면 틀 대신 영상 + 시점 조절을 그린다 (TopCamView.tsx)
+  const probe = useTopCamProbe(url);
   if (url === '') return <p className="vn-line vn-dim">{t('v3d.empty')}</p>;
+  if (probe.kind === 'topcam') return <TopCamView url={url} probe={probe} zoom={zoom} />;
   return <div className={`vmap vmap--unity v3d${zoom ? ' vmap--zoom' : ''}`}>
     <iframe
       className="vmap__unity v3d__frame"

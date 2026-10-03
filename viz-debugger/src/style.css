@@ -419,6 +419,16 @@ b.follow-live{cursor:default}
    일곱 칸 한 줄과 카메라 자리표시 하나뿐이다. */
 .device-modal{width:min(980px,92vw)}
 .device-modal__camera{padding:16px 22px 4px}
+/* 드론 상세보기 (261003 · `DroneDetailModal`). 탭마다 내용 높이가 달라 **크기를 고정**하고 아래 칸만 구른다 —
+   「전체 카메라」 판(.all-cams)과 같은 틀이다. 머리줄은 id · 탭 · 닫기 한 줄. */
+.modal.device-modal--drone{width:min(1280px,96vw);height:92vh;max-height:92vh;display:flex;flex-direction:column;overflow:hidden}
+.device-modal--drone>header{flex:none}
+.drone-modal__tabs{display:flex;gap:4px;margin:0 auto 0 18px}
+.modal>header .drone-modal__tabs button{padding:7px 13px;cursor:pointer}
+.modal>header .drone-modal__tabs button[aria-selected="true"]{color:#fff;border-color:#1768c5;background:#1768c5;font-weight:700}
+.drone-modal__body{flex:1;min-height:0;overflow:auto}
+.drone-modal__body>.sar-zoom{padding:16px 22px}
+.drone-modal__empty{margin:6px 0;color:#6a7686}
 
 /* 연결 관리 (260904 — VZ-C-07). 목록 판(.global-panel)보다 넓다 — 폼이고 칸이 여섯이다. */
 /* 연결 관리만 넓다 — 주소 한 줄이 안 잘려야 한다 (260913 지시).
@@ -1148,3 +1158,26 @@ button.robot-resume{padding:6px 12px;border:1px solid #2f9e5f;border-radius:var(
 /* 모델을 여럿 고르면 아래로 쌓지 않고 가로로 선다 — 한 칸에 영상 줄이 하나여야 높이 계산이 맞는다. */
 .all-cams .vision-grid{grid-template-columns:none;grid-auto-flow:column;grid-auto-columns:minmax(0,1fr)}
 .all-cams__without{margin:0;color:#6a7686;font-size:13px}
+
+/* 261003 — Unity 상공 카메라 (TopCamView.tsx) */
+.topcam{display:flex;flex-direction:column;gap:6px}
+.topcam__grid{display:grid;gap:8px;grid-template-columns:repeat(2,minmax(0,1fr))}
+.topcam__grid--1{grid-template-columns:minmax(0,1fr)}
+.topcam__grid--3{grid-template-columns:repeat(3,minmax(0,1fr))}
+.topcam--zoom .topcam__grid--3 .topcam__img{max-height:50vh}
+.topcam__pane{margin:0;display:flex;flex-direction:column;gap:4px;min-width:0}
+.topcam__cap{display:flex;gap:8px;align-items:baseline;flex-wrap:wrap;font-size:12px}
+.topcam__img{width:100%;aspect-ratio:4/3;object-fit:contain;background:#11161d;border-radius:var(--radius-xs);display:block;user-select:none;touch-action:none}
+.topcam__img--live{cursor:grab}
+.topcam__img--live:active{cursor:grabbing}
+.topcam--zoom .topcam__grid--1 .topcam__img{max-height:70vh}
+.topcam--zoom .topcam__grid--2 .topcam__img{max-height:62vh}
+.topcam__bar,.topcam__pick{display:flex;flex-wrap:wrap;gap:4px;align-items:center}
+.topcam__bar button,.topcam__pick button{padding:4px 9px;border-radius:6px;border:1px solid #c9d2e3;background:#fff;cursor:pointer;font-size:12px}
+.topcam__bar button.is-on,.topcam__pick button.is-on{background:#3b63c4;border-color:#3b63c4;color:#fff}
+.topcam__height{display:flex;align-items:center;gap:6px;font-size:12px;margin-left:6px}
+.topcam__height input{width:120px}
+.view-node[style*="--card-h"] .topcam__img{max-height:calc(var(--card-h) - 140px)}
+.topcam__num{display:inline-flex;align-items:center;gap:4px;font-size:12px}
+.topcam__num input{width:64px;padding:3px 4px;border:1px solid #4a5568;border-radius:4px;background:#11161d;color:#e6edf3;font:inherit;text-align:right}
+.topcam__num input:focus{outline:2px solid #2d5d9f;outline-offset:0}

@@ -1,5 +1,0 @@
-fc_watch
-rtk_relay
-sar_data
-sar_image
-sar_pass
