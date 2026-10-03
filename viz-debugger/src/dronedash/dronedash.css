@@ -146,5 +146,10 @@
 .satmap-attr{position:absolute;right:6px;bottom:4px;font-size:10px;color:#fff;background:#0007;padding:1px 5px;border-radius:3px}
 .satmap-area--swath{fill:#ffd40026;stroke:#ffd400;stroke-width:1.5;stroke-dasharray:5 4}
 .satmap-overlay{pointer-events:none;image-rendering:pixelated}
+.satmap-area--beam{fill:#21d4fd33;stroke:#21d4fd;stroke-width:2}
+.satmap-lit{fill:#3df07a66;stroke:#3df07a;stroke-width:3;animation:satmap-pulse 1s ease-in-out infinite alternate}
+@keyframes satmap-pulse{from{opacity:.35}to{opacity:1}}
+@media (prefers-reduced-motion:reduce){.satmap-lit{animation:none}}
 .satmap-mk--reflector.is-good polygon{fill:#3df07a}
 .satmap-mk--reflector.is-bad polygon{fill:#ff3b3b}
+.satmap-mk--reflector.is-lit polygon{fill:#3df07a;stroke:#fff}

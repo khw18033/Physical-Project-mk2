@@ -292,6 +292,27 @@ const params = plan.toStartParams({
   check(ex.depression_deg === a.depressionDeg && ex.el_beamwidth_deg === a.elBeamwidthDeg && ex.az_beamwidth_deg === a.azBeamwidthDeg
     && ex.range_max_m === a.rangeMaxM && ex.side === a.side, '화면 기본 안테나 값이 drone/sar_image/example_radar.json 과 다르다');
   console.log('✅ 코너리플렉터 — 관측 띠 · 개구 · 반대쪽 · 끝 · 띠 밖 판정이 드론 쪽 식과 같다');
+
+  // 실시간 빔 — 드론 쪽 antenna_angles · frd_to_enu 로 낸 값(아래 숫자)과 같아야 한다. 식을 바꾸면 둘 다 바꾼다.
+  const ref = [
+    { yaw: 45, pitch: -4, roll: 2, e: 14.1, n: -14.1, az: 2.833192, el: -1.984388, lever: [0.181940192, -0.080988084, -0.412721089] },
+    { yaw: 45, pitch: -22, roll: -3, e: 20.0, n: -5.0, az: 37.127762, el: -2.503806, lever: [0.11855527, -0.193505504, -0.398120921] },
+    { yaw: 120, pitch: 3, roll: 5, e: 5.0, n: -18.0, az: 26.831784, el: 7.657882, lever: [0.023146305, -0.203169323, -0.410105443] },
+  ];
+  for (const c of ref) {
+    const att = { yawDeg: c.yaw, pitchDeg: c.pitch, rollDeg: c.roll };
+    const cr = plan.toGlobal(start, c.n, c.e);
+    const r = cov.reflectorInBeam(a, start, 20, att, cr);
+    check(Math.abs(r.azDeg - c.az) < 1e-3 && Math.abs(r.elDeg - c.el) < 1e-3, `빔 각이 드론 쪽과 다르다: ${r.azDeg},${r.elDeg} vs ${c.az},${c.el}`);
+    const v = cov.frdToEnu([0.1, 0.2, 0.4], c.yaw, c.pitch, c.roll);
+    check(v.every((x, i) => Math.abs(x - c.lever[i]) < 1e-6), `자세 회전이 드론 쪽 attitude.frd_to_enu 와 다르다: ${v}`);
+  }
+  const fp = cov.beamFootprint(a, start, 20, { yawDeg: 45, pitchDeg: 0, rollDeg: 0 });
+  const g = fp.map((p) => { const d = plan.toLocal(start, p); return { al: d.n * Math.cos(h45) + d.e * Math.sin(h45), cr: d.e * Math.cos(h45) - d.n * Math.sin(h45) }; });
+  check(Math.abs(Math.min(...g.map((x) => x.cr)) - near) < 0.5 && g.every((x) => x.cr > 0), `수평 비행 빔 자국의 가까운 끝이 관측 띠와 다르다: ${Math.min(...g.map((x) => x.cr))} vs ${near}`);
+  check(cov.reflectorInBeam(a, start, 20, { yawDeg: 45, pitchDeg: 0, rollDeg: 0 }, at(0, 20)).lit && !cov.reflectorInBeam(a, start, 20, { yawDeg: 45, pitchDeg: 0, rollDeg: 0 }, at(0, -20)).lit,
+    '바로 옆 리플렉터가 빔 안 · 반대쪽은 밖이어야 한다');
+  console.log('✅ 실시간 빔 — 빔 각 · 자세 회전 · 빔 자국이 드론 쪽 식과 같다');
 }
 
 // ── 7. RTK 등급 ─────────────────────────────────────────────────────────────

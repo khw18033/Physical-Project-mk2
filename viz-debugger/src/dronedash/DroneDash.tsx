@@ -10,6 +10,7 @@
  * 없는 값은 「—」다. 지어 채우지 않는다.
  */
 
+import { liveBeam, readAntenna, readReflectors, reflectorMarkers } from '../sar/liveBeam.ts';
 import { useMemo, useState, type ReactNode } from 'react';
 import { useLang } from '../shared/language.ts';
 import { t } from '../i18n/dict.ts';
@@ -455,6 +456,11 @@ function DashMap({ v }: { v: View }) {
     const de = (end.lon - start.lon) * k;
     return { start, end, leadIn: { lat: start.lat - dn, lon: start.lon - de } };
   })() : null;
-  return <SatMap track={track} drone={v.lat !== null && v.lon !== null ? { lat: v.lat, lon: v.lon } : null}
-    droneYaw={v.yawDeg} sarLine={sarLine} capturing={sar?.capturing} markers={markers} />;
+  // SAR 패스 화면에서 고른 안테나 · 리플렉터로 지금 빔 자국을 그린다
+  const at = v.lat !== null && v.lon !== null ? { lat: v.lat, lon: v.lon } : null;
+  const reflectors = readReflectors();
+  const beam = liveBeam(readAntenna(), { at, altM: v.altRelM, yawDeg: v.yawDeg, pitchDeg: v.pitchDeg, rollDeg: v.rollDeg }, reflectors);
+  markers.push(...reflectorMarkers(reflectors, beam.lit));
+  return <SatMap track={track} drone={at}
+    droneYaw={v.yawDeg} sarLine={sarLine} capturing={sar?.capturing} markers={markers} areas={beam.area ? [beam.area] : []} />;
 }

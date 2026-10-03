@@ -10,6 +10,9 @@
   # 비행 전 점검 (날지 않는다)
   python -m sar_pass check --connect udpin://0.0.0.0:14540 --mqtt 127.0.0.1:1883
 
+  # 비행이 끝날 때마다 FC 의 .ulg 를 그 비행 폴더로 (상주)
+  python -m sar_pass ulog --watch --connect tcp://127.0.0.1:5760 --log-dir /home/physical/sar_logs
+
   # 파이 시계를 FC 의 GPS 시각에 맞춘다 (핫스팟에 인터넷이 없을 때)
   sudo python -m sar_pass timesync --connect udpin://0.0.0.0:14540 --apply
 
@@ -85,6 +88,11 @@ def build_parser() -> argparse.ArgumentParser:
     c.add_argument("--mqtt", help="host:port")
     c.add_argument("--service", default="cansar.service")
     c.add_argument("--cap-ack", type=Path, help="레이더 확인 파일 경로")
+    u = sub.add_parser("ulog", help="FC 의 .ulg 를 그 비행 폴더로 받는다 (--watch 면 시동이 꺼질 때마다)")
+    u.add_argument("--connect", default="tcp://127.0.0.1:5760", help="패스 비행(14540)과 다른 끝점")
+    u.add_argument("--log-dir", type=Path, default=Path("sar_logs"))
+    u.add_argument("--watch", action="store_true")
+    u.add_argument("--grpc-port", type=int, default=50052)
     return p
 
 
@@ -117,6 +125,10 @@ async def amain(a: argparse.Namespace) -> int:
         from .check import report, run_checks
 
         return report(await run_checks(a.cap, a.connect, a.mqtt, a.service, a.cap_ack))
+    if a.cmd == "ulog":
+        from .ulog import run as ulog_run
+
+        return await ulog_run(a.connect, a.log_dir, a.watch, a.grpc_port)
     if a.cmd == "timesync":
         from .timesync import timesync
 

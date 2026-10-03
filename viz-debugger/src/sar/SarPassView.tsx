@@ -30,12 +30,11 @@ import { RtkBadge } from './RtkView.tsx';
 import { useTick } from './useTick.ts';
 import { SatMap, type Area, type Marker } from '../dronedash/SatMap.tsx';
 import { checkReflector, defaultAntenna, radarJson, swathPolygon, type AntennaDraft } from './coverage.ts';
+import { ANT_KEY, CR_KEY, liveBeam } from './liveBeam.ts';
 import { ImageButton, ImagingStatus, SarImageView, type ImageSummary, type Imaging, type MirrorState } from './SarImageView.tsx';
 import './sar.css';
 
 const DRAFT_KEY = 'viz.sar.draft.v1';
-const CR_KEY = 'viz.sar.reflectors.v1';
-const ANT_KEY = 'viz.sar.antenna.v1';
 
 function loadJson<T>(key: string, fallback: T): T {
   try { const raw = localStorage.getItem(key); if (raw !== null) return { ...fallback, ...JSON.parse(raw) } as T; } catch { /* */ }
@@ -320,10 +319,16 @@ export function SarPassZoom() {
   if (draft.start && !draft.end) markers.push({ ...draft.start, kind: 'pick', label: t('map.capStart') });
   const crChecks = reflectors.map((cr) => (draft.start && draft.end && Number.isFinite(draft.altM)
     ? checkReflector(antenna, draft.start, draft.end, draft.altM, cr) : null));
-  reflectors.forEach((cr, i) => markers.push({ ...cr, kind: 'reflector', label: `CR${i + 1}`,
+  // 비행 중이면 지금 빔 자국을 그리고, 빔 안에 든 리플렉터는 빛난다
+  const beam = liveBeam(antenna, {
+    at: here, altM: num(deviceId === null ? null : telemetryValue(deviceId, 'altitude.relative_m')), yawDeg: yaw,
+    pitchDeg: num(deviceId === null ? null : telemetryValue(deviceId, 'attitude.pitch_deg')),
+    rollDeg: num(deviceId === null ? null : telemetryValue(deviceId, 'attitude.roll_deg')),
+  }, reflectors);
+  reflectors.forEach((cr, i) => markers.push({ ...cr, kind: 'reflector', label: `CR${i + 1}`, lit: beam.lit.has(i),
     ...(crChecks[i] ? { tone: crChecks[i]!.ok ? 'good' as const : 'bad' as const } : {}) }));
   const swath = draft.start && draft.end && Number.isFinite(draft.altM) ? swathPolygon(antenna, draft.start, draft.end, draft.altM) : null;
-  const areas: Area[] = swath ? [{ points: swath, kind: 'swath' }] : [];
+  const areas: Area[] = [...(swath ? [{ points: swath, kind: 'swath' as const }] : []), ...(beam.area ? [beam.area] : [])];
   const crCsv = ['name,lat,lon,ok,ground_range_m,along_m,slant_m,aperture_pct',
     ...reflectors.map((cr, i) => [`CR${i + 1}`, cr.lat.toFixed(8), cr.lon.toFixed(8), crChecks[i]?.ok ?? '',
       crChecks[i]?.groundRangeM.toFixed(2) ?? '', crChecks[i]?.alongM.toFixed(2) ?? '', crChecks[i]?.slantRangeM.toFixed(2) ?? '',

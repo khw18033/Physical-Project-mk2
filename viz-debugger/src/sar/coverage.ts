@@ -129,3 +129,79 @@ export function radarJson(a: AntennaDraft): string {
     position_ref: 'auto',
   }, null, 2);
 }
+
+// ── 실시간 빔 (비행 중) — drone/sar_image/attitude.py · coverage.antenna_angles 와 같은 식 ─────────────
+
+type V3 = [number, number, number];
+
+/** 기체(FRD: 앞 · 오른쪽 · 아래) 벡터 → ENU(동 · 북 · 위). 자세는 ZYX 오일러(yaw → pitch → roll), 도. */
+export function frdToEnu(v: V3, yawDeg: number, pitchDeg: number, rollDeg: number): V3 {
+  const [cy, sy, cp, sp, cr, sr] = [Math.cos(rad(yawDeg)), Math.sin(rad(yawDeg)), Math.cos(rad(pitchDeg)), Math.sin(rad(pitchDeg)),
+    Math.cos(rad(rollDeg)), Math.sin(rad(rollDeg))];
+  const n = cy * cp * v[0] + (cy * sp * sr - sy * cr) * v[1] + (cy * sp * cr + sy * sr) * v[2];
+  const e = sy * cp * v[0] + (sy * sp * sr + cy * cr) * v[1] + (sy * sp * cr - cy * sr) * v[2];
+  const d = -sp * v[0] + cp * sr * v[1] + cp * cr * v[2];
+  return [e, n, -d];
+}
+
+/** 안테나 축 (FRD) — 빔 중심 b, 방위 축 f(앞쪽), 고도 축 u(위쪽). */
+function antennaAxes(a: AntennaDraft): { b: V3; f: V3; u: V3 } {
+  const s = a.side === 'right' ? 1 : -1;
+  const dep = rad(a.depressionDeg);
+  const h: V3 = [0, s, 0];
+  const down: V3 = [0, 0, 1];
+  const b: V3 = [Math.cos(dep) * h[0], Math.cos(dep) * h[1], Math.sin(dep)];
+  const u: V3 = [Math.sin(dep) * h[0] - Math.cos(dep) * down[0], Math.sin(dep) * h[1], -Math.cos(dep)];
+  return { b, f: [1, 0, 0], u };
+}
+
+export type Attitude = { yawDeg: number; pitchDeg: number; rollDeg: number };
+
+/** 땅 위 빔 자국(3 dB 빔폭 · 최대 거리로 자른 것) — 위경도 다각형. 땅은 기체 아래 h m 의 평면. */
+export function beamFootprint(a: AntennaDraft, at: LatLon, hM: number, att: Attitude, steps = 10): LatLon[] | null {
+  if (!(hM > 0.5)) return null;
+  const { b, f, u } = antennaAxes(a);
+  const A = rad(a.azBeamwidthDeg / 2);
+  const E = rad(a.elBeamwidthDeg / 2);
+  const ray = (az: number, el: number): V3 => {
+    const c: V3 = [Math.cos(az) * b[0] + Math.sin(az) * f[0], Math.cos(az) * b[1] + Math.sin(az) * f[1], Math.cos(az) * b[2] + Math.sin(az) * f[2]];
+    return [Math.cos(el) * c[0] + Math.sin(el) * u[0], Math.cos(el) * c[1] + Math.sin(el) * u[1], Math.cos(el) * c[2] + Math.sin(el) * u[2]];
+  };
+  const boundary: [number, number][] = [];
+  for (let i = 0; i <= steps; i++) boundary.push([-A + (2 * A * i) / steps, -E]);        // 아래(가까운) 가장자리
+  for (let i = 1; i <= steps; i++) boundary.push([A, -E + (2 * E * i) / steps]);
+  for (let i = 1; i <= steps; i++) boundary.push([A - (2 * A * i) / steps, E]);           // 위(먼) 가장자리
+  for (let i = 1; i < steps; i++) boundary.push([-A, E - (2 * E * i) / steps]);
+  const horizMax = a.rangeMaxM > hM ? Math.sqrt(a.rangeMaxM ** 2 - hM ** 2) : 0;
+  const pts: LatLon[] = [];
+  for (const [az, el] of boundary) {
+    const d = frdToEnu(ray(az, el), att.yawDeg, att.pitchDeg, att.rollDeg);   // el − = 빔 중심보다 아래(가까운 쪽)
+    const hz = Math.hypot(d[0], d[1]) || 1e-9;
+    let gx: number; let gy: number;
+    if (d[2] < -1e-6) {
+      const t = hM / -d[2];
+      gx = d[0] * t; gy = d[1] * t;
+      if (Math.hypot(gx, gy) > horizMax) { gx = (d[0] / hz) * horizMax; gy = (d[1] / hz) * horizMax; }
+    } else { gx = (d[0] / hz) * horizMax; gy = (d[1] / hz) * horizMax; }                // 수평 위로 향한 줄기 — 최대 거리에서 자른다
+    pts.push({ lat: at.lat + deg(gy / 6_378_137), lon: at.lon + deg(gx / (6_378_137 * Math.cos(rad(at.lat)))) });
+  }
+  return pts;
+}
+
+/** 이 순간 리플렉터가 빔(3 dB) · 거리 범위 안에 있나. 각은 안테나 면에서 잰다(드론 쪽과 같다). */
+export function reflectorInBeam(a: AntennaDraft, at: LatLon, hM: number, att: Attitude, cr: LatLon): { lit: boolean; azDeg: number; elDeg: number; slantM: number } {
+  const d0 = toLocal(at, cr);
+  const d: V3 = [d0.e, d0.n, -hM];
+  const { b, f, u } = antennaAxes(a);
+  const B = frdToEnu(b, att.yawDeg, att.pitchDeg, att.rollDeg);
+  const F = frdToEnu(f, att.yawDeg, att.pitchDeg, att.rollDeg);
+  const U = frdToEnu(u, att.yawDeg, att.pitchDeg, att.rollDeg);
+  const dot = (x: V3, y: V3) => x[0] * y[0] + x[1] * y[1] + x[2] * y[2];
+  const db = dot(d, B);
+  const azDeg = deg(Math.atan2(dot(d, F), db));
+  const elDeg = -deg(Math.atan2(dot(d, U), db));
+  const slantM = Math.hypot(d[0], d[1], d[2]);
+  const lit = db > 0 && Math.abs(azDeg) <= a.azBeamwidthDeg / 2 && Math.abs(elDeg) <= a.elBeamwidthDeg / 2
+    && slantM >= a.rangeMinM && slantM <= a.rangeMaxM;
+  return { lit, azDeg, elDeg, slantM };
+}

@@ -17,9 +17,9 @@ import './dronedash.css';
 
 export type LatLon = { lat: number; lon: number };
 export type TrackPoint = LatLon & { t: number; alt?: number | null; speed?: number | null; fix?: string | null; capture?: boolean };
-export type Marker = LatLon & { kind: 'home' | 'base' | 'reflector' | 'pick'; label?: string; tone?: 'good' | 'bad' };
+export type Marker = LatLon & { kind: 'home' | 'base' | 'reflector' | 'pick'; label?: string; tone?: 'good' | 'bad'; lit?: boolean };
 /** 지도에 깔 면 — 안테나 관측 띠 등. */
-export type Area = { points: readonly LatLon[]; kind: 'swath' };
+export type Area = { points: readonly LatLon[]; kind: 'swath' | 'beam' };
 /** 지도에 겹칠 그림(SAR 영상). 꼭짓점 순서: 그림의 왼쪽 위 · 오른쪽 위 · 오른쪽 아래 · 왼쪽 아래. */
 export type Overlay = { url: string; corners: readonly [LatLon, LatLon, LatLon, LatLon]; opacity?: number };
 
@@ -235,7 +235,8 @@ export function SatMap({
           <text x={P(sarLine.end).x + 9} y={P(sarLine.end).y - 8} className="satmap-label">{t('map.capEnd')}</text>
         </>}
         {trackSegs.map((s, i) => <polyline key={i} points={s.pts} className={`satmap-track${s.capture ? ' is-capture' : ''}`} />)}
-        {markers.map((mk, i) => { const q = P(mk); return <g key={i} transform={`translate(${q.x} ${q.y})`} className={`satmap-mk satmap-mk--${mk.kind}${mk.tone ? ` is-${mk.tone}` : ''}`}>
+        {markers.map((mk, i) => { const q = P(mk); return <g key={i} transform={`translate(${q.x} ${q.y})`} className={`satmap-mk satmap-mk--${mk.kind}${mk.tone ? ` is-${mk.tone}` : ''}${mk.lit ? ' is-lit' : ''}`}>
+          {mk.lit && <circle r={17} className="satmap-lit" />}
           {mk.kind === 'reflector' ? <polygon points="0,-8 7,6 -7,6" /> : <circle r={9} />}
           <text y={mk.kind === 'reflector' ? 4 : 4} textAnchor="middle">{mk.kind === 'home' ? 'H' : mk.kind === 'base' ? 'B' : mk.kind === 'pick' ? '•' : ''}</text>
           {mk.label && <text x={12} y={4} className="satmap-label">{mk.label}</text>}
