@@ -561,7 +561,15 @@ HW 담당과 확인할 것:
 
 연동 전에도 쓸 수 있다. Pi 에서 `python -m sar_pass run … --mqtt` 로 직접 돌리면 화면은 감시용으로 그대로 동작한다.
 
-## 파일
+## 설치 · 현장
+
+| 무엇 | 어디 |
+|---|---|
+| Pi 설치 한 번에 (서비스 · 에이전트 연동 · 상태 · 되돌리기) | `deploy/pi/install.sh` — `sudo ./install.sh [--with-agent]`, 설정은 `/etc/sar-drone.env` |
+| 노트북 한 번에 켜기 (RTK 베이스 → Pi · 미러 · 자동 영상) | `deploy/laptop/sar-laptop.bat` (Windows) · `sar-laptop.sh` — 맨 위 현장값만 고친다 |
+| 현장 체크리스트 (출력용) | `FIELD_CHECKLIST.md` |
+
+## 파일## 파일
 
 | 위치 | 내용 |
 |---|---|
