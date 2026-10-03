@@ -64,6 +64,14 @@ export function parseFcx(body: Obj, topic = ''): Fcx | null {
     ekf: ekf && { vel: num(ekf.vel), pos: num(ekf.pos), ver: num(ekf.ver), mag: num(ekf.mag), ter: num(ekf.ter), gpsGlitch: ekf.gps_glitch === true, accelError: ekf.accel_error === true },
     vibration: vib && { x: num(vib.x), y: num(vib.y), z: num(vib.z), clipping: Array.isArray(vib.clipping) ? vib.clipping.map((c) => num(c) ?? 0) : [] },
     rc: rc && { rssi: num(rc.rssi), channels: num(rc.channels) },
+    companion: (() => {
+      const c = obj(body.companion);
+      if (!c) return null;
+      const th = obj(c.throttled);
+      const lv = c.level === 'ok' || c.level === 'warn' || c.level === 'bad' ? c.level : null;
+      return { cpuTempC: num(c.cpu_temp_c), throttledNow: th?.now === true, throttledEver: th?.since_boot === true, undervolt: th?.undervolt === true,
+        load1: num(c.load1), diskFreeGb: num(c.disk_free_gb), level: lv };
+    })(),
     wind: obj(body.wind) && { speedMps: num(obj(body.wind)!.speed_mps), fromDeg: num(obj(body.wind)!.from_deg), varH: num(obj(body.wind)!.var_h) },
     clockOffsetS: num(body.clock_offset_s),
     console: consoleLines,

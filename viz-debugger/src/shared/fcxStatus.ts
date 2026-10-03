@@ -32,6 +32,9 @@ export type Fcx = {
   rc: { rssi: number | null; channels: number | null } | null;
   /** PX4 가 추정한 바람 — fromDeg 는 불어 **오는** 방향(기상 관례). 정지 · 지상에선 없거나 부정확하다 */
   wind: { speedMps: number | null; fromDeg: number | null; varH: number | null } | null;
+  /** 비행 컴퓨터(Pi) 자체 — 온도 · 스로틀링 · 부하 · 디스크. level 은 드론 쪽 fc_watch/pihealth.py 가 정한다 */
+  companion: { cpuTempC: number | null; throttledNow: boolean; throttledEver: boolean; undervolt: boolean; load1: number | null;
+    diskFreeGb: number | null; level: 'ok' | 'warn' | 'bad' | null } | null;
   clockOffsetS: number | null;
   console: readonly FcxConsoleLine[];
   deviceTime: number | null;

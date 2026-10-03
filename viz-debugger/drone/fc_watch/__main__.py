@@ -33,13 +33,15 @@ class FcxPublisher:
         self.client.connect_async(host, port)
         self.client.loop_start()
         self._last = 0.0
+        from .pihealth import PiHealth
+        self.pi = PiHealth()
 
     def maybe_publish(self, tel: FcTelemetry) -> None:
         now = time.time()
         if now - self._last < self.period_s:
             return
         self._last = now
-        body = {**tel.snapshot(), "schema_version": "fcx-0.1", "channel": "fcx", "source_id": self.device_id,
+        body = {**tel.snapshot(), "companion": self.pi.get(), "schema_version": "fcx-0.1", "channel": "fcx", "source_id": self.device_id,
                 "zone_id": self.zone,
                 "timestamp": datetime.now(timezone.utc).astimezone().isoformat(timespec="milliseconds")}
         self.client.publish(self.topic, json.dumps(body, ensure_ascii=False), qos=0, retain=True)

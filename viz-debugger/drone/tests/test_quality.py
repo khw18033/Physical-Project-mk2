@@ -139,3 +139,24 @@ def test_course_error_is_separate_from_yaw():
                  "ve": 4 * math.sin(math.radians(hd))} for i, r in enumerate(jitter)]
     assert course_error_deg(straight, hd) < 0.5          # 순간 잡음만 있으면 거의 0
     assert course_error_deg([], hd) is None
+
+
+def test_pi_health_levels():
+    from fc_watch.pihealth import level
+
+    assert level({"cpu_temp_c": 55.0, "throttled": {"now": False, "since_boot": False}, "disk_free_gb": 40}) == "ok"
+    assert level({"cpu_temp_c": 74.0, "throttled": None, "disk_free_gb": 40}) == "warn"
+    assert level({"cpu_temp_c": 60.0, "throttled": {"since_boot": True}, "disk_free_gb": 40}) == "warn"
+    assert level({"cpu_temp_c": 60.0, "throttled": {"now": True}, "disk_free_gb": 40}) == "bad"
+    assert level({"cpu_temp_c": None, "throttled": None, "disk_free_gb": 0.5}) == "bad"
+    assert level({"cpu_temp_c": None, "throttled": None, "disk_free_gb": None}) == "ok"      # 못 읽으면 막지 않는다
+
+
+def test_hot_pi_blocks_start(tmp_path, monkeypatch):
+    import asyncio
+
+    import fc_watch.pihealth as ph
+
+    monkeypatch.setattr(ph, "_cpu_temp", lambda: 83.5)
+    plan, sim, cap, m, st = build(tmp_path, ack=False)
+    assert asyncio.run(m.run()) == "failed" and "83.5" in (m.error or "") and not cap.is_on

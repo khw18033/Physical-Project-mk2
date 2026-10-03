@@ -123,6 +123,12 @@ function StatusBar({ v, compact }: { v: View; compact?: boolean }) {
     <Chip level={batLevel} label={t('dash.battery')} value={`${fmt(v.batteryV, 2)}V · ${v.batteryPct === null ? '—' : `${Math.round(v.batteryPct)}%`}`} />
     {!compact && f?.rc && <Chip level={f.rc.rssi === null ? 'unknown' : f.rc.rssi > 50 ? 'good' : f.rc.rssi > 20 ? 'warn' : 'bad'} label="RC" value={f.rc.rssi === null ? '—' : `${f.rc.rssi}%`} />}
     {!compact && <RtcmLine report={rtcm} />}
+    {f?.companion && <Chip level={f.companion.level === 'ok' ? 'good' : f.companion.level === 'warn' ? 'warn' : f.companion.level === 'bad' ? 'bad' : 'unknown'}
+      label={t('dash.pi')} title={t('dash.piTitle', { load: fmt(f.companion.load1, 2), disk: fmt(f.companion.diskFreeGb, 1) })}
+      value={[f.companion.cpuTempC === null ? null : `${fmt(f.companion.cpuTempC, 0)}°C`,
+        f.companion.throttledNow ? t('dash.piThrottle') : null, f.companion.undervolt ? t('dash.piUndervolt') : null,
+        f.companion.diskFreeGb !== null && f.companion.diskFreeGb < 5 ? t('dash.piDisk', { gb: fmt(f.companion.diskFreeGb, 1) }) : null]
+        .filter(Boolean).join(' · ') || '—'} />}
     {!compact && f?.clockOffsetS !== null && f?.clockOffsetS !== undefined &&
       <Chip level={Math.abs(f.clockOffsetS) <= 1 ? 'good' : 'bad'} label={t('dash.clock')} value={`${f.clockOffsetS >= 0 ? '+' : ''}${fmt(f.clockOffsetS, 2)}s`} />}
   </div>;
