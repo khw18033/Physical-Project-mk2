@@ -93,6 +93,13 @@ def build_parser() -> argparse.ArgumentParser:
     c.add_argument("--mqtt", help="host:port")
     c.add_argument("--service", default="cansar.service")
     c.add_argument("--cap-ack", type=Path, help="레이더 확인 파일 경로")
+    em = sub.add_parser("emi", help="GPS 간섭 지상 시험 — 레이더를 켜고 끄며 위성 · 정확도 · RTK 비교 (날지 않는다)")
+    em.add_argument("--connect", default="tcp:127.0.0.1:5760")
+    em.add_argument("--cap", type=Path, default=DEFAULT_CAP_PATH, help="이 파일을 켰다 껐다 한다(레이더가 기록 · 송신)")
+    em.add_argument("--cycles", type=int, default=4)
+    em.add_argument("--period", type=float, default=30.0, help="켜짐 · 꺼짐 각각 몇 초")
+    em.add_argument("--manual", action="store_true", help="레이더를 손으로 켜고 끈다(Enter 로 넘김)")
+    em.add_argument("--out", type=Path, help="결과 JSON")
     cf = sub.add_parser("chrony-fc", help="FC 의 GPS 시각을 chrony 로 (PPS 와 짝, sar-chrony.service)")
     cf.add_argument("--connect", default="tcp:127.0.0.1:5760", help="pymavlink 주소")
     cf.add_argument("--sock", default="/run/chrony.fc.sock")
@@ -146,6 +153,10 @@ async def amain(a: argparse.Namespace) -> int:
         from .check import report, run_checks
 
         return report(await run_checks(a.cap, a.connect, a.mqtt, a.service, a.cap_ack))
+    if a.cmd == "emi":
+        from .emi import run as emi_run
+
+        return await asyncio.to_thread(emi_run, a.connect, a.cap, a.cycles, a.period, a.out, a.manual)
     if a.cmd == "chrony-fc":
         from .chrony_fc import run as chrony_run
 
