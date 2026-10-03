@@ -206,7 +206,7 @@ class Store:
                 "disk_free_bytes": du.free, "disk_total_bytes": du.total, "time": time.time()}
 
 
-def make_handler(store: Store, jobs=None, mirror=None):  # noqa: ANN001, ANN201
+def make_handler(store: Store, jobs=None, mirror=None, tiles=None):  # noqa: ANN001, ANN201
     class Handler(BaseHTTPRequestHandler):
         server_version = "sar_data/0.1"
 
@@ -253,8 +253,38 @@ def make_handler(store: Store, jobs=None, mirror=None):  # noqa: ANN001, ANN201
             parts = [unquote(x) for x in u.path.split("/") if x]
             q = parse_qs(u.query)
             try:
+                if tiles is not None and len(parts) == 5 and parts[0] == "tiles" and parts[4].endswith(".png"):
+                    try:
+                        z, x, y = int(parts[2]), int(parts[3]), int(parts[4][:-4])
+                    except ValueError:
+                        return self._json({"error": "not found"}, 404)
+                    f = tiles.get(parts[1], z, x, y)
+                    if f is None:
+                        return self._json({"error": "타일 없음 (인터넷이 없고 미리 받지도 않았다)"}, 404)
+                    data = f.read_bytes()
+                    self.send_response(200)
+                    self._cors()
+                    self.send_header("Content-Type", "image/png" if parts[1] == "street" else "image/jpeg")
+                    self.send_header("Content-Length", str(len(data)))
+                    self.send_header("Cache-Control", "max-age=86400")
+                    self.end_headers()
+                    self.wfile.write(data)
+                    return None
+                if parts == ["api", "tiles", "prefetch"]:
+                    if tiles is None:
+                        return self._json({"error": "이 서버는 지도를 받아 두지 않는다 (--tile-cache)"}, 501)
+                    try:
+                        g = lambda k, d=None: q[k][0] if k in q else d  # noqa: E731
+                        status, body = tiles.prefetch(g("layer", "satellite"), float(g("s")), float(g("w")), float(g("n")), float(g("e")),
+                                                      int(g("zmin", "15")), int(g("zmax", "20")))
+                    except (TypeError, ValueError):
+                        return self._json({"error": "s · w · n · e (위경도) 가 필요하다"}, 400)
+                    return self._json(body, status)
+                if parts == ["api", "tiles", "status"]:
+                    return self._json(tiles.status() if tiles is not None else {"error": "no tile cache"}, 200 if tiles else 501)
                 if parts == ["api", "health"]:
                     h = store.health()
+                    h["tiles"] = None if tiles is None else {"ready": True}
                     h["imaging"] = None if jobs is None else {"ready": not jobs.missing(), "missing": jobs.missing()}
                     h["mirror"] = None if mirror is None else mirror.state()
                     return self._json(h)
@@ -373,6 +403,7 @@ def main(argv: list[str] | None = None) -> int:
     g.add_argument("--image-workers", type=int, help="영상 계산 스레드 (기본: 코어 수, 최대 8)")
     g.add_argument("--former", help="팀의 영상 코드 모듈:함수 (없으면 내장 백프로젝션)")
     g.add_argument("--focuser", help="팀의 자동 초점 모듈:함수 (없으면 내장 리플렉터 방식)")
+    g.add_argument("--tile-cache", type=Path, help="지도 타일을 받아 둘 폴더 — 인터넷 없는 현장용 (/tiles/…)")
     a = p.parse_args(argv)
     import threading
 
@@ -391,7 +422,11 @@ def main(argv: list[str] | None = None) -> int:
     stop = threading.Event()
     if a.auto_image and jobs is not None and not jobs.missing():
         threading.Thread(target=auto_image_loop, args=(store, jobs, stop), name="sar-auto-image", daemon=True).start()
-    srv = ThreadingHTTPServer((a.bind, a.port), make_handler(store, jobs, mirror))
+    tiles = None
+    if a.tile_cache:
+        from .tiles import TileCache
+        tiles = TileCache(a.tile_cache)
+    srv = ThreadingHTTPServer((a.bind, a.port), make_handler(store, jobs, mirror, tiles))
     log.info("http://%s:%d  flights=%s radar=%s mirror=%s imaging=%s", a.bind, a.port, a.flights, a.radar, a.mirror,
              None if jobs is None else ("ready" if not jobs.missing() else "incomplete"))
     try:

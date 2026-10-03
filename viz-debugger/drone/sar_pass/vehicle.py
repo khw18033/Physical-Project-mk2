@@ -72,6 +72,9 @@ class Vehicle(Protocol):
     # 선택: PX4 파라미터 읽기. 없으면 None 을 돌려준다(시뮬레이터).
     async def get_param_int(self, name: str) -> int | None: ...
     async def get_param_float(self, name: str) -> float | None: ...
+    # 선택: 패스 동안 지오펜스. 없으면 건너뛴다
+    async def set_fence(self, points: list[tuple[float, float]]) -> None: ...
+    async def restore_fence(self) -> None: ...
 
 
 # ── 시뮬레이터 ────────────────────────────────────────────────────────────────
@@ -167,6 +170,11 @@ class SimVehicle:
         self.n += self.vn * dt
         self.e += self.ve * dt
         self.rel_alt_m -= self.vd * dt
+        if self.fence is not None:
+            from .fence import inside
+            lat, lon = self.frame.to_global(self.n, self.e)
+            if not inside(self.fence, lat, lon):
+                self.fence_breaches += 1
 
     async def telemetry(self) -> Telemetry:
         lat, lon = self.frame.to_global(self.n, self.e)
@@ -232,3 +240,16 @@ class SimVehicle:
     async def get_param_float(self, name: str) -> float | None:
         v = self.params.get(name)
         return None if v is None else float(v)
+
+    # 지오펜스 흉내 — 올린 울타리와, 울타리 밖에 나간 적이 있는지(시험이 본다)
+    fence: list | None = None
+    fence_breaches: int = 0
+    fence_history: list = field(default_factory=list)
+
+    async def set_fence(self, points: list[tuple[float, float]]) -> None:
+        self.fence_history.append(("set", list(points)))
+        self.fence = list(points)
+
+    async def restore_fence(self) -> None:
+        self.fence_history.append(("restore", None))
+        self.fence = None

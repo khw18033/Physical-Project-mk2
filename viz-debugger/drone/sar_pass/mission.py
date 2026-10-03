@@ -195,6 +195,8 @@ class SarPlan:
     cap_lead_s: float | None = None  # None 이면 잰 레이더 지연으로 자동
     min_battery_pct: float = 30.0    # 다음 패스 + 홈 복귀 뒤에도 이만큼은 남아야 시작한다
     # 재처리용 기록 — 비행 제어에는 안 쓴다. 화면이 보낸 리플렉터 [lat, lon, h|None] 와 안테나(radar.json 모양)
+    geofence: bool = True            # 패스 동안 울타리를 올리고 끝나면 원래대로 (sar_pass/fence.py)
+    fence_margin_m: float = 15.0
     reflectors: list = field(default_factory=list)
     radar: dict | None = None
 
@@ -268,6 +270,8 @@ class SarPlan:
             kw["min_battery_pct"] = float(p["min_battery_pct"])
         if "cap_lead_s" in p and p["cap_lead_s"] >= 0:
             kw["cap_lead_s"] = float(p["cap_lead_s"])
+        if "geofence" in p:
+            kw["geofence"] = bool(round(p["geofence"]))
         kw["reflectors"] = reflectors_from_params(p)
         kw["radar"] = radar_from_params(p)
         return cls(**kw)
@@ -360,6 +364,7 @@ class SarMission:
         self._battery_log: list[tuple[float, float]] = []
         self.battery_estimate: dict | None = None
         self.pi_health: dict | None = None
+        self.fence: list | None = None
 
     # ── 바깥에서 부르는 것 ──────────────────────────────────────────────────
     def abort(self) -> None:
@@ -412,6 +417,7 @@ class SarMission:
             self.cap.off(f"finally · {outcome}")
             # 신호 처리기·중단 명령이 먼저 지웠어도 열린 패스는 여기서 닫는다 — 끝 시각이 빠지면 안 된다.
             self._close_open_record("중단으로 캡처 종료")
+            await self._restore_fence()        # RTL 이 울타리 밖 홈으로 가므로 먼저 되돌린다
             await self._after(outcome)
             self.state = outcome
             # 마지막 보고는 hold/RTL 로 바뀐 뒤의 값으로 — 안 그러면 화면에 OFFBOARD 가 남는다.
@@ -486,6 +492,7 @@ class SarMission:
             self.gps_pos = None if any(v is None for v in xyz) else [round(float(v), 4) for v in xyz]
         if self.cap.ack_path is None:
             self.warnings.append("레이더 확인(CAP_ACK) 경로가 없다 — 실제 기록 시각은 모르고 요청 시각만 남는다")
+        await self._arm_fence(tel)
 
     async def _check_battery(self) -> None:
         """다음 패스 + 홈 복귀에 쓸 배터리를 **비행 중 잰 소모율**로 어림한다. 모자라면 시작하지 않는다."""
@@ -784,6 +791,41 @@ class SarMission:
             meta_path.write_text(json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
         except Exception:  # noqa: BLE001 — 기록 실패가 비행 · 캡처를 멈추지 않는다
             log.exception("궤적 기록 실패")
+
+    async def _arm_fence(self, tel: Telemetry) -> None:
+        if not self.plan.geofence:
+            return
+        setter = getattr(self.v, "set_fence", None)
+        if setter is None:
+            return
+        from .fence import fence_polygon
+        poly = fence_polygon(self.plan, tel.lat, tel.lon)
+        try:
+            await setter(poly)
+            self.fence = poly
+            log.info("지오펜스 %d 꼭짓점 올림 (여유 %.0f m)", len(poly), self.plan.fence_margin_m)
+        except Exception as exc:  # noqa: BLE001 — 울타리를 못 올려도 비행은 막지 않는다(기록만)
+            self.warnings.append(f"지오펜스를 못 올렸다: {exc}")
+            log.warning(self.warnings[-1])
+            return
+        getter = getattr(self.v, "get_param_int", None)
+        action = await getter("GF_ACTION") if getter is not None else None
+        if action == 0:
+            self.warnings.append("지오펜스를 올렸지만 GF_ACTION=0(아무것도 안 함)이다 — QGC 에서 2(Hold) 이상으로 둔다")
+            log.warning(self.warnings[-1])
+
+    async def _restore_fence(self) -> None:
+        if self.fence is None:
+            return
+        restorer = getattr(self.v, "restore_fence", None)
+        try:
+            if restorer is not None:
+                await restorer()
+            log.info("지오펜스를 원래대로 되돌렸다")
+        except Exception:  # noqa: BLE001
+            self.warnings.append("지오펜스를 원래대로 못 되돌렸다 — QGC 에서 확인한다")
+            log.exception(self.warnings[-1])
+        self.fence = None
 
     async def _after(self, outcome: str) -> None:
         mode = self.plan.on_done if outcome in ("done", "incomplete") else self.plan.on_abort

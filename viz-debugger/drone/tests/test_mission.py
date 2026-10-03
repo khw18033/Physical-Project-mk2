@@ -311,3 +311,23 @@ def test_stale_cap_on_is_cleared_at_preflight(tmp_path):
     assert asyncio.run(mission.run()) == "done"
     first = next(i for i, s in enumerate(rec.samples) if s[2] > -1e9)
     assert rec.samples[first][1] is False  # 첫 걸음부터 꺼져 있다
+
+
+def test_geofence_armed_kept_inside_and_restored(tmp_path):
+    """패스 동안 울타리를 올리고, 전 과정이 그 안이며, 끝나면 원래대로 되돌린다."""
+    from sar_pass.capture import CaptureFlag
+    from sar_pass.fence import fence_polygon, inside
+    from sar_pass.mission import SarMission
+    from sar_pass.vehicle import SimClock, SimVehicle
+
+    plan = make_plan()
+    sim = SimVehicle(LAT0, LON0, clock=SimClock(start=1e6))
+    m = SarMission(sim, plan, CaptureFlag(tmp_path / "CAP_ON", install_handlers=False))
+    assert asyncio.run(m.run()) == "done"
+    kinds = [k for k, _ in sim.fence_history]
+    assert kinds == ["set", "restore"] and sim.fence is None and sim.fence_breaches == 0
+    poly = sim.fence_history[0][1]
+    assert inside(poly, LAT0, LON0) and inside(poly, plan.start_lat, plan.start_lon) and inside(poly, plan.end_lat, plan.end_lon)
+    far = plan.line.frame.to_global(0.0, 200.0)
+    assert not inside(poly, *far)
+    assert fence_polygon(plan, LAT0, LON0) == poly

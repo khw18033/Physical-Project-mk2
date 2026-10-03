@@ -185,6 +185,24 @@ class MavsdkVehicle:
         except Exception:  # noqa: BLE001
             return None
 
+    async def set_fence(self, points: list[tuple[float, float]]) -> None:
+        """원래 울타리를 받아 두고(mission_raw) 패스 울타리를 올린다."""
+        from mavsdk_grpc.geofence import FenceType, GeofenceData, Point, Polygon
+        try:
+            self._fence_backup = await self.system.mission_raw.download_geofence()
+        except Exception:  # noqa: BLE001 — 받지 못하면 되돌릴 때 지우기만 한다
+            self._fence_backup = None
+            log.warning("원래 지오펜스를 못 받았다 — 끝나면 울타리를 지우기만 한다")
+        poly = Polygon([Point(la, lo) for la, lo in points], FenceType.INCLUSION)
+        await self.system.geofence.upload_geofence(GeofenceData([poly], []))
+
+    async def restore_fence(self) -> None:
+        backup = getattr(self, "_fence_backup", None)
+        if backup:
+            await self.system.mission_raw.upload_geofence(backup)
+        else:
+            await self.system.geofence.clear_geofence()
+
     async def get_param_float(self, name: str) -> float | None:
         try:
             return await self.system.param.get_param_float(name)

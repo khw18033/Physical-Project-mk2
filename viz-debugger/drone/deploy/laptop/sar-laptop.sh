@@ -9,6 +9,7 @@ BASE_BAUD="${BASE_BAUD:-115200}"
 RTCM_PORT="${RTCM_PORT:-14660}"
 PORT="${PORT:-8765}"
 MIRROR_DIR="${MIRROR_DIR:-$HOME/sar_mirror}"
+TILE_DIR="${TILE_DIR:-$HOME/sar_tiles}"
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DRONE="$(cd "$HERE/../.." && pwd)"
 RADAR_JSON="${RADAR_JSON:-$HERE/radar.json}"
@@ -34,7 +35,7 @@ if [ -n "$BASE_COM" ]; then
   pids+=($!)
 fi
 "$VENV/bin/python" -m sar_data --flights "$MIRROR_DIR" --mirror "http://$PI:8765" --bind 127.0.0.1 --port "$PORT" \
-  --radar-json "$RADAR_JSON" --adapter "$ADAPTER" --auto-image "${extra[@]}" &
+  --radar-json "$RADAR_JSON" --adapter "$ADAPTER" --auto-image --tile-cache "$TILE_DIR" "${extra[@]}" &
 pids+=($!)
 echo "켰다 — 화면의 「연결 관리 → 드론 데이터 서버」를 http://127.0.0.1:$PORT 로. Ctrl-C 로 끈다."
 wait

@@ -14,6 +14,7 @@ set BASE_BAUD=115200
 set RTCM_PORT=14660
 set PORT=8765
 set MIRROR_DIR=%USERPROFILE%\sar_mirror
+set TILE_DIR=%USERPROFILE%\sar_tiles
 set RADAR_JSON=%~dp0radar.json
 set ADAPTER=sar_image.adapters:fmcw_dechirped_npz
 set FORMER=
@@ -46,10 +47,11 @@ if exist "%HERE%reflectors.csv" set REFL=--reflectors "%HERE%reflectors.csv"
 if not "%BASE_COM%"=="" (
   start "RTK 베이스 -> Pi" cmd /k ""%VENV%\Scripts\python.exe" -m rtk_relay.base_sender --port %BASE_COM% --baud %BASE_BAUD% --to %PI%:%RTCM_PORT%"
 )
-start "SAR 미러 · 자동 영상" cmd /k ""%VENV%\Scripts\python.exe" -m sar_data --flights "%MIRROR_DIR%" --mirror http://%PI%:8765 --bind 127.0.0.1 --port %PORT% --radar-json "%RADAR_JSON%" --adapter %ADAPTER% --auto-image %REFL% %EXTRA%"
+start "SAR 미러 · 자동 영상" cmd /k ""%VENV%\Scripts\python.exe" -m sar_data --flights "%MIRROR_DIR%" --mirror http://%PI%:8765 --bind 127.0.0.1 --port %PORT% --radar-json "%RADAR_JSON%" --adapter %ADAPTER% --auto-image --tile-cache "%TILE_DIR%" %REFL% %EXTRA%"
 
 echo.
 echo 켰다. 화면의 「연결 관리 → 드론 데이터 서버」를 http://127.0.0.1:%PORT% 로 둔다.
 echo   RTK 베이스 : %BASE_COM% -^> %PI%:%RTCM_PORT%
 echo   미러 폴더  : %MIRROR_DIR%
+echo   지도 캐시  : %TILE_DIR%  (현장용 위성 주소 http://127.0.0.1:%PORT%/tiles/satellite/{z}/{x}/{y}.png)
 timeout /t 5 >nul

@@ -204,6 +204,19 @@ export function SarPassZoom() {
   const [busy, setBusy] = useState<'start' | 'abort' | null>(null);
   const [outcome, setOutcome] = useState<{ action: 'start' | 'abort'; result: SarIssueOutcome } | null>(null);
   const data = useDataServer(true);
+  const [tileMsg, setTileMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  // 현장(인터넷 없음)용 — 지금 보이는 구역을 노트북 데이터 서버에 받아 둔다 (drone/sar_data/tiles.py)
+  const prefetchTiles = async (box: { s: number; w: number; n: number; e: number }, z: number) => {
+    const base = dataServerUrl();
+    if (base === '') { setTileMsg({ ok: false, text: t('map.prefetchNoServer') }); return; }
+    const zmin = Math.max(12, z - 1); const zmax = Math.min(20, Math.max(z + 2, 19));
+    try {
+      const r = await fetch(`${base}/api/tiles/prefetch?layer=satellite&s=${box.s}&w=${box.w}&n=${box.n}&e=${box.e}&zmin=${zmin}&zmax=${zmax}`);
+      const j = await r.json() as { total?: number; error?: string };
+      setTileMsg(r.status === 202 ? { ok: true, text: t('map.prefetchStarted', { n: j.total ?? 0, url: `${base}/tiles/satellite/{z}/{x}/{y}.png` }) }
+        : { ok: false, text: t('map.prefetchFail', { why: j.error ?? String(r.status) }) });
+    } catch (e) { setTileMsg({ ok: false, text: t('map.prefetchFail', { why: e instanceof Error ? e.message : String(e) }) }); }
+  };
 
   const setDraft = (next: SarPlanDraft) => { setDraftState(next); saveDraft(next); setConfirmed(false); };
 
@@ -364,7 +377,9 @@ export function SarPassZoom() {
         onPick={pick}
         pickHint={mapMode === 'reflector' ? t('cr.pick') : pickNext === 'start' ? t('sar.pick.start') : t('sar.pick.end')}
         height={360}
+        onPrefetch={(box, z) => void prefetchTiles(box, z)}
       />
+      {tileMsg !== null && <p className={tileMsg.ok ? 'sar-hint' : 'sar-warn'}>{tileMsg.text}</p>}
       <div className="sar-line-tools">
         <button type="button" disabled={here === null} onClick={() => { if (here) { setDraft({ ...draft, start: here }); setPickNext('end'); } }}>{t('sar.plan.useHere')}</button>
         <button type="button" disabled={!draft.start || !draft.end} onClick={() => setDraft({ ...draft, start: draft.end, end: draft.start })}>{t('sar.plan.reverse')}</button>
@@ -445,6 +460,7 @@ export function SarPassZoom() {
           <label className="sar-check"><input type="checkbox" checked={draft.requireRtk} onChange={(e) => setDraft({ ...draft, requireRtk: e.target.checked })} />{t('sar.plan.requireRtk')}</label>
           <label className="sar-check"><input type="checkbox" checked={draft.rtlOnAbort} onChange={(e) => setDraft({ ...draft, rtlOnAbort: e.target.checked })} />{t('sar.plan.rtlOnAbort')}</label>
           <label className="sar-check"><input type="checkbox" checked={draft.rtlOnDone} onChange={(e) => setDraft({ ...draft, rtlOnDone: e.target.checked })} />{t('sar.plan.rtlOnDone')}</label>
+          <label className="sar-check" title={t('sar.plan.geofenceHint')}><input type="checkbox" checked={draft.geofence !== false} onChange={(e) => setDraft({ ...draft, geofence: e.target.checked })} />{t('sar.plan.geofence')}</label>
         </div>
       </div>
       <PlanBudget draft={draft} wind={fcxReport?.wind ?? null} antenna={antenna} />

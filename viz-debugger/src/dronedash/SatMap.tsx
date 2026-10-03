@@ -46,7 +46,7 @@ function tileUrl(template: string, z: number, x: number, y: number): string {
 }
 
 export function SatMap({
-  track = [], drone, droneYaw, sarLine, capturing, markers = [], areas = [], overlays = [], onPick, pickHint, height = 380,
+  track = [], drone, droneYaw, sarLine, capturing, markers = [], areas = [], overlays = [], onPick, pickHint, height = 380, onPrefetch,
 }: {
   track?: readonly TrackPoint[];
   drone?: LatLon | null;
@@ -56,6 +56,8 @@ export function SatMap({
   markers?: readonly Marker[];
   areas?: readonly Area[];
   overlays?: readonly Overlay[];
+  /** 「이 구역 지도 미리 받기」 — 지금 보이는 구역(남 · 서 · 북 · 동)과 확대 수준을 넘긴다 */
+  onPrefetch?: (box: { s: number; w: number; n: number; e: number }, z: number) => void;
   onPick?: (p: LatLon) => void;
   pickHint?: string;
   height?: number;
@@ -206,6 +208,10 @@ export function SatMap({
       <button type="button" onClick={() => setZoom(z + 1)} aria-label={t('map.zoomIn')}>＋</button>
       <button type="button" onClick={() => setZoom(z - 1)} aria-label={t('map.zoomOut')}>－</button>
       <button type="button" onClick={() => { const f = fit(); if (f) { setView(f); setFollow(false); } }}>{t('map.fit')}</button>
+      {onPrefetch && <button type="button" title={t('map.prefetchHint')} onClick={() => {
+        const nw = unworld(ox, oy, z); const se = unworld(ox + W, oy + H, z);
+        onPrefetch({ s: se.lat, w: nw.lon, n: nw.lat, e: se.lon }, Math.round(z));
+      }}>{t('map.prefetch')}</button>}
       {drone && <label className="sar-check"><input type="checkbox" checked={follow} onChange={(e) => setFollow(e.target.checked)} />{t('map.follow')}</label>}
       {onPick && <span className="satmap-pick">{pickHint ?? t('map.pickHint')}</span>}
     </div>

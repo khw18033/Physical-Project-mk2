@@ -91,6 +91,8 @@ export type SarPlanDraft = {
   requireRtk: boolean;
   rtlOnAbort: boolean;
   rtlOnDone: boolean;
+  /** 패스 동안 지오펜스(드론 sar_pass/fence.py) — 끝나면 원래 울타리로 되돌린다 */
+  geofence: boolean;
   qCrossM: number;
   qSpeedMps: number;
   qAltM: number;
@@ -105,7 +107,7 @@ export function defaultDraft(): SarPlanDraft {
   return {
     start: null, end: null,
     altM: SAR_RULES.defaultAltM, speedMps: SAR_RULES.defaultSpeed, passes: SAR_RULES.minPasses,
-    gapS: SAR_RULES.minGapS, leadInM: 0, requireRtk: true, rtlOnAbort: false, rtlOnDone: false,
+    gapS: SAR_RULES.minGapS, leadInM: 0, requireRtk: true, rtlOnAbort: false, rtlOnDone: false, geofence: true,
     qCrossM: SAR_RULES.qCrossM, qSpeedMps: SAR_RULES.qSpeedMps, qAltM: SAR_RULES.qAltM,
     qHeadingDeg: SAR_RULES.qHeadingDeg, qCourseDeg: SAR_RULES.qCourseDeg, qEdgeM: SAR_RULES.qEdgeM, extraPasses: SAR_RULES.extraPasses,
     minBatteryPct: SAR_RULES.minBatteryPct,
@@ -161,7 +163,7 @@ export function toStartParams(d: SarPlanDraft) {
   return {
     start_lat: d.start.lat, start_lon: d.start.lon, end_lat: d.end.lat, end_lon: d.end.lon,
     alt_m: d.altM, speed_mps: d.speedMps, passes: d.passes, gap_s: d.gapS, lead_in_m: d.leadInM,
-    require_rtk: d.requireRtk ? 1 : 0, rtl_on_abort: d.rtlOnAbort ? 1 : 0, rtl_on_done: d.rtlOnDone ? 1 : 0,
+    require_rtk: d.requireRtk ? 1 : 0, rtl_on_abort: d.rtlOnAbort ? 1 : 0, rtl_on_done: d.rtlOnDone ? 1 : 0, geofence: d.geofence === false ? 0 : 1,
     q_cross_m: d.qCrossM, q_speed_mps: d.qSpeedMps, q_alt_m: d.qAltM, q_heading_deg: d.qHeadingDeg, q_course_deg: d.qCourseDeg,
     q_edge_m: d.qEdgeM, extra_passes: d.extraPasses, min_battery_pct: d.minBatteryPct,
   };
