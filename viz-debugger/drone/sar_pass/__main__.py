@@ -43,8 +43,8 @@ def latlon(text: str) -> tuple[float, float]:
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="sar_pass", description="SAR 직선 패스 실행기")
     sub = p.add_subparsers(dest="cmd", required=True)
-    for name in ("run", "sim"):
-        s = sub.add_parser(name)
+    for name in ("run", "sim", "cart"):
+        s = sub.add_parser(name, help="수레 시험 — 드론 없이 사람이 밀며 선을 지난다(비행 명령 없음)" if name == "cart" else None)
         s.add_argument("--start", type=latlon, help="캡처 시작점 lat,lon")
         s.add_argument("--end", type=latlon, help="캡처 끝점 lat,lon")
         s.add_argument("--heading", type=float, help="--end 대신: 진행 방향(°, 북=0)")
@@ -79,6 +79,8 @@ def build_parser() -> argparse.ArgumentParser:
         q.add_argument("--cap-lead", type=float, help="미리 켜고 끄는 시간(s). 안 주면 잰 레이더 지연으로 자동")
         q.add_argument("--min-battery", type=float, default=30.0, help="다음 패스 + 복귀 뒤에도 남아야 할 배터리 %%")
     sub.choices["run"].add_argument("--connect", default="udpin://0.0.0.0:14540", help="MAVSDK 주소")
+    sub.choices["cart"].add_argument("--connect", default="udpin://0.0.0.0:14540", help="MAVSDK 주소 (수레에 실은 FC)")
+    sub.choices["cart"].add_argument("--cart-cross-tol", type=float, default=3.0, help="수레: 선에서 이만큼 안이면 캡처를 건다(m)")
     ts = sub.add_parser("timesync", help="파이 시계와 FC(GPS) 시각의 차이를 재고, --apply 면 맞춘다")
     ts.add_argument("--connect", default="udpin://0.0.0.0:14540")
     ts.add_argument("--apply", action="store_true", help="시계를 실제로 바꾼다 (root 필요)")
@@ -148,7 +150,13 @@ async def amain(a: argparse.Namespace) -> int:
     tel = await vehicle.telemetry()
     here = (tel.lat, tel.lon) if tel.lat is not None and tel.lon is not None else None
     plan = make_plan(a, here)
-    problems = plan.problems()
+    if a.cmd == "cart":
+        from .cart import cart_plan
+        plan = cart_plan(plan.start_lat, plan.start_lon, plan.end_lat, plan.end_lon, passes=a.passes,
+                         require_rtk=not a.no_rtk, q_cross_m=a.q_cross, q_edge_m=a.q_edge)
+        problems = [] if plan.line.length_m >= 5 else [f"선이 너무 짧다 ({plan.line.length_m:.1f} m)"]
+    else:
+        problems = plan.problems()
     if problems:
         logging.error("계획이 조건에 안 맞는다: %s", "; ".join(problems))
         return 2
@@ -172,7 +180,12 @@ async def amain(a: argparse.Namespace) -> int:
     cap = CaptureFlag(a.cap, install_handlers=False, ack_path=a.cap_ack)  # 신호는 아래에서 중단으로 받는다
     a.log_dir.mkdir(parents=True, exist_ok=True)
     stamp = int(vehicle.clock.now())
-    mission = SarMission(vehicle, plan, cap, status_sink, a.log_dir / f"sar_passes_{stamp}.jsonl",
+    if a.cmd == "cart":
+        from .cart import CartSession
+        mission_cls, extra = CartSession, {"cross_tol_m": a.cart_cross_tol}
+    else:
+        mission_cls, extra = SarMission, {}
+    mission = mission_cls(vehicle, plan, cap, status_sink, a.log_dir / f"sar_passes_{stamp}.jsonl", **extra,
                          traj_dir=a.log_dir / f"flight_{stamp}",
                          base_provider=None if base_listener is None else base_listener.base)
 
