@@ -228,3 +228,18 @@ export function provenanceParams(reflectors: readonly LatLon[], a: AntennaDraft)
   }
   return out;
 }
+
+/**
+ * 리플렉터 자리 측량 — 드론(또는 RTK 수신기)을 리플렉터 옆에 세워 두고 최근 몇 초 위치를 평균한다.
+ * 위성 사진은 실제와 1~3 m 어긋나기 쉽다. 이 방법은 RTK Fixed 면 cm 단위다. 흩어짐(표준편차, m)도 같이 낸다.
+ */
+export function surveyPoint(samples: readonly { lat: number | null; lon: number | null; atMs: number }[], nowMs: number, windowMs = 3000):
+  { point: LatLon; n: number; spreadM: number } | null {
+  const pts = samples.filter((s): s is { lat: number; lon: number; atMs: number } => s.lat !== null && s.lon !== null && nowMs - s.atMs <= windowMs);
+  if (pts.length < 3) return null;
+  const lat = pts.reduce((a, p) => a + p.lat, 0) / pts.length;
+  const lon = pts.reduce((a, p) => a + p.lon, 0) / pts.length;
+  const c = { lat, lon };
+  const d2 = pts.map((p) => { const d = toLocal(c, p); return d.n * d.n + d.e * d.e; });
+  return { point: c, n: pts.length, spreadM: Math.sqrt(d2.reduce((a, b) => a + b, 0) / pts.length) };
+}

@@ -324,6 +324,15 @@ const params = plan.toStartParams({
   check(mission.includes('f"ant_off_{a}"') && mission.includes('f"gnss_off_{a}"') && mission.includes('"ant_side"'), '레버암 · 보는 쪽 기록 키가 드론과 다르다');
   console.log('✅ 재처리용 기록 — 리플렉터 · 안테나 키가 드론과 같다');
 
+  // 리플렉터 측량 — 3 초 창 안의 점만 평균, 흩어짐(m)
+  const base = { lat: 37.5665, lon: 126.978 };
+  const pts = [0.02, -0.02, 0.0, 0.01, -0.01].map((d, i) => ({ ...plan.toGlobal(base, d, 0), atMs: 10_000 + i * 200 }));
+  const sv = cov.surveyPoint([{ ...plan.toGlobal(base, 5, 0), atMs: 1000 }, ...pts], 11_000);
+  const off = plan.toLocal(base, sv.point);
+  check(sv.n === 5 && Math.abs(off.n) < 0.001 && sv.spreadM > 0.005 && sv.spreadM < 0.03, `리플렉터 측량 평균이 이상하다: ${JSON.stringify(sv)}`);
+  check(cov.surveyPoint(pts.slice(0, 2), 11_000) === null, '점이 3개보다 적으면 측량하지 않아야 한다');
+  console.log('✅ 리플렉터 측량 — 최근 3 초 평균 · 오래된 점 제외 · 흩어짐');
+
   // 바람 영향 — 북쪽으로 4 m/s 날며 북풍 3 m/s(맞바람) → 공기 속도 7 m/s · 앞 숙임 · 빔은 뒤로. 서풍은 동쪽(오른쪽)으로 밀어 왼쪽으로 기울여 버틴다
   const head = plan.windEffect(0, 4, { speedMps: 3, fromDeg: 0 }, 45, 40, 30);
   check(Math.abs(head.headMps - 3) < 1e-9 && Math.abs(head.airspeedMps - 7) < 1e-9 && head.pitchDeg < 0 && head.squintDeg > 0 && Math.abs(head.rollDeg) < 1e-9,

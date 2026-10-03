@@ -29,7 +29,7 @@ import { RTK_LABEL_KEY, rtkLevel } from './rtk.ts';
 import { RtkBadge } from './RtkView.tsx';
 import { useTick } from './useTick.ts';
 import { SatMap, type Area, type Marker } from '../dronedash/SatMap.tsx';
-import { checkReflector, defaultAntenna, provenanceParams, radarJson, swathPolygon, type AntennaDraft } from './coverage.ts';
+import { checkReflector, defaultAntenna, provenanceParams, surveyPoint, radarJson, swathPolygon, type AntennaDraft } from './coverage.ts';
 import { ANT_KEY, CR_KEY, liveBeam } from './liveBeam.ts';
 import { PassInspector } from './PassInspector.tsx';
 import { ComparePanel, ImageButton, ImagingStatus, SarImageView, type ImageSummary, type Imaging, type MirrorState } from './SarImageView.tsx';
@@ -320,6 +320,8 @@ export function SarPassZoom() {
   if (draft.start && !draft.end) markers.push({ ...draft.start, kind: 'pick', label: t('map.capStart') });
   const crChecks = reflectors.map((cr) => (draft.start && draft.end && Number.isFinite(draft.altM)
     ? checkReflector(antenna, draft.start, draft.end, draft.altM, cr) : null));
+  // 리플렉터 자리 측량 — 드론 · RTK 수신기의 최근 3 초 평균 (RTK Fixed 일 때만)
+  const survey = rtk === 'fixed' && fcxReport ? surveyPoint(fcxReport.history, fcxReport.receivedAtMs) : null;
   // 비행 중이면 지금 빔 자국을 그리고, 빔 안에 든 리플렉터는 빛난다
   const beam = liveBeam(antenna, {
     at: here, altM: num(deviceId === null ? null : telemetryValue(deviceId, 'altitude.relative_m')), yawDeg: yaw,
@@ -383,6 +385,9 @@ export function SarPassZoom() {
           </tr>; })}
         </tbody></table>}
         <div className="sar-line-tools">
+          <button type="button" disabled={survey === null} title={t('cr.surveyHint')}
+            onClick={() => { if (survey) setReflectors([...reflectors, survey.point]); }}>
+            {survey === null ? t('cr.surveyNone') : t('cr.survey', { n: survey.n, cm: (survey.spreadM * 100).toFixed(0) })}</button>
           <button type="button" disabled={reflectors.length === 0} onClick={() => setReflectors([])}>{t('cr.clear')}</button>
           <a className="sar-btn" download="reflectors.csv" href={`data:text/csv;charset=utf-8,${encodeURIComponent(crCsv)}`}>{t('cr.csv')}</a>
           <a className="sar-btn" download="radar.json" href={`data:application/json;charset=utf-8,${encodeURIComponent(radarJson(antenna))}`}>{t('cr.radarJson')}</a>
