@@ -3,7 +3,8 @@
 #
 #   sudo ./install.sh                 # RTK 전달 · 상태판 텔레메트리 · .ulg 회수 · 데이터 서버
 #   sudo ./install.sh --with-agent    # + 드론 에이전트에 sar_start/sar_abort (HW 담당과 협의 후)
-#   sudo ./install.sh --with-pps      # + GPS PPS 시각 동기(chrony · 부팅 설정, 재부팅 필요) — pps/README.md
+#   sudo ./install.sh --with-gpstime  # + Pi 시계를 FC 의 GPS 시각에 맞춤(PPS 선 없이, 1 ms 안팎) — 레이더가 Pi 시계로 찍을 때
+#   sudo ./install.sh --with-pps      # + GPS PPS 시각 동기(µs, PPS 선 필요 · 부팅 설정 · 재부팅) — pps/README.md
 #   sudo ./install.sh --status        # 지금 상태만
 #   sudo ./install.sh --uninstall     # 우리가 넣은 것만 걷어 낸다 (HW 의 drone-node 는 원래대로)
 #   ./install.sh --dry-run ...        # 실제로 바꾸지 않고 할 일만 보여 준다
@@ -22,12 +23,13 @@ OPT_UNITS=(sar-chrony.service)
 AGENT_DROPIN="$UNIT_DIR/drone-node.service.d/50-sar.conf"
 SVC_USER="${SAR_USER:-physical}"
 
-DRY=0; MODE=install; AGENT=0; PPS=0
+DRY=0; MODE=install; AGENT=0; PPS=0; GPSTIME=0
 for a in "$@"; do
   case "$a" in
     --dry-run) DRY=1 ;;
     --with-agent) AGENT=1 ;;
     --with-pps) PPS=1 ;;
+    --with-gpstime) GPSTIME=1 ;;
     --status) MODE=status ;;
     --uninstall) MODE=uninstall ;;
     -h|--help) sed -n '2,13p' "$0"; exit 0 ;;
@@ -124,6 +126,21 @@ install() {
   run systemctl daemon-reload
   for u in "${UNITS[@]}"; do run systemctl enable --now "$u"; done
   ok "${UNITS[*]}"
+
+  if [ "$GPSTIME" = 1 ] && [ "$PPS" = 0 ]; then
+    step "Pi 시계 ← FC GPS 시각 (chrony, PPS 없이)"
+    command -v chronyc >/dev/null || run apt-get install -y chrony
+    run install -d /etc/chrony/conf.d
+    run install -m 0644 "$HERE/pps/chrony-sar-fc.conf" /etc/chrony/conf.d/sar-pps.conf
+    if ! grep -qs '^confdir /etc/chrony/conf.d' /etc/chrony/chrony.conf; then
+      run sh -c 'echo "confdir /etc/chrony/conf.d" >> /etc/chrony/chrony.conf'
+    fi
+    run install -m 0644 "$HERE/sar-chrony.service" "$UNIT_DIR/sar-chrony.service"
+    run systemctl daemon-reload
+    run systemctl enable --now sar-chrony.service
+    run systemctl restart chrony
+    ok "chrony · sar-chrony — 몇 분 뒤 chronyc sources -v 에 FC 줄 앞 '*' 이면 GPS 시각으로 맞추는 중"
+  fi
 
   if [ "$PPS" = 1 ]; then
     step "PPS 시각 동기 (chrony)"
