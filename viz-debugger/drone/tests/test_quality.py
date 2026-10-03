@@ -160,3 +160,15 @@ def test_hot_pi_blocks_start(tmp_path, monkeypatch):
     monkeypatch.setattr(ph, "_cpu_temp", lambda: 83.5)
     plan, sim, cap, m, st = build(tmp_path, ack=False)
     assert asyncio.run(m.run()) == "failed" and "83.5" in (m.error or "") and not cap.is_on
+
+
+def test_fatal_offboard_loss_action_blocks_start(tmp_path):
+    import asyncio
+
+    plan, sim, cap, m, st = build(tmp_path, ack=False)
+    sim.params["COM_OBL_RC_ACT"] = 7
+    assert asyncio.run(m.run()) == "failed" and "Disarm" in (m.error or "")
+    (tmp_path / "b").mkdir()
+    plan, sim, cap, m, st = build(tmp_path / "b", ack=False)
+    sim.params.update({"COM_OBL_RC_ACT": 5, "COM_OF_LOSS_T": 5.0})
+    assert asyncio.run(m.run()) == "done" and any("COM_OF_LOSS_T" in w for w in m.warnings)

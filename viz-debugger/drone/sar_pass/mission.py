@@ -77,6 +77,8 @@ FIX_ORDER = ("NO_GPS", "NO_FIX", "FIX_2D", "FIX_3D", "FIX_DGPS", "RTK_FLOAT", "R
 
 CONTROL_HZ = 50.0     # 제어 · 궤적 기록 주기
 SETTLE_S = 5.0        # 가속 뒤 등속 안정에 주는 시간 (SITL: 2·3 s 로는 모자랐다). 모자라면 적응형으로 늘린다
+# PX4 COM_OBL_RC_ACT — 공중에서 이러면 떨어진다
+OFFBOARD_LOSS_FATAL = {6: "비행 종료(Terminate)", 7: "시동 끄기(Disarm)"}
 MAX_EXTRA_LEAD_M = 80.0  # 적응형으로 더할 수 있는 가속 구간의 상한
 MAX_CAP_LEAD_S = 1.0  # 자동 선행 트리거의 상한
 ACK_WAIT_S = 3.0      # 레이더 확인을 이만큼 기다린다
@@ -368,6 +370,7 @@ class SarMission:
         self.battery_estimate: dict | None = None
         self.pi_health: dict | None = None
         self.fence: list | None = None
+        self.failsafe: dict | None = None
 
     # ── 바깥에서 부르는 것 ──────────────────────────────────────────────────
     def abort(self) -> None:
@@ -495,7 +498,25 @@ class SarMission:
             self.gps_pos = None if any(v is None for v in xyz) else [round(float(v), 4) for v in xyz]
         if self.cap.ack_path is None:
             self.warnings.append("레이더 확인(CAP_ACK) 경로가 없다 — 실제 기록 시각은 모르고 요청 시각만 남는다")
+        await self._check_failsafe()
         await self._arm_fence(tel)
+
+    async def _check_failsafe(self) -> None:
+        """Pi 가 멈추면 PX4 는 오프보드 설정값을 잃는다 — 그때 무엇을 하나(`COM_OBL_RC_ACT`) · 얼마 뒤(`COM_OF_LOSS_T`).
+        공중에서 시동을 끄거나(7) 비행을 끝내는(6) 설정이면 시작하지 않는다."""
+        getter = getattr(self.v, "get_param_int", None)
+        fgetter = getattr(self.v, "get_param_float", None)
+        act = await getter("COM_OBL_RC_ACT") if getter is not None else None
+        loss_t = await fgetter("COM_OF_LOSS_T") if fgetter is not None else None
+        self.failsafe = {"COM_OBL_RC_ACT": act, "COM_OF_LOSS_T": loss_t}
+        if act in OFFBOARD_LOSS_FATAL:
+            raise PreflightFailed(f"오프보드가 끊기면 {OFFBOARD_LOSS_FATAL[act]} 하도록 되어 있다(COM_OBL_RC_ACT={act}) — "
+                                  "QGC 에서 5(Hold) · 3(RTL) · 4(Land) 중 하나로 바꾼다")
+        if act is None:
+            self.warnings.append("COM_OBL_RC_ACT 를 못 읽었다 — 오프보드가 끊길 때의 동작을 QGC 에서 확인한다")
+        if loss_t is not None and loss_t > 2.0:
+            self.warnings.append(f"COM_OF_LOSS_T={loss_t:.1f} s — Pi 가 멈춘 뒤 그만큼 기체가 마지막 속도로 간다. 1 s 이하를 권한다")
+            log.warning(self.warnings[-1])
 
     async def _check_battery(self) -> None:
         """다음 패스 + 홈 복귀에 쓸 배터리를 **비행 중 잰 소모율**로 어림한다. 모자라면 시작하지 않는다."""
@@ -793,6 +814,7 @@ class SarMission:
                 "radar_config": self.plan.radar,
                 "software": software_version(),
                 "companion": self.pi_health,
+                "failsafe": self.failsafe,
             }
             meta_path.write_text(json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
         except Exception:  # noqa: BLE001 — 기록 실패가 비행 · 캡처를 멈추지 않는다

@@ -103,6 +103,16 @@ async def check_fc(address: str, wait_s: float = 8.0) -> list[Item]:
         out.append(Item("✓" if hgt == 1 else "!", "높이 기준",
                         f"EKF2_HGT_REF={hgt} ({names.get(hgt, '?')})"
                         + ("" if hgt == 1 else " — RTK 를 쓰면 1(GNSS) 을 검토한다. 기압계는 몇 분 사이 0.5~1 m 흔들린다")))
+    act = await v.get_param_int("COM_OBL_RC_ACT")
+    loss_t = await v.get_param_float("COM_OF_LOSS_T")
+    names_obl = {0: "Position", 1: "Altitude", 2: "Manual", 3: "RTL", 4: "Land", 5: "Hold", 6: "Terminate", 7: "Disarm"}
+    if act is None:
+        out.append(Item("!", "오프보드 끊김 동작", "COM_OBL_RC_ACT 를 못 읽었다"))
+    else:
+        bad = act in (6, 7)
+        out.append(Item("✗" if bad else "✓", "오프보드 끊김 동작",
+                        f"COM_OBL_RC_ACT={act} ({names_obl.get(act, '?')}) · COM_OF_LOSS_T={loss_t if loss_t is None else f'{loss_t:.1f} s'}"
+                        + (" — 공중에서 떨어진다. 5(Hold) · 3(RTL) · 4(Land) 로" if bad else "")))
     gps = [await v.get_param_float(f"EKF2_GPS_POS_{a}") for a in "XYZ"]
     if any(x is None for x in gps):
         out.append(Item("!", "GPS 안테나 위치", "EKF2_GPS_POS_X/Y/Z 를 못 읽었다"))
