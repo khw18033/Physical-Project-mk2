@@ -199,11 +199,11 @@ const params = plan.toStartParams({
   check(/accel_mps2: float = 1\.0/.test(py) && plan.SAR_RULES.accelMps2 === 1, '드론 쪽 가속 기본값이 화면(1 m/s²)과 다르다');
   // 품질 판정 기본값 — 화면이 보내는 값과 드론이 받지 않았을 때의 값이 같아야 한다
   const pyField = (name) => Number(py.match(new RegExp(`^\\s+${name}: (?:float|int) = ([0-9.]+)`, 'm'))?.[1]);
-  for (const [f, j] of [['q_cross_m', 'qCrossM'], ['q_speed_mps', 'qSpeedMps'], ['q_alt_m', 'qAltM'], ['q_heading_deg', 'qHeadingDeg'], ['q_edge_m', 'qEdgeM'], ['extra_passes', 'extraPasses'], ['min_battery_pct', 'minBatteryPct']]) {
+  for (const [f, j] of [['q_cross_m', 'qCrossM'], ['q_speed_mps', 'qSpeedMps'], ['q_alt_m', 'qAltM'], ['q_heading_deg', 'qHeadingDeg'], ['q_course_deg', 'qCourseDeg'], ['q_edge_m', 'qEdgeM'], ['extra_passes', 'extraPasses'], ['min_battery_pct', 'minBatteryPct']]) {
     check(pyField(f) === plan.SAR_RULES[j], `품질 기본값 ${f}(드론 ${pyField(f)}) 와 SAR_RULES.${j}(화면 ${plan.SAR_RULES[j]}) 가 다르다`);
   }
   const sent = plan.toStartParams({ ...plan.defaultDraft(), start: { lat: 1, lon: 1 }, end: { lat: 1.001, lon: 1 } });
-  check(['q_cross_m', 'q_speed_mps', 'q_alt_m', 'q_heading_deg', 'q_edge_m', 'extra_passes', 'min_battery_pct'].every((k) => typeof sent[k] === 'number'),
+  check(['q_cross_m', 'q_speed_mps', 'q_alt_m', 'q_heading_deg', 'q_course_deg', 'q_edge_m', 'extra_passes', 'min_battery_pct'].every((k) => typeof sent[k] === 'number'),
     '품질 기준이 sar_start 파라미터에 안 실린다');
 
   const good = { ...plan.defaultDraft(), start: { lat: 37.5665, lon: 126.978 } };

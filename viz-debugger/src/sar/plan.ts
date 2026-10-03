@@ -26,6 +26,8 @@ export const SAR_RULES = {
   qSpeedMps: 0.3,
   qAltM: 0.5,
   qHeadingDeg: 3.0,
+  /** 실제 진행 방향(속도 벡터)이 선과 벌어진 각 — 기수(yaw)와 따로 본다 */
+  qCourseDeg: 10.0,
   qEdgeM: 2.0,
   extraPasses: 2,
   minBatteryPct: 30,
@@ -93,6 +95,7 @@ export type SarPlanDraft = {
   qSpeedMps: number;
   qAltM: number;
   qHeadingDeg: number;
+  qCourseDeg: number;
   qEdgeM: number;
   extraPasses: number;
   minBatteryPct: number;
@@ -104,7 +107,7 @@ export function defaultDraft(): SarPlanDraft {
     altM: SAR_RULES.defaultAltM, speedMps: SAR_RULES.defaultSpeed, passes: SAR_RULES.minPasses,
     gapS: SAR_RULES.minGapS, leadInM: 0, requireRtk: true, rtlOnAbort: false, rtlOnDone: false,
     qCrossM: SAR_RULES.qCrossM, qSpeedMps: SAR_RULES.qSpeedMps, qAltM: SAR_RULES.qAltM,
-    qHeadingDeg: SAR_RULES.qHeadingDeg, qEdgeM: SAR_RULES.qEdgeM, extraPasses: SAR_RULES.extraPasses,
+    qHeadingDeg: SAR_RULES.qHeadingDeg, qCourseDeg: SAR_RULES.qCourseDeg, qEdgeM: SAR_RULES.qEdgeM, extraPasses: SAR_RULES.extraPasses,
     minBatteryPct: SAR_RULES.minBatteryPct,
   };
 }
@@ -131,7 +134,7 @@ export function planProblems(d: SarPlanDraft): PlanProblem[] {
     out.push({ key: 'sar.rule.alt', vars: { m: d.altM, min: SAR_RULES.minAltM, max: SAR_RULES.maxAltM } });
   }
   if (!(d.leadInM >= 0)) out.push({ key: 'sar.rule.leadIn' });
-  if (!(d.qCrossM > 0 && d.qSpeedMps > 0 && d.qAltM > 0 && d.qHeadingDeg > 0 && d.qEdgeM >= 0)) out.push({ key: 'sar.rule.quality' });
+  if (!(d.qCrossM > 0 && d.qSpeedMps > 0 && d.qAltM > 0 && d.qHeadingDeg > 0 && d.qCourseDeg > 0 && d.qEdgeM >= 0)) out.push({ key: 'sar.rule.quality' });
   if (!(Number.isInteger(d.extraPasses) && d.extraPasses >= 0 && d.extraPasses <= 10)) out.push({ key: 'sar.rule.extra' });
   if (!(d.minBatteryPct >= 10 && d.minBatteryPct <= 80)) out.push({ key: 'sar.rule.battery' });
   return out;
@@ -159,7 +162,7 @@ export function toStartParams(d: SarPlanDraft) {
     start_lat: d.start.lat, start_lon: d.start.lon, end_lat: d.end.lat, end_lon: d.end.lon,
     alt_m: d.altM, speed_mps: d.speedMps, passes: d.passes, gap_s: d.gapS, lead_in_m: d.leadInM,
     require_rtk: d.requireRtk ? 1 : 0, rtl_on_abort: d.rtlOnAbort ? 1 : 0, rtl_on_done: d.rtlOnDone ? 1 : 0,
-    q_cross_m: d.qCrossM, q_speed_mps: d.qSpeedMps, q_alt_m: d.qAltM, q_heading_deg: d.qHeadingDeg,
+    q_cross_m: d.qCrossM, q_speed_mps: d.qSpeedMps, q_alt_m: d.qAltM, q_heading_deg: d.qHeadingDeg, q_course_deg: d.qCourseDeg,
     q_edge_m: d.qEdgeM, extra_passes: d.extraPasses, min_battery_pct: d.minBatteryPct,
   };
 }

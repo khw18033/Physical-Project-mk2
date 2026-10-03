@@ -60,6 +60,7 @@ HEADING_TOL = 5.0    # deg
 CROSS_TOL = 2.0      # m
 STABLE_HOLD_S = 1.0  # 위 조건이 이만큼 이어져야 등속으로 본다
 SPEED_AVG_S = 0.5    # 이동평균 창
+CROSS_KP = 0.8       # 선 복귀: 횡오차 1 m 당 옆 속도 (m/s)
 
 # 이 컴퓨터 시계와 FC 의 GPS 시각 차이가 이보다 크면 시작하지 않는다 — 패스 시각을 .ulg · 레이더와 맞출 수 없다.
 MAX_CLOCK_OFFSET_S = 1.0
@@ -78,6 +79,28 @@ PILOT_MODES = ("POSCTL", "ALTCTL", "MANUAL", "STABILIZED", "ACRO", "RTL", "LAND"
 TRAJ_FIELDS = ["t_pi", "t_fc", "lat", "lon", "alt_rel_m", "alt_amsl_m", "ned_n", "ned_e", "ned_d",
                "vn", "ve", "vd", "speed", "speed_avg", "roll_deg", "pitch_deg", "yaw_deg",
                "along_m", "cross_m", "ref_along_m", "ref_speed", "gps_fix", "phase", "cap_on", "cap_ack"]
+
+
+def course_error_deg(rows: list[dict], line_heading_deg: float, window_s: float = SPEED_AVG_S) -> float | None:
+    """실제 진행 방향 오차의 최댓값 — 속도 벡터(vn, ve)를 `window_s` 로 평균해 순간 잡음을 걷어 낸다.
+    기수(yaw)가 정확해도 선 복귀 제어가 좌우로 흔들면 커진다(SITL: yaw 0.3° · 진행 방향 최대 9°)."""
+    pts = [(r["t_pi"], r["vn"], r["ve"]) for r in rows if r.get("vn") is not None and r.get("ve") is not None]
+    if len(pts) < 2:
+        return None
+    worst, j, sn, se = 0.0, 0, 0.0, 0.0
+    for i, (t, vn, ve) in enumerate(pts):
+        sn += vn
+        se += ve
+        while pts[j][0] < t - window_s:
+            sn -= pts[j][1]
+            se -= pts[j][2]
+            j += 1
+        if t - pts[0][0] < 0.9 * window_s:              # 창이 다 차기 전에는 평균이 아니다 — 판정하지 않는다
+            continue
+        if math.hypot(sn, se) / (i - j + 1) < 0.5:      # 거의 서 있으면 방향이 의미 없다
+            continue
+        worst = max(worst, abs(angle_diff_deg(math.degrees(math.atan2(se, sn)), line_heading_deg)))
+    return round(worst, 2)
 
 
 def fix_rank(fix: str | None) -> int:
@@ -126,6 +149,8 @@ class SarPlan:
     q_speed_mps: float = 0.3
     q_alt_m: float = 0.5
     q_heading_deg: float = 3.0
+    q_course_deg: float = 10.0     # 실제 진행 방향(0.5 s 평균 속도 벡터)이 선과 벌어진 각 — 옆으로 미끄러지며 난 정도
+    cross_kp: float = CROSS_KP     # 선 복귀 게인 — SITL 비교용으로만 바꾼다(화면에서는 안 보낸다)
     q_edge_m: float = 2.0          # 실제 기록이 구간 시작보다 늦게 · 끝보다 일찍 끝난 허용 거리
     extra_passes: int = 2          # 무효 패스를 다시 날 수 있는 최대 횟수
     cap_lead_s: float | None = None  # None 이면 잰 레이더 지연으로 자동
@@ -192,7 +217,7 @@ class SarPlan:
             stable_hold_s=float(p.get("stable_hold_s", STABLE_HOLD_S)),
             allow_clock_skew=bool(round(p.get("allow_clock_skew", 0))),
         )
-        for key in ("q_cross_m", "q_speed_mps", "q_alt_m", "q_heading_deg", "q_edge_m"):
+        for key in ("q_cross_m", "q_speed_mps", "q_alt_m", "q_heading_deg", "q_course_deg", "q_edge_m"):
             if key in p:
                 kw[key] = float(p[key])
         if "extra_passes" in p:
@@ -216,6 +241,7 @@ class PassRecord:
     max_cross_track_m: float = 0.0
     max_alt_err_m: float = 0.0
     max_heading_err_deg: float = 0.0
+    max_course_err_deg: float | None = None   # 진행 방향(속도 벡터) − 선 방위. 기수(yaw)와 따로 본다
     # 같은 순간을 FC 의 GPS 시각으로도 — `start_unix − 시계 오차`. 오차를 몰랐으면 None.
     fc_start_unix: float | None = None
     fc_end_unix: float | None = None
@@ -512,7 +538,7 @@ class SarMission:
                     v_int = 0.0
                 v_cmd = max(0.0, v_ref + v_int)
                 s_ref = along
-                c_corr = max(-1.5, min(1.5, -0.8 * cross))         # 선 위로 끌어당김
+                c_corr = max(-1.5, min(1.5, -plan.cross_kp * cross))   # 선 위로 끌어당김
                 vel_d = max(-1.0, min(1.0, 0.8 * alt_err))          # 고도 유지
                 await self.v.set_velocity(un * v_cmd - ue * c_corr, ue * v_cmd + un * c_corr, vel_d, heading)
 
@@ -611,6 +637,7 @@ class SarMission:
             record.max_speed_err_mps = max(abs(r["speed_avg"] - plan.speed_mps) for r in inside)
             record.max_alt_err_m = max(abs((r["alt_rel_m"] or 0) - plan.alt_m) for r in inside)
             record.max_heading_err_deg = max(abs(angle_diff_deg(r["yaw_deg"] or 0, plan.line.heading_deg)) for r in inside)
+            record.max_course_err_deg = course_error_deg(inside, plan.line.heading_deg)
             worst = min((r["gps_fix"] for r in inside), key=fix_rank)
             record.worst_fix = worst
             if record.max_cross_track_m > plan.q_cross_m:
@@ -621,6 +648,8 @@ class SarMission:
                 reasons.append(f"고도 오차 {record.max_alt_err_m:.2f} m > {plan.q_alt_m}")
             if record.max_heading_err_deg > plan.q_heading_deg:
                 reasons.append(f"yaw 오차 {record.max_heading_err_deg:.1f}° > {plan.q_heading_deg}")
+            if record.max_course_err_deg is not None and record.max_course_err_deg > plan.q_course_deg:
+                reasons.append(f"진행 방향 오차 {record.max_course_err_deg:.1f}° > {plan.q_course_deg} (옆으로 흔들리며 날았다)")
             if plan.require_rtk and worst != "RTK_FIXED":
                 reasons.append(f"캡처 중 RTK 가 {worst} 로 떨어졌다")
         elif record.captured:

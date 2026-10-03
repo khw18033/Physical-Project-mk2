@@ -117,3 +117,25 @@ def test_enough_battery_flies_all(tmp_path):
     sim.battery_pct = 95.0
     assert asyncio.run(m.run()) == "done"
     assert st[-1]["battery"]["battery_pct"] < 95.0
+
+
+def test_course_error_is_separate_from_yaw():
+    """기수는 정확해도 옆으로 흔들리며 날면 진행 방향 오차가 잡힌다(0.5 s 평균이라 순간 잡음은 걸러진다)."""
+    import math
+
+    from sar_pass.mission import course_error_deg
+
+    hd = 45.0
+    rows = []
+    for i in range(500):                     # 10 s, 50 Hz — 4 m/s 로 가며 옆 속도가 ±0.5 m/s 로 0.2 Hz 흔들림
+        t = i * 0.02
+        side = 0.5 * math.sin(2 * math.pi * 0.2 * t)
+        un, ue = math.cos(math.radians(hd)), math.sin(math.radians(hd))
+        rows.append({"t_pi": t, "vn": 4 * un - side * ue, "ve": 4 * ue + side * un})
+    err = course_error_deg(rows, hd)
+    assert 6.0 < err < 7.2                   # atan(0.5/4) = 7.1°, 평균 창이 조금 깎는다
+    jitter = [{**r, "vn": r["vn"] + (0.3 if i % 2 else -0.3)} for i, r in enumerate(rows[:100])]
+    straight = [{**r, "vn": 4 * math.cos(math.radians(hd)) + (0.3 if i % 2 else -0.3),
+                 "ve": 4 * math.sin(math.radians(hd))} for i, r in enumerate(jitter)]
+    assert course_error_deg(straight, hd) < 0.5          # 순간 잡음만 있으면 거의 0
+    assert course_error_deg([], hd) is None

@@ -450,6 +450,7 @@ export function SarPassZoom() {
             {numberField('sar.plan.qSpeed', draft.qSpeedMps, (v) => setDraft({ ...draft, qSpeedMps: v }), { step: 0.05, min: 0.05, unit: 'm/s' })}
             {numberField('sar.plan.qAlt', draft.qAltM, (v) => setDraft({ ...draft, qAltM: v }), { step: 0.1, min: 0.1, unit: 'm' })}
             {numberField('sar.plan.qHeading', draft.qHeadingDeg, (v) => setDraft({ ...draft, qHeadingDeg: v }), { step: 0.5, min: 0.5, unit: '°' })}
+            {numberField('sar.plan.qCourse', draft.qCourseDeg, (v) => setDraft({ ...draft, qCourseDeg: v }), { step: 0.5, min: 1, unit: '°', hintKey: 'sar.plan.qCourseHint' })}
             {numberField('sar.plan.qEdge', draft.qEdgeM, (v) => setDraft({ ...draft, qEdgeM: v }), { step: 0.5, min: 0, unit: 'm' })}
           </div>
         </div>
@@ -551,10 +552,10 @@ function PassTable({ report }: { report: SarReport }) {
   useLang();
   const length = report.plan?.lengthM ?? null;
   const csv = useMemo(() => {
-    const head = 'pass,valid,reasons,start_unix,end_unix,fc_start_unix,fc_end_unix,ack_start_unix,ack_end_unix,ack_latency_s,eff_start_along_m,eff_end_along_m,mean_speed_mps,max_speed_err_mps,max_cross_track_m,max_alt_err_m,max_heading_err_deg,worst_fix,traj_csv';
+    const head = 'pass,valid,reasons,start_unix,end_unix,fc_start_unix,fc_end_unix,ack_start_unix,ack_end_unix,ack_latency_s,eff_start_along_m,eff_end_along_m,mean_speed_mps,max_speed_err_mps,max_cross_track_m,max_alt_err_m,max_heading_err_deg,max_course_err_deg,worst_fix,traj_csv';
     const rows = report.passes.map((p) => [p.passNo, p.valid, JSON.stringify(p.reasons.join('; ')), p.startUnix, p.endUnix, p.fcStartUnix, p.fcEndUnix,
       p.ackStartUnix, p.ackEndUnix, p.ackOnLatencyS, p.effStartAlongM, p.effEndAlongM, p.meanSpeedMps, p.maxSpeedErrMps, p.maxCrossTrackM,
-      p.maxAltErrM, p.maxHeadingErrDeg, p.worstFix, p.trajCsv].map((v) => v ?? '').join(','));
+      p.maxAltErrM, p.maxHeadingErrDeg, p.maxCourseErrDeg, p.worstFix, p.trajCsv].map((v) => v ?? '').join(','));
     return [head, ...rows].join('\n');
   }, [report.passes]);
   return <>
@@ -571,7 +572,7 @@ function PassTable({ report }: { report: SarReport }) {
         <td>{localTime(p.startUnix)}{p.fcStartUnix !== null && <small>FC {p.fcStartUnix.toFixed(3)}</small>}</td>
         <td>{p.ackOnLatencyS === null ? '—' : `${p.ackOnLatencyS.toFixed(2)} s`}{p.capLeadS ? <small>{t('sar.log.leadUsed', { s: p.capLeadS.toFixed(2) })}</small> : null}</td>
         <td>{fmt(p.meanSpeedMps, 2)} m/s</td>
-        <td>{t('sar.log.maxErrValue', { v: fmt(p.maxSpeedErrMps, 2), x: fmt(p.maxCrossTrackM, 2), z: fmt(p.maxAltErrM, 2), h: fmt(p.maxHeadingErrDeg, 1) })}</td>
+        <td>{t('sar.log.maxErrValue', { v: fmt(p.maxSpeedErrMps, 2), x: fmt(p.maxCrossTrackM, 2), z: fmt(p.maxAltErrM, 2), h: fmt(p.maxHeadingErrDeg, 1), c: fmt(p.maxCourseErrDeg, 1) })}</td>
         <td className={p.worstFix !== null && p.worstFix !== 'RTK_FIXED' ? 'sar-bad' : ''}>{p.worstFix ?? '—'}</td>
       </tr>)}</tbody>
     </table>

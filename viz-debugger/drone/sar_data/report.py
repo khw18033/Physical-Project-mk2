@@ -75,7 +75,7 @@ def flight_report(flight_dir: Path, radar_passes: list[dict] | None = None) -> s
             f"<td>{'✓ 유효' if ok else '✕ 무효'}<small>{esc(' · '.join(p.get('reasons') or []))}</small></td>"
             f"<td>{f(p.get('eff_start_along_m'),1)} ~ {f(p.get('eff_end_along_m'),1)} m</td>"
             f"<td>{f(p.get('mean_speed_mps'))} m/s</td><td>{f(p.get('max_speed_err_mps'))}</td><td>{f(p.get('max_cross_track_m'))}</td>"
-            f"<td>{f(p.get('max_alt_err_m'))}</td><td>{f(p.get('max_heading_err_deg'),1)}°</td><td>{esc(str(p.get('worst_fix') or '—'))}</td>"
+            f"<td>{f(p.get('max_alt_err_m'))}</td><td>{f(p.get('max_heading_err_deg'),1)}°<small>진행 {f(p.get('max_course_err_deg'),1)}°</small></td><td>{esc(str(p.get('worst_fix') or '—'))}</td>"
             f"<td>{f(p.get('ack_on_latency_s'))} s<small>미리 켬 {f(p.get('cap_lead_s'))} s</small></td>"
             f"<td>{len(radar.get('radar_files', []))}개</td>"
             f"<td><small>FC {f(p.get('fc_start_unix'),3)}<br>~ {f(p.get('fc_end_unix'),3)}</small></td></tr>")
@@ -114,9 +114,9 @@ ul{{margin:0;padding-left:18px}} .wrap{{overflow-x:auto}}
  <div><small>고도 · 속도</small><b>{f(plan.get('alt_m'),0)} m · {f(plan.get('speed_mps'),1)} m/s</b></div>
  <div><small>시계 (파이 − FC GPS)</small><b>{f(clock,3)} s</b></div>
 </div></section>
-<section class="wrap"><h2>패스</h2><table><thead><tr><th>#</th><th>판정</th><th>실제 기록 구간</th><th>평균 속도</th><th>속도 오차</th><th>횡오차</th><th>고도 오차</th><th>yaw</th><th>RTK 최저</th><th>레이더 지연</th><th>레이더 파일</th><th>FC GPS 시각</th></tr></thead>
+<section class="wrap"><h2>패스</h2><table><thead><tr><th>#</th><th>판정</th><th>실제 기록 구간</th><th>평균 속도</th><th>속도 오차</th><th>횡오차</th><th>고도 오차</th><th>yaw · 진행 방향</th><th>RTK 최저</th><th>레이더 지연</th><th>레이더 파일</th><th>FC GPS 시각</th></tr></thead>
 <tbody>{''.join(rows)}</tbody></table>
-<small>품질 기준: 횡 {f(plan.get('q_cross_m'),1)} m · 속도 {f(plan.get('q_speed_mps'))} m/s · 고도 {f(plan.get('q_alt_m'),1)} m · yaw {f(plan.get('q_heading_deg'),1)}° · 기록 끝 여유 {f(plan.get('q_edge_m'),1)} m</small></section>
+<small>품질 기준: 횡 {f(plan.get('q_cross_m'),1)} m · 속도 {f(plan.get('q_speed_mps'))} m/s · 고도 {f(plan.get('q_alt_m'),1)} m · yaw {f(plan.get('q_heading_deg'),1)}° · 진행 방향 {f(plan.get('q_course_deg'),1)}° · 기록 끝 여유 {f(plan.get('q_edge_m'),1)} m</small></section>
 <section><h2>궤적</h2>{''.join(figs) or '<p>궤적 파일이 없습니다</p>'}</section>
 <section><h2>기준 · 주의</h2><ul>
 <li>캡처 구간 시작 {f(plan.get('start_lat'),7)}, {f(plan.get('start_lon'),7)} → 끝 {f(plan.get('end_lat'),7)}, {f(plan.get('end_lon'),7)}</li>

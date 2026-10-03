@@ -43,6 +43,7 @@ function passRecord(raw: unknown): SarPassRecord | null {
     maxCrossTrackM: num(r.max_cross_track_m),
     maxAltErrM: num(r.max_alt_err_m),
     maxHeadingErrDeg: num(r.max_heading_err_deg),
+    maxCourseErrDeg: num(r.max_course_err_deg),
     alongAtStartM: num(r.along_at_start_m),
     fcStartUnix: num(r.fc_start_unix),
     fcEndUnix: num(r.fc_end_unix),

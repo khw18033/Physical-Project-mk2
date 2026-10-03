@@ -29,6 +29,8 @@ export type SarPassRecord = {
   maxCrossTrackM: number | null;
   maxAltErrM: number | null;
   maxHeadingErrDeg: number | null;
+  /** 실제 진행 방향 − 선 방위 (0.5 s 평균). 옛 드론은 안 보낸다 → null */
+  maxCourseErrDeg: number | null;
   alongAtStartM: number | null;
   /** 같은 순간의 FC(GPS) 시각 — `.ulg` 와 맞출 때 쓴다. 시계 오차를 몰랐으면 null. */
   fcStartUnix: number | null;
