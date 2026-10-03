@@ -1148,3 +1148,21 @@ button.robot-resume{padding:6px 12px;border:1px solid #2f9e5f;border-radius:var(
 /* 모델을 여럿 고르면 아래로 쌓지 않고 가로로 선다 — 한 칸에 영상 줄이 하나여야 높이 계산이 맞는다. */
 .all-cams .vision-grid{grid-template-columns:none;grid-auto-flow:column;grid-auto-columns:minmax(0,1fr)}
 .all-cams__without{margin:0;color:#6a7686;font-size:13px}
+
+/* 261003 — Unity 상공 카메라 (TopCamView.tsx) */
+.topcam{display:flex;flex-direction:column;gap:6px}
+.topcam__grid{display:grid;gap:8px;grid-template-columns:repeat(2,minmax(0,1fr))}
+.topcam__grid--1{grid-template-columns:minmax(0,1fr)}
+.topcam__pane{margin:0;display:flex;flex-direction:column;gap:4px;min-width:0}
+.topcam__cap{display:flex;gap:8px;align-items:baseline;flex-wrap:wrap;font-size:12px}
+.topcam__img{width:100%;aspect-ratio:4/3;object-fit:contain;background:#11161d;border-radius:var(--radius-xs);display:block;user-select:none;touch-action:none}
+.topcam__img--live{cursor:grab}
+.topcam__img--live:active{cursor:grabbing}
+.topcam--zoom .topcam__grid--1 .topcam__img{max-height:70vh}
+.topcam--zoom .topcam__grid--2 .topcam__img{max-height:62vh}
+.topcam__bar,.topcam__pick{display:flex;flex-wrap:wrap;gap:4px;align-items:center}
+.topcam__bar button,.topcam__pick button{padding:4px 9px;border-radius:6px;border:1px solid #c9d2e3;background:#fff;cursor:pointer;font-size:12px}
+.topcam__bar button.is-on,.topcam__pick button.is-on{background:#3b63c4;border-color:#3b63c4;color:#fff}
+.topcam__height{display:flex;align-items:center;gap:6px;font-size:12px;margin-left:6px}
+.topcam__height input{width:120px}
+.view-node[style*="--card-h"] .topcam__img{max-height:calc(var(--card-h) - 140px)}
