@@ -1,6 +1,6 @@
 """노트북 쪽 미러 — Pi 의 데이터 서버에서 끝난 패스를 가져와 같은 모양으로 둔다.
 
-    python -m sar_data --flights ~/sar_mirror --mirror http://<pi>:8765 \\
+    python -m sar_data --flights ~/sar_mirror --mirror http://<pi>:8766 \\
         --radar-json radar.json --adapter sar_image.adapters:fmcw_dechirped_npz --auto-image
 
 패스가 끝나고(레이더가 파일을 옮길 시간 POST_S 를 더해) 끝난 것만 `bundle.zip?pass=N&raw=1` 로 받는다.

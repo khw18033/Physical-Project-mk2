@@ -88,12 +88,12 @@ const MARK: Record<Level, string> = { good: '✓', warn: '!', bad: '✕', unknow
 
 // ── 데이터 서버 (Pi 의 drone/sar_data) ──────────────────────────────────────
 
-/** 연결 관리에 적은 주소, 없으면 드론 브로커 주소의 호스트 + :8765. */
+/** 연결 관리에 적은 주소, 없으면 드론 브로커 주소의 호스트 + :8766. */
 export function dataServerUrl(): string {
   const set = connectionAddress('drone-data', 'http').trim();
   if (set !== '') return set.replace(/\/+$/, '');
   for (const ws of physicalWsUrls()) {
-    try { return `http://${new URL(ws).hostname}:8765`; } catch { /* 다음 줄 */ }
+    try { return `http://${new URL(ws).hostname}:8766`; } catch { /* 다음 줄 */ }
   }
   return '';
 }

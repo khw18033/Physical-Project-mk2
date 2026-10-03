@@ -380,8 +380,8 @@ Pi 는 비행 중 50 Hz 제어를 하므로 영상은 **노트북**에서 만든
 끝난 패스(궤적 + 레이더 원시)를 가져와 영상을 만들고, 화면은 노트북 서버를 본다.
 
 ```bash
-# 노트북 — 화면의 ⇄ 연결 관리 → 「드론 데이터 서버」를 http://127.0.0.1:8765 로
-python -m sar_data --flights ~/sar_mirror --mirror http://<Pi IP>:8765 --bind 127.0.0.1 \
+# 노트북 — 화면의 ⇄ 연결 관리 → 「드론 데이터 서버」를 http://127.0.0.1:8766 로
+python -m sar_data --flights ~/sar_mirror --mirror http://<Pi IP>:8766 --bind 127.0.0.1 \
     --radar-json radar.json --adapter sar_image.adapters:fmcw_dechirped_npz \
     --reflectors reflectors.csv --auto-image
 ```
@@ -439,11 +439,11 @@ RTK 가 주는 위치는 **GPS 안테나**(또는 FC)의 위치다. 영상에 �
 영상은 **노트북**에서 만든다. Pi 는 비행 중 50 Hz 로 기체를 제어하고 있어, 거기서 계산하면 제어 주기가 흔들린다.
 
 ```
-Pi   python -m sar_data --flights ~/sar_logs --radar ~/cansar_data            (지금처럼 — 8765)
+Pi   python -m sar_data --flights ~/sar_logs --radar ~/cansar_data            (지금처럼 — 8766)
           │  핫스팟
-노트북 python -m sar_data --flights ~/sar_mirror --mirror http://<Pi IP>:8765 \
-          --radar-json radar.json --adapter <레이더 어댑터> [--reflectors reflectors.csv] --auto-image --port 8765
-화면  연결 관리 → 「드론 데이터 서버」 = http://127.0.0.1:8765
+노트북 python -m sar_data --flights ~/sar_mirror --mirror http://<Pi IP>:8766 \
+          --radar-json radar.json --adapter <레이더 어댑터> [--reflectors reflectors.csv] --auto-image --port 8766
+화면  연결 관리 → 「드론 데이터 서버」 = http://127.0.0.1:8766
 ```
 
 1. 노트북 서버가 Pi 에서 **끝난 패스**만 가져온다. 레이더가 파일을 옮길 시간 20 s 를 기다린 뒤, 궤적 · 메타 · 레이더 원시를 받는다.

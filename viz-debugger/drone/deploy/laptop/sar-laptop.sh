@@ -7,7 +7,7 @@ PI="${PI:-192.168.137.2}"
 BASE_COM="${BASE_COM:-}"                  # 예: /dev/ttyUSB0 (비우면 RTK 건너뜀)
 BASE_BAUD="${BASE_BAUD:-115200}"
 RTCM_PORT="${RTCM_PORT:-14660}"
-PORT="${PORT:-8765}"
+PORT="${PORT:-8766}"
 MIRROR_DIR="${MIRROR_DIR:-$HOME/sar_mirror}"
 TILE_DIR="${TILE_DIR:-$HOME/sar_tiles}"
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -34,7 +34,7 @@ if [ -n "$BASE_COM" ]; then
   "$VENV/bin/python" -m rtk_relay.base_sender --port "$BASE_COM" --baud "$BASE_BAUD" --to "$PI:$RTCM_PORT" &
   pids+=($!)
 fi
-"$VENV/bin/python" -m sar_data --flights "$MIRROR_DIR" --mirror "http://$PI:8765" --bind 127.0.0.1 --port "$PORT" \
+"$VENV/bin/python" -m sar_data --flights "$MIRROR_DIR" --mirror "http://$PI:8766" --bind 127.0.0.1 --port "$PORT" \
   --radar-json "$RADAR_JSON" --adapter "$ADAPTER" --auto-image --tile-cache "$TILE_DIR" "${extra[@]}" &
 pids+=($!)
 echo "켰다 — 화면의 「연결 관리 → 드론 데이터 서버」를 http://127.0.0.1:$PORT 로. Ctrl-C 로 끈다."

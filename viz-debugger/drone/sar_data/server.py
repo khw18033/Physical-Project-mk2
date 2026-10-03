@@ -1,6 +1,6 @@
 """SAR 비행 데이터 서버 (Pi) — 읽기 전용. 화면에서 버튼 한 번으로 받게 한다.
 
-  python -m sar_data --flights /home/physical/sar_logs --radar /home/physical/cansar_data --port 8765
+  python -m sar_data --flights /home/physical/sar_logs --radar /home/physical/cansar_data --port 8766
 
   GET /api/health                              살아 있나 · 디스크 여유
   GET /api/flights                             비행 목록 (패스 · 유효 여부 · 궤적/메타 파일 · 맞는 레이더 원시 파일)
@@ -408,10 +408,10 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--flights", type=Path, default=Path("sar_logs"), help="sar_pass --log-dir 와 같은 폴더")
     p.add_argument("--radar", type=Path, help="cansar 가 원시 데이터를 쓰는 폴더")
     p.add_argument("--radar-glob", default="**/*", help="레이더 파일 고르기 (예: '*.bin')")
-    p.add_argument("--port", type=int, default=8765)
+    p.add_argument("--port", type=int, default=8766)
     p.add_argument("--bind", default="0.0.0.0")
     g = p.add_argument_group("영상 (노트북)")
-    g.add_argument("--mirror", help="Pi 데이터 서버 주소 (예: http://192.168.137.2:8765) — 끝난 패스를 가져온다")
+    g.add_argument("--mirror", help="Pi 데이터 서버 주소 (예: http://192.168.137.2:8766) — 끝난 패스를 가져온다")
     g.add_argument("--radar-json", type=Path, help="레이더 사양 · 레버암 (sar_image/example_radar.json 모양)")
     g.add_argument("--adapter", help="레이더 원시 → 거리 압축 (예: sar_image.adapters:fmcw_dechirped_npz)")
     g.add_argument("--reflectors", type=Path, help="화면에서 내려받은 reflectors.csv — 영상 요청에 리플렉터가 없을 때 쓴다")

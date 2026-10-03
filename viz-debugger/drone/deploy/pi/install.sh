@@ -65,8 +65,8 @@ status() {
   else warn "드론 에이전트 연동 안 함 (--with-agent)"; fi
   step "끝점"
   local port; port="$(env_get SAR_DATA_PORT)"
-  if command -v curl >/dev/null && curl -s -m 2 "http://127.0.0.1:${port:-8765}/api/health" >/dev/null; then ok "데이터 서버 :${port:-8765}"
-  else warn "데이터 서버 :${port:-8765} 응답 없음"; fi
+  if command -v curl >/dev/null && curl -s -m 2 "http://127.0.0.1:${port:-8766}/api/health" >/dev/null; then ok "데이터 서버 :${port:-8766}"
+  else warn "데이터 서버 :${port:-8766} 응답 없음"; fi
   if systemctl is-active --quiet mavlink-router 2>/dev/null; then ok "mavlink-router 동작 중"; else warn "mavlink-router 가 안 보인다 — FC 연결 확인"; fi
   local ld; ld="$(env_get SAR_LOG_DIR)"
   [ -d "$ld" ] && ok "비행 기록 폴더 $ld ($(find "$ld" -maxdepth 1 -name 'flight_*' 2>/dev/null | wc -l)개 비행)" || warn "비행 기록 폴더 $ld 없음"

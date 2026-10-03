@@ -352,7 +352,7 @@ export const CONNECTION_TARGETS: readonly ConnectionTarget[] = [
   {
     /**
      * 261002 — **드론 SAR 비행 데이터 서버** (드론 파트 · `drone/sar_data`). Pi 에서 도는 읽기 전용 HTTP 서버로,
-     * 패스마다 궤적 CSV · 메타 JSON · 레이더 원시 파일을 내려준다. 비워 두면 드론 브로커 주소의 호스트에 :8765 를 붙인다.
+     * 패스마다 궤적 CSV · 메타 JSON · 레이더 원시 파일을 내려준다. 비워 두면 드론 브로커 주소의 호스트에 :8766 를 붙인다.
      */
     id: 'drone-data',
     labelKey: 'conn.target.droneData',
