@@ -1,0 +1,36 @@
+# 드론 파트 자동 검사 — Junho_drone 브랜치에 푸시할 때만 돈다(다른 브랜치에는 영향 없음).
+#   1) 드론 파이썬 시험 (viz-debugger/drone, PX4 없이 시뮬레이터로)
+#   2) 화면 타입 검사 + 드론 쪽 규칙 검사(verify:sar 등)
+name: drone
+on:
+  push:
+    branches: [Junho_drone]
+    paths: ["viz-debugger/**", ".github/workflows/drone.yml"]
+  workflow_dispatch:
+
+jobs:
+  python:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults: { run: { working-directory: viz-debugger/drone } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12", cache: pip, cache-dependency-path: viz-debugger/drone/pyproject.toml }
+      - run: pip install -e ".[test,image,base]"
+      - run: python -m pytest -q
+
+  web:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults: { run: { working-directory: viz-debugger } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: "22", cache: npm, cache-dependency-path: viz-debugger/package-lock.json }
+      - run: npm ci
+      - run: npx tsc -p . --noEmit
+      - run: |
+          for s in verify:sar verify:view-nodes verify:i18n-no-frozen verify:no-raw-korean verify:dep-rules verify:command-through-tracker; do
+            echo "== $s"; npm run -s "$s"
+          done
