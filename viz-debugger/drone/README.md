@@ -359,6 +359,16 @@ python -m sar_data --flights ~/sar_mirror --mirror http://<Pi IP>:8765 --bind 12
 - 레이더 없이 전체 흐름 시험: `sar_image/fakeraw.py` 가 궤적에 맞춘 FMCW 가짜 원시를 쓴다.
 - **레이더 팀이 할 일은 어댑터 하나**다(`sar_image/adapters.py` 규약): 원시 파일 → (펄스 시각 t_fc, 거리 축, 거리 압축 복소).
 
+### 화면에서 보는 것 (드론 파트)
+
+| 화면 | 무엇을 보나 |
+|---|---|
+| 상태판 | 큰 위성 지도(궤적 · 캡처 구간 빨강 · **지금 빔 자국** · 빔 안 리플렉터 빛남) · SAR 임무 띠(캡처 중 빨간 불) · 자세 · 나침반(+바람) · 그래프 · GPS/RTK · 센서 · 진동 · 배터리 셀 · FC 메시지 |
+| SAR 패스 — 계획 | 선 고르기 · 리플렉터 판정 · 안테나 · 레버암 · **바람 → 빔 영향** · **배터리 예산** |
+| SAR 패스 — 결과 | 패스 카드(유효/무효 · 사유) · **자세히 보기 · 재생**(지표별 차트 + 지도 재생) · 영상(빠른 확인 · 리플렉터 판정 · 선 전체 · 지도 겹침 · KMZ) · **패스 비교** · `.ulg` 유무 · ZIP |
+
+스크린샷: 저장소 `screenshots/18~23`.
+
 ### 레버암 — 안테나 장착 위치 (`sar_image/attitude.py`)
 
 RTK 가 주는 위치는 **GPS 안테나**(또는 FC)의 위치다. 영상에 필요한 것은 **레이더 안테나 위상중심**의 위치다.
@@ -540,11 +550,13 @@ HW 담당과 확인할 것:
 | `drone/sar_pass/mavsdk_vehicle.py` | PX4 실기체(MAVSDK) |
 | `drone/sar_pass/controller.py` | 에이전트가 부르는 `sar_start` / `sar_abort` 처리 |
 | `drone/sar_pass/agent.py` | 드론 에이전트(DroneNode)에 SAR 명령을 덧붙여 실행 — HW 파일 무수정 |
+| `drone/sar_pass/ulog.py` | 시동이 꺼지면 FC `.ulg` 를 그 비행 폴더로 (`sar_pass ulog --watch`) |
 | `drone/sar_pass/status.py` | 화면으로 상태 보고(MQTT) |
 | `drone/sar_pass/check.py` | 비행 전 점검(`python -m sar_pass check`) |
 | `drone/rtk_relay/base_sender.py` | 노트북: 베이스 RTCM3 → UDP |
 | `drone/rtk_relay/fc_injector.py` | Pi: UDP → GPS_RTCM_DATA → FC, 상태 MQTT `…/rtcm` |
 | `drone/sar_image/` | 리플렉터 커버리지 · 예상 거리 이력 · 백프로젝션(32비트 고속) · 자동 초점 · 레버암 보정 · 패스 영상 파이프라인 · 가짜 원시 · 레이더 어댑터 규약 |
+| `drone/sar_image/quicklook.py` · `compare.py` | 거리-시간 빠른 확인 · 레이더 시각 오프셋 추정 / 패스 비교(기준선 · 일치도) |
 | `drone/sar_data/` | 비행 데이터 서버 — Pi: 위치 · 레이더 원시 ZIP / 노트북: `--mirror` 로 가져와 패스별 영상(`imaging.py` · `mirror.py`) |
 | `drone/sitl/` | PX4 SITL 비행 스크립트 · 흉내 레이더 |
 | `drone/fc_watch/` | Pi: FC MAVLink → 상태판 텔레메트리 `…/fcx` (수신 전용) · 시험용 가짜 FC |
