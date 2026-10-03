@@ -39,6 +39,24 @@ def _throttled() -> dict | None:
             "since_boot": bool(v & 0xF0000)}
 
 
+def _eth(iface: str | None = None) -> dict | None:
+    """유선(SDR) 포트 — 연결 속도(Mb/s) · 수신 오류 · 버려진 패킷. 이더넷이 없으면 None."""
+    base = Path("/sys/class/net")
+    names = [iface] if iface else sorted(n.name for n in base.glob("e*")) if base.is_dir() else []
+    for n in names:
+        d = base / n
+        try:
+            if (d / "operstate").read_text().strip() != "up":
+                return {"iface": n, "up": False, "speed_mbps": None, "rx_errors": None, "rx_dropped": None}
+            speed = int((d / "speed").read_text().strip())
+            st = d / "statistics"
+            return {"iface": n, "up": True, "speed_mbps": speed, "rx_errors": int((st / "rx_errors").read_text()),
+                    "rx_dropped": int((st / "rx_dropped").read_text())}
+        except (OSError, ValueError):
+            continue
+    return None
+
+
 def snapshot(log_dir: str | os.PathLike | None = None) -> dict:
     target = Path(log_dir) if log_dir and Path(log_dir).exists() else Path("/")
     du = shutil.disk_usage(target)
@@ -47,7 +65,8 @@ def snapshot(log_dir: str | os.PathLike | None = None) -> dict:
     except OSError:
         load1 = None
     s = {"cpu_temp_c": _cpu_temp(), "throttled": _throttled(), "load1": load1,
-         "disk_free_gb": round(du.free / 1e9, 1), "disk_path": str(target), "time": time.time()}
+         "disk_free_gb": round(du.free / 1e9, 1), "disk_path": str(target), "time": time.time(),
+         "eth": _eth(os.environ.get("SAR_SDR_IFACE")) if os.environ.get("SAR_SDR_HOST") else None}
     s["level"] = level(s)
     return s
 
@@ -57,6 +76,9 @@ def level(s: dict) -> str:
     t, th, disk = s.get("cpu_temp_c"), s.get("throttled") or {}, s.get("disk_free_gb")
     if (t is not None and t >= TEMP_BAD_C) or th.get("now") or th.get("undervolt") or (disk is not None and disk < DISK_BAD_GB):
         return "bad"
+    eth = s.get("eth") or {}
+    if eth and (not eth.get("up") or (eth.get("speed_mbps") or 0) < 1000):
+        return "warn"                                   # SDR 유선이 끊겼거나 기가비트가 아니다(케이블 · 포트)
     if (t is not None and t >= TEMP_WARN_C) or th.get("since_boot") or (disk is not None and disk < DISK_WARN_GB):
         return "warn"
     return "ok"

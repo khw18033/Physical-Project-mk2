@@ -34,7 +34,9 @@ export type Fcx = {
   wind: { speedMps: number | null; fromDeg: number | null; varH: number | null } | null;
   /** 비행 컴퓨터(Pi) 자체 — 온도 · 스로틀링 · 부하 · 디스크. level 은 드론 쪽 fc_watch/pihealth.py 가 정한다 */
   companion: { cpuTempC: number | null; throttledNow: boolean; throttledEver: boolean; undervolt: boolean; load1: number | null;
-    diskFreeGb: number | null; level: 'ok' | 'warn' | 'bad' | null } | null;
+    diskFreeGb: number | null; level: 'ok' | 'warn' | 'bad' | null;
+    /** SDR 유선(기가비트 이더넷) — SAR_SDR_HOST 를 넣었을 때만 */
+    eth: { up: boolean; speedMbps: number | null; rxErrors: number | null } | null } | null;
   clockOffsetS: number | null;
   console: readonly FcxConsoleLine[];
   deviceTime: number | null;

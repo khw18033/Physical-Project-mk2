@@ -70,7 +70,8 @@ export function parseFcx(body: Obj, topic = ''): Fcx | null {
       const th = obj(c.throttled);
       const lv = c.level === 'ok' || c.level === 'warn' || c.level === 'bad' ? c.level : null;
       return { cpuTempC: num(c.cpu_temp_c), throttledNow: th?.now === true, throttledEver: th?.since_boot === true, undervolt: th?.undervolt === true,
-        load1: num(c.load1), diskFreeGb: num(c.disk_free_gb), level: lv };
+        load1: num(c.load1), diskFreeGb: num(c.disk_free_gb), level: lv,
+        eth: obj(c.eth) ? { up: obj(c.eth)!.up === true, speedMbps: num(obj(c.eth)!.speed_mbps), rxErrors: num(obj(c.eth)!.rx_errors) } : null };
     })(),
     wind: obj(body.wind) && { speedMps: num(obj(body.wind)!.speed_mps), fromDeg: num(obj(body.wind)!.from_deg), varH: num(obj(body.wind)!.var_h) },
     clockOffsetS: num(body.clock_offset_s),

@@ -2876,6 +2876,8 @@ export const en: Record<string, string> = {
   'sar.simple.on': 'Simple',
   'sar.simple.off': 'Detailed',
   'sar.simple.allGood': 'All {n} checks passed',
+  'dash.piEth': 'SDR link {mbps} Mb/s · rx errors {err}',
+  'dash.piEthDown': 'SDR link down',
   'img.make': 'Make image',
   'img.remake': 'Remake',
   'img.close': 'Close',

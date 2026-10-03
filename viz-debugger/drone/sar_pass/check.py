@@ -125,6 +125,31 @@ async def check_fc(address: str, wait_s: float = 8.0) -> list[Item]:
     return out
 
 
+def check_sdr(host: str, port: int = 30431) -> list[Item]:
+    """SDR(AD9361) 유선 — 기가비트로 붙었나 · 보드가 응답하나(iiod 기본 30431)."""
+    import socket
+
+    from fc_watch.pihealth import _eth
+
+    out = []
+    eth = _eth(os.environ.get("SAR_SDR_IFACE"))
+    if eth is None:
+        out.append(Item("!", "SDR 유선", "유선 포트를 못 찾았다"))
+    elif not eth["up"]:
+        out.append(Item("✗", "SDR 유선", f"{eth['iface']} 연결 안 됨 — 케이블 · SDR 전원"))
+    else:
+        ok = (eth["speed_mbps"] or 0) >= 1000
+        out.append(Item("✓" if ok else "!", "SDR 유선",
+                        f"{eth['iface']} {eth['speed_mbps']} Mb/s · 수신 오류 {eth['rx_errors']} · 버림 {eth['rx_dropped']}"
+                        + ("" if ok else " — 기가비트가 아니다. 케이블(Cat5e 이상) · 포트를 확인")))
+    try:
+        with socket.create_connection((host, port), timeout=2):
+            out.append(Item("✓", "SDR 응답", f"{host}:{port}"))
+    except OSError as exc:
+        out.append(Item("✗", "SDR 응답", f"{host}:{port} 에 못 붙는다 ({exc}) — 보드 IP · Pi 유선 주소 대역 확인"))
+    return out
+
+
 def check_mqtt(host: str, port: int) -> list[Item]:
     import paho.mqtt.client as mqtt
 
@@ -143,6 +168,8 @@ async def run_checks(cap: Path, connect: str | None, mqtt_addr: str | None, serv
     if mqtt_addr:
         host, _, port = mqtt_addr.partition(":")
         items += check_mqtt(host, int(port or 1883))
+    if os.environ.get("SAR_SDR_HOST"):
+        items += check_sdr(os.environ["SAR_SDR_HOST"], int(os.environ.get("SAR_SDR_PORT", "30431")))
     if connect:
         items += await check_fc(connect)
     return items

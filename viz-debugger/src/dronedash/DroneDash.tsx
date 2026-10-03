@@ -132,7 +132,8 @@ function StatusBar({ v, compact }: { v: View; compact?: boolean }) {
           radarRep.tempC === null ? null : `${radarRep.tempC.toFixed(0)}°C`].filter(Boolean).join(' · ')} />;
     })()}
     {f?.companion && <Chip level={f.companion.level === 'ok' ? 'good' : f.companion.level === 'warn' ? 'warn' : f.companion.level === 'bad' ? 'bad' : 'unknown'}
-      label={t('dash.pi')} title={t('dash.piTitle', { load: fmt(f.companion.load1, 2), disk: fmt(f.companion.diskFreeGb, 1) })}
+      label={t('dash.pi')} title={t('dash.piTitle', { load: fmt(f.companion.load1, 2), disk: fmt(f.companion.diskFreeGb, 1) })
+        + (f.companion.eth ? ' · ' + (f.companion.eth.up ? t('dash.piEth', { mbps: fmt(f.companion.eth.speedMbps, 0), err: fmt(f.companion.eth.rxErrors, 0) }) : t('dash.piEthDown')) : '')}
       value={[f.companion.cpuTempC === null ? null : `${fmt(f.companion.cpuTempC, 0)}°C`,
         f.companion.throttledNow ? t('dash.piThrottle') : null, f.companion.undervolt ? t('dash.piUndervolt') : null,
         f.companion.diskFreeGb !== null && f.companion.diskFreeGb < 5 ? t('dash.piDisk', { gb: fmt(f.companion.diskFreeGb, 1) }) : null]

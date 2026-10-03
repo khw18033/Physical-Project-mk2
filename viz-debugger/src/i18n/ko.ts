@@ -2900,6 +2900,8 @@ export const ko: Record<string, string> = {
   'sar.simple.on': '간단',
   'sar.simple.off': '자세히',
   'sar.simple.allGood': '점검 {n}개 모두 통과',
+  'dash.piEth': 'SDR 유선 {mbps} Mb/s · 수신 오류 {err}',
+  'dash.piEthDown': 'SDR 유선 끊김',
   'img.make': '영상 만들기',
   'img.remake': '다시 만들기',
   'img.close': '닫기',

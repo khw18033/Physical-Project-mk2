@@ -78,7 +78,7 @@ def load(raw_path: str, radar) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
 
 ## 6. 기구 · 전기 (레이더 팀 + 기구)
 
-무게 ❓ g · 소비 전력 ❓ W · 전원 전압 ❓ V · Pi 와 연결(USB · 이더넷) ❓ · 레이더를 켰을 때 GPS 위성 수 · RTK 가 떨어지는지는
+무게 ❓ g · 소비 전력 ❓ W · 전원 전압 ❓ V · Pi 와 연결 = 기가비트 이더넷 · 레이더를 켰을 때 GPS 위성 수 · RTK 가 떨어지는지는
 드론 파트가 지상 시험으로 잽니다(`python -m sar_pass emi`).
 
 ## 7. SDR (Zynq-7020 + AD9361) 일 때
@@ -91,11 +91,20 @@ def load(raw_path: str, radar) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
 |---|---|---|
 | 보드 이름 · 펌웨어 | ❓ (Pluto 계열 libiio / UHD 계열) | 시각 표시(time_spec) 지원 여부가 갈린다 |
 | **PPS · 10 MHz 기준 입력** 단자 | ❓ 있음 / 없음 | 있으면 GPS PPS 를 보드에 직접 — 표본마다 GPS 시각 |
-| Pi 와 연결 | ❓ 기가비트 이더넷 / USB 2 | 20 MS/s 복소 16 비트면 80 MB/s — USB 2 는 빠듯하다 |
+| Pi 와 연결 | **기가비트 이더넷** (확정) · 보드 IP ❓ | 실효 약 110 MB/s — 20 MS/s 복소 16 비트(80 MB/s)까지 여유. 30 MS/s 이상은 FPGA 에서 자르거나 줄인다 |
 | 중심 주파수 · 대역폭 · 표본화 | ❓ GHz · ❓ MHz · ❓ MS/s | AD9361 은 70 MHz–6 GHz, 순간 대역 최대 56 MHz |
 | 파형 | ❓ 처프 길이 · PRF · 업/다운 · 송수신 안테나 분리 | 정합 필터 기준 신호 |
 | 기록 방식 | ❓ 연속(stream) / 펄스마다 잘라서(gated, FPGA) | gated 면 데이터가 수백 배 준다 |
 | 기록 위치 | ❓ 보드 SD · Pi SSD | SD 카드는 수십 MB/s 를 오래 못 버틴다 |
+
+### 기가비트 이더넷 연결 — 맞춰 둘 것
+
+- Pi 5 의 유선 포트는 SDR 전용으로 쓴다(지상국은 핫스팟 WiFi). 두 망의 주소 대역이 겹치지 않게 한다
+  (예: SDR `192.168.2.1`, Pi 유선 `192.168.2.10/24`, 핫스팟은 다른 대역). 유선 쪽에는 기본 경로(gateway)를 두지 않는다.
+- Pi 설정 `/etc/sar-drone.env` 에 `SAR_SDR_HOST=192.168.2.1` 을 넣으면 `python -m sar_pass check` 가 연결 속도(1000 Mb/s)와
+  SDR 응답(iiod 30431 또는 `SAR_SDR_PORT`)을 점검하고, 상태판 「Pi」 칩 설명에 유선 속도 · 오류가 나온다.
+- **Pi 저장장치가 병목**: SD 카드는 오래 쓰면 수십 MB/s 로 떨어진다. 80 MB/s 로 받으면 NVMe(Pi 5 HAT) 나 USB 3 SSD 에 기록한다.
+  또는 SDR 보드 쪽 SD 에 기록하고 Pi 는 줄인 것(거리 압축)만 받는다.
 
 ### 시각 — 표본 수가 시계다
 
