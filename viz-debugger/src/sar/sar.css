@@ -233,3 +233,9 @@
 .sar-pass-dl{display:inline-flex;flex-wrap:wrap;gap:6px;margin-left:auto}
 .sar-pass-open{border-top:1px dashed #e1e5eb;padding-top:8px;display:grid;gap:8px}
 .sar-table th{white-space:nowrap}
+/* 간단 / 자세히 */
+.sar-modebar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between}
+.sar-modebar .sar-lead{flex:1 1 320px;margin:0}
+.sar-modebar .sar-seg button{min-width:72px}
+.sar-guide.is-simple .sar-next{font-size:17px;padding:14px 16px}
+.sar-guide.is-simple .sar-actions button{font-size:18px;padding:14px 26px}

@@ -212,6 +212,9 @@ export function SarPassZoom({ deviceId: pinned, readOnly = false }: { deviceId?:
   const [outcome, setOutcome] = useState<{ action: 'start' | 'abort'; result: SarIssueOutcome } | null>(null);
   const data = useDataServer(true);
   const [tileMsg, setTileMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  // 간단 모드 — 현장에서 지금 할 일 · 지도 · 큰 버튼 · 진행 · 결과만. 리플렉터 · 안테나 · 고급 설정은 숨긴다(값은 그대로 쓴다)
+  const [simple, setSimpleState] = useState<boolean>(() => { try { return localStorage.getItem(SIMPLE_KEY) === '1'; } catch { return false; } });
+  const setSimple = (v: boolean) => { setSimpleState(v); try { localStorage.setItem(SIMPLE_KEY, v ? '1' : '0'); } catch { /* */ } };
   // 현장(인터넷 없음)용 — 지금 보이는 구역을 노트북 데이터 서버에 받아 둔다 (drone/sar_data/tiles.py)
   const prefetchTiles = async (box: { s: number; w: number; n: number; e: number }, z: number) => {
     const base = dataServerUrl();
@@ -372,12 +375,19 @@ export function SarPassZoom({ deviceId: pinned, readOnly = false }: { deviceId?:
         onChange={(e) => setAntenna({ ...antenna, [key]: e.target.value === '' ? null : Number(e.target.value) })} />
       <small>{unit}</small></label>;
 
-  return <div className="sar-zoom sar-guide">
-    <p className="sar-lead">{t('sar.lead')}</p>
+  return <div className={`sar-zoom sar-guide${simple ? ' is-simple' : ''}`}>
+    <div className="sar-modebar">
+      {!simple && <p className="sar-lead">{t('sar.lead')}</p>}
+      <div className="sar-seg" role="group" aria-label={t('sar.simple.label')}>
+        <button type="button" className={simple ? 'active' : ''} onClick={() => setSimple(true)}>{t('sar.simple.on')}</button>
+        <button type="button" className={!simple ? 'active' : ''} onClick={() => setSimple(false)}>{t('sar.simple.off')}</button>
+      </div>
+    </div>
     <div className={`sar-next${running ? ' is-running' : ''}`}><b>{t('sar.next.title')}</b><span>{next}</span></div>
 
     <Step n={1} title={t('sar.step.check')} help={t('sar.step.checkHelp')} level={step1} open={step1 !== 'good'}>
-      <CheckList items={checks} />
+      {simple && checks.every((c) => c.level === 'good') ? <p className="sar-ok">{t('sar.simple.allGood', { n: checks.length })}</p>
+        : <CheckList items={simple ? checks.filter((c) => c.level !== 'good') : checks} />}
     </Step>
 
     <Step n={2} title={t('sar.step.line')} help={t('sar.step.lineHelp')} level={step2 === 'unknown' ? 'now' : step2} open>
@@ -405,6 +415,7 @@ export function SarPassZoom({ deviceId: pinned, readOnly = false }: { deviceId?:
         <button type="button" onClick={() => { setDraft({ ...draft, start: null, end: null }); setPickNext('start'); }}>{t('sar.plan.clear')}</button>
       </div>
       {line && <p className={step2 === 'bad' ? 'sar-bad' : 'sar-ok'}>{t('sar.plan.lineInfo', { m: line.lengthM.toFixed(1), deg: line.headingDeg.toFixed(0), lead: lead.toFixed(0) })}</p>}
+      {!simple && <>
       <div className="sar-cr">
         <div className="sar-cr-head"><b>{t('cr.title')}</b><small>{t('cr.help')}</small></div>
         {reflectors.length === 0 ? <p className="sar-hint">{t('cr.none')}</p> : <table className="sar-table"><tbody>
@@ -463,6 +474,7 @@ export function SarPassZoom({ deviceId: pinned, readOnly = false }: { deviceId?:
         {coordField('sar.plan.start', draft.start, (p) => setDraft({ ...draft, start: p }))}
         {coordField('sar.plan.end', draft.end, (p) => setDraft({ ...draft, end: p }))}
       </details>
+      </>}
     </Step>
 
     <Step n={3} title={t('sar.step.cond')} help={t('sar.step.condHelp')} level={step3} open={step3 !== 'good'}>
@@ -481,6 +493,7 @@ export function SarPassZoom({ deviceId: pinned, readOnly = false }: { deviceId?:
         </div>
       </div>
       <PlanBudget draft={draft} wind={fcxReport?.wind ?? null} antenna={antenna} />
+      {!simple && <>
       <details className="sar-more"><summary>{t('sar.plan.advanced')}</summary>
         <p className="sar-hint">{t('sar.plan.advancedHelp')}</p>
         <div className="sar-plan-grid">
@@ -500,6 +513,7 @@ export function SarPassZoom({ deviceId: pinned, readOnly = false }: { deviceId?:
           </div>
         </div>
       </details>
+      </>}
       {problems.length > 0
         ? <ul className="sar-problems">{problems.map((p) => <li key={p.key}>{t(p.key, p.vars)}</li>)}</ul>
         : <p className="sar-ok">{t('sar.plan.ok')}</p>}
@@ -548,6 +562,7 @@ export function SarPassZoom({ deviceId: pinned, readOnly = false }: { deviceId?:
 }
 
 const ENDURANCE_KEY = 'viz.sar.enduranceMin.v1';
+const SIMPLE_KEY = 'viz.sar.simple.v1';
 
 /** 바람이 빔에 주는 영향 · 배터리 예산 — 계획을 바꾸면 바로 다시 계산한다. */
 function PlanBudget({ draft, wind, antenna }: { draft: SarPlanDraft; wind: { speedMps: number | null; fromDeg: number | null } | null; antenna: AntennaDraft }) {
