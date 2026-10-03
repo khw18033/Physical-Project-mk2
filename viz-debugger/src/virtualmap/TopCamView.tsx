@@ -9,6 +9,7 @@
  *   GET /status                → { cameras:[{name,target,height,yaw,heading,ortho,frames}], clients }
  *   GET /<name>.mjpg           → 끝나지 않는 MJPEG (드론 = drone, GO1 = go1)
  *   GET /cam?name=..&zoom=0.8  → 확대(높이 x0.8) · height= · rotate= · yaw= · heading=0|1 · ortho=0|1
+ *   정면 카메라(kind=front, /dronefront.mjpg): 기체 정면 아래 45° 고정 — zoom= 은 화각, tilt= 숙임, fov= 화각
  *
  * 카드에서는 누름을 막는다(끌기가 먼저다). 조작은 확대에서 한다 — 가상 맵의 Unity 틀과 같은 규칙이다.
  * 확대에서는 버튼 말고도 **영상 위 휠 = 확대·축소, 좌우 끌기 = 회전** 이다.
@@ -27,6 +28,10 @@ export type TopCamInfo = {
   heading: boolean;
   ortho: boolean;
   frames: number;
+  /** 'top' = 상공 내려다보기, 'front' = 기체 정면 아래 카메라 (옛 서버는 없음 → top) */
+  kind?: 'top' | 'front';
+  tilt?: number;
+  fov?: number;
 };
 type Probe = { kind: 'unknown' } | { kind: 'other' } | { kind: 'topcam'; cameras: TopCamInfo[]; at: number };
 
@@ -81,12 +86,45 @@ function send(root: string, name: string, query: string) {
 function camLabel(name: string): string {
   if (name === 'drone') return t('topcam.drone');
   if (name === 'go1') return t('topcam.go1');
+  if (name === 'dronefront') return t('topcam.droneFront');
   return name;
+}
+
+/**
+ * 숫자로 바로 넣는 칸. Enter 또는 칸을 벗어나면 보낸다. 입력 중에는 서버 값(1초마다 갱신)으로 덮어쓰지 않는다.
+ */
+function NumField({ label, unit, value, min, max, onSet }: {
+  label: string; unit: string; value: number; min: number; max: number; onSet: (v: number) => void;
+}) {
+  const [text, setText] = useState(String(Math.round(value)));
+  const editing = useRef(false);
+  useEffect(() => { if (!editing.current) setText(String(Math.round(value))); }, [value]);
+  const commit = () => {
+    if (!editing.current) return; // Enter 로 이미 보냈으면 칸을 벗어날 때 또 보내지 않는다
+    editing.current = false;
+    const v = Number(text);
+    if (!Number.isFinite(v)) { setText(String(Math.round(value))); return; }
+    const c = Math.min(max, Math.max(min, v));
+    setText(String(c));
+    if (Math.abs(c - value) >= 0.5) onSet(c);
+  };
+  return <label className="topcam__num">
+    {label}
+    <input
+      type="number" inputMode="decimal" min={min} max={max} step={1} value={text}
+      onFocus={() => { editing.current = true; }}
+      onChange={(e) => { editing.current = true; setText(e.currentTarget.value); }}
+      onKeyDown={(e) => { if (e.key === 'Enter') { commit(); e.currentTarget.blur(); } if (e.key === 'Escape') { editing.current = false; setText(String(Math.round(value))); e.currentTarget.blur(); } }}
+      onBlur={commit}
+    />
+    <span>{unit}</span>
+  </label>;
 }
 
 /** 영상 한 칸. 확대에서는 휠 = 확대·축소, 좌우 끌기 = 회전. */
 function CamPane({ root, cam, zoom, stale }: { root: string; cam: TopCamInfo; zoom: boolean; stale: boolean }) {
   useLang();
+  const front = cam.kind === 'front';
   const drag = useRef<{ x: number; acc: number; last: number } | null>(null);
   const wheelAt = useRef(0);
   // 같은 영상을 다시 붙일 때(서버 재시작) 끊긴 MJPEG 를 새로 받게 한다
@@ -107,7 +145,7 @@ function CamPane({ root, cam, zoom, stale }: { root: string; cam: TopCamInfo; zo
   };
   const onMove = (e: RPointerEvent) => {
     const d = drag.current;
-    if (!d) return;
+    if (!d || front) return;
     d.acc += (e.clientX - d.x) * 0.4; // 픽셀 → 도
     d.x = e.clientX;
     const now = performance.now();
@@ -118,14 +156,18 @@ function CamPane({ root, cam, zoom, stale }: { root: string; cam: TopCamInfo; zo
   };
   const onUp = () => {
     const d = drag.current;
-    if (d && Math.abs(d.acc) >= 1) send(root, cam.name, `rotate=${(-d.acc).toFixed(1)}`);
+    if (d && !front && Math.abs(d.acc) >= 1) send(root, cam.name, `rotate=${(-d.acc).toFixed(1)}`);
     drag.current = null;
   };
 
   return <figure className="topcam__pane">
     <figcaption className="topcam__cap">
       <b>{camLabel(cam.name)}</b>
-      <span className="vn-dim">{t('topcam.meta', {
+      <span className="vn-dim">{front ? t('topcam.metaFront', {
+        target: cam.target || '—',
+        tilt: Math.round(cam.tilt ?? 45),
+        fov: Math.round(cam.fov ?? 80),
+      }) : t('topcam.meta', {
         target: cam.target || '—',
         height: Math.round(cam.height),
         yaw: Math.round(cam.yaw),
@@ -145,7 +187,23 @@ function CamPane({ root, cam, zoom, stale }: { root: string; cam: TopCamInfo; zo
       onPointerUp={onUp}
       onPointerCancel={onUp}
     />
-    {zoom && <div className="topcam__bar">
+    {zoom && front && <div className="topcam__bar">
+      <button type="button" onClick={() => send(root, cam.name, 'zoom=0.8')}>{t('topcam.zoomIn')}</button>
+      <button type="button" onClick={() => send(root, cam.name, 'zoom=1.25')}>{t('topcam.zoomOut')}</button>
+      <button type="button" onClick={() => send(root, cam.name, 'tilt=45&fov=80')}>45° · 80°</button>
+      <label className="topcam__height">
+        {t('topcam.tilt')}
+        <input
+          type="range" min={0} max={90} step={1}
+          defaultValue={Math.round(cam.tilt ?? 45)}
+          key={`t${Math.round(cam.tilt ?? 45)}`}
+          onChange={(e) => send(root, cam.name, `tilt=${e.currentTarget.value}`)}
+        />
+      </label>
+      <NumField label="" unit="°" value={cam.tilt ?? 45} min={0} max={90} onSet={(v) => send(root, cam.name, `tilt=${v}`)} />
+      <NumField label={t('topcam.fov')} unit="°" value={cam.fov ?? 80} min={15} max={110} onSet={(v) => send(root, cam.name, `fov=${v}`)} />
+    </div>}
+    {zoom && !front && <div className="topcam__bar">
       <button type="button" onClick={() => send(root, cam.name, 'zoom=0.8')}>{t('topcam.zoomIn')}</button>
       <button type="button" onClick={() => send(root, cam.name, 'zoom=1.25')}>{t('topcam.zoomOut')}</button>
       <button type="button" onClick={() => send(root, cam.name, 'rotate=-45')}>⟲ 45°</button>
@@ -157,13 +215,15 @@ function CamPane({ root, cam, zoom, stale }: { root: string; cam: TopCamInfo; zo
       <label className="topcam__height">
         {t('topcam.height')}
         <input
-          type="range" min={3} max={200} step={1}
+          type="range" min={3} max={500} step={1}
           defaultValue={Math.round(cam.height)}
           key={Math.round(cam.height)}
           onChange={(e) => send(root, cam.name, `height=${e.currentTarget.value}`)}
         />
-        <span>{Math.round(cam.height)} m</span>
       </label>
+      <NumField label="" unit="m" value={cam.height} min={3} max={500} onSet={(v) => send(root, cam.name, `height=${v}`)} />
+      <NumField label={t('topcam.rotation')} unit="°" value={((cam.yaw % 360) + 360) % 360} min={0} max={359} onSet={(v) => send(root, cam.name, `yaw=${v}`)} />
+      <NumField label={t('topcam.fov')} unit="°" value={cam.fov ?? 60} min={10} max={100} onSet={(v) => send(root, cam.name, `fov=${v}`)} />
     </div>}
   </figure>;
 }
@@ -182,7 +242,7 @@ export function TopCamView({ url, probe, zoom = false }: { url: string; probe: E
     {zoom && <div className="topcam__pick">
       <button type="button" className={only === '' ? 'is-on' : ''} onClick={() => setOnly('')}>{t('topcam.both')}</button>
       {probe.cameras.map((c) => <button key={c.name} type="button" className={only === c.name ? 'is-on' : ''} onClick={() => setOnly(c.name)}>{camLabel(c.name)}</button>)}
-      <span className="vn-dim">{t('topcam.hint')}</span>
+      <span className="vn-dim">{t('topcam.hint')}{probe.cameras.some((c) => c.kind === 'front') ? ` · ${t('topcam.hintFront')}` : ''}</span>
     </div>}
     {probe.cameras.length === 0
       ? <p className="vn-line vn-dim">{t('topcam.noCams')}</p>
