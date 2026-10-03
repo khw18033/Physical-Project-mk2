@@ -9,6 +9,9 @@
   # 레이더 없이 시험: 이 궤적으로 리플렉터 신호를 합성해 영상을 만든다 (+ RTK 수준 오차 · 자동 초점)
   python -m sar_image simulate --traj pass02.csv --radar radar.json --cr 37.56672,126.97812 --pos-error-mm 20 --autofocus --png out.png
 
+  # 레이더 없이 전체 시험: 이 궤적으로 가짜 원시(예시 FMCW)를 만든다 → 데이터 서버 · 영상 · 화면
+  python -m sar_image fakeraw --traj pass02.csv --radar radar.json --cr 37.56672,126.97812 --out cansar_data/pass02.npz
+
   # 실제 영상: 레이더 원시 → 어댑터(거리 압축) → 백프로젝션
   python -m sar_image form --traj pass02.csv --radar radar.json --raw radar/pass02 --adapter mymod:load --png img.png [--autofocus-cr lat,lon]
 """
@@ -198,10 +201,22 @@ def cmd_form(a: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_fakeraw(a: argparse.Namespace) -> int:
+    """가짜 레이더 원시(예시 FMCW npz) — 실제 레이더 없이 데이터 서버 · 영상 · 화면 전체를 시험한다."""
+    from .fakeraw import write_fmcw_npz
+
+    radar = RadarConfig.load(a.radar)
+    traj, meta = load_pass(a.traj)
+    o, *_ = frame_for(traj, meta)
+    info = write_fmcw_npz(a.out, radar, traj, o, reflectors(a.cr, o), meta, samples=a.samples, noise=a.noise)
+    print(json.dumps(info, ensure_ascii=False))
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(prog="sar_image", description="SAR 영상 도구")
     sub = p.add_subparsers(dest="cmd", required=True)
-    for name in ("coverage", "predict", "simulate", "form"):
+    for name in ("coverage", "predict", "simulate", "form", "fakeraw"):
         s = sub.add_parser(name)
         s.add_argument("--traj", type=Path, required=True, help="sar_pass 의 passNN_*.csv (옆의 .json 도 읽는다)")
         s.add_argument("--radar", type=Path, required=True, help="radar.json")
@@ -229,8 +244,14 @@ def main(argv: list[str] | None = None) -> int:
     f.add_argument("--autofocus-cr", help="자동 초점 기준 리플렉터 lat,lon[,h]")
     f.add_argument("--center-cross", type=float, default=20.0)
     f.add_argument("--png", required=True)
+    r = sub.choices["fakeraw"]
+    r.add_argument("--cr", action="append", required=True, help="신호를 낼 리플렉터 lat,lon[,해발 m]")
+    r.add_argument("--out", required=True, help="쓸 .npz (cansar 데이터 폴더에 두면 데이터 서버가 패스와 짝짓는다)")
+    r.add_argument("--samples", type=int, default=512)
+    r.add_argument("--noise", type=float, default=0.05)
     a = p.parse_args(argv)
-    return {"coverage": cmd_coverage, "predict": cmd_predict, "simulate": cmd_simulate, "form": cmd_form}[a.cmd](a)
+    return {"coverage": cmd_coverage, "predict": cmd_predict, "simulate": cmd_simulate, "form": cmd_form,
+            "fakeraw": cmd_fakeraw}[a.cmd](a)
 
 
 if __name__ == "__main__":

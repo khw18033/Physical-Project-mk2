@@ -20,17 +20,26 @@ import numpy as np
 from .radar import C, RadarConfig
 
 
-def fmcw_dechirped_npz(raw_path: str, radar: RadarConfig):  # noqa: ANN201
-    """예시 FMCW: npz 안에 beat[N, S](실수/복소), t[N](t_fc), fs(샘플링 Hz), slope(Hz/s). 거리 FFT 로 거리 압축한다."""
+def fmcw_dechirped_npz(raw_path: str, radar: RadarConfig, oversample: int = 8):  # noqa: ANN201
+    """예시 FMCW: npz 안에 beat[N, S](복소), t[N](t_fc), fs(표본화 Hz), slope(Hz/s).
+
+    빠른 시간은 **처프 가운데 기준**이라고 본다(가운데에서 위상 −4πR/λ). 거리 FFT 를 `oversample` 배로 늘려
+    백프로젝션의 선형 보간이 봉우리를 깎지 않게 하고, FFT 가 0 번 표본 기준으로 붙이는 위상 기울기
+    exp(−jπ f (S−1)/fs) 를 되돌린다 — 이게 남으면 거리마다 위상이 달라져 초점이 안 맞는다.
+    레이더의 기준(처프 시작 · 가운데)이 다르면 이 한 줄이 바뀐다.
+    """
     z = np.load(raw_path)
     beat = z["beat"]
-    t = z["t"]
+    t = np.asarray(z["t"], dtype=float)
     fs = float(z["fs"])
     slope = float(z["slope"])
-    n_fft = int(2 ** np.ceil(np.log2(beat.shape[1] * 2)))
-    win = np.hanning(beat.shape[1])
+    s = beat.shape[1]
+    n_fft = int(2 ** np.ceil(np.log2(s * oversample)))
+    win = np.hanning(s).astype(np.float32)
     spec = np.fft.fft(beat * win[None, :], n=n_fft, axis=1)[:, : n_fft // 2]
     f = np.fft.fftfreq(n_fft, 1 / fs)[: n_fft // 2]
+    spec *= np.exp(1j * np.pi * f * (s - 1) / fs)[None, :].astype(np.complex64)
+    spec /= win.sum()
     rng = C * f / (2 * slope)
     keep = (rng >= (radar.range_min_m or 0)) & (rng <= (radar.range_max_m or rng.max()))
-    return t, rng[keep], spec[:, keep]
+    return t, rng[keep], spec[:, keep].astype(np.complex64)

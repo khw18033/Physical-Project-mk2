@@ -30,6 +30,7 @@ import { RtkBadge } from './RtkView.tsx';
 import { useTick } from './useTick.ts';
 import { SatMap, type Area, type Marker } from '../dronedash/SatMap.tsx';
 import { checkReflector, defaultAntenna, radarJson, swathPolygon, type AntennaDraft } from './coverage.ts';
+import { ImageButton, ImagingStatus, SarImageView, type ImageSummary, type Imaging, type MirrorState } from './SarImageView.tsx';
 import './sar.css';
 
 const DRAFT_KEY = 'viz.sar.draft.v1';
@@ -98,14 +99,16 @@ export function dataServerUrl(): string {
 type DataPass = {
   pass_no: number; valid: boolean | null; reasons: string[]; traj_csv: string | null; meta_json: string;
   radar_files: { name: string; size: number }[]; radar_bytes: number; eff_start_along_m: number | null; eff_end_along_m: number | null;
+  image?: ImageSummary | null;
 };
 type DataFlight = { id: string; started_unix: number; passes: DataPass[]; valid_passes: number; size_bytes: number };
 
 function useDataServer(enabled: boolean) {
   useConnections();
   const base = dataServerUrl();
-  const [state, setState] = useState<{ ok: boolean | null; flights: DataFlight[]; error: string | null; freeBytes: number | null }>(
-    { ok: null, flights: [], error: null, freeBytes: null });
+  const [state, setState] = useState<{ ok: boolean | null; flights: DataFlight[]; error: string | null; freeBytes: number | null;
+    imaging: Imaging; mirror: MirrorState }>(
+    { ok: null, flights: [], error: null, freeBytes: null, imaging: null, mirror: null });
   const [nonce, setNonce] = useState(0);
   useEffect(() => {
     if (!enabled || base === '') return;
@@ -113,10 +116,11 @@ function useDataServer(enabled: boolean) {
     const pull = async () => {
       try {
         const [h, f] = await Promise.all([
-          fetch(`${base}/api/health`).then((r) => r.json() as Promise<{ disk_free_bytes?: number }>),
+          fetch(`${base}/api/health`).then((r) => r.json() as Promise<{ disk_free_bytes?: number; imaging?: Imaging; mirror?: MirrorState }>),
           fetch(`${base}/api/flights`).then((r) => r.json() as Promise<DataFlight[]>),
         ]);
-        if (alive) setState({ ok: true, flights: Array.isArray(f) ? f : [], error: null, freeBytes: num(h.disk_free_bytes) });
+        if (alive) setState({ ok: true, flights: Array.isArray(f) ? f : [], error: null, freeBytes: num(h.disk_free_bytes),
+          imaging: h.imaging ?? null, mirror: h.mirror ?? null });
       } catch (e) {
         if (alive) setState((s) => ({ ...s, ok: false, error: e instanceof Error ? e.message : String(e) }));
       }
@@ -490,7 +494,7 @@ export function SarPassZoom() {
 
     <Step n={6} title={t('sar.step.result')} help={t('sar.step.resultHelp')} level={finished ? 'now' : 'todo'} open={finished || data.flights.length > 0}>
       {report !== null && report.passes.length > 0 && <PassTable report={report} />}
-      <DataPanel data={data} />
+      <DataPanel data={data} reflectors={reflectors} />
     </Step>
   </div>;
 }
@@ -578,9 +582,10 @@ function PassTable({ report }: { report: SarReport }) {
 }
 
 /** ⑥ 비행 데이터 내려받기 — Pi 의 데이터 서버에서. 버튼 하나 = 파일 하나. */
-function DataPanel({ data }: { data: ReturnType<typeof useDataServer> }) {
+function DataPanel({ data, reflectors }: { data: ReturnType<typeof useDataServer>; reflectors: readonly LatLon[] }) {
   useLang();
   const [open, setOpen] = useState<string | null>(null);
+  const [view, setView] = useState<string | null>(null);
   if (data.base === '') return <p className="sar-hint">{t('sar.data.noUrl')}</p>;
   if (data.ok === false) return <div><p className="sar-warn">{t('sar.data.fail', { url: data.base, why: data.error ?? '' })}</p>
     <p className="sar-hint">{t('sar.data.howTo')}</p><button type="button" onClick={data.refresh}>{t('sar.data.retry')}</button></div>;
@@ -598,7 +603,7 @@ function DataPanel({ data }: { data: ReturnType<typeof useDataServer> }) {
         <a className="sar-btn sar-btn--main" href={url(f.id, 'bundle.zip')} onClick={(e) => e.stopPropagation()}>{t('sar.data.all')}</a>
       </div>
       {(open === f.id || data.flights.length === 1) && <table className="sar-table">
-        <tbody>{f.passes.map((p) => <tr key={p.pass_no} className={p.valid === false ? 'is-missed' : ''}>
+        <tbody>{f.passes.map((p) => [<tr key={p.pass_no} className={p.valid === false ? 'is-missed' : ''}>
           <td>{t('sar.data.pass', { n: p.pass_no })}</td>
           <td>{p.valid ? <span className="sar-ok">✓ {t('sar.log.valid')}</span> : <span className="sar-bad">✕ {t('sar.log.invalid')}</span>}</td>
           <td>{t('sar.data.radarFiles', { n: p.radar_files.length, size: bytes(p.radar_bytes) })}</td>
@@ -606,13 +611,17 @@ function DataPanel({ data }: { data: ReturnType<typeof useDataServer> }) {
             {p.traj_csv && <a className="sar-btn" href={url(f.id, `files/${encodeURIComponent(p.traj_csv)}`)}>{t('sar.data.trajCsv')}</a>}
             <a className="sar-btn" href={url(f.id, `files/${encodeURIComponent(p.meta_json)}`)}>{t('sar.data.meta')}</a>
             <a className="sar-btn sar-btn--main" href={url(f.id, `bundle.zip?pass=${p.pass_no}`)}>{t('sar.data.passZip')}</a>
+            <ImageButton base={data.base} flight={f.id} pass={p.pass_no} summary={p.image ?? null} imaging={data.imaging}
+              hasRaw={p.radar_files.length > 0} reflectors={reflectors}
+              onOpen={() => { setView(`${f.id}:${p.pass_no}`); data.refresh(); }} />
           </td>
-        </tr>)}</tbody>
+        </tr>,
+        view === `${f.id}:${p.pass_no}` && <tr key={`${p.pass_no}-img`} className="sar-img-row"><td colSpan={4}>
+          <SarImageView base={data.base} flight={f.id} pass={p.pass_no} />
+          <button type="button" onClick={() => setView(null)}>{t('img.close')}</button>
+        </td></tr>])}</tbody>
       </table>}
     </div>)}
-    <div className="sar-image-next">
-      <button type="button" disabled title={t('sar.data.imageWhy')}>{t('sar.data.image')}</button>
-      <small>{t('sar.data.imageWhy')}</small>
-    </div>
+    <ImagingStatus imaging={data.imaging} mirror={data.mirror} />
   </div>;
 }

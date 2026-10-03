@@ -20,6 +20,8 @@ export type TrackPoint = LatLon & { t: number; alt?: number | null; speed?: numb
 export type Marker = LatLon & { kind: 'home' | 'base' | 'reflector' | 'pick'; label?: string; tone?: 'good' | 'bad' };
 /** 지도에 깔 면 — 안테나 관측 띠 등. */
 export type Area = { points: readonly LatLon[]; kind: 'swath' };
+/** 지도에 겹칠 그림(SAR 영상). 꼭짓점 순서: 그림의 왼쪽 위 · 오른쪽 위 · 오른쪽 아래 · 왼쪽 아래. */
+export type Overlay = { url: string; corners: readonly [LatLon, LatLon, LatLon, LatLon]; opacity?: number };
 
 type Layer = 'satellite' | 'street' | 'none';
 const TILE = 256;
@@ -44,7 +46,7 @@ function tileUrl(template: string, z: number, x: number, y: number): string {
 }
 
 export function SatMap({
-  track = [], drone, droneYaw, sarLine, capturing, markers = [], areas = [], onPick, pickHint, height = 380,
+  track = [], drone, droneYaw, sarLine, capturing, markers = [], areas = [], overlays = [], onPick, pickHint, height = 380,
 }: {
   track?: readonly TrackPoint[];
   drone?: LatLon | null;
@@ -53,6 +55,7 @@ export function SatMap({
   capturing?: boolean;
   markers?: readonly Marker[];
   areas?: readonly Area[];
+  overlays?: readonly Overlay[];
   onPick?: (p: LatLon) => void;
   pickHint?: string;
   height?: number;
@@ -81,7 +84,8 @@ export function SatMap({
   const everything = useMemo(() => [
     ...track, ...markers, ...(drone ? [drone] : []),
     ...(sarLine ? [sarLine.start, sarLine.end, ...(sarLine.leadIn ? [sarLine.leadIn] : [])] : []),
-  ], [track, markers, drone, sarLine]);
+    ...overlays.flatMap((o) => o.corners),
+  ], [track, markers, drone, sarLine, overlays]);
 
   function fit(): { center: LatLon; z: number } | null {
     if (everything.length === 0) return null;
@@ -212,6 +216,14 @@ export function SatMap({
         {tiles.map((tl) => <img key={tl.key} src={tl.src} alt="" draggable={false} style={{ left: tl.x, top: tl.y, width: tl.size, height: tl.size }} />)}
       </div>
       <svg width={W} height={H} className="satmap-svg">
+        {overlays.map((o, i) => {
+          // 단위 정사각형 그림을 세 꼭짓점으로 펴는 아핀 변환 — 수백 m 안에서는 메르카토르도 평면과 같다
+          const p0 = P(o.corners[0]);
+          const p1 = P(o.corners[1]);
+          const p3 = P(o.corners[3]);
+          return <image key={`ov${i}`} href={o.url} x={0} y={0} width={1} height={1} preserveAspectRatio="none" className="satmap-overlay"
+            opacity={o.opacity ?? 0.9} transform={`matrix(${p1.x - p0.x} ${p1.y - p0.y} ${p3.x - p0.x} ${p3.y - p0.y} ${p0.x} ${p0.y})`} />;
+        })}
         {areas.map((ar, i) => <polygon key={i} className={`satmap-area satmap-area--${ar.kind}`}
           points={ar.points.map((p) => { const q = P(p); return `${q.x.toFixed(1)},${q.y.toFixed(1)}`; }).join(' ')} />)}
         {sarLine && <>

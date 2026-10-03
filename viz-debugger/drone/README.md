@@ -298,6 +298,27 @@ python -m sar_image form --traj pass02.csv --radar radar.json --raw radar/pass02
 - 파장이 길수록(L · C대역) 요구 정밀도가 그만큼 풀린다.
 - 빔폭은 **안테나 면에서** 잰다 — 수평면에서 재면 개구가 짧게 잡힌다(28 m 에서 10.7 m vs 실제 15.2 m).
 
+### 패스별 영상 — 노트북에서 자동으로 (`sar_data --mirror`)
+
+Pi 는 비행 중 50 Hz 제어를 하므로 영상은 **노트북**에서 만든다. 노트북의 데이터 서버가 Pi 의 데이터 서버에서
+끝난 패스(궤적 + 레이더 원시)를 가져와 영상을 만들고, 화면은 노트북 서버를 본다.
+
+```bash
+# 노트북 — 화면의 ⇄ 연결 관리 → 「드론 데이터 서버」를 http://127.0.0.1:8765 로
+python -m sar_data --flights ~/sar_mirror --mirror http://<Pi IP>:8765 --bind 127.0.0.1 \
+    --radar-json radar.json --adapter sar_image.adapters:fmcw_dechirped_npz \
+    --reflectors reflectors.csv --auto-image
+```
+
+- 패스가 끝나고 20 초 뒤(레이더가 파일을 옮길 시간)에 받는다. 받자마자 영상을 만든다(`--auto-image`).
+- 화면 「결과 · 내려받기」에서 패스마다 「영상 만들기 / 다시 만들기」를 누를 수 있다. 화면에 놓은 리플렉터가 같이 간다.
+- 결과: 리플렉터별 「찍힘 / 안 보임」 · 밝기 대비 · 위치 차이 · 해상도 · 확대 그림 → 선 전체 영상 → 위성 지도 겹침.
+- 자동 초점은 찍힌 리플렉터로 한다: 4개 이상 동시에 빔 안 → 3차원 궤적 보정, 아니면 이어 붙이기, 하나면 그 둘레만.
+- 계산은 32비트 · 여러 코어(`backproject_fast`)다. 영상 중심으로 좌표를 옮긴 뒤 32비트로 바꾸므로 64비트와 −50 dB 아래로 같다
+  (UTM 같은 큰 좌표를 그대로 32비트로 하면 깨진다 — 시험이 막는다). 선 전체(90 × 33 m, 5 × 10 cm) 한 패스에 약 20 초.
+- 레이더 없이 전체 흐름 시험: `sar_image/fakeraw.py` 가 궤적에 맞춘 FMCW 가짜 원시를 쓴다.
+- **레이더 팀이 할 일은 어댑터 하나**다(`sar_image/adapters.py` 규약): 원시 파일 → (펄스 시각 t_fc, 거리 축, 거리 압축 복소).
+
 ### 레버암 — 안테나 장착 위치 (`sar_image/attitude.py`)
 
 RTK 가 주는 위치는 **GPS 안테나**(또는 FC)의 위치다. 영상에 필요한 것은 **레이더 안테나 위상중심**의 위치다.
@@ -326,6 +347,36 @@ RTK 가 주는 위치는 **GPS 안테나**(또는 FC)의 위치다. 영상에 �
 - 빔 방향도 자세 3축으로 돌린다. 기체 고정 안테나는 **앞으로 숙인 만큼 빔이 뒤로 비스듬해진다**.
   - 피치 −5° 면 3.5°, −22°(SIH 시뮬레이터)면 15° — 빔 반폭과 같아 리플렉터가 빔 끝에 걸린다.
   - 실기체 등속 피치를 첫 시험비행 로그에서 확인하고, 크면 안테나를 그만큼 들어 올려 달 것.
+
+### 패스마다 영상 — 노트북에서 자동으로
+
+영상은 **노트북**에서 만든다. Pi 는 비행 중 50 Hz 로 기체를 제어하고 있어, 거기서 계산하면 제어 주기가 흔들린다.
+
+```
+Pi   python -m sar_data --flights ~/sar_logs --radar ~/cansar_data            (지금처럼 — 8765)
+          │  핫스팟
+노트북 python -m sar_data --flights ~/sar_mirror --mirror http://<Pi IP>:8765 \
+          --radar-json radar.json --adapter <레이더 어댑터> [--reflectors reflectors.csv] --auto-image --port 8765
+화면  연결 관리 → 「드론 데이터 서버」 = http://127.0.0.1:8765
+```
+
+1. 노트북 서버가 Pi 에서 **끝난 패스**만 가져온다. 레이더가 파일을 옮길 시간 20 s 를 기다린 뒤, 궤적 · 메타 · 레이더 원시를 받는다.
+2. `--auto-image` 면 바로 영상을 만든다. 리플렉터 둘레(촘촘히, 수 초) → 자동 초점 → 선 전체(수십 초) 순서다.
+3. 화면 「6 결과 · 내려받기」에서 패스마다 「영상 완료 · 리플렉터 n/m」이 뜬다. 누르면 리플렉터별 판정 · 확대 그림 · 위성 지도 겹침 · 전체 영상이 나온다.
+   「다시 만들기」는 화면에 놓은 리플렉터를 함께 보낸다.
+
+| 판정 | 기준 |
+|---|---|
+| 찍힘 | 리플렉터 자리 밝기가 둘레 바닥보다 15 dB 넘게 밝고, 봉우리가 표시 위치에서 0.75 m 안 |
+| 자동 초점 | 리플렉터 4개 이상이 동시에 빔에 → 궤적 3차원 보정. 아니면 이어 붙이기 → 1개 기준 순으로 내려간다 |
+
+- 레이더 형식이 정해지기 전에는 `sar_image.adapters:fmcw_dechirped_npz`(예시 형식)와 `python -m sar_image fakeraw`(가짜 원시)로 전체를 시험할 수 있다.
+  실제 형식이 오면 어댑터 함수 하나만 쓴다(`sar_image/adapters.py` 머리말).
+- 영상 계산은 32비트 · 여러 코어로 한다(`backproject_fast`). 64비트 기준과의 차이는 −58 dB 이다.
+  이 PC 기준 80 × 40 m · 10 cm 격자가 1 코어 22 s, 8 코어 7 s 걸린다(64비트 1 코어는 100 s).
+  큰 좌표(UTM 등)를 넘겨도 안에서 영상 중심으로 옮기므로 32비트에서도 깨지지 않는다 — 시험이 지킨다.
+- 결과는 `<비행>/images/passNN/` 에 남는다(`image.json` · `cr*.png` · `full.png` · `full_map.png`).
+  「이 패스 전부 (ZIP)」에도 같이 들어간다.
 
 ## 실행
 
@@ -453,8 +504,8 @@ HW 담당과 확인할 것:
 | `drone/sar_pass/check.py` | 비행 전 점검(`python -m sar_pass check`) |
 | `drone/rtk_relay/base_sender.py` | 노트북: 베이스 RTCM3 → UDP |
 | `drone/rtk_relay/fc_injector.py` | Pi: UDP → GPS_RTCM_DATA → FC, 상태 MQTT `…/rtcm` |
-| `drone/sar_image/` | 리플렉터 커버리지 · 예상 거리 이력 · 백프로젝션 · 리플렉터 자동 초점 · 레버암 보정 · 레이더 어댑터 규약 |
-| `drone/sar_data/` | Pi: 비행 데이터 서버(위치 · 레이더 원시 ZIP) |
+| `drone/sar_image/` | 리플렉터 커버리지 · 예상 거리 이력 · 백프로젝션(32비트 고속) · 자동 초점 · 레버암 보정 · 패스 영상 파이프라인 · 가짜 원시 · 레이더 어댑터 규약 |
+| `drone/sar_data/` | 비행 데이터 서버 — Pi: 위치 · 레이더 원시 ZIP / 노트북: `--mirror` 로 가져와 패스별 영상(`imaging.py` · `mirror.py`) |
 | `drone/sitl/` | PX4 SITL 비행 스크립트 · 흉내 레이더 |
 | `drone/fc_watch/` | Pi: FC MAVLink → 상태판 텔레메트리 `…/fcx` (수신 전용) · 시험용 가짜 FC |
 | `src/dronedash/` · `src/physical/fcxFeed.ts` · `src/shared/fcxStatus.ts` | 화면: 드론 상태판 |

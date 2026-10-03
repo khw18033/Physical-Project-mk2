@@ -12,7 +12,7 @@ import pytest
 from sar_image.__main__ import frame_for, load_pass, main
 from sar_image.attitude import frd_to_enu, lever_arm, tilt_motion_mm
 from sar_image.autofocus import apply_correction, estimate_phase_error, estimate_trajectory_error
-from sar_image.backprojection import backproject, line_grid, peak_metrics
+from sar_image.backprojection import backproject, backproject_fast, line_grid, peak_metrics
 from sar_image.coverage import line_coverage, predicted_history, summarize_history, swath_ground_ranges
 from sar_image.radar import RadarConfig
 from sar_image.simulate import synthesize
@@ -166,3 +166,22 @@ def test_lever_arm_correction_restores_focus(setup):
     assert tilt_motion_mm(lever, st["roll"], st["pitch"]) > 4.0                # λ/8 보다 크게 흔들린다
     assert loss_mean < -1.0                                                   # 자세를 안 쓰면 흐려진다
     assert loss_fixed > -0.01                                                 # 자세로 돌리면 그대로
+
+
+def test_fast_backprojection_matches_reference_even_with_big_coordinates(setup):
+    """32비트 · 여러 코어 판이 64비트 기준과 같은 영상을 낸다. UTM 처럼 큰 좌표를 넘겨도(32비트로 그대로 하면
+    피크 −19 dB · 23 cm 어긋남) 안에서 영상 중심으로 옮기므로 그대로다."""
+    radar, traj, meta, o, end, heading, length, h, P = setup
+    rng = np.arange(5, 60, 0.05)
+    t, pos, rc = synthesize(radar, traj, o, [P(40, 20), P(46, 24)], rng, noise=0.02)
+    along = np.arange(39.6, 40.4, 0.004)
+    cross = np.arange(19.5, 20.5, 0.025)
+    g, _ = line_grid((0.0, 0.0), heading, along, cross, 0.0)
+    ref = backproject(rc, rng, pos, radar.wavelength_m, g)
+    off = np.array([3.2e5, 4.16e6, 0.0])
+    for img in (backproject_fast(rc, rng, pos, radar.wavelength_m, g, workers=4, block_px=2000),
+                backproject_fast(rc, rng, pos + off, radar.wavelength_m, g + off, workers=1)):
+        err = np.abs(img - ref).max() / np.abs(ref).max()
+        assert 20 * math.log10(err) < -50
+        m, m0 = peak_metrics(img, along, cross), peak_metrics(ref, along, cross)
+        assert m["peak_along_m"] == m0["peak_along_m"] and m["peak_cross_m"] == m0["peak_cross_m"]

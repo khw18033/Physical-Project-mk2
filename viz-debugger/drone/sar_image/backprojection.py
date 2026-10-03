@@ -52,6 +52,65 @@ def backproject(rc: np.ndarray, range_axis: np.ndarray, positions: np.ndarray, w
     return img.reshape(shape)
 
 
+def backproject_fast(rc: np.ndarray, range_axis: np.ndarray, positions: np.ndarray, wavelength_m: float,
+                     grid: np.ndarray, weights: np.ndarray | None = None, workers: int | None = None,
+                     block_px: int = 65_536) -> np.ndarray:
+    """`backproject` 와 같은 영상을 32비트 · 여러 코어로. 결과는 complex64.
+
+    32비트의 유효숫자는 7자리라 **좌표가 크면 영상이 깨진다**(UTM 수백만 m → 0.5 m 오차 · 피크 −19 dB 를 확인했다).
+    그래서 64비트일 때 영상 중심을 빼서 수십 m 단위로 옮긴 뒤 32비트로 바꾼다 — 거리는 평행이동에 안 변하므로
+    부르는 쪽이 어떤 좌표를 넘겨도 안전하다. 64비트 `backproject` 와의 차이는 시험이 −50 dB 아래로 묶는다.
+    """
+    import os
+    from concurrent.futures import ThreadPoolExecutor
+
+    shape = grid.shape[:-1]
+    g64 = np.asarray(grid, dtype=np.float64).reshape(-1, 3)
+    center = g64.mean(axis=0)
+    g = (g64 - center).astype(np.float32)
+    p = (np.asarray(positions, dtype=np.float64) - center).astype(np.float32)
+    rcf = np.ascontiguousarray(rc, dtype=np.complex64)
+    w = None if weights is None else np.asarray(weights, dtype=np.float32)
+    r0 = np.float32(range_axis[0])
+    inv_dr = np.float32(1.0 / float(range_axis[1] - range_axis[0]))
+    k = np.float32(4.0 * math.pi / wavelength_m)
+    m = rcf.shape[1]
+    out = np.zeros(g.shape[0], dtype=np.complex64)
+
+    def run(lo: int, hi: int) -> None:
+        gx, gy, gz = (np.ascontiguousarray(g[lo:hi, i]) for i in range(3))
+        acc = np.zeros(hi - lo, dtype=np.complex64)
+        for n in range(rcf.shape[0]):
+            dx = gx - p[n, 0]
+            dy = gy - p[n, 1]
+            dz = gz - p[n, 2]
+            R = np.sqrt(dx * dx + dy * dy + dz * dz)
+            idx = (R - r0) * inv_dr
+            ok = (idx >= 0) & (idx < m - 1)
+            i0 = np.clip(idx, 0, m - 2).astype(np.int32)
+            frac = idx - i0
+            row = rcf[n]
+            s = row[i0] * (1 - frac) + row[i0 + 1] * frac
+            ph = k * R
+            v = s * (np.cos(ph) + 1j * np.sin(ph)).astype(np.complex64)
+            if w is not None:
+                v *= w[n]
+            acc += np.where(ok, v, 0)
+        out[lo:hi] = acc
+
+    n_px = g.shape[0]
+    # 8 개를 넘기면 메모리 대역폭에 막혀 오히려 느려진다(96 코어 서버에서 32 개가 8 개보다 느렸다)
+    workers = workers or min(os.cpu_count() or 1, 8)
+    blocks = [(lo, min(lo + block_px, n_px)) for lo in range(0, n_px, block_px)]
+    if workers <= 1 or len(blocks) == 1:
+        for lo, hi in blocks:
+            run(lo, hi)
+    else:
+        with ThreadPoolExecutor(max_workers=workers) as ex:
+            list(ex.map(lambda b: run(*b), blocks))
+    return out.reshape(shape)
+
+
 def peak_metrics(img: np.ndarray, along: np.ndarray, cross: np.ndarray) -> dict:
     """가장 밝은 점의 위치와 −3 dB 폭(방위 · 거리 방향). 점 표적(리플렉터)의 초점 품질을 잰다."""
     a = np.abs(img)

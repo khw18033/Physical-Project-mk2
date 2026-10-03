@@ -145,5 +145,6 @@
 .satmap-tip small{color:#6b7888}
 .satmap-attr{position:absolute;right:6px;bottom:4px;font-size:10px;color:#fff;background:#0007;padding:1px 5px;border-radius:3px}
 .satmap-area--swath{fill:#ffd40026;stroke:#ffd400;stroke-width:1.5;stroke-dasharray:5 4}
+.satmap-overlay{pointer-events:none;image-rendering:pixelated}
 .satmap-mk--reflector.is-good polygon{fill:#3df07a}
 .satmap-mk--reflector.is-bad polygon{fill:#ff3b3b}
