@@ -75,3 +75,15 @@ def test_long_statustext_chunks_joined():
            + M.MAVLink_statustext_message(3, b"tail", 7, 1).pack(fc))
     feed(tel, p.parse_buffer(raw))
     assert tel.snapshot()["console"][-1]["text"] == a + "tail"
+
+
+def test_wind_estimate_meteorological_direction():
+    """PX4 WIND_COV 는 바람이 불어 가는 쪽 벡터다. 표시는 불어 오는 쪽 — 북으로 3 m/s 불어 가면 남풍(180°)."""
+    tel = FcTelemetry()
+    fc = M.MAVLink(None, srcSystem=1, srcComponent=1)
+    p = M.MAVLink(None)
+    feed(tel, p.parse_buffer(M.MAVLink_heartbeat_message(2, M.MAV_AUTOPILOT_PX4, 0, 0, 3, 3).pack(fc)))
+    raw = M.MAVLink_wind_cov_message(0, 3.0, 0.0, 0.0, 0.1, 0.1, 0.0, 0.5, 0.5).pack(fc)
+    feed(tel, p.parse_buffer(raw))
+    w = tel.snapshot()["wind"]
+    assert w["speed_mps"] == 3.0 and w["from_deg"] == 180.0

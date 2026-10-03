@@ -313,6 +313,16 @@ const params = plan.toStartParams({
   check(cov.reflectorInBeam(a, start, 20, { yawDeg: 45, pitchDeg: 0, rollDeg: 0 }, at(0, 20)).lit && !cov.reflectorInBeam(a, start, 20, { yawDeg: 45, pitchDeg: 0, rollDeg: 0 }, at(0, -20)).lit,
     '바로 옆 리플렉터가 빔 안 · 반대쪽은 밖이어야 한다');
   console.log('✅ 실시간 빔 — 빔 각 · 자세 회전 · 빔 자국이 드론 쪽 식과 같다');
+
+  // 바람 영향 — 북쪽으로 4 m/s 날며 북풍 3 m/s(맞바람) → 공기 속도 7 m/s · 앞 숙임 · 빔은 뒤로. 서풍은 동쪽(오른쪽)으로 밀어 왼쪽으로 기울여 버틴다
+  const head = plan.windEffect(0, 4, { speedMps: 3, fromDeg: 0 }, 45, 40, 30);
+  check(Math.abs(head.headMps - 3) < 1e-9 && Math.abs(head.airspeedMps - 7) < 1e-9 && head.pitchDeg < 0 && head.squintDeg > 0 && Math.abs(head.rollDeg) < 1e-9,
+    `맞바람 계산이 틀렸다: ${JSON.stringify(head)}`);
+  const west = plan.windEffect(0, 4, { speedMps: 3, fromDeg: 270 }, 45, 40, 30);
+  check(Math.abs(west.crossMps - 3) < 1e-9 && west.rollDeg < 0 && Math.abs(west.headMps) < 1e-9, `옆바람 계산이 틀렸다: ${JSON.stringify(west)}`);
+  const bud = plan.batteryBudget({ ...plan.defaultDraft(), start, end }, 18);
+  check(bud !== null && bud.worstMin > bud.passMin && bud.usableMin > 0, '배터리 예산이 이상하다');
+  console.log('✅ 바람 · 배터리 — 맞바람은 앞 숙임 · 빔 뒤로, 서풍은 왼쪽 기울임, 재시도까지 포함');
 }
 
 // ── 7. RTK 등급 ─────────────────────────────────────────────────────────────

@@ -166,3 +166,47 @@ export function toStartParams(d: SarPlanDraft) {
     q_edge_m: d.qEdgeM, extra_passes: d.extraPasses, min_battery_pct: d.minBatteryPct,
   };
 }
+
+// ── 바람 · 배터리 (계획 단계) ─────────────────────────────────────────────────
+
+/**
+ * 바람이 SAR 에 주는 영향 (대략). 멀티콥터는 바람을 이기려고 기울어진다:
+ *  - 옆바람 → 롤 → 기체 고정 안테나의 빔이 위아래로 움직인다(관측 띠가 가까이 · 멀리 밀린다)
+ *  - 맞바람 · 등속 → 피치(앞 숙임) → 빔이 뒤로 비스듬해진다(스퀸트 ≈ 피치 · cos(내려다보는 각))
+ * 기울기 ≈ `TILT_PER_MPS` °/(m/s) × 상대 풍속 — X500 급 어림값이다. 첫 시험비행 로그로 고친다.
+ */
+export const TILT_PER_MPS = 1.8;
+
+export type WindEffect = {
+  headMps: number; crossMps: number; airspeedMps: number;
+  rollDeg: number; pitchDeg: number; squintDeg: number;
+  level: 'ok' | 'warn' | 'bad';
+};
+
+export function windEffect(headingDeg: number, speedMps: number, wind: { speedMps: number; fromDeg: number }, depressionDeg: number,
+  elBeamwidthDeg: number, azBeamwidthDeg: number): WindEffect {
+  // 바람이 불어 가는 방향 = from + 180. 진행 방향 성분이 음수면 맞바람.
+  const toRad = rad(wind.fromDeg + 180 - headingDeg);
+  const along = wind.speedMps * Math.cos(toRad);          // + 뒷바람
+  const cross = wind.speedMps * Math.sin(toRad);          // + 오른쪽으로 민다
+  const air = speedMps - along;                             // 공기에 대한 앞 속도
+  const pitchDeg = -TILT_PER_MPS * air;                      // 앞 숙임은 음수
+  const rollDeg = -TILT_PER_MPS * cross;                     // 오른쪽으로 밀면 왼쪽으로 기울여 버틴다
+  const squintDeg = -pitchDeg * Math.cos(rad(depressionDeg));
+  const elShare = Math.abs(rollDeg) / (elBeamwidthDeg / 2);
+  const azShare = Math.abs(squintDeg) / (azBeamwidthDeg / 2);
+  const level = elShare > 0.5 || azShare > 0.5 || wind.speedMps > 8 ? 'bad' : elShare > 0.25 || azShare > 0.3 || wind.speedMps > 5 ? 'warn' : 'ok';
+  return { headMps: -along, crossMps: cross, airspeedMps: air, rollDeg, pitchDeg, squintDeg, level };
+}
+
+/** 배터리 예산 — 패스(재시도까지) 시간 vs 쓸 수 있는 시간((100 − 최소 %) × 비행 가능 시간). */
+export function batteryBudget(d: SarPlanDraft, enduranceMin: number): { passMin: number; worstMin: number; usableMin: number; level: 'ok' | 'warn' | 'bad' } | null {
+  const e = planEstimate(d);
+  if (e === null || !(enduranceMin > 0)) return null;
+  const perPassS = e.totalMinS / Math.max(d.passes, 1);
+  const passMin = e.totalMinS / 60;
+  const worstMin = (perPassS * (d.passes + d.extraPasses)) / 60;
+  const usableMin = (enduranceMin * (100 - d.minBatteryPct)) / 100 - 3;      // 이륙 · 이동 · 착륙에 3 분
+  const level = worstMin <= usableMin ? 'ok' : passMin <= usableMin ? 'warn' : 'bad';
+  return { passMin, worstMin, usableMin, level };
+}

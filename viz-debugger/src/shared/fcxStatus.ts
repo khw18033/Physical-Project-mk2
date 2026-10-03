@@ -30,6 +30,8 @@ export type Fcx = {
   ekf: { vel: number | null; pos: number | null; ver: number | null; mag: number | null; ter: number | null; gpsGlitch: boolean; accelError: boolean } | null;
   vibration: { x: number | null; y: number | null; z: number | null; clipping: readonly number[] } | null;
   rc: { rssi: number | null; channels: number | null } | null;
+  /** PX4 가 추정한 바람 — fromDeg 는 불어 **오는** 방향(기상 관례). 정지 · 지상에선 없거나 부정확하다 */
+  wind: { speedMps: number | null; fromDeg: number | null; varH: number | null } | null;
   clockOffsetS: number | null;
   console: readonly FcxConsoleLine[];
   deviceTime: number | null;

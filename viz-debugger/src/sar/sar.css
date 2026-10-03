@@ -155,3 +155,28 @@
 .sar-img-thumb{width:120px;height:auto;border:1px solid #e1e5eb;border-radius:4px;display:block}
 .sar-img-full{max-width:100%;height:auto;border:1px solid #e1e5eb;border-radius:6px}
 .sar-image-next.is-ready{border-style:solid;border-color:#9bd4b1;background:#f3fbf6}
+/* 계획: 바람 · 배터리 */
+.sar-budget{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:10px;margin:10px 0}
+.sar-budget-card{border:1px solid #e1e5eb;border-radius:10px;padding:10px 12px;background:#fff;display:grid;gap:6px}
+.sar-budget-card.is-ok{border-color:#9bd4b1;background:linear-gradient(180deg,#f3fbf6,#fff)}
+.sar-budget-card.is-warn{border-color:#f0d08a;background:linear-gradient(180deg,#fffaf0,#fff)}
+.sar-budget-card.is-bad{border-color:#efb1b1;background:linear-gradient(180deg,#fdf2f2,#fff)}
+.sar-budget-head{display:flex;flex-wrap:wrap;gap:8px;align-items:baseline;justify-content:space-between}
+.sar-budget-head small{color:#6b7888}
+.sar-budget-body{display:flex;gap:12px;align-items:flex-start}
+.sar-budget-big{font-size:15px;font-weight:600;margin:0}
+.sar-budget-big small{font-weight:400;color:#6b7888;margin-left:6px}
+.sar-budget-list{margin:4px 0 0;padding-left:16px;font-size:13px;color:#334}
+.sar-inline{display:flex;flex-wrap:wrap;gap:10px;align-items:center;font-size:13px}
+.sar-inline input{width:72px}
+.sar-budget-bar{height:12px;border-radius:6px;background:#eef1f5;overflow:hidden;display:flex}
+.sar-budget-bar .pass{background:#1768c5}
+.sar-budget-bar .retry{background:repeating-linear-gradient(45deg,#7fb0e8 0 6px,#a9c9ef 6px 12px)}
+.sar-rose{width:110px;height:110px;flex:none}
+.sar-rose .ring{fill:#f6f8fb;stroke:#cbd3dc}
+.sar-rose .n{font-size:9px;text-anchor:middle;fill:#6b7888}
+.sar-rose .line{stroke:#1768c5;stroke-width:4;stroke-linecap:round}
+.sar-rose .line-head{fill:#1768c5}
+.sar-rose .ant{stroke:#21b6d8;stroke-width:2;stroke-dasharray:3 3}
+.sar-rose .wind{stroke:#ff8a00;stroke-width:3}
+.sar-rose .wind-head{fill:#ff8a00}

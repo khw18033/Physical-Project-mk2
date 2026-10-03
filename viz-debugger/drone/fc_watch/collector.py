@@ -138,6 +138,14 @@ class FcTelemetry:
         elif mtype == "VIBRATION":
             d["vibration"] = {"x": msg.vibration_x, "y": msg.vibration_y, "z": msg.vibration_z,
                               "clipping": [msg.clipping_0, msg.clipping_1, msg.clipping_2]}
+        elif mtype == "WIND_COV":
+            # PX4 EKF 가 추정한 바람(땅 기준, 바람이 **불어 가는** 방향 벡터). 표시는 기상 관례 — 불어 **오는** 방향.
+            import math as _m
+            vn, ve = msg.wind_x, msg.wind_y
+            if _m.isfinite(vn) and _m.isfinite(ve):
+                d["wind"] = {"speed_mps": round(_m.hypot(vn, ve), 2), "from_deg": round((_m.degrees(_m.atan2(ve, vn)) + 180) % 360, 1),
+                             "vn": round(vn, 2), "ve": round(ve, 2),
+                             "var_h": None if not _m.isfinite(msg.var_horiz) else round(msg.var_horiz, 3)}
         elif mtype == "EXTENDED_SYS_STATE":
             d["landed_state"] = LANDED.get(msg.landed_state, str(msg.landed_state))
         elif mtype == "RC_CHANNELS":
@@ -183,7 +191,7 @@ class FcTelemetry:
             "gps": d.get("gps"), "rtk": d.get("rtk"),
             "battery": d.get("battery"),
             "sensors": d.get("sensors"), "load_pct": d.get("load_pct"), "drop_rate_pct": d.get("drop_rate_pct"),
-            "ekf": d.get("ekf"), "vibration": d.get("vibration"), "rc": d.get("rc"),
+            "ekf": d.get("ekf"), "vibration": d.get("vibration"), "rc": d.get("rc"), "wind": d.get("wind"),
             "clock_offset_s": _r(d.get("clock_offset_s"), 3),
             "console": list(self.console)[-30:],
             "time": now,

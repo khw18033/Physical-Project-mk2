@@ -22,7 +22,7 @@ import {
   issueSarAbort, issueSarStart, sarLink, type SarIssueOutcome, type SarLink,
 } from '../physical/sarCommands.ts';
 import {
-  SAR_RULES, autoLeadInM, defaultDraft, endFrom, lineOf, planEstimate, planProblems, toGlobal, toLocal,
+  SAR_RULES, autoLeadInM, batteryBudget, defaultDraft, endFrom, lineOf, planEstimate, planProblems, toGlobal, toLocal, windEffect,
   toStartParams, type LatLon, type SarPlanDraft,
 } from './plan.ts';
 import { RTK_LABEL_KEY, rtkLevel } from './rtk.ts';
@@ -441,6 +441,7 @@ export function SarPassZoom() {
           <label className="sar-check"><input type="checkbox" checked={draft.rtlOnDone} onChange={(e) => setDraft({ ...draft, rtlOnDone: e.target.checked })} />{t('sar.plan.rtlOnDone')}</label>
         </div>
       </div>
+      <PlanBudget draft={draft} wind={fcxReport?.wind ?? null} antenna={antenna} />
       <details className="sar-more"><summary>{t('sar.plan.advanced')}</summary>
         <p className="sar-hint">{t('sar.plan.advancedHelp')}</p>
         <div className="sar-plan-grid">
@@ -503,6 +504,84 @@ export function SarPassZoom() {
       <DataPanel data={data} reflectors={reflectors} />
     </Step>
   </div>;
+}
+
+const ENDURANCE_KEY = 'viz.sar.enduranceMin.v1';
+
+/** 바람이 빔에 주는 영향 · 배터리 예산 — 계획을 바꾸면 바로 다시 계산한다. */
+function PlanBudget({ draft, wind, antenna }: { draft: SarPlanDraft; wind: { speedMps: number | null; fromDeg: number | null } | null; antenna: AntennaDraft }) {
+  useLang();
+  const [endurance, setEndurance] = useState<number>(() => { try { return Number(localStorage.getItem(ENDURANCE_KEY)) || 18; } catch { return 18; } });
+  const [manual, setManual] = useState<{ speedMps: number; fromDeg: number } | null>(null);
+  const line = draft.start && draft.end ? lineOf(draft.start, draft.end) : null;
+  const w = wind?.speedMps != null && wind.fromDeg != null ? { speedMps: wind.speedMps, fromDeg: wind.fromDeg } : manual;
+  const fx = line && w ? windEffect(line.headingDeg, draft.speedMps, w, antenna.depressionDeg, antenna.elBeamwidthDeg, antenna.azBeamwidthDeg) : null;
+  const bud = batteryBudget(draft, endurance);
+  const f1 = (v: number) => v.toFixed(1);
+  return <div className="sar-budget">
+    <div className={`sar-budget-card is-${fx?.level ?? 'none'}`}>
+      <div className="sar-budget-head">
+        <b>{t('plan.wind.title')}</b>
+        <small>{wind?.speedMps != null ? t('plan.wind.fromFc') : t('plan.wind.manual')}</small>
+      </div>
+      <div className="sar-budget-body">
+        {line && <WindRose headingDeg={line.headingDeg} wind={w} side={antenna.side} />}
+        <div>
+          {w === null ? <p className="sar-hint">{t('plan.wind.none')}</p> : <>
+            <p className="sar-budget-big">{f1(w.speedMps)} m/s <small>{t('plan.wind.from', { deg: Math.round(w.fromDeg) })}</small></p>
+            {fx && <ul className="sar-budget-list">
+              <li>{t(fx.headMps >= 0 ? 'plan.wind.compHead' : 'plan.wind.compTail', { v: f1(Math.abs(fx.headMps)), cross: f1(Math.abs(fx.crossMps)) })}</li>
+              <li>{t('plan.wind.tilt', { roll: f1(fx.rollDeg), pitch: f1(fx.pitchDeg) })}</li>
+              <li>{t(fx.squintDeg >= 0 ? 'plan.wind.beamBack' : 'plan.wind.beamFwd', { el: f1(Math.abs(fx.rollDeg)), sq: f1(Math.abs(fx.squintDeg)) })}</li>
+            </ul>}
+            {fx && fx.level !== 'ok' && <p className={fx.level === 'bad' ? 'sar-bad' : 'sar-warn'}>{t(`plan.wind.advice.${fx.level}`)}</p>}
+          </>}
+          {wind?.speedMps == null && <div className="sar-inline">
+            <label>{t('plan.wind.speed')} <input type="number" step={0.5} min={0} value={manual?.speedMps ?? ''}
+              onChange={(e) => setManual(e.target.value === '' ? null : { speedMps: Number(e.target.value), fromDeg: manual?.fromDeg ?? 0 })} /> m/s</label>
+            <label>{t('plan.wind.dir')} <input type="number" step={10} min={0} max={359} value={manual?.fromDeg ?? ''}
+              onChange={(e) => setManual({ speedMps: manual?.speedMps ?? 0, fromDeg: Number(e.target.value) || 0 })} />°</label>
+          </div>}
+        </div>
+      </div>
+    </div>
+    <div className={`sar-budget-card is-${bud?.level ?? 'none'}`}>
+      <div className="sar-budget-head"><b>{t('plan.batt.title')}</b>
+        <label className="sar-inline">{t('plan.batt.endurance')} <input type="number" min={5} max={60} step={1} value={endurance}
+          onChange={(e) => { const v = Number(e.target.value) || 18; setEndurance(v); try { localStorage.setItem(ENDURANCE_KEY, String(v)); } catch { /* */ } }} /> {t('plan.batt.min')}</label>
+      </div>
+      {bud === null ? <p className="sar-hint">{t('plan.batt.needLine')}</p> : <>
+        <div className="sar-budget-bar" role="img" aria-label={t('plan.batt.title')}>
+          <span className="pass" style={{ width: `${Math.min(100, (bud.passMin / Math.max(bud.usableMin, 0.1)) * 100)}%` }} />
+          <span className="retry" style={{ width: `${Math.max(0, Math.min(100, ((bud.worstMin - bud.passMin) / Math.max(bud.usableMin, 0.1)) * 100))}%` }} />
+        </div>
+        <p className="sar-budget-big">{t('plan.batt.need', { pass: f1(bud.passMin), worst: f1(bud.worstMin), usable: f1(bud.usableMin) })}</p>
+        {bud.level !== 'ok' && <p className={bud.level === 'bad' ? 'sar-bad' : 'sar-warn'}>{t(`plan.batt.advice.${bud.level}`)}</p>}
+      </>}
+    </div>
+  </div>;
+}
+
+/** 작은 바람 장미 — 선 방향(파랑) · 안테나 쪽(청록 점선) · 바람(주황, 불어 오는 쪽에서 화살). */
+function WindRose({ headingDeg, wind, side }: { headingDeg: number; wind: { speedMps: number; fromDeg: number } | null; side: 'right' | 'left' }) {
+  const R = 44;
+  const pt = (deg: number, r: number) => ({ x: 50 + r * Math.sin((deg * Math.PI) / 180), y: 50 - r * Math.cos((deg * Math.PI) / 180) });
+  const a = pt(headingDeg + 180, R - 6);
+  const b = pt(headingDeg, R - 6);
+  const ant = pt(headingDeg + (side === 'right' ? 90 : -90), R - 10);
+  const wf = wind ? pt(wind.fromDeg, R) : null;
+  const wt = wind ? pt(wind.fromDeg, 12) : null;
+  return <svg viewBox="0 0 100 100" className="sar-rose" aria-hidden="true">
+    <circle cx={50} cy={50} r={R} className="ring" />
+    <text x={50} y={9} className="n">N</text>
+    <line x1={50} y1={50} x2={ant.x} y2={ant.y} className="ant" />
+    <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} className="line" markerEnd="url(#sarRoseArrow)" />
+    {wf && wt && <line x1={wf.x} y1={wf.y} x2={wt.x} y2={wt.y} className="wind" markerEnd="url(#sarRoseWind)" />}
+    <defs>
+      <marker id="sarRoseArrow" viewBox="0 0 10 10" refX={8} refY={5} markerWidth={5} markerHeight={5} orient="auto"><path d="M0,0 L10,5 L0,10 z" className="line-head" /></marker>
+      <marker id="sarRoseWind" viewBox="0 0 10 10" refX={8} refY={5} markerWidth={5} markerHeight={5} orient="auto"><path d="M0,0 L10,5 L0,10 z" className="wind-head" /></marker>
+    </defs>
+  </svg>;
 }
 
 function Progress({ report }: { report: SarReport }) {
