@@ -419,6 +419,16 @@ b.follow-live{cursor:default}
    일곱 칸 한 줄과 카메라 자리표시 하나뿐이다. */
 .device-modal{width:min(980px,92vw)}
 .device-modal__camera{padding:16px 22px 4px}
+/* 드론 상세보기 (261003 · `DroneDetailModal`). 탭마다 내용 높이가 달라 **크기를 고정**하고 아래 칸만 구른다 —
+   「전체 카메라」 판(.all-cams)과 같은 틀이다. 머리줄은 id · 탭 · 닫기 한 줄. */
+.modal.device-modal--drone{width:min(1280px,96vw);height:92vh;max-height:92vh;display:flex;flex-direction:column;overflow:hidden}
+.device-modal--drone>header{flex:none}
+.drone-modal__tabs{display:flex;gap:4px;margin:0 auto 0 18px}
+.modal>header .drone-modal__tabs button{padding:7px 13px;cursor:pointer}
+.modal>header .drone-modal__tabs button[aria-selected="true"]{color:#fff;border-color:#1768c5;background:#1768c5;font-weight:700}
+.drone-modal__body{flex:1;min-height:0;overflow:auto}
+.drone-modal__body>.sar-zoom{padding:16px 22px}
+.drone-modal__empty{margin:6px 0;color:#6a7686}
 
 /* 연결 관리 (260904 — VZ-C-07). 목록 판(.global-panel)보다 넓다 — 폼이고 칸이 여섯이다. */
 /* 연결 관리만 넓다 — 주소 한 줄이 안 잘려야 한다 (260913 지시).

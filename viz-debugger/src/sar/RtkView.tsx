@@ -93,12 +93,14 @@ export function RtkCard() {
   </ul>;
 }
 
-export function RtkZoom() {
+/** `deviceId` 를 주면 그 장비 한 대만 그린다 — 하드웨어 카드의 상세보기(261003). 안 주면 보고한 장비 전부(뷰 노드). */
+export function RtkZoom({ deviceId }: { deviceId?: string } = {}) {
   useLang();
   useTick(1000);
-  const devices = useGpsDevices();
+  const devices = useGpsDevices().filter((g) => deviceId === undefined || g.entityId === deviceId);
   const rtcm = useRtcmReports();
-  const relayOnly = Object.values(rtcm).filter((r) => !devices.some((g) => g.entityId === r.deviceId));
+  const relayOnly = Object.values(rtcm).filter((r) => (deviceId === undefined || r.deviceId === deviceId)
+    && !devices.some((g) => g.entityId === r.deviceId));
   return <div className="sar-zoom">
     <p className="sar-lead">{t('rtk.lead')}</p>
     {devices.length === 0 && <p className="sar-empty">{t('rtk.noDevice')}</p>}
