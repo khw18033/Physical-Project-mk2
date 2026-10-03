@@ -333,6 +333,24 @@ const params = plan.toStartParams({
   check(cov.surveyPoint(pts.slice(0, 2), 11_000) === null, '점이 3개보다 적으면 측량하지 않아야 한다');
   console.log('✅ 리플렉터 측량 — 최근 3 초 평균 · 오래된 점 제외 · 흩어짐');
 
+  // 레이더 상태 — 드론 쪽 radar_status.py 가 내는 칸 이름을 화면이 읽는다
+  const rf = await load('src', 'physical', 'radarFeed.ts');
+  const rs = await load('src', 'shared', 'radarStatus.ts');
+  const pyRadar = read('drone', 'sar_pass', 'radar_status.py');
+  for (const k of ['state', 'recording', 'file', 'pulses_per_s', 'dropped', 'buffer_pct', 'temp_c', 'time_source', 'pps_locked', 'last_error', 'disk_free_gb']) {
+    check(pyRadar.includes(`"${k}"`), `레이더 상태 칸 ${k} 를 드론 쪽 규약(FIELDS)이 모른다`);
+  }
+  check(/SCHEMA = "radar-0\.1"/.test(pyRadar), '레이더 상태 schema 이름이 다르다');
+  const body = { schema_version: 'radar-0.1', source_id: 'x500-001', state: 'recording', recording: true, pulses_per_s: 150, dropped: 0, time_source: 'pps', pps_locked: true };
+  const st = rf.parseRadarStatus(body, 'zoneA/drone/x500-001/radar');
+  check(st !== null && st.recording && st.pulsesPerS === 150, '레이더 상태를 못 읽는다');
+  const now = Date.now();
+  check(rs.radarLevel({ ...st, receivedAtMs: now }, 200, now).reasonKey === 'radar.why.prf', 'PRF 200 에 펄스 150 이면 주의여야 한다');
+  check(rs.radarLevel({ ...st, pulsesPerS: 199, receivedAtMs: now }, 200, now).level === 'good', '정상 레이더를 주의라고 한다');
+  check(rs.radarLevel({ ...st, receivedAtMs: now - 6000 }, 200, now).level === 'bad', '6 초 끊긴 레이더를 정상이라고 한다');
+  check(rf.parseRadarStatus({ ...body, state: 'busy' }) === null, '규약에 없는 state 를 받아들인다');
+  console.log('✅ 레이더 상태 — 드론 쪽 칸 · 판정(끊김 · PRF · PPS)');
+
   // 바람 영향 — 북쪽으로 4 m/s 날며 북풍 3 m/s(맞바람) → 공기 속도 7 m/s · 앞 숙임 · 빔은 뒤로. 서풍은 동쪽(오른쪽)으로 밀어 왼쪽으로 기울여 버틴다
   const head = plan.windEffect(0, 4, { speedMps: 3, fromDeg: 0 }, 45, 40, 30);
   check(Math.abs(head.headMps - 3) < 1e-9 && Math.abs(head.airspeedMps - 7) < 1e-9 && head.pitchDeg < 0 && head.squintDeg > 0 && Math.abs(head.rollDeg) < 1e-9,

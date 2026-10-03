@@ -17,6 +17,7 @@ import { t } from '../i18n/dict.ts';
 import { telemetryValue, useDeviceTelemetry, isTelemetryStale } from '../shared/deviceTelemetry.ts';
 import { isFcxStale, useFcxReports, type FcxReport, type FcxSample } from '../shared/fcxStatus.ts';
 import { useSarReports } from '../shared/sarStatus.ts';
+import { radarLevel, useRadarReports } from '../shared/radarStatus.ts';
 import { useRtcmReports } from '../shared/rtcmStatus.ts';
 import { rtkLevel } from '../sar/rtk.ts';
 import { RtkBadge, RtcmLine } from '../sar/RtkView.tsx';
@@ -109,6 +110,7 @@ function Chip({ level, label, value, title }: { level: Level; label: string; val
 function StatusBar({ v, compact }: { v: View; compact?: boolean }) {
   useLang();
   const rtcm = useRtcmReports()[v.deviceId];
+  const radarRep = useRadarReports()[v.deviceId];
   const f = v.extended ? v.fcx : null;
   const linkLevel: Level = v.linkAgeS === null ? 'bad' : v.linkAgeS < 2 ? 'good' : v.linkAgeS < 5 ? 'warn' : 'bad';
   const batLevel: Level = v.batteryPct === null ? 'unknown' : v.batteryPct > 30 ? 'good' : v.batteryPct > 15 ? 'warn' : 'bad';
@@ -123,6 +125,12 @@ function StatusBar({ v, compact }: { v: View; compact?: boolean }) {
     <Chip level={batLevel} label={t('dash.battery')} value={`${fmt(v.batteryV, 2)}V · ${v.batteryPct === null ? '—' : `${Math.round(v.batteryPct)}%`}`} />
     {!compact && f?.rc && <Chip level={f.rc.rssi === null ? 'unknown' : f.rc.rssi > 50 ? 'good' : f.rc.rssi > 20 ? 'warn' : 'bad'} label="RC" value={f.rc.rssi === null ? '—' : `${f.rc.rssi}%`} />}
     {!compact && <RtcmLine report={rtcm} />}
+    {radarRep && (() => {
+      const rl = radarLevel(radarRep, readAntenna().prfHz);
+      return <Chip level={rl.level} label={t('dash.radar')} title={rl.reasonKey ? t(rl.reasonKey) : undefined}
+        value={[t(`radar.state.${radarRep.state}`), radarRep.pulsesPerS === null ? null : t('radar.pps', { v: radarRep.pulsesPerS.toFixed(0) }),
+          radarRep.tempC === null ? null : `${radarRep.tempC.toFixed(0)}°C`].filter(Boolean).join(' · ')} />;
+    })()}
     {f?.companion && <Chip level={f.companion.level === 'ok' ? 'good' : f.companion.level === 'warn' ? 'warn' : f.companion.level === 'bad' ? 'bad' : 'unknown'}
       label={t('dash.pi')} title={t('dash.piTitle', { load: fmt(f.companion.load1, 2), disk: fmt(f.companion.diskFreeGb, 1) })}
       value={[f.companion.cpuTempC === null ? null : `${fmt(f.companion.cpuTempC, 0)}°C`,

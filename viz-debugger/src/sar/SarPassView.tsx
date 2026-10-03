@@ -16,6 +16,7 @@ import { deviceTelemetry, isTelemetryStale, telemetryValue, useDeviceTelemetry }
 import { SAR_FINISHED, isSarStale, useSarReports, type SarReport, type SarState } from '../shared/sarStatus.ts';
 import { isRtcmReportStale, useRtcmReports } from '../shared/rtcmStatus.ts';
 import { useFcxReports } from '../shared/fcxStatus.ts';
+import { radarLevel, useRadarReports } from '../shared/radarStatus.ts';
 import { connectionAddress, useConnections } from '../shared/connections.ts';
 import { physicalWsUrls } from '../physical/PhysicalClient.ts';
 import {
@@ -198,6 +199,7 @@ export function SarPassZoom({ deviceId: pinned, readOnly = false }: { deviceId?:
   const { link, deviceId, report } = useSarView(pinned);
   const rtcm = useRtcmReports();
   const fcx = useFcxReports();
+  const radar = useRadarReports();
   const [draft, setDraftState] = useState<SarPlanDraft>(loadDraft);
   const [pickNext, setPickNext] = useState<'start' | 'end'>(() => (loadDraft().start === null ? 'start' : 'end'));
   const [mapMode, setMapMode] = useState<'line' | 'reflector'>('line');
@@ -235,6 +237,7 @@ export function SarPassZoom({ deviceId: pinned, readOnly = false }: { deviceId?:
     : rtkLevel(telemetryValue(deviceId, 'gps.fix_type'), telemetryValue(deviceId, 'gps.fix'));
   const tel = deviceId === null ? null : deviceTelemetry(deviceId);
   const rtcmReport = deviceId === null ? undefined : rtcm[deviceId];
+  const radarRep = deviceId === null ? undefined : radar[deviceId];
   const fcxReport = deviceId === null ? undefined : fcx[deviceId];
   const clock = report?.clockOffsetS ?? fcxReport?.clockOffsetS ?? null;
 
@@ -266,6 +269,14 @@ export function SarPassZoom({ deviceId: pinned, readOnly = false }: { deviceId?:
     { key: 'radar', level: report === null ? 'unknown' : report.capAck === null ? 'warn' : 'good', label: t('sar.check.radar'),
       detail: report === null ? t('sar.check.radarUnknown') : report.capAck === null ? t('sar.check.radarNone') : t('sar.check.radarOk'),
       fix: t('sar.check.radarFix') },
+    // 레이더 자체 상태(radar-0.1) — 레이더 팀이 내기 시작하면 보인다. 안 내면 칸을 세우지 않는다
+    ...(radarRep === undefined ? [] : [(() => {
+      const rl = radarLevel(radarRep, antenna.prfHz);
+      return { key: 'radarHealth', level: rl.level as Level, label: t('sar.check.radarHealth'),
+        detail: [t(`radar.state.${radarRep.state}`), radarRep.pulsesPerS === null ? null : t('radar.pps', { v: radarRep.pulsesPerS.toFixed(0) }),
+          rl.reasonKey ? t(rl.reasonKey) : null].filter(Boolean).join(' · '),
+        fix: t('sar.check.radarHealthFix') };
+    })()]),
     { key: 'data', level: data.ok === true ? 'good' : data.base === '' ? 'warn' : data.ok === false ? 'warn' : 'unknown', label: t('sar.check.data'),
       detail: data.ok === true ? t('sar.check.dataOk', { url: data.base, free: data.freeBytes === null ? '—' : bytes(data.freeBytes) })
         : data.base === '' ? t('sar.check.dataNoUrl') : t('sar.check.dataFail', { url: data.base }),

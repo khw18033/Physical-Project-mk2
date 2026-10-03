@@ -40,6 +40,8 @@ import { parseSarStatus, SAR_TOPIC, sarChannel } from './sarFeed.ts';
 import { noteSarStatus } from '../shared/sarStatus.ts';
 import { parseRtcmStatus, RTCM_TOPIC, rtcmChannel } from './rtcmFeed.ts';
 import { noteRtcmStatus } from '../shared/rtcmStatus.ts';
+import { parseRadarStatus, RADAR_TOPIC, radarChannel } from './radarFeed.ts';
+import { noteRadarStatus } from '../shared/radarStatus.ts';
 import { FCX_TOPIC, fcxChannel, parseFcx } from './fcxFeed.ts';
 import { noteFcx } from '../shared/fcxStatus.ts';
 import { decodeCapability, decodeUplink, type UplinkMessage } from './uplink.ts';
@@ -324,6 +326,8 @@ export class PhysicalClient {
         client.subscribe(SAR_TOPIC, { qos: 0 });
         // RTK 보정 전달기 상태 (261002) — 「보정이 FC 로 들어가고 있는가」. retained.
         client.subscribe(RTCM_TOPIC, { qos: 0 });
+        // 레이더(cansar) 상태 (261003 · 드론 파트) — 1 Hz, retained. 규약 drone/RADAR_INTERFACE.md
+        client.subscribe(RADAR_TOPIC, { qos: 0 });
         // FC 확장 텔레메트리 (261002 · 드론 상태판) — 5 Hz, retained.
         client.subscribe(FCX_TOPIC, { qos: 0 });
       }) as () => void);
@@ -343,6 +347,11 @@ export class PhysicalClient {
           if (rtcmChannel(topic)) {
             const rtcm = parseRtcmStatus(body as Record<string, unknown>, topic);
             if (rtcm !== null) noteRtcmStatus(rtcm);
+            return;
+          }
+          if (radarChannel(topic)) {
+            const radar = parseRadarStatus(body as Record<string, unknown>, topic);
+            if (radar !== null) noteRadarStatus(radar);
             return;
           }
           if (fcxChannel(topic)) {
