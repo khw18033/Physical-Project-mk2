@@ -136,6 +136,7 @@ class Store:
             out.append({
                 "id": d.name, "started_unix": stamp, "passes": passes,
                 "valid_passes": sum(1 for p in passes if p["valid"]),
+                "ulogs": [{"name": f.name, "size": f.stat().st_size} for f in sorted(d.glob("*.ulg"))],
                 "size_bytes": sum(f.stat().st_size for f in d.iterdir() if f.is_file()) + sum(p["radar_bytes"] for p in passes),
             })
         return out
@@ -370,6 +371,8 @@ def main(argv: list[str] | None = None) -> int:
     g.add_argument("--reflectors", type=Path, help="화면에서 내려받은 reflectors.csv — 영상 요청에 리플렉터가 없을 때 쓴다")
     g.add_argument("--auto-image", action="store_true", help="새 패스가 들어오면 바로 영상을 만든다")
     g.add_argument("--image-workers", type=int, help="영상 계산 스레드 (기본: 코어 수, 최대 8)")
+    g.add_argument("--former", help="팀의 영상 코드 모듈:함수 (없으면 내장 백프로젝션)")
+    g.add_argument("--focuser", help="팀의 자동 초점 모듈:함수 (없으면 내장 리플렉터 방식)")
     a = p.parse_args(argv)
     import threading
 
@@ -377,7 +380,7 @@ def main(argv: list[str] | None = None) -> int:
     jobs = mirror = None
     if a.radar_json or a.adapter or a.auto_image:
         from .imaging import ImageJobs
-        jobs = ImageJobs(store, a.radar_json, a.adapter, a.reflectors, a.image_workers)
+        jobs = ImageJobs(store, a.radar_json, a.adapter, a.reflectors, a.image_workers, former=a.former, focuser=a.focuser)
         if jobs.missing():
             log.warning("영상 설정이 빠졌다: %s", ", ".join(jobs.missing()))
     if a.mirror:

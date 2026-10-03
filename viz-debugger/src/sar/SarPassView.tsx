@@ -101,7 +101,7 @@ type DataPass = {
   radar_files: { name: string; size: number }[]; radar_bytes: number; eff_start_along_m: number | null; eff_end_along_m: number | null;
   image?: ImageSummary | null;
 };
-type DataFlight = { id: string; started_unix: number; passes: DataPass[]; valid_passes: number; size_bytes: number };
+type DataFlight = { id: string; started_unix: number; passes: DataPass[]; valid_passes: number; size_bytes: number; ulogs?: { name: string; size: number }[] };
 
 function useDataServer(enabled: boolean) {
   useConnections();
@@ -685,6 +685,8 @@ function DataPanel({ data, reflectors }: { data: ReturnType<typeof useDataServer
       <div className="sar-flight-row" onClick={() => setOpen(open === f.id ? null : f.id)}>
         <b>{new Date(f.started_unix * 1000).toLocaleString(undefined, { hour12: false })}</b>
         <span>{t('sar.data.flightInfo', { n: f.passes.length, v: f.valid_passes, size: bytes(f.size_bytes) })}</span>
+        <span className={f.ulogs && f.ulogs.length > 0 ? 'sar-ok' : 'sar-hint'} title={t('sar.data.ulogHint')}>
+          {f.ulogs && f.ulogs.length > 0 ? t('sar.data.ulogYes', { size: bytes(f.ulogs.reduce((a, u) => a + u.size, 0)) }) : t('sar.data.ulogNo')}</span>
         <a className="sar-btn" href={url(f.id, 'report.html')} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}>{t('sar.data.report')}</a>
         <a className="sar-btn" href={url(f.id, 'bundle.zip?raw=0')} onClick={(e) => e.stopPropagation()}>{t('sar.data.positionAll')}</a>
         <a className="sar-btn sar-btn--main" href={url(f.id, 'bundle.zip')} onClick={(e) => e.stopPropagation()}>{t('sar.data.all')}</a>

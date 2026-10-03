@@ -54,7 +54,7 @@ def backproject(rc: np.ndarray, range_axis: np.ndarray, positions: np.ndarray, w
 
 def backproject_fast(rc: np.ndarray, range_axis: np.ndarray, positions: np.ndarray, wavelength_m: float,
                      grid: np.ndarray, weights: np.ndarray | None = None, workers: int | None = None,
-                     block_px: int = 65_536) -> np.ndarray:
+                     block_px: int = 65_536, **_ctx) -> np.ndarray:
     """`backproject` 와 같은 영상을 32비트 · 여러 코어로. 결과는 complex64.
 
     32비트의 유효숫자는 7자리라 **좌표가 크면 영상이 깨진다**(UTM 수백만 m → 0.5 m 오차 · 피크 −19 dB 를 확인했다).

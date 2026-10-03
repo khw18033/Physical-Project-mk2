@@ -48,13 +48,16 @@ def parse_cr(text: str) -> list[tuple[float, float, float | None]]:
 
 class ImageJobs:
     def __init__(self, store, radar_json: Path | None, adapter: str | None,  # noqa: ANN001
-                 reflectors_csv: Path | None = None, workers: int | None = None, full: bool = True) -> None:
+                 reflectors_csv: Path | None = None, workers: int | None = None, full: bool = True,
+                 former: str | None = None, focuser: str | None = None) -> None:
         self.store = store
         self.radar_json = radar_json
         self.adapter = adapter
         self.reflectors_csv = reflectors_csv
         self.workers = workers
         self.full = full
+        self.former = former          # 팀의 영상 코드 "모듈:함수" (없으면 내장 백프로젝션)
+        self.focuser = focuser        # 팀의 자동 초점 "모듈:함수" (없으면 내장 리플렉터 방식)
         self.q: queue.Queue = queue.Queue()
         self._busy: set[tuple[str, int]] = set()
         self._lock = threading.Lock()
@@ -133,5 +136,5 @@ class ImageJobs:
         radar = RadarConfig.load(self.radar_json)  # type: ignore[arg-type]  — 요청마다 다시 읽는다(고친 값 바로 반영)
         log.info("영상 시작 %s 패스 %d · 원시 %d개 · 리플렉터 %d개", fid, pass_no, len(raw), len(crs))
         body = form_pass(flight / info["traj_csv"], raw, radar, self.adapter, self.out_dir(flight, pass_no),  # type: ignore[arg-type]
-                         reflectors=crs, full=self.full, workers=self.workers)
+                         reflectors=crs, full=self.full, workers=self.workers, former=self.former, focuser=self.focuser)
         log.info("영상 끝 %s 패스 %d · %s · %s", fid, pass_no, body["state"], body["timings_s"])

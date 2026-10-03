@@ -162,3 +162,34 @@ def test_time_offset_found_and_applied(tmp_path):
     raw_only = form_pass(csv, [raw], radar, ADAPTER, tmp_path / "off", reflectors=crs, full=False, autofocus=False, time_offset=None)
     for a, b in zip(fixed["reflectors"], raw_only["reflectors"]):
         assert a["found"] and a["contrast_db"] > b["contrast_db"] + 3
+
+
+def plugin_former(rc, range_axis, positions, wavelength_m, grid, **ctx):  # noqa: ANN001, ANN003, ANN201
+    """시험용 '팀 영상 코드' — 내장 백프로젝션을 그대로 부르고 받은 문맥을 적어 둔다."""
+    from sar_image.backprojection import backproject
+
+    plugin_former.seen = sorted(ctx)
+    return backproject(rc, range_axis, positions, wavelength_m, grid)
+
+
+def plugin_focuser(rc, range_axis, positions, wavelength_m, reflectors, **ctx):  # noqa: ANN001, ANN003, ANN201
+    return {"method": "team-af", "iterations": 3}
+
+
+def test_team_code_plugs_in(tmp_path):
+    from sar_image.pipeline import form_pass
+
+    csv = DATA / "pass02_1790957682.csv"
+    meta = json.loads(csv.with_suffix(".json").read_text(encoding="utf-8"))
+    traj = Trajectory.load_csv(csv)
+    o, hd, length, h = frame(traj, meta)
+    r = math.radians(hd)
+    la, lo = o.latlon(40 * math.sin(r) + 20 * math.cos(r), 40 * math.cos(r) - 20 * math.sin(r))
+    radar = replace(RadarConfig.load(RADAR), prf_hz=100.0)
+    raw = tmp_path / "raw.npz"
+    write_fmcw_npz(raw, radar, traj, o, [o.enu(la, lo, o.h)], meta)
+    b = form_pass(csv, [raw], radar, ADAPTER, tmp_path / "out", reflectors=[(la, lo, None)], full=False,
+                  former="test_sar_imaging_flow:plugin_former", focuser="test_sar_imaging_flow:plugin_focuser")
+    assert b["state"] == "done" and b["reflectors"][0]["found"]
+    assert b["autofocus"] == {"method": "team-af", "reflectors": 1, "iterations": 3}
+    assert {"t", "radar", "traj", "origin", "heading_deg", "workers"} <= set(plugin_former.seen)

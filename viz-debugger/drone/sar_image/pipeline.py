@@ -174,11 +174,17 @@ def _write(out: Path, body: dict) -> None:
 def form_pass(traj_csv: Path, raw_files: list[Path], radar: RadarConfig, adapter: Adapter | str,
               out_dir: Path, reflectors: list[tuple[float, float, float | None]] | None = None,
               full: bool = True, autofocus: bool = True, full_step: tuple[float, float] = (0.05, 0.1),
-              workers: int | None = None, time_offset: float | str | None = "auto") -> dict:
+              workers: int | None = None, time_offset: float | str | None = "auto",
+              former: Callable | str | None = None, focuser: Callable | str | None = None) -> dict:
     """영상 묶음을 만든다. 실패해도 image.json 에 사유를 남기고 예외는 다시 던진다.
 
     time_offset: 레이더 시각에 더할 초. "auto" 면 리플렉터 둘 이상이 2 ms 안에서 같은 값을 가리킬 때만 그 값을 쓴다
     (하나뿐이면 알리기만 한다). 숫자면 그 값, None 이면 0.
+
+    former · focuser: 팀의 영상 · 자동 초점 코드를 꽂는 자리("모듈:함수" 또는 함수). README 「영상 코드 꽂기」.
+      former(rc, range_axis, positions, wavelength_m, grid, **ctx) -> 복소 영상 (grid.shape[:-1])
+      focuser(rc, range_axis, positions, wavelength_m, reflectors, **ctx) -> {"rc"?, "positions"?, "method"?, ...}
+      ctx 에는 t(펄스 시각) · radar · traj · origin · heading_deg · workers 가 들어간다. 안 쓰는 것은 **ctx 로 받아 버린다.
     """
     out_dir.mkdir(parents=True, exist_ok=True)
     status_path = out_dir / "image.json"
@@ -190,6 +196,13 @@ def form_pass(traj_csv: Path, raw_files: list[Path], radar: RadarConfig, adapter
     try:
         if isinstance(adapter, str):
             adapter = load_adapter(adapter)
+        if isinstance(former, str):
+            body["former"] = former
+            former = load_adapter(former)
+        if isinstance(focuser, str):
+            body["focuser"] = focuser
+            focuser = load_adapter(focuser)
+        form_fn = former or backproject_fast
         meta_path = traj_csv.with_suffix(".json")
         meta = json.loads(meta_path.read_text(encoding="utf-8")) if meta_path.exists() else {}
         traj = Trajectory.load_csv(traj_csv)
@@ -250,6 +263,7 @@ def form_pass(traj_csv: Path, raw_files: list[Path], radar: RadarConfig, adapter
         st = traj.at(o, t)
         body["tilt_motion_mm"] = round(tilt_motion_mm(lever, st["roll"], st["pitch"]), 2)
         pos = phase_center(np.stack([st["e"], st["n"], st["u"]], axis=1), st["yaw"], st["pitch"], st["roll"], lever)
+        ctx = {"t": t, "radar": radar, "traj": traj, "origin": o, "heading_deg": heading, "workers": workers}
 
         # ── 1) 리플렉터 둘레 — 촘촘히, 먼저 ─────────────────────────────────
         t0 = time.perf_counter()
@@ -261,7 +275,7 @@ def form_pass(traj_csv: Path, raw_files: list[Path], radar: RadarConfig, adapter
             along = np.arange(a_c - 0.6, a_c + 0.6, 0.004)
             cross = np.arange(c_c - 1.5, c_c + 1.5, 0.05)
             g, _ = line_grid((0.0, 0.0), heading, along, cross)
-            img = backproject_fast(rc, rng, pos, lam, g, workers=workers)
+            img = form_fn(rc, rng, pos, lam, g, **ctx)
             m = peak_metrics(img, along, cross)
             # 리플렉터 자리의 밝기 vs 둘레 바닥(중앙값) — 리플렉터가 실제로 찍혔는지
             a = np.abs(img)
@@ -285,7 +299,14 @@ def form_pass(traj_csv: Path, raw_files: list[Path], radar: RadarConfig, adapter
 
         # ── 2) 자동 초점 (찍힌 리플렉터로) — 3차원 → 이어 붙이기 → 하나 순으로 내려간다 ──────────
         rc_used, pos_used, af = rc, pos, None
-        if autofocus and seen_crs:
+        if autofocus and focuser is not None:
+            # 팀의 자동 초점 — 리플렉터가 없어도(데이터 기반 방식) 부른다
+            out = focuser(rc, rng, pos, lam, seen_crs, **ctx) or {}
+            rc_used = out.get("rc", rc)
+            pos_used = out.get("positions", pos)
+            af = {"method": str(out.get("method", "plugin")), "reflectors": len(seen_crs),
+                  **{k: v for k, v in out.items() if k not in ("rc", "positions", "method") and isinstance(v, (int, float, str, bool))}}
+        elif autofocus and seen_crs:
             tried = []
             order = sorted(range(len(seen_crs)), key=lambda i: -seen_contrast[i])
             if len(seen_crs) >= 4:
@@ -331,7 +352,7 @@ def form_pass(traj_csv: Path, raw_files: list[Path], radar: RadarConfig, adapter
             along = -5.0 + full_step[0] * np.arange(int(round((length + 10.0) / full_step[0])))
             cross = c_lo + full_step[1] * np.arange(int(round((c_hi - c_lo) / full_step[1])))
             g, _ = line_grid((0.0, 0.0), heading, along, cross)
-            img = backproject_fast(rc_used, rng, pos_used, lam, g, workers=workers)
+            img = form_fn(rc_used, rng, pos_used, lam, g, **ctx)
             _png(out_dir / "full.png", img, along, cross, f"SAR · {traj_csv.stem} · {t.size} pulses",
                  [(r["along_m"], r["cross_m"]) for r in body["reflectors"]])
             _map_png(out_dir / "full_map.png", img)

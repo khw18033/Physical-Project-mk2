@@ -298,6 +298,32 @@ python -m sar_image form --traj pass02.csv --radar radar.json --raw radar/pass02
 - 파장이 길수록(L · C대역) 요구 정밀도가 그만큼 풀린다.
 - 빔폭은 **안테나 면에서** 잰다 — 수평면에서 재면 개구가 짧게 잡힌다(28 m 에서 10.7 m vs 실제 15.2 m).
 
+### 영상 코드 꽂기 (팀의 백프로젝션 · 자동 초점)
+
+내장 백프로젝션 · 리플렉터 자동 초점 대신 팀의 코드를 쓴다. 파이프라인(거리-시간 확인 → 리플렉터 판정 → 초점 → 선 전체 →
+지도 · KMZ)과 화면은 그대로이고, 함수 두 개만 갈아 끼운다.
+
+```python
+# 내 모듈 (예: team_sar.py) — 노트북의 같은 venv 에서 import 되면 된다
+def form(rc, range_axis, positions, wavelength_m, grid, **ctx):
+    # rc: (N 펄스, M 거리칸) 복소 거리 압축 · range_axis: (M,) m · positions: (N,3) 안테나 위상중심 ENU m
+    # grid: (..., 3) ENU 점들 → 복소 영상 grid.shape[:-1]
+    # ctx: t(펄스 시각 t_fc) · radar(RadarConfig) · traj · origin · heading_deg · workers
+    ...
+
+def focus(rc, range_axis, positions, wavelength_m, reflectors, **ctx):
+    # reflectors: 영상에서 찍힌 리플렉터 ENU 목록(없을 수도 있다 — 데이터 기반 방식이면 무시)
+    return {"rc": 고친_rc, "positions": 고친_위치, "method": "minimum-entropy", "iterations": 12}   # 필요한 것만
+```
+
+```bash
+python -m sar_data ... --radar-json radar.json --adapter team_sar:load --former team_sar:form --focuser team_sar:focus --auto-image
+```
+
+- 좌표는 영상 중심 근처의 지역 ENU(수십 m)다. 32비트로 계산해도 된다(큰 좌표를 쓰면 깨진다 — 위 「패스별 영상」).
+- `focus` 가 돌려준 숫자 · 문자 값(`iterations` 등)은 image.json 과 화면 「자동 초점」에 그대로 나온다.
+- 시험: `tests/test_sar_imaging_flow.py::test_team_code_plugs_in`.
+
 ### 비행 로그(.ulg) 자동 회수 (`sar_pass ulog --watch`)
 
 요구사항의 「비행 후 .ulg 받기」를 사람이 잊지 않게, Pi 에 상주시켜 **시동이 꺼질 때마다** 그 비행의 로그를 받는다.
