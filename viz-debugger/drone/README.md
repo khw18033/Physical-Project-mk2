@@ -298,6 +298,20 @@ python -m sar_image form --traj pass02.csv --radar radar.json --raw radar/pass02
 - 파장이 길수록(L · C대역) 요구 정밀도가 그만큼 풀린다.
 - 빔폭은 **안테나 면에서** 잰다 — 수평면에서 재면 개구가 짧게 잡힌다(28 m 에서 10.7 m vs 실제 15.2 m).
 
+### 비행 로그(.ulg) 자동 회수 (`sar_pass ulog --watch`)
+
+요구사항의 「비행 후 .ulg 받기」를 사람이 잊지 않게, Pi 에 상주시켜 **시동이 꺼질 때마다** 그 비행의 로그를 받는다.
+
+```bash
+python -m sar_pass ulog --watch --connect tcp://127.0.0.1:5760 --log-dir /home/physical/sar_logs
+```
+
+- 받은 파일은 그 비행 폴더(`flight_<시각>/fc_<날짜>_<번호>.ulg`)에 두고, `ulog.json` 에 FC 로그 번호 · 날짜 · 크기를 적는다.
+  데이터 서버의 「전부 받기」 ZIP 에 같이 들어간다.
+- 비행 연결(MAVSDK 14540, gRPC 50051)과 겹치지 않게 mavlink-router 의 TCP 5760(QGC 와 함께) · gRPC 50052 를 쓴다.
+- **속도에 주의**: SITL 에서 89 MB 를 104 초에 받았다(UDP, 약 0.9 MB/s). FC ↔ Pi 가 시리얼(921600 bps ≈ 90 KB/s)이면
+  같은 크기에 15 분이 넘는다. 착륙 뒤 Pi 를 켜 둔 채 기다리거나, `SDLOG_PROFILE` 로 로그를 줄이거나, FC 를 Pi 에 USB 로 잇는다.
+
 ### 패스별 영상 — 노트북에서 자동으로 (`sar_data --mirror`)
 
 Pi 는 비행 중 50 Hz 제어를 하므로 영상은 **노트북**에서 만든다. 노트북의 데이터 서버가 Pi 의 데이터 서버에서
