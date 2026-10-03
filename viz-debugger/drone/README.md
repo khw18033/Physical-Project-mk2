@@ -262,7 +262,7 @@ python -m rtk_relay.base_sender --port COM12 --baud 115200 --to <Pi 핫스팟 IP
 
 ## 코너리플렉터 확인 · SAR 영상 (`sar_image`)
 
-> 레이더 정보는 `radar.json` 하나다(`sar_image/example_radar.json` 은 **예시 값** — X대역 9.6 GHz · 300 MHz 가정).
+> 레이더 정보는 `radar.json` 하나다. 우리 레이더는 **5.8 GHz · Zynq-7020 + AD9361 SDR** — 예시 `sar_image/example_radar_sdr.json`(50 MHz 가정)과 어댑터 `sar_image.sdr:iq_npy` 를 쓴다(RADAR_INTERFACE.md 7절). `example_radar.json`(X대역)은 시험용이다.
 > 파장 · 대역폭 · PRF · 기록 거리 · 안테나 방향(좌/우) · 내려다보는 각 · 빔폭을 레이더 팀이 채운다.
 
 ```bash
@@ -280,7 +280,21 @@ python -m sar_image simulate --traj pass02.csv --radar radar.json --cr 37.56650,
 python -m sar_image form --traj pass02.csv --radar radar.json --raw radar/pass02 --adapter mymod:load --autofocus-cr 37.5665,126.9784 --png img.png
 ```
 
-### 알아낸 것 (PX4 SITL 궤적 · 예시 X대역 기준) — 레이더 팀과 공유할 것
+### 5.8 GHz 에서 — 궤적 오차가 영상에 주는 영향 (PX4 SITL 궤적, 리플렉터 하나)
+
+λ = 5.2 cm, 초점 한계 λ/8 ≈ 6.5 mm.
+
+| 궤적 위치 오차(시선 방향, 느린 흔들림) | 보정 전 리플렉터 봉우리 | 리플렉터 자동 초점 뒤 |
+|---|---|---|
+| 4 mm | −1.3 dB | −0.2 dB |
+| 6.5 mm (λ/8) | −3.1 dB | −0.3 dB |
+| 1 cm | −5.9 dB | −0.6 dB |
+| **2 cm (보통 RTK)** | **−8.7 dB** | **−1.1 dB** |
+| 3 cm | −12.3 dB | −1.6 dB |
+
+RTK 만으로는 여전히 흐려지지만(X대역 −13 dB 보다는 덜), 리플렉터 자동 초점으로 거의 돌아온다. 거리 해상도는 대역폭이 정한다(50 MHz → 3 m).
+
+### 알아낸 것 (PX4 SITL 궤적 · 예시 X대역 기준, 참고) — 레이더 팀과 공유할 것
 
 | 궤적 위치 오차 | 리플렉터 봉우리 | 비고 |
 |---|---|---|

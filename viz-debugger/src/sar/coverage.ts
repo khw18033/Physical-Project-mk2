@@ -32,7 +32,7 @@ export type AntennaDraft = {
 /** 예시 값 — 레이더 팀이 실제 사양으로 바꾼다 (drone/sar_image/example_radar.json 과 같다). */
 export function defaultAntenna(): AntennaDraft {
   return { side: 'right', depressionDeg: 45, elBeamwidthDeg: 40, azBeamwidthDeg: 30, rangeMinM: 5, rangeMaxM: 60,
-    wavelengthM: 0.03123, bandwidthHz: 300e6, prfHz: 200,
+    wavelengthM: 0.051688, bandwidthHz: 50e6, prfHz: 200,     // 5.8 GHz · AD9361 SDR (drone/sar_image/example_radar_sdr.json)
     antFwdM: 0, antRightM: 0, antDownM: 0, gnssFwdM: null, gnssRightM: null, gnssDownM: null };
 }
 

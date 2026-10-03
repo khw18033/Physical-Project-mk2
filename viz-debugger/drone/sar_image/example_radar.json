@@ -1,5 +1,5 @@
 {
-  "note": "예시 값이다 — 실제 레이더 사양으로 바꿔야 한다 (X대역 9.6 GHz · 300 MHz 가정)",
+  "note": "시험용 X대역 예시(9.6 GHz · 300 MHz) — 우리 레이더는 5.8 GHz SDR 이다: example_radar_sdr.json 을 쓴다",
   "wavelength_m": 0.03123,
   "bandwidth_hz": 300000000.0,
   "prf_hz": 200.0,
