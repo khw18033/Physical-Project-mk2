@@ -1,0 +1,15 @@
+# 비행 데이터 서버 (읽기 전용) — 화면 「비행 데이터」와 노트북 미러가 붙는다
+[Unit]
+Description=SAR drone: flight data server
+After=network-online.target
+
+[Service]
+Type=simple
+User=physical
+EnvironmentFile=/etc/sar-drone.env
+ExecStart=/bin/sh -c 'exec "$SAR_VENV/bin/python3" -u -m sar_data --flights "$SAR_LOG_DIR" --radar "$SAR_RADAR_DIR" --radar-glob "$SAR_RADAR_GLOB" --port "$SAR_DATA_PORT"'
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
