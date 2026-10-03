@@ -213,6 +213,10 @@ def form_pass(traj_csv: Path, raw_files: list[Path], radar: RadarConfig, adapter
         cw = traj.capture_window()
         lever, notes = lever_arm(radar, meta)
         body["notes"] += notes
+        flown = meta.get("radar_config") or {}
+        for k in ("antenna_offset_m", "gnss_offset_m", "depression_deg", "side", "wavelength_m"):
+            if k in flown and flown[k] != getattr(radar, k, None):
+                body["notes"].append(f"radar.json 의 {k} 가 비행 때({flown[k]})와 다르다 — 지금 값({getattr(radar, k, None)})으로 만들었다")
         body["lever_frd_m"] = lever.round(4).tolist()
         lam = radar.wavelength_m
         if lam is None:

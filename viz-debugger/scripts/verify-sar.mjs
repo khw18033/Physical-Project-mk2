@@ -314,6 +314,16 @@ const params = plan.toStartParams({
     '바로 옆 리플렉터가 빔 안 · 반대쪽은 밖이어야 한다');
   console.log('✅ 실시간 빔 — 빔 각 · 자세 회전 · 빔 자국이 드론 쪽 식과 같다');
 
+  // 재처리용 기록 — 화면이 펼친 키를 드론이 같은 이름으로 다시 모아야 한다
+  const prov = cov.provenanceParams([{ lat: 1, lon: 2 }, { lat: 3, lon: 4 }], { ...a, gnssFwdM: 0, gnssRightM: 0, gnssDownM: -0.1 });
+  const mission = read('drone', 'sar_pass', 'mission.py');
+  check(prov.cr_n === 2 && prov.cr1_lon === 4 && /f"cr\{i\}_lat"/.test(mission) && mission.includes('"cr_n"'), '리플렉터 기록 키가 드론과 다르다');
+  for (const k of Object.keys(prov).filter((k) => k.startsWith('ant_') && !k.startsWith('ant_off_') && k !== 'ant_side')) {
+    check(mission.includes(`"${k}"`), `안테나 기록 키 ${k} 를 드론(RADAR_PARAM_KEYS)이 모른다`);
+  }
+  check(mission.includes('f"ant_off_{a}"') && mission.includes('f"gnss_off_{a}"') && mission.includes('"ant_side"'), '레버암 · 보는 쪽 기록 키가 드론과 다르다');
+  console.log('✅ 재처리용 기록 — 리플렉터 · 안테나 키가 드론과 같다');
+
   // 바람 영향 — 북쪽으로 4 m/s 날며 북풍 3 m/s(맞바람) → 공기 속도 7 m/s · 앞 숙임 · 빔은 뒤로. 서풍은 동쪽(오른쪽)으로 밀어 왼쪽으로 기울여 버틴다
   const head = plan.windEffect(0, 4, { speedMps: 3, fromDeg: 0 }, 45, 40, 30);
   check(Math.abs(head.headMps - 3) < 1e-9 && Math.abs(head.airspeedMps - 7) < 1e-9 && head.pitchDeg < 0 && head.squintDeg > 0 && Math.abs(head.rollDeg) < 1e-9,

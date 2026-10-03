@@ -97,6 +97,8 @@ export type SarStartParams = {
   require_rtk: number; rtl_on_abort: number; rtl_on_done: number;
   q_cross_m?: number; q_speed_mps?: number; q_alt_m?: number; q_heading_deg?: number; q_course_deg?: number; q_edge_m?: number;
   extra_passes?: number; min_battery_pct?: number;
+  /** 재처리용 기록 — 리플렉터(cr_n · cr{i}_lat …) · 안테나(ant_* · gnss_off_*). 드론이 비행 폴더에 같이 남긴다 */
+  [provenance: string]: number | undefined;
 };
 
 export type SarIssueOutcome = {
@@ -181,7 +183,9 @@ export async function issueSarStart(params: SarStartParams, link: SarLink = sarL
   if (link.start !== 'yes') {
     return { sent: false, commandId: '', accepted: null, code: null, message: link.reason || t('sar.link.notDeclared') };
   }
-  return issueSar(link, SAR_START, { ...params });
+  // 빈 칸(undefined)은 싣지 않는다 — 규약 값은 숫자뿐이다
+  const clean = Object.fromEntries(Object.entries(params).filter((e): e is [string, number] => typeof e[1] === 'number' && Number.isFinite(e[1])));
+  return issueSar(link, SAR_START, clean);
 }
 
 /** 패스 중단. 선언했거나 모르면 보낸다 — 못 멈추는 것보다 낫다. */

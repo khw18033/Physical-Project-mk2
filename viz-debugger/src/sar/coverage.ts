@@ -205,3 +205,26 @@ export function reflectorInBeam(a: AntennaDraft, at: LatLon, hM: number, att: At
     && slantM >= a.rangeMinM && slantM <= a.rangeMaxM;
   return { lit, azDeg, elDeg, slantM };
 }
+
+/**
+ * 재처리용 기록을 `sar_start` 파라미터로 — 규약이 숫자 사전이라 목록을 숫자 키로 펼친다.
+ * 드론 `sar_pass.mission.reflectors_from_params` · `radar_from_params` 가 다시 모은다(키 이름은 verify:sar 가 맞춰 본다).
+ */
+export function provenanceParams(reflectors: readonly LatLon[], a: AntennaDraft): Record<string, number> {
+  const out: Record<string, number> = { cr_n: Math.min(reflectors.length, 32) };
+  reflectors.slice(0, 32).forEach((p, i) => { out[`cr${i}_lat`] = p.lat; out[`cr${i}_lon`] = p.lon; });
+  out.ant_side = a.side === 'right' ? 1 : -1;
+  out.ant_depression_deg = a.depressionDeg;
+  out.ant_el_bw_deg = a.elBeamwidthDeg;
+  out.ant_az_bw_deg = a.azBeamwidthDeg;
+  out.ant_range_min_m = a.rangeMinM;
+  out.ant_range_max_m = a.rangeMaxM;
+  if (a.wavelengthM != null) out.ant_wavelength_m = a.wavelengthM;
+  if (a.bandwidthHz != null) out.ant_bandwidth_hz = a.bandwidthHz;
+  if (a.prfHz != null) out.ant_prf_hz = a.prfHz;
+  out.ant_off_f = a.antFwdM ?? 0; out.ant_off_r = a.antRightM ?? 0; out.ant_off_d = a.antDownM ?? 0;
+  if (a.gnssFwdM != null && a.gnssRightM != null && a.gnssDownM != null) {
+    out.gnss_off_f = a.gnssFwdM; out.gnss_off_r = a.gnssRightM; out.gnss_off_d = a.gnssDownM;
+  }
+  return out;
+}

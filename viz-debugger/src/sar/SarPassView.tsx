@@ -29,7 +29,7 @@ import { RTK_LABEL_KEY, rtkLevel } from './rtk.ts';
 import { RtkBadge } from './RtkView.tsx';
 import { useTick } from './useTick.ts';
 import { SatMap, type Area, type Marker } from '../dronedash/SatMap.tsx';
-import { checkReflector, defaultAntenna, radarJson, swathPolygon, type AntennaDraft } from './coverage.ts';
+import { checkReflector, defaultAntenna, provenanceParams, radarJson, swathPolygon, type AntennaDraft } from './coverage.ts';
 import { ANT_KEY, CR_KEY, liveBeam } from './liveBeam.ts';
 import { PassInspector } from './PassInspector.tsx';
 import { ComparePanel, ImageButton, ImagingStatus, SarImageView, type ImageSummary, type Imaging, type MirrorState } from './SarImageView.tsx';
@@ -270,7 +270,7 @@ export function SarPassZoom() {
 
   async function start() {
     setBusy('start');
-    try { setOutcome({ action: 'start', result: await issueSarStart(toStartParams(draft), link) }); }
+    try { setOutcome({ action: 'start', result: await issueSarStart({ ...toStartParams(draft), ...provenanceParams(reflectors, antenna) }, link) }); }
     finally { setBusy(null); setConfirmed(false); }
   }
   async function abort() {

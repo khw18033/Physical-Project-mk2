@@ -101,7 +101,9 @@ class ImageJobs:
             return 200, cur or {"state": "queued"}
         if not info["radar_files"]:
             return 409, {"error": "이 패스에 맞는 레이더 원시 파일이 없다", "pass": pass_no}
-        if crs is None and self.reflectors_csv is not None and self.reflectors_csv.is_file():
+        if crs is None:
+            crs = self.flight_reflectors(flight, info)       # 비행 때 화면이 보낸 것 (정본)
+        if not crs and self.reflectors_csv is not None and self.reflectors_csv.is_file():
             crs = read_reflectors_csv(self.reflectors_csv)
         out = self.out_dir(flight, pass_no)
         out.mkdir(parents=True, exist_ok=True)
@@ -114,6 +116,14 @@ class ImageJobs:
             self._busy.add((fid, pass_no))
         self.q.put((fid, pass_no, crs or []))
         return 202, body
+
+    @staticmethod
+    def flight_reflectors(flight: Path, info: dict) -> list:
+        try:
+            meta = json.loads((flight / info["meta_json"]).read_text(encoding="utf-8"))
+        except (OSError, ValueError, KeyError, TypeError):
+            return []
+        return [(r["lat"], r["lon"], r.get("h")) for r in meta.get("reflectors") or [] if "lat" in r and "lon" in r]
 
     def _run(self) -> None:
         while True:

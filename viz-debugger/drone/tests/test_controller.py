@@ -83,3 +83,25 @@ def test_abort_after_external_unlink_still_logs_end(tmp_path):
 def test_unknown_action(tmp_path):
     c, *_ = make(tmp_path)
     assert asyncio.run(c.handle("arm", {}))["code"] == "UNIMPLEMENTED"
+
+
+def test_provenance_recorded_in_flight_meta(tmp_path):
+    """화면이 보낸 리플렉터 · 안테나가 비행 폴더 메타에 남고, 코드 버전도 같이 적힌다."""
+    import json
+
+    p = params(cr_n=2, cr0_lat=37.5666, cr0_lon=126.9781, cr1_lat=37.5667, cr1_lon=126.9782,
+               ant_side=-1, ant_depression_deg=40, ant_wavelength_m=0.031, ant_off_f=0.0, ant_off_r=0.1, ant_off_d=0.25,
+               gnss_off_f=0.0, gnss_off_r=0.0, gnss_off_d=-0.15)
+
+    async def go():
+        c, cap, _ = make(tmp_path)
+        assert (await c.handle("sar_start", p))["accepted"]
+        return await c.wait()
+
+    assert asyncio.run(go()) == "done"
+    meta = json.loads(next(tmp_path.glob("flight_*/pass*.json")).read_text(encoding="utf-8"))
+    assert meta["reflectors"] == [{"lat": 37.5666, "lon": 126.9781, "h": None}, {"lat": 37.5667, "lon": 126.9782, "h": None}]
+    rc = meta["radar_config"]
+    assert rc["side"] == "left" and rc["depression_deg"] == 40 and rc["antenna_offset_m"] == [0.0, 0.1, 0.25]
+    assert rc["gnss_offset_m"] == [0.0, 0.0, -0.15]
+    assert "git_commit" in meta["software"]

@@ -43,6 +43,7 @@ from typing import Any, Callable
 
 from .capture import CaptureFlag
 from .geometry import PassLine, angle_diff_deg, lead_in_m
+from .version import software_version
 from .vehicle import Telemetry, Vehicle
 
 log = logging.getLogger("sar_pass.mission")
@@ -106,6 +107,41 @@ def course_error_deg(rows: list[dict], line_heading_deg: float, window_s: float 
     return round(worst, 2)
 
 
+# ── 재처리용 기록: 규약은 map<string, double> 라 목록 · 사전을 숫자 키로 펼쳐 싣는다 ─────────────
+MAX_REFLECTORS = 32
+RADAR_PARAM_KEYS = {   # 파라미터 키 → radar.json 칸
+    "ant_wavelength_m": "wavelength_m", "ant_bandwidth_hz": "bandwidth_hz", "ant_prf_hz": "prf_hz",
+    "ant_range_min_m": "range_min_m", "ant_range_max_m": "range_max_m", "ant_depression_deg": "depression_deg",
+    "ant_el_bw_deg": "el_beamwidth_deg", "ant_az_bw_deg": "az_beamwidth_deg",
+}
+
+
+def reflectors_from_params(p: dict[str, float]) -> list:
+    """cr_n · cr{i}_lat · cr{i}_lon · cr{i}_h(없으면 지면) → [[lat, lon, h|None], …]."""
+    out = []
+    for i in range(min(int(round(p.get("cr_n", 0))), MAX_REFLECTORS)):
+        lat, lon = p.get(f"cr{i}_lat"), p.get(f"cr{i}_lon")
+        if lat is None or lon is None or not (math.isfinite(lat) and math.isfinite(lon)):
+            continue
+        h = p.get(f"cr{i}_h")
+        out.append([float(lat), float(lon), None if h is None or not math.isfinite(h) else float(h)])
+    return out
+
+
+def radar_from_params(p: dict[str, float]) -> dict | None:
+    """ant_* · ant_side(+1 오른쪽 / −1 왼쪽) · ant_off_* · gnss_off_* → radar.json 모양. 하나도 없으면 None."""
+    if not any(k.startswith(("ant_", "gnss_off_")) for k in p):
+        return None
+    out: dict = {k2: float(p[k]) for k, k2 in RADAR_PARAM_KEYS.items() if k in p}
+    if "ant_side" in p:
+        out["side"] = "left" if p["ant_side"] < 0 else "right"
+    if all(f"ant_off_{a}" in p for a in "frd"):
+        out["antenna_offset_m"] = [float(p[f"ant_off_{a}"]) for a in "frd"]
+    if all(f"gnss_off_{a}" in p for a in "frd"):
+        out["gnss_offset_m"] = [float(p[f"gnss_off_{a}"]) for a in "frd"]
+    return out
+
+
 def fix_rank(fix: str | None) -> int:
     return FIX_ORDER.index(fix) if fix in FIX_ORDER else -1
 
@@ -158,6 +194,9 @@ class SarPlan:
     extra_passes: int = 2          # 무효 패스를 다시 날 수 있는 최대 횟수
     cap_lead_s: float | None = None  # None 이면 잰 레이더 지연으로 자동
     min_battery_pct: float = 30.0    # 다음 패스 + 홈 복귀 뒤에도 이만큼은 남아야 시작한다
+    # 재처리용 기록 — 비행 제어에는 안 쓴다. 화면이 보낸 리플렉터 [lat, lon, h|None] 와 안테나(radar.json 모양)
+    reflectors: list = field(default_factory=list)
+    radar: dict | None = None
 
     @property
     def line(self) -> PassLine:
@@ -229,6 +268,8 @@ class SarPlan:
             kw["min_battery_pct"] = float(p["min_battery_pct"])
         if "cap_lead_s" in p and p["cap_lead_s"] >= 0:
             kw["cap_lead_s"] = float(p["cap_lead_s"])
+        kw["reflectors"] = reflectors_from_params(p)
+        kw["radar"] = radar_from_params(p)
         return cls(**kw)
 
 
@@ -713,6 +754,10 @@ class SarMission:
                 "control_hz": CONTROL_HZ,
                 "traj_csv": csv_path.name,
                 "warnings": self.warnings,
+                # 재처리용 — 이 비행을 무엇으로 찍었나
+                "reflectors": [{"lat": r[0], "lon": r[1], "h": r[2]} for r in self.plan.reflectors],
+                "radar_config": self.plan.radar,
+                "software": software_version(),
             }
             meta_path.write_text(json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
         except Exception:  # noqa: BLE001 — 기록 실패가 비행 · 캡처를 멈추지 않는다

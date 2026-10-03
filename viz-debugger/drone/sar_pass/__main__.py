@@ -78,6 +78,9 @@ def build_parser() -> argparse.ArgumentParser:
         q.add_argument("--cap-ack", type=Path, help="레이더 확인 파일 경로 (예: /home/physical/CAP_ACK)")
         q.add_argument("--cap-lead", type=float, help="미리 켜고 끄는 시간(s). 안 주면 잰 레이더 지연으로 자동")
         q.add_argument("--min-battery", type=float, default=30.0, help="다음 패스 + 복귀 뒤에도 남아야 할 배터리 %%")
+        r = s.add_argument_group("재처리용 기록 (비행 폴더에 같이 남긴다)")
+        r.add_argument("--reflectors", type=Path, help="화면에서 내려받은 reflectors.csv (name,lat,lon,…)")
+        r.add_argument("--radar-json", type=Path, help="화면에서 내려받은 radar.json (안테나 · 레버암)")
     sub.choices["run"].add_argument("--connect", default="udpin://0.0.0.0:14540", help="MAVSDK 주소")
     sub.choices["cart"].add_argument("--connect", default="udpin://0.0.0.0:14540", help="MAVSDK 주소 (수레에 실은 FC)")
     sub.choices["cart"].add_argument("--cart-cross-tol", type=float, default=3.0, help="수레: 선에서 이만큼 안이면 캡처를 건다(m)")
@@ -96,6 +99,18 @@ def build_parser() -> argparse.ArgumentParser:
     u.add_argument("--watch", action="store_true")
     u.add_argument("--grpc-port", type=int, default=50052)
     return p
+
+
+def load_reflectors(path: Path | None) -> list:
+    if path is None:
+        return []
+    from sar_data.imaging import read_reflectors_csv
+    return [[la, lo, h] for la, lo, h in read_reflectors_csv(path)]
+
+
+def load_radar(path: Path | None) -> dict | None:
+    import json
+    return None if path is None else json.loads(path.read_text(encoding="utf-8"))
 
 
 def make_plan(a: argparse.Namespace, here: tuple[float, float] | None) -> SarPlan:
@@ -119,6 +134,7 @@ def make_plan(a: argparse.Namespace, here: tuple[float, float] | None) -> SarPla
         allow_clock_skew=a.allow_clock_skew,
         q_cross_m=a.q_cross, q_speed_mps=a.q_speed, q_alt_m=a.q_alt, q_heading_deg=a.q_heading, q_edge_m=a.q_edge,
         extra_passes=a.extra_passes, cap_lead_s=a.cap_lead, min_battery_pct=a.min_battery,
+        reflectors=load_reflectors(a.reflectors), radar=load_radar(a.radar_json),
     )
 
 
@@ -153,7 +169,8 @@ async def amain(a: argparse.Namespace) -> int:
     if a.cmd == "cart":
         from .cart import cart_plan
         plan = cart_plan(plan.start_lat, plan.start_lon, plan.end_lat, plan.end_lon, passes=a.passes,
-                         require_rtk=not a.no_rtk, q_cross_m=a.q_cross, q_edge_m=a.q_edge)
+                         require_rtk=not a.no_rtk, q_cross_m=a.q_cross, q_edge_m=a.q_edge,
+                         reflectors=plan.reflectors, radar=plan.radar)
         problems = [] if plan.line.length_m >= 5 else [f"선이 너무 짧다 ({plan.line.length_m:.1f} m)"]
     else:
         problems = plan.problems()
