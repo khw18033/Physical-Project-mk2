@@ -691,31 +691,40 @@ function DataPanel({ data, reflectors }: { data: ReturnType<typeof useDataServer
         <a className="sar-btn" href={url(f.id, 'bundle.zip?raw=0')} onClick={(e) => e.stopPropagation()}>{t('sar.data.positionAll')}</a>
         <a className="sar-btn sar-btn--main" href={url(f.id, 'bundle.zip')} onClick={(e) => e.stopPropagation()}>{t('sar.data.all')}</a>
       </div>
-      {(open === f.id || data.flights.length === 1) && <table className="sar-table">
-        <tbody>{f.passes.map((p) => [<tr key={p.pass_no} className={p.valid === false ? 'is-missed' : ''}>
-          <td>{t('sar.data.pass', { n: p.pass_no })}</td>
-          <td>{p.valid ? <span className="sar-ok">✓ {t('sar.log.valid')}</span> : <span className="sar-bad">✕ {t('sar.log.invalid')}</span>}</td>
-          <td>{t('sar.data.radarFiles', { n: p.radar_files.length, size: bytes(p.radar_bytes) })}</td>
-          <td className="sar-data-btns">
-            {p.traj_csv && <button type="button" className="sar-btn--main" onClick={() => setInspect(inspect === `${f.id}:${p.pass_no}` ? null : `${f.id}:${p.pass_no}`)}>{t('pi.open')}</button>}
-            {p.traj_csv && <a className="sar-btn" href={url(f.id, `files/${encodeURIComponent(p.traj_csv)}`)}>{t('sar.data.trajCsv')}</a>}
-            <a className="sar-btn" href={url(f.id, `files/${encodeURIComponent(p.meta_json)}`)}>{t('sar.data.meta')}</a>
-            <a className="sar-btn sar-btn--main" href={url(f.id, `bundle.zip?pass=${p.pass_no}`)}>{t('sar.data.passZip')}</a>
-            <ImageButton base={data.base} flight={f.id} pass={p.pass_no} summary={p.image ?? null} imaging={data.imaging}
-              hasRaw={p.radar_files.length > 0} reflectors={reflectors}
-              onOpen={() => { setView(`${f.id}:${p.pass_no}`); data.refresh(); }} />
-          </td>
-        </tr>,
-        inspect === `${f.id}:${p.pass_no}` && p.traj_csv && <tr key={`${p.pass_no}-pi`} className="sar-img-row"><td colSpan={4}>
-          <PassInspector base={data.base} flight={f.id} csvName={p.traj_csv} metaName={p.meta_json} />
-        </td></tr>,
-        view === `${f.id}:${p.pass_no}` && <tr key={`${p.pass_no}-img`} className="sar-img-row"><td colSpan={4}>
-          <SarImageView base={data.base} flight={f.id} pass={p.pass_no} />
-          <button type="button" onClick={() => setView(null)}>{t('img.close')}</button>
-        </td></tr>])}</tbody>
-      </table>}
+      {(open === f.id || data.flights.length === 1) && <div className="sar-passes">
+        {f.passes.map((p) => {
+          const key = `${f.id}:${p.pass_no}`;
+          return <div key={p.pass_no} className={`sar-pass-card${p.valid === false ? ' is-missed' : p.valid ? ' is-valid' : ''}`}>
+            <div className="sar-pass-main">
+              <b className="sar-pass-no">{t('sar.data.pass', { n: p.pass_no })}</b>
+              {p.valid ? <span className="sar-chip is-ok">✓ {t('sar.log.valid')}</span> : <span className="sar-chip is-bad">✕ {t('sar.log.invalid')}</span>}
+              <span className="sar-pass-radar">{t('sar.data.radarFiles', { n: p.radar_files.length, size: bytes(p.radar_bytes) })}</span>
+              {p.valid === false && p.reasons.length > 0 && <small className="sar-pass-why">{p.reasons.join(' · ')}</small>}
+            </div>
+            <div className="sar-pass-actions">
+              {p.traj_csv && <button type="button" className={`sar-act${inspect === key ? ' is-on' : ''}`}
+                onClick={() => setInspect(inspect === key ? null : key)}>{t('pi.open')}</button>}
+              <ImageButton base={data.base} flight={f.id} pass={p.pass_no} summary={p.image ?? null} imaging={data.imaging}
+                hasRaw={p.radar_files.length > 0} reflectors={reflectors}
+                onOpen={() => { setView(key); data.refresh(); }} />
+              <span className="sar-pass-dl">
+                <a className="sar-btn sar-btn--main" href={url(f.id, `bundle.zip?pass=${p.pass_no}`)}>{t('sar.data.passZip')}</a>
+                {p.traj_csv && <a className="sar-btn" href={url(f.id, `files/${encodeURIComponent(p.traj_csv)}`)}>{t('sar.data.trajCsv')}</a>}
+                <a className="sar-btn" href={url(f.id, `files/${encodeURIComponent(p.meta_json)}`)}>{t('sar.data.meta')}</a>
+              </span>
+            </div>
+            {inspect === key && p.traj_csv && <div className="sar-pass-open">
+              <PassInspector base={data.base} flight={f.id} csvName={p.traj_csv} metaName={p.meta_json} />
+            </div>}
+            {view === key && <div className="sar-pass-open">
+              <SarImageView base={data.base} flight={f.id} pass={p.pass_no} />
+              <button type="button" onClick={() => setView(null)}>{t('img.close')}</button>
+            </div>}
+          </div>;
+        })}
+      </div>}
       {(open === f.id || data.flights.length === 1) && <ComparePanel base={data.base} flight={f.id}
-        passes={f.passes.filter((p) => p.image?.full).map((p) => p.pass_no)} />}
+        passes={[...f.passes.filter((p) => p.image?.full && p.valid), ...f.passes.filter((p) => p.image?.full && !p.valid)].map((p) => p.pass_no)} />}
     </div>)}
     <ImagingStatus imaging={data.imaging} mirror={data.mirror} />
   </div>;

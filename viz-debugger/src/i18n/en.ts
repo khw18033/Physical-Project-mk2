@@ -2806,6 +2806,7 @@ export const en: Record<string, string> = {
   'sar.data.ulogYes': '✓ flight log .ulg ({size})',
   'sar.data.ulogNo': 'no .ulg flight log yet',
   'sar.data.ulogHint': 'sar_pass ulog --watch on the Pi fetches the FC log after landing / disarm and attaches it to this flight',
+  'img.view': 'View image',
   'img.make': 'Make image',
   'img.remake': 'Remake',
   'img.close': 'Close',

@@ -56,9 +56,9 @@ export function ImageButton({ base, flight, pass, summary, imaging, hasRaw, refl
   };
   return <span className="sar-img-btn">
     {summary !== null && <button type="button" className={`sar-img-chip is-${summary.state ?? 'none'}`} onClick={onOpen}>
-      {t(`img.state.${summary.state ?? 'queued'}`)}{summary.reflectors > 0 && ` · ${t('img.found', { f: summary.found, n: summary.reflectors })}`}
+      {summary.state === 'done' ? t('img.view') : t(`img.state.${summary.state ?? 'queued'}`)}{summary.reflectors > 0 && ` · ${t('img.found', { f: summary.found, n: summary.reflectors })}`}
     </button>}
-    <button type="button" className={summary === null ? 'sar-btn--main' : ''} disabled={!can} title={!hasRaw ? t('img.noRaw') : undefined}
+    <button type="button" className={`sar-act${summary === null ? ' is-primary' : ''}`} disabled={!can} title={!hasRaw ? t('img.noRaw') : undefined}
       onClick={() => void make()}>{summary === null ? t('img.make') : t('img.remake')}</button>
     {err !== null && <small className="sar-bad">{t('img.reqFail', { why: err })}</small>}
   </span>;

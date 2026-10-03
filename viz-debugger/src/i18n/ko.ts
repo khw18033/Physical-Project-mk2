@@ -2830,6 +2830,7 @@ export const ko: Record<string, string> = {
   'sar.data.ulogYes': '✓ 비행 로그 .ulg ({size})',
   'sar.data.ulogNo': '비행 로그 .ulg 아직 없음',
   'sar.data.ulogHint': 'Pi 의 sar_pass ulog --watch 가 착륙 · 시동 꺼짐 뒤 FC 로그를 받아 이 비행에 붙입니다',
+  'img.view': '영상 보기',
   'img.make': '영상 만들기',
   'img.remake': '다시 만들기',
   'img.close': '닫기',
