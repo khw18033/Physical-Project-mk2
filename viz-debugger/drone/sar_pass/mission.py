@@ -330,6 +330,7 @@ class SarMission:
         except PreflightFailed as exc:
             outcome = "failed"
             self.error = f"비행 전 점검 실패: {exc}"
+            log.warning(self.error)
         except Exception as exc:  # noqa: BLE001
             outcome = "failed"
             self.error = f"{type(exc).__name__}: {exc}"

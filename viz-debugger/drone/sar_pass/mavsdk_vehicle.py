@@ -39,6 +39,7 @@ class MavsdkVehicle:
         self._in_air = False
         self._mode = "UNKNOWN"
         self._fix = "NO_GPS"
+        self._seen: set[str] = set()   # 한 번이라도 값이 온 스트림 — 기본값(False · UNKNOWN)과 실제 값을 가른다
         self._sats = 0
         self._clock_offset: float | None = None
         self._roll = self._pitch = None
@@ -86,11 +87,16 @@ class MavsdkVehicle:
                 await setter(50.0)
             except Exception:  # noqa: BLE001
                 log.warning("텔레메트리 주기 설정 실패: %s", getattr(setter, "__name__", setter))
-        # 첫 위치가 올 때까지 잠깐 기다린다 — 없으면 임무가 비행 전 점검에서 거절한다.
-        for _ in range(50):
-            if self._lat is not None:
+        # 첫 위치와 상태값(armed · in_air · 모드 · GPS)이 올 때까지 기다린다. 막 붙은 직후에는 기본값
+        # (in_air=False …)이라, 이미 떠 있는 기체를 「이륙 안 함」으로 거절했다(에이전트 경로 SITL 에서 확인).
+        need = {"armed", "in_air", "mode", "gps"}
+        for _ in range(100):
+            if self._lat is not None and need <= self._seen:
                 break
             await asyncio.sleep(0.1)
+        else:
+            log.warning("텔레메트리 일부가 10 초 안에 안 왔다: 위치=%s 없음=%s",
+                        self._lat is not None, sorted(need - self._seen))
 
     async def close(self) -> None:
         for task in self._tasks:
@@ -125,15 +131,19 @@ class MavsdkVehicle:
 
     def _on_armed(self, a: bool) -> None:
         self._armed = a
+        self._seen.add("armed")
 
     def _on_in_air(self, a: bool) -> None:
         self._in_air = a
+        self._seen.add("in_air")
 
     def _on_mode(self, m) -> None:  # noqa: ANN001
         self._mode = _MODE.get(m.name, m.name)
+        self._seen.add("mode")
 
     def _on_gps(self, g) -> None:  # noqa: ANN001
         self._fix = g.fix_type.name
+        self._seen.add("gps")
         self._sats = g.num_satellites
 
     def _on_ned(self, pv) -> None:  # noqa: ANN001

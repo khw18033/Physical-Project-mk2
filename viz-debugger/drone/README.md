@@ -360,59 +360,52 @@ Ctrl-C 를 누르면 중단한다. CAP_ON 을 지우고 hold 한다(`--rtl-on-ab
 
 ### 드론 에이전트 연동 (Pi 쪽 할 일)
 
-pi3 의 드론 에이전트(`drone-node.service`)는 **저장소 어느 브랜치에도 없고 Pi 에만 있다**
-(`~/hw/pi/drone/drone_node.py` · `drone_link.py`). HW 브랜치의 공통 틀 `pi/common/` 을 상속한다.
-정확한 패치는 그 파일을 Pi 에서 받아 와서 쓴다. 공통 틀에서 확인한 사실은 다음과 같다.
-- **Capability**: 노드의 `ACTIONS` 사전의 키가 그대로 선언된다(`pi/common/physical_command.py`).
-- **처리 순서**: 명령이 오면 미선언 확인(UNIMPLEMENTED) → `validate(action, params)` → Acceptance → 스레드에서 실행.
-- **스레드 방식이다(asyncio 아님).** paho 망 스레드에서 받아 명령마다 데몬 스레드로 돈다.
+pi3 의 드론 에이전트(`drone-node.service`, `~/hw/pi/drone/drone_node.py`)는 저장소 어느 브랜치에도 없고 **Pi 에만 있다**.
+HW 브랜치의 공통 틀 `pi/common/` 을 상속한다. **그 파일들은 고치지 않는다.**
+`sar_pass/agent.py` 가 그 `DroneNode` 를 상속해 `sar_start` / `sar_abort` 만 덧붙인다. 서비스의 실행 명령만 바꾼다.
 
-`SarController` 는 asyncio 라 전용 루프 하나를 데몬 스레드로 띄워 붙인다. `common/` 은 고치지 않는다.
+```bash
+# 1) Pi 에 이 저장소의 drone 폴더를 두고, 에이전트가 쓰는 venv 에 설치 (mavsdk-grpc 도 함께 들어간다)
+/home/physical/venv/bin/pip install -e '/home/physical/Junho_drone/viz-debugger/drone'
 
-```python
-import asyncio, threading
-from pathlib import Path
-from sar_pass.controller import SarController, ACTIONS as SAR_ACTIONS
-from sar_pass.capture import CaptureFlag
-from sar_pass.mavsdk_vehicle import MavsdkVehicle
-from common.physical_command import CommandError
+# 2) 실행 명령만 바꾸는 덮어쓰기 파일 — 원래 서비스 파일은 그대로 둔다
+sudo systemctl edit drone-node
+#   [Service]
+#   ExecStart=
+#   ExecStart=/home/physical/venv/bin/python3 -u -m sar_pass.agent --node drone.drone_node:DroneNode
+#   Environment=SAR_LOG_DIR=/var/lib/hw-node/sar
+#   # 레이더가 CAP_ACK 를 쓰면: Environment=SAR_CAP_ACK=/home/physical/CAP_ACK
+sudo systemctl restart drone-node && journalctl -u drone-node -f     # "SAR 명령 준비" 가 보이면 끝
 
-class DroneNode(BaseNode):
-    ACTIONS = {"ping": act_ping_drone, "sar_start": act_sar_start, "sar_abort": act_sar_abort}  # ① 선언
-
-    def __init__(self, ...):
-        self._aloop = asyncio.new_event_loop()                        # BaseNode.__init__ 이 곧바로 붙으므로 그 전에
-        threading.Thread(target=self._aloop.run_forever, daemon=True).start()
-        async def make_vehicle():
-            v = MavsdkVehicle("udpin://0.0.0.0:14540"); await v.connect(); return v
-        self.sar = SarController(make_vehicle, CaptureFlag(), status_sink=self._publish_sar,
-                                 log_dir=Path("/var/lib/drone-node/sar"))  # ProtectSystem=strict → StateDirectory
-        super().__init__(...)
-
-    def _sar_call(self, action, params, timeout=10):
-        return asyncio.run_coroutine_threadsafe(self.sar.handle(action, dict(params)), self._aloop).result(timeout)
-
-    def validate(self, action, params):                                # ② Acceptance 전에 — 거절은 거절로
-        if action in SAR_ACTIONS:
-            r = self._sar_call(action, params)
-            if not r["accepted"]:
-                raise CommandError(r["code"] or "FAILED_PRECONDITION", r["message"])
-
-def act_sar_start(node, params):                                       # ③ 실행 단계 보고
-    yield "executing", None
-    yield "completed", {"started": 1.0}
-
-def act_sar_abort(node, params):
-    yield "completed", {"aborted": 1.0}
+# 되돌리기: sudo systemctl revert drone-node && sudo systemctl restart drone-node
 ```
 
-- `_publish_sar` 는 MQTT `zoneA/drone/x500-001/sar`(retained)로 낸다. `sar_pass.status.MqttStatusPublisher` 와 같은 모양이다.
-- `validate` 는 paho 망 스레드에서 돈다. MAVSDK 연결(최대 수 초)이 길어지면 MQTT 입출력이 그동안 멈춘다.
-  기동 때 미리 붙여 두거나 시한을 짧게 둔다.
-- 협의할 것(HW 담당):
-  - 계약 §0·§4 의 「보기 전용 · FC 로 0 바이트」가 바뀐다. `drone_link` 의 `tx_bytes` 는 여전히 0 이다(MAVSDK 는 자기 소켓을 쓴다).
-  - 14540 은 점검 스크립트와 한 번에 하나씩 쓴다.
-  - `drone-node.service` 가 쓰는 venv 에 `mavsdk-grpc` 를 넣어야 한다.
+- `WorkingDirectory` 는 원래 서비스의 것(`~/hw/pi`)을 쓴다. 그래서 `common` · `drone` 패키지가 그대로 import 된다.
+- `SAR_LOG_DIR` 는 서비스가 쓸 수 있는 곳이어야 한다. `StateDirectory=hw-node` 가 있으면 `/var/lib/hw-node/…` 가 맞다.
+  없으면 `/home/physical/sar_logs` 처럼 홈 아래로 둔다.
+- 설정은 모두 환경변수다: `SAR_FC_URL`(기본 `udpin://0.0.0.0:14540`) · `SAR_CAP_PATH` · `SAR_CAP_ACK` · `SAR_LOG_DIR` ·
+  `SAR_BASE_LISTEN` · `SAR_CONNECT_TIMEOUT`. 설명은 `sar_pass/agent.py` 머리말에 있다.
+
+동작:
+- **Capability**: 원래 명령(`ping` 등) + `sar_start` · `sar_abort` 가 선언된다. 화면의 「패스 시작」 버튼이 열린다.
+- **검증**: Acceptance 전에 파라미터 · 중복 실행만 본다. 입출력은 하지 않아 MQTT 가 멎지 않는다.
+  잘못된 값은 사유와 함께 `INVALID_ARGUMENT` 로, 이미 도는 중이면 `FAILED_PRECONDITION` 으로 거절한다.
+- **실행**: 명령 스레드에서 FC 에 붙는다(처음 한 번만). 진행 단계는 `connecting_fc` 로 보고하고, 임무가 뜨면 `SUCCEEDED {started: 1}` 를 낸다.
+  FC 연결에 실패하면 `ABORTED UNAVAILABLE` 이 되고, 다음 시작 때 다시 시도한다.
+- **진행 상황**: 노드 자신의 MQTT 연결로 `zoneA/drone/<id>/sar`(retained)에 낸다. 노드의 10 초 요약(`…/status`)에도 `sar: {running, state, capturing}` 가 붙는다.
+- **중단**: `sar_abort` 는 언제나 받는다. CAP_ON 을 그 자리에서 먼저 지운 뒤 임무를 멈춘다.
+  에이전트가 내려갈 때(`systemctl stop` · 재부팅)도 같은 처리를 한다.
+
+검증한 것:
+- `tests/test_agent.py` 는 공통 틀 모양의 가짜 노드로 돈다.
+- HW 브랜치의 실제 `pi/common`(BaseNode · PhysicalCommandServer · protobuf)으로도 확인했다.
+  가짜 `drone_node` 와 PX4 SITL 로 `sar_start` 명령 → 수락 → 이륙 상태의 기체가 패스 비행 → RTL 까지.
+
+HW 담당과 확인할 것:
+- 계약 §0 · §4 의 「보기 전용 · FC 로 0 바이트」가 바뀐다. `drone_link`(14543)의 `tx_bytes` 는 여전히 0 이다.
+  제어는 MAVSDK 가 mavlink-router 의 14540 으로 한다.
+- 14540 은 한 번에 하나만 쓴다. 에이전트가 붙어 있는 동안 `python -m sar_pass check` / `run` 은 쓰지 말 것.
+- 진짜 `drone_node.py` 가 `validate` · `status_extra` · `on_shutdown` 을 덮어쓰고 있어도 괜찮다. 덧붙인 클래스가 `super()` 로 원래 것을 먼저 부른다.
 
 연동 전에도 쓸 수 있다. Pi 에서 `python -m sar_pass run … --mqtt` 로 직접 돌리면 화면은 감시용으로 그대로 동작한다.
 
@@ -426,6 +419,7 @@ def act_sar_abort(node, params):
 | `drone/sar_pass/vehicle.py` | 비행체 면 + 시뮬레이터 |
 | `drone/sar_pass/mavsdk_vehicle.py` | PX4 실기체(MAVSDK) |
 | `drone/sar_pass/controller.py` | 에이전트가 부르는 `sar_start` / `sar_abort` 처리 |
+| `drone/sar_pass/agent.py` | 드론 에이전트(DroneNode)에 SAR 명령을 덧붙여 실행 — HW 파일 무수정 |
 | `drone/sar_pass/status.py` | 화면으로 상태 보고(MQTT) |
 | `drone/sar_pass/check.py` | 비행 전 점검(`python -m sar_pass check`) |
 | `drone/rtk_relay/base_sender.py` | 노트북: 베이스 RTCM3 → UDP |
