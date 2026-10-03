@@ -168,7 +168,7 @@ function Attitude({ roll, pitch }: { roll: number | null; pitch: number | null }
   </figure>;
 }
 
-function Compass({ yaw, homeBearing }: { yaw: number | null; homeBearing: number | null }) {
+function Compass({ yaw, homeBearing, wind }: { yaw: number | null; homeBearing: number | null; wind?: { speedMps: number | null; fromDeg: number | null } | null }) {
   useLang();
   const S = 200;
   const y = yaw ?? 0;
@@ -191,11 +191,23 @@ function Compass({ yaw, homeBearing }: { yaw: number | null; homeBearing: number
           const a = ((homeBearing - 90) * Math.PI) / 180;
           return <text x={S / 2 + (S / 2 - 50) * Math.cos(a)} y={S / 2 + (S / 2 - 50) * Math.sin(a) + 5} textAnchor="middle" className="dash-cmp-home">H</text>;
         })()}
+        {wind?.fromDeg != null && wind.speedMps != null && wind.speedMps > 0.3 && (() => {
+          // 바람 — 불어오는 쪽 가장자리에서 가운데로 향하는 주황 화살표
+          const a = ((wind.fromDeg - 90) * Math.PI) / 180;
+          const x1 = S / 2 + (S / 2 - 14) * Math.cos(a); const y1 = S / 2 + (S / 2 - 14) * Math.sin(a);
+          const x2 = S / 2 + (S / 2 - 52) * Math.cos(a); const y2 = S / 2 + (S / 2 - 52) * Math.sin(a);
+          const h = 7; const back = Math.atan2(y1 - y2, x1 - x2);
+          return <g className="dash-cmp-wind">
+            <line x1={x1} y1={y1} x2={x2} y2={y2} />
+            <polygon points={`${x2},${y2} ${x2 + h * Math.cos(back + 0.5)},${y2 + h * Math.sin(back + 0.5)} ${x2 + h * Math.cos(back - 0.5)},${y2 + h * Math.sin(back - 0.5)}`} />
+          </g>;
+        })()}
       </g>
       <polygon points={`${S / 2},${30} ${S / 2 - 9},${S / 2 + 6} ${S / 2},${S / 2 - 4} ${S / 2 + 9},${S / 2 + 6}`} className="dash-cmp-needle" />
       <text x={S / 2} y={S / 2 + 40} textAnchor="middle" className="dash-cmp-value">{yaw === null ? '—' : `${Math.round(y)}°`}</text>
     </svg>
-    <figcaption>{t('dash.headingCaption')}</figcaption>
+    <figcaption>{t('dash.headingCaption')}{wind?.speedMps != null && wind.fromDeg != null
+      && <> · <span className="dash-wind-txt">{t('dash.wind', { v: wind.speedMps.toFixed(1), d: Math.round(wind.fromDeg) })}</span></>}</figcaption>
   </figure>;
 }
 
@@ -265,6 +277,20 @@ function LineChart({ title, unit, samples, pick, digits = 1 }: {
 }
 
 // ── 패널들 ─────────────────────────────────────────────────────────────────
+
+/** SAR 임무가 있으면 상태판 맨 위에 한 줄 — 무엇을 하는 중인지 · 캡처 중인지 크게. */
+function SarStrip({ deviceId }: { deviceId: string }) {
+  useLang();
+  const r = useSarReports()[deviceId];
+  if (!r) return null;
+  const on = r.capturing;
+  return <div className={`dash-sar${on ? ' is-on' : ''}`}>
+    <span className="dash-sar-lamp" aria-hidden="true" />
+    <b>{on ? t('dash.sar.capturing') : t('dash.sar.state', { s: t(`sar.state.${r.state}`) })}</b>
+    {r.passesTotal !== null && <span>{t('sar.validOf', { n: r.validPasses ?? 0, total: r.passesTotal, try: r.passNo })}</span>}
+    {r.live?.groundSpeedMps != null && <span>{t('dash.sar.speed', { v: r.live.groundSpeedMps.toFixed(2), target: (r.plan?.speedMps ?? 0).toFixed(1) })}</span>}
+  </div>;
+}
 
 function Panel({ title, children, wide }: { title: string; children: ReactNode; wide?: boolean }) {
   return <section className={`dash-panel${wide ? ' dash-panel--wide' : ''}`}><h4>{title}</h4>{children}</section>;
@@ -411,9 +437,15 @@ export function DroneDashZoom() {
     </div>
     <StatusBar v={v} />
     {!v.extended && <p className="sar-hint">{t('dash.howTo')}</p>}
-    <div className="dash-grid">
-      <Panel title={t('dash.attitude')}><div className="dash-instruments"><Attitude roll={v.rollDeg} pitch={v.pitchDeg} /><Compass yaw={v.yawDeg} homeBearing={homeBearing} /></div></Panel>
+    <SarStrip deviceId={v.deviceId} />
+    <div className="dash-top">
       <Panel title={t('dash.map')}><DashMap v={v} /></Panel>
+      <Panel title={t('dash.attitude')}><div className="dash-instruments dash-instruments--stack">
+        <Attitude roll={v.rollDeg} pitch={v.pitchDeg} />
+        <Compass yaw={v.yawDeg} homeBearing={homeBearing} wind={v.fcx?.wind ?? null} />
+      </div></Panel>
+    </div>
+    <div className="dash-grid">
       <Panel title={t('dash.charts')} wide>
         {v.extended ? <div className="dash-charts">
           <LineChart title={t('dash.chart.alt')} unit="m" samples={samples} pick={(s) => s.altRelM} />
@@ -461,6 +493,6 @@ function DashMap({ v }: { v: View }) {
   const reflectors = readReflectors();
   const beam = liveBeam(readAntenna(), { at, altM: v.altRelM, yawDeg: v.yawDeg, pitchDeg: v.pitchDeg, rollDeg: v.rollDeg }, reflectors);
   markers.push(...reflectorMarkers(reflectors, beam.lit));
-  return <SatMap track={track} drone={at}
+  return <SatMap track={track} drone={at} height={470}
     droneYaw={v.yawDeg} sarLine={sarLine} capturing={sar?.capturing} markers={markers} areas={beam.area ? [beam.area] : []} />;
 }

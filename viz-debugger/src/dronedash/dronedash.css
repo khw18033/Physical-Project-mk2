@@ -153,3 +153,17 @@
 .satmap-mk--reflector.is-good polygon{fill:#3df07a}
 .satmap-mk--reflector.is-bad polygon{fill:#ff3b3b}
 .satmap-mk--reflector.is-lit polygon{fill:#3df07a;stroke:#fff}
+/* 상태판 위쪽: 큰 지도 + 계기 */
+.dash-top{display:grid;grid-template-columns:minmax(0,2.1fr) minmax(220px,1fr);gap:12px;margin-bottom:12px}
+@media (max-width:900px){.dash-top{grid-template-columns:1fr}}
+.dash-instruments--stack{flex-direction:column;align-items:center}
+.dash-instruments--stack .dash-att svg{width:180px;height:180px}
+.dash-cmp-wind line{stroke:#ff8a00;stroke-width:4;stroke-linecap:round}
+.dash-cmp-wind polygon{fill:#ff8a00}
+.dash-wind-txt{color:#b25f00;font-weight:600}
+.dash-sar{display:flex;flex-wrap:wrap;gap:14px;align-items:center;padding:8px 14px;margin:8px 0 12px;border-radius:10px;background:#eef3fa;border:1px solid #cfe0f5;font-size:14px}
+.dash-sar.is-on{background:#fdecec;border-color:#efb1b1}
+.dash-sar-lamp{width:14px;height:14px;border-radius:50%;background:#9aa6b4}
+.dash-sar.is-on .dash-sar-lamp{background:#e0242c;box-shadow:0 0 0 4px #e0242c33;animation:dash-blink 1s ease-in-out infinite alternate}
+@keyframes dash-blink{from{opacity:.45}to{opacity:1}}
+@media (prefers-reduced-motion:reduce){.dash-sar.is-on .dash-sar-lamp{animation:none}}
