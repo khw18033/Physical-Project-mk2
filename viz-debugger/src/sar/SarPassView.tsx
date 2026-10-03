@@ -31,7 +31,7 @@ import { useTick } from './useTick.ts';
 import { SatMap, type Area, type Marker } from '../dronedash/SatMap.tsx';
 import { checkReflector, defaultAntenna, radarJson, swathPolygon, type AntennaDraft } from './coverage.ts';
 import { ANT_KEY, CR_KEY, liveBeam } from './liveBeam.ts';
-import { ImageButton, ImagingStatus, SarImageView, type ImageSummary, type Imaging, type MirrorState } from './SarImageView.tsx';
+import { ComparePanel, ImageButton, ImagingStatus, SarImageView, type ImageSummary, type Imaging, type MirrorState } from './SarImageView.tsx';
 import './sar.css';
 
 const DRAFT_KEY = 'viz.sar.draft.v1';
@@ -706,6 +706,8 @@ function DataPanel({ data, reflectors }: { data: ReturnType<typeof useDataServer
           <button type="button" onClick={() => setView(null)}>{t('img.close')}</button>
         </td></tr>])}</tbody>
       </table>}
+      {(open === f.id || data.flights.length === 1) && <ComparePanel base={data.base} flight={f.id}
+        passes={f.passes.filter((p) => p.image?.full).map((p) => p.pass_no)} />}
     </div>)}
     <ImagingStatus imaging={data.imaging} mirror={data.mirror} />
   </div>;

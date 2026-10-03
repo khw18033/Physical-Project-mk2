@@ -225,7 +225,8 @@ def form_pass(traj_csv: Path, raw_files: list[Path], radar: RadarConfig, adapter
         applied = 0.0
         if isinstance(time_offset, (int, float)) and not isinstance(time_offset, bool):
             applied = float(time_offset)
-        elif time_offset == "auto" and comb is not None and comb["consistent"] and abs(comb["dt_s"]) < 1.0:
+        elif time_offset == "auto" and comb is not None and comb["consistent"] and 0.0005 <= abs(comb["dt_s"]) < 1.0:
+            # 0.5 ms 아래는 4 m/s 에서 2 mm — 고쳐도 영상이 안 바뀐다. 굳이 손대지 않는다
             applied = comb["dt_s"]
         body["quicklook"] = {"png": "rangetime.png", "time_offset": {"per_reflector": per, "combined": comb,
                                                                     "applied_s": applied, "mode": str(time_offset)}}

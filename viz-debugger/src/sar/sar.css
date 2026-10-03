@@ -180,3 +180,8 @@
 .sar-rose .ant{stroke:#21b6d8;stroke-width:2;stroke-dasharray:3 3}
 .sar-rose .wind{stroke:#ff8a00;stroke-width:3}
 .sar-rose .wind-head{fill:#ff8a00}
+.sar-quick,.sar-compare{display:grid;gap:6px;padding:8px 0;border-top:1px dashed #e1e5eb}
+.sar-kpis{display:flex;flex-wrap:wrap;gap:18px}
+.sar-kpis>div{display:grid}
+.sar-kpis small{color:#6b7888;font-size:11px}
+.sar-kpis b{font-size:18px;font-variant-numeric:tabular-nums}

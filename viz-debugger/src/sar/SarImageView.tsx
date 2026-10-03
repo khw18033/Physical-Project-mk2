@@ -14,12 +14,15 @@ export type MirrorState = { source: string; last_ok_unix: number | null; last_er
 
 type CrResult = {
   name: string; lat: number; lon: number; found: boolean; contrast_db: number; offset_m: number;
-  res_along_m: number; res_cross_m: number; in_beam_s: number | null; png: string;
+  res_along_m: number; res_cross_m: number; in_beam_s: number | null; png: string; scr_db?: number | null; pslr_db?: number | null;
 };
+type Offset = { dt_s: number; focus_gain_db: number; name: string };
+type Quicklook = { png: string; time_offset: { per_reflector: Offset[]; combined: { dt_s: number; spread_s: number; reflectors: number; consistent: boolean | null } | null; applied_s: number } };
 type ImageJson = {
   state: 'queued' | 'running' | 'done' | 'failed'; error?: string; pulses?: number; lever_frd_m?: number[]; tilt_motion_mm?: number;
   notes?: string[]; reflectors: CrResult[]; autofocus?: { method: string; reflectors?: number; fallbacks?: string[] } | null;
-  full: { png: string; map_png: string; corners: LatLon[] } | null; timings_s?: Record<string, number>; finished_unix?: number;
+  full: { png: string; map_png: string; corners: LatLon[]; kmz?: string } | null; timings_s?: Record<string, number>; finished_unix?: number;
+  quicklook?: Quicklook;
 };
 
 const n1 = (v: number | null | undefined, d = 1) => (typeof v === 'number' && Number.isFinite(v) ? v.toFixed(d) : '—');
@@ -102,16 +105,18 @@ export function SarImageView({ base, flight, pass }: { base: string; flight: str
       {af !== undefined && <span>{t('img.af', { m: af === null ? t('img.af.off') : t(`img.af.${af.method}`, { n: af.reflectors ?? 0 }) })}</span>}
     </div>
     {img.state === 'failed' && <p className="sar-bad">{img.error}</p>}
+    {img.quicklook && <QuickLook dir={dir} v={v} q={img.quicklook} />}
     {(img.notes ?? []).map((nt, i) => <p key={i} className="sar-hint">{nt}</p>)}
     {img.reflectors.length > 0 && <table className="sar-table">
       <thead><tr><th>{t('img.cr.name')}</th><th>{t('img.cr.found')}</th><th>{t('img.cr.contrast')}</th><th>{t('img.cr.offset')}</th>
-        <th>{t('img.cr.res')}</th><th>{t('img.cr.inBeam')}</th><th /></tr></thead>
+        <th>{t('img.cr.res')}</th><th>{t('img.cr.scr')}</th><th>{t('img.cr.inBeam')}</th><th /></tr></thead>
       <tbody>{img.reflectors.map((r) => <tr key={r.name} className={r.found ? '' : 'is-missed'}>
         <td>{r.name}</td>
         <td>{r.found ? <span className="sar-ok">{t('img.cr.yes')}</span> : <span className="sar-bad">{t('img.cr.no')}</span>}</td>
         <td>{n1(r.contrast_db, 0)} dB</td>
         <td>{n1(r.offset_m * 100, 1)} cm</td>
         <td>{n1(r.res_along_m * 100, 1)} cm</td>
+        <td>{n1(r.scr_db ?? null, 0)} dB</td>
         <td>{n1(r.in_beam_s, 1)} s</td>
         <td><a href={`${dir}/${r.png}${v}`} target="_blank" rel="noreferrer"><img className="sar-img-thumb" src={`${dir}/${r.png}${v}`} alt={r.name} /></a></td>
       </tr>)}</tbody>
@@ -123,11 +128,71 @@ export function SarImageView({ base, flight, pass }: { base: string; flight: str
         <label className="sar-check">{t('img.opacity')}<input type="range" min={0.2} max={1} step={0.05} value={opacity}
           onChange={(e) => setOpacity(Number(e.target.value))} /></label>
         <a className="sar-btn" href={`${dir}/${img.full.png}${v}`} target="_blank" rel="noreferrer">{t('img.openPng')}</a>
+        {img.full.kmz && <a className="sar-btn" href={`${dir}/${img.full.kmz}${v}`} download title={t('img.kmzHint')}>{t('img.kmz')}</a>}
       </div>
       <SatMap markers={markers} overlays={overlays} height={340} />
       <a href={`${dir}/${img.full.png}${v}`} target="_blank" rel="noreferrer"><img className="sar-img-full" src={`${dir}/${img.full.png}${v}`} alt={t('img.full')} /></a>
     </>}
     {(img.state === 'queued' || img.state === 'running') && <p className="sar-hint">{t('img.wait')}</p>}
+  </div>;
+}
+
+/** 빠른 확인 — 거리-시간 그림 위 예상 곡선, 리플렉터로 잰 레이더 시각 오프셋. */
+function QuickLook({ dir, v, q }: { dir: string; v: string; q: Quicklook }) {
+  useLang();
+  const c = q.time_offset.combined;
+  const ms = (s: number) => (Math.abs(s) < 5e-5 ? 0 : s * 1000).toFixed(1);
+  return <div className="sar-quick">
+    <div className="sar-img-tools"><b>{t('img.quick')}</b><small>{t('img.quickHint')}</small></div>
+    <a href={`${dir}/${q.png}${v}`} target="_blank" rel="noreferrer"><img className="sar-img-full" src={`${dir}/${q.png}${v}`} alt={t('img.quick')} /></a>
+    <p className={c === null ? 'sar-hint' : c.consistent === false ? 'sar-warn' : 'sar-ok'}>
+      {c === null ? t('img.dt.none')
+        : t('img.dt.result', { dt: ms(c.dt_s), n: c.reflectors, spread: ms(c.spread_s) })}
+      {' '}{q.time_offset.applied_s !== 0 ? t('img.dt.applied', { dt: ms(q.time_offset.applied_s) })
+        : c !== null && Math.abs(c.dt_s) > 0.0015 ? t('img.dt.notApplied') : ''}
+    </p>
+    {q.time_offset.per_reflector.length > 0 && <small className="sar-hint">
+      {q.time_offset.per_reflector.map((p) => t('img.dt.one', { n: p.name, dt: ms(p.dt_s), g: n1(p.focus_gain_db, 1) })).join(' · ')}
+    </small>}
+  </div>;
+}
+
+/** 같은 선 두 패스 비교 — 기준선 · 일치도 · 밝기 변화. */
+export function ComparePanel({ base, flight, passes }: { base: string; flight: string; passes: readonly number[] }) {
+  useLang();
+  const [a, setA] = useState(passes[0] ?? 0);
+  const [b, setB] = useState(passes[1] ?? 0);
+  const [res, setRes] = useState<{ png: string; dir: string; coherence_bright_median: number; coherence_all_median: number;
+    baseline: { cross_mean_m: number; cross_std_m: number; height_mean_m: number; height_std_m: number } } | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  if (passes.length < 2) return null;
+  const run = async () => {
+    setBusy(true); setErr(null);
+    try {
+      const r = await fetch(`${base}/api/flights/${encodeURIComponent(flight)}/compare?a=${a}&b=${b}`);
+      const j = await r.json();
+      if (!r.ok) setErr(j.error ?? String(r.status)); else setRes(j);
+    } catch (e) { setErr(e instanceof Error ? e.message : String(e)); } finally { setBusy(false); }
+  };
+  return <div className="sar-compare">
+    <div className="sar-img-tools">
+      <b>{t('img.cmp.title')}</b>
+      <label>A <select value={a} onChange={(e) => setA(Number(e.target.value))}>{passes.map((p) => <option key={p} value={p}>{t('sar.data.pass', { n: p })}</option>)}</select></label>
+      <label>B <select value={b} onChange={(e) => setB(Number(e.target.value))}>{passes.map((p) => <option key={p} value={p}>{t('sar.data.pass', { n: p })}</option>)}</select></label>
+      <button type="button" disabled={busy || a === b} onClick={() => void run()}>{busy ? t('img.state.running') : t('img.cmp.run')}</button>
+      {err !== null && <small className="sar-bad">{err}</small>}
+    </div>
+    {res !== null && <>
+      <div className="sar-kpis">
+        <div><small>{t('img.cmp.cohBright')}</small><b>{res.coherence_bright_median.toFixed(2)}</b></div>
+        <div><small>{t('img.cmp.cohAll')}</small><b>{res.coherence_all_median.toFixed(2)}</b></div>
+        <div><small>{t('img.cmp.baseCross')}</small><b>{res.baseline.cross_mean_m.toFixed(2)} ± {res.baseline.cross_std_m.toFixed(2)} m</b></div>
+        <div><small>{t('img.cmp.baseH')}</small><b>{res.baseline.height_mean_m.toFixed(2)} ± {res.baseline.height_std_m.toFixed(2)} m</b></div>
+      </div>
+      <img className="sar-img-full" src={`${base}/api/flights/${encodeURIComponent(flight)}/images/${res.dir}/${res.png}?v=${a}${b}${Date.now() % 1e6}`} alt={t('img.cmp.title')} />
+      <small className="sar-hint">{t('img.cmp.hint')}</small>
+    </>}
   </div>;
 }
 
