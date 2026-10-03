@@ -115,9 +115,10 @@ const CANVAS_FILES = ['types.ts', 'registry.ts', 'scope.ts', 'persist.ts', 'defa
   // 260929 — `sar` · `recon-3d`. 연결 관리에 붙인 이미지를 띄우고, 모든 편 팔레트에 선다.
   // 260929 — `virtual-3d`(3D 가상환경). 연결 관리의 주소를 틀에 띄우고, 모든 편 팔레트에 선다.
   // 261001 — `vision-stream`(객체 탐지 추론 영상). 스트림 서버의 모델별 오버레이이고, 모든 편 팔레트에 선다.
+  // 261002 — 드론 파트 셋(`drone-rtk` · `sar-pass` · `drone-dash`). 드론이 미는 값이고, 모든 편 팔레트에 선다.
   const EXPECTED = [
-    'autodrive-cam', 'control', 'detect-cam', 'detect-map', 'detect-reason', 'device-cam', 'device-risk', 'metrics',
-    'obstacle-log', 'recon-3d', 'robot', 'sar', 'video', 'virtual-3d', 'virtual-map', 'vision-stream',
+    'autodrive-cam', 'control', 'detect-cam', 'detect-map', 'detect-reason', 'device-cam', 'device-risk', 'drone-dash', 'drone-rtk', 'metrics',
+    'obstacle-log', 'recon-3d', 'robot', 'sar', 'sar-pass', 'video', 'virtual-3d', 'virtual-map', 'vision-stream',
   ];
   check(
     [...kinds].sort().join(',') === EXPECTED.join(','),

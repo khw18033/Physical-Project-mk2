@@ -75,7 +75,9 @@ export type PhysicalAction =
   | 'sdk_start' | 'sdk_stop' | 'sdk_auto'             // 구동 브리지 (§4-3)
   | 'abort_mission' | typeof STOP_ACTION
   // 스캔 중 「그 각도 그림이 화면에 떴다 — 다음 회전」 신호 (260914 · pi7 scan_hold). 로봇을 움직이지 않는다.
-  | 'scan_continue';
+  | 'scan_continue'
+  // 드론 SAR 직선 패스 (261002 · 드론 파트). 장비가 `Capability` 에 선언해야만 화면이 보낸다 — `sarCommands.ts`.
+  | 'sar_start' | 'sar_abort';
 
 export type CommandInput = {
   commandId: string;

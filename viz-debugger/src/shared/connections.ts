@@ -45,7 +45,7 @@
 
 import { useSyncExternalStore } from 'react';
 
-export type ConnectionTargetId = 'gateway' | 'media' | 'stt' | 'generate' | 'physical' | 'fixed-camera' | 'detect' | 'autodrive' | 'autodrive-ai' | 'vision' | 'capability' | 'control-node' | 'digital-twin' | 'virtual-3d' | 'sar' | 'recon-3d';
+export type ConnectionTargetId = 'gateway' | 'media' | 'stt' | 'generate' | 'physical' | 'fixed-camera' | 'detect' | 'autodrive' | 'autodrive-ai' | 'vision' | 'capability' | 'control-node' | 'digital-twin' | 'virtual-3d' | 'sar' | 'recon-3d' | 'drone-data' | 'drone-map';
 
 /**
  * ## 260918 — 여기 담는 것은 **글자가 아니라 사전 키**다
@@ -347,6 +347,31 @@ export const CONNECTION_TARGETS: readonly ConnectionTarget[] = [
     fields: [
       { key: 'image', labelKey: 'conn.field.image', fallback: '', image: true },
       { key: 'base', labelKey: 'conn.field.imageUrl', fallback: '' },
+    ],
+  },
+  {
+    /**
+     * 261002 — **드론 SAR 비행 데이터 서버** (드론 파트 · `drone/sar_data`). Pi 에서 도는 읽기 전용 HTTP 서버로,
+     * 패스마다 궤적 CSV · 메타 JSON · 레이더 원시 파일을 내려준다. 비워 두면 드론 브로커 주소의 호스트에 :8765 를 붙인다.
+     */
+    id: 'drone-data',
+    labelKey: 'conn.target.droneData',
+    whatKey: 'conn.target.droneData.what',
+    live: true,
+    fields: [{ key: 'http', labelKey: 'conn.field.http', fallback: '' }],
+  },
+  {
+    /**
+     * 261002 — **드론 지도 타일** (드론 파트 · 위성 지도). `{z}` `{x}` `{y}` 자리를 채워 타일을 받는다.
+     * 인터넷이 없는 현장이면 오프라인 타일 서버 주소로 바꿔 끼운다. 기본 위성은 Esri World Imagery, 일반 지도는 OpenStreetMap.
+     */
+    id: 'drone-map',
+    labelKey: 'conn.target.droneMap',
+    whatKey: 'conn.target.droneMap.what',
+    live: true,
+    fields: [
+      { key: 'satellite', labelKey: 'conn.field.satelliteTiles', fallback: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}' },
+      { key: 'street', labelKey: 'conn.field.streetTiles', fallback: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png' },
     ],
   },
 ];

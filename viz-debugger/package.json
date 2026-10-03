@@ -125,7 +125,9 @@
     "verify:log-i18n": "node scripts/verify-log-i18n.mjs",
     "verify:service-words": "node scripts/verify-service-words.mjs",
     "verify:gen-prompt": "node scripts/verify-gen-prompt.mjs",
-    "verify:goldset-en": "node scripts/verify-goldset-en.mjs"
+    "verify:goldset-en": "node scripts/verify-goldset-en.mjs",
+    "verify:sar": "node scripts/verify-sar.mjs",
+    "test:drone": "cd drone && .venv/bin/python -m pytest -q"
   },
   "dependencies": {
     "mqtt": "^5.15.2",

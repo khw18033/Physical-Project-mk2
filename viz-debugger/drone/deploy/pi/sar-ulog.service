@@ -1,0 +1,15 @@
+# 비행 로그 자동 회수 — 시동이 꺼지면 FC .ulg 를 그 비행 폴더로 (sar_pass ulog --watch)
+[Unit]
+Description=SAR drone: fetch FC .ulg after each flight
+After=network-online.target mavlink-router.service
+
+[Service]
+Type=simple
+User=physical
+EnvironmentFile=/etc/sar-drone.env
+ExecStart=/bin/sh -c 'exec "$SAR_VENV/bin/python3" -u -m sar_pass ulog --watch --connect "$SAR_ULOG_URL" --log-dir "$SAR_LOG_DIR"'
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

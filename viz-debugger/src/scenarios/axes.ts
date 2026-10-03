@@ -95,12 +95,14 @@ export type ViewNodeKindId =
   | 'autodrive-cam'
   | 'virtual-map' | 'device-cam' | 'obstacle-log'
   | 'sar' | 'recon-3d' | 'virtual-3d'
-  | 'vision-stream';
+  | 'vision-stream'
+  // 261002 — 드론 파트. 대본이 아니라 드론이 미는 값이라 축 표(`AXIS_NODES`)에 없다.
+  | 'drone-rtk' | 'sar-pass' | 'drone-dash';
 
 /** 표에 등장하는 종류들. 등록된 렌더러와 어긋나면 `verify:node-scope` 가 잡는다. */
 export const SCENARIO_NODE_KINDS: readonly ViewNodeKindId[] =
   ['device-risk', 'control', 'metrics', 'video', 'robot', 'detect-cam', 'detect-reason', 'detect-map', 'autodrive-cam',
-    'virtual-map', 'device-cam', 'obstacle-log', 'sar', 'recon-3d', 'virtual-3d', 'vision-stream'];
+    'virtual-map', 'device-cam', 'obstacle-log', 'sar', 'recon-3d', 'virtual-3d', 'vision-stream', 'drone-rtk', 'sar-pass', 'drone-dash'];
 
 // `robot` 은 **축 표(`AXIS_NODES`)에 없다** — 일부러다 (260910).
 //

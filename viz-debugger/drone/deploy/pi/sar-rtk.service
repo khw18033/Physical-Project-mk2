@@ -1,0 +1,18 @@
+# RTK 보정 전달 + 드론 상태판 텔레메트리 (rtk_relay.fc_injector --telemetry)
+#   노트북 base_sender → UDP ${SAR_RTCM_PORT} → GPS_RTCM_DATA → FC,  FC MAVLink → MQTT …/rtcm · …/fcx
+# 베이스가 없어도 켜 둔다 — 상태판 텔레메트리가 이 서비스에서 나온다.
+[Unit]
+Description=SAR drone: RTK corrections + dashboard telemetry
+After=network-online.target mavlink-router.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=physical
+EnvironmentFile=/etc/sar-drone.env
+ExecStart=/bin/sh -c 'exec "$SAR_VENV/bin/python3" -u -m rtk_relay.fc_injector --listen "$SAR_RTCM_PORT" --fc "$SAR_FC_TCP" --mqtt "$SAR_MQTT" --device "$SAR_DEVICE" --zone "$SAR_ZONE" --telemetry'
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

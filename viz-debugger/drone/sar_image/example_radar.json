@@ -1,0 +1,16 @@
+{
+  "note": "예시 값이다 — 실제 레이더 사양으로 바꿔야 한다 (X대역 9.6 GHz · 300 MHz 가정)",
+  "wavelength_m": 0.03123,
+  "bandwidth_hz": 300000000.0,
+  "prf_hz": 200.0,
+  "range_min_m": 5.0,
+  "range_max_m": 60.0,
+  "side": "right",
+  "depression_deg": 45.0,
+  "el_beamwidth_deg": 40.0,
+  "az_beamwidth_deg": 30.0,
+  "squint_deg": 0.0,
+  "antenna_offset_m": [0.0, 0.0, 0.0],
+  "gnss_offset_m": null,
+  "position_ref": "auto"
+}

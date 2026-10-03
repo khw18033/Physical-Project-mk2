@@ -36,6 +36,12 @@ import { noteCapability, resetDeviceIdentity, deviceIdentityFor } from './device
 import { encodeCommand, nextCommandId, type CommandInput, type PhysicalAction } from './encode.ts';
 import { physical } from './protocol.js';
 import { parseScanFeed, scanFeedChannel, type ScanFeedMessage } from './scanFeed.ts';
+import { parseSarStatus, SAR_TOPIC, sarChannel } from './sarFeed.ts';
+import { noteSarStatus } from '../shared/sarStatus.ts';
+import { parseRtcmStatus, RTCM_TOPIC, rtcmChannel } from './rtcmFeed.ts';
+import { noteRtcmStatus } from '../shared/rtcmStatus.ts';
+import { FCX_TOPIC, fcxChannel, parseFcx } from './fcxFeed.ts';
+import { noteFcx } from '../shared/fcxStatus.ts';
 import { decodeCapability, decodeUplink, type UplinkMessage } from './uplink.ts';
 
 const meta = import.meta as unknown as { env?: { VITE_PHYSICAL_WS?: string } };
@@ -314,6 +320,12 @@ export class PhysicalClient {
         // 장비 상태는 QoS 0 — 주기 발행이라 한 건 놓쳐도 다음 것이 온다. 이건 안 기다린다.
         for (const topic of DEVICE_TOPICS) client.subscribe(topic, { qos: 0 });
         for (const topic of SCAN_FEED_TOPICS) client.subscribe(topic, { qos: 1 });
+        // 드론 SAR 패스 상태 (261002). retained 라 늦게 붙어도 마지막 상태(특히 「캡처 중」)가 곧바로 온다.
+        client.subscribe(SAR_TOPIC, { qos: 0 });
+        // RTK 보정 전달기 상태 (261002) — 「보정이 FC 로 들어가고 있는가」. retained.
+        client.subscribe(RTCM_TOPIC, { qos: 0 });
+        // FC 확장 텔레메트리 (261002 · 드론 상태판) — 5 Hz, retained.
+        client.subscribe(FCX_TOPIC, { qos: 0 });
       }) as () => void);
       client.on('message', ((topic: string, payload: Uint8Array) => {
         // 장비 상태는 **JSON** 이고 명령 응답은 **protobuf** 다. 토픽으로 가른다 —
@@ -322,6 +334,22 @@ export class PhysicalClient {
           let body: unknown;
           try { body = JSON.parse(new TextDecoder().decode(payload)); } catch { return; }
           if (typeof body !== 'object' || body === null) return;
+          // SAR 패스 상태는 장비 상태 표(`stateRows`)를 지나지 않는다 — 제 저장소로 간다 (261002).
+          if (sarChannel(topic)) {
+            const sar = parseSarStatus(body as Record<string, unknown>, topic);
+            if (sar !== null) noteSarStatus(sar, this.address());
+            return;
+          }
+          if (rtcmChannel(topic)) {
+            const rtcm = parseRtcmStatus(body as Record<string, unknown>, topic);
+            if (rtcm !== null) noteRtcmStatus(rtcm);
+            return;
+          }
+          if (fcxChannel(topic)) {
+            const fcx = parseFcx(body as Record<string, unknown>, topic);
+            if (fcx !== null) noteFcx(fcx);
+            return;
+          }
           // 로봇 → 탐지 흐름은 장비 상태가 아니다 — 다른 귀로 보낸다.
           if (scanFeedChannel(topic) !== null) {
             const feed = parseScanFeed(topic, body as Record<string, unknown>);
