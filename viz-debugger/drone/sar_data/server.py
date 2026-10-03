@@ -10,7 +10,8 @@
                                                위치 데이터(+원시 레이더 · 만든 영상) 묶음. raw 기본 1
   GET /api/flights/<id>/image?pass=N[&cr=lat,lon;…][&force=1]
                                                SAR 영상 만들기 시작 · 진행 상황(image.json). 202 = 줄 섰다
-  GET /api/flights/<id>/images/passNN/<file>   만든 영상(png) · image.json
+  GET /api/flights/<id>/images/passNN/<file>   만든 영상(png · kmz) · image.json
+  GET /api/flights/<id>/compare?a=N&b=M        두 패스 비교 — 기준선 · 일치도 · 밝기 변화 (compare_NN_MM/)
 
 영상은 노트북에서 만든다(`--mirror` 로 Pi 의 패스를 가져와서) — sar_data/mirror.py · sar_data/imaging.py.
 
@@ -193,7 +194,7 @@ class Store:
                 img_dir = d / "images" / f"pass{p['pass_no']:02d}"
                 if img_dir.is_dir():
                     for f in sorted(img_dir.iterdir()):
-                        if f.is_file() and f.suffix in (".png", ".json"):
+                        if f.is_file() and f.suffix in (".png", ".json", ".kmz"):
                             z.write(f, f"images/{img_dir.name}/{f.name}")
         return Path(tmp.name)
 
@@ -299,13 +300,30 @@ def make_handler(store: Store, jobs=None, mirror=None):  # noqa: ANN001, ANN201
                     return self._json(body, status)
                 if len(parts) == 6 and parts[:2] == ["api", "flights"] and parts[3] == "images":
                     d = store.flight(parts[2])
-                    if d is None or not re.fullmatch(r"pass\d{2}", parts[4]) or not re.fullmatch(r"[\w.-]+\.(png|json)", parts[5]):
+                    if (d is None or not re.fullmatch(r"pass\d{2}|compare_\d{2}_\d{2}", parts[4])
+                            or not re.fullmatch(r"[\w.-]+\.(png|json|kmz)", parts[5])):
                         return self._json({"error": "not found"}, 404)
                     f = d / "images" / parts[4] / parts[5]
                     if not f.is_file():
                         return self._json({"error": "not found"}, 404)
-                    ctype = "image/png" if f.suffix == ".png" else "application/json"
-                    return self._file(f, f"{parts[2]}_{parts[4]}_{f.name}", ctype, inline=True)
+                    ctype = {".png": "image/png", ".json": "application/json", ".kmz": "application/vnd.google-earth.kmz"}[f.suffix]
+                    return self._file(f, f"{parts[2]}_{parts[4]}_{f.name}", ctype, inline=f.suffix != ".kmz")
+                if len(parts) == 4 and parts[:2] == ["api", "flights"] and parts[3] == "compare":
+                    # 같은 선 두 패스 비교 — 두 영상이 다 있어야 한다(몇 초, 그 자리에서 만든다)
+                    d = store.flight(parts[2])
+                    if d is None or "a" not in q or "b" not in q:
+                        return self._json({"error": "a=N&b=M 이 필요하다"}, 400)
+                    na, nb = sorted((int(q["a"][0]), int(q["b"][0])))
+                    da, db = d / "images" / f"pass{na:02d}", d / "images" / f"pass{nb:02d}"
+                    if not (da / "full.npy").is_file() or not (db / "full.npy").is_file():
+                        return self._json({"error": "두 패스 모두 선 전체 영상이 있어야 한다"}, 409)
+                    out = d / "images" / f"compare_{na:02d}_{nb:02d}"
+                    if not (out / "compare.json").is_file() or q.get("force", ["0"])[0] == "1":
+                        from sar_image.compare import compare_passes
+                        compare_passes(da, db, out, d)
+                    body = json.loads((out / "compare.json").read_text(encoding="utf-8"))
+                    body["dir"] = out.name
+                    return self._json(body)
                 return self._json({"error": "not found"}, 404)
             except (BrokenPipeError, ConnectionResetError):
                 pass

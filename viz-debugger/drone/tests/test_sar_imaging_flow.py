@@ -134,3 +134,31 @@ def test_pi_to_laptop_mirror_and_image(pi_side):
     finally:
         pi_srv.shutdown()
         lap_srv.shutdown()
+
+
+def test_time_offset_found_and_applied(tmp_path):
+    """레이더 시계가 30 ms 늦게 찍혀도 리플렉터 둘로 dt 를 찾아 고친다. 안 고친 영상보다 리플렉터가 밝다."""
+    import numpy as np
+
+    from sar_image.pipeline import form_pass
+
+    csv = DATA / "pass02_1790957682.csv"
+    meta = json.loads(csv.with_suffix(".json").read_text(encoding="utf-8"))
+    traj = Trajectory.load_csv(csv)
+    o, hd, length, h = frame(traj, meta)
+    r = math.radians(hd)
+    ll = [o.latlon(a * math.sin(r) + c * math.cos(r), a * math.cos(r) - c * math.sin(r)) for a, c in ((35, 18), (50, 24))]
+    radar = replace(RadarConfig.load(RADAR), prf_hz=100.0)
+    raw = tmp_path / "raw.npz"
+    write_fmcw_npz(raw, radar, traj, o, [o.enu(la, lo, o.h) for la, lo in ll], meta)
+    z = dict(np.load(raw))
+    z["t"] = z["t"] - 0.030                              # 레이더 시계가 30 ms 늦다 → 고칠 값은 +30 ms
+    np.savez(raw, **z)
+    crs = [(la, lo, None) for la, lo in ll]
+    fixed = form_pass(csv, [raw], radar, ADAPTER, tmp_path / "auto", reflectors=crs, full=False, autofocus=False)
+    off = fixed["quicklook"]["time_offset"]
+    assert off["combined"]["consistent"] and abs(off["applied_s"] - 0.030) < 0.001
+    assert (tmp_path / "auto" / "rangetime.png").stat().st_size > 1000
+    raw_only = form_pass(csv, [raw], radar, ADAPTER, tmp_path / "off", reflectors=crs, full=False, autofocus=False, time_offset=None)
+    for a, b in zip(fixed["reflectors"], raw_only["reflectors"]):
+        assert a["found"] and a["contrast_db"] > b["contrast_db"] + 3

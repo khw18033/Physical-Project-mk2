@@ -26,6 +26,7 @@ from .attitude import lever_arm, phase_center, tilt_motion_mm
 from .autofocus import apply_correction, estimate_phase_error, estimate_phase_error_multi, estimate_trajectory_error
 from .backprojection import backproject_fast, line_grid, peak_metrics
 from .coverage import predicted_history, summarize_history, swath_ground_ranges
+from .quicklook import combine_offsets, estimate_time_offset, rangetime_png
 from .radar import RadarConfig
 from .trajectory import Origin, Trajectory
 
@@ -114,6 +115,56 @@ def _map_png(path: Path, img: np.ndarray, dyn_db: float = 30.0) -> None:
     plt.imsave(path, rgba)
 
 
+def point_target_quality(img: np.ndarray, along: np.ndarray, cross: np.ndarray, m: dict) -> dict:
+    """점 표적 품질 — SCR (위성 SAR 검교정 관례, CoRAL · GECORIS):
+    SCR = 봉우리 세기 / 둘레 바닥(주엽 상자 밖, ±6 해상도 안) 평균 세기 — 리플렉터가 바닥보다 얼마나 밝은가.
+    ISLR 은 뺐다: 넓은 빔 드론 SAR 의 점 표적은 나비넥타이 모양으로 퍼져 축 정렬 상자로 재면 뜻이 흐려진다
+    (예시 X대역 · 깨끗한 합성 신호에서도 +2 dB 가 나왔다). 옆엽은 PSLR 로 본다.
+    """
+    p = np.abs(img) ** 2
+    ia = int(np.argmin(np.abs(along - m["peak_along_m"])))
+    ic = int(np.argmin(np.abs(cross - m["peak_cross_m"])))
+    da = max(along[1] - along[0], 1e-9)
+    dc = max(cross[1] - cross[0], 1e-9) if cross.size > 1 else 1.0
+    ra = max(m.get("res_along_m") or da, da)
+    rcx = max(m.get("res_cross_m") or dc, dc)
+    A, C = np.meshgrid(np.arange(along.size), np.arange(cross.size))
+    main = (np.abs(A - ia) * da <= 2 * ra) & (np.abs(C - ic) * dc <= 2 * rcx)
+    near = (np.abs(A - ia) * da <= 6 * ra) & (np.abs(C - ic) * dc <= 6 * rcx)
+    clutter = p[near & ~main]
+    out: dict = {}
+    out["scr_db"] = round(10 * math.log10(float(p[ic, ia]) / max(float(clutter.mean()), 1e-30)), 1) if clutter.size else None
+    return out
+
+
+def write_kmz(path: Path, img: np.ndarray, corners: list[tuple[float, float]], name: str, reflectors: list[dict],
+              dyn_db: float = 35.0) -> None:
+    """구글어스 · QGIS 에서 바로 여는 KMZ — 회색 영상(GroundOverlay, gx:LatLonQuad) + 리플렉터 표식."""
+    import io
+    import zipfile
+    from xml.sax.saxutils import escape
+
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    v = np.clip((_db(img) + dyn_db) / dyn_db, 0, 1)
+    buf = io.BytesIO()
+    plt.imsave(buf, v, cmap="gray", vmin=0, vmax=1, format="png")
+    # 그림의 왼쪽 위 = row0col0. LatLonQuad 는 왼쪽 아래부터 반시계 — (rowEnd col0, rowEnd colEnd, row0 colEnd, row0 col0)
+    quad = [corners[3], corners[2], corners[1], corners[0]]
+    coords = " ".join(f"{lo:.9f},{la:.9f},0" for la, lo in quad)
+    marks = "".join(
+        f"<Placemark><name>{escape(r['name'])}{' ✓' if r.get('found') else ' ✕'}</name>"
+        f"<Point><coordinates>{r['lon']:.9f},{r['lat']:.9f},0</coordinates></Point></Placemark>" for r in reflectors)
+    kml = (f'<?xml version="1.0" encoding="UTF-8"?><kml xmlns="http://www.opengis.net/kml/2.2" xmlns:gx="http://www.google.com/kml/ext/2.2">'
+           f"<Document><name>{escape(name)}</name><GroundOverlay><name>{escape(name)}</name><Icon><href>image.png</href></Icon>"
+           f"<gx:LatLonQuad><coordinates>{coords}</coordinates></gx:LatLonQuad></GroundOverlay>{marks}</Document></kml>")
+    with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as z:
+        z.writestr("doc.kml", kml)
+        z.writestr("image.png", buf.getvalue())
+
+
 def _write(out: Path, body: dict) -> None:
     tmp = out.with_suffix(".tmp")
     tmp.write_text(json.dumps(body, ensure_ascii=False, indent=2), encoding="utf-8")
@@ -123,8 +174,12 @@ def _write(out: Path, body: dict) -> None:
 def form_pass(traj_csv: Path, raw_files: list[Path], radar: RadarConfig, adapter: Adapter | str,
               out_dir: Path, reflectors: list[tuple[float, float, float | None]] | None = None,
               full: bool = True, autofocus: bool = True, full_step: tuple[float, float] = (0.05, 0.1),
-              workers: int | None = None) -> dict:
-    """영상 묶음을 만든다. 실패해도 image.json 에 사유를 남기고 예외는 다시 던진다."""
+              workers: int | None = None, time_offset: float | str | None = "auto") -> dict:
+    """영상 묶음을 만든다. 실패해도 image.json 에 사유를 남기고 예외는 다시 던진다.
+
+    time_offset: 레이더 시각에 더할 초. "auto" 면 리플렉터 둘 이상이 2 ms 안에서 같은 값을 가리킬 때만 그 값을 쓴다
+    (하나뿐이면 알리기만 한다). 숫자면 그 값, None 이면 0.
+    """
     out_dir.mkdir(parents=True, exist_ok=True)
     status_path = out_dir / "image.json"
     started = time.time()
@@ -143,6 +198,44 @@ def form_pass(traj_csv: Path, raw_files: list[Path], radar: RadarConfig, adapter
         t, rng, rc = load_raw(raw_files, radar, adapter)
         body["timings_s"]["load"] = round(time.perf_counter() - t0, 2)
         cw = traj.capture_window()
+        lever, notes = lever_arm(radar, meta)
+        body["notes"] += notes
+        body["lever_frd_m"] = lever.round(4).tolist()
+        lam = radar.wavelength_m
+        if lam is None:
+            raise ValueError("radar.json 에 wavelength_m 이 필요하다")
+        crs = [o.enu(lat, lon, o.h if hh is None else hh) for lat, lon, hh in reflectors or []]
+
+        # ── 0) 빠른 확인: 거리-시간 그림 + 예상 곡선, 레이더 시각 오프셋 ─────────────
+        t0 = time.perf_counter()
+        curves, per = [], []
+        for i, cr in enumerate(crs, 1):
+            ph = predicted_history(radar, traj, o, cr, only_capture=False, meta=meta)
+            keep = (ph["t"] >= t[0] - 1) & (ph["t"] <= t[-1] + 1)
+            curves.append((f"CR{i}", ph["t"][keep], ph["range_m"][keep], ph["in_beam"][keep]))
+            in_win = ph["in_beam"] & (ph["t"] >= t[0]) & (ph["t"] <= t[-1])
+            if in_win.sum() >= 10:
+                try:
+                    est = estimate_time_offset(t, rng, rc, traj, o, lever, cr, lam)
+                    per.append({"name": f"CR{i}", **est})
+                except Exception as exc:  # noqa: BLE001
+                    body["notes"].append(f"CR{i} 시각 추정 실패: {exc}")
+        rangetime_png(out_dir / "rangetime.png", t, rng, rc, curves, cw, f"range-time · {traj_csv.stem} (dashed = predicted from trajectory)")
+        comb = combine_offsets([p for p in per if p["focus_gain_db"] > -0.5])
+        applied = 0.0
+        if isinstance(time_offset, (int, float)) and not isinstance(time_offset, bool):
+            applied = float(time_offset)
+        elif time_offset == "auto" and comb is not None and comb["consistent"] and abs(comb["dt_s"]) < 1.0:
+            applied = comb["dt_s"]
+        body["quicklook"] = {"png": "rangetime.png", "time_offset": {"per_reflector": per, "combined": comb,
+                                                                    "applied_s": applied, "mode": str(time_offset)}}
+        if applied:
+            t = t + applied
+            body["notes"].append(f"레이더 시각에 {applied * 1000:+.1f} ms 를 더했다 (리플렉터로 추정)")
+            inside = (t >= traj.t[0]) & (t <= traj.t[-1])
+            t, rc = t[inside], rc[inside]
+        body["timings_s"]["quicklook"] = round(time.perf_counter() - t0, 2)
+        _write(status_path, body)
         inside = (t >= traj.t[0]) & (t <= traj.t[-1])
         if not inside.any():
             raise ValueError(f"레이더 펄스 시각({t[0]:.1f}~{t[-1]:.1f})이 궤적 시각({traj.t[0]:.1f}~{traj.t[-1]:.1f})과 안 겹친다 — "
@@ -154,19 +247,10 @@ def form_pass(traj_csv: Path, raw_files: list[Path], radar: RadarConfig, adapter
         body["radar_window_s"] = [float(t[0]), float(t[-1])]
         body["capture_window_s"] = [cw[0], cw[1]]
         st = traj.at(o, t)
-        lever, notes = lever_arm(radar, meta)
-        body["notes"] += notes
-        body["lever_frd_m"] = lever.round(4).tolist()
         body["tilt_motion_mm"] = round(tilt_motion_mm(lever, st["roll"], st["pitch"]), 2)
         pos = phase_center(np.stack([st["e"], st["n"], st["u"]], axis=1), st["yaw"], st["pitch"], st["roll"], lever)
-        lam = radar.wavelength_m
-        if lam is None:
-            raise ValueError("radar.json 에 wavelength_m 이 필요하다")
 
         # ── 1) 리플렉터 둘레 — 촘촘히, 먼저 ─────────────────────────────────
-        crs = []
-        for lat, lon, hh in reflectors or []:
-            crs.append(o.enu(lat, lon, o.h if hh is None else hh))
         t0 = time.perf_counter()
         seen_crs: list[np.ndarray] = []
         seen_contrast: list[float] = []
@@ -183,10 +267,11 @@ def form_pass(traj_csv: Path, raw_files: list[Path], radar: RadarConfig, adapter
             contrast = 20 * math.log10(max(a.max(), 1e-30) / max(float(np.median(a)), 1e-30))
             off = math.hypot(m["peak_along_m"] - a_c, m["peak_cross_m"] - c_c)
             found = contrast > 15 and off < 0.75
+            q = point_target_quality(img, along, cross, m)
             rec = {"name": f"CR{i}", "lat": reflectors[i - 1][0], "lon": reflectors[i - 1][1],  # type: ignore[index]
                    "along_m": round(a_c, 3), "cross_m": round(c_c, 3), "found": found,
                    "contrast_db": round(contrast, 1), "offset_m": round(off, 3),
-                   "in_beam_s": hist.get("in_beam_seconds"), "png": f"cr{i}.png",
+                   "in_beam_s": hist.get("in_beam_seconds"), "png": f"cr{i}.png", **q,
                    **{k: (round(v, 4) if isinstance(v, float) else v) for k, v in m.items()}}
             _png(out_dir / f"cr{i}.png", img, along, cross,
                  f"CR{i} · {'found' if found else 'NOT found'} · contrast {contrast:.0f} dB · res {m['res_along_m']*100:.1f} cm", [(a_c, c_c)])
@@ -233,19 +318,23 @@ def form_pass(traj_csv: Path, raw_files: list[Path], radar: RadarConfig, adapter
         # ── 3) 선 전체 ──────────────────────────────────────────────────────
         if full:
             t0 = time.perf_counter()
-            near, far = swath_ground_ranges(radar, h)
+            # 격자는 **계획 고도**로 정하고 격자 간격에 맞춰 반올림한다 — 같은 선의 패스는 같은 격자가 되어 서로 견줄 수 있다
+            h_grid = float((meta.get("plan") or {}).get("alt_m") or round(h))
+            near, far = swath_ground_ranges(radar, h_grid)
             near = 0.0 if near is None else near
             far = 40.0 if far is None or not math.isfinite(far) else far
+            near = math.floor(near / full_step[1]) * full_step[1]
+            far = math.ceil(far / full_step[1]) * full_step[1]
             s = radar.side_sign
             c_lo, c_hi = (near, far) if s > 0 else (-far, -near)
-            along = np.arange(-5.0, length + 5.0, full_step[0])
-            cross = np.arange(c_lo, c_hi, full_step[1])
+            along = -5.0 + full_step[0] * np.arange(int(round((length + 10.0) / full_step[0])))
+            cross = c_lo + full_step[1] * np.arange(int(round((c_hi - c_lo) / full_step[1])))
             g, _ = line_grid((0.0, 0.0), heading, along, cross)
             img = backproject_fast(rc_used, rng, pos_used, lam, g, workers=workers)
             _png(out_dir / "full.png", img, along, cross, f"SAR · {traj_csv.stem} · {t.size} pulses",
                  [(r["along_m"], r["cross_m"]) for r in body["reflectors"]])
             _map_png(out_dir / "full_map.png", img)
-            np.save(out_dir / "full_db.npy", _db(img).astype(np.float16))
+            np.save(out_dir / "full.npy", img.astype(np.complex64))      # 패스끼리 비교(compare.py)용 복소 영상
             corners = []
             for a_, c_ in ((along[0], cross[0]), (along[-1], cross[0]), (along[-1], cross[-1]), (along[0], cross[-1])):
                 hd = math.radians(heading)
@@ -256,7 +345,9 @@ def form_pass(traj_csv: Path, raw_files: list[Path], radar: RadarConfig, adapter
                             "along_m": [float(along[0]), float(along[-1])], "cross_m": [float(cross[0]), float(cross[-1])],
                             "step_m": list(full_step), "heading_deg": round(heading, 3),
                             "corners": [{"lat": la, "lon": lo} for la, lo in corners],
-                            "corner_order": "row0col0, row0colEnd, rowEndcolEnd, rowEndcol0 (row = cross ↑, col = along ↑)"}
+                            "corner_order": "row0col0, row0colEnd, rowEndcolEnd, rowEndcol0 (row = cross ↑, col = along ↑)",
+                            "kmz": "image.kmz"}
+            write_kmz(out_dir / "image.kmz", img, corners, f"SAR {traj_csv.stem}", body["reflectors"])
             body["timings_s"]["full"] = round(time.perf_counter() - t0, 2)
         body["state"] = "done"
     except Exception as exc:
