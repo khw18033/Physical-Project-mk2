@@ -1,0 +1,15 @@
+# FC 의 GPS 시각 → chrony (PPS 와 짝). install.sh --with-pps
+[Unit]
+Description=SAR drone: FC GPS time to chrony (SOCK refclock)
+After=chrony.service mavlink-router.service
+Wants=chrony.service
+
+[Service]
+Type=simple
+EnvironmentFile=/etc/sar-drone.env
+ExecStart=/bin/sh -c 'exec "$SAR_VENV/bin/python3" -u -m sar_pass chrony-fc --connect "$SAR_FC_TCP"'
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

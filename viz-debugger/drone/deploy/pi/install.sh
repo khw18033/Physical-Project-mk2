@@ -3,6 +3,7 @@
 #
 #   sudo ./install.sh                 # RTK 전달 · 상태판 텔레메트리 · .ulg 회수 · 데이터 서버
 #   sudo ./install.sh --with-agent    # + 드론 에이전트에 sar_start/sar_abort (HW 담당과 협의 후)
+#   sudo ./install.sh --with-pps      # + GPS PPS 시각 동기(chrony · 부팅 설정, 재부팅 필요) — pps/README.md
 #   sudo ./install.sh --status        # 지금 상태만
 #   sudo ./install.sh --uninstall     # 우리가 넣은 것만 걷어 낸다 (HW 의 drone-node 는 원래대로)
 #   ./install.sh --dry-run ...        # 실제로 바꾸지 않고 할 일만 보여 준다
@@ -17,14 +18,16 @@ DRONE_DIR="$(cd "$HERE/../.." && pwd)"          # viz-debugger/drone
 ENV_FILE="${SAR_ENV_FILE:-/etc/sar-drone.env}"
 UNIT_DIR=/etc/systemd/system
 UNITS=(sar-rtk.service sar-ulog.service sar-data.service)
+OPT_UNITS=(sar-chrony.service)
 AGENT_DROPIN="$UNIT_DIR/drone-node.service.d/50-sar.conf"
 SVC_USER="${SAR_USER:-physical}"
 
-DRY=0; MODE=install; AGENT=0
+DRY=0; MODE=install; AGENT=0; PPS=0
 for a in "$@"; do
   case "$a" in
     --dry-run) DRY=1 ;;
     --with-agent) AGENT=1 ;;
+    --with-pps) PPS=1 ;;
     --status) MODE=status ;;
     --uninstall) MODE=uninstall ;;
     -h|--help) sed -n '2,13p' "$0"; exit 0 ;;
@@ -70,10 +73,14 @@ status() {
 uninstall() {
   need_root
   step "우리가 넣은 것만 걷어 낸다"
-  for u in "${UNITS[@]}"; do
+  for u in "${UNITS[@]}" "${OPT_UNITS[@]}"; do
     run systemctl disable --now "$u" 2>/dev/null || true
     run rm -f "$UNIT_DIR/$u"
   done
+  if [ -f /etc/chrony/conf.d/sar-pps.conf ]; then
+    run rm -f /etc/chrony/conf.d/sar-pps.conf; run systemctl restart chrony || true
+    warn "PPS 부팅 설정(dtoverlay)은 남겨 둔다 — 원본은 config.txt.sar-backup"
+  fi
   if [ -f "$AGENT_DROPIN" ]; then
     run rm -f "$AGENT_DROPIN"
     run systemctl daemon-reload
@@ -117,6 +124,29 @@ install() {
   run systemctl daemon-reload
   for u in "${UNITS[@]}"; do run systemctl enable --now "$u"; done
   ok "${UNITS[*]}"
+
+  if [ "$PPS" = 1 ]; then
+    step "PPS 시각 동기 (chrony)"
+    command -v chronyc >/dev/null || run apt-get install -y chrony pps-tools
+    run install -d /etc/chrony/conf.d
+    run install -m 0644 "$HERE/pps/chrony-sar.conf" /etc/chrony/conf.d/sar-pps.conf
+    if ! grep -qs '^confdir /etc/chrony/conf.d' /etc/chrony/chrony.conf; then
+      warn "/etc/chrony/chrony.conf 에 'confdir /etc/chrony/conf.d' 가 없다 — 그 줄을 넣는다"
+      run sh -c 'echo "confdir /etc/chrony/conf.d" >> /etc/chrony/chrony.conf'
+    fi
+    local boot=/boot/firmware/config.txt; [ -f "$boot" ] || boot=/boot/config.txt
+    if grep -qs '^dtoverlay=pps-gpio' "$boot"; then ok "$boot 에 pps-gpio 있음"
+    else
+      run cp "$boot" "$boot.sar-backup"
+      run sh -c "echo 'dtoverlay=pps-gpio,gpiopin=18' >> '$boot'"
+      warn "$boot 에 dtoverlay=pps-gpio,gpiopin=18 을 넣었다 (원본 $boot.sar-backup) — 재부팅해야 /dev/pps0 이 생긴다"
+    fi
+    run install -m 0644 "$HERE/sar-chrony.service" "$UNIT_DIR/sar-chrony.service"
+    run systemctl daemon-reload
+    run systemctl enable --now sar-chrony.service
+    run systemctl restart chrony
+    ok "chrony · sar-chrony — 재부팅 뒤 chronyc sources -v 로 PPS 확인"
+  fi
 
   if [ "$AGENT" = 1 ]; then
     step "5. 드론 에이전트 연동 (drone-node 실행 명령만 바꾼다)"

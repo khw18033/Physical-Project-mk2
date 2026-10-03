@@ -93,6 +93,9 @@ def build_parser() -> argparse.ArgumentParser:
     c.add_argument("--mqtt", help="host:port")
     c.add_argument("--service", default="cansar.service")
     c.add_argument("--cap-ack", type=Path, help="레이더 확인 파일 경로")
+    cf = sub.add_parser("chrony-fc", help="FC 의 GPS 시각을 chrony 로 (PPS 와 짝, sar-chrony.service)")
+    cf.add_argument("--connect", default="tcp:127.0.0.1:5760", help="pymavlink 주소")
+    cf.add_argument("--sock", default="/run/chrony.fc.sock")
     u = sub.add_parser("ulog", help="FC 의 .ulg 를 그 비행 폴더로 받는다 (--watch 면 시동이 꺼질 때마다)")
     u.add_argument("--connect", default="tcp://127.0.0.1:5760", help="패스 비행(14540)과 다른 끝점")
     u.add_argument("--log-dir", type=Path, default=Path("sar_logs"))
@@ -143,6 +146,10 @@ async def amain(a: argparse.Namespace) -> int:
         from .check import report, run_checks
 
         return report(await run_checks(a.cap, a.connect, a.mqtt, a.service, a.cap_ack))
+    if a.cmd == "chrony-fc":
+        from .chrony_fc import run as chrony_run
+
+        return await asyncio.to_thread(chrony_run, a.connect, a.sock)
     if a.cmd == "ulog":
         from .ulog import run as ulog_run
 

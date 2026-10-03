@@ -60,4 +60,6 @@ cd drone && python -m venv .venv && .venv/bin/pip install -e ".[test,image,base]
 - 사용자가 줄 팀 백프로젝션 · 자동 초점 코드 → `--former` · `--focuser` 로 꽂기 (README 「영상 코드 꽂기」)
 - HW 담당과 협의 후 Pi 에 `deploy/pi/install.sh --with-agent` · 실제 Pi 에서 설치 확인
 - 레버암 실측 · QGC `EKF2_GPS_POS_*` · FC ↔ Pi 연결이 USB 인지 UART 인지 확인(.ulg 받는 속도)
-- 현장: 수레 시험 → 호버(간섭 · 진동) → 저고도 → 본 비행. 첫 로그로 바람 기울기 계수(`TILT_PER_MPS`) · 선 복귀 게인(`CROSS_KP`) 보정
+- 현장: 수레 시험 → 호버(간섭 · 진동) → 저고도 → 본 비행. 첫 로그로 바람 기울기 계수(`TILT_PER_MPS`) · 선 복귀 게인(`CROSS_KP` · `CROSS_KP_FAR`) 보정
+- PPS 배선(GPS PPS → Pi GPIO18) 뒤 `install.sh --with-pps` (deploy/pi/pps/README.md)
+- QGC 는 계속 같이 쓴다(펌웨어 · 캘리브레이션 · 페일세이프 · 비상). 우리 화면은 SAR 임무 · 캡처 · 데이터
