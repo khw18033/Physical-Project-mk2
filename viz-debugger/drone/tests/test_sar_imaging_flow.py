@@ -193,3 +193,90 @@ def test_team_code_plugs_in(tmp_path):
     assert b["state"] == "done" and b["reflectors"][0]["found"]
     assert b["autofocus"] == {"method": "team-af", "reflectors": 1, "iterations": 3}
     assert {"t", "radar", "traj", "origin", "heading_deg", "workers"} <= set(plugin_former.seen)
+
+
+def test_sdr_iq_gated_and_stream_with_drops(tmp_path):
+    """Zynq-7020 + AD9361 SDR(5.8 GHz · 50 MHz) 제안 형식 — 정합 필터로 리플렉터가 제자리에 찍히고,
+    연속 스트림에서 표본이 빠져도 `dropped` 를 적으면 시각이 맞는다(안 적으면 밀린다)."""
+    import numpy as np
+
+    from sar_image import sdr
+    from sar_image.pipeline import form_pass
+
+    csv = DATA / "pass02_1790957682.csv"
+    meta = json.loads(csv.with_suffix(".json").read_text(encoding="utf-8"))
+    traj = Trajectory.load_csv(csv)
+    o, hd, length, h = frame(traj, meta)
+    r = math.radians(hd)
+    pts = [(35, 18), (50, 24)]
+    ll = [o.latlon(a * math.sin(r) + c * math.cos(r), a * math.cos(r) - c * math.sin(r)) for a, c in pts]
+    crs = [o.enu(la, lo, o.h) for la, lo in ll]
+    radar = RadarConfig.load(RADAR.with_name("example_radar_sdr.json"))
+    sdr.write_fake(tmp_path / "g.npy", radar, traj, o, crs, meta)
+    b = form_pass(csv, [tmp_path / "g.npy"], radar, "sar_image.sdr:iq_npy", tmp_path / "g", reflectors=[(la, lo, None) for la, lo in ll],
+                  full=False, autofocus=False)
+    assert all(x["found"] and x["offset_m"] < 0.1 for x in b["reflectors"])
+
+    # 연속 스트림 — 낮은 표본화로 작게, 가운데 400 펄스만, 중간에 표본 1234 개가 빠졌다
+    small = replace(radar, bandwidth_hz=4e6)
+    info = sdr.write_fake(tmp_path / "s.npy", small, traj, o, crs[:1], meta, fs=5e6, layout="stream", max_pulses=400, drop=(5_000_000, 1234))
+    t, rng, rc = sdr.iq_npy(str(tmp_path / "s.npy"), small)
+    assert t.size == info["pulses"] - 1                                  # 빠진 곳에 걸린 펄스 하나만 버렸다
+    m = json.loads((tmp_path / "s.json").read_text())
+    m["stream"]["dropped"] = []                                          # 빠진 걸 안 적으면
+    (tmp_path / "s.json").write_text(json.dumps(m))
+    t_bad, _, rc_bad = sdr.iq_npy(str(tmp_path / "s.npy"), small)
+    k = t.size - 10
+    assert abs(t_bad[k] - t[k]) > 1e-4 or not np.allclose(rc_bad[k], rc[k])   # 그 뒤 시각이 어긋난다
+
+
+def test_pi_reduces_sdr_raw_and_laptop_fetches_only_reduced(tmp_path):
+    """Pi: SDR 원시(본체 .npy + 옆 파일 _idx.npy · .json)를 패스 뒤 거리 압축으로 줄여 둔다 → 노트북 미러는 줄인 것만 받아 영상을 만든다."""
+    from sar_data.reduce import Reducer
+    from sar_image import sdr
+
+    fdir = tmp_path / "pi" / "flight_1790957600"
+    fdir.mkdir(parents=True)
+    for f in DATA.glob("pass02_1790957682.*"):
+        shutil.copy(f, fdir / f.name)
+    meta = json.loads((fdir / "pass02_1790957682.json").read_text(encoding="utf-8"))
+    traj = Trajectory.load_csv(fdir / "pass02_1790957682.csv")
+    o, hd, length, h = frame(traj, meta)
+    r = math.radians(hd)
+    la, lo = o.latlon(40 * math.sin(r) + 20 * math.cos(r), 40 * math.cos(r) - 20 * math.sin(r))
+    radar = RadarConfig.load(RADAR.with_name("example_radar_sdr.json"))
+    radar_json = tmp_path / "radar.json"
+    radar.save(radar_json)
+    raw_dir = tmp_path / "pi_radar"
+    sdr.write_fake(raw_dir / "cap_0002.npy", radar, traj, o, [o.enu(la, lo, o.h)], meta)
+    end = meta["pass"]["end_unix"]
+    for f in raw_dir.iterdir():
+        os.utime(f, (end + 3, end + 3))
+    pi_store = Store(tmp_path / "pi", raw_dir)
+    red = Reducer(pi_store, radar_json, "sar_image.sdr:iq_npy")
+    assert red.once(now=end + 100) == 1 and red.once(now=end + 100) == 0          # 본체 하나만, 두 번은 안 한다
+    p = pi_store.passes(fdir)[0]
+    assert len(p["radar_files"]) == 3 and len(p["rc_files"]) == 1 and p["rc_bytes"] < p["radar_bytes"]
+    pi_srv, pi_base = _serve(pi_store)
+    lap_store = Store(tmp_path / "laptop", None)
+    jobs = ImageJobs(lap_store, radar_json, "sar_image.sdr:iq_npy", full=False)
+    (tmp_path / "laptop").mkdir()
+    try:
+        assert Mirror(pi_base, lap_store.flights).sync_once() == [("flight_1790957600", 2)]
+        got = list((tmp_path / "laptop" / "flight_1790957600" / "radar").rglob("*"))
+        assert [f.name for f in got if f.is_file()] == ["cap_0002.npy.rc.npz"]               # 원시는 안 왔다
+        lap_srv, lap_base = _serve(lap_store, jobs)
+        try:
+            code, _ = _get(f"{lap_base}/api/flights/flight_1790957600/image?pass=2&cr={la:.9f},{lo:.9f}")
+            assert code == 202
+            for _ in range(600):
+                st = json.loads(_get(f"{lap_base}/api/flights/flight_1790957600/images/pass02/image.json")[1])
+                if st["state"] in ("done", "failed"):
+                    break
+                time.sleep(0.1)
+            assert st["state"] == "done", st.get("error")
+            assert st["reflectors"][0]["found"] and st["reflectors"][0]["offset_m"] < 0.1
+        finally:
+            lap_srv.shutdown()
+    finally:
+        pi_srv.shutdown()

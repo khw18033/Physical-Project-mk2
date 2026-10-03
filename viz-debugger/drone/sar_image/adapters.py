@@ -43,3 +43,9 @@ def fmcw_dechirped_npz(raw_path: str, radar: RadarConfig, oversample: int = 8): 
     rng = C * f / (2 * slope)
     keep = (rng >= (radar.range_min_m or 0)) & (rng <= (radar.range_max_m or rng.max()))
     return t, rng[keep], spec[:, keep].astype(np.complex64)
+
+
+def rc_npz(raw_path: str, radar: RadarConfig):  # noqa: ANN201, ARG001
+    """`python -m sar_image reduce` 가 만든 거리 압축 파일(t · range_axis · rc). Pi 에서 줄여 보낸 것을 노트북이 읽는다."""
+    z = np.load(raw_path)
+    return np.asarray(z["t"], dtype=float), np.asarray(z["range_axis"], dtype=float), z["rc"]

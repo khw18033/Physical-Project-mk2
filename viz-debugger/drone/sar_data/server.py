@@ -99,9 +99,18 @@ class Store:
                 "eff_start_along_m": p.get("eff_start_along_m"), "eff_end_along_m": p.get("eff_end_along_m"),
                 "traj_csv": meta.get("traj_csv"), "meta_json": meta_path.name,
                 "radar_files": matched, "radar_bytes": sum(m["size"] for m in matched),
+                **self._rc_files(flight, p.get("pass_no")),
                 "image": self._image_summary(flight, p.get("pass_no")),
             })
         return out
+
+    @staticmethod
+    def _rc_files(flight: Path, pass_no) -> dict:  # noqa: ANN001
+        """Pi 가 줄여 둔 거리 압축 파일 (sar_data/reduce.py)."""
+        d = flight / "radar_rc" / f"pass{pass_no:02d}" if isinstance(pass_no, int) else None
+        files = sorted(d.glob("*.rc.npz")) if d is not None and d.is_dir() else []
+        rc = [{"name": str(f.relative_to(flight)), "size": f.stat().st_size, "mtime": f.stat().st_mtime, "src": "flight"} for f in files]
+        return {"rc_files": rc, "rc_bytes": sum(r["size"] for r in rc)}
 
     @staticmethod
     def _radar_map(flight: Path) -> dict:
@@ -155,7 +164,8 @@ class Store:
         f = (d / name).resolve()
         return f if f.is_file() and f.parent == d else None
 
-    def bundle(self, fid: str, pass_no: int | None, raw: bool) -> Path | None:
+    def bundle(self, fid: str, pass_no: int | None, raw: bool | str) -> Path | None:
+        """raw: True = 레이더 원시 그대로 · "rc" = Pi 가 줄여 둔 거리 압축만(핫스팟으로 빨리) · False = 위치만."""
         d = self.flight(fid)
         if d is None:
             return None
@@ -179,7 +189,11 @@ class Store:
                 if pass_no is not None and not f.name.startswith(f"pass{pass_no:02d}_") and f.suffix != ".jsonl":
                     continue
                 z.write(f, f"position/{f.name}")
-            if raw:
+            if raw == "rc":
+                for p in passes:
+                    for rf in p.get("rc_files", []):
+                        z.write(d / rf["name"], f"radar/pass{p['pass_no']:02d}/{Path(rf['name']).name}", compress_type=zipfile.ZIP_STORED)
+            elif raw:
                 seen: set[str] = set()
                 for p in passes:
                     for rf in p["radar_files"]:
@@ -206,7 +220,7 @@ class Store:
                 "disk_free_bytes": du.free, "disk_total_bytes": du.total, "time": time.time()}
 
 
-def make_handler(store: Store, jobs=None, mirror=None, tiles=None):  # noqa: ANN001, ANN201
+def make_handler(store: Store, jobs=None, mirror=None, tiles=None, reducer=None):  # noqa: ANN001, ANN201
     class Handler(BaseHTTPRequestHandler):
         server_version = "sar_data/0.1"
 
@@ -285,6 +299,7 @@ def make_handler(store: Store, jobs=None, mirror=None, tiles=None):  # noqa: ANN
                 if parts == ["api", "health"]:
                     h = store.health()
                     h["tiles"] = None if tiles is None else {"ready": True}
+                    h["reduce"] = None if reducer is None else reducer.state()
                     h["imaging"] = None if jobs is None else {"ready": not jobs.missing(), "missing": jobs.missing()}
                     h["mirror"] = None if mirror is None else mirror.state()
                     return self._json(h)
@@ -298,7 +313,8 @@ def make_handler(store: Store, jobs=None, mirror=None, tiles=None):  # noqa: ANN
                     return self._file(f, f"{parts[2]}_{f.name}", ctype)
                 if len(parts) == 4 and parts[:2] == ["api", "flights"] and parts[3] == "bundle.zip":
                     pass_no = int(q["pass"][0]) if "pass" in q else None
-                    raw = q.get("raw", ["1"])[0] != "0"
+                    rv = q.get("raw", ["1"])[0]
+                    raw = "rc" if rv == "rc" else rv != "0"
                     z = store.bundle(parts[2], pass_no, raw)
                     if z is None:
                         return self._json({"error": "not found"}, 404)
@@ -403,13 +419,14 @@ def main(argv: list[str] | None = None) -> int:
     g.add_argument("--image-workers", type=int, help="영상 계산 스레드 (기본: 코어 수, 최대 8)")
     g.add_argument("--former", help="팀의 영상 코드 모듈:함수 (없으면 내장 백프로젝션)")
     g.add_argument("--focuser", help="팀의 자동 초점 모듈:함수 (없으면 내장 리플렉터 방식)")
+    g.add_argument("--reduce-adapter", help="Pi: 패스마다 레이더 원시를 거리 압축 파일로 줄여 둔다 (예: sar_image.sdr:iq_npy, --radar-json 필요)")
     g.add_argument("--tile-cache", type=Path, help="지도 타일을 받아 둘 폴더 — 인터넷 없는 현장용 (/tiles/…)")
     a = p.parse_args(argv)
     import threading
 
     store = Store(a.flights, a.radar, a.radar_glob)
     jobs = mirror = None
-    if a.radar_json or a.adapter or a.auto_image:
+    if a.adapter or a.auto_image:
         from .imaging import ImageJobs
         jobs = ImageJobs(store, a.radar_json, a.adapter, a.reflectors, a.image_workers, former=a.former, focuser=a.focuser)
         if jobs.missing():
@@ -426,7 +443,14 @@ def main(argv: list[str] | None = None) -> int:
     if a.tile_cache:
         from .tiles import TileCache
         tiles = TileCache(a.tile_cache)
-    srv = ThreadingHTTPServer((a.bind, a.port), make_handler(store, jobs, mirror, tiles))
+    reducer = None
+    if a.reduce_adapter:
+        if not a.radar_json:
+            p.error("--reduce-adapter 에는 --radar-json 이 필요하다")
+        from .reduce import Reducer
+        reducer = Reducer(store, a.radar_json, a.reduce_adapter)
+        reducer.start()
+    srv = ThreadingHTTPServer((a.bind, a.port), make_handler(store, jobs, mirror, tiles, reducer))
     log.info("http://%s:%d  flights=%s radar=%s mirror=%s imaging=%s", a.bind, a.port, a.flights, a.radar, a.mirror,
              None if jobs is None else ("ready" if not jobs.missing() else "incomplete"))
     try:

@@ -67,6 +67,10 @@ class Mirror:
     def sync_once(self, now: float | None = None) -> list[tuple[str, int]]:
         now = time.time() if now is None else now
         got = []
+        try:
+            reducing = bool((json.loads(self._get("/api/health")).get("reduce") or {}).get("ready"))
+        except Exception:  # noqa: BLE001
+            reducing = False
         for f in json.loads(self._get("/api/flights")):
             fid = f["id"]
             if not fid.startswith("flight_") or "/" in fid:
@@ -78,9 +82,12 @@ class Mirror:
                 end = p.get("ack_end_unix") or p.get("end_unix")
                 if not isinstance(n, int) or end is None or now < end + self.settle_s:
                     continue                                   # 아직 비행 중이거나 레이더가 파일을 옮기는 중
+                if reducing and p.get("radar_files") and not p.get("rc_files") and now < end + self.settle_s + 120:
+                    continue                                   # Pi 가 줄이는 중 — 수 GB 원시 대신 줄인 것을 기다린다(최대 2 분)
                 have = rmap.get(str(n))
                 meta_ok = p.get("meta_json") and (d / p["meta_json"]).exists()
-                if meta_ok and have is not None and have.get("remote_radar_bytes") == p.get("radar_bytes"):
+                sig = [p.get("radar_bytes"), p.get("rc_bytes")]
+                if meta_ok and have is not None and have.get("remote_sig") == sig:
                     continue
                 self._fetch(fid, n, p, d, rmap)
                 got.append((fid, n))
@@ -106,7 +113,8 @@ class Mirror:
         tmp = tempfile.NamedTemporaryFile(prefix="sar_mirror_", suffix=".zip", delete=False)
         tmp.close()
         try:
-            with urllib.request.urlopen(f"{self.base}/api/flights/{fid}/bundle.zip?pass={n}&raw=1",  # noqa: S310
+            mode = "rc" if p.get("rc_files") else "1"       # Pi 가 줄여 둔 게 있으면 그것만 — 원시는 수 GB 일 수 있다
+            with urllib.request.urlopen(f"{self.base}/api/flights/{fid}/bundle.zip?pass={n}&raw={mode}",  # noqa: S310
                                         timeout=self.timeout_s) as r, open(tmp.name, "wb") as out:
                 shutil.copyfileobj(r, out, 1024 * 1024)
             files = []
@@ -127,7 +135,8 @@ class Mirror:
                     target.parent.mkdir(parents=True, exist_ok=True)
                     with z.open(info) as src, open(target, "wb") as dst:
                         shutil.copyfileobj(src, dst, 1024 * 1024)
-            rmap[str(n)] = {"files": files, "remote_radar_bytes": p.get("radar_bytes"), "fetched_unix": time.time()}
+            rmap[str(n)] = {"files": files, "remote_sig": [p.get("radar_bytes"), p.get("rc_bytes")], "mode": mode,
+                            "fetched_unix": time.time()}
             tmp_map = d / "radar_map.json.tmp"
             tmp_map.write_text(json.dumps(rmap, ensure_ascii=False, indent=2), encoding="utf-8")
             tmp_map.replace(d / "radar_map.json")

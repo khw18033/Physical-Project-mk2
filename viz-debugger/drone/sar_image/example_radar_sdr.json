@@ -1,0 +1,16 @@
+{
+  "note": "예시 — Zynq-7020 + AD9361 SDR, 5.8 GHz FMCW 가정. 레이더 팀의 실제 값으로 바꾼다 (RADAR_INTERFACE.md 7절)",
+  "wavelength_m": 0.051688,
+  "bandwidth_hz": 50000000.0,
+  "prf_hz": 200.0,
+  "range_min_m": 5.0,
+  "range_max_m": 60.0,
+  "side": "right",
+  "depression_deg": 45.0,
+  "el_beamwidth_deg": 40.0,
+  "az_beamwidth_deg": 30.0,
+  "squint_deg": 0.0,
+  "antenna_offset_m": [0.0, 0.0, 0.0],
+  "gnss_offset_m": null,
+  "position_ref": "auto"
+}

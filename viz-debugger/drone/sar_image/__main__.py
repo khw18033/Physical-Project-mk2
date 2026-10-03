@@ -213,6 +213,19 @@ def cmd_fakeraw(a: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_reduce(a: argparse.Namespace) -> int:
+    """원시를 어댑터로 거리 압축해 complex64 npz 로. 레이더 원시(수 GB)를 노트북에 보내기 전에 Pi 에서 줄인다."""
+    radar = RadarConfig.load(a.radar)
+    mod, _, fn = a.adapter.partition(":")
+    t, rng_axis, rc = getattr(importlib.import_module(mod), fn or "load")(a.raw, radar)
+    out = Path(a.out) if a.out else Path(str(a.raw) + ".rc.npz")
+    np.savez(out, t=np.asarray(t, dtype=np.float64), range_axis=np.asarray(rng_axis, dtype=np.float64), rc=np.asarray(rc, dtype=np.complex64))
+    raw_size = sum(f.stat().st_size for f in Path(a.raw).parent.glob(Path(a.raw).stem + "*") if f.is_file())
+    print(json.dumps({"out": str(out), "pulses": int(len(t)), "range_bins": int(len(rng_axis)), "raw_mb": round(raw_size / 1e6, 1),
+                      "reduced_mb": round(out.stat().st_size / 1e6, 1)}, ensure_ascii=False))
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(prog="sar_image", description="SAR 영상 도구")
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -249,7 +262,14 @@ def main(argv: list[str] | None = None) -> int:
     r.add_argument("--out", required=True, help="쓸 .npz (cansar 데이터 폴더에 두면 데이터 서버가 패스와 짝짓는다)")
     r.add_argument("--samples", type=int, default=512)
     r.add_argument("--noise", type=float, default=0.05)
+    rd = sub.add_parser("reduce", help="원시 → 거리 압축 파일(작게). Pi 에서 패스마다 돌려 노트북으로 보낼 양을 줄인다")
+    rd.add_argument("--raw", required=True)
+    rd.add_argument("--radar", type=Path, required=True)
+    rd.add_argument("--adapter", required=True, help="module:function (예: sar_image.sdr:iq_npy)")
+    rd.add_argument("--out", help="기본: <raw>.rc.npz")
     a = p.parse_args(argv)
+    if a.cmd == "reduce":
+        return cmd_reduce(a)
     return {"coverage": cmd_coverage, "predict": cmd_predict, "simulate": cmd_simulate, "form": cmd_form,
             "fakeraw": cmd_fakeraw}[a.cmd](a)
 

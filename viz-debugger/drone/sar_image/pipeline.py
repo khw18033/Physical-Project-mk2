@@ -60,6 +60,12 @@ def along_cross(p: np.ndarray, heading: float) -> tuple[float, float]:
 
 def load_raw(files: list[Path], radar: RadarConfig, adapter: Adapter) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """원시 파일 여러 개 → 시각 순으로 이어 붙인다. 거리 축은 모두 같아야 한다."""
+    if files and all(str(f).endswith(".rc.npz") for f in files):
+        from .adapters import rc_npz                       # Pi 가 줄여 보낸 거리 압축 파일 — 형식이 정해져 있다
+        adapter = rc_npz
+    accepts = getattr(adapter, "accepts", None)
+    if accepts is not None:
+        files = [f for f in files if accepts(f)]
     parts = [adapter(str(f), radar) for f in files]
     if not parts:
         raise ValueError("이 패스에 맞는 레이더 원시 파일이 없다")

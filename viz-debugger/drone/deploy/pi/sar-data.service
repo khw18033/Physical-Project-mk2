@@ -7,7 +7,7 @@ After=network-online.target
 Type=simple
 User=physical
 EnvironmentFile=/etc/sar-drone.env
-ExecStart=/bin/sh -c 'exec "$SAR_VENV/bin/python3" -u -m sar_data --flights "$SAR_LOG_DIR" --radar "$SAR_RADAR_DIR" --radar-glob "$SAR_RADAR_GLOB" --port "$SAR_DATA_PORT"'
+ExecStart=/bin/sh -c 'set --; [ -n "$SAR_REDUCE_ADAPTER" ] && set -- --reduce-adapter "$SAR_REDUCE_ADAPTER" --radar-json "$SAR_RADAR_JSON"; exec "$SAR_VENV/bin/python3" -u -m sar_data --flights "$SAR_LOG_DIR" --radar "$SAR_RADAR_DIR" --radar-glob "$SAR_RADAR_GLOB" --port "$SAR_DATA_PORT" "$@"'
 Restart=always
 RestartSec=3
 
