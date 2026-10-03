@@ -2902,6 +2902,7 @@ export const ko: Record<string, string> = {
   'sar.simple.allGood': '점검 {n}개 모두 통과',
   'dash.piEth': 'SDR 유선 {mbps} Mb/s · 수신 오류 {err}',
   'dash.piEthDown': 'SDR 유선 끊김',
+  'cr.surveyMoving': '드론 위치를 리플렉터로 (지금 움직이는 중 — 리플렉터 옆에 세워 두고 누르세요)',
   'img.make': '영상 만들기',
   'img.remake': '다시 만들기',
   'img.close': '닫기',

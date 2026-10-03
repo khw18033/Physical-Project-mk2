@@ -114,10 +114,14 @@ def _map_png(path: Path, img: np.ndarray, dyn_db: float = 30.0) -> None:
 
     v = np.clip((_db(img) + dyn_db) / dyn_db, 0, 1)
     rgba = np.zeros(v.shape + (4,), dtype=np.float32)
-    rgba[..., 0] = 1.0
-    rgba[..., 1] = 0.95
-    rgba[..., 2] = 0.55
-    rgba[..., 3] = v ** 1.5
+    # 어두운 곳도 옅게 깔아 영상이 덮는 구역이 지도에서 보이게 하고, 밝은 곳(리플렉터 · 구조물)은 흰 노랑으로 또렷하게
+    rgba[..., 0] = 0.08 + 0.92 * v
+    rgba[..., 1] = 0.10 + 0.85 * v
+    rgba[..., 2] = 0.16 + 0.40 * v
+    rgba[..., 3] = 0.38 + 0.62 * v ** 0.8
+    # 가장자리 테두리 — 영상 구역 경계
+    rgba[:2, :, :] = rgba[-2:, :, :] = (1.0, 0.85, 0.2, 0.9)
+    rgba[:, :2, :] = rgba[:, -2:, :] = (1.0, 0.85, 0.2, 0.9)
     plt.imsave(path, rgba)
 
 

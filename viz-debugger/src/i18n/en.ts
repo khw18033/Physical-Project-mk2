@@ -2878,6 +2878,7 @@ export const en: Record<string, string> = {
   'sar.simple.allGood': 'All {n} checks passed',
   'dash.piEth': 'SDR link {mbps} Mb/s · rx errors {err}',
   'dash.piEthDown': 'SDR link down',
+  'cr.surveyMoving': 'Use drone position as reflector (moving now — park it next to the reflector)',
   'img.make': 'Make image',
   'img.remake': 'Remake',
   'img.close': 'Close',

@@ -428,9 +428,11 @@ export function SarPassZoom({ deviceId: pinned, readOnly = false }: { deviceId?:
           </tr>; })}
         </tbody></table>}
         <div className="sar-line-tools">
-          <button type="button" disabled={survey === null} title={t('cr.surveyHint')}
-            onClick={() => { if (survey) setReflectors([...reflectors, survey.point]); }}>
-            {survey === null ? t('cr.surveyNone') : t('cr.survey', { n: survey.n, cm: (survey.spreadM * 100).toFixed(0) })}</button>
+          <button type="button" disabled={survey === null || survey.spreadM > SURVEY_MAX_SPREAD_M} title={t('cr.surveyHint')}
+            onClick={() => { if (survey && survey.spreadM <= SURVEY_MAX_SPREAD_M) setReflectors([...reflectors, survey.point]); }}>
+            {survey === null ? t('cr.surveyNone')
+              : survey.spreadM > SURVEY_MAX_SPREAD_M ? t('cr.surveyMoving')
+                : t('cr.survey', { n: survey.n, cm: (survey.spreadM * 100).toFixed(0) })}</button>
           <button type="button" disabled={reflectors.length === 0} onClick={() => setReflectors([])}>{t('cr.clear')}</button>
           <a className="sar-btn" download="reflectors.csv" href={`data:text/csv;charset=utf-8,${encodeURIComponent(crCsv)}`}>{t('cr.csv')}</a>
           <a className="sar-btn" download="radar.json" href={`data:application/json;charset=utf-8,${encodeURIComponent(radarJson(antenna))}`}>{t('cr.radarJson')}</a>
@@ -563,6 +565,8 @@ export function SarPassZoom({ deviceId: pinned, readOnly = false }: { deviceId?:
 
 const ENDURANCE_KEY = 'viz.sar.enduranceMin.v1';
 const SIMPLE_KEY = 'viz.sar.simple.v1';
+/** 측량 3 초 동안 위치가 이만큼 넘게 흩어지면 움직이는 중 — 리플렉터로 쓰지 않는다 */
+const SURVEY_MAX_SPREAD_M = 0.3;
 
 /** 바람이 빔에 주는 영향 · 배터리 예산 — 계획을 바꾸면 바로 다시 계산한다. */
 function PlanBudget({ draft, wind, antenna }: { draft: SarPlanDraft; wind: { speedMps: number | null; fromDeg: number | null } | null; antenna: AntennaDraft }) {
