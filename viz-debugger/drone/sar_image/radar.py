@@ -28,7 +28,10 @@ class RadarConfig:
     el_beamwidth_deg: float | None = None   # 고도 방향 3 dB 빔폭
     az_beamwidth_deg: float | None = None   # 방위 방향 3 dB 빔폭
     squint_deg: float = 0.0                 # 앞(+)/뒤(-)로 비스듬히 단 각
-    antenna_offset_m: list[float] = field(default_factory=lambda: [0.0, 0.0, 0.0])  # 기체 중심 → 위상중심 [앞, 오른쪽, 아래]
+    # 레버암 (sar_image/attitude.py) — 자로 잰 값, m, 기체 기준 [앞, 오른쪽, 아래]
+    antenna_offset_m: list[float] = field(default_factory=lambda: [0.0, 0.0, 0.0])  # FC(IMU) → 레이더 안테나 위상중심
+    gnss_offset_m: list[float] | None = None    # FC(IMU) → GPS 안테나 (= PX4 EKF2_GPS_POS_X/Y/Z). 모르면 null
+    position_ref: str = "auto"                  # auto | gnss | imu — 비행 기록의 위치가 어느 점인가
     note: str = ""
 
     @classmethod

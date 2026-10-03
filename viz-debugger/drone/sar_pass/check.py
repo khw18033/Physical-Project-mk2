@@ -103,6 +103,14 @@ async def check_fc(address: str, wait_s: float = 8.0) -> list[Item]:
         out.append(Item("✓" if hgt == 1 else "!", "높이 기준",
                         f"EKF2_HGT_REF={hgt} ({names.get(hgt, '?')})"
                         + ("" if hgt == 1 else " — RTK 를 쓰면 1(GNSS) 을 검토한다. 기압계는 몇 분 사이 0.5~1 m 흔들린다")))
+    gps = [await v.get_param_float(f"EKF2_GPS_POS_{a}") for a in "XYZ"]
+    if any(x is None for x in gps):
+        out.append(Item("!", "GPS 안테나 위치", "EKF2_GPS_POS_X/Y/Z 를 못 읽었다"))
+    elif all(abs(x) < 1e-6 for x in gps):
+        out.append(Item("!", "GPS 안테나 위치", "EKF2_GPS_POS_X/Y/Z = 0 — FC 는 GPS 안테나가 FC 바로 위에 있다고 본다. "
+                        "실측해서 넣으면(앞·오른쪽·아래 m) 기울 때 위치가 덜 흔들린다. radar.json 의 gnss_offset_m 과 같은 값"))
+    else:
+        out.append(Item("✓", "GPS 안테나 위치", "EKF2_GPS_POS = " + ", ".join(f"{x:+.3f}" for x in gps) + " m (앞·오른쪽·아래)"))
     await v.close()
     return out
 

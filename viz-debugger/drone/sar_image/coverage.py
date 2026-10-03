@@ -108,36 +108,49 @@ def line_coverage(radar: RadarConfig, start: tuple[float, float], end: tuple[flo
                         None if rng_res is None else round(rng_res, 4), None if az_res is None else round(az_res, 4), ok, why)
 
 
-def antenna_angles(radar: RadarConfig, d: np.ndarray, yaw_deg: np.ndarray, roll_deg: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+def antenna_angles(radar: RadarConfig, d: np.ndarray, yaw_deg: np.ndarray, roll_deg: np.ndarray,
+                   pitch_deg: np.ndarray | float = 0.0) -> tuple[np.ndarray, np.ndarray]:
     """안테나 좌표계에서 본 표적 방향 — (방위 오프셋, 고도 오프셋) 도. 빔폭은 이 두 각으로 판정한다.
 
-    안테나는 기체 오른쪽(또는 왼쪽)을 `depression` 만큼 내려다본다. 기체가 오른쪽으로 기울면(롤 +) 오른쪽 보기
-    안테나는 더 내려다본다. 방위각은 **안테나 면(기울어진 면)에서** 잰다 — 수평면에서 재면 개구가 짧게 잡힌다
+    안테나는 기체에 고정되어 오른쪽(또는 왼쪽)을 `depression` 만큼 내려다본다. 빔 방향을 기체 기준(FRD)으로
+    만든 뒤 **그 순간 자세 3축(yaw · pitch · roll)으로 돌린다.** 오른쪽으로 기울면(롤 +) 오른쪽 보기 안테나는
+    더 내려다보고, 앞으로 숙이면(피치 −) 빔이 뒤쪽으로 비스듬해진다(SITL 에서 등속 중 피치 −22° 를 봤다).
+    방위각은 **안테나 면(기울어진 면)에서** 잰다 — 수평면에서 재면 개구가 짧게 잡힌다
     (예: 경사 28 m · 빔 30° 에서 수평면 10.7 m vs 실제 15.2 m).
     """
-    y = np.radians(np.asarray(yaw_deg, dtype=float) + radar.squint_deg)
-    dep = np.radians((radar.depression_deg or 0.0) + np.asarray(roll_deg, dtype=float) * radar.side_sign)
-    f = np.stack([np.sin(y), np.cos(y), np.zeros_like(y)], axis=-1)                       # 앞
-    r = np.stack([np.cos(y), -np.sin(y), np.zeros_like(y)], axis=-1) * radar.side_sign    # 안테나 쪽 수평
-    down = np.array([0.0, 0.0, -1.0])
-    b = np.cos(dep)[..., None] * r + np.sin(dep)[..., None] * down                       # 빔 중심
-    up_in_plane = np.sin(dep)[..., None] * r - np.cos(dep)[..., None] * down              # 빔 중심에 수직, 위쪽
-    db = (d * b).sum(-1)
-    az = np.degrees(np.arctan2((d * f).sum(-1), db))
-    el = np.degrees(np.arctan2((d * up_in_plane).sum(-1), db))
+    from .attitude import frd_to_enu
+
+    s = radar.side_sign
+    dep = math.radians(radar.depression_deg or 0.0)
+    sq = math.radians(radar.squint_deg)
+    h = np.array([math.sin(sq), s * math.cos(sq), 0.0])          # 빔의 기체 수평 방향
+    down = np.array([0.0, 0.0, 1.0])
+    b = math.cos(dep) * h + math.sin(dep) * down                 # 빔 중심 (FRD)
+    f = np.array([math.cos(sq), -s * math.sin(sq), 0.0])        # 방위 축 (빔에 수직, 앞쪽)
+    u = math.sin(dep) * h - math.cos(dep) * down                 # 빔에 수직, 위쪽
+    yaw = np.asarray(yaw_deg, dtype=float)
+    roll = np.broadcast_to(np.asarray(roll_deg, dtype=float), yaw.shape)
+    pitch = np.broadcast_to(np.asarray(pitch_deg, dtype=float), yaw.shape)
+    B, F, U = (frd_to_enu(v, yaw, pitch, roll) for v in (b, f, u))
+    db = (d * B).sum(-1)
+    az = np.degrees(np.arctan2((d * F).sum(-1), db))
+    el = np.degrees(np.arctan2((d * U).sum(-1), db))
     return az, -el      # el + 는 빔 중심보다 아래(더 내려다봄)
 
 
 def predicted_history(radar: RadarConfig, traj: Trajectory, origin: Origin, reflector_enu: np.ndarray,
-                      only_capture: bool = True) -> dict[str, np.ndarray]:
-    """실제 궤적으로 시각별 예상 경사거리와 「빔 안」 여부. 레이더 거리-시간 영상에 겹쳐 볼 쌍곡선이다."""
-    p = traj.enu(origin)
-    p = p + _antenna_offset(radar, traj)
+                      only_capture: bool = True, meta: dict | None = None) -> dict[str, np.ndarray]:
+    """실제 궤적으로 시각별 예상 경사거리와 「빔 안」 여부. 레이더 거리-시간 영상에 겹쳐 볼 쌍곡선이다.
+    위치는 레버암을 자세로 돌려 더한 **안테나 위상중심**이다(`attitude.lever_arm`)."""
+    from .attitude import lever_arm, phase_center
+
+    lever, _ = lever_arm(radar, meta)
+    p = phase_center(traj.enu(origin), traj.yaw, traj.pitch, traj.roll, lever)
     d = reflector_enu[None, :] - p
     rng = np.linalg.norm(d, axis=1)
     horiz = np.hypot(d[:, 0], d[:, 1])
     look_down = np.degrees(np.arctan2(-d[:, 2], horiz))
-    az_off, el_off = antenna_angles(radar, d, traj.yaw, traj.roll)
+    az_off, el_off = antenna_angles(radar, d, traj.yaw, traj.roll, traj.pitch)
     in_beam = (d * 0).sum(-1) == 0
     if radar.az_beamwidth_deg is not None:
         in_beam &= np.abs(az_off) <= radar.az_beamwidth_deg / 2
@@ -148,16 +161,6 @@ def predicted_history(radar: RadarConfig, traj: Trajectory, origin: Origin, refl
     keep = traj.capture if only_capture else np.ones_like(in_beam)
     return {"t": traj.t[keep], "range_m": rng[keep], "in_beam": in_beam[keep], "az_off_deg": az_off[keep],
             "look_down_deg": look_down[keep]}
-
-
-def _antenna_offset(radar: RadarConfig, traj: Trajectory) -> np.ndarray:
-    fwd, right, down = radar.antenna_offset_m
-    if fwd == right == down == 0:
-        return np.zeros((traj.t.size, 3))
-    y = np.radians(traj.yaw)
-    e = fwd * np.sin(y) + right * np.cos(y)
-    n = fwd * np.cos(y) - right * np.sin(y)
-    return np.stack([e, n, -np.full_like(e, down)], axis=1)
 
 
 def summarize_history(h: dict[str, np.ndarray]) -> dict:

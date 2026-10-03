@@ -396,6 +396,21 @@ export function SarPassZoom() {
             {antField('cr.prf', 'prfHz', 10, 'Hz')}
           </div></div>
         </details>
+        <details className="sar-more"><summary>{t('cr.lever')}</summary>
+          <p className="sar-hint">{t('cr.leverHelp')}</p>
+          <div className="sar-plan-grid"><div>
+            <b>{t('cr.lever.ant')}</b>
+            {antField('cr.lever.fwd', 'antFwdM', 0.005, 'm')}
+            {antField('cr.lever.right', 'antRightM', 0.005, 'm')}
+            {antField('cr.lever.down', 'antDownM', 0.005, 'm')}
+          </div><div>
+            <b>{t('cr.lever.gnss')}</b>
+            {antField('cr.lever.fwd', 'gnssFwdM', 0.005, 'm')}
+            {antField('cr.lever.right', 'gnssRightM', 0.005, 'm')}
+            {antField('cr.lever.down', 'gnssDownM', 0.005, 'm')}
+          </div></div>
+          <p className="sar-hint">{t('cr.leverPx4')}</p>
+        </details>
       </div>
       <details className="sar-more"><summary>{t('sar.plan.byNumbers')}</summary>
         {coordField('sar.plan.start', draft.start, (p) => setDraft({ ...draft, start: p }))}

@@ -24,6 +24,7 @@ from pathlib import Path
 
 import numpy as np
 
+from .attitude import lever_arm, phase_center, tilt_motion_mm
 from .autofocus import apply_correction, estimate_phase_error
 from .backprojection import backproject, line_grid, peak_metrics
 from .coverage import line_coverage, predicted_history, summarize_history
@@ -83,7 +84,7 @@ def cmd_coverage(a: argparse.Namespace) -> int:
     report = []
     for i, cr in enumerate(reflectors(a.cr, o), 1):
         cov = line_coverage(radar, (0.0, 0.0), end, h, tuple(cr), f"CR{i}", rs, re_)
-        hist = summarize_history(predicted_history(radar, traj, o, cr))
+        hist = summarize_history(predicted_history(radar, traj, o, cr, meta=meta))
         report.append({"plan": cov.public(), "flown": hist})
         verdict = "✓ 보인다" if cov.ok and hist.get("seen") else ("✕ 안 보인다" if cov.ok is False or not hist.get("seen") else "? 모름")
         print(f"CR{i}: {verdict} · 지상거리 {cov.ground_range_m} m · 경사 {cov.slant_range_m} m · 진행 {cov.along_m} m · "
@@ -100,7 +101,7 @@ def cmd_predict(a: argparse.Namespace) -> int:
     traj, meta = load_pass(a.traj)
     o, *_ = frame_for(traj, meta)
     cr = reflectors(a.cr, o)[0]
-    h = predicted_history(radar, traj, o, cr, only_capture=not a.all)
+    h = predicted_history(radar, traj, o, cr, only_capture=not a.all, meta=meta)
     with open(a.out, "w", encoding="utf-8") as f:
         f.write(f"t_{traj.time_ref},range_m,in_beam,az_off_deg,look_down_deg\n")
         for row in zip(h["t"], h["range_m"], h["in_beam"], h["az_off_deg"], h["look_down_deg"]):
@@ -142,8 +143,12 @@ def cmd_simulate(a: argparse.Namespace) -> int:
     o, end, heading, length, h = frame_for(traj, meta)
     crs = reflectors(a.cr, o)
     rng_axis = np.arange(radar.range_min_m or 1.0, radar.range_max_m or 100.0, 0.05)
-    t, pos, rc = synthesize(radar, traj, o, crs, rng_axis, noise=a.noise)
+    lever, notes = lever_arm(radar, meta)
+    t, pos, rc = synthesize(radar, traj, o, crs, rng_axis, noise=a.noise, lever_frd=lever)
     pos_used = pos
+    if a.no_lever:      # 레버암을 모른 척 — 보고 위치를 그대로 쓰면 얼마나 흐려지는지 본다
+        st = traj.at(o, t)
+        pos_used = np.stack([st["e"], st["n"], st["u"]], axis=1)
     if a.pos_error_mm > 0:
         rng = np.random.default_rng(a.seed)
         dt, tau, sig = 1 / radar.prf_hz, 2.0, a.pos_error_mm / 1000  # type: ignore[operator]
@@ -152,7 +157,7 @@ def cmd_simulate(a: argparse.Namespace) -> int:
         w = rng.standard_normal(pos.shape) * sig * math.sqrt(1 - aa * aa)
         for i in range(1, len(t)):
             err[i] = aa * err[i - 1] + w[i]
-        pos_used = pos + err
+        pos_used = pos_used + err
     if a.autofocus:
         fe = estimate_phase_error(rc, rng_axis, pos_used, radar.wavelength_m, crs[0])  # type: ignore[arg-type]
         rc = apply_correction(rc, fe["phase_err"])
@@ -160,7 +165,8 @@ def cmd_simulate(a: argparse.Namespace) -> int:
     img, along, cross = _image(radar, rc, rng_axis, pos_used, heading, ac, a.half_along, a.half_cross, a.step_along, a.step_cross)
     m = peak_metrics(img, along, cross)
     print(json.dumps({"pulses": int(t.size), "reflector_along_cross": [round(ac[0], 3), round(ac[1], 3)],
-                      "pos_error_mm": a.pos_error_mm, "autofocus": a.autofocus, **m}, ensure_ascii=False))
+                      "pos_error_mm": a.pos_error_mm, "autofocus": a.autofocus,
+                      "lever_frd_m": lever.round(4).tolist(), "lever_used": not a.no_lever, "notes": notes, **m}, ensure_ascii=False))
     if a.png:
         _save_png(a.png, img, along, cross, f"simulated · {Path(a.traj).name} · σ={a.pos_error_mm} mm · autofocus={a.autofocus}", [ac])
     return 0
@@ -175,7 +181,9 @@ def cmd_form(a: argparse.Namespace) -> int:
     load = getattr(importlib.import_module(mod), fn or "load")
     t, rng_axis, rc = load(a.raw, radar)
     st = traj.at(o, np.asarray(t))
-    pos = np.stack([st["e"], st["n"], st["u"]], axis=1)
+    # 안테나 위상중심 = 보고 위치 + 그 순간 자세로 돌린 레버암
+    lever, notes = lever_arm(radar, meta)
+    pos = phase_center(np.stack([st["e"], st["n"], st["u"]], axis=1), st["yaw"], st["pitch"], st["roll"], lever)
     if a.autofocus_cr:
         cr = reflectors([a.autofocus_cr], o)[0]
         fe = estimate_phase_error(rc, rng_axis, pos, radar.wavelength_m, cr)  # type: ignore[arg-type]
@@ -184,7 +192,9 @@ def cmd_form(a: argparse.Namespace) -> int:
     img, along, cross = _image(radar, rc, rng_axis, pos, heading, center, length / 2 + 5, a.half_cross, a.step_along, a.step_cross)
     np.save(Path(a.png).with_suffix(".npy"), img)
     _save_png(a.png, img, along, cross, f"SAR · {Path(a.traj).name}", [])
-    print(json.dumps({"pulses": int(np.asarray(t).size), "image": a.png}, ensure_ascii=False))
+    print(json.dumps({"pulses": int(np.asarray(t).size), "image": a.png, "lever_frd_m": lever.round(4).tolist(),
+                      "tilt_motion_mm": round(tilt_motion_mm(lever, st["roll"], st["pitch"]), 2), "notes": notes},
+                     ensure_ascii=False))
     return 0
 
 
@@ -207,6 +217,7 @@ def main(argv: list[str] | None = None) -> int:
     s.add_argument("--seed", type=int, default=1)
     s.add_argument("--autofocus", action="store_true", help="첫 리플렉터로 자동 초점")
     s.add_argument("--png")
+    s.add_argument("--no-lever", action="store_true", help="레버암 보정을 끄고 영상을 만든다(얼마나 흐려지는지 비교용)")
     for s in (sub.choices["simulate"], sub.choices["form"]):
         s.add_argument("--half-along", type=float, default=1.2)
         s.add_argument("--half-cross", type=float, default=1.0)

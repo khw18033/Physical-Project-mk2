@@ -283,6 +283,7 @@ class SarMission:
         self.clock_offset_s: float | None = None
         self.warnings: list[str] = []
         self.hgt_ref: int | None = None
+        self.gps_pos: list[float] | None = None   # EKF2_GPS_POS_X/Y/Z — FC 가 아는 GPS 안테나 위치(기체 앞·오른쪽·아래 m)
         self._on_latencies: list[float] = []
         self._off_latencies: list[float] = []
         self.extra_lead_m = 0.0     # 적응형 가속 구간 — 등속이 늦게 잡힌 만큼 다음 패스 앞을 늘린다
@@ -387,6 +388,11 @@ class SarMission:
         if self.plan.require_rtk and self.hgt_ref is not None and self.hgt_ref != 1:
             self.warnings.append(f"EKF2_HGT_REF={self.hgt_ref} (1=GNSS 가 아니다) — 고도가 기압계 기준이라 패스마다 흔들릴 수 있다")
             log.warning(self.warnings[-1])
+        # GPS 안테나 위치(레버암) — 영상 처리가 「보고된 위치가 GPS 안테나인가 FC 인가」를 이것으로 가른다.
+        fgetter = getattr(self.v, "get_param_float", None)
+        if fgetter is not None:
+            xyz = [await fgetter(f"EKF2_GPS_POS_{a}") for a in "XYZ"]
+            self.gps_pos = None if any(v is None for v in xyz) else [round(float(v), 4) for v in xyz]
         if self.cap.ack_path is None:
             self.warnings.append("레이더 확인(CAP_ACK) 경로가 없다 — 실제 기록 시각은 모르고 요청 시각만 남는다")
 
@@ -668,6 +674,7 @@ class SarMission:
                 "clock": {"offset_pi_minus_fc_s": self.clock_offset_s,
                           "note": "t_fc = t_pi - offset. t_fc 는 FC 가 GPS 로 맞춘 UTC(초)"},
                 "ekf2_hgt_ref": self.hgt_ref,
+                "ekf2_gps_pos": self.gps_pos,
                 "base_station": base_station,
                 "cap": {"path": str(self.cap.path), "ack_path": None if self.cap.ack_path is None else str(self.cap.ack_path),
                         "measured_on_latencies_s": self._on_latencies, "measured_off_latencies_s": self._off_latencies},

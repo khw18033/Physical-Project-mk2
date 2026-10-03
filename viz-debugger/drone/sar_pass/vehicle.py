@@ -71,6 +71,7 @@ class Vehicle(Protocol):
     async def return_to_launch(self) -> None: ...
     # 선택: PX4 파라미터 읽기. 없으면 None 을 돌려준다(시뮬레이터).
     async def get_param_int(self, name: str) -> int | None: ...
+    async def get_param_float(self, name: str) -> float | None: ...
 
 
 # ── 시뮬레이터 ────────────────────────────────────────────────────────────────
@@ -227,3 +228,7 @@ class SimVehicle:
 
     async def get_param_int(self, name: str) -> int | None:
         return self.params.get(name)
+
+    async def get_param_float(self, name: str) -> float | None:
+        v = self.params.get(name)
+        return None if v is None else float(v)

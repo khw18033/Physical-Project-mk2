@@ -20,12 +20,20 @@ export type AntennaDraft = {
   wavelengthM: number | null;
   bandwidthHz: number | null;
   prfHz: number | null;
+  /** 레버암 (m, 기체 기준 앞 · 오른쪽 · 아래) — FC 에서 레이더 안테나 / GPS 안테나까지. drone/sar_image/attitude.py */
+  antFwdM: number | null;
+  antRightM: number | null;
+  antDownM: number | null;
+  gnssFwdM: number | null;
+  gnssRightM: number | null;
+  gnssDownM: number | null;
 };
 
 /** 예시 값 — 레이더 팀이 실제 사양으로 바꾼다 (drone/sar_image/example_radar.json 과 같다). */
 export function defaultAntenna(): AntennaDraft {
   return { side: 'right', depressionDeg: 45, elBeamwidthDeg: 40, azBeamwidthDeg: 30, rangeMinM: 5, rangeMaxM: 60,
-    wavelengthM: 0.03123, bandwidthHz: 300e6, prfHz: 200 };
+    wavelengthM: 0.03123, bandwidthHz: 300e6, prfHz: 200,
+    antFwdM: 0, antRightM: 0, antDownM: 0, gnssFwdM: null, gnssRightM: null, gnssDownM: null };
 }
 
 const rad = (d: number) => (d * Math.PI) / 180;
@@ -114,6 +122,10 @@ export function radarJson(a: AntennaDraft): string {
     note: 'exported from the GUI - check against the real radar specs',
     wavelength_m: a.wavelengthM, bandwidth_hz: a.bandwidthHz, prf_hz: a.prfHz,
     range_min_m: a.rangeMinM, range_max_m: a.rangeMaxM, side: a.side, depression_deg: a.depressionDeg,
-    el_beamwidth_deg: a.elBeamwidthDeg, az_beamwidth_deg: a.azBeamwidthDeg, squint_deg: 0, antenna_offset_m: [0, 0, 0],
+    el_beamwidth_deg: a.elBeamwidthDeg, az_beamwidth_deg: a.azBeamwidthDeg, squint_deg: 0,
+    antenna_offset_m: [a.antFwdM ?? 0, a.antRightM ?? 0, a.antDownM ?? 0],
+    // GPS 안테나 위치는 셋 다 재야 쓴다 — 하나라도 비면 「모름」(null)
+    gnss_offset_m: a.gnssFwdM == null || a.gnssRightM == null || a.gnssDownM == null ? null : [a.gnssFwdM, a.gnssRightM, a.gnssDownM],
+    position_ref: 'auto',
   }, null, 2);
 }

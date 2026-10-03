@@ -19,11 +19,12 @@ def pulse_times(traj: Trajectory, prf_hz: float, only_capture: bool = True) -> n
     return np.arange(t0, t1, 1.0 / prf_hz)
 
 
-def beam_weight(radar: RadarConfig, pos: np.ndarray, yaw: np.ndarray, roll: np.ndarray, target: np.ndarray) -> np.ndarray:
+def beam_weight(radar: RadarConfig, pos: np.ndarray, yaw: np.ndarray, roll: np.ndarray, target: np.ndarray,
+                pitch: np.ndarray | float = 0.0) -> np.ndarray:
     """가우시안 근사 빔 무게 (3 dB 폭 = 빔폭). 각도는 판정과 같은 안테나 좌표계(`coverage.antenna_angles`)."""
     from .coverage import antenna_angles
 
-    az_off, el_off = antenna_angles(radar, target[None, :] - pos, yaw, roll)
+    az_off, el_off = antenna_angles(radar, target[None, :] - pos, yaw, roll, pitch)
     w = np.ones(pos.shape[0])
     ln2 = math.log(2)
     if radar.az_beamwidth_deg:
@@ -34,19 +35,26 @@ def beam_weight(radar: RadarConfig, pos: np.ndarray, yaw: np.ndarray, roll: np.n
 
 
 def synthesize(radar: RadarConfig, traj: Trajectory, origin: Origin, targets: list[np.ndarray],
-               range_axis: np.ndarray, noise: float = 0.0, seed: int = 0) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """→ (펄스 시각, 안테나 위치 (N,3), 거리 압축 데이터 (N,M))."""
+               range_axis: np.ndarray, noise: float = 0.0, seed: int = 0,
+               lever_frd: np.ndarray | None = None) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """→ (펄스 시각, 안테나 위상중심 (N,3), 거리 압축 데이터 (N,M)).
+
+    `lever_frd` 를 주면 신호는 **보고 위치 + 자세로 돈 레버암**(실제 안테나)에서 나온다. 돌려주는 위치도 그 점이다.
+    영상에 보고 위치를 그대로 쓰면 무엇을 잃는지 시험할 때 쓴다."""
     need = radar.missing("wavelength_m", "bandwidth_hz", "prf_hz")
     if need:
         raise ValueError(f"radar.json 에 {', '.join(need)} 가 필요하다")
     t = pulse_times(traj, radar.prf_hz)  # type: ignore[arg-type]
     st = traj.at(origin, t)
     pos = np.stack([st["e"], st["n"], st["u"]], axis=1)
+    if lever_frd is not None:
+        from .attitude import phase_center
+        pos = phase_center(pos, st["yaw"], st["pitch"], st["roll"], lever_frd)
     rc = np.zeros((t.size, range_axis.size), dtype=np.complex128)
     k = 4 * math.pi / radar.wavelength_m  # type: ignore[operator]
     for tg in targets:
         R = np.linalg.norm(pos - tg[None, :], axis=1)
-        w = beam_weight(radar, pos, st["yaw"], st["roll"], tg)
+        w = beam_weight(radar, pos, st["yaw"], st["roll"], tg, st["pitch"])
         rc += (w[:, None] * np.sinc(2 * radar.bandwidth_hz * (range_axis[None, :] - R[:, None]) / C)  # type: ignore[operator]
                * np.exp(-1j * k * R)[:, None])
     if noise > 0:

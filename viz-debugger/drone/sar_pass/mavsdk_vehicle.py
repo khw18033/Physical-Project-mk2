@@ -185,6 +185,12 @@ class MavsdkVehicle:
         except Exception:  # noqa: BLE001
             return None
 
+    async def get_param_float(self, name: str) -> float | None:
+        try:
+            return await self.system.param.get_param_float(name)
+        except Exception:  # noqa: BLE001
+            return None
+
     async def goto(self, lat: float, lon: float, rel_alt_m: float, yaw_deg: float) -> None:
         if self._amsl is None or self._rel is None:
             raise RuntimeError("고도 기준(AMSL)을 아직 모른다")

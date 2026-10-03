@@ -10,5 +10,7 @@
   "el_beamwidth_deg": 40.0,
   "az_beamwidth_deg": 30.0,
   "squint_deg": 0.0,
-  "antenna_offset_m": [0.0, 0.0, 0.0]
+  "antenna_offset_m": [0.0, 0.0, 0.0],
+  "gnss_offset_m": null,
+  "position_ref": "auto"
 }
