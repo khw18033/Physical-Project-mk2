@@ -335,8 +335,13 @@ python -m sar_pass ulog --watch --connect tcp://127.0.0.1:5760 --log-dir /home/p
 - 받은 파일은 그 비행 폴더(`flight_<시각>/fc_<날짜>_<번호>.ulg`)에 두고, `ulog.json` 에 FC 로그 번호 · 날짜 · 크기를 적는다.
   데이터 서버의 「전부 받기」 ZIP 에 같이 들어간다.
 - 비행 연결(MAVSDK 14540, gRPC 50051)과 겹치지 않게 mavlink-router 의 TCP 5760(QGC 와 함께) · gRPC 50052 를 쓴다.
-- **속도에 주의**: SITL 에서 89 MB 를 104 초에 받았다(UDP, 약 0.9 MB/s). FC ↔ Pi 가 시리얼(921600 bps ≈ 90 KB/s)이면
-  같은 크기에 15 분이 넘는다. 착륙 뒤 Pi 를 켜 둔 채 기다리거나, `SDLOG_PROFILE` 로 로그를 줄이거나, FC 를 Pi 에 USB 로 잇는다.
+- **속도는 FC ↔ Pi 연결이 정한다** (핫스팟이 아니다). 우리 구성은 FC TELEM ↔ Pi 5 UART(시리얼), 지상국 ↔ Pi 는 핫스팟이다.
+  로그는 FC → Pi 선을 지나므로, QGC 로 받아도 같은 선을 지나 속도가 같다.
+  - SITL(UDP) 89 MB 104 초 ≈ 0.9 MB/s. UART 921600 bps 는 많아야 약 90 KB/s → 같은 크기 15 분 이상.
+  - 빠르게: ① FC USB-C ↔ Pi USB 를 하나 더 잇고 로그만 그쪽으로(`--connect serial:///dev/ttyACM0:115200`, USB 라 속도 설정과 무관하게 빠르다)
+    ② `SER_TEL2_BAUD` 를 1500000 · 3000000 으로 올리고 mavlink-router 도 같게 ③ `SDLOG_PROFILE` 로 로그를 줄인다
+    ④ 급하면 착륙 뒤 FC 의 SD 카드를 뽑아 노트북에서 복사한다.
+  - 기다리는 동안 Pi 전원을 끄지 않는다 — `ulog.json` 이 생기면 다 받은 것이다(화면 「비행 로그 .ulg」 표시).
 
 ### 패스별 영상 — 노트북에서 자동으로 (`sar_data --mirror`)
 
