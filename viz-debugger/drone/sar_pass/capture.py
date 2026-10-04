@@ -21,6 +21,13 @@ cansar 가 파일을 몇 초마다 보느냐에 따라 1 s 늦으면 4 m/s 에�
     Path("/home/physical/CAP_ACK").unlink(missing_ok=True)             # 기록 멈춘 직후
 
 ACK 경로를 안 주면(`ack_path=None`) 확인은 「모름」으로 남고 지금까지와 똑같이 돈다.
+
+## CAP_ON 의 내용 (2026-10-04 더함 — 있는지만 보는 쪽은 그대로 동작)
+
+    {"pass": 3, "flight": "flight_1791000000", "line_heading_deg": 45.0, "time": 1791000123.456789}
+
+레이더가 읽어 자기 기록(passes.csv · meta_N.txt)에 `pass` · `flight` 를 같이 적어 주면 드론 쪽 패스와 레이더 캡처를
+시각 짐작 없이 정확히 짝지을 수 있다.
 """
 
 from __future__ import annotations
@@ -57,10 +64,19 @@ class CaptureFlag:
         return self.path.exists()
 
     # ── 켜기 / 끄기 ─────────────────────────────────────────────────────────
-    def on(self, max_on_s: float | None = None) -> None:
+    def on(self, max_on_s: float | None = None, info: dict | None = None) -> None:
+        """켠다. info(패스 번호 · 비행 이름 등)를 주면 파일 **안에** JSON 한 줄로 적는다 — 레이더는 지금처럼 있는지만 봐도 되고,
+        읽으면 자기 기록(passes.csv · meta)에 우리 패스 번호를 같이 남길 수 있다(짝짓기가 정확해진다)."""
         with self._lock:
-            self.path.touch()
-            self.on_since = time.time()
+            now = time.time()
+            if info:
+                import json
+                tmp = self.path.with_name(self.path.name + ".tmp")
+                tmp.write_text(json.dumps({**info, "time": round(now, 6)}, ensure_ascii=False) + "\n")
+                os.replace(tmp, self.path)              # 생기는 순간 내용이 다 들어 있다
+            else:
+                self.path.touch()
+            self.on_since = now
             self._arm_watchdog(max_on_s)
         log.info("CAP_ON 생성 %s", self.path)
 

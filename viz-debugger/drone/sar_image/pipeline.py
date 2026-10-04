@@ -26,7 +26,7 @@ from .attitude import lever_arm, phase_center, tilt_motion_mm
 from .autofocus import apply_correction, estimate_phase_error, estimate_phase_error_multi, estimate_trajectory_error
 from .backprojection import backproject_fast, line_grid, peak_metrics
 from .coverage import predicted_history, summarize_history, swath_ground_ranges
-from .quicklook import combine_offsets, estimate_time_offset, rangetime_png
+from .quicklook import estimate_range_bias, combine_offsets, estimate_time_offset, rangetime_png
 from .radar import RadarConfig
 from .trajectory import Origin, Trajectory
 
@@ -285,6 +285,23 @@ def form_pass(traj_csv: Path, raw_files: list[Path], radar: RadarConfig, adapter
             body["notes"].append(f"레이더 시각에 {applied * 1000:+.1f} ms 를 더했다 (리플렉터로 추정)")
             inside = (t >= traj.t[0]) & (t <= traj.t[-1])
             t, rc = t[inside], rc[inside]
+        # 거리 치우침 — 레이더 내부 지연(roff) 보정값. 바꾸지는 않고 알려 준다(레이더 설정이다: CANSAR_ROFF_M 등)
+        rb = []
+        for i, cr in enumerate(crs, 1):
+            try:
+                e = estimate_range_bias(t, rng, rc, traj, o, lever, cr)
+            except Exception:  # noqa: BLE001
+                e = None
+            if e is not None:
+                rb.append({"name": f"CR{i}", **e})
+        good = [x for x in rb if x["spread_m"] < 0.2]
+        if good:
+            med = float(np.median([x["bias_m"] for x in good]))
+            body["quicklook"]["range_bias"] = {"per_reflector": rb, "combined_m": round(med, 4),
+                                               "consistent": float(np.ptp([x["bias_m"] for x in good])) < 0.05}
+            if abs(med) >= 0.03:
+                body["notes"].append(f"레이더가 잰 거리가 실제보다 {med * 100:+.1f} cm — 레이더 내부 지연(roff)을 그만큼 "
+                                     f"{'늘린다' if med > 0 else '줄인다'} (리플렉터 {len(good)}개)")
         body["timings_s"]["quicklook"] = round(time.perf_counter() - t0, 2)
         _write(status_path, body)
         inside = (t >= traj.t[0]) & (t <= traj.t[-1])

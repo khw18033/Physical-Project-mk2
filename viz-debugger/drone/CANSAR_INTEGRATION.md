@@ -16,7 +16,7 @@
 Pi 설정(`/etc/sar-drone.env`):
 
 ```bash
-SAR_CANSAR_QUICK=/home/physical/<레이더 팀 폴더>/cansar_quick.py   # cansar_flight.py 와 같은 폴더
+SAR_CANSAR_QUICK=/home/physical/cansar_radar/cansar_quick.py   # cansar_flight.py 와 같은 폴더 (레이더 팀이 정함)
 SAR_CANSAR_DATA=/home/physical/flight
 SAR_CANSAR_LOGS=/home/physical/cansar_logs
 SAR_CANSAR_SIDE=right            # 안테나가 보는 쪽 — 비행 전에 레이더 팀이 정한다
@@ -74,4 +74,29 @@ SAR_CANSAR_SIDE=right            # 안테나가 보는 쪽 — 비행 전에 레
    - `roff` 0.4 m 는 장비 내부 지연 실측값인가요? (드론 쪽도 같은 값을 씁니다)
    - CAP_ON 으로 캡처를 켜고 끄나요? CAP_ACK 를 쓰나요? (드론 쪽이 패스 시작 · 끝에 CAP_ON 을 만들고 지웁니다)
    - Pi 에서 `cansar_quick.py` 를 둘 경로(`SAR_CANSAR_QUICK`)
-   - 캡처 번호 N 이 시각(HHMMSS)이면 날이 바뀔 때 겹칠 수 있습니다 — 드론 쪽은 `passes.csv` 의 t0 로 줄 세웁니다
+   - ~~캡처 번호 N 이 시각(HHMMSS)이면 날이 바뀔 때 겹칠 수 있습니다~~ → 일련번호라 겹치지 않음(답변 받음)
+
+## 4. 레이더 팀 답변 (2026-10-04) · 정한 것
+
+| 항목 | 답 | 드론 쪽 반영 |
+|---|---|---|
+| 유효 PRF | **약 437 Hz** (부대역 8개 한 바퀴, 지상 12 s 캡처). 5 m/s 에서 스윕 간격 dec 1 = 1.1 cm · dec 2 = 2.3 cm · dec 8 = 9.2 cm (λ/4 = 1.3 cm) | `example_radar_cansar.json` prf_hz 437 |
+| `--dec 8` | 첫 비행(0.34 m/s) 기준값이었다 → quick 이 속도 · PRF 로 dec 자동 선택하게 고침(그쪽) | 드론 쪽 파이프라인은 처음부터 솎지 않는다 |
+| c = 3e8 · 보간 · 마커 묶기 | 셋 다 그쪽이 드론 쪽 방식으로 고침 | — |
+| 스윕 카운터 | 다음 HDL 작업 때 마커 행 빈 열에 | 들어오면 어댑터에서 쓴다 |
+| roff | 실내 CR 실측 0.4 m, 지금 케이블 구성은 약 0.24 m → **0.24~0.4 m, 비행 중 CR 로 다시 보정** | 리플렉터로 roff 를 추정하는 도구(아래 5) |
+| CAP_ON | 드론 쪽 비행 스크립트가 만들고 지운다 — 그대로 | CAP_ON 안에 패스 번호 · 비행 이름 · 시각(JSON 한 줄)을 적기 시작 |
+| CAP_ACK | 없음, 필요하면 그쪽 Pi 서비스에 넣는다 | **넣어 주세요** — 형식은 아래 |
+| quick 경로 | `/home/physical/cansar_radar/` (cansar_quick.py · cansar_flight.py) | env 기본값으로 넣음 |
+| 캡처 번호 N | SD 카드 최대 번호 + 1 일련번호 — 겹치지 않음 | — |
+| 안테나 방향 · 레버암 | 비행 전에 재서 알려 줌 | 받으면 radar.json · SAR_CANSAR_SIDE |
+| Pi 에서 dec 1 quick | 느리다 → 영역 줄이거나 드론 쪽 GPU 파이프라인에 맡김 | **드론 쪽 영상이 주 영상**, Pi quick-look 은 참고 |
+
+### 레이더 팀에 부탁 (남은 것)
+
+1. **CAP_ACK** — 기록을 실제로 시작한 직후 `/home/physical/CAP_ACK` 에 그 순간 `time.time()` 을 한 줄로 쓰고, 멈춘 직후 지운다.
+   드론 쪽은 이것으로 레이더 지연을 재서 다음 패스부터 그만큼 미리 켠다(이미 들어 있음).
+2. **CAP_ON 내용 같이 적기** — CAP_ON 파일 안의 JSON(`pass` · `flight`)을 passes.csv 나 meta_N.txt 에 한 칸 더 적어 주면
+   드론 패스와 캡처를 정확히 짝짓는다.
+3. **시계 짝을 1 초마다** — 기록 중 1 초마다 events.csv 에 `clock,<pi_epoch>,<sdr_uptime>` 한 줄. 지금은 캡처마다 start 한 줄뿐이다.
+   (PPS 없이도 시각 어긋남을 ms 안으로 잡는 가장 싼 방법)

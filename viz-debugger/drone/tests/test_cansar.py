@@ -86,3 +86,29 @@ def test_missing_marker_is_counted(flight, tmp_path):
     d.tofile(bad)
     _, _, _, info = parse_sweeps(bad)
     assert info["sweeps"] == flight["info"]["sweeps"] - 1 and info["dropped_markers"] >= 7   # 망가진 스윕 하나만 버린다
+
+
+def test_range_bias_tells_how_to_fix_roff(tmp_path):
+    """실제 내부 지연 0.32 m 인데 어댑터는 0.40 m 를 빼면 → 레이더 거리가 8 cm 짧게 나온다고 알려 준다(roff 를 줄여라)."""
+    from sar_image.cansar import write_fake_flight
+    from sar_image.trajectory import Trajectory
+
+    fl = tmp_path / "flight_1790957600"
+    fl.mkdir()
+    for f in DATA.glob("pass02_1790957682.*"):
+        shutil.copy(f, fl / f.name)
+    csvp = fl / "pass02_1790957682.csv"
+    meta = json.loads(csvp.with_suffix(".json").read_text(encoding="utf-8"))
+    traj = Trajectory.load_csv(csvp)
+    o, hd, _, _ = frame(traj, meta)
+    r = math.radians(hd)
+    radar = RadarConfig.load(RADAR)
+    crs = [np.array([a * math.sin(r) + c * radar.side_sign * math.cos(r), a * math.cos(r) - c * radar.side_sign * math.sin(r), 0.0])
+           for a, c in ((35, 18), (45, 22))]
+    t0, t1 = traj.capture_window()
+    info = write_fake_flight(tmp_path / "pi", 163151, radar, traj, o, crs, meta, internal_delay_m=0.32, t_window=(t0 + 3, t1 - 3))
+    body = form_pass(csvp, [Path(info["iq"])], radar, "sar_image.cansar:load", tmp_path / "img",
+                     reflectors=[(*o.latlon(p[0], p[1]), None) for p in crs], full=False, autofocus=False)
+    rb = body["quicklook"]["range_bias"]
+    assert abs(rb["combined_m"] - (-0.08)) < 0.02, rb
+    assert any("roff" in n and "줄인다" in n for n in body["notes"])

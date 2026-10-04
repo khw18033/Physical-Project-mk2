@@ -1,8 +1,8 @@
 {
-  "note": "레이더 팀 cansar(CANSAR-2) — 파장 · 대역폭 · 거리는 cansar_flight.py 의 파형에서 옮긴 값(부대역 8 × 50 MHz, 5.500~5.868 GHz). prf_hz · 빔 · 내려다보는 각은 가정 — 레이더 팀 값으로 바꾼다. 어댑터 sar_image.cansar:load · 거리 12~65 m = 고도 15~25 m · 내려다봄 45° · 고도 빔 40° 에서 보는 경사거리(16~59 m)+여유 — Pi 가 줄여 보낼 양도 이것으로 정해진다",
+  "note": "레이더 팀 cansar(CANSAR-2) — 파장 · 대역폭 · 거리는 cansar_flight.py 의 파형에서 옮긴 값(부대역 8 × 50 MHz, 5.500~5.868 GHz). prf_hz 437 = 레이더 팀 실측(10/4, 부대역 8개 한 바퀴). 빔 · 내려다보는 각은 가정 — 레이더 팀 값으로 바꾼다. 어댑터 sar_image.cansar:load · 거리 12~65 m = 고도 15~25 m · 내려다봄 45° · 고도 빔 40° 에서 보는 경사거리(16~59 m)+여유 — Pi 가 줄여 보낼 양도 이것으로 정해진다",
   "wavelength_m": 0.052744,
   "bandwidth_hz": 367833333.0,
-  "prf_hz": null,
+  "prf_hz": 437.0,
   "range_min_m": 12.0,
   "range_max_m": 65.0,
   "side": "right",

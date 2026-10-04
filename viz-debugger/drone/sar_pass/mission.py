@@ -685,7 +685,8 @@ class SarMission:
                         log.warning("패스 %d: %s", n, record.note)
                         self._set_state("decel")
                     elif along >= -on_lead_m and stable:
-                        self.cap.on(max_on_s=max_on)
+                        self.cap.on(max_on_s=max_on, info={"pass": n, "flight": self.traj_dir.name if self.traj_dir else None,
+                                                           "line_heading_deg": round(heading, 2)})
                         record.captured = True
                         record.start_unix = now
                         record.fc_start_unix = self._fc_time(now)

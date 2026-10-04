@@ -217,3 +217,20 @@ def test_short_ground_drop_does_not_stop(tmp_path):
     t0 = sim.clock.now()
     m.ground_ok = lambda: not (t0 + 20 < sim.clock.now() < t0 + 23)    # 3 초만 끊김 (기준 5 초)
     assert asyncio.run(m.run()) == "done" and m._ground_lost_max_s >= 2.5
+
+
+def test_cap_on_carries_pass_number(tmp_path):
+    """CAP_ON 안에 패스 번호 · 비행 이름 — 레이더는 있는지만 봐도 되고, 읽으면 정확히 짝지을 수 있다."""
+    import asyncio
+    import json as _json
+
+    plan, sim, cap, m, st = build(tmp_path, ack=False)
+    seen = []
+    orig = cap.on
+
+    def spy(*a, **k):
+        orig(*a, **k)
+        seen.append(_json.loads(cap.path.read_text()))
+    cap.on = spy
+    assert asyncio.run(m.run()) == "done"
+    assert [x["pass"] for x in seen][:2] == [1, 2] and seen[0]["flight"] == "traj" and "time" in seen[0]

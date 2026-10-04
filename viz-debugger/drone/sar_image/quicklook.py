@@ -76,6 +76,42 @@ def estimate_time_offset(t: np.ndarray, rng: np.ndarray, rc: np.ndarray, traj: T
     return {"dt_s": round(dt1, 5), "coarse_dt_s": round(dt0, 3), "focus_gain_db": round(20 * math.log10(max(gain, 1e-30)), 2)}
 
 
+def estimate_range_bias(t: np.ndarray, rng: np.ndarray, rc: np.ndarray, traj: Trajectory, origin: Origin,
+                        lever: np.ndarray, reflector: np.ndarray, window_m: float = 1.5) -> dict | None:
+    """리플렉터 하나로 거리 치우침(m) — 레이더가 잰 거리 − 궤적으로 계산한 거리. 레이더 내부 지연(roff) 보정값.
+
+    펄스마다 예상 거리 ±window_m 안에서 |rc| 봉우리를 찾아(포물선 보간) 예상과의 차이를 모으고, 밝은 절반의 중앙값을 쓴다.
+    + 면 레이더가 실제보다 멀게 잰다 → 어댑터의 roff 를 그만큼 **늘린다**. 시각 오프셋을 먼저 고친 뒤에 부른다."""
+    lo, hi = float(traj.t[0]), float(traj.t[-1])
+    m = (t >= lo) & (t <= hi)
+    if m.sum() < 20:
+        return None
+    p = antenna_positions(traj, origin, t[m], lever)
+    R = np.linalg.norm(p - reflector[None, :], axis=1)
+    dr = float(rng[1] - rng[0])
+    half = max(2, int(round(window_m / dr)))
+    a = np.abs(rc[m])
+    i_pred = np.round((R - rng[0]) / dr).astype(int)
+    ok = (i_pred - half >= 1) & (i_pred + half < rng.size - 1)
+    if ok.sum() < 20:
+        return None
+    rows = np.flatnonzero(ok)
+    idx = i_pred[rows, None] + np.arange(-half, half + 1)[None, :]
+    seg = a[rows[:, None], idx]
+    j = np.argmax(seg, axis=1)
+    pk = seg[np.arange(rows.size), j]
+    jj = np.clip(j, 1, seg.shape[1] - 2)
+    y0, y1, y2 = seg[np.arange(rows.size), jj - 1], seg[np.arange(rows.size), jj], seg[np.arange(rows.size), jj + 1]
+    den = y0 - 2 * y1 + y2
+    frac = np.where(den < 0, 0.5 * (y0 - y2) / np.where(den < 0, den, -1), 0.0)
+    r_meas = rng[idx[np.arange(rows.size), jj]] + frac * dr
+    bias = r_meas - R[rows]
+    bright = pk >= np.median(pk)                       # 빔 안 · 밝은 펄스만
+    b = bias[bright]
+    return {"bias_m": round(float(np.median(b)), 4), "spread_m": round(float(np.percentile(b, 75) - np.percentile(b, 25)), 4),
+            "pulses": int(b.size)}
+
+
 def combine_offsets(per: list[dict], agree_s: float = 0.002) -> dict | None:
     if not per:
         return None
