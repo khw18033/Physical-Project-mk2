@@ -482,7 +482,7 @@ def main(argv: list[str] | None = None) -> int:
         if not a.radar_json:
             p.error("--reduce-adapter 에는 --radar-json 이 필요하다")
         from .reduce import Reducer
-        reducer = Reducer(store, a.radar_json, a.reduce_adapter)
+        reducer = Reducer(store, a.radar_json, a.reduce_adapter, cap_path=a.cap_path)
         reducer.start()
     from .quick import QuickLooks
     # 돌리는 쪽(Pi) 이 아니어도 미러로 받은 결과를 보여 준다

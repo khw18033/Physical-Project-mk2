@@ -217,9 +217,12 @@ def cmd_reduce(a: argparse.Namespace) -> int:
     """원시를 어댑터로 거리 압축해 complex64 npz 로. 레이더 원시(수 GB)를 노트북에 보내기 전에 Pi 에서 줄인다."""
     radar = RadarConfig.load(a.radar)
     mod, _, fn = a.adapter.partition(":")
-    t, rng_axis, rc = getattr(importlib.import_module(mod), fn or "load")(a.raw, radar)
+    fn_ = getattr(importlib.import_module(mod), fn or "load")
+    t, rng_axis, rc = fn_(a.raw, radar)
     out = Path(a.out) if a.out else Path(str(a.raw) + ".rc.npz")
-    np.savez(out, t=np.asarray(t, dtype=np.float64), range_axis=np.asarray(rng_axis, dtype=np.float64), rc=np.asarray(rc, dtype=np.complex64))
+    from .adapters import compact_rc, save_rc
+    rng_axis, rc, _ = compact_rc(np.asarray(rng_axis), np.asarray(rc), radar)       # Pi 줄이기와 같은 모양
+    save_rc(out, t, rng_axis, rc, time_ref=getattr(fn_, "time_ref", "fc"))
     raw_size = sum(f.stat().st_size for f in Path(a.raw).parent.glob(Path(a.raw).stem + "*") if f.is_file())
     print(json.dumps({"out": str(out), "pulses": int(len(t)), "range_bins": int(len(rng_axis)), "raw_mb": round(raw_size / 1e6, 1),
                       "reduced_mb": round(out.stat().st_size / 1e6, 1)}, ensure_ascii=False))

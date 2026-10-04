@@ -15,6 +15,8 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import numpy as np
 
 from .radar import C, RadarConfig
@@ -45,7 +47,43 @@ def fmcw_dechirped_npz(raw_path: str, radar: RadarConfig, oversample: int = 8): 
     return t, rng[keep], spec[:, keep].astype(np.complex64)
 
 
+def compact_rc(rng: np.ndarray, rc: np.ndarray, radar: RadarConfig | None) -> tuple[np.ndarray, np.ndarray, int]:
+    """보내기 전에 줄인다 — radar.json 의 거리 창만, 거리 간격은 해상도의 1/4 까지만(그보다 촘촘하면 솎는다).
+
+    백프로젝션은 거리 축을 선형 보간한다. 봉우리 둘레 위상이 평평하면(가운데 주파수 기준 — cansar · sdr 어댑터 모두)
+    해상도의 1/4 간격이면 충분하다. → (거리 축, rc, 솎은 배수)"""
+    keep = np.ones(rng.size, dtype=bool)
+    if radar is not None and radar.range_min_m is not None:
+        keep &= rng >= radar.range_min_m
+    if radar is not None and radar.range_max_m is not None:
+        keep &= rng <= radar.range_max_m
+    rng, rc = rng[keep], rc[:, keep]
+    stride = 1
+    res = radar.range_resolution_m if radar is not None else None
+    if res and rng.size > 2:
+        step = float(rng[1] - rng[0])
+        stride = max(1, int((res / 4) // step))
+    return rng[::stride], rc[:, ::stride], stride
+
+
+def save_rc(path: str | Path, t: np.ndarray, rng: np.ndarray, rc: np.ndarray, time_ref: str = "fc", half: bool = True) -> None:
+    """거리 압축 파일 쓰기. half 면 rc 를 최댓값으로 나눠 float16 실수 · 허수로(크기 ¼, 양자화 잡음 약 −66 dB)."""
+    rc = np.asarray(rc)
+    extra: dict = {}
+    if half:
+        scale = float(np.abs(rc).max()) or 1.0
+        z = rc / scale
+        extra = {"rc_re16": z.real.astype(np.float16), "rc_im16": z.imag.astype(np.float16), "rc_scale": scale}
+    else:
+        extra = {"rc": rc.astype(np.complex64)}
+    np.savez(path, t=np.asarray(t, dtype=np.float64), range_axis=np.asarray(rng, dtype=np.float64), time_ref=time_ref, **extra)
+
+
 def rc_npz(raw_path: str, radar: RadarConfig):  # noqa: ANN201, ARG001
-    """`python -m sar_image reduce` 가 만든 거리 압축 파일(t · range_axis · rc). Pi 에서 줄여 보낸 것을 노트북이 읽는다."""
+    """`python -m sar_image reduce` · Pi 줄이기가 만든 거리 압축 파일(t · range_axis · rc 또는 float16 둘). 노트북이 읽는다."""
     z = np.load(raw_path)
-    return np.asarray(z["t"], dtype=float), np.asarray(z["range_axis"], dtype=float), z["rc"]
+    if "rc_re16" in z.files:
+        rc = (z["rc_re16"].astype(np.float32) + 1j * z["rc_im16"].astype(np.float32)) * np.float32(z["rc_scale"])
+    else:
+        rc = z["rc"]
+    return np.asarray(z["t"], dtype=float), np.asarray(z["range_axis"], dtype=float), np.asarray(rc, dtype=np.complex64)
