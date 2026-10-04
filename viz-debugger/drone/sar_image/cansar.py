@@ -183,6 +183,36 @@ def clock_offset(iq_path: str | Path, t_start_sdr: float, max_gap_s: float = 10.
     return best[1], best[2]
 
 
+def clock_fit(iq_path: str | Path, t_start_sdr: float, t_end_sdr: float, margin_s: float = 3.0) -> dict | None:
+    """캡처 중 1 초마다 남긴 `clock` 행(드론 쪽 제안 브리지, radar_team/cansar_pi.py)으로 Pi 시각 = a + b·SDR 시각 을 맞춘다.
+
+    start 행 하나보다 낫다: 행마다 SSH 왕복 · uptime 0.01 s 눈금 오차가 평균으로 줄고, SDR 시계가 흐르는 것(b ≠ 1)도 잡는다.
+    행이 셋 안 되면 None(→ start 행 하나로)."""
+    iq_path = Path(iq_path)
+    no = capture_no(iq_path)
+    dirs = _log_dirs(iq_path)
+    own = [d for d in dirs if any(r.get("n") == no for r in _rows(d / "passes.csv"))]
+    for d in own or dirs:
+        pts = []
+        for r in _rows(d / "events.csv"):
+            if r.get("event") != "clock":
+                continue
+            try:
+                pe, su = float(r["pi_epoch"]), float(r["sdr_uptime"])
+            except (KeyError, TypeError, ValueError):
+                continue
+            if t_start_sdr - margin_s <= su <= t_end_sdr + margin_s:
+                pts.append((su, pe))
+        if len(pts) >= 3:
+            su, pe = np.array(pts).T
+            x = su - t_start_sdr                                     # 기울기를 작은 수로 — 정밀도
+            b, a0 = np.polyfit(x, pe - su, 1)                        # pi − sdr = a0 + b·x  (b = 시계 흐름)
+            res = (pe - su) - (a0 + b * x)
+            return {"a0": float(a0), "drift": float(b), "t_ref": float(t_start_sdr), "rows": len(pts),
+                    "resid_ms": round(float(np.std(res)) * 1000, 2), "from": f"{d.name}/events.csv (clock {len(pts)}행)"}
+    return None
+
+
 def range_compress(ant: np.ndarray, ref: np.ndarray, fc: float, r_axis: np.ndarray, roff: float = ROFF_M,
                    demean: bool = True) -> np.ndarray:
     """(n, 8, 45) → (n, M). 실제 주파수로 직접 합한다(보간 없음). 봉우리 위상 exp(−j4πR/λ), λ = c/fc."""
@@ -216,8 +246,14 @@ def load(raw_path: str, radar: RadarConfig, demean: bool = True):  # noqa: ANN20
     ant, ref, centre, info = parse_sweeps(p)
     if info["sweeps"] < 2:
         raise ValueError(f"{p.name}: 온전한 스윕이 {info['sweeps']} 개 — 형식(표지 0x5A5A · 부대역 0…7)을 확인한다")
-    off, src = clock_offset(p, t0s)
-    t = t0s + centre / info["rows"] * (t1s - t0s) + off
+    t_sdr = t0s + centre / info["rows"] * (t1s - t0s)
+    fit = clock_fit(p, t0s, t1s)
+    if fit is not None:                                         # 1 초마다 시계 짝 → 직선(흐름까지)
+        t = t_sdr + fit["a0"] + fit["drift"] * (t_sdr - fit["t_ref"])
+        off, src = fit["a0"], fit["from"] + f" · 잔차 {fit['resid_ms']} ms · 흐름 {fit['drift'] * 1e6:+.1f} ppm"
+    else:
+        off, src = clock_offset(p, t0s)
+        t = t_sdr + off
     lo, hi, mid = band()
     fc = C / radar.wavelength_m if radar.wavelength_m else mid
     res = C / (2 * (hi - lo))

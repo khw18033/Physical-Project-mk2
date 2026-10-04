@@ -1,0 +1,15 @@
+[Unit]
+Description=CANSAR-2 Pi bridge (MAVLink log + SDR capture trigger)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=physical
+WorkingDirectory=/home/physical
+ExecStartPre=/bin/rm -f /home/physical/CAP_ON
+ExecStart=/home/physical/drone/venv/bin/python -u /home/physical/cansar_pi.py --conn udp:127.0.0.1:14551
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

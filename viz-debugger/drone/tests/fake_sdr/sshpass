@@ -1,0 +1,65 @@
+#!/usr/bin/env python3
+"""가짜 SDR(Zynq · cansar2) — 레이더 브리지(cansar_pi.py)를 보드 없이 시험한다. PATH 맨 앞에 이 폴더를 둔다.
+
+  sshpass -p PW ssh [옵션…] root@host "명령; 명령"     → 명령을 흉내(아래)
+  sshpass -p PW scp -O [옵션…] root@host:/mnt/sd/x 목적지 → FAKE_SDR/sd/x 복사
+
+FAKE_SDR(폴더) · FAKE_SDR_BOOT(가짜 부팅 epoch) 환경변수. 흉내 내는 것:
+  touch /tmp/CAP_ON → 캡처 시작(uptime 기록) · rm -f /tmp/CAP_ON → 캡처 끝: sd/iq_N.bin · meta_N.txt, cansar2.log 에 end 줄
+  cut -d" " -f1 /proc/uptime → 가짜 uptime(소수 둘째 자리, 실제처럼) · 나머지(grep · tail · df · uptime)는 경로만 바꿔 셸로
+"""
+import json, os, shutil, subprocess, sys, time
+from pathlib import Path
+
+root = Path(os.environ["FAKE_SDR"]); boot = float(os.environ["FAKE_SDR_BOOT"])
+(root / "tmp").mkdir(parents=True, exist_ok=True); (root / "sd").mkdir(parents=True, exist_ok=True)
+args = sys.argv[1:]
+if args[:1] == ["-p"]:
+    args = args[2:]
+tool, rest = args[0], args[1:]
+pos = []
+i = 0
+while i < len(rest):
+    if rest[i] in ("-o", "-p", "-P", "-i"):
+        i += 2
+        continue
+    if rest[i].startswith("-"):
+        i += 1
+        continue
+    pos.append(rest[i]); i += 1
+time.sleep(0.03)                                              # 연결을 열어 둔(ControlMaster) 정도의 왕복
+up = lambda: f"{time.time() - boot:.2f}"
+if tool == "scp":
+    src, dst = pos[0].split(":", 1)[1], pos[1]
+    f = root / "sd" / Path(src).name
+    if not f.exists():
+        sys.exit(1)
+    shutil.copy(f, Path(dst) / f.name if Path(dst).is_dir() else dst)
+    sys.exit(0)
+cmd = pos[1] if len(pos) > 1 else ""
+state = root / "state.json"
+out = []
+for part in [c.strip() for c in cmd.split(";") if c.strip()]:
+    if part == "touch /tmp/CAP_ON":
+        (root / "tmp" / "CAP_ON").touch()
+        st = json.loads(state.read_text()) if state.exists() else {"n": 163150}
+        st["t_start"] = time.time() - boot + 0.02; st["n"] += 1
+        state.write_text(json.dumps(st))
+    elif part == "rm -f /tmp/CAP_ON":
+        cap = root / "tmp" / "CAP_ON"
+        if cap.exists():
+            cap.unlink()
+            st = json.loads(state.read_text())
+            t1 = time.time() - boot
+            size = int(min(20e6, max(1.0, t1 - st["t_start"]) * 3.84e6)) // 8 * 8
+            n = st["n"]
+            (root / "sd" / f"iq_{n}.bin").write_bytes(b"\0" * size)
+            (root / "sd" / f"meta_{n}.txt").write_text(f"t_start={st['t_start']:.6f}\nt_end={t1:.6f}\n")
+            with (root / "tmp" / "cansar2.log").open("a") as fh:
+                fh.write(f"capture #{n} end t1={t1:.3f} size={size}\n")
+    elif part == 'cut -d" " -f1 /proc/uptime':
+        out.append(up())
+    else:
+        sh = part.replace("/tmp/", f"{root}/tmp/").replace("/mnt/sd", f"{root}/sd")
+        out.append(subprocess.run(sh, shell=True, capture_output=True, text=True).stdout.rstrip("\n"))
+print("\n".join(o for o in out if o))

@@ -1,0 +1,17 @@
+[Unit]
+Description=CANSAR-2 Pi bridge (MAVLink log + SDR capture trigger)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=physical
+WorkingDirectory=/home/physical
+ExecStartPre=/bin/rm -f /home/physical/CAP_ON
+# [드론 쪽 제안 10/4] RTK 보정은 드론 쪽 sar-rtk 하나만 FC 에 넣는다(둘이 같은 UDP 14660) → --rtcm-port 0
+#   레이더 브리지 RTK 를 쓰기로 하면 이 옵션을 빼고 드론 쪽 sar-rtk 를 끈다(sudo systemctl disable --now sar-rtk)
+ExecStart=/home/physical/drone/venv/bin/python -u /home/physical/cansar_pi.py --conn udp:127.0.0.1:14551 --rtcm-port 0
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

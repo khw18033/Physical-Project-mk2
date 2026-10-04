@@ -70,6 +70,18 @@ status() {
   if systemctl is-active --quiet mavlink-router 2>/dev/null; then ok "mavlink-router 동작 중"; else warn "mavlink-router 가 안 보인다 — FC 연결 확인"; fi
   local ld; ld="$(env_get SAR_LOG_DIR)"
   [ -d "$ld" ] && ok "비행 기록 폴더 $ld ($(find "$ld" -maxdepth 1 -name 'flight_*' 2>/dev/null | wc -l)개 비행)" || warn "비행 기록 폴더 $ld 없음"
+  rtk_conflict
+}
+
+# 레이더 브리지(cansar.service, 레이더 팀 cansar_pi.py)도 UDP 14660 으로 RTCM 을 받아 FC 에 넣는다 — 우리 sar-rtk 와 둘 다 켜면
+# 포트를 다투거나 보정이 두 번 들어간다. 하나만: 우리 것을 쓰면 cansar.service 에 --rtcm-port 0 (drone/radar_team/cansar.service)
+rtk_conflict() {
+  if systemctl is-active --quiet cansar 2>/dev/null; then
+    if systemctl cat cansar 2>/dev/null | grep -q -- '--rtcm-port 0'; then ok "레이더 브리지 RTK 중계 꺼짐 — RTK 는 sar-rtk 하나"
+    elif systemctl is-enabled --quiet sar-rtk 2>/dev/null; then
+      bad "RTK 중계가 둘 — cansar.service(레이더 브리지)와 sar-rtk 가 모두 UDP 14660. 하나만 쓴다 (drone/CANSAR_INTEGRATION.md 6절)"
+    else ok "RTK 중계는 레이더 브리지(cansar.service) 하나"; fi
+  fi
 }
 
 uninstall() {

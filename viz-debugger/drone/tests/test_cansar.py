@@ -141,3 +141,31 @@ def test_store_matches_capture_by_its_own_time_not_mtime(tmp_path):
     store = Store(tmp_path / "flights", tmp_path / "pi" / "flight", "iq_*.bin")
     names = [rf["name"] for rf in store.passes(fl)[0]["radar_files"]]
     assert names == ["iq_163150.bin"], names
+
+
+def test_clock_rows_fit_offset_and_drift(flight, tmp_path):
+    """1 초마다 clock 행이 있으면 start 행 대신 그것으로 — 오프셋이 start 행과 달라도(SSH 지연) 시계 행을 따르고, 흐름도 맞춘다."""
+    import csv as _csv
+
+    from sar_image.cansar import read_meta
+
+    src = Path(flight["info"]["iq"])
+    work = tmp_path / "pi"
+    shutil.copytree(src.parent.parent, work)
+    iq = work / "flight" / src.name
+    meta = read_meta(iq.with_name("meta_163150.txt"))
+    t0s, t1s = float(meta["t_start"]), float(meta["t_end"])
+    ev = next((work / "cansar_logs").glob("*/events.csv"))
+    rows = list(_csv.reader(ev.open(encoding="utf-8")))
+    start_off = float(rows[1][1]) - float(rows[1][2])
+    true_off, drift = start_off + 0.25, 40e-6                      # start 행은 SSH 지연으로 250 ms 틀렸다고 치자
+    with ev.open("a", newline="", encoding="utf-8") as f:
+        w = _csv.writer(f)
+        for su in np.arange(t0s, t1s, 1.0):
+            w.writerow(["clock", f"{su + true_off + drift * (su - t0s):.6f}", f"{su + 0.004:.2f}"])   # uptime 0.01 s 눈금
+    out = load_info(iq, flight["radar"])
+    i = out["info"]
+    assert "clock" in i["clock_from"]
+    base = load_info(src, flight["radar"])
+    dt = out["t"] - base["t"]                                     # 시계 행을 쓴 시각 − start 행을 쓴 시각
+    assert abs(dt[0] - 0.25) < 0.01 and abs((dt[-1] - dt[0]) - drift * (t1s - t0s)) < 0.002

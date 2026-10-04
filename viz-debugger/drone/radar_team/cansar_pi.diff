@@ -1,0 +1,153 @@
+--- cansar_pi.py (레이더 팀 v3, 10/2)
++++ cansar_pi.py (드론 쪽 제안, 10/4)
+@@ -1,6 +1,11 @@
+ #!/usr/bin/env python3
+ """
+-CANSAR-2 Raspberry Pi 브리지  v3 (2026-10-02)
++CANSAR-2 Raspberry Pi 브리지  v3 (2026-10-02) + 드론 쪽 제안(2026-10-04, `# [드론 쪽 제안 10/4]` 표시한 줄만 바뀜)
++  ① CAP_ACK: SDR 이 캡처를 실제로 켠 직후 ~/CAP_ACK 에 그 시각, 끈 직후 지움(--ack, '' = 끔)
++  ② 시계 짝: events.csv 의 pi_epoch 를 SSH **응답 시각**으로(SDR 이 uptime 을 읽은 순간에 가깝다 — 요청 시각은 note 에 req=).
++     캡처 중 1 초마다 `clock` 행(왕복 가운데 시각 ↔ SDR uptime, note 에 rtt=)
++  ③ SSH 연결을 한 번 열어 두고 다시 씀(ControlMaster) — 명령마다 접속하던 수백 ms 지연 · 들쭉날쭉을 없앤다
++  ④ passes.csv 끝에 pass · flight 두 칸 — 드론 비행 프로그램이 CAP_ON 안에 적은 JSON 에서
+   python cansar_pi.py --conn udp:127.0.0.1:14551          # 기본: ~/CAP_ON 파일 트리거 (Pi 팀 코드가 touch/rm)
+   python cansar_pi.py --conn none --key                   # FC 없이 키보드(Enter)로 켜고 끄기 시험
+ 
+@@ -33,6 +38,8 @@
+ ap.add_argument('--hzmin', type=float, default=4.0); ap.add_argument('--durmin', type=float, default=8.0)
+ ap.add_argument('--rtcm-port', type=int, default=14660, help='RTCM 수신 UDP 포트 (0 = 끔)')
+ ap.add_argument('--rtkmin', type=float, default=30.0, help='패스 시작 전 Fixed 지속 최소 시간 [s]')
++ap.add_argument('--ack', default='/home/physical/CAP_ACK', help="SDR 캡처가 실제로 켜지면 시각을 적는 파일 ('' = 끔)")  # [드론 쪽 제안 10/4]
++ap.add_argument('--clock', type=float, default=1.0, help='캡처 중 시계 짝 간격 [s] (0 = 끔)')                         # [드론 쪽 제안 10/4]
+ a = ap.parse_args()
+ 
+ D = os.path.expanduser('~/cansar_logs/' + datetime.datetime.now().strftime('%Y%m%d_%H%M%S')); os.makedirs(D, exist_ok=True)
+@@ -41,13 +48,25 @@
+ def log(*x):
+     s = f"[{time.time():.3f}] " + " ".join(str(i) for i in x); print(s, flush=True); plog.write(s + "\n"); plog.flush()
+ 
+-OPT = ['-o', 'StrictHostKeyChecking=no', '-o', 'UserKnownHostsFile=/dev/null', '-o', 'LogLevel=ERROR', '-o', 'ConnectTimeout=3']
++OPT = ['-o', 'StrictHostKeyChecking=no', '-o', 'UserKnownHostsFile=/dev/null', '-o', 'LogLevel=ERROR', '-o', 'ConnectTimeout=3',
++       '-o', 'ControlMaster=auto', '-o', 'ControlPath=/tmp/cansar-ssh-%r@%h:%p', '-o', 'ControlPersist=600']   # [드론 쪽 제안 10/4] ③
+ SSH = ['sshpass', '-p', a.pw, 'ssh'] + OPT + [f'root@{a.sdr}']
+ SCP = ['sshpass', '-p', a.pw, 'scp', '-O'] + OPT
+ def sdr(cmd, timeout=6):
+     try: return subprocess.run(SSH + [cmd], capture_output=True, text=True, timeout=timeout).stdout.strip()
+     except Exception as e: return f"ERR {e}"
+ 
++def sdr_timed(cmd, timeout=6):                                                       # [드론 쪽 제안 10/4] ②
++    """→ (출력, 보낸 시각, 응답 시각). SDR 이 명령을 실행한 순간은 접속 뒤라 응답 시각에 가깝다."""
++    tb = time.time(); out = sdr(cmd, timeout); return out, tb, time.time()
++
++def cap_info():                                                                      # [드론 쪽 제안 10/4] ④
++    """CAP_ON 안의 JSON(드론 비행 프로그램이 적음: pass · flight). 비었거나 JSON 이 아니면 {}."""
++    try:
++        import json
++        with open(a.file, encoding='utf-8') as fh: return json.loads(fh.read() or '{}')
++    except Exception: return {}
++
+ # ── 위치·자세 버퍼 (판정용) ──
+ lock = threading.Lock()
+ POS = collections.deque(maxlen=200000)   # (t, x=N, y=E, z=D, vx, vy)
+@@ -59,28 +78,52 @@
+ # ── 캡처 제어 ──
+ evf = open(D + '/events.csv', 'w', newline=''); ev = csv.writer(evf)
+ ev.writerow(['event', 'pi_epoch', 'pi_mono', 'sdr_uptime', 'note']); evf.flush()
+-capturing = False; cap_t0 = None
++evlock = threading.Lock()                                                            # [드론 쪽 제안 10/4] 시계 행을 다른 스레드가 같이 쓴다
++capturing = False; cap_t0 = None; cap_meta = {}
+ jobs = queue.Queue()
+ def set_capture(on, note=''):
+-    global capturing, cap_t0
++    global capturing, cap_t0, cap_meta
+     if on == capturing: return
+-    t0 = time.time(); m0 = time.monotonic()
+-    up = sdr(('touch' if on else 'rm -f') + ' /tmp/CAP_ON; cut -d" " -f1 /proc/uptime')
+-    ev.writerow(['start' if on else 'stop', f"{t0:.3f}", f"{m0:.3f}", up, note]); evf.flush()
+-    capturing = on; log('CAPTURE', 'ON' if on else 'OFF', 'sdr_uptime', up, note)
++    t0 = time.time()
++    if on and not a.key: cap_meta = cap_info()                                       # [드론 쪽 제안 10/4] ④
++    up, tb, ta = sdr_timed(('touch' if on else 'rm -f') + ' /tmp/CAP_ON; cut -d" " -f1 /proc/uptime')
++    m1 = time.monotonic()
++    with evlock:                                                                     # [드론 쪽 제안 10/4] ② pi_epoch = 응답 시각
++        ev.writerow(['start' if on else 'stop', f"{ta:.6f}", f"{m1:.6f}", up, f"{note} req={tb:.6f} rtt={ta - tb:.3f}"]); evf.flush()
++    capturing = on; log('CAPTURE', 'ON' if on else 'OFF', 'sdr_uptime', up, note, f'rtt {ta - tb:.3f}s')
++    if a.ack:                                                                        # [드론 쪽 제안 10/4] ①
++        try:
++            if on and not up.startswith('ERR'):
++                tmp = a.ack + '.tmp'
++                with open(tmp, 'w') as fh: fh.write(f"{ta:.6f}\n")
++                os.replace(tmp, a.ack)
++            elif not on and os.path.exists(a.ack): os.remove(a.ack)
++        except OSError as e: log('CAP_ACK 오류', e)
+     if on: cap_t0 = t0
+-    elif cap_t0 is not None: jobs.put((cap_t0, t0)); cap_t0 = None
++    elif cap_t0 is not None: jobs.put((cap_t0, t0, cap_meta)); cap_t0 = None; cap_meta = {}   # [드론 쪽 제안 10/4] ④
++
++def clock_loop():                                                                    # [드론 쪽 제안 10/4] ②
++    """캡처 중 a.clock 초마다 (왕복 가운데 Pi 시각 ↔ SDR uptime). 영상 처리가 두 시계의 어긋남 · 흐름을 직선으로 맞춘다."""
++    while True:
++        time.sleep(a.clock)
++        if not capturing: continue
++        up, tb, ta = sdr_timed('cut -d" " -f1 /proc/uptime', timeout=2)
++        if up.startswith('ERR') or not up: continue
++        with evlock:
++            ev.writerow(['clock', f"{(tb + ta) / 2:.6f}", f"{time.monotonic():.6f}", up, f"rtt={ta - tb:.3f}"]); evf.flush()
++if a.clock > 0:
++    threading.Thread(target=clock_loop, daemon=True).start()
+ 
+ # ── 패스 판정 ──
+ pf = open(D + '/passes.csv', 'w', newline=''); pcsv = csv.writer(pf)
+ pcsv.writerow(['n', 't0', 't1', 'dur_s', 'MB', 'MBps', 'pos_n', 'pos_hz', 'v_mean', 'v_std', 'alt_mean', 'alt_std',
+-               'track_deg', 'straight', 'yaw_std_deg', 'fix_min', 'fixed_before_s', 'verdict']); pf.flush()
++               'track_deg', 'straight', 'yaw_std_deg', 'fix_min', 'fixed_before_s', 'verdict', 'pass', 'flight']); pf.flush()   # [드론 쪽 제안 10/4] ④
+ 
+ def _mean(x): return sum(x) / len(x)
+ def _std(x):
+     m = _mean(x); return math.sqrt(sum((i - m) ** 2 for i in x) / len(x))
+ 
+-def judge(n, size, t0, t1):
++def judge(n, size, t0, t1, info=None):                                              # [드론 쪽 제안 10/4] ④
+     dur = t1 - t0; mb = size / 1e6; mbps = mb / dur if dur > 0 else 0
+     with lock:
+         P = [p for p in POS if t0 <= p[0] <= t1]; Y = [y for (t, y) in ATT if t0 <= t <= t1]
+@@ -125,7 +168,7 @@
+     verdict = 'OK' if not bad else '재비행? ' + ', '.join(bad)
+     pcsv.writerow([n, f"{t0:.3f}", f"{t1:.3f}", f"{dur:.1f}", f"{mb:.1f}", f"{mbps:.2f}", len(P), f"{hz:.1f}",
+                    f"{v:.2f}", f"{vs:.2f}", f"{am:.1f}", f"{asd:.2f}", f"{trk:.0f}", f"{st:.3f}", f"{ysd:.1f}",
+-                   fmin, f"{fb:.0f}", verdict]); pf.flush()
++                   fmin, f"{fb:.0f}", verdict, (info or {}).get('pass', ''), (info or {}).get('flight', '')]); pf.flush()   # [드론 쪽 제안 10/4] ④
+     log(f'PASS #{n}  {dur:.1f}s {mb:.0f}MB ({mbps:.2f}MB/s)  위치 {len(P)}개({hz:.1f}Hz)  속도 {v:.1f}±{vs:.1f}m/s  '
+         f'고도 {am:.1f}±{asd:.1f}m  방향 {trk:.0f}°  직선 {st:.2f}  헤딩std {ysd:.1f}°  fix {fmin} (Fixed {fb:.0f}s 전부터)  → {verdict}')
+ 
+@@ -173,7 +216,7 @@
+ def worker():
+     e = last_end(); seen_end[0] = e[0] if e else None
+     while True:
+-        try: t0, t1 = jobs.get(timeout=1)
++        try: t0, t1, info = jobs.get(timeout=1)                                      # [드론 쪽 제안 10/4] ④
+         except queue.Empty: t0 = None
+         if t0 is not None:
+             got = None
+@@ -182,7 +225,7 @@
+                 if e and e[0] != seen_end[0]: got = e; break
+                 time.sleep(0.5)
+             if got:
+-                seen_end[0] = got[0]; judge(got[0], got[1], t0, t1)
++                seen_end[0] = got[0]; judge(got[0], got[1], t0, t1, info)                # [드론 쪽 제안 10/4] ④
+                 if not a.nocopy: pending.append([got[0], got[1], 0])
+             else:
+                 log(f'캡처 파일 없음 ({t1-t0:.1f}s 구간) — 너무 짧았거나 SDR 응답 없음')
+--- cansar.service (원본)
++++ cansar.service (드론 쪽 제안)
+@@ -7,7 +7,9 @@
+ User=physical
+ WorkingDirectory=/home/physical
+ ExecStartPre=/bin/rm -f /home/physical/CAP_ON
+-ExecStart=/home/physical/drone/venv/bin/python -u /home/physical/cansar_pi.py --conn udp:127.0.0.1:14551
++# [드론 쪽 제안 10/4] RTK 보정은 드론 쪽 sar-rtk 하나만 FC 에 넣는다(둘이 같은 UDP 14660) → --rtcm-port 0
++#   레이더 브리지 RTK 를 쓰기로 하면 이 옵션을 빼고 드론 쪽 sar-rtk 를 끈다(sudo systemctl disable --now sar-rtk)
++ExecStart=/home/physical/drone/venv/bin/python -u /home/physical/cansar_pi.py --conn udp:127.0.0.1:14551 --rtcm-port 0
+ Restart=always
+ RestartSec=5
+ 

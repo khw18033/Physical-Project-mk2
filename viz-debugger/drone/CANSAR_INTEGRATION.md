@@ -112,3 +112,18 @@ SAR_CANSAR_SIDE=right            # 안테나가 보는 쪽 — 비행 전에 레
 | dec 자동(속도 · PRF 437 Hz → 3~5 m/s 에서 dec 1) | Pi CPU 에서 느려질 수 있다 — 드론 쪽은 캡처 중엔 미루고 nice 19 로 돌린다(시한 15 분) |
 | `--lever F R D` | **드론 쪽 radar.json 의 antenna_offset_m 을 그대로 넘긴다**(`sar-data` 가 `--radar-json` 을 읽음) — 실측하면 radar.json 하나만 고친다 |
 | `--roi`, npz 에 h0 · cN · cE · lever · breaks | 화면은 지금처럼 quick.png · 판정 · 첨두만 보인다 |
+
+## 6. 레이더 브리지(cansar_pi.py · cansar.service) — 받아서 본 것 · 제안 (`radar_team/`)
+
+Pi 에서 도는 레이더 팀 프로그램: CAP_ON 을 보고 **SSH 로 SDR 에 캡처를 켜고 끔**, SDR SD → `~/flight` 복사, events · passes · mav 기록,
+패스 판정, **RTK 보정 중계(UDP 14660)**.
+
+| 찾은 것 | 영향 | 제안 |
+|---|---|---|
+| RTK 중계가 드론 쪽 `sar-rtk` 와 같은 UDP 14660 | 포트 다툼 · 보정 두 번 | 하나만 — 드론 쪽 권장, 브리지에 `--rtcm-port 0`. `install.sh --status` 가 겹치면 ✗ |
+| events `pi_epoch` = SSH **보내기 전** 시각, `sdr_uptime` = 접속 **뒤** | 접속 시간(수백 ms)만큼 시각 어긋남(4 m/s 에서 1 m 안팎) — 지금은 리플렉터로 찾아 고친다 | 응답 시각으로 + ControlMaster + 1 초 clock 행 |
+| `/proc/uptime` 은 0.01 s 눈금 | 한 번 읽으면 ±5 ms | clock 행 여러 개로 직선 맞춤(드론 쪽 어댑터가 함) |
+| CAP_ACK 없음 · pass 번호 없음 | 레이더 지연 · 짝짓기를 짐작 | `--ack` · passes.csv 에 pass · flight |
+
+제안 판 `radar_team/cansar_pi.py` · `cansar.service` · 차이 `cansar_pi.diff` · 설명 `radar_team/README.md`. 가짜 SDR 로 원본 · 제안 둘 다 시험.
+제안 판을 쓰면 드론 쪽 `/etc/sar-drone.env` 에 `SAR_CAP_ACK=/home/physical/CAP_ACK`.
