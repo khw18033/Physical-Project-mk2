@@ -54,12 +54,30 @@ cd drone && python -m venv .venv && .venv/bin/pip install -e ".[test,image,base]
 - 줄바꿈: 저장소는 `.gitattributes` 를 따른다. 원래 CRLF 인 파일을 LF 로 통째로 바꾸지 않는다.
 - 드론 쪽 시험: `cd viz-debugger/drone && .venv/bin/python -m pytest -q`. 실제 비행 논리는 PX4 SITL(`sitl/fly_sitl.py`, README 「PX4 SITL 로 시험」)로 확인했다.
 
-## 남은 일 (2026-10-03 기준)
+## 지금까지 정한 것 (2026-10-04)
 
-- 레이더 팀: `radar.json` 사양 · 원시 형식 + 샘플 → 어댑터(`sar_image/adapters.py` 규약) · CAP_ACK · PPS 여부
-- 사용자가 줄 팀 백프로젝션 · 자동 초점 코드 → `--former` · `--focuser` 로 꽂기 (README 「영상 코드 꽂기」)
-- HW 담당과 협의 후 Pi 에 `deploy/pi/install.sh --with-agent` · 실제 Pi 에서 설치 확인
-- 레버암 실측 · QGC `EKF2_GPS_POS_*` · FC ↔ Pi 연결이 USB 인지 UART 인지 확인(.ulg 받는 속도)
-- 현장: 수레 시험 → 호버(간섭 · 진동) → 저고도 → 본 비행. 첫 로그로 바람 기울기 계수(`TILT_PER_MPS`) · 선 복귀 게인(`CROSS_KP` · `CROSS_KP_FAR`) 보정
-- PPS 배선(GPS PPS → Pi GPIO18) 뒤 `install.sh --with-pps` (deploy/pi/pps/README.md)
+- 통신: Pi ↔ 지상국 노트북은 **휴대폰 핫스팟 WiFi, 2.4 GHz 고정**(레이더가 5.8 GHz — 5.65~5.95 GHz WiFi 면 패스 시작을 막는다).
+  시리얼 텔레메트리는 SAR 데이터를 못 보내서 안 쓴다. MQTT 브로커는 노트북(keepalive 10 s) — 끊기면 찍던 패스만 마치고 RTL.
+- 레이더: SDR Zynq-7020 + AD9361, 5.8 GHz, Pi 와 기가비트 이더넷. PPS 없음 → `install.sh --with-gpstime` + 리플렉터로 시각 보정.
+- RTK: 베이스 MicoAir M-RTK(노트북 USB), 드론 MicoAir M-RTK Air F9P. 이동 기준선(F9P 하나 더)은 데이터가 필요하다고 할 때만.
+- 처리: 무거운 영상 처리는 **연구실 GPU 서버**(RTX A6000)에서. 노트북이 SSH 터널(`deploy/laptop/sar-tunnel.*`)을 열고
+  서버는 `deploy/server/sar-server.sh`(Pi → 노트북 → 서버 3단 미러). 노트북만으로도 영상은 나온다(인터넷 끊김 대비).
+- 데이터 서버 포트 8766(Pi · 노트북), 서버 8768, 터널 18766(-R) · 8767(-L). 8765 는 컴공 백엔드라 피한다.
+- 리플렉터는 지금은 보정 · 검증용, 최종 목표는 리플렉터 없이 영상(데이터 기반 자동 초점). 
+- mm 변위(반복 패스 간섭, `sar_image/displacement.py`): **자동 초점 전 위상**으로 잰다(자동 초점은 패스마다 위상 기준이 달라 6~10 mm 틀림 —
+  시험으로 확인). 안 움직인 리플렉터 셋 이상으로 평면 보정. 실험은 리플렉터 4개 이상 · 하나만 움직인다.
+- 컴공 쪽 화면 실행 방식(`npm run dev`, package.json · dev-all · vite 설정)은 khw_VZ 와 똑같다. 2차 전달 기준은 khw_VZ `1426932`.
+- 논문 후보: ① 리플렉터로 검증한 리플렉터 없는 자동 초점 ② PPS 없는 시각 동기 ③ 드론 반복 패스 mm 변위.
+
+## 남은 일 (2026-10-04 기준)
+
+- **레이더 팀 코드(10/4 받기로 함)**: 시각 기준(Pi 시계?) · 파일에 시각이 찍히나 · 표본 빠짐 처리 · IQ 형식 확인 →
+  어댑터(`sar_image/sdr.py` 가 제안 형식) · CAP_ACK 경로 · 샘플로 시험
+- **사용자의 백프로젝션 · 자동 초점 코드(GPU)** → `--former` · `--focuser` 로 꽂기 (README 「영상 코드 꽂기」). 리플렉터 없는 방식이면
+  리플렉터 보정 영상과 비교하는 기능을 만든다(논문 ①)
+- 컴공이 Pi 설치를 해 주기로 함: `deploy/pi/install.sh --with-gpstime` (`--with-agent` 는 HW 담당과 협의 후). `/etc/sar-drone.env` 의
+  SAR_MQTT(노트북 IP 고정) · SAR_SDR_HOST · SAR_CAP_ACK · SAR_RADAR_DIR
+- 레버암 실측 · QGC `EKF2_GPS_POS_*` · FC ↔ Pi 연결이 USB 인지 UART 인지(.ulg 속도)
+- 현장: 수레 시험 → 호버(간섭 · 진동) → 저고도 → 본 비행. 첫 로그로 `TILT_PER_MPS` · `CROSS_KP` · `CROSS_KP_FAR` 보정
+- 다음 후보: 리플렉터 정밀 분석 판(IRF · PSLR · ISLR) · 품질 지표 자동 표(논문용) · 서브어퍼처 보기 · 오차 예산표
 - QGC 는 계속 같이 쓴다(펌웨어 · 캘리브레이션 · 페일세이프 · 비상). 우리 화면은 SAR 임무 · 캡처 · 데이터
