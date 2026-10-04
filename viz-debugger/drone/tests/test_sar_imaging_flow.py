@@ -280,3 +280,36 @@ def test_pi_reduces_sdr_raw_and_laptop_fetches_only_reduced(tmp_path):
             lap_srv.shutdown()
     finally:
         pi_srv.shutdown()
+
+
+def test_pi_laptop_server_chain(pi_side):
+    """Pi → 노트북 미러 → 처리 서버 미러(영상). 서버는 노트북이 연 SSH 역터널로 노트북 데이터 서버를 본다 — 코드는 같은 미러다."""
+    tmp, radar_json, raw_dir, (seen, other) = pi_side
+    mj = tmp / "pi" / "flight_1790957600" / "pass02_1790957682.json"
+    meta = json.loads(mj.read_text(encoding="utf-8"))
+    meta["reflectors"] = [{"lat": seen[0], "lon": seen[1]}]          # 비행 때 화면이 보낸 리플렉터(정본)
+    mj.write_text(json.dumps(meta), encoding="utf-8")
+    pi_srv, pi_base = _serve(Store(tmp / "pi", raw_dir))
+    (tmp / "laptop").mkdir()
+    lap_store = Store(tmp / "laptop", None)
+    lap_mirror = Mirror(pi_base, lap_store.flights)
+    lap_srv, lap_base = _serve(lap_store, None, lap_mirror)
+    (tmp / "server").mkdir()
+    srv_store = Store(tmp / "server", None)
+    jobs = ImageJobs(srv_store, radar_json, ADAPTER, full=False)
+    srv_mirror = Mirror(lap_base, srv_store.flights, on_pass=lambda fid, n: jobs.request(fid, n))
+    srv_srv, srv_base = _serve(srv_store, jobs, srv_mirror)
+    try:
+        assert lap_mirror.sync_once() == [("flight_1790957600", 2)]
+        assert srv_mirror.sync_once() == [("flight_1790957600", 2)]
+        assert srv_mirror.sync_once() == []
+        for _ in range(600):
+            st = json.loads(_get(f"{srv_base}/api/flights/flight_1790957600/images/pass02/image.json")[1])
+            if st.get("state") in ("done", "failed"):
+                break
+            time.sleep(0.1)
+        assert st["state"] == "done", st.get("error")
+        assert any(r["found"] for r in st["reflectors"])           # 비행 때 보낸 리플렉터가 서버까지 따라왔다
+    finally:
+        for s in (pi_srv, lap_srv, srv_srv):
+            s.shutdown()
