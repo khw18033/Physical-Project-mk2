@@ -12,7 +12,7 @@ import pytest
 
 from sar_image.af_compare import perturb, run
 from sar_image.backprojection import backproject_fast, line_grid
-from sar_image.cansar import load, write_fake
+from sar_image.cansar import load_info, write_fake_flight
 from sar_image.pipeline import frame
 from sar_image.radar import RadarConfig
 from sar_image.trajectory import Trajectory
@@ -46,14 +46,14 @@ def blurred(tmp_path_factory):
 
     crs = [enu(a, radar.side_sign * c) for a, c in ((30, 16), (40, 20), (50, 18), (45, 24))]
     t0, t1 = traj.capture_window()
-    info = write_fake(tmp / "pi", 163150, radar, perturb(traj, o, hd, 0.03, 0.02, 8.0), o, crs, meta)
+    info = write_fake_flight(tmp / "pi", 163150, radar, perturb(traj, o, hd, 0.03, 0.02, 8.0), o, crs, meta)
     return {"csv": csvp, "iq": Path(info["iq"]), "radar": radar, "tmp": tmp, "lla": [(*o.latlon(p[0], p[1]), None) for p in crs]}
 
 
 @pytest.mark.skipif(not CUDA, reason="CUDA 없음")
 def test_gpu_backprojection_matches_cpu(blurred):
     from sar_image.gpu import backproject_gpu
-    o = load(blurred["iq"])
+    o = load_info(blurred["iq"], blurred["radar"])
     rc, rng = o["rc"][:300], o["range"]
     pos = np.stack([np.linspace(0, 6, 300), np.zeros(300), np.full(300, 20.0)], 1)
     g, _ = line_grid((0, 0), 90.0, np.arange(-5, 10, 0.05), np.arange(-30, -10, 0.1))
@@ -64,7 +64,7 @@ def test_gpu_backprojection_matches_cpu(blurred):
 
 def test_af_compare_table_without_gpu(blurred):
     """리플렉터 자동 초점은 3차원(4개 동시)이 짧게만 풀리면 이어 붙이기로 내려가고, 초점 없음보다 낫다."""
-    res = run(blurred["csv"], [blurred["iq"]], blurred["radar"], "sar_image.cansar:cansar_iq", blurred["lla"],
+    res = run(blurred["csv"], [blurred["iq"]], blurred["radar"], "sar_image.cansar:load", blurred["lla"],
               blurred["tmp"] / "cmp", methods=("none", "reflector"))
     m = res["median"]
     assert res["runs"]["reflector"]["autofocus"]["method"] == "stitched"
@@ -75,7 +75,7 @@ def test_af_compare_table_without_gpu(blurred):
 @pytest.mark.skipif(not CUDA, reason="CUDA 없음")
 def test_entropy_autofocus_without_reflectors(blurred):
     """엔트로피 자동 초점(레이더 팀 방식)은 리플렉터 좌표 없이 영상만 보고 PSLR · 위치를 낫게 한다."""
-    res = run(blurred["csv"], [blurred["iq"]], blurred["radar"], "sar_image.cansar:cansar_iq", blurred["lla"],
+    res = run(blurred["csv"], [blurred["iq"]], blurred["radar"], "sar_image.cansar:load", blurred["lla"],
               blurred["tmp"] / "cmp2", methods=("none", "entropy"), former="sar_image.gpu:backproject_gpu",
               focuser_kw={"iters": 60})
     m, af = res["median"], res["runs"]["entropy"]["autofocus"]

@@ -24,13 +24,16 @@ SAR_CANSAR_SIDE=right            # 안테나가 보는 쪽 — 비행 전에 레
 
 `sudo systemctl restart sar-data` 뒤 `curl http://<Pi>:8766/api/cansar` 로 목록이 보이면 됩니다.
 
-## 2. 드론 쪽 영상 파이프라인에도 넣었다 — `sar_image/cansar.py`
+## 2. 드론 쪽 영상 파이프라인에도 넣었다 — `sar_image/cansar.py` (어댑터 `sar_image.cansar:load`)
 
-그쪽 「스윕별 프로파일」 · 「시각」 처리를 그대로 옮긴 어댑터입니다. 이것으로 같은 원시를 **드론 쪽 RTK 궤적 · 레버암 ·
-리플렉터 검증 · 패스 비교 · mm 변위**에 넣을 수 있습니다(그쪽 quick-look 은 FC 의 LOCAL_POSITION_NED 를 씁니다).
+같은 원시를 **드론 쪽 RTK 궤적 · 레버암 · 리플렉터 검증 · 패스 비교 · mm 변위 · GPU 자동 초점**에 넣습니다
+(그쪽 quick-look 은 FC 의 LOCAL_POSITION_NED 를 씁니다). 그쪽 처리와 다르게 한 점:
 
-- Pi 에서 패스마다 거리 압축으로 줄여 둠(`SAR_REDUCE_ADAPTER=sar_image.cansar:cansar_iq`) → 노트북 · 서버는 줄인 것만 받음
-- 레이더 설정 예시: `sar_image/example_radar_cansar.json` (λ = c / 5.50 GHz — 그쪽 위상 기준 주파수, 대역 368 MHz)
+- 거리 압축을 **보간 없이** 실제 주파수로 직접 합한다 — 그쪽 4096 칸 선형 보간은 먼 표적을 깎는다(60 m −5.7 dB · 80 m −10.7 dB)
+- 부대역 0~7 이 다 있는 스윕만 쓰고, 시각은 파일 안 행 위치로 — 표시 행이 빠져도 뒤 스윕이 밀리지 않는다
+- 시각은 Pi 시계(events.csv) → 파이프라인이 비행 기록의 Pi−FC 차이로 **FC GPS 시각**으로 바꾼다
+- Pi 에서 패스마다 거리 압축으로 줄여 둠(`SAR_REDUCE_ADAPTER=sar_image.cansar:load`) → 노트북 · 서버는 줄인 것만 받음
+- 레이더 설정 예시: `sar_image/example_radar_cansar.json` (가운데 5.684 GHz, 대역 368 MHz)
 
 가짜 CANSAR-2 비행(그쪽 형식 그대로, `cansar.write_fake`)으로 확인한 것:
 

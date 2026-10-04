@@ -13,7 +13,7 @@ FLIGHTS="${FLIGHTS:-$HOME/sar_server}"
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DRONE="$(cd "$HERE/../.." && pwd)"
 RADAR_JSON="${RADAR_JSON:-$HERE/radar.json}"
-ADAPTER="${ADAPTER:-sar_image.cansar:cansar_iq}"
+ADAPTER="${ADAPTER:-sar_image.cansar:load}"
 WORKERS="${WORKERS:-16}"
 PY="${PY:-$DRONE/.venv/bin/python}"
 

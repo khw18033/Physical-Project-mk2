@@ -124,13 +124,21 @@ def entropy_focus(rc: np.ndarray, range_axis: np.ndarray, positions: np.ndarray,
     opt = torch.optim.Adam([par], lr=lr)
     k = 4.0 * math.pi / wavelength_m
     r0, dr = float(range_axis[0]), float(range_axis[1] - range_axis[0])
-    chunk = max(1, int(1.5e7 // g_t.shape[0]))
+    chunk = max(1, int(1.0e7 // g_t.shape[0]))
     best = None
     first = None
+    from torch.utils.checkpoint import checkpoint
+
+    def part(lo: int, p_chunk):  # noqa: ANN001, ANN202
+        return _bp_torch(torch, rc_t[lo:lo + chunk], r0, dr, p_chunk, g_t, k, chunk)
+
     for _ in range(iters):
         du, dv = W @ par[0], W @ par[1]
         p = p_t + du[:, None] * ua_t[None, :] + dv[:, None] * uc_t[None, :]
-        e = _entropy(torch, _bp_torch(torch, rc_t, r0, dr, p, g_t, k, chunk))
+        # 덩어리마다 다시 계산(checkpoint) — 모든 펄스의 중간값을 들고 있지 않아 GPU 메모리가 덩어리 하나만큼만 든다
+        # (서버 GPU 를 다른 사람과 나눠 쓴다 — 남은 메모리 7 GB 에서도 돈다)
+        img = sum(checkpoint(part, lo, p[lo:lo + chunk], use_reentrant=False) for lo in range(0, n, chunk))
+        e = _entropy(torch, img)
         ev = float(e.item())
         first = ev if first is None else first
         if best is None or ev < best[0]:

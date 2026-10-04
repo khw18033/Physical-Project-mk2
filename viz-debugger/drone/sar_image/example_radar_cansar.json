@@ -1,20 +1,16 @@
 {
-  "note": "CANSAR-2(레이더 팀, 2026-10-04 코드) — 부대역 8개 이어 붙임 5.50~5.87 GHz. wavelength_m = c/FMIN(그쪽 위상 기준 주파수). 빔 · 각도 · 레버암은 실측으로 바꾼다",
-  "wavelength_m": 0.0545077,
-  "bandwidth_hz": 367833000.0,
-  "prf_hz": 234.0,
-  "range_min_m": 3.0,
-  "range_max_m": 60.0,
+  "note": "레이더 팀 cansar(CANSAR-2) — 파장 · 대역폭 · 거리는 cansar_flight.py 의 파형에서 옮긴 값(부대역 8 × 50 MHz, 5.500~5.868 GHz). prf_hz · 빔 · 내려다보는 각은 가정 — 레이더 팀 값으로 바꾼다. 어댑터 sar_image.cansar:load",
+  "wavelength_m": 0.052744,
+  "bandwidth_hz": 367833333.0,
+  "prf_hz": null,
+  "range_min_m": 2.0,
+  "range_max_m": 80.0,
   "side": "right",
   "depression_deg": 45.0,
   "el_beamwidth_deg": 40.0,
   "az_beamwidth_deg": 30.0,
   "squint_deg": 0.0,
-  "antenna_offset_m": [
-    0.0,
-    0.0,
-    0.0
-  ],
+  "antenna_offset_m": [0.0, 0.0, 0.0],
   "gnss_offset_m": null,
   "position_ref": "auto"
 }

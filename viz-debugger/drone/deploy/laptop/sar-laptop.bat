@@ -16,7 +16,7 @@ set PORT=8766
 set MIRROR_DIR=%USERPROFILE%\sar_mirror
 set TILE_DIR=%USERPROFILE%\sar_tiles
 set RADAR_JSON=%~dp0radar.json
-set ADAPTER=sar_image.cansar:cansar_iq
+set ADAPTER=sar_image.cansar:load
 set FORMER=
 set FOCUSER=
 rem -------------------------------------------------------------------------------

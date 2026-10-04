@@ -4,7 +4,7 @@
 엔트로피 방법에는 알려 주지 않는다(그 방법은 영상만 본다).
 
   python -m sar_image.af_compare --traj flight_x/pass02_x.csv --raw iq_163150.bin \\
-      --radar sar_image/example_radar_cansar.json --adapter sar_image.cansar:cansar_iq \\
+      --radar sar_image/example_radar_cansar.json --adapter sar_image.cansar:load \\
       --cr 37.5664,126.9782 --cr … --out af_cmp/
 
 결과: out/af_compare.json · af_compare.csv · af_compare.md · 방법별 영상 폴더(none/ · reflector/ · entropy/).

@@ -79,6 +79,17 @@ def load_raw(files: list[Path], radar: RadarConfig, adapter: Adapter) -> tuple[n
     return t[order], rng, rc[order]
 
 
+def time_ref(files: list[Path], adapter: Adapter) -> str:
+    """어댑터가 돌려준 시각의 기준 — "fc"(FC GPS 시각, 기본) 또는 "pi"(Pi 시계). 줄인 파일은 저장할 때 적어 둔 값."""
+    if files and all(str(f).endswith(".rc.npz") for f in files):
+        refs = set()
+        for f in files:
+            with np.load(f) as z:
+                refs.add(str(z["time_ref"]) if "time_ref" in z.files else "fc")
+        return refs.pop() if len(refs) == 1 else "fc"
+    return getattr(adapter, "time_ref", "fc")
+
+
 def _db(img: np.ndarray, ref: float | None = None) -> np.ndarray:
     a = np.abs(img)
     return 20 * np.log10(a / max(ref or a.max(), 1e-30) + 1e-12)
@@ -223,6 +234,10 @@ def form_pass(traj_csv: Path, raw_files: list[Path], radar: RadarConfig, adapter
         o, heading, length, h = frame(traj, meta)
         t0 = time.perf_counter()
         t, rng, rc = load_raw(raw_files, radar, adapter)
+        off_pi = (meta.get("clock") or {}).get("offset_pi_minus_fc_s")
+        if time_ref(raw_files, adapter) == "pi" and traj.time_ref == "fc_gps" and isinstance(off_pi, (int, float)):
+            t = t - off_pi                                  # Pi 시각 → FC GPS 시각 (t_fc = t_pi − offset)
+            body["notes"].append(f"레이더 시각(Pi 시계)을 FC GPS 시각으로 바꿨다 ({-off_pi * 1000:+.1f} ms)")
         body["timings_s"]["load"] = round(time.perf_counter() - t0, 2)
         cw = traj.capture_window()
         lever, notes = lever_arm(radar, meta)

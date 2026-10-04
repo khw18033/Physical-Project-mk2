@@ -313,3 +313,72 @@ def test_pi_laptop_server_chain(pi_side):
     finally:
         for s in (pi_srv, lap_srv, srv_srv):
             s.shutdown()
+
+
+def _cansar_fake(out_dir, traj_csv, sweep_hz=200.0, drop_marker_at=None):  # noqa: ANN001, ANN202
+    """실제 비행 궤적 + 리플렉터 둘 → 가짜 cansar 원시(Pi 시각으로)."""
+    import numpy as np
+
+    from sar_image import cansar
+    from sar_image.attitude import lever_arm, phase_center
+    from sar_image.simulate import beam_weight, pulse_times
+
+    meta = json.loads(traj_csv.with_suffix(".json").read_text(encoding="utf-8"))
+    traj = Trajectory.load_csv(traj_csv)
+    o, hd, length, h = frame(traj, meta)
+    r = math.radians(hd)
+    ll = [o.latlon(a * math.sin(r) + c * math.cos(r), a * math.cos(r) - c * math.sin(r)) for a, c in ((35, 18), (50, 24))]
+    crs = [o.enu(la, lo, o.h) for la, lo in ll]
+    radar = replace(RadarConfig.load(RADAR.with_name("example_radar_cansar.json")), prf_hz=sweep_hz)
+    t = pulse_times(traj, sweep_hz)
+    st = traj.at(o, t)
+    lever, _ = lever_arm(radar, meta)
+    pos = phase_center(np.stack([st["e"], st["n"], st["u"]], axis=1), st["yaw"], st["pitch"], st["roll"], lever)
+    w = np.stack([beam_weight(radar, pos, st["yaw"], st["roll"], tg, st["pitch"]) for tg in crs])
+    t_pi = t + meta["clock"]["offset_pi_minus_fc_s"]                 # 레이더는 Pi 시계로 찍는다
+    info = cansar.write_fake(out_dir, 163150, radar, t_pi, pos, crs, weights=w, drop_marker_at=drop_marker_at)
+    return radar, ll, info
+
+
+def test_cansar_raw_forms_image(tmp_path):
+    """레이더 팀 형식(iq_N.bin · meta_N.txt · events.csv) — 시계 짝을 찾아 Pi 시각 → FC 시각으로 바꾸고,
+    부대역 8 개를 이어 거리 압축한 뒤 리플렉터 둘이 제자리에 찍힌다. 망가진 스윕 하나는 버리고 뒤 시각은 안 밀린다."""
+    from sar_image import cansar
+    from sar_image.pipeline import form_pass
+
+    csv = DATA / "pass02_1790957682.csv"
+    radar, ll, info = _cansar_fake(tmp_path / "flight", csv, drop_marker_at=100)
+    raw = tmp_path / "flight" / "iq_163150.bin"
+    t, rng, rc = cansar.load(str(raw), radar)
+    assert t.size == info["sweeps"] - 1 and cansar.load.last_info["dropped_markers"] == 7
+    assert cansar.load.accepts(raw) and not cansar.load.accepts(raw.with_name("meta_163150.txt"))
+    b = form_pass(csv, [raw], radar, "sar_image.cansar:load", tmp_path / "img",
+                  reflectors=[(la, lo, None) for la, lo in ll], full=False, autofocus=False, time_offset=None)
+    assert b["state"] == "done"
+    assert any("Pi 시계" in n for n in b["notes"])
+    assert all(x["found"] and x["offset_m"] < 0.15 for x in b["reflectors"]), b["reflectors"]
+
+
+def test_cansar_reduced_on_pi_keeps_time_ref(tmp_path):
+    """Pi 에서 줄인 파일(.rc.npz)에도 「Pi 시계」 표시가 남아, 노트북이 같은 변환을 한다."""
+    from sar_data.reduce import Reducer
+    from sar_image.pipeline import form_pass, time_ref
+
+    fdir = tmp_path / "pi" / "flight_1790957600"
+    fdir.mkdir(parents=True)
+    for f in DATA.glob("pass02_1790957682.*"):
+        shutil.copy(f, fdir / f.name)
+    raw_dir = tmp_path / "pi_flight"
+    radar, ll, _ = _cansar_fake(raw_dir, fdir / "pass02_1790957682.csv")
+    radar_json = tmp_path / "radar.json"
+    radar.save(radar_json)
+    end = json.loads((fdir / "pass02_1790957682.json").read_text(encoding="utf-8"))["pass"]["end_unix"]
+    for f in raw_dir.glob("*_163150.*"):
+        os.utime(f, (end + 3, end + 3))
+    store = Store(tmp_path / "pi", raw_dir, radar_glob="*_163150.*")
+    assert Reducer(store, radar_json, "sar_image.cansar:load").once(now=end + 100) == 1
+    rc_file = next((fdir / "radar_rc").rglob("*.rc.npz"))
+    assert time_ref([rc_file], None) == "pi"
+    b = form_pass(fdir / "pass02_1790957682.csv", [rc_file], radar, "sar_image.cansar:load", tmp_path / "img",
+                  reflectors=[(la, lo, None) for la, lo in ll], full=False, autofocus=False, time_offset=None)
+    assert all(x["found"] and x["offset_m"] < 0.15 for x in b["reflectors"]), b["reflectors"]

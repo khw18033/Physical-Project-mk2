@@ -15,7 +15,7 @@ import numpy as np
 from sar_data.mirror import Mirror
 from sar_data.quick import QuickLooks, parse_stdout
 from sar_data.server import Store, make_handler
-from sar_image.cansar import write_fake
+from sar_image.cansar import write_fake_flight
 from sar_image.pipeline import frame
 from sar_image.radar import RadarConfig
 from sar_image.trajectory import Trajectory
@@ -49,7 +49,7 @@ def _fake(tmp):
     radar = RadarConfig.load(Path(__file__).parent.parent / "sar_image" / "example_radar_cansar.json")
     tg = np.array([45 * math.sin(r) + 24 * math.cos(r), 45 * math.cos(r) - 24 * math.sin(r), 0.0])
     t0, t1 = traj.capture_window()
-    return write_fake(tmp / "pi", 163150, radar, traj, o, [tg], meta, t_window=(t0 + 4, t1 - 4))
+    return write_fake_flight(tmp / "pi", 163150, radar, traj, o, [tg], meta, t_window=(t0 + 4, t1 - 4))
 
 
 def test_parse_radar_team_stdout():
@@ -60,7 +60,8 @@ def test_parse_radar_team_stdout():
     assert out["time_match_s"] == 0.37 and len(out["warnings"]) == 1
 
 
-def test_pi_runs_quicklook_laptop_mirrors_it(tmp_path):
+def test_pi_runs_quicklook_laptop_mirrors_it(tmp_path, monkeypatch):
+    monkeypatch.setenv("CUDA_VISIBLE_DEVICES", "")                       # Pi 처럼 CPU 로(서버 GPU 는 나눠 쓴다)
     info = _fake(tmp_path)
     pi = tmp_path / "pi"
     cap = tmp_path / "CAP_ON"
@@ -98,6 +99,7 @@ def test_pi_runs_quicklook_laptop_mirrors_it(tmp_path):
 def test_relative_paths_work(tmp_path, monkeypatch):
     """경로를 상대로 줘도(서비스 설정에서 흔하다) 작업 폴더에서 찾는다."""
     _fake(tmp_path)
+    monkeypatch.setenv("CUDA_VISIBLE_DEVICES", "")
     monkeypatch.chdir(tmp_path)
     shutil.copy(TEAM, tmp_path / "cq.py")
     shutil.copy(TEAM.with_name("cansar_flight.py"), tmp_path / "cansar_flight.py")

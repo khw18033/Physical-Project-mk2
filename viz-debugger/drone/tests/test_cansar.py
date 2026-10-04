@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import json
 import math
+import os
 import re
 import shutil
 import subprocess
@@ -14,7 +15,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from sar_image.cansar import load, sweeps, write_fake
+from sar_image.cansar import load_info, parse_sweeps, write_fake_flight
 from sar_image.pipeline import form_pass, frame
 from sar_image.radar import RadarConfig
 from sar_image.trajectory import Trajectory
@@ -43,20 +44,20 @@ def flight(tmp_path_factory):
         return np.array([a * math.sin(r) + c * math.cos(r), a * math.cos(r) - c * math.sin(r), 0.0])
 
     crs = [enu(a, radar.side_sign * c) for a, c in PTS]
-    info = write_fake(tmp / "pi", 163150, radar, traj, o, crs, meta)
+    info = write_fake_flight(tmp / "pi", 163150, radar, traj, o, crs, meta)
     return {"tmp": tmp, "csv": csvp, "radar": radar, "info": info, "lla": [(*o.latlon(p[0], p[1]), None) for p in crs]}
 
 
 def test_adapter_reads_format_and_time(flight):
-    out = load(flight["info"]["iq"])
+    out = load_info(flight["info"]["iq"], flight["radar"])
     i = out["info"]
-    assert i["sweeps"] == flight["info"]["sweeps"] and i["order_breaks"] == 0 and i["verdict"] == "OK"
-    assert abs(i["offset_s"] - flight["info"]["offset_s"]) < 1e-3                 # events.csv 로 Pi 시각을 맞췄다
-    assert out["rc"].shape == (i["sweeps"], out["range"].size) and abs(i["range_bin_m"] - 0.1) < 0.01
+    assert i["sweeps"] == flight["info"]["sweeps"] and i["dropped_markers"] <= 1          # 끝 표지 하나는 남는다
+    assert abs(i["clock_offset_s"] - flight["info"]["offset_s"]) < 1e-3                  # events.csv 로 Pi 시각을 맞췄다
+    assert out["rc"].shape == (i["sweeps"], out["range"].size)
 
 
 def test_our_pipeline_finds_reflectors_in_place(flight):
-    body = form_pass(flight["csv"], [Path(flight["info"]["iq"])], flight["radar"], "sar_image.cansar:cansar_iq",
+    body = form_pass(flight["csv"], [Path(flight["info"]["iq"])], flight["radar"], "sar_image.cansar:load",
                      flight["tmp"] / "img", reflectors=flight["lla"], full=False)
     for rec in body["reflectors"]:
         assert rec["found"] and rec["offset_m"] < 0.05 and rec["res_along_m"] < 0.05, rec
@@ -67,7 +68,8 @@ def test_radar_team_quicklook_runs_on_same_files(flight, tmp_path):
     pi = flight["tmp"] / "pi"
     r = subprocess.run([sys.executable, str(TEAM / "cansar_quick.py"), "--nopull", "--data-dir", str(pi / "flight"),
                         "--logs-root", str(pi / "cansar_logs"), "--n", "163150", "--side", "right", "--noopen"],
-                       cwd=tmp_path, capture_output=True, text=True, encoding="utf-8")
+                       cwd=tmp_path, capture_output=True, text=True, encoding="utf-8",
+                       env={**os.environ, "CUDA_VISIBLE_DEVICES": ""})                 # Pi 처럼 CPU 로
     assert r.returncode == 0, r.stdout[-800:] + r.stderr[-800:]
     assert (tmp_path / "quick_163150.png").is_file() and (tmp_path / "quick_163150.npz").is_file()
     m = re.search(r"영상 첨두 .* @ 진행 ([+-][\d.]+) m, 옆 ([+-][\d.]+) m", r.stdout)
@@ -82,5 +84,5 @@ def test_missing_marker_is_counted(flight, tmp_path):
     d[mk[100], 0] = 0                                                             # 표시 행 하나가 빠졌다
     bad = tmp_path / src.name
     d.tofile(bad)
-    _, _, info = sweeps(bad)
-    assert info["order_breaks"] >= 1 and min(info["per_subband"]) < max(info["per_subband"])
+    _, _, _, info = parse_sweeps(bad)
+    assert info["sweeps"] == flight["info"]["sweeps"] - 1 and info["dropped_markers"] >= 7   # 망가진 스윕 하나만 버린다

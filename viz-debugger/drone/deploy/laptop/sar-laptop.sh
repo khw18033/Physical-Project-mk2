@@ -13,7 +13,7 @@ TILE_DIR="${TILE_DIR:-$HOME/sar_tiles}"
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DRONE="$(cd "$HERE/../.." && pwd)"
 RADAR_JSON="${RADAR_JSON:-$HERE/radar.json}"
-ADAPTER="${ADAPTER:-sar_image.cansar:cansar_iq}"
+ADAPTER="${ADAPTER:-sar_image.cansar:load}"
 VENV="$HERE/.venv"
 
 if [ ! -x "$VENV/bin/python" ]; then
