@@ -84,7 +84,9 @@ class ImageJobs:
             return None
 
     # ── 요청 ────────────────────────────────────────────────────────────────
-    def request(self, fid: str, pass_no: int, crs: list | None = None, force: bool = False) -> tuple[int, dict]:
+    def request(self, fid: str, pass_no: int, crs: list | None = None, force: bool = False,
+                af_exclude: list[int] | None = None) -> tuple[int, dict]:
+        """af_exclude: 자동 초점에서 뺄 리플렉터 번호(변위 시험에서 움직인 것) — 주면 다시 만든다."""
         miss = self.missing()
         if miss:
             return 501, {"error": "이 서버에는 영상 설정이 없다", "missing": miss}
@@ -97,7 +99,8 @@ class ImageJobs:
         cur = self.status(flight, pass_no)
         with self._lock:
             busy = (fid, pass_no) in self._busy
-        if busy or (cur and cur.get("state") == "done" and not force and crs is None):
+        if busy or (cur and cur.get("state") == "done" and not force and crs is None
+                    and (af_exclude is None or sorted(cur.get("af_exclude", [])) == sorted(af_exclude))):
             return 200, cur or {"state": "queued"}
         if not info["radar_files"]:
             return 409, {"error": "이 패스에 맞는 레이더 원시 파일이 없다", "pass": pass_no}
@@ -114,7 +117,7 @@ class ImageJobs:
         tmp.replace(out / "image.json")
         with self._lock:
             self._busy.add((fid, pass_no))
-        self.q.put((fid, pass_no, crs or []))
+        self.q.put((fid, pass_no, crs or [], af_exclude or []))
         return 202, body
 
     @staticmethod
@@ -127,16 +130,16 @@ class ImageJobs:
 
     def _run(self) -> None:
         while True:
-            fid, pass_no, crs = self.q.get()
+            fid, pass_no, crs, afx = self.q.get()
             try:
-                self._form(fid, pass_no, crs)
+                self._form(fid, pass_no, crs, afx)
             except Exception:  # noqa: BLE001 — 사유는 image.json 에 남았다
                 log.exception("영상 실패 %s 패스 %s", fid, pass_no)
             finally:
                 with self._lock:
                     self._busy.discard((fid, pass_no))
 
-    def _form(self, fid: str, pass_no: int, crs: list) -> None:
+    def _form(self, fid: str, pass_no: int, crs: list, af_exclude: list[int] | None = None) -> None:
         from sar_image.pipeline import form_pass
         from sar_image.radar import RadarConfig
 
@@ -146,5 +149,6 @@ class ImageJobs:
         radar = RadarConfig.load(self.radar_json)  # type: ignore[arg-type]  — 요청마다 다시 읽는다(고친 값 바로 반영)
         log.info("영상 시작 %s 패스 %d · 원시 %d개 · 리플렉터 %d개", fid, pass_no, len(raw), len(crs))
         body = form_pass(flight / info["traj_csv"], raw, radar, self.adapter, self.out_dir(flight, pass_no),  # type: ignore[arg-type]
-                         reflectors=crs, full=self.full, workers=self.workers, former=self.former, focuser=self.focuser)
+                         reflectors=crs, full=self.full, workers=self.workers, former=self.former, focuser=self.focuser,
+                         af_exclude=af_exclude)
         log.info("영상 끝 %s 패스 %d · %s · %s", fid, pass_no, body["state"], body["timings_s"])

@@ -1,4 +1,4 @@
-"""같은 선을 두 번 난 패스 비교 — 기준선(두 궤적의 간격) · 일치도(coherence) · 밝기 변화.
+"""같은 선을 두 번 난 패스 비교 — 기준선(두 궤적의 간격) · 일치도(coherence) · 밝기 변화 · 리플렉터 mm 변위(displacement.py).
 
 두 패스의 영상은 같은 격자(계획 선 기준 along × cross)로 만들어지므로 픽셀끼리 바로 견준다.
 
@@ -49,7 +49,8 @@ def baseline(csv_a: Path, csv_b: Path, length_m: float) -> dict:
             "height_mean_m": round(float(np.nanmean(dh)), 3), "height_std_m": round(float(np.nanstd(dh)), 3)}
 
 
-def compare_passes(dir_a: Path, dir_b: Path, out_dir: Path, flight_dir: Path, win: int = 5) -> dict:
+def compare_passes(dir_a: Path, dir_b: Path, out_dir: Path, flight_dir: Path, win: int = 5,
+                   reference: str | None = None, moved: list[str] | None = None) -> dict:
     ja = json.loads((dir_a / "image.json").read_text(encoding="utf-8"))
     jb = json.loads((dir_b / "image.json").read_text(encoding="utf-8"))
     a = np.load(dir_a / "full.npy")
@@ -89,6 +90,11 @@ def compare_passes(dir_a: Path, dir_b: Path, out_dir: Path, flight_dir: Path, wi
             "coherence_all_median": round(float(np.median(g)), 3),
             "baseline": baseline(flight_dir / ja["traj_csv"], flight_dir / jb["traj_csv"], max(length, 1.0)),
             "note": "기준선(두 궤적의 간격)이 크면 일치도가 떨어지는 것이 정상이다"}
+    try:
+        from .displacement import measure
+        body["displacement"] = measure(ja, jb, reference, moved)
+    except ValueError as exc:
+        body["displacement"] = {"error": str(exc)}
     (out_dir / "compare.json").write_text(json.dumps(body, ensure_ascii=False, indent=2), encoding="utf-8")
     return body
 

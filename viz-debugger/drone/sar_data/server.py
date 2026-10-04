@@ -8,10 +8,10 @@
   GET /api/flights/<id>/report.html           비행 보고서 한 장 (팀원에게 공유)
   GET /api/flights/<id>/bundle.zip[?pass=N][&raw=0|1]
                                                위치 데이터(+원시 레이더 · 만든 영상) 묶음. raw 기본 1
-  GET /api/flights/<id>/image?pass=N[&cr=lat,lon;…][&force=1]
+  GET /api/flights/<id>/image?pass=N[&cr=lat,lon;…][&afx=2,3][&force=1]   afx = 자동 초점에서 뺄 리플렉터(변위 시험)
                                                SAR 영상 만들기 시작 · 진행 상황(image.json). 202 = 줄 섰다
   GET /api/flights/<id>/images/passNN/<file>   만든 영상(png · kmz) · image.json
-  GET /api/flights/<id>/compare?a=N&b=M        두 패스 비교 — 기준선 · 일치도 · 밝기 변화 (compare_NN_MM/)
+  GET /api/flights/<id>/compare?a=N&b=M[&ref=CRk][&moved=CR2,…]  두 패스 비교 — 기준선 · 일치도 · 밝기 변화 · 리플렉터 mm 변위 (compare_NN_MM/)
 
 영상은 노트북에서 만든다(`--mirror` 로 Pi 의 패스를 가져와서) — sar_data/mirror.py · sar_data/imaging.py.
 
@@ -343,7 +343,9 @@ def make_handler(store: Store, jobs=None, mirror=None, tiles=None, reducer=None)
                         return self._json({"error": "pass=N 이 필요하다"}, 400)
                     from .imaging import parse_cr
                     crs = parse_cr(q["cr"][0]) if "cr" in q else None
-                    status, body = jobs.request(parts[2], int(q["pass"][0]), crs, force=q.get("force", ["0"])[0] == "1")
+                    afx = [int(x) for x in q["afx"][0].split(",") if x.strip().isdigit()] if "afx" in q else None
+                    status, body = jobs.request(parts[2], int(q["pass"][0]), crs, force=q.get("force", ["0"])[0] == "1",
+                                                af_exclude=afx)
                     return self._json(body, status)
                 if len(parts) == 6 and parts[:2] == ["api", "flights"] and parts[3] == "images":
                     d = store.flight(parts[2])
@@ -365,9 +367,13 @@ def make_handler(store: Store, jobs=None, mirror=None, tiles=None, reducer=None)
                     if not (da / "full.npy").is_file() or not (db / "full.npy").is_file():
                         return self._json({"error": "두 패스 모두 선 전체 영상이 있어야 한다"}, 409)
                     out = d / "images" / f"compare_{na:02d}_{nb:02d}"
-                    if not (out / "compare.json").is_file() or q.get("force", ["0"])[0] == "1":
+                    ref = q.get("ref", [None])[0]
+                    moved = [x for x in q["moved"][0].split(",") if re.fullmatch(r"CR\d+", x)] if "moved" in q else None
+                    stale = (out / "compare.json").is_file() and any(
+                        (x / "image.json").stat().st_mtime > (out / "compare.json").stat().st_mtime for x in (da, db))
+                    if not (out / "compare.json").is_file() or stale or ref or moved is not None or q.get("force", ["0"])[0] == "1":
                         from sar_image.compare import compare_passes
-                        compare_passes(da, db, out, d)
+                        compare_passes(da, db, out, d, reference=ref, moved=moved)
                     body = json.loads((out / "compare.json").read_text(encoding="utf-8"))
                     body["dir"] = out.name
                     return self._json(body)

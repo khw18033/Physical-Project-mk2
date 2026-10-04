@@ -185,7 +185,8 @@ def form_pass(traj_csv: Path, raw_files: list[Path], radar: RadarConfig, adapter
               out_dir: Path, reflectors: list[tuple[float, float, float | None]] | None = None,
               full: bool = True, autofocus: bool = True, full_step: tuple[float, float] = (0.05, 0.1),
               workers: int | None = None, time_offset: float | str | None = "auto",
-              former: Callable | str | None = None, focuser: Callable | str | None = None) -> dict:
+              former: Callable | str | None = None, focuser: Callable | str | None = None,
+              af_exclude: set[int] | list[int] | None = None) -> dict:
     """영상 묶음을 만든다. 실패해도 image.json 에 사유를 남기고 예외는 다시 던진다.
 
     time_offset: 레이더 시각에 더할 초. "auto" 면 리플렉터 둘 이상이 2 ms 안에서 같은 값을 가리킬 때만 그 값을 쓴다
@@ -195,6 +196,9 @@ def form_pass(traj_csv: Path, raw_files: list[Path], radar: RadarConfig, adapter
       former(rc, range_axis, positions, wavelength_m, grid, **ctx) -> 복소 영상 (grid.shape[:-1])
       focuser(rc, range_axis, positions, wavelength_m, reflectors, **ctx) -> {"rc"?, "positions"?, "method"?, ...}
       ctx 에는 t(펄스 시각) · radar · traj · origin · heading_deg · workers 가 들어간다. 안 쓰는 것은 **ctx 로 받아 버린다.
+
+    af_exclude: 자동 초점 · 시각 추정에 **쓰지 않을** 리플렉터 번호(1 부터). 변위 시험에서 일부러 움직인 리플렉터는
+    여기 넣는다 — 안 넣으면 자동 초점이 그 리플렉터를 제자리로 끌어와 변위가 지워진다(displacement.py).
     """
     out_dir.mkdir(parents=True, exist_ok=True)
     status_path = out_dir / "image.json"
@@ -228,10 +232,14 @@ def form_pass(traj_csv: Path, raw_files: list[Path], radar: RadarConfig, adapter
             if k in flown and flown[k] != getattr(radar, k, None):
                 body["notes"].append(f"radar.json 의 {k} 가 비행 때({flown[k]})와 다르다 — 지금 값({getattr(radar, k, None)})으로 만들었다")
         body["lever_frd_m"] = lever.round(4).tolist()
+        body["flight_alt_m"] = round(h, 2)
         lam = radar.wavelength_m
         if lam is None:
             raise ValueError("radar.json 에 wavelength_m 이 필요하다")
         crs = [o.enu(lat, lon, o.h if hh is None else hh) for lat, lon, hh in reflectors or []]
+        excl = {int(i) for i in (af_exclude or [])}
+        if excl:
+            body["af_exclude"] = sorted(excl)
 
         # ── 0) 빠른 확인: 거리-시간 그림 + 예상 곡선, 레이더 시각 오프셋 ─────────────
         t0 = time.perf_counter()
@@ -241,7 +249,7 @@ def form_pass(traj_csv: Path, raw_files: list[Path], radar: RadarConfig, adapter
             keep = (ph["t"] >= t[0] - 1) & (ph["t"] <= t[-1] + 1)
             curves.append((f"CR{i}", ph["t"][keep], ph["range_m"][keep], ph["in_beam"][keep]))
             in_win = ph["in_beam"] & (ph["t"] >= t[0]) & (ph["t"] <= t[-1])
-            if in_win.sum() >= 10:
+            if in_win.sum() >= 10 and i not in excl:
                 try:
                     est = estimate_time_offset(t, rng, rc, traj, o, lever, cr, lam)
                     per.append({"name": f"CR{i}", **est})
@@ -304,7 +312,8 @@ def form_pass(traj_csv: Path, raw_files: list[Path], radar: RadarConfig, adapter
                    **{k: (round(v, 4) if isinstance(v, float) else v) for k, v in m.items()}}
             _png(out_dir / f"cr{i}.png", img, along, cross,
                  f"CR{i} · {'found' if found else 'NOT found'} · contrast {contrast:.0f} dB · res {m['res_along_m']*100:.1f} cm", [(a_c, c_c)])
-            if found:
+            rec["af_used"] = found and i not in excl
+            if found and i not in excl:
                 seen_crs.append(cr)
                 seen_contrast.append(contrast)
             body["reflectors"].append(rec)
@@ -350,6 +359,16 @@ def form_pass(traj_csv: Path, raw_files: list[Path], radar: RadarConfig, adapter
             if tried:
                 af["fallbacks"] = tried
         body["autofocus"] = af
+
+        # ── 2.5) 리플렉터 **측량 자리 그 한 점**의 복소값 — 패스끼리 위상을 견줘 mm 변위를 잰다(displacement.py).
+        # 봉우리가 아니라 측량 자리를 쓴다: 백프로젝션 영상의 위상은 점을 1 cm 옮겨도 2 rad 넘게 돈다 — 두 패스가 **같은 점**이어야 한다.
+        # **자동 초점 전** 데이터로 잰다: 자동 초점은 패스마다 위상 기준을 따로 잡아 패스끼리 위상이 어긋난다(시험으로 확인).
+        # 궤적 오차는 displacement.py 가 움직이지 않은 리플렉터들로 평면을 맞춰 지운다.
+        for cr, rec in zip(crs, body["reflectors"]):
+            g1 = np.asarray(cr, dtype=np.float64).reshape(1, 1, 3)        # 측량한 3차원 점 그대로
+            v = complex(np.asarray(form_fn(rc, rng, pos, lam, g1, **ctx)).reshape(-1)[0])
+            rec["phase_rad"] = round(math.atan2(v.imag, v.real), 5)
+            rec["amp_db"] = round(20 * math.log10(max(abs(v), 1e-30)), 2)
 
         # ── 3) 선 전체 ──────────────────────────────────────────────────────
         if full:

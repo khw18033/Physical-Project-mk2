@@ -257,3 +257,11 @@
 .sar-latest-open{flex-basis:100%}
 @media (prefers-reduced-motion:no-preference){.sar-alert{animation:sar-alert-in .18s ease-out}}
 @keyframes sar-alert-in{from{transform:translateY(8px);opacity:0}to{transform:none;opacity:1}}
+
+/* 리플렉터 변위 표 */
+.sar-disp { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
+.sar-disp table { border-collapse: collapse; font-size: 13px; width: 100%; max-width: 560px; }
+.sar-disp th, .sar-disp td { text-align: left; padding: 4px 8px; border-bottom: 1px solid var(--line, #e3e6ea); }
+.sar-disp td b { font-variant-numeric: tabular-nums; }
+.sar-disp tr.is-moved td { background: rgba(230, 140, 20, .10); }
+.sar-disp tr.is-ref td:first-child { font-weight: 600; }
