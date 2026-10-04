@@ -30,6 +30,7 @@ export function parseRtcmStatus(body: Record<string, unknown>, topic = ''): Rtcm
   return {
     deviceId,
     receiving: body.receiving,
+    mode: body.mode === 'external' ? 'external' : 'relay',
     ageS: num(body.age_s),
     framesPerS: num(body.frames_per_s),
     rateBps: num(body.rate_bps),

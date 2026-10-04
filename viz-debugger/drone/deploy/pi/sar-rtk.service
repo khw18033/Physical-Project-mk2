@@ -1,6 +1,9 @@
 # RTK 보정 전달 + 드론 상태판 텔레메트리 (rtk_relay.fc_injector --telemetry)
 #   노트북 base_sender → UDP ${SAR_RTCM_PORT} → GPS_RTCM_DATA → FC,  FC MAVLink → MQTT …/rtcm · …/fcx
 # 베이스가 없어도 켜 둔다 — 상태판 텔레메트리가 이 서비스에서 나온다.
+# SAR_RTK_RELAY: auto(기본) = 레이더 브리지(cansar.service)가 RTK 중계를 하면(--rtcm-port 0 이 없으면) 우리는 중계를 끄고
+#   포트도 안 잡는다 — 레이더 팀 실험의 RTK 를 건드리지 않는다. on = 우리가 중계, off = 끔. 텔레메트리는 언제나 낸다.
+# $$ 는 systemd 가 아니라 sh 가 펼친다.
 [Unit]
 Description=SAR drone: RTK corrections + dashboard telemetry
 After=network-online.target mavlink-router.service
@@ -10,7 +13,7 @@ Wants=network-online.target
 Type=simple
 User=physical
 EnvironmentFile=/etc/sar-drone.env
-ExecStart=/bin/sh -c 'exec "$SAR_VENV/bin/python3" -u -m rtk_relay.fc_injector --listen "$SAR_RTCM_PORT" --fc "$SAR_FC_TCP" --mqtt "$SAR_MQTT" --device "$SAR_DEVICE" --zone "$SAR_ZONE" --telemetry'
+ExecStart=/bin/sh -c 'L="$$SAR_RTCM_PORT"; case "$${SAR_RTK_RELAY:-auto}" in off) L=none ;; auto) if systemctl is-enabled --quiet cansar 2>/dev/null && ! systemctl cat cansar 2>/dev/null | grep -q -- "--rtcm-port 0"; then L=none; fi ;; esac; exec "$$SAR_VENV/bin/python3" -u -m rtk_relay.fc_injector --listen "$$L" --fc "$$SAR_FC_TCP" --mqtt "$$SAR_MQTT" --device "$$SAR_DEVICE" --zone "$$SAR_ZONE" --telemetry'
 Restart=always
 RestartSec=3
 

@@ -11,6 +11,8 @@ export type RtcmStatus = {
   deviceId: string;
   /** 전달기가 「최근 3초 안에 보정을 받았다」고 판단했는가. */
   receiving: boolean;
+  /** 261004 — 'external' 이면 우리 전달기는 비켜 있고 다른 프로그램(레이더 브리지 cansar)이 FC 에 넣는다. 수신 상태는 모른다 */
+  mode?: 'relay' | 'external';
   /** 마지막 보정 이후 경과(초). null 은 한 번도 못 받았다. */
   ageS: number | null;
   framesPerS: number | null;

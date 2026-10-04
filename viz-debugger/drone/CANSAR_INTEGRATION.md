@@ -120,7 +120,7 @@ Pi 에서 도는 레이더 팀 프로그램: CAP_ON 을 보고 **SSH 로 SDR 에
 
 | 찾은 것 | 영향 | 제안 |
 |---|---|---|
-| RTK 중계가 드론 쪽 `sar-rtk` 와 같은 UDP 14660 | 포트 다툼 · 보정 두 번 | 하나만 — 드론 쪽 권장, 브리지에 `--rtcm-port 0`. `install.sh --status` 가 겹치면 ✗ |
+| RTK 중계가 드론 쪽 `sar-rtk` 와 같은 UDP 14660 | 포트 다툼 · 보정 두 번 | **지금은 레이더 브리지 것**(레이더 팀 실험 중) — 드론 쪽은 `SAR_RTK_RELAY=auto` 로 비켜 있고 화면에 「레이더 브리지가 넣는 중」. 통합 비행 때 합의 후 드론 쪽으로(`--rtcm-port 0` · `SAR_RTK_RELAY=on`) |
 | events `pi_epoch` = SSH **보내기 전** 시각, `sdr_uptime` = 접속 **뒤** | 접속 시간(수백 ms)만큼 시각 어긋남(4 m/s 에서 1 m 안팎) — 지금은 리플렉터로 찾아 고친다 | 응답 시각으로 + ControlMaster + 1 초 clock 행 |
 | `/proc/uptime` 은 0.01 s 눈금 | 한 번 읽으면 ±5 ms | clock 행 여러 개로 직선 맞춤(드론 쪽 어댑터가 함) |
 | CAP_ACK 없음 · pass 번호 없음 | 레이더 지연 · 짝짓기를 짐작 | `--ack` · passes.csv 에 pass · flight |

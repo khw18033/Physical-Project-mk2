@@ -61,24 +61,36 @@ def connect_fc(url: str):  # noqa: ANN201
                                       autoreconnect=True)
 
 
-def run(listen: tuple[str, int], injector: RtcmInjector, master=None, publish=None,  # noqa: ANN001
-        stop_after_s: float | None = None, on_fc_message=None, tick=None) -> RtcmStats:
-    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    sock.bind(listen)
-    sock.settimeout(0.2)
+def run(listen: tuple[str, int] | None, injector: RtcmInjector, master=None, publish=None,  # noqa: ANN001
+        stop_after_s: float | None = None, on_fc_message=None, tick=None, external: str | None = None) -> RtcmStats:
+    """listen 이 None 이면 보정은 받지도 넣지도 않는다 — 다른 프로그램(레이더 브리지 cansar_pi.py)이 넣는 중.
+    그래도 FC 메시지는 읽어 상태판 텔레메트리를 내고, 화면에는 「보정은 다른 곳에서」(mode=external)를 알린다."""
+    sock = None
+    if listen is not None:
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        sock.bind(listen)
+        sock.settimeout(0.2)
     framers: dict[tuple[str, int], Framer] = {}
     stats = RtcmStats()
     started = time.time()
     last_status = 0.0
     last_print = 0.0
     sender: str | None = None
-    log.info("UDP %s:%d 에서 보정을 기다린다", *listen)
+    if sock is not None:
+        log.info("UDP %s:%d 에서 보정을 기다린다", *listen)
+    else:
+        log.info("보정 중계 끔 — %s 가 FC 에 넣는다. 상태판 텔레메트리만 낸다", external or "다른 프로그램")
     try:
         while stop_after_s is None or time.time() - started < stop_after_s:
-            try:
-                data, addr = sock.recvfrom(4096)
-            except socket.timeout:
+            if sock is None:
                 data, addr = b"", None
+                if master is None:
+                    time.sleep(0.2)
+            else:
+                try:
+                    data, addr = sock.recvfrom(4096)
+                except socket.timeout:
+                    data, addr = b"", None
             if addr is not None:
                 sender = f"{addr[0]}:{addr[1]}"
                 framer = framers.setdefault(addr, Framer())
@@ -98,7 +110,8 @@ def run(listen: tuple[str, int], injector: RtcmInjector, master=None, publish=No
                 last_status = now
                 if publish is not None:
                     try:
-                        publish({**stats.snapshot(), "sender": sender,
+                        publish({**stats.snapshot(), "sender": sender, "mode": "external" if sock is None else "relay",
+                                 "external": external if sock is None else None,
                                  "injected_messages": injector.sent_messages,
                                  "dropped_oversize": injector.dropped_oversize,
                                  "bad_crc": sum(f.bad_crc for f in framers.values())})
@@ -108,14 +121,16 @@ def run(listen: tuple[str, int], injector: RtcmInjector, master=None, publish=No
                 last_print = now
                 log.info("%s · FC 로 %d 메시지", stats.line(), injector.sent_messages)
     finally:
-        sock.close()
+        if sock is not None:
+            sock.close()
     return stats
 
 
 def main(argv: list[str] | None = None) -> int:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
     p = argparse.ArgumentParser(prog="rtk_relay.fc_injector", description="UDP RTCM3 → GPS_RTCM_DATA → FC")
-    p.add_argument("--listen", default="0.0.0.0:14660", help="노트북이 보내는 UDP 포트")
+    p.add_argument("--listen", default="0.0.0.0:14660",
+                   help="노트북이 보내는 UDP 포트. 'none' 이면 보정 중계를 끈다(레이더 브리지가 넣을 때) — 텔레메트리는 그대로")
     p.add_argument("--fc", default="tcp:127.0.0.1:5760",
                    help="pymavlink 주소. 기본은 mavlink-router TCP 5760. 'none' 이면 FC 에 안 넣고 세기만 한다")
     p.add_argument("--mqtt", help="host:port — 주면 화면에 「보정 수신 중/끊김」을 보낸다")
@@ -145,7 +160,9 @@ def main(argv: list[str] | None = None) -> int:
         on_fc_message = tel.on_message
         tick = lambda: fcx.maybe_publish(tel)  # noqa: E731
     try:
-        run(parse_addr(args.listen), injector, master, publish, on_fc_message=on_fc_message, tick=tick)
+        off = args.listen.strip().lower() in ("none", "off", "")
+        run(None if off else parse_addr(args.listen), injector, master, publish, on_fc_message=on_fc_message, tick=tick,
+            external="레이더 브리지(cansar.service)" if off else None)
     except KeyboardInterrupt:
         pass
     return 0

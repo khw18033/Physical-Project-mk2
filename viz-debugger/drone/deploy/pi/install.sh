@@ -76,12 +76,14 @@ status() {
 # 레이더 브리지(cansar.service, 레이더 팀 cansar_pi.py)도 UDP 14660 으로 RTCM 을 받아 FC 에 넣는다 — 우리 sar-rtk 와 둘 다 켜면
 # 포트를 다투거나 보정이 두 번 들어간다. 하나만: 우리 것을 쓰면 cansar.service 에 --rtcm-port 0 (drone/radar_team/cansar.service)
 rtk_conflict() {
-  if systemctl is-active --quiet cansar 2>/dev/null; then
-    if systemctl cat cansar 2>/dev/null | grep -q -- '--rtcm-port 0'; then ok "레이더 브리지 RTK 중계 꺼짐 — RTK 는 sar-rtk 하나"
-    elif systemctl is-enabled --quiet sar-rtk 2>/dev/null; then
-      bad "RTK 중계가 둘 — cansar.service(레이더 브리지)와 sar-rtk 가 모두 UDP 14660. 하나만 쓴다 (drone/CANSAR_INTEGRATION.md 6절)"
-    else ok "RTK 중계는 레이더 브리지(cansar.service) 하나"; fi
-  fi
+  local mode; mode="$(env_get SAR_RTK_RELAY)"; mode="${mode:-auto}"
+  local bridge_rtk=0
+  if systemctl is-enabled --quiet cansar 2>/dev/null && ! systemctl cat cansar 2>/dev/null | grep -q -- '--rtcm-port 0'; then bridge_rtk=1; fi
+  if [ "$bridge_rtk" = 1 ] && [ "$mode" = on ]; then
+    bad "RTK 중계가 둘 — cansar.service(레이더 브리지)와 sar-rtk(SAR_RTK_RELAY=on)가 모두 UDP 14660. cansar 에 --rtcm-port 0 또는 SAR_RTK_RELAY=auto"
+  elif [ "$bridge_rtk" = 1 ]; then ok "RTK 중계: 레이더 브리지(cansar.service) — sar-rtk 는 비켜 있고 상태판 텔레메트리만 (SAR_RTK_RELAY=$mode)"
+  elif [ "$mode" = off ]; then warn "RTK 중계 꺼짐(SAR_RTK_RELAY=off) — QGC 등 다른 길로 넣는지 확인"
+  else ok "RTK 중계: sar-rtk (UDP $(env_get SAR_RTCM_PORT))"; fi
 }
 
 uninstall() {

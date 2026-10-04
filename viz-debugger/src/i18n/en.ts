@@ -2936,6 +2936,7 @@ export const en: Record<string, string> = {
   'cq.log': 'processing log',
   'cq.npz': 'download raw (npz)',
   'cq.missing': 'Quick-look settings missing on the Pi: {what}',
+  'rtcm.external': 'Corrections injected by the radar bridge (cansar) — reception rate not visible here. Check the RTK level (Fixed)',
   'img.make': 'Make image',
   'img.remake': 'Remake',
   'img.close': 'Close',

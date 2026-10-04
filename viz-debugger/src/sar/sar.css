@@ -271,3 +271,5 @@
 .sar-cq-head { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .sar-cq-badge { font-size: 11px; font-weight: 700; letter-spacing: .04em; padding: 2px 7px; border-radius: 999px; background: #e7ecf8; color: #33507f; }
 .sar-cq-img { display: block; width: 100%; max-width: 560px; image-rendering: pixelated; background: #000; border-radius: 6px; }
+
+.rtcm-line--external { color: #33507f; }

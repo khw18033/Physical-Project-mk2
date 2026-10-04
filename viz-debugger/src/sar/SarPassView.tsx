@@ -271,9 +271,11 @@ export function SarPassZoom({ deviceId: pinned, readOnly = false }: { deviceId?:
       fix: t('sar.check.stateFix') },
     { key: 'rtk', level: rtk === 'fixed' ? 'good' : rtk === 'float' ? 'warn' : draft.requireRtk ? 'bad' : 'warn', label: t('sar.check.rtk'),
       detail: t(RTK_LABEL_KEY[rtk]), fix: t('sar.check.rtkFix') },
-    { key: 'rtcm', level: rtcmReport === undefined || isRtcmReportStale(rtcmReport) ? 'warn' : rtcmReport.receiving ? 'good' : 'bad',
+    { key: 'rtcm', level: rtcmReport === undefined || isRtcmReportStale(rtcmReport) ? 'warn'
+        : rtcmReport.mode === 'external' ? 'good' : rtcmReport.receiving ? 'good' : 'bad',
       label: t('sar.check.rtcm'),
       detail: rtcmReport === undefined || isRtcmReportStale(rtcmReport) ? t('rtcm.unknown')
+        : rtcmReport.mode === 'external' ? t('rtcm.external')
         : rtcmReport.receiving ? t('rtcm.on', { fps: (rtcmReport.framesPerS ?? 0).toFixed(1), age: (rtcmReport.ageS ?? 0).toFixed(1) })
           : t('rtcm.off', { age: (rtcmReport.ageS ?? 0).toFixed(0) }),
       fix: t('sar.check.rtcmFix') },

@@ -160,3 +160,14 @@ def test_sender_survives_network_errors(tmp_path, monkeypatch):
     assert base_sender.main(["--file", str(rec), "--to", "127.0.0.1:9", "--rate", "100", "--quiet"]) == 0
     monkeypatch.setattr(socket.socket, "sendto", real_sendto)
     assert delivered == [frames[0]] + frames[4:]
+
+
+def test_relay_off_keeps_telemetry_and_says_external():
+    """레이더 브리지가 RTK 를 넣을 때(--listen none): 포트를 안 잡고, 화면에는 「보정은 다른 곳에서」(mode=external)."""
+    from rtk_relay.fc_injector import run
+    from rtk_relay.inject import RtcmInjector
+
+    seen = []
+    stats = run(None, RtcmInjector(lambda *_: None), master=None, publish=seen.append, stop_after_s=1.3, external="레이더 브리지")
+    assert stats is not None and seen and seen[-1]["mode"] == "external" and seen[-1]["external"] == "레이더 브리지"
+    assert seen[-1]["receiving"] is False

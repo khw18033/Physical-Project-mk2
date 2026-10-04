@@ -14,6 +14,11 @@
 
 ## RTK 중계는 하나만
 
+**지금(레이더 팀이 실험 데이터를 받는 동안)은 이 브리지의 RTK 중계를 그대로 씁니다.** 드론 쪽 `sar-rtk` 는 기본값
+`SAR_RTK_RELAY=auto` 라서 이 브리지가 중계 중이면 포트도 안 잡고 비켜 있습니다(상태판 텔레메트리만). 통합 비행 때 합의하고
+실험 사이에 바꿉니다: 이 서비스에 `--rtcm-port 0`, 드론 쪽 `SAR_RTK_RELAY=on`, 땅에서 RTK Fixed 확인.
+
+
 이 브리지도 UDP 14660 으로 받은 RTCM 을 FC 에 넣고, 드론 쪽 `sar-rtk`(rtk_relay)도 같은 일을 합니다. 둘 다 켜면 포트를 다투거나
 보정이 두 번 들어갑니다. 드론 쪽을 권합니다 — 화면(RTK 상태)에 보정 수신 · 주입 상태가 나오고 시험이 있습니다. 브리지 쪽을 쓰기로 하면
 `--rtcm-port 0` 을 빼고 드론 쪽 `sudo systemctl disable --now sar-rtk`. 드론 쪽 `install.sh --status` 가 겹치면 알려 줍니다.

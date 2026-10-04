@@ -2960,6 +2960,7 @@ export const ko: Record<string, string> = {
   'cq.log': '처리 기록',
   'cq.npz': '원본(npz) 받기',
   'cq.missing': 'Pi 에서 quick-look 을 돌릴 설정이 빠졌습니다: {what}',
+  'rtcm.external': '보정은 레이더 브리지(cansar)가 FC 에 넣는 중 — 여기서는 수신 양을 못 봅니다. RTK 등급(Fixed)으로 확인하세요',
   'img.make': '영상 만들기',
   'img.remake': '다시 만들기',
   'img.close': '닫기',

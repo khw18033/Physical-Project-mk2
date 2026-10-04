@@ -54,8 +54,9 @@ export function useGpsDevices(): GpsView[] {
 }
 
 /** 보정(RTCM) 전달 상태 한 줄. 전달기 보고가 없으면 「모름」이다 — 끊김이라고 짐작하지 않는다. */
-function rtcmState(report: RtcmReport | undefined): 'on' | 'off' | 'never' | 'unknown' {
+function rtcmState(report: RtcmReport | undefined): 'on' | 'off' | 'never' | 'unknown' | 'external' {
   if (report === undefined || isRtcmReportStale(report)) return 'unknown';
+  if (report.mode === 'external') return 'external';
   if (report.receiving) return 'on';
   return report.ageS === null ? 'never' : 'off';
 }
@@ -66,7 +67,7 @@ export function RtcmLine({ report }: { report: RtcmReport | undefined }) {
   const text = state === 'on'
     ? t('rtcm.on', { fps: (report?.framesPerS ?? 0).toFixed(1), age: (report?.ageS ?? 0).toFixed(1) })
     : state === 'off' ? t('rtcm.off', { age: (report?.ageS ?? 0).toFixed(0) })
-      : state === 'never' ? t('rtcm.never') : t('rtcm.unknown');
+      : state === 'never' ? t('rtcm.never') : state === 'external' ? t('rtcm.external') : t('rtcm.unknown');
   return <span className={`rtcm-line rtcm-line--${state}`}>{text}</span>;
 }
 
