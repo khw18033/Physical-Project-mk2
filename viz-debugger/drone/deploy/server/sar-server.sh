@@ -17,9 +17,11 @@ ADAPTER="${ADAPTER:-sar_image.cansar:cansar_iq}"
 WORKERS="${WORKERS:-16}"
 PY="${PY:-$DRONE/.venv/bin/python}"
 
-[ -x "$PY" ] || { echo "[준비] $DRONE 에서: python3 -m venv .venv && .venv/bin/pip install -e '.[base,image]'"; exit 1; }
+[ -x "$PY" ] || { echo "[준비] $DRONE 에서: python3 -m venv .venv && .venv/bin/pip install -e '.[base,image,gpu]'"; exit 1; }
 [ -f "$RADAR_JSON" ] || { echo "[안내] radar.json 이 없어 예시 값으로 시작한다 — 노트북 것과 같게 $RADAR_JSON 에 둔다"; cp "$DRONE/sar_image/example_radar_cansar.json" "$RADAR_JSON"; }
 extra=()
+# GPU 백프로젝션이 기본(torch · CUDA 없으면 CPU 로 알아서). 리플렉터 없는 자동 초점: FOCUSER=sar_image.gpu:entropy_focus
+FORMER="${FORMER-sar_image.gpu:backproject_gpu}"
 [ -n "${FORMER:-}" ] && extra+=(--former "$FORMER")
 [ -n "${FOCUSER:-}" ] && extra+=(--focuser "$FOCUSER")
 [ -n "${REFLECTORS:-}" ] && extra+=(--reflectors "$REFLECTORS")
