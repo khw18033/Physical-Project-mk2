@@ -120,3 +120,16 @@ def test_waits_while_capturing(tmp_path):
     (tmp_path / "CAP_ON").unlink()
     t.join(3)
     assert not t.is_alive()
+
+
+def test_lever_arm_passed_to_radar_team_v2(tmp_path, monkeypatch):
+    """radar.json 의 안테나 위치(레버암)를 레이더 팀 v2 quick 의 --lever 로 넘긴다 — 양쪽이 같은 값을 쓴다."""
+    monkeypatch.setenv("CUDA_VISIBLE_DEVICES", "")
+    _fake(tmp_path)
+    pi = tmp_path / "pi"
+    q = QuickLooks(tmp_path / "q", TEAM, pi / "flight", pi / "cansar_logs", python=sys.executable, settle_s=0.0, lever=[0.10, 0.05, 0.25])
+    assert q.scan() == [163150]
+    res = q.run_one(*q.q.get_nowait())
+    log = (tmp_path / "q" / "163150" / "log.txt").read_text(encoding="utf-8")
+    assert res["state"] == "done" and "레버암 F+0.10 R+0.05 D+0.25" in log and "[dec]" in log
+    assert QuickLooks(tmp_path / "q2", lever=[0, 0, 0]).lever is None                 # 0 이면 안 넘긴다

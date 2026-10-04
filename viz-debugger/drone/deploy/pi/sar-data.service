@@ -9,7 +9,7 @@ After=network-online.target
 Type=simple
 User=physical
 EnvironmentFile=/etc/sar-drone.env
-ExecStart=/bin/sh -c 'set --; [ -n "$$SAR_REDUCE_ADAPTER" ] && set -- "$$@" --reduce-adapter "$$SAR_REDUCE_ADAPTER" --radar-json "$$SAR_RADAR_JSON"; [ -n "$$SAR_CANSAR_QUICK" ] && set -- "$$@" --cansar-quick "$$SAR_CANSAR_QUICK" --cansar-data "$${SAR_CANSAR_DATA:-/home/physical/flight}" --cansar-logs "$${SAR_CANSAR_LOGS:-/home/physical/cansar_logs}" --cansar-side "$${SAR_CANSAR_SIDE:-right}" --cap-path "$$SAR_CAP_PATH"; exec "$$SAR_VENV/bin/python3" -u -m sar_data --flights "$$SAR_LOG_DIR" --radar "$$SAR_RADAR_DIR" --radar-glob "$$SAR_RADAR_GLOB" --port "$$SAR_DATA_PORT" "$$@"'
+ExecStart=/bin/sh -c 'set --; [ -n "$$SAR_REDUCE_ADAPTER" ] && set -- "$$@" --reduce-adapter "$$SAR_REDUCE_ADAPTER" --radar-json "$$SAR_RADAR_JSON"; [ -n "$$SAR_CANSAR_QUICK" ] && set -- "$$@" --cansar-quick "$$SAR_CANSAR_QUICK" --cansar-data "$${SAR_CANSAR_DATA:-/home/physical/flight}" --cansar-logs "$${SAR_CANSAR_LOGS:-/home/physical/cansar_logs}" --cansar-side "$${SAR_CANSAR_SIDE:-right}" --cap-path "$$SAR_CAP_PATH" --radar-json "$$SAR_RADAR_JSON"; exec "$$SAR_VENV/bin/python3" -u -m sar_data --flights "$$SAR_LOG_DIR" --radar "$$SAR_RADAR_DIR" --radar-glob "$$SAR_RADAR_GLOB" --port "$$SAR_DATA_PORT" "$$@"'
 # 비행 제어(sar_pass) · 레이더 기록(cansar)과 같은 Pi — 데이터 서버 · 줄이기 · quick-look 은 뒤로 미룬다
 Nice=10
 IOSchedulingClass=idle

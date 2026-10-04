@@ -71,7 +71,8 @@ class QuickLooks:
 
     def __init__(self, root: Path, script: Path | None = None, data_dir: Path | None = None, logs_root: Path | None = None,
                  side: str = "right", cap_path: Path | None = None, python: str = sys.executable, nice: bool = True,
-                 timeout_s: float = 900.0, interval_s: float = 5.0, settle_s: float = 3.0) -> None:
+                 timeout_s: float = 900.0, interval_s: float = 5.0, settle_s: float = 3.0,
+                 lever: list[float] | None = None) -> None:
         self.root = Path(root)
         # 절대 경로로 — 그쪽 스크립트는 패스마다 따로 만든 작업 폴더에서 돈다(상대 경로면 거기서 못 찾는다)
         self.script = Path(script).resolve() if script else None
@@ -89,6 +90,8 @@ class QuickLooks:
         self._lock = threading.Lock()
         self._stop = threading.Event()
         self.last_error: str | None = None
+        # 레이더 안테나 위치(FC 기준 앞 · 오른쪽 · 아래 m) — 그쪽 v2 의 --lever 로 넘긴다. 드론 쪽 radar.json 의 antenna_offset_m 과 같은 값
+        self.lever = [float(x) for x in lever] if lever and any(abs(float(x)) > 0 for x in lever) else None
 
     @property
     def runner(self) -> bool:
@@ -107,7 +110,7 @@ class QuickLooks:
         return miss
 
     def state(self) -> dict:
-        return {"runner": self.runner, "side": self.side if self.runner else None, "queued": sorted(self._queued),
+        return {"runner": self.runner, "side": self.side if self.runner else None, "lever": self.lever, "queued": sorted(self._queued),
                 "missing": self.missing(), "last_error": self.last_error}
 
     # ── 목록 · 파일 ─────────────────────────────────────────────────────────
@@ -244,7 +247,7 @@ class QuickLooks:
         work.mkdir()
         cmd = ([("nice"), "-n", "19"] if self.nice else []) + [
             self.python, str(self.script), "--nopull", "--data-dir", str(self.data_dir), "--logs-root", str(self.logs_root),
-            "--n", str(n), "--side", self.side, "--noopen"]
+            "--n", str(n), "--side", self.side, "--noopen"] + (["--", "--lever", *[f"{x:g}" for x in self.lever]] if self.lever else [])
         body.update(state="running", started_unix=time.time(), command=cmd)
         _write(rpath, body)
         log.info("quick-look #%d 시작", n)

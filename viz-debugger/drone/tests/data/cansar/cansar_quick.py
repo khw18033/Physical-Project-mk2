@@ -22,6 +22,7 @@ ap.add_argument('--nopull', action='store_true', help='Pi 에서 받지 않고 �
 ap.add_argument('--fine', action='store_true', help='정밀 처리 (dec 4, res 0.25, 시각 오프셋 스캔)')
 ap.add_argument('--flight', default='cansar_flight.py')
 ap.add_argument('--noopen', action='store_true')
+ap.add_argument('--prf', type=float, default=437.0, help='유효 PRF [Hz] (8 서브밴드 한 바퀴 반복률, 실측 약 437)')
 ap.add_argument('--data-dir', default='.', help='--nopull 일 때 iq_N.bin / meta_N.txt 가 있는 폴더 (Pi 에서는 /home/physical/flight)')
 ap.add_argument('--logs-root', default='cansar_logs', help='--nopull 일 때 로그 폴더들의 상위 폴더 (Pi 에서는 /home/physical/cansar_logs)')
 ap.add_argument('extra', nargs=argparse.REMAINDER, help='-- 뒤 인자는 cansar_flight.py 로 그대로 전달')
@@ -91,7 +92,13 @@ dt = abs(float(starts[ev]['pi_epoch']) - t0)
 print(f"[시각] events start #{ev} (pi_epoch 차 {dt:.3f} s)" + ("  [!] 1 s 넘게 어긋남 — 확인 필요" if dt > 1 else ""))
 
 # ── 4. 역투영 ──
-opt = ['--dec', '4', '--res', '0.25', '--tscan', '-1', '1', '0.2'] if a.fine else ['--dec', '8', '--res', '0.5']
+# 방위 표본 간격(속도 / (PRF/dec)) 이 λ/4 를 넘지 않는 가장 큰 dec
+lam4 = 299792458.0 / 5.686e9 / 4
+try: v = float(row['v_mean'])
+except Exception: v = float('nan')
+dec = max(1, int(lam4 / (v / a.prf))) if v == v and v > 0 else 1
+print(f"[dec] 속도 {v:.2f} m/s, PRF {a.prf:.0f} Hz → dec {dec} (표본 간격 {v/(a.prf/dec)*100 if v==v and v>0 else 0:.2f} cm ≤ λ/4 {lam4*100:.2f} cm)")
+opt = ['--dec', str(dec), '--res', '0.25', '--tscan', '-1', '1', '0.2'] if a.fine else ['--dec', str(dec), '--res', '0.5']
 extra = [x for x in a.extra if x != '--']
 cmd = [sys.executable, a.flight, '--iq', IQ, '--meta', META, '--logs', logdir,
        '--ev', str(ev), '--side', a.side, '--demean'] + opt + extra

@@ -476,6 +476,7 @@ def main(argv: list[str] | None = None) -> int:
     c.add_argument("--cansar-data", type=Path, default=Path("/home/physical/flight"), help="iq_N.bin · meta_N.txt 폴더")
     c.add_argument("--cansar-logs", type=Path, default=Path("/home/physical/cansar_logs"), help="cansar_logs 폴더")
     c.add_argument("--cansar-side", default="right", choices=["right", "left", "both"], help="안테나가 보는 쪽(진행 방향 기준)")
+    c.add_argument("--cansar-lever", help="안테나 위치 F,R,D m (FC 기준 앞 · 오른쪽 · 아래) — 없으면 --radar-json 의 antenna_offset_m")
     c.add_argument("--cap-path", type=Path, default=Path(os.environ.get("SAR_CAP_PATH", "/home/physical/CAP_ON")),
                    help="이 파일이 있는 동안(캡처 중)은 quick-look 을 미룬다")
     a = p.parse_args(argv)
@@ -509,7 +510,11 @@ def main(argv: list[str] | None = None) -> int:
         reducer.start()
     from .quick import QuickLooks
     # 돌리는 쪽(Pi) 이 아니어도 미러로 받은 결과를 보여 준다
-    quick = QuickLooks(a.flights / "cansar_quick", a.cansar_quick, a.cansar_data, a.cansar_logs, a.cansar_side, a.cap_path)
+    lever = [float(x) for x in a.cansar_lever.replace(",", " ").split()] if a.cansar_lever else None
+    if lever is None and a.radar_json and Path(a.radar_json).is_file():
+        lever = json.loads(Path(a.radar_json).read_text(encoding="utf-8")).get("antenna_offset_m")
+    quick = QuickLooks(a.flights / "cansar_quick", a.cansar_quick, a.cansar_data, a.cansar_logs, a.cansar_side, a.cap_path,
+                       lever=lever)
     if quick.runner:
         if quick.missing():
             log.warning("quick-look 설정이 빠졌다: %s", ", ".join(quick.missing()))

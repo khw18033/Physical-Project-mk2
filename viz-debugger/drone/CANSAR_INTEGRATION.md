@@ -100,3 +100,15 @@ SAR_CANSAR_SIDE=right            # 안테나가 보는 쪽 — 비행 전에 레
    드론 패스와 캡처를 정확히 짝짓는다.
 3. **시계 짝을 1 초마다** — 기록 중 1 초마다 events.csv 에 `clock,<pi_epoch>,<sdr_uptime>` 한 줄. 지금은 캡처마다 start 한 줄뿐이다.
    (PPS 없이도 시각 어긋남을 ms 안으로 잡는 가장 싼 방법)
+
+## 5. 레이더 팀 처리 코드 v2 (2026-10-04 오후) — 받아서 붙임
+
+`tests/data/cansar/` 를 v2 로 바꿨다(`CHANGES_v2.md`). 명령 형식 · 결과 이름 · 표준 출력의 `[판정]` · `영상 첨두` 줄이 그대로라
+드론 쪽 quick-look 실행(`sar_data/quick.py`)은 손대지 않고 돈다(시험 통과). Pi 에는 `/home/physical/cansar_radar/` 에 v2 두 파일을 둔다.
+
+| v2 변경 | 드론 쪽 |
+|---|---|
+| c 정확값 · 온전한 묶음만 · 행 위치로 시각 · 보간 없는 거리 압축 · 학습률 0.003 | 드론 쪽 어댑터와 같은 방식이 됐다 — 두 영상이 같은 원리로 비교된다 |
+| dec 자동(속도 · PRF 437 Hz → 3~5 m/s 에서 dec 1) | Pi CPU 에서 느려질 수 있다 — 드론 쪽은 캡처 중엔 미루고 nice 19 로 돌린다(시한 15 분) |
+| `--lever F R D` | **드론 쪽 radar.json 의 antenna_offset_m 을 그대로 넘긴다**(`sar-data` 가 `--radar-json` 을 읽음) — 실측하면 radar.json 하나만 고친다 |
+| `--roi`, npz 에 h0 · cN · cE · lever · breaks | 화면은 지금처럼 quick.png · 판정 · 첨두만 보인다 |
