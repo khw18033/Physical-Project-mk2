@@ -71,6 +71,10 @@ class Mirror:
             reducing = bool((json.loads(self._get("/api/health")).get("reduce") or {}).get("ready"))
         except Exception:  # noqa: BLE001
             reducing = False
+        try:
+            got += [("cansar", n) for n in self.sync_quick()]
+        except Exception as exc:  # noqa: BLE001 — quick-look 이 없는 Pi 도 있다
+            log.debug("quick-look 받기 건너뜀: %s", exc)
         for f in json.loads(self._get("/api/flights")):
             fid = f["id"]
             if not fid.startswith("flight_") or "/" in fid:
@@ -97,6 +101,39 @@ class Mirror:
                         self.on_pass(fid, n)
                     except Exception:  # noqa: BLE001
                         log.exception("새 패스 처리 실패")
+        return got
+
+    def sync_quick(self) -> list[int]:
+        """레이더 팀 quick-look 결과(sar_data/quick.py) — 끝난 것만, 바뀐 것만. 결과 json 은 맨 나중에 쓴다(반쯤 받은 것이 안 보이게)."""
+        import urllib.error
+
+        try:
+            data = json.loads(self._get("/api/cansar"))
+        except urllib.error.HTTPError:
+            return []
+        root = self.flights / "cansar_quick"
+        got = []
+        for it in data.get("items", []):
+            n = it.get("n")
+            if not isinstance(n, int) or it.get("state") not in ("done", "failed"):
+                continue
+            d = root / str(n)
+            try:
+                have = json.loads((d / "result.json").read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                have = {}
+            if have.get("finished_unix") == it.get("finished_unix") and have.get("state") == it.get("state"):
+                continue
+            d.mkdir(parents=True, exist_ok=True)
+            for name in (["quick.png", "quick.npz"] if it["state"] == "done" else []) + ["log.txt"]:
+                try:
+                    (d / name).write_bytes(self._get(f"/api/cansar/{n}/{name}"))
+                except urllib.error.HTTPError:
+                    pass
+            tmp = d / "result.json.tmp"
+            tmp.write_text(json.dumps(it, ensure_ascii=False, indent=2), encoding="utf-8")
+            tmp.replace(d / "result.json")
+            got.append(n)
         return got
 
     # ── 받기 · 풀기 ─────────────────────────────────────────────────────────

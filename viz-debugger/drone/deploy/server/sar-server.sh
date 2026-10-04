@@ -13,12 +13,12 @@ FLIGHTS="${FLIGHTS:-$HOME/sar_server}"
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DRONE="$(cd "$HERE/../.." && pwd)"
 RADAR_JSON="${RADAR_JSON:-$HERE/radar.json}"
-ADAPTER="${ADAPTER:-sar_image.sdr:iq_npy}"
+ADAPTER="${ADAPTER:-sar_image.cansar:cansar_iq}"
 WORKERS="${WORKERS:-16}"
 PY="${PY:-$DRONE/.venv/bin/python}"
 
 [ -x "$PY" ] || { echo "[준비] $DRONE 에서: python3 -m venv .venv && .venv/bin/pip install -e '.[base,image]'"; exit 1; }
-[ -f "$RADAR_JSON" ] || { echo "[안내] radar.json 이 없어 예시 값으로 시작한다 — 노트북 것과 같게 $RADAR_JSON 에 둔다"; cp "$DRONE/sar_image/example_radar_sdr.json" "$RADAR_JSON"; }
+[ -f "$RADAR_JSON" ] || { echo "[안내] radar.json 이 없어 예시 값으로 시작한다 — 노트북 것과 같게 $RADAR_JSON 에 둔다"; cp "$DRONE/sar_image/example_radar_cansar.json" "$RADAR_JSON"; }
 extra=()
 [ -n "${FORMER:-}" ] && extra+=(--former "$FORMER")
 [ -n "${FOCUSER:-}" ] && extra+=(--focuser "$FOCUSER")

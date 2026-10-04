@@ -13,7 +13,7 @@ TILE_DIR="${TILE_DIR:-$HOME/sar_tiles}"
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DRONE="$(cd "$HERE/../.." && pwd)"
 RADAR_JSON="${RADAR_JSON:-$HERE/radar.json}"
-ADAPTER="${ADAPTER:-sar_image.sdr:iq_npy}"
+ADAPTER="${ADAPTER:-sar_image.cansar:cansar_iq}"
 VENV="$HERE/.venv"
 
 if [ ! -x "$VENV/bin/python" ]; then
@@ -22,7 +22,7 @@ if [ ! -x "$VENV/bin/python" ]; then
   "$VENV/bin/python" -m pip install -q --upgrade pip
   "$VENV/bin/python" -m pip install -q -e "$DRONE[base,image]"
 fi
-[ -f "$RADAR_JSON" ] || { echo "[안내] radar.json 이 없어 예시 값으로 시작한다 — 화면에서 내려받아 $RADAR_JSON 에 둔다"; cp "$DRONE/sar_image/example_radar_sdr.json" "$RADAR_JSON"; }
+[ -f "$RADAR_JSON" ] || { echo "[안내] radar.json 이 없어 예시 값으로 시작한다 — 화면에서 내려받아 $RADAR_JSON 에 둔다"; cp "$DRONE/sar_image/example_radar_cansar.json" "$RADAR_JSON"; }
 extra=()
 [ -n "${FORMER:-}" ] && extra+=(--former "$FORMER")
 [ -n "${FOCUSER:-}" ] && extra+=(--focuser "$FOCUSER")

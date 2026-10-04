@@ -11,6 +11,9 @@
   GET /api/flights/<id>/image?pass=N[&cr=lat,lon;…][&afx=2,3][&force=1]   afx = 자동 초점에서 뺄 리플렉터(변위 시험)
                                                SAR 영상 만들기 시작 · 진행 상황(image.json). 202 = 줄 섰다
   GET /api/flights/<id>/images/passNN/<file>   만든 영상(png · kmz) · image.json
+  GET /api/cansar                              레이더 팀 quick-look 목록(패스마다 · 판정 · 첨두) — sar_data/quick.py
+  GET /api/cansar/<N>/quick.png|quick.npz|log.txt|result.json      그 결과 파일
+  GET /api/cansar/<N>/run[?force=1]            다시 돌리기 (Pi)
   GET /api/flights/<id>/compare?a=N&b=M[&ref=CRk][&moved=CR2,…]  두 패스 비교 — 기준선 · 일치도 · 밝기 변화 · 리플렉터 mm 변위 (compare_NN_MM/)
 
 영상은 노트북에서 만든다(`--mirror` 로 Pi 의 패스를 가져와서) — sar_data/mirror.py · sar_data/imaging.py.
@@ -220,7 +223,7 @@ class Store:
                 "disk_free_bytes": du.free, "disk_total_bytes": du.total, "time": time.time()}
 
 
-def make_handler(store: Store, jobs=None, mirror=None, tiles=None, reducer=None):  # noqa: ANN001, ANN201
+def make_handler(store: Store, jobs=None, mirror=None, tiles=None, reducer=None, quick=None):  # noqa: ANN001, ANN201
     class Handler(BaseHTTPRequestHandler):
         server_version = "sar_data/0.1"
 
@@ -302,7 +305,25 @@ def make_handler(store: Store, jobs=None, mirror=None, tiles=None, reducer=None)
                     h["reduce"] = None if reducer is None else reducer.state()
                     h["imaging"] = None if jobs is None else {"ready": not jobs.missing(), "missing": jobs.missing()}
                     h["mirror"] = None if mirror is None else mirror.state()
+                    h["quick"] = None if quick is None else quick.state()
                     return self._json(h)
+                if parts[:2] == ["api", "cansar"]:
+                    if quick is None:
+                        return self._json({"error": "레이더 quick-look 이 꺼져 있다", "items": []}, 501)
+                    if len(parts) == 2:
+                        return self._json({**quick.state(), "items": quick.items()})
+                    if not parts[2].isdigit():
+                        return self._json({"error": "not found"}, 404)
+                    if len(parts) == 4 and parts[3] == "run":
+                        status, body = quick.request(int(parts[2]), force=q.get("force", ["0"])[0] == "1")
+                        return self._json(body, status)
+                    if len(parts) == 4:
+                        from .quick import FILES
+                        f = quick.file(int(parts[2]), parts[3])
+                        if f is None:
+                            return self._json({"error": "not found"}, 404)
+                        return self._file(f, f"cansar_{parts[2]}_{parts[3]}", FILES[parts[3]], inline=parts[3] != "quick.npz")
+                    return self._json({"error": "not found"}, 404)
                 if parts == ["api", "flights"]:
                     return self._json(store.flights_json())
                 if len(parts) == 5 and parts[:2] == ["api", "flights"] and parts[3] == "files":
@@ -427,6 +448,13 @@ def main(argv: list[str] | None = None) -> int:
     g.add_argument("--focuser", help="팀의 자동 초점 모듈:함수 (없으면 내장 리플렉터 방식)")
     g.add_argument("--reduce-adapter", help="Pi: 패스마다 레이더 원시를 거리 압축 파일로 줄여 둔다 (예: sar_image.sdr:iq_npy, --radar-json 필요)")
     g.add_argument("--tile-cache", type=Path, help="지도 타일을 받아 둘 폴더 — 인터넷 없는 현장용 (/tiles/…)")
+    c = p.add_argument_group("레이더 팀 quick-look (Pi) — sar_data/quick.py")
+    c.add_argument("--cansar-quick", type=Path, help="레이더 팀 cansar_quick.py 경로 — 주면 패스마다 돌린다")
+    c.add_argument("--cansar-data", type=Path, default=Path("/home/physical/flight"), help="iq_N.bin · meta_N.txt 폴더")
+    c.add_argument("--cansar-logs", type=Path, default=Path("/home/physical/cansar_logs"), help="cansar_logs 폴더")
+    c.add_argument("--cansar-side", default="right", choices=["right", "left", "both"], help="안테나가 보는 쪽(진행 방향 기준)")
+    c.add_argument("--cap-path", type=Path, default=Path(os.environ.get("SAR_CAP_PATH", "/home/physical/CAP_ON")),
+                   help="이 파일이 있는 동안(캡처 중)은 quick-look 을 미룬다")
     a = p.parse_args(argv)
     import threading
 
@@ -456,7 +484,14 @@ def main(argv: list[str] | None = None) -> int:
         from .reduce import Reducer
         reducer = Reducer(store, a.radar_json, a.reduce_adapter)
         reducer.start()
-    srv = ThreadingHTTPServer((a.bind, a.port), make_handler(store, jobs, mirror, tiles, reducer))
+    from .quick import QuickLooks
+    # 돌리는 쪽(Pi) 이 아니어도 미러로 받은 결과를 보여 준다
+    quick = QuickLooks(a.flights / "cansar_quick", a.cansar_quick, a.cansar_data, a.cansar_logs, a.cansar_side, a.cap_path)
+    if quick.runner:
+        if quick.missing():
+            log.warning("quick-look 설정이 빠졌다: %s", ", ".join(quick.missing()))
+        quick.start()
+    srv = ThreadingHTTPServer((a.bind, a.port), make_handler(store, jobs, mirror, tiles, reducer, quick))
     log.info("http://%s:%d  flights=%s radar=%s mirror=%s imaging=%s", a.bind, a.port, a.flights, a.radar, a.mirror,
              None if jobs is None else ("ready" if not jobs.missing() else "incomplete"))
     try:

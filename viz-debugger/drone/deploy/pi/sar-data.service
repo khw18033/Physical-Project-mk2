@@ -1,4 +1,6 @@
 # 비행 데이터 서버 (읽기 전용) — 화면 「비행 데이터」와 노트북 미러가 붙는다
+# SAR_REDUCE_ADAPTER 를 넣으면 패스마다 원시를 줄여 두고, SAR_CANSAR_QUICK 을 넣으면 레이더 팀 quick-look 을 돌린다.
+# $$ 는 systemd 가 아니라 sh 가 환경변수를 펼치게 한다(값에 빈칸이 있어도 안전).
 [Unit]
 Description=SAR drone: flight data server
 After=network-online.target
@@ -7,7 +9,7 @@ After=network-online.target
 Type=simple
 User=physical
 EnvironmentFile=/etc/sar-drone.env
-ExecStart=/bin/sh -c 'set --; [ -n "$SAR_REDUCE_ADAPTER" ] && set -- --reduce-adapter "$SAR_REDUCE_ADAPTER" --radar-json "$SAR_RADAR_JSON"; exec "$SAR_VENV/bin/python3" -u -m sar_data --flights "$SAR_LOG_DIR" --radar "$SAR_RADAR_DIR" --radar-glob "$SAR_RADAR_GLOB" --port "$SAR_DATA_PORT" "$@"'
+ExecStart=/bin/sh -c 'set --; [ -n "$$SAR_REDUCE_ADAPTER" ] && set -- "$$@" --reduce-adapter "$$SAR_REDUCE_ADAPTER" --radar-json "$$SAR_RADAR_JSON"; [ -n "$$SAR_CANSAR_QUICK" ] && set -- "$$@" --cansar-quick "$$SAR_CANSAR_QUICK" --cansar-data "$${SAR_CANSAR_DATA:-/home/physical/flight}" --cansar-logs "$${SAR_CANSAR_LOGS:-/home/physical/cansar_logs}" --cansar-side "$${SAR_CANSAR_SIDE:-right}" --cap-path "$$SAR_CAP_PATH"; exec "$$SAR_VENV/bin/python3" -u -m sar_data --flights "$$SAR_LOG_DIR" --radar "$$SAR_RADAR_DIR" --radar-glob "$$SAR_RADAR_GLOB" --port "$$SAR_DATA_PORT" "$$@"'
 Restart=always
 RestartSec=3
 

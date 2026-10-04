@@ -120,6 +120,14 @@ install() {
   local ld; ld="$(env_get SAR_LOG_DIR)"
   run install -d -o "$SVC_USER" -g "$SVC_USER" "$ld"
   ok "비행 기록 폴더 $ld"
+  local rj; rj="$(env_get SAR_RADAR_JSON)"
+  if [ -n "$rj" ] && [ ! -f "$rj" ]; then
+    run install -m 0644 -o "$SVC_USER" -g "$SVC_USER" "$DRONE_DIR/sar_image/example_radar_cansar.json" "$rj"
+    warn "$rj 을 CANSAR-2 예시로 만들었다 — 레버암 · 빔 · side 를 실측값으로 고친다"
+  fi
+  if [ -z "$(env_get SAR_CANSAR_QUICK)" ]; then
+    warn "레이더 팀 quick-look 꺼짐 — 쓰려면 $ENV_FILE 의 SAR_CANSAR_QUICK 에 cansar_quick.py 경로를 넣는다"
+  fi
 
   step "4. 서비스"
   for u in "${UNITS[@]}"; do run install -m 0644 "$HERE/$u" "$UNIT_DIR/$u"; done

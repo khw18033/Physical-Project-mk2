@@ -16,7 +16,7 @@ set PORT=8766
 set MIRROR_DIR=%USERPROFILE%\sar_mirror
 set TILE_DIR=%USERPROFILE%\sar_tiles
 set RADAR_JSON=%~dp0radar.json
-set ADAPTER=sar_image.sdr:iq_npy
+set ADAPTER=sar_image.cansar:cansar_iq
 set FORMER=
 set FOCUSER=
 rem -------------------------------------------------------------------------------
@@ -35,7 +35,7 @@ if not exist "%VENV%\Scripts\python.exe" (
 if not exist "%RADAR_JSON%" (
   echo [안내] %RADAR_JSON% 이 없다 — 화면 「SAR 패스 → 안테나」에서 radar.json 을 내려받아 이 폴더에 둔다.
   echo        지금은 예시 값으로 시작한다.
-  copy "%DRONE%\sar_image\example_radar_sdr.json" "%RADAR_JSON%" >nul
+  copy "%DRONE%\sar_image\example_radar_cansar.json" "%RADAR_JSON%" >nul
 )
 
 set EXTRA=
