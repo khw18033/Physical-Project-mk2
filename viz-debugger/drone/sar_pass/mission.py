@@ -167,6 +167,10 @@ class PreflightFailed(Exception):
     pass
 
 
+class GroundLost(Exception):
+    """지상국(핫스팟 WiFi · 브로커)과 끊긴 지 오래다 — 새 캡처는 시작하지 않는다."""
+
+
 @dataclass
 class SarPlan:
     start_lat: float
@@ -204,6 +208,11 @@ class SarPlan:
     fence_margin_m: float = 15.0
     reflectors: list = field(default_factory=list)
     radar: dict | None = None
+    # 지상국 연결 끊김 — 이만큼(초) 계속 끊기면 **찍던 패스는 끝까지** 하고 새 패스는 시작하지 않는다(0 = 안 봄).
+    # 비행 · 기록은 Pi 가 하므로 끊겨도 데이터는 남는다. 다만 사람이 화면으로 못 보는 채 계속 나는 것은 막는다.
+    # 에이전트는 브로커 keepalive(10 s)로 끊김을 알아서, 실제로는 끊긴 뒤 약 15 s + 이 값 뒤에 멈춘다.
+    ground_loss_s: float = 5.0
+    rtl_on_ground_loss: bool = True   # 끊겨서 멈출 때 귀환(RTL) — 끄면 on_done 을 따른다
 
     @property
     def line(self) -> PassLine:
@@ -277,6 +286,10 @@ class SarPlan:
             kw["cap_lead_s"] = float(p["cap_lead_s"])
         if "geofence" in p:
             kw["geofence"] = bool(round(p["geofence"]))
+        if "ground_loss_s" in p:
+            kw["ground_loss_s"] = max(0.0, float(p["ground_loss_s"]))
+        if "rtl_on_ground_loss" in p:
+            kw["rtl_on_ground_loss"] = bool(round(p["rtl_on_ground_loss"]))
         kw["reflectors"] = reflectors_from_params(p)
         kw["radar"] = radar_from_params(p)
         return cls(**kw)
@@ -342,8 +355,13 @@ class SarMission:
         pass_log_path: Path | None = None,
         traj_dir: Path | None = None,
         base_provider: Callable[[], dict | None] | None = None,
+        ground_ok: Callable[[], bool] | None = None,
     ) -> None:
         self.v = vehicle
+        self.ground_ok = ground_ok          # 지상국과 이어져 있나 — 에이전트는 MQTT 연결 상태를 준다. None 이면 안 본다
+        self._ground_lost_since: float | None = None
+        self._ground_lost_max_s = 0.0
+        self._ended_by_ground_loss = False
         self.plan = plan
         self.cap = cap
         self.sink = status_sink
@@ -391,6 +409,7 @@ class SarMission:
             attempt = 0
             limit = self.plan.passes + self.plan.extra_passes
             while self.valid_passes < self.plan.passes and attempt < limit:
+                self._check_ground()
                 await self._check_battery()
                 attempt += 1
                 await self._fly_pass(attempt)
@@ -403,6 +422,11 @@ class SarMission:
         except LowBattery as exc:
             outcome = "incomplete"
             self.message = f"배터리 때문에 멈췄다 — {exc} (유효 {self.valid_passes}/{self.plan.passes})"
+            log.warning(self.message)
+        except GroundLost as exc:
+            outcome = "incomplete"
+            self._ended_by_ground_loss = True
+            self.message = f"지상국 연결이 끊겨 멈췄다 — {exc} (유효 {self.valid_passes}/{self.plan.passes}, 기록은 Pi 에 있다)"
             log.warning(self.message)
         except MissionAborted:
             outcome = "aborted"
@@ -587,6 +611,7 @@ class SarMission:
             accel_time = lead / plan.speed_mps
             while self.v.clock.now() - self._last_cap_off + accel_time < plan.gap_s:
                 self._check_abort()
+                self._check_ground()
                 await self.v.clock.sleep(0.2)
                 self._publish()
 
@@ -864,6 +889,8 @@ class SarMission:
 
     async def _after(self, outcome: str) -> None:
         mode = self.plan.on_done if outcome in ("done", "incomplete") else self.plan.on_abort
+        if self._ended_by_ground_loss and self.plan.rtl_on_ground_loss:
+            mode = "rtl"
         try:
             if mode == "rtl":
                 self._set_state("returning")
@@ -877,7 +904,35 @@ class SarMission:
     async def _tel(self) -> Telemetry:
         tel = await self.v.telemetry()
         self._last_tel = tel
+        self._sample_ground()
         return tel
+
+    def _sample_ground(self) -> float:
+        """지금까지 이어서 끊긴 초(이어져 있으면 0). 텔레메트리를 읽을 때마다 같이 본다."""
+        if self.ground_ok is None:
+            return 0.0
+        try:
+            ok = bool(self.ground_ok())
+        except Exception:  # noqa: BLE001 — 연결 상태를 못 읽으면 이어진 것으로 본다(멈출 근거가 없다)
+            ok = True
+        now = self.v.clock.now()
+        if ok:
+            if self._ground_lost_since is not None:
+                log.info("지상국 연결 다시 붙음 (%.1f s 끊김)", now - self._ground_lost_since)
+            self._ground_lost_since = None
+            return 0.0
+        if self._ground_lost_since is None:
+            self._ground_lost_since = now
+            log.warning("지상국 연결 끊김 — 찍던 패스는 계속한다")
+        lost = now - self._ground_lost_since
+        self._ground_lost_max_s = max(self._ground_lost_max_s, lost)
+        return lost
+
+    def _check_ground(self) -> None:
+        """새 캡처를 시작하기 전(패스 사이 · 이동 · 간격)에만 부른다 — 찍는 중에는 끊겨도 끝까지 간다."""
+        lost = self._sample_ground()
+        if self.plan.ground_loss_s > 0 and lost >= self.plan.ground_loss_s:
+            raise GroundLost(f"{lost:.0f} s 동안 지상국과 끊김")
 
     async def _wait_arrival(self, lat: float, lon: float, alt: float, heading: float, timeout_s: float) -> None:
         line = self.plan.line
@@ -887,6 +942,7 @@ class SarMission:
         while True:
             self._check_abort()
             tel = await self._tel()
+            self._check_ground()
             # goto 는 PX4 에서 HOLD 로 보인다. 조종 모드 · RTL · LAND 로 바뀌었으면 사람이 개입한 것이다.
             if tel.flight_mode in PILOT_MODES:
                 raise PilotOverride(f"이동 중 모드가 {tel.flight_mode}")
@@ -984,6 +1040,10 @@ class SarMission:
             "clock_offset_s": None if self.clock_offset_s is None else round(self.clock_offset_s, 3),
             "ekf2_hgt_ref": self.hgt_ref,
             "battery": self.battery_estimate,
+            "ground_link": None if self.ground_ok is None else {
+                "ok": self._ground_lost_since is None,
+                "lost_s": None if self._ground_lost_since is None else round(self.v.clock.now() - self._ground_lost_since, 1),
+                "max_lost_s": round(self._ground_lost_max_s, 1), "limit_s": p.ground_loss_s},
             "warnings": list(self.warnings),
             "live": live,
             "passes": [r.public() for r in self.records],

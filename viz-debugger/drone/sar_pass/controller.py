@@ -34,8 +34,10 @@ class SarController:
         status_sink: Callable[[dict], None] | None = None,
         log_dir: Path | None = None,
         base_provider: Callable[[], dict | None] | None = None,
+        ground_ok: Callable[[], bool] | None = None,
     ) -> None:
         self._factory = vehicle_factory
+        self.ground_ok = ground_ok
         self.cap = cap
         self.sink = status_sink
         self.log_dir = log_dir
@@ -71,7 +73,7 @@ class SarController:
             pass_log = self.log_dir / f"sar_passes_{stamp}.jsonl"
             traj = self.log_dir / f"flight_{stamp}"
         self.mission = SarMission(vehicle, plan, self.cap, self.sink, pass_log, traj_dir=traj,
-                                  base_provider=self.base_provider)
+                                  base_provider=self.base_provider, ground_ok=self.ground_ok)
         self.task = asyncio.create_task(self.mission.run())
         return {"accepted": True, "code": None, "message": "SAR mission started"}
 

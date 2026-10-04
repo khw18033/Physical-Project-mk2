@@ -195,3 +195,25 @@ def test_fatal_offboard_loss_action_blocks_start(tmp_path):
     plan, sim, cap, m, st = build(tmp_path / "b", ack=False)
     sim.params.update({"COM_OBL_RC_ACT": 5, "COM_OF_LOSS_T": 5.0})
     assert asyncio.run(m.run()) == "done" and any("COM_OF_LOSS_T" in w for w in m.warnings)
+
+
+def test_ground_loss_finishes_current_pass_then_returns(tmp_path):
+    """캡처 중에 지상국이 끊기면 그 패스는 끝까지 찍고, 새 패스는 시작하지 않고 귀환한다."""
+    plan, sim, cap, m, st = build(tmp_path, ack=False, passes=3)
+    seen = {"cap": False}
+
+    def ground_ok():
+        seen["cap"] = seen["cap"] or cap.is_on
+        return not seen["cap"]                     # 첫 캡처가 켜진 순간부터 계속 끊김
+    m.ground_ok = ground_ok
+    assert asyncio.run(m.run()) == "incomplete"
+    assert len(m.records) == 1 and m.records[0].captured and m.records[0].end_unix is not None   # 찍던 패스는 끝냈다
+    assert "지상국" in (m.message or "") and sim.mode == "RTL" and not cap.is_on
+    assert st[-1]["ground_link"]["ok"] is False and st[-1]["ground_link"]["max_lost_s"] >= plan.ground_loss_s
+
+
+def test_short_ground_drop_does_not_stop(tmp_path):
+    plan, sim, cap, m, st = build(tmp_path, ack=False)
+    t0 = sim.clock.now()
+    m.ground_ok = lambda: not (t0 + 20 < sim.clock.now() < t0 + 23)    # 3 초만 끊김 (기준 5 초)
+    assert asyncio.run(m.run()) == "done" and m._ground_lost_max_s >= 2.5

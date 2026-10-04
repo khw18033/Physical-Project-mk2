@@ -71,7 +71,8 @@ class SarBridge:
 
     def __init__(self, vehicle_factory: Callable[[], Any], cap: CaptureFlag,
                  status_sink: Callable[[dict], None] | None = None, log_dir: Path | None = None,
-                 base_provider: Callable[[], dict | None] | None = None, call_timeout_s: float = 30.0) -> None:
+                 base_provider: Callable[[], dict | None] | None = None, call_timeout_s: float = 30.0,
+                 ground_ok: Callable[[], bool] | None = None) -> None:
         self.cap = cap
         self.call_timeout_s = call_timeout_s
         self._make_vehicle = vehicle_factory
@@ -83,7 +84,7 @@ class SarBridge:
         self._thread = threading.Thread(target=self.loop.run_forever, name="sar-loop", daemon=True)
         self._thread.start()
         self.controller = SarController(self._vehicle_once, cap, status_sink=self._on_status,
-                                        log_dir=log_dir, base_provider=base_provider)
+                                        log_dir=log_dir, base_provider=base_provider, ground_ok=ground_ok)
 
     # ── 안쪽(루프 스레드) ───────────────────────────────────────────────────
     async def _vehicle_once(self):
@@ -220,7 +221,9 @@ def default_bridge(node) -> SarBridge:
         except Exception:  # noqa: BLE001 — 베이스 좌표는 있으면 좋은 것
             log.warning("베이스 좌표 수신을 못 켰다 — 패스 기록에 베이스 좌표 없이 간다")
     return SarBridge(make_vehicle, cap, status_sink=lambda s: publish_sar_status(node, s), log_dir=log_dir,
-                     base_provider=base_provider, call_timeout_s=timeout + 10)
+                     base_provider=base_provider, call_timeout_s=timeout + 10,
+                     # 브로커는 지상국 노트북에 있다 — 공통 틀의 MQTT 연결이 곧 지상국 연결이다(keepalive 10 s)
+                     ground_ok=lambda: getattr(node, "connected", True) is not False)
 
 
 def node_identity(node) -> dict:
