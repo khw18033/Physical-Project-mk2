@@ -132,9 +132,9 @@ def estimate_trajectory_error(rc: np.ndarray, range_axis: np.ndarray, positions:
     if J.size < 10:
         raise ValueError(f"리플렉터 {max(4, min_visible)}개 이상이 동시에 빔 안에 든 펄스가 거의 없다 — 배치를 좁혀라")
     # 푼 구간이 짧으면 나머지는 그 값으로 메워질 뿐이다 — 시간에 따라 흔들리는 오차는 오히려 나빠진다(CANSAR 가짜 · 3 cm 사인파:
-    # 4715 펄스 중 132 만 풀려 위치 오차 0.16 → 0.81 m). 리플렉터가 하나라도 보이는 펄스의 절반은 풀려야 쓴다
+    # 4715 펄스 중 132 만 풀려 위치 오차 0.16 → 0.81 m). 리플렉터가 하나라도 보이는 펄스의 1/4 은 풀려야 쓴다(기존 시험의 잘 된 경우 39 %, 망친 경우 5 %)
     seen = int(M.any(0).sum())
-    if J.size < 0.5 * seen:
+    if J.size < 0.25 * seen:
         raise ValueError(f"리플렉터 {max(4, min_visible)}개가 동시에 보이는 펄스가 {J.size}/{seen} 뿐 — 이어 붙이기로 내려간다")
     c = np.array([np.nanmean(Ph[i]) if np.isfinite(Ph[i]).any() else 0.0 for i in range(len(reflectors))])
     est = np.zeros((n, 3))
