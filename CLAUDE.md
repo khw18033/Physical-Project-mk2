@@ -71,8 +71,10 @@ cd drone && python -m venv .venv && .venv/bin/pip install -e ".[test,image,base]
 
 ## 남은 일 (2026-10-04 기준)
 
-- **레이더 팀 코드(10/4 받기로 함)**: 시각 기준(Pi 시계?) · 파일에 시각이 찍히나 · 표본 빠짐 처리 · IQ 형식 확인 →
-  어댑터(`sar_image/sdr.py` 가 제안 형식) · CAP_ACK 경로 · 샘플로 시험
+- **레이더 팀 코드 받음(10/4)** — CANSAR-2: 부대역 8개(5.50~5.87 GHz, 거리 해상도 ≈ 0.4 m), events.csv 로 Pi 시각.
+  붙인 것: `sar_image/cansar.py`(어댑터 · 가짜 생성기) · `sar_data/quick.py`(그쪽 quick-look 을 패스마다, 화면 카드) ·
+  정리와 그쪽에 줄 의견은 `viz-debugger/drone/CANSAR_INTEGRATION.md`. 받은 원본은 `tests/data/cansar/`.
+  남은 것: 실제 샘플 데이터로 확인 · 실제 유효 PRF(→ quick 의 dec) · roff · CAP_ON/CAP_ACK 사용 여부 · Pi 의 스크립트 경로
 - **사용자의 백프로젝션 · 자동 초점 코드(GPU)** → `--former` · `--focuser` 로 꽂기 (README 「영상 코드 꽂기」). 리플렉터 없는 방식이면
   리플렉터 보정 영상과 비교하는 기능을 만든다(논문 ①)
 - 컴공이 Pi 설치를 해 주기로 함: `deploy/pi/install.sh --with-gpstime` (`--with-agent` 는 HW 담당과 협의 후). `/etc/sar-drone.env` 의
