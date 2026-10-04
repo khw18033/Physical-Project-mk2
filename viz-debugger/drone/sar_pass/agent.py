@@ -204,7 +204,9 @@ def default_bridge(node) -> SarBridge:
         return v
 
     cap = CaptureFlag(_env_path("SAR_CAP_PATH", DEFAULT_CAP_PATH), install_handlers=False,
-                      ack_path=_env_path("SAR_CAP_ACK", None))
+                      ack_path=_env_path("SAR_CAP_ACK", None),
+                      # CAP_ACK 를 레이더가 아직 안 쓰면 그쪽 events.csv 로 레이더 지연을 잰다(우회)
+                      events_root=_env_path("SAR_CAP_EVENTS", Path("/home/physical/cansar_logs")))
     log_dir = _env_path("SAR_LOG_DIR", DEFAULT_LOG_DIR)
     if log_dir is not None:
         log_dir.mkdir(parents=True, exist_ok=True)

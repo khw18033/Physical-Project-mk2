@@ -14,8 +14,13 @@ from pathlib import Path
 class FakeCansarTick:
     """시뮬레이터 시계용 — SimClock._tick 에 붙인다(시간을 스스로 밀지 않는다)."""
 
-    def __init__(self, clock, cap: Path, ack: Path, poll_s: float = 0.5, proc_s: float = 0.1, seed: int = 0) -> None:  # noqa: ANN001
-        self.clock, self.cap, self.ack = clock, cap, ack
+    def __init__(self, clock, cap: Path, ack: Path | None, poll_s: float = 0.5, proc_s: float = 0.1, seed: int = 0,  # noqa: ANN001
+                 events: Path | None = None) -> None:
+        """events 를 주면 CAP_ACK 대신 레이더 팀처럼 events.csv 에 start · stop 줄을 쓴다."""
+        self.clock, self.cap, self.ack, self.events = clock, cap, ack, events
+        if events is not None and not events.exists():
+            events.parent.mkdir(parents=True, exist_ok=True)
+            events.write_text("event,pi_epoch,sdr_uptime\n")
         self.poll_s, self.proc_s = poll_s, proc_s
         self.rng = random.Random(seed)
         self._next_poll = clock.now() + self.rng.random() * poll_s
@@ -27,12 +32,17 @@ class FakeCansarTick:
         if self._pending is not None and now >= self._pending[1]:
             kind, _ = self._pending
             self._pending = None
+            if self.events is not None:
+                with self.events.open("a") as f:
+                    f.write(f"{kind},{now:.6f},{now - 1.7e9:.6f}\n")
             if kind == "start":
                 self.recording = True
-                self.ack.write_text(f"{now:.6f}")
+                if self.ack is not None:
+                    self.ack.write_text(f"{now:.6f}")
             else:
                 self.recording = False
-                self.ack.unlink(missing_ok=True)
+                if self.ack is not None:
+                    self.ack.unlink(missing_ok=True)
         if now >= self._next_poll:
             self._next_poll = now + self.poll_s
             on = self.cap.exists()

@@ -47,9 +47,13 @@ log = logging.getLogger("sar_pass.capture")
 
 class CaptureFlag:
     def __init__(self, path: Path = DEFAULT_CAP_PATH, install_handlers: bool = True,
-                 ack_path: Path | None = None) -> None:
+                 ack_path: Path | None = None, events_root: Path | None = None, now_fn=None) -> None:  # noqa: ANN001
         self.path = Path(path)
         self.ack_path = None if ack_path is None else Path(ack_path)
+        # CAP_ACK 가 없을 때의 대신 — 레이더 기록 프로그램(cansar.service)이 기록을 시작 · 멈출 때 쓰는 events.csv
+        self.events_root = None if events_root is None else Path(events_root)
+        self._ev_cache: tuple[float, float | None] = (-1e18, None)
+        self._now = now_fn or time.time                 # 시험(시뮬레이터 시계)에서 바꿔 끼운다
         if not self.path.is_absolute():
             raise ValueError(f"CAP 경로는 절대경로여야 한다: {self.path}")
         self._lock = threading.Lock()
@@ -68,7 +72,7 @@ class CaptureFlag:
         """켠다. info(패스 번호 · 비행 이름 등)를 주면 파일 **안에** JSON 한 줄로 적는다 — 레이더는 지금처럼 있는지만 봐도 되고,
         읽으면 자기 기록(passes.csv · meta)에 우리 패스 번호를 같이 남길 수 있다(짝짓기가 정확해진다)."""
         with self._lock:
-            now = time.time()
+            now = self._now()
             if info:
                 import json
                 tmp = self.path.with_name(self.path.name + ".tmp")
@@ -97,9 +101,10 @@ class CaptureFlag:
 
     # ── 레이더 확인 ─────────────────────────────────────────────────────────
     def read_ack(self) -> float | None:
-        """레이더가 적은 실제 시작 시각. 파일이 없으면 None. 내용이 숫자가 아니면 파일이 생긴 시각."""
+        """레이더가 적은 실제 시작 시각. 파일이 없으면 None. 내용이 숫자가 아니면 파일이 생긴 시각.
+        ACK 경로가 없고 events_root 가 있으면 events.csv 의 마지막 start(뒤에 stop 이 없을 때)를 대신 쓴다."""
         if self.ack_path is None:
-            return None
+            return self._ack_from_events()
         try:
             text = self.ack_path.read_text().strip()
         except (FileNotFoundError, OSError):
@@ -111,6 +116,35 @@ class CaptureFlag:
                 return self.ack_path.stat().st_mtime
             except OSError:
                 return None
+
+    def _ack_from_events(self) -> float | None:
+        """<events_root>/*/events.csv 중 가장 최근 파일의 마지막 start · stop. 0.5 초에 한 번만 읽는다(제어 주기에서 부른다).
+
+        start 가 이번 CAP_ON 보다 2 초 넘게 앞서면 지난 캡처의 것이라 버린다. 우회일 뿐이라 패스 판정에는 쓰지 않고
+        (mission 은 ack_path 가 있을 때만 「확인 없음」으로 무효 처리) 레이더 지연을 재 다음 패스를 미리 켜는 데만 쓴다."""
+        if self.events_root is None:
+            return None
+        now = self._now()
+        at, val = self._ev_cache
+        if now - at < 0.5:
+            return val
+        val = None
+        try:
+            files = sorted(self.events_root.glob("*/events.csv"), key=lambda q: q.stat().st_mtime)
+            if files:
+                last_start, after = None, False
+                for line in files[-1].read_text(encoding="utf-8", errors="replace").splitlines()[1:]:
+                    parts = line.split(",")
+                    if len(parts) >= 2 and parts[0] == "start":
+                        last_start, after = float(parts[1]), False
+                    elif len(parts) >= 2 and parts[0] == "stop" and last_start is not None:
+                        after = True
+                if last_start is not None and not after and self.on_since is not None and last_start >= self.on_since - 2.0:
+                    val = last_start
+        except (OSError, ValueError):
+            val = None
+        self._ev_cache = (now, val)
+        return val
 
     def clear_stale_ack(self) -> bool:
         """지난 비행이 남긴 ACK 는 지운다 — 남아 있으면 새 패스의 확인으로 잘못 읽힌다."""

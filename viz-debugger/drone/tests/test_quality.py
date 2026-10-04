@@ -234,3 +234,24 @@ def test_cap_on_carries_pass_number(tmp_path):
     cap.on = spy
     assert asyncio.run(m.run()) == "done"
     assert [x["pass"] for x in seen][:2] == [1, 2] and seen[0]["flight"] == "traj" and "time" in seen[0]
+
+
+def test_radar_latency_learned_from_events_csv_without_ack(tmp_path):
+    """CAP_ACK 가 없어도 레이더 기록 프로그램의 events.csv(start · stop)로 지연을 재 다음 패스부터 미리 켠다(우회)."""
+    import asyncio
+    from sar_pass.capture import CaptureFlag
+    from sar_pass.mission import SarMission
+    from sar_pass.vehicle import SimClock, SimVehicle
+
+    plan = make_plan(extra_passes=3)
+    sim = SimVehicle(LAT0, LON0, clock=SimClock(start=1_790_000_000.0))
+    sim.clock_offset_s = 0.05
+    ev = tmp_path / "cansar_logs" / "20261004_120000" / "events.csv"
+    cap = CaptureFlag(tmp_path / "CAP_ON", install_handlers=False, events_root=tmp_path / "cansar_logs", now_fn=sim.clock.now)
+    sim.clock._tick.append(FakeCansarTick(sim.clock, cap.path, None, poll_s=0.8, proc_s=0.2, seed=3, events=ev))
+    m = SarMission(sim, plan, cap, [].append, tmp_path / "passes.jsonl", traj_dir=tmp_path / "traj")
+    assert asyncio.run(m.run()) == "done", (m.error, [r.reasons for r in m.records])
+    first = m.records[0]
+    assert first.ack_start_unix is not None and first.ack_on_latency_s >= 0.2           # events.csv 로 지연을 쟀다
+    assert all(r.cap_lead_s > 0 for r in m.records if r.pass_no > 1)                    # 다음 패스부터 미리 켠다
+    assert not any("CAP_ACK" in " ".join(r.reasons or []) for r in m.records)           # 우회라 판정에는 안 쓴다

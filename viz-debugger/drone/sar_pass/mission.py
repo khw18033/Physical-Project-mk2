@@ -838,6 +838,7 @@ class SarMission:
                 "ekf2_gps_pos": self.gps_pos,
                 "base_station": base_station,
                 "cap": {"path": str(self.cap.path), "ack_path": None if self.cap.ack_path is None else str(self.cap.ack_path),
+                        "events_root": None if getattr(self.cap, "events_root", None) is None else str(self.cap.events_root),
                         "measured_on_latencies_s": self._on_latencies, "measured_off_latencies_s": self._off_latencies},
                 "control_hz": CONTROL_HZ,
                 "traj_csv": csv_path.name,

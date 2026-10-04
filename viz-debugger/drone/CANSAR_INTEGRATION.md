@@ -94,7 +94,7 @@ SAR_CANSAR_SIDE=right            # 안테나가 보는 쪽 — 비행 전에 레
 
 ### 레이더 팀에 부탁 (남은 것)
 
-1. **CAP_ACK** — 기록을 실제로 시작한 직후 `/home/physical/CAP_ACK` 에 그 순간 `time.time()` 을 한 줄로 쓰고, 멈춘 직후 지운다.
+1. **CAP_ACK** (그 전까지는 드론 쪽이 events.csv 의 start · stop 줄로 대신 잰다 — `SAR_CAP_EVENTS`) — 기록을 실제로 시작한 직후 `/home/physical/CAP_ACK` 에 그 순간 `time.time()` 을 한 줄로 쓰고, 멈춘 직후 지운다.
    드론 쪽은 이것으로 레이더 지연을 재서 다음 패스부터 그만큼 미리 켠다(이미 들어 있음).
 2. **CAP_ON 내용 같이 적기** — CAP_ON 파일 안의 JSON(`pass` · `flight`)을 passes.csv 나 meta_N.txt 에 한 칸 더 적어 주면
    드론 패스와 캡처를 정확히 짝짓는다.
