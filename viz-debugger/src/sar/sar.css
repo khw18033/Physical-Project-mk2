@@ -265,3 +265,9 @@
 .sar-disp td b { font-variant-numeric: tabular-nums; }
 .sar-disp tr.is-moved td { background: rgba(230, 140, 20, .10); }
 .sar-disp tr.is-ref td:first-child { font-weight: 600; }
+
+/* 레이더 팀 quick-look */
+.sar-cq { display: grid; gap: 6px; padding: 10px 12px; border: 1px solid #b9c7e6; border-radius: 10px; background: #f5f8fe; }
+.sar-cq-head { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.sar-cq-badge { font-size: 11px; font-weight: 700; letter-spacing: .04em; padding: 2px 7px; border-radius: 999px; background: #e7ecf8; color: #33507f; }
+.sar-cq-img { display: block; width: 100%; max-width: 560px; image-rendering: pixelated; background: #000; border-radius: 6px; }

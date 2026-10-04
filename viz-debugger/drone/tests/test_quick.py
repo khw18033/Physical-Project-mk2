@@ -95,6 +95,18 @@ def test_pi_runs_quicklook_laptop_mirrors_it(tmp_path):
         lap_srv.shutdown()
 
 
+def test_relative_paths_work(tmp_path, monkeypatch):
+    """경로를 상대로 줘도(서비스 설정에서 흔하다) 작업 폴더에서 찾는다."""
+    _fake(tmp_path)
+    monkeypatch.chdir(tmp_path)
+    shutil.copy(TEAM, tmp_path / "cq.py")
+    shutil.copy(TEAM.with_name("cansar_flight.py"), tmp_path / "cansar_flight.py")
+    q = QuickLooks(Path("out"), Path("cq.py"), Path("pi/flight"), Path("pi/cansar_logs"), python=sys.executable, settle_s=0.0)
+    assert q.scan() == [163150]
+    res = q.run_one(*q.q.get_nowait())
+    assert res["state"] == "done", res.get("error")
+
+
 def test_waits_while_capturing(tmp_path):
     q = QuickLooks(tmp_path / "q", TEAM, tmp_path, tmp_path, cap_path=tmp_path / "CAP_ON")
     (tmp_path / "CAP_ON").write_text("1")

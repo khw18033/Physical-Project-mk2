@@ -46,7 +46,7 @@ def parse_stdout(text: str) -> dict:
         s = line.strip()
         m = _VERDICT.match(s)
         if m:
-            out["verdict"], out["verdict_line"] = m.group(3), s
+            out["verdict"], out["verdict_line"] = m.group(3), re.sub(r"^\[판정\]\s*", "", s)    # 화면이 「판정」 칸 이름을 따로 붙인다
         m = _PEAK.search(s)
         if m:
             out["peak"] = {"db": float(m.group(1)), "along_m": float(m.group(2)), "side_m": float(m.group(3)),
@@ -73,9 +73,10 @@ class QuickLooks:
                  side: str = "right", cap_path: Path | None = None, python: str = sys.executable, nice: bool = True,
                  timeout_s: float = 900.0, interval_s: float = 5.0, settle_s: float = 3.0) -> None:
         self.root = Path(root)
-        self.script = Path(script) if script else None
-        self.data_dir = Path(data_dir) if data_dir else None
-        self.logs_root = Path(logs_root) if logs_root else None
+        # 절대 경로로 — 그쪽 스크립트는 패스마다 따로 만든 작업 폴더에서 돈다(상대 경로면 거기서 못 찾는다)
+        self.script = Path(script).resolve() if script else None
+        self.data_dir = Path(data_dir).resolve() if data_dir else None
+        self.logs_root = Path(logs_root).resolve() if logs_root else None
         self.side = side
         self.cap_path = Path(cap_path) if cap_path else None
         self.python = python

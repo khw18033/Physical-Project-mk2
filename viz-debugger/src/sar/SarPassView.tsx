@@ -34,6 +34,7 @@ import { checkReflector, defaultAntenna, provenanceParams, surveyPoint, radarJso
 import { ANT_KEY, CR_KEY, liveBeam } from './liveBeam.ts';
 import { PassInspector } from './PassInspector.tsx';
 import { LatestImage } from './SarImageView.tsx';
+import { CansarQuickCard } from './cansarQuick.tsx';
 import { LinkBanner, SarAlerts } from './alerts.tsx';
 import { ComparePanel, ImageButton, ImagingStatus, SarImageView, type ImageSummary, type Imaging, type MirrorState } from './SarImageView.tsx';
 import './sar.css';
@@ -398,6 +399,7 @@ export function SarPassZoom({ deviceId: pinned, readOnly = false }: { deviceId?:
     <LinkBanner report={report} />
     <div className={`sar-next${running ? ' is-running' : ''}`}><b>{t('sar.next.title')}</b><span>{next}</span></div>
     {latest !== null && <LatestImage base={data.base} flight={latest.flight} pass={latest.pass} found={latest.found} total={latest.total} />}
+    {data.base !== '' && <CansarQuickCard base={data.base} />}
 
     <Step n={1} title={t('sar.step.check')} help={t('sar.step.checkHelp')} level={step1} open={step1 !== 'good'}>
       {simple && checks.every((c) => c.level === 'good') ? <p className="sar-ok">{t('sar.simple.allGood', { n: checks.length })}</p>
