@@ -143,3 +143,18 @@ Pi 데이터 서버에 `--reduce-adapter sar_image.sdr:iq_npy --radar-json …` 
 
 거리 해상도는 수 m(대역폭 한계), 방위 해상도는 수 cm 라 영상이 한쪽으로 긴 모양이 된다. 리플렉터 확인 · 위치 검증에는 충분하다.
 예시 사양: `sar_image/example_radar_sdr.json` (5.8 GHz · 50 MHz).
+
+## 8. 받은 코드로 확인한 것 (2026-10-04, `cansar_flight.py` · `cansar_quick.py`)
+
+어댑터 `sar_image.cansar:load` 로 붙였다(README 「레이더 팀(cansar) 원시 연결」). 코드에서 읽은 답과, 아직 물어볼 것:
+
+| 항목 | 코드에서 읽은 것 | 레이더 팀에 확인 |
+|---|---|---|
+| IQ 형식 | `iq_N.bin` int16 × 4 열 [안테나 I, Q, 기준 I, Q], 표지 0x5A5A + 부대역 번호, 자료 = 표지 +8 ~ +53 행 | 표지 다음 8 행이 늘 같은가 · 자료 첫 행이 처프 시작인가 |
+| 파형 | 부대역 8 개(5.525 + 0.046·s GHz) × 50 MHz · 100 µs, 표본화 480 kHz → 합쳐 5.500~5.868 GHz | 유효 PRF(스윕/초) · 안테나 빔폭 · 내려다보는 각 |
+| 시각 기준 | meta 의 t_start · t_end 는 **SDR 시계**(부팅 후 초). events.csv `start` 행의 pi_epoch − sdr_uptime 으로 Pi 시각 | 두 값을 같은 순간에 읽나(지연 몇 ms?) · 처프 시작 / ADC 첫 표본 중 어느 순간인가 |
+| 표본 빠짐 | 기록 시간 안에 스윕이 고르게 있다고 본다 | **파일 행 수 ÷ (t_end − t_start) 가 480 000 인가** — 아니면 중간 끊김이 있다(어댑터가 로그로 알린다) · 버퍼 넘침 기록 |
+| CAP_ON / CAP_ACK | `cansar_quick.py` 는 쓰지 않음(passes.csv t0 로 짝) | cansar 가 `/home/physical/CAP_ON` 을 보는지 · CAP_ACK 를 써 줄 수 있는지(1 절) |
+| 거리 압축 | H(f) = 안테나 ÷ 기준 → 4096 칸 선형 보간 → FFT | **보간이 먼 표적을 깎는다**(60 m −5.7 dB, 80 m −10.7 dB). 실제 주파수로 직접 합하면 손실이 없다 — 어댑터가 그렇게 한다 |
+| 궤적 | 레이더 팀 로거 `mav.csv` 의 LOCAL_POSITION_NED(EKF 지역 좌표) | 드론 쪽은 RTK 위도 · 경도 + 자세 + 레버암을 쓴다 — 같은 비행이면 둘을 비교해 볼 수 있다 |
+

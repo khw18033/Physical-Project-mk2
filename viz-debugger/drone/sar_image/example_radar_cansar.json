@@ -1,0 +1,16 @@
+{
+  "note": "레이더 팀 cansar(CANSAR-2) — 파장 · 대역폭 · 거리는 cansar_flight.py 의 파형에서 옮긴 값(부대역 8 × 50 MHz, 5.500~5.868 GHz). prf_hz · 빔 · 내려다보는 각은 가정 — 레이더 팀 값으로 바꾼다. 어댑터 sar_image.cansar:load",
+  "wavelength_m": 0.052744,
+  "bandwidth_hz": 367833333.0,
+  "prf_hz": null,
+  "range_min_m": 2.0,
+  "range_max_m": 80.0,
+  "side": "right",
+  "depression_deg": 45.0,
+  "el_beamwidth_deg": 40.0,
+  "az_beamwidth_deg": 30.0,
+  "squint_deg": 0.0,
+  "antenna_offset_m": [0.0, 0.0, 0.0],
+  "gnss_offset_m": null,
+  "position_ref": "auto"
+}

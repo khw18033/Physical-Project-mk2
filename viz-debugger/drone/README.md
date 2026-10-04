@@ -274,6 +274,8 @@ python -m rtk_relay.base_sender --port COM12 --baud 115200 --to <Pi 핫스팟 IP
 
 ## 코너리플렉터 확인 · SAR 영상 (`sar_image`)
 
+> **레이더 팀 실제 형식이 왔다(10/4)** — `sar_image/example_radar_cansar.json` + 어댑터 `sar_image.cansar:load`(아래 「레이더 팀(cansar) 원시 연결」).
+>
 > 레이더 정보는 `radar.json` 하나다. 우리 레이더는 **5.8 GHz · Zynq-7020 + AD9361 SDR** — 예시 `sar_image/example_radar_sdr.json`(50 MHz 가정)과 어댑터 `sar_image.sdr:iq_npy` 를 쓴다(RADAR_INTERFACE.md 7절). `example_radar.json`(X대역)은 시험용이다.
 > 파장 · 대역폭 · PRF · 기록 거리 · 안테나 방향(좌/우) · 내려다보는 각 · 빔폭을 레이더 팀이 채운다.
 
@@ -354,6 +356,26 @@ python -m sar_pass cart --start 37.5665,126.9780 --heading 45 --length 30 --pass
 
 여기서 리플렉터가 「찍힘」으로 나오고 레이더 시각 오프셋이 리플렉터끼리 맞으면 레이더 · 시각 · 레버암 · 처리가 맞는 것이다.
 안 나오면 비행해도 안 나온다 — 원인을 땅에서 찾는다. 안테나 높이가 낮아(약 1 m) 관측 띠가 가까우니 리플렉터를 선 옆 3~10 m 에 둔다.
+
+### 레이더 팀(cansar) 원시 연결 — `sar_image.cansar:load`
+
+10/4 받은 레이더 팀 코드(`cansar_flight.py` · `cansar_quick.py`)에서 형식을 옮겼다. Pi 에 레이더가 남기는 것:
+`~/flight/iq_<N>.bin`(int16 × 4 열: 안테나 I/Q · 기준 I/Q, 480 kHz) · `~/flight/meta_<N>.txt`(t_start · t_end = SDR 부팅 후 초) ·
+`~/cansar_logs/<시각>/events.csv`(start 행이 Pi 시계 ↔ SDR 시계를 잇는다) · `passes.csv`.
+
+```bash
+# Pi — 패스가 끝나면 거리 압축으로 줄여 둔다(events.csv 가 Pi 에 있어서 Pi 에서 줄인다). 노트북 미러는 줄인 것만 받는다
+python -m sar_data --flights /home/physical/sar_logs --radar /home/physical/flight --radar-glob 'iq_*.bin' \
+    --reduce-adapter sar_image.cansar:load --radar-json /home/physical/radar.json
+```
+
+- radar.json 은 `sar_image/example_radar_cansar.json` 에서 시작한다 — 파장 0.0527 m · 대역 368 MHz(부대역 8 × 50 MHz, 거리 해상도 0.41 m)는
+  파형에서 옮긴 실제 값, 빔 · 내려다보는 각은 가정.
+- 시각: meta 의 SDR 시각 + events.csv 의 짝 → **Pi 시각** → 패스 메타의 `offset_pi_minus_fc_s` 로 FC GPS 시각. 리플렉터 「auto」 시각 보정이 그 위에서 검산한다.
+- 레이더 팀 처리와 다른 점: ① 거리 압축을 실제 주파수로 직접 합한다(팀은 4096 칸 보간 → **먼 표적이 깎인다**: 같은 가짜 자료에서
+  30 m −2 dB · 60 m −5.7 dB · 80 m −10.7 dB, 우리는 손실 없음) ② 부대역 0…7 이 다 있는 스윕만 쓴다 ③ 시각을 파일 안 행 위치로 매긴다.
+- 정지 성분(송수신 새는 것)은 기본으로 뺀다(팀 `--demean`). 빼지 않으려면 `sar_image.cansar:load_keep_static`. 내부 지연은 `CANSAR_ROFF_M`(기본 0.4 m).
+- 시험: `tests/test_sar_imaging_flow.py -k cansar` (가짜 원시: `cansar.write_fake`).
 
 ### 영상 코드 꽂기 (팀의 백프로젝션 · 자동 초점)
 

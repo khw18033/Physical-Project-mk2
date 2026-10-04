@@ -72,7 +72,7 @@ class Reducer:
                         out_dir.mkdir(parents=True, exist_ok=True)
                         tmp = out.with_name(out.name + ".part.npz")
                         np.savez(tmp, t=np.asarray(t, dtype=np.float64), range_axis=np.asarray(rng, dtype=np.float64),
-                                 rc=np.asarray(rc, dtype=np.complex64))
+                                 rc=np.asarray(rc, dtype=np.complex64), time_ref=getattr(adapter, "time_ref", "fc"))
                         tmp.replace(out)
                         made += 1
                         self.done += 1
