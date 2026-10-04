@@ -360,6 +360,24 @@ def form_pass(traj_csv: Path, raw_files: list[Path], radar: RadarConfig, adapter
                 af["fallbacks"] = tried
         body["autofocus"] = af
 
+        # ── 2.2) 자동 초점 **뒤** 리플렉터를 다시 잰다 — 방법끼리(없음 · 리플렉터 · 엔트로피) 견주는 값(af_compare.py)
+        if af is not None and af.get("method") not in (None, "none"):
+            for i, (cr, rec) in enumerate(zip(crs, body["reflectors"]), 1):
+                a_c, c_c = rec["along_m"], rec["cross_m"]
+                along = np.arange(a_c - 0.6, a_c + 0.6, 0.004)
+                cross = np.arange(c_c - 1.5, c_c + 1.5, 0.05)
+                g, _ = line_grid((0.0, 0.0), heading, along, cross)
+                img = form_fn(rc_used, rng, pos_used, lam, g, **ctx)
+                m = peak_metrics(img, along, cross)
+                a = np.abs(img)
+                contrast = 20 * math.log10(max(a.max(), 1e-30) / max(float(np.median(a)), 1e-30))
+                q = point_target_quality(img, along, cross, m)
+                rec["after_af"] = {"contrast_db": round(contrast, 1),
+                                   "offset_m": round(math.hypot(m["peak_along_m"] - a_c, m["peak_cross_m"] - c_c), 3),
+                                   **q, **{k: (round(v, 4) if isinstance(v, float) else v) for k, v in m.items()}}
+                _png(out_dir / f"cr{i}_af.png", img, along, cross, f"CR{i} · after autofocus ({af['method']}) · contrast {contrast:.0f} dB", [(a_c, c_c)])
+            _write(status_path, body)
+
         # ── 2.5) 리플렉터 **측량 자리 그 한 점**의 복소값 — 패스끼리 위상을 견줘 mm 변위를 잰다(displacement.py).
         # 봉우리가 아니라 측량 자리를 쓴다: 백프로젝션 영상의 위상은 점을 1 cm 옮겨도 2 rad 넘게 돈다 — 두 패스가 **같은 점**이어야 한다.
         # **자동 초점 전** 데이터로 잰다: 자동 초점은 패스마다 위상 기준을 따로 잡아 패스끼리 위상이 어긋난다(시험으로 확인).

@@ -11,6 +11,8 @@ test = ["pytest>=8"]
 base = ["pyserial>=3.5"]
 # 영상 도구(노트북 · 서버): pip install -e ".[image]"
 image = ["numpy>=1.26", "matplotlib>=3.8"]
+# GPU 영상 · 리플렉터 없는 자동 초점(처리 서버): uv pip install -e ".[image,gpu]"  — sar_image/gpu.py
+gpu = ["torch>=2.4"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
