@@ -351,6 +351,19 @@ const params = plan.toStartParams({
   check(rf.parseRadarStatus({ ...body, state: 'busy' }) === null, '규약에 없는 state 를 받아들인다');
   console.log('✅ 레이더 상태 — 드론 쪽 칸 · 판정(끊김 · PRF · PPS)');
 
+  // 알림 — 바뀐 것만, 처음 보고에서는 울리지 않는다
+  const al = await load('src', 'sar', 'alertEvents.ts');
+  const s0 = { state: 'accel', capturing: false, stale: false, passes: [], radar: 'good', batteryPct: 60, imagesDone: 0 };
+  check(al.detectEvents('x', undefined, s0).length === 0, '첫 보고에서 알림을 낸다');
+  const keys = (prev, cur) => al.detectEvents('x', prev, cur).map((e) => e.textKey).sort().join(',');
+  check(keys(s0, { ...s0, capturing: true }) === 'alert.capOn', '캡처 시작을 못 알린다');
+  check(keys({ ...s0, capturing: true }, { ...s0, state: 'decel', passes: [{ passNo: 1, valid: false }] }) === 'alert.capOff,alert.passBad', '캡처 끝 · 패스 무효를 못 알린다');
+  check(keys(s0, { ...s0, stale: true }) === 'alert.stale' && keys({ ...s0, stale: true }, s0) === 'alert.back', '끊김 · 다시 붙음을 못 알린다');
+  check(keys(s0, { ...s0, batteryPct: 25 }) === 'alert.battery' && keys({ ...s0, batteryPct: 25 }, { ...s0, batteryPct: 24 }) === '', '배터리 알림이 매번 울린다');
+  check(keys(s0, { ...s0, state: 'done', imagesDone: 1 }) === 'alert.end.done,alert.image', '임무 완료 · 새 영상을 못 알린다');
+  check(keys(s0, s0) === '', '바뀐 게 없는데 알린다');
+  console.log('✅ 알림 — 캡처 · 패스 무효 · 끊김 · 배터리 · 임무 끝 · 새 영상, 바뀐 것만');
+
   // 바람 영향 — 북쪽으로 4 m/s 날며 북풍 3 m/s(맞바람) → 공기 속도 7 m/s · 앞 숙임 · 빔은 뒤로. 서풍은 동쪽(오른쪽)으로 밀어 왼쪽으로 기울여 버틴다
   const head = plan.windEffect(0, 4, { speedMps: 3, fromDeg: 0 }, 45, 40, 30);
   check(Math.abs(head.headMps - 3) < 1e-9 && Math.abs(head.airspeedMps - 7) < 1e-9 && head.pitchDeg < 0 && head.squintDeg > 0 && Math.abs(head.rollDeg) < 1e-9,

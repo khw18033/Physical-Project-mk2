@@ -212,3 +212,20 @@ export function ImagingStatus({ imaging, mirror }: { imaging: Imaging; mirror: M
     {mirror !== null && mirror.last_error !== null && <small className="sar-bad">{t('img.mirrorErr', { why: mirror.last_error })}</small>}
   </div>;
 }
+
+/** 「새 SAR 영상」 — 맨 위에 작게. 누르면 그 자리에서 영상 전체를 연다(결과 단계까지 내려가지 않아도 된다). */
+export function LatestImage({ base, flight, pass, found, total }: { base: string; flight: string; pass: number; found: number; total: number }) {
+  useLang();
+  const [open, setOpen] = useState(false);
+  const dir = `${base}/api/flights/${encodeURIComponent(flight)}/images/pass${String(pass).padStart(2, '0')}`;
+  return <div className="sar-latest">
+    <a href={`${dir}/full.png`} target="_blank" rel="noreferrer"><img src={`${dir}/full_map.png?v=${flight}${pass}`} alt="" className="sar-latest-thumb" /></a>
+    <div className="sar-latest-body">
+      <b>{t('img.latest', { n: pass })}</b>
+      <span className={total > 0 && found === total ? 'sar-ok' : total > 0 ? 'sar-warn' : 'sar-hint'}>
+        {total > 0 ? t('img.found', { f: found, n: total }) : t('img.noReflectors')}</span>
+    </div>
+    <button type="button" className={open ? 'is-on' : ''} onClick={() => setOpen(!open)}>{open ? t('img.close') : t('img.view')}</button>
+    {open && <div className="sar-latest-open"><SarImageView base={base} flight={flight} pass={pass} /></div>}
+  </div>;
+}

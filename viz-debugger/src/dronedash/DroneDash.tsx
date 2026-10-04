@@ -11,6 +11,7 @@
  */
 
 import { liveBeam, readAntenna, readReflectors, reflectorMarkers } from '../sar/liveBeam.ts';
+import { LinkBanner, SarAlerts } from '../sar/alerts.tsx';
 import { useMemo, useState, type ReactNode } from 'react';
 import { useLang } from '../shared/language.ts';
 import { t } from '../i18n/dict.ts';
@@ -439,6 +440,7 @@ export function DroneDashZoom({ deviceId }: { deviceId?: string } = {}) {
   useLang();
   useTick(500);
   const views = useDroneViews();
+  const sarAll = useSarReports();
   const [pick, setPick] = useState<string | null>(null);
   const v = deviceId !== undefined ? views.find((x) => x.deviceId === deviceId) : views.find((x) => x.deviceId === pick) ?? views[0];
   const homeBearing = useMemo(() => {
@@ -456,6 +458,8 @@ export function DroneDashZoom({ deviceId }: { deviceId?: string } = {}) {
     </div>
     <StatusBar v={v} />
     {!v.extended && <p className="sar-hint">{t('dash.howTo')}</p>}
+    <SarAlerts prfHz={readAntenna().prfHz} />
+    <LinkBanner report={sarAll[v.deviceId]} />
     <SarStrip deviceId={v.deviceId} />
     <div className="dash-top">
       <Panel title={t('dash.map')}><DashMap v={v} /></Panel>

@@ -33,6 +33,8 @@ import { SatMap, type Area, type Marker } from '../dronedash/SatMap.tsx';
 import { checkReflector, defaultAntenna, provenanceParams, surveyPoint, radarJson, swathPolygon, type AntennaDraft } from './coverage.ts';
 import { ANT_KEY, CR_KEY, liveBeam } from './liveBeam.ts';
 import { PassInspector } from './PassInspector.tsx';
+import { LatestImage } from './SarImageView.tsx';
+import { LinkBanner, SarAlerts } from './alerts.tsx';
 import { ComparePanel, ImageButton, ImagingStatus, SarImageView, type ImageSummary, type Imaging, type MirrorState } from './SarImageView.tsx';
 import './sar.css';
 
@@ -212,6 +214,15 @@ export function SarPassZoom({ deviceId: pinned, readOnly = false }: { deviceId?:
   const [outcome, setOutcome] = useState<{ action: 'start' | 'abort'; result: SarIssueOutcome } | null>(null);
   const data = useDataServer(true);
   const [tileMsg, setTileMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  // 새 SAR 영상 — 가장 최근 비행에서 영상이 끝난 마지막 패스 (데이터 서버 목록에서)
+  const imagesDone = data.flights.reduce((n, f) => n + f.passes.filter((p) => p.image?.state === 'done').length, 0);
+  const latest = (() => {
+    for (const f of data.flights) {
+      const done = f.passes.filter((p) => p.image?.state === 'done');
+      if (done.length) { const p = done[done.length - 1]!; return { flight: f.id, pass: p.pass_no, found: p.image!.found, total: p.image!.reflectors }; }
+    }
+    return null;
+  })();
   // 간단 모드 — 현장에서 지금 할 일 · 지도 · 큰 버튼 · 진행 · 결과만. 리플렉터 · 안테나 · 고급 설정은 숨긴다(값은 그대로 쓴다)
   const [simple, setSimpleState] = useState<boolean>(() => { try { return localStorage.getItem(SIMPLE_KEY) === '1'; } catch { return false; } });
   const setSimple = (v: boolean) => { setSimpleState(v); try { localStorage.setItem(SIMPLE_KEY, v ? '1' : '0'); } catch { /* */ } };
@@ -383,7 +394,10 @@ export function SarPassZoom({ deviceId: pinned, readOnly = false }: { deviceId?:
         <button type="button" className={!simple ? 'active' : ''} onClick={() => setSimple(false)}>{t('sar.simple.off')}</button>
       </div>
     </div>
+    <SarAlerts prfHz={antenna.prfHz} imagesDone={data.ok === true ? imagesDone : undefined} />
+    <LinkBanner report={report} />
     <div className={`sar-next${running ? ' is-running' : ''}`}><b>{t('sar.next.title')}</b><span>{next}</span></div>
+    {latest !== null && <LatestImage base={data.base} flight={latest.flight} pass={latest.pass} found={latest.found} total={latest.total} />}
 
     <Step n={1} title={t('sar.step.check')} help={t('sar.step.checkHelp')} level={step1} open={step1 !== 'good'}>
       {simple && checks.every((c) => c.level === 'good') ? <p className="sar-ok">{t('sar.simple.allGood', { n: checks.length })}</p>

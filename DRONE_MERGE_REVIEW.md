@@ -13,7 +13,7 @@
 
 화면 코드는 **드론 파트 파일 위주**입니다. 컴공 쪽 공용 파일은 세 개이고 모두 덧붙임입니다:
 `src/i18n/ko.ts` · `en.ts` (+33 줄씩, 새 문구 키) · `src/physical/PhysicalClient.ts` (+9 줄, 레이더 상태 토픽 구독 — 1차의 `/rtcm` 과 같은 자리 · 같은 모양).
-새 파일은 `src/physical/radarFeed.ts` · `src/shared/radarStatus.ts` 둘입니다.
+새 파일은 `src/physical/radarFeed.ts` · `src/shared/radarStatus.ts` · `src/sar/alertEvents.ts` · `src/sar/alerts.tsx` 입니다.
 정확한 목록은 이 명령으로 보입니다:
 
 ```bash
@@ -30,6 +30,7 @@ git diff --stat 1426932 origin/Junho_drone -- viz-debugger ':!viz-debugger/drone
 | 현장용 지도 미리 받기 | 지도에 「이 구역 지도 미리 받기」 — 노트북 데이터 서버에 타일 저장(인터넷 없는 현장) |
 | 레이더 상태 | 상태판 · SAR 점검에 레이더 칸 — 새 토픽 `zoneA/drone/<id>/radar` (레이더 팀이 낼 것, `viz-debugger/drone/RADAR_INTERFACE.md`) |
 | SAR 간단 모드 | SAR 패스 화면 위 「간단 / 자세히」 — 현장에서 지금 할 일과 큰 버튼만 |
+| 알림 · 소리 | 캡처 시작/끝 · 패스 무효 · 임무 끝 · 레이더 이상 · 배터리 · 보고 끊김 · 새 영상 때 오른쪽 아래 알림 + 짧은 소리(끌 수 있음). 보고가 끊기면 큰 빨간 띠 · 새 영상은 SAR 화면 위에 바로 카드 |
 
 드론 쪽(`viz-debugger/drone/`)은 비행 안전 점검(오프보드 끊김 동작) · GPS 간섭 지상 시험 · 안테나 장착 각도 추천 · PPS 시각 동기 ·
 GitHub 자동 검사(`.github/workflows/drone.yml`, Junho_drone 푸시 때만) 등이 늘었습니다. 화면 빌드와는 상관없습니다.

@@ -239,3 +239,21 @@
 .sar-modebar .sar-seg button{min-width:72px}
 .sar-guide.is-simple .sar-next{font-size:17px;padding:14px 16px}
 .sar-guide.is-simple .sar-actions button{font-size:18px;padding:14px 26px}
+/* 알림 · 연결 끊김 · 새 영상 */
+.sar-alerts{position:fixed;right:16px;bottom:16px;z-index:60;display:grid;gap:6px;max-width:min(380px,calc(100vw - 32px))}
+.sar-alert{display:flex;gap:10px;align-items:center;justify-content:space-between;padding:10px 12px;border-radius:10px;background:#fff;border:1px solid #dde3ea;border-left:5px solid #1768c5;box-shadow:0 6px 18px #17202b26;font-size:14px}
+.sar-alert.is-good{border-left-color:#1f8a4d}
+.sar-alert.is-warn{border-left-color:#d08a00}
+.sar-alert.is-bad{border-left-color:#c62f35;background:#fff6f6}
+.sar-alert button{border:0;background:none;font-size:18px;line-height:1;cursor:pointer;color:#5a6878}
+.sar-alerts .sar-alert-sound{justify-self:end;font-size:12px;border:1px solid #cbd3de;border-radius:999px;background:#fff;padding:3px 10px}
+.sar-linkbanner{display:grid;gap:2px;padding:12px 16px;border-radius:10px;background:#c62f35;color:#fff}
+.sar-linkbanner b{font-size:17px}
+.sar-linkbanner small{opacity:.9}
+.sar-linkbanner.is-calm{background:#5a6878}
+.sar-latest{display:flex;flex-wrap:wrap;gap:12px;align-items:center;padding:10px 12px;border:1px solid #9bd4b1;border-radius:10px;background:#f3fbf6}
+.sar-latest-thumb{width:120px;height:68px;object-fit:cover;border-radius:6px;background:#1b2430;display:block}
+.sar-latest-body{display:grid;gap:2px;flex:1 1 200px}
+.sar-latest-open{flex-basis:100%}
+@media (prefers-reduced-motion:no-preference){.sar-alert{animation:sar-alert-in .18s ease-out}}
+@keyframes sar-alert-in{from{transform:translateY(8px);opacity:0}to{transform:none;opacity:1}}
