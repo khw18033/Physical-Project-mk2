@@ -448,7 +448,7 @@ class SarMission:
         if self.cap.clear_stale_ack():
             self.warnings.append("지난 비행의 CAP_ACK 가 남아 있어 지웠다")
         # 이 컴퓨터(Pi) 자체 — 뜨거워 CPU 를 늦추면 50 Hz 제어가 흔들리고, 디스크가 차면 기록이 끊긴다
-        from fc_watch.pihealth import snapshot as pi_snapshot
+        from fc_watch.pihealth import snapshot as pi_snapshot, wifi_problem
         pi = pi_snapshot(self.traj_dir.parent if self.traj_dir is not None else None)
         self.pi_health = pi
         th = pi.get("throttled") or {}
@@ -462,11 +462,18 @@ class SarMission:
                 why.append("전압 부족 — 전원 · 케이블 확인")
             if pi.get("disk_free_gb") is not None and pi["disk_free_gb"] < 1:
                 why.append(f"디스크 남은 용량 {pi['disk_free_gb']} GB")
+            wp = wifi_problem(pi.get("wifi"))
+            if wp and wp[0] == "bad":
+                why.append(wp[1])
             raise PreflightFailed("비행 컴퓨터 상태가 나쁘다: " + " · ".join(why or ["알 수 없음"]))
         if pi["level"] == "warn":
             self.warnings.append(f"비행 컴퓨터 주의 — CPU {pi.get('cpu_temp_c')} °C · 디스크 {pi.get('disk_free_gb')} GB"
                                  + (" · 부팅 뒤 스로틀링이 있었다" if th.get("since_boot") else ""))
             log.warning(self.warnings[-1])
+        wp = wifi_problem(pi.get("wifi"))
+        if wp and wp[0] == "warn":
+            self.warnings.append(wp[1])
+            log.warning(wp[1])
         tel = await self._tel()
         if tel.lat is None or tel.lon is None:
             raise PreflightFailed("위치가 없다")

@@ -152,6 +152,29 @@ def test_pi_health_levels():
     assert level({"cpu_temp_c": None, "throttled": None, "disk_free_gb": None}) == "ok"      # 못 읽으면 막지 않는다
 
 
+def test_wifi_band_and_signal():
+    from fc_watch.pihealth import level, wifi_problem
+
+    ok = {"cpu_temp_c": 55.0, "throttled": None, "disk_free_gb": 40}
+    assert wifi_problem({"connected": True, "freq_mhz": 2437, "signal_dbm": -50}) is None
+    assert level({**ok, "wifi": {"connected": True, "freq_mhz": 2437, "signal_dbm": -50}}) == "ok"
+    assert level({**ok, "wifi": {"connected": True, "freq_mhz": 5785, "signal_dbm": -50}}) == "bad"      # 레이더 대역
+    assert level({**ok, "wifi": {"connected": True, "freq_mhz": 5180, "signal_dbm": -50}}) == "warn"     # 다른 5 GHz
+    assert level({**ok, "wifi": {"connected": True, "freq_mhz": 2412, "signal_dbm": -82}}) == "warn"     # 약함
+    assert level({**ok, "wifi": {"connected": False}}) == "warn"
+    assert level({**ok, "wifi": None}) == "ok"                                                            # 무선 없음(노트북 · 시험)
+
+
+def test_wifi_in_radar_band_blocks_start(tmp_path, monkeypatch):
+    import asyncio
+
+    import fc_watch.pihealth as ph
+
+    monkeypatch.setattr(ph, "_wifi", lambda iface=None: {"iface": "wlan0", "connected": True, "freq_mhz": 5745, "signal_dbm": -48, "ssid": "x"})
+    plan, sim, cap, m, st = build(tmp_path, ack=False)
+    assert asyncio.run(m.run()) == "failed" and "5745" in (m.error or "") and not cap.is_on
+
+
 def test_hot_pi_blocks_start(tmp_path, monkeypatch):
     import asyncio
 

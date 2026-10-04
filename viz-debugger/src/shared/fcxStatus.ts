@@ -36,7 +36,9 @@ export type Fcx = {
   companion: { cpuTempC: number | null; throttledNow: boolean; throttledEver: boolean; undervolt: boolean; load1: number | null;
     diskFreeGb: number | null; level: 'ok' | 'warn' | 'bad' | null;
     /** SDR 유선(기가비트 이더넷) — SAR_SDR_HOST 를 넣었을 때만 */
-    eth: { up: boolean; speedMbps: number | null; rxErrors: number | null } | null } | null;
+    eth: { up: boolean; speedMbps: number | null; rxErrors: number | null } | null;
+    /** 지상국 핫스팟 WiFi — 레이더(5.8 GHz)와 겹치지 않게 2.4 GHz 로 쓴다 */
+    wifi?: { connected: boolean; freqMhz: number | null; signalDbm: number | null } | null } | null;
   clockOffsetS: number | null;
   console: readonly FcxConsoleLine[];
   deviceTime: number | null;

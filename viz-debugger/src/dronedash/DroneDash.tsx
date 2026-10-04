@@ -134,10 +134,12 @@ function StatusBar({ v, compact }: { v: View; compact?: boolean }) {
     })()}
     {f?.companion && <Chip level={f.companion.level === 'ok' ? 'good' : f.companion.level === 'warn' ? 'warn' : f.companion.level === 'bad' ? 'bad' : 'unknown'}
       label={t('dash.pi')} title={t('dash.piTitle', { load: fmt(f.companion.load1, 2), disk: fmt(f.companion.diskFreeGb, 1) })
-        + (f.companion.eth ? ' · ' + (f.companion.eth.up ? t('dash.piEth', { mbps: fmt(f.companion.eth.speedMbps, 0), err: fmt(f.companion.eth.rxErrors, 0) }) : t('dash.piEthDown')) : '')}
+        + (f.companion.eth ? ' · ' + (f.companion.eth.up ? t('dash.piEth', { mbps: fmt(f.companion.eth.speedMbps, 0), err: fmt(f.companion.eth.rxErrors, 0) }) : t('dash.piEthDown')) : '')
+        + (f.companion.wifi?.connected ? ' · ' + t('dash.piWifi', { mhz: fmt(f.companion.wifi.freqMhz, 0), dbm: fmt(f.companion.wifi.signalDbm, 0) }) : '')}
       value={[f.companion.cpuTempC === null ? null : `${fmt(f.companion.cpuTempC, 0)}°C`,
         f.companion.throttledNow ? t('dash.piThrottle') : null, f.companion.undervolt ? t('dash.piUndervolt') : null,
-        f.companion.diskFreeGb !== null && f.companion.diskFreeGb < 5 ? t('dash.piDisk', { gb: fmt(f.companion.diskFreeGb, 1) }) : null]
+        f.companion.diskFreeGb !== null && f.companion.diskFreeGb < 5 ? t('dash.piDisk', { gb: fmt(f.companion.diskFreeGb, 1) }) : null,
+        wifiNote(f.companion.wifi)]
         .filter(Boolean).join(' · ') || '—'} />}
     {!compact && f?.clockOffsetS !== null && f?.clockOffsetS !== undefined &&
       <Chip level={Math.abs(f.clockOffsetS) <= 1 ? 'good' : 'bad'} label={t('dash.clock')} value={`${f.clockOffsetS >= 0 ? '+' : ''}${fmt(f.clockOffsetS, 2)}s`} />}
@@ -518,4 +520,14 @@ function DashMap({ v }: { v: View }) {
   markers.push(...reflectorMarkers(reflectors, beam.lit));
   return <SatMap track={track} drone={at} height={470}
     droneYaw={v.yawDeg} sarLine={sarLine} capturing={sar?.capturing} markers={markers} areas={beam.area ? [beam.area] : []} />;
+}
+
+/** Pi WiFi 를 칩에 짧게 — 문제가 있을 때만(레이더 대역 · 5 GHz · 약함 · 끊김). 드론 쪽 fc_watch/pihealth.py 의 wifi_problem 과 같은 기준 */
+function wifiNote(w: { connected: boolean; freqMhz: number | null; signalDbm: number | null } | null | undefined): string | null {
+  if (!w) return null;
+  if (!w.connected) return t('dash.piWifiNone');
+  if (w.freqMhz !== null && w.freqMhz >= 5650 && w.freqMhz <= 5950) return t('dash.piWifiRadar', { mhz: w.freqMhz.toFixed(0) });
+  if (w.freqMhz !== null && w.freqMhz >= 4900) return t('dash.piWifi5g');
+  if (w.signalDbm !== null && w.signalDbm < -75) return t('dash.piWifiWeak', { dbm: w.signalDbm.toFixed(0) });
+  return null;
 }
