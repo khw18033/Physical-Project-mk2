@@ -396,3 +396,27 @@ def write_fake_flight(work: str | Path, n_cap: int, radar: RadarConfig, traj, or
                      20.0, 45, 0.99, 0.5, "OK"])
     return {"iq": str(iq), "logdir": str(ldir), "sweeps": n, "prf_hz": prf, "bytes": iq.stat().st_size, "offset_s": off,
             "offset_pi_minus_fc_s": off_pi}
+
+
+def capture_window(iq_path: str | Path) -> dict | None:
+    """원시 파일을 열지 않고 캡처 구간(Pi 시각)을 — meta_N.txt 의 SDR 시각 + events.csv 시계 짝.
+    데이터 서버가 드론 패스와 짝지을 때 쓴다(파일 수정 시각보다 정확하다). passes.csv 에 레이더 팀이 CAP_ON 의
+    `pass` · `flight` 를 같이 적어 두면 그것도 돌려준다(그러면 시각 없이 바로 짝짓는다). 못 구하면 None."""
+    p = Path(iq_path)
+    try:
+        no = capture_no(p)
+        meta = read_meta(p.with_name(f"meta_{no}.txt"))
+        t0s, t1s = float(meta["t_start"]), float(meta["t_end"])
+        off, _ = clock_offset(p, t0s)
+    except (OSError, KeyError, ValueError):
+        return None
+    out = {"start": t0s + off, "end": t1s + off, "capture": no}
+    for d in _log_dirs(p):
+        row = next((r for r in _rows(d / "passes.csv") if r.get("n") == no), None)
+        if row:
+            if row.get("pass"):
+                out["pass"] = row["pass"]
+            if row.get("flight"):
+                out["flight"] = row["flight"]
+            break
+    return out

@@ -92,8 +92,16 @@ class Store:
                         matched.append({"name": rf["name"], "size": f.stat().st_size, "mtime": f.stat().st_mtime, "src": "flight"})
             elif t0 is not None and t1 is not None:
                 for path, mtime, size in radar:
-                    if t0 - PRE_S <= mtime <= t1 + POST_S:
-                        matched.append({"name": str(path.relative_to(self.radar)), "size": size, "mtime": mtime})
+                    w = self._capture_window(path, mtime)
+                    if w is not None and w.get("flight") and w.get("pass"):
+                        hit = w["flight"] == flight.name and str(w["pass"]) == str(p.get("pass_no"))   # 레이더가 CAP_ON 내용을 적어 둠
+                    elif w is not None:
+                        hit = w["start"] < t1 + 1.0 and w["end"] > t0 - 1.0                          # 캡처 구간이 패스와 겹친다
+                    else:
+                        hit = t0 - PRE_S <= mtime <= t1 + POST_S                                    # 형식을 모르면 파일 시각으로
+                    if hit:
+                        matched.append({"name": str(path.relative_to(self.radar)), "size": size, "mtime": mtime,
+                                        **({"by": "pass" if w.get("pass") else "capture_time"} if w else {"by": "mtime"})})
             out.append({
                 "pass_no": p.get("pass_no"), "valid": p.get("valid"), "reasons": p.get("reasons", []),
                 "start_unix": p.get("start_unix"), "end_unix": p.get("end_unix"),
@@ -106,6 +114,21 @@ class Store:
                 "image": self._image_summary(flight, p.get("pass_no")),
             })
         return out
+
+    def _capture_window(self, path: Path, mtime: float) -> dict | None:
+        """레이더 원시가 스스로 알려 주는 캡처 구간(Pi 시각) — 지금은 CANSAR(iq_N.bin). 파일 시각이 같으면 다시 읽지 않는다."""
+        cache = self.__dict__.setdefault("_cw_cache", {})
+        key = (str(path), mtime)
+        if key not in cache:
+            w = None
+            if re.fullmatch(r"iq_\d+\.bin", path.name):
+                try:
+                    from sar_image.cansar import capture_window
+                    w = capture_window(path)
+                except Exception:  # noqa: BLE001 — 못 구하면 파일 시각으로 짝짓는다
+                    w = None
+            cache[key] = w
+        return cache[key]
 
     @staticmethod
     def _rc_files(flight: Path, pass_no) -> dict:  # noqa: ANN001

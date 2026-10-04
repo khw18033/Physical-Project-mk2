@@ -2919,7 +2919,7 @@ export const en: Record<string, string> = {
   'disp.refOnly': 'Fewer than three still reflectors — only one reference subtracted; some trajectory error remains. Use three or more',
   'disp.noRef': 'No still reflector — trajectory error (RTK, cm) is included; reference value only',
   'disp.notes': '{n} note(s) — see compare.json',
-  'cq.title': 'Radar team image',
+  'cq.title': 'Radar team quick check (reference)',
   'cq.capture': 'Capture',
   'cq.state.queued': 'queued',
   'cq.state.waiting_capture': 'waiting (capture in progress)',

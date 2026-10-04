@@ -2943,7 +2943,7 @@ export const ko: Record<string, string> = {
   'disp.refOnly': '안 움직인 리플렉터가 셋보다 적어 기준 하나만 뺐습니다 — 궤적 오차가 조금 남습니다. 셋 이상 두세요',
   'disp.noRef': '안 움직인 리플렉터가 없어 궤적 오차(RTK, cm)가 그대로 실렸습니다 — 참고값입니다',
   'disp.notes': '참고 사항 {n}개 — compare.json 에 있습니다',
-  'cq.title': '레이더 팀 영상',
+  'cq.title': '레이더 팀 빠른 확인 (참고)',
   'cq.capture': '캡처',
   'cq.state.queued': '줄 서 있음',
   'cq.state.waiting_capture': '캡처 중이라 기다림',

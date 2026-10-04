@@ -112,3 +112,32 @@ def test_range_bias_tells_how_to_fix_roff(tmp_path):
     rb = body["quicklook"]["range_bias"]
     assert abs(rb["combined_m"] - (-0.08)) < 0.02, rb
     assert any("roff" in n and "줄인다" in n for n in body["notes"])
+
+
+def test_store_matches_capture_by_its_own_time_not_mtime(tmp_path):
+    """수정 시각이 같아도(복사가 한꺼번에 · 늦게) 캡처 구간(meta + events.csv)으로 그 패스의 것만 짝짓는다."""
+    import os as _os
+
+    from sar_data.server import Store
+    from sar_image.cansar import capture_window, write_fake_flight
+
+    fl = tmp_path / "flights" / "flight_1790957600"
+    fl.mkdir(parents=True)
+    for f in DATA.glob("pass02_1790957682.*"):
+        shutil.copy(f, fl / f.name)
+    csvp = fl / "pass02_1790957682.csv"
+    meta = json.loads(csvp.with_suffix(".json").read_text(encoding="utf-8"))
+    traj = Trajectory.load_csv(csvp)
+    o, _, _, _ = frame(traj, meta)
+    radar = RadarConfig.load(RADAR)
+    t0, t1 = traj.capture_window()
+    a = write_fake_flight(tmp_path / "pi", 163150, radar, traj, o, [], meta, t_window=(t0 + 2, t0 + 4))
+    b = write_fake_flight(tmp_path / "pi", 163151, radar, traj, o, [], meta, t_window=(t1 + 60, t1 + 62))   # 다음 패스 것
+    end = meta["pass"]["end_unix"]
+    for f in (a["iq"], b["iq"]):
+        _os.utime(f, (end + 3, end + 3))                                      # 둘 다 이 패스 끝 직후에 복사된 것처럼
+    w = capture_window(a["iq"])
+    assert w is not None and w["start"] < meta["pass"]["end_unix"]
+    store = Store(tmp_path / "flights", tmp_path / "pi" / "flight", "iq_*.bin")
+    names = [rf["name"] for rf in store.passes(fl)[0]["radar_files"]]
+    assert names == ["iq_163150.bin"], names
