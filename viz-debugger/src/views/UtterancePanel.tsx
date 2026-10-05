@@ -64,7 +64,8 @@ import { Explain } from '../shared/Explain.tsx';
 import placesTopology from '../../../places/places.json';
 import equipmentVocabulary from '../../../equipment/equipment.json';
 import { noteHumanAction } from '../shared/humanAction.ts';
-import { parseStepScript, stepMissionView } from '../physical/stepScript.ts';
+import { MOVE_RELATIVE_ACTION, parseStepScript, stepMissionView } from '../physical/stepScript.ts';
+import { someDeviceDeclares } from '../physical/deviceIdentity.ts';
 import { proposeSteps, rejectProposal } from '../data/scenario.ts';
 import { t } from '../i18n/dict.ts';
 import { Rich } from '../i18n/RichText.tsx';
@@ -213,7 +214,8 @@ const DEMO_SENTENCES = SCRIPT_LIBRARY.map((entry) => ({
  * @returns 정량 명령으로 세웠으면 `true`. 그러면 부르는 쪽이 생성을 걸지 않는다.
  */
 function proposeQuantitative(text: string): boolean | { key: string; vars?: Record<string, string | number> } {
-  const script = parseStepScript(text);
+  // 뒤로 · 옆으로는 걷는 장비가 상대 이동을 선언했을 때만 받는다 (261005).
+  const script = parseStepScript(text, undefined, { relative: someDeviceDeclares(MOVE_RELATIVE_ACTION) });
   /**
    * **정량 명령으로 읽다가 멈춘 사유를 돌려준다** (260928). 머리줄 입력칸이 있을 때는 거기에 사유가 떴는데,
    * 입력칸을 없앤 뒤로 발화 경로는 조용히 대본·생성으로 넘어가 「맞는 대본이 없다」만 남았다 — 진짜 이유

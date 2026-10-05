@@ -33,7 +33,7 @@
 import { t } from '../i18n/dict.ts';
 import { connectionAddress, registerConnectionDefault, splitAddressList } from '../shared/connections.ts';
 import { noteCapability, resetDeviceIdentity, deviceIdentityFor } from './deviceIdentity.ts';
-import { encodeCommand, nextCommandId, type CommandInput, type PhysicalAction } from './encode.ts';
+import { encodeCommand, nextCommandId, type CommandInput, type DeclaredAction, type PhysicalAction } from './encode.ts';
 import { physical } from './protocol.js';
 import { parseScanFeed, scanFeedChannel, type ScanFeedMessage } from './scanFeed.ts';
 import { parseSarStatus, SAR_TOPIC, sarChannel } from './sarFeed.ts';
@@ -418,7 +418,7 @@ export class PhysicalClient {
    * 조용히 사라지고, 화면은 「보냈다」고 적는다 — 무대에서 가장 찾기 어려운 실패다.
    * 같은 랜에 pi7 이 살아 있으면 더 나쁘다.
    */
-  send(action: PhysicalAction, parameters?: Record<string, number>): { sent: boolean; commandId: string; reason?: string } {
+  send(action: PhysicalAction | DeclaredAction, parameters?: Record<string, number>): { sent: boolean; commandId: string; reason?: string } {
     const commandId = nextCommandId();
     if (this.status.state !== 'open') {
       return { sent: false, commandId, reason: t('pc.notConnected') + this.status.state };

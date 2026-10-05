@@ -38,7 +38,7 @@
 
 import { useLang } from '../shared/language.ts';
 import { t } from '../i18n/dict.ts';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useSyncExternalStore } from 'react';
 import type { Hardware } from '../model/types.ts';
 import { DeviceStrip } from './DeviceStrip.tsx';
 import { DeviceFacts } from '../physical/DeviceFacts.tsx';
@@ -50,6 +50,12 @@ import { VisionDeviceSection } from '../vision/views/VisionViews.tsx';
 import { FixedCameraSection } from '../fixedcam/FixedCameraSection.tsx';
 import { isFixedCamera } from '../fixedcam/fixedCamera.ts';
 import { DroneDetailModal, useIsDrone } from './DroneDetailModal.tsx';
+import { deviceCandidates, subscribeDeviceIdentity } from '../physical/deviceIdentity.ts';
+import { isManualRobot } from '../physical/manualControl.ts';
+import { ManualControlTab } from './ManualControlTab.tsx';
+
+const ROBOT_TABS = ['status', 'manual'] as const;
+type RobotTab = (typeof ROBOT_TABS)[number];
 
 export function DeviceStatusOverlay({ deviceId, device, source, onClose }: {
   deviceId: string;
@@ -77,6 +83,14 @@ export function DeviceStatusOverlay({ deviceId, device, source, onClose }: {
    * 닫는 길(Esc)은 아래 효과가 그대로 맡는다 — 갈래를 효과 뒤에 둔다.
    */
   const drone = useIsDrone(deviceId);
+  /**
+   * **로봇이면 수동 제어 탭** (261005). 드론 · 고정 카메라는 아니다 — 판정은 장비가 말한 것으로(`isManualRobot`).
+   * 지금 상세보기 내용은 첫 탭에 그대로 있다. 탭을 옮겨도 수동 제어는 켜진 채다 — 키 처리기는 앱에 걸려 있다.
+   */
+  const facts = useSyncExternalStore(subscribeDeviceIdentity,
+    () => deviceCandidates().find((candidate) => candidate.deviceId === deviceId) ?? null);
+  const robot = isManualRobot(facts, { drone, fixedCamera });
+  const [tab, setTab] = useState<RobotTab>('status');
   // 여는 길이 둘(더블클릭·앞으로 늘 수 있는 다른 경로)이면 닫는 길도 둘 이상이어야 한다.
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') onClose(); };
@@ -92,8 +106,13 @@ export function DeviceStatusOverlay({ deviceId, device, source, onClose }: {
           <h2>{t('dso.title', { id: deviceId })}</h2>
           <small>{device ? `${device.kind} · ` : ''}{t('dso.source', { source })}</small>
         </div>
+        {robot && <nav className="drone-modal__tabs" role="tablist" aria-label={t('dso.drone.tabs', { id: deviceId })}>
+          {ROBOT_TABS.map((item) => <button key={item} type="button" role="tab" aria-selected={tab === item}
+            onClick={() => setTab(item)}>{t(`dso.robot.tab.${item}`)}</button>)}
+        </nav>}
         <button onClick={onClose}>{t('dso.1')}</button>
       </header>
+      {robot && tab === 'manual' ? <ManualControlTab deviceId={deviceId} /> : <>
       {/* **오는 값만 적는다** (260910). 안 오는 칸은 자리표시로 채우지 않고 아예 안 그린다. */}
       {fixedCamera ? <FixedCameraSection entityId={deviceId} /> : <DeviceFacts entityId={deviceId} />}
       {device !== undefined && <DeviceStrip device={device} />}
@@ -117,6 +136,7 @@ export function DeviceStatusOverlay({ deviceId, device, source, onClose }: {
       {fixedCamera ? null : directUrl === null
         ? <MediaSection deviceId={deviceId} />
         : <details className="media-section__fold"><summary>{t('dso.mediaFold')}</summary><MediaSection deviceId={deviceId} /></details>}
+      </>}
       <footer>
         <span>{t('dso.2')}</span>
       </footer>

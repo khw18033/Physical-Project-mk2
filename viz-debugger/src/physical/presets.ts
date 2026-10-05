@@ -98,6 +98,33 @@ export const TEST_FORWARD_M = 1;
 export const APPROACH_VX = 0.3;
 
 /**
+ * **수동 제어 속도 명령** (261005 — 하드웨어에 요청 중. 받는 쪽이 아직 합의하지 않았다).
+ *
+ * `teleop { vx, vy, vyaw }` — 누르고 있는 동안 화면이 `TELEOP_KEEPALIVE_MS` 마다 같은 값을 다시 보내고,
+ * 장비는 마지막 명령 뒤 `TELEOP_HOLD_MS` 안에 다음 것이 안 오면 **스스로 선다.** 화면이 죽거나 줄이 끊겨도
+ * 로봇이 계속 걷지 않게 하는 것이 이 명령의 요점이다. 0 · 0 · 0 은 「지금 서라」다.
+ *
+ * 축은 ROS 관례(REP-103)다 — `vx` 앞 + · `vy` 왼쪽 + · `vyaw` 반시계(왼쪽) + rad/s.
+ * **`turn` 의 `deg` 는 오른쪽이 + 라 부호가 반대다.** 헷갈리지 않게 두 명령이 만나는 자리는 `manualControl.ts` 하나다.
+ *
+ * 장비가 `Capability` 에 이 이름을 선언하면 수동 제어가 속도 모드로 바뀐다. 이름을 그쪽이 바꾸면 이 줄만 고친다.
+ */
+export const TELEOP_ACTION = 'teleop';
+export const TELEOP_KEEPALIVE_MS = 200;
+export const TELEOP_HOLD_MS = 500;
+/** 키 하나가 내는 속도의 기본값. 장비마다 수동 제어 탭에서 바꾼다(`manualControl.ts` · `setSpeed`). */
+export const TELEOP_SPEED = { vx: 0.3, vy: 0.2, vyaw: 0.6 } as const;
+/**
+ * **pi7 이 답한 상한** (261005 답신 §2). 넘는 값은 장비가 잘라서 쓰지만, 화면도 같은 상한으로 묶는다 —
+ * 탭에 0.8 이라고 적혀 있는데 로봇은 0.4 로 걷는 일이 없게. 하한은 「눌렀는데 안 움직인다」로 보이지 않을 만큼이다.
+ */
+export const TELEOP_LIMITS = {
+  vx: { min: 0.05, max: 0.4 },
+  vy: { min: 0.05, max: 0.3 },
+  vyaw: { min: 0.1, max: 1.0 },
+} as const;
+
+/**
  * **스캔 촬영 뒤 대기** (260914 — pi7 에 요청해 들어간 기능).
  *
  * `scan_mission` 에 `hold_after_capture: 1` 을 실으면 로봇이 각 촬영(/frame 전송) 뒤 서서 `scan_hold` 를 보내고,

@@ -38,6 +38,19 @@
  *
  * 옆으로 가기는 지금도 된다: `오른쪽 90도 회전 후 1m 전진 후 왼쪽 90도 회전`. 게걸음이
  * 아니라 결과가 같은 것이다.
+ *
+ * ## 261005 — 답을 받았다: `move_relative`
+ *
+ * pi7 이 상대 이동 명령을 따로 열었다(`move_relative { dx_m, dy_m, v_mps }` — 앞 + · 왼쪽 + · 각 축 0 또는
+ * 0.05~10m · 속도 0.05~0.30). 음수 `move_forward` 를 뒤로 읽게 한 것이 아니라 **새 이름**이라, 위에서 걱정한
+ * 「절댓값으로 읽혀 앞으로 간다」는 일어나지 않는다.
+ *
+ * 그래서 `뒤로 1m` · `왼쪽으로 50cm` · `오른쪽으로 1m 이동` 을 받는다 — **장비가 그 명령을 선언했을 때만**
+ * (`relative` 선택지). 선언 전에는 지금처럼 거절하고, 왜인지 적는다. 문장 하나는 한 축만 간다 — 대각선은
+ * 장비가 받지만(둘 다 주면 한 번에 간다) 문장으로 그것을 읽을 어휘를 만들지 않았다.
+ *
+ * `-1m 전진` 은 여전히 거절이다. 뒤로 가려면 「뒤로」라고 적는다 — 부호 하나로 방향이 뒤집히는 글은 잘못
+ * 친 것과 구별되지 않는다.
  */
 
 import { APPROACH_VX } from './presets.ts';
@@ -109,6 +122,11 @@ const RIGHT = /오른쪽|우회전|우측|우\b|시계|right|cw/i;
 /** 동작. */
 const FORWARD = /전진|직진|앞으로|forward/i;
 const TURN = /회전|돌아|돌려|turn/i;
+/** 뒤로 (261005 · `move_relative`). */
+const BACKWARD = /뒤로|후진|backward|reverse|\bback\b/i;
+
+/** 상대 이동의 이름. 장비가 이것을 선언했을 때만 뒤로 · 옆으로를 받는다. */
+export const MOVE_RELATIVE_ACTION = 'move_relative';
 
 /** 이어붙임. 이 글자들로 자른다. */
 const JOIN = /\s*(?:그리고|다음에|다음|후에|후|,|·|→|->|then)\s*/;
@@ -134,7 +152,12 @@ function angleDeg(text: string): number | null {
  * @param sentence 사람이 적은 것 그대로.
  * @param vx 구간 상한을 정하는 속도. 기본은 `STEP_VX` 이고, 걸음에도 이 값이 실린다.
  */
-export function parseStepScript(sentence: string, vx: number = STEP_VX): StepScript {
+export function parseStepScript(
+  sentence: string,
+  vx: number = STEP_VX,
+  /** `relative` — 걷는 장비가 `move_relative` 를 선언했다. 그때만 뒤로 · 옆으로를 받는다. */
+  options: { relative?: boolean } = {},
+): StepScript {
   const trimmed = sentence.trim();
   if (trimmed === '') return { ...EMPTY, reject: { key: 'step.reject.empty' } };
 
@@ -149,6 +172,28 @@ export function parseStepScript(sentence: string, vx: number = STEP_VX): StepScr
   for (const part of parts) {
     const turning = TURN.test(part);
     const moving = FORWARD.test(part);
+    /**
+     * **뒤로 · 옆으로** (261005). 돌기 어휘가 없을 때만이다 — 「오른쪽 90도 회전」은 돌기다. 옆으로는 방향 낱말과
+     * 거리가 같이 있어야 한다(「왼쪽으로 1m」). 앞으로 어휘(`전진`)가 있으면 앞으로다 — 지금까지와 같다.
+     */
+    const backward = !turning && BACKWARD.test(part);
+    const sideways = !turning && !moving && !backward && (LEFT.test(part) || RIGHT.test(part)) && DISTANCE.test(part);
+    if (backward || sideways) {
+      if (options.relative !== true) {
+        return { ...EMPTY, reject: { key: backward ? 'step.reject.backward' : 'step.reject.sideways', vars: { part } } };
+      }
+      const metres = distanceM(part);
+      if (metres === null) return { ...EMPTY, reject: { key: 'step.reject.noDistance', vars: { part } } };
+      if (metres < 0) return { ...EMPTY, reject: { key: 'step.reject.signedRelative', vars: { part } } };
+      if (backward) {
+        pushRelative('x', -1, metres, vx, chunk, steps, reads, notes);
+        continue;
+      }
+      const left = LEFT.test(part);
+      if (left && RIGHT.test(part)) return { ...EMPTY, reject: { key: 'step.reject.bothSides', vars: { part } } };
+      pushRelative('y', left ? 1 : -1, metres, vx, chunk, steps, reads, notes);
+      continue;
+    }
 
     // **동작을 모르면 거부한다.** 「조금만 앞으로」는 동작은 알지만 수치가 없고,
     // 「어쩌고」는 동작조차 없다 — 둘 다 여기서 걸린다.
@@ -187,7 +232,8 @@ export function parseStepScript(sentence: string, vx: number = STEP_VX): StepScr
     const metres = distanceM(part);
     if (metres === null) return { ...EMPTY, reject: { key: 'step.reject.noDistance', vars: { part } } };
     // **뒤로 가기는 어휘에 없다.** 음수를 쏘지 않는다 — 어떻게 읽히는지 모른다.
-    if (metres < 0) return { ...EMPTY, reject: { key: 'step.reject.backward', vars: { part } } };
+    // 상대 이동을 받는 장비여도 부호로 뒤집지 않는다 — 「뒤로」라고 적게 한다 (261005).
+    if (metres < 0) return { ...EMPTY, reject: { key: options.relative === true ? 'step.reject.signedRelative' : 'step.reject.backward', vars: { part } } };
     pushForward(metres, vx, chunk, steps, reads, notes);
   }
 
@@ -254,6 +300,37 @@ function pushForward(
 }
 
 /**
+ * 상대 이동 하나 (261005). 축 하나 · 부호는 규약 그대로(앞 + · 왼쪽 +). 자르는 규칙은 직진과 같다 —
+ * 같은 하한, 같은 구간 상한(시한 안에 끝나게).
+ */
+function pushRelative(
+  axis: 'x' | 'y',
+  sign: 1 | -1,
+  metres: number,
+  vx: number,
+  chunk: number,
+  steps: TaskCommand[],
+  reads: string[],
+  notes: { key: string; vars?: Record<string, string | number> }[],
+): void {
+  if (metres < FORWARD_MIN_M) {
+    notes.push({ key: 'step.note.relativeTooSmall', vars: { m: metres.toFixed(2), min: FORWARD_MIN_M } });
+    return;
+  }
+  const pieces = Math.ceil(metres / chunk);
+  if (pieces > 1) {
+    notes.push({ key: 'step.note.relativeSplit', vars: { total: metres.toFixed(2), pieces, each: (metres / pieces).toFixed(2) } });
+  }
+  const each = Number((metres / pieces).toFixed(2));
+  for (let index = 0; index < pieces; index += 1) {
+    const dx = axis === 'x' ? sign * each : 0;
+    const dy = axis === 'y' ? sign * each : 0;
+    steps.push({ taskId: 'T-STEP', action: MOVE_RELATIVE_ACTION, parameters: { dx_m: dx, dy_m: dy, v_mps: vx } });
+    reads.push(readRelative(dx, dy, vx));
+  }
+}
+
+/**
  * 읽은 것을 사람 말로. **여기도 사전을 안 쓴다** — 숫자와 단위뿐이고 `←`·`→` 는 어느
  * 언어에서도 같다. 「오른쪽」·「왼쪽」이라는 낱말 대신 부호와 화살표를 쓰는 이유가 그것이다.
  */
@@ -263,6 +340,12 @@ function readTurn(deg: number): string {
 
 function readForward(metres: number, vx: number): string {
   return `↑ ${metres.toFixed(2)} m (vx ${vx.toFixed(2)})`;
+}
+
+/** 뒤로 `↓` · 왼쪽 `⇠` · 오른쪽 `⇢`. 회전의 `←` · `→` 와 겹치지 않게 다른 화살표를 쓴다. */
+function readRelative(dx: number, dy: number, v: number): string {
+  const arrow = dx < 0 ? '↓' : dy > 0 ? '⇠' : '⇢';
+  return `${arrow} ${Math.abs(dx !== 0 ? dx : dy).toFixed(2)} m (v ${v.toFixed(2)})`;
 }
 
 /**

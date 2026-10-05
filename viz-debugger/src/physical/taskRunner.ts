@@ -174,6 +174,23 @@ export function moveGate(): MoveGate | null {
   return gate;
 }
 
+/**
+ * **지금 임무가 모는 장비** (261005 — 수동 제어가 키를 막는 기준).
+ *
+ * 판에 걸을 장비로 묶였고(`walking`) 아직 끝나지 않았으면 그 판의 것이다 — 출발 전에 기다리는 동안도 포함한다.
+ * 기다리는 사이 사람이 몰아 두면 판이 잰 출발 자리 · 방위가 틀어진 채로 경로가 나간다.
+ * 명령을 내는 중인 장비(`busy`)도 더한다.
+ */
+export function autoDrivenDevices(): ReadonlySet<string> {
+  const out = new Set<string>();
+  if (run === null) return out;
+  for (const walk of run.walks.values()) {
+    if (walk.deviceId !== null && walk.mode === 'walking' && walk.state !== 'ended') out.add(walk.deviceId);
+  }
+  for (const deviceId of run.busy) out.add(deviceId);
+  return out;
+}
+
 export function subscribeMoveGate(listener: () => void): () => void {
   gateListeners.add(listener);
   return () => { gateListeners.delete(listener); };

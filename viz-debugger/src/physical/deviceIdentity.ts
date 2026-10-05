@@ -176,6 +176,16 @@ export function supportsAction(action: string): boolean | null {
   return actions.includes(action);
 }
 
+/**
+ * **붙은 장비 가운데 이 action 을 선언한 것이 있는가** (261005 — 문장 해석이 `move_relative` 를 받을지).
+ *
+ * 해석은 장비를 고르지 않는다 — 고르는 것은 발행 때다(`walkingClient`). 여기서 참이어도 발행 때 고른 장비가
+ * 선언하지 않았으면 그쪽이 안 낸다(`issueStepMission`).
+ */
+export function someDeviceDeclares(action: string): boolean {
+  return Object.values(candidates).some((candidate) => candidate.actions?.includes(action) === true);
+}
+
 function upsert(next: Candidate): void {
   const previous = candidates[next.deviceId];
   if (previous !== undefined) {

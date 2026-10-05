@@ -20,7 +20,7 @@
  */
 
 import { t } from '../i18n/dict.ts';
-import { stepCommandsOf } from './stepScript.ts';
+import { MOVE_RELATIVE_ACTION, stepCommandsOf } from './stepScript.ts';
 import { commandTracker } from '../shared/commandCenter.ts';
 import { noteIssue } from '../shared/notifications.ts';
 import type { CommandAck, CommandRequest } from '../transport/index.ts';
@@ -34,7 +34,7 @@ import { planApproach, type ApproachPlan } from './approachPlan.ts';
 import type { PhysicalClient } from './PhysicalClient.ts';
 import { uplinkWords, type UplinkMessage } from './uplink.ts';
 import { STOP_ACTION, STOP_REASON } from './presets.ts';
-import { supportsAction } from './deviceIdentity.ts';
+import { deviceIdentityFor, supportsAction } from './deviceIdentity.ts';
 import {
   canIssueRobotCommand, clearScanIssued, commandsOfTask, elapsedSec, lockPaused, lockStopped, markApproachIssued,
   markScanIssued, notePauseFailure, pickDoorIndex, recordCommand, releasePaused, robotDrives,
@@ -216,6 +216,17 @@ export async function issueStepMission(
 ): Promise<IssueOutcome | null> {
   const steps = stepCommandsOf(params);
   if (steps.length === 0) return null;
+  /**
+   * **상대 이동은 고른 장비가 선언했을 때만** (261005). 문장 해석은 「붙은 장비 중 누군가」를 보고 받았고,
+   * 여기서 고른 장비가 그 장비가 아닐 수 있다. 선언 목록을 아예 못 받았으면(retained 가 아니다) 보내고
+   * 장비의 거절을 받는다 — 목록에 없다고 **말한** 장비에게만 안 보낸다.
+   */
+  if (client !== null && steps.some((step) => step.action === MOVE_RELATIVE_ACTION)) {
+    const actions = deviceIdentityFor(client.address())?.actions ?? null;
+    if (actions !== null && !actions.includes(MOVE_RELATIVE_ACTION)) {
+      return { sent: false, commandId: '', requestId: null, reason: t('robot.relativeNotDeclared') };
+    }
+  }
   markScanIssued();
   const outcome = await issueSteps(client, steps);
   // 안 나갔으면 표시를 도로 내린다 — 안 나간 것을 나갔다고 둘 수 없다.
@@ -345,6 +356,7 @@ export async function issueSteps(
           reason: t('robot.stepRejected', { action: step.action, detail: [settled.code, settled.message].filter((v) => v).join(' ') || t('robot.noReason') }),
         };
       }
+      noteUnreached(step.action, settled);
     }
     // **관문 닫기는 여기 없다.** `markApproachIssued()` 는 경로 이동 전용이고,
     // 정량 명령은 그 관문과 무관하다 — 부르는 쪽이 자기 관문을 닫는다.
@@ -377,7 +389,18 @@ export async function issueStepsToEnd(
   if (settled.kind === 'acceptance' && !settled.accepted) {
     return { ...last, sent: false, reason: t('robot.stepRejected', { action, detail: [settled.code, settled.message].filter((v) => v).join(' ') || t('robot.noReason') }) };
   }
+  noteUnreached(action, settled);
   return last;
+}
+
+/**
+ * **성공인데 도착하지 못했다** (261005 — pi7 답신). 이동 명령은 시한(거리/속도×4+5초) 안에 못 가도 `SUCCEEDED` 로
+ * 끝나고 `reached=0` 을 붙인다. 임무는 성공으로 진행하되(지금까지와 같다) **그 사실을 알림에 적는다** — 로봇이
+ * 덜 간 채로 다음 걸음이 나간 것을 화면이 모르면 안 된다.
+ */
+function noteUnreached(action: string, settled: UplinkMessage): void {
+  if (settled.kind !== 'result' || settled.status !== 'SUCCEEDED' || settled.result.reached !== 0) return;
+  noteIssue('steps', 'robot', t('robot.stepNotReached', { action }));
 }
 
 /**
@@ -413,6 +436,7 @@ const turnPhrase = (deg: number): LogPhrase => ({
 function stepWords(step: TaskCommand): string {
   if (step.action === 'turn') return `turn ${step.parameters?.deg}°`;
   if (step.action === 'move_forward') return `move_forward ${step.parameters?.distance_m} m @ ${step.parameters?.vx ?? t('rcm.defaultSpeed')} m/s`;
+  if (step.action === MOVE_RELATIVE_ACTION) return `move_relative dx ${step.parameters?.dx_m} · dy ${step.parameters?.dy_m} m @ ${step.parameters?.v_mps ?? t('rcm.defaultSpeed')} m/s`;
   return t('rcm.arriveStop', { action: step.action });
 }
 

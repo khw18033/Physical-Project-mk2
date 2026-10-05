@@ -161,6 +161,41 @@ const shape = (script) => script.steps.map((step) => [step.action, step.paramete
   }
 }
 
+// ── 5-b. 상대 이동 (261005 · pi7 `move_relative`) ─────────────────────────────
+//
+// 장비가 선언했을 때만 뒤로 · 옆으로를 받는다. 선언 전에는 지금처럼 거절한다. 부호로 뒤집는 글은 여전히 거절이다.
+{
+  const rel = (sentence) => parseStepScript(sentence, undefined, { relative: true });
+  for (const sentence of ['뒤로 1m', '왼쪽으로 50cm', '오른쪽으로 1m 이동']) {
+    const off = parseStepScript(sentence);
+    if (off.steps.length !== 0) failures.push(`선언 전인데 「${sentence}」를 걸음으로 냈다`);
+    if (!['step.reject.backward', 'step.reject.sideways'].includes(off.reject?.key)) failures.push(`선언 전 「${sentence}」의 거절 사유가 ${off.reject?.key}`);
+  }
+  const back = rel('뒤로 1m');
+  if (JSON.stringify(shape(back)) !== JSON.stringify([['move_relative', { dx_m: -1, dy_m: 0, v_mps: STEP_VX }]])) {
+    failures.push(`「뒤로 1m」가 ${JSON.stringify(shape(back))}`);
+  }
+  const left = rel('왼쪽으로 50cm');
+  if (left.steps[0]?.parameters?.dy_m !== 0.5 || left.steps[0]?.parameters?.dx_m !== 0) failures.push('왼쪽이 dy + 가 아니다');
+  const right = rel('오른쪽으로 1m 이동');
+  if (right.steps[0]?.parameters?.dy_m !== -1) failures.push('오른쪽이 dy − 가 아니다');
+  // 돌기 · 앞으로는 그대로다 — 「오른쪽 90도 회전」이 옆걸음이 되면 안 된다.
+  const mixed = rel('오른쪽 90도 회전 후 1m 전진 후 뒤로 2m');
+  if (mixed.steps.map((step) => step.action).join() !== 'turn,move_forward,move_relative') {
+    failures.push(`섞인 문장이 ${mixed.steps.map((step) => step.action).join()}`);
+  }
+  if (rel('-1m 전진').reject?.key !== 'step.reject.signedRelative') failures.push('상대 이동을 받는 장비에서 음수 전진을 뒤로 읽었다');
+  if (rel('뒤로 -1m').steps.length !== 0) failures.push('부호 붙은 뒤로 거리를 냈다');
+  if (rel('왼쪽 오른쪽으로 1m').reject?.key !== 'step.reject.bothSides') failures.push('양쪽 방향이 다 있는 옆걸음을 냈다');
+  const long = rel('뒤로 15m');
+  const total = long.steps.reduce((sum, step) => sum + Math.abs(step.parameters.dx_m), 0);
+  if (long.steps.length < 2 || Math.abs(total - 15) > 0.05) failures.push('긴 뒤로 가기를 시한 안으로 고르게 나누지 않았다');
+  if (long.steps.some((step) => Math.abs(step.parameters.dx_m) < FORWARD_MIN_M || Math.abs(step.parameters.dx_m) > FORWARD_MAX_M)) {
+    failures.push('상대 이동 한 건이 규약 범위(0.05~10m) 밖이다');
+  }
+  if (rel('뒤로 1cm').reject?.key !== 'step.reject.tooSmall') failures.push('하한보다 짧은 뒤로 가기를 냈다');
+}
+
 // ── 6. 문구가 전부 사전에 있다 ──────────────────────────────────────────────
 {
   const keys = new Set();
@@ -382,6 +417,7 @@ if (failures.length) {
   process.exit(1);
 }
 console.log('✅ 숫자를 읽는다 — 거리(m·cm·미터)·각도·방향(왼쪽은 음수)·이어붙임, 속도는 늘 실린다');
+console.log('✅ 상대 이동 — 선언했을 때만 뒤로(dx −) · 왼쪽(dy +) · 오른쪽(dy −) · 부호로 뒤집지 않음 · 나눠 보냄');
 console.log('✅ 못 읽으면 한 걸음도 안 낸다 — 방향 없는 회전·수치 없는 문장·절반만 읽히는 문장');
 console.log(`✅ 규약으로 자른다 — 한 건 ${FORWARD_MAX_M}m·${TURN_MAX_DEG}도, 최소 ${FORWARD_MIN_M}m·${TURN_MIN_DEG}도, 시한 ${STEP_BUDGET_S}초 예산 (합이 보존된다)`);
 console.log('✅ 자른 것을 숨기지 않는다 · 뒤로 가기는 안 쏜다 (쏴 본 적 없는 값이다)');

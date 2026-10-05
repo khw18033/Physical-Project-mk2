@@ -77,11 +77,31 @@ export type PhysicalAction =
   // 스캔 중 「그 각도 그림이 화면에 떴다 — 다음 회전」 신호 (260914 · pi7 scan_hold). 로봇을 움직이지 않는다.
   | 'scan_continue'
   // 드론 SAR 직선 패스 (261002 · 드론 파트). 장비가 `Capability` 에 선언해야만 화면이 보낸다 — `sarCommands.ts`.
-  | 'sar_start' | 'sar_abort';
+  | 'sar_start' | 'sar_abort'
+  // 수동 제어 속도 명령 (261005 · 하드웨어에 요청 중). 이름·파라미터는 우리 안이다 — `presets.ts` 의 `TELEOP_ACTION`.
+  // 장비가 `Capability` 에 선언해야만 화면이 보낸다 — `manualControl.ts`.
+  | 'teleop'
+  // 임무용 상대 이동 — 뒤로 · 옆으로 · 대각선 (261005 · pi7 구현, 실물 미시험). `dx_m` 앞 + · `dy_m` 왼쪽 + · `v_mps`.
+  // 장비가 `Capability` 에 선언해야 문장 해석이 받는다 — `stepScript.ts`.
+  | 'move_relative';
+
+/**
+ * **장비가 선언한 action 이름 그대로** (261005 · 수동 제어 추가 동작).
+ *
+ * 위 목록은 화면이 뜻을 알고 내는 이름들이다. 수동 제어 탭의 추가 동작 칸은 그 바깥 — 장비가
+ * `Capability.actions[]` 에 적어 온 이름에 사람이 키를 단 것이라, 이름을 미리 적을 수 없다.
+ * 아무 문자열이나 흘러가지 않게 **선언 목록에서 찾은 것만** 이 타입이 된다(`declaredAction`).
+ */
+export type DeclaredAction = string & { readonly __declared: true };
+
+/** 선언 목록에 있으면 그 이름을, 없으면(또는 목록을 못 받았으면) `null`. */
+export function declaredAction(actions: readonly string[] | null, name: string): DeclaredAction | null {
+  return actions !== null && actions.includes(name) ? name as DeclaredAction : null;
+}
 
 export type CommandInput = {
   commandId: string;
-  action: PhysicalAction;
+  action: PhysicalAction | DeclaredAction;
   /** `map<string, double>` 이다 — **문자열 파라미터를 넣을 자리가 없다**(§1). */
   parameters?: Record<string, number>;
   /** 기본은 하드웨어 장비. 화면 id 를 넘기면 위 표로 바꾼다. */

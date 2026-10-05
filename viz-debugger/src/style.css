@@ -1181,3 +1181,45 @@ button.robot-resume{padding:6px 12px;border:1px solid #2f9e5f;border-radius:var(
 .topcam__num{display:inline-flex;align-items:center;gap:4px;font-size:12px}
 .topcam__num input{width:64px;padding:3px 4px;border:1px solid #4a5568;border-radius:4px;background:#11161d;color:#e6edf3;font:inherit;text-align:right}
 .topcam__num input:focus{outline:2px solid #2d5d9f;outline-offset:0}
+/* 261005 — 로봇 수동 제어 탭 · 우측 상단 알림 (ManualControlTab · ManualControlBadge) */
+.manual-tab{display:grid;gap:14px;padding:16px 22px 20px}
+.manual-tab__head{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.manual-tab__head>div{display:grid;gap:3px;flex:1;min-width:240px}
+.manual-tab__head small{color:#6a7686;font-size:13px;line-height:1.5}
+.manual-switch{padding:10px 16px;border:1px solid #bec8d5;border-radius:var(--radius-sm);background:#fff;font-weight:700}
+.manual-switch--on{color:#fff;border-color:#1f6b3a;background:#1f6b3a}
+.manual-tab__state{margin:0;padding:5px 10px;border-radius:var(--radius-sm);background:#e6f1e8;color:#1f6b3a;font-size:13px}
+.manual-tab__state--blocked{background:#fff3e0;color:#8a4b00}
+.manual-tab__section{border:1px solid #e1e5eb;border-radius:var(--radius-md);padding:12px 14px}
+.manual-tab__section>header{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:6px}
+.manual-tab__section h3{margin:0;font-size:15px}
+.manual-presets{display:flex;gap:4px}
+.manual-presets button{padding:6px 12px;border:1px solid #bec8d5;border-radius:var(--radius-sm);background:#fff}
+.manual-presets button[aria-checked="true"]{color:#fff;border-color:#1768c5;background:#1768c5;font-weight:700}
+.modal .manual-table{width:100%;margin:0}
+.modal .manual-table th,.modal .manual-table td{padding:7px 10px}
+.manual-table__stop td{color:#4a5768}
+.manual-key{min-width:64px;padding:5px 10px;border:1px solid #9fb0c4;border-radius:var(--radius-sm);background:#f5f8fc;font-family:ui-monospace,Consolas,monospace;font-weight:700;text-align:center}
+.manual-key[aria-pressed="true"]{border-color:#1768c5;background:#e7f0fb;color:#1768c5;font-family:inherit;font-weight:400}
+.manual-key--fixed{display:inline-block;color:#6a7686}
+.manual-unbind{padding:4px 9px;border:1px solid #d3d9e2;border-radius:var(--radius-sm);background:#fff;color:#6a7686;font-size:13px}
+.manual-support{padding:2px 8px;border-radius:var(--radius-xs);font-size:12px}
+.manual-support--yes{background:#e6f1e8;color:#1f6b3a}
+.manual-support--no{background:#f1f3f6;color:#7d8896}
+.manual-support--unknown{background:#fff3e0;color:#8a4b00}
+.manual-steps{display:flex;gap:20px;flex-wrap:wrap}
+.manual-steps label{display:flex;align-items:center;gap:6px}
+.manual-steps input{width:80px;padding:5px 7px;border:1px solid #bec8d5;border-radius:var(--radius-xs)}
+.manual-note{margin:4px 0 0;color:#6a7686;font-size:13px;line-height:1.5}
+.manual-warn{margin:0;padding:8px 12px;border:1px solid #f0c27a;border-radius:var(--radius-sm);background:#fff8ec;color:#7a4600;font-size:13px}
+.manual-tab__last{margin:0;font-family:ui-monospace,Consolas,monospace;font-size:12px;color:#4a5768}
+.manual-badge{position:fixed;top:96px;right:16px;z-index:70;display:grid;gap:6px;width:min(340px,calc(100vw - 32px))}
+.manual-badge__row{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:9px;padding:8px 10px;border:1px solid #9cc7a8;border-radius:var(--radius-md);background:#f2faf4;box-shadow:0 6px 18px #17202b22}
+.manual-badge__row b{display:block;font-size:13px}
+.manual-badge__row small{display:block;margin-top:2px;color:#4a5768;font-size:12px;overflow-wrap:anywhere}
+.manual-badge__row em{color:#8a4b00;font-style:normal;font-weight:700}
+.manual-badge__row button{padding:4px 9px;border:1px solid #bec8d5;border-radius:var(--radius-sm);background:#fff;font-size:12px}
+.manual-badge__row--blocked{border-color:#f0c27a;background:#fff8ec}
+.manual-badge__dot{width:9px;height:9px;border-radius:50%;background:#1f9d4c}
+.manual-badge__row--blocked .manual-badge__dot{background:#e0a33a}
+.manual-badge__warn{margin:0;padding:6px 10px;border:1px solid #f0c27a;border-radius:var(--radius-sm);background:#fff8ec;color:#7a4600;font-size:12px;box-shadow:0 6px 18px #17202b22}

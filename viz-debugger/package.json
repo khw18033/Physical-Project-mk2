@@ -127,6 +127,7 @@
     "verify:gen-prompt": "node scripts/verify-gen-prompt.mjs",
     "verify:goldset-en": "node scripts/verify-goldset-en.mjs",
     "verify:sar": "node scripts/verify-sar.mjs",
+    "verify:manual-control": "node scripts/verify-manual-control.mjs",
     "test:drone": "cd drone && .venv/bin/python -m pytest -q"
   },
   "dependencies": {
