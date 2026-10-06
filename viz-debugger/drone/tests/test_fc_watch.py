@@ -59,6 +59,18 @@ def test_missing_values_are_none_not_zero():
     assert s["attitude"] is None and s["gps"] is None and s["link"]["heartbeat_age_s"] is None
 
 
+def test_nan_from_fc_becomes_null_json():
+    """PX4 는 대기속도 센서가 없으면 airspeed=NaN — `NaN` 이 JSON 에 섞이면 브라우저가 보고를 통째로 버렸다(261006 실측)."""
+    import json
+    tel = FcTelemetry()
+    tel.on_message(M.MAVLink_vfr_hud_message(float("nan"), 0.0, 236, 0, 10.0, 0.01))
+    tel.d["battery"] = {"voltage_v": 16.2, "temperature_c": float("inf"), "cells_v": [4.05, float("nan")]}
+    s = tel.snapshot()
+    assert s["hud"]["airspeed"] is None and s["hud"]["groundspeed"] == 0.0
+    assert s["battery"]["temperature_c"] is None and s["battery"]["cells_v"] == [4.05, None]
+    json.loads(json.dumps(s, allow_nan=False))
+
+
 @pytest.mark.parametrize("cm, name", [(6 << 16, "OFFBOARD"), ((4 << 16) | (3 << 24), "AUTO.LOITER"),
                                       ((4 << 16) | (5 << 24), "AUTO.RTL"), (3 << 16, "POSCTL")])
 def test_px4_mode_names(cm, name):

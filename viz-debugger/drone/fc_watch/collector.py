@@ -11,6 +11,7 @@ MicoConfigurator · QGC 의 상태 화면이 쓰는 메시지들이다:
 
 from __future__ import annotations
 
+import math
 import time
 from collections import deque
 from typing import Any
@@ -42,7 +43,19 @@ def px4_mode(custom_mode: int) -> str:
 
 
 def _r(v: Any, nd: int = 2) -> Any:
-    return None if v is None else round(v, nd)
+    return None if v is None or (isinstance(v, float) and not math.isfinite(v)) else round(v, nd)
+
+
+def _finite(v: Any) -> Any:
+    """NaN · ±inf → None. PX4 는 「없음」을 NaN 으로 보낸다(대기속도 센서가 없으면 VFR_HUD.airspeed).
+    json.dumps 는 그걸 `NaN` 그대로 쓰는데 JSON 이 아니라서 브라우저 JSON.parse 가 **보고 전체를** 버린다."""
+    if isinstance(v, float):
+        return v if math.isfinite(v) else None
+    if isinstance(v, dict):
+        return {k: _finite(x) for k, x in v.items()}
+    if isinstance(v, (list, tuple)):
+        return [_finite(x) for x in v]
+    return v
 
 
 class FcTelemetry:
@@ -176,7 +189,7 @@ class FcTelemetry:
         d = self.d
         att = {"roll_deg": _r(d.get("roll_deg"), 1), "pitch_deg": _r(d.get("pitch_deg"), 1),
                "yaw_deg": _r(d.get("yaw_deg"), 1)} if "roll_deg" in d else None
-        return {
+        return _finite({
             "link": {"heartbeat_age_s": None if hb is None else round(now - hb, 2),
                      "msgs_per_s": round(len(self._rate) / 5.0, 1), "fc_sysid": self.fc_sysid},
             "armed": d.get("armed"), "mode": d.get("mode"), "landed_state": d.get("landed_state"),
@@ -195,4 +208,4 @@ class FcTelemetry:
             "clock_offset_s": _r(d.get("clock_offset_s"), 3),
             "console": list(self.console)[-30:],
             "time": now,
-        }
+        })
