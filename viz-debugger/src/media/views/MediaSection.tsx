@@ -52,6 +52,7 @@
  */
 
 import { useEffect, useRef, useState } from 'react';
+import { RecordFrame } from '../../record/RecordFrame.tsx';
 import { t } from '../../i18n/dict.ts';
 import { useLang } from '../../shared/language.ts';
 import { useConnections } from '../../shared/connections.ts';
@@ -181,7 +182,8 @@ export function MediaSection({ deviceId }: { deviceId: string }) {
     {!ready && <p className="media-section__note">{t('media.needAddress')}</p>}
 
     <div className="media-section__stage">
-      <canvas ref={canvasRef} className="media-canvas" />
+      {/* 261007 — 붙어 있는 동안은 실시간이다 — 녹화 버튼을 얹는다. */}
+      <RecordFrame label={`${deviceId}_media`}><canvas ref={canvasRef} className="media-canvas" /></RecordFrame>
       {media.parsed === 0 && <p className="media-canvas__empty">
         {on ? t('media.waiting') : t('media.off')}
       </p>}

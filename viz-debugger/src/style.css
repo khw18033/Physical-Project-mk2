@@ -1213,7 +1213,10 @@ button.robot-resume{padding:6px 12px;border:1px solid #2f9e5f;border-radius:var(
 .manual-note{margin:4px 0 0;color:#6a7686;font-size:13px;line-height:1.5}
 .manual-warn{margin:0;padding:8px 12px;border:1px solid #f0c27a;border-radius:var(--radius-sm);background:#fff8ec;color:#7a4600;font-size:13px}
 .manual-tab__last{margin:0;font-family:ui-monospace,Consolas,monospace;font-size:12px;color:#4a5768}
-.manual-badge{position:fixed;top:96px;right:16px;z-index:70;display:grid;gap:6px;width:min(340px,calc(100vw - 32px))}
+/* 261007 — 우측 상단 알림 묶음. 수동 제어 알림 아래에 녹화 알림이 쌓인다. 빈 자리가 누름을 가로채지 않게 묶음은 누름을 흘린다. */
+.corner-alerts{position:fixed;top:96px;right:16px;z-index:70;display:grid;gap:8px;width:min(340px,calc(100vw - 32px));pointer-events:none}
+.corner-alerts>*{pointer-events:auto}
+.manual-badge{display:grid;gap:6px}
 .manual-badge__row{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:9px;padding:8px 10px;border:1px solid #9cc7a8;border-radius:var(--radius-md);background:#f2faf4;box-shadow:0 6px 18px #17202b22}
 .manual-badge__row b{display:block;font-size:13px}
 .manual-badge__row small{display:block;margin-top:2px;color:#4a5768;font-size:12px;overflow-wrap:anywhere}
@@ -1223,3 +1226,27 @@ button.robot-resume{padding:6px 12px;border:1px solid #2f9e5f;border-radius:var(
 .manual-badge__dot{width:9px;height:9px;border-radius:50%;background:#1f9d4c}
 .manual-badge__row--blocked .manual-badge__dot{background:#e0a33a}
 .manual-badge__warn{margin:0;padding:6px 10px;border:1px solid #f0c27a;border-radius:var(--radius-sm);background:#fff8ec;color:#7a4600;font-size:12px;box-shadow:0 6px 18px #17202b22}
+
+/* 261007 — 실시간 화면 녹화 (src/record/RecordFrame.tsx · src/views/RecordingBadge.tsx) */
+.rec-host{position:relative;min-width:0}
+/* 요소 캡처(restrictTo)는 찍을 요소가 제 쌓임 맥락을 가져야 한다 */
+.rec-host>:first-child{isolation:isolate;transform-style:flat}
+.rec-btn{position:absolute;top:8px;left:8px;z-index:2;display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border:1px solid #ffffff55;border-radius:999px;background:#11161dcc;color:#fff;font-size:12px;font-weight:600;line-height:1.4;cursor:pointer}
+.rec-btn:hover:not(:disabled){background:#11161d}
+.rec-btn:disabled{opacity:.6;cursor:default}
+.rec-btn i{width:9px;height:9px;border-radius:50%;background:#e5484d}
+.rec-btn--on{background:#c62f35e6;border-color:#c62f35}
+.rec-btn--on i{border-radius:2px;background:#fff}
+.rec-badge{display:grid;gap:6px}
+.rec-badge__row{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:9px;padding:8px 10px;border:1px solid #efb2b2;border-radius:var(--radius-md);background:#fff3f3;box-shadow:0 6px 18px #17202b22}
+.rec-badge__row b{display:block;font-size:13px;overflow-wrap:anywhere}
+.rec-badge__row small{display:block;margin-top:2px;color:#4a5768;font-size:12px;overflow-wrap:anywhere}
+.rec-badge__row em{color:#8a4b00;font-style:normal;font-weight:700}
+.rec-badge__row button{padding:4px 9px;border:1px solid #bec8d5;border-radius:var(--radius-sm);background:#fff;font-size:12px}
+.rec-badge__dot{width:9px;height:9px;border-radius:50%;background:#e5484d}
+.rec-badge__row--recording .rec-badge__dot{animation:rec-blink 1.2s steps(2,start) infinite}
+.rec-badge__row--saved{border-color:#9cc7a8;background:#f2faf4}
+.rec-badge__row--saved .rec-badge__dot{background:#1f9d4c}
+.rec-badge__row--failed{border-color:#f0c27a;background:#fff8ec}
+.rec-badge__row--failed .rec-badge__dot{background:#e0a33a}
+@keyframes rec-blink{to{visibility:hidden}}

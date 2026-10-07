@@ -91,7 +91,7 @@ function DroneCameraTab({ deviceId }: { deviceId: string }) {
       <header className="media-section__head"><h3>{t('dso.drone.camera')}</h3></header>
       {direct === null
         ? <p className="drone-modal__empty">{t('dso.drone.noCamera')}</p>
-        : <DirectCamera url={direct.url} frames={direct.kind === 'frames'} live />}
+        : <DirectCamera url={direct.url} frames={direct.kind === 'frames'} live recordLabel={deviceId} />}
     </section>
     <VisionDeviceSection entityId={deviceId} />
   </>;

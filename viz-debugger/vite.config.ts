@@ -14,6 +14,8 @@ import { droneCamRelay } from './scripts/drone-cam-relay.mjs';
 import { visionStreamRelay } from './scripts/vision-stream-relay.mjs';
 // 서버 기계의 지표(`/metrics` — CPU · 메모리)를 옮기는 창구 (261002) — 지표 서버도 CORS 를 안 연다.
 import { serverMetricsRelay } from './scripts/server-metrics-relay.mjs';
+// 실시간 화면 녹화를 저장소 루트 `video/` 에 쓰는 창구 (261007) — 브라우저는 아무 폴더에나 못 쓴다. 3D 가상환경 PC 이름 조회도 여기.
+import { videoRecords } from './scripts/video-records.mjs';
 
 /**
  * **탐지 시료를 `/detect-sample` 로 내준다** (260912).
@@ -60,7 +62,7 @@ function detectSample() {
 
 export default defineConfig({
   base: './',
-  plugins: [react(), detectSample(), missionRecords(), autodriveAiRelay(), capabilityRelay(), droneCamRelay(), visionStreamRelay(), serverMetricsRelay()],
+  plugins: [react(), detectSample(), missionRecords(), autodriveAiRelay(), capabilityRelay(), droneCamRelay(), visionStreamRelay(), serverMetricsRelay(), videoRecords()],
   server: {
     port: 5174,
     strictPort: true,

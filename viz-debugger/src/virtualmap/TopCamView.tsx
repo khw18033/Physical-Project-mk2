@@ -19,6 +19,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { PointerEvent as RPointerEvent, WheelEvent as RWheelEvent } from 'react';
 import { t } from '../i18n/dict.ts';
 import { useLang } from '../shared/language.ts';
+import { RecordFrame } from '../record/RecordFrame.tsx';
 
 export type TopCamInfo = {
   name: string;
@@ -122,7 +123,7 @@ function NumField({ label, unit, value, min, max, onSet }: {
 }
 
 /** 영상 한 칸. 확대에서는 휠 = 확대·축소, 좌우 끌기 = 회전. */
-function CamPane({ root, cam, zoom, stale }: { root: string; cam: TopCamInfo; zoom: boolean; stale: boolean }) {
+function CamPane({ root, cam, zoom, stale, recordPrefix }: { root: string; cam: TopCamInfo; zoom: boolean; stale: boolean; recordPrefix: string }) {
   useLang();
   const front = cam.kind === 'front';
   const drag = useRef<{ x: number; acc: number; last: number } | null>(null);
@@ -160,6 +161,19 @@ function CamPane({ root, cam, zoom, stale }: { root: string; cam: TopCamInfo; zo
     drag.current = null;
   };
 
+  const image = <img
+    key={epoch}
+    className={`topcam__img${zoom ? ' topcam__img--live' : ''}`}
+    src={`${root}/${cam.name}.mjpg`}
+    alt={camLabel(cam.name)}
+    draggable={false}
+    onWheel={onWheel}
+    onPointerDown={onDown}
+    onPointerMove={onMove}
+    onPointerUp={onUp}
+    onPointerCancel={onUp}
+  />;
+
   return <figure className="topcam__pane">
     <figcaption className="topcam__cap">
       <b>{camLabel(cam.name)}</b>
@@ -175,18 +189,8 @@ function CamPane({ root, cam, zoom, stale }: { root: string; cam: TopCamInfo; zo
         view: cam.ortho ? t('topcam.viewMap') : t('topcam.viewPersp'),
       })}</span>
     </figcaption>
-    <img
-      key={epoch}
-      className={`topcam__img${zoom ? ' topcam__img--live' : ''}`}
-      src={`${root}/${cam.name}.mjpg`}
-      alt={camLabel(cam.name)}
-      draggable={false}
-      onWheel={onWheel}
-      onPointerDown={onDown}
-      onPointerMove={onMove}
-      onPointerUp={onUp}
-      onPointerCancel={onUp}
-    />
+    {/* 261007 — 확대(실시간 조작 화면)에서 녹화 버튼. 카드는 끌기가 먼저라 안 둔다. */}
+    {zoom ? <RecordFrame label={`${recordPrefix}_${cam.name}`}>{image}</RecordFrame> : image}
     {zoom && front && <div className="topcam__bar">
       <button type="button" onClick={() => send(root, cam.name, 'zoom=0.8')}>{t('topcam.zoomIn')}</button>
       <button type="button" onClick={() => send(root, cam.name, 'zoom=1.25')}>{t('topcam.zoomOut')}</button>
@@ -232,7 +236,11 @@ function CamPane({ root, cam, zoom, stale }: { root: string; cam: TopCamInfo; zo
  * 상공 카메라 화면. `cameras` 가 비면 서버는 떠 있지만 카메라가 없는 것(Unity 가 Play 가 아님).
  * 확대에서는 「둘 다 · 드론 · GO1」 을 고를 수 있다.
  */
-export function TopCamView({ url, probe, zoom = false }: { url: string; probe: Extract<Probe, { kind: 'topcam' }>; zoom?: boolean }) {
+export function TopCamView({ url, probe, zoom = false, recordPrefix = '3d' }: {
+  url: string; probe: Extract<Probe, { kind: 'topcam' }>; zoom?: boolean;
+  /** 261007 — 녹화 파일 이름 앞머리(3D 가상환경 PC 이름 등). 뒤에 카메라 이름이 붙는다. */
+  recordPrefix?: string;
+}) {
   useLang();
   const root = topCamRoot(url);
   const [only, setOnly] = useState<string>('');
@@ -247,7 +255,7 @@ export function TopCamView({ url, probe, zoom = false }: { url: string; probe: E
     {probe.cameras.length === 0
       ? <p className="vn-line vn-dim">{t('topcam.noCams')}</p>
       : <div className={`topcam__grid topcam__grid--${cams.length}`}>
-          {cams.map((c) => <CamPane key={c.name} root={root} cam={c} zoom={zoom} stale={stale} />)}
+          {cams.map((c) => <CamPane key={c.name} root={root} cam={c} zoom={zoom} stale={stale} recordPrefix={recordPrefix} />)}
         </div>}
     <p className="vn-line vn-dim">{t('topcam.line', { url: root })}{stale ? ` · ${t('topcam.stale')}` : ''}{zoom ? '' : ` · ${t('v3d.zoomHint')}`}</p>
   </div>;

@@ -128,6 +128,7 @@
     "verify:goldset-en": "node scripts/verify-goldset-en.mjs",
     "verify:sar": "node scripts/verify-sar.mjs",
     "verify:manual-control": "node scripts/verify-manual-control.mjs",
+    "verify:video-records": "node scripts/verify-video-records.mjs",
     "test:drone": "cd drone && .venv/bin/python -m pytest -q"
   },
   "dependencies": {

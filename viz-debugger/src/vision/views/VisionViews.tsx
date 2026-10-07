@@ -34,6 +34,7 @@
  */
 
 import { useEffect, useState } from 'react';
+import { RecordFrame } from '../../record/RecordFrame.tsx';
 import { t } from '../../i18n/dict.ts';
 import { useLang } from '../../shared/language.ts';
 import { useConnections } from '../../shared/connections.ts';
@@ -104,8 +105,10 @@ function SummaryLine({ summary, rate, framesNow }: { summary: VisionModelSummary
   </span>;
 }
 
-function VisionCell({ base, model, summary, rate, zoom, lagMs, framesNow, gapFrames, available }: {
+function VisionCell({ base, model, summary, rate, zoom, lagMs, framesNow, gapFrames, available, recordLabel }: {
   base: string;
+  /** 261007 — 녹화 파일 이름. 확대(실시간)에서만 버튼이 선다. */
+  recordLabel: string;
   /** null 이면 원본 칸. */
   model: string | null;
   summary: VisionModelSummary | null;
@@ -138,9 +141,9 @@ function VisionCell({ base, model, summary, rate, zoom, lagMs, framesNow, gapFra
       ? <p className="vn-line vn-dim">{t(model === null ? 'vis.rawNotYet' : 'vis.modelNotLive')}</p>
       : zoom
       // 확대는 주소가 안 바뀌어야 스트림이 안 끊긴다. 닫으면 `<img>` 가 사라지고 연결이 닫힌다.
-      ? <img src={url} alt={model ?? t('vis.raw')}
+      ? <RecordFrame label={recordLabel}><img src={url} alt={model ?? t('vis.raw')}
           onLoad={() => { setFailed(null); setLoaded(url); }}
-          onError={() => setFailed(t('vis.streamFailed', { url }))} />
+          onError={() => setFailed(t('vis.streamFailed', { url }))} /></RecordFrame>
       : <Still base={base} model={model} />}
     {failed !== null && <small className="vn-warn">{failed}</small>}
     {available && zoom && failed === null && loaded !== url && <small className="vn-dim">{t('vis.streamOpening', { url })}</small>}
@@ -288,6 +291,7 @@ export function VisionCam({ nodeId, taskDeviceId = null, zoom = false, lockSourc
                   summary={model === null ? null : (models.find((m) => m.model === model) ?? null)}
                   rate={model === null ? undefined : state?.rate[model]}
                   zoom={zoom}
+                  recordLabel={`${taskDeviceId ?? sourceName(base, sources)}_detect-${model ?? 'raw'}`}
                   lagMs={minLag}
                   framesNow={framesNow}
                   gapFrames={minGap}

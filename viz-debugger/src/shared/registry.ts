@@ -116,7 +116,8 @@ export function listDeviceCardIds(): readonly string[] {
   return connectedDevices()
     // 261001 — 서버(`/state`)로 온 실물 장비도 카드다. 목 함대만 뺀다(공통 헤더 없음 → `state`). 위 ⚠ 의 그 줄이다.
     // 261002 — 고정 카메라(이미지가 받아진 것)도 카드다. 연결 관리에서 사람이 주소를 넣은 상대라 근거가 있다.
-    .filter((device) => device.source === 'mqtt' || device.source === 'server' || device.source === 'camera')
+    // 261007 — 3D 가상환경 PC 도 카드다. 연결 관리의 「3D 가상환경」 주소가 답한 상대다.
+    .filter((device) => device.source === 'mqtt' || device.source === 'server' || device.source === 'camera' || device.source === 'twin')
     .map((device) => device.entityId);
 }
 

@@ -21,6 +21,7 @@ import { useLang } from '../shared/language.ts';
 import { t } from '../i18n/dict.ts';
 import { useConnections, connectionAddress } from '../shared/connections.ts';
 import { TopCamView, useTopCamProbe } from './TopCamView.tsx';
+import { RecordFrame } from '../record/RecordFrame.tsx';
 import { displayMission, useMission } from '../data/scenario.ts';
 import { useSlotBindings } from '../data/slots.ts';
 import { getLang } from '../shared/language.ts';
@@ -197,7 +198,7 @@ export function VirtualMap({ headSec, zoom = false }: { headSec: number; zoom?: 
   const probe = useTopCamProbe(unity);
   if (unity === '') return <TwoDMap headSec={headSec} zoom={zoom} />;
   if (probe.kind === 'topcam') return <div className={`vmap vmap--unity${zoom ? ' vmap--zoom' : ''}`}>
-    <TopCamView url={unity} probe={probe} zoom={zoom} />
+    <TopCamView url={unity} probe={probe} zoom={zoom} recordPrefix="virtual-map" />
     {zoom && <details className="vmap__fallback">
       <summary>{t('vmap.show2d')}</summary>
       <TwoDMap headSec={headSec} zoom />
@@ -205,7 +206,9 @@ export function VirtualMap({ headSec, zoom = false }: { headSec: number; zoom?: 
   </div>;
   return <div className={`vmap vmap--unity${zoom ? ' vmap--zoom' : ''}`}>
     {/* 카드에서는 끌기가 먼저다 — 틀 안이 누름을 삼키면 노드를 못 옮긴다. 조작은 확대에서 한다. */}
-    <iframe className="vmap__unity" src={unity} title={t('vmap.unityTitle')} style={zoom ? undefined : { pointerEvents: 'none' }} />
+    {zoom
+      ? <RecordFrame label="virtual-map"><iframe className="vmap__unity" src={unity} title={t('vmap.unityTitle')} /></RecordFrame>
+      : <iframe className="vmap__unity" src={unity} title={t('vmap.unityTitle')} style={{ pointerEvents: 'none' }} />}
     <p className="vn-line vn-dim">{t('vmap.unityLine', { url: unity })}</p>
     {zoom && <details className="vmap__fallback">
       <summary>{t('vmap.show2d')}</summary>

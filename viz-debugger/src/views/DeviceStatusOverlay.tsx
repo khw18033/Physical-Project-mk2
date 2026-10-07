@@ -49,6 +49,8 @@ import { directCameraUrl } from '../physical/cameraView.ts';
 import { VisionDeviceSection } from '../vision/views/VisionViews.tsx';
 import { FixedCameraSection } from '../fixedcam/FixedCameraSection.tsx';
 import { isFixedCamera } from '../fixedcam/fixedCamera.ts';
+import { TwinSection } from '../virtualmap/TwinSection.tsx';
+import { isTwinDevice, useTwinFacts } from '../virtualmap/twinDevice.ts';
 import { DroneDetailModal, useIsDrone } from './DroneDetailModal.tsx';
 import { deviceCandidates, subscribeDeviceIdentity } from '../physical/deviceIdentity.ts';
 import { isManualRobot } from '../physical/manualControl.ts';
@@ -79,6 +81,13 @@ export function DeviceStatusOverlay({ deviceId, device, source, onClose }: {
    */
   const fixedCamera = isFixedCamera(deviceId);
   /**
+   * **3D 가상환경 PC** (261007). 고정 카메라와 같은 취급이다 — 보기만 한다. 장비 상태 · 로봇 카메라 · 추론 · `/media` 칸 대신
+   * 3D 가상환경 노드 확대와 같은 화면을 띄운다(`TwinSection`).
+   */
+  useTwinFacts();
+  const twin = isTwinDevice(deviceId);
+  const viewOnly = fixedCamera || twin;
+  /**
    * **드론이면 탭 판** (261003). 상태판 · 카메라 · 탐지 · RTK · SAR 패스를 탭으로 오간다(`DroneDetailModal.tsx`).
    * 닫는 길(Esc)은 아래 효과가 그대로 맡는다 — 갈래를 효과 뒤에 둔다.
    */
@@ -89,7 +98,7 @@ export function DeviceStatusOverlay({ deviceId, device, source, onClose }: {
    */
   const facts = useSyncExternalStore(subscribeDeviceIdentity,
     () => deviceCandidates().find((candidate) => candidate.deviceId === deviceId) ?? null);
-  const robot = isManualRobot(facts, { drone, fixedCamera });
+  const robot = isManualRobot(facts, { drone, fixedCamera: viewOnly });
   const [tab, setTab] = useState<RobotTab>('status');
   // 여는 길이 둘(더블클릭·앞으로 늘 수 있는 다른 경로)이면 닫는 길도 둘 이상이어야 한다.
   useEffect(() => {
@@ -97,7 +106,7 @@ export function DeviceStatusOverlay({ deviceId, device, source, onClose }: {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
-  if (drone && !fixedCamera) return <DroneDetailModal deviceId={deviceId} source={source} onClose={onClose} />;
+  if (drone && !viewOnly) return <DroneDetailModal deviceId={deviceId} source={source} onClose={onClose} />;
 
   return <div className="modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
     <section className="modal device-modal" role="dialog" aria-label={t('dso.aria', { id: deviceId })}>
@@ -114,9 +123,9 @@ export function DeviceStatusOverlay({ deviceId, device, source, onClose }: {
       </header>
       {robot && tab === 'manual' ? <ManualControlTab deviceId={deviceId} /> : <>
       {/* **오는 값만 적는다** (260910). 안 오는 칸은 자리표시로 채우지 않고 아예 안 그린다. */}
-      {fixedCamera ? <FixedCameraSection entityId={deviceId} /> : <DeviceFacts entityId={deviceId} />}
+      {twin ? <TwinSection entityId={deviceId} /> : fixedCamera ? <FixedCameraSection entityId={deviceId} /> : <DeviceFacts entityId={deviceId} />}
       {device !== undefined && <DeviceStrip device={device} />}
-      {!fixedCamera && directUrl !== null && <section className="media-section device-cam device-cam--zoom">
+      {!viewOnly && directUrl !== null && <section className="media-section device-cam device-cam--zoom">
         <header className="media-section__head">
           <h3>{t('dso.robotCamera')}</h3>
           {/* 카메라가 한 대인 길(드론 말단)은 위치를 안 가린다 — 칸을 두면 바꿔도 아무 일이 없다. */}
@@ -127,13 +136,13 @@ export function DeviceStatusOverlay({ deviceId, device, source, onClose }: {
           </label>}
         </header>
         {/* 닫으면 끊긴다 — 모달이 내려가면 `<img>` 가 사라지고 연결이 닫힌다. */}
-        <DirectCamera url={directUrl.url} frames={directUrl.kind === 'frames'} live />
+        <DirectCamera url={directUrl.url} frames={directUrl.kind === 'frames'} live recordLabel={`${deviceId}_${position}`} />
       </section>}
       {/* 261001 — 객체 탐지 추론 스트림. 포트를 고르고(자동 맞춤이 기본) 모델별 오버레이를 연다. 닫으면 끊긴다. */}
-      <VisionDeviceSection entityId={deviceId} />
+      {!twin && <VisionDeviceSection entityId={deviceId} />}
       {/* 카메라 영상 — **닫으면 끊긴다.** 붙는 것이 켜기이고 끊는 것이 끄기다.
           로봇 카메라를 바로 보고 있으면 이 칸은 접는다 — 같은 영상을 두 길로 동시에 열 이유가 없다. */}
-      {fixedCamera ? null : directUrl === null
+      {viewOnly ? null : directUrl === null
         ? <MediaSection deviceId={deviceId} />
         : <details className="media-section__fold"><summary>{t('dso.mediaFold')}</summary><MediaSection deviceId={deviceId} /></details>}
       </>}

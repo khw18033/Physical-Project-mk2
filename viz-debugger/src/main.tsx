@@ -26,6 +26,7 @@ import { MissionHistoryList, useMissionEndWatch } from './views/MissionHistory.t
 import { deviceCardOrigin, hardwareSourceLabel, listRegisteredHardware, useDeviceCardIds } from './shared/registry.ts';
 import { startConnectedSweep } from './shared/connectedDevices.ts';
 import { startFixedCameraWatch } from './fixedcam/fixedCamera.ts';
+import { startTwinWatch } from './virtualmap/twinDevice.ts';
 import { graphShape, shapeLabel } from './graph/shape.ts';
 import { useLang } from './shared/language.ts';
 import { ActionModal } from './views/ActionModal.tsx';
@@ -50,6 +51,7 @@ import { startObstacleWatch } from './autodrive/watch.ts';
 import { startTaskRunner } from './physical/taskRunner.ts';
 import { startManualDispatch } from './physical/manualDispatch.ts';
 import { ManualControlBadge } from './views/ManualControlBadge.tsx';
+import { RecordingBadge } from './views/RecordingBadge.tsx';
 import { ServerCard } from './shell/ServerCard.tsx';
 import { connectedDevice } from './shared/connectedDevices.ts';
 import { connectionAddress, useConnections } from './shared/connections.ts';
@@ -219,7 +221,7 @@ function Milestones({ view, phase, milestoneStatuses, assignments, onAssign, onO
         <b className={item?.connection}>{id}</b>
         {/* 대본이 아는 장비는 그 종류를, 붙어서 뜬 것은 **배역인지 연결인지**를 적는다 —
             「연결됨」과 「이번 편 등장」은 다른 말이고, 뭉치면 꺼진 배역을 붙은 것으로 읽는다. */}
-        <small>{item === undefined ? t(deviceCardOrigin(id) === 'cast' ? 'ms.scriptDevice' : connectedDevice(id)?.source === 'server' ? 'ms.serverDevice' : connectedDevice(id)?.source === 'camera' ? 'ms.fixedCameraDevice' : 'ms.connectedDevice') : item.kind}</small>
+        <small>{item === undefined ? t(deviceCardOrigin(id) === 'cast' ? 'ms.scriptDevice' : connectedDevice(id)?.source === 'server' ? 'ms.serverDevice' : connectedDevice(id)?.source === 'camera' ? 'ms.fixedCameraDevice' : connectedDevice(id)?.source === 'twin' ? 'ms.twinDevice' : 'ms.connectedDevice') : item.kind}</small>
         {item === undefined
           ? <HardwareLink entityId={id} />
           : <span><PendingSource id="hardware-pool-status" inline>{item.connection} · {item.battery}% · {item.rssi} dBm</PendingSource></span>}
@@ -560,6 +562,8 @@ export function MissionDebugger({ navigation, planApproval }: { navigation?: Deb
   useEffect(() => startConnectedSweep(), []);
   // 261002 — 고정 카메라. 연결 관리에 적힌 주소에서 10초마다 한 장씩 받아 보고, 받아지면 카드가 뜬다.
   useEffect(() => startFixedCameraWatch(), []);
+  // 261007 — 3D 가상환경 PC 를 하드웨어 카드로. 주소가 답하면 카드가 선다(`twinDevice.ts`).
+  useEffect(() => startTwinWatch(), []);
 
   /**
    * **로봇 응답 수신** (260910). 여기 두는 이유는 위 관측과 같다 — 이 화면은 두 빌드가
@@ -700,7 +704,7 @@ export function MissionDebugger({ navigation, planApproval }: { navigation?: Deb
 
   const firstFailed = graphTasks.find((task) => folded.tasks[task.id]?.status === 'failed') ?? null;
 
-  return <div className="mission-debugger"><ManualControlBadge />{screen === 'milestones'
+  return <div className="mission-debugger"><div className="corner-alerts"><ManualControlBadge /><RecordingBadge /></div>{screen === 'milestones'
     ? <Milestones view={view} phase={display.phase} milestoneStatuses={milestoneStatuses} assignments={assignments} onAssign={(id, hardware) => {
       // 자리를 쓰는 마일스톤이면 자리에 앉힌다 (260927) — 한 번 앉히면 그 자리를 쓰는 마일스톤 전부가 같은 장비다.
       const slots = view.milestones.find((item) => item.id === id)?.slots;

@@ -36,6 +36,8 @@ import { CAMERA_POSITIONS, type CameraPosition } from '../media/cameraChoice.ts'
 import { directCameraUrl } from '../physical/cameraView.ts';
 import { feedKindOf, fixedCameraUrl, isFixedCamera, type FeedKind } from '../fixedcam/fixedCamera.ts';
 import { VisionDeviceSection } from '../vision/views/VisionViews.tsx';
+import { Virtual3D } from '../virtualmap/Virtual3D.tsx';
+import { isTwinDevice } from '../virtualmap/twinDevice.ts';
 import { fitCameraHeight } from './cameraFit.ts';
 import { visionBases } from '../vision/visionClient.ts';
 import { holdAllVisionSources, useVisionSources } from '../vision/store.ts';
@@ -46,7 +48,7 @@ import {
 /** 카드의 작은 글씨와 같은 갈래 — 이 판에서도 장비가 어느 길로 붙었는지 적는다. */
 function originKey(entityId: string): string {
   const source = connectedDevice(entityId)?.source;
-  return source === 'camera' ? 'ms.fixedCameraDevice' : source === 'server' ? 'ms.serverDevice' : 'ms.connectedDevice';
+  return source === 'camera' ? 'ms.fixedCameraDevice' : source === 'twin' ? 'ms.twinDevice' : source === 'server' ? 'ms.serverDevice' : 'ms.connectedDevice';
 }
 
 /** 고정 카메라 · 로봇 카메라 — 장비에서(또는 서버 링크에서) 바로 받는 영상 한 칸. */
@@ -54,6 +56,11 @@ function DirectFeed({ entityId }: { entityId: string }) {
   useLang();
   const [position, setPosition] = useState<CameraPosition>('front');
   const [kind, setKind] = useState<FeedKind | null>(null);
+  // 261007 — 3D 가상환경 PC. 노드 확대와 같은 화면이다(상공 카메라마다 녹화 버튼이 선다).
+  if (isTwinDevice(entityId)) return <section className="all-cams__feed">
+    <header><b>{t('v3d.title')}</b></header>
+    <Virtual3D zoom recordPrefix={entityId} />
+  </section>;
   const fixedUrl = fixedCameraUrl(entityId);
   if (fixedUrl !== null) {
     const shown = kind ?? feedKindOf(fixedUrl);
@@ -67,7 +74,7 @@ function DirectFeed({ entityId }: { entityId: string }) {
           </select>
         </label>
       </header>
-      <DirectCamera key={shown} url={fixedUrl} frames={shown === 'frames'} live compact />
+      <DirectCamera key={shown} url={fixedUrl} frames={shown === 'frames'} live compact recordLabel={entityId} />
     </section>;
   }
   const direct = directCameraUrl(entityId, position);
@@ -82,7 +89,7 @@ function DirectFeed({ entityId }: { entityId: string }) {
         </select>
       </label>}
     </header>
-    <DirectCamera url={direct.url} frames={direct.kind === 'frames'} live compact />
+    <DirectCamera url={direct.url} frames={direct.kind === 'frames'} live compact recordLabel={`${entityId}_${position}`} />
   </section>;
 }
 
@@ -161,10 +168,12 @@ export function AllCamerasOverlay({ onClose }: { onClose(): void }) {
   const bases = visionBases();
   const rows = ids.map((id) => {
     const binding = resolveVisionBinding(choices[id] ?? null, deviceBrokerHost(id), sources, bases, deviceDirectBase(id));
-    const direct = isFixedCamera(id) ? fixedCameraUrl(id) !== null : directCameraUrl(id, 'front') !== null;
+    const twin = isTwinDevice(id);
+    const direct = twin || (isFixedCamera(id) ? fixedCameraUrl(id) !== null : directCameraUrl(id, 'front') !== null);
     // 주소가 같은 포트가 여럿이면(고르지 않은 채) 칸을 세운다 — 여기서 고르면 된다. 「연결 안 함」은 추론을 끈 것이다.
-    const vision = binding.base !== null || binding.how === 'ambiguous';
-    return { id, direct, vision, show: direct || vision };
+    // 3D 가상환경은 객체 탐지를 붙이지 않는다(261007 — 고정 카메라와 같되 탐지 없음).
+    const vision = !twin && (binding.base !== null || binding.how === 'ambiguous');
+    return { id, twin, direct, vision, show: direct || vision };
   });
   const shown = rows.filter((row) => row.show);
   const without = rows.filter((row) => !row.show).map((row) => row.id);
@@ -193,10 +202,10 @@ export function AllCamerasOverlay({ onClose }: { onClose(): void }) {
                   </header>
                   {/* **바로 받는 영상과 추론은 가로로 나란히** (261002 지시). 카메라 영상이 가로로 긴 그림이 아니라서 위아래로
                       쌓으면 칸만 길어진다. 바로 받는 영상이 없는 장비는 추론이 칸 너비를 다 쓴다. */}
-                  <div className={`all-cams__pair${row.direct ? ' all-cams__pair--2' : ''}`}>
+                  <div className={`all-cams__pair${row.direct && !row.twin ? ' all-cams__pair--2' : ''}`}>
                     {row.direct && <DirectFeed entityId={row.id} />}
                     {/* 추론 칸 — 포트 · 모델 · 원본 고르기와 영상. 바로 받는 영상만 있는 장비도 포트를 여기서 묶을 수 있다. */}
-                    <VisionDeviceSection entityId={row.id} compact />
+                    {!row.twin && <VisionDeviceSection entityId={row.id} compact />}
                   </div>
                 </article>)}
               </div>}

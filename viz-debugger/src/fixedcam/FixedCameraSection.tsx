@@ -43,7 +43,7 @@ export function FixedCameraSection({ entityId }: { entityId: string }) {
         </label>
       </header>
       {/* 방식을 바꾸면 새로 붙는다 — 끝나지 않는 영상을 한 장씩 청하면 매번 처음부터 연다. */}
-      <DirectCamera key={shown} url={url} frames={shown === 'frames'} live />
+      <DirectCamera key={shown} url={url} frames={shown === 'frames'} live recordLabel={entityId} />
     </section>
   </>;
 }

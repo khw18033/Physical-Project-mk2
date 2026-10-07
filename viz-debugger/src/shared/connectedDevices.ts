@@ -47,7 +47,8 @@ export const CONNECTED_WINDOW_MS = 30_000;
 /** 어느 길로 들어왔는가. 화면이 「무엇을 보고 있는지」를 감추지 않는다. */
 /** `server` (261001) — 백엔드 `/state` 로 온 실물 장비(공통 헤더를 밝힌 메시지). 목 함대는 `state`. */
 /** `camera` (261002) — 고정 카메라. 서버 링크 주소에서 이미지가 받아졌다(`src/fixedcam/`). */
-export type ConnectedSource = 'state' | 'mqtt' | 'server' | 'camera';
+/** `twin` (261007) — 3D 가상환경을 내보내는 PC. 그 주소가 답했다(`src/virtualmap/twinDevice.ts`). */
+export type ConnectedSource = 'state' | 'mqtt' | 'server' | 'camera' | 'twin';
 
 export type ConnectedDevice = {
   entityId: string;

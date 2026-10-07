@@ -30,6 +30,7 @@ import { createDecoder } from '../decode.ts';
 import { mediaBaseUrl, openMedia } from '../MediaClient.ts';
 import { isNewSession, type MediaFrameRef } from '../parse.ts';
 import { CAMERA_POSITIONS, cameraKeyOf, setCameraChoice, useCameraChoice, type CameraPosition } from '../cameraChoice.ts';
+import { RecordFrame } from '../../record/RecordFrame.tsx';
 
 /** 접힘이 한 장을 기다리는 한도. 넘기면 「안 온다」고 적고 끊는다. */
 const STILL_TIMEOUT_MS = 8000;
@@ -46,7 +47,11 @@ type Feed = {
 const START: Feed = { phase: 'waiting', received: 0, decoded: 0, paintedAtMs: null, error: null };
 
 /** 카메라 키 하나를 그린다. `live` 가 아니면 한 장을 그리고 끊는다. */
-function CameraCanvas({ cameraKey, live, nonce }: { cameraKey: string; live: boolean; nonce: number }) {
+function CameraCanvas({ cameraKey, live, nonce, recordLabel }: {
+  cameraKey: string; live: boolean; nonce: number;
+  /** 261007 — 있으면 실시간 영상 위에 녹화 버튼을 얹는다(파일 이름). */
+  recordLabel?: string;
+}) {
   useLang();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [feed, setFeed] = useState<Feed>(START);
@@ -120,7 +125,9 @@ function CameraCanvas({ cameraKey, live, nonce }: { cameraKey: string; live: boo
   }, [cameraKey, live, nonce, connections]);
 
   return <div className={`device-cam__stage${live ? ' device-cam__stage--live' : ''}`}>
-    <canvas ref={canvasRef} className="device-cam__canvas" />
+    {live && recordLabel !== undefined
+      ? <RecordFrame label={recordLabel}><canvas ref={canvasRef} className="device-cam__canvas" /></RecordFrame>
+      : <canvas ref={canvasRef} className="device-cam__canvas" />}
     <p className="device-cam__meta">
       {feed.phase === 'failed'
         ? <b className="vn-warn">{t('dcam.error', { reason: feed.error ?? '' })}</b>
@@ -152,8 +159,10 @@ const FRAME_RETRY_MS = 2000;
  * MJPEG 라 `<img>` 로 받는다. 접힘은 **한 장을 그리고 곧바로 끊는다** — `<img>` 의 주소를 비우면 연결이 닫힌다.
  * 다른 출처라 캔버스에서 픽셀을 읽을 수는 없지만 그리는 것은 된다.
  */
-export function DirectCamera({ url, live, nonce = 0, compact = false, frames = false }: {
+export function DirectCamera({ url, live, nonce = 0, compact = false, frames = false, recordLabel }: {
   url: string; live: boolean; nonce?: number;
+  /** 261007 — 있으면 실시간 영상 위에 녹화 버튼을 얹는다(파일 이름). 노드 카드처럼 끌어 옮기는 자리는 안 준다. */
+  recordLabel?: string;
   /** 카드 — 설명 줄을 짧게, 주소는 툴팁으로. */
   compact?: boolean;
   /** 한 번에 한 장 주는 길(드론 말단). 실시간이면 그림이 도착할 때마다 다음 장을 청한다. */
@@ -205,11 +214,14 @@ export function DirectCamera({ url, live, nonce = 0, compact = false, frames = f
     return () => { window.clearInterval(timer); close(); };
   }, [url, live, nonce]);
 
+  const liveImg = <img className="device-cam__canvas" src={liveSrc} alt={url}
+    onError={() => { setPhase('failed'); nextFrame(FRAME_RETRY_MS); }}
+    onLoad={() => { setPhase('painted'); nextFrame(FRAME_GAP_MS); }} />;
   return <div className={`device-cam__stage${live ? ' device-cam__stage--live' : ''}`}>
     {live
-      ? <img className="device-cam__canvas" src={liveSrc} alt={url}
-          onError={() => { setPhase('failed'); nextFrame(FRAME_RETRY_MS); }}
-          onLoad={() => { setPhase('painted'); nextFrame(FRAME_GAP_MS); }} />
+      ? recordLabel !== undefined
+        ? <RecordFrame label={recordLabel}>{liveImg}</RecordFrame>
+        : liveImg
       : <canvas ref={canvasRef} className="device-cam__canvas" />}
     <p className="device-cam__meta" title={url}>
       {phase === 'failed'
@@ -284,14 +296,15 @@ export function DeviceCamera({ nodeId, taskDeviceId, zoom = false, directUrlOf }
      */
     body = <>
       {chosenOffline && <p className="vn-line vn-warn">{t('dcam.notConnectedNow', { device: deviceId })}</p>}
-      <DirectCamera url={directUrlOf(deviceId, choice.position)!.url} frames={directUrlOf(deviceId, choice.position)!.kind === 'frames'} live nonce={nonce} compact={!zoom} />
+      <DirectCamera url={directUrlOf(deviceId, choice.position)!.url} frames={directUrlOf(deviceId, choice.position)!.kind === 'frames'} live nonce={nonce} compact={!zoom}
+        recordLabel={zoom ? `${deviceId}_${choice.position}` : undefined} />
     </>;
   } else if (mediaBaseUrl() === '') {
     body = <p className="vn-line vn-dim">{t('dcam.noAddress')}</p>;
   } else {
     body = <>
       {chosenOffline && <p className="vn-line vn-warn">{t('dcam.notConnectedNow', { device: deviceId })}</p>}
-      <CameraCanvas cameraKey={cameraKey} live={zoom} nonce={nonce} />
+      <CameraCanvas cameraKey={cameraKey} live={zoom} nonce={nonce} recordLabel={`${deviceId}_${choice.position}`} />
       {!zoom && <p className="vn-line vn-dim">
         <button type="button" className="vn-refresh" onPointerDown={(event) => event.stopPropagation()} onClick={() => setNonce((value) => value + 1)}>{t('dcam.fetchAgain')}</button>
       </p>}

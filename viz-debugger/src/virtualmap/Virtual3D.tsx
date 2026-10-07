@@ -16,23 +16,30 @@ import { t } from '../i18n/dict.ts';
 import { useLang } from '../shared/language.ts';
 import { connectionAddress, useConnections } from '../shared/connections.ts';
 import { TopCamView, useTopCamProbe } from './TopCamView.tsx';
+import { RecordFrame } from '../record/RecordFrame.tsx';
 
-export function Virtual3D({ zoom = false }: { zoom?: boolean }) {
+export function Virtual3D({ zoom = false, recordPrefix = '3d' }: {
+  zoom?: boolean;
+  /** 261007 — 녹화 파일 이름 앞머리. 하드웨어 카드에서 열면 그 PC 이름이다. */
+  recordPrefix?: string;
+}) {
   useLang();
   useConnections();
   const url = connectionAddress('virtual-3d', 'base').trim();
   // 261003 — 주소가 Unity 상공 카메라 서버면 틀 대신 영상 + 시점 조절을 그린다 (TopCamView.tsx)
   const probe = useTopCamProbe(url);
   if (url === '') return <p className="vn-line vn-dim">{t('v3d.empty')}</p>;
-  if (probe.kind === 'topcam') return <TopCamView url={url} probe={probe} zoom={zoom} />;
+  if (probe.kind === 'topcam') return <TopCamView url={url} probe={probe} zoom={zoom} recordPrefix={recordPrefix} />;
+  const frame = <iframe
+    className="vmap__unity v3d__frame"
+    src={url}
+    title={t('v3d.title')}
+    allow="fullscreen; xr-spatial-tracking"
+    style={zoom ? undefined : { pointerEvents: 'none' }}
+  />;
+  // 261007 — 확대에서는 녹화 버튼을 얹는다(틀 화면도 보이는 그대로 찍힌다 — `screenRecord.ts`).
   return <div className={`vmap vmap--unity v3d${zoom ? ' vmap--zoom' : ''}`}>
-    <iframe
-      className="vmap__unity v3d__frame"
-      src={url}
-      title={t('v3d.title')}
-      allow="fullscreen; xr-spatial-tracking"
-      style={zoom ? undefined : { pointerEvents: 'none' }}
-    />
+    {zoom ? <RecordFrame label={recordPrefix}>{frame}</RecordFrame> : frame}
     <p className="vn-line vn-dim">{t('v3d.line', { url })}{zoom ? '' : ` · ${t('v3d.zoomHint')}`}</p>
   </div>;
 }
