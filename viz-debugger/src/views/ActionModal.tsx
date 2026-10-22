@@ -31,7 +31,7 @@ import { useState } from 'react';
 import { issueCommand } from '../shared/commandEgress.ts';
 import { actionsAt, displayMission, recordAdjusted, traceFor, useMission, type MissionView } from '../data/scenario.ts';
 import {
-  actionsOfTask, neverAnswered, planAdjustments, stillWaiting,
+  actionsOfTask, attachedToNode, neverAnswered, planAdjustments, stillWaiting,
   type ActionStatus, type FoldedAction,
 } from '../data/actionTrace.ts';
 import { localDriven, relayDriven } from '../scenarios/library.ts';
@@ -112,7 +112,8 @@ function RobotCommands({ taskId }: { taskId: string }) {
    * 260920 — 가르는 재료가 작업대에서 **접은 결과**로 바뀌었다. 규칙은 그대로다.
    */
   const angle = viewpointTaskIndex(taskId);
-  const folded = actionsAt();
+  // **노드에 안 붙는 명령은 각도 칸에도 안 붙는다** (261022). 그 명령도 이제 기록 열에 있다.
+  const folded = actionsAt().filter(attachedToNode);
   const groups = angle === null
     ? actionsOfTask(folded, taskId).map((action) => ({ action, lines: action.lines }))
     : folded
@@ -252,7 +253,7 @@ export function ActionModal({ task, view, device, failure, onClose }: { task: Ta
           줬다. 대본에 목록이 실제로 들어 있는 편에서는 그 수도 같이 적는다. */}
       <small>{viewpointTaskIndex(task.id) === null
         ? t('act.commandCount', { n: foldedHere.length })
-        : t('act.logAtAngle', { n: actionsAt().reduce((sum, a) => sum + a.lines.filter((line) => line.index === viewpointTaskIndex(task.id)).length, 0) })}{task.actionItems.length > 0 && t('act.actionItemCount', { n: task.actionItems.length })} · target {task.target ?? t('gen.none')}</small></div><button onClick={onClose}>{t('conn.close')}</button></header>
+        : t('act.logAtAngle', { n: actionsAt().filter(attachedToNode).reduce((sum, a) => sum + a.lines.filter((line) => line.index === viewpointTaskIndex(task.id)).length, 0) })}{task.actionItems.length > 0 && t('act.actionItemCount', { n: task.actionItems.length })} · target {task.target ?? t('gen.none')}</small></div><button onClick={onClose}>{t('conn.close')}</button></header>
     {failure ? <FailureReason taskId={task.id} /> : device && <PendingSource id="robot-status-strip" minHeight={104}><DeviceStrip device={device} /></PendingSource>}
     {/* **로봇이 실제로 낸 명령이 있으면 이 폼을 안 띄운다** (260912 지시).
         「진입 속도 · 최소 클리어런스」는 구판 편의 입력칸이다. 회전·직진이 실패한 자리에

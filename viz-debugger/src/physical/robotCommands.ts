@@ -98,6 +98,9 @@ async function issueThroughTracker(
     { action, label: action, targetPct: 0, irreversible: false, resultingState: '' },
     {
       params: { ...(parameters ?? {}), task_id: taskId },
+      // **사람 층에 복사본을 안 남긴다** (261022). 이 명령은 아래에서 액션 층이 적는다 —
+      // 사람이 누른 것(시작·접근·재시작)은 버튼이 사람 층에 따로 적는다(`StopButton.tsx`).
+      actionLayer: true,
       publish: async (request) => {
         const ack = await mqttEgress(client, action, parameters)(request);
         commandId = ack.commandId ?? '';
@@ -127,18 +130,18 @@ async function issueThroughTracker(
      * **로봇에 나가는 바이트는 한 줄도 안 바뀐다.** 이미 나간 뒤에 적기만 한다.
      */
     /**
-     * **태스크가 없는 명령은 안 넣는다** (`NO_NODE`). 브리지 기동(`sdk_start`)처럼 순서도에
-     * 자리가 없는 명령은 액션 층에 넣어도 **어느 노드도 보여 줄 수 없는 외톨이 행**이 된다.
-     * 액션 층의 행은 「어느 태스크의 명령인가」를 들고 있어야 뜻이 있다 (§1 `payload.taskId`).
-     * `verify:sdk-bridge` ④가 이 선을 지킨다.
+     * **태스크가 없는 명령도 넣는다** (`NO_NODE` · 261022 — 260920 판단을 뒤집었다).
+     *
+     * 260920 에는 「어느 노드도 보여 줄 수 없는 외톨이 행」이 된다며 뺐다. 그 판단은 화면에
+     * 대한 것이었다 — 그 결과 `scan_continue` 같은 명령이 사람 층의 옛 줄에만 남아 주체가
+     * `human` 으로 틀렸다. 실제로 나갔고 응답도 왔으니 **기록 열에는 들어간다.** 노드에는
+     * 안 붙는다 — 그 선은 `attachedToNode()` 가 긋고 `verify:sdk-bridge` ④가 지킨다.
      */
-    if (taskId !== NO_NODE) {
-      recordCommanded({
-        commandId, taskId, action, parameters: issued, requestId: tracked.requestId,
-        // 화면이 낸 임무 명령이다. 사람이 누른 것은 일시정지와 `adjusted` 쪽이다.
-        issuedBy: 'mission', atSec: elapsedSec(),
-      });
-    }
+    recordCommanded({
+      commandId, taskId, action, parameters: issued, requestId: tracked.requestId,
+      // 화면이 낸 임무 명령이다(`backend`). 사람이 누른 것은 정지·일시정지와 `adjusted` 쪽이다.
+      issuedBy: 'mission', atSec: elapsedSec(),
+    });
   }
   return {
     sent,
@@ -718,10 +721,10 @@ export async function pauseMission(client: PhysicalClient | null): Promise<Pause
        *
        * **동작은 한 줄도 안 바뀐다.** 이미 나간 뒤에 적기만 한다.
        */
-      // 돌던 태스크가 없으면 안 넣는다 — 위 `NO_NODE` 와 같은 이유로 외톨이 행이 된다.
-      if (outcome.sent && taskId !== null) {
+      // 돌던 태스크가 없으면 `NO_NODE` 로 넣는다 (261022) — 기록에는 남고 노드에는 안 붙는다.
+      if (outcome.sent) {
         recordCommanded({
-          commandId, taskId, action: PAUSE_ACTION,
+          commandId, taskId: taskId ?? NO_NODE, action: PAUSE_ACTION,
           parameters: { reason: STOP_REASON.human },
           // **사람이 누른 것이다.** 임무가 낸 명령과 갈려야 §4-3 이 실증을 얻는다.
           issuedBy: 'human', atSec: elapsedSec(),
@@ -746,12 +749,11 @@ export async function pauseMission(client: PhysicalClient | null): Promise<Pause
    * 화면 멈춤은 이미 위에서 끝났다 — 여기서 듣는 것은 **문구를 채우기 위해서**다.
    * 늦게 오든 안 오든 멈춤은 그대로다.
    */
-  // 기록은 태스크가 있을 때만 — 위와 같은 선이다. 문구 채우기는 그와 무관하게 언제나 한다.
-  if (client !== null && published) void reportPauseAnswer(client, commandId, taskId);
+  if (client !== null && published) void reportPauseAnswer(client, commandId, taskId ?? NO_NODE);
   return paused;
 }
 
-async function reportPauseAnswer(client: PhysicalClient, commandId: string, taskId: string | null, timeoutMs = 4000): Promise<void> {
+async function reportPauseAnswer(client: PhysicalClient, commandId: string, taskId: string, timeoutMs = 4000): Promise<void> {
   const answer = await firstAnswer(client, commandId, timeoutMs);
   if (answer === null) {
     const words = t('robot.pauseNoAnswer', { ms: timeoutMs });
@@ -768,7 +770,7 @@ async function reportPauseAnswer(client: PhysicalClient, commandId: string, task
      * 문구를 채우는 자리다 — 거기에 기록 한 줄이 더 붙을 뿐이다
      * (`verify:emergency-stop` 이 그 불변을 지킨다).
      */
-    if (taskId !== null) recordExpired({ commandId, taskId, waitedMs: timeoutMs, reason: words, atSec: elapsedSec() });
+    recordExpired({ commandId, taskId, waitedMs: timeoutMs, reason: words, atSec: elapsedSec() });
     return;
   }
   if (answer.kind === 'acceptance' && !answer.accepted) {
@@ -777,13 +779,11 @@ async function reportPauseAnswer(client: PhysicalClient, commandId: string, task
     noteIssue('pause', 'robot', t('robot.pausePrefix', { words }));
     // **거절도 답이다.** 온 것과 안 온 것이 갈려야 §2 의 구분이 선다 — 거절을 안 적으면
     // 「답을 했는데 거절했다」가 「영영 안 왔다」와 같아 보인다.
-    if (taskId !== null) recordAnswered({ commandId, taskId, line: words, answerKind: 'acceptance', outcome: 'failed', atSec: elapsedSec() });
+    recordAnswered({ commandId, taskId, line: words, answerKind: 'acceptance', outcome: 'failed', atSec: elapsedSec() });
     return;
   }
   // 수락했다 — 이것도 온 답이다.
-  if (taskId !== null) {
-    recordAnswered({ commandId, taskId, line: uplinkWords(answer), answerKind: answer.kind, atSec: elapsedSec() });
-  }
+  recordAnswered({ commandId, taskId, line: uplinkWords(answer), answerKind: answer.kind, atSec: elapsedSec() });
 }
 
 /**
@@ -814,13 +814,19 @@ function terminalAnswer(client: PhysicalClient, commandId: string, timeoutMs: nu
 /** 그 `command_id` 의 첫 응답. 안 오면 null. */
 function firstAnswer(client: PhysicalClient, commandId: string, timeoutMs: number): Promise<UplinkMessage | null> {
   return new Promise((resolve) => {
-    const timer = setTimeout(() => { off(); resolve(null); }, timeoutMs);
+    /**
+     * **귀를 먼저 열고 그다음 기한을 건다** (261022). 거꾸로면 귀를 여는 데서 던졌을 때 기한만
+     * 살아남아, 4초 뒤 아직 없는 `off` 를 부르며 프로세스를 죽인다 — 정지 기록을 더하면서
+     * 드러났다(`verify:stop-unsupported`). 붙은 뒤에 기한을 거는 것은 동작이 같다.
+     */
+    let timer: ReturnType<typeof setTimeout> | null = null;
     const off = client.onMessage((message) => {
       if (message.commandId !== commandId) return;
-      clearTimeout(timer);
+      if (timer !== null) clearTimeout(timer);
       off();
       resolve(message);
     });
+    timer = setTimeout(() => { off(); resolve(null); }, timeoutMs);
   });
 }
 
@@ -887,8 +893,11 @@ export function stopSupport(): StopSupport {
 }
 
 export async function emergencyStop(client: PhysicalClient | null): Promise<StopState> {
+  // 기록이 붙을 태스크 — **읽기만 한다.** 아래 뼈대는 이 값을 안 본다.
+  const taskId = runningTaskId();
   let published = false;
   let failure: string | null = null;
+  let commandId = '';
 
   try {
     if (client === null) {
@@ -907,6 +916,7 @@ export async function emergencyStop(client: PhysicalClient | null): Promise<Stop
       // **규약 밖의 파라미터를 더하지 않는다** — reason 하나뿐이다.
       const outcome = client.send(STOP_ACTION, { reason: STOP_REASON.human });
       published = outcome.sent;
+      commandId = outcome.commandId;
       if (!outcome.sent) failure = outcome.reason ?? t('robot.notSent');
     }
   } catch (error) {
@@ -924,7 +934,56 @@ export async function emergencyStop(client: PhysicalClient | null): Promise<Stop
   if (!published) noteIssue('stop', 'robot', t('robot.stopNotSent', { failure: failure ?? t('robot.noReason') }));
 
   // 2 · 3 · 4 — **위 결과를 보지 않는다.**
-  return lockStopped(published, failure);
+  const stopped = lockStopped(published, failure);
+
+  /**
+   * **기록만 더한다** (261022 — 사람 층·액션 층 경계 §1).
+   *
+   * 일시정지는 `recordCommanded` 로 적히는데 정지는 안 적혔다 — 사람이 누른 정지가
+   * `robot.stopped` 에만 남고 되감아도 명령 표에 안 떴다. 비대칭에 이유가 없었다.
+   *
+   * **위 뼈대는 한 줄도 안 바뀐다.** 발행 → 잠금이 다 끝난 **뒤에** 적는다. 그래서 기록이
+   * 늦거나 던져도 잠금은 이미 일어났다. 못 보낸 정지는 명령이 아니므로 안 적는다 —
+   * 그 사실은 위 알림과 `stopped.failure` 가 든다.
+   */
+  if (client !== null && published) recordStop(client, commandId, taskId ?? NO_NODE);
+  return stopped;
+}
+
+/**
+ * 정지를 명령으로 적고 그 답을 듣는다. `pauseMission` 의 기록과 **같은 모양**이다 — 다른 것은
+ * 화면 문구를 안 건드린다는 것뿐이다(정지 화면은 이미 잠겼고, 실패 문구는 발행에서 정해졌다).
+ *
+ * **무엇이 던져도 삼킨다.** 기록 실패가 정지를 흔들면 안 된다 — 이 함수는 정지가 끝난 뒤에
+ * 불리지만, 듣기는 비동기라 그 실패가 정지 경로로 새어 나오지 않게 여기서 막는다.
+ */
+function recordStop(client: PhysicalClient, commandId: string, taskId: string): void {
+  try {
+    recordCommanded({
+      commandId, taskId, action: STOP_ACTION,
+      parameters: { reason: STOP_REASON.human },
+      // **사람이 누른 것이다.** 일시정지와 같다.
+      issuedBy: 'human', atSec: elapsedSec(),
+    });
+  } catch {
+    return;
+  }
+  void recordStopAnswer(client, commandId, taskId).catch(() => undefined);
+}
+
+async function recordStopAnswer(client: PhysicalClient, commandId: string, taskId: string, timeoutMs = 4000): Promise<void> {
+  const answer = await firstAnswer(client, commandId, timeoutMs);
+  if (answer === null) {
+    // 「아직」과 「영영」을 가른다 — 일시정지의 같은 자리와 같은 이유다.
+    recordExpired({ commandId, taskId, waitedMs: timeoutMs, reason: t('robot.pauseNoAnswer', { ms: timeoutMs }), atSec: elapsedSec() });
+    return;
+  }
+  if (answer.kind === 'acceptance' && !answer.accepted) {
+    const words = t('robot.rejected', { code: answer.code ?? t('robot.noReason'), message: answer.message ?? '' }).trim();
+    recordAnswered({ commandId, taskId, line: words, answerKind: 'acceptance', outcome: 'failed', atSec: elapsedSec() });
+    return;
+  }
+  recordAnswered({ commandId, taskId, line: uplinkWords(answer), answerKind: answer.kind, atSec: elapsedSec() });
 }
 
 /** 정지 뒤 화면에 크게 띄울 문구. 조용히 성공한 척하지 않는다. */

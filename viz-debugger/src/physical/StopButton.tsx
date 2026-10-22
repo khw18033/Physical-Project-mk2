@@ -33,9 +33,9 @@ import {
   approachWords, canApproach, emergencyStop, issueApproach, pauseMission, resumeMission,
 } from './robotCommands.ts';
 import { robotClient } from './robotClient.ts';
-import { markStarted, useRobotSession } from './robotSession.ts';
+import { markStarted, robotSession, useRobotSession } from './robotSession.ts';
 import { useDetect } from '../detect/store.ts';
-import { currentMission } from '../data/scenario.ts';
+import { currentMission, recordHuman } from '../data/scenario.ts';
 import { localDriven, relayDriven } from '../scenarios/library.ts';
 import { pauseLocalRun, restartMission, resumeLocalRun, startLocalRun, stopLocalRun, useLocalRun } from '../data/scenario.ts';
 import { startArmedNavRun, useNavRunState } from './navRun.ts';
@@ -130,7 +130,18 @@ export function ResumeButton() {
         resumeRelayRun();
         return;
       }
-      if (!started) { markStarted(); return; }
+      /**
+       * **누른 것을 사람 층에 적는다** (261022 — 사람 층·액션 층 경계 §2).
+       *
+       * 전에는 이 뒤에 나가는 로봇 명령의 복사본이 사람 층에 적혀 그 흔적 노릇을 했다 — 주체가 틀린 채로.
+       * 복사본을 걷어 냈으니 사람이 한 일은 여기서 적는다. 명령은 액션 층이 적는다(`robotCommands.ts`).
+       */
+      if (!started) {
+        markStarted();
+        // 승인이 없으면 시작도 없다 — 안 일어난 시작을 적지 않는다.
+        if (robotSession().started) recordHuman('mission_started', currentMission().missionId, { from: 'button' });
+        return;
+      }
       /**
        * **정지 뒤의 재시작은 처음부터 다시 세우고 시작한다** (260928 — 「정지 후 재시작해도 반응이 없다」).
        * 정지는 명령 잠금(`stopped`)을 걸고, `resumeMission` 은 일시정지만 푼다 — 그래서 눌러도 아무 일이 없었다.
@@ -140,6 +151,7 @@ export function ResumeButton() {
         if (restartMission()) markStarted();
         return;
       }
+      recordHuman('mission_resumed', currentMission().missionId, { from: 'button' });
       void resumeMission(robotClient(), currentMission().params);
     }}
     title={local
@@ -200,6 +212,8 @@ export function ApproachButton() {
     onClick={() => {
       setFailure(null);
       setBusy(true);
+      // 사람이 누른 것이다 — 이어 나가는 회전·직진은 액션 층이 적는다 (261022).
+      recordHuman('approach_started', currentMission().missionId, { from: 'button' });
       void issueApproach(robotClient(), currentMission().params).then((outcome) => {
         setBusy(false);
         setFailure(outcome?.sent === true ? null : (outcome?.reason ?? t('stop.nothingToSend')));

@@ -70,6 +70,32 @@ export function isActionEvent(event: { kind: string }): boolean {
 }
 
 /**
+ * **순서도에 자리가 없는 명령의 `taskId`** (`physical/missionLink.ts` 가 다시 내보낸다).
+ *
+ * 브리지 기동(`sdk_start`)·스캔 이어 가기(`scan_continue`)·태스크가 돌지 않을 때의 정지처럼
+ * 실제로 나가고 응답도 오지만 **붙을 노드가 없는** 명령이다.
+ *
+ * ## 기록과 화면은 다른 물건이다 (261022)
+ *
+ * 260920 에는 이 명령을 액션 층에서 아예 뺐다 — 「어느 노드도 보여 줄 수 없는 외톨이 행」이
+ * 된다는 이유였다. 그 판단은 **화면**에 대한 것이었다. 그래서 그 명령이 사람 층의 옛 줄에만
+ * 남았고, 주체가 `human` 으로 틀리게 적혔다.
+ *
+ * 이제 **기록 열에는 들어가고 노드에는 안 붙는다.** Outline §4-6 의 「기록에는 다 남기고
+ * 화면은 깊이로 가른다」와 같은 규칙이다. 붙는지 안 붙는지는 아래 `attachedToNode` 하나가 정한다.
+ */
+export const NO_NODE = 'no-node';
+
+/**
+ * **이 명령이 노드 밑에 붙는가.** 화면이 노드를 열 때와 측정의 분모(§5-2)가 이것으로 가른다.
+ *
+ * 두 자리가 따로 적으면 「화면에 안 보이는데 분모에는 들어간」 행이 생긴다 — 그 반대도.
+ */
+export function attachedToNode(action: { taskId: string }): boolean {
+  return action.taskId !== '' && action.taskId !== NO_NODE;
+}
+
+/**
  * **액션 층의 상태 어휘.** 태스크 어휘(`TaskStatus`)와 의도적으로 다르다 — 명령은
  * 평가를 받지도 건너뛰어지지도 않는다. 로봇이 주는 상태 그대로다.
  */

@@ -16,6 +16,19 @@
 //
 // **대본용과 라이브용을 두 벌 만들지 않는다.** 세는 규칙이 갈리면 두 숫자를 견줄 수 없다.
 // 층을 세는 자리는 `tally()` 하나이고, 대본과 라이브는 거기에 **재료만** 다르게 넣는다.
+//
+// ## 261022 — 분모와 「노드에 안 붙은 명령」을 두 줄로 낸다
+//
+// 사람 층·액션 층 경계 작업이 `NO_NODE` 명령을 **기록 열에 들였다**(노드에는 안 붙는다).
+// 9/21 에 재기 전에 정한 분모는 「`NO_NODE` 를 뺀다」였고 그때 코드가 하는 그대로였다.
+// 그 문장을 그대로 두면 코드를 고친 것만으로 분모가 75 → 약 107 로 커진다 — 골대를 옮긴 것이다.
+//
+// 그래서 **분모의 정의는 그대로** 두고(노드에 붙은 것), 노드에 안 붙은 명령은 따로 센다.
+// 세는 규칙은 여전히 `tally()` 하나다 — 재료를 `attachedToNode()` 로 갈라 넣을 뿐이다.
+//
+//   분모 (노드에 붙은 액션 + 태스크층)   ← 9/21 과 같은 정의. §5-2 에 가는 숫자
+//   노드에 안 붙은 명령                   ← NO_NODE. 따로 적는다
+//   합계 (기록 열 전체)                   ← 둘의 합
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
@@ -26,10 +39,11 @@ const load = (...p) => import(pathToFileURL(join(root, ...p)).href);
 const scenarioDir = join(root, 'scenarios');
 const historyDir = join(root, '..', 'mission-history');
 
-const { actionItemEvents, ACTION_KINDS, ACTION_KIND_LIST } = await load('src', 'data', 'actionTrace.ts');
+const { actionItemEvents, ACTION_KINDS, ACTION_KIND_LIST, attachedToNode } = await load('src', 'data', 'actionTrace.ts');
 /** 액션 층 어휘. `actionTrace.ts` 의 목록을 그대로 쓴다 — 여기서 새로 적으면 갈린다. */
 const ACTION_KIND_SET = new Set(ACTION_KIND_LIST);
-const { ACTION_SEQ_BASE, LIVE_ACTION_SEQ_BASE } = await load('src', 'data', 'trace.ts');
+const { ACTION_SEQ_BASE, HUMAN_SEQ_BASE, LIVE_ACTION_SEQ_BASE } = await load('src', 'data', 'trace.ts');
+const { STOP_ACTION } = await load('src', 'physical', 'presets.ts');
 const { NO_NODE } = await load('src', 'physical', 'missionLink.ts');
 
 /** 착수 전 실측. 이 작업이 분모를 얼마나 키웠는지를 말하려면 출발점이 있어야 한다. */
@@ -44,11 +58,23 @@ const BASELINE = { milestones: 30, tasks: 83, actionItems: 4, events: 280 };
  * 한 판(또는 한 편)의 층별 합계.
  *
  * @param taskLayer  태스크·마일스톤 층 사건 — 대본은 `script.events`, 라이브는 `progress.trace`
- * @param action     액션 층 사건 — `{ commanded, answered, expired, adjusted }`
+ * @param action     **노드에 붙은** 액션 층 사건 — `{ commanded, answered, expired, adjusted }`
+ * @param nodeless   **노드에 안 붙은** 액션 사건(`NO_NODE`) — 같은 모양. 분모에 안 들어간다
+ *
+ * `total` 이 **분모**다(9/21 정의). `whole` 은 기록 열 전체 — 둘을 같은 함수가 내야 두 숫자가
+ * 같은 규칙으로 세졌다고 말할 수 있다.
  */
-function tally(taskLayer, action) {
-  const derived = action.commanded + action.answered + action.expired + action.adjusted;
-  return { taskLayer, ...action, derived, total: taskLayer + derived };
+const NO_ACTIONS = { commanded: 0, answered: 0, expired: 0, adjusted: 0 };
+function tally(taskLayer, action, nodeless = NO_ACTIONS) {
+  const sum = (a) => a.commanded + a.answered + a.expired + a.adjusted;
+  const derived = sum(action);
+  const outside = sum(nodeless);
+  const total = taskLayer + derived;
+  return {
+    taskLayer, ...action, derived, total,
+    outsideCommands: nodeless.commanded, outsideLines: nodeless.answered + nodeless.expired + nodeless.adjusted,
+    outside, whole: total + outside,
+  };
 }
 
 const COLUMNS = ['마일스톤', '태스크', '태스크층', '명령', '응답', '기한', '조정', '액션층', '합계'];
@@ -77,6 +103,15 @@ function printRows(rows, nameWidth, nameHeader, { header = true } = {}) {
 }
 
 const sumOf = (rows, key) => rows.reduce((total, row) => total + row[key], 0);
+
+/** 분모 · 노드 밖 · 합계 · 사람 층을 세 줄 + 한 줄로. **세지 않는다** — `tally()` 가 낸 것을 늘어놓는다. */
+function printSplit(rows, median) {
+  const m = (key) => median(rows.map((r) => r[key]));
+  console.log(`  분모 (노드에 붙은 액션)        중앙 ${m('total')}   (태스크층 ${m('taskLayer')} + 액션 ${m('derived')})`);
+  console.log(`  노드에 안 붙은 명령            중앙 ${m('outside')}   (명령 ${m('outsideCommands')} + 응답·기한 ${m('outsideLines')})`);
+  console.log(`  합계 (기록 열 전체)            중앙 ${m('whole')}`);
+  console.log(`  사람 층                        중앙 ${m('humanLayer')}   (그중 자동 명령 복사본 중앙 ${m('humanAuto')})`);
+}
 
 function totalRow(rows) {
   const keys = ['milestones', 'tasks', 'taskLayer', 'commanded', 'answered', 'expired', 'adjusted', 'derived', 'total'];
@@ -188,6 +223,12 @@ const isActionEvent = (event) => ACTION_KIND_SET.has(event?.kind);
  */
 const isLiveEvent = (event) => Number(event?.seq) >= LIVE_ACTION_SEQ_BASE;
 
+/** 액션 사건이 노드에 붙었나 — 화면과 같은 함수(`attachedToNode`)로 가른다. */
+const isAttached = (event) => attachedToNode({ taskId: String(event?.payload?.taskId ?? '') });
+
+/** 사람 층 — `appendHuman` 의 대역. */
+const isHumanLayer = (event) => Number(event?.seq) >= HUMAN_SEQ_BASE && Number(event?.seq) < ACTION_SEQ_BASE;
+
 function liveRow(folder, run) {
   const { mission, progress } = run;
   const commands = Object.values(progress.robot?.commands ?? {});
@@ -210,19 +251,34 @@ function liveRow(folder, run) {
   // 이 모양으로만 셀 수 있다 (한계).
   const silentPause = columned.filter((c) => /abort|pause|stop/i.test(String(c.action)) && (c.log?.length ?? 0) === 0);
 
-  const countKind = (kind) => actionInTrace.filter((e) => e.kind === kind).length;
+  // **노드에 붙었나로 가른다** (261022) — 재료를 가를 뿐 세는 규칙은 `tally()` 하나다.
+  const attachedInTrace = actionInTrace.filter(isAttached);
+  const nodelessInTrace = actionInTrace.filter((e) => !isAttached(e));
+  const countKind = (events, kind) => events.filter((e) => e.kind === kind).length;
+  const countAll = (events) => ({
+    commanded: countKind(events, ACTION_KINDS.commanded),
+    answered: countKind(events, ACTION_KINDS.answered),
+    expired: countKind(events, ACTION_KINDS.expired),
+    adjusted: countKind(events, ACTION_KINDS.adjusted),
+  });
   const action = modern
-    ? {
-      commanded: countKind(ACTION_KINDS.commanded),
-      answered: countKind(ACTION_KINDS.answered),
-      expired: countKind(ACTION_KINDS.expired),
-      adjusted: countKind(ACTION_KINDS.adjusted),
-    }
+    ? countAll(attachedInTrace)
     : { commanded: columned.length, answered, expired: silentPause.length, adjusted: 0 };
 
+  /**
+   * **노드에 안 붙은 명령.** 새 코드(261022 뒤)는 열에 직접 있다. 옛 코드는 열에 안 적었으므로
+   * 작업대에서 복원한다 — 9/21 이 「열 밖」으로 따로 세던 그 숫자와 같은 재료다.
+   */
+  const outsideRecords = commands.filter((c) => !inColumn(c));
+  const nodelessFromColumn = nodelessInTrace.length > 0;
+  const nodeless = nodelessFromColumn
+    ? countAll(nodelessInTrace)
+    : { commanded: outsideRecords.length, answered: outsideRecords.reduce((s, c) => s + (c.log?.length ?? 0), 0), expired: 0, adjusted: 0 };
+
   // 두 자리에서 센 명령 수가 어긋나면 규칙이 틀린 것이다 — 조용히 넘기지 않는다.
+  // 사람이 누른 정지·일시정지는 작업대를 안 지나므로(추적기 밖) 견줄 때 뺀다.
   const fromTrace = modern
-    ? countKind(ACTION_KINDS.commanded)
+    ? attachedInTrace.filter((e) => e.kind === ACTION_KINDS.commanded && e.producedBy !== 'human').length
     : trace.filter((e) => isLegacyCommandEvent(e) && e.payload.task_id !== NO_NODE).length;
   const mismatch = fromTrace !== columned.length ? ` ⚠ 열 ${fromTrace} ≠ 작업대 ${columned.length}` : '';
 
@@ -234,6 +290,17 @@ function liveRow(folder, run) {
   const legacyDuplicates = modern
     ? trace.filter((e) => isLegacyCommandEvent(e) && e.payload.task_id !== NO_NODE).length
     : 0;
+
+  /**
+   * **사람 층** — `appendHuman` 의 대역(1M ~ 1.5M). 그중 옛 명령 줄(`payload.task_id`)은 사람이
+   * 누른 적 없는 자동 명령의 복사본이다. 새 코드에서는 0 이어야 한다.
+   */
+  const humanLayer = trace.filter(isHumanLayer);
+  const humanAuto = humanLayer.filter(isLegacyCommandEvent).length;
+  /** 정지가 명령으로 적혔나 — 사람이 낸 `abort`(도착 정지 `abort` 는 임무가 낸 것이라 backend 다). */
+  const stopRecords = actionInTrace.filter((e) => e.kind === ACTION_KINDS.commanded && e.producedBy === 'human' && e.payload?.action === STOP_ACTION).length;
+  /** 액션 층의 `NO_NODE` 명령과 그 주체. 새 코드에서는 열에 있고 주체가 backend 다. */
+  const nodelessCommanded = nodelessInTrace.filter((e) => e.kind === ACTION_KINDS.commanded);
 
   /** 실제로 오간 액션 사건이 있나 — 대본만 돌린 판과 가른다. */
   const liveActions = actionInTrace.filter(isLiveEvent).length;
@@ -269,10 +336,21 @@ function liveRow(folder, run) {
     milestones: mission.view?.milestones?.length ?? 0,
     tasks: mission.view?.tasks?.length ?? 0,
     actionItems: 0,
-    ...tally(taskLayer, action),
-    /** 열 밖 — `NO_NODE` 명령과 그 응답. 계측 범위 밖이라는 사실을 숫자로 남긴다. */
-    outsideCommands: commands.length - columned.length,
-    outsideLines: commands.filter((c) => !inColumn(c)).reduce((s, c) => s + (c.log?.length ?? 0), 0),
+    ...tally(taskLayer, action, nodeless),
+    /** 노드에 안 붙은 명령을 열에서 셌나(새 코드), 작업대에서 복원했나(옛 코드). */
+    nodelessFromColumn,
+    humanLayer: humanLayer.length,
+    humanAuto,
+    stopRecords,
+    nodelessCommanded: nodelessCommanded.length,
+    nodelessHuman: nodelessCommanded.filter((e) => e.producedBy === 'human').length,
+    nodelessBackend: nodelessCommanded.filter((e) => e.producedBy === 'backend').length,
+    /**
+     * **새 코드가 기록한 판인가** (261022). 증거로 가른다 — 액션 층이 열에 있고, 사람 층에
+     * 옛 명령 줄이 없고, 노드에 안 붙은 명령이 열에 있다. 날짜로 가르지 않는 이유는
+     * `robotDriven` 과 같다: 적힌 값보다 기록 안의 흔적이 믿을 만하다.
+     */
+    era: modern && humanAuto === 0 && nodelessFromColumn ? 'new' : 'old',
     lines,
     scanLines: scan,
     seconds: Number.isFinite(startMs) && Number.isFinite(endMs) ? (endMs - startMs) / 1000 : null,
@@ -348,8 +426,10 @@ if (runs.length === 0) {
     console.log(`expired — 완주 판에서 ${expired}건. 보관 판은 줄로 안 남아 「일시정지·중단이 답을 못 받음」으로만 센다 (한계)`);
 
     console.log('');
-    console.log(`열 밖(NO_NODE) — 명령 중앙 ${median(complete.map((r) => r.outsideCommands))}건 · 응답 중앙 ${median(complete.map((r) => r.outsideLines))}줄`);
-    console.log('  이만큼이 **계측 범위 밖**이다 (논문 §6-2). 기록 열이 분모이므로 위 합계에 안 들어간다.');
+    console.log('분모와 노드에 안 붙은 명령 — 완주 판 중앙값 (261022 — 두 줄로 나눠 낸다)');
+    printSplit(complete, median);
+    console.log('  분모는 9/21 정의 그대로다(노드에 붙은 액션 + 태스크층). 노드에 안 붙은 명령은 분모에 안 들어간다.');
+    console.log('  옛 코드 판은 노드에 안 붙은 명령을 작업대에서 복원해 센다 — 그때 코드는 열에 안 적었다.');
 
     // 260920 뒤의 판에만 있는 중복. 정식 분모에는 안 넣되 크기는 보인다.
     const dup = complete.filter((r) => r.modern);
@@ -358,7 +438,7 @@ if (runs.length === 0) {
       console.log('');
       console.log(`⚠ 옛 명령 줄 중복 — 260920 뒤 완주 판에서 판마다 ${Math.min(...d)}~${Math.max(...d)}건`);
       console.log('    260920 이 액션 층을 더하면서 사람 층의 옛 명령 줄을 안 지웠다. 같은 명령이 두 벌 있다.');
-      console.log('    정식 분모는 액션 층 쪽이라 위 합계에는 안 넣었다. 지울지는 따로 정할 일이다.');
+      console.log('    정식 분모는 액션 층 쪽이라 위 합계에는 안 넣었다. 261022 에 지웠다 — 새 코드 판에서는 0 이어야 한다.');
     }
 
     // ── 완주하지 못한 판도 같이 낸다 ─────────────────────────────────────────
@@ -372,6 +452,38 @@ if (runs.length === 0) {
       console.log(`미완주 ${broken.length}판 — 합계 최소 ${Math.min(...bt)} · 중앙 ${median(bt)} · 최대 ${Math.max(...bt)}`);
       console.log(`  가장 큰 판 — ${broken.reduce((a, b) => (a.total >= b.total ? a : b)).name} (${Math.max(...bt)}건)`);
       console.log(`  실물 전체(${real.length}판)에서 관측된 최대는 ${Math.max(...real.map((r) => r.total))}건이다.`);
+    }
+  }
+
+  // 정지 판은 늘 미완주라 완주 판이 0이어도 낸다.
+  {
+    const median = (xs) => {
+      const q = [...xs].sort((x, y) => x - y);
+      return q.length === 0 ? 0 : q.length % 2 ? q[(q.length - 1) / 2] : (q[q.length / 2 - 1] + q[q.length / 2]) / 2;
+    };
+    // ── 옛 코드 판과 새 코드 판을 나란히 (261022) ───────────────────────────
+    //
+    // 9/21 의 숫자는 옛 코드가 기록한 판에서 나왔다. 고친 뒤 다시 태운 판과 **같은 규칙**으로
+    // 나란히 놓아야 「분모가 움직였나」를 말할 수 있다.
+    console.log('');
+    console.log('■ 코드 시대별 — 증거로 가른다 (액션 층이 열에 있고 · 사람 층에 옛 명령 줄이 없고 · NO_NODE 가 열에 있으면 새 코드)');
+    for (const [era, label] of [['old', '옛 코드'], ['new', '새 코드']]) {
+      const done = complete.filter((r) => r.era === era);
+      const all = real.filter((r) => r.era === era);
+      console.log('');
+      console.log(`${label} — 실물 ${all.length}판 · 완주 ${done.length}판 · 미완주 ${all.length - done.length}판`);
+      if (done.length > 0) printSplit(done, median);
+      if (all.length > 0) {
+        console.log(`  정지 기록(사람이 낸 abort 가 명령으로) — 합 ${all.reduce((s, r) => s + r.stopRecords, 0)}건 · 그런 판 ${all.filter((r) => r.stopRecords > 0).length}판`);
+        console.log(`  NO_NODE 명령이 액션 층에 — 합 ${all.reduce((s, r) => s + r.nodelessCommanded, 0)}건 (주체 backend ${all.reduce((s, r) => s + r.nodelessBackend, 0)} · human ${all.reduce((s, r) => s + r.nodelessHuman, 0)})`);
+        console.log(`  두 층 중복(옛 명령 줄) — 합 ${all.reduce((s, r) => s + r.legacyDuplicates, 0)}건`);
+      }
+      if (era === 'new' && all.length > 0) {
+        console.log('  판별 —');
+        for (const r of all) {
+          console.log(`    ${r.name.padEnd(30)} ${r.outcome.padEnd(8)} ${r.done.padStart(6)}  분모 ${String(r.total).padStart(4)} · 노드 밖 ${String(r.outside).padStart(3)} · 사람 층 ${r.humanLayer}(자동 ${r.humanAuto}) · 정지 ${r.stopRecords} · 중복 ${r.legacyDuplicates}`);
+        }
+      }
     }
   }
 }

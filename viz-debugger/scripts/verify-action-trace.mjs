@@ -11,7 +11,8 @@
 //  1. **작업대와 기록 열에 같은 `commandId` 가 있다** — 새 식별자를 만들지 않았는가
 //  2. **실려 나간 값이 같다** — 화면 계획값이 아니라 바이트에 들어간 것이 양쪽에 같이 있는가
 //  3. **응답도 열에 들어간다** — `answered` 가 그 `commandId` 에 붙는가
-//  4. **태스크 없는 명령은 안 들어간다** (`NO_NODE`) — 어느 노드도 못 보여 주는 외톨이 행
+//  4. **태스크 없는 명령도 들어가되 노드에는 안 붙는다** (`NO_NODE` · 261022 — 9/20 판단을 뒤집었다.
+//     그때 뺀 이유는 화면의 외톨이 행이었고, 기록에서 빠진 명령은 사람 층 옛 줄에만 남아 주체가 틀렸다)
 //
 // 대조군 — **기록 열에 안 넣은 사본이 반드시 잡혀야 한다.** 그것이 곧 260920 이전 상태이므로,
 // 이 대조군이 안 잡히면 이 검사는 아무것도 증명하지 않는다.
@@ -31,7 +32,7 @@ const controls = [];
 const session = await load('src', 'physical', 'robotSession.ts');
 const scenario = await load('src', 'data', 'scenario.ts');
 const store = await load('src', 'detect', 'store.ts');
-const { ACTION_KINDS } = await load('src', 'data', 'actionTrace.ts');
+const { ACTION_KINDS, attachedToNode } = await load('src', 'data', 'actionTrace.ts');
 const { NO_NODE } = await load('src', 'physical', 'missionLink.ts');
 const { SDK_ACTIONS } = await load('src', 'physical', 'presets.ts');
 
@@ -93,7 +94,7 @@ export function judgeJoin(workbench, trace) {
   const f = [];
   const commanded = new Map(commandedIn(trace).map((e) => [e.nodeId, e]));
   for (const record of Object.values(workbench)) {
-    if (record.taskId === NO_NODE) continue;            // 순서도에 자리가 없는 명령은 대상이 아니다
+    // 순서도에 자리가 없는 명령(`NO_NODE`)도 대상이다 (261022) — 기록 열에는 들어가야 한다.
     const event = commanded.get(record.commandId);
     if (event === undefined) {
       f.push(`작업대에는 있는데 기록 열에 없는 명령: ${record.commandId} (${record.action}) — 되감기가 이 명령에 안 닿는다`);
@@ -159,19 +160,21 @@ async function issueAll(robot) {
   console.log(`✅ 응답 ${answered.length}줄 — 전부 낸 명령에 붙고 produced_by 가 robot 이다`);
 }
 
-// ── 4. 태스크 없는 명령은 안 들어간다 ───────────────────────────────────────
+// ── 4. 태스크 없는 명령도 들어가되 노드에는 안 붙는다 (261022) ──────────────
 {
-  const before = column().length;
-  session.recordCommand({
-    commandId: 'cmd-bridge', taskId: NO_NODE, action: SDK_ACTIONS.start, requestId: null,
-    state: 'issued', code: null, message: null, result: {}, issuedAtIso: new Date().toISOString(),
-    parameters: {}, log: [],
-  });
-  receiveUplink({ kind: 'acceptance', commandId: 'cmd-bridge', accepted: true, code: null, message: null }, scenario.currentMission().missionId, 3);
-  if (column().length !== before) {
-    failures.push('태스크 없는 명령(NO_NODE)의 응답이 열에 들어갔다 — 어느 노드도 못 보여 주는 외톨이 행이다');
-  }
-  console.log('✅ 태스크 없는 명령(NO_NODE)은 열에 안 들어간다 — verify:sdk-bridge 와 같은 선');
+  const { issueSdkStart } = await load('src', 'physical', 'robotCommands.ts');
+  const robot = stubRobot('nn');
+  await issueSdkStart(robot);
+  const id = robot.sent.at(-1)?.commandId;
+  receiveUplink({ kind: 'acceptance', commandId: id, accepted: true, code: null, message: null }, scenario.currentMission().missionId, 3);
+  const rows = column().filter((e) => e.nodeId === id);
+  const commanded = rows.filter((e) => e.kind === ACTION_KINDS.commanded);
+  if (commanded.length !== 1) failures.push(`태스크 없는 명령(NO_NODE)이 기록 열에 ${commanded.length}건 — 실제로 나간 명령이라 한 건이어야 한다`);
+  if (!rows.some((e) => e.kind === ACTION_KINDS.answered)) failures.push('태스크 없는 명령(NO_NODE)의 응답이 기록 열에 없다');
+  if (rows.some((e) => attachedToNode({ taskId: String(e.payload?.taskId ?? '') }))) failures.push('태스크 없는 명령(NO_NODE)이 노드에 붙었다');
+  if (commanded.some((e) => e.producedBy !== 'backend')) failures.push('태스크 없는 명령(NO_NODE)의 주체가 backend 가 아니다 — 임무가 낸 명령이다');
+  failures.push(...judgeJoin(session.robotSession().commands, column()));
+  console.log('✅ 태스크 없는 명령(NO_NODE)도 열에 들어간다 — 주체 backend · 노드에는 안 붙는다 (verify:sdk-bridge 와 같은 선)');
 }
 
 // ── 대조군 ──────────────────────────────────────────────────────────────────
@@ -216,7 +219,7 @@ async function issueAll(robot) {
       .replaceAll("from './", "from '../")
       .replaceAll("from '\u0000/", "from '../../");
     // `recordCommanded({ ... });` 한 덩어리를 지운다.
-    const muted = deepened.replace(/recordCommanded\(\{[\s\S]*?\n      \}\);/, ';');
+    const muted = deepened.replace(/recordCommanded\(\{[\s\S]*?\n    \}\);/, ';');
     if (muted === deepened) {
       failures.push('대조군을 만들지 못했다 — robotCommands.ts 의 recordCommanded 호출 모양이 바뀌었나?');
     } else {

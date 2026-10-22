@@ -1,5 +1,11 @@
-// verify:human-trace (260904 신설) — 화면에서 나가는 **모든 명령**이 `produced_by=human`
+// verify:human-trace (260904 신설) — **사람이 낸** 명령이 `produced_by=human`
 // 으로 기록되고, **되감기에 보이는가**.
+//
+// 261022 — **사람 층의 정의 자리가 바뀌었다.** 전에는 「화면에서 나가는 모든 명령」이었고,
+// 그래서 임무가 낸 로봇 명령까지 사람 층에 `human` 으로 적혔다(260921 실물 판의 사람 층
+// 12건 중 11건). 이제 **사람 층은 사람이 한 일만** 담는다. 출구 본체는 여전히 한 자리에서
+// 적되, 액션 층이 적는 명령(`actionLayer`)은 건너뛴다. 그 경계는 `verify:human-layer-pure` ·
+// `verify:no-command-dup` 이 지키고, 이 검사는 사람의 명령이 **빠짐없이** 적히는 쪽을 본다.
 //
 // `VZ-D-08` 은 「모든 조작은 `produced_by=human` 으로 기록된다」고 적혀 있는데, 260904
 // 이전의 `recordHuman()` 은 별도 배열에 넣고 `console.log` 하는 것이 끝이었다. 화면 어디에도
@@ -66,6 +72,11 @@ const read = (...parts) => readSource(src, ...parts);
 // (verify:single-egress 가 그것을 못박는다). 사람 조작 기록은 **그 안**에 있어야 한다.
 function checkEgress(centerSource, egressSource, controlPanelSource) {
   const f = [];
+  // 261022 — 기록 줄은 `actionLayer` 조건 **하나**만 단다. 다른 조건이 붙으면 사람의 명령이 샌다.
+  const gate = centerSource.match(/\n\s*(if \(([^\n]*?)\) )?recordHuman\s*\(spec\.action/);
+  if (gate !== null && gate[2] !== undefined && gate[2] !== 'options.actionLayer !== true') {
+    f.push(`출구 본체의 기록 줄에 다른 조건이 붙었다 (${gate[2]}) — 사람이 누른 명령이 기록 없이 샌다`);
+  }
   if (!/recordHuman\s*\(/.test(centerSource)) {
     f.push('출구 본체(commandCenter.issue)가 recordHuman 을 부르지 않는다 — 추적기를 직접 부르는 화면의 조작이 기록 없이 샌다');
   } else {
@@ -98,6 +109,11 @@ if (checkEgress(centerSource, egressSource + '\nrecordHuman("x");', controlPanel
   failures.push('대조군 실패: 껍데기에 기록을 덧붙인(이중 기록) 사본이 잡히지 않았다');
 } else {
   controls.push('이중 기록 사본');
+}
+if (checkEgress(centerSource.replace('if (options.actionLayer !== true) recordHuman(', 'if (options.inputMode === \'voice\') recordHuman('), egressSource, controlPanelSource).length === 0) {
+  failures.push('대조군 실패: 기록 줄에 엉뚱한 조건을 단 사본(사람의 클릭이 샌다)이 잡히지 않았다');
+} else {
+  controls.push('기록 줄에 다른 조건을 단 사본');
 }
 
 // ── ③ 같은 열에 들어가는가 · 되감기가 그것을 보는가 ──────────────────────────
@@ -211,7 +227,7 @@ if (failures.length) {
   console.error(`❌ verify:human-trace\n- ${failures.join('\n- ')}`);
   process.exit(1);
 }
-console.log('✅ produced_by=human 규칙은 층마다 한 곳(data/trace.ts · data/actionTrace.ts) · 기록은 출구 본체(commandCenter.issue)가 발행 전에 · 껍데기 이중 기록 없음');
+console.log('✅ produced_by=human 규칙은 층마다 한 곳(data/trace.ts · data/actionTrace.ts) · 사람의 명령은 출구 본체(commandCenter.issue)가 발행 전에 적고 액션 층 명령(actionLayer)만 건너뛴다 · 껍데기 이중 기록 없음');
 console.log('✅ 같은 열 — 대본·백엔드 사건과 시각 순서로 섞이고, 조작한 그 시각에 적힌다 (seq 대역은 분리)');
 console.log('✅ 되감기 — 조작 전 시각에는 안 보이고 조작 뒤에는 보임 · 태스크 접기는 안 흔들림 · 화면에 사람 조작 줄이 있음');
 console.log(`✅ 대조군 ${controls.length}건 검출 — ${controls.join(' · ')}`);

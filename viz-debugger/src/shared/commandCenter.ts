@@ -149,6 +149,18 @@ export type IssueOptions = {
    * 이 길을 지나는지 본다.
    */
   publish?: (request: CommandRequest) => Promise<CommandAck>;
+  /**
+   * **이 명령은 액션 층이 적는다 — 사람 층에 적지 않는다** (261022 — 사람 층·액션 층 경계).
+   *
+   * 사람 층은 **사람이 한 일만** 담는다. 임무가 낸 로봇 명령(`physical/robotCommands.ts`)은
+   * 발행한 쪽이 액션 층에 `commanded` 로 적으므로, 여기서 또 적으면 같은 명령이 두 층에
+   * 들어가고 주체가 `human` 으로 틀린다 — 260920 에 액션 층을 더하면서 지우지 않은 옛 줄이
+   * 그것이었다(`verify:human-layer-pure` · `verify:no-command-dup`).
+   *
+   * 주지 않으면 지금과 같다. 제어 패널·수동 제어·SAR·비행 제어는 **사람이 누른 명령**이라
+   * 사람 층이 맞다.
+   */
+  actionLayer?: boolean;
 };
 
 export class CommandTracker {
@@ -196,8 +208,11 @@ export class CommandTracker {
      * 추적기를 **직접** 부르는 화면(제어 뷰 노드의 `issue()`)이 기록 없이 샌다 —
      * 「모든 조작은 `produced_by=human` 으로 기록된다」가 그 자리에서만 거짓이 된다.
      * 발행 전에 적는다: 무엇을 눌렀는지는 발행이 성공했는지와 무관한 사실이다.
+     *
+     * 261022 — **사람이 누르지 않은 명령은 여기서 안 적는다**(`actionLayer`). 그 명령은 낸
+     * 쪽이 액션 층에 적는다. 「모든 조작」의 조작은 사람의 조작이다.
      */
-    recordHuman(spec.action, entity, options.params ?? { target_pct: spec.targetPct });
+    if (options.actionLayer !== true) recordHuman(spec.action, entity, options.params ?? { target_pct: spec.targetPct });
     this.seq += 1;
     // 상관 키가 아니다. 접두사를 다르게 둬서 로그에서 섞이지 않게 한다.
     const requestId = 'req-' + Date.now().toString(36) + '-' + String(this.seq).padStart(2, '0');

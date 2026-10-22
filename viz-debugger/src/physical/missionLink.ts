@@ -28,10 +28,13 @@ import type { PhysicalAction } from './encode.ts';
  *
  * 그래도 `command_id` 를 표에 적어 둬야 그 응답의 **단계 보고**(`sdk_starting`)가 화면까지
  * 온다. `effectsOf` 는 모르는 command_id 의 상태를 통째로 버리기 때문이다(남의 도구가 쏜
- * 명령이 우리 진행률을 밀던 것을 막은 자리다). 그래서 이름은 주되, 사건은 안 만든다 —
- * 없는 노드에 사건을 붙이면 태스크 그래프가 대본보다 커진다.
+ * 명령이 우리 진행률을 밀던 것을 막은 자리다). 그래서 이름은 주되, **태스크 사건은** 안
+ * 만든다 — 없는 노드에 사건을 붙이면 태스크 그래프가 대본보다 커진다.
+ *
+ * 261022 — 정의는 `data/actionTrace.ts` 로 옮겼다. 그 명령도 **액션 층에는 들어가고**
+ * (기록), 노드에만 안 붙기(화면) 때문이다. 그 선을 긋는 자리가 액션 층의 어휘라야 한다.
  */
-export const NO_NODE = 'no-node';
+export { NO_NODE } from '../data/actionTrace.ts';
 
 export type TaskCommand = { taskId: string; action: PhysicalAction; parameters?: Record<string, number> };
 

@@ -16,7 +16,11 @@
 //     화면이 조용하면 「명령이 안 갔다」로 읽힌다.
 //  3. **`sdk` 가 없으면 「모른다」다** — `null` 을 「꺼짐」으로 그리면 안 된다. 지금 돌고
 //     있는 노드(schema 1.3)는 이 필드를 아예 안 실어 보낸다.
-//  4. **노드 없는 명령이 사건을 안 만든다** — 브리지 명령은 태스크 그래프에 자리가 없다.
+//  4. **노드 없는 명령은 기록 열에 들어가되 노드에는 안 붙는다** — 브리지 명령은 태스크
+//     그래프에 자리가 없다. 261022 에 「액션 층에 들어가면 실패」를 「노드에 붙으면 실패」로
+//     바꿨다. 9/20 의 판단은 화면에 대한 것이었고, 기록에서 빼는 바람에 그 명령이 사람 층의
+//     옛 줄에만 남아 주체가 `human` 으로 틀렸다. **무르게 한 것이 아니라 보는 자리를 옮긴 것이다** —
+//     이제 「열에 안 들어갔다」도 실패다.
 //  5. **이름은 상수 한 줄에** — 하드웨어가 다른 이름을 쓰겠다고 할 수 있다.
 //
 // 대조군 포함.
@@ -35,6 +39,9 @@ const { receiveUplink } = await load('src', 'physical', 'robotBridge.ts');
 const { robotSession, recordCommand, resetRobotSession, setConnection } = await load('src', 'physical', 'robotSession.ts');
 const scenario = await load('src', 'data', 'scenario.ts');
 const { SDK_ACTIONS } = await load('src', 'physical', 'presets.ts');
+const { issueSdkStart } = await load('src', 'physical', 'robotCommands.ts');
+const { ACTION_KINDS, actionsOfTask, attachedToNode, foldActions, isActionEvent } = await load('src', 'data', 'actionTrace.ts');
+const { readSource } = await import(pathToFileURL(join(root, 'scripts', 'lib', 'source.mjs')).href);
 
 const failures = [];
 const controls = [];
@@ -110,19 +117,57 @@ const strip = (source) => source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.
   if (later.sdkReady !== true) failures.push('sdk 가 안 실린 봉투가 서 있던 브리지를 지웠다');
 }
 
-// ── 4. 노드 없는 명령이 사건을 안 만든다 ────────────────────────────────────
+// ── 4. 노드 없는 명령은 기록 열에 들어가되 노드에는 안 붙는다 (261022) ──────────
+//
+// **판정 본체.** 대조군도 같은 함수를 돈다. 보는 것 셋:
+//   ① 들어갔는가 — 명령 한 줄과 응답이 기록 열에 있다 (9/20 에는 여기서 빠졌다)
+//   ② 노드에 안 붙었는가 — 태스크 층 사건이 없고, 액션 행의 `taskId` 가 `NO_NODE` 이며,
+//      어느 태스크를 열어도(`actionsOfTask`) 안 보인다
+//   ③ 주체가 맞는가 — 임무가 낸 명령이라 `backend` 다. `human` 이면 옛 줄과 같은 거짓이다
+function judgeNodeless(trace, addedSeqs, view, commandId) {
+  const f = [];
+  const added = trace.filter((e) => addedSeqs.has(e.seq));
+  const commanded = added.filter((e) => e.kind === ACTION_KINDS.commanded && e.nodeId === commandId);
+  const answered = added.filter((e) => e.kind === ACTION_KINDS.answered && e.nodeId === commandId);
+  if (commanded.length !== 1) f.push(`브리지 명령이 기록 열에 ${commanded.length}줄 — 한 줄이어야 한다 (실제로 나간 명령이다)`);
+  if (answered.length !== 2) f.push(`브리지 명령의 응답이 기록 열에 ${answered.length}줄 — 수락·종료 두 줄이어야 한다`);
+  for (const e of added) {
+    if (!isActionEvent(e)) f.push(`브리지 명령이 태스크 층 사건(${e.kind} · ${e.nodeId})을 만들었다 — 그래프에 없는 노드다`);
+    else if (attachedToNode({ taskId: String(e.payload?.taskId ?? '') })) f.push(`브리지 명령의 ${e.kind} 가 ${e.payload?.taskId} 노드에 붙었다`);
+  }
+  for (const e of commanded) {
+    if (e.producedBy !== 'backend') f.push(`브리지 명령의 주체가 ${e.producedBy} 다 — 임무가 낸 명령이라 backend 여야 한다`);
+  }
+  const folded = foldActions(Number.MAX_SAFE_INTEGER, trace);
+  for (const task of view.tasks) {
+    if (actionsOfTask(folded, task.id).some((a) => a.commandId === commandId)) f.push(`${task.id} 를 열면 브리지 명령이 보인다 — 노드에 붙었다`);
+  }
+  return f;
+}
+
+/** 화면이 각도 칸을 그릴 때 노드 없는 명령을 거르는가. 거르지 않으면 응답 줄의 `index` 하나로 칸에 붙는다. */
+function judgeScreen(modalSource) {
+  return /actionsAt\(\)\.filter\(attachedToNode\)/.test(modalSource)
+    ? [] : ['각도 칸이 노드 없는 명령까지 읽는다 — actionsAt().filter(attachedToNode) 가 없다'];
+}
+
+let nodelessRun = null;
 {
-  const before = scenario.traceFor(scenario.currentMission()).length;
-  receiveUplink(
-    { kind: 'acceptance', commandId: 'cmd-sdk', accepted: true, code: null, message: null },
-    'MSN-260909-01', 3,
-  );
-  receiveUplink(
-    { kind: 'result', commandId: 'cmd-sdk', status: 'SUCCEEDED', result: {}, code: null, message: null },
-    'MSN-260909-01', 4,
-  );
-  const after = scenario.traceFor(scenario.currentMission()).length;
-  if (after !== before) failures.push(`브리지 명령이 사건 ${after - before}건을 만들었다 — 그래프에 없는 노드다`);
+  resetRobotSession();
+  setConnection({ state: 'open' });
+  scenario.previewMission('MSN-260909-01');
+  const view = scenario.currentMission();
+  const seqsBefore = new Set(scenario.traceFor(view).map((e) => e.seq));
+  // **실제 길로 낸다** — 추적기를 지나 `issueThroughTracker` 가 적는 그대로다.
+  const stub = { getStatus: () => ({ state: 'open' }), send: () => ({ sent: true, commandId: 'cmd-sdk4' }), onMessage: () => () => {} };
+  await issueSdkStart(stub);
+  receiveUplink({ kind: 'acceptance', commandId: 'cmd-sdk4', accepted: true, code: null, message: null }, 'MSN-260909-01', 3);
+  receiveUplink({ kind: 'result', commandId: 'cmd-sdk4', status: 'SUCCEEDED', result: {}, code: null, message: null }, 'MSN-260909-01', 4);
+  const trace = scenario.traceFor(scenario.currentMission());
+  const addedSeqs = new Set(trace.map((e) => e.seq).filter((seq) => !seqsBefore.has(seq)));
+  failures.push(...judgeNodeless(trace, addedSeqs, view, 'cmd-sdk4'));
+  nodelessRun = { trace, addedSeqs, view };
+  failures.push(...judgeScreen(readSource(root, 'src', 'views', 'ActionModal.tsx')));
 }
 
 // ── 4-b. 「그런 명령 없다」를 기억한다 (260910 실측) ────────────────────────
@@ -222,9 +267,24 @@ function control(name, hit) {
   const asOff = (ready) => (ready === true ? '서 있음' : '내려감');
   control('sdk 미상을 「내려감」으로 그린 사본', asOff(null) === '내려감');
 }
+if (nodelessRun !== null) {
+  const { trace, addedSeqs, view } = nodelessRun;
+  // **브리지 명령에 태스크 노드를 준 사본** — 열에는 들어갔지만 `T-A3` 밑에 붙는다.
+  const attached = trace.map((e) => (addedSeqs.has(e.seq) ? { ...e, payload: { ...e.payload, taskId: 'T-A3' } } : e));
+  control('브리지 명령을 T-A3 노드에 붙인 사본', judgeNodeless(attached, addedSeqs, view, 'cmd-sdk4').length > 0);
+  // **응답이 태스크 사건이 된 사본** — 9/20 이 막으려던 바로 그 모양이다.
+  const taskEvent = { seq: 9_999_999, atSec: 4, nodeId: 'T-A3', status: 'done', kind: 'evaluated', producedBy: 'backend' };
+  control('응답이 T-A3 태스크 사건을 만든 사본', judgeNodeless([...trace, taskEvent], new Set([...addedSeqs, taskEvent.seq]), view, 'cmd-sdk4').length > 0);
+  // **9/20 의 모양 — 기록 열에서 뺀 사본.** 이제는 이것도 실패다.
+  control('브리지 명령을 기록 열에서 뺀 사본 (9/20 모양)', judgeNodeless(trace.filter((e) => !addedSeqs.has(e.seq)), new Set(), view, 'cmd-sdk4').length > 0);
+  // **주체를 사람으로 적은 사본** — 사람 층 옛 줄의 거짓을 액션 층에 옮겨 온 모양이다.
+  const asHuman = trace.map((e) => (addedSeqs.has(e.seq) && e.kind === ACTION_KINDS.commanded ? { ...e, producedBy: 'human' } : e));
+  control('브리지 명령의 주체를 human 으로 적은 사본', judgeNodeless(asHuman, addedSeqs, view, 'cmd-sdk4').length > 0);
+}
 {
-  // **브리지 명령에 태스크 노드를 준 사본.** 없는 노드에 사건이 붙는다.
-  control('브리지 명령에 태스크 노드를 준 사본', NO_NODE !== 'T-A3');
+  // **각도 칸이 거르지 않는 화면 사본.**
+  const modal = readSource(root, 'src', 'views', 'ActionModal.tsx');
+  control('각도 칸에서 attachedToNode 를 뺀 화면 사본', judgeScreen(modal.replaceAll('.filter(attachedToNode)', '')).length > 0);
 }
 
 if (failures.length) {
@@ -233,6 +293,6 @@ if (failures.length) {
 }
 console.log('✅ 단계 보고 넷을 다 읽는다 — 맨 문자열 · sdk_starting · 임무 ACK 를 서로 섞지 않는다');
 console.log('✅ 「일어서는 중」이 세션까지 닿는다 · sdk 미상은 「모름」이지 「꺼짐」이 아니다');
-console.log('✅ 브리지 명령은 태스크 그래프에 사건을 안 만든다 · 이름은 presets.ts 한 줄');
+console.log('✅ 브리지 명령은 기록 열에 들어가되(명령·응답 · 주체 backend) 노드에는 안 붙는다 — 태스크 사건 0 · 어느 태스크를 열어도 안 보임 · 이름은 presets.ts 한 줄');
 console.log('✅ UNIMPLEMENTED 는 기억하고 battery_too_low 는 안 기억한다 — 영영 안 되는 것과 지금 안 되는 것');
 console.log(`✅ 대조군 ${controls.length}건 전부 검출 — ${controls.join(' · ')}`);

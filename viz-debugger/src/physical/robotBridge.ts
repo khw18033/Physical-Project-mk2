@@ -75,10 +75,10 @@ export function receiveUplink(
    * 토픽 하나라 남의 도구가 쏜 명령의 보고도 같이 들어온다. 접기도 `commanded` 가 없는
    * 명령에는 응답을 안 붙이므로 규칙이 두 겹으로 같다.
    */
-  // `NO_NODE` 는 순서도에 자리가 없는 명령(브리지 기동 등)이다 — 액션 층에 넣으면
-  // 어느 노드도 보여 줄 수 없는 외톨이 행이 된다 (`robotCommands.ts` 의 같은 선).
+  // `NO_NODE`(순서도에 자리가 없는 명령)의 응답도 넣는다 (261022) — 명령이 액션 층에 들어가니
+  // 응답도 그 행에 붙는다. **노드에는 안 붙는다** — 아래 `traceEventsOf` 가 태스크 사건을 안 만든다.
   const answeredTaskId = robotSession().commands[message.commandId]?.taskId ?? null;
-  if (answeredTaskId !== null && answeredTaskId !== NO_NODE) {
+  if (answeredTaskId !== null) {
     recordAnswered({
       commandId: message.commandId,
       taskId: answeredTaskId,
