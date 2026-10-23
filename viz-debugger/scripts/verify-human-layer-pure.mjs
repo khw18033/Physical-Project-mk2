@@ -9,6 +9,14 @@
 //
 // 층의 뜻을 하나로 정했다 — **사람 층은 사람이 한 일만 담는다. 명령은 액션 층이 담는다.**
 //
+// 261023 — **층은 「명령이냐」, 주체는 「누가 냈느냐」.** 사람이 직접 낸 명령(수동 제어 · SAR · 비행 제어)도
+// 액션 층으로 갔다(주체 human). 그래서 사람 층에 **남아야 하는 것**을 다시 적는다.
+//
+//   남는다  누름 — `mission_started` · `mission_resumed` · `approach_started` · `mission_restarted` 류
+//           게이트웨이 출구의 명령 — `shared/commandEgress.ts` · `tabs/views/ControlPanel.tsx` (이번 범위 밖,
+//           장비가 아니라 게이트웨이로 나간다. 아래 ④가 그 둘만 남았는지 본다)
+//   빠진다  장비로 나가는 명령 전부 — `physical/` 의 추적기 호출은 모두 `actionLayer` 를 단다
+//
 // 보는 것.
 //  ① 문 찾기 편 한 판을 실제 길로 몰았을 때 사람 층에 **로봇에 나간 명령의 이름**이나
 //     옛 명령 줄의 표식(`payload.task_id`)을 단 사건이 0건이다
@@ -19,10 +27,10 @@
 // 대조군 — **`scan_mission` 을 사람 층에 도로 넣은 사본**이 잡혀야 한다. 둘로 만든다:
 // 로봇 명령이 `actionLayer` 를 안 주는 `robotCommands.ts` 사본(판을 실제로 몬다)과, 출구 본체가
 // `actionLayer` 를 무시하는 `commandCenter.ts` 사본. LF 로 정규화한 원본에서 만든다(`readSource`).
-import { writeFileSync } from 'node:fs';
+import { readdirSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { makeScratch } from './lib/scratch.mjs';
+import { isScratchPath, makeScratch } from './lib/scratch.mjs';
 import { readSource } from './lib/source.mjs';
 import { pi7Kit } from './lib/pi7Run.mjs';
 
@@ -86,6 +94,39 @@ function judgeButtons(buttonSource) {
 const buttons = readSource(root, 'src', 'physical', 'StopButton.tsx');
 failures.push(...judgeButtons(buttons));
 
+// ── ④ 장비로 나가는 명령은 전부 액션 층 — 남는 것은 게이트웨이 출구 둘뿐 ──────────
+//
+// 추적기(`commandTracker.issue`)를 부르는 자리를 **전부** 훑는다. 목록을 손으로 적지 않는다 —
+// 새 출구가 생기면 여기서 드러나야 한다.
+const GATEWAY_EGRESS = new Set(['shared/commandEgress.ts', 'tabs/views/ControlPanel.tsx']);
+function judgeEgressSites(sources) {
+  const f = [];
+  for (const [rel, text] of sources) {
+    const calls = text.split(/commandTracker\.issue\s*\(/).slice(1);
+    if (calls.length === 0) continue;
+    const marked = calls.filter((rest) => /^[\s\S]{0,1200}?actionLayer:\s*true/.test(rest.split(/\n\s*\);?\n/)[0] ?? rest)).length;
+    if (GATEWAY_EGRESS.has(rel)) continue;
+    if (marked !== calls.length) f.push(`${rel} 의 추적기 호출 ${calls.length}곳 중 ${calls.length - marked}곳이 actionLayer 를 안 단다 — 장비로 나가는 명령이 사람 층에 적힌다`);
+  }
+  for (const rel of GATEWAY_EGRESS) {
+    if (!sources.has(rel)) f.push(`${rel} 가 없다 — 남는 것의 목록이 바뀌었으니 머리말을 다시 적어라`);
+  }
+  return f;
+}
+const egressSources = new Map();
+(function walk(dir) {
+  for (const name of readdirSync(dir)) {
+    const path = join(dir, name);
+    if (isScratchPath(path)) continue;
+    if (statSync(path).isDirectory()) walk(path);
+    else if (/\.tsx?$/.test(name)) {
+      const text = readSource(path);
+      if (/commandTracker\.issue\s*\(/.test(text)) egressSources.set(path.slice(join(root, 'src').length + 1).replaceAll('\\', '/'), text);
+    }
+  }
+})(join(root, 'src'));
+failures.push(...judgeEgressSites(egressSources));
+
 // ── 대조군 ──────────────────────────────────────────────────────────────────
 function control(name, hit) {
   if (!hit) failures.push(`대조군 실패: ${name} — 변조 사본이 잡히지 않았다`);
@@ -132,6 +173,13 @@ const deepen = (code) => code
     scratch.cleanup();
   }
 }
+// ⓓ 수동 제어가 actionLayer 를 안 다는 사본 — 사람이 몬 명령이 사람 층으로 돌아간다(261022 의 모양).
+{
+  const muted = new Map(egressSources);
+  const md = muted.get('physical/manualDispatch.ts') ?? '';
+  muted.set('physical/manualDispatch.ts', md.replace(/actionLayer:\s*true,/, ''));
+  control('수동 제어가 actionLayer 를 안 다는 사본', md !== '' && judgeEgressSites(muted).length > 0);
+}
 // ⓒ 버튼이 사람이 누른 사실을 안 적는 사본.
 control('버튼에서 approach_started 기록을 지운 사본', judgeButtons(buttons.replace("recordHuman('approach_started'", "noop('x'")).length > 0);
 
@@ -144,5 +192,6 @@ if (failures.length) {
 console.log(`✅ 문 찾기 편 한 판(로봇 명령 ${run.sent.length}건)을 몰았다 — 사람 층 ${humanCount}건 중 자동 명령 0건`);
 console.log('✅ 출구 본체 — actionLayer 를 준 명령은 사람 층에 안 적고, 사람이 누른 명령은 그대로 적는다');
 console.log('✅ 사람이 누른 시작·재시작·접근은 버튼이 사람 층에 직접 적는다');
+console.log(`✅ 장비로 나가는 명령은 전부 액션 층 — 추적기 호출 ${egressSources.size}개 파일 중 actionLayer 없이 남은 것은 게이트웨이 출구 둘(${[...GATEWAY_EGRESS].join(' · ')})`);
 console.log(`✅ 대조군 ${controls.length}건 전부 검출 — ${controls.join(' · ')}`);
 process.exit(0);

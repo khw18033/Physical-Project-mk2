@@ -345,6 +345,8 @@ function liveRow(folder, run) {
     nodelessCommanded: nodelessCommanded.length,
     nodelessHuman: nodelessCommanded.filter((e) => e.producedBy === 'human').length,
     nodelessBackend: nodelessCommanded.filter((e) => e.producedBy === 'backend').length,
+    /** 그중 사람이 장비를 직접 몬 명령(수동 제어 · SAR · 비행 제어 — 261023). 받은 장비를 싣는 것이 그 표시다. */
+    nodelessDriven: nodelessCommanded.filter((e) => e.producedBy === 'human' && typeof e.payload?.device === 'string').length,
     /**
      * **새 코드가 기록한 판인가** (261022). 증거로 가른다 — 액션 층이 열에 있고, 사람 층에
      * 옛 명령 줄이 없고, 노드에 안 붙은 명령이 열에 있다. 날짜로 가르지 않는 이유는
@@ -475,7 +477,7 @@ if (runs.length === 0) {
       if (done.length > 0) printSplit(done, median);
       if (all.length > 0) {
         console.log(`  정지 기록(사람이 낸 abort 가 명령으로) — 합 ${all.reduce((s, r) => s + r.stopRecords, 0)}건 · 그런 판 ${all.filter((r) => r.stopRecords > 0).length}판`);
-        console.log(`  NO_NODE 명령이 액션 층에 — 합 ${all.reduce((s, r) => s + r.nodelessCommanded, 0)}건 (주체 backend ${all.reduce((s, r) => s + r.nodelessBackend, 0)} · human ${all.reduce((s, r) => s + r.nodelessHuman, 0)})`);
+        console.log(`  NO_NODE 명령이 액션 층에 — 합 ${all.reduce((s, r) => s + r.nodelessCommanded, 0)}건 (주체 backend ${all.reduce((s, r) => s + r.nodelessBackend, 0)} · human ${all.reduce((s, r) => s + r.nodelessHuman, 0)} — 그중 사람이 장비를 직접 몬 명령 ${all.reduce((s, r) => s + r.nodelessDriven, 0)})`);
         console.log(`  두 층 중복(옛 명령 줄) — 합 ${all.reduce((s, r) => s + r.legacyDuplicates, 0)}건`);
       }
       if (era === 'new' && all.length > 0) {

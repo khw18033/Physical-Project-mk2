@@ -1029,6 +1029,7 @@ export const ko: Record<string, string> = {
   'replay.human': '사람',
   'replay.noHuman': '조작 기록 없음',
   'replay.humanCount': '{n}건 · produced_by=human',
+  'replay.humanSpan': 'T+{from}~{to}s · 사람이 몬 명령 {n}건 → {device} ({actions}) · produced_by=human',
 
   // 그래프 머리줄 · 빵부스러기 · 마일스톤 이동
   'graph.titleMission': '{label} · 임무 전체 {n}노드',

@@ -1017,6 +1017,7 @@ export const en: Record<string, string> = {
   'replay.human': 'Human',
   'replay.noHuman': 'No operator record',
   'replay.humanCount': '{n} · produced_by=human',
+  'replay.humanSpan': 'T+{from}–{to}s · {n} commands driven by a person → {device} ({actions}) · produced_by=human',
 
   'graph.titleMission': '{label} · whole mission, {n} nodes',
   'graph.titleMilestone': 'Milestone {id} · {title}',

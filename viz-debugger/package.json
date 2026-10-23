@@ -107,6 +107,8 @@
     "verify:stop-recorded": "node scripts/verify-stop-recorded.mjs",
     "verify:human-layer-pure": "node scripts/verify-human-layer-pure.mjs",
     "verify:no-command-dup": "node scripts/verify-no-command-dup.mjs",
+    "verify:human-command-layer": "node scripts/verify-human-command-layer.mjs",
+    "verify:manual-replay": "node scripts/verify-manual-replay.mjs",
     "verify:plan-freshness": "node scripts/verify-plan-freshness.mjs",
     "verify:detect-map": "node scripts/verify-detect-map.mjs",
     "verify:mission-prep": "node scripts/verify-mission-prep.mjs",

@@ -48,6 +48,7 @@
 import { useSyncExternalStore } from 'react';
 import { t } from '../i18n/dict.ts';
 import { commandTracker } from '../shared/commandCenter.ts';
+import { recordHumanAnswer, recordHumanCommand } from './humanCommands.ts';
 import type { CommandAck, CommandRequest } from '../transport/index.ts';
 import { deviceCandidates } from './deviceIdentity.ts';
 import { declaredAction, type DeclaredAction, type PhysicalAction } from './encode.ts';
@@ -154,9 +155,11 @@ function watch(client: ClientLike, deviceId: string, action: string, commandId: 
   listening.add(client);
   // 소켓 하나에 한 번 건다. 소켓은 앱 수명과 같다(`syncRobotClients`).
   client.onMessage((message) => {
-    if (message.kind !== 'acceptance' || message.accepted) return;
     const sent = pending.get(message.commandId);
     if (sent === undefined) return;
+    // **답도 같은 행에 넘긴다** (261023) — 이 귀가 그 소켓의 유일한 귀라 명령마다 따로 듣지 않는다.
+    if (recordHumanAnswer(message)) pending.delete(message.commandId);
+    if (message.kind !== 'acceptance' || message.accepted) return;
     pending.delete(message.commandId);
     note(sent.deviceId, { kind: 'rejected', action: sent.action, code: message.code, message: message.message, atMs: Date.now() });
     if (sent.action === TELEOP_ACTION) halt(sent.deviceId, false);
@@ -177,9 +180,12 @@ function issue(deviceId: string, client: ClientLike, action: PhysicalAction | De
     {
       params: { ...parameters },
       inputMode: 'keyboard',
+      // **액션 층이 적는다** (261023) — 명령이라 액션 층, 사람이 냈으니 주체 human. 사람 층에는 안 적는다.
+      actionLayer: true,
       publish: async (request: CommandRequest): Promise<CommandAck> => {
         const outcome = client.send(action, parameters);
         if (outcome.sent) watch(client, deviceId, action, outcome.commandId);
+        if (outcome.sent) recordHumanCommand(null, { commandId: outcome.commandId, deviceId, action, parameters, requestId: request.client_request_id });
         note(deviceId, outcome.sent
           ? { kind: 'sent', action, parameters, atMs: Date.now() }
           : { kind: 'failed', action, reason: outcome.reason ?? t('robot.notSent'), atMs: Date.now() });

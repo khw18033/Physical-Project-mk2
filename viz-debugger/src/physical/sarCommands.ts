@@ -25,6 +25,7 @@
 
 import { t } from '../i18n/dict.ts';
 import { commandTracker } from '../shared/commandCenter.ts';
+import { recordHumanCommand } from './humanCommands.ts';
 import { sarReports } from '../shared/sarStatus.ts';
 import type { CommandAck, CommandRequest } from '../transport/index.ts';
 import { deviceIdentityFor } from './deviceIdentity.ts';
@@ -134,9 +135,12 @@ async function issueSar(
       { action, label: action, targetPct: 0, irreversible: action === SAR_START, resultingState: '' },
       {
         params: { ...(parameters ?? {}) },
+        // **액션 층이 적는다** (261023) — 명령이라 액션 층, 사람이 냈으니 주체 human. 사람 층에는 안 적는다.
+        actionLayer: true,
         publish: async (request: CommandRequest): Promise<CommandAck> => {
           const outcome = client.send(action, parameters);
           commandId = outcome.sent ? outcome.commandId : '';
+          if (outcome.sent) recordHumanCommand(client, { commandId, deviceId: link.deviceId!, action, parameters: parameters ?? {}, requestId: request.client_request_id });
           return {
             clientRequestId: request.client_request_id,
             commandId: outcome.sent ? outcome.commandId : null,

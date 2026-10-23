@@ -1221,11 +1221,13 @@ export function recordCommanded(input: {
   commandId: string; taskId: string; action: string;
   parameters: Record<string, number>; requestId?: string | null;
   issuedBy?: 'human' | 'mission'; atSec?: number;
+  /** 받은 장비 — 사람이 직접 몬 명령만 준다 (`FoldedAction.device`). */
+  device?: string | null;
 }): ScenarioEvent | null {
   return pushAction((seq) => commandedEvent({
     seq, atSec: actionAtSec(input.atSec), commandId: input.commandId, taskId: input.taskId,
     action: input.action, parameters: input.parameters, requestId: input.requestId ?? null,
-    issuedBy: input.issuedBy ?? 'mission',
+    issuedBy: input.issuedBy ?? 'mission', device: input.device ?? null,
   }));
 }
 

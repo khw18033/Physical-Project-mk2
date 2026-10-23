@@ -122,6 +122,11 @@ export type FoldedAction = {
   expired: { atSec: number; waitedMs: number; reason: string } | null;
   /** 사람이 바꾼 값들. 전후를 **짝으로** 든다 — 후만 남기면 무엇이 바뀌었는지 모른다. */
   adjustments: readonly { atSec: number; field: string; before: unknown; after: unknown }[];
+  /**
+   * **어느 장비가 받았나** (261023 — 사람 명령 액션 층). 사람이 직접 몬 명령(수동 제어·SAR·비행 제어)만
+   * 싣는다 — 그 명령은 노드에 안 붙으므로 「무엇을 몰았나」를 가를 것이 장비뿐이다. 임무 명령은 null 이다.
+   */
+  device: string | null;
 };
 
 // ── 사건 만들기 ───────────────────────────────────────────────────────────────
@@ -144,6 +149,8 @@ export function commandedEvent(input: {
    * (`verify:human-trace` ①이 그것을 지킨다).
    */
   issuedBy: 'human' | 'mission';
+  /** 받은 장비 — 사람이 직접 몬 명령만 싣는다(`FoldedAction.device`). 주지 않으면 payload 에 칸이 안 생긴다. */
+  device?: string | null;
 }): ScenarioEvent {
   return {
     seq: input.seq,
@@ -158,6 +165,8 @@ export function commandedEvent(input: {
       action: input.action,
       parameters: { ...input.parameters },
       requestId: input.requestId ?? null,
+      // 칸을 늘 만들지 않는다 — 임무 명령의 사건 모양은 9·10월 판과 같아야 견줄 수 있다.
+      ...(input.device ? { device: input.device } : {}),
     },
   };
 }
@@ -307,6 +316,7 @@ export function foldActions(second: number, trace: readonly ScenarioEvent[]): re
         action: asString(payload.action),
         parameters: { ...((payload.parameters as Record<string, number> | undefined) ?? {}) },
         requestId: typeof payload.requestId === 'string' ? payload.requestId : null,
+        device: typeof payload.device === 'string' ? payload.device : null,
         issuedAtSec: event.atSec,
         status: 'issued',
         lines: [],
@@ -386,6 +396,16 @@ export function planAdjustments(
     out.push({ atSec: event.atSec, field: asString(payload.field), before: payload.before, after: payload.after });
   }
   return out;
+}
+
+/**
+ * **노드에 안 붙은 명령들** (261023). 사람이 직접 몬 구간이 여기 있다 — 어느 태스크를 열어도 안 보이는
+ * 행이라 볼 자리가 따로 필요하다. 접기(`foldActions`)를 거친 것을 받으므로 **재생 머리를 그대로 따른다.**
+ *
+ * 장비를 주면 그 장비가 받은 것만.
+ */
+export function nodelessActions(actions: readonly FoldedAction[], device?: string): readonly FoldedAction[] {
+  return actions.filter((action) => !attachedToNode(action) && (device === undefined || action.device === device));
 }
 
 /** 태스크 하나가 낸 명령들. 화면이 노드를 열었을 때 읽는다. */

@@ -10,6 +10,7 @@ import {
   type MissionView,
 } from './data/scenario.ts';
 import { foldStatuses } from './data/fold.ts';
+import { humanCount, humanTimeline } from './data/humanTimeline.ts';
 import { TaskGraph, type CanvasLayer } from './graph/TaskGraph.tsx';
 import { Palette } from './canvas/Palette.tsx';
 import { ZoomOverlay } from './canvas/ZoomOverlay.tsx';
@@ -84,9 +85,13 @@ function timelineSegments(view: MissionView, trace: readonly ScenarioEvent[], ta
  * 조작은 구간이 아니라 **순간**이라 태스크 줄처럼 칠하지 않고 점으로 찍는다. 대상이
  * 태스크가 아니라 장비·임무인 경우가 대부분이라(`recordHuman` 의 nodeId) 태스크 줄에
  * 얹으면 그 태스크가 그때 무슨 상태였는지를 거짓으로 만든다.
+ *
+ * 261023 — **사람이 같은 장비를 연달아 몬 명령만 구간으로 묶는다**(`data/humanTimeline.ts`).
+ * 수동 제어는 한 판에 500건까지 나가서 점으로 찍으면 줄이 까맣게 덮인다. 누름은 여전히 점이다.
+ * 태스크 줄에 얹지 않는다는 위의 판단은 그대로다 — 구간도 사람 줄에만 그린다.
  */
 function humanMarks(trace: readonly ScenarioEvent[]) {
-  return trace.filter((event) => event.producedBy === 'human');
+  return humanTimeline(trace);
 }
 
 /**
@@ -270,7 +275,7 @@ function ReplayControls({ second, following, playing, onChange, onFollow, view, 
     {/* AI 줄 — 이 임무를 무엇이 만들었나 (260907 · `VZ-G-01` 역추적). 사람 줄 바로 위다. */}
     <div className="timeline-ai"><code>AI</code><span className="timeline">{ai.map((event) => <b key={event.seq} className="ai-mark" style={{ left: `${Math.min(1, event.atSec / span) * 100}%` }} title={t('replay.aiMark', { sec: Math.round(event.atSec), kind: event.kind, node: event.nodeId, model: String((event.payload as { model?: unknown } | undefined)?.model ?? t('replay.modelUnknown')) })} />)}<i style={{ left: `${shown / span * 100}%` }} /></span><small>{ai.length === 0 ? t('replay.noAi') : t('replay.aiCount', { n: ai.length })}</small></div>
     {/* 사람 조작 줄 — 없으면 「아직 없다」고 적는다. 빈 줄은 「기록을 안 한다」로 읽힌다. */}
-    <div className="timeline-human"><code>{t('replay.human')}</code><span className="timeline">{human.map((event) => <b key={event.seq} className="human-mark" style={{ left: `${Math.min(1, event.atSec / span) * 100}%` }} title={`T+${Math.round(event.atSec)}s · ${event.kind} → ${event.nodeId} (produced_by=human)`} />)}<i style={{ left: `${shown / span * 100}%` }} /></span><small>{human.length === 0 ? t('replay.noHuman') : t('replay.humanCount', { n: human.length })}</small></div></div></section>;
+    <div className="timeline-human"><code>{t('replay.human')}</code><span className="timeline">{human.spans.map((run) => <em key={`span-${run.seq}`} className="human-span" style={{ left: `${Math.min(1, run.start / span) * 100}%`, width: `${Math.max(0, Math.min(1, run.end / span) - Math.min(1, run.start / span)) * 100}%` }} title={t('replay.humanSpan', { from: Math.round(run.start), to: Math.round(run.end), n: run.count, device: run.device, actions: run.actions.join(' · ') })} />)}{human.points.map((event) => <b key={event.seq} className="human-mark" style={{ left: `${Math.min(1, event.atSec / span) * 100}%` }} title={`T+${Math.round(event.atSec)}s · ${event.kind} → ${event.nodeId} (produced_by=human)`} />)}<i style={{ left: `${shown / span * 100}%` }} /></span><small>{humanCount(human) === 0 ? t('replay.noHuman') : t('replay.humanCount', { n: humanCount(human) })}</small></div></div></section>;
 }
 
 /**
