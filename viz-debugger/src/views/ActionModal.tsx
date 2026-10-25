@@ -95,7 +95,7 @@ function AdjustList({ items }: { items: readonly { atSec: number; field: string;
  * 한 태스크가 명령을 여럿 낼 수 있다 — 「산출된 경로에 따라 이동」은 회전과 직진 둘이다.
  * 그래서 이름이 아니라 **낸 순서대로** 늘어놓는다.
  */
-function RobotCommands({ taskId }: { taskId: string }) {
+function RobotCommands({ taskId, second }: { taskId: string; second?: number }) {
   // `t()` 는 값을 줄 뿐 리렌더를 안 일으킨다 — 컴포넌트마다 건다 (지시서 §2 ①).
   useLang();
   // **재생 머리가 움직이면 다시 접는다.** 전에는 작업대만 구독해서, 되감아도 표가 그대로였다.
@@ -113,7 +113,9 @@ function RobotCommands({ taskId }: { taskId: string }) {
    */
   const angle = viewpointTaskIndex(taskId);
   // **노드에 안 붙는 명령은 각도 칸에도 안 붙는다** (261022). 그 명령도 이제 기록 열에 있다.
-  const folded = actionsAt().filter(attachedToNode);
+  // **슬라이더 시각까지 접는다** (261025) — `second` 가 없으면(따라가는 중) 라이브 머리다. 전에는 늘 라이브 머리라
+  // 되감아도 지금까지 온 줄 전부가 떴다. 값은 `main.tsx` 의 `GraphScreen` 이 올린다(`verify:action-modal-rewind`).
+  const folded = actionsAt(second).filter(attachedToNode);
   const groups = angle === null
     ? actionsOfTask(folded, taskId).map((action) => ({ action, lines: action.lines }))
     : folded
@@ -207,7 +209,7 @@ function FailureReason({ taskId }: { taskId: string }) {
   </div>;
 }
 
-export function ActionModal({ task, view, device, failure, onClose }: { task: Task; view: MissionView; device?: Hardware; failure?: boolean; onClose(): void }) {
+export function ActionModal({ task, view, device, failure, second, onClose }: { task: Task; view: MissionView; device?: Hardware; failure?: boolean; second?: number; onClose(): void }) {
   // `t()` 는 값을 줄 뿐 리렌더를 안 일으킨다 — 컴포넌트마다 건다 (지시서 §2 ①).
   useLang();
   // **재생 머리를 구독한다** — 아래 명령 수와 조정 목록이 접은 결과를 읽는다.
@@ -237,7 +239,7 @@ export function ActionModal({ task, view, device, failure, onClose }: { task: Ta
     recordAdjusted({ commandId: task.id, taskId: task.id, field, before, after });
   };
   const planChanges = planAdjustments(displayMission().headSec, traceFor(view), task.id);
-  const foldedHere = actionsOfTask(actionsAt(), task.id);
+  const foldedHere = actionsOfTask(actionsAt(second), task.id);
   // 대본(registry 세계)의 평가는 대본 파일에서 읽는다 — 기준은 task.evaluation, 근거값은
   // 기록 열의 payload (예: MS-E 의 distance_m: 2.7). 옛 편은 전달본의 목 문구 그대로다.
   // **중계 편은 흘러온 기록에서 읽는다** (260915). 대본의 사건은 그 편의 정의일 뿐이라, 거기서 읽으면
@@ -253,7 +255,7 @@ export function ActionModal({ task, view, device, failure, onClose }: { task: Ta
           줬다. 대본에 목록이 실제로 들어 있는 편에서는 그 수도 같이 적는다. */}
       <small>{viewpointTaskIndex(task.id) === null
         ? t('act.commandCount', { n: foldedHere.length })
-        : t('act.logAtAngle', { n: actionsAt().filter(attachedToNode).reduce((sum, a) => sum + a.lines.filter((line) => line.index === viewpointTaskIndex(task.id)).length, 0) })}{task.actionItems.length > 0 && t('act.actionItemCount', { n: task.actionItems.length })} · target {task.target ?? t('gen.none')}</small></div><button onClick={onClose}>{t('conn.close')}</button></header>
+        : t('act.logAtAngle', { n: actionsAt(second).filter(attachedToNode).reduce((sum, a) => sum + a.lines.filter((line) => line.index === viewpointTaskIndex(task.id)).length, 0) })}{task.actionItems.length > 0 && t('act.actionItemCount', { n: task.actionItems.length })} · target {task.target ?? t('gen.none')}</small></div><button onClick={onClose}>{t('conn.close')}</button></header>
     {failure ? <FailureReason taskId={task.id} /> : device && <PendingSource id="robot-status-strip" minHeight={104}><DeviceStrip device={device} /></PendingSource>}
     {/* **로봇이 실제로 낸 명령이 있으면 이 폼을 안 띄운다** (260912 지시).
         「진입 속도 · 최소 클리어런스」는 구판 편의 입력칸이다. 회전·직진이 실패한 자리에
@@ -284,7 +286,7 @@ export function ActionModal({ task, view, device, failure, onClose }: { task: Ta
             {/* **장애물 탐지는 AI 서버가 준 것 그대로** (260915). 문 찾기 시연의 탐지 로그와 다른 서버다. */}
             {task.id === OBSTACLE_TASK && <><h3>{t('act.obstacleAi')}</h3><ObstacleFacts /></>}
           </>
-        : <><h3>{t('act.robotLog')}</h3><RobotCommands taskId={task.id} /></>}
+        : <><h3>{t('act.robotLog')}</h3><RobotCommands taskId={task.id} second={second} /></>}
       {/* **탐지 쪽에서 오간 것** (260914 지시). 로봇 → 탐지 프레임, 탐지 → 화면 결과, 화면의
           판단이 그 태스크 몫만 붙는다. 탐지 그림이 안 올 때 어느 구간에서 끊겼는지가 여기 남는다. */}
       {isDetectTask(task.id) && <DetectLogLines taskId={task.id} />}

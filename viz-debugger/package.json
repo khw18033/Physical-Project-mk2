@@ -109,6 +109,7 @@
     "verify:action-time": "node scripts/verify-action-time.mjs",
     "verify:layer-time-agree": "node scripts/verify-layer-time-agree.mjs",
     "verify:action-replay-generated": "node scripts/verify-action-replay-generated.mjs",
+    "verify:action-modal-rewind": "node scripts/verify-action-modal-rewind.mjs",
     "verify:no-command-dup": "node scripts/verify-no-command-dup.mjs",
     "verify:human-command-layer": "node scripts/verify-human-command-layer.mjs",
     "verify:manual-replay": "node scripts/verify-manual-replay.mjs",

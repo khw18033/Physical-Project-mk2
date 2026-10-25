@@ -256,7 +256,8 @@ function armed() {
    * 옛 길로 되돌아가는 것을 막는다.
    */
   if (!/actionsOfTask/.test(modal)) failures.push('액션 아이템 자리가 접은 명령을 안 읽는다');
-  if (!/actionsAt\(\)/.test(modal)) failures.push('명령 표가 재생 머리를 안 읽는다 — 되감아도 표가 안 따라 움직인다');
+  // 261025 — 재생 머리는 이제 슬라이더 시각(`second`)으로 들어온다. 보는 자리를 옮겼다 — 조건은 그대로다(접은 결과를 읽는다).
+  if (!/actionsAt\(second\)/.test(modal)) failures.push('명령 표가 재생 머리를 안 읽는다 — 되감아도 표가 안 따라 움직인다');
   if (/commandsOfTask|logAtIndex/.test(modal)) {
     failures.push('명령 표가 작업대(robotSession)를 직접 읽는다 — 작업대는 지금 값이라 되감기가 안 닿는다');
   }

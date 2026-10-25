@@ -286,10 +286,16 @@ function ReplayControls({ second, following, playing, onChange, onFollow, view, 
  */
 export type GraphScope = 'milestone' | 'mission';
 
-function GraphScreen({ screen, view, trace, milestone, tasks, headSec, playing, scope, onScope, refEdges, crossing, viewpoints, viewpointFill, onOpen, onBack, onGraph, openTask, nodeRequest, onMilestone }: {
+function GraphScreen({ screen, view, trace, milestone, tasks, headSec, playing, scope, onScope, refEdges, crossing, viewpoints, viewpointFill, onOpen, onBack, onGraph, openTask, nodeRequest, onMilestone, onSecond }: {
   screen: Screen; view: MissionView; milestone: MissionMilestone | null; tasks: Task[];
   /** 이전 · 다음 마일스톤으로 (260914 지시). 태스크가 있는 마일스톤만 오간다. */
   onMilestone(id: string): void;
+  /**
+   * **되감아 둔 시각을 위로 올린다** (261025 — 액션 층 시각 2부). 명령 표(`ActionModal`)는 이 화면 밖에서 뜨므로
+   * 슬라이더 값을 모른다. 그래서 전에는 되감아도 명령 표가 라이브 머리로 접혀 **지금까지 온 줄 전부**를 그렸다.
+   * 따라가는 중이면 `null` 이다 — 그때 명령 표는 지금처럼 라이브 머리로 접는다.
+   */
+  onSecond?(second: number | null): void;
   /** 흘러온 기록 열. 접기·되감기·타임라인이 전부 이것만 본다 (260904). */
   trace: readonly ScenarioEvent[];
   headSec: number; playing: boolean;
@@ -320,6 +326,11 @@ function GraphScreen({ screen, view, trace, milestone, tasks, headSec, playing, 
   const [override, setOverride] = useState<number | null>(null);
   useEffect(() => setOverride(null), [view.missionId, screen]);
   const second = replay ? (override ?? headSec) : headSec;
+  // 되감기 값만 올린다 — 따라가는 중이거나 이 화면이 내려가면 `null`.
+  useEffect(() => {
+    onSecond?.(replay && override !== null ? override : null);
+    return () => onSecond?.(null);
+  }, [replay, override, onSecond]);
   /**
    * 노드 캔버스 (260903 — 1단계). **슬롯은 지금 보고 있는 범위**다 — 마일스톤 하나면 그
    * 마일스톤, 「임무 전체」면 별도 슬롯(`__mission__`). 마일스톤별 저장만으로는 임무 전체
@@ -509,6 +520,8 @@ export function MissionDebugger({ navigation, planApproval }: { navigation?: Deb
   const [screen, setScreen] = useState<Screen>('milestones');
   const [scope, setScope] = useState<GraphScope>('milestone');
   const [modalTask, setModalTask] = useState<Task | null>(null);
+  /** 되감아 둔 시각 — `GraphScreen` 이 올린다. 명령 표가 그 시점까지만 접는다 (261025 · 액션 층 시각 2부). */
+  const [viewSecond, setViewSecond] = useState<number | null>(null);
   const [assignments, setAssignments] = useState<Record<string, string[]>>({});
   const [milestoneId, setMilestoneId] = useState<string | null>(null);
   /** 셸이 넣은 「○○ 노드로」 요청. 그래프 화면이 처리한다. */
@@ -724,8 +737,9 @@ export function MissionDebugger({ navigation, planApproval }: { navigation?: Deb
       onGraph={() => navigate('graph')}
       openTask={modalTask}
       nodeRequest={nodeRequest}
-      onMilestone={setMilestoneId} />}
-    {modalTask && <ActionModal task={modalTask} view={view} device={listRegisteredHardware().find((item) => item.id === modalTask.target)} failure={screen === 'failure'} onClose={() => { setModalTask(null); if (screen === 'detail') setScreen('graph'); }} />}
+      onMilestone={setMilestoneId}
+      onSecond={setViewSecond} />}
+    {modalTask && <ActionModal task={modalTask} view={view} device={listRegisteredHardware().find((item) => item.id === modalTask.target)} failure={screen === 'failure'} second={viewSecond ?? undefined} onClose={() => { setModalTask(null); if (screen === 'detail') setScreen('graph'); }} />}
     {screen === 'failure' && !modalTask && firstFailed && <button className="failure-open" onClick={() => setModalTask(firstFailed)}>{t('graph.openFailureModal')}</button>}
     {/* 자체 관측 (VZ-O-04) — devpanel 이라 통합 셸에서는 목·개발 모드에서만 뜨고,
         단독 빌드(측정 장비)에서는 늘 보인다. 기본은 접힘이다. */}

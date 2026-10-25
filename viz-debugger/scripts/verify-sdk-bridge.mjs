@@ -147,8 +147,9 @@ function judgeNodeless(trace, addedSeqs, view, commandId) {
 
 /** 화면이 각도 칸을 그릴 때 노드 없는 명령을 거르는가. 거르지 않으면 응답 줄의 `index` 하나로 칸에 붙는다. */
 function judgeScreen(modalSource) {
-  return /actionsAt\(\)\.filter\(attachedToNode\)/.test(modalSource)
-    ? [] : ['각도 칸이 노드 없는 명령까지 읽는다 — actionsAt().filter(attachedToNode) 가 없다'];
+  // 261025 — 접기가 슬라이더 시각(`second`)을 받는다. 보는 자리를 옮겼다 — 노드 없는 명령을 거르는 조건은 그대로다.
+  return /actionsAt\(second\)\.filter\(attachedToNode\)/.test(modalSource)
+    ? [] : ['각도 칸이 노드 없는 명령까지 읽는다 — actionsAt(second).filter(attachedToNode) 가 없다'];
 }
 
 let nodelessRun = null;
