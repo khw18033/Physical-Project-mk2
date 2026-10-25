@@ -36,7 +36,7 @@ import { uplinkWords, type UplinkMessage } from './uplink.ts';
 import { STOP_ACTION, STOP_REASON } from './presets.ts';
 import { deviceIdentityFor, supportsAction } from './deviceIdentity.ts';
 import {
-  canIssueRobotCommand, clearScanIssued, commandsOfTask, elapsedSec, lockPaused, lockStopped, markApproachIssued,
+  canIssueRobotCommand, clearScanIssued, commandsOfTask, lockPaused, lockStopped, markApproachIssued,
   markScanIssued, notePauseFailure, pickDoorIndex, recordCommand, releasePaused, robotDrives,
   robotSession, runningTaskId,
   type PauseState, type StopState,
@@ -140,7 +140,9 @@ async function issueThroughTracker(
     recordCommanded({
       commandId, taskId, action, parameters: issued, requestId: tracked.requestId,
       // 화면이 낸 임무 명령이다(`backend`). 사람이 누른 것은 정지·일시정지와 `adjusted` 쪽이다.
-      issuedBy: 'mission', atSec: elapsedSec(),
+      // **시각을 안 넘긴다** (261025) — 이 파일의 기록 아홉 곳이 다 그렇다. 전에는 `elapsedSec()` 를 넘겼고,
+      // 시계가 안 선 판에서 그 0이 그대로 적혔다. 시각은 `scenario.ts` 의 `liveNowSec()` 한 곳이 푼다.
+      issuedBy: 'mission',
     });
   }
   return {
@@ -727,7 +729,7 @@ export async function pauseMission(client: PhysicalClient | null): Promise<Pause
           commandId, taskId: taskId ?? NO_NODE, action: PAUSE_ACTION,
           parameters: { reason: STOP_REASON.human },
           // **사람이 누른 것이다.** 임무가 낸 명령과 갈려야 §4-3 이 실증을 얻는다.
-          issuedBy: 'human', atSec: elapsedSec(),
+          issuedBy: 'human',
         });
       }
     }
@@ -770,7 +772,7 @@ async function reportPauseAnswer(client: PhysicalClient, commandId: string, task
      * 문구를 채우는 자리다 — 거기에 기록 한 줄이 더 붙을 뿐이다
      * (`verify:emergency-stop` 이 그 불변을 지킨다).
      */
-    recordExpired({ commandId, taskId, waitedMs: timeoutMs, reason: words, atSec: elapsedSec() });
+    recordExpired({ commandId, taskId, waitedMs: timeoutMs, reason: words });
     return;
   }
   if (answer.kind === 'acceptance' && !answer.accepted) {
@@ -779,11 +781,11 @@ async function reportPauseAnswer(client: PhysicalClient, commandId: string, task
     noteIssue('pause', 'robot', t('robot.pausePrefix', { words }));
     // **거절도 답이다.** 온 것과 안 온 것이 갈려야 §2 의 구분이 선다 — 거절을 안 적으면
     // 「답을 했는데 거절했다」가 「영영 안 왔다」와 같아 보인다.
-    recordAnswered({ commandId, taskId, line: words, answerKind: 'acceptance', outcome: 'failed', atSec: elapsedSec() });
+    recordAnswered({ commandId, taskId, line: words, answerKind: 'acceptance', outcome: 'failed' });
     return;
   }
   // 수락했다 — 이것도 온 답이다.
-  recordAnswered({ commandId, taskId, line: uplinkWords(answer), answerKind: answer.kind, atSec: elapsedSec() });
+  recordAnswered({ commandId, taskId, line: uplinkWords(answer), answerKind: answer.kind });
 }
 
 /**
@@ -963,7 +965,7 @@ function recordStop(client: PhysicalClient, commandId: string, taskId: string): 
       commandId, taskId, action: STOP_ACTION,
       parameters: { reason: STOP_REASON.human },
       // **사람이 누른 것이다.** 일시정지와 같다.
-      issuedBy: 'human', atSec: elapsedSec(),
+      issuedBy: 'human',
     });
   } catch {
     return;
@@ -975,15 +977,15 @@ async function recordStopAnswer(client: PhysicalClient, commandId: string, taskI
   const answer = await firstAnswer(client, commandId, timeoutMs);
   if (answer === null) {
     // 「아직」과 「영영」을 가른다 — 일시정지의 같은 자리와 같은 이유다.
-    recordExpired({ commandId, taskId, waitedMs: timeoutMs, reason: t('robot.pauseNoAnswer', { ms: timeoutMs }), atSec: elapsedSec() });
+    recordExpired({ commandId, taskId, waitedMs: timeoutMs, reason: t('robot.pauseNoAnswer', { ms: timeoutMs }) });
     return;
   }
   if (answer.kind === 'acceptance' && !answer.accepted) {
     const words = t('robot.rejected', { code: answer.code ?? t('robot.noReason'), message: answer.message ?? '' }).trim();
-    recordAnswered({ commandId, taskId, line: words, answerKind: 'acceptance', outcome: 'failed', atSec: elapsedSec() });
+    recordAnswered({ commandId, taskId, line: words, answerKind: 'acceptance', outcome: 'failed' });
     return;
   }
-  recordAnswered({ commandId, taskId, line: uplinkWords(answer), answerKind: answer.kind, atSec: elapsedSec() });
+  recordAnswered({ commandId, taskId, line: uplinkWords(answer), answerKind: answer.kind });
 }
 
 /** 정지 뒤 화면에 크게 띄울 문구. 조용히 성공한 척하지 않는다. */

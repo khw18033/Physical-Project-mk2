@@ -48,7 +48,7 @@ import { appendAction, appendGenerated, appendHuman, appendTrace, ACTION_SEQ_BAS
 import { actionItemEvents, adjustedEvent, answeredEvent, commandedEvent, expiredEvent, foldActions, type AnswerKind, type FoldedAction } from './actionTrace.ts';
 import { scriptFrames } from '../viewpoint/source.ts';
 import { appendViewpoint, resetViewpoint, type ArrivedFrame } from '../viewpoint/store.ts';
-import { clearStarted, markApproved, resetRobotSession, robotDrives } from '../physical/robotSession.ts';
+import { clearStarted, commandClockSec, markApproved, resetRobotSession, robotDrives } from '../physical/robotSession.ts';
 import { resetDetect } from '../detect/store.ts';
 import { armMissionHistory, resetMissionHistory, sealRun } from './missionHistory.ts';
 import { isReplayingRecord, leaveRecordReplay } from '../record/replayMode.ts';
@@ -1181,7 +1181,10 @@ export function recordHuman(kind: string, nodeId = state.current.missionId, payl
     state.current.missionId,
     kind,
     nodeId,
-    Math.min(state.headSec, state.current.durationSec),
+    // **축 끝(`durationSec`)에 자르지 않는다** (261025 — 액션 층 시각 ③). 260904 에 대본만 있던 때 넣은
+    // 축 안 지킴이였고, 대본 재생에서는 머리가 축을 안 넘어 아무 일도 안 했다. 로봇이 모는 판이 생기자
+    // 그 줄이 사람의 누름을 48초에 쌓았다(보관 `MSN-260909-01` 11판). 시각은 액션 층과 **같은 자리**가 푼다.
+    liveNowSec(),
     payload,
   );
   // 열이 자랐으면 화면을 다시 그린다 — 되감기 타임라인에 그 조작이 떠야 한다.
@@ -1203,8 +1206,25 @@ export function recordHuman(kind: string, nodeId = state.current.missionId, payl
  * 오른쪽 끝에 겹쳐 쌓여 「언제 냈는지」를 잃는다 (`appendHuman` 주석과 같은 이유).
  */
 function actionAtSec(atSec?: number): number {
-  const at = atSec ?? state.headSec;
-  return Math.max(0, Math.min(at, state.current.durationSec));
+  // **위쪽 자름이 없다** (261025 — 액션 층 시각 ①). `Math.min(at, durationSec)` 는 위 `recordHuman` 의 축 안
+  // 지킴이를 260921 에 옮긴 것이었고, 대본 재생은 이 함수를 안 거친다(액션 아이템은 `feedLocalTrace` 가 제 시각
+  // 그대로 넣는다). 부르는 넷이 전부 라이브라 판별식도 두지 않는다. 그 줄이 한 일은 손상뿐이었다 —
+  // 생성 임무(`durationSec` 0)의 명령을 0초로, 문 찾기 편의 늦은 명령을 48초로 깎았다.
+  // 축 밖에 놓인 사건은 다시 열 때 `loadRecordedMission` 이 축을 늘려 받는다. 태스크 층이 이미 그렇다.
+  return Math.max(0, atSec ?? liveNowSec());
+}
+
+/**
+ * **지금 라이브 판의 몇 초인가** — 사람 층과 액션 층이 같은 자리에서 시각을 얻는다 (261025 ② · ③).
+ *
+ * 로봇이 모는 판에서 시작을 눌렀으면 그 판의 축은 로봇 시계다(`commandClockSec`). 아니면 축은 화면의
+ * 진행기가 민 재생 머리다 — 장치 두 대 편의 사람 층·태스크 층이 이미 그 값으로 맞게 적혔다(37.8초).
+ * 둘이 갈리면 같은 명령의 누름(사람 층)과 바이트(액션 층)가 다른 시각에 놓인다.
+ *
+ * `state.headSec` 은 되감기로 안 움직인다 — 슬라이더는 화면 값(`main.tsx` 의 `override`)만 바꾼다.
+ */
+function liveNowSec(): number {
+  return Math.max(0, commandClockSec() ?? state.headSec);
 }
 
 function pushAction(make: (seq: number) => ScenarioEvent): ScenarioEvent | null {

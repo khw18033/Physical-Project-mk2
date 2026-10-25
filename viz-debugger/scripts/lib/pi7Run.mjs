@@ -8,6 +8,15 @@
 // (`client.onMessage` · `receiveUplink`)으로 다 흘린다.
 //
 // `mod` 를 받는 이유는 대조군이다. 원본 대신 사본 `robotCommands.ts` 를 넣어 같은 판을 몬다.
+//
+// ## 시작을 누른다 · 시각은 앱과 같은 시계다 (261025 — 액션 층 시각)
+//
+// 전에는 승인(`markApproved`)만 하고 「임무 시작」(`markStarted`)을 안 눌렀고, 가짜 로봇의 응답을 **3초로 박아**
+// 넣었다. 그래서 이 판의 명령은 전부 0초(시작 안 한 시계), 응답과 태스크 사건은 3초였다 — 액션 층 시각 결함이
+// **이 도구 안에서 매번 재현되고 있었는데** 같은 명령의 층별 시각을 묻는 검사가 없어 통과했다.
+//
+// 지금은 앱과 같다. 응답은 `useRobotUplink` 처럼 `elapsedSec()` 를 달고 들어온다. 시작은 기본으로 누른다 —
+// `started: false` 를 주면 **안 누른 판**(장치 두 대 편처럼 시계가 끝내 안 서는 판)을 몬다.
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -31,7 +40,8 @@ export async function pi7Kit(root) {
     const sent = [];
     const emit = (message) => {
       for (const cb of [...listeners]) cb(message);
-      receiveUplink(message, scenario.currentMission().missionId, 3);
+      // 앱의 귀(`useRobotUplink`)와 같은 시계다. 시작을 안 눌렀으면 0이다 — 그것도 앱과 같다.
+      receiveUplink(message, scenario.currentMission().missionId, session.elapsedSec());
     };
     return {
       sent,
@@ -53,12 +63,14 @@ export async function pi7Kit(root) {
    * 한 판을 몬다. 돌려주는 것은 **이 판이 열에 더한 사건**과 로봇에 실제로 나간 명령이다.
    *
    * @param mod  `robotCommands.ts` 모듈 — 원본 또는 사본
+   * @param opts `started` — 「임무 시작」을 누르는가(기본 참)
    */
-  async function drive(mod, prefix) {
+  async function drive(mod, prefix, { started = true } = {}) {
     session.resetRobotSession();
     session.setConnection({ state: 'open' });
     scenario.previewMission(MISSION);
     session.markApproved();
+    if (started) session.markStarted();
     store.resetDetect();
     store.setTestMode(false);
     store.receivePath(PATH);

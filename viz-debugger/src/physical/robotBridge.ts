@@ -17,7 +17,7 @@ import type { PhysicalClient } from './PhysicalClient.ts';
 import { advanceRobotHead, receiveRobotProgress, recordAnswered } from '../data/scenario.ts';
 import { noteIssue } from '../shared/notifications.ts';
 import type { ScenarioEvent } from '../model/types.ts';
-import { elapsedSec, applyEffects, noteCommandLog, robotSession } from './robotSession.ts';
+import { elapsedSec, applyEffects, commandClockSec, noteCommandLog, robotSession } from './robotSession.ts';
 import { robotClients } from './robotClient.ts';
 import { isScanHold, isScanRelease, uplinkWords, viewpointIndexOf, type UplinkMessage } from './uplink.ts';
 import { isReplayingRecord } from '../record/replayMode.ts';
@@ -87,7 +87,9 @@ export function receiveUplink(
       index: answerIndex,
       // 종료 줄일 때만 본다. 로봇이 준 상태 그대로다 — 우리가 판정하지 않는다.
       outcome: message.kind === 'result' && message.status !== 'SUCCEEDED' ? 'failed' : 'done',
-      atSec,
+      // 명령 시계가 섰으면 **같은 응답이 칠하는 태스크 사건과 같은 값**을 준다(아래 `traceEventsOf(effects, atSec)`).
+      // 안 섰으면 `atSec` 은 `elapsedSec()` 의 0이다 — 넘기지 않고 그 판의 축으로 푼다 (261025 ②).
+      atSec: commandClockSec() === null ? undefined : atSec,
     });
   }
 
