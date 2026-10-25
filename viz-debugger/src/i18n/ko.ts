@@ -1753,6 +1753,7 @@ export const ko: Record<string, string> = {
   'pc.notConnected': '브로커에 붙어 있지 않습니다: ',
   'robot.stopUnsupported': '이 장비는 화면 정지를 지원하지 않습니다. 조종기로 정지하세요',
   'pc.noDevice': '붙은 장비가 아직 자기를 밝히지 않았습니다. 어디로 보낼지 몰라 보내지 않았습니다',
+  'pc.noCommandable': '이 브로커에 지금 명령을 받을 장비가 없습니다(로봇이 꺼졌거나 센서만 남았습니다). 센서에는 보내지 않습니다',
   'nl.batteryStale': '{task} pi1 배터리 값이 {sec}초째 안 옵니다. 중계({topic})를 보세요',
   'nl.yawStale': '{task} pi1 방위(yaw)가 {sec}초째 안 옵니다. 중계({topic})를 보세요',
   'nl.batteryLow': '배터리 {pct}% (기준 {min}% 미만)',

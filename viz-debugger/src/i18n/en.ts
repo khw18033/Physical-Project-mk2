@@ -1731,6 +1731,7 @@ export const en: Record<string, string> = {
   'pc.notConnected': 'Not connected to the broker: ',
   'robot.stopUnsupported': 'This device does not support stopping from the screen. Stop it with the controller',
   'pc.noDevice': 'The attached device has not identified itself yet. Nothing was sent because there is no address for it',
+  'pc.noCommandable': 'No device on this broker can take commands right now (the robot is off or only sensors remain). Nothing is sent to a sensor',
   'nl.batteryStale': '{task} no pi1 battery value for {sec}s. Check the relay ({topic})',
   'nl.yawStale': '{task} no pi1 heading (yaw) for {sec}s. Check the relay ({topic})',
   'nl.batteryLow': 'Battery {pct}% (below the {min}% threshold)',

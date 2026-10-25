@@ -143,7 +143,14 @@ function resolve(every: readonly Candidate[]): DeviceIdentity | null {
    * 여전히 고르지 않는다 — 애매하면 안 쏜다는 규칙은 그대로다.
    */
   const commandable = live.filter((c) => c.kind !== 'sensor');
-  const all = commandable.length > 0 ? commandable : live;
+  return pick(commandable.length > 0 ? commandable : live);
+}
+
+/**
+ * 후보 중 **하나를 고르거나 고르지 않는다** — 밝힌 것(Capability) → 소개한 것(registration) → 하나뿐인 것 순서.
+ * 둘 이상이면 안 고른다. `resolve()` 와 `commandTargetFor()` 가 같이 쓴다.
+ */
+function pick(all: readonly Candidate[]): DeviceIdentity | null {
   const byCapability = all.filter((c) => c.source === 'capability');
   if (byCapability.length === 1) return byCapability[0];
   // Capability 가 둘이면 장비가 둘이다 — 고르지 않는다.
@@ -305,6 +312,26 @@ export function resetDeviceIdentity(origin?: string): void {
 export function deviceIdentityFor(origin: string): DeviceIdentity | null {
   return resolve(Object.values(candidates).filter((c) => c.origin === origin));
 }
+
+/**
+ * **명령을 보낼 장비** (261026 — 대본 사건과 무응답 2부). 보이는 장비(`deviceIdentityFor`)와 **다른 물음**이다.
+ *
+ * `resolve()` 는 명령 받을 장비가 없으면 **센서로 물러선다** — 「센서만 있는 브로커는 센서를 본다」(260928). 보이는
+ * 장비로는 맞다. 그런데 발행 대상이 같은 규칙을 썼다. pi7 에서 `robot-node` 를 끄자 Go1 이 종료 알림으로 꺼짐이 됐고,
+ * 그 순간 누른 일시정지(`abort`)가 **수위 센서 `wl-001` 로 나갔다** — 센서가 거절했고, 그 거절이 「로봇이 거절했다」로
+ * 기록됐다(10/26 00:03:12 · 00:08:47, pi7 `sensor-node` 저널).
+ *
+ * 그래서 발행 대상은 **명령 받을 장비에서만** 고른다. 없으면 `null` — 안 보낸다. 센서는 **`ping` 만** 받는다:
+ * 연결 점검이 「장비가 답하는가」를 묻는 것이고, 센서 노드도 `ping` 에는 답한다(23:57:27 `cmd-nybxfeg1` 수락).
+ */
+export function commandTargetFor(origin: string, action: string): DeviceIdentity | null {
+  const here = Object.values(candidates).filter((c) => c.origin === origin);
+  if (action === PING_ACTION) return resolve(here);
+  return pick(here.filter((c) => c.online !== false && c.kind !== 'sensor'));
+}
+
+/** 센서도 받는 단 하나의 명령 — 연결 점검. */
+const PING_ACTION = 'ping';
 
 export function subscribeDeviceIdentity(listener: () => void): () => void {
   listeners.add(listener);

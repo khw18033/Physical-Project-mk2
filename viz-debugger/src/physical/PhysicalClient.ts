@@ -32,7 +32,7 @@
 
 import { t } from '../i18n/dict.ts';
 import { connectionAddress, registerConnectionDefault, splitAddressList } from '../shared/connections.ts';
-import { noteCapability, resetDeviceIdentity, deviceIdentityFor } from './deviceIdentity.ts';
+import { commandTargetFor, deviceIdentityFor, noteCapability, resetDeviceIdentity } from './deviceIdentity.ts';
 import { encodeCommand, nextCommandId, type CommandInput, type DeclaredAction, type PhysicalAction } from './encode.ts';
 import { physical } from './protocol.js';
 import { parseScanFeed, scanFeedChannel, type ScanFeedMessage } from './scanFeed.ts';
@@ -102,6 +102,11 @@ function downlinkTopic(target: string): string {
 const UPLINK_TOPIC = 'terminal/+/uplink';
 
 /** 올라온 것인가. 와일드카드로 받으므로 모양으로 가른다. */
+/** `terminal/<장비>/uplink` 의 장비 id. */
+function uplinkDevice(topic: string): string {
+  return topic.split('/')[1] ?? '';
+}
+
 function isUplinkTopic(topic: string): boolean {
   return /^terminal\/[^/]+\/uplink$/.test(topic);
 }
@@ -190,6 +195,12 @@ export class PhysicalClient {
   private connectedUrl: string | null = null;
   private readonly listeners = new Set<PhysicalListener>();
   private readonly deviceListeners = new Set<DeviceListener>();
+  /**
+   * **명령마다 보낸 장비** (261026). 응답은 `terminal/+/uplink` 로 듣고 `command_id` 로 짝짓는데, 그러면 **다른 장비가
+   * 같은 id 로 답해도** 짝이 맞는다 — 수위 센서의 거절이 「로봇이 거절했다」로 기록된 길이 그것이다. 그래서 보낸
+   * 장비의 `uplink` 에서 온 답만 받는다. 기록(`recordCommanded` 의 `device`)도 이 값을 쓴다.
+   */
+  private readonly sentTo = new Map<string, string>();
   private readonly scanFeedListeners = new Set<ScanFeedListener>();
   private readonly statusListeners = new Set<StatusListener>();
   /**
@@ -382,6 +393,10 @@ export class PhysicalClient {
         const message = decodeUplink(payload);
         // 형식에 안 맞으면 버린다 — 지어 채우지 않는다.
         if (message === null) return;
+        // **보낸 장비가 아닌 쪽의 답은 버린다** (261026 · 위 `sentTo`). 우리가 보낸 명령이 아니면 거르지 않는다 —
+        // 남의 명령은 아래 귀들이 모르는 id 로 이미 버린다.
+        const to = this.sentTo.get(message.commandId);
+        if (to !== undefined && to !== uplinkDevice(topic)) return;
         for (const listener of this.listeners) listener(message);
       }) as never);
       client.on('error', ((error: Error) => {
@@ -446,14 +461,23 @@ export class PhysicalClient {
      *
      * 판정 규칙은 전역판과 같은 함수를 쓴다 — 한 브로커에 장비가 둘이면 여전히 안 고른다.
      */
-    const target = deviceIdentityFor(this.address())?.deviceId ?? null;
+    // **명령은 명령 받을 장비에만** (261026 — `commandTargetFor`). 로봇이 꺼진 사이 센서로 물러서지 않는다.
+    const target = commandTargetFor(this.address(), action)?.deviceId ?? null;
     if (target === null) {
-      return { sent: false, commandId, reason: t('pc.noDevice') };
+      // 장비는 보이는데 명령 받을 장비가 없다(로봇이 꺼졌고 센서만 남았다) — 「아직 자기를 안 밝혔다」와 다른 말이다.
+      const seen = deviceIdentityFor(this.address()) !== null;
+      return { sent: false, commandId, reason: t(seen ? 'pc.noCommandable' : 'pc.noDevice') };
     }
     const input: CommandInput = { commandId, action, parameters, target };
     const client = this.client as { publish?: (t: string, p: Uint8Array, o: unknown) => void } | null;
     client?.publish?.(downlinkTopic(target), encodeCommand(input), { qos: 1 });
+    this.sentTo.set(commandId, target);
     return { sent: true, commandId };
+  }
+
+  /** 그 명령을 **보낸 장비** id. 이 소켓으로 안 보냈으면 `null`. */
+  targetOf(commandId: string): string | null {
+    return this.sentTo.get(commandId) ?? null;
   }
 }
 

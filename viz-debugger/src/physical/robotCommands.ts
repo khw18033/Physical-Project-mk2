@@ -143,6 +143,8 @@ async function issueThroughTracker(
       // **시각을 안 넘긴다** (261025) — 이 파일의 기록 아홉 곳이 다 그렇다. 전에는 `elapsedSec()` 를 넘겼고,
       // 시계가 안 선 판에서 그 0이 그대로 적혔다. 시각은 `scenario.ts` 의 `liveNowSec()` 한 곳이 푼다.
       issuedBy: 'mission',
+      // 받은 장비 (261026) — 보낸 소켓이 기억한 그대로. 센서에 나간 일시정지가 「로봇의 거절」로 읽히던 것을 기록에서 가른다.
+      device: client.targetOf?.(commandId) ?? null,
     });
   }
   return {
@@ -730,6 +732,8 @@ export async function pauseMission(client: PhysicalClient | null): Promise<Pause
           parameters: { reason: STOP_REASON.human },
           // **사람이 누른 것이다.** 임무가 낸 명령과 갈려야 §4-3 이 실증을 얻는다.
           issuedBy: 'human',
+          // 받은 장비 (261026) — 보낸 소켓이 기억한 그대로. 센서에 나간 일시정지가 「로봇의 거절」로 읽히던 것을 기록에서 가른다.
+          device: client.targetOf?.(commandId) ?? null,
         });
       }
     }
@@ -966,6 +970,8 @@ function recordStop(client: PhysicalClient, commandId: string, taskId: string): 
       parameters: { reason: STOP_REASON.human },
       // **사람이 누른 것이다.** 일시정지와 같다.
       issuedBy: 'human',
+      // 받은 장비 (261026) — 보낸 소켓이 기억한 그대로. 센서에 나간 일시정지가 「로봇의 거절」로 읽히던 것을 기록에서 가른다.
+      device: client.targetOf?.(commandId) ?? null,
     });
   } catch {
     return;
