@@ -675,7 +675,17 @@ export function MissionDebugger({ navigation, planApproval }: { navigation?: Deb
     setScreen(next);
     setModalTask(next === 'detail' ? graphTasks[0] ?? null : next === 'failure' ? graphTasks.find((task) => folded.tasks[task.id]?.status === 'failed') ?? null : null);
   };
-  const openTask = (task: Task, failed: boolean) => { setModalTask(task); setScreen(failed ? 'failure' : 'detail'); };
+  /**
+   * 노드를 연다. **다시보기 중이면 화면을 안 바꾼다** (261025 — 액션 층 시각 2부 손보기).
+   * `'detail'` 로 바꾸면 `GraphScreen` 의 되감기 상태가 풀려(`replay` 거짓 · `override` 비움) 명령 표가 다시 판의
+   * 끝으로 접혔다 — 슬라이더를 옮기고 노드를 누르는 바로 그 순간에. 실패 칸(다시 내기 · 값 바꾸기)은 지난 판에서
+   * 쓸 수 없으므로 다시보기에서는 안 연다.
+   */
+  const openTask = (task: Task, failed: boolean) => {
+    setModalTask(task);
+    if (screen === 'replay') return;
+    setScreen(failed ? 'failure' : 'detail');
+  };
 
   /**
    * **마일스톤이 끝나면 다음 마일스톤 그래프로 넘어간다** (260911 지시).

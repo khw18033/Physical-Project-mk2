@@ -36,6 +36,10 @@ function judge(main, modal) {
   const at = app.indexOf('<ActionModal');
   const element = at < 0 ? '' : app.slice(at, app.indexOf(' />}', at));
   if (!element.includes('second={viewSecond ?? undefined}')) bad.push('② ActionModal 에 second 를 안 넘긴다 — 명령 표가 라이브 머리로 접힌다');
+  // ②-b 노드를 여는 순간 되감기가 풀리지 않는다 — 다시보기 중이면 화면을 안 바꾼다. 첫 판은 이것을 놓쳤다:
+  // 값은 넘어갔는데 노드를 누르면 화면이 `'detail'` 로 바뀌어 `GraphScreen` 이 `null` 을 올렸다.
+  const open = app.slice(app.indexOf('const openTask ='), app.indexOf('const openTask =') + 400);
+  if (!/if \(screen === 'replay'\) return;/.test(open)) bad.push('②-b 다시보기에서 노드를 열면 화면이 바뀌어 되감기가 풀린다');
   // ③ 접기마다
   const calls = [...modal.matchAll(/actionsAt\(([^)]*)\)/g)].filter((m) => !modal.slice(Math.max(0, m.index - 3), m.index).includes('`'));
   const bare = calls.filter((m) => m[1].trim() !== 'second');
@@ -55,6 +59,7 @@ const controls = [
   ['명령 표 한 곳을 actionsAt() 로 되돌린 사본', main, mutate(modal, 'const folded = actionsAt(second).filter(attachedToNode);', 'const folded = actionsAt().filter(attachedToNode);')],
   ['모달에 second 를 안 넘기는 사본', mutate(main, " second={viewSecond ?? undefined}", ''), modal],
   ['되감기 값을 안 올리는 사본', mutate(main, 'onSecond?.(replay && override !== null ? override : null);', 'onSecond?.(null);'), modal],
+  ['노드를 열 때 화면을 바꾸는 사본 (첫 판의 모양)', mutate(main, "    if (screen === 'replay') return;\n", ''), modal],
 ];
 const caught = [];
 for (const [name, m, v] of controls) {
