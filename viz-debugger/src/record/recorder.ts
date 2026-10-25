@@ -175,10 +175,15 @@ function endOf(target: Run): MissionHistoryEntry | null {
   return Date.parse(entry.endedAtIso) >= target.createdAtMs - 1000 ? entry : null;
 }
 
-/** 폴더를 만들 만큼 무언가 일어났나 — 시작을 눌렀거나, 사람 밖의 사건이 왔거나, 끝났거나. */
+/**
+ * 폴더를 만들 만큼 무언가 일어났나 — 시작을 눌렀거나, 사람 밖의 사건이 왔거나, 끝났거나.
+ *
+ * **계획의 생성 사건(`created`)은 일어난 일이 아니다** (261025). 승인하는 순간 대본의 `created` 가 들어오는데
+ * (`seedPlan`) 그 주체가 `backend` 라, 그것을 세면 승인만 한 판마다 폴더가 생긴다 — 목록이 빈 판으로 찬다.
+ */
 function somethingHappened(target: Run): boolean {
   if (robotSession().started || endOf(target) !== null) return true;
-  return traceEvents().some((event) => event.producedBy !== 'human' && event.producedBy !== 'ai');
+  return traceEvents().some((event) => event.producedBy !== 'human' && event.producedBy !== 'ai' && event.kind !== 'created');
 }
 
 // ── 본문 ─────────────────────────────────────────────────────────────────────

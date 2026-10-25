@@ -140,7 +140,9 @@ function approve(missionId) {
   startArmedNavRun();
   return navRun();
 }
-const traceOf = (nodeId) => scenario.traceEvents().filter((e) => e.nodeId === nodeId);
+// 중계가 칠한 사건만 본다 (261025) — 승인하는 순간 대본의 생성 사건(`created`·pending)이 먼저 들어온다(`seedPlan`).
+// 보는 자리를 옮긴 것이지 조건을 뺀 것이 아니다: 아래 판정은 전부 「중계가 무엇을 언제 칠했나」다.
+const traceOf = (nodeId) => scenario.traceEvents().filter((e) => e.nodeId === nodeId && e.kind !== 'created');
 const folded = () => foldStatuses(1e9, scenario.currentMission(), scenario.traceEvents());
 
 // ── 1-1. 승인과 시작은 다르다 (260915 지시) ───────────────────────────────────

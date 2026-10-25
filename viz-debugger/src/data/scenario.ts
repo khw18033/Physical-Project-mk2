@@ -44,7 +44,7 @@ import { fillPayload, fillText } from '../scenarios/target.ts';
 import { useSyncExternalStore } from 'react';
 import { foldStatuses, type FoldedStatuses } from './fold.ts';
 import { MergeScheduler } from './mergeScheduler.ts';
-import { appendAction, appendGenerated, appendHuman, appendTrace, ACTION_SEQ_BASE, resetTrace, traceEvents, traceMissionId } from './trace.ts';
+import { appendAction, appendGenerated, appendHuman, appendTrace, ACTION_SEQ_BASE, PLAN_SEQ_BASE, resetTrace, traceEvents, traceMissionId } from './trace.ts';
 import { actionItemEvents, adjustedEvent, answeredEvent, commandedEvent, expiredEvent, foldActions, type AnswerKind, type FoldedAction } from './actionTrace.ts';
 import { scriptFrames } from '../viewpoint/source.ts';
 import { appendViewpoint, resetViewpoint, type ArrivedFrame } from '../viewpoint/store.ts';
@@ -641,6 +641,7 @@ export function activateMission(missionId: string, mode: 'remote' | 'local', tar
   localViewpointCursor = 0;
   localActionCursor = 0;
   commitNow({ current: view, proposal: null, headSec: 0, playing: true, activatedBy: 'approval' });
+  seedPlan(view, null);
 
   // **중계가 모는 편은 판을 걸어만 둔다** (260915 · pi1). 칠하기는 「▶ 임무 시작」부터다 — 승인하자마자
   // 노드에 불이 켜지면 계획을 설명할 틈이 없다(문 찾기 편과 같은 순서). 대본 타이머도 안 세운다 —
@@ -979,6 +980,9 @@ function activateGenerated(proposal: AiProposal | StepProposal): boolean {
   localViewpointCursor = 0;
   localActionCursor = 0;
   commitNow({ current: proposal.view, proposal: null, headSec: 0, playing: false, activatedBy: 'approval' });
+  // 생성 임무는 대본 사건이 없다 — 태스크마다 지어 넣는다. **값을 정한 쪽이 주체다**: 정량 명령은 사람이 숫자로 적었고
+  // 규칙은 옮기기만 했으므로 `human`, 모델 제안은 `ai` (261025 결정 ②).
+  seedPlan(proposal.view, proposal.origin === 'steps' ? 'human' : 'ai');
   /**
    * **정량 명령은 승인이 로봇 관문을 연다** (260928 — 「정량 명령 임무가 시작이 안 된다」).
    *
@@ -1019,6 +1023,37 @@ function activateGenerated(proposal: AiProposal | StepProposal): boolean {
  * 로컬 재생기 — **대본을 읽어 게이트웨이와 같은 입구로 기록을 흘려보낸다.**
  * 목 게이트웨이가 하는 일(`gateway/mission-trace.ts`)을 단독 빌드에서 대신하는 자리다.
  */
+/** 「이 태스크가 이 임무에 있다」 — 계획의 사실. 대본의 `created` 와 같은 이름이다. */
+const PLAN_KIND = 'created';
+
+/**
+ * **계획이 임무가 됐다 — 승인하는 순간 생성 사건을 넣는다** (261025 · 대본 사건과 무응답 결정 ①②).
+ *
+ * 로봇이 모는 판은 타이머를 안 세워 `feedLocalTrace()` 가 한 번도 안 불린다. 그래서 대본의 0초 `created` 가 기록에
+ * 안 들어왔다 — 보관 문 찾기 66판이 0개다. 화면은 그래도 대기부터 그렸다: 접기가 계획의 태스크를 `pending` 으로
+ * **심고** 시작하기 때문이다(`fold.ts`). 기록만 읽는 쪽(Foxglove)은 첫 사건부터 그려 `running` 으로 시작했다.
+ * 이 함수가 넣으면 **첫 상태가 코드 기본값이 아니라 기록에서 나온다.** 되감기는 안 바뀐다 — 같은 `pending` 이다.
+ *
+ * **진행 사건(`started` · `progress` · `evaluated`)은 안 넣는다.** 로봇이 모는 판은 라이브 경로가 실제 값으로 적고,
+ * 대본의 예정된 진행을 같이 넣으면 한 노드에 진행이 두 벌이 된다 — 260910 에 걷어 낸 그것이다.
+ *
+ * - 대본 편: 대본의 `created` 를 **그 사건 그대로**(seq · producedBy). 타이머·「▶ 임무 시작」이 같은 사건을 또 넣어도
+ *   같은 `seq` 라 열이 흡수한다
+ * - 생성 임무(대본 사건 없음): 태스크마다 0초에 지어 넣는다 — 대역 `PLAN_SEQ_BASE`, 주체는 부르는 쪽이 준다.
+ *   `synthesizedBy` 가 `null` 이면 짓지 않는다(대본 편)
+ */
+function seedPlan(view: MissionView, synthesizedBy: 'ai' | 'human' | null): void {
+  const fromScript = view.events.filter((event) => event.kind === PLAN_KIND);
+  if (fromScript.length > 0) {
+    for (const event of fromScript) appendTrace(view.missionId, event);
+    return;
+  }
+  if (synthesizedBy === null) return;
+  view.tasks.forEach((task, index) => appendTrace(view.missionId, {
+    seq: PLAN_SEQ_BASE + index, atSec: 0, nodeId: task.id, status: 'pending', kind: PLAN_KIND, producedBy: synthesizedBy,
+  }));
+}
+
 function feedLocalTrace(headSec: number): void {
   const events = state.current.events;
   while (localCursor < events.length && events[localCursor].atSec <= headSec) {
@@ -1373,12 +1408,16 @@ export function restartMission(): boolean {
    */
   if (viewForMission(missionId) === null && Array.isArray(state.current.params.step_commands)) {
     const view = state.current;
+    // 같은 계획을 다시 연다 — 지난 열의 생성 사건을 **주체까지 그대로** 다시 넣는다. 열은 비우지만 계획은 같다.
+    const plan = traceFor(view).filter((event) => event.kind === PLAN_KIND);
     beforeNewRun();
     stopLocalTimer();
     resetTrace(view.missionId);
     resetViewpoint(view.missionId);
     resetRobotSession();
     commitNow({ current: view, proposal: null, headSec: 0, playing: false, activatedBy: 'approval' });
+    if (plan.length > 0) for (const event of plan) appendTrace(view.missionId, event);
+    else seedPlan(view, null);
     markApproved();
     clearStarted();
     recordHuman('mission_restarted', missionId, { from: 'button' });
