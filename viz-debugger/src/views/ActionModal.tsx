@@ -75,11 +75,13 @@ function shown(value: unknown): string {
 /**
  * **전후 짝.** 후만 그리면 무엇이 바뀌었는지 모른다 — 그 한 줄이 §4 의 요구다.
  */
-function AdjustList({ items }: { items: readonly { atSec: number; field: string; before: unknown; after: unknown }[] }) {
+function AdjustList({ items, emptyNote }: { items: readonly { atSec: number; field: string; before: unknown; after: unknown }[]; emptyNote?: boolean }) {
   useLang();
-  if (items.length === 0) return null;
+  // 되감기에서는 **아직 없는 지점**도 자리를 세운다 — 비어 있는 것이 그 시점의 사실이다.
+  if (items.length === 0 && emptyNote !== true) return null;
   return <div className="robot-log__adjust">
     <b>{t('act.adjusted')}</b>
+    {items.length === 0 && <p>{t('act.adjustedNone')}</p>}
     <ul>
       {items.map((item, at) => <li key={`${item.field}-${item.atSec}-${at}`}>
         {t('act.adjustPair', { field: item.field, before: shown(item.before), after: shown(item.after) })}
@@ -209,7 +211,7 @@ function FailureReason({ taskId }: { taskId: string }) {
   </div>;
 }
 
-export function ActionModal({ task, view, device, failure, second, onClose }: { task: Task; view: MissionView; device?: Hardware; failure?: boolean; second?: number; onClose(): void }) {
+export function ActionModal({ task, view, device, failure, rewind, second, onClose }: { task: Task; view: MissionView; device?: Hardware; failure?: boolean; rewind?: boolean; second?: number; onClose(): void }) {
   // `t()` 는 값을 줄 뿐 리렌더를 안 일으킨다 — 컴포넌트마다 건다 (지시서 §2 ①).
   useLang();
   // **재생 머리를 구독한다** — 아래 명령 수와 조정 목록이 접은 결과를 읽는다.
@@ -238,8 +240,22 @@ export function ActionModal({ task, view, device, failure, second, onClose }: { 
     if (before === undefined || before === after) return;
     recordAdjusted({ commandId: task.id, taskId: task.id, field, before, after });
   };
-  const planChanges = planAdjustments(displayMission().headSec, traceFor(view), task.id);
+  // **슬라이더를 따른다** (261026 — 조정 되감기). 명령 표를 `actionsAt(second)` 로 옮길 때(액션 층 시각 2부) 이 줄이
+  // 빠져 라이브 머리로 접혔다. 따라가는 중(되감은 값 없음)이면 머리다.
+  const planChanges = planAdjustments(second ?? displayMission().headSec, traceFor(view), task.id);
   const foldedHere = actionsOfTask(actionsAt(second), task.id);
+  /**
+   * **입력칸과 목록을 가른다** (261026 — 조정 되감기).
+   *
+   * 입력칸은 **라이브 실패 칸에만** 뜬다. 되감기에서 뜨면 「지금 고치면 그때가 바뀌나」로 읽히고, 다시보기의 기록에는
+   * 적히지도 않는다(`pushAction`). 되감기 여부는 `second` 로 판정하지 않는다 — 따라가는 중이면 비어 있다.
+   *
+   * 목록은 **되감기에서도** 뜬다 — 그 태스크에 조정이 한 번이라도 있었으면, 슬라이더 지점까지의 것만. 되감기에서는
+   * 노드를 열어도 실패 화면이 안 된다(`main.tsx` `openTask` · 167bf7e — 되감기가 풀리지 않게). 그래서 목록을 폼에
+   * 두면 같이 사라진다. 그 막음을 풀지 않고 목록을 폼 밖에 한 벌 더 둔다.
+   */
+  const editable = failure === true && rewind !== true && foldedHere.length === 0;
+  const everAdjusted = planAdjustments(Number.POSITIVE_INFINITY, traceFor(view), task.id).length > 0;
   // 대본(registry 세계)의 평가는 대본 파일에서 읽는다 — 기준은 task.evaluation, 근거값은
   // 기록 열의 payload (예: MS-E 의 distance_m: 2.7). 옛 편은 전달본의 목 문구 그대로다.
   // **중계 편은 흘러온 기록에서 읽는다** (260915). 대본의 사건은 그 편의 정의일 뿐이라, 거기서 읽으면
@@ -261,12 +277,13 @@ export function ActionModal({ task, view, device, failure, second, onClose }: { 
         「진입 속도 · 최소 클리어런스」는 구판 편의 입력칸이다. 회전·직진이 실패한 자리에
         그 둘을 띄우면 그 값을 고쳐 다시 하면 되는 것처럼 읽힌다 — 실패한 명령에는 그런
         파라미터가 아예 없다. 구판 편에서는 그대로 둔다. */}
-    {failure && foldedHere.length === 0 && <div className="parameter-form">
+    {editable && <div className="parameter-form">
       <label>{t('act.entrySpeed')}<input value={speed} onFocus={() => startAdjust('speed', speed)} onBlur={() => noteAdjust('speed', speed)} onChange={(event) => setSpeed(event.target.value)} /> m/s</label>
       <label>{t('act.minClearance')}<input value={clearance} onFocus={() => startAdjust('clearance', clearance)} onBlur={() => noteAdjust('clearance', clearance)} onChange={(event) => setClearance(event.target.value)} /> m</label>
       {/* **바꾼 값은 전후로 남는다.** 후만 보이면 무엇이 바뀌었는지 화면이 답할 수 없다. */}
       <AdjustList items={planChanges} />
     </div>}
+    {!editable && rewind && everAdjusted && <div className="parameter-form"><AdjustList items={planChanges} emptyNote /></div>}
     {<div className="modal-grid"><div className="modal-grid__left">
       {/* **액션 아이템 자리가 실제 제어 명령이다** (260912 지시). 대본의 목록은 로봇 편에서
           늘 0건이었고, 정작 알고 싶은 것은 무엇이 나갔고 무엇이 돌아왔는가였다.

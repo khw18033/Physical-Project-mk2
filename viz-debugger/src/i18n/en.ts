@@ -829,6 +829,7 @@ export const en: Record<string, string> = {
   'act.answerCount': '{n} answer lines',
   'act.showLines': 'Show the exchanged lines',
   'act.adjusted': 'Values a person changed',
+  'act.adjustedNone': 'None up to this point',
   'act.adjustPair': '{field} · {before} → {after}',
   'act.plannedVsIssued': 'planned {planned} · actually sent {issued}',
   'act.failReason': 'Failure reason',

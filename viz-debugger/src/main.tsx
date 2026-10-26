@@ -749,7 +749,7 @@ export function MissionDebugger({ navigation, planApproval }: { navigation?: Deb
       nodeRequest={nodeRequest}
       onMilestone={setMilestoneId}
       onSecond={setViewSecond} />}
-    {modalTask && <ActionModal task={modalTask} view={view} device={listRegisteredHardware().find((item) => item.id === modalTask.target)} failure={screen === 'failure'} second={viewSecond ?? undefined} onClose={() => { setModalTask(null); if (screen === 'detail') setScreen('graph'); }} />}
+    {modalTask && <ActionModal task={modalTask} view={view} device={listRegisteredHardware().find((item) => item.id === modalTask.target)} failure={screen === 'failure'} rewind={screen === 'replay'} second={viewSecond ?? undefined} onClose={() => { setModalTask(null); if (screen === 'detail') setScreen('graph'); }} />}
     {screen === 'failure' && !modalTask && firstFailed && <button className="failure-open" onClick={() => setModalTask(firstFailed)}>{t('graph.openFailureModal')}</button>}
     {/* 자체 관측 (VZ-O-04) — devpanel 이라 통합 셸에서는 목·개발 모드에서만 뜨고,
         단독 빌드(측정 장비)에서는 늘 보인다. 기본은 접힘이다. */}

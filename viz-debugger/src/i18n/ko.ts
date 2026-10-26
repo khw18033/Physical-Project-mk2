@@ -836,6 +836,7 @@ export const ko: Record<string, string> = {
   'act.answerCount': '응답 {n}줄',
   'act.showLines': '오간 줄 보기',
   'act.adjusted': '사람이 바꾼 값',
+  'act.adjustedNone': '이 시점까지 없음',
   'act.adjustPair': '{field} · {before} → {after}',
   'act.plannedVsIssued': '계획 {planned} · 실제 나간 값 {issued}',
   'act.failReason': '실패 사유',
