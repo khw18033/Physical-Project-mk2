@@ -222,8 +222,10 @@ const SAMPLE = {
     // 260929 지시 — **「탐지 영상」으로 이름을 바꿔 모든 임무에 띄운다.** 전에는 자율주행 편에만 뜨게 걸었다(onlyRelay).
     if (/showFor:/.test(entryOf('autodrive-cam'))) failures.push('탐지 영상(autodrive-cam) 노드가 일부 편에만 뜬다 — 모든 임무에 떠야 한다(260929)');
     for (const kind of ['detect-cam', 'detect-reason', 'detect-map', 'robot']) {
-      if (!/showFor:\s*notRelay/.test(entryOf(kind))) failures.push(`${kind} 가 자율주행 편 팔레트에도 뜬다 — 시연 노드가 섞인다`);
+      // 261027 — 2D 맵은 도면을 쓰는 편에만 선다(`withFloorPlan` = notRelay 이면서 도면을 쓰는 편).
+      if (!/showFor:\s*(notRelay|withFloorPlan)\b/.test(entryOf(kind))) failures.push(`${kind} 가 자율주행 편 팔레트에도 뜬다 — 시연 노드가 섞인다`);
     }
+    if (!/const withFloorPlan = \(missionId: string\) => notRelay\(missionId\) && /.test(nodes)) failures.push('withFloorPlan 이 notRelay 를 안 거친다 — 2D 맵이 자율주행 편에 섞인다');
     for (const kind of ['device-risk', 'control', 'metrics']) {
       if (/showFor:/.test(entryOf(kind))) failures.push(`${kind} 의 팔레트 조건이 바뀌었다 — 시연 편 팔레트가 달라진다`);
     }

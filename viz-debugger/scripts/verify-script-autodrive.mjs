@@ -85,8 +85,15 @@ const DOOR_NOT = ['자율주행', '장치두', '장치2', '장치둘', '두장�
 if (JSON.stringify(door.match.not) !== JSON.stringify(DOOR_NOT)) {
   failures.push(`시연 편의 제외어가 [${(door.match.not ?? []).join(', ')}] — [${DOOR_NOT.join(', ')}] 여야 한다`);
 }
+// 261027 — 박스 편(`MSN-261027-01`)은 문 찾기 흐름의 대상만 바꾼 복사본이라 같은 까닭으로 같은 제외어를 든다:
+// 「장치 하나를 박스 앞까지」가 8편과 박스 편 둘에 걸려 둘 다 못 쓰게 된다. **문 편과 글자까지 같아야 한다.**
+const DOOR_FAMILY = ['MSN-261027-01'];
 for (const id of SCRIPT_IDS) {
-  if (id !== DOOR_ID && readScript(id).match.not !== undefined) failures.push(`${id} 에 제외어가 생겼다 — 시연 편만 둔다`);
+  if (id === DOOR_ID) continue;
+  const not = readScript(id).match.not;
+  if (DOOR_FAMILY.includes(id)) {
+    if (JSON.stringify(not) !== JSON.stringify(DOOR_NOT)) failures.push(`${id} 의 제외어가 [${(not ?? []).join(', ')}] — 문 편과 같아야 한다`);
+  } else if (not !== undefined) failures.push(`${id} 에 제외어가 생겼다 — 시연 편만 둔다`);
 }
 
 // ── 2. 틀 — 마일스톤 셋 · 태스크 순서 · 되돌아감 ────────────────────────────────

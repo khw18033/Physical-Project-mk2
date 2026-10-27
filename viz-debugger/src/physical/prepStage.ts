@@ -28,7 +28,7 @@
 import { t } from '../i18n/dict.ts';
 import { useSyncExternalStore } from 'react';
 import { currentMission, receiveRobotProgress } from '../data/scenario.ts';
-import { doorScanFlow } from '../scenarios/library.ts';
+import { doorScanFlow, usesFloorPlan } from '../scenarios/library.ts';
 import { floorPlanUrls, isBundledFloorPlan, sourceOf } from '../detect/DetectClient.ts';
 import { appendDetectLog, DETECT_TASKS, resetDetectLog } from '../detect/detectLog.ts';
 import { DOOR_PX, doorCm } from '../detect/floorPlan.ts';
@@ -135,9 +135,12 @@ function emit(nodeId: string, status: 'running' | 'done', payload?: Record<strin
 
 // ── 두 걸음 ──────────────────────────────────────────────────────────────────
 
-/** 둘 다 끝났으면 돌아도 된다고 알린다. */
+/**
+ * 둘 다 끝났으면 돌아도 된다고 알린다. **2D 맵을 안 쓰는 편**(261027 박스 편 — `T-A1` 이 없다)은 방위 하나로 끝난다.
+ */
 function settleIfReady(): void {
-  if (state.map.step === 'done' && state.pose.step === 'done') markPrepTasksDone();
+  const mapReady = state.map.step === 'done' || !usesFloorPlan(currentMission().missionId);
+  if (mapReady && state.pose.step === 'done') markPrepTasksDone();
 }
 
 /**
@@ -233,21 +236,26 @@ function checkSession(): void {
   if (!doorScanFlow(currentMission().missionId)) return;
 
   const runKey = session.startedAtMs;
+  /**
+   * **2D 맵을 안 쓰는 편은 도면을 안 받는다** (261027 — 박스 편). 그 편에는 `T-A1` 노드가 없다 — 받아 오면 없는 노드를
+   * 칠하고, 도면은 경로에 쓰이지도 않는다. 도면 걸음은 대기(`idle`)로 두고 방위만 받는다.
+   */
+  const withMap = usesFloorPlan(currentMission().missionId);
   resetDetectLog();                                     // 지난 판의 줄이 새 판 노드에 붙으면 안 된다
   commit({
     ...IDLE,
     runKey,
-    map: { ...IDLE.map, step: 'running' },
+    map: { ...IDLE.map, step: withMap ? 'running' : 'idle' },
     pose: { ...IDLE.pose, step: 'running' },
   });
-  emit(DETECT_TASKS.map, 'running');
+  if (withMap) emit(DETECT_TASKS.map, 'running');
   emit(DETECT_TASKS.pose, 'running');
   appendDetectLog({
     lane: 'screen', level: 'info',
-    say: { key: 'ps.3' },
-    detail: '', tasks: [DETECT_TASKS.map, DETECT_TASKS.pose],
+    say: { key: withMap ? 'ps.3' : 'ps.poseOnly' },
+    detail: '', tasks: withMap ? [DETECT_TASKS.map, DETECT_TASKS.pose] : [DETECT_TASKS.pose],
   });
-  void loadFloorPlan(runKey);
+  if (withMap) void loadFloorPlan(runKey);
   checkPose();
   const timer = setTimeout(() => {
     if (state.runKey !== runKey || state.pose.step === 'done') return;

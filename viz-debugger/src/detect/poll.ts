@@ -19,7 +19,9 @@ import { t } from '../i18n/dict.ts';
 import {
   fetchFeatures, fetchFrameEvidence, fetchLocalization, fetchPath, fetchSummary, sourceOf,
 } from './DetectClient.ts';
+import { currentMission } from '../data/scenario.ts';
 import { scanElapsedSec } from '../physical/robotSession.ts';
+import { detectTargetOf, usesFloorPlan } from '../scenarios/library.ts';
 import { noteIssue } from '../shared/notifications.ts';
 import {
   clearStale, detectState, discardRound, markStale, noteDetectError, receiveEvidence,
@@ -155,7 +157,10 @@ export async function pollOnce(expected = 8, stepDeg = 45): Promise<void> {
 
     // **로봇이 돌기 시작한 뒤 몇 초째인가.** 시료를 한 각도씩 내놓는 박자의 기준이고,
     // 로봇이 같이 돌고 있으면 그 회전과 같은 시계다. 준비 단계는 빠져 있다.
-    const summary = await fetchSummary(source, 'door', scanElapsedSec());
+    // **무엇을 찾는 편인가** (261027) — 문 편은 `door`, 박스 편은 `box`. 같은 판의 물음은 모두 같은 대상으로 묻는다.
+    const missionId = currentMission().missionId;
+    const target = detectTargetOf(missionId);
+    const summary = await fetchSummary(source, target, scanElapsedSec());
     if (!firstAnswerLogged && source.kind === 'sample') {
       firstAnswerLogged = true;
       appendDetectLog({ lane: 'detect', level: 'info', say: { key: 'dpl.5' }, tasks: WHOLE_DETECT_PATH });
@@ -200,7 +205,7 @@ export async function pollOnce(expected = 8, stepDeg = 45): Promise<void> {
     for (const frame of summary.frames ?? []) {
       if (!frame.found) continue;
       if (detectState().evidence[frame.frame] !== undefined) continue;   // 한 번 받은 것은 다시 안 받는다
-      const evidence = await fetchFrameEvidence(source, frame.frame);
+      const evidence = await fetchFrameEvidence(source, frame.frame, target);
       if (evidence === null) continue;
       receiveEvidence(frame.frame, evidence);
       const index = indexOfRotation(frame.rotation_deg, stepDeg, expected);
@@ -235,11 +240,24 @@ export async function pollOnce(expected = 8, stepDeg = 45): Promise<void> {
       });
     }
 
-    if (detectState().features === null) receiveFeatures(await fetchFeatures(source));
+    if (detectState().features === null) receiveFeatures(await fetchFeatures(source, target));
     // 경로는 **스캔이 끝나야** 나온다. 없는 동안 null 인 것이 정상이라 사유를 안 남긴다.
     if (detectState().path === null && detectState().pathFailure === null && complete) {
-      const { path, failure } = await fetchPath(source, 'door', true);
-      if (path !== null) {
+      const { path, failure } = await fetchPath(source, target, true);
+      /**
+       * **2D 맵을 안 쓰는 편은 도면 경로를 안 받는다** (261027 — 박스 편 `T-B1`「이동 경로 산출」). 이 편의 경로는
+       * 객체 탐지 결과만으로 내야 한다. 탐지가 도면 위 자리에서 낸 경로(`path_mode: 'map'`)를 보내면 실패로 친다 —
+       * 받아서 움직이면 「도면 없이 갔다」는 기록이 거짓이 된다.
+       */
+      if (path !== null && path.path_mode === 'map' && !usesFloorPlan(missionId)) {
+        receivePathFailure({ ...path, ok: false, reason: t('dpl.mapPathRefused') });
+        appendDetectLog({
+          lane: 'screen', level: 'error',
+          say: { key: 'dpl.mapPathRefused' },
+          sayDetail: [{ foreign: chainWords(path) }],
+          tasks: [DETECT_TASKS.path, DETECT_TASKS.approach],
+        });
+      } else if (path !== null) {
         receivePath(path);
         appendDetectLog({
           lane: 'detect', level: path.path_mode === 'door_relative' ? 'warn' : 'info',

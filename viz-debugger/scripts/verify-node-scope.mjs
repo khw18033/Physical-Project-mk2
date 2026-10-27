@@ -161,6 +161,8 @@ const EXPECTED = {
   'MSN-260929-01': [],
   // 9편(260929 장치 두 가지로 이상 탐지) — 7편 복사본이라 같은 까닭으로 비었다.
   'MSN-260929-02': [],
+  // 10편(261027 박스 앞까지) — 문 편의 복사본이라 같은 축(자리 · 속도)만 몬다.
+  'MSN-261027-01': ['device-risk', 'metrics'],
 };
 function checkScripts(list) {
   const f = [];
@@ -194,6 +196,7 @@ const PANEL_EXPECTED = {
   'MSN-260927-01': ['risk', 'zone-map', 'device-grid', 'control', 'metrics-query', 'metrics-push', 'video'],
   'MSN-260929-01': ['risk', 'zone-map', 'device-grid', 'control', 'metrics-query', 'metrics-push', 'video'],
   'MSN-260929-02': ['risk', 'zone-map', 'device-grid', 'control', 'metrics-query', 'metrics-push', 'video'],
+  'MSN-261027-01': ['risk', 'control', 'metrics-push', 'video'],
 };
 for (const script of scripts) {
   const got = collapsedPanels(script).sort();

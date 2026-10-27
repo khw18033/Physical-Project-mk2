@@ -45,6 +45,7 @@ import { angleTask, appendDetectLog, DETECT_TASKS } from '../detect/detectLog.ts
 import { indexOfRotation } from '../detect/parse.ts';
 import { detectState, subscribeDetect } from '../detect/store.ts';
 import { isReplayingRecord } from '../record/replayMode.ts';
+import { detectTargetOf } from '../scenarios/library.ts';
 import type { ViewpointFrame } from '../viewpoint/fill.ts';
 import { appendViewpoint } from '../viewpoint/store.ts';
 import { elapsedSec, registerTimer, robotSession } from './robotSession.ts';
@@ -135,7 +136,7 @@ function imageUrlOf(index: number): string | null {
   const { stepDeg, count } = geometry();
   const frame = state.frames.find((item) => indexOfRotation(item.rotation_deg, stepDeg, count) === index);
   if (frame === undefined) return null;
-  return roundedImageUrl(frameImageUrl(viewSourceOf(state), frame.frame, frame.found ? 'target_overlay' : 'original'), state.imageRound);
+  return roundedImageUrl(frameImageUrl(viewSourceOf(state), frame.frame, frame.found ? 'target_overlay' : 'original', detectTargetOf(currentMission().missionId)), state.imageRound);
 }
 
 /** 칸 k 의 그림이 떴다고 봐도 되나. 아니면 필요한 받기를 걸어 두고 false. */

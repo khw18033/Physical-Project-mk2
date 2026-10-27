@@ -219,6 +219,13 @@ export type ScriptScenario = {
    * 가르는 자리는 `library.ts` 의 `doorScanFlow()` 하나다.
    */
   robotFlow?: 'door-scan';
+  /**
+   * **문 찾기 흐름이 무엇을 찾는가** (261027 — 박스 편). 없으면 `'door'` 다. 탐지 서비스에 묻는 `target` 이 이것이다.
+   *
+   * 흐름(관문 · 준비 · 스캔 · 탐지 조회 · 접근)은 같고 대상만 바뀐다. 이 편에 `T-A1`(2D 맵에서 위치 확인)이 없으면
+   * 도면을 안 쓰는 편이다 — 준비 단계가 도면을 안 받고, 경로는 탐지 결과만으로 낸 것만 받는다(`usesFloorPlan()`).
+   */
+  detectTarget?: 'door' | 'box';
   durationSec: number;
   /** 편별 상수 — 위험 수위 선(탭④)·정지 거리·재탐색 임계 등. 화면이 읽는다. */
   params?: Record<string, unknown>;

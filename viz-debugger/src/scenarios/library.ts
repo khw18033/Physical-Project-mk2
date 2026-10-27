@@ -20,10 +20,11 @@ import script05 from '../../scenarios/MSN-260915-01.json' with { type: 'json' };
 import script06 from '../../scenarios/MSN-260927-01.json' with { type: 'json' };
 import script07 from '../../scenarios/MSN-260929-01.json' with { type: 'json' };
 import script08 from '../../scenarios/MSN-260929-02.json' with { type: 'json' };
+import script09 from '../../scenarios/MSN-261027-01.json' with { type: 'json' };
 import { LEGACY_ID, SCRIPT_IDS } from './manifest.ts';
 import type { ScriptLibraryEntry, ScriptScenario } from './types.ts';
 
-const scripts = [script01, script02, script03, script04, script05, script06, script07, script08] as unknown as ScriptScenario[];
+const scripts = [script01, script02, script03, script04, script05, script06, script07, script08, script09] as unknown as ScriptScenario[];
 
 // 목록(manifest)과 실물(import)의 대조 — 대본을 더할 때 한쪽만 늘면 여기서 즉시 죽는다.
 {
@@ -118,4 +119,20 @@ export function opensRobotGate(missionId: string): boolean {
  */
 export function doorScanFlow(missionId: string): boolean {
   return libraryEntry(missionId)?.script?.robotFlow === 'door-scan';
+}
+
+/** **문 찾기 흐름이 탐지 서비스에 묻는 대상** (261027 — 박스 편). 선언이 없으면 문이다. */
+export function detectTargetOf(missionId: string): 'door' | 'box' {
+  return libraryEntry(missionId)?.script?.detectTarget ?? 'door';
+}
+
+/**
+ * **문 찾기 흐름에서 2D 맵을 쓰는 편인가** (261027 — 박스 편). 대본에 `T-A1`(2D 맵에서 위치 확인)이 있으면 쓴다.
+ *
+ * 안 쓰는 편은 준비 단계가 도면을 안 받고(방위 하나로 끝난다), 2D 맵 뷰 노드가 팔레트에 안 서고, 경로는
+ * **탐지 결과만으로 낸 것**(`path_mode` 가 `map` 이 아닌 것)만 받는다. 문 찾기 흐름이 아닌 편은 참이다 — 거기서는 이 물음이 없다.
+ */
+export function usesFloorPlan(missionId: string): boolean {
+  if (!doorScanFlow(missionId)) return true;
+  return libraryEntry(missionId)?.script?.tasks.some((task) => task.id === 'T-A1') ?? true;
 }

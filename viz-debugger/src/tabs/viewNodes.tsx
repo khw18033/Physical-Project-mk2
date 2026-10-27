@@ -72,7 +72,7 @@ import { useRobotSession } from '../physical/robotSession.ts';
 import { DetectCam, DetectMap, DetectReason } from '../detect/views/DetectViews.tsx';
 import { ObstacleFacts, ObstacleLogCard } from '../autodrive/views/AutodriveViews.tsx';
 import { VisionCam } from '../vision/views/VisionViews.tsx';
-import { relayDriven, slotDriven } from '../scenarios/library.ts';
+import { relayDriven, slotDriven, usesFloorPlan } from '../scenarios/library.ts';
 import { VirtualMap } from '../virtualmap/VirtualMap.tsx';
 import { DeviceCamera } from '../media/views/DeviceCamera.tsx';
 import { resolveSlot } from '../data/slots.ts';
@@ -333,6 +333,8 @@ const notRelay = (missionId: string) => !relayDriven(missionId) && !slotDriven(m
  * `notRelay` 가 이 편도 뺀다. 이 편의 셋은 다른 편에 두지 않는다.
  */
 const onlySlots = (missionId: string) => slotDriven(missionId);
+/** **2D 맵을 쓰는 편에만 도면 노드를 둔다** (261027 — 박스 편은 도면 없이 탐지 결과만으로 간다). */
+const withFloorPlan = (missionId: string) => notRelay(missionId) && usesFloorPlan(missionId);
 
 export const VIEW_NODE_RENDERERS: readonly ViewNodeEntry[] = [
   {
@@ -471,7 +473,7 @@ export const VIEW_NODE_RENDERERS: readonly ViewNodeEntry[] = [
     shape: 'media',
     labelKey: 'viewnode.map2d',
     hintKey: 'viewnode.map2d.hint',
-    showFor: notRelay,
+    showFor: withFloorPlan,
     // **재생 머리를 넘긴다** (260914) — 도면은 T-A1 이 끝난 뒤에 뜨고, 되감으면 그 시각을 따른다.
     summary: (scope) => <NodeGate card kind="detect-map"><DetectMap headSec={scope.headSec} /></NodeGate>,
     zoom: (scope) => <NodeGate kind="detect-map"><DetectMap zoom headSec={scope.headSec} /></NodeGate>,

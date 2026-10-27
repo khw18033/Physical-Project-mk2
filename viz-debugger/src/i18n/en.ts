@@ -1606,7 +1606,7 @@ export const en: Record<string, string> = {
 
   // ── 4단계 묶음 5 · 로봇 · 실물 연동 ───────────────────────────────────────
 
-  'ap.1': 'There is no path yet. It moves once “compute the path from the 2D map” finishes',
+  'ap.1': 'There is no path yet. It moves once path computation (T-B1) finishes',
   'ap.2': 'The path has no turn angle',
   'ap.3': 'The path has no forward distance',
   'ap.4': 'There is no command to issue. Both the turn and the forward are below the protocol minimum',
@@ -1651,6 +1651,7 @@ export const en: Record<string, string> = {
   'ps.1': 'The floor plan was read from the store copy. The detection endpoint has none yet',
   'ps.2': 'The floor plan came from the detection endpoint',
   'ps.3': 'Preparation started: it takes the floor plan and the robot’s current heading. The full turn runs only when both are in',
+  'ps.poseOnly': 'Preparation started: it takes the robot’s current heading. This mission does not use a floor plan. The full turn runs once the heading is in',
   'rb.1': 'Provisional verdict: door detection is not connected yet',
   'rc.1': 'Connected to the broker',
   'rpn.1': 'Paused',
@@ -1858,6 +1859,7 @@ export const en: Record<string, string> = {
   'dpl.standoff': 'standoff {m} m',
   'dpl.noReason': 'no reason given',
   'dpl.pathFailed': 'Path computation failed: {reason}',
+  'dpl.mapPathRefused': 'Path not accepted: this mission must compute its path from the object detection result alone, but detection sent a floor-plan path. The robot will not move',
   'dpl.willNotMove': '{chain} · it will not move',
   'dpl.serviceUnreachable': 'Cannot reach the detection service: {why}',
   'dpl.endpointUnreachable': 'Cannot reach the detection endpoint: {why}',

@@ -39,7 +39,7 @@ import { foldStatuses } from '../data/fold.ts';
 import {
   currentRunSerial, missionHistory, onRunSeal, subscribeMissionHistory, type MissionHistoryEntry,
 } from '../data/missionHistory.ts';
-import { getMissionState, NO_MISSION, traceEvents } from '../data/scenario.ts';
+import { currentMission, getMissionState, NO_MISSION, traceEvents } from '../data/scenario.ts';
 import { frameImageUrl, mapImageUrl, pathImageUrl, roundedImageUrl, sourceOf } from '../detect/DetectClient.ts';
 import { detectLog } from '../detect/detectLog.ts';
 import { detectState, recordableDetect } from '../detect/store.ts';
@@ -52,7 +52,7 @@ import { arrivedFrames } from '../viewpoint/store.ts';
 import { recordableNavFeed } from '../physical/navFeed.ts';
 import { navRun } from '../physical/navRun.ts';
 import { recordableObstacle } from '../autodrive/obstacle.ts';
-import { relayDriven } from '../scenarios/library.ts';
+import { detectTargetOf, relayDriven } from '../scenarios/library.ts';
 import { useSyncExternalStore } from 'react';
 import {
   detectImagePath, postRecordImage, putRecordJson, robotImagePath, runFolderOf, type RecordMissionSummary,
@@ -297,16 +297,18 @@ function wantDetectImages(target: Run): void {
   const detect = detectState();
   const source = sourceOf(detect.testMode);
   const round = String(detect.imageRound);
+  // 뷰 노드가 그린 것과 같은 주소여야 같은 그림이 떠진다 — 대상(문 · 박스)도 같은 원천에서 읽는다.
+  const detectTarget = detectTargetOf(currentMission().missionId);
   for (const frame of detect.frames) {
     const kinds = frame.found ? ['original', 'target_overlay', 'target_crop'] as const : ['original'] as const;
     for (const kind of kinds) {
       want(target, detectImagePath({ frame: frame.frame, kind }), round,
-        roundedImageUrl(frameImageUrl(source, frame.frame, kind), detect.imageRound));
+        roundedImageUrl(frameImageUrl(source, frame.frame, kind, detectTarget), detect.imageRound));
     }
   }
   if (detect.path !== null && detect.path.path_overlay_available !== false) {
     want(target, detectImagePath('path_overlay'), `${round}:${detect.path.turn_instruction}`,
-      roundedImageUrl(pathImageUrl(source), detect.imageRound));
+      roundedImageUrl(pathImageUrl(source, detectTarget), detect.imageRound));
   }
   const map = prepState().map;
   if (map.url !== null && !map.bundled) {

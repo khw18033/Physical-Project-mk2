@@ -50,7 +50,7 @@ export function detectBaseUrl(): string {
 const SAMPLE_BASE = '/detect-sample';
 
 /** 시료의 클래스 폴더. 문이 목표이고 받침대는 자세를 역산하는 기준점이다. */
-export type DetectClass = 'door' | 'pedestal';
+export type DetectClass = 'door' | 'pedestal' | 'box';
 
 export type DetectSource = { kind: 'live'; base: string } | { kind: 'sample' };
 

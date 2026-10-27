@@ -23,7 +23,7 @@ import { serviceWords } from '../../i18n/serviceWords.ts';
 import { useLang } from '../../shared/language.ts';
 import { t } from '../../i18n/dict.ts';
 import { useEffect, useState } from 'react';
-import { displayMission, useMission } from '../../data/scenario.ts';
+import { currentMission, displayMission, useMission } from '../../data/scenario.ts';
 import { foldStatuses } from '../../data/fold.ts';
 import { usePrepStage } from '../../physical/prepStage.ts';
 import { floorPlanUrls, frameImageUrl, pathImageUrl, roundedImageUrl, viewSourceOf } from '../DetectClient.ts';
@@ -32,6 +32,7 @@ import { DOOR_PX, FLOOR_PLAN_SIZE_PX } from '../floorPlan.ts';
 import { chosenFrame, gateWords, indexOfRotation, SCORE_LABEL_KEY, usableDistanceCm } from '../parse.ts';
 import { sweepDone } from '../detectBridge.ts';
 import { useDetect } from '../store.ts';
+import { detectTargetOf } from '../../scenarios/library.ts';
 import { noteScanImageFailed, noteScanImageShown, registerScanImageView } from '../../physical/scanGate.ts';
 import type { DetectFrame } from '../types.ts';
 
@@ -96,7 +97,7 @@ export function DetectCam({ zoom = false }: { zoom?: boolean }) {
   if (frame === null) return <Waiting what={t('dv.noFrameYet')} />;
 
   // 찾은 각도는 상자 입힌 것을, 못 찾은 각도는 원본을 — 없는 상자를 그린 척하지 않는다.
-  const urlOf = (item: DetectFrame) => roundedImageUrl(frameImageUrl(source, item.frame, item.found ? 'target_overlay' : 'original'), state.imageRound);
+  const urlOf = (item: DetectFrame) => roundedImageUrl(frameImageUrl(source, item.frame, item.found ? 'target_overlay' : 'original', detectTargetOf(currentMission().missionId)), state.imageRound);
   const url = urlOf(frame);
   const toggle = (item: DetectFrame) => setPickedFrame((current) => (current === item.frame ? null : item.frame));
   return <div className={`detect-cam${zoom ? ' detect-cam--zoom' : ''}`}>
@@ -166,7 +167,7 @@ export function DetectReason({ zoom = false, count = 8 }: { zoom?: boolean; coun
       {gates.length === 0 && <li>{t('dv.4')}</li>}
     </ul>
     {zoom && evidence !== null && <img className="detect-crop"
-      src={roundedImageUrl(frameImageUrl(source, frame.frame, 'target_crop'), state.imageRound)} alt={t('dv.cropAlt')} />}
+      src={roundedImageUrl(frameImageUrl(source, frame.frame, 'target_crop', detectTargetOf(currentMission().missionId)), state.imageRound)} alt={t('dv.cropAlt')} />}
     {/* 특징 여덟 — 무엇을 문이라고 물었고 각각 얼마나 닮았나. **카드에도 둔다** (261001) — 수치는 확대 없이 보여야 한다. */}
     {evidence !== null && <table className="detect-features">
         <tbody>
@@ -268,7 +269,7 @@ export function DetectMap({ zoom = false, headSec }: { zoom?: boolean; headSec?:
   const backtrace = path.path_overlay_kind === 'backtraced' ? path.backtrace ?? null : null;
 
   return <div className="detect-map">
-    {overlay ? <img src={roundedImageUrl(pathImageUrl(source), state.imageRound)} alt={t('dv.pathAlt')} /> : <FloorPlan urls={planUrls} />}
+    {overlay ? <img src={roundedImageUrl(pathImageUrl(source, detectTargetOf(currentMission().missionId)), state.imageRound)} alt={t('dv.pathAlt')} /> : <FloorPlan urls={planUrls} />}
     <div className="detect-map__facts">
       <span><b>{serviceWords(path.turn_instruction, lang)}</b></span>
       <span>{t('dv.forward', { m: (path.forward_distance_cm / 100).toFixed(2) })}</span>
