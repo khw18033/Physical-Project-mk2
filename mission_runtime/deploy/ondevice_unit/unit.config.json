@@ -1,0 +1,10 @@
+{
+  "unit_kind": "perception.edge_proposal",
+  "target_hz": 5.0,
+  "frame_width": 640,
+  "frame_height": 480,
+  "canny_low": 60,
+  "canny_high": 160,
+  "min_area_px": 120,
+  "heartbeat_every_n": 25
+}

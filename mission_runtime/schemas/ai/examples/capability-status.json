@@ -1,0 +1,18 @@
+{
+  "schema_version": "2.0",
+  "message_id": "msg-cap-001",
+  "source_id": "ds-vision",
+  "node_id": "edge-node-a",
+  "zone_id": "zoneA",
+  "channel": "capability_status",
+  "timestamp": "2026-08-25T19:40:00.000+09:00",
+  "sequence_id": 8,
+  "session_id": "0a1b2c3d4e5f",
+  "entity_id": "river-section-12",
+  "capability_kind": "perception.detect",
+  "provider_id": "yoloe-11s-seg",
+  "state": "DEGRADED",
+  "reason": "optional_dependency_absent",
+  "cluster_id": "edge-a",
+  "changed_at": "2026-08-25T19:40:00.000+09:00"
+}

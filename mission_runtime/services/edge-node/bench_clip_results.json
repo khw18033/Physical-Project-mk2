@@ -1,0 +1,71 @@
+{
+ "batch": 60,
+ "n_crops": 81,
+ "rows": [
+  {
+   "model": "CLIP B/32 int8 ONNX (기준선)",
+   "input": 224,
+   "ep": "CPUExecutionProvider",
+   "p50_ms": 823.4,
+   "min_ms": 730.7,
+   "ms_per_crop": 13.72,
+   "cos_vs_baseline": null
+  },
+  {
+   "model": "CLIP B/32 int8 ONNX → CUDA",
+   "input": 224,
+   "ep": "CUDAExecutionProvider",
+   "p50_ms": 969.2,
+   "min_ms": 967.2,
+   "ms_per_crop": 16.15,
+   "cos_vs_baseline": 0.9871
+  },
+  {
+   "model": "CLIP B/32 fp32 ONNX → CUDA",
+   "input": 224,
+   "ep": "CUDAExecutionProvider",
+   "p50_ms": 80.6,
+   "min_ms": 77.1,
+   "ms_per_crop": 1.34,
+   "cos_vs_baseline": 0.8791
+  },
+  {
+   "model": "CLIP B/32 torch fp32",
+   "input": 224,
+   "ep": "torch/cuda/fp32",
+   "p50_ms": 88.1,
+   "min_ms": 87.8,
+   "ms_per_crop": 1.47,
+   "cos_vs_baseline": 0.8791
+  },
+  {
+   "model": "CLIP B/32 torch fp16",
+   "input": 224,
+   "ep": "torch/cuda/fp16",
+   "p50_ms": 34.6,
+   "min_ms": 34.3,
+   "ms_per_crop": 0.58,
+   "cos_vs_baseline": 0.8792
+  },
+  {
+   "model": "MobileCLIP2-S0 torch fp16",
+   "input": 256,
+   "ep": "torch/cuda/fp16",
+   "p50_ms": 96.3,
+   "min_ms": 94.6,
+   "ms_per_crop": 1.61,
+   "cos_vs_baseline": NaN
+  },
+  {
+   "model": "MobileCLIP-S1 torch fp16",
+   "input": 256,
+   "ep": "torch/cuda/fp16",
+   "p50_ms": 165.6,
+   "min_ms": 164.9,
+   "ms_per_crop": 2.76,
+   "cos_vs_baseline": NaN
+  }
+ ],
+ "note": "cos_vs_baseline은 quantized CPU 임베딩과의 코사인 유사도다. 낮으면 빠르지만 다른 것을 보고 있다는 뜻이라 근거 품질이 바뀐다.",
+ "at": 1789974755.5273645
+}

@@ -1,0 +1,7 @@
+# 엣지 노드. 말단(requirements-pi4.txt)에는 이 중 어느 것도 없다 — AI-B-10.
+numpy
+opencv-python-headless
+onnxruntime
+ultralytics          # YOLOE prompt-free / YOLO-World
+transformers         # CLIP 토크나이저
+requests             # ollama(LLM/VLM) HTTP

@@ -1,0 +1,146 @@
+{
+  "$comment": "맵 **배경 타일** provider 선언(AI-C-16 · AI-C-04). 기본값은 타일 없음이다 — 공개 타일 서버를 기본으로 두면 폐쇄망 배치에서 메인 화면이 깨지고, 배치 전 검증(AI-C-16: \"어떤 실행 단위가 외부 연결을 요구하는지는 등록 정보로 드러나야 하며 폐쇄망 프로파일에서는 배치 전에 이를 검증할 수 있어야 한다\")에서도 걸린다. 그래서 외부 연결을 요구하는 레이어는 여기 **적혀 있을 수는 있어도** 켜져 있지 않다: `requires_external_connection` 과 `external_hosts` 가 그 사실을 선언으로 드러내고, `closed_network: true` 인 배치에서는 그런 레이어를 켜는 선언 자체가 거절된다(tools/fms_console/fleet.py::load_map_tiles). 배경 타일은 **선택 계층**이고, 타일이 없어도 지도는 지금처럼 로컬 좌표 격자로 그려진다 — 타일을 전역 좌표에 맞춰 놓는 일은 site datum 이 검증된 현장에서만 가능하다(AI-C-02).",
+  "$kinds": {
+    "none": "배경 타일 없음. 지도는 로컬 좌표 평면만 그린다. 기본값이고 폐쇄망에서 유일하게 전제 없이 도는 값이다.",
+    "offline_pack": "미리 내려받아 내부에 둔 타일 묶음. `pack_path` 는 자산 뿌리($MISSION_RUNTIME_ASSETS, 기본 ../local) 기준 상대 경로이고 `url_template` 은 그 묶음 안의 상대 경로 꼴이다. 외부 연결을 요구하지 않는다.",
+    "remote_xyz": "외부 XYZ 타일 서버. 나가는 연결을 요구하므로 `requires_external_connection: true` 와 `external_hosts` 를 반드시 적는다. 폐쇄망 프로파일에서는 켤 수 없다.",
+    "static_image": "한 장짜리 바탕 그림. 캠퍼스 조감도나 층 도면처럼 줌 단계가 없는 그림 하나이고, 앵커 두 점이 픽셀과 현장 로컬 좌표를 잇는다. 외부 연결을 요구하지 않으므로 폐쇄망에서도 그대로 돈다. 그림 파일은 공개 트리 밖(MISSION_RUNTIME_ASSETS)에 두고 여기에는 참조만 적는다 — 남의 지도를 캡처한 그림이 저장소에 실려 나가지 않게 하려는 것이고, 그래서 source.name 과 source.license 를 적지 않은 선언은 거절한다. 그림이 그 자리에 없으면 available=false 와 사유가 나가고 지도는 지금처럼 로컬 좌표 도면으로 그려진다(AI-C-05)."
+  },
+  "closed_network": true,
+  "default_layer_id": "none",
+  "layers": [
+    {
+      "layer_id": "none",
+      "kind": "none",
+      "label": {
+        "ko": "배경 없음",
+        "en": "No basemap"
+      },
+      "enabled": true,
+      "requires_external_connection": false,
+      "external_hosts": [],
+      "$note": "지도 데이터와 렌더러를 가르는 경계는 그대로다 — 이 레이어는 '배경을 깔지 않는다'는 선언이고 색·선 두께 같은 표현은 여기 들어오지 않는다(docs/view-contract.md §3.1)."
+    },
+    {
+      "layer_id": "site-offline-pack",
+      "kind": "offline_pack",
+      "label": {
+        "ko": "현장 오프라인 타일 묶음",
+        "en": "Site offline tile pack"
+      },
+      "enabled": false,
+      "requires_external_connection": false,
+      "external_hosts": [],
+      "pack_path": "map_tiles/site",
+      "url_template": "{z}/{x}/{y}.png",
+      "min_zoom": 14,
+      "max_zoom": 19,
+      "attribution": "현장 조달 타일 묶음 — 출처와 라이선스는 묶음 안의 LICENSE 를 따른다.",
+      "$note": "묶음이 그 자리에 실제로 있는지는 선언이 말하지 않고 로더가 확인해 `available` 로 낸다. 없는 묶음을 '있다'로 적으면 폐쇄망 배치에서 빈 배경이 뜨고 그 이유를 아무도 모른다."
+    },
+    {
+      "layer_id": "osm-public",
+      "kind": "remote_xyz",
+      "label": {
+        "ko": "공개 OSM 타일 (외부 연결 필요)",
+        "en": "Public OSM tiles (needs outbound internet)"
+      },
+      "enabled": false,
+      "requires_external_connection": true,
+      "external_hosts": [
+        "tile.openstreetmap.org"
+      ],
+      "url_template": "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+      "min_zoom": 0,
+      "max_zoom": 19,
+      "attribution": "© OpenStreetMap contributors (ODbL 1.0)",
+      "$note": "폐쇄망이 아닌 배치에서만 켤 수 있는 **선택** 레이어다. 켜 두고 폐쇄망에 들어가면 타일 요청이 전부 실패하면서 화면이 느려지므로, 여기서 꺼 두고 배치 프로파일에서 켠다(AI-C-16: 외부 서비스 provider 는 항상 선택 기능이다)."
+    },
+    {
+      "$comment": "N4동 5층 개략도. `tools/profiles/draw_floor_plan.py` 가 가시화 파트의 장소 기하에서 **그려 낸** 그림이고 측량 도면이 아니다 — 그 사실이 그림 안에도 적혀 있다. 앵커 두 점은 그 도구가 출력한 값 그대로이고, `build_from_vz.py` 가 쓴 구역 로컬 좌표와 같은 축척이라 계산이 맞는다.",
+      "layer_id": "n4-5f-plan",
+      "kind": "static_image",
+      "requires_external_connection": false,
+      "enabled": true,
+      "scope": {
+        "domain_id": "hanbat-n4",
+        "level_id": "N4-5F"
+      },
+      "image": {
+        "ref": "maps/n4-5f.png",
+        "width_px": 1170,
+        "height_px": 1048
+      },
+      "anchors": [
+        {
+          "pixel": {
+            "x": 60,
+            "y": 60
+          },
+          "local": {
+            "x": 0.0,
+            "y": 0.0
+          }
+        },
+        {
+          "pixel": {
+            "x": 1110,
+            "y": 988
+          },
+          "local": {
+            "x": 52.5,
+            "y": 46.44
+          }
+        }
+      ],
+      "source": {
+        "name": "장소 기하에서 생성한 개략도(측량 아님)",
+        "license": "project_internal",
+        "redistributable": false,
+        "captured_at": "2026-11-03"
+      }
+    },
+    {
+      "$comment": "캠퍼스 배경. `tools/profiles/fetch_site_map.py` 가 공개 OSM 타일을 이어 붙인 그림이고 **앵커는 현장 로컬 좌표**다 — 원점이 datum 이 가리키는 점이고 x 는 동쪽, y 는 남쪽이다. 그래서 scope 가 비어 있다: 이것은 도메인 그림이 아니라 **현장** 그림이고, 도메인 로컬 프레임에 깔면 건물이 제자리에서 벗어난다(AI-C-02). 이 그림이 걸리면 메인 맵의 평면이 index 격자에서 미터 평면으로 바뀌고 도메인은 `site_local` 이 적은 자리에 선다. 그림이 없으면 메인 맵은 지금까지와 같은 격자다.",
+      "layer_id": "site-osm",
+      "kind": "static_image",
+      "requires_external_connection": false,
+      "enabled": true,
+      "scope": {},
+      "image": {
+        "ref": "maps/site-osm.png",
+        "width_px": 1280,
+        "height_px": 1280
+      },
+      "anchors": [
+        {
+          "pixel": {
+            "x": 577.5,
+            "y": 556.3
+          },
+          "local": {
+            "x": 0.0,
+            "y": 0.0
+          }
+        },
+        {
+          "pixel": {
+            "x": 785.4,
+            "y": 764.2
+          },
+          "local": {
+            "x": 100.0,
+            "y": 100.0
+          }
+        }
+      ],
+      "source": {
+        "name": "OpenStreetMap 타일(zoom 18)을 이어 붙인 현장 배경. 자리는 미검증 datum 이 정한다.",
+        "license": "ODbL 1.0",
+        "attribution": "© OpenStreetMap contributors",
+        "redistributable": false,
+        "captured_at": "2026-11-03"
+      }
+    }
+  ]
+}

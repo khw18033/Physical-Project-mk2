@@ -1,0 +1,95 @@
+{
+  "id": "ai-external-request",
+  "version": "1.0.0",
+  "displayName": "외부 기능 요청 (SDI 연계)",
+  "description": "온디바이스로 수행할 수 없다고 판정된 기능의 요청 하나. 서버 내부 과정은 담지 않는다 — 3단계는 진행 중 여부만이고 담당·빌드·진척 칸은 아예 없다(기능정의서 §4.9).",
+  "fields": [
+    {
+      "name": "external_request_id",
+      "type": "string",
+      "required": true,
+      "representationHint": "text"
+    },
+    {
+      "name": "external_request_reason",
+      "type": "enum",
+      "required": true,
+      "enumValues": [
+        "UNSUPPORTED_CAPABILITY",
+        "SIM_REAL_MISMATCH"
+      ],
+      "representationHint": "text",
+      "description": "두 발생 조건. 구분하지 않으면 재요청 판단이 달라진다."
+    },
+    {
+      "name": "task_node_id",
+      "type": "string",
+      "required": true,
+      "representationHint": "text"
+    },
+    {
+      "name": "external_request_stage",
+      "type": "enum",
+      "required": true,
+      "enumValues": [
+        "JUDGED",
+        "SENT",
+        "SERVER_WORKING",
+        "DEPLOYED",
+        "RE_EXECUTING",
+        "SETTLED"
+      ],
+      "representationHint": "text"
+    },
+    {
+      "name": "server_work_is_opaque",
+      "type": "boolean",
+      "required": true,
+      "representationHint": "text",
+      "description": "참이면 내부가 보이지 않는 구간이다. 화면이 그 구간을 시각적으로 구분할 근거."
+    },
+    {
+      "name": "deployment_received",
+      "type": "boolean",
+      "required": true,
+      "representationHint": "text",
+      "description": "배포 수신 여부. 미수신을 deployment_version: null 로 적지 않는다."
+    },
+    {
+      "name": "deployment_version",
+      "type": "string",
+      "required": false,
+      "representationHint": "text"
+    },
+    {
+      "name": "re_execution_count",
+      "type": "number",
+      "required": true,
+      "unit": "count",
+      "valueRange": {
+        "min": 0,
+        "max": 999
+      },
+      "representationHint": "text"
+    },
+    {
+      "name": "external_request_verdict",
+      "type": "enum",
+      "required": true,
+      "enumValues": [
+        "PENDING",
+        "SUCCEEDED",
+        "FAILED"
+      ],
+      "representationHint": "text",
+      "description": "최종 판정 3값. 재요청이냐 종결이냐는 값이 아니라 관계로 읽는다 — FAILED 인 요청을 re_request_of 로 가리키는 다음 요청이 있으면 재요청이고 없으면 종결이다(§4.9)."
+    },
+    {
+      "name": "stage_times",
+      "type": "array",
+      "required": true,
+      "representationHint": "table",
+      "description": "도달한 단계와 그 전이 시각. 1단계(판정)도 들어 있다."
+    }
+  ]
+}

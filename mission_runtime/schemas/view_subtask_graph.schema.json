@@ -1,0 +1,7 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://physical-project.local/schemas/view_subtask_graph.schema.json",
+  "title": "View payload — GET /api/subtasks?robot=&zone=&function=",
+  "$comment": "한 목표의 실행 단계 그래프. 간선은 생성 주체가 적지 않고 자료 흐름에서 규칙이 계산한다(AI-B-14).",
+  "$ref": "https://physical-project.local/schemas/view_snapshot.schema.json#/$defs/subtask_graph"
+}

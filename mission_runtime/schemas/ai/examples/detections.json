@@ -1,0 +1,62 @@
+{
+  "schema_version": "2.0",
+  "message_id": "msg-det-001",
+  "source_id": "ds-vision",
+  "node_id": "edge-node-a",
+  "zone_id": "zoneA",
+  "channel": "detections",
+  "timestamp": "2026-08-25T19:40:00.000+09:00",
+  "sequence_id": 2246,
+  "session_id": "0a1b2c3d4e5f",
+  "entity_id": "river-section-12",
+  "frame_ref": {
+    "camera_id": "go1-001_front",
+    "sequence_id": 2246,
+    "timestamp": "2026-08-25T19:40:00.000+09:00"
+  },
+  "emitted_at": "2026-08-25T19:40:00.019+09:00",
+  "model": "yoloe-11s-seg",
+  "producer": {
+    "tier": "edge",
+    "kind": "precise",
+    "optional": true,
+    "label": "ovd"
+  },
+  "width": 640,
+  "height": 480,
+  "bbox_format": "absolute",
+  "association": "unavailable",
+  "detections": [
+    {
+      "label": "door",
+      "confidence": 0.91,
+      "bbox": [
+        120.0,
+        64.0,
+        240.0,
+        352.0
+      ],
+      "camera_id": "go1-001_front",
+      "track_id": "t-7",
+      "class_confidence": 0.88,
+      "approach": "closing",
+      "trail": [
+        {
+          "x": 118.0,
+          "y": 70.0
+        },
+        {
+          "x": 120.0,
+          "y": 64.0
+        }
+      ]
+    }
+  ],
+  "infer_ms": 17.4,
+  "corridor": [
+    0.0,
+    300.0,
+    640.0,
+    480.0
+  ]
+}

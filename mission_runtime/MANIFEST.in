@@ -1,0 +1,30 @@
+# sdist 에 무엇을 담는가.
+#
+# setuptools 의 기본 sdist 는 "패키지의 .py + README + pyproject" 만 담는다. 이
+# 프로젝트는 패키지 루트가 프로젝트 루트여서 그 기본값이 특히 얇다 — 계약
+# (schemas/), 예시 프로파일(profiles/ config/), 파트 경계 규약(specs/), 문서(docs/),
+# 그리고 한 명령으로 뜨는 관제 콘솔(tools/)이 전부 빠진다. 그러면 sdist 를 받은
+# 사람은 "설치는 되는데 아무것도 열어볼 수 없는" 패키지를 손에 든다.
+#
+# 폐쇄망 배포에서는 이것이 더 분명한 문제다 — 빠진 파일을 인터넷에서 끌어올 수
+# 없으니 조달 경로가 sdist 하나여야 한다(AI-C-16).
+include README.md MANIFEST.in Makefile Dockerfile .dockerignore
+recursive-include schemas *.json
+recursive-include profiles *.json
+recursive-include config *.json
+recursive-include specs *.md
+recursive-include docs *.md
+recursive-include deploy *
+recursive-include services *
+recursive-include tools *.py *.html *.json *.md
+recursive-include tests *.py
+# 자격증명·비밀정보는 이미지에도 배포물에도 들어가지 않는다(AI-B-02). `.env.example`
+# 은 예시라서 남고 실제 값이 들어가는 `.env`/`.env.local` 은 이름으로 걸러 뺀다.
+# 받은 사람의 기계에서 생기는 것(가상환경·캐시)도 뺀다.
+global-exclude *.pyc *.pyo *.so .env .env.local
+prune .venv
+prune **/__pycache__
+prune **/node_modules
+# collector 가 실행 중에 덮어쓰는 시험 산출물. 매번 내용이 달라서 배포물에 담으면
+# 같은 버전의 tarball 이 기계마다 달라진다(AI-B-02 의 재현성).
+prune deploy/integration/artifacts

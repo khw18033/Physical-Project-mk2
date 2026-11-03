@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/khw18033/Physical-Project-mk2/contracts/common/frame-reference.schema.json",
+  "title": "프레임 참조 (Frame Reference)",
+  "description": "결과·상태가 원본 관측 프레임을 가리키는 참조(BE-C-03, 통합데이터규약 §3-3 · D13). 세 칸은 **가리키는 프레임 헤더의 같은 이름 세 칸을 그대로 옮긴 것**이다(프레임 헤더 = media-header.schema.json — 방식 B 헤더 · GO1 Frame-Meta · 드론 /api/frame meta · 360 업로드 meta 가 같은 내용). 세 칸이 모두 있어야 유일하다 — sequence_id 는 재기동하면 처음부터 다시 세므로 camera_id + sequence_id 만으로는 겹칠 수 있다. 받는 쪽의 정합(F==F — 영상과 탐지가 뷰어에서 겹치는 조건)은 세 칸이 모두 같을 때만 한다. 쓰는 곳: 비전 결과(detections.schema.json), 드론 프레임 동기 state(payload/state.drone.schema.json), 지속 객체 참조(object-reference.schema.json). 이 참조를 싣는 메시지는 머리의 timestamp 도 frame_ref.timestamp 와 같은 값이다(R12 예외 — 두 값은 반드시 같고, 생산자는 같은 변수에서 둘을 쓴다). 번호와 시각은 **프레임을 처음 손에 넣은 기기**(pi7 · pi3 · 360 노트북 · HW 엣지)가 손에 넣는 순간 한 번 붙이고, 그 뒤 거치는 곳(엣지 · DS · 서버 · AI)은 다시 만들지 않는다(원칙 10). 상관키(어느 명령의 산출인가)는 이 객체 밖이다. 옛 모양(source_id · capture_timestamp · sequence_id + 선택 frame_id · time_sync_state)은 과도기 동안 frame-reference.v1.schema.json 이 받는다.",
+  "$comment": "2026-10-13 통합데이터규약(BE-02)으로 바꿨다: source_id(카메라 키) → camera_id(R2 — source_id 가 장비/카메라 두 뜻으로 쓰였다) · capture_timestamp(엣지가 경계를 확정한 시각) → timestamp(프레임 헤더의 데이터 시각) · frame_id(쓰는 곳 없음 — 드론 frame_id 는 드론 안쪽 칸이다)와 time_sync_state(읽는 곳도 채우는 생산자도 없음 — P3)를 지웠다. additionalProperties:false 는 유지한다 — 참조 규격은 칸 집합이 닫혀 있어야 F==F 비교가 성립한다(README 「프레임 참조와 객체 참조」).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "camera_id",
+    "sequence_id",
+    "timestamp"
+  ],
+  "properties": {
+    "camera_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "프레임을 찍은 카메라. 값의 꼴은 `<장비 source_id>_<위치>`(통합데이터규약 §2-3 · D6). 가리키는 프레임 헤더의 camera_id 와 같은 값이다. 옛 이름 source_id(카메라 키).",
+      "examples": [
+        "go1-001_front",
+        "x500-001_front",
+        "cam360-001_main"
+      ]
+    },
+    "sequence_id": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "카메라마다 세는 프레임 순번 — 가리키는 프레임 헤더의 sequence_id. 프레임을 **손에 넣는 순간** 매긴다(보내는 순간이 아니다 — 보내는 순간에 매기면 버린 장이 불연속으로 보이지 않는다). 재기동하면 처음부터 다시 센다.",
+      "examples": [
+        2246
+      ]
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "가리키는 프레임의 데이터 시각 = 그 프레임 헤더의 timestamp(그림을 손에 넣은 순간). RFC3339 date-time — 생산자 규칙은 밀리초 3자리 · +09:00(R5). 옛 이름 capture_timestamp(엣지가 프레임 경계를 확정한 시각).",
+      "examples": [
+        "2026-10-12T10:00:00.125+09:00"
+      ]
+    }
+  }
+}

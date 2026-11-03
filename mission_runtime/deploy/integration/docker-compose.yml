@@ -1,0 +1,81 @@
+# **이것은 배포 지형이 아니라 개발·시험용 스택이다.** 현재 실제 배포(통합 저장소
+# `deploy/`)에서 구역 엣지는 Kafka 에 붙지 않는다 — 엣지 Mosquitto 가 중앙 Mosquitto 로
+# MQTT 브릿지하고 Kafka 는 중앙 `be-ingest` 뒤에만 있다. 여기 Kafka 가 있는 이유는
+# 우리 Transport provider 양쪽(MQTT·Kafka)을 한 기계에서 왕복시켜 보기 위해서이고,
+# 전송 지형은 `mission_runtime/integration/deployment_topology.py` 가 정본으로 적는다.
+#
+# Two ways to run this file (docs/ai/design/hardware-capability-contract-and-bringup-plan.md §4):
+#   dev  (default): everything bound to loopback — `make up`
+#   edge          : bound to one routable address so terminals reach the broker —
+#                   `AIF_BIND=<tailscale-ip> AIF_ADVERTISE=<tailscale-ip> make up`
+# Plaintext listeners in both cases; TLS/ACLs are production configuration that
+# this development stack deliberately does not pretend to provide.
+services:
+  mqtt:
+    image: eclipse-mosquitto:2.0.22
+    container_name: aif-test-mqtt
+    ports:
+      - "${AIF_BIND:-127.0.0.1}:1883:1883"
+    volumes:
+      - ./mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+    restart: unless-stopped
+
+  kafka:
+    image: apache/kafka:3.9.1
+    container_name: aif-test-kafka
+    ports:
+      - "${AIF_BIND:-127.0.0.1}:9092:9092"
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://${AIF_ADVERTISE:-127.0.0.1}:9092
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@localhost:9093
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+    restart: unless-stopped
+
+  otel-collector:
+    # 통합 저장소의 엣지 스택과 같은 계열(0.150)로 둔다. 0.150 에서 컴포넌트 이름이
+    # 바뀌었으므로(`otlp`→`otlp_grpc`) 두 계열을 섞어 두면 우리 설정은 통과하는데
+    # 사이트 설정이 깨지는 조합을 못 잡는다.
+    image: otel/opentelemetry-collector-contrib:0.150.1
+    container_name: aif-test-otel
+    command: ["--config=/etc/otelcol-contrib/config.yaml"]
+    ports:
+      - "${AIF_BIND:-127.0.0.1}:4317:4317"
+      - "${AIF_BIND:-127.0.0.1}:4318:4318"
+      # prometheus exporter 와 Collector 자기 관측. Prometheus 는 도커 망 안에서
+      # 서비스 이름으로 긁지만, 손으로 확인할 자리를 남겨 둔다.
+      - "${AIF_BIND:-127.0.0.1}:8889:8889"
+      - "${AIF_BIND:-127.0.0.1}:8888:8888"
+    volumes:
+      - ./otel-collector.yaml:/etc/otelcol-contrib/config.yaml:ro
+      - ./artifacts:/var/lib/otel
+    restart: unless-stopped
+
+  # 구역 엣지의 계측 질의 서버와 같은 자리. `HttpMetricQueryProvider` 의 기본
+  # 엔드포인트(`http://127.0.0.1:9090`)가 바로 이것이고, 실패 분석은 중앙 요약이
+  # 아니라 **엣지의 상세값**을 본다(AI-O-01, 원칙 #14).
+  prometheus:
+    image: prom/prometheus:v3.9.1
+    container_name: aif-test-prometheus
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      # 엣지 보존과 같은 7일(`deploy/edge/.env` 의 MK2_EDGE_PROMETHEUS_RETENTION).
+      # 장기 재현은 계측이 아니라 업무 저장소·아카이브의 몫이다(AI-O-03, 원칙 #17).
+      - --storage.tsdb.retention.time=7d
+    ports:
+      - "${AIF_BIND:-127.0.0.1}:9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    restart: unless-stopped
+
+volumes:
+  prometheus_data:

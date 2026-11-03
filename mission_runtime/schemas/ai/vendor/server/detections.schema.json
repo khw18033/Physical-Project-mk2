@@ -1,0 +1,380 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/khw18033/Physical-Project-mk2/contracts/common/detections.schema.json",
+  "title": "비전 결과 (Vision Result) — 초안",
+  "description": "프레임 한 장에 대한 비전(탐지·깊이) 결과(통합데이터규약 §3-6). 생산자는 비전 프로그램(서버 DS 비전 ds-vision · 360 anchor360-live · AI 인지 · 엣지)이고, 소비자는 가시화(뷰어 오버레이)·후처리다. 영상은 미디어 경로(방식 B)로, 결과는 업무 경로로 따로 흐르다 뷰어에서 frame_ref 의 세 칸이 모두 같을 때(F==F) 겹쳐진다(02-media-path §1-6-1). 머리: 공통 머리 다섯 칸(source_id = 결과를 만든 **프로그램**, node_id = 그 프로그램이 돈 컴퓨터, timestamp = **원본 프레임 시각** — D5) + 결과가 나온 순간 emitted_at(D5-1) + 박스 기준 해상도 width·height + 모델 + 검출 목록. 박스는 두 꼭짓점 픽셀 bbox [x1, y1, x2, y2] 하나로 쓴다 — 실제로 결과를 내는 곳(DS 비전 · 드론 엣지 · 360 · AI)이 전부 이 꼴이다. 근거: BE-C-03(frame_ref) · VZ-I-07(좌표계 선언·출처 구분) · AI-S-06.",
+  "$comment": "초안 — 아직 어떤 검증 경로도 이 파일을 로드하지 않고, 지금 이 규격으로 결과를 BE 에 보내는 생산자도 없다(AI 회신 뒤 확정한다 — 그래서 제목에 초안을 남긴다). 채널·토픽·ingest 구독 패턴·entity_type 판별은 범위가 아니라 payload/ 가 아니라 contracts/common/ 루트에 둔다. 2026-10-13 통합데이터규약(BE-04)으로 다시 썼다: bbox_space{format,origin,reference} + boxes[{x,y,w,h}] → 결과 width·height + 검출 bbox [x1,y1,x2,y2] 픽셀 · origin{tier,kind} → producer{…}(N5 — GO1 origin{} · 공통 origin_kind 와 이름이 겹쳤다) · 공통 머리 · emitted_at · model 추가. 값 어휘(alignment · producer.tier · producer.kind · coordinate_frame)는 전부 string + $comment 이며 enum 이 아니다. additionalProperties 를 false 로 두지 않는다 — 생산자별 칸(DS: stream · run · n · frame_file · live · overlay_file · depth_file · depth_stats · intrinsics · fov_x_deg · fov_x_given · pose · geo_status / AI: association · corridor)이 그대로 지나간다. frame_ref 안쪽만 참조 규격이라 닫혀 있다. frame_ref 는 '원본 프레임이 있으면 필수'(규약)지만 규격으로는 선택으로 두었다 — 원본 프레임 정보가 없는 결과(옛 기록 재처리 · 360 meta 가 없는 사진)를 거부하지 않으려고.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "source_id",
+    "node_id",
+    "zone_id",
+    "timestamp",
+    "emitted_at",
+    "model",
+    "width",
+    "height",
+    "detections"
+  ],
+  "properties": {
+    "schema_version": {
+      "$ref": "message.schema.json#/properties/schema_version"
+    },
+    "source_id": {
+      "$ref": "message.schema.json#/properties/source_id",
+      "description": "결과를 만든 프로그램(§2-3). 예: ds-vision · anchor360-live · drone-edge."
+    },
+    "node_id": {
+      "$ref": "message.schema.json#/properties/node_id",
+      "description": "그 프로그램이 돈 컴퓨터."
+    },
+    "zone_id": {
+      "$ref": "message.schema.json#/properties/zone_id"
+    },
+    "timestamp": {
+      "$ref": "message.schema.json#/properties/timestamp",
+      "description": "원본 프레임 시각(D5) = frame_ref.timestamp(R12 예외 — 두 값은 반드시 같다). 결과가 나온 순간은 emitted_at."
+    },
+    "sequence_id": {
+      "$ref": "message.schema.json#/properties/sequence_id",
+      "description": "선택. 결과 흐름의 순번."
+    },
+    "session_id": {
+      "$ref": "message.schema.json#/properties/session_id",
+      "description": "선택."
+    },
+    "type": {
+      "type": "string",
+      "description": "선택. 메시지 종류 표시. 상태 WS 로 여러 종류가 섞여 갈 때의 구분자.",
+      "$comment": "알려진 값: detections. enum 아님.",
+      "examples": [
+        "detections"
+      ]
+    },
+    "frame_ref": {
+      "$ref": "frame-reference.schema.json",
+      "description": "원본 프레임 {camera_id, sequence_id, timestamp}. 원본 프레임이 있으면 싣는다(규약상 필수). 프레임 헤더가 붙인 값을 그대로 옮긴다 — 결과를 만드는 쪽이 새로 만들지 않는다(원칙 10)."
+    },
+    "emitted_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "결과가 나온 순간(D5-1). 결과의 늦음 · 재생 · 실시간/재처리 구분 · 처리 시간 비교에 쓴다. 생산자 규칙은 밀리초 3자리 · +09:00.",
+      "examples": [
+        "2026-10-02T13:06:41.018+09:00"
+      ]
+    },
+    "producer": {
+      "type": "object",
+      "description": "탐지한 층과 정밀도(옛 이름 origin — N5). VZ 로 보낼 결과는 필수다(VZ 가 tier 로 결과를 걸러 받는다 — producer 가 없으면 버린다). 생산자가 자기 산출물에 기입한다 — **서버는 중계하는 남의 결과에 producer 를 채우지 않는다**(생산자가 안 보낸 것과 백엔드가 채운 것을 나중에 구분할 수 없다 — hw-envelope-conformance.md §6-5 규율).",
+      "required": [
+        "tier",
+        "kind"
+      ],
+      "properties": {
+        "tier": {
+          "type": "string",
+          "description": "어느 층에서 탐지했나 — device = 온디바이스 / edge = 엣지 / server = 서버.",
+          "$comment": "알려진 값: device · edge · server. enum 아님.",
+          "examples": [
+            "server"
+          ]
+        },
+        "kind": {
+          "type": "string",
+          "description": "탐지 정밀도 등급(VZ DetectionOrigin 과 같은 어휘). ⚠ 공통 헤더의 origin_kind(실물/시뮬/재생)와는 **다른 축**이다.",
+          "$comment": "알려진 값: safety_minimal · precise · derived. enum 아님.",
+          "examples": [
+            "precise"
+          ]
+        },
+        "label": {
+          "type": "string",
+          "description": "선택. 화면에 보일 출처 이름."
+        },
+        "optional": {
+          "type": "boolean",
+          "description": "선택. 없어도 되는 보조 출처인가."
+        }
+      }
+    },
+    "alignment": {
+      "type": "string",
+      "description": "선택. **메시지 단위** 정합 등급. 뷰어 규칙은 fail-safe 다 — alignment == \"frame\" 이고 frame_ref 가 있을 때만 그 프레임 위에 정합해 그리고, 그 외(부재 · 모르는 값 포함)는 전부 unaligned 로 취급한다.",
+      "$comment": "알려진 값: frame · unaligned. **이 키가 없으면 unaligned 로 취급한다**(선택 + 기본 의미). enum 아님.",
+      "examples": [
+        "frame",
+        "unaligned"
+      ]
+    },
+    "model": {
+      "type": "string",
+      "minLength": 1,
+      "description": "모델 이름.",
+      "examples": [
+        "yoloe",
+        "moge2_aerial",
+        "yoloworld"
+      ]
+    },
+    "model_file": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "선택. 쓴 가중치 파일 이름(옛 DS weight · checkpoint).",
+      "examples": [
+        "yoloe-11l-seg-pf.pt"
+      ]
+    },
+    "prompt": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "선택. 프롬프트 방식(예 free · text)."
+    },
+    "infer_ms": {
+      "type": [
+        "number",
+        "null"
+      ],
+      "minimum": 0,
+      "description": "선택. 모델 계산 시간만(ms). 장비·프로그램이 직접 잰 값이라 싣는다(R9 — 계산하면 나오는 값은 싣지 않는다)."
+    },
+    "width": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "**박스 좌표의 기준 해상도** 가로(px). 원본 프레임 위에 그린다면 그 프레임 헤더의 width 와 같다. 잘라 본 결과(view)는 자른 그림의 크기.",
+      "examples": [
+        1280
+      ]
+    },
+    "height": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "박스 좌표의 기준 해상도 세로(px).",
+      "examples": [
+        720
+      ]
+    },
+    "view": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "description": "선택. 원본에서 잘라 본 경우 그 영역(360: {u_deg, v_deg, roll_deg})."
+    },
+    "coordinate_frame": {
+      "type": "string",
+      "minLength": 1,
+      "description": "position{x,y,z} 칸의 좌표계 이름. 검출에 position 이 있으면 필수(규약). 위경도 · ned_m · cam_xyz_m 처럼 이름이 좌표계를 말하는 칸에는 필요 없다.",
+      "$comment": "알려진 값: anchor360. enum 아님.",
+      "examples": [
+        "anchor360"
+      ]
+    },
+    "detections": {
+      "type": "array",
+      "description": "검출 목록. 0건이어도 빈 배열(정상 메시지).",
+      "items": {
+        "type": "object",
+        "required": [
+          "bbox",
+          "label"
+        ],
+        "properties": {
+          "bbox": {
+            "type": "array",
+            "items": {
+              "type": "number"
+            },
+            "minItems": 4,
+            "maxItems": 4,
+            "description": "[x1, y1, x2, y2] 픽셀 — 좌상단·우하단 두 꼭짓점. 기준은 결과의 width·height. 옛 이름 xyxy · box · bbox_xyxy · box_xyxy · {x,y,w,h} · {x,y,width,height}."
+          },
+          "label": {
+            "type": "string",
+            "minLength": 1,
+            "description": "클래스 이름(옛 name). 어휘는 모델이 정한다(enum 아님)."
+          },
+          "class_id": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "선택. 어휘 안의 번호(옛 cls)."
+          },
+          "confidence": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 0,
+            "maximum": 1,
+            "description": "선택. 검출 신뢰도 0~1(옛 conf · final_score). 없으면 null."
+          },
+          "id": {
+            "type": "integer",
+            "description": "선택. 이 결과 안의 검출 번호(1부터). 여러 프레임에 걸친 ID 가 아니다(그것은 track_id)."
+          },
+          "group": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "선택. 클래스 묶음(예 HARD_OBSTACLE)."
+          },
+          "track_id": {
+            "description": "선택. 여러 프레임에 걸친 같은 물체의 ID(옛 obs_id · obj_id)."
+          },
+          "class_confidence": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "description": "선택. AI·VZ 규격 칸."
+          },
+          "approach": {
+            "description": "선택. AI·VZ 규격 칸."
+          },
+          "trail": {
+            "description": "선택. AI·VZ 규격 칸."
+          },
+          "link": {
+            "description": "선택. AI·VZ 규격 칸."
+          },
+          "camera_id": {
+            "type": "string",
+            "minLength": 1,
+            "description": "선택. 여러 카메라를 묶은 결과에서 이 검출이 나온 카메라(옛 AI 검출 안의 source_id — N9)."
+          },
+          "polygon": {
+            "description": "선택. 분할 외곽선(픽셀) — 지금 모양 그대로(P4)."
+          },
+          "uv": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "number"
+            },
+            "description": "선택. 마스크 무게중심 [u, v] 픽셀.",
+            "minItems": 2,
+            "maxItems": 2
+          },
+          "depth_m": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "description": "선택. 깊이(광축 방향 Z, m)."
+          },
+          "range_m": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "description": "선택. 직선거리(m)."
+          },
+          "cam_xyz_m": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "number"
+            },
+            "description": "선택. 카메라 좌표 [x, y, z] (m).",
+            "minItems": 3,
+            "maxItems": 3
+          },
+          "ned_m": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "number"
+            },
+            "description": "선택. 기체 기준 오프셋 [N, E, D] (m).",
+            "minItems": 3,
+            "maxItems": 3
+          },
+          "lat": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "description": "선택. 위도(도, WGS84)."
+          },
+          "lon": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "description": "선택. 경도(도, WGS84)."
+          },
+          "alt_m": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "description": "선택. 해발 고도(m)."
+          },
+          "ground_dist_m": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "description": "선택. 바닥 위 수평거리(m) — 옛 360 dist_m."
+          },
+          "position": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "선택. 위치 {x, y, z}(m) — 좌표계는 결과의 coordinate_frame. 옛 360 pos3d.",
+            "properties": {
+              "x": {
+                "type": "number"
+              },
+              "y": {
+                "type": "number"
+              },
+              "z": {
+                "type": "number"
+              }
+            }
+          },
+          "size_m": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "선택. 대략 크기 {w, h, d}(m) — 옛 360 size.",
+            "properties": {
+              "w": {
+                "type": "number"
+              },
+              "h": {
+                "type": "number"
+              },
+              "d": {
+                "type": "number"
+              }
+            }
+          },
+          "distance_cm": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "description": "선택. GO1 unidepth 보정 거리(cm) — 단위가 달라 이름을 따로 둔다(R4)."
+          }
+        }
+      }
+    }
+  }
+}

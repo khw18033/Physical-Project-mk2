@@ -1,0 +1,114 @@
+{
+  "$comment": "말단(pi4) 단일 설정면. 이 노드가 하는 일은 넷뿐이다 — RPN 후보 생성, 엣지 통신, 지연 판정의 시점 반영(tracking+records), 링크 단절 대비 스풀. 의미 해석(OVD/CLIP/LLM/VLM)은 전부 엣지 몫이며 여기엔 그 설정이 없다(AI-B-10 말단 경량 실행 경계). 기기가 바뀌면 edge.host 한 줄만 고친다.",
+  "edge": {
+    "$comment": "엣지 노드 주소. 현장마다 다르고 보안 오버레이 안의 주소이므로 공개 저장소에는 자리표시자만 둔다 — 실제 값은 배포 시 DRONE_PI4_EDGE_HOST 또는 현장 설정으로 넣는다. 기기가 바뀌면 이 한 줄만 고친다.",
+    "host": "edge.invalid",
+    "port": 8891,
+    "connect_timeout_s": 3.0,
+    "read_timeout_s": 20.0
+  },
+  "pi4": {
+    "$comment": "말단 실행 설정. source가 'images'면 디렉터리를 순회하고 'camera'면 libcamera로 캡처한다. camera_index는 rpicam --camera 인자와 같다(pi4에는 imx708_wide가 2대).",
+    "source": "camera",
+    "images_dir": "images_seq",
+    "camera_index": 0,
+    "capture_width": 1280,
+    "capture_height": 720,
+    "loop": true,
+    "interval_s": 0.0,
+    "jpeg_quality": 85,
+    "send_frame": true,
+    "max_frames": 0,
+    "$comment_max": "max_frames>0이면 그 수만큼만 처리하고 멈춘다(loop와 함께 쓴다).",
+    "$comment_seq": "images_seq는 한 시퀀스(0000289)의 **연속 프레임 12장**이다. images/는 서로 다른 시퀀스에서 고르게 뽑은 10장으로 지연 실측용이며, 추적 검증에는 쓸 수 없다 — 장면이 매 프레임 완전히 바뀌면 track_id가 유지되지 않는다(2026-09-21에 실제로 트랙이 84→470으로 폭증했다).",
+    "input_crop": {
+      "$comment": "센서 유효 영역. 어안 비네팅처럼 무효한 테두리를 **인지 전에** 자른다 — 안 자르면 RPN이 검은 경계에 후보를 대량으로 내고 화면 전체를 감싼 박스가 객체로 잡힌다(2026-09-21 실내 어안 실측). source_size가 일치할 때만 적용하므로, 다른 카메라 프레임에는 자동으로 적용되지 않는다. 값 출처: demo/test/class_finder_service.py의 BORDER_CROP_SOURCE_SIZE/BORDER_CROP_BOX(검증된 상수). crop은 실행 구성의 일부라 바뀌면 성능 프로파일을 다시 잰다(AI-E-02/AI-B-01).",
+      "enabled": false,
+      "source_size": [
+        464,
+        400
+      ],
+      "box": [
+        114,
+        80,
+        351,
+        321
+      ]
+    },
+    "cameras": [
+      {
+        "index": 0,
+        "width": 1280,
+        "height": 720,
+        "framerate": 8
+      },
+      {
+        "index": 1,
+        "width": 1280,
+        "height": 720,
+        "framerate": 8
+      }
+    ],
+    "$comment_cameras": "두 카메라 상시. rpicam-still은 프레임당 542ms(프로세스 기동이 대부분)라 못 쓰고 rpicam-vid MJPEG 파이프를 쓴다(camera.py). 실측: 두 카메라 동시 각 8fps, 온도 64.2도. 항상 **최신 프레임만** 처리한다 — 쌓인 것을 순서대로 처리하면 화면이 뒤처진다."
+  },
+  "rpn": {
+    "$comment": "말단 RPN. 전처리 상수는 export_p1_onnx.py와 같아야 한다 — 바꾸면 기존 Pi 5 실측치와 비교 불가(AI-B-01).",
+    "model": "mobilenet_rpn_p1_896x512.onnx",
+    "threads": 4,
+    "nms_iou": 0.7,
+    "top_n": 1000,
+    "$comment_filters": "2026-09-21 VisDrone 실측에서 나온 문제의 완화책이다. 상위 100개를 objectness로만 자르면 건물 전면 같은 거대 박스가 상위를 독식했다(0000244: 상위 100개가 전부 0.82 이상). 아래 둘은 그 관측에 대한 후처리 대응이며, 효과는 아직 측정되지 않았다 — 끄려면 각각 0/1로 둔다.",
+    "min_objectness": 0.0,
+    "max_box_area_frac": 0.25,
+    "source_path": "../research/oln_training/p1_onnx/mobilenet_rpn_p1_896x512.onnx",
+    "kind": "p1_rpn",
+    "yolo_pre_conf": 0.01,
+    "$comment_kind": "kind: 'yolov8'(기본) | 'p1_rpn'. 2026-09-21 교체 — 같은 GPU 평가에서 yolov8n class-agnostic이 P1 mobilenet-rpn보다 빠르고(12.0 vs 20.4ms) recall도 높았다(R@100 0.424 vs 0.310). 클래스는 버리고 80개 클래스 점수의 최대값만 objectness로 쓴다. yolo_pre_conf는 NMS 전 1차 컷 — yolov8 출력이 5376/8400개 앵커를 전부 내므로 그대로 NMS에 넣으면 느리다. 0.01은 P1의 DEFAULT_CONF=1e-4보다 높지만 후보를 넓게 두는 목적은 유지한다. **전처리가 다르다**: p1은 ImageNet 정규화, yolov8은 0~1 스케일만.",
+    "$comment_choice": "2026-09-21 p1으로 확정. pi4 실측에서 yolov8n_512가 18% 빨랐지만(92.7 vs 112.6ms) 후보를 6배 적게 냈다(137 vs 870/프레임). p1은 region proposal 전용이라 objectness가 후보를 넓게 뽑도록 보정돼 있고, yolov8n의 점수는 검출 confidence라 날카롭고 희소하다(드론 영상에서 max 0.314 / p99 0.023). '위험 방지를 위해 후보를 최대한 많이'가 목적이므로 20ms를 주고 후보 폭을 산다. kind 한 줄로 되돌릴 수 있다.",
+    "$comment_recall": "2026-09-21 recall@N 실측(steep GT 195개, 12장)으로 세 값을 바꿨다.\n  입력 1280x736 (비정사각) — 정사각 512는 16:9를 1.78:1로 찌그러뜨려 GT 단변이 10px가 된다. 비정사각 export는 모델 제약이 아니라 export 설정 문제였다(export_p1_onnx_rect.py).\n  nms_iou 0.4→0.7 — **NMS가 병목이었다**. 0.4는 759개를 153개로 줄이면서 GT를 덮던 후보를 함께 날렸다(recall 0.410→0.324). 물 위 잔가지 사이의 페트병처럼 겹친 작은 객체에 0.4는 너무 공격적이다.\n  top_n 100→500 — @100 0.165 / @300 0.333 / @500 0.389 / @1000 0.410. 500이 비용 대비 지점.\n종합 recall 0.103 → 0.389 (3.8배). 후보를 줄이는 일은 NMS가 아니라 **엣지의 CLIP 배경 판정**이 맡는다 — CLIP은 0.58ms/crop(torch fp16)이라 500개도 290ms이고 비동기라 stage1을 막지 않는다.",
+    "nms_buckets": [
+      {
+        "max_area_frac": 0.005,
+        "iou": 0.75
+      },
+      {
+        "max_area_frac": 0.05,
+        "iou": 0.6
+      },
+      {
+        "max_area_frac": 1.0,
+        "iou": 0.35
+      }
+    ],
+    "$comment_nms": "**크기 구간별 NMS**(pi4_agent.bucketed_nms). 단일 임계로는 두 요구가 충돌한다 — 0.4로 조이면 겹친 작은 객체가 함께 지워지고(하천 recall 0.410→0.324), 0.7로 풀면 거대 중복이 남는다. 구간을 나누면 작은 것은 느슨하게(0.75) 큰 것은 엄격하게(0.35) 쓸 수 있고, 무엇보다 **구간이 다르면 서로 억제하지 않는다** — 부유목 더미가 그 위 페트병을 지우는 일이 없어진다. nms_buckets를 지우면 nms_iou 단일 임계로 되돌아간다.",
+    "$comment_topn": "2026-09-21 사용자 지시로 500→200. @100 0.165 / @200 0.282 / @500 0.389이므로 recall 일부를 말단 지연과 맞바꾼다.",
+    "$comment_budget": "2026-09-21 시간예산 우선 설계. 드론 저고도 감시(고도 4.4m·속도 5m/s → 촬영폭 4.6m → 3회 관측 요구 3.3Hz ≈ 300ms)를 예산으로 잡고, 그 안에서 **두 도메인 최저 recall**을 최대화하는 구성을 골랐다(한 도메인으로 정하면 근거가 못 된다).\n  896x512 top_n1000 : 지속 ~225ms, 하천 0.369 / 도시 0.507 → 최저 0.369\n  1280x736         : 지속 ~509ms, 최저 0.410 (2.3배 느리고 recall은 11%만 위)\n  960x544          : 어떤 예산에서도 최적이 아니다 — 더 느린데 최저 recall이 낮다(0.308)\n지속 지연은 cool-start의 약 1.2배다(pi4 팬 없음, soak 실측 512: 106.7→125.7)."
+  },
+  "tracking": {
+    "$comment": "ByteTracker. 역할은 **오탐 필터가 아니라 정체성 유지**다 — RPN은 위험 방지를 위해 후보를 최대한 많이 내야 하므로(사용자 2026-09-21) '연속 등장할 때만 채택' 같은 필터는 쓰지 않는다. track_id가 필요한 이유는 왕복 지연(실측 ~450ms) 동안 시점이 바뀌어 판정의 박스가 낡기 때문이고, 정체성에 붙이면 낡지 않는다(records.py). 추적 실패 시 프레임별 결과만 유지한다(AI-S-01).",
+    "enabled": true,
+    "high_thresh": 0.6,
+    "low_thresh": 0.1,
+    "iou_threshold": 0.3,
+    "low_iou_threshold": 0.5,
+    "motion_prediction": true,
+    "velocity_alpha": 0.5,
+    "$comment_motion": "연관 전용 등속 예측. 실측 카메라당 1.1~2.1 fps(두 카메라 교대 + 85도 쓰로틀링)라 0.5~0.9초 간격인데, 예측 없는 순수 IOU 매칭은 시야가 움직이면 프레임 간 IoU가 0에 가까워져 매 프레임 새 track_id가 생긴다. 예측 좌표는 매칭에만 쓰고 보고하는 박스는 언제나 실제 검출 좌표다(AI-S-03).",
+    "max_missed_frames": 5,
+    "box_alpha": 0.35,
+    "box_snap_px": 24.0,
+    "$comment_smooth": "트랙 박스 평활화. 추적기가 매 프레임 RPN 회귀값을 그대로 쓰므로 고정 장면에서도 박스가 떤다(실측: 중심 이동 중앙 1.4px/p90 6.9px, 크기 변화 중앙 3.6px/p90 17.5px). 변화가 box_snap_px 이상이면 계수가 1이 되어 실제 이동은 지연 없이 따라간다 — 드론이 움직일 때 박스가 뒤처지면 이 파이프라인의 목적이 무너진다. box_alpha=1이면 평활화 없음.",
+    "keep_after_death_s": 10.0,
+    "evidence_ttl_s": 6.0,
+    "$comment_ttl": "엣지 근거를 현재 상태로 내보내는 유효기간(초). 근거는 트랙당 한 번만 생성되므로 만료가 없으면 화면에 수십 초 전 판정이 남는다(실측 28.6s). 만료된 근거도 레코드에는 남아 학습 후보로 쓰인다 — 지우는 게 아니라 현재 상태에서 빼는 것이다(AI-S-03).",
+    "rank_normalize": true,
+    "$comment_rank": "추적기에 넘기는 점수를 **프레임 내 순위**로 바꾼다. 검출기마다 objectness 척도가 달라 절대 임계가 통하지 않는다 — 2026-09-21 실측: p1_rpn max 0.996 / p90 0.615 vs yolov8n max 0.314 / p99 0.023. 절대 0.6을 쓰면 yolov8n에서 트랙이 0개가 된다. 순위로 넘기면 high_thresh=0.6 = '이 프레임 상위 40%'가 되어 검출기 교체가 추적 설정을 건드리지 않는다(AI-S-01: 추적은 인지 결과 계약에만 의존한다)."
+  },
+  "spool": {
+    "$comment": "링크 단절 구간을 살리는 디스크 스풀. **이것이 온디바이스 RPN의 존재 이유다** — 프레임만 흘려보내는 설계였다면 단절 구간이 통째로 사라진다. 한계에 닿으면 오래된 것의 픽셀부터 버리고 메타는 살린다.",
+    "dir": "spool",
+    "max_items": 500,
+    "max_age_s": 1800.0,
+    "drop_frames_first": true
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "schema_version": "2.0",
+  "message_id": "msg-fail-001",
+  "source_id": "ds-vision",
+  "node_id": "edge-node-a",
+  "zone_id": "zoneA",
+  "channel": "ai_failure",
+  "timestamp": "2026-08-25T19:40:00.000+09:00",
+  "sequence_id": 8,
+  "session_id": "0a1b2c3d4e5f",
+  "entity_id": "river-section-12",
+  "event_id": "evt-0001",
+  "component": "perception.detect",
+  "model_version": "yoloe-11s-seg@1.2.0",
+  "input_ref": "frame:go1-001_front#2246",
+  "error_code": "model_load_failed",
+  "detail": "weights not found at the declared path",
+  "severity": "critical",
+  "capability_state_before": "ACTIVE",
+  "capability_state_after": "DISABLED",
+  "trace_id": "trace-0001",
+  "occurred_at": "2026-08-25T19:40:00.000+09:00"
+}

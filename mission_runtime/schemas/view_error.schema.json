@@ -1,0 +1,7 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://physical-project.local/schemas/view_error.schema.json",
+  "title": "View payload — error body",
+  "$comment": "모든 4xx·5xx 응답의 본문. 값은 사람에게 보일 문구가 아니라 통제 어휘 토큰이다.",
+  "$ref": "https://physical-project.local/schemas/view_snapshot.schema.json#/$defs/error"
+}

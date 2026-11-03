@@ -1,0 +1,405 @@
+{
+  "$comment": "config/status_ui.json 이 읽는 **실제** provider 등록부. config/providers.hardware.example.json(장비 5종 예시)의 사본이 아니라, 거기서 '정말 있는 것'만 남긴 것이다 — 예시 파일은 walkthrough·문서·tests/test_hardware_contract.py 가 쓰므로 그대로 둔다. 남길지 자를지의 기준은 하나다: 그 provider 를 실행할 **구현이 어딘가에 있는가**(이 저장소의 provider 클래스 / 자산 뿌리의 가중치 / 하드웨어 파트 브랜치의 어댑터·서비스). 선언만 있고 구현이 없는 항목은 `CapabilityRequirement.evaluate()` 가 영원히 DISABLED 한 줄로 보고할 뿐이고, 그 줄은 '아직 안 만든 것'과 '못 쓰는 것'을 구분해 주지 않는다. 자른 것과 그 근거는 아래 '$cut' 에 남긴다 — 되돌리는 것은 한 줄 추가이고 코드 변경이 아니다(절대 준수 #7, AI-B-09, AI-C-18). 비용(cost)은 예시에서 그대로 가져온 **자리표시자**이고 실측이 아니다. 'verified': false 는 로더가 무시하는 문서용 필드로 '우리가 재지 않았다'는 표시다(AI-B-01: 미측정 항목은 구분한다).",
+  "$cut": {
+    "$comment": "여기 적힌 것은 '없다'가 아니라 '지금 이 배치에서 쓸 수 없다'다. 실물이 들어오거나 어댑터가 생기면 providers[] 에 한 줄을 더하고(필요하면 노드 태그 한 줄) 끝이다.",
+    "imx708-libcamera / imx708-wide-libcamera": "Pi CSI 카메라 자체는 실물이다(upstream/HW `pi/bench/pi_cam_view.py` + `pi/deploy/pi-camview.service` 가 rpicam-vid 로 돈다). 그러나 이 배치의 노드 중 `sensor.camera.imx708*` 를 선언한 것이 없다 — 고정 카메라 파이(pi6·pi4)는 config/status_ui.json 의 장치 목록에 없다. 센서 모델명(imx708/imx708_wide)도 비공개 장비표에서만 나오고 브랜치 코드에는 없다.",
+    "imx708-noir-libcamera": "NoIR 카메라는 어느 브랜치에도 없다(upstream/HW 전수 grep: noir 0건). 예시에서도 version '0-unverified' 였다. observation.low_light 는 이것뿐이어서 m11_night_surveillance 도 함께 뺐다.",
+    "insta360-live-ingest": "360 카메라 작업은 실제로 있다(upstream/360camera_work: `pano_receiver.py`·`anchor360_live.py`·현장 촬영본). 그러나 `sensor.camera.360` 를 선언한 노드가 이 배치에 없다. 노드 한 줄 + 이 provider 세 줄이면 observation.panoramic·observation.fixed 가 돌아온다.",
+    "insta360-stereo-depth / insta360-gps": "스테레오 깊이·GPS 를 그 카메라에서 뽑는 구현이 어느 브랜치에도 없다. 예시에서 `sensor.camera.360_stereo`·`sensor.gps` 는 '일부러 아무 노드도 갖지 않는 태그'였다.",
+    "go1-stereo-depth": "go1-001 은 `sensor.camera.go1_stereo` 를 선언하지만 그 스테레오쌍에서 깊이를 만드는 구현이 없다. upstream/HW docs/SDD.md §5.5.3 은 캘리브레이션된 카메라가 로봇의 `camerarosnode` 에 전부 잡혀 있어 직접 열면 장애물 인식이 멈춘다고 실측으로 적는다 — 그래서 영상도 웹소켓 경로로 우회했다. perception.depth 는 unidepth 가 계속 제공한다.",
+    "ep-arm-gripper": "ep-001 은 `actuator.gripper` 를 선언하고 실물 EP 키트에 팔·그리퍼가 달려 있지만, 그것을 움직이는 어댑터가 어느 브랜치에도 없다(upstream/HW 전수 grep: gripper·그리퍼·로봇팔·robotic_arm 0건; `pi/robot/ep_link.py` 는 섀시·자세·배터리만 다룬다). manipulation.grasp 는 이것뿐이어서 m7_object_retrieval 도 함께 뺐다 — 어댑터가 생기면 둘 다 한 줄씩이다.",
+    "ep-tof-depth": "`sensor.tof` 를 선언한 노드도, ToF 를 읽는 구현도 없다.",
+    "ep-signal": "EP 의 LED·스피커를 때리는 구현이 없다(`ep_link.py` 에 led/speaker 0건). signal.audio_visual 은 go1-signal 이 계속 제공하므로 m8_onsite_warning 은 살아 있다 — 같은 기능을 한 로봇은 하고 한 로봇은 못 하는 상태가 정직한 상태다.",
+    "ep-builtin-vision": "EP 내장 인식(비공개 장비표의 C-51)을 호출하는 구현이 없다. perception.detect 는 rpn-ondevice 가 계속 제공한다.",
+    "x500-companion-camera": "드론(x500-001)은 실물이지만 **카메라를 달고 있지 않다** — 탑재체는 CANSAR-2 레이더와 RTK 다(upstream/Junho_drone `viz-debugger/drone/README.md`·`RADAR_INTERFACE.md`). 비공개 장비표의 '드론 카메라 미탑재'와 같은 사실이다. observation.aerial 은 이것뿐이어서 m5·m6 도 함께 뺐다.",
+    "clip-dictionary-cuda": "구현은 같은 클래스(`edge/clip_dictionary_provider.py`)이고 이 작업기에 GPU 도 있다(RTX 3060). 그러나 `compute.gpu` 를 선언한 노드가 이 배치에 없고, 더구나 internal/reports/2026-09-10_1635_CLIP-GPU-NMS-속도개선.md 는 **이 quantized CLIP 에서 CUDA EP 가 무효**임을 실측으로 적는다(GPU 1400~1544 ms vs CPU 1311 ms, 같은 프레임). GPU 노드가 들어오면 한 줄로 돌아오지만, 그때는 TensorRT EP 등으로 재측정하는 것이 전제다."
+  },
+  "providers": [
+    {
+      "$comment": "Go1 정면 카메라. upstream/HW `pi/robot/go1_camera.py`(웹소켓 H.264, 의존성 없음)·`go1_front_upload.py`·`pi/deploy/go1-front-upload.service`. docs/SDD.md §5.5.4 에 실측이 있다(29fps·지연 37ms·카메라당 0.58Mbps, 2026-08-31). media.video_input 에도 같은 provider 를 등록해 기존 기능(local_safety·door_detection·go_to_door)이 그대로 돈다.",
+      "capability_kind": "observation.mobile",
+      "provider_id": "go1-front-camera",
+      "version": "1",
+      "compatibility": {
+        "required_hw_tags": ["sensor.camera.go1_front"],
+        "preferred_hw_tags": [],
+        "cost": {"compute_units": 0.5, "memory_mb": 128},
+        "priority": 50
+      },
+      "requirement": {"required": [], "optional": []},
+      "supported_inputs": [],
+      "supported_outputs": ["image"]
+    },
+    {
+      "capability_kind": "media.video_input",
+      "provider_id": "go1-front-camera",
+      "version": "1",
+      "compatibility": {
+        "required_hw_tags": ["sensor.camera.go1_front"],
+        "preferred_hw_tags": [],
+        "cost": {"compute_units": 0.5, "memory_mb": 128},
+        "priority": 50
+      },
+      "requirement": {"required": [], "optional": []},
+      "supported_inputs": [],
+      "supported_outputs": ["image"]
+    },
+    {
+      "$comment": "Go1 이동 어댑터. upstream/HW `pi/robot/go1_link.py`(내부 MQTT 상태)·`go1_sdk_pc.cpp`·`hw_highcmd.cpp`·`hw_highcmd_daemon.cpp`·`sdk_control.py`·`go1_mission.py`, 명령 어휘는 `robot_node.py::ACTIONS`(move_forward·turn·scan_mission·abort…)다. 네발이라 locomotion.rough_terrain 도 같은 어댑터가 등록한다.",
+      "capability_kind": "locomotion.ground",
+      "provider_id": "go1-adapter",
+      "version": "1",
+      "compatibility": {
+        "required_hw_tags": ["tier.ugv", "locomotion.legged"],
+        "preferred_hw_tags": [],
+        "cost": {"compute_units": 0.5, "memory_mb": 64},
+        "priority": 50
+      },
+      "requirement": {"required": [], "optional": []},
+      "supported_inputs": ["locomotion_goal"],
+      "supported_outputs": ["command_outcome"],
+      "deployment": {"image": "example.invalid/aif/go1-adapter:0", "command": []}
+    },
+    {
+      "capability_kind": "locomotion.rough_terrain",
+      "provider_id": "go1-adapter",
+      "version": "1",
+      "compatibility": {
+        "required_hw_tags": ["tier.ugv", "locomotion.legged"],
+        "preferred_hw_tags": [],
+        "cost": {"compute_units": 0.5, "memory_mb": 64},
+        "priority": 50
+      },
+      "requirement": {"required": [], "optional": []},
+      "supported_inputs": ["locomotion_goal"],
+      "supported_outputs": ["command_outcome"],
+      "deployment": {"image": "example.invalid/aif/go1-adapter:0", "command": []}
+    },
+    {
+      "capability_kind": "control.locomotion",
+      "provider_id": "go1-adapter",
+      "version": "1",
+      "compatibility": {
+        "required_hw_tags": ["tier.ugv", "locomotion.legged"],
+        "preferred_hw_tags": [],
+        "cost": {"compute_units": 0.5, "memory_mb": 64},
+        "priority": 50
+      },
+      "requirement": {"required": [], "optional": []},
+      "supported_inputs": ["locomotion_goal"],
+      "supported_outputs": ["command_outcome"],
+      "deployment": {"image": "example.invalid/aif/go1-adapter:0", "command": []}
+    },
+    {
+      "$comment": "경로 추종. 예시에는 px4-flight 만 이 kind 를 등록했고 그래서 m9_patrol 은 '드론이 없다'로 막혀 있었다 — 그런데 **Go1 은 이미 경로를 받아 달린다**: upstream/HW `pi/robot/go1_sdk_pc.cpp` 가 유니티가 보낸 경로를 소비하고(mode 99 종료 신호), `pi/robot/viz_nav_feed.py` 가 그 사건(path_received·path_cancel·path_done)을 중계하며 그 파일 머리글이 「문 앞까지 자율주행」을 명시한다. `pi/robot/path_probe.py` 도 같은 경로용이다. **하드웨어 파트 확인이 필요한 한 줄**이다 — 경로 산출의 주인은 가시화이고 여기 등록한 것은 '그 경로를 실행하는 쪽'이다. 아니라고 하면 이 한 줄만 지우면 되고 그러면 m9_patrol 은 required_hw_tag_missing:tier.uav 로 돌아간다.",
+      "capability_kind": "navigation.autonomous_route",
+      "provider_id": "go1-adapter",
+      "version": "1",
+      "verified": false,
+      "compatibility": {
+        "required_hw_tags": ["tier.ugv", "locomotion.legged"],
+        "preferred_hw_tags": [],
+        "cost": {"compute_units": 0.5, "memory_mb": 64},
+        "priority": 50
+      },
+      "requirement": {"required": [], "optional": []},
+      "supported_inputs": ["locomotion_goal"],
+      "supported_outputs": ["command_outcome"],
+      "deployment": {"image": "example.invalid/aif/go1-adapter:0", "command": []}
+    },
+    {
+      "$comment": "Go1 자기 위치. upstream/HW `pi/robot/go1_link.py::read_state`(몸통 roll·pitch·yaw 실측 확인)와 `pi/robot/robot_state_relay.py` v2 페이로드(x·z·yaw·vx·vy·wz)가 근거다 — 그 중계가 도는 파이가 바로 pi7·pi1 이다.",
+      "capability_kind": "pose.self_estimate",
+      "provider_id": "go1-odometry",
+      "version": "1",
+      "verified": false,
+      "compatibility": {
+        "required_hw_tags": ["sensor.imu", "locomotion.legged"],
+        "preferred_hw_tags": [],
+        "cost": {"compute_units": 0.2, "memory_mb": 32},
+        "priority": 50
+      },
+      "requirement": {"required": [], "optional": []},
+      "supported_inputs": [],
+      "supported_outputs": ["pose"]
+    },
+    {
+      "$comment": "Go1 현장 신호. upstream/HW `pi/robot/go1_face_light_bridge.cpp` — HighCmd.led 가 Go1 에서 동작하지 않는다는 것을 실측으로 확인하고 헤드 Nano 의 faceLightServer 에 붙은 브리지이며, 그 파일이 곧 계약(UDP 7801 에 \"R G B\")이다. **빛만 있고 소리는 없다** — kind 이름(signal.audio_visual)이 둘을 함께 말하므로 여기 적어 둔다.",
+      "capability_kind": "signal.audio_visual",
+      "provider_id": "go1-signal",
+      "version": "1",
+      "verified": false,
+      "compatibility": {
+        "required_hw_tags": ["actuator.led_speaker", "locomotion.legged"],
+        "preferred_hw_tags": [],
+        "cost": {"compute_units": 0.1, "memory_mb": 16},
+        "priority": 50
+      },
+      "requirement": {"required": [], "optional": []},
+      "supported_inputs": ["signal_request"],
+      "supported_outputs": ["command_outcome"]
+    },
+    {
+      "$comment": "RoboMaster EP 카메라. upstream/HW `pi/bench/ep_cam_view.py` 와 `pi/robot/media.py`(HW_MEDIA_SOURCE) 경로.",
+      "capability_kind": "observation.mobile",
+      "provider_id": "ep-camera",
+      "version": "1",
+      "verified": false,
+      "compatibility": {
+        "required_hw_tags": ["sensor.camera.ep"],
+        "preferred_hw_tags": [],
+        "cost": {"compute_units": 0.5, "memory_mb": 128},
+        "priority": 50
+      },
+      "requirement": {"required": [], "optional": []},
+      "supported_inputs": [],
+      "supported_outputs": ["image"]
+    },
+    {
+      "capability_kind": "media.video_input",
+      "provider_id": "ep-camera",
+      "version": "1",
+      "verified": false,
+      "compatibility": {
+        "required_hw_tags": ["sensor.camera.ep"],
+        "preferred_hw_tags": [],
+        "cost": {"compute_units": 0.5, "memory_mb": 128},
+        "priority": 50
+      },
+      "requirement": {"required": [], "optional": []},
+      "supported_inputs": [],
+      "supported_outputs": ["image"]
+    },
+    {
+      "$comment": "EP 섀시. upstream/HW `pi/robot/ep_link.py::_drive(vx, vy, wz)` — 메카넘이라 횡이동이 되고 그래서 locomotion.holonomic 도 같은 어댑터가 등록한다. 상한 클램프·워치독(`HW_EP_MAX_SPEED`·`HW_EP_CMD_TIMEOUT_S`)까지 그 파일에 있다.",
+      "capability_kind": "locomotion.ground",
+      "provider_id": "ep-chassis",
+      "version": "1",
+      "verified": false,
+      "compatibility": {
+        "required_hw_tags": ["tier.ugv", "locomotion.wheeled"],
+        "preferred_hw_tags": [],
+        "cost": {"compute_units": 0.5, "memory_mb": 64},
+        "priority": 50
+      },
+      "requirement": {"required": [], "optional": []},
+      "supported_inputs": ["locomotion_goal"],
+      "supported_outputs": ["command_outcome"]
+    },
+    {
+      "capability_kind": "locomotion.holonomic",
+      "provider_id": "ep-chassis",
+      "version": "1",
+      "verified": false,
+      "compatibility": {
+        "required_hw_tags": ["tier.ugv", "locomotion.wheeled"],
+        "preferred_hw_tags": [],
+        "cost": {"compute_units": 0.5, "memory_mb": 64},
+        "priority": 50
+      },
+      "requirement": {"required": [], "optional": []},
+      "supported_inputs": ["locomotion_goal"],
+      "supported_outputs": ["command_outcome"]
+    },
+    {
+      "capability_kind": "control.locomotion",
+      "provider_id": "ep-chassis",
+      "version": "1",
+      "verified": false,
+      "compatibility": {
+        "required_hw_tags": ["tier.ugv", "locomotion.wheeled"],
+        "preferred_hw_tags": [],
+        "cost": {"compute_units": 0.5, "memory_mb": 64},
+        "priority": 50
+      },
+      "requirement": {"required": [], "optional": []},
+      "supported_inputs": ["locomotion_goal"],
+      "supported_outputs": ["command_outcome"]
+    },
+    {
+      "$comment": "EP 자기 위치. upstream/HW `pi/robot/ep_link.py` 의 sub_position·attitude·velocity 구독(계약의 반시계+ 로 부호를 뒤집는 것까지 그 파일에 있다).",
+      "capability_kind": "pose.self_estimate",
+      "provider_id": "ep-odometry",
+      "version": "1",
+      "verified": false,
+      "compatibility": {
+        "required_hw_tags": ["sensor.imu", "locomotion.wheeled"],
+        "preferred_hw_tags": [],
+        "cost": {"compute_units": 0.2, "memory_mb": 32},
+        "priority": 50
+      },
+      "requirement": {"required": [], "optional": []},
+      "supported_inputs": [],
+      "supported_outputs": ["pose"]
+    },
+    {
+      "$comment": "드론 비행. 실물이다 — upstream/Junho_drone `viz-debugger/drone/`: FC 는 PX4, 컴패니언은 Raspberry Pi 5, 제어는 MAVSDK 오프보드(`sar_pass`), RTK 보정은 `rtk_relay/`(RTCM3 주입), 장치 id 는 `deploy/pi/sar-drone.env.example` 의 `SAR_DEVICE=x500-001` 이다. **그 노드가 config/status_ui.json 에 아직 선언되지 않았다** — 그래서 이 세 kind 는 required_hw_tag_missing:tier.uav 로 남는다. 그것은 '없는 기능'이 아니라 '장치를 아직 안 들였다'이고, 노드 한 줄이면 켜진다(AI-C-05·AI-O-05).",
+      "capability_kind": "locomotion.aerial",
+      "provider_id": "px4-flight",
+      "version": "1",
+      "verified": false,
+      "compatibility": {
+        "required_hw_tags": ["tier.uav", "platform.uav"],
+        "preferred_hw_tags": [],
+        "cost": {"compute_units": 0.5, "memory_mb": 64},
+        "priority": 50
+      },
+      "requirement": {"required": [], "optional": []},
+      "supported_inputs": ["locomotion_goal"],
+      "supported_outputs": ["command_outcome"]
+    },
+    {
+      "capability_kind": "navigation.autonomous_route",
+      "provider_id": "px4-flight",
+      "version": "1",
+      "verified": false,
+      "compatibility": {
+        "required_hw_tags": ["tier.uav", "platform.uav"],
+        "preferred_hw_tags": [],
+        "cost": {"compute_units": 0.5, "memory_mb": 64},
+        "priority": 50
+      },
+      "requirement": {"required": [], "optional": []},
+      "supported_inputs": ["locomotion_goal"],
+      "supported_outputs": ["command_outcome"]
+    },
+    {
+      "capability_kind": "safety.failsafe_return",
+      "provider_id": "px4-flight",
+      "version": "1",
+      "verified": false,
+      "compatibility": {
+        "required_hw_tags": ["tier.uav", "platform.uav"],
+        "preferred_hw_tags": [],
+        "cost": {"compute_units": 0.5, "memory_mb": 64},
+        "priority": 50
+      },
+      "requirement": {"required": [], "optional": []},
+      "supported_inputs": ["locomotion_goal"],
+      "supported_outputs": ["command_outcome"]
+    },
+    {
+      "$comment": "드론 GPS. 같은 브랜치의 RTK 경로가 근거다(`rtk_relay/base_sender.py`·`fc_injector.py`·`rtcm3.py`, 지상국 QGC → mavlink-router → FC). 선언된 UAV 노드가 없어 지금은 해소되지 않는다.",
+      "capability_kind": "pose.gps",
+      "provider_id": "px4-gps",
+      "version": "1",
+      "verified": false,
+      "compatibility": {
+        "required_hw_tags": ["sensor.gps", "platform.uav"],
+        "preferred_hw_tags": [],
+        "cost": {"compute_units": 0.2, "memory_mb": 32},
+        "priority": 50
+      },
+      "requirement": {"required": [], "optional": []},
+      "supported_inputs": [],
+      "supported_outputs": ["pose"]
+    },
+    {
+      "$comment": "미디어 경로 수신. 이 저장소의 `providers/network_stream_media.py`(RTSP/RTMP/HTTP-MJPEG MediaSourceProvider)와 하드웨어 파트의 `edge/media_gateway.py`(RTP/UDP 수신) 양쪽이 실제 구현이다. `media.ingest` 태그는 pi7·pi1 이 선언한다.",
+      "capability_kind": "media.video_input",
+      "provider_id": "media-path-ingest",
+      "version": "1",
+      "compatibility": {
+        "required_hw_tags": ["media.ingest"],
+        "preferred_hw_tags": ["media.hw_decode"],
+        "cost": {"compute_units": 0.5, "memory_mb": 128},
+        "priority": 60
+      },
+      "requirement": {"required": [], "optional": []},
+      "supported_inputs": ["frame_ref"],
+      "supported_outputs": ["image"]
+    },
+    {
+      "$comment": "말단 상주 class-agnostic 후보 제안. 구현 `ondevice/rpn_propose.py::RpnProposalProvider`, 가중치 `<자산뿌리>/weights/yolo/yolov8n.pt`(실재), 시험 `tests/test_rpn_propose.py`. 실측: 워밍업 제외 10.7 ms/frame(internal/reports/2026-09-10_1635).",
+      "capability_kind": "perception.detect",
+      "provider_id": "rpn-ondevice",
+      "version": "1",
+      "compatibility": {
+        "required_hw_tags": [],
+        "preferred_hw_tags": ["tier.ondevice"],
+        "cost": {"compute_units": 2.0, "memory_mb": 256},
+        "priority": 50
+      },
+      "requirement": {"required": [], "optional": []},
+      "supported_inputs": ["image"],
+      "supported_outputs": ["region_proposal"]
+    },
+    {
+      "$comment": "단안 metric 깊이. 구현 `edge/self_localization.py::UniDepthCameraProvider`. 이 작업기에는 `unidepth` 패키지가 없어 `is_available()` 는 False 다 — 선택 기능의 정상적인 축소다(AI-C-05). **주의(권고, 이 파일에서는 적용하지 않았다)**: internal/reports/2026-09-18_1600 §2.1·§9.2 는 말단 1986 ms vs 엣지 54 ms(36.5배)를 실측하고 `required_hw_tags=(\"gpu\",)` 로 말단 배치를 태그로 막기를 권고한다. 그 한 줄을 넣으면 perception.depth 가 GPU 노드에서만 해소되므로 **어느 기능이 켜지는지가 바뀐다** — 그래서 담당자 결정으로 남긴다.",
+      "capability_kind": "perception.depth",
+      "provider_id": "unidepth",
+      "version": "1",
+      "compatibility": {
+        "required_hw_tags": [],
+        "preferred_hw_tags": [],
+        "cost": {"compute_units": 2.0, "memory_mb": 256},
+        "priority": 50
+      },
+      "requirement": {"required": [], "optional": []},
+      "supported_inputs": ["image"],
+      "supported_outputs": ["depth_map", "camera_intrinsics"]
+    },
+    {
+      "$comment": "열린 어휘 탐지(무거운 쪽). 구현 `edge/grounding_dino_provider.py::GroundingDinoPerceptionProvider`, `transformers` 설치돼 있고 시험 `tests/test_grounding_dino_provider.py` 가 실물 추론까지 돌린다. 가중치는 파일이 아니라 HF Hub 에서 받는다(폐쇄망에서는 이 선택 기능만 비활성, AI-C-16). 실측 453 ms(fp16 299 ms, RTX 3060 — internal/reports/2026-09-21_1900).",
+      "capability_kind": "perception.detect_ovd",
+      "provider_id": "grounding-dino",
+      "version": "1",
+      "compatibility": {
+        "required_hw_tags": [],
+        "preferred_hw_tags": [],
+        "cost": {"compute_units": 2.0, "memory_mb": 256},
+        "priority": 50
+      },
+      "requirement": {"required": [], "optional": []},
+      "supported_inputs": ["image", "text_prompt"],
+      "supported_outputs": ["detection"],
+      "deployment": {"image": "example.invalid/aif/grounding-dino:0", "command": []}
+    },
+    {
+      "$comment": "열린 어휘 탐지(가벼운 쪽). 구현 `edge/yolo_world_provider.py::YoloWorldPerceptionProvider`, 가중치 `<자산뿌리>/weights/yolo/yolov8s-worldv2.pt`(실재), 시험 `tests/test_yolo_world_provider.py`. 실측 16 ms(어휘 20종, RTX 3060) · 118.15 ms(ONNX @320, Raspberry Pi 5 4스레드).",
+      "capability_kind": "perception.detect_ovd",
+      "provider_id": "yolo-world",
+      "version": "1",
+      "compatibility": {
+        "required_hw_tags": [],
+        "preferred_hw_tags": [],
+        "cost": {"compute_units": 2.0, "memory_mb": 256},
+        "priority": 60
+      },
+      "requirement": {"required": [], "optional": []},
+      "supported_inputs": ["image", "text_prompt"],
+      "supported_outputs": ["detection"],
+      "deployment": {"image": "example.invalid/aif/yolo-world:0", "command": []}
+    },
+    {
+      "$comment": "사전 기반 분류. 구현 `edge/clip_dictionary_provider.py::ClipDictionaryPerceptionProvider`, 자산 `<자산뿌리>/models/openvocab/clip-vit-base-patch32/onnx/*`(실재, onnxruntime 설치됨)과 현장 사전 `<자산뿌리>/physical_demo_assets/class_features.json`.",
+      "capability_kind": "perception.classify",
+      "provider_id": "clip-dictionary",
+      "version": "1",
+      "compatibility": {
+        "required_hw_tags": [],
+        "preferred_hw_tags": [],
+        "cost": {"compute_units": 3.0, "memory_mb": 256},
+        "priority": 50
+      },
+      "requirement": {"required": [], "optional": []},
+      "supported_inputs": ["image", "region_proposal"],
+      "supported_outputs": ["class_score"]
+    },
+    {
+      "$comment": "분할. 구현 `edge/fastsam_provider.py::FastSamPerceptionProvider`, 가중치 `<자산뿌리>/weights/yolo/FastSAM-s.pt`(실재), 시험 `tests/test_fastsam_provider.py`.",
+      "capability_kind": "perception.segment",
+      "provider_id": "fastsam",
+      "version": "1",
+      "compatibility": {
+        "required_hw_tags": [],
+        "preferred_hw_tags": [],
+        "cost": {"compute_units": 2.0, "memory_mb": 256},
+        "priority": 50
+      },
+      "requirement": {"required": [], "optional": []},
+      "supported_inputs": ["image"],
+      "supported_outputs": ["mask"]
+    }
+  ]
+}

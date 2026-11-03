@@ -1,0 +1,97 @@
+{
+  "$comment": "docs/guides/extending-walkthrough.md 1단계의 입력. 새 현장 하나를 **선언으로** 더하는 것이 어떤 모양인지 보여 주는 가장 작은 파일이고, tools/profiles/author_zones.py --declare 가 이것을 읽어 profiles/domains.walkthrough.example.json 의 다섯째 도메인 조각을 만든다. rf.radius_m 는 **적지 않는다** — 반경은 log-distance 모델에서 파생되는 값이고 손으로 적으면 모델과 따로 움직인다. 현장은 실존하지 않는 예시이므로 site.example=true, 모든 verified=false 다. 좌표는 현장 로컬 미터다(AI-C-02).",
+  "domain": {
+    "domain_id": "transit",
+    "label": {
+      "ko": "도시철도 — 예시 환승역",
+      "en": "Metro - example interchange station"
+    },
+    "domain_profile": "transit_station_surveillance",
+    "site": {
+      "name": {
+        "ko": "예시 환승역 지하 1~2층",
+        "en": "Example interchange station, B1-B2"
+      },
+      "address": null,
+      "source": "예시 선언 — 실측 전",
+      "example": true,
+      "verified_fields": [],
+      "unverified_fields": [
+        "floor_footprint_m",
+        "ap_placement",
+        "platform_length_m"
+      ]
+    },
+    "rect": {"x": 4, "y": 66, "w": 58, "h": 5},
+    "space": {"width": 60, "height": 60, "unit": "meter"},
+    "levels": [
+      {
+        "level_id": "transit-B1",
+        "label": {"ko": "지하 1층 대합실", "en": "B1 concourse"},
+        "verified": false,
+        "y_offset": 0
+      },
+      {
+        "level_id": "transit-B2",
+        "label": {"ko": "지하 2층 승강장", "en": "B2 platform"},
+        "verified": false,
+        "y_offset": 30
+      }
+    ],
+    "rf": {
+      "station_indoor": {
+        "model": "log_distance",
+        "band": "5GHz",
+        "tx_eirp_dbm": 20.0,
+        "reference_loss_db_at_1m": 46.0,
+        "path_loss_exponent": 2.8,
+        "thresholds_dbm": {
+          "excellent": -45.0,
+          "handover": -75.0,
+          "floor": -85.0
+        },
+        "$note": "지하 통로는 도파관처럼 동작해 벽 관통 실내(n=3.5)보다 손실 지수가 낮다 — 그래서 college 의 indoor 밴드를 그대로 쓰지 않고 이 도메인의 밴드를 따로 선언한다. 반경은 적지 않는다."
+      }
+    }
+  },
+  "zones": [
+    {
+      "zone_id": "transit-b1-concourse",
+      "label": {"ko": "지하 1층 대합실", "en": "B1 concourse"},
+      "level_id": "transit-B1",
+      "verified": false,
+      "rect": {"x": 0, "y": 0, "w": 60, "h": 28},
+      "rooms": [],
+      "wifi": {"ap_id": "ap-transit-b1", "at": {"x": 30, "y": 14}, "rf": "station_indoor"},
+      "edge_node": "edge-transit",
+      "infrastructure": [
+        {
+          "id": "edge-transit",
+          "kind": "edge_node",
+          "at": {"x": 30, "y": 14}
+        },
+        {
+          "id": "transit-gate-cam",
+          "kind": "fixed_camera",
+          "at": {"x": 8, "y": 6},
+          "pose": {"yaw_deg": 135.0, "height_m": 3.2}
+        }
+      ],
+      "declared_nodes": [
+        {"node_id": "railcrawler", "at": {"x": 20, "y": 10}}
+      ]
+    },
+    {
+      "zone_id": "transit-b2-platform",
+      "label": {"ko": "지하 2층 승강장", "en": "B2 platform"},
+      "level_id": "transit-B2",
+      "verified": false,
+      "rect": {"x": 0, "y": 30, "w": 60, "h": 28},
+      "rooms": [],
+      "wifi": {"ap_id": "ap-transit-b2", "at": {"x": 30, "y": 44}, "rf": "station_indoor"},
+      "edge_node": "edge-transit",
+      "infrastructure": [],
+      "declared_nodes": []
+    }
+  ]
+}

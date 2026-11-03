@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://physical-project.local/schemas/ai/frame-reference.schema.json",
+  "title": "Frame Reference",
+  "$comment": "규약 D13 의 세 칸. `frame_id` 와 `time_sync_state` 는 규약이 지웠다 — 읽는 곳도 채우는 생산자도 없었다. 번호와 시각은 프레임을 처음 손에 넣은 기기가 붙이고 AI 는 다시 만들지 않는다.",
+  "type": "object",
+  "required": [
+    "camera_id",
+    "sequence_id",
+    "timestamp"
+  ],
+  "properties": {
+    "camera_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "sequence_id": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "timestamp": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}\\+09:00$"
+    }
+  },
+  "additionalProperties": false
+}

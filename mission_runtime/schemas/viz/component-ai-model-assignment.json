@@ -1,0 +1,32 @@
+{
+  "id": "ai-model-assignment",
+  "version": "1.0.0",
+  "displayName": "모델 배정",
+  "description": "같은 기능의 모델 버전이 여럿일 때 어느 것을 어느 장치·임무에 배정했는지와 **왜 다른 후보가 탈락했는지**(AI-L-10). 모델명만 보내면 교체가 일어난 뒤 화면이 이유를 설명할 수 없다.",
+  "fields": [
+    { "name": "device_id", "type": "string", "required": true, "representationHint": "text" },
+    { "name": "capability_kind", "type": "string", "required": true, "representationHint": "text" },
+    {
+      "name": "model",
+      "type": "string",
+      "required": false,
+      "representationHint": "text",
+      "description": "조건을 만족하는 후보가 없으면 칸이 없다. 그것이 정상 축소 상태다(AI-C-05)."
+    },
+    { "name": "model_version", "type": "string", "required": false, "representationHint": "text" },
+    {
+      "name": "assignment_reason",
+      "type": "string",
+      "required": true,
+      "representationHint": "text",
+      "description": "통제 어휘 토큰. 표시 문구는 화면이 만든다."
+    },
+    {
+      "name": "rejected",
+      "type": "array",
+      "required": true,
+      "representationHint": "table",
+      "description": "탈락 후보와 사유. 검증 범위 밖 후보는 수치가 좋아도 탈락한다 — 그 사실이 여기 남는다."
+    }
+  ]
+}

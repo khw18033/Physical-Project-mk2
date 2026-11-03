@@ -1,0 +1,1327 @@
+{
+  "$comment": "구역을 **도메인별로** 선언한다. 메인 맵은 도메인 목록이고, 도메인을 열면 그 안의 구역이 나온다. 같은 코드가 프로파일만 바꿔 다른 현장에서 돌아야 하므로(AI-C-15) 도메인은 데이터이고 핵심 코드에는 도메인 이름 분기가 없다. 좌표 단위는 미터이고 **현장 로컬 좌표**다 — 전역 좌표 변환은 2026-11-03 경계 개정으로 AI 가 소유하지만(AI-C-02) 전역 값은 site.datum 이 있고 그 datum 이 검증됐을 때만 유도한다. 지금 두 실제 현장의 datum 은 공개 지도에서 받아 적은 미검증 기준점이고 accuracy_m 은 null 이다 — 미측정 정확도는 0 오차가 아니므로 그 datum 으로 만든 전역 값이 로컬 실측보다 정확한 척해서는 안 된다. 예시 도메인 둘(facility · defense)에는 datum 이 없다: datum 이 없는 현장은 정상 상태이고 전역 계층만 비활성이 된다. 전역 좌표 **숫자**가 뷰 계약으로 나가는가는 또 다른 조건이고 site.boundary_agreement 가 정한다 — AI-C-19 가 AI↔백엔드 경계 재합의를 선행 조건으로 두므로, 그 기록이 없는 현장에서는 상태와 사유만 나간다(실제 현장 둘이 그 상태이고 요청은 docs/integration-handover.md 에 있다). logistics 도메인은 그 기록이 **예시로** 적힌 현장이고, 전역 계층이 켜진 경로를 배포 데이터가 한 번은 지나가게 하려고 둔 자리다. 여기 적힌 노드는 '있을 것으로 선언된' 것이고 실제로 무엇이 있는지는 탐지가 정한다. 구역 크기는 임의가 아니라 RF 모델에서 역산했다: rf.radius_m.handover 가 한 AP 가 핸드오버 바닥(-75dBm, link_handover 의 floor 0.25 에 해당)까지 덮는 거리이고, 실내는 그 반경보다 좁게 AP 를 두어 구역이 겹치는 띠에서 전환이 일어나게 했다. 옥외는 한 AP 가 수백 m 를 덮어 구역 경계가 RF 경계와 일치하지 않으므로, 같은 ap_id 를 공유하는 구역 사이의 이동은 무선 핸드오버가 아니다 — 그 구분은 wifi.ap_id 로 드러난다. verified=false 와 site.unverified_fields 는 아직 현장 실측으로 확인되지 않은 값이라는 표시이며, 확인되면 지운다(상태 어휘를 늘리지 않는다).",
+  "map": {
+    "width": 116,
+    "height": 102,
+    "unit": "index"
+  },
+  "domains": [
+    {
+      "domain_id": "college",
+      "label": {
+        "ko": "대학 — 한밭대 N4동",
+        "en": "Campus - Hanbat N4"
+      },
+      "domain_profile": "robot_autonomy_support",
+      "site": {
+        "name": {
+          "ko": "국립한밭대학교 유성 덕명캠퍼스 N4동 산업정보관",
+          "en": "Hanbat National University, Yuseong Deokmyeong campus, N4 Industrial Information Hall"
+        },
+        "address": "대전 유성구 동서대로 125 (34158)",
+        "source": "hanbat.ac.kr 캠퍼스 맵·학과 위치 안내 (N4 = 산업정보관)",
+        "verified_fields": [
+          "building_name",
+          "address",
+          "rooms"
+        ],
+        "unverified_fields": [
+          "floor_count",
+          "floor_footprint_m",
+          "wing_split",
+          "ap_placement",
+          "datum"
+        ],
+        "datum": {
+          "datum_id": "hanbat-n4-site-2026-11-03",
+          "version": "2026-11-03.1",
+          "created_at": "2026-11-03T10:00:00+09:00",
+          "verified": false,
+          "reference_point": {
+            "lat": 36.3503355,
+            "lon": 127.3003088,
+            "crs": "EPSG:4326",
+            "elevation_m": null
+          },
+          "accuracy_m": null,
+          "accuracy_basis": "unmeasured",
+          "source": {
+            "kind": "public_map",
+            "name": "OpenStreetMap — 국립한밭대학교(way 74273291, amenity=university)를 Nominatim 으로 조회한 결과. 선언된 주소 '대전 유성구 동서대로 125' 와 같은 대상이다.",
+            "url": "https://www.openstreetmap.org/way/74273291",
+            "query_url": "https://nominatim.openstreetmap.org/search?q=Hanbat+National+University&format=json",
+            "retrieved_at": "2026-11-03",
+            "license": "ODbL 1.0 (© OpenStreetMap contributors)"
+          },
+          "local_frame": {
+            "anchor": "space_origin",
+            "anchor_basis": "assumed",
+            "x_bearing_deg": 90.0,
+            "y_bearing_deg": 180.0,
+            "bearing_basis": "assumed",
+            "level_stacked": true,
+            "level_axis": "y"
+          },
+          "$note": "기준점은 **캠퍼스 중심**이고 N4동 산업정보관의 모서리가 아니다. 두 점의 어긋남을 재지 않았으므로 accuracy_m 은 null 이며 이것은 0 이 아니다(AI-C-02: \"미측정 정확도는 0 오차가 아니다\"). 로컬 (0,0) 이 이 기준점이라는 것과 방위 둘도 실측이 아니라 가정이다(anchor_basis·bearing_basis = assumed). 또 이 도메인의 로컬 평면은 층을 +y 로 쌓아 놓은 것이어서(levels[].y_offset) 평면 y 는 'y - 그 층의 y_offset' 이다 — 그 보정 없이 전역으로 올리면 4층이 1층보다 72 m 남쪽에 놓인다. verified 가 false 인 동안 전역 계층은 비활성이고 로컬 좌표만 쓴다(사유 datum_unverified)."
+        }
+      },
+      "rect": {
+        "x": 4,
+        "y": 6,
+        "w": 44,
+        "h": 30
+      },
+      "space": {
+        "width": 60,
+        "height": 90,
+        "unit": "meter"
+      },
+      "levels": [
+        {
+          "level_id": "N4-1F",
+          "label": {
+            "ko": "산업정보관 1층",
+            "en": "Industrial Information Hall 1F"
+          },
+          "verified": true,
+          "y_offset": 0
+        },
+        {
+          "level_id": "N4-2F",
+          "label": {
+            "ko": "산업정보관 2층",
+            "en": "Industrial Information Hall 2F"
+          },
+          "verified": true,
+          "y_offset": 24
+        },
+        {
+          "level_id": "N4-3F",
+          "label": {
+            "ko": "산업정보관 3층",
+            "en": "Industrial Information Hall 3F"
+          },
+          "verified": false,
+          "y_offset": 48
+        },
+        {
+          "level_id": "N4-4F",
+          "label": {
+            "ko": "산업정보관 4층",
+            "en": "Industrial Information Hall 4F"
+          },
+          "verified": false,
+          "y_offset": 72
+        }
+      ],
+      "rf": {
+        "indoor": {
+          "model": "log_distance",
+          "band": "5GHz",
+          "tx_eirp_dbm": 20.0,
+          "reference_loss_db_at_1m": 46.0,
+          "path_loss_exponent": 3.5,
+          "radius_m": {
+            "excellent": 3.5,
+            "handover": 25.1,
+            "floor": 48.5
+          },
+          "thresholds_dbm": {
+            "excellent": -45.0,
+            "handover": -75.0,
+            "floor": -85.0
+          },
+          "$note": "실내 벽 관통 n=3.5. handover 반경이 구역 한 칸의 크기를 정한다 — AP 간격을 그 반경보다 좁게 두어 두 구역이 겹치는 띠에서 전환이 일어난다."
+        }
+      },
+      "zones": [
+        {
+          "zone_id": "N4-1F-W",
+          "label": {
+            "ko": "산업정보관 1층 서편",
+            "en": "Industrial Information Hall 1F west wing"
+          },
+          "level_id": "N4-1F",
+          "verified": true,
+          "rect": {
+            "x": 0,
+            "y": 0,
+            "w": 30,
+            "h": 18
+          },
+          "rooms": [
+            "N4-102"
+          ],
+          "wifi": {
+            "ap_id": "ap-n4-1f-w",
+            "at": {
+              "x": 15,
+              "y": 9.0
+            },
+            "rf": "indoor"
+          },
+          "edge_node": "edge-dev",
+          "infrastructure": [
+            {
+              "id": "pi6",
+              "kind": "fixed_camera",
+              "at": {
+                "x": 6,
+                "y": 4
+              },
+              "pose": {
+                "yaw_deg": 90.0,
+                "height_m": 2.4
+              },
+              "calibration": {
+                "profile_version": "2026-10-19.1",
+                "verified_at": "2026-10-19T14:05:00+09:00"
+              }
+            }
+          ],
+          "declared_nodes": [
+            {
+              "node_id": "go1-onboard",
+              "at": {
+                "x": 14,
+                "y": 9
+              }
+            }
+          ]
+        },
+        {
+          "zone_id": "N4-1F-E",
+          "label": {
+            "ko": "산업정보관 1층 동편",
+            "en": "Industrial Information Hall 1F east wing"
+          },
+          "level_id": "N4-1F",
+          "verified": true,
+          "rect": {
+            "x": 30,
+            "y": 0,
+            "w": 30,
+            "h": 18
+          },
+          "rooms": [],
+          "wifi": {
+            "ap_id": "ap-n4-1f-e",
+            "at": {
+              "x": 45,
+              "y": 9.0
+            },
+            "rf": "indoor"
+          },
+          "edge_node": "edge-dev",
+          "infrastructure": [
+            {
+              "id": "edge-dev",
+              "kind": "edge_node",
+              "at": {
+                "x": 56,
+                "y": 4
+              }
+            }
+          ],
+          "declared_nodes": []
+        },
+        {
+          "zone_id": "N4-2F-W",
+          "label": {
+            "ko": "산업정보관 2층 서편",
+            "en": "Industrial Information Hall 2F west wing"
+          },
+          "level_id": "N4-2F",
+          "verified": true,
+          "rect": {
+            "x": 0,
+            "y": 24,
+            "w": 30,
+            "h": 18
+          },
+          "rooms": [
+            "N4-207",
+            "N4-212",
+            "N4-216"
+          ],
+          "wifi": {
+            "ap_id": "ap-n4-2f-w",
+            "at": {
+              "x": 15,
+              "y": 33.0
+            },
+            "rf": "indoor"
+          },
+          "edge_node": "edge-dev",
+          "infrastructure": [
+            {
+              "id": "mt4",
+              "kind": "fixed_manipulator",
+              "at": {
+                "x": 8,
+                "y": 28
+              },
+              "$note": "실물 = 미로봇 MT4 Edu Kit(4축 메탈 로봇암). 스스로 움직이지 않으므로 설치 자리는 관측이 아니라 실측값이고, 관제 웹에서 고칠 수 있다."
+            }
+          ],
+          "declared_nodes": []
+        },
+        {
+          "zone_id": "N4-2F-E",
+          "label": {
+            "ko": "산업정보관 2층 동편",
+            "en": "Industrial Information Hall 2F east wing"
+          },
+          "level_id": "N4-2F",
+          "verified": true,
+          "rect": {
+            "x": 30,
+            "y": 24,
+            "w": 30,
+            "h": 18
+          },
+          "rooms": [
+            "N4-220"
+          ],
+          "wifi": {
+            "ap_id": "ap-n4-2f-e",
+            "at": {
+              "x": 45,
+              "y": 33.0
+            },
+            "rf": "indoor"
+          },
+          "edge_node": "edge-dev",
+          "infrastructure": [],
+          "declared_nodes": [
+            {
+              "node_id": "ep-onboard",
+              "at": {
+                "x": 44,
+                "y": 33
+              }
+            }
+          ]
+        },
+        {
+          "zone_id": "N4-3F-W",
+          "label": {
+            "ko": "산업정보관 3층 서편",
+            "en": "Industrial Information Hall 3F west wing"
+          },
+          "level_id": "N4-3F",
+          "verified": false,
+          "rect": {
+            "x": 0,
+            "y": 48,
+            "w": 30,
+            "h": 18
+          },
+          "rooms": [],
+          "wifi": {
+            "ap_id": "ap-n4-3f-w",
+            "at": {
+              "x": 15,
+              "y": 57.0
+            },
+            "rf": "indoor"
+          },
+          "edge_node": null,
+          "infrastructure": [],
+          "declared_nodes": []
+        },
+        {
+          "zone_id": "N4-3F-E",
+          "label": {
+            "ko": "산업정보관 3층 동편",
+            "en": "Industrial Information Hall 3F east wing"
+          },
+          "level_id": "N4-3F",
+          "verified": false,
+          "rect": {
+            "x": 30,
+            "y": 48,
+            "w": 30,
+            "h": 18
+          },
+          "rooms": [],
+          "wifi": {
+            "ap_id": "ap-n4-3f-e",
+            "at": {
+              "x": 45,
+              "y": 57.0
+            },
+            "rf": "indoor"
+          },
+          "edge_node": null,
+          "infrastructure": [],
+          "declared_nodes": []
+        },
+        {
+          "zone_id": "N4-4F-W",
+          "label": {
+            "ko": "산업정보관 4층 서편",
+            "en": "Industrial Information Hall 4F west wing"
+          },
+          "level_id": "N4-4F",
+          "verified": false,
+          "rect": {
+            "x": 0,
+            "y": 72,
+            "w": 30,
+            "h": 18
+          },
+          "rooms": [],
+          "wifi": {
+            "ap_id": "ap-n4-4f-w",
+            "at": {
+              "x": 15,
+              "y": 81.0
+            },
+            "rf": "indoor"
+          },
+          "edge_node": null,
+          "infrastructure": [],
+          "declared_nodes": []
+        },
+        {
+          "zone_id": "N4-4F-E",
+          "label": {
+            "ko": "산업정보관 4층 동편",
+            "en": "Industrial Information Hall 4F east wing"
+          },
+          "level_id": "N4-4F",
+          "verified": false,
+          "rect": {
+            "x": 30,
+            "y": 72,
+            "w": 30,
+            "h": 18
+          },
+          "rooms": [],
+          "wifi": {
+            "ap_id": "ap-n4-4f-e",
+            "at": {
+              "x": 45,
+              "y": 81.0
+            },
+            "rf": "indoor"
+          },
+          "edge_node": null,
+          "infrastructure": [],
+          "declared_nodes": []
+        }
+      ]
+    },
+    {
+      "domain_id": "river",
+      "label": {
+        "ko": "하천 — 안동 하천실험센터",
+        "en": "River - Andong River Experiment Center"
+      },
+      "domain_profile": "river_risk_management",
+      "site": {
+        "name": {
+          "ko": "한국건설기술연구원 하천실험센터(안동)",
+          "en": "KICT River Experiment Center (Andong)"
+        },
+        "address": "경상북도 안동시 남후면 아곡길 942 (하아리 379-92) (36754)",
+        "source": "kict.re.kr 시설 안내 · 센터 소개 논문(2009-11 준공, 낙동강변, 실험수로 3개)",
+        "verified_fields": [
+          "center_name",
+          "address",
+          "channel_types",
+          "adjacent_river"
+        ],
+        "unverified_fields": [
+          "channel_dimensions_m",
+          "ap_placement",
+          "datum"
+        ],
+        "$note": "부지 193,051 m2, 완경사·급경사·만곡 수로와 도시홍수 파일럿 실험장. 인접 하천은 낙동강 본류이며 하아천·상리천이 주변 비교 하천으로 쓰인다.",
+        "datum": {
+          "datum_id": "kict-rec-andong-site-2026-11-03",
+          "version": "2026-11-03.1",
+          "created_at": "2026-11-03T10:00:00+09:00",
+          "verified": false,
+          "reference_point": {
+            "lat": 36.54606,
+            "lon": 128.57388,
+            "crs": "EPSG:4326",
+            "elevation_m": null
+          },
+          "accuracy_m": null,
+          "accuracy_basis": "unmeasured",
+          "source": {
+            "kind": "public_map",
+            "name": "OpenStreetMap — 하아리(Haa-ri) 지명 노드 415158416. 센터의 지번 주소 '안동시 남후면 하아리 379-92' 가 속한 **행정 리의 지명점**이고 센터 부지 자체의 측량점이 아니다. 센터 이름(하천실험센터·하천실증연구센터)으로는 OSM·Nominatim·Overpass 어디에도 등록된 객체가 없었다.",
+            "url": "https://www.openstreetmap.org/node/415158416",
+            "query_url": "https://overpass-api.de/api/interpreter?data=[out:json];node(415158416);out tags center;",
+            "retrieved_at": "2026-11-03",
+            "license": "ODbL 1.0 (© OpenStreetMap contributors)"
+          },
+          "local_frame": {
+            "anchor": "space_origin",
+            "anchor_basis": "assumed",
+            "x_bearing_deg": 90.0,
+            "y_bearing_deg": 180.0,
+            "bearing_basis": "assumed",
+            "level_stacked": false,
+            "level_axis": null
+          },
+          "$note": "기준점이 가리키는 것은 **리(里)의 지명점**이고 부지 193,051 m2 의 어느 모서리도 아니다. 실험수로의 방향(완경사·급경사 수로가 로컬 +x 를 따라 놓였는가)도 측량되지 않았으므로 방위는 가정이다. 그래서 accuracy_m 은 null 이고 verified 는 false 다 — 현장 실측(수로 양 끝 GNSS 두 점이면 기준점과 회전이 함께 나온다) 이후에만 verified 로 올린다."
+        }
+      },
+      "rect": {
+        "x": 54,
+        "y": 6,
+        "w": 58,
+        "h": 30
+      },
+      "space": {
+        "width": 780,
+        "height": 460,
+        "unit": "meter"
+      },
+      "levels": [
+        {
+          "level_id": "rec-ground",
+          "label": {
+            "ko": "지상",
+            "en": "Ground"
+          },
+          "verified": true,
+          "y_offset": 0
+        }
+      ],
+      "rf": {
+        "outdoor": {
+          "model": "log_distance",
+          "band": "5GHz",
+          "tx_eirp_dbm": 23.0,
+          "reference_loss_db_at_1m": 46.0,
+          "path_loss_exponent": 2.2,
+          "radius_m": {
+            "excellent": 10.0,
+            "handover": 231.0,
+            "floor": 657.9
+          },
+          "thresholds_dbm": {
+            "excellent": -45.0,
+            "handover": -75.0,
+            "floor": -85.0
+          },
+          "$note": "옥외 가시선 n=2.2. 한 AP 가 수백 m 를 덮으므로 구역 경계가 RF 경계와 일치하지 않는다 — 같은 AP 안에서 옮기는 구역은 무선 전환이 아니다."
+        }
+      },
+      "zones": [
+        {
+          "zone_id": "rec-straight",
+          "label": {
+            "ko": "직선수로",
+            "en": "Straight channel"
+          },
+          "level_id": "rec-ground",
+          "verified": true,
+          "rect": {
+            "x": 60,
+            "y": 110,
+            "w": 320,
+            "h": 105
+          },
+          "wifi": {
+            "ap_id": "ap-rec-west",
+            "at": {
+              "x": 220,
+              "y": 230
+            },
+            "rf": "outdoor"
+          },
+          "edge_node": null,
+          "infrastructure": [],
+          "declared_nodes": []
+        },
+        {
+          "zone_id": "rec-steep",
+          "label": {
+            "ko": "급경사수로",
+            "en": "Steep-slope channel"
+          },
+          "level_id": "rec-ground",
+          "verified": true,
+          "rect": {
+            "x": 60,
+            "y": 215,
+            "w": 320,
+            "h": 105
+          },
+          "wifi": {
+            "ap_id": "ap-rec-west",
+            "at": {
+              "x": 220,
+              "y": 230
+            },
+            "rf": "outdoor"
+          },
+          "edge_node": null,
+          "infrastructure": [],
+          "declared_nodes": []
+        },
+        {
+          "zone_id": "rec-meander",
+          "label": {
+            "ko": "만곡수로",
+            "en": "Meandering channel"
+          },
+          "level_id": "rec-ground",
+          "verified": true,
+          "rect": {
+            "x": 380,
+            "y": 110,
+            "w": 340,
+            "h": 210
+          },
+          "wifi": {
+            "ap_id": "ap-rec-east",
+            "at": {
+              "x": 560,
+              "y": 250
+            },
+            "rf": "outdoor"
+          },
+          "edge_node": "edge-gpu",
+          "infrastructure": [
+            {
+              "id": "pi4",
+              "kind": "fixed_camera",
+              "at": {
+                "x": 430,
+                "y": 150
+              },
+              "pose": {
+                "yaw_deg": 180.0,
+                "height_m": 3.0
+              }
+            },
+            {
+              "id": "edge-gpu",
+              "kind": "edge_node",
+              "at": {
+                "x": 700,
+                "y": 140
+              }
+            }
+          ],
+          "declared_nodes": []
+        },
+        {
+          "zone_id": "rec-urbanflood",
+          "label": {
+            "ko": "도시홍수 파일럿 실험장",
+            "en": "Urban flood pilot field"
+          },
+          "level_id": "rec-ground",
+          "verified": true,
+          "rect": {
+            "x": 380,
+            "y": 320,
+            "w": 340,
+            "h": 120
+          },
+          "wifi": {
+            "ap_id": "ap-rec-east",
+            "at": {
+              "x": 560,
+              "y": 250
+            },
+            "rf": "outdoor"
+          },
+          "edge_node": "edge-gpu",
+          "infrastructure": [
+            {
+              "id": "insta360-pro2",
+              "kind": "fixed_camera",
+              "at": {
+                "x": 430,
+                "y": 360
+              },
+              "pose": {
+                "yaw_deg": 0.0,
+                "height_m": 4.0
+              }
+            }
+          ],
+          "declared_nodes": []
+        },
+        {
+          "zone_id": "nakdong-bank",
+          "label": {
+            "ko": "낙동강 제방 (인접 구간)",
+            "en": "Nakdong River bank (adjacent)"
+          },
+          "level_id": "rec-ground",
+          "verified": true,
+          "rect": {
+            "x": 60,
+            "y": 20,
+            "w": 660,
+            "h": 90
+          },
+          "wifi": {
+            "ap_id": "ap-bank",
+            "at": {
+              "x": 390,
+              "y": 60
+            },
+            "rf": "outdoor"
+          },
+          "edge_node": null,
+          "infrastructure": [],
+          "declared_nodes": [
+            {
+              "node_id": "x500-companion",
+              "at": {
+                "x": 380,
+                "y": 60
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "domain_id": "facility",
+      "label": {
+        "ko": "시설 — 산업 플랜트 (예시)",
+        "en": "Facility - Industrial plant (example)"
+      },
+      "domain_profile": "facility_surveillance",
+      "site": {
+        "name": {
+          "ko": "시설 — 산업 플랜트 (예시)",
+          "en": "Facility - Industrial plant (example)"
+        },
+        "address": null,
+        "source": "예시 — 실제 현장이 아니다. 도메인이 늘어날 때 코드가 아니라 이 파일이 늘어난다는 것을 보이기 위한 시연 데이터다.",
+        "example": true
+      },
+      "rect": {
+        "x": 4,
+        "y": 40,
+        "w": 44,
+        "h": 26
+      },
+      "space": {
+        "width": 400,
+        "height": 240,
+        "unit": "meter"
+      },
+      "levels": [
+        {
+          "level_id": "facility-ground",
+          "label": {
+            "ko": "지상",
+            "en": "Ground"
+          },
+          "verified": false,
+          "y_offset": 0
+        }
+      ],
+      "rf": {
+        "outdoor": {
+          "model": "log_distance",
+          "band": "5GHz",
+          "tx_eirp_dbm": 23.0,
+          "reference_loss_db_at_1m": 46.0,
+          "path_loss_exponent": 2.2,
+          "radius_m": {
+            "excellent": 10.0,
+            "handover": 231.0,
+            "floor": 657.9
+          },
+          "thresholds_dbm": {
+            "excellent": -45.0,
+            "handover": -75.0,
+            "floor": -85.0
+          },
+          "$note": "옥외 가시선 n=2.2. 한 AP 가 수백 m 를 덮으므로 구역 경계가 RF 경계와 일치하지 않는다 — 같은 AP 안에서 옮기는 구역은 무선 전환이 아니다."
+        }
+      },
+      "zones": [
+        {
+          "zone_id": "plant-pumproom",
+          "label": {
+            "ko": "펌프실",
+            "en": "Pump room"
+          },
+          "level_id": "facility-ground",
+          "verified": false,
+          "rect": {
+            "x": 10,
+            "y": 20,
+            "w": 150,
+            "h": 90
+          },
+          "wifi": {
+            "ap_id": "ap-plant-in",
+            "at": {
+              "x": 85.0,
+              "y": 65.0
+            },
+            "rf": "indoor"
+          },
+          "edge_node": "edge-plant",
+          "infrastructure": [
+            {
+              "id": "plant-cam-01",
+              "kind": "fixed_camera",
+              "at": {
+                "x": 24,
+                "y": 32
+              },
+              "pose": {
+                "yaw_deg": 45.0,
+                "height_m": 3.2
+              }
+            },
+            {
+              "id": "edge-plant",
+              "kind": "edge_node",
+              "at": {
+                "x": 150,
+                "y": 30
+              }
+            }
+          ],
+          "declared_nodes": [
+            {
+              "node_id": "plant-crawler",
+              "at": {
+                "x": 90,
+                "y": 70
+              }
+            }
+          ]
+        },
+        {
+          "zone_id": "plant-pipe-rack",
+          "label": {
+            "ko": "옥외 배관 가대",
+            "en": "Outdoor pipe rack"
+          },
+          "level_id": "facility-ground",
+          "verified": false,
+          "rect": {
+            "x": 180,
+            "y": 20,
+            "w": 200,
+            "h": 90
+          },
+          "wifi": {
+            "ap_id": "ap-plant-out",
+            "at": {
+              "x": 280.0,
+              "y": 65.0
+            },
+            "rf": "outdoor"
+          },
+          "edge_node": "edge-plant",
+          "infrastructure": [],
+          "declared_nodes": []
+        },
+        {
+          "zone_id": "plant-tank-yard",
+          "label": {
+            "ko": "옥외 탱크 야드",
+            "en": "Outdoor tank yard"
+          },
+          "level_id": "facility-ground",
+          "verified": false,
+          "rect": {
+            "x": 10,
+            "y": 130,
+            "w": 370,
+            "h": 90
+          },
+          "wifi": {
+            "ap_id": "ap-plant-out",
+            "at": {
+              "x": 195.0,
+              "y": 175.0
+            },
+            "rf": "outdoor"
+          },
+          "edge_node": "edge-plant",
+          "infrastructure": [],
+          "declared_nodes": []
+        }
+      ]
+    },
+    {
+      "domain_id": "defense",
+      "label": {
+        "ko": "방위 — 전방 정찰 (예시)",
+        "en": "Defense - Forward recon (example)"
+      },
+      "domain_profile": "reconnaissance_surveillance",
+      "site": {
+        "name": {
+          "ko": "방위 — 전방 정찰 (예시)",
+          "en": "Defense - Forward recon (example)"
+        },
+        "address": null,
+        "source": "예시 — 실제 현장이 아니다. 도메인이 늘어날 때 코드가 아니라 이 파일이 늘어난다는 것을 보이기 위한 시연 데이터다.",
+        "example": true
+      },
+      "rect": {
+        "x": 54,
+        "y": 40,
+        "w": 58,
+        "h": 26
+      },
+      "space": {
+        "width": 400,
+        "height": 240,
+        "unit": "meter"
+      },
+      "levels": [
+        {
+          "level_id": "defense-ground",
+          "label": {
+            "ko": "지상",
+            "en": "Ground"
+          },
+          "verified": false,
+          "y_offset": 0
+        }
+      ],
+      "rf": {
+        "outdoor": {
+          "model": "log_distance",
+          "band": "5GHz",
+          "tx_eirp_dbm": 23.0,
+          "reference_loss_db_at_1m": 46.0,
+          "path_loss_exponent": 2.2,
+          "radius_m": {
+            "excellent": 10.0,
+            "handover": 231.0,
+            "floor": 657.9
+          },
+          "thresholds_dbm": {
+            "excellent": -45.0,
+            "handover": -75.0,
+            "floor": -85.0
+          },
+          "$note": "옥외 가시선 n=2.2. 한 AP 가 수백 m 를 덮으므로 구역 경계가 RF 경계와 일치하지 않는다 — 같은 AP 안에서 옮기는 구역은 무선 전환이 아니다."
+        }
+      },
+      "zones": [
+        {
+          "zone_id": "recon-staging",
+          "label": {
+            "ko": "집결지",
+            "en": "Staging area"
+          },
+          "level_id": "defense-ground",
+          "verified": false,
+          "rect": {
+            "x": 10,
+            "y": 20,
+            "w": 140,
+            "h": 80
+          },
+          "wifi": {
+            "ap_id": "ap-recon-base",
+            "at": {
+              "x": 80.0,
+              "y": 60.0
+            },
+            "rf": "outdoor"
+          },
+          "edge_node": "edge-field",
+          "infrastructure": [
+            {
+              "id": "edge-field",
+              "kind": "edge_node",
+              "at": {
+                "x": 30,
+                "y": 30
+              }
+            },
+            {
+              "id": "recon-cam",
+              "kind": "fixed_camera",
+              "at": {
+                "x": 120,
+                "y": 40
+              },
+              "pose": {
+                "yaw_deg": 0.0,
+                "height_m": 6.0
+              }
+            }
+          ],
+          "declared_nodes": [
+            {
+              "node_id": "recon-uav",
+              "at": {
+                "x": 80,
+                "y": 60
+              }
+            }
+          ]
+        },
+        {
+          "zone_id": "recon-corridor",
+          "label": {
+            "ko": "진출 회랑",
+            "en": "Advance corridor"
+          },
+          "level_id": "defense-ground",
+          "verified": false,
+          "rect": {
+            "x": 170,
+            "y": 20,
+            "w": 210,
+            "h": 80
+          },
+          "wifi": {
+            "ap_id": "ap-recon-base",
+            "at": {
+              "x": 275.0,
+              "y": 60.0
+            },
+            "rf": "outdoor"
+          },
+          "edge_node": null,
+          "infrastructure": [],
+          "declared_nodes": []
+        },
+        {
+          "zone_id": "recon-objective",
+          "label": {
+            "ko": "목표 구역",
+            "en": "Objective area"
+          },
+          "level_id": "defense-ground",
+          "verified": false,
+          "rect": {
+            "x": 170,
+            "y": 120,
+            "w": 210,
+            "h": 100
+          },
+          "wifi": {
+            "ap_id": "ap-recon-fwd",
+            "at": {
+              "x": 275.0,
+              "y": 170.0
+            },
+            "rf": "outdoor"
+          },
+          "edge_node": null,
+          "infrastructure": [],
+          "declared_nodes": []
+        }
+      ]
+    },
+    {
+      "domain_id": "logistics",
+      "label": {
+        "ko": "물류창고 — 예시(경계 재합의가 기록된 현장)",
+        "en": "Logistics warehouse - example (boundary re-agreement recorded)"
+      },
+      "domain_profile": "facility_surveillance",
+      "site": {
+        "name": {
+          "ko": "예시 물류창고 — 입고동·랙동",
+          "en": "Example logistics warehouse - inbound and racking bays"
+        },
+        "address": null,
+        "source": "예시 선언 — 실제 현장이 아니다. 전역 계층이 **켜진** 경로를 배포 데이터로 한 번은 지나가게 하려고 둔 자리다.",
+        "example": true,
+        "verified_fields": [
+          "datum"
+        ],
+        "unverified_fields": [
+          "floor_footprint_m",
+          "ap_placement"
+        ],
+        "datum": {
+          "$note": "예시 현장의 datum 이라 숫자도 예시다. verified: true 와 선언된 accuracy_m 은 '이 예시에서는 측량이 끝났다고 선언한다'는 뜻이고, 실제 측량 기록이 아니다 — site.example 과 boundary_agreement.example 이 그 사실을 말한다.",
+          "datum_id": "example-logistics-site-2026-11-03",
+          "version": "2026-11-03.1",
+          "created_at": "2026-11-03T09:00:00+09:00",
+          "verified": true,
+          "reference_point": {
+            "lat": 36.0,
+            "lon": 127.0,
+            "crs": "EPSG:4326",
+            "elevation_m": null
+          },
+          "accuracy_m": 0.8,
+          "accuracy_basis": "example_declared_survey",
+          "source": {
+            "kind": "example_declaration",
+            "name": "예시 선언. 실제 측량 성과가 아니며 어떤 현장도 가리키지 않는다.",
+            "retrieved_at": "2026-11-03"
+          },
+          "local_frame": {
+            "anchor": "surveyed_marker",
+            "anchor_basis": "declared",
+            "x_bearing_deg": 90.0,
+            "y_bearing_deg": 180.0,
+            "bearing_basis": "declared",
+            "level_stacked": false
+          }
+        },
+        "boundary_agreement": {
+          "$note": "AI-C-19 가 선행 조건으로 적은 AI↔백엔드 경계 재합의의 **기록**이다. 이 항목이 없는 현장에서는 전역 좌표 숫자가 뷰 계약으로 나가지 않는다. 여기 적힌 것은 예시이고(example: true) 실제 합의 기록이 아니다 — 실제 현장 둘(college · river)에는 이 항목이 없고, 그 요청은 docs/integration-handover.md 에 적혀 있다.",
+          "subject": "global_coordinate_ownership",
+          "agreed_by": [
+            "ai",
+            "backend",
+            "visualisation"
+          ],
+          "agreed_at": "2026-11-03",
+          "document": {
+            "name": "예시 — 경계 재합의 회의록이 있다고 가정한 자리",
+            "url": "mission_runtime/docs/integration-handover.md",
+            "section": "§6 전역 좌표 소유권 — BE-C-04 · DT-03 과의 재합의 요청"
+          },
+          "supersedes": [
+            "BE-C-04",
+            "DT-03"
+          ],
+          "example": true
+        }
+      },
+      "rect": {
+        "x": 4,
+        "y": 70,
+        "w": 58,
+        "h": 26
+      },
+      "space": {
+        "width": 120,
+        "height": 80,
+        "unit": "meter"
+      },
+      "levels": [
+        {
+          "level_id": "wh-ground",
+          "label": {
+            "ko": "지상 1층",
+            "en": "Ground floor"
+          },
+          "verified": false,
+          "y_offset": 0
+        }
+      ],
+      "rf": {
+        "warehouse_indoor": {
+          "model": "log_distance",
+          "band": "5GHz",
+          "tx_eirp_dbm": 20.0,
+          "reference_loss_db_at_1m": 46.0,
+          "path_loss_exponent": 3.0,
+          "$note": "선반이 들어찬 창고는 빈 실내보다 손실 지수가 높고 벽 관통 실내(n=3.5)보다는 낮다. 반경은 적지 않는다 — 모델이 낸다.",
+          "thresholds_dbm": {
+            "excellent": -45.0,
+            "handover": -75.0,
+            "floor": -85.0
+          },
+          "radius_m": {
+            "excellent": 4.3,
+            "handover": 43.0,
+            "floor": 92.6
+          }
+        }
+      },
+      "zones": [
+        {
+          "zone_id": "wh-inbound",
+          "label": {
+            "ko": "입고동",
+            "en": "Inbound bay"
+          },
+          "level_id": "wh-ground",
+          "verified": false,
+          "rect": {
+            "x": 0,
+            "y": 0,
+            "w": 60,
+            "h": 40
+          },
+          "rooms": [],
+          "wifi": {
+            "ap_id": "ap-wh-inbound",
+            "at": {
+              "x": 30,
+              "y": 20
+            },
+            "rf": "warehouse_indoor"
+          },
+          "edge_node": "edge-wh",
+          "infrastructure": [
+            {
+              "id": "edge-wh",
+              "kind": "edge_node",
+              "at": {
+                "x": 30,
+                "y": 20
+              }
+            },
+            {
+              "id": "wh-inbound-cam",
+              "kind": "fixed_camera",
+              "at": {
+                "x": 6,
+                "y": 6
+              },
+              "pose": {
+                "yaw_deg": 135.0,
+                "height_m": 5.0
+              }
+            }
+          ],
+          "declared_nodes": []
+        },
+        {
+          "zone_id": "wh-racking",
+          "label": {
+            "ko": "랙동",
+            "en": "Racking bay"
+          },
+          "level_id": "wh-ground",
+          "verified": false,
+          "rect": {
+            "x": 60,
+            "y": 0,
+            "w": 60,
+            "h": 40
+          },
+          "rooms": [],
+          "wifi": {
+            "ap_id": "ap-wh-racking",
+            "at": {
+              "x": 90,
+              "y": 20
+            },
+            "rf": "warehouse_indoor"
+          },
+          "edge_node": "edge-wh",
+          "infrastructure": [
+            {
+              "id": "wh-racking-cam",
+              "kind": "fixed_camera",
+              "at": {
+                "x": 114,
+                "y": 34
+              },
+              "pose": {
+                "yaw_deg": 315.0,
+                "height_m": 5.0
+              }
+            }
+          ],
+          "declared_nodes": []
+        }
+      ]
+    },
+    {
+      "$comment": "실측 도면이 있는 방 하나. 크기 757×689 cm 와 도면 픽셀 앵커는 local/demo/test/navigate_to_target_service.py 의 ROOM_CM · MAP_ROOM_TOPLEFT_PX · MAP_ROOM_BOTTOMRIGHT_PX 와 같은 값이다. 그 파이프라인이 같은 도면 위에서 로봇 자리를 찍으므로 두 숫자가 갈리면 화면과 추정이 어긋난다. datum 은 없다 — 전역 계층은 꺼지고 로컬 판단만 돈다(AI-C-02).",
+      "domain_id": "robot-lab",
+      "label": {
+        "ko": "실험실 — 실측 도면이 있는 방",
+        "en": "Lab — the room we measured"
+      },
+      "domain_profile": "robot_autonomy_support",
+      "rect": {
+        "x": 66,
+        "y": 70,
+        "w": 46,
+        "h": 26
+      },
+      "space": {
+        "width": 7.57,
+        "height": 6.89,
+        "unit": "meter"
+      },
+      "site": {
+        "name": {
+          "ko": "실측 도면이 있는 방",
+          "en": "The room we measured"
+        },
+        "source": "현장 줄자 실측(757×689 cm) + 도면, local/demo 파이프라인과 같은 값"
+      },
+      "levels": [
+        {
+          "level_id": "lab-floor",
+          "label": {
+            "ko": "바닥",
+            "en": "Floor"
+          },
+          "verified": true,
+          "y_offset": 0
+        }
+      ],
+      "rf": {
+        "indoor": {
+          "model": "log_distance",
+          "band": "5GHz",
+          "tx_eirp_dbm": 20.0,
+          "reference_loss_db_at_1m": 46.0,
+          "path_loss_exponent": 3.5,
+          "radius_m": {
+            "excellent": 3.5,
+            "handover": 25.1,
+            "floor": 48.5
+          },
+          "thresholds_dbm": {
+            "excellent": -45.0,
+            "handover": -75.0,
+            "floor": -85.0
+          },
+          "$note": "실내 벽 관통 n=3.5. handover 반경이 구역 한 칸의 크기를 정한다 — AP 간격을 그 반경보다 좁게 두어 두 구역이 겹치는 띠에서 전환이 일어난다."
+        }
+      },
+      "zones": [
+        {
+          "zone_id": "lab-room",
+          "label": {
+            "ko": "실험실",
+            "en": "Lab room"
+          },
+          "level_id": "lab-floor",
+          "verified": true,
+          "rect": {
+            "x": 0,
+            "y": 0,
+            "w": 7.57,
+            "h": 6.89
+          },
+          "wifi": {
+            "ap_id": "ap-lab",
+            "at": {
+              "x": 3.8,
+              "y": 0.3
+            },
+            "rf": "indoor"
+          },
+          "infrastructure": [
+            {
+              "id": "lab-pedestal",
+              "kind": "landmark",
+              "at": {
+                "x": 1.785,
+                "y": 1.1
+              }
+            }
+          ],
+          "declared_nodes": []
+        }
+      ]
+    }
+  ]
+}

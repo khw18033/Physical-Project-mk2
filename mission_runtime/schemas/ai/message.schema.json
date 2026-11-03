@@ -1,0 +1,72 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://physical-project.local/schemas/ai/message.schema.json",
+  "title": "AI Integration Message (envelope)",
+  "$comment": "2026-10-27: 백엔드 통합데이터규약 v2 에 맞췄다. 본문을 payload 로 감싸지 않고 공통 머리와 같은 층에 둔다(AI-01). 이 스키마는 **머리만** 검사하고 추가 칸을 막지 않는다 — 봉투 위에 채널 본문이 얹히고, 규약 R12 가 모르는 칸은 통과시키라고 한다. 채널별 본문은 같은 디렉터리의 본문 스키마로 따로 검사한다.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "source_id",
+    "node_id",
+    "zone_id",
+    "channel",
+    "timestamp",
+    "sequence_id"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+$"
+    },
+    "message_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "source_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "node_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "zone_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "entity_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "session_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "channel": {
+      "enum": [
+        "detections",
+        "risk_state",
+        "ai_failure",
+        "capability_status",
+        "model_deployment_result",
+        "status_snapshot"
+      ]
+    },
+    "timestamp": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}\\+09:00$"
+    },
+    "sequence_id": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "correlation_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "coordinate_frame": {
+      "type": "string",
+      "minLength": 1
+    }
+  }
+}

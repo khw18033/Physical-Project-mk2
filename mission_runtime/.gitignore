@@ -1,0 +1,35 @@
+# 이 디렉터리가 공개 범위의 전부다. 저장소 루트의 `.gitignore` 는 더 이상
+# 추적되지 않으므로(공개 트리에 루트 파일을 두지 않는다) 여기 필요한 규칙만 둔다.
+# 이것이 없으면 이 트리를 클론한 쪽에서 빌드 산출물과 모델 파일이 다시 올라간다.
+
+# 빌드·실행 산출물
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+*.log
+*.pid
+
+# 돌 때마다 바뀌는 것 — 커밋에 실행 노이즈가 섞인다.
+# artifacts/ 는 OTel collector 컨테이너가 바인드 마운트로 쓰는 자리다.
+deploy/integration/artifacts/*.json
+reports/*.json
+
+# 모델 가중치는 저장소에 두지 않는다. 실제 자산은 공개 트리 밖에 있고
+# 자리는 tests/conftest.py 의 asset_root() 한 곳이 정한다
+# (MISSION_RUNTIME_ASSETS 로 바꿀 수 있다).
+*.pt
+*.pth
+*.onnx
+*.safetensors
+
+# 비밀·자격증명은 어떤 형태로도 올라가지 않는다(AI-B-02).
+*.pem
+*.key
+*.p12
+*.pfx
+*.crt
+*.cer
+*.kubeconfig
+**/config.yaml

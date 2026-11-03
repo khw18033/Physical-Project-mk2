@@ -1,0 +1,288 @@
+{
+  "$comment": "엣지 노드 단일 설정면. **단계형(staged) 응답**이 이 설계의 핵심이다 — 말단이 판정을 기다리는 시간을 모델 전체의 합이 아니라 **가장 빠른 단계**로 줄인다. stage1(OVD)만 동기로 즉시 돌려주고, CLIP 근거화와 VLM 환경 서술은 비동기로 돌아 준비되는 대로 /api/verdicts로 회수된다. 말단은 먼저 나온 것부터 반영한다.",
+  "server": {
+    "host": "0.0.0.0",
+    "port": 8891,
+    "verdict_buffer": 2000,
+    "$comment_buffer": "비동기 판정 보관 개수. 말단이 /api/verdicts?since=N 으로 가져간다."
+  },
+  "ovd": {
+    "$comment": "stage1 — 동기. YOLOE prompt-free **한 종만** 쓴다(사용자 2026-09-21). 내장 어휘 4585종이라 텍스트 프롬프트가 필요 없고, 어휘를 사람이 정하지 않으므로 어휘 설계 실수가 미지 집합을 오염시키는 경로가 없다. YOLO-World 경로는 제거했다 — provider를 늘리는 것이 아니라 하나로 확정한 것이다(AI-B-09).",
+    "enabled": true,
+    "weights": "../research/oln_training/yolo_weights/yoloe-11s-seg-pf.pt",
+    "conf": 0.1,
+    "iou": 0.5,
+    "imgsz": 640,
+    "sticky_label_bonus": 0.1,
+    "$comment_sticky": "검출을 트랙에 배정할 때 이미 같은 라벨을 들고 있는 트랙에 주는 IoU 가산점. RPN 박스가 정지 장면에서도 떨려 근소한 차이로 승자가 뒤집히면 라벨이 깜빡인다(실측: 고정 장면 라벨 10개 중 초당 1개 변경). 0이면 순수 IoU 최대값.",
+    "confident_conf": 0.35,
+    "$comment_confident": "YOLOE 결과도 전부 확정으로 보지 않는다(사용자 2026-09-21). conf가 confident_conf 이상이면 confident — 말단 시점 반영까지 보낸다. 그 아래는 tentative — 근거로만 남기고 말단 레코드에는 올리지 않으며, 저장소와 오버레이에는 그대로 보여 가시화가 판단할 수 있게 한다(AI-S-03: 신뢰도와 근거 충분도는 별개, AI-S-04: 확정 label로 승격 금지). conf는 detect 임계(0.10)보다 높게 잡는다 — 0.10은 '후보로 볼 만한가', confident_conf는 '말단 상태를 바꿔도 되는가'로 목적이 다르다."
+  },
+  "unknown": {
+    "$comment": "RPN이 냈는데 OVD가 설명 못 한 후보. CLIP 근거화는 **이것만** 수행한다 (사용자 2026-09-21) — OVD가 이미 이름을 붙인 것에 CLIP을 또 돌릴 이유가 없다.",
+    "match_iou": 0.3,
+    "crop_context": 1.5,
+    "max_per_frame": 300,
+    "min_short_side_px": 8,
+    "fragment_containment": 0.7,
+    "merged_coverage": 0.55,
+    "merged_min_dets": 2,
+    "merge_unknown_iou": 0.55,
+    "$comment_postprocess": "IoU만 보면 두 경우가 미지로 샌다(2026-09-21 오버레이 실측): **조각** — 차 문짝만 딴 박스는 car 박스 안에 있지만 합집합이 커서 IoU가 낮다. **병합** — 차 3대를 감싼 박스는 어느 car와도 IoU가 낮다. 그래서 축을 셋으로 나눈다(postprocess.py): match(IoU) / fragment(후보 면적의 fragment_containment 이상이 한 OVD 박스 안) / merged(OVD 박스 merged_min_dets개 이상을 merged_coverage 이상 덮음). 남은 미지끼리 merge_unknown_iou 이상 겹치면 합집합으로 합친다 — 안 합치면 같은 대상이 crop 여러 장이 되고 오버레이가 덮인다. 0으로 두면 각 규칙이 꺼진다.",
+    "max_absorber_area_frac": 0.8,
+    "$comment_absorber": "흡수 자격 상한. 프레임의 이 비율을 넘는 검출은 조각을 흡수하지 못한다. 2026-09-21 실측: 수면 박스가 화면 88%를 덮으며 후보 298개를 삼켰고, 다음 프레임에서 conf가 0.35를 0.019 차이로 못 넘자 흡수가 무너지며 미지가 3배로 튀었다(frame 002→003). 0.80으로 둔 이유: 부유목 더미(16~45%)는 검출 대상이면서 크므로 흡수 자격을 유지해야 하고, 장면을 덮는 수면(88%)만 걸러내면 된다. 0.30으로 조였더니 흡수가 0이 되며 미식별이 4→64로 튀었다.",
+    "min_fragment_ratio": 0.05,
+    "$comment_fragment_ratio": "조각의 상대 크기 하한. 후보 면적이 그 OVD 박스 면적의 이 비율 미만이면 \"조각\"으로 보지 않고 후보로 남긴다. 실측 근거: 미식별 후보 면적 중앙값이 프레임의 0.347%인데 확신 박스 중앙값은 16.4% — 작은 쓰레기는 큰 박스의 2.1% 크기다. containment만 보면 부유목 더미 위 페트병이 더미의 조각으로 삼켜진다. 0.05면 더미 조각(10~30%)은 흡수되고 쓰레기(2%)는 살아남는다."
+  },
+  "clip": {
+    "$comment": "stage2 — 비동기. 미지 후보를 특징 사전에 맞춰 **근거**를 만든다. 확정 라벨을 만들지 않는다(AI-S-03/AI-S-04). 판정은 셋으로 갈린다: background(버림) / undecided(배경 아닌데 모름 → 가시화 저장) / confident(말단 반영 + 저장).",
+    "enabled": true,
+    "vision_onnx": "../models/openvocab/clip-vit-base-patch32/onnx/vision_model_quantized.onnx",
+    "text_onnx": "../models/openvocab/clip-vit-base-patch32/onnx/text_model_quantized.onnx",
+    "tokenizer_dir": "../models/openvocab/clip-vit-base-patch32",
+    "input_size": 224,
+    "dictionary_top_k": 3,
+    "top_k": 5,
+    "max_crops_per_frame": 300,
+    "$comment_background": "사전의 배경 음성 클래스. 1등이 여기 속하고 2등과의 차이가 background_margin 이상이면 **배경으로 보고 버린다**(crop도 저장하지 않는다). RPN precision@50이 0.19~0.25라 이 경로가 없으면 저장소가 오탐으로 찬다.",
+    "background_margin": 0.0,
+    "confident_margin": 0.01,
+    "$comment_margins": "2026-09-21 4차 재보정(river_boom 사전 18개, crop 405). **background_margin 0.0** — 배경 1등 gap의 p95가 0.0018이라 0.002로도 73개 중 1개만 걸렀다. 배경 클래스들은 서로 비슷해 gap이 원래 작다. 즉 '1등이 배경이면 배경'이 맞고 gap 조건은 무의미하다. **분리도 0.933**(비배경 gap이 배경 gap보다 큰 비율)이라 이 사전은 실제로 갈라진다 — 도시 사전은 0.683이었다. confident_margin 0.010은 비배경 gap의 중앙값(0.0092) 근처이며 **판정이 아니라 strength(strong/weak)만 가른다**(CLIP은 확신이 아니므로).",
+    "prompts": [
+      "a floating piece of trash on water",
+      "a plastic bottle",
+      "a plastic bag",
+      "a styrofoam block",
+      "a piece of driftwood",
+      "a discarded tire",
+      "a car",
+      "a person",
+      "a building facade",
+      "a tree",
+      "a road surface",
+      "water surface",
+      "vegetation",
+      "background clutter"
+    ],
+    "batch_size": 64,
+    "$comment_batch": "batch_size는 메모리 상한 용도다. 2026-09-21 실측에서 배치를 쪼개는 것은 지연에 도움이 되지 않았다(900→950ms) — 이전 판이 이미 한 번에 넣고 있었다. 지연 대책은 providers다: CUDAExecutionProvider가 있으면 쓰고 없으면 CPU로 내려간다(AI-C-05, AI-B-08).",
+    "providers": [
+      "CPUExecutionProvider"
+    ],
+    "$comment_providers": "2026-09-21 실측으로 CPU 고정. crop 60장 기준: quantized ViT-B/32 CPU 797~833ms / 같은 모델 CUDA 986ms / MobileCLIP-S0 int8 CPU 3766ms. CUDA가 느린 이유는 quantized 연산이 CUDA EP에 없어 그래프에 memcpy 노드 174개가 끼면서 CPU↔GPU를 오가기 때문이다. MobileCLIP은 7배 작은데 4.5배 느리다 — 크기가 지연이 아니다. 주의: 이 venv는 CUDA EP가 목록에 뜨지만 libcublasLt.so.13이 없어 실제로는 로드에 실패하고 조용히 CPU로 내려간다. torch의 nvidia/*/lib를 LD_LIBRARY_PATH에 넣어야 실제로 올라간다.",
+    "dedup_by_track": true,
+    "dedup_recheck_s": 3.0,
+    "$comment_dedup": "같은 track_id를 매 프레임 다시 분류하지 않는다. 추적이 정체성을 유지하므로 한 번 본 객체는 dedup_recheck_s 안에는 이전 판정을 재사용한다. crop을 줄이는 것이 아니라 **중복을 줄이는** 것이라 RPN이 후보를 넓게 내는 목적과 충돌하지 않는다. CLIP이 프레임당 800ms~1s라 비동기 큐가 6:1로 밀리던 것에 대한 대책이다.",
+    "backend": "torch",
+    "torch_model": "openai/clip-vit-base-patch32",
+    "device": "cuda",
+    "fp16": true,
+    "$comment_backend": "backend: 'torch'(기본, CUDA fp16) | 'onnx'(quantized, CPU). 2026-09-21 벤치(bench_clip.py, crop 60장): int8 ONNX CPU 823ms / int8 ONNX CUDA 969ms / fp32 ONNX CUDA 81ms / **torch fp16 CUDA 34.6ms**. 기준선 대비 24배다. quantized 그래프는 CUDA EP에 연산이 없어 memcpy로 CPU↔GPU를 오가므로 GPU로 갈 수 없다 — 양자화는 CPU 전용 최적화다. 작은 모델이 답도 아니다: MobileCLIP2-S0는 파라미터 7.7배 적은데 GPU에서 2.8배 느리다(96.3ms). GPU가 없는 호스트에서는 device가 cpu로 내려간다(AI-C-05).",
+    "use_target_sim_threshold": true,
+    "default_target_sim": 0.22,
+    "active_domain": "generic",
+    "domains": {
+      "urban": {
+        "dictionary": "class_features.urban.json",
+        "hint": "city streets, traffic, buildings, parking, pedestrians seen from above"
+      },
+      "river_trash": {
+        "dictionary": "class_features.river_trash.json",
+        "hint": "a river or waterway seen from a drone, water surface and floating debris"
+      },
+      "river_boom": {
+        "dictionary": "class_features.river_boom.json",
+        "hint": "a fixed camera looking down at a river channel with a floating boom barrier, driftwood and plastic waste"
+      },
+      "indoor_robot": {
+        "dictionary": "class_features.indoor_robot.json",
+        "hint": "an indoor room seen through a ground robot fisheye camera, with floor, desks, people and a black circular vignette"
+      },
+      "generic": {
+        "dictionary": "class_features.generic.json",
+        "hint": "no specific domain — generic indoor/outdoor scene"
+      }
+    },
+    "$comment_domains": "도메인마다 사전과 배경 클래스가 다르다. active_domain으로 갈아 끼우며, **POST /api/command {\"command\":\"detect_domain\"}**으로 VLM이 현재 장면을 보고 자동 전환할 수 있다. 2026-09-21 근거: 하천 사전을 도시 영상에 쓰자 미지 crop의 71.7%가 tire/plastic_bag으로 몰렸다 — 닫힌 사전 argmax에는 '해당 없음'이 없어 정답 클래스가 없으면 가장 덜 틀린 것을 고른다. 배경 클래스는 **사전 파일이 항목마다 `background: true`로 선언**한다 — config에 목록을 따로 두었다가 사전만 고쳐서 어긋난 적이 있다(2026-09-21).",
+    "send_to_terminal": true,
+    "$comment_role": "**CLIP은 확신이 아니라 추론이다**(사용자 2026-09-21). 말단 레코드에 올리지 않고 store에 남겨 가시화가 소비한다 — 연초록 OVD(잠정)와 같은 성격의 근거다. 근거: 사전은 닫힌 집합이고 argmax에 '해당 없음'이 없어, 점수가 갈려도 그것이 맞다는 근거가 되지 못한다. 실제 오추론 — 차량 일부나 여러 차량이 합쳐진 박스를 damaged_vehicle로 찍었다. 판정은 background/unidentified 둘이고, confident_margin·target_sim은 판정을 바꾸지 않고 strength(strong/weak)로만 남아 관리자가 정렬·필터할 축이 된다.",
+    "$comment_generalization": "2026-09-21: 도메인 4종으로 일반화를 확인한다. urban(드론·도시) / river_boom(고정 CCTV·하천 차단막) / indoor_robot(지상 로봇·어안·실내) / river_trash(드론·하천). 시점·센서·장면이 전부 다르지만 **코드는 같고 사전만 갈아 끼운다** — 그것이 이 구조의 목적이다(AI-C-15: 도메인 차이는 핵심 코드 분기가 아니라 구성으로 표현한다).",
+    "$comment_volume": "후보를 많이 받는 구성(top_n 500)에 맞춰 상한을 올렸다. 줄이는 일은 CLIP 배경 판정이 맡는다(사용자 원칙). torch fp16 0.58ms/crop이라 300개도 ~175ms이고 비동기다.",
+    "visualize_weak": false,
+    "$comment_visualize": "미식별 중 strength=weak를 오버레이에 그릴지. 2026-09-21: 프레임당 미식별이 53~62개라 화면이 박스로 덮여 관리자가 볼 수 없다. weak를 숨기면 strong만 남는다 — **저장은 그대로 한다**(가시화에서 토글로 켜면 되고, 데이터를 버리는 것이 아니다).",
+    "$comment_generic": "도메인이 정해지지 않았을 때 쓴다. 객체 쪽을 **이름이 아니라 재질·형태 속성**으로 둔 이유: OVD 어휘가 4585종이라 흔한 명사는 대부분 덮고, 그것이 못 잡은 것에 또 다른 명사 사전을 들이대면 닫힌 집합 argmax가 가장 덜 틀린 이름을 고르는 같은 실패를 반복한다(하천 사전을 도시에 쓰자 71.7%가 tire/plastic_bag으로 몰린 사례). 'rigid man-made object'는 틀려도 덜 해롭고 관리자가 crop을 볼지 정하는 데 실제로 쓸모가 있다.",
+    "$comment_send": "2026-09-21: 시점 반영 검증을 위해 켠다. CLIP은 여전히 확신이 아니라 근거이고, 말단 레코드에는 근거로만 쌓인다 — 켠 이유는 화면에서 \"옛 근거가 움직인 객체에 붙어 있다\"를 보여주기 위해서다. 검증이 끝나면 false로 되돌릴 수 있다."
+  },
+  "llm": {
+    "$comment": "특징 사전 즉석 생성. **가시화에서 '이 클래스를 찾아라' 명령이 올 때만** 돈다(사용자 2026-09-21) — POST /api/command. 프레임 처리 경로에는 없다. 생성 항목은 검증을 통과해도 _verified=false이며 디스크 사전에 자동 기록되지 않는다(AI-L-02).",
+    "enabled": true,
+    "backend": "ollama",
+    "host": "http://127.0.0.1:11434",
+    "model": "qwen2.5:3b-instruct",
+    "timeout_s": 120.0
+  },
+  "vlm": {
+    "$comment": "stage3 — 비동기. **현재 환경 서술**이지 객체 확정이 아니므로(사용자 2026-09-21) 프레임 응답 경로에서 뺀다. every_n_frames마다 프레임 한 장을 통째로 서술한다. model이 비었거나 ollama에 없으면 이 단계만 비활성(AI-C-05). 설치: ollama pull qwen2.5vl:3b",
+    "enabled": true,
+    "backend": "ollama",
+    "host": "http://127.0.0.1:11434",
+    "model": "qwen2.5vl:3b",
+    "timeout_s": 120.0,
+    "active_domain": "generic",
+    "scene_prompts": {
+      "generic": "Describe this aerial scene in one sentence: what kind of place is it, and what is happening?",
+      "river_trash": "This is an aerial view from a drone surveying a river. In one or two sentences describe the current scene: water condition, visible debris accumulation, and anything unusual.",
+      "urban": "This is an aerial view from a drone over an urban area. In one or two sentences describe the current scene: traffic density, pedestrians, and anything unusual or hazardous."
+    },
+    "$comment_domain": "vlm.active_domain은 clip.active_domain을 따라간다(apply_domain이 같이 옮긴다). 키 이름이 clip.domains의 키와 같아야 프롬프트가 잡힌다."
+  },
+  "store": {
+    "$comment": "수신물(frames/meta)과 산출물(records/overlay/unknown_crops/scene)을 같은 frame_id로 나란히 둔다(AI-O-03). **배경으로 판정된 crop은 저장하지 않는다** — 오탐 창고가 되는 것을 막는 유일한 경로다. 저장되는 미지 crop에는 CLIP 추론 결과와 근거(ranking 전체)가 함께 남아 가시화가 '왜 이렇게 봤는지'를 보여줄 수 있다(AI-L-03).",
+    "root": "store",
+    "save_incoming_frame": true,
+    "save_incoming_meta": true,
+    "save_record": true,
+    "save_overlay": true,
+    "save_unknown_crops": true,
+    "save_background_crops": false,
+    "$comment_background_draw": "배경 crop은 저장하지 않지만 오버레이에는 회색으로 **그린다** — 도로·건물을 실제로 지우고 있는지 눈으로 확인할 수 있어야 한다(사용자 2026-09-21). 그리는 것과 저장하는 것은 다른 결정이다.",
+    "unknown_crops_policy": {
+      "$comment": "학습 후보 저장 게이트. 2026-09-21에 46만 장(2.9GB)이 쌓인 원인은 중복 방지가 없어 배경 아닌 후보를 매 프레임 전부 다시 쓴 것이다. track_id로 묶으려 했으나 미지 crop의 track_id는 RPN 후보의 것이라 매 프레임 갈려 소용이 없었고(실측 90초에 2166장), 고정 격자로 묶으니 경계에 걸친 박스가 두 슬롯을 오가 초당 7장이 계속 저장됐다. 지금은 이미 본 자리와의 IoU로 찾는다 — 기준을 고정 격자가 아니라 '이미 있는 것'으로 잡으면 경계가 생기지 않는다. 합성 검증: 물체 30개 × 200프레임에서 6000장 → 60장.",
+      "max_per_slot": 2,
+      "min_interval_s": 20.0,
+      "max_per_frame": 2,
+      "slot_ttl_s": 120.0,
+      "match_iou": 0.3,
+      "$comment_iou": "슬롯 매칭 IoU. 0.5에서는 RPN 후보 박스가 프레임마다 달라 같은 물체가 새 슬롯으로 새어(실측 슬롯 369→387, 초당 4.3장) 0.30으로 낮췄다. 낮출수록 서로 다른 물체를 하나로 볼 위험이 커지므로, 마지막 방어선은 어디까지나 max_files 상한이다."
+    },
+    "max_files": {
+      "$comment": "디렉터리별 파일 수 상한. 오래된 것부터 지운다 — 게이트가 뚫려도 디스크가 터지지 않게 하는 마지막 방어선이다. 삭제는 재현 가능성과 맞바꾸는 값이므로(AI-O-03) records는 넉넉히, 눈으로만 보는 overlay는 짧게 둔다.",
+      "unknown_crops": 5000,
+      "frames": 3000,
+      "overlay": 3000,
+      "records": 20000,
+      "meta": 20000,
+      "scene": 2000
+    },
+    "prune_interval_s": 30.0,
+    "$comment_crops_cap": "미지 crop 파일 상한(jpg+json 쌍이므로 실제 후보는 절반). 게이트가 아무리 새도 디스크는 이 값에서 멈춘다 — 약 400MB. 검수 없이 쌓인 오래된 후보보다 최근 것이 학습 가치가 높다고 보고 오래된 것부터 지운다."
+  },
+  "stream": {
+    "$comment": "실시간 오버레이 MJPEG. **말단이 시점 반영한 트랙**을 현재 프레임에 그린다 — 박스는 지금 좌표, 라벨은 몇 프레임 전 근거, 괄호 안이 그 나이다. 프레임당 한 번만 발행한다.",
+    "max_fps": 12,
+    "faint_alpha": 0.28,
+    "$comment_faint": "확정(초록)이 아닌 것 — 근거 없는 RPN 후보, 잠정 OVD, CLIP 배경 — 을 그리는 층의 불투명도. 지우지 않고 뒤로 물린다: 지우면 RPN이 무엇을 덮고 있는지 볼 수 없고, 같은 세기로 그리면 확정값을 가린다.",
+    "jpeg_quality": 70,
+    "scale": 1.0
+  },
+  "ovd2": {
+    "$comment": "두 번째 OVD — 현장 어휘로 좁혀 보는 눈. 확정은 prompt-free(ovd)와 이쪽의 합의로 정한다(consensus.py). 단일 모델의 conf는 그 모델의 확신일 뿐 근거 충분도가 아니며(AI-S-03), 실측에서 YOLOE는 0.94/0.87처럼 높은 conf로 틀렸으므로 임계를 올려서는 거를 수 없었다. 어휘가 비면 이 눈은 쉬고 단일 conf 임계로 축소된다(AI-C-05).",
+    "enabled": true,
+    "weights": "../research/oln_training/yolo_weights/yolov8s-worldv2.pt",
+    "conf": 0.05,
+    "iou": 0.5,
+    "imgsz": 640,
+    "agree_iou": 0.5,
+    "agree_min_conf": 0.0,
+    "$comment_speed": "실측(RTX 3060, 같은 프레임): YOLOE prompt-free 15ms / YOLO-World 텍스트 16ms / Grounding DINO tiny 453ms(autocast fp16 299ms). GDINO는 라벨 품질과 무관하게 동기 예산에 못 들어온다 — 말단 왕복이 이미 ~0.5s다.",
+    "synonyms": {
+      "$comment": "토큰 겹침으로 못 잡는 짝을 여기서 명시한다. 예: \"seating\": [\"couch\", \"sofa\"]"
+    },
+    "vocabularies": {
+      "$comment": "도메인별 OVD 텍스트 어휘. 비우거나 없으면 prompt-free(내장 4585종). prompt-free는 미지 집합을 깨끗하게 만들지만 이름 자체를 믿을 수 없다 — 2026-09-21 실내 실측에서 모니터를 computer chair, 벽면을 press room으로 불렀다. 어휘를 바꾸면 임계와 품질은 재측정 대상이다(AI-B-01).",
+      "generic": [
+        "office chair",
+        "backpack",
+        "laptop",
+        "computer monitor",
+        "desk",
+        "bottle",
+        "cardboard box",
+        "window",
+        "window blind",
+        "door",
+        "whiteboard",
+        "cabinet",
+        "plastic bag",
+        "ceiling light",
+        "monitor stand",
+        "cup",
+        "paper",
+        "drone",
+        "person",
+        "keyboard"
+      ],
+      "indoor_robot": [
+        "office chair",
+        "backpack",
+        "laptop",
+        "computer monitor",
+        "desk",
+        "bottle",
+        "cardboard box",
+        "window",
+        "window blind",
+        "door",
+        "whiteboard",
+        "cabinet",
+        "plastic bag",
+        "ceiling light",
+        "monitor stand",
+        "cup",
+        "paper",
+        "drone",
+        "person",
+        "keyboard"
+      ],
+      "river_trash": [
+        "plastic bottle",
+        "plastic bag",
+        "styrofoam box",
+        "plastic container",
+        "driftwood",
+        "tree branch",
+        "water surface",
+        "riverbank",
+        "floating boom",
+        "metal pole"
+      ],
+      "river_boom": [
+        "plastic bottle",
+        "plastic bag",
+        "styrofoam box",
+        "plastic container",
+        "driftwood",
+        "tree branch",
+        "water surface",
+        "riverbank",
+        "floating boom",
+        "gas cylinder"
+      ],
+      "urban": [
+        "person",
+        "car",
+        "truck",
+        "bus",
+        "motorcycle",
+        "bicycle",
+        "road",
+        "building",
+        "tree",
+        "traffic sign"
+      ]
+    }
+  },
+  "object_tracks": {
+    "$comment": "지속 객체 레코드. docs/obsidian/ideas/progressive-object-record.pdf §3 구현 — 근거를 관측 내에서 클러스터링하고, 의미는 source group 지지로 해소하며(확립된 클래스는 '엄격히 더 많은' 지지가 있을 때만 교체), 노출 상태 V는 lifecycle·클래스·기하뿐이라 confidence만 바뀌면 갱신하지 않는다. 표시 대상의 정체성을 RPN 후보에서 빌리면 후보 구성이 매 프레임 바뀌어 근거가 흩어진다 — RPN은 말단의 시점 반영 앵커 전용이다.",
+    "assoc_iou": 0.3,
+    "track_iou": 0.2,
+    "init_conf": 0.15,
+    "stale_misses": 3,
+    "expire_misses": 5,
+    "geometry_quantum_px": 8.0,
+    "$comment_quantum": "노출 기하 불감대(px). 논문은 월드 좌표를 0.02m로 양자화하지만 고정 격자는 경계에 걸친 값에서 1~2px 지터에도 매 프레임 뒤집힌다(실측: 갱신 3회). 여기서는 현재 노출값 기준 불감대로 두어 경계 문제를 없앤다. 전역 좌표 변환은 백엔드 몫이므로(AI-C-02) 단위는 픽셀이다.",
+    "geometry_alpha": 0.5,
+    "$comment_alpha": "해소된 기하를 레코드에 반영하는 평활 계수. 기하는 가용 박스의 confidence 가중 평균이라 한 모델이 한 관측에서 빠지면 값이 확 옮겨가고, 그러면 관측 간 매칭(track_iou)이 끊겨 새 객체가 생기며 누적 지지가 리셋된다(실측: 확정 객체 수 중앙 0).",
+    "$comment_init": "새 객체 초기화 최소 confidence. 논문은 0.30이지만 그 값은 그쪽 검출기 분포 기준이다 — 이 구성(YOLOE prompt-free + YOLO-World 텍스트) 실측에서 검출 196건의 p50이 0.156, p75가 0.316이라 0.30은 74%를 잘라내 클러스터 11개 중 8개가 객체가 되지 못했다. 다른 구성의 임계를 그대로 옮기지 않는다(AI-B-01)."
+  }
+}

@@ -1,0 +1,35 @@
+**/__pycache__
+**/*.pyc
+.pytest_cache
+*.egg-info
+:memory:.ses
+.venv
+reports
+.git
+# 로컬 자산·내부 기록은 이 프로젝트 디렉터리 밖이지만, 빌드 컨텍스트가 넓어지는 날을
+# 대비해 적어 둔다. 이미지에 가중치·데이터셋·자격증명을 넣지 않는다(AI-B-02).
+../local
+../internal
+local
+internal
+
+# 복사해 온 가시화 콘솔이 `npm install` 로 남긴 것. 소스는 추적 대상이라 남기지만
+# 이 묶음은 아니다 — 넣어 보면 /app 119MB 중 113MB 가 이것이었고(패키지 115 개),
+# 우리 런타임은 그중 한 줄도 import 하지 않는다. 더구나 이미지가 그 패키지들의
+# 라이선스를 함께 재배포하게 되는데 그 목록은 검토된 적이 없다.
+# 소스를 함께 빼지 않는 이유는 README 가 third_party/README.md 를 가리키기
+# 때문이다 — 링크가 가리키는 자리를 이미지에서 지우면 문서가 깨진다.
+third_party/*/node_modules
+third_party/*/dist
+third_party/*/.vite
+
+# 운영자 수정 장부의 기본 자리. 빌드 컨텍스트 밖(../local/)이지만 `--overlay .` 로
+# 안에 둔 채 빌드하는 날이 있다 — 사람이 고친 값은 이미지에 굽지 않는다.
+fms_overlay
+
+# 자격증명은 이미지에 넣지 않는다(AI-B-02). 예시 파일이 운영자에게
+# `config/device_credentials.json` 을 **같은 자리에** 만들라고 적으므로, 만들어진
+# 뒤에 `COPY . .` 가 그것을 담는 것을 여기서 먼저 막는다. 예시는 남긴다 —
+# 시험과 콘솔이 `config/*.example.json` 을 읽는다.
+config/*credentials*.json
+!config/*.example.json

@@ -1,0 +1,723 @@
+<!doctype html>
+<html lang="ko">
+<meta charset="utf-8">
+<title>Mission Runtime — 운영 상태</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!--
+  검토용 단일 페이지. 외부 자원(CDN·폰트·이미지)을 전혀 불러오지 않는다 — 폐쇄망에서도
+  떠야 하므로 그림은 모두 인라인 SVG 와 글리프다.
+
+  구역 기호 B~I 는 기능정의서 §2 의 것을 그대로 쓴다. 색은 검증된 팔레트에서 가져왔고
+  (`validate_palette.js` 통과), **상태색은 반드시 아이콘+글자와 함께** 쓴다 — 색만으로
+  뜻을 전달하지 않는다. 사용률 같은 크기 값은 한 색의 농도(sequential)로, 상태는 상태색
+  으로 가른다. 두 축을 섞지 않는다.
+
+  역할 필터는 보기 편하게 하려는 것이고 접근 통제가 아니다 — 그 사실은 문서와 `/api/views`
+  에 적고 **운영 화면에는 띄우지 않는다.** 운영자가 볼 화면에 내부 거버넌스를 설명하는
+  문장은 자리를 차지하고 읽히지 않는다.
+-->
+<style>
+  :root {
+    color-scheme: light;
+    --plane: #f9f9f7; --surface: #fcfcfb; --surface-2: #f3f3f0;
+    --ink: #0b0b0b; --ink-2: #52514e; --muted: #898781;
+    --grid: #e1e0d9; --axis: #c3c2b7; --ring: rgba(11,11,11,.10);
+    --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a;
+    --good: #0ca30c; --warn: #fab219; --serious: #ec835a; --crit: #d03b3b;
+    --seq-100: #cde2fb; --seq-250: #86b6ef; --seq-450: #2a78d6; --seq-600: #184f95;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:where(:not([data-theme="light"])) {
+      color-scheme: dark;
+      --plane: #0d0d0d; --surface: #1a1a19; --surface-2: #222221;
+      --ink: #f0efec; --ink-2: #c3c2b7; --muted: #898781;
+      --grid: #2c2c2a; --axis: #383835; --ring: rgba(255,255,255,.10);
+      --s1: #3987e5; --s2: #d95926; --s3: #199e70;
+      --seq-100: #184f95; --seq-250: #256abf; --seq-450: #3987e5; --seq-600: #86b6ef;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --plane: #0d0d0d; --surface: #1a1a19; --surface-2: #222221;
+    --ink: #f0efec; --ink-2: #c3c2b7; --muted: #898781;
+    --grid: #2c2c2a; --axis: #383835; --ring: rgba(255,255,255,.10);
+    --s1: #3987e5; --s2: #d95926; --s3: #199e70;
+    --seq-100: #184f95; --seq-250: #256abf; --seq-450: #3987e5; --seq-600: #86b6ef;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--plane); color: var(--ink);
+    font: 17px/1.55 system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  .wrap { max-width: 1480px; margin: 0 auto; padding: 20px 16px 48px; }
+
+  /* ── 머리 ───────────────────────────────────────────────────── */
+  header { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end;
+           justify-content: space-between; margin-bottom: 14px; }
+  h1 { font-size: 26px; margin: 0; letter-spacing: -.01em; display: flex;
+       align-items: center; gap: 10px; }
+  h1 .glyph { font-size: 30px; }
+  .sub { color: var(--ink-2); font-size: 15px; margin: 4px 0 0; }
+  .pill { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px;
+          border: 1px solid var(--ring); border-radius: 999px; font-size: 14px;
+          background: var(--surface); }
+  .pill.live { border-color: var(--good); color: var(--good); }
+  .pill.ex { border-color: var(--muted); color: var(--muted); }
+
+  /* ── 필터 한 줄 ─────────────────────────────────────────────── */
+  .filters { display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: center;
+             padding: 12px 14px; background: var(--surface); border: 1px solid var(--ring);
+             border-radius: 12px; margin-bottom: 10px; }
+  .filters label { display: flex; align-items: center; gap: 7px; font-size: 15px;
+                   color: var(--ink-2); }
+  select, button { font: inherit; font-size: 15px; color: var(--ink);
+                   background: var(--surface-2); border: 1px solid var(--ring);
+                   border-radius: 8px; padding: 6px 10px; }
+  select { min-width: 9.5em; }
+  button { cursor: pointer; }
+  button:hover { background: var(--grid); }
+  .enforce { font-size: 13.5px; color: var(--muted); margin-left: auto; max-width: 38em; }
+
+  /* ── 탭 ─────────────────────────────────────────────────────── */
+  nav.tabs { display: flex; flex-wrap: wrap; gap: 6px; margin: 14px 0 12px;
+             border-bottom: 2px solid var(--grid); }
+  nav.tabs button {
+    background: transparent; border: 0; border-bottom: 3px solid transparent;
+    border-radius: 8px 8px 0 0; padding: 10px 14px; font-size: 17px; color: var(--ink-2);
+    display: flex; align-items: center; gap: 8px;
+  }
+  nav.tabs button .glyph { font-size: 19px; }
+  nav.tabs button:hover { background: var(--surface); color: var(--ink); }
+  nav.tabs button[aria-selected="true"] {
+    color: var(--ink); font-weight: 650; border-bottom-color: var(--s1);
+    background: var(--surface);
+  }
+  nav.tabs .count { font-size: 13px; min-width: 20px; padding: 0 6px; border-radius: 999px;
+                    background: var(--grid); color: var(--ink-2); }
+  nav.tabs .count.attn { background: var(--crit); color: #fff; }
+
+  /* ── 패널 ───────────────────────────────────────────────────── */
+  .cols { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); }
+  .cols.wide { grid-template-columns: 1fr; }
+  section.card { background: var(--surface); border: 1px solid var(--ring);
+                 border-radius: 12px; padding: 16px 18px; min-width: 0; }
+  section.card > h2 { font-size: 19px; margin: 0 0 12px; display: flex;
+                      align-items: center; gap: 9px; }
+  h2 .glyph { font-size: 21px; }
+  h2 .region { font-size: 13px; padding: 2px 8px; border-radius: 6px;
+               background: var(--s1); color: #fff; font-weight: 600; }
+  h3 { font-size: 16px; margin: 16px 0 8px; color: var(--ink-2); }
+  h3:first-of-type { margin-top: 4px; }
+
+  /* ── 수치 타일 ─────────────────────────────────────────────── */
+  .tiles { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+  .tile { background: var(--surface-2); border: 1px solid var(--ring); border-radius: 10px;
+          padding: 12px 14px; }
+  .tile .k { font-size: 14px; color: var(--ink-2); display: flex; align-items: center; gap: 6px; }
+  .tile .v { font-size: 34px; line-height: 1.15; margin-top: 4px; font-weight: 600; }
+  .tile.attn { border-color: var(--crit); }
+  .tile.attn .v { color: var(--crit); }
+
+  /* ── 표 ─────────────────────────────────────────────────────── */
+  table { width: 100%; border-collapse: collapse; }
+  th, td { text-align: left; padding: 7px 8px; border-bottom: 1px solid var(--grid);
+           font-size: 15.5px; vertical-align: middle; }
+  th { font-size: 13.5px; color: var(--muted); font-weight: 600; text-transform: none; }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  tr:last-child td { border-bottom: 0; }
+  .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 14.5px; }
+  .sub2 { display: block; font-size: 13.5px; color: var(--muted); }
+
+  /* ── 상태 (색 + 아이콘 + 글자) ──────────────────────────────── */
+  .st { display: inline-flex; align-items: center; gap: 5px; font-size: 15px; white-space: nowrap; }
+  .st.good { color: var(--good); } .st.warn { color: #8a5b00; }
+  .st.serious { color: #a2512b; } .st.crit { color: var(--crit); }
+  .st.idle { color: var(--muted); }
+  @media (prefers-color-scheme: dark) {
+    :root:where(:not([data-theme="light"])) .st.warn { color: var(--warn); }
+    :root:where(:not([data-theme="light"])) .st.serious { color: var(--serious); }
+  }
+  .none { color: var(--muted); font-style: italic; font-size: 15px; }
+
+  /* ── 막대 (크기 = 한 색의 농도) ─────────────────────────────── */
+  .barwrap { display: flex; align-items: center; gap: 9px; }
+  .bar { position: relative; flex: 1; height: 10px; min-width: 70px;
+         background: var(--grid); border-radius: 5px; overflow: hidden; }
+  .bar > i { display: block; height: 100%; border-radius: 0 4px 4px 0;
+             background: var(--seq-450); }
+  .bar > i.hot { background: var(--crit); }
+  .bar > u { position: absolute; top: -3px; bottom: -3px; width: 2px;
+             background: var(--axis); }
+  .barval { font-variant-numeric: tabular-nums; min-width: 4.2em; text-align: right; }
+
+  /* ── 노드 카드 ─────────────────────────────────────────────── */
+  .node { border: 1px solid var(--ring); border-left: 4px solid var(--axis);
+          border-radius: 10px; padding: 10px 12px; margin-bottom: 9px; background: var(--surface-2); }
+  .node.run { border-left-color: var(--s1); }
+  .node.ok { border-left-color: var(--good); }
+  .node.bad { border-left-color: var(--crit); }
+  .node.ext { border-left-color: var(--warn); }
+  .node.idle { border-left-color: var(--axis); }
+  .node .top { display: flex; justify-content: space-between; gap: 10px; align-items: baseline; }
+  .node .ttl { font-size: 16.5px; font-weight: 600; }
+  .node .where { font-size: 14px; color: var(--ink-2); margin-top: 3px; }
+  .node .edge { font-size: 13.5px; color: var(--muted); margin-top: 3px; }
+  .node.pick { outline: 2px solid var(--s1); outline-offset: 1px; }
+  .node[role="button"] { cursor: pointer; }
+
+  /* ── 단계 (스테퍼) ─────────────────────────────────────────── */
+  .steps { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
+  .step { display: flex; align-items: center; gap: 5px; font-size: 14px; padding: 4px 9px;
+          border: 1px solid var(--axis); border-radius: 8px; color: var(--muted); }
+  .step.done { border-color: var(--good); color: var(--good); }
+  .step.here { border-color: var(--s1); color: var(--s1); font-weight: 650;
+               background: var(--surface); }
+  .step.opaque { background: repeating-linear-gradient(45deg, transparent, transparent 5px,
+                 var(--grid) 5px, var(--grid) 10px); }
+
+  /* ── 스파크라인 ─────────────────────────────────────────────── */
+  svg.spark { display: block; }
+  svg.spark .line { fill: none; stroke: var(--s1); stroke-width: 2; }
+  svg.spark .dot { fill: var(--s1); }
+  svg.spark .tgt { stroke: var(--axis); stroke-width: 2; stroke-dasharray: 4 3; }
+
+  /* ── 홀더 ───────────────────────────────────────────────────── */
+  .tip { position: fixed; z-index: 50; pointer-events: none; background: var(--ink);
+         color: var(--plane); padding: 6px 9px; border-radius: 7px; font-size: 14px;
+         max-width: 22em; opacity: 0; transition: opacity .08s; }
+  pre { background: var(--surface-2); border: 1px solid var(--ring); border-radius: 10px;
+        padding: 12px; overflow: auto; max-height: 70vh; font-size: 13.5px; }
+  iframe { width: 100%; height: 72vh; border: 1px solid var(--ring); border-radius: 10px;
+           background: var(--surface); }
+  footer { margin-top: 18px; padding-top: 12px; border-top: 1px solid var(--grid);
+           color: var(--ink-2); font-size: 14.5px; display: grid; gap: 6px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+</style>
+
+<div class="wrap">
+  <header>
+    <div>
+      <h1><span class="glyph" aria-hidden="true">🛰️</span> Mission Runtime 운영 상태</h1>
+      <p class="sub">
+        <span class="pill">👁️ 조회 전용</span>
+        <span class="pill live">● 실측</span> 이 기계에서 읽은 값 ·
+        <span class="pill ex">○ 예시</span> 커밋된 예시 장면
+        <span id="readAt" class="mono"></span>
+      </p>
+    </div>
+    <button id="theme" title="밝기 전환">🌓 밝기</button>
+  </header>
+
+  <div class="filters" id="filters"></div>
+  <nav class="tabs" id="tabs" role="tablist"></nav>
+  <div id="panel"></div>
+
+  <footer>
+    <div><b>소스 수신</b> <span class="chips" id="sources"></span></div>
+    <div><b>구역 가용성</b> <span class="chips" id="regions"></span></div>
+  </footer>
+</div>
+<div class="tip" id="tip"></div>
+
+<script>
+/* ──────────────────────────────────────────────────────────────────
+   읽기 전용 렌더러. 상태는 화면 상태(탭·필터)뿐이고 데이터는 고치지 않는다.
+   ────────────────────────────────────────────────────────────────── */
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) =>
+  ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const timeOf = (iso) => iso ? esc(iso).slice(11, 19) : "—";
+const pct1 = (v) => (Math.round(v * 1000) / 10).toFixed(1);
+
+const S = { tab: "overview", role: "analyst", zone: "*", device: "*", cap: "*", pick: null, d: null };
+
+/* 상태 어휘 → (아이콘, 글자, 등급). 색만으로 뜻을 전달하지 않는다. */
+const NODE_ST = {
+  EXECUTING:          ["▶", "실행 중", "run", "good"],
+  SUCCEEDED:          ["✔", "완료", "ok", "good"],
+  FAILED:             ["✖", "실패", "bad", "crit"],
+  EXTERNAL_REQUESTED: ["⚑", "외부 요청 중", "ext", "warn"],
+  BLOCKED:            ["⏳", "대기(의존)", "idle", "idle"],
+  PENDING:            ["·", "대기 중", "idle", "idle"],
+};
+const SEV = { INFO: ["ℹ", "정보", "idle"], WARN: ["⚠", "주의", "warn"], ERROR: ["⛔", "오류", "crit"] };
+const KIND = { EXECUTION: "⚙ 실행", EXTERNAL_REQUEST: "📮 외부요청", RESOURCE: "🖥 자원" };
+const MEET = { MET: ["✔", "충족", "good"], UNMET: ["✖", "미달", "crit"], NOT_MEASURED: ["—", "측정 없음", "idle"] };
+const STAGE_ICON = ["①", "②", "③", "④", "⑤", "⑥"];
+const STAGES = ["JUDGED", "SENT", "SERVER_WORKING", "DEPLOYED", "RE_EXECUTING", "SETTLED"];
+const STAGE_KO = { JUDGED: "판정", SENT: "전송", SERVER_WORKING: "서버 처리", DEPLOYED: "배포 수신",
+                   RE_EXECUTING: "재실행", SETTLED: "최종 판정" };
+
+const st = (cls, icon, text) => `<span class="st ${cls}">${icon} ${esc(text)}</span>`;
+const role = () => (S.d.views.roles.find((r) => r.role === S.role) || S.d.views.roles[0]);
+const summaryOnly = () => role().detail_level === "summary";
+/** 관람 역할에는 식별자·내부 사유 토큰을 가린다(편의이고 통제가 아니다). */
+const ident = (v) => summaryOnly() ? "—" : esc(v ?? "—");
+
+/* ── 측정값: 값 칸이 없으면 "측정 없음"이다. 0 으로 그리지 않는다 ── */
+function measured(m) { return m && m.value !== undefined; }
+function valueText(m, { asPct = false } = {}) {
+  if (!measured(m)) return `<span class="none">측정 없음</span>`;
+  return asPct ? `${pct1(m.value)}%` : `${m.value} ${esc(m.unit)}`;
+}
+/** 크기 막대 — 한 색의 농도. 임계를 넘으면 상태색 + 아이콘으로 따로 말한다. */
+function bar(m, { limit = null, asPct = true } = {}) {
+  if (!measured(m)) return `<span class="none">측정 없음</span>`;
+  const over = limit !== null && m.value > limit;
+  const w = Math.max(1, Math.min(100, m.value * 100));
+  const tip = `${pct1(m.value)}%${limit !== null ? ` · 임계 ${pct1(limit)}%` : ""}`;
+  return `<span class="barwrap" data-tip="${esc(tip)}">
+    <span class="bar"><i class="${over ? "hot" : ""}" style="width:${w}%"></i>${
+      limit !== null ? `<u style="left:${Math.min(100, limit * 100)}%"></u>` : ""}</span>
+    <span class="barval">${valueText(m, { asPct })}</span>
+    ${over ? "⚠" : ""}</span>`;
+}
+/** 추이 — 2px 선, 마지막 점만 표식, 목표선은 **실제 값 위치**에 그린다. */
+function spark(samples, target) {
+  const pts = samples.filter((s) => s.value !== undefined).map((s) => s.value);
+  if (pts.length < 2) return `<span class="none">추이 없음</span>`;
+  const w = 128, h = 34, pad = 3;
+  let lo = Math.min(...pts), hi = Math.max(...pts);
+  if (target !== undefined) { lo = Math.min(lo, target); hi = Math.max(hi, target); }
+  const span = hi - lo || 1;
+  const x = (i) => pad + (i * (w - 2 * pad)) / (pts.length - 1);
+  const y = (v) => h - pad - ((v - lo) / span) * (h - 2 * pad);
+  const path = pts.map((v, i) => `${i ? "L" : "M"}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join("");
+  return `<svg class="spark" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" role="img"
+      aria-label="최근 ${pts.length}개 표본 추이">
+    ${target !== undefined ? `<line class="tgt" x1="0" y1="${y(target).toFixed(1)}" x2="${w}" y2="${y(target).toFixed(1)}"/>` : ""}
+    <path class="line" d="${path}"/>
+    <circle class="dot" cx="${x(pts.length - 1).toFixed(1)}" cy="${y(pts[pts.length - 1]).toFixed(1)}" r="4"/>
+  </svg>`;
+}
+
+/* ── 필터 ────────────────────────────────────────────────────── */
+function nodes() {
+  let list = S.d.snapshot.message.task_nodes;
+  if (S.device !== "*") list = list.filter((n) => n.accelerator_instance_id === S.device);
+  if (S.cap !== "*") list = list.filter((n) => n.service_id === S.cap);
+  return list;
+}
+function services() {
+  let list = S.d.snapshot.message.services;
+  if (S.device !== "*") list = list.filter((s) => s.accelerator_instance_id === S.device);
+  if (S.cap !== "*") list = list.filter((s) => s.service_id === S.cap);
+  return list;
+}
+function accelerators() {
+  const list = S.d.snapshot.message.accelerators;
+  return S.device === "*" ? list : list.filter((a) => a.accelerator_instance_id === S.device);
+}
+function events() {
+  const ids = new Set(nodes().map((n) => n.task_node_id));
+  return S.d.snapshot.message.events.filter(
+    (e) => !e.task_node_id || ids.has(e.task_node_id) || S.device === "*" && S.cap === "*");
+}
+function pickId() {
+  const list = nodes();
+  if (S.pick && list.some((n) => n.task_node_id === S.pick)) return S.pick;
+  return S.d.snapshot.message.focus.task_node_id || (list[0] && list[0].task_node_id);
+}
+
+/* ── 머리의 필터 한 줄 ──────────────────────────────────────── */
+function renderFilters() {
+  const v = S.d.views;
+  const opt = (val, label, cur) =>
+    `<option value="${esc(val)}" ${val === cur ? "selected" : ""}>${esc(label)}</option>`;
+  $("filters").innerHTML = `
+    <label>🧑‍💼 역할
+      <select id="fRole">${v.roles.map((r) =>
+        opt(r.role, `${r.icon} ${r.display_name}`, S.role)).join("")}</select></label>
+    <label>🗺️ 구역
+      <select id="fZone">${[opt("*", "전체", S.zone),
+        ...v.filters.zones.map((z) => opt(z, z, S.zone))].join("")}</select></label>
+    <label>🔌 장비·가속기
+      <select id="fDev">${[opt("*", "전체", S.device),
+        ...v.filters.devices.map((d) => opt(d.id, `${d.kind === "gpu" ? "🎮" : "🧮"} ${d.label}`, S.device))
+        ].join("")}</select></label>
+    <label>🧩 기능
+      <select id="fCap">${[opt("*", "전체", S.cap),
+        ...v.filters.capabilities.map((c) => opt(c, c, S.cap))].join("")}</select></label>
+    <span class="enforce">ℹ️ ${esc(role().note)}</span>`;
+  $("fRole").onchange = (e) => { S.role = e.target.value; if (!role().tabs.includes(S.tab)) S.tab = role().tabs[0]; draw(); };
+  $("fZone").onchange = (e) => { S.zone = e.target.value; draw(); };
+  $("fDev").onchange = (e) => { S.device = e.target.value; draw(); };
+  $("fCap").onchange = (e) => { S.cap = e.target.value; draw(); };
+}
+
+/* ── 탭 ──────────────────────────────────────────────────────── */
+function renderTabs() {
+  const allowed = role().tabs;
+  const counts = {
+    graph: nodes().length,
+    requests: S.d.snapshot.message.external_requests.length,
+    node: 0, overview: 0, resources: accelerators().length, planning: 0, raw: 0,
+  };
+  const attn = nodes().filter((n) => ["FAILED", "EXTERNAL_REQUESTED"].includes(n.task_node_state)).length;
+  $("tabs").innerHTML = S.d.views.tabs.filter((t) => allowed.includes(t.id)).map((t) => {
+    const c = counts[t.id];
+    const isAttn = t.id === "graph" && attn > 0;
+    return `<button role="tab" data-tab="${t.id}" aria-selected="${t.id === S.tab}">
+      <span class="glyph" aria-hidden="true">${t.icon}</span>${esc(t.label)}
+      ${t.regions.length ? `<span class="count">${t.regions.join("·")}</span>` : ""}
+      ${c ? `<span class="count ${isAttn ? "attn" : ""}">${c}</span>` : ""}</button>`;
+  }).join("");
+  $("tabs").querySelectorAll("button").forEach((b) => {
+    b.onclick = () => { S.tab = b.dataset.tab; draw(); };
+  });
+}
+
+/* ── 패널들 ─────────────────────────────────────────────────── */
+const card = (icon, title, regions, body) => `<section class="card">
+  <h2><span class="glyph" aria-hidden="true">${icon}</span>${esc(title)}
+    ${regions ? `<span class="region">${esc(regions)}</span>` : ""}</h2>${body}</section>`;
+
+function panelOverview() {
+  const m = S.d.snapshot.message, list = nodes();
+  const by = {};
+  for (const n of list) by[n.task_node_state] = (by[n.task_node_state] || 0) + 1;
+  const attn = (by.FAILED || 0) + (by.EXTERNAL_REQUESTED || 0);
+  const rec = S.d.recommendation.candidates.filter((c) => c.recommended);
+  const tile = (icon, k, v, bad) => `<div class="tile ${bad ? "attn" : ""}">
+    <div class="k">${icon} ${esc(k)}</div><div class="v">${esc(v)}</div></div>`;
+
+  return `<div class="cols wide">${card("🎯", "미션 상태 요약", "B", `
+    <div class="tiles">
+      ${tile("🧮", "전체 노드", list.length)}
+      ${tile("▶", "실행 중", by.EXECUTING || 0)}
+      ${tile("✔", "완료", by.SUCCEEDED || 0)}
+      ${tile("⏳", "대기", (by.PENDING || 0) + (by.BLOCKED || 0))}
+      ${tile("⚠", "주의 필요", attn, attn > 0)}
+    </div>
+    <h3>현재 미션</h3>
+    <table><tbody>
+      <tr><th>발화</th><td><b>${esc(m.mission.utterance_text || "—")}</b></td></tr>
+      <tr><th>식별자</th><td class="mono">${ident(m.mission.mission_id)}</td></tr>
+      <tr><th>상태</th><td>${st("good", "▶", m.mission.mission_status || "—")}</td></tr>
+      <tr><th>접수</th><td class="mono">${timeOf(m.mission.accepted_at)}</td></tr>
+    </tbody></table>`)}</div>
+  <div class="cols">
+    ${card("🔌", "가속기 → 배치 서비스", "B", placementTable())}
+    ${card("🔔", "최근 사건", "D", eventTable(events().slice(0, 8)))}
+    ${card("🧠", "지금 할 만한 일", "", rec.length ? rec.map((c) => `
+      <div class="node ok"><div class="top"><span class="ttl">✅ ${esc(c.title)}</span>
+        <span class="st good">추천</span></div>
+        <div class="where">${summaryOnly() ? "" : esc(c.matched_triggers.join(" · "))}
+          ${c.subjects.length ? ` · 대상 ${c.subjects.map(esc).join(", ")}` : ""}</div></div>`).join("")
+      : `<p class="none">지금 권할 근거가 없다 — 근거 없는 추천은 하지 않는다.</p>`)}
+  </div>`;
+}
+
+function placementTable() {
+  const m = S.d.snapshot.message;
+  const placed = {};
+  for (const s of services()) (placed[s.accelerator_instance_id] ||= []).push(s);
+  const load = {};
+  for (const n of nodes()) {
+    if (!n.accelerator_instance_id) continue;
+    const l = (load[n.accelerator_instance_id] ||= { e: 0, t: 0 });
+    l.t += 1; if (n.task_node_state === "EXECUTING") l.e += 1;
+  }
+  return `<table><thead><tr><th>가속기</th><th>배치 서비스</th><th class="num">노드</th></tr></thead>
+    <tbody>${accelerators().map((a) => {
+      const svc = placed[a.accelerator_instance_id] || [], l = load[a.accelerator_instance_id];
+      return `<tr><td>${a.kind === "gpu" ? "🎮" : "🧮"} <span class="mono">${esc(a.accelerator_instance_id)}</span>
+        <span class="sub2">${esc(a.accelerator_kind)}${a.accelerator_vendor_label ? " · " + esc(a.accelerator_vendor_label) : ""}</span></td>
+        <td>${svc.length ? svc.map((s) => esc(s.service_id)).join("<br>") : st("idle", "💤", "미할당")}</td>
+        <td class="num">${l ? `${l.e}/${l.t}` : "—"}</td></tr>`;
+    }).join("")}</tbody></table>`;
+}
+
+function eventTable(list) {
+  if (!list.length) return `<p class="none">사건 없음</p>`;
+  return `<table><tbody>${list.map((e) => {
+    const [i, t, c] = SEV[e.event_severity] || ["·", e.event_severity, "idle"];
+    return `<tr><td class="mono" style="width:5.2em">${timeOf(e.occurred_at)}</td>
+      <td style="width:5.5em">${st(c, i, t)}</td>
+      <td style="width:7.5em"><span class="sub2">${esc(KIND[e.event_kind] || e.event_kind)}</span></td>
+      <td>${esc(e.event_message)}${e.task_node_id
+        ? `<span class="sub2">${ident(e.task_node_id)}${e.task_attempt > 1 ? ` · 회차 ${e.task_attempt}` : ""}</span>` : ""}</td></tr>`;
+  }).join("")}</tbody></table>`;
+}
+
+function panelGraph() {
+  const m = S.d.snapshot.message, list = nodes();
+  const body = list.length ? list.map((n) => {
+    const [icon, text, cls, sev] = NODE_ST[n.task_node_state] || ["·", n.task_node_state, "idle", "idle"];
+    return `<div class="node ${cls} ${n.task_node_id === pickId() ? "pick" : ""}" role="button"
+        tabindex="0" data-node="${esc(n.task_node_id)}">
+      <div class="top"><span class="ttl">${esc(n.node_title || n.task_node_id)}</span>
+        ${st(sev, icon, text)}</div>
+      <div class="where">🧩 ${esc(n.service_id || "서비스 없음")} ·
+        ${n.accelerator_instance_id === "off_device" ? "☁️ 온디바이스 외부"
+          : `🔌 ${esc(n.accelerator_instance_id || "—")}`}
+        ${n.task_attempt > 1 ? ` · 🔁 회차 ${n.task_attempt}` : ""}
+        ${n.parallel_group ? ` · ⇉ ${esc(n.parallel_group)}` : ""}</div>
+      <div class="edge mono">${ident(n.task_node_id)}
+        ${n.order_after.length ? ` ─▶ ${n.order_after.map((x) => ident(x)).join(", ")}` : ""}
+        ${n.depends_on.length ? ` ┄▶ ${n.depends_on.map((x) => ident(x)).join(", ")}` : ""}</div></div>`;
+  }).join("") : `<p class="none">이 필터에 해당하는 노드가 없다</p>`;
+
+  const legend = `<h3>범례</h3><p class="sub">
+    ─▶ 실행 순서(실선) · ┄▶ 결과 의존(점선) · ⇉ 병렬 묶음 · 🔁 재실행 회차 ·
+    ☁️ 온디바이스 외부</p>
+    ${m.reference_edges.length ? `<p class="sub">참조 간선(DAG 밖): ${m.reference_edges.map((e) =>
+      `${ident(e.from_task_node_id)} ─${esc(e.reference_edge_kind)}(${esc(e.reference_edge_when || "")})▶ ${ident(e.to_task_node_id)}`).join(" · ")}</p>` : ""}`;
+  return `<div class="cols wide">${card("🗺️", "실행 그래프", "C", body + legend)}</div>`;
+}
+
+function panelNode() {
+  const m = S.d.snapshot.message, id = pickId();
+  const n = m.task_nodes.find((x) => x.task_node_id === id);
+  if (!n) return `<div class="cols wide">${card("🔎", "선택 노드 상세", "F", `<p class="none">노드가 없다</p>`)}</div>`;
+  const [icon, text, , sev] = NODE_ST[n.task_node_state] || ["·", n.task_node_state, "", "idle"];
+  const v = m.verdicts.find((x) => x.task_node_id === id);
+  const base = (x) => String(x).split("#")[0];
+  const logs = m.events.filter((e) => e.task_node_id && base(e.task_node_id) === base(id));
+
+  const axis = (ic, label, items) => {
+    const done = (items || []).filter((i) => i.condition_satisfied === true).length;
+    return `<h3>${ic} ${label} <span class="mono">${done}/${(items || []).length}</span></h3>` +
+      ((items || []).length ? `<table><tbody>${items.map((i) => `<tr>
+        <td class="mono">${esc(i.condition_item_id)}</td>
+        <td style="width:7em">${i.condition_satisfied === undefined ? st("idle", "?", "미확인")
+          : i.condition_satisfied ? st("good", "✔", "충족") : st("crit", "✖", "불충족")}</td>
+        <td><span class="sub2">${summaryOnly() ? "" : esc(i.condition_reason || "")}</span></td></tr>`).join("")}</tbody></table>`
+        : `<p class="none">해당 없음</p>`);
+  };
+
+  return `<div class="cols">
+    ${card("🔎", "선택 노드 상세", "F", `
+      <table><tbody>
+        <tr><th>작업</th><td><b>${esc(n.node_title || "—")}</b> ${st(sev, icon, text)}</td></tr>
+        <tr><th>식별자</th><td class="mono">${ident(n.task_node_id)}</td></tr>
+        <tr><th>담당 서비스 <span class="sub2">L2</span></th><td>🧩 ${esc(n.service_id || "—")}</td></tr>
+        <tr><th>실행 가속기 <span class="sub2">L1</span></th><td>${
+          n.accelerator_instance_id === "off_device" ? st("warn", "☁️", "온디바이스 외부")
+            : `🔌 <span class="mono">${esc(n.accelerator_instance_id || "—")}</span>`}</td></tr>
+        <tr><th>진행률</th><td>${n.progress_ratio !== undefined
+          ? bar({ value: n.progress_ratio, unit: "ratio" }, {}) : `<span class="none">측정 없음</span>`}</td></tr>
+        <tr><th>시작 · 예상 완료</th><td class="mono">${timeOf(n.started_at)} · ${timeOf(n.estimated_completion_at)}</td></tr>
+        <tr><th>입력 명령</th><td>${esc(n.input_command || "—")}</td></tr>
+        <tr><th>회차</th><td>${n.task_attempt}${n.origin_task_node_id ? ` · 원 노드 ${ident(n.origin_task_node_id)}` : ""}</td></tr>
+      </tbody></table>
+      <p class="sub">기준 노드 선정: ${esc(m.focus.focus_reason)} ·
+        ${m.focus.focus_pinned ? "📌 수동 고정" : "🎯 자동 추종"}</p>`)}
+    ${card("⚖️", "조건 및 판정", "G", v ? `
+      ${axis("✅", "완료 조건", v.completion)}
+      ${axis("⛔", "실패 조건", v.failure)}
+      ${axis("🖥", "자원 조건", v.resource)}
+      ${v.escalated_request_id ? `<p>${st("warn", "⚑", "외부 기능 요청으로 승격")}
+        <span class="mono">${ident(v.escalated_request_id)}</span></p>` : ""}`
+      : `<p class="none">이 노드의 판정이 없다</p>`)}
+    ${card("📜", "노드별 이벤트 로그", "H", eventTable(logs))}
+  </div>`;
+}
+
+function panelRequests() {
+  const list = S.d.snapshot.message.external_requests;
+  const body = list.length ? list.map((r) => {
+    const reached = new Set((r.stage_times || []).map((t) => t.external_request_stage));
+    const at = {};
+    for (const t of r.stage_times || []) at[t.external_request_stage] = t.stage_entered_at;
+    const verdict = r.external_request_verdict === "SUCCEEDED" ? st("good", "✔", "재실행 성공")
+      : r.external_request_verdict === "FAILED" ? st("crit", "✖", "재실행 실패")
+      : st("idle", "⏳", "판정 대기");
+    return `<div class="node ${r.external_request_verdict === "SUCCEEDED" ? "ok" : "ext"}">
+      <div class="top"><span class="ttl">📮 ${esc(r.external_request_reason === "SIM_REAL_MISMATCH"
+        ? "시뮬–실물 불일치" : "미지원 기능")}</span>${verdict}</div>
+      <div class="where mono">${ident(r.external_request_id)} · 발생 노드 ${ident(r.task_node_id)}</div>
+      ${summaryOnly() ? "" : `<div class="where">${esc(r.external_request_reason_detail || "")}</div>`}
+      <div class="steps">${STAGES.map((s, i) => {
+        const cls = [reached.has(s) ? "done" : "", r.external_request_stage === s ? "here" : "",
+                     s === "SERVER_WORKING" ? "opaque" : ""].join(" ");
+        return `<span class="step ${cls}" data-tip="${esc(STAGE_KO[s])}${at[s] ? " · " + timeOf(at[s]) : ""}">
+          ${STAGE_ICON[i]} ${esc(STAGE_KO[s])}</span>`;
+      }).join("")}</div>
+      <div class="where">📦 배포 ${r.deployment_received
+        ? `<b>${esc(r.deployment_version)}</b>` : st("idle", "—", "미수신")}
+        · 🔁 재실행 ${r.re_execution_count}회</div></div>`;
+  }).join("") : `<p class="none">진행 중인 요청 없음 — 구역은 사라지지 않는다</p>`;
+  return `<div class="cols wide">${card("📮", "외부 기능 요청 (SDI 연계)", "I", body +
+    `<p class="sub">③ 서버 처리 구간은 빗금으로 표시한다 — 내부 진척은 수신 대상이 아니다.</p>`)}</div>`;
+}
+
+function panelResources() {
+  const m = S.d.snapshot.message;
+  const l1 = `<table><thead><tr><th>가속기</th><th>사용률</th><th>온도</th></tr></thead>
+    <tbody>${accelerators().map((a) => `<tr>
+      <td>${a.kind === "gpu" ? "🎮" : "🧮"} <span class="mono">${esc(a.accelerator_instance_id)}</span>
+        <span class="sub2">${esc(a.accelerator_kind)}${a.accelerator_attachment ? " · " + esc(a.accelerator_attachment) : ""}</span></td>
+      <td style="min-width:200px">${bar(a.utilization, { limit: 0.85 })}</td>
+      <td>${valueText(a.temperature)}</td></tr>`).join("")}
+      <tr><td>🧠 보드 메모리</td><td>${bar(m.board.memory_utilization, { limit: 0.9 })}</td>
+        <td>⚡ ${valueText(m.board.power)}</td></tr></tbody></table>`;
+
+  const l2 = `<table><thead><tr><th>서비스</th><th>배치 가속기</th><th>모델</th></tr></thead>
+    <tbody>${services().map((s) => `<tr>
+      <td>🧩 ${esc(s.service_id)}<span class="sub2">${esc(s.service_role || "")}</span></td>
+      <td>${s.accelerator_instance_id ? `🔌 <span class="mono">${esc(s.accelerator_instance_id)}</span>`
+        : st("idle", "💤", "미배치")}</td>
+      <td>${s.model ? `${esc(s.model)} <span class="sub2">${esc(s.model_version || "")}</span>`
+        : `<span class="none">모델 없음</span>`}</td></tr>`).join("")}</tbody></table>`;
+
+  const ind = services().flatMap((s) => s.indicators || []);
+  const e2 = ind.length ? `<table><thead><tr><th>지표</th><th>현재값</th><th>추이 · 목표선</th>
+      <th>충족</th></tr></thead><tbody>${ind.map((i) => {
+      const [ic, tx, cl] = MEET[i.target_meet_state] || ["·", i.target_meet_state, "idle"];
+      return `<tr><td>${esc(i.indicator_name)}<span class="sub2">${esc(i.service_id || "")} ·
+          ${esc(i.accelerator_instance_id || "—")}</span></td>
+        <td class="num">${valueText(i.measurement)}</td>
+        <td data-tip="${i.target ? esc(`목표 ${i.target.direction === "AT_LEAST" ? "≥" : "≤"} ${i.target.value} ${i.target.unit}`) : "목표 없음"}">
+          ${spark([...(i.trend || []), i.measurement], i.target && i.target.value)}</td>
+        <td>${st(cl, ic, tx)}</td></tr>`;
+    }).join("")}</tbody></table>
+    <p class="sub">점선이 목표 기준선이고 **실제 값 축 위**에 놓인다. 측정이 없는 구간은
+      미달이 아니라 측정 없음이다.</p>` : `<p class="none">지표 없음</p>`;
+
+  return `<div class="cols">
+    ${card("🖥️", "Layer 1 · 하드웨어", "E", l1)}
+    ${card("🧩", "Layer 2 · 서비스", "E", l2)}
+  </div><div class="cols wide">${card("📈", "주요 성능 지표", "E′", e2)}</div>`;
+}
+
+function panelPlanning() {
+  const p = S.d.proposal, r = S.d.recommendation;
+  const steps = p.steps.length ? `<table><thead><tr><th class="num">#</th><th>action</th>
+      <th>필수 capability</th><th>선택</th></tr></thead><tbody>${p.steps.map((s, i) => `<tr>
+      <td class="num">${i + 1}</td><td class="mono">${esc(s.action)}</td>
+      <td class="mono">${s.required.map(esc).join(", ")}</td>
+      <td class="mono"><span class="sub2">${s.optional.map(esc).join(", ") || "—"}</span></td></tr>`).join("")}</tbody></table>`
+    : `<p class="none">접지된 단계가 없다</p>`;
+  const rejected = p.rejected.length ? `<table><tbody>${p.rejected.map((x) => `<tr>
+      <td class="num" style="width:2.5em">${x.index}</td>
+      <td style="width:12em">${st("warn", "⚠", x.reason)}</td>
+      <td class="mono">${esc(x.detail || "")}</td>
+      <td class="mono">${esc(x.requested_capability || "")}</td></tr>`).join("")}</tbody></table>`
+    : `<p class="none">거부된 단계 없음</p>`;
+
+  return `<div class="cols">
+    ${card("🧠", "서브태스크 산출 — capability 접지", "", `
+      <h3>🗣️ 목표 문장</h3><p>${esc(p.goal_text)}</p>
+      <h3>📚 생성에 허용한 어휘 <span class="sub2">지금 provider 가 있는 기능만</span></h3>
+      <p class="mono">${p.menu.map(esc).join(" · ")}</p>
+      <h3>✅ 접지된 단계 <span class="sub2">순서가 실행 순서다 — 의존은 생성 주체가 만들지 않는다</span></h3>
+      ${steps}
+      <h3>⚠️ 거부된 단계 <span class="sub2">사유가 단계별로 남는다</span></h3>
+      ${rejected}
+      ${p.escalation_capabilities.length ? `<p>${st("warn", "⚑", "외부 개발 요청 후보")}
+        <span class="mono">${p.escalation_capabilities.map(esc).join(", ")}</span></p>` : ""}
+      <p class="sub">제공자 ${esc(p.provider_id || "없음")} · 결과 ${esc(p.reason)}</p>`)}
+    ${card("🧭", "상황 기반 임무 추천", "", `
+      <h3>🔎 촉발 근거</h3><p class="mono">${r.situation.triggers.map(esc).join(" · ")}</p>
+      <h3>💤 유휴 가속기</h3><p class="mono">${r.situation.idle_accelerators.map(esc).join(", ") || "없음"}</p>
+      ${r.candidates.map((c) => `<div class="node ${c.recommended ? "ok" : "bad"}">
+        <div class="top"><span class="ttl">${c.recommended ? "✅" : "⛔"} ${esc(c.title)}</span>
+          ${c.recommended ? st("good", "👍", "추천") : st("crit", "✖", "막힘")}</div>
+        <div class="where">${esc(c.reason)}
+          ${c.missing_capabilities.length ? ` · 없는 기능 <span class="mono">${c.missing_capabilities.map(esc).join(", ")}</span>` : ""}
+          ${c.subjects.length ? ` · 대상 ${c.subjects.map(esc).join(", ")}` : ""}</div></div>`).join("")}
+      <p class="sub">추천은 발령이 아니다 — 띄우는 것은 승인을 거쳐 백엔드가 한다.</p>`)}
+  </div>`;
+}
+
+function panelRaw() {
+  return `<div class="cols wide">${card("🧾", "원본 메시지", "", `
+    <p class="sub">채널 <span class="mono">status_snapshot</span> 의 와이어 메시지 그대로다.
+      실측으로 덮인 묶음: <span class="mono">${S.d.snapshot.live_sections.map(esc).join(", ")}</span></p>
+    <pre>${esc(JSON.stringify(S.d.snapshot.message, null, 2))}</pre>`)}</div>`;
+}
+
+function panelConsole() {
+  const c = S.d.console;
+  if (!c || !c.running) {
+    return `<div class="cols wide">${card("🖼️", "가시화 콘솔", "", `
+      <p class="none">가시화 콘솔이 돌지 않는다.</p>
+      <p class="sub">한 명령으로 함께 띄우려면:
+        <span class="mono">python tools/snapshot_ui/serve.py --with-console</span>
+        (Node 22.6 이상 필요). 이 콘솔은 가시화 파트에서 복사해 온 것이고 자기 목
+        게이트웨이로 돈다 — 우리 <span class="mono">status_snapshot</span> 채널을 아직
+        모른다.</p>`)}</div>`;
+  }
+  return `<div class="cols wide">${card("🖼️", "가시화 콘솔", "", `
+    <p class="sub">가시화 파트의 운영 콘솔(복사해 온 것)이 <span class="mono">${esc(c.url)}</span>
+      에서 돌고 있다. 자기 목 게이트웨이를 쓰므로 우리 채널과는 아직 붙지 않는다.</p>
+    <iframe src="${esc(c.url)}" title="가시화 콘솔"></iframe>`)}</div>`;
+}
+
+const PANELS = { overview: panelOverview, graph: panelGraph, node: panelNode,
+                 requests: panelRequests, resources: panelResources,
+                 planning: panelPlanning, raw: panelRaw, console: panelConsole };
+
+/* ── 그리기 ─────────────────────────────────────────────────── */
+function draw() {
+  const m = S.d.snapshot.message;
+  $("readAt").textContent = "· " + new Date(S.d.snapshot.read_at * 1000).toLocaleTimeString();
+  renderFilters();
+  renderTabs();
+  $("panel").innerHTML = (PANELS[S.tab] || panelOverview)();
+  $("panel").querySelectorAll("[data-node]").forEach((el) => {
+    const go = () => { S.pick = el.dataset.node; S.tab = role().tabs.includes("node") ? "node" : S.tab; draw(); };
+    el.onclick = go;
+    el.onkeydown = (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); go(); } };
+  });
+  $("sources").innerHTML = m.sources.map((s) => {
+    const [i, t, c] = !s.last_received_at ? ["⛔", "미수신", "crit"]
+      : s.source_stale ? ["⚠", "오래됨", "warn"] : ["✔", timeOf(s.last_received_at), "good"];
+    return `<span class="pill">${st(c, i, t)} <span class="sub2">${esc(s.source_id)}</span></span>`;
+  }).join("");
+  $("regions").innerHTML = m.regions.map((r) => `<span class="pill">${
+    r.region_available ? st("good", "✔", r.region_id) : st("crit", "✖", `${r.region_id} ${r.region_reason}`)}</span>`).join("");
+}
+
+/* 홀더 — 표식보다 큰 적중 영역에 붙인다 */
+const tip = $("tip");
+document.addEventListener("mouseover", (e) => {
+  const el = e.target.closest("[data-tip]");
+  if (!el) { tip.style.opacity = 0; return; }
+  tip.textContent = el.dataset.tip;
+  const r = el.getBoundingClientRect();
+  tip.style.left = Math.min(window.innerWidth - 240, r.left) + "px";
+  tip.style.top = Math.max(4, r.top - 34) + "px";
+  tip.style.opacity = 1;
+});
+document.addEventListener("mouseout", () => { tip.style.opacity = 0; });
+$("theme").onclick = () => {
+  const dark = document.documentElement.dataset.theme === "dark";
+  document.documentElement.dataset.theme = dark ? "light" : "dark";
+};
+
+async function load() {
+  const baked = window.__SNAPSHOT_BUNDLE__;
+  if (baked) { S.d = baked; }
+  else {
+    const [snapshot, proposal, recommendation, views, cons] = await Promise.all([
+      fetch("/api/snapshot").then((r) => r.json()),
+      fetch("/api/proposal").then((r) => r.json()),
+      fetch("/api/recommendation").then((r) => r.json()),
+      fetch("/api/views").then((r) => r.json()),
+      fetch("/api/console").then((r) => r.json()).catch(() => ({ running: false })),
+    ]);
+    S.d = { snapshot, proposal, recommendation, views, console: cons };
+  }
+  if (S.d.console && S.d.console.running &&
+      !S.d.views.tabs.some((t) => t.id === "console")) {
+    S.d.views.tabs.push({ id: "console", icon: "🖼️", label: "가시화 콘솔", regions: [] });
+    for (const r of S.d.views.roles) r.tabs.push("console");
+  }
+  if (!role().tabs.includes(S.tab)) S.tab = role().tabs[0];
+  draw();
+  return Boolean(baked);
+}
+load().then((isStatic) => {
+  if (isStatic) {
+    $("readAt").insertAdjacentHTML("afterend", ' <span class="pill ex">정적 사본 — 되읽기 없음</span>');
+    return;
+  }
+  setInterval(() => load().catch(() => {}), 5000);
+}).catch((e) => {
+  document.querySelector(".wrap").insertAdjacentHTML("afterbegin",
+    `<p class="st crit">⛔ 불러오지 못했다: ${esc(e.message)}</p>`);
+});
+</script>

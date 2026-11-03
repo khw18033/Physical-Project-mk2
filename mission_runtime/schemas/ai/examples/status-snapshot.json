@@ -1,0 +1,732 @@
+{
+  "schema_version": "2.0",
+  "message_id": "msg-status-0184",
+  "source_id": "orchestrator",
+  "node_id": "ai-sbc-01",
+  "zone_id": "zoneA",
+  "channel": "status_snapshot",
+  "timestamp": "2026-11-02T09:01:00.000+09:00",
+  "sequence_id": 184,
+  "session_id": "0a1b2c3d4e5f",
+  "entity_id": "MSN-261027-01",
+  "mission": {
+    "mission_id": "MSN-261027-01",
+    "utterance_text": "박스 앞까지 이동해",
+    "mission_status": "running",
+    "accepted_at": "2026-11-02T09:00:00.000+09:00"
+  },
+  "focus": {
+    "task_node_id": "T-C1",
+    "focus_pinned": false,
+    "focus_reason": "focus_attention_first"
+  },
+  "task_nodes": [
+    {
+      "task_node_id": "T-A2",
+      "node_title": "로봇 현재 자세 확인",
+      "task_node_state": "SUCCEEDED",
+      "source_status": "done",
+      "service_id": "vlm_map",
+      "accelerator_instance_id": "ext-npu-1",
+      "node_kind": "sense",
+      "target_device_id": "robot-01",
+      "state_changed_at": "2026-11-02T09:00:04.000+09:00",
+      "started_at": "2026-11-02T09:00:01.000+09:00",
+      "progress_ratio": 1.0,
+      "input_command": "로봇의 현재 방위를 확인한다",
+      "task_attempt": 1,
+      "order_after": [],
+      "depends_on": []
+    },
+    {
+      "task_node_id": "T-A3",
+      "node_title": "한 바퀴 돌며 박스 탐지",
+      "task_node_state": "EXECUTING",
+      "source_status": "running",
+      "service_id": "vlm",
+      "accelerator_instance_id": "ext-npu-2",
+      "node_kind": "act",
+      "target_device_id": "robot-01",
+      "state_changed_at": "2026-11-02T09:00:05.000+09:00",
+      "started_at": "2026-11-02T09:00:05.000+09:00",
+      "estimated_completion_at": "2026-11-02T09:01:08.000+09:00",
+      "progress_ratio": 0.5,
+      "input_command": "scan_mission: 45도씩 8칸",
+      "task_attempt": 1,
+      "parallel_group": "scan",
+      "order_after": [
+        "T-A2"
+      ],
+      "depends_on": []
+    },
+    {
+      "task_node_id": "T-A4",
+      "node_title": "각도별 근거 수집",
+      "task_node_state": "EXECUTING",
+      "source_status": "running",
+      "service_id": "vlm",
+      "accelerator_instance_id": "ext-npu-2",
+      "node_kind": "sense",
+      "state_changed_at": "2026-11-02T09:00:06.000+09:00",
+      "started_at": "2026-11-02T09:00:06.000+09:00",
+      "progress_ratio": 0.5,
+      "task_attempt": 1,
+      "parallel_group": "scan",
+      "order_after": [
+        "T-A2"
+      ],
+      "depends_on": [
+        "T-A3"
+      ]
+    },
+    {
+      "task_node_id": "T-B1",
+      "node_title": "이동 경로 산출",
+      "task_node_state": "BLOCKED",
+      "source_status": "pending",
+      "service_id": "vlm_map",
+      "accelerator_instance_id": "ext-npu-1",
+      "node_kind": "decide",
+      "input_command": "탐지 결과로 접근 경로를 낸다",
+      "task_attempt": 1,
+      "order_after": [],
+      "depends_on": [
+        "T-A4"
+      ]
+    },
+    {
+      "task_node_id": "T-B2",
+      "node_title": "회전·직진 실행",
+      "task_node_state": "PENDING",
+      "source_status": "pending",
+      "service_id": "vla",
+      "accelerator_instance_id": "npu-xdna",
+      "node_kind": "act",
+      "target_device_id": "robot-01",
+      "task_attempt": 1,
+      "order_after": [
+        "T-B1"
+      ],
+      "depends_on": []
+    },
+    {
+      "task_node_id": "T-C1",
+      "node_title": "박스 무게 추정",
+      "task_node_state": "EXTERNAL_REQUESTED",
+      "source_status": "awaiting_evaluation",
+      "accelerator_instance_id": "off_device",
+      "node_kind": "verify",
+      "state_changed_at": "2026-11-02T09:00:40.000+09:00",
+      "task_attempt": 1,
+      "external_request_id": "SDI-2026-1102-007",
+      "order_after": [],
+      "depends_on": [
+        "T-B2"
+      ]
+    },
+    {
+      "task_node_id": "T-A2#2",
+      "node_title": "로봇 현재 자세 확인",
+      "task_node_state": "FAILED",
+      "source_status": "failed",
+      "service_id": "vlm_map",
+      "accelerator_instance_id": "ext-npu-1",
+      "node_kind": "sense",
+      "state_changed_at": "2026-11-02T09:00:12.000+09:00",
+      "started_at": "2026-11-02T09:00:10.000+09:00",
+      "task_attempt": 2,
+      "origin_task_node_id": "T-A2",
+      "external_request_id": "SDI-2026-1102-003",
+      "order_after": [],
+      "depends_on": []
+    },
+    {
+      "task_node_id": "T-A2#3",
+      "node_title": "로봇 현재 자세 확인",
+      "task_node_state": "SUCCEEDED",
+      "source_status": "done",
+      "service_id": "vlm_map",
+      "accelerator_instance_id": "ext-npu-1",
+      "node_kind": "sense",
+      "state_changed_at": "2026-11-02T09:00:38.000+09:00",
+      "started_at": "2026-11-02T09:00:36.000+09:00",
+      "progress_ratio": 1.0,
+      "task_attempt": 3,
+      "origin_task_node_id": "T-A2",
+      "external_request_id": "SDI-2026-1102-003",
+      "order_after": [],
+      "depends_on": []
+    }
+  ],
+  "reference_edges": [
+    {
+      "from_task_node_id": "T-B1",
+      "to_task_node_id": "T-A3",
+      "reference_edge_kind": "repeat",
+      "reference_edge_when": "fail"
+    }
+  ],
+  "accelerators": [
+    {
+      "accelerator_instance_id": "cpu",
+      "accelerator_kind": "cpu",
+      "accelerator_attachment": "builtin",
+      "utilization": {
+        "value": 0.41,
+        "unit": "ratio",
+        "measured_at": "2026-11-02T09:01:00.000+09:00"
+      },
+      "temperature": {
+        "value": 58.0,
+        "unit": "celsius",
+        "measured_at": "2026-11-02T09:01:00.000+09:00"
+      }
+    },
+    {
+      "accelerator_instance_id": "igpu",
+      "accelerator_kind": "igpu",
+      "accelerator_attachment": "builtin",
+      "utilization": {
+        "value": 0.22,
+        "unit": "ratio",
+        "measured_at": "2026-11-02T09:01:00.000+09:00"
+      },
+      "temperature": {
+        "value": 54.0,
+        "unit": "celsius",
+        "measured_at": "2026-11-02T09:01:00.000+09:00"
+      }
+    },
+    {
+      "accelerator_instance_id": "npu-xdna",
+      "accelerator_kind": "npu",
+      "accelerator_attachment": "builtin",
+      "accelerator_vendor_label": "XDNA",
+      "utilization": {
+        "value": 0.67,
+        "unit": "ratio",
+        "measured_at": "2026-11-02T09:01:00.000+09:00"
+      },
+      "temperature": {
+        "value": 61.0,
+        "unit": "celsius",
+        "measured_at": "2026-11-02T09:01:00.000+09:00"
+      }
+    },
+    {
+      "accelerator_instance_id": "ext-npu-1",
+      "accelerator_kind": "npu",
+      "accelerator_attachment": "external",
+      "accelerator_vendor_label": "mobilint",
+      "utilization": {
+        "value": 0.73,
+        "unit": "ratio",
+        "measured_at": "2026-11-02T09:01:00.000+09:00"
+      },
+      "temperature": {
+        "value": 66.0,
+        "unit": "celsius",
+        "measured_at": "2026-11-02T09:01:00.000+09:00"
+      }
+    },
+    {
+      "accelerator_instance_id": "ext-npu-2",
+      "accelerator_kind": "npu",
+      "accelerator_attachment": "external",
+      "accelerator_vendor_label": "deepx",
+      "utilization": {
+        "value": 0.88,
+        "unit": "ratio",
+        "measured_at": "2026-11-02T09:01:00.000+09:00"
+      },
+      "temperature": {
+        "value": 71.0,
+        "unit": "celsius",
+        "measured_at": "2026-11-02T09:01:00.000+09:00"
+      }
+    },
+    {
+      "accelerator_instance_id": "ext-npu-3",
+      "accelerator_kind": "npu",
+      "accelerator_attachment": "external",
+      "utilization": {
+        "value": 0.0,
+        "unit": "ratio",
+        "measured_at": "2026-11-02T09:01:00.000+09:00"
+      },
+      "temperature": {
+        "value": 44.0,
+        "unit": "celsius",
+        "measured_at": "2026-11-02T09:01:00.000+09:00"
+      }
+    }
+  ],
+  "services": [
+    {
+      "service_id": "orchestrator",
+      "accelerator_instance_id": "cpu",
+      "service_role": "그래프 생성·노드 배정·판정"
+    },
+    {
+      "service_id": "video_preprocess",
+      "accelerator_instance_id": "igpu",
+      "service_role": "카메라 입력 디코딩·정규화"
+    },
+    {
+      "service_id": "vla",
+      "accelerator_instance_id": "npu-xdna",
+      "service_role": "행동 명령 생성",
+      "model": "vla-base",
+      "model_version": "0.4.1",
+      "indicators": [
+        {
+          "indicator_name": "inference_fps",
+          "service_id": "vla",
+          "accelerator_instance_id": "npu-xdna",
+          "measurement": {
+            "value": 9.4,
+            "unit": "fps",
+            "measured_at": "2026-11-02T09:01:00.000+09:00"
+          },
+          "target": {
+            "value": 8.0,
+            "direction": "AT_LEAST",
+            "unit": "fps"
+          },
+          "target_meet_state": "MET",
+          "trend": [
+            {
+              "value": 8.8,
+              "unit": "fps",
+              "measured_at": "2026-11-02T09:00:30.000+09:00"
+            },
+            {
+              "value": 9.1,
+              "unit": "fps",
+              "measured_at": "2026-11-02T09:00:45.000+09:00"
+            },
+            {
+              "value": 9.4,
+              "unit": "fps",
+              "measured_at": "2026-11-02T09:01:00.000+09:00"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "service_id": "vlm_map",
+      "accelerator_instance_id": "ext-npu-1",
+      "service_role": "공간 지도·경로",
+      "model": "vlm-map",
+      "model_version": "1.2.0",
+      "indicators": [
+        {
+          "indicator_name": "map_update_interval",
+          "service_id": "vlm_map",
+          "accelerator_instance_id": "ext-npu-1",
+          "measurement": {
+            "value": 0.42,
+            "unit": "second",
+            "measured_at": "2026-11-02T09:00:58.000+09:00"
+          },
+          "target": {
+            "value": 0.5,
+            "direction": "AT_MOST",
+            "unit": "second"
+          },
+          "target_meet_state": "MET"
+        }
+      ]
+    },
+    {
+      "service_id": "vlm",
+      "accelerator_instance_id": "ext-npu-2",
+      "service_role": "장면 이해·물체 인식",
+      "model": "clip-gate",
+      "model_version": "2026.10.3",
+      "indicators": [
+        {
+          "indicator_name": "scene_latency",
+          "service_id": "vlm",
+          "accelerator_instance_id": "ext-npu-2",
+          "measurement": {
+            "unit": "millisecond"
+          },
+          "target": {
+            "value": 120.0,
+            "direction": "AT_MOST",
+            "unit": "millisecond"
+          },
+          "target_meet_state": "NOT_MEASURED"
+        }
+      ]
+    }
+  ],
+  "board": {
+    "memory_utilization": {
+      "value": 0.62,
+      "unit": "ratio",
+      "measured_at": "2026-11-02T09:01:00.000+09:00"
+    },
+    "power": {
+      "value": 38.4,
+      "unit": "watt",
+      "measured_at": "2026-11-02T09:01:00.000+09:00"
+    },
+    "power_trend": [
+      {
+        "value": 31.0,
+        "unit": "watt",
+        "measured_at": "2026-11-02T09:00:30.000+09:00"
+      },
+      {
+        "value": 35.2,
+        "unit": "watt",
+        "measured_at": "2026-11-02T09:00:45.000+09:00"
+      },
+      {
+        "value": 38.4,
+        "unit": "watt",
+        "measured_at": "2026-11-02T09:01:00.000+09:00"
+      }
+    ]
+  },
+  "verdicts": [
+    {
+      "task_node_id": "T-A3",
+      "completion": [
+        {
+          "condition_item_id": "all_eight_angles_observed",
+          "condition_satisfied": false,
+          "condition_reason": "4_of_8"
+        },
+        {
+          "condition_item_id": "target_found_in_any_angle",
+          "condition_satisfied": true,
+          "condition_reason": "found_at_270deg"
+        }
+      ],
+      "failure": [
+        {
+          "condition_item_id": "scan_timeout",
+          "condition_satisfied": false
+        },
+        {
+          "condition_item_id": "camera_frozen",
+          "condition_satisfied": false
+        }
+      ],
+      "resource": [
+        {
+          "condition_item_id": "accelerator_temperature_within_limit",
+          "condition_satisfied": true
+        },
+        {
+          "condition_item_id": "board_power_headroom",
+          "condition_reason": "not_measured"
+        }
+      ]
+    },
+    {
+      "task_node_id": "T-A2#2",
+      "completion": [
+        {
+          "condition_item_id": "pose_estimated",
+          "condition_satisfied": false,
+          "condition_reason": "no_pedestal_in_frame"
+        }
+      ],
+      "failure": [
+        {
+          "condition_item_id": "sim_real_mismatch",
+          "condition_satisfied": true,
+          "condition_reason": "passed_in_sim_failed_on_hardware"
+        }
+      ],
+      "resource": [
+        {
+          "condition_item_id": "accelerator_available",
+          "condition_satisfied": true
+        }
+      ],
+      "escalated_request_id": "SDI-2026-1102-003"
+    },
+    {
+      "task_node_id": "T-C1",
+      "completion": [
+        {
+          "condition_item_id": "weight_estimate_available",
+          "condition_satisfied": false,
+          "condition_reason": "no_provider"
+        }
+      ],
+      "failure": [
+        {
+          "condition_item_id": "no_on_device_capability",
+          "condition_satisfied": true,
+          "condition_reason": "missing_required_capability"
+        }
+      ],
+      "resource": [],
+      "escalated_request_id": "SDI-2026-1102-007"
+    }
+  ],
+  "events": [
+    {
+      "occurred_at": "2026-11-02T09:01:00.000+09:00",
+      "event_severity": "WARN",
+      "event_kind": "RESOURCE",
+      "event_message": "ext-npu-2 사용률 0.88 — 임계 0.85 초과"
+    },
+    {
+      "occurred_at": "2026-11-02T09:00:41.000+09:00",
+      "event_severity": "INFO",
+      "event_kind": "EXTERNAL_REQUEST",
+      "event_message": "SDI 요청 발신 — 미지원 기능",
+      "task_node_id": "T-C1",
+      "task_attempt": 1,
+      "external_request_id": "SDI-2026-1102-007"
+    },
+    {
+      "occurred_at": "2026-11-02T09:00:38.500+09:00",
+      "event_severity": "INFO",
+      "event_kind": "EXTERNAL_REQUEST",
+      "event_message": "재실행 성공 — 요청 종결",
+      "task_node_id": "T-A2#3",
+      "task_attempt": 3,
+      "external_request_id": "SDI-2026-1102-003"
+    },
+    {
+      "occurred_at": "2026-11-02T09:00:33.000+09:00",
+      "event_severity": "INFO",
+      "event_kind": "EXTERNAL_REQUEST",
+      "event_message": "배포 1.4.2 수신 — 적용 후 재실행",
+      "task_node_id": "T-A2#2",
+      "task_attempt": 2,
+      "external_request_id": "SDI-2026-1102-003"
+    },
+    {
+      "occurred_at": "2026-11-02T09:00:12.000+09:00",
+      "event_severity": "WARN",
+      "event_kind": "EXECUTION",
+      "event_message": "T-A2 재실행이 실패했다 (ext-npu-1)",
+      "task_node_id": "T-A2#2",
+      "task_attempt": 2
+    },
+    {
+      "occurred_at": "2026-11-02T09:00:05.000+09:00",
+      "event_severity": "INFO",
+      "event_kind": "EXECUTION",
+      "event_message": "T-A3 실행 시작",
+      "task_node_id": "T-A3",
+      "task_attempt": 1
+    }
+  ],
+  "external_requests": [
+    {
+      "external_request_id": "SDI-2026-1102-007",
+      "external_request_reason": "UNSUPPORTED_CAPABILITY",
+      "external_request_reason_detail": "무게 추정 capability 가 온디바이스에 없다",
+      "task_node_id": "T-C1",
+      "requested_at": "2026-11-02T09:00:41.000+09:00",
+      "external_request_stage": "SERVER_WORKING",
+      "server_work_is_opaque": true,
+      "deployment_received": false,
+      "re_execution_count": 0,
+      "external_request_verdict": "PENDING",
+      "stage_times": [
+        {
+          "external_request_stage": "JUDGED",
+          "stage_entered_at": "2026-11-02T09:00:40.500+09:00"
+        },
+        {
+          "external_request_stage": "SENT",
+          "stage_entered_at": "2026-11-02T09:00:41.000+09:00"
+        },
+        {
+          "external_request_stage": "SERVER_WORKING",
+          "stage_entered_at": "2026-11-02T09:00:42.000+09:00"
+        }
+      ]
+    },
+    {
+      "external_request_id": "SDI-2026-1102-003",
+      "external_request_reason": "SIM_REAL_MISMATCH",
+      "external_request_reason_detail": "시뮬에서는 자세 추정이 되는데 실물 프레임에서 실패했다",
+      "task_node_id": "T-A2#2",
+      "requested_at": "2026-11-02T09:00:13.500+09:00",
+      "external_request_stage": "SETTLED",
+      "server_work_is_opaque": false,
+      "deployment_version": "1.4.2",
+      "deployment_received": true,
+      "re_execution_count": 1,
+      "external_request_verdict": "SUCCEEDED",
+      "stage_times": [
+        {
+          "external_request_stage": "JUDGED",
+          "stage_entered_at": "2026-11-02T09:00:13.000+09:00"
+        },
+        {
+          "external_request_stage": "SENT",
+          "stage_entered_at": "2026-11-02T09:00:13.500+09:00"
+        },
+        {
+          "external_request_stage": "SERVER_WORKING",
+          "stage_entered_at": "2026-11-02T09:00:14.000+09:00"
+        },
+        {
+          "external_request_stage": "DEPLOYED",
+          "stage_entered_at": "2026-11-02T09:00:33.000+09:00"
+        },
+        {
+          "external_request_stage": "RE_EXECUTING",
+          "stage_entered_at": "2026-11-02T09:00:36.000+09:00"
+        },
+        {
+          "external_request_stage": "SETTLED",
+          "stage_entered_at": "2026-11-02T09:00:38.500+09:00"
+        }
+      ],
+      "re_executed_task_node_ids": [
+        "T-A2#3"
+      ]
+    }
+  ],
+  "model_assignments": [
+    {
+      "device_id": "ai-sbc-01",
+      "mission_id": "MSN-261027-01",
+      "capability_kind": "scene_understanding",
+      "model": "clip-gate",
+      "model_version": "2026.10.3",
+      "assignment_reason": "assigned",
+      "rejected": [
+        {
+          "model_reference": "clip-gate@2026.09.1",
+          "assignment_reason": "outside_verified_hardware_scope"
+        }
+      ]
+    },
+    {
+      "device_id": "ai-sbc-01",
+      "mission_id": "MSN-261027-01",
+      "capability_kind": "weight_estimation",
+      "assignment_reason": "no_candidate_for_conditions",
+      "rejected": []
+    }
+  ],
+  "sources": [
+    {
+      "source_id": "ai-sbc-board",
+      "source_layer": "L1",
+      "last_received_at": "2026-11-02T09:01:00.000+09:00",
+      "source_stale": false,
+      "feeds": [
+        "B",
+        "E",
+        "G"
+      ]
+    },
+    {
+      "source_id": "vla",
+      "source_layer": "L2",
+      "last_received_at": "2026-11-02T09:00:59.000+09:00",
+      "source_stale": false,
+      "feeds": [
+        "B",
+        "E",
+        "E_PRIME",
+        "F"
+      ]
+    },
+    {
+      "source_id": "vlm_map",
+      "source_layer": "L2",
+      "last_received_at": "2026-11-02T09:00:58.000+09:00",
+      "source_stale": false,
+      "feeds": [
+        "B",
+        "E",
+        "E_PRIME",
+        "F"
+      ]
+    },
+    {
+      "source_id": "vlm",
+      "source_layer": "L2",
+      "last_received_at": "2026-11-02T09:00:59.500+09:00",
+      "source_stale": false,
+      "feeds": [
+        "B",
+        "E",
+        "E_PRIME",
+        "F"
+      ]
+    },
+    {
+      "source_id": "orchestrator",
+      "source_layer": "L3",
+      "last_received_at": "2026-11-02T09:01:00.000+09:00",
+      "source_stale": false,
+      "feeds": [
+        "B",
+        "C",
+        "D",
+        "F",
+        "G",
+        "H",
+        "I"
+      ]
+    },
+    {
+      "source_id": "knowledge_memory",
+      "source_layer": "L3",
+      "source_stale": false,
+      "feeds": [
+        "G"
+      ]
+    }
+  ],
+  "regions": [
+    {
+      "region_id": "B",
+      "region_available": true
+    },
+    {
+      "region_id": "C",
+      "region_available": true
+    },
+    {
+      "region_id": "D",
+      "region_available": true
+    },
+    {
+      "region_id": "E",
+      "region_available": true
+    },
+    {
+      "region_id": "E_PRIME",
+      "region_available": true
+    },
+    {
+      "region_id": "F",
+      "region_available": true
+    },
+    {
+      "region_id": "G",
+      "region_available": true,
+      "missing_sources": [
+        "knowledge_memory"
+      ]
+    },
+    {
+      "region_id": "H",
+      "region_available": true
+    },
+    {
+      "region_id": "I",
+      "region_available": true
+    }
+  ]
+}

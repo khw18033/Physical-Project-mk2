@@ -1,0 +1,493 @@
+{
+  "$comment": "배치 프로파일 — **실제만** 들어간다. 예시 현장은 두지 않는다. 장소는 가시화 파트, 로봇은 하드웨어 파트의 선언이 정본이고 이 파일은 그 둘을 우리 좌표로 옮긴 결과다. 새 현장은 선언을 더하는 것이지 코드를 고치는 일이 아니다(AI-C-15).",
+  "map": {
+    "width": 116,
+    "height": 72,
+    "unit": "index"
+  },
+  "domains": [
+    {
+      "$comment": "실제 배치. 장소와 좌표는 가시화 파트의 `places/places.json` · `places.geometry.json`(Unity `N45F_Map.unity` 월드 좌표, 단위 m, 줄자 실측이며 측량 등급이 아니다)에서 가져왔고, 로봇은 하드웨어 파트의 조인 선언(go1-001 · ep-001)이다. 우리가 한 것은 site-global → 구역 로컬 **평행이동 한 번**뿐이고 그 오프셋을 `frame_offset_from_site_global` 에 적어 둔다. 기하가 없는 장소 20곳(방)은 자리를 지어내지 않고 뺐다 — 문은 좌표가 있고 방 자체는 없다. AP 는 한 대만 선언돼 있고 그 한 대로는 이 층이 다 덮이지 않는다 — 복도 교차점에 두면 먼 모서리가 바닥 반경 밖이라 지금은 덮이는 자리에 선언해 두었고 `ap_placement` 가 미실측임을 적는다. 이 파일은 `tools/profiles/build_from_vz.py` 가 짓는다.",
+      "domain_id": "hanbat-n4",
+      "label": {
+        "ko": "한밭대 N4동 산업정보관",
+        "en": "Hanbat N4 Industrial Information Hall"
+      },
+      "domain_profile": "robot_autonomy_support",
+      "rect": {
+        "x": 4,
+        "y": 6,
+        "w": 108,
+        "h": 60
+      },
+      "space": {
+        "width": 52.5,
+        "height": 46.44,
+        "unit": "meter"
+      },
+      "frame_offset_from_site_global": {
+        "x": 54.95,
+        "z": 56.26,
+        "source_frame": "site-global",
+        "scene": "N45F_Map.unity"
+      },
+      "site": {
+        "name": {
+          "ko": "국립한밭대학교 유성 덕명캠퍼스 N4동 산업정보관",
+          "en": "Hanbat National University, N4 Industrial Information Hall"
+        },
+        "address": "대전 유성구 동서대로 125 (34158)",
+        "source": "장소·좌표 = 가시화 파트 places 계약 / 건물·주소 = hanbat.ac.kr 캠퍼스 맵",
+        "osm_building_name": "N4 산업정보관",
+        "verified_fields": [
+          "building_name",
+          "address",
+          "rooms",
+          "place_topology"
+        ],
+        "unverified_fields": [
+          "ap_placement",
+          "datum",
+          "room_footprints"
+        ],
+        "datum": {
+          "datum_id": "hanbat-n4-site-2026-11-03",
+          "version": "2026-11-03.1",
+          "created_at": "2026-11-03T10:00:00+09:00",
+          "verified": false,
+          "reference_point": {
+            "lat": 36.3503355,
+            "lon": 127.3003088,
+            "crs": "EPSG:4326",
+            "elevation_m": null
+          },
+          "accuracy_m": null,
+          "accuracy_basis": "unmeasured",
+          "source": {
+            "kind": "public_map",
+            "name": "OpenStreetMap — 국립한밭대학교(way 74273291, amenity=university)를 Nominatim 으로 조회한 결과. 선언된 주소 '대전 유성구 동서대로 125' 와 같은 대상이다.",
+            "url": "https://www.openstreetmap.org/way/74273291",
+            "query_url": "https://nominatim.openstreetmap.org/search?q=Hanbat+National+University&format=json",
+            "retrieved_at": "2026-11-03",
+            "license": "ODbL 1.0 (© OpenStreetMap contributors)"
+          },
+          "local_frame": {
+            "anchor": "space_origin",
+            "anchor_basis": "assumed",
+            "x_bearing_deg": 90.0,
+            "y_bearing_deg": 180.0,
+            "bearing_basis": "assumed",
+            "level_stacked": true,
+            "level_axis": "y"
+          },
+          "$note": "기준점은 **캠퍼스 중심**이고 N4동 산업정보관의 모서리가 아니다. 두 점의 어긋남을 재지 않았으므로 accuracy_m 은 null 이며 이것은 0 이 아니다(AI-C-02: \"미측정 정확도는 0 오차가 아니다\"). 로컬 (0,0) 이 이 기준점이라는 것과 방위 둘도 실측이 아니라 가정이다(anchor_basis·bearing_basis = assumed). 또 이 도메인의 로컬 평면은 층을 +y 로 쌓아 놓은 것이어서(levels[].y_offset) 평면 y 는 'y - 그 층의 y_offset' 이다 — 그 보정 없이 전역으로 올리면 4층이 1층보다 72 m 남쪽에 놓인다. verified 가 false 인 동안 전역 계층은 비활성이고 로컬 좌표만 쓴다(사유 datum_unverified)."
+        }
+      },
+      "levels": [
+        {
+          "level_id": "N4-5F",
+          "label": {
+            "ko": "산업정보관 5층",
+            "en": "N4 5F"
+          },
+          "verified": true,
+          "y_offset": 0
+        }
+      ],
+      "rf": {
+        "indoor": {
+          "model": "log_distance",
+          "band": "5GHz",
+          "tx_eirp_dbm": 20.0,
+          "reference_loss_db_at_1m": 46.0,
+          "path_loss_exponent": 3.5,
+          "radius_m": {
+            "excellent": 3.5,
+            "handover": 25.1,
+            "floor": 48.5
+          },
+          "thresholds_dbm": {
+            "excellent": -45.0,
+            "handover": -75.0,
+            "floor": -85.0
+          }
+        }
+      },
+      "zones": [
+        {
+          "zone_id": "zone-503",
+          "label": {
+            "ko": "N4동 5층 — 503호 구역",
+            "en": "N4 5F — zone 503"
+          },
+          "level_id": "N4-5F",
+          "verified": false,
+          "rect": {
+            "x": 0,
+            "y": 0,
+            "w": 52.5,
+            "h": 46.44
+          },
+          "rooms": [
+            "415호",
+            "501호",
+            "502호",
+            "503호",
+            "504호",
+            "505호",
+            "506호",
+            "507호",
+            "508호",
+            "509호",
+            "510호",
+            "511호",
+            "512호",
+            "513호",
+            "514호",
+            "515호",
+            "516호",
+            "517호",
+            "518호",
+            "519호",
+            "520호"
+          ],
+          "interiors": [
+            {
+              "room_id": "room-503",
+              "label": "503호",
+              "rect": {
+                "x": 14.49,
+                "y": 1.0,
+                "w": 7.4,
+                "h": 9.4
+              },
+              "size_m": {
+                "width": 7.4,
+                "depth": 9.4
+              },
+              "verified": false,
+              "interior": {
+                "scene": "Unity_Map/Assets/XRI/lab.unity",
+                "anchor": "Door ↔ door-503"
+              }
+            }
+          ],
+          "wifi": {
+            "ap_id": "ap-n4-5f",
+            "rf": "indoor",
+            "at": {
+              "x": 26.25,
+              "y": 23.22
+            }
+          },
+          "infrastructure": [],
+          "landmarks": [
+            {
+              "id": "door-501b",
+              "kind": "door",
+              "label": "501호 뒷문",
+              "at": {
+                "x": 34.57,
+                "y": 10.29
+              }
+            },
+            {
+              "id": "door-501f",
+              "kind": "door",
+              "label": "501호 앞문",
+              "at": {
+                "x": 29.11,
+                "y": 10.29
+              }
+            },
+            {
+              "id": "door-502b",
+              "kind": "door",
+              "label": "502호 뒷문",
+              "at": {
+                "x": 27.0,
+                "y": 10.29
+              }
+            },
+            {
+              "id": "door-502f",
+              "kind": "door",
+              "label": "502호 앞문",
+              "at": {
+                "x": 21.73,
+                "y": 10.29
+              }
+            },
+            {
+              "id": "door-503",
+              "kind": "door",
+              "label": "503호 문",
+              "at": {
+                "x": 17.11,
+                "y": 10.29
+              }
+            },
+            {
+              "id": "door-504b",
+              "kind": "door",
+              "label": "504호 뒷문",
+              "at": {
+                "x": 11.67,
+                "y": 10.29
+              }
+            },
+            {
+              "id": "door-504f",
+              "kind": "door",
+              "label": "504호 앞문",
+              "at": {
+                "x": 8.13,
+                "y": 10.29
+              }
+            },
+            {
+              "id": "door-505b",
+              "kind": "door",
+              "label": "505호 뒷문",
+              "at": {
+                "x": 6.23,
+                "y": 10.29
+              }
+            },
+            {
+              "id": "door-505f",
+              "kind": "door",
+              "label": "505호 앞문",
+              "at": {
+                "x": 1.0,
+                "y": 10.29
+              }
+            },
+            {
+              "id": "door-506",
+              "kind": "door",
+              "label": "506호 문",
+              "at": {
+                "x": 9.72,
+                "y": 13.06
+              }
+            },
+            {
+              "id": "door-507",
+              "kind": "door",
+              "label": "507호 문",
+              "at": {
+                "x": 11.4,
+                "y": 13.06
+              }
+            },
+            {
+              "id": "door-508",
+              "kind": "door",
+              "label": "508호 문",
+              "at": {
+                "x": 17.03,
+                "y": 13.06
+              }
+            },
+            {
+              "id": "door-509",
+              "kind": "door",
+              "label": "509호 문",
+              "at": {
+                "x": 18.71,
+                "y": 13.06
+              }
+            },
+            {
+              "id": "door-510",
+              "kind": "door",
+              "label": "510호 문",
+              "at": {
+                "x": 22.31,
+                "y": 13.06
+              }
+            },
+            {
+              "id": "door-511",
+              "kind": "door",
+              "label": "511호 문",
+              "at": {
+                "x": 26.95,
+                "y": 13.06
+              }
+            },
+            {
+              "id": "door-512",
+              "kind": "door",
+              "label": "512호 문",
+              "at": {
+                "x": 28.64,
+                "y": 13.06
+              }
+            },
+            {
+              "id": "door-513",
+              "kind": "door",
+              "label": "513호 문",
+              "at": {
+                "x": 42.3,
+                "y": 24.01
+              }
+            },
+            {
+              "id": "door-514",
+              "kind": "door",
+              "label": "514호 문",
+              "at": {
+                "x": 42.3,
+                "y": 33.28
+              }
+            },
+            {
+              "id": "door-515",
+              "kind": "door",
+              "label": "515호 문",
+              "at": {
+                "x": 42.3,
+                "y": 36.87
+              }
+            },
+            {
+              "id": "door-516",
+              "kind": "door",
+              "label": "516호 문",
+              "at": {
+                "x": 42.3,
+                "y": 40.61
+              }
+            },
+            {
+              "id": "door-517",
+              "kind": "door",
+              "label": "517호 문",
+              "at": {
+                "x": 42.3,
+                "y": 44.04
+              }
+            },
+            {
+              "id": "door-518b",
+              "kind": "door",
+              "label": "518호 뒷문",
+              "at": {
+                "x": 44.85,
+                "y": 43.84
+              }
+            },
+            {
+              "id": "door-518f",
+              "kind": "door",
+              "label": "518호 앞문",
+              "at": {
+                "x": 44.85,
+                "y": 31.62
+              }
+            },
+            {
+              "id": "door-519",
+              "kind": "door",
+              "label": "519호 문",
+              "at": {
+                "x": 44.85,
+                "y": 29.78
+              }
+            },
+            {
+              "id": "door-520b",
+              "kind": "door",
+              "label": "520호 뒷문",
+              "at": {
+                "x": 44.85,
+                "y": 25.42
+              }
+            },
+            {
+              "id": "door-520f",
+              "kind": "door",
+              "label": "520호 앞문",
+              "at": {
+                "x": 44.85,
+                "y": 13.74
+              }
+            },
+            {
+              "id": "elevator-5f",
+              "kind": "elevator",
+              "label": "엘리베이터",
+              "at": {
+                "x": 47.59,
+                "y": 10.97
+              }
+            },
+            {
+              "id": "stair-5f-east",
+              "kind": "stair",
+              "label": "동편 계단",
+              "at": {
+                "x": 45.05,
+                "y": 6.3
+              }
+            },
+            {
+              "id": "stair-5f-north",
+              "kind": "stair",
+              "label": "북편 계단",
+              "at": {
+                "x": 43.58,
+                "y": 45.44
+              }
+            },
+            {
+              "id": "stair-5f-west",
+              "kind": "stair",
+              "label": "서편 계단",
+              "at": {
+                "x": 2.63,
+                "y": 15.38
+              }
+            }
+          ],
+          "declared_nodes": [
+            {
+              "node_id": "go1-001",
+              "at": {
+                "x": 16.33,
+                "y": 4.0
+              }
+            },
+            {
+              "node_id": "ep-001"
+            }
+          ]
+        }
+      ],
+      "site_local": {
+        "at": {
+          "x": 43.04,
+          "y": -141.91
+        },
+        "verified": false,
+        "basis": "public_map_declaration",
+        "source": {
+          "kind": "public_map",
+          "name": "OpenStreetMap way 469892616 (「N4 산업정보관」 건물 윤곽의 중심)",
+          "license": "ODbL 1.0",
+          "attribution": "© OpenStreetMap contributors",
+          "reference_point": {
+            "lat": 36.3516103,
+            "lon": 127.3007889,
+            "crs": "EPSG:4326"
+          },
+          "datum_id": "hanbat-n4-site-2026-11-03"
+        },
+        "$note": "공개 지도가 적어 둔 자리이지 우리가 잰 값이 아니다. datum 이 미검증이면 그 오차가 여기에도 그대로 실린다(AI-S-08)."
+      }
+    }
+  ]
+}

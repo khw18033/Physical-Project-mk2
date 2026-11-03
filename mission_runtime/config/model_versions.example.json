@@ -1,0 +1,74 @@
+{
+  "$comment": "AI-L-10 모델 배정 후보. 같은 기능(capability_kind)을 제공하는 모델 버전들이고, 새 모델은 이 파일에 한 줄 더하는 것이다 — 코드 변경이 아니다. verified_hw_tags 는 그 버전이 **실제로 측정된** 하드웨어 태그이고 config/status_ui*.json 의 nodes[].tags 와 같은 어휘다. quality/latency_ms/memory_mb 를 적지 않은 항목은 **미측정**이고 0 이 아니다 — 기본 정책은 미측정 후보를 적격으로 보지 않는다(AI-B-01). 다른 구성에서 잰 값을 옮겨 적지 않는다. 2026-11-03 실재 점검: 가중치·구현이 없는 항목(stereo-depth)을 빼고, 실측 보고가 있는 항목에는 그 출처를 항목별 $comment 에 적었다. 출처가 없는 수치는 지우지 않았지만 '어디서 왔는지 모른다'를 그 자리에 적어 두었다 — 재측정 대상이다.",
+  "versions": [
+    {
+      "$comment": "CPU 엣지에서 잰 열린 어휘 탐지기. 라벨 탭이 실제로 돌리는 그 가중치다(`<자산뿌리>/weights/yolo/yolov8s-worldv2.pt`, 실재). **수치 출처 미확인** — 저장소 안에 이 1080p·CPU 구성의 측정 기록이 없다. 같은 모델의 기록된 실측은 다른 구성이다: Raspberry Pi 5(ONNX @320, 4스레드) p50 118.15 ms / p95 120.6(internal/reports/2026-09-18_1600 §2.1), RTX 3060(.pt, 어휘 20종) 16 ms(internal/reports/2026-09-21_1900 §4-2). 구성이 다르면 값을 옮겨 적지 않는다(AI-B-01) — 이 줄은 1080p·CPU 로 다시 재야 한다.",
+      "model_id": "yolo-world",
+      "version": "v2-s",
+      "capability_kind": "perception.detect_ovd",
+      "verified_hw_tags": ["compute.cpu", "tier.edge"],
+      "verified_input_conditions": ["resolution.1920x1080"],
+      "quality": 0.62,
+      "latency_ms": 1850.0,
+      "memory_mb": 1400.0
+    },
+    {
+      "$comment": "같은 모델의 GPU 구성. 같은 이름이라도 다른 조합이라 수치를 따로 잰다. **수치 출처 미확인** — RTX 3060 에서 기록된 실측은 16 ms 이지만 그것은 어휘 20종·다른 프레임 구성이다(internal/reports/2026-09-21_1900). 1080p GPU 구성으로 재측정 대상.",
+      "model_id": "yolo-world",
+      "version": "v2-s-gpu",
+      "capability_kind": "perception.detect_ovd",
+      "verified_hw_tags": ["compute.gpu", "tier.edge"],
+      "verified_input_conditions": ["resolution.1920x1080"],
+      "quality": 0.62,
+      "latency_ms": 95.0,
+      "memory_mb": 2600.0
+    },
+    {
+      "$comment": "말단 상주 분류기. 사전 기반이라 가볍고 품질이 낮다. 자산은 실재한다(`<자산뿌리>/models/openvocab/clip-vit-base-patch32/onnx/*`). **수치 출처 미확인** — 기록된 실측은 crop 수에 딸린 배치 지연이다(NMS 적용 후 vision batch 200~350 ms, CPU 76 crop 1311 ms; internal/reports/2026-09-10_1635). 한 호출의 비용으로 환산하려면 crop 수를 고정해 다시 재야 한다.",
+      "model_id": "clip-dictionary",
+      "version": "vit-b32",
+      "capability_kind": "perception.classify",
+      "verified_hw_tags": ["compute.cpu"],
+      "verified_input_conditions": [],
+      "quality": 0.71,
+      "latency_ms": 420.0,
+      "memory_mb": 640.0
+    },
+    {
+      "$comment": "같은 분류기의 GPU 구성 — **수치를 지웠다.** internal/reports/2026-09-10_1635 이 이 quantized CLIP 에서 CUDA EP 가 무효임을 실측했다(GPU 1400~1544 ms vs CPU 1311 ms, 같은 프레임; MatMulInteger·DynamicQuantizeLinear 노드가 전부 CPU 에 배치된다). 그러니 '28 ms' 같은 값은 측정이 아니라 기대였고, 기대를 측정 칸에 적으면 배정이 없는 이득을 보고 GPU 노드를 고른다. 항목 자체는 남긴다 — TensorRT EP 등으로 다시 재면 이 줄에 수치만 채우면 된다. 지금은 미측정이라 적격이 아니다(AI-B-01).",
+      "model_id": "clip-dictionary",
+      "version": "vit-b32-cuda",
+      "capability_kind": "perception.classify",
+      "verified_hw_tags": ["compute.gpu"],
+      "verified_input_conditions": []
+    },
+    {
+      "$comment": "현장 검수에서 갱신한 프로토타입·임계(`<자산뿌리>/physical_demo_assets/class_features.json`, 실재). latency·memory 를 아직 재지 않았다 — 이 상태로는 적격이 아니고, 그것이 미측정과 0 을 구분하는 규칙의 결과다(AI-B-01).",
+      "model_id": "clip-dictionary",
+      "version": "vit-b32-site-tuned",
+      "capability_kind": "perception.classify",
+      "verified_hw_tags": ["compute.cpu"],
+      "verified_input_conditions": [],
+      "quality": 0.78
+    },
+    {
+      "$comment": "구역 엣지의 단안 metric 깊이. provider 는 `edge/self_localization.py::UniDepthCameraProvider` 다. 수치는 실측이다 — internal/reports/2026-09-18_1600 §2.2·§8: RTX 3060, 프로세스 격리, p95 67 ms(p50 54 ms), peak reserved 854 MiB. **품질은 재지 않았다**(깊이 오차 지표가 없다) — 그래서 지금은 적격이 아니다. 예전에 이 자리에 있던 'stereo-depth@1' 은 구현도 가중치도 없어서 뺐다.",
+      "model_id": "unidepth",
+      "version": "v2-vitb14-edge",
+      "capability_kind": "perception.depth",
+      "verified_hw_tags": ["compute.gpu", "tier.edge"],
+      "verified_input_conditions": ["resolution.322x238"],
+      "latency_ms": 67.0,
+      "memory_mb": 854.0
+    },
+    {
+      "$comment": "같은 모델의 말단 구성(ONNX, Raspberry Pi 5 4스레드). 실측 p95 2036.2 ms(p50 1986.35) — internal/reports/2026-09-18_1600 §2.1, 매 측정 전 62°C 이하 대기·25회 반복. AI-N-01 의 출발 기준 5 Hz(200 ms)의 10배라 **말단 배치가 성립하지 않는다**는 사실이 이 한 줄로 배정 판정에 들어간다. 이 보드에서는 메모리를 재지 않았다.",
+      "model_id": "unidepth",
+      "version": "v2-vitb14-ondevice-onnx",
+      "capability_kind": "perception.depth",
+      "verified_hw_tags": ["compute.cpu", "tier.ondevice"],
+      "verified_input_conditions": ["resolution.322x238"],
+      "latency_ms": 2036.2
+    }
+  ]
+}

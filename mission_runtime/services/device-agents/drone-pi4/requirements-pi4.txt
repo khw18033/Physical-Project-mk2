@@ -1,0 +1,6 @@
+# pi4(말단)에 필요한 것만. torch·ultralytics·transformers는 여기 없다 —
+# 말단 경량 실행 경계(AI-B-10).
+numpy
+onnxruntime
+opencv-python-headless
+requests

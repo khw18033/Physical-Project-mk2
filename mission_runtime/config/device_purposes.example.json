@@ -1,0 +1,303 @@
+{
+  "$comment": "등록된 말단 장치의 '목적'을 데이터로만 표현한 파일. contracts/profile_loader.py::load_device_purposes가 읽고 runtime/residency.py::decide_residency가 판정하며 runtime/device_deployment.py가 그 결정을 실제 배포 단위로 옮긴다 — 어느 쪽에도 드론/로봇/카메라를 가르는 분기가 없다(AI-C-15, 절대 준수 원칙 #3). 세 역할의 차이는 전부 이 파일의 내용 차이이고, 그래서 배포된 아티팩트의 sha256까지 달라진다. policy는 resident(항상 말단) | link_dependent(링크를 믿을 수 있을 때만 엣지) | edge_served(항상 엣지). link_dependent와 edge_served의 차이가 중요하다: 전자는 링크가 나빠지면 그 기능을 말단으로 끌어오지만, 후자는 끌어오지 않고 대신 이미 말단에 있는 더 가벼운 기능(local_fallback_kind)으로 축소한다. 엣지에서 도는 무거운 스택을 말단에 축소 복제하는 것이 불가능한 경우(측정: Go1 인지 스택 엣지 121ms vs 말단 전량 2223ms)에는 반드시 edge_served + local_fallback이어야 한다. min_link_quality가 kind마다 다른 이유: 링크 저하 비용이 페이로드에 선형이 아니다 — 메타데이터 543B는 100ms 링크에서 편도 1회분만 늘지만 21KB JPEG은 초기 혼잡 윈도를 넘겨 1.1배→3.0배가 된다. 그래서 픽셀을 오가게 하는 kind(edge_payload=media)는 훨씬 좋은 링크를 요구한다. quality_is_safety_affecting은 '이 기능의 해상도·품질을 낮추면 안전 판정이 바뀐다'는 선언이다 — depth 입력을 절반으로 줄였을 때 detection recall은 1.000으로 유지됐지만 근접 장애물 안전 판정이 14/20→4/20으로 무너졌다. 권한 경계(AI-C-19): 이 파일의 어떤 capability도 AI가 스스로 물리 행동을 개시한다는 뜻이 아니다. 승인은 가시화 UI에서 사람이 하고, 명령은 고정된 물리 명령 프로토콜(AI-C-20)로 전달되며, 로봇에 유선으로 붙은 말단의 어댑터가 그것을 로봇 고유 명령으로 옮긴다. AI는 근거·판단·추가 관측 요청까지만 산출한다. kind 이름 중 mission.cache와 ondevice.zone_handover는 다른 파트가 구현 중인 기능의 자리로 잠정 선언한 것이며 확정 시 이름만 맞추면 된다(핵심 코드 수정 없음).",
+  "purposes": [
+    {
+      "purpose_id": "river_surveillance_drone",
+      "description": "하천 감시 드론. 고정 카메라가 이상을 탐지한 지점으로 이동해 사각을 근접 관측한다. 상공 링크가 불안정하므로 관측·근접 판단·안전 제어는 전부 말단 상주이고, 여러 소스를 합쳐야 나오는 사각 판정과 의미 분류·위험 판단은 엣지가 맡는다. 임무는 스스로 정하지 않는다 — 승인된 임무를 받아 수행할 뿐이다.",
+      "node_tags": ["compute.cpu", "tier.ondevice", "platform.uav"],
+      "preferred_node_tags": ["accel.edgetpu_usb"],
+      "budget": {"compute_units": 4.0, "memory_mb": 4096},
+      "link": {
+        "source": "declared:site_survey",
+        "quality": 0.45,
+        "stability": 0.62,
+        "samples": 12
+      },
+      "capabilities": [
+        {
+          "kind": "media.video_input",
+          "policy": "resident", "is_core": true, "survives_outage": true,
+          "outage_behavior": "resident_unaffected", "degrade_rank": 0,
+          "note": "영상 입력이 사라지면 보수적 안전 상태로 전이한다(AI-N-01). 링크와 무관."
+        },
+        {
+          "kind": "perception.detect",
+          "policy": "resident", "is_core": true, "survives_outage": true,
+          "outage_behavior": "queued_for_edge", "degrade_rank": 0,
+          "requirement": {"required": ["media.video_input"]},
+          "note": "class-agnostic proposal. 안전 판단과 근접 사각 관측이 같은 출력을 쓴다 — 결과는 복구 후 엣지로 전달."
+        },
+        {
+          "kind": "perception.coverage_estimate",
+          "policy": "resident", "is_core": true, "survives_outage": true,
+          "outage_behavior": "queued_for_edge", "degrade_rank": 0,
+          "requirement": {"required": ["media.video_input"], "optional": ["perception.detect"]},
+          "note": "근접 관측의 말단 몫 — '이 구역을 실제로 봤는가'는 본 장치만 알 수 있어 엣지로 미룰 수 없다. 단절 중에도 계속 쌓이고 복구 후 엣지의 다중 소스 사각 판정에 합류한다."
+        },
+        {
+          "kind": "mission.dispatch",
+          "policy": "resident", "is_core": true, "survives_outage": true,
+          "outage_behavior": "resident_unaffected", "degrade_rank": 0,
+          "note": "이미 승인·전달된 임무의 '수행'이다. 출동 여부를 이 기능이 정하지 않는다 — 승인은 가시화 UI에서 사람이 하고, 명령은 물리 명령 프로토콜(AI-C-20)로 도착하며, 말단 어댑터가 기체 고유 명령으로 옮긴다. AI가 산출하는 것은 '여기를 더 봐야 한다'는 추가 관측 요청과 그 근거까지다(AI-C-19, AI-S-05)."
+        },
+        {
+          "kind": "mission.cache",
+          "policy": "resident", "is_core": true, "survives_outage": true,
+          "outage_behavior": "resident_unaffected", "degrade_rank": 0,
+          "note": "전달받은 임무 내용을 말단에 보관해 단절·재시작에도 '무엇을 하라고 들었는지'를 잃지 않는다. 임무를 만들어내는 기능이 아니라 받은 것을 보존하는 기능이다."
+        },
+        {
+          "kind": "safety.local_judgment",
+          "policy": "resident", "is_core": true, "survives_outage": true,
+          "outage_behavior": "resident_unaffected", "degrade_rank": 0,
+          "requirement": {"required": ["media.video_input"], "optional": ["perception.distance"]},
+          "note": "AI-N-01. 안전 제어는 상위 네트워크 명령을 유일한 경로로 삼지 않는다(AI-C-20)."
+        },
+        {
+          "kind": "ondevice.link_transition",
+          "policy": "resident", "is_core": true, "survives_outage": true,
+          "outage_behavior": "resident_unaffected", "degrade_rank": 0,
+          "note": "링크 저하를 판단하는 기능 자체가 링크에 의존하면 안 된다(AI-N-03)."
+        },
+        {
+          "kind": "ondevice.zone_handover",
+          "policy": "resident", "survives_outage": true, "degrade_rank": 1,
+          "outage_behavior": "resident_unaffected",
+          "note": "구역을 넘나들 때 신호 세기로 엣지 피어를 바꾼다. 실제 무선 전환은 네트워크 provider의 책임이고 AI는 '지금 어느 피어의 기능을 쓸 수 있는가'만 본다(AI-N-03, AI-C-19)."
+        },
+        {
+          "kind": "perception.track",
+          "policy": "link_dependent", "degrade_rank": 2,
+          "edge_service": "edge.tracker", "edge_payload": "metadata",
+          "outage_behavior": "local_fallback", "local_fallback_kind": "perception.detect",
+          "requirement": {"required": ["perception.detect"]},
+          "note": "추적이 없으면 프레임별 인지 결과만 유지한다(AI-S-01). 메타데이터만 오가므로 링크가 어지간하면 엣지가 맡는다."
+        },
+        {
+          "kind": "perception.object_record",
+          "policy": "link_dependent", "degrade_rank": 3,
+          "edge_service": "edge.object_record", "edge_payload": "metadata",
+          "outage_behavior": "unavailable_until_link_returns",
+          "requirement": {"required": ["perception.detect"]},
+          "note": "지속 객체 레코드(AI-S-06). 전역 좌표 통합은 백엔드 몫이라 말단에 둘 이유가 적다."
+        },
+        {
+          "kind": "perception.blind_spot",
+          "policy": "edge_served", "degrade_rank": 4,
+          "edge_service": "edge.coverage_fusion", "edge_payload": "metadata",
+          "outage_behavior": "local_fallback", "local_fallback_kind": "perception.coverage_estimate",
+          "note": "여러 관측 소스를 합쳐야 나오는 사각 판정은 엣지에서만 가능하다. 단절 중에는 자기 커버리지 추정만으로 축소 운용 — 축소 복제가 아니라 이미 상주하는 더 가벼운 기능으로 내려간다."
+        },
+        {
+          "kind": "perception.classify",
+          "policy": "edge_served", "degrade_rank": 5,
+          "edge_service": "edge.classifier", "edge_payload": "media",
+          "outage_behavior": "unavailable_until_link_returns",
+          "note": "의미 분류는 단절 중 사용할 수 없고, 그동안 나머지 기능은 계속 돈다(AI-C-05)."
+        },
+        {
+          "kind": "perception.anomaly",
+          "policy": "edge_served", "degrade_rank": 6,
+          "edge_service": "edge.anomaly", "edge_payload": "media",
+          "outage_behavior": "unavailable_until_link_returns",
+          "note": "근접 관측 결과의 이상 판정. 고정 카메라가 올린 이상과 같은 엣지 기능을 쓴다."
+        },
+        {
+          "kind": "risk.state_machine",
+          "policy": "edge_served", "degrade_rank": 7,
+          "edge_service": "edge.risk_fsm", "edge_payload": "metadata",
+          "outage_behavior": "unavailable_until_link_returns",
+          "note": "하천 위험 분석은 구역 단위 판단이라 엣지 몫(AI-R-01)."
+        },
+        {
+          "kind": "risk.rule_based",
+          "policy": "edge_served", "degrade_rank": 8,
+          "edge_service": "edge.risk_scorer", "edge_payload": "metadata",
+          "outage_behavior": "unavailable_until_link_returns"
+        }
+      ]
+    },
+    {
+      "purpose_id": "ground_robot",
+      "description": "지상 4족 로봇(Go1) 탑재 연산기. 평시에는 인지 스택 전체를 엣지가 맡는다 — 같은 스택을 말단에서 전량 돌리면 121ms가 2223ms가 되므로(실측) 말단 축소 복제는 선택지가 아니다. 대신 말단에는 엣지 파이프라인의 축소판이 아닌 **더 가벼운 다른 스택**이 상주해서, 링크가 끊겨도 장애물 감지와 안전·회피가 사라지지 않는다. 임무 수행은 승인·전달된 명령을 받아 하는 것이며 스스로 개시하지 않는다(AI-C-19).",
+      "node_tags": ["compute.cpu", "tier.ondevice"],
+      "preferred_node_tags": ["accel.edgetpu_usb"],
+      "budget": {"compute_units": 8.0, "memory_mb": 4096},
+      "link": {
+        "source": "measured:overlay_probe",
+        "quality": 0.82,
+        "stability": 0.97,
+        "samples": 20
+      },
+      "capabilities": [
+        {
+          "kind": "media.video_input",
+          "policy": "resident", "is_core": true, "survives_outage": true,
+          "outage_behavior": "resident_unaffected", "degrade_rank": 0
+        },
+        {
+          "kind": "perception.depth",
+          "policy": "resident", "is_core": true, "survives_outage": true,
+          "quality_is_safety_affecting": true,
+          "outage_behavior": "resident_unaffected", "degrade_rank": 0,
+          "requirement": {"required": ["media.video_input"]},
+          "note": "말단 생존 스택의 중심. depth/TTC는 '무엇인지' 몰라도 '부딪히는가'를 답한다 — 엣지 인지가 끊겨도 이것만 있으면 회피가 산다. 입력 해상도를 절반으로 낮추면 근접 장애물 안전 판정이 14/20→4/20으로 무너지므로 축소 손잡이가 아니다."
+        },
+        {
+          "kind": "perception.distance",
+          "policy": "resident", "is_core": true, "survives_outage": true,
+          "quality_is_safety_affecting": true,
+          "outage_behavior": "resident_unaffected", "degrade_rank": 0,
+          "requirement": {"required": ["perception.depth"]},
+          "note": "TTC. depth map에서 바로 나오므로 추가 모델이 없다."
+        },
+        {
+          "kind": "perception.detect",
+          "policy": "resident", "is_core": true, "survives_outage": true,
+          "outage_behavior": "queued_for_edge", "degrade_rank": 0,
+          "requirement": {"required": ["media.video_input"]},
+          "note": "class-agnostic proposal만. 엣지 인지기의 축소판이 아니라 분류기가 아예 없는 다른 기능이다 — 온디바이스 분류기를 얹어도 K/U 판별이 나아지지 않는다는 실측(objectness 단독 26.6% vs 결합 19.6%)이 그 근거다."
+        },
+        {
+          "kind": "perception.track",
+          "policy": "resident", "is_core": true, "survives_outage": true,
+          "outage_behavior": "resident_unaffected", "degrade_rank": 0,
+          "requirement": {"required": ["perception.detect"]},
+          "note": "hazard 지속성(hysteresis)용. 동일 개체 의미 추적(re-id)과는 다른 기능이며 그쪽은 엣지에 있다."
+        },
+        {
+          "kind": "safety.local_judgment",
+          "policy": "resident", "is_core": true, "survives_outage": true,
+          "outage_behavior": "resident_unaffected", "degrade_rank": 0,
+          "requirement": {"required": ["media.video_input"], "optional": ["perception.distance"]}
+        },
+        {
+          "kind": "control.locomotion",
+          "policy": "resident", "is_core": true, "survives_outage": true,
+          "outage_behavior": "resident_unaffected", "degrade_rank": 0,
+          "note": "회피 동작의 말단 어댑터 경계. 유선으로 붙은 이 말단이 표준 물리 명령을 기체 고유 명령으로 옮긴다 — AI는 명령을 발급하지 않는다(AI-C-19, AI-C-20)."
+        },
+        {
+          "kind": "mission.cache",
+          "policy": "resident", "is_core": true, "survives_outage": true,
+          "outage_behavior": "resident_unaffected", "degrade_rank": 0,
+          "note": "승인·전달된 임무 내용을 말단에 보관한다. 단절이나 재시작이 '무엇을 하라고 들었는지'를 지우지 않아야 한다."
+        },
+        {
+          "kind": "ondevice.link_transition",
+          "policy": "resident", "is_core": true, "survives_outage": true,
+          "outage_behavior": "resident_unaffected", "degrade_rank": 0
+        },
+        {
+          "kind": "ondevice.zone_handover",
+          "policy": "resident", "survives_outage": true, "degrade_rank": 1,
+          "outage_behavior": "resident_unaffected",
+          "note": "구역 이동 시 신호 세기 기반 엣지 피어 전환. 실제 무선 전환은 네트워크 provider 책임(AI-N-03)."
+        },
+        {
+          "kind": "perception.detect_ovd",
+          "policy": "edge_served", "degrade_rank": 2,
+          "edge_service": "edge.open_vocabulary", "edge_payload": "media",
+          "outage_behavior": "local_fallback", "local_fallback_kind": "perception.detect",
+          "note": "실시간 zero-shot 장애물 인식. link_dependent가 **아닌** 이유: 링크가 나빠졌다고 이것을 말단으로 끌어오면 121ms가 2223ms가 되어 실시간이 아니게 된다. 끌어오는 대신 이미 상주하는 class-agnostic proposal + depth/TTC로 내려간다 — 이름은 잃지만 장애물은 계속 본다."
+        },
+        {
+          "kind": "perception.classify",
+          "policy": "edge_served", "degrade_rank": 3,
+          "edge_service": "edge.classifier", "edge_payload": "media",
+          "outage_behavior": "local_fallback", "local_fallback_kind": "perception.detect",
+          "note": "'이 특정 클래스를 찾아줘'의 근거 기반 탐지. 의미 분류는 엣지 몫으로 확정됐다(2026-09-08 분리 결정)."
+        },
+        {
+          "kind": "perception.associate",
+          "policy": "edge_served", "degrade_rank": 4,
+          "edge_service": "edge.identity_tracker", "edge_payload": "metadata",
+          "outage_behavior": "unavailable_until_link_returns",
+          "note": "동일 개체 의미 식별(re-id). 여러 에이전트 이력이 있어야 의미가 있어 엣지 몫."
+        },
+        {
+          "kind": "perception.segment",
+          "policy": "edge_served", "degrade_rank": 5,
+          "edge_service": "edge.segmenter", "edge_payload": "media",
+          "outage_behavior": "unavailable_until_link_returns"
+        },
+        {
+          "kind": "perception.object_record",
+          "policy": "edge_served", "degrade_rank": 6,
+          "edge_service": "edge.object_record", "edge_payload": "metadata",
+          "outage_behavior": "unavailable_until_link_returns"
+        },
+        {
+          "kind": "perception.environment_map",
+          "policy": "edge_served", "degrade_rank": 7,
+          "edge_service": "edge.environment_map", "edge_payload": "metadata",
+          "outage_behavior": "unavailable_until_link_returns",
+          "note": "맵 전체·경로는 로봇에 내려주지 않는다. 필요한 사전정보만 AI-N-02 구성 채널로 간다."
+        }
+      ]
+    },
+    {
+      "purpose_id": "fixed_camera",
+      "description": "고정 카메라(pi6·pi4). 하천 부유쓰레기 탐지와 호안공 이상탐지를 위해 상시 영상을 엣지로 올린다. 무거운 인지·이상판정·위험분석은 전부 엣지가 하고 말단은 영상 취득과 전송만 한다. AI-N-01의 '이동형 에이전트' 범위 밖이라 안전 판단 자체가 없다 — 같은 판정 코드가 안전 기능이 하나도 없는 목적에도 그대로 적용된다는 사례다. 이상으로 표시된 지점은 드론 근접 관측 요청과 사람 확인(HITL) 학습 후보로 이어진다.",
+      "node_tags": ["compute.cpu", "tier.fixed_camera"],
+      "budget": {"compute_units": 4.0, "memory_mb": 7900},
+      "link": {
+        "source": "measured:overlay_probe",
+        "quality": 0.88,
+        "stability": 0.95,
+        "samples": 20
+      },
+      "capabilities": [
+        {
+          "kind": "media.video_input",
+          "policy": "resident", "is_core": true, "survives_outage": true,
+          "outage_behavior": "queued_for_edge", "degrade_rank": 0,
+          "note": "말단에 남는 유일한 필수 기능. 링크가 끊기면 프레임 참조만 쌓아두고 복구 후 올린다."
+        },
+        {
+          "kind": "perception.detect",
+          "policy": "link_dependent", "degrade_rank": 1,
+          "edge_service": "edge.detector", "edge_payload": "media",
+          "min_link_quality": 0.60,
+          "outage_behavior": "unavailable_until_link_returns",
+          "requirement": {"required": ["media.video_input"]},
+          "note": "링크가 충분하면 픽셀을 미디어 경로로 보내고 엣지에서 인지한다. 여기서는 link_dependent가 맞다 — 고정 카메라의 class-agnostic 인지는 말단에서도 실시간이 되고(Go1의 zero-shot 스택과 다르다) 링크가 나빠지면 올릴 것을 줄이는 편이 낫다."
+        },
+        {
+          "kind": "perception.classify",
+          "policy": "edge_served", "degrade_rank": 2,
+          "edge_service": "edge.classifier", "edge_payload": "media",
+          "outage_behavior": "unavailable_until_link_returns",
+          "note": "부유쓰레기 종류 판별. 사전에 정의되지 않은 대상은 확정 label로 올리지 않고 가설로 남긴다(AI-S-04)."
+        },
+        {
+          "kind": "perception.anomaly",
+          "policy": "edge_served", "degrade_rank": 3,
+          "edge_service": "edge.anomaly", "edge_payload": "media",
+          "outage_behavior": "unavailable_until_link_returns",
+          "note": "호안공 이상탐지. 정상 범위를 벗어난 관측을 표시할 뿐 원인 확정은 하지 않는다 — 근거가 부족하면 AI-S-05의 추가 관측 요청(드론 근접 관측)으로 넘어간다."
+        },
+        {
+          "kind": "continual.learning_candidate",
+          "policy": "edge_served", "degrade_rank": 4,
+          "edge_service": "edge.learning_candidate", "edge_payload": "metadata",
+          "outage_behavior": "unavailable_until_link_returns",
+          "note": "반복되는 이상·미확인 관측을 학습 후보로 표시해 사람 확인(HITL) 경로로 보낸다(AI-L-01). 표시만 하고 확정 정답으로 승격하지 않는다(AI-L-02)."
+        },
+        {
+          "kind": "perception.coverage_estimate",
+          "policy": "edge_served", "degrade_rank": 5,
+          "edge_service": "edge.coverage_fusion", "edge_payload": "metadata",
+          "outage_behavior": "unavailable_until_link_returns"
+        },
+        {
+          "kind": "risk.state_machine",
+          "policy": "edge_served", "degrade_rank": 6,
+          "edge_service": "edge.risk_fsm", "edge_payload": "metadata",
+          "outage_behavior": "unavailable_until_link_returns",
+          "note": "하천 위험 상태 전이(AI-R-01). 구역 단위 판단이라 카메라 한 대가 가질 수 없다."
+        }
+      ]
+    }
+  ]
+}

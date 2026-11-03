@@ -1,0 +1,65 @@
+# 개발·시험 스택의 Collector. 통합 저장소 `deploy/edge/config/otel-collector.yaml` 과
+# **같은 컴포넌트·같은 설정값**으로 적는다 — 다른 값으로 맞춰 두면 시험이 여기서만
+# 통하고 사이트에서 실패한다.
+#
+#   metric  → prometheus exporter(:8889) ◀─scrape─ 이 스택의 Prometheus
+#           → file exporter(한 파일)  — 질의 서버가 없는 노드·폐쇄망 경로(AI-C-16)
+#   log·trace → file exporter       — 실제 배포에서는 중앙 Collector 로 원본 그대로 간다
+#
+# 두 가지가 실제 배포와 다르고, 둘 다 **의도한 차이**다.
+#   1. `resource` processor 로 붙이는 `zone_id`·`agg_layer` 가 없다 — 사이트 환경변수
+#      (`MK2_ZONE_ID`)를 전제하지 않는 개발 스택이라 그렇다. 라벨 규약 자체는
+#      `integration/deployment_topology.py` 가 적고 시험이 고정한다.
+#   2. log·trace 를 중앙으로 보내지 않고 파일로 떨어뜨린다 — 중앙이 없는 한 기계라서다.
+#      `CollectorFileExportReader` 가 읽는 자리가 그 파일이다.
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+processors:
+  # 실제 엣지·중앙과 같은 값. 묶어 보내는 동안의 지연은 **읽는 쪽이 감당해야 하는
+  # 사실**이고(계측이 곧바로 보이지 않는다), 시험에서 그 지연을 없애면 사이트에서
+  # 처음 만나게 된다.
+  batch:
+    timeout: 5s
+    send_batch_size: 512
+
+exporters:
+  prometheus:
+    endpoint: 0.0.0.0:8889
+    # 5분 갱신이 없으면 내린다 — "안 보내면 시계열도 없다". 우리 쪽에서는 그 공백이
+    # `DataState.NOT_SCRAPED` 로 읽혀야 하고 정상으로 읽히면 안 된다.
+    metric_expiration: 5m
+    # resource_to_telemetry_conversion 은 켜지 않는다 — 켜면 `service.instance.id`
+    # (프로세스마다 새 값)가 라벨이 되어 재기동마다 시계열이 곱해진다. 금지 라벨
+    # 규약과 같은 이유다(`deployment_topology.FORBIDDEN_METRIC_LABELS`).
+  file:
+    path: /var/lib/otel/output.json
+
+service:
+  pipelines:
+    metrics:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [prometheus, file]
+    logs:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [file]
+    traces:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [file]
+  telemetry:
+    metrics:
+      readers:
+        - pull:
+            exporter:
+              prometheus:
+                host: 0.0.0.0
+                port: 8888

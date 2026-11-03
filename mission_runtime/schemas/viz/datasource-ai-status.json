@@ -1,0 +1,18 @@
+{
+  "id": "ai-status",
+  "type": "status-snapshot-stream",
+  "version": "1.0.0",
+  "displayName": "AI 운영 상태 스냅샷",
+  "description": "채널 status_snapshot 한 장. 구역(B~I)을 한 번의 구독으로 받는다. 상세는 schemas/ai/status-snapshot.schema.json.",
+  "capabilities": {
+    "instantQuery": true,
+    "rangeQuery": false,
+    "streaming": true
+  },
+  "defaultTimeoutMs": 2000,
+  "labels": {
+    "contract": "schemas/ai/status-snapshot.schema.json",
+    "channel": "status_snapshot",
+    "range_query_note": "구간 질의는 우리가 제공하지 않는다 — 스냅샷은 현재 상태이고 이력 보관은 백엔드 책임이다(AI-O-03). 추이가 필요한 지표는 스냅샷 안의 trend 에 최근 구간이 함께 온다."
+  }
+}

@@ -1,0 +1,88 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mission_runtime"
+version = "0.1.0"
+description = "AI/edge execution framework core - capability, provider and profile boundaries"
+requires-python = ">=3.10"
+dependencies = ["jsonschema>=4.20", "numpy>=1.26", "opencv-python>=4.9", "protobuf>=7.35.1,<8"]
+
+[project.optional-dependencies]
+dev = ["pytest>=7.4"]
+# 현재 배포 프로파일이 선택한 전송 구현일 뿐, 프레임워크 필수 의존성이 아니다
+# (AI-C-06, AI-C-12). 미설치 시 관련 provider만 비활성화된다 (AI-C-11).
+mqtt = ["paho-mqtt>=2.1"]
+kafka = ["kafka-python-ng>=2.2"]
+otel = ["opentelemetry-sdk>=1.20", "opentelemetry-exporter-otlp-proto-grpc>=1.20"]
+# K3s provider는 추가 파이썬 의존성 없이 kubectl CLI만 사용한다 (AI-B-10, 원칙 #12).
+
+# 이 디렉터리가 프로젝트 루트이면서 패키지 루트다 — `mission_runtime/mission_runtime`
+# 같은 이중 경로를 두지 않기 위한 배치이고, 그래서 패키지 위치를 자동 탐색에 맡기지
+# 않고 **명시한다**(자동 탐색은 프로젝트 루트를 패키지로 보지 못한다).
+# 새 서브패키지를 만들면 이 목록에 한 줄 추가한다.
+[tool.setuptools]
+packages = [
+    "mission_runtime",
+    "mission_runtime.collection",
+    "mission_runtime.common",
+    "mission_runtime.continual",
+    "mission_runtime.contracts",
+    "mission_runtime.contracts.proto",
+    "mission_runtime.decision",
+    "mission_runtime.edge",
+    "mission_runtime.execution",
+    "mission_runtime.integration",
+    "mission_runtime.observability",
+    "mission_runtime.ondevice",
+    "mission_runtime.perception",
+    "mission_runtime.planning",
+    "mission_runtime.providers",
+    "mission_runtime.reference",
+    "mission_runtime.registry",
+    "mission_runtime.risk",
+    "mission_runtime.runtime",
+    "mission_runtime.selection",
+    "mission_runtime.simulation",
+    # 아래는 코드가 아니라 **데이터만** 담은 디렉터리다(`__init__.py` 가 없다). 그래도
+    # 여기 적는 이유는 setuptools 가 package-data glob 이 가리키는 디렉터리를
+    # importable 로 보고, 목록에 없으면 "이 패키지는 무시된다"고 경고하기 때문이다.
+    # 경고를 안고 빌드하면 다음 사람이 그 경고를 정상으로 배우고, 정말로 빠진 날에
+    # 아무도 알아채지 못한다. 자리는 아래 package-data 가 정한다.
+    "mission_runtime.config",
+    "mission_runtime.profiles",
+    "mission_runtime.schemas",
+    "mission_runtime.schemas.ai",
+    "mission_runtime.schemas.viz",
+    "mission_runtime.specs",
+    "mission_runtime.deploy",
+    "mission_runtime.deploy.ondevice_unit",
+]
+
+[tool.setuptools.package-dir]
+mission_runtime = "." 
+
+[tool.setuptools.package-data]
+"mission_runtime.contracts.proto" = ["*.proto"]
+# 말단 supervisor 스크립트 — provider가 배포 시점에 읽어 device로 밀어넣는다
+# (AI-B-10: 말단에는 이 셸 스크립트 한 장 외에 아무것도 설치하지 않는다).
+"mission_runtime.providers" = ["*.sh"]
+# 계약·프로파일·설정은 코드가 아니라 **데이터**지만 코드 없이는 쓸 수 없고 코드도
+# 이것 없이는 쓸 수 없다. 패키지 루트가 프로젝트 루트이므로 이 glob 은 저장소
+# 루트에서 상대이고, wheel 안에서는 `mission_runtime/schemas/...` 로 들어간다.
+# 빠뜨리면 설치본에서 스키마 검증(core 의존성인 jsonschema 가 하는 일)과 예시
+# 프로파일이 사라져서, 시험은 트리에서 통과하고 설치본만 조용히 못 돈다(AI-B-02).
+# `deploy/ondevice_unit` 은 `runtime/device_deployment.py` 의 `DEFAULT_UNIT_SOURCE`
+# 가 읽는 자리라 같은 이유로 함께 싣는다.
+"mission_runtime" = [
+    "schemas/**/*.json",
+    "profiles/*.json",
+    "config/*.json",
+    "specs/**/*.md",
+    "specs/**/*.json",
+    "deploy/ondevice_unit/*",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

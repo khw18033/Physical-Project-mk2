@@ -1,0 +1,324 @@
+{
+  "$comment": "실제 장치만 적는다. 이름의 정본은 하드웨어 파트의 조인 선언이고(`upstream/HW` 의 `pi/deploy/hw-robot*.env.example`: go1-001 · ep-001), 중계 파이 pi7 · pi1 은 그 브랜치의 다중 로봇 규약이 실제로 쓰는 node_id 다. 예시로 지어낸 장치(고정 카메라·드론·매니퓰레이터·서버 등)는 전부 뺐다 — 그 브랜치들에 없는 장치는 쓰지 않는다. 파이의 연산 예산은 아무도 재지 않았으므로 칸 자체를 두지 않는다(미측정은 0 이 아니다, AI-O-05). 2026-11-03: 기능·provider·모델도 같은 기준으로 훑었다 — **실행할 구현이 어딘가에 있는 것만** 남긴다. provider 등록부는 예시(providers.hardware.example.json)가 아니라 그 사본에서 구현 없는 항목을 뺀 `providers.hardware.json` 이고, 무엇을 왜 뺐는지는 그 파일의 `$cut` 에 근거와 함께 적혀 있다. 기능에서 뺀 여섯은 **필수 capability 를 아무 provider 도 주지 못하는** 것들이다: risk_analysis(risk.event_input — 어느 manifest 에도 provider 가 없다. `risk/` 의 FSM·채점기는 실재하고 하드웨어 파트 `pi/sensor/sensor_node.py` 가 water_level_m 을 올리지만 그 값은 `read_sensor()` 의 난수다 — 실제 수위계가 들어오면 manifest 한 줄 + 노드 태그 한 줄이다), m1_continuous_surveillance(observation.fixed — 고정 카메라 노드가 없다), m5_wide_area_search·m6_advance_recon(observation.aerial — 드론은 실물이지만 카메라를 달지 않았다; 비행·GPS provider 는 남겨 두었다), m7_object_retrieval(manipulation.grasp — EP 의 그리퍼를 움직이는 어댑터가 없다), m11_night_surveillance(observation.low_light — NoIR 카메라가 어느 브랜치에도 없다). 영원히 DISABLED 인 줄은 '못 하는 것'과 '아직 안 만든 것'을 구분해 주지 않아서 지웠고, 반대로 **선택 capability 결손으로 DEGRADED 인 기능은 그대로 둔다** — 그것은 정상적인 축소 운용이다(AI-C-05). 예산이 모자라 provider 가 탈락하는 기능(door_detection·go_to_door 의 perception.classify)도 남긴다: provider 와 가중치가 실재하므로 '없는 기능'이 아니라 '예산을 아직 재지 않은 노드' 문제다. 되돌리는 것은 전부 선언 한 줄이고 코드 변경이 아니다 — `tests/test_declared_fleet_is_real.py` 가 그것을 고정한다.",
+  "providers_manifest": "providers.hardware.json",
+  "nodes": [
+    {
+      "node_id": "go1-001",
+      "label": "지상 로봇(UGV, 4족) · Unitree Go1 탑재 연산기",
+      "role": "ugv",
+      "verified": false,
+      "tags": [
+        "compute.cpu",
+        "tier.ugv",
+        "locomotion.legged",
+        "sensor.camera.go1_front",
+        "sensor.camera.go1_stereo",
+        "sensor.imu",
+        "actuator.led_speaker",
+        "endurance.long"
+      ],
+      "budget": {
+        "compute_units": 6.0,
+        "memory_mb": 4096
+      },
+      "declared_actions": [
+        "move_forward",
+        "turn",
+        "stop",
+        "scan_mission",
+        "return_home",
+        "emergency_stop"
+      ]
+    },
+    {
+      "node_id": "ep-001",
+      "label": "지상 로봇(UGV, 메카넘 휠) · DJI RoboMaster EP",
+      "role": "ugv",
+      "verified": false,
+      "tags": [
+        "compute.cpu",
+        "tier.ugv",
+        "locomotion.wheeled",
+        "sensor.camera.ep",
+        "sensor.imu",
+        "actuator.gripper",
+        "actuator.led_speaker"
+      ],
+      "budget": {
+        "compute_units": 4.5,
+        "memory_mb": 2048
+      },
+      "declared_actions": [
+        "move_forward",
+        "turn",
+        "stop",
+        "scan_mission",
+        "return_home",
+        "emergency_stop"
+      ]
+    },
+    {
+      "node_id": "pi7",
+      "label": "온보딩 라즈베리파이 · go1-001 을 중계·탑재",
+      "role": "edge",
+      "verified": true,
+      "tags": [
+        "compute.cpu",
+        "tier.edge",
+        "media.ingest"
+      ]
+    },
+    {
+      "node_id": "pi1",
+      "label": "온보딩 라즈베리파이 · ep-001 을 중계·탑재",
+      "role": "edge",
+      "verified": true,
+      "tags": [
+        "compute.cpu",
+        "tier.edge",
+        "media.ingest"
+      ]
+    }
+  ],
+  "functions": [
+    {
+      "function_id": "local_safety",
+      "required_capabilities": [
+        "media.video_input"
+      ],
+      "optional_capabilities": [
+        "perception.classify",
+        "perception.depth"
+      ]
+    },
+    {
+      "function_id": "door_detection",
+      "required_capabilities": [
+        "media.video_input",
+        "perception.detect",
+        "perception.classify"
+      ],
+      "optional_capabilities": [
+        "perception.detect_ovd",
+        "perception.segment"
+      ]
+    },
+    {
+      "function_id": "go_to_door",
+      "required_capabilities": [
+        "media.video_input",
+        "perception.detect",
+        "perception.classify",
+        "perception.depth",
+        "control.locomotion"
+      ],
+      "optional_capabilities": [
+        "perception.detect_ovd"
+      ]
+    },
+    {
+      "function_id": "m2_close_inspection",
+      "required_capabilities": [
+        "observation.mobile",
+        "locomotion.ground"
+      ],
+      "optional_capabilities": [
+        "perception.depth",
+        "locomotion.rough_terrain"
+      ]
+    },
+    {
+      "function_id": "m3_blind_spot_fill",
+      "required_capabilities": [
+        "observation.mobile",
+        "pose.self_estimate"
+      ],
+      "optional_capabilities": [
+        "perception.depth"
+      ]
+    },
+    {
+      "function_id": "m4_rough_terrain_entry",
+      "required_capabilities": [
+        "locomotion.rough_terrain",
+        "observation.mobile"
+      ],
+      "optional_capabilities": [
+        "perception.depth"
+      ]
+    },
+    {
+      "function_id": "m8_onsite_warning",
+      "required_capabilities": [
+        "signal.audio_visual",
+        "locomotion.ground"
+      ],
+      "optional_capabilities": []
+    },
+    {
+      "function_id": "m9_patrol",
+      "required_capabilities": [
+        "navigation.autonomous_route",
+        "observation.mobile"
+      ],
+      "optional_capabilities": [
+        "pose.self_estimate"
+      ]
+    },
+    {
+      "function_id": "m10_dt_map_update",
+      "required_capabilities": [
+        "observation.mobile",
+        "perception.depth",
+        "pose.self_estimate"
+      ],
+      "optional_capabilities": [
+        "observation.panoramic"
+      ]
+    }
+  ],
+  "capabilities": [
+    {
+      "kind": "media.video_input",
+      "is_core": false,
+      "degrade_rank": 0,
+      "requirement": {}
+    },
+    {
+      "kind": "observation.mobile",
+      "is_core": false,
+      "degrade_rank": 0,
+      "requirement": {}
+    },
+    {
+      "kind": "locomotion.ground",
+      "is_core": false,
+      "degrade_rank": 0,
+      "requirement": {}
+    },
+    {
+      "kind": "locomotion.rough_terrain",
+      "is_core": false,
+      "degrade_rank": 0,
+      "requirement": {}
+    },
+    {
+      "kind": "locomotion.holonomic",
+      "is_core": false,
+      "degrade_rank": 0,
+      "requirement": {}
+    },
+    {
+      "kind": "locomotion.aerial",
+      "is_core": false,
+      "degrade_rank": 0,
+      "requirement": {}
+    },
+    {
+      "kind": "navigation.autonomous_route",
+      "is_core": false,
+      "degrade_rank": 0,
+      "requirement": {}
+    },
+    {
+      "kind": "control.locomotion",
+      "is_core": false,
+      "degrade_rank": 0,
+      "requirement": {}
+    },
+    {
+      "kind": "pose.self_estimate",
+      "is_core": false,
+      "degrade_rank": 0,
+      "requirement": {}
+    },
+    {
+      "kind": "pose.gps",
+      "is_core": false,
+      "degrade_rank": 0,
+      "requirement": {}
+    },
+    {
+      "kind": "signal.audio_visual",
+      "is_core": false,
+      "degrade_rank": 0,
+      "requirement": {}
+    },
+    {
+      "kind": "safety.failsafe_return",
+      "is_core": false,
+      "degrade_rank": 0,
+      "requirement": {}
+    },
+    {
+      "kind": "perception.detect",
+      "is_core": false,
+      "degrade_rank": 1,
+      "requirement": {
+        "required": [
+          "media.video_input"
+        ]
+      }
+    },
+    {
+      "kind": "perception.depth",
+      "degrade_rank": 2,
+      "requirement": {
+        "optional": [
+          "perception.detect"
+        ]
+      }
+    },
+    {
+      "kind": "perception.classify",
+      "degrade_rank": 3,
+      "requirement": {
+        "required": [
+          "perception.detect"
+        ]
+      }
+    },
+    {
+      "kind": "perception.detect_ovd",
+      "degrade_rank": 4,
+      "requirement": {
+        "required": [
+          "media.video_input"
+        ]
+      }
+    },
+    {
+      "kind": "perception.segment",
+      "degrade_rank": 5,
+      "requirement": {
+        "optional": [
+          "perception.depth"
+        ]
+      }
+    }
+  ],
+  "labels": "status_ui.labels.json",
+  "deployment": {
+    "domain_id": "hardware-contract-demo",
+    "active_capability_kinds": [
+      "media.video_input",
+      "observation.mobile",
+      "locomotion.ground",
+      "locomotion.rough_terrain",
+      "locomotion.holonomic",
+      "locomotion.aerial",
+      "navigation.autonomous_route",
+      "control.locomotion",
+      "pose.self_estimate",
+      "pose.gps",
+      "signal.audio_visual",
+      "safety.failsafe_return",
+      "perception.detect",
+      "perception.depth",
+      "perception.classify",
+      "perception.detect_ovd",
+      "perception.segment"
+    ],
+    "closed_network": false
+  }
+}

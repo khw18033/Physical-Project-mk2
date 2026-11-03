@@ -1,0 +1,7 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://physical-project.local/schemas/view_bootstrap.schema.json",
+  "title": "View payload — GET /api/bootstrap",
+  "$comment": "뷰어가 처음 한 번 받는 것. 모양은 view_snapshot.schema.json 에 한 번만 적고 여기서는 가리킨다 — 뜻을 두 곳에 적으면 두 곳이 갈라진다.",
+  "$ref": "https://physical-project.local/schemas/view_snapshot.schema.json#/$defs/bootstrap"
+}

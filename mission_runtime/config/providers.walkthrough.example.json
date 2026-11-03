@@ -1,0 +1,1310 @@
+{
+  "$comment": "providers.hardware.example.json 의 사본에 railcrawler(가상 장비) provider 네 줄을 더한 것. docs/guides/extending-walkthrough.md 2·3단계의 결과물이다 — 새 capability kind 'inspection.rail_gauge' 는 등록만으로 생기고 registry/manifest.py 는 그대로다. 원본을 고치지 않고 사본을 두는 이유는 walkthrough 가 배포된 예시를 건드리지 않고 스스로 검증되게 하기 위한 것이다. 장비 5종(Pi Camera 3/3 Wide, Insta360 Pro 2, Unitree Go1, RoboMaster EP, Holybro X500+PX4)의 provider 등록 — 장비 기능·임무 매핑 자료(비공개)) §2 장비 카드와 §3 매트릭스를 registry/manifest.py 형식으로 옮긴 것. 규칙: (1) 장비가 아니라 그 장비 위의 provider가 등록된다 — 'Go1이 C-05를 가진다'가 아니라 go1-stereo-depth가 sensor.camera.go1_stereo 태그를 요구한다. required_hw_tags는 그 장비의 센서·액추에이터·플랫폼 태그(선택형 ◐ 항목은 예시 노드가 갖지 않은 태그 — sensor.tof, sensor.camera.noir, sensor.camera.360_stereo — 를 요구해 required_hw_tag_missing:<tag>로 정직하게 탈락한다). (2) C-xx 코드는 의미 이름 kind로 옮기고 코드 자체는 status_ui.labels.json의 aliases에만 남긴다. C-50(온보드 AI 추론)·C-60(영상 실시간 전송)·C-61(원격 제어 수신)·C-70(상시 가동)·C-71(장시간 이동 운용)은 capability가 아니라 실행 위치·전송·제어 경로·지속성이므로 노드 태그(tier.*, media.ingest, power.external, endurance.long)와 control.locomotion provider의 존재로 흡수된다. (3) 같은 provider_id를 여러 kind에 등록한다(manifest 로더가 허용): 모든 observation.* 카메라 provider는 media.video_input에도, 모든 지상 이동 provider는 control.locomotion에도 등록되어 기존 기능(local_safety, go_to_door …)이 그대로 동작한다. 원문의 'A 또는 B' 요구(M1: C-01 또는 C-02, M10: C-03 또는 C-04)는 다중 등록으로 표현한다 — insta360-live-ingest는 observation.panoramic과 observation.fixed 둘 다, x500-companion-camera는 observation.aerial과 observation.mobile 둘 다. (4) 비용은 자리표시자(미실측)다. 'verified': false는 로더가 무시하는 문서용 필드 — 원문 [확인] 항목과 실측 전 추정값 표시이며(AI-B-01: 미측정 항목은 구분), 실측·검증되면 지운다. 상태 어휘를 늘리지 않는다. (5) ep-builtin-vision(C-51 내장 인식)은 perception.detect의 priority 90 provider일 뿐이다 — rpn-ondevice(priority 50)가 예산에 들어가면 지고, 예산이 모자라면 대안으로 선택된다. (6) 엣지·서버 provider(rpn-ondevice, unidepth, grounding-dino, clip-dictionary(+cuda), yolo-world, fastsam, media-path-ingest)는 providers.status_ui.example.json과 동일하게 포함해 엣지 kind가 그대로 resolve된다. go1-adapter의 deployment 섹션은 기존 것을 유지한다(세 kind 등록이 같은 섹션을 공유).",
+  "providers": [
+    {
+      "capability_kind": "observation.fixed",
+      "provider_id": "imx708-libcamera",
+      "version": "1",
+      "verified": false,
+      "compatibility": {
+        "required_hw_tags": [
+          "sensor.camera.imx708"
+        ],
+        "preferred_hw_tags": [],
+        "cost": {
+          "compute_units": 0.5,
+          "memory_mb": 128
+        },
+        "priority": 50
+      },
+      "requirement": {
+        "required": [],
+        "optional": []
+      },
+      "supported_inputs": [],
+      "supported_outputs": [
+        "image"
+      ]
+    },
+    {
+      "capability_kind": "media.video_input",
+      "provider_id": "imx708-libcamera",
+      "version": "1",
+      "verified": false,
+      "compatibility": {
+        "required_hw_tags": [
+          "sensor.camera.imx708"
+        ],
+        "preferred_hw_tags": [],
+        "cost": {
+          "compute_units": 0.5,
+          "memory_mb": 128
+        },
+        "priority": 50
+      },
+      "requirement": {
+        "required": [],
+        "optional": []
+      },
+      "supported_inputs": [],
+      "supported_outputs": [
+        "image"
+      ]
+    },
+    {
+      "capability_kind": "observation.fixed",
+      "provider_id": "imx708-wide-libcamera",
+      "version": "1",
+      "verified": false,
+      "compatibility": {
+        "required_hw_tags": [
+          "sensor.camera.imx708_wide"
+        ],
+        "preferred_hw_tags": [],
+        "cost": {
+          "compute_units": 0.5,
+          "memory_mb": 128
+        },
+        "priority": 50
+      },
+      "requirement": {
+        "required": [],
+        "optional": []
+      },
+      "supported_inputs": [],
+      "supported_outputs": [
+        "image"
+      ]
+    },
+    {
+      "capability_kind": "media.video_input",
+      "provider_id": "imx708-wide-libcamera",
+      "version": "1",
+      "verified": false,
+      "compatibility": {
+        "required_hw_tags": [
+          "sensor.camera.imx708_wide"
+        ],
+        "preferred_hw_tags": [],
+        "cost": {
+          "compute_units": 0.5,
+          "memory_mb": 128
+        },
+        "priority": 50
+      },
+      "requirement": {
+        "required": [],
+        "optional": []
+      },
+      "supported_inputs": [],
+      "supported_outputs": [
+        "image"
+      ]
+    },
+    {
+      "capability_kind": "observation.low_light",
+      "provider_id": "imx708-noir-libcamera",
+      "version": "0-unverified",
+      "verified": false,
+      "compatibility": {
+        "required_hw_tags": [
+          "sensor.camera.noir"
+        ],
+        "preferred_hw_tags": [],
+        "cost": {
+          "compute_units": 0.5,
+          "memory_mb": 128
+        },
+        "priority": 50
+      },
+      "requirement": {
+        "required": [],
+        "optional": []
+      },
+      "supported_inputs": [],
+      "supported_outputs": [
+        "image"
+      ]
+    },
+    {
+      "capability_kind": "observation.panoramic",
+      "provider_id": "insta360-live-ingest",
+      "version": "0-unverified",
+      "verified": false,
+      "compatibility": {
+        "required_hw_tags": [
+          "sensor.camera.360"
+        ],
+        "preferred_hw_tags": [],
+        "cost": {
+          "compute_units": 0.5,
+          "memory_mb": 128
+        },
+        "priority": 50
+      },
+      "requirement": {
+        "required": [],
+        "optional": []
+      },
+      "supported_inputs": [
+        "frame_ref"
+      ],
+      "supported_outputs": [
+        "image"
+      ]
+    },
+    {
+      "capability_kind": "observation.fixed",
+      "provider_id": "insta360-live-ingest",
+      "version": "0-unverified",
+      "verified": false,
+      "compatibility": {
+        "required_hw_tags": [
+          "sensor.camera.360"
+        ],
+        "preferred_hw_tags": [],
+        "cost": {
+          "compute_units": 0.5,
+          "memory_mb": 128
+        },
+        "priority": 50
+      },
+      "requirement": {
+        "required": [],
+        "optional": []
+      },
+      "supported_inputs": [
+        "frame_ref"
+      ],
+      "supported_outputs": [
+        "image"
+      ]
+    },
+    {
+      "capability_kind": "media.video_input",
+      "provider_id": "insta360-live-ingest",
+      "version": "0-unverified",
+      "verified": false,
+      "compatibility": {
+        "required_hw_tags": [
+          "sensor.camera.360"
+        ],
+        "preferred_hw_tags": [],
+        "cost": {
+          "compute_units": 0.5,
+          "memory_mb": 128
+        },
+        "priority": 50
+      },
+      "requirement": {
+        "required": [],
+        "optional": []
+      },
+      "supported_inputs": [
+        "frame_ref"
+      ],
+      "supported_outputs": [
+        "image"
+      ]
+    },
+    {
+      "capability_kind": "perception.depth",
+      "provider_id": "insta360-stereo-depth",
+      "version": "0-unverified",
+      "verified": false,
+      "compatibility": {
+        "required_hw_tags": [
+          "sensor.camera.360_stereo"
+        ],
+        "preferred_hw_tags": [],
+        "cost": {
+          "compute_units": 1.0,
+          "memory_mb": 256
+        },
+        "priority": 50
+      },
+      "requirement": {
+        "required": [],
+        "optional": []
+      },
+      "supported_inputs": [
+        "image"
+      ],
+      "supported_outputs": [
+        "depth_map"
+      ]
+    },
+    {
+      "capability_kind": "pose.gps",
+      "provider_id": "insta360-gps",
+      "version": "0-unverified",
+      "verified": false,
+      "compatibility": {
+        "required_hw_tags": [
+          "sensor.gps",
+          "sensor.camera.360"
+        ],
+        "preferred_hw_tags": [],
+        "cost": {
+          "compute_units": 0.1,
+          "memory_mb": 16
+        },
+        "priority": 50
+      },
+      "requirement": {
+        "required": [],
+        "optional": []
+      },
+      "supported_inputs": [],
+      "supported_outputs": [
+        "pose"
+      ]
+    },
+    {
+      "capability_kind": "observation.mobile",
+      "provider_id": "go1-front-camera",
+      "version": "0-assumed",
+      "verified": false,
+      "compatibility": {
+        "required_hw_tags": [
+          "sensor.camera.go1_front"
+        ],
+        "preferred_hw_tags": [],
+        "cost": {
+          "compute_units": 0.5,
+          "memory_mb": 128
+        },
+        "priority": 50
+      },
+      "requirement": {
+        "required": [],
+        "optional": []
+      },
+      "supported_inputs": [],
+      "supported_outputs": [
+        "image"
+      ]
+    },
+    {
+      "capability_kind": "media.video_input",
+      "provider_id": "go1-front-camera",
+      "version": "0-assumed",
+      "verified": false,
+      "compatibility": {
+        "required_hw_tags": [
+          "sensor.camera.go1_front"
+        ],
+        "preferred_hw_tags": [],
+        "cost": {
+          "compute_units": 0.5,
+          "memory_mb": 128
+        },
+        "priority": 50
+      },
+      "requirement": {
+        "required": [],
+        "optional": []
+      },
+      "supported_inputs": [],
+      "supported_outputs": [
+        "image"
+      ]
+    },
+    {
+      "capability_kind": "perception.depth",
+      "provider_id": "go1-stereo-depth",
+      "version": "0-unverified",
+      "verified": false,
+      "compatibility": {
+        "required_hw_tags": [
+          "sensor.camera.go1_stereo"
+        ],
+        "preferred_hw_tags": [],
+        "cost": {
+          "compute_units": 1.0,
+          "memory_mb": 256
+        },
+        "priority": 50
+      },
+      "requirement": {
+        "required": [],
+        "optional": []
+      },
+      "supported_inputs": [
+        "image"
+      ],
+      "supported_outputs": [
+        "depth_map"
+      ]
+    },
+    {
+      "capability_kind": "locomotion.ground",
+      "provider_id": "go1-adapter",
+      "version": "1",
+      "verified": false,
+      "compatibility": {
+        "required_hw_tags": [
+          "tier.ugv",
+          "locomotion.legged"
+        ],
+        "preferred_hw_tags": [],
+        "cost": {
+          "compute_units": 0.5,
+          "memory_mb": 64
+        },
+        "priority": 50
+      },
+      "requirement": {
+        "required": [],
+        "optional": []
+      },
+      "supported_inputs": [
+        "locomotion_goal"
+      ],
+      "supported_outputs": [
+        "command_outcome"
+      ],
+      "deployment": {
+        "image": "example.invalid/aif/go1-adapter:0",
+        "command": []
+      }
+    },
+    {
+      "capability_kind": "locomotion.rough_terrain",
+      "provider_id": "go1-adapter",
+      "version": "1",
+      "verified": false,
+      "compatibility": {
+        "required_hw_tags": [
+          "tier.ugv",
+          "locomotion.legged"
+        ],
+        "preferred_hw_tags": [],
+        "cost": {
+          "compute_units": 0.5,
+          "memory_mb": 64
+        },
+        "priority": 50
+      },
+      "requirement": {
+        "required": [],
+        "optional": []
+      },
+      "supported_inputs": [
+        "locomotion_goal"
+      ],
+      "supported_outputs": [
+        "command_outcome"
+      ],
+      "deployment": {
+        "image": "example.invalid/aif/go1-adapter:0",
+        "command": []
+      }
+    },
+    {
+      "capability_kind": "control.locomotion",
+      "provider_id": "go1-adapter",
+      "version": "1",
+      "verified": false,
+      "compatibility": {
+        "required_hw_tags": [
+          "tier.ugv",
+          "locomotion.legged"
+        ],
+        "preferred_hw_tags": [],
+        "cost": {
+          "compute_units": 0.5,
+          "memory_mb": 64
+        },
+        "priority": 50
+      },
+      "requirement": {
+        "required": [],
+        "optional": []
+      },
+      "supported_inputs": [
+        "locomotion_goal"
+      ],
+      "supported_outputs": [
+        "command_outcome"
+      ],
+      "deployment": {
+        "image": "example.invalid/aif/go1-adapter:0",
+        "command": []
+      }
+    },
+    {
+      "capability_kind": "pose.self_estimate",
+      "provider_id": "go1-odometry",
+      "version": "0-unverified",
+      "verified": false,
+      "compatibility": {
+        "required_hw_tags": [
+          "sensor.imu",
+          "locomotion.legged"
+        ],
+        "preferred_hw_tags": [],
+        "cost": {
+          "compute_units": 0.2,
+          "memory_mb": 32
+        },
+        "priority": 50
+      },
+      "requirement": {
+        "required": [],
+        "optional": []
+      },
+      "supported_inputs": [],
+      "supported_outputs": [
+        "pose"
+      ]
+    },
+    {
+      "capability_kind": "signal.audio_visual",
+      "provider_id": "go1-signal",
+      "version": "0-unverified",
+      "verified": false,
+      "compatibility": {
+        "required_hw_tags": [
+          "actuator.led_speaker",
+          "locomotion.legged"
+        ],
+        "preferred_hw_tags": [],
+        "cost": {
+          "compute_units": 0.1,
+          "memory_mb": 16
+        },
+        "priority": 50
+      },
+      "requirement": {
+        "required": [],
+        "optional": []
+      },
+      "supported_inputs": [
+        "signal_request"
+      ],
+      "supported_outputs": [
+        "command_outcome"
+      ]
+    },
+    {
+      "capability_kind": "observation.mobile",
+      "provider_id": "ep-camera",
+      "version": "0-unverified",
+      "verified": false,
+      "compatibility": {
+        "required_hw_tags": [
+          "sensor.camera.ep"
+        ],
+        "preferred_hw_tags": [],
+        "cost": {
+          "compute_units": 0.5,
+          "memory_mb": 128
+        },
+        "priority": 50
+      },
+      "requirement": {
+        "required": [],
+        "optional": []
+      },
+      "supported_inputs": [],
+      "supported_outputs": [
+        "image"
+      ]
+    },
+    {
+      "capability_kind": "media.video_input",
+      "provider_id": "ep-camera",
+      "version": "0-unverified",
+      "verified": false,
+      "compatibility": {
+        "required_hw_tags": [
+          "sensor.camera.ep"
+        ],
+        "preferred_hw_tags": [],
+        "cost": {
+          "compute_units": 0.5,
+          "memory_mb": 128
+        },
+        "priority": 50
+      },
+      "requirement": {
+        "required": [],
+        "optional": []
+      },
+      "supported_inputs": [],
+      "supported_outputs": [
+        "image"
+      ]
+    },
+    {
+      "capability_kind": "locomotion.ground",
+      "provider_id": "ep-chassis",
+      "version": "0-unverified",
+      "verified": false,
+      "compatibility": {
+        "required_hw_tags": [
+          "tier.ugv",
+          "locomotion.wheeled"
+        ],
+        "preferred_hw_tags": [],
+        "cost": {
+          "compute_units": 0.5,
+          "memory_mb": 64
+        },
+        "priority": 50
+      },
+      "requirement": {
+        "required": [],
+        "optional": []
+      },
+      "supported_inputs": [
+        "locomotion_goal"
+      ],
+      "supported_outputs": [
+        "command_outcome"
+      ]
+    },
+    {
+      "capability_kind": "locomotion.holonomic",
+      "provider_id": "ep-chassis",
+      "version": "0-unverified",
+      "verified": false,
+      "compatibility": {
+        "required_hw_tags": [
+          "tier.ugv",
+          "locomotion.wheeled"
+        ],
+        "preferred_hw_tags": [],
+        "cost": {
+          "compute_units": 0.5,
+          "memory_mb": 64
+        },
+        "priority": 50
+      },
+      "requirement": {
+        "required": [],
+        "optional": []
+      },
+      "supported_inputs": [
+        "locomotion_goal"
+      ],
+      "supported_outputs": [
+        "command_outcome"
+      ]
+    },
+    {
+      "capability_kind": "control.locomotion",
+      "provider_id": "ep-chassis",
+      "version": "0-unverified",
+      "verified": false,
+      "compatibility": {
+        "required_hw_tags": [
+          "tier.ugv",
+          "locomotion.wheeled"
+        ],
+        "preferred_hw_tags": [],
+        "cost": {
+          "compute_units": 0.5,
+          "memory_mb": 64
+        },
+        "priority": 50
+      },
+      "requirement": {
+        "required": [],
+        "optional": []
+      },
+      "supported_inputs": [
+        "locomotion_goal"
+      ],
+      "supported_outputs": [
+        "command_outcome"
+      ]
+    },
+    {
+      "capability_kind": "manipulation.grasp",
+      "provider_id": "ep-arm-gripper",
+      "version": "0-unverified",
+      "verified": false,
+      "compatibility": {
+        "required_hw_tags": [
+          "actuator.gripper"
+        ],
+        "preferred_hw_tags": [],
+        "cost": {
+          "compute_units": 0.3,
+          "memory_mb": 32
+        },
+        "priority": 50
+      },
+      "requirement": {
+        "required": [],
+        "optional": []
+      },
+      "supported_inputs": [
+        "grasp_goal"
+      ],
+      "supported_outputs": [
+        "command_outcome"
+      ]
+    },
+    {
+      "capability_kind": "perception.depth",
+      "provider_id": "ep-tof-depth",
+      "version": "0-unverified",
+      "verified": false,
+      "compatibility": {
+        "required_hw_tags": [
+          "sensor.tof"
+        ],
+        "preferred_hw_tags": [],
+        "cost": {
+          "compute_units": 0.3,
+          "memory_mb": 32
+        },
+        "priority": 50
+      },
+      "requirement": {
+        "required": [],
+        "optional": []
+      },
+      "supported_inputs": [],
+      "supported_outputs": [
+        "depth_map"
+      ]
+    },
+    {
+      "capability_kind": "pose.self_estimate",
+      "provider_id": "ep-odometry",
+      "version": "0-unverified",
+      "verified": false,
+      "compatibility": {
+        "required_hw_tags": [
+          "sensor.imu",
+          "locomotion.wheeled"
+        ],
+        "preferred_hw_tags": [],
+        "cost": {
+          "compute_units": 0.2,
+          "memory_mb": 32
+        },
+        "priority": 50
+      },
+      "requirement": {
+        "required": [],
+        "optional": []
+      },
+      "supported_inputs": [],
+      "supported_outputs": [
+        "pose"
+      ]
+    },
+    {
+      "capability_kind": "signal.audio_visual",
+      "provider_id": "ep-signal",
+      "version": "0-unverified",
+      "verified": false,
+      "compatibility": {
+        "required_hw_tags": [
+          "actuator.led_speaker",
+          "locomotion.wheeled"
+        ],
+        "preferred_hw_tags": [],
+        "cost": {
+          "compute_units": 0.1,
+          "memory_mb": 16
+        },
+        "priority": 50
+      },
+      "requirement": {
+        "required": [],
+        "optional": []
+      },
+      "supported_inputs": [
+        "signal_request"
+      ],
+      "supported_outputs": [
+        "command_outcome"
+      ]
+    },
+    {
+      "capability_kind": "perception.detect",
+      "provider_id": "ep-builtin-vision",
+      "version": "0-unverified",
+      "verified": false,
+      "compatibility": {
+        "required_hw_tags": [
+          "sensor.camera.ep"
+        ],
+        "preferred_hw_tags": [],
+        "cost": {
+          "compute_units": 1.0,
+          "memory_mb": 128
+        },
+        "priority": 90
+      },
+      "requirement": {
+        "required": [],
+        "optional": []
+      },
+      "supported_inputs": [
+        "image"
+      ],
+      "supported_outputs": [
+        "detection"
+      ]
+    },
+    {
+      "capability_kind": "locomotion.aerial",
+      "provider_id": "px4-flight",
+      "version": "0-unverified",
+      "verified": false,
+      "compatibility": {
+        "required_hw_tags": [
+          "tier.uav",
+          "platform.uav"
+        ],
+        "preferred_hw_tags": [],
+        "cost": {
+          "compute_units": 0.5,
+          "memory_mb": 64
+        },
+        "priority": 50
+      },
+      "requirement": {
+        "required": [],
+        "optional": []
+      },
+      "supported_inputs": [
+        "locomotion_goal"
+      ],
+      "supported_outputs": [
+        "command_outcome"
+      ]
+    },
+    {
+      "capability_kind": "navigation.autonomous_route",
+      "provider_id": "px4-flight",
+      "version": "0-unverified",
+      "verified": false,
+      "compatibility": {
+        "required_hw_tags": [
+          "tier.uav",
+          "platform.uav"
+        ],
+        "preferred_hw_tags": [],
+        "cost": {
+          "compute_units": 0.5,
+          "memory_mb": 64
+        },
+        "priority": 50
+      },
+      "requirement": {
+        "required": [],
+        "optional": []
+      },
+      "supported_inputs": [
+        "locomotion_goal"
+      ],
+      "supported_outputs": [
+        "command_outcome"
+      ]
+    },
+    {
+      "capability_kind": "safety.failsafe_return",
+      "provider_id": "px4-flight",
+      "version": "0-unverified",
+      "verified": false,
+      "compatibility": {
+        "required_hw_tags": [
+          "tier.uav",
+          "platform.uav"
+        ],
+        "preferred_hw_tags": [],
+        "cost": {
+          "compute_units": 0.5,
+          "memory_mb": 64
+        },
+        "priority": 50
+      },
+      "requirement": {
+        "required": [],
+        "optional": []
+      },
+      "supported_inputs": [
+        "locomotion_goal"
+      ],
+      "supported_outputs": [
+        "command_outcome"
+      ]
+    },
+    {
+      "capability_kind": "pose.gps",
+      "provider_id": "px4-gps",
+      "version": "0-unverified",
+      "verified": false,
+      "compatibility": {
+        "required_hw_tags": [
+          "sensor.gps",
+          "platform.uav"
+        ],
+        "preferred_hw_tags": [],
+        "cost": {
+          "compute_units": 0.2,
+          "memory_mb": 32
+        },
+        "priority": 50
+      },
+      "requirement": {
+        "required": [],
+        "optional": []
+      },
+      "supported_inputs": [],
+      "supported_outputs": [
+        "pose"
+      ]
+    },
+    {
+      "capability_kind": "pose.self_estimate",
+      "provider_id": "px4-gps",
+      "version": "0-unverified",
+      "verified": false,
+      "compatibility": {
+        "required_hw_tags": [
+          "sensor.gps",
+          "platform.uav"
+        ],
+        "preferred_hw_tags": [],
+        "cost": {
+          "compute_units": 0.2,
+          "memory_mb": 32
+        },
+        "priority": 50
+      },
+      "requirement": {
+        "required": [],
+        "optional": []
+      },
+      "supported_inputs": [],
+      "supported_outputs": [
+        "pose"
+      ]
+    },
+    {
+      "capability_kind": "observation.aerial",
+      "provider_id": "x500-companion-camera",
+      "version": "0-unverified",
+      "verified": false,
+      "compatibility": {
+        "required_hw_tags": [
+          "sensor.camera.imx708_wide",
+          "tier.uav"
+        ],
+        "preferred_hw_tags": [],
+        "cost": {
+          "compute_units": 0.5,
+          "memory_mb": 128
+        },
+        "priority": 50
+      },
+      "requirement": {
+        "required": [],
+        "optional": []
+      },
+      "supported_inputs": [],
+      "supported_outputs": [
+        "image"
+      ]
+    },
+    {
+      "capability_kind": "observation.mobile",
+      "provider_id": "x500-companion-camera",
+      "version": "0-unverified",
+      "verified": false,
+      "compatibility": {
+        "required_hw_tags": [
+          "sensor.camera.imx708_wide",
+          "tier.uav"
+        ],
+        "preferred_hw_tags": [],
+        "cost": {
+          "compute_units": 0.5,
+          "memory_mb": 128
+        },
+        "priority": 50
+      },
+      "requirement": {
+        "required": [],
+        "optional": []
+      },
+      "supported_inputs": [],
+      "supported_outputs": [
+        "image"
+      ]
+    },
+    {
+      "capability_kind": "media.video_input",
+      "provider_id": "x500-companion-camera",
+      "version": "0-unverified",
+      "verified": false,
+      "compatibility": {
+        "required_hw_tags": [
+          "sensor.camera.imx708_wide",
+          "tier.uav"
+        ],
+        "preferred_hw_tags": [],
+        "cost": {
+          "compute_units": 0.5,
+          "memory_mb": 128
+        },
+        "priority": 50
+      },
+      "requirement": {
+        "required": [],
+        "optional": []
+      },
+      "supported_inputs": [],
+      "supported_outputs": [
+        "image"
+      ]
+    },
+    {
+      "capability_kind": "media.video_input",
+      "provider_id": "media-path-ingest",
+      "version": "1",
+      "compatibility": {
+        "required_hw_tags": [
+          "media.ingest"
+        ],
+        "preferred_hw_tags": [
+          "media.hw_decode"
+        ],
+        "cost": {
+          "compute_units": 0.5,
+          "memory_mb": 128
+        },
+        "priority": 60
+      },
+      "requirement": {
+        "required": [],
+        "optional": []
+      },
+      "supported_inputs": [
+        "frame_ref"
+      ],
+      "supported_outputs": [
+        "image"
+      ]
+    },
+    {
+      "capability_kind": "perception.detect",
+      "provider_id": "rpn-ondevice",
+      "version": "1",
+      "compatibility": {
+        "required_hw_tags": [],
+        "preferred_hw_tags": [
+          "tier.ondevice"
+        ],
+        "cost": {
+          "compute_units": 2.0,
+          "memory_mb": 256
+        },
+        "priority": 50
+      },
+      "requirement": {
+        "required": [],
+        "optional": []
+      },
+      "supported_inputs": [
+        "image"
+      ],
+      "supported_outputs": [
+        "region_proposal"
+      ]
+    },
+    {
+      "capability_kind": "perception.depth",
+      "provider_id": "unidepth",
+      "version": "1",
+      "compatibility": {
+        "required_hw_tags": [],
+        "preferred_hw_tags": [],
+        "cost": {
+          "compute_units": 2.0,
+          "memory_mb": 256
+        },
+        "priority": 50
+      },
+      "requirement": {
+        "required": [],
+        "optional": []
+      },
+      "supported_inputs": [
+        "image"
+      ],
+      "supported_outputs": [
+        "depth_map",
+        "camera_intrinsics"
+      ]
+    },
+    {
+      "capability_kind": "perception.detect_ovd",
+      "provider_id": "grounding-dino",
+      "version": "1",
+      "compatibility": {
+        "required_hw_tags": [],
+        "preferred_hw_tags": [],
+        "cost": {
+          "compute_units": 2.0,
+          "memory_mb": 256
+        },
+        "priority": 50
+      },
+      "requirement": {
+        "required": [],
+        "optional": []
+      },
+      "supported_inputs": [
+        "image",
+        "text_prompt"
+      ],
+      "supported_outputs": [
+        "detection"
+      ],
+      "deployment": {
+        "image": "example.invalid/aif/grounding-dino:0",
+        "command": []
+      }
+    },
+    {
+      "capability_kind": "perception.classify",
+      "provider_id": "clip-dictionary",
+      "version": "1",
+      "compatibility": {
+        "required_hw_tags": [],
+        "preferred_hw_tags": [],
+        "cost": {
+          "compute_units": 3.0,
+          "memory_mb": 256
+        },
+        "priority": 50
+      },
+      "requirement": {
+        "required": [],
+        "optional": []
+      },
+      "supported_inputs": [
+        "image",
+        "region_proposal"
+      ],
+      "supported_outputs": [
+        "class_score"
+      ]
+    },
+    {
+      "capability_kind": "perception.classify",
+      "provider_id": "clip-dictionary-cuda",
+      "version": "1",
+      "compatibility": {
+        "required_hw_tags": [
+          "compute.gpu"
+        ],
+        "preferred_hw_tags": [],
+        "cost": {
+          "compute_units": 1.0,
+          "memory_mb": 512
+        },
+        "priority": 10
+      },
+      "requirement": {
+        "required": [],
+        "optional": []
+      },
+      "supported_inputs": [
+        "image",
+        "region_proposal"
+      ],
+      "supported_outputs": [
+        "class_score"
+      ],
+      "deployment": {
+        "image": "example.invalid/aif/clip-dictionary-cuda:0",
+        "command": []
+      }
+    },
+    {
+      "capability_kind": "perception.detect_ovd",
+      "provider_id": "yolo-world",
+      "version": "1",
+      "compatibility": {
+        "required_hw_tags": [],
+        "preferred_hw_tags": [],
+        "cost": {
+          "compute_units": 2.0,
+          "memory_mb": 256
+        },
+        "priority": 60
+      },
+      "requirement": {
+        "required": [],
+        "optional": []
+      },
+      "supported_inputs": [
+        "image",
+        "text_prompt"
+      ],
+      "supported_outputs": [
+        "detection"
+      ],
+      "deployment": {
+        "image": "example.invalid/aif/yolo-world:0",
+        "command": []
+      }
+    },
+    {
+      "capability_kind": "perception.segment",
+      "provider_id": "fastsam",
+      "version": "1",
+      "compatibility": {
+        "required_hw_tags": [],
+        "preferred_hw_tags": [],
+        "cost": {
+          "compute_units": 2.0,
+          "memory_mb": 256
+        },
+        "priority": 50
+      },
+      "requirement": {
+        "required": [],
+        "optional": []
+      },
+      "supported_inputs": [
+        "image"
+      ],
+      "supported_outputs": [
+        "mask"
+      ]
+    },
+    {
+      "capability_kind": "inspection.rail_gauge",
+      "provider_id": "railcrawler-gauge-probe",
+      "version": "0-unverified",
+      "verified": false,
+      "compatibility": {
+        "required_hw_tags": [
+          "sensor.gauge_probe"
+        ],
+        "preferred_hw_tags": [],
+        "cost": {
+          "compute_units": 0.3,
+          "memory_mb": 64
+        },
+        "priority": 50
+      },
+      "requirement": {
+        "required": [],
+        "optional": []
+      },
+      "supported_inputs": [],
+      "supported_outputs": [
+        "rail_gauge_mm"
+      ]
+    },
+    {
+      "capability_kind": "observation.mobile",
+      "provider_id": "railcrawler-tunnel-camera",
+      "version": "0-unverified",
+      "verified": false,
+      "compatibility": {
+        "required_hw_tags": [
+          "sensor.camera.railcrawler"
+        ],
+        "preferred_hw_tags": [],
+        "cost": {
+          "compute_units": 0.5,
+          "memory_mb": 128
+        },
+        "priority": 50
+      },
+      "requirement": {
+        "required": [],
+        "optional": []
+      },
+      "supported_inputs": [],
+      "supported_outputs": [
+        "image"
+      ]
+    },
+    {
+      "capability_kind": "media.video_input",
+      "provider_id": "railcrawler-tunnel-camera",
+      "version": "0-unverified",
+      "verified": false,
+      "compatibility": {
+        "required_hw_tags": [
+          "sensor.camera.railcrawler"
+        ],
+        "preferred_hw_tags": [],
+        "cost": {
+          "compute_units": 0.5,
+          "memory_mb": 128
+        },
+        "priority": 50
+      },
+      "requirement": {
+        "required": [],
+        "optional": []
+      },
+      "supported_inputs": [],
+      "supported_outputs": [
+        "image"
+      ]
+    },
+    {
+      "capability_kind": "locomotion.ground",
+      "provider_id": "railcrawler-adapter",
+      "version": "0-unverified",
+      "verified": false,
+      "compatibility": {
+        "required_hw_tags": [
+          "actuator.rail_drive"
+        ],
+        "preferred_hw_tags": [],
+        "cost": {
+          "compute_units": 0.2,
+          "memory_mb": 64
+        },
+        "priority": 50
+      },
+      "requirement": {
+        "required": [],
+        "optional": []
+      },
+      "supported_inputs": [],
+      "supported_outputs": []
+    },
+    {
+      "capability_kind": "control.locomotion",
+      "provider_id": "railcrawler-adapter",
+      "version": "0-unverified",
+      "verified": false,
+      "compatibility": {
+        "required_hw_tags": [
+          "actuator.rail_drive"
+        ],
+        "preferred_hw_tags": [],
+        "cost": {
+          "compute_units": 0.2,
+          "memory_mb": 64
+        },
+        "priority": 50
+      },
+      "requirement": {
+        "required": [],
+        "optional": []
+      },
+      "supported_inputs": [],
+      "supported_outputs": []
+    }
+  ]
+}

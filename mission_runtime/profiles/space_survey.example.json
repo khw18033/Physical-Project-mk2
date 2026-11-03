@@ -1,0 +1,63 @@
+{
+  "$comment": "관제 웹에서 **사람이 재어 넣거나 고친** 공간 값이다. 센서 추정과 같은 칸에 섞지 않고 별도 파일로 두는 이유는 하나다 — 융합 뒤에도 사람 실측과 깊이맵 추측이 구분돼야 하고, 누가 언제 넣었는지가 남아야 한다(AI-L-03). 값은 전부 **현장 로컬 미터 좌표**이고 전역 좌표는 여기에 없다(AI-C-02: 전역 변환은 백엔드 소유). 서명(entered_by)이 없는 줄은 융합에서 사유와 함께 거절된다. 모양은 mission_runtime/perception/spatial_evidence.py 의 SpatialObservation 계약이고, 읽는 쪽은 load_survey_observations() 다.",
+  "zone_id": "N4-1F-W",
+  "coordinate_frame": "site:college",
+  "survey": [
+    {
+      "evidence_id": "survey-2026-10-19-pi6-at-1",
+      "quantity_id": "infrastructure.pi6.at",
+      "spatial_evidence_kind": "human_survey",
+      "source_group": "ops_web.survey",
+      "frame_ref": "survey_session:2026-10-19:N4-1F-W",
+      "value": [6.2, 4.1],
+      "unit": "meter",
+      "accuracy_m": 0.1,
+      "observed_at": "2026-10-19T14:05:00+09:00",
+      "entered_by": "jinnayoung",
+      "entered_at": "2026-10-19T14:12:00+09:00",
+      "note": "1차 입력. 서편 출입구 문틀 기준으로 줄자 실측. 선언 프로파일의 (6, 4) 와 다르다."
+    },
+    {
+      "evidence_id": "survey-2026-10-26-pi6-at-2",
+      "quantity_id": "infrastructure.pi6.at",
+      "spatial_evidence_kind": "human_survey",
+      "source_group": "ops_web.survey",
+      "frame_ref": "survey_session:2026-10-26:N4-1F-W",
+      "value": [6.35, 3.95],
+      "unit": "meter",
+      "accuracy_m": 0.05,
+      "observed_at": "2026-10-26T10:20:00+09:00",
+      "entered_by": "jinnayoung",
+      "entered_at": "2026-10-26T10:24:00+09:00",
+      "note": "거치대를 옮긴 뒤 재실측. 1차 입력은 지우지 않고 superseded 로 남는다 — 자리가 언제 왜 바뀌었는지가 설명돼야 한다."
+    },
+    {
+      "evidence_id": "survey-2026-10-19-n4-102-west-wall",
+      "quantity_id": "room.N4-102.wall_west_length_m",
+      "spatial_evidence_kind": "human_survey",
+      "source_group": "ops_web.survey",
+      "frame_ref": "survey_session:2026-10-19:N4-1F-W",
+      "value": [8.64],
+      "unit": "meter",
+      "accuracy_m": 0.02,
+      "observed_at": "2026-10-19T14:30:00+09:00",
+      "entered_by": "jinnayoung",
+      "entered_at": "2026-10-19T14:33:00+09:00",
+      "note": "레이저 거리계 3회 측정의 중앙값. 벽 길이는 1성분 값이다 — 평면 자리와 같은 quantity 로 섞지 않는다."
+    },
+    {
+      "evidence_id": "survey-2026-10-19-ref-door",
+      "quantity_id": "reference_point.n4-1f-w-door.at",
+      "spatial_evidence_kind": "human_survey",
+      "source_group": "ops_web.survey",
+      "frame_ref": "survey_session:2026-10-19:N4-1F-W",
+      "value": [0.0, 9.0],
+      "unit": "meter",
+      "accuracy_m": null,
+      "observed_at": "2026-10-19T14:40:00+09:00",
+      "entered_by": "jinnayoung",
+      "entered_at": "2026-10-19T14:41:00+09:00",
+      "note": "도면 위에 찍은 기준점이고 실측 오차를 모른다. accuracy_m 를 null 로 둔 채 그대로 쓴다 — 여기에 그럴듯한 숫자를 넣으면 모르는 값이 아는 값처럼 가중된다."
+    }
+  ]
+}

@@ -1,0 +1,35 @@
+{
+  "schema_version": "2.0",
+  "message_id": "msg-risk-001",
+  "source_id": "ds-vision",
+  "node_id": "edge-node-a",
+  "zone_id": "zoneA",
+  "channel": "risk_state",
+  "timestamp": "2026-08-25T19:40:00.000+09:00",
+  "sequence_id": 8,
+  "session_id": "0a1b2c3d4e5f",
+  "entity_id": "river-section-12",
+  "correlation_id": "incident-2026-08-25-01",
+  "state": "alert",
+  "score": 0.87,
+  "evidence_sufficiency": 0.92,
+  "evidence_used": [
+    "water_level",
+    "rise_rate"
+  ],
+  "reasons": [
+    {
+      "label": "water level",
+      "value": "4.2m",
+      "contribution": 0.62
+    },
+    {
+      "label": "rise rate",
+      "value": "0.3m/min",
+      "contribution": 0.25
+    }
+  ],
+  "recommendation": "구역 통제 검토",
+  "model_version": "rule-1.4.0",
+  "decided_at": "2026-08-25T19:40:00.000+09:00"
+}

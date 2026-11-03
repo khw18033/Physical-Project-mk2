@@ -1,0 +1,662 @@
+{
+  "$comment": "FMS 콘솔이 읽는 설정. config/status_ui.hardware.example.json 의 상위 집합이며 거기 적힌 장비표·임무표·capability 를 그대로 쓰고 노드만 더한다 — mt4(실물 = 미로봇 MT4 Edu Kit 4축 메탈 로봇암. 카메라가 아니라 고정형 매니퓰레이터이고, 그래서 locomotion 태그가 없어 이동이 필요한 임무에서는 정직하게 탈락한다. 제원 미확인)와 예시 도메인(facility·defense)의 장치다. 예시 노드의 태그는 새로 만들지 않고 기존 어휘를 재사용한다: provider manifest 가 요구하지 않는 태그를 지어내면 그 노드에서 아무 capability 도 해소되지 않아 예시가 비어 보인다. verified=false 는 현장 실측으로 확인되지 않았다는 표시다(로더가 무시하는 문서용 필드). 원본 설명: 장비 기능·임무 매핑 자료(비공개))의 §4 임무표(M1~M11)와 장비 5종을 tools/status_ui/serve.py가 읽는 설정으로 옮긴 것. status_ui.example.json의 상위 집합이다(기존 4개 기능·엣지/서버 노드 유지). providers_manifest는 providers.hardware.example.json. 역할(nodes[].role)은 fixed_camera / ugv / uav / edge / server 다섯 개(2026-09-28 결정 — 이종 다중로봇 문헌의 이동성 분류; Go1(legged)·EP(wheeled)는 같은 ugv이고 차이는 locomotion.legged/locomotion.wheeled 태그). functions[]는 원문 §4 표의 필수·선택 열 그대로이되 C-60(영상 전송)·C-61(원격 제어 수신)·C-70(상시 가동)·C-71(장시간 이동 운용)은 capability가 아니라 노드 태그(media.ingest, control.locomotion provider 존재, power.external, endurance.long)라 요구 목록에서 뺐다. capabilities[]: 이 설정에서는 어떤 kind도 is_core가 아니다 — status_ui.example.json은 문 시연 배치라 media.video_input·perception.detect를 core로 두지만, 이종 장비 함대에서 그 둘을 core로 두면 카메라가 없는 x500-companion의 비행 kind 전부가 core_capability_unplaced로 가려져(runtime/application.py: core 하나가 놓이지 못하면 나머지 선택 kind에 예산을 주지 않는다) 원문의 진짜 공백('드론 카메라 미탑재' → required_hw_tag_missing:sensor.camera.imx708_wide)이 보이지 않는다. 임무 필수 여부는 functions[].required_capabilities가 표현한다(AI-C-05: core/optional은 배포마다 선언). 노드의 'verified': false는 로더가 무시하는 문서용 필드 — 원문 [확인] 항목(모델·옵션 미확정)이라는 표시이며 확인되면 지운다(상태 어휘를 늘리지 않는다). 기대 판정(tests/test_hardware_contract.py가 재현): M1은 observation.fixed가 fixed_camera 노드에서만 나오며 선택 kind observation.low_light가 없어 DEGRADED(NoIR 카메라 [확인] 전); M2·M3·M8·M9·M10 ACTIVE; M4는 locomotion.rough_terrain을 go1-onboard(legged)만 제공; M7은 ep-onboard의 actuator.gripper로 ACTIVE, what-if로 그 태그를 빼면 DISABLED(required_hw_tag_missing:actuator.gripper); M5·M6은 observation.aerial을 줄 노드가 없어 DISABLED — uav 계층의 보완 사유가 required_hw_tag_missing:sensor.camera.imx708_wide(원문 §6 '드론 카메라 미탑재'); M11은 sensor.camera.noir 노드가 없어 DISABLED; gaze.control(C-31)은 원문에서 전부 ◐라 provider가 없다(no_provider_registered). 엣지·서버 노드에서는 하드웨어 kind가 전부 required_hw_tag_missing으로 탈락하고 인지 kind만 ACTIVE — 정직한 상태다.",
+  "providers_manifest": "providers.hardware.example.json",
+  "labels": "status_ui.labels.json",
+  "hw_smoke_reports": "../reports/hw_smoke",
+  "deployment": {
+    "domain_id": "hardware-contract-demo",
+    "active_capability_kinds": [
+      "media.video_input",
+      "observation.fixed",
+      "observation.panoramic",
+      "observation.mobile",
+      "observation.aerial",
+      "observation.low_light",
+      "locomotion.ground",
+      "locomotion.rough_terrain",
+      "locomotion.holonomic",
+      "locomotion.aerial",
+      "navigation.autonomous_route",
+      "control.locomotion",
+      "pose.self_estimate",
+      "pose.gps",
+      "manipulation.grasp",
+      "gaze.control",
+      "signal.audio_visual",
+      "safety.failsafe_return",
+      "perception.detect",
+      "perception.depth",
+      "perception.classify",
+      "perception.detect_ovd",
+      "perception.segment"
+    ],
+    "closed_network": false
+  },
+  "capabilities": [
+    {
+      "kind": "media.video_input",
+      "is_core": false,
+      "degrade_rank": 0,
+      "requirement": {}
+    },
+    {
+      "kind": "observation.fixed",
+      "is_core": false,
+      "degrade_rank": 0,
+      "requirement": {}
+    },
+    {
+      "kind": "observation.panoramic",
+      "is_core": false,
+      "degrade_rank": 0,
+      "requirement": {}
+    },
+    {
+      "kind": "observation.mobile",
+      "is_core": false,
+      "degrade_rank": 0,
+      "requirement": {}
+    },
+    {
+      "kind": "observation.aerial",
+      "is_core": false,
+      "degrade_rank": 0,
+      "requirement": {}
+    },
+    {
+      "kind": "observation.low_light",
+      "is_core": false,
+      "degrade_rank": 0,
+      "requirement": {}
+    },
+    {
+      "kind": "locomotion.ground",
+      "is_core": false,
+      "degrade_rank": 0,
+      "requirement": {}
+    },
+    {
+      "kind": "locomotion.rough_terrain",
+      "is_core": false,
+      "degrade_rank": 0,
+      "requirement": {}
+    },
+    {
+      "kind": "locomotion.holonomic",
+      "is_core": false,
+      "degrade_rank": 0,
+      "requirement": {}
+    },
+    {
+      "kind": "locomotion.aerial",
+      "is_core": false,
+      "degrade_rank": 0,
+      "requirement": {}
+    },
+    {
+      "kind": "navigation.autonomous_route",
+      "is_core": false,
+      "degrade_rank": 0,
+      "requirement": {}
+    },
+    {
+      "kind": "control.locomotion",
+      "is_core": false,
+      "degrade_rank": 0,
+      "requirement": {}
+    },
+    {
+      "kind": "pose.self_estimate",
+      "is_core": false,
+      "degrade_rank": 0,
+      "requirement": {}
+    },
+    {
+      "kind": "pose.gps",
+      "is_core": false,
+      "degrade_rank": 0,
+      "requirement": {}
+    },
+    {
+      "kind": "manipulation.grasp",
+      "is_core": false,
+      "degrade_rank": 0,
+      "requirement": {}
+    },
+    {
+      "kind": "gaze.control",
+      "is_core": false,
+      "degrade_rank": 0,
+      "requirement": {}
+    },
+    {
+      "kind": "signal.audio_visual",
+      "is_core": false,
+      "degrade_rank": 0,
+      "requirement": {}
+    },
+    {
+      "kind": "safety.failsafe_return",
+      "is_core": false,
+      "degrade_rank": 0,
+      "requirement": {}
+    },
+    {
+      "kind": "perception.detect",
+      "is_core": false,
+      "degrade_rank": 1,
+      "requirement": {
+        "required": [
+          "media.video_input"
+        ]
+      }
+    },
+    {
+      "kind": "perception.depth",
+      "degrade_rank": 2,
+      "requirement": {
+        "optional": [
+          "perception.detect"
+        ]
+      }
+    },
+    {
+      "kind": "perception.classify",
+      "degrade_rank": 3,
+      "requirement": {
+        "required": [
+          "perception.detect"
+        ]
+      }
+    },
+    {
+      "kind": "perception.detect_ovd",
+      "degrade_rank": 4,
+      "requirement": {
+        "required": [
+          "media.video_input"
+        ]
+      }
+    },
+    {
+      "kind": "perception.segment",
+      "degrade_rank": 5,
+      "requirement": {
+        "optional": [
+          "perception.depth"
+        ]
+      }
+    }
+  ],
+  "functions": [
+    {
+      "function_id": "local_safety",
+      "required_capabilities": [
+        "media.video_input"
+      ],
+      "optional_capabilities": [
+        "perception.classify",
+        "perception.depth"
+      ]
+    },
+    {
+      "function_id": "door_detection",
+      "required_capabilities": [
+        "media.video_input",
+        "perception.detect",
+        "perception.classify"
+      ],
+      "optional_capabilities": [
+        "perception.detect_ovd",
+        "perception.segment"
+      ]
+    },
+    {
+      "function_id": "go_to_door",
+      "required_capabilities": [
+        "media.video_input",
+        "perception.detect",
+        "perception.classify",
+        "perception.depth",
+        "control.locomotion"
+      ],
+      "optional_capabilities": [
+        "perception.detect_ovd"
+      ]
+    },
+    {
+      "function_id": "risk_analysis",
+      "required_capabilities": [
+        "risk.event_input"
+      ],
+      "optional_capabilities": []
+    },
+    {
+      "function_id": "m1_continuous_surveillance",
+      "required_capabilities": [
+        "observation.fixed"
+      ],
+      "optional_capabilities": [
+        "observation.low_light",
+        "perception.detect"
+      ]
+    },
+    {
+      "function_id": "m2_close_inspection",
+      "required_capabilities": [
+        "observation.mobile",
+        "locomotion.ground"
+      ],
+      "optional_capabilities": [
+        "perception.depth",
+        "locomotion.rough_terrain"
+      ]
+    },
+    {
+      "function_id": "m3_blind_spot_fill",
+      "required_capabilities": [
+        "observation.mobile",
+        "pose.self_estimate"
+      ],
+      "optional_capabilities": [
+        "perception.depth"
+      ]
+    },
+    {
+      "function_id": "m4_rough_terrain_entry",
+      "required_capabilities": [
+        "locomotion.rough_terrain",
+        "observation.mobile"
+      ],
+      "optional_capabilities": [
+        "perception.depth"
+      ]
+    },
+    {
+      "function_id": "m5_wide_area_search",
+      "required_capabilities": [
+        "locomotion.aerial",
+        "observation.aerial",
+        "pose.gps"
+      ],
+      "optional_capabilities": [
+        "navigation.autonomous_route",
+        "perception.detect"
+      ]
+    },
+    {
+      "function_id": "m6_advance_recon",
+      "required_capabilities": [
+        "locomotion.aerial",
+        "observation.aerial",
+        "safety.failsafe_return"
+      ],
+      "optional_capabilities": [
+        "pose.gps"
+      ]
+    },
+    {
+      "function_id": "m7_object_retrieval",
+      "required_capabilities": [
+        "manipulation.grasp",
+        "locomotion.ground",
+        "locomotion.holonomic"
+      ],
+      "optional_capabilities": [
+        "perception.detect"
+      ]
+    },
+    {
+      "function_id": "m8_onsite_warning",
+      "required_capabilities": [
+        "signal.audio_visual",
+        "locomotion.ground"
+      ],
+      "optional_capabilities": []
+    },
+    {
+      "function_id": "m9_patrol",
+      "required_capabilities": [
+        "navigation.autonomous_route",
+        "observation.mobile"
+      ],
+      "optional_capabilities": [
+        "pose.self_estimate"
+      ]
+    },
+    {
+      "function_id": "m10_dt_map_update",
+      "required_capabilities": [
+        "observation.mobile",
+        "perception.depth",
+        "pose.self_estimate"
+      ],
+      "optional_capabilities": [
+        "observation.panoramic"
+      ]
+    },
+    {
+      "function_id": "m11_night_surveillance",
+      "required_capabilities": [
+        "observation.low_light"
+      ],
+      "optional_capabilities": []
+    }
+  ],
+  "nodes": [
+    {
+      "node_id": "pi6",
+      "label": "고정 카메라 · Raspberry Pi 5 · Camera Module 3 (imx708) — 2026-09-17 실측",
+      "role": "fixed_camera",
+      "tags": [
+        "compute.cpu",
+        "tier.fixed_camera",
+        "sensor.camera.imx708",
+        "power.external"
+      ],
+      "budget": {
+        "compute_units": 4.0,
+        "memory_mb": 7900
+      }
+    },
+    {
+      "node_id": "pi4",
+      "label": "고정 카메라 · Raspberry Pi 5 · Camera Module 3 Wide (imx708_wide) — 2026-09-17 실측",
+      "role": "fixed_camera",
+      "tags": [
+        "compute.cpu",
+        "tier.fixed_camera",
+        "sensor.camera.imx708_wide",
+        "power.external"
+      ],
+      "budget": {
+        "compute_units": 4.0,
+        "memory_mb": 7900
+      }
+    },
+    {
+      "node_id": "insta360-pro2",
+      "label": "고정 360 카메라 · Insta360 Pro 2 — 제어 없음, 라이브 스트림 수신만. 외부 급전(power.external)·스테레오 깊이(sensor.camera.360_stereo)는 [확인] 전이라 태그 없음",
+      "role": "fixed_camera",
+      "verified": false,
+      "tags": [
+        "tier.fixed_camera",
+        "sensor.camera.360",
+        "sensor.gps"
+      ],
+      "budget": {
+        "compute_units": 2.0,
+        "memory_mb": 512
+      }
+    },
+    {
+      "node_id": "go1-onboard",
+      "label": "지상 로봇(UGV, 4족) · Unitree Go1 탑재 연산기 — 가정(모델 Air/Pro/Edu·온보드 구성 [확인] 전)",
+      "role": "ugv",
+      "verified": false,
+      "tags": [
+        "compute.cpu",
+        "tier.ugv",
+        "locomotion.legged",
+        "sensor.camera.go1_front",
+        "sensor.camera.go1_stereo",
+        "sensor.imu",
+        "actuator.led_speaker",
+        "endurance.long"
+      ],
+      "budget": {
+        "compute_units": 6.0,
+        "memory_mb": 4096
+      },
+      "declared_actions": [
+        "move_forward",
+        "turn",
+        "stop",
+        "scan_mission",
+        "return_home",
+        "emergency_stop"
+      ]
+    },
+    {
+      "node_id": "ep-onboard",
+      "label": "지상 로봇(UGV, 메카넘 휠) · DJI RoboMaster EP — 가정(EP Core/보병형·ToF 보유 [확인] 전이라 sensor.tof 태그 없음)",
+      "role": "ugv",
+      "verified": false,
+      "tags": [
+        "compute.cpu",
+        "tier.ugv",
+        "locomotion.wheeled",
+        "sensor.camera.ep",
+        "sensor.imu",
+        "actuator.gripper",
+        "actuator.led_speaker"
+      ],
+      "budget": {
+        "compute_units": 4.5,
+        "memory_mb": 2048
+      },
+      "declared_actions": [
+        "move_forward",
+        "turn",
+        "stop",
+        "scan_mission",
+        "return_home",
+        "emergency_stop"
+      ]
+    },
+    {
+      "node_id": "x500-companion",
+      "label": "공중 이동체(UAV) · Holybro X500 v2 + PX4, 컴패니언 Raspberry Pi — 가정(적재·비행시간 [확인] 전). 카메라 기본 미탑재라 sensor.camera.* 태그 없음",
+      "role": "uav",
+      "verified": false,
+      "tags": [
+        "compute.cpu",
+        "tier.uav",
+        "platform.uav",
+        "sensor.gps",
+        "sensor.imu"
+      ],
+      "budget": {
+        "compute_units": 3.0,
+        "memory_mb": 4096
+      },
+      "declared_actions": [
+        "takeoff",
+        "goto_waypoint",
+        "land",
+        "stop",
+        "return_home",
+        "emergency_stop"
+      ]
+    },
+    {
+      "node_id": "edge-dev",
+      "label": "구역 엣지 · 개발(WSL2)",
+      "role": "edge",
+      "tags": [
+        "compute.cpu",
+        "compute.gpu",
+        "media.hw_decode",
+        "media.ingest",
+        "tier.edge"
+      ],
+      "budget": {
+        "compute_units": 8.0,
+        "memory_mb": 4096
+      }
+    },
+    {
+      "node_id": "edge-gpu",
+      "label": "구역 엣지 · 시연 GPU",
+      "role": "edge",
+      "tags": [
+        "compute.cpu",
+        "compute.gpu",
+        "compute.opencl",
+        "media.hw_decode",
+        "media.ingest",
+        "tier.edge"
+      ],
+      "budget": {
+        "compute_units": 30.0,
+        "memory_mb": 4096
+      }
+    },
+    {
+      "node_id": "server-1",
+      "label": "서버 · 중앙",
+      "role": "server",
+      "tags": [
+        "compute.cpu",
+        "compute.gpu",
+        "media.ingest",
+        "tier.server"
+      ],
+      "budget": {
+        "compute_units": 60.0,
+        "memory_mb": 16384
+      }
+    },
+    {
+      "node_id": "mt4",
+      "label": "고정 매니퓰레이터 · 미로봇 MT4 Edu Kit (4축 메탈 로봇암) — 제원 미확인",
+      "role": "fixed_manipulator",
+      "verified": false,
+      "tags": [
+        "compute.cpu",
+        "tier.fixed_manipulator",
+        "actuator.gripper",
+        "power.external"
+      ],
+      "budget": {
+        "compute_units": 2.0,
+        "memory_mb": 1024
+      },
+      "declared_actions": [
+        "move_joint",
+        "move_to_pose",
+        "grip",
+        "release",
+        "home",
+        "stop"
+      ]
+    },
+    {
+      "node_id": "plant-crawler",
+      "label": "예시 · 플랜트 점검 crawler",
+      "role": "ugv",
+      "verified": false,
+      "tags": [
+        "compute.cpu",
+        "tier.ugv",
+        "locomotion.wheeled",
+        "sensor.camera.ep",
+        "sensor.imu",
+        "actuator.led_speaker"
+      ],
+      "budget": {
+        "compute_units": 4.5,
+        "memory_mb": 2048
+      },
+      "declared_actions": [
+        "move_forward",
+        "turn",
+        "stop",
+        "scan_mission",
+        "return_home",
+        "emergency_stop"
+      ]
+    },
+    {
+      "node_id": "plant-cam-01",
+      "label": "예시 · 플랜트 고정 카메라",
+      "role": "fixed_camera",
+      "verified": false,
+      "tags": [
+        "compute.cpu",
+        "tier.fixed_camera",
+        "sensor.camera.imx708",
+        "power.external"
+      ],
+      "budget": {
+        "compute_units": 4.0,
+        "memory_mb": 7900
+      }
+    },
+    {
+      "node_id": "edge-plant",
+      "label": "예시 · 플랜트 엣지",
+      "role": "edge",
+      "verified": false,
+      "tags": [
+        "compute.cpu",
+        "compute.gpu",
+        "media.hw_decode",
+        "media.ingest",
+        "tier.edge"
+      ],
+      "budget": {
+        "compute_units": 8.0,
+        "memory_mb": 4096
+      }
+    },
+    {
+      "node_id": "recon-uav",
+      "label": "예시 · 정찰 UAV",
+      "role": "uav",
+      "verified": false,
+      "tags": [
+        "compute.cpu",
+        "tier.uav",
+        "platform.uav",
+        "sensor.gps",
+        "sensor.imu"
+      ],
+      "budget": {
+        "compute_units": 3.0,
+        "memory_mb": 4096
+      },
+      "declared_actions": [
+        "takeoff",
+        "goto_waypoint",
+        "land",
+        "stop",
+        "return_home",
+        "emergency_stop"
+      ]
+    },
+    {
+      "node_id": "recon-cam",
+      "label": "예시 · 정찰 고정 카메라",
+      "role": "fixed_camera",
+      "verified": false,
+      "tags": [
+        "compute.cpu",
+        "tier.fixed_camera",
+        "sensor.camera.imx708_wide",
+        "power.external"
+      ],
+      "budget": {
+        "compute_units": 4.0,
+        "memory_mb": 7900
+      }
+    },
+    {
+      "node_id": "edge-field",
+      "label": "예시 · 야전 엣지",
+      "role": "edge",
+      "verified": false,
+      "tags": [
+        "compute.cpu",
+        "compute.gpu",
+        "media.hw_decode",
+        "media.ingest",
+        "tier.edge"
+      ],
+      "budget": {
+        "compute_units": 8.0,
+        "memory_mb": 4096
+      }
+    }
+  ]
+}

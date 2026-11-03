@@ -1,0 +1,22 @@
+{
+  "schema_version": "2.0",
+  "message_id": "msg-dep-001",
+  "source_id": "ds-vision",
+  "node_id": "edge-node-a",
+  "zone_id": "zoneA",
+  "channel": "model_deployment_result",
+  "timestamp": "2026-08-25T19:40:00.000+09:00",
+  "sequence_id": 8,
+  "session_id": "0a1b2c3d4e5f",
+  "entity_id": "river-section-12",
+  "deployment_id": "dep-0001",
+  "model_id": "yoloe-11s-seg",
+  "model_version": "1.2.0",
+  "artifact_ref": "internal://models/yoloe-11s-seg/1.2.0",
+  "checksum": "sha256-0123456789abcdef",
+  "target_node_id": "pi7",
+  "status": "APPLIED",
+  "previous_version": "1.1.0",
+  "reason": "checksum_verified_before_activation",
+  "occurred_at": "2026-08-25T19:40:00.000+09:00"
+}

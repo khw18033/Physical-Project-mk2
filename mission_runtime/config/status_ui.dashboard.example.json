@@ -1,0 +1,863 @@
+{
+  "$comment": "status_ui.example.json 과 같은 배치에 종합상황정보 Dashboard 구역 B~I 선언을 더한 것. `../.venv/bin/python tools/status_ui/serve.py --config config/status_ui.dashboard.example.json` 로 띄우고 GET /api/dashboard 로 확인한다. dashboard 블록이 없는 설정도 정상이며 그때는 해당 구역만 미수신으로 나온다.",
+  "providers_manifest": "providers.status_ui.example.json",
+  "labels": "status_ui.labels.json",
+  "deployment": {
+    "domain_id": "door-demo",
+    "active_capability_kinds": [
+      "media.video_input",
+      "perception.detect",
+      "perception.classify",
+      "perception.detect_ovd",
+      "perception.depth",
+      "perception.segment",
+      "control.locomotion"
+    ],
+    "closed_network": false
+  },
+  "capabilities": [
+    {
+      "kind": "media.video_input",
+      "is_core": true
+    },
+    {
+      "kind": "perception.detect",
+      "is_core": true,
+      "requirement": {
+        "required": [
+          "media.video_input"
+        ]
+      }
+    },
+    {
+      "kind": "perception.classify",
+      "degrade_rank": 1,
+      "requirement": {
+        "required": [
+          "perception.detect"
+        ]
+      }
+    },
+    {
+      "kind": "perception.detect_ovd",
+      "degrade_rank": 2,
+      "requirement": {
+        "required": [
+          "media.video_input"
+        ]
+      }
+    },
+    {
+      "kind": "perception.depth",
+      "degrade_rank": 3,
+      "requirement": {
+        "optional": [
+          "perception.detect"
+        ]
+      }
+    },
+    {
+      "kind": "perception.segment",
+      "degrade_rank": 4,
+      "requirement": {
+        "optional": [
+          "perception.depth"
+        ]
+      }
+    },
+    {
+      "kind": "control.locomotion",
+      "is_core": false,
+      "degrade_rank": 0,
+      "requirement": {
+        "optional": []
+      }
+    }
+  ],
+  "functions": [
+    {
+      "function_id": "local_safety",
+      "required_capabilities": [
+        "media.video_input"
+      ],
+      "optional_capabilities": [
+        "perception.classify",
+        "perception.depth"
+      ]
+    },
+    {
+      "function_id": "door_detection",
+      "required_capabilities": [
+        "media.video_input",
+        "perception.detect",
+        "perception.classify"
+      ],
+      "optional_capabilities": [
+        "perception.detect_ovd",
+        "perception.segment"
+      ]
+    },
+    {
+      "function_id": "go_to_door",
+      "required_capabilities": [
+        "media.video_input",
+        "perception.detect",
+        "perception.classify",
+        "perception.depth",
+        "control.locomotion"
+      ],
+      "optional_capabilities": [
+        "perception.detect_ovd"
+      ]
+    },
+    {
+      "function_id": "risk_analysis",
+      "required_capabilities": [
+        "risk.event_input"
+      ],
+      "optional_capabilities": []
+    }
+  ],
+  "nodes": [
+    {
+      "node_id": "go1-onboard",
+      "label": "로봇 온디바이스 · Go1 탑재 연산기 — 가정(미실측, HW 브랜치 확인 전)",
+      "role": "ugv",
+      "tags": [
+        "compute.cpu",
+        "tier.ugv",
+        "sensor.camera.go1_front"
+      ],
+      "budget": {
+        "compute_units": 4.0,
+        "memory_mb": 4096
+      }
+    },
+    {
+      "node_id": "pi6",
+      "label": "고정 카메라 · Raspberry Pi 5 · Camera Module 3 (imx708) — 2026-09-17 실측",
+      "role": "fixed_camera",
+      "tags": [
+        "compute.cpu",
+        "tier.fixed_camera",
+        "sensor.camera.imx708"
+      ],
+      "budget": {
+        "compute_units": 4.0,
+        "memory_mb": 7900
+      }
+    },
+    {
+      "node_id": "pi4",
+      "label": "고정 카메라 · Raspberry Pi 5 · Camera Module 3 Wide (imx708_wide) — 2026-09-17 실측",
+      "role": "fixed_camera",
+      "tags": [
+        "compute.cpu",
+        "tier.fixed_camera",
+        "sensor.camera.imx708_wide"
+      ],
+      "budget": {
+        "compute_units": 4.0,
+        "memory_mb": 7900
+      }
+    },
+    {
+      "node_id": "edge-dev",
+      "label": "구역 엣지 · 개발(WSL2)",
+      "role": "edge",
+      "tags": [
+        "compute.cpu",
+        "compute.gpu",
+        "media.hw_decode",
+        "media.ingest",
+        "tier.edge"
+      ],
+      "budget": {
+        "compute_units": 8.0,
+        "memory_mb": 4096
+      }
+    },
+    {
+      "node_id": "edge-gpu",
+      "label": "구역 엣지 · 시연 GPU",
+      "role": "edge",
+      "tags": [
+        "compute.cpu",
+        "compute.gpu",
+        "compute.opencl",
+        "media.hw_decode",
+        "media.ingest",
+        "tier.edge"
+      ],
+      "budget": {
+        "compute_units": 30.0,
+        "memory_mb": 4096
+      }
+    },
+    {
+      "node_id": "server-1",
+      "label": "서버 · 중앙",
+      "role": "server",
+      "tags": [
+        "compute.cpu",
+        "compute.gpu",
+        "media.ingest",
+        "tier.server"
+      ],
+      "budget": {
+        "compute_units": 60.0,
+        "memory_mb": 16384
+      }
+    }
+  ],
+  "dashboard": {
+    "$comment": "종합상황정보 Dashboard 기능정의서(internal/docs-dev/20260928-...docx) 구역 B~I 의 선언. 가속기·서비스·작업 노드는 전부 등록 데이터이고 화면·서버 코드에 고정되지 않는다(문서 §3 요구사항 2). 가속기 7개 중 ext-npu-2·dgpu-0 는 배치된 서비스가 없어 유휴로 남고(§4.1), ext-npu-1 은 사용률·온도가 미측정이다 — 미측정은 0 이 아니라 값 칸의 부재로 나간다(§4.4). ext-npu-0/1/2 는 같은 kind 'npu' 지만 instance_id 로 서로 구분된다(AI-O-05). host_probe 가 붙은 셋(cpu-0 → cpu, dgpu-0 → gpu-0, board → board)은 **이 기계에서 실제로 읽은 값**으로 채워지고 응답에 measurement_source: measured 로 적힌다. 지목이 없는 개체의 숫자는 기능정의서와 같이 개념 예시(Mock)이고 measurement_source: declared 로 나간다 — 못 읽은 칸은 unavailable 이며 어느 쪽도 0 이 아니다.",
+    "mission": {
+      "mission_id": "mission-demo-01",
+      "utterance_text": "문을 찾아서 열고, 안쪽을 둘러본 뒤 상태를 보고해",
+      "mission_status": "EXECUTING",
+      "accepted_at": 1793577600.0
+    },
+    "accelerators": [
+      {
+        "instance_id": "cpu-0",
+        "kind": "cpu",
+        "attachment": "builtin",
+        "host_probe": "cpu",
+        "utilization": {
+          "value": 0.41,
+          "unit": "ratio",
+          "at": 1793577600.0
+        },
+        "temperature": {
+          "value": 54.0,
+          "unit": "celsius",
+          "at": 1793577600.0
+        }
+      },
+      {
+        "instance_id": "igpu-0",
+        "kind": "integrated_gpu",
+        "attachment": "builtin",
+        "utilization": {
+          "value": 0.62,
+          "unit": "ratio",
+          "at": 1793577600.0
+        },
+        "temperature": {
+          "value": 61.5,
+          "unit": "celsius",
+          "at": 1793577600.0
+        }
+      },
+      {
+        "instance_id": "npu-xdna-0",
+        "kind": "npu",
+        "attachment": "builtin",
+        "vendor_label": "XDNA",
+        "utilization": {
+          "value": 0.73,
+          "unit": "ratio",
+          "at": 1793577600.0
+        },
+        "temperature": {
+          "value": 58.0,
+          "unit": "celsius",
+          "at": 1793577600.0
+        }
+      },
+      {
+        "instance_id": "ext-npu-0",
+        "kind": "npu",
+        "attachment": "external",
+        "vendor_label": "외장 NPU #1",
+        "utilization": {
+          "value": 0.35,
+          "unit": "ratio",
+          "at": 1793577600.0
+        },
+        "temperature": {
+          "value": 49.0,
+          "unit": "celsius",
+          "at": 1793577600.0
+        }
+      },
+      {
+        "instance_id": "ext-npu-1",
+        "kind": "npu",
+        "attachment": "external",
+        "vendor_label": "외장 NPU #2",
+        "utilization": {
+          "unit": "ratio"
+        },
+        "temperature": {
+          "unit": "celsius"
+        }
+      },
+      {
+        "instance_id": "ext-npu-2",
+        "kind": "npu",
+        "attachment": "external",
+        "vendor_label": "외장 NPU #3 (예비)",
+        "utilization": {
+          "value": 0.0,
+          "unit": "ratio",
+          "at": 1793577600.0
+        },
+        "temperature": {
+          "value": 31.0,
+          "unit": "celsius",
+          "at": 1793577600.0
+        }
+      },
+      {
+        "$comment": "선언값이 하나도 없는 개체. 계측 지점 gpu-0 이 읽히면 사용률·온도가 실측으로 채워지고, 드라이버가 없거나 nvidia-smi 가 실패하면 unavailable 로 남는다 — 어느 쪽이든 목록에서 빠지지 않는다(§4.1). 제품명은 계측기가 준 라벨로만 들어온다(원칙 #1).",
+        "instance_id": "dgpu-0",
+        "kind": "gpu",
+        "attachment": "discrete",
+        "host_probe": "gpu-0",
+        "utilization": {
+          "unit": "ratio"
+        },
+        "temperature": {
+          "unit": "celsius"
+        }
+      }
+    ],
+    "board": {
+      "host_probe": "board",
+      "memory_utilization": {
+        "value": 0.57,
+        "unit": "ratio",
+        "at": 1793577600.0
+      },
+      "power": {
+        "value": 18.4,
+        "unit": "watt",
+        "at": 1793577600.0
+      },
+      "power_trend": [
+        {
+          "value": 16.1,
+          "unit": "watt",
+          "at": 1793577600.0
+        },
+        {
+          "value": 17.0,
+          "unit": "watt",
+          "at": 1793577605.0
+        },
+        {
+          "value": 18.9,
+          "unit": "watt",
+          "at": 1793577610.0
+        },
+        {
+          "value": 18.4,
+          "unit": "watt",
+          "at": 1793577615.0
+        }
+      ]
+    },
+    "services": [
+      {
+        "service_id": "orchestrator",
+        "accelerator_id": "cpu-0",
+        "role": "오케스트레이션",
+        "indicators": [
+          {
+            "name": "graph_tick_latency",
+            "unit": "ms",
+            "measurement": {
+              "value": 12.0,
+              "unit": "ms",
+              "at": 1793577600.0
+            },
+            "target": {
+              "value": 50.0,
+              "direction": "AT_MOST",
+              "unit": "ms"
+            }
+          }
+        ]
+      },
+      {
+        "service_id": "video-preprocess",
+        "accelerator_id": "igpu-0",
+        "role": "영상 전처리",
+        "indicators": [
+          {
+            "name": "decode_fps",
+            "unit": "fps",
+            "measurement": {
+              "value": 29.4,
+              "unit": "fps",
+              "at": 1793577600.0
+            },
+            "target": {
+              "value": 25.0,
+              "direction": "AT_LEAST",
+              "unit": "fps"
+            },
+            "trend": [
+              {
+                "value": 28.0,
+                "unit": "fps",
+                "at": 1793577600.0
+              },
+              {
+                "value": 29.9,
+                "unit": "fps",
+                "at": 1793577605.0
+              },
+              {
+                "value": 29.4,
+                "unit": "fps",
+                "at": 1793577610.0
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "service_id": "action-service",
+        "accelerator_id": "npu-xdna-0",
+        "role": "행동 명령 생성",
+        "model": "action-policy",
+        "model_version": "0.4.1",
+        "indicators": [
+          {
+            "name": "inference_fps",
+            "unit": "fps",
+            "measurement": {
+              "value": 9.1,
+              "unit": "fps",
+              "at": 1793577600.0
+            },
+            "target": {
+              "value": 10.0,
+              "direction": "AT_LEAST",
+              "unit": "fps"
+            }
+          },
+          {
+            "name": "inference_latency",
+            "unit": "ms",
+            "measurement": {
+              "value": 104.0,
+              "unit": "ms",
+              "at": 1793577600.0
+            },
+            "target": {
+              "value": 120.0,
+              "direction": "AT_MOST",
+              "unit": "ms"
+            }
+          }
+        ]
+      },
+      {
+        "service_id": "map-service",
+        "accelerator_id": "ext-npu-0",
+        "role": "공간 지도 · 경로",
+        "model": "vlm-map",
+        "model_version": "1.2.0",
+        "indicators": [
+          {
+            "name": "map_refresh_interval",
+            "unit": "s",
+            "measurement": {
+              "value": 1.9,
+              "unit": "s",
+              "at": 1793577600.0
+            },
+            "target": {
+              "value": 2.0,
+              "direction": "AT_MOST",
+              "unit": "s"
+            }
+          }
+        ]
+      },
+      {
+        "service_id": "scene-service",
+        "accelerator_id": "ext-npu-1",
+        "role": "장면 이해 · 물체 인식",
+        "model": "vlm-scene",
+        "model_version": "0.9.3",
+        "indicators": [
+          {
+            "name": "scene_inference_fps",
+            "unit": "fps",
+            "measurement": {
+              "unit": "fps"
+            },
+            "target": {
+              "value": 5.0,
+              "direction": "AT_LEAST",
+              "unit": "fps"
+            }
+          }
+        ]
+      }
+    ],
+    "task_nodes": [
+      {
+        "node_id": "n1",
+        "title": "문 탐지",
+        "state": "SUCCEEDED",
+        "service_id": "scene-service",
+        "accelerator_id": "ext-npu-1",
+        "source_status": "done",
+        "started_at": 1793577602.0,
+        "state_changed_at": 1793577609.0,
+        "progress_ratio": 1.0,
+        "input_command": "주변에서 문을 찾아라"
+      },
+      {
+        "node_id": "n2",
+        "title": "접근 경로 산출",
+        "state": "SUCCEEDED",
+        "service_id": "map-service",
+        "accelerator_id": "ext-npu-0",
+        "depends_on": [
+          "n1"
+        ],
+        "parallel_group": "approach",
+        "source_status": "done",
+        "started_at": 1793577609.0,
+        "state_changed_at": 1793577615.0,
+        "progress_ratio": 1.0,
+        "input_command": "문까지의 경로를 내라"
+      },
+      {
+        "node_id": "n3",
+        "title": "장애물 확인",
+        "state": "SUCCEEDED",
+        "service_id": "scene-service",
+        "accelerator_id": "ext-npu-1",
+        "order_after": [
+          "n1"
+        ],
+        "parallel_group": "approach",
+        "source_status": "done",
+        "started_at": 1793577609.0,
+        "state_changed_at": 1793577614.0,
+        "progress_ratio": 1.0
+      },
+      {
+        "node_id": "n4",
+        "title": "문까지 이동",
+        "state": "EXECUTING",
+        "service_id": "action-service",
+        "accelerator_id": "npu-xdna-0",
+        "depends_on": [
+          "n2",
+          "n3"
+        ],
+        "source_status": "running",
+        "started_at": 1793577615.0,
+        "state_changed_at": 1793577615.0,
+        "estimated_completion_at": 1793577645.0,
+        "progress_ratio": 0.4,
+        "input_command": "산출된 경로로 문까지 이동하라"
+      },
+      {
+        "node_id": "n5",
+        "title": "문 열기",
+        "state": "FAILED",
+        "service_id": "action-service",
+        "accelerator_id": "npu-xdna-0",
+        "depends_on": [
+          "n4"
+        ],
+        "source_status": "failed",
+        "state_changed_at": 1793577650.0,
+        "external_request_id": "SDI-2026-0007",
+        "input_command": "손잡이를 돌려 문을 열어라"
+      },
+      {
+        "node_id": "n6",
+        "title": "문 열기 (기능 요청 중)",
+        "state": "EXTERNAL_REQUESTED",
+        "depends_on": [
+          "n4"
+        ],
+        "source_status": "awaiting_external",
+        "state_changed_at": 1793577652.0,
+        "external_request_id": "SDI-2026-0007"
+      },
+      {
+        "node_id": "n7",
+        "title": "내부 둘러보기",
+        "state": "BLOCKED",
+        "service_id": "scene-service",
+        "accelerator_id": "ext-npu-1",
+        "depends_on": [
+          "n5"
+        ],
+        "source_status": "blocked"
+      },
+      {
+        "node_id": "n8",
+        "title": "상태 보고",
+        "state": "PENDING",
+        "service_id": "orchestrator",
+        "accelerator_id": "cpu-0",
+        "order_after": [
+          "n7"
+        ],
+        "source_status": "queued"
+      }
+    ],
+    "reference_edges": [
+      {
+        "from": "n5",
+        "to": "n6",
+        "kind": "external_request",
+        "when": "미지원 기능 판정"
+      }
+    ],
+    "pinned_task_node_id": null,
+    "verdicts": [
+      {
+        "node_id": "n4",
+        "completion": [
+          {
+            "item_id": "arrived_within_tolerance",
+            "satisfied": null,
+            "reason_token": "in_progress"
+          },
+          {
+            "item_id": "no_collision",
+            "satisfied": true
+          }
+        ],
+        "failure": [
+          {
+            "item_id": "path_blocked",
+            "satisfied": false
+          },
+          {
+            "item_id": "deadline_exceeded",
+            "satisfied": false
+          }
+        ],
+        "resource": [
+          {
+            "item_id": "accelerator_thermal_ok",
+            "satisfied": true
+          },
+          {
+            "item_id": "board_power_ok",
+            "satisfied": true
+          }
+        ]
+      },
+      {
+        "node_id": "n5",
+        "completion": [
+          {
+            "item_id": "door_opened",
+            "satisfied": false,
+            "reason_token": "capability_absent"
+          }
+        ],
+        "failure": [
+          {
+            "item_id": "no_manipulation_capability",
+            "satisfied": true,
+            "reason_token": "unsupported_on_device"
+          }
+        ],
+        "resource": [
+          {
+            "item_id": "accelerator_thermal_ok",
+            "satisfied": true
+          }
+        ],
+        "escalated_request_id": "SDI-2026-0007"
+      }
+    ],
+    "external_requests": [
+      {
+        "request_id": "SDI-2026-0003",
+        "reason": "SIM_REAL_MISMATCH",
+        "reason_detail": "시뮬레이션에서는 문 탐지가 통과했으나 실물 조명에서 실패",
+        "origin_node_id": "n1",
+        "requested_at": 1793577000.0,
+        "stages": [
+          {
+            "stage": "JUDGED",
+            "at": 1793576990.0
+          },
+          {
+            "stage": "SENT",
+            "at": 1793577000.0
+          },
+          {
+            "stage": "SERVER_WORKING",
+            "at": 1793577010.0
+          },
+          {
+            "stage": "DEPLOYED",
+            "at": 1793577480.0
+          },
+          {
+            "stage": "RE_EXECUTING",
+            "at": 1793577500.0
+          },
+          {
+            "stage": "SETTLED",
+            "at": 1793577540.0
+          }
+        ],
+        "deployment_version": "door-detect-1.3.0",
+        "re_execution_count": 1,
+        "verdict": "SUCCEEDED",
+        "re_executed_nodes": []
+      },
+      {
+        "request_id": "SDI-2026-0007",
+        "reason": "UNSUPPORTED_CAPABILITY",
+        "reason_detail": "문 손잡이 조작 기능이 온디바이스에 탑재되어 있지 않다",
+        "origin_node_id": "n5",
+        "requested_at": 1793577651.0,
+        "stages": [
+          {
+            "stage": "JUDGED",
+            "at": 1793577650.0
+          },
+          {
+            "stage": "SENT",
+            "at": 1793577651.0
+          },
+          {
+            "stage": "SERVER_WORKING",
+            "at": 1793577653.0
+          }
+        ],
+        "deployment_version": null,
+        "re_execution_count": 0,
+        "verdict": "PENDING"
+      }
+    ],
+    "events": [
+      {
+        "at": 1793577609.0,
+        "severity": "INFO",
+        "kind": "EXECUTION",
+        "message": "문 탐지 완료",
+        "node_id": "n1"
+      },
+      {
+        "at": 1793577650.0,
+        "severity": "ERROR",
+        "kind": "EXECUTION",
+        "message": "문 열기 실패 — 조작 기능 없음",
+        "node_id": "n5"
+      },
+      {
+        "at": 1793577651.0,
+        "severity": "WARN",
+        "kind": "EXTERNAL_REQUEST",
+        "message": "외부 기능 요청 전송",
+        "node_id": "n5",
+        "external_request_id": "SDI-2026-0007"
+      },
+      {
+        "at": 1793577655.0,
+        "severity": "WARN",
+        "kind": "RESOURCE",
+        "message": "ext-npu-1 지표 미산출 — 서비스 대기"
+      },
+      {
+        "at": 1793577500.0,
+        "severity": "INFO",
+        "kind": "EXTERNAL_REQUEST",
+        "message": "배포 적용 후 재실행 (2회차)",
+        "node_id": "n1",
+        "attempt": 2,
+        "external_request_id": "SDI-2026-0003"
+      }
+    ],
+    "event_window": 50,
+    "sources": [
+      {
+        "source_id": "ai-sbc-board",
+        "layer": "L1",
+        "last_received_at": 1793577658.0,
+        "feeds": [
+          "B",
+          "E",
+          "G"
+        ]
+      },
+      {
+        "source_id": "action-service",
+        "layer": "L2",
+        "last_received_at": 1793577657.0,
+        "feeds": [
+          "B",
+          "E",
+          "E_PRIME",
+          "F"
+        ]
+      },
+      {
+        "source_id": "map-service",
+        "layer": "L2",
+        "last_received_at": 1793577656.0,
+        "feeds": [
+          "B",
+          "E",
+          "E_PRIME",
+          "F"
+        ]
+      },
+      {
+        "source_id": "scene-service",
+        "layer": "L2",
+        "last_received_at": 1793577620.0,
+        "feeds": [
+          "B",
+          "E",
+          "E_PRIME",
+          "F"
+        ]
+      },
+      {
+        "source_id": "orchestrator-core",
+        "layer": "L3",
+        "last_received_at": 1793577658.0,
+        "feeds": [
+          "B",
+          "C",
+          "D",
+          "F",
+          "G",
+          "H",
+          "I"
+        ]
+      },
+      {
+        "source_id": "knowledge-memory",
+        "layer": "L3",
+        "last_received_at": 1793577640.0,
+        "feeds": [
+          "G"
+        ]
+      },
+      {
+        "source_id": "sdi-channel",
+        "layer": "external",
+        "last_received_at": 1793577653.0,
+        "feeds": [
+          "I",
+          "D",
+          "H"
+        ]
+      }
+    ]
+  }
+}

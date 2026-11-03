@@ -1,0 +1,1404 @@
+{
+  "$comment": "tools/status_ui가 화면에 쓰는 모든 문자열. API 응답은 언어 중립(id만)이고 라벨은 여기서만 붙인다 — 새 계층(role)·기능(function_id)·capability kind·사유 토큰은 여기 ko/en 한 쌍을 더하면 된다. tests/test_status_ui.py가 설정·manifest에 나타나는 모든 id에 두 언어가 있는지 검사한다. UI 문자열의 {n} 같은 자리표시자는 화면이 채운다. 'aliases'는 라벨이 아니라 교차 참조표(kind → 원문 C-xx 코드)라 언어 쌍 검사 대상이 아니다.",
+  "languages": [
+    "ko",
+    "en"
+  ],
+  "ui": {
+    "title": {
+      "ko": "기능 상태 패널",
+      "en": "Function Status Panel"
+    },
+    "subtitle": {
+      "ko": "검토용",
+      "en": "review tool"
+    },
+    "language": {
+      "ko": "언어",
+      "en": "Language"
+    },
+    "tab_functions": {
+      "ko": "기능",
+      "en": "Functions"
+    },
+    "tab_tiers": {
+      "ko": "계층·자원",
+      "en": "Tiers & resources"
+    },
+    "tab_developer": {
+      "ko": "개발자",
+      "en": "Developer"
+    },
+    "reset": {
+      "ko": "초기화",
+      "en": "Reset"
+    },
+    "reset_title": {
+      "ko": "reconciler·이벤트·control 상태를 비운다",
+      "en": "Clear reconciler, events and control state"
+    },
+    "control": {
+      "ko": "제어",
+      "en": "control"
+    },
+    "control_fallback": {
+      "ko": "요청 {requested} → 실제 {active}: {reason}",
+      "en": "requested {requested} → actual {active}: {reason}"
+    },
+    "loading": {
+      "ko": "불러오는 중…",
+      "en": "Loading…"
+    },
+    "error": {
+      "ko": "오류",
+      "en": "Error"
+    },
+    "whatif": {
+      "ko": "What-if",
+      "en": "What-if"
+    },
+    "whatif_hint": {
+      "ko": "노드 조건을 바꿔 보기 — 기능 탭에 이전→이후가 표시된다",
+      "en": "Change node conditions — the Functions tab shows before → after"
+    },
+    "whatif_baseline": {
+      "ko": "기준선 (설정값 그대로)",
+      "en": "Baseline (config as-is)"
+    },
+    "whatif_active": {
+      "ko": "what-if 적용 중 — {n}개 기능 변경",
+      "en": "What-if active — {n} functions changed"
+    },
+    "to_baseline": {
+      "ko": "기준선으로",
+      "en": "Back to baseline"
+    },
+    "before": {
+      "ko": "이전",
+      "en": "Before"
+    },
+    "after": {
+      "ko": "이후",
+      "en": "After"
+    },
+    "changed": {
+      "ko": "변경됨",
+      "en": "Changed"
+    },
+    "why": {
+      "ko": "왜",
+      "en": "Why"
+    },
+    "detail": {
+      "ko": "상세",
+      "en": "Details"
+    },
+    "close": {
+      "ko": "닫기",
+      "en": "Close"
+    },
+    "required": {
+      "ko": "필수",
+      "en": "Required"
+    },
+    "optional": {
+      "ko": "선택",
+      "en": "Optional"
+    },
+    "served_by": {
+      "ko": "제공",
+      "en": "Served by"
+    },
+    "missing": {
+      "ko": "없음",
+      "en": "Missing"
+    },
+    "not_served_here": {
+      "ko": "이 노드는 제공하지 못함",
+      "en": "Not served on this node"
+    },
+    "kind_not_activated": {
+      "ko": "배포 프로파일에서 활성화되지 않은 kind",
+      "en": "Kind not activated in the deployment profile"
+    },
+    "resources": {
+      "ko": "필요 자원",
+      "en": "Resources needed"
+    },
+    "resources_by_role": {
+      "ko": "계층별 자원 합계",
+      "en": "Resources by tier"
+    },
+    "resources_rule": {
+      "ko": "kind마다 한 번만 센다 — 제공 노드 중 priority 숫자가 가장 낮고, 같으면 비용이 가장 낮은 provider",
+      "en": "Each kind counted once — the serving provider with the lowest priority number, then the lowest cost"
+    },
+    "compute_units": {
+      "ko": "연산 (CU)",
+      "en": "Compute (CU)"
+    },
+    "memory_mb": {
+      "ko": "메모리 (MB)",
+      "en": "Memory (MB)"
+    },
+    "required_hw_tags": {
+      "ko": "필요한 장비 태그",
+      "en": "Required hardware tags"
+    },
+    "supplement": {
+      "ko": "최소 보충",
+      "en": "Minimal supplement"
+    },
+    "supplement_hint": {
+      "ko": "빠진 필수 kind마다, 계층별로 왜 제공하지 못하는지",
+      "en": "For each missing required kind, why each tier cannot serve it"
+    },
+    "supplement_none": {
+      "ko": "보충할 것이 없다",
+      "en": "Nothing to supplement"
+    },
+    "no_functions": {
+      "ko": "정의된 기능이 없다",
+      "en": "No functions defined"
+    },
+    "function_count": {
+      "ko": "{n}개 기능",
+      "en": "{n} functions"
+    },
+    "role": {
+      "ko": "계층",
+      "en": "Tier"
+    },
+    "nodes": {
+      "ko": "노드",
+      "en": "Nodes"
+    },
+    "node": {
+      "ko": "노드",
+      "en": "Node"
+    },
+    "select_node": {
+      "ko": "노드 선택",
+      "en": "Select node"
+    },
+    "tags": {
+      "ko": "태그",
+      "en": "Tags"
+    },
+    "budget": {
+      "ko": "예산",
+      "en": "Budget"
+    },
+    "exclude_providers": {
+      "ko": "provider 제외",
+      "en": "Exclude providers"
+    },
+    "served_kinds": {
+      "ko": "제공 중인 capability",
+      "en": "Served capabilities"
+    },
+    "none_served": {
+      "ko": "제공 중인 것이 없다",
+      "en": "Nothing served"
+    },
+    "placement": {
+      "ko": "배치",
+      "en": "Placement"
+    },
+    "apply_placement": {
+      "ko": "배치 적용",
+      "en": "Apply placement"
+    },
+    "placement_note": {
+      "ko": "현재 what-if 조건으로 resolve한 표를 이 노드의 reconciler에 적용한다",
+      "en": "Apply the table resolved under the current what-if to this node's reconciler"
+    },
+    "actions": {
+      "ko": "이번 적용 액션",
+      "en": "Actions this apply"
+    },
+    "bound": {
+      "ko": "바인딩된 provider",
+      "en": "Bound providers"
+    },
+    "no_bound": {
+      "ko": "이 노드에 바인딩된 provider가 없다",
+      "en": "No provider bound on this node"
+    },
+    "audit_log": {
+      "ko": "control 감사 로그 (최근)",
+      "en": "Control audit log (recent)"
+    },
+    "no_audit": {
+      "ko": "아직 control 호출이 없다",
+      "en": "No control call yet"
+    },
+    "events": {
+      "ko": "이벤트",
+      "en": "Events"
+    },
+    "events_hint": {
+      "ko": "2초마다 갱신",
+      "en": "refreshes every 2 s"
+    },
+    "no_events": {
+      "ko": "이벤트 없음",
+      "en": "No events"
+    },
+    "not_applied_yet": {
+      "ko": "아직 적용하지 않았다",
+      "en": "Not applied yet"
+    },
+    "no_change": {
+      "ko": "변경 없음 — 이미 같은 표가 적용되어 있어 start/stop 호출이 없었다",
+      "en": "No change — the same table was already applied, no start/stop calls"
+    },
+    "accepted": {
+      "ko": "수락",
+      "en": "Accepted"
+    },
+    "rejected": {
+      "ko": "거부",
+      "en": "Rejected"
+    },
+    "kind": {
+      "ko": "capability kind",
+      "en": "capability kind"
+    },
+    "provider": {
+      "ko": "provider",
+      "en": "provider"
+    },
+    "state": {
+      "ko": "상태",
+      "en": "State"
+    },
+    "derived_grade": {
+      "ko": "표시 등급(파생)",
+      "en": "Display grade (derived)"
+    },
+    "reason": {
+      "ko": "사유",
+      "en": "Reason"
+    },
+    "reason_token": {
+      "ko": "사유 토큰",
+      "en": "Reason token"
+    },
+    "reason_data": {
+      "ko": "데이터",
+      "en": "Data"
+    },
+    "alternatives": {
+      "ko": "대안",
+      "en": "Alternatives"
+    },
+    "no_alternatives": {
+      "ko": "고려된 다른 후보가 없다 (선택 전에 결정됐거나 후보가 하나뿐)",
+      "en": "No other candidate considered (decided before selection, or only one candidate)"
+    },
+    "cost": {
+      "ko": "비용",
+      "en": "Cost"
+    },
+    "node_selector": {
+      "ko": "nodeSelector",
+      "en": "nodeSelector"
+    },
+    "run_mode": {
+      "ko": "실행 방식",
+      "en": "Run mode"
+    },
+    "container": {
+      "ko": "컨테이너",
+      "en": "Container"
+    },
+    "core": {
+      "ko": "core",
+      "en": "core"
+    },
+    "degrade_rank": {
+      "ko": "degrade_rank",
+      "en": "degrade_rank"
+    },
+    "status": {
+      "ko": "control 상태",
+      "en": "Control status"
+    },
+    "time": {
+      "ko": "시각",
+      "en": "Time"
+    },
+    "command": {
+      "ko": "명령",
+      "en": "Command"
+    },
+    "target": {
+      "ko": "대상",
+      "en": "Target"
+    },
+    "requested_by": {
+      "ko": "요청자",
+      "en": "Requested by"
+    },
+    "no_rows": {
+      "ko": "활성 capability kind가 없다",
+      "en": "No active capability kind"
+    },
+    "rows_note": {
+      "ko": "행 순서는 deployment.active_capability_kinds. 상태 3단(ACTIVE/DEGRADED/DISABLED)이 프레임워크의 것이고 표시 등급은 이 화면이 (상태, 사유 토큰)에서 파생한 값이다",
+      "en": "Row order follows deployment.active_capability_kinds. The three states (ACTIVE/DEGRADED/DISABLED) belong to the framework; the display grade is derived by this page from (state, reason token)"
+    },
+    "labels_missing": {
+      "ko": "라벨 누락 id",
+      "en": "Ids without a label"
+    },
+    "footer_1": {
+      "ko": "검토용 도구다. 운영 UI는 가시화 파트 담당이며 이 화면은 그것을 대체하지 않는다 (AI-C-19).",
+      "en": "This is a review tool. The production UI belongs to the visualization team; this page does not replace it (AI-C-19)."
+    },
+    "footer_2": {
+      "ko": "표시되는 값은 전부 CapabilityRegistry / ZoneApplication.resolve() / TaskIntent.evaluate_availability() / PlacementReconciler가 계산한 것이다. 이 화면은 아무것도 재판정하지 않는다 — 장치 최종 가용성은 백엔드가 판정한다(원칙 #15).",
+      "en": "Every value shown is computed by CapabilityRegistry / ZoneApplication.resolve() / TaskIntent.evaluate_availability() / PlacementReconciler. This page re-judges nothing — final device availability is the backend's call (principle #15)."
+    },
+    "footer_3": {
+      "ko": "표시 등급 READY / DEGRADED / MISSING / STALE / BLOCKED는 (CapabilityState, 사유 토큰)에서 화면이 파생한 값이고 프레임워크 상태가 아니다 (§3-2). 장치는 provider 하나일 뿐이다 — 기준은 기능·자원·계층이다.",
+      "en": "Display grades READY / DEGRADED / MISSING / STALE / BLOCKED are derived by the page from (CapabilityState, reason token) and are not framework states (§3-2). A device is just one provider — the axis is function, resource and tier."
+    },
+    "residency": {
+      "ko": "온디바이스 상주",
+      "en": "On-device residency"
+    },
+    "residency_hint": {
+      "ko": "등록된 이 장치가 어떤 기능을 자기 안에 두는가, 그리고 왜",
+      "en": "Which functions live on this registered device, and why"
+    },
+    "residency_purpose": {
+      "ko": "장치 목적",
+      "en": "Device purpose"
+    },
+    "residency_link": {
+      "ko": "링크 특성",
+      "en": "Link characteristics"
+    },
+    "residency_link_origin": {
+      "ko": "링크 출처",
+      "en": "Link source"
+    },
+    "residency_placement": {
+      "ko": "배치",
+      "en": "Placement"
+    },
+    "residency_policy": {
+      "ko": "선언 정책",
+      "en": "Declared policy"
+    },
+    "residency_edge_side": {
+      "ko": "엣지 쪽 짝",
+      "en": "Edge-side complement"
+    },
+    "residency_outage": {
+      "ko": "통신 단절 시",
+      "en": "During a comms outage"
+    },
+    "residency_violations": {
+      "ko": "목적 데이터 모순",
+      "en": "Purpose data contradictions"
+    },
+    "residency_degrade": {
+      "ko": "링크 저하 what-if",
+      "en": "What-if: the link degrades"
+    },
+    "residency_restore": {
+      "ko": "원래 링크로",
+      "en": "Back to the declared link"
+    },
+    "residency_no_purpose": {
+      "ko": "이 노드는 장치 목적을 선언하지 않았다 (말단이 아니거나 아직 등록 전)",
+      "en": "This node declares no device purpose (not a terminal, or not yet registered)"
+    },
+    "residency_survives": {
+      "ko": "단절 생존",
+      "en": "Survives outage"
+    },
+    "residency_safety_q": {
+      "ko": "품질이 안전에 영향",
+      "en": "Quality is safety-affecting"
+    },
+    "link_quality": {
+      "ko": "품질",
+      "en": "Quality"
+    },
+    "link_stability": {
+      "ko": "안정성",
+      "en": "Stability"
+    },
+    "link_samples": {
+      "ko": "표본",
+      "en": "Samples"
+    },
+    "devices": {
+      "ko": "장치 등록·배포",
+      "en": "Devices: register & deploy"
+    },
+    "devices_hint": {
+      "ko": "주소·자격증명으로 등록하고 목적을 선언하면 그 목적이 정한 기능만 배포된다",
+      "en": "Register by address + credential, declare a purpose, and only what that purpose decides gets deployed"
+    },
+    "device_register": {
+      "ko": "장치 등록",
+      "en": "Register device"
+    },
+    "device_id": {
+      "ko": "장치 id",
+      "en": "Device id"
+    },
+    "device_address": {
+      "ko": "주소",
+      "en": "Address"
+    },
+    "device_username": {
+      "ko": "사용자",
+      "en": "Username"
+    },
+    "device_password": {
+      "ko": "비밀번호(최초 1회)",
+      "en": "Password (first contact only)"
+    },
+    "device_key_path": {
+      "ko": "키 경로",
+      "en": "Key path"
+    },
+    "device_purpose": {
+      "ko": "목적",
+      "en": "Purpose"
+    },
+    "device_tags": {
+      "ko": "노드 태그(쉼표)",
+      "en": "Node tags (comma-separated)"
+    },
+    "device_auth": {
+      "ko": "인증",
+      "en": "Auth"
+    },
+    "device_bootstrap_note": {
+      "ko": "비밀번호는 최초 접속에만 쓰이고 키를 심은 뒤 키 인증으로 전환된다. 비밀번호는 아티팩트·argv·로그·git 어디에도 남지 않는다(AI-B-02).",
+      "en": "The password is used for first contact only; a key is installed and later connections use it. The password never reaches an artifact, argv, a log or git (AI-B-02)."
+    },
+    "device_deploy": {
+      "ko": "배포",
+      "en": "Deploy"
+    },
+    "device_stop": {
+      "ko": "전체 중지",
+      "en": "Stop all"
+    },
+    "device_rollback": {
+      "ko": "롤백",
+      "en": "Roll back"
+    },
+    "device_health": {
+      "ko": "상태 읽기",
+      "en": "Read health"
+    },
+    "device_probe": {
+      "ko": "링크 측정",
+      "en": "Probe link"
+    },
+    "device_remove": {
+      "ko": "제거",
+      "en": "Remove unit"
+    },
+    "device_units": {
+      "ko": "배포된 실행 단위",
+      "en": "Deployed units"
+    },
+    "device_skipped": {
+      "ko": "올리지 못한 kind(축소 운용)",
+      "en": "Kinds not placed (reduced operation)"
+    },
+    "device_no_devices": {
+      "ko": "등록된 장치가 없다",
+      "en": "No devices registered"
+    },
+    "device_unreachable": {
+      "ko": "지금 닿지 않음",
+      "en": "Not reachable right now"
+    },
+    "liveness": {
+      "ko": "프로세스 생존",
+      "en": "Liveness"
+    },
+    "readiness": {
+      "ko": "서비스 준비",
+      "en": "Readiness"
+    },
+    "device_state": {
+      "ko": "보드 상태",
+      "en": "Board state"
+    },
+    "artifact_version": {
+      "ko": "아티팩트 버전",
+      "en": "Artifact version"
+    },
+    "active_version": {
+      "ko": "활성 버전",
+      "en": "Active version"
+    },
+    "previous_version": {
+      "ko": "이전 버전",
+      "en": "Previous version"
+    },
+    "device_health_note": {
+      "ko": "생존·준비·보드 상태는 서로 다른 세 읽기다. 하나를 다른 것의 근거로 쓰지 않는다(AI-B-05).",
+      "en": "Liveness, readiness and board state are three independent readings; one is never evidence for another (AI-B-05)."
+    },
+    "tab_executions": {
+      "ko": "실행",
+      "en": "Executions"
+    },
+    "solo_roles": {
+      "ko": "단독 수행 가능 계층",
+      "en": "Tiers that can do it alone"
+    },
+    "combo_roles": {
+      "ko": "조합",
+      "en": "Combination"
+    },
+    "solo_none": {
+      "ko": "단독 수행 가능한 계층 없음",
+      "en": "No single tier can do it alone"
+    },
+    "combo_none": {
+      "ko": "어떤 조합으로도 필수 kind를 모두 채울 수 없음",
+      "en": "No combination of tiers covers every required kind"
+    },
+    "solo_combo_rule": {
+      "ko": "단독 = 필수 kind를 모두 혼자 제공하는 계층. 조합 = 아직 못 채운 필수 kind를 가장 많이 채우는 계층부터 고르는 탐욕적 최소 집합(동점은 설정 순서). 규칙은 serve.py::StatusService.functions docstring.",
+      "en": "Solo = a tier that serves every required kind by itself. Combination = greedy minimal cover: take the tier covering the most still-missing required kinds first (ties by config order). Rule: serve.py::StatusService.functions docstring."
+    },
+    "unverified_included": {
+      "ko": "미검증 장비 포함",
+      "en": "Includes unverified devices"
+    },
+    "unverified_hint": {
+      "ko": "이 기능이 배정된 노드 중 verified:false이거나 연결 검증 기록이 없는 것",
+      "en": "A node this function is charged to is verified:false or has no verification record"
+    },
+    "freshness_checked_ago": {
+      "ko": "마지막 검증 {n}초 전",
+      "en": "Last verified {n}s ago"
+    },
+    "freshness_unverified": {
+      "ko": "미검증",
+      "en": "Unverified"
+    },
+    "freshness_stale": {
+      "ko": "만료",
+      "en": "expired"
+    },
+    "freshness_unhealthy": {
+      "ko": "실패",
+      "en": "failed"
+    },
+    "freshness_source": {
+      "ko": "출처",
+      "en": "source"
+    },
+    "verified_false": {
+      "ko": "미확정 장비 (verified: false)",
+      "en": "Unconfirmed device (verified: false)"
+    },
+    "failure_trace": {
+      "ko": "실패 추적",
+      "en": "Failure trace"
+    },
+    "trace_hint": {
+      "ko": "기능 → 빠진 kind → 계층별 사유 → 가장 가까운 후보 provider → 빠진 태그. 전부 /api/functions의 trace[]에서 온 데이터다.",
+      "en": "Function → missing kind → reason per tier → nearest candidate provider → missing tags. All of it is data from /api/functions trace[]."
+    },
+    "trace_none": {
+      "ko": "추적할 결손 없음",
+      "en": "Nothing missing to trace"
+    },
+    "best_candidate": {
+      "ko": "가장 가까운 후보",
+      "en": "Nearest candidate"
+    },
+    "missing_tags": {
+      "ko": "빠진 태그",
+      "en": "Missing tags"
+    },
+    "fix_hint": {
+      "ko": "고치려면",
+      "en": "What would fix it"
+    },
+    "fix_none": {
+      "ko": "태그로 고칠 수 있는 결손이 아님",
+      "en": "Not fixable by a tag"
+    },
+    "no_node_of_role": {
+      "ko": "이 계층에 노드 없음",
+      "en": "No node in this tier"
+    },
+    "plans": {
+      "ko": "실행 계획",
+      "en": "Execution plans"
+    },
+    "plans_hint": {
+      "ko": "배치 요청 1건 = plan_id 1개. 프로세스 메모리에만 남는다(마지막 N개) — 저장은 백엔드 몫",
+      "en": "One placement request = one plan_id. In-memory only (last N) — durable storage is the backend's"
+    },
+    "no_plans": {
+      "ko": "아직 기록된 실행 계획 없음 — 계층·자원 탭에서 배치 적용을 누르면 생긴다",
+      "en": "No execution plans yet — apply a placement in the Tiers tab to create one"
+    },
+    "plan_id": {
+      "ko": "계획 id",
+      "en": "plan id"
+    },
+    "correlation_id": {
+      "ko": "상관 id",
+      "en": "correlation id"
+    },
+    "requester": {
+      "ko": "요청자",
+      "en": "Requester"
+    },
+    "requester_none": {
+      "ko": "요청자 미지정",
+      "en": "no requester"
+    },
+    "function": {
+      "ko": "기능",
+      "en": "Function"
+    },
+    "all_functions": {
+      "ko": "모든 기능 (*)",
+      "en": "all functions (*)"
+    },
+    "served_n": {
+      "ko": "제공 {n}",
+      "en": "served {n}"
+    },
+    "unserved_n": {
+      "ko": "미제공 {n}",
+      "en": "unserved {n}"
+    },
+    "accepted_n": {
+      "ko": "수락 {n}",
+      "en": "accepted {n}"
+    },
+    "rejected_n": {
+      "ko": "거부 {n}",
+      "en": "rejected {n}"
+    },
+    "plan_detail": {
+      "ko": "계획 상세",
+      "en": "Plan detail"
+    },
+    "select_plan": {
+      "ko": "왼쪽 목록에서 계획을 고르면 kind → provider → 노드/계층 → 배치 액션 그래프가 나온다",
+      "en": "Pick a plan from the list to see the kind → provider → node/tier → placement action graph"
+    },
+    "no_placement_action": {
+      "ko": "액션 없음 (변경 없음)",
+      "en": "no action (unchanged)"
+    },
+    "reselection_trace": {
+      "ko": "재선택 트레이스",
+      "en": "Reselection trace"
+    },
+    "reselection_hint": {
+      "ko": "capability_state_changed · placement_applied 이벤트를 kind별로 시간순 정리 — 이전 → 이후 (사유)",
+      "en": "capability_state_changed · placement_applied events grouped by kind in time order — before → after (reason)"
+    },
+    "no_transitions": {
+      "ko": "아직 전이 없음",
+      "en": "No transitions yet"
+    },
+    "refresh": {
+      "ko": "새로 고침",
+      "en": "Refresh"
+    },
+    "count": {
+      "ko": "건",
+      "en": "items"
+    }
+  },
+  "capability_kinds": {
+    "media.video_input": {
+      "ko": "영상 입력",
+      "en": "Video input"
+    },
+    "perception.detect": {
+      "ko": "객체 탐지",
+      "en": "Object detection"
+    },
+    "perception.classify": {
+      "ko": "객체 분류",
+      "en": "Object classification"
+    },
+    "perception.detect_ovd": {
+      "ko": "open-vocabulary 탐지",
+      "en": "Open-vocabulary detection"
+    },
+    "perception.depth": {
+      "ko": "거리(깊이) 추정",
+      "en": "Depth estimation"
+    },
+    "perception.segment": {
+      "ko": "영역 분할",
+      "en": "Segmentation"
+    },
+    "control.locomotion": {
+      "ko": "이동 제어",
+      "en": "Locomotion control"
+    },
+    "risk.event_input": {
+      "ko": "위험 이벤트 입력",
+      "en": "Risk event input"
+    },
+    "perception.track": {
+      "ko": "추적",
+      "en": "Tracking"
+    },
+    "perception.distance": {
+      "ko": "거리·TTC",
+      "en": "Distance / TTC"
+    },
+    "perception.associate": {
+      "ko": "동일 개체 식별 연계",
+      "en": "Identity association"
+    },
+    "perception.object_record": {
+      "ko": "지속 객체 레코드",
+      "en": "Persistent object record"
+    },
+    "perception.coverage_estimate": {
+      "ko": "관측 커버리지 추정",
+      "en": "Coverage estimate"
+    },
+    "perception.blind_spot": {
+      "ko": "사각 판정(다중 소스 융합)",
+      "en": "Blind spot (multi-source fusion)"
+    },
+    "perception.environment_map": {
+      "ko": "환경 맵",
+      "en": "Environment map"
+    },
+    "safety.local_judgment": {
+      "ko": "로컬 안전 판단",
+      "en": "Local safety judgment"
+    },
+    "mission.dispatch": {
+      "ko": "승인된 임무 수행",
+      "en": "Approved-mission execution"
+    },
+    "ondevice.link_transition": {
+      "ko": "링크 기반 실행 전환",
+      "en": "Link-driven execution transition"
+    },
+    "risk.state_machine": {
+      "ko": "위험 상태기계",
+      "en": "Risk state machine"
+    },
+    "risk.rule_based": {
+      "ko": "규칙 기반 위험 산정",
+      "en": "Rule-based risk scoring"
+    },
+    "mission.cache": {
+      "ko": "임무 보관(말단)",
+      "en": "On-device mission cache"
+    },
+    "ondevice.zone_handover": {
+      "ko": "구역 전환(신호 세기 기반)",
+      "en": "Zone handover (signal strength)"
+    },
+    "perception.anomaly": {
+      "ko": "이상 탐지",
+      "en": "Anomaly detection"
+    },
+    "continual.learning_candidate": {
+      "ko": "학습 후보 선별",
+      "en": "Learning-candidate selection"
+    },
+    "observation.fixed": {
+      "ko": "정지 영상 관측",
+      "en": "Fixed-viewpoint observation"
+    },
+    "observation.panoramic": {
+      "ko": "360° 전방위 관측",
+      "en": "360° panoramic observation"
+    },
+    "observation.mobile": {
+      "ko": "이동 중 영상 관측",
+      "en": "Observation from a moving platform"
+    },
+    "observation.aerial": {
+      "ko": "상공 시점 관측",
+      "en": "Aerial (top-down) observation"
+    },
+    "observation.low_light": {
+      "ko": "저조도·야간 관측",
+      "en": "Low-light / night observation"
+    },
+    "locomotion.ground": {
+      "ko": "평지 지상 이동",
+      "en": "Ground locomotion (flat terrain)"
+    },
+    "locomotion.rough_terrain": {
+      "ko": "비정형 지형 이동",
+      "en": "Rough-terrain locomotion"
+    },
+    "locomotion.holonomic": {
+      "ko": "전방향(홀로노믹) 이동",
+      "en": "Holonomic (omnidirectional) locomotion"
+    },
+    "locomotion.aerial": {
+      "ko": "공중 이동",
+      "en": "Aerial locomotion"
+    },
+    "navigation.autonomous_route": {
+      "ko": "자율 경로 비행·주행",
+      "en": "Autonomous route following"
+    },
+    "pose.self_estimate": {
+      "ko": "자기 위치 추정",
+      "en": "Self-pose estimation"
+    },
+    "pose.gps": {
+      "ko": "GPS 기반 절대 좌표",
+      "en": "GPS absolute position"
+    },
+    "manipulation.grasp": {
+      "ko": "물체 집기·옮기기",
+      "en": "Object grasping / carrying"
+    },
+    "gaze.control": {
+      "ko": "시선 방향 제어",
+      "en": "Gaze (camera direction) control"
+    },
+    "signal.audio_visual": {
+      "ko": "음향·빛 신호",
+      "en": "Audio / light signalling"
+    },
+    "safety.failsafe_return": {
+      "ko": "자동 복귀·비상 착륙",
+      "en": "Failsafe return / emergency landing"
+    }
+  },
+  "functions": {
+    "local_safety": {
+      "label": {
+        "ko": "로컬 안전 판단",
+        "en": "Local safety judgement"
+      },
+      "description": {
+        "ko": "영상만으로 접근·충돌 위험을 판단한다. 분류·거리는 있으면 판단 수준을 높인다 (AI-N-01)",
+        "en": "Judges approach/collision risk from video alone; classification and depth raise the judgement level when present (AI-N-01)"
+      }
+    },
+    "door_detection": {
+      "label": {
+        "ko": "문 탐지",
+        "en": "Door detection"
+      },
+      "description": {
+        "ko": "영상에서 문을 찾아 분류한다. open-vocabulary 탐지·분할은 품질을 높이는 선택 기능",
+        "en": "Finds and classifies doors in video; open-vocabulary detection and segmentation are optional quality boosts"
+      }
+    },
+    "go_to_door": {
+      "label": {
+        "ko": "문까지 이동",
+        "en": "Go to door"
+      },
+      "description": {
+        "ko": "문을 찾고 거리를 재어 이동한다. 이동 제어는 말단 계층이 제공한다",
+        "en": "Finds the door, measures distance and moves; locomotion control comes from the on-device tier"
+      }
+    },
+    "risk_analysis": {
+      "label": {
+        "ko": "위험 분석",
+        "en": "Risk analysis"
+      },
+      "description": {
+        "ko": "위험 이벤트 입력이 있는 배치에서만 켜진다. 입력이 없으면 위험 분석만 비활성 (AI-R-01)",
+        "en": "Active only in deployments with a risk event input; without it only risk analysis is disabled (AI-R-01)"
+      }
+    },
+    "blind_spot_surveillance": {
+      "label": {
+        "ko": "사각 감시",
+        "en": "Blind-spot surveillance"
+      },
+      "description": {
+        "ko": "보지 못한 구역을 누적해 감시한다. 다중 소스 융합은 엣지 몫이고, 단절 중에는 자기 커버리지 추정만으로 축소 운용한다.",
+        "en": "Accumulates which areas have actually been observed. Multi-source fusion is the edge's job; during an outage it runs reduced on its own coverage estimate."
+      }
+    },
+    "dispatch_mission": {
+      "label": {
+        "ko": "승인된 임무 수행",
+        "en": "Approved-mission execution"
+      },
+      "description": {
+        "ko": "사람이 승인해 물리 명령 프로토콜로 전달된 임무를 말단이 수행한다. 통신이 끊겨도 보관된 임무로 계속 수행하며, 출동 여부를 AI가 정하지 않는다(AI-C-19, AI-C-20).",
+        "en": "The terminal carries out a mission a person approved and the physical-command protocol delivered. The cached mission survives an outage; the AI never decides to go (AI-C-19, AI-C-20)."
+      }
+    },
+    "obstacle_avoidance": {
+      "label": {
+        "ko": "장애물 감지·회피",
+        "en": "Obstacle detection and avoidance"
+      },
+      "description": {
+        "ko": "class-agnostic 인지 + depth/TTC + hazard 지속성 추적 + 회피 제어. 전부 말단 상주라 링크와 무관하게 동작한다.",
+        "en": "Class-agnostic proposal + depth/TTC + hazard-persistence tracking + avoidance control. All resident on the device, so it works regardless of the link."
+      }
+    },
+    "find_specific_class": {
+      "label": {
+        "ko": "특정 클래스 찾기",
+        "en": "Find a specific class"
+      },
+      "description": {
+        "ko": "'이 클래스를 찾아줘'는 엣지에 물어본다. 단절 중에는 이 기능만 사용할 수 없고 나머지는 계속 돈다(AI-C-05).",
+        "en": "\"Find me this specific class\" is served by the edge. During an outage only this function is unavailable; everything else keeps running (AI-C-05)."
+      }
+    },
+    "river_waste_detection": {
+      "label": {
+        "ko": "하천 부유쓰레기 탐지",
+        "en": "River floating-waste detection"
+      },
+      "description": {
+        "ko": "고정 카메라 영상을 엣지로 올려 부유쓰레기를 찾는다. 무거운 인지는 엣지 몫이고 말단은 영상 취득만 한다.",
+        "en": "Fixed-camera video goes to the edge, which finds floating waste. The heavy perception is the edge's; the terminal only captures."
+      }
+    },
+    "revetment_anomaly_detection": {
+      "label": {
+        "ko": "호안공 이상탐지",
+        "en": "Revetment anomaly detection"
+      },
+      "description": {
+        "ko": "정상 범위를 벗어난 관측을 표시한다. 원인을 확정하지 않고, 근거가 부족하면 드론 근접 관측 요청으로 넘어간다(AI-S-05).",
+        "en": "Flags observations outside the normal range. It does not settle the cause; short of evidence it becomes a close-up observation request (AI-S-05)."
+      }
+    },
+    "hitl_learning_candidates": {
+      "label": {
+        "ko": "사람 확인 학습 후보",
+        "en": "Human-in-the-loop learning candidates"
+      },
+      "description": {
+        "ko": "반복되는 이상·미확인 관측을 학습 후보로 표시만 한다. 확정 정답으로 자동 승격하지 않는다(AI-L-01, AI-L-02).",
+        "en": "Marks repeated anomalies and unconfirmed observations as learning candidates only — never auto-promoted to ground truth (AI-L-01, AI-L-02)."
+      }
+    },
+    "m1_continuous_surveillance": {
+      "label": {
+        "ko": "M1. 상시 감시",
+        "en": "M1. Continuous surveillance"
+      },
+      "description": {
+        "ko": "고정 시점 또는 전방위 카메라로 한 구역을 상시 촬영한다. 야간 관측·탐지는 선택",
+        "en": "Watches an area continuously from a fixed or panoramic camera; night observation and detection are optional"
+      }
+    },
+    "m2_close_inspection": {
+      "label": {
+        "ko": "M2. 이상 탐지 후 근접 확인",
+        "en": "M2. Close inspection after an anomaly"
+      },
+      "description": {
+        "ko": "고정 카메라가 탐지한 이상 지점으로 지상 로봇이 이동해 근접 촬영한다. 깊이·비정형 지형 이동은 선택",
+        "en": "A ground robot drives to a fixed-camera detection and films it up close; depth and rough-terrain locomotion are optional"
+      }
+    },
+    "m3_blind_spot_fill": {
+      "label": {
+        "ko": "M3. 사각지대 보완",
+        "en": "M3. Blind-spot fill"
+      },
+      "description": {
+        "ko": "고정 카메라 시야 밖 영역을 이동 관측과 자기 위치 추정으로 채운다",
+        "en": "Covers areas outside fixed-camera view with mobile observation and self-pose estimation"
+      }
+    },
+    "m4_rough_terrain_entry": {
+      "label": {
+        "ko": "M4. 비정형 지형 진입",
+        "en": "M4. Rough-terrain entry"
+      },
+      "description": {
+        "ko": "계단·잔해·제방 사면 같은 비정형 지형에 들어가 촬영한다. 깊이는 선택",
+        "en": "Enters stairs, rubble or embankment slopes and films there; depth is optional"
+      }
+    },
+    "m5_wide_area_search": {
+      "label": {
+        "ko": "M5. 광역 수색·하천 수위 관측",
+        "en": "M5. Wide-area search / river level observation"
+      },
+      "description": {
+        "ko": "공중 이동체가 상공 시점과 GPS 좌표로 넓은 영역을 수색한다. 자율 경로·탐지는 선택",
+        "en": "An aerial vehicle searches a wide area from above with GPS coordinates; autonomous route and detection are optional"
+      }
+    },
+    "m6_advance_recon": {
+      "label": {
+        "ko": "M6. 접근 불가 지점 선행 정찰",
+        "en": "M6. Advance reconnaissance of inaccessible spots"
+      },
+      "description": {
+        "ko": "지상 로봇이 못 가는 지점을 공중에서 먼저 정찰한다. 자동 복귀·비상 착륙이 필수",
+        "en": "Scouts from the air where ground robots cannot reach; failsafe return is required"
+      }
+    },
+    "m7_object_retrieval": {
+      "label": {
+        "ko": "M7. 물체 회수·조작",
+        "en": "M7. Object retrieval / manipulation"
+      },
+      "description": {
+        "ko": "시료·표지물·버튼 같은 소형 물체를 집거나 조작한다. 평지·전방향 이동이 필수",
+        "en": "Grasps or operates small objects such as samples, markers or buttons; flat-ground holonomic locomotion is required"
+      }
+    },
+    "m8_onsite_warning": {
+      "label": {
+        "ko": "M8. 현장 경고·안내",
+        "en": "M8. On-site warning / guidance"
+      },
+      "description": {
+        "ko": "탐지 이벤트 지점으로 이동해 음향·빛으로 경고한다",
+        "en": "Moves to a detection site and warns with sound or light"
+      }
+    },
+    "m9_patrol": {
+      "label": {
+        "ko": "M9. 정기 순찰",
+        "en": "M9. Scheduled patrol"
+      },
+      "description": {
+        "ko": "자율 경로를 따라 이동하며 촬영한다. 자기 위치 추정은 선택",
+        "en": "Follows an autonomous route while filming; self-pose estimation is optional"
+      }
+    },
+    "m10_dt_map_update": {
+      "label": {
+        "ko": "M10. DT 맵 구축·갱신",
+        "en": "M10. Digital-twin map build / update"
+      },
+      "description": {
+        "ko": "이동 관측·깊이·자기 위치로 디지털 트윈 맵을 만들거나 갱신한다. 전방위 관측은 선택",
+        "en": "Builds or updates the digital-twin map from mobile observation, depth and self-pose; panoramic observation is optional"
+      }
+    },
+    "m11_night_surveillance": {
+      "label": {
+        "ko": "M11. 야간 감시",
+        "en": "M11. Night surveillance"
+      },
+      "description": {
+        "ko": "저조도·야간 관측(NoIR + IR 조명)으로 상시 감시한다",
+        "en": "Continuous surveillance with low-light / night observation (NoIR + IR illumination)"
+      }
+    }
+  },
+  "states": {
+    "ACTIVE": {
+      "ko": "가능",
+      "en": "Available"
+    },
+    "DEGRADED": {
+      "ko": "일부만 가능",
+      "en": "Partial"
+    },
+    "DISABLED": {
+      "ko": "불가",
+      "en": "Unavailable"
+    }
+  },
+  "grades": {
+    "READY": {
+      "ko": "준비됨 — 필수·선택 모두 충족",
+      "en": "Ready — required and optional satisfied"
+    },
+    "DEGRADED": {
+      "ko": "축소 운용 — 선택 기능 결손",
+      "en": "Degraded — optional parts missing"
+    },
+    "MISSING": {
+      "ko": "없음 — 있어야 할 것이 없다",
+      "en": "Missing — something that should exist does not"
+    },
+    "STALE": {
+      "ko": "만료 — 있지만 지금 쓸 수 없다",
+      "en": "Stale — exists but cannot be used now"
+    },
+    "BLOCKED": {
+      "ko": "막힘 — 조건(예산·태그·폐쇄망)이 막는다",
+      "en": "Blocked — a condition (budget, tag, closed network) prevents it"
+    }
+  },
+  "reasons": {
+    "selected": {
+      "ko": "선택됨",
+      "en": "Selected"
+    },
+    "selected_degraded": {
+      "ko": "선택됨 (선택 의존 기능 결손)",
+      "en": "Selected with optional dependencies missing"
+    },
+    "compatible": {
+      "ko": "호환되지만 다른 후보에 밀림",
+      "en": "Compatible but ranked below the winner"
+    },
+    "no_provider_registered": {
+      "ko": "이 기능을 제공하는 provider가 등록되어 있지 않음",
+      "en": "No provider registered for this capability"
+    },
+    "no_compatible_provider_within_budget": {
+      "ko": "provider는 있지만 태그·예산에 맞는 것이 없음",
+      "en": "Providers exist but none fits the tags and budget"
+    },
+    "required_hw_tag_missing": {
+      "ko": "필요한 장비/가속기 태그가 없음",
+      "en": "Required hardware tag missing"
+    },
+    "required_runtime_tag_missing": {
+      "ko": "필요한 런타임 태그가 없음",
+      "en": "Required runtime tag missing"
+    },
+    "over_budget": {
+      "ko": "남은 예산을 초과함",
+      "en": "Exceeds the remaining budget"
+    },
+    "missing_required": {
+      "ko": "이 기능이 필요로 하는 다른 capability가 없음",
+      "en": "A capability this one requires is missing"
+    },
+    "core_capability_unplaced": {
+      "ko": "핵심 기능을 배치하지 못해 선택 기능을 보류함",
+      "en": "Withheld because a core capability could not be placed"
+    },
+    "deadline_exceeded": {
+      "ko": "기한이 지남",
+      "en": "Deadline exceeded"
+    },
+    "input_too_stale": {
+      "ko": "입력이 너무 오래됨",
+      "en": "Input too stale"
+    },
+    "execution_profile_conditions_mismatch": {
+      "ko": "다른 조건에서 측정한 실행 프로파일이라 재사용하지 않음",
+      "en": "Execution profile measured under other conditions — not reused"
+    },
+    "runtime_instance_unhealthy_or_expired": {
+      "ko": "실행 인스턴스가 비정상이거나 health가 만료됨",
+      "en": "Runtime instance unhealthy or its health expired"
+    },
+    "no_capability_kinds_given": {
+      "ko": "요청한 capability kind가 없음",
+      "en": "No capability kind requested"
+    },
+    "external_connection_required_in_closed_network": {
+      "ko": "폐쇄망인데 외부 연결이 필요함",
+      "en": "External connection required in a closed network"
+    },
+    "external_connection_unavailable_in_closed_network": {
+      "ko": "폐쇄망이라 외부 연결 기능을 끔",
+      "en": "External feature switched off in a closed network"
+    }
+  },
+  "roles": {
+    "ugv": {
+      "ko": "지상 로봇 (UGV)",
+      "en": "Ground robot (UGV)"
+    },
+    "uav": {
+      "ko": "공중 이동체 (UAV)",
+      "en": "Aerial vehicle (UAV)"
+    },
+    "fixed_camera": {
+      "ko": "고정 카메라 (상시 인지 인프라)",
+      "en": "Fixed camera (always-on infrastructure)"
+    },
+    "edge": {
+      "ko": "구역 엣지",
+      "en": "Edge node"
+    },
+    "server": {
+      "ko": "서버",
+      "en": "Server"
+    }
+  },
+  "commands": {
+    "start": {
+      "ko": "시작",
+      "en": "Start"
+    },
+    "stop": {
+      "ko": "중지",
+      "en": "Stop"
+    },
+    "in_process": {
+      "ko": "in-process",
+      "en": "in-process"
+    }
+  },
+  "purposes": {
+    "river_surveillance_drone": {
+      "ko": "하천 감시 드론",
+      "en": "River-surveillance drone"
+    },
+    "ground_robot": {
+      "ko": "지상 이동 로봇",
+      "en": "Ground robot"
+    },
+    "fixed_camera": {
+      "ko": "고정 카메라",
+      "en": "Fixed camera"
+    }
+  },
+  "residencies": {
+    "ondevice": {
+      "ko": "말단 상주",
+      "en": "Resident on device"
+    },
+    "edge": {
+      "ko": "엣지 제공",
+      "en": "Served by the edge"
+    }
+  },
+  "link_postures": {
+    "remote_ok": {
+      "ko": "원격 기능 사용 가능",
+      "en": "Remote features usable"
+    },
+    "reducing": {
+      "ko": "원격 의존 축소 중",
+      "en": "Shedding remote reliance"
+    },
+    "local_only": {
+      "ko": "로컬 기능만",
+      "en": "Local capabilities only"
+    }
+  },
+  "outage_behaviors": {
+    "resident_unaffected": {
+      "ko": "단절과 무관하게 계속 동작",
+      "en": "Keeps running, unaffected by the outage"
+    },
+    "queued_for_edge": {
+      "ko": "계속 동작, 결과는 복구 후 전달",
+      "en": "Keeps running; results delivered once the link returns"
+    },
+    "local_fallback": {
+      "ko": "로컬 대체 기능으로 축소 운용",
+      "en": "Degrades to a local fallback capability"
+    },
+    "unavailable_until_link_returns": {
+      "ko": "이 기능만 중단(나머지는 계속)",
+      "en": "Only this function stops; the rest keep running"
+    }
+  },
+  "residency_reasons": {
+    "resident_by_purpose": {
+      "ko": "목적이 말단 상주로 선언",
+      "en": "Declared resident by the device purpose"
+    },
+    "edge_served_by_purpose": {
+      "ko": "목적이 엣지 제공으로 선언",
+      "en": "Declared edge-served by the device purpose"
+    },
+    "link_posture_requires_local": {
+      "ko": "링크를 신뢰할 수 없어 말단으로 끌어옴",
+      "en": "Link cannot be relied on, so it was pulled on-device"
+    },
+    "link_posture_permits_remote": {
+      "ko": "링크가 안정적이라 엣지에 맡김",
+      "en": "Link is stable, so the edge serves it"
+    },
+    "link_quality_below_kind_minimum": {
+      "ko": "이 기능이 요구하는 링크 품질 미달",
+      "en": "Below the link quality this capability requires"
+    },
+    "link_quality_unverifiable_for_kind": {
+      "ko": "요구 품질을 확인할 측정값이 없음",
+      "en": "No measurement to verify the required quality"
+    },
+    "link_posture_declared": {
+      "ko": "배포자가 링크 자세를 직접 선언",
+      "en": "Link posture declared by the deployment"
+    },
+    "link_quality_unknown": {
+      "ko": "링크 측정도 선언도 없음 — 보수적으로 로컬",
+      "en": "Link neither measured nor declared — conservatively local"
+    },
+    "link_samples_insufficient": {
+      "ko": "관측 표본 부족 — 순간값은 배치 근거가 아니다",
+      "en": "Too few samples — one reading is not a placement basis"
+    },
+    "link_quality_at_or_below_floor": {
+      "ko": "링크 품질이 바닥 이하",
+      "en": "Link quality at or below the floor"
+    },
+    "link_quality_below_restore_margin": {
+      "ko": "링크 품질이 복귀 여유 아래",
+      "en": "Link quality below the restore margin"
+    },
+    "link_stability_below_threshold": {
+      "ko": "평균은 괜찮지만 자주 끊김",
+      "en": "Average is fine but it drops too often"
+    },
+    "link_quality_stable": {
+      "ko": "링크가 안정적",
+      "en": "Link is stable"
+    },
+    "outage_critical_not_resident": {
+      "ko": "모순: 단절 중 살아야 한다면서 엣지로 결정됨",
+      "en": "Contradiction: declared outage-critical but placed on the edge"
+    },
+    "safety_affecting_kind_not_core": {
+      "ko": "모순: 안전에 영향을 주는 기능이 core가 아님",
+      "en": "Contradiction: a safety-affecting capability is not declared core"
+    },
+    "unknown_outage_behavior": {
+      "ko": "모순: 알 수 없는 단절 동작",
+      "en": "Contradiction: unknown outage behaviour"
+    },
+    "local_fallback_kind_missing": {
+      "ko": "모순: 로컬 대체 기능이 지정되지 않음",
+      "en": "Contradiction: no local fallback capability named"
+    }
+  },
+  "aliases": {
+    "$comment": "교차 참조 전용 별칭. capability_kinds의 값은 장비 기능·임무 매핑 자료(비공개))의 C-xx 기능 코드다. 화면·API는 kind 이름만 쓰고 C 코드는 원문 대조·검색에만 쓴다. C-50(온보드 AI 추론)·C-60(영상 전송)·C-61(원격 제어 수신)·C-70(상시 가동)·C-71(장시간 이동 운용)은 capability가 아니라 노드 태그(tier.*, media.ingest, control.locomotion provider 존재, power.external, endurance.long)라 여기 없다.",
+    "capability_kinds": {
+      "observation.fixed": "C-01",
+      "observation.panoramic": "C-02",
+      "observation.mobile": "C-03",
+      "observation.aerial": "C-04",
+      "perception.depth": "C-05",
+      "observation.low_light": "C-06",
+      "locomotion.ground": "C-10",
+      "locomotion.rough_terrain": "C-11",
+      "locomotion.holonomic": "C-12",
+      "locomotion.aerial": "C-13",
+      "navigation.autonomous_route": "C-14",
+      "pose.self_estimate": "C-20",
+      "pose.gps": "C-21",
+      "manipulation.grasp": "C-30",
+      "gaze.control": "C-31",
+      "signal.audio_visual": "C-40",
+      "perception.detect": "C-51",
+      "safety.failsafe_return": "C-80"
+    }
+  }
+}

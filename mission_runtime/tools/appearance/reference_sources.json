@@ -1,0 +1,332 @@
+{
+  "$comment": "tools/appearance/fetch_references.py 가 읽는 기종별 참조영상 출처 선언. 검색어·출처가 **데이터**인 이유는 AI-E-01 과 같다 — 새 기종이 들어올 때 스크립트를 고치는 것이 아니라 이 목록에 한 묶음을 더한다. 내려받은 사진은 제조사·언론·판매처의 저작물이므로 공개 트리에 커밋하지 않고 local/appearance/ 에만 둔다(.gitignore). 공개되는 것은 거기서 뽑은 벡터뿐이다. identity=unconfirmed 는 '운영자가 부르는 이름만 있고 제품을 특정하지 못했다'는 표시이며, 그 기종은 참조영상 0 장으로 남겨 분류 부적합(unfit)으로 보고하게 한다 — 추측으로 채우면 그 추측이 그대로 운영 판정이 된다(AI-S-04).",
+  "classes": [
+    {
+      "class_name": "go1",
+      "label": "지상 로봇(UGV, 4족) · Unitree Go1",
+      "identity": "confirmed",
+      "identity_note": "config/status_ui.fms.example.json 의 go1-onboard 노드가 가리키는 제품. Air/Pro/Edu 중 어느 모델인지는 [확인] 전이지만 세 모델의 외형은 동일 계열이라 외형 class 로는 하나다 — 외형은 어차피 개체를 가리지 못한다(perception/device_identity.py).",
+      "exclude_image_urls": [
+        "https://oss-global-cdn.unitree.com/static/6685ee0bfc2549739078b2b125dc0953_3776x2118.jpg",
+        "https://oss-global-cdn.unitree.com/static/a6861ed51dae42d389f22bcdf511569b_3772x2114.jpg",
+        "https://oss-global-cdn.unitree.com/static/d5dd7b01b3394df5bf07302123edfe60_2956x1622.jpg",
+        "https://www.unitree.com/images/4e6266ec20b849af968750d5d432d391_1372x798.jpg",
+        "https://oss-global-cdn.unitree.com/static/2fda50231ec740e1875f732cabd3227e_2000x1440.jpg"
+      ],
+      "exclude_rationale": "투명 내부투시 렌더 1 장을 뺐다. 카메라가 보는 것은 겉면이고, 이 그림은 겉면이 아니라 내부 구조다 — 원형에 섞이면 '그 로봇을 닮았다'는 설명이 실제로는 아무도 보지 못하는 모습을 근거로 삼게 된다. 2026-11-03 보강분 검수: 풀밭 한가운데 로봇이 흐릿하게 작게 찍힌 한 장과 소방차·대원이 화면의 대부분인 한 장을 뺐다 — 둘 다 '그 기종을 찍은 사진'이 아니라 '그 기종이 들어 있는 풍경'이다. 다리 관절만 크게 찍은 접사 한 장도 뺐다(부품 접사는 금속 원통처럼 생긴 모든 것을 이 기종으로 끌어온다). 흰 복도형 실내를 걷는 사진은 **남겼다** — 사전이 기록한 오판이 정확히 그 조건이라, 그 조건의 참조영상이 있어야 그 오판이 줄어든다. 2026-11-03: 사전이 '흰 복도에서 찍은 go1' 이라고 적어 둔 그 오판 사진(2fda5023…_2000x1440)을 실제로 열어 보니 복도 사진이 아니라 **두 번째 내부투시 렌더**였다 — 흰 배경에 내부 기판이 비쳐 보이는 그림이다. 2026-11-02 에 같은 이유로 뺀 렌더가 한 장 더 있었고 이것만 남아 있었다. 카메라가 보는 것은 겉면이므로 뺀다. 그래서 이 오판은 '배경·조명' 문제가 아니라 애초에 **규칙을 어긴 참조영상** 한 장이 만든 것이었다.",
+      "sources": [
+        {
+          "kind": "commons_category",
+          "category": "Category:Unitree Go1",
+          "exclude_title_patterns": [
+            "taken with",
+            ".svg",
+            ".pdf",
+            ".webm"
+          ]
+        },
+        {
+          "kind": "shopify_product",
+          "url": "https://shop.unitree.com/products/unitreeyushutechnologydog-artificial-intelligence-companion-bionic-companion-intelligent-robot-go1-quadruped-robot-dog"
+        },
+        {
+          "kind": "image_urls",
+          "page_url": "https://www.unitree.com/go1",
+          "urls": [
+            "https://oss-global-cdn.unitree.com/static/0ad824ae61dd4037a95f21a184c9aafc_2956x1622.jpg",
+            "https://oss-global-cdn.unitree.com/static/20e7bb0a924a413ba65aa49e7d454934_2956x1622.jpg",
+            "https://oss-global-cdn.unitree.com/static/2fda50231ec740e1875f732cabd3227e_2000x1440.jpg",
+            "https://oss-global-cdn.unitree.com/static/3f39e17933814577a1a21c84aaa74c6c_3776x2118.jpg",
+            "https://oss-global-cdn.unitree.com/static/4b375a6f93df44e688dbe1e241cb8998_2956x1622.jpg",
+            "https://oss-global-cdn.unitree.com/static/5190fb10932140e8a6b5386a32c6a6c4_2956x1622.jpg",
+            "https://oss-global-cdn.unitree.com/static/51bf09feba1a40a6a2cffd93e9ab66ea_2956x1622.jpg",
+            "https://oss-global-cdn.unitree.com/static/6685ee0bfc2549739078b2b125dc0953_3776x2118.jpg",
+            "https://oss-global-cdn.unitree.com/static/6f0502805bbe4a2ab926fd1a16a00933_2956x1622.jpg",
+            "https://oss-global-cdn.unitree.com/2022/6/24/a2e48b7b3620464ea672c413730596cd_2512x1410.jpg"
+          ]
+        },
+        {
+          "kind": "commons_search",
+          "query": "intitle:\"Robotic Guide Dog\"",
+          "exclude_title_patterns": [
+            ".svg",
+            ".pdf",
+            ".webm"
+          ]
+        },
+        {
+          "kind": "image_urls",
+          "page_url": "https://www.unitree.com/go1",
+          "license_note": "제조사 공식 페이지 사진 — 2026-11-03 에 페이지에서 직접 확인한 큰 사진들.",
+          "urls": [
+            "https://oss-global-cdn.unitree.com/static/6f16e9e26622402d8e6762eaed1e8d9a_3776x2118.jpg",
+            "https://oss-global-cdn.unitree.com/static/772a744aace5440a9c883f94a2c5ed05_2956x1622.jpg",
+            "https://oss-global-cdn.unitree.com/static/7ecc19b06ef84f0f8e440e88f3487d86_2956x1622.jpg",
+            "https://oss-global-cdn.unitree.com/static/86243b2b5c1f47f7a9453c68afdb298b_3776x2118.jpg",
+            "https://oss-global-cdn.unitree.com/static/a6861ed51dae42d389f22bcdf511569b_3772x2114.jpg",
+            "https://oss-global-cdn.unitree.com/static/c81688da809c4a0a9e5a479e2297d2ee_3776x2118.jpg",
+            "https://oss-global-cdn.unitree.com/static/d5dd7b01b3394df5bf07302123edfe60_2956x1622.jpg",
+            "https://www.unitree.com/images/4e6266ec20b849af968750d5d432d391_1372x798.jpg"
+          ]
+        }
+      ],
+      "augmentation_note": "2026-11-03 보강: 사전의 `_meta.self_check` 가 적은 두 오판은 전부 **배경과 조명**이 닮은 경우였다(흰 복도의 go1 → 흰 배경 mt4, 어두운 접사의 insta360 → 어두운 스튜디오 go1). 그래서 늘리는 기준을 '장수'가 아니라 '배경·조명·각도·가림의 다양성'으로 둔다 — 흰 배경 스튜디오 사진을 더 받으면 틀린 쪽이 더 단단해진다. go1 은 Commons 범주(7 장)를 이미 다 받았고 Unitree 공식 페이지에 남아 있던 큰 사진 8 장을 더했다 — 풀·도심·실내가 섞여 있어 흰 배경 쏠림을 직접 줄인다. 'Robotic Guide Dog prototype' 은 대학 캠퍼스에서 실제로 걷고 있는 사진이라 운용 조명·배경에 가장 가깝다."
+    },
+    {
+      "class_name": "ep01",
+      "label": "지상 로봇(UGV, 메카넘 휠) · DJI RoboMaster EP",
+      "identity": "confirmed",
+      "identity_note": "ep-onboard 노드의 제품. EP / EP Core 중 어느 구성인지는 [확인] 전이다. 같은 섀시를 쓰는 RoboMaster S1 사진은 **일부러 넣지 않았다** — 외형이 매우 비슷해 섞으면 이 class 의 원형이 S1 쪽으로 끌려가고, 그러면 '무엇을 닮아 그 점수인가'라는 설명이 거짓이 된다. dji.com 의 EP 갤러리는 자바스크립트로만 열려 HTML 에서 사진 URL 을 얻을 수 없었고, 그래서 제조사 사진을 그대로 재사용하는 판매처 페이지를 출처로 적었다(출처 URL 은 sources.json 에 그대로 남는다).",
+      "sources": [
+        {
+          "kind": "shopify_product",
+          "url": "https://drdrone.ca/products/robomaster-ep-core"
+        },
+        {
+          "kind": "shopify_product",
+          "url": "https://drdrone.ca/products/open-box-robomaster-ep-core"
+        },
+        {
+          "kind": "image_urls",
+          "page_url": "https://core-electronics.com.au/dji-robomaster-ep-core.html",
+          "urls": [
+            "https://core-electronics.com.au/media/catalog/product/9/b/9bd43e7d85538b366d5531c0d61ed674.jpg",
+            "https://core-electronics.com.au/media/catalog/product/cache/6360e336b2a70951114dbd37294096ee/4/4/448047b0fe3e9403fc137ab322323ab4.jpg",
+            "https://core-electronics.com.au/media/catalog/product/cache/6360e336b2a70951114dbd37294096ee/6/2/62d37ea81b888c3609289c729bf7d4d4.jpg",
+            "https://core-electronics.com.au/media/catalog/product/cache/6360e336b2a70951114dbd37294096ee/c/9/c9beded0a3c1bc08fde8f77b55decb45.jpg",
+            "https://core-electronics.com.au/media/catalog/product/cache/6360e336b2a70951114dbd37294096ee/e/9/e91fafa229003b529fc86d1304dd1cd2.jpg",
+            "https://core-electronics.com.au/media/catalog/product/cache/6360e336b2a70951114dbd37294096ee/f/4/f4dca1f04f483427209b31924e86c9c2.jpg"
+          ]
+        },
+        {
+          "kind": "image_urls",
+          "page_url": "https://racer.lt/item/dji-robomaster-ep-steam-4wd-brushless-ai-fpv-app-control-obstacle-avoidance-rc-robot-arm-compatible-micro-bit-arduino-raspberry-26152.html",
+          "license_note": "판매처(racer.lt)가 실은 제조사·유통사 사진. 흰 배경 제품 사진만 있던 이 class 에 사용 장면을 더하기 위한 것.",
+          "referer": "https://racer.lt/",
+          "urls": [
+            "https://racer.lt/uploads/modules/catalog/img/26000/1584055413_26152_dji-robomaster-ep-steam.jpg",
+            "https://img.staticbg.com/images/oaupload/banggood/images/0C/9B/7777e770-fdab-46be-b78c-31fa13dfdb5c.jpg",
+            "https://img.staticbg.com/images/oaupload/banggood/images/07/91/d1e548c3-5c91-4879-971d-98bcf4d74c2d.jpg",
+            "https://img.staticbg.com/images/oaupload/banggood/images/4F/C1/aba42fc5-fe10-4a18-a6cf-b9d26091ba7f.jpg",
+            "https://img.staticbg.com/images/oaupload/banggood/images/A6/9D/25238aeb-98c5-42df-84b6-01db95aa237e.jpg",
+            "https://img.staticbg.com/images/oaupload/banggood/images/0F/9F/7ebcc6d2-e3a6-47fe-b467-30b1fb49a426.jpg",
+            "https://img.staticbg.com/images/oaupload/banggood/images/2E/F5/06008ab6-ad40-491d-ad7d-a5987f3f80aa.jpg",
+            "https://img.staticbg.com/images/oaupload/banggood/images/E2/59/598ca08f-ddfe-4af1-8829-e4a6176c4647.jpg",
+            "https://img.staticbg.com/images/oaupload/banggood/images/4A/78/67914b88-ae4e-4dea-8e85-2640fe51e262.jpg",
+            "https://img.staticbg.com/images/oaupload/banggood/images/F6/BC/f805a394-2597-4e37-914c-9a25fdd634e4.jpg"
+          ]
+        }
+      ],
+      "augmentation_note": "2026-11-03 보강: 사전의 `_meta.self_check` 가 적은 두 오판은 전부 **배경과 조명**이 닮은 경우였다(흰 복도의 go1 → 흰 배경 mt4, 어두운 접사의 insta360 → 어두운 스튜디오 go1). 그래서 늘리는 기준을 '장수'가 아니라 '배경·조명·각도·가림의 다양성'으로 둔다 — 흰 배경 스튜디오 사진을 더 받으면 틀린 쪽이 더 단단해진다. ep01 은 Commons 에 파일이 하나도 없고(Category:RoboMaster·DJI RoboMaster 둘 다 없음) 제조사 갤러리는 자바스크립트로만 열린다. 그래서 제조사 사진을 그대로 재사용하는 판매처 중 **사용 장면**이 섞인 곳을 골랐다. 받은 뒤 격자 그림으로 보고 설명 그림(치수·구성품 인포그래픽)과 같은 섀시의 S1 사진은 제외한다.",
+      "exclude_image_urls": [
+        "https://racer.lt/uploads/modules/catalog/img/26000/1584055413_26152_dji-robomaster-ep-steam.jpg",
+        "https://img.staticbg.com/images/oaupload/banggood/images/A6/9D/25238aeb-98c5-42df-84b6-01db95aa237e.jpg",
+        "https://img.staticbg.com/images/oaupload/banggood/images/2E/F5/06008ab6-ad40-491d-ad7d-a5987f3f80aa.jpg",
+        "https://img.staticbg.com/images/oaupload/banggood/images/F6/BC/f805a394-2597-4e37-914c-9a25fdd634e4.jpg"
+      ],
+      "exclude_rationale": " 2026-11-03 보강분 검수: 사람과 교실이 화면의 대부분인 두 장, 메카넘 휠만 손과 함께 크게 찍은 접사 한 장, 구성품을 격자로 늘어놓은 설명 그림 한 장을 뺐다."
+    },
+    {
+      "class_name": "mt4",
+      "label": "고정 설치 매니퓰레이터 · WLKATA MT4 Edu Kit (4축 금속 로봇암)",
+      "identity": "confirmed",
+      "identity_note": "2026-11-03 사용자가 구매처 페이지를 제시해 확정됐다 — 카메라가 아니라 **책상에 고정하는 4축 로봇팔**이다. 구매처 상품명 그대로: '미로봇 교육용 모듈형 4축 메탈 로봇암 키트 [MT4 Edu Kit]' (https://www.devicemart.co.kr/goods/view?no=15636079, WLKATA/myCobot 로봇팔 분류). 제조사는 WLKATA Robotics 이고 같은 이름의 제품(WLKATA MT4 Edu Kit)이 제조사 자사몰에 있어 브랜드 연결은 분류 경로 추정이 아니라 제품명으로 확인된다. 그 전 기록(config/status_ui.fms.example.json 의 '고정 카메라 · MT4 — 제원 미확인')은 카메라로 잘못 적힌 것이고, 그 잘못된 전제 위에서 이 class 를 '참조영상 0 장'으로 둔 2026-11-02 의 판단도 함께 폐기한다.",
+      "exclude_image_urls": [
+        "https://www.devicemart.co.kr/data/goods/1/2024/06/15482108_tmp_6de52ac10760d828a0a4352f30d8dfe55900large.jpg",
+        "https://cdn.shopify.com/s/files/1/0559/5358/8416/files/MT4_Edu_Kit_b.webp",
+        "https://cdn.shopify.com/s/files/1/0559/5358/8416/files/WLKATA_MT4_EDU_Kit_shipping_list_01.jpg",
+        "https://cdn.shopify.com/s/files/1/0559/5358/8416/files/MT4_Advanced_Kit_fbfbfb.webp",
+        "https://cdn.shopify.com/s/files/1/0559/5358/8416/files/WLKATA_Logistic_Warehouse_Cell_3.webp?v=1777333973",
+        "https://cdn.shopify.com/s/files/1/0559/5358/8416/files/WLKATA_Logistic_Warehouse_Cell_2.webp?v=1777333973",
+        "https://cdn.shopify.com/s/files/1/0559/5358/8416/files/Capture541_clipped_rev_1.jpg?v=1768971158",
+        "https://cdn.shopify.com/s/files/1/0559/5358/8416/files/WLKATA_Logistic_Warehouse_Cell_7.webp?v=1777335341",
+        "https://cdn.shopify.com/s/files/1/0559/5358/8416/files/WLKATA_Logistic_Warehouse_Cell_6.webp?v=1777335341",
+        "https://cdn.shopify.com/s/files/1/0559/5358/8416/files/WLKATA_Logistic_Warehouse_Cell_9.webp?v=1777336040",
+        "https://cdn.shopify.com/s/files/1/0559/5358/8416/files/WLKATA_Logistic_Warehouse_Cell_8.webp?v=1777336040",
+        "https://cdn.shopify.com/s/files/1/0559/5358/8416/files/Engraved_Souvenirs_Manufacturing_Line_01.webp?v=1778249774",
+        "https://cdn.shopify.com/s/files/1/0559/5358/8416/files/Engraved_Souvenirs_Manufacturing_Line_04_492bc2ab-9b5b-4d54-ae27-26aeb2f7d3dc.webp?v=1778461779",
+        "https://cdn.shopify.com/s/files/1/0559/5358/8416/files/Engraved_Souvenirs_Manufacturing_Line_02.webp?v=1778120260",
+        "https://cdn.shopify.com/s/files/1/0559/5358/8416/files/Engraved_Souvenirs_Manufacturing_Line_08.webp?v=1778125977",
+        "https://cdn.shopify.com/s/files/1/0559/5358/8416/files/Engraved_Souvenirs_Manufacturing_Line_06.webp?v=1778125977",
+        "https://cdn.shopify.com/s/files/1/0559/5358/8416/files/Engraved_Souvenirs_Manufacturing_Line_05.webp?v=1778125977",
+        "https://cdn.shopify.com/s/files/1/0559/5358/8416/files/Engraved_Souvenirs_Manufacturing_Line_09.webp?v=1778125977",
+        "https://cdn.shopify.com/s/files/1/0559/5358/8416/files/Engraved_Souvenirs_Manufacturing_Line_07.webp?v=1778125977",
+        "https://cdn.shopify.com/s/files/1/0559/5358/8416/files/Engraved_Souvenirs_Manufacturing_Line_10.webp?v=1778125977",
+        "https://cdn.shopify.com/s/files/1/0559/5358/8416/files/AGV_Rover_Set_wlkata_7.webp?v=1775442365",
+        "https://cdn.shopify.com/s/files/1/0559/5358/8416/files/Middle_Sch_Curriculum.webp?v=1769046084",
+        "https://cdn.shopify.com/s/files/1/0559/5358/8416/files/BookcoverbgMT4midcurriculum.webp?v=1773790283",
+        "https://cdn.shopify.com/s/files/1/0559/5358/8416/files/AI_Vision_Set_01.webp?v=1768972816",
+        "https://cdn.shopify.com/s/files/1/0559/5358/8416/products/AIVisionSet-02.jpg?v=1768972816",
+        "https://cdn.shopify.com/s/files/1/0559/5358/8416/products/AIVisionSet-03.jpg?v=1768972816",
+        "https://cdn.shopify.com/s/files/1/0559/5358/8416/products/AIVisionSet-04.jpg?v=1768972816",
+        "https://cdn.shopify.com/s/files/1/0559/5358/8416/products/AIVisionSet-05.jpg?v=1768972816",
+        "https://cdn.shopify.com/s/files/1/0559/5358/8416/products/AIVisionSet-06.jpg?v=1768972816",
+        "https://cdn.shopify.com/s/files/1/0559/5358/8416/products/AIVisionSet-07_JPG.jpg?v=1768972816",
+        "https://cdn.shopify.com/s/files/1/0559/5358/8416/files/conveyor_belt_set.webp?v=1769051479",
+        "https://cdn.shopify.com/s/files/1/0559/5358/8416/products/wlkataconveyorbelt-2.jpg?v=1769051479",
+        "https://cdn.shopify.com/s/files/1/0559/5358/8416/products/wlkataconveyorbelt-1.jpg?v=1769051479",
+        "https://cdn.shopify.com/s/files/1/0559/5358/8416/products/wlkataconveyorbelt-3.jpg?v=1769051479",
+        "https://cdn.shopify.com/s/files/1/0559/5358/8416/files/Sliding_rail_set.webp?v=1769051419",
+        "https://cdn.shopify.com/s/files/1/0559/5358/8416/products/DSC09444.jpg?v=1769051419",
+        "https://cdn.shopify.com/s/files/1/0559/5358/8416/products/DSC09466.jpg?v=1769051419",
+        "https://cdn.shopify.com/s/files/1/0559/5358/8416/products/O1CN01XRFh3q1VqvwrZI7ZG__6000000002705-0-tbvideo-174170.jpg?v=1769051419",
+        "https://cdn.shopify.com/s/files/1/0559/5358/8416/files/OpenCV_5_copy.webp?v=1784215735",
+        "https://cdn.shopify.com/s/files/1/0559/5358/8416/files/OpenCV_6_copy.webp?v=1784215735",
+        "https://cdn.shopify.com/s/files/1/0559/5358/8416/files/OpenCV_4.webp?v=1779400520",
+        "https://cdn.shopify.com/s/files/1/0559/5358/8416/files/OpenCV_1.webp?v=1779399621",
+        "https://cdn.shopify.com/s/files/1/0559/5358/8416/files/OpenCV_2.webp?v=1775418505"
+      ],
+      "exclude_rationale": "구매처 페이지에 함께 실린 myCobot 320 배너를 뺐다. 같은 페이지에 있다고 같은 물건이 아니다. 구성품 배치도 2 장과 포장 목록 1 장도 뺐다 — 팔은 크게 찍혀 있지만 화면의 절반이 작은 부품들이라, 이 원형이 '어수선한 작업대'와도 닮게 된다. 2026-11-03 보강분 검수: 받아 보니 응용 상품 사진의 대부분이 MT4 가 아니라 같은 제조사의 **6 축 Mirobot** 이었다(각인 라인 9 장, 비전 세트 1 장). 그것을 이 class 에 넣으면 '4 축 팔'이라는 class 의 의미 자체가 무너지므로 전부 뺐다. 물류 셀 사진은 MT4 가 라벨까지 보이게 찍힌 3 장만 남기고 나머지는 뺐다 — 같은 장비를 같은 각도로 찍은 사진 10 장이 들어가면 leave-one-out 숫자만 좋아지고 실제 판정은 그만큼 좋아지지 않는다. 교재 표지 2 장과 팔이 아예 없는 AGV 본체 1 장도 뺐다. 받아서 눈으로 확인한 결과 보조장비(컨베이어·레일·비전 세트·OpenCV 교재) 페이지의 팔은 **전부** 6 축 Mirobot 이었다. 그래서 그 사진들을 한 장씩 빼는 데 그치지 않고 **출처 선언 자체를 지웠다** — 남겨 두면 다음 실행이 같은 사진을 다시 받아 같은 검수를 반복한다.",
+      "sources": [
+        {
+          "kind": "image_urls",
+          "page_url": "https://www.devicemart.co.kr/goods/view?no=15636079",
+          "license_note": "국내 구매처 상품 사진 — 이 배치가 실제로 산 구성과 같은 사진이라 제조사 사진보다 먼저 둔다.",
+          "urls": [
+            "https://www.devicemart.co.kr/data/goods/1/2025/01/_tmp_14f48d9958631d7f1c3cdceb4e64ac760101view.jpg",
+            "https://www.devicemart.co.kr/data/goods/1/2025/01/_tmp_8304d3438df358f3722b1790da09b6f24272view.jpg",
+            "https://www.devicemart.co.kr/data/goods/1/2025/01/_tmp_a224df54717fcf7a816098a5865867455105view.jpg"
+          ],
+          "referer": "https://www.devicemart.co.kr/goods/view?no=15636079"
+        },
+        {
+          "kind": "shopify_product",
+          "url": "https://www.wlkata.com/products/wlkata-mt4-essential-kit-metal-4-axis-robotic-arm-reverse-engineering-made-easy"
+        },
+        {
+          "kind": "shopify_product",
+          "url": "https://www.wlkata.com/products/wlkata-mt4-advanced-kit-0-1mm-metal-4-axis-robotic-arm-ros2-arduino-rebuildable-copy"
+        },
+        {
+          "kind": "shopify_product",
+          "url": "https://www.wlkata.com/products/wlkata-mirobot-logistic-warehousing-sorting-line"
+        },
+        {
+          "kind": "shopify_product",
+          "url": "https://www.wlkata.com/products/wlkata-robot-arm-vehicle-kit-for-k-12-robotics-course"
+        }
+      ],
+      "augmentation_note": "2026-11-03 보강: 사전의 `_meta.self_check` 가 적은 두 오판은 전부 **배경과 조명**이 닮은 경우였다(흰 복도의 go1 → 흰 배경 mt4, 어두운 접사의 insta360 → 어두운 스튜디오 go1). 그래서 늘리는 기준을 '장수'가 아니라 '배경·조명·각도·가림의 다양성'으로 둔다 — 흰 배경 스튜디오 사진을 더 받으면 틀린 쪽이 더 단단해진다. mt4 가 go1 을 끌어간 그 오판의 원인이 이 class 의 사진이 전부 흰 배경 스튜디오라는 것이었다. 제조사 자사몰의 응용 상품(물류 셀·각인 라인·AGV·교육과정·컨베이어·레일·비전 세트)에는 같은 팔이 **작업대와 주변 장비와 함께** 찍혀 있어 배경이 어수선하다. 대신 그 페이지들에는 6 축 Mirobot 사진도 섞여 있어 격자 그림 검수가 필수다 — 섞이면 이 class 의 원형이 6 축 팔 쪽으로 끌린다."
+    },
+    {
+      "class_name": "holybro_x500_v2",
+      "label": "공중 이동체(UAV) · Holybro X500 V2 기체",
+      "identity": "confirmed",
+      "identity_note": "x500-companion 노드의 기체. 제조사 Shopify 상품 갤러리에는 기체 전경 사진과 함께 치수 도면·부품 접사도 섞여 있어, 내려받은 뒤 사람이 보고 걸러야 한다(--contact-sheet).",
+      "exclude_image_urls": [
+        "https://cdn.shopify.com/s/files/1/0604/5905/7341/files/30125_arf_kit_8.jpg",
+        "https://cdn.shopify.com/s/files/1/0604/5905/7341/files/30125_arf_kit_10.jpg",
+        "https://cdn.shopify.com/s/files/1/0604/5905/7341/files/30125_arf_kit_9.jpg",
+        "https://cdn.shopify.com/s/files/1/0604/5905/7341/files/30125_arf_kit_11.jpg",
+        "https://cdn.shopify.com/s/files/1/0604/5905/7341/files/30125_arf_kit_7.jpg",
+        "https://cdn.shopify.com/s/files/1/0604/5905/7341/files/30125_arf_kit_5.jpg",
+        "https://cdn.shopify.com/s/files/1/0604/5905/7341/files/30125_arf_kit_12_a79317c4-9e93-4bf0-b94e-a94e9db01ada.jpg",
+        "https://cdn.shopify.com/s/files/1/0604/5905/7341/files/30125_arf_kit_5_683280ff-1c8a-4860-921d-4722ca757004.jpg",
+        "https://cdn.shopify.com/s/files/1/0604/5905/7341/files/30125_arf_kit_10_e7bc2ebb-d6ac-4df3-a5b6-7ecd21aa141c.jpg",
+        "https://cdn.shopify.com/s/files/1/0604/5905/7341/files/30125_arf_kit_11_fc0c8e2f-2acf-4850-8ebc-cdbb0eacc718.jpg",
+        "https://cdn.shopify.com/s/files/1/0604/5905/7341/files/30125_arf_kit_9_7d92fff4-cd3e-45d8-8ba2-7454db36c5e9.jpg",
+        "https://cdn.shopify.com/s/files/1/0604/5905/7341/files/30125_arf_kit_8_d2c08753-2cc1-441c-8dbf-d9e0b9aa0bcf.jpg",
+        "https://cdn.shopify.com/s/files/1/0604/5905/7341/files/30125_arf_kit_7_568e1f9d-1648-4b1f-a829-953557e60837.jpg",
+        "https://cdn.shopify.com/s/files/1/0604/5905/7341/files/30120_x500_v2_3.jpg",
+        "https://cdn.shopify.com/s/files/1/0604/5905/7341/files/30120_x500_v2_4.jpg",
+        "https://cdn.shopify.com/s/files/1/0604/5905/7341/files/30120_x500_v2_5.jpg",
+        "https://cdn.shopify.com/s/files/1/0604/5905/7341/files/30120_x500_v2_6.jpg",
+        "https://cdn.shopify.com/s/files/1/0604/5905/7341/files/30120_x500_v2_7.jpg",
+        "https://cdn.shopify.com/s/files/1/0604/5905/7341/files/30120_x500_v2_9.jpg",
+        "https://cdn.shopify.com/s/files/1/0604/5905/7341/files/30188-8.jpg",
+        "https://cdn.shopify.com/s/files/1/0604/5905/7341/files/30188-7.jpg?v=1760334330",
+        "https://cdn.shopify.com/s/files/1/0604/5905/7341/files/30199-6.jpg?v=1760334373",
+        "https://cdn.shopify.com/s/files/1/0604/5905/7341/files/30199-7.jpg?v=1760334375",
+        "https://cdn.shopify.com/s/files/1/0604/5905/7341/files/30188-9.jpg?v=1779351968",
+        "https://cdn.shopify.com/s/files/1/0604/5905/7341/files/30189-1.jpg?v=1779351983",
+        "https://cdn.shopify.com/s/files/1/0604/5905/7341/files/30199-8.jpg?v=1779352022",
+        "https://cdn.shopify.com/s/files/1/0604/5905/7341/files/30200-1.jpg?v=1779352031"
+      ],
+      "exclude_rationale": "모터·배선 하네스·탄소판 접사와 부품 전개도·치수 도면을 뺐다. 같은 사진이 상품마다 다른 파일 이름(접미 UUID)으로 또 올라와 있어 같은 그림의 두 주소를 모두 적는다 — 제외된 쪽은 내려받지 않으므로 중복 지문으로 걸리지 않는다. 유사도를 참조영상별 최댓값으로 재기 때문에(한 장이라도 닮으면 점수가 난다) 부품 접사 한 장이 '검은 원통처럼 생긴 모든 것'을 이 기종으로 끌어온다. 프로펠러 없는 맨 프레임(30120_x500_v2_2)은 남겼다 — 이 class 이름 자체가 기체 프레임이고, 현장에서 실제로 그 모습으로 서 있다. 2026-11-03 보강분 검수: 한도를 올려 받은 12 장 중 부품 접사 3 장(탄소판 위 전장부 2, 모터·프로펠러 1)과 구성품 전개도 3 장을 뺐다. 기체 전경 6 장만 남겼다. 재실행에서 한 장 더 들어온 구성품 전개도(30200-1)도 같은 이유로 뺐다.",
+      "sources": [
+        {
+          "kind": "commons_search",
+          "query": "intitle:\"Holybro X500\"",
+          "exclude_title_patterns": [
+            ".svg",
+            ".pdf",
+            ".webm"
+          ]
+        },
+        {
+          "kind": "shopify_product",
+          "url": "https://holybro.com/products/x500-v2-kits"
+        },
+        {
+          "kind": "shopify_product",
+          "url": "https://holybro.com/products/px4-development-kit-x500-v2"
+        }
+      ],
+      "augmentation_note": "2026-11-03 보강: 사전의 `_meta.self_check` 가 적은 두 오판은 전부 **배경과 조명**이 닮은 경우였다(흰 복도의 go1 → 흰 배경 mt4, 어두운 접사의 insta360 → 어두운 스튜디오 go1). 그래서 늘리는 기준을 '장수'가 아니라 '배경·조명·각도·가림의 다양성'으로 둔다 — 흰 배경 스튜디오 사진을 더 받으면 틀린 쪽이 더 단단해진다. holybro 는 새 출처가 필요하지 않았다 — 이미 선언된 두 상품 갤러리에 51 장이 있고 지난 실행이 `--limit 15` 에서 끊겨 13 장을 보지도 않은 채 남겼다. 한도를 올려 그 나머지를 받고, 부품 접사는 그대로 검수에서 뺀다."
+    },
+    {
+      "class_name": "insta360",
+      "label": "고정 360 카메라 · Insta360 Pro 2",
+      "identity": "confirmed",
+      "identity_note": "insta360-pro2 노드의 제품. Commons 의 'taken with Insta360 Pro' 파일들은 **그 카메라로 찍은 파노라마**이지 카메라 사진이 아니라 제목 패턴으로 제외한다 — 이 한 줄이 없으면 이 class 의 원형이 '거리 풍경'이 된다.",
+      "exclude_image_urls": [
+        "https://upload.wikimedia.org/wikipedia/commons/4/44/Insta360_Pro_2_camera_on_top_of_Pau_Saad%27s_Car.jpg",
+        "https://cdn.shopify.com/s/files/1/0588/9464/7339/files/insta360_insta360_pro_2_3.jpg",
+        "https://upload.wikimedia.org/wikipedia/commons/7/75/Insta360_Pro_2_camera_on_top_of_Pau_Saad%27s_Car_1.jpg",
+        "https://upload.wikimedia.org/wikipedia/commons/8/8f/Insta360_Pro_2_camera_on_top_of_Pau_Saad%27s_Car_at_Bekaa_Valley.jpg"
+      ],
+      "exclude_rationale": "제목 패턴으로 못 걸러진 두 장. 하나는 카메라를 지붕에 얹은 자동차 사진이라 화면의 거의 전부가 차와 산이고, 다른 하나는 본체가 아니라 동봉 액세서리(Farsight) 사진이다. 둘 다 '이 기종을 찍은 사진'이라는 제목으로 들어온다. 2026-11-03 보강분 검수: 5 장 모두 본체 사진이라 뺀 것이 없다.",
+      "sources": [
+        {
+          "kind": "commons_search",
+          "query": "intitle:\"Insta360 Pro 2\"",
+          "exclude_title_patterns": [
+            "taken with",
+            ".svg",
+            ".pdf",
+            ".webm"
+          ]
+        },
+        {
+          "kind": "shopify_collection",
+          "url": "https://www.teds.com.au/collections/insta360",
+          "title_must_match": [
+            "pro 2"
+          ],
+          "exclude_title_patterns": [
+            "ace"
+          ]
+        },
+        {
+          "kind": "image_urls",
+          "page_url": "https://www.insta360.com/product/insta360-pro2",
+          "urls": [
+            "https://res.insta360.com/static/c692d292fd37dd6e022111d9be6b3eec/pro2.png",
+            "https://static.insta360.com/assets/storage/20190510/3165d86cb37830e2e8708c9119bbd09a/pro2_en.jpg",
+            "https://www.syntex.tv/media/produkty/16759/insta360-pro-2-001.jpg"
+          ]
+        },
+        {
+          "kind": "image_urls",
+          "page_url": "https://core-electronics.com.au/insta360-pro-2.html",
+          "license_note": "판매처(Core Electronics) 상품 사진 4 장 — 각도가 서로 다른 본체 사진이다.",
+          "urls": [
+            "https://core-electronics.com.au/media/catalog/product/p/r/protwo1b.jpg",
+            "https://core-electronics.com.au/media/catalog/product/p/r/protwo2b.jpg",
+            "https://core-electronics.com.au/media/catalog/product/p/r/protwo3b.jpg",
+            "https://core-electronics.com.au/media/catalog/product/p/r/protwo4b.jpg"
+          ]
+        },
+        {
+          "kind": "image_urls",
+          "page_url": "https://www.productiongear.co.uk/insta360-pro-2-8k-camera.html",
+          "license_note": "판매처(Production Gear) 상품 사진.",
+          "urls": [
+            "https://productiongear.co.uk/cdn/shop/files/B27-20E-00A-1_2e669457-ae5f-4780-9354-ea6b71df92e8.jpg"
+          ]
+        }
+      ],
+      "augmentation_note": "2026-11-03 보강: 사전의 `_meta.self_check` 가 적은 두 오판은 전부 **배경과 조명**이 닮은 경우였다(흰 복도의 go1 → 흰 배경 mt4, 어두운 접사의 insta360 → 어두운 스튜디오 go1). 그래서 늘리는 기준을 '장수'가 아니라 '배경·조명·각도·가림의 다양성'으로 둔다 — 흰 배경 스튜디오 사진을 더 받으면 틀린 쪽이 더 단단해진다. insta360 Pro 2 는 단종돼 판매 페이지가 대부분 닫혔고 Commons 에는 본체 사진이 사실상 없다(있는 두 장은 차 지붕 위라 화면의 거의 전부가 차와 산이어서 이미 검수에서 빠졌다). 남아 있는 판매처 두 곳의 본체 사진을 더했다 — 이 class 가 '사진이 더 필요하다'에 답하지 못하는 class 라는 사실 자체를 기록으로 남긴다."
+    }
+  ]
+}

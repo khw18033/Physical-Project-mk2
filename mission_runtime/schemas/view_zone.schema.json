@@ -1,0 +1,7 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://physical-project.local/schemas/view_zone.schema.json",
+  "title": "View payload — GET /api/zone?id=",
+  "$comment": "구역 상세. 이웃 구역의 무선 전환 여부와 자리 수정 대상까지 들어 있다.",
+  "$ref": "https://physical-project.local/schemas/view_snapshot.schema.json#/$defs/zone_detail"
+}

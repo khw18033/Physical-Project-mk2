@@ -1,0 +1,7 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://physical-project.local/schemas/view_robot.schema.json",
+  "title": "View payload — GET /api/robot?id=&zone=",
+  "$comment": "로봇 한 대의 자원·기능·존재 상태·추천. `last_seen_age_s` 의 null 은 한 번도 공지를 받지 않았다는 뜻이고 0 이 아니다(AI-O-06).",
+  "$ref": "https://physical-project.local/schemas/view_snapshot.schema.json#/$defs/robot_detail"
+}

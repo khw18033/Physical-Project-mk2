@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://physical-project.local/schemas/ai/capability-status.schema.json",
+  "title": "AI Capability Status",
+  "type": "object",
+  "required": [
+    "capability_kind",
+    "provider_id",
+    "state",
+    "reason",
+    "changed_at"
+  ],
+  "properties": {
+    "capability_kind": {
+      "type": "string",
+      "minLength": 1
+    },
+    "provider_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "state": {
+      "enum": [
+        "ACTIVE",
+        "DEGRADED",
+        "DISABLED"
+      ]
+    },
+    "reason": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "cluster_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "changed_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "additionalProperties": true,
+  "$comment": "2026-10-27: 본문이 봉투와 같은 층에 실리므로 추가 칸을 막지 않는다(규약 R12 — 모르는 칸은 통과시킨다)."
+}

@@ -1,0 +1,401 @@
+{
+  "$comment": "목적·링크 기반 온디바이스 기능 선정을 눈으로 보기 위한 status_ui 설정. tools/status_ui/serve.py --config 로 띄우고 개발자 탭의 '온디바이스 상주' 패널을 본다(GET /api/residency?node_id=…, POST /api/residency/whatif). 'device_purposes'가 있는 설정에서만 이 축이 나타나고, 없으면 기존 화면 그대로다. 보이려는 것: (1) drone-1과 go1-onboard는 **같은 판정 코드**를 쓰지만 목적 데이터가 달라 상주 집합이 다르다 — 드론은 사각 감시·출동 임무·안전 제어가 상주, 로봇은 class-agnostic 인지·depth/TTC·hazard 추적·회피 제어가 상주하고 '이 클래스를 찾아줘'는 엣지에 묻는다. (2) go1-onboard와 pi2는 **같은 목적(ground_robot)**이지만 링크가 달라 결과가 다르다 — pi2는 노드 수준 link 관측이 나빠 perception.detect_ovd가 말단으로 끌려오고, 그 장치 예산으로는 감당이 안 돼 over_budget으로 다시 탈락한다(AI-N-03 → AI-B-06 → AI-C-05가 한 줄로 이어지는 실제 경로). (3) pi6는 Coral(accel.edgetpu_usb)이 붙어 있어 링크를 나쁘게 what-if 하면 perception.detect가 rpn-edgetpu(1.0 CU)로 내려오고, 같은 조건의 pi4는 rpn-ondevice(2.0 CU)를 쓴다. (4) edge-gpu는 purpose를 선언하지 않는다 — 목적이 없는 노드에서도 나머지 화면이 그대로 동작해야 한다.",
+  "providers_manifest": "providers.status_ui.ondevice.example.json",
+  "labels": "status_ui.labels.json",
+  "device_purposes": "device_purposes.example.json",
+  "deployment": {
+    "domain_id": "ondevice-residency-demo",
+    "active_capability_kinds": [
+      "media.video_input",
+      "perception.detect",
+      "perception.depth",
+      "perception.track",
+      "perception.distance",
+      "safety.local_judgment",
+      "control.locomotion",
+      "mission.dispatch",
+      "ondevice.link_transition",
+      "perception.coverage_estimate",
+      "perception.object_record",
+      "perception.detect_ovd",
+      "perception.classify",
+      "perception.associate",
+      "perception.segment",
+      "perception.blind_spot",
+      "perception.environment_map",
+      "risk.state_machine",
+      "risk.rule_based",
+      "mission.cache",
+      "ondevice.zone_handover",
+      "perception.anomaly",
+      "continual.learning_candidate"
+    ],
+    "closed_network": false
+  },
+  "capabilities": [
+    {
+      "kind": "media.video_input",
+      "is_core": true
+    },
+    {
+      "kind": "perception.detect",
+      "is_core": true,
+      "requirement": {
+        "required": [
+          "media.video_input"
+        ]
+      }
+    },
+    {
+      "kind": "perception.depth",
+      "is_core": true,
+      "requirement": {
+        "required": [
+          "media.video_input"
+        ]
+      }
+    },
+    {
+      "kind": "perception.distance",
+      "degrade_rank": 1,
+      "requirement": {
+        "required": [
+          "perception.depth"
+        ]
+      }
+    },
+    {
+      "kind": "perception.track",
+      "degrade_rank": 1,
+      "requirement": {
+        "required": [
+          "perception.detect"
+        ]
+      }
+    },
+    {
+      "kind": "safety.local_judgment",
+      "is_core": true,
+      "requirement": {
+        "required": [
+          "media.video_input"
+        ],
+        "optional": [
+          "perception.distance"
+        ]
+      }
+    },
+    {
+      "kind": "control.locomotion",
+      "degrade_rank": 1
+    },
+    {
+      "kind": "mission.dispatch",
+      "degrade_rank": 1
+    },
+    {
+      "kind": "ondevice.link_transition",
+      "degrade_rank": 1
+    },
+    {
+      "kind": "perception.coverage_estimate",
+      "degrade_rank": 2,
+      "requirement": {
+        "required": [
+          "media.video_input"
+        ],
+        "optional": [
+          "perception.detect"
+        ]
+      }
+    },
+    {
+      "kind": "perception.object_record",
+      "degrade_rank": 3,
+      "requirement": {
+        "required": [
+          "perception.detect"
+        ]
+      }
+    },
+    {
+      "kind": "perception.detect_ovd",
+      "degrade_rank": 4,
+      "requirement": {
+        "required": [
+          "media.video_input"
+        ]
+      }
+    },
+    {
+      "kind": "perception.classify",
+      "degrade_rank": 5,
+      "requirement": {
+        "required": [
+          "perception.detect"
+        ]
+      }
+    },
+    {
+      "kind": "perception.associate",
+      "degrade_rank": 6,
+      "requirement": {
+        "required": [
+          "perception.track"
+        ]
+      }
+    },
+    {
+      "kind": "perception.segment",
+      "degrade_rank": 7
+    },
+    {
+      "kind": "perception.blind_spot",
+      "degrade_rank": 8,
+      "requirement": {
+        "optional": [
+          "perception.coverage_estimate"
+        ]
+      }
+    },
+    {
+      "kind": "perception.environment_map",
+      "degrade_rank": 9
+    },
+    {
+      "kind": "risk.state_machine",
+      "degrade_rank": 10
+    },
+    {
+      "kind": "risk.rule_based",
+      "degrade_rank": 11
+    },
+    {
+      "kind": "mission.cache",
+      "is_core": true
+    },
+    {
+      "kind": "ondevice.zone_handover",
+      "degrade_rank": 1
+    },
+    {
+      "kind": "perception.anomaly",
+      "degrade_rank": 12,
+      "requirement": {
+        "required": [
+          "media.video_input"
+        ]
+      }
+    },
+    {
+      "kind": "continual.learning_candidate",
+      "degrade_rank": 13,
+      "requirement": {
+        "optional": [
+          "perception.anomaly"
+        ]
+      }
+    }
+  ],
+  "functions": [
+    {
+      "function_id": "local_safety",
+      "required_capabilities": [
+        "media.video_input",
+        "safety.local_judgment"
+      ],
+      "optional_capabilities": [
+        "perception.depth",
+        "perception.distance"
+      ]
+    },
+    {
+      "function_id": "blind_spot_surveillance",
+      "required_capabilities": [
+        "media.video_input",
+        "perception.detect",
+        "perception.coverage_estimate"
+      ],
+      "optional_capabilities": [
+        "perception.blind_spot",
+        "perception.classify"
+      ]
+    },
+    {
+      "function_id": "dispatch_mission",
+      "required_capabilities": [
+        "mission.dispatch",
+        "mission.cache",
+        "safety.local_judgment"
+      ],
+      "optional_capabilities": [
+        "perception.environment_map"
+      ]
+    },
+    {
+      "function_id": "obstacle_avoidance",
+      "required_capabilities": [
+        "media.video_input",
+        "perception.detect",
+        "perception.depth",
+        "perception.track",
+        "control.locomotion"
+      ],
+      "optional_capabilities": [
+        "perception.distance"
+      ]
+    },
+    {
+      "function_id": "find_specific_class",
+      "required_capabilities": [
+        "media.video_input",
+        "perception.classify"
+      ],
+      "optional_capabilities": [
+        "perception.detect_ovd",
+        "perception.associate"
+      ]
+    },
+    {
+      "function_id": "river_waste_detection",
+      "required_capabilities": [
+        "media.video_input",
+        "perception.detect",
+        "perception.classify"
+      ],
+      "optional_capabilities": [
+        "perception.anomaly"
+      ]
+    },
+    {
+      "function_id": "revetment_anomaly_detection",
+      "required_capabilities": [
+        "media.video_input",
+        "perception.anomaly"
+      ],
+      "optional_capabilities": [
+        "perception.classify",
+        "continual.learning_candidate",
+        "risk.state_machine"
+      ]
+    },
+    {
+      "function_id": "hitl_learning_candidates",
+      "required_capabilities": [
+        "continual.learning_candidate"
+      ],
+      "optional_capabilities": [
+        "perception.anomaly",
+        "perception.object_record"
+      ]
+    }
+  ],
+  "nodes": [
+    {
+      "node_id": "drone-1",
+      "label": "하천 감시 드론 온디바이스 — 가정(실물 미보유, 링크는 현장 선언값)",
+      "role": "uav",
+      "purpose": "river_surveillance_drone",
+      "tags": [
+        "compute.cpu",
+        "tier.ondevice",
+        "platform.uav",
+        "sensor.camera.uav"
+      ],
+      "budget": {
+        "compute_units": 4.0,
+        "memory_mb": 4096
+      }
+    },
+    {
+      "node_id": "go1-onboard",
+      "label": "지상 로봇 온디바이스 · Go1 탑재 연산기 — 가정(미실측)",
+      "role": "ugv",
+      "purpose": "ground_robot",
+      "tags": [
+        "compute.cpu",
+        "tier.ondevice",
+        "sensor.camera.go1_front"
+      ],
+      "budget": {
+        "compute_units": 8.0,
+        "memory_mb": 4096
+      }
+    },
+    {
+      "node_id": "pi2",
+      "label": "지상 로봇 온디바이스(불안정 링크 사례) · Raspberry Pi 5 — 링크는 노드 수준 관측값으로 덮어쓴다",
+      "role": "ugv",
+      "purpose": "ground_robot",
+      "tags": [
+        "compute.cpu",
+        "tier.ondevice",
+        "sensor.camera.go1_front"
+      ],
+      "budget": {
+        "compute_units": 6.0,
+        "memory_mb": 7900
+      },
+      "link": {
+        "source": "measured:icmp_probe",
+        "quality": 0.3,
+        "stability": 0.55,
+        "samples": 24
+      }
+    },
+    {
+      "node_id": "pi6",
+      "label": "고정 카메라 · Raspberry Pi 5 · Camera Module 3 (imx708) + Coral USB — 2026-09-18 실측(84°C, 수동 냉각)",
+      "role": "fixed_camera",
+      "purpose": "fixed_camera",
+      "tags": [
+        "compute.cpu",
+        "tier.fixed_camera",
+        "sensor.camera.imx708",
+        "accel.edgetpu_usb",
+        "thermal.passive"
+      ],
+      "budget": {
+        "compute_units": 4.0,
+        "memory_mb": 7900
+      },
+      "link": {
+        "source": "measured:icmp_probe",
+        "quality": 0.88,
+        "stability": 0.95,
+        "samples": 20
+      }
+    },
+    {
+      "node_id": "pi4",
+      "label": "고정 카메라 · Raspberry Pi 5 · Camera Module 3 Wide (imx708_wide) — 가속기 없음",
+      "role": "fixed_camera",
+      "purpose": "fixed_camera",
+      "tags": [
+        "compute.cpu",
+        "tier.fixed_camera",
+        "sensor.camera.imx708_wide"
+      ],
+      "budget": {
+        "compute_units": 4.0,
+        "memory_mb": 7900
+      }
+    },
+    {
+      "node_id": "edge-gpu",
+      "label": "구역 엣지 · 시연 GPU — 목적 선언 없음(말단이 아니다)",
+      "role": "edge",
+      "tags": [
+        "compute.cpu",
+        "compute.gpu",
+        "media.hw_decode",
+        "media.ingest",
+        "tier.edge"
+      ],
+      "budget": {
+        "compute_units": 30.0,
+        "memory_mb": 16384
+      }
+    }
+  ]
+}

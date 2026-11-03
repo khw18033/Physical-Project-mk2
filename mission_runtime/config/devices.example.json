@@ -1,0 +1,22 @@
+{
+  "_comment": "말단 장치 등록 예시 (registry/device_registry.py). 실제 파일은 config/devices.json 이며 git에 올리지 않는다. 비밀정보는 여기 두지 않고 device_credentials.json 에만 둔다 (AI-B-02).",
+  "devices": [
+    {
+      "device_id": "terminal-a",
+      "address": "192.0.2.11",
+      "username": "physical",
+      "credential_id": "terminal-a-key",
+      "port": 22,
+      "access_method": "ssh",
+      "role": "mobile-agent",
+      "node_tags": [
+        "platform.terminal",
+        "compute.cpu",
+        "arch.arm64",
+        "accel.usb_tpu",
+        "sensor.camera",
+        "runtime.python3"
+      ]
+    }
+  ]
+}
