@@ -35,6 +35,18 @@ from __future__ import annotations
 
 from common import iou
 
+# **"몇 개가 합의하면 확정인가" 의 주인은 프레임워크다**(2026-11-05 통합 2단계).
+#
+# 이 파일은 그 수를 숫자로 적지 않았다 — 쌍으로만 동작하면서 "둘이 합의하면
+# confident" 를 **구조로** 들고 있었다. 적지 않은 규칙이 적힌 규칙보다 안전한 것은
+# 아니다: `object_record.CONFIRMING_GROUPS` 가 3 이 되는 날 프레임워크의 승격 관문은
+# 셋을 요구하는데 이 파일은 여전히 둘에 confident 를 붙이고, 둘 다 자기 시험을
+# 통과한다. 그래서 수를 **가져와서** 판정에 쓴다.
+#
+# 쌍을 N 개로 일반화하는 것은 다른 작업이다(그때 `perception/multisource.py` 가
+# 짝이다). 지금 하는 것은 **그 수의 주인을 하나로 모으는 것**뿐이다.
+from mission_runtime.perception.object_record import CONFIRMING_GROUPS
+
 # 라벨 비교에서 의미를 갖지 않는 토큰. 이것만 겹치는 것은 합의로 보지 않는다.
 STOPWORDS = {"a", "an", "the", "of", "with", "and", "computer", "office",
              "electronic", "small", "large", "indoor", "outdoor"}
@@ -111,15 +123,27 @@ def merge_by_consensus(primary, secondary, cfg_ovd: dict):
                 best_j, best_v = j, v
         if best_j >= 0:
             db = secondary[best_j]
-            used_b.add(best_j)
             win, lose = (da, db) if da["conf"] >= db["conf"] else (db, da)
-            if min(da["conf"], db["conf"]) >= floor:
+            sources = ["prompt_free", "text_prompt"]
+            # 합의한 소스 수가 프레임워크가 요구하는 독립 지지 수에 닿는가. 지금
+            # 모델이 둘이라 참이지만, 요구 수가 올라가면 여기서 먼저 걸린다 —
+            # 그러면 `tentative` 로 남고 버려지지는 않는다(AI-S-04, AI-L-03).
+            if (min(da["conf"], db["conf"]) >= floor
+                    and len(sources) >= CONFIRMING_GROUPS):
                 n_agree += 1
                 out.append({**win, "verdict": "confident",
-                            "sources": ["prompt_free", "text_prompt"],
+                            "sources": sources,
                             "agree_iou": round(best_v, 3),
                             "alt": {"label": lose["label"],
                                     "conf": round(lose["conf"], 3)}})
+                # **합의로 받아들였을 때만** secondary 를 소비한다. 전에는 짝을 찾은
+                # 시점에 소비해서, 라벨은 맞았지만 floor 를 못 넘은 쌍의 secondary 가
+                # **조용히 사라졌다**(검출 둘이 들어가 하나만 나왔고, 통계는
+                # `secondary: 1` 이라 적으면서 산출에는 없었다). 이 파일 머리말이
+                # "합의하지 않은 검출은 버리지 않는다" 고 약속한 자리다 — 확정하지
+                # 못한 관측을 지우면 관리자가 두 근거를 나란히 볼 길이 사라지고
+                # 학습 후보로 올릴 길도 사라진다(AI-S-04, AI-L-03).
+                used_b.add(best_j)
                 continue
         out.append({**da, "verdict": "tentative", "sources": ["prompt_free"]})
 

@@ -34,8 +34,18 @@ import numpy as np
 CROPS = sorted(glob.glob("store/unknown_crops/*.jpg"))
 N_REPEAT = 3
 # CLIP 전처리 상수(OpenAI). MobileCLIP 계열도 open_clip 기본 전처리가 같은 값을 쓴다.
-MEAN = np.array([0.48145466, 0.4578275, 0.40821073], np.float32)
-STD = np.array([0.26862954, 0.26130258, 0.27577711], np.float32)
+#
+# **운영 코드에서 가져온다**(2026-11-05 통합 3단계). 같은 값을 여기 다시 적고 있었고,
+# 값이 같을 때는 아무 일도 없다. 그런데 전처리가 한쪽만 바뀌면 **이 벤치는 운영이
+# 돌리지 않는 파이프라인을 재게 된다** — 그 수를 보고 모델을 고르면 고른 근거가
+# 거짓이다. 벤치가 운영과 같은 전처리를 쓴다는 것은 벤치의 전제이지 선택이 아니다.
+from mission_runtime.edge.clip_dictionary_provider import (  # noqa: E402
+    _CLIP_MEAN,
+    _CLIP_STD,
+)
+
+MEAN = np.array(_CLIP_MEAN, np.float32)
+STD = np.array(_CLIP_STD, np.float32)
 
 
 def load_batch(size: int, n: int) -> np.ndarray:

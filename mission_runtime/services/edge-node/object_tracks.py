@@ -34,13 +34,32 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+# **생명주기 임계는 프레임워크가 소유한다** (2026-11-05 통합 1단계).
+#
+# 이 셋은 `mission_runtime.perception.object_record` 와 **같은 사실**을 같은 값으로
+# 두 곳에 적고 있었다 — `CONFIRM_GROUPS`/`CONFIRMING_GROUPS` = 2,
+# `STALE_MISSES`/`STALE_AFTER_MISSES` = 3, `EXPIRE_MISSES`/`EXPIRE_AFTER_MISSES` = 5.
+# 값이 같을 때는 아무 일도 없지만, 한쪽만 고치면 **"확정" 의 뜻이 두 개**가 되고
+# 프레임워크의 승격 관문과 도는 서비스가 서로 다른 객체를 확정한다. 그래서 이름은
+# 이 파일의 것을 그대로 두고(아래 쓰는 자리가 안 바뀐다) 값의 출처만 하나로 모았다.
+#
+# 설정(`c.get(...)`)으로 덮는 길은 그대로다 — 현장이 다른 값을 쓰는 것은 정상이고,
+# 막으려는 것은 **아무도 정하지 않은 두 기본값**이다.
+from mission_runtime.perception.object_record import (
+    CONFIRMING_GROUPS as CONFIRM_GROUPS,
+    EXPIRE_AFTER_MISSES as EXPIRE_MISSES,
+    STALE_AFTER_MISSES as STALE_MISSES,
+)
+
 # 논문 §3의 임계. 이름을 그대로 남겨 두어 논문과 대조할 수 있게 한다.
+#
+# 아래 셋은 **프레임워크에 짝이 없다**. `object_record.SPATIAL_CONSISTENCY_THRESHOLD`
+# (0.45)는 비슷해 보이지만 다른 사실이다 — 그쪽은 *그룹 간* 기하 일관성이고 이쪽
+# `ASSOC_IOU`(0.30)는 *관측 내* 근거 클러스터링이다. 값이 다르고 뜻이 다르므로
+# 합치지 않는다. 합치면 한 수가 두 질문에 답하게 된다.
 ASSOC_IOU = 0.30          # 관측 내 근거 클러스터링
 TRACK_IOU = 0.20          # 관측 간 지속 객체 매칭
 INIT_CONF = 0.30          # 새 객체 초기화 최소 confidence
-STALE_MISSES = 3
-EXPIRE_MISSES = 5
-CONFIRM_GROUPS = 2
 
 
 def _iou(a, b) -> float:
