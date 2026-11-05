@@ -1,4 +1,4 @@
-"""implements: AI-B-03, AI-B-05, AI-B-07, AI-C-12
+"""implements: AI-B-03, AI-B-05,  AI-C-04
 covers: same ControlProvider contract as the standalone supervisor,
         orchestrator absence degrades instead of failing, audit/trace stay
         separate, real cluster start/stop/status when a cluster is present
@@ -144,7 +144,7 @@ def test_status_of_an_unknown_target_is_stopped_not_an_error():
 
 @needs_cluster
 def test_rollback_of_a_target_without_history_is_rejected_cleanly(target_id):
-    """AI-B-07: 롤백 불가 상황도 거부 사유로 표현되며 예외가 되지 않는다."""
+    """AI-B-05: 롤백 불가 상황도 거부 사유로 표현되며 예외가 되지 않는다."""
     provider = K3sControlProvider()
 
     result = provider.rollback(target_id)

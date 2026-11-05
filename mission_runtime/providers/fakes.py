@@ -4,7 +4,7 @@ against the common interfaces before any real MQTT/Kafka/RTSP/GPU
 backend is wired in. Swapping one of these for a real implementation
 must never require touching the caller.
 
-implements: AI-C-04, AI-C-06, AI-C-07, AI-C-08, AI-C-09, AI-C-12, AI-B-08, AI-C-20
+implements: AI-C-04, AI-C-06, AI-C-07, AI-C-08, AI-B-08, AI-C-20
 """
 
 from __future__ import annotations
@@ -88,7 +88,7 @@ class SyntheticMediaSourceProvider:
 class StubAIRuntimeProvider:
     """Returns a canned/callable result instead of running a real model —
     used to prove upper logic never depends on whether inference is
-    local or remote (AI-B-08, AI-C-09).
+    local or remote (AI-B-08, AI-C-04).
     """
 
     def __init__(
@@ -226,15 +226,30 @@ class FakeRobotBackend:
         gate: Any | None = None,
         fully_declared: bool = False,
     ) -> None:
+        from mission_runtime.contracts.capability_contract import DeclarationBasis
         from mission_runtime.contracts.physical_command import Capability
 
+        # `fully_declared=True` 는 AI-C-18 항목을 **하나도 빼지 않고** 적는다는
+        # 뜻이다(`is_fully_declared()` 가 전 항목을 본다). 일부만 채운 가짜를
+        # "다 선언됐다" 로 부르면 그 가짜를 쓰는 시험이 실제로는 덜 선언된 길을
+        # 지나면서 다 선언된 길을 지난 것으로 보인다.
         self._capabilities = tuple(
             action if isinstance(action, Capability) else Capability(
                 name=action,
                 version="1" if fully_declared else None,
                 parameter_schema=f"{action}.params" if fully_declared else None,
                 result_schema=f"{action}.result" if fully_declared else None,
-                cancel_supported=stop_supported,
+                # 미선언은 None 이다 — 지원하지 않는다는 선언(False)과 다르다.
+                cancel_supported=stop_supported if fully_declared else None,
+                required_resources=("robot.base",) if fully_declared else (),
+                idempotent=False if fully_declared else None,
+                invocation="asynchronous" if fully_declared else None,
+                basis=DeclarationBasis(
+                    units={"distance_m": "m"}, reference_frame="device-local",
+                    time_basis="device_monotonic",
+                ) if fully_declared else None,
+                scope_tags=() if fully_declared else None,
+                execution_profile_ref=f"profile://{action}/fake" if fully_declared else None,
             )
             for action in actions
         )

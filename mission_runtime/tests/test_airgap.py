@@ -1,4 +1,4 @@
-"""implements: AI-C-16, AI-C-09, AI-B-09
+"""implements: AI-C-16, AI-C-04, AI-B-09
 covers: internal-only asset procurement, public egress refused before
         placement, optional external services degrade instead of blocking
 """

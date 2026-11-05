@@ -619,6 +619,35 @@
       }
     ],
     "pinned_task_node_id": null,
+    "$watch_comment": "임계 감시 대상. 기능정의서 §4.4 \"임계값 초과 시 해당 항목이 경고 상태로 전환되며, 이벤트/알람(D)에 기록된다\" 와 §4.7 \"자원 조건은 리소스 현황(E)의 Layer 1 계측값과 일관되어야 한다\" 가 **같은 수치**를 요구하므로 한 선언에서 둘이 나온다. 아래 verdicts 의 자원 조건 중 같은 item_id 를 가진 것은 선언한 satisfied 가 아니라 **여기서 계측값으로 판정한 결과**로 바뀐다 — 선언이 측정값 자리를 채우면 [E] 는 임계 초과를 칠하는데 [G] 는 정상이라고 적는 날이 온다. 감시 선언이 없는 배치도 정상이고 그때는 경고 사건이 생기지 않는다(AI-C-05).",
+    "watch": [
+      {
+        "$comment": "선언된 58.0 celsius 가 기준 55.0 을 넘는다 — verdicts 가 satisfied: true 로 적어 둔 accelerator_thermal_ok 가 계측 판정으로 뒤집히고, [D] 에 WARN/RESOURCE 사건이 하나 생긴다.",
+        "item_id": "accelerator_thermal_ok",
+        "accelerator_instance_id": "npu-xdna-0",
+        "field": "temperature",
+        "target": {"value": 55.0, "direction": "AT_MOST", "unit": "celsius"}
+      },
+      {
+        "$comment": "보드 전력. 선언에 18.4 watt 가 적혀 있지만 board 를 계측 지점으로 지목했으므로 이 칸에 들어갈 수 있는 것은 측정값뿐이다 — RAPL 계수기가 없는 기계에서는 미측정으로 남고, 그러면 자원 조건도 미확인이지 정상이 아니다. 선언 숫자가 계측 자리를 메우지 않는다는 규칙이 여기서 보인다.",
+        "item_id": "board_power_ok",
+        "field": "power",
+        "target": {"value": 25.0, "direction": "AT_MOST", "unit": "watt"}
+      },
+      {
+        "$comment": "보드 메모리는 같은 계측 지점에서 실제로 읽힌다 — 같은 선언에서 MET 도 나온다는 것을 보인다.",
+        "item_id": "board_memory_ok",
+        "field": "memory_utilization",
+        "target": {"value": 0.9, "direction": "AT_MOST", "unit": "ratio"}
+      },
+      {
+        "$comment": "값이 없는 개체. 미측정은 경고가 아니고 미달도 아니다 — 자원 조건은 미확인(satisfied 칸 부재)으로 남고 사건은 생기지 않는다(§4.4·§4.5).",
+        "item_id": "ext_npu_2_thermal_ok",
+        "accelerator_instance_id": "ext-npu-1",
+        "field": "temperature",
+        "target": {"value": 70.0, "direction": "AT_MOST", "unit": "celsius"}
+      }
+    ],
     "verdicts": [
       {
         "node_id": "n4",

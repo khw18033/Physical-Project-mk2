@@ -13,6 +13,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field, replace
 from enum import Enum
+from typing import Mapping, Sequence
 
 from mission_runtime.contracts.capability import CapabilityRequirement
 
@@ -263,7 +264,7 @@ class LinkPostureThresholds:
     **같은 숫자**다(floor 0.25 / restore_margin 0.20). 배치 시점 결정과 운행
     중 전환이 서로 다른 기준을 쓰면 "배치는 엣지에 맡겼는데 뜨자마자 런타임이
     로컬로 내린다"가 되므로 한쪽을 바꾸면 다른 쪽도 바꿔야 한다 —
-    `runtime/residency.py::LinkPostureThresholds.from_transition_policy`와
+    `runtime/residency.py::thresholds_from_transition_policy`와
     `tests/test_residency.py`가 이 일치를 고정한다.
 
     `min_samples`는 측정 링크에만 적용된다. 선언 링크는 표본 개념이 없다.
@@ -376,3 +377,439 @@ class DevicePurposeProfile:
         "링크 때문에 바뀐 것"과 "목적 때문에 바뀐 것"을 가를 수 있다.
         """
         return replace(self, link=link)
+
+
+# ============================================================================
+# 실행 구성의 **신원**과 그 구성에서 잰 측정값 — AI-B-01 의 "검증" 쪽
+#
+# implements: AI-B-01
+# 관련: AI-B-09 (새 조합은 프로파일을 새로 만든다), AI-C-18 (선언 규약),
+#       AI-L-05/06 (검증·미검증 범위), AI-L-10 (검증 범위를 벗어난 배정 금지),
+#       AI-O-05 (미측정은 0 도 미달도 아니다)
+#
+# 왜 이 층이 따로 필요한가
+# ------------------------
+# `CompatibilityProfile` 은 "어디서 돌 수 있는가" 를 말한다(선언). AI-B-01 은 그
+# 위에 두 가지를 더 요구한다 — **무엇을 실제로 쟀는가**(측정)와 **그 측정이 어느
+# 구성의 것인가**(신원). 셋을 한 칸에 담으면 세 번째가 조용히 사라진다: 모델을
+# 바꾼 뒤에도 숫자는 그 자리에 남아 있고, 그것이 다른 구성에서 잰 값이라는 사실은
+# 아무 자료형도 말하지 않는다.
+#
+# 그래서 측정값은 홀로 존재하지 않는다. `MeasurementSet` 은 자기가 어느 구성의
+# 지문에서 나왔는지를 **필수 칸으로** 들고 다니고, `VerifiedExecutionProfile` 은
+# 생성 시점에 그 지문이 자기 구성의 지문과 같은지 확인한다. 구성 축 하나만 바뀌면
+# 지문이 바뀌고, 그 순간 옛 측정 묶음은 새 구성의 프로파일로 **만들어질 수 없다** —
+# 검토자가 숫자를 지우는 것을 기억해서가 아니라, 옮겨 담을 길이 자료형에 없어서다.
+# 다시 재는 것 = 새 `MeasurementSet` 을 그 구성에서 만드는 것이고, 둘은 같은 일이다.
+#
+# 이미 있는 `contracts/capability_contract.py::ExecutionProfile` 과의 관계
+# -----------------------------------------------------------------------
+# 그쪽은 **선택 시점의 검사**다 — `matches_conditions(runtime, hardware_tags,
+# input_profile)` 로 "지금 조건이 그때 조건과 같은가" 를 묻고, 다르면 그 후보를
+# 건너뛴다(`selection/selector.py::REASON_PROFILE_CONDITIONS_MISMATCH`). 그 검사는
+# 그대로 두고 여기서 다시 하지 않는다.
+#
+# 여기 더하는 것은 **신원**이다. 선택 시점 검사만으로는 두 가지가 남는다. 첫째,
+# 조건이 세 축뿐이어서 전처리·후처리·보정이 바뀐 것은 같은 구성으로 읽힌다. 둘째,
+# 측정값과 조건이 같은 객체의 **독립된 칸**이라 조건만 고쳐 쓰는 것이 가능하고
+# `unmeasured_fields` 가 손으로 적는 목록이라 측정값 dict 와 어긋날 수 있다 — 어긋나면
+# 통과로 읽히는 쪽이 더 위험하다. 이 절의 자료형은 미측정을 **키의 부재**로만 말하고
+# (여집합을 따로 적지 않는다) 측정 묶음이 자기 구성의 지문을 들어 옮겨 담기를
+# 막는다. 두 계약의 통합은 `docs/technology-boundaries.md` §10-2 에 남은 합의 사항이다.
+#
+# 반대쪽도 요구사항이다(AI-B-01 마지막 문장). 사람이 확인한 의미 정보·검증
+# 데이터·업무 요구는 구성이 바뀌어도 그대로 쓴다 — 모델을 바꾼 것이 "저 물체는
+# 소화기다" 를 다시 묻게 만들어서는 안 된다. 그 차이를 `KnowledgeRecord.binding`
+# 한 칸이 선언하고, 구성 결속 지식만 지문을 들고 다닌다.
+# ============================================================================
+
+#: 측정 항목의 통제 어휘. AI-B-01 이 열거한 항목을 그대로 옮긴 것이다 —
+#: "처리지연, 처리량, 메모리·연산 자원, 품질, 실패 특성, 네트워크·외부 호출 비용".
+#: 새 항목은 이 목록에 상수를 더하는 일이고, 목록 밖 이름도 측정값으로 담을 수
+#: 있다(배치가 자기 지표를 더하는 자리) — 닫는 것은 어휘가 아니라 **미측정과 0 의
+#: 구분**이다.
+MEASURE_LATENCY_MS = "latency_ms"
+MEASURE_THROUGHPUT_HZ = "throughput_hz"
+MEASURE_MEMORY_MB = "memory_mb"
+MEASURE_COMPUTE_UNITS = "compute_units"
+MEASURE_QUALITY = "quality"
+MEASURE_FAILURE_RATE = "failure_rate"
+MEASURE_NETWORK_BYTES = "network_bytes_per_call"
+MEASURE_EXTERNAL_CALL_COST = "external_call_cost"
+
+MEASUREMENT_KINDS: tuple[str, ...] = (
+    MEASURE_LATENCY_MS,
+    MEASURE_THROUGHPUT_HZ,
+    MEASURE_MEMORY_MB,
+    MEASURE_COMPUTE_UNITS,
+    MEASURE_QUALITY,
+    MEASURE_FAILURE_RATE,
+    MEASURE_NETWORK_BYTES,
+    MEASURE_EXTERNAL_CALL_COST,
+)
+
+#: 실행 구성을 가르는 축의 이름. 지문에 들어가는 순서까지 이 순서다 — 같은 구성이
+#: 다른 지문을 갖지 않으려면 정규형이 하나여야 한다.
+AXIS_CAPABILITY_KIND = "capability_kind"
+AXIS_IMPLEMENTATION = "implementation_ref"
+AXIS_RUNTIME = "runtime_ref"
+AXIS_HARDWARE = "hardware_tags"
+AXIS_INPUT_PROFILE = "input_profile"
+AXIS_PREPROCESS = "preprocess_ref"
+AXIS_POSTPROCESS = "postprocess_ref"
+AXIS_CALIBRATION = "calibration_ref"
+#: 개방어휘(제로샷) 모델에 **무엇을 찾으라고 말했는가**. 가중치를 그대로 두고 클래스
+#: 프롬프트만 바꿔도 그 모델은 다른 것을 찾는다 — 즉 품질도 지연도 다시 재야 한다.
+#: 이 축이 없던 동안은 프롬프트를 바꿔도 지문이 같아서 **옛 측정값이 그대로 유효한
+#: 척했다.** 프롬프트를 쓰지 않는 구성에서는 빈 문자열이고, 빈 값도 지문에 들어가므로
+#: "프롬프트 없음" 과 "프롬프트 있음" 이 같은 구성이 되지 않는다.
+AXIS_PROMPT = "prompt_ref"
+
+CONFIGURATION_AXES: tuple[str, ...] = (
+    AXIS_CAPABILITY_KIND,
+    AXIS_IMPLEMENTATION,
+    AXIS_RUNTIME,
+    AXIS_HARDWARE,
+    AXIS_INPUT_PROFILE,
+    AXIS_PREPROCESS,
+    AXIS_POSTPROCESS,
+    AXIS_CALIBRATION,
+    AXIS_PROMPT,
+)
+
+#: 지식이 실행 구성에 묶이는가. AI-B-01 의 마지막 두 문장이 이 두 값이다.
+BINDING_CONFIGURATION = "configuration_bound"
+BINDING_INDEPENDENT = "configuration_independent"
+KNOWLEDGE_BINDINGS: tuple[str, ...] = (BINDING_CONFIGURATION, BINDING_INDEPENDENT)
+
+#: 구성과 독립인 지식의 종류 — AI-B-01: "사람에게 확인된 의미 정보, 검증 데이터와
+#: 업무 요구처럼 구성과 독립적인 지식". 자유 문자열이 아니라 어휘로 둔 이유는
+#: 재사용 여부가 이 값에 달려 있기 때문이다. 벤더·모델 이름은 여기 들어오지 않는다.
+KNOWLEDGE_HUMAN_CONFIRMED = "human_confirmed_semantics"
+KNOWLEDGE_VALIDATION_DATASET = "validation_dataset"
+KNOWLEDGE_BUSINESS_REQUIREMENT = "business_requirement"
+KNOWLEDGE_MEASUREMENT = "execution_measurement"
+
+KNOWLEDGE_KINDS: tuple[str, ...] = (
+    KNOWLEDGE_HUMAN_CONFIRMED,
+    KNOWLEDGE_VALIDATION_DATASET,
+    KNOWLEDGE_BUSINESS_REQUIREMENT,
+    KNOWLEDGE_MEASUREMENT,
+)
+
+
+def prompt_ref_for(class_names, *, prompt_free: bool = False) -> str:
+    """클래스 프롬프트 → 구성 축에 쓸 **신원**.
+
+    어휘 전문을 축 값으로 쓰지 않는 이유 둘.
+
+    1. 어휘가 수십 개면 지문의 재료가 그만큼 길어지고, 사람이 두 구성을 눈으로
+       견주지 못한다.
+    2. **같은 어휘를 다른 순서로 적은 것은 같은 구성이다.** 순서를 그대로 쓰면
+       `["person","box"]` 와 `["box","person"]` 이 다른 구성이 되어, 아무것도 바뀌지
+       않았는데 재측정 의무가 생긴다. 그래서 정렬·소문자·중복 제거를 거친다.
+
+    `prompt_free=True` 는 **프롬프트를 주지 않는 모델**이다(어휘가 비어 있는 것과
+    다르다 — 그쪽은 "찾을 것을 아직 안 정했다" 이고, 이쪽은 "이 모델은 어휘를 받지
+    않는다" 다). 두 상태가 같은 축 값을 가지면 둘의 측정값이 섞인다.
+    """
+    import hashlib
+
+    if prompt_free:
+        return "prompt_free"
+    normalised = sorted({str(name).strip().lower() for name in class_names or () if str(name).strip()})
+    if not normalised:
+        return ""
+    digest = hashlib.sha256("\n".join(normalised).encode("utf-8")).hexdigest()[:16]
+    # 개수를 함께 적는다 — 사람이 두 참조를 볼 때 "몇 개짜리 어휘였나" 가 바로 보이고,
+    # 해시만 적힌 축은 운영 화면에서 읽을 수 없는 값이 된다.
+    return f"vocab{len(normalised)}:{digest}"
+
+
+@dataclass(frozen=True)
+class ExecutionConfiguration:
+    """하나의 **독립적인 실행 구성**. AI-B-01 의 "실행 구성 식별" 이 이것이다.
+
+    AI-B-01: "동일 capability를 제공하는 서로 다른 모델·알고리즘, 런타임, 하드웨어,
+    실행 위치, 입력 조건, 전처리·후처리와 필요한 보정의 조합을 독립적인 실행 구성으로
+    식별하고".
+
+    모든 축은 **자유 문자열**이다. 벤더 열거형을 두면 새 하드웨어가 이 모듈의 수정이
+    되고, 그것이 절대 준수 원칙 #1·#7 이 금지하는 바로 그 결합이다. `hardware_tags`
+    는 생성 시 정렬된다 — 태그를 적은 순서가 다른 구성이 되어서는 안 된다
+    (`contracts/capability_contract.py::ExecutionProfile.matches_conditions` 의 집합
+    비교와 같은 판단이다).
+
+    `extra_axes` 는 배치가 자기만의 축을 더하는 자리다. 더한 축도 지문에 들어가므로
+    **새 축을 더하는 것 자체가 재측정 의무를 만든다** — 모르는 축이 생겼는데 옛
+    숫자가 그대로 쓰이는 일이 없다.
+    """
+
+    capability_kind: str
+    implementation_ref: str
+    runtime_ref: str
+    input_profile: str
+    hardware_tags: tuple[str, ...] = ()
+    preprocess_ref: str = ""
+    postprocess_ref: str = ""
+    calibration_ref: str = ""
+    #: 개방어휘 모델에 준 클래스 프롬프트의 **신원**. 어휘 목록 자체가 아니라 그것을
+    #: 가리키는 참조다 — 어휘가 길면 지문이 어휘 전문을 담게 되고, 같은 어휘를 다른
+    #: 순서로 적은 것이 다른 구성이 된다. 참조를 만드는 쪽이 정규화를 책임진다
+    #: (`prompt_ref_for()` 참조).
+    prompt_ref: str = ""
+    #: ((축 이름, 값), ...). 생성 시 축 이름으로 정렬된다.
+    extra_axes: tuple[tuple[str, str], ...] = ()
+
+    def __post_init__(self) -> None:
+        if not self.capability_kind:
+            raise ValueError("capability_kind must not be empty")
+        if not self.implementation_ref:
+            raise ValueError("implementation_ref must not be empty")
+        object.__setattr__(self, "hardware_tags", tuple(sorted(self.hardware_tags)))
+        object.__setattr__(
+            self, "extra_axes", tuple(sorted((str(k), str(v)) for k, v in self.extra_axes))
+        )
+
+    def axes(self) -> tuple[tuple[str, str], ...]:
+        """이 구성을 가르는 축 전부. 지문의 재료이고 어긋난 축을 세는 재료다."""
+        core = (
+            (AXIS_CAPABILITY_KIND, self.capability_kind),
+            (AXIS_IMPLEMENTATION, self.implementation_ref),
+            (AXIS_RUNTIME, self.runtime_ref),
+            (AXIS_HARDWARE, ",".join(self.hardware_tags)),
+            (AXIS_INPUT_PROFILE, self.input_profile),
+            (AXIS_PREPROCESS, self.preprocess_ref),
+            (AXIS_POSTPROCESS, self.postprocess_ref),
+            (AXIS_CALIBRATION, self.calibration_ref),
+            (AXIS_PROMPT, self.prompt_ref),
+        )
+        return core + self.extra_axes
+
+    @property
+    def fingerprint(self) -> str:
+        """구성 내용에서 파생된 신원. 축 하나가 달라지면 다른 값이 된다.
+
+        내용에서 파생시키는 이유는 `continual/stream_learning.py::ParameterSet.version`
+        과 같다 — 같은 내용에 두 개의 신원이 생기면 "같은 구성인가" 를 누군가 손으로
+        판정해야 하고, 그 판정이 틀리는 날 옛 숫자가 새 구성에 붙는다.
+        """
+        import hashlib
+
+        canonical = "\n".join(f"{name}={value}" for name, value in self.axes())
+        return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+    def differing_axes(self, other: "ExecutionConfiguration") -> tuple[str, ...]:
+        """두 구성이 **어느 축에서** 다른가. 재측정 사유를 사람이 읽을 수 있게 한다."""
+        mine = dict(self.axes())
+        theirs = dict(other.axes())
+        names = sorted(set(mine) | set(theirs), key=lambda n: (n not in CONFIGURATION_AXES, n))
+        return tuple(n for n in names if mine.get(n, "") != theirs.get(n, ""))
+
+    def measure(
+        self,
+        values: Mapping[str, float],
+        *,
+        measured_at: float | None = None,
+        evidence_refs: Sequence[str] = (),
+        sample_count: int = 0,
+    ) -> "MeasurementSet":
+        """이 구성에서 잰 값 묶음을 만든다. 측정 묶음을 만드는 **유일한** 경로다.
+
+        구성 객체에서만 만들 수 있게 한 것이 핵심이다 — 측정값이 구성과 떨어져
+        떠다니면 어느 구성의 것인지 묻는 자리가 사라진다.
+        """
+        return MeasurementSet(
+            configuration_fingerprint=self.fingerprint,
+            values=dict(values),
+            measured_at=measured_at,
+            evidence_refs=tuple(evidence_refs),
+            sample_count=sample_count,
+        )
+
+
+@dataclass(frozen=True)
+class MeasurementSet:
+    """한 구성에서 **실제로 잰** 값들. 재지 않은 항목은 **키가 없다**.
+
+    implements: AI-B-01
+
+    `edge/calibration_profile.py::CalibrationProfile.quality` 와 같은 모양이다 —
+    미측정 항목은 0 이 아니라 **부재**다. 0 을 넣으면 지연은 빠른 것으로, 메모리는
+    싼 것으로, 실패율은 완벽한 것으로 읽힌다(AI-O-05: 미측정 ≠ 0 ≠ 미달).
+
+    `None` 을 값으로 받지 않는다. `{"quality": None}` 을 허용하면 "키는 있는데 값이
+    없다" 는 세 번째 상태가 생기고, 그것을 읽는 쪽마다 다르게 해석한다.
+    """
+
+    #: 어느 구성에서 쟀는가. 기본값이 없다 — 이 칸이 없는 측정값은 만들 수 없다.
+    configuration_fingerprint: str
+    values: Mapping[str, float] = field(default_factory=dict)
+    measured_at: float | None = None
+    #: 측정 근거 참조(보고서·실험 기록). 픽셀·원본은 들어오지 않는다(AI-C-08).
+    evidence_refs: tuple[str, ...] = ()
+    #: 표본 수. 한 번 잰 값과 25회 잰 값은 같은 근거가 아니다.
+    sample_count: int = 0
+
+    def __post_init__(self) -> None:
+        if not self.configuration_fingerprint:
+            raise ValueError("measurements must name the configuration they were taken on")
+        cleaned: dict[str, float] = {}
+        for name, value in dict(self.values).items():
+            if not name:
+                raise ValueError("measurement name must not be empty")
+            if value is None:
+                raise ValueError(
+                    f"measurement {name!r} is None — 재지 않은 항목은 키를 넣지 않는다 (AI-B-01)"
+                )
+            number = float(value)
+            if number != number or number in (float("inf"), float("-inf")):
+                raise ValueError(f"measurement {name!r} must be a finite number")
+            cleaned[name] = number
+        object.__setattr__(self, "values", cleaned)
+        object.__setattr__(self, "evidence_refs", tuple(self.evidence_refs))
+
+    def has(self, name: str) -> bool:
+        return name in self.values
+
+    def value(self, name: str) -> float | None:
+        """잰 값, 또는 재지 않았으면 `None`. 기본값 인자를 두지 않는다 —
+        `value("latency_ms", 0.0)` 같은 호출 하나가 이 모듈의 목적을 무효로 만든다.
+        """
+        return self.values.get(name)
+
+    def measured(self) -> tuple[str, ...]:
+        return tuple(sorted(self.values))
+
+    def unmeasured(self, among: Sequence[str] = MEASUREMENT_KINDS) -> tuple[str, ...]:
+        """`among` 중 **재지 않은** 항목. AI-B-01 "미측정 항목은 구분해야 한다"."""
+        return tuple(name for name in among if name not in self.values)
+
+
+@dataclass(frozen=True)
+class VerifiedExecutionProfile:
+    """한 실행 구성의 프로파일 — 측정값과 **실제로 돌린 검증 항목**을 함께 든다.
+
+    implements: AI-B-01
+    관련: AI-B-09, AI-L-05, AI-L-06, AI-L-10
+
+    생성 시 `measurements.configuration_fingerprint` 가 `configuration.fingerprint`
+    와 같은지 확인하고, 다르면 거절한다. `dataclasses.replace(profile,
+    configuration=other)` 도 이 확인을 다시 거치므로 **옛 측정값을 새 구성에 붙여
+    넣는 경로가 없다**. 그것이 "재측정 의무를 구조로 만든다" 의 실제 내용이다.
+
+    `validated_by` 는 `CalibrationProfile.validated_by` 와 같은 뜻이다 — 돌린 검증
+    항목의 목록이고, **돌리지 않은 것은 그 여집합**으로 드러난다. 여집합을 직접
+    적지 않는 이유: 두 목록을 따로 적으면 둘이 어긋날 수 있고, 어긋났을 때 통과로
+    읽히는 쪽이 더 위험하다.
+    """
+
+    configuration: ExecutionConfiguration
+    measurements: MeasurementSet
+    validated_by: tuple[str, ...] = ()
+    #: 이 프로파일을 만든 주체(사람·도구 id). 자유 문자열.
+    measured_by: str = ""
+    #: 알려진 실패 조건. AI-B-01 "실패 특성" 중 수치가 아닌 쪽이다.
+    known_failure_conditions: tuple[str, ...] = ()
+
+    def __post_init__(self) -> None:
+        expected = self.configuration.fingerprint
+        if self.measurements.configuration_fingerprint != expected:
+            raise ValueError(
+                "measurements were taken on another execution configuration "
+                f"({self.measurements.configuration_fingerprint[:12]} != {expected[:12]}); "
+                "다른 구성의 측정값을 옮겨 적지 않는다 — 새 구성은 재측정한다 (AI-B-01)"
+            )
+        object.__setattr__(self, "validated_by", tuple(self.validated_by))
+        object.__setattr__(
+            self, "known_failure_conditions", tuple(self.known_failure_conditions)
+        )
+
+    @property
+    def fingerprint(self) -> str:
+        return self.configuration.fingerprint
+
+    def value(self, name: str) -> float | None:
+        return self.measurements.value(name)
+
+    def unmeasured(self, among: Sequence[str] = MEASUREMENT_KINDS) -> tuple[str, ...]:
+        return self.measurements.unmeasured(among)
+
+    def not_validated(self, required_checks: Sequence[str]) -> tuple[str, ...]:
+        """요구된 검증 항목 중 **돌리지 않은** 것. 돌리지 않은 것은 통과가 아니다."""
+        done = set(self.validated_by)
+        return tuple(check for check in required_checks if check not in done)
+
+    def covers(self, configuration: ExecutionConfiguration) -> bool:
+        """이 프로파일의 측정값을 그 구성에 써도 되는가 — **지문이 같을 때만**.
+
+        '비슷한 구성' 이라는 상태를 두지 않는다. 비슷함의 판정은 사람의 암묵지이고,
+        AI-B-01 이 금지하는 "자동으로 동일하다고 가정" 은 정확히 그 암묵지가 코드로
+        들어온 모양이다.
+        """
+        return self.fingerprint == configuration.fingerprint
+
+    def to_resource_cost(self) -> ResourceCost | None:
+        """선택기가 쓰는 `ResourceCost` 로. **재지 않았으면 만들지 않는다.**
+
+        연산·메모리 중 하나라도 미측정이면 `None` 이다. 0 으로 채운 `ResourceCost`
+        는 예산 심사에서 언제나 통과하므로, 재지 않은 구성이 가장 싼 후보가 된다 —
+        없는 이득을 보고 고르는 그 경로를 자료형에서 막는다.
+        """
+        compute = self.value(MEASURE_COMPUTE_UNITS)
+        memory = self.value(MEASURE_MEMORY_MB)
+        if compute is None or memory is None:
+            return None
+        return ResourceCost(
+            compute_units=compute,
+            memory_mb=memory,
+            max_latency_ms=self.value(MEASURE_LATENCY_MS),
+        )
+
+
+@dataclass(frozen=True)
+class KnowledgeRecord:
+    """기록된 지식 1건과 그것이 **구성에 묶이는지**의 선언.
+
+    implements: AI-B-01
+
+    AI-B-01 의 마지막 두 문장이 짝이다. "새 구성은 재측정·재검증해야 한다" 와
+    "사람에게 확인된 의미 정보, 검증 데이터와 업무 요구처럼 구성과 독립적인 지식은
+    재사용할 수 있어야 한다." 모델을 바꾸면 지연은 다시 재야 하지만 "저것은
+    소화기다" 를 사람에게 다시 묻지는 않는다 — 그 차이가 `binding` 한 칸이다.
+
+    구성 결속 기록은 지문을 **반드시** 들고, 구성 독립 기록은 지문을 **들 수 없다**.
+    후자를 막는 이유: 구성에 묶이지 않는다고 선언하면서 구성을 들고 있으면 어느
+    쪽이 참인지 읽는 쪽이 고르게 되고, 그때 고르는 기준은 코드가 아니라 습관이다.
+    """
+
+    knowledge_id: str
+    kind: str
+    binding: str
+    #: 무엇에 대한 지식인가 — 객체·데이터셋·업무 식별자. 자유 문자열.
+    subject: str = ""
+    #: 내용 자체는 여기 담지 않고 참조만 둔다.
+    content_ref: str = ""
+    #: 사람이 확인한 것이면 그 주체. 비어 있으면 사람 확인이 아니다(AI-L-02).
+    confirmed_by: str = ""
+    recorded_at: float | None = None
+    #: 구성 결속 기록만 값을 갖는다.
+    configuration_fingerprint: str | None = None
+
+    def __post_init__(self) -> None:
+        if not self.knowledge_id:
+            raise ValueError("knowledge_id must not be empty")
+        if self.binding not in KNOWLEDGE_BINDINGS:
+            raise ValueError(f"unknown binding {self.binding!r}; expected one of {KNOWLEDGE_BINDINGS}")
+        if self.binding == BINDING_CONFIGURATION and not self.configuration_fingerprint:
+            raise ValueError(
+                "configuration-bound knowledge must name its execution configuration (AI-B-01)"
+            )
+        if self.binding == BINDING_INDEPENDENT and self.configuration_fingerprint:
+            raise ValueError(
+                "configuration-independent knowledge must not carry a configuration fingerprint"
+            )
+
+    @property
+    def reusable_across_configurations(self) -> bool:
+        return self.binding == BINDING_INDEPENDENT

@@ -36,6 +36,7 @@ Cross-part Wire Contract                                <- schemas/ai/*.schema.j
 |---|---|---|
 | `CapabilityState` (ACTIVE/DEGRADED/DISABLED) | `contracts/capability.py` | AI-C-05 |
 | `CapabilityRequirement` (required/optional 선언 + 평가) | `contracts/capability.py` | AI-C-05 |
+| 5계층 선언 계약 `Capability`/`Implementation`/`ExecutionProfile`/`RuntimeInstance`/`TaskIntent` + `DeclarationBasis`(단위·좌표·시간 기준) + 항목표 `CAPABILITY_DECLARATION_ITEMS`·`DECLARATION_ITEM_OWNERS`. 취소 가능 여부·멱등성은 **3값**(모름 ≠ 안 됨) | `contracts/capability_contract.py` | AI-C-18, AI-B-01, AI-C-05 |
 | `CompatibilityProfile`, `ResourceCost`, `ResourceBudget` | `contracts/profile.py` | AI-B-01, AI-B-04, AI-C-13 |
 | `DeploymentProfile` (도메인 = 데이터) | `contracts/profile.py` | AI-C-15 |
 | `FieldSpec` / `DATA_DICTIONARY` | `contracts/data_dictionary.py` | AI-C-01, AI-C-06 |
@@ -142,7 +143,9 @@ python tools/fms_console/serve.py        # http://127.0.0.1:8800/
 | `perception/spatial_evidence.py` | GPS·depth·point cloud·zero-shot·선언·사람이 잰 값을 한 계약으로 융합 | AI-S-06, AI-S-08, AI-C-02 |
 | `perception/evidence_kinds.py` | 모듈마다 자기 모양으로 들고 있던 근거 25 종을 한 계약으로 모은다. 충분도는 점수 합이 아니라 **구조**가 판정한다 | AI-S-03, AI-S-05, AI-S-06 |
 | `registry/onboarding.py` | 장치 추가를 코드 변경이 아니라 선언 네 가지로 | AI-B-09, AI-C-18 |
+| `registry/capability_proposal.py` | **기능** 추가도 코드 변경이 아니라 선언 두 줄로 — 되는지·어디에·안 되면 무엇이 더 필요한지를 적용 **전에** 답한다. 판정은 배치 정본에 위임하고(`PlacementOracle`), 비용 미측정은 거절이 아니라 "재야 한다" 다 | AI-B-09, AI-B-04, AI-C-18 |
 | `runtime/refresh.py` | 반영을 요청으로만 일으키는 장부. 상시 폴링 없음 | AI-C-13, AI-O-01 |
+| `runtime/perception_loop.py` | 레코드가 **확정으로 승격되는 한 자리**. 융합·추적·충분도·요청 선택·보조 실행·수준 조정의 **순서만** 잡고 어느 판정도 다시 하지 않는다. 없는 단계는 사유와 함께 축소된다. 주기는 `runtime/refresh.py` 가 소유하고 이 모듈에는 타이머가 없다 | AI-S-03, AI-S-05, AI-E-04, AI-C-05, AI-C-19 |
 | `runtime/environment_profile.py` | 실행 환경(가속기 가용성 등)을 코드 분기가 아니라 선언 프로파일로 해소. 새 환경은 선언 한 건이고 이 모듈을 고치지 않는다 | AI-B-04, AI-C-15, AI-C-05, AI-B-01 |
 | `runtime/mlops_pipeline.py` | 검증된 모델 버전을 실행영역에 하나의 계약으로 배포·확대·롤백 | AI-L-10, AI-L-07, AI-B-11 |
 | `observability/failure_trace.py`, `providers/observability_query.py` | 실패한 단계의 원인 후보를 순위와 근거로. 미측정과 정상을 섞지 않는다 | AI-O-02/03/05 |

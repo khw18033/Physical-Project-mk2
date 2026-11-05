@@ -1,0 +1,65 @@
+{
+  "$comment": "AI-B-02/AI-B-11/AI-C-16 배포 선언. 새 기능·새 모델은 이 파일에 `bundles` 한 건을 더하는 것이고 코드 변경이 아니다 — `runtime/deployment_bundle.py` 가 이것을 `runtime/mlops_pipeline.py::Deployable` 로 옮기고, 거기서부터는 기존 배정(AI-L-10)·폐쇄망(AI-C-16)·실행영역 해소(AI-B-11)·계보(AI-L-08) 경로가 그대로 돈다. 클러스터 이름도 노드 이름도 여기 적지 않는다: 실행영역은 `required_tags`/`preferred_tags` 로만 찾아지고, 그래서 실행영역마다 오케스트레이터가 달라도 같은 선언이 쓰인다. `image` 는 digest 로 고정하는 것이 기본이다(`require_digest`, 기본 true) — 태그는 같은 이름이 다른 내용을 가리킬 수 있어 재현 가능한 배포의 근거가 되지 못한다(AI-B-02 '식별 가능한 무결성 정보'). 자격증명은 이 파일에 담지 않는다: `image_pull_secrets`·`service_account` 는 **이름만** 이고 값은 실행영역이 들고 있으며, 비밀처럼 보이는 칸 이름은 로더가 거절한다.",
+  "bundles": [
+    {
+      "$comment": "이 저장소의 런타임 이미지. digest 는 **실측값**이다 — 2026-11-04 에 `docker build -t mission-runtime:dev .` 로 실제 빌드한 이미지의 repo digest 를 그대로 적었다(`docker image inspect --format '{{.RepoDigests}}'`). 코드가 바뀌면 이 값도 바뀐다 — 그것이 digest 고정의 요점이고, 다시 빌드한 뒤 이 줄을 갱신하지 않으면 **옛 이미지를 가리킨다**(그리고 그 이미지가 저장소에 없으면 배치가 실패하므로 조용히 틀린 것이 돌지는 않는다). 저장소 호스트(`registry.internal:5000`)는 **배치 자료**이고 현장마다 다르다 — 폐쇄망 프로파일의 `AssetResolver.internal_hosts`/`internal_suffixes` 에 이 호스트가 들어 있지 않으면 배치 전에 거절된다(AI-C-16). 공개 저장소(docker.io)를 가리키면 그 거절이 바로 일어나는 것이 이 선언의 요점이다.",
+      "bundle_id": "mission-runtime-detect-ovd",
+      "capability_kind": "perception.detect_ovd",
+      "image": "registry.internal:5000/mission-runtime@sha256:1522c7bb227465d5e9d284f6cce27a972b74af0ee7f6e452eac59a9bdeb83cc8",
+      "required_tags": ["zone-edge"],
+      "preferred_tags": ["gpu"],
+      "node_labels": {
+        "mission-runtime.io/tier": "zone-edge"
+      },
+      "assets": [
+        {
+          "$comment": "가중치는 이미지에 굽지 않는다 — 내부 저장소에서 조달한다(AI-C-16: '이미지·모델·패키지·규칙'). 논리 id 만 적고 실제 위치는 배치가 정한다.",
+          "asset_id": "model:yolo-world",
+          "kind": "model",
+          "version": "v2-s"
+        }
+      ],
+      "security_context": {
+        "allowPrivilegeEscalation": false,
+        "readOnlyRootFilesystem": true
+      },
+      "image_pull_secrets": ["internal-registry"],
+      "core": false,
+      "note": "열린 어휘 탐지. 구역 엣지에 둔다."
+    },
+    {
+      "$comment": "같은 이미지의 말단 상주 분류기. 같은 이미지가 다른 기능으로 올라가는 것이 정상이다 — 무엇을 서비스로 띄우는지는 배포가 정한다(Dockerfile 의 기본 명령이 상태 확인 한 번인 이유). `core: true` 라서 후보가 없을 때 이 기능만 DISABLED 이고 다른 기능은 그대로 돈다(AI-C-05).",
+      "bundle_id": "mission-runtime-classify",
+      "capability_kind": "perception.classify",
+      "image": "registry.internal:5000/mission-runtime@sha256:1522c7bb227465d5e9d284f6cce27a972b74af0ee7f6e452eac59a9bdeb83cc8",
+      "required_tags": ["zone-edge"],
+      "assets": [
+        {
+          "asset_id": "model:clip-dictionary",
+          "kind": "model",
+          "version": "vit-b32"
+        }
+      ],
+      "image_pull_secrets": ["internal-registry"],
+      "core": true,
+      "note": "사전 기반 분류. 핵심 기능이다."
+    },
+    {
+      "$comment": "외부 AI 서비스를 쓰는 선택 기능의 모양. `external_dependencies[].optional: true` 라서 폐쇄망에서는 **그 의존만 꺼지고** 배치 자체는 거절되지 않는다(AI-C-16: '사용할 수 없을 때 해당 기능만 비활성화'). 반대로 이미지 저장소 의존은 로더가 **비선택**으로 내보내므로 저장소에 닿을 수 없으면 배치가 막힌다 — 이미지를 못 받으면 축소 운용이 아니라 아예 뜨지 못하기 때문이다.",
+      "bundle_id": "external-vlm-assist",
+      "capability_kind": "perception.semantic_hypothesis",
+      "image": "registry.internal:5000/mission-runtime@sha256:1522c7bb227465d5e9d284f6cce27a972b74af0ee7f6e452eac59a9bdeb83cc8",
+      "required_tags": ["server"],
+      "external_dependencies": [
+        {
+          "endpoint": "https://vlm.example.com",
+          "purpose": "open_vocabulary_hypothesis",
+          "optional": true
+        }
+      ],
+      "image_pull_secrets": ["internal-registry"],
+      "core": false,
+      "note": "미확인 객체의 의미 가설 보조. 없으면 그 기능만 꺼진다."
+    }
+  ]
+}

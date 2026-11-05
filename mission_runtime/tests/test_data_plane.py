@@ -1,4 +1,4 @@
-"""implements: AI-C-14
+"""implements: AI-C-06
 covers: plane classification, control-data policy, media/observability separation
 """
 
@@ -36,7 +36,7 @@ def test_plane_assignment(kind, plane):
 
 def test_control_data_stays_on_task_plane_but_gets_stricter_policy():
     # 물리 제어 명령은 업무 데이터에 포함하되 전달 보장·순서·결과 회신·책임 추적이
-    # 필요한 제어 데이터로 별도 정책을 적용한다 (AI-C-14).
+    # 필요한 제어 데이터로 별도 정책을 적용한다 (AI-C-06).
     command = policy_for(DataKind.CONTROL_COMMAND)
     perception = policy_for(DataKind.PERCEPTION_RESULT)
 

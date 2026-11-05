@@ -1,4 +1,4 @@
-"""implements: AI-B-05, AI-B-07, AI-C-02, AI-E-02, AI-E-03, AI-N-02
+"""implements: AI-B-05,  AI-C-02, AI-E-02,  AI-N-02
 """
 import numpy as np
 import pytest

@@ -65,6 +65,52 @@ class CandidateOrigin(str, Enum):
     EXTERNAL_LABEL = "EXTERNAL_LABEL"
 
 
+class SamplePolarity(str, Enum):
+    """그 표본이 라벨의 **예** 인가 **반례** 인가.
+
+    왜 필요했는가
+    -------------
+    사람이 "여기 아무것도 없다" 로 지운 상자는 **확인된 음성**이고, 그것은
+    `ConfirmedAcceptanceScorer` 가 docstring 에 "진짜 판별 수치가 필요하면 확인된
+    음성 표본이 먼저 있어야 한다" 고 적어 둔 바로 그 자료다. 그런데 극성 칸이 없어서
+    그 음성이 **양성 후보로** 들어왔다. `label` 이 비어 `"absent"` 라는 이름이
+    붙고, 상자가 없어 특징이 `(0,0,0,0)` 이 되고, 그 셋이 모이면
+    `parameters["absent"]` 가 **임계 0.0 — 모든 것을 받아들이는 클래스** 로
+    생긴다(2026-11-04 재현 확인). 한 칸이 없어서 사람의 정답이 뒤집혔다.
+
+    음성은 **버리지도** 않는다. 버리면 임계를 교정할 자료가 사라지고, 위 scorer 가
+    기다리는 음성이 영원히 오지 않는다.
+    """
+
+    POSITIVE = "POSITIVE"
+    #: 그 라벨이 **아니라고** 사람이 확인한 표본. 프로토타입의 재료가 아니고
+    #: 임계 교정의 재료다.
+    NEGATIVE = "NEGATIVE"
+
+
+class SampleUsage(str, Enum):
+    """그 표본이 파라미터를 **바꾸는** 데 쓰이는가 **재는** 데 쓰이는가.
+
+    왜 필요했는가
+    -------------
+    회귀는 "전에 되던 것이 아직 되는가" 다. 그런데 그 측정을 후보가 **학습에 쓴
+    표본**에서 하면 train-set 평가이고, 전에 되던 것이 깨졌는지는 거기서 보이지
+    않는다 — 후보는 그 표본에 맞춰진 것이기 때문이다.
+
+    마침 그 측정에 가장 맞는 자료가 이미 만들어져 있고 아무 데도 가지 않는다:
+    사람이 검수해서 **모델이 맞았다고 확인한** 상자들이다. 그것을 학습 후보로
+    올리지 않는 기존 판단은 맞다(AI-L-01: 후보가 전체 스트림으로 불어난다). 다만
+    올리지 않는 것과 **버리는 것**은 다르고, 지금까지는 버려지고 있었다.
+
+    `EVALUATION_ONLY` 는 파라미터를 바꾸지 않는다. 섞으면 후보가 "이미 맞히던
+    것" 쪽으로 당겨지고, 그것은 반대 방향의 같은 편향이며 train/eval 분리도
+    사라진다. 출처: `docs/research/hitl-data-and-weight-management.md` §9.7.
+    """
+
+    TRAINING = "TRAINING"
+    EVALUATION_ONLY = "EVALUATION_ONLY"
+
+
 @dataclass(frozen=True)
 class InputConditions:
     """후보를 만든 입력 조건. 기기별 구분의 근거다(AI-L-09).
@@ -109,6 +155,11 @@ class StreamSample:
     #: (텍스트 프롬프트 기반)에서도 임계 학습이 가능하도록 별 칸으로 둔다.
     similarity: float | None = None
     observed_at: float | None = None
+    #: 라벨의 예인가 반례인가. 기본이 양성이라 기존 호출 경로는 그대로다.
+    polarity: SamplePolarity = SamplePolarity.POSITIVE
+    #: 파라미터를 바꾸는 데 쓰는가, 재는 데만 쓰는가. 기본이 학습이라 기존 호출
+    #: 경로는 그대로다.
+    usage: SampleUsage = SampleUsage.TRAINING
 
     def __post_init__(self) -> None:
         if not self.sample_id:
@@ -134,6 +185,26 @@ class CandidateBatch:
 
     def confirmed(self) -> tuple[StreamSample, ...]:
         return tuple(s for s in self.samples if s.confirmed)
+
+    def confirmed_positives(self) -> tuple[StreamSample, ...]:
+        """프로토타입의 재료. **음성도 평가 전용도 들어오지 않는다.**"""
+        return tuple(s for s in self.confirmed()
+                     if s.polarity is SamplePolarity.POSITIVE
+                     and s.usage is SampleUsage.TRAINING)
+
+    def confirmed_negatives(self) -> tuple[StreamSample, ...]:
+        """임계 교정의 재료. "그 라벨이 아니다" 라고 사람이 확인한 표본들."""
+        return tuple(s for s in self.confirmed()
+                     if s.polarity is SamplePolarity.NEGATIVE
+                     and s.usage is SampleUsage.TRAINING)
+
+    def evaluation_only(self) -> tuple[StreamSample, ...]:
+        """재는 데만 쓰는 표본. **파라미터를 바꾸지 않는다.**
+
+        회귀를 이 집합에서 재면 후보가 맞춰지지 않은 자료에서 재는 것이 된다.
+        """
+        return tuple(s for s in self.confirmed()
+                     if s.usage is SampleUsage.EVALUATION_ONLY)
 
     def labels(self) -> tuple[str, ...]:
         return tuple(sorted({s.label for s in self.confirmed()}))
@@ -280,7 +351,10 @@ class PrototypeLearningProvider:
                 f"quantile={self._quantile},momentum={self._momentum})")
 
     def train(self, batch: CandidateBatch, *, base: ParameterSet | None) -> TrainingOutcome:
-        confirmed = batch.confirmed()
+        # **양성만** 프로토타입의 재료다. 음성을 섞으면 "그 라벨이 아니다" 로 확인된
+        # 표본이 그 라벨의 평균으로 들어간다 — 사람의 정답이 뒤집힌다.
+        confirmed = batch.confirmed_positives()
+        negatives = batch.confirmed_negatives()
         if not confirmed:
             return TrainingOutcome(None, REASON_NO_CONFIRMED_SAMPLES)
 
@@ -310,12 +384,32 @@ class PrototypeLearningProvider:
             threshold = similarities[
                 min(len(similarities) - 1, int(self._quantile * (len(similarities) - 1)))
             ]
-            parameters[label] = {
+            entry = {
                 "prototype": [round(v, 6) for v in prototype],
                 "threshold": round(threshold, 6),
                 "sample_count": len(samples),
             }
             used += [s.sample_id for s in samples]
+
+            # 확인된 음성이 있으면 임계를 그 위로 올린다. 양성만으로 정한 임계는
+            # "받아들이는 몫" 만 말하고 **거짓 양성을 걸러 내는지는 말하지 못한다** —
+            # OpenMax(Bendale & Boult, CVPR 2016)도 절대 임계를 양성만으로 교정하기
+            # 어렵다고 적고 open-set 표본을 함께 썼다. 음성을 전부 밀어낼 수 없으면
+            # **임계를 올리지 않고 그 사실을 적는다** — 올려 버리면 양성까지 잘린다.
+            against = [s for s in negatives if s.label == label
+                       and len(s.feature) == dimension]
+            if against:
+                negative_best = max(_cosine(s.feature, prototype) for s in against)
+                entry["negative_sample_count"] = len(against)
+                entry["negative_max_similarity"] = round(negative_best, 6)
+                if negative_best < threshold:
+                    entry["threshold_separates_negatives"] = True
+                else:
+                    # 음성이 양성 임계 안에 들어온다. 이 특징 공간에서는 그 둘이
+                    # 갈리지 않는다는 사실이고, 숨기면 임계가 괜찮은 척한다.
+                    entry["threshold_separates_negatives"] = False
+                used += [s.sample_id for s in against]
+            parameters[label] = entry
 
         if not parameters:
             return TrainingOutcome(None, REASON_TOO_FEW_SAMPLES)

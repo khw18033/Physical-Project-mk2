@@ -1,6 +1,6 @@
 """implements: AI-S-01, AI-C-03
-reproduces (decision rule only): LRCP, WACV 2025 (docs/obsidian/papers/lrcp.md);
-TraF-Align, CVPR 2025 (docs/obsidian/papers/traf-align.md)
+reproduces (decision rule only): LRCP, WACV 2025 (internal/docs-dev/obsidian/papers/lrcp.md);
+TraF-Align, CVPR 2025 (internal/docs-dev/obsidian/papers/traf-align.md)
 tests: motion-compensated position tracks a moving object more accurately
        than the stale (uncompensated) position across latency, the gap
        between them widens with latency (matching LRCP's own reported

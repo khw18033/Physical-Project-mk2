@@ -2,7 +2,7 @@
 
 implements: AI-L-04, AI-L-05
 
-docs/obsidian/papers/p2iod.md §5 ablation (Table 3, VOC 5+5+5+5): adding the
+internal/docs-dev/obsidian/papers/p2iod.md §5 ablation (Table 3, VOC 5+5+5+5): adding the
 parameterized-prompt structure alone drops old-class AP50 from 73.3 to 70.7
 (catastrophic forgetting), and adding parameterized-prompt fusion on top
 recovers it to 74.0. This test does not reproduce those numbers (no real

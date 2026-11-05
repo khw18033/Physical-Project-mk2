@@ -84,6 +84,39 @@ AP_PLACEMENT_FIELD = "ap_placement"
 #: 접근 가능하다고 보는 구역 상태.
 REACHABLE_STATES = frozenset({ZONE_OPERABLE, ZONE_LIMITED})
 
+#: 세로(위쪽) 값이 어디서 왔는가. **미측정과 0 은 다른 사실이다** — 0 을 적으면
+#: "바닥에 붙어 있다고 쟀다" 가 되고, 그 값을 받은 3D 소비자는 천장 카메라를
+#: 바닥에 놓는다. 그래서 선언이 없으면 숫자 칸을 **두지 않고** 이 상태만 낸다
+#: (AI-C-02 · AI-S-08: 사전정보는 관측과 구분해 관리한다).
+HEIGHT_DECLARED = "declared"        # 선언 프로파일이 적어 둔 값(실측은 아닐 수 있다)
+HEIGHT_UNMEASURED = "unmeasured"    # 아무도 적지 않았다. 0 이 아니다
+
+#: 층 바닥의 **고도**. `y_offset` 과 혼동하면 안 된다 — 그쪽은 여러 층 도면을
+#: 한 평면에 쌓아 그릴 때의 평면 오프셋(같은 x·y 단위)이고 높이가 아니다.
+ELEVATION_DECLARED = "declared"
+ELEVATION_UNMEASURED = "unmeasured"
+#: 고도가 없는 사유. 층 선언에 그 값이 아예 없다는 뜻이고 장애가 아니다(AI-C-05).
+ELEVATION_NOT_SURVEYED = "not_surveyed"
+
+#: 바닥 평면과 위쪽 축. 3D 소비자(Unity 뷰어)가 바닥 슬래브를 어느 평면에 놓고
+#: 어느 축을 위로 삼아야 하는지를 **서버가 한 번** 말한다. 뷰어마다 정하면 한
+#: 화면은 y 를 위로, 다른 화면은 z 를 위로 읽어 같은 현장이 90도 돌아간다.
+#:
+#: 위쪽 축을 `"z"` 라고 적지 않는 이유가 있다 — 이 계약의 `y` 는 **바닥 위의
+#: 깊이**이고, 뷰어(콘솔·Unity)는 그것을 자기 쪽 Z 로 옮겨 Y 를 위로 쓴다.
+#: 서버가 위쪽을 "z" 로 적으면 그 뷰어에서 깊이와 높이가 같은 이름이 된다.
+#: 그래서 축 이름은 `up` 이고, 그 값이 **어느 칸에 사는지**를 함께 낸다.
+FLOOR_PLANE_AXES = ("x", "y")
+FLOOR_UP_AXIS = "up"
+#: 위쪽 값이 실제로 사는 칸. 자리 값(`at`)에는 위쪽 성분이 **없다** — 그 사실을
+#: 적지 않으면 받는 쪽이 없는 축을 0 으로 채운다.
+FLOOR_UP_CELLS = ("elevation_m", "height_m")
+
+#: 융합된 객체 자리의 차원 수. `twin.py::FusedRecord.fused_position` 은 (x, y)
+#: 두 값이고 z 를 내지 않는다. 그 사실을 계약에 적어야 3D 소비자가 "z 가 없다"와
+#: "z 가 0 이다"를 구분한다 — 후자로 읽으면 미측정이 측정값으로 바뀐다.
+OBJECT_POSITION_DIMENSIONS = 2
+
 #: 구역 상태를 도메인 상태로 올릴 때의 서열. 가장 좋은 구역이 도메인을 대표한다 —
 #: 평균을 내면 한 구역만 살아 있는 도메인과 전부 유휴인 도메인이 같아 보인다.
 _ZONE_RANK = {ZONE_OPERABLE: 0, ZONE_LIMITED: 1, ZONE_IDLE: 2, ZONE_NO_ROBOT: 3}
@@ -935,6 +968,49 @@ def map_tiles_block(declaration: dict | None = None) -> dict:
     }
 
 
+# ---------------------------------------------------------------------------
+# 세로 축과 개수 — 작은 도우미 셋
+# ---------------------------------------------------------------------------
+
+
+def _count_kinds(items) -> dict[str, int]:
+    """종류별 개수. 한 수로 합치지 않는 이유는 쓰는 쪽에 적었다."""
+    counts: dict[str, int] = {}
+    for item in items:
+        kind = item.get("kind")
+        if not kind:
+            continue
+        counts[kind] = counts.get(kind, 0) + 1
+    return dict(sorted(counts.items()))
+
+
+def _height_block(pose: dict | None) -> dict:
+    """설치 높이 — **선언이 있을 때만 숫자 칸이 생긴다.**
+
+    없을 때 0 을 적지 않는 이유가 이 함수의 전부다. 0 은 "바닥에 붙어 있다고
+    쟀다" 는 뜻이고, 그 값을 받은 3D 뷰어는 천장 카메라를 바닥에 놓는다. 칸이
+    없고 상태가 `unmeasured` 면 뷰어는 그 물건을 들어 올리지 않는다(AI-C-02).
+    """
+    height = (pose or {}).get("height_m")
+    if height is None:
+        return {"height_state": HEIGHT_UNMEASURED}
+    return {"height_m": float(height), "height_state": HEIGHT_DECLARED}
+
+
+def _interior_height(room: dict) -> float | None:
+    """안으로 들어갈 수 있는 방의 **천장 높이**. 선언이 없으면 None 이다.
+
+    `size_m` 에 `height` 가 적혀 있으면 그것을 쓰고, 방 자체에 `height_m` 이
+    적혀 있으면 그것을 쓴다. 둘 다 없는 것이 지금 현장의 상태다 — 가시화 파트가
+    보내 온 실내 기하에는 바닥 치수(width·depth)만 있다.
+    """
+    size = room.get("size_m") or {}
+    for candidate in (size.get("height"), size.get("height_m"), room.get("height_m")):
+        if candidate is not None:
+            return float(candidate)
+    return None
+
+
 @dataclass
 class FleetModel:
     """도메인·구역·로봇·기능을 한곳에서 조립한다. 아무 상태도 바꾸지 않는다."""
@@ -1057,6 +1133,56 @@ class FleetModel:
         site = {k: v for k, v in (self.domain(domain_id).get("site") or {}).items()
                 if k not in hidden}
         return site
+
+    # -- 층 ---------------------------------------------------------------
+
+    def level_summary(self, domain_id: str, level_id: str) -> dict:
+        """층 하나 — 선언 그대로에 **그 층에 실제로 있는 것의 수**를 더한다.
+
+        층 선택 버튼이 읽는 값이다. 개수를 뷰어가 세게 하면 같은 층을 두 화면이
+        다르게 센다(AI-O-06: 같은 사실은 한 출처에서 파생시킨다).
+
+        `y_offset` 은 여러 층 도면을 **한 평면에 쌓아 그릴 때**의 평면 오프셋이고
+        고도가 아니다. 그래서 이름을 바꾸지 않고 `plan_stacking_offset_m` 로 한 번
+        더 적는다 — 둘을 같은 칸으로 읽으면 5층이 남쪽 72 m 자리에 선다.
+
+        고도는 선언이 있을 때만 숫자 칸이 생긴다. 없으면 `elevation_state` 가
+        `unmeasured` 이고 그것이 이 현장의 정상 상태다(AI-C-02).
+
+        implements: AI-C-02, AI-C-05, AI-O-06, AI-S-08
+        """
+        domain = self.domain(domain_id)
+        levels = list(domain.get("levels", ()))
+        for ordinal, level in enumerate(levels):
+            if level.get("level_id") != level_id:
+                continue
+            zones = [z for z in domain["zones"] if z.get("level_id") == level_id]
+            states = [self.zone_state(z["zone_id"]) for z in zones]
+            declared = [d["node_id"] for z in zones
+                        for d in z.get("declared_nodes", ())]
+            elevation = level.get("elevation_m")
+            return {
+                **{k: v for k, v in level.items() if not k.startswith("$")},
+                # 선언된 차례. 고도가 미측정인 현장에서 3D 소비자가 층을 쌓을 수
+                # 있는 **유일한** 근거이고, 차례는 거리가 아니라는 사실이 이름에
+                # 들어 있다 — ordinal 로 미터를 만들면 안 된다.
+                "ordinal": ordinal,
+                "zone_ids": [z["zone_id"] for z in zones],
+                "zone_count": len(zones),
+                "reachable_zone_count": sum(
+                    1 for s in states if s in REACHABLE_STATES),
+                "declared_count": len(declared),
+                "discovered_count": sum(
+                    1 for n in declared if n in self.discovery.actions),
+                "plan_stacking_offset_m": float(level.get("y_offset", 0.0)),
+                **({"elevation_m": float(elevation)}
+                   if elevation is not None else {}),
+                "elevation_state": (ELEVATION_DECLARED if elevation is not None
+                                    else ELEVATION_UNMEASURED),
+                **({} if elevation is not None
+                   else {"elevation_reason": ELEVATION_NOT_SURVEYED}),
+            }
+        raise KeyError(level_id)
 
     def _level_offset(self, domain_id: str, level_id: str | None) -> float | None:
         for level in self.domain(domain_id).get("levels", ()):
@@ -1493,7 +1619,23 @@ class FleetModel:
             "rooms": list(zone.get("rooms", ())),
             # 이름만 있는 방과 **안으로 들어갈 수 있는 방**은 다른 목록이다.
             # 한 칸에 담으면 21 개 방이 전부 열리는 것처럼 보인다.
-            "interiors": [dict(r) for r in zone.get("interiors", ())],
+            "interiors": [self._interior_view(r) for r in zone.get("interiors", ())],
+            # 커서를 올렸을 때 띄우는 팝업은 **수**를 읽는다. 21 개 호실 이름을
+            # 그대로 늘어놓으면 팝업이 화면을 덮고, 세는 일을 뷰어에 맡기면 목록
+            # 화면과 지도 팝업이 같은 구역을 다르게 센다(AI-O-06).
+            "room_count": len(zone.get("rooms", ())),
+            "interior_count": len(zone.get("interiors", ())),
+            "landmark_count": len(zone.get("landmarks", ())),
+            # 문·계단·승강기는 **종류별로** 세어 낸다. 한 수로 합치면 "지물 30개"
+            # 가 되어 계단이 몇 개인지 물을 자리가 없어진다.
+            "landmark_counts": _count_kinds(zone.get("landmarks", ())),
+            "infrastructure_count": len(zone.get("infrastructure", ())),
+            # 선언만 되고 아직 아무 공지도 오지 않은 장치. "없는 것은 없다고
+            # 적는다" 가 이 칸이다 — 선언 수에서 뺀 값을 뷰어가 계산하면 예상
+            # 밖 장치가 섞인 구역에서 음수가 나온다.
+            "declared_only_count": sum(
+                1 for d in zone.get("declared_nodes", ())
+                if d["node_id"] not in self.discovery.actions),
             "state": state,
             "reachable": state in REACHABLE_STATES,
             "edge_node": zone.get("edge_node"),
@@ -1517,6 +1659,10 @@ class FleetModel:
             **self.zone_summary(zone_id),
             "rect": zone["rect"],
             "space": domain["space"],
+            # 3D 소비자가 바닥 슬래브를 놓는 데 필요한 것 전부. 평면은 `rect` 와
+            # **같은 숫자**이고 같은 출처에서 나온다 — 같은 사실을 두 번 계산하지
+            # 않는다(AI-O-06). 고도는 선언이 없으면 칸이 없다(AI-C-02).
+            "floor": self.floor_plane(zone_id),
             "rf": self._zone_rf(zone_id),
             "neighbours": [n for n in self.zone_neighbours(zone_id)],
             "movable_devices": list(self.movable_devices(zone_id)),
@@ -1529,6 +1675,9 @@ class FleetModel:
                      # 선언된 자리를 함께 낸다 — 선언과 실측이 얼마나 어긋났는지가
                      # 현장 조사를 더 할지 판단하는 근거다.
                      "declared_at": item.get("at"),
+                     # 설치 **높이**. 선언이 있으면 숫자가 오고 없으면 상태만
+                     # 온다 — 0 으로 채우면 천장 카메라가 바닥에 놓인다.
+                     **_height_block(item.get("pose")),
                      # 설정에 없는 장치의 자원은 **칸 없이** 둔다. 빈 객체로 적으면
                      # "태그가 없는 장치" 로 읽히지만 사실은 "아직 조인하지 않아
                      # 모르는 장치" 다(칸 없음과 빈 값은 다른 뜻 — 뷰 계약 §3.2).
@@ -1542,11 +1691,107 @@ class FleetModel:
             # 고를 수 있는 것들과 같은 칸에 담으면 "문을 선택" 하게 된다.
             "landmarks": [
                 self._with_global(
-                    {**item, "at": item.get("at")},
+                    {**item, "at": item.get("at"),
+                     **_height_block(item.get("pose"))},
                     domain_id=domain["domain_id"], level_id=zone.get("level_id"))
                 for item in zone.get("landmarks", ())
             ],
+            # 이 구역에서 **세로로 아는 것과 모르는 것**. 2.5D·3D 뷰어가 무엇을
+            # 들어 올릴 수 있고 무엇을 바닥에 둬야 하는지를 여기 한 곳에서 읽는다.
+            "vertical": self.vertical_state(zone_id),
             "robots": list(self.robots_in(zone_id)),
+        }
+
+    # -- 바닥 평면과 세로 축 (3D 소비자가 읽는 자리) ----------------------
+
+    def floor_plane(self, zone_id: str) -> dict:
+        """그 구역의 바닥 평면 — 3D 소비자가 슬래브를 놓는 데 필요한 것만.
+
+        평면 숫자는 `rect` 를 그대로 쓴다. 따로 계산하면 반올림 한 자리에서
+        갈라지고, 그때부터 2D 도면과 3D 바닥이 서로 다른 자리를 말한다.
+
+        **고도는 거의 언제나 미측정이다.** 층 선언에 `elevation_m` 이 있으면 그
+        값이 나가고, 없으면 숫자 칸 자체가 없다 — 0 을 적으면 모든 층이 지면에
+        겹쳐 쌓이고 그것은 측정값처럼 보인다(AI-C-02 · AI-S-08).
+
+        implements: AI-C-02, AI-C-05, AI-S-08, AI-O-06
+        """
+        zone = self.zone(zone_id)
+        domain_id = self.domain_of(zone_id)
+        domain = self.domain(domain_id)
+        level_id = zone.get("level_id")
+        level = next((l for l in domain.get("levels", ())
+                      if l.get("level_id") == level_id), {})
+        elevation = level.get("elevation_m")
+        return {
+            "level_id": level_id,
+            "plane": dict(zone["rect"]),
+            "frame": {
+                "kind": "domain_local",
+                "domain_id": domain_id,
+                "level_id": level_id,
+                "unit": (domain.get("space") or {}).get("unit"),
+                "plane_axes": list(FLOOR_PLANE_AXES),
+                "up_axis": FLOOR_UP_AXIS,
+                "up_axis_cells": list(FLOOR_UP_CELLS),
+                # 자리 값에는 위쪽 성분이 없다. 뷰어는 바닥 평면에 놓고, 위쪽은
+                # 위 칸에 선언이 있는 것만 들어 올린다.
+                "position_has_up_component": False,
+            },
+            **({"elevation_m": float(elevation)} if elevation is not None else {}),
+            "elevation_state": (ELEVATION_DECLARED if elevation is not None
+                                else ELEVATION_UNMEASURED),
+            **({} if elevation is not None
+               else {"elevation_reason": ELEVATION_NOT_SURVEYED}),
+        }
+
+    def vertical_state(self, zone_id: str) -> dict:
+        """세로로 **아는 것과 모르는 것**을 센다.
+
+        2.5D 로 들어 올릴 수 있는 것은 높이가 선언된 물건뿐이다. 나머지를 적당한
+        높이로 들어 올리면 화면은 입체가 되지만 그 입체는 측정이 아니다 — 그래서
+        세지 않고 숨기는 대신 **몇 개가 미측정인지** 를 함께 낸다(AI-S-03: 근거
+        충분도는 confidence 하나로 확정하지 않는다).
+
+        implements: AI-C-02, AI-S-03, AI-S-08, AI-O-06
+        """
+        zone = self.zone(zone_id)
+        items = [*zone.get("infrastructure", ()), *zone.get("landmarks", ())]
+        access_point = self.access_point(zone_id)
+        if access_point is not None:
+            items.append(zone.get("wifi") or {})
+        declared = sum(1 for i in items
+                       if (i.get("pose") or {}).get("height_m") is not None)
+        floor = self.floor_plane(zone_id)
+        return {
+            "up_axis": FLOOR_UP_AXIS,
+            "elevation_state": floor["elevation_state"],
+            "declared_height_count": declared,
+            "unmeasured_height_count": len(items) - declared,
+            # 안으로 들어갈 수 있다고 선언된 방 중 **천장 높이까지** 적힌 것.
+            # 방 개수는 `zone_summary` 의 `interior_count` 가 말한다 — 같은 수를
+            # 두 칸에 담지 않는다(AI-O-06).
+            "interior_declared_height_count": sum(
+                1 for r in zone.get("interiors", ())
+                if _interior_height(r) is not None),
+            "interior_unmeasured_height_count": sum(
+                1 for r in zone.get("interiors", ())
+                if _interior_height(r) is None),
+            # 융합된 객체의 자리는 평면 두 값이다. z 가 없다는 사실을 적어 두지
+            # 않으면 받는 쪽이 없는 축을 0 으로 채운다.
+            "object_position_dimensions": OBJECT_POSITION_DIMENSIONS,
+            "object_height_state": HEIGHT_UNMEASURED,
+        }
+
+    @staticmethod
+    def _interior_view(room: dict) -> dict:
+        """안으로 들어갈 수 있는 방 하나 — 선언 그대로에 높이 상태만 더한다."""
+        height = _interior_height(room)
+        return {
+            **{k: v for k, v in room.items() if not k.startswith("$")},
+            **({"height_m": float(height)} if height is not None else {}),
+            "height_state": (HEIGHT_DECLARED if height is not None
+                             else HEIGHT_UNMEASURED),
         }
 
     # -- RF·핸드오버 ------------------------------------------------------
@@ -1669,7 +1914,10 @@ class FleetModel:
             "domain_id": domain_id,
             "label": domain["label"],
             "space": domain["space"],
-            "levels": list(domain.get("levels", ())),
+            # 층은 선언만 내보내지 않는다. 층 선택 버튼이 "이 층에 구역이 몇 개,
+            # 장치가 몇 개" 를 물으므로 그 수를 **여기서** 센다(AI-O-06).
+            "levels": [self.level_summary(domain_id, l["level_id"])
+                       for l in domain.get("levels", ())],
             "site": self.site_view(domain_id),
             # 이 현장에서 전역 계층을 쓸 수 있는가, 못 쓰면 무엇이 없어서인가.
             # datum 이 없는 현장은 `{"layer": "disabled", "reason": "no_datum"}` 하나이고

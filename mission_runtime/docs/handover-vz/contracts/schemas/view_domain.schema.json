@@ -1,0 +1,7 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://physical-project.local/schemas/view_domain.schema.json",
+  "title": "View payload — GET /api/domain?id=",
+  "$comment": "도메인 하나를 열었을 때의 장면. 구역·고정 장치·로봇 자리까지.",
+  "$ref": "https://physical-project.local/schemas/view_snapshot.schema.json#/$defs/domain_scene"
+}

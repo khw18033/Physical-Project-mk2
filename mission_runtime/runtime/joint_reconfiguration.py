@@ -1,6 +1,8 @@
 """Reconfiguration driven by evidence sufficiency alongside resources.
 
-implements: AI-B-06, AI-C-13, AI-R-04, AI-S-03, AI-S-05, AI-N-03, AI-C-11
+implements: AI-B-06, AI-C-13, AI-S-03, AI-S-05, AI-N-03, AI-C-05
+구 AI-R-04("관측·분석 수준 조정 요청")는 §5 에서 AI-S-05 로 흡수됐다 —
+위에 이미 적혀 있으므로 번호만 뺀다.
 
 `ResourceAdaptiveReconfigurer` decides from a resource snapshot alone. That is
 enough while the only thing changing is headroom, and not enough once the

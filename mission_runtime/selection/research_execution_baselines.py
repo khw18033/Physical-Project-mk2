@@ -1,7 +1,7 @@
 """Deterministic functional baselines inspired by execution research.
 
 implements: AI-B-01, AI-B-04, AI-B-06, AI-B-08, AI-O-01, AI-C-04,
-AI-C-09, AI-C-12, AI-C-13
+AI-C-04, AI-C-04, AI-C-13
 
 These policies reproduce *interfaces and decision shapes*, not the papers'
 reported accuracy or performance.  They are deliberately vendor-neutral and
@@ -227,7 +227,7 @@ class EdgeBoostDecision:
 
 class EdgeBoostOffloadPolicy:
     """EdgeBoost-style (Said & Landsiedel, Computer Networks 2025;
-    docs/obsidian/papers/edgeboost.md) selective on-device/edge offload.
+    internal/docs-dev/obsidian/papers/edgeboost.md) selective on-device/edge offload.
 
     implements: AI-E-04, AI-S-05
 
@@ -287,7 +287,7 @@ class Where2commSelection:
 
 
 class Where2commBroadcastPolicy:
-    """Where2comm-style (Hu et al., NeurIPS 2022; docs/obsidian/papers/where2comm.md)
+    """Where2comm-style (Hu et al., NeurIPS 2022; internal/docs-dev/obsidian/papers/where2comm.md)
     spatially sparse broadcast selection.
 
     implements: AI-E-04, AI-C-06
@@ -346,7 +346,7 @@ class OctoCrossTransferPlan:
 
 
 class OctoCrossTransferPolicy:
-    """OctoCross-style (Cheng et al., ICSOC 2025; docs/obsidian/papers/octocross.md)
+    """OctoCross-style (Cheng et al., ICSOC 2025; internal/docs-dev/obsidian/papers/octocross.md)
     capacity-feasible cross-camera load transfer.
 
     implements: AI-B-04, AI-B-06

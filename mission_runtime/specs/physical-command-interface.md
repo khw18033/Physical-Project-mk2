@@ -193,7 +193,7 @@ D → uplink   : CommandAcceptance{command_id=c-4, accepted=true}
 | `CommandAcceptance` 필드 3 | `accepted_at`(double) | `rejection`(message) |
 | `CommandResult` 필드 3·4 | `completed_at`, `result`(Struct) | `result`(map), `failure` |
 | `CancelCommandResponse` 필드 3 | `reason`(string) | 없음 |
-| `Capability` | name/version/schema/cancel_supported/required_resources | device_id/actions[] |
+| `Capability` | name/version/schema/cancel_supported/required_resources (2026-11-04: + idempotent/invocation/basis/scope_tags/optional_resources/execution_profile_ref, cancel_supported 는 3값) | device_id/actions[] |
 
 생성된 descriptor 바이트가 HW가 배포 중인 `pi/common/physical_command_pb2.py`의 것과
 **완전히 동일함**을 확인했다(1330바이트 일치). 회귀는 `tests/test_physical_command_wire_alignment.py`가
@@ -242,6 +242,54 @@ D → uplink   : CommandAcceptance{command_id=c-4, accepted=true}
 
 **P6·P7의 현재 처리**: 버릴 때마다 직렬화기의 `wire_gaps` 카운터에 남는다. 관측
 경로로 흘려보내면(`on_gap`) 운영 중에도 무엇이 잘려 나가는지 볼 수 있다.
+
+**P7의 2026-11-04 보강 — 우리 쪽에서 할 수 있는 몫은 끝냈다.** 와이어가 넓어지는
+것은 여전히 협의 대상이지만, 그때까지 우리 쪽이 하던 처리에 **두 가지 구멍**이
+있었고 그것은 우리 몫이었다.
+
+1. **담을 칸이 없던 항목들.** 단위·좌표·시간 기준 / 멱등성 / 동기·비동기 /
+   수행·관측 범위 / 선택 실행 조건은 `Capability` 에 자리가 아예 없었다. 와이어가
+   넓어져도 받을 곳이 없었다는 뜻이고, 그러면 "와이어가 못 싣는 것"과 "우리가 못
+   받는 것"이 구분되지 않는다. 지금은 `contracts/physical_command.py::Capability`
+   가 AI-C-18 항목 전부에 칸을 가지고, 일반 구성요소 선언
+   (`contracts/capability_contract.py`)으로 **손실 없이** 옮겨진다
+   (`to_declaration()`).
+2. **"모른다"가 "안 된다"로 접혀 있었다.** `cancel_supported` 가 `bool = False`
+   여서, 아무도 선언하지 않은 장치와 **취소를 지원하지 않는다고 선언한** 장치가
+   같은 값이었다. 이 와이어는 그 항목을 싣지 못하므로 **들어오는 모든 선언이**
+   그 거짓에 걸려 있었다 — 상위 기능이 보기에 모든 장치가 "취소를 거부하는
+   장치"였다. 지금은 세 값(True/False/None)이고, §4가 구분하라고 못 박은 취소
+   수락 ≠ CANCELED 도달이 그 선언 위에 선다.
+
+그래서 지금 이 와이어로 온 선언의 처리는 이렇다.
+
+| 무엇 | 어디에 |
+|---|---|
+| 선언 항목이 비어 있다는 사실 | `undeclared_items()` 가 **항목 이름으로** 돌려준다. 디코드된 payload 에도 `undeclared_items` 로 실린다 |
+| 그 수 | 항목마다 따로 센다 — `wire_gaps["capability.undeclared.<item>"]` |
+| 선언된 값을 버릴 때 | 전과 같이 `wire_gaps["capability.<field>"]`. `False` 와 빈 묶음도 **선언된 값이므로 센다**(미선언만 세지 않는다) |
+| 선택에서 | `CapabilityRegistry.providers_declaring()` 이 "그렇다고 선언한 것"과 "아무도 선언하지 않은 것"을 **다른 묶음으로** 돌려준다. 미선언을 거부로 접지도, 충족으로 세지도 않는다 |
+| 조인에서 | `JoinOutcome.under_declared_actions` 에 action 별로 적힌다. 덜 찬 선언은 조인을 막지 않는다 |
+
+**와이어가 넓어질 때 필요한 것(변경 없음).** 아래 이름으로 오면 우리 쪽은 코드
+변경 없이 받는다 — `Capability` 에 그 칸이 이미 있다.
+
+| 필요한 필드 | 우리 칸 | 모르면 |
+|---|---|---|
+| `bool cancel_supported` (optional 로, **presence 가 필요하다**) | `cancel_supported` | **보내지 않는다.** `false` 로 채우면 미선언과 "취소 불가" 가 같아진다 |
+| `bool idempotent` (같은 이유로 optional) | `idempotent` | 보내지 않는다 |
+| `string invocation` (`synchronous`/`asynchronous`) | `invocation` | 빈 문자열로 보내지 않는다 |
+| `string parameter_schema` · `result_schema` · `version` | 같은 이름 | 보내지 않는다 |
+| `map<string,string> units` · `string reference_frame` · `string time_basis` | `basis` | 객체를 **만들지 않는다**(빈 객체는 "기준을 선언했다" 가 된다) |
+| `Scope { repeated string tags }` — **중첩 메시지로** | `scope_tags` | 메시지를 보내지 않는다. proto3 의 `repeated` 는 presence 가 없어 빈 목록과 미선언이 같아지므로, "범위 제약 없음"(빈 목록)을 선언하려면 포장이 필요하다 |
+| `repeated string required_resources` · `optional_resources` | 같은 이름 | — |
+| `string execution_profile_ref` | `execution_profile_ref` | 실측 숫자를 이 메시지에 싣지 않는다. 숫자의 주인은 AI-B-01 의 `ExecutionProfile` 이다 |
+
+proto3 에서 스칼라의 presence 는 `optional` 키워드가 주고, 그것이 없으면 "false 를
+보냈다"와 "안 보냈다"가 와이어에서 같아진다. `repeated`·`map` 은 `optional` 을 붙일
+수 없으므로 빈 것과 미선언을 갈라야 하는 자리는 중첩 메시지로 포장한다(메시지 필드는
+presence 가 있다). P7 의 핵심이 이 구분이므로 **필드 번호보다 이 점이 먼저다** — 번호만
+맞추고 presence 를 빼면 이번에 고친 "모른다 ≠ 안 된다"가 와이어에서 다시 사라진다.
 
 **P1(해소)의 현재 처리**: `correlation_id`가 **유효한 W3C traceparent일 때만**
 `Command.traceparent`에 싣고, 형식이 아니면 싣지 않고 `wire_gaps`에 남긴다. 아무 문자열이나

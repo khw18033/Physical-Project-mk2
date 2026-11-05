@@ -9,7 +9,8 @@
 이 아니다.
 
 implements: AI-S-06, AI-O-04, AI-C-02, AI-B-09, AI-C-10, AI-C-18
-tests: declared vs reported vs last_seen, position survives loss of contact,
+tests: declaration vs observation vs liveness (three cells, not one),
+       position survives loss of contact,
        a joined device stands up at once, a join is not an availability verdict
 """
 from __future__ import annotations
@@ -87,20 +88,33 @@ def test_a_robot_that_never_reported_shows_its_declaration(service):
 
 
 def test_a_reported_position_beats_the_declaration(service):
-    """로봇이 움직이면 선언된 자리는 그 순간부터 거짓이다."""
+    """로봇이 움직이면 선언된 자리는 그 순간부터 거짓이다.
+
+    2026-11-04: 관측이 이겨도 **선언의 출처(`at_origin`)는 바뀌지 않는다.** 그 선언이
+    사라진 것은 아니고, 지금 `at` 을 만든 것은 형제 칸 `position_source` 가 말한다 —
+    "누가 말했나" 와 "선언이냐 관측이냐" 와 "지금 살아 있나" 는 다른 축이고
+    (`docs/view-contract.md` §6.5.1) 한 칸에 담지 않는다.
+    """
     _report(service, 20.5, 30.25)
     robot = _robot(service)
 
     assert robot["at"] == {"x": 20.5, "y": 30.25}
-    assert robot["at_origin"] == "reported"
+    assert robot["at_origin"] == "declared", "선언은 관측에 덮이지 않는다"
     # 어느 경로로 들어온 값인지 남는다 — 선언과 섞이지 않는다(AI-S-06).
     assert robot["position_source"] == "robot_state_15201"
 
 
 def test_losing_contact_keeps_the_last_place_it_was_seen(service):
-    """닿지 않게 돼도 **자리를 지우지 않는다.** 출처만 바뀐다."""
+    """닿지 않게 돼도 **자리를 지우지 않는다.**
+
+    "마지막으로 본 자리" 는 서버가 내는 한 토큰이 아니라 두 사실의 조합이다 —
+    자리가 관측에서 왔고(`position_source` 가 있다) 지금은 닿지 않는다(`presence` 가
+    `discovered` 가 아니다). 한 칸에 합치면 "장치가 지금 알린 자리" 와 "마지막으로
+    본 자리" 의 차이가 **출처**의 차이로 적히고, 출처는 바뀌지 않았다.
+    """
     _report(service, 20.5, 30.25)
-    assert _robot(service)["at_origin"] == "reported"
+    assert _robot(service)["position_source"] == "robot_state_15201"
+    assert _robot(service)["presence"] == "discovered"
 
     # 그 장치의 공지가 끊긴다 — 백엔드 가용성 판정을 우리가 재판정하지 않고
     # 탐지가 사라졌다는 사실만 받는다(AI-O-04).
@@ -108,8 +122,8 @@ def test_losing_contact_keeps_the_last_place_it_was_seen(service):
     robot = _robot(service)
 
     assert robot["at"] == {"x": 20.5, "y": 30.25}, "마지막 자리가 남아야 한다"
-    assert robot["at_origin"] == "last_seen"
-    assert robot["presence"] != "discovered"
+    assert robot["position_source"] == "robot_state_15201", "값을 만든 것은 그대로다"
+    assert robot["presence"] != "discovered", "달라진 것은 살아 있는가다"
 
 
 def test_the_declaration_is_not_restored_when_contact_is_lost(service):

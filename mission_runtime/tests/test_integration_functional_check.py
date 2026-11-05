@@ -1,8 +1,8 @@
 """One integrated functional check across the framework's core modules.
 
 implements: AI-C-01, AI-C-02, AI-C-03, AI-C-04, AI-C-05, AI-C-06, AI-C-07,
-AI-C-08, AI-C-09, AI-C-10, AI-C-11, AI-C-13, AI-C-14, AI-C-16, AI-C-20,
-AI-B-01, AI-B-03, AI-B-04, AI-B-06, AI-B-07, AI-B-09, AI-O-02, AI-R-01,
+AI-C-08, AI-C-04, AI-C-10, AI-C-05, AI-C-13, AI-C-06, AI-C-16, AI-C-20,
+AI-B-01, AI-B-03, AI-B-04, AI-B-06, AI-B-05, AI-B-09, AI-O-02, AI-R-01,
 AI-S-01, DT-01/DT-03 (mock)
 
 This replaces the large flat `tests/test_*.py` collection (모듈 단위 검증
@@ -93,7 +93,7 @@ class _Recorder:
     def run(self, section: str, fn) -> None:
         """A section that raises must not hide the sections after it - one
         crashing check is reported as a single failed check, not a full
-        stop (AI-C-11, mirrored from the framework's own failure-isolation
+        stop (AI-C-05, mirrored from the framework's own failure-isolation
         rule for provider health checks)."""
         try:
             fn(self)

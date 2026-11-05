@@ -5,7 +5,7 @@ algorithms consume without re-deriving feasibility themselves.
 implements: AI-C-18, AI-B-04
 
 reproduces (decision shape only, not the reasoning technology):
-docs/obsidian/papers/semantic-feasibility-reasoning.md — In et al.,
+internal/docs-dev/obsidian/papers/semantic-feasibility-reasoning.md — In et al.,
 "Semantic Feasibility Reasoning for Heterogeneous Multi-Robot Task
 Allocation," Electronics 15(16):3562, 2026. That paper's verified
 contribution is a rule-based feasibility reasoner (robot/task capability

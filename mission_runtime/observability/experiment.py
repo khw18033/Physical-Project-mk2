@@ -1,6 +1,6 @@
 """Experiment capture: turning a demonstration run into analysable data.
 
-implements: AI-O-01, AI-O-02, AI-O-03, AI-C-05, AI-C-14
+implements: AI-O-01, AI-O-02, AI-O-03, AI-C-05, AI-C-06
 
 A field demonstration is the only place some conditions occur — a real link
 drop, real thermal pressure, a real node leaving. Those runs are worth
@@ -14,7 +14,7 @@ Boundaries this respects:
   recorded (AI-C-05, AI-O-01: "외부 관측 기능 장애가 실제 기능 실행을 중단시키지
   않아야 한다").
 * Records live on the observation plane, never mixed into business messages,
-  and no media pixels are captured — only references to them (AI-C-14, AI-C-08).
+  and no media pixels are captured — only references to them (AI-C-06, AI-C-08).
 * Device liveness and fatal errors stay individual entries and are never
   folded into the numeric summary (AI-O-01).
 * A run bundle carries the configuration and version it ran under so the run

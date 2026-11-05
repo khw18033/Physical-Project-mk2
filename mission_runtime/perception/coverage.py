@@ -32,7 +32,7 @@ Consequences encoded here:
   reported separately (AI-S-03).
 * A source going away is not evidence that a region became unobserved. What
   was observed stays observed and its coverage never regresses; ageing is
-  expressed as STALE instead, which is a different statement (AI-C-11).
+  expressed as STALE instead, which is a different statement (AI-C-05).
 * No global frame is defined. Extents reference an `Anchor` declared elsewhere
   by identifier only. Projecting installed camera FOV into a zone map and
   transforming to global coordinates belong to the digital twin (DT-03,
@@ -55,7 +55,7 @@ from mission_runtime.perception.environment_map import (
 
 #: Only an observation source is required. Segmentation, terminal pose and a
 #: fixed-source pose sharpen coverage but their absence degrades rather than
-#: disables it (AI-C-11).
+#: disables it (AI-C-05).
 REQUIREMENT = CapabilityRequirement(
     required=("perception.detect",),
     optional=("perception.segment", "state.terminal_pose",

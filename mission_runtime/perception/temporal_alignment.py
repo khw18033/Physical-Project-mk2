@@ -2,7 +2,7 @@
 
 implements: AI-S-01, AI-C-03
 reproduces (decision rule only, not the transformer pipeline): LRCP, WACV 2025
-(docs/obsidian/papers/lrcp.md)
+(internal/docs-dev/obsidian/papers/lrcp.md)
 
 LRCP's actual mechanism — predicting a flow field from cached BEV features
 and using it to shift a deformable-attention decoder's *sampling
@@ -49,7 +49,7 @@ class MotionCompensatedPosition:
 #: likely to *introduce* error than remove it (LRCP itself is evaluated up
 #: to 500ms; this framework does not assume the same holds indefinitely).
 #: A missing/expired velocity must degrade to "use the stale position",
-#: never fail (AI-C-11 posture).
+#: never fail (AI-C-05 posture).
 DEFAULT_MAX_COMPENSATED_LATENCY_S = 0.5
 
 
@@ -79,7 +79,7 @@ def compensate_for_latency(
 # -- Alternative strategy: discrete candidate kernel (TraF-Align's decision shape) --
 #
 # reproduces (decision rule only, not the transformer pipeline): TraF-Align,
-# CVPR 2025 (docs/obsidian/papers/traf-align.md)
+# CVPR 2025 (internal/docs-dev/obsidian/papers/traf-align.md)
 #
 # TraF-Align's verified mechanism is NOT a single continuous flow vector
 # like LRCP's `compensate_for_latency` above. It predicts a per-pixel
@@ -87,7 +87,7 @@ def compensate_for_latency(
 # `kernel x kernel x heads` discrete integer-pixel candidate offsets per
 # location, then has a transformer attend over exactly those gathered
 # candidates rather than committing to one continuous extrapolated point
-# (docs/obsidian/papers/traf-align.md §3 "Offset Generator"). This
+# (internal/docs-dev/obsidian/papers/traf-align.md §3 "Offset Generator"). This
 # framework has no BEV feature map or attention transformer to reproduce
 # that gather/attend step over, but the *decision shape* it stands for is
 # reproducible without them: instead of trusting one extrapolated point,
@@ -123,7 +123,7 @@ def compensate_with_discrete_kernel(
     kernel_spacing: float = 0.5,
 ) -> DiscreteCandidatePosition:
     """Reproduces TraF-Align's verified decision shape
-    (docs/obsidian/papers/traf-align.md): instead of committing to ONE
+    (internal/docs-dev/obsidian/papers/traf-align.md): instead of committing to ONE
     continuous velocity-extrapolated point (LRCP's `compensate_for_latency`
     above), generate a small discrete grid of CANDIDATE positions centered
     on that same extrapolated point, then let the caller's `score_fn(x, y)`

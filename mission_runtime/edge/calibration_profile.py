@@ -20,7 +20,7 @@ AI-E-02: "검증을 통과한 결과만 적용 조건·품질·생성 시점·�
 3. **픽셀은 들어오지 않는다.** 프로파일은 추정에 쓴 원본 관측을 `frame_refs` 로만
    가리킨다(AI-C-08) — 업무·구성 경로로 나가는 것은 작은 프로파일뿐이다.
 
-2026-11-03 메모: 이 모듈의 옛 머리말은 `AI-E-03` 을 달고 있었다. CLAUDE.md §5 가
+2026-11-03 메모: 이 모듈의 옛 머리말은 `AI-E-02` 을 달고 있었다. CLAUDE.md §5 가
 비어 있는 과거 번호는 **재사용하지 않는다**고 적은 그 번호다 — 보정 lifecycle 의
 요구사항 ID 는 AI-E-02 하나이므로 머리말을 그쪽으로 정정했다.
 """
@@ -51,6 +51,12 @@ class ApplicabilityScope:
     zoom_token: str = ""
     #: 장착 상태(거치대·각도 프리셋) 토큰. 재장착은 외부 파라미터를 무효화한다.
     mount_token: str = ""
+    #: 이 보정이 전제하는 **투영 모델**. 2026-11-04 추가 — 다른 축들과 달리 이것은
+    #: "조건이 다르다" 가 아니라 **"모델이 틀리다"** 를 막는다. 스티칭된 등장방형
+    #: 파노라마에는 자기 pinhole 내부 파라미터가 없으므로(조사 문서 §6) pinhole
+    #: 프로파일이 그 소스에 적용되는 일이 없어야 하고, 토큰이 비면 막을 자리가 없다.
+    #: 빈 문자열은 선언하지 않은 옛 호출 경로이고 다른 축과 같은 규칙으로 제약하지 않는다.
+    projection: str = "pinhole"
 
     def covers(self, other: "ApplicabilityScope") -> bool:
         """`other` 조건의 영상에 이 프로파일을 적용해도 되는가."""
@@ -58,7 +64,8 @@ class ApplicabilityScope:
             return False
         for mine, theirs in ((self.image_size, other.image_size),
                              (self.zoom_token, other.zoom_token),
-                             (self.mount_token, other.mount_token)):
+                             (self.mount_token, other.mount_token),
+                             (self.projection, other.projection)):
             if mine and theirs and mine != theirs:
                 return False
         return True
@@ -66,7 +73,8 @@ class ApplicabilityScope:
     def as_dict(self) -> dict:
         return {"camera_id": self.camera_id,
                 "image_size": None if self.image_size is None else list(self.image_size),
-                "zoom_token": self.zoom_token, "mount_token": self.mount_token}
+                "zoom_token": self.zoom_token, "mount_token": self.mount_token,
+                "projection": self.projection}
 
 
 @dataclass(frozen=True)

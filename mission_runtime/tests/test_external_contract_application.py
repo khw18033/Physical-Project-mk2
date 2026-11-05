@@ -1,5 +1,6 @@
 """implements: AI-B-01, AI-B-03, AI-C-01, AI-C-06, AI-C-07"""
 
+import importlib.util
 import json
 import sqlite3
 import subprocess
@@ -21,6 +22,16 @@ from mission_runtime.providers.mqtt import MqttTransportProvider
 from mission_runtime.providers.kafka import KafkaTransportProvider
 from mission_runtime.providers.k3s import K3sControlProvider
 from mission_runtime.common.data_plane import DataKind
+
+#: MQTT 5 의 `Properties` 는 paho 의 자료형이다. 브로커는 필요 없지만 **클라이언트
+#: 라이브러리는 필요하다** — 이 둘을 구분하지 않아서, 브로커가 없는 기계에서도 이
+#: 시험만 ImportError 로 실패했다. `providers/mqtt.py` 는 paho 를 메서드 안에서
+#: import 하므로 없는 노드에서는 그 전송 provider 만 비활성이 정상이다(AI-C-05).
+needs_paho = pytest.mark.skipif(
+    importlib.util.find_spec("paho") is None,
+    reason="paho-mqtt 가 없다 — MQTT 5 request/response 속성은 그 클라이언트의 "
+           '자료형이다. MQTT 전송 provider 만 skip: pip install -e ".[mqtt]"',
+)
 
 
 def test_physical_command_json_schema_accepts_contract(tmp_path):
@@ -126,6 +137,7 @@ def test_bridge_persists_and_replays_control_when_link_recovers(tmp_path):
     bridge.close()
 
 
+@needs_paho
 def test_mqtt5_command_sets_request_response_and_expiry_properties():
     class Client:
         def publish(self, topic, payload, **kwargs):

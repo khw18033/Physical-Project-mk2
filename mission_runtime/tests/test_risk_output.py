@@ -1,4 +1,4 @@
-"""implements: AI-R-03"""
+"""implements: AI-R-02 (구 AI-R-03 은 §5 에서 여기로 흡수됐다)"""
 
 from mission_runtime.providers.fakes import InMemoryTransportProvider, JsonSerializerProvider
 from mission_runtime.risk.output import RiskJudgment, RiskJudgmentPublisher

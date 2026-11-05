@@ -1,6 +1,8 @@
-"""implements: AI-C-01, AI-C-14
+"""implements: AI-C-01, AI-C-06
 covers: common field names, producer payload checks, and data-plane mapping
 """
+
+from pathlib import Path
 
 import pytest
 
@@ -274,3 +276,179 @@ def test_execution_plan_names_are_registered():
     assert dd.spec_for(dd.REQUESTER_ROLE).plane is DataPlane.TASK
     d = build_plan("f", {}).as_dict()
     assert dd.PLAN_ID in d and dd.CORRELATION_ID in d
+
+
+def test_a_vocabulary_reference_actually_resolves():
+    """사전이 값을 베끼지 않고 **어휘가 사는 자리를 가리킨다.** 그 포인터가
+    썩으면 사전은 찾아갈 수 없는 곳을 가리키고, 그러면 베낀 것보다 나쁘다.
+
+    가리키는 이유는 둘이다 — 값을 베끼면 한쪽만 바뀌는 날이 오고, import 하면
+    이름 등록부가 기능 모듈(그리고 그 모듈의 opencv·numpy)에 의존해 계층이
+    거꾸로 선다. 이 시험이 그 셋째 길의 유일한 약점을 막는다.
+
+    implements: AI-C-01
+    """
+    import importlib
+    import re
+
+    pattern = re.compile(r"어휘 정본: ([\w/]+)\.py::([A-Z_]+)")
+    referenced = [(name, m.group(1), m.group(2))
+                  for name, spec in dd.DATA_DICTIONARY.items()
+                  for m in [pattern.search(spec.value_kind)] if m]
+
+    assert referenced, "가리키는 항목이 하나는 있어야 이 시험이 뜻을 가진다"
+
+    for field_name, module_path, constant in referenced:
+        module = importlib.import_module(
+            "mission_runtime." + module_path.replace("/", "."))
+        vocabulary = getattr(module, constant, None)
+        assert vocabulary is not None, (
+            f"{field_name} 가 가리키는 {module_path}.py::{constant} 가 없다")
+        assert isinstance(vocabulary, tuple) and vocabulary, (
+            f"{module_path}.py::{constant} 은 비어 있지 않은 어휘 묶음이어야 한다")
+
+
+def test_the_dictionary_does_not_drag_opencv_into_every_importer():
+    """이름 등록부는 거의 모든 모듈이 import 한다. 그 자리에 무거운 의존이 붙으면
+    이름 하나 읽으려고 opencv 가 올라온다."""
+    import subprocess
+    import sys
+
+    probe = ("import sys; import mission_runtime.contracts.data_dictionary; "
+             "print('cv2' in sys.modules, 'numpy' in sys.modules)")
+    out = subprocess.run([sys.executable, "-c", probe], capture_output=True,
+                         text=True, cwd=str(Path(__file__).resolve().parents[2]))
+
+    assert out.stdout.strip() == "False False", out.stdout + out.stderr
+
+
+# --- 2026-11-04 등재분: 임계값 선언 · 학습 버전 계보 · 탐지기 선언/관측 -------
+# 이 묶음이 지키는 것은 "세 상태를 둘로 접지 않는다" 와 "선언과 관측을 가른다" 다.
+# 사전은 이름만 등록하므로, 그 이름이 **실제로 그 자리에서 나가는지**는 아래 시험이
+# 본다 — 등록만 되고 아무도 쓰지 않는 이름은 사전을 믿을 수 없게 만든다.
+
+
+def test_learning_state_vocabulary_matches_the_lineage_enum():
+    """`learning_state` 의 정본은 `continual/lineage.py::LearningState` 다. Enum 은
+    어휘 묶음이 아니라 value_kind 로 가리킬 수 없어 **베껴 적었고**, 베낀 값은
+    갈라질 수 있으므로 이 시험이 그 유일한 약점을 막는다(LINK_POSTURES 와 같은 규약).
+
+    implements: AI-C-01, AI-L-08
+    """
+    from mission_runtime.continual.lineage import LearningState
+
+    assert set(dd.LEARNING_STATES) == {state.value for state in LearningState}
+    spec = dd.spec_for(dd.LEARNING_STATE)
+    assert set(spec.value_kind.split("|")) == set(dd.LEARNING_STATES)
+    # 검증 통과와 사람의 승인과 실제 적용은 **같은 축의 다른 값**이어야 한다 —
+    # 셋 중 둘이 빠지면 AI-L-06 의 관문이 상태 어휘에서 사라진다.
+    assert {"validated", "approved", "deployed"} <= set(dd.LEARNING_STATES)
+
+
+def test_the_score_floor_is_three_columns_and_the_state_is_three_valued():
+    """하한은 값 하나가 아니라 값·근거·상태 셋이다. 근거를 값에 합치면 "선언된
+    0.25" 와 "근거 없이 기본값이 된 0.25" 가 같은 수가 되고, 상태를 참·거짓으로
+    접으면 **선언한 적 없는 하한을 통과/미달로 판정**하게 된다(AI-S-04).
+    """
+    value, basis, state = (dd.spec_for(dd.SCORE_FLOOR),
+                           dd.spec_for(dd.SCORE_FLOOR_BASIS),
+                           dd.spec_for(dd.SCORE_FLOOR_STATE))
+
+    assert len({value.name, basis.name, state.name}) == 3
+    # 값 칸은 **없음을 표현할 수 있어야** 한다 — 0 으로 접으면 모든 점수가 통과한다.
+    assert "null" in value.value_kind
+    for spec in (basis, state):
+        assert spec.value_kind != "str"   # 어휘가 사는 자리를 가리킨다
+
+
+def test_the_floor_vocabularies_keep_the_no_basis_token():
+    """세 번째 상태가 어휘에서 사라지면 그 뒤의 모든 판정이 둘로 접힌다."""
+    from mission_runtime.perception import obstacle_taxonomy as tax
+
+    assert tax.FLOOR_BASIS_NONE in tax.FLOOR_BASES
+    assert tax.FLOOR_NO_BASIS in tax.FLOOR_STATES
+    assert len(tax.FLOOR_STATES) == 3
+
+
+def test_threshold_resolution_sends_the_declared_and_operator_values_apart():
+    """해소 결과의 이름이 사전에 있고, **선언값과 운영자 수정값이 다른 칸**이다 —
+    합치면 "원래 이 값이었다" 를 더는 말할 수 없다(AI-L-03).
+    """
+    from mission_runtime.perception.detection_thresholds import (
+        BASIS_NO_DECLARATION,
+        DetectionThresholds,
+    )
+
+    resolved = DetectionThresholds.empty().resolve("score_floor").as_dict()
+
+    # 선언이 없는 배치는 정상이고, 그때 값은 0 이 아니라 없음이다(세 번째 상태).
+    assert resolved["value"] is None
+    assert resolved["basis"] == BASIS_NO_DECLARATION
+    for name in (dd.PARAMETER, dd.BASIS, dd.DECLARED_VALUE, dd.OPERATOR_VALUE,
+                 dd.THRESHOLD_ID, dd.PROVENANCE):
+        assert name in resolved, name
+        assert name in dd.DATA_DICTIONARY, name
+    assert dd.DECLARED_VALUE != dd.OPERATOR_VALUE
+
+
+def test_basis_records_that_one_name_still_carries_two_axes():
+    """`basis` 는 선언의 기준 묶음(AI-C-18)과 임계값의 근거 토큰 두 뜻으로 나간다.
+    사전은 이름으로 색인하므로 갈라 적을 자리가 없고, **그 사실을 적어 두는 것이
+    지금 할 수 있는 전부다** — 적어 두지 않으면 다음 사람이 한쪽만 보고 쓴다.
+    혼동이 해로운 자리에는 좁은 이름이 따로 있어야 한다(AI-C-01).
+    """
+    spec = dd.spec_for(dd.BASIS)
+
+    assert "개명" in spec.meaning        # 남은 일이 기록되어 있다
+    assert "THRESHOLD_BASES" in spec.value_kind
+    for narrow in (dd.SCORE_FLOOR_BASIS, dd.PARAM_BASIS, dd.ACCURACY_BASIS,
+                   dd.NEAR_THRESHOLD_BASIS, dd.EVIDENCE_BASIS):
+        assert narrow in dd.DATA_DICTIONARY and narrow != dd.BASIS
+
+
+def test_version_reference_and_candidate_version_are_separate_columns():
+    """배포하는 버전의 신원과 그 버전을 만든 학습 후보의 해시는 **이름 공간이
+    다르다**. 한 칸에 담으면 손으로 적은 `model_id@version` 과 sha256 이 같은
+    자리에서 비교되고 그 비교는 영원히 어긋난다 — 콘솔 적용 경로에서 실제로 그랬다.
+    """
+    reference, candidate = (dd.spec_for(dd.VERSION_REFERENCE),
+                            dd.spec_for(dd.CANDIDATE_VERSION))
+
+    assert reference.name != candidate.name
+    assert "sha256" in candidate.meaning
+    # 미검증 범위는 승인 정보의 일부다(AI-L-06). 빈 값이 "조건 무관" 으로 읽히는
+    # 것을 막는 칸이므로 버전 신원과 같은 평면에 있어야 한다.
+    assert dd.spec_for(dd.UNVERIFIED_SCOPE).plane is reference.plane
+
+
+def test_detector_declaration_and_this_node_observation_sit_on_different_planes():
+    """선언은 어디서 돌려도 참이고 관측은 기계마다 다르다. 둘을 한 평면에 두면
+    선언 파일에 `present: true` 를 적어 두는 길이 열리고, 그 줄은 다른 기계에서
+    거짓말이 된다(AI-C-18 · AI-C-16).
+    """
+    from mission_runtime.edge.detector_catalog import DetectorCatalog
+
+    row = DetectorCatalog.from_file().all()[0].as_row("/nonexistent-asset-root")
+
+    for name in (dd.WEIGHTS_PRESENT, dd.OUTBOUND_NETWORK_REQUIRED, dd.BUILDABLE_HERE):
+        assert name in row, name
+        assert dd.spec_for(name).plane is DataPlane.OBSERVABILITY, name
+    for name in (dd.DETECTOR_ID, dd.ACCEPTED_PARAMS):
+        assert name in row, name
+        assert dd.spec_for(name).plane is DataPlane.TASK, name
+    # 3값을 표현할 수 있어야 한다 — None 은 "물어볼 로컬 경로가 없다" 이고 거짓이 아니다.
+    assert "null" in dd.spec_for(dd.WEIGHTS_PRESENT).value_kind
+
+
+def test_an_output_the_contract_cannot_carry_is_not_the_same_as_an_absent_output():
+    """`outputs_not_surfaced` 와 "모델에 없는 출력" 을 한 칸에 담으면 "계약만 넓히면
+    된다" 는 사실이 사라진다. 사전이 그 둘을 다른 이름으로 들고 있어야 한다.
+    """
+    from mission_runtime.edge.detector_catalog import DetectorCatalog
+
+    seg = next(d for d in DetectorCatalog.from_file().all()
+               if d.outputs.not_surfaced)
+
+    assert set(seg.outputs.not_surfaced).isdisjoint(seg.outputs.missing)
+    assert dd.OUTPUTS_NOT_SURFACED in dd.DATA_DICTIONARY
+    assert "계약" in dd.spec_for(dd.OUTPUTS_NOT_SURFACED).meaning

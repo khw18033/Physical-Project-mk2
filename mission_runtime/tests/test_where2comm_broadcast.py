@@ -1,6 +1,6 @@
 """implements: AI-E-04, AI-C-06
 reproduces (decision rule only): Where2comm, NeurIPS 2022
-(docs/obsidian/papers/where2comm.md)
+(internal/docs-dev/obsidian/papers/where2comm.md)
 tests: sparse selection recovers true "object" regions at a fraction of full
        broadcast volume, request-map narrowing behaves as verified from the
        original paper (sender confidence gates first, receiver only narrows),

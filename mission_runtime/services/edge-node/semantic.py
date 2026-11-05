@@ -1,6 +1,6 @@
 """엣지 의미 계층: 특징 사전 + CLIP + LLM(사전 생성) + VLM(미지 crop 서술).
 
-implements: AI-E-04, AI-S-03, AI-S-04, AI-S-06, AI-L-01, AI-B-08, AI-C-05, AI-C-11, AI-C-19
+implements: AI-E-04, AI-S-03, AI-S-04, AI-S-06, AI-L-01, AI-B-08, AI-C-05,  AI-C-19
 
 세 provider가 서로 다른 일을 한다. 하나가 없어도 나머지는 돈다(AI-C-05).
 

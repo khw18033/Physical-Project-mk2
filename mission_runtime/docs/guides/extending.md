@@ -89,6 +89,36 @@ registry.register_local(ProviderRegistration(
 ))
 ```
 
+### 선언은 **적은 만큼만** 선언이다 (AI-C-18)
+
+위 등록에 `declaration=` 을 함께 주면 그 구성요소가 자기 성질을 말할 수 있다. 적지
+않은 칸은 **기본값이 아니라 미선언**이고, 그 둘을 섞지 않는 것이 이 계약의 요점이다.
+
+```python
+from mission_runtime.contracts.capability_contract import Capability, DeclarationBasis
+
+declaration = Capability(
+    kind="image.smooth",
+    input_schema="schema://frame/1", output_schema="schema://frame/1",
+    preconditions=("media.video_input",),      # 없으면 DISABLED
+    optional_preconditions=("accel.npu",),     # 없으면 DEGRADED 까지만
+    cancellable=True,                          # True / False / 적지 않으면 None(모름)
+    idempotent=True,                           # 같은 입력을 다시 넣어도 같은 결과인가
+    invocation="synchronous",                  # synchronous / asynchronous
+    basis=DeclarationBasis(units={"blur_sigma_px": "px"},
+                           reference_frame="image", time_basis="backend_ntp"),
+    scope_tags=(),                             # () = "범위 제약 없음" 선언 / None = 미선언
+)
+```
+
+**모르는 것은 적지 않는다.** `cancellable=False` 는 "취소할 수 없다"는 **선언**이고
+생략은 "아무도 말하지 않았다"다 — 두 값이 다르다. 생략을 `False` 로 메우면 상위
+기능이 당신의 장치를 "취소를 거부하는 장치"로 읽고 취소를 **보내 보지도 않는다**.
+무엇을 적지 않았는지는 `declaration.undeclared_items()` 로 나오고, 선택하는 쪽은
+`registry.providers_declaring(kind, "cancellable")` 로 "그렇다고 선언한 것"과 "아무도
+선언하지 않은 것"을 **따로** 받는다. 품질·지연·자원 실측값은 이 선언에 적지 않는다 —
+그 숫자의 주인은 `ExecutionProfile`(AI-B-01)이고 여기 베끼면 둘이 갈린다.
+
 `registry/capability_registry.py`는 `_local`(항상 authoritative)과 `_remote`(중앙 레지스트리
 마지막 스냅샷)를 분리 관리한다 — 중앙이 끊겨도 로컬 등록은 그대로 유효하다(AI-C-10).
 

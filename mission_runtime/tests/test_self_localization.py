@@ -2,7 +2,7 @@
 
 The pure geometry/bearing functions are tested without any ML model —
 `UniDepthCameraProvider` (the only part that needs the real UniDepth model)
-is exercised only for its `is_available()` degrade path (AI-C-11: optional
+is exercised only for its `is_available()` degrade path (AI-C-05: optional
 capability, absence is not an error).
 """
 import math
@@ -225,5 +225,5 @@ def test_unidepth_provider_reports_unavailable_without_raising_when_not_installe
     provider = UniDepthCameraProvider()
 
     # This environment may or may not have `unidepth` installed; either way
-    # the check itself must never raise (AI-C-11 degrade, not crash).
+    # the check itself must never raise (AI-C-05 degrade, not crash).
     assert provider.is_available() in (True, False)

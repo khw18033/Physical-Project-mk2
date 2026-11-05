@@ -1,0 +1,18 @@
+{
+  "$comment": "증거 종류 → 그것을 만들 수 있는 **capability kind** 후보. `decision/evidence_gap.py` 가 읽고, 한 줄 더하면 새 매핑이 생기고 코드는 고치지 않는다(AI-C-15: 도메인 차이는 분기문이 아니라 구성). 이 파일이 생긴 이유: 같은 표가 `decision/evidence_gap.py` 안의 코드 상수였고 **거기 적힌 이름 11 개가 이 저장소의 선언 어휘와 하나도 맞지 않았다**(`detection` vs `perception.detect`). 그러면 모든 증거 종류가 `unobtainable` 로 떨어지고, `gap()` 은 `unobtainable` 을 요청으로 내보내지 않으므로 **아무것도 승격되지 않고 아무 요청도 나가지 않는데 그 침묵이 통과하는 시험과 구분되지 않았다.** 값은 `config/providers.*.json` 의 `capability_kind` 와 **같은 어휘**여야 한다 — 두 곳에 다른 말을 적으면 대조가 성립하지 않고, `tests/test_evidence_kind_providers.py` 가 그것을 확인한다. **없는 것을 지어내지 않는다**: 이 배치에 그 증거를 만들 provider 종류가 아직 없으면 키를 **적지 않는다**. 그러면 `decision/evidence_gap.py` 가 `provider_mapping_undeclared` 로 적고, 그것은 `unobtainable`('만들 수 없다')과 **다른 사실**이다 — 고칠 곳이 현장이 아니라 이 파일이라는 뜻이다. 빈 목록 `[]` 을 적는 것도 같지 않다: 그것은 '찾아봤고 만들 수 있는 종류가 없다' 는 선언이므로, 아직 정하지 않았으면 키를 비워 두어야 한다. 증거 종류 쪽 어휘는 `contracts/evidence_contract.py::EVIDENCE_KINDS` 가 소유한다.",
+  "format_version": "1",
+  "evidence_kind_providers": {
+    "existence": ["perception.detect", "perception.detect_ovd"],
+    "semantic_class": ["perception.detect", "perception.detect_ovd", "perception.classify"],
+    "region_2d": ["perception.detect", "perception.detect_ovd"],
+    "mask": ["perception.segment"],
+    "geometry_3d": ["perception.depth", "perception.environment_map"],
+    "distance": ["perception.depth", "perception.distance"],
+    "track_identity": ["perception.track", "perception.associate"]
+  },
+  "$not_declared_here": {
+    "$comment": "아래는 **일부러 비워 둔** 증거 종류다. 이 배치에 그것을 만드는 capability kind 가 선언돼 있지 않아서이고, 그럴듯한 이름을 적으면 그 이름으로 provider 를 찾다가 영원히 못 찾는다. 각 줄은 '무엇이 생기면 이 키가 생기는가' 다.",
+    "calibration": "보정 프로파일을 내는 capability kind 가 아직 선언에 없다. `edge/calibration_profile.py` 의 승격 경로가 provider 로 노출되면 생긴다(AI-E-02).",
+    "cause_hypothesis": "원인 가설을 내는 종류(사례 검색·VLM)가 선언에 없다. 열린 어휘 탐지(`perception.detect_ovd`)는 이름을 말할 뿐 원인을 말하지 않으므로 대신 적지 않는다."
+  }
+}

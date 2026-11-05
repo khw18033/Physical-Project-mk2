@@ -86,6 +86,7 @@ from overlay import (  # noqa: E402
     KIND_OBJECT_POSITION,
     KIND_PLACEMENT,
     KIND_SURVEY,
+    KIND_THRESHOLD,
     OperatorOverlay,
     OverlayError,
     default_overlay_path,
@@ -150,7 +151,7 @@ DEFAULT_LOCALE = "ko"
 #: 2.0 뷰어는 새 칸을 모르는 필드로 받고 하던 대로 그린다. 두 자리(여기와
 #: `schemas/view_snapshot.schema.json` 의 `x-view-contract-version`)를 **함께**
 #: 올린다 — 한쪽만 올리면 서버가 내지 않는 판을 문서가 약속하게 된다.
-VIEW_CONTRACT_VERSION = "2.1"
+VIEW_CONTRACT_VERSION = "2.2"
 
 #: 공개 트리 밖의 실제 자산(모델·외형 참조 사진)이 있는 자리. 자산이 없으면 그 기능만
 #: 비활성이 되고 나머지는 그대로 돈다(AI-C-05).
@@ -303,6 +304,11 @@ class FmsService:
     goal_kinds_path: Path
     #: 선택 — 없으면 명령 탭이 "관리자 권한 필요" 가 아니라 "경로 없음"으로 정직하게 빈다.
     commander: Any | None = None
+    #: 종합상황정보 구역(B~I)의 정본 조립기(`tools/status_ui` 의 `StatusService`).
+    #: 콘솔은 그 스냅샷을 **그대로 옮긴다** — 같은 판정을 여기서 다시 하면 두 화면이
+    #: 서로 다른 답을 말한다(CLAUDE.md §0, AI-O-06 상태 일관성). 없으면 그 끝점만
+    #: "기능 없음"으로 비고 나머지 탭은 그대로 돈다(AI-C-05).
+    status: Any | None = None
     evidence: Any | None = None
     #: 운영자가 고친 값의 append-only 장부. None 이면 수정이 메모리에만 남는다.
     overlay: OperatorOverlay | None = None
@@ -336,8 +342,16 @@ class FmsService:
     _calibration: Any | None = field(default=None, init=False)
     _training: Any | None = field(default=None, init=False)
     _models: Any | None = field(default=None, init=False)
+    #: 탐지 세부 임계값 선언과 장애물 어휘. 둘 다 **읽기 전용**이고 판정의 주인은
+    #: `perception/` 쪽이다 — 콘솔은 그 답을 폼에 옮기고 결과를 세기만 한다.
+    _thresholds: Any | None = field(default=None, init=False)
+    _taxonomy: Any | None = field(default=None, init=False)
     #: 가상환경 대역물 해소기. 선언 카탈로그 하나를 읽어 둔다.
     _proxies: Any | None = field(default=None, init=False)
+    #: 관측된 객체를 저장 자산에 묶어 **유지하는** 묶음기. 한 요청에서 만들고 버리면
+    #: 묶음 회차(AI-B-12 규약)가 매번 1 로 돌아가고, 맵은 같은 자산을 옮기는 대신 매
+    #: 프레임 새로 세운다 — 그것이 "이동 되도록" 의 반대다.
+    _object_binder: Any | None = field(default=None, init=False)
 
     def __post_init__(self) -> None:
         self._library, self._facts_vocabulary = load_goal_kinds(self.goal_kinds_path)
@@ -364,7 +378,7 @@ class FmsService:
         if self._twin is None:
             from twin import DevicePlacement, TwinFusionService  # noqa: PLC0415
 
-            service = TwinFusionService()
+            service = TwinFusionService(registry_for=self._observer_registry)
             for zone_id in self.fleet.zone_ids():
                 zone = self.fleet.zone(zone_id)
                 for item in zone.get("infrastructure", ()):
@@ -393,6 +407,21 @@ class FmsService:
                     ))
             self._twin = service
         return self._twin
+
+    def _observer_registry(self, device_id: str):
+        """그 관측 장치에 **실제로 배치된** provider 들의 레지스트리.
+
+        배치 판정을 여기서 다시 하지 않는다 — 선언된 manifest 전체를 주면 노드 상태
+        화면("이 노드에서는 못 한다")과 승격 화면("된다")이 서로 다른 답을 말한다.
+        `placement_registry` 가 그 이유를 적는 자리이고 정본은 `fleet()` 하나다.
+        배치 사실이 없는 장치(고정 인프라 등)는 `None` 이고, 그때 부족분은 요청으로도
+        가지 않고 사유만 남는다(AI-C-05).
+        """
+        try:
+            fact = self.fleet.facts[device_id]
+        except KeyError:
+            return None
+        return placement_registry(self.manifest_path, fact.placements)
 
     def radio(self, domain_id: str):
         if domain_id not in self._radios:
@@ -703,13 +732,19 @@ class FmsService:
         except KeyError as error:
             raise ApiError(404, "unknown_zone") from error
         self._with_reported_position(detail)
+        # 관측된 객체를 **무엇으로 어디에 세울지**. 로봇·인프라는 선언에서 오고(위
+        # `robots`·`infrastructure`) 이 칸은 **인지가 만든** 객체다 — 둘을 한 목록에
+        # 담으면 선언된 것과 관측된 것이 구분되지 않는다. 비어 있는 것이 정상이다:
+        # 아직 아무 장치도 보고하지 않은 구역은 빈 목록이고 0 개가 아니라 '없음'이다.
+        detail["object_placements"] = self.object_placements(zone_id)
         return detail
 
-    #: 자리가 어디서 왔는가. 넷은 서로 다른 사실이고 한 칸에 담지 않는다.
-    #: `declared` 선언 프로파일이 적어 둔 자리 — 한 번도 관측된 적이 없다.
-    #: `operator_edit` 사람이 고친 자리(장부에 남는다).
-    #: `reported` 장치가 **지금** 알린 자리.
-    #: `last_seen` 장치가 알렸던 **마지막** 자리이고 지금은 닿지 않는다.
+    #: 트윈이 들고 있는 자세가 **선언에서 온 것**임을 말하는 출처 토큰. 이 값으로
+    #: 등록된 자세는 관측이 아니라 선언을 되읽은 것이고(위 `twin()` 이 선언된 자리로
+    #: 장치를 등록한다) 그것을 관측으로 적으면 아무도 본 적 없는 자리가 "장치가 알린
+    #: 자리" 가 된다.
+    _DECLARED_POSE_SOURCES: frozenset[str] = frozenset({"declared", "operator_edit"})
+
     def _with_reported_position(self, detail: dict) -> None:
         """로봇의 자리를 **관측이 있으면 관측으로** 바꾸고 그 출처를 적는다.
 
@@ -717,9 +752,28 @@ class FmsService:
         거짓이 된다. 장치가 알린 자리가 있으면 그것이 이긴다.
 
         닿지 않게 된 로봇은 **자리를 지우지 않는다.** 마지막으로 알린 곳에 그대로
-        두고 출처를 `last_seen` 으로 바꾼다 — 사라진 로봇을 지도에서 지우면 "어디서
-        잃어버렸는가" 를 아무도 모르게 되고, 선언된 자리로 되돌리면 지금 거기 있는
-        것처럼 보인다. 둘 다 틀렸고, 마지막으로 본 자리가 맞다.
+        둔다 — 사라진 로봇을 지도에서 지우면 "어디서 잃어버렸는가" 를 아무도 모르게
+        되고, 선언된 자리로 되돌리면 지금 거기 있는 것처럼 보인다. 둘 다 틀렸고,
+        마지막으로 본 자리가 맞다.
+
+        ## 세 가지는 서로 다른 축이고 한 칸에 담지 않는다 (2026-11-04 수정)
+
+        이 함수는 전에 `at_origin` 에 네 값(`declared`·`operator_edit`·`reported`·
+        `last_seen`)을 적었다. 그 칸은 **선언의 출처**를 말하는 닫힌 어휘인데
+        (`schemas/view_snapshot.schema.json` 의 `$defs/at_origin`: `declared` ·
+        `operator_edit`) 거기에 "관측이냐 선언이냐" 와 "지금 살아 있냐" 가 함께
+        들어가 있었다. 셋을 가른다.
+
+        1. `at_origin` — **선언**이 어디서 왔는가(선언 프로파일 / 사람의 수정).
+           관측이 들어와도 바뀌지 않는다. 그 선언은 사라지지 않았다.
+        2. `position_source` — 지금 `at` 에 있는 값을 **무엇이 만들었는가**(열린
+           어휘, 트윈의 `pose_source` 그대로). 칸이 없으면 `at` 은 선언값이다(§3.2).
+        3. 살아 있는가 — `presence` 와 `last_seen_age_s` 가 이미 말한다. 옛
+           `reported`/`last_seen` 은 `presence == discovered` 를 그대로 뒤집어 적은
+           **파생값**이어서 지우면 잃는 것이 없다.
+
+        그래서 선언에서 온 트윈 자세로는 `at` 을 덮지 않는다 — 같은 값을 되쓰면서
+        출처만 "관측" 으로 바꾸는 것이 옛 코드의 조용한 거짓이었다.
 
         implements: AI-S-06, AI-O-04, AI-C-02
         """
@@ -730,14 +784,14 @@ class FmsService:
             placement = twin.placement_of(robot["node_id"])
             if placement is None or not getattr(placement, "pose", None):
                 continue
+            source = str(getattr(placement, "pose_source", "") or "")
+            if source in self._DECLARED_POSE_SOURCES or not source:
+                # 선언을 되읽은 자세다. 선언값은 이미 `at` 에 있고 출처도 `at_origin`
+                # 이 말한다 — 관측이 없는데 관측 칸을 채우지 않는다.
+                continue
             x, y = placement.pose[0], placement.pose[1]
             robot["at"] = {"x": round(float(x), 3), "y": round(float(y), 3)}
-            robot["at_origin"] = (
-                "reported" if robot.get("presence") == PRESENCE_DISCOVERED
-                else "last_seen")
-            source = getattr(placement, "pose_source", "")
-            if source:
-                robot["position_source"] = source
+            robot["position_source"] = source
 
     def placement(self, *, caller: Caller, body: dict) -> dict:
         """고정 장치의 자리를 고친다. 상태 조회가 아니라 **별도 계약**이다.
@@ -909,7 +963,14 @@ class FmsService:
         except KeyError as error:
             raise ApiError(404, "unknown_zone") from error
         scope = scope_of("twin", zone_id)
-        decision = self.refresh.request(scope, Trigger.OPERATOR_VIEW, requested_by=caller.actor)
+        # 승격 판정과 부족분은 **이 요청 때만** 돈다. 상시 돌리면 아무도 보지 않는
+        # 구역의 판정·요청까지 계속 돌고, 그 비용이 임무가 들어왔을 때 쓸 여유를
+        # 깎는다(AI-C-13, AI-O-01). 억제되면 `work` 는 호출되지 않는다.
+        promotion: dict = {}
+        decision = self.refresh.request(
+            scope, Trigger.OPERATOR_VIEW, requested_by=caller.actor,
+            work=self.twin().promotion_work(
+                zone_id, lambda result: promotion.update(result.as_dict())))
         view = self.twin().zone_view(zone_id)
         return {
             "zone_id": zone_id,
@@ -919,7 +980,14 @@ class FmsService:
             # 무엇을 **무엇으로 그릴 것인가**. 픽셀도 색도 여기 없다 — 어느 대역
             # 자산을 쓸 것인지와 그 근거뿐이고, 그리는 일은 뷰어가 한다(AI-C-08).
             "proxies": self.zone_proxies(zone_id),
+            # 위 `proxies` 는 **선언된 장치**의 대역이고 이것은 **인지가 만든 객체**의
+            # 묶음이다. `/api/zone` 과 같은 값을 같은 출처에서 낸다(AI-O-06).
+            "object_placements": self.object_placements(zone_id),
             "refresh": decision.as_dict(),
+            # 승격했는가 · 무엇이 모자란가 · 무엇을 더 **요청**하는가. 비어 있으면
+            # 이번 요청이 억제된 것이고(그 사유는 위 `refresh` 가 적는다) 값이 없는
+            # 것이 아니다 — 한 번도 받지 않은 것과 방금 받은 것은 다른 상태다.
+            "promotion": promotion,
             "as_of": self.refresh.as_of(scope),
             "freshness": self.refresh.freshness(scope).value,
         }
@@ -946,6 +1014,87 @@ class FmsService:
                 item["id"], tags=(f"tier.{item.get('kind')}",) if item.get("kind") else (),
                 at=item.get("at"), frame_id=frame_id, source="zone_profile",
                 role=item.get("kind") or ""))
+        return rows
+
+    def object_binder(self):
+        """관측된 객체 ↔ 저장 자산 묶음기. 카탈로그가 없으면 **비활성이고 오류가 아니다**.
+
+        두 선언 파일을 함께 싣는다 — `object_models.example.json` 은 장치·부유물의
+        대역이고 `object_assets.example.json` 은 탐지 클래스와 그룹 대역이다. 고르는
+        규칙은 하나여야 하므로 카탈로그로 겹쳐서 쓴다(`merge_catalogs`).
+
+        `require_asset_file=False` 인 이유는 `proxies()` 와 같다: 자산 파일은 공개 트리
+        밖에 있고, 파일이 없는 것과 그릴 것이 없는 것은 다른 상태다.
+
+        implements: AI-S-06, AI-C-05, AI-C-08, AI-C-15
+        """
+        if self._object_binder is None:
+            from mission_runtime.perception.object_asset_binding import (  # noqa: PLC0415
+                binder_from_catalogs,
+            )
+
+            self._object_binder = binder_from_catalogs(
+                _PROJECT_DIR / "config" / "object_models.example.json",
+                _PROJECT_DIR / "config" / "object_assets.example.json",
+                asset_root=_ASSET_ROOT, require_asset_file=False)
+        return self._object_binder
+
+    @staticmethod
+    def _group_of(record) -> str:
+        """그 레코드가 말하는 장애물 **그룹** 토큰. 없으면 빈 문자열이다.
+
+        이 콘솔은 그룹을 **계산하지 않는다** — 어떤 클래스가 어느 그룹인지는
+        `perception/obstacle_taxonomy.py` 가 소유하고, 융합 레코드가 그 칸을 들고 오면
+        그룹 대역이 저절로 선다. 여기서 분류를 다시 하면 같은 객체가 두 화면에서 다른
+        그룹이 된다(CLAUDE.md §0: 콘솔은 판정을 하지 않는다).
+
+        지금 배치에서는 그 칸이 아직 없어서 **정확 클래스 단계만** 돈다. 그것이 조용한
+        결손이 되지 않게 묶음 산출의 `object_group` 이 null 로 그 사실을 적는다.
+        """
+        return str(getattr(record, "obstacle_group", "")
+                   or getattr(record, "object_group", "") or "")
+
+    def object_placements(self, zone_id: str) -> list[dict]:
+        """그 구역에서 관측된 객체들을 **무엇으로 어디에 세울지**.
+
+        맵이 읽는 유일한 형태다. 픽셀도 색도 여기 없고(AI-C-08) 나가는 것은 자산 참조와
+        현장 로컬 자리뿐이다(AI-C-02). 묶이지 않은 객체도 **빼지 않는다** — 자리는 아는데
+        모양이 없는 것은 정상 상태이고, 목록에서 빼면 "거기 아무것도 없다" 가 된다
+        (AI-C-05).
+
+        묶음기는 서비스가 들고 있으므로 같은 객체가 움직이면 같은 자산이 옮겨진다. 이
+        함수는 판정을 새로 만들지 않고 융합 레코드(`twin.FusedRecord`)가 이미 낸
+        클래스·자리를 묶음 계약으로 옮긴다.
+
+        implements: AI-S-06, AI-C-02, AI-C-08, AI-B-12
+        """
+        from mission_runtime.perception.object_appearance import (  # noqa: PLC0415
+            local_placement,
+            unknown_placement,
+        )
+        from mission_runtime.perception.object_asset_binding import (  # noqa: PLC0415
+            claim_for_class,
+        )
+
+        binder = self.object_binder()
+        frame_id = f"zone:{zone_id}"
+        rows: list[dict] = []
+        for record in self.twin().records(zone_id):
+            # 사람 수정까지 반영된 자리를 쓴다. 센서만의 자리와 갈릴 수 있지만 맵이
+            # 그릴 것은 "지금 가장 맞다고 보는 자리" 하나다 — 두 자리를 함께 내면
+            # 뷰어가 어느 쪽에 모양을 세울지 스스로 판정하게 된다.
+            at = record.fused_position
+            placement = (local_placement((float(at[0]), float(at[1])), frame_id=frame_id)
+                         if at is not None else unknown_placement(frame_id=frame_id))
+            # "unknown 은 클래스가 아니다" 를 여기서 다시 판정하지 않는다 — 그 규칙은
+            # `claim_for_class` 하나가 소유한다(AI-S-04).
+            claim = claim_for_class(record.semantic_class, source="zone_fusion",
+                                    observed_at=record.observed_at,
+                                    confidence=record.confidence)
+            binding = binder.bind(record.object_id, claim, placement=placement,
+                                  group=self._group_of(record),
+                                  at=record.observed_at)
+            rows.append(binding.as_dict())
         return rows
 
     def object_trace(self, object_id: str, *, about: str, caller: Caller) -> dict:
@@ -1545,13 +1694,54 @@ class FmsService:
         보관소에만 넣으면 표본은 남지만 운영자가 고친 정답이 후보 화면에서
         사라지고 가중치의 출처를 되짚을 입구가 없다.
         """
+        from mission_runtime.continual.stream_learning import (  # noqa: PLC0415
+            SamplePolarity,
+            SampleUsage,
+        )
+
         filed: list[dict] = []
+        # 모델이 맞았다고 사람이 확인한 상자는 **학습 후보가 아니다**(AI-L-01: 후보가
+        # 전체 스트림으로 불어난다). 그렇다고 버릴 것도 아니다 — 그것은 "전에 되던
+        # 것" 의 집합이고 회귀를 재는 데 가장 맞는 자료다. 후보가 학습에 쓴 표본에서
+        # 회귀를 재면 train-set 평가가 되어 깨진 것이 보이지 않는다.
+        from labeling import CORRECTING_VERDICTS  # noqa: PLC0415
+
+        for box in record.reviewed:
+            if box.verdict in CORRECTING_VERDICTS:
+                continue   # 수정은 아래에서 학습 후보로 간다
+            if box.final_class is None or box.final_box is None:
+                continue
+            self.twin().file_label_candidate(
+                device_id=record.device_id, zone_id=record.zone_id or "",
+                box_ref=f"{record.task_id}:{box.box_id}", label=box.final_class,
+                box=box.final_box, verdict=box.verdict.value, actor=caller.actor,
+                reason=reason, frame_ref=record.frame_ref,
+                confidence=(box.predicted.confidence if box.predicted else None),
+                usage=SampleUsage.EVALUATION_ONLY)
         for box in record.corrections:
-            label = box.final_class or "absent"
+            # **지운 상자는 "absent" 라는 클래스의 예가 아니다.** 그것은 모델이
+            # 주장한 그 클래스의 **반례**다 — "저기 의자가 있다" 에 사람이 아니라고
+            # 한 것이므로, 음성 라벨은 모델이 말한 이름이어야 한다.
+            #
+            # 한때 `label = box.final_class or "absent"` 였다. `final_class` 는
+            # REJECTED 에서 None 이라 그 줄이 `"absent"` 라는 이름을 **지어냈고**,
+            # 상자도 없어 특징이 (0,0,0,0) 이 되고, 셋이 모이면
+            # `parameters["absent"]` 가 **임계 0.0 — 모든 것을 받아들이는 클래스**로
+            # 생겼다(2026-11-04 재현 확인). 한 줄이 사람의 정답을 뒤집었다.
+            rejected = box.final_class is None
+            label = box.final_class or (
+                box.predicted.semantic_class if box.predicted else "")
+            if not label:
+                # 모델이 주장한 이름도 없으면 가리킬 클래스가 없다. 지어내지 않는다.
+                continue
             candidate = self.twin().file_label_candidate(
+                polarity=(SamplePolarity.NEGATIVE if rejected
+                          else SamplePolarity.POSITIVE),
                 device_id=record.device_id, zone_id=record.zone_id or "",
                 box_ref=f"{record.task_id}:{box.box_id}", label=label,
-                box=box.final_box, verdict=box.verdict.value,
+                box=(box.final_box if not rejected
+                     else (box.predicted.box if box.predicted else None)),
+                verdict=box.verdict.value,
                 actor=caller.actor, reason=reason, frame_ref=record.frame_ref,
                 confidence=(box.predicted.confidence if box.predicted else None),
             )
@@ -1564,6 +1754,40 @@ class FmsService:
                 "disagreement": box.disagreement(),
             })
         return filed
+
+    # -- 종합상황정보 구역 B~I (조회 전용) ----------------------------------
+
+    def dashboard(self, *, pin: str | None = None) -> dict:
+        """구역 B~I 를 **한 스냅샷**으로 옮긴다. 조립도 판정도 여기서 하지 않는다.
+
+        implements: AI-O-06 (통합 운영 상태 뷰), AI-O-05 (계층별 지표),
+                    AI-B-12 (작업 그래프 실행 상태), AI-B-13 (외부 개발 요청)
+
+        종합상황정보 Dashboard 기능정의서 §3 요구사항 1 은 "소스별로 개별 조회하는
+        것이 아니라 **통합된 상태 뷰**"를 요구하고 §5 는 같은 사실이 여러 구역에
+        나타날 때 값이 상충하지 않기를 요구한다. 그 조립의 정본은
+        `tools/status_ui/serve.py` 의 `StatusService.dashboard()` 이고, 운영 콘솔이
+        같은 조립을 다시 하면 두 화면이 서로 다른 답을 말한다(CLAUDE.md §0).
+        그래서 이 메서드는 **옮기기만** 한다.
+
+        `pin` 은 기준 노드 고정이고 관찰 방식의 변경이다(문서 §1.1·§2) — 실행 상태를
+        바꾸지 않으므로 조회 경로에 남는다.
+        """
+        if self.status is None:
+            # 경로가 없는 배치는 정상이다. 빈 본문 대신 "기능 없음"을 말한다 —
+            # 빈 목록을 내려보내면 화면이 "볼 것이 없다"와 "연결되지 않았다"를
+            # 구분하지 못한다(AI-C-05).
+            raise ApiError(503, "no_dashboard_path:status_service_absent")
+        try:
+            return self.status.dashboard(pin=pin)
+        except Exception as error:   # noqa: BLE001 — 아래 한 사유만 옮긴다
+            # 없는 노드를 가리킨 고정은 404 다 — 조회가 조용히 다른 노드로 옮겨
+            # 가면 화면은 자기가 무엇을 보고 있는지 모른다. 정본 쪽 예외 클래스는
+            # 경로로 실은 모듈에 있어 이름으로 잡을 수 없으므로 사유 토큰으로
+            # 가른다. 나머지 예외는 그대로 올려 보낸다 — 삼키지 않는다.
+            if str(error).startswith("unknown_task_node:"):
+                raise ApiError(404, "unknown_task_node") from error
+            raise
 
     # -- 배포 (들이기 · 보정 · 학습 · 모델 교체) ----------------------------
 
@@ -1626,6 +1850,11 @@ class FmsService:
             "deployments": models.deployments(),
             "capability_kinds": sorted({v["capability_kind"] for v in models.versions()}),
             "may_submit": caller.may(PERM_DEPLOY_MODEL),
+            # 화면이 적용할 버전을 **이 행에서** 고른다. 각 행이 자기 계보와
+            # 미검증 범위를 이미 들고 있어서, 계보를 따로 들고 오는 길이 없다 —
+            # 그 길이 "계보 A, 버전 B" 라는 거짓 기록의 입구였다(AI-L-08).
+            # 계보 식별자가 실려 있으므로 `GET /api/lineage` 와 같은 권한에 둔다.
+            "promotions": models.promotions() if caller.may(PERM_DEPLOY_MODEL) else [],
         }
         return body
 
@@ -1791,6 +2020,524 @@ class FmsService:
         except KeyError as error:
             raise ApiError(404, "unknown_version") from error
 
+    # --- 세부 임계값: 선언 · 시도 · 적용 (AI-S-08 · AI-B-01 · AI-L-03) --------
+
+    def thresholds(self):
+        """탐지 세부 임계값 선언. 파일이 없으면 **빈 선언**이고 오류가 아니다.
+
+        값 자체는 `config/detection_thresholds.example.json` 이 소유하고 이 메서드는
+        읽어 두기만 한다 — 콘솔이 기본값을 따로 들고 있으면 선언을 고쳐도 화면이
+        옛 수를 보여 준다.
+        """
+        if self._thresholds is None:
+            from mission_runtime.perception.detection_thresholds import (  # noqa: PLC0415
+                DetectionThresholds,
+            )
+
+            path = _PROJECT_DIR / "config" / "detection_thresholds.example.json"
+            try:
+                self._thresholds = DetectionThresholds.from_file(path)
+            except (OSError, ValueError):
+                # 선언이 깨졌거나 없는 배치. 추측해 채우지 않고 빈 선언으로 둔다 —
+                # 그러면 모든 해소가 `no_declaration` 이 되어 그 사실이 화면에 뜬다.
+                self._thresholds = DetectionThresholds.empty()
+        return self._thresholds
+
+    def taxonomy(self):
+        """장애물 어휘. 어휘별 라벨 하한의 주인이다. 없으면 None 이다(AI-C-05)."""
+        if self._taxonomy is None:
+            from mission_runtime.perception.obstacle_taxonomy import (  # noqa: PLC0415
+                ObstacleTaxonomy,
+            )
+
+            try:
+                self._taxonomy = ObstacleTaxonomy.from_file()
+            except (OSError, ValueError):
+                self._taxonomy = False      # "읽어 봤고 없다" — None 과 구분한다
+        return self._taxonomy or None
+
+    def _operator_thresholds(self) -> dict:
+        """장부의 현재 유효 임계값 수정. 선언을 덮지 않고 따로 들고 온다(AI-L-03)."""
+        from mission_runtime.perception.detection_thresholds import (  # noqa: PLC0415
+            operator_values_from_overlay,
+        )
+
+        if self.overlay is None:
+            return {}
+        return operator_values_from_overlay(
+            self.overlay.current_payloads(KIND_THRESHOLD))
+
+    def _detector_row(self, implementation_ref: str) -> dict:
+        """탐지기 선언 한 행. 없으면 빈 사전이다 — 없는 선언을 추측하지 않는다."""
+        try:
+            from mission_runtime.edge.detector_catalog import characteristics  # noqa: PLC0415
+        except ImportError:
+            return {}
+        try:
+            # 뿌리가 없으면 **없다고 넘긴다.** 전에는 `or _PROJECT_DIR` 로 다른
+            # 자리를 집었는데, 그러면 "제자리를 보고 없었다"(weights_present=False)
+            # 가 되어 뿌리를 가리키면 해결되는 상태가 가중치 결손으로 보인다.
+            # 자리를 **거절할 때와 같은 값으로** 넘긴다. 넘기지 않으면 카탈로그는
+            # 보수적으로 "나가는 연결이 필요하다" 고 답하는데, 그러면 화면은 경고를
+            # 띄우고 같은 콘솔의 시도 경로는 그 탐지기를 그냥 세운다 — 방향만
+            # 반대인 같은 어긋남이다(실측: `yolo-world-v2-s` 의 CLIP 인코더가
+            # 작업 디렉터리에 있어서 거절되지 않는데 화면만 경고했다).
+            rows = characteristics(
+                asset_root=_ASSET_ROOT,
+                runtime_search_paths=self._runtime_asset_search_paths())
+        except (OSError, ValueError):
+            return {}
+        return next((r for r in rows
+                     if r.get("implementation_ref") == implementation_ref), {})
+
+    def _trial_declared(self, implementation_ref: str) -> dict:
+        """그 탐지기를 **선언된 값으로** 돌리기 위한 재료.
+
+        여기가 "임계값이 코드 상수가 아니다" 가 실제로 성립하는 자리다 — 폼이 수를
+        적지 않으면 선언(그리고 운영자 장부)의 값이 들어가고, 각 값의 출처가
+        `param_basis` 로 함께 간다. 어휘와 이름 공간도 **선언이 정한다**:
+        `"zeroshot"` 을 여기 적어 넣으면 프롬프트를 받지 않는 모델의 라벨이 운영자
+        어휘의 기본 하한을 빌리게 되고, 그것이 고치려는 결함이다.
+        """
+        row = self._detector_row(implementation_ref)
+        prompting = row.get("prompting") or {}
+        params, basis = self.thresholds().params_for(
+            implementation_ref,
+            capability_kind=row.get("capability_kind") or None,
+            label_namespace=prompting.get("label_namespace") or None,
+            accepted=tuple(row.get("accepted_params") or ()) or None,
+            operator_values=self._operator_thresholds())
+        return {
+            "params": params,
+            "param_basis": {name: resolved.basis for name, resolved in basis.items()},
+            "prompt_free": bool(row.get("prompt_free", False)),
+            "taxonomy_vocabulary": prompting.get("taxonomy_vocabulary"),
+            "label_namespace": str(prompting.get("label_namespace") or ""),
+        }
+
+    def _trial_floor(self, label: str, score: float, vocabulary,
+                     label_namespace: str) -> dict:
+        """그 라벨·그 점수의 하한 상태. **판정하지 않고 주인에게 묻는다.**
+
+        어휘 라벨은 `ObstacleTaxonomy.score_floor` 가, 어휘에 속하지 않는 라벨
+        (프롬프트프리)은 `detection_thresholds` 의 이름 공간 선언이 답한다. 둘 다
+        말하지 않으면 `no_floor_declared` 이고 **그 상자를 버리지 않는다**(AI-S-04) —
+        세는 것이 전부다.
+
+        `vocabulary` 가 비어 있는(= 어떤 어휘에도 속하지 않는) 탐지기에 대고
+        `"zeroshot"` 을 넣지 않는 것이 이 함수의 요점이다. 넣으면 그 어휘의
+        `default`(0.25)가 나오고, 그 수는 운영자 어휘의 점수 분포에서 나온 값이라
+        모델이 스스로 떠올린 범주에 대해서는 근거가 없다.
+        """
+        from mission_runtime.perception.obstacle_taxonomy import (  # noqa: PLC0415
+            FLOOR_ABOVE,
+            FLOOR_BELOW,
+            FLOOR_NO_BASIS,
+        )
+
+        taxonomy = self.taxonomy()
+        if taxonomy is not None and vocabulary:
+            floor = taxonomy.score_floor(label, vocabulary=vocabulary,
+                                         label_namespace=label_namespace or None)
+            if floor.declared:
+                return {**floor.as_dict(), "state": floor.state(score),
+                        "owner": "obstacle_taxonomy", "threshold_id": None}
+
+        # 어휘가 없거나 어휘가 말하지 않는 라벨. 이름 공간 선언을 본다.
+        resolved = self.thresholds().resolve(
+            "label_score_floor", label_namespace=label_namespace or None,
+            operator_values=self._operator_thresholds())
+        if resolved.known:
+            state = FLOOR_ABOVE if float(score) >= resolved.value else FLOOR_BELOW
+        else:
+            state = FLOOR_NO_BASIS
+        return {"class_name": str(label), "vocabulary": vocabulary,
+                "label_namespace": label_namespace,
+                "value": resolved.value, "basis": resolved.basis, "state": state,
+                "owner": "detection_thresholds",
+                "threshold_id": (None if resolved.declaration is None
+                                 else resolved.declaration.threshold_id)}
+
+    def apply_threshold(self, *, caller: Caller, body: dict) -> dict:
+        """운영자가 고른 임계값을 **적용한다** — 선언 파일은 고치지 않는다.
+
+        세 가지가 이 메서드의 요점이다.
+
+        1. 선언은 읽기 전용이고 수정은 append-only 장부에 쌓인다. 되돌림도 삭제가
+           아니라 `action=reset` 항목이다(AI-L-03). 작성자 없는 수정은 거절된다.
+        2. **임계값을 바꾼 것은 다른 실행 구성이다**(AI-B-01). 응답이 바뀐
+           `postprocess_ref` 와 구성 지문을 함께 내서 옛 측정값이 새 값에 붙지
+           않는다는 사실을 화면이 그대로 읽는다.
+        3. 돌려 보는 것(`POST /api/trial-run`)과 적용하는 것은 **다른 경로·다른
+           권한**이다. 같은 경로에 두면 화면을 띄운 사람이 운영 값을 바꾼다.
+        """
+        from mission_runtime.perception.detection_thresholds import (  # noqa: PLC0415
+            ThresholdDeclarationError,
+        )
+
+        threshold_id = str(body.get("threshold_id") or "")
+        if not threshold_id:
+            raise ApiError(400, "threshold_id_required")
+        reason = str(body.get("reason") or "").strip()
+        if not reason:
+            # 왜 고쳤는지 없는 수정은 뒤에서 설명할 수 없다.
+            raise ApiError(400, "reason_required")
+        try:
+            declared = self.thresholds().get(threshold_id)
+        except ThresholdDeclarationError as error:
+            raise ApiError(404, "unknown_threshold") from error
+        if self.overlay is None:
+            raise ApiError(503, "no_overlay_ledger")
+
+        action = str(body.get("action") or "set")
+        if action == "reset":
+            entry = self.overlay.reset(KIND_THRESHOLD, threshold_id,
+                                       actor=caller.actor, reason=reason)
+        elif action == "set":
+            if body.get("value") is None:
+                raise ApiError(400, "value_required")
+            try:
+                value = float(body["value"])
+            except (TypeError, ValueError) as error:
+                raise ApiError(400, "value_not_a_number") from error
+            if not declared.permits(value):
+                raise ApiError(400, f"value_out_of_bounds:{declared.bounds}")
+            entry = self.overlay.record(
+                KIND_THRESHOLD, threshold_id,
+                {"value": value, "parameter": declared.parameter,
+                 "applies_to": declared.applies_to.as_dict(),
+                 # 선언값을 **함께 적는다**. 장부만 보고도 무엇을 무엇으로 바꿨는지
+                 # 알 수 있어야 하고, 선언이 나중에 바뀌어도 그 사실이 남는다.
+                 "declared_value": declared.value,
+                 # 어느 시도를 보고 골랐는가. 없으면 빈 문자열이고 0 이 아니다.
+                 "trial_fingerprint": str(body.get("trial_fingerprint") or "")},
+                actor=caller.actor, reason=reason)
+        else:
+            raise ApiError(400, f"unknown_action:{action}")
+
+        resolved = self.thresholds().resolve(
+            declared.parameter,
+            detector_id=declared.applies_to.detector_id,
+            capability_kind=declared.applies_to.capability_kind,
+            vocabulary=declared.applies_to.vocabulary,
+            class_name=declared.applies_to.class_name,
+            label_namespace=declared.applies_to.label_namespace,
+            operator_values=self._operator_thresholds())
+        return {
+            "threshold_id": threshold_id,
+            "action": entry.action,
+            "actor": entry.actor,
+            "reason": entry.reason,
+            "edited_at": entry.edited_at,
+            # 선언과 수정은 **다른 칸**이다. 끝까지 구분된다.
+            "declaration": declared.as_row(),
+            "effective": resolved.as_dict(),
+            "configuration": self._threshold_configuration(declared),
+            # 적용은 측정이 아니다. 바뀐 구성의 옛 숫자는 이 값에 대한 것이 아니다.
+            "invalidates_prior_measurements": True,
+            "history": self.overlay.history(KIND_THRESHOLD, threshold_id),
+        }
+
+    def _threshold_configuration(self, declared) -> dict:
+        """그 임계값이 들어가는 **실행 구성 축**과, 바뀐 뒤의 지문.
+
+        `postprocess_ref` 가 달라지면 지문이 달라진다 — 임계값 변경이 재측정 의무를
+        만드는 것이 선언이 아니라 **자료형의 성질**이라는 뜻이다(AI-B-01).
+        `detector_id` 가 없는 선언(이름 공간 하한)은 구성 하나로 좁혀지지 않으므로
+        지문을 내지 않는다. 지어내지 않는 것이 맞다.
+        """
+        from mission_runtime.contracts.profile import (  # noqa: PLC0415
+            AXIS_POSTPROCESS,
+            ExecutionConfiguration,
+        )
+
+        detector_id = declared.applies_to.detector_id
+        if not detector_id:
+            return {"axis": AXIS_POSTPROCESS, "fingerprint": None,
+                    "postprocess_ref": None,
+                    "reason": "not_scoped_to_one_implementation"}
+        operator = self._operator_thresholds()
+        row = self._detector_row(detector_id)
+        prompting = row.get("prompting") or {}
+        before, _ = self.thresholds().params_for(
+            detector_id, label_namespace=prompting.get("label_namespace") or None,
+            accepted=tuple(row.get("accepted_params") or ()) or None)
+        after, _ = self.thresholds().params_for(
+            detector_id, label_namespace=prompting.get("label_namespace") or None,
+            accepted=tuple(row.get("accepted_params") or ()) or None,
+            operator_values=operator)
+
+        def ref(params: dict) -> str:
+            return ",".join(f"{k}={params[k]}" for k in sorted(params))
+
+        def fingerprint(params: dict) -> str:
+            return ExecutionConfiguration(
+                capability_kind=str(row.get("capability_kind")
+                                    or "perception.detect_ovd"),
+                implementation_ref=detector_id,
+                runtime_ref="", input_profile="",
+                postprocess_ref=ref(params)).fingerprint
+
+        return {
+            "axis": AXIS_POSTPROCESS,
+            "declared_postprocess_ref": ref(before),
+            "postprocess_ref": ref(after),
+            "declared_fingerprint": fingerprint(before),
+            "fingerprint": fingerprint(after),
+            "changed": ref(before) != ref(after),
+        }
+
+    # --- 돌려 보고 고르기 (AI-B-09 · AI-L-06) -------------------------------
+
+    def _trial_detector(self, implementation_ref: str, vocabulary: list[str],
+                        params: dict):
+        """구현 참조 하나를 실제 provider 로 세운다. 없으면 **None** 이고 장애가 아니다.
+
+        탐지기 선언이 있으면 그것을 쓰고, 없으면 이 노드에 있는 가중치로 간다 —
+        선언이 도착하면 이 함수만 그 쪽을 보게 되고 호출자는 그대로다.
+        """
+        if _ASSET_ROOT is None:
+            return None
+        try:
+            from mission_runtime.edge.detector_catalog import provider_for  # noqa: PLC0415
+        except ImportError:
+            provider_for = None
+        if provider_for is not None:
+            # **세우기 전에 나가는 연결이 필요한지 본다.** 선언이 외부 자산을
+            # 요구하는데 그 자산을 추론 런타임이 찾을 자리에 없으면, 세우는 행위
+            # 자체가 수백 MB 를 끌어온다 — 실측: 프롬프트형 YOLOE 의 텍스트
+            # 인코더가 572MB 이고, 콘솔 CWD 에서는 찾지 못해 네트워크로 간다.
+            # 판정은 카탈로그가 하고(`outbound_network_reason`) 이쪽은 런타임이
+            # 보는 자리만 넘긴다 — 같은 판정을 두 곳에서 하지 않는다.
+            refusal = self._would_reach_network(implementation_ref)
+            if refusal is not None:
+                return refusal
+            return provider_for(implementation_ref, vocabulary=vocabulary,
+                                params=params, asset_root=_ASSET_ROOT)
+
+        # 선언이 아직 없는 배치의 차선 경로. 아는 구현 하나만 세운다 — 모르는
+        # 참조를 비슷한 가중치로 바꿔 세우지 않는다(그러면 운영자가 고른 것과
+        # 돌아간 것이 달라진다).
+        from mission_runtime.edge.yolo_world_provider import (  # noqa: PLC0415
+            YoloWorldPerceptionProvider,
+        )
+
+        known = {"yolov8s-worldv2": _ASSET_ROOT / "weights" / "yolo" / "yolov8s-worldv2.pt"}
+        weights = known.get(implementation_ref)
+        if weights is None or not weights.exists() or not vocabulary:
+            return None
+        return YoloWorldPerceptionProvider(
+            vocabulary, weights, device="cpu",
+            conf=float(params.get("conf", 0.10)))
+
+    #: 추론 런타임이 **외부 자산을 찾는 자리들.** 가중치와 다르다 — 가중치는 우리가
+    #: 경로를 넘겨 읽히지만 외부 자산은 라이브러리가 자기 자리에서 찾고 없으면
+    #: 받아 온다(ultralytics: 작업 디렉터리와 자기 weights_dir). **선언된 상대 경로
+    #: 그대로** 본다. 파일명만 보면 `weights/clip/ViT-B-32.pt` 를 `<repo>/ViT-B-32.pt`
+    #: 에서 찾게 되어 **실제로 잘 돌던 YOLO-World 를 거짓으로 거절한다**(한 번
+    #: 그랬다). 자산 뿌리는 넣지 않는다 — 거기 있어도 런타임이 보지 않는다.
+    @staticmethod
+    def _runtime_asset_search_paths() -> tuple:
+        from pathlib import Path  # noqa: PLC0415
+
+        return (Path.cwd(), Path.cwd().parent)
+
+    @classmethod
+    def _would_reach_network(cls, implementation_ref: str) -> str | None:
+        """세우면 나가는 연결이 생기는가. 생기면 **사유 문자열**, 아니면 None.
+
+        다운로드는 배포가 하는 일이다(AI-B-02 가 이미지·자산 조달을 소유한다).
+        조회와 시도가 그것을 일으키면 운영자 클릭 하나가 폐쇄망 경계를 넘는다.
+
+        **판정은 카탈로그가 한다.** 여기서 하는 일은 *어디를 보는지* 를 넘기는
+        것뿐이다 — 그 자리를 아는 쪽은 provider 를 세우는 이 모듈이고, 무엇이
+        필요한지를 아는 쪽은 선언이다. 전에는 양쪽이 각자 판정해서 같은 탐지기를
+        두고 카탈로그는 "연결 불필요", 이 함수는 "인코더 때문에 연결 필요" 라고
+        서로 다르게 말했다(자산 뿌리에는 있고 런타임 자리에는 없는 572MB 인코더).
+        같은 사실의 주인이 둘이면 운영 화면과 거절이 어긋난다.
+        """
+        from trial import REASON_WOULD_REACH_NETWORK  # noqa: PLC0415
+
+        try:
+            from mission_runtime.edge.detector_catalog import (  # noqa: PLC0415
+                WEIGHTS_SOURCE_REASON,
+                DetectorCatalog,
+                DetectorCatalogError,
+            )
+        except ImportError:
+            return None
+        try:
+            detector = DetectorCatalog.from_file().get(implementation_ref)
+        except (DetectorCatalogError, OSError, ValueError):
+            return None
+        reason = detector.outbound_network_reason(
+            _ASSET_ROOT, runtime_search_paths=cls._runtime_asset_search_paths())
+        if reason is None:
+            return None
+        if reason == WEIGHTS_SOURCE_REASON:
+            return REASON_WOULD_REACH_NETWORK
+        return f"{REASON_WOULD_REACH_NETWORK}:{reason}"
+
+    def trial_options(self, *, capability_kind: str | None = None,
+                      source_id: str | None = None) -> dict:
+        """무엇을 돌려 볼 수 있는가. **돌리지 않는다** — 조회 전용이다.
+
+        후보 목록과 적격 사유는 `ModelDesk` 가 소유하고(AI-L-10), 여기서는 그 위에
+        "이 노드에 가중치가 있는가" 와 "고를 수 있는 그림" 을 더한다.
+        """
+        kind = capability_kind or "perception.detect_ovd"
+        bundle = self.labels(source_id)
+        try:
+            declared = self.models().versions(kind)
+        except Exception:  # noqa: BLE001 - 선언이 없는 배치는 정상이다
+            declared = []
+        try:
+            from mission_runtime.edge.detector_catalog import characteristics  # noqa: PLC0415
+
+            # 거절할 때와 같은 자리를 넘긴다 — 화면의 사전 경고와 시도 경로의
+            # 거절이 **같은 한 번의 판정**에서 나와야 어긋나지 않는다.
+            traits = characteristics(
+                asset_root=_ASSET_ROOT,
+                runtime_search_paths=self._runtime_asset_search_paths())
+        except ImportError:
+            # 특성 선언이 아직 없는 배치. **빈 목록으로 두고 그 사실을 적는다** —
+            # 없는 특성을 추측해 채우면 운영자가 그것을 선언으로 읽는다.
+            traits = []
+        return {
+            "capability_kind": kind,
+            "declared_versions": declared,
+            "detectors": traits,
+            "detector_declaration_present": bool(traits),
+            # 무엇을 **바꿔 가며** 돌려 볼 수 있는가. 선언과 운영자 수정이 다른
+            # 칸이고(AI-L-03), 아무도 선언하지 않은 값은 `declared: false` 로 남는다
+            # — 0 으로 채우면 운영자가 그것을 선언으로 읽는다(AI-S-08).
+            "thresholds": self._threshold_options(traits),
+            # 고를 수 있는 그림. 픽셀이 아니라 참조와 꺼낼 자리다(AI-C-08).
+            "frames": [{"frame_ref": name,
+                        "media": {"path": "/api/media", "kind": "frame",
+                                  "source": bundle.source_id, "file": name}}
+                       for name in bundle.frames()],
+            "frame_count": bundle.frame_count(),
+            "max_frames_per_trial": self._trial_max_frames(),
+            "label_source": bundle.source_id,
+            # "전부 중 고르게 띄워 고른 것" 과 "앞에서 자른 것" 은 다른 묶음이다.
+            # 어느 쪽인지 적지 않으면 운영자가 목록을 전부로 읽는다.
+            "frame_listing_strategy": bundle.listing_strategy,
+        }
+
+    def _threshold_options(self, traits) -> dict:
+        """바꿔 볼 수 있는 임계값 목록. **조회이고 아무것도 바꾸지 않는다.**
+
+        선언 행에 그 임계값이 **지금 어느 값으로 쓰이는지**(`effective`)를 붙인다.
+        둘을 한 칸에 합치지 않는 이유는 선언 파일과 운영자 장부가 끝까지 구분되어야
+        하기 때문이다 — 합치면 "원래 이 값이었다" 를 더는 말할 수 없다(AI-L-03).
+        """
+        declaration = self.thresholds()
+        operator = self._operator_thresholds()
+        accepted = {str(row.get("implementation_ref")): list(row.get("accepted_params") or ())
+                    for row in (traits or ())}
+        rows = []
+        for item in declaration.all():
+            resolved = declaration.resolve(
+                item.parameter,
+                detector_id=item.applies_to.detector_id,
+                capability_kind=item.applies_to.capability_kind,
+                vocabulary=item.applies_to.vocabulary,
+                class_name=item.applies_to.class_name,
+                label_namespace=item.applies_to.label_namespace,
+                operator_values=operator)
+            detector_id = item.applies_to.detector_id
+            rows.append({
+                **item.as_row(),
+                "effective": resolved.as_dict(),
+                # 이 이름이 그 탐지기에 **실제로 전달되는가**. 전달되지 않는 이름을
+                # 폼에 띄우면 운영자가 고친 값이 조용히 버려진다.
+                "reaches_provider": (None if detector_id is None
+                                     else item.parameter in accepted.get(detector_id, ())),
+            })
+        return {
+            "declaration_present": bool(declaration.threshold_ids),
+            "parameters": list(declaration.parameters()),
+            "rows": rows,
+            # 적용은 조회가 아니다 — 쓰는 이름과 읽는 이름이 겹치지 않는다(AI-O-06).
+            "apply_path": "/api/threshold",
+            "overlay_kind": KIND_THRESHOLD,
+        }
+
+    @staticmethod
+    def _trial_max_frames() -> int:
+        from trial import MAX_TRIAL_FRAMES  # noqa: PLC0415
+
+        return MAX_TRIAL_FRAMES
+
+    def run_trial(self, *, caller: Caller, body: dict) -> dict:
+        """고른 후보들을 **같은 그림들에** 돌린다. 모델을 바꾸지 않는다.
+
+        정답이 있는 프레임이면 적중·거짓 양성까지 세고, 없으면 설명만 낸다 —
+        정답 없이 개수를 견주는 것은 비교가 아니다. 정답은 라벨 화면의 사람 검수에서
+        오고(AI-L-03), 그래서 모델 비교가 라벨링에 묶여 있다.
+        """
+        from trial import TrialDesk, candidates_from_body  # noqa: PLC0415
+
+        # 폼이 수를 적지 않으면 **선언된 값**으로 돈다(코드 상수가 아니다).
+        candidates = candidates_from_body(body.get("candidates"),
+                                          declared=self._trial_declared)
+        frame_refs = [str(f) for f in (body.get("frame_refs") or ()) if str(f)]
+        source = self.labels(body.get("source") or None)
+        root = source._root()
+        if root is None:
+            from trial import REASON_NO_FRAME_ASSETS  # noqa: PLC0415
+
+            raise ApiError(503, REASON_NO_FRAME_ASSETS)
+
+        def load(frame_ref: str):
+            from labeling import LabelingError, resolve_frame  # noqa: PLC0415
+
+            try:
+                path = resolve_frame(root, frame_ref)
+            except LabelingError:
+                return None
+            import cv2  # noqa: PLC0415
+
+            image = cv2.imread(str(path))
+            if image is None:
+                return None
+            return image, (image.shape[1], image.shape[0])
+
+        desk = TrialDesk(
+            resolver=self._trial_detector,
+            frame_loader=load,
+            media_ref=lambda ref: {"path": "/api/media", "kind": "frame",
+                                   "source": source.source_id, "file": ref},
+            # 라벨별 하한 상태를 **세기만** 한다. 판정의 주인은 taxonomy 와 임계값
+            # 선언이고, 못 미친 상자도 응답에서 빠지지 않는다(AI-S-04).
+            floor_lookup=self._trial_floor,
+            capability_kind=str(body.get("capability_kind")
+                                or "perception.detect_ovd"))
+        return desk.run(candidates=candidates, frame_refs=frame_refs,
+                        actor=caller.actor,
+                        ground_truth=self._trial_ground_truth(frame_refs))
+
+    def _trial_ground_truth(self, frame_refs) -> dict:
+        """사람이 만든 정답에서 그 프레임들의 상자를 꺼낸다. 없으면 빈 사전이다.
+
+        **모델이 낸 상자를 정답으로 쓰지 않는다**(AI-L-02) — 사람이 검수한
+        `GroundTruthRecord` 만 본다.
+        """
+        wanted = set(frame_refs)
+        truth: dict[str, list] = {}
+        for record in self._ground_truth.values():
+            frame = str(getattr(record, "frame_ref", "") or "")
+            if frame not in wanted:
+                continue
+            for box in getattr(record, "boxes", ()):
+                label = getattr(box, "final_class", None)
+                corner = getattr(box, "final_box", None)
+                if not label or corner is None:
+                    continue
+                truth.setdefault(frame, []).append((str(label), tuple(corner)))
+        return truth
+
     def manage_model(self, *, caller: Caller, body: dict) -> dict:
         """승인·적용·넓히기·되돌리기. 적용은 검증 모드에서 시작한다(AI-L-07)."""
         from deployment import deployable_for  # noqa: PLC0415
@@ -1823,24 +2570,51 @@ class FmsService:
                 deployable = deployable_for(kind, device_id,
                                             required_tags=body.get("required_tags")
                                             or ("zone-edge",))
-                lineage = self._approved_lineage(body.get("version"))
+                # 적용 신원은 **버전 참조 하나**다. 계보는 그 버전의 승격 기록에서
+                # 나온다 — 계보를 따로 들고 오던 길이 어긋난 짝의 자리였다(AI-L-08).
+                # 확인된 모양: 후보 sha256-deadbeef… 의 계보를 들고 yolo-world@v2-s
+                # 가 올라가, 적용된 버전에서 역추적하면 **다른 산출물**의 학습·검증·
+                # 승인에 닿았다. 짝을 검사하지 않고 **둘째 칸을 없앴다.**
+                reference = (str(body.get("version_reference"))
+                             if body.get("version_reference") else None)
                 if step == "plan":
                     return {"step": step,
                             "plan": models.plan(device_id, requirement,
-                                                deployable=deployable, lineage=lineage),
-                            "eligibility": models.eligibility(device_id, requirement)}
-                if lineage is None:
-                    # 승인된 후보가 없으면 적용하지 않는다. 그 사실을 사유로 말한다.
+                                                deployable=deployable,
+                                                version_reference=reference),
+                            "eligibility": models.eligibility(device_id, requirement),
+                            # 화면이 고를 행이 계보를 이미 들고 있다 — "계보를 직접
+                            # 들고 오는" 길이 바로 그 구멍이었다.
+                            "promotions": models.promotions()}
+                if reference is None:
+                    # 승격된 후보가 없으면 적용하지 않는다. 그 사실을 사유로 말한다.
                     from deployment import REFUSE_NO_APPROVED_CANDIDATE  # noqa: PLC0415
 
                     return {"step": step, "applied": False,
                             "reason": REFUSE_NO_APPROVED_CANDIDATE}
                 result = models.apply(
-                    device_id, requirement, deployable=deployable, lineage=lineage,
-                    actor=caller.actor, reason=reason,
-                    pinned_reference=(str(body.get("pinned_reference"))
-                                      if body.get("pinned_reference") else None))
+                    device_id, requirement, deployable=deployable,
+                    version_reference=reference, actor=caller.actor, reason=reason)
                 target = f"{kind}@{device_id}"
+            elif step == "register":
+                # 승인과 적용 사이에 **빠져 있던 단계**다. 승인된 후보를 모델 버전으로
+                # 올려 두지 않으면 적용할 수 있는 것이 선언 파일의 손으로 적은 버전뿐이고,
+                # 그 버전에는 계보가 없다 — 그것이 거짓 기록의 입구였다.
+                version = str(body.get("version") or "")
+                device_id = str(body.get("device_id") or "")
+                kind = str(body.get("capability_kind") or "")
+                model_id = str(body.get("model_id") or "")
+                if not (version and device_id and kind and model_id):
+                    raise ApiError(400, "version_device_kind_and_model_id_required")
+                # 지연·메모리는 **실제로 쟀을 때만** 넘어간다. 0 으로 채우면 미측정
+                # 후보가 적격이 되고, 배정이 없는 이득을 보고 고른다(AI-O-05).
+                result = models.register_learned(
+                    training.candidate(version), model_id=model_id,
+                    capability_kind=kind, device_id=device_id,
+                    actor=caller.actor, reason=reason,
+                    measured_latency_ms=_optional_float(body.get("measured_latency_ms")),
+                    measured_memory_mb=_optional_float(body.get("measured_memory_mb")))
+                target = version
             elif step in ("widen", "rollback"):
                 deployment_id = str(body.get("deployment_id") or "")
                 if not deployment_id:
@@ -1862,24 +2636,9 @@ class FmsService:
             self.overlay.record(KIND_MODEL_ASSIGNMENT, target,
                                 {"step": step,
                                  **{k: v for k, v in result.items()
-                                    if k in ("applied", "advanced", "reason")}},
+                                    if k in ("applied", "advanced", "registered", "reason")}},
                                 actor=caller.actor, reason=reason)
         return {"step": step, **result, "deployments": models.deployments()}
-
-    def _approved_lineage(self, version: Any):
-        """적용을 가로막는 계보. 지정한 버전의 **그** 계보를 그대로 돌려준다.
-
-        버전을 지정하지 않으면 None 이다 — 승인된 것 중 아무 계보나 끌어다 쓰면 그
-        계보가 가리키는 학습과 실제로 올라가는 모델이 다른 것이 되고, AI-L-08 의
-        역추적이 거짓을 말한다.
-
-        승인 전 상태여도 그대로 넘긴다. 여기서 미리 걸러 내지 않는 이유: 관문 판정은
-        `MlopsPipeline._lineage_refusal` 이 소유하고, 그래야 거절 사유가 "승인 안
-        됨"이 아니라 **어느 상태에서 막혔는지**로 나온다.
-        """
-        if not version:
-            return None
-        return self.training().candidate(str(version)).lineage
 
     # -- 계정 관리 (관리자) -------------------------------------------------
 
@@ -1953,12 +2712,13 @@ _ROUTES_GET = ("/api/bootstrap", "/api/scene", "/api/domain", "/api/zone", "/api
                "/api/object", "/api/candidates", "/api/transit", "/api/mission",
                "/api/failure", "/api/spatial", "/api/overlay", "/api/lineage",
                "/api/deployment", "/api/calibration", "/api/approval",
-               "/api/evidence-kinds", "/api/background")
+               "/api/dashboard",
+               "/api/evidence-kinds", "/api/background", "/api/trial")
 _ROUTES_POST = ("/api/login", "/api/logout", "/api/assume", "/api/account",
                 "/api/command", "/api/correction", "/api/placement", "/api/survey",
                 "/api/detection", "/api/pose", "/api/label", "/api/join",
                 "/api/join-step", "/api/camera-info", "/api/training", "/api/model",
-                "/api/mission-run")
+                "/api/mission-run", "/api/trial-run", "/api/threshold")
 
 #: 바꾸는 경로 → 그 일에 필요한 능력. 표에 없는 경로는 라우팅에서 이미 막힌다.
 #: 로그인·로그아웃은 세션을 만드는 쪽이라 이 표에 없다.
@@ -1986,6 +2746,17 @@ _POST_PERMISSIONS: dict[str, str] = {
     # 임무를 **진행시키는** 것은 조회가 아니다. 계획(`GET /api/mission`)은 누구나
     # 읽을 수 있지만 한 걸음 내딛는 것은 명령 능력이 있어야 한다(AI-C-19).
     "/api/mission-run": PERM_COMMAND,
+    # 돌려 보는 것은 **모델을 바꾸는 것이 아니다.** 추론을 돌릴 뿐이므로 배포 권한이
+    # 아니라 학습 권한 쪽에 둔다 — 라벨 작업자가 어느 모델이 이 그림에서 어떻게
+    # 보는지 확인하는 것이 이 기능의 목적이고, 그 사람에게 모델 교체 권한을 함께
+    # 주면 안 된다(AI-L-06: 승인은 다른 사람이어야 한다).
+    "/api/trial-run": PERM_TRAIN,
+    # **돌려 보는 것과 적용하는 것은 다른 권한이다.** 시도는 추론만 돌리고 아무것도
+    # 바꾸지 않지만, 임계값 적용은 운영 중인 탐지가 무엇을 내보내는지를 바꾼다 —
+    # 모델 버전을 갈아 끼우는 것과 같은 종류의 행위이고(AI-B-01: 임계값을 바꾼 것은
+    # 다른 실행 구성이다) 그래서 배포 권한 쪽에 둔다. 같은 권한에 두면 돌려 보라고
+    # 권한을 준 사람이 운영 값까지 바꾼다(AI-L-06: 승인은 다른 사람이어야 한다).
+    "/api/threshold": PERM_DEPLOY_MODEL,
 }
 
 
@@ -2318,6 +3089,18 @@ class FmsHandler(BaseHTTPRequestHandler):
                 caller = self._require(PERM_SEE_INTERNALS)
                 return self._json(200, self.service.overlay_log(
                     kind=_single(query, "kind"), target_id=_single(query, "target")))
+            if parsed.path == "/api/dashboard":
+                # `pin=` 은 기준 노드 고정(§2) 이고 관찰 방식의 변경이다. 빈 값이
+                # 고정 해제이므로 "인자 없음"과 "빈 인자"를 가른다.
+                pin = _single(query, "pin")
+                return self._json(200, self.service.dashboard(
+                    pin=pin if "pin" in query else None))
+            if parsed.path == "/api/trial":
+                # **무엇을 돌려 볼 수 있는가** — 기능별 선언된 후보, 이 노드에
+                # 가중치가 있는지, 그리고 고를 수 있는 그림들. 돌리지는 않는다.
+                return self._json(200, self.service.trial_options(
+                    capability_kind=_single(query, "capability_kind"),
+                    source_id=_single(query, "source")))
             if parsed.path == "/api/deployment":
                 return self._json(200, self.service.deployment_view(caller=caller))
             if parsed.path == "/api/calibration":
@@ -2418,6 +3201,13 @@ class FmsHandler(BaseHTTPRequestHandler):
                 return self._json(202, self.service.run_training(caller=caller, body=body))
             if parsed.path == "/api/model":
                 return self._json(202, self.service.manage_model(caller=caller, body=body))
+            if parsed.path == "/api/trial-run":
+                return self._json(200, self.service.run_trial(caller=caller, body=body))
+            if parsed.path == "/api/threshold":
+                # 선언을 덮지 않고 장부에 쌓는다. 202 인 이유는 적용이 **요청**이고
+                # 그 값이 실제로 쓰이는 시점은 다음 반영(runtime/refresh.py)이라서다.
+                return self._json(202, self.service.apply_threshold(
+                    caller=caller, body=body))
             return self._json(202, self.service.correction(caller=caller, body=body))
         except ApiError as error:
             return self._error(error.status, error.reason)
@@ -2524,6 +3314,9 @@ def build_service(
             path=Path(accounts_path) if accounts_path
             else state_root() / "fms_accounts" / "accounts.json"),
         declared_demand=_declared_demand(resolved_fleet),
+        # 구역 B~I 의 조립을 **정본 하나에서** 가져온다. 콘솔이 같은 조립을 다시
+        # 하면 두 화면이 서로 다른 답을 말한다(CLAUDE.md §0, AI-O-06).
+        status=status,
     )
     if with_fleet:
         # 설정 파일의 자리를 그대로 넘긴다. 어휘를 역할 이름 표에서만 찾으면 표에 없는

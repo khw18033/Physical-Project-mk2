@@ -1,0 +1,424 @@
+{
+  "$comment": "배선 예외 장부 — `tests/test_module_wiring.py` 가 읽는 **정본**이다. 이 파일이 생긴 이유: 2026-11-04 하루에 여섯 번, 모듈이 올바르게 쓰이고 추적표에 완료로 적히고도 **어떤 운영 코드도 부르지 않는** 상태로 남았다(`observability/resource_watch.py` · `GET /api/dashboard` · `runtime/learned_version.py` · k3s 워크로드 0 · `ObstacleTaxonomy.passes_floor` · `contracts/device_attachment.py`). 사람이 알아채는 일이었던 것을 시험 실패로 바꾼다. `.example.json` 이 아닌 이유: 이 장부는 배치가 고르는 선언이 아니라 **이 저장소의 사실**이고, 배치마다 다른 사본이 생기면 안 된다(`config/status_ui.json` · `config/providers.hardware.json` 과 같은 자리). 키는 모듈 경로다 — 점 이름으로 적으면 `services/edge-node/` 처럼 파이썬 식별자가 아닌 디렉터리를 가리킬 수 없다. **정당한 예외와 미룬 것을 가르는 기준**: `adapter` · `reference` · `mock` · `experiment` 는 '어떤 운영 모듈도 이것을 이름으로 import 하면 안 되는' 것들이다 — adapter 를 상위 코드가 이름으로 부르면 그 순간 AI-C-04 가 깨지고, mock 을 프레임워크가 부르면 AI 가 소유하지 않은 사실의 주인이 둘이 된다(원칙 #15). `deferred` 는 그 반대다 — **불러야 하는데 아직 아무도 부르지 않는다**. 그래서 `deferred` 에는 `wired_by` 가 필수다: 무엇이 생기면 이 줄이 사라지는지 적지 않은 예외는 사유 없는 예외와 같다. 줄을 지우는 방법은 두 가지뿐이고 둘 다 시험이 확인한다 — 실제로 배선하면(그러면 이 줄은 **낡은 예외**로 실패한다) 또는 모듈을 지우면. 사유를 적지 않거나 `kind` 를 모르는 값으로 적으면 역시 실패한다.",
+  "format_version": "1",
+  "kinds": {
+    "adapter": "`providers/adapters.py` 의 Protocol 구현. 배치가 선언이나 조립 지점에서 고르고 상위 코드는 이름을 모른다(AI-C-04). 운영 모듈이 이것을 import 하면 그것이 결함이다.",
+    "reference": "요구사항 하나의 수직 슬라이스. 베껴 쓰라고 있는 것이고 프레임워크가 부르는 것이 아니다(CLAUDE.md: `reference/`(AI-N-01 수직 슬라이스)).",
+    "mock": "다른 파트가 authoritative 하게 소유한 사실의 대역. 프레임워크가 부르면 같은 사실에 주인이 둘이 된다(원칙 #15, AI-C-19).",
+    "experiment": "비교 실험용 결정적 기준선·산출물. 운영 경로가 같은 코드를 쓰면 baseline 과 proposed 가 코드를 공유해 비교가 무의미해진다(AI-B-01).",
+    "deferred": "**실제 공백이다.** 불러야 하는데 아직 아무도 부르지 않는다. `wired_by` 에 무엇이 생기면 배선되는지 적는다."
+  },
+  "exceptions": [
+    {
+      "path": "collection/sampler.py",
+      "kind": "deferred",
+      "reason": "수집 세션이 쓰는 표본 추출기. 세션이 배선되면 함께 닿는다.",
+      "wired_by": "`collection/session.py` 가 배선되면 함께 닿는다 — 그 모듈이 이것의 유일한 운영 import 주체다. 한 홉만 보던 시험은 이 줄을 '배선됨' 으로 셌고, 그래서 지연 사슬이 마지막 한 줄 뒤에 숨었다(2026-11-04)."
+    },
+    {
+      "path": "collection/session.py",
+      "kind": "deferred",
+      "reason": "실제 이종 인지를 동시에 돌리고 **완료 순서대로** 근거를 만드는 수집 세션(AI-S-06, AI-O-01/03). 측정 시각을 가정하지 않고 재는 것이 목적인데 이것을 돌리는 운영 경로가 없다. `collection/__init__.py` 가 재수출하지만 그 패키지를 import 하는 운영 모듈도 없다 — 재수출은 호출이 아니다.",
+      "wired_by": "실험 수집 진입점(`tools/` 아래 명령 하나)이 미디어 소스와 worker 를 받아 세션을 돌리면 배선된다."
+    },
+    {
+      "path": "continual/dgs.py",
+      "kind": "deferred",
+      "reason": "Dynamic task grouping. `continual/__init__.py` 가 재수출하지만 그 패키지를 부르는 운영 모듈이 없다 — 콘솔은 `continual/lineage.py`·`stream_learning.py`·`parameter_evaluation.py` 세 개만 이름으로 부른다.",
+      "wired_by": "학습 실행 경로(AI-L-04)가 그룹 선택을 이 모듈에 맡기면 배선된다."
+    },
+    {
+      "path": "continual/ekya.py",
+      "kind": "deferred",
+      "reason": "학습·추론 자원 배분(micro-profile 기반). 위와 같은 재수출 상태이고 자원 배분을 요청하는 운영 경로가 없다.",
+      "wired_by": "학습 실행이 자원 예산을 받아 job 을 배분하면 배선된다(AI-L-04, AI-B-06)."
+    },
+    {
+      "path": "continual/h2st.py",
+      "kind": "deferred",
+      "reason": "계층적 2-표본 분포변화 검출 — '재학습이 필요해졌다'의 근거를 내는 쪽(AI-L-01).",
+      "wired_by": "운영 스트림이 이 검출기를 거쳐 학습 후보 사유를 내면 배선된다."
+    },
+    {
+      "path": "continual/operational_stream.py",
+      "kind": "deferred",
+      "reason": "실증 배치의 운영 데이터 스트림(`stream_data/<소스>/<실행>/` 폴더와 `vision_stream:<소스>:<모델>` Redis 스트림)을 학습 후보로 바꾼다(AI-L-09). 실제 자산 자리를 알고 있는 쪽인데 부르는 곳이 없다.",
+      "wired_by": "콘솔 학습 탭 또는 수집 진입점이 이 reader 로 후보를 적재하면 배선된다."
+    },
+    {
+      "path": "continual/p2iod.py",
+      "kind": "deferred",
+      "reason": "task vector 융합. 후보 가중치를 만드는 방법 하나이고 선택 가능한 전략으로 남아 있다(AI-L-04).",
+      "wired_by": "학습 실행 provider 가 융합 전략을 고를 수 있게 되면 배선된다."
+    },
+    {
+      "path": "continual/replay.py",
+      "kind": "deferred",
+      "reason": "replay 후보 선별(pseudo-label 격리 포함, AI-L-02). 검증되지 않은 추론 결과를 정답으로 승격하지 않는 경계가 여기 있는데 그 경계를 지나는 데이터가 없다.",
+      "wired_by": "학습 후보 승격 경로가 이 선별기를 통과하도록 하면 배선된다."
+    },
+    {
+      "path": "continual/stream_ingest.py",
+      "kind": "deferred",
+      "reason": "회전 스캔 프레임 스트림 → 학습 후보 + 데모 파이프라인이 쓰던 클래스 파라미터 적재(AI-L-09).",
+      "wired_by": "위와 같다 — 학습 후보 적재 경로 하나가 두 줄을 함께 지운다."
+    },
+    {
+      "path": "decision/autonomy_level.py",
+      "kind": "deferred",
+      "reason": "권고 조치에 '사람이 어디까지 개입해야 하는가'를 등급으로 붙인다(AI-C-19, AI-S-05, AI-R-02). 운영자 화면이 권고를 보여 주지만 그 권고의 자율 등급은 지나가지 않는다.",
+      "wired_by": "`risk/scoring.py`·권고 산출이 등급을 붙여 상태 스냅샷으로 내면 배선된다(AI-O-06)."
+    },
+    {
+      "path": "decision/orchestrator.py",
+      "kind": "deferred",
+      "reason": "선택 정책이 쓰는 조율기. 정책 주입이 생기면 함께 닿는다(AI-C-13 비교 실험의 전제).",
+      "wired_by": "`decision/selection_policies.py` 가 배선되면 함께 닿는다 — 그 모듈이 이것의 유일한 운영 import 주체다. 한 홉만 보던 시험은 이 줄을 '배선됨' 으로 셌고, 그래서 지연 사슬이 마지막 한 줄 뒤에 숨었다(2026-11-04)."
+    },
+    {
+      "path": "decision/selection_policies.py",
+      "kind": "deferred",
+      "reason": "같은 인터페이스의 서로 다른 provider 선택 정책들(AI-C-13 이 요구하는 교체 가능성의 구현). `selection/selector.py` 는 `(priority, compute_units)` 최소 하나만 쓰고 이 정책 묶음을 받지 않는다 — 교체 가능하다고 적힌 축이 실제로는 고정돼 있다.",
+      "wired_by": "`CapabilitySelector` 가 정책을 주입받는 인자를 가지면 배선된다. 정책 비교 실험(AI-C-13 의 '동일 조건 비교')의 전제다."
+    },
+    {
+      "path": "edge/anycalib_style_recovery.py",
+      "kind": "deferred",
+      "reason": "보정 추정 방법 하나. 보정 승격 경로가 방법을 provider 로 받으면 함께 닿는다 — 방법을 고르는 자리가 없는 동안은 어느 방법도 운영 경로에 없다(AI-E-02).",
+      "wired_by": "`edge/auto_calibration.py` 가 배선되면 함께 닿는다 — 그 모듈이 이것의 유일한 운영 import 주체다. 한 홉만 보던 시험은 이 줄을 '배선됨' 으로 셌고, 그래서 지연 사슬이 마지막 한 줄 뒤에 숨었다(2026-11-04)."
+    },
+    {
+      "path": "edge/auto_calibration.py",
+      "kind": "deferred",
+      "reason": "보정판 없는 현장의 내부 파라미터 추정(AI-E-02). 콘솔의 보정 탭은 `edge/calibration.py`·`edge/calibration_profile.py` 만 부르고 이 방법 경계를 거치지 않는다.",
+      "wired_by": "`tools/fms_console/deployment.py` 의 보정 승격 경로가 보정 방법을 선택 가능한 provider 로 받으면 배선된다(지금은 승격만 하고 추정 방법을 고르지 않는다)."
+    },
+    {
+      "path": "edge/bridge.py",
+      "kind": "deferred",
+      "reason": "구역 엣지의 양방향 브릿지(원칙 #11). 실제 배포는 엣지 Mosquitto → 중앙 Mosquitto MQTT 브릿지를 **브로커 설정으로** 돌리고 있어서 이 파이썬 구현을 세우는 프로세스가 없다 — `integration/deployment_topology.py` 가 그 지형을 정본으로 적는다.",
+      "wired_by": "`services/edge-node/` 의 엣지 진입점이 이 브릿지를 프로세스로 세우거나, 또는 지형이 브로커 설정으로 간다고 확정되면 이 모듈을 지운다. `docs/integration-handover.md` 가 남은 변경을 적는다."
+    },
+    {
+      "path": "edge/calibration_extrinsics.py",
+      "kind": "deferred",
+      "reason": "외부 파라미터 — 카메라가 어디 있고 어디를 보는가, 그리고 그 값이 얼마나 틀렸는가(AI-E-02, AI-C-02). 선언된 정확도를 들고 다니는 쪽인데 이 값을 읽는 운영 경로가 없다.",
+      "wired_by": "`perception/spatial_evidence.py` 또는 전역 변환 계층이 extrinsics 를 출처·정확도와 함께 소비하면 배선된다(AI-C-02 의 site datum 쪽과 같은 작업)."
+    },
+    {
+      "path": "edge/calibration_monitor.py",
+      "kind": "deferred",
+      "reason": "기존 보정이 더 이상 현실을 설명하지 않는 것을 알아채는 쪽(AI-E-02, AI-O-02). 재보정이 **언제 필요한가**의 답이고, 지금은 사람이 보정 탭을 열 때만 보정이 일어난다.",
+      "wired_by": "`runtime/refresh.py` 의 요청 기반 반영이 보정 품질 저하를 사유로 받으면 배선된다."
+    },
+    {
+      "path": "edge/calibration_transfer.py",
+      "kind": "deferred",
+      "reason": "보정 프로파일 이관. 품질 저하가 반영 사유가 되면 함께 닿는다.",
+      "wired_by": "`edge/calibration_monitor.py` 가 배선되면 함께 닿는다 — 그 모듈이 이것의 유일한 운영 import 주체다. 한 홉만 보던 시험은 이 줄을 '배선됨' 으로 셌고, 그래서 지연 사슬이 마지막 한 줄 뒤에 숨었다(2026-11-04)."
+    },
+    {
+      "path": "edge/coverage_fusion.py",
+      "kind": "deferred",
+      "reason": "여러 말단의 관측 범위를 하나의 `CoverageEstimator` 로 합치고 그 capability 를 등록한다(AI-S-03, AI-B-04, AI-C-10). 사각 판정의 입력이고, 그 아래 `perception/reobservation_policy.py`·`perception/viewpoint_selection.py` 가 같은 사슬에서 함께 끊겨 있다.",
+      "wired_by": "엣지 진입점이 말단별 coverage 관측을 이 fusion 에 넣고 결과를 레지스트리에 등록하면 재관측 사슬 세 줄이 함께 사라진다."
+    },
+    {
+      "path": "edge/equirect_views.py",
+      "kind": "deferred",
+      "reason": "파노라마에 pinhole 내부 파라미터가 없다는 사실을 거절 또는 원근 뷰 분할로 다룬다(AI-E-02). 실제 배치에 360 유닛이 아직 없다 — `contracts/device_attachment.py` 의 `transceiver` 도달이 그 장치를 선언으로 표현하는 자리다.",
+      "wired_by": "360 유닛이 `reach: transceiver` 로 조인하고 미디어 경로가 equirect 입력을 내면 배선된다."
+    },
+    {
+      "path": "edge/fastsam_provider.py",
+      "kind": "deferred",
+      "reason": "FastSAM 어댑터. 선언으로 provider 를 고르는 로더가 배선되면 함께 닿는다(AI-B-08).",
+      "wired_by": "`edge/model_config.py` 가 배선되면 함께 닿는다 — 그 모듈이 이것의 유일한 운영 import 주체다. 한 홉만 보던 시험은 이 줄을 '배선됨' 으로 셌고, 그래서 지연 사슬이 마지막 한 줄 뒤에 숨었다(2026-11-04)."
+    },
+    {
+      "path": "edge/model_config.py",
+      "kind": "deferred",
+      "reason": "설정 파일 → provider 인스턴스 조립. **이 저장소에 조립 지점이 없다**는 사실이 여기서 가장 또렷하게 보인다 — 이 로더가 배선되지 않았기 때문에 그것이 골라야 할 adapter 들(`edge/zipdepth_provider.py` 등)도 함께 아무도 부르지 않는다.",
+      "wired_by": "`runtime/application.py` 또는 서비스 진입점이 `config/model_config.example.json` 을 이 로더로 읽어 레지스트리에 등록하면 이 줄과 adapter 쪽 줄 몇 개가 같이 사라진다."
+    },
+    {
+      "path": "edge/object_evidence_fusion.py",
+      "kind": "deferred",
+      "reason": "한 프레임의 다중 인스턴스 근거 융합 오케스트레이터(AI-S-01/02/06). 콘솔은 `perception/multisource.py`·`perception/object_record.py` 를 직접 부르고 이 오케스트레이터를 거치지 않는다.",
+      "wired_by": "프레임당 다중 provider 결과를 **실제로 받는** 경로가 이 융합을 거치면 배선된다. 2026-11-04 확인: 배선된 레코드 경로(`tools/fms_console/twin.py`)는 장치당 결과를 **한 건씩** 받아 구역 로컬 궤적으로 장치 간 연계를 하므로, 한 프레임 안에서 두 provider 의 박스가 같은 객체인지를 묻는 이 모듈의 자리가 그 경로에 없다(그쪽은 `(device_id, frame_ref)` 묶음을 같은 객체로 **가정**한다). 프레임 단위 경로의 진입점은 `services/edge-node/edge_server.py` 이고 그 트리는 이 패키지를 import 하지 않는다 — `docs/integration-handover.md` 가 남은 변경을 적는다."
+    },
+    {
+      "path": "edge/self_localization.py",
+      "kind": "deferred",
+      "reason": "자기 위치 추정. 같은 선언 로더가 두 줄을 함께 지운다.",
+      "wired_by": "`edge/model_config.py` 가 배선되면 함께 닿는다 — 그 모듈이 이것의 유일한 운영 import 주체다. 한 홉만 보던 시험은 이 줄을 '배선됨' 으로 셌고, 그래서 지연 사슬이 마지막 한 줄 뒤에 숨었다(2026-11-04)."
+    },
+    {
+      "path": "execution/capability_escalation.py",
+      "kind": "deferred",
+      "reason": "수행 불가 판정 + 요청 생성(시뮬–실물 불일치 포함, AI-B-13). 콘솔은 뒤 단계인 `execution/external_request.py` 만 부르고 **1~2 단계 판정**은 아무도 하지 않는다 — 요청은 사람이 열어야 생긴다. 추적표는 AI-B-13 을 완료로 적는다.",
+      "wired_by": "임무 배정이 실행 불가를 만났을 때 이 판정을 호출해 요청을 자동 발신하면 배선된다."
+    },
+    {
+      "path": "execution/conformance.py",
+      "kind": "deferred",
+      "reason": "새 provider 등록이 '정상 선택 후보' 가 되기 전의 공통 적합성 검사(AI-B-09). 지금은 등록만으로 후보가 되고 이 관문을 지나지 않는다.",
+      "wired_by": "`registry/capability_registry.py` 의 등록 경로 또는 `runtime/execution_profile.py` 의 프로파일 생성이 이 검사를 전제로 삼으면 배선된다."
+    },
+    {
+      "path": "execution/hardware_adapter.py",
+      "kind": "deferred",
+      "reason": "명령 lifecycle 감독자를 교체 가능한 하드웨어 provider 에 잇는다. 콘솔은 `execution/robot_adapter.py`·`execution/physical_command_gateway.py` 를 직접 부르고 이 이음새를 쓰지 않는다. **docstring 에 `implements:` 줄이 없다** — 어느 요구사항의 몫인지도 적혀 있지 않다.",
+      "wired_by": "장치쪽 어댑터가 이 이음새를 통해 backend 를 받게 하거나, 역할이 `robot_adapter.py` 와 겹친다면 하나로 합친다."
+    },
+    {
+      "path": "execution/lifecycle.py",
+      "kind": "deferred",
+      "reason": "독립 실행 lifecycle + 버전 구성 배포·롤백(AI-B-05). 선택 기능의 배포 실패가 핵심 기능을 흔들지 않는다는 보장이 여기 있는데, 실제 배포는 `runtime/device_deployment.py`·`providers/k3s.py` 로 가고 이 계약을 지나지 않는다.",
+      "wired_by": "`runtime/model_deployment.py` 또는 배치 경로가 기능 단위 lifecycle 을 이 모듈로 표현하면 배선된다."
+    },
+    {
+      "path": "execution/mission_handover.py",
+      "kind": "deferred",
+      "reason": "임무를 다른 담당 노드·다른 로봇으로 넘긴다(AI-B-12, 회차 보존). 콘솔에는 `tools/fms_console/handover.py` 라는 **다른** handover 가 있고 그쪽은 구역 핸드오버다 — 임무 인수인계는 아무도 부르지 않는다.",
+      "wired_by": "임무 상태 관리(`execution/mission.py`)가 담당 노드 교체를 이 모듈로 처리하면 배선된다."
+    },
+    {
+      "path": "execution/mission_plan.py",
+      "kind": "deferred",
+      "reason": "외부에서 생성된 미션 계획(미션 → 마일스톤 → 태스크)을 다시 유도하지 않고 `TaskGraph` 로 바꾼다(AI-B-12). 콘솔은 `execution/task_graph.py` 와 `tools/fms_console/subtasks.py` 를 쓰고 이 소비 어댑터를 거치지 않는다 — 즉 외부 계약을 받는 입구가 비어 있다.",
+      "wired_by": "가시화 파트의 미션 계획 계약이 실제로 들어오는 경로(`/api/...` 수신 또는 파일 적재)가 이 어댑터를 쓰면 배선된다."
+    },
+    {
+      "path": "observability/experiment.py",
+      "kind": "deferred",
+      "reason": "실험 수집의 관측 기록. 같은 세션 진입점이 두 줄을 함께 지운다.",
+      "wired_by": "`collection/session.py` 가 배선되면 함께 닿는다 — 그 모듈이 이것의 유일한 운영 import 주체다. 한 홉만 보던 시험은 이 줄을 '배선됨' 으로 셌고, 그래서 지연 사슬이 마지막 한 줄 뒤에 숨었다(2026-11-04)."
+    },
+    {
+      "path": "observability/metrics.py",
+      "kind": "deferred",
+      "reason": "엣지 상세 + 서버 요약(AI-O-01), 그리고 장치 생사·치명 오류를 요약에 섞지 않는 분리. 콘솔은 `observability/layered_metrics.py`·`host_resources.py`·`resource_watch.py` 를 부르고 이 store 는 지나가지 않는다 — **같은 사실의 주인이 둘일 위험**이 있는 자리이므로 지우기와 배선 중 어느 쪽인지 정해야 한다.",
+      "wired_by": "엣지 수집 경로가 이 store 에 표본을 쌓고 요약을 서버로 내면 배선된다. 겹치면 `layered_metrics.py` 쪽으로 합친다."
+    },
+    {
+      "path": "perception/coverage.py",
+      "kind": "deferred",
+      "reason": "말단 하나의 관측 커버리지. 융합과 재관측 정책이 둘 다 이것을 쓰므로 재관측 사슬이 배선될 때 함께 닿는다.",
+      "wired_by": "`edge/coverage_fusion.py` 가 배선되면 함께 닿는다 — 그 모듈이 이것의 유일한 운영 import 주체다. 한 홉만 보던 시험은 이 줄을 '배선됨' 으로 셌고, 그래서 지연 사슬이 마지막 한 줄 뒤에 숨었다(2026-11-04)."
+    },
+    {
+      "path": "perception/environment_prior.py",
+      "kind": "deferred",
+      "reason": "환경 사전정보(AI-S-08). 트윈 상태를 내는 경로가 배선되면 함께 닿는다. 관측과 분리해 두는 규칙은 이 모듈이 소유한다.",
+      "wired_by": "`perception/twin_map.py` 가 배선되면 함께 닿는다 — 그 모듈이 이것의 유일한 운영 import 주체다. 한 홉만 보던 시험은 이 줄을 '배선됨' 으로 셌고, 그래서 지연 사슬이 마지막 한 줄 뒤에 숨었다(2026-11-04)."
+    },
+    {
+      "path": "perception/obstacle_evidence.py",
+      "kind": "deferred",
+      "reason": "장애물 근거 — 주행 경로 사슬의 **입력**이다. `planning/driving_plan.py` 를 부르는 운영 경로가 생기면 사슬 전체와 함께 닿는다. 실제 모델·실제 스캔으로 검증되어 있다(tests/test_real_obstacle_stack.py).",
+      "wired_by": "`risk/hazard_field.py` 가 배선되면 함께 닿는다 — 그 모듈이 이것의 유일한 운영 import 주체다. 한 홉만 보던 시험은 이 줄을 '배선됨' 으로 셌고, 그래서 지연 사슬이 마지막 한 줄 뒤에 숨었다(2026-11-04)."
+    },
+    {
+      "path": "perception/reobservation_policy.py",
+      "kind": "deferred",
+      "reason": "사각을 **순이익(정보이득 − 비용)** 으로 걸러 낸다 — 가치 없는 빈칸이 '있다'는 이유만으로 요청이 되지 않게 하는 쪽(AI-S-05, AI-E-04).",
+      "wired_by": "`edge/coverage_fusion.py` 가 배선되어 사각 목록을 내면 그 다음 칸이 이 모듈이다."
+    },
+    {
+      "path": "perception/research_baselines.py",
+      "kind": "deferred",
+      "reason": "미확인도 점수의 비교 기준선. 점수가 학습 후보 순위에 쓰이면 함께 닿는다.",
+      "wired_by": "`perception/unknownness.py` 가 배선되면 함께 닿는다 — 그 모듈이 이것의 유일한 운영 import 주체다. 한 홉만 보던 시험은 이 줄을 '배선됨' 으로 셌고, 그래서 지연 사슬이 마지막 한 줄 뒤에 숨었다(2026-11-04)."
+    },
+    {
+      "path": "perception/rssi_localization.py",
+      "kind": "deferred",
+      "reason": "카메라가 못 보는 자리에서 '어느 구역에 있는가'를 무선 신호로 답한다(AI-N-03, AI-S-02). `providers/rssi_link_quality.py` 는 배선돼 있어 신호는 들어오는데 그 신호로 자리를 좁히는 쪽이 끊겨 있다. 개체 식별의 1순위 해법(운동 프로브)과 같은 계열의 식별력 있는 단서다.",
+      "wired_by": "`perception/device_identity.py` 또는 구역 판정이 링크 측정을 이 추정기로 넘기면 배선된다."
+    },
+    {
+      "path": "perception/temporal_alignment.py",
+      "kind": "deferred",
+      "reason": "교차소스 매칭 **전에** 지연을 보정한다(AI-S-01, AI-C-03). `perception/cross_view_association.py` 는 배선돼 있는데 그 앞의 시간 정합이 빠져 있어, 서로 다른 시각의 관측이 같은 시각처럼 대조된다.",
+      "wired_by": "`cross_view_association` 호출자가 매칭 전에 이 보정을 통과시키면 배선된다. 추적표는 AI-C-03 을 완료로 적는다."
+    },
+    {
+      "path": "perception/tracking.py",
+      "kind": "deferred",
+      "reason": "IOU/ByteTrack 추적 provider 와 `track_or_raw` fallback(AI-S-01). **추적 없이는 프레임별 결과만 남는다**가 요구사항의 축소 경로인데, 지금 배치는 추적기를 아예 세우지 않아 항상 축소 상태다. `services/edge-node/tracking.py` 에 같은 docstring 의 사본이 있고 그쪽도 배선되지 않았다.",
+      "wired_by": "프레임당 **detection 목록**을 받는 경로가 `update()` 를 부르면 배선된다. 2026-11-04: 사본(`services/edge-node/tracking.py`)은 지웠고, 승격 사슬은 `runtime/perception_loop.py` 가 받아 `track_identity` 를 레코드에 싣는 자리까지 만들어 두었다(추적기가 없으면 프레임별 결과만 남는 축소 경로도 거기 있다). 그러나 배선된 레코드 경로는 정체성을 이미 `perception/cross_view_association.py` 로 소유하므로 거기서 이 추적기를 세우면 **같은 사실에 주인이 둘**이 된다(원칙 #15와 같은 결함). 남은 공백은 프레임 목록을 내는 쪽이고 `edge/object_evidence_fusion.py` 와 같은 사슬이다."
+    },
+    {
+      "path": "perception/twin_map.py",
+      "kind": "deferred",
+      "reason": "탐지로 지은 지도 — **아무도 보지 않은 자리를 비었다고 말하지 않는다**(AI-S-06, AI-S-08). 2026-11-03 개정으로 최종 트윈 상태가 AI 소유가 됐으므로 소유 구현이 있어야 하는 자리인데 부르는 곳이 없고, 그 사이 `simulation/digital_twin.py` 대역이 남아 있다.",
+      "wired_by": "트윈 상태를 내는 경로(`/api/scene` 공급 또는 엣지 집계)가 이 지도를 정본으로 쓰면 배선되고, 그때 대역 mock 을 지운다. 백엔드와의 경계 재합의가 선행 조건이다."
+    },
+    {
+      "path": "perception/unconfirmed.py",
+      "kind": "deferred",
+      "reason": "미확인 객체 후보 관리(AI-S-04). 같은 자리에서 함께 배선된다.",
+      "wired_by": "`perception/unknownness.py` 가 배선되면 함께 닿는다 — 그 모듈이 이것의 유일한 운영 import 주체다. 한 홉만 보던 시험은 이 줄을 '배선됨' 으로 셌고, 그래서 지연 사슬이 마지막 한 줄 뒤에 숨었다(2026-11-04)."
+    },
+    {
+      "path": "perception/unknownness.py",
+      "kind": "deferred",
+      "reason": "open-vocabulary 근거 위의 미확인 가능도 점수(AI-S-04, 실제 OWL-ViT raw score 에 연결된 세 정책). 추적표는 AI-S-04 를 완료로 적고 `perception/unconfirmed.py` 와 짝으로 적는데, 이 점수를 읽는 운영 경로가 없다.",
+      "wired_by": "미확인 후보 관리(`perception/unconfirmed.py`)가 점수를 받아 학습 후보 연결 순위를 매기면 배선된다."
+    },
+    {
+      "path": "perception/viewpoint_selection.py",
+      "kind": "deferred",
+      "reason": "이미 가치 있다고 걸러진 재관측 후보를 이동 비용으로 정렬한다 — 최고 이득도 최저 비용도 아니라 비율로(AI-S-05, AI-S-03).",
+      "wired_by": "재관측 사슬의 마지막 칸. `coverage_fusion → reobservation_policy → viewpoint_selection` 셋이 한 번에 배선된다."
+    },
+    {
+      "path": "planning/driving_plan.py",
+      "kind": "deferred",
+      "reason": "주행 경로 사슬의 **유일한 조립 지점**. 넷을 잇는 결정(어느 채점기·차선 기준·거절 처리)을 두 호출자가 다르게 하면 같은 스캔에서 두 답이 나오므로 조립을 한 곳에 두었다. 모듈은 완성·검증됐고(tests/test_driving_plan.py) 아직 부르는 운영 경로가 없다.",
+      "wired_by": "임무 부여·구역 열기에서 `runtime/refresh.py` 의 요청 기반 반영이 `plan_drive()` 를 부르고 그 산출을 상태 조회 경로로 내면 배선된다. 상시 갱신하지 않는다는 규칙은 그쪽이 소유한다(AI-C-13, AI-O-01)."
+    },
+    {
+      "path": "planning/path_candidates.py",
+      "kind": "deferred",
+      "reason": "주행 경로 후보를 **만들고 고른다** — 2026-11-04 에 경계가 AI 로 넘어와 새로 구현된 모듈이다. `risk/path_evaluation.py` 는 여전히 후보를 외부에서 온 것으로 취급하므로 만드는 쪽과 평가하는 쪽이 아직 이어지지 않았다.",
+      "wired_by": "조립 지점은 `planning/driving_plan.py::plan_drive` 로 묶였다(2026-11-04). 남은 것은 **그것을 부르는 운영 경로** 하나다 — 임무 부여나 구역 열기에서 `runtime/refresh.py` 의 요청 기반 반영이 이 계획을 내면 이 줄과 `risk/hazard_field.py` 줄이 함께 사라진다. 앞 메모는 `path_candidates_external.json` 을 읽는 호출자를 가리켰으나 그 호출자는 `local/demo/` 안에 있어 **공개 트리 밖**이고, 그 디렉터리의 CLAUDE.md 가 옛 경계(\"경로 후보를 만들지 않는다\")를 AST 검사로 고정하고 있다 — 2026-11-04 개정 전의 기록이므로 조용히 완화하지 않고 그대로 둔다."
+    },
+    {
+      "path": "planning/replanning.py",
+      "kind": "deferred",
+      "reason": "상황이 바뀔 때 새 서브태스크 노드를 기존 그래프에 끼워 넣는다(AI-B-12 회차 보존, AI-B-14). 콘솔은 `planning/decomposition.py`·`template_proposal.py`·`mission_recommendation.py` 를 부르지만 **재계획**은 부르지 않아, 한 번 만든 그래프는 바뀌지 않는다.",
+      "wired_by": "임무 실행 상태가 변화를 감지해 이 splice 를 호출하면 배선된다."
+    },
+    {
+      "path": "planning/visit_route.py",
+      "kind": "deferred",
+      "reason": "방문 순서를 **자리에 앉히고** 그 위에서 진행을 추적한다 — `replanning.py::visit_order()` 가 이름으로만 내는 순서에 좌표를 붙이는 쪽(AI-B-12, AI-C-02).",
+      "wired_by": "`replanning.py` 가 배선되면 그 다음 칸이다. 좌표를 붙일 때 로컬·전역을 같은 칸에 담지 않는다(AI-C-02)."
+    },
+    {
+      "path": "risk/fsm.py",
+      "kind": "deferred",
+      "reason": "위험 분석 상태(평시·관찰·경보·복구) 전이(AI-R-01). 추적표는 완료. **실제 배치에 위험 입력 provider 가 없다** — `config/status_ui.json` 의 `$comment` 가 그 사실을 적는다(수위계가 없어 risk_analysis 기능을 목록에서 뺐고, 하드웨어 쪽 `water_level_m` 은 난수다). 그래서 지금 비배선은 AI-R-01 이 허용하는 '위험 입력이 없으면 위험 분석만 비활성' 과 모양이 같지만, **비활성을 선언한 것이 아니라 세우는 코드가 없는 것**이라 둘이 구분되지 않는다.",
+      "wired_by": "실제 수위계가 들어오면 manifest 한 줄 + 노드 태그 한 줄로 provider 가 생기고, 그때 엣지 진입점이 이 FSM 을 세운다. 그 전까지는 '입력이 없어 비활성' 을 선언으로 적어 두는 것이 옳다(AI-C-05)."
+    },
+    {
+      "path": "risk/hazard_field.py",
+      "kind": "deferred",
+      "reason": "장애물 근거를 탐침점이 요구하는 **이름 붙은 위험 입력**으로 바꾼다(AI-R-02, AI-S-03). `risk/path_evaluation.py` 가 요구하는 입력의 생산자인데 둘이 이어지지 않았다 — 경로 평가와 같은 사슬의 공백이다.",
+      "wired_by": "`planning/driving_plan.py` 가 `generate → HazardField → scored_candidates → choose` 를 한 곳에서 잇는다(2026-11-04). 남은 것은 그 함수를 부르는 운영 경로 하나이고, 그때 이 줄과 `planning/path_candidates.py` 줄이 함께 사라진다."
+    },
+    {
+      "path": "risk/path_evaluation.py",
+      "kind": "deferred",
+      "reason": "경로 후보 채점기 — 같은 사슬의 한 칸. `rank()`·`select()` 를 두지 않는다는 규칙은 경계 개정 뒤에도 그대로다: 고르는 것은 `planning/path_candidates.choose` 이고 갈리지 않으면 고르지 않는다(AI-S-03).",
+      "wired_by": "`risk/hazard_field.py` 가 배선되면 함께 닿는다 — 그 모듈이 이것의 유일한 운영 import 주체다. 한 홉만 보던 시험은 이 줄을 '배선됨' 으로 셌고, 그래서 지연 사슬이 마지막 한 줄 뒤에 숨었다(2026-11-04)."
+    },
+    {
+      "path": "risk/scoring.py",
+      "kind": "deferred",
+      "reason": "지연 모듈만이 이것을 부른다 — 사슬의 한 칸이고 그 자체로 결함은 아니다. 무엇이 생기면 닿는지는 `wired_by` 에 있다.",
+      "wired_by": "다음이 배선되면 함께 닿는다: `risk/path_evaluation.py`. 한 홉만 보던 시험은 이것을 '배선됨' 으로 셌다(2026-11-04)."
+    },
+    {
+      "path": "runtime/execution_profile.py",
+      "kind": "deferred",
+      "reason": "실행 구성별 측정 프로파일의 장부 — 재측정 의무를 조회 구조로 만든다(AI-B-01). docstring 이 `runtime/model_assignment.py`·`selection/selector.py` 가 미측정 후보를 거절한다고 적지만, 그 둘은 이 장부를 **읽지 않는다**. 즉 '검증된 범위' 가 장부가 아니라 각자의 내부 값으로 판정된다.",
+      "wired_by": "`model_assignment.py`·`selector.py` 가 측정값을 이 장부에서 조회하면 배선되고, 그때 미측정 거절의 주인이 하나가 된다."
+    },
+    {
+      "path": "runtime/joint_reconfiguration.py",
+      "kind": "deferred",
+      "reason": "자원뿐 아니라 **근거 충분도**까지 함께 보고 재구성한다(AI-B-06, AI-C-13). 시험조차 없다(이 장부에서 테스트 import 0 인 둘 중 하나였다). `implements:` 에 폐기된 AI-R-04·AI-C-11 이 섞여 있다.",
+      "wired_by": "`runtime/residency.py`·`selection/selector.py` 의 재구성 경로가 근거 상태를 입력으로 받으면 배선된다. 시험을 먼저 붙인다."
+    },
+    {
+      "path": "runtime/reconfiguration.py",
+      "kind": "deferred",
+      "reason": "자원 상태 기반 재구성(AI-B-06). 근거 상태를 함께 보는 재구성이 배선되면 함께 닿는다.",
+      "wired_by": "`runtime/joint_reconfiguration.py` 가 배선되면 함께 닿는다 — 그 모듈이 이것의 유일한 운영 import 주체다. 한 홉만 보던 시험은 이 줄을 '배선됨' 으로 셌고, 그래서 지연 사슬이 마지막 한 줄 뒤에 숨었다(2026-11-04)."
+    },
+    {
+      "path": "selection/feasibility_reasoning.py",
+      "kind": "deferred",
+      "reason": "할당 알고리즘과 무관한 로봇·태스크 가능성 필터 — 여러 배정 구현이 가능성 판정을 **다시 유도하지 않고** 공유하는 `ReasonerOutput`(AI-C-18, AI-B-04). 지금은 `runtime/placement.py`·`tools/status_ui/serve.py::StatusService.fleet()` 이 각자 판정한다.",
+      "wired_by": "배치 정본(`StatusService.fleet()`)이 가능성 판정을 이 reasoner 에서 받으면 배선되고, 같은 판정이 두 곳에서 일어나는 상태가 해소된다."
+    },
+    {
+      "path": "edge/zipdepth_provider.py",
+      "kind": "adapter",
+      "reason": "`DepthProvider` 의 실제 ONNX 런타임. 모델 형식·런타임을 상위 인지 코드가 알면 안 된다(AI-B-08). 선언으로 고를 자리는 `edge/model_config.py` 이고 그 모듈 자신이 아직 배선되지 않았다 — 이 줄과 그 줄은 같은 공백의 두 쪽이다."
+    },
+    {
+      "path": "observability/validation_artifacts.py",
+      "kind": "experiment",
+      "reason": "검증 입력을 고정하는 결정적 산출물 — 안정 경로 정렬 + 선언된 prefix + 해시. 모델 결과로 표본을 고르지 않는 것이 요점이고, 운영 추론 경로가 이것을 부르면 그 보장이 사라진다(AI-L-05/L-08 의 계보는 `continual/lineage.py` 가 들고 있고 그쪽은 배선돼 있다)."
+    },
+    {
+      "path": "providers/kafka.py",
+      "kind": "adapter",
+      "reason": "엣지↔서버 백본의 TransportProvider 구현. `kafka-python` 은 이 파일에서만 import 될 수 있고(원칙 #11·#17), 상위 코드는 `fakes.InMemoryTransportProvider`·`mqtt.MqttTransportProvider` 와 같은 Protocol 만 본다. 고르는 것은 배치 조립 지점이고 이름으로 import 하는 운영 모듈이 있으면 그것이 결함이다."
+    },
+    {
+      "path": "providers/observability_query.py",
+      "kind": "adapter",
+      "reason": "관측 데이터를 읽는 provider 구현 — 질의 프로토콜과 저장 형식이 사는 유일한 자리. 소비자는 질의 인터페이스만 본다(AI-O-01/03/05)."
+    },
+    {
+      "path": "providers/otel.py",
+      "kind": "adapter",
+      "reason": "OTLP ObservabilityProvider 구현. 관측 기술을 상위 코드가 알면 AI-C-04 가 깨진다 — 호출자는 Protocol 로 주입받는다."
+    },
+    {
+      "path": "providers/overlay.py",
+      "kind": "adapter",
+      "reason": "보안 오버레이(현재 Tailscale) provider. `registry/onboarding.py::NodeOnboarding.overlay` 가 `Any | None` 로 **주입받는** 자리이고 제품 이름은 그 뒤에 있다."
+    },
+    {
+      "path": "providers/quadruped_sdk_robot.py",
+      "kind": "adapter",
+      "reason": "go1 용 `RobotControlBackend` 구현. 벤더 SDK 는 이 파일 안에서 `importlib.import_module(sdk_module)` 로 선언된 이름을 받아 늦게 열고, SDK 가 없어도 import 되어 `readiness()` 가 사유와 함께 False 를 낸다 — 그 격리가 이 모듈의 목적이므로 어떤 운영 모듈도 이름으로 부르지 않는 것이 맞다. 다만 docstring 자신이 **미완성·미검증**이라 적고 있어 '선택 후보'가 아니다(AI-B-09)."
+    },
+    {
+      "path": "reference/fixed_camera_stream.py",
+      "kind": "reference",
+      "reason": "AI-E-01 의 고정 카메라 수직 슬라이스(상시 편도 publish, 엣지에서 받는 것 없음). 같은 이유로 베껴 쓰는 자리다. 실제 배치에 고정 카메라 노드가 없다는 사실은 `config/status_ui.json` 의 `$comment` 에 적혀 있다."
+    },
+    {
+      "path": "reference/local_safety.py",
+      "kind": "reference",
+      "reason": "AI-N-01 의 수직 슬라이스. CLAUDE.md 가 `reference/` 를 그렇게 적는다 — 모든 capability 가 따라야 할 모양을 보이는 자리이고, 프레임워크가 이것을 부르면 그 패턴이 아니라 이 구현에 묶인다."
+    },
+    {
+      "path": "selection/research_execution_baselines.py",
+      "kind": "experiment",
+      "reason": "실행 연구의 **결정 모양**을 재현하는 결정적 기준선. 운영 선택 경로가 같은 코드를 쓰면 baseline 과 proposed 가 코드를 공유해 비교가 무의미해진다. 논문 수치를 재현한다고 주장하지 않는다."
+    },
+    {
+      "path": "simulation/backend.py",
+      "kind": "mock",
+      "reason": "백엔드의 **통합 가용성 판정** 대역. 프레임워크가 이것을 부르면 AI 가 장치 최종 가용성을 재판정하게 된다 — 원칙 #15 가 정확히 막는 것이다. 실제 백엔드가 오면 이 클래스를 지우고 그 API 를 붙이며 AI 코드는 바뀌지 않는다."
+    },
+    {
+      "path": "simulation/digital_twin.py",
+      "kind": "mock",
+      "reason": "전역 좌표 변환·교차소스 관측 지도의 대역. 2026-11-03 경계 개정으로 소유가 AI 로 옮겨졌으나 그 이전 설계가 만든 대역이고, 아직 백엔드·가시화와 재합의가 끝나지 않았다(AI-C-02·AI-C-19). 실제 소유 구현은 `perception/twin_map.py` 쪽이다."
+    },
+    {
+      "path": "simulation/pose_graph_alignment.py",
+      "kind": "mock",
+      "reason": "백엔드·디지털트윈의 pose 재정합 대역. 실제 SLAM·pose graph 인프라 자리에 서 있을 뿐이고 AI 핵심이 소유하는 사실이 아니다."
+    },
+    {
+      "path": "simulation/sources.py",
+      "kind": "adapter",
+      "reason": "CSV·스크립트 계열과 비디오 파일 프레임을 공통 `MediaSource` 로 내는 재생 provider(AI-C-04, AI-C-08). 인지 코드는 영상이 카메라에서 왔는지 파일에서 왔는지 알지 못해야 한다."
+    },
+    {
+      "path": "simulation/terminals.py",
+      "kind": "mock",
+      "reason": "재생 데이터로만 도는 가상 말단. 로봇 없이 말단↔엣지 경로를 돌리는 자리이고(AI-B-10, AI-C-06), 운영 코드가 부르면 가짜 말단이 실제 배치에 들어온다."
+    }
+  ]
+}

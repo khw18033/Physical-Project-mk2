@@ -1,0 +1,52 @@
+{
+  "id": "ai-accelerator",
+  "version": "1.0.0",
+  "displayName": "가속기 (Layer 1)",
+  "description": "AI-SBC 보드의 가속기 개체 하나. 배치된 서비스가 없어도 목록에서 빠지지 않는다 — 유휴가 드러나지 않으면 자원 여유와 부하 편중을 판단할 수 없다(기능정의서 §4.1·§4.4). 필드 이름은 와이어 이름 그대로다(snake_case) — 바꿔 적으면 어느 쪽이 정본인지 다시 물어야 한다.",
+  "fields": [
+    {
+      "name": "accelerator_instance_id",
+      "type": "string",
+      "required": true,
+      "representationHint": "text",
+      "description": "개체 식별자. 같은 종류가 여러 개여도 서로 구분된다."
+    },
+    {
+      "name": "accelerator_kind",
+      "type": "string",
+      "required": true,
+      "representationHint": "text",
+      "description": "종류. 벤더 열거형이 아니라 등록 데이터다 — 새 하드웨어가 화면 구조 변경 없이 들어온다."
+    },
+    {
+      "name": "accelerator_attachment",
+      "type": "string",
+      "required": false,
+      "representationHint": "text",
+      "description": "내장/외장 등 부착 형태."
+    },
+    {
+      "name": "accelerator_vendor_label",
+      "type": "string",
+      "required": false,
+      "representationHint": "text",
+      "description": "표시용 벤더 이름. 선택이나 분기 근거로 쓰지 않는다."
+    },
+    {
+      "name": "utilization",
+      "type": "object",
+      "required": true,
+      "samplingIntervalMs": 2000,
+      "representationHint": "graph",
+      "description": "사용률 측정 묶음 {value, unit, measured_at}. value 칸이 없으면 측정 없음이고 0 이 아니다."
+    },
+    {
+      "name": "temperature",
+      "type": "object",
+      "required": true,
+      "samplingIntervalMs": 2000,
+      "representationHint": "graph",
+      "description": "온도 측정 묶음. 단위는 묶음 안의 unit 이 말한다."
+    }
+  ]
+}

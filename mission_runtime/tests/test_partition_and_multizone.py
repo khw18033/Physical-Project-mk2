@@ -1,4 +1,4 @@
-"""implements: AI-B-06, AI-C-10, AI-C-11, AI-N-01, AI-O-04
+"""implements: AI-B-06, AI-C-10, AI-C-05, AI-N-01, AI-O-04
 """
 from mission_runtime.contracts.capability import CapabilityRequirement, CapabilityState
 from mission_runtime.observability.availability import AvailabilitySignals, RemoteFeatureGate, SignalStatus
@@ -126,7 +126,7 @@ def test_s14_one_edge_failing_does_not_affect_the_other_zones():
 
 
 def test_s14_remote_capability_from_a_dead_zone_is_excluded_immediately(registry):
-    """AI-C-11: 백엔드가 사용 불가로 판정한 장치의 선택 기능은 즉시 후보에서 제외."""
+    """AI-C-05: 백엔드가 사용 불가로 판정한 장치의 선택 기능은 즉시 후보에서 제외."""
     device_available = {"edge-B": True}
     registry.register_local(registration("perception.detect", "local-detect"))
     registry.register_local(

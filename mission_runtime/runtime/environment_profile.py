@@ -56,6 +56,11 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, Callable, Mapping, Sequence
 
+from mission_runtime.contracts.device_attachment import (
+    DeviceAttachment,
+    attachment_from_dict,
+)
+
 #: 선언 파일의 기본 자리. 운영 배치는 같은 형식의 `deployment_profiles.json` 을
 #: 옆에 두고 경로로 넘긴다 — 예시 파일을 고쳐 쓰게 만들지 않는다.
 DEFAULT_PROFILE_DECLARATION = (
@@ -531,6 +536,9 @@ class DeclaredNode:
     node_id: str
     tags: frozenset[str] = field(default_factory=frozenset)
     label: str = ""
+    #: 이 노드가 무엇에 실려 있고 각 capability 를 어떻게 얻는가. 선언이 그 축을
+    #: 적지 않으면 `None` 이고, 그것은 "혼자 서 있다" 가 아니라 **안 적었다**다.
+    attachment: DeviceAttachment | None = None
 
 
 @dataclass(frozen=True)
@@ -559,9 +567,37 @@ def load_declared_nodes(
             node_id=raw["node_id"],
             tags=frozenset(raw.get("tags", ())),
             label=raw.get("label", ""),
+            # 부착 축을 적지 않은 선언은 `None` 이고 그것은 "혼자 서 있다" 가
+            # **아니다** — 안 적은 것이다(`contracts/device_attachment.py`).
+            attachment=(attachment_from_dict({"device_id": raw["node_id"],
+                                              **raw["device_attachment"]})
+                        if isinstance(raw.get("device_attachment"), Mapping) else None),
         )
         for raw in document.get("nodes", ())
     )
+
+
+def load_carried_node_excluded_tags(
+    source: Path | str | Mapping[str, Any] = DEFAULT_NODE_DECLARATION,
+) -> frozenset[str] | None:
+    """**실린 노드가 들 수 없는** 역할 태그들. 선언하지 않았으면 `None`.
+
+    `None` 은 "배제할 태그가 없다" 가 아니라 **"아무도 선언하지 않았다"** 다. 빈
+    집합으로 접으면 `report_attachment_conflicts` 가 "충돌 없음" 을 내고, 그러면
+    관문이 없는 것과 똑같아진다(미측정 ≠ 0 ≠ 미달).
+
+    어휘를 코드에 두지 않는 이유: `tier.*` 는 자유 문자열이고 "새 tier 는 문자열
+    하나 + 라벨 하나" 가 이 저장소의 규약이다(원칙 #1·#3). 어느 역할이 고정 노드를
+    전제하는지는 현장이 알고, 코드가 목록을 들면 새 현장마다 코드를 고쳐야 한다.
+    """
+    if isinstance(source, Mapping):
+        document: Mapping[str, Any] = source
+    else:
+        document = json.loads(Path(source).read_text(encoding="utf-8"))
+    raw = document.get("carried_node_excluded_tags")
+    if raw is None:
+        return None
+    return frozenset(str(tag) for tag in raw)
 
 
 REASON_TAG_FORBIDDEN = "forbidden_in_environment_profile"
@@ -638,3 +674,87 @@ def environment_report(
 
 if __name__ == "__main__":  # pragma: no cover - 운영자가 손으로 확인하는 경로
     print(json.dumps(environment_report(), ensure_ascii=False, indent=2))
+
+
+# ── 부착 선언과 역할 태그가 어긋나는 자리 (AI-B-10, AI-C-18) ─────────────────
+
+#: 실린 노드가 고정 노드를 전제하는 역할 태그를 들고 있다. 로봇에 실린 Pi 가
+#: `tier.edge` 로 읽히면 **움직이는 로봇에 구역 엣지 몫이 올라간다** — AI-B-10 이
+#: 막으라고 한 바로 그것이고, 선언 두 줄이 서로 다른 말을 하고 있다는 뜻이다.
+REASON_CARRIED_HOLDS_STATIONARY_ROLE = "carried_node_declares_a_stationary_role_tag"
+#: 싣고 있다고 적힌 상대가 선언에 없다. 조용히 빼지 않는다.
+REASON_CARRIER_NOT_DECLARED = "carrier_is_not_a_declared_node"
+#: 배제 태그 어휘를 아무도 선언하지 않아 **판단하지 못했다.** "충돌 없음" 이 아니다.
+REASON_EXCLUSION_UNDECLARED = "carried_node_excluded_tags_undeclared"
+
+
+@dataclass(frozen=True)
+class AttachmentConflict:
+    """부착 선언과 노드 선언이 서로 다른 말을 하는 자리 하나."""
+
+    node_id: str
+    reason: str
+    #: 어긋남을 일으킨 태그. 태그 문제가 아니면 빈 문자열이다.
+    tag: str = ""
+
+    def describe(self) -> str:
+        where = f" ({self.tag})" if self.tag else ""
+        return f"{self.node_id}: {self.reason}{where}"
+
+
+@dataclass(frozen=True)
+class AttachmentConflictReport:
+    """어긋남 목록 + **검사를 했는지**.
+
+    둘을 한 칸에 두지 않는 이유가 이 자료형의 전부다. 빈 목록 하나만 돌려주면
+    "검사했고 깨끗하다" 와 "배제 어휘가 없어 검사하지 못했다" 가 같은 값이 되고,
+    그러면 선언을 빠뜨린 현장이 **통과한 현장으로 보인다**(AI-S-08 과 같은 규칙).
+    """
+
+    conflicts: tuple[AttachmentConflict, ...] = ()
+    checked: bool = True
+    #: 검사하지 못했으면 그 사유. 했으면 빈 문자열이다.
+    reason: str = ""
+
+    @property
+    def clean(self) -> bool:
+        """검사했고 어긋남이 없다. **검사하지 못한 것은 clean 이 아니다.**"""
+        return self.checked and not self.conflicts
+
+
+def report_attachment_conflicts(
+    nodes: Sequence[DeclaredNode],
+    *,
+    excluded_tags_for_carried: frozenset[str] | None,
+) -> AttachmentConflictReport:
+    """부착 축과 역할 태그가 어긋나는 자리를 **보고한다**.
+
+    고치지 않고 거절하지도 않는다 — 조인은 가용성 판정이 아니고(원칙 #15), 노드
+    선언은 그 노드가 원래 무엇인지에 대한 정본이다. 같은 규칙을 이 파일의
+    `report_tag_conflicts` 가 먼저 쓰고 있고 이유도 같다.
+
+    `excluded_tags_for_carried=None` 은 **어휘를 아무도 선언하지 않았다**는 뜻이고,
+    그때는 깨끗하다고 말하지 않고 `checked=False` 와 사유를 낸다.
+    """
+    if excluded_tags_for_carried is None:
+        return AttachmentConflictReport(checked=False,
+                                        reason=REASON_EXCLUSION_UNDECLARED)
+
+    declared_ids = {node.node_id for node in nodes}
+    out: list[AttachmentConflict] = []
+    for node in nodes:
+        attachment = node.attachment
+        if attachment is None or not attachment.is_carried:
+            # 부착 축을 적지 않은 노드는 **어긋남이 아니다.** 안 적은 것을 어긋남으로
+            # 세면 지금까지의 선언 전부가 어긋남이 되고, 그러면 이 보고는 읽히지
+            # 않는다(덧붙임 규칙 — `registry/onboarding.py` 머리말).
+            continue
+        for tag in sorted(node.tags & excluded_tags_for_carried):
+            out.append(AttachmentConflict(node.node_id,
+                                          REASON_CARRIED_HOLDS_STATIONARY_ROLE, tag))
+        if attachment.carrier_id and attachment.carrier_id not in declared_ids:
+            out.append(AttachmentConflict(
+                node.node_id,
+                f"{REASON_CARRIER_NOT_DECLARED}:{attachment.carrier_id}"))
+    return AttachmentConflictReport(tuple(out))
+

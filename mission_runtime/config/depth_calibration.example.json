@@ -1,0 +1,91 @@
+{
+  "$comment": "상대 깊이 → cm 보정 선언. **한 provider 의 한 입력 조건에만 적용된다**(AI-E-02). 계수는 특정 기체·특정 카메라로 재서 나온 값이라 코드에 박지 않는다(원칙 #1). `applies_to` 가 어긋나면 값을 내지 않고 CalibrationMismatch 다 — 한 모델의 식을 다른 모델 출력에 대면 값은 나오지만 전부 틀린다(2026-09-20 실측: UniDepth 3차식을 ZipDepth 역깊이에 적용 → 1110 박스 전부 12.7~15.0cm, MAE 42.7cm).",
+  "profiles": [
+    {
+      "profile_id": "unidepth-v2-vitb14.go1-measured-cubic.v1",
+      "version": 1,
+      "applies_to": {
+        "provider_key": "unidepth-v2-vitb14.cuda",
+        "depth_space": "metric_m",
+        "weights": "unidepth-v2-vitb14",
+        "source_wh": [
+          464,
+          400
+        ],
+        "infer_hw": [
+          320,
+          240
+        ],
+        "preprocess": "rgb01",
+        "roi_rule": "18% shrink, percentile 40 of depth (far side)"
+      },
+      "form": "cm = c3*z^3 + c2*z^2 + c1*z + c0, then radial correction",
+      "model": "cubic_depth_to_cm",
+      "coefficients": [
+        -4.61006769,
+        28.91334586,
+        -11.16168081,
+        15.20770323
+      ],
+      "roi_percentile": 40.0,
+      "valid_rel_range": [
+        0.05,
+        6.0
+      ],
+      "min_valid_cm": 5.0,
+      "status": "deployed",
+      "source": "physical_demo(data_stream) unidepth_dual_yolo.py → navigate_to_target_service.calibrate_depth_to_cm",
+      "measured_on": "go1-001",
+      "measured_by": "tape_measure",
+      "created_at": "2026-08-01",
+      "radial_correction": {
+        "$comment": "중심부는 가깝게·주변부는 멀게 치우치는 **깊이 모델의 편향**을 실측 보정한 항. 렌즈 왜곡 보정(dist_coeffs)과 다른 것이다.",
+        "center_radius": 0.55,
+        "center_gain": 0.16,
+        "edge_radius": 0.42,
+        "edge_gain": 0.45,
+        "edge_exponent": 1.35,
+        "edge_cap": 1.35
+      },
+      "quality": {
+        "$comment": "1σ 오차를 재지 않았다. **키를 넣지 않는 것이 미측정**이고 0 을 적으면 이 거리가 실측보다 정확하다고 주장하게 된다(AI-S-08)."
+      }
+    },
+    {
+      "profile_id": "zipdepth_base_384x384.inv_affine_direct_cm.v1",
+      "version": 1,
+      "applies_to": {
+        "provider_key": "zipdepth_base_384x384.onnx.cpu",
+        "depth_space": "affine_invariant_inverse",
+        "weights": "zipdepth_base_384x384.onnx",
+        "source_wh": [
+          464,
+          400
+        ],
+        "infer_hw": [
+          384,
+          384
+        ],
+        "preprocess": "rgb01_model_normalizes_internally",
+        "roi_rule": "18% shrink, percentile 60 of inverse depth (near side)"
+      },
+      "form": "cm = 1/(p*z + q)",
+      "model": "reciprocal_inverse_depth_to_cm",
+      "coefficients": [
+        0.0,
+        0.0
+      ],
+      "roi_percentile": 60.0,
+      "valid_rel_range": [
+        0.005,
+        0.1084
+      ],
+      "min_valid_cm": 5.0,
+      "status": "unfitted",
+      "source": "아직 맞추지 않았다 — 계수가 0 이라 to_cm 이 값을 내지 않는다",
+      "created_at": "",
+      "$fit_comment": "**이 프로파일은 일부러 비어 있다.** 데모가 가진 zipdepth 계수는 256 가중치·crop_bc 입력 조건에서 UniDepth 보정 경로를 기준으로 맞춘 provisional 값이고, 우리 입력 조건(384 가중치·crop 없음)은 다른 구성이다. 다른 구성의 보정을 물려받지 않는다(AI-B-01) — 그래서 계수 없이 두고, 거리는 미측정으로 나간다. 채우려면 같은 조건에서 재측정해야 한다.",
+      "quality": {}
+    }
+  ]
+}

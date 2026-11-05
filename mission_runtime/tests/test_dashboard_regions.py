@@ -41,6 +41,16 @@ DASHBOARD_CONFIG = FRAMEWORK_DIR / "config" / "status_ui.dashboard.example.json"
 PLAIN_CONFIG = FRAMEWORK_DIR / "config" / "status_ui.example.json"
 
 
+def _psutil_available() -> bool:
+    """호스트 실측(CPU 사용률·보드 메모리)이 이 노드에서 나오는가.
+
+    `observability/host_resources.py` 는 `psutil` 이 없으면 그 값을 **미측정**으로
+    둔다 — 0 이 아니고, 장애도 아니다(AI-O-05 · AI-C-05). 그래서 아래 §4.7 시험은
+    MET 칸이 생기는 배치와 그렇지 않은 배치를 **따로** 고정한다.
+    """
+    return importlib.util.find_spec("psutil") is not None
+
+
 def _import_serve():
     name = "status_ui_serve_under_test"
     if name in sys.modules:
@@ -924,3 +934,179 @@ def test_a_measurement_without_a_value_never_becomes_zero(serve):
     # 측정된 0 은 0 으로 남는다 — 미측정으로 바꿔 읽지 않는다.
     measured = serve._dash_measurement("t", {"value": 0.0, "unit": "ratio"}, "ratio")
     assert measured.value == 0.0 and measured.measured is True
+
+
+# --- 임계 감시: [E] 경고 · [D] 사건 · [G] 자원 조건은 **한 판정**이다 ----------
+# 기능정의서 §4.4 "임계값 초과 시 해당 항목이 경고 상태로 전환되며, 이벤트/알람(D)에
+# 기록된다" 와 §4.7 "자원 조건은 리소스 현황(E)의 Layer 1 계측값과 일관되어야 한다".
+
+
+def test_a_threshold_crossing_becomes_an_event_in_region_d(payload):
+    """임계를 넘은 계측값은 [D] 에 `RESOURCE` 유형 사건으로 들어온다 (§4.4).
+
+    경고 상태를 [E] 안에서만 칠하고 사건을 남기지 않으면, 지나간 임계 초과를
+    되짚을 수 없다 — 문서가 D 에 기록하라고 적은 이유가 그것이다.
+    """
+    resource_events = [e for e in payload["events"] if e["event_kind"] == "RESOURCE"]
+    assert resource_events, "임계 초과 사건이 없다"
+    crossed = [e for e in resource_events if "임계" in e["event_message"]]
+    assert crossed, "임계를 넘은 사건이 없다"
+    for event in crossed:
+        # 정상은 사건이 아니고 미측정도 사건이 아니다 — 넘은 것만 WARN 으로 남는다.
+        assert event["event_severity"] == "WARN"
+
+
+def test_the_resource_axis_of_a_verdict_comes_from_the_measurement_not_the_declaration(payload):
+    """[G] 자원 조건은 선언한 값이 아니라 **계측 판정**이다 (§4.7).
+
+    예시 선언은 `accelerator_thermal_ok` 를 `satisfied: true` 로 적어 두었지만 그
+    가속기의 온도는 임계를 넘는다. 선언이 측정값 자리를 채우면 [E] 는 초과를 칠하고
+    [G] 는 정상이라고 적는 날이 온다 — 그래서 어떤 조건이 걸리는지는 선언이, 지금
+    성립하는지는 계측이 소유한다.
+    """
+    items = {i["condition_item_id"]: i
+             for v in payload["verdicts"] for i in v["resource"]}
+    thermal = items["accelerator_thermal_ok"]
+    assert thermal["condition_satisfied"] is False
+    assert thermal["condition_reason"] == "over_threshold"
+    # 못 잰 칸은 정상도 미달도 아니다 — 미확인으로 남는다.
+    power = items["board_power_ok"]
+    assert "condition_satisfied" not in power
+    assert power["condition_reason"] == "not_measured"
+
+
+def test_the_same_judgement_appears_in_region_e_with_its_baseline(payload):
+    """`resource_watch[]` 가 기준값을 들고 온다 (§3 요구사항 3).
+
+    기준을 보내지 않으면 화면이 임계를 스스로 정해야 하고, 그 순간 기준이 두 곳에
+    산다. 그리고 같은 판정이 [G] 의 같은 `condition_item_id` 와 **일치해야** 한다 —
+    두 번 판정하면 어긋날 자리가 생긴다(AI-O-06 상태 일관성).
+    """
+    watch = {row["condition_item_id"]: row for row in payload["resource_watch"]}
+    assert watch, "임계 감시 판정이 없다"
+    assert watch["accelerator_thermal_ok"]["target"] == {
+        "value": 55.0, "direction": "AT_MOST", "unit": "celsius"}
+    assert watch["accelerator_thermal_ok"]["target_meet_state"] == "UNMET"
+    # 미측정이 미달과 섞이지 않는다는 것을 한 응답에서 본다. 실측이 있는 노드에서는
+    # 세 값이 모두 나오고, `psutil` 이 없어 실측이 미측정으로 내려간 노드에서는 MET
+    # 이 될 칸이 없다 — 그래도 **미측정과 미달은 갈라져 있어야 한다.** 그것이 이
+    # 줄의 요점이고 축소된 노드에서도 성립한다(AI-O-05 · AI-C-05: 선택 결손은 축소).
+    states = {row["target_meet_state"] for row in payload["resource_watch"]}
+    assert states == ({"MET", "UNMET", "NOT_MEASURED"} if _psutil_available()
+                      else {"UNMET", "NOT_MEASURED"}), (
+        "psutil 미설치 노드에서는 MET 이 없고 미측정·미달만 남는다"
+        f" — 받은 값: {sorted(states)}")
+    for row in payload["resource_watch"]:
+        if row["target_meet_state"] == "NOT_MEASURED":
+            # 미측정은 0 이 아니다 — 값 칸이 없고 단위는 남는다.
+            assert "value" not in row["measurement"]
+            assert row["measurement"]["unit"]
+        else:
+            assert isinstance(row["measurement"]["value"], float)
+        # 같은 판정이 [G] 로도 나간다. 사유 토큰이 같아야 한다.
+        for verdict in payload["verdicts"]:
+            for item in verdict["resource"]:
+                if item["condition_item_id"] == row["condition_item_id"]:
+                    assert item["condition_reason"] == row["condition_reason"]
+
+    # 보드 값에는 가속기 id 를 붙이지 않는다 — "어느 가속기의 보드 메모리" 가 된다.
+    assert "accelerator_instance_id" not in watch["board_power_ok"]
+    assert watch["accelerator_thermal_ok"]["accelerator_instance_id"] == "npu-xdna-0"
+
+
+def test_a_watch_target_is_registration_data_not_code(serve, tmp_path):
+    """감시 대상은 선언이고 코드가 아니다 (§4.4 "감시 대상은 구성 가능해야 한다").
+
+    잘못된 선언은 **로드 시점에** 거절한다 — 화면 요청 때까지 숨어 있으면 운영 중에
+    500 으로 터진다. 단위가 어긋난 기준선은 그래프 위 실제 값 위치를 정할 수 없다(§4.5).
+    """
+    raw = json.loads(DASHBOARD_CONFIG.read_text(encoding="utf-8"))
+    base = raw["dashboard"]["watch"][0]
+
+    def _load(watch):
+        raw["dashboard"]["watch"] = watch
+        target = DASHBOARD_CONFIG.parent / "status_ui.watch.test.json"
+        target.write_text(json.dumps(raw, ensure_ascii=False), encoding="utf-8")
+        try:
+            return serve.load_ui_config(target)
+        finally:
+            target.unlink()
+
+    # 새 가속기 종류를 감시 대상으로 더하는 데 코드 수정이 필요 없다.
+    added = dict(base, item_id="new_kind_ok", accelerator_instance_id="ext-npu-2")
+    assert _load([base, added])
+
+    # 없는 가속기를 가리킨 감시는 거절한다 — 조용히 빈 결과가 되면 감시가 걸려
+    # 있다고 착각한다.
+    with pytest.raises(serve.UiConfigError) as caught:
+        _load([dict(base, accelerator_instance_id="no-such-accelerator")])
+    assert "no-such-accelerator" in str(caught.value)
+
+    # 단위가 어긋난 기준선도 거절한다.
+    with pytest.raises(serve.UiConfigError) as caught:
+        _load([dict(base, target={"value": 1.0, "direction": "AT_MOST", "unit": "ratio"})])
+    assert "celsius" in str(caught.value)
+
+    # 보드 값에 가속기 id 를 주는 것은 선언 오류다(그 반대도 마찬가지다).
+    with pytest.raises(serve.UiConfigError):
+        _load([{"item_id": "x", "field": "power", "accelerator_instance_id": "cpu-0",
+                "target": {"value": 1.0, "direction": "AT_MOST", "unit": "watt"}}])
+    with pytest.raises(serve.UiConfigError):
+        _load([{"item_id": "y", "field": "temperature",
+                "target": {"value": 1.0, "direction": "AT_MOST", "unit": "celsius"}}])
+
+
+def test_a_deployment_without_a_watch_declaration_is_normal(serve):
+    """감시 선언이 없으면 경고 사건이 없다. 그것이 정상이다 (AI-C-05).
+
+    없는 감시를 기본값으로 채우면 아무도 정하지 않은 임계가 운영 판정에 들어온다.
+    """
+    payload = serve.StatusService(
+        serve.load_ui_config(PLAIN_CONFIG), control_mode="local").dashboard()
+    assert payload["resource_watch"] == []
+    assert [e for e in payload["events"] if e["event_kind"] == "RESOURCE"] == []
+
+
+# --- 빈 구역은 "정상" 이 아니라 사유를 적는다 (문서 §3 요구사항 5) -------------
+
+
+def test_an_empty_resource_layer_says_no_data_instead_of_claiming_it_is_available(serve):
+    """자원 계층에 사실이 하나도 없으면 [E]·[E′] 는 비었다고 적는다.
+
+    구역을 지우지도, 0 으로 채우지도 않는다 — 빈 목록을 내보내면서 "표시 가능" 이라고
+    적으면 화면은 빈 칸을 그리면서 **왜 비었는지 말할 근거를 잃는다**. 가속기 선언이
+    없는 배치와 계측이 끊긴 배치가 같아 보이는 것이 그 손실이다.
+    """
+    payload = serve.StatusService(
+        serve.load_ui_config(PLAIN_CONFIG), control_mode="local").dashboard()
+    states = {r["region_id"]: r for r in payload["regions"]}
+    assert payload["accelerators"] == [] and payload["services"] == []
+    assert states["E"]["region_available"] is False
+    assert states["E"]["region_reason"] == "no_data_yet"
+    assert states["E_PRIME"]["region_available"] is False
+    assert states["E_PRIME"]["region_reason"] == "no_data_yet"
+    # 구역은 사라지지 않는다 — 아홉 개가 그대로 있다.
+    assert len(payload["regions"]) == 9
+    # 그리고 0 으로 메우지 않는다.
+    for slot in ("memory_utilization", "power"):
+        assert "value" not in payload["board"][slot]
+
+
+def test_a_probe_that_no_declaration_claims_is_reported_not_dropped(serve):
+    """계측기가 찾았는데 선언에 없는 가속기는 **사실로 남는다** (AI-O-05 · §4.4).
+
+    목록의 주인은 선언이고 계측이 개체를 더하지 않는다(§3 요구사항 2). 그러나 조용히
+    버리면 "이 기계에 가속기가 없다"와 "있는데 아무도 선언하지 않았다"가 같아진다 —
+    그러면 §4.4 가 요구하는 "가속기 목록의 완전성"을 판단할 길이 없다.
+    """
+    plain = serve.StatusService(
+        serve.load_ui_config(PLAIN_CONFIG), control_mode="local").dashboard()
+    undeclared = plain["derived"]["undeclared_accelerator_probe_ids"]
+    probes = plain["derived"]["host_probe_status"]
+    if any(reason == "ok" for key, reason in probes.items() if key.endswith(".utilization")):
+        # 이 기계에서 읽히는 계측 지점이 있는데 선언이 없으므로 전부 미선언이다.
+        assert undeclared, (undeclared, probes)
+    # 선언이 계측 지점을 덮은 배치에서는 비어 있다 — 목록이 완전하다는 뜻이다.
+    declared = serve.StatusService(
+        serve.load_ui_config(DASHBOARD_CONFIG), control_mode="local").dashboard()
+    assert declared["derived"]["undeclared_accelerator_probe_ids"] == []

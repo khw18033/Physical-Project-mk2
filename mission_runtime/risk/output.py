@@ -4,7 +4,9 @@ technology (AI-R-02).
 
 implements: AI-R-02
 
-implements: AI-R-03
+구 AI-R-03("위험 판단 결과·권고 출력")은 §5 에서 AI-R-02 로 흡수됐다. 이 모듈이
+내는 것(위험 상태·정도·근거·근거 충분도·모델 버전·권고)이 그 요구사항이 열거한
+결과 항목 그대로다.
 
 Actual actuator command generation and physical-motion confirmation are
 explicitly out of scope here — they belong to the backend/hardware side

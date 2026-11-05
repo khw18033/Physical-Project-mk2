@@ -3,7 +3,7 @@
 implements: AI-S-02
 
 reproduces (decision shape only, not the neural architecture): GMT, CVPR 2026
-(docs/obsidian/papers/gmt.md). GMT's verified core claim (gmt.md §3
+(internal/docs-dev/obsidian/papers/gmt.md). GMT's verified core claim (gmt.md §3
 "Global-first" 재정식화, confirmed against the original paper text: "instead
 of assigning trajectories independently for each view, GMT directly encodes
 the same historical targets across different views as global trajectories

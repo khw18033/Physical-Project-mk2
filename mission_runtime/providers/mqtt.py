@@ -1,7 +1,7 @@
 """Real MQTT `TransportProvider` — the first concrete replacement for a
 fake, proving upper-layer code does not change when infrastructure does.
 
-implements: AI-C-06, AI-C-04, AI-C-12, AI-C-14
+implements: AI-C-06, AI-C-04
 
 AI-C-06 / 원칙 #10: 말단↔구역 엣지 업무·제어·하트비트는 현재 배포에서 MQTT를
 사용한다. 다만 "AI 로직은 MQTT·Kafka API를 직접 호출하지 않고 동일한 업무 메시지
@@ -37,7 +37,7 @@ class MqttTransportProvider:
     """TransportProvider backed by an MQTT broker.
 
     Connection failures never raise out of `publish`/`subscribe`: a
-    transport outage must degrade the caller, not crash it (AI-C-11).
+    transport outage must degrade the caller, not crash it (AI-C-05).
     Callers observe the outage through `is_connected()`.
     """
 
@@ -149,7 +149,7 @@ class MqttTransportProvider:
         """Publish with an explicit plane check.
 
         Refuses media payloads outright so video pixels can never reach a
-        task/observability message path (금지 사항, AI-C-14).
+        task/observability message path (금지 사항, AI-C-06).
         """
         assert_routable(kind, DataPlane.TASK)
         policy = policy_for(kind)
@@ -177,7 +177,7 @@ class MqttTransportProvider:
                         handler(message.payload)
                     except Exception:
                         # One subscriber's failure must not stop the others
-                        # or the transport itself (AI-C-11).
+                        # or the transport itself (AI-C-05).
                         continue
         properties = getattr(message, "properties", None)
         metadata = MqttMessageMetadata(

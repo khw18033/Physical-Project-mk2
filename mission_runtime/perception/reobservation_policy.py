@@ -6,12 +6,12 @@ implements: AI-S-05, AI-S-03
 
 The gate itself — activate only when gain exceeds cost — reproduces the
 *decision rule* of the closest literature match found for this experiment
-(`docs/obsidian/papers/perceive-what-matters.md`, ICRA 2026: "module m_j is
+(`internal/docs-dev/obsidian/papers/perceive-what-matters.md`, ICRA 2026: "module m_j is
 activated if and only if rho_kj > 0"), not that paper's learned reward
 model, its YOLO/MMPose modules, or its reported numbers — same "reproduce
 the observable decision shape, not paper accuracy" discipline this project
 already applies in `selection/research_execution_baselines.py`
-(see `docs/obsidian/papers/README.md` 그룹 A).
+(같은 규율을 쓰는 다른 자리: `selection/research_execution_baselines.py`).
 
 This module only decides *whether a blind spot is worth asking about*; it
 hands the ones that clear the gate to `decision.info_request`'s existing

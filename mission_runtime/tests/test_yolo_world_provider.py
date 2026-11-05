@@ -1,7 +1,7 @@
 """implements: AI-B-10, AI-E-01, AI-B-09
 
 `ultralytics`가 없는 노드에서는 실물 추론 테스트만 skip된다 — 다른
-capability의 검증을 막지 않는다(AI-C-11). 가중치 경로 존재 여부만 확인하는
+capability의 검증을 막지 않는다(AI-C-05). 가중치 경로 존재 여부만 확인하는
 `is_available()`, 누락 시 우아한 축소 경로, device 해석 테스트는 `ultralytics`
 유무와 무관하게 항상 실행된다 — 이 환경(.venv)에는 `ultralytics`가 설치돼
 있지 않지만 가중치 파일 자체는 저장소에 있으므로(연구 브랜치 산출물), 그
@@ -56,17 +56,19 @@ def test_missing_weights_reports_unavailable_not_an_error():
 
 def test_device_defaults_to_a_probed_tag_not_a_hardcoded_vendor():
     from mission_runtime.edge.yolo_world_provider import YoloWorldPerceptionProvider
-    from mission_runtime.providers.compute import TAG_GPU, discover_node_tags
+    from mission_runtime.ondevice.rpn_propose import default_device
 
     provider = YoloWorldPerceptionProvider(["door"], WEIGHTS_PATH)
 
-    expected = "cuda" if TAG_GPU in discover_node_tags() else "cpu"
+    # 규칙은 운영 코드가 소유한다 — 여기서 다시 유도하면 가속기를 쓰지 않기로 한
+    # 선언이 시험만 비껴간다(실제로 그래서 이 시험 넷이 한 번 깨졌다).
+    expected = default_device()
     assert provider.device == expected
 
 
 @pytest.mark.skipif(
     not (_ultralytics_importable() and WEIGHTS_PATH.exists()),
-    reason="ultralytics 미설치 또는 yolov8s-worldv2.pt 가중치 없음 (AI-C-11: 이 테스트만 skip)",
+    reason="ultralytics 미설치 또는 yolov8s-worldv2.pt 가중치 없음 (AI-C-05: 이 테스트만 skip)",
 )
 def test_detect_returns_open_vocabulary_proposals_on_a_blank_frame():
     from mission_runtime.edge.yolo_world_provider import YoloWorldPerceptionProvider

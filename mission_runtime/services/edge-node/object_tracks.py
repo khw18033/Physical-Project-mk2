@@ -2,7 +2,7 @@
 
 implements: AI-S-06, AI-S-03, AI-S-04, AI-S-01, AI-C-03
 
-근거: `docs/obsidian/ideas/progressive-object-record.pdf`
+근거: `internal/docs-dev/obsidian/ideas/progressive-object-record.pdf`
 (Progressive Digital Twin Object Record Construction Method Using Heterogeneous
 Models in an On-Device Environment). 이 저장소의 선행 연구이며, 여기서는 그 §3의
 상태 해소(Resolving the Object State)와 점진 구성(Constructing the Object Record

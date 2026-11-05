@@ -1,4 +1,4 @@
-"""implements: AI-B-01, AI-B-04, AI-B-06, AI-B-08, AI-O-01, AI-C-04, AI-C-09, AI-C-12, AI-C-13"""
+"""implements: AI-B-01, AI-B-04, AI-B-06, AI-B-08, AI-O-01, AI-C-04, AI-C-13"""
 
 import pytest
 

@@ -127,12 +127,51 @@ remote-write 는 제안하지 않는다. 그쪽은 2계층 페더레이션을 **
 | **P7** | `Capability` 는 `device_id` + action **이름 목록**뿐 | AI-C-18 이 요구하는 입출력 schema · 단위 · 좌표 · 시간 기준 · **취소 가능 여부** · **멱등성** · 동기/비동기 · 버전 · 품질·지연·자원 중 **하나도 못 싣는다.** 상위 기능이 "이 장치가 이 동작을 취소할 수 있는가" 를 장치 선언에서 알 수 없다 | 별도 `CapabilityDetail` 메시지(봉투 슬롯 8) 또는 `Capability` 에 `repeated ActionDetail details = 3` |
 | **P2** | `parameters`·`result` 가 `map<string,double>` | 문자열·불리언·중첩이 못 간다. 그쪽도 이 제약 때문에 `assign_mission` 을 못 쓰고 **action 이름 자체를 어휘로 쓰는 우회**를 택했다(HW README §7 "우선순위 높음") | `map<string,string> parameters_text = 7` / `result_text = 5`, 또는 공용 Value 타입 |
 
-우리 쪽 현재 처리: 이 경로로 온 선언은 `is_fully_declared() == False` 로 **구분해서**
-들고 있고, 버려지는 칸은 직렬화기의 `wire_gaps` 카운터에 남아 관측 경로로 흘러간다
-(`on_gap`). 없는 값을 채워 넣지 않으므로 지금도 돌지만, 채워지기 전까지 AI-C-18 은
-"부분" 이다. 시각 3종(P3·P4·P5)은 엣지 수신 시각으로 대체되며 `time_source=
-"edge_receipt"` 가 그 사실을 함께 들고 다닌다 — **장치가 그 동작을 실제로 한 시각이
-아니다.**
+우리 쪽 현재 처리(2026-11-04 보강): 이 경로로 온 선언은 `is_fully_declared() == False`
+로 **구분해서** 들고 있고, 비어 있는 칸은 **항목 이름으로** 나온다
+(`Capability.undeclared_items()`, 디코드 payload 의 `undeclared_items`, 그리고
+`wire_gaps["capability.undeclared.<item>"]` 로 항목마다 따로 센다). 버려지는 선언값은
+전과 같이 `wire_gaps` 에 남아 관측 경로로 흘러간다(`on_gap`).
+
+**우리 쪽 몫이었던 두 가지는 끝냈다.** (1) 단위·좌표·시간 기준 · 멱등성 ·
+동기·비동기 · 수행·관측 범위 · 선택 실행 조건은 우리 계약에도 **칸이 없었다** —
+와이어가 넓어져도 받을 곳이 없었다는 뜻이다. 지금은 전 항목에 칸이 있고 일반
+구성요소 선언으로 손실 없이 옮겨진다. (2) `cancel_supported` 가 `bool = False` 여서
+**미선언이 "취소 불가" 로 읽혔다** — 이 와이어는 그 항목을 싣지 못하므로 들어오는
+모든 장치가 "취소를 거부하는 장치" 였다. 지금은 True/False/None 세 값이다.
+
+그래서 남은 것은 **와이어뿐이다.** 필드 이름까지 포함한 표는
+`specs/physical-command-interface.md` §8-3 에 있고, 한 가지만 여기 옮긴다 —
+`cancel_supported`·`idempotent` 는 proto3 `optional`(presence)로 와야 하고,
+`scope_tags` 처럼 `repeated` 인 칸은 중첩 메시지로 포장해야 한다(`repeated` 에는
+presence 가 없다). presence 가 없으면 "false 를 보냈다"와 "안 보냈다"가 와이어에서
+같아져 P7 의 핵심인 그 구분이 다시 사라진다 — **필드 번호보다 이 점이 먼저다.**
+그 칸이 오기 전까지 AI-C-18 의 남은 공백은 전부 여기이고, 우리 쪽에는 더 할 일이 없다.
+
+시각 3종(P3·P4·P5)은 엣지 수신 시각으로 대체되며 `time_source="edge_receipt"` 가 그
+사실을 함께 들고 다닌다 — **장치가 그 동작을 실제로 한 시각이 아니다.**
+
+---
+
+### 1-라 프레임 헤더 — 헤더 없는 장비의 탐지 결과는 **우리가 버린다** (막힘)
+
+| 지금 오는 것 | 없어서 생기는 일 | 필요한 것 |
+|---|---|---|
+| 일부 장비의 비전 결과에 `frame_ref` 가 없다. 데모의 `vision_infer.py::v2_record()` 는 **보내는 쪽 프레임 헤더에 `camera_id`·`sequence_id` 가 둘 다 있을 때만** 그 칸을 만든다 | 그 장비의 탐지가 **상태 계약에 오르지 못한다.** 뷰어의 영상·탐지 겹침(F==F)도 성립하지 않는다 | 프레임을 **손에 넣는 순간** `camera_id` + `sequence_id` + `timestamp` 를 붙여 보낸다(규약 §3-5 프레임 헤더) |
+
+**왜 우리가 메우지 않는가.** 스트림 항목 id 로 그 자리를 채우는 안을 검토하고
+버렸다. 이유는 규격이 아니라 **셈**이다 — `perception/uncertainty.py` 가
+`(source_group, frame_ref)` 로 근거를 접어 "같은 장을 탐지기와 분류기가 각각 읽은
+것"을 한 번 본 것으로 센다. 그 단위를 스트림 항목으로 바꾸면 같은 장의 결과 둘이
+서로 다른 항목 id 를 받아 **두 번 본 것으로 세어지고**, 근거 충분도가 실제보다 커져
+확정이 모자란 근거에서 나온다(AI-S-03). 번호를 지어내지 않는 것은 예의가 아니라 그
+셈의 전제다.
+
+우리 쪽 현재 처리: 버리고 **센다**(`vz_redis_source.dropped["no_device_frame_ref"]`,
+운영 한 줄에 노출). 그 수가 0 이 아니면 그 장비의 헤더가 비어 있다는 뜻이다. 되찾기
+위한 포인터는 따로 싣는다 — `stream_ref`(결과 스트림 키 · 항목 id · 원본 장 항목 id)
+는 오류 재현(AI-O-03)이 쓰는 칸이고 `frame_ref` 의 대체물이 아니다. 둘은 각각
+**무엇을 봤는가**와 **어디서 다시 꺼내는가**라 같은 칸에 담지 않는다.
 
 ---
 
@@ -146,6 +185,8 @@ remote-write 는 제안하지 않는다. 그쪽은 2계층 페더레이션을 **
 | `mission_id` · `utterance_text` | 우리 사전에 등재해 쓰는 중 | 공통 이름 사전에 등재하거나 다른 이름을 지정 |
 | `sequence_id` ↔ `seq` | 우리 봉투는 `sequence_id` | 가시화 게이트웨이는 대상별 단조 증가 `seq` 로 유실·역전을 감지한다. **같은 값인지 확정 필요** — 다르면 둘 다 필요하고, 같으면 이름 하나로 통일 |
 | `command_id` 발급 주체 | 백엔드 발급을 전제로 소비 준비됨 | 확정 회신 |
+| `resource_watch` · `measured_field` (임계 감시 판정) | `GET /api/dashboard` 로는 나가고 **채널 본문에는 없다** — 공통 데이터 사전(AI-C-01)에 등재되지 않은 이름을 와이어에 올리지 않기 때문이다 | 두 이름 등재. `resource_watch` = 선언된 임계와 그 계측 판정의 목록(생산자 AI, 소비자 운영 화면, 업무 평면), `measured_field` = 그 임계가 보는 계측 칸 이름(`utilization`·`temperature`·`memory_utilization`·`power`). 등재되면 채널 본문으로 옮기고 HTTP 조회와 구독이 같은 모양이 된다 |
+| 구역 B~I 의 **실시간 구독** | 모양·예제·스키마 완비, 지금 전송은 HTTP 폴링 | 기능정의서 §3 요구사항 1("통합된 상태 뷰를 **구독**")·§5("새로고침 없이 즉시 반영")은 푸시 채널이 열려야 성립한다. 채널 개설은 그쪽 결정이다(AI-C-04·AI-C-06) |
 | 전역 좌표·트윈 상태의 주인(BE-C-04) | 그쪽 계약은 백엔드 단독 수행으로 적혀 있고 우리 요구사항은 2026-11-03 개정으로 AI 소유로 적는다 | **§6** — 재합의 회신. 그때까지 우리는 전역 숫자를 뷰 계약으로 내보내지 않는다 |
 
 `detections` 모양 통일(통합 저장소 RFC)은 **더 결정할 것이 없다** — 우리 detections 는
@@ -196,6 +237,16 @@ remote-write 는 제안하지 않는다. 그쪽은 2계층 페더레이션을 **
 
 우리 입장: **①-나 + ②-나 + ③ 등재**가 우리 importer 에도 유리하다(계약 밖 대본 필드에
 기대지 않게 된다). 다만 셋 다 백엔드·하드웨어도 읽는 계약이라 우리가 정할 수 없다.
+
+### 반영 요청 전체 목록 — `docs/visualisation-requests.md`
+
+2026-11-03 에 `khw_VZ` 를 클론해 **실제로 띄워 보고** 우리 계약과 맞춰 봤다. 우리
+요구사항 61 건 중 **26 건이 그쪽 코드 어디에서도 참조되지 않는다.** 그중 다섯은
+화면이 *틀린 것을 말하게 되는* 것이라 예시 화면(PNG)과 함께 따로 적었다 — 동일성
+근거 분해 · 위험도와 근거 충분도 · capability 접지 · 재실행 회차 · 미측정과 0.
+공유 계약인 `risk_state` 에서 세 칸(`evidence_sufficiency`·`evidence_used`·
+`model_version`)이 빠진 것과, 폐기된 ID 13 개(`AI-D-01` 이 화면에 그대로 뜬다)도
+그 문서에 있다.
 
 ### 추가로 필요한 것
 
@@ -257,6 +308,9 @@ remote-write 는 제안하지 않는다. 그쪽은 2계층 페더레이션을 **
 | 통합 상태 스냅샷 채널 신설(구역 B~I 한 장) | `integration/status_wire.py`, `schemas/ai/status-snapshot.schema.json` |
 | 계층별 자원 실측(가속기 개체·보드) | `observability/host_resources.py` |
 | 임계 초과 경고와 자원 조건을 **한 판정**에서 | `observability/resource_watch.py` |
+| 그 판정을 실제로 **배선**했다 — 선언된 임계가 [D] 의 `RESOURCE` 사건과 [G] 의 자원 조건, 그리고 `resource_watch[]` 로 한 번에 나간다 | `tools/status_ui/serve.py::StatusService.dashboard`, `tests/test_dashboard_regions.py` |
+| 구역 B~I 를 **운영 콘솔**에서도 읽는다(`GET /api/dashboard`). 조립은 정본 하나(`StatusService.dashboard`)이고 콘솔은 옮기기만 한다 | `tools/fms_console/serve.py`, `tests/test_view_contract.py` |
+| 구역 B~I 를 **공표한 뷰 계약**에 올렸다 — 외부 용역이 읽는 문서와 스키마에 끝점이 있다 | `docs/view-contract.md` §6.8, `schemas/view_dashboard.schema.json` |
 | 가시화 파이프라인용 선언 6종 | `schemas/viz/` |
 | 실제 모델·실제 자원·실제 브로커 통합 시험 | `tests/test_real_stack.py` |
 | **실물 Prometheus 를 개발 스택에 세우고** 우리가 낸 계측이 Collector exporter 를 거쳐 긁혀 귀속 판정까지 가는 한 바퀴를 시험으로 돌린다(스택이 없으면 그 묶음만 skip) | `deploy/integration/{docker-compose.yml,prometheus.yml,otel-collector.yaml}`, `tests/test_real_prometheus_path.py` |
@@ -265,6 +319,7 @@ remote-write 는 제안하지 않는다. 그쪽은 2계층 페더레이션을 **
 | 금지 라벨 선택자는 질의를 **보내지 않고** 사유를 적는다(그 라벨의 시계열은 애초에 생기지 않는다) | `providers/observability_query.py`, `integration/deployment_topology.FORBIDDEN_METRIC_LABELS` |
 | 관측 평면의 포트·간격·보존·라벨·이름 변환을 상수로 고정하고 시험이 못 박는다 | `integration/deployment_topology.py` §관측, `tests/test_deployment_topology.py` |
 | 사이트 IP·자격증명 공개 트리에서 분리, 시험 주소를 RFC 5737 로 | `config/*.example.json` |
+| **AI-C-18 선언 항목에 칸을 전부 만들고**(단위·좌표·시간 기준 · 멱등성 · 동기/비동기 · 수행·관측 범위 · 선택 실행 조건 · 실측 참조) 취소 가능 여부·멱등성의 "모른다"를 "안 된다"에서 갈라냈다. 선언이 레지스트리·선택·조인까지 **읽힌다** | `contracts/capability_contract.py`, `contracts/physical_command.py`, `registry/capability_registry.py::providers_declaring`, `registry/onboarding.py::JoinOutcome.under_declared_actions`, `tests/test_capability_contract.py` |
 
 ### 우리 쪽 남은 일
 

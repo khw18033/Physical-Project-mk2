@@ -36,7 +36,7 @@ def test_missing_required_fields_are_reported():
 
 def test_flaky_health_check_does_not_break_the_conformance_check_itself():
     # ProviderRegistration.is_healthy() already swallows probe exceptions
-    # by design (AI-B-07) -- the conformance check must not itself raise
+    # by design (AI-B-05) -- the conformance check must not itself raise
     # even so, and the provider must come out treated as unhealthy.
     registry = CapabilityRegistry()
 

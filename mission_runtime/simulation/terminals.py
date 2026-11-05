@@ -1,6 +1,6 @@
 """Virtual terminals (말단) driven entirely by replay data.
 
-implements: AI-B-10, AI-C-06, AI-C-14, AI-B-03, AI-O-04
+implements: AI-B-10, AI-C-06,  AI-B-03, AI-O-04
 
 A virtual terminal keeps exactly what the requirement allows a 말단 to
 have: a task transport client, an observability client and (optionally) a
@@ -178,7 +178,7 @@ class VirtualTerminal:
     # --- media plane -------------------------------------------------------
     def send_media_frame(self) -> bool:
         """Pixels go out through the media provider only — never through the
-        task transport (금지 사항, AI-C-14)."""
+        task transport (금지 사항, AI-C-06)."""
         if self._media is None or not self._media.is_available():
             return False
         frame = self._media.read_frame()

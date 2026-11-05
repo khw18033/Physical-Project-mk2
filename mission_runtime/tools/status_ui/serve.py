@@ -60,10 +60,10 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 import threading
 import time
-import tempfile
 from collections.abc import Mapping
 from dataclasses import dataclass, field, replace
 from functools import partial
@@ -111,10 +111,16 @@ from mission_runtime.runtime.residency import (  # noqa: E402
 from mission_runtime.execution.control import LocalControlSupervisor  # noqa: E402
 from mission_runtime.providers.k3s import K3sControlProvider  # noqa: E402
 from mission_runtime.registry.capability_registry import CapabilityRegistry  # noqa: E402
+#: 후보별 거절 사유의 어휘는 선택기가 소유한다 — 문자열을 박아 두면 그쪽이
+#: 바뀔 때 이 파일이 조용히 틀린다(AI-C-01).
+from mission_runtime.selection.selector import (  # noqa: E402
+    REASON_OVER_BUDGET as SELECTOR_REASON_OVER_BUDGET,
+)
 from mission_runtime.registry.manifest import (  # noqa: E402
     ProviderManifest,
     load_provider_manifest,
     register_all,
+    registrations_from_dict,
 )
 from mission_runtime.runtime.application import (  # noqa: E402
     CapabilityResolution,
@@ -170,7 +176,10 @@ from mission_runtime.execution.task_graph import (  # noqa: E402
     TaskGraph,
     TaskNode,
 )
-from mission_runtime.integration.status_wire import status_snapshot_payload  # noqa: E402
+from mission_runtime.integration.status_wire import (  # noqa: E402
+    measurement_to_wire,
+    status_snapshot_payload,
+)
 from mission_runtime.observability.dashboard_view import (  # noqa: E402
     ConditionItem,
     DashboardSnapshot,
@@ -193,6 +202,7 @@ from mission_runtime.observability.layered_metrics import (  # noqa: E402
     Measurement,
     ServiceRuntime,
     TargetBaseline,
+    UnitMismatch,
 )
 # L1 계층의 실측. 선언된 가속기 개체 **같은 자리에** 이 기계에서 읽은 값을 입힌다 —
 # 목록을 늘리거나 줄이지 않고, 못 읽은 칸은 0 이 아니라 미측정으로 남는다(AI-O-05).
@@ -200,7 +210,17 @@ from mission_runtime.observability.host_resources import (  # noqa: E402
     HostReadout,
     HostResourceReader,
     resolve_probes,
+    undeclared_probes,
     with_host_measurements,
+)
+# 임계 감시. [E] 의 경고 사건과 [G] 의 자원 조건이 **한 판정**에서 나온다 —
+# 따로 구현하면 어긋난다(기능정의서 §4.4·§4.7).
+from mission_runtime.observability.resource_watch import (  # noqa: E402
+    ResourceWatch,
+    WatchTarget,
+    WatchTargetInvalid,
+    threshold_events,
+    with_measured_resource_conditions,
 )
 
 UI_DIR = Path(__file__).resolve().parent
@@ -219,6 +239,43 @@ DEVICE_COMMANDS = ("deploy", "stop", "rollback", "refresh", "probe_link", "remov
 # Where a generated control keypair goes when the config names none. Owner-only
 # and outside the repo — a key inside a work tree eventually gets committed.
 DEFAULT_CONTROL_KEY = "~/.ssh/id_pf_control"
+#: 쓸 수 있는 상태의 뿌리를 가리키는 환경변수. `tools/fms_console/overlay.py` 의
+#: `STATE_ROOT_ENV` 와 **같은 이름**이다 — 자리를 옮기는 변수가 둘이면 시험·배포가
+#: 한쪽만 옮기고 나머지는 옛 자리에 계속 쓴다.
+STATE_ROOT_ENV = "MISSION_RUNTIME_STATE"
+#: unit 패킹 작업장의 이름. 자리는 바뀌어도 이름은 고정이라 사람이 찾을 수 있다.
+UNIT_STAGING_DIR_NAME = "unit_staging"
+
+
+def default_unit_staging_root() -> Path:
+    """unit 을 패킹할 작업장의 기본 자리. **호출할 때** 정한다.
+
+    `$MISSION_RUNTIME_STATE` → `$XDG_STATE_HOME/mission_runtime` →
+    `~/.local/state/mission_runtime` 순서이고 그 아래 `unit_staging/` 이다
+    (`tools/fms_console/overlay.py::state_root` 와 같은 규약).
+
+    왜 `tempfile.gettempdir()/pf_status_ui_units` 를 쓰지 않는가: 그것은 호스트에
+    **하나뿐인 고정 이름**이라 그 기계의 모든 실행이 같은 칸을 쓴다. 패킹은
+    `runtime/device_deployment.py::build_unit_source` 가 대상 디렉터리를 `rmtree`
+    한 뒤 복사하는 방식이라, 두 번째 실행이 첫 번째의 작업장을 **지우는** 경쟁이
+    된다 — 실측으로 두 프로세스가 같은 자리를 쓰면 240 회 중 47 회가
+    `FileNotFoundError` · `Directory not empty` 로 깨졌고, 깨진 쪽은 자기 잘못이
+    아닌 실패를 본다. 자리를 상태 디렉터리로 옮기면 배포·시험이 **환경변수 하나로**
+    그 자리를 격리할 수 있다(`tests/conftest.py::_isolated_state_root` 가 쓰는 길).
+
+    자리를 옮기는 것이 같은 사용자의 동시 실행까지 안전하게 만들지는 않는다 —
+    그것은 `build_unit_source` 가 임시 자리에 짓고 원자적으로 바꿔 끼워야 하는
+    별개의 일이다. 여기서 끊는 것은 **호스트 공용 고정 자리**라는 의존이다.
+    """
+    override = os.environ.get(STATE_ROOT_ENV)
+    if override:
+        return Path(override) / UNIT_STAGING_DIR_NAME
+    xdg = os.environ.get("XDG_STATE_HOME")
+    if xdg:
+        return Path(xdg) / "mission_runtime" / UNIT_STAGING_DIR_NAME
+    return Path.home() / ".local" / "state" / "mission_runtime" / UNIT_STAGING_DIR_NAME
+
+
 # What-if override key that applies to every node (per-node keys merge on top).
 OVERRIDE_ALL = "*"
 # function_id recorded on a plan when the request named no function — a
@@ -493,7 +550,21 @@ def load_ui_config(path: str | Path) -> UiConfig:
         raise UiConfigError("dashboard: must be a JSON object")
     # 조립은 로드 시점에 한 번 검증한다 — 잘못된 선언이 화면 요청 때까지 숨어
     # 있으면 운영 중에 500 으로 터진다.
-    build_dashboard_snapshot(dashboard or {})
+    declared_snapshot = build_dashboard_snapshot(dashboard or {})
+    declared_watch = build_resource_watch(dashboard or {})
+    # 감시 선언도 로드 시점에 맞춰 본다. 단위가 어긋난 기준선은 그래프 위 실제 값
+    # 위치를 정할 수 없고(§4.5), 요청 시점에 터지면 상태 조회가 500 이 된다.
+    declared_ids = {a.instance_id for a in declared_snapshot.resources.accelerators}
+    for target in declared_watch.targets:
+        if target.accelerator_id is not None and target.accelerator_id not in declared_ids:
+            raise UiConfigError(
+                f"dashboard.watch: {target.item_id} watches unknown accelerator "
+                f"{target.accelerator_id!r}"
+            )
+    try:
+        declared_watch.evaluate(declared_snapshot.resources)
+    except UnitMismatch as error:
+        raise UiConfigError(f"dashboard.watch: {error}") from error
 
     return UiConfig(
         path=path,
@@ -1173,6 +1244,74 @@ def build_dashboard_snapshot(raw: Any) -> DashboardSnapshot:
         raise UiConfigError(f"dashboard: {error}") from error
 
 
+def build_resource_watch(raw: Any) -> ResourceWatch:
+    """선언된 임계 감시 대상(`dashboard.watch[]`) → `ResourceWatch`.
+
+    implements: AI-O-05 (계층별 자원 관측), AI-O-02 (이상 사건 기록)
+
+    기능정의서 §4.4: "임계값 초과 시 해당 항목이 경고 상태로 전환되며, **이벤트/알람
+    (D)에 기록된다**" · "감시 대상은 **구성 가능해야 한다**". 그래서 어느 가속기의
+    어느 값을 어떤 기준으로 볼지가 등록 데이터이고 코드에 없다. 감시 선언이 없는
+    배치도 정상이다 — 그때는 경고 사건이 생기지 않는다(AI-C-05).
+
+    임계 자체는 `TargetBaseline` 을 그대로 쓴다. 지표(E′)와 자원(E)이 서로 다른 기준
+    표현을 쓰면 화면이 두 어휘를 배워야 한다.
+    """
+    body = _dash_obj("dashboard", raw if raw is not None else {})
+    targets = []
+    for index, entry in enumerate(_dash_list(body, "watch")):
+        where = f"dashboard.watch[{index}]"
+        item = _dash_obj(where, entry)
+        target = _dash_target(f"{where}.target", item.get("target"))
+        if target is None:
+            raise UiConfigError(f"{where}.target: required — 감시에는 기준이 있어야 한다")
+        try:
+            targets.append(WatchTarget(
+                item_id=str(_dash_text(f"{where}.item_id", item.get("item_id"),
+                                       required=True)),
+                field=str(_dash_text(f"{where}.field", item.get("field"), required=True)),
+                target=target,
+                accelerator_id=_dash_text(f"{where}.accelerator_instance_id",
+                                          item.get("accelerator_instance_id")),
+            ))
+        except WatchTargetInvalid as error:
+            raise UiConfigError(f"{where}: {error}") from error
+    return ResourceWatch.of(targets)
+
+
+def _watch_to_payload(result) -> dict:
+    """[E]/[G] 임계 감시 판정 1건을 응답 칸으로 옮긴다.
+
+    implements: AI-O-05, AI-O-06
+
+    기준값을 함께 내는 이유는 기능정의서 §3 요구사항 3 이다 — "판정 조건(G)의
+    기준값은 지식·경험 메모리에 정의된 성공 기준·제약에서 유래하며, **화면에
+    하드코딩되지 않아야 한다**." 기준을 보내지 않으면 화면은 임계 초과를 스스로
+    정할 수밖에 없고 그 순간 기준이 두 곳에 산다.
+
+    같은 판정이 세 자리로 나간다 — [D] 의 `RESOURCE` 사건, 노드의 자원 조건([G]),
+    그리고 이 목록. **한 번 평가해 셋으로 보내므로** 서로 어긋날 자리가 없다
+    (§4.7 "자원 조건은 리소스 현황(E)의 Layer 1 계측값과 일관되어야 한다").
+
+    `accelerator_instance_id` 칸의 부재는 **보드 전체 값**이라는 뜻이다. 보드 값에
+    가속기 id 를 붙이면 "어느 가속기의 보드 메모리"라는 말이 된다.
+    """
+    body = {
+        "condition_item_id": result.target.item_id,
+        "measured_field": result.target.field,
+        "measurement": measurement_to_wire(result.measurement),
+        "target": {"value": result.target.target.value,
+                   "direction": result.target.target.direction.value,
+                   "unit": result.target.target.unit},
+        "target_meet_state": result.meet_state.value,
+        "condition_reason": result.reason_token,
+    }
+    if result.target.accelerator_id is not None:
+        body["accelerator_instance_id"] = result.target.accelerator_id
+    _tag_source(body["measurement"], result.measurement)
+    return body
+
+
 def live_event_records(events: list[dict]) -> tuple[EventRecord, ...]:
     """패널이 스스로 적은 사건을 [D] 의 사건으로 옮긴다.
 
@@ -1287,9 +1426,7 @@ class StatusService:
         self._plan_capacity = plan_capacity
         self.plans = ExecutionPlanLog(capacity=plan_capacity)
         # --- device axis ----------------------------------------------------
-        self._staging_root = Path(
-            config.staging_dir or (Path(tempfile.gettempdir()) / "pf_status_ui_units")
-        )
+        self._staging_root = Path(config.staging_dir or default_unit_staging_root())
         self._deployments: dict[str, DeviceDeployment] = {}
         self._device_plans: dict[str, dict] = {}
         self._device_bootstrap: dict[str, dict] = {}
@@ -2235,6 +2372,72 @@ class StatusService:
             )
         return {"overrides": fleet["overrides"], "nodes": fleet["nodes"], "served": served, "functions": result}
 
+    # ── 선언 축 what-if: 기능 하나를 들이면 어디에 들어가나 ─────────────────
+    #
+    # 위의 `whatif_*` 는 **노드 축**이다("이 노드에 태그·예산을 더하면"). 이 메서드는
+    # **선언 축**이다("이 기능을 선언하면"). 둘이 다른 질문이라서 따로 있다.
+    #
+    # `registry/capability_proposal.py::PlacementOracle` 의 구현이고, 그 모듈이
+    # 요구하는 것은 **이 서비스가 이미 내는 답**뿐이다 — 새 판정을 여기서 만들면
+    # 배치의 정본이 둘이 되고 두 화면이 다른 답을 말한다(CLAUDE.md).
+
+    def assess_proposal(self, function_row, provider_rows) -> list[dict]:
+        """제안을 얹은 **임시 설정**으로 노드마다 해소해 본다. 파일은 고치지 않는다.
+
+        같은 로더(`registrations_from_dict`)로 제안 provider 를 등록 자료형으로
+        바꾸는 이유: 제안이 여기서 통과하면 그 줄을 선언 파일에 그대로 붙였을 때도
+        통과해야 한다. 따로 검증하면 "미리보기는 됐는데 적용하면 거절" 이 생긴다.
+
+        비용이 미측정인 제안은 **여기까지 오지 않는다** — `capability_proposal.assess`
+        가 그 앞에서 막는다(AI-B-01). 그 순서가 뒤집히면 미측정 비용이 0 으로 읽힌
+        배치 답이 먼저 나오고 운영자는 그 답을 기억한 채 경고를 읽는다.
+        """
+        kinds = tuple(dict.fromkeys(
+            list(function_row.get("required_capabilities") or ())
+            + list(function_row.get("optional_capabilities") or ())))
+        if not kinds:
+            return []
+
+        extra = registrations_from_dict({"providers": list(provider_rows)})
+        manifest = replace(
+            self.manifest,
+            registrations=self.manifest.registrations + extra.registrations)
+
+        # 제안한 kind 를 활성 목록에 **더한다**. 이미 활성인 kind 는 그대로 둔다 —
+        # 순서를 바꾸면 `served[kind][0]` 의 선택 결과가 흔들린다.
+        active = tuple(self.config.profile.active_capability_kinds)
+        added = tuple(k for k in kinds if k not in active)
+        specs = tuple(self.config.specs) + tuple(
+            CapabilitySpec(kind=k, is_core=False,
+                           requirement=CapabilityRequirement(required=(), optional=()))
+            for k in added if self.config.spec(k) is None)
+        proposed = replace(
+            self.config,
+            profile=replace(self.config.profile,
+                            active_capability_kinds=active + added),
+            specs=specs,
+            functions=self.config.functions,
+        )
+
+        service = StatusService(proposed, manifest=manifest,
+                                control_mode="local", clock=self._clock)
+        required = frozenset(function_row.get("required_capabilities") or ())
+        out: list[dict] = []
+        for node in proposed.nodes:
+            resolved = service.resolve(node.node_id)
+            rows = {row["kind"]: row for row in resolved["rows"]}
+            out.append(_proposal_verdict(node.node_id, rows, required, kinds))
+        # 정본의 선택 규칙과 **같은 순서**로 낸다 — 쓸 수 있는 것 먼저, 그 다음 비용,
+        # 그 다음 선언 순서. 여기서 다른 규칙을 쓰면 추천이 화면과 어긋난다.
+        order = {state: index for index, state in enumerate(("ACTIVE", "DEGRADED"))}
+        out.sort(key=lambda row: (
+            order.get(row["state"], 9),
+            (row["cost"] or {}).get("compute_units", float("inf")),
+            (row["cost"] or {}).get("memory_mb", float("inf")),
+            [n.node_id for n in proposed.nodes].index(row["node_id"]),
+        ))
+        return out
+
     def whatif_functions(self, overrides) -> dict:
         before = self.functions()
         after = self.functions(overrides)
@@ -2754,16 +2957,41 @@ class StatusService:
         # [E] L1 은 **선언이 아니라 계측**이어야 한다(문서 §4.4). 선언된 개체 목록은
         # 그대로 두고 그 자리에 이 기계에서 읽은 값을 입힌다 — 못 읽은 칸은 0 이 아니라
         # 미측정으로 남고, 지목된 계측 지점이 없으면 선언값이 선언이라고 적힌 채 남는다.
+        stamp = time.time() if now is None else now
         readout, probe_status = self._host_readout()
         probe_by_instance: dict[str, str] = {}
         board_probe: str | None = None
+        unclaimed: tuple[str, ...] = ()
         if readout is not None:
             declared_probes, board_probe = dashboard_host_probes(self.config.dashboard)
             probe_by_instance = resolve_probes(snapshot.resources, readout, declared_probes)
+            # 계측기가 찾았는데 아무 선언도 가리키지 않는 계측 지점. 목록은 선언이
+            # 소유하므로 여기서 개체를 더하지 않지만, 조용히 버리면 "이 기계에
+            # 가속기가 없다"와 "있는데 선언되지 않았다"가 같아진다(§4.4 완전성).
+            unclaimed = undeclared_probes(snapshot.resources, readout, declared_probes)
             snapshot = replace(snapshot, resources=with_host_measurements(
                 snapshot.resources, readout,
                 probe_by_instance=declared_probes, board_probe=board_probe,
             ))
+        # [E] 임계 감시 → [D] 경고 사건 + [G] 자원 조건. **한 판정에서 둘**이다
+        # (§4.4 "임계값 초과 시 … 이벤트/알람(D)에 기록된다", §4.7 "자원 조건은
+        # 리소스 현황(E)의 Layer 1 계측값과 일관되어야 한다"). 실측을 입힌 **뒤에**
+        # 평가해야 선언 숫자가 아니라 계측값이 임계와 비교된다.
+        watch = build_resource_watch(self.config.dashboard)
+        watch_results = watch.evaluate(snapshot.resources)
+        if watch_results:
+            # **한 번 평가하고 세 군데로 보낸다** — [D] 경고 사건, [G] 자원 조건,
+            # 그리고 기준값을 들고 가는 `resource_watch[]`. 같은 입력을 두 번
+            # 판정하면 세 자리가 서로 어긋날 수 있다(AI-O-06 상태 일관성).
+            conditions = tuple(r.as_condition() for r in watch_results)
+            snapshot = replace(
+                snapshot,
+                events=snapshot.events + threshold_events(watch_results, at=stamp),
+                verdicts=tuple(
+                    with_measured_resource_conditions(v, conditions)
+                    for v in snapshot.verdicts
+                ),
+            )
         # [D] 구역은 선언 사건과 패널이 실제로 적은 사건을 함께 본다. 실행 중에
         # 생긴 사건을 빼면 화면은 "그래프에 드러나지 않는 미세한 상태 변화"를
         # 추적할 수 없다(문서 §4.3).
@@ -2775,8 +3003,14 @@ class StatusService:
                 snapshot = snapshot.pin(pin or None)
             except GraphInvalid as error:
                 raise UiConfigError(f"unknown_task_node:{pin}") from error
-        stamp = time.time() if now is None else now
         payload = status_snapshot_payload(snapshot, now=stamp)
+        # [E] 임계 감시의 판정. **채널 본문이 아니라 이 조립 층에서** 낸다 — 와이어
+        # 어휘는 공통 데이터 사전(AI-C-01)에 등재한 이름만 쓰고, `resource_watch` ·
+        # `measured_field` 는 아직 등재되지 않았다. 등재되면 채널 본문으로 옮긴다
+        # (`docs/integration-handover.md` 에 적어 둔다). 그때까지 구독 채널은 사건과
+        # 자원 조건으로 같은 판정을 전달한다 — 판정이 빠지는 것이 아니라 기준 숫자가
+        # HTTP 조회에만 있는 상태다.
+        payload["resource_watch"] = [_watch_to_payload(r) for r in watch_results]
         counts = snapshot.state_counts()
         resources = snapshot.resources
         # 집계·유휴·미측정은 **파생값**이라는 사실이 드러나도록 따로 담는다. 화면이
@@ -2796,6 +3030,10 @@ class StatusService:
             # 실측으로 사용률을 얻은 개체. 위 미측정 목록의 여집합이 **아니다** —
             # 선언된 숫자만 있는 개체는 둘 중 어디에도 들지 않는다(AI-O-05).
             "measured_accelerator_instance_ids": list(resources.host_measured_accelerators()),
+            # 계측기가 찾았으나 선언에 없는 계측 지점. 비어 있으면 선언이 이 기계에서
+            # 읽히는 것을 다 덮었다는 뜻이고, 비어 있지 않으면 **목록이 불완전하다**는
+            # 사실이다 — 메우는 길은 선언 추가다(§3 요구사항 2, §4.4).
+            "undeclared_accelerator_probe_ids": list(unclaimed),
             # 못 읽은 칸의 사유. 관측 실패는 응답을 멈추지 않고 여기 남는다(AI-O-01).
             HOST_PROBE_STATUS: dict(probe_status),
             "not_measured_indicator_names": [
@@ -2881,6 +3119,78 @@ def _reason_data(reason: str) -> str | None:
 
 _TAG_LIST_TOKENS = frozenset({"required_hw_tag_missing", "required_runtime_tag_missing"})
 
+
+
+def _proposal_verdict(node_id: str, rows: dict, required: frozenset[str],
+                      kinds: tuple[str, ...]) -> dict:
+    """노드 하나의 판정 — **되는 이유도, 안 되는 이유도, 할 일이 무엇인지도 적는다.**
+
+    상태는 필수 kind 들의 **최악**이다. 선택 kind 결손은 DEGRADED 까지만 내리고
+    (AI-C-05) 그 사실이 사유에 남는다.
+
+    왜 후보별 사유까지 읽는가
+    -------------------------
+    요약 토큰 `no_compatible_provider_within_budget` 은 **두 사실을 한 칸에** 담는다
+    (공통 사전이 직접 "providers exist, none fit tags/budget" 이라고 적는다). 그
+    둘은 운영자가 할 일이 다르다 — 하드웨어를 들이는 것과 예산을 늘리는 것. 다행히
+    선택기는 후보마다 `over_budget` / `required_hw_tag_missing:<태그>` 를 이미 내고
+    `_row()` 가 그것을 `alternatives` 로 싣는다. 그래서 **판정을 새로 하지 않고 이미
+    나온 판정을 읽어** 둘을 가른다.
+    """
+    worst, reason = "ACTIVE", ""
+    missing: list[str] = []
+    over_budget: list[str] = []
+    rank = {"ACTIVE": 0, "DEGRADED": 1, "DISABLED": 2}
+    for kind in kinds:
+        row = rows.get(kind)
+        if row is None:
+            # 활성 목록에 더했는데도 해소 표에 없다 — 선언이 그 kind 를 모른다.
+            if kind in required:
+                worst, reason = "DISABLED", f"kind_not_resolved:{kind}"
+            continue
+        state = str(row.get("state") or "DISABLED")
+        if kind not in required and state == "DISABLED":
+            # 선택 기능 결손은 정상적인 축소다. 전체를 끌어내리지 않는다.
+            if rank[worst] < rank["DEGRADED"]:
+                worst, reason = "DEGRADED", f"optional_absent:{kind}"
+            continue
+        if rank[state] > rank[worst]:
+            token = row.get("reason_token") or row.get("reason") or ""
+            worst, reason = state, f"{kind}:{token}"
+        if state == "DISABLED" and kind in required:
+            missing.extend(_missing_tags(row.get("reason_token"), row.get("reason_data")))
+            for alternative in row.get("alternatives") or ():
+                alt_token = str(alternative.get("reason_token") or "")
+                if alt_token == SELECTOR_REASON_OVER_BUDGET:
+                    over_budget.append(kind)
+                else:
+                    missing.extend(_missing_tags(alt_token,
+                                                 alternative.get("reason_data")))
+    usable = worst in ("ACTIVE", "DEGRADED")
+    return {
+        "node_id": node_id,
+        "state": worst,
+        "reason": reason,
+        "missing_tags": sorted(set(missing)),
+        # 예산이 모자란 kind 들. **없는 태그와 다른 칸**이다 — 할 일이 다르다.
+        "over_budget_kinds": sorted(set(over_budget)),
+        # **쓸 수 있을 때만 비용을 낸다.** 둘 수 없는 노드에 부분 합을 적으면
+        # "여기서는 이만큼 든다" 로 읽히는데, 그 수는 올라가지 못한 몫이 빠진 수다.
+        "cost": _proposal_cost(rows, required) if usable else None,
+    }
+
+
+def _proposal_cost(rows: dict, required: frozenset[str]) -> dict | None:
+    """필수 kind 들이 고른 provider 비용의 합. 하나도 못 읽으면 `None`(미측정)."""
+    total: dict | None = None
+    for kind in sorted(required):
+        chosen = (rows.get(kind) or {}).get("cost")
+        if not isinstance(chosen, dict):
+            continue
+        total = total or {"compute_units": 0.0, "memory_mb": 0.0}
+        total["compute_units"] += float(chosen.get("compute_units") or 0.0)
+        total["memory_mb"] += float(chosen.get("memory_mb") or 0.0)
+    return total
 
 def _missing_tags(reason_token: str | None, reason_data: str | None) -> list[str]:
     """The tag list behind `required_hw_tag_missing:<a,b>` (selector.py joins
@@ -3160,6 +3470,28 @@ class StatusHandler(BaseHTTPRequestHandler):
                 self._send_json(self.service.whatif(self._node_id(body), **self._overrides(body)))
             elif url.path == "/api/functions/whatif":
                 self._send_json(self.service.whatif_functions(body.get("overrides") or {}))
+            elif url.path == "/api/functions/propose":
+                # **선언 축 what-if.** 위의 둘은 노드 축이다("이 노드에 태그·예산을
+                # 더하면"). 이쪽은 "이 기능을 선언하면 어디에 들어가나" 이고, 그
+                # 둘은 다른 질문이다.
+                #
+                # POST 인 이유는 바꾸기 때문이 아니라 **본문이 필요해서**다 —
+                # 이 경로는 아무것도 바꾸지 않는다(선언 파일을 고치지 않는다).
+                # 적용은 사람이 하는 별개의 행위다(AI-C-19, AI-L-03).
+                from mission_runtime.registry.capability_proposal import (  # noqa: PLC0415
+                    ProposalError,
+                    assess,
+                    proposal_from_dict,
+                )
+
+                try:
+                    proposal = proposal_from_dict(body.get("proposal") or body)
+                except ProposalError as error:
+                    # 선언이 규약에 맞지 않는 것과 "둘 곳이 없는" 것은 다른 종류다.
+                    self._send_json({"error": str(error),
+                                     "reason": "declaration_invalid"}, status=400)
+                    return
+                self._send_json(assess(proposal, self.service).as_payload())
             elif url.path == "/api/residency":
                 self._send_json(
                     self.service.residency(self._node_id(body), link=body.get("link"), **self._overrides(body))

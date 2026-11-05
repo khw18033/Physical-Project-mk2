@@ -5,7 +5,7 @@ tests: class replacement needs strictly more group support, confidence-only chan
        does not expose an update, exposed geometry is quantized, lifecycle counts
        consecutive missed observations, entry/exit change only the affected object
 
-근거: docs/obsidian/ideas/progressive-object-record.pdf §3
+근거: internal/docs-dev/obsidian/ideas/progressive-object-record.pdf §3
 """
 
 from __future__ import annotations

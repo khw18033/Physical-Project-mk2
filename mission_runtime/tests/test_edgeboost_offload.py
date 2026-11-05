@@ -1,6 +1,6 @@
 """implements: AI-E-04, AI-S-05
 reproduces (decision rule only): EdgeBoost, Computer Networks 2025
-(docs/obsidian/papers/edgeboost.md)
+(internal/docs-dev/obsidian/papers/edgeboost.md)
 tests: temperature scaling monotonicity, margin-threshold offload
        monotonicity, and the paper's core claim (offloading only
        low-margin predictions recovers most of the accuracy gap to a

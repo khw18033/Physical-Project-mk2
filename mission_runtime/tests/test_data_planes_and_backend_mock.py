@@ -1,4 +1,4 @@
-"""implements: AI-C-06, AI-C-08, AI-C-10, AI-C-14, AI-O-04
+"""implements: AI-C-06, AI-C-08, AI-C-10,  AI-O-04
 """
 
 import pytest
@@ -135,7 +135,7 @@ def test_s7_media_absence_disables_only_the_media_path(wired_robot):
     media.set_available(False)
 
     assert robot.send_media_frame() is False
-    # 나머지 두 평면은 그대로 동작한다 (AI-C-08, AI-C-11).
+    # 나머지 두 평면은 그대로 동작한다 (AI-C-08, AI-C-05).
     robot.publish_observation("robot_position", [3.0, 4.0])
     robot.report_metric("cpu_usage", 10.0)
     assert task_transport.published and observability.metrics

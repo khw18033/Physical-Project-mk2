@@ -1,4 +1,4 @@
-"""implements: AI-S-06, AI-O-01, AI-O-03, AI-C-08, AI-C-11
+"""implements: AI-S-06, AI-O-01, AI-O-03, AI-C-08, AI-C-05
 tests: real completion ordering, worker failure isolation, availability
        capture, no pixels in the bundle, run replay
 """

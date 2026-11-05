@@ -1,6 +1,6 @@
 """Zone task -> edge-local executable subtask decomposition.
 
-implements: AI-D-03 인접 (Milestone -> Task 분해)
+implements: AI-B-14 (Milestone -> Task 분해)
 
 관할 경계(2026-08-28 파트 간 계층 경계 확정 — 근거 문서는 이후 정리 과정에서
 저장소에서 제거됨): Goal→Milestone→Task→Action Item 계층에서 Milestone/Task는 AI

@@ -216,10 +216,23 @@ class AcceleratorInstance:
     vendor_label: str | None = None
     utilization: Measurement = Measurement(None, "ratio")
     temperature: Measurement = Measurement(None, "celsius")
+    #: 사용률의 최근 구간 추이(문서 §4.4 — 전력과 **같은 요구**다). 현재값 하나로는
+    #: "방금 올라갔다" 와 "계속 그랬다" 가 구분되지 않아 부하 편중을 볼 수 없다.
+    #: **잰 표본만 들어간다** — 못 잰 구간을 0 으로 메우면 추이가 거짓으로 내려간다.
+    utilization_trend: tuple[Measurement, ...] = ()
 
     def __post_init__(self) -> None:
         if not self.instance_id:
             raise ValueError("instance_id must not be empty")
+        for sample in self.utilization_trend:
+            if not sample.measured:
+                raise ValueError(
+                    "utilization_trend 에는 잰 표본만 들어간다 — 미측정 표본을 섞으면 "
+                    "추이가 거짓으로 내려간다(AI-O-05)")
+            if sample.unit != self.utilization.unit:
+                raise UnitMismatch(
+                    f"추이 단위 {sample.unit!r} 가 현재값 단위 "
+                    f"{self.utilization.unit!r} 와 다르다 — 같은 축에 그릴 수 없다")
         if self.utilization.value is not None and not 0.0 <= self.utilization.value <= 1.0:
             raise ValueError(f"utilization out of range: {self.utilization.value}")
 
@@ -294,6 +307,23 @@ class LayeredResourceView:
                 )
 
     # -- 가속기 목록의 완전성 (문서 §4.1·§4.4) ---------------------------
+
+    @property
+    def is_empty(self) -> bool:
+        """이 계층에 **보여 줄 사실이 하나도 없는가.**
+
+        [E] 가 담는 것은 셋이다 — 가속기 개체(L1), 서비스(L2), 보드 값. 그 셋이 모두
+        없으면 구역이 그릴 것이 없고, 그 사실은 "정상인데 비었다"가 아니라 **아직
+        아무것도 받지 못했다**로 적혀야 한다(문서 §3 요구사항 5: "해당 구역은 데이터
+        미수신 상태를 명시해야 한다"). 보드 값만 있어도 비지 않는다 — 보드 메모리와
+        소비 전력은 가속기 목록이 비어도 [E] 가 요구하는 L1 계측이다(§4.4).
+
+        값이 없는 보드 칸은 비어 있는 것으로 센다. 미측정은 0 이 아니지만 **0 도
+        아니고 사실도 아니다** — 단위만 있는 칸을 "받았다"로 세면 미수신이 사라진다.
+        """
+        if self.accelerators or self.services:
+            return False
+        return not (self.board.memory_utilization.measured or self.board.power.measured)
 
     def services_on(self, instance_id: str) -> tuple[ServiceRuntime, ...]:
         return tuple(s for s in self.services if s.accelerator_id == instance_id)

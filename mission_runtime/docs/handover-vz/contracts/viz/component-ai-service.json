@@ -1,0 +1,48 @@
+{
+  "id": "ai-service",
+  "version": "1.0.0",
+  "displayName": "추론 서비스 (Layer 2)",
+  "description": "가속기 위에 배치된 추론 모델 서비스 하나. 배치 가속기를 반드시 병기한다 — 지연이 모델 탓인지 가속기 탓인지를 화면에서 좁히려면 둘이 다른 칸이어야 한다(기능정의서 §4.4·§4.6).",
+  "fields": [
+    {
+      "name": "service_id",
+      "type": "string",
+      "required": true,
+      "representationHint": "text"
+    },
+    {
+      "name": "accelerator_instance_id",
+      "type": "string",
+      "required": false,
+      "representationHint": "text",
+      "description": "칸이 없으면 미배치다. 지어내지 않는다."
+    },
+    {
+      "name": "service_role",
+      "type": "string",
+      "required": false,
+      "representationHint": "text"
+    },
+    {
+      "name": "model",
+      "type": "string",
+      "required": false,
+      "representationHint": "text",
+      "description": "지금 적재된 모델 이름. 교체가 일어났는지 이 값과 model_version 으로 안다."
+    },
+    {
+      "name": "model_version",
+      "type": "string",
+      "required": false,
+      "representationHint": "text"
+    },
+    {
+      "name": "indicators",
+      "type": "array",
+      "required": false,
+      "samplingIntervalMs": 2000,
+      "representationHint": "table",
+      "description": "이 서비스가 내는 지표 목록. 각 항목에 목표 기준선과 target_meet_state(MET/UNMET/NOT_MEASURED)가 함께 온다 — 미측정을 미달과 섞지 않는 자리다(§4.5)."
+    }
+  ]
+}

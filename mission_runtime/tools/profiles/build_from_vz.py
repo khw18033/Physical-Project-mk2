@@ -28,7 +28,7 @@ import json
 from pathlib import Path
 
 # `local/` 은 `mission_runtime/` 과 **나란히** 있다(저장소 루트 아래). 한 칸 안쪽을
-# 보면 영원히 못 찾는다 — `fleet.py::_asset_root()` 가 같은 실수를 하고 있었다.
+# 보면 영원히 못 찾는다 — `tools/fms_console/fleet.py::_asset_root()` 가 같은 실수를 하고 있었다.
 VZ = Path(__file__).resolve().parents[3] / "local" / "vz"
 OUT = Path(__file__).resolve().parents[2] / "profiles" / "domains.json"
 

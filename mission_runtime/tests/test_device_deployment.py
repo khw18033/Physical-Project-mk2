@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import stat
 import subprocess
 import uuid
@@ -75,6 +76,18 @@ CONFIG_DIR = Path(__file__).resolve().parents[1] / "config"
 PURPOSES = load_device_purposes(CONFIG_DIR / "device_purposes.example.json")
 
 SECRET = "not-a-real-password"
+
+#: 제어 노드 키쌍은 `ssh-keygen` 이 만든다. 없는 노드에서
+#: `providers/ondevice_bootstrap.py::ensure_control_keypair` 는 추측하지 않고
+#: `REASON_KEYGEN_MISSING` 으로 거절하는데(그것이 올바른 축소, AI-C-05) 그러면
+#: "만들어진 키의 권한" 과 "키 검증 실패 시 등록 보존" 은 볼 대상 자체가 없어진다.
+#: 키를 **만들지 않는** 경로(비밀번호 없음·stdin 전달·멱등 설치)는 같은 파일의
+#: 다른 시험이 이 도구 없이도 그대로 본다.
+needs_keygen = pytest.mark.skipif(
+    shutil.which("ssh-keygen") is None,
+    reason="ssh-keygen 이 이 노드에 없다 — 키 기반 부트스트랩 provider 만 skip "
+           "이다(AI-C-05). openssh-client 를 설치하면 돈다",
+)
 
 
 # --- 테스트용 채널 -----------------------------------------------------------
@@ -369,6 +382,7 @@ class ScriptedRunner:
         return subprocess.CompletedProcess([], self._returncode, self._stdout, "")
 
 
+@needs_keygen
 def test_generated_control_key_is_owner_only(tmp_path):
     private, public = ensure_control_keypair(tmp_path / "keys" / "id_test")
     assert public.startswith("ssh-ed25519 ")
@@ -404,6 +418,7 @@ def test_bootstrap_without_password_is_a_reason_not_an_exception(tmp_path):
     assert result.reason == REASON_NO_PASSWORD and result.ok is False
 
 
+@needs_keygen
 def test_failed_verification_leaves_the_registration_alone(tmp_path, monkeypatch):
     """키가 안 먹는데 등록을 바꾸면 접속 수단을 잃는다(AI-B-05의 last-known-good)."""
     import mission_runtime.providers.ondevice_bootstrap as boot

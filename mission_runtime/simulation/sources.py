@@ -82,7 +82,7 @@ class VideoFileMediaSource:
     The file path, codec and decoder stay hidden here; perception only ever
     sees frames. If the file is missing or OpenCV cannot open it, the
     source reports unavailable rather than raising — an absent video source
-    disables only video-based capabilities (AI-C-08, AI-C-11).
+    disables only video-based capabilities (AI-C-08, AI-C-05).
     """
 
     def __init__(self, source_id: str, path: str | Path, *, loop: bool = False) -> None:

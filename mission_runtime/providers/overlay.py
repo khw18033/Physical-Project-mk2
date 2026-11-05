@@ -1,9 +1,9 @@
 """Secure overlay network providers (current deployment: Tailscale).
 
-implements: AI-C-17, AI-C-12, AI-O-04
+implements: AI-C-04,  AI-O-04
 
 원칙 #10: 구역 엣지와 서버 사이의 모든 구간은 공개 인터넷을 경유하지 않고 보안
-오버레이 네트워크 위에서만 연결한다. AI-C-17은 그 오버레이의 *제품*이 아니라
+오버레이 네트워크 위에서만 연결한다. AI-C-04은 그 오버레이의 *제품*이 아니라
 "연결 가능 여부와 피어 상태를 공통 인터페이스로 조회할 수 있어야 한다"만 요구하므로,
 Tailscale CLI 호출은 이 파일 밖으로 나가지 않는다.
 
@@ -41,7 +41,7 @@ class TailscaleOverlayProvider:
     the overlay carries no extra runtime dependency (원칙 #12, AI-B-10).
     Every probe failure degrades to DISCONNECTED/UNAVAILABLE instead of
     raising: losing the overlay must reduce remote capability, not crash
-    the node (AI-C-17, AI-C-11).
+    the node (AI-C-04, AI-C-05).
     """
 
     def __init__(self, *, binary: str = "tailscale", timeout_s: int = 5) -> None:
@@ -114,7 +114,7 @@ class StaticOverlayProvider:
     network segment, and for tests.
 
     Exists so "no overlay product installed" is an expressible, valid
-    configuration rather than a missing dependency (AI-C-11).
+    configuration rather than a missing dependency (AI-C-05).
     """
 
     def __init__(self, *, connected: bool = True, peers: dict[str, bool] | None = None) -> None:
@@ -141,7 +141,7 @@ class StaticOverlayProvider:
 class OverlayAwareRemoteGate:
     """Decides whether a remote-hosted optional capability may be selected.
 
-    Three inputs stay distinct on purpose (AI-O-04, AI-C-17):
+    Three inputs stay distinct on purpose (AI-O-04, AI-C-04):
       - the backend's integrated device availability (AI-C-10),
       - the overlay's own reachability to that peer,
       - the capability's local health, checked by the registry.

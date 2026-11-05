@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://physical-project.local/schemas/view_snapshot.schema.json",
   "title": "Operations View Snapshot (read-only)",
-  "x-view-contract-version": "2.1",
+  "x-view-contract-version": "2.2",
   "$comment": "운영 화면이 읽는 모든 GET 응답의 정본 모양. 이 한 파일이 공유 $defs 를 들고 있고 끝점별 파일(view_bootstrap · view_scene · view_domain · view_zone · view_robot · view_recommendations · view_subtask_graph)은 여기를 가리키는 얇은 포장이다. 뜻을 적는 자리가 두 곳이면 두 곳이 갈라지므로 모양은 여기 한 번만 적는다. 이 계약에는 색·픽셀·폰트·도형·배치가 없다 — 서버는 **뜻**만 내고 그리는 일은 전부 보는 쪽(SVG · React · Unity)의 몫이다(AI-C-15: 특정 디지털 트윈 엔진·가시화 기술은 핵심 코드가 아니라 선택 가능한 소비자다). 좌표는 전부 현장 로컬 좌표다. 전역 좌표 변환은 2026-11-03 경계 개정으로 AI 가 소유하지만(AI-C-02) **필수가 아닌 선택 계층**이고, 그 상태는 도메인의 geo 블록이 말한다 — datum 이 없거나 미검증이면 전역 계층만 비활성이 되고 로컬 좌표는 그대로 나간다. 로컬 값과 전역 값은 교환 가능하지 않으므로 같은 칸에 담지 않는다 — 전역 숫자가 나가는 현장에서는 자리 칸(at) 옆에 at_global 이 따로 붙는다. 전역 숫자가 나가는 조건은 코드 상수가 아니라 현장 선언이 정한다: datum 이 있고 verified 이고 정확도가 선언됐고 AI↔백엔드 경계 재합의(BE-C-04 · DT-03 을 대체하는 기록)가 선언된 현장에서만 나가며, 하나라도 없으면 geo 가 상태와 사유만 낸다 (그것이 지금 실제 현장 둘의 상태다). 이 칸들은 더해지기만 했으므로 판 올림은 minor 이고, 서버가 내는 판과 공표한 판은 같아야 한다. 이 계약으로는 아무것도 바꿀 수 없다(AI-O-06: \"상태 뷰는 조회 전용이어야 하며 이 경로를 통해 실행 상태를 변경하는 수단을 제공해서는 안 된다\") — 바꾸는 것은 POST 로만 되는 별도 계약이고 그 모양은 이 파일에 없다. 모르는 칸은 양쪽이 **통과시킨다**(통합데이터규약 R12) — 그래서 모든 객체가 additionalProperties 를 열어 둔다.",
   "type": "object",
   "properties": {
@@ -43,6 +43,10 @@
       "items": {
         "$ref": "#/$defs/subtask_graph"
       }
+    },
+    "dashboard": {
+      "$ref": "#/$defs/dashboard_snapshot",
+      "description": "`GET /api/dashboard` 응답. 종합상황정보 구역 B~I 가 한 덩어리로 들어온다."
     }
   },
   "additionalProperties": true,
@@ -178,7 +182,12 @@
         "declared",
         "operator_edit"
       ],
-      "description": "그 자리값이 어디서 왔는가. `declared` 배치 선언 파일 · `operator_edit` 운영자가 고친 값. 고친 값이 선언을 지우지 않고 위에 덧대이므로 원래 선언이 무엇이었는지 잃지 않는다."
+      "description": "**선언**이 어디서 왔는가. `declared` 배치 선언 파일 · `operator_edit` 운영자가 고친 값. 고친 값이 선언을 지우지 않고 위에 덧대이므로 원래 선언이 무엇이었는지 잃지 않는다. **관측이 들어와도 이 칸은 바뀌지 않는다** — 그 선언이 사라진 것은 아니기 때문이다. 지금 `at` 에 있는 값을 무엇이 만들었는가는 형제 칸 `position_source` 가, 지금 살아 있는가는 `presence`·`last_seen_age_s` 가 말한다. 세 가지는 다른 축이고 한 칸에 담지 않는다."
+    },
+    "position_source": {
+      "type": "string",
+      "minLength": 1,
+      "description": "지금 `at` 에 있는 값을 **무엇이 만들었는가**(열린 어휘 — 현재 배치에서는 장치가 알린 자세의 `reported`). **칸이 없으면 `at` 은 선언값**이고 그 출처는 `at_origin` 이 말한다(§3.2: 칸 없음 = 그런 사실이 없다). 이 칸이 있다는 것은 선언이 아니라 관측이 그 자리를 정했다는 뜻이며, 그 관측이 **지금** 것인지 **마지막으로 본** 것인지는 이 칸이 아니라 `presence`(`discovered` 인가)와 `last_seen_age_s` 가 말한다 — 닿지 않게 된 로봇의 자리를 선언으로 되돌리거나 지도에서 지우지 않으므로, 뷰어는 그 둘을 함께 읽어 \"마지막으로 본 자리\" 로 그려야 한다."
     },
     "freshness_age": {
       "type": [
@@ -912,6 +921,179 @@
             "$ref": "#/$defs/room_interior"
           },
           "description": "더 들어갈 수 있는 방 목록. 없으면 빈 배열이고 그것이 정상이다."
+        },
+        "object_placements": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/object_placement"
+          },
+          "description": "**인지가 만든** 객체를 저장 자산에 묶어 세울 자리들. 위 `robots`·`infrastructure` 는 선언에서 오고 이 목록은 관측에서 온다 — 한 목록에 담으면 둘이 구분되지 않는다. 아무 장치도 보고하지 않은 구역은 빈 배열이고, 빈 배열은 '0 개'가 아니라 '아직 관측이 없다'다."
+        }
+      }
+    },
+    "object_placement": {
+      "type": "object",
+      "required": [
+        "object_id",
+        "proxy_state",
+        "asset_binding_reason",
+        "asset_match_tier",
+        "binding_index",
+        "placement"
+      ],
+      "additionalProperties": true,
+      "description": "인지한 객체 하나를 **무엇으로 그리고 어디에 세울지**. 클래스를 저장된 3D 모델·이미지와 묶은 결과이고(`perception/object_asset_binding.py`) 나가는 것은 **자산 참조**뿐이다 — 메시도 픽셀도 이 계약으로 오지 않는다(AI-C-08: 뷰어가 `asset_ref` 로 미디어 경로에서 받는다). 색·크기 배율·카메라 각도 같은 표현 결정도 없다(§3.1). 묶이지 않은 객체도 **목록에서 빠지지 않는다**: 자리는 아는데 그릴 자산이 없는 것은 정상 상태이고(AI-C-05) 그때 `proxy_state` 가 `ABSENT`, `proxy_id` 가 `null` 이며 사유가 함께 온다.",
+      "properties": {
+        "object_id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "지속 객체 식별자. **묶음은 이 id 에 걸린다** — 객체가 움직이면 뷰어는 같은 자산 하나를 옮기면 되고 새 객체로 만들지 않는다. 장치 개체 id 가 아니다."
+        },
+        "semantic_class": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "묶음이 선 클래스 가설. `null` 은 아직 가려지지 않은 것이고(AI-S-04) 그때 자산은 묶이지 않는다."
+        },
+        "object_group": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "그 객체가 속한 그룹 토큰(열린 어휘). `null` 은 그룹이 **주어지지 않은** 것이고 '그룹이 없는 객체'가 아니다 — 분류기가 없는 배치가 정상이다."
+        },
+        "proxy_state": {
+          "enum": [
+            "RESOLVED",
+            "ABSENT"
+          ],
+          "description": "`RESOLVED` 만 모양을 말한다. `ABSENT` 는 오류가 아니다."
+        },
+        "asset_binding_reason": {
+          "type": "string",
+          "minLength": 1,
+          "description": "그 결론에 이른 사유 토큰(열린 어휘). 묶인 이유와 **묶이지 못한 이유**가 같은 칸에 온다 — 클래스가 안 가려진 것, 카탈로그가 없는 것, 자산 파일이 없는 것은 서로 다른 사실이다."
+        },
+        "asset_match_tier": {
+          "oneOf": [
+            {
+              "enum": [
+                "exact_class",
+                "group_fallback"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "**닫힌 어휘.** 어느 단계로 자산을 찾았는가 — 그 클래스 이름으로 등록된 자산(`exact_class`)인지, 클래스 어휘 밖이어서 그룹 대역으로 내려온 것(`group_fallback`)인지. 운영자가 '저것이 실제 의자 모델'과 '그냥 단단한 장애물 상자'를 구분하는 유일한 칸이므로 뷰어는 이 둘을 같게 보여서는 안 된다. `null` 은 묶이지 않은 것이다."
+        },
+        "asset_match_key": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "그 단계에서 실제로 찾은 키(클래스 이름 또는 그룹 토큰)."
+        },
+        "proxy_id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "묶인 저장 자산의 식별자. `null` 은 그릴 자산이 없는 것이고 정상이다."
+        },
+        "asset_kind": {
+          "type": "string",
+          "description": "자산의 표현 종류. 카탈로그가 스스로 선언하는 어휘이고(현재 `model_3d` · `stored_image`) 벤더 열거형이 아니다."
+        },
+        "asset_ref": {
+          "type": "string",
+          "description": "자산 뿌리 기준 **상대 참조**. 뷰어는 이 참조로 미디어 경로에서 파일을 받는다 — 바이트는 이 계약으로 오지 않는다(AI-C-08)."
+        },
+        "asset_present": {
+          "type": [
+            "boolean",
+            "null"
+          ],
+          "description": "그 자산 파일이 실제로 있는가. `null` 은 자산 뿌리가 없어 **확인하지 못한 것**이고 '없다'가 아니다."
+        },
+        "proxy_extent_m": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "그 자산이 묘사하는 실물의 가장 긴 변(m). **선언된 사전정보이고 이 객체를 잰 값이 아니다**(AI-S-08). `null` 은 미측정이고 0 이 아니다. 실측값은 형제 칸 `size_fit.measured_extent_m` 에 따로 오며, 둘을 같은 칸에 담지 않는 이유가 바로 '선언이 관측으로 보이지 않게' 하는 것이다."
+        },
+        "depicts": {
+          "type": "object",
+          "additionalProperties": true,
+          "description": "그 자산이 무엇을 묘사하는가(다국어 라벨). 표현 결정이 아니라 카탈로그의 자료다."
+        },
+        "stands_in_for": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "그 자산이 대신하는 종류·그룹 태그들. 개체 id 가 아니다."
+        },
+        "asset_origin": {
+          "type": "string"
+        },
+        "asset_license": {
+          "type": "string",
+          "description": "자산의 라이선스 선언. 모르는 것은 `\"unknown\"` 으로 **적혀** 온다 — 빈 칸과 다르다."
+        },
+        "proxy_alternatives": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "같은 키를 대신할 수 있었던 다른 자산들(결정적 순서)."
+        },
+        "unfit_proxies": {
+          "type": "object",
+          "additionalProperties": true,
+          "description": "등록되어 있으나 지금 쓸 수 없었던 자산 → 사유. 조용히 빼지 않는다."
+        },
+        "binding_index": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "묶음 회차. **자리가 바뀌는 것은 새 회차가 아니다** — 객체가 움직이는 동안 이 값은 그대로이고, 올라갔다는 것은 세울 자산이 실제로 바뀌었다는 뜻이다."
+        },
+        "bound_at": {
+          "type": "number",
+          "description": "그 회차가 선 시각. 객체가 움직여도 바뀌지 않는다."
+        },
+        "trail": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "description": "물러난 묶음들(오래된 것부터). 다시 묶기는 **덮어쓰기가 아니라 사건**이라 이전 회차가 사유와 함께 남는다 — '40 프레임 동안 가방이었다가 배낭이 됐다'를 운영자가 읽을 수 있는 자리다."
+        },
+        "grounds": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": true,
+          "description": "클래스를 누가 어떤 격으로 말했는가. 확신(`confidence`)과 근거의 격(`evidence_tier`)은 다른 축이라 한 칸에 담지 않는다(AI-S-03). 묶이지 않았을 때도 온다."
+        },
+        "placement": {
+          "type": "object",
+          "additionalProperties": true,
+          "required": [
+            "proxy_position",
+            "coordinate_frame"
+          ],
+          "description": "자산을 세울 자리. **어느 프레임의 값인지 잃지 않는다**(AI-C-02). `proxy_position` 은 현장 로컬이고 전역 값은 이 칸에 담기지 않는다 — 전역 프레임으로 들어온 자리는 좌표를 버리고 `placement_refusal_reason` 만 남는다. `null` 은 자리를 모르는 것이고 0 좌표가 아니며, `heading_deg: null` 은 자세 미측정이고 0 도가 아니다(저장 이미지 자산은 애초에 자세를 말하지 못한다)."
+        },
+        "size_fit": {
+          "type": "object",
+          "additionalProperties": true,
+          "description": "선언 크기와 **실측** 크기의 비교. 자산을 조용히 늘려 맞추지 않고 어긋남을 낸다 — 늘리면 화면은 그럴듯해지고 그 그럴듯함이 다음 판단의 전제가 된다. `size_fit_state: \"unmeasured\"` 는 한쪽이 미측정인 것이고 불일치도 0 도 아니다. `size_ratio` 는 설명용 수치이고 **적용 지시가 아니다**."
         }
       }
     },
@@ -1032,6 +1214,9 @@
         },
         "at_origin": {
           "$ref": "#/$defs/at_origin"
+        },
+        "position_source": {
+          "$ref": "#/$defs/position_source"
         },
         "recommendations": {
           "type": "array",
@@ -2047,6 +2232,201 @@
           "description": "그 방의 실내 장면 **참조**. 장면을 여는 일은 가시화 몫이고 여기 적힌 것은 '더 들어갈 자리가 있다'는 사실이다(AI-C-19)."
         }
       }
+    },
+    "dashboard_snapshot": {
+      "title": "View payload — GET /api/dashboard (종합상황정보 구역 B~I)",
+      "$comment": "**모양의 정본은 채널 본문 스키마**(`schemas/ai/status-snapshot.schema.json`)이고 여기서 다시 적지 않는다 — 두 곳에 적으면 두 곳이 갈라진다. 이 끝점은 그 본문에 조립 층의 두 칸을 더한 것이다: `derived`(세면 나오는 값)와 `resource_watch`(임계 감시 판정). 구역별로 따로 조회하지 않는 이유는 §3 요구사항 1(\"소스별로 개별 조회하는 것이 아니라 통합된 상태 뷰를 구독\")과 §5 상태 일관성을 함께 지키려면 한 스냅샷이어야 하기 때문이다. **조회 전용이다**(§1.1·§5): 이 경로의 POST 는 본문을 읽기 전에 405 다. `?pin=` 은 기준 노드 고정이고 관찰 방식의 변경이라 조회에 남는다(§2).",
+      "allOf": [
+        {
+          "$ref": "https://physical-project.local/schemas/ai/status-snapshot.schema.json"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "derived": {
+              "type": "object",
+              "title": "파생값 — 위 목록에서 다시 셀 수 있는 것들",
+              "$comment": "**파생이라는 사실이 드러나도록** 따로 담는다. 채널 본문(`status_snapshot`)은 이 블록을 싣지 않는다 — 규약 R9 와 기능정의서 §4.1(\"상태별 노드 수는 … 집계한 값이며 그래프와 **항상 일치**해야 한다\")이 같은 결론을 가리키기 때문이다. HTTP 조회에서만 편의로 함께 내고, 화면이 다시 세어도 같은 답이 나온다. 어긋나면 위의 목록이 정본이다.",
+              "properties": {
+                "task_node_total": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "task_node_counts_by_state": {
+                  "type": "object",
+                  "description": "[B] 상태별 노드 수. 여섯 상태 전부가 키로 있고 0 도 적힌다 — 0 건인 상태의 칸이 사라지면 화면이 그 상태를 모른다.",
+                  "additionalProperties": {
+                    "type": "integer",
+                    "minimum": 0
+                  }
+                },
+                "task_nodes_needing_attention": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "accelerator_placement": {
+                  "type": "object",
+                  "description": "가속기 → 배치 서비스. **가속기를 기준 축으로** 한다(§4.1: \"가속기를 기준 축으로 삼아야 유휴 가속기가 드러나며, 부하 편중을 판단할 수 있다\"). 선언된 개체 **전부**가 키이고 배치가 없는 개체는 빈 배열이다.",
+                  "additionalProperties": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "idle_accelerator_instance_ids": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "배치된 서비스가 없는 개체. 목록에서 빼지 않고 유휴로 드러낸다(§4.1·§4.4)."
+                },
+                "unmeasured_accelerator_instance_ids": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "사용률을 못 잰 개체. 화면은 이것을 0% 로 그리지 않는다."
+                },
+                "measured_accelerator_instance_ids": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "사용률을 **이 호스트에서 실제로 읽은** 개체. 위 미측정 목록의 여집합이 **아니다** — 선언된 숫자만 있는 개체는 둘 중 어디에도 들지 않는다(AI-O-05)."
+                },
+                "undeclared_accelerator_probe_ids": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "계측기가 찾았는데 **아무 선언도 가리키지 않는** 계측 지점. 비어 있지 않으면 가속기 목록이 불완전하다는 사실이고, 메우는 길은 선언 추가다(§3 요구사항 2·§4.4 목록의 완전성). 목록을 계측으로 늘리지 않는 이유는 선언이 배치의 정본이기 때문이다 — 그러나 조용히 버리면 \"가속기가 없다\"와 \"선언되지 않았다\"가 같아진다."
+                },
+                "host_probe_status": {
+                  "type": "object",
+                  "description": "못 읽은 칸의 **사유 토큰**(`ok`·`no_sensor`·`tool_missing` …). 관측 실패는 응답을 멈추지 않고 여기 남는다(AI-O-01).",
+                  "additionalProperties": {
+                    "type": "string"
+                  }
+                },
+                "not_measured_indicator_names": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "미달 목록과 **교집합이 없다** — 측정 없음은 미달이 아니다(§4.5)."
+                },
+                "unmet_indicator_names": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "unavailable_region_ids": {
+                  "type": "array",
+                  "items": {
+                    "enum": [
+                      "B",
+                      "C",
+                      "D",
+                      "E",
+                      "E_PRIME",
+                      "F",
+                      "G",
+                      "H",
+                      "I"
+                    ]
+                  }
+                },
+                "has_external_requests": {
+                  "type": "boolean"
+                },
+                "mission_elapsed_s": {
+                  "type": [
+                    "number",
+                    "null"
+                  ],
+                  "description": "미션 접수 시각이 없으면 `null` 이다."
+                }
+              },
+              "additionalProperties": true
+            },
+            "resource_watch": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "title": "[E]/[G] 임계 감시 판정 1건",
+                "$comment": "기준값을 싣는 이유는 §3 요구사항 3 이다 — \"판정 조건(G)의 기준값은 … 화면에 하드코딩되지 않아야 한다.\" 같은 판정이 세 자리로 나간다: 임계를 넘으면 [D] 의 `RESOURCE` 사건, 노드의 자원 조건([G] `verdicts[].resource` 의 같은 `condition_item_id`), 그리고 이 목록. **한 번 판정해 셋으로 보내므로** 서로 어긋날 자리가 없다(§4.7·AI-O-06). 아직 채널 본문에는 없다 — 이름이 공통 데이터 사전(AI-C-01)에 등재되면 옮긴다.",
+                "required": [
+                  "condition_item_id",
+                  "measured_field",
+                  "measurement",
+                  "target",
+                  "target_meet_state"
+                ],
+                "properties": {
+                  "condition_item_id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "[G] 의 같은 `condition_item_id` 와 이어진다."
+                  },
+                  "accelerator_instance_id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "**칸의 부재가 보드 전체 값**이라는 뜻이다. 보드 값에 가속기 id 를 붙이면 \"어느 가속기의 보드 메모리\"라는 말이 된다."
+                  },
+                  "measured_field": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "무엇을 재는가(`utilization`·`temperature`·`memory_utilization`·`power`). 자유 문자열이고 새 항목은 선언 추가다."
+                  },
+                  "measurement": {
+                    "$ref": "https://physical-project.local/schemas/ai/status-snapshot.schema.json#/$defs/measurement"
+                  },
+                  "target": {
+                    "type": "object",
+                    "required": [
+                      "value",
+                      "direction",
+                      "unit"
+                    ],
+                    "properties": {
+                      "value": {
+                        "type": "number"
+                      },
+                      "direction": {
+                        "enum": [
+                          "AT_LEAST",
+                          "AT_MOST"
+                        ]
+                      },
+                      "unit": {
+                        "type": "string",
+                        "minLength": 1
+                      }
+                    },
+                    "additionalProperties": true
+                  },
+                  "target_meet_state": {
+                    "enum": [
+                      "MET",
+                      "UNMET",
+                      "NOT_MEASURED"
+                    ],
+                    "description": "**세 값이며 둘로 줄이지 않는다**(AI-O-05·§4.5): 측정값이 없는 구간은 미달이 아니라 `NOT_MEASURED` 다."
+                  },
+                  "condition_reason": {
+                    "type": "string",
+                    "description": "`over_threshold` / `within_threshold` / `not_measured` / `watch_target_absent`. 마지막 하나는 감시 대상 개체가 목록에 없다는 뜻이고 정상으로 접지 않는다 — 장치가 빠진 것과 값이 정상인 것은 다른 사실이다(AI-C-05)."
+                  }
+                },
+                "additionalProperties": true
+              }
+            }
+          },
+          "additionalProperties": true
+        }
+      ]
     }
   }
 }

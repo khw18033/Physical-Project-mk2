@@ -1,4 +1,4 @@
-"""implements: AI-C-06, AI-C-14, AI-B-10, AI-O-03
+"""implements: AI-C-06,  AI-B-10, AI-O-03
 covers: real Kafka round-trip, MQTT<->Kafka bridge, edge runs no Kafka
         server, bridge survives a downed link, short-term replay reference
 
@@ -201,7 +201,7 @@ def test_bridge_drops_and_keeps_running_when_the_server_link_is_down():
 
     device.publish("dev/task", b"observation")
 
-    # 백본 단절이 엣지 동작을 중단시키지 않는다 (AI-C-11).
+    # 백본 단절이 엣지 동작을 중단시키지 않는다 (AI-C-05).
     assert bridge.stats.uplink == 0
     assert bridge.stats.dropped == {"server_link_down": 1}
 
@@ -220,7 +220,7 @@ def test_control_route_uses_guaranteed_delivery_qos():
 
 
 def test_observability_and_media_kinds_are_rejected_as_bridge_routes():
-    # 관측 데이터와 영상은 이 경로를 쓰지 않는다 (원칙 #10, AI-C-14).
+    # 관측 데이터와 영상은 이 경로를 쓰지 않는다 (원칙 #10, AI-C-06).
     for kind in (DataKind.METRIC, DataKind.VIDEO_FRAME):
         with pytest.raises(ValueError):
             TopicRoute("dev/x", "srv.x", kind)

@@ -61,11 +61,16 @@ KIND_NODE_JOIN = "node_join"              # 새 장치를 함대에 들인 것
 KIND_CALIBRATION = "calibration"          # 카메라 정보 선언·보정 실행
 KIND_TRAINING = "training"                # 학습·검증·승인 요청
 KIND_MODEL_ASSIGNMENT = "model_assignment"  # 기기별 적용 모델을 바꾼 것
+#: 탐지 세부 임계값(점수 하한 등)을 고친 것. 선언
+#: (`config/detection_thresholds.example.json`)은 그대로 남고 이 항목만 쌓인다 —
+#: 선언된 값과 사람이 고친 값이 끝까지 구분되어야 "왜 이 현장만 다르게 보나" 를
+#: 설명할 수 있다(AI-L-03). `target_id` 는 선언의 `threshold_id` 다.
+KIND_THRESHOLD = "threshold"
 
 KNOWN_KINDS: frozenset[str] = frozenset({
     KIND_PLACEMENT, KIND_SURVEY, KIND_CUE_CORRECTION, KIND_OBJECT_POSITION,
     KIND_PERMISSION, KIND_GROUND_TRUTH, KIND_NODE_JOIN, KIND_CALIBRATION,
-    KIND_TRAINING, KIND_MODEL_ASSIGNMENT,
+    KIND_TRAINING, KIND_MODEL_ASSIGNMENT, KIND_THRESHOLD,
 })
 
 #: 되돌림을 나타내는 항목. 삭제가 아니라 **되돌렸다는 사실의 기록**이다.

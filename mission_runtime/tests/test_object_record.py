@@ -1,4 +1,4 @@
-"""implements: AI-S-01, AI-S-03, AI-S-04, AI-C-11
+"""implements: AI-S-01, AI-S-03, AI-S-04, AI-C-05
 tests: progressive refinement, equal-support class retention, capability loss
        does not rewrite state, optional source absence degrades only
 """

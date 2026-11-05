@@ -1,0 +1,7 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://physical-project.local/schemas/view_dashboard.schema.json",
+  "title": "View payload — GET /api/dashboard",
+  "$comment": "종합상황정보 Dashboard 의 구역 B~I 를 한 스냅샷으로 낸다. 모양의 정본은 허브(`view_snapshot.schema.json`)의 `$defs/dashboard_snapshot` 이다.",
+  "$ref": "https://physical-project.local/schemas/view_snapshot.schema.json#/$defs/dashboard_snapshot"
+}

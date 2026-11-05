@@ -1,0 +1,88 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://physical-project.local/schemas/ai/ai-failure.schema.json",
+  "title": "AI Failure Event",
+  "type": "object",
+  "required": [
+    "event_id",
+    "component",
+    "model_version",
+    "input_ref",
+    "error_code",
+    "detail",
+    "severity",
+    "occurred_at"
+  ],
+  "properties": {
+    "event_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "component": {
+      "type": "string",
+      "minLength": 1
+    },
+    "model_version": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "input_ref": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "error_code": {
+      "type": "string",
+      "minLength": 1
+    },
+    "detail": {
+      "type": "string"
+    },
+    "severity": {
+      "enum": [
+        "info",
+        "warning",
+        "critical"
+      ]
+    },
+    "capability_state_before": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "enum": [
+        "ACTIVE",
+        "DEGRADED",
+        "DISABLED",
+        null
+      ]
+    },
+    "capability_state_after": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "enum": [
+        "ACTIVE",
+        "DEGRADED",
+        "DISABLED",
+        null
+      ]
+    },
+    "trace_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "occurred_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "additionalProperties": true,
+  "$comment": "2026-10-27: 본문이 봉투와 같은 층에 실리므로 추가 칸을 막지 않는다(규약 R12 — 모르는 칸은 통과시킨다)."
+}

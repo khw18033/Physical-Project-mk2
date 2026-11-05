@@ -1,6 +1,6 @@
 """Wire-format providers and the boundary policy that chooses between them.
 
-implements: AI-C-07, AI-C-04, AI-C-12, AI-C-15, AI-C-16
+implements: AI-C-07, AI-C-04,  AI-C-15, AI-C-16
 
 AI-C-07은 "업무 데이터의 내부 구조와 네트워크 전송용 직렬화 형식을 분리하고
 공통 직렬화 인터페이스를 통해 변환"할 것과 "특정 바이너리 또는 텍스트 형식이
@@ -13,7 +13,7 @@ AI-C-07은 "업무 데이터의 내부 구조와 네트워크 전송용 직렬�
 `SerializerProvider` Protocol만 본다 — 어떤 형식이 실제로 쓰이는지 모른다.
 
 새 형식(Protobuf, MessagePack, CBOR ...)은 `register_serializer()` 한 줄로
-추가하며 이 모듈 밖의 코드는 고치지 않는다 (AI-C-04, AI-C-12).
+추가하며 이 모듈 밖의 코드는 고치지 않는다 (AI-C-04, AI-C-04).
 """
 
 from __future__ import annotations
@@ -218,7 +218,7 @@ _REGISTRY: dict[str, Callable[[], SerializerProvider]] = {
 
 
 def register_serializer(format_id: str, factory: Callable[[], SerializerProvider]) -> None:
-    """Add a wire format without touching business logic (AI-C-04, AI-C-12).
+    """Add a wire format without touching business logic (AI-C-04, AI-C-04).
 
     A Protobuf/MessagePack/CBOR provider is registered here and selected by
     deployment configuration; no perception/decision/risk module changes.
@@ -240,7 +240,7 @@ def build_serializer(format_id: str) -> SerializerProvider:
 
 
 # Boundary names are transport-technology-neutral on purpose: they describe
-# *who reads the bytes*, not which broker carries them (AI-C-07, AI-C-14).
+# *who reads the bytes*, not which broker carries them (AI-C-07, AI-C-06).
 MACHINE_BOUNDARIES = ("terminal_to_edge", "edge_to_server", "control")
 HUMAN_BOUNDARIES = ("operator_view", "diagnostics", "config")
 

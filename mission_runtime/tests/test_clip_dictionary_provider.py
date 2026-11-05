@@ -1,7 +1,7 @@
-"""implements: AI-E-04, AI-S-04, AI-S-06, AI-C-11
+"""implements: AI-E-04, AI-S-04, AI-S-06, AI-C-05
 
 CLIP 모델 파일이 없는 노드에서는 이 optional provider의 테스트만 skip된다
-(AI-C-11). 이 저장소에는 실측 검증에 쓰인 실제 door 클래스 설정과 프레임이
+(AI-C-05). 이 저장소에는 실측 검증에 쓰인 실제 door 클래스 설정과 프레임이
 있어서 회귀 테스트로 "왜 이 점수가 나왔는지"까지 확인한다 —
 `탐지_연동스키마_260912.md`에 실린 실제 예시(frame_000113.jpg, final_score
 0.2696)와 대조 가능하다.
@@ -36,7 +36,7 @@ DOOR_BOX_ORIGINAL = (
 pytestmark = pytest.mark.skipif(
     not (VISION_MODEL.exists() and TEXT_MODEL.exists() and TOKENIZER.exists()
          and CLASS_FEATURES_PATH.exists() and DOOR_FRAME.exists()),
-    reason="CLIP onnx 모델/토크나이저/클래스 설정/프레임 fixture 중 일부가 없음 (AI-C-11)",
+    reason="CLIP onnx 모델/토크나이저/클래스 설정/프레임 fixture 중 일부가 없음 (AI-C-05)",
 )
 
 

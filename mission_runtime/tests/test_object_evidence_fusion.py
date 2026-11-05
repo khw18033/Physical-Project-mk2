@@ -1,4 +1,4 @@
-"""implements: AI-S-01, AI-S-02, AI-S-06, AI-C-02, AI-C-11
+"""implements: AI-S-01, AI-S-02, AI-S-06, AI-C-02, AI-C-05
 
 Pure logic tests -- no ML model needed, synthetic PerceptionResult inputs.
 """

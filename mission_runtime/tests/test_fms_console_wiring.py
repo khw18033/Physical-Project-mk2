@@ -535,3 +535,161 @@ def test_the_router_is_listed_where_the_undo_button_lives():
     """맵에서는 끌 수 있는데 목록에 없으면 되돌릴 길이 없다 — 되돌리기 버튼이
     그 목록에만 있다."""
     assert "...(zone.access_point ? [zone.access_point] : [])].map(i =>" in FMS_PAGE
+
+
+# --- 사람이 "여기 아무것도 없다" 고 한 것 (2026-11-04) ----------------------
+#
+# 한때 그 상자가 `"absent"` 라는 **지어낸 클래스의 양성 표본**으로 적립됐다.
+# `final_class` 가 REJECTED 에서 None 이라 `box.final_class or "absent"` 가 이름을
+# 만들고, 상자도 없어 특징이 (0,0,0,0) 이 되고, 셋이 모이면 임계 0.0 — 모든 것을
+# 받아들이는 클래스가 생겼다(재현 확인). 한 줄이 사람의 정답을 뒤집었다.
+
+@pytest.fixture()
+def rejected_label(service):
+    """모델이 본 것을 사람이 "없다" 고 지운 정답."""
+    from labeling import BoxVerdict, GroundTruthRecord, LabeledBox, PredictedBox
+
+    predicted = PredictedBox(box_id="p9", box=(0.2, 0.2, 0.3, 0.4),
+                             semantic_class="chair", confidence=0.31, range_m=None)
+    rejected = LabeledBox(box_id="p9", verdict=BoxVerdict.REJECTED, predicted=predicted,
+                          labeled_by="demo:labeler", labeled_at=100.0)
+    record = GroundTruthRecord(
+        task_id="pi4:frame_000039.jpg", frame_ref="pi4/frame_000039.jpg",
+        device_id="pi4", boxes=(rejected,), submitted_by="demo:labeler",
+        submitted_at=100.0, model_version="YoloWorldPerceptionProvider",
+        zone_id=ZONE, reason="의자가 아니라 그림자였다")
+    filed = service._file_label_candidates(
+        record, caller=Caller.for_role("labeler"), reason=record.reason)
+    return record, filed
+
+
+def test_a_rejected_box_is_filed_as_a_negative_for_the_class_the_model_claimed(
+        service, rejected_label):
+    """지운 상자는 `"absent"` 의 예가 아니라 **모델이 주장한 클래스의 반례**다.
+
+    "저기 의자가 있다" 에 사람이 아니라고 한 것이므로, 그 음성이 가리키는 이름은
+    모델이 말한 `chair` 여야 한다 — 그래야 `chair` 의 임계를 교정할 수 있다.
+    """
+    from mission_runtime.continual.stream_learning import SamplePolarity
+
+    _record, filed = rejected_label
+
+    assert len(filed) == 1
+    samples = [s for group in service.twin().candidate_store._groups.values()
+               for s in group]
+    negatives = [s for s in samples if s.polarity is SamplePolarity.NEGATIVE]
+
+    assert len(negatives) == 1
+    assert negatives[0].label == "chair", "모델이 주장한 이름이어야 한다"
+    assert all(s.label != "absent" for s in samples), "이름을 지어내지 않는다"
+
+
+def test_the_negative_keeps_the_place_the_model_looked_at():
+    """특징이 (0,0,0,0) 이면 코사인 유사도가 0 이고 임계 교정에 쓸 수 없다.
+
+    모델이 **어디를** 잘못 봤는지가 교정의 재료다.
+    """
+    from labeling import BoxVerdict, LabeledBox, PredictedBox
+
+    predicted = PredictedBox(box_id="p9", box=(0.2, 0.2, 0.3, 0.4),
+                             semantic_class="chair", confidence=0.31, range_m=None)
+    rejected = LabeledBox(box_id="p9", verdict=BoxVerdict.REJECTED, predicted=predicted,
+                          labeled_by="demo:labeler", labeled_at=100.0)
+
+    assert rejected.final_box is None, "정답으로 쓸 상자는 없다 — 그것은 맞다"
+    assert rejected.predicted.box == (0.2, 0.2, 0.3, 0.4), (
+        "그러나 모델이 본 자리는 남아 있고, 그것이 음성의 특징이다")
+
+
+def test_a_rejection_of_a_box_with_no_predicted_class_is_skipped_not_invented(service):
+    """모델이 주장한 이름도 없으면 가리킬 클래스가 없다. 지어내지 않는다."""
+    from labeling import BoxVerdict, GroundTruthRecord, LabeledBox
+
+    # 사람이 직접 그린 상자를 다시 지운 경우 — predicted 가 없다.
+    orphan = LabeledBox(box_id="hand-9", verdict=BoxVerdict.REJECTED,
+                        labeled_by="demo:labeler", labeled_at=100.0)
+    record = GroundTruthRecord(
+        task_id="pi4:frame_000057.jpg", frame_ref="pi4/frame_000057.jpg",
+        device_id="pi4", boxes=(orphan,), submitted_by="demo:labeler",
+        submitted_at=100.0, model_version="m", zone_id=ZONE, reason="잘못 그렸다")
+
+    filed = service._file_label_candidates(
+        record, caller=Caller.for_role("labeler"), reason=record.reason)
+
+    assert filed == [], "가리킬 클래스가 없으면 후보를 만들지 않는다"
+
+
+def test_a_box_the_model_got_right_becomes_evaluation_material_not_a_candidate(service):
+    """**조사 §9.7 의 셋째 항목이다.**
+
+    모델이 맞았다고 확인한 상자를 학습 후보로 올리지 않는 기존 판단은 맞다
+    (AI-L-01: 후보가 전체 스트림으로 불어난다). 그러나 올리지 않는 것과 **버리는
+    것**은 다르고, 지금까지는 버려지고 있었다 — 그것은 "전에 되던 것" 의 집합이고
+    회귀를 재는 데 가장 맞는 자료다.
+    """
+    from labeling import BoxVerdict, GroundTruthRecord, LabeledBox, PredictedBox
+
+    from mission_runtime.continual.stream_learning import SamplePolarity, SampleUsage
+
+    right = PredictedBox(box_id="ok0", box=(0.1, 0.1, 0.2, 0.3),
+                         semantic_class="person", confidence=0.91, range_m=4.0)
+    confirmed = LabeledBox(box_id="ok0", verdict=BoxVerdict.CONFIRMED, predicted=right,
+                           labeled_by="demo:labeler", labeled_at=100.0)
+    wrong = PredictedBox(box_id="bad0", box=(0.6, 0.1, 0.7, 0.3),
+                         semantic_class="chair", confidence=0.4, range_m=None)
+    relabeled = LabeledBox(box_id="bad0", verdict=BoxVerdict.RELABELED, predicted=wrong,
+                           corrected_class="trash bin", corrected_box=(0.6, 0.1, 0.72, 0.33),
+                           labeled_by="demo:labeler", labeled_at=100.0)
+    record = GroundTruthRecord(
+        task_id="pi4:frame_000076.jpg", frame_ref="pi4/frame_000076.jpg",
+        device_id="pi4", boxes=(confirmed, relabeled), submitted_by="demo:labeler",
+        submitted_at=100.0, model_version="m", zone_id=ZONE,
+        reason="하나는 맞았고 하나는 쓰레기통이었다")
+
+    filed = service._file_label_candidates(
+        record, caller=Caller.for_role("labeler"), reason=record.reason)
+
+    samples = [s for group in service.twin().candidate_store._groups.values()
+               for s in group]
+    training = [s for s in samples if s.usage is SampleUsage.TRAINING]
+    evaluating = [s for s in samples if s.usage is SampleUsage.EVALUATION_ONLY]
+
+    assert len(filed) == 1, "학습 후보는 고친 것 하나뿐이다"
+    assert [s.label for s in training] == ["trash bin"]
+    assert [s.label for s in evaluating] == ["person"], (
+        "맞힌 상자는 버려지지 않고 재는 자리로 간다")
+    assert all(s.polarity is SamplePolarity.POSITIVE for s in evaluating)
+
+
+def test_the_evaluation_only_sample_does_not_change_the_parameters(service):
+    """섞으면 후보가 "이미 맞히던 것" 쪽으로 당겨진다 — 반대 방향의 같은 편향이고
+    train/eval 분리도 사라진다."""
+    from mission_runtime.continual.stream_learning import (
+        CandidateBatch,
+        CandidateOrigin,
+        InputConditions,
+        PrototypeLearningProvider,
+        SampleUsage,
+        StreamSample,
+    )
+
+    conditions = InputConditions(device_id="pi4", camera_id="c", resolution="464x400")
+
+    def sample(sample_id, feature, usage):
+        return StreamSample(sample_id=sample_id, conditions=conditions, label="chair",
+                            feature=feature, origin=CandidateOrigin.HUMAN_CONFIRMED,
+                            usage=usage)
+
+    training = [sample(f"t{i}", (10.0, 10.0, 10.0, 10.0), SampleUsage.TRAINING)
+                for i in range(3)]
+    evaluating = [sample("e0", (900.0, 900.0, 900.0, 900.0), SampleUsage.EVALUATION_ONLY)]
+
+    only_training = PrototypeLearningProvider(min_samples=3).train(
+        CandidateBatch(conditions, tuple(training)), base=None)
+    with_evaluation = PrototypeLearningProvider(min_samples=3).train(
+        CandidateBatch(conditions, tuple(training + evaluating)), base=None)
+
+    assert (only_training.parameters.parameters["chair"]["prototype"]
+            == with_evaluation.parameters.parameters["chair"]["prototype"])
+    assert CandidateBatch(conditions, tuple(training + evaluating)).evaluation_only() \
+        == tuple(evaluating), "그러나 재는 자리에서는 보인다"

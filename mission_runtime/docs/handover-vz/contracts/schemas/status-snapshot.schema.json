@@ -1,0 +1,385 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://physical-project.local/schemas/ai/status-snapshot.schema.json",
+  "title": "Status Snapshot (body)",
+  "$comment": "운영 화면이 구독하는 통합 상태 뷰 한 장(AI-O-06 · 기능정의서 §3). 구역(B~I)마다 채널을 쪼개지 않는다 — 쪼개면 같은 사실이 두 채널로 와서 도착 순서에 따라 구역끼리 어긋난다(§5 상태 일관성). **세면 나오는 값은 싣지 않는다**(규약 R9): 상태별 노드 수·가속기별 노드 부하·미션 경과 시간·조건 충족 집계는 화면이 이 본문에서 센다. 모든 구역 칸은 비어 있어도 **존재한다** — §4.9 가 \"진행 중인 요청이 없는 미션에서도 본 구역은 사라지지 않으며 요청 없음 상태를 명시한다\"고 요구하므로 빈 배열이 정상 메시지다. 중첩 객체는 닫지 않는다(R12).",
+  "type": "object",
+  "required": [
+    "mission",
+    "focus",
+    "task_nodes",
+    "reference_edges",
+    "accelerators",
+    "services",
+    "board",
+    "verdicts",
+    "events",
+    "external_requests",
+    "model_assignments",
+    "sources",
+    "regions"
+  ],
+  "properties": {
+    "mission": {
+      "type": "object",
+      "description": "[B] 현재 미션. `utterance_text` 는 사용자가 준 자연어 **원문**이다(§4.1).",
+      "required": ["mission_id"],
+      "properties": {
+        "mission_id": { "type": "string", "minLength": 1 },
+        "utterance_text": { "type": "string" },
+        "mission_status": { "type": "string" },
+        "accepted_at": { "$ref": "#/$defs/instant" }
+      }
+    },
+    "focus": {
+      "type": "object",
+      "description": "[F·G·H] 기준 노드와 그 선정 사유(§2). 자동 추종인지 수동 고정인지를 화면이 명시할 근거다.",
+      "required": ["focus_pinned", "focus_reason"],
+      "properties": {
+        "task_node_id": { "type": "string", "minLength": 1 },
+        "focus_pinned": { "type": "boolean" },
+        "focus_reason": {
+          "type": "string",
+          "$comment": "통제 어휘: focus_pinned_by_operator · focus_attention_first · focus_latest_executing · focus_no_candidate. enum 으로 닫지 않는다 — 선정 규칙이 늘어날 수 있고 모르는 토큰은 화면이 그대로 보여 주면 된다."
+        }
+      }
+    },
+    "task_nodes": {
+      "type": "array",
+      "description": "[C] 노드 목록. 수·깊이·분기 수에 상한을 두지 않는다(§4.2 시나리오 일반성).",
+      "items": {
+        "type": "object",
+        "required": ["task_node_id", "task_node_state", "task_attempt", "order_after", "depends_on"],
+        "properties": {
+          "task_node_id": { "type": "string", "minLength": 1 },
+          "node_title": { "type": "string" },
+          "task_node_state": {
+            "enum": ["PENDING", "BLOCKED", "EXECUTING", "SUCCEEDED", "FAILED", "EXTERNAL_REQUESTED"],
+            "description": "§4.2 의 6상태. 생성 주체의 상태 어휘가 더 넓으므로 원본은 `source_status` 에 그대로 남는다."
+          },
+          "source_status": {
+            "type": "string",
+            "$comment": "생성 주체(가시화 계약)의 원본 상태 문자열. 환산이 되짚을 수 없는 손실이 되지 않게 한다."
+          },
+          "service_id": { "type": "string", "minLength": 1 },
+          "accelerator_instance_id": {
+            "type": "string",
+            "minLength": 1,
+            "$comment": "담당 서비스와 실행 가속기는 **별도 칸**이다(§4.6: 하나의 수행 위치로 합쳐서는 안 된다). 온디바이스에서 돌지 않는 노드는 `off_device` 다 — 빈 값을 두면 \"아직 모른다\"와 구별되지 않는다."
+          },
+          "node_kind": { "type": "string" },
+          "target_device_id": { "type": "string", "minLength": 1 },
+          "state_changed_at": { "$ref": "#/$defs/instant" },
+          "started_at": { "$ref": "#/$defs/instant" },
+          "estimated_completion_at": { "$ref": "#/$defs/instant" },
+          "progress_ratio": { "type": "number", "minimum": 0, "maximum": 1 },
+          "input_command": {
+            "type": "string",
+            "description": "[F] 이 노드에 전달된 명령 원문. §4.6 이 \"생략되어서는 안 된다\"고 못 박은 항목이다."
+          },
+          "task_attempt": { "type": "integer", "minimum": 1 },
+          "origin_task_node_id": {
+            "type": "string",
+            "minLength": 1,
+            "description": "재실행이면 원 노드. 원 노드를 덮지 않는다(§4.2·§4.8)."
+          },
+          "external_request_id": { "type": "string", "minLength": 1 },
+          "parallel_group": { "type": "string", "minLength": 1 },
+          "order_after": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "실행 순서(실선). 빈 배열은 \"선행이 없다\"는 아는 사실이다."
+          },
+          "depends_on": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "결과 의존(점선). §4.2 는 둘을 시각적으로 구분하라고 요구한다."
+          }
+        }
+      }
+    },
+    "reference_edges": {
+      "type": "array",
+      "description": "분기·되풀이 참조 간선. DAG 에 넣지 않는다 — 되풀이는 순환이고 선행 관계가 아니다.",
+      "items": {
+        "type": "object",
+        "required": ["from_task_node_id", "to_task_node_id", "reference_edge_kind"],
+        "properties": {
+          "from_task_node_id": { "type": "string", "minLength": 1 },
+          "to_task_node_id": { "type": "string", "minLength": 1 },
+          "reference_edge_kind": { "type": "string", "minLength": 1 },
+          "reference_edge_when": { "type": "string" }
+        }
+      }
+    },
+    "accelerators": {
+      "type": "array",
+      "description": "[B·E] Layer 1 가속기 개체 목록. **유휴여도 생략하지 않는다**(§4.1·§4.4). 종류·부착 형태는 벤더 열거형이 아니라 등록 데이터다(AI-O-05).",
+      "items": {
+        "type": "object",
+        "required": ["accelerator_instance_id", "accelerator_kind", "utilization", "temperature"],
+        "properties": {
+          "accelerator_instance_id": { "type": "string", "minLength": 1 },
+          "accelerator_kind": { "type": "string", "minLength": 1 },
+          "accelerator_attachment": { "type": "string" },
+          "accelerator_vendor_label": { "type": "string" },
+          "utilization": { "$ref": "#/$defs/measurement" },
+          "temperature": { "$ref": "#/$defs/measurement" }
+        }
+      }
+    },
+    "services": {
+      "type": "array",
+      "description": "[B·E·E′·F] Layer 2 서비스 목록. 배치 가속기를 반드시 병기한다(§4.4).",
+      "items": {
+        "type": "object",
+        "required": ["service_id"],
+        "properties": {
+          "service_id": { "type": "string", "minLength": 1 },
+          "accelerator_instance_id": {
+            "type": "string",
+            "minLength": 1,
+            "$comment": "칸이 없으면 미배치다. 지어내지 않는다."
+          },
+          "service_role": { "type": "string" },
+          "model": { "type": "string", "minLength": 1 },
+          "model_version": { "type": "string", "minLength": 1 },
+          "indicators": { "type": "array", "items": { "$ref": "#/$defs/indicator" } }
+        }
+      }
+    },
+    "board": {
+      "type": "object",
+      "description": "[E] Layer 1 보드 자원.",
+      "required": ["memory_utilization", "power"],
+      "properties": {
+        "memory_utilization": { "$ref": "#/$defs/measurement" },
+        "power": { "$ref": "#/$defs/measurement" },
+        "power_trend": { "type": "array", "items": { "$ref": "#/$defs/measurement" } }
+      }
+    },
+    "verdicts": {
+      "type": "array",
+      "description": "[G] 판정 근거. 3축을 서로 다른 목록으로 둔다(§4.7).",
+      "items": {
+        "type": "object",
+        "required": ["task_node_id", "completion", "failure", "resource"],
+        "properties": {
+          "task_node_id": { "type": "string", "minLength": 1 },
+          "completion": { "type": "array", "items": { "$ref": "#/$defs/condition" } },
+          "failure": { "type": "array", "items": { "$ref": "#/$defs/condition" } },
+          "resource": { "type": "array", "items": { "$ref": "#/$defs/condition" } },
+          "escalated_request_id": {
+            "type": "string",
+            "minLength": 1,
+            "description": "승격 표시 — 판정 결과와 후속 조치를 끊기지 않게 잇는다(§4.7)."
+          }
+        }
+      }
+    },
+    "events": {
+      "type": "array",
+      "description": "[D] 사건 스트림. 노드별 필터([H])는 화면이 `task_node_id` 로 한다 — 같은 사건을 두 목록으로 보내면 둘이 어긋난다.",
+      "items": {
+        "type": "object",
+        "required": ["event_severity", "event_kind", "event_message"],
+        "properties": {
+          "occurred_at": { "$ref": "#/$defs/instant" },
+          "event_severity": {
+            "enum": ["INFO", "WARN", "ERROR"],
+            "description": "등급. 유형(SDI 등)은 `event_kind` 로 따로 둔다 — SDI 사건에도 INFO/WARN/ERROR 가 각각 있다."
+          },
+          "event_kind": { "enum": ["EXECUTION", "EXTERNAL_REQUEST", "RESOURCE"] },
+          "event_message": { "type": "string" },
+          "task_node_id": { "type": "string", "minLength": 1 },
+          "task_attempt": { "type": "integer", "minimum": 1 },
+          "external_request_id": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "external_requests": {
+      "type": "array",
+      "description": "[I] 외부 기능 요청. 서버 내부 과정은 담지 않는다(§4.9).",
+      "items": {
+        "type": "object",
+        "required": [
+          "external_request_id",
+          "external_request_reason",
+          "task_node_id",
+          "external_request_stage",
+          "server_work_is_opaque",
+          "deployment_received",
+          "re_execution_count",
+          "external_request_verdict",
+          "stage_times"
+        ],
+        "properties": {
+          "external_request_id": { "type": "string", "minLength": 1 },
+          "external_request_reason": {
+            "enum": ["UNSUPPORTED_CAPABILITY", "SIM_REAL_MISMATCH"],
+            "description": "§4.9 의 두 발생 조건. 둘을 구분하지 않으면 재요청 판단이 달라진다."
+          },
+          "external_request_reason_detail": { "type": "string" },
+          "task_node_id": { "type": "string", "minLength": 1 },
+          "requested_at": { "$ref": "#/$defs/instant" },
+          "external_request_stage": {
+            "enum": ["JUDGED", "SENT", "SERVER_WORKING", "DEPLOYED", "RE_EXECUTING", "SETTLED"]
+          },
+          "server_work_is_opaque": {
+            "type": "boolean",
+            "description": "3단계에 있는 동안 참. 화면이 \"내부가 보이지 않는 구간\"을 시각적으로 구분할 근거다."
+          },
+          "deployment_received": { "type": "boolean" },
+          "deployment_version": {
+            "type": "string",
+            "minLength": 1,
+            "$comment": "받았을 때만 칸이 있다. 미수신을 null 로 적지 않는다(R8) — 받은 사실은 `deployment_received` 가 말한다."
+          },
+          "re_execution_count": { "type": "integer", "minimum": 0 },
+          "re_executed_task_node_ids": { "type": "array", "items": { "type": "string" } },
+          "external_request_verdict": {
+            "enum": ["PENDING", "SUCCEEDED", "FAILED"],
+            "description": "최종 판정 3값. §4.9 가 요구한 \"재요청이냐 미션 종결이냐\"의 구분은 이 칸에 값을 더해서 하지 않는다 — FAILED 인 요청을 가리키는 `re_request_of` 를 가진 **다음 요청이 있으면 재요청**이고, 없으면 종결이다. 값을 늘리면 같은 사실이 두 곳에 적혀 어긋난다."
+          },
+          "re_request_of": { "type": "string", "minLength": 1 },
+          "stage_times": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["external_request_stage"],
+              "properties": {
+                "external_request_stage": { "type": "string", "minLength": 1 },
+                "stage_entered_at": { "$ref": "#/$defs/instant" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "model_assignments": {
+      "type": "array",
+      "description": "모델 배정 결과(AI-L-10). 고른 것과 탈락 사유를 함께 싣는다 — 모델명만 보내면 교체가 일어난 뒤 화면이 이유를 설명할 수 없다.",
+      "items": {
+        "type": "object",
+        "required": ["device_id", "capability_kind", "assignment_reason", "rejected"],
+        "properties": {
+          "device_id": { "type": "string", "minLength": 1 },
+          "mission_id": { "type": "string", "minLength": 1 },
+          "capability_kind": { "type": "string", "minLength": 1 },
+          "model": {
+            "type": "string",
+            "minLength": 1,
+            "$comment": "조건을 만족하는 후보가 없으면 칸이 없다. 그것이 정상 축소 상태다(AI-C-05)."
+          },
+          "model_version": { "type": "string", "minLength": 1 },
+          "assignment_reason": { "type": "string", "minLength": 1 },
+          "rejected": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["model_reference", "assignment_reason"],
+              "properties": {
+                "model_reference": { "type": "string", "minLength": 1 },
+                "assignment_reason": { "type": "string", "minLength": 1 }
+              }
+            }
+          }
+        }
+      }
+    },
+    "sources": {
+      "type": "array",
+      "description": "소스별 수신 상태(§3·§5). 한 번도 못 받은 것과 받았지만 오래된 것을 구분한다.",
+      "items": {
+        "type": "object",
+        "required": ["source_id", "source_layer", "source_stale"],
+        "properties": {
+          "source_id": { "type": "string", "minLength": 1 },
+          "source_layer": { "type": "string", "minLength": 1 },
+          "last_received_at": {
+            "$ref": "#/$defs/instant",
+            "$comment": "칸이 없으면 **한 번도 받지 않았다**. 시각을 지어내 채우지 않는다 — 화면이 \"단절 사실을 명시\"할 근거가 이것이다."
+          },
+          "source_stale": { "type": "boolean" },
+          "feeds": { "type": "array", "items": { "type": "string" } }
+        }
+      }
+    },
+    "regions": {
+      "type": "array",
+      "description": "구역별 표시 가능 여부. 한 소스가 조용해도 나머지 구역은 정상이고 그 구역만 미수신으로 적는다(§3 요구사항 5 · AI-C-05).",
+      "items": {
+        "type": "object",
+        "required": ["region_id", "region_available"],
+        "properties": {
+          "region_id": {
+            "enum": ["B", "C", "D", "E", "E_PRIME", "F", "G", "H", "I"],
+            "description": "§2 의 구역 기호. A(글로벌 내비게이션)는 문서가 정의 범위 외로 둔다."
+          },
+          "region_available": { "type": "boolean" },
+          "region_reason": {
+            "enum": ["source_not_received", "no_data_yet"],
+            "description": "비었을 때의 사유. 소스 미수신과 데이터 없음을 구분한다."
+          },
+          "missing_sources": { "type": "array", "items": { "type": "string" } }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "instant": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}\\+09:00$",
+      "description": "규약 D1 — ISO-8601, 밀리초 3자리, +09:00. 모르는 시각은 칸을 뺀다."
+    },
+    "measurement": {
+      "type": "object",
+      "required": ["unit"],
+      "description": "측정 1건. `value` 칸이 **없으면 측정 없음**이다 — 0 을 넣으면 \"쟀더니 0\"과 구별되지 않고 화면이 미달로 그린다(§4.4·§4.5).",
+      "properties": {
+        "value": { "type": "number" },
+        "unit": { "type": "string", "minLength": 1 },
+        "measured_at": { "$ref": "#/$defs/instant" }
+      }
+    },
+    "indicator": {
+      "type": "object",
+      "required": ["indicator_name", "measurement", "target_meet_state"],
+      "description": "[E′] 지표 1건. 지표가 어느 서비스·가속기에서 나왔는지를 병기한다(§4.5).",
+      "properties": {
+        "indicator_name": { "type": "string", "minLength": 1 },
+        "service_id": { "type": "string", "minLength": 1 },
+        "accelerator_instance_id": { "type": "string", "minLength": 1 },
+        "measurement": { "$ref": "#/$defs/measurement" },
+        "target": {
+          "type": "object",
+          "required": ["value", "direction", "unit"],
+          "description": "목표 기준선. 단위를 함께 싣는 이유는 화면이 기준선을 실제 값과 **같은 축**에 올려 그려야 하기 때문이다(§4.5).",
+          "properties": {
+            "value": { "type": "number" },
+            "direction": { "enum": ["AT_LEAST", "AT_MOST"] },
+            "unit": { "type": "string", "minLength": 1 }
+          }
+        },
+        "target_meet_state": {
+          "enum": ["MET", "UNMET", "NOT_MEASURED"],
+          "description": "3값이다. 미측정을 미달과 섞지 않는 자리가 이것이다(§4.5)."
+        },
+        "trend": { "type": "array", "items": { "$ref": "#/$defs/measurement" } }
+      }
+    },
+    "condition": {
+      "type": "object",
+      "required": ["condition_item_id"],
+      "description": "[G] 조건 1개. 항목 단위로 싣는다 — 요약 수치만 제공해서는 안 된다(§4.7).",
+      "properties": {
+        "condition_item_id": { "type": "string", "minLength": 1 },
+        "condition_satisfied": {
+          "type": "boolean",
+          "$comment": "칸이 없으면 **판정할 근거가 없다**(미확인). 참으로 세지 않는다."
+        },
+        "condition_reason": { "type": "string" }
+      }
+    }
+  }
+}

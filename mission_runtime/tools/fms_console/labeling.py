@@ -400,6 +400,36 @@ IMAGE_SUFFIXES: tuple[str, ...] = (".jpg", ".jpeg", ".png")
 #: 응답에 전체 수를 함께 적는다.
 MAX_LISTED_FRAMES = 300
 
+#: 목록이 상한을 넘을 때 **앞에서 자르지 않고 고르게 띄워** 고른다.
+#:
+#: 왜 바꿨는가: 프레임 이름이 시각 기반이라 정렬 = 시간순이고, 앞 300 개를 자르면
+#: **가장 이른 300 장**이 된다. 연속 프레임은 서로 거의 같으니 그것은 중복이 가장
+#: 큰 묶음이고, 능동 학습 문헌이 기준선으로 쓰는 무작위보다도 나쁘다
+#: (`docs/research/hitl-data-and-weight-management.md` §9.1).
+#:
+#: **이것은 획득 함수가 아니다.** 어느 프레임이 더 가치 있는지 말하지 않고, 다만
+#: 기본 묶음이 기록의 앞머리에만 몰리지 않게 한다. 검출 밀도 같은 실제 순위는
+#: 추론을 돌려야 하고 그것은 이 목록을 만드는 자리에서 할 일이 아니다.
+LISTING_STRATEGY_STRIDE = "even_stride_over_whole_source"
+
+
+def _strided(names: list[str], limit: int) -> tuple[str, ...]:
+    """상한 안에서 **원본 전체에 걸쳐** 고르게 고른다. 시간순은 유지한다.
+
+    끝 프레임을 반드시 포함시키는 이유: 스캔의 마지막 방향이나 임무의 끝이 늘
+    빠지면 그 구간은 영원히 라벨되지 않는다.
+    """
+    if limit <= 0 or len(names) <= limit:
+        return tuple(names)
+    # 마지막 한 자리를 끝 프레임에 비워 둔다 — 상한은 상한이고, 끝을 더해 넘기면
+    # 화면이 받는 수가 선언과 달라진다.
+    head = max(1, limit - 1)
+    step = len(names) / float(head)
+    picked = {names[min(len(names) - 1, int(i * step))] for i in range(head)}
+    picked.add(names[-1])
+    # 집합을 거쳐 왔으므로 정렬로 시간순을 되돌린다. 같은 입력에 같은 목록이 나온다.
+    return tuple(sorted(picked))[:limit]
+
 
 def resolve_frame(root, frame_name: str):
     """출처 뿌리 아래의 프레임 하나를 **뿌리 밖으로 못 나가게** 연다.
@@ -543,6 +573,12 @@ class FrameLabelSource:
         """
         return self._listing()[0]
 
+    @property
+    def listing_strategy(self) -> str:
+        """목록을 어떻게 골랐는가. 화면이 운영자에게 적어 줄 수 있어야 한다 —
+        "전부 중 300장" 과 "앞에서 300장" 은 다른 묶음이다."""
+        return LISTING_STRATEGY_STRIDE
+
     def frame_count(self) -> int:
         """실제로 있는 프레임 수. 목록은 잘릴 수 있고 이 수는 잘리지 않는다."""
         return self._listing()[1]
@@ -561,7 +597,7 @@ class FrameLabelSource:
             for path in walk
             if path.is_file() and path.suffix.lower() in IMAGE_SUFFIXES)
         # 자른다는 사실을 숨기지 않는다 — 전체 수를 함께 들고 다닌다.
-        self._listed = (tuple(names[:MAX_LISTED_FRAMES]), len(names))
+        self._listed = (_strided(names, MAX_LISTED_FRAMES), len(names))
         return self._listed
 
     def detector(self):

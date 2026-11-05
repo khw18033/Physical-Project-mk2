@@ -1,4 +1,4 @@
-"""implements: AI-D-03
+"""implements: AI-S-05
 covers: request only existing sources, partial decision with stated gaps
 """
 
@@ -41,7 +41,7 @@ def test_only_currently_available_sources_are_requested():
 
 
 def test_missing_source_yields_stated_gap_not_an_exception():
-    # 추가 정보가 없으면 확인 가능한 범위까지만 판단하고 부족한 근거를 명시한다 (AI-D-03).
+    # 추가 정보가 없으면 확인 가능한 범위까지만 판단하고 부족한 근거를 명시한다 (AI-S-05).
     requester = DecisionSupportRequester(CapabilityRegistry())
 
     plan = requester.plan(

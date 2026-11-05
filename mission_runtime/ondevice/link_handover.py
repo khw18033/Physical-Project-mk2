@@ -1,6 +1,6 @@
 """Link-quality driven execution transition on a mobile terminal.
 
-implements: AI-N-03, AI-C-11, AI-C-13
+implements: AI-N-03, AI-C-05, AI-C-13
 
 The goal here is not to keep a link alive. Local functions must keep running
 when the link is gone, so a failed transition is not a failure. What this
@@ -17,10 +17,10 @@ Design choices and why:
   again. Reduction is quick, restoration is conservative.
 * No wireless standard, metric name or unit appears here. A provider supplies
   a normalised quality value; whether it came from RSSI, SNR or loss rate is a
-  deployment choice (AI-C-12).
+  deployment choice (AI-C-04).
 * Link quality is reported as its own signal, separate from business transport
   state, observation state and overlay state, because the operator response
-  differs (AI-O-04, AI-C-17).
+  differs (AI-O-04, AI-C-04).
 """
 
 from __future__ import annotations

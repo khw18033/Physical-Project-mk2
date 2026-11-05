@@ -1,0 +1,190 @@
+{
+  "$comment": "탐지 세부 임계값의 **선언** — 예시 설정. 여기 적는 수는 전부 코드 상수였다(`edge/yoloe_provider.py::DEFAULT_CONF`, `edge/yolo_world_provider.py::DEFAULT_CONF`, `edge/grounding_dino_provider.py::DEFAULT_BOX_THRESHOLD`/`DEFAULT_TEXT_THRESHOLD`). 값을 옮기는 것만으로는 더 나빠진다 — 주석이 달린 상수가 출처 없는 설정값보다 낫다. 그래서 선언 하나가 넷을 함께 들고 다닌다: 값 · 무엇에 적용되는가(`applies_to`) · 어디서 왔는가(`provenance.source`) · 재서 나온 값인가(`provenance.measured`). `value: null` 은 **아직 아무도 선언하지 않았다**이고 0 도 '미달'도 아니다(세 번째 상태) — `perception/detection_thresholds.py` 가 그 상태를 `basis: no_declaration` 으로 끝까지 들고 간다. `measured: false` 인 항목에는 `samples`·`accuracy` 키가 **없다**: 재지 않은 값에 오차를 붙이면 그 오차가 실측처럼 읽힌다(AI-S-08, `config/depth_calibration.example.json` 의 `accuracy_cm: null` 과 같은 규칙). `parameter` 는 `config/detector_characteristics.example.json` 의 `construction.param_kwargs` **키와 같은 어휘**다 — 두 곳에 다른 말을 적으면 선언한 값이 생성자에 도달하지 않는다. 새 탐지기·새 임계값을 더하는 것은 이 파일에 항목 하나이고 코드 변경이 아니다(원칙 #1·#7). `applies_to` 의 축에 값을 적으면 **묻는 쪽이 그 축을 함께 줘야** 해소된다 — 주지 않은 축을 통과시키면 어휘를 모른 채 어휘 전용 하한을 빌려 오고, 그것이 이 파일이 생긴 원인이다. 그래서 탐지기 행의 `capability_kind` 는 `null` 이다: `detector_id` 가 이미 그 탐지기를 가리키므로 같은 사실을 두 축으로 적으면 둘 다 주지 않으면 아무것도 해소되지 않는다. **여기 적지 않는 것**: 어휘별·클래스별 라벨 하한. 그 주인은 `config/obstacle_taxonomy.example.json` 의 `class_conf` 이고 `perception/obstacle_taxonomy.py::score_floor` 가 읽는다 — 같은 사실의 주인을 둘로 만들면 두 화면이 다른 답을 말한다(AI-C-01). 임계값을 바꾸는 것은 **다른 실행 구성이다**(AI-B-01): 바뀐 값은 `ExecutionConfiguration.postprocess_ref` 에 들어가 지문을 바꾸므로 옛 측정값이 새 구성에 붙지 않는다. 운영자 수정은 이 파일을 덮지 않고 `tools/fms_console/overlay.py` 의 append-only 장부에 쌓인다(AI-L-03).",
+  "format_version": "1",
+  "thresholds": [
+    {
+      "$comment": "텍스트 프롬프트 계열의 점수 하한. 운영자 파라미터 이름 `conf` 가 생성자 인자 `conf` 로 간다(카탈로그의 param_kwargs). 0.05 는 **아주 낮다** — 운영자가 어휘를 고르는 단계에서 '모델이 이 이름을 아예 못 보는가'와 '보지만 점수가 낮은가'를 가르려고 일부러 낮춰 둔 값이고, 운영 기본값으로 삼을 수는 없다. 그 판단은 현장에서 그림에 돌려 보고 정한다.",
+      "threshold_id": "detector.yolo-world-v2-s.score_floor",
+      "parameter": "conf",
+      "applies_to": {
+        "detector_id": "yolo-world-v2-s",
+        "capability_kind": null,
+        "vocabulary": null,
+        "class_name": null,
+        "label_namespace": null
+      },
+      "value": 0.05,
+      "unit": "detector_score",
+      "bounds": [0.0, 1.0],
+      "provenance": {
+        "source": "edge/yolo_world_provider.py::DEFAULT_CONF (코드 상수에서 옮겨 적었다)",
+        "measured": false,
+        "method": "PoC(demo/test/class_finder_service.py 의 YOLO_WORLD_CONF)에서 실제 장면에 돌려 손으로 고른 값. 원문 주석은 '실측 확정'이라 적지만 표본 수도 PR 곡선도 남아 있지 않아 **측정으로 적지 않는다** — 재지 않은 값을 재었다고 적으면 그 수가 실측처럼 읽힌다.",
+        "created_at": "2026-11-04"
+      },
+      "trialable": true,
+      "version": 1
+    },
+    {
+      "$comment": "YOLOE 텍스트 프롬프트(small). 같은 축·같은 값이지만 **다른 실행 구성**이라 따로 선언한다(AI-B-01) — 한 줄로 합치면 한쪽을 고친 것이 다른 쪽에도 적용되고, 그 사실이 운영 화면에서 보이지 않는다.",
+      "threshold_id": "detector.yoloe-11s-seg-prompted.score_floor",
+      "parameter": "conf",
+      "applies_to": {
+        "detector_id": "yoloe-11s-seg-prompted",
+        "capability_kind": null,
+        "vocabulary": null,
+        "class_name": null,
+        "label_namespace": null
+      },
+      "value": 0.05,
+      "unit": "detector_score",
+      "bounds": [0.0, 1.0],
+      "provenance": {
+        "source": "edge/yoloe_provider.py::DEFAULT_CONF (코드 상수에서 옮겨 적었다)",
+        "measured": false,
+        "method": "YOLO-World provider 와 같은 자리에 두려고 같은 값을 적은 것이다(그 모듈 주석이 그렇게 말한다). 이 가중치로 따로 재서 나온 값이 아니다.",
+        "created_at": "2026-11-04"
+      },
+      "trialable": true,
+      "version": 1
+    },
+    {
+      "$comment": "YOLOE 텍스트 프롬프트(large). 가중치 파일만 다르고 다른 실행 구성이다.",
+      "threshold_id": "detector.yoloe-11l-seg-prompted.score_floor",
+      "parameter": "conf",
+      "applies_to": {
+        "detector_id": "yoloe-11l-seg-prompted",
+        "capability_kind": null,
+        "vocabulary": null,
+        "class_name": null,
+        "label_namespace": null
+      },
+      "value": 0.05,
+      "unit": "detector_score",
+      "bounds": [0.0, 1.0],
+      "provenance": {
+        "source": "edge/yoloe_provider.py::DEFAULT_CONF (코드 상수에서 옮겨 적었다)",
+        "measured": false,
+        "method": "small 가중치와 같은 상수를 공유하고 있었다. 큰 가중치의 점수 분포는 따로 재지 않았다.",
+        "created_at": "2026-11-04"
+      },
+      "trialable": true,
+      "version": 1
+    },
+    {
+      "$comment": "**프롬프트를 받지 않는 가중치의 추론 하한**(pf). 이 값이 특히 중요한 이유: 이 모델은 운영자 어휘가 아니라 내장 4585 범주에서 이름을 지어내고, 그중에는 `entrance hall`·`skylight`·`throne room` 처럼 물체가 아닌 장면·분위기 범주가 섞인다. 2026-11-04 실측(CPU, 실제 스캔 3프레임 `local/physical_demo_assets/20260910-134818_rot8/`): 0.05 → 95상자/49종, 0.25 → 31상자/19종, 0.40 → 14상자/8종. 그래서 이 하한은 '성능' 이 아니라 **운영자가 무엇을 보고 싶은가**를 정하는 값이고, 그 판단은 코드가 아니라 현장이 한다.",
+      "threshold_id": "detector.yoloe-11s-seg-prompt-free.score_floor",
+      "parameter": "conf",
+      "applies_to": {
+        "detector_id": "yoloe-11s-seg-prompt-free",
+        "capability_kind": null,
+        "vocabulary": null,
+        "class_name": null,
+        "label_namespace": null
+      },
+      "value": 0.05,
+      "unit": "detector_score",
+      "bounds": [0.0, 1.0],
+      "provenance": {
+        "source": "edge/yoloe_provider.py::DEFAULT_CONF (코드 상수에서 옮겨 적었다)",
+        "measured": false,
+        "method": "프롬프트형과 **같은 상수**를 쓰고 있었다. 내장 4585 범주의 점수 분포는 운영자 어휘의 분포와 아무 관계가 없으므로 이 값은 이 모드에 대해 근거가 없다 — 옮겨 적은 사실만 참이다.",
+        "created_at": "2026-11-04"
+      },
+      "trialable": true,
+      "version": 1
+    },
+    {
+      "$comment": "GroundingDINO 의 상자 점수 하한. 운영자 이름은 `conf` 지만 생성자 인자는 `box_threshold` 다 — 그 차이는 카탈로그의 param_kwargs 가 흡수하고 이 파일은 운영자 이름으로만 적는다.",
+      "threshold_id": "detector.grounding-dino-tiny.box_score_floor",
+      "parameter": "conf",
+      "applies_to": {
+        "detector_id": "grounding-dino-tiny",
+        "capability_kind": null,
+        "vocabulary": null,
+        "class_name": null,
+        "label_namespace": null
+      },
+      "value": 0.15,
+      "unit": "detector_score",
+      "bounds": [0.0, 1.0],
+      "provenance": {
+        "source": "edge/grounding_dino_provider.py::DEFAULT_BOX_THRESHOLD (코드 상수에서 옮겨 적었다)",
+        "measured": false,
+        "method": "PoC(demo/test/class_finder_service.py)에서 실제 장면에 돌려 손으로 고른 값. 원문 주석은 '실측 확정'이라 적지만 표본 수가 남아 있지 않다.",
+        "created_at": "2026-11-04"
+      },
+      "trialable": true,
+      "version": 1
+    },
+    {
+      "$comment": "같은 모델의 **텍스트 쪽** 하한. 상자 하한과 다른 축이라 한 칸에 담지 않는다 — 합치면 '상자는 봤는데 이름을 못 붙였다'와 '상자 자체를 못 봤다'가 구분되지 않는다.",
+      "threshold_id": "detector.grounding-dino-tiny.text_score_floor",
+      "parameter": "text_conf",
+      "applies_to": {
+        "detector_id": "grounding-dino-tiny",
+        "capability_kind": null,
+        "vocabulary": null,
+        "class_name": null,
+        "label_namespace": null
+      },
+      "value": 0.15,
+      "unit": "text_match_score",
+      "bounds": [0.0, 1.0],
+      "provenance": {
+        "source": "edge/grounding_dino_provider.py::DEFAULT_TEXT_THRESHOLD (코드 상수에서 옮겨 적었다)",
+        "measured": false,
+        "method": "상자 하한과 같은 수를 적어 두었던 것이고 텍스트 매칭 점수 분포를 따로 재서 나온 값이 아니다.",
+        "created_at": "2026-11-04"
+      },
+      "trialable": true,
+      "version": 1
+    },
+    {
+      "$comment": "**프롬프트프리 라벨의 점수 하한** — 이 항목이 이 파일이 생긴 이유다. 추론 하한(`conf`)과 **다른 축**이다: `conf` 는 모델이 상자를 내보내기 전에 자르고, 이 값은 이미 나온 라벨을 '근거로 받아들일지'를 가른다(`class_conf` 가 어휘 라벨에 하는 일과 같은 축). 값이 `null` 인 것은 빠뜨린 것이 아니라 **선언하지 않았다는 선언**이다: 내장 4585 범주의 점수 분포를 아무도 재지 않았고, 운영자 어휘를 보고 정한 `zeroshot.class_conf.default`(0.25)를 여기 빌려 오면 그것은 선언처럼 보이지만 이 라벨에 대해 근거가 없다. 그래서 `perception/obstacle_taxonomy.py::score_floor` 는 이 이름 공간에 `no_declared_floor` 를 돌려주고, **하한이 없다고 객체를 버리지 않는다**(AI-S-04: 미확인 객체는 미확인 상태로 유지된다). 채우는 길: 관제 웹에서 `POST /api/trial-run` 으로 그림에 돌려 보고, 고른 값을 `POST /api/threshold` 로 적용한다 — 적용은 이 파일을 덮지 않고 장부에 쌓인다.",
+      "threshold_id": "label_namespace.model_builtin_vocabulary.label_score_floor",
+      "parameter": "label_score_floor",
+      "applies_to": {
+        "detector_id": null,
+        "capability_kind": null,
+        "vocabulary": null,
+        "class_name": null,
+        "label_namespace": "model_builtin_vocabulary"
+      },
+      "value": null,
+      "unit": "detector_score",
+      "bounds": [0.0, 1.0],
+      "provenance": {
+        "source": "선언하지 않았다 — 옮겨 올 상수도 없었다(어휘 하한을 빌려 쓰고 있었다)",
+        "measured": false,
+        "method": "내장 4585 범주의 점수 분포를 재지 않았다. 장면·분위기 범주(`entrance hall` 0.5, `sea ice` 0.61)가 실제 물체보다 높은 점수를 받는 어휘라 한 수로 가를 수 있는지도 아직 모른다.",
+        "created_at": "2026-11-04"
+      },
+      "trialable": true,
+      "version": 1
+    },
+    {
+      "$comment": "운영자 어휘에서 온 라벨의 하한은 **여기서 선언하지 않는다**. 어휘·클래스별 값은 `config/obstacle_taxonomy.example.json` 의 `vocabularies[*].class_conf` 가 소유하고, 이 항목은 그 주인을 가리키는 포인터로만 둔다 — 값이 `null` 이라 해소에서 세 번째 상태로 나오고, 그래서 이 파일을 읽은 소비자가 '어휘 라벨의 하한이 여기 없다'를 **조용히** 모르고 지나가지 않는다.",
+      "threshold_id": "label_namespace.operator_vocabulary.label_score_floor",
+      "parameter": "label_score_floor",
+      "applies_to": {
+        "detector_id": null,
+        "capability_kind": null,
+        "vocabulary": null,
+        "class_name": null,
+        "label_namespace": "operator_vocabulary"
+      },
+      "value": null,
+      "unit": "detector_score",
+      "bounds": [0.0, 1.0],
+      "provenance": {
+        "source": "config/obstacle_taxonomy.example.json::vocabularies[*].class_conf (이 파일이 아니라 그쪽이 주인이다)",
+        "measured": false,
+        "method": "어휘별·클래스별로 갈리는 값이라 탐지기 단위 선언으로 접을 수 없다. `ObstacleTaxonomy.score_floor(class_name, vocabulary=...)` 가 근거와 함께 돌려준다.",
+        "created_at": "2026-11-04"
+      },
+      "trialable": false,
+      "version": 1
+    }
+  ]
+}

@@ -1,13 +1,13 @@
 """Orchestrator `ControlProvider` backed by a Kubernetes/K3s cluster.
 
-implements: AI-B-03, AI-B-05, AI-B-07, AI-C-12
+implements: AI-B-03, AI-B-05,  AI-C-04
 
 원칙 #2 / AI-B-02: K3s는 배포·관리 provider일 뿐이고, 기능 로직은 K3s 없이도
 독립 실행 가능해야 한다. 따라서 이 모듈은 `LocalControlSupervisor`와 **동일한
 ControlProvider 계약**을 구현하며, 상위 실행관리 코드는 둘 중 무엇이 주입됐는지
 알 필요가 없다.
 
-AI-B-07: health 계약을 오케스트레이터와 분리해 K3s가 없는 실행환경에서도 동일한
+AI-B-05: health 계약을 오케스트레이터와 분리해 K3s가 없는 실행환경에서도 동일한
 장애 판단을 사용한다 — 따라서 오케스트레이터를 쓸 수 없을 때는 예외가 아니라
 `ControlResult(accepted=False, rejection_reason=...)`을 돌려주고, 호출자는
 standalone supervisor로 계속 갈 수 있다.
@@ -102,7 +102,7 @@ class K3sControlProvider:
             return TargetStatus.STOPPED
         return TargetStatus.RUNNING if ready else TargetStatus.STOPPED
 
-    # --- version lifecycle (AI-B-05, AI-B-07) ----------------------------
+    # --- version lifecycle (AI-B-05, AI-B-05) ----------------------------
     def update_image(self, target_id: str, image: str) -> ControlResult:
         """Point every container of the target at `image`.
 
@@ -135,7 +135,7 @@ class K3sControlProvider:
         return proc.stdout.split()
 
     def rollback(self, target_id: str) -> ControlResult:
-        """Return to the last known-good revision (AI-B-07)."""
+        """Return to the last known-good revision (AI-B-05)."""
         proc = self._run(
             ["rollout", "undo", f"deployment/{self._name(target_id)}", "-n", self._namespace]
         )

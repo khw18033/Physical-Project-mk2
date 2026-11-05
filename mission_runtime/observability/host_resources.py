@@ -285,10 +285,16 @@ class HostResourceReader:
     cpu_interval_s: float | None = None
     #: 보드 전력 추이로 들고 다닐 최근 표본 수. 선언된 추이와 섞지 않는다.
     power_trend_len: int = 12
+    #: 가속기 사용률 추이의 최근 표본 수. 문서 §4.4 는 전력과 **같은 요구**를
+    #: 사용률에도 둔다 — 현재값 하나로는 동종 가속기 간 부하 편중을 볼 수 없다.
+    utilization_trend_len: int = 12
     _last_energy_uj: int | None = field(default=None, repr=False)
     _last_energy_at: float | None = field(default=None, repr=False)
     _cpu_primed: bool = field(default=False, repr=False)
     _power_trend: tuple[Measurement, ...] = field(default=(), repr=False)
+    #: probe_id → 사용률 추이. 개체별로 따로 센다 — 한 묶음에 섞으면 동종 가속기
+    #: 둘의 추이가 한 선으로 합쳐져 편중이 사라진다.
+    _utilization_trend: dict = field(default_factory=dict, repr=False)
 
     def read(self) -> LayeredResourceView:
         return self.readout().view()
@@ -313,13 +319,15 @@ class HostResourceReader:
                 PROBE_OK if gpu.utilization is not None else PROBE_VALUE_NOT_AVAILABLE)
             status[f"{probe_id}.{SLOT_TEMPERATURE}"] = (
                 PROBE_OK if gpu.temperature is not None else PROBE_VALUE_NOT_AVAILABLE)
+            _gpu_utilization = (_unavailable(RATIO) if gpu.utilization is None
+                                else _ratio(gpu.utilization * 100.0, now))
             accelerators[probe_id] = AcceleratorInstance(
                 instance_id=probe_id,
                 kind="gpu",
                 attachment="discrete",
                 vendor_label=gpu.name,
-                utilization=(_unavailable(RATIO) if gpu.utilization is None
-                             else _ratio(gpu.utilization * 100.0, now)),
+                utilization=_gpu_utilization,
+                utilization_trend=self._remember_utilization(probe_id, _gpu_utilization),
                 temperature=(_unavailable(CELSIUS) if gpu.temperature is None
                              else Measurement(gpu.temperature, CELSIUS, now,
                                               source=SOURCE_MEASURED)),
@@ -340,9 +348,21 @@ class HostResourceReader:
             kind="cpu",
             attachment="builtin",
             utilization=utilization,
+            utilization_trend=self._remember_utilization(self.cpu_instance_id, utilization),
             temperature=(_unavailable(CELSIUS) if temperature is None
                          else Measurement(temperature, CELSIUS, now, source=SOURCE_MEASURED)),
         )
+
+    def _remember_utilization(self, probe_id: str, sample: Measurement
+                              ) -> tuple[Measurement, ...]:
+        """잰 표본만 쌓는다. **못 잰 구간은 건너뛰고 0 을 넣지 않는다** — 넣으면
+        추이가 거짓으로 내려가고 "유휴였다" 로 읽힌다(AI-O-05)."""
+        if not sample.measured:
+            return tuple(self._utilization_trend.get(probe_id, ()))
+        kept = (tuple(self._utilization_trend.get(probe_id, ())) + (sample,))
+        kept = kept[-max(1, self.utilization_trend_len):]
+        self._utilization_trend[probe_id] = kept
+        return kept
 
     def _cpu_utilization(self, psutil_module, now: float) -> tuple[Measurement, str]:
         if psutil_module is None:
@@ -451,6 +471,30 @@ def resolve_probes(
         if probe_id is not None:
             resolved[accelerator.instance_id] = probe_id
     return resolved
+
+
+def undeclared_probes(
+    declared: LayeredResourceView,
+    readout: HostReadout,
+    probe_by_instance: Mapping[str, str] | None = None,
+) -> tuple[str, ...]:
+    """계측기가 찾았는데 **아무 선언도 가리키지 않는** 계측 지점 id.
+
+    implements: AI-O-05 (가속기 목록의 완전성), AI-O-01
+
+    `with_host_measurements` 의 규칙 1 은 목록의 주인을 선언으로 두고 계측이 개체를
+    더하지 못하게 한다. 그 규칙은 그대로 옳지만, 지키는 대신 **조용히 버리면** 화면은
+    "이 기계에 가속기가 없다"와 "있는데 아무도 선언하지 않았다"를 구별할 수 없다.
+    실제 현장 설정(`config/status_ui.json`)에 `dashboard` 선언이 없을 때가 바로 그
+    경우다 — 계측기는 `cpu` 와 `gpu-0` 을 읽고 있는데 구역 [E] 는 빈 목록을 낸다.
+
+    그래서 목록을 늘리지 않고 **빠진 사실만** 돌려준다. 이것으로 운영 화면은 선언이
+    불완전하다고 말할 수 있고, 메우는 길은 여전히 선언 추가다(문서 §3 요구사항 2).
+    목록에 없는 개체를 여기서 만들어 내지 않으므로 선언이 정본이라는 규약은 깨지지
+    않는다.
+    """
+    claimed = set(resolve_probes(declared, readout, probe_by_instance).values())
+    return tuple(probe_id for probe_id in readout.accelerators if probe_id not in claimed)
 
 
 def with_host_measurements(

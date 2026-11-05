@@ -1,6 +1,6 @@
 """FastSAM-backed class-agnostic 박스/마스크 provider (AI-E-01, AI-E-04).
 
-implements: AI-E-01, AI-B-09, AI-C-11
+implements: AI-E-01, AI-B-09, AI-C-05
 
 검증된 PoC(demo/test/class_finder_service.py의 `FastSamProvider`)를 이
 프레임워크의 provider 계약으로 옮긴다. PoC 주석 그대로: "마스크 전용(의미
@@ -15,7 +15,7 @@ implements: AI-E-01, AI-B-09, AI-C-11
 class-agnostic 후보 제안(RPN)과 대비된다(둘 다 class-agnostic이지만 실행 위치와
 비용이 다르다).
 
-`ultralytics`는 모듈 최상단이 아니라 생성자 안에서 지연 import한다(AI-C-11).
+`ultralytics`는 모듈 최상단이 아니라 생성자 안에서 지연 import한다(AI-C-05).
 `is_available()`은 가중치 파일 존재 여부만 보고(`rpn_propose.py`와 동일 관례),
 `detect()`는 `is_available()`이 False면 로드를 시도하지 않고 빈 리스트를
 반환한다.

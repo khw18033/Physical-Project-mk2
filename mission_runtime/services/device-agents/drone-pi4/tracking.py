@@ -192,7 +192,7 @@ class ByteTracker:
 
     implements: AI-S-01 (교체 가능한 추적 provider)
 
-    `docs/obsidian/papers/bytetrack.md`의 §4 구조를 그대로 따른다: 매 프레임의
+    `internal/docs-dev/obsidian/papers/bytetrack.md`의 §4 구조를 그대로 따른다: 매 프레임의
     detection을 score로 high/low 두 그룹으로 나누고, 기존 track을 먼저
     high-score detection과 매칭한 뒤 아직 안 풀린 track만 low-score
     detection과 다시 매칭한다. New track은 **high-score의 미매칭분에서만**

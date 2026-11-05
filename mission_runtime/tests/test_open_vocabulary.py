@@ -1,7 +1,7 @@
 """implements: AI-E-01, AI-S-04
 
 모델 파일(models/openvocab/)이 없는 노드에서는 이 optional provider의 테스트만
-skip된다 — 다른 capability의 검증을 막지 않는다(AI-C-11).
+skip된다 — 다른 capability의 검증을 막지 않는다(AI-C-05).
 """
 from pathlib import Path
 

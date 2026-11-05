@@ -1,0 +1,7 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://physical-project.local/schemas/view_recommendations.schema.json",
+  "title": "View payload — GET /api/recommend?robot=&zone=",
+  "$comment": "임무 후보와 사유. 막힌 후보도 무엇이 없어서 막혔는지와 함께 올라온다(AI-B-15).",
+  "$ref": "https://physical-project.local/schemas/view_snapshot.schema.json#/$defs/recommendation_list"
+}

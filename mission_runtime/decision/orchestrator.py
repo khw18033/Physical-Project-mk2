@@ -1,12 +1,12 @@
 """증거 격차를 보고 **다음에 무엇을 실행할지** 정하는 닫힌 루프.
 
 implements: AI-S-05, AI-S-07, AI-C-13, AI-C-05, AI-B-06, AI-C-19
-근거: docs/obsidian/ideas/evidence-driven-orchestration-plan.md §3 S3
+근거: internal/docs-dev/obsidian/ideas/evidence-driven-orchestration-plan.md §3 S3
 
 기존 `decision/info_request.py`는 부족한 근거를 보고 **한 번** 요청 계획을 세운다.
 여기서는 그 결과가 레코드에 반영된 뒤 **다시 센다**. ASHiTA가 task 분해와 scene graph
 구성을 번갈아 돌리듯, 이 루프는 격차 계산과 provider 실행을 번갈아 돈다
-(docs/obsidian/papers/ashita.md).
+(internal/docs-dev/obsidian/papers/ashita.md).
 
 정지 조건은 넷뿐이고 **전부 이유가 남는다** — "그냥 끝났다"가 없어야 사후에
 조기 정지의 대가(FCR)를 셀 수 있다.

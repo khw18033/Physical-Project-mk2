@@ -75,21 +75,129 @@ tests/          시험 (실제 모델·자원·브로커로 도는 통합 시험
 
 ```bash
 python -m venv .venv && . .venv/bin/activate      # Python >= 3.10
-pip install -e ".[dev]"                            # 선택 extra: mqtt / kafka / otel
+pip install -e ".[dev]"                            # 선택 extra: mqtt / kafka / otel / redis / metrics
+python tools/preflight.py                          # 이 기계에서 무엇이 되는지 먼저 본다
 pytest -q
 ```
 
-빈 기계에서 그렇게 돌린 결과는 **2004 passed · 47 skipped** 이다. skip 은 "안 되는
-것"이 아니라 "이 기계에 그 도구·자산·브로커가 없다"는 뜻이고 사유가 각각 적힌다.
+**받은 그대로** — 선택 패키지도 모델 자산도 브로커도 없는 상태 — 로 돌리면 **실패가
+없다.** skip 은 "안 되는 것"이 아니라 "이 기계에 그 도구·자산·브로커가 없다"는 뜻이고,
+사유에 **무엇이 없어서 어느 provider 만 비활성인지**가 적힌다. 이 저장소의 기준
+기계에서 선택 패키지(`psutil`·`paho`·`ultralytics`)와 외부 도구(`ssh-keygen`·`ping`)와
+자산 뿌리를 가린 채 돌린 결과는 **3417 passed · 108 skipped · 0 failed** 이다. 절대 수는
+시험이 늘면 바뀌지만 **failed 가 0 인 것이 기준이다.**
 
-선택 extra 가 없으면 그 provider 만 비활성이다. 다만 **브로커가 떠 있는 기계**에서는
-extra 를 같이 깔아야 한다 — 통합 시험 일부가 "브로커에 닿는가" 만 보고 클라이언트
-라이브러리가 깔렸는지는 보지 않기 때문에, 포트는 열려 있고 `paho`/`kafka` 는 없는
-조합에서 skip 대신 실패한다.
+2026-11-04 까지 이 자리에는 **11 failed** 가 있었다. 받는 쪽의 환경 잘못이 아니라
+**선택 결손을 축소로 다루지 못한 우리 쪽 결함**이었고(AI-C-05 · 원칙 #4/#6) 전부 고쳤다.
+일곱은 선언되지 않은 외부 도구·패키지를 전제했다 — `psutil` 셋 · `ssh-keygen` 둘 ·
+`paho` 하나 · `ping` 하나. 넷은 자산 뿌리가 없는 상태를 축소로 다루지 못했고 그중 둘은
+`edge/detector_catalog.py` 가 `Path(None)` 에서 죽었다. 지금은 앞의 일곱이 **무엇이
+없는지 적은 사유와 함께** skip 이고, 자산 뿌리가 없는 상태에는 고정된 답이 있다 —
+`weights_present` 가 `False`("자리를 보고 없었다")가 아니라 `None` +
+`presence_reason=no_asset_root`("물어볼 자리가 없다")로 나간다. 그 둘을 한 값으로
+접으면 운영자가 "뿌리를 가리키면 되는 일"과 "가중치를 받아와야 하는 일"을 구분할 수
+없다. `psutil` 은 이제 선언된 extra 다(`.[metrics]`) — 선언되지 않은 전제로 두면 받는
+쪽이 "왜 값이 없나"를 추적할 수 없다.
+
+선택 extra 가 없으면 그 provider 만 비활성이다. **브로커가 떠 있는데 클라이언트
+라이브러리가 없는 조합도 skip 이다** — 전에는 통합 시험 일부가 "브로커에 닿는가" 만
+보고 클라이언트가 깔렸는지는 보지 않아서 그 조합에서 skip 대신 실패했다. 이제 서버와
+클라이언트를 함께 본다.
 
 ```bash
 pip install -e ".[dev,mqtt,kafka,otel]"           # 1883/9092/4317 이 열려 있는 기계
 ```
+
+### 이 기계에서 무엇이 되고 무엇이 안 되는가
+
+받아서 **띄우기 전에** 알아야 하는 것은 셋이다 — 무엇이 그대로 돌고, 무엇이 줄어들고,
+무엇이 아예 안 되는가. 그리고 왜 그런가. 이 답을 문서에 적어 두면 코드와 어긋나므로
+**도구가 답한다.**
+
+```bash
+python tools/preflight.py          # 사람이 읽는 표
+python tools/preflight.py --json   # 기계가 읽는 한 덩어리
+```
+
+핵심 의존성이 깔린 **다음**이 이 명령의 자리다 — 설치 전에 돌리면 `cv2` import 에서
+죽는다. 여섯 절을 돌되 **판정을 새로 하지 않는다**: 환경 사실은
+`runtime/environment_profile.py`, 이번 실행이 쓸 device 는 `ondevice/rpn_propose.py`,
+탐지기 조달 가능성은 `edge/detector_catalog.py` 가 소유하고 이 도구는 그 답을 모아 한
+장으로 낸다. 같은 판정을 두 곳에서 하면 설치 화면과 운영 화면이 다른 말을 한다.
+
+| 절 | 무엇을 묻는가 |
+|---|---|
+| 핵심 | Python 3.10+ · jsonschema · numpy · opencv · protobuf |
+| 플랫폼 | 리눅스 계측 경로 셋 — 온도 · 전력 · 무선 링크 |
+| 가속기 | `nvidia-smi` 가 **무엇을 말했는가** · 이번 실행이 쓸 device |
+| 선택 기능 | MQTT · Kafka · Redis · OTel · ONNX · PyTorch · ultralytics |
+| 외부 도구 | kubectl · mosquitto · ssh · docker |
+| 모델 자산 | 선언된 탐지기 가중치가 이 노드에 있는가 |
+
+#### 세 상태 — 그리고 축소는 실패가 아니다
+
+| 표시 | 뜻 | 받는 쪽이 할 일 |
+|---|---|---|
+| `[o]` 정상 | 그대로 된다 | 없다 |
+| `[~]` 축소 | **그 기능만** 꺼지고 나머지는 돈다. 결손이 정상 배치인 경우다(AI-C-05) | 그 기능이 필요하면 「얻는 방법」 줄을 따른다. 필요 없으면 없다 |
+| `[x]` 막힘 | 그 기능을 쓸 수 없다 | 무엇을 하면 되는지 함께 적힌다 |
+
+아무것도 더 깔지 않은 기본 이미지에서 이 명령은 **`정상 11 · 축소 13 · 막힘 0`** 을
+내고 마지막 줄에 "핵심 기능은 그대로 뜬다" 고 적는다. **노란 줄 13 개는 고장 13 개가
+아니다.** 그것을 "이건 내 환경에서 안 되는구나" 로 읽으면 핵심이 전부 도는 시스템을
+두고 그만두게 된다 — 이 도구가 축소와 막힘을 한 수로 합치지 않는 이유가 그것이다.
+종료 코드도 같은 규칙이라 **막힘이 있을 때만** 0 이 아니고, 그래서 `Dockerfile` 의
+HEALTHCHECK 이 이 명령이다(선택 기능이 없는 컨테이너가 unhealthy 로 재시작되지 않는다).
+
+#### 제약은 세 종류이고, 섞으면 답할 수 없는 질문이 생긴다
+
+**1. 리눅스 계측 경로 — 없으면 미측정이고 0 이 아니다.**
+`/sys/class/thermal`(온도) · `/sys/class/powercap`(전력) · `/proc/net/wireless`(무선
+링크 품질) 셋을 본다. 없으면 그 값이 0 이 아니라 **미측정**으로 나가고(AI-O-05), 무선이
+없으면 링크 품질 기반 실행 전환만 비활성이다(AI-N-03). 센서 없는 커널은 흔하므로
+**이 줄에는 처방이 적히지 않는다** — 받는 쪽이 할 일이 없는데 할 일을 지어내지 않는다.
+처방 없는 노란 줄은 빠뜨린 것이 아니다.
+
+이 점검이 묻는 것은 "커널이 그 경로를 내놓는가" 까지다. 경로가 있어도 **그 안에 잴
+것이 없는** 기계가 있다 — 이 저장소의 기준 기계(WSL2)에서는 세 경로가 모두 있어서 점검은
+`정상` 이지만, `/sys/class/thermal` 에는 `thermal_zone*` 이 없고
+`/sys/class/powercap` 에는 전력 zone 이 하나도 없고 `/proc/net/wireless` 에는 머리글만
+있다. 그래서 실제 CPU 온도와 소비 전력은 `source=unavailable` 로 나온다(같은 기계에서
+보드 메모리와 GPU 사용률·온도는 실측으로 나왔다). **`정상` 은 "경로가 있다"까지만
+보증한다.** 어느 쪽이든 0 이 되지 않는다 — `observability/host_resources.py` 가 사유를
+붙여 미측정으로 둔다.
+
+**2. NVIDIA — 세 상태를 하나로 합치지 않는다.**
+
+| `nvidia-smi` 가 | 판정 | 뜻과 할 일 |
+|---|---|---|
+| 없다 | 축소 | 이 기계에 NVIDIA 가속기가 없다는 뜻이다. GPU 기능이 CPU 로 내려가고 핵심은 그대로 돈다 — **필요 없으면 할 일이 없다** |
+| 있는데 답하지 못한다 | **막힘** | 드라이버 충돌의 관측 모양이다. GPU 기능이 전부 CPU 로 내려가 느리지만 **동작은 한다**. GPU 가 필요하면 Windows 의 Docker Desktop 또는 WSL2 에서 띄운다 |
+| 답해서 0개라고 말한다 | 축소 | 도구와 드라이버는 살아 있고 가속기가 없다 |
+
+가운데 줄이 이 도구를 만든 이유다. 셋을 "GPU 없음" 하나로 접으면 **"왜 GPU 를 안 쓰는가"
+를 끝까지 추적할 수 없다**(AI-B-01 의 미측정 구분, AI-O-05). 둘째 줄은 이 프로젝트가
+실제로 만난 상태이고 `runtime/environment_profile.py` 의 모듈 docstring 이 그것을 현장
+확정 사실로 적어 둔다 — 네이티브 리눅스에서 nvidia 드라이버가 충돌해 GPU 를 쓸 수 없고,
+GPU 가 필요하면 윈도에서 Docker 또는 WSL 로 가상환경을 만들어 쓴다. 이 저장소의 기준
+기계(WSL2)에서는 `nvidia-smi` 가 응답하고 가속기 1 개를 보고한다.
+
+**3. 되는 것처럼 보이면서 틀린 값을 내는 함정.**
+`CUDA_VISIBLE_DEVICES=""` 로 가속기를 숨기지 않는다. CUDA 휠이 깔린 기계에서 이렇게
+숨기면 NVBLAS 가 CPU BLAS 를 가로채 **예외 없이 틀린 값**이 나온다 — 화면 밖 박스, 음수
+좌표, 빈 라벨, 계단지는 점수. 실측으로 확인된 모양이고 예외가 없으니 "CPU 에서도 되네"
+로 읽힌다. **조용히 틀린 값은 실패보다 나쁘다** — 실패는 눈에 띄고 이것은 안 띈다.
+그래서 자가 점검은 이 변수가 빈 값으로 설정돼 있으면 축소가 아니라 **막힘**으로 잡는다.
+
+가속기를 쓰지 않기로 하는 지원된 길은 하나다.
+
+```bash
+MISSION_RUNTIME_NO_GPU=1 pytest -q    # 고르는 쪽만 바꾼다. 계산을 바꾸지 않는다
+```
+
+이 선언은 **기본 device 선택**만 바꾸고 노드 태그는 가속기가 있다고 그대로 보고한다 —
+"이 기계에 GPU 가 없다" 와 "이번에는 쓰지 않는다" 는 다른 사실이고, 한 칸에 합치면
+기계를 옮겼을 때 원래 선언이 무엇이었는지 복원할 수 없다.
 
 ### 바깥에 쓰는 것, 바깥에서 읽는 것
 
@@ -174,10 +282,60 @@ AIF_OTEL_OUTPUT="$PWD/deploy/integration/artifacts/output.json" pytest -q
 | `test_mqtt_transport.py` · `test_kafka_bridge.py` · `test_otel_observability.py` | 실제 브로커·Kafka·OTel 수집기(수집기 출력 파일에 우리 데이터가 들어온 것까지) |
 | `test_model_config.py` | 설정 파일 하나로 provider 다섯을 실제 가중치로 조립 |
 
+### 컨테이너로 받았다면 — docker 는 소프트웨어 환경만 고정한다
+
 ```bash
-docker build -t mission-runtime:dev .     # 패키징도 같은 시험으로 확인한다
-docker run --rm mission-runtime:dev       # 이 노드가 가진 자원 태그를 찍는다
+docker compose up                        # 관제 콘솔 + 브로커 (CPU). 가장 짧은 길
+docker compose --profile gpu up          # GPU 가속 변종
+docker compose --profile detectors up    # ultralytics 탐지기 (AGPL-3.0)
+docker compose run --rm preflight        # 이 환경에서 무엇이 되는지만 본다
 ```
+
+빌드 대상은 셋이고 **서로 다른 세 이유로** 갈려 있다. 하나로 합치면 셋 중 하나만 필요한
+사람이 나머지 둘의 대가를 함께 치른다.
+
+| 대상 | 무엇이 더 들어가는가 | 대가 |
+|---|---|---|
+| `cpu`(기본) | 없다 — 벤더 가속기 런타임을 넣지 않는다(원칙 #1) | 없다. 받는 사람 대부분이 이것이면 된다 |
+| `cuda` | CUDA 런타임 베이스 이미지 · `onnxruntime-gpu` | 이미지가 수 GB 로 커진다. **드라이버는 들어가지 않는다** |
+| `detectors` | `ultralytics`(YOLO-World · YOLOE · FastSAM) | **AGPL-3.0** — 쓰기로 하는 것이 라이센스 선택이다 |
+
+```bash
+docker build --target cpu       -t mission-runtime:cpu .         # 기본
+docker build --target cuda      -t mission-runtime:cuda .        # GPU 변종
+docker build --target detectors -t mission-runtime:detectors .   # AGPL 탐지기
+docker run --rm mission-runtime:cpu                              # 이 노드가 가진 자원 태그를 찍는다
+```
+
+**하드웨어 환경은 docker 가 고쳐 주지 않는다.** 커널 모듈은 호스트에 있고 호스트가
+`--gpus` 로 넘기지 않으면 컨테이너도 GPU 를 못 쓴다. 호스트 드라이버가 깨져 있으면
+컨테이너도 **함께** 깨진다 — 이미지를 바꿔서 빠져나갈 수 있는 자리가 아니다. 그래서
+자가 점검을 띄운 **안에서** 돌린다(`docker compose run --rm preflight`): 호스트가
+무엇을 넘겼는지는 띄워 보고 물어야 안다.
+
+`ultralytics` 는 **AGPL-3.0** 이고 핵심 의존성 넷(jsonschema MIT · numpy BSD-3 ·
+opencv-python Apache-2.0 · protobuf BSD-3)과 성격이 다르다.
+이것을 쓰는 서비스를 네트워크로 제공하면 그 결합 저작물에 소스 공개 의무가 따른다. 기본
+이미지에 넣지 않은 이유가 그것이고, 쓰기로 하는 것은 받는 쪽의 선택이다. **이 프로젝트
+자신의 라이센스는 아직 정해지지 않았다** — 그래서 여기서도 정하지 않고 분리만 해 둔다.
+어느 쪽으로 정해도 이미지를 다시 설계하지 않는다.
+
+실제 현장 선언(`profiles/domains.json` · `config/status_ui.json`)은 **일부러 이미지에서
+빠진다**(`.dockerignore`). 들어가면 받는 사람이 우리 현장의 구역·좌표·장치 식별자를 함께
+받게 되고, 선언은 배치가 공급하는 자료이지 배포물의 일부가 아니다(AI-C-15). 콘솔 기본값은
+아직 그 현장 파일을 가리키므로 compose 가 `--ui-config`·`--zone-profile` 로 **예시 선언을
+명시로** 넘긴다 — 자기 현장을 쓸 때는 그 두 플래그를 자기 선언으로 바꾸고 그 디렉터리를
+볼륨으로 넣는다. 자격증명·모델 가중치·운영자 수정 장부도 같은 이유로 이미지에 굽지 않고
+볼륨으로 받는다. 그래서 처음 띄우면 compose 가 `./assets` 디렉터리를 만든다 — 자기
+가중치를 그 자리에 넣고, 비워 두면 모델 기반 근거만 비활성이다.
+
+확인한 범위를 분명히 해 둔다. `cpu` 대상은 이 기계에서 **그 이미지 안에서** 자가 점검과
+전체 시험을 돌려 확인했다(위의 `정상 11 · 축소 13 · 막힘 0` 과 `3251 passed` 가 그
+측정이다). `cuda` 대상은 **이 기계에서 빌드하지 않았다** — 베이스 이미지가 수 GB 이고
+가속기를 다른 작업이 쓰고 있었다. 셋의 경계 자체는
+`tests/test_distribution_images.py` 가 고정한다: 기본 이미지에 벤더 런타임이 없는가 ·
+AGPL 의존성이 자기 대상에만 있는가 · 현장 선언과 자격증명이 빠지는가 · 어떤 서비스도
+라이센스를 선점하지 않는가.
 
 ## 눈으로 확인하는 법 — 명령 하나
 

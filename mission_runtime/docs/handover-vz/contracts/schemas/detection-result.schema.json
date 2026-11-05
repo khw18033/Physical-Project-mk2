@@ -1,0 +1,185 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://physical-project.local/schemas/ai/detection-result.schema.json",
+  "title": "Detection Result (body)",
+  "$comment": "규약 §3-6 의 비전 결과. 봉투와 같은 층에 실리므로 추가 칸을 막지 않는다. `bbox` 는 [x1,y1,x2,y2] 픽셀이고 기준 해상도는 이 결과의 width·height 다. `infer_ms` 는 모델 계산 시간만이며 못 쟀으면 칸이 없다.",
+  "type": "object",
+  "required": [
+    "frame_ref",
+    "emitted_at",
+    "model",
+    "producer",
+    "width",
+    "height",
+    "association",
+    "detections"
+  ],
+  "properties": {
+    "frame_ref": {
+      "$ref": "https://physical-project.local/schemas/ai/frame-reference.schema.json"
+    },
+    "emitted_at": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}\\+09:00$"
+    },
+    "model": {
+      "type": "string",
+      "minLength": 1
+    },
+    "infer_ms": {
+      "type": "number",
+      "minimum": 0
+    },
+    "producer": {
+      "type": "object",
+      "required": [
+        "tier",
+        "kind",
+        "optional",
+        "label"
+      ],
+      "properties": {
+        "tier": {
+          "enum": [
+            "device",
+            "edge",
+            "server"
+          ]
+        },
+        "kind": {
+          "enum": [
+            "safety_minimal",
+            "precise",
+            "derived"
+          ]
+        },
+        "optional": {
+          "type": "boolean"
+        },
+        "label": {
+          "type": "string"
+        }
+      },
+      "$comment": "닫지 않는다 — 서버 정본은 tier·kind 만 필수로 두고 나머지를 연다. 우리는 네 칸을 모두 채우므로 `required` 는 유지한다."
+    },
+    "width": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "height": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "bbox_format": {
+      "enum": [
+        "absolute",
+        "normalized"
+      ]
+    },
+    "association": {
+      "enum": [
+        "enabled",
+        "unavailable"
+      ]
+    },
+    "corridor": {
+      "type": "array",
+      "items": {
+        "type": "number"
+      },
+      "minItems": 4,
+      "maxItems": 4
+    },
+    "detections": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "label",
+          "confidence",
+          "bbox",
+          "camera_id"
+        ],
+        "properties": {
+          "label": {
+            "type": "string"
+          },
+          "confidence": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "class_confidence": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "bbox": {
+            "type": "array",
+            "items": {
+              "type": "number"
+            },
+            "minItems": 4,
+            "maxItems": 4
+          },
+          "camera_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "track_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "approach": {
+            "enum": [
+              "closing",
+              "steady",
+              "receding"
+            ]
+          },
+          "trail": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "x",
+                "y"
+              ],
+              "properties": {
+                "x": {
+                  "type": "number"
+                },
+                "y": {
+                  "type": "number"
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "link": {
+            "type": "object",
+            "required": [
+              "linked_sources",
+              "confidence"
+            ],
+            "properties": {
+              "linked_sources": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "confidence": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "$comment": "**칸을 닫지 않는다**(규약 R12 · 서버 정본 detections.schema.json 과 같은 결정). 같은 채널에 360·드론·DS 비전이 자기 칸(uv·depth_m·polygon·ned_m 등)을 실어 보내고, 닫아 두면 우리 검증기만 그 메시지를 거부한다. `required` 는 그대로 두므로 우리 산출물이 빠지는 칸 없이 나가는 것은 계속 고정된다."
+      }
+    }
+  }
+}

@@ -5,7 +5,7 @@ graph infrastructure the same way `digital_twin.py`'s
 
 implements (as a *stand-in* for): DT-03, BE-C-04
 reproduces (decision rule only, not the neural pipeline): CoAlign, ICRA 2023
-  (docs/obsidian/papers/coalign.md) — its "Agent-Object Pose Graph
+  (internal/docs-dev/obsidian/papers/coalign.md) — its "Agent-Object Pose Graph
   Optimization" module. That module was verified against the original
   paper to be a learned-parameter-free classical least-squares solver
   (g2o + Levenberg-Marquardt over agent-object correspondence residuals),
@@ -196,7 +196,7 @@ def optimize_poses(
 # -- robust variant: resists a handful of false cross-agent correspondences --
 #
 # reproduces (decision rule only): Hydra-Multi, arXiv:2304.13487
-# (docs/obsidian/papers/hydra-multi.md) — its "align-optimize-reconcile"
+# (internal/docs-dev/obsidian/papers/hydra-multi.md) — its "align-optimize-reconcile"
 # multi-robot merge step, which the paper credits to Graduated
 # Non-Convexity (GNC; Yang et al.) for robustness against bad loop
 # closures. This module reproduces only that one property — a handful of

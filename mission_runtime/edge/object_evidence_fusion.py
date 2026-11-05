@@ -1,6 +1,6 @@
 """Multi-instance evidence fusion orchestrator for one frame (AI-S-01, AI-S-06).
 
-implements: AI-S-01, AI-S-02, AI-S-06, AI-C-02, AI-C-11
+implements: AI-S-01, AI-S-02, AI-S-06, AI-C-02, AI-C-05
 
 2026-09-16 door/pedestal 랜드마크 통합 설계. `perception/object_record.py`
 (`ProgressiveRecordBuilder`)는 "이 object_id에 이 근거를 더하라"만 알고,
@@ -18,7 +18,7 @@ transform is performed here"). 이 모듈이 그 association을 맡는다 — Po
 
 이 모듈은 어떤 모델을 쓰는지 전혀 모른다 — provider들이 이미 `PerceptionResult`
 (혹은 `score_candidates`가 낸 `DictionaryPerceptionResult`)로 변환한 결과만
-받는다(AI-C-04/AI-C-11).
+받는다(AI-C-04/AI-C-05).
 """
 
 from __future__ import annotations

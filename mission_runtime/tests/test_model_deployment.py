@@ -1,4 +1,4 @@
-"""implements: HW-R-10, AI-B-05, AI-B-07, AI-B-08"""
+"""implements: HW-R-10, AI-B-05,  AI-B-08"""
 
 from mission_runtime.integration.wire import MessageContext, model_deployment_record_message
 from mission_runtime.providers.adapters import ModelDeploymentProvider

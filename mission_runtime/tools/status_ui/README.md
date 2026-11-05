@@ -157,9 +157,10 @@ curl -s -X POST $B/api/reset                # reconciler·이벤트·control 상
 | `verdicts` | G | 완료·실패·자원 3축을 항목 단위로. `escalated_request_id` 로 [I] 와 이어진다 |
 | `events[].task_node_id` + `task_attempt` | H | 노드로 필터하는 뷰. 회차가 붙어 재실행이 이전 회차를 덮지 않는다 |
 | `external_requests` | I | 6단계 `stage_times`, 요청 식별자·사유, 배포 수신 여부, 재실행 회차, 최종 판정 |
+| `resource_watch` | E·G | 선언된 임계와 그 **계측 판정**(측정값·기준·3값). 같은 판정이 [D] 의 `RESOURCE` 사건과 [G] 의 자원 조건으로도 나간다 |
 | `regions` + `sources` | §3·§5 | 구역별 표시 가능 여부와 소스별 수신 상태 |
 
-세 가지를 이 경로가 지킨다.
+네 가지를 이 경로가 지킨다.
 
 - **미측정은 0 이 아니다.** 측정값이 없으면 `{"unit": ...}` 만 나가고 `value` 칸이
   없다. 측정된 0(유휴)은 `value: 0.0` 이라 둘이 구분된다. 지표의
@@ -173,6 +174,15 @@ curl -s -X POST $B/api/reset                # reconciler·이벤트·control 상
 - **계층이 섞이지 않는다.** `accelerators`(L1)와 `services`(L2)가 다른 배열이고
   서로의 원소를 담지 않는다. 서비스 지표에도 그것이 도는 가속기가 붙어 지연의
   원인을 계층으로 좁힐 수 있다.
+- **[E] 의 경고와 [G] 의 자원 조건은 한 판정이다.** 설정의 `dashboard.watch[]` 가
+  감시 대상(어느 개체의 어느 칸을 어떤 기준으로)을 선언하면, 한 번 평가한 결과가
+  세 자리로 나간다 — 임계를 넘은 것은 [D] 의 `RESOURCE` 사건, 노드 판정의 자원 축
+  (같은 `condition_item_id` 가 **계측 판정으로 교체**된다), 그리고 기준값을 들고
+  가는 `resource_watch[]`. 선언이 자원 조건의 충족 여부까지 적으면 그 칸은 선언값이
+  측정값 자리에 앉은 것이고, [E] 가 임계 초과를 칠하는 동안 [G] 가 정상이라고 적는
+  날이 온다(문서 §4.4·§4.7). 기준값을 응답에 싣는 이유는 §3 요구사항 3 이다 —
+  기준이 화면에 하드코딩되어서는 안 된다. 잘못된 감시 선언(없는 가속기 · 단위
+  어긋남 · 보드 값에 가속기 id)은 **로드 시점에** 거절한다.
 
 **조회 전용이다.** `POST /api/dashboard` 는 어느 모드에서도 **본문을 읽기 전에** 405
 (`query_only_path`)다 — 상태 뷰 계약으로 실행 상태를 바꿀 수 없다(문서 §5 조회 전용
@@ -183,7 +193,18 @@ curl -s -X POST $B/api/reset                # reconciler·이벤트·control 상
 `region_available: false` + `region_reason`("no_data_yet" / "source_not_received")으로
 나오고 다른 구역은 그대로 동작한다(AI-C-05). 한 번도 수신하지 않은 소스는
 `last_received_at` 칸이 아예 없어서 "받았지만 오래됐다"(`source_stale: true`)와
-구분된다.
+구분된다. 자원 계층에 사실이 하나도 없으면([E] 의 가속기·서비스·보드 값이 모두
+없을 때) [E]·[E′] 도 `no_data_yet` 이다 — 빈 목록을 "표시 가능"으로 적으면 화면이
+**왜 비었는지 말할 근거를 잃는다**.
+
+계측기가 찾았는데 선언에 없는 가속기는 목록에 더하지 않고(선언이 정본이다)
+`derived.undeclared_accelerator_probe_ids` 에 **사실로 적는다**. 조용히 버리면 "이
+기계에 가속기가 없다"와 "있는데 아무도 선언하지 않았다"가 같아진다. 실제 현장 설정
+(`config/status_ui.json`)에는 `dashboard` 선언이 없어 이 목록이 `["cpu", "gpu-0"]` 다.
+
+운영 콘솔(`tools/fms_console`)도 같은 경로를 낸다 — `GET /api/dashboard` 가
+`StatusService.dashboard()` 에 **위임**하고 조립을 다시 하지 않는다. 공표한 계약은
+`docs/view-contract.md` §6.8 + `schemas/view_dashboard.schema.json` 이다.
 
 작업 그래프의 생성은 **우리 것이 아니다** — 생성 주체(가시화)의 계약을 소비하고
 `source_status` 로 원본 상태 문자열을 함께 보존한다(AI-B-12). SDI 요청 식별자의 발급

@@ -4,7 +4,8 @@ tests: (a) 등록 파일이 없어도 화면은 그대로 뜬다, (b) 목록에�
 이어진다, (d) group/world 읽기 가능한 자격증명 파일은 계속 거절되고 그것이
 나머지 화면을 죽이지 않는다, (e) 닿지 않는 장치는 예외가 아니라 거절로
 돌아온다, (f) 모르는 명령·필드·장치는 각각 제 상태코드로 거절된다,
-(g) 장치 패널의 라벨이 두 언어 모두 채워져 있다.
+(g) 장치 패널의 라벨이 두 언어 모두 채워져 있다, (h) unit 패킹 작업장이
+호스트 공용 고정 자리가 아니라 격리 가능한 상태 디렉터리 아래다.
 
 `tools/status_ui/serve.py`는 패키지가 아니라 스크립트라 경로로 import한다
 (tests/test_status_ui.py와 같은 방식). 실제 하드웨어는 필요 없다 — 닿지 않는
@@ -16,6 +17,7 @@ from __future__ import annotations
 import importlib.util
 import json
 import os
+import shutil
 import sys
 import threading
 import urllib.error
@@ -35,6 +37,17 @@ UNREACHABLE = "192.0.2.13"
 #: "닿지 않는 장치" 시험이 분 단위로 늘어난다 — 거절 경로를 보려는 것이지
 #: 타임아웃 값을 재려는 것이 아니므로 즉시 거절되는 쪽을 쓴다.
 REFUSED_HOST, REFUSED_PORT = "127.0.0.1", 1
+
+#: ICMP 측정은 `ping` 이 한다(`providers/link_probe.py`). 없는 노드에서 그 provider
+#: 는 `probe_tool_unavailable` 사유로 **못 쟀다**고 답하고 profile 을 `None` 으로
+#: 두는데, 그것이 바로 이 시험이 지키려는 구분의 다른 쪽이다 — "재봤고 전부 실패"
+#: (0.0)와 "재지 못했다"(None)를 가르는 시험이라 **잴 수 있는 노드**에서만 돈다.
+#: 못 재는 쪽은 같은 시험의 마지막 줄이 도구 없이도 직접 본다(AI-N-03 · AI-C-05).
+needs_ping = pytest.mark.skipif(
+    shutil.which("ping") is None,
+    reason="ping 이 이 노드에 없다 — ICMP 링크 측정 provider 만 비활성이고 "
+           "링크 품질은 '미측정'으로 남는다(AI-N-03). iputils-ping 을 설치하면 돈다",
+)
 
 
 def _import_serve():
@@ -61,6 +74,13 @@ def _config_with(tmp_path: Path, **overrides) -> Path:
     raw["devices"] = str(tmp_path / "devices.json")
     raw["device_credentials"] = str(tmp_path / "device_credentials.json")
     raw["control_key"] = str(tmp_path / "keys" / "id_control")
+    # unit 패킹 작업장도 tmp 로 돌려놓는다. 적지 않으면 `default_unit_staging_root()`
+    # 가 쓰이고, 전에 그 기본값은 호스트 공용 `/tmp/pf_status_ui_units` 였다 —
+    # `deploy` 시험 하나가 그 공용 칸에 실제로 썼고(실측), `build_unit_source` 는
+    # 대상 디렉터리를 `rmtree` 후 복사하므로 같은 기계의 다른 실행이 그 작업장을
+    # 지울 수 있었다. 시험 결과가 "지금 이 기계에서 또 무엇이 돌고 있는가" 에
+    # 의존하면 그 의존은 눈에 보이지 않는다(conftest 의 상태 디렉터리 고정과 같은 이유).
+    raw["unit_staging_dir"] = str(tmp_path / "unit_staging")
     raw.update(overrides)
     target.write_text(json.dumps(raw, ensure_ascii=False), encoding="utf-8")
     return target
@@ -196,6 +216,7 @@ def test_an_unreachable_device_rejects_instead_of_raising(service):
     assert any(e["name"] == "placement_applied" and e["severity"] == "warning" for e in service.recent_events())
 
 
+@needs_ping
 def test_probing_a_silent_address_is_measured_total_loss_not_a_guess(service):
     """재봤는데 아무것도 안 돌아온 것은 0.0이고, 아예 못 잰 것은 None이다.
 
@@ -299,3 +320,54 @@ def test_the_device_panel_is_labelled_in_both_languages(service):
         assert key in ui, f"the device panel uses ui.{key} but the labels file has no entry"
         for language in service.labels()["languages"]:
             assert ui[key].get(language), f"ui.{key}.{language} is empty"
+
+
+# --- (h) 작업장은 호스트 공용 자리가 아니다 (2026-11-04) ----------------------
+#
+# 전에는 설정이 `unit_staging_dir` 를 적지 않으면 작업장이
+# `tempfile.gettempdir()/pf_status_ui_units` 였다. 그것은 호스트에 하나뿐인 고정
+# 이름이라 같은 기계의 모든 실행이 같은 칸을 썼고, 위 (e) 의 `deploy` 시험이
+# 실제로 거기에 썼다(`/tmp/pf_status_ui_units/gone/pkg/*.tar.gz` 로 실측).
+#
+# 왜 그것이 간헐 실패인가: `build_unit_source` 는 대상 디렉터리를 `rmtree` 한 뒤
+# 복사한다. 두 프로세스가 같은 자리를 쓰면 한쪽이 다른 쪽의 작업장을 복사 도중에
+# 지운다 — 두 프로세스로 240 회를 돌려 47 회가 `FileNotFoundError` ·
+# `Directory not empty` 로 깨졌다. 깨진 쪽은 자기 잘못이 아닌 실패를 본다.
+
+
+def test_the_default_unit_staging_root_is_not_a_host_wide_fixed_name(monkeypatch, tmp_path):
+    """기본 작업장은 상태 디렉터리 아래다 — 환경변수 하나로 격리된다.
+
+    `tools/fms_console/overlay.py::state_root` 와 같은 규약을 쓰는 이유: 자리를
+    옮기는 변수가 둘이면 시험·배포가 한쪽만 옮기고 나머지는 옛 자리에 계속 쓴다.
+    """
+    import tempfile
+
+    monkeypatch.setenv(serve.STATE_ROOT_ENV, str(tmp_path / "state"))
+    root = serve.default_unit_staging_root()
+
+    assert root == tmp_path / "state" / serve.UNIT_STAGING_DIR_NAME
+    assert root != Path(tempfile.gettempdir()) / "pf_status_ui_units"
+
+    # 상태 뿌리를 가리키는 변수가 없으면 XDG 규약, 그것도 없으면 홈 아래다.
+    monkeypatch.delenv(serve.STATE_ROOT_ENV, raising=False)
+    monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path / "xdg"))
+    assert serve.default_unit_staging_root() == (
+        tmp_path / "xdg" / "mission_runtime" / serve.UNIT_STAGING_DIR_NAME)
+
+
+def test_a_deploy_stages_inside_the_test_tmp_dir_and_nowhere_else(service, tmp_path):
+    """시험이 만든 작업장이 `tmp_path` 안인가. 밖이면 결과가 지난 실행에 의존한다."""
+    import tempfile
+
+    service.register_device(
+        device_id="gone", address=REFUSED_HOST, port=REFUSED_PORT, username="physical",
+        purpose="fixed_camera",
+        node_tags=["compute.cpu", "tier.fixed_camera", "sensor.camera.imx708"],
+    )
+    service.device_command("gone", "deploy")
+
+    staged = Path(service._staging_root)
+    assert staged == tmp_path / "unit_staging", f"작업장이 tmp 밖이다: {staged}"
+    assert staged.is_dir(), "패킹이 실제로 이 자리를 썼어야 한다"
+    assert not (Path(tempfile.gettempdir()) / "pf_status_ui_units" / "gone").exists()

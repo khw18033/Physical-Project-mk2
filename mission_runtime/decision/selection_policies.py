@@ -1,7 +1,7 @@
 """provider 선택 규칙들 — **같은 인터페이스의 다른 정책**이다.
 
 implements: AI-C-13, AI-B-06, AI-S-05
-근거: docs/obsidian/ideas/evidence-driven-orchestration-plan.md §3 S3
+근거: internal/docs-dev/obsidian/ideas/evidence-driven-orchestration-plan.md §3 S3
 
 AI-C-13: "선택 방법은 특정 점수식, 규칙 또는 학습 알고리즘을 프레임워크의 필수 방식으로
 고정하지 않고 교체 가능하게 유지해야 하며, 후보 방법은 동일 조건에서 비교할 수 있어야

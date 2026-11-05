@@ -35,7 +35,7 @@ def check_provider_conformance(reg: ProviderRegistration, registry: CapabilityRe
         failures.append("missing_version")
 
     # Registering/unregistering this provider must not disturb any other
-    # capability kind already present (failure isolation, AI-C-11).
+    # capability kind already present (failure isolation, AI-C-05).
     other_kinds = registry.known_capability_kinds() - {reg.capability_kind}
     before = {kind: len(registry.available_providers(kind)) for kind in other_kinds}
     registry.register_local(reg)

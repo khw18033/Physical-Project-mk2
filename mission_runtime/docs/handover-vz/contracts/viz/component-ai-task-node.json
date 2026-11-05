@@ -1,0 +1,66 @@
+{
+  "id": "ai-task-node",
+  "version": "1.0.0",
+  "displayName": "작업 그래프 노드 (Layer 3)",
+  "description": "미션이 분해된 실행 단위 하나. 노드 수·깊이·분기 수에 상한이 없으므로 화면은 수신한 구조를 그대로 그린다(기능정의서 §4.2 시나리오 일반성).",
+  "fields": [
+    { "name": "task_node_id", "type": "string", "required": true, "representationHint": "text" },
+    { "name": "node_title", "type": "string", "required": false, "representationHint": "text" },
+    {
+      "name": "task_node_state",
+      "type": "enum",
+      "required": true,
+      "enumValues": ["PENDING", "BLOCKED", "EXECUTING", "SUCCEEDED", "FAILED", "EXTERNAL_REQUESTED"],
+      "representationHint": "text",
+      "description": "§4.2 의 6상태. 생성 주체의 원본 상태는 source_status 에 그대로 남아 있다."
+    },
+    { "name": "source_status", "type": "string", "required": false, "representationHint": "text" },
+    { "name": "service_id", "type": "string", "required": false, "representationHint": "text" },
+    {
+      "name": "accelerator_instance_id",
+      "type": "string",
+      "required": false,
+      "representationHint": "text",
+      "description": "온디바이스에서 돌지 않는 노드는 off_device 다 — 빈 값으로 두면 '아직 모른다'와 섞인다(§4.6)."
+    },
+    {
+      "name": "progress_ratio",
+      "type": "number",
+      "required": false,
+      "unit": "ratio",
+      "valueRange": { "min": 0, "max": 1 },
+      "representationHint": "graph"
+    },
+    {
+      "name": "input_command",
+      "type": "string",
+      "required": false,
+      "representationHint": "text",
+      "description": "그 노드에 전달된 명령 원문. §4.6 이 생략 금지로 못 박은 항목이다."
+    },
+    {
+      "name": "task_attempt",
+      "type": "number",
+      "required": true,
+      "unit": "count",
+      "valueRange": { "min": 1, "max": 999 },
+      "representationHint": "text",
+      "description": "재실행 회차. 원 노드는 origin_task_node_id 로 이어지고 이전 회차를 덮지 않는다(§4.2·§4.8)."
+    },
+    { "name": "origin_task_node_id", "type": "string", "required": false, "representationHint": "text" },
+    {
+      "name": "order_after",
+      "type": "array",
+      "required": true,
+      "representationHint": "table",
+      "description": "실행 순서(실선). 빈 배열은 '선행이 없다'는 아는 사실이다."
+    },
+    {
+      "name": "depends_on",
+      "type": "array",
+      "required": true,
+      "representationHint": "table",
+      "description": "결과 의존(점선). 둘을 시각적으로 구분하라는 요구가 §4.2 다."
+    }
+  ]
+}

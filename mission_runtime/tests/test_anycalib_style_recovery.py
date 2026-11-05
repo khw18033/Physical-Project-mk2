@@ -2,7 +2,7 @@
 
 Tests for mission_runtime.edge.anycalib_style_recovery, the
 closed-form pinhole-intrinsics-from-known-rays provider described in
-docs/obsidian/papers/anycalib.md. All correspondences here are purely
+internal/docs-dev/obsidian/papers/anycalib.md. All correspondences here are purely
 synthetic (no image, no network): rays are generated directly from a
 known ground-truth camera matrix via the inverse of the pinhole equation
 this module solves, mirroring how tests/test_calibration.py exercises

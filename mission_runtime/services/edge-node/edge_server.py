@@ -131,7 +131,7 @@ class YoloeOvd:
         배치마다 다르므로 **코드가 아니라 설정에서** 고른다(AI-C-15: 도메인 차이는
         분기문이 아니라 배포 프로파일). 어휘가 바뀌면 재측정 대상이다(AI-B-01).
         """
-        from ultralytics import YOLOE  # 지연 import (AI-C-11)
+        from ultralytics import YOLOE  # 지연 import (AI-C-05)
 
         c = self._cfg["ovd"]
         if words:

@@ -32,6 +32,7 @@ from mission_runtime.observability.host_resources import (
     HostReadout,
     HostResourceReader,
     resolve_probes,
+    undeclared_probes,
     with_host_measurements,
 )
 from mission_runtime.observability import host_resources
@@ -452,3 +453,102 @@ def test_the_provenance_names_and_vocabulary_are_registered():
     assert tuple(dd.MEASUREMENT_SOURCES) == MEASUREMENT_SOURCES
     for name in (dd.HOST_PROBE_ID, dd.HOST_PROBE_STATUS):
         assert dd.spec_for(name).meaning
+
+
+# -- 선언이 덮지 못한 계측 지점은 **사실로 남는다** ---------------------------
+
+
+def test_a_probe_no_declaration_claims_is_reported():
+    """목록은 선언이 소유하지만, 조용히 버리면 사실이 사라진다 (AI-O-05 · §4.4).
+
+    `with_host_measurements` 는 계측이 목록을 늘리지 못하게 한다 — 그 규칙은 선언이
+    배치의 정본이라는 §3 요구사항 2 를 지킨다. 그러나 버린 사실을 아무 데도 적지
+    않으면 화면은 "이 기계에 가속기가 없다"와 "있는데 아무도 선언하지 않았다"를
+    구별할 수 없고, §4.4 가 요구하는 "가속기 목록의 완전성"을 판단할 길이 없다.
+    """
+    # 선언이 둘을 지목하면 미선언은 없다.
+    assert undeclared_probes(declared_view(), readout(gpu=True), PROBES) == ()
+
+    # 선언이 아예 없는 배치(실제 현장 설정이 그렇다) — 계측기가 읽은 둘이 다 남는다.
+    empty = LayeredResourceView()
+    assert undeclared_probes(empty, readout(gpu=True)) == ("cpu", "gpu-0")
+
+    # 지목이 없어도 **이름이 같으면** 이어진다(그 선언은 이 기계를 읽어 만든 것이다).
+    named = LayeredResourceView(accelerators=(AcceleratorInstance("cpu", "cpu"),))
+    assert undeclared_probes(named, readout(gpu=True)) == ("gpu-0",)
+
+    # 계측기가 그 도구를 못 쓰면 목록에도 없다 — 없는 것을 미선언으로 적지 않는다.
+    assert undeclared_probes(empty, readout(gpu=False)) == ("cpu",)
+
+
+# -- 사용률 추이 (대시보드 §4.4 — 전력과 같은 요구) --------------------------
+
+def test_the_utilization_trend_accumulates_from_real_measurements():
+    """현재값 하나로는 "방금 올라갔다" 와 "계속 그랬다" 가 구분되지 않는다.
+
+    그래서 §4.4 는 전력과 **같은 요구**를 사용률에도 둔다 — 동종 가속기가 여러
+    개일 때 부하 편중은 추이에서만 보인다.
+
+    implements: AI-O-05
+    """
+    reader = HostResourceReader(utilization_trend_len=3)
+
+    for _ in range(5):
+        view = reader.read()
+
+    for accelerator in view.accelerators:
+        if not accelerator.utilization.measured:
+            continue
+        assert accelerator.utilization_trend, f"{accelerator.instance_id} 추이가 비었다"
+        assert len(accelerator.utilization_trend) <= 3, "선언된 길이로 잘린다"
+        assert accelerator.utilization_trend[-1].value == accelerator.utilization.value, (
+            "마지막 표본은 현재값이다")
+
+
+def test_each_accelerator_keeps_its_own_trend():
+    """한 묶음에 섞으면 동종 가속기 둘의 추이가 한 선으로 합쳐져 편중이 사라진다."""
+    reader = HostResourceReader(utilization_trend_len=4)
+    for _ in range(3):
+        view = reader.read()
+
+    measured = [a for a in view.accelerators if a.utilization.measured]
+    if len(measured) < 2:
+        pytest.skip("이 기계에는 측정되는 가속기가 하나뿐이다")
+
+    trends = {a.instance_id: tuple(s.value for s in a.utilization_trend) for a in measured}
+    assert len(trends) == len(measured), "개체마다 따로 센다"
+
+
+def test_an_unmeasured_sample_is_skipped_rather_than_recorded_as_zero():
+    """**0 을 넣으면 추이가 거짓으로 내려가 "유휴였다" 로 읽힌다.**
+
+    미측정 표본을 섞으려는 시도 자체를 자료형이 거절한다.
+    """
+    from mission_runtime.observability.layered_metrics import AcceleratorInstance, Measurement
+
+    with pytest.raises(ValueError, match="잰 표본만"):
+        AcceleratorInstance(instance_id="npu-0", kind="npu",
+                            utilization=Measurement(0.5, "ratio", 1.0, source="measured"),
+                            utilization_trend=(Measurement(None, "ratio"),))
+
+
+def test_a_trend_sample_in_another_unit_is_refused():
+    """단위가 다르면 같은 축에 그릴 수 없다 — 기준선이 엉뚱한 자리에 놓인다."""
+    from mission_runtime.observability.layered_metrics import (
+        AcceleratorInstance, Measurement, UnitMismatch)
+
+    with pytest.raises(UnitMismatch):
+        AcceleratorInstance(instance_id="npu-0", kind="npu",
+                            utilization=Measurement(0.5, "ratio", 1.0, source="measured"),
+                            utilization_trend=(
+                                Measurement(50.0, "percent", 1.0, source="measured"),))
+
+
+def test_an_empty_trend_is_absent_from_the_wire_rather_than_an_empty_list():
+    """빈 배열은 "쟀는데 아무것도 없었다" 로 읽힌다."""
+    from mission_runtime.integration.status_wire import accelerator_to_wire
+    from mission_runtime.observability.layered_metrics import AcceleratorInstance
+
+    body = accelerator_to_wire(AcceleratorInstance(instance_id="npu-0", kind="npu"))
+
+    assert "utilization_trend" not in body

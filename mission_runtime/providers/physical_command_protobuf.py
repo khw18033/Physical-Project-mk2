@@ -41,7 +41,13 @@ HW 와이어는 진행 상태와 종료 상태를 **다른 타입**으로 나눈
     result.completed_at               HW 필드 3 은 result map
     result.result (비숫자)            map<string,double> → 에러
     cancel_response.reason            HW 에 필드 없음
-    capability.version/schema/...     HW Capability 는 device_id/actions 뿐
+    capability.<선언 항목 전부>       HW Capability 는 device_id/actions 뿐이라
+                                      AI-C-18 항목을 하나도 싣지 못한다(§8-3 P7).
+                                      버린 값은 `capability.<field>`, 애초에 비어 있던
+                                      칸은 `capability.undeclared.<item>` 로 **항목마다**
+                                      센다. 받는 쪽 payload 에도 `undeclared_items` 로
+                                      이름이 실려 '그렇다고 선언했다' 와 '못 왔다' 가
+                                      구분된다.
 
 시각 3종은 와이어에 없으므로 `decode()` 가 **수신 시각**으로 채우고
 `time_source="edge_receipt"` 를 함께 넣는다. 장치가 그 동작을 실제로 한
@@ -61,12 +67,13 @@ import math
 import re
 import time
 from collections import Counter
-from dataclasses import is_dataclass
+from dataclasses import fields as dataclass_fields, is_dataclass
 from enum import Enum
 from typing import Any, Callable
 
 from mission_runtime.contracts.physical_command import (
     TERMINAL_STATUSES,
+    Capability as _Capability,
     ExecutionStatus,
 )
 from mission_runtime.contracts.proto import physical_command_pb2 as pb
@@ -106,6 +113,26 @@ _CLASS_TYPES = {
 
 #: `decode()` 가 채운 시각이 장치 보고가 아니라 엣지 수신 시각임을 나타낸다.
 TIME_SOURCE_EDGE_RECEIPT = "edge_receipt"
+
+#: 이 와이어로 온 Capability 선언이 **어디까지 담고 있는가**. 닫힌 어휘이고,
+#: 와이어가 넓어지는 날 값이 하나 더 생긴다(그것이 spec §8-3 P7 의 해소다).
+DECLARATION_SCOPE_ACTIONS_ONLY = "actions_only"
+CAPABILITY_DECLARATION_SCOPES: tuple[str, ...] = (DECLARATION_SCOPE_ACTIONS_ONLY,)
+
+#: 이 와이어가 Capability 선언에서 **싣지 못하는** 칸들. 목록을 손으로 적지 않고
+#: 의미 계약의 필드에서 뽑는다 — 새 선언 항목을 계약에 더하고 여기를 잊으면
+#: 그 항목만 조용히 사라진다.
+_CAPABILITY_WIRE_FIELDS = frozenset({"name", "device_id", "actions"})
+_CAPABILITY_WIRELESS_FIELDS: tuple[str, ...] = tuple(
+    f.name for f in dataclass_fields(_Capability) if f.name not in _CAPABILITY_WIRE_FIELDS
+)
+
+#: 그래서 이 와이어로 온 선언은 **항상** 아래 AI-C-18 항목을 적지 못한 상태다.
+#: `Capability(name=...)` 하나를 만들어 물어보면 그 목록이 나온다 — 두 번 적지
+#: 않으려고 계약에 직접 묻는다.
+CAPABILITY_DECLARATION_ITEMS_LOST_ON_WIRE: tuple[str, ...] = _Capability(
+    name="_probe"
+).undeclared_items()
 
 
 #: W3C Trace Context `traceparent` — version(2) "-" trace-id(32) "-" span-id(16)
@@ -287,13 +314,16 @@ class PhysicalCommandProtobufSerializerProvider:
         if actions is None:
             actions = [payload["name"]] if payload.get("name") else []
         msg.actions.extend(str(a) for a in actions)
-        for field_name in (
-            "version", "parameter_schema", "result_schema",
-            "cancel_supported", "required_resources",
-        ):
+        for field_name in _CAPABILITY_WIRELESS_FIELDS:
             value = payload.get(field_name)
-            if value:  # 선언되지 않았거나 기본값이면 잃을 것이 없다
-                self._gap(f"capability.{field_name}", value)
+            # None(미선언)은 잃을 것이 없다. False·빈 묶음은 **선언된 값**이므로
+            # 센다 — "취소 불가" 를 선언한 장치의 그 선언이 조용히 사라지면 받는
+            # 쪽은 미선언과 구분할 수 없다.
+            if value is None:
+                continue
+            if isinstance(value, (tuple, list, dict)) and not value:
+                continue
+            self._gap(f"capability.{field_name}", value)
 
     # -- decode ---------------------------------------------------------
 
@@ -371,10 +401,19 @@ class PhysicalCommandProtobufSerializerProvider:
         return {"command_id": msg.command_id, "accepted": msg.accepted}
 
     def _decode_capability(self, msg, _received_at: float) -> dict[str, Any]:
+        for item in CAPABILITY_DECLARATION_ITEMS_LOST_ON_WIRE:
+            # 받는 쪽에서도 **항목 단위로** 센다. 보내는 쪽의 `wire_gaps` 는
+            # 우리가 버린 것을 세지만, 장치가 보내 온 선언에서 비어 있는 칸은
+            # 이쪽에서만 보인다 — 그 수가 곧 spec §8-3 P7 의 크기다.
+            self._gap(f"capability.undeclared.{item}", None)
         return {
             "device_id": msg.device_id,
             "actions": list(msg.actions),
             # 이 선언이 action 이름까지만 담고 있다는 사실 자체를 남긴다
             # (AI-C-18: 모든 항목이 항상 존재한다고 가정하지 않는다).
-            "declaration_scope": "actions_only",
+            "declaration_scope": DECLARATION_SCOPE_ACTIONS_ONLY,
+            # 어느 항목이 비어 있는지를 이름으로 남긴다. 소비자는 이 목록을 보고
+            # "장치가 그렇다고 선언했다" 와 "와이어에 자리가 없어 못 왔다" 를
+            # 구분한다. 빈 칸을 기본값으로 채워 보내지 않는 것이 전제다.
+            "undeclared_items": list(CAPABILITY_DECLARATION_ITEMS_LOST_ON_WIRE),
         }

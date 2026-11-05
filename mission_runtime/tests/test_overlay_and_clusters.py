@@ -1,4 +1,4 @@
-"""implements: AI-C-17, AI-B-11, AI-O-04, AI-C-12
+"""implements: AI-C-04, AI-B-11, AI-O-04
 covers: overlay abstraction and separate signal, server/edge control planes
         behind one contract, control-plane loss does not stop the rest
 """
@@ -22,7 +22,7 @@ from mission_runtime.runtime.clusters import ClusterBinding, MultiClusterControl
 
 PACKAGE_DIR = Path(__file__).resolve().parents[1]
 
-# --- AI-C-17 overlay abstraction ------------------------------------------
+# --- AI-C-04 overlay abstraction ------------------------------------------
 
 
 def test_both_overlay_implementations_satisfy_the_protocol():
@@ -31,7 +31,7 @@ def test_both_overlay_implementations_satisfy_the_protocol():
 
 
 def test_overlay_product_name_appears_only_in_its_own_module():
-    """AI-C-17: 상위 코드는 특정 오버레이 제품 API에 의존하지 않는다."""
+    """AI-C-04: 상위 코드는 특정 오버레이 제품 API에 의존하지 않는다."""
     from conftest import package_py_files
 
     offenders = []

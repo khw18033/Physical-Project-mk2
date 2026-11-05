@@ -63,7 +63,7 @@ def test_coverage_accumulates_and_never_regresses():
 def test_losing_every_source_does_not_unobserve_but_does_go_stale():
     """The claim and its inverse in one place.
 
-    Coverage must survive source loss (AI-C-11), but surviving is not the same
+    Coverage must survive source loss (AI-C-05), but surviving is not the same
     as staying current: the same region must fall to STALE once its last good
     observation ages out. Without the second half the first is untestable.
     """
@@ -267,7 +267,7 @@ def test_losing_the_anchor_source_does_not_unanchor_existing_coverage():
     assert later.anchor_id == "cam_fixed_1"
 
 
-# -- capability isolation (AI-C-11) ---------------------------------------
+# -- capability isolation (AI-C-05) ---------------------------------------
 
 def test_optional_source_absence_degrades_but_never_disables():
     c = CoverageEstimator()

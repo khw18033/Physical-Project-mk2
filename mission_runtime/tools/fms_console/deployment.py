@@ -71,6 +71,11 @@ from mission_runtime.registry.onboarding import (
     node_config_entry,
 )
 from mission_runtime.runtime.clusters import ClusterBinding, PlacementRequest
+from mission_runtime.runtime.deployment_bundle import BundleRegistry
+from mission_runtime.runtime.learned_version import (
+    LearnedVersionRegistrar,
+    Promotion,
+)
 from mission_runtime.runtime.model_assignment import (
     Assignment,
     DeviceProfile,
@@ -546,6 +551,10 @@ class TrainedCandidate:
     report: Any | None = None
     #: 실제로 적용한 통과 기준. 기본값과 다를 수 있으므로 결과에 함께 싣는다.
     gate_used: EvaluationGate | None = None
+    #: 회귀를 **어느 집합에서** 쟀는가. `evaluation_only_confirmed` 는 후보가 학습에
+    #: 쓰지 않은 표본이고, `training_samples_fallback` 은 학습 집합이라 그 수치가
+    #: 낙관적이다 — 어느 쪽인지 모르면 그 수치를 읽을 수 없다(AI-L-06).
+    retained_source: str = "none"
     produced_by: str = ""
 
     @property
@@ -563,6 +572,8 @@ class TrainedCandidate:
             "used_sample_ids": list(self.used_sample_ids),
             "held_out_sample_ids": list(self.held_out_sample_ids),
             "unmeasured_labels": list(self.unmeasured_labels),
+            # 회귀를 어느 집합에서 쟀는가. 승인 화면이 읽어야 하는 값이다.
+            "retained_source": self.retained_source,
             "learning_lineage_id": self.lineage.lineage_id,
             "learning_state": self.lineage.state.value,
             "parameters": {
@@ -583,6 +594,9 @@ class TrainedCandidate:
                 "baseline": {"correct": report.baseline.correct,
                              "total": report.baseline.total},
                 "regression": report.regression,
+                # 집계 회귀와 **다른 축**이다. 집계가 0 이어도 개별 표본이 깨져
+                # 있을 수 있고, 그 경우를 보는 유일한 칸이다(AI-L-05).
+                "flips": report.flips.as_dict(),
                 "lost_labels": list(report.lost_labels),
             },
         }
@@ -777,14 +791,29 @@ class TrainingDesk:
         applied = gate or self.gate
         held_out = self._samples(candidate.held_out_sample_ids)
         base = self._bases.get(candidate.group_key)
-        retained = self._samples(
-            tuple(s.sample_id for s in self.store.batch_for(candidate.conditions).confirmed()
-                  if s.sample_id in set(candidate.used_sample_ids))) if base else ()
+        # 회귀를 **후보가 학습에 쓰지 않은** 표본에서 잰다. 학습 집합에서 재면
+        # train-set 평가이고, 전에 되던 것이 깨졌는지는 거기서 보이지 않는다.
+        # 평가 전용 표본(사람이 "모델이 맞았다" 고 확인한 상자)이 있으면 그것을
+        # 쓰고, 없으면 옛 경로(학습에 쓴 확인 표본)로 물러나되 **그 사실이 보고에
+        # 남는다** — 어느 집합에서 잰 수치인지 모르면 그 수치를 읽을 수 없다.
+        retained, retained_source = (), "none"
+        if base:
+            batch = self.store.batch_for(candidate.conditions)
+            evaluation_only = batch.evaluation_only()
+            if evaluation_only:
+                retained = self._samples(tuple(s.sample_id for s in evaluation_only))
+                retained_source = "evaluation_only_confirmed"
+            else:
+                retained = self._samples(
+                    tuple(s.sample_id for s in batch.confirmed()
+                          if s.sample_id in set(candidate.used_sample_ids)))
+                retained_source = "training_samples_fallback"
         report = self.evaluator.evaluate(
             candidate.parameters, new_samples=held_out,
             retained_samples=retained, base=base, gate=applied)
         candidate.report = report
         candidate.gate_used = applied
+        candidate.retained_source = retained_source
         if report.result is not GateResult.PASS:
             # 미측정도 FAIL 도 승격시키지 않는다. 계보는 그 자리에 머문다.
             return {"advanced": False, "result": report.result.value,
@@ -913,6 +942,16 @@ def lineage_dict(lineage: LearningLineage) -> dict:
 REFUSE_UNKNOWN_VERSION = "unknown_model_version"
 REFUSE_UNKNOWN_DEVICE = "unknown_device"
 REFUSE_NO_APPROVED_CANDIDATE = "no_approved_learning_candidate"
+#: 선언만 되어 있고 **승격 기록이 없는** 버전. 그 버전을 허가한 계보가 없다는 뜻이고,
+#: 계보 없이 올리는 길을 열면 검증·승인 관문이 선택 사항이 된다(AI-L-07).
+REFUSE_NOT_PROMOTED = "version_has_no_promotion_record"
+#: 승격은 됐지만 그때 계보를 함께 넘기지 않았다. 적용은 계보를 전진시키는 행위라
+#: 전진시킬 계보가 없으면 올리지 않는다.
+REFUSE_PROMOTION_WITHOUT_LINEAGE = "promotion_has_no_approving_lineage"
+#: 실행 단위가 **다른 기기**를 가리킨다. 적격 판정은 `device_id` 의 하드웨어로
+#: 하고 제어면에는 `deployable` 의 기기가 넘어가므로, 둘이 어긋나면 A 의 태그로
+#: 적격을 받은 버전이 B 에서 돈다.
+REFUSE_DEPLOYABLE_OTHER_DEVICE = "deployable_targets_another_device"
 
 #: 선언된 모델 버전 목록의 자리. **데이터다** — 새 모델은 코드 변경이 아니다.
 MODEL_REGISTRY_FILE = "model_versions.example.json"
@@ -984,16 +1023,40 @@ class ModelDesk:
     배정은 `ModelAssigner`(AI-L-10), 단계적 적용과 계보 관문은
     `MlopsPipeline`(AI-L-07) 이 한다. 이 책상은 장치 사실을 `DeviceProfile` 로
     옮기고 결과를 화면 자료형으로 바꾼다.
+
+    적용은 **버전 참조 하나**로 요청한다
+    ------------------------------------
+    전에는 `lineage` 와 `pinned_reference` 를 **따로** 받았고, 둘이 같은 후보를
+    가리키는지 아무도 확인하지 않았다. 그래서 후보 A 의 계보를 들고 버전 B 를
+    올릴 수 있었고 — 콘솔 경로에서는 **항상** 그랬다. `serve.py` 가 계보는 학습
+    후보에서(`training().candidate(version).lineage`), 버전은 손으로 적은
+    `config/model_versions.example.json` 에서 가져오므로 두 이름이 애초에 다른
+    어휘였다. 배포는 성공하고 계보는 `DEPLOYED` 로 남지만 그 계보가 가리키는
+    학습과 실제로 올라간 것이 다른 것이고, 그러면 AI-L-08 의 "현재 적용된 버전에서
+    …역추적" 이 *있는데 거짓*이 된다. 없는 것보다 나쁘다.
+
+    그래서 이제 받는 것은 `version_reference` 하나이고 계보는 그 버전의 승격
+    기록에서 **유도한다**(`LearnedVersionRegistrar.record_of(...).lineage`).
+    어긋난 짝을 넘길 자리가 없다 — 넘길 칸이 하나뿐이다.
     """
 
     pipeline: MlopsPipeline
     #: 장치별 하드웨어 사실. `RobotFacts` 를 그대로 받는다(여기서 다시 재지 않는다).
     device_profiles: Mapping[str, DeviceProfile] = field(default_factory=dict)
+    #: 승격된 학습 버전의 등록부. **버전 ↔ 그것을 허가한 계보**의 유일한 주인이고,
+    #: 이 책상이 적용할 수 있는 버전은 여기 적힌 것뿐이다.
+    registrar: LearnedVersionRegistrar | None = None
     #: 기기별 지금 배포. 장치 하나에 여러 kind 가 올 수 있어 (device, kind) 가 키다.
     _applied: dict[tuple[str, str], str] = field(default_factory=dict, init=False)
     _history: list[dict] = field(default_factory=list, init=False)
     #: 정책을 잠깐 바꿔 끼우는 구간을 감싼다 — 콘솔은 스레드 서버다.
     _lock: threading.Lock = field(default_factory=threading.Lock, init=False)
+
+    def __post_init__(self) -> None:
+        if self.registrar is None:
+            # 등록부는 파이프라인의 배정 목록에 **등록만** 한다. 감싸지 않는 이유는
+            # `runtime/learned_version.py` 의 소유 경계 절에 적혀 있다.
+            self.registrar = LearnedVersionRegistrar(self.pipeline)
 
     # -- 조회 -------------------------------------------------------------
 
@@ -1028,11 +1091,57 @@ class ModelDesk:
                          "reason": reason})
         return rows
 
+    def promotions(self) -> list[dict]:
+        """적용할 수 있는 버전과 **그것을 허가한 계보**. 둘이 한 줄에 있다.
+
+        화면이 이 목록에서 고르면 계보를 따로 들고 올 이유가 없어진다 — 따로 들고
+        오는 길이 바로 어긋난 짝의 자리였다(AI-L-08).
+        """
+        rows = []
+        for reference, promotion in sorted(self.registrar.promotions.items()):
+            lineage = promotion.lineage
+            rows.append({
+                "version_reference": reference,
+                "candidate_version": promotion.candidate_version,
+                "learning_lineage_id": None if lineage is None else lineage.lineage_id,
+                "learning_state": None if lineage is None else lineage.state.value,
+                # AI-L-06 의 "미검증 범위". 비어 있는 것과 모르는 것을 섞지 않는다.
+                "unverified_scope": list(promotion.unverified_scope),
+                "base_version": promotion.base_version,
+                "sample_ids": list(promotion.sample_ids),
+                "produced_by": promotion.produced_by,
+                "reason": promotion.reason,
+            })
+        return rows
+
     def plan(self, device_id: str, requirement: MissionRequirement,
-             *, deployable: Deployable, lineage: LearningLineage | None = None) -> dict:
-        """커밋하지 않고 결과를 본다. `apply()` 와 **같은 계산**이다."""
-        plan = self.pipeline.plan(deployable, self._device(device_id), requirement,
-                                  lineage=lineage)
+             *, deployable: Deployable, version_reference: str | None = None) -> dict:
+        """커밋하지 않고 결과를 본다. `apply()` 와 **같은 계산**이다.
+
+        계보도 핀도 `version_reference` 에서 유도한다 — 화면이 "쓸 수 있다" 고 보여
+        준 것이 적용에서 거절되면 안 되고, 두 경로가 서로 다른 재료로 계산하면 바로
+        그 일이 일어난다.
+        """
+        device = self._device(device_id)
+        bound, refusal = self._bound(version_reference)
+        if refusal is not None:
+            # 계산을 돌리지 않았으므로 기능 상태도 배정도 **모른다**. 모르는 것을
+            # DISABLED 나 빈 배정으로 적으면 "후보가 없다" 와 구분되지 않는다.
+            return {"would_place": False, "refusal_reason": refusal,
+                    "area_id": None, "unit_id": None, "function_state": None,
+                    "assignment": None, "version_reference": version_reference}
+        pinned = None if bound is None else bound.version
+        assigner = self.pipeline.assigner
+        with self._lock:
+            previous = assigner.policy
+            if pinned is not None:
+                assigner.policy = PinnedVersion(pinned.reference)
+            try:
+                plan = self.pipeline.plan(
+                    deployable, device, requirement,
+                    lineage=None if bound is None else bound.lineage)
+            finally:
+                assigner.policy = previous
         return {
             "would_place": plan.would_place,
             "refusal_reason": plan.refusal_reason,
@@ -1040,35 +1149,80 @@ class ModelDesk:
             "unit_id": plan.unit_id,
             "function_state": plan.function_state.value,
             "assignment": _assignment_dict(plan.assignment),
+            "version_reference": version_reference,
         }
+
+    # -- 승격 (AI-L-07 의 앞 칸) -------------------------------------------
+
+    def register_learned(self, candidate: TrainedCandidate, *, model_id: str,
+                         capability_kind: str, device_id: str,
+                         actor: str = "", reason: str = "",
+                         measured_latency_ms: float | None = None,
+                         measured_memory_mb: float | None = None) -> dict:
+        """승인된 학습 후보를 **배정 목록에 올린다.** 판정은 전부 빌려 온다.
+
+        이 칸이 비어 있던 동안 학습 결과는 배정 후보가 **된 적이 없었다** — 그래서
+        콘솔의 모델 교체는 손으로 적은 목록에서만 골랐고, 승인된 계보는 그 선택과
+        아무 관계가 없었다. 승격·거절 판정은 `runtime/learned_version.py::promote`
+        가 소유하고(게이트·성적표 짝·계보 짝·기기 범위·미측정) 이 메서드는 책상의
+        자료를 그 계약으로 옮긴다.
+
+        `measured_*` 는 **실제로 쟀을 때만** 넘긴다. 0 으로 채우면 미측정 후보가
+        적격이 되고, 배정이 없는 이득을 보고 고른다(AI-O-05: 미측정 ≠ 0 ≠ 미달).
+        """
+        promotion = self.registrar.promote_and_register(
+            candidate.parameters, candidate.report,
+            model_id=model_id, capability_kind=capability_kind,
+            device=self._device(device_id), lineage=candidate.lineage,
+            measured_latency_ms=measured_latency_ms,
+            measured_memory_mb=measured_memory_mb)
+        body = {"registered": promotion.promoted,
+                "reason": promotion.reason,
+                "version_reference": promotion.reference,
+                "candidate_version": promotion.candidate_version,
+                "unverified_scope": list(promotion.unverified_scope)}
+        self._history.append({"action": "register", "device_id": device_id,
+                              "actor": actor, "reason": reason, **body})
+        return body
 
     # -- 적용 -------------------------------------------------------------
 
     def apply(self, device_id: str, requirement: MissionRequirement, *,
-              deployable: Deployable, lineage: LearningLineage,
-              actor: str, reason: str, pinned_reference: str | None = None) -> dict:
-        """검증·승인을 지난 후보 하나를 그 기기에 올린다. 검증 모드에서 시작한다."""
+              deployable: Deployable, version_reference: str,
+              actor: str, reason: str) -> dict:
+        """승격된 버전 하나를 그 기기에 올린다. 검증 모드에서 시작한다.
+
+        계보는 **그 버전의 승격 기록에서 나온다**. 호출자가 계보를 따로 넘기는 칸이
+        없으므로 "계보 A, 버전 B" 라는 요청은 표현할 수 없다(AI-L-08).
+        """
         device = self._device(device_id)
+        wrong_device = _deployable_device_refusal(deployable, device_id)
+        if wrong_device is not None:
+            return {"applied": False, "reason": wrong_device}
+
+        bound, refusal = self._bound(version_reference)
+        if refusal is not None:
+            return {"applied": False, "reason": refusal,
+                    "version_reference": version_reference}
+        assert bound is not None and bound.version is not None
+        if bound.lineage is None:
+            return {"applied": False, "reason": REFUSE_PROMOTION_WITHOUT_LINEAGE,
+                    "version_reference": version_reference}
+
         assigner = self.pipeline.assigner
-        if pinned_reference:
-            version = next((v for v in assigner.versions
-                            if v.reference == pinned_reference), None)
-            if version is None:
-                return {"applied": False, "reason": REFUSE_UNKNOWN_VERSION}
-            # 운영자가 고른 버전도 적격 판정을 지난다 — 고른 것이 곧 쓸 수 있는
-            # 것은 아니고, 못 쓰는 이유를 적용 **전에** 말해야 한다.
-            refusal = assigner.eligibility(version, device, requirement)
-            if refusal is not None:
-                return {"applied": False, "reason": refusal,
-                        "version_reference": pinned_reference}
+        # 승격된 버전도 적격 판정을 지난다 — 승인된 것이 곧 이 기기에서 쓸 수 있는
+        # 것은 아니고, 못 쓰는 이유를 적용 **전에** 말해야 한다.
+        eligibility = assigner.eligibility(bound.version, device, requirement)
+        if eligibility is not None:
+            return {"applied": False, "reason": eligibility,
+                    "version_reference": version_reference}
 
         with self._lock:
             previous = assigner.policy
-            if pinned_reference:
-                assigner.policy = PinnedVersion(pinned_reference)
+            assigner.policy = PinnedVersion(bound.version.reference)
             try:
                 status = self.pipeline.submit(deployable, device, requirement,
-                                              lineage=lineage, actor=actor,
+                                              lineage=bound.lineage, actor=actor,
                                               evidence_ref=reason)
             finally:
                 assigner.policy = previous
@@ -1078,8 +1232,30 @@ class ModelDesk:
         if placed:
             self._applied[(device_id, deployable.capability_kind)] = status.deployment_id
         self._history.append({"action": "apply", "device_id": device_id,
-                              "actor": actor, "reason": reason, **body})
-        return {"applied": placed, "status": body}
+                              "actor": actor, "reason": reason,
+                              "candidate_version": bound.candidate_version, **body})
+        return {"applied": placed, "status": body,
+                "candidate_version": bound.candidate_version}
+
+    def _bound(self, version_reference: str | None) -> tuple[Promotion | None, str | None]:
+        """버전 참조 하나를 **그 버전과 그것을 허가한 계보**로 해소한다.
+
+        해소되지 않으면 예외가 아니라 사유다 — 콘솔은 거절로 멈추지 않는다
+        (`selection/selector.py::SelectionResult` 와 같은 모양).
+        """
+        if not version_reference:
+            return None, REFUSE_NO_APPROVED_CANDIDATE
+        known = any(v.reference == version_reference
+                    for v in self.pipeline.assigner.versions)
+        record = self.registrar.record_of(version_reference)
+        if record is None:
+            # 선언만 된 버전과 아예 없는 버전을 가른다. 선언된 버전에 승격 기록이
+            # 없다는 것은 "그 버전을 허가한 학습·검증·승인이 없다" 는 뜻이고,
+            # 그것은 오타와 다른 사실이다.
+            return None, REFUSE_NOT_PROMOTED if known else REFUSE_UNKNOWN_VERSION
+        if record.version is None:
+            return None, record.reason
+        return record, None
 
     def widen(self, deployment_id: str, *, actor: str, reason: str,
               verification_met: bool = True) -> dict:
@@ -1109,6 +1285,25 @@ class ModelDesk:
         if profile is None:
             raise KeyError(device_id)
         return profile
+
+
+def _deployable_device_refusal(deployable: Deployable, device_id: str) -> str | None:
+    """실행 단위가 **그 기기**를 가리키는가. 어긋나면 사유, 맞거나 모르면 `None`.
+
+    같은 모양의 또 한 자리다 — 적격 판정은 `device_id` 의 하드웨어 태그로 하고,
+    제어면에는 `deployable.control_params` 의 기기가 넘어간다. 둘을 따로 받으면
+    A 의 태그로 적격을 받은 버전이 B 에서 도는 요청을 표현할 수 있다. 콘솔은
+    둘을 같은 폼 값에서 만들어 어긋나게 할 수 없지만, 이 책상은 라이브러리로도
+    불리므로 거절로 막는다(`MlopsPipeline.plan` 이 capability_kind 에 대해 하는
+    것과 같은 자리다).
+
+    `control_params` 에 기기가 **적혀 있지 않으면** 어긋남이 아니라 모르는 것이다.
+    모르는 것을 거절로 바꾸면 기기와 무관한 실행 단위를 올릴 길이 막힌다.
+    """
+    declared = deployable.control_params.get("device_id")
+    if not declared or str(declared) == device_id:
+        return None
+    return f"{REFUSE_DEPLOYABLE_OTHER_DEVICE}:{declared}"
 
 
 def _assignment_dict(assignment: Assignment) -> dict:
@@ -1154,10 +1349,56 @@ def local_pipeline(areas: Sequence[tuple[str, frozenset[str]]] = (),
     return pipeline
 
 
+#: 선언된 실행 번들의 기본 자리. 번들이 **이미지 참조의 유일한 주인**이다.
+DEFAULT_BUNDLE_PATH = Path(__file__).resolve().parents[2] / "deploy" / "bundles.example.json"
+
+#: 그 기능에 선언된 번들이 없다. 로컬 supervisor 는 params 를 읽지 않으므로 그쪽
+#: 실행영역에서는 그대로 돌고, 오케스트레이터 실행영역에서는 provider 가
+#: `missing_image` 로 거절한다 — 거절하는 것이 맞는 동작이다.
+REASON_NO_BUNDLE = "no_bundle_declared_for_kind"
+
+
+def bundle_registry(path: Path | None = None) -> BundleRegistry:
+    """선언된 번들을 읽는다. 읽히지 않으면 **빈 등록부**이고 예외가 아니다.
+
+    번들 선언이 없는 배치가 정상이다(AI-C-05) — 그때는 로컬 실행영역만 쓰고,
+    오케스트레이터로 보내면 이미지가 없다는 사실이 거절 사유로 드러난다.
+
+    **파일이 없는 것과 선언이 깨진 것은 가른다.** 처음엔 둘 다 빈 등록부로
+    돌려줬는데, 그 탓에 경로 오타가 "선언이 없는 정상 배치" 로 숨었다(실제로
+    한 번 숨었다 — `parents[1]` 이 `tools/` 를 가리키고 있었다). 파일이 없으면
+    정상이고, 있는데 읽히지 않으면 **고쳐야 하는 선언 오류**다.
+    """
+    location = Path(path or DEFAULT_BUNDLE_PATH)
+    if not location.is_file():
+        return BundleRegistry()
+    return BundleRegistry.from_file(location)
+
+
 def deployable_for(capability_kind: str, device_id: str, *,
                    required_tags: Iterable[str] = ("zone-edge",),
-                   core: bool = False) -> Deployable:
-    """그 기기의 그 기능을 실행 단위로 선언한다. 클러스터 이름은 들어가지 않는다."""
+                   core: bool = False,
+                   registry: BundleRegistry | None = None) -> Deployable:
+    """그 기기의 그 기능을 실행 단위로 선언한다. 클러스터 이름은 들어가지 않는다.
+
+    **이미지 참조는 여기서 만들지 않는다.** 선언된 번들이 있으면 그 번들을 올리고
+    (`DeploymentBundle.to_deployable`), 없으면 기기 식별자만 담은 옛 모양이다.
+    번들이 이미지·노드 라벨·폐쇄망 외부 의존의 **유일한 주인**이라 이 함수가 이미지
+    이름을 손으로 짜 넣으면 주인이 둘이 되고, 번들을 고쳐도 콘솔 경로만 옛 이미지를
+    계속 보낸다.
+
+    이 연결이 빠져 있던 동안 콘솔 배포는 오케스트레이터 실행영역에서 **한 번도 뜰
+    수 없었다** — 로컬 supervisor 가 params 를 읽지 않아 시험은 통과했다.
+    """
+    pool = registry if registry is not None else bundle_registry()
+    declared = pool.for_kind(capability_kind)
+    if declared:
+        # 여럿이면 선언 순서의 첫 번째다. 고르는 판정을 여기서 새로 만들지 않는다 —
+        # 버전·조건으로 고르는 일은 `runtime/model_assignment.py` 의 몫이다.
+        return declared[0].to_deployable(
+            deployable_id=f"{capability_kind}@{device_id}",
+            control_params={"device_id": device_id},
+        )
     return Deployable(
         deployable_id=f"{capability_kind}@{device_id}",
         capability_kind=capability_kind,

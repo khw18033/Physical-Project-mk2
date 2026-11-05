@@ -1,6 +1,6 @@
 """Bidirectional 말단↔서버 bridge running on the 구역 엣지.
 
-implements: AI-C-06, AI-C-14, AI-B-10
+implements: AI-C-06,  AI-B-10
 
 원칙 #11: "엣지에는 Kafka 서버를 설치하지 않는다. 엣지는 MQTT Broker와 서버 Kafka를
 연결하는 양방향 Bridge를 둔다. 서버에는 MQTT Broker를 두지 않는다."
@@ -30,7 +30,7 @@ class TopicRoute:
     """One mapping between a device-side topic and a server-side topic.
 
     `kind` decides the delivery policy applied on the far side, so control
-    commands keep their stricter contract across the hop (AI-C-14).
+    commands keep their stricter contract across the hop (AI-C-06).
     """
 
     device_topic: str
@@ -58,7 +58,7 @@ class EdgeTransportBridge:
 
     Neither side is required to be healthy for the bridge to start: if the
     server link is down, device-side traffic is counted as dropped and the
-    edge keeps operating locally rather than failing (AI-C-11, AI-N-01).
+    edge keeps operating locally rather than failing (AI-C-05, AI-N-01).
     """
 
     def __init__(

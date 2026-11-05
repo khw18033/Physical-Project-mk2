@@ -21,6 +21,7 @@ HTTP 서버는 **우리가 짠 응답을 우리가 파싱**한다. 실제 배포
 from __future__ import annotations
 
 import json
+import os
 import re
 import socket
 import time
@@ -69,6 +70,14 @@ OTEL_METRIC_NAME = f"{AI_METRIC_NAME_PREFIX}failure_trace.probe_latency_ms"
 PROM_METRIC_NAME = prometheus_metric_name(OTEL_METRIC_NAME)
 #: 허용 라벨. 컴포넌트를 가르는 축은 `service.name` 이 아니라 이것이다.
 COMPONENT = "failure_trace"
+#: 이 프로세스를 가리키는 라벨. **같은 기계에서 이 묶음이 둘 이상 돌 때** 서로의
+#: 시계열을 덮지 않게 하는 축이다(아래 `scraped_gauge` 의 설명).
+#:
+#: pid 를 쓰는 이유: 실행마다 새 값(타임스탬프·uuid)을 쓰면 시계열이 실행 수만큼
+#: 늘어나지만 pid 는 OS 가 재사용하므로 늘어나지 않는다 — 개발 스택의 시계열 증식을
+#: 막으려던 원래 의도를 그대로 지킨다. 어떤 선택자도 이 라벨을 고르지 않으므로
+#: `{"component": COMPONENT}` 질의는 전처럼 이 묶음의 점을 전부 본다.
+WRITER = str(os.getpid())
 SERVICE_NAME, SERVICE_NAMESPACE = "ai-failure-trace-probe", "mk2"
 
 LATENCY_BUDGET = TargetBaseline(50.0, Direction.AT_MOST, "ms")
@@ -133,7 +142,11 @@ def _publish_gauge(value: float) -> None:
                                                 {
                                                     "key": "component",
                                                     "value": {"stringValue": COMPONENT},
-                                                }
+                                                },
+                                                {
+                                                    "key": "writer",
+                                                    "value": {"stringValue": WRITER},
+                                                },
                                             ],
                                         }
                                     ]
@@ -156,11 +169,20 @@ def _publish_gauge(value: float) -> None:
 
 @pytest.fixture(scope="module")
 def scraped_gauge():
-    """우리가 낸 값 하나가 실제로 긁힐 때까지 기다린다. 값으로 이 실행을 가린다.
+    """우리가 낸 값 하나가 실제로 긁힐 때까지 기다린다.
 
-    이름이나 라벨로 가리지 않는 이유: 이름·라벨을 실행마다 다르게 하면 개발 스택의
-    시계열이 실행 수만큼 늘어난다(금지 라벨 규약이 막으려는 것과 같은 종류의 증식).
-    값은 시계열을 늘리지 않는다.
+    2026-11-04: 전에는 **값만으로** 이 실행을 가렸고 라벨은 전부 같았다. 그러면
+    같은 기계에서 이 묶음이 둘 이상 돌 때 두 프로세스가 **같은 시계열 하나**에
+    쓴다. Prometheus 는 긁을 때마다 그 시계열의 **마지막 값 하나**만 담으므로,
+    늦게 쓴 쪽이 이른 쪽의 값을 매 긁기마다 덮고 — 덮인 쪽은 자기 값을 60 초 동안
+    한 번도 못 보고 아래 `pytest.fail` 에 닿는다. fixture 안의 실패는 **setup
+    ERROR** 라서, 이 fixture 를 받는 시험 여섯이 한꺼번에 error 가 된다(실측:
+    프로세스 셋을 동시에 돌리면 `8 passed` 하나와 `2 passed, 6 errors` 둘).
+    혼자 돌리면 늘 통과하므로 그 의존은 눈에 보이지 않는다.
+
+    그래서 `writer` 라벨로 **프로세스마다 다른 시계열**을 쓴다. 값 확인은 그대로
+    남는다 — 내 시계열 안에서 내 점을 가리는 일은 여전히 값이 한다. 시계열 증식을
+    막으려던 원래 의도는 pid 가 재사용되는 값이라 유지된다(`WRITER` 설명).
 
     기다리는 구간이 긴 것은 실제 배포 그대로다 — Collector 가 5초 묶음으로 보내고
     Prometheus 가 5초마다 긁는다. 그 지연을 없애면 사이트에서 처음 만난다.

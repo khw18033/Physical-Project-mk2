@@ -1,7 +1,7 @@
 """Decomposes a zone-level task goal into edge-local executable Task units.
 
-implements: AI-D-03 인접 (Milestone -> Task 분해)
-관련: AI-C-05, AI-C-11 (선택 기능 축소), AI-C-13 (자원 최소화), AI-C-15 (도메인 중립)
+implements: AI-B-14 (Milestone -> Task 분해)
+관련: AI-C-05, AI-C-05 (선택 기능 축소), AI-C-13 (자원 최소화), AI-C-15 (도메인 중립)
 
 관할 경계
 ---------
@@ -26,7 +26,7 @@ task template 과 (2) 현재 registry 에서 실제로 실행 가능한 capabili
 집합)이면 항상 같은 계획이 나오고, 어떤 단계가 왜 실행 불가인지 "무슨
 capability 가 없어서"라는 형태로 그대로 설명된다. LLM planner 를 쓰고 싶다면
 `TaskTemplate` 를 생성하는 선택 provider 로 붙이면 되고, 이 모듈의 검증·구체화
-계약은 그대로 유지된다(AI-C-09).
+계약은 그대로 유지된다(AI-C-04).
 
 생성(`TaskDecomposer`)과 검증(`SubtaskPlanValidator`)은 분리되어 있다.
 검증기는 생성 결과와 컨텍스트만 읽는 순수 함수이므로 동일 입력에 동일 결과를
@@ -196,7 +196,7 @@ class Subtask:
 class ExecutorSelection:
     """Outcome of picking an executor.
 
-    AI-C-11: ACTIVE 후보가 있으면 그것을 고르고, DEGRADED 후보밖에 없으면
+    AI-C-05: ACTIVE 후보가 있으면 그것을 고르고, DEGRADED 후보밖에 없으면
     전체를 포기하는 대신 축소 실행으로 그것을 채택한다.
     """
 
@@ -353,7 +353,7 @@ class TaskDecomposer:
             else:
                 bindings.append(binding)
 
-        # 선택 결손은 DEGRADED 까지만, 필수 결손만 DISABLED (AI-C-11).
+        # 선택 결손은 DEGRADED 까지만, 필수 결손만 DISABLED (AI-C-05).
         if missing_required:
             state = CapabilityState.DISABLED
         elif missing_optional:
@@ -426,7 +426,7 @@ class ValidationReport:
 
     @property
     def missing_evidence(self) -> tuple[str, ...]:
-        """Flattened, de-duplicated evidence gaps — feeds AI-D-03's
+        """Flattened, de-duplicated evidence gaps — feeds AI-B-14's
         `plan_for_validation_gaps` directly."""
         seen: list[str] = []
         for finding in self.findings:

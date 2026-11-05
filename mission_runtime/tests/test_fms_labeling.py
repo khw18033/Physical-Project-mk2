@@ -382,3 +382,68 @@ def test_a_frame_inside_the_source_resolves(tmp_path):
     _png(root / "deeper" / "a.jpg")
 
     assert resolve_frame(root, "deeper/a.jpg").is_file()
+
+
+# -- 라벨할 프레임을 고르는 순서 (2026-11-04) --------------------------------
+#
+# 전에는 `sorted(...)[:300]` 이었다. 프레임 이름이 시각 기반이라 정렬 = 시간순이고,
+# 앞 300 장을 자르면 **가장 이른 300 장**이다. 연속 프레임은 서로 거의 같으니 그것은
+# 중복이 가장 큰 묶음이고, 능동 학습 문헌이 기준선으로 쓰는 무작위보다도 나쁘다
+# (`docs/research/hitl-data-and-weight-management.md` §9.1).
+#
+# 바뀐 것은 **획득 함수가 아니다.** 어느 프레임이 더 가치 있는지 말하지 않고, 기본
+# 묶음이 기록의 앞머리에만 몰리지 않게 한다.
+
+def test_the_listing_no_longer_takes_only_the_earliest_frames():
+    """**이것이 바뀐 동작이다.** 앞에서 자르면 가장 비슷한 것들만 모인다."""
+    from labeling import MAX_LISTED_FRAMES, _strided
+
+    names = [f"frame_{i:06d}.jpg" for i in range(1, 2001)]
+
+    picked = _strided(names, MAX_LISTED_FRAMES)
+
+    assert list(picked) != names[:MAX_LISTED_FRAMES]
+    assert len(picked) <= MAX_LISTED_FRAMES, "상한은 상한이다"
+
+
+def test_the_listing_spans_the_whole_source():
+    """스캔의 마지막 방향이나 임무의 끝이 늘 빠지면 그 구간은 영원히 라벨되지 않는다."""
+    from labeling import MAX_LISTED_FRAMES, _strided
+
+    names = [f"frame_{i:06d}.jpg" for i in range(1, 2001)]
+
+    picked = _strided(names, MAX_LISTED_FRAMES)
+
+    assert picked[0] == names[0]
+    assert picked[-1] == names[-1], "끝 프레임이 포함되어야 한다"
+
+
+def test_the_listing_keeps_time_order_and_is_deterministic():
+    """같은 입력에 같은 목록 — 운영자가 보는 화면이 새로 고칠 때마다 바뀌면 안 된다."""
+    from labeling import MAX_LISTED_FRAMES, _strided
+
+    names = [f"frame_{i:06d}.jpg" for i in range(1, 900)]
+
+    once = _strided(names, MAX_LISTED_FRAMES)
+    twice = _strided(names, MAX_LISTED_FRAMES)
+
+    assert once == twice
+    assert list(once) == sorted(once), "시간순은 유지한다"
+
+
+def test_a_source_under_the_cap_is_listed_whole():
+    """상한 아래면 고를 것이 없다 — 전부 보여 준다."""
+    from labeling import MAX_LISTED_FRAMES, _strided
+
+    names = [f"frame_{i:06d}.jpg" for i in range(7)]
+
+    assert _strided(names, MAX_LISTED_FRAMES) == tuple(names)
+
+
+def test_the_source_says_how_it_chose_so_the_screen_can_tell_the_operator():
+    """"전부 중 300장" 과 "앞에서 300장" 은 다른 묶음이다. 어느 쪽인지 적어야 한다."""
+    from labeling import LISTING_STRATEGY_STRIDE, FrameLabelSource
+
+    source = FrameLabelSource(frame_root=None, device_id="pi4")
+
+    assert source.listing_strategy == LISTING_STRATEGY_STRIDE

@@ -23,11 +23,11 @@ AI-S-07의 required/preferred 분리와 존재 여부 기반 gap 평가를 구�
 증거도 충족으로 세어 조기 정지가 틀린 확정을 만든다(AI-S-03).
 
 **granularity는 목적이 정한다.** 같은 가스레인지라도 조작 임무에서는 손잡이까지,
-주행 임무에서는 레인지 전체가 맞는 해상도다(Clio, docs/obsidian/papers/clio.md).
+주행 임무에서는 레인지 전체가 맞는 해상도다(Clio, internal/docs-dev/obsidian/papers/clio.md).
 임계를 조정해 암묵적으로 정하지 않고 계약에 적는다.
 
 **revision은 임무가 바뀐다는 사실을 표현한다.** 운용 중 임무가 바뀌면 필요한 증거와
-해상도가 함께 바뀐다(FOUND-IT, docs/obsidian/papers/found-it.md). 계약을 불변으로 두고
+해상도가 함께 바뀐다(FOUND-IT, internal/docs-dev/obsidian/papers/found-it.md). 계약을 불변으로 두고
 개정 번호를 올리면, 어느 계약으로 내린 판정인지 사후에 추적할 수 있다(AI-L-08).
 """
 
@@ -37,6 +37,7 @@ from dataclasses import dataclass, field
 
 from mission_runtime.contracts.data_dictionary import (
     REQUIRED_EVIDENCE_NECESSITIES,
+    SATISFYING_SUFFICIENCY_STATES,
     SUFFICIENCY_STATES,
 )
 
@@ -161,13 +162,28 @@ class SufficiencyVerdict:
 
     @property
     def complete(self) -> bool:
-        """필수 증거가 전부 met인가. **선택 증거는 보지 않는다**(AI-S-07)."""
-        return not self._by("unmet", "contested", "unobtainable")
+        """필수 증거가 전부 met인가. **선택 증거는 보지 않는다**(AI-S-07).
+
+        충족 상태를 **열거해서** 묻는다(`SATISFYING_SUFFICIENCY_STATES`). 반대로
+        "충족이 아닌 것들" 을 열거하면 새 상태가 그 목록에 빠진 채 조용히 충족으로
+        세어진다 — 2026-11-05 에 실제로 그랬다(`provider_mapping_undeclared` 를
+        더하고 이 줄을 잊었고, provider 를 한 번도 부르지 않은 레코드가 "계약 충족"
+        으로 나왔다).
+        """
+        return all(item.state in SATISFYING_SUFFICIENCY_STATES
+                   for item in self.items if item.necessity == "required")
 
     @property
     def blocked(self) -> bool:
-        """더 해볼 것이 없는가 — 남은 결손이 전부 '만들 수 없음'이다(AI-C-05)."""
-        return bool(self._by("unobtainable")) and not self._by("unmet", "contested")
+        """더 해볼 것이 없는가 — provider 를 더 불러도 달라지지 않는 상태다(AI-C-05).
+
+        `unobtainable`(현장에 만들 provider 가 없다)과 `provider_mapping_undeclared`
+        (무엇이 만드는지 선언되지 않았다)를 **함께** 센다: 둘 다 provider 호출로는
+        풀리지 않는다. 다만 **고칠 곳은 다르다** — 앞은 현장, 뒤는 선언이고, 그
+        구분은 `decision/evidence_gap.unanswerable_kinds()` 가 낸다.
+        """
+        stuck = self._by("unobtainable", "provider_mapping_undeclared")
+        return bool(stuck) and not self._by("unmet", "contested")
 
     @property
     def unmet_kinds(self) -> tuple[str, ...]:

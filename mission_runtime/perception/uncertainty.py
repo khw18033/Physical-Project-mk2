@@ -109,6 +109,15 @@ class UncertaintyEvaluator:
         self._min_evidence_count = min_evidence_count
         self._confirm_threshold = confirm_threshold
 
+    @property
+    def min_evidence_count(self) -> int:
+        """요구되는 원본 관측 단위 수. **읽기 전용으로 내보내는 이유**: 부족분을
+        요청하는 쪽(AI-S-05)이 "얼마나 모자라나" 를 알아야 하는데, 그 쪽이 자기
+        최소값을 따로 들고 있으면 같은 경계에 주인이 둘이 되어 한 쪽은 충분하다고
+        하고 다른 쪽은 더 요청한다. 경계는 여기 하나다.
+        """
+        return self._min_evidence_count
+
     def evaluate(
         self,
         raw_confidence: float,

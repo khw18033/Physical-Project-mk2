@@ -4,7 +4,14 @@ only.
 
 implements: AI-R-02
 
-경계(AI-C-19): 경로 후보 자체는 이 모듈이 만들지 않는다. 후보는 항상
+2026-11-04 개정: **주행 경로 계획이 AI 몫이 되었다.** 아래 경계 서술은 그 전의
+결정이고 지우지 않고 남긴다 — 왜 이 모듈에 `rank()`/`select()` 가 없는지를
+설명하기 때문이다. 후보를 **만들고 고르는** 일은 이제 `planning/path_candidates.py`
+가 한다. 이 모듈은 그대로 **채점만** 한다: 만드는 쪽과 채점하는 쪽이 갈려 있어야
+"덜 위험해 보이도록 만든 후보" 가 생기지 않는다. 바뀌지 않은 것은 물리 명령
+발급이다(AI-C-19).
+
+경계(2026-11-04 이전): 경로 후보 자체는 이 모듈이 만들지 않는다. 후보는 항상
 외부(백엔드/제어·경로계획 스택)에서 온 것으로 취급하고, 이 모듈은 이미
 AI가 산출한 위험/객체 근거로 각 후보의 위험도와 근거 충분도를 매겨 돌려줄
 뿐이다. 여러 후보 중 하나를 고르거나 순위를 매겨 "이게 낫다"고 확정하는
@@ -50,12 +57,48 @@ class PathCandidate:
 
 @dataclass(frozen=True)
 class PathCandidateEvaluation:
+    """How one candidate scored -- and **how much of it was actually looked at**.
+
+    두 사실이 한 칸에 있었다 (2026-11-04 고침)
+    ------------------------------------------
+    `evidence_sufficiency` 는 **점수가 나온 점들의** 근거 충분도 평균이다. 그것은
+    "본 점의 근거가 좋았다"에 답하고 "충분히 많은 점을 봤다"에는 답하지 않는다.
+    두 질문을 한 칸으로 읽으면 탐침 10 점 중 1 점만 관측된 후보가 전부 관측된
+    후보와 **똑같이 1.0** 을 내고(실측으로 재현했다), 그 1 점은 로봇 바로 앞의
+    본 자리라서 위험 0 이다 — 즉 **스캔 밖으로 나가는 경로가 가장 안전하고 가장
+    확실한 경로로 보인다.** 안전 판단에서 고르면 안 되는 바로 그 후보다.
+
+    그래서 관측된 비율을 `observed_fraction` 으로 따로 낸다. `coverage` 가 장
+    전체를 거르는 것과 같은 규칙을 후보 단위에서 한 번 더 적용하는 것이다
+    (`risk/hazard_field.py` 의 `comparable`).
+
+    `points_evaluated` 는 **점수가 나온 점의 수**이고 어느 분기에서도 같은 뜻이다.
+    전에는 '아무 점도 점수가 나오지 않은' 분기에서만 전체 탐침점 수를 담아서, 두
+    필드의 합이 탐침점 수와 달라졌다(10 점 후보가 10 + 10 = 20). 그 합으로 비율을
+    계산하면 아무것도 못 본 후보가 50 % 로 나온다.
+    """
+
     candidate_id: str
     max_risk: float
     evidence_sufficiency: float
     worst_point: tuple[float, float] | None
+    #: 점수가 나온 탐침점의 수. `+ points_missing_evidence == 전체 탐침점 수`.
     points_evaluated: int
     points_missing_evidence: int
+
+    @property
+    def points_probed(self) -> int:
+        return self.points_evaluated + self.points_missing_evidence
+
+    @property
+    def observed_fraction(self) -> float | None:
+        """근거가 나온 탐침점의 비율. **탐침점이 없으면 `None`** 이다.
+
+        0.0 이 아닌 이유: 볼 것이 없었던 것과 봤는데 아무 근거도 없던 것은 다른
+        사실이고, 0 으로 합치면 "덜 봤다"는 사유를 낼 근거가 사라진다(AI-S-03).
+        """
+        total = self.points_probed
+        return None if total == 0 else self.points_evaluated / total
 
 
 class PathCandidateRiskEvaluator:
@@ -88,12 +131,15 @@ class PathCandidateRiskEvaluator:
             scored.append((point, self._scorer(inputs)))
 
         if not scored:
+            # 점수가 나온 점이 **하나도 없다**. `points_evaluated` 는 어느
+            # 분기에서도 '점수가 나온 점의 수' 라서 여기서는 0 이다 — 전에는 전체
+            # 탐침점 수를 담아 두 필드의 합이 탐침점 수를 넘었다.
             return PathCandidateEvaluation(
                 candidate_id=candidate.candidate_id,
                 max_risk=0.0,
                 evidence_sufficiency=0.0,
                 worst_point=None,
-                points_evaluated=len(candidate.hazard_probe_points),
+                points_evaluated=0,
                 points_missing_evidence=missing,
             )
 

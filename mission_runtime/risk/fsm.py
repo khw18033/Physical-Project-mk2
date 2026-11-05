@@ -53,7 +53,8 @@ class RiskAnalysisFsm:
         # that entered it. Without this the boundary is bare: severity hovering
         # at the threshold flips the state on every event, and each flip raises
         # or lowers the observation level asked of the rest of the system
-        # (AI-R-04). ALERT already had this protection via `recovery_threshold`;
+        # (AI-S-05 — 구 AI-R-04 가 §5 에서 흡수된 자리). ALERT already had this
+        # protection via `recovery_threshold`;
         # the observe boundary did not.
         self._observe_release = (observe_release if observe_release is not None
                                  else observe_threshold * 0.9)

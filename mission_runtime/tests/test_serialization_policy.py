@@ -1,6 +1,6 @@
 """Wire-format substitutability and boundary policy.
 
-implements: AI-C-07, AI-C-04, AI-C-12
+implements: AI-C-07, AI-C-04
 tests: binary round-trip, cross-format semantic equivalence, serializer swap
        leaves the transport path identical, policy is deployment config,
        new format registration touches no business code
@@ -220,7 +220,7 @@ def test_policy_rejects_an_unregistered_format_at_config_time():
 
 
 def test_a_new_format_is_added_by_registration_only():
-    """AI-C-04/AI-C-12: adding a wire format touches no business module."""
+    """AI-C-04/AI-C-04: adding a wire format touches no business module."""
 
     class UpperJsonSerializer:
         def encode(self, obj):

@@ -90,6 +90,26 @@ def _onnxruntime_available() -> bool:
 needs_runtime = pytest.mark.skipif(not _onnxruntime_available(), reason="onnxruntime 미설치")
 
 
+def _psutil_available() -> bool:
+    try:
+        import psutil  # noqa: F401
+    except Exception:
+        return False
+    return True
+
+
+#: CPU 사용률의 **실측**은 `psutil` 이 있어야 나온다. 없으면
+#: `observability/host_resources.py` 가 값을 미측정으로 두는데 그것이 **올바른
+#: 축소다**(AI-O-05: 미측정은 0 이 아니다) — 그래서 "실측이 있다" 를 전제하는
+#: 아래 둘만 skip 한다. 미측정이 0 으로 새지 않는가, 가속기가 개체로 식별되는가는
+#: 같은 파일의 다른 시험이 psutil 없이도 그대로 본다.
+needs_host_metrics = pytest.mark.skipif(
+    not _psutil_available(),
+    reason="psutil 미설치 — CPU 실측이 미측정으로 내려간다. 이 호스트 계측 "
+           'provider 만 skip 이다(AI-C-05): pip install -e ".[metrics]"',
+)
+
+
 @pytest.fixture(scope="module")
 def clip_engine():
     from mission_runtime.edge.clip_dictionary_provider import ClipEngine
@@ -242,6 +262,7 @@ def host_view() -> LayeredResourceView:
     return reader.read()
 
 
+@needs_host_metrics
 def test_the_host_reports_at_least_its_own_cpu(host_view):
     """이 기계에서 실제로 읽힌다. 가속기는 **개체**로 식별된다(AI-O-05)."""
     ids = [a.instance_id for a in host_view.accelerators]
@@ -274,6 +295,7 @@ def test_the_gpu_if_present_carries_its_product_name_only_as_a_label(host_view):
     assert gpu.utilization.unit == "ratio"
 
 
+@needs_host_metrics
 def test_a_watch_over_real_readings_agrees_with_its_own_condition(host_view):
     """[E] 경고와 [G] 자원 조건이 **실제 값 하나**에서 나온다(§4.4·§4.7)."""
     cpu = next(a for a in host_view.accelerators if a.instance_id == "cpu")
@@ -314,8 +336,21 @@ def _free_port() -> int:
         return probe.getsockname()[1]
 
 
+def _paho_available() -> bool:
+    import importlib.util
+
+    return importlib.util.find_spec("paho") is not None
+
+
+#: 브로커 **두 가지**가 다 있어야 돈다 — 띄울 서버(`mosquitto`)와 붙을 클라이언트
+#: (`paho`). 전에는 서버만 보고 클라이언트는 보지 않아서, 브로커가 깔려 있고
+#: `mqtt` extra 는 없는 기계에서 축소가 아니라 ImportError 로 **실패했다**.
+#: `providers/mqtt.py` 는 paho 를 메서드 안에서 import 하므로 그 provider 만
+#: 비활성이 정상이다(AI-C-05).
 needs_broker = pytest.mark.skipif(
-    shutil.which("mosquitto") is None, reason="mosquitto 브로커가 설치되어 있지 않다"
+    shutil.which("mosquitto") is None or not _paho_available(),
+    reason="mosquitto 브로커 또는 paho-mqtt 클라이언트가 없다 — MQTT 전송 "
+           'provider 만 skip 이다: apt install mosquitto / pip install -e ".[mqtt]"',
 )
 
 

@@ -2,7 +2,7 @@
 
 대상: **이 저장소의 파이썬을 읽지 않고** 다른 운영 웹(React·Vue·순수 JS)이나 Unity
 디지털 트윈 뷰어를 만들려는 팀.
-계약 판: 서버가 내는 값 **2.1**(전역 좌표 블록이 더해진 판 — §3.5 · §4).
+계약 판: 서버가 내는 값 **2.2**(구역 응답에 인지 객체의 자산 묶음이 더해진 판 — §6.4.1 · §4).
 기계검사: `mission_runtime/schemas/view_snapshot.schema.json` 과 그 형제 파일들,
 그리고 `mission_runtime/tests/test_view_contract.py`.
 
@@ -25,7 +25,7 @@
 | **AI-C-01** 공통 데이터 규약 | 성격이 다른 정보(원본 관측 · 생성된 근거 · 지속 객체 상태 · 미확정 가설 · capability 와 실행 프로파일)는 의미 수준에서 구분할 수 있어야 하고, 서로의 관계를 참조로 추적할 수 있어야 한다 | §6 각 끝점의 식별자와 참조 칸 |
 | **AI-C-02** 좌표계 경계 | AI 가 내는 위치에는 어떤 기준 좌표계에서 나온 값인지 알 수 있는 정보가 포함되어야 한다. **전역 좌표 변환은 2026-11-03 경계 개정으로 AI 가 담당한다**(이전에는 백엔드 디지털 트윈이었다). 다만 그 변환은 현장 로컬↔전역 기준점(site datum)을 통해서만 하고, datum 은 **출처·생성 시점·버전·선언된 정확도를 가진 근거**다. 미측정 정확도는 0 오차가 아니며, 검증되지 않은 datum 으로 유도한 전역 값은 그 재료인 로컬 측정보다 높은 확신을 주장해서는 안 된다. **datum 이 없는 현장은 정상 상태**이고 그때는 전역 계층만 비활성이 된다. 로컬 값과 전역 값은 같은 칸에 담지 않는다 | §3.5(좌표는 전부 현장 로컬 · 전역은 선택 계층 · `at_global` 은 `at` 과 다른 칸) · §6.2~6.4 의 `geo` |
 | **AI-C-16** 폐쇄망 배포 경계 | 폐쇄망 배포에서는 공개 인터넷으로 나가는 연결 없이 핵심 기능을 기동·복구할 수 있어야 한다. **어떤 실행 단위가 외부 연결을 요구하는지는 등록 정보로 드러나야 하고** 외부 서비스 provider 는 항상 선택 기능이며, 쓸 수 없으면 그 기능만 비활성화한다 | §3.9(배경 지도는 선택 계층) · §6.2 의 `map_tiles` |
-| **AI-C-05** 핵심·선택 기능 및 의존성 격리 | 필수 조건이 없으면 그 기능만 비활성화하고, 선택 조건이 없어지면 축소 모드로 전환한다. 하나의 선택 구성요소 장애가 무관한 기능을 막아서는 안 된다 | §3.2(칸 없음 = 그 기능 없음) · §6.8(503 은 고장이 아니다) |
+| **AI-C-05** 핵심·선택 기능 및 의존성 격리 | 필수 조건이 없으면 그 기능만 비활성화하고, 선택 조건이 없어지면 축소 모드로 전환한다. 하나의 선택 구성요소 장애가 무관한 기능을 막아서는 안 된다 | §3.2(칸 없음 = 그 기능 없음) · §6.9(503 은 고장이 아니다) |
 | **AI-C-15** 도메인·배포 프로파일 분리 | 적용 분야가 달라도 핵심 코드를 분기하지 않고 배포 프로파일로 구성한다. **Unity 를 포함한 특정 디지털 트윈 엔진·시뮬레이터·가시화 기술도 핵심 코드가 아니라 선택 가능한 소비자 또는 배포 구성으로 취급한다** | 이 문서 전체. 어떤 엔진도 의존성이 아니다 |
 | **AI-C-19** AI 판단·권한·책임 경계 | AI 는 인지·해석·추가 정보 필요성 판단·capability 선택을 담당하고, 장치의 최종 가용성 판정·물리 명령 발급·실제 제어를 직접 소유하지 않는다. 전역 좌표와 최종 트윈 상태는 2026-11-03 개정으로 AI 소유가 됐지만 **백엔드와의 경계 재합의가 선행 조건**이고, 그 기록이 없는 현장에서는 전역 숫자가 이 계약으로 나가지 않는다. **가시화는 AI 가 제공한 판단 정보를 표현하고 사용자 입력을 전달할 뿐 AI 판단 로직을 중복 구현하지 않는다** | §7(역할) · §3.7(뷰어는 다시 판정하지 않는다) · §3.5 의 `boundary_agreement` |
 | **AI-C-18** 구성요소 Capability 선언 규약 | 장치·AI 기능은 자신이 제공할 수 있는 capability 를 공통 의미 규약으로 선언하고, 상위 기능은 장치·모델 **이름이 아니라** 필요한 capability 로 탐색한다 | `served_kinds` · `announced_actions` · `bindings` |
@@ -45,7 +45,7 @@
 | GET | `/api/bootstrap` | 문자열표·역할·메인 맵 — 뷰어가 처음 한 번 받는 것 | `view_bootstrap.schema.json` |
 | GET | `/api/scene` | 메인 맵(도메인 목록) | `view_scene.schema.json` |
 | GET | `/api/domain?id=` | 도메인 하나의 장면(구역·장치·로봇 자리) | `view_domain.schema.json` |
-| GET | `/api/zone?id=` | 구역 상세(이웃·전파·로봇 상세) | `view_zone.schema.json` |
+| GET | `/api/zone?id=` | 구역 상세(이웃·전파·로봇 상세 · 인지 객체의 자산 묶음) | `view_zone.schema.json` |
 | GET | `/api/robot?id=&zone=` | 로봇 한 대(자원·기능·존재·추천) | `view_robot.schema.json` |
 | GET | `/api/recommend?robot=&zone=` | 임무 후보와 사유 | `view_recommendations.schema.json` |
 | GET | `/api/subtasks?robot=&zone=&function=` | 한 목표의 실행 단계 그래프 | `view_subtask_graph.schema.json` |
@@ -61,6 +61,7 @@
 | GET | `/api/deployment` | 들이기·보정·학습·모델 교체의 한 스냅샷. 권한 없는 구역은 비는 대신 필요한 능력 이름을 적는다 | 미확정 |
 | GET | `/api/calibration?device=` | 그 카메라의 선언·활성 프로파일·이력·거절 | 미확정 |
 | GET | `/api/approval?version=` | 학습 결과를 적용할지 판단할 재료(AI-L-06) | 미확정 |
+| GET | `/api/dashboard?pin=` | 종합상황정보 구역 B~I 한 스냅샷(미션·작업 그래프·사건·자원·지표·판정·외부 요청) | `view_dashboard.schema.json` |
 | POST | `/api/command` · `/api/correction` · `/api/placement` · `/api/survey` · `/api/detection` · `/api/pose` · `/api/join` · `/api/join-step` · `/api/camera-info` · `/api/training` · `/api/model` | **조회가 아니다** — §2 | 이 문서 범위 밖 |
 
 모든 GET 은 `role` 과 `locale` 질의 인자를 받는다. 생략하면 `role=admin`,
@@ -178,7 +179,8 @@
 | 구역·도메인 `state` | **닫힘** | `operable` · `limited` · `idle` · `no_robot` |
 | capability `state` | **닫힘** | `ACTIVE` · `DEGRADED` · `DISABLED` |
 | `presence` | **닫힘** | `discovered` · `declared` · `unexpected` |
-| `at_origin` | **닫힘** | `declared` · `operator_edit` |
+| `at_origin` | **닫힘** | `declared` · `operator_edit` — **선언**의 출처이고 관측이 들어와도 바뀌지 않는다 |
+| `position_source` | **열림** | 지금 `at` 을 만든 것(현재 `reported`). 칸이 없으면 `at` 은 선언값이다 |
 | `bindings[].source` | **닫힘** | `registry`(로봇에서 돈다) · `executor`(구역이 공급한다) |
 | `runs_on[]` | **닫힘** | `robot` · `zone` |
 | 추천 `reason` · 계획 `reason` · `error` | **열림** | 토큰이 늘 수 있다 |
@@ -335,7 +337,7 @@ AI 판단 로직을 중복 구현하지 않는다). 특히 `datum.reference_poin
 읽는 쪽이 지켜야 하는 것 세 가지:
 
 - **칸이 없는 것이 보통이다.** 대부분의 현장에는 `at_global` 이 없고, 없는 것을 고장으로
-  그리면 멀쩡한 배치가 장애로 읽힌다(§3.2 · §6.8).
+  그리면 멀쩡한 배치가 장애로 읽힌다(§3.2 · §6.9).
 - **두 값을 섞지 않는다.** 로컬 좌표로 그리던 화면은 그대로 로컬 좌표로 그린다. 배경
   타일이나 외부 지도에 얹을 때만 `at_global` 을 쓴다.
 - **정확도를 함께 읽는다.** `accuracy_m` 이 2 m 인 점을 1 m 격자에 딱 맞춰 그리면 없는
@@ -425,9 +427,9 @@ GET /api/background?domain=<d>&level=<l>&zone=<z>     → 그 구역 도면
 
 - 판 형식은 `<major>.<minor>` 다. **major** 가 오르면 기존 칸의 뜻이 바뀌었다는 말이고
   뷰어는 해석을 거부해야 한다. **minor** 는 칸이 늘기만 한 변화라 옛 뷰어가 계속 돈다.
-- 서버가 내는 현재 판은 **2.1** 이다.
+- 서버가 내는 현재 판은 **2.2** 이다.
 - 판은 **문서에만 있지 않고 응답으로 실려 온다.** 지금 서비스는 모든 응답의 HTTP
-  `Server` 머리에 `FMS/2.1` 으로 낸다(`Server: FMS/2.1 Python/3.x`). 뷰어는
+  `Server` 머리에 `FMS/2.2` 으로 낸다(`Server: FMS/2.2 Python/3.x`). 뷰어는
   `FMS/(\d+\.\d+)` 로 뽑아 읽고, major 가 자기가 아는 값과 다르면 화면을 그리지 않고
   그 사실을 운영자에게 말해야 한다.
 - 공표한 스키마의 `x-view-contract-version` 과 서버가 내는 판은 **같아야** 하고, 그
@@ -446,6 +448,20 @@ GET /api/background?domain=<d>&level=<l>&zone=<z>     → 그 구역 도면
 | 닫힌 어휘(`enum`)에 값을 더한다 | **major** — 뷰어가 모르는 상태를 그릴 수 없기 때문이다 |
 | 칸의 뜻·타입·단위를 바꾼다 | **major** |
 | 칸을 없앤다 | **major** |
+
+### 2.2 에서 더해진 것 — 인지 객체의 자산 묶음 · 자리 출처의 분리
+
+§6.4.1 의 `zone_detail.object_placements[]` 는 **칸이 늘기만 한** 변화라 minor 이고,
+그래서 판이 2.1 → 2.2 로 올랐다(공표 스키마의 `x-view-contract-version` 과 `Server`
+머리 둘 다). 2.1 만 아는 뷰어에게 이 칸은 모르는 칸으로 오고 통과시키면 된다(§3.3).
+
+이 칸 안의 `asset_match_tier` 는 **닫힌 어휘**다. 거기에 값이 하나 더 생기는 것은 위
+표대로 major 이므로, 단계를 더하는 변경은 이 문서·스키마·판 번호가 함께 바뀐다.
+
+같은 판에서 `robot_detail.position_source` 도 더해졌다(§6.5.1). 이것도 **칸이 늘기만 한**
+변화라 minor 다 — `at_origin` 의 닫힌 어휘는 **그대로**이고, 2026-11-04 까지 서버가 그
+칸에 실어 보냈던 `reported`·`last_seen` 은 애초에 공표된 enum 밖의 값이었다. 그 둘은
+새 칸과 `presence` 로 갈라졌고 뷰어가 잃는 정보는 없다.
 
 ### 2.1 에서 더해진 것 — 전역 좌표 블록
 
@@ -599,7 +615,7 @@ freshness(age) =
 | `default_layer_id` | 처음 보여 줄 레이어. 기본은 `none` |
 | `requires_external_connection` | 지금 **켜져 있고 쓸 수 있는** 레이어 중 하나라도 외부로 나가야 하는가. 적혀만 있고 꺼진 레이어는 세지 않는다 — 그래야 이 값이 폐쇄망 검증에 쓸 수 있는 답이 된다 |
 | `layers[].kind` | 벤더 이름이 아니라 **조달 방식**이다: `none` · `offline_pack`(내부에 둔 묶음) · `remote_xyz`(외부 XYZ 서버). 열린 어휘이므로 모르는 값은 통과시킨다 |
-| `layers[].available` · `unavailable_reason` | 지금 실제로 쓸 수 있는가, 못 쓰면 왜(`pack_missing` · `external_connection_required`). 못 쓰는 레이어는 목록에서 **지우지 않는다** — 없는 것과 못 쓰는 것은 다르다(§6.8) |
+| `layers[].available` · `unavailable_reason` | 지금 실제로 쓸 수 있는가, 못 쓰면 왜(`pack_missing` · `external_connection_required`). 못 쓰는 레이어는 목록에서 **지우지 않는다** — 없는 것과 못 쓰는 것은 다르다(§6.9) |
 | `layers[].attribution` | 라이선스가 요구하는 출처 표기 **문구**다. 표현 결정이 아니라 사실이므로 서버가 낸다 |
 
 타일 자체는 이 계약으로 오지 않는다 — 픽셀은 별도 경로다(AI-C-08). 여기 있는 것은
@@ -653,9 +669,10 @@ freshness(age) =
 | `neighbours[]` | 맞닿은 구역과 `same_ap`·`radio_handover_required`. 같은 AP 를 공유하는 두 구역 사이의 이동은 **무선 전환이 아니다** — 옥외에서는 한 AP 가 수백 m 를 덮어 구역 경계가 전파 경계와 일치하지 않는다. 이 구분을 지우면 "구역을 넘었으니 재접속했을 것"이라는 틀린 가정이 생긴다 |
 | `movable_devices[]` | 자리를 고칠 수 있는 장치 — **고정 장치만**이다 |
 | `infrastructure[]` | 고정 장치 상세: `id`·`kind`·`at`·`at_origin`·`pose`·`calibration`·`resources`. `resources` 는 **칸이 없을 수 있다** — 아직 조인하지 않아 자원을 모르는 장치이고, 빈 객체로 적으면 "태그가 없는 장치" 로 읽힌다(§3.2) |
-| `robots[]` | 로봇 상세(`/api/robot` 과 같은 모양) + `at`·`at_origin` |
+| `robots[]` | 로봇 상세(`/api/robot` 과 같은 모양) + `at`·`at_origin`, 그리고 관측이 자리를 정한 경우에만 `position_source`(§6.5.1) |
 | `access_point` | 그 구역의 무선 송출기 하나(`id`·`kind`·`at`·`declared_at`·`rf`·`joins_as_node`·`placement_verified`). 노드로 조인하지 않는 물건이므로 자원도 capability 도 없다 |
 | `interiors[]` | **더 들어갈 수 있는 방.** `room_id`·`label`·`rect`(구역 로컬)·`size_m`·`verified`, 그리고 실내 장면 **참조**인 `interior`. 기하가 선언된 방만 들어오고 이름만 있는 방(`rooms[]`)은 들어오지 않는다 — 화면이 "들어갈 수 있다"고 말한 자리가 실제로 열려야 한다. 비어 있는 것이 정상이다 |
+| `object_placements[]` | **인지한 객체를 저장 자산에 묶어 세울 자리들**(§6.4.1). 위 두 목록은 선언에서 오고 이것은 관측에서 온다 — 한 목록에 담으면 둘이 구분되지 않는다. 비어 있는 것이 정상이다(아직 아무 장치도 보고하지 않은 구역) |
 
 자리 칸이 있는 원소(`infrastructure[]` · `robots[]` · `access_point`)에는 경계 재합의가
 기록된 현장에서만 `at_global` 이 더 붙는다(§3.5).
@@ -664,6 +681,37 @@ freshness(age) =
 끌어다 놓은 값이 관측을 덮으면 화면과 실제가 갈린다. 뷰어가 목록 밖의 장치를 끌 수 있게
 만들면 서버가 400 `device_not_movable` 로 거절한다. 고친 자리도 선언을 지우지 않고 위에
 덧대이므로 `at_origin` 이 `operator_edit` 으로 바뀌고 원래 선언이 무엇이었는지는 남는다.
+
+#### 6.4.1 `object_placements[]` — 인지한 객체를 무엇으로 그리는가
+
+맵이 "저기 무언가 있다"만 받으면 그릴 것이 없다. 이 목록은 인지한 객체의 **클래스**를
+저장해 둔 3D 모델·이미지와 묶은 결과이고, 뷰어는 이것으로 모양을 세워 **객체가 움직이는
+동안 같은 자산 하나를 옮긴다.**
+
+| 칸 | 뜻 |
+|---|---|
+| `object_id` | 지속 객체 식별자. **묶음은 이 id 에 걸린다** — 같은 id 가 다시 오면 같은 자산을 옮기는 것이고 새 객체가 아니다. 장치 개체 id 가 아니다 |
+| `semantic_class` | 묶음이 선 클래스 가설. `null` 은 아직 가려지지 않은 것이고 그때는 자산이 묶이지 않는다 |
+| `object_group` | 그 객체의 그룹 토큰(열린 어휘). `null` 은 **주어지지 않은** 것이고 "그룹이 없는 객체"가 아니다 |
+| `proxy_state` | `RESOLVED` 만 모양을 말한다. `ABSENT` 는 오류가 아니다 |
+| `asset_binding_reason` | 묶인 이유와 **묶이지 못한 이유**가 같은 칸에 온다(열린 어휘): `exact_class_asset` · `group_fallback_asset` · `class_not_established` · `no_asset_catalog` · `unmapped_class_and_no_group_given` · `no_asset_for_class_or_group` · `every_catalogued_asset_unfit` |
+| `asset_match_tier` | **닫힌 어휘** `exact_class` \| `group_fallback` \| `null`. 그 클래스 이름으로 등록된 자산인지, 클래스 어휘 밖이어서 그룹 대역으로 내려온 것인지. **이 둘을 같게 보여 주면 안 된다** — 운영자가 "저것이 실제 의자 모델"과 "그냥 단단한 장애물 상자"를 구분하는 유일한 칸이다 |
+| `asset_match_key` | 그 단계에서 실제로 찾은 키(클래스 이름 또는 그룹 토큰) |
+| `proxy_id` · `asset_kind` · `asset_ref` | 묶인 자산의 **참조**. `asset_kind` 는 카탈로그가 스스로 선언하는 어휘(현재 `model_3d` · `stored_image`)이고 `asset_ref` 는 자산 뿌리 기준 상대 경로다. **바이트는 이 계약으로 오지 않는다** — 뷰어가 이 참조로 미디어 경로에서 받는다(AI-C-08) |
+| `asset_present` | 그 파일이 실제로 있는가. `null` 은 **확인하지 못한 것**이고 '없다'가 아니다 |
+| `proxy_extent_m` | 그 자산이 묘사하는 실물의 가장 긴 변(m). **선언된 사전정보이고 이 객체를 잰 값이 아니다.** 실측값은 `size_fit.measured_extent_m` 에 따로 오고, 둘을 같은 칸에 담지 않는 이유가 '선언이 관측으로 보이지 않게' 하는 것이다 |
+| `binding_index` | 묶음 회차. **자리가 바뀌는 것은 새 회차가 아니다** — 움직이는 동안 이 값은 그대로이고, 올라갔다는 것은 세울 자산이 실제로 바뀌었다는 뜻이다 |
+| `bound_at` | 그 회차가 선 시각. 객체가 움직여도 바뀌지 않는다 |
+| `trail[]` | 물러난 묶음들(오래된 것부터, 회차·자산·클래스·사유·물러난 시각). 다시 묶기는 **덮어쓰기가 아니라 사건**이라 "40 프레임 동안 가방이었다가 배낭이 됐다"가 남는다 |
+| `grounds` | 클래스를 누가 어떤 격으로 말했는가. 확신과 근거의 격은 다른 축이라 한 칸에 담지 않는다 |
+| `placement` | 세울 자리: `proxy_position`(현장 로컬) · `coordinate_frame` · `accuracy_m` · `heading_deg` · `placement_refusal_reason`. `proxy_position: null` 은 자리를 모르는 것이고 0 좌표가 아니며, `heading_deg: null` 은 자세 **미측정**이고 0 도가 아니다(저장 이미지 자산은 애초에 자세를 말하지 못한다). 전역 프레임으로 들어온 자리는 좌표를 버리고 사유만 남는다(§3.5) |
+| `size_fit` | 선언 크기와 실측 크기의 비교: `size_fit_state`(`match` \| `mismatch` \| `unmeasured`) · `proxy_extent_m` · `measured_extent_m` · `size_ratio` · `size_tolerance` · `unmeasured_side`. **자산을 조용히 늘려 맞추지 않는다** — `size_ratio` 는 설명용 수치이고 적용 지시가 아니다. `unmeasured` 는 한쪽이 미측정인 것이고 불일치도 0 도 아니다 |
+| `proxy_alternatives[]` · `unfit_proxies` | 같은 키를 대신할 수 있었던 다른 자산들과, 등록됐으나 지금 쓸 수 없었던 자산 → 사유 |
+
+**묶이지 않은 객체도 목록에서 빠지지 않는다.** 자리는 아는데 그릴 자산이 없는 것은 정상
+상태이므로(AI-C-05) 목록에 남고 `proxy_state: "ABSENT"` · `proxy_id: null` 과 사유가 함께
+온다. 뷰어는 그 자리를 **모양 없이** 표시하면 되고, 목록에서 빼면 "거기 아무것도 없다"는
+거짓말이 된다.
 
 ### 6.5 `GET /api/robot?id=&zone=`
 
@@ -682,6 +730,27 @@ freshness(age) =
 | `usable_functions[]` | `ACTIVE`·`DEGRADED` 인 기능의 id |
 | `recommendations[]` | §6.6 과 같은 원소. `/api/robot` 에서만 붙는다 |
 | `command_vocabulary[]` | 지금 이 장치에 보낼 수 있는 action. **칸이 없으면 명령 경로가 없다**. 이것은 조회 계약이 알려 주는 **별도 제어 계약의 어휘**일 뿐이고 발급은 `POST /api/command` 로만 된다 |
+
+#### 6.5.1 로봇의 자리는 세 가지를 따로 말한다
+
+로봇이 움직이면 선언된 자리는 그 순간부터 거짓이 된다. 그래서 관측이 들어오면 `at` 은
+관측값으로 바뀌는데, 그때 **한 칸에 담아서는 안 되는 것이 셋**이다.
+
+| 묻는 것 | 답하는 칸 | 뜻 |
+|---|---|---|
+| 선언은 어디서 왔나 | `at_origin` (**닫힘**) | `declared` 배치 선언 파일 · `operator_edit` 사람이 고친 값. **관측이 들어와도 바뀌지 않는다** — 그 선언이 사라진 것은 아니다 |
+| 지금 `at` 을 만든 것은 | `position_source` (**열림**) | 현재 배치에서는 장치가 알린 자세의 `reported`. **칸이 없으면 `at` 은 선언값**이다(§3.2) |
+| 지금 거기 있나 | `presence` · `last_seen_age_s` | `discovered` 면 지금 공지가 오는 중이고, 아니면 **마지막으로 본 자리**다 |
+
+**닿지 않게 된 로봇의 자리를 선언으로 되돌리거나 지도에서 지우지 않는다.** 지우면 "어디서
+잃어버렸는가"를 아무도 모르고, 선언으로 되돌리면 지금 거기 있는 것처럼 보인다 — 둘 다
+틀렸다. 그러니 뷰어는 `position_source` 가 있고 `presence !== "discovered"` 인 자리를
+"마지막으로 본 자리"로 그려야 한다(지금 SVG 렌더러는 점선 고리로 그린다).
+
+2026-11-04 까지 서버는 이 셋을 `at_origin` 한 칸에 네 토큰
+(`declared`·`operator_edit`·`reported`·`last_seen`)으로 담았고, 뒤의 둘은 **공표된 enum
+밖의 값**이었다. 지금은 가른다. 잃은 정보는 없다 — 옛 `reported`/`last_seen` 은
+`presence === "discovered"` 를 그대로 뒤집어 적은 파생값이었다.
 
 ### 6.6 `GET /api/recommend?robot=&zone=`
 
@@ -736,7 +805,77 @@ freshness(age) =
 적고 간선은 규칙이 계산한다. 그래서 순환이 구조적으로 생기지 않고, 뷰어는 받은
 `edges[]` 를 **그대로** 그리면 된다.
 
-### 6.8 없는 것과 못 쓰는 것을 가른다
+### 6.8 `GET /api/dashboard?pin=`
+
+종합상황정보 Dashboard(기능정의서 `20260928-종합상황정보_Dashboard_기능정의서_2`)의
+구역 **B~I 를 한 스냅샷**으로 낸다. A(글로벌 내비게이션)는 그 문서가 정의 범위 외로
+두므로 여기 없다.
+
+**왜 구역별 끝점이 아닌가.** 문서 §3 요구사항 1 은 "소스별로 개별 조회하는 것이 아니라
+**통합된 상태 뷰를 구독**"하라 하고 §5 상태 일관성은 "동일한 사실이 여러 구역에
+표시될 경우 값이 상충하지 않아야 한다"고 적는다. 구역마다 따로 조회하면 그 둘을 동시에
+지킬 수 없다 — 도착 순서에 따라 [B] 의 집계와 [C] 의 노드가 어긋난다. 그래서 한 번에
+조립하고, 여러 구역이 같은 사실을 보일 때는 **한 출처에서 파생**시킨다.
+
+| 응답 칸 | 구역 | 뜻 |
+|---|---|---|
+| `mission` | B | 미션 식별자·자연어 **원문**·상태·접수 시각. 경과 시간은 보내지 않는다 — 접수 시각에서 뷰어가 센다 |
+| `task_nodes[]` | C·F | 노드. 상태 6종(`PENDING` `BLOCKED` `EXECUTING` `SUCCEEDED` `FAILED` `EXTERNAL_REQUESTED`), 담당 서비스(`service_id`)와 실행 가속기(`accelerator_instance_id`)가 **다른 칸**(온디바이스에서 돌지 않는 노드는 `off_device` 이고, 칸의 부재는 "아직 배정되지 않았다"라는 **다른 사실**이다), 회차(`task_attempt`), 병렬 묶음(`parallel_group`), 실행 순서(`order_after`)와 결과 의존(`depends_on`)이 다른 배열 |
+| `reference_edges[]` | C·I | 원 실패 노드 → 요청 노드 → 재실행 노드처럼 순서·의존이 아닌 관계 |
+| `accelerators[]` | B·E | Layer 1 가속기 **개체**. 유휴·미할당도 빠지지 않는다 |
+| `services[]` | B·E·E′·F | Layer 2 서비스와 그 지표. 배치 가속기를 반드시 병기한다 |
+| `board` | E | 보드 메모리·소비 전력과 최근 추이 |
+| `verdicts[]` | G | 완료·실패·자원 3축을 **항목 단위**로. 승격되면 `escalated_request_id` |
+| `events[]` | D·H | 사건 스트림. 등급(`event_severity`)과 유형(`event_kind`)이 다른 칸이고, [H] 는 이 목록을 `task_node_id` 로 거른 것이다 |
+| `external_requests[]` | I | SDI 6단계·요청 식별자·배포 수신·재실행 회차·최종 판정 |
+| `resource_watch[]` | E·G | 임계 감시 판정(측정값·기준·3값). 기준이 화면에 하드코딩되지 않게 하는 자리다(§3 요구사항 3) |
+| `sources[]` | 전 구역 | 소스별 수신 상태. 한 번도 못 받은 것은 `last_received_at` 칸이 **없고**, 받았지만 오래된 것은 시각 + `source_stale: true` |
+| `regions[]` | 전 구역 | 구역별 표시 가능 여부와 사유. **구역은 지워지지 않는다** |
+| `focus` | F·G·H | 기준 노드와 그 선정 사유. 자동 추종이 기본이고 `?pin=` 이 수동 고정이다 |
+| `derived` | — | 세면 나오는 값(상태별 집계·유휴·미측정·미충족 목록 …). 파생이라는 사실이 드러나게 따로 담는다 |
+
+**뷰어가 세는 것.** 문서 §4.1 의 "노드 부하"(그 가속기에서 지금 실행 중인 노드 수 /
+미션 내 배정된 총 노드 수)와 미션 경과 시간은 응답에 없다 — `task_nodes[]` 의
+`accelerator_instance_id` 와 `task_node_state`, 그리고 `mission.accepted_at` 에서 세면
+나온다. 보내지 않는 이유는 §4.1 이 집계가 "그래프와 **항상 일치**해야 한다"고 적기
+때문이다: 함께 실으면 한쪽만 갱신된 스냅샷이 나가는 날이 온다. 배치가 없는 가속기도
+목록에 있으므로 뷰어가 세어도 `(0, 0)` 이 빠지지 않는다.
+
+지켜야 할 네 가지를 다시 적는다.
+
+1. **미측정 ≠ 0 ≠ 미달.** 측정값이 없으면 `value` **칸이 없다**. 0 은 "쟀더니 0"
+   (유휴)이고, 미달은 `target_meet_state: "UNMET"` 이다. 세 값(`MET`/`UNMET`/
+   `NOT_MEASURED`)을 둘로 줄이면 문서 §4.4·§4.5 가 금지한 표시가 된다 — "서비스 대기
+   등으로 지표가 산출되지 않는 구간은 '미달'이 아니라 측정 없음으로 구분 표시."
+2. **가속기 목록의 완전성.** 배치가 없는 개체도 유휴로 남는다(§4.1·§4.4). 동종
+   가속기는 `accelerator_instance_id` 로 **개체 단위**로 갈린다 — 종류로만 식별하면
+   부하 편중을 볼 수 없다. 벤더 라벨은 표시용이고 식별자가 아니다.
+3. **계층을 섞지 않는다.** `accelerators`(L1)와 `services`(L2)는 서로의 원소를 담지
+   않고, 보드 값은 가속기 목록이 아니라 `board` 에 있다.
+4. **조회 전용.** `POST /api/dashboard` 는 본문을 읽기 전에 405 다. `?pin=` 은 표시
+   대상의 선택이므로 조회에 남고(문서 §1.1), 모르는 노드를 가리키면 404
+   `unknown_task_node` 다 — 조회가 조용히 다른 노드로 옮겨 가면 화면은 자기가 무엇을
+   보고 있는지 모른다.
+
+**선언이 없는 배치도 정상이다.** 실제 현장 설정(`config/status_ui.json`)에는 아직
+`dashboard` 선언이 없고, 그 배치에서 [C]·[E]·[E′]·[G] 는 `region_available: false` +
+`region_reason: "no_data_yet"` 이다. 뷰어는 이것을 고장으로 그려서는 안 된다(§6.9 와
+같은 규칙, AI-C-05).
+
+**이 끝점이 아직 주지 않는 것**은 구독이다. 지금은 폴링이고, 같은 모양을 밀어 주는
+채널(`status_snapshot`)은 백엔드가 열어야 한다 — 문서 §5 "새로고침 없이 즉시 반영"은
+그때 성립한다. 모양은 미리 같게 맞춰 두었으므로 전송이 바뀌어도 계약을 다시 쓰지
+않는다.
+
+**사용률 추이.** `accelerators[].utilization_trend[]` 는 전력 추이
+(`board.power_trend[]`)와 **같은 요구**다(기능정의서 §4.4 "전력·사용률 등 … 최근
+구간의 추이"). 현재값 하나로는 "방금 올라갔다" 와 "계속 그랬다" 가 구분되지 않아
+동종 가속기 사이의 부하 편중을 볼 수 없다. **잰 표본만 들어간다** — 못 잰 구간을
+0 으로 메우면 추이가 거짓으로 내려가 "유휴였다" 로 읽힌다. 표본이 하나도 없으면
+칸이 없고, 빈 배열은 보내지 않는다(빈 배열은 "쟀는데 아무것도 없었다" 다). 단위는
+현재값과 같아서 뷰어가 한 축에 그릴 수 있다.
+
+### 6.9 없는 것과 못 쓰는 것을 가른다
 
 `/api/explain` 은 추론 근거 제공자가 없는 배치에서 503 `no_evidence_path` 를 낸다 —
 **경로는 있고 그 기능이 이 배치에 없다**는 뜻이다. 아예 없는 경로는 404
@@ -751,7 +890,7 @@ freshness(age) =
 정상적인 축소 운용이고, 그것을 장애로 그리면 멀쩡한 배치가 장애로 읽힌다. 그 기능의
 탭·영역을 "이 배치에 없음"으로 적고 나머지는 그대로 돌려야 한다.
 
-### 6.9 오류 본문
+### 6.10 오류 본문
 
 모든 4xx·5xx 응답의 본문은 `{"error": "<토큰>"}` 이다. 값은 문장이 아니라 통제 어휘
 토큰이고 `[a-z0-9_]+` 꼴이다.
@@ -1040,6 +1179,8 @@ Unity 를 쓰지 않는 뷰어(React + Canvas, deck.gl, three.js 등)도 같은 
 | `schemas/view_robot.schema.json` | `GET /api/robot?id=` (구역 상세의 `robots[]` 원소도 같다) |
 | `schemas/view_recommendations.schema.json` | `GET /api/recommend?robot=` |
 | `schemas/view_subtask_graph.schema.json` | `GET /api/subtasks?...` |
+| `schemas/view_dashboard.schema.json` | `GET /api/dashboard` — 허브의 `$defs/dashboard_snapshot` 이고, 그 모양은 **채널 본문 스키마**(`schemas/ai/status-snapshot.schema.json`)를 가리킨다 |
+| `schemas/ai/status-snapshot.schema.json` | 구역 B~I 본문의 **정본**. 구독 채널과 HTTP 조회가 같은 모양을 쓴다 |
 | `schemas/view_error.schema.json` | 모든 4xx·5xx 본문 |
 
 JSON Schema 2020-12 이고, 끝점 파일은 허브의 `$defs` 를 가리키는 얇은 포장이다 — 모양을
@@ -1054,7 +1195,9 @@ from jsonschema import Draft202012Validator
 from referencing import Registry, Resource
 
 registry = Registry()
-for path in Path("schemas").glob("view_*.schema.json"):
+# 구역 B~I 의 모양은 채널 본문 스키마가 소유하므로 두 폴더를 함께 올린다.
+for path in [*Path("schemas").glob("view_*.schema.json"),
+             *Path("schemas/ai").glob("*.schema.json")]:
     schema = json.loads(path.read_text(encoding="utf-8"))
     registry = registry.with_resource(schema["$id"], Resource.from_contents(schema))
 
@@ -1093,6 +1236,9 @@ PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 OTEL_SDK_DISABLED=true \
 | 미검증 datum 이 전역 값을 거절하고, 유도한 값이 "검증됨" 으로 보이지 않는다 | 공개 지도에서 받아 적은 기준점이 실측처럼 쓰이는 일 |
 | 미측정 정확도가 0 으로 새지 않고 `0` 선언이 거절된다 | 유도한 전역 값이 재료인 로컬 측정을 이기는 일 |
 | 배경 타일 기본값이 외부 연결을 요구하지 않는다 | 폐쇄망 배치에서 메인 화면이 깨지는 일 (AI-C-16) |
+| 구역 B~I 가 한 응답에서 다 나오고, 빈 구역이 "정상"이 아니라 **사유**를 적는다 | 빈 칸을 그리면서 왜 비었는지 말할 근거가 없는 일 |
+| 계측기가 찾았는데 선언에 없는 가속기가 조용히 사라지지 않는다 | "가속기가 없다"와 "선언되지 않았다"가 같아져 목록의 완전성을 판단할 수 없는 일 |
+| 임계 기준이 응답으로 오고 미측정이 미달로 접히지 않는다 | 기준이 화면에 하드코딩되고 유휴·고장·미달이 한 색으로 칠해지는 일 |
 | 모르는 칸이 양방향으로 살아남는다 | 두 팀이 서로의 배포 주기에 묶이는 일 |
 | 계약 판이 응답으로 실려 오고 스키마의 판과 같다 | 판을 한쪽만 올리는 일 |
 | 두 언어의 키 집합이 같다 | 한 언어에만 있는 키가 빈칸으로 나타나는 일 |

@@ -4,7 +4,7 @@ simply the highest-gain or lowest-cost candidate (AI-S-05, AI-S-03).
 
 implements: AI-S-05, AI-S-03
 
-Primary source: `docs/obsidian/papers/scout.md` (SCOUT, ICRA 2026 workshop).
+Primary source: `internal/docs-dev/obsidian/papers/scout.md` (SCOUT, ICRA 2026 workshop).
 SCOUT's Uncertainty-Guided Traversal planner scores each candidate viewpoint
 `v` as a *ratio*, not a subtraction of travel cost:
 
@@ -18,7 +18,7 @@ Bayesian label-posterior fusion, or its Gazebo-measured numbers, same
 `perception/reobservation_policy.py` already applies to
 `perceive-what-matters.md`.
 
-Informational context only, NOT reproduced: `docs/obsidian/papers/roam.md`
+Informational context only, NOT reproduced: `internal/docs-dev/obsidian/papers/roam.md`
 (ROAM, T-RO 2025) frames viewpoint choice as being steered by map
 uncertainty / mutual information within a fully distributed
 consensus-constrained Riemannian optimization across a robot team --

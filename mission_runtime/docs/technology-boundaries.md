@@ -5,9 +5,9 @@
 근거: `reports/2026-09-01_2122_물리제어명령_프로토콜_조사.md`(1차 조사), 백엔드 `데이터 전송
 아키텍처 정리 v8`(구간별 전송 확정), 2026-09-02 외부 기술 전체 정리(등급 분류).
 
-이 문서는 이전에 비공개 노트와 옛 `obsidian/
-protocol-contract-reference.md`, `docs/obsidian/capability-contract-technology-selection.md`
-세 파일로 나뉘어 있던 것을 하나로 병합했다(2026-09 정리) — 세 문서가 다른 시점에 같은 주제
+이 문서는 이전에 비공개 노트 세 파일(`protocol-contract-reference.md` ·
+`capability-contract-technology-selection.md` 와 그 짝)로 나뉘어 있던 것을 하나로
+병합했다(2026-09 정리) — **그 세 파일은 병합 후 사라졌으므로 찾지 않아도 된다** — 세 문서가 다른 시점에 같은 주제
 (외부 기술·프로토콜·Capability 계약 결정)를 썼기 때문에 겹치는 내용이 많았다.
 
 ## 0. 배경
@@ -89,7 +89,7 @@ Kafka header 자체에 종속시키지 않는다.
 | `CommandStatus` | (선택) 비종료 상태의 중간 보고 | 구현 |
 | `CommandResult` | 종료 상태·결과·실패 원인 (terminal state만 허용, `__post_init__`에서 검증) | 구현 |
 | `CancelCommandRequest/Response` | 취소 요청과 수락(정지 완료 아님) — cancel-vs-완료 경쟁 시 CANCELING이 우선 | 구현 |
-| `Capability` | name/version/parameter_schema/result_schema/cancel_supported/required_resources | 구현. `compatibility_profile()`로 AI-B-01 배치 태그에 연결 |
+| `Capability` | name/version/parameter_schema/result_schema/required_resources + (2026-11-04) optional_resources/idempotent/invocation/basis/scope_tags/execution_profile_ref, `cancel_supported` 는 **3값**(True/False/None) | 구현. `compatibility_profile()`로 AI-B-01 배치 태그에 연결(선택 조건은 preferred), `to_declaration()`으로 §4 Capability 계층과 손실 없이 왕복 |
 | `CommandExecutionSupervisor` | 동일 프로세스 내 동기 handler 가정 — dedupe, deadline, 비동기 실행·취소, SQLite 상태 복구 | 구현 (`execution/command_execution.py`) |
 | `HardwareAdapterHandler` | `CommandExecutionSupervisor` ↔ 실제 장치 provider(capability 확인·execute·cancel) 경계 | 구현 (`execution/hardware_adapter.py`); 구체 로봇 SDK는 하드웨어 파트가 주입 |
 | `PhysicalCommandGateway` | 네트워크 너머 장치가 비동기로 보내는 uplink 메시지로 명령별 상태를 추적, `Capability` 도착을 `CapabilityRegistry` 등록으로 연결 | 구현 (`execution/physical_command_gateway.py`) — `interface-spec`의 실제 엣지측 구현체 |
@@ -354,10 +354,15 @@ OCI 서명 검증(Cosign 키·정책·admission), 실 로봇 명령 검증(adapt
    `ProviderRegistration`에 `execution_profile`/`runtime_instance` 참조 필드를 추가하고
    `CapabilitySelector.select_for_intent()`로 실제 선택 알고리즘과 연결했다(§12) — provider가
    이 필드를 채우면 조건 불일치 evidence 재사용 방지(불변조건 3)와 TTL 만료 instance 배제
-   (불변조건 4)가 selection 단계에서 실제로 적용된다. 아직 남은 것: §3의
-   `physical_command.Capability`를 이 계약으로 이관하는 일 — `idempotent`/`cancel_supported`
-   같은 action 고유 필드가 이 계층 어디에 속하는지 아직 정하지 않아 손실 없는 변환을 만들
-   수 없으므로 보류한다. `contracts/profile.py::CompatibilityProfile`과의 관계는 이번
+   (불변조건 4)가 selection 단계에서 실제로 적용된다. **2026-11-04 해소**: 보류 사유였던
+   "`idempotent`/`cancel_supported` 같은 action 고유 필드가 이 계층 어디에 속하는지" 를
+   정했다 — 그 둘은 *무엇을 할 수 있는가의 성질*이므로 `Capability` 계층에 속하고, 버전은
+   `Implementation`, 실측 품질·지연·자원은 `ExecutionProfile`, "지금 되는가" 는
+   `RuntimeInstance` 다(한 항목에 주인이 둘이 되지 않게 `DECLARATION_ITEM_OWNERS` 가 표로
+   고정하고 시험이 묻는다). 그래서 손실 없는 변환이 가능해졌고
+   `physical_command.Capability.to_declaration()` 이 그 변환이다. 두 계약은 여전히 나란히
+   존재한다 — 와이어 경계가 쓰는 평평한 선언과 5계층 선언은 쓰는 자리가 다르고, 한쪽을
+   지우는 것은 이관이 아니라 삭제다. `contracts/profile.py::CompatibilityProfile`과의 관계는 이번
    `select_for_intent`가 `CompatibilityProfile.is_compatible()`을 그대로 재사용하는 방식으로
    당장은 "나란히 공존" 상태를 유지한다(중복 판정 로직을 새로 만들지 않음).
 3. §6의 메시징/워크로드 권한 모델은 소유 요구사항 ID가 없으므로, 백엔드·하드웨어 파트와 조율

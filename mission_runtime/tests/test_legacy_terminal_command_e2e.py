@@ -1,5 +1,6 @@
-"""implements: AI-B-03, AI-C-06, AI-C-14, AI-O-01
+"""implements: AI-B-03, AI-C-06,  AI-O-01
 """
+import importlib.util
 import socket
 import time
 import uuid
@@ -21,9 +22,22 @@ def _reachable(host, port):
         return False
 
 
+def _client_libraries() -> bool:
+    """두 전송 클라이언트가 이 노드에 깔려 있는가.
+
+    브로커가 **떠 있는가** 와 그 브로커에 **붙을 수 있는가** 는 다른 사실이다.
+    전에는 포트만 보고 클라이언트는 보지 않아서, 브로커는 돌고 `mqtt`/`kafka`
+    extra 는 없는 기계에서 축소가 아니라 ImportError 로 실패했다 — provider 가
+    없는 노드에서는 그 전송 경로만 비활성이 정상이다(AI-C-05, AI-C-06).
+    """
+    return all(importlib.util.find_spec(name) is not None for name in ("paho", "kafka"))
+
+
 needs_brokers = pytest.mark.skipif(
-    not (_reachable("127.0.0.1", 1883) and _reachable("127.0.0.1", 9092)),
-    reason="needs both an MQTT broker and a Kafka broker",
+    not (_reachable("127.0.0.1", 1883) and _reachable("127.0.0.1", 9092)
+         and _client_libraries()),
+    reason="MQTT/Kafka 브로커 또는 그 클라이언트 라이브러리가 없다 — 그 두 전송 "
+           'provider 만 skip 이다: pip install -e ".[mqtt,kafka]"',
 )
 
 

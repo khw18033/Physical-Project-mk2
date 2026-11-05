@@ -1,5 +1,5 @@
 """implements: (stand-in for) DT-03, BE-C-04
-reproduces (decision rule only): CoAlign, ICRA 2023 (docs/obsidian/papers/coalign.md)
+reproduces (decision rule only): CoAlign, ICRA 2023 (internal/docs-dev/obsidian/papers/coalign.md)
 tests: zero-noise is a no-op, optimization recovers most of the pose error CoAlign's
        own paper injects (sigma = 0/0.2/0.4/0.6 m), object localization error drops
        to match, and a missing anchor / no correspondences degrades to a no-op

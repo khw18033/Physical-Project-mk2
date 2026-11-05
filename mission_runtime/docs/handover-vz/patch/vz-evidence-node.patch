@@ -1,0 +1,302 @@
+diff --git a/web-dashboard/src/views/NodeGraphView.tsx b/web-dashboard/src/views/NodeGraphView.tsx
+index 0a62f2c..d4e94cd 100644
+--- a/web-dashboard/src/views/NodeGraphView.tsx
++++ b/web-dashboard/src/views/NodeGraphView.tsx
+@@ -1,6 +1,7 @@
+ /** VZ-U-04 — 초안과 운영 상태를 분리한 노드 그래프 편집기. */
+ 
+ import { useEffect, useMemo, useRef, useState } from 'react';
++import { EvidenceDetailNode, sampleCase } from './EvidenceDetail';
+ import {
+   canConnect,
+   commitPipeline,
+@@ -120,7 +121,8 @@ function MissionGraph() {
+ 
+   const width = Math.max(980, segments.length * 245 + 170);
+   const deepest = Math.max(1, ...segments.map((s) => linksOf(s.index).length));
+-  const height = Math.max(500, 260 + deepest * 74);
++  const DETAIL_H = 520;   // 근거 확인 노드가 차지하는 높이
++  const height = Math.max(500, 260 + deepest * 74) + (openEvidence === null ? 0 : DETAIL_H);
+   return <>
+     <section className="missionbar"><div><b>{plan.evidence.mission.title}</b><span>{plan.plan_id} · {plan.entity}</span></div>
+       {targets.length > 1 && <label className="missionpick">임무 대상<select value={active} onChange={(e) => setTarget(e.target.value)}>{targets.map((id) => <option key={id} value={id}>{entities.get(id)?.registry?.display_name ?? id}</option>)}</select></label>}
+@@ -140,9 +142,30 @@ function MissionGraph() {
+           if (!evidence) return null;
+           const key = s.index + '-' + entity;
+           const role = entity === active ? '실행 주체' : EVIDENCE_ROLE[evidence.kind];
+-          return <button key={key} className={'evidencenode evidencenode--' + (entity === active ? 'robot' : evidence.kind === 'state' ? 'sensor' : evidence.kind)} style={{ left: 205 + i * 235, top: 238 + j * 74 }} onClick={() => setOpenEvidence(openEvidence === key ? null : key)}><b>{evidence.label}</b><span>{statusOfEvidence(evidence)}</span>{openEvidence === key && <small>{evidence.entity} · task {s.index}의 {role} 근거</small>}</button>;
++          return <button key={key} className={'evidencenode evidencenode--' + (entity === active ? 'robot' : evidence.kind === 'state' ? 'sensor' : evidence.kind)} style={{ left: 205 + i * 235, top: 238 + j * 74 }} onClick={() => setOpenEvidence(openEvidence === key ? null : key)}><b>{evidence.label}</b><span>{statusOfEvidence(evidence)}</span>{openEvidence === key && <small>{evidence.entity} · task {s.index}의 {role} 근거 — 아래 근거 확인 노드</small>}</button>;
+         })}
+       </div>)}
++      {(() => {
++        if (openEvidence === null) return null;
++        const [idxRaw, entity] = [openEvidence.slice(0, openEvidence.indexOf('-')), openEvidence.slice(openEvidence.indexOf('-') + 1)];
++        const idx = Number(idxRaw);
++        const i = segments.findIndex((s) => s.index === idx);
++        const evidence = candidates.find((c) => c.entity === entity);
++        if (i < 0 || !evidence) return null;
++        const j = linksOf(idx).indexOf(entity);
++        const fromX = 205 + i * 235 + 95;
++        const fromY = 238 + j * 74 + 96;
++        const detailLeft = Math.min(Math.max(10, 205 + i * 235 - 120), width - 650);
++        const detailTop = 238 + deepest * 74 + 64;
++        return <>
++          <svg className="canvas__edges missionedges evdetail__edge" viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none">
++            <line className="missionedges__evidence" x1={fromX} y1={fromY} x2={detailLeft + 120} y2={detailTop} />
++          </svg>
++          <EvidenceDetailNode
++            detail={sampleCase(entity, idx)} label={evidence.label} taskIndex={idx}
++            left={detailLeft} top={detailTop} onClose={() => setOpenEvidence(null)} />
++        </>;
++      })()}
+     </div></div>
+     <section className="evidencetools"><h2>Sub task {selected} 연결 관리</h2>{candidates.map((e) => <button key={e.entity} className={'btn' + (linksOf(selected).includes(e.entity) ? ' btn--on' : '')} onClick={() => toggle(e.entity)}>{linksOf(selected).includes(e.entity) ? '연결됨' : '연결'} · {e.label}</button>)}<p>현재 연결: {linksOf(selected).join(', ') || '없음'}</p></section>
+     <section className="devpanel"><h2 className="devpanel__title">임무 진행 재생</h2><div className="devpanel__row"><button className="btn" onClick={() => playScenario('plan-propose')}>정상 임무 새로 받기</button><button className="btn" onClick={() => playScenario('plan-propose-failing')}>4번 Sub task 실패 임무</button></div></section>
+diff --git a/web-dashboard/src/views/styles.css b/web-dashboard/src/views/styles.css
+index d287c90..a2d98e4 100644
+--- a/web-dashboard/src/views/styles.css
++++ b/web-dashboard/src/views/styles.css
+@@ -905,3 +905,58 @@ body {
+ .evidencetools .btn { margin: 3px; }
+ .pipelineeditor { margin-top: 4px; }
+ .pipelineeditor__head h2 { margin: 0; font-size: 17px; }
++
++/* ── 근거 확인 노드 ─────────────────────────────────────────────────────────
++   그래프 안의 노드이지 모달이 아니다. 근거 노드에서 선으로 이어져 내려온다. */
++.evdetail { position: absolute; z-index: 3; width: 640px;
++  border: 2px solid #1f6f5c; border-radius: 12px; padding: 13px 15px;
++  background: var(--surface); box-shadow: 0 8px 26px rgba(16,32,28,.14); }
++.evdetail__head { display: flex; align-items: baseline; gap: 9px; flex-wrap: wrap;
++  padding-right: 22px; margin-bottom: 11px; }
++.evdetail__head b { font-size: 14px; }
++.evdetail__pill { font: 600 11px ui-monospace, Menlo, monospace;
++  border-radius: 999px; padding: 2px 9px; border: 1px solid; }
++.evdetail__pill--ok { background: #e2efeb; border-color: #1f6f5c; color: #1f6f5c; }
++.evdetail__pill--hold { background: #fbf0dc; border-color: #d8ab52; color: #9a6a12; }
++.evdetail__meta { font-size: 11.5px; color: var(--muted); }
++.evdetail__close { position: absolute; top: 9px; right: 10px; border: 0;
++  background: none; font-size: 14px; color: var(--muted); cursor: pointer; line-height: 1; }
++
++.evdetail__strip { display: flex; gap: 10px; align-items: flex-start; margin-bottom: 4px; }
++.evslot { margin: 0; text-align: center; font-size: 11px; color: var(--muted); }
++.evslot img { display: block; height: 96px; border-radius: 6px; background: #000;
++  border: 2px solid transparent; }
++.evslot--query { border-right: 1px solid var(--line); padding-right: 10px; margin-right: 2px; }
++.evslot--picked img { border-color: #1f6f5c; }
++.evslot figcaption b { display: block; font: 600 12px ui-monospace, Menlo, monospace;
++  color: var(--ink); margin-top: 3px; }
++
++.evtable { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 8px; }
++.evtable th { text-align: right; font-weight: 600; font-size: 10.5px; color: var(--muted);
++  padding: 4px 6px; border-bottom: 1px solid var(--line); }
++.evtable th:first-child { text-align: left; }
++.evtable td { text-align: right; padding: 4px 6px; border-bottom: 1px solid var(--line);
++  font-variant-numeric: tabular-nums; }
++.cuegroup td { text-align: left; font: 700 10px system-ui; letter-spacing: .4px;
++  color: var(--muted); text-transform: uppercase; padding-top: 9px; border-bottom: 0; }
++.cuerow__name { text-align: left !important; font: 11.5px ui-monospace, Menlo, monospace; }
++.cuerow__contrib.is-match { color: #1f6f5c; font-weight: 600; }
++.cuerow__contrib.is-differ { color: #a8402f; font-weight: 600; }
++.cuerow__bar { width: 110px; }
++.cuerow__verdict { font-size: 11px; color: var(--muted); }
++.cuerow--none .cuerow__name { color: var(--muted); }
++.cuebar { display: inline-block; height: 9px; border-radius: 2px; vertical-align: middle; }
++.cuebar--match { background: #1f6f5c; }
++.cuebar--differ { background: #a8402f; }
++/* 미측정은 색이 아니라 **무늬**로도 말한다 — 색만으로 구분하지 않는다. */
++.cuebar--none { background-image: repeating-linear-gradient(45deg,#b9c4c1 0 4px,#dfe5e3 4px 8px); }
++
++.evdetail__note { font-size: 11.5px; color: var(--muted); line-height: 1.6; margin: 9px 0 0; }
++.evdetail__remedy { font-size: 11.5px; color: var(--ink); line-height: 1.6;
++  margin: 9px 0 0; padding: 9px 11px; border: 1px dashed var(--line);
++  border-radius: 8px; background: var(--sunk, #f2f4f4); }
++.evdetail__remedy span { color: var(--muted); }
++.evdetail__src { font-size: 11px; color: var(--muted); margin: 9px 0 0; }
++/* 근거 노드 → 근거 확인 노드 연결선. 노드 뒤(z-index 0)에 두되 또렷하게. */
++.evdetail__edge { z-index: 0; }
++.evdetail__edge .missionedges__evidence { stroke: #1f6f5c; stroke-width: 2.5; stroke-dasharray: 5 4; }
+diff --git a/web-dashboard/src/views/EvidenceDetail.tsx b/web-dashboard/src/views/EvidenceDetail.tsx
+new file mode 100644
+index 0000000..6a5d021
+--- /dev/null
++++ b/web-dashboard/src/views/EvidenceDetail.tsx
+@@ -0,0 +1,179 @@
++/**
++ * 근거 확인 노드 — 그래프의 근거 노드를 누르면 **한 칸 더** 펴지는 노드.
++ *
++ * 왜 노드인가: 근거는 임무 그래프 바깥의 곁다리가 아니라 그 서브태스크가 왜 그렇게
++ * 판단됐는지의 일부다. 모달로 띄우면 그래프에서 떨어져 나가고, 한 줄 텍스트로 두면
++ * (지금처럼) "무엇을 보고 묶었는가" 에 답하지 못한다.
++ *
++ * 여기서 지키는 것 넷 (AI-S-02 · AI-S-03):
++ *   1. 질의 관측과 후보를 **나란히** 둔다 — 사람은 수보다 그림을 먼저 본다.
++ *   2. 단서별 기여를 **부호 있는 막대**로 — 길이가 크기, 색이 방향.
++ *   3. 가리는 근거 / 가리지 못하는 근거를 **갈라 둔다** — 외형은 종류만 말한다.
++ *   4. 미측정은 0 이 아니라 **빈 칸**이다.
++ *
++ * 숫자는 **AI 계약이 채울 자리**이고 지금 게이트웨이는 이 채널을 발행하지 않는다.
++ * 그 사실을 패널이 직접 적는다 — 없는 근거를 만들지 않기 위해서다.
++ */
++
++export type Cue = {
++  cue: string;
++  raw: number | null;
++  contribution: number | null;
++  verdict: '일치' | '불일치' | '미측정';
++  discriminating: boolean;
++};
++
++export type EvidenceCase = {
++  queryId: string;
++  decision: '수락' | '미결정';
++  margin: number;
++  threshold: number;
++  candidates: Array<{ img: string; score: number; rank: number; picked: boolean }>;
++  cues: Cue[];
++  remedy: string | null;
++};
++
++/** 같은 노드는 늘 같은 예시를 보도록 — 누를 때마다 숫자가 바뀌면 설명이 안 된다. */
++function seeded(entity: string): number {
++  let h = 0;
++  for (const ch of entity) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
++  return h;
++}
++
++export function sampleCase(entity: string, taskIndex: number): EvidenceCase {
++  const undecided = seeded(entity + taskIndex) % 3 === 0;
++  if (undecided) {
++    return {
++      queryId: `obs-${4400 + (seeded(entity) % 90)}`,
++      decision: '미결정',
++      margin: 0.06,
++      threshold: 0.85,
++      candidates: [
++        { img: 'cand1.jpg', score: 0.52, rank: 1, picked: false },
++        { img: 'cand2.jpg', score: 0.46, rank: 2, picked: false },
++      ],
++      cues: [
++        { cue: 'radio_range', raw: null, contribution: null, verdict: '미측정', discriminating: true },
++        { cue: 'motion_correlation', raw: null, contribution: null, verdict: '미측정', discriminating: true },
++        { cue: 'appearance', raw: 0.93, contribution: 0.15, verdict: '일치', discriminating: false },
++        { cue: 'declared_type', raw: 0.88, contribution: 0.04, verdict: '일치', discriminating: false },
++      ],
++      remedy: '운동 프로브 — 두 후보에 서로 다른 짧은 이동을 지시하면 motion_correlation 이 측정되어 갈린다. 하드웨어 변경이 없다.',
++    };
++  }
++  return {
++    queryId: `obs-${4400 + (seeded(entity) % 90)}`,
++    decision: '수락',
++    margin: 1.42,
++    threshold: 0.85,
++    candidates: [
++      { img: 'cand1.jpg', score: 2.37, rank: 1, picked: true },
++      { img: 'cand2.jpg', score: 0.95, rank: 2, picked: false },
++      { img: 'cand3.jpg', score: -0.41, rank: 3, picked: false },
++    ],
++    cues: [
++      { cue: 'radio_range', raw: 0.78, contribution: 1.31, verdict: '일치', discriminating: true },
++      { cue: 'motion_correlation', raw: 0.64, contribution: 0.88, verdict: '일치', discriminating: true },
++      { cue: 'fiducial_marker', raw: null, contribution: null, verdict: '미측정', discriminating: true },
++      { cue: 'appearance', raw: 0.91, contribution: 0.14, verdict: '일치', discriminating: false },
++      { cue: 'declared_type', raw: 0.88, contribution: 0.04, verdict: '일치', discriminating: false },
++    ],
++    remedy: null,
++  };
++}
++
++const BAR_MAX = 92;          // 가장 큰 기여가 이 길이가 된다
++function barWidth(value: number, peak: number): number {
++  return Math.max(3, Math.round((Math.abs(value) / peak) * BAR_MAX));
++}
++
++function CueRows({ cues, peak }: { cues: Cue[]; peak: number }) {
++  return <>{cues.map((c) => (
++    <tr key={c.cue} className={c.verdict === '미측정' ? 'cuerow cuerow--none' : 'cuerow'}>
++      <td className="cuerow__name">{c.cue}</td>
++      <td className="cuerow__raw">{c.raw === null ? '—' : c.raw.toFixed(2)}</td>
++      <td className={'cuerow__contrib' + (c.contribution === null ? '' : c.contribution >= 0 ? ' is-match' : ' is-differ')}>
++        {c.contribution === null ? '—' : (c.contribution >= 0 ? '+' : '') + c.contribution.toFixed(2)}
++      </td>
++      <td className="cuerow__bar">
++        <span
++          className={'cuebar ' + (c.contribution === null ? 'cuebar--none' : c.contribution >= 0 ? 'cuebar--match' : 'cuebar--differ')}
++          style={{ width: (c.contribution === null ? 30 : barWidth(c.contribution, peak)) + 'px' }}
++        />
++      </td>
++      <td className="cuerow__verdict">{c.verdict}</td>
++    </tr>
++  ))}</>;
++}
++
++export function EvidenceDetailNode({
++  detail, label, taskIndex, left, top, onClose,
++}: {
++  detail: EvidenceCase; label: string; taskIndex: number;
++  left: number; top: number; onClose: () => void;
++}) {
++  const discriminating = detail.cues.filter((c) => c.discriminating);
++  const weak = detail.cues.filter((c) => !c.discriminating);
++  const peak = Math.max(...detail.cues.map((c) => Math.abs(c.contribution ?? 0)), 0.1);
++
++  return (
++    <article className="evdetail" style={{ left, top }}>
++      <header className="evdetail__head">
++        <b>근거 확인 — {label}</b>
++        <span className={'evdetail__pill evdetail__pill--' + (detail.decision === '수락' ? 'ok' : 'hold')}>
++          {detail.decision === '수락' ? '수락 · 1위 채택' : '미결정 · 고르지 않음'}
++        </span>
++        <span className="evdetail__meta">
++          질의 {detail.queryId} · Sub task {taskIndex} · 2위와 격차 <b>{detail.margin.toFixed(2)}</b>
++          {detail.decision === '미결정' ? ' — 문턱 미만' : ` · 문턱 ${detail.threshold.toFixed(2)}`}
++        </span>
++        <button type="button" className="evdetail__close" onClick={onClose} aria-label="근거 확인 닫기">✕</button>
++      </header>
++
++      <div className="evdetail__strip">
++        <figure className="evslot evslot--query">
++          <img src="/evidence/query.jpg" alt="질의 관측" />
++          <figcaption>질의 관측</figcaption>
++        </figure>
++        {detail.candidates.map((c) => (
++          <figure key={c.rank} className={'evslot' + (c.picked ? ' evslot--picked' : '')}>
++            <img src={'/evidence/' + c.img} alt={`후보 ${c.rank}`} />
++            <figcaption>
++              <b>{(c.score >= 0 ? '+' : '') + c.score.toFixed(2)}</b>
++              {c.rank}위{c.picked ? ' · 채택' : ''}
++            </figcaption>
++          </figure>
++        ))}
++      </div>
++
++      <table className="evtable">
++        <thead><tr><th>단서</th><th>원점수</th><th>기여</th><th /><th>판정</th></tr></thead>
++        <tbody>
++          <tr className="cuegroup"><td colSpan={5}>가리는 근거 — 개체를 특정한다</td></tr>
++          <CueRows cues={discriminating} peak={peak} />
++          <tr className="cuegroup"><td colSpan={5}>가리지 못하는 근거 — 종류만 말한다</td></tr>
++          <CueRows cues={weak} peak={peak} />
++        </tbody>
++      </table>
++
++      <p className="evdetail__note">
++        <b>막대 길이가 곧 기여다.</b> 가리지 못하는 근거는 원점수가 높아도 기여가 짧다 —
++        같은 기종 둘은 외형이 거의 같아 <b>개체를 가르지 못한다</b>. 아무리 쌓여도 위 묶음을
++        뒤집지 않는다. 미측정은 <b>0 이 아니라 빈 칸</b>이다.
++      </p>
++
++      {detail.remedy !== null && (
++        <p className="evdetail__remedy">
++          <b>해법 요청</b> — {detail.remedy}
++          <span> ※ 실제 명령 발급은 백엔드·하드웨어 경계를 거친다(AI-C-19).</span>
++        </p>
++      )}
++
++      <p className="evdetail__src">
++        AI 계약이 채울 자리 — <code>evidence_kinds</code> · <code>detection-result</code>.
++        <b> 지금 게이트웨이는 이 채널을 발행하지 않는다</b>: 위 수치는 모양을 보이기 위한
++        예시이고 관측값이 아니다.
++      </p>
++    </article>
++  );
++}

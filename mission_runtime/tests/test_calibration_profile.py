@@ -1,4 +1,10 @@
-"""implements: AI-E-03"""
+"""implements: AI-E-02
+
+2026-11-04: 머리말이 `AI-E-02` 을 달고 있었다. CLAUDE.md §5 가 비어 있는 과거 번호는
+**재사용하지 않는다**고 적은 그 번호이고, 대상 모듈(`edge/calibration_profile.py`)은
+이미 AI-E-02 로 정정돼 있었다 — 시험만 남아 있어 같이 옮긴다. 보정 lifecycle 의
+요구사항 ID 는 AI-E-02 하나다.
+"""
 
 import numpy as np
 

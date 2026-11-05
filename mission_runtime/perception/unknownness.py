@@ -207,7 +207,7 @@ class OwobjEnergyPolicy:
 # consume this module's output: `Evidence.label` is already optional and
 # `RecordResolver._resolve_class` already skips unlabeled evidence, so
 # flagging a box as unknown is expressed as "no label" rather than a new
-# branch in the vote-counting logic (AI-C-11: 여기서 무슨 provider가 unknown을
+# branch in the vote-counting logic (AI-C-05: 여기서 무슨 provider가 unknown을
 # 계산했는지 object_record.py는 알 필요가 없다).
 
 

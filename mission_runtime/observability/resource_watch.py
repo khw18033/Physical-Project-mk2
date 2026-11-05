@@ -30,13 +30,14 @@ implements: AI-O-05 (계층별 자원·서비스 지표 관측), AI-O-02 (오류
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Iterable
 
 from mission_runtime.observability.dashboard_view import (
     ConditionItem,
     EventKind,
     EventRecord,
+    NodeVerdict,
     Severity,
 )
 from mission_runtime.observability.layered_metrics import (
@@ -173,20 +174,56 @@ class ResourceWatch:
         사건이 아니다(넘었다고 말할 근거가 없다). 못 쟀다는 사실은 자원 조건의
         미확인으로 남는다.
         """
-        records = []
-        for result in self.evaluate(view):
-            if not result.over_threshold:
-                continue
-            where = result.target.accelerator_id or "board"
-            records.append(EventRecord(
-                at=result.measurement.at if result.measurement.at is not None else at,
-                severity=Severity.WARN,
-                kind=EventKind.RESOURCE,
-                message=(
-                    f"{where} {result.target.field} {result.measurement.value} "
-                    f"{result.measurement.unit} — "
-                    f"임계 {result.target.target.value} "
-                    f"{result.target.target.unit} ({result.target.target.direction.value})"
-                ),
-            ))
-        return tuple(records)
+        return threshold_events(self.evaluate(view), at=at)
+
+
+def threshold_events(
+    results: Iterable[WatchResult], *, at: float | None = None
+) -> tuple[EventRecord, ...]:
+    """판정 묶음 → [D] 경고 사건. 판정을 **다시 하지 않는다**.
+
+    같은 입력을 두 번 평가하면 두 출력이 어긋날 자리가 생긴다(AI-O-06 상태 일관성).
+    그래서 한 번 평가한 결과를 받아 사건으로만 옮긴다.
+    """
+    records = []
+    for result in results:
+        if not result.over_threshold:
+            continue
+        where = result.target.accelerator_id or "board"
+        records.append(EventRecord(
+            at=result.measurement.at if result.measurement.at is not None else at,
+            severity=Severity.WARN,
+            kind=EventKind.RESOURCE,
+            message=(
+                f"{where} {result.target.field} {result.measurement.value} "
+                f"{result.measurement.unit} — "
+                f"임계 {result.target.target.value} "
+                f"{result.target.target.unit} ({result.target.target.direction.value})"
+            ),
+        ))
+    return tuple(records)
+
+
+def with_measured_resource_conditions(
+    verdict: NodeVerdict, conditions: Iterable[ConditionItem]
+) -> NodeVerdict:
+    """[G] 자원 축의 **같은 item_id 를 계측 판정으로 바꾼** 새 판정.
+
+    implements: AI-O-05, AI-B-12 (노드 판정), AI-O-06 (상태 일관성)
+
+    기능정의서 §4.7: "자원 조건은 리소스 현황(E)의 Layer 1 계측값과 **일관되어야**
+    한다." 선언이 자원 조건의 충족 여부까지 적으면 그 칸은 **선언값이 측정값 자리에
+    앉은 것**이고, [E] 가 0.93 을 임계 초과로 칠하는 동안 [G] 는 정상이라고 적는
+    날이 온다. 그래서 역할을 가른다 — **어떤 조건이 이 노드에 걸리는지는 선언이,
+    그 조건이 지금 성립하는지는 계측이** 소유한다.
+
+    감시 대상에 없는 조건은 그대로 둔다. 노드가 선언하지 않은 조건을 여기서 더하지도
+    않는다 — 감시는 [E]/[D] 축이고 어느 노드의 성공 조건인지는 선언이 정한다.
+    """
+    by_id = {item.item_id: item for item in conditions}
+    if not by_id or not verdict.resource:
+        return verdict
+    merged = tuple(by_id.get(item.item_id, item) for item in verdict.resource)
+    if merged == verdict.resource:
+        return verdict
+    return replace(verdict, resource=merged)

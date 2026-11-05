@@ -1,0 +1,153 @@
+# 받아서 띄우는 가장 짧은 길. 선택지는 **프로파일**이고 코드가 아니다.
+#
+#   docker compose up                       관제 콘솔 + 브로커 (CPU)
+#   docker compose --profile gpu up          GPU 가속 변종
+#   docker compose --profile detectors up    ultralytics 탐지기 (AGPL-3.0)
+#   docker compose run --rm preflight        이 환경에서 무엇이 되는지만 본다
+#
+# implements: AI-B-02 (실행환경 패키징), AI-C-15 (배포 프로파일로 환경 차이 흡수)
+# 관련: AI-C-05, AI-C-16, AI-B-11
+#
+# 선언을 **명시로** 넘기는 이유
+# ---------------------------
+# `--ui-config`·`--zone-profile` 을 여기서 적는다. 콘솔의 기본값은 아직 우리 현장
+# 파일(`config/status_ui.json`·`profiles/domains.json`)을 가리키고 그 파일들은
+# 이미지에 들어가지 않는다(`.dockerignore`) — 기본값에 기대면 받는 쪽에서 없는
+# 파일을 찾는다. 자기 현장을 쓸 때는 아래 두 줄을 자기 선언으로 바꾸고 그 디렉터리를
+# 볼륨으로 넣는다. **선언은 배치가 공급하는 자료이지 배포물의 일부가 아니다.**
+
+services:
+  # --- 관제 콘솔 (CPU) ------------------------------------------------------
+  console:
+    build:
+      context: .
+      target: cpu
+    image: mission-runtime:cpu
+    command: >
+      python tools/fms_console/serve.py
+      --host 0.0.0.0 --port 8800
+      --ui-config config/status_ui.fms.example.json
+      --zone-profile profiles/domains.example.json
+      --goal-kinds profiles/goal_kinds.example.json
+      --overlay /var/lib/mission-runtime/overlay
+    ports:
+      - "8800:8800"
+    environment:
+      # 모델 가중치 자리. 비워 두면 모델 기반 근거만 비활성이고 나머지는 돈다.
+      MISSION_RUNTIME_ASSETS: /assets
+    volumes:
+      # 운영자가 고친 값은 append-only 장부에 쌓인다 — 이미지에 굽지 않고
+      # 볼륨에 남긴다(AI-L-03: 되돌림도 삭제가 아니라 기록이다).
+      - overlay:/var/lib/mission-runtime/overlay
+      # 자기 가중치를 쓰려면 여기에 붙인다. 없으면 그 provider 만 비활성이다.
+      - type: bind
+        source: ./assets
+        target: /assets
+        bind: { create_host_path: true }
+    depends_on:
+      - broker
+    restart: unless-stopped
+
+  # --- 말단↔엣지 업무·제어 경로 --------------------------------------------
+  # 엣지에 두는 것이고 말단에 두지 않는다(AI-B-10 · 원칙 #12).
+  broker:
+    image: eclipse-mosquitto:2
+    ports:
+      - "1883:1883"
+    volumes:
+      - ./deploy/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+    restart: unless-stopped
+
+  # --- 이 환경에서 무엇이 되는지만 본다 ------------------------------------
+  # 띄우기 **전에** 돌리는 용도다. 호스트가 무엇을 넘겨줬는지는 띄워 보고 물어야
+  # 알 수 있고, 그래서 이미지 안에서 돈다.
+  preflight:
+    build:
+      context: .
+      target: cpu
+    image: mission-runtime:cpu
+    command: ["python", "tools/preflight.py"]
+    environment:
+      MISSION_RUNTIME_ASSETS: /assets
+    volumes:
+      - type: bind
+        source: ./assets
+        target: /assets
+        bind: { create_host_path: true }
+    profiles: ["preflight"]
+
+  # --- GPU 가속 변종 --------------------------------------------------------
+  # **드라이버는 이미지에 없다.** 호스트가 넘겨주지 않으면 이 서비스도 GPU 를
+  # 못 쓰고, 호스트 드라이버가 깨져 있으면 함께 깨진다 — Docker 가 고쳐 주지
+  # 않는 자리다. `preflight` 가 그 경우를 사유와 함께 말한다.
+  console-gpu:
+    build:
+      context: .
+      target: cuda
+    image: mission-runtime:cuda
+    command: >
+      python3 tools/fms_console/serve.py
+      --host 0.0.0.0 --port 8800
+      --ui-config config/status_ui.fms.example.json
+      --zone-profile profiles/domains.example.json
+      --goal-kinds profiles/goal_kinds.example.json
+      --overlay /var/lib/mission-runtime/overlay
+    ports:
+      - "8800:8800"
+    environment:
+      MISSION_RUNTIME_ASSETS: /assets
+    volumes:
+      - overlay:/var/lib/mission-runtime/overlay
+      - type: bind
+        source: ./assets
+        target: /assets
+        bind: { create_host_path: true }
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: ["gpu"]
+    depends_on:
+      - broker
+    profiles: ["gpu"]
+    restart: unless-stopped
+
+  # --- 탐지기 변종 ----------------------------------------------------------
+  # **이 서비스를 쓰는 것은 라이센스 선택이다.** `ultralytics` 가 AGPL-3.0 이므로
+  # 이것으로 네트워크 서비스를 제공하면 결합 저작물에 소스 공개 의무가 따른다.
+  # 이 프로젝트의 라이센스는 아직 정해지지 않았고, 여기서도 정하지 않는다.
+  console-detectors:
+    build:
+      context: .
+      target: detectors
+    image: mission-runtime:detectors
+    command: >
+      python tools/fms_console/serve.py
+      --host 0.0.0.0 --port 8800
+      --ui-config config/status_ui.fms.example.json
+      --zone-profile profiles/domains.example.json
+      --goal-kinds profiles/goal_kinds.example.json
+      --overlay /var/lib/mission-runtime/overlay
+    ports:
+      - "8800:8800"
+    environment:
+      MISSION_RUNTIME_ASSETS: /assets
+      # 가속기를 쓰지 않기로 선언한다 — 이 변종은 CPU 기반이다. 숨기는 쪽
+      # (`CUDA_VISIBLE_DEVICES=""`)을 쓰지 않는 이유는 그것이 NVBLAS 를 통해
+      # **예외 없이 틀린 값**을 내기 때문이다(tools/preflight.py 참조).
+      MISSION_RUNTIME_NO_GPU: "1"
+    volumes:
+      - overlay:/var/lib/mission-runtime/overlay
+      - type: bind
+        source: ./assets
+        target: /assets
+        bind: { create_host_path: true }
+    depends_on:
+      - broker
+    profiles: ["detectors"]
+    restart: unless-stopped
+
+volumes:
+  overlay:

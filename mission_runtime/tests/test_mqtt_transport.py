@@ -1,4 +1,4 @@
-"""implements: AI-C-06, AI-C-04, AI-C-12, AI-C-14
+"""implements: AI-C-06, AI-C-04
 covers: real MQTT broker round-trip, identical contract to the in-memory
         fake, transport outage degrades instead of crashing
 
@@ -32,7 +32,7 @@ def paho_installed() -> bool:
     """The MQTT client is an optional extra (`pip install -e ".[mqtt]"`).
 
     Its absence must disable only this provider, never the framework
-    (AI-C-11, AI-C-12) — so these tests skip instead of failing.
+    (AI-C-05, AI-C-04) — so these tests skip instead of failing.
     """
     return importlib.util.find_spec("paho") is not None
 
@@ -143,7 +143,7 @@ def test_media_payload_is_refused_on_the_task_transport():
 
 @needs_paho
 def test_unreachable_broker_degrades_instead_of_raising():
-    # 전송 장애가 상위 기능을 죽여서는 안 된다 (AI-C-11).
+    # 전송 장애가 상위 기능을 죽여서는 안 된다 (AI-C-05).
     provider = mqtt_provider(client_id="test-down")
     provider = type(provider)("127.0.0.1", 1, client_id="test-down")  # port 1: nothing listening
 

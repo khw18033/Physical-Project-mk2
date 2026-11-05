@@ -19,7 +19,7 @@ Consequences encoded here:
   adding an observation source lowers uncertainty instead of restarting the
   estimate.
 * A producer that goes away contributes nothing; its absence is not evidence
-  against an element that other producers still support (AI-C-11).
+  against an element that other producers still support (AI-C-05).
 * This module answers "what was observed to be there", not "which coordinate
   does it occupy" and not "which area can a camera see" — those are the
   digital-twin side (DT-03, DT-04).

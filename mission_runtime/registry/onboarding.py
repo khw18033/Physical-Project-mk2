@@ -29,6 +29,21 @@ tests: tests/test_onboarding.py
 판정하고(절대 준수 원칙 #15, AI-O-04), 여기서 다시 판정하지 않는다. 그래서
 `JoinOutcome.accepted` 는 "쓸 수 있다"가 아니라 "선언이 계약에 맞는다"는 뜻이다.
 
+## 무엇에 실렸고 어떻게 닿는지도 선언이다 (2026-11-04)
+
+실제 지형은 선언이 적던 것과 달랐다 — Pi 가 랜선으로 로봇에 붙어 컨테이너를 들고
+있는데, 선언은 로봇과 Pi 를 **서로 무관한 두 노드**로 적었다. `has_camera: bool`
+하나로는 로봇 내부 카메라 · Pi 에 단 카메라 · 송수신기가 먼저 떠야 하는 360 유닛을
+가를 수 없다. 그래서 선언에 세 축이 더 붙는다 — 부착 · 링크 · 도달
+(`contracts/device_attachment.py`). 추가는 **덧붙임**이다: 그 축을 적지 않은
+선언은 지금까지처럼 `standalone` 으로 읽히고 `has_camera` 는 카메라 도달이
+선언됐을 때 함께 참이 된다. 어긋남(실린 노드가 `tier.edge` 로 적혀 있는 것)은
+`runtime/environment_profile.py::report_attachment_conflicts` 가 보고하고, 그것은
+**조인 거절이 아니라 남은 할 일이다**(원칙 #15). 어느 역할 태그가 고정 노드를
+전제하는지는 **선언이 정한다**(`carried_node_excluded_tags`) — 코드가 목록을 들면
+새 현장마다 코드를 고쳐야 한다(원칙 #1·#3). 어휘를 아무도 선언하지 않았으면 그
+보고는 "충돌 없음" 이 아니라 `checked=False` 다.
+
 ## 빠진 칸을 채워 넣지 않는다
 
 외형 이미지가 없으면 외형 학습을 **할 일로 남기고** 분류를 흉내내지 않는다. 예산을
@@ -43,7 +58,20 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Iterable, Mapping
 
+from mission_runtime.contracts.device_attachment import (
+    ATTACHMENT_STANDALONE,
+    REASON_READY,
+    AttachmentGraph,
+    CapabilityReach,
+    DeviceAttachment,
+    reach_from_dict,
+)
+from mission_runtime.contracts.physical_command import Capability as ActionDeclaration
 from mission_runtime.contracts.profile import ResourceBudget
+
+#: 이름만 공지된 action 이 적지 못한 AI-C-18 항목 전부. 손으로 적지 않고 계약에
+#: 묻는다 — 선언 항목이 늘어나는 날 이 목록이 저절로 따라간다.
+ALL_DECLARATION_ITEMS: tuple[str, ...] = ActionDeclaration(name="_probe").undeclared_items()
 
 #: uplink 로 올라오는 조인 선언의 message_type.
 JOIN_MESSAGE_TYPE = "node_join"
@@ -59,6 +87,12 @@ APPEARANCE_ASSET_TEMPLATE = "{root}/appearance/{device_id}/"
 #: 장치 id 규약. 토픽과 파일 경로에 그대로 들어가므로 좁게 잡는다.
 _DEVICE_ID = re.compile(r"^[a-z0-9][a-z0-9._-]{1,63}$")
 
+#: 카메라 영상을 내는 capability kind. `has_camera` 가 말하던 사실을 도달 축에서
+#: 다시 찾는 근거이고(AI-E-02 — 카메라가 있으면 보정이 할 일로 남는다), 어휘는
+#: `config/status_ui*.json` 의 capability kind 와 같은 것을 쓴다. 장치 이름이나
+#: 벤더로 가르지 않는다(원칙 #1·#3).
+CAMERA_CAPABILITY_KIND = "media.video_input"
+
 
 class JoinStep(str, Enum):
     """조인 뒤에 남는 할 일. **자동으로 되지 않는 것만** 여기 들어간다."""
@@ -67,6 +101,12 @@ class JoinStep(str, Enum):
     LEARN_APPEARANCE = "learn_appearance"
     CONFIRM_PLACEMENT = "confirm_placement"
     VERIFY_PROFILE = "verify_execution_profile"
+    #: 송수신기 연결과 자기 실행 코드가 **먼저 떠야** 아무것도 내지 않는 유닛
+    #: (360 유닛)이 있다. "없다" 와 "아직 안 떴다" 는 다른 사실이다(AI-C-05).
+    BRING_UP_UNIT = "bring_up_attached_unit"
+    #: 부착 선언이 성립하지 않는다(싣고 있다는데 상대나 링크가 없다). 조인을
+    #: 거절하지 않는 이유는 조인이 가용성 판정이 아니기 때문이다(원칙 #15).
+    RESOLVE_ATTACHMENT = "resolve_attachment_declaration"
 
 
 class JoinRejection(str, Enum):
@@ -95,8 +135,25 @@ class NodeJoinManifest:
     #: 이 장치가 외형 분류에서 가리킬 class 이름(go1 / ep01 / ...). 없으면 학습 대상.
     appearance_class: str | None = None
     #: 카메라를 달고 왔는가 — 달았으면 보정이 할 일로 남는다(AI-E-02).
+    #:
+    #: **이 한 칸으로는 셋을 가를 수 없다**(로봇 내부 카메라 · 이 노드에 직접 단
+    #: 카메라 · 송수신기가 먼저 떠야 하는 별개 유닛). 그래서 아래 부착·링크·도달
+    #: 세 축이 생겼고, 이 칸은 그 축의 **유도값**으로 남는다 — 선언이 카메라
+    #: 도달을 적으면 여기도 참이 된다. 기존 호출자 여덟 곳은 그대로 돈다.
     has_camera: bool = False
     calibration_profile_version: str | None = None
+    #: 무엇에 실려 있나 — `standalone` 또는 `carried_by`(AI-C-18, AI-B-04).
+    #: 실린 노드는 **움직인다**. 배치가 그것을 모르면 구역 엣지 몫(브로커·수집기
+    #: 급)을 움직이는 로봇에 올린다 — AI-B-10 이 막으라고 한 것이다.
+    attachment: str = ATTACHMENT_STANDALONE
+    #: 실려 있는 상대. `carried_by` 일 때만 뜻이 있다.
+    carrier_id: str = ""
+    #: 무엇으로 붙었나(`ethernet`/`usb`/`wireless`/...). 유선이면 공유 운명이다.
+    link: str = ""
+    #: 각 capability 를 **어떻게 얻는가**. 같은 "카메라 영상" 도 로봇 SDK·호스트
+    #: 캡처·송수신기로 오는 길이 다르고, 그 차이를 선언이 흡수해야 상위 코드에
+    #: 분기가 생기지 않는다(AI-C-18).
+    capability_reaches: tuple[CapabilityReach, ...] = ()
     #: 오버레이에서 이 장치를 가리키는 피어 이름. 제품 이름은 provider 뒤에 있다.
     overlay_peer: str | None = None
     #: 어댑터가 구현한 명령 어휘. 실제 탐지는 `Capability` 공지가 하고, 여기 적힌
@@ -105,9 +162,37 @@ class NodeJoinManifest:
     contract_version: str = JOIN_CONTRACT_VERSION
     extra: Mapping[str, Any] = field(default_factory=dict)
 
+    def __post_init__(self) -> None:
+        """카메라 도달을 선언했으면 `has_camera` 도 참이다.
+
+        **빈 칸을 기본값으로 메우는 것이 아니다**(이 모듈의 머리말이 금지하는
+        그것) — 같은 사실을 새 축으로 적었을 때 옛 축이 그것을 부정하지 않게
+        하는 것이다. 반대 방향으로는 유도하지 않는다: `has_camera=True` 만 적은
+        선언에서 도달 방식을 지어내면 그것은 관측이 아니라 추측이다(AI-S-08).
+        """
+        if self.has_camera:
+            return
+        if any(reach.capability_kind == CAMERA_CAPABILITY_KIND
+               for reach in self.capability_reaches):
+            object.__setattr__(self, "has_camera", True)
+
     def appearance_dir(self, *, root: str) -> str:
         return APPEARANCE_ASSET_TEMPLATE.format(root=root.rstrip("/"),
                                                 device_id=self.device_id)
+
+    def attachment_declaration(self) -> DeviceAttachment:
+        """세 축을 `contracts/device_attachment.py` 의 계약 객체 하나로.
+
+        여기서 가용성을 계산하지 않는다 — 공유 운명은 선언된 관계이고 "지금 살아
+        있는가" 의 답이 아니다(원칙 #15, AI-C-19).
+        """
+        return DeviceAttachment(
+            device_id=self.device_id,
+            attachment=self.attachment,
+            carrier_id=self.carrier_id,
+            link=self.link,
+            reaches=self.capability_reaches,
+        )
 
 
 @dataclass(frozen=True)
@@ -124,6 +209,11 @@ class JoinOutcome:
     unannounced_declarations: tuple[str, ...] = ()
     contract_version_mismatch: str | None = None
     notes: tuple[str, ...] = ()
+    #: action 이름 -> 그 공지가 **적지 않은** AI-C-18 항목들. 이름만 공지한
+    #: 장치는 여기에 항목 전부가 적힌다. 조인을 거절하지 않는 이유는 선언이
+    #: 덜 찬 것이 정상 상태이기 때문이고(AI-C-18), 적어 두는 이유는 그 사실이
+    #: 보이지 않으면 "선언이 다 왔다" 와 구분되지 않기 때문이다.
+    under_declared_actions: Mapping[str, tuple[str, ...]] = field(default_factory=dict)
 
     def as_dict(self) -> dict:
         return {
@@ -136,6 +226,8 @@ class JoinOutcome:
             "unannounced_declarations": list(self.unannounced_declarations),
             "contract_version_mismatch": self.contract_version_mismatch,
             "notes": list(self.notes),
+            "under_declared_actions": {name: list(items) for name, items
+                                       in self.under_declared_actions.items()},
         }
 
 
@@ -145,6 +237,7 @@ def manifest_from_dict(raw: Mapping[str, Any]) -> NodeJoinManifest:
         "device_id", "role", "node_tags", "budget", "appearance_assets",
         "appearance_class", "has_camera", "calibration_profile_version",
         "overlay_peer", "declared_actions", "contract_version",
+        "attachment", "carrier_id", "link", "reaches",
     }
     budget_raw = raw.get("budget")
     budget = None
@@ -167,6 +260,12 @@ def manifest_from_dict(raw: Mapping[str, Any]) -> NodeJoinManifest:
         overlay_peer=raw.get("overlay_peer") or None,
         declared_actions=tuple(raw.get("declared_actions") or ()),
         contract_version=str(raw.get("contract_version") or JOIN_CONTRACT_VERSION),
+        # 와이어에 부착 축이 없는 선언은 `standalone` 으로 읽힌다 — 지금까지의
+        # 선언 전부가 그 모양이고, 그래서 추가가 **덧붙임**이다.
+        attachment=str(raw.get("attachment") or ATTACHMENT_STANDALONE),
+        carrier_id=str(raw.get("carrier_id") or ""),
+        link=str(raw.get("link") or ""),
+        capability_reaches=tuple(reach_from_dict(r) for r in (raw.get("reaches") or ())),
         extra={k: v for k, v in raw.items() if k not in known},
     )
 
@@ -188,9 +287,14 @@ class NodeOnboarding:
         self,
         manifest: NodeJoinManifest,
         *,
-        announced_actions: Iterable[str] = (),
+        announced_actions: Iterable[Any] = (),
         replace: bool = False,
     ) -> JoinOutcome:
+        """`announced_actions` 는 action **이름**이거나 AI-C-18 선언 객체
+        (`contracts/physical_command.py::Capability`)다. 이름만 주면 그 action 의
+        선언 항목은 전부 미선언으로 기록된다 — 지금 와이어가 이름까지만 싣기
+        때문에(spec §8-3 P7) 실제 장치는 이 경로로 들어온다.
+        """
         rejections: list[tuple[JoinRejection, str]] = []
         notes: list[str] = []
 
@@ -204,7 +308,22 @@ class NodeOnboarding:
             # "등록은 됐는데 아무 기능도 없는" 장치가 된다.
             rejections.append((JoinRejection.MISSING_FIELD, "node_tags"))
 
-        announced = tuple(sorted(set(announced_actions)))
+        # 이름과 선언 객체를 같은 입구로 받는다. 이름만 온 공지를 거절하지
+        # 않는 것이 요점이다 — 덜 찬 선언도 유효한 선언이다(AI-C-18).
+        under_declared: dict[str, tuple[str, ...]] = {}
+        names: list[str] = []
+        for item in announced_actions:
+            if isinstance(item, str):
+                names.append(item)
+                under_declared[item] = ALL_DECLARATION_ITEMS
+                continue
+            name = getattr(item, "name", None)
+            if not name:
+                continue
+            names.append(str(name))
+            missing = getattr(item, "undeclared_items", None)
+            under_declared[str(name)] = tuple(missing()) if callable(missing) else ()
+        announced = tuple(sorted(set(names)))
         if not announced and not manifest.declared_actions:
             rejections.append((JoinRejection.NO_ACTION_VOCABULARY, "none announced or declared"))
 
@@ -234,6 +353,8 @@ class NodeOnboarding:
             unannounced_declarations=tuple(sorted(declared - set(announced))),
             contract_version_mismatch=mismatch,
             notes=tuple(notes),
+            under_declared_actions={name: items for name, items
+                                    in sorted(under_declared.items()) if items},
         )
         if outcome.accepted:
             self._manifests[manifest.device_id] = manifest
@@ -262,6 +383,14 @@ class NodeOnboarding:
         steps.append(JoinStep.CONFIRM_PLACEMENT)
         if manifest.budget is None:
             steps.append(JoinStep.VERIFY_PROFILE)
+        declaration = manifest.attachment_declaration()
+        if declaration.bring_up_required:
+            # 송수신기·실행 코드가 떠야 영상이 나오는 유닛. 선언만으로 쓸 수 있는
+            # 것처럼 두면 "없다" 와 "아직 안 떴다" 가 한 칸에 들어간다.
+            steps.append(JoinStep.BRING_UP_UNIT)
+        if declaration.carrier_declaration_reason != REASON_READY:
+            # 실렸다고 적었는데 상대나 링크가 없다. 거절이 아니라 남은 할 일이다.
+            steps.append(JoinStep.RESOLVE_ATTACHMENT)
         return tuple(steps)
 
     # -- 조회 -------------------------------------------------------------
@@ -274,6 +403,18 @@ class NodeOnboarding:
 
     def joined(self) -> tuple[str, ...]:
         return tuple(sorted(self._manifests))
+
+    def attachment_graph(self) -> AttachmentGraph:
+        """받아들인 선언들의 부착 관계 전부.
+
+        소비자는 이 그래프로 "무엇이 무엇에 실렸나" 와 "어느 노드가 움직이나" 를
+        묻는다(AI-B-10 의 배치 제약, AI-O-04 의 공유 운명). **가용성은 여기서
+        나오지 않는다** — 백엔드가 판정한다(원칙 #15).
+        """
+        return AttachmentGraph(tuple(
+            manifest.attachment_declaration()
+            for _, manifest in sorted(self._manifests.items())
+        ))
 
     def refused(self) -> tuple[JoinOutcome, ...]:
         """받아들이지 못한 선언들. 조용히 버리지 않는다 — 운영자가 "올렸는데 왜
@@ -301,6 +442,7 @@ class NodeOnboarding:
             unannounced_declarations=outcome.unannounced_declarations,
             contract_version_mismatch=outcome.contract_version_mismatch,
             notes=outcome.notes + (f"resolved:{step.value}",),
+            under_declared_actions=outcome.under_declared_actions,
         )
         self._outcomes[device_id] = updated
         return updated
@@ -328,4 +470,16 @@ def node_config_entry(manifest: NodeJoinManifest, *, verified: bool = False) -> 
     if manifest.budget is not None:
         entry["budget"] = {"compute_units": manifest.budget.compute_units,
                            "memory_mb": manifest.budget.memory_mb}
+    if manifest.attachment != ATTACHMENT_STANDALONE or manifest.capability_reaches:
+        # **적은 것만 싣는다.** 모든 줄에 `attachment: standalone` 을 붙이면
+        # "확인했고 혼자 서 있다" 와 "그 축을 아예 안 적었다" 가 같아진다.
+        declaration = manifest.attachment_declaration()
+        body: dict[str, Any] = {"attachment": declaration.attachment}
+        if declaration.carrier_id:
+            body["carrier_id"] = declaration.carrier_id
+        if declaration.link:
+            body["link"] = declaration.link
+        if declaration.reaches:
+            body["reaches"] = [reach.as_dict() for reach in declaration.reaches]
+        entry["device_attachment"] = body
     return entry

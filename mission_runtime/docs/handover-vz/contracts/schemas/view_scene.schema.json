@@ -1,0 +1,7 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://physical-project.local/schemas/view_scene.schema.json",
+  "title": "View payload — GET /api/scene",
+  "$comment": "메인 맵의 장면 데이터. 색·픽셀·폰트가 없고 좌표는 현장 로컬이다(AI-C-02).",
+  "$ref": "https://physical-project.local/schemas/view_snapshot.schema.json#/$defs/scene"
+}

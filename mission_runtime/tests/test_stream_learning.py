@@ -553,3 +553,137 @@ def test_assignment_modules_name_no_vendor_or_model_product():
             low = token.string.lower()
             leaked += [(n, token.start[0]) for n in banned if n in low]
         assert not leaked, f"{mod.__name__}: {leaked}"
+
+
+# -- 확인된 음성 (2026-11-04) -------------------------------------------------
+# 문헌 조사(docs/research/hitl-data-and-weight-management.md §9.3)가 짚은 공백의
+# 양면을 고친 자리다. 사람이 "여기 아무것도 없다" 로 지운 상자가 **양성 후보**로
+# 들어오고 있었고, 동시에 임계를 교정할 음성은 없다고 적혀 있었다 — 같은 자료가
+# 틀린 문으로 들어온 것이었다.
+
+def _polarity_conditions():
+    from mission_runtime.continual.stream_learning import InputConditions
+
+    return InputConditions(device_id="pi4", camera_id="pi4_front", resolution="464x400")
+
+
+def _polar_sample(sample_id, label, feature, *, negative=False):
+    from mission_runtime.continual.stream_learning import (
+        CandidateOrigin,
+        SamplePolarity,
+        StreamSample,
+    )
+
+    return StreamSample(
+        sample_id=sample_id, conditions=_polarity_conditions(), label=label, feature=feature,
+        origin=CandidateOrigin.HUMAN_CONFIRMED,
+        polarity=SamplePolarity.NEGATIVE if negative else SamplePolarity.POSITIVE)
+
+
+def test_a_confirmed_negative_never_becomes_a_class_of_its_own():
+    """**재현된 결함이다.** 음성 세 건이 임계 0.0 짜리 클래스를 만들었다.
+
+    `(0,0,0,0)` 특징의 코사인 유사도는 0.0 이고, 그 분위도 0.0 이라 그 클래스는
+    **무엇이든 받아들인다.** 사람이 "아무것도 없다" 를 세 번 말한 것만으로
+    분류기가 전부 통과시키는 문을 얻었다.
+    """
+    from mission_runtime.continual.stream_learning import (
+        CandidateBatch,
+        PrototypeLearningProvider,
+    )
+
+    batch = CandidateBatch(_polarity_conditions(), tuple(
+        [_polar_sample(f"p{i}", "chair", (10.0, 20.0, 50.0, 80.0 + i)) for i in range(3)]
+        + [_polar_sample(f"n{i}", "chair", (0.0, 0.0, 0.0, 0.0), negative=True)
+           for i in range(3)]))
+
+    outcome = PrototypeLearningProvider(min_samples=3).train(batch, base=None)
+
+    assert outcome.parameters is not None
+    assert "absent" not in outcome.parameters.parameters
+    assert set(outcome.parameters.parameters) == {"chair"}
+    assert all(body["threshold"] > 0.0
+               for body in outcome.parameters.parameters.values()), (
+        "임계 0.0 은 모든 것을 받아들인다")
+
+
+def test_a_negative_does_not_enter_the_prototype_average():
+    """음성을 섞으면 "그 라벨이 아니다" 로 확인된 표본이 그 라벨의 평균이 된다."""
+    from mission_runtime.continual.stream_learning import (
+        CandidateBatch,
+        PrototypeLearningProvider,
+    )
+
+    positives = [_polar_sample(f"p{i}", "chair", (10.0, 10.0, 10.0, 10.0)) for i in range(3)]
+    far_away = [_polar_sample("n0", "chair", (900.0, 900.0, 900.0, 900.0), negative=True)]
+
+    without = PrototypeLearningProvider(min_samples=3).train(
+        CandidateBatch(_polarity_conditions(), tuple(positives)), base=None)
+    with_negative = PrototypeLearningProvider(min_samples=3).train(
+        CandidateBatch(_polarity_conditions(), tuple(positives + far_away)), base=None)
+
+    assert (without.parameters.parameters["chair"]["prototype"]
+            == with_negative.parameters.parameters["chair"]["prototype"])
+
+
+def test_a_confirmed_negative_calibrates_the_threshold_instead_of_being_discarded():
+    """버리면 임계를 교정할 자료가 사라진다 — `ConfirmedAcceptanceScorer` 가
+    docstring 에 "확인된 음성 표본이 먼저 있어야 한다" 고 적어 둔 그 자료다."""
+    from mission_runtime.continual.stream_learning import (
+        CandidateBatch,
+        PrototypeLearningProvider,
+    )
+
+    batch = CandidateBatch(_polarity_conditions(), tuple(
+        [_polar_sample(f"p{i}", "chair", (10.0, 20.0, 50.0, 80.0 + i)) for i in range(3)]
+        + [_polar_sample("n0", "chair", (300.0, 10.0, 320.0, 30.0), negative=True),
+           _polar_sample("n1", "chair", (280.0, 12.0, 300.0, 34.0), negative=True)]))
+
+    body = PrototypeLearningProvider(min_samples=3).train(
+        batch, base=None).parameters.parameters["chair"]
+
+    assert body["negative_sample_count"] == 2
+    assert body["threshold_separates_negatives"] is True
+    assert body["negative_max_similarity"] < body["threshold"]
+
+
+def test_a_negative_inside_the_threshold_is_reported_rather_than_hidden():
+    """음성이 양성 임계 안에 들어오면 **그 특징 공간에서는 둘이 갈리지 않는다.**
+
+    임계를 올려 밀어내면 양성까지 잘린다. 그래서 올리지 않고 그 사실을 적는다 —
+    숨기면 임계가 괜찮은 척한다.
+    """
+    from mission_runtime.continual.stream_learning import (
+        CandidateBatch,
+        PrototypeLearningProvider,
+    )
+
+    # 음성이 양성과 거의 같은 방향이다(코사인이라 크기는 보지 않는다).
+    batch = CandidateBatch(_polarity_conditions(), tuple(
+        [_polar_sample(f"p{i}", "chair", (10.0, 20.0, 30.0, 40.0 + i * 0.01)) for i in range(3)]
+        + [_polar_sample("n0", "chair", (20.0, 40.0, 60.0, 80.0), negative=True)]))
+
+    body = PrototypeLearningProvider(min_samples=3).train(
+        batch, base=None).parameters.parameters["chair"]
+
+    assert body["threshold_separates_negatives"] is False
+    assert body["negative_sample_count"] == 1
+
+
+def test_the_batch_separates_the_two_kinds_without_losing_either():
+    from mission_runtime.continual.stream_learning import CandidateBatch
+
+    batch = CandidateBatch(_polarity_conditions(), (
+        _polar_sample("p0", "chair", (1.0, 1.0)),
+        _polar_sample("n0", "chair", (2.0, 2.0), negative=True)))
+
+    assert len(batch.confirmed()) == 2, "음성도 확인된 표본이다"
+    assert [s.sample_id for s in batch.confirmed_positives()] == ["p0"]
+    assert [s.sample_id for s in batch.confirmed_negatives()] == ["n0"]
+
+
+def test_an_existing_sample_without_a_declared_polarity_is_positive():
+    """기존 호출 경로가 그대로 돌아야 한다 — 기본값이 양성이다."""
+    from mission_runtime.continual.stream_learning import SamplePolarity
+
+    assert _polar_sample("p0", "chair", (1.0,)).polarity is SamplePolarity.POSITIVE

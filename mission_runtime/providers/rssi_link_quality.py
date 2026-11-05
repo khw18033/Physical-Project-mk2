@@ -42,6 +42,27 @@ dBm→품질이 선형이라는 것도 근사다. RSSI는 로그 척도라 거�
 압축돼 있고, 실제 처리율은 계단형으로 떨어진다 — 그래서 이 환산은 "얼마나
 빠른가"가 아니라 "원격에 기대도 되는가"의 순서 관계만 보존하면 된다.
 
+거리 환산도 여기에 있다 (dBm 이 사는 자리)
+-----------------------------------------
+`LogDistancePathLoss` 는 배포 프로파일(`profiles/domains.json` 의 `rf.<kind>`)이
+선언한 계수로 **dBm ↔ m** 를 환산한다. 계수는 코드에 없고 전부 데이터이며,
+모르는 모델 이름은 조용히 기본값으로 떨어지지 않고 거부된다.
+
+이 환산이 상위 모듈이 아니라 provider 쪽에 있는 이유는 위와 같다 — dBm 과 경로
+손실 지수는 무선 기술의 어휘이고, 그 이름이 나와도 되는 자리는 여기다(AI-N-03).
+`perception/rssi_localization.py` 는 이 모델을 **받아 쓰기만** 하고 dBm 을 직접
+파싱하지 않는다. 같은 식의 복사본이 `tools/fms_console/handover.py::RfModel` 에도
+있고(그쪽이 구역 핸드오버 입력을 만든다) 두 구현이 갈라지지 않도록 시험이
+프로파일이 적어 둔 `radius_m` 과 양쪽을 함께 고정한다.
+
+그림자 손실(shadowing)은 계수가 아니라 **분산**이다
+--------------------------------------------------
+log-distance 식은 평균만 말한다. 실제 RSSI 는 다중경로·차폐로 같은 자리에서도
+수 dB 씩 흔들리고, 그 흔들림은 거리로 환산될 때 **곱셈 오차**가 된다
+(`distance_bounds_for`). 그래서 σ 없이 거리 하나만 내면 그 숫자는 측량값처럼
+읽히지만 실제로는 ±수십 %다. σ 도 프로파일 데이터이며, 선언돼 있지 않으면
+기본값을 쓰되 `shadowing_basis` 가 **그것이 실측이 아니라는 사실**을 들고 다닌다.
+
 구역 매핑도 데이터다 (절대 준수 원칙 #3)
 -----------------------------------------
 BSSID→`zone_id`는 배포 데이터(`peer_zones`)로 주입된다. 이 파일에는 구역 이름도
@@ -52,9 +73,10 @@ BSSID→`zone_id`는 배포 데이터(`peer_zones`)로 주입된다. 이 파일�
 
 from __future__ import annotations
 
+import math
 import re
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable, Mapping, Sequence
 
@@ -77,6 +99,137 @@ RSSI_PROVIDER_REASONS: tuple[str, ...] = (
     REASON_LEVEL_MISSING,
     REASON_UNPARSEABLE,
 )
+
+#: 프로파일이 선언할 수 있는 RF 모델 이름. 모르는 모델은 **추측하지 않고 거부한다** —
+#: 조용히 log-distance 로 떨어지면 다른 모델을 선언한 현장이 틀린 거리를 받는다.
+LOG_DISTANCE = "log_distance"
+
+#: 경로손실 기준거리(m). 이보다 가까운 거리는 모델의 적용 범위 밖이라 눌러 쓴다.
+REFERENCE_DISTANCE_M = 1.0
+
+#: 그림자 손실 1σ(dB)의 **미실측 기본값**. 실내 log-normal shadowing 의 통상 범위
+#: (4~8dB) 가운데 값이고 **이 현장에서 잰 값이 아니다**. 그래서 이 값을 쓴 추정은
+#: `shadowing_basis` 로 그 사실을 들고 다닌다 — 미측정을 실측처럼 쓰지 않는다.
+DEFAULT_SHADOWING_SIGMA_DB = 6.0
+
+#: `shadowing_basis` 값 어휘. 자유 문자열이고 벤더 enum 이 아니다.
+SIGMA_BASIS_DECLARED = "declared_in_profile"
+SIGMA_BASIS_UNMEASURED = "unmeasured_default"
+
+#: 프로파일 `rf.<kind>` 가 σ 를 적을 때 쓰는 키. 지금 `profiles/domains.json` 에는
+#: **없다** — 그래서 현재 모든 추정이 `unmeasured_default` 로 나온다.
+SHADOWING_SIGMA_KEY = "shadowing_sigma_db"
+
+
+class RadioModelError(ValueError):
+    """RF 선언을 그대로 쓸 수 없다. 조용히 기본 계수를 끼워 넣지 않는다."""
+
+
+@dataclass(frozen=True)
+class LogDistancePathLoss:
+    """한 RF 종류의 경로손실 모델. **계수는 전부 프로파일 데이터다**.
+
+        level_dbm(d) = tx_eirp_dbm - reference_loss_db_at_1m
+                       - 10 * path_loss_exponent * log10(d)      (d >= 1m)
+
+    `declared_radius_m` 은 프로파일이 적어 둔 **유도값**이라 계산에 쓰지 않는다 —
+    비교용으로만 들고 있고, 시험이 "역산한 값 == 적어 둔 반경" 을 고정한다. 반경을
+    상수로 베껴 쓰면 계수를 고치는 날 둘이 갈라진다.
+    """
+
+    kind: str
+    tx_eirp_dbm: float
+    reference_loss_db_at_1m: float
+    path_loss_exponent: float
+    shadowing_sigma_db: float = DEFAULT_SHADOWING_SIGMA_DB
+    shadowing_basis: str = SIGMA_BASIS_UNMEASURED
+    #: 주파수대. 표시 라벨이고 분기 조건이 아니다(자유 문자열).
+    band: str = ""
+    declared_radius_m: Mapping[str, float] = field(default_factory=dict)
+    thresholds_dbm: Mapping[str, float] = field(default_factory=dict)
+    model: str = LOG_DISTANCE
+
+    def __post_init__(self) -> None:
+        if self.path_loss_exponent <= 0:
+            raise RadioModelError(
+                f"rf {self.kind!r} needs a positive path loss exponent, "
+                f"got {self.path_loss_exponent}")
+        if self.shadowing_sigma_db <= 0:
+            raise RadioModelError(
+                f"rf {self.kind!r} needs a positive shadowing sigma, "
+                f"got {self.shadowing_sigma_db}")
+
+    @classmethod
+    def from_profile(cls, kind: str, raw: Mapping) -> "LogDistancePathLoss":
+        """`profiles/domains.json` 의 `rf.<kind>` 한 덩이를 모델로 옮긴다."""
+        model = raw.get("model")
+        if model != LOG_DISTANCE:
+            raise RadioModelError(f"unsupported rf model for {kind!r}: {model!r}")
+        for key in ("tx_eirp_dbm", "reference_loss_db_at_1m", "path_loss_exponent"):
+            if key not in raw:
+                raise RadioModelError(f"rf model {kind!r} missing {key!r}")
+        declared_sigma = raw.get(SHADOWING_SIGMA_KEY)
+        return cls(
+            kind=kind,
+            tx_eirp_dbm=float(raw["tx_eirp_dbm"]),
+            reference_loss_db_at_1m=float(raw["reference_loss_db_at_1m"]),
+            path_loss_exponent=float(raw["path_loss_exponent"]),
+            shadowing_sigma_db=(DEFAULT_SHADOWING_SIGMA_DB if declared_sigma is None
+                                else float(declared_sigma)),
+            shadowing_basis=(SIGMA_BASIS_UNMEASURED if declared_sigma is None
+                             else SIGMA_BASIS_DECLARED),
+            band=str(raw.get("band", "")),
+            declared_radius_m={k: float(v) for k, v in (raw.get("radius_m") or {}).items()},
+            thresholds_dbm={k: float(v)
+                            for k, v in (raw.get("thresholds_dbm") or {}).items()},
+            model=model,
+        )
+
+    # --- 정방향 ------------------------------------------------------------
+
+    def level_dbm(self, distance_m: float) -> float:
+        """거리 → 평균 신호 세기. 흔들림(σ)은 **이 값에 들어 있지 않다**."""
+        distance = max(float(distance_m), REFERENCE_DISTANCE_M)
+        loss = (self.reference_loss_db_at_1m
+                + 10.0 * self.path_loss_exponent * math.log10(distance))
+        return self.tx_eirp_dbm - loss
+
+    # --- 역방향 ------------------------------------------------------------
+
+    def distance_m_for(self, level_dbm: float) -> float:
+        """신호 세기 → 거리. **점 추정이고 그것만 쓰면 안 된다**.
+
+        아래 `distance_bounds_for` 가 같은 측정의 구간이며, 그 폭이 이 점 하나를
+        얼마나 믿을 수 없는지 말해 준다.
+        """
+        budget = self.tx_eirp_dbm - self.reference_loss_db_at_1m - float(level_dbm)
+        return 10.0 ** (budget / (10.0 * self.path_loss_exponent))
+
+    def distance_bounds_for(
+        self, level_dbm: float, *, k_sigma: float = 1.0
+    ) -> tuple[float, float]:
+        """σ 를 거리 구간으로 옮긴다. dB 의 덧셈 오차는 거리의 **곱셈 오차**다.
+
+            d_true = d_hat * 10 ** (X / (10 n)),   X ~ N(0, σ²)
+
+        그래서 구간은 `d_hat` 을 중심으로 대칭이 아니라 비율로 벌어진다. n=3.5,
+        σ=6dB, k=1 이면 ±48% 다 — 20m 추정이 13.5~29.7m 라는 뜻이고, 이것이
+        "점 하나로 내면 안 된다" 의 수치적 근거다.
+        """
+        if k_sigma < 0:
+            raise ValueError("k_sigma must not be negative")
+        centre = self.distance_m_for(level_dbm)
+        spread = 10.0 ** (k_sigma * self.shadowing_sigma_db
+                          / (10.0 * self.path_loss_exponent))
+        return centre / spread, centre * spread
+
+    def radius_for_threshold(self, name: str) -> float | None:
+        """선언된 문턱 이름(`excellent`·`handover`·`floor`)의 반경. 없으면 `None`."""
+        level = self.thresholds_dbm.get(name)
+        if level is None:
+            return None
+        return self.distance_m_for(level)
+
 
 #: `/proc/net/wireless` 한 줄: "wlan0: 0000   65.  -45.  -256  0 0 0 1 0  0"
 _PROC_LINE = re.compile(

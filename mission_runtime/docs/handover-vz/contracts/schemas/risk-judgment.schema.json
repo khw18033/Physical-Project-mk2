@@ -1,0 +1,79 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://physical-project.local/schemas/ai/risk-judgment.schema.json",
+  "title": "AI Risk Judgment",
+  "type": "object",
+  "required": [
+    "state",
+    "score",
+    "evidence_sufficiency",
+    "evidence_used",
+    "reasons",
+    "recommendation",
+    "model_version",
+    "decided_at"
+  ],
+  "properties": {
+    "state": {
+      "enum": [
+        "normal",
+        "watch",
+        "alert",
+        "recovery"
+      ]
+    },
+    "score": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "evidence_sufficiency": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "evidence_used": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "uniqueItems": true
+    },
+    "reasons": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "label",
+          "value",
+          "contribution"
+        ],
+        "properties": {
+          "label": {
+            "type": "string"
+          },
+          "value": {
+            "type": "string"
+          },
+          "contribution": {
+            "type": "number"
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "recommendation": {
+      "type": "string"
+    },
+    "model_version": {
+      "type": "string",
+      "minLength": 1
+    },
+    "decided_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "additionalProperties": true,
+  "$comment": "2026-10-27: 본문이 봉투와 같은 층에 실리므로 추가 칸을 막지 않는다(규약 R12 — 모르는 칸은 통과시킨다)."
+}

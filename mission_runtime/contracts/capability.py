@@ -5,7 +5,7 @@ runtime: a perception provider, a safety judgment, a decision module, a
 transport adapter, etc. This module defines the vocabulary every one of
 them uses to declare what it needs and what state it is currently in.
 
-implements: AI-C-05, AI-C-11
+implements: AI-C-05
 절대 준수 원칙 #4: 선택 기능의 추가·제거·장애가 관련 없는 기능의 시작·실행·복구를
 방해해서는 안 된다.
 """
@@ -41,7 +41,7 @@ class CapabilityRequirement:
     to leave DISABLED. `optional` names improve quality or efficiency;
     their absence only pushes the capability to DEGRADED, never to
     DISABLED, and must never cascade into unrelated capabilities
-    (AI-C-11).
+    (AI-C-05).
 
     Names in `required`/`optional` are capability-kind identifiers (e.g.
     "media.video_input", "perception.classify") resolved against a

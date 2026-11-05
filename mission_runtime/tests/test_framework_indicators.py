@@ -1,4 +1,4 @@
-"""implements: AI-B-06, AI-B-09, AI-C-05, AI-C-11, AI-C-13, AI-C-14, AI-C-15
+"""implements: AI-B-06, AI-B-09, AI-C-05,  AI-C-13, AI-C-06, AI-C-15
 """
 import json
 from pathlib import Path

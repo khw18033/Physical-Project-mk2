@@ -114,6 +114,10 @@ svg.stage *{pointer-events:none}
 svg.stage .zonehit,svg.stage .zonehit *{pointer-events:all}
 .zonehit{cursor:pointer}
 .legend{display:flex;flex-wrap:wrap;gap:10px;margin-top:10px}
+/* 층 쌓임은 지도가 아니라 **고르는 것**이다. 지도만큼 넓게 두면 층을 고르기도
+   전에 화면이 다 차고, 정작 층 도면이 아래로 밀린다. */
+#levelStack{max-width:420px;margin:10px 0 0}
+#levelStack svg.stage{background:transparent;border:0}
 
 /* 커서를 올렸을 때 뜨는 작은 팝업. 화면 좌표로 띄우므로 body 에 붙인다. */
 #gate{position:fixed;inset:0;z-index:80;background:#2a2b2dcc;display:flex;
@@ -228,6 +232,49 @@ code{font:12px/1.5 var(--mono);color:var(--ink-2)}
 .gates span.now{color:var(--accent);background:var(--accent-bg);border-color:var(--accent)}
 .bar{height:8px;background:var(--raised);border-radius:999px;overflow:hidden;margin-top:5px}
 .bar i{display:block;height:100%;background:var(--accent)}
+/* 시도 탭. 왼쪽에서 고르고, 가운데에서 **상자가 겹친 그림**을 보고, 오른쪽에서
+   임계값을 고친다. 세 칸인 이유는 그 셋이 한 번의 판단에 함께 쓰이기 때문이다 —
+   그림을 보려고 칸을 옮기면 무엇을 보고 그 값을 골랐는지가 화면에서 사라진다.
+   상자 좌표는 서버가 픽셀로 주고 여기서 프레임 크기로 나눈다 — 표시 크기가
+   바뀌어도 상자가 따라 흔들리지 않는다(라벨 편집기와 같은 규칙). */
+.cols.trial{display:grid;gap:var(--gap);grid-template-columns:272px minmax(0,1fr) 392px}
+@media (max-width:1280px){.cols.trial{grid-template-columns:1fr}}
+.cols.trial > *{min-width:0}
+.trshots{display:grid;gap:var(--gap);
+  grid-template-columns:repeat(auto-fit,minmax(250px,1fr))}
+.trshot{margin:0;background:var(--panel);border:1px solid var(--border);
+  border-radius:var(--radius-lg);padding:8px;min-width:0}
+.trshot .frame{position:relative;background:#1f2328;border-radius:var(--radius);
+  overflow:hidden}
+.trshot img{display:block;width:100%;height:auto}
+.trshot svg{position:absolute;inset:0;width:100%;height:100%}
+.trshot figcaption{font-size:13px;color:var(--ink-3);margin-top:6px;word-break:break-all}
+/* 하한 상태는 **넷**이고 색과 선 모양이 모두 다르다(넘음·못 미침·선언 없음·물을
+   주인 없음). 색만으로 가르면 색을 구분하지 못하는 눈에는 한 상태가 된다. */
+.trshot .bx{fill:none;stroke-width:2;vector-effect:non-scaling-stroke}
+.trshot .bx.above_floor{stroke:#51cf66}
+.trshot .bx.below_floor{stroke:#e8a33d;stroke-dasharray:5 4}
+.trshot .bx.no_floor_declared{stroke:#4d9bff;stroke-dasharray:2 3}
+.trshot .bx.floor_unknown{stroke:#9aa1a9;stroke-dasharray:1 4}
+.trshot .cap{font:11px/1 var(--mono);fill:#ffffff;paint-order:stroke;stroke:#000;
+  stroke-width:3}
+.trlegend{display:flex;gap:12px;flex-wrap:wrap;font-size:13px;color:var(--ink-3);
+  margin-top:9px}
+.trlegend i{display:inline-block;width:18px;border-top:2px solid;
+  vertical-align:middle;margin-right:6px}
+.trlegend i.above_floor{border-top-color:#2f9e44}
+.trlegend i.below_floor{border-top-color:#e8a33d;border-top-style:dashed}
+.trlegend i.no_floor_declared{border-top-color:#1565c0;border-top-style:dashed}
+.trlegend i.floor_unknown{border-top-color:#9aa1a9;border-top-style:dotted}
+.trpicks{list-style:none;margin:0;padding:0;max-height:33vh;overflow-y:auto}
+.trpicks li{border-top:1px solid var(--border);padding:7px 0}
+.trpicks li:first-child{border-top:0}
+.trpicks label{display:flex;align-items:flex-start;gap:7px;font-size:14px;
+  color:var(--ink-2)}
+.trpicks label input[type=checkbox]{margin-top:4px;flex:none}
+.trpicks .sub{display:grid;gap:5px;margin:6px 0 0 22px}
+.trpicks .sub input{background:var(--panel);border:1px solid var(--border-strong);
+  border-radius:var(--radius);padding:4px 7px;width:100%;min-width:0;font-size:13px}
 /* ── 연결된 팝업(Flow) ──────────────────────────────────────────────────
    드릴을 탭으로 하지 않는다. 도메인을 누르면 그 자리에 구역 팝업이 뜨고, 구역에서
    장치를 누르면 장치 팝업이 그 옆에 뜨며, 둘은 선으로 이어진다 — 어디서 왔는지가
@@ -654,7 +701,11 @@ nav.rail button span.short{display:none}
   <section class="panel" id="p-map">
     <h2 id="h-map"></h2>
     <div class="cols map">
-      <div><div id="levelBar" class="legend"></div><div id="mapStage"></div>
+      <div><div id="levelBar" class="legend"></div>
+        <!-- 층 쌓임 그림. 층이 둘 이상인 도메인에서만 채워진다 — 한 층을
+             쌓아 보일 이유는 없다. -->
+        <div id="levelStack"></div>
+        <div id="mapStage"></div>
         <div class="legend" id="mapLegend"></div></div>
       <div class="card" id="mapSide"></div>
     </div>
@@ -664,7 +715,8 @@ nav.rail button span.short{display:none}
     <h2 id="h-zone"></h2>
     <div class="cols zone">
       <div class="card" id="zoneSide"></div>
-      <div><div id="zoneStage"></div></div>
+      <div><div class="legend" id="zoneBar"></div><div id="zoneStage"></div>
+        <div class="legend" id="zoneLegend"></div></div>
     </div>
   </section>
 
@@ -724,6 +776,10 @@ const S = {
   robotId:null, goalKind:null, graph:null, evidence:null,
   commanding:false, explaining:false, facts:{},
   evSample:null, twinRecords:[], identity:null, accountData:null,
+  /* 구역 뷰의 두 스위치. 둘 다 **표현**이고 계약에 들어가지 않는다 —
+     `zoneVertical` 은 선언된 높이를 세워 볼지, `zoneLive` 는 탐지를 몇 초마다
+     다시 받을지다. 끈 상태에서도 평면 도면과 장치는 그대로 보인다. */
+  zoneVertical:true, zoneLive:true, zoneObjects:[],
 };
 const T = (k) => (S.strings[k] !== undefined ? S.strings[k] : k);
 const el = (id) => document.getElementById(id);
@@ -938,6 +994,72 @@ const SvgMapRenderer = (() => {
     return g;
   }
 
+  /* 탐지된 객체 한 묶음. **따로 떼어 둔 이유는 실시간 갱신이다** — 몇 초마다
+     이 묶음만 갈아 끼우고 도면·장치·경로는 그대로 둔다. 전체를 다시 그리면
+     커서가 올라가 있던 팝업이 매 초 닫히고 끌던 손이 떨어진다.
+
+     크기를 아는 객체는 그 지름대로 원을 그리고, 모르면 작은 점 하나다 —
+     미측정은 0 이 아니다(AI-C-02). 장치와 **다른 모양**인 이유는 장치가 선언된
+     물건이고 객체는 탐지로 생긴 것이라서다. */
+  function paintObjects(layer, objects, k, handlers){
+    layer.setAttribute("data-k", String(k));
+    for (const o of (objects || [])){
+      if (!o.at) continue;
+      const extent = Number(o.extent_m);
+      const r = Number.isFinite(extent) && extent > 0 ? extent / 2 : 0.9 * k;
+      const g = add(layer, "g", {class:"zonehit"});
+      add(g, "circle", {cx:o.at.x, cy:o.at.y, r,
+        fill:"#2d8eff22", stroke:ACCENT, "stroke-width":0.3 * k,
+        "stroke-dasharray":o.human_corrected ? "none" : `${1 * k} ${0.8 * k}`});
+      add(g, "circle", {cx:o.at.x, cy:o.at.y, r:0.5 * k, fill:ACCENT});
+      mapText(g, {x:o.at.x + r + 0.8 * k, y:o.at.y + 0.7 * k, fill:INK2,
+        "font-size":1.9 * k},
+        o.semantic_class || T("obj.unknownClass"), k);
+      g.addEventListener("mousemove", (event) => {
+        if (handlers.onObjectHover) handlers.onObjectHover(o, event);
+      });
+      g.addEventListener("mouseleave", () => {
+        if (handlers.onLeave) handlers.onLeave();
+      });
+    }
+    return layer;
+  }
+
+  /* **2.5D 한 겹** — 높이가 선언된 물건만 그 높이만큼 세운다.
+
+     평면 단위가 미터이므로 기둥 길이는 바닥과 **같은 축척**이다: 2.4 m 에 달린
+     카메라는 바닥에서 2.4 m 만큼 올라간다. 그래서 이 겹은 장식이 아니라 값이다.
+
+     높이가 선언되지 않은 것은 **세우지 않는다.** 보기 좋게 적당히 들어 올리면
+     화면은 입체가 되지만 그 입체는 측정이 아니고, 보는 사람은 그것을 쟀다고
+     읽는다(AI-C-02: 미측정은 0 도 아니고 임의값도 아니다).
+
+     아이콘은 바닥에 그대로 남고 기둥만 올라간다 — 아이콘을 들어 올리면 끌어다
+     놓을 때 집은 자리와 떨어지는 자리가 달라진다. 세로 축은 화면 위쪽이고
+     평면의 두 번째 축(깊이)과 **같은 칸이 아니다**. */
+  function paintHeights(layer, items, k){
+    let lifted = 0;
+    for (const i of (items || [])){
+      if (!i.at || i.height_state !== "declared") continue;
+      const h = Number(i.height_m);
+      if (!Number.isFinite(h) || h <= 0) continue;
+      lifted += 1;
+      const top = i.at.y - h;
+      const g = add(layer, "g", {"pointer-events":"none"});
+      /* 밑동에 그림자 한 겹 — 기둥이 선 자리가 어느 점인지 남긴다. */
+      add(g, "ellipse", {cx:i.at.x, cy:i.at.y, rx:1.2*k, ry:0.5*k,
+        fill:"#1f232814"});
+      add(g, "line", {x1:i.at.x, y1:i.at.y, x2:i.at.x, y2:top,
+        stroke:"#8a93a0", "stroke-width":0.22*k,
+        "stroke-dasharray":`${0.7*k} ${0.6*k}`});
+      add(g, "line", {x1:i.at.x - 1.2*k, y1:top, x2:i.at.x + 1.2*k, y2:top,
+        stroke:"#5c6672", "stroke-width":0.3*k});
+      mapText(g, {x:i.at.x + 1.7*k, y:top + 0.6*k, fill:INK3,
+        "font-size":1.7*k}, `${h} m`, k);
+    }
+    return lifted;
+  }
+
   return {
     /** 메인 맵 — 도메인 목록, 또는 **현장 지도**.
 
@@ -1005,6 +1127,70 @@ const SvgMapRenderer = (() => {
         g.addEventListener("click", () => handlers.onClick(d.domain_id));
       }
       host.appendChild(node);
+    },
+
+    /** 층 쌓임 — **2.5D**. 어느 층을 보고 있는지와 다른 층에 무엇이 있는지를
+        한 그림에 둔다. 비스듬히 포갠 판 하나가 층 하나이고, 누르면 그 층이 열린다.
+
+        세로 간격은 **선언된 차례**이고 미터가 아니다. 지금 두 현장 모두 층
+        고도가 미측정이라(`level.elevation_state === "unmeasured"`) 차례 말고
+        쌓을 근거가 없고, 간격을 미터처럼 읽으면 층고를 쟀다는 뜻이 된다. 그
+        사실은 그림이 말할 수 없으므로 범례가 글자로 적는다(AI-C-02). 고도가
+        선언된 층에는 그 값이 판 오른쪽에 붙는다.
+
+        도면이 선언되지 않은 층은 판 위에 그 사실이 적힌다 — 눌러 보고 빈 화면을
+        만난 뒤에 알게 되는 것이 가장 나쁘다(AI-C-05). */
+    drawLevels(host, domain, handlers, levelId){
+      host.textContent = "";
+      const levels = domain.levels || [];
+      if (levels.length < 2) return null;   /* 한 층을 쌓아 보일 이유는 없다 */
+      const span = domain.space || {width:100, height:100};
+      const W = 100;
+      const D = Math.max(16, Math.min(50,
+        W * (span.height / Math.max(span.width, 1)) * 0.5));
+      const SKEW_X = 0.46, SKEW_Y = 0.40;   /* 비스듬히 보는 각 — 표현값이다 */
+      /* 판 사이 간격은 **판 두께보다 넓어야** 한다. 좁으면 위층이 아래층 글자를
+         덮고, 그 겹침이 "층이 붙어 있다" 로 읽힌다. */
+      const GAP = Math.max(16, D * SKEW_Y * 1.35);
+      const rows = levels.slice().reverse();  /* 위층이 위에 온다 */
+      const total = GAP * (rows.length - 1) + D * SKEW_Y;
+      const node = document.createElementNS(NS, "svg");
+      node.setAttribute("class", "stage");
+      node.setAttribute("viewBox",
+        `-3 -4 ${W + D * SKEW_X + 46} ${total + 16}`);
+      node.setAttribute("preserveAspectRatio", "xMidYMid meet");
+      const noPlan = handlers.noPlan || [];
+      rows.forEach((l, row) => {
+        const y = row * GAP + D * SKEW_Y + 4;
+        const dx = D * SKEW_X, dy = D * SKEW_Y;
+        const here = l.level_id === levelId;
+        const g = add(node, "g", {class:"zonehit", style:"cursor:pointer"});
+        add(g, "polygon", {
+          points:`0,${y} ${W},${y} ${W + dx},${y - dy} ${dx},${y - dy}`,
+          fill: here ? "#e8f1fd" : "#ffffff",
+          stroke: here ? ACCENT : "#c9ced6",
+          "stroke-width": here ? 1.0 : 0.6,
+          "stroke-dasharray": l.verified === false ? "3 2.4" : "none"});
+        /* 글자는 판 **안쪽**에만 둔다. 기울어진 판에서는 오른쪽 위가 비어
+           있는 것처럼 보이지만 그 자리는 판 밖이고, 거기 적은 글자는 다음 층
+           위에 떠서 어느 층의 말인지 알 수 없게 된다. 그래서 두 줄 모두 왼쪽에
+           쌓고, 둘째 줄이 "몇 구역 · 몇 대 · 도면 · 고도" 를 한 줄로 말한다. */
+        const facts = [`${l.zone_count} ${T("dom.levelZones")}`,
+                       `${l.discovered_count}/${l.declared_count}`];
+        if (noPlan.includes(l.level_id)) facts.push(T("dom.levelNoPlan"));
+        /* 고도는 **선언된 층에만** 적는다. 없는 층에 0 m 를 적으면 모든 층이
+           지면에 있다는 뜻이 되고, 그것은 측정값처럼 보인다(AI-C-02). */
+        if (l.elevation_state === "declared" && l.elevation_m !== undefined)
+          facts.push(`${l.elevation_m} m`);
+        if (here) facts.push(T("dom.levelCurrent"));
+        add(g, "text", {x:dx * 0.5 + 3, y:y - dy * 0.58, fill:INK,
+          "font-size":4.6, "font-weight":600}, label(l.label) || l.level_id);
+        add(g, "text", {x:dx * 0.5 + 3, y:y - dy * 0.58 + 5.2,
+          fill: here ? ACCENT : INK3, "font-size":3.9}, facts.join(" · "));
+        g.addEventListener("click", () => handlers.onPick(l.level_id));
+      });
+      host.appendChild(node);
+      return node;
     },
 
     /** 도메인 하나 — 그 안의 구역. `levelId` 가 있으면 그 층만 그린다. */
@@ -1184,34 +1370,29 @@ const SvgMapRenderer = (() => {
       if (handlers.route && handlers.route.length > 1)
         routeLine(g0, handlers.route, k, {color: handlers.routeColor});
 
-      /* 탐지된 객체 — 장치와 **다른 모양**이다. 장치는 선언된 물건이고 객체는
-         탐지로 생긴 것이라, 같은 그림으로 찍으면 "선언했는데 안 보이는 장치" 와
-         "선언에 없는데 보이는 것" 이 섞인다. 크기를 아는 객체는 그 지름대로
-         원을 그리고, 모르면 작은 점 하나다(미측정은 0 이 아니다). */
-      for (const o of (handlers.objects || [])){
-        if (!o.at) continue;
-        const extent = Number(o.extent_m);
-        const r = Number.isFinite(extent) && extent > 0 ? extent / 2 : 0.9 * k;
-        const g = add(g0, "g", {class:"zonehit"});
-        add(g, "circle", {cx:o.at.x, cy:o.at.y, r,
-          fill:"#2d8eff22", stroke:ACCENT, "stroke-width":0.3 * k,
-          "stroke-dasharray":o.human_corrected ? "none" : `${1 * k} ${0.8 * k}`});
-        add(g, "circle", {cx:o.at.x, cy:o.at.y, r:0.5 * k, fill:ACCENT});
-        mapText(g, {x:o.at.x + r + 0.8 * k, y:o.at.y + 0.7 * k, fill:INK2,
-          "font-size":1.9 * k},
-          o.semantic_class || T("obj.unknownClass"), k);
-        g.addEventListener("mousemove", (event) => {
-          if (handlers.onObjectHover) handlers.onObjectHover(o, event);
-        });
-        g.addEventListener("mouseleave", () => handlers.onLeave());
-      }
+      /* 탐지된 객체는 **제 묶음**에 담긴다. 실시간 갱신이 이 묶음 하나만
+         갈아 끼우기 때문이다(`updateZoneObjects`). 그리는 규칙은 `paintObjects`
+         에 적었다. */
+      paintObjects(add(g0, "g", {"data-objects":"1"}),
+                   handlers.objects, k, handlers);
+
+      /* 세로 한 겹 — 높이가 선언된 것만 세운다. 끄면 순수한 평면 도면이다.
+         인프라·라우터·장소 지물을 **한 목록**으로 넘긴다: 높이가 선언돼 있는지
+         만 보고 종류로 가르지 않는다(절대 준수 원칙 #7). */
+      if (handlers.vertical !== false)
+        paintHeights(add(g0, "g", {"data-heights":"1"}),
+                     [...placed, ...(zone.landmarks || [])], k);
 
       const unplaced = [];
       for (const r of (zone.robots || [])){
         if (!r.at){ unplaced.push(r); continue; }
         const seen = r.presence === "discovered";
         const selected = handlers.selected === r.node_id;
-        const lastSeen = r.at_origin === "last_seen";
+        /* "마지막으로 본 자리" 는 서버가 내는 한 칸이 아니라 **두 사실의 조합**이다:
+           자리가 관측에서 왔고(`position_source` 가 있다) 지금은 닿지 않는다(`presence`
+           가 discovered 가 아니다). 서버가 이것을 한 토큰으로 내면 "누가 말했나" 와
+           "지금 살아 있나" 가 한 칸에 섞인다. */
+        const lastSeen = !!r.position_source && !seen;
         if (selected)
           add(g0, "circle", {cx:r.at.x, cy:r.at.y, r:4.6*k, fill:"none",
             stroke:"#e2544c", "stroke-width":0.5*k});
@@ -1236,6 +1417,25 @@ const SvgMapRenderer = (() => {
       }
       host.appendChild(node);
       if (unplaced.length && handlers.onUnplaced) handlers.onUnplaced(unplaced);
+    },
+
+    /** 이미 그려 둔 구역 도면에서 **객체 묶음만** 갈아 끼운다.
+
+        실시간 반영이 전체 재그리기가 되면 안 되는 이유가 이 함수의 전부다 —
+        매 초 `drawZone` 을 다시 부르면 커서가 올라가 있던 팝업이 닫히고, 장치를
+        끌고 있던 손이 떨어지고, 배경 도면이 다시 받아진다. 바뀐 사실(탐지)만
+        바뀌어야 한다.
+
+        아직 도면이 그려지지 않았으면 `false` 를 낸다 — 부르는 쪽은 그때만 전체를
+        다시 그린다. */
+    updateZoneObjects(host, objects, handlers){
+      const svg = host && host.querySelector("svg.stage");
+      const layer = svg && svg.querySelector("g[data-objects]");
+      if (!layer) return false;
+      layer.textContent = "";
+      paintObjects(layer, objects, Number(layer.getAttribute("data-k")) || 1,
+                   handlers || {});
+      return true;
     },
 
     /** 서브태스크 그래프. 노드는 단계, 간선은 자료 흐름이다. */
@@ -1843,10 +2043,13 @@ async function openDomain(domainId){
   S.domainScene = d;
   const levels = d.levels || [];
   if (!levels.some(l => l.level_id === S.levelId)) S.levelId = null;
-  /* 층이 하나뿐이면 그 층을 고른 것으로 연다. 층 도면은 **층에** 걸리므로
-     고르지 않은 채로는 도면이 깔리지 않고, 고를 것이 하나뿐인데 한 번 더
-     누르게 하는 것은 그냥 한 번 더 누르는 일이다. */
-  if (!S.levelId && levels.length === 1) S.levelId = levels[0].level_id;
+  /* **첫 층을 고른 상태로 연다** — 층이 하나든 넷이든.
+
+     층 도면은 층에 걸리므로(`/api/background?domain=&level=`) 고르지 않은
+     상태("전체 층")에서는 도면이 한 장도 깔리지 않고 추상 격자만 남는다. 사용자가
+     핀을 눌러 보려는 것은 **그 층의 도면**이고, 여러 층을 한 평면에 겹쳐 본다는
+     것은 그 다음에 명시적으로 고르는 일이다. 그래서 기본값을 뒤집었다. */
+  if (!S.levelId && levels.length) S.levelId = levels[0].level_id;
   el("h-map").textContent = label(d.label);
   paintDomain();
   selectTab("map");
@@ -1856,36 +2059,103 @@ function paintDomain(){
   const d = S.domainScene;
   if (!d) return;
   const levels = d.levels || [];
-  /* 층이 여러 개면 한 층씩 보는 것이 기본이다 — 모든 층을 한 그림에 겹쳐 두면
-     같은 자리의 다른 층이 서로를 가린다. */
-  el("levelBar").innerHTML = levels.length > 1
-    ? [{level_id:null, label:{ko:T("dom.allLevels"), en:T("dom.allLevels")}}].concat(levels)
+  /* 층 선택은 **두 벌**이다 — 버튼과 2.5D 쌓임 그림. 그림은 어느 층을 보고
+     있는지와 다른 층에 무엇이 있는지를 한눈에 주고, 버튼은 포인터 없이도 고를
+     수 있는 길이다(그림만 두면 키보드로는 층을 바꿀 수 없다).
+
+     "전체 층" 은 층이 둘 이상일 때만 둔다. 그것을 고르면 여러 층이 한 평면에
+     쌓여 보이고 도면은 깔리지 않는다 — 그 사실도 함께 적는다. */
+  const levelRow = (levels.length > 1
+    ? [{level_id:null, label:{ko:T("dom.allLevels"), en:T("dom.allLevels")}}]
+    : []).concat(levels);
+  el("levelBar").innerHTML = levels.length
+    ? `<span class="note">${esc(T("dom.levelPick"))}</span>` + levelRow
         .map(l => `<button class="ghost" data-level="${esc(l.level_id || "")}"
-          ${(l.level_id || null) === S.levelId ? 'style="border-color:var(--accent)"' : ""}>
-          ${esc(label(l.label))}${l.verified === false ? " · " + esc(T("dom.unverified")) : ""}
+          aria-current="${String((l.level_id || null) === S.levelId)}"
+          ${(l.level_id || null) === S.levelId
+            ? 'style="border-color:var(--accent)"' : ""}>
+          ${esc(label(l.label))}${l.zone_count === undefined ? ""
+            : ` <span class="note">${l.zone_count} ${esc(T("dom.levelZones"))}</span>`}
+          ${l.verified === false ? " · " + esc(T("dom.unverified")) : ""}
         </button>`).join("")
-    : "";
+    : `<span class="note">${esc(T("app.none"))}</span>`;
   el("levelBar").querySelectorAll("button[data-level]").forEach(b =>
     b.addEventListener("click", () => {
       S.levelId = b.dataset.level || null;
       paintDomain();
     }));
 
+  /* 어느 층에 도면이 깔리는가를 **먼저 묻는다.** 묻지 않고 그리면 도면 없는
+     층도 있는 것처럼 보이고, 눌러 본 뒤에야 빈 화면을 만난다(AI-C-05: 없는
+     것은 없다고 적는다). 선언은 `MapBackground` 가 층마다 한 번만 받아 둔다. */
+  Promise.all(levels.map(l =>
+    MapBackground.declaration(d.domain_id, l.level_id)
+      .then(img => (img ? null : l.level_id))
+      .catch(() => l.level_id)))
+    .then(misses => {
+      if (S.domainScene !== d) return;        /* 그 사이 다른 도메인을 열었다 */
+      const noPlan = misses.filter(Boolean);
+      for (const id of noPlan){
+        const b = el("levelBar").querySelector(`button[data-level="${id}"]`);
+        if (b) b.insertAdjacentHTML("beforeend",
+          ` <span class="note">· ${esc(T("dom.levelNoPlan"))}</span>`);
+      }
+      const stack = el("levelStack");
+      if (!stack) return;
+      stack.innerHTML = "";
+      if (levels.length < 2) return;
+      Map3D.drawLevels(stack, d, {
+        noPlan,
+        onPick(levelId){ S.levelId = levelId; paintDomain(); },
+      }, S.levelId);
+      /* 간격이 미터가 아니라는 사실은 그림이 말할 수 없다. 고도가 선언된 층이
+         하나도 없으면 그것도 함께 적는다 — 미측정은 0 이 아니다(AI-C-02). */
+      const anyElevation = levels.some(l => l.elevation_state === "declared");
+      stack.insertAdjacentHTML("beforeend",
+        `<p class="note">${esc(T("dom.levelStackNote"))}`
+        + (anyElevation ? "" : ` · ${esc(T("dom.elevationUnmeasured"))}`)
+        + `</p>`);
+    });
+
   Map3D.drawDomain(el("mapStage"), d, {
     /* 임무가 계획돼 있으면 그 순서를 지도 위에 미리 긋는다. 계획이 없으면
        아무것도 긋지 않는다 — 빈 임무에 가짜 경로를 그리지 않는다. */
     route: (S.missionRobot && S.missionRoute) || [],
+    /* 커서를 올리면 그 구역의 세부가 뜬다 — 방·장치·AP·지물의 **수**다.
+
+       21 개 호실 이름을 그대로 늘어놓던 자리인데, 그러면 팝업이 화면을 덮고
+       정작 "장치가 몇 대인가" 가 보이지 않았다. 세는 일은 서버가 한다
+       (`zone_summary`) — 여기서 세면 목록 화면과 지도 팝업이 같은 구역을
+       다르게 센다(AI-O-06).
+
+       없는 것은 **0 이 아니라 "없음"** 으로 적는다. AP 가 선언되지 않은 구역과
+       AP 가 있으나 이름을 못 읽은 구역은 다른 사실이다. */
     onHover(z, event){
+      const ap = (z.wifi || {}).ap_id;
+      const lm = z.landmark_counts || {};
+      const some = (n) => (n ? String(n) : esc(T("app.none")));
       showPop(`<h4>${esc(label(z.label))}</h4>
         <div>${chip(ZONE_GRADE[z.state], T("map.state." + z.state))}
           ${z.verified === false ? chip("", T("dom.unverified")) : ""}</div>
         <dl class="kv" style="margin-top:8px">
-          ${(z.rooms||[]).length ? `<dt>${esc(T("zone.rooms"))}</dt>
-            <dd>${z.rooms.map(esc).join(", ")}</dd>` : ""}
-          <dt>${esc(T("zone.ap"))}</dt><dd><code>${esc((z.wifi||{}).ap_id || "-")}</code></dd>
+          <dt>${esc(T("zone.rooms"))}</dt><dd>${some(z.room_count)}</dd>
+          <dt>${esc(T("zone.interiors"))}</dt><dd>${some(z.interior_count)}</dd>
+          <dt>${esc(T("zone.ap"))}</dt>
+          <dd>${ap ? `<code>${esc(ap)}</code>` : esc(T("zone.noAp"))}</dd>
           <dt>${esc(T("zone.declared"))}</dt><dd>${z.declared_count}</dd>
           <dt>${esc(T("zone.discovered"))}</dt><dd>${z.discovered_count}</dd>
-          <dt>${esc(T("zone.edge"))}</dt><dd>${esc(z.edge_node || T("app.none"))}</dd>
+          ${z.declared_only_count
+            ? `<dt>${esc(T("zone.declaredOnly"))}</dt>
+               <dd>${z.declared_only_count}</dd>` : ""}
+          <dt>${esc(T("zone.infrastructure"))}</dt>
+          <dd>${some(z.infrastructure_count)}</dd>
+          <dt>${esc(T("zone.landmarks"))}</dt>
+          <dd>${Object.keys(lm).length
+                ? Object.entries(lm).map(([kind, n]) =>
+                    `${esc(T("kind." + kind))} ${n}`).join(" · ")
+                : esc(T("app.none"))}</dd>
+          <dt>${esc(T("zone.edge"))}</dt>
+          <dd>${esc(z.edge_node || T("app.none"))}</dd>
           <dt>${esc(T("zone.usable"))}</dt><dd>${z.usable_functions.length}</dd>
         </dl>`, event);
     },
@@ -1953,34 +2223,15 @@ async function repaintZone(){
   const mayMove = !!S.caps.may_edit_placement;
   /* 도면 위에 올릴 **탐지된 객체**. 융합 결과가 없는 구역도 정상이다. */
   const twin = await api("/api/twin", {zone: S.zoneId}).catch(() => null);
-  const objects = ((twin || {}).records || []).map(r => ({
-    object_id: r.object_id,
-    at: r.fused_position
-      ? {x: r.fused_position[0], y: r.fused_position[1]} : null,
-    semantic_class: r.semantic_class,
-    extent_m: (r.cues || {}).extent_m,
-    confidence: r.confidence,
-    lifecycle: r.lifecycle,
-    human_corrected: (r.corrections || []).length > 0,
-  }));
+  const objects = ((twin || {}).records || []).map(twinObject);
   S.zoneObjects = objects;
 
   Map3D.drawZone(el("zoneStage"), zone, {
     selected: S.missionRobot || S.robotId || null,
     objects,
-    onObjectHover(o, event){
-      showPop(`<h4>${esc(o.semantic_class || T("obj.unknownClass"))}</h4>
-        <div class="note"><code>${esc(o.object_id)}</code></div>
-        <dl class="kv" style="margin-top:8px">
-          <dt>${esc(T("obj.at"))}</dt>
-          <dd>${o.at ? `<code>X ${o.at.x.toFixed(2)} · Z ${o.at.y.toFixed(2)}</code>`
-                     : esc(T("app.unmeasured"))}</dd>
-          <dt>${esc(T("obj.extent"))}</dt>
-          <dd>${o.extent_m ? `<code>${o.extent_m} m</code>`
-                           : esc(T("app.unmeasured"))}</dd>
-          <dt>${esc(T("obj.lifecycle"))}</dt><dd>${esc(o.lifecycle || "")}</dd>
-        </dl>`, event);
-    },
+    /* 선언된 높이를 세워 보는 한 겹. 끄면 순수 평면 도면이다. */
+    vertical: S.zoneVertical !== false,
+    onObjectHover: zoneObjectPopup,
     onRobotHover(r, event){
       /* 로봇에 커서를 올리면 그 로봇의 자원과 기능을 바로 띄운다. */
       const usable = r.functions.filter(f => f.state !== "DISABLED");
@@ -1994,8 +2245,13 @@ async function repaintZone(){
           <dd>${esc(r.resources.memory_mb ?? T("app.unmeasured"))}</dd>
           <dt>${esc(T("robot.functions"))}</dt><dd>${usable.length} / ${r.functions.length}</dd>
           <dt>${esc(T("robot.whereFrom"))}</dt>
-          <dd>${esc(T("robot.at." + (r.at_origin || "declared"))
-                    || r.at_origin || "")}</dd>
+          <!-- 관측이 자리를 정했으면 그 출처를, 아니면 선언의 출처를 적는다. 관측
+               자리가 지금 것인지 마지막으로 본 것인지는 `presence` 가 가른다. -->
+          <dd>${esc((r.position_source
+                      ? T("robot.at." + (r.presence === "discovered"
+                                         ? r.position_source : "last_seen"))
+                      : T("robot.at." + (r.at_origin || "declared")))
+                    || r.position_source || r.at_origin || "")}</dd>
         </dl>
         <div class="tags" style="margin-top:8px">${
           (r.resources.tags || []).slice(0,6)
@@ -2012,8 +2268,12 @@ async function repaintZone(){
                           T(i.placement_verified ? "zone.apSurveyed"
                                                  : "zone.apDeclaredOnly"))}</dd>`
             : `<dt>${esc(T("zone.ap"))}</dt><dd>${esc((zone.wifi||{}).ap_id || "-")}</dd>`}
-          ${i.pose ? `<dt>yaw</dt><dd>${esc(i.pose.yaw_deg)}°</dd>
-            <dt>height</dt><dd>${esc(i.pose.height_m)} m</dd>` : ""}
+          ${i.pose && i.pose.yaw_deg !== undefined
+            ? `<dt>yaw</dt><dd>${esc(i.pose.yaw_deg)}°</dd>` : ""}
+          <dt>${esc(T("zone.heightDeclared"))}</dt>
+          <dd>${i.height_state === "declared"
+                ? `<code>${esc(i.height_m)} m</code>`
+                : esc(T("zone.heightUnmeasured"))}</dd>
           ${i.calibration ? `<dt>calibration</dt>
             <dd>${esc(i.calibration.profile_version)}</dd>` : ""}
         </dl>
@@ -2043,6 +2303,9 @@ async function repaintZone(){
     {domain: zone.domain_id || S.domainId, level: zone.level_id})
     .catch(() => null);
 
+  paintZoneBar(zone, objects);
+  startZoneLive();
+
   /* 라우터도 이 목록에 넣는다. 맵에서는 끌 수 있는데 목록에 없으면 **되돌릴
      길이 없다** — 되돌리기 버튼이 이 목록에만 있기 때문이다. */
   const infra = [...(zone.infrastructure || []),
@@ -2071,6 +2334,17 @@ async function repaintZone(){
     <dl class="kv" style="margin-top:12px">
       ${(zone.rooms||[]).length ? `<dt>${esc(T("zone.rooms"))}</dt>
         <dd>${zone.rooms.map(esc).join(", ")}</dd>` : ""}
+      <!-- 이름만 있는 방과 **안으로 들어갈 수 있는 방**은 다른 목록이다.
+           한 줄에 담으면 21개 방이 전부 열리는 것처럼 보인다. -->
+      <dt>${esc(T("zone.interiors"))}</dt>
+      <dd>${(zone.interiors||[]).length
+            ? zone.interiors.map(r => `${esc(r.label || r.room_id)}`
+                + (r.size_m ? ` <span class="note">${esc(r.size_m.width)}×`
+                              + `${esc(r.size_m.depth)} m</span>` : "")
+                + (r.height_state === "declared" ? ""
+                   : ` <span class="note">· ${esc(T("zone.heightUnmeasured"))}</span>`)
+              ).join("<br>")
+            : esc(T("app.none"))}</dd>
       <dt>${esc(T("zone.ap"))}</dt><dd><code>${esc((zone.wifi||{}).ap_id || "-")}</code></dd>
       <dt>${esc(T("zone.edge"))}</dt><dd>${esc(zone.edge_node || T("app.none"))}</dd>
       <dt>${esc(T("zone.declared"))}</dt><dd>${zone.declared_count}</dd>
@@ -2093,6 +2367,145 @@ async function repaintZone(){
         {device_id:b.dataset.reset, zone_id:S.zoneId, reset:true});
       await repaintZone();
     }));
+}
+
+/* ── 결합 뷰의 머리띠와 범례 ──────────────────────────────────────────────
+   구역 도면 한 장에 **시각 정보**(탐지된 객체·융합된 자리)와 **인프라 정보**
+   (AP 와 그 덮개, 문·계단·승강기, 고정 장치)가 겹쳐 있다. 그림이 말할 수 없는
+   것 셋을 여기 글자로 적는다.
+
+   (1) 무엇이 2D 인가. 평면은 구역 로컬 미터 좌표이고, 세로는 **선언된 높이가
+       있는 것만** 같은 축척으로 세운 것이다. 층 고도는 미측정이고 탐지된
+       객체에는 높이 성분이 아예 없다(`vertical.object_position_dimensions`).
+   (2) 무엇이 미측정인가. 높이가 선언된 개수와 미측정 개수를 **따로** 센다 —
+       한 수로 합치면 "아무것도 모른다" 와 "절반은 안다" 가 같아 보인다.
+   (3) 실시간이 돌고 있는가. 돌지 않는데 화면이 조용하면 "아무것도 안 들어온다"
+       와 "안 받고 있다" 를 구별할 수 없다.
+
+   implements: AI-O-06, AI-C-02, AI-S-03, AI-C-05 */
+function paintZoneBar(zone, objects){
+  const host = el("zoneBar");
+  if (!host) return;
+  const v = zone.vertical || {};
+  const on = S.zoneVertical !== false;
+  host.innerHTML = `
+    <button class="ghost" id="zoneVerticalBtn" aria-pressed="${String(on)}"
+      ${on ? 'style="border-color:var(--accent)"' : ""}
+      >${esc(T("zone.verticalShow"))}</button>
+    ${chip(v.declared_height_count ? "good" : "",
+           T("zone.heightDeclared") + " " + (v.declared_height_count || 0))}
+    ${chip("", T("zone.heightUnmeasured") + " " + (v.unmeasured_height_count || 0))}
+    ${chip(objects.length ? "good" : "",
+           T("zone.objects") + " " + objects.length)}
+    ${chip(S.zoneLive === false ? "" : "good",
+           T(S.zoneLive === false ? "zone.liveOff" : "zone.live"))}`;
+  el("zoneVerticalBtn").addEventListener("click", () => {
+    S.zoneVertical = !on;
+    repaintZone().catch(reportBoot);
+  });
+
+  const legend = el("zoneLegend");
+  if (!legend) return;
+  /* 여기에 없는 것을 적는다. 비어 있는 화면이 "없다" 를 말해 주지 않기
+     때문이다 — 도면이 없는 층, 아무도 보지 않은 구역, 선언만 되고 공지가
+     오지 않은 장치는 서로 다른 사실이고 모두 정상 상태일 수 있다. */
+  const gaps = [];
+  if (!objects.length) gaps.push(T("zone.unseen"));
+  if (zone.declared_only_count) gaps.push(
+    T("zone.declaredOnly") + " " + zone.declared_only_count);
+  if ((zone.floor || {}).elevation_state !== "declared")
+    gaps.push(T("dom.elevationUnmeasured"));
+  if (!v.declared_height_count) gaps.push(T("zone.verticalNone"));
+  if (!((zone.wifi || {}).ap_id)) gaps.push(T("zone.noAp"));
+  legend.innerHTML = `<p class="note">${esc(T("zone.flatNote"))}</p>`
+    + (gaps.length
+      ? `<p class="note"><b>${esc(T("zone.missing"))}</b>: `
+        + gaps.map(esc).join(" · ") + `</p>`
+      : "");
+  MapBackground.declaration(zone.domain_id || S.domainId, zone.level_id)
+    .then(img => {
+      if (img || S.zoneId !== zone.zone_id) return;
+      legend.insertAdjacentHTML("beforeend",
+        `<p class="note">${esc(T("zone.planNone"))}</p>`);
+    }).catch(() => null);
+}
+
+/* ── 탐지의 실시간 반영 ───────────────────────────────────────────────────
+   객체만 다시 받아 **객체 묶음만** 갈아 끼운다. 전체를 다시 그리면 커서가
+   올라가 있던 팝업이 매번 닫히고 장치를 끌던 손이 떨어진다.
+
+   구역 화면이 열려 있지 않으면 돌지 않는다. 열지도 않은 구역을 계속 묻는 것은
+   아무도 보지 않는 구역의 추론·전송을 계속 돌리는 것과 같다(AI-C-13, AI-O-01:
+   반영은 요청으로만 일어난다).
+
+   묶음이 아직 없으면(도면이 다시 그려진 직후) 전체를 다시 그린다 — 조용히
+   아무것도 하지 않으면 새 객체가 끝까지 보이지 않는다.
+
+   implements: AI-C-13, AI-O-01, AI-S-06, AI-O-06 */
+const ZONE_LIVE_MS = 2500;
+let zoneLiveTimer = null;
+function startZoneLive(){
+  if (zoneLiveTimer !== null) return;
+  zoneLiveTimer = setInterval(() => { tickZoneLive().catch(() => null); },
+                              ZONE_LIVE_MS);
+}
+async function tickZoneLive(){
+  if (S.zoneLive === false || !S.zoneId || !S.zone) return;
+  const panel = el("p-zone");
+  /* 화면에 없으면 묻지 않는다. 팝업이 이 패널을 옮겨 다니므로 `.on` 이 아니라
+     실제로 그려졌는지(offsetParent)를 본다. */
+  if (!panel || !panel.offsetParent) return;
+  const twin = await api("/api/twin", {zone: S.zoneId}).catch(() => null);
+  if (!twin || S.zoneId !== S.zone.zone_id) return;
+  const objects = (twin.records || []).map(twinObject);
+  const before = JSON.stringify(S.zoneObjects.map(o =>
+    [o.object_id, o.at && o.at.x, o.at && o.at.y, o.semantic_class]));
+  const after = JSON.stringify(objects.map(o =>
+    [o.object_id, o.at && o.at.x, o.at && o.at.y, o.semantic_class]));
+  if (before === after) return;      /* 바뀐 것이 없으면 건드리지 않는다 */
+  S.zoneObjects = objects;
+  const drawn = Map3D.updateZoneObjects(el("zoneStage"), objects, {
+    onObjectHover: zoneObjectPopup,
+    onLeave: hidePop,
+  });
+  if (!drawn){ await repaintZone(); return; }
+  paintZoneBar(S.zone, objects);
+}
+
+/* 융합된 레코드 한 줄 → 도면이 읽는 모양. 처음 그릴 때와 실시간 갱신이 같은
+   변환을 두 벌 들고 있으면 한쪽만 고쳐지는 날이 온다.
+
+   `fused_position` 은 **평면 두 값**이다 — z 가 없다. 없는 축을 0 으로 채우지
+   않으므로 이 객체에는 높이 칸이 아예 없고, 도면은 바닥에 그린다(AI-C-02). */
+function twinObject(r){
+  return {
+    object_id: r.object_id,
+    at: r.fused_position
+      ? {x: r.fused_position[0], y: r.fused_position[1]} : null,
+    semantic_class: r.semantic_class,
+    extent_m: (r.cues || {}).extent_m,
+    confidence: r.confidence,
+    lifecycle: r.lifecycle,
+    human_corrected: (r.corrections || []).length > 0,
+  };
+}
+
+/* 객체에 커서를 올렸을 때의 팝업. 처음 그릴 때와 실시간 갱신이 **같은** 팝업을
+   써야 하므로 이름을 붙여 둔다. */
+function zoneObjectPopup(o, event){
+  showPop(`<h4>${esc(o.semantic_class || T("obj.unknownClass"))}</h4>
+    <div class="note"><code>${esc(o.object_id)}</code></div>
+    <dl class="kv" style="margin-top:8px">
+      <dt>${esc(T("obj.at"))}</dt>
+      <dd>${o.at ? `<code>X ${o.at.x.toFixed(2)} · Z ${o.at.y.toFixed(2)}</code>`
+                 : esc(T("app.unmeasured"))}</dd>
+      <dt>${esc(T("obj.extent"))}</dt>
+      <dd>${o.extent_m ? `<code>${o.extent_m} m</code>`
+                       : esc(T("app.unmeasured"))}</dd>
+      <dt>${esc(T("zone.heightDeclared"))}</dt>
+      <dd>${esc(T("app.unmeasured"))}</dd>
+      <dt>${esc(T("obj.lifecycle"))}</dt><dd>${esc(o.lifecycle || "")}</dd>
+    </dl>`, event);
 }
 
 /* ── 맵 정보 — 좌표를 **숫자로** 고친다 ────────────────────────────────
@@ -2154,6 +2567,14 @@ function paintMapInfo(zone, objects, mayMove){
         ${esc((zone.space || {}).unit || "")}</dd>
       <dt>${esc(T("mapinfo.origin"))}</dt>
       <dd><code>X ${esc(zone.rect.x)} · Z ${esc(zone.rect.y)}</code></dd>
+      <!-- 3D 소비자가 바닥 슬래브를 놓는 데 쓰는 값이 그대로 여기 보인다.
+           고도는 선언이 있을 때만 숫자이고, 없으면 미측정이라고 적는다 —
+           0 m 로 적으면 모든 층이 지면에 겹친다(AI-C-02). -->
+      <dt>${esc(T("zone.floorPlane"))}</dt>
+      <dd><code>${esc((zone.floor||{}).level_id || "-")}</code>
+        ${(zone.floor||{}).elevation_state === "declared"
+          ? `<code>${esc(zone.floor.elevation_m)} m</code>`
+          : `<span class="note">${esc(T("dom.elevationUnmeasured"))}</span>`}</dd>
     </dl>
     ${mayMove ? `
       <div class="ctlsep">${esc(T("mapinfo.survey"))}</div>
@@ -4535,6 +4956,548 @@ const Deploy = (() => {
   return {open, goStep};
 })();
 
+/* ── 돌려 보고 고치기 ────────────────────────────────────────────────────
+   운영자가 하는 일 하나: **이 탐지기가 이 그림에서 무엇을 어디서 보는지** 눈으로
+   보고, 그 값을 고친다. 그 일이 서버에는 전부 있었는데 화면에는 입구가 없었다 —
+   `/api/trial` · `/api/trial-run` · `/api/threshold` 를 부르는 코드가 없었다.
+
+   이 칸이 지키는 것 넷.
+
+   1. **돌려 보는 것과 적용하는 것은 다른 행위다.** 단추가 둘이고 권한도 둘이다
+      (`may_request_training` / `may_deploy_model`). 한 단추에 묶으면 결과를 보려고
+      누른 사람이 운영 값을 바꾼다(AI-L-06).
+   2. **시도는 측정이 아니다.** 서버가 그 사실을 문장으로 주고(`not_a_measurement`,
+      `caveats`) 여기서 지우지 않는다. 지우면 그림 몇 장의 지연이 실행 프로파일의
+      지연으로 읽힌다(AI-B-01).
+   3. **정답이 없으면 1위를 고르지 않는다.** `scored === false` 면 개수·라벨·점수
+      폭만 늘어놓고 우열을 말하지 않는다. 많이 찾은 쪽에 거짓 양성이 섞여 있어도
+      정답 없는 그림에서는 알 수 없다(AI-S-03).
+   4. **미측정 ≠ 0 ≠ 미달.** 하한 상태 셋(+ 물을 주인이 없는 넷째)과 선언되지
+      않은 값(`null`)과 그 이름이 탐지기에 닿는지 모르는 상태(`null`)를 각각 다른
+      글자로 그린다. 하나로 접으면 "아무도 선언하지 않았다" 가 "0 이다" 로 읽힌다
+      (AI-S-08).
+
+   그리는 일은 전부 여기 있고 서버 응답에는 색·선 굵기·글꼴이 없다. 상자는 상태
+   계약으로, 픽셀은 `/api/media` 로 따로 온다(AI-C-08) — 그래서 같은 두 입력으로
+   Unity 뷰어도 자기 방식으로 그릴 수 있다. */
+const Trial = (() => {
+  let V = null;             /* 마지막 /api/trial 스냅샷 */
+  let out = null;           /* 마지막 /api/trial-run 결과 */
+  let shownFrame = null;    /* 오버레이에 띄운 그림 */
+  const picked = new Set(); /* 고른 탐지기 implementation_ref */
+  const frames = new Set(); /* 고른 그림 frame_ref */
+  const typed = {};         /* 폼에 적어 넣은 값: {ref: {vocabulary, conf}} */
+
+  /* 하한 상태 → 칩 등급과 선 모양. **넷**이다 — `null` 은 "하한을 물을 주인이
+     없다" 이고 "선언이 없다" 와 다른 사실이다. */
+  const FLOOR_CLASS = (state) => state || "floor_unknown";
+  const FLOOR_GRADE = {above_floor: "good", below_floor: "warn",
+                       no_floor_declared: "serious"};
+  const FLOOR_STATES = ["above_floor", "below_floor", "no_floor_declared",
+                        "floor_unknown"];
+  const floorText = (state) =>
+    T(state ? "tr.floor." + state : "tr.floor.unknown");
+
+  /* 사유 토큰을 글로. 모르는 토큰은 **토큰 그대로** 남긴다 — 번역이 없다고 사유를
+     지우면 운영자가 서버가 무엇을 거절했는지 알 수 없다. */
+  const pick = (table, key) => {
+    const [head, ...rest] = String(key || "").split(":");
+    const text = T(table + head);
+    const body = text === table + head ? head : text;
+    return rest.length ? `${body} (${rest.join(":")})` : body;
+  };
+  /* 서버의 거절은 **토큰까지** 보여 준다. 사람이 읽는 문장만 내면 그 문장을
+     검색해도 코드에서 찾을 수 없다. */
+  const refusal = (table, token) => `${chip("critical", T("tr.serverRefused"))}
+    <span>${esc(pick(table, token))}</span> <code>${esc(token)}</code>`;
+  const num = (v) => (v === null || v === undefined || v === ""
+                      ? T("app.unmeasured") : String(v));
+
+  async function open(){
+    const host = el("sec-trial");
+    host.innerHTML = `<div class="empty">${esc(T("app.loading"))}</div>`;
+    try { V = await api("/api/trial", {}); }
+    catch (err){ host.innerHTML = `<div class="empty">${esc(err.message)}</div>`; return; }
+    host.innerHTML = `<div class="cols trial">
+      <div class="card">
+        <h3 style="margin:0 0 8px;font-size:15px">${esc(T("tr.detectors"))}</h3>
+        <div id="trCands"></div>
+        <h3 style="margin:14px 0 6px;font-size:15px">${esc(T("lab.frames"))}
+          <span class="note" id="trFrameCount"></span></h3>
+        <div class="note">${esc(T("tr.frameCap"))}:
+          <code>${esc(V.max_frames_per_trial)}</code></div>
+        <ul class="trpicks" id="trFrames"></ul>
+        <div class="acts" style="display:flex;gap:8px;margin-top:10px">
+          <button class="primary" id="trRun">${esc(T("tr.run"))}</button></div>
+        <div class="note" id="trRunOut" style="margin-top:8px"></div></div>
+      <div><div class="note">${esc(T("lab.source"))}:
+          <code>${esc(V.label_source || "")}</code>
+          <code>${esc(V.frame_listing_strategy || "")}</code></div>
+        <div id="trOverlay" style="margin-top:8px"></div></div>
+      <div class="out" id="trSide"></div></div>`;
+    paintCandidates();
+    paintFrames();
+    el("trRun").disabled = !may("may_request_training");
+    el("trRun").addEventListener("click", () => run().catch(reportBoot));
+    if (!may("may_request_training"))
+      el("trRunOut").innerHTML = `${esc(T("auth.noPermission"))}
+        <div>${esc(T("dep.needs"))} <code>may_request_training</code></div>`;
+    paintResult();
+    paintSide();
+  }
+
+  /* -- 고르기 ------------------------------------------------------------ */
+
+  function paintCandidates(){
+    const host = el("trCands");
+    if (!V.detector_declaration_present || !V.detectors.length){
+      /* 선언이 없는 배치는 정상이다 — 없는 특성을 추측해 채우지 않는다. */
+      host.innerHTML = `<div class="empty">${esc(T("tr.noDetectors"))}</div>`;
+      return;
+    }
+    host.innerHTML = `<ul class="trpicks">${V.detectors.map(d => {
+      const mine = typed[d.implementation_ref] || {};
+      const on = picked.has(d.implementation_ref);
+      /* 가중치 유무는 **세 값**이다: 있다 · 없다 · 모른다(허브 캐시처럼 선언이
+         자리를 말하지 않는 경우). 모른다를 "없다" 로 접으면 세울 수 있는 탐지기가
+         고를 수 없는 것으로 보인다. */
+      const notes = [];
+      if (d.weights_present === false) notes.push(chip("critical", T("tr.noWeights")));
+      if (d.weights_present === null || d.weights_present === undefined)
+        notes.push(chip("warn", T("tr.weightsUnknown")));
+      if (d.outbound_network_required) notes.push(chip("serious", T("tr.needsNetwork")));
+      if (d.prompt_free) notes.push(chip("", T("tr.promptFree")));
+      return `<li><label><input type="checkbox" data-cand="${esc(d.implementation_ref)}"
+          ${on ? "checked" : ""}><span>${esc(d.display_name || d.implementation_ref)}
+          <div class="note"><code>${esc(d.implementation_ref)}</code></div>
+          <div>${notes.join(" ")}</div></span></label>
+        <div class="sub">
+          ${d.prompt_free ? "" : `<input data-vocab="${esc(d.implementation_ref)}"
+            placeholder="${esc(T("tr.vocabulary"))}"
+            value="${esc(mine.vocabulary || "")}">`}
+          ${(d.accepted_params || []).includes("conf")
+            ? `<input data-conf="${esc(d.implementation_ref)}" type="number" step="0.01"
+                min="0" max="1" placeholder="${esc(T("tr.conf"))}"
+                value="${esc(mine.conf === undefined ? "" : mine.conf)}">` : ""}
+        </div></li>`;
+    }).join("")}</ul>
+      <div class="note" style="margin-top:6px">${esc(T("tr.vocabularyHint"))}</div>`;
+    host.querySelectorAll("input[data-cand]").forEach(node =>
+      node.addEventListener("change", () => {
+        if (node.checked) picked.add(node.dataset.cand);
+        else picked.delete(node.dataset.cand);
+      }));
+    /* 적어 넣은 글을 기억한다. 다시 그릴 때 사라지면 어휘를 매번 다시 친다. */
+    host.querySelectorAll("input[data-vocab]").forEach(node =>
+      node.addEventListener("input", () => {
+        typed[node.dataset.vocab] = {...(typed[node.dataset.vocab] || {}),
+                                     vocabulary: node.value};
+      }));
+    host.querySelectorAll("input[data-conf]").forEach(node =>
+      node.addEventListener("input", () => {
+        typed[node.dataset.conf] = {...(typed[node.dataset.conf] || {}),
+                                    conf: node.value};
+      }));
+  }
+
+  function paintFrames(){
+    const host = el("trFrames");
+    if (!V.frames.length){
+      host.innerHTML = `<li class="note">${esc(T("tr.noTrialFrames"))}</li>`;
+      return;
+    }
+    host.innerHTML = V.frames.map(f =>
+      `<li><label><input type="checkbox" data-frame="${esc(f.frame_ref)}"
+        ${frames.has(f.frame_ref) ? "checked" : ""}
+        ><span><code>${esc(f.frame_ref)}</code></span></label></li>`).join("");
+    host.querySelectorAll("input[data-frame]").forEach(node =>
+      node.addEventListener("change", () => {
+        if (node.checked) frames.add(node.dataset.frame);
+        else frames.delete(node.dataset.frame);
+        paintFrameCount();
+      }));
+    paintFrameCount();
+  }
+
+  function paintFrameCount(){
+    /* 상한을 넘겨 고르면 서버가 잘라 내고 **잘랐다는 사실을 함께** 낸다. 여기서도
+       미리 적는다 — 결과를 보고 나서야 알게 하지 않는다. */
+    const over = frames.size > V.max_frames_per_trial;
+    el("trFrameCount").innerHTML =
+      ` ${frames.size} / ${V.frames.length}` +
+      (V.frames.length < V.frame_count ? ` (${V.frame_count})` : "") +
+      (over ? " " + chip("warn", T("tr.frameCap")) : "");
+  }
+
+  /* -- 돌리기 ------------------------------------------------------------ */
+
+  function candidates(){
+    return [...picked].map(ref => {
+      const d = V.detectors.find(x => x.implementation_ref === ref) || {};
+      const mine = typed[ref] || {};
+      const body = {implementation_ref: ref, params: {}};
+      if (!d.prompt_free)
+        body.vocabulary = String(mine.vocabulary || "").split(",")
+          .map(s => s.trim()).filter(Boolean);
+      /* 적지 않은 칸은 **보내지 않는다**. 보내면 그 값이 `trial_request` 로 적혀
+         선언에서 온 값과 구분되지 않는다(서버가 param_basis 로 그것을 가른다). */
+      if (mine.conf !== undefined && String(mine.conf).trim() !== "")
+        body.params.conf = Number(mine.conf);
+      return body;
+    });
+  }
+
+  async function run(){
+    if (!picked.size){
+      el("trRunOut").innerHTML = `<div>${esc(T("tr.pickCandidate"))}</div>`;
+      return;
+    }
+    if (!frames.size){
+      el("trRunOut").innerHTML = `<div>${esc(T("tr.pickFrame"))}</div>`;
+      return;
+    }
+    el("trRun").disabled = true;
+    el("trRunOut").innerHTML = `<div>${esc(T("tr.running"))}</div>`;
+    try {
+      out = await post("/api/trial-run", {
+        capability_kind: V.capability_kind,
+        source: V.label_source,
+        frame_refs: [...frames],
+        candidates: candidates(),
+      });
+      el("trRunOut").textContent = "";
+      shownFrame = null;
+      paintResult();
+      paintSide();
+    } catch (err){
+      /* 403·503 도 사유 토큰으로 온다. 토큰을 보여 주지 않으면 권한이 없는 것과
+         장부가 없는 것이 같은 "실패" 로 보인다. */
+      el("trRunOut").innerHTML = refusal("tr.err.", err.message);
+    } finally {
+      el("trRun").disabled = !may("may_request_training");
+    }
+  }
+
+  /* -- 결과: 오버레이 ---------------------------------------------------- */
+
+  function mediaSrc(media){
+    const m = media || {};
+    return `${m.path || "/api/media"}?kind=${encodeURIComponent(m.kind || "frame")}` +
+           `&source=${encodeURIComponent(m.source || "")}` +
+           `&file=${encodeURIComponent(m.file || "")}`;
+  }
+
+  function paintResult(){
+    const host = el("trOverlay");
+    if (!out){
+      host.innerHTML = `<div class="empty">${esc(T("tr.noTrialYet"))}</div>`;
+      return;
+    }
+    if (out.reason){
+      host.innerHTML = `<div class="empty">${refusal("tr.reason.", out.reason)}</div>`;
+      return;
+    }
+    const picks = out.frames || [];
+    if (!picks.length){ host.innerHTML = `<div class="empty">${esc(T("app.none"))}</div>`; return; }
+    if (!picks.some(f => f.frame_ref === shownFrame)) shownFrame = picks[0].frame_ref;
+    const frame = picks.find(f => f.frame_ref === shownFrame);
+    /* 구성마다 **제 그림**을 나란히 둔다. 한 그림에 두 구성의 상자를 겹치면 어느
+       상자가 누구 것인지 색 하나로 말해야 하고, 그 색은 이미 하한 상태가 쓰고
+       있다. */
+    host.innerHTML = `
+      <div class="note">${esc(T("tr.overlay"))}</div>
+      <nav class="steprail" id="trFrameTabs" style="margin:6px 0">${picks.map(f =>
+        `<button data-show="${esc(f.frame_ref)}"
+          class="${f.frame_ref === shownFrame ? "on" : ""}"
+          ><span>${esc(f.frame_ref)}</span></button>`).join("")}</nav>
+      <div class="trshots">${(out.detections || []).map((det, i) => {
+        const summary = (out.runs || []).find(
+          r => r.configuration_fingerprint === det.configuration_fingerprint) || {};
+        const mine = (det.frames || []).find(f => f.frame_ref === shownFrame);
+        const boxes = (mine && mine.boxes) || [];
+        return `<figure class="trshot">
+          <div class="frame"><img alt="${esc(shownFrame)}"
+            src="${esc(mediaSrc(frame.media))}">
+            <svg viewBox="0 0 1000 1000" preserveAspectRatio="none"
+              id="trSvg${i}"></svg></div>
+          <figcaption><b>${esc(det.implementation_ref)}</b>
+            <div><code>${esc(det.postprocess_ref || "")}</code>
+              <code>${esc(summary.prompt_ref || "")}</code></div>
+            <div>${esc(T("tr.count"))}: ${boxes.length}</div></figcaption></figure>`;
+      }).join("")}</div>
+      <div class="trlegend">${FLOOR_STATES.map(state =>
+        `<span><i class="${esc(state)}"></i>${esc(floorText(
+          state === "floor_unknown" ? null : state))}</span>`).join("")}</div>`;
+    el("trFrameTabs").querySelectorAll("button[data-show]").forEach(node =>
+      node.addEventListener("click", () => {
+        shownFrame = node.dataset.show;
+        paintResult();
+      }));
+    (out.detections || []).forEach((det, i) => drawBoxes(i, det, frame));
+  }
+
+  /* 상자를 그린다. 서버가 주는 좌표는 **픽셀**이고 프레임 크기로 나눠 0..1 로
+     만든 뒤 1000 을 곱한다 — 라벨 편집기와 같은 규칙이라 표시 크기가 바뀌어도
+     상자가 흔들리지 않는다. 크기를 모르는 프레임은 **그리지 않고 그 사실을 적는다**
+     (0 으로 나누면 상자가 전부 왼쪽 위 한 점이 된다). */
+  function drawBoxes(index, det, frame){
+    const svg = el("trSvg" + index);
+    if (!svg) return;
+    const NS = "http://www.w3.org/2000/svg";
+    svg.textContent = "";
+    const w = frame.width, h = frame.height;
+    const mine = (det.frames || []).find(f => f.frame_ref === frame.frame_ref);
+    const boxes = (mine && mine.boxes) || [];
+    if (!w || !h){
+      const note = document.createElementNS(NS, "text");
+      note.setAttribute("x", 12); note.setAttribute("y", 24);
+      note.setAttribute("class", "cap");
+      note.textContent = T("app.unmeasured");
+      svg.appendChild(note);
+      return;
+    }
+    const add = (tag, attrs, cls) => {
+      const n = document.createElementNS(NS, tag);
+      for (const [k, v] of Object.entries(attrs)) n.setAttribute(k, v);
+      if (cls) n.setAttribute("class", cls);
+      svg.appendChild(n);
+      return n;
+    };
+    /* 큰 것부터 그린다. 나중에 그린 것이 위에 오므로 작은 상자가 가려지지 않는다. */
+    const area = (b) => (b.box_xyxy[2] - b.box_xyxy[0]) * (b.box_xyxy[3] - b.box_xyxy[1]);
+    for (const b of boxes.slice().sort((a, c) => area(c) - area(a))){
+      const [x1, y1, x2, y2] = b.box_xyxy;
+      add("rect", {x: x1 / w * 1000, y: y1 / h * 1000,
+                   width: (x2 - x1) / w * 1000, height: (y2 - y1) / h * 1000},
+          `bx ${FLOOR_CLASS(b.floor_state)}`);
+      add("text", {x: x1 / w * 1000 + 5, y: y1 / h * 1000 - 5}, "cap").textContent =
+        `${b.label} ${b.score}`;
+    }
+  }
+
+  /* -- 결과: 비교와 적용 ------------------------------------------------- */
+
+  function paintSide(){
+    const host = el("trSide");
+    if (!out){ host.innerHTML = applyForm(); bindApply(); return; }
+    host.innerHTML = compareView() + thresholdView() + applyForm();
+    bindApply();
+  }
+
+  /* 세우지 못한 후보와 **그 사유**. 거절된 시도에서도 그린다 — 거절 사유만 내고
+     이것을 숨기면, 아무것도 돌지 않은 이유가 바로 여기 적혀 있는데 화면에는
+     "하나만 돌린 것은 비교가 아니다" 만 남는다(실제로 그렇게 보였다). */
+  function unavailableView(){
+    if (!(out.unavailable || []).length) return "";
+    return `<div style="margin-top:8px">
+      <div class="note">${esc(T("tr.unavailable"))}</div>
+      <ul class="plain">${out.unavailable.map(u =>
+        /* 후보마다 **자기 사유**를 들고 온다. 전부 "불가" 로 뭉개면 "가중치가
+           없다" 와 "세우면 네트워크로 나간다" 가 같은 말이 된다. */
+        `<li><code>${esc(u.implementation_ref)}</code>
+          ${chip("critical", pick("tr.reason.", u.reason))}
+          <code>${esc(u.reason)}</code></li>`).join("")}</ul></div>`;
+  }
+
+  function compareView(){
+    if (out.reason)
+      return `<div>${refusal("tr.reason.", out.reason)}${unavailableView()}</div>`;
+    const runs = out.runs || [];
+    const scored = out.scored && Object.keys(out.scored).length;
+    const rows = [
+      [T("tr.count"), r => String(r.detection_count)],
+      [T("tr.scoreSpan"), r => (r.score_span
+        ? `${r.score_span[0]} – ${r.score_span[1]}` : T("app.unmeasured"))],
+      [T("tr.latency"), r => num(r.median_latency_ms)],
+      [T("tr.samples"), r => String(r.latency_sample_count)],
+      [T("tr.offVocab"), r => String(r.off_vocabulary_count)],
+      [T("tr.labels"), r => Object.entries(r.labels || {})
+        .map(([k, n]) => `<code>${esc(k)}</code> ${n}`).join("<br>")],
+    ];
+    const floors = (out.thresholds_used || []).map(t =>
+      `<div><code>${esc(t.implementation_ref)}</code>
+        ${FLOOR_STATES.map(state => {
+          const key = state === "floor_unknown" ? null : state;
+          const n = (t.floor_states || {})[key];
+          /* 0 인 상태도 범례에서 지우지 않는다 — 지우면 "없다" 와 "0 개" 가
+             같은 빈칸이 된다. */
+          return n === undefined ? "" : chip(FLOOR_GRADE[state] || "",
+                                             `${floorText(key)} ${n}`);
+        }).join(" ")}</div>`).join("");
+    return `<div>
+      <div class="note">${esc(T("tr.compare"))}</div>
+      ${scored
+        ? `<div>${chip("good", T("tr.scored"))}</div>`
+        /* 정답이 없으면 **1위를 고르지 않는다.** 그 사실을 표 위에 적는다. */
+        : `<div>${chip("warn", T("tr.descriptive"))}</div>`}
+      <table class="grid"><thead><tr><th></th>${runs.map(r =>
+        `<th><code>${esc(r.implementation_ref)}</code>
+          <div class="note"><code>${esc(r.postprocess_ref || "")}</code></div></th>`
+        ).join("")}</tr></thead><tbody>
+        ${rows.map(([name, cell]) => `<tr><td>${esc(name)}</td>${runs.map(r =>
+          `<td>${cell(r)}</td>`).join("")}</tr>`).join("")}
+        ${scored ? ["hit", "missed", "spurious", "recall", "precision"].map(key =>
+          `<tr><td>${esc(T("tr." + key))}</td>${runs.map(r => {
+            const s = out.scored[r.configuration_fingerprint] || {};
+            return `<td>${num(s[key])}</td>`;
+          }).join("")}</tr>`).join("") : ""}
+      </tbody></table>
+      ${(out.agreement || []).map(a =>
+        `<div class="note">${esc(T("tr.agreement"))}: ${a.shared_boxes}
+          <code>${esc(String(a.pair[0]).slice(0, 8))}</code>
+          <code>${esc(String(a.pair[1]).slice(0, 8))}</code></div>`).join("")}
+      ${floors ? `<div style="margin-top:8px">${esc(T("tr.floorStates"))}</div>${floors}`
+               : ""}
+      ${out.not_a_measurement
+        ? `<div style="margin-top:8px">${chip("warn", T("tr.notMeasurement"))}
+           <div class="why">${emph(out.not_a_measurement)}</div></div>` : ""}
+      ${(out.caveats || []).length ? `<div style="margin-top:8px">
+        <div class="note">${esc(T("tr.caveats"))}</div>
+        <ul class="plain">${out.caveats.map(c =>
+          `<li class="why">${emph(c)}</li>`).join("")}</ul></div>` : ""}
+      ${unavailableView()}
+    </div>`;
+  }
+
+  /* 쓴 값과 **그 값의 출처**. 선언에서 온 0.05 와 폼에 적어 넣은 0.05 가 같은 수로
+     보이면 무엇을 바꿔 본 것인지 알 수 없다(AI-L-03). */
+  function thresholdView(){
+    const used = out.thresholds_used || [];
+    if (!used.length) return "";
+    return `<div style="margin-top:12px">
+      <div class="note">${esc(T("tr.basis"))}</div>
+      ${used.map(t => `<div><code>${esc(t.implementation_ref)}</code>
+        ${Object.entries(t.params || {}).map(([name, value]) =>
+          `<div><code>${esc(name)}</code> = <b>${esc(value)}</b>
+            ${chip((t.param_basis || {})[name] === "trial_request" ? "warn" : "",
+                   pick("tr.basis.", (t.param_basis || {})[name] || ""))}</div>`
+          ).join("")}</div>`).join("")}</div>`;
+  }
+
+  /* 적용 — **다른 경로·다른 권한**이다. 돌려 보기 단추와 한 묶음으로 두지 않는다. */
+  function applyForm(){
+    const block = (V && V.thresholds) || {rows: []};
+    if (!may("may_deploy_model"))
+      return `<div style="margin-top:12px"><div class="note">${esc(T("tr.applyHead"))}</div>
+        <div class="empty">${esc(T("auth.noPermission"))}
+          <div class="note">${esc(T("dep.needs"))} <code>may_deploy_model</code></div>
+        </div></div>`;
+    const runs = (out && out.runs) || [];
+    return `<div style="margin-top:12px">
+      <div class="note">${esc(T("tr.applyHead"))}</div>
+      <div class="why">${esc(T("tr.applyNote"))}</div>
+      <table class="grid"><thead><tr><th>${esc(T("tr.thresholds"))}</th>
+        <th>${esc(T("tr.declaredValue"))}</th><th>${esc(T("tr.effective"))}</th>
+        <th></th></tr></thead><tbody>${(block.rows || []).map(row => `<tr>
+        <td><code>${esc(row.threshold_id)}</code>
+          <div class="note">${esc(T("tr.appliesTo"))}
+            <code>${esc(row.parameter)}</code></div>
+          <div>${reachesChip(row.reaches_provider)}
+            <code>${esc(String(row.reaches_provider))}</code></div></td>
+        <td>${row.declared_value === null || row.declared_value === undefined
+              /* 선언값 `null` 은 **아무도 선언하지 않았다**는 뜻이다. 0 도 아니고
+                 "미달" 도 아니다. */
+              ? chip("warn", T("tr.notDeclared")) : esc(row.declared_value)}
+          <div class="note">${esc(row.provenance && row.provenance.measured
+            ? T("tr.measured") : T("tr.notMeasured"))}</div></td>
+        <td>${row.effective && row.effective.value !== null
+               && row.effective.value !== undefined
+              ? esc(row.effective.value) : chip("warn", T("tr.notDeclared"))}
+          <div class="note">${esc(pick("tr.basis.",
+            (row.effective && row.effective.basis) || ""))}</div></td>
+        <td><button class="link" data-th="${esc(row.threshold_id)}"
+          >${esc(T("tr.apply"))}</button></td></tr>`).join("")}</tbody></table>
+      <div class="form" style="margin-top:8px">
+        <label><span>${esc(T("tr.thresholds"))}</span>
+          <select id="trThId"><option value=""></option>${(block.rows || []).map(row =>
+            `<option value="${esc(row.threshold_id)}">${esc(row.threshold_id)}</option>`
+            ).join("")}</select></label>
+        <label><span>${esc(T("tr.value"))}</span>
+          <input id="trValue" type="number" step="0.01"></label>
+        <label><span>${esc(T("tr.whichRun"))}</span>
+          <select id="trFp"><option value="">${esc(T("app.none"))}</option>${runs.map(r =>
+            `<option value="${esc(r.configuration_fingerprint)}"
+              >${esc(r.implementation_ref)} · ${esc(r.postprocess_ref || "")}</option>`
+            ).join("")}</select></label>
+        <label><span>${esc(T("lab.reason"))}</span><textarea id="trReason"
+          placeholder="${esc(T("dep.reasonPlaceholder"))}"></textarea></label>
+        <div class="acts">
+          <button class="primary" id="trApply">${esc(T("tr.apply"))}</button>
+          <button class="ghost" id="trReset">${esc(T("tr.reset"))}</button></div>
+      </div>
+      <div id="trApplyOut" class="note" style="margin-top:8px"></div></div>`;
+  }
+
+  /* `reaches_provider` 는 **세 값**이다. `null`(모른다)을 `false`(전달되지 않는다)
+     와 같은 글자로 그리면, 고친 값이 조용히 버려지는 경우와 아직 알 수 없는 경우가
+     운영 화면에서 한 상태가 된다. */
+  function reachesChip(value){
+    if (value === true) return chip("good", T("tr.reaches.true"));
+    if (value === false) return chip("critical", T("tr.reaches.false"));
+    return chip("warn", T("tr.reaches.null"));
+  }
+
+  function bindApply(){
+    const host = el("trSide");
+    if (!host) return;
+    host.querySelectorAll("button[data-th]").forEach(node =>
+      node.addEventListener("click", () => {
+        if (el("trThId")) el("trThId").value = node.dataset.th;
+        if (el("trValue")) el("trValue").focus();
+      }));
+    const send = async (action) => {
+      const id = el("trThId").value;
+      const reason = (el("trReason").value || "").trim();
+      if (!id){
+        el("trApplyOut").innerHTML = `<div>${esc(T("tr.err.threshold_id_required"))}</div>`;
+        return;
+      }
+      if (!reason){
+        /* 서버도 400 으로 거절한다. 여기서 먼저 막아 같은 말을 두 번 하게 하지
+           않되, **거절 사유는 서버의 토큰과 같은 글**이다. */
+        el("trApplyOut").innerHTML = `<div>${esc(T("dep.needReason"))}</div>`;
+        return;
+      }
+      const body = {threshold_id: id, action, reason};
+      if (action === "set"){
+        if (el("trValue").value === ""){
+          el("trApplyOut").innerHTML = `<div>${esc(T("tr.err.value_required"))}</div>`;
+          return;
+        }
+        body.value = Number(el("trValue").value);
+      }
+      /* 어느 시도를 보고 골랐는지가 장부에 남는다 — 기준을 낮춰 통과시킨 것과
+         넘은 것이 뒤에서 구분되어야 한다(AI-L-06). */
+      const fp = el("trFp") ? el("trFp").value : "";
+      if (fp) body.trial_fingerprint = fp;
+      try {
+        const done = await post("/api/threshold", body);
+        const changed = done.configuration || {};
+        /* 다시 읽는다 — 적용은 요청이고 지금 쓰는 값이 바뀌었는지는 서버가 말한다. */
+        V = await api("/api/trial", {});
+        paintSide();
+        el("trApplyOut").innerHTML = `${chip("good", T("dep.submitted"))}
+          <div><code>${esc(done.action)}</code> ${esc(done.actor)}</div>
+          <div>${esc(T("tr.effective"))}:
+            ${done.effective && done.effective.value !== null
+              ? `<b>${esc(done.effective.value)}</b>` : esc(T("tr.notDeclared"))}
+            ${chip("", pick("tr.basis.", done.effective && done.effective.basis))}</div>
+          ${changed.fingerprint
+            ? `<div class="why">${esc(T("tr.notMeasurement"))}
+               <code>${esc(changed.postprocess_ref || "")}</code>
+               <code>${esc(String(changed.fingerprint).slice(0, 8))}</code></div>`
+            : `<div class="why"><code>${esc(changed.reason || "")}</code></div>`}`;
+      } catch (err){
+        el("trApplyOut").innerHTML = refusal("tr.err.", err.message);
+      }
+    };
+    if (el("trApply")) el("trApply").addEventListener("click", () => send("set"));
+    if (el("trReset")) el("trReset").addEventListener("click", () => send("reset"));
+  }
+
+  return {open};
+})();
+
 /* ===========================================================================
    장치 연결 확인 · 장치 수동 제어 · 장치 관리
 
@@ -5458,6 +6421,24 @@ const OPS_SECTIONS = [
     "may_request_training", "may_deploy_model"], mount: () => Deploy.open()},
   {id: "label", key: "ops.sec.label", needs: ["may_label_ground_truth"],
    mount: () => Labeler.open()},
+  /* 돌려 보고 고치기 — 세 번째 조각이다. 들이고 학습한 **다음**에 오는 일이 아니라
+     그 둘 사이에 끼는 일이어서(어느 탐지기를 어떤 값으로 쓸지 고르고 나서야 교체가
+     의미가 있다) 같은 탭에 둔다.
+
+     `needs` 에 둘을 적는다. 이 조각 안에 **다른 권한이 필요한 일이 둘** 있어서다 —
+     돌려 보기는 `may_request_training`, 적용은 `may_deploy_model` 이고 단추도 따로다
+     (`trRun` 은 앞의 것, 임계값 적용 폼은 뒤의 것으로 잠긴다). `.some(may)` 이므로
+     둘 중 하나만 있어도 들어오고, 안에서 할 수 없는 일은 그 자리에서 사유와 함께
+     잠긴다.
+
+     처음에는 `may_deploy_model` 하나였는데, 그러면 학습 요청 능력만 가진 사람이
+     **서버가 허용하는 경로를 화면에서 볼 수 없다**(서버는 그 사람에게
+     `POST /api/trial-run` 을 준다). 화면에서 숨기는 것은 접근 통제가 아니므로
+     (이 파일 위쪽 `TABS` 의 같은 주석) 좁게 잡아 봐야 막는 것은 없고 할 수 있는
+     일을 못 찾게 할 뿐이다. 실제 차단은 서버가 경로마다 능력으로 한다. */
+  {id: "trial", key: "ops.sec.trial",
+   needs: ["may_request_training", "may_deploy_model"],
+   mount: () => Trial.open()},
 ];
 
 async function paintOps(){
@@ -5490,7 +6471,8 @@ async function paintOps(){
      적어 둔 결과가 사라진다. */
   el("opsBody").innerHTML = `
     <div id="sec-deploy" class="deck" ${S.opsSection === "deploy" ? "" : 'hidden'}></div>
-    <div id="sec-label" ${S.opsSection === "label" ? "" : 'hidden'}></div>`;
+    <div id="sec-label" ${S.opsSection === "label" ? "" : 'hidden'}></div>
+    <div id="sec-trial" ${S.opsSection === "trial" ? "" : 'hidden'}></div>`;
   await section.mount();
 }
 

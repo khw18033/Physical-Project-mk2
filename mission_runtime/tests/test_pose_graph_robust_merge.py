@@ -1,6 +1,6 @@
 """implements: (stand-in for) DT-03, BE-C-04
 reproduces (decision rule only): Hydra-Multi, arXiv:2304.13487
-(docs/obsidian/papers/hydra-multi.md) — the "resist a bad cross-robot
+(internal/docs-dev/obsidian/papers/hydra-multi.md) — the "resist a bad cross-robot
 correspondence" property its GNC-based align-optimize-reconcile merge is
 credited with, not its hierarchical loop-closure detection, its 5-layer
 scene graph, or GNC's own mu-annealing schedule (none of which exist in

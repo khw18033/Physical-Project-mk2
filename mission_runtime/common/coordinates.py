@@ -60,7 +60,7 @@ class CoordinateFrame(str, Enum):
     IMAGE        - pixel coordinates of one specific source frame. Always
                    available; requires no calibration at all.
     CAMERA_LOCAL - metric/ray coordinates relative to one camera, only
-                   reachable with a valid calibration profile (AI-E-03).
+                   reachable with a valid calibration profile (AI-E-02).
     GLOBAL       - site/world frame. **AI 가 소유한다**(2026-11-03 개정). 다만
                    도달하려면 `SiteDatum` 이 필요하고, datum 이 없으면 이 프레임의
                    값은 만들어지지 않는다 — 없는 기준점을 가정해 만든 전역 좌표는
@@ -147,7 +147,8 @@ def to_camera_local(
 
 
 #: 전역 변환이 거절되는 사유. 통제 어휘이고 표시 문구가 아니다 —
-#: 등록처는 `contracts/data_dictionary.py::COORDINATE_REASONS`.
+#: 등록처는 `contracts/data_dictionary.py::FRAME_REFUSAL_REASON`(그 칸이
+#: 드는 어휘가 이것들이다).
 GLOBAL_NO_DATUM = "global_no_site_datum"
 GLOBAL_DATUM_UNVERIFIED = "global_site_datum_unverified"
 GLOBAL_DATUM_ZONE_MISMATCH = "global_site_datum_zone_mismatch"  # + ":<declared>/<asked>"

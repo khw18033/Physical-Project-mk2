@@ -359,8 +359,8 @@ class UniDepthCameraProvider:
     """UniDepth(무거운 CUDA 모델, AI-E-04 선택 기능)로 프레임의 depth와, 그
     프레임에서 스스로 추정한 카메라 내부파라미터(fx, cx)를 함께 낸다.
 
-    `unidepth`는 모듈 최상단이 아니라 생성자 안에서 지연 import한다(AI-C-11 —
-    `open_vocabulary.py::OwlVitPerceptionProvider`와 동일 패턴). 이 provider가
+    `unidepth`는 모듈 최상단이 아니라 생성자 안에서 지연 import한다(AI-C-05 —
+    `perception/open_vocabulary.py::OwlVitPerceptionProvider`와 동일 패턴). 이 provider가
     없어도(예: UniDepth 미설치 노드) 이 모듈의 순수 함수(`bearing_offset_deg`
     등)는 계속 동작한다 — 그 함수들은 fx/cx/depth를 인자로만 받는다.
     """

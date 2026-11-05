@@ -6,7 +6,7 @@ tests: confidence stops earlier but confirms on a single source, sufficiency
        high-confidence errors, FCR is reported with coverage, unscored
        confirmations are not counted as wrong
 
-근거: docs/obsidian/ideas/evidence-driven-orchestration-plan.md §3 S4, §7-2
+근거: internal/docs-dev/obsidian/ideas/evidence-driven-orchestration-plan.md §3 S4, §7-2
 """
 
 from __future__ import annotations
@@ -34,6 +34,25 @@ COSTS = {
     "semantic_verification": ("clip_torch", 169.0),
 }
 
+#: 이 묶음이 쓰는 증거 종류 → capability kind 매핑. **배포 선언을 쓰지 않고 여기서
+#: 준다**(2026-11-05).
+#:
+#: 이유: 이 시험들이 보는 것은 **정지 규칙의 동작**(confidence vs sufficiency)이고
+#: 어느 capability 가 무엇을 만드는지는 그 축이 아니다. 전에는 매핑이 코드 상수여서
+#: 여기서 주지 않아도 돌았는데, 그 상수의 이름이 배포 선언 어휘와 하나도 맞지
+#: 않았다(`detection` vs `perception.detect`) — 즉 이 시험들은 **아무 배치도 쓰지 않는
+#: 어휘**로 돌고 있었다. 매핑이 선언으로 나간 뒤 그 사실이 드러났다.
+#:
+#: 고치는 방향은 이름을 배포 어휘로 바꾸는 것이 **아니다**: 그러면 이 단위 시험이
+#: 배포 선언의 변경에 흔들린다. 기능 비교 시험은 자기 어휘를 자기가 들고 있어야
+#: 한다(AI-B-01 의 "같은 조건에서 비교" 가 성립하려면 그 조건이 고정되어야 한다).
+KIND_PROVIDERS = {
+    "semantic_class": ("detection", "open_vocabulary_detection",
+                       "semantic_verification"),
+    "region_2d": ("detection", "open_vocabulary_detection"),
+}
+AVAILABLE = frozenset(k for v in KIND_PROVIDERS.values() for k in v)
+
 
 def _contract() -> MissionContract:
     return MissionContract("m", (
@@ -54,9 +73,11 @@ def test_confidence_stops_on_one_source_sufficiency_does_not():
     """같은 입력에서 두 규칙이 다르게 멈춘다 — 이것이 비교의 축이다."""
     args = (_contract(), ObjectRecord("o"), GreedyCostPolicy(COSTS),
             _executor("flipchart", 0.94), )
-    fast = orchestrate(*args, Budget(), stop_rule=ConfidenceRule(0.5))
+    fast = orchestrate(*args, Budget(), available_kinds=AVAILABLE, kind_providers=KIND_PROVIDERS,
+                     stop_rule=ConfidenceRule(0.5))
     slow = orchestrate(_contract(), ObjectRecord("o"), GreedyCostPolicy(COSTS),
                        _executor("flipchart", 0.94), Budget(),
+                       available_kinds=AVAILABLE, kind_providers=KIND_PROVIDERS,
                        stop_rule=SufficiencyRule())
 
     assert fast.calls == 1 and fast.decision.confirmed
@@ -75,13 +96,15 @@ def test_raising_the_threshold_cannot_fix_high_confidence_errors():
     wrong_but_confident = _executor("flipchart", 0.94)
     for threshold in (0.5, 0.8, 0.9):
         r = orchestrate(_contract(), ObjectRecord("o"), GreedyCostPolicy(COSTS),
-                        wrong_but_confident, Budget(), stop_rule=ConfidenceRule(threshold))
+                        wrong_but_confident, Budget(), available_kinds=AVAILABLE,
+                        kind_providers=KIND_PROVIDERS, stop_rule=ConfidenceRule(threshold))
         assert r.decision.confirmed, f"임계 {threshold}에서도 확정한다"
         assert r.decision.supporting_groups == 1
 
     # 임계를 0.94 위로 올리면 확정 자체가 사라진다 — 맞는 것도 함께.
     r = orchestrate(_contract(), ObjectRecord("o"), GreedyCostPolicy(COSTS),
-                    _executor("chair", 0.93), Budget(), stop_rule=ConfidenceRule(0.95))
+                    _executor("chair", 0.93), Budget(), available_kinds=AVAILABLE,
+                        kind_providers=KIND_PROVIDERS, stop_rule=ConfidenceRule(0.95))
     assert r.decision is None or not r.decision.confirmed
 
 
@@ -89,13 +112,15 @@ def test_confidence_stop_records_what_it_skipped():
     """무엇을 못 채우고 멈췄는지 남는다 — 사후 추적의 근거(AI-O-02)."""
     r = orchestrate(_contract(), ObjectRecord("o"), GreedyCostPolicy(COSTS),
                     _executor("flipchart", 0.94), Budget(),
-                    stop_rule=ConfidenceRule(0.5))
+                    available_kinds=AVAILABLE, kind_providers=KIND_PROVIDERS,
+                     stop_rule=ConfidenceRule(0.5))
     assert "semantic_class" in r.decision.unmet
 
 
 def test_never_stop_runs_until_budget_and_confirms_nothing_early():
     r = orchestrate(_contract(), ObjectRecord("o"), GreedyCostPolicy(COSTS),
                     _executor("chair", 0.9), Budget(max_calls=3),
+                    available_kinds=AVAILABLE, kind_providers=KIND_PROVIDERS,
                     stop_rule=NeverStopRule())
     # 계약은 충족됐지만 규칙이 확정하지 않았다 — "못 얻었다"와 다른 결말이다.
     assert r.stop_reason in ("exhausted", "no_progress", "no_more_evidence")

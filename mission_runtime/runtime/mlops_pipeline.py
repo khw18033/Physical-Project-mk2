@@ -89,6 +89,12 @@ REFUSE_NOT_VALIDATED = "candidate_not_validated"
 REFUSE_NOT_APPROVED = "candidate_not_approved"
 #: 이미 배포된/되돌려진 계보를 다시 배포 요청했다.
 REFUSE_LINEAGE_SPENT = "candidate_lineage_already_resolved"
+#: 들고 온 계보가 **올라갈 버전을 든 적이 없다.** 콘솔 경로는 이미 둘째 칸을 없애
+#: 이 상태를 표현할 수 없게 했지만(`ModelDesk.apply(version_reference=…)`), 이
+#: 모듈은 라이브러리 API 라서 호출자가 여전히 짝을 들고 올 수 있다. 그리고 여기가
+#: 둘이 **마지막으로 만나는 자리**다 — 계보 사건을 쓰는 것이 이 모듈이므로,
+#: 어긋난 짝으로 쓰이면 적용된 버전에서 역추적이 다른 산출물에 닿는다(AI-L-08).
+REFUSE_LINEAGE_MISMATCH = "lineage_never_cited_this_version"
 #: 조건에 맞는 버전이 없다. 자세한 탈락 사유는 `plan.assignment.rejected`에 있다.
 REFUSE_NO_ASSIGNMENT = "no_assignment_for_conditions"
 #: 쓸 수 있는 제어면이 없다. `clusters.py`의 토큰과 같은 값이다.
@@ -111,6 +117,7 @@ DEPLOYMENT_REASONS: tuple[str, ...] = (
     REFUSE_NOT_VALIDATED,
     REFUSE_NOT_APPROVED,
     REFUSE_LINEAGE_SPENT,
+    REFUSE_LINEAGE_MISMATCH,
     REFUSE_NO_ASSIGNMENT,
     REFUSE_NO_CONTROL_PLANE,
     REFUSE_EGRESS_REQUIRED,
@@ -493,6 +500,14 @@ class MlopsPipeline:
             refusal = REFUSE_NO_ASSIGNMENT
 
         version = assignment.assigned
+        # 버전이 정해진 **뒤에** 짝을 본다. 배정 전에는 무엇과 견줄지 모른다.
+        # 유도로 바꿀 수 없는 이유: 버전은 배정기가 고르고 계보는 호출자가 들고
+        # 오며, 그 버전의 승격 기록은 이 모듈이 소유하지 않는다. 그래서 여기서는
+        # 검증이 유일한 길이고, `capability_kind` 불일치를 이미 거절하는 것과
+        # 같은 자리에 둔다.
+        if refusal is None and lineage is not None and version is not None:
+            if not (lineage.cites(version.version) or lineage.cites(version.reference)):
+                refusal = REFUSE_LINEAGE_MISMATCH
         unit_id = unit_id_for(deployable.deployable_id, version) if version else None
 
         egress = self._egress_verdict(deployable)

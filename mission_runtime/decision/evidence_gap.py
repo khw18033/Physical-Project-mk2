@@ -14,7 +14,7 @@ implements: AI-S-07, AI-S-03, AI-S-05, AI-C-05, AI-C-18
 **RoboKudo와 방향이 같고 대상이 다르다.** RoboKudo는 목표 annotation에서 annotator
 dependency를 역구성한다. 여기서도 역방향이지만 대상이 파이프라인이 아니라 **현재
 레코드의 결손**이다. 그래서 한 번 구성하고 끝나지 않고, 증거가 들어올 때마다 다시 센다
-(docs/obsidian/ideas/evidence-driven-orchestration-plan.md §3 S2).
+(internal/docs-dev/obsidian/ideas/evidence-driven-orchestration-plan.md §3 S2).
 
 **`unobtainable`을 따로 두는 이유**: 등록된 provider로 만들 수 없는 증거를 `unmet`과
 같이 취급하면 오케스트레이터가 영원히 돈다. 만들 수 없다는 것은 실패가 아니라 축소
@@ -22,6 +22,10 @@ dependency를 역구성한다. 여기서도 역방향이지만 대상이 파이�
 """
 
 from __future__ import annotations
+
+import json
+from pathlib import Path
+from typing import Any, Mapping
 
 from mission_runtime.contracts.evidence_contract import (
     MissionContract,
@@ -32,20 +36,55 @@ from mission_runtime.decision.info_request import EvidenceNeed
 from mission_runtime.perception.object_record import UNKNOWN_CLASS, ObjectRecord
 from mission_runtime.perception.purpose_requirements import evaluate_gap
 
-#: 증거 종류 → 그것을 만들 수 있는 capability kind 후보.
-#: **이 표는 설정으로 빼야 한다**(AI-C-15: 도메인 차이는 분기문이 아니라 구성).
-#: 지금은 기본값으로 두고, 배포 프로파일이 덮어쓸 수 있게 인자로 받는다.
-DEFAULT_KIND_PROVIDERS: dict[str, tuple[str, ...]] = {
-    "existence": ("detection",),
-    "semantic_class": ("detection", "open_vocabulary_detection", "semantic_verification"),
-    "region_2d": ("detection", "open_vocabulary_detection"),
-    "mask": ("segmentation",),
-    "geometry_3d": ("depth", "geometry"),
-    "distance": ("depth", "range_sensing"),
-    "track_identity": ("tracking",),
-    "calibration": ("calibration",),
-    "cause_hypothesis": ("case_retrieval", "vision_language"),
-}
+#: 선언이 없을 때의 매핑. **비어 있는 것이 기본이다.**
+#:
+#: 2026-11-05 이전에는 여기에 11 개 후보가 코드 상수로 적혀 있었고, 그 이름들이 이
+#: 저장소의 선언 어휘와 **하나도 맞지 않았다**(`detection` vs `perception.detect`).
+#: 그러면 모든 증거 종류가 `unobtainable` 로 떨어지고, `gap()` 은 `unobtainable` 을
+#: 요청으로 내보내지 않으므로 **아무것도 승격되지 않고 아무 요청도 나가지 않는데 그
+#: 침묵이 통과하는 시험과 구분되지 않았다.**
+#:
+#: 그래서 표는 `config/evidence_kind_providers.example.json` 로 나갔고(AI-C-15), 여기
+#: 남은 빈 사전은 "선언을 못 읽었다" 를 뜻한다. 그 상태에서 판정은
+#: `provider_mapping_undeclared` 가 되어 **고칠 곳이 현장이 아니라 선언**임을 말한다 —
+#: 그럴듯한 기본값을 두면 그 거짓이 다시 조용해진다.
+DEFAULT_KIND_PROVIDERS: dict[str, tuple[str, ...]] = {}
+
+#: 선언 파일의 자리. 배포가 다른 자리를 쓰면 `load_kind_providers(path)` 로 준다.
+DEFAULT_KIND_PROVIDERS_PATH = (
+    Path(__file__).resolve().parents[1] / "config" / "evidence_kind_providers.example.json")
+
+
+def load_kind_providers(
+    source: Path | str | Mapping[str, Any] | None = None,
+) -> dict[str, tuple[str, ...]]:
+    """증거 종류 → capability kind 후보 선언을 읽는다.
+
+    **파일이 없으면 빈 사전이고 추측하지 않는다.** 빈 사전으로 돌리면 모든 종류가
+    `provider_mapping_undeclared` 가 되어 그 사실이 판정에 드러난다 — 그럴듯한
+    기본값을 채우면 그 거짓이 조용해지고, 그것이 이 함수가 생긴 이유다.
+
+    선언에 **없는 키는 없는 채로 둔다**. 빈 목록(`[]`)을 적은 키와 적지 않은 키는
+    다른 사실이다 — 전자는 "찾아봤고 만들 수 있는 종류가 없다", 후자는 "아직 정하지
+    않았다" 다(AI-S-08 과 같은 규칙).
+    """
+    if isinstance(source, Mapping):
+        document: Mapping[str, Any] = source
+    else:
+        path = Path(source) if source is not None else DEFAULT_KIND_PROVIDERS_PATH
+        if not path.is_file():
+            return {}
+        try:
+            document = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            # 읽을 수 없는 선언을 빈 사전으로 두면 **선언이 없는 것과 같아진다.**
+            # 그 둘을 가르는 것은 이 함수의 몫이 아니라 호출자의 몫이라 올려 보낸다.
+            raise
+    raw = document.get("evidence_kind_providers")
+    if not isinstance(raw, Mapping):
+        return {}
+    return {str(kind): tuple(str(c) for c in candidates)
+            for kind, candidates in raw.items() if isinstance(candidates, list)}
 
 
 def _held(record: ObjectRecord) -> dict[str, float | None]:
@@ -91,7 +130,7 @@ def evaluate(contract: MissionContract, record: ObjectRecord,
     `available_kinds=None`은 "무엇이 가능한지 모름"이며, 그때는 전부 얻을 수 있다고
     본다 — 모른다는 이유로 미리 포기하지 않는다(AI-S-05).
     """
-    table = kind_providers or DEFAULT_KIND_PROVIDERS
+    table = kind_providers if kind_providers is not None else load_kind_providers()
     held = _held(record)
 
     # 1) 존재 층 — 기존 AI-S-07 구현이 유일한 정의다.
@@ -104,9 +143,17 @@ def evaluate(contract: MissionContract, record: ObjectRecord,
         cands = table.get(spec.kind, ())
         obtainable = available_kinds is None or bool(set(cands) & available_kinds)
         if spec.kind in absent:
-            state, why = (("unmet", "확보된 근거 없음") if obtainable else
-                          ("unobtainable",
-                           "이 증거를 만들 수 있는 provider가 등록돼 있지 않다"))
+            if not cands:
+                # **매핑이 없다.** "만들 수 없다" 가 아니라 "무엇이 만드는지 모른다" 다.
+                # 이것을 `unobtainable` 로 적으면 `gap()` 이 요청으로 내보내지 않아
+                # 전체가 조용히 멈춘다(위 표의 설명).
+                state, why = ("provider_mapping_undeclared",
+                              f"{spec.kind} 를 만드는 capability kind 가 선언되지 않았다")
+            elif obtainable:
+                state, why = ("unmet", "확보된 근거 없음")
+            else:
+                state, why = ("unobtainable",
+                              "이 증거를 만들 수 있는 provider가 등록돼 있지 않다")
         else:
             state, why = _quality(spec, held[spec.kind])
         items.append(SufficiencyItem(spec.kind, state, spec.necessity, why))
@@ -121,8 +168,13 @@ def gap(contract: MissionContract, record: ObjectRecord,
 
     `unobtainable`은 내보내지 않는다 — 요청해봐야 만들 사람이 없다. 그 사실은
     `evaluate()`의 판정에 남아 호출자가 "부족한 근거를 명시한 채" 진행할 수 있다.
+
+    `provider_mapping_undeclared`도 내보내지 않지만 **이유가 다르다**: 무엇을 요청해야
+    하는지 모르는 것이고, 고칠 곳은 현장이 아니라 **매핑 선언**이다. 호출자가 그 둘을
+    구분할 수 있어야 "현장에 장비가 없다" 와 "우리 표가 비어 있다" 를 가린다 —
+    `unanswerable_kinds()` 가 그 목록을 낸다.
     """
-    table = kind_providers or DEFAULT_KIND_PROVIDERS
+    table = kind_providers if kind_providers is not None else load_kind_providers()
     verdict = evaluate(contract, record, available_kinds, table)
     needs = []
     for item in verdict.items:
@@ -137,3 +189,16 @@ def gap(contract: MissionContract, record: ObjectRecord,
     by_kind = {i.kind: i for i in verdict.items}
     needs.sort(key=lambda n: order.get(by_kind[n.evidence_id].necessity, 1))
     return tuple(needs)
+
+
+def unanswerable_kinds(verdict: SufficiencyVerdict) -> tuple[str, ...]:
+    """요청으로 나가지 못한 종류들 — **왜 못 나갔는지가 섞이지 않게** 따로 낸다.
+
+    `gap()` 은 `unobtainable` 과 `provider_mapping_undeclared` 를 둘 다 내보내지
+    않으므로, 그것만 보는 호출자에게는 둘이 똑같이 **빈 목록**으로 보인다. 그 상태가
+    "현장에 장비가 없어 할 수 있는 것이 없다" 인지 "우리 매핑표가 비어 있어 무엇을
+    요청해야 하는지 모른다" 인지는 고칠 곳이 다르다.
+    """
+    return tuple(item.kind for item in verdict.items
+                 if item.state == "provider_mapping_undeclared")
+

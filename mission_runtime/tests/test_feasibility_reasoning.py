@@ -4,7 +4,7 @@ tests: capability-matching feasibility filter, exact task/robot inverse
 views, allocator-agnostic ReasonerOutput consumption (two independently
 implemented allocators diverging on the same output), zero-feasible-robot
 degrade, and the loaded-state height recomputation branch
-(`docs/obsidian/papers/semantic-feasibility-reasoning.md`).
+(`internal/docs-dev/obsidian/papers/semantic-feasibility-reasoning.md`).
 """
 
 from __future__ import annotations

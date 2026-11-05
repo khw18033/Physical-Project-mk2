@@ -74,6 +74,7 @@ from __future__ import annotations
 import math
 import time
 from dataclasses import dataclass, field, replace
+from types import MappingProxyType
 from typing import Callable, Iterable, Mapping, Sequence
 
 from mission_runtime.continual.lineage import LearningLineage, LearningState
@@ -92,12 +93,30 @@ from mission_runtime.perception.environment_map import (
     StructureEvidence,
 )
 from mission_runtime.perception.multisource import CrossSourceLinker
+from mission_runtime.perception.obstacle_taxonomy import ObstacleTaxonomy
+from mission_runtime.contracts.evidence_contract import (
+    MissionContract,
+    RequiredEvidence,
+)
+from mission_runtime.contracts.capability import CapabilityState
+from mission_runtime.decision.info_request import DecisionSupportRequester
+from mission_runtime.perception.info_selection import AdditionalInfoSelector
 from mission_runtime.perception.object_record import (
+    CONFIRMING_GROUPS,
     UNKNOWN_CLASS,
     Evidence,
     Lifecycle,
     ObjectRecord,
     ProgressiveRecordBuilder,
+)
+from mission_runtime.perception.uncertainty import UncertaintyEvaluator
+from mission_runtime.registry.capability_registry import CapabilityRegistry
+from mission_runtime.risk.adjustment import ObservationLevelAdjuster
+from mission_runtime.runtime.perception_loop import (
+    LoopResult,
+    PerceptionLoop,
+    RecordInput,
+    RecordOutcome,
 )
 
 #: 이 모듈이 내는 유일한 기하 좌표계. `object_record.Evidence.frame_id` 자리에 들어간다.
@@ -117,6 +136,61 @@ ZONE_EVIDENCE_CAPABILITIES: Mapping[str, str] = {
 
 #: 공간 근거 없이도 돌 수 있어야 하므로 기본 가용 집합에 외형은 넣지 않는다.
 DEFAULT_AVAILABLE_KINDS: tuple[str, ...] = ("sync.time", "coordinates.zone_local")
+
+
+#: 운영자 화면이 객체를 **확정으로 다루기 전에** 요구하는 근거(AI-S-07).
+#: 선언이고 분기문이 아니다 — 배치가 `TwinFusionService(promotion_contract=...)` 로
+#: 갈아 끼운다. `semantic_class` 의 경계를 `CONFIRMING_GROUPS` 에서 가져오는 이유:
+#: "독립 소스 몇 개면 확정인가" 의 주인은 `perception/object_record.py` 하나여야
+#: 하고, 여기 2 를 적으면 그 숫자가 두 곳에 생겨 한쪽만 고쳐진다.
+TWIN_PROMOTION_CONTRACT = MissionContract(
+    mission_id="twin_display",
+    required=(
+        RequiredEvidence(kind="existence", necessity="required"),
+        RequiredEvidence(kind="semantic_class", tolerance=float(CONFIRMING_GROUPS),
+                         necessity="required"),
+        RequiredEvidence(kind="region_2d", necessity="preferred"),
+    ),
+    notes="운영자 상황 인식 — 이름을 확정해 보여 주기 전에 독립 소스 합의를 요구한다",
+)
+
+#: 근거 종류 → **이 배치의 어휘로** 그것을 만들 수 있는 capability kind.
+#: `decision/evidence_gap.DEFAULT_KIND_PROVIDERS` 를 그대로 쓰지 않는 이유는 결함
+#: 하나다(2026-11-04 발견): 그 기본표는 `detection` · `open_vocabulary_detection`
+#: 처럼 **점 없는** 이름을 쓰는데 이 저장소의 provider manifest 와 노드 선언은
+#: `perception.detect` · `perception.detect_ovd` 를 쓴다. 두 어휘가 갈려 있으면
+#: 대조 자체가 성립하지 않고(`contracts/evidence_contract.py` 의 docstring 이 그
+#: 조건을 적는다), 그 결과 **모든 근거가 '만들 수 없음' 으로 떨어져** 아무것도
+#: 승격되지 않고 요청도 나가지 않는다. 바른 해소는 기본표를 배치 어휘로 옮기는
+#: 것이지만 그 표를 읽는 소비자가 여럿이라, 여기서는 **이 배치의 표를 선언으로**
+#: 넘긴다(그 표가 루프의 생성자 인자인 이유가 바로 이것이다).
+TWIN_KIND_PROVIDERS: Mapping[str, tuple[str, ...]] = MappingProxyType({
+    "existence": ("perception.detect", "perception.detect_ovd"),
+    "semantic_class": ("perception.detect", "perception.detect_ovd",
+                       "perception.classify"),
+    "region_2d": ("perception.detect", "perception.detect_ovd"),
+    "mask": ("perception.segment",),
+    "geometry_3d": ("perception.depth",),
+    "distance": ("perception.depth", "perception.distance"),
+    "track_identity": ("perception.track", "perception.associate"),
+    "calibration": ("media.video_input",),
+    "cause_hypothesis": ("perception.anomaly",),
+})
+
+#: 요청할 관측·분석 **수준**, 낮은 것부터. 위험도가 오르거나 근거가 모자라면 높은
+#: 쪽부터 고른다 — 그 오르내림의 주인은 `risk/adjustment.py` 이고 여기서는 목록만
+#: 선언한다. 선언이므로 새 수준은 한 줄 추가이고 핵심 코드를 고치지 않는다(AI-R-02).
+TWIN_OBSERVATION_LEVELS: tuple[str, ...] = (
+    "perception.detect", "perception.detect_ovd", "perception.anomaly",
+)
+
+#: 물리 행동이 필요한 capability kind. 이 집합의 것은 루프가 **돌리지 않고 요청으로만**
+#: 낸다 — 카메라를 돌리거나 로봇을 보내는 일은 제어 경계를 거친다(AI-C-19).
+TWIN_PHYSICAL_ACTION_KINDS: frozenset[str] = frozenset({
+    "observation.mobile",     # 이동형 관측자를 그 자리로 보내야 한다
+    "observation.aerial",     # 띄워야 한다
+    "perception.distance",    # 거리계를 대상 쪽으로 돌려야 한다
+})
 
 #: 운영자가 고칠 수 있는 단서 이름. 화면에서 사람이 판단할 수 있는 값만 둔다 —
 #: 사람이 볼 수 없는 내부 값을 고치게 하면 그 수정은 근거가 아니라 추측이 된다.
@@ -158,6 +232,19 @@ POSITION_SPREAD_M = 0.25
 # ---------------------------------------------------------------------------
 # 입력 — 장치가 선언한 것과 장치가 본 것
 # ---------------------------------------------------------------------------
+
+
+def _declared_taxonomy() -> ObstacleTaxonomy | None:
+    """선언된 장애물 어휘. **없으면 None 이고 예외가 아니다.**
+
+    어휘 선언은 선택 기능이다(AI-C-05). 없는 배치에서는 그룹 대역만 서지 않고
+    정확 클래스 매칭과 나머지 융합은 그대로 돈다. 여기서 예외를 던지면 어휘 파일
+    하나가 트윈 전체를 세운다.
+    """
+    try:
+        return ObstacleTaxonomy.from_file()
+    except (OSError, ValueError):
+        return None
 
 
 @dataclass(frozen=True)
@@ -371,6 +458,15 @@ class FusedRecord:
     position_disagreement_m: float | None
     semantic_class: str
     sensor_semantic_class: str
+    #: 그 클래스가 속한 장애물 그룹. 판정은 `perception/obstacle_taxonomy.py` 가
+    #: 소유하고 여기서는 **소비만** 한다 — 같은 객체가 두 화면에서 다른 그룹이 되지
+    #: 않으려면 분류가 한 곳에만 있어야 한다. 어휘 선언이 없는 배치에서는 빈
+    #: 문자열이고, 그때 에셋은 정확 클래스 단계만 돈다(AI-C-05).
+    object_group: str
+    #: 트윈에서 **무엇으로 다룰 것인가** — `background`(지도의 몸체) · `object`(따라
+    #: 움직일 것) · `agent` · `ground`(바닥의 성질) · `unknown`. 벽과 의자는 같은
+    #: 그룹이라 그룹에서 유도할 수 없고 따로 들고 온다.
+    object_role: str
     lifecycle: str
     confidence: float
     supporting_device_count: int
@@ -538,6 +634,21 @@ class TwinFusionService:
     map_estimator: EnvironmentMapEstimator = field(default_factory=EnvironmentMapEstimator)
     clock: Callable[[], float] = time.time
     position_spread_m: float = POSITION_SPREAD_M
+    #: 클래스→그룹·역할 어휘. **선택 협력자다** — 선언이 없으면 None 이고 그룹
+    #: 대역만 서지 않는다(AI-C-05: 선택 결손은 그 기능만 축소한다).
+    taxonomy: ObstacleTaxonomy | None = field(default_factory=_declared_taxonomy)
+    #: 승격 전에 요구하는 근거. `None` 이면 승격 질문을 하지 않고 레코드 자신의
+    #: lifecycle 만 남는다(그 축소 사유가 결과에 적힌다).
+    promotion_contract: MissionContract | None = TWIN_PROMOTION_CONTRACT
+    #: 관측 장치 id → 그 장치에 **실제로 배치된** provider 레지스트리. `None` 을
+    #: 돌려주면 그 장치에 대해서는 부족분을 어디로도 보내지 않고 사유만 남는다.
+    #: 배치의 정본은 `tools/status_ui/serve.py::StatusService.fleet()` 이고 여기서
+    #: 그 판정을 다시 하지 않는다 — 콘솔이 그 결과로 만든 레지스트리를 받는다.
+    registry_for: Callable[[str], CapabilityRegistry | None] | None = None
+    #: 물리 행동이 필요한 kind 들. 선언이고 분기문이 아니다.
+    physical_action_kinds: frozenset[str] = TWIN_PHYSICAL_ACTION_KINDS
+    #: 근거 종류 → 이 배치의 capability kind. 위 TWIN_KIND_PROVIDERS 가 그 이유다.
+    kind_providers: Mapping[str, tuple[str, ...]] = TWIN_KIND_PROVIDERS
 
     # -- 내부 상태 (전부 인스턴스 소유. 모듈 전역은 하나도 없다) -------------
     _placements: dict[str, DevicePlacement] = field(default_factory=dict, init=False)
@@ -564,6 +675,10 @@ class TwinFusionService:
     _lineages: dict[str, LearningLineage] = field(default_factory=dict, init=False)
     _auto_filed: set[str] = field(default_factory=set, init=False)
     _counter: int = field(default=0, init=False)
+    #: 관측 장치 id → 그 장치용 승격 루프. 장치마다 배치된 provider 가 다르므로
+    #: 루프도 장치마다 다르다(같은 루프를 공유하면 한 장치가 가진 기능을 다른
+    #: 장치가 가진 것처럼 요청하게 된다).
+    _loops: dict[str, PerceptionLoop] = field(default_factory=dict, init=False)
 
     # -- 등록 -------------------------------------------------------------
 
@@ -664,6 +779,108 @@ class TwinFusionService:
     def evidence_rows(self, object_id: str) -> tuple[ContributedEvidence, ...]:
         """그 레코드를 만든 근거 전부. 출처가 한 칸도 빠지지 않는다(AI-S-06)."""
         return self._rows(object_id)
+
+    # -- 승격과 부족분 — **판정은 전부 남의 것이다** ------------------------
+
+    def _loop_for(self, device_id: str) -> PerceptionLoop:
+        """그 관측 장치용 승격 루프. 장치마다 배치된 provider 가 다르다.
+
+        루프 자신은 아무것도 판정하지 않는다(`runtime/perception_loop.py` 의 표를
+        보라) — 여기서 하는 일은 **그 장치의 사실로 협력자를 고르는 것**뿐이다.
+        레지스트리가 없는 장치(고정 인프라 등)는 부족분을 보낼 곳이 없고, 그 사실이
+        결과의 축소 사유로 남는다(AI-C-05).
+        """
+        if device_id not in self._loops:
+            registry = self.registry_for(device_id) if self.registry_for else None
+            self._loops[device_id] = PerceptionLoop(
+                # 요구 수의 주인을 하나로 둔다 — `CONFIRMING_GROUPS` 가 그 숫자다.
+                evaluator=UncertaintyEvaluator(min_evidence_count=CONFIRMING_GROUPS),
+                contract=self.promotion_contract,
+                info_selector=(AdditionalInfoSelector(registry)
+                               if registry is not None else None),
+                request_planner=(DecisionSupportRequester(registry)
+                                 if registry is not None else None),
+                level_adjuster=(ObservationLevelAdjuster(
+                    registry, list(TWIN_OBSERVATION_LEVELS))
+                    if registry is not None else None),
+                physical_action_kinds=self.physical_action_kinds,
+                kind_providers=self.kind_providers,
+            )
+        return self._loops[device_id]
+
+    def _available_capability_kinds(self, device_id: str) -> frozenset[str] | None:
+        """그 장치가 지금 낼 수 있는 capability kind. `None` 은 **모른다**이고
+        "없다" 가 아니다 — 모른다는 이유로 미리 포기하지 않는다(AI-S-05)."""
+        registry = self.registry_for(device_id) if self.registry_for else None
+        return None if registry is None else frozenset(registry.known_capability_kinds())
+
+    def promotion(self, object_id: str) -> RecordOutcome:
+        """그 레코드의 승격 판정과 부족분. **조회다** — 아무것도 바꾸지 않는다.
+
+        근거 단위는 원장의 `(device_id, frame_ref)` 쌍을 **접지 않은 채** 넘긴다.
+        같은 프레임을 두 번 읽은 것을 하나로 접는 규칙은 `perception/uncertainty.py`
+        가 소유하고, 여기서 미리 접으면 접었다는 사실이 사라진다(AI-S-03). 원장의
+        `independent`/`depends_on` 은 **어느 줄이 대표인가**를 적는 칸이고 개수를
+        세는 칸이 아니다.
+        """
+        record = self.builder.records.get(object_id)
+        if record is None:
+            raise KeyError(object_id)
+        rows = self._rows(object_id)
+        device_id = rows[-1].device_id if rows else ""
+        item = RecordInput(
+            record=record,
+            origins=tuple((row.device_id, row.frame_ref) for row in rows),
+            frame_ref=rows[-1].frame_ref if rows else "",
+            coordinate_frame=COORDINATE_FRAME_ZONE,
+        )
+        return self._loop_for(device_id).assess(
+            item, available_kinds=self._available_capability_kinds(device_id))
+
+    def promotions(self, zone_id: str) -> LoopResult:
+        """그 구역 레코드 전부의 승격 판정. 한 스냅샷으로 낸다(AI-O-06).
+
+        장치마다 협력자가 다르므로 레코드별로 그 장치의 루프에 묻고, 축소 상태는
+        **가장 많이 줄어든 쪽**으로 모은다 — 한 장치가 요청을 못 보내는데 전체가
+        ACTIVE 로 보이면 화면이 거짓을 말한다.
+        """
+        outcomes: list[RecordOutcome] = []
+        # **볼 것이 없었던 회차를 ACTIVE 로 적지 않는다.** 축소는 레코드의 성질이
+        # 아니라 조립의 성질이고, 빈 구역을 ACTIVE 로 내면 없는 단계가 숨는다.
+        # 관측 장치를 모르는 상태의 조립(레지스트리 없음)이 그 기준선이다.
+        state, reasons = self._loop_for("").degradation()
+        frame_ref = ""
+        for record in self.records(zone_id):
+            outcome = self.promotion(record.object_id)
+            outcomes.append(outcome)
+            frame_ref = frame_ref or outcome.frame_ref
+            rows = self._rows(record.object_id)
+            device_id = rows[-1].device_id if rows else ""
+            device_state, device_reasons = self._loop_for(device_id).degradation()
+            if device_id:
+                # 장치를 알게 됐으면 그 장치의 사실로 바꿔 쓴다. 기준선의 "모른다" 를
+                # 그대로 남기면 레지스트리가 있는 장치도 없는 것처럼 보인다.
+                reasons = dict(device_reasons)
+                state = device_state
+            if device_state is not CapabilityState.ACTIVE:
+                state = device_state
+        return LoopResult(frame_ref=frame_ref, capability_state=state,
+                          degraded_stage_reasons=reasons,
+                          object_records=tuple(outcomes))
+
+    def promotion_work(self, zone_id: str,
+                       sink: Callable[[LoopResult], None]) -> Callable[[], tuple[str, ...]]:
+        """`RefreshLedger.request(work=...)` 자리에 들어가는 모양.
+
+        억제되면 호출되지 않으므로 **보고 있지 않은 구역의 승격 판정은 돌지 않는다**
+        (AI-C-13, AI-O-01). 반환은 이번에 건드린 레코드 식별자들이다.
+        """
+        def work() -> tuple[str, ...]:
+            result = self.promotions(zone_id)
+            sink(result)
+            return tuple(o.zone_local_track_id for o in result.object_records)
+
+        return work
 
     def zone_view(self, zone_id: str) -> ZoneView:
         return ZoneView(
@@ -906,7 +1123,8 @@ class TwinFusionService:
     def file_label_candidate(self, *, device_id: str, zone_id: str, box_ref: str,
                              label: str, box: Sequence[float] | None, verdict: str,
                              actor: str, reason: str, frame_ref: str | None,
-                             confidence: float | None = None) -> FiledCandidate:
+                             confidence: float | None = None,
+                             polarity=None, usage=None) -> FiledCandidate:
         """검수된 정답 상자 1건을 학습 후보로 올리고 계보를 연다(AI-L-01/02/08).
 
         정답 검수가 이 경로를 거치는 이유: 후보 보관소에 직접 넣으면 표본은 생기지만
@@ -924,12 +1142,18 @@ class TwinFusionService:
             placement = DevicePlacement(device_id=device_id, zone_id=zone_id or "unplaced",
                                         pose=(0.0, 0.0, 0.0), pose_source="not_placed",
                                         camera_id=device_id)
+        from mission_runtime.continual.stream_learning import (  # noqa: PLC0415
+            SamplePolarity,
+        )
+
         return self._file_candidate(
             # 저장된 프레임의 상자는 지속 객체에 묶이지 않는다. 묶이지 않았다고
             # 적는 편이 없는 object_id 를 지어내는 것보다 낫다(AI-S-06).
             object_id="", placement=placement, label=label,
             feature=tuple(box) if box else (0.0, 0.0, 0.0, 0.0),
             origin=CandidateOrigin.HUMAN_CONFIRMED,
+            polarity=polarity or SamplePolarity.POSITIVE,
+            usage=usage,
             # 판정별로 묶음이 갈린다 — 상자를 고친 것과 모델이 못 본 것은 서로
             # 다른 것을 가르친다. 상자 id 를 여기 넣으면 묶음이 상자마다 쪼개진다.
             candidate_reason=f"ground_truth:{verdict}",
@@ -1091,6 +1315,10 @@ class TwinFusionService:
         class_correction = self._class_corrections.get(object_id)
         semantic = (str(class_correction.corrected_value) if class_correction is not None
                     else base.semantic_class)
+        # 그룹·역할은 **확정된 클래스**에서 나온다. 사람이 클래스를 고쳤으면 고친
+        # 쪽을 따른다 — 그래야 사람이 "저건 벽이다" 라고 고친 순간 트윈이 그것을
+        # 지도의 몸체로 다루기 시작한다.
+        group, role = self._grouping(semantic)
 
         return FusedRecord(
             object_id=object_id, zone_id=zone_id, record_revision=base.revision,
@@ -1098,6 +1326,7 @@ class TwinFusionService:
             fused_position=position, sensor_fused_position=sensor_position,
             position_disagreement_m=_distance(position, sensor_position),
             semantic_class=semantic, sensor_semantic_class=base.semantic_class,
+            object_group=group, object_role=role,
             lifecycle=base.lifecycle.value, confidence=base.confidence,
             supporting_device_count=base.supporting_groups,
             available_device_count=base.available_groups,
@@ -1107,6 +1336,20 @@ class TwinFusionService:
             observed_at=base.observed_at,
             corrections=tuple(self._corrections.get(object_id, ())),
         )
+
+    def _grouping(self, semantic_class: str) -> tuple[str, str]:
+        """(그룹, 역할). 어휘가 없거나 미등록 이름이면 빈 문자열이다.
+
+        **미등록 이름을 비슷한 그룹으로 끌어오지 않는다** — taxonomy 가 그것을
+        `UNKNOWN_OBSTACLE` 로 남기고, 여기서는 그 사실을 그대로 옮긴다.
+        """
+        if self.taxonomy is None or not semantic_class:
+            return "", ""
+        if semantic_class == UNKNOWN_CLASS:
+            # 클래스가 아직 안 섰다. 그룹을 말할 근거가 없다.
+            return "", ""
+        verdict = self.taxonomy.classify(semantic_class)
+        return verdict.group, verdict.role
 
     def _cue_corrected_position(self, object_id: str,
                                 zone_id: str) -> tuple[float, float] | None:
@@ -1188,7 +1431,8 @@ class TwinFusionService:
                         evidence_ref: str, frame_ref: str | None,
                         correction_id: str | None, confidence: float | None,
                         similarity: float | None,
-                        box_ref: str | None = None) -> FiledCandidate:
+                        box_ref: str | None = None,
+                        polarity=None, usage=None) -> FiledCandidate:
         """후보 1건을 보관소에 넣고 계보를 `CANDIDATE` 로 연다. **그 이상 밀지 않는다.**
 
         조건에 `candidate_reason` 을 넣는 이유: `InputConditions.group_key` 가 그것을
@@ -1198,6 +1442,11 @@ class TwinFusionService:
         candidate_id = self._next_id("cand")
         lineage_id = self._next_id("lin")
         values = tuple(float(v) for v in feature) or (0.0,)
+        from mission_runtime.continual.stream_learning import (  # noqa: PLC0415
+            SamplePolarity,
+            SampleUsage,
+        )
+
         self.candidate_store.add(StreamSample(
             sample_id=candidate_id,
             conditions=InputConditions(
@@ -1206,6 +1455,8 @@ class TwinFusionService:
                 accelerator_id=placement.accelerator_id,
                 extra=(("candidate_reason", candidate_reason),)),
             label=label or UNKNOWN_CLASS, feature=values, origin=origin,
+            polarity=polarity or SamplePolarity.POSITIVE,
+            usage=usage or SampleUsage.TRAINING,
             frame_ref=frame_ref, confidence=confidence, similarity=similarity,
             observed_at=self.clock(),
         ))

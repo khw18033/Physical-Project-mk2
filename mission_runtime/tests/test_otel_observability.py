@@ -1,4 +1,4 @@
-"""implements: AI-O-01, AI-O-02, AI-C-12
+"""implements: AI-O-01, AI-O-02, AI-C-04
 covers: real OTLP export to a running collector, collector outage does not
         break execution, critical events stay individual and survive locally
 """
@@ -53,7 +53,7 @@ def test_provider_satisfies_the_observability_protocol():
 
 
 def test_only_the_otel_module_imports_the_sdk():
-    """AI-C-12: 관측 구현 기술을 상위 코드가 직접 참조하지 않는다."""
+    """AI-C-04: 관측 구현 기술을 상위 코드가 직접 참조하지 않는다."""
     from conftest import package_modules_importing
 
     # 패키지 모듈만 본다 — 시험은 SDK 를 직접 띄워 보는 쪽이다.

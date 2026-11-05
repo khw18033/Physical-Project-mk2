@@ -2,7 +2,7 @@
 
 implements: AI-C-19, AI-S-05, AI-R-02
 
-2026-09-17, LOTUSim-Energy(docs/obsidian/papers/lotusim-energy.md) 반영. 그
+2026-09-17, LOTUSim-Energy(internal/docs-dev/obsidian/papers/lotusim-energy.md) 반영. 그
 논문은 모든 O&M 태스크에 Teleoperation / Shared / Autonomous 세 모드를 1급
 속성으로 붙이고, 같은 점검 작업이라도 위험·불확실성에 따라 사람이 개입하는
 정도를 바꾼다. 우리 저장소에는 이 개념이 **코드에 전혀 없었다** — AI-C-19가

@@ -6,7 +6,7 @@ Selection never assumes a specific provider exists. When nothing is
 compatible with the current node tags/budget, callers get an explicit
 `SelectionResult(provider=None, reason=...)` instead of an exception —
 a missing optional capability must degrade the caller, not crash it
-(AI-C-11; 구현 시 금지 사항: 특정 모델이 없으면 시스템을 시작하지 못하게
+(AI-C-05; 구현 시 금지 사항: 특정 모델이 없으면 시스템을 시작하지 못하게
 만들지 않는다).
 """
 
@@ -133,7 +133,7 @@ class CapabilitySelector:
             permitted = [c for c in candidates if rejections[c.provider_id] is None]
             if not permitted:
                 # Only this capability kind loses its candidates; unrelated
-                # kinds are untouched (AI-C-11, AI-C-16).
+                # kinds are untouched (AI-C-05, AI-C-16).
                 first_reason = next(r for r in rejections.values() if r is not None)
                 return [], first_reason, rejected
             candidates = permitted

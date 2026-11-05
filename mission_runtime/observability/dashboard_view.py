@@ -347,6 +347,15 @@ class DashboardSnapshot:
             return RegionState(region, False, REASON_NO_DATA, missing)
         if region is Region.VERDICT and not self.verdicts:
             return RegionState(region, False, REASON_NO_DATA, missing)
+        # [E]·[E′] 도 같은 규칙을 받는다. 자원 계층에 사실이 하나도 없는데 구역을
+        # "표시 가능"으로 적으면 화면은 빈 칸을 그리면서 **왜 비었는지 말할 근거를
+        # 잃는다** — 가속기 선언이 없는 배치와 계측이 끊긴 배치가 같아 보인다
+        # (문서 §3 요구사항 5, §4.4 목록의 완전성). 비었다는 사실과 그 사유를 함께
+        # 적는 것이 구역을 지우지 않는 길이다(AI-C-05: 결손은 축소이지 실패가 아니다).
+        if region is Region.RESOURCES and self.resources.is_empty:
+            return RegionState(region, False, REASON_NO_DATA, missing)
+        if region is Region.INDICATORS and not self.indicators():
+            return RegionState(region, False, REASON_NO_DATA, missing)
         return RegionState(region, True, None, missing)
 
     def region_states(self) -> tuple[RegionState, ...]:

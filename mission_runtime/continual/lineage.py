@@ -59,6 +59,27 @@ class LearningLineage:
     def events(self) -> tuple[LineageEvent, ...]:
         return tuple(self._events)
 
+    @property
+    def evidence_refs(self) -> tuple[str, ...]:
+        """Every reference this lineage has actually cited, in order.
+
+        Append-only, so a reference that was cited once cannot later be removed
+        to make a record look consistent (AI-L-03: 되돌림도 삭제가 아니라 기록이다).
+        """
+        return tuple(event.evidence_ref for event in self._events)
+
+    def cites(self, evidence_ref: str) -> bool:
+        """Did this lineage ever cite that reference as evidence?
+
+        이것이 "그 계보가 그 물건에 대한 것인가" 를 **기록에서 유도하는** 유일한
+        방법이다. 첫 사건의 `evidence_ref` 를 주인으로 읽으면 안 된다 — AI-L-01 의
+        첫 근거는 학습이 필요해진 **운영 사건**일 수도 있고(`tools/fms_console/
+        twin.py` 가 그렇게 연다) 산출된 파라미터 버전일 수도 있어서, 한쪽으로
+        정하면 다른 쪽이 조용히 틀린다. 반면 "든 적이 있는가" 는 어느 쪽이든
+        맞고, 다른 후보의 계보는 이 후보의 버전을 든 적이 없다(AI-L-08).
+        """
+        return bool(evidence_ref) and evidence_ref in self.evidence_refs
+
     def advance(self, *, actor: str, evidence_ref: str, reason: str) -> LineageEvent:
         if self.state not in _TRANSITIONS:
             raise ValueError(f"cannot advance terminal state {self.state.value}")

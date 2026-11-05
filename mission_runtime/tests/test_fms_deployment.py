@@ -403,7 +403,7 @@ BOXES = {
 }
 
 
-def _store(*, confirmed=True):
+def _store(*, confirmed=True, conditions=CONDITIONS):
     store = CandidateStore()
     lineages = {}
     index = 0
@@ -412,7 +412,7 @@ def _store(*, confirmed=True):
             index += 1
             sample_id = f"cand-{index}"
             store.add(StreamSample(
-                sample_id=sample_id, conditions=CONDITIONS, label=label,
+                sample_id=sample_id, conditions=conditions, label=label,
                 feature=tuple(box),
                 origin=(CandidateOrigin.HUMAN_CONFIRMED if confirmed
                         else CandidateOrigin.AUTO_INFERENCE)))
@@ -647,11 +647,38 @@ def _model_desk():
                        device_profiles={"pi6": PI6, "edge-dev": EDGE})
 
 
-def _approved(name="lin-approved"):
-    lineage = LearningLineage(name, actor="dev-1", evidence_ref="e", reason="r")
-    while lineage.state is not LearningState.APPROVED:
-        lineage.advance(actor="dev-1", evidence_ref="e", reason="r")
-    return lineage
+#: 품질·지연 조건을 걸지 않은 요청. 승격된 학습 버전의 품질은 보류 집합에서 **실제로
+#: 잰** 값이고(상자 좌표 특징의 성질상 낮다 — `TrainingDesk` docstring), 그 수치를
+#: 넘기려고 요구를 느슨하게 두는 것이 아니라 이 묶음이 보는 것이 신원이기 때문이다.
+CLASSIFY_LOOSE = MissionRequirement("m-door", "perception.classify")
+
+
+def _approved_candidate(device_id="pi6"):
+    """학습 → 검증 → 승인까지 끌고 간 후보 하나. 콘솔이 지나는 순서 그대로다."""
+    conditions = InputConditions(
+        device_id=device_id, camera_id=device_id,
+        extra=(("candidate_reason", "ground_truth:added"),))
+    store, lineages = _store(conditions=conditions)
+    training = D.TrainingDesk(store=store, sample_lineages=lineages)
+    version = training.train(training.groups()[0]["group_key"], actor="dev-1",
+                             reason="문과 사람이 반복해서 뒤바뀐다")["candidate"]["version"]
+    training.validate(version, actor="dev-1", reason="보류 집합에서 쟀다",
+                      gate=EvaluationGate(min_new_accuracy=0.0))
+    training.request_approval(version, actor="dev-1", reason="승인 요청")
+    training.approve(version, actor="jny", reason="현장 반영을 승인한다")
+    return training.candidate(version)
+
+
+def _promoted(desk, *, device_id="pi6", capability_kind="perception.classify",
+              model_id="door-detector"):
+    """승인된 후보를 배정 목록에 올린다. 지연·메모리는 **쟀다고 치지 않고** 넘긴다."""
+    candidate = _approved_candidate(device_id)
+    out = desk.register_learned(candidate, model_id=model_id,
+                                capability_kind=capability_kind, device_id=device_id,
+                                actor="jny", reason="배정 목록에 올린다",
+                                measured_latency_ms=120.0, measured_memory_mb=1200.0)
+    assert out["registered"] is True, out
+    return candidate, out["version_reference"]
 
 
 def test_a_new_model_version_is_a_line_in_a_declaration_file():
@@ -687,72 +714,202 @@ def test_a_version_whose_cost_was_never_measured_is_not_a_candidate():
 def test_the_same_eligibility_rule_answers_the_screen_and_the_assignment():
     """화면이 "쓸 수 있다"고 보여 준 것이 적용에서 거절되면 안 된다 — 같은 판정이다."""
     desk = _model_desk()
-    rows = desk.eligibility("pi6", CLASSIFY)
-    allowed = {r["reference"] for r in rows if r["eligible"]}
+    _candidate, reference = _promoted(desk)
+    allowed = {r["reference"] for r in desk.eligibility("pi6", CLASSIFY_LOOSE)
+               if r["eligible"]}
 
-    chosen = desk.plan("pi6", CLASSIFY,
+    chosen = desk.plan("pi6", CLASSIFY_LOOSE,
                        deployable=D.deployable_for("perception.classify", "pi6"),
-                       lineage=_approved())["assignment"]["assigned"]["reference"]
+                       version_reference=reference)["assignment"]["assigned"]["reference"]
 
+    assert chosen == reference
     assert chosen in allowed
 
 
-def test_an_operator_who_pins_a_version_still_passes_the_same_check():
-    """"이 버전을 쓰라"는 요구는 조건 판정을 건너뛰라는 요구가 아니다(AI-L-10)."""
-    desk = _model_desk()
+def test_a_promoted_version_still_passes_the_same_hardware_check():
+    """승인은 "이 기기에서 쓸 수 있다" 가 아니다 — 검증 범위는 따로 본다(AI-L-10)."""
+    desk = D.ModelDesk(pipeline=D.local_pipeline(versions=_versions()),
+                       device_profiles={"pi6": PI6, "edge-dev": EDGE})
+    _candidate, reference = _promoted(desk, device_id="edge-dev")   # GPU 태그로 검증됐다
 
-    out = desk.apply("pi6", CLASSIFY,
+    out = desk.apply("pi6", CLASSIFY_LOOSE,
                      deployable=D.deployable_for("perception.classify", "pi6"),
-                     lineage=_approved(), actor="jny", reason="GPU 버전을 직접 골랐다",
-                     pinned_reference="clip-dictionary@vit-b32-cuda")
+                     version_reference=reference, actor="jny",
+                     reason="엣지에서 검증한 것을 고정 카메라에 올려 본다")
 
     assert out["applied"] is False
     assert out["reason"] == "outside_verified_hardware_scope"
     assert desk.deployments() == []          # 거절은 아무것도 올리지 않는다
 
 
-def test_pinning_a_version_that_is_not_declared_is_refused():
+def test_naming_a_version_that_is_not_declared_is_refused():
     out = _model_desk().apply(
         "pi6", CLASSIFY, deployable=D.deployable_for("perception.classify", "pi6"),
-        lineage=_approved(), actor="jny", reason="없는 버전",
-        pinned_reference="made-up@1")
+        version_reference="made-up@1", actor="jny", reason="없는 버전")
 
     assert out["reason"] == D.REFUSE_UNKNOWN_VERSION
 
 
-def test_a_pinned_eligible_version_is_the_one_that_goes_up():
-    """고른 것이 적격하면 기본 정책이 더 좋다고 보는 것을 이기고 그것이 올라간다."""
-    desk = D.ModelDesk(pipeline=D.local_pipeline(versions=_versions()),
-                       device_profiles={"edge-dev": EDGE})
-    loose = MissionRequirement("m-ovd", "perception.detect_ovd")
+def test_a_declared_version_with_no_promotion_record_cannot_be_applied():
+    """선언 파일의 버전에는 **그것을 허가한 계보가 없다.** 그런 버전을 올릴 길을
+    열어 두면 검증·승인 관문이 선택 사항이 되고, 전에는 바로 그 길이 열려 있었다 —
+    다른 후보의 계보를 들고 이 버전을 올릴 수 있었다(AI-L-07, AI-L-08).
 
-    out = desk.apply("edge-dev", loose,
-                     deployable=D.deployable_for("perception.detect_ovd", "edge-dev"),
-                     lineage=_approved(), actor="jny", reason="CPU 구성으로 비교한다",
-                     pinned_reference="yolo-world@v2-s")
-
-    assert out["applied"] is True
-    assert out["status"]["version_reference"] == "yolo-world@v2-s"
-
-
-def test_a_candidate_that_was_never_approved_does_not_reach_a_device():
-    desk = _model_desk()
-    half = LearningLineage("lin-half", actor="d", evidence_ref="e", reason="r")
-
-    out = desk.apply("pi6", CLASSIFY,
-                     deployable=D.deployable_for("perception.classify", "pi6"),
-                     lineage=half, actor="jny", reason="미승인 후보")
+    오타("없는 버전")와 **구분되는** 사유로 거절한다. 둘을 한 사유로 합치면 운영자가
+    무엇을 해야 하는지 알 수 없다.
+    """
+    out = _model_desk().apply(
+        "edge-dev", MissionRequirement("m-ovd", "perception.detect_ovd"),
+        deployable=D.deployable_for("perception.detect_ovd", "edge-dev"),
+        version_reference="yolo-world@v2-s", actor="jny", reason="손으로 적은 버전")
 
     assert out["applied"] is False
-    assert out["status"]["reason"] == "candidate_not_validated"
+    assert out["reason"] == D.REFUSE_NOT_PROMOTED
+
+
+def test_the_version_that_goes_up_is_the_one_the_lineage_approved():
+    """메운 구멍 그 자체. 올라간 버전의 신원에 **그 후보의 버전 문자열**이 있다."""
+    desk = _model_desk()
+    candidate, reference = _promoted(desk)
+
+    out = desk.apply("pi6", CLASSIFY_LOOSE,
+                     deployable=D.deployable_for("perception.classify", "pi6"),
+                     version_reference=reference, actor="jny", reason="현장 반영")
+
+    assert out["applied"] is True
+    assert out["status"]["version_reference"] == reference
+    assert candidate.version in reference
+    assert out["candidate_version"] == candidate.version
+    # 계보도 그 후보의 것이다 — 적용이 전진시킨 것이 그 계보다.
+    assert candidate.lineage.state is LearningState.DEPLOYED
+    assert candidate.lineage.cites(candidate.version)
+
+
+def test_a_lineage_that_never_cited_the_candidate_cannot_approve_it():
+    """구멍의 모양: **따로 넘어온 짝**. 승인은 사람의 행위라서, 어긋난 계보를
+    붙이면 운영자가 보지도 않은 물건을 그 사람이 승인한 것으로 기록된다(AI-L-06).
+
+    승격이 그 짝을 거절하므로 어긋난 계보는 애초에 등록부에 들어가지 못한다.
+    """
+    from mission_runtime.runtime.learned_version import REASON_LINEAGE_MISMATCH
+
+    desk = _model_desk()
+    mine = _approved_candidate("pi6")
+    stranger = _approved_candidate("edge-dev")
+    # 같은 재료로 학습하면 버전 문자열도 같다(내용에서 파생한다) — 그때는 계보가
+    # 같은 것을 가리키므로 어긋남이 아니다. 어긋남을 보려면 **다른 후보**여야 한다.
+    assert stranger.version != mine.version
+    # 다른 후보의 계보를 이 후보에 붙인다 — 전에는 이것이 통과했다.
+    forged = D.TrainedCandidate(
+        parameters=mine.parameters, group_key=mine.group_key,
+        conditions=mine.conditions, lineage=stranger.lineage,
+        used_sample_ids=mine.used_sample_ids,
+        held_out_sample_ids=mine.held_out_sample_ids, report=mine.report)
+
+    out = desk.register_learned(forged, model_id="door-detector",
+                                capability_kind="perception.classify",
+                                device_id="pi6", actor="jny", reason="어긋난 짝")
+
+    assert out["registered"] is False
+    assert out["reason"].startswith(REASON_LINEAGE_MISMATCH)
+    assert desk.promotions() == []
+
+
+def test_the_apply_call_has_no_second_place_to_put_an_identity():
+    """구조로 막은 자리를 구조로 고정한다.
+
+    `lineage` 와 `pinned_reference` 를 **따로** 받는 동안은 어떤 검사를 넣어도
+    "계보 A, 버전 B" 라는 요청을 *표현할 수 있었다*. 지금은 신원을 넣는 칸이 하나뿐
+    이고 계보는 그 버전의 승격 기록에서 유도된다 — 어긋난 짝은 표현되지 않는다.
+    """
+    import inspect
+
+    names = set(inspect.signature(D.ModelDesk.apply).parameters)
+
+    assert "version_reference" in names
+    assert "lineage" not in names and "pinned_reference" not in names
+    assert "lineage" not in set(inspect.signature(D.ModelDesk.plan).parameters)
+
+
+def test_a_candidate_that_was_never_approved_is_not_registered():
+    """승인 전 후보는 배정 목록에 올라가지 않는다 — 올라가면 적용할 수 있게 된다."""
+    from mission_runtime.runtime.learned_version import REASON_NOT_APPROVED
+
+    desk = _model_desk()
+    conditions = InputConditions(device_id="pi6", camera_id="pi6")
+    store, lineages = _store(conditions=conditions)
+    training = D.TrainingDesk(store=store, sample_lineages=lineages)
+    version = training.train(training.groups()[0]["group_key"], actor="dev-1",
+                             reason="r")["candidate"]["version"]
+
+    out = desk.register_learned(training.candidate(version), model_id="door-detector",
+                                capability_kind="perception.classify", device_id="pi6",
+                                actor="jny", reason="승인 전에 올려 본다")
+
+    assert out["registered"] is False
+    assert out["reason"].startswith(REASON_NOT_APPROVED)
+
+
+def test_a_candidate_with_no_report_has_nothing_to_promote():
+    """검증을 돌리지 않은 것은 통과가 아니다(AI-L-05) — 성적표 없는 승격은 거절이다."""
+    from mission_runtime.runtime.learned_version import REASON_NOT_EVALUATED
+
+    desk = _model_desk()
+    candidate = _approved_candidate("pi6")
+    stripped = D.TrainedCandidate(
+        parameters=candidate.parameters, group_key=candidate.group_key,
+        conditions=candidate.conditions, lineage=candidate.lineage,
+        used_sample_ids=candidate.used_sample_ids,
+        held_out_sample_ids=candidate.held_out_sample_ids, report=None)
+
+    out = desk.register_learned(stripped, model_id="door-detector",
+                                capability_kind="perception.classify",
+                                device_id="pi6", actor="jny", reason="성적표 없이")
+
+    assert out["registered"] is False
+    assert out["reason"] == REASON_NOT_EVALUATED
+
+
+def test_the_unit_may_not_target_a_device_other_than_the_one_judged():
+    """적격은 `device_id` 의 하드웨어로 보고 제어면에는 `deployable` 의 기기가 간다.
+    둘을 따로 받으므로 어긋날 수 있고, 어긋나면 A 의 태그로 적격을 받은 버전이
+    B 에서 돈다(같은 모양의 또 한 자리)."""
+    desk = D.ModelDesk(pipeline=D.local_pipeline(versions=_versions()),
+                       device_profiles={"pi6": PI6, "edge-dev": EDGE})
+    _candidate, reference = _promoted(desk)
+
+    out = desk.apply("pi6", CLASSIFY_LOOSE,
+                     deployable=D.deployable_for("perception.classify", "edge-dev"),
+                     version_reference=reference, actor="jny", reason="다른 기기의 단위")
+
+    assert out["applied"] is False
+    assert out["reason"] == f"{D.REFUSE_DEPLOYABLE_OTHER_DEVICE}:edge-dev"
+
+
+def test_the_promotion_list_puts_the_version_and_its_lineage_in_one_row():
+    """화면이 여기서 고르면 계보를 따로 들고 올 이유가 없어진다 — 따로 들고 오는
+    길이 바로 어긋난 짝의 자리였다(AI-L-08). 미검증 범위도 같은 줄에 있다(AI-L-06)."""
+    desk = _model_desk()
+    candidate, reference = _promoted(desk)
+
+    (row,) = desk.promotions()
+
+    assert row["version_reference"] == reference
+    assert row["candidate_version"] == candidate.version
+    assert row["learning_lineage_id"] == candidate.lineage.lineage_id
+    assert row["learning_state"] == LearningState.APPROVED.value
+    # 해상도를 모르는 후보는 "조건 무관"이 아니라 **모르는 것**이다.
+    assert "resolution_unknown" in row["unverified_scope"]
+    assert row["sample_ids"] == list(candidate.parameters.sample_ids)
 
 
 def test_applying_starts_in_verification_and_widens_one_step_at_a_time():
     """AI-L-07: 승인된 것이 곧 전체 운영 적용은 아니다."""
     desk = _model_desk()
-    applied = desk.apply("pi6", CLASSIFY,
+    _candidate, reference = _promoted(desk)
+    applied = desk.apply("pi6", CLASSIFY_LOOSE,
                          deployable=D.deployable_for("perception.classify", "pi6"),
-                         lineage=_approved(), actor="jny", reason="현장 반영")
+                         version_reference=reference, actor="jny", reason="현장 반영")
     deployment_id = applied["status"]["deployment_id"]
 
     assert applied["status"]["scope"] == PromotionScope.VERIFICATION.value
@@ -781,9 +938,10 @@ def test_the_widening_order_has_exactly_one_owner():
 def test_rolling_back_with_nothing_to_return_to_says_so():
     """"검증된 상태로 복구됐다" 와 "그냥 없어졌다" 는 운영자에게 다른 사실이다."""
     desk = _model_desk()
-    applied = desk.apply("pi6", CLASSIFY,
+    _candidate, reference = _promoted(desk)
+    applied = desk.apply("pi6", CLASSIFY_LOOSE,
                          deployable=D.deployable_for("perception.classify", "pi6"),
-                         lineage=_approved(), actor="jny", reason="현장 반영")
+                         version_reference=reference, actor="jny", reason="현장 반영")
 
     out = desk.rollback(applied["status"]["deployment_id"], actor="jny",
                         reason="지연이 늘었다")
@@ -794,13 +952,13 @@ def test_rolling_back_with_nothing_to_return_to_says_so():
 
 def test_an_already_deployed_lineage_is_not_deployed_again():
     desk = _model_desk()
-    lineage = _approved()
+    _candidate, reference = _promoted(desk)
     deployable = D.deployable_for("perception.classify", "pi6")
-    desk.apply("pi6", CLASSIFY, deployable=deployable, lineage=lineage,
-               actor="jny", reason="처음")
+    desk.apply("pi6", CLASSIFY_LOOSE, deployable=deployable,
+               version_reference=reference, actor="jny", reason="처음")
 
-    again = desk.apply("pi6", CLASSIFY, deployable=deployable, lineage=lineage,
-                       actor="jny", reason="또")
+    again = desk.apply("pi6", CLASSIFY_LOOSE, deployable=deployable,
+                       version_reference=reference, actor="jny", reason="또")
 
     assert again["applied"] is False
 
@@ -959,6 +1117,15 @@ def test_media_refuses_a_frame_name_that_leaves_its_source(service):
         with pytest.raises(console.ApiError) as raised:
             service.media_bytes(kind="frame", sample_class="pi4-20260910-sampled",
                                 sample_file=name)
+        if raised.value.reason == "no_frame_assets":
+            # 프레임 출처(자산 뿌리)가 없는 노드에서는 경로 이탈 검사에 **닿기
+            # 전에** 503 으로 막힌다. 그 거절이 올바른 축소이고(AI-C-05) 라벨
+            # 미디어 경로만 비활성이다 — 이탈 거절 자체는 출처가 있어야 볼 수 있다.
+            pytest.skip(
+                "프레임 출처가 이 노드에 없다(자산 뿌리 미설치) — 라벨 미디어 "
+                "경로만 비활성이고 나머지 배포 탭은 그대로 돈다. "
+                "MISSION_RUNTIME_ASSETS 로 자산 뿌리를 가리키면 이 시험이 돈다"
+            )
         assert raised.value.reason.startswith("bad_frame:"), name
 
 

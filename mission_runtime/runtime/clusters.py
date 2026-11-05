@@ -1,6 +1,6 @@
 """Routing execution control across the server and edge control planes.
 
-implements: AI-B-11, AI-B-03, AI-B-05, AI-C-12
+implements: AI-B-11, AI-B-03, AI-B-05, AI-C-04
 
 원칙 #11(개정): 오케스트레이션은 서버와 구역 엣지 양쪽에 제어면을 둔다. 두 클러스터는
 별개이며 "상위 코드는 어느 클러스터를 쓰는지 알 필요가 없다".
