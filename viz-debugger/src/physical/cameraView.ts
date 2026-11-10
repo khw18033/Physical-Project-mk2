@@ -154,6 +154,23 @@ export function directCameraSources(deviceId: string, position: string): Labeled
   return cams.map((cam) => ({ url: droneFrameUrl(base, cam), kind: 'frames', label: cams.length > 1 ? `cam${cam}` : null }));
 }
 
+/**
+ * **장비 여럿을 한꺼번에** (261110 — 전체 장치 확인). 영상 칸을 장비가 아니라 영상마다 세려면 장비 전부의 카메라 목록이
+ * 한 자리에 있어야 한다. 훅을 장비마다 부를 수 없으니(개수가 바뀐다) 드론 말단 지켜보기를 효과 하나에서 묶어 건다.
+ */
+export function useDirectCameraSourcesMany(deviceIds: readonly string[], positions: Readonly<Record<string, string>>): Record<string, LabeledCameraSource[]> {
+  const bases = [...new Set(deviceIds.map(droneAgentBase).filter((base): base is string => base !== null))].sort();
+  const key = bases.join('|');
+  useEffect(() => {
+    const stops = key === '' ? [] : key.split('|').map(watchDroneCameras);
+    return () => { for (const stop of stops) stop(); };
+  }, [key]);
+  useSyncExternalStore(subscribe, () => version, () => version);
+  const out: Record<string, LabeledCameraSource[]> = {};
+  for (const id of deviceIds) out[id] = directCameraSources(id, positions[id] ?? 'front');
+  return out;
+}
+
 /** `directCameraSources` 를 화면에서 — 드론이면 보는 동안 말단의 카메라 목록을 따라간다. */
 export function useDirectCameraSources(deviceId: string | null, position: string): LabeledCameraSource[] {
   const base = deviceId === null ? null : droneAgentBase(deviceId);

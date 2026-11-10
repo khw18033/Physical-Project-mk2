@@ -47,7 +47,7 @@ import { holdAllVisionSources, holdVisionSource, useVisionSources, type VisionSo
 import {
   deviceBrokerHost, deviceDirectBase, resolveVisionBinding, setVisionBinding, useVisionBindingChoice, VISION_UNBOUND, type VisionBinding,
 } from '../binding.ts';
-import { setVisionNodeChoice, useVisionNodeChoice } from '../nodeChoice.ts';
+import { setVisionNodeChoice, useVisionNodeChoice, type VisionNodeChoice } from '../nodeChoice.ts';
 import { isFixedCamera } from '../../fixedcam/fixedCamera.ts';
 
 /** 접힌 카드가 새 한 장을 받는 주기 — 탐지 영상 노드와 같다. */
@@ -235,6 +235,53 @@ function SummaryTable({ state, base }: { state: VisionSourceState; base: string 
 }
 
 /**
+ * **고른 영상 칸 목록** — 모델 이름, `null` 은 원본 칸. 아무 모델도 안 골랐으면 결과가 오는 모델 전부다.
+ * `VisionCam` 과 전체 장치 확인(261110 — 영상 하나에 한 칸)이 같은 규칙으로 센다.
+ */
+export function visionStreamCells(state: VisionSourceState | null, choice: VisionNodeChoice): (string | null)[] {
+  const models = state?.health?.models ?? [];
+  const shown = choice.models ?? models.filter(modelLive).map((m) => m.model);
+  return [...shown, ...(choice.raw === true ? [null] : [])];
+}
+
+/** 원본 칸이 결과보다 얼마나 앞서는가 — 결과 모델 중 가장 작은 차이(장 수 · 지연). */
+function sourceLead(state: VisionSourceState | null): { minGap: number | null; minLag: number | null } {
+  const models = state?.health?.models ?? [];
+  const framesNow = state?.health?.frames ?? null;
+  const minGap = models.filter(modelLive).reduce<number | null>((low, m) => {
+    const gap = frameGap(framesNow, m);
+    return gap === null ? low : low === null ? gap : Math.min(low, gap);
+  }, null);
+  const minLag = models.filter(modelLive).reduce<number | null>((low, m) => (m.lagMs === null ? low : low === null ? m.lagMs : Math.min(low, m.lagMs)), null);
+  return { minGap, minLag };
+}
+
+/**
+ * **추론 영상 한 칸만** (261110 — 전체 장치 확인의 카메라 탭). 장비 칸 안에 모델을 나란히 세우지 않고 영상 하나를 한 칸으로
+ * 센다. 실시간(확대와 같은 스트림)이고, 칸이 화면에서 밀려나면 `<img>` 가 내려가 끊긴다.
+ */
+export function VisionStream({ entityId, base, model }: { entityId: string; base: string; model: string | null }) {
+  useLang();
+  const sources = useVisionSources();
+  useEffect(() => holdVisionSource(base), [base]);
+  const state = sources[base] ?? null;
+  const models = state?.health?.models ?? [];
+  const { minGap, minLag } = sourceLead(state);
+  return <VisionCell
+    base={base}
+    model={model}
+    summary={model === null ? null : (models.find((m) => m.model === model) ?? null)}
+    rate={model === null ? undefined : state?.rate[model]}
+    zoom
+    recordLabel={`${entityId}_detect-${model ?? 'raw'}`}
+    lagMs={minLag}
+    framesNow={state?.health?.frames ?? null}
+    gapFrames={minGap}
+    available={model === null ? (state?.health?.frames ?? 0) > 0 : models.some((m) => m.model === model)}
+  />;
+}
+
+/**
  * **추론 영상 노드.** `taskDeviceId` 는 노드를 붙인 태스크의 장비 — 그 장비에 묶인 포트가 기본이다.
  * `lockSource` 면 포트 고르기를 안 그린다(하드웨어 카드 상세 — 포트는 그 위의 묶음 칸이 정한다).
  */
@@ -265,14 +312,9 @@ export function VisionCam({ nodeId, taskDeviceId = null, zoom = false, lockSourc
 
   const state = base === null ? null : (sources[base] ?? null);
   const models = state?.health?.models ?? [];
-  const shown = choice.models ?? models.filter(modelLive).map((m) => m.model);
   const framesNow = state?.health?.frames ?? null;
-  const minGap = models.filter(modelLive).reduce<number | null>((low, m) => {
-    const gap = frameGap(framesNow, m);
-    return gap === null ? low : low === null ? gap : Math.min(low, gap);
-  }, null);
-  const minLag = models.filter(modelLive).reduce<number | null>((low, m) => (m.lagMs === null ? low : low === null ? m.lagMs : Math.min(low, m.lagMs)), null);
-  const cells: (string | null)[] = [...shown, ...(choice.raw === true ? [null] : [])];
+  const { minGap, minLag } = sourceLead(state);
+  const cells = visionStreamCells(state, choice);
 
   return <div className={`detect-cam vision-cam${zoom ? ' detect-cam--zoom' : ''}`}>
     {zoom && !lockSource && <SourcePicker nodeId={nodeId} autoBase={autoBase} autoWhy={autoWhy} />}
@@ -358,31 +400,56 @@ export function VisionDeviceSection({ entityId, compact = false }: { entityId: s
   useLang();
   useConnections();
   const binding = useVisionBinding(entityId);
-  const chosen = useVisionBindingChoice(entityId);
   const sources = useVisionSources();
   const host = deviceBrokerHost(entityId);
-  const bases = visionBases();
-  const missing = chosen !== null && chosen !== VISION_UNBOUND && !bases.includes(chosen);
   return <section className="media-section vision-section">
     <header className="media-section__head">
       <h3>{t('vis.sectionTitle')}</h3>
-      <label className="ai-source">
-        <span>{t('vis.bindPick')}</span>
-        <select value={chosen ?? ''} onChange={(event) => setVisionBinding(entityId, event.target.value === '' ? null : event.target.value)}>
-          <option value="">{t('vis.bindAuto')}</option>
-          {bases.map((base) => {
-            const health = sources[base]?.health ?? null;
-            const models = (health?.models ?? []).filter(modelLive).map((m) => m.model);
-            return <option key={base} value={base}>
-              {`${sourceName(base, sources)} · ${base}${health === null ? '' : ` · ${health.upstreamHosts.join(', ') || '—'}`}${models.length === 0 ? '' : ` · ${models.join(', ')}`}`}
-            </option>;
-          })}
-          {missing && <option value={chosen}>{t('vis.sourceMissing', { url: chosen })}</option>}
-          <option value={VISION_UNBOUND}>{t('vis.bindNone')}</option>
-        </select>
-      </label>
+      <VisionBindPicker entityId={entityId} />
     </header>
     <p className="vn-line vn-dim">{bindingWhy(binding, host, sources, isFixedCamera(entityId))}</p>
     {binding.base !== null && <VisionCam nodeId={`hw:${entityId}`} taskDeviceId={entityId} zoom lockSource compact={compact} />}
   </section>;
+}
+
+/** 장비의 추론 포트 고르기 — 카드 상세와 전체 장치 확인이 같은 저장 키를 쓴다. */
+function VisionBindPicker({ entityId }: { entityId: string }) {
+  useLang();
+  useConnections();
+  const chosen = useVisionBindingChoice(entityId);
+  const sources = useVisionSources();
+  const bases = visionBases();
+  const missing = chosen !== null && chosen !== VISION_UNBOUND && !bases.includes(chosen);
+  return <label className="ai-source">
+    <span>{t('vis.bindPick')}</span>
+    <select value={chosen ?? ''} onChange={(event) => setVisionBinding(entityId, event.target.value === '' ? null : event.target.value)}>
+      <option value="">{t('vis.bindAuto')}</option>
+      {bases.map((base) => {
+        const health = sources[base]?.health ?? null;
+        const models = (health?.models ?? []).filter(modelLive).map((m) => m.model);
+        return <option key={base} value={base}>
+          {`${sourceName(base, sources)} · ${base}${health === null ? '' : ` · ${health.upstreamHosts.join(', ') || '—'}`}${models.length === 0 ? '' : ` · ${models.join(', ')}`}`}
+        </option>;
+      })}
+      {missing && <option value={chosen}>{t('vis.sourceMissing', { url: chosen })}</option>}
+      <option value={VISION_UNBOUND}>{t('vis.bindNone')}</option>
+    </select>
+  </label>;
+}
+
+/**
+ * **장비 하나의 추론 고르기만** (261110 — 전체 장치 확인). 포트 · 묶인 까닭 · 모델 · 원본 보기. 영상은 칸마다 따로 서므로
+ * 여기서는 안 그린다. 저장 키(`hw:<장비 id>`)가 카드 상세와 같다 — 한쪽에서 바꾸면 다른 쪽도 바뀐다.
+ */
+export function VisionDeviceControls({ entityId }: { entityId: string }) {
+  useLang();
+  const binding = useVisionBinding(entityId);
+  const sources = useVisionSources();
+  const host = deviceBrokerHost(entityId);
+  const models = binding.base === null ? [] : (sources[binding.base]?.health?.models ?? []);
+  return <div className="vision-controls">
+    <VisionBindPicker entityId={entityId} />
+    <small className="vn-dim">{bindingWhy(binding, host, sources, isFixedCamera(entityId))}</small>
+    {binding.base !== null && <ModelPicker nodeId={`hw:${entityId}`} models={models} />}
+  </div>;
 }

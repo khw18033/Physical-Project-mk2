@@ -65,6 +65,11 @@ export function useVisionNodeChoice(nodeId: string): VisionNodeChoice {
   return useSyncExternalStore(subscribe, () => visionNodeChoice(nodeId), () => visionNodeChoice(nodeId));
 }
 
+/** 고름 전부 — 장비 여럿의 영상 칸을 한꺼번에 세는 화면(전체 장치 확인, 261110)이 구독한다. 같은 참조를 돌려준다. */
+export function useVisionNodeChoices(): Readonly<Record<string, VisionNodeChoice>> {
+  return useSyncExternalStore(subscribe, () => choices, () => choices);
+}
+
 /** 칸을 덮어쓴다. `undefined` 를 준 칸은 지운다(기본으로). */
 export function setVisionNodeChoice(nodeId: string, patch: Partial<Record<keyof VisionNodeChoice, unknown>>): void {
   const merged: Record<string, unknown> = { ...visionNodeChoice(nodeId) };

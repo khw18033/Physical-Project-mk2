@@ -27,9 +27,9 @@ import '../sar/sar.css';
 import './dronedash.css';
 
 const num = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) ? v : null);
-const fmt = (v: number | null | undefined, d = 1) => (v === null || v === undefined ? '—' : v.toFixed(d));
+export const fmt = (v: number | null | undefined, d = 1) => (v === null || v === undefined ? '—' : v.toFixed(d));
 
-type Level = 'good' | 'warn' | 'bad' | 'unknown';
+export type Level = 'good' | 'warn' | 'bad' | 'unknown';
 const MARK: Record<Level, string> = { good: '✓', warn: '!', bad: '✕', unknown: '?' };
 
 /** EKF 비율 판정 — QGC · MicoConfigurator 와 같은 기준(0.5 · 1.0). */
@@ -100,11 +100,34 @@ function useDroneViews(): View[] {
 
 // ── 상태 줄 ────────────────────────────────────────────────────────────────
 
-function Chip({ level, label, value, title }: { level: Level; label: string; value?: ReactNode; title?: string }) {
+export function Chip({ level, label, value, title }: { level: Level; label: string; value?: ReactNode; title?: string }) {
   return <span className={`dash-chip dash-chip--${level}`} title={title}>
     <i aria-hidden>{MARK[level]}</i><b>{label}</b>{value !== undefined && <span>{value}</span>}
   </span>;
 }
+
+/**
+ * **지표 타일** (261110 — 상태 줄 개편 A안). 타원 칩은 라벨과 값이 한 줄에 붙어 숫자가 묻혔다 — 작은 라벨 위, **큰 값** 아래,
+ * 왼쪽 색 띠가 상태다. 칸 크기가 같아 장비 여럿을 나란히 놓아도 같은 값이 같은 자리에 온다. 색만으로 말하지 않게 값 앞에
+ * 표시(✓ ! ✕ ?)를 둔다. `bar` 를 주면(0–100) 값 아래 막대 — 배터리.
+ */
+export function Stat({ level, label, value, sub, title, bar }: {
+  level: Level; label: string; value: ReactNode; sub?: ReactNode; title?: string; bar?: number | null;
+}) {
+  return <div className={`dash-stat dash-stat--${level}`} title={title}>
+    <span className="dash-stat__label">{label}</span>
+    <b className="dash-stat__value"><i aria-hidden>{MARK[level]}</i>{value}</b>
+    {sub !== undefined && sub !== null && <small className="dash-stat__sub">{sub}</small>}
+    {bar !== undefined && bar !== null && <span className="dash-stat__bar" aria-hidden><span style={{ width: `${Math.max(0, Math.min(100, bar))}%` }} /></span>}
+  </div>;
+}
+
+/** 타일 줄. `full` 상세 · `compact` 전체 장치 확인 칸 · `card` 하드웨어 카드 한 줄. */
+export function StatGrid({ size = 'full', children }: { size?: 'full' | 'compact' | 'card'; children: ReactNode }) {
+  return <div className={`dash-stats dash-stats--${size}`}>{children}</div>;
+}
+
+const RTK_TILE: Record<string, Level> = { fixed: 'good', float: 'warn', dgps: 'warn', gps: 'warn', none: 'bad', unknown: 'unknown' };
 
 function StatusBar({ v, compact }: { v: View; compact?: boolean }) {
   useLang();
@@ -113,19 +136,32 @@ function StatusBar({ v, compact }: { v: View; compact?: boolean }) {
   const linkLevel: Level = v.linkAgeS === null ? 'bad' : v.linkAgeS < 2 ? 'good' : v.linkAgeS < 5 ? 'warn' : 'bad';
   const batLevel: Level = v.batteryPct === null ? 'unknown' : v.batteryPct > 30 ? 'good' : v.batteryPct > 15 ? 'warn' : 'bad';
   const level = rtkLevel(v.fixType, v.fix);
-  return <div className={`dash-status${compact ? ' dash-status--compact' : ''}`}>
-    <Chip level={linkLevel} label={t('dash.link')} value={v.linkAgeS === null ? t('dash.lost') : `${fmt(v.linkAgeS)}s${f?.link.msgsPerS ? ` · ${fmt(f.link.msgsPerS, 0)}/s` : ''}`} />
-    <Chip level={v.mode === null ? 'unknown' : 'good'} label={t('dash.mode')} value={v.mode ?? '—'} />
-    <Chip level={v.armed === null ? 'unknown' : v.armed ? 'warn' : 'good'} label={v.armed ? t('dash.armed') : t('dash.disarmed')} />
-    <span className="dash-gps"><RtkBadge level={level} /><small>{t('dash.sats', { n: v.sats ?? '—' })}{f?.gps?.hdop !== null && f?.gps?.hdop !== undefined ? ` · HDOP ${fmt(f.gps.hdop, 2)}` : ''}</small></span>
-    {!compact && f?.ekf && (['pos', 'vel', 'mag', 'ter', 'ver'] as const).map((k) =>
-      <Chip key={k} level={ekfLevel(f.ekf![k])} label={k.toUpperCase()} title={t('dash.ekfTitle', { v: fmt(f.ekf![k], 2) })} />)}
-    <Chip level={batLevel} label={t('dash.battery')} value={`${fmt(v.batteryV, 2)}V · ${v.batteryPct === null ? '—' : `${Math.round(v.batteryPct)}%`}`} />
-    {!compact && f?.rc && <Chip level={f.rc.rssi === null ? 'unknown' : f.rc.rssi > 50 ? 'good' : f.rc.rssi > 20 ? 'warn' : 'bad'} label="RC" value={f.rc.rssi === null ? '—' : `${f.rc.rssi}%`} />}
+  // EKF 다섯은 타일 하나로 — 가장 나쁜 값과 그 이름. 낱낱은 툴팁에.
+  const ekfKeys = ['pos', 'vel', 'mag', 'ter', 'ver'] as const;
+  const ekfWorst = f?.ekf ? ekfKeys.reduce<{ k: string; v: number } | null>((worst, k) => {
+    const x = f.ekf![k];
+    return x === null || x === undefined || (worst !== null && worst.v >= x) ? worst : { k, v: x };
+  }, null) : null;
+  return <>
+    <StatGrid size={compact ? 'compact' : 'full'}>
+      <Stat level={linkLevel} label={t('dash.link')} value={v.linkAgeS === null ? t('dash.lost') : `${fmt(v.linkAgeS)} s`}
+        sub={f?.link.msgsPerS ? `${fmt(f.link.msgsPerS, 0)}/s` : undefined} />
+      <Stat level={v.mode === null ? 'unknown' : 'good'} label={t('dash.mode')} value={v.mode ?? '—'} />
+      <Stat level={v.armed === null ? 'unknown' : v.armed ? 'warn' : 'good'} label={t('dash.armState')}
+        value={v.armed === null ? '—' : v.armed ? t('dash.armed') : t('dash.disarmed')} />
+      <Stat level={RTK_TILE[level] ?? 'unknown'} label={t('dash.gps.title')} value={t(`rtk.level.${level}`)}
+        sub={`${t('dash.sats', { n: v.sats ?? '—' })}${f?.gps?.hdop !== null && f?.gps?.hdop !== undefined ? ` · HDOP ${fmt(f.gps.hdop, 2)}` : ''}`} />
+      <Stat level={batLevel} label={t('dash.battery')} value={v.batteryPct === null ? '—' : `${Math.round(v.batteryPct)} %`}
+        sub={`${fmt(v.batteryV, 2)} V`} bar={v.batteryPct} />
+      {!compact && f?.ekf && <Stat level={ekfLevel(ekfWorst?.v ?? null)} label="EKF" value={ekfWorst === null ? '—' : fmt(ekfWorst.v, 2)}
+        sub={ekfWorst === null ? undefined : t('dash.ekfWorst', { k: ekfWorst.k.toUpperCase() })}
+        title={ekfKeys.map((k) => `${k.toUpperCase()} ${fmt(f.ekf![k], 2)}`).join(' · ')} />}
+      {!compact && f?.rc && <Stat level={f.rc.rssi === null ? 'unknown' : f.rc.rssi > 50 ? 'good' : f.rc.rssi > 20 ? 'warn' : 'bad'} label="RC" value={f.rc.rssi === null ? '—' : `${f.rc.rssi} %`} />}
+      {!compact && f?.clockOffsetS !== null && f?.clockOffsetS !== undefined &&
+        <Stat level={Math.abs(f.clockOffsetS) <= 1 ? 'good' : 'bad'} label={t('dash.clock')} value={`${f.clockOffsetS >= 0 ? '+' : ''}${fmt(f.clockOffsetS, 2)} s`} />}
+    </StatGrid>
     {!compact && <RtcmLine report={rtcm} />}
-    {!compact && f?.clockOffsetS !== null && f?.clockOffsetS !== undefined &&
-      <Chip level={Math.abs(f.clockOffsetS) <= 1 ? 'good' : 'bad'} label={t('dash.clock')} value={`${f.clockOffsetS >= 0 ? '+' : ''}${fmt(f.clockOffsetS, 2)}s`} />}
-  </div>;
+  </>;
 }
 
 // ── 자세계 · 나침반 ─────────────────────────────────────────────────────────
@@ -168,7 +204,7 @@ function Attitude({ roll, pitch }: { roll: number | null; pitch: number | null }
   </figure>;
 }
 
-function Compass({ yaw, homeBearing, wind }: { yaw: number | null; homeBearing: number | null; wind?: { speedMps: number | null; fromDeg: number | null } | null }) {
+export function Compass({ yaw, homeBearing, wind }: { yaw: number | null; homeBearing: number | null; wind?: { speedMps: number | null; fromDeg: number | null } | null }) {
   useLang();
   const S = 200;
   const y = yaw ?? 0;
@@ -292,11 +328,11 @@ function SarStrip({ deviceId }: { deviceId: string }) {
   </div>;
 }
 
-function Panel({ title, children, wide }: { title: string; children: ReactNode; wide?: boolean }) {
+export function Panel({ title, children, wide }: { title: string; children: ReactNode; wide?: boolean }) {
   return <section className={`dash-panel${wide ? ' dash-panel--wide' : ''}`}><h4>{title}</h4>{children}</section>;
 }
 
-function Row({ k, v, level }: { k: string; v: ReactNode; level?: Level }) {
+export function Row({ k, v, level }: { k: string; v: ReactNode; level?: Level }) {
   return <div className="dash-row"><dt>{k}</dt><dd className={level ? `dash-v--${level}` : ''}>{v}</dd></div>;
 }
 
@@ -467,8 +503,45 @@ export function DroneDashZoom({ deviceId }: { deviceId?: string } = {}) {
   </div>;
 }
 
+/**
+ * **상태판 축약판** (261110 — 전체 장치 확인의 장치 상태 탭). 화면 4분의 1 칸에 들어가도록 상태 줄 · 지도 · 자세계 · 나침반 ·
+ * 고도/속도/방위 숫자만 둔다. 그래프 · GPS 표 · 센서 · 진동 · 배터리 셀 · 콘솔은 카드 상세(더블클릭)의 상태판에 있다.
+ */
+export function DroneDashMini({ deviceId }: { deviceId: string }) {
+  useLang();
+  useTick(500);
+  const views = useDroneViews();
+  const v = views.find((x) => x.deviceId === deviceId);
+  const homeBearing = useMemo(() => {
+    const h = v?.fcx?.home;
+    return v && h?.lat != null && h.lon != null && v.lat !== null && v.lon !== null ? bearing({ lat: v.lat, lon: v.lon }, { lat: h.lat, lon: h.lon }) : null;
+  }, [v]);
+  if (v === undefined) return <p className="sar-empty">{t('dash.noDevice')}</p>;
+  return <div className="dash-mini">
+    <div className="dash-mini__head">
+      <span className={v.extended ? 'sar-ok' : 'sar-warn'}>{v.extended ? t('dash.extended') : t('dash.basicOnly')}</span>
+    </div>
+    <StatusBar v={v} compact />
+    <SarStrip deviceId={v.deviceId} />
+    <div className="dash-mini__body">
+      <div className="dash-mini__map"><DashMap v={v} height={240} /></div>
+      <div className="dash-mini__side">
+        <div className="dash-instruments dash-mini__instruments">
+          <Attitude roll={v.rollDeg} pitch={v.pitchDeg} />
+          <Compass yaw={v.yawDeg} homeBearing={homeBearing} wind={v.fcx?.wind ?? null} />
+        </div>
+        <div className="dash-card-numbers">
+          <span>{t('dash.altShort')} <b>{fmt(v.altRelM)}</b> m</span>
+          <span>{t('dash.speedShort')} <b>{fmt(v.groundspeed)}</b> m/s</span>
+          <span>{t('dash.yawShort')} <b>{v.yawDeg === null ? '—' : Math.round(v.yawDeg)}</b>°</span>
+        </div>
+      </div>
+    </div>
+  </div>;
+}
+
 /** 상태판의 위성 지도 — 궤적(캡처 구간은 빨강) · 홈 · 베이스 · SAR 선 · 드론. */
-function DashMap({ v }: { v: View }) {
+function DashMap({ v, height = 470 }: { v: View; height?: number }) {
   useLang();
   const sar = useSarReports()[v.deviceId];
   const rtcm = useRtcmReports()[v.deviceId];
@@ -497,6 +570,6 @@ function DashMap({ v }: { v: View }) {
   const reflectors = readReflectors();
   const beam = liveBeam(readAntenna(), { at, altM: v.altRelM, yawDeg: v.yawDeg, pitchDeg: v.pitchDeg, rollDeg: v.rollDeg }, reflectors);
   markers.push(...reflectorMarkers(reflectors, beam.lit));
-  return <SatMap track={track} drone={at} height={470}
+  return <SatMap track={track} drone={at} height={height}
     droneYaw={v.yawDeg} sarLine={sarLine} capturing={sar?.capturing} markers={markers} areas={beam.area ? [beam.area] : []} />;
 }

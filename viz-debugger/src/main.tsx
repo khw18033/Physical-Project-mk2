@@ -32,7 +32,10 @@ import { graphShape, shapeLabel } from './graph/shape.ts';
 import { useLang } from './shared/language.ts';
 import { ActionModal } from './views/ActionModal.tsx';
 import { DeviceStatusOverlay } from './views/DeviceStatusOverlay.tsx';
-import { AllCamerasOverlay } from './views/AllCamerasOverlay.tsx';
+import { AllDevicesOverlay } from './views/AllDevicesOverlay.tsx';
+import { GroundDashLine } from './physical/GroundDash.tsx';
+import { isFixedCamera } from './fixedcam/fixedCamera.ts';
+import { isTwinDevice } from './virtualmap/twinDevice.ts';
 import { UtterancePanel } from './views/UtterancePanel.tsx';
 import { StatusLegend } from './views/StatusLegend.tsx';
 import './style.css';
@@ -50,11 +53,11 @@ import { startMissionRecorder } from './record/recorder.ts';
 import { startNavLink } from './physical/navLink.ts';
 import { startObstacleWatch } from './autodrive/watch.ts';
 import { startTaskRunner } from './physical/taskRunner.ts';
+import { startApproachAuto } from './physical/approachAuto.ts';
 import { startManualDispatch } from './physical/manualDispatch.ts';
 import { ManualControlBadge } from './views/ManualControlBadge.tsx';
 import { FlightRunBadge } from './views/FlightRunBadge.tsx';
 import { RecordingBadge } from './views/RecordingBadge.tsx';
-import { startApproachAuto } from './physical/approachAuto.ts';
 import { ServerCard } from './shell/ServerCard.tsx';
 import { connectedDevice } from './shared/connectedDevices.ts';
 import { connectionAddress, useConnections } from './shared/connections.ts';
@@ -105,6 +108,15 @@ function aiMarks(trace: readonly ScenarioEvent[]) {
   return trace.filter((event) => event.producedBy === 'ai');
 }
 
+/**
+ * **하드웨어 카드의 살아 있는 줄** (261110). 로봇 · 드론은 상세 · 전체 장치 확인과 같은 **지표 타일**(`GroundDashLine` —
+ * 연결 · 링크 · 배터리 · 마지막 수신, 드론은 장비가 카드 몫으로 보낸 줄). 고정 카메라 · 3D 가상환경은 지금까지의 줄(`HardwareLink`).
+ */
+function CardStatusLine({ entityId }: { entityId: string }) {
+  if (isFixedCamera(entityId) || isTwinDevice(entityId)) return <HardwareLink entityId={entityId} />;
+  return <GroundDashLine entityId={entityId} />;
+}
+
 function Milestones({ view, phase, milestoneStatuses, assignments, onAssign, onOpen, planApproval }: {
   view: MissionView;
   phase: 'proposal' | 'playing' | 'idle';
@@ -134,8 +146,8 @@ function Milestones({ view, phase, milestoneStatuses, assignments, onAssign, onO
    * 분할 화면이고, 분할 화면은 곧 탭이 된다 (`VZ-N-05` 와 같은 규칙).
    */
   const [statusDeviceId, setStatusDeviceId] = useState<string | null>(null);
-  /** 「전체 카메라 확인」 판 (261002). 장비 상세와 같이 형제로 얹고, 동시에 하나만 연다. */
-  const [allCamerasOpen, setAllCamerasOpen] = useState(false);
+  /** 「전체 장치 확인」 판 (261002 전체 카메라 → 261110 카메라 · 장치 상태 탭). 장비 상세와 같이 형제로 얹고, 동시에 하나만 연다. */
+  const [allDevicesOpen, setAllDevicesOpen] = useState(false);
   // 승인·거부는 **마일스톤 목록 위 제안 카드 안**에 있다 (260901). 통합 빌드는 이 슬롯에
   // PlanApproval(근거 4층 + 승인·거부)이 들어오고, 단독 빌드는 로컬 재생기용 폴백이 들어온다 —
   // **같은 자리**다. 근거의 「구간별 계획」이 「아래 마일스톤과 같음」이라고 적으므로
@@ -204,8 +216,8 @@ function Milestones({ view, phase, milestoneStatuses, assignments, onAssign, onO
         두지 않는다. 높이는 내용만큼이고 아래 하드웨어 · 기능이 1:1 을 나눈다. 목 게이트웨이면 칸째 없다. */}
     <ServerCard />
     <aside className="hardware-panel"><header className="hardware-panel__head"><h2>{t('ms.hardwareCount', { n: cards.length })}</h2>
-      {/* 261002 지시 — 제목 오른쪽 빈자리. 장비가 여럿일 때 카메라 상황을 한 번에 본다. */}
-      <button type="button" className="hardware-panel__cams" onClick={() => { setStatusDeviceId(null); setAllCamerasOpen(true); }}>{t('acam.open')}</button>
+      {/* 261002 지시 — 제목 오른쪽 빈자리. 장비가 여럿일 때 카메라 · 상태를 한 번에 본다(261110 — 전체 장치 확인). */}
+      <button type="button" className="hardware-panel__cams" onClick={() => { setStatusDeviceId(null); setAllDevicesOpen(true); }}>{t('acam.open')}</button>
     </header><p><Rich id="ms.hardwareHint" vars={{ source: hardwareSourceLabel() }} /></p>
     {/*
       **목록은 지금 붙어 있는 장비다** (260922 지시 — 「드론 연결했으면 드론 하나만」).
@@ -230,7 +242,7 @@ function Milestones({ view, phase, milestoneStatuses, assignments, onAssign, onO
             「연결됨」과 「이번 편 등장」은 다른 말이고, 뭉치면 꺼진 배역을 붙은 것으로 읽는다. */}
         <small>{item === undefined ? t(deviceCardOrigin(id) === 'cast' ? 'ms.scriptDevice' : connectedDevice(id)?.source === 'server' ? 'ms.serverDevice' : connectedDevice(id)?.source === 'camera' ? 'ms.fixedCameraDevice' : connectedDevice(id)?.source === 'twin' ? 'ms.twinDevice' : 'ms.connectedDevice') : item.kind}</small>
         {item === undefined
-          ? <HardwareLink entityId={id} />
+          ? <CardStatusLine entityId={id} />
           : <span><PendingSource id="hardware-pool-status" inline>{item.connection} · {item.battery}% · {item.rssi} dBm</PendingSource></span>}
         {/* 261001 — 이 장비에 묶인 객체 탐지 추론 스트림. 묶인 포트가 없으면 아무것도 안 그린다. */}
         <VisionCardLine entityId={id} />
@@ -246,7 +258,7 @@ function Milestones({ view, phase, milestoneStatuses, assignments, onAssign, onO
       device={hardware.find((item) => item.id === statusDeviceId)}
       source={hardwareSourceLabel()}
       onClose={() => setStatusDeviceId(null)} />}
-    {allCamerasOpen && <AllCamerasOverlay onClose={() => setAllCamerasOpen(false)} />}</div>;
+    {allDevicesOpen && <AllDevicesOverlay onClose={() => setAllDevicesOpen(false)} />}</div>;
 }
 
 function ReplayControls({ second, following, playing, onChange, onFollow, view, trace, tasks }: {
@@ -571,6 +583,11 @@ export function MissionDebugger({ navigation, planApproval }: { navigation?: Deb
    */
   useEffect(() => startTaskRunner(), []);
   /**
+   * **문 찾기 · 박스 탐지 편의 자동 이동** (261103). 경로가 나오면 승인 없이 곧바로 낸다(`T-B2` 상세에서 승인을
+   * 켜 둔 편은 제외). 같은 이유로 여기 둔다 — 화면을 옮겨도 경로가 나오는 순간을 놓치면 안 된다.
+   */
+  useEffect(() => startApproachAuto(), []);
+  /**
    * **로봇 수동 제어의 키 처리기** (261005). 카드 창이 아니라 여기 건다 — 카드를 닫고 카메라 화면을 보면서도
    * 켜 둔 장비를 몰 수 있어야 한다. 켜진 장비가 없으면 키를 하나도 안 가로챈다.
    */
@@ -584,11 +601,6 @@ export function MissionDebugger({ navigation, planApproval }: { navigation?: Deb
   useEffect(() => startFixedCameraWatch(), []);
   // 261007 — 3D 가상환경 PC 를 하드웨어 카드로. 주소가 답하면 카드가 선다(`twinDevice.ts`).
   useEffect(() => startTwinWatch(), []);
-  /**
-   * **문 찾기 · 박스 탐지 편의 자동 이동** (261103). 경로가 나오면 승인 없이 곧바로 낸다(`T-B2` 상세에서 승인을
-   * 켜 둔 편은 제외). 같은 이유로 여기 둔다 — 화면을 옮겨도 경로가 나오는 순간을 놓치면 안 된다.
-   */
-  useEffect(() => startApproachAuto(), []);
 
   /**
    * **로봇 응답 수신** (260910). 여기 두는 이유는 위 관측과 같다 — 이 화면은 두 빌드가

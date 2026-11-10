@@ -41,7 +41,7 @@ import { t } from '../i18n/dict.ts';
 import { useEffect, useState, useSyncExternalStore } from 'react';
 import type { Hardware } from '../model/types.ts';
 import { DeviceStrip } from './DeviceStrip.tsx';
-import { DeviceFacts } from '../physical/DeviceFacts.tsx';
+import { GroundDash } from '../physical/GroundDash.tsx';
 import { MediaSection } from '../media/views/MediaSection.tsx';
 import { DirectCameras } from '../media/views/DeviceCamera.tsx';
 import { CAMERA_POSITIONS, type CameraPosition } from '../media/cameraChoice.ts';
@@ -124,7 +124,8 @@ export function DeviceStatusOverlay({ deviceId, device, source, onClose }: {
       </header>
       {robot && tab === 'manual' ? <ManualControlTab deviceId={deviceId} /> : <>
       {/* **오는 값만 적는다** (260910). 안 오는 칸은 자리표시로 채우지 않고 아예 안 그린다. */}
-      {twin ? <TwinSection entityId={deviceId} /> : fixedCamera ? <FixedCameraSection entityId={deviceId} /> : <DeviceFacts entityId={deviceId} />}
+      {/* 261110 — 드론이 아닌 장비(Go1 등)는 드론 상태판과 같은 모양(`GroundDash`). 값의 출처는 `DeviceFacts` 와 같다. */}
+      {twin ? <TwinSection entityId={deviceId} /> : fixedCamera ? <FixedCameraSection entityId={deviceId} /> : <GroundDash entityId={deviceId} />}
       {device !== undefined && <DeviceStrip device={device} />}
       {!viewOnly && directUrl !== null && <section className="media-section device-cam device-cam--zoom">
         <header className="media-section__head">

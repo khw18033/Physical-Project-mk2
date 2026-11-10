@@ -118,33 +118,45 @@ const PUSHGATEWAY = '# HELP go_goroutines x\ngo_goroutines 12\npushgateway_build
   if (!/holdServerStatus\(\)/.test(card)) failures.push('서버 칸이 서버 상태를 안 묻는다');
 }
 
-// ── 5. 전체 카메라 ─────────────────────────────────────────────────────────────
+// ── 5. 전체 장치 확인 (261002 전체 카메라 → 261110 카메라 · 장치 상태 탭) ──────────────────────────
 {
   const main = read('src', 'main.tsx');
-  if (!/<header className="hardware-panel__head"><h2>\{t\('ms\.hardwareCount'[\s\S]{0,400}?t\('acam\.open'\)/.test(main)) failures.push('하드웨어 패널 제목 줄에 전체 카메라 단추가 없다');
-  if (!/<AllCamerasOverlay onClose=/.test(main)) failures.push('전체 카메라 판을 안 연다');
+  if (!/<header className="hardware-panel__head"><h2>\{t\('ms\.hardwareCount'[\s\S]{0,400}?t\('acam\.open'\)/.test(main)) failures.push('하드웨어 패널 제목 줄에 전체 장치 단추가 없다');
+  if (!/<AllDevicesOverlay onClose=/.test(main)) failures.push('전체 장치 판을 안 연다');
   const css = read('src', 'style.css');
-  const rule = /\.modal\.all-cams\{([^}]*)\}/.exec(css)?.[1] ?? '';
+  const rule = /\.modal\.all-devs\{([^}]*)\}/.exec(css)?.[1] ?? '';
   const w = Number(/width:(\d+)vw/.exec(rule)?.[1] ?? 0);
   const h = Number(/height:(\d+)vh/.exec(rule)?.[1] ?? 0);
-  if (w < 80 || h < 80) failures.push(`전체 카메라 판이 화면의 80% 미만이다 — ${w}vw × ${h}vh`);
-  const overlay = read('src', 'views', 'AllCamerasOverlay.tsx');
-  if (!/<VisionDeviceSection entityId=\{row\.id\} compact \/>/.test(overlay)) failures.push('전체 카메라 판이 카드 상세의 추론 부품을 안 쓴다 — 고름이 갈라진다');
-  if (!/<b>\{row\.id\}<\/b>/.test(overlay)) failures.push('칸마다 장비 id 를 안 적는다 — 장비를 못 가른다');
+  if (w < 80 || h < 80) failures.push(`전체 장치 판이 화면의 80% 미만이다 — ${w}vw × ${h}vh`);
+  const overlay = read('src', 'views', 'AllDevicesOverlay.tsx');
+  if (!/TABS = \['cams', 'status'\]/.test(overlay)) failures.push('카메라 · 장치 상태 탭이 없다');
+  if (!/tab === 'cams' \? <CamerasTab/.test(overlay)) failures.push('안 보이는 탭도 그린다 — 장치 상태 탭에서도 영상이 붙어 있다');
+  // 2×2 고정 — 한 화면에 네 칸.
+  if (!/SLOTS = 4;/.test(read('src', 'views', 'slideWindow.ts'))) failures.push('한 화면 칸 수가 4 가 아니다');
+  const grid = /\.adev-grid\{([^}]*)\}/.exec(css)?.[1] ?? '';
+  if (!/grid-template-columns:repeat\(2,/.test(grid) || !/grid-template-rows:repeat\(2,/.test(grid)) failures.push('칸이 가로 2 × 세로 2 가 아니다');
+  // 영상 하나가 한 칸 — 추론 모델마다 · 원본 · 바로 받는 카메라마다 칸을 따로 센다.
+  if (!/for \(const model of visionStreamCells\(/.test(overlay)) failures.push('추론 영상을 모델마다 한 칸으로 안 센다');
+  if (!/for \(const source of device\.direct\) streams\.push/.test(overlay)) failures.push('바로 받는 카메라를 한 대마다 한 칸으로 안 센다');
+  if (!/<VisionStream entityId=/.test(overlay)) failures.push('추론 칸이 영상 하나만 그리는 부품을 안 쓴다');
+  if (!/<VisionDeviceControls entityId=/.test(overlay)) failures.push('추론 고름이 카드 상세와 같은 부품이 아니다 — 고름이 갈라진다');
+  if (!/<b>\{id\}<\/b>/.test(overlay)) failures.push('칸마다 장비 id 를 안 적는다 — 장비를 못 가른다');
   if (!/holdAllVisionSources\(\)/.test(overlay)) failures.push('포트를 맞대 볼 /health 를 안 붙잡는다');
-  // 261002 — 한 칸 안의 영상 높이가 같고, 장비가 많아도 한 화면에 들어간다.
-  const { fitCameraHeight, CAM_MIN_H } = await load('src', 'views', 'cameraFit.ts');
-  if (fitCameraHeight(800, [100], 12) !== 700) failures.push('한 줄이면 남는 높이를 다 영상에 주어야 한다');
-  if (fitCameraHeight(800, [100, 120], 12) !== 284) failures.push(`두 줄이면 (800 - 12 - 220) / 2 = 284 여야 한다 — ${fitCameraHeight(800, [100, 120], 12)}`);
-  const many = Array.from({ length: 4 }, () => 150);
-  if (fitCameraHeight(800, many, 12) * 4 + 150 * 4 + 12 * 3 > 800 && fitCameraHeight(800, many, 12) > CAM_MIN_H) failures.push('줄이 넷이면 한 화면을 넘는다');
-  if (fitCameraHeight(300, many, 12) !== CAM_MIN_H) failures.push('대조군 실패: 자리가 모자라도 하한 밑으로 줄인다 — 영상을 못 읽는다');
-  controls.push('하한 밑으로 안 줄인다');
-  if (fitCameraHeight(800, [100], 12, 450) !== 450) failures.push('영상 비율이 필요로 하는 높이보다 키운다 — 검은 띠만 는다');
-  if (!/className="all-cams__grid"/.test(overlay) || !/\.all-cams__grid\{[^}]*grid-template-columns:minmax\(0,1fr\)/.test(css)) failures.push('장비가 세로로 안 쌓인다');
-  const camRule = /\.modal\.all-cams \.all-cams__feed \.device-cam__canvas,\.modal\.all-cams \.vision-grid \.vision-cell img\{([^}]*)\}/.exec(css)?.[1] ?? '';
-  if (!/height:var\(--cam-h/.test(camRule) || !/max-height:none/.test(camRule)) failures.push('바로 받는 영상과 추론 영상이 같은 높이(--cam-h)를 안 쓴다');
-  if (!/\.all-cams \.vision-grid\{[^}]*grid-auto-flow:column/.test(css)) failures.push('추론 모델이 여럿이면 아래로 쌓인다 — 높이 계산이 어긋난다');
+  // 넘치면 한 칸씩 — 화면 밖 칸은 그리지 않는다.
+  if (!/items\.slice\(start, start \+ SLOTS\)/.test(overlay)) failures.push('화면 밖 칸까지 그린다 — 안 보이는 영상이 붙어 있다');
+  if (!/type="range" min=\{0\} max=\{max\} step=\{1\}/.test(overlay)) failures.push('슬라이더가 한 칸씩 안 민다');
+  const { clampStart } = await load('src', 'views', 'slideWindow.ts');
+  if (clampStart(3, 7) !== 3) failures.push('일곱 칸에서 넷째부터 못 본다');
+  if (clampStart(5, 7) !== 3) failures.push(`끝을 넘어 민다 — ${clampStart(5, 7)}`);
+  if (clampStart(2, 3) !== 0) failures.push('네 칸 이하인데 민다');
+  if (clampStart(-1, 9) !== 0) failures.push('앞을 넘어 민다');
+  controls.push('네 칸 이하면 안 민다');
+  // 장치 상태 — 드론은 상태판(축약판)만, 그 밖은 같은 모양의 상태판, 카메라 장비는 글로.
+  if (!/drone \? <DroneDashMini deviceId=\{id\} \/> : <GroundDash entityId=\{id\} compact \/>/.test(overlay)) failures.push('장치 상태 칸이 드론 상태판 · 장비 상태판으로 안 갈린다');
+  if (!/viewOnly \? <CameraDeviceText/.test(overlay)) failures.push('카메라 장비의 상태가 글이 아니다');
+  const detail = read('src', 'views', 'DeviceStatusOverlay.tsx');
+  if (!/<GroundDash entityId=\{deviceId\} \/>/.test(detail)) failures.push('카드 상세가 장비 상태판을 안 쓴다');
+  if (!/<GroundDashLine entityId=\{entityId\} \/>/.test(main)) failures.push('하드웨어 카드 줄이 장비 상태판 칩 줄을 안 쓴다');
 }
 
 connections.resetConnections();
@@ -158,6 +170,6 @@ if (failures.length) {
 console.log('✅ 지표 뜯기 — CPU(두 번의 차이) · 메모리 · 부하 · 디스크(/) · 가동 시간 · Pushgateway 는 자원 없음과 사유');
 console.log('✅ 서버 이름 — 지표의 nodename → 같은 호스트 추론 서버의 host → 없으면 null · 칸 제목이 그것을 쓴다');
 console.log('✅ 창구는 /metrics 만 · 지표 주소 칸이 비면 게이트웨이 호스트의 9100');
-console.log('✅ 전체 카메라 — 제목 줄 단추 · 화면 80% 이상 · 장비 id 머리 · 카드 상세와 같은 추론 부품 · 영상 높이 하나(--cam-h)로 한 화면에');
+console.log('✅ 전체 장치 확인 — 제목 줄 단추 · 화면 80% 이상 · 카메라 · 장치 상태 탭 · 2×2 칸과 한 칸씩 미는 슬라이더 · 영상 하나가 한 칸 · 장비 상태판(GroundDash)');
 console.log(`✅ 대조군 ${controls.length}건 — ${controls.join(' · ')}`);
 process.exit(0);

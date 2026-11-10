@@ -421,7 +421,7 @@ b.follow-live{cursor:default}
 .device-modal{width:min(980px,92vw)}
 .device-modal__camera{padding:16px 22px 4px}
 /* 드론 상세보기 (261003 · `DroneDetailModal`). 탭마다 내용 높이가 달라 **크기를 고정**하고 아래 칸만 구른다 —
-   「전체 카메라」 판(.all-cams)과 같은 틀이다. 머리줄은 id · 탭 · 닫기 한 줄. */
+   「전체 장치 확인」 판(.all-devs)과 같은 틀이다. 머리줄은 id · 탭 · 닫기 한 줄. */
 .modal.device-modal--drone{width:min(1280px,96vw);height:92vh;max-height:92vh;display:flex;flex-direction:column;overflow:hidden}
 .device-modal--drone>header{flex:none}
 .drone-modal__tabs{display:flex;gap:4px;margin:0 auto 0 18px}
@@ -1157,33 +1157,49 @@ button.robot-resume{padding:6px 12px;border:1px solid #2f9e5f;border-radius:var(
 .hw-vision{grid-column:1/-1}
 .hw-vision__thumb{display:block;width:100%;max-height:96px;object-fit:contain;margin-top:4px;border-radius:var(--radius-xs);background:#11161d}
 .vision-section{margin-top:12px}
-/* 261002 — 하드웨어 패널 제목 줄 · 「전체 카메라 확인」. 제목 오른쪽 빈자리에 단추를 둔다. */
+/* 261002 — 하드웨어 패널 제목 줄 · 「전체 장치 확인」(261110 — 전 「전체 카메라 확인」). 제목 오른쪽 빈자리에 단추를 둔다. */
 .hardware-panel__head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:0 0 14px}
 .hardware-panel__head h2{margin:0}
 .hardware-panel__cams{flex:0 0 auto;padding:5px 10px;font-size:13px;border:1px solid #bec8d5;border-radius:var(--radius-sm);background:#fff;color:#1768c5;cursor:pointer}
 .hardware-panel__cams:hover{border-color:#1768c5}
-/* 261002 — 전체 카메라 판. 화면의 80% 넘게 쓴다(지시). 장비마다 한 칸이고 칸 머리가 장비를 가른다. */
-.modal.all-cams{width:96vw;height:92vh;max-height:92vh;display:flex;flex-direction:column;overflow:hidden}
-.all-cams__body{flex:1 1 auto;min-height:0;overflow:auto;padding:14px 18px;display:grid;gap:12px;align-content:start}
-.all-cams__grid{display:grid;gap:12px;grid-template-columns:minmax(0,1fr);align-items:start}
-/* 261002 — 한 장비의 바로 받는 영상(왼쪽)과 추론(오른쪽)을 가로로. 좁으면(칸이 760px 미만) 다시 위아래로 쌓인다. */
-.all-cams__pair{display:grid;gap:12px;grid-template-columns:minmax(0,1fr);align-items:end}
-.all-cams__pair--2{grid-template-columns:repeat(auto-fit,minmax(min(340px,100%),1fr))}
-.all-cams__pair>*{min-width:0}
-.all-cams__tile{display:grid;gap:8px;align-content:start;min-width:0;padding:0 12px 12px;border:1px solid #d6dce5;border-radius:var(--radius-md);background:#fff}
-.all-cams__head{position:sticky;top:0;z-index:1;display:flex;align-items:baseline;gap:10px;margin:0 -12px;padding:9px 12px;border-bottom:3px solid #1768c5;border-radius:var(--radius-md) var(--radius-md) 0 0;background:#eef5fb}
-.all-cams__head b{font-size:17px}
-.all-cams__head small{color:#4a5666;font-size:12px}
-.all-cams__feed{display:grid;gap:4px}
-.all-cams__feed>header{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:13px}
-.all-cams__feed label{display:flex;align-items:center;gap:6px;font-size:12px;color:#4a5666}
-/* 261002 — 한 칸 안의 영상은 높이가 모두 `--cam-h` 하나다(판이 한 화면에 들어가게 계산한 값 — AllCamerasOverlay). 바로 받는 영상과
-   추론 영상의 높이가 같아진다. 위아래 설명 줄이 한 줄씩이라 칸을 아래로 맞추면(align-items:end) 영상의 위아래 변도 맞는다. */
-.modal.all-cams .all-cams__feed .device-cam__canvas,.modal.all-cams .vision-grid .vision-cell img{height:var(--cam-h,360px);max-height:none;min-height:0;width:100%;object-fit:contain;background:#11161d}
-.all-cams .vision-section{margin-top:0}
-/* 모델을 여럿 고르면 아래로 쌓지 않고 가로로 선다 — 한 칸에 영상 줄이 하나여야 높이 계산이 맞는다. */
-.all-cams .vision-grid{grid-template-columns:none;grid-auto-flow:column;grid-auto-columns:minmax(0,1fr)}
-.all-cams__without{margin:0;color:#6a7686;font-size:13px}
+/* 261110 — 전체 장치 확인 판(AllDevicesOverlay). 화면의 80% 넘게 쓴다(261002 지시). 탭 둘(카메라 · 장치 상태)이 같은 틀이다:
+   2×2 칸 고정 + 넘치면 아래 슬라이더로 한 칸씩. 칸 크기가 판 높이를 나눠 가지므로 영상은 칸에 맞춰 줄어든다(contain). */
+.modal.all-devs{width:96vw;height:92vh;max-height:92vh;display:flex;flex-direction:column;overflow:hidden}
+.all-devs>header,.all-devs>footer{flex:none}
+.adev-body{flex:1 1 auto;min-height:0;display:flex;flex-direction:column;gap:8px;padding:12px 18px;overflow:hidden}
+.adev-count{margin:0;color:#4a5666;font-size:13px}
+.adev-grid{flex:1 1 auto;min-height:0;display:grid;gap:10px;grid-template-columns:repeat(2,minmax(0,1fr));grid-template-rows:repeat(2,minmax(0,1fr))}
+.adev-tile{display:flex;flex-direction:column;min-width:0;min-height:0;border:1px solid #d6dce5;border-radius:var(--radius-md);background:#fff;overflow:hidden}
+.adev-tile__head{flex:none;display:flex;align-items:baseline;gap:10px;padding:7px 12px;border-bottom:3px solid #1768c5;background:#eef5fb}
+.adev-tile__head b{font-size:16px}
+.adev-tile__head small{color:#4a5666;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.adev-tile__body{flex:1 1 auto;min-height:0;display:flex;flex-direction:column;gap:4px;padding:8px 10px;overflow:auto}
+/* 카메라 칸 — 영상이 칸의 남는 높이를 다 쓴다. 설명 줄은 아래 한 줄. */
+.adev-grid--cams .adev-tile__body:not(.adev-tile__body--twin){overflow:hidden}
+.adev-grid--cams :is(.device-cam__stage,.vision-cell){flex:1 1 auto;min-height:0;display:flex;flex-direction:column;gap:3px}
+.adev-grid--cams .rec-host{flex:1 1 auto;min-height:0;display:flex}
+.adev-grid--cams .rec-host>img,.adev-grid--cams .device-cam__canvas{flex:1 1 auto;min-height:0;width:100%;height:100%;max-height:none;object-fit:contain;background:#11161d;border-radius:var(--radius-xs)}
+.adev-grid--cams :is(.device-cam__meta,.vision-cell figcaption,.vision-cell>small){flex:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* 아래 슬라이더 — ◀ · 막대 · ▶ · 「5–8 / 11」. */
+.adev-slider{flex:none;display:flex;align-items:center;gap:10px}
+.adev-slider input[type=range]{flex:1 1 auto;accent-color:#1768c5}
+.adev-slider button{padding:4px 12px;border:1px solid #bec8d5;border-radius:var(--radius-sm);background:#fff;cursor:pointer}
+.adev-slider button:disabled{opacity:.4;cursor:default}
+.adev-slider span{min-width:84px;text-align:right;color:#4a5666;font-size:13px;font-variant-numeric:tabular-nums}
+/* 장비별 영상 고르기 — 펼쳐도 그리드를 다 밀어내지 않게 높이를 묶는다. */
+.adev-settings{flex:none;max-height:34vh;overflow:auto;border:1px solid #d6dce5;border-radius:var(--radius-md);padding:6px 12px;background:#f8fafc}
+.adev-settings summary{cursor:pointer;font-size:13px;color:#1768c5}
+.adev-settings__row{display:flex;flex-wrap:wrap;align-items:center;gap:6px 14px;padding:6px 0;border-top:1px solid #e6eaf0;font-size:12px}
+.adev-settings__row>b{min-width:90px;font-size:14px}
+.adev-settings__row label{display:flex;align-items:center;gap:6px;color:#4a5666}
+.vision-controls{display:flex;flex-wrap:wrap;align-items:center;gap:4px 12px}
+.vision-controls .vision-pick{margin:0}
+.adev-without{flex:none;margin:0;color:#6a7686;font-size:13px}
+/* 장치 상태 칸 — 상태판이 칸보다 길면 칸 안에서 구른다. */
+.adev-facts{display:grid;gap:2px;margin:0;font-size:13px}
+.adev-facts>div{display:flex;gap:10px;padding:4px 2px;border-bottom:1px solid #eef1f5}
+.adev-facts dt{min-width:110px;color:#6b7888}
+.adev-facts dd{margin:0;color:#26303c;font-weight:600;word-break:break-all}
 
 /* 261003 — Unity 상공 카메라 (TopCamView.tsx) */
 .topcam{display:flex;flex-direction:column;gap:6px}
