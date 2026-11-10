@@ -40,7 +40,8 @@
 
 import { t } from '../i18n/dict.ts';
 import { advanceRobotHead, currentMission } from '../data/scenario.ts';
-import { detectBaseUrl, frameImageUrl, roundedImageUrl, viewSourceOf } from '../detect/DetectClient.ts';
+import { detectBaseUrl, viewSourceOf } from '../detect/DetectClient.ts';
+import { fallBackFrameImage, frameImageSrc, resetFrameImages } from '../detect/frameImage.ts';
 import { angleTask, appendDetectLog, DETECT_TASKS } from '../detect/detectLog.ts';
 import { indexOfRotation } from '../detect/parse.ts';
 import { detectState, subscribeDetect } from '../detect/store.ts';
@@ -84,7 +85,8 @@ const browserLoader: ScanImageLoader = (url) => {
   return new Promise((resolve) => {
     const image = new Image();
     image.onload = () => resolve();
-    image.onerror = () => { failedUrls.add(url); resolve(); };
+    // 대신 그릴 주소가 있으면(박스 편 못 찾은 각도의 상자 그림) 실패로 안 친다 — 그 주소를 다시 받는다.
+    image.onerror = () => { if (!fallBackFrameImage(url)) failedUrls.add(url); resolve(); };
     image.src = url;
   });
 };
@@ -130,13 +132,13 @@ function hasResult(index: number): boolean {
   return detectState().frames.some((frame) => indexOfRotation(frame.rotation_deg, stepDeg, count) === index);
 }
 
-/** 칸 k 의 탐지 영상 주소 — 뷰 노드가 그리는 것과 **같은 문자열**이다. 결과가 없으면 null. */
+/** 칸 k 의 탐지 영상 주소 — 뷰 노드가 그리는 것과 **같은 문자열**이다(`detect/frameImage.ts` 한 곳). 결과가 없으면 null. */
 function imageUrlOf(index: number): string | null {
   const state = detectState();
   const { stepDeg, count } = geometry();
   const frame = state.frames.find((item) => indexOfRotation(item.rotation_deg, stepDeg, count) === index);
   if (frame === undefined) return null;
-  return roundedImageUrl(frameImageUrl(viewSourceOf(state), frame.frame, frame.found ? 'target_overlay' : 'original', detectTargetOf(currentMission().missionId)), state.imageRound);
+  return frameImageSrc(viewSourceOf(state), frame, detectTargetOf(currentMission().missionId), state.imageRound);
 }
 
 /** 칸 k 의 그림이 떴다고 봐도 되나. 아니면 필요한 받기를 걸어 두고 false. */
@@ -298,6 +300,12 @@ export function noteScanImageShown(url: string): void {
 
 /** 뷰 노드의 img 가 그 주소를 못 그렸다 — 기다리지 않고 넘어간다. */
 export function noteScanImageFailed(url: string): void {
+  // **대신 그릴 주소가 있으면 실패가 아니다** (261102 박스 편). 뷰가 그 주소로 바꿔 그리고, 그것이 떠야 각도가 끝난다.
+  if (fallBackFrameImage(url)) {
+    if (pending.size > 0) pump();
+    notifyGate();
+    return;
+  }
   if (failedUrls.has(url)) return;
   failedUrls.add(url);
   appendDetectLog({
@@ -341,5 +349,6 @@ export function resetScanGate(): void {
   shownUrls.clear();
   failedUrls.clear();
   preloaded.clear();
+  resetFrameImages();
   if (stopTimer !== null) { stopTimer(); stopTimer = null; }
 }

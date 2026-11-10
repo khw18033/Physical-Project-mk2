@@ -9,3 +9,6 @@ fastapi>=0.111
 uvicorn[standard]>=0.30
 python-multipart>=0.0.9
 faster-whisper>=1.1.0
+# PyAV 19 에서 av.open(metadata_errors=...) 가 사라졌는데 faster-whisper 1.2.1 이 아직 그걸 넘긴다
+# (TypeError: open() got an unexpected keyword argument 'metadata_errors'). 고쳐지면 상한을 푼다.
+av<19

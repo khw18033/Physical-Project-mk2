@@ -34,9 +34,10 @@
  * 한 노드에 사건이 두 벌 쌓인다. 탐지의 자세 역산은 T-A2 액션 아이템에 덧붙는다.
  */
 
-import { receiveRobotProgress } from '../data/scenario.ts';
+import { currentMission, receiveRobotProgress } from '../data/scenario.ts';
 import type { ScenarioEvent } from '../model/types.ts';
-import { chosenFrame, indexOfRotation } from './parse.ts';
+import { detectTargetOf } from '../scenarios/library.ts';
+import { chosenFrame, indexOfRotation, judgeScore } from './parse.ts';
 import { detectState } from './store.ts';
 import type { DetectFrame } from './types.ts';
 
@@ -76,7 +77,7 @@ function emit(missionId: string, nodeId: string, status: 'running' | 'done' | 'f
   return true;
 }
 
-const scoreOf = (frame: DetectFrame) => detectState().evidence[frame.frame]?.final_score ?? 0;
+const scoreOf = (frame: DetectFrame) => judgeScore(frame, detectState().evidence[frame.frame], detectTargetOf(currentMission().missionId));
 
 /**
  * 지금까지 받은 것으로 태스크 노드를 민다. 낸 사건 수를 돌려준다.

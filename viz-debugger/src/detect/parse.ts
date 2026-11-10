@@ -60,8 +60,47 @@ export function boxOf(xyxy: readonly number[] | null | undefined): number[] | nu
  */
 export const SCORE_LABEL_KEY = 'dps.1';
 
+/** 무엇을 찾는 편인가 — `scenarios/library.ts` 의 `detectTargetOf` 가 준다. 안 주면 문이다. */
+export type DetectTarget = 'door' | 'box';
+
+/**
+ * **점수 이름은 대상마다 다르다** (261102). 박스 점수는 특징 최고값이 아니라 YOLO 검출 점수다 —
+ * 박스 편에서 「특징 최고값」으로 적으면 없는 특징 비교를 한 것처럼 읽힌다.
+ */
+export function scoreLabelKey(target: DetectTarget = 'door'): string {
+  return target === 'box' ? 'dps.yoloScore' : SCORE_LABEL_KEY;
+}
+
+/**
+ * **고를 때 쓰는 점수** (261102 — 박스 편). 화면이 고른 각도와 탐지가 경로를 낸 각도가 같아야 한다.
+ *
+ * 문 편은 지금 그대로 근거의 `final_score` 다(근거를 못 받은 각도는 0). 박스 편은 근거를 아직 못 받은 각도도
+ * 각도 결과의 `final_score` 로 센다 — 탐지의 경로는 수신기의 `best_overall`(각도 결과와 같은 YOLO 점수 최고)로
+ * 나오는데, 근거 하나를 놓친 각도를 0 으로 치면 근거 카드와 경로가 다른 각도를 가리킨다.
+ */
+export function judgeScore(frame: DetectFrame, evidence: DetectFrameEvidence | undefined, target: DetectTarget = 'door'): number {
+  if (target === 'box') return evidence?.final_score ?? frame.final_score ?? 0;
+  return evidence?.final_score ?? 0;
+}
+
+/**
+ * **판정 관문과 거리 조건을 가른다** (261102 박스 편). `required: true` 는 「박스라는 판정」, `false` 는
+ * 「거리를 쓸 수 있는가」다. `false` 가 ✕여도 박스는 찾은 것이다 — 한 목록에 섞으면 ✕ 하나가 판정 실패로 읽힌다.
+ */
+export function splitGates(gates: Readonly<Record<string, DetectGate>> | undefined): {
+  verdict: Array<[string, DetectGate]>; conditions: Array<[string, DetectGate]>;
+} {
+  const entries = Object.entries(gates ?? {});
+  return {
+    verdict: entries.filter(([, gate]) => gate.required !== false),
+    conditions: entries.filter(([, gate]) => gate.required === false),
+  };
+}
+
 /** 관문 하나를 사람이 읽는 한 조각으로. 통과 여부와 **왜**를 같이 적는다. */
 export function gateWords(name: string, gate: DetectGate): string {
+  // **탐지가 문장을 주면 그대로** (261102 박스 편). 수치가 들어 있어 지어낸 요약이 아니다. 문 관문에는 없다.
+  if (typeof gate.words === 'string' && gate.words.trim() !== '') return gate.words;
   if (gate.winning_color !== undefined) return t('dps.color', { value: strip(gate.winning_color) });
   if (gate.winning_shape !== undefined) return t('dps.shape', { value: strip(gate.winning_shape) });
   if (gate.similarity !== undefined) {
@@ -88,7 +127,9 @@ export function reasonOf(
   evidence: DetectFrameEvidence | null,
   found: boolean,
   chosen = true,
+  options: ReasonOptions = {},
 ): string {
+  if ((options.target ?? 'door') === 'box') return boxReasonOf(evidence, found, chosen, options);
   if (!found) return t('dps.2');
   const score = evidence === null ? null : `${t(SCORE_LABEL_KEY)} ${evidence.final_score.toFixed(2)}`;
 
@@ -106,6 +147,58 @@ export function reasonOf(
   const passed = gates.filter(([, gate]) => gate.passed).map(([name, gate]) => gateWords(name, gate));
   if (passed.length === 0) return t('dps.doorFound', { score: score ?? '' });
   return t('dps.gatesPassed', { gates: passed.join(' · '), score: score ?? '' });
+}
+
+export type ReasonOptions = {
+  /** 무엇을 찾는 편인가. 안 주면 문 — 문 편 문장은 그대로다. */
+  target?: DetectTarget;
+  /** 그 각도의 결과 — 박스 편 못 찾은 칸이 「최고 후보」를 읽는다. */
+  frame?: Pick<DetectFrame, 'best_rejected_score'>;
+  /** 박스라고 치는 점수 기준 — **받은 값이 있을 때만** 문장에 적는다(관문의 `threshold_min` · 검출기 `conf`). */
+  thresholdMin?: number | null;
+};
+
+/**
+ * **박스 편 한 문장** (261102). 문 편과 같은 뼈대에 낱말만 박스이고, 두 가지가 더 있다.
+ *
+ * - 못 찾은 칸은 **왜 못 찾았나**를 적는다 — 탐지가 준 `best_rejected_score` 가 있으면 최고 후보, null 이면 후보 없음.
+ *   필드가 없으면(지난 판) 「박스 없음」만 적는다.
+ * - 찾은 칸은 판정 관문을 「통과」로, **✕인 거리 조건은 그 문장을 그대로** 덧붙인다 — 「통과」만 말하면 거리를
+ *   못 쓰는 판정이 멀쩡해 보인다.
+ */
+function boxReasonOf(evidence: DetectFrameEvidence | null, found: boolean, chosen: boolean, options: ReasonOptions): string {
+  if (!found) {
+    const best = options.frame?.best_rejected_score;
+    if (best === null) return t('dps.box.noneNoCandidate');
+    if (typeof best === 'number') {
+      const min = options.thresholdMin;
+      return typeof min === 'number'
+        ? t('dps.box.noneBelow', { score: best.toFixed(2), min: String(min) })
+        : t('dps.box.noneBest', { score: best.toFixed(2) });
+    }
+    return t('dps.box.none');
+  }
+  const score = evidence === null ? null : `${t(scoreLabelKey('box'))} ${evidence.final_score.toFixed(2)}`;
+  if (!chosen) return t('dps.box.candidateNotChosen') + (score === null ? '' : ` · ${score}`);
+  if (evidence === null) return t('dps.box.noRationale');
+  const { verdict, conditions } = splitGates(evidence.mandatory_gates);
+  const passed = verdict.filter(([, gate]) => gate.passed).map(([name, gate]) => gateWords(name, gate));
+  const failed = [...verdict, ...conditions].filter(([, gate]) => !gate.passed).map(([name, gate]) => `✕ ${gateWords(name, gate)}`);
+  if (passed.length === 0) return [t('dps.box.found', { score: score ?? '' }), ...failed].join(' · ');
+  return t('dps.box.gatesPassed', { gates: passed.join(' · '), failed: failed.map((words) => ` · ${words}`).join(''), score: score ?? '' });
+}
+
+/**
+ * **박스라고 치는 점수 기준 — 받은 값에서만** (261102). 판정 관문의 `threshold_min`, 없으면 검출기 `conf`.
+ * 어느 근거에도 없으면 null 이고, 그때 문장은 기준을 안 적는다(우리가 0.25 를 박아 적지 않는다).
+ */
+export function boxThresholdOf(evidence: Readonly<Record<string, DetectFrameEvidence>>): number | null {
+  for (const item of Object.values(evidence)) {
+    const gate = item.mandatory_gates?.score_gate;
+    if (typeof gate?.threshold_min === 'number') return gate.threshold_min;
+    if (typeof item.detector?.conf === 'number') return item.detector.conf;
+  }
+  return null;
 }
 
 /**

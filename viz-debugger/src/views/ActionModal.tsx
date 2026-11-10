@@ -34,7 +34,8 @@ import {
   actionsOfTask, attachedToNode, neverAnswered, planAdjustments, stillWaiting,
   type ActionStatus, type FoldedAction,
 } from '../data/actionTrace.ts';
-import { localDriven, relayDriven } from '../scenarios/library.ts';
+import { doorScanFlow, localDriven, relayDriven } from '../scenarios/library.ts';
+import { ApproachApprovalToggle } from '../physical/ApproachApproval.tsx';
 import { isNavTask } from '../physical/navLink.ts';
 import { NavFacts } from '../physical/NavFacts.tsx';
 import { OBSTACLE_TASK } from '../autodrive/obstacle.ts';
@@ -295,6 +296,8 @@ export function ActionModal({ task, view, device, failure, rewind, second, onClo
           경로 A→B→C · 문 거리 근거 · 식), T-B2 는 그 경로가 로봇 명령으로 어떻게 바뀌었는지(방위 보정). */}
       {task.id === 'T-A3' && <SweepFacts />}
       {task.id === 'T-B1' && <PathFacts />}
+      {/* **이동 전 승인 여부** (261103). 기본은 승인 없이 자동 이동 — 켜면 머리줄 버튼을 눌러야 출발한다. */}
+      {task.id === 'T-B2' && doorScanFlow(view.missionId) && <ApproachApprovalToggle missionId={view.missionId} />}
       {task.id === 'T-B2' && <ApproachFacts />}
       {/* **중계 편은 화면이 명령을 안 낸다** (260915) — 로봇은 유니티가 몬다. 대신 pi1 이 전해 준 것을 붙인다. */}
       {relay

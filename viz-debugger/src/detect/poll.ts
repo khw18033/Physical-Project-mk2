@@ -28,7 +28,7 @@ import {
   receiveFeatures, receiveFrames, receiveLocalization, receivePath, receivePathFailure,
 } from './store.ts';
 import { angleTask, appendDetectLog, DETECT_TASKS, WHOLE_DETECT_PATH } from './detectLog.ts';
-import { chosenFrame, gateWords, indexOfRotation, SCORE_LABEL_KEY } from './parse.ts';
+import { chosenFrame, gateWords, indexOfRotation, judgeScore, scoreLabelKey, type DetectTarget } from './parse.ts';
 import type { DetectFrame, DetectFrameEvidence, DetectPath } from './types.ts';
 
 /** 스캔이 도는 동안. 한 각도가 4초쯤 걸리니 그보다 짧아야 칸이 제때 바뀐다. */
@@ -124,19 +124,21 @@ function admit(frames: readonly DetectFrame[]): boolean {
 }
 
 /** 새로 온 각도 결과를 한 줄씩. 이미 받은 각도는 다시 안 적는다. */
-function logNewFrames(previous: readonly DetectFrame[], next: readonly DetectFrame[], stepDeg: number, count: number): void {
+function logNewFrames(previous: readonly DetectFrame[], next: readonly DetectFrame[], stepDeg: number, count: number, target: DetectTarget): void {
+  // 박스 편은 낱말이 박스다 (261102) — 문 편 줄은 그대로다.
+  const [yes, no] = target === 'box' ? ['dpl.box.yes', 'dpl.box.no'] : ['dpl.doorYes', 'dpl.doorNo'];
   const seen = new Set(previous.map((frame) => frame.rotation_deg));
   for (const frame of next) {
     if (seen.has(frame.rotation_deg)) continue;
     const index = indexOfRotation(frame.rotation_deg, stepDeg, count);
     appendDetectLog({
       lane: 'detect', level: 'info',
-      say: { key: 'dpl.frameResult', vars: { deg: frame.rotation_deg, verdict: { key: frame.found ? 'dpl.doorYes' : 'dpl.doorNo' }, n: next.length, count } },
+      say: { key: 'dpl.frameResult', vars: { deg: frame.rotation_deg, verdict: { key: frame.found ? yes : no }, n: next.length, count } },
       // 조각마다 **그 자체로 완결된 말**이라 이을 수 있다 (프레임 id · 점수 · 한 문장).
       sayDetail: [
         frame.frame,
         ...(typeof frame.final_score === 'number'
-          ? [{ key: 'dpl.scoreValue', vars: { label: { key: SCORE_LABEL_KEY }, score: frame.final_score.toFixed(3) } }]
+          ? [{ key: 'dpl.scoreValue', vars: { label: { key: scoreLabelKey(target) }, score: frame.final_score.toFixed(3) } }]
           : []),
         { key: 'dpl.4' },
       ],
@@ -198,7 +200,7 @@ export async function pollOnce(expected = 8, stepDeg = 45): Promise<void> {
 
     const previous = detectState().frames;
     receiveFrames(summary.frames ?? []);
-    logNewFrames(previous, summary.frames ?? [], stepDeg, expected);
+    logNewFrames(previous, summary.frames ?? [], stepDeg, expected, target);
     const complete = (summary.frames ?? []).length >= expected;
 
     // 찾은 각도의 근거만 받아 온다 — 못 찾은 각도에는 근거 파일이 없는 것이 정상이다.
@@ -215,7 +217,7 @@ export async function pollOnce(expected = 8, stepDeg = 45): Promise<void> {
         sayDetail: {
           key: 'dpl.evidenceDetail',
           vars: {
-            label: { key: SCORE_LABEL_KEY },
+            label: { key: scoreLabelKey(target) },
             score: evidence.final_score.toFixed(3),
             box: evidence.box_xyxy.map((n) => n.toFixed(1)).join(', '),
           },
@@ -228,12 +230,12 @@ export async function pollOnce(expected = 8, stepDeg = 45): Promise<void> {
     // 여기서는 같은 규칙(`chosenFrame`)으로 무엇이 골라졌는지만 옮긴다.
     if (complete && !judgedLogged) {
       judgedLogged = true;
-      const chosen = chosenFrame(detectState().frames, (f) => detectState().evidence[f.frame]?.final_score ?? 0);
+      const chosen = chosenFrame(detectState().frames, (f) => judgeScore(f, detectState().evidence[f.frame], target));
       appendDetectLog({
         lane: 'screen', level: chosen === null ? 'warn' : 'info',
         say: chosen === null
-          ? { key: 'dpl.noneFound', vars: { expected } }
-          : { key: 'dpl.judged', vars: { deg: chosen.rotation_deg } },
+          ? { key: target === 'box' ? 'dpl.box.noneFound' : 'dpl.noneFound', vars: { expected } }
+          : { key: target === 'box' ? 'dpl.box.judged' : 'dpl.judged', vars: { deg: chosen.rotation_deg } },
         // 값만 있는 줄 — 각도와 점수다. 옮길 글자가 없다.
         detail: detectState().frames.filter((f) => f.found).map((f) => `${f.rotation_deg}° ${(detectState().evidence[f.frame]?.final_score ?? 0).toFixed(3)}`).join(' · '),
         tasks: [DETECT_TASKS.judge],

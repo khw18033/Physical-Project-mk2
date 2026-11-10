@@ -35,6 +35,14 @@ export type DetectFrame = {
    * **로그에만 쓴다.** 판정은 근거(`evidence.final_score`)로 한다. 없을 수 있다.
    */
   final_score?: number;
+  /**
+   * **박스 편 못 찾은 칸 — 버린 후보 중 최고 점수** (261102, 선택). `null` 이면 0.05 이상 후보조차 없었다는 뜻이고,
+   * 필드가 없으면(지난 판) 모른다. 셋을 가른다.
+   */
+  best_rejected_score?: number | null;
+  /** 박스 편 — 찾았는데 거리가 null 인 칸의 이유. 탐지가 쓴 문장 그대로. */
+  distance_reason?: string;
+  instance_count?: number;
 };
 
 /** 한 각도의 통과 관문. **찾았다는 판정은 점수가 아니라 이 넷이 정한다.** */
@@ -50,11 +58,34 @@ export type DetectGate = {
   /** 채도 관문. */
   median_saturation?: number;
   min_saturation?: number;
+  /**
+   * **화면에 그대로 찍을 문장** (261102 박스 편, 선택). 수치가 들어 있다 — 있으면 키 이름 대신 이것을 쓴다.
+   * 문 관문에는 없다.
+   */
+  words?: string;
+  /** 박스 관문의 값들 (261102, 선택) — 점수 · 높이 측정 · 실측 검증 범위. 화면은 `words` 를 읽고 이 값은 근거로 남긴다. */
+  score?: number;
+  y1?: number;
+  y2?: number;
+  crop_h?: number;
+  edge_px?: number;
+  distance_cm?: number;
+  validated_cm?: readonly number[];
+  source?: string;
+};
+
+/** 박스 편 — conf 아래라 버린 후보 (261102, 선택). */
+export type DetectRejectedCandidate = {
+  box_xyxy?: readonly number[];
+  score: number;
+  threshold_min?: number;
+  words?: string;
 };
 
 /** 한 각도의 근거. `frame_0000NN/evidence.json`. */
 export type DetectFrameEvidence = {
-  target_class: string;
+  /** **탐지 응답에는 없다**(문·박스 모두 · 261102 확인). 읽는 곳이 없어 선택으로 둔다. */
+  target_class?: string;
   frame: string;
   rotation_deg: number;
   /** **`[x1,y1,x2,y2]` 다.** 화면이 쓰는 `[x,y,w,h]` 로는 `parse.ts` 가 바꾼다. */
@@ -63,6 +94,10 @@ export type DetectFrameEvidence = {
   /** 특징 여덟 중 **최고값**이다. 확률이 아니다. */
   final_score: number;
   mandatory_gates: Readonly<Record<string, DetectGate>>;
+  /** 박스 편 — 버린 후보 (261102, 선택). */
+  rejected_candidates?: readonly DetectRejectedCandidate[];
+  /** 박스 편 — 검출기 설정. `conf` 가 박스라고 치는 점수 기준이다 (선택). */
+  detector?: { run?: string; conf?: number };
 };
 
 /** 한 클래스의 요약. `target_summary.json`. */

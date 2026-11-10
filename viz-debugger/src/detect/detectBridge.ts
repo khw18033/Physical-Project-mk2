@@ -16,13 +16,18 @@
 import { appendViewpoint } from '../viewpoint/store.ts';
 import { offerScanFrame } from '../physical/scanGate.ts';
 import { liveFrame } from '../viewpoint/source.ts';
-import { boxOf, chosenFrame, indexOfRotation, reasonOf } from './parse.ts';
+import { currentMission } from '../data/scenario.ts';
+import { detectTargetOf } from '../scenarios/library.ts';
+import { boxOf, boxThresholdOf, chosenFrame, indexOfRotation, judgeScore, reasonOf } from './parse.ts';
 import { detectState } from './store.ts';
 import type { DetectFrame } from './types.ts';
 
-/** 그 각도의 점수. 근거가 아직 안 왔으면 0 — 없는 점수를 지어내지 않는다. */
+/**
+ * 그 각도의 점수. 문 편은 근거가 아직 안 왔으면 0 — 없는 점수를 지어내지 않는다. 박스 편은 각도 결과의
+ * YOLO 점수로 센다 — 탐지가 경로를 낸 각도와 같아야 한다(`parse.ts` 의 `judgeScore`).
+ */
 function scoreOf(frame: DetectFrame): number {
-  return detectState().evidence[frame.frame]?.final_score ?? 0;
+  return judgeScore(frame, detectState().evidence[frame.frame], detectTargetOf(currentMission().missionId));
 }
 
 /**
@@ -117,7 +122,9 @@ export function applyDetection(missionId: string, atSec: number, stepDeg: number
         door: index === winner,
         bbox: boxOf(evidence?.box_xyxy),
         confidence: evidence?.final_score ?? 0,
-        reason: reasonOf(evidence, result.found, index === winner),
+        reason: reasonOf(evidence, result.found, index === winner, {
+          target: detectTargetOf(missionId), frame: result, thresholdMin: boxThresholdOf(detectState().evidence),
+        }),
       },
     });
     if (frame === null) continue;

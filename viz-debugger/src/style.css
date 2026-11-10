@@ -698,11 +698,31 @@ button.robot-stop:hover{background:#b8271f}
 .detect-gates li{padding:2px 7px;border-radius:var(--radius-md);font-size:12px}
 .detect-gates .is-pass{background:#e7f6ee;color:#125c33}
 .detect-gates .is-fail{background:#fdf3f2;color:#8f2b26}
+.detect-gates__head{display:block;margin:2px 0 -2px;font-size:11px;color:#657286}
 .detect-crop{width:100%;height:auto;display:block;border:1px solid #dde3ea;border-radius:var(--radius-xs);image-rendering:pixelated}
 .detect-features{width:100%;border-collapse:collapse;font-size:12px}
 .detect-features th{text-align:left;font-weight:400;color:#4a5666;padding:2px 0}
 .detect-features td{text-align:right;color:#26303c;font-variant-numeric:tabular-nums}
 .detect-note{margin:2px 0 0;color:#6b7888;font-size:12px}
+/* 확대 (261103) — 그림은 썸네일, 옆에 값 표. 관문은 칩 대신 한 줄씩 읽히게. */
+.detect-reason--zoom{gap:10px;font-size:14px;max-width:760px}
+.detect-reason--zoom .detect-reason__head b{font-size:16px}
+.detect-reason__summary{display:flex;align-items:flex-start;gap:14px}
+.detect-crop__link{flex:0 0 auto;display:block;cursor:zoom-in}
+.detect-reason--zoom .detect-crop{width:auto;max-width:180px;max-height:140px;object-fit:contain;image-rendering:auto;background:#f6f8fa}
+.detect-reason__facts{flex:1;display:grid;gap:3px;margin:0;min-width:0}
+.detect-reason__facts>div{display:grid;grid-template-columns:150px 1fr;gap:8px;padding:3px 0;border-bottom:1px solid #eef1f5}
+.detect-reason__facts dt{color:#6b7888;font-size:13px}
+.detect-reason__facts dd{margin:0;color:#26303c;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.detect-reason--zoom .detect-gates{flex-direction:column;gap:3px}
+.detect-reason--zoom .detect-gates li{padding:5px 9px;border-radius:var(--radius-sm);font-size:13px;line-height:1.45}
+.detect-reason--zoom .detect-gates__head{margin:4px 0 0;font-size:12px;font-weight:700}
+.detect-reason--zoom .detect-features{max-width:420px;font-size:13px}
+.detect-reason--zoom .detect-features th,.detect-reason--zoom .detect-features td{padding:3px 0;border-bottom:1px solid #f0f2f5}
+.detect-reason--zoom .detect-note{font-size:13px;line-height:1.5}
+.detect-raw{margin-top:4px}
+.detect-raw__toggle{padding:4px 10px;border:1px solid #c6ced8;border-radius:var(--radius-sm);background:#fff;color:#4a5666;font-size:12px;cursor:pointer}
+.detect-raw__json{margin:6px 0 0;max-height:320px;overflow:auto;padding:10px;border:1px solid #e1e5eb;border-radius:var(--radius-sm);background:#f7f9fb;font-size:12px;line-height:1.45;white-space:pre-wrap;overflow-wrap:anywhere}
 
 .detect-map{display:grid;gap:5px}
 /* 경로가 나오기 전의 도면. 같은 자리에 같은 크기로 선다 — 그림이 바뀔 때 칸이 안 흔들린다. */
@@ -1324,3 +1344,6 @@ button.flight-armed:not(:disabled){color:#fff!important;border-color:#8f1d22!imp
 /* 비행 제어 — 이번 실행 스크립트 한 줄 (261022) */
 .flight-script{margin:0 0 8px;font-size:13px;line-height:1.5}
 .flight-script--warn{color:#7a5c12}
+.approach-approval label{display:flex;align-items:center;gap:8px;cursor:pointer}
+.approach-approval label:has(input:disabled){cursor:not-allowed;opacity:.7}
+.approach-approval small{display:block;margin-top:4px;color:#6b7888}

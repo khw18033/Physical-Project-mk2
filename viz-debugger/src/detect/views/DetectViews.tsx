@@ -29,12 +29,13 @@ import { usePrepStage } from '../../physical/prepStage.ts';
 import { floorPlanUrls, frameImageUrl, pathImageUrl, roundedImageUrl, viewSourceOf } from '../DetectClient.ts';
 import { DETECT_TASKS } from '../detectLog.ts';
 import { DOOR_PX, FLOOR_PLAN_SIZE_PX } from '../floorPlan.ts';
-import { chosenFrame, gateWords, indexOfRotation, SCORE_LABEL_KEY, usableDistanceCm } from '../parse.ts';
+import { chosenFrame, gateWords, indexOfRotation, judgeScore, scoreLabelKey, splitGates, usableDistanceCm } from '../parse.ts';
+import { fallBackFrameImage, frameImageSrc, useFrameImageFallbacks } from '../frameImage.ts';
 import { sweepDone } from '../detectBridge.ts';
 import { useDetect } from '../store.ts';
 import { detectTargetOf } from '../../scenarios/library.ts';
 import { noteScanImageFailed, noteScanImageShown, registerScanImageView } from '../../physical/scanGate.ts';
-import type { DetectFrame } from '../types.ts';
+import type { DetectFrame, DetectGate } from '../types.ts';
 
 /**
  * 아직 아무것도 안 왔을 때. **감추지 않고 적는다.**
@@ -82,8 +83,10 @@ function viewpointCountOf(): number {
 export function DetectCam({ zoom = false }: { zoom?: boolean }) {
   useLang();
   const state = useDetect();
+  useFrameImageFallbacks();   // 앞 그림이 안 떠 다음 주소로 넘어가면 다시 그린다
   const source = viewSourceOf(state);
-  const score = (f: DetectFrame) => state.evidence[f.frame]?.final_score ?? 0;
+  const target = detectTargetOf(currentMission().missionId);
+  const score = (f: DetectFrame) => judgeScore(f, state.evidence[f.frame], target);
   const focus = focusFrame(state.frames, score, viewpointCountOf());
   /**
    * **아래 작은 각도를 누르면 그 각도를 크게** (260914 지시). 고른 것이 없거나 그 판에 더는 없는 각도면
@@ -96,8 +99,9 @@ export function DetectCam({ zoom = false }: { zoom?: boolean }) {
   useEffect(() => registerScanImageView(), []);
   if (frame === null) return <Waiting what={t('dv.noFrameYet')} />;
 
-  // 찾은 각도는 상자 입힌 것을, 못 찾은 각도는 원본을 — 없는 상자를 그린 척하지 않는다.
-  const urlOf = (item: DetectFrame) => roundedImageUrl(frameImageUrl(source, item.frame, item.found ? 'target_overlay' : 'original', detectTargetOf(currentMission().missionId)), state.imageRound);
+  // 찾은 각도는 상자 입힌 것을, 못 찾은 각도는 원본을 — 없는 상자를 그린 척하지 않는다. 박스 편은 못 찾은 각도도
+  // 버린 후보를 그린 그림을 먼저 묻는다. 규칙은 문지기와 같은 한 곳이다(`frameImage.ts`).
+  const urlOf = (item: DetectFrame) => frameImageSrc(source, item, target, state.imageRound);
   const url = urlOf(frame);
   const toggle = (item: DetectFrame) => setPickedFrame((current) => (current === item.frame ? null : item.frame));
   return <div className={`detect-cam${zoom ? ' detect-cam--zoom' : ''}`}>
@@ -118,7 +122,7 @@ export function DetectCam({ zoom = false }: { zoom?: boolean }) {
           onClick={() => toggle(item)}
           onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); toggle(item); } }}>
           {/* 작은 그림도 화면에 뜬 것이다 — 큰 자리를 다른 각도로 골라 둬도 문지기가 멈추지 않는다. */}
-          <img src={thumb} alt={t('dv.deg', { deg: item.rotation_deg })} onLoad={() => noteScanImageShown(thumb)} />
+          <img src={thumb} alt={t('dv.deg', { deg: item.rotation_deg })} onLoad={() => noteScanImageShown(thumb)} onError={() => fallBackFrameImage(thumb)} />
           <figcaption>{t('dv.deg', { deg: item.rotation_deg })}</figcaption>
         </figure>;
       })}
@@ -137,7 +141,13 @@ export function DetectReason({ zoom = false, count = 8 }: { zoom?: boolean; coun
   useLang();
   const state = useDetect();
   const source = viewSourceOf(state);
-  const score = (f: DetectFrame) => state.evidence[f.frame]?.final_score ?? 0;
+  const target = detectTargetOf(currentMission().missionId);
+  const box = target === 'box';
+  const score = (f: DetectFrame) => judgeScore(f, state.evidence[f.frame], target);
+  /** 잘라낸 그림이 안 뜬 주소 — 박스 편 지난 판은 크롭이 없다(404). 빈 그림 대신 칸을 숨긴다. */
+  const [cropFailed, setCropFailed] = useState<string | null>(null);
+  /** 확대에서 원본 데이터(받은 JSON 그대로)를 펼쳤나. 처음에는 접어 둔다 — 정제한 근거가 먼저 읽혀야 한다. */
+  const [rawOpen, setRawOpen] = useState(false);
   /**
    * **근거는 판정 뒤에 나온다** (260912 지시). 도는 동안에는 아직 고른 것이 없다 —
    * 세 각도만 보고 근거를 띄우면 다섯째에서 답이 바뀌었을 때 근거도 같이 바뀐다.
@@ -150,26 +160,56 @@ export function DetectReason({ zoom = false, count = 8 }: { zoom?: boolean; coun
   }
   const frame = chosenFrame(state.frames, score);
   if (frame === null) {
-    return <p className="detect-wait">{t('dv.noneFound')}<small>{t('dv.noArbitraryPick')}</small></p>;
+    return <p className="detect-wait">{t(box ? 'dv.box.noneFound' : 'dv.noneFound')}<small>{t('dv.noArbitraryPick')}</small></p>;
   }
   const evidence = state.evidence[frame.frame] ?? null;
   const gates = Object.entries(evidence?.mandatory_gates ?? {});
+  const cropUrl = roundedImageUrl(frameImageUrl(source, frame.frame, 'target_crop', target), state.imageRound);
+  const hasFeatures = evidence !== null && Object.keys(evidence.feature_similarities ?? {}).length > 0;
+  const gateItem = ([name, gate]: [string, DetectGate]) => <li key={name} className={gate.passed ? 'is-pass' : 'is-fail'}>
+    {gate.passed ? '✓' : '✕'} {gateWords(name, gate)}
+  </li>;
+  /**
+   * **박스 편은 관문을 두 묶음으로** (261102). 「판정」(required)과 「거리 조건」(참고) — `거리 조건` 이 ✕여도 박스는
+   * 찾은 것이다. 관문이 하나도 안 왔으면(지난 판) 문 편과 같이 「관문 근거 미수신」이다.
+   */
+  const { verdict, conditions } = splitGates(evidence?.mandatory_gates);
 
-  return <div className="detect-reason">
+  const showCrop = zoom && evidence !== null && !(box && cropFailed === cropUrl);
+  const distanceCm = usableDistanceCm(frame);
+  const boxXyxy = evidence?.box_xyxy ?? [];
+
+  return <div className={`detect-reason${zoom ? ' detect-reason--zoom' : ''}`}>
     <div className="detect-reason__head">
       <b>{t('dv.deg', { deg: frame.rotation_deg })}</b>
-      {evidence !== null && <span className="detect-score">{t(SCORE_LABEL_KEY)} {evidence.final_score.toFixed(3)}</span>}
+      {evidence !== null && <span className="detect-score">{t(scoreLabelKey(target))} {evidence.final_score.toFixed(3)}</span>}
     </div>
-    <ul className="detect-gates">
-      {gates.map(([name, gate]) => <li key={name} className={gate.passed ? 'is-pass' : 'is-fail'}>
-        {gate.passed ? '✓' : '✕'} {gateWords(name, gate)}
-      </li>)}
+    {box && gates.length > 0 ? <>
+      {verdict.length > 0 && <><small className="detect-gates__head">{t('dv.gatesVerdict')}</small>
+        <ul className="detect-gates">{verdict.map(gateItem)}</ul></>}
+      {conditions.length > 0 && <><small className="detect-gates__head">{t('dv.gatesConditions')}</small>
+        <ul className="detect-gates">{conditions.map(gateItem)}</ul></>}
+    </> : <ul className="detect-gates">
+      {gates.map(gateItem)}
       {gates.length === 0 && <li>{t('dv.4')}</li>}
-    </ul>
-    {zoom && evidence !== null && <img className="detect-crop"
-      src={roundedImageUrl(frameImageUrl(source, frame.frame, 'target_crop', detectTargetOf(currentMission().missionId)), state.imageRound)} alt={t('dv.cropAlt')} />}
-    {/* 특징 여덟 — 무엇을 문이라고 물었고 각각 얼마나 닮았나. **카드에도 둔다** (261001) — 수치는 확대 없이 보여야 한다. */}
-    {evidence !== null && <table className="detect-features">
+    </ul>}
+    {/* **확대는 작은 그림 + 정리한 값** (261103). 잘라낸 그림이 창 폭을 다 덮어 근거 글이 밀려났다 — 그림은 썸네일로
+        줄이고, 누르면 원래 크기로 새 탭에서 연다. 옆에 그 각도의 값을 표로 둔다. */}
+    {zoom && <div className="detect-reason__summary">
+      {showCrop && <a className="detect-crop__link" href={cropUrl} target="_blank" rel="noreferrer" title={t('dv.cropOpen')}>
+        <img className="detect-crop" src={cropUrl} alt={t('dv.cropAlt')} onError={() => { if (box) setCropFailed(cropUrl); }} />
+      </a>}
+      <dl className="detect-reason__facts">
+        <div><dt>{t('dv.factAngle')}</dt><dd>{t('dv.deg', { deg: frame.rotation_deg })}</dd></div>
+        {evidence !== null && <div><dt>{t(scoreLabelKey(target))}</dt><dd>{evidence.final_score.toFixed(3)}</dd></div>}
+        {distanceCm !== null && <div><dt>{t('dv.factDistance')}</dt><dd>{t('dv.factCm', { cm: Math.round(distanceCm) })}</dd></div>}
+        {boxXyxy.length === 4 && <div><dt>{t('dv.factRegion')}</dt><dd><code>{boxXyxy.map((n) => Math.round(n)).join(', ')}</code></dd></div>}
+        <div><dt>{t('dv.factFrame')}</dt><dd><code>{frame.frame}</code></dd></div>
+      </dl>
+    </div>}
+    {/* 특징 여덟 — 무엇을 문이라고 물었고 각각 얼마나 닮았나. **카드에도 둔다** (261001) — 수치는 확대 없이 보여야 한다.
+        박스는 특징을 비교하지 않는다 — 빈 표를 그리지 않는다. */}
+    {evidence !== null && !(box && !hasFeatures) && <table className="detect-features">
         <tbody>
           {Object.entries(evidence.feature_similarities)
             .sort((a, b) => b[1] - a[1])
@@ -180,16 +220,31 @@ export function DetectReason({ zoom = false, count = 8 }: { zoom?: boolean; coun
       </table>}
     {zoom && <>
       {/* 도면 기준 **실제 방위**는 여기에만 적는다 — 화면이 가리키는 각도는 스캔 시작 기준이다. */}
-      {frame.absolute_bearing_deg !== undefined && <p className="detect-note">
-        {t('dv.bearingNote', { abs: frame.absolute_bearing_deg, shown: frame.rotation_deg })}
+      {/* 박스 편 방위는 도면 기준이 아니다 — 스캔 시작 기준에 박스 중심을 보정한 참고값이다. */}
+      {(box ? frame.absolute_bearing_deg != null : frame.absolute_bearing_deg !== undefined) && <p className="detect-note">
+        {box
+          ? t('dv.box.bearingNote', { abs: frame.absolute_bearing_deg as number })
+          : t('dv.bearingNote', { abs: frame.absolute_bearing_deg as number, shown: frame.rotation_deg })}
       </p>}
-      {usableDistanceCm(frame) === null && frame.distance_cm !== undefined && <p className="detect-note">
-        {t('dv.depthNote')}
-      </p>}
-      {state.features !== null && <p className="detect-note">
+      {/* 박스 편은 도면을 안 쓴다 — 거리를 못 쓴 이유는 탐지가 준 문장 그대로, 없으면 적지 않는다. */}
+      {box
+        ? usableDistanceCm(frame) === null && frame.distance_reason && <p className="detect-note">{frame.distance_reason}</p>
+        : usableDistanceCm(frame) === null && frame.distance_cm !== undefined && <p className="detect-note">
+          {t('dv.depthNote')}
+        </p>}
+      {/* 박스 편은 특징을 묻지 않는다 — 「물어본 특징 0개」를 적지 않는다. */}
+      {state.features !== null && !(box && state.features.features_compared.length === 0) && <p className="detect-note">
         {t('dv.featuresAsked', { n: state.features.features_compared.length })}
         {state.features.is_localization_landmark && t('dv.5')}
       </p>}
+      {/* **원본 데이터** (261103) — 위의 정리는 이것을 옮긴 것이다. 탐지가 보낸 그대로를 펼쳐 대조할 수 있게 둔다.
+          누를 때만 그린다 — 접힌 동안 원문 키 이름이 화면 글자에 섞이지 않는다. */}
+      <div className="detect-raw">
+        <button type="button" className="detect-raw__toggle" aria-expanded={rawOpen} onClick={() => setRawOpen(!rawOpen)}>
+          {rawOpen ? t('dv.rawHide') : t('dv.rawShow')}
+        </button>
+        {rawOpen && <pre className="detect-raw__json">{JSON.stringify({ frame, evidence, features: state.features }, null, 2)}</pre>}
+      </div>
     </>}
   </div>;
 }
@@ -321,6 +376,7 @@ function FloorPlan({ urls }: { urls: readonly string[] }) {
 /** 지금 탐지가 고른 칸 번호. 태스크 노드가 「몇 번째 방향」을 적을 때 쓴다. */
 export function useChosenIndex(stepDeg: number, count: number): number | null {
   const state = useDetect();
-  const best = chosenFrame(state.frames, (f) => state.evidence[f.frame]?.final_score ?? 0);
+  const target = detectTargetOf(currentMission().missionId);
+  const best = chosenFrame(state.frames, (f) => judgeScore(f, state.evidence[f.frame], target));
   return best === null ? null : indexOfRotation(best.rotation_deg, stepDeg, count);
 }

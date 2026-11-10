@@ -42,6 +42,7 @@ import {
 import { currentMission, getMissionState, NO_MISSION, traceEvents } from '../data/scenario.ts';
 import { frameImageUrl, mapImageUrl, pathImageUrl, roundedImageUrl, sourceOf } from '../detect/DetectClient.ts';
 import { detectLog } from '../detect/detectLog.ts';
+import { frameImageKinds } from '../detect/frameImage.ts';
 import { detectState, recordableDetect } from '../detect/store.ts';
 import { prepState } from '../physical/prepStage.ts';
 import { recordableRobotSession, robotDrives, robotSession } from '../physical/robotSession.ts';
@@ -300,7 +301,11 @@ function wantDetectImages(target: Run): void {
   // 뷰 노드가 그린 것과 같은 주소여야 같은 그림이 떠진다 — 대상(문 · 박스)도 같은 원천에서 읽는다.
   const detectTarget = detectTargetOf(currentMission().missionId);
   for (const frame of detect.frames) {
-    const kinds = frame.found ? ['original', 'target_overlay', 'target_crop'] as const : ['original'] as const;
+    // 박스 편은 못 찾은 각도도 버린 후보를 그린 그림이 화면에 뜬다(`detect/frameImage.ts`) — 그것도 떠 둔다.
+    // 지난 판이라 없으면(404) 그 한 장만 실패로 적히고, 다시보기는 원본으로 넘어간다.
+    const kinds = frame.found
+      ? ['original', 'target_overlay', 'target_crop'] as const
+      : frameImageKinds(frame, detectTarget).includes('target_overlay') ? ['original', 'target_overlay'] as const : ['original'] as const;
     for (const kind of kinds) {
       want(target, detectImagePath({ frame: frame.frame, kind }), round,
         roundedImageUrl(frameImageUrl(source, frame.frame, kind, detectTarget), detect.imageRound));

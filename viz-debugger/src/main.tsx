@@ -54,6 +54,7 @@ import { startManualDispatch } from './physical/manualDispatch.ts';
 import { ManualControlBadge } from './views/ManualControlBadge.tsx';
 import { FlightRunBadge } from './views/FlightRunBadge.tsx';
 import { RecordingBadge } from './views/RecordingBadge.tsx';
+import { startApproachAuto } from './physical/approachAuto.ts';
 import { ServerCard } from './shell/ServerCard.tsx';
 import { connectedDevice } from './shared/connectedDevices.ts';
 import { connectionAddress, useConnections } from './shared/connections.ts';
@@ -583,6 +584,11 @@ export function MissionDebugger({ navigation, planApproval }: { navigation?: Deb
   useEffect(() => startFixedCameraWatch(), []);
   // 261007 — 3D 가상환경 PC 를 하드웨어 카드로. 주소가 답하면 카드가 선다(`twinDevice.ts`).
   useEffect(() => startTwinWatch(), []);
+  /**
+   * **문 찾기 · 박스 탐지 편의 자동 이동** (261103). 경로가 나오면 승인 없이 곧바로 낸다(`T-B2` 상세에서 승인을
+   * 켜 둔 편은 제외). 같은 이유로 여기 둔다 — 화면을 옮겨도 경로가 나오는 순간을 놓치면 안 된다.
+   */
+  useEffect(() => startApproachAuto(), []);
 
   /**
    * **로봇 응답 수신** (260910). 여기 두는 이유는 위 관측과 같다 — 이 화면은 두 빌드가

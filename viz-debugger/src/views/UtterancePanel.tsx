@@ -128,6 +128,12 @@ const GENERATE_MAX_SEC_TASKS = 31.4;
 /** 경과 표시 간격. 초 단위 숫자 하나를 갱신하는 데 60fps 를 쓸 이유가 없다. */
 const GENERATE_TICK_MS = 200;
 /**
+ * 닿지 않은 서비스를 다시 확인하는 간격 (261102). 전에는 처음 그려질 때 **한 번만** 봤다 —
+ * viz-dev.exe 는 화면이 뜨자마자 브라우저를 여는데 STT·생성은 파이썬이라 몇 초 늦게 떠서,
+ * 서비스가 살아난 뒤에도 「닿지 않습니다」가 F5 전까지 남았다. 붙으면 더 묻지 않는다.
+ */
+const SERVICE_RETRY_MS = 3000;
+/**
  * 대본이 맞았을 때의 뒤 세 칸 (260831). **이것은 LLM이 아니다** — 키워드 대조로 미리 써 둔
  * 대본을 꺼낸 것이고, 배지 이름을 `목`과 갈라 두는 이유는 나중에 LLM(VZ-G-01)이 들어오면
  * 대본 조회가 그 뒤의 대조군·시연 안전망으로 남아 둘이 화면에서 구별되어야 하기 때문이다.
@@ -380,20 +386,27 @@ export function UtterancePanel({ fallbackText }: { fallbackText: string }) {
 
   useEffect(() => {
     const controller = new AbortController();
+    let retry: ReturnType<typeof setTimeout> | undefined;
     // 사유를 함께 받는다 (260901 요구 3) — 「서비스가 없다」와 「떠 있는데 브라우저가
     // 막았다」가 같은 문장으로 보이면 다음에 또 막혔을 때 진단이 처음부터 시작된다.
-    void probe(controller.signal).then((result) => {
+    const check = () => void probe(controller.signal).then((result) => {
+      if (controller.signal.aborted) return;
       setStatus(result.alive ? 'ready' : 'unavailable');
       setSttReason(result.reason);
+      if (!result.alive) retry = setTimeout(check, SERVICE_RETRY_MS);
     });
-    return () => controller.abort();
+    check();
+    return () => { controller.abort(); clearTimeout(retry); };
   }, []);
 
   useEffect(() => {
     const controller = new AbortController();
+    let retry: ReturnType<typeof setTimeout> | undefined;
     // **던지지 않는 probe 다** (`verify:no-llm` 1번). 여기서 예외가 새면 첫 렌더가
     // 통째로 날아가고, 그러면 「생성만 꺼진다」가 아니라 「생성 때문에 다 꺼진다」가 된다.
-    void generateProbe(controller.signal).then((result) => {
+    const check = () => void generateProbe(controller.signal).then((result) => {
+      if (controller.signal.aborted) return;
+      if (!result.alive) retry = setTimeout(check, SERVICE_RETRY_MS);
       setGenStatus(result.alive ? 'ready' : 'unavailable');
       setGenReason(result.reason);
       setGenEngine(result.engine);
@@ -412,7 +425,8 @@ export function UtterancePanel({ fallbackText }: { fallbackText: string }) {
       const free = byCapacity.filter((entry) => entry.licenseFile === null);
       setGenModel(result.loaded ?? free[0]?.id ?? byCapacity[0]?.id ?? null);
     });
-    return () => controller.abort();
+    check();
+    return () => { controller.abort(); clearTimeout(retry); };
   }, []);
 
   /** 도는 동안 경과를 민다. 멈춰 있는 화면과 죽은 화면은 사용자에게 같아 보인다. */

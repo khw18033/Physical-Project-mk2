@@ -33,6 +33,7 @@ import {
   approachWords, canApproach, emergencyStop, issueApproach, pauseMission, resumeMission,
 } from './robotCommands.ts';
 import { robotClient } from './robotClient.ts';
+import { approachIsAuto, useApproachNeedsApproval, useAutoApproach } from './approachAuto.ts';
 import { markStarted, robotSession, useRobotSession } from './robotSession.ts';
 import { useDetect } from '../detect/store.ts';
 import { currentMission, recordHuman } from '../data/scenario.ts';
@@ -188,21 +189,37 @@ export function ResumeButton() {
  * 정지 버튼과 같은 규칙이다. 누르게 하고, 못 보냈으면 **버튼 자리에 그대로 적는다** —
  * 눌렀는데 아무 변화가 없으면 발표자는 버튼이 죽은 줄 안다.
  *
- * **자동으로 넘어가지 않는다**(§1). 스캔이 끝나면 화면이 초록 노드를 보여 주고 거기서 한
- * 박자 쉰다. 사람이 이 버튼을 누른다.
+ * ## 261103 — 기본은 승인 없이 자동 이동
+ *
+ * 문 찾기 · 박스 탐지 편은 경로가 나오면 `approachAuto.ts` 가 같은 `issueApproach` 를 곧바로 낸다. 그 편에서는
+ * 이 버튼이 **안 뜬다** — 보내는 동안은 「자동 이동 중」으로, 자동 발행이 실패했으면 사유를 적고 다시 누를 수
+ * 있게 뜬다. `T-B2` 상세에서 「이동 전 승인 필요」를 켜 둔 편만 예전처럼(§1) 사람이 이 버튼을 누른다.
  */
 export function ApproachButton() {
   useLang();
   // 관문이 로봇 세션과 탐지 경로 둘 다를 본다 — 둘 다 구독해야 열리는 순간 다시 그린다.
   useRobotSession();
   useDetect();
-  const [failure, setFailure] = useState<string | null>(null);
+  const [ownFailure, setFailure] = useState<string | null>(null);
   /**
    * **기다리는 중이라고 말한다** (260912). 회전이 끝나야 직진을 내므로 누른 뒤 십수 초
    * 동안 아무 일도 안 일어나는 것처럼 보인다. 그때 화면이 조용하면 발표자가 한 번 더 누른다.
    */
   const [busy, setBusy] = useState(false);
+  const missionId = currentMission().missionId;
+  useApproachNeedsApproval(missionId);
+  const autoState = useAutoApproach();
+  const auto = approachIsAuto(missionId);
+  if (auto && autoState.phase === 'sending') {
+    return <button type="button" className="robot-approach" disabled title={t('stop.autoTitle')}>{t('stop.autoBusy')}</button>;
+  }
+  if (auto && autoState.phase === 'waiting') {
+    return <button type="button" className="robot-approach" disabled title={t('stop.autoTitle')}>{t('stop.autoWaiting')}</button>;
+  }
   if (!canApproach()) return null;
+  // 자동 편은 곧 저절로 나간다 — 사람이 누를 자리가 아니다. 자동 발행이 실패했을 때만 뜬다.
+  if (auto && autoState.phase !== 'failed') return null;
+  const failure = ownFailure ?? (auto && autoState.phase === 'failed' ? autoState.reason || t('stop.nothingToSend') : null);
   const words = approachWords();
   return <button
     type="button"

@@ -59,6 +59,9 @@ const RULES: readonly Rule[] = [
     () => 'Computed on the plan from the robot to the target (B: position estimated from the door alone)'],
   [/^C -- 로봇 위치를 못 잡아 문 관측\(방위·겉보기 크기\)만으로 산출\. 도면 위 경로 그림 없음$/,
     () => 'C: the robot position could not be fixed, so this comes from door observations alone (bearing · apparent size). No path drawing on the plan'],
+  // 박스 편 (261102) — 도면을 안 쓴다.
+  [/^도면 없이 박스 관측\(방위·겉보기 높이\)만으로 산출$/,
+    () => 'Computed from box observations alone (bearing · apparent height), without the plan'],
 
   // 실패·대체 경로의 각 걸음.
   [/^경로 산출 실패$/, () => 'Path computation failed'],
