@@ -49,6 +49,7 @@ import { useSyncExternalStore } from 'react';
 import { t } from '../i18n/dict.ts';
 import { commandTracker } from '../shared/commandCenter.ts';
 import { recordHumanAnswer, recordHumanCommand } from './humanCommands.ts';
+import { controlKeepalive, controlManualEvent } from '../record/controlRecorder.ts';
 import type { CommandAck, CommandRequest } from '../transport/index.ts';
 import { deviceCandidates } from './deviceIdentity.ts';
 import { declaredAction, type DeclaredAction, type PhysicalAction } from './encode.ts';
@@ -125,6 +126,8 @@ let events: Readonly<Record<string, ManualEvent>> = {};
 const eventListeners = new Set<() => void>();
 
 function note(deviceId: string, event: ManualEvent): void {
+  // **조작 판에** (261110) — 키가 명령이 안 된 까닭과 못 보낸 명령. 보낸 것 · 거절은 명령과 답의 길(`humanCommands`)로 이미 간다.
+  if (event.kind === 'blocked' || event.kind === 'failed') controlManualEvent(deviceId, event);
   events = { ...events, [deviceId]: event };
   for (const listener of eventListeners) listener();
 }
@@ -265,7 +268,11 @@ export function keepaliveTick(): void {
       continue;
     }
     const outcome = client?.send(TELEOP_ACTION, teleopParams(velocity));
-    if (client !== null && client !== undefined && outcome?.sent === true) watch(client, deviceId, TELEOP_ACTION, outcome.commandId);
+    if (client !== null && client !== undefined && outcome?.sent === true) {
+      watch(client, deviceId, TELEOP_ACTION, outcome.commandId);
+      // 조작 판에는 건별이 아니라 **구간**으로 묶인다(`controlKeepalive`).
+      controlKeepalive(deviceId, teleopParams(velocity), outcome.commandId);
+    }
   }
 }
 

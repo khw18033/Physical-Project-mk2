@@ -33,6 +33,7 @@
 
 import { NO_NODE } from '../data/actionTrace.ts';
 import { recordAnswered, recordCommanded } from '../data/scenario.ts';
+import { controlAnswered, controlCommanded } from '../record/controlRecorder.ts';
 import { uplinkWords, type UplinkMessage } from './uplink.ts';
 
 /** 답을 기다리는 시간(건별로 들을 때). 넉넉히 두되 무한정은 아니다. */
@@ -55,6 +56,8 @@ export function recordHumanCommand(client: Listening | null, input: {
     // **사람이 낸 것이다.** 층은 명령이라 액션 층이고, 주체는 사람이다.
     issuedBy: 'human', device: input.deviceId,
   });
+  // **조작 판에도** (261110) — 임무 기록 열은 임무가 없으면 저장되지 않는다. 조작 판은 임무와 상관없이 남는다.
+  controlCommanded(input);
   if (client === null || typeof client.onMessage !== 'function') return;
   let timer: ReturnType<typeof setTimeout> | null = null;
   const off = client.onMessage((message) => {
@@ -75,6 +78,7 @@ export function recordHumanCommand(client: Listening | null, input: {
  */
 export function recordHumanAnswer(message: UplinkMessage): boolean {
   const refused = message.kind === 'acceptance' && !message.accepted;
+  controlAnswered(message);
   recordAnswered({
     commandId: message.commandId, taskId: NO_NODE, line: uplinkWords(message), answerKind: message.kind,
     outcome: refused || (message.kind === 'result' && message.status !== 'SUCCEEDED') ? 'failed' : 'done',

@@ -34,7 +34,9 @@ import { failureOfTask } from '../physical/robotCommands.ts';
 import { useRobotSession } from '../physical/robotSession.ts';
 import type { FoldedStatuses } from '../data/fold.ts';
 import { openRecordedRun } from '../record/loadRecord.ts';
-import { listRecordedRuns, type RecordedRun } from '../record/recordClient.ts';
+import { isControlSummary, listRecordedRuns, type RecordedRun, type RecordMissionSummary } from '../record/recordClient.ts';
+import { useControlRecorderStatus, type ControlRecordSummary } from '../record/controlRecorder.ts';
+import { ControlRecordView } from './ControlRecordView.tsx';
 import { useRecorderStatus } from '../record/recorder.ts';
 import { isReplayingRecord, useReplayTarget } from '../record/replayMode.ts';
 import { t } from '../i18n/dict.ts';
@@ -87,6 +89,8 @@ const timeWords = (run: string) => `${run.slice(0, 2)}:${run.slice(2, 4)}:${run.
 function useRecordedRuns(): { runs: RecordedRun[] | null; dir: string; refresh(): void } {
   const [answer, setAnswer] = useState<{ runs: RecordedRun[] | null; dir: string }>({ runs: null, dir: '' });
   const recorder = useRecorderStatus();
+  // 조작 판이 새로 서도 목록을 다시 읽는다 (261110).
+  const control = useControlRecorderStatus();
   const lastRead = useRef(0);
   const refresh = () => {
     lastRead.current = Date.now();
@@ -94,11 +98,11 @@ function useRecordedRuns(): { runs: RecordedRun[] | null; dir: string; refresh()
   };
   useEffect(refresh, []);
   useEffect(() => {
-    if (recorder.lastSavedAtIso === null) return;
+    if (recorder.lastSavedAtIso === null && control.lastSavedAtIso === null) return;
     const wait = Math.max(0, 5000 - (Date.now() - lastRead.current));
     const timer = setTimeout(refresh, wait);
     return () => clearTimeout(timer);
-  }, [recorder.lastSavedAtIso, recorder.folder]);
+  }, [recorder.lastSavedAtIso, recorder.folder, control.lastSavedAtIso, control.folders.join('|')]);
   return { ...answer, refresh };
 }
 
@@ -115,8 +119,12 @@ export function MissionHistoryList({ compact = false, onReplay }: { compact?: bo
   const replaying = useReplayTarget();
   const [opening, setOpening] = useState<string | null>(null);
   const [openError, setOpenError] = useState<string | null>(null);
+  /** 열어 본 조작 판 (261110). 임무 판과 달리 저장소를 안 채우고 창 하나에 그린다. */
+  const [control, setControl] = useState<RecordedRun | null>(null);
+  const controlRecorder = useControlRecorderStatus();
 
   const open = (run: RecordedRun) => {
+    if (isControlSummary(run.mission)) { setControl(run); return; }
     const key = `${run.date}/${run.run}`;
     setOpening(key);
     setOpenError(null);
@@ -155,7 +163,10 @@ export function MissionHistoryList({ compact = false, onReplay }: { compact?: bo
         : groupByDate(runs).map(([date, items]) => <section key={date} className="history-day">
           <h3>{dateWords(date)} <small>{t('hist.runCount', { n: items.length })}</small></h3>
           <ul>
-            {items.map((item) => <RunLine key={`${item.date}/${item.run}`} item={item} compact={compact}
+            {items.map((item) => isControlSummary(item.mission)
+              ? <ControlRunLine key={`${item.date}/${item.run}`} item={item} summary={item.mission} compact={compact}
+                recording={controlRecorder.folders.includes(`${item.date}/${item.run}`)} onOpen={open} />
+              : <RunLine key={`${item.date}/${item.run}`} item={item} compact={compact}
               recordingFolder={recorder.folder}
               replayingKey={replaying === null ? null : `${replaying.date}/${replaying.run}`}
               opening={opening} onOpen={open} />)}
@@ -171,7 +182,44 @@ export function MissionHistoryList({ compact = false, onReplay }: { compact?: bo
           : t('hist.fileFallback')}
       </PendingSource>
     </p>
+    {control !== null && <ControlRecordView date={control.date} run={control.run} onClose={() => setControl(null)} />}
   </div>;
+}
+
+/**
+ * **조작 판 한 줄** (261110). 임무 판의 「노드 셈」 자리에 명령 · 거절 · 막힘 셈을, 결과 자리에 판이 닫힌 사유를 적는다.
+ * 비행 판이면 실행기 결론(종료 코드 · 도달 단계)을 같이 적는다.
+ */
+function ControlRunLine({ item, summary, compact, recording, onOpen }: {
+  item: RecordedRun;
+  summary: ControlRecordSummary;
+  compact: boolean;
+  recording: boolean;
+  onOpen(run: RecordedRun): void;
+}) {
+  useLang();
+  const flight = summary.flight;
+  const bad = summary.counts.rejected > 0 || (flight?.outcome != null && flight.outcome !== 'ok' && flight.outcome !== 'running');
+  const closed = summary.closeReason === null
+    ? recording ? t('hist.recording') : t('hist.noEndMark')
+    : t(`ctl.close.${summary.closeReason}`);
+  return <li className={`is-control${bad ? ' is-failed' : ''}`}>
+    <time>{timeWords(item.run)}</time>
+    <span className="history-kind">{t(`ctl.kind.${summary.sessionKind}`)}</span>
+    <b>{summary.deviceId}</b>
+    <span className="history-outcome">{closed}</span>
+    <span className="history-count">{t('ctl.counts', summary.counts)}</span>
+    <button type="button" className="history-action" onClick={() => onOpen(item)}>{t('ctl.view')}</button>
+    {!compact && flight !== null && <small className="history-label">
+      {flight.dryRun === true ? 'dry-run · ' : ''}{flight.script ?? '—'}
+      {flight.phase !== null && ` · ${t(`flight.phase.${flight.phase}`)}`}
+      {flight.outcome !== null && ` · ${t(`flight.outcome.${flight.outcome}`, { code: flight.exitCode ?? '' })}`}
+      {flight.emergencies > 0 && ` · ${t('ctl.emergencies', { n: flight.emergencies })}`}
+    </small>}
+    {!compact && summary.missions.length > 0 && <small className="history-label">
+      {t('ctl.duringMission', { ids: summary.missions.map((m) => m.missionId).join(', ') })}
+    </small>}
+  </li>;
 }
 
 function RunLine({ item, compact, recordingFolder, replayingKey, opening, onOpen }: {
@@ -185,7 +233,8 @@ function RunLine({ item, compact, recordingFolder, replayingKey, opening, onOpen
   // `t()` 는 값을 줄 뿐 리렌더를 안 일으킨다 — 컴포넌트마다 건다 (지시서 §2 ①).
   useLang();
   const key = `${item.date}/${item.run}`;
-  const mission = item.mission;
+  // 조작 판은 `ControlRunLine` 이 그린다 — 여기 오는 것은 임무 판이다.
+  const mission = item.mission as RecordMissionSummary | null;
   const outcome = mission?.outcome ?? null;
   const current = replayingKey === key;
   // 끝 표시가 없는 판 — 지금 쓰는 중이거나, 끝나기 전에 새로고침·충돌로 끊긴 판이다.

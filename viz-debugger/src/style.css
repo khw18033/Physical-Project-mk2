@@ -1363,3 +1363,32 @@ button.flight-armed:not(:disabled){color:#fff!important;border-color:#8f1d22!imp
 .approach-approval label{display:flex;align-items:center;gap:8px;cursor:pointer}
 .approach-approval label:has(input:disabled){cursor:not-allowed;opacity:.7}
 .approach-approval small{display:block;margin-top:4px;color:#6b7888}
+
+/* 261110 — 조작 기록: 이력 목록의 조작 판 줄 · 조작 판 창 (views/ControlRecordView.tsx) */
+.history-list li.is-control{border-style:dashed}
+.history-kind{padding:1px 7px;border-radius:var(--radius-sm);background:#e6eef8;color:#1d4f8f;font-size:12px;font-weight:700}
+.modal.ctl-record{width:min(1100px,94vw)}
+.ctl-pad{margin:16px 22px}
+.ctl-summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px 18px;margin:0;padding:15px 22px;background:#eef5fb}
+.ctl-summary div{display:grid;gap:3px;min-width:0}
+.ctl-summary dt{color:#6a7686;font-size:12px}
+.ctl-summary dd{margin:0;overflow-wrap:anywhere}
+.ctl-flight{margin:14px 22px;padding:12px 14px;border:1px solid #dce1e8;border-radius:var(--radius-sm)}
+.ctl-flight h3{margin:0 0 6px;font-size:14px}
+.ctl-flight__meta,.ctl-flight__argv{margin:4px 0;font-size:13px;overflow-wrap:anywhere}
+.ctl-phases{display:flex;flex-wrap:wrap;gap:4px;margin:8px 0;padding:0;list-style:none;font-size:12px}
+.ctl-phases li{padding:2px 8px;border-radius:var(--radius-sm);background:#eef1f5;color:#6a7686}
+.ctl-phases li.is-done{background:#d8efe2;color:#125c33}
+.ctl-flight__problems{margin:6px 0;padding-left:18px;color:#8f2b26;font-size:13px}
+.ctl-flight__log{max-height:320px;overflow:auto;margin:6px 0 0;padding:10px;background:#111820;color:#d7dee7;border-radius:var(--radius-sm);font-size:12px;line-height:1.45;white-space:pre-wrap;overflow-wrap:anywhere}
+.ctl-flight__log .tone-bad{color:#ff9b94}
+.ctl-flight__log .tone-warn{color:#f3cf72}
+.ctl-flight__log .tone-ok{color:#8fe0ae}
+.ctl-flight__log .tone-pass{color:#9cc8ff}
+.modal table.ctl-events{font-size:13px}
+.modal .ctl-events td{padding:7px 10px;vertical-align:top}
+.ctl-events td small{color:#6a7686}
+.ctl-row.is-mark td{color:#4a5666;background:#f6f8fa}
+.ctl-row.is-keepalive td{color:#4a5666}
+.ctl-row.is-warn td{background:#fdfaf3}
+.ctl-row.is-bad td{background:#fff3f2;color:#8f2b26}

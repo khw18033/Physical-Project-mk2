@@ -9,6 +9,7 @@
  */
 
 import { t } from '../i18n/dict.ts';
+import type { ControlRecordSummary } from './controlRecorder.ts';
 
 const BASE = '/mission-records';
 
@@ -16,8 +17,14 @@ const BASE = '/mission-records';
 export type RecordedRun = {
   date: string;
   run: string;
-  mission: RecordMissionSummary | null;
+  /** 임무 판이거나 조작 판(`recordKind: 'control'`, 261110)이다. 갈라 읽는 것은 `isControlSummary`. */
+  mission: RecordMissionSummary | ControlRecordSummary | null;
 };
+
+/** 조작 판인가 (261110 — `controlRecorder.ts`). 임무 판에는 `recordKind` 칸이 없다. */
+export function isControlSummary(mission: RecordedRun['mission']): mission is ControlRecordSummary {
+  return mission !== null && (mission as { recordKind?: unknown }).recordKind === 'control';
+}
 
 export type RecordMissionSummary = {
   schema: string;

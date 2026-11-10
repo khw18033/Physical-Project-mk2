@@ -50,6 +50,7 @@ import { CapabilityPanel } from './capability/views/CapabilityPanel.tsx';
 import { robotClient } from './physical/robotClient.ts';
 import { framesUpTo } from './viewpoint/store.ts';
 import { startMissionRecorder } from './record/recorder.ts';
+import { startControlRecorder } from './record/controlRecorder.ts';
 import { startNavLink } from './physical/navLink.ts';
 import { startObstacleWatch } from './autodrive/watch.ts';
 import { startTaskRunner } from './physical/taskRunner.ts';
@@ -569,6 +570,11 @@ export function MissionDebugger({ navigation, planApproval }: { navigation?: Deb
    * 쓴다. 여기 두는 이유는 위 관측과 같다 — 이 화면은 앱이 살아 있는 동안 안 사라진다.
    */
   useEffect(() => startMissionRecorder(), []);
+  /**
+   * **조작 기록** (261110). 임무와 상관없이 이 화면이 낸 수동 제어 · 비행 제어 · 사람 명령을 장비별 판으로 남긴다.
+   * 같은 이유로 여기 둔다 — 화면을 옮겨도 키보드 조작은 계속 나간다.
+   */
+  useEffect(() => startControlRecorder(), []);
 
   /**
    * **pi1 중계 → 자율주행 노드** (260915). 같은 이유로 여기 둔다 — 노드를 눌러 그래프로 들어가도

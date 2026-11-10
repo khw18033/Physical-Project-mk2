@@ -145,6 +145,9 @@ function subscribe(listener: () => void): () => void {
   return () => { listeners.delete(listener); };
 }
 
+/** 화면 밖에서 듣는 자리 — 조작 기록기(`record/controlRecorder.ts`)가 비행 판에 실행을 붙인다 (261110). */
+export const subscribeFlightRuns = subscribe;
+
 export function useFlightRuns(): Readonly<Record<string, FlightRunEntry>> {
   return useSyncExternalStore(subscribe, flightRuns, flightRuns);
 }
