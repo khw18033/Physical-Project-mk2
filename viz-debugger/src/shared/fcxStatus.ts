@@ -7,6 +7,7 @@
 
 import { useSyncExternalStore } from 'react';
 import { sarReports } from './sarStatus.ts';
+import { noteFcxSample } from './metricHistory.ts';
 
 export type FcxSensor = { name: string; enabled: boolean; healthy: boolean };
 export type FcxConsoleLine = { t: number; severity: string; level: number; text: string };
@@ -71,6 +72,12 @@ export function noteFcx(fcx: Fcx, atMs = Date.now()): void {
   };
   const history = previous.length >= HISTORY ? [...previous.slice(previous.length - HISTORY + 1), sample] : [...previous, sample];
   reports = { ...reports, [fcx.deviceId]: { ...fcx, receivedAtMs: atMs, history } };
+  noteFcxSample(fcx.deviceId, {
+    altRelM: sample.altRelM, groundspeed: sample.groundspeed, climb: sample.climb, voltageV: sample.voltageV,
+    remainingPct: fcx.battery?.remainingPct ?? null, satellites: fcx.gps?.satellites ?? null, mode: fcx.mode,
+    armed: fcx.armed, gpsFix: fcx.gps?.fix ?? null, rcRssi: fcx.rc?.rssi ?? null, clockOffsetS: fcx.clockOffsetS,
+    ekfWorst: fcx.ekf ? Math.max(...[fcx.ekf.pos, fcx.ekf.vel, fcx.ekf.mag, fcx.ekf.ter, fcx.ekf.ver].map((x) => x ?? -Infinity)) : null,
+  }, atMs);
   for (const listener of listeners) listener();
 }
 

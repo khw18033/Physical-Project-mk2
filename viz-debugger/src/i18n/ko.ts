@@ -3043,7 +3043,8 @@ export const ko: Record<string, string> = {
   'sar.live.batteryValue': '남음 {b}% · 다음 패스+복귀 {need}% · 소모 {rate}%/분',
   'sar.data.report': '비행 보고서',
   // 261005 — 로봇 수동 제어 (ManualControlTab · ManualControlBadge)
-  'dso.robot.tab.status': '상태 · 카메라',
+  'dso.robot.tab.status': '상태',
+  'dso.robot.tab.camera': '카메라',
   'dso.robot.tab.manual': '수동 제어',
   'manual.switch.on': '수동 제어 켜짐 — 끄기',
   'manual.switch.off': '수동 제어 꺼짐 — 켜기',
@@ -3361,4 +3362,17 @@ export const ko: Record<string, string> = {
   'ctl.flight.script': '스크립트',
   'ctl.flight.lines': '실행기 출력 {n}줄',
   'ctl.flight.noRun': '실행기가 이 판의 실행을 알리지 않았습니다 — 시작이 거절됐거나 상태 토픽이 오지 않았습니다',
+  // 261110 — 실시간 상태 그래프 (dronedash/Trend.tsx)
+  'trend.text': '글자',
+  'trend.graph': '그래프',
+  'trend.viewAs': '상태를 글자로 볼지 그래프로 볼지',
+  'trend.body': '상태만 볼지 계기까지 볼지',
+  'trend.flow': '흐름',
+  'trend.instruments': '계기',
+  'trend.noSignal': '수신 없음',
+  'trend.now': '지금',
+  'trend.ago': '−{s} s',
+  'trend.delta': '60초 {arrow} {v} {unit}',
+  'trend.deltaSame': '60초 그대로',
+  'trend.deltaNone': '60초 변화 —',
 };

@@ -33,6 +33,7 @@
  */
 
 import { useSyncExternalStore } from 'react';
+import { noteTelemetryBody, noteTelemetryRows } from './metricHistory.ts';
 
 /** 화면에 그릴 줄 하나. **글자가 아니라 키다**(위 주석). */
 export type TelemetryRow = {
@@ -98,7 +99,12 @@ export function noteDeviceTelemetry(
   rows: readonly TelemetryRow[],
   meta: { timestamp?: string | null; reason?: string | null; atMs?: number; body?: unknown } = {},
 ): void {
+  // 그래프 이력은 빈 몸(heartbeat)도 「받았다」로 센다 — 줄이 없어도 수신 간격은 0으로 돌아간다(261110).
+  if (entityId !== '' && meta.body !== null && typeof meta.body === 'object' && !Array.isArray(meta.body)) {
+    noteTelemetryBody(entityId, meta.body as Record<string, unknown>, meta.atMs ?? Date.now());
+  }
   if (entityId === '' || rows.length === 0) return;
+  noteTelemetryRows(entityId, rows, meta.atMs ?? Date.now());
   const previous = devices[entityId]?.values ?? {};
   const body = meta.body !== null && typeof meta.body === 'object' && !Array.isArray(meta.body)
     ? meta.body as Record<string, unknown>

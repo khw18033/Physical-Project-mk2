@@ -6,9 +6,9 @@
  * `dronedash/DroneDash.tsx`)으로 그린다.
  *
  * 세 자리에 쓴다.
- *   GroundDashLine   하드웨어 카드 한 줄 — 핵심 지표 타일 넷(연결 · 로봇 링크 · 배터리 · 마지막 수신)
- *   GroundDash       카드 상세(더블클릭)의 상태 — 상태 줄 · 위치/방위 · 동작 · 장비 · 보고 항목
- *   GroundDash compact  전체 장치 확인의 장치 상태 칸 — 상태 줄 · 나침반 · 핵심 값
+ *   GroundDashLine   하드웨어 카드 한 줄 — 핵심 지표 글자 타일 넷(연결 · 로봇 링크 · 배터리 · 마지막 수신). 그래프 없음
+ *   GroundDash       카드 상세(더블클릭)의 상태 탭 — 그래프 타일(261111) · 방위 · 위치/동작 · 장비
+ *   GroundDash compact  전체 장치 확인의 장치 상태 칸 — [글자 | 그래프] · [흐름 | 계기]
  *
  * ## 값의 출처는 `DeviceFacts` 와 같다 — 지어내지 않는다
  *
@@ -20,13 +20,16 @@
 import { useLang } from '../shared/language.ts';
 import { t } from '../i18n/dict.ts';
 import { hardwareTarget } from './encode.ts';
-import { isStale, useDeviceStates, type DeviceState } from './deviceState.ts';
+import { isStale, STALE_AFTER_MS, useDeviceStates, type DeviceState } from './deviceState.ts';
 import { useRobotSession } from './robotSession.ts';
 import { connectedDevice, useConnectedDevices } from '../shared/connectedDevices.ts';
-import { isTelemetryStale, useDeviceTelemetry, type DeviceTelemetry } from '../shared/deviceTelemetry.ts';
+import { isTelemetryStale, TELEMETRY_STALE_MS, useDeviceTelemetry, type DeviceTelemetry } from '../shared/deviceTelemetry.ts';
 import { mqttFilled, sdkWords, telemetryValue } from './DeviceFacts.tsx';
 import { Compass, Panel, Row, Stat, StatGrid, type Level } from '../dronedash/DroneDash.tsx';
 import { useTick } from '../sar/useTick.ts';
+import { useState } from 'react';
+import { AGE_KEY, metricSeries, rowKey, stateSeries, type MetricPoint } from '../shared/metricHistory.ts';
+import { CellToggles, GraphGrid, GraphStat, TREND_TICK_MS, deltaWords } from '../dronedash/Trend.tsx';
 import '../dronedash/dronedash.css';
 
 type Source =
@@ -49,21 +52,51 @@ function useGroundSource(entityId: string): Source {
   return { kind: 'mqtt', device };
 }
 
+/**
+ * 그래프 이력의 장비 id — 받은 길의 id 다. MQTT 고정 칸은 하드웨어 id(`go1-001`), 보고 줄은 화면 id 그대로
+ * (`deviceState.ts` · `deviceTelemetry.ts` 가 각자 그 id 로 받는다).
+ */
+function historyIdOf(entityId: string, source: Source): string {
+  return source.kind === 'mqtt' ? source.device.entityId : entityId;
+}
+
+/** 보고 줄 가운데 숫자 선으로 그릴 것 — 줄 이름(키) → 이력 지표. 나머지 줄은 값 띠로 그린다. */
+const ROW_LINE: Record<string, { key: string; minSpan: number; stair?: boolean }> = {
+  'dt.battery': { key: 'battery.remaining_pct', minSpan: 5, stair: true },
+};
+
+/** 배터리 이력 — Go1 모양(`battery_pct`)이 있으면 그것, 아니면 보고 줄 모양. */
+function batterySeries(historyId: string): readonly MetricPoint[] {
+  const go1 = metricSeries(historyId, 'battery_pct');
+  return go1.length > 0 ? go1 : metricSeries(historyId, 'battery.remaining_pct');
+}
+
 const ago = (ms: number) => Math.max(0, Math.round((Date.now() - ms) / 1000));
 
+/** Go1 배터리 경고선 — 상태 타일이 빨강이 되는 값(`batteryLevel`)과 같다. */
+const GO1_BATTERY_LOW_PCT = 20;
+
 function batteryLevel(pct: number): Level {
-  return pct < 20 ? 'bad' : pct < 40 ? 'warn' : 'good';
+  return pct < GO1_BATTERY_LOW_PCT ? 'bad' : pct < 40 ? 'warn' : 'good';
 }
 
 function okLevel(ok: boolean | null): Level {
   return ok === true ? 'good' : ok === false ? 'bad' : 'unknown';
 }
 
+function healthLevel(health: string | null): Level {
+  return health === null ? 'unknown' : health === 'ok' ? 'good' : health === 'degraded' ? 'warn' : 'bad';
+}
+
+/** 보고 줄의 값 띠 글자 — 값 낱말 키면 풀고, 장비가 보낸 규약 문자열이면 그대로. */
+const rowWords = (code: string) => (code.startsWith('dt.') ? t(code) : code);
+
 type Size = 'full' | 'compact' | 'card';
 
 /**
- * 상태 줄 — 드론 상태판의 `StatusBar` 와 같은 **지표 타일**(261110 A안). `card` 는 하드웨어 카드 한 줄이라 핵심 넷만
- * (연결 · 로봇 링크 · 배터리 · 마지막 수신), `compact` 는 전체 장치 확인 칸, `full` 은 카드 상세.
+ * 상태 줄 — 드론 상태판의 `StatusBar` 와 같은 **글자 타일**(261110 A안). `card` 는 하드웨어 카드 한 줄이라 핵심 넷만
+ * (연결 · 로봇 링크 · 배터리 · 마지막 수신), `compact` 는 전체 장치 확인 칸의 「글자」 보기. 카드 상세는 그래프 타일이다
+ * (`GroundStatusGraphs`).
  */
 function GroundStatusBar({ source, size }: { source: Source; size: Size }) {
   useLang();
@@ -93,7 +126,7 @@ function GroundStatusBar({ source, size }: { source: Source; size: Size }) {
     <Stat level={stale ? 'unknown' : okLevel(device.online)} label={t('df.2')}
       value={device.online === true ? t('hl.3') : device.online === false ? t('hl.4') : t('hl.5')} />
     <Stat level={device.link === null ? 'unknown' : stale ? 'unknown' : okLevel(device.link === 'ok')} label={t('df.5')} value={device.link ?? '—'} title={t('hl.linkTitle')} />
-    {!card && <Stat level={device.health === null ? 'unknown' : device.health === 'ok' ? 'good' : device.health === 'degraded' ? 'warn' : 'bad'} label={t('df.6')} value={device.health ?? '—'} />}
+    {!card && <Stat level={healthLevel(device.health)} label={t('df.6')} value={device.health ?? '—'} />}
     {/* null 은 「모른다」다 — 0% 로 그리지 않는다. 멈춘 값은 회색 + 「마지막 수신」. */}
     <Stat level={device.batteryPct === null || held ? 'unknown' : batteryLevel(device.batteryPct)} label={t('df.battery')}
       value={device.batteryPct === null ? '—' : `${device.batteryPct} %`} sub={held && device.batteryPct !== null ? t('gdash.held') : undefined}
@@ -107,7 +140,68 @@ function GroundStatusBar({ source, size }: { source: Source; size: Size }) {
   </StatGrid>;
 }
 
-/** 하드웨어 카드 한 줄 — 핵심 지표 타일 넷. */
+/**
+ * **상태 줄의 그래프판** (261111). 글자 타일 하나하나가 그래프 타일이 된다 — 위에 지금 상태 글자, 아래에 최근 2분.
+ * 생사 · 링크 · 장비 상태 · 모드처럼 낱말인 것은 색 띠, 배터리 · 속도 · 수신 간격은 선. `compact` 는 전체 장치 확인 칸.
+ */
+function GroundStatusGraphs({ source, historyId, compact }: { source: Source; historyId: string; compact: boolean }) {
+  useLang();
+  const now = useTick(TREND_TICK_MS);
+  const line = (points: readonly MetricPoint[], extra: { minSpan?: number; stair?: boolean; threshold?: number } = {}) =>
+    ({ kind: 'line' as const, points, ...extra });
+  const lane = (key: string, labelOf: (code: string) => string, toneOf?: (code: string) => Level) =>
+    ({ kind: 'lane' as const, points: stateSeries(historyId, key), labelOf, toneOf });
+  const ages = metricSeries(historyId, AGE_KEY);
+  if (source.kind === 'none') return <GroundStatusBar source={source} size={compact ? 'compact' : 'full'} />;
+  if (source.kind === 'report') {
+    const stale = source.report !== null && isTelemetryStale(source.report);
+    const rows = (source.report?.rows ?? []).filter((row) => row.onCard === true);
+    return <GraphGrid compact={compact}>
+      <GraphStat now={now} level={stale ? 'bad' : 'good'} label={t('df.lastSeen')} value={`${ago(source.lastSeenMs)} s`}
+        graph={line(ages, { minSpan: 2, threshold: TELEMETRY_STALE_MS / 1000 })} />
+      {rows.map((row, index) => {
+        const spec = row.labelKey === null ? undefined : ROW_LINE[row.labelKey];
+        return <GraphStat key={`${row.labelKey ?? row.rawLabel ?? ''}-${index}`} now={now} level={stale ? 'unknown' : 'good'}
+          label={row.labelKey === null ? (row.rawLabel ?? '') : t(row.labelKey)} value={telemetryValue(row)}
+          graph={spec === undefined ? lane(rowKey(row), rowWords)
+            : line(metricSeries(historyId, spec.key), { minSpan: spec.minSpan, stair: spec.stair })} />;
+      })}
+    </GraphGrid>;
+  }
+  const device = source.device;
+  const stale = isStale(device);
+  const held = stale || (device.link !== null && device.link !== 'ok');
+  const battery = batterySeries(historyId);
+  return <GraphGrid compact={compact}>
+    <GraphStat now={now} level={stale ? 'unknown' : okLevel(device.online)} label={t('df.2')}
+      value={device.online === true ? t('hl.3') : device.online === false ? t('hl.4') : t('hl.5')}
+      graph={lane('status', (code) => (code === 'online' ? t('hl.3') : code === 'offline' ? t('hl.4') : code),
+        (code) => (code === 'online' ? 'good' : code === 'offline' ? 'bad' : 'unknown'))} />
+    <GraphStat now={now} level={device.link === null || stale ? 'unknown' : okLevel(device.link === 'ok')} label={t('df.5')}
+      value={device.link ?? '—'} title={t('hl.linkTitle')} graph={lane('link', (code) => code, (code) => (code === 'ok' ? 'good' : 'bad'))} />
+    <GraphStat now={now} level={healthLevel(device.health)} label={t('df.6')} value={device.health ?? '—'}
+      graph={lane('device_status', (code) => code, (code) => healthLevel(code))} />
+    <GraphStat now={now} level={device.batteryPct === null || held ? 'unknown' : batteryLevel(device.batteryPct)} label={t('df.battery')}
+      value={device.batteryPct === null ? '—' : `${device.batteryPct} %${held ? t('df.heldSuffix') : ''}`} title={deltaWords(battery, now, 0, '%')}
+      graph={line(battery, { minSpan: 5, stair: true, threshold: GO1_BATTERY_LOW_PCT })} />
+    <GraphStat now={now} level={device.mode === null || held ? 'unknown' : 'good'} label={t('df.7')} value={device.mode ?? '—'}
+      graph={lane('robot_mode', (code) => code)} />
+    <GraphStat now={now} level={device.speedMps === null || held ? 'unknown' : 'good'} label={t('df.speed')}
+      value={device.speedMps === null ? '—' : `${device.speedMps} m/s`} graph={line(metricSeries(historyId, 'speed_mps'), { minSpan: 0.5 })} />
+    {!compact && <>
+      <GraphStat now={now} level={device.sdkReady === true ? 'good' : 'unknown'} label={t('df.8')} value={sdkWords(device.sdkReady, device.sdkAutostart)}
+        title={t('df.sdkTitle')} graph={lane('sdk.ready', (code) => (code === 'true' ? t('df.16') : t('df.17')), (code) => (code === 'true' ? 'good' : 'unknown'))} />
+      <GraphStat now={now} level={device.inMission === null ? 'unknown' : device.inMission ? 'warn' : 'good'} label={t('df.9')}
+        value={device.inMission === null ? '—' : device.inMission ? t('df.10') : t('df.11')}
+        graph={lane('in_mission', (code) => (code === 'true' ? t('df.10') : t('df.11')), (code) => (code === 'true' ? 'warn' : 'good'))} />
+    </>}
+    <GraphStat now={now} level={stale ? 'bad' : 'good'} label={t('df.lastSeen')} value={`${ago(device.lastSeenMs)} s`}
+      title={device.simulated ? t('hl.mockTitle') : undefined}
+      graph={line(ages, { minSpan: 2, threshold: STALE_AFTER_MS / 1000 })} />
+  </GraphGrid>;
+}
+
+/** 하드웨어 카드 한 줄 — 핵심 지표 글자 타일 넷. 그래프는 없다(261111 — 그래프는 상세와 전체 장치 확인에서만). */
 export function GroundDashLine({ entityId }: { entityId: string }) {
   useLang();
   useTick(1000);
@@ -126,19 +220,28 @@ function ReportRows({ report }: { report: DeviceTelemetry }) {
 }
 
 /**
- * **상태판.** `compact` 면 전체 장치 확인의 4분의 1 칸에 맞춘 축약판 — 상태 줄 · 나침반 · 위치/속도/모드만.
+ * **상태판.** 카드 상세는 그래프 타일 + 방위 · 위치 · 장비 정보. `compact` 는 전체 장치 확인의 칸 —
+ * [글자 | 그래프] 로 상태를 어떻게 볼지, [흐름 | 계기] 로 나침반 · 위치 표까지 볼지 고른다(261111).
  */
 export function GroundDash({ entityId, compact = false }: { entityId: string; compact?: boolean }) {
   useLang();
   useTick(1000);
   const source = useGroundSource(entityId);
+  const historyId = historyIdOf(entityId, source);
+  const [flow, setFlow] = useState(true);
+  const [graph, setGraph] = useState(true);
   if (source.kind === 'none') return <div className="ground-dash">
     <GroundStatusBar source={source} size={compact ? 'compact' : 'full'} />
     <p className="sar-empty">{t('df.1')}</p>
   </div>;
-  if (source.kind === 'report') return <div className={`ground-dash${compact ? ' ground-dash--compact' : ''}`}>
-    <GroundStatusBar source={source} size={compact ? 'compact' : 'full'} />
-    {source.report !== null && <Panel title={t('gdash.reported')}><ReportRows report={source.report} /></Panel>}
+  const toggles = compact ? <div className="dash-mini__head"><CellToggles graph={graph} onGraph={setGraph} flow={flow} onFlow={setFlow} /></div> : null;
+  const status = !compact || graph
+    ? <GroundStatusGraphs source={source} historyId={historyId} compact={compact} />
+    : <GroundStatusBar source={source} size="compact" />;
+  if (source.kind === 'report') return <div className={`ground-dash${compact ? ' ground-dash--compact' : ' sar-zoom dash-zoom'}`}>
+    {toggles}
+    {status}
+    {(!compact || !flow) && source.report !== null && <Panel title={t('gdash.reported')}><ReportRows report={source.report} /></Panel>}
   </div>;
 
   const device = source.device;
@@ -158,26 +261,22 @@ export function GroundDash({ entityId, compact = false }: { entityId: string; co
   </dl>;
 
   if (compact) return <div className="ground-dash ground-dash--compact">
-    <GroundStatusBar source={source} size="compact" />
-    <div className="ground-dash__mini">
+    {toggles}
+    {status}
+    {!flow && <div className="ground-dash__mini">
       {compass}
       {motion}
-    </div>
+    </div>}
   </div>;
 
+  // 상태 칸(생사 · 링크 · 배터리 …)은 위 그래프 타일이 말한다 — 장비 칸에는 거기 없는 것만 남긴다.
   return <div className="sar-zoom dash-zoom ground-dash">
-    <GroundStatusBar source={source} size="full" />
+    {status}
     <div className="dash-grid">
       <Panel title={t('gdash.heading')}>{compass}</Panel>
       <Panel title={t('gdash.motion')}>{motion}</Panel>
-      <Panel title={t('gdash.device')} wide>
+      <Panel title={t('gdash.device')}>
         <dl className="dash-rows">
-          <Row k={t('df.2')} v={device.online === null ? '—' : device.online ? t('df.3') : t('df.4')} level={stale ? 'unknown' : okLevel(device.online)} />
-          <Row k={t('df.5')} v={device.link ?? '—'} level={device.link === null ? undefined : okLevel(device.link === 'ok')} />
-          <Row k={t('df.6')} v={device.health ?? '—'} />
-          <Row k={t('df.battery')} v={device.batteryPct === null ? '—' : `${device.batteryPct}%${heldSuffix}`}
-            level={device.batteryPct === null ? undefined : held ? 'unknown' : batteryLevel(device.batteryPct)} />
-          <Row k={t('df.8')} v={sdkWords(device.sdkReady, device.sdkAutostart)} />
           {device.firmware !== null && <Row k={t('df.12')} v={device.firmware} />}
           {device.simulated && <Row k={t('df.13')} v={t('df.14')} />}
           <Row k={t('df.lastSeen')} v={t('df.secondsAgo', { sec: ago(device.lastSeenMs) }) + (device.timestamp === null ? '' : ` · ${device.timestamp}`)}

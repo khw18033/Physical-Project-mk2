@@ -3018,7 +3018,8 @@ export const en: Record<string, string> = {
   'sar.live.batteryValue': '{b}% left · next pass + return {need}% · {rate}%/min',
   'sar.data.report': 'Flight report',
   // 261005 — 로봇 수동 제어 (ManualControlTab · ManualControlBadge)
-  'dso.robot.tab.status': 'Status · camera',
+  'dso.robot.tab.status': 'Status',
+  'dso.robot.tab.camera': 'Camera',
   'dso.robot.tab.manual': 'Manual control',
   'manual.switch.on': 'Manual control ON — turn off',
   'manual.switch.off': 'Manual control OFF — turn on',
@@ -3336,4 +3337,17 @@ export const en: Record<string, string> = {
   'ctl.flight.script': 'Script',
   'ctl.flight.lines': 'Runner output, {n} lines',
   'ctl.flight.noRun': 'The runner never reported a run for this record — the start was rejected or the status topic did not arrive',
+  // 261110 — live status charts (dronedash/Trend.tsx)
+  'trend.text': 'Text',
+  'trend.graph': 'Graph',
+  'trend.viewAs': 'Show status as text or graphs',
+  'trend.body': 'Status only, or with gauges',
+  'trend.flow': 'Trends',
+  'trend.instruments': 'Gauges',
+  'trend.noSignal': 'No signal',
+  'trend.now': 'now',
+  'trend.ago': '−{s} s',
+  'trend.delta': '60 s {arrow} {v} {unit}',
+  'trend.deltaSame': '60 s unchanged',
+  'trend.deltaNone': '60 s change —',
 };

@@ -144,7 +144,8 @@
     "verify:manual-control": "node scripts/verify-manual-control.mjs",
     "verify:video-records": "node scripts/verify-video-records.mjs",
     "test:drone": "cd drone && .venv/bin/python -m pytest -q",
-    "verify:control-record": "node scripts/verify-control-record.mjs"
+    "verify:control-record": "node scripts/verify-control-record.mjs",
+    "verify:metric-history": "node scripts/verify-metric-history.mjs"
   },
   "dependencies": {
     "mqtt": "^5.15.2",

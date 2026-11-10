@@ -62,22 +62,6 @@
 .dash-map-text{font-size:12px;fill:#26303c}
 .dash-map-caption{display:flex;flex-wrap:wrap;gap:12px;align-items:center;margin-top:6px;font-size:12px;color:#4a5666;font-variant-numeric:tabular-nums}
 
-/* 그래프 — 한 장에 한 계열. 2px 선 · 10% 면 · 머리카락 격자 · 끝점 */
-.dash-charts{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px}
-.dash-chart{margin:0;position:relative}
-.dash-chart figcaption{display:flex;align-items:baseline;gap:6px;font-size:13px;color:#26303c}
-.dash-chart figcaption small{color:#6b7888}
-.dash-chart-now{margin-left:auto;font-weight:700;font-variant-numeric:tabular-nums}
-.dash-chart svg{width:100%;height:auto;touch-action:none}
-.dash-chart-grid{stroke:#eef1f5;stroke-width:1}
-.dash-chart-axis{font-size:9px;fill:#6b7888}
-.dash-chart-line{fill:none;stroke:#1768c5;stroke-width:2;stroke-linejoin:round;stroke-linecap:round}
-.dash-chart-area{fill:#1768c5;opacity:.1}
-.dash-chart-end{fill:#1768c5;stroke:#fff;stroke-width:2}
-.dash-chart-cross{stroke:#8392a3;stroke-width:1}
-.dash-chart-tip{position:absolute;top:22px;right:4px;padding:3px 8px;background:#fff;border:1px solid #dde3ea;border-radius:var(--radius-xs);font-size:12px;box-shadow:0 2px 8px #17202b1f}
-.dash-chart-tip span{color:#6b7888}
-
 /* 표 · 막대 */
 .dash-rows{display:grid;gap:1px;margin:0}
 .dash-row{display:flex;gap:10px;padding:4px 6px;border-bottom:1px solid #eef1f5;font-size:13px}
@@ -169,7 +153,7 @@
 @media (prefers-reduced-motion:reduce){.dash-sar.is-on .dash-sar-lamp{animation:none}}
 /* 261110 — 상태판 축약판(DroneDashMini) · 전체 장치 확인의 장치 상태 칸. 4분의 1 칸에 들어가게 지도와 계기를 줄인다. */
 .dash-mini{display:grid;gap:6px;align-content:start;min-width:0}
-.dash-mini__head{font-size:12px}
+.dash-mini__head{display:flex;align-items:center;gap:8px;font-size:12px}
 .dash-mini__body{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(150px,1fr);gap:10px;align-items:start}
 .dash-mini__map{min-width:0}
 .dash-mini__side{display:grid;gap:6px;justify-items:center}
@@ -187,8 +171,9 @@
 .ground-dash__compass .dash-att figcaption{display:none}
 /* 261110 — 지표 타일(Stat · StatGrid, 상태 줄 개편 A안). 작은 라벨 위 · 큰 값 아래 · 왼쪽 색 띠가 상태. 칸 폭이 같아
    장비 여럿을 나란히 놓아도 같은 값이 같은 자리에 온다. 색만으로 말하지 않게 값 앞에 ✓ ! ✕ ? 를 둔다. */
-.dash-stats{display:grid;gap:8px;grid-template-columns:repeat(auto-fill,minmax(128px,1fr))}
-.dash-stats--compact{gap:6px;grid-template-columns:repeat(auto-fill,minmax(104px,1fr))}
+/* 글자 타일도 그래프 칸과 같이 한 줄에 둘 — 칸 폭을 채운다(261111). 하드웨어 카드 한 줄(`--card`)은 따로. */
+.dash-stats{display:grid;gap:8px;grid-template-columns:repeat(2,minmax(0,1fr))}
+.dash-stats--compact{gap:6px}
 .dash-stats--card{gap:4px;grid-template-columns:repeat(auto-fit,minmax(64px,1fr))}
 .dash-stat{display:flex;flex-direction:column;gap:2px;min-width:0;padding:7px 10px 8px 12px;border:1px solid #dde3ea;border-left:5px solid var(--stat-c);border-radius:var(--radius-sm);background:#fff}
 .dash-stat__label{font-size:12px;color:#6b7888;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -203,9 +188,54 @@
 .dash-stat--unknown{--stat-c:#a9b3bf;border-style:dashed;border-left-style:solid}
 .dash-stat--unknown .dash-stat__value{color:#6b7888}
 .dash-stats--compact .dash-stat{padding:5px 8px 6px 10px}
-.dash-stats--compact .dash-stat__value{font-size:17px}
+.dash-stats--compact .dash-stat__value{font-size:19px}
 .dash-stats--card .dash-stat{padding:3px 6px 4px 8px;border-left-width:4px}
 .dash-stats--card .dash-stat__label{font-size:11px}
 .dash-stats--card .dash-stat__value{font-size:14px;gap:3px}
 .dash-stats--card .dash-stat__sub{display:none}
 .dash-stats--card .dash-stat__bar{height:3px;margin-top:2px}
+
+/* 실시간 상태 그래프 (261110 · 261111 — Trend.tsx). 글상자 없이 그래프가 칸 전체, 지금 상태 글자가 그 위쪽에 뜬다.
+   판의 위 40% 는 글자 자리라 선 · 띠는 그 아래에서만 그린다. 숫자는 선(끊김은 회색으로 비움 · 최신 점 맥동),
+   낱말은 색 띠(수신 없음은 빗금). 지금 상태는 글자 색과 표시로, 나쁠 때는 판 바탕도 붉게. */
+.graph-grid-wrap{display:flex;flex-direction:column;gap:3px}
+.graph-grid{display:grid;gap:8px;grid-template-columns:repeat(2,minmax(0,1fr))}
+.graph-grid--compact{gap:6px}
+.graph-stat{position:relative;margin:0;height:84px;min-width:0;border-radius:var(--radius-sm);background:#f4f7fa;overflow:hidden;--stat-c:#a9b3bf}
+.graph-grid--compact .graph-stat{height:70px}
+.graph-stat--good{--stat-c:#1f8a4d}
+.graph-stat--warn{--stat-c:#b07a12;background:#fbf5e8}
+.graph-stat--bad{--stat-c:#c62f35;background:#fbeaea}
+.graph-stat svg{position:absolute;inset:0;display:block;width:100%;height:100%}
+.graph-stat__head{position:absolute;top:5px;left:8px;right:8px;display:flex;align-items:baseline;gap:8px;min-width:0;pointer-events:none}
+.graph-stat__label{flex:none;font-size:12px;color:#4a5666}
+.graph-stat__value{display:flex;align-items:baseline;gap:4px;margin-left:auto;min-width:0;font-size:22px;line-height:1.1;font-weight:700;color:#17202b;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-shadow:0 0 3px #f4f7fa,0 0 3px #f4f7fa}
+.graph-grid--compact .graph-stat__value{font-size:18px}
+.graph-stat__value i{flex:none;font-style:normal;font-size:.6em;color:var(--stat-c)}
+.graph-stat--bad .graph-stat__value,.graph-stat--warn .graph-stat__value{color:var(--stat-c)}
+.graph-stat--unknown .graph-stat__value{color:#6b7888;font-weight:600}
+.graph-empty{position:absolute;left:0;right:0;bottom:8px;font-size:11px;text-align:center;color:#8a97a8}
+.graph-dot{position:absolute;width:8px;height:8px;margin:-4px 0 0 -4px;border-radius:50%;background:#1768c5;border:1.5px solid #fff;box-sizing:border-box;animation:graph-pulse 1.2s ease-out infinite}
+@keyframes graph-pulse{0%{box-shadow:0 0 0 0 rgba(23,104,197,.55)}100%{box-shadow:0 0 0 8px rgba(23,104,197,0)}}
+.trend-line{fill:none;stroke:#1768c5;stroke-width:2;stroke-linejoin:round;stroke-linecap:round}
+.trend-area{fill:#1768c5;opacity:.14}
+.trend-gap{fill:#a9b3bf;opacity:.35}
+.trend-threshold{stroke:#e15a5a;stroke-width:1;stroke-dasharray:4 3}
+.graph-lane{position:absolute;left:0;right:0;bottom:0;height:56%}
+.graph-lane__seg{position:absolute;top:0;bottom:0;border-right:1px solid #fff;box-sizing:border-box}
+.graph-lane__seg--good{background:#7cc79b}
+.graph-lane__seg--warn{background:#e9c27a}
+.graph-lane__seg--bad{background:#ec8f8f}
+.graph-lane__seg--unknown{background:#c9d0d8}
+.graph-lane__seg--n0{background:#9fc0e8}
+.graph-lane__seg--n1{background:#c3cbd6}
+.graph-lane__seg--n2{background:#a3d6b7}
+.graph-lane__seg--n3{background:#e7cf9f}
+.graph-lane__seg--none{background:repeating-linear-gradient(135deg,#c9d0d8 0 3px,#e8ecf1 3px 6px)}
+.graph-axis{display:flex;justify-content:space-between;font-size:10px;color:#6b7888}
+.trend-toggles{display:flex;gap:6px;margin-left:auto}
+.trend-toggle{display:inline-flex;border:1px solid #cbd3de;border-radius:var(--radius-sm);overflow:hidden}
+.trend-toggle button{border:0;background:#fff;padding:3px 10px;font-size:12px;color:#26303c}
+.trend-toggle button+button{border-left:1px solid #cbd3de}
+.trend-toggle button[aria-pressed="true"]{background:#1768c5;color:#fff}
+@media (prefers-reduced-motion:reduce){.graph-dot{animation:none}}

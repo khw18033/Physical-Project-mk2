@@ -24,6 +24,8 @@ import { useTick } from '../sar/useTick.ts';
 import { SatMap, type Marker, type TrackPoint } from './SatMap.tsx';
 import { autoLeadInM } from '../sar/plan.ts';
 import '../sar/sar.css';
+import { AGE_KEY, metricSeries, stateSeries } from '../shared/metricHistory.ts';
+import { CellToggles, GraphGrid, GraphStat, TREND_TICK_MS, deltaWords } from './Trend.tsx';
 import './dronedash.css';
 
 const num = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) ? v : null);
@@ -164,6 +166,63 @@ function StatusBar({ v, compact }: { v: View; compact?: boolean }) {
   </>;
 }
 
+/** 링크가 이만큼 비면 상태 줄도 노랑이다(`StatusBar` 의 linkLevel). */
+const LINK_STALE_S = 2;
+const BATTERY_LOW_PCT = 15;
+
+/**
+ * **상태 줄의 그래프판** (261111). 글자 타일 하나하나가 그래프 타일이 된다 — 위에 지금 상태 글자, 아래에 최근 2분.
+ * 숫자는 선, 범주(모드 · 무장 · GPS)는 색 띠. `compact` 는 전체 장치 확인 칸(핵심 일곱), 아니면 카드 상세(전부).
+ */
+function StatusGraphs({ v, compact }: { v: View; compact?: boolean }) {
+  useLang();
+  const now = useTick(TREND_TICK_MS);
+  const rtcm = useRtcmReports()[v.deviceId];
+  const f = v.extended ? v.fcx : null;
+  const line = (key: string, extra: { minSpan?: number; stair?: boolean; threshold?: number } = {}) =>
+    ({ kind: 'line' as const, points: metricSeries(v.deviceId, key), ...extra });
+  const lane = (key: string, labelOf: (code: string) => string, toneOf?: (code: string) => Level) =>
+    ({ kind: 'lane' as const, points: stateSeries(v.deviceId, key), labelOf, toneOf });
+  const linkLevel: Level = v.linkAgeS === null ? 'bad' : v.linkAgeS < 2 ? 'good' : v.linkAgeS < 5 ? 'warn' : 'bad';
+  const batLevel: Level = v.batteryPct === null ? 'unknown' : v.batteryPct > 30 ? 'good' : v.batteryPct > 15 ? 'warn' : 'bad';
+  const gps = rtkLevel(v.fixType, v.fix);
+  const armedWords = (code: string) => (code === 'true' ? t('dash.armed') : t('dash.disarmed'));
+  const battery = metricSeries(v.deviceId, 'battery.remaining_pct');
+  return <>
+    <GraphGrid compact={compact}>
+      <GraphStat now={now} level={linkLevel} label={t('dash.link')} value={v.linkAgeS === null ? t('dash.lost') : `${fmt(v.linkAgeS)} s`}
+        graph={line(AGE_KEY, { minSpan: LINK_STALE_S + 0.5, threshold: LINK_STALE_S })} />
+      <GraphStat now={now} level={v.mode === null ? 'unknown' : 'good'} label={t('dash.mode')} value={v.mode ?? '—'}
+        graph={lane('flight.mode', (code) => code)} />
+      <GraphStat now={now} level={v.armed === null ? 'unknown' : v.armed ? 'warn' : 'good'} label={t('dash.armState')}
+        value={v.armed === null ? '—' : v.armed ? t('dash.armed') : t('dash.disarmed')}
+        graph={lane('flight.armed', armedWords, (code) => (code === 'true' ? 'warn' : 'good'))} />
+      <GraphStat now={now} level={RTK_TILE[gps] ?? 'unknown'} label={t('dash.gps.title')} value={t(`rtk.level.${gps}`)}
+        title={t('dash.sats', { n: v.sats ?? '—' })}
+        graph={lane('gps.fix', (code) => t(`rtk.level.${rtkLevel(null, code)}`), (code) => RTK_TILE[rtkLevel(null, code)] ?? 'unknown')} />
+      <GraphStat now={now} level={batLevel} label={t('dash.battery')} value={v.batteryPct === null ? '—' : `${Math.round(v.batteryPct)} %`}
+        title={deltaWords(battery, now, 0, '%')} graph={line('battery.remaining_pct', { minSpan: 5, stair: true, threshold: BATTERY_LOW_PCT })} />
+      <GraphStat now={now} level={v.altRelM === null ? 'unknown' : 'good'} label={t('dash.chart.alt')} value={v.altRelM === null ? '—' : `${fmt(v.altRelM)} m`}
+        graph={line('altitude.relative_m', { minSpan: 2 })} />
+      <GraphStat now={now} level={v.groundspeed === null ? 'unknown' : 'good'} label={t('dash.chart.speed')} value={v.groundspeed === null ? '—' : `${fmt(v.groundspeed, 2)} m/s`}
+        graph={line('hud.groundspeed', { minSpan: 1 })} />
+      {!compact && <>
+        <GraphStat now={now} level={v.climb === null ? 'unknown' : 'good'} label={t('dash.chart.climb')} value={v.climb === null ? '—' : `${fmt(v.climb, 2)} m/s`}
+          graph={line('hud.climb', { minSpan: 1 })} />
+        <GraphStat now={now} level={v.batteryV === null ? 'unknown' : 'good'} label={t('dash.chart.voltage')} value={v.batteryV === null ? '—' : `${fmt(v.batteryV, 2)} V`}
+          graph={line('battery.voltage_v', { minSpan: 0.2 })} />
+        {f?.ekf && <GraphStat now={now} level={ekfLevel(metricSeries(v.deviceId, 'ekf.worst').at(-1)?.v ?? null)} label="EKF"
+          value={fmt(metricSeries(v.deviceId, 'ekf.worst').at(-1)?.v ?? null, 2)} graph={line('ekf.worst', { minSpan: 0.5, threshold: 0.5 })} />}
+        {f?.rc && <GraphStat now={now} level={f.rc.rssi === null ? 'unknown' : f.rc.rssi > 50 ? 'good' : f.rc.rssi > 20 ? 'warn' : 'bad'} label="RC"
+          value={f.rc.rssi === null ? '—' : `${f.rc.rssi} %`} graph={line('rc.rssi', { minSpan: 10 })} />}
+        {f?.clockOffsetS !== null && f?.clockOffsetS !== undefined && <GraphStat now={now} level={Math.abs(f.clockOffsetS) <= 1 ? 'good' : 'bad'}
+          label={t('dash.clock')} value={`${f.clockOffsetS >= 0 ? '+' : ''}${fmt(f.clockOffsetS, 2)} s`} graph={line('clock.offset_s', { minSpan: 0.5 })} />}
+      </>}
+    </GraphGrid>
+    {!compact && <RtcmLine report={rtcm} />}
+  </>;
+}
+
 // ── 자세계 · 나침반 ─────────────────────────────────────────────────────────
 
 function Attitude({ roll, pitch }: { roll: number | null; pitch: number | null }) {
@@ -257,61 +316,6 @@ function bearing(a: { lat: number; lon: number }, b: { lat: number; lon: number 
   const x = Math.cos(la1) * Math.sin(la2) - Math.sin(la1) * Math.cos(la2) * Math.cos(dl);
   return (((Math.atan2(y, x) * 180) / Math.PI) + 360) % 360;
 }
-// ── 그래프 (한 장에 한 계열 · 십자선 툴팁) ──────────────────────────────────
-
-const WINDOW_MS = 120_000;
-const MIN_WINDOW_MS = 30_000;
-
-function LineChart({ title, unit, samples, pick, digits = 1 }: {
-  title: string; unit: string; samples: readonly FcxSample[]; pick: (s: FcxSample) => number | null; digits?: number;
-}) {
-  useLang();
-  const now = Date.now();
-  // 쌓인 만큼만 가로를 쓴다(30초~2분) — 막 붙었을 때 선이 오른쪽 끝에 몰리지 않게.
-  const first = samples.find((s) => now - s.atMs <= WINDOW_MS)?.atMs ?? now;
-  const span = Math.min(WINDOW_MS, Math.max(MIN_WINDOW_MS, now - first));
-  const pts = samples.filter((s) => now - s.atMs <= span).map((s) => ({ t: s.atMs, v: pick(s) })).filter((p): p is { t: number; v: number } => p.v !== null);
-  const [hover, setHover] = useState<number | null>(null);
-  const W = 260;
-  const H = 110;
-  const L = 34;
-  const B = 18;
-  if (pts.length < 2) return <figure className="dash-chart"><figcaption><b>{title}</b> <small>{unit}</small></figcaption><p className="sar-empty">{t('dash.noData')}</p></figure>;
-  let lo = Math.min(...pts.map((p) => p.v));
-  let hi = Math.max(...pts.map((p) => p.v));
-  if (hi - lo < 1e-6) { lo -= 1; hi += 1; }
-  const pad = (hi - lo) * 0.1;
-  lo -= pad; hi += pad;
-  const x = (tt: number) => L + ((tt - (now - span)) / span) * (W - L - 6);
-  const y = (vv: number) => 6 + (1 - (vv - lo) / (hi - lo)) * (H - B - 6);
-  const path = pts.map((p, i) => `${i ? 'L' : 'M'}${x(p.t).toFixed(1)},${y(p.v).toFixed(1)}`).join(' ');
-  const area = `${path} L${x(pts.at(-1)!.t).toFixed(1)},${H - B} L${x(pts[0]!.t).toFixed(1)},${H - B} Z`;
-  const last = pts.at(-1)!;
-  const h = hover === null ? null : pts.reduce((best, p) => (Math.abs(x(p.t) - hover) < Math.abs(x(best.t) - hover) ? p : best), pts[0]!);
-  return <figure className="dash-chart">
-    <figcaption><b>{title}</b> <small>{unit}</small><span className="dash-chart-now">{last.v.toFixed(digits)}</span></figcaption>
-    <svg viewBox={`0 0 ${W} ${H}`} onPointerMove={(e) => {
-      const r = (e.currentTarget as SVGSVGElement).getBoundingClientRect();
-      setHover(((e.clientX - r.left) / r.width) * W);
-    }} onPointerLeave={() => setHover(null)} role="img" aria-label={title}>
-      {[lo + pad, (lo + hi) / 2, hi - pad].map((g) => <g key={g}>
-        <line x1={L} x2={W - 6} y1={y(g)} y2={y(g)} className="dash-chart-grid" />
-        <text x={L - 4} y={y(g) + 3} textAnchor="end" className="dash-chart-axis">{g.toFixed(digits)}</text>
-      </g>)}
-      <text x={L} y={H - 4} className="dash-chart-axis">−{Math.round(span / 1000)}s</text>
-      <text x={W - 6} y={H - 4} textAnchor="end" className="dash-chart-axis">{t('dash.now')}</text>
-      <path d={area} className="dash-chart-area" />
-      <path d={path} className="dash-chart-line" />
-      <circle cx={x(last.t)} cy={y(last.v)} r={4} className="dash-chart-end" />
-      {h && <g>
-        <line x1={x(h.t)} x2={x(h.t)} y1={6} y2={H - B} className="dash-chart-cross" />
-        <circle cx={x(h.t)} cy={y(h.v)} r={4} className="dash-chart-end" />
-      </g>}
-    </svg>
-    {h && <div className="dash-chart-tip"><b>{h.v.toFixed(digits)} {unit}</b> <span>{t('dash.secAgo', { s: ((now - h.t) / 1000).toFixed(1) })}</span></div>}
-  </figure>;
-}
-
 // ── 패널들 ─────────────────────────────────────────────────────────────────
 
 /** SAR 임무가 있으면 상태판 맨 위에 한 줄 — 무엇을 하는 중인지 · 캡처 중인지 크게. */
@@ -467,7 +471,6 @@ export function DroneDashZoom({ deviceId }: { deviceId?: string } = {}) {
     return v && h?.lat != null && h.lon != null && v.lat !== null && v.lon !== null ? bearing({ lat: v.lat, lon: v.lon }, { lat: h.lat, lon: h.lon }) : null;
   }, [v]);
   if (v === undefined) return <div className="sar-zoom"><p className="sar-empty">{t('dash.noDevice')}</p><p className="sar-hint">{t('dash.howTo')}</p></div>;
-  const samples = v.fcx?.history ?? [];
   return <div className="sar-zoom dash-zoom">
     <div className="dash-head">
       {deviceId === undefined && views.length > 1 ? <select value={v.deviceId} onChange={(e) => setPick(e.target.value)}>
@@ -475,7 +478,7 @@ export function DroneDashZoom({ deviceId }: { deviceId?: string } = {}) {
       </select> : <h3>{v.deviceId}</h3>}
       <span className={v.extended ? 'sar-ok' : 'sar-warn'}>{v.extended ? t('dash.extended') : t('dash.basicOnly')}</span>
     </div>
-    <StatusBar v={v} />
+    <StatusGraphs v={v} />
     {!v.extended && <p className="sar-hint">{t('dash.howTo')}</p>}
     <SarStrip deviceId={v.deviceId} />
     <div className="dash-top">
@@ -486,14 +489,6 @@ export function DroneDashZoom({ deviceId }: { deviceId?: string } = {}) {
       </div></Panel>
     </div>
     <div className="dash-grid">
-      <Panel title={t('dash.charts')} wide>
-        {v.extended ? <div className="dash-charts">
-          <LineChart title={t('dash.chart.alt')} unit="m" samples={samples} pick={(s) => s.altRelM} />
-          <LineChart title={t('dash.chart.speed')} unit="m/s" samples={samples} pick={(s) => s.groundspeed} digits={2} />
-          <LineChart title={t('dash.chart.climb')} unit="m/s" samples={samples} pick={(s) => s.climb} digits={2} />
-          <LineChart title={t('dash.chart.voltage')} unit="V" samples={samples} pick={(s) => s.voltageV} digits={2} />
-        </div> : <p className="sar-empty">{t('dash.needFcx')}</p>}
-      </Panel>
       <Panel title={t('dash.gps.title')}><GpsPanel v={v} /></Panel>
       <Panel title={t('dash.sensors')}><SensorsPanel v={v} /></Panel>
       <Panel title={t('dash.vibration')}><VibrationPanel v={v} /></Panel>
@@ -516,14 +511,17 @@ export function DroneDashMini({ deviceId }: { deviceId: string }) {
     const h = v?.fcx?.home;
     return v && h?.lat != null && h.lon != null && v.lat !== null && v.lon !== null ? bearing({ lat: v.lat, lon: v.lon }, { lat: h.lat, lon: h.lon }) : null;
   }, [v]);
+  const [flow, setFlow] = useState(true);
+  const [graph, setGraph] = useState(true);
   if (v === undefined) return <p className="sar-empty">{t('dash.noDevice')}</p>;
   return <div className="dash-mini">
     <div className="dash-mini__head">
       <span className={v.extended ? 'sar-ok' : 'sar-warn'}>{v.extended ? t('dash.extended') : t('dash.basicOnly')}</span>
+      <CellToggles graph={graph} onGraph={setGraph} flow={flow} onFlow={setFlow} />
     </div>
-    <StatusBar v={v} compact />
+    {graph ? <StatusGraphs v={v} compact /> : <StatusBar v={v} compact />}
     <SarStrip deviceId={v.deviceId} />
-    <div className="dash-mini__body">
+    {flow ? null : <div className="dash-mini__body">
       <div className="dash-mini__map"><DashMap v={v} height={240} /></div>
       <div className="dash-mini__side">
         <div className="dash-instruments dash-mini__instruments">
@@ -536,7 +534,7 @@ export function DroneDashMini({ deviceId }: { deviceId: string }) {
           <span>{t('dash.yawShort')} <b>{v.yawDeg === null ? '—' : Math.round(v.yawDeg)}</b>°</span>
         </div>
       </div>
-    </div>
+    </div>}
   </div>;
 }
 

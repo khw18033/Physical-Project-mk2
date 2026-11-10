@@ -26,6 +26,7 @@ import { PendingSource } from './shared/PendingSource.tsx';
 import { MissionHistoryList, useMissionEndWatch } from './views/MissionHistory.tsx';
 import { deviceCardOrigin, hardwareSourceLabel, listRegisteredHardware, useDeviceCardIds } from './shared/registry.ts';
 import { startConnectedSweep } from './shared/connectedDevices.ts';
+import { startMetricSampler } from './shared/metricHistory.ts';
 import { startFixedCameraWatch } from './fixedcam/fixedCamera.ts';
 import { startTwinWatch } from './virtualmap/twinDevice.ts';
 import { graphShape, shapeLabel } from './graph/shape.ts';
@@ -603,6 +604,8 @@ export function MissionDebugger({ navigation, planApproval }: { navigation?: Deb
    * 아무도 저장소를 안 건드리고, 그러면 꺼진 장비의 카드가 그대로 남는다.
    */
   useEffect(() => startConnectedSweep(), []);
+  // 261110 — 실시간 상태 그래프의 「수신 간격」. 장비가 조용해도 0.5초마다 잰다(`metricHistory.ts`).
+  useEffect(() => startMetricSampler(), []);
   // 261002 — 고정 카메라. 연결 관리에 적힌 주소에서 10초마다 한 장씩 받아 보고, 받아지면 카드가 뜬다.
   useEffect(() => startFixedCameraWatch(), []);
   // 261007 — 3D 가상환경 PC 를 하드웨어 카드로. 주소가 답하면 카드가 선다(`twinDevice.ts`).

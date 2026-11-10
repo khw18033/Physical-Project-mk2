@@ -56,8 +56,12 @@ import { deviceCandidates, subscribeDeviceIdentity } from '../physical/deviceIde
 import { isManualRobot } from '../physical/manualControl.ts';
 import { ManualControlTab } from './ManualControlTab.tsx';
 
-const ROBOT_TABS = ['status', 'manual'] as const;
-type RobotTab = (typeof ROBOT_TABS)[number];
+/**
+ * 탭 (261111). 드론이 아닌 장비(Go1 등)는 **상태와 카메라를 가른다** — 한 판에 상태 그래프와 영상 셋이 함께 서면
+ * 상태를 보려 해도 영상이 길게 밀고 내려왔다. 수동 제어는 로봇일 때만.
+ */
+const DEVICE_TABS = ['status', 'camera', 'manual'] as const;
+type DeviceTab = (typeof DEVICE_TABS)[number];
 
 export function DeviceStatusOverlay({ deviceId, device, source, onClose }: {
   deviceId: string;
@@ -100,7 +104,9 @@ export function DeviceStatusOverlay({ deviceId, device, source, onClose }: {
   const facts = useSyncExternalStore(subscribeDeviceIdentity,
     () => deviceCandidates().find((candidate) => candidate.deviceId === deviceId) ?? null);
   const robot = isManualRobot(facts, { drone, fixedCamera: viewOnly });
-  const [tab, setTab] = useState<RobotTab>('status');
+  const [tab, setTab] = useState<DeviceTab>('status');
+  // 고정 카메라 · 3D 가상환경은 보기만 하는 한 판이라 탭이 없다.
+  const tabs = viewOnly ? [] : DEVICE_TABS.filter((item) => item !== 'manual' || robot);
   // 여는 길이 둘(더블클릭·앞으로 늘 수 있는 다른 경로)이면 닫는 길도 둘 이상이어야 한다.
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') onClose(); };
@@ -116,8 +122,8 @@ export function DeviceStatusOverlay({ deviceId, device, source, onClose }: {
           <h2>{t('dso.title', { id: deviceId })}</h2>
           <small>{device ? `${device.kind} · ` : ''}{t('dso.source', { source })}</small>
         </div>
-        {robot && <nav className="drone-modal__tabs" role="tablist" aria-label={t('dso.drone.tabs', { id: deviceId })}>
-          {ROBOT_TABS.map((item) => <button key={item} type="button" role="tab" aria-selected={tab === item}
+        {tabs.length > 0 && <nav className="drone-modal__tabs" role="tablist" aria-label={t('dso.drone.tabs', { id: deviceId })}>
+          {tabs.map((item) => <button key={item} type="button" role="tab" aria-selected={tab === item}
             onClick={() => setTab(item)}>{t(`dso.robot.tab.${item}`)}</button>)}
         </nav>}
         <button onClick={onClose}>{t('dso.1')}</button>
@@ -125,9 +131,9 @@ export function DeviceStatusOverlay({ deviceId, device, source, onClose }: {
       {robot && tab === 'manual' ? <ManualControlTab deviceId={deviceId} /> : <>
       {/* **오는 값만 적는다** (260910). 안 오는 칸은 자리표시로 채우지 않고 아예 안 그린다. */}
       {/* 261110 — 드론이 아닌 장비(Go1 등)는 드론 상태판과 같은 모양(`GroundDash`). 값의 출처는 `DeviceFacts` 와 같다. */}
-      {twin ? <TwinSection entityId={deviceId} /> : fixedCamera ? <FixedCameraSection entityId={deviceId} /> : <GroundDash entityId={deviceId} />}
-      {device !== undefined && <DeviceStrip device={device} />}
-      {!viewOnly && directUrl !== null && <section className="media-section device-cam device-cam--zoom">
+      {twin ? <TwinSection entityId={deviceId} /> : fixedCamera ? <FixedCameraSection entityId={deviceId} /> : tab === 'status' && <GroundDash entityId={deviceId} />}
+      {(viewOnly || tab === 'status') && device !== undefined && <DeviceStrip device={device} />}
+      {!viewOnly && tab === 'camera' && directUrl !== null && <section className="media-section device-cam device-cam--zoom">
         <header className="media-section__head">
           <h3>{t('dso.robotCamera')}</h3>
           {/* 카메라가 한 대인 길(드론 말단)은 위치를 안 가린다 — 칸을 두면 바꿔도 아무 일이 없다. */}
@@ -141,10 +147,10 @@ export function DeviceStatusOverlay({ deviceId, device, source, onClose }: {
         <DirectCameras sources={directSources} live recordLabel={`${deviceId}_${position}`} />
       </section>}
       {/* 261001 — 객체 탐지 추론 스트림. 포트를 고르고(자동 맞춤이 기본) 모델별 오버레이를 연다. 닫으면 끊긴다. */}
-      {!twin && <VisionDeviceSection entityId={deviceId} />}
+      {(fixedCamera || (!viewOnly && tab === 'camera')) && <VisionDeviceSection entityId={deviceId} />}
       {/* 카메라 영상 — **닫으면 끊긴다.** 붙는 것이 켜기이고 끊는 것이 끄기다.
           로봇 카메라를 바로 보고 있으면 이 칸은 접는다 — 같은 영상을 두 길로 동시에 열 이유가 없다. */}
-      {viewOnly ? null : directUrl === null
+      {viewOnly || tab !== 'camera' ? null : directUrl === null
         ? <MediaSection deviceId={deviceId} />
         : <details className="media-section__fold"><summary>{t('dso.mediaFold')}</summary><MediaSection deviceId={deviceId} /></details>}
       </>}
