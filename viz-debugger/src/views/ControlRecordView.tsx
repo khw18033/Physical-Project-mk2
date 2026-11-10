@@ -15,6 +15,7 @@ import { useLang } from '../shared/language.ts';
 import type { ControlEvent, ControlProgress, ControlRecordSummary } from '../record/controlRecorder.ts';
 import { fetchRecordJson } from '../record/recordClient.ts';
 import { lineTone, PHASES, readProgress, runOutcome, stripTime, type FlightProcess } from '../physical/flightRunFeed.ts';
+import { ControlTelemetrySection } from './ControlTelemetryView.tsx';
 
 type Loaded = { summary: ControlRecordSummary; progress: ControlProgress };
 
@@ -158,6 +159,8 @@ export function ControlRecordView({ date, run, onClose }: { date: string; run: s
           <div><dt>{t('ctl.f.missions')}</dt><dd>{summary.missions.length === 0 ? t('ctl.noMission')
             : summary.missions.map((m) => <span key={m.missionId}><b>{m.missionId}</b>{m.recordFolder !== null && <> <code>{m.recordFolder}</code></>} </span>)}</dd></div>
         </dl>
+        {/* 261111 — 텔레메트리 표본(2차). 1차 판에는 표본이 없다고 적는다. */}
+        <ControlTelemetrySection summary={summary} progress={progress} events={events} />
         {progress.flight !== null && <>
           {progress.flight.runs.length === 0 && <p className="ctl-pad">{t('ctl.flight.noRun')}</p>}
           {progress.flight.runs.map((p) => <FlightSection key={p.runId} process={p} emergency={false} />)}

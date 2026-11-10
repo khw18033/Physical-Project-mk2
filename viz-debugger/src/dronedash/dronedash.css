@@ -232,6 +232,7 @@
 .graph-lane__seg--n2{background:#a3d6b7}
 .graph-lane__seg--n3{background:#e7cf9f}
 .graph-lane__seg--none{background:repeating-linear-gradient(135deg,#c9d0d8 0 3px,#e8ecf1 3px 6px)}
+.graph-mark{position:absolute;top:0;bottom:0;width:0;border-left:1px dashed #6b7888;opacity:.55;pointer-events:none}
 .graph-axis{display:flex;justify-content:space-between;font-size:10px;color:#6b7888}
 .trend-toggles{display:flex;gap:6px;margin-left:auto}
 .trend-toggle{display:inline-flex;border:1px solid #cbd3de;border-radius:var(--radius-sm);overflow:hidden}

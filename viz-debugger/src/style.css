@@ -1392,3 +1392,19 @@ button.flight-armed:not(:disabled){color:#fff!important;border-color:#8f1d22!imp
 .ctl-row.is-keepalive td{color:#4a5666}
 .ctl-row.is-warn td{background:#fdfaf3}
 .ctl-row.is-bad td{background:#fff3f2;color:#8f2b26}
+
+/* 조작 기록 2차 — 텔레메트리 표본 (261111, ControlTelemetryView) */
+.ctl-telemetry{padding:4px 18px 12px}
+.ctl-telemetry h3{margin:6px 0}
+.ctl-telemetry .ctl-pad{padding-left:0;padding-right:0}
+.ctl-telemetry__summary{margin:4px 0;font-size:13px}
+.ctl-telemetry__hint{margin:2px 0 8px;font-size:12px;color:#6b7888}
+.ctl-track{margin:10px 0 0}
+.ctl-track figcaption{display:flex;align-items:baseline;gap:8px;font-size:13px}
+.ctl-track figcaption small{color:#6b7888}
+.ctl-track__legend{margin-left:auto;display:flex;align-items:center;gap:6px;font-size:12px;color:#4a5666}
+.ctl-track__legend i{display:inline-block;width:9px;height:9px;border-radius:50%}
+.ctl-track__legend .is-start,.ctl-track__start{background:#1f8a4d;fill:#1f8a4d}
+.ctl-track__legend .is-end,.ctl-track__end{background:#c62f35;fill:#c62f35}
+.ctl-track svg{display:block;width:100%;height:240px;margin-top:4px;background:#f4f7fa;border-radius:var(--radius-sm)}
+.ctl-track__line{fill:none;stroke:#1768c5;stroke-width:2;stroke-linejoin:round;stroke-linecap:round}

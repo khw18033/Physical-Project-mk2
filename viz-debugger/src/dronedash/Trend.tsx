@@ -77,13 +77,22 @@ function range(values: number[], minSpan: number, extra: number[]): [number, num
   return [lo - pad, hi + pad];
 }
 
-function LinePlot({ graph, now }: { graph: LineGraph; now: number }) {
+/** 판 공통 — 창 길이 · 세로 표시선(조작 기록의 명령 시각) · 살아 있는 판인가(최신 점 맥동). */
+type Frame = { now: number; windowMs: number; marks: readonly number[]; live: boolean };
+
+function Marks({ frame }: { frame: Frame }) {
+  return <>{frame.marks.filter((ms) => ms >= frame.now - frame.windowMs && ms <= frame.now).map((ms, i) =>
+    <span key={i} className="graph-mark" style={{ left: `${((ms - (frame.now - frame.windowMs)) / frame.windowMs) * 100}%` }} />)}</>;
+}
+
+function LinePlot({ graph, frame }: { graph: LineGraph; frame: Frame }) {
   useLang();
-  const { runs, gaps, fresh, last } = trendRuns(graph.points, now, FLOW_WINDOW_MS);
+  const { now, windowMs } = frame;
+  const { runs, gaps, fresh, last } = trendRuns(graph.points, now, windowMs);
   const values = runs.flat().map((p) => p.v);
   if (values.length === 0) return <span className="graph-empty">{t('dash.noData')}</span>;
   const [lo, hi] = range(values, graph.minSpan ?? 1, graph.threshold === undefined ? [] : [graph.threshold]);
-  const x = (ms: number) => Math.max(0, ((ms - (now - FLOW_WINDOW_MS)) / FLOW_WINDOW_MS) * GW);
+  const x = (ms: number) => Math.max(0, ((ms - (now - windowMs)) / windowMs) * GW);
   const y = (v: number) => PLOT_BOTTOM - ((v - lo) / (hi - lo)) * (PLOT_BOTTOM - PLOT_TOP);
   const pathOf = (run: readonly MetricPoint[]) => run.map((p, i) =>
     (i === 0 ? `M${x(p.atMs).toFixed(2)},${y(p.v).toFixed(2)}`
@@ -100,24 +109,27 @@ function LinePlot({ graph, now }: { graph: LineGraph; now: number }) {
         </g>;
       })}
     </svg>
-    {fresh && last !== null && <span className="graph-dot" style={{ left: `${x(last.atMs)}%`, top: `${(y(last.v) / GH) * 100}%` }} />}
+    <Marks frame={frame} />
+    {frame.live && fresh && last !== null && <span className="graph-dot" style={{ left: `${x(last.atMs)}%`, top: `${(y(last.v) / GH) * 100}%` }} />}
   </>;
 }
 
-function LanePlot({ graph, now }: { graph: LaneGraph; now: number }) {
+function LanePlot({ graph, frame }: { graph: LaneGraph; frame: Frame }) {
   useLang();
-  const spans = stateSpans(graph.points, now, FLOW_WINDOW_MS);
+  const { now, windowMs } = frame;
+  const spans = stateSpans(graph.points, now, windowMs);
   if (spans.length === 0) return <span className="graph-empty">{t('dash.noData')}</span>;
   const order = new Map<string, number>();
   for (const span of spans) if (span.code !== null && !order.has(span.code)) order.set(span.code, order.size % 4);
   return <div className="graph-lane">
     {spans.map((span) => {
-      const left = ((span.from - (now - FLOW_WINDOW_MS)) / FLOW_WINDOW_MS) * 100;
-      const width = ((span.to - span.from) / FLOW_WINDOW_MS) * 100;
+      const left = ((span.from - (now - windowMs)) / windowMs) * 100;
+      const width = ((span.to - span.from) / windowMs) * 100;
       const tone = span.code === null ? 'none' : graph.toneOf ? graph.toneOf(span.code) : `n${order.get(span.code)}`;
       return <span key={`${span.from}-${span.code ?? ''}`} className={`graph-lane__seg graph-lane__seg--${tone}`}
         style={{ left: `${left}%`, width: `${width}%` }} title={span.code === null ? t('trend.noSignal') : graph.labelOf(span.code)} />;
     })}
+    <Marks frame={frame} />
   </div>;
 }
 
@@ -125,11 +137,18 @@ function LanePlot({ graph, now }: { graph: LaneGraph; now: number }) {
  * 그래프 칸 (261111 두 번째 — 글상자 없이). **그래프가 칸 전체**이고 지금 상태 글자가 그 위쪽에 떠 있다 — 지금 값과
  * 지나온 변화를 한눈에. 글자 색과 표시(✓ ! ✕ ?)가 지금 상태이고, 나쁠 때는 판 바탕도 붉어진다.
  */
-export function GraphStat({ level, label, value, graph, now, title }: {
+export function GraphStat({ level, label, value, graph, now, title, windowMs = FLOW_WINDOW_MS, marks = [], live = true }: {
   level: GraphLevel; label: string; value: ReactNode; graph: LineGraph | LaneGraph; now: number; title?: string;
+  /** 창 길이 — 기본은 최근 2분. 조작 기록은 판 전체(시작 ~ 끝)를 준다. */
+  windowMs?: number;
+  /** 세로 표시선 시각들 — 조작 기록의 명령. */
+  marks?: readonly number[];
+  /** 지금 흐르는 판인가. 아니면(기록) 최신 점이 맥동하지 않는다. */
+  live?: boolean;
 }) {
+  const frame: Frame = { now, windowMs, marks, live };
   return <figure className={`graph-stat graph-stat--${level} graph-stat--${graph.kind}`} title={title}>
-    {graph.kind === 'line' ? <LinePlot graph={graph} now={now} /> : <LanePlot graph={graph} now={now} />}
+    {graph.kind === 'line' ? <LinePlot graph={graph} frame={frame} /> : <LanePlot graph={graph} frame={frame} />}
     <figcaption className="graph-stat__head">
       <span className="graph-stat__label">{label}</span>
       <b className="graph-stat__value"><i aria-hidden>{MARK[level]}</i>{value}</b>
@@ -138,11 +157,12 @@ export function GraphStat({ level, label, value, graph, now, title }: {
 }
 
 /** 그래프 타일 줄 + 공통 시간축 한 줄(−120 s … 지금). `compact` 는 전체 장치 확인 칸. */
-export function GraphGrid({ compact = false, children }: { compact?: boolean; children: ReactNode }) {
+export function GraphGrid({ compact = false, axis, children }: { compact?: boolean; axis?: readonly [string, string]; children: ReactNode }) {
   useLang();
+  const [from, to] = axis ?? [t('trend.ago', { s: FLOW_WINDOW_MS / 1000 }), t('trend.now')];
   return <div className="graph-grid-wrap">
     <div className={`graph-grid${compact ? ' graph-grid--compact' : ''}`}>{children}</div>
-    <div className="graph-axis" aria-hidden><span>{t('trend.ago', { s: FLOW_WINDOW_MS / 1000 })}</span><span>{t('trend.now')}</span></div>
+    <div className="graph-axis" aria-hidden><span>{from}</span><span>{to}</span></div>
   </div>;
 }
 

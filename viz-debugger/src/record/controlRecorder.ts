@@ -8,7 +8,7 @@
  *   mission-history/<날짜>/<시각>_CTL-<장비>/   수동 제어 · 사람 명령
  *   mission-history/<날짜>/<시각>_FLT-<장비>/   비행 실행 하나
  *     mission.json    판 요약 (`recordKind: 'control'`) — 이력 목록이 읽는다
- *     progress.json   일어난 일 전부 — 명령 · 답 · 막힘 · 유지 신호 구간 · 설정 · 비행 실행기 출력
+ *     progress.json   일어난 일 전부 — 명령 · 답 · 막힘 · 유지 신호 구간 · 설정 · 비행 실행기 출력 · 텔레메트리 표본
  *
  * ## 남기는 것은 **이 화면이 한 조작**뿐이다
  *
@@ -34,6 +34,13 @@
  * 다시보기는 화면이 지난 판을 그리는 것이고, 그 사이에도 키보드 조작은 실제 장비로 나간다. 실제로 나간 것은 적는다.
  *
  * **로봇에 나가는 바이트는 한 줄도 안 바뀐다.** 이미 나간 뒤에 적기만 한다.
+ *
+ * ## 텔레메트리 표본 (261111 — 2차)
+ *
+ * 판이 열려 있는 동안 주기(`TICK_MS`)마다 그 장비의 **지금 값**을 한 줄 적는다 — 배터리 · 전압 · 속도 · 고도 · 위치 ·
+ * 방위 · 모드 · 무장 · GPS · 링크 · 수신 간격. 값은 실시간 그래프와 같은 이력(`shared/metricHistory.ts`)에서 읽는다.
+ * **`TELEMETRY_FRESH_MS` 넘게 안 온 값은 빈칸(null)이다** — 마지막 값을 끌어다 「그때 값」으로 적지 않는다.
+ * 표본만으로는 폴더를 만들지 않는다(조작이 있어야 판이 선다). 표본만 늘어난 쓰기는 `TELEMETRY_WRITE_MS` 에 한 번이다.
  */
 
 import { useSyncExternalStore } from 'react';
@@ -44,6 +51,8 @@ import { flightRuns, subscribeFlightRuns, readProgress, runOutcome, type FlightP
 import type { UplinkMessage } from '../physical/uplink.ts';
 import { recorderStatus } from './recorder.ts';
 import { putRecordJson, runFolderOf } from './recordClient.ts';
+import { hardwareTarget } from '../physical/encode.ts';
+import { AGE_KEY, lastSeenAt, latestMetric, latestState } from '../shared/metricHistory.ts';
 
 export const CONTROL_SCHEMA = 'control-record/1';
 const TICK_MS = 1500;
@@ -55,6 +64,37 @@ export const FLIGHT_IDLE_MS = 120_000;
 export const FLIGHT_GRACE_MS = 6_000;
 /** 유지 신호 · 막힘이 이 간격 안에 이어지면 한 구간으로 묶는다. */
 const MERGE_GAP_MS = 1_000;
+
+/** 이보다 오래된 값은 표본에 안 적는다(빈칸). 1 Hz 장비가 몇 번 놓쳐도 남고, 멎은 장비는 곧 빈칸이 된다. */
+export const TELEMETRY_FRESH_MS = 5_000;
+/** 표본만 늘어난 판을 다시 쓰는 간격. 조작 · 닫힘은 이와 상관없이 바로 쓴다. */
+export const TELEMETRY_WRITE_MS = 10_000;
+/** 판 하나의 표본 상한 — 1.5초마다면 2시간. 넘으면 더 안 적고 그 사실을 남긴다. */
+const MAX_TELEMETRY = 4_800;
+
+/**
+ * 표본의 칸. 숫자는 이력 키 중 먼저 있는 것(Go1 모양 · 드론 모양), 낱말은 범주 키. 이 차례가 저장 차례다.
+ * `rxAgeS` 는 이 브라우저가 잰 「마지막으로 무엇이든 받은 지 몇 초」.
+ */
+const TELEMETRY_NUMBERS: ReadonlyArray<readonly [string, readonly string[]]> = [
+  ['batteryPct', ['battery_pct', 'battery.remaining_pct']],
+  ['voltageV', ['battery.voltage_v']],
+  ['speedMps', ['speed_mps', 'hud.groundspeed']],
+  ['altM', ['altitude.relative_m']],
+  ['lat', ['gps.lat']],
+  ['lon', ['gps.lon']],
+  ['x', ['position.x']],
+  ['y', ['position.y']],
+  ['headingDeg', ['position.heading_deg']],
+];
+const TELEMETRY_WORDS: ReadonlyArray<readonly [string, readonly string[]]> = [
+  ['mode', ['robot_mode', 'flight.mode']],
+  ['armed', ['flight.armed']],
+  ['gpsFix', ['gps.fix']],
+  ['link', ['link']],
+];
+export const TELEMETRY_COLUMNS = ['atMs', ...TELEMETRY_NUMBERS.map(([k]) => k), 'rxAgeS', ...TELEMETRY_WORDS.map(([k]) => k)] as const;
+type TelemetryCell = number | string | null;
 
 const FLIGHT_START = 'rtk_test_start';
 const FLIGHT_EMERGENCY = 'rtk_test_emergency';
@@ -103,6 +143,18 @@ export type ControlRecordSummary = {
     phase: string | null;
     emergencies: number;
   } | null;
+  /** 텔레메트리 표본 요약(261111). 값이 하나도 없었으면 null. 옛 판(1차)에는 칸 자체가 없다. */
+  telemetry?: {
+    samples: number;
+    batteryStart: number | null;
+    batteryEnd: number | null;
+    batteryMin: number | null;
+    /** 가장 길었던 수신 간격(초) — 판 사이 끊김의 크기. */
+    maxRxAgeS: number | null;
+    /** 지나간 모드 차례(이어진 같은 값은 하나로). */
+    modes: string[];
+    truncated: boolean;
+  } | null;
 };
 
 export type ControlProgress = {
@@ -112,6 +164,11 @@ export type ControlProgress = {
   updatedAtIso: string;
   events: ControlEvent[];
   flight: { startCommandId: string | null; dryRun: boolean | null; runs: FlightProcess[]; emergencies: FlightProcess[] } | null;
+  /**
+   * 텔레메트리 표본(261111) — 칸 이름 한 줄 + 줄마다 값. 첫 칸은 시각(ms). 판 내내 한 번도 안 온 칸은 뺀다.
+   * 옛 판(1차)에는 없다.
+   */
+  telemetry?: { columns: string[]; rows: TelemetryCell[][]; truncated: boolean };
 };
 
 type Session = {
@@ -140,6 +197,11 @@ type Session = {
   } | null;
   written: { mission: string; progress: string };
   lastConfig: string;
+  telemetry: TelemetryCell[][];
+  telemetryTruncated: boolean;
+  /** 마지막으로 쓴 때의 사건 수와 시각 — 표본만 늘었으면 `TELEMETRY_WRITE_MS` 에 한 번만 쓴다. */
+  writtenEvents: number;
+  writtenAtMs: number;
 };
 
 export type ControlRecorderStatus = {
@@ -205,6 +267,76 @@ function folderWords(s: Session): string | null {
   return s.folder === null ? null : `${s.folder.date}/${s.folder.run}`;
 }
 
+// ── 텔레메트리 표본 ─────────────────────────────────────────────────────────
+
+/** 이 장비의 이력 id — 명령 id 그대로이거나 하드웨어 id(`hardwareTarget`). 이력이 있는 쪽. */
+function historyIdOf(deviceId: string): string {
+  const hardware = hardwareTarget(deviceId);
+  return lastSeenAt(deviceId) === null && lastSeenAt(hardware) !== null ? hardware : deviceId;
+}
+
+/** 지금 값 한 줄. 아무 값도 없으면(장비가 아직 아무것도 안 보냈으면) 안 적는다. */
+function sampleTelemetry(session: Session, now = clock()): void {
+  if (session.closedAtMs !== null) return;
+  if (session.telemetry.length >= MAX_TELEMETRY) { session.telemetryTruncated = true; return; }
+  const id = historyIdOf(session.deviceId);
+  const numbers = TELEMETRY_NUMBERS.map(([, keys]) => {
+    for (const key of keys) {
+      const value = latestMetric(id, key, now, TELEMETRY_FRESH_MS);
+      if (value !== null) return value;
+    }
+    return null;
+  });
+  const seen = lastSeenAt(id);
+  // 수신 간격은 표본기(0.5초)를 기다리지 않고 지금 잰다 — 이 줄의 시각과 맞는다.
+  const rxAgeS = seen === null ? latestMetric(id, AGE_KEY, now, TELEMETRY_FRESH_MS) : Math.max(0, Math.round((now - seen) / 100) / 10);
+  const words = TELEMETRY_WORDS.map(([, keys]) => {
+    for (const key of keys) {
+      const value = latestState(id, key, now, TELEMETRY_FRESH_MS);
+      if (value !== null) return value;
+    }
+    return null;
+  });
+  if (seen === null && numbers.every((v) => v === null) && words.every((v) => v === null)) return;
+  const row: TelemetryCell[] = [now, ...numbers.map((v) => (v === null ? null : Math.round(v * 1e7) / 1e7)), rxAgeS, ...words];
+  if (session.telemetry.at(-1)?.[0] === now) session.telemetry[session.telemetry.length - 1] = row;
+  else session.telemetry.push(row);
+}
+
+function telemetryBody(session: Session): ControlProgress['telemetry'] {
+  if (session.telemetry.length === 0) return undefined;
+  // 판 내내 빈 칸은 뺀다 — 드론 판에 Go1 지도 좌표 칸이 줄마다 null 로 서지 않게.
+  const keep = TELEMETRY_COLUMNS.map((_, index) => index === 0 || session.telemetry.some((row) => row[index] !== null));
+  return {
+    columns: TELEMETRY_COLUMNS.filter((_, index) => keep[index]),
+    rows: session.telemetry.map((row) => row.filter((_, index) => keep[index])),
+    truncated: session.telemetryTruncated,
+  };
+}
+
+function telemetrySummary(session: Session): ControlRecordSummary['telemetry'] {
+  const rows = session.telemetry;
+  if (rows.length === 0) return null;
+  const col = (name: string) => TELEMETRY_COLUMNS.indexOf(name as (typeof TELEMETRY_COLUMNS)[number]);
+  const numbers = (name: string) => rows.map((row) => row[col(name)]).filter((v): v is number => typeof v === 'number');
+  const battery = numbers('batteryPct');
+  const ages = numbers('rxAgeS');
+  const modes: string[] = [];
+  for (const row of rows) {
+    const mode = row[col('mode')];
+    if (typeof mode === 'string' && modes.at(-1) !== mode) modes.push(mode);
+  }
+  return {
+    samples: rows.length,
+    batteryStart: battery[0] ?? null,
+    batteryEnd: battery.at(-1) ?? null,
+    batteryMin: battery.length === 0 ? null : Math.min(...battery),
+    maxRxAgeS: ages.length === 0 ? null : Math.max(...ages),
+    modes,
+    truncated: session.telemetryTruncated,
+  };
+}
+
 // ── 판 열고 닫기 ─────────────────────────────────────────────────────────────
 
 function openSession(deviceId: string, kind: ControlSessionKind, reason: 'manualOn' | 'flightStart' | 'command'): Session {
@@ -224,8 +356,13 @@ function openSession(deviceId: string, kind: ControlSessionKind, reason: 'manual
       : null,
     written: { mission: '', progress: '' },
     lastConfig: '',
+    telemetry: [],
+    telemetryTruncated: false,
+    writtenEvents: 0,
+    writtenAtMs: 0,
   };
   open.set(deviceId, session);
+  sampleTelemetry(session, now);
   if (kind === 'manual') noteConfig(session);
   return session;
 }
@@ -233,6 +370,7 @@ function openSession(deviceId: string, kind: ControlSessionKind, reason: 'manual
 function closeSession(session: Session, reason: ControlCloseReason): void {
   if (session.closedAtMs !== null) return;
   const now = clock();
+  sampleTelemetry(session, now);
   session.closedAtMs = now;
   session.closeReason = reason;
   session.events.push({ atMs: now, kind: 'closed', reason });
@@ -472,6 +610,7 @@ export function buildControlBodies(session: Session): { mission: string; progres
       phase: main === null ? null : readProgress(main.lines).phase,
       emergencies: flight.emergencies.size,
     },
+    telemetry: telemetrySummary(session),
   };
   const progress: ControlProgress = {
     schema: CONTROL_SCHEMA,
@@ -485,11 +624,12 @@ export function buildControlBodies(session: Session): { mission: string; progres
       runs,
       emergencies: [...flight.emergencies.values()],
     },
+    telemetry: telemetryBody(session),
   };
   return { mission: JSON.stringify(summary, null, 2), progress: JSON.stringify(progress) };
 }
 
-function write(session: Session): void {
+function write(session: Session, force = false): void {
   if (!session.happened) return;
   if (session.folder === null) {
     session.folder = runFolderOf(new Date(session.openedAtMs), `${session.kind === 'flight' ? 'FLT' : 'CTL'}-${session.deviceId}`);
@@ -500,6 +640,12 @@ function write(session: Session): void {
   const missionChanged = strip(bodies.mission) !== strip(session.written.mission);
   const progressChanged = strip(bodies.progress) !== strip(session.written.progress);
   if (!missionChanged && !progressChanged) return;
+  // 표본만 늘었으면 몇 초에 한 번만 — 사건이 생겼거나 닫힌 판은 바로 쓴다.
+  const now = clock();
+  const onlySamples = session.closedAtMs === null && session.events.length === session.writtenEvents && session.writtenAtMs > 0;
+  if (!force && onlySamples && now - session.writtenAtMs < TELEMETRY_WRITE_MS) return;
+  session.writtenEvents = session.events.length;
+  session.writtenAtMs = now;
   session.written = bodies;
   // 차례로 쓴다 — 같은 파일을 두 요청이 겹쳐 쓰면 늦게 출발한 것이 먼저 끝날 수 있다.
   writing = writing.then(async () => {
@@ -522,7 +668,7 @@ export function controlTick(): void {
   if (status.state === 'unavailable') return;
   syncFlightRuns();
   closeDue(clock());
-  for (const session of open.values()) write(session);
+  for (const session of open.values()) { sampleTelemetry(session); write(session); }
   // 닫힌 판은 마지막 모습을 한 번 쓰고 내려놓는다.
   for (const session of closing.splice(0)) {
     write(session);
@@ -546,7 +692,7 @@ export function startControlRecorder(): () => void {
     const offManual = subscribeManual(syncManualSessions);
     const offFlight = subscribeFlightRuns(syncFlightRuns);
     // 창을 닫을 때 열린 판을 닫힌 것으로 한 번 더 쓴다 — 못 가도 1.5초 전까지는 남아 있다.
-    const onHide = () => { for (const session of [...open.values()]) write(session); };
+    const onHide = () => { for (const session of [...open.values()]) { sampleTelemetry(session); write(session, true); } };
     if (typeof window !== 'undefined') window.addEventListener('pagehide', onHide);
     stopAll = () => {
       clearInterval(timer); offManual(); offFlight();

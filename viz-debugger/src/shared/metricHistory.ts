@@ -95,6 +95,12 @@ export const TREND_PATHS = [
   // Go1 모양(`deviceState.ts` 의 고정 칸과 같은 이름)
   'battery_pct',
   'speed_mps',
+  // 위치 — 그래프에는 안 그리지만 조작 기록의 표본이 쓴다(261111). 드론 위도 · 경도, Go1 지도 좌표 · 방위
+  'gps.lat',
+  'gps.lon',
+  'position.x',
+  'position.y',
+  'position.heading_deg',
 ] as const;
 
 /**
@@ -135,13 +141,14 @@ export function noteTelemetryBody(deviceId: string, body: Record<string, unknown
 }
 
 /** FC 확장 텔레메트리가 싣는 지표. 이것이 살아 있으면 `/state` 의 같은 지표는 안 적는다. */
-const FCX_KEYS = new Set<string>(['battery.remaining_pct', 'battery.voltage_v', 'altitude.relative_m', 'gps.satellites']);
+const FCX_KEYS = new Set<string>(['battery.remaining_pct', 'battery.voltage_v', 'altitude.relative_m', 'gps.satellites', 'gps.lat', 'gps.lon']);
 
 /** FC 확장 텔레메트리 한 건(`noteFcx` 가 부른다). 이 모양만 안다 — `fcxStatus.ts` 를 들여오지 않는다. */
 export function noteFcxSample(deviceId: string, sample: {
   altRelM: number | null; groundspeed: number | null; climb: number | null; voltageV: number | null;
   remainingPct: number | null; satellites: number | null; mode: string | null;
   armed?: boolean | null; gpsFix?: string | null; ekfWorst?: number | null; rcRssi?: number | null; clockOffsetS?: number | null;
+  lat?: number | null; lon?: number | null;
 }, atMs = Date.now()): void {
   noteSeen(deviceId, atMs);
   fcxAt[deviceId] = atMs;
@@ -157,6 +164,8 @@ export function noteFcxSample(deviceId: string, sample: {
   noteMetric(deviceId, 'ekf.worst', sample.ekfWorst, atMs);
   noteMetric(deviceId, 'rc.rssi', sample.rcRssi, atMs);
   noteMetric(deviceId, 'clock.offset_s', sample.clockOffsetS, atMs);
+  noteMetric(deviceId, 'gps.lat', sample.lat, atMs);
+  noteMetric(deviceId, 'gps.lon', sample.lon, atMs);
 }
 
 /** 보고 줄 하나의 이력 키 — 모양을 모르는 장비도 줄마다 띠 그래프를 그린다. */
@@ -286,4 +295,18 @@ export function changeMoments(spans: readonly StateSpan[]): number[] {
     prev = span.code;
   }
   return out;
+}
+
+/**
+ * **지금 값** (261111 — 조작 기록 2차의 표본). 마지막 점이 `maxAgeMs` 안에 왔을 때만 — 낡은 값을 「그때 값」으로
+ * 적지 않는다. 없으면 `null`.
+ */
+export function latestMetric(deviceId: string, key: string, nowMs: number, maxAgeMs: number): number | null {
+  const last = metricSeries(deviceId, key).at(-1);
+  return last !== undefined && nowMs - last.atMs <= maxAgeMs && last.atMs <= nowMs ? last.v : null;
+}
+
+export function latestState(deviceId: string, key: string, nowMs: number, maxAgeMs: number): string | null {
+  const last = stateSeries(deviceId, key).at(-1);
+  return last !== undefined && nowMs - last.atMs <= maxAgeMs && last.atMs <= nowMs ? last.code : null;
 }

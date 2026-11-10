@@ -11,8 +11,10 @@
 //  ⑤ 비행 시작 거절 — 판이 「시작 거절」로 닫힌다
 //  ⑥ 사람 명령(SAR) — 열린 판이 없으면 사람 명령 판이 서고, 60초 쉬면 닫힌다
 //  ⑦ 저장 창구 규칙 — 폴더 이름이 `mission-records.mjs` 의 형식을 지난다
+//  ⑧ 텔레메트리 표본(2차) — 판이 열린 동안 주기마다 한 줄. 판 내내 빈 칸은 빼고, 5초 넘게 안 온 값은 빈칸이다(끌어다 채우지 않는다).
+//     수신 간격은 침묵 동안 오른다. 요약에 배터리 시작 · 끝 · 최저와 모드 차례. 표본만으로는 폴더를 안 만들고, 표본만 는 쓰기는 몇 초에 한 번
 //
-// 대조군 둘 — 유지 신호를 건별로 적은 기록 · 켜고 끄기만 한 판에 폴더를 만든 기록. 판정이 각각 잡아야 한다.
+// 대조군 셋 — 유지 신호를 건별로 적은 기록 · 켜고 끄기만 한 판에 폴더를 만든 기록 · 침묵 동안을 마지막 값으로 채운 표본.
 import { join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
@@ -235,6 +237,92 @@ now += 7000; cr.controlTick(); await cr.settleControlRecorder();
   if (read(folder, 'mission.json')?.actions?.sar_start !== 1) failures.push('사람 명령 판에 sar_start 가 없다');
 }
 
+// ── ⑧ 텔레메트리 표본 ──────────────────────────────────────────────────────
+{
+  const mh = await load('src', 'shared', 'metricHistory.ts');
+  const dt = await load('src', 'shared', 'deviceTelemetry.ts');
+  cr.resetControlRecorder();
+  mh.resetMetricHistory();
+  dt.resetDeviceTelemetry();
+  files.clear();
+  let progressWrites = 0;
+  cr.setControlProbes({
+    clock: () => now,
+    store: async (date, run, file, body) => { if (file === 'progress.json') progressWrites += 1; files.set(`${date}/${run}/${file}`, JSON.parse(body)); },
+  });
+  md.setManualProbes({ client: (id) => (id === 'go1-001' ? go1 : null), typing: () => false, auto: () => false });
+  mc.resetManualControl();
+  md.resetManualDispatch();
+  const row = [{ labelKey: 'dt.battery', value: '80 %', ageS: null, onCard: true }];
+  const report = (id, battery, speed, mode, x) => dt.noteDeviceTelemetry(id, row, {
+    atMs: now, body: { battery_pct: battery, speed_mps: speed, robot_mode: mode, link: 'ok', position: { x, y: 0, heading_deg: 90 } },
+  });
+
+  report('go1-001', 80, 0, 'idle', 0);
+  mc.setManualEnabled('go1-001', true);
+  cr.syncManualSessions();
+  md.manualKeyDown({ code: 'KeyW', repeat: false, modified: false });
+  await sleep(10);
+  for (let i = 1; i <= 8; i += 1) { now += 1500; report('go1-001', 80 - Math.floor(i / 4), 0.4, 'walking', i * 0.6); cr.controlTick(); }
+  const writesBefore = progressWrites;
+  const silenceFrom = now;
+  for (let i = 0; i < 6; i += 1) { now += 1500; cr.controlTick(); }   // 9초 침묵
+  const silenceTo = now;
+  const sampleOnlyWrites = progressWrites - writesBefore;
+  now += 1500; report('go1-001', 78, 0, 'idle', 5); cr.controlTick();
+  md.manualKeyUp('KeyW');
+  await sleep(10);
+  now += 500;
+  mc.setManualEnabled('go1-001', false);
+  cr.syncManualSessions();
+  cr.controlTick(); await cr.settleControlRecorder();
+  const folder = (filesOf(/_CTL-go1-001\/progress\.json$/)[0] ?? '').replace(/\/progress\.json$/, '');
+  const progress = read(folder, 'progress.json');
+  const summary = read(folder, 'mission.json');
+  const tel = progress?.telemetry;
+
+  /** 판정 — 침묵이 `TELEMETRY_FRESH_MS` 를 넘은 뒤로 배터리가 적혀 있으면 지어낸 것이다. */
+  function fabricated(telemetry) {
+    const at = telemetry.columns.indexOf('atMs');
+    const battery = telemetry.columns.indexOf('batteryPct');
+    return telemetry.rows.some((r) => r[at] > silenceFrom + cr.TELEMETRY_FRESH_MS && r[at] < silenceTo && r[battery] !== null);
+  }
+
+  if (tel === undefined) failures.push('표본이 progress.json 에 없다');
+  else {
+    for (const c of ['atMs', 'batteryPct', 'speedMps', 'x', 'y', 'headingDeg', 'rxAgeS', 'mode', 'link']) if (!tel.columns.includes(c)) failures.push(`표본에 ${c} 칸이 없다`);
+    for (const c of ['lat', 'lon', 'voltageV', 'altM', 'armed']) if (tel.columns.includes(c)) failures.push(`판 내내 빈 ${c} 칸을 남겼다`);
+    if (tel.rows.length < 16) failures.push(`표본 ${tel.rows.length}줄 — 열림 · 주기 15번 · 닫힘이면 16줄 이상이어야 한다`);
+    if (fabricated(tel)) failures.push('침묵 동안 마지막 배터리 값을 끌어다 적었다');
+    const age = tel.columns.indexOf('rxAgeS');
+    const silent = tel.rows.filter((r) => r[0] > silenceFrom && r[0] <= silenceTo).map((r) => r[age]);
+    if (silent.length !== 6 || silent.some((v, i) => i > 0 && !(v > silent[i - 1])) || silent.at(-1) < 8.9) failures.push(`침묵 동안 수신 간격이 안 올랐다: ${silent.join(',')}`);
+    // 대조군 — 침묵 동안을 마지막 값으로 채운 표본
+    const battery = tel.columns.indexOf('batteryPct');
+    let last = null;
+    const filled = { ...tel, rows: tel.rows.map((r) => { const copy = [...r]; if (copy[battery] === null) copy[battery] = last; else last = copy[battery]; return copy; }) };
+    if (fabricated(filled)) controls.push('침묵을 마지막 값으로 채운 표본'); else failures.push('대조군(채운 표본)을 판정이 못 잡았다');
+  }
+  const ts = summary?.telemetry;
+  if (!ts || ts.batteryStart !== 80 || ts.batteryEnd !== 78 || ts.batteryMin !== 78) failures.push(`요약 배터리가 다르다: ${JSON.stringify(ts)}`);
+  if (ts && ts.modes.join('>') !== 'idle>walking>idle') failures.push(`요약 모드 차례가 ${ts?.modes.join('>')}`);
+  if (ts && !(ts.maxRxAgeS >= 9)) failures.push(`가장 긴 수신 간격이 ${ts?.maxRxAgeS}`);
+  if (sampleOnlyWrites > 1) failures.push(`표본만 는 9초 동안 progress.json 을 ${sampleOnlyWrites}번 썼다 — 10초에 한 번`);
+
+  // 표본만 있고 조작이 없는 판은 폴더를 안 만든다
+  files.clear();
+  report('go1-002', 70, 0, 'idle', 0);
+  mc.setManualEnabled('go1-002', true);
+  cr.syncManualSessions();
+  for (let i = 0; i < 4; i += 1) { now += 1500; report('go1-002', 70, 0, 'idle', 0); cr.controlTick(); }
+  mc.setManualEnabled('go1-002', false);
+  cr.syncManualSessions();
+  cr.controlTick(); await cr.settleControlRecorder();
+  if (filesOf(/go1-002/).length !== 0) failures.push('조작 없이 표본만 있는 판이 폴더를 만들었다');
+  mh.resetMetricHistory();
+  dt.resetDeviceTelemetry();
+}
+
 cr.setControlProbes({ clock: null, store: null });
 md.setManualProbes({ client: null, typing: null, auto: null });
 
@@ -247,4 +335,5 @@ console.log('✅ 임무 밖 수동 제어 — 켬 → 명령 · 수락 · 유지
 console.log('✅ 켜고 끄기만 한 판은 폴더를 안 만든다');
 console.log('✅ 비행 dry-run — FLT 판 · dry_run · 실행기 출력 6줄 · 끝난 뒤 기다렸다 닫음 · 시작 거절은 flightRejected');
 console.log('✅ 사람 명령(SAR) — 사람 명령 판 · 60초 쉬면 닫힘');
+console.log('✅ 텔레메트리 표본 — 주기마다 한 줄 · 빈 칸 정리 · 낡은 값은 빈칸 · 침묵 동안 수신 간격 상승 · 요약 · 표본만으로는 폴더 없음 · 쓰기 묶음');
 console.log(`✅ 대조군 ${controls.length}건 — ${controls.join(' · ')}`);
