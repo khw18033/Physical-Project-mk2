@@ -3399,4 +3399,10 @@ export const ko: Record<string, string> = {
   'ctl.tel.col.armed': '무장',
   'ctl.tel.col.gpsFix': 'GPS',
   'ctl.tel.col.link': '링크',
+  'ctl.importedBadge': '가져옴',
+  'ctl.importedTitle': '라즈베리파이 로그에서 가져온 판 — {from}',
+  'ctl.importedCounts': '텔레메트리 표본 {n}개',
+  'ctl.importedNote': '라즈베리파이 로그에서 가져온 판입니다. 웹이 낸 명령과 장비의 답, 종료 코드는 들어 있지 않습니다. 원본: {from}',
+  'ctl.importedResult': '스크립트가 남긴 결과:',
+  'ctl.dryThenFlight': 'dry-run {n}회 → 비행',
 };

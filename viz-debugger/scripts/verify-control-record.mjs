@@ -7,7 +7,8 @@
 //  ① 임무 밖 수동 제어 — 켬 → 명령 · 답 · 유지 신호 · 막힘 → 끔 이 `CTL-<장비>` 판 하나로 쓰인다 (`recordKind: 'control'`)
 //  ② 유지 신호는 **구간 한 줄**로 묶인다 — 건별로 적지 않는다. 막힘도 이어진 것은 한 줄로 센다
 //  ③ 켜고 끄기만 한 판은 **폴더를 안 만든다**
-//  ④ 비행 dry-run — `FLT-<장비>` 판 · 시작 명령의 dry_run · 실행기 출력 원문이 붙고, 실행이 끝나면 닫힌다
+//  ④ 비행 dry-run → 이어 날린 비행 — 한 `FLT-<장비>` 판(261111). dry-run 만 끝난 판은 열어 두고 기다리다 비행이 오면 잇는다.
+//     요약은 이어 날린 비행의 것, 실행은 둘 다. 비행이 안 오면 `DRY_LINK_MS` 뒤 dry-run 만의 판으로 닫힌다
 //  ⑤ 비행 시작 거절 — 판이 「시작 거절」로 닫힌다
 //  ⑥ 사람 명령(SAR) — 열린 판이 없으면 사람 명령 판이 서고, 60초 쉬면 닫힌다
 //  ⑦ 저장 창구 규칙 — 폴더 이름이 `mission-records.mjs` 의 형식을 지난다
@@ -169,7 +170,7 @@ if (go1.sent.filter((s) => s.action === TELEOP_ACTION).length !== 7) failures.pu
   else failures.push('대조군 실패: 빈 판의 폴더를 못 잡는다');
 }
 
-// ── ④ 비행 dry-run ──────────────────────────────────────────────────────────
+// ── ④ 비행 dry-run → 이어 날린 비행 = 한 판 (261111) ─────────────────────────
 md.resetManualDispatch();
 const pi3 = device('fly');
 const link = { client: pi3, deviceId: 'x500-002', start: 'yes', stop: 'yes', emergency: 'yes', reason: '' };
@@ -177,34 +178,68 @@ now += 10_000;
 await flight.issueFlightStart(link, flightPlan.FLIGHT_DEFAULTS, { dryRun: true, confirmed: false });
 await sleep(10);
 const startId = pi3.sent[0]?.commandId;
-const runReport = (state, lines, exitCode = null) => ({
-  run_id: 'run-0001', command_id: startId, state, dry_run: true, argv: ['python3', 'test_sar_rtk.py', '--dry-run'],
+const runReport = (runId, commandId, dry, state, lines, exitCode = null) => ({
+  run_id: runId, command_id: commandId, state, dry_run: dry, argv: ['python3', 'test_sar_rtk.py', ...(dry ? ['--dry-run'] : [])],
   started_at: now / 1000, ended_at: state === 'exited' ? now / 1000 + 20 : null, exit_code: exitCode, out_path: null,
   script: 'test_sar_rtk.py', rtk: true, lines,
 });
 const L = (seq, text) => ({ seq, text });
-feed.noteFlightRun(feed.parseFlightRun({ source_id: 'x500-002', run: runReport('running', [L(1, '[연결] udp:14550'), L(2, '[경로] 3 패스')]), emergency: null }));
+feed.noteFlightRun(feed.parseFlightRun({ source_id: 'x500-002', run: runReport('run-0001', startId, true, 'running', [L(1, '[연결] udp:14550'), L(2, '[경로] 3 패스')]), emergency: null }));
 cr.syncFlightRuns();
 now += 5000; cr.controlTick();
-feed.noteFlightRun(feed.parseFlightRun({ source_id: 'x500-002', run: runReport('exited', [L(3, '[미션] 업로드 9개'), L(4, '[미션] 대조 일치'), L(5, '[dry-run] 여기서 멈춤'), L(6, '[종료]')], 0), emergency: null }));
+feed.noteFlightRun(feed.parseFlightRun({ source_id: 'x500-002', run: runReport('run-0001', startId, true, 'exited', [L(3, '[미션] 업로드 9개'), L(4, '[미션] 대조 일치'), L(5, '[dry-run] 여기서 멈춤'), L(6, '[종료]')], 0), emergency: null }));
 cr.syncFlightRuns();
 now += 1000; cr.controlTick();
 if (!cr.openControlSessions().some((s) => s.deviceId === 'x500-002')) failures.push('실행이 끝나자마자 닫았다 — 마지막 줄을 기다려야 한다');
-now += 7000; cr.controlTick(); await cr.settleControlRecorder();
+now += 20_000; cr.controlTick();
+if (!cr.openControlSessions().some((s) => s.deviceId === 'x500-002')) failures.push('dry-run 만 끝난 판을 닫았다 — 이어 날릴 비행을 기다려야 한다');
+// 20초 뒤 실제 비행 — 같은 판에 잇는다
+await flight.issueFlightStart(link, flightPlan.FLIGHT_DEFAULTS, { dryRun: false, confirmed: true });
+await sleep(10);
+const realId = pi3.sent[1]?.commandId;
+feed.noteFlightRun(feed.parseFlightRun({ source_id: 'x500-002', run: runReport('run-0002', realId, false, 'running', [L(1, '[연결] udp:14550'), L(2, '[명령] arm')]), emergency: null }));
+cr.syncFlightRuns();
+now += 30_000; cr.controlTick();
+feed.noteFlightRun(feed.parseFlightRun({ source_id: 'x500-002', run: runReport('run-0002', realId, false, 'exited', [L(3, '[확인] 착륙 완료 ✔'), L(4, '[종료]')], 0), emergency: null }));
+cr.syncFlightRuns();
+now += 1000; cr.controlTick();
+now += cr.FLIGHT_GRACE_MS + 1000; cr.controlTick(); await cr.settleControlRecorder();
 {
-  const folder = (filesOf(/_FLT-x500-002\/mission\.json$/)[0] ?? '').replace(/\/mission\.json$/, '');
-  const summary = read(folder, 'mission.json');
-  const progress = read(folder, 'progress.json');
+  const folders = [...new Set(filesOf(/_FLT-x500-002\//).map((k) => k.replace(/\/[^/]+$/, '')))];
+  if (folders.length !== 1) failures.push(`dry-run 과 비행이 판 ${folders.length}개로 갈렸다 — 한 판이어야 한다`);
+  const summary = read(folders[0] ?? '', 'mission.json');
+  const progress = read(folders[0] ?? '', 'progress.json');
   if (summary === undefined) failures.push('비행 판이 안 쓰였다');
   else {
     if (summary.sessionKind !== 'flight' || summary.closeReason !== 'flightExited') failures.push(`비행 판이 ${summary.sessionKind}/${summary.closeReason}`);
-    if (summary.flight?.dryRun !== true || summary.flight?.outcome !== 'ok' || summary.flight?.phase !== 'dryDone' || summary.flight?.script !== 'test_sar_rtk.py') {
-      failures.push(`비행 요약이 갈린다 — ${JSON.stringify(summary.flight)}`);
+    if (summary.flight?.dryRun !== false || summary.flight?.outcome !== 'ok' || summary.flight?.phase !== 'landed' || summary.flight?.runId !== 'run-0002') {
+      failures.push(`비행 요약이 이어 날린 비행의 것이 아니다 — ${JSON.stringify(summary.flight)}`);
     }
-    if (progress.flight?.startCommandId !== startId) failures.push('시작 명령 id 가 안 이어졌다');
-    if (progress.flight?.runs[0]?.lines.length !== 6) failures.push(`실행기 출력이 ${progress.flight?.runs[0]?.lines.length}줄 — 6줄 이어 붙여야 한다`);
-    if (!progress.events.some((e) => e.kind === 'commanded' && e.action === 'rtk_test_start' && e.parameters.dry_run === 1)) failures.push('시작 명령의 dry_run 이 기록에 없다');
+    if (progress.flight?.startCommandId !== startId) failures.push('첫 시작 명령 id 가 안 이어졌다');
+    const runs = progress.flight?.runs ?? [];
+    if (runs.map((r) => r.runId).join() !== 'run-0001,run-0002') failures.push(`판의 실행이 ${runs.map((r) => r.runId).join()} — dry-run · 비행 둘이어야 한다`);
+    if (runs[0]?.lines.length !== 6) failures.push(`dry-run 실행기 출력이 ${runs[0]?.lines.length}줄 — 6줄 이어 붙여야 한다`);
+    const starts = progress.events.filter((e) => e.kind === 'commanded' && e.action === 'rtk_test_start').map((e) => e.parameters.dry_run);
+    if (starts.join() !== '1,0') failures.push(`시작 명령의 dry_run 이 ${starts.join()} — 1,0 이어야 한다`);
   }
+}
+// dry-run 만 하고 비행을 안 했으면 DRY_LINK_MS 뒤 dry-run 만의 판으로 닫는다
+{
+  feed.resetFlightRuns();
+  const solo = device('solo');
+  const soloLink = { ...link, client: solo, deviceId: 'x500-004' };
+  now += 60_000;
+  await flight.issueFlightStart(soloLink, flightPlan.FLIGHT_DEFAULTS, { dryRun: true, confirmed: false });
+  await sleep(10);
+  const id = solo.sent[0]?.commandId;
+  feed.noteFlightRun(feed.parseFlightRun({ source_id: 'x500-004', run: runReport('run-0009', id, true, 'exited', [L(1, '[미션] 대조 일치'), L(2, '[dry-run] 여기서 멈춤'), L(3, '[종료]')], 0), emergency: null }));
+  cr.syncFlightRuns();
+  now += 1000; cr.controlTick();
+  now += cr.DRY_LINK_MS + 1000; cr.controlTick(); await cr.settleControlRecorder();
+  if (cr.openControlSessions().some((s) => s.deviceId === 'x500-004')) failures.push('dry-run 만의 판이 기다림 뒤에도 안 닫혔다');
+  const folder = (filesOf(/_FLT-x500-004\/mission\.json$/)[0] ?? '').replace(/\/mission\.json$/, '');
+  const summary = read(folder, 'mission.json');
+  if (summary?.closeReason !== 'flightExited' || summary?.flight?.dryRun !== true || summary?.flight?.phase !== 'dryDone') failures.push(`dry-run 만의 판 요약이 갈린다 — ${JSON.stringify(summary?.flight)} / ${summary?.closeReason}`);
 }
 
 // ── ⑤ 비행 시작 거절 ────────────────────────────────────────────────────────
@@ -333,7 +368,7 @@ if (failures.length > 0) {
 }
 console.log('✅ 임무 밖 수동 제어 — 켬 → 명령 · 수락 · 유지 신호 구간 · 막힘 → 끔 이 CTL 판 하나로 · 나간 바이트 그대로');
 console.log('✅ 켜고 끄기만 한 판은 폴더를 안 만든다');
-console.log('✅ 비행 dry-run — FLT 판 · dry_run · 실행기 출력 6줄 · 끝난 뒤 기다렸다 닫음 · 시작 거절은 flightRejected');
+console.log('✅ 비행 — dry-run 과 이어 날린 비행이 한 FLT 판 · 실행 둘 · 요약은 비행 · dry-run 만이면 기다렸다 닫음 · 시작 거절은 flightRejected');
 console.log('✅ 사람 명령(SAR) — 사람 명령 판 · 60초 쉬면 닫힘');
 console.log('✅ 텔레메트리 표본 — 주기마다 한 줄 · 빈 칸 정리 · 낡은 값은 빈칸 · 침묵 동안 수신 간격 상승 · 요약 · 표본만으로는 폴더 없음 · 쓰기 묶음');
 console.log(`✅ 대조군 ${controls.length}건 — ${controls.join(' · ')}`);

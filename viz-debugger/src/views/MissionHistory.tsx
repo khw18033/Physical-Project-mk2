@@ -199,21 +199,26 @@ function ControlRunLine({ item, summary, compact, recording, onOpen }: {
 }) {
   useLang();
   const flight = summary.flight;
-  const bad = summary.counts.rejected > 0 || (flight?.outcome != null && flight.outcome !== 'ok' && flight.outcome !== 'running');
+  const imported = summary.imported ?? null;
+  // 가져온 판은 종료 코드가 없다(outcome 「알 수 없음」) — 스크립트가 찍은 중단 · 오류 줄이 있을 때만 붉게.
+  const bad = summary.counts.rejected > 0 || (imported !== null ? imported.result !== null
+    : flight?.outcome != null && flight.outcome !== 'ok' && flight.outcome !== 'running');
   const closed = summary.closeReason === null
     ? recording ? t('hist.recording') : t('hist.noEndMark')
     : t(`ctl.close.${summary.closeReason}`);
   return <li className={`is-control${bad ? ' is-failed' : ''}`}>
     <time>{timeWords(item.run)}</time>
     <span className="history-kind">{t(`ctl.kind.${summary.sessionKind}`)}</span>
+    {imported !== null && <span className="history-kind is-imported" title={t('ctl.importedTitle', { from: imported.from })}>{t('ctl.importedBadge')}</span>}
     <b>{summary.deviceId}</b>
     <span className="history-outcome">{closed}</span>
-    <span className="history-count">{t('ctl.counts', summary.counts)}</span>
+    <span className="history-count">{imported !== null ? t('ctl.importedCounts', { n: summary.telemetry?.samples ?? 0 }) : t('ctl.counts', summary.counts)}</span>
     <button type="button" className="history-action" onClick={() => onOpen(item)}>{t('ctl.view')}</button>
     {!compact && flight !== null && <small className="history-label">
-      {flight.dryRun === true ? 'dry-run · ' : ''}{flight.script ?? '—'}
+      {flight.dryRun === true ? 'dry-run · ' : (flight.dryRuns ?? 0) > 0 ? `${t('ctl.dryThenFlight', { n: flight.dryRuns ?? 0 })} · ` : ''}{flight.script ?? '—'}
       {flight.phase !== null && ` · ${t(`flight.phase.${flight.phase}`)}`}
-      {flight.outcome !== null && ` · ${t(`flight.outcome.${flight.outcome}`, { code: flight.exitCode ?? '' })}`}
+      {imported !== null ? (imported.result !== null && ` · ${imported.result}`)
+        : flight.outcome !== null && ` · ${t(`flight.outcome.${flight.outcome}`, { code: flight.exitCode ?? '' })}`}
       {flight.emergencies > 0 && ` · ${t('ctl.emergencies', { n: flight.emergencies })}`}
     </small>}
     {!compact && summary.missions.length > 0 && <small className="history-label">

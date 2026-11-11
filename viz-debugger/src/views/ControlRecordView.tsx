@@ -150,6 +150,10 @@ export function ControlRecordView({ date, run, onClose }: { date: string; run: s
       {error !== null && <p className="history-why ctl-pad">{t('ctl.loadFailed', { reason: error })}</p>}
       {summary === null && error === null && <p className="ctl-pad">{t('ctl.loading')}</p>}
       {summary !== null && progress !== null && <>
+        {summary.imported !== undefined && <p className="ctl-pad ctl-imported">
+          {t('ctl.importedNote', { from: [summary.imported.from, ...summary.imported.emergencyFrom, summary.imported.telemetryFrom].filter(Boolean).join(' · ') })}
+          {summary.imported.result !== null && <><br /><b>{t('ctl.importedResult')}</b> {summary.imported.result}</>}
+        </p>}
         <dl className="ctl-summary">
           <div><dt>{t('ctl.f.kind')}</dt><dd>{t(`ctl.kind.${summary.sessionKind}`)}</dd></div>
           <div><dt>{t('ctl.f.span')}</dt><dd>{clockWords(startMs)} – {summary.endedAtIso === null ? t('ctl.noEnd') : clockWords(Date.parse(summary.endedAtIso))}</dd></div>

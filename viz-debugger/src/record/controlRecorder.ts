@@ -18,7 +18,10 @@
  * ## 판의 경계
  *
  *   수동 제어   그 장비의 수동 제어를 켠 때부터 끈 때까지
- *   비행        `rtk_test_start` 한 건(dry-run 포함)부터 실행기가 그 실행의 종료를 알릴 때까지. 그 사이의 중단 · 비상도 이 판이다
+ *   비행        `rtk_test_start` 한 건부터 실행기가 그 실행의 종료를 알릴 때까지. 그 사이의 중단 · 비상도 이 판이다.
+ *               **dry-run 은 그 뒤에 이어 날린 비행과 한 판이다**(261111) — dry-run 만 끝난 판은 `DRY_LINK_MS` 동안 열어 두고,
+ *               그 안에 같은 장비로 시작이 오면 새 판을 열지 않고 이 판에 잇는다(dry-run 을 여러 번 해도 같다).
+ *               실제 비행이 시작되면 그 판은 더 잇지 않는다
  *   사람 명령   열린 판이 없는 장비에 사람이 명령을 냈다(SAR 등) — 60초 동안 아무 일 없으면 닫는다
  *
  * 장비마다 열린 판은 하나다. 비행 시작은 그 장비의 다른 판을 닫고 새 판을 연다.
@@ -62,6 +65,11 @@ export const COMMAND_IDLE_MS = 60_000;
 export const FLIGHT_IDLE_MS = 120_000;
 /** 비행 판 — 실행이 끝난 뒤 마지막 줄을 기다리는 시간. 실행기는 5초마다 보낸다. */
 export const FLIGHT_GRACE_MS = 6_000;
+/**
+ * dry-run 뒤 비행을 같은 판으로 잇는 시간 (261111). 11/9 시험비행에서 dry-run → 비행 간격은 길어야 30초 남짓이었다.
+ * 그 안에 비행이 안 오면 dry-run 만의 판으로 닫는다.
+ */
+export const DRY_LINK_MS = 300_000;
 /** 유지 신호 · 막힘이 이 간격 안에 이어지면 한 구간으로 묶는다. */
 const MERGE_GAP_MS = 1_000;
 
@@ -142,6 +150,8 @@ export type ControlRecordSummary = {
     outcome: string | null;
     phase: string | null;
     emergencies: number;
+    /** 이 판에서 비행 앞에 한 dry-run 수(261111 — dry-run 과 이어 날린 비행은 한 판). 옛 판에는 없다. */
+    dryRuns?: number;
   } | null;
   /** 텔레메트리 표본 요약(261111). 값이 하나도 없었으면 null. 옛 판(1차)에는 칸 자체가 없다. */
   telemetry?: {
@@ -155,6 +165,19 @@ export type ControlRecordSummary = {
     modes: string[];
     truncated: boolean;
   } | null;
+  /**
+   * **이 화면이 쓴 판이 아니다** (261111 — `scripts/import-flight-logs.mjs`). 조작 기록 이전에 날린 비행을 Pi 로그에서
+   * 들인 판이다. 웹이 낸 명령 · 장비 답은 없고(사건은 열림 · 닫힘뿐), 종료 코드도 없다 — `result` 가 스크립트가 찍은
+   * `[중단]` · `[오류]` 줄이다. 웹 기록기는 이 칸을 쓰지 않는다.
+   */
+  imported?: {
+    source: 'pi-log';
+    from: string;
+    emergencyFrom: string[];
+    telemetryFrom: string | null;
+    result: string | null;
+    importedAtIso: string;
+  };
 };
 
 export type ControlProgress = {
@@ -187,8 +210,13 @@ type Session = {
   /** 이 판이 낸 명령 id → 유지 신호인가. 답을 어느 판에 붙일지 찾는다. */
   commandIds: Map<string, boolean>;
   flight: {
+    /** 첫 시작 명령. 판에 시작이 여럿(dry-run → 비행)이면 전부는 `startCommandIds`. */
     startCommandId: string | null;
+    startCommandIds: Set<string>;
+    /** 마지막 시작의 dry-run 여부. */
     dryRun: boolean | null;
+    /** 실제 비행(dry-run 아님) 시작이 이 판에 왔다 — 그 뒤로는 시작을 잇지 않는다. */
+    realStarted: boolean;
     emergencyIds: Set<string>;
     runs: Map<string, FlightProcess>;
     emergencies: Map<string, FlightProcess>;
@@ -352,7 +380,7 @@ function openSession(deviceId: string, kind: ControlSessionKind, reason: 'manual
     missions: new Map(),
     commandIds: new Map(),
     flight: kind === 'flight'
-      ? { startCommandId: null, dryRun: null, emergencyIds: new Set(), runs: new Map(), emergencies: new Map(), exitedSeenMs: null }
+      ? { startCommandId: null, startCommandIds: new Set(), dryRun: null, realStarted: false, emergencyIds: new Set(), runs: new Map(), emergencies: new Map(), exitedSeenMs: null }
       : null,
     written: { mission: '', progress: '' },
     lastConfig: '',
@@ -418,13 +446,16 @@ export function controlCommanded(input: {
   parameters: Record<string, number>; requestId?: string | null;
 }): void {
   const session = input.action === FLIGHT_START
-    ? openSession(input.deviceId, 'flight', 'flightStart')
+    ? dryLinkable(input.deviceId) ?? openSession(input.deviceId, 'flight', 'flightStart')
     : sessionFor(input.deviceId);
   if (session.flight !== null) {
-    if (input.action === FLIGHT_START && session.flight.startCommandId === null) {
-      session.flight.startCommandId = input.commandId;
+    if (input.action === FLIGHT_START) {
+      session.flight.startCommandId ??= input.commandId;
+      session.flight.startCommandIds.add(input.commandId);
       // 실행기 규약: dry_run 은 1/0 숫자로 실린다(`flightPlan.startParams`).
       session.flight.dryRun = typeof input.parameters.dry_run === 'number' ? input.parameters.dry_run !== 0 : null;
+      if (session.flight.dryRun !== true) session.flight.realStarted = true;
+      session.flight.exitedSeenMs = null;
     }
     if (input.action === FLIGHT_EMERGENCY) session.flight.emergencyIds.add(input.commandId);
   }
@@ -434,6 +465,16 @@ export function controlCommanded(input: {
     atMs: clock(), kind: 'commanded', commandId: input.commandId, action: input.action,
     parameters: { ...input.parameters }, requestId: input.requestId ?? null, missionId: linkMission(session),
   });
+}
+
+/**
+ * 이 장비에 dry-run 만 한 비행 판이 열려 있고 `DRY_LINK_MS` 안이면 그 판 — 새 시작을 거기 잇는다(261111).
+ */
+function dryLinkable(deviceId: string): Session | null {
+  const session = open.get(deviceId);
+  const flight = session?.flight ?? null;
+  if (session === undefined || flight === null || flight.realStarted || flight.startCommandIds.size === 0) return null;
+  return clock() - session.lastEventMs <= DRY_LINK_MS ? session : null;
 }
 
 /**
@@ -456,7 +497,7 @@ export function controlAnswered(message: UplinkMessage): void {
     keepalive,
   });
   // 비행 시작을 실행기가 거절했다 — 실행은 안 선다. 판을 닫는다.
-  if (refused && session.flight !== null && session.flight.startCommandId === message.commandId) closeSession(session, 'flightRejected');
+  if (refused && session.flight !== null && session.flight.startCommandIds.has(message.commandId)) closeSession(session, 'flightRejected');
 }
 
 /** 키가 명령이 되지 않았다 · 보내지 못했다 — `manualDispatch.note` 가 부른다. 이어진 같은 막힘은 한 줄로 센다. */
@@ -529,7 +570,7 @@ export function syncFlightRuns(): void {
     const run = entry.run;
     // 내 시작이 띄운 실행만 — 실행기가 되돌려 준 `command_id` 로 맞춘다. 옛 실행기(칸 없음)는 판을 연 뒤에 시작한 것.
     if (run !== null && (run.commandId !== null
-      ? run.commandId === flight.startCommandId
+      ? flight.startCommandIds.has(run.commandId)
       : run.startedAt !== null && run.startedAt * 1000 >= session.openedAtMs - 2000)) {
       const before = flight.runs.get(run.runId);
       if (before === undefined || before !== run) {
@@ -560,7 +601,9 @@ function closeDue(now: number): void {
     const exited = runs.length > 0 && runs.every((run) => run.state === 'exited') && emergencies.every((e) => e.state === 'exited');
     if (exited) {
       flight.exitedSeenMs ??= now;
-      if (now - flight.exitedSeenMs >= FLIGHT_GRACE_MS) closeSession(session, 'flightExited');
+      // dry-run 만 끝났으면 이어 날릴 비행을 기다린다 — 그 사이에 시작이 오면 이 판에 잇는다(`dryLinkable`).
+      const wait = flight.realStarted ? FLIGHT_GRACE_MS : DRY_LINK_MS;
+      if (now - flight.exitedSeenMs >= wait) closeSession(session, 'flightExited');
       continue;
     }
     flight.exitedSeenMs = null;
@@ -609,6 +652,7 @@ export function buildControlBodies(session: Session): { mission: string; progres
       outcome: main === null ? null : runOutcome(main),
       phase: main === null ? null : readProgress(main.lines).phase,
       emergencies: flight.emergencies.size,
+      dryRuns: runs.filter((run) => run !== main && run.dryRun === true).length,
     },
     telemetry: telemetrySummary(session),
   };

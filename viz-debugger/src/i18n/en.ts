@@ -3374,4 +3374,10 @@ export const en: Record<string, string> = {
   'ctl.tel.col.armed': 'Armed',
   'ctl.tel.col.gpsFix': 'GPS',
   'ctl.tel.col.link': 'Link',
+  'ctl.importedBadge': 'imported',
+  'ctl.importedTitle': 'Imported from Raspberry Pi logs — {from}',
+  'ctl.importedCounts': '{n} telemetry samples',
+  'ctl.importedNote': 'Imported from Raspberry Pi logs. Commands sent from the web, device answers and the exit code are not included. Source: {from}',
+  'ctl.importedResult': 'Result logged by the script:',
+  'ctl.dryThenFlight': 'dry-run ×{n} → flight',
 };

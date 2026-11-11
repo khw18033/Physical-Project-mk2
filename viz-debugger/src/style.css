@@ -1408,3 +1408,6 @@ button.flight-armed:not(:disabled){color:#fff!important;border-color:#8f1d22!imp
 .ctl-track__legend .is-end,.ctl-track__end{background:#c62f35;fill:#c62f35}
 .ctl-track svg{display:block;width:100%;height:240px;margin-top:4px;background:#f4f7fa;border-radius:var(--radius-sm)}
 .ctl-track__line{fill:none;stroke:#1768c5;stroke-width:2;stroke-linejoin:round;stroke-linecap:round}
+
+.history-kind.is-imported{background:#eef1f5;color:#4a5666;border:1px dashed #8a97a8}
+.ctl-imported{margin:8px 0 0;padding:8px 12px !important;font-size:13px;background:#f4f7fa;border-left:3px solid #8a97a8}
