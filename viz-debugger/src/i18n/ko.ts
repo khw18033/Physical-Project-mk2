@@ -2442,6 +2442,8 @@ export const ko: Record<string, string> = {
   'vis.card.close': '닫기',
   'vis.card.source': '출처',
   'vis.card.gone': '이 장에서 안 보임 — 마지막 값',
+  'vis.card.cue.semantic': '글 설명',
+  'vis.card.cue.shape': '형상',
   'vis.card.cue.class': '이름',
   'vis.card.cue.material': '재질',
   'vis.card.cue.structure': '모양',

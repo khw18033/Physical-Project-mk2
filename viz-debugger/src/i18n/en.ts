@@ -2417,6 +2417,8 @@ export const en: Record<string, string> = {
   'vis.card.close': 'Close',
   'vis.card.source': 'Source',
   'vis.card.gone': 'Not in this frame — last value',
+  'vis.card.cue.semantic': 'Description',
+  'vis.card.cue.shape': 'Shape',
   'vis.card.cue.class': 'Name',
   'vis.card.cue.material': 'Material',
   'vis.card.cue.structure': 'Shape',
