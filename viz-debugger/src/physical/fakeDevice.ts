@@ -14,6 +14,8 @@
  *                           rtk_test_emergency). 비행 실행기(`261014_드론비행실행기_요청_VZ.md`)를 흉내 내
  *                           `test_sar_rtk.py` 와 같은 모양의 출력을 `flight_run` 으로 내고, 그동안 fcx 의 고도 · 위치 ·
  *                           모드가 실제로 이륙 → 왕복 → 착륙을 그린다. RTK 대기는 3초로 줄였다.
+ *                           복합 이동 미션(261113 · `MISSION_SEQ_요청_VZ.md`)도 — `seq_mission_start` · `seq_mission_stop` 을
+ *                           선언하고 `mission_seq.py` 와 같은 모양의 출력 · `[계획]` 을 `mission_run` 으로 낸다.
  *
  * ## 가짜임을 숨기지 않는다
  *
@@ -26,6 +28,7 @@
 
 import { physical } from './protocol.js';
 import type { MqttLike } from './PhysicalClient.ts';
+import { bodyToNe, missionKey, previewOf, seqProblems, STEP_KINDS, stepClass, type SeqMission, type SeqStep } from './seqPlan.ts';
 
 export const FAKE_PREFIX = 'fake:';
 export const FAKE_GO1 = 'fake:go1';
@@ -370,7 +373,7 @@ class FakeDrone extends FakeDevice {
   readonly id = 'x500-fake';
   readonly type = 'drone';
   readonly deviceType = 'x500_drone';
-  readonly actions = ['ping', 'rtk_test_start', 'rtk_test_stop', 'rtk_test_emergency'] as const;
+  readonly actions = ['ping', 'rtk_test_start', 'rtk_test_stop', 'rtk_test_emergency', 'seq_mission_start', 'seq_mission_stop'] as const;
   private lat = HOME.lat;
   private lon = HOME.lon;
   private alt = 0;
@@ -385,6 +388,8 @@ class FakeDrone extends FakeDevice {
   private yawRate = 30;
   private run: Proc | null = null;
   private emergency: Proc | null = null;
+  /** 복합 미션 실행 (261113). 왕복 시험(`run`)과 서로 배제된다. */
+  private seqRun: SeqProc | null = null;
   private cancel: { reason: 'stop' | 'mode'; mode?: string } | null = null;
   private capturing = false;
   private dirty = false;
@@ -463,6 +468,13 @@ class FakeDrone extends FakeDevice {
     this.dirty = false;
     this.publishJson('flight_run', { schema_version: '1', source_id: this.id, timestamp: new Date().toISOString(), simulated: true,
       run: this.wire(this.run), emergency: this.wire(this.emergency) });
+    const seq = this.seqRun;
+    this.publishJson('mission_run', { schema_version: '1', source_id: this.id, timestamp: new Date().toISOString(), simulated: true,
+      runner: 'mission_seq',
+      run: seq === null ? null : {
+        ...this.wire(seq), script: 'mission_seq.py', rtk: true,
+        steps: seq.steps, plan: seq.plan, mission_key: seq.plan?.key ?? null, mission_hash: seq.plan?.hash ?? null,
+      } });
   }
 
   protected publishStatus(): void {
@@ -522,8 +534,10 @@ class FakeDrone extends FakeDevice {
   // ── 명령 ──
 
   protected handle(commandId: string, action: string, params: Params): void {
+    if (action === 'seq_mission_start' || action === 'seq_mission_stop') { this.handleSeq(commandId, action, params); return; }
     if (action === 'rtk_test_start') {
       if (this.run?.state === 'running') { this.uplink(rejectBytes(commandId, 'FAILED_PRECONDITION', 'already_running')); return; }
+      if (this.seqRun?.state === 'running') { this.uplink(rejectBytes(commandId, 'FAILED_PRECONDITION', 'other_flight_running')); return; }
       const dryRun = params.dry_run === 1;
       if (!dryRun && params.confirmed !== 1) { this.uplink(rejectBytes(commandId, 'INVALID_ARGUMENT', 'not_confirmed')); return; }
       this.uplink(acceptBytes(commandId));
@@ -744,6 +758,200 @@ class FakeDrone extends FakeDevice {
     }
   }
 
+  // ── 복합 이동 미션 (261113) ──
+
+  private handleSeq(commandId: string, action: string, params: Params): void {
+    if (action === 'seq_mission_stop') {
+      if (this.seqRun?.state !== 'running') { this.uplink(rejectBytes(commandId, 'FAILED_PRECONDITION', 'not_running')); return; }
+      this.uplink(acceptBytes(commandId));
+      this.uplink(resultBytes(commandId, {}));
+      this.cancel = { reason: 'stop' };
+      return;
+    }
+    if (this.seqRun?.state === 'running') { this.uplink(rejectBytes(commandId, 'FAILED_PRECONDITION', 'already_running')); return; }
+    if (this.run?.state === 'running') { this.uplink(rejectBytes(commandId, 'FAILED_PRECONDITION', 'other_flight_running')); return; }
+    const shape = seqShapeError(params);
+    if (shape !== null) { this.uplink(rejectBytes(commandId, 'INVALID_ARGUMENT', shape)); return; }
+    const dryRun = params.dry_run === 1;
+    if (!dryRun && params.confirmed !== 1) { this.uplink(rejectBytes(commandId, 'INVALID_ARGUMENT', 'not_confirmed')); return; }
+    this.uplink(acceptBytes(commandId));
+    this.uplink(resultBytes(commandId, { launched: 1 }));
+    void this.seqScript(commandId, params, dryRun);
+  }
+
+  /** `mission_seq.py` 흉내. 출력 문구는 요청 문서 §5 의 예를 따른다. */
+  private async seqScript(commandId: string, p: Params, dryRun: boolean): Promise<void> {
+    const mission = seqFromParams(p);
+    const steps = mission.steps;
+    const stepTexts = steps.map((step) => stepWire(step));
+    const argv = ['--yes', '--altitude', String(mission.altitudeM), ...stepTexts.flatMap((text) => ['--step', text]),
+      '--land', mission.land, ...(dryRun ? ['--dry-run'] : [])];
+    const run: SeqProc = { ...this.newProc(commandId, dryRun, argv), steps: stepTexts, plan: null };
+    this.seqRun = run;
+    this.cancel = null;
+    const say = (text: string) => this.say(run, text);
+    let phase: 'pre' | 'air' = 'pre';
+    const n = steps.length;
+    try {
+      say(`[로그] /home/physical/cansar_logs/mission_seq_${run.runId}.log`);
+      const problem = seqProblems(mission)[0];
+      if (problem !== undefined) {
+        this.say(run, `mission_seq.py: error: ${JSON.stringify(problem)}`, false);
+        throw new Exit(2);
+      }
+      say('[연결] udpin://0.0.0.0:14540 ...');
+      await this.wait(600);
+      say('[연결] 완료');
+      if (this.armed) { say('[중단] 이미 ARM 상태다. 사람이 먼저 안전을 확인할 것.'); throw new Exit(1); }
+      say('[확인] 위치 추정 대기 (최대 60.0초)...');
+      await this.wait(300);
+      say('[확인] 위치 추정 정상 ✔');
+      const h0 = round(this.heading, 1);
+      const L: [number, number] = [round(this.lat, 7), round(this.lon, 7)];
+      const preview = previewOf(mission);
+      const at = (point: { fwd: number; right: number }) => {
+        const { n: dn, e: de } = bodyToNe(h0, point);
+        const [lat, lon] = offset(L[0], L[1], Math.hypot(dn, de), (Math.atan2(de, dn) * 180) / Math.PI);
+        return { n: round(dn, 3), e: round(de, 3), fwd: round(point.fwd, 3), right: round(point.right, 3), lat: round(lat, 7), lon: round(lon, 7) };
+      };
+      // 미션 항목 — 역할(seq 별)
+      // 미션 항목 역할 — 드론 `seq_plan.build` 와 같은 구성(회전 ≤90° 조각 · 캡처 사이 rest · home 복귀 앞 speed).
+      const roles: [string, number][] = [['takeoff', 0], ['align', 0]];
+      const capKs = steps.flatMap((step, index) => (step.capture ? [index + 1] : []));
+      const planSteps = steps.map((step, index) => {
+        const k = index + 1;
+        const first = roles.length;
+        const cls = stepClass(step.kind);
+        if (cls === 'move') roles.push(['speed', k], ['move', k]);
+        else if (cls === 'rot') for (let piece = 0; piece < Math.max(1, Math.ceil(step.value / 90 - 1e-9)); piece += 1) roles.push(['rot', k]);
+        else roles.push(['hover', k]);
+        const last = roles.length - 1;
+        if (step.capture && capKs.some((c) => c > k)) roles.push(['rest', k]);
+        const prev = index === 0 ? { fwd: 0, right: 0, yaw: 0 } : preview.ends[index - 1]!;
+        const end = preview.ends[index]!;
+        return {
+          k, kind: step.kind, value: step.value, speed: step.speedMps, cap: step.capture, label: fakeLabel(step), text: stepWire(step),
+          seq: [first, last], yaw: round(wrap(h0 + end.yaw), 2), from: at(prev), to: at(end),
+        };
+      });
+      if (mission.land === 'home') roles.push(['speed', 0], ['return', 0]);
+      roles.push(['land', 0]);
+      const key = missionKey(mission);
+      const estS = Math.round(mission.altitudeM + 6 + 3 + preview.pathM / mission.speedMps
+        + steps.reduce((sum, step) => sum + (stepClass(step.kind) === 'rot' ? step.value / 30 : stepClass(step.kind) === 'hover' ? step.value : 4), 0)
+        + mission.altitudeM / 0.7 + 10);
+      const plan = {
+        v: 1, key, hash: await sha16(key), L, h0, alt: mission.altitudeM, speed: mission.speedMps, land: mission.land,
+        est_s: estS, timeout_s: estS * 2 + 60, max_r: round(preview.maxR, 2), path_m: round(preview.pathM, 2), n_items: roles.length,
+        roles, steps: planSteps, land_pt: at(preview.land),
+      };
+      run.plan = plan;
+      say(`[계획] ${JSON.stringify(plan)}`);
+      const items = roles.map(([role, k], i) => {
+        const step = k >= 1 ? planSteps[k - 1]! : null;
+        const name = role === 'takeoff' ? 'TAKEOFF' : role === 'land' ? 'LAND' : role === 'speed' ? 'SPEED' : 'WAYPOINT';
+        const tag = role === 'rest' ? `캡처 간격(단계 ${k} 뒤)` : role === 'speed' ? (k ? `속도(단계 ${k})` : '속도(복귀)')
+          : step !== null ? `단계 ${k} ${step.label}` : { takeoff: '이륙', align: 'yaw 정렬', return: 'L 복귀', land: '착륙' }[role] ?? role;
+        return `#${String(i).padEnd(2)} ${name.padEnd(8)} ${tag}`;
+      });
+      for (const item of items) say(`[미션] ${item}`);
+      say(`[미션] 업로드 (${items.length}개 항목)...`);
+      await this.wait(600);
+      say('[미션] FC 수락 ✔ — 내려받아 대조...');
+      await this.wait(400);
+      say(`[미션] 대조 일치 ✔ (${items.length}개 항목 모두 같다)`);
+      if (dryRun) {
+        say('[미션] FC 의 미션을 지웠다');
+        say('[dry-run] 여기서 끝낸다. arm 하지 않았다.');
+        throw new Exit(0);
+      }
+      say('[명령] arm');
+      this.armed = true;
+      await this.wait(400);
+      say('[명령] 미션 시작 — 이제부터 FC 가 이륙·단계·착륙을 스스로 진행한다');
+      this.mode = 'MISSION';
+      phase = 'air';
+      const alt = mission.altitudeM;
+      const results: string[] = [];
+      for (let i = 0; i < roles.length; i += 1) {
+        const [role, k] = roles[i]!;
+        say(`[미션] 진행 ${items[i]}`);
+        let lastRole = 0;
+        const roleLive = () => {
+          if (Date.now() - lastRole < 2000) return;
+          lastRole = Date.now();
+          say(`       #${i} ${role}  속도 ${Math.hypot(this.vn, this.ve).toFixed(1).padStart(4)}m/s  고도 ${this.alt.toFixed(1).padStart(5)}m  헤딩 ${this.heading.toFixed(1).padStart(5)}°  `);
+        };
+        if (role === 'takeoff') { await this.goTo(L[0], L[1], alt, 0, null, roleLive); continue; }
+        if (role === 'align') { await this.goTo(L[0], L[1], alt, mission.speedMps, h0, roleLive); continue; }
+        if (role === 'speed') continue;
+        if (role === 'rest') { await this.wait(1000); continue; }              // 실물은 max(settle, gap) — 가짜는 1초로 줄임
+        if (role === 'rot' && planSteps[k - 1]!.seq[0] !== i) continue;     // 회전은 첫 조각에서 끝까지 돈다
+        if (role === 'return') { await this.goTo(L[0], L[1], alt, mission.speedMps, null, roleLive); continue; }
+        if (role === 'land') {
+          this.mode = 'LAND';
+          const land = planSteps.at(-1) !== undefined && mission.land === 'here' ? planSteps.at(-1)!.to : at({ fwd: 0, right: 0 });
+          await this.goTo(land.lat, land.lon, 0, mission.speedMps, null, roleLive);
+          this.armed = false;
+          this.mode = 'HOLD';
+          this.target = null;
+          say('[확인] 착륙 완료 ✔');
+          continue;
+        }
+        const step = planSteps[k - 1]!;
+        const source = steps[k - 1]!;
+        const t0 = Date.now() / 1000;
+        say(`STEP ${k}/${n} START t=${t0.toFixed(3)} ${step.label} 고도 ${this.alt.toFixed(1)}m 헤딩 ${this.heading.toFixed(1)}°`);
+        if (source.capture) { this.capturing = true; say(`CAP ${k} START t=${t0.toFixed(3)}`); }
+        let last = 0;
+        const total = role === 'move' ? source.value : role === 'rot' ? source.value : source.value;
+        const live = () => {
+          if (Date.now() - last < 2000) return;
+          last = Date.now();
+          const [dn, de] = ne(step.from!.lat, step.from!.lon, this.lat, this.lon);
+          const doneNow = role === 'move' ? Math.hypot(dn, de) : role === 'rot' ? yawDiff(this.heading, wrap(h0 + (preview.ends[k - 2]?.yaw ?? 0))) : (Date.now() / 1000 - t0);
+          const unit = role === 'move' ? 'm' : role === 'rot' ? '°' : 's';
+          say(`       #${i} 단계 ${k}/${n} ${step.label} 진행 ${doneNow.toFixed(1).padStart(4)}/${total.toFixed(1)}${unit}  속도 ${Math.hypot(this.vn, this.ve).toFixed(1).padStart(4)}m/s  고도 ${this.alt.toFixed(1).padStart(5)}m  헤딩 ${this.heading.toFixed(1).padStart(5)}°${this.capturing ? '  CAP' : ''}`);
+        };
+        if (role === 'move') await this.goTo(step.to!.lat, step.to!.lon, alt, source.speedMps ?? mission.speedMps, step.yaw, live);
+        else if (role === 'rot') await this.goTo(step.to!.lat, step.to!.lon, alt, mission.speedMps, step.yaw, live);
+        else { const end = Date.now() + source.value * 1000; while (Date.now() < end) { live(); await this.wait(100); } }
+        const t1 = Date.now() / 1000;
+        if (source.capture) {
+          this.capturing = false;
+          say(`CAP ${k} END t=${t1.toFixed(3)}`);
+          say(`CAP ${k} SUMMARY start=${t0.toFixed(3)} end=${t1.toFixed(3)} dur=${(t1 - t0).toFixed(2)}s alt min/max=${alt.toFixed(1)}/${alt.toFixed(1)}m speed mean=${(source.speedMps ?? mission.speedMps).toFixed(2)}m/s cross-track max=0.1m rtk=OK`);
+        }
+        const [en, ee] = ne(step.to!.lat, step.to!.lon, this.lat, this.lon);
+        const posErr = Math.hypot(en, ee) + 0.12;
+        const yawErr = yawDiff(this.heading, step.yaw ?? this.heading) + 0.3;
+        say(`STEP ${k}/${n} END   t=${t1.toFixed(3)} dur=${(t1 - t0).toFixed(1)}s 목표 오차 ${posErr.toFixed(2)}m 헤딩 ${this.heading.toFixed(1)}°(목표 ${(step.yaw ?? 0).toFixed(1)}°, 오차 ${yawErr.toFixed(1)}°) 고도 ${this.alt.toFixed(1)}m`);
+        results.push(`[결과] 단계 ${k} ${step.label}: 목표 오차 ${posErr.toFixed(2)}m · 기수 오차 ${yawErr.toFixed(1)}°`);
+      }
+      this.target = null;
+      for (const line of results) say(line);
+      say('[미션] FC 의 미션을 지웠다');
+      throw new Exit(0);
+    } catch (error) {
+      this.capturing = false;
+      let code = 1;
+      if (error instanceof Exit) code = error.code;
+      else if (error instanceof Cancelled && this.cancelReason() === 'mode') {
+        say(`[중단] 비행 모드가 ${this.cancelMode()} 로 바뀌었다 — 캡처 OFF. 조종기/FC 가 제어 중이므로 더 명령하지 않는다.`);
+      } else if (error instanceof Cancelled && !this.stopped) {
+        say('[중단] 사용자 중단 (Ctrl+C/SIGTERM) — 캡처 OFF');
+        if (phase === 'air') {
+          const how = mission.abort;
+          say(`[중단] ${how} 명령을 보낸다 — ★ 필요하면 즉시 조종기로 개입할 것 ★`);
+          void this.abortTo(how, run.runId);
+        }
+      }
+      say('[종료]');
+      this.exit(run, code);
+      this.cancel = null;
+    }
+  }
+
   /** 스크립트가 끝난 뒤에도 기체는 abort 동작을 마저 한다(FC 가 하는 일이다). */
   private async abortTo(how: 'rtl' | 'hold' | 'land', _runId: string): Promise<void> {
     if (how === 'hold') { this.mode = 'HOLD'; this.target = { lat: this.lat, lon: this.lon, alt: this.alt, speed: 0, yaw: null }; return; }
@@ -776,7 +984,7 @@ class FakeDrone extends FakeDevice {
       return;
     }
     say(`[명령] ${name} 전송 ✔`);
-    if (this.run?.state === 'running') this.cancel = { reason: 'mode', mode: how.toUpperCase() };
+    if (this.run?.state === 'running' || this.seqRun?.state === 'running') this.cancel = { reason: 'mode', mode: how.toUpperCase() };
     say('[미션] FC 의 미션을 지웠다');
     say('[캡처] CAP 파일 삭제');
     this.capturing = false;
@@ -791,6 +999,64 @@ class FakeDrone extends FakeDevice {
     say('[종료]');
     this.exit(proc, 0);
   }
+}
+
+// ── 복합 미션 흉내의 도움 (261113) ──
+
+type SeqProc = Proc & { steps: string[]; plan: Record<string, unknown> & { key: string; hash: string } | null };
+
+const SEQ_KNOWN = new Set(['dry_run', 'confirmed', 'altitude_m', 'step_count', 'land', 'speed_mps', 'max_radius_m', 'abort',
+  'heading_deg', 'accept_radius_m', 'align_hold_s', 'settle_s', 'gap_s', 'rtk_min_s', 'rtk_timeout_s']);
+
+/** 실행기의 모양 검사(§3) — 빠진 키 · 모르는 키 · 정수여야 하는 값 · `step_count` 를 넘는 `s{k}_*`. 범위는 스크립트 몫. */
+function seqShapeError(p: Params): string | null {
+  for (const key of ['dry_run', 'altitude_m', 'step_count']) if (!(key in p)) return `missing ${key}`;
+  const count = p.step_count!;
+  if (!Number.isInteger(count) || count < 1) return 'step_count must be an integer';
+  for (const key of Object.keys(p)) {
+    const match = key.match(/^s(\d+)_(kind|value|speed_mps|capture)$/);
+    if (match !== null) { if (Number(match[1]) < 1 || Number(match[1]) > count) return `${key} beyond step_count`; continue; }
+    if (!SEQ_KNOWN.has(key)) return `unknown ${key}`;
+  }
+  for (let k = 1; k <= count; k += 1) {
+    if (!(`s${k}_kind` in p) || !(`s${k}_value` in p)) return `missing s${k}_kind/value`;
+    if (!Number.isInteger(p[`s${k}_kind`])) return `s${k}_kind must be an integer`;
+  }
+  return null;
+}
+
+function seqFromParams(p: Params): SeqMission {
+  const steps: SeqStep[] = [];
+  for (let k = 1; k <= (p.step_count ?? 0); k += 1) {
+    steps.push({
+      kind: STEP_KINDS[p[`s${k}_kind`] ?? 0] ?? 'forward',
+      value: p[`s${k}_value`] ?? 0,
+      speedMps: p[`s${k}_speed_mps`] ?? null,
+      capture: p[`s${k}_capture`] === 1,
+    });
+  }
+  return {
+    altitudeM: p.altitude_m ?? 5, speedMps: p.speed_mps ?? 1, land: p.land === 1 ? 'home' : 'here',
+    abort: p.abort === 1 ? 'hold' : p.abort === 2 ? 'land' : 'rtl', maxRadiusM: p.max_radius_m ?? 30, steps,
+  };
+}
+
+function stepWire(step: SeqStep): string {
+  return missionKey({ altitudeM: 0, speedMps: 0, land: 'here', steps: [step] }).split('|').at(-1)!;
+}
+
+const KIND_KO: Readonly<Record<string, string>> = { forward: '앞', back: '뒤', right: '오른쪽', left: '왼쪽', cw: '시계', ccw: '반시계', hover: '대기' };
+
+/** 드론 `Step.label()` 과 같은 모양 — `오른쪽 3m` · `앞 2m @0.5m/s +캡처` · `대기 5초`. */
+function fakeLabel(step: SeqStep): string {
+  const unit = { move: 'm', rot: '°', hover: '초' }[stepClass(step.kind)];
+  const f = (x: number) => String(Number(x.toFixed(3)));
+  return `${KIND_KO[step.kind]} ${f(step.value)}${unit}${step.speedMps !== null ? ` @${f(step.speedMps)}m/s` : ''}${step.capture ? ' +캡처' : ''}`;
+}
+
+async function sha16(text: string): Promise<string> {
+  const digest = await globalThis.crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
+  return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('').slice(0, 16);
 }
 
 class Exit extends Error {

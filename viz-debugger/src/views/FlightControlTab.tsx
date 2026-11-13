@@ -34,6 +34,9 @@ import {
   type FlightSupport, type ScriptGuess,
 } from '../physical/flightRunCommands.ts';
 import { NumberField } from './ManualControlTab.tsx';
+import { useMissionRuns } from '../physical/missionRunFeed.ts';
+import { seqDeclared } from '../physical/seqMissionCommands.ts';
+import { SeqMissionPanel } from './SeqMissionPanel.tsx';
 import { useEverySec } from './ManualControlBadge.tsx';
 import { ArmedButton, runSummary } from './FlightRunBadge.tsx';
 
@@ -59,7 +62,7 @@ function usePlan(deviceId: string): FlightPlan {
 }
 
 /** 장비 선언이 바뀌면 다시 그린다(버튼이 열리고 닫힌다). */
-function useDeviceActions(deviceId: string): readonly string[] | null {
+export function useDeviceActions(deviceId: string): readonly string[] | null {
   return useSyncExternalStore(subscribeDeviceIdentity,
     () => deviceCandidates().find((candidate) => candidate.deviceId === deviceId)?.actions ?? null);
 }
@@ -67,7 +70,7 @@ function useDeviceActions(deviceId: string): readonly string[] | null {
 // ── 작은 조각 ───────────────────────────────────────────────────────────
 
 /** 비워 둘 수 있는 숫자 칸 — 비우면 `null`(스크립트 기본: 이륙 직전 기수). */
-function OptionalNumberField({ value, min, max, step, placeholder, onCommit }: {
+export function OptionalNumberField({ value, min, max, step, placeholder, onCommit }: {
   value: number | null; min: number; max: number; step: number; placeholder: string; onCommit(value: number | null): void;
 }) {
   useLang();
@@ -86,7 +89,7 @@ function OptionalNumberField({ value, min, max, step, placeholder, onCommit }: {
     onKeyDown={(event) => { if (event.key === 'Enter') { commit(); event.currentTarget.blur(); } }} />;
 }
 
-function Radio<T extends string>({ items, value, label, name, onPick }: {
+export function Radio<T extends string>({ items, value, label, name, onPick }: {
   items: readonly T[]; value: T; label: string; name(item: T): string; onPick(item: T): void;
 }) {
   return <nav className="manual-presets" role="radiogroup" aria-label={label}>
@@ -101,7 +104,7 @@ function problemText(problem: PlanProblem): string {
   return t(`flight.problem.${problem.kind}`, { field });
 }
 
-function supportChip(actions: readonly string[] | null, action: string) {
+export function supportChip(actions: readonly string[] | null, action: string) {
   const support: FlightSupport = actions === null ? 'unknown' : actions.includes(action) ? 'yes' : 'no';
   return <span className={`manual-support manual-support--${support}`}>{action} · {t(`flight.support.${support}`)}</span>;
 }
@@ -138,13 +141,13 @@ function RoutePreview({ plan }: { plan: FlightPlan }) {
   </svg>;
 }
 
-function fcxHeading(fcx: FcxReport | undefined): number | null {
+export function fcxHeading(fcx: FcxReport | undefined): number | null {
   const heading = fcx?.hud?.heading ?? fcx?.attitude?.yawDeg ?? null;
   return heading === null ? null : ((heading % 360) + 360) % 360;
 }
 
 /** 기체 상태 한 줄 — 스크립트가 다시 확인하므로 막지는 않고, 눈에 띄게만 한다. */
-function VehicleFacts({ fcx }: { fcx: FcxReport | undefined }) {
+export function VehicleFacts({ fcx }: { fcx: FcxReport | undefined }) {
   useLang();
   if (fcx === undefined) return <p className="manual-note">{t('flight.vehicle.none')}</p>;
   const stale = isFcxStale(fcx);
@@ -173,7 +176,7 @@ const FLY_STEPS: readonly Phase[] = PHASES;
 /**
  * 실행이 도는 동안의 FC 착지 값 — `[착륙감시]` 줄이 없는 스크립트에서도 착륙 상태를 가르게(261111). 낡은 fcx 는 안 쓴다.
  */
-function fcLanding(fcx: FcxReport | undefined): { landedState: string | null; armed: boolean | null } | null {
+export function fcLanding(fcx: FcxReport | undefined): { landedState: string | null; armed: boolean | null } | null {
   return fcx === undefined || isFcxStale(fcx) ? null : { landedState: fcx.landedState, armed: fcx.armed };
 }
 
@@ -182,7 +185,7 @@ function fcLanding(fcx: FcxReport | undefined): { landedState: string | null; ar
  * FC 가 말하는 것으로 지금 어떤지를 알린다. 제어는 하지 않는다 — 중단은 여전히 사람이 누르고, 누르면 스크립트가 abort 명령을 보낸다는
  * 것을 같이 적는다.
  */
-function LandingNote({ process, landing, how, fromWatch }: { process: FlightProcess; landing: Landing; how: string; fromWatch: boolean }) {
+export function LandingNote({ process, landing, how, fromWatch }: { process: FlightProcess; landing: Landing; how: string; fromWatch: boolean }) {
   useLang();
   if (landing === 'none' || landing === 'confirmed' || process.state !== 'running') return null;
   const progress = readProgress(process.lines);
@@ -195,7 +198,7 @@ function LandingNote({ process, landing, how, fromWatch }: { process: FlightProc
   </div>;
 }
 
-function Steps({ process, landing }: { process: FlightProcess; landing: Landing }) {
+export function Steps({ process, landing }: { process: FlightProcess; landing: Landing }) {
   useLang();
   const progress = readProgress(process.lines);
   // `test_sar.py`(RTK 없는 판)는 RTK 대기 단계를 지나지 않는다.
@@ -216,7 +219,7 @@ function Steps({ process, landing }: { process: FlightProcess; landing: Landing 
 }
 
 /** 출력 원문. 맨 아래에 붙어 있으면 새 줄을 따라 내려가고, 위로 올려 읽는 중이면 그대로 둔다. */
-function RunLog({ process }: { process: FlightProcess }) {
+export function RunLog({ process }: { process: FlightProcess }) {
   useLang();
   const box = useRef<HTMLDivElement | null>(null);
   const stick = useRef(true);
@@ -252,7 +255,41 @@ function ScriptLine({ guess }: { guess: ScriptGuess }) {
 
 // ── 탭 ──────────────────────────────────────────────────────────────────
 
+export type FlightMode = 'pattern' | 'seq';
+const FLIGHT_MODES: readonly FlightMode[] = ['pattern', 'seq'];
+let modes: Readonly<Record<string, FlightMode>> = {};
+const modeListeners = new Set<() => void>();
+
+function useFlightMode(deviceId: string): [FlightMode, (mode: FlightMode) => void] {
+  const mode = useSyncExternalStore((listener) => {
+    modeListeners.add(listener);
+    return () => { modeListeners.delete(listener); };
+  }, () => modes[deviceId] ?? 'pattern');
+  return [mode, (next) => { modes = { ...modes, [deviceId]: next }; for (const listener of modeListeners) listener(); }];
+}
+
+/**
+ * **두 가지 비행** (261113). 드론이 `seq_mission_start` 를 선언했을 때만 「복합 미션」 이 보인다(`MISSION_SEQ_요청_VZ.md` §2) —
+ * 61 번 drop-in 이 없는 기체는 지금까지와 똑같이 왕복 시험만 보인다. 고른 쪽은 장비마다 화면이 떠 있는 동안 기억한다.
+ */
 export function FlightControlTab({ deviceId }: { deviceId: string }) {
+  useLang();
+  const actions = useDeviceActions(deviceId);
+  const [mode, setMode] = useFlightMode(deviceId);
+  const seq = seqDeclared(actions);
+  if (!seq) return <PatternFlightPanel deviceId={deviceId} />;
+  return <>
+    <div className="flight-mode">
+      <span>{t('flight.mode.label')}</span>
+      <Radio items={FLIGHT_MODES} value={mode} label={t('flight.mode.label')} name={(item) => t(`flight.mode.${item}`)} onPick={setMode} />
+      <small>{t(`flight.mode.${mode}Why`)}</small>
+    </div>
+    {mode === 'seq' ? <SeqMissionPanel deviceId={deviceId} /> : <PatternFlightPanel deviceId={deviceId} />}
+  </>;
+}
+
+/** 왕복 시험 — `test_sar_rtk.py` · `test_sar.py` (261014). */
+function PatternFlightPanel({ deviceId }: { deviceId: string }) {
   useLang();
   useEverySec();
   const actions = useDeviceActions(deviceId);
@@ -265,6 +302,8 @@ export function FlightControlTab({ deviceId }: { deviceId: string }) {
   const problems = planProblems(plan);
   const run = entry?.run ?? null;
   const running = run?.state === 'running';
+  // 복합 미션 실행기와 서로 배제된다(261113) — 저쪽이 돌고 있으면 시작을 막는다.
+  const otherRunning = useMissionRuns()[deviceId]?.run?.state === 'running';
   const passed = dryRunPassed(deviceId, plan, entry);
   const pending = dryRunPending(deviceId, plan, entry);
   const moving = plan.pattern !== 'rotate';
@@ -288,7 +327,8 @@ export function FlightControlTab({ deviceId }: { deviceId: string }) {
     ? (link.reason || (link.start === 'unknown' ? t('flight.link.unknown') : t('flight.link.notDeclared')))
     : problems.length > 0 ? t('flight.block.problems')
       : running ? t('flight.block.running')
-        : null;
+        : otherRunning ? t('flight.block.otherSeq')
+          : null;
 
   const send = async (dryRun: boolean) => {
     setBusy(true);

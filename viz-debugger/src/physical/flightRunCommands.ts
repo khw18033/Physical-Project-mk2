@@ -128,7 +128,8 @@ export type FlightIssueOutcome = {
 /** 실행기는 프로세스를 띄운 뒤 답한다 — 핑보다 넉넉히. */
 const ACCEPT_WAIT_MS = 6000;
 
-async function issue(
+/** 실행기 명령 하나 — 추적기를 지나 보내고 `Acceptance` 를 기다린다. 복합 미션(`seqMissionCommands.ts`)도 이 길을 쓴다. */
+export async function issueFlightAction(
   link: FlightLink,
   action: PhysicalAction,
   parameters: Record<string, number> | undefined,
@@ -192,7 +193,8 @@ async function issue(
 }
 
 /** 실행기가 정한 사유(요청 문서 §2)는 풀어 쓰고, 모르는 것은 장비가 준 그대로. */
-const KNOWN_REJECTS = new Set(['already_running', 'not_running', 'not_confirmed']);
+// `other_flight_running` (261113) — 왕복 시험과 복합 미션 실행기는 서로 배제된다(`MISSION_SEQ_요청_VZ.md` §2).
+const KNOWN_REJECTS = new Set(['already_running', 'not_running', 'not_confirmed', 'other_flight_running']);
 
 function rejectText(code: string | null, message: string | null): string {
   const known = [message, code].find((value) => value !== null && KNOWN_REJECTS.has(value.trim()));
@@ -244,7 +246,7 @@ export async function issueFlightStart(
   if (!run.dryRun && !run.confirmed) {
     return { sent: false, commandId: '', accepted: null, code: null, message: t('flight.reject.not_confirmed') };
   }
-  const outcome = await issue(link, RTK_TEST_START, startParams(plan, run), !run.dryRun);
+  const outcome = await issueFlightAction(link, RTK_TEST_START, startParams(plan, run), !run.dryRun);
   if (run.dryRun && outcome.sent) dryRuns.set(link.deviceId, { commandId: outcome.commandId, signature: planSignature(plan) });
   return outcome;
 }
@@ -254,7 +256,7 @@ export async function issueFlightStop(link: FlightLink): Promise<FlightIssueOutc
   if (link.stop === 'no') {
     return { sent: false, commandId: '', accepted: null, code: null, message: link.reason || t('flight.cmd.stopUnsupported') };
   }
-  return issue(link, RTK_TEST_STOP, undefined, false);
+  return issueFlightAction(link, RTK_TEST_STOP, undefined, false);
 }
 
 /** 비상 — `emergency_land.py` 를 따로 연결해 실행. 확인 질문이 없는 명령이라 화면이 두 번 누르게 한다. */
@@ -262,5 +264,5 @@ export async function issueFlightEmergency(link: FlightLink, mode: EmergencyMode
   if (link.emergency === 'no') {
     return { sent: false, commandId: '', accepted: null, code: null, message: link.reason || t('flight.cmd.emergencyUnsupported') };
   }
-  return issue(link, RTK_TEST_EMERGENCY, { mode: EMERGENCY_CODE[mode] }, true);
+  return issueFlightAction(link, RTK_TEST_EMERGENCY, { mode: EMERGENCY_CODE[mode] }, true);
 }

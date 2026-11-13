@@ -11,8 +11,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { useLang } from '../shared/language.ts';
 import { t } from '../i18n/dict.ts';
-import { landingOf, readProgress, runOutcome, useFlightRuns, type FlightProcess } from '../physical/flightRunFeed.ts';
+import { landingOf, readProgress, runOutcome, useFlightRuns, type FlightProcess, type FlightProgress } from '../physical/flightRunFeed.ts';
 import { flightLink, issueFlightEmergency, issueFlightStop } from '../physical/flightRunCommands.ts';
+import { readSeqProgress, useMissionRuns, type SeqPlanReport } from '../physical/missionRunFeed.ts';
+import { issueSeqStop, seqLink } from '../physical/seqMissionCommands.ts';
 import { useEverySec } from './ManualControlBadge.tsx';
 
 /**
@@ -37,11 +39,12 @@ export function ArmedButton({ label, armedLabel, onFire, className, disabled }: 
 }
 
 /** 실행 한 줄 요약 — 탭의 머리와 알림이 같은 말을 쓴다. */
-export function runSummary(process: FlightProcess): string {
+export function runSummary(process: FlightProcess, read: FlightProgress | null = null): string {
   const outcome = runOutcome(process);
   const kind = process.dryRun === true ? t('flight.kind.dry') : t('flight.kind.fly');
   if (outcome === 'running') {
-    const progress = readProgress(process.lines);
+    // 복합 미션(261113)은 진행 줄 모양이 달라 부르는 쪽이 `readSeqProgress` 로 읽은 것을 넘긴다.
+    const progress = read ?? readProgress(process.lines);
     const phase = t(`flight.phase.${progress.phase}`);
     const item = progress.itemCur !== null && progress.itemsTotal !== null
       ? ` · ${t('flight.progress.item', { cur: progress.itemCur, total: progress.itemsTotal })}` : '';
@@ -58,41 +61,53 @@ export function FlightRunBadge() {
   useLang();
   useEverySec();
   const runs = useFlightRuns();
+  const missionRuns = useMissionRuns();
   // 이 화면이 「돌고 있다」로 본 실행만 끝난 뒤에도 남긴다. 닫은 것은 다시 안 띄운다.
   const seenRunning = useRef(new Set<string>());
   const [dismissed, setDismissed] = useState<ReadonlySet<string>>(new Set());
   const [notes, setNotes] = useState<Readonly<Record<string, string>>>({});
 
   const rows = Object.values(runs).flatMap((entry) => {
-    const list: { key: string; deviceId: string; process: FlightProcess; emergency: boolean }[] = [];
+    const list: { key: string; deviceId: string; process: FlightProcess; emergency: boolean; seq: boolean; plan: SeqPlanReport | null }[] = [];
     for (const [process, emergency] of [[entry.run, false], [entry.emergency, true]] as const) {
       if (process === null) continue;
       const key = `${entry.deviceId}:${emergency ? 'e' : 'r'}:${process.runId}`;
       if (process.state === 'running') seenRunning.current.add(key);
       if (!seenRunning.current.has(key) || dismissed.has(key)) continue;
-      list.push({ key, deviceId: entry.deviceId, process, emergency });
+      list.push({ key, deviceId: entry.deviceId, process, emergency, seq: false, plan: null });
     }
     return list;
   });
+  // 복합 미션 (261113) — 같은 규칙으로 한 줄. 비상은 `flight_run` 쪽에서 위 줄로 뜬다.
+  for (const entry of Object.values(missionRuns)) {
+    const process = entry.run;
+    if (process === null) continue;
+    const key = `${entry.deviceId}:s:${process.runId}`;
+    if (process.state === 'running') seenRunning.current.add(key);
+    if (!seenRunning.current.has(key) || dismissed.has(key)) continue;
+    rows.push({ key, deviceId: entry.deviceId, process, emergency: false, seq: true, plan: process.plan });
+  }
   if (rows.length === 0) return null;
 
   const note = (deviceId: string, text: string) => setNotes((current) => ({ ...current, [deviceId]: text }));
 
   return <aside className="manual-badge flight-badge" aria-live="polite">
-    {rows.map(({ key, deviceId, process, emergency }) => {
+    {rows.map(({ key, deviceId, process, emergency, seq, plan }) => {
       const running = process.state === 'running';
       const outcome = runOutcome(process);
       const tone = running ? (emergency ? 'flight-badge__row--emergency' : '') : outcome === 'ok' ? '' : 'manual-badge__row--blocked';
-      const link = flightLink(deviceId);
-      const progress = running && !emergency ? readProgress(process.lines) : null;
+      const link = seq ? seqLink(deviceId) : flightLink(deviceId);
+      const progress = running && !emergency
+        ? (seq ? readSeqProgress(process.lines, plan) : readProgress(process.lines))
+        : null;
       return <div key={key} className={`manual-badge__row ${tone}`}>
         <span className={running ? 'manual-badge__dot flight-badge__dot--live' : 'manual-badge__dot'} aria-hidden="true" />
         <div>
           <b>{emergency
             ? t('flight.badge.emergency', { id: deviceId, mode: process.mode ?? '?' })
-            : t('flight.badge.line', { id: deviceId })}</b>
+            : t(seq ? 'seq.badge.line' : 'flight.badge.line', { id: deviceId })}</b>
           <small>
-            {emergency ? t(`flight.outcome.${outcome}`, { code: process.exitCode ?? '?' }) : runSummary(process)}
+            {emergency ? t(`flight.outcome.${outcome}`, { code: process.exitCode ?? '?' }) : runSummary(process, progress)}
             {progress?.live != null && <><br />{progress.live}</>}
             {notes[deviceId] !== undefined && <><br /><em>{notes[deviceId]}</em></>}
           </small>
@@ -100,7 +115,7 @@ export function FlightRunBadge() {
         <div className="flight-badge__buttons">
           {running && !emergency && <ArmedButton label={t('flight.btn.stop')} armedLabel={t('flight.btn.again')}
             disabled={link.stop === 'no'}
-            onFire={() => { void issueFlightStop(link).then((outcome) => note(deviceId, outcome.message)); }} />}
+            onFire={() => { void (seq ? issueSeqStop(link) : issueFlightStop(link)).then((outcome) => note(deviceId, outcome.message)); }} />}
           {running && !emergency && <ArmedButton className="flight-danger" label={t('flight.btn.land')} armedLabel={t('flight.btn.again')}
             disabled={link.emergency === 'no'}
             onFire={() => { void issueFlightEmergency(link, 'land').then((outcome) => note(deviceId, outcome.message)); }} />}

@@ -42,6 +42,7 @@ import { parseRtcmStatus, RTCM_TOPIC, rtcmChannel } from './rtcmFeed.ts';
 import { noteRtcmStatus } from '../shared/rtcmStatus.ts';
 import { FCX_TOPIC, fcxChannel, parseFcx } from './fcxFeed.ts';
 import { FLIGHT_RUN_TOPIC, flightRunChannel, noteFlightRun, parseFlightRun } from './flightRunFeed.ts';
+import { MISSION_RUN_TOPIC, missionRunChannel, noteMissionRun, parseMissionRun } from './missionRunFeed.ts';
 import { fakeMqtt, isFakeAddress } from './fakeDevice.ts';
 import { noteFcx } from '../shared/fcxStatus.ts';
 import { decodeCapability, decodeUplink, type UplinkMessage } from './uplink.ts';
@@ -342,6 +343,8 @@ export class PhysicalClient {
         client.subscribe(FCX_TOPIC, { qos: 0 });
         // 드론 비행 실행기 (261014) — 스크립트 출력 원문 · 종료 코드. retained 라 늦게 붙어도 마지막 실행이 온다.
         client.subscribe(FLIGHT_RUN_TOPIC, { qos: 1 });
+        // 복합 이동 미션 실행기 (261113 · `MISSION_SEQ_요청_VZ.md` §4) — `flight_run` 과 같은 규칙, retained.
+        client.subscribe(MISSION_RUN_TOPIC, { qos: 1 });
       }) as () => void);
       client.on('message', ((topic: string, payload: Uint8Array) => {
         // 장비 상태는 **JSON** 이고 명령 응답은 **protobuf** 다. 토픽으로 가른다 —
@@ -369,6 +372,11 @@ export class PhysicalClient {
           if (flightRunChannel(topic)) {
             const run = parseFlightRun(body as Record<string, unknown>, topic);
             if (run !== null) noteFlightRun(run);
+            return;
+          }
+          if (missionRunChannel(topic)) {
+            const run = parseMissionRun(body as Record<string, unknown>, topic);
+            if (run !== null) noteMissionRun(run);
             return;
           }
           // 로봇 → 탐지 흐름은 장비 상태가 아니다 — 다른 귀로 보낸다.

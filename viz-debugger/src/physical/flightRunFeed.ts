@@ -60,7 +60,7 @@ const num = (v: unknown): number | null => (typeof v === 'number' && Number.isFi
 const str = (v: unknown): string | null => (typeof v === 'string' && v !== '' ? v : null);
 const obj = (v: unknown): Obj | null => (v !== null && typeof v === 'object' && !Array.isArray(v) ? v as Obj : null);
 
-function parseProcess(value: unknown): FlightProcess | null | undefined {
+export function parseProcess(value: unknown): FlightProcess | null | undefined {
   if (value === null) return null;
   const body = obj(value);
   if (body === null) return undefined;
@@ -108,7 +108,7 @@ export const FLIGHT_RUN_STALE_MS = 15_000;
 let entries: Readonly<Record<string, FlightRunEntry>> = {};
 const listeners = new Set<() => void>();
 
-function mergeProcess(previous: FlightProcess | null, next: FlightProcess | null): FlightProcess | null {
+export function mergeProcess<P extends FlightProcess>(previous: P | null, next: P | null): P | null {
   if (next === null || previous === null || previous.runId !== next.runId) return next;
   const last = previous.lines.at(-1)?.seq ?? 0;
   const fresh = next.lines.filter((line) => line.seq > last);

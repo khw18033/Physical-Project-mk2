@@ -81,6 +81,8 @@ export type PhysicalAction =
   // 드론 비행 실행기 (261014 · pi3 에 요청 중) — `test_sar_rtk.py` 를 옵션대로 띄우기 · SIGTERM · 비상 착륙.
   // 장비가 `Capability` 에 선언해야 시작이 나간다 — `flightRunCommands.ts`.
   | 'rtk_test_start' | 'rtk_test_stop' | 'rtk_test_emergency'
+  // 복합 이동 미션 (261113 · `MISSION_SEQ_요청_VZ.md`) — `mission_seq.py` 시작 · SIGTERM. 비상은 위의 `rtk_test_emergency` 그대로.
+  | 'seq_mission_start' | 'seq_mission_stop'
   // 수동 제어 속도 명령 (261005 · 하드웨어에 요청 중). 이름·파라미터는 우리 안이다 — `presets.ts` 의 `TELEOP_ACTION`.
   // 장비가 `Capability` 에 선언해야만 화면이 보낸다 — `manualControl.ts`.
   | 'teleop'

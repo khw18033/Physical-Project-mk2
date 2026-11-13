@@ -10,7 +10,7 @@
  * | 카메라 · 탐지 | 기존 상세보기의 두 칸만 — 기체 카메라(`DirectCamera`) · 객체 탐지 추론(`VisionDeviceSection`) |
  * | RTK | `RtkZoom` |
  * | SAR 패스 | `SarPassZoom` **보기 전용** — 시작 · 중단은 아직 이 창에 연결하지 않았다 |
- * | 비행 제어 | `FlightControlTab` (261014) — pi3 의 `test_sar_rtk.py` 를 설정대로 띄운다 · dry-run · 중단 · 비상 착륙 |
+ * | 비행 제어 | `FlightControlTab` (261014) — pi3 의 `test_sar_rtk.py` 를 설정대로 띄운다 · dry-run · 중단 · 비상 착륙. 드론이 `seq_mission_start` 를 선언하면 복합 미션(`SeqMissionPanel`, 261113)도 고를 수 있다 |
  *
  * ## 세 화면 모두 `deviceId` 로 못 박는다
  *

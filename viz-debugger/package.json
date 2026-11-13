@@ -72,6 +72,7 @@
     "verify:no-hardcoded-target": "node scripts/verify-no-hardcoded-target.mjs",
     "verify:fc-link": "node scripts/verify-fc-link.mjs",
     "verify:flight-run": "node scripts/verify-flight-run.mjs",
+    "verify:seq-mission": "node scripts/verify-seq-mission.mjs",
     "verify:fake-device": "node scripts/verify-fake-device.mjs",
     "verify:stop-unsupported": "node scripts/verify-stop-unsupported.mjs",
     "verify:drone-via-state": "node scripts/verify-drone-via-state.mjs",
