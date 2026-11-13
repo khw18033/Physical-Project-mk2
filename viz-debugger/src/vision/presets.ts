@@ -2,7 +2,7 @@
  * src/vision/presets.ts (261001 신설 — 객체 탐지 추론 스트림)
  *
  * **스트림 서버의 주소와 포트 넷.** 서버(`server_stream_multi_source.py`)는 포트 하나가 소스 하나다 —
- * 10001 cam360 · 10002 drone · 10003 robot1 · 10004 robot2. 어느 장비가 어느 소스인지는 **여기서 정하지 않는다**
+ * 10001 cam360 · 10002 drone · 10003 robot1 · 10004 robot2 · 10008 pi11 · 10009 pi12 · 10011 pi13(261113). 어느 장비가 어느 소스인지는 **여기서 정하지 않는다**
  * (`binding.ts` — 서버가 알려 주는 파이 주소와 장비의 브로커 주소를 맞대 본다).
  *
  * **주소와 포트를 칸으로 가른다** (261001 지시). 현장에서는 서버 IP 만 바뀌고 포트는 그대로인 일이 생긴다 —
@@ -28,6 +28,10 @@ export const VISION_STREAM_PORTS: readonly { port: number; source: string }[] = 
   { port: 10002, source: 'drone' },
   { port: 10003, source: 'robot1' },
   { port: 10004, source: 'robot2' },
+  // 261113 — 모듈 카메라 파이 셋(CSI imx708 · 영상만, 상태 없음). 10010 은 서버 기계에서 다른 프로그램이 쓰고 있어 건너뛴다
+  { port: 10008, source: 'pi11' },
+  { port: 10009, source: 'pi12' },
+  { port: 10011, source: 'pi13' },
 ];
 
 export const VISION_DEFAULT_PORTS: readonly string[] = VISION_STREAM_PORTS.map(({ port }) => String(port));

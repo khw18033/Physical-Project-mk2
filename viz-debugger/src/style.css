@@ -1419,3 +1419,26 @@ button.flight-armed:not(:disabled){color:#fff!important;border-color:#8f1d22!imp
 .flight-landing--onGround,.flight-landing--disarmed{border-left-color:#35a36a;background:#eef8f2}
 .ctl-flight__landing{margin:6px 0;padding:6px 10px;font-size:13px;border-left:3px solid #d39b2a;background:#fdf6e7}
 .ctl-flight__landing.flight-landing--onGround,.ctl-flight__landing.flight-landing--disarmed{border-left-color:#35a36a;background:#eef8f2}
+
+/* 261113 — 추론 영상의 위험물 근거 카드(src/vision/views/VisionCards.tsx). 영상 칸 모양은 그대로, 위에 얹기만 한다 */
+.vcard-layer{position:absolute;z-index:1}
+.vcard-layer--hit{cursor:pointer}
+.vcard-mark{position:absolute;border:2px solid #5aa0ff;border-radius:2px;box-shadow:0 0 0 1px #0008;pointer-events:none}
+.vcard-mark--pin{border-style:dashed}
+.vcard-pin{position:absolute;z-index:3;left:0;top:0}
+.vcard-tip{position:fixed;z-index:50;pointer-events:none}
+.vcard{width:300px;background:#181b21;color:#e6e6e6;border:2px solid #969ba5;border-radius:6px;padding:8px 10px;font-size:12px;line-height:1.45;box-shadow:0 4px 14px #000c}
+.vcard--haz{border-color:#ffc83c}
+.vcard--gone{opacity:.6}
+.vcard__head{display:flex;gap:8px;align-items:baseline;font-size:14px;margin-bottom:2px}
+.vcard__head b{color:#969ba5}.vcard--haz .vcard__head b{color:#ffc83c}
+.vcard__score--hi{color:#5aa0ff}.vcard__score--mid{color:#ff963c}.vcard__score--lo{color:#ff6e64}
+.vcard__x{margin-left:auto;border:0;background:none;color:#9aa3b2;font-size:15px;line-height:1;cursor:pointer;padding:0 2px}
+.vcard__x:hover{color:#fff}
+.vcard__cmp{color:#9aa3b2;margin-bottom:5px}
+.vcard__row{display:grid;grid-template-columns:62px 60px 36px 1fr;gap:5px;align-items:center}
+.vcard__kv{display:grid;grid-template-columns:62px 1fr;gap:5px}
+.vcard__bar{height:8px;background:#3a3e46;border-radius:2px;overflow:hidden}.vcard__bar i{display:block;height:100%;background:#fff}
+.vcard__pct{text-align:right;font-variant-numeric:tabular-nums}
+.vcard__txt{color:#9aa3b2;overflow-wrap:anywhere}
+.vcard__gone{color:#9aa3b2;font-size:11px;margin-top:3px}

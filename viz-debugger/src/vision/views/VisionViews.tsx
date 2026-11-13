@@ -33,7 +33,7 @@
  * **문 찾기 시연(`src/detect/`) · 장애물 탐지(`src/autodrive/`)와 섞지 않는다.** 클래스 몇 개(`detect-cam` 모양)만 빌린다.
  */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { RecordFrame } from '../../record/RecordFrame.tsx';
 import { t } from '../../i18n/dict.ts';
 import { useLang } from '../../shared/language.ts';
@@ -49,6 +49,7 @@ import {
 } from '../binding.ts';
 import { setVisionNodeChoice, useVisionNodeChoice, type VisionNodeChoice } from '../nodeChoice.ts';
 import { isFixedCamera } from '../../fixedcam/fixedCamera.ts';
+import { VisionCards } from './VisionCards.tsx';
 
 /** 접힌 카드가 새 한 장을 받는 주기 — 탐지 영상 노드와 같다. */
 export const VISION_STILL_MS = 2000;
@@ -127,6 +128,7 @@ function VisionCell({ base, model, summary, rate, zoom, lagMs, framesNow, gapFra
   const [failed, setFailed] = useState<string | null>(null);
   // 확대 스트림이 첫 장을 받았는가. 안 왔으면 `<img>` 는 높이 0 으로 비어 있고 오류도 안 난다 — 여는 주소를 글로 적는다.
   const [loaded, setLoaded] = useState<string | null>(null);
+  const imgRef = useRef<HTMLImageElement | null>(null);
   const url = model === null ? rawStreamUrl(base) : overlayStreamUrl(base, model);
   return <figure className="vision-cell">
     <figcaption>
@@ -141,9 +143,11 @@ function VisionCell({ base, model, summary, rate, zoom, lagMs, framesNow, gapFra
       ? <p className="vn-line vn-dim">{t(model === null ? 'vis.rawNotYet' : 'vis.modelNotLive')}</p>
       : zoom
       // 확대는 주소가 안 바뀌어야 스트림이 안 끊긴다. 닫으면 `<img>` 가 사라지고 연결이 닫힌다.
-      ? <RecordFrame label={recordLabel}><img src={url} alt={model ?? t('vis.raw')}
+      // 261113 — 근거 카드 층(마우스 → 카드 · 클릭 → 고정 · ✕). `<img>` 는 그대로 첫 자식이다(녹화가 그것을 잡는다).
+      ? <RecordFrame label={recordLabel}><img ref={imgRef} src={url} alt={model ?? t('vis.raw')}
           onLoad={() => { setFailed(null); setLoaded(url); }}
-          onError={() => setFailed(t('vis.streamFailed', { url }))} /></RecordFrame>
+          onError={() => setFailed(t('vis.streamFailed', { url }))} />
+          {model !== null && <VisionCards base={base} model={model} imgRef={imgRef} />}</RecordFrame>
       : <Still base={base} model={model} />}
     {failed !== null && <small className="vn-warn">{failed}</small>}
     {available && zoom && failed === null && loaded !== url && <small className="vn-dim">{t('vis.streamOpening', { url })}</small>}
