@@ -43,7 +43,8 @@ STT·생성은 **파이썬 환경이 있을 때만** 뜨고, 없으면 콘솔에
 **`viz-dev.exe` 로 띄우면 아래를 런처가 대신 한다** (261102) — 두 `.venv` 를 만들고
 `requirements.txt` 를 깔고, `gen-lab\vendor\` 에 llama.cpp(GPU 가 있으면 CUDA 빌드)를,
 `gen-lab\models\` 가 비었으면 Qwen3 4B(2.5 GB)를 받는다. 처음 한 번은 몇 분 걸리고, 다음부터는
-건너뛴다. 빌드는 `viz-debugger/scripts/launcher/VizDev.cs` 머리의 한 줄.
+건너뛴다. `viz-dev.exe` 는 저장소 최상단에 빌드본이 올라가 있어 받은 그대로 더블클릭하면 된다
+(Node.js 는 미리 설치). 소스를 고쳤으면 `viz-debugger/scripts/launcher/VizDev.cs` 머리의 한 줄로 다시 빌드해 같이 올린다.
 
 아래 명령은 **cmd 와 PowerShell 양쪽에서 그대로 된다.** 셸마다 모양이 다른 것(환경변수·프로세스
 종료)만 둘을 나란히 적었다. PowerShell 에서 `curl` 은 다른 명령의 별칭이라 반드시 `curl.exe` 로 쓴다.

@@ -14,6 +14,8 @@
 !/.gitignore
 !/.gitattributes
 !/README.md
+# 개발 런처 (VizDev.cs 빌드본, 15 KB) — 받은 PC 에서 바로 더블클릭하게 올린다 (261113)
+!/viz-dev.exe
 !/mqtt-command.js
 !/package-lock.json
 !/pi1_조사결과.md

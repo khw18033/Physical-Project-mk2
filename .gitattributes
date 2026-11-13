@@ -23,6 +23,7 @@
 *.mp4 binary
 *.wav binary
 *.mp3 binary
+*.exe binary
 
 # 실행 주체가 줄바꿈을 가리는 것들.
 *.sh text eol=lf
