@@ -2,7 +2,8 @@
  * src/fixedcam/fixedCamera.ts (261002 신설 — 고정 카메라 · 360 카메라 연결 준비)
  *
  * **고정 카메라를 아는 유일한 면.** 연결 관리의 「고정 카메라」 목록 칸(`fixed-camera.url`)에 적힌 주소마다 카메라
- * 한 대다. 지금 360 카메라는 **서버 링크 주소로 이미지만** 준다 — 배터리 같은 장비 정보는 아직 없다.
+ * 한 대다. 360 카메라는 서버 링크(`/frame`)로 이미지를 주고, 같은 응답 헤더에 GPS · 배터리 · 온도를 싣는다
+ * (261111) — 헤더는 `cameraState.ts` 가 읽는다.
  *
  * ## 「연결됨」은 이미지가 받아지는 것이다
  *
@@ -29,6 +30,7 @@ import { t } from '../i18n/dict.ts';
 import { connectionAddress, splitAddressList, subscribeConnections } from '../shared/connections.ts';
 import { noteConnectedEntity } from '../shared/connectedDevices.ts';
 import { line, type HealthLine } from '../shared/connectionHealth.ts';
+import { pollCameraState } from './cameraState.ts';
 
 export const FIXED_CAMERA_ID_PREFIX = 'fixed-cam-';
 
@@ -167,6 +169,8 @@ export function startFixedCameraWatch(probe: ImageProbe = probeImage, intervalMs
       if (inFlight.has(key)) continue;
       inFlight.add(key);
       void probeOne(camera, probe).finally(() => inFlight.delete(key));
+      // 장비 상태(헤더)도 같은 주기로 — 카드 줄의 배터리 · 온도가 상세를 안 열어도 찬다.
+      void pollCameraState(camera);
     }
   };
   let lastUrls = connectionAddress('fixed-camera', 'url');

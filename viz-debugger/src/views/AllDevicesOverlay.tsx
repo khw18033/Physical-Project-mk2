@@ -33,6 +33,7 @@ import { DirectCamera } from '../media/views/DeviceCamera.tsx';
 import { CAMERA_POSITIONS, type CameraPosition } from '../media/cameraChoice.ts';
 import { useDirectCameraSourcesMany, type LabeledCameraSource } from '../physical/cameraView.ts';
 import { feedKindOf, fixedCameraUrl, isFixedCamera, type FeedKind } from '../fixedcam/fixedCamera.ts';
+import { CameraStateDash } from '../fixedcam/CameraStateView.tsx';
 import { VisionDeviceControls, VisionStream, visionStreamCells } from '../vision/views/VisionViews.tsx';
 import { Virtual3D } from '../virtualmap/Virtual3D.tsx';
 import { isTwinDevice, useTwinFacts } from '../virtualmap/twinDevice.ts';
@@ -244,6 +245,7 @@ function StatusTile({ id }: { id: string }) {
     <TileHead id={id} sub={t(originKey(id))} />
     <div className="adev-tile__body adev-tile__body--status">
       {/* 드론은 상태판만(지시) — 축약판. 전체 상태판은 카드 상세에 있다. */}
+      {isFixedCamera(id) && <CameraStateDash entityId={id} compact />}
       {viewOnly ? <CameraDeviceText id={id} /> : drone ? <DroneDashMini deviceId={id} /> : <GroundDash entityId={id} compact />}
     </div>
   </>;

@@ -5,7 +5,7 @@
  * 보여 주는 부품은 로봇 카메라를 바로 보는 것과 같다(`DirectCamera`). 받는 방식(끝나지 않는 영상 · 한 장씩 새로)은
  * 주소로 기본을 정하고 사람이 바꾼다(`feedKindOf` — 주소만으로는 확실히 모른다).
  *
- * 장비 정보(배터리 등)는 아직 안 온다. 오지 않는 칸은 그리지 않는다 — 다른 카드와 같은 규칙이다.
+ * 장비 상태(GPS · 배터리 · 온도)는 `/frame` 응답 헤더로 온다(261111) — 영상 위에 상태판으로 그린다(`CameraStateDash`).
  */
 
 import { useState } from 'react';
@@ -15,6 +15,7 @@ import { useConnections } from '../shared/connections.ts';
 import { connectedDevice, useConnectedDevices } from '../shared/connectedDevices.ts';
 import { DirectCamera } from '../media/views/DeviceCamera.tsx';
 import { feedKindOf, fixedCameraUrl, type FeedKind } from './fixedCamera.ts';
+import { CameraStateDash } from './CameraStateView.tsx';
 
 export function FixedCameraSection({ entityId }: { entityId: string }) {
   useLang();
@@ -32,6 +33,7 @@ export function FixedCameraSection({ entityId }: { entityId: string }) {
         ? t('fcam.notReceived')
         : t('hl.secondsAgo', { sec: Math.round((Date.now() - seen.lastSeenMs) / 1000) })}</dd></div>
     </dl>
+    <CameraStateDash entityId={entityId} />
     <section className="media-section device-cam device-cam--zoom">
       <header className="media-section__head">
         <h3>{t('fcam.title')}</h3>

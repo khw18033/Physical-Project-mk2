@@ -36,6 +36,7 @@ import { DeviceStatusOverlay } from './views/DeviceStatusOverlay.tsx';
 import { AllDevicesOverlay } from './views/AllDevicesOverlay.tsx';
 import { GroundDashLine } from './physical/GroundDash.tsx';
 import { isFixedCamera } from './fixedcam/fixedCamera.ts';
+import { CameraStateDots } from './fixedcam/CameraStateView.tsx';
 import { isTwinDevice } from './virtualmap/twinDevice.ts';
 import { UtterancePanel } from './views/UtterancePanel.tsx';
 import { StatusLegend } from './views/StatusLegend.tsx';
@@ -115,7 +116,8 @@ function aiMarks(trace: readonly ScenarioEvent[]) {
  * 연결 · 링크 · 배터리 · 마지막 수신, 드론은 장비가 카드 몫으로 보낸 줄). 고정 카메라 · 3D 가상환경은 지금까지의 줄(`HardwareLink`).
  */
 function CardStatusLine({ entityId }: { entityId: string }) {
-  if (isFixedCamera(entityId) || isTwinDevice(entityId)) return <HardwareLink entityId={entityId} />;
+  if (isFixedCamera(entityId)) return <><HardwareLink entityId={entityId} /><CameraStateDots entityId={entityId} /></>;
+  if (isTwinDevice(entityId)) return <HardwareLink entityId={entityId} />;
   return <GroundDashLine entityId={entityId} />;
 }
 
