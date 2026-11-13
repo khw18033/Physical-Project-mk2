@@ -460,7 +460,6 @@ export const en: Record<string, string> = {
   'banner.close': 'Close script',
   'script.ended': 'Playback ended, final state',
   'script.preview': 'Stopped preview',
-  'panel.history': 'Mission history',
   'panel.notifications': 'Alerts',
   'panel.close': 'Close',
   'panel.noNotifications': 'No alerts yet',

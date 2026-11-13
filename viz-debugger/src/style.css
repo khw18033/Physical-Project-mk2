@@ -1368,6 +1368,10 @@ button.flight-armed:not(:disabled){color:#fff!important;border-color:#8f1d22!imp
 .history-list li.is-control{border-style:dashed}
 .history-kind{padding:1px 7px;border-radius:var(--radius-sm);background:#e6eef8;color:#1d4f8f;font-size:12px;font-weight:700}
 .modal.ctl-record{width:min(1100px,94vw)}
+/* 261113 — 조작 판을 리플레이 화면의 그래프 자리에 그린다. 창 모양(.modal)은 쓰되 크기 제한 · 그림자는 뗀다. */
+.modal.ctl-record--inline{width:auto;max-height:none;overflow:visible;min-width:0;box-shadow:none;border:1px solid #dce1e8}
+.ctl-record--inline .ctl-flight__log{max-height:60vh}
+.graph-panel[hidden]{display:none}
 .ctl-pad{margin:16px 22px}
 .ctl-summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px 18px;margin:0;padding:15px 22px;background:#eef5fb}
 .ctl-summary div{display:grid;gap:3px;min-width:0}

@@ -65,6 +65,8 @@ import { ServerCard } from './shell/ServerCard.tsx';
 import { connectedDevice } from './shared/connectedDevices.ts';
 import { connectionAddress, useConnections } from './shared/connections.ts';
 import { useReplayTarget } from './record/replayMode.ts';
+import { closeControlView, useControlView } from './record/controlView.ts';
+import { ControlRecordView } from './views/ControlRecordView.tsx';
 import { dropOnSlots, holdSlotsFor, useSlotBindings } from './data/slots.ts';
 
 type Screen = 'milestones' | 'graph' | 'detail' | 'replay' | 'failure';
@@ -339,6 +341,9 @@ function GraphScreen({ screen, view, trace, milestone, tasks, headSec, playing, 
   const replay = screen === 'replay'; const failure = screen === 'failure';
   /** 저장된 판을 다시 보는 중이면 그 판 (260914). 머리줄에 어느 판인지 적는다. */
   const recorded = useReplayTarget();
+  /** 이력에서 연 조작 판 (261113). 리플레이 화면에서만 그래프 자리를 내준다. */
+  const controlView = useControlView();
+  const controlOpen = replay ? controlView : null;
   /** 되감기 위치. null 이면 재생 머리를 따라간다(live). */
   const [override, setOverride] = useState<number | null>(null);
   useEffect(() => setOverride(null), [view.missionId, screen]);
@@ -493,7 +498,10 @@ function GraphScreen({ screen, view, trace, milestone, tasks, headSec, playing, 
   </nav>;
   return <div className={replay ? 'replay-layout' : ''}>{/* **손으로 쓴 네 줄이 실제 목록이 됐다** (260912 지시). 이 세션에서 끝난 판만
         쌓이고, 그 사실을 목록이 스스로 적는다. */}
-    {replay && <aside className="history"><h2>{t('graph.history')}</h2><MissionHistoryList /></aside>}<section className="graph-panel"><header className="section-title section-title--graph"><div>{crumbs}<h2>{title}</h2><small>{replay
+    {replay && <aside className="history"><h2>{t('graph.history')}</h2><MissionHistoryList /></aside>}
+    {/* 261113 — 조작 판을 열면 그래프 자리에 크게 그린다. 그래프는 닫을 때 그대로 돌아온다. */}
+    {controlOpen !== null && <ControlRecordView key={`${controlOpen.date}/${controlOpen.run}`} date={controlOpen.date} run={controlOpen.run} onClose={closeControlView} />}
+    <section className="graph-panel" hidden={controlOpen !== null}><header className="section-title section-title--graph"><div>{crumbs}<h2>{title}</h2><small>{replay
       ? (recorded !== null ? t('graph.savedRun', { date: recorded.date, run: recorded.run }) : '') + t('graph.replay', { sec: String(Math.round(second)).padStart(2, '0') })
       : failure ? (failedTask ? t('graph.failureFocus') : t('graph.noFailure')) : shapeLabel(shape)}</small></div>{stepper || <span />}<div className="toggle"><button className={scope === 'milestone' ? 'active' : ''} onClick={() => onScope('milestone')}>{t('graph.scopeMilestone')}</button><button className={scope === 'mission' ? 'active' : ''} onClick={() => onScope('mission')}>{t('graph.scopeMission')}</button></div></header><Palette canvas={canvas} missionId={view.missionId} pickedTaskId={picked?.id ?? null} pickedTaskTitle={picked?.title ?? null} /><TaskGraph tasks={tasks} hardware={listRegisteredHardware()} states={folded.tasks} selected={failure ? failedTask?.id : undefined} dimUnrelated={failure && failedTask !== null} refEdges={refEdges} viewpoints={viewpoints} viewpointFill={viewpointFill} onOpen={(task) => onOpen(task, folded.tasks[task.id]?.status === 'failed')} canvas={canvasLayer} />
     {/* 마일스톤 밖으로 나가는 되돌아감 — 적지 않으면 사용자는 루프의 존재를 모른다 (결정 2). */}

@@ -465,7 +465,6 @@ export const ko: Record<string, string> = {
   'banner.close': '대본 닫기',
   'script.ended': '재생 끝, 마지막 상태',
   'script.preview': '정지 미리보기',
-  'panel.history': '임무 이력',
   'panel.notifications': '통합 알림',
   'panel.close': '닫기',
   'panel.noNotifications': '아직 올라온 알림이 없습니다',

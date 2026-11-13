@@ -20,7 +20,6 @@ import { LangSwitch } from './LangSwitch.tsx';
 import { ModeSwitch } from './ModeSwitch.tsx';
 import { ApproachButton, PauseButton, ResumeButton, StopButton } from '../physical/StopButton.tsx';
 import { MoveGateButton } from '../physical/MoveGateButton.tsx';
-import { MissionHistoryList } from '../views/MissionHistory.tsx';
 import { ResetButton, RestartButton } from '../views/ResetButton.tsx';
 import { robotProbe } from '../physical/robotClient.ts';
 import { ConnectionLamp } from './ConnectionLamp.tsx';
@@ -54,12 +53,12 @@ export function AppShell({ debuggerView, onDebuggerHome, onMissionHistory, onOpe
   /** 대본 띠의 「○○ 노드로」 — 캔버스에 요청만 넣는다. 셸은 캔버스 안을 모른다. */
   onOpenNode(kind: string, taskId: string | null): void;
 }) {
-  const [panel, setPanel] = useState<'history' | 'notifications' | 'connections' | null>(null);
+  const [panel, setPanel] = useState<'notifications' | 'connections' | null>(null);
   /**
    * **머리줄 버튼은 여닫기다** (260929 지시). 열린 판의 버튼을 다시 누르면 닫힌다 — 전에는 여는 것만 해서 닫으려면
    * 판 안의 「닫기」를 찾아야 했다. 셋(연결 관리 · 이력 · 알림)이 같은 규칙이다.
    */
-  const togglePanel = (which: 'history' | 'notifications' | 'connections') => setPanel((open) => (open === which ? null : which));
+  const togglePanel = (which: 'notifications' | 'connections') => setPanel((open) => (open === which ? null : which));
   // **ESC 로도 닫는다** (260929 지시). 연결 관리에서 적던 주소는 사라지지 않는다 — 다시 열면 그대로다(`ConnectionsPanel`).
   useEffect(() => {
     if (panel === null) return;
@@ -150,12 +149,12 @@ export function AppShell({ debuggerView, onDebuggerHome, onMissionHistory, onOpe
         {/* **셋이 한 부품에서 온다** (260910). 전에는 여기서 게이트웨이로 `mission_pause` 를
             쏘고 그 옆에 실제로 동작하는 「중단」이 따로 있었다 — 같은 뜻의 버튼이 둘인데
             하나만 동작했다. 동작하는 쪽을 「정지」에 넣고 중단을 지웠다. */}
-        <StopButton /><PauseButton /><ResumeButton /><ApproachButton /><MoveGateButton /><ConnectionLamp onOpen={() => togglePanel('connections')} /><button aria-pressed={panel === 'history'} onClick={() => { if (panel !== 'history') onMissionHistory(); togglePanel('history'); }}>{t('bar.history')}</button><button aria-pressed={panel === 'notifications'} onClick={() => togglePanel('notifications')}>{t('bar.notifications')} <b>{notifications.length}</b></button><RestartButton /><ResetButton /><button aria-pressed={panel === 'connections'} onClick={() => togglePanel('connections')}>{t('bar.connections')}</button>
+        <StopButton /><PauseButton /><ResumeButton /><ApproachButton /><MoveGateButton /><ConnectionLamp onOpen={() => togglePanel('connections')} />{/* 261114 — 리플레이 화면 왼쪽에 같은 목록이 있다. 오른쪽 판은 더 안 연다. */}<button onClick={() => onMissionHistory()}>{t('bar.history')}</button><button aria-pressed={panel === 'notifications'} onClick={() => togglePanel('notifications')}>{t('bar.notifications')} <b>{notifications.length}</b></button><RestartButton /><ResetButton /><button aria-pressed={panel === 'connections'} onClick={() => togglePanel('connections')}>{t('bar.connections')}</button>
       </nav>
     </header>
     {/* 연결 관리는 폼이라 목록 판과 모양이 다르다 — 자기 부품이 그린다 (`VZ-C-07`). */}
     {panel === 'connections' && <ConnectionsPanel onClose={() => setPanel(null)} physical={robotProbe()} />}
-    {panel !== null && panel !== 'connections' && <aside className="global-panel"><header><b>{panel === 'history' ? t('panel.history') : t('panel.notifications')}</b><button onClick={() => setPanel(null)}>{t('panel.close')}</button></header>{panel === 'history' ? <MissionHistoryList compact onReplay={() => { onMissionHistory(); setPanel(null); }} /> : notifications.length === 0
+    {panel !== null && panel !== 'connections' && <aside className="global-panel"><header><b>{t('panel.notifications')}</b><button onClick={() => setPanel(null)}>{t('panel.close')}</button></header>{notifications.length === 0
       /* **비어 있으면 비었다고 적는다** (260913 지시). 전에는 일어난 적 없는 두 줄이 늘
          박혀 있어서 뱃지가 언제나 「알림 2」였다. */
       ? <p className="notifications-empty">{t('panel.noNotifications')}</p>

@@ -1,8 +1,8 @@
 /**
  * src/views/MissionHistory.tsx (260912 신설 — 「임무 이력을 임시로 기능 활성화」)
  *
- * **끝난 판의 목록.** 두 자리(셸의 ◷ 임무 이력 판, 리플레이 화면의 왼쪽 기둥)가 같은
- * 목록을 그린다 — 둘이 다른 것을 보여 주면 어느 쪽이 진짜인지 묻게 된다.
+ * **끝난 판의 목록.** 리플레이 화면의 왼쪽 기둥에 그린다.
+ * (261114 — 셸의 ◷ 임무 이력 버튼이 오른쪽에 같은 목록을 한 번 더 띄우던 판은 뺐다. 버튼은 리플레이 화면으로만 옮긴다.)
  *
  * ## 무엇이 「끝났다」인가
  *
@@ -36,7 +36,7 @@ import type { FoldedStatuses } from '../data/fold.ts';
 import { openRecordedRun } from '../record/loadRecord.ts';
 import { isControlSummary, listRecordedRuns, type RecordedRun, type RecordMissionSummary } from '../record/recordClient.ts';
 import { useControlRecorderStatus, type ControlRecordSummary } from '../record/controlRecorder.ts';
-import { ControlRecordView } from './ControlRecordView.tsx';
+import { closeControlView, openControlView, useControlView } from '../record/controlView.ts';
 import { useRecorderStatus } from '../record/recorder.ts';
 import { isReplayingRecord, useReplayTarget } from '../record/replayMode.ts';
 import { t } from '../i18n/dict.ts';
@@ -107,10 +107,9 @@ function useRecordedRuns(): { runs: RecordedRun[] | null; dir: string; refresh()
 }
 
 /**
- * 목록 하나. 두 자리가 이것을 그린다.
- * `onReplay` — 다시보기를 연 뒤 부른다. 셸 판에서 누르면 리플레이 화면으로 옮긴다.
+ * 목록 하나. 리플레이 화면 왼쪽 기둥이 이것을 그린다.
  */
-export function MissionHistoryList({ compact = false, onReplay }: { compact?: boolean; onReplay?: () => void }) {
+export function MissionHistoryList({ compact = false }: { compact?: boolean }) {
   // `t()` 는 값을 줄 뿐 리렌더를 안 일으킨다 — 컴포넌트마다 건다 (지시서 §2 ①).
   useLang();
   const entries = useMissionHistory();
@@ -119,19 +118,23 @@ export function MissionHistoryList({ compact = false, onReplay }: { compact?: bo
   const replaying = useReplayTarget();
   const [opening, setOpening] = useState<string | null>(null);
   const [openError, setOpenError] = useState<string | null>(null);
-  /** 열어 본 조작 판 (261110). 임무 판과 달리 저장소를 안 채우고 창 하나에 그린다. */
-  const [control, setControl] = useState<RecordedRun | null>(null);
+  /**
+   * 열어 본 조작 판 (261110). 임무 판과 달리 저장소를 안 채운다.
+   * 261113 — 창(모달) 대신 리플레이 화면의 **그래프 자리**에 크게 그린다(`record/controlView.ts`).
+   */
+  const viewing = useControlView();
   const controlRecorder = useControlRecorderStatus();
 
   const open = (run: RecordedRun) => {
-    if (isControlSummary(run.mission)) { setControl(run); return; }
+    if (isControlSummary(run.mission)) { openControlView(run.date, run.run); return; }
+    // 임무 판을 열면 조작 판은 내린다 — 그래프 자리를 그 판에 돌려준다.
+    closeControlView();
     const key = `${run.date}/${run.run}`;
     setOpening(key);
     setOpenError(null);
     void openRecordedRun(run.date, run.run).then((result) => {
       setOpening(null);
-      if (!result.ok) { setOpenError(`${key}: ${result.reason}`); return; }
-      onReplay?.();
+      if (!result.ok) setOpenError(`${key}: ${result.reason}`);
     });
   };
 
@@ -165,7 +168,8 @@ export function MissionHistoryList({ compact = false, onReplay }: { compact?: bo
           <ul>
             {items.map((item) => isControlSummary(item.mission)
               ? <ControlRunLine key={`${item.date}/${item.run}`} item={item} summary={item.mission} compact={compact}
-                recording={controlRecorder.folders.includes(`${item.date}/${item.run}`)} onOpen={open} />
+                recording={controlRecorder.folders.includes(`${item.date}/${item.run}`)}
+                viewing={viewing !== null && viewing.date === item.date && viewing.run === item.run} onOpen={open} />
               : <RunLine key={`${item.date}/${item.run}`} item={item} compact={compact}
               recordingFolder={recorder.folder}
               replayingKey={replaying === null ? null : `${replaying.date}/${replaying.run}`}
@@ -182,7 +186,6 @@ export function MissionHistoryList({ compact = false, onReplay }: { compact?: bo
           : t('hist.fileFallback')}
       </PendingSource>
     </p>
-    {control !== null && <ControlRecordView date={control.date} run={control.run} onClose={() => setControl(null)} />}
   </div>;
 }
 
@@ -190,11 +193,12 @@ export function MissionHistoryList({ compact = false, onReplay }: { compact?: bo
  * **조작 판 한 줄** (261110). 임무 판의 「노드 셈」 자리에 명령 · 거절 · 막힘 셈을, 결과 자리에 판이 닫힌 사유를 적는다.
  * 비행 판이면 실행기 결론(종료 코드 · 도달 단계)을 같이 적는다.
  */
-function ControlRunLine({ item, summary, compact, recording, onOpen }: {
+function ControlRunLine({ item, summary, compact, recording, viewing, onOpen }: {
   item: RecordedRun;
   summary: ControlRecordSummary;
   compact: boolean;
   recording: boolean;
+  viewing: boolean;
   onOpen(run: RecordedRun): void;
 }) {
   useLang();
@@ -206,7 +210,7 @@ function ControlRunLine({ item, summary, compact, recording, onOpen }: {
   const closed = summary.closeReason === null
     ? recording ? t('hist.recording') : t('hist.noEndMark')
     : t(`ctl.close.${summary.closeReason}`);
-  return <li className={`is-control${bad ? ' is-failed' : ''}`}>
+  return <li className={`is-control${bad ? ' is-failed' : ''}${viewing ? ' is-replaying' : ''}`}>
     <time>{timeWords(item.run)}</time>
     <span className="history-kind">{t(`ctl.kind.${summary.sessionKind}`)}</span>
     {imported !== null && <span className="history-kind is-imported" title={t('ctl.importedTitle', { from: imported.from })}>{t('ctl.importedBadge')}</span>}

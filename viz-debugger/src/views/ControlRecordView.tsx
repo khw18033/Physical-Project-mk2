@@ -122,6 +122,10 @@ function FlightSection({ process, emergency }: { process: FlightProcess; emergen
   </section>;
 }
 
+/**
+ * 261113 — 창이 아니라 리플레이 화면의 그래프 자리에 그린다(`main.tsx` · `record/controlView.ts`).
+ * 화면의 대부분을 쓰므로 표 · 실행기 출력이 길게 펼쳐진다. 닫으면 그래프가 돌아온다.
+ */
 export function ControlRecordView({ date, run, onClose }: { date: string; run: string; onClose(): void }) {
   useLang();
   const [loaded, setLoaded] = useState<Loaded | null>(null);
@@ -150,8 +154,7 @@ export function ControlRecordView({ date, run, onClose }: { date: string; run: s
   const actions = new Map(events.flatMap((e) => (e.kind === 'commanded' ? [[e.commandId, e.action] as const] : [])));
   const actionOf = (id: string) => actions.get(id) ?? 'teleop';
 
-  return <div className="modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
-    <section className="modal ctl-record" role="dialog" aria-label={t('ctl.title', { device: summary?.deviceId ?? '' })}>
+  return <section className="graph-panel modal ctl-record ctl-record--inline" aria-label={t('ctl.title', { device: summary?.deviceId ?? '' })}>
       <header>
         <div>
           <h2>{t('ctl.title', { device: summary?.deviceId ?? '…' })}</h2>
@@ -187,6 +190,5 @@ export function ControlRecordView({ date, run, onClose }: { date: string; run: s
           <tbody>{events.map((event, index) => <EventRow key={index} event={event} startMs={startMs} actionOf={actionOf} />)}</tbody>
         </table>
       </>}
-    </section>
-  </div>;
+    </section>;
 }
