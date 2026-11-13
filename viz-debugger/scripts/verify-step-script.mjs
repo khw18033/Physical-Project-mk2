@@ -55,6 +55,12 @@ const shape = (script) => script.steps.map((step) => [step.action, step.paramete
   if (shape(read('1미터 전진'))[0]?.[1]?.distance_m !== 1) failures.push('한글 단위를 못 읽었다');
   if (shape(read('0.5m 전진'))[0]?.[1]?.distance_m !== 0.5) failures.push('소수를 못 읽었다');
 
+  // 「전방 … 이동」 (261112 — 실사용 문장이 생성으로 새 나갔다).
+  const fwd = shape(read('오른쪽으로 45도 회전 후 전방 1미터 이동'));
+  if (fwd.length !== 2 || fwd[0]?.[1]?.deg !== 45 || fwd[1]?.[0] !== 'move_forward' || fwd[1]?.[1]?.distance_m !== 1) {
+    failures.push(`「오른쪽으로 45도 회전 후 전방 1미터 이동」을 못 읽었다: ${JSON.stringify(fwd)}`);
+  }
+
   // 이어붙임 — 세 걸음.
   const three = read('오른쪽 90도 회전 후 1m 전진 후 왼쪽 90도 회전');
   if (shape(three).length !== 3) failures.push(`이어붙임이 ${shape(three).length}걸음 — 셋이어야 한다`);

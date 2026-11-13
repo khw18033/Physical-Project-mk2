@@ -119,8 +119,11 @@ const ANGLE = /(-?\d+(?:\.\d+)?)\s*(?:도|°|deg)(?![0-9A-Za-z])/i;
 /** 방향. 왼쪽이 음수다 — 규약이 「오른쪽 +」이므로. */
 const LEFT = /왼쪽|좌회전|좌측|좌\b|반시계|left|ccw/i;
 const RIGHT = /오른쪽|우회전|우측|우\b|시계|right|cw/i;
-/** 동작. */
-const FORWARD = /전진|직진|앞으로|forward/i;
+/**
+ * 동작. **`전방` · `앞쪽` 을 더했다** (261112 — 「오른쪽으로 45도 회전 후 전방 1미터 이동」의 뒷부분이
+ * 「모르는 동작」으로 거부돼 생성으로 넘어갔고, 생성 프롬프트가 컨텍스트를 넘었다).
+ */
+const FORWARD = /전진|직진|앞으로|전방|앞쪽|forward/i;
 const TURN = /회전|돌아|돌려|turn/i;
 /** 뒤로 (261005 · `move_relative`). */
 const BACKWARD = /뒤로|후진|backward|reverse|\bback\b/i;
