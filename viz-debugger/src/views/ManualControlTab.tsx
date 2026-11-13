@@ -20,12 +20,14 @@ import { useLang } from '../shared/language.ts';
 import { t } from '../i18n/dict.ts';
 import { deviceCandidates, subscribeDeviceIdentity } from '../physical/deviceIdentity.ts';
 import {
-  bindKey, customized, extraActions, KEY_PRESETS, keyLabel, manualConfig, manualEnabled, manualModeOf, MOTIONS,
-  motionSupport, resetSpeed, setKeyCapture, setManualEnabled, setPreset, setSpeed, setStep, sharedKeys, STEP_DEG_RANGE,
+  bindKey, customized, DEFAULT_EXTRA_KEYS, extraActions, KEY_PRESETS, keyLabel, manualConfig, manualEnabled, manualModeOf, MOTIONS,
+  motionSupport, resetSpeed, seedDefaultExtraKeys, setKeyCapture, setManualEnabled, setPreset, setSpeed, setStep, sharedKeys, STEP_DEG_RANGE,
   STEP_M_RANGE, STEP_VX_RANGE, STOP_KEY, unbindKey, useManualState, type BindResult, type BindSlot,
 } from '../physical/manualControl.ts';
-import { TELEOP_LIMITS } from '../physical/presets.ts';
-import { manualBlock, useManualEvents } from '../physical/manualDispatch.ts';
+import { RUN_MODE_ACTION, TELEOP_LIMITS } from '../physical/presets.ts';
+import { manualBlock, sendRunMode, useManualEvents } from '../physical/manualDispatch.ts';
+import { telemetryValue, useDeviceTelemetry } from '../shared/deviceTelemetry.ts';
+import { RobotModeRows, useRobotModes } from '../physical/RobotModeRows.tsx';
 import { ManualEventLine, useEverySec } from './ManualControlBadge.tsx';
 
 function useDeviceActions(deviceId: string): readonly string[] | null {
@@ -62,6 +64,38 @@ export function NumberField({ value, min, max, step, onCommit }: {
     onKeyDown={(event) => { if (event.key === 'Enter') { commit(); event.currentTarget.blur(); } }} />;
 }
 
+/**
+ * **실행 모드 — 모의 실행 · 실제 제어** (261112 — A2 `a2-bridge`). 장비가 `RUN_MODE_ACTION` 을 선언했을 때만 뜬다.
+ * 지금 값은 장비가 상태 본문의 `dry_run` 으로 알린 것이다 — 누른 쪽을 미리 칠하지 않는다(장비가 바꿨다고 말해야 바뀐다).
+ * 실제 제어로 넘어갈 때만 한 번 묻는다. 모의로 돌아가는 것은 언제나 안전하니 묻지 않는다.
+ */
+function RunModeSection({ deviceId }: { deviceId: string }) {
+  useLang();
+  useDeviceTelemetry();
+  const raw = telemetryValue(deviceId, 'dry_run');
+  const current: boolean | null = typeof raw === 'boolean' ? raw : null;
+  const [note, setNote] = useState('');
+  const pick = (dryRun: boolean) => {
+    if (current === dryRun) return;
+    // 261112 — A2 실기 시험을 충분히 해서 실제 제어가 기본이 됐다. 바꿀 때 확인 창을 띄우지 않는다.
+    setNote(sendRunMode(deviceId, dryRun) ? '' : t('manual.run.notSent'));
+  };
+  return <section className="manual-tab__section">
+    <header><h3>{t('manual.run.title')}</h3>
+      <nav className="manual-presets" role="radiogroup" aria-label={t('manual.run.title')}>
+        <button type="button" role="radio" aria-checked={current === true}
+          onClick={(event) => { pick(true); event.currentTarget.blur(); }}>{t('manual.run.dry')}</button>
+        <button type="button" role="radio" aria-checked={current === false}
+          onClick={(event) => { pick(false); event.currentTarget.blur(); }}>{t('manual.run.live')}</button>
+      </nav>
+    </header>
+    <p className="manual-note">
+      {t(current === null ? 'manual.run.unknown' : current ? 'manual.run.dryWhy' : 'manual.run.liveWhy')}
+    </p>
+    {note !== '' && <p className="manual-warn">{note}</p>}
+  </section>;
+}
+
 export function ManualControlTab({ deviceId }: { deviceId: string }) {
   useLang();
   useManualState();
@@ -77,6 +111,10 @@ export function ManualControlTab({ deviceId }: { deviceId: string }) {
 
   const [capturing, setCapturing] = useState<BindSlot | null>(null);
   const [bindNote, setBindNote] = useState<string>('');
+  const hasModes = useRobotModes(deviceId) !== null;
+
+  // 장비가 선언한 추가 동작에 기본 키를 한 번 달아 준다 (261112 — A2-W 조종기 명령)
+  useEffect(() => { seedDefaultExtraKeys(deviceId, actions); }, [deviceId, actions]);
 
   useEffect(() => {
     if (capturing === null) return;
@@ -130,6 +168,13 @@ export function ManualControlTab({ deviceId }: { deviceId: string }) {
       </p>}
     </section>
 
+    {actions?.includes(RUN_MODE_ACTION) === true && <RunModeSection deviceId={deviceId} />}
+
+    {hasModes && <section className="manual-tab__section">
+      <header><h3>{t('rmode.title')}</h3></header>
+      <RobotModeRows entityId={deviceId} />
+    </section>}
+
     {shared.length > 0 && <p className="manual-warn">{t('manual.shared', {
       keys: shared.map(([key, ids]) => `${keyLabel(key)} (${ids.join(', ')})`).join(' · '),
     })}</p>}
@@ -172,7 +217,8 @@ export function ManualControlTab({ deviceId }: { deviceId: string }) {
           : <table className="manual-table">
             <thead><tr><th>{t('manual.col.action')}</th><th>{t('manual.col.key')}</th><th /></tr></thead>
             <tbody>{extras.map((action) => <tr key={action}>
-              <td><code>{action}</code></td>
+              <td><code>{action}</code>
+                {DEFAULT_EXTRA_KEYS[action] !== undefined && <><br /><small>{t(`manual.extra.hint.${action}`)}</small></>}</td>
               {keyCell({ kind: 'extra', action }, config.extraKeys[action] ?? null)}
             </tr>)}</tbody>
           </table>}

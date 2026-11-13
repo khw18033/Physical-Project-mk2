@@ -34,7 +34,7 @@
 
 import { useSyncExternalStore } from 'react';
 import { FORWARD_MIN_M, TURN_MIN_DEG } from './stepScript.ts';
-import { STOP_ACTION, TELEOP_ACTION, TELEOP_LIMITS, TELEOP_SPEED } from './presets.ts';
+import { RUN_MODE_ACTION, STOP_ACTION, TELEOP_ACTION, TELEOP_LIMITS, TELEOP_SPEED } from './presets.ts';
 import type { PhysicalAction } from './encode.ts';
 
 export const MOTIONS = ['forward', 'back', 'left', 'right', 'rotLeft', 'rotRight'] as const;
@@ -52,6 +52,30 @@ export const PRESET_KEYS: Record<KeyPreset, Readonly<Record<ManualMotion, string
 export const STOP_KEY = 'Space';
 
 /**
+ * **추가 동작의 기본 키 (261112 — A2-W 조종기 명령).** 장비가 이 이름을 선언하면 처음 한 번 이 키를 달아 준다
+ * (`seedDefaultExtraKeys`). 이동 키(WASD · QE · 방향키 · Z · X)와 겹치지 않게 숫자 줄과 그 옆을 쓴다. 사람이 떼거나
+ * 바꾼 것은 다시 달지 않는다 — 한 번 달아 준 이름은 `seeded` 에 남는다.
+ *
+ * 이름은 `a2-bridge` 가 조종기 표(A2-W)를 따라 지은 것이다. 다른 장비가 같은 이름을 선언해도 같은 키가 달린다.
+ */
+export const DEFAULT_EXTRA_KEYS: Readonly<Record<string, string>> = {
+  lock_stand: 'Digit1',       // L2+A 첫 번째 — 선 채로 관절 잠금
+  lie_down: 'Digit2',         // L2+A 두 번째 — 엎드리기
+  unlock_gait: 'Digit3',      // START — 잠금 풀기 · 기본 걸음
+  high_speed: 'Digit4',       // L2+START — 고속 모드
+  recovery_stand: 'Digit5',   // L2+X — 넘어진 데서 일어서기
+  climb: 'Digit6',            // R1+X — 오르기
+  handstand: 'Digit7',        // R1 두 번 — 물구나무 (켜기/끄기)
+  erect: 'Digit8',            // R2 두 번 — 두 발 서기 (켜기/끄기)
+  auto_recovery: 'Digit9',    // Y+B — 자동 뒤집기 복구 (켜기/끄기)
+  damp: 'Digit0',             // L2+B — 댐핑(비상정지). 로봇이 그 자리에 주저앉는다
+  speed_down: 'Minus',        // 방향패드 ↓ — 속도 단계
+  speed_up: 'Equal',          // 방향패드 ↑
+  height_down: 'BracketLeft', // L1+방향패드 — 몸 높이
+  height_up: 'BracketRight',
+};
+
+/**
  * 다른 데 쓰는 키라 동작에 못 다는 것. Esc 는 창 닫기, Tab · Enter 는 화면 조작이고, 조합 키는
  * 단독으로 누를 일이 없다. Space 는 정지 키다.
  */
@@ -63,11 +87,12 @@ const RESERVED = new Set([
 
 /**
  * 추가 동작 칸에 안 띄우는 선언. 이동은 기본 칸이 맡고, 연결 확인 · 임무 · 정지는 수동 키로 낼 것이 아니다.
- * `sdk_auto` 는 `on` 값을 실어야 하는 설정이라 파라미터 없는 키 한 번으로는 못 낸다.
+ * `sdk_auto` 는 `on` 값을 실어야 하는 설정이라 파라미터 없는 키 한 번으로는 못 낸다. 실행 모드(`RUN_MODE_ACTION`)도
+ * 같은 이유이고, 탭 머리의 고르기가 따로 낸다.
  */
 const NOT_EXTRA = new Set<string>([
   'ping', 'diag', 'turn', 'move_forward', TELEOP_ACTION, 'scan_mission', 'scan_continue',
-  STOP_ACTION, 'abort_mission', 'sar_start', 'sar_abort', 'sdk_auto',
+  STOP_ACTION, 'abort_mission', 'sar_start', 'sar_abort', 'sdk_auto', RUN_MODE_ACTION,
 ]);
 
 /** 걸음 크기의 범위. 아래는 규약 하한이고, 위는 「한 번 누른 것」으로 갈 만한 거리다. */
@@ -83,6 +108,8 @@ export type ManualConfig = {
   motionKeys: Readonly<Record<ManualMotion, string | null>>;
   /** 추가 동작(장비가 선언한 이름) → 키. 안 단 것은 칸이 없다. */
   extraKeys: Readonly<Record<string, string>>;
+  /** 기본 키(`DEFAULT_EXTRA_KEYS`)를 이미 한 번 달아 준 추가 동작. 사람이 뗀 것을 다시 달지 않으려고 남긴다. */
+  seeded: readonly string[];
   stepM: number;
   stepDeg: number;
   /**
@@ -95,7 +122,7 @@ export type ManualConfig = {
 type ManualState = Readonly<Record<string, { enabled: boolean; config: ManualConfig }>>;
 
 function defaultConfig(preset: KeyPreset = 'wasd'): ManualConfig {
-  return { preset, motionKeys: { ...PRESET_KEYS[preset] }, extraKeys: {}, stepM: DEFAULT_STEP_M, stepDeg: DEFAULT_STEP_DEG, speed: { ...TELEOP_SPEED } };
+  return { preset, motionKeys: { ...PRESET_KEYS[preset] }, extraKeys: {}, seeded: [], stepM: DEFAULT_STEP_M, stepDeg: DEFAULT_STEP_DEG, speed: { ...TELEOP_SPEED } };
 }
 
 let state: ManualState = {};
@@ -133,8 +160,9 @@ function loadConfig(deviceId: string): ManualConfig {
     }
     const extraKeys: Record<string, string> = {};
     for (const [action, key] of Object.entries(saved.extraKeys ?? {})) if (typeof key === 'string') extraKeys[action] = key;
+    const seeded = Array.isArray(saved.seeded) ? saved.seeded.filter((action): action is string => typeof action === 'string') : [];
     return {
-      preset, motionKeys, extraKeys,
+      preset, motionKeys, extraKeys, seeded,
       stepM: clamp(num(saved.stepM) ?? base.stepM, STEP_M_RANGE),
       stepDeg: clamp(num(saved.stepDeg) ?? base.stepDeg, STEP_DEG_RANGE),
       speed: {
@@ -269,6 +297,27 @@ export function bindKey(deviceId: string, slot: BindSlot, code: string): BindRes
       : { ...current.config, extraKeys: { ...current.config.extraKeys, [slot.action]: code } },
   }));
   return { ok: true };
+}
+
+/**
+ * **선언된 추가 동작에 기본 키를 단다** (261112). 처음 보는 이름만 — `seeded` 에 있는 것은 사람이 떼었어도 안 건드린다.
+ * 그 키를 이미 다른 칸이 쓰면 달지 않는다(옮겨 달지 않는다). 그리기 중에 부르지 말 것 — 효과(`useEffect`)에서 부른다.
+ */
+export function seedDefaultExtraKeys(deviceId: string, actions: readonly string[] | null): void {
+  if (actions === null) return;
+  const { seeded } = manualConfig(deviceId);
+  const fresh = actions.filter((action) => DEFAULT_EXTRA_KEYS[action] !== undefined && !seeded.includes(action) && !NOT_EXTRA.has(action));
+  if (fresh.length === 0) return;
+  update(deviceId, (current) => {
+    const extraKeys: Record<string, string> = { ...current.config.extraKeys };
+    for (const action of fresh) {
+      const code = DEFAULT_EXTRA_KEYS[action];
+      if (extraKeys[action] !== undefined || RESERVED.has(code)) continue;
+      if (keyMeaning({ ...current.config, extraKeys }, code) !== null) continue;
+      extraKeys[action] = code;
+    }
+    return { ...current, config: { ...current.config, extraKeys, seeded: [...current.config.seeded, ...fresh] } };
+  });
 }
 
 /** 키를 뗀다. 기본 칸은 비우고(그 동작을 안 쓴다), 추가 동작은 칸에서 지운다. */
@@ -432,6 +481,9 @@ export function keyLabel(code: string | null): string {
   if (code.startsWith('Key')) return code.slice(3);
   if (code.startsWith('Digit')) return code.slice(5);
   if (code.startsWith('Numpad')) return 'Num ' + code.slice(6);
-  const arrows: Record<string, string> = { ArrowUp: '↑', ArrowDown: '↓', ArrowLeft: '←', ArrowRight: '→' };
+  const arrows: Record<string, string> = {
+    ArrowUp: '↑', ArrowDown: '↓', ArrowLeft: '←', ArrowRight: '→',
+    Minus: '-', Equal: '=', BracketLeft: '[', BracketRight: ']', Backquote: '`',
+  };
   return arrows[code] ?? code;
 }

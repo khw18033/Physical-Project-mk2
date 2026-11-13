@@ -259,6 +259,7 @@ export function DirectCamera({ url, live, nonce = 0, compact = false, frames = f
 
 const NO_DIRECT: readonly DirectSource[] = [];
 function noDirectSources(): readonly DirectSource[] { return NO_DIRECT; }
+function noPositions(): readonly string[] | null { return null; }
 
 /**
  * 카메라 노드의 본문. `taskDeviceId` 는 연결한 태스크의 대상(자리를 푼 값)이다.
@@ -267,11 +268,16 @@ function noDirectSources(): readonly DirectSource[] { return NO_DIRECT; }
  * 주소를 만드는 것은 이 파일이 아니다 — 로봇 주소를 아는 면은 `src/physical/` 하나다. 훅인 것은 드론 카메라 수가
  * 말단에 따라 바뀌어서다(261019 — cam0 · cam1). 모듈 함수 하나를 넘기므로 렌더마다 같은 훅이 같은 자리에서 불린다.
  */
-export function DeviceCamera({ nodeId, taskDeviceId, zoom = false, useDirectSources = noDirectSources }: {
+export function DeviceCamera({ nodeId, taskDeviceId, zoom = false, useDirectSources = noDirectSources, positionsFor = noPositions }: {
   nodeId: string;
   taskDeviceId: string | null;
   zoom?: boolean;
   useDirectSources?: (deviceId: string | null, position: string) => readonly DirectSource[];
+  /**
+   * 그 장비가 가진 카메라 위치 (261112 — `physical/cameraView.ts` 의 `directCameraPositions`). 모르면 null 이고 전체 목록을 쓴다.
+   * A2 는 front 하나라, 없는 위치를 고르면 영상도 고르기 칸의 뜻도 사라졌다.
+   */
+  positionsFor?: (deviceId: string | null) => readonly string[] | null;
 }) {
   useLang();
   const choice = useCameraChoice(nodeId);
@@ -284,9 +290,12 @@ export function DeviceCamera({ nodeId, taskDeviceId, zoom = false, useDirectSour
   // 태스크의 장치는 **지금 붙어 있을 때만** 대신 쓴다. 자리 이름이 그대로 오면 붙은 장치가 아니다.
   const fallback = taskDeviceId !== null && connectedIds.includes(taskDeviceId) ? taskDeviceId : null;
   const deviceId = choice.deviceId ?? fallback;
-  const cameraKey = cameraKeyOf(choice, fallback);
+  const positions: readonly string[] = positionsFor(deviceId) ?? CAMERA_POSITIONS;
+  // 그 장비에 없는 위치를 골랐으면 있는 첫 위치로 본다 — 고른 값은 그대로 두어 다른 장비로 바꾸면 되살아난다.
+  const position = (positions.includes(choice.position) ? choice.position : positions[0] ?? choice.position) as CameraPosition;
+  const cameraKey = cameraKeyOf({ ...choice, position }, fallback);
   const chosenOffline = choice.deviceId !== null && !connectedIds.includes(choice.deviceId);
-  const directSources = useDirectSources(deviceId, choice.position);
+  const directSources = useDirectSources(deviceId, position);
 
   const picker = zoom && <div className="device-cam__pick" onPointerDown={(event) => event.stopPropagation()}>
     <label>{t('dcam.device')}
@@ -297,11 +306,11 @@ export function DeviceCamera({ nodeId, taskDeviceId, zoom = false, useDirectSour
         {connectedIds.map((id) => <option key={id} value={id}>{id}</option>)}
       </select>
     </label>
-    <label title={t('dcam.keyTitle')}>{t('dcam.position')}
-      <select value={choice.position} onChange={(event) => setCameraChoice(nodeId, { position: event.target.value as CameraPosition })}>
-        {CAMERA_POSITIONS.map((position) => <option key={position} value={position}>{position}</option>)}
+    {positions.length > 1 && <label title={t('dcam.keyTitle')}>{t('dcam.position')}
+      <select value={position} onChange={(event) => setCameraChoice(nodeId, { position: event.target.value as CameraPosition })}>
+        {positions.map((item) => <option key={item} value={item}>{item}</option>)}
       </select>
-    </label>
+    </label>}
     {connectedIds.length === 0 && <p className="vn-line vn-dim">{t('dcam.noConnected')}</p>}
   </div>;
 
@@ -322,14 +331,14 @@ export function DeviceCamera({ nodeId, taskDeviceId, zoom = false, useDirectSour
     body = <>
       {chosenOffline && <p className="vn-line vn-warn">{t('dcam.notConnectedNow', { device: deviceId })}</p>}
       <DirectCameras sources={directSources} live nonce={nonce} compact={!zoom}
-        recordLabel={zoom ? `${deviceId}_${choice.position}` : undefined} />
+        recordLabel={zoom ? `${deviceId}_${position}` : undefined} />
     </>;
   } else if (mediaBaseUrl() === '') {
     body = <p className="vn-line vn-dim">{t('dcam.noAddress')}</p>;
   } else {
     body = <>
       {chosenOffline && <p className="vn-line vn-warn">{t('dcam.notConnectedNow', { device: deviceId })}</p>}
-      <CameraCanvas cameraKey={cameraKey} live={zoom} nonce={nonce} recordLabel={`${deviceId}_${choice.position}`} />
+      <CameraCanvas cameraKey={cameraKey} live={zoom} nonce={nonce} recordLabel={`${deviceId}_${position}`} />
       {!zoom && <p className="vn-line vn-dim">
         <button type="button" className="vn-refresh" onPointerDown={(event) => event.stopPropagation()} onClick={() => setNonce((value) => value + 1)}>{t('dcam.fetchAgain')}</button>
       </p>}
@@ -337,7 +346,7 @@ export function DeviceCamera({ nodeId, taskDeviceId, zoom = false, useDirectSour
   }
 
   return <div className={`device-cam${zoom ? ' device-cam--zoom' : ''}`}>
-    {!zoom && <p className="vn-line"><b>{deviceId ?? '—'}</b>{cameraKey === null ? null : <small> · {choice.position}</small>}</p>}
+    {!zoom && <p className="vn-line"><b>{deviceId ?? '—'}</b>{cameraKey === null ? null : <small> · {position}</small>}</p>}
     {picker}
     {body}
   </div>;

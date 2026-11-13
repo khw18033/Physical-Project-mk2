@@ -235,14 +235,14 @@ const key = (code, over = {}) => md.manualKeyDown({ code, repeat: false, modifie
   key('KeyD');
   key('KeyW', { repeat: true });
   check(go1.sent.length === 2, `누른 순간만 나가야 하는데 ${go1.sent.length} 건`);
-  check(go1.sent[0].action === TELEOP_ACTION && go1.sent[0].parameters.vx === 0.3 && go1.sent[0].parameters.vy === 0, 'W 의 속도가 틀렸다');
-  check(go1.sent[1].parameters.vx === 0.3 && go1.sent[1].parameters.vy === -0.2, 'W+D 의 속도가 틀렸다(오른쪽은 vy −)');
+  check(go1.sent[0].action === TELEOP_ACTION && go1.sent[0].parameters.vx === 0.4 && go1.sent[0].parameters.vy === 0, 'W 의 속도가 틀렸다');
+  check(go1.sent[1].parameters.vx === 0.4 && go1.sent[1].parameters.vy === -0.3, 'W+D 의 속도가 틀렸다(오른쪽은 vy −)');
   check(typeof go1.sent[0].parameters.hold_ms === 'number', '유지 시한(hold_ms)이 안 실렸다');
   md.keepaliveTick();
-  check(go1.sent.length === 3 && go1.sent[2].parameters.vy === -0.2, '유지 신호가 같은 값으로 안 나갔다');
+  check(go1.sent.length === 3 && go1.sent[2].parameters.vy === -0.3, '유지 신호가 같은 값으로 안 나갔다');
   check(commandTracker.getSnapshot().length === before + 2, '유지 신호가 추적기를 지났다 — 실행 기록이 초당 다섯 줄씩 찬다');
   md.manualKeyUp('KeyW');
-  check(go1.sent[3]?.parameters.vx === 0 && go1.sent[3].parameters.vy === -0.2, 'W 를 뗐는데 앞 속도가 안 빠졌다');
+  check(go1.sent[3]?.parameters.vx === 0 && go1.sent[3].parameters.vy === -0.3, 'W 를 뗐는데 앞 속도가 안 빠졌다');
   md.manualKeyUp('KeyD');
   check(go1.sent[4]?.parameters.vx === 0 && go1.sent[4].parameters.vy === 0 && go1.sent[4].parameters.vyaw === 0, '다 뗐는데 0 을 안 보냈다');
   const after = go1.sent.length;

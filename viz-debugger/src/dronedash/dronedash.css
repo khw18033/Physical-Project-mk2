@@ -240,3 +240,6 @@
 .trend-toggle button+button{border-left:1px solid #cbd3de}
 .trend-toggle button[aria-pressed="true"]{background:#1768c5;color:#fff}
 @media (prefers-reduced-motion:reduce){.graph-dot{animation:none}}
+
+/* 로봇 모드 (RobotModeRows, 261112) — 값 옆의 출처 표시는 흐리게 */
+.rmode .rmode-src { opacity: 0.6; font-size: 0.85em; margin-left: 0.4em; }

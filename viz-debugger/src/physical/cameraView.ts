@@ -35,6 +35,13 @@ export const DRONE_AGENT_PORT = 8890;
  */
 export type DirectCameraSource = { url: string; kind: 'stream' | 'frames' };
 
+/**
+ * **A2 카메라 (261112).** PC2 의 `a2-bridge`(`a2_bridge.py`)가 전방 카메라(videohub)를 Go1 뷰어와 같은 모양의 MJPEG 로
+ * 낸다 — `/stream/1`. 브로커와 같은 호스트(PC2)다. 전방 하나뿐이라 다른 위치는 null 이다.
+ */
+export const A2_CAMVIEW_PORT = 8090;
+const A2_CAMERA_INDEX: Readonly<Record<string, number>> = { front: 1 };
+
 /** 카메라 위치 → 뷰어의 카메라 번호 (`robot/go1_camera.py` 의 `CAMS`). */
 const GO1_CAMERA_INDEX: Readonly<Record<string, number>> = { front: 1, chin: 2, left: 3, right: 4, belly: 5 };
 
@@ -59,6 +66,10 @@ export function directCameraUrl(deviceId: string, position: string): DirectCamer
     const index = GO1_CAMERA_INDEX[position];
     return index === undefined ? null : { url: `http://${host}:${GO1_CAMVIEW_PORT}/stream/${index}`, kind: 'stream' };
   }
+  if (identity?.deviceType === 'unitree_a2') {
+    const index = A2_CAMERA_INDEX[position];
+    return index === undefined ? null : { url: `http://${host}:${A2_CAMVIEW_PORT}/stream/${index}`, kind: 'stream' };
+  }
   /**
    * **드론은 기체에 실린 pi3 의 카메라 모듈이다** (260928 지시 — 「pi3 의 카메라 말단 노드를 활용」). 위치 칸은 뜻이
    * 없다 — 이 함수는 늘 0번을 준다. 카메라가 둘 이상 붙은 것은 `useDirectCameraSources` 가 본다(261019).
@@ -66,6 +77,27 @@ export function directCameraUrl(deviceId: string, position: string): DirectCamer
    */
   if (identity?.kind === 'drone') return { url: droneFrameUrl(`http://${host}:${DRONE_AGENT_PORT}`, 0), kind: 'frames' };
   return null;
+}
+
+/**
+ * **이 장비가 바로 보기로 가진 카메라 위치** (261112). A2 는 front 하나뿐이라 다른 위치를 고르면 주소가 null 이 되고, 그러면
+ * 직접 보기 칸이 통째로 사라져 위치 고르기까지 같이 없어졌다. 고르는 칸은 이 목록만 보여 주고, 하나뿐이면 칸을 안 둔다.
+ * 그 길이 없는 장비(드론 · 모르는 장비)는 null — 부르는 쪽이 원래 목록(`CAMERA_POSITIONS`)을 쓴다.
+ */
+export function directCameraPositions(deviceId: string | null): readonly string[] | null {
+  if (deviceId === null) return null;
+  const client = clientForDevice(deviceId);
+  if (client === null) return null;
+  const deviceType = deviceIdentityFor(client.address())?.deviceType;
+  if (deviceType === 'go1_robot') return Object.keys(GO1_CAMERA_INDEX);
+  if (deviceType === 'unitree_a2') return Object.keys(A2_CAMERA_INDEX);
+  return null;
+}
+
+/** 고른 위치가 그 장비에 없으면 첫 위치로. 목록을 모르면 고른 그대로. */
+export function effectiveCameraPosition<T extends string>(deviceId: string | null, chosen: T): T {
+  const positions = directCameraPositions(deviceId);
+  return positions === null || positions.length === 0 || positions.includes(chosen) ? chosen : positions[0] as T;
 }
 
 function droneFrameUrl(base: string, cam: number): string {

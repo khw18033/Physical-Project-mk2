@@ -27,6 +27,7 @@ import { isTelemetryStale, TELEMETRY_STALE_MS, useDeviceTelemetry, type DeviceTe
 import { mqttFilled, sdkWords, telemetryValue } from './DeviceFacts.tsx';
 import { Compass, Panel, Row, Stat, StatGrid, type Level } from '../dronedash/DroneDash.tsx';
 import { useTick } from '../sar/useTick.ts';
+import { RobotModeRows, useRobotModes } from './RobotModeRows.tsx';
 import { useState } from 'react';
 import { AGE_KEY, metricSeries, rowKey, stateSeries, type MetricPoint } from '../shared/metricHistory.ts';
 import { CellToggles, GraphGrid, GraphStat, TREND_TICK_MS, deltaWords } from '../dronedash/Trend.tsx';
@@ -228,6 +229,7 @@ export function GroundDash({ entityId, compact = false }: { entityId: string; co
   useTick(1000);
   const source = useGroundSource(entityId);
   const historyId = historyIdOf(entityId, source);
+  const hasModes = useRobotModes(hardwareTarget(entityId)) !== null;
   const [flow, setFlow] = useState(true);
   const [graph, setGraph] = useState(true);
   if (source.kind === 'none') return <div className="ground-dash">
@@ -275,6 +277,7 @@ export function GroundDash({ entityId, compact = false }: { entityId: string; co
     <div className="dash-grid">
       <Panel title={t('gdash.heading')}>{compass}</Panel>
       <Panel title={t('gdash.motion')}>{motion}</Panel>
+      {hasModes && <Panel title={t('rmode.title')}><RobotModeRows entityId={hardwareTarget(entityId)} /></Panel>}
       <Panel title={t('gdash.device')}>
         <dl className="dash-rows">
           {device.firmware !== null && <Row k={t('df.12')} v={device.firmware} />}

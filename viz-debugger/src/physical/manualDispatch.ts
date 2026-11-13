@@ -59,7 +59,7 @@ import {
   type KeyMeaning, type ManualMotion, type Velocity,
 } from './manualControl.ts';
 import type { PhysicalClient } from './PhysicalClient.ts';
-import { STOP_ACTION, STOP_REASON, TELEOP_ACTION, TELEOP_HOLD_MS, TELEOP_KEEPALIVE_MS } from './presets.ts';
+import { RUN_MODE_ACTION, STOP_ACTION, STOP_REASON, TELEOP_ACTION, TELEOP_HOLD_MS, TELEOP_KEEPALIVE_MS } from './presets.ts';
 import { clientForDevice } from './robotClient.ts';
 import { runningTaskId } from './robotSession.ts';
 import { autoDrivenDevices } from './taskRunner.ts';
@@ -202,6 +202,18 @@ function issue(deviceId: string, client: ClientLike, action: PhysicalAction | De
       },
     },
   );
+}
+
+/**
+ * **실행 모드를 바꾼다** (261112 — A2 `a2-bridge`). 장비가 `RUN_MODE_ACTION` 을 선언했을 때만 낸다 — 선언 없이
+ * 지어 보내지 않는다. 키 명령과 같은 추적기를 지나 조작 기록에도 남는다. 못 냈으면 false.
+ */
+export function sendRunMode(deviceId: string, dryRun: boolean): boolean {
+  const action = declaredAction(factsOf(deviceId), RUN_MODE_ACTION);
+  const client = lookup(deviceId);
+  if (action === null || client === null) return false;
+  issue(deviceId, client, action, { on: dryRun ? 1 : 0 });
+  return true;
 }
 
 // ── 속도 모드 ─────────────────────────────────────────────────────────────────

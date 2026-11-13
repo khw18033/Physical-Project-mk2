@@ -110,10 +110,14 @@ export const APPROACH_VX = 0.3;
  * 장비가 `Capability` 에 이 이름을 선언하면 수동 제어가 속도 모드로 바뀐다. 이름을 그쪽이 바꾸면 이 줄만 고친다.
  */
 export const TELEOP_ACTION = 'teleop';
+/**
+ * **실행 모드 전환 (261112 — A2 `a2-bridge`).** 장비가 이 이름을 선언하면 수동 제어 탭에 「모의 실행 · 실제 제어」 고르기가
+ * 뜬다. 파라미터 `on` 이 1 이면 모의(dry-run — 명령에 답만 하고 로봇 API 를 부르지 않는다), 0 이면 실제 제어.
+ * 지금 어느 쪽인지는 장비가 상태 본문의 `dry_run`(참/거짓)으로 알린다.
+ */
+export const RUN_MODE_ACTION = 'set_dry_run';
 export const TELEOP_KEEPALIVE_MS = 200;
 export const TELEOP_HOLD_MS = 500;
-/** 키 하나가 내는 속도의 기본값. 장비마다 수동 제어 탭에서 바꾼다(`manualControl.ts` · `setSpeed`). */
-export const TELEOP_SPEED = { vx: 0.3, vy: 0.2, vyaw: 0.6 } as const;
 /**
  * **pi7 이 답한 상한** (261005 답신 §2). 넘는 값은 장비가 잘라서 쓰지만, 화면도 같은 상한으로 묶는다 —
  * 탭에 0.8 이라고 적혀 있는데 로봇은 0.4 로 걷는 일이 없게. 하한은 「눌렀는데 안 움직인다」로 보이지 않을 만큼이다.
@@ -123,6 +127,11 @@ export const TELEOP_LIMITS = {
   vy: { min: 0.05, max: 0.3 },
   vyaw: { min: 0.1, max: 1.0 },
 } as const;
+/**
+ * 키 하나가 내는 속도의 기본값. 장비마다 수동 제어 탭에서 바꾼다(`manualControl.ts` · `setSpeed`).
+ * **261112 — 상한과 같게 올렸다** (전에는 0.3 · 0.2 · 0.6). 저장해 둔 값이 있는 장비는 탭의 「기본값으로」를 눌러야 바뀐다.
+ */
+export const TELEOP_SPEED = { vx: TELEOP_LIMITS.vx.max, vy: TELEOP_LIMITS.vy.max, vyaw: TELEOP_LIMITS.vyaw.max } as const;
 
 /**
  * **스캔 촬영 뒤 대기** (260914 — pi7 에 요청해 들어간 기능).
@@ -185,6 +194,13 @@ export const BROKER_PRESETS: readonly BrokerPreset[] = [
    * Go1 쪽은 `/mqtt` 로 돌고 있으므로 각자 확인된 모양을 그대로 둔다.
    */
   { id: 'drone-tailscale', labelKey: 'preset.broker.droneTailscale', url: 'ws://pi3.tailcb6bfb.ts.net:9001', whyKey: 'preset.broker.droneTailscale.why' },
+  /**
+   * **A2-W** (261112). 로봇 위 pi10 이 A2 전용 브로커를 띄우고 PC2 카메라(:8090)를 중계한다 — Go1 과 같은 꼴.
+   * 카메라 주소가 「브로커 호스트:8090」이라(`cameraView.ts`) 이 주소 하나로 카메라까지 따라온다.
+   * pi7 과 합치지 않는다 — 한 브로커에 로봇이 둘이면 명령 대상이 막힌다(`commandTargetFor`).
+   * 노트북 직결(비상용)은 직접 입력에 `ws://192.168.124.162:9001/mqtt`.
+   */
+  { id: 'a2-tailscale', labelKey: 'preset.broker.a2Tailscale', url: 'ws://pi10.tailcb6bfb.ts.net:9001/mqtt', whyKey: 'preset.broker.a2Tailscale.why' },
   /**
    * **가짜 장비** (261014). 실물을 못 띄울 때 하드웨어 카드 · 상세창을 보려고 둔다 — 브로커 없이 화면 안에서 흉내 낸다
    * (`fakeDevice.ts`). 카드에 「목」 배지가 뜨고 장비 id 가 실물과 다르다(`go1-fake` · `x500-fake`).

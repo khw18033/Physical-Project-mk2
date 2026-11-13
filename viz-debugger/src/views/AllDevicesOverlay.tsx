@@ -31,7 +31,7 @@ import { useDeviceCardIds } from '../shared/registry.ts';
 import { useReplayTarget } from '../record/replayMode.ts';
 import { DirectCamera } from '../media/views/DeviceCamera.tsx';
 import { CAMERA_POSITIONS, type CameraPosition } from '../media/cameraChoice.ts';
-import { useDirectCameraSourcesMany, type LabeledCameraSource } from '../physical/cameraView.ts';
+import { directCameraPositions, effectiveCameraPosition, useDirectCameraSourcesMany, type LabeledCameraSource } from '../physical/cameraView.ts';
 import { feedKindOf, fixedCameraUrl, isFixedCamera, type FeedKind } from '../fixedcam/fixedCamera.ts';
 import { CameraStateDash } from '../fixedcam/CameraStateView.tsx';
 import { VisionDeviceControls, VisionStream, visionStreamCells } from '../vision/views/VisionViews.tsx';
@@ -142,7 +142,9 @@ function CamerasTab({ ids }: { ids: readonly string[] }) {
   const [positions, setPositions] = useState<Record<string, CameraPosition>>({});
   const [feeds, setFeeds] = useState<Record<string, FeedKind>>({});
   const robotIds = ids.filter((id) => !isTwinDevice(id) && !isFixedCamera(id));
-  const directs = useDirectCameraSourcesMany(robotIds, positions);
+  // 그 장비에 없는 위치는 있는 위치로 (261112 — A2 는 front 하나)
+  const effective = Object.fromEntries(robotIds.map((id) => [id, effectiveCameraPosition(id, positions[id] ?? 'front')]));
+  const directs = useDirectCameraSourcesMany(robotIds, effective);
   const bases = visionBases();
 
   const devices: CamDevice[] = ids.map((id) => ({
@@ -161,7 +163,7 @@ function CamerasTab({ ids }: { ids: readonly string[] }) {
     if (device.fixedUrl !== null) {
       streams.push({ key: `${id}|fixed`, deviceId: id, kind: 'fixed', url: device.fixedUrl, feed: feeds[id] ?? feedKindOf(device.fixedUrl) });
     }
-    const position = positions[id] ?? 'front';
+    const position = effective[id] ?? 'front';
     for (const source of device.direct) streams.push({ key: `${id}|direct|${source.url}`, deviceId: id, kind: 'direct', source, position });
     // 3D 가상환경은 객체 탐지를 붙이지 않는다(261007).
     const base = device.binding.base;
@@ -190,9 +192,9 @@ function CamerasTab({ ids }: { ids: readonly string[] }) {
           </select>
         </label>}
         {/* 카메라가 한 대인 길(드론 말단)은 위치를 안 가린다 — 상세와 같은 규칙. */}
-        {d.direct.some((s) => s.kind === 'stream') && <label>{t('dcam.position')}
-          <select value={positions[d.id] ?? 'front'} onChange={(event) => setPositions({ ...positions, [d.id]: event.target.value as CameraPosition })}>
-            {CAMERA_POSITIONS.map((item) => <option key={item} value={item}>{item}</option>)}
+        {d.direct.some((s) => s.kind === 'stream') && (directCameraPositions(d.id) ?? CAMERA_POSITIONS).length > 1 && <label>{t('dcam.position')}
+          <select value={effective[d.id] ?? 'front'} onChange={(event) => setPositions({ ...positions, [d.id]: event.target.value as CameraPosition })}>
+            {(directCameraPositions(d.id) ?? CAMERA_POSITIONS).map((item) => <option key={item} value={item}>{item}</option>)}
           </select>
         </label>}
         <VisionDeviceControls entityId={d.id} />

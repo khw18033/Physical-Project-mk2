@@ -45,7 +45,7 @@ import { GroundDash } from '../physical/GroundDash.tsx';
 import { MediaSection } from '../media/views/MediaSection.tsx';
 import { DirectCameras } from '../media/views/DeviceCamera.tsx';
 import { CAMERA_POSITIONS, type CameraPosition } from '../media/cameraChoice.ts';
-import { useDirectCameraSources } from '../physical/cameraView.ts';
+import { directCameraPositions, effectiveCameraPosition, useDirectCameraSources } from '../physical/cameraView.ts';
 import { VisionDeviceSection } from '../vision/views/VisionViews.tsx';
 import { FixedCameraSection } from '../fixedcam/FixedCameraSection.tsx';
 import { isFixedCamera } from '../fixedcam/fixedCamera.ts';
@@ -77,7 +77,10 @@ export function DeviceStatusOverlay({ deviceId, device, source, onClose }: {
    * 백엔드 `/media` 는 실물 영상이 아직 안 오는 길이라(`physical/cameraView.ts`) 그 칸만 두면 늘 비어 있다.
    * 주소를 못 만드는 장비(드론 등)는 이 칸이 없고, 아래 `/media` 칸이 그대로 연다.
    */
-  const [position, setPosition] = useState<CameraPosition>('front');
+  const [chosenPosition, setPosition] = useState<CameraPosition>('front');
+  // 그 장비에 없는 위치를 골랐으면 있는 위치로 — 안 그러면 칸이 사라져 다시 고를 수도 없다 (261112)
+  const position = effectiveCameraPosition(deviceId, chosenPosition);
+  const positions = directCameraPositions(deviceId) ?? CAMERA_POSITIONS;
   const directSources = useDirectCameraSources(deviceId, position);
   const directUrl = directSources[0] ?? null;
   /**
@@ -137,9 +140,9 @@ export function DeviceStatusOverlay({ deviceId, device, source, onClose }: {
         <header className="media-section__head">
           <h3>{t('dso.robotCamera')}</h3>
           {/* 카메라가 한 대인 길(드론 말단)은 위치를 안 가린다 — 칸을 두면 바꿔도 아무 일이 없다. */}
-          {directUrl.kind === 'stream' && <label className="device-cam__pick">{t('dcam.position')}
+          {directUrl.kind === 'stream' && positions.length > 1 && <label className="device-cam__pick">{t('dcam.position')}
             <select value={position} onChange={(event) => setPosition(event.target.value as CameraPosition)}>
-              {CAMERA_POSITIONS.map((item) => <option key={item} value={item}>{item}</option>)}
+              {positions.map((item) => <option key={item} value={item}>{item}</option>)}
             </select>
           </label>}
         </header>

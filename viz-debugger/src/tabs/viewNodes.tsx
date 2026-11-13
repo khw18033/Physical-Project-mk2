@@ -76,7 +76,7 @@ import { relayDriven, slotDriven, usesFloorPlan } from '../scenarios/library.ts'
 import { VirtualMap } from '../virtualmap/VirtualMap.tsx';
 import { DeviceCamera } from '../media/views/DeviceCamera.tsx';
 import { resolveSlot } from '../data/slots.ts';
-import { useDirectCameraSources } from '../physical/cameraView.ts';
+import { directCameraPositions, useDirectCameraSources } from '../physical/cameraView.ts';
 import { AttachedImage } from '../imagery/AttachedImage.tsx';
 import { RtkCard, RtkZoom } from '../sar/RtkView.tsx';
 import { SarPassCard, SarPassZoom } from '../sar/SarPassView.tsx';
@@ -356,8 +356,8 @@ export const VIEW_NODE_RENDERERS: readonly ViewNodeEntry[] = [
     labelKey: 'viewnode.camera',
     hintKey: 'viewnode.camera.hint',
     showFor: onlySlots,
-    summary: (scope, node) => <NodeGate card kind="device-cam"><DeviceCamera nodeId={node?.id ?? 'device-cam'} taskDeviceId={resolveSlot(scope.deviceId)} useDirectSources={useDirectCameraSources} /></NodeGate>,
-    zoom: (scope, node) => <NodeGate kind="device-cam"><DeviceCamera nodeId={node?.id ?? 'device-cam'} taskDeviceId={resolveSlot(scope.deviceId)} zoom useDirectSources={useDirectCameraSources} /></NodeGate>,
+    summary: (scope, node) => <NodeGate card kind="device-cam"><DeviceCamera nodeId={node?.id ?? 'device-cam'} taskDeviceId={resolveSlot(scope.deviceId)} useDirectSources={useDirectCameraSources} positionsFor={directCameraPositions} /></NodeGate>,
+    zoom: (scope, node) => <NodeGate kind="device-cam"><DeviceCamera nodeId={node?.id ?? 'device-cam'} taskDeviceId={resolveSlot(scope.deviceId)} zoom useDirectSources={useDirectCameraSources} positionsFor={directCameraPositions} /></NodeGate>,
   },
   {
     // 장치 두 대 편 (260927). 자율주행 편의 「장애물 탐지」 액션 아이템을 **그대로** 쓴다(`ObstacleFacts`).
