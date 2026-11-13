@@ -5,7 +5,8 @@
  * 글자 타일 줄과 그래프 묶음을 따로 두지 않는다(261111 지적 — 같은 것을 두 번 읽게 했다).
  *
  *   숫자(배터리 · 고도 · 수신 간격 …)   선 그래프 — 끊긴 구간은 회색으로 비우고 잇지 않는다, 최신 점은 맥동
- *   범주(연결 · 링크 · 모드 · 무장 …)    색 띠 — 값이 바뀐 자리가 띠의 경계다, 수신 없음은 회색
+ *   범주(연결 · 링크 · 모드 · 무장 …)    글자 타일 — 그래프 자리를 지금 상태 글자가 크게 채운다(261113).
+ *                                       조작 기록(live=false)에서만 색 띠 — 값이 바뀐 자리가 띠의 경계다
  *
  * 값은 `shared/metricHistory.ts` 에서 온다. 쓰는 곳은 카드 상세(더블클릭)와 전체 장치 확인뿐이다 — 하드웨어 목록의
  * 카드 한 줄은 글자 타일 그대로다(261111 지시).
@@ -14,7 +15,7 @@
  * 찌그러진다. 최신 점도 판 밖(HTML)에 놓는다.
  */
 
-import { type ReactNode } from 'react';
+import { useLayoutEffect, useRef, type ReactNode } from 'react';
 import { useLang } from '../shared/language.ts';
 import { t } from '../i18n/dict.ts';
 import { deltaOver, stateSpans, trendRuns, type MetricPoint, type StatePoint } from '../shared/metricHistory.ts';
@@ -25,7 +26,8 @@ export const DELTA_SPAN_MS = 60_000;
 export const TREND_TICK_MS = 250;
 
 type GraphLevel = 'good' | 'warn' | 'bad' | 'unknown';
-const MARK: Record<GraphLevel, string> = { good: '✓', warn: '!', bad: '✕', unknown: '?' };
+/** 정상은 기호 없이 왼쪽 색 띠만(261113) — 정상 타일이 대부분이라 ✓ 가 늘어서면 ! ✕ 가 묻힌다. 이상한 것만 기호를 단다. */
+const MARK: Record<GraphLevel, string> = { good: '', warn: '!', bad: '✕', unknown: '?' };
 
 /** 「60초 ▲ 0.8 m」 — 숫자 타일의 툴팁. 모르면 모른다고. */
 export function deltaWords(points: readonly MetricPoint[], now: number, digits: number, unit: string): string {
@@ -38,11 +40,11 @@ export function deltaWords(points: readonly MetricPoint[], now: number, digits: 
 export type LineGraph = {
   kind: 'line';
   points: readonly MetricPoint[];
-  /** 세로축을 이보다 좁히지 않는다 — 센서 잡음이 산처럼 보이면 안 된다. */
+  /** 잡음 바닥 — 세로축은 이 값의 40% 아래로는 좁히지 않는다(261113, `SPAN_KEEP`). */
   minSpan?: number;
   /** 정수로만 오는 값(배터리 %)은 계단으로. */
   stair?: boolean;
-  /** 경고선. 축 범위에 넣는다 — 얼마나 가까운지가 보이게. */
+  /** 경고선. 축 범위를 넓히지 않는다 — 값이 경고선 가까이 와서 범위 안에 들 때만 보인다(261113). */
   threshold?: number;
 };
 
@@ -64,16 +66,22 @@ const GH = 60;
 const PLOT_TOP = GH * 0.4;
 const PLOT_BOTTOM = GH - 2;
 
-function range(values: number[], minSpan: number, extra: number[]): [number, number] {
-  const all = [...values, ...extra];
-  let lo = Math.min(...all);
-  let hi = Math.max(...all);
-  if (hi - lo < minSpan) {
+/**
+ * 세로축 범위 (261113 — 변화가 보이게 좁힌다). 창 안 값의 최소~최대에 딱 맞추고 여백은 6% 만 둔다. `minSpan` 은
+ * 그 40% 까지만 지킨다 — 잡음이 산처럼 보이는 것은 막되 실제 오르내림은 크게 보이게. 경고선은 범위를 넓히지 않는다
+ * (배터리 80% 언저리에 20% 경고선을 넣으면 선이 납작해진다) — 범위 안에 들어올 때만 그린다.
+ */
+const SPAN_KEEP = 0.4;
+function range(values: number[], minSpan: number): [number, number] {
+  let lo = Math.min(...values);
+  let hi = Math.max(...values);
+  const floor = minSpan * SPAN_KEEP;
+  if (hi - lo < floor) {
     const mid = (hi + lo) / 2;
-    lo = mid - minSpan / 2;
-    hi = mid + minSpan / 2;
+    lo = mid - floor / 2;
+    hi = mid + floor / 2;
   }
-  const pad = (hi - lo) * 0.12;
+  const pad = (hi - lo) * 0.06;
   return [lo - pad, hi + pad];
 }
 
@@ -91,7 +99,8 @@ function LinePlot({ graph, frame }: { graph: LineGraph; frame: Frame }) {
   const { runs, gaps, fresh, last } = trendRuns(graph.points, now, windowMs);
   const values = runs.flat().map((p) => p.v);
   if (values.length === 0) return <span className="graph-empty">{t('dash.noData')}</span>;
-  const [lo, hi] = range(values, graph.minSpan ?? 1, graph.threshold === undefined ? [] : [graph.threshold]);
+  const [lo, hi] = range(values, graph.minSpan ?? 1);
+  const showThreshold = graph.threshold !== undefined && graph.threshold >= lo && graph.threshold <= hi;
   const x = (ms: number) => Math.max(0, ((ms - (now - windowMs)) / windowMs) * GW);
   const y = (v: number) => PLOT_BOTTOM - ((v - lo) / (hi - lo)) * (PLOT_BOTTOM - PLOT_TOP);
   const pathOf = (run: readonly MetricPoint[]) => run.map((p, i) =>
@@ -100,14 +109,9 @@ function LinePlot({ graph, frame }: { graph: LineGraph; frame: Frame }) {
   return <>
     <svg viewBox={`0 0 ${GW} ${GH}`} preserveAspectRatio="none" aria-hidden>
       {gaps.map(([a, b], i) => <rect key={i} className="trend-gap" x={x(a)} y={0} width={Math.max(0, x(b) - x(a))} height={GH} />)}
-      {graph.threshold !== undefined && <line className="trend-threshold" x1={0} x2={GW} y1={y(graph.threshold)} y2={y(graph.threshold)} vectorEffect="non-scaling-stroke" />}
-      {runs.map((run, i) => {
-        const d = pathOf(run);
-        return <g key={i}>
-          <path className="trend-area" d={`${d}L${x(run.at(-1)!.atMs).toFixed(2)},${GH}L${x(run[0]!.atMs).toFixed(2)},${GH}Z`} />
-          <path className="trend-line" d={d} vectorEffect="non-scaling-stroke" />
-        </g>;
-      })}
+      {showThreshold && <line className="trend-threshold" x1={0} x2={GW} y1={y(graph.threshold!)} y2={y(graph.threshold!)} vectorEffect="non-scaling-stroke" />}
+      {/* 면은 칠하지 않는다(261113) — 선만. */}
+      {runs.map((run, i) => <path key={i} className="trend-line" d={pathOf(run)} vectorEffect="non-scaling-stroke" />)}
     </svg>
     <Marks frame={frame} />
     {frame.live && fresh && last !== null && <span className="graph-dot" style={{ left: `${x(last.atMs)}%`, top: `${(y(last.v) / GH) * 100}%` }} />}
@@ -134,6 +138,34 @@ function LanePlot({ graph, frame }: { graph: LaneGraph; frame: Frame }) {
 }
 
 /**
+ * 칸에 맞춰 글자를 줄인다(261113) — 긴 상태(구동 브리지 이름 등)를 「…」로 자르지 않고 다 보이게. CSS 가 정한 크기에서
+ * 시작해 넘치면 1px 씩 줄인다(최소 11px). 값이 바뀌거나 칸 폭이 바뀌면 다시 잰다.
+ */
+const FIT_MIN_PX = 11;
+function FitText({ children }: { children: ReactNode }) {
+  const ref = useRef<HTMLSpanElement>(null);
+  const fit = () => {
+    const el = ref.current;
+    if (el === null) return;
+    el.style.fontSize = '';
+    let size = parseFloat(getComputedStyle(el).fontSize);
+    while (el.scrollWidth > el.clientWidth && size > FIT_MIN_PX) {
+      size -= 1;
+      el.style.fontSize = `${size}px`;
+    }
+  };
+  useLayoutEffect(fit);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (el === null || typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(() => fit());
+    observer.observe(el.parentElement ?? el);
+    return () => observer.disconnect();
+  }, []);
+  return <span ref={ref} className="graph-stat__fit">{children}</span>;
+}
+
+/**
  * 그래프 칸 (261111 두 번째 — 글상자 없이). **그래프가 칸 전체**이고 지금 상태 글자가 그 위쪽에 떠 있다 — 지금 값과
  * 지나온 변화를 한눈에. 글자 색과 표시(✓ ! ✕ ?)가 지금 상태이고, 나쁠 때는 판 바탕도 붉어진다.
  */
@@ -147,11 +179,19 @@ export function GraphStat({ level, label, value, graph, now, title, windowMs = F
   live?: boolean;
 }) {
   const frame: Frame = { now, windowMs, marks, live };
+  // 낱말 상태(모드 · 구동 브리지 · 연결 …)는 그래프로 읽기 어렵다(261113) — 지금 흐르는 판에서는 글자 타일로.
+  // 칸 크기는 그래프 타일과 같고, 그래프가 있던 자리를 지금 상태 글자가 크게 채운다. 기록 판(live=false)은 띠 그대로.
+  if (graph.kind === 'lane' && live) {
+    return <figure className={`graph-stat graph-stat--${level} graph-stat--text`} title={title}>
+      <figcaption className="graph-stat__head"><span className="graph-stat__label">{label}</span></figcaption>
+      <b className="graph-stat__big">{MARK[level] !== '' && <i aria-hidden>{MARK[level]}</i>}<FitText>{value}</FitText></b>
+    </figure>;
+  }
   return <figure className={`graph-stat graph-stat--${level} graph-stat--${graph.kind}`} title={title}>
     {graph.kind === 'line' ? <LinePlot graph={graph} frame={frame} /> : <LanePlot graph={graph} frame={frame} />}
     <figcaption className="graph-stat__head">
       <span className="graph-stat__label">{label}</span>
-      <b className="graph-stat__value"><i aria-hidden>{MARK[level]}</i>{value}</b>
+      <b className="graph-stat__value">{MARK[level] !== '' && <i aria-hidden>{MARK[level]}</i>}{value}</b>
     </figcaption>
   </figure>;
 }
