@@ -1411,3 +1411,11 @@ button.flight-armed:not(:disabled){color:#fff!important;border-color:#8f1d22!imp
 
 .history-kind.is-imported{background:#eef1f5;color:#4a5666;border:1px dashed #8a97a8}
 .ctl-imported{margin:8px 0 0;padding:8px 12px !important;font-size:13px;background:#f4f7fa;border-left:3px solid #8a97a8}
+
+/* 착륙 상태(FC 기준) — 261111, FlightControlTab LandingNote · ControlRecordView */
+.flight-steps .step-fc{border-bottom:3px dashed #35a36a;color:#17202b}
+.flight-landing{display:flex;flex-direction:column;gap:3px;margin:0 0 10px;padding:8px 12px;border-radius:var(--radius-sm);border-left:4px solid #d39b2a;background:#fdf6e7;font-size:13px}
+.flight-landing span{color:#4a5666}
+.flight-landing--onGround,.flight-landing--disarmed{border-left-color:#35a36a;background:#eef8f2}
+.ctl-flight__landing{margin:6px 0;padding:6px 10px;font-size:13px;border-left:3px solid #d39b2a;background:#fdf6e7}
+.ctl-flight__landing.flight-landing--onGround,.ctl-flight__landing.flight-landing--disarmed{border-left-color:#35a36a;background:#eef8f2}

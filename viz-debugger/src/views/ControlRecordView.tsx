@@ -14,7 +14,7 @@ import { ko, t } from '../i18n/dict.ts';
 import { useLang } from '../shared/language.ts';
 import type { ControlEvent, ControlProgress, ControlRecordSummary } from '../record/controlRecorder.ts';
 import { fetchRecordJson } from '../record/recordClient.ts';
-import { lineTone, PHASES, readProgress, runOutcome, stripTime, type FlightProcess } from '../physical/flightRunFeed.ts';
+import { landingOf, lineTone, PHASES, readProgress, runOutcome, stripTime, type FlightProcess } from '../physical/flightRunFeed.ts';
 import { ControlTelemetrySection } from './ControlTelemetryView.tsx';
 
 type Loaded = { summary: ControlRecordSummary; progress: ControlProgress };
@@ -100,6 +100,18 @@ function FlightSection({ process, emergency }: { process: FlightProcess; emergen
       </li>)}
       {progress.phase === 'dryDone' && <li className="is-done">{t('flight.phase.dryDone')}</li>}
     </ol>}
+    {!emergency && (() => {
+      // 261111 — 스크립트가 착륙을 못 찍은 판도 FC 가 말한 착륙 상태를 남긴다(실행기 출력의 진행 번호 · `[착륙감시]` 줄).
+      const landing = landingOf(progress);
+      if (landing === 'none' || landing === 'confirmed') return null;
+      const watch = progress.landWatch;
+      return <p className={`ctl-flight__landing flight-landing--${landing}`}>
+        <b>{t(`flight.landing.short.${landing}`)}</b>
+        {' · '}{t('flight.landing.recordItem', { cur: progress.liveItem ?? '?', total: progress.itemsTotal ?? '?' })}
+        {watch.seen && <> · <code>in_air={String(watch.inAir)} landed={watch.landed ?? 'None'} armed={String(watch.armed)} mode={watch.mode ?? 'None'}</code></>}
+        {watch.overlapS !== null && <> · {t('flight.landing.overlap', { s: watch.overlapS.toFixed(3) })}</>}
+      </p>;
+    })()}
     {progress.problems.length > 0 && <ul className="ctl-flight__problems">{progress.problems.map((line, i) => <li key={i}>{line}</li>)}</ul>}
     <details open={progress.problems.length > 0}>
       <summary>{t('ctl.flight.lines', { n: process.lines.length })}</summary>

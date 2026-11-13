@@ -27,7 +27,7 @@ import {
   SCRIPT_PLAIN, SCRIPT_RTK, SIDES_OF, timeoutSec, withPattern, type EmergencyMode, type FlightPlan, type PlanProblem,
 } from '../physical/flightPlan.ts';
 import {
-  isFlightRunStale, lineTone, PHASES, readProgress, runOutcome, stripTime, useFlightRuns, type FlightProcess, type Phase,
+  isFlightRunStale, landingOf, lineTone, PHASES, readProgress, runOutcome, stripTime, useFlightRuns, type FlightProcess, type Landing, type Phase,
 } from '../physical/flightRunFeed.ts';
 import {
   dryRunPassed, dryRunPending, flightLink, issueFlightEmergency, issueFlightStart, issueFlightStop, scriptGuess, scriptOf,
@@ -170,7 +170,32 @@ function VehicleFacts({ fcx }: { fcx: FcxReport | undefined }) {
 const DRY_STEPS: readonly Phase[] = ['starting', 'connecting', 'position', 'route', 'upload', 'verified', 'dryDone'];
 const FLY_STEPS: readonly Phase[] = PHASES;
 
-function Steps({ process }: { process: FlightProcess }) {
+/**
+ * 실행이 도는 동안의 FC 착지 값 — `[착륙감시]` 줄이 없는 스크립트에서도 착륙 상태를 가르게(261111). 낡은 fcx 는 안 쓴다.
+ */
+function fcLanding(fcx: FcxReport | undefined): { landedState: string | null; armed: boolean | null } | null {
+  return fcx === undefined || isFcxStale(fcx) ? null : { landedState: fcx.landedState, armed: fcx.armed };
+}
+
+/**
+ * **착륙 상태 알림** (261111). 스크립트가 `[확인] 착륙 완료` 를 못 찍어 실행이 안 끝날 때(11/9 실기 — `REPORT_착륙판정_261111.md`),
+ * FC 가 말하는 것으로 지금 어떤지를 알린다. 제어는 하지 않는다 — 중단은 여전히 사람이 누르고, 누르면 스크립트가 abort 명령을 보낸다는
+ * 것을 같이 적는다.
+ */
+function LandingNote({ process, landing, how, fromWatch }: { process: FlightProcess; landing: Landing; how: string; fromWatch: boolean }) {
+  useLang();
+  if (landing === 'none' || landing === 'confirmed' || process.state !== 'running') return null;
+  const progress = readProgress(process.lines);
+  const src = t(fromWatch ? 'flight.landing.src.watch' : 'flight.landing.src.fcx');
+  return <div className={`flight-landing flight-landing--${landing}`} role="status">
+    <b>{landing === 'missionDone'
+      ? t('flight.landing.missionDone', { cur: progress.liveItem ?? '?', total: progress.itemsTotal ?? '?' })
+      : t(`flight.landing.${landing}`, { src })}</b>
+    <span>{t(landing === 'disarmed' ? 'flight.landing.stopAfter' : 'flight.landing.stopCaution', { how })}</span>
+  </div>;
+}
+
+function Steps({ process, landing }: { process: FlightProcess; landing: Landing }) {
   useLang();
   const progress = readProgress(process.lines);
   // `test_sar.py`(RTK 없는 판)는 RTK 대기 단계를 지나지 않는다.
@@ -182,6 +207,9 @@ function Steps({ process }: { process: FlightProcess }) {
       const done = index < at || (index === at && outcome === 'ok');
       const active = index === at && outcome === 'running';
       const failed = index === at && (outcome === 'failed' || outcome === 'badArgs' || outcome === 'killed');
+      // 스크립트는 착륙을 못 찍었지만 FC 는 땅 위라고 한다 — 착륙 칸을 점선으로 「FC 기준」 표시.
+      const fc = step === 'landed' && progress.phase === 'mission' && (landing === 'onGround' || landing === 'disarmed');
+      if (fc) return <span key={step} className="step-fc" title={t('flight.landing.short.' + landing)}>{t('flight.phase.landedFc')}</span>;
       return <span key={step} className={failed ? 'step-failed' : done ? 'step-done' : active ? 'step-active' : ''}>{t(`flight.phase.${step}`)}</span>;
     })}
   </div>;
@@ -455,7 +483,9 @@ export function FlightControlTab({ deviceId }: { deviceId: string }) {
       {run === null
         ? <p className="manual-note">{t('flight.progress.none')}</p>
         : <>
-          <Steps process={run} />
+          <Steps process={run} landing={landingOf(readProgress(run.lines), fcLanding(fcx))} />
+          <LandingNote process={run} landing={landingOf(readProgress(run.lines), fcLanding(fcx))} how={t(`flight.abort.${plan.abort}`)}
+            fromWatch={readProgress(run.lines).landWatch.seen} />
           <ProgressFacts process={run} plan={plan} />
           <RunLog process={run} />
         </>}

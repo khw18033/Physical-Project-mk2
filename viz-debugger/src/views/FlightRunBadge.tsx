@@ -11,7 +11,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useLang } from '../shared/language.ts';
 import { t } from '../i18n/dict.ts';
-import { readProgress, runOutcome, useFlightRuns, type FlightProcess } from '../physical/flightRunFeed.ts';
+import { landingOf, readProgress, runOutcome, useFlightRuns, type FlightProcess } from '../physical/flightRunFeed.ts';
 import { flightLink, issueFlightEmergency, issueFlightStop } from '../physical/flightRunCommands.ts';
 import { useEverySec } from './ManualControlBadge.tsx';
 
@@ -46,7 +46,10 @@ export function runSummary(process: FlightProcess): string {
     const item = progress.itemCur !== null && progress.itemsTotal !== null
       ? ` · ${t('flight.progress.item', { cur: progress.itemCur, total: progress.itemsTotal })}` : '';
     const cap = progress.capturing !== null ? ` · ${t('flight.progress.capturing', { n: progress.capturing })}` : '';
-    return `${kind} · ${phase}${item}${cap}`;
+    // 261111 — 스크립트가 착륙을 못 찍어도 FC 미션 완료 · 착지는 배지에서 보이게.
+    const landing = landingOf(progress);
+    const land = landing === 'none' || landing === 'confirmed' ? '' : ` · ${t(`flight.landing.short.${landing}`)}`;
+    return `${kind} · ${phase}${item}${cap}${land}`;
   }
   return `${kind} · ${t(`flight.outcome.${outcome}`, { code: process.exitCode ?? '?' })}`;
 }

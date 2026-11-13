@@ -217,6 +217,7 @@ function ControlRunLine({ item, summary, compact, recording, onOpen }: {
     {!compact && flight !== null && <small className="history-label">
       {flight.dryRun === true ? 'dry-run · ' : (flight.dryRuns ?? 0) > 0 ? `${t('ctl.dryThenFlight', { n: flight.dryRuns ?? 0 })} · ` : ''}{flight.script ?? '—'}
       {flight.phase !== null && ` · ${t(`flight.phase.${flight.phase}`)}`}
+      {flight.landing !== undefined && flight.landing !== 'none' && flight.landing !== 'confirmed' && ` · ${t(`flight.landing.short.${flight.landing}`)}`}
       {imported !== null ? (imported.result !== null && ` · ${imported.result}`)
         : flight.outcome !== null && ` · ${t(`flight.outcome.${flight.outcome}`, { code: flight.exitCode ?? '' })}`}
       {flight.emergencies > 0 && ` · ${t('ctl.emergencies', { n: flight.emergencies })}`}

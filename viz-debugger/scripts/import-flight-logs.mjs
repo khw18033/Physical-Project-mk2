@@ -33,7 +33,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const vizRoot = resolve(fileURLToPath(new URL('.', import.meta.url)), '..');
 const load = (...p) => import(pathToFileURL(join(vizRoot, ...p)).href);
-const { readProgress, runOutcome, stripTime } = await load('src', 'physical', 'flightRunFeed.ts');
+const { landingOf, readProgress, runOutcome, stripTime } = await load('src', 'physical', 'flightRunFeed.ts');
 const { runFolderOf } = await load('src', 'record', 'recordClient.ts');
 const { CONTROL_SCHEMA, DRY_LINK_MS, TELEMETRY_FRESH_MS } = await load('src', 'record', 'controlRecorder.ts');
 
@@ -245,6 +245,7 @@ for (const { runs: group, emergencies } of sessions) {
       phase: readProgress(main.lines).phase,
       emergencies: emergencies.length,
       dryRuns: group.filter((r) => r !== main && r.dryRun === true).length,
+      landing: landingOf(readProgress(main.lines)),
     },
     telemetry: rows.length === 0 ? null : {
       samples: rows.length, batteryStart: null, batteryEnd: null, batteryMin: null, maxRxAgeS: null, modes, truncated: false,

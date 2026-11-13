@@ -50,7 +50,7 @@ import { useSyncExternalStore } from 'react';
 import { getMissionState, NO_MISSION } from '../data/scenario.ts';
 import { enabledManualDevices, manualConfig, manualModeOf, subscribeManual } from '../physical/manualControl.ts';
 import { deviceCandidates } from '../physical/deviceIdentity.ts';
-import { flightRuns, subscribeFlightRuns, readProgress, runOutcome, type FlightProcess } from '../physical/flightRunFeed.ts';
+import { flightRuns, landingOf, subscribeFlightRuns, readProgress, runOutcome, type FlightProcess } from '../physical/flightRunFeed.ts';
 import type { UplinkMessage } from '../physical/uplink.ts';
 import { recorderStatus } from './recorder.ts';
 import { putRecordJson, runFolderOf } from './recordClient.ts';
@@ -152,6 +152,8 @@ export type ControlRecordSummary = {
     emergencies: number;
     /** 이 판에서 비행 앞에 한 dry-run 수(261111 — dry-run 과 이어 날린 비행은 한 판). 옛 판에는 없다. */
     dryRuns?: number;
+    /** 착륙 상태(`flightRunFeed.landingOf`, 261111) — 스크립트가 착륙 완료를 못 찍어도 FC 미션 완료 · 착지를 남긴다. 옛 판에는 없다. */
+    landing?: string;
   } | null;
   /** 텔레메트리 표본 요약(261111). 값이 하나도 없었으면 null. 옛 판(1차)에는 칸 자체가 없다. */
   telemetry?: {
@@ -653,6 +655,7 @@ export function buildControlBodies(session: Session): { mission: string; progres
       phase: main === null ? null : readProgress(main.lines).phase,
       emergencies: flight.emergencies.size,
       dryRuns: runs.filter((run) => run !== main && run.dryRun === true).length,
+      landing: main === null ? 'none' : landingOf(readProgress(main.lines)),
     },
     telemetry: telemetrySummary(session),
   };

@@ -183,7 +183,74 @@ export type FlightProgress = {
   warnings: number;
   /** `[종료]` 를 봤다 — 스크립트가 스스로 끝을 찍었다. */
   ended: boolean;
+  /**
+   * **FC 가 미션을 끝냈다** (261111). 진행 번호(`#n 진행` · `[미션] 진행 #n`)가 항목 수에 닿았다 — PX4 는 마지막 항목(LAND)을
+   * 마치면 번호를 항목 수로 넘긴다. 11/9 실기에서 스크립트는 이 뒤로 착륙을 못 알아봤다(`REPORT_착륙판정_261111.md`).
+   */
+  missionDone: boolean;
+  /** 마지막으로 본 진행 번호 — 2초마다 찍는 `#n 진행` 줄까지 포함(`itemCur` 는 `[미션] 진행` 줄만). */
+  liveItem: number | null;
+  /** pi3 스크립트의 `[착륙감시]` 줄(LAND 이후에만 찍힌다)에서 읽은 FC 값. 그 줄이 없으면 `seen: false`. */
+  landWatch: LandWatch;
 };
+
+/** `[착륙감시]` 줄의 FC 값 — 줄마다 `in_air=… landed=… armed=… mode=…` 를 실어 온다. 뒤 줄이 앞 줄을 덮는다. */
+export type LandWatch = {
+  seen: boolean;
+  inAir: boolean | null;
+  landed: string | null;
+  armed: boolean | null;
+  mode: string | null;
+  /** 요약 줄의 「판정창 겹침」 초 — 스크립트의 착륙 조건이 성립했던 시간. */
+  overlapS: number | null;
+};
+
+const LAND_WATCH = /^\[착륙감시\]/;
+const pyBool = (value: string | undefined): boolean | null | undefined =>
+  value === undefined ? undefined : value === 'True' ? true : value === 'False' ? false : null;
+
+/** `[착륙감시]` 한 줄을 지금 값에 얹는다. 같은 키가 한 줄에 여럿이면(요약 줄의 「판정창(…)」 · 「끝 …」) 마지막 것이 지금 값이다. */
+function readLandWatch(text: string, into: LandWatch): void {
+  into.seen = true;
+  const last: Record<string, string> = {};
+  for (const match of text.matchAll(/(?:^|[^A-Za-z_])(in_air|landed|armed|mode)=([A-Za-z_]+)/g)) last[match[1]!] = match[2]!;
+  const inAir = pyBool(last.in_air);
+  if (inAir !== undefined) into.inAir = inAir;
+  const armed = pyBool(last.armed);
+  if (armed !== undefined) into.armed = armed;
+  if (last.landed !== undefined) into.landed = last.landed === 'None' ? null : last.landed;
+  if (last.mode !== undefined) into.mode = last.mode === 'None' ? null : last.mode;
+  const overlap = text.match(/겹침=(\d+(?:\.\d+)?)s/);
+  if (overlap !== null) into.overlapS = Number(overlap[1]);
+}
+
+/**
+ * **착륙 상태** (261111). 스크립트가 `[확인] 착륙 완료` 를 못 찍어도 FC 가 말하는 것으로 가른다. 제어는 하지 않는다 — 화면이
+ * 사람에게 알리기만 한다.
+ *
+ *   confirmed    스크립트가 착륙 완료를 찍었다(정상)
+ *   disarmed     FC 기준 땅 위 + 무장 해제
+ *   onGround     FC 기준 땅 위(landed=ON_GROUND 또는 in_air=False), 무장은 아직이거나 모름
+ *   missionDone  진행 번호가 항목 수에 닿았다 — FC 가 LAND 를 마쳤다. 땅 위인지는 FC 값이 없어 모른다
+ *   none         그 전
+ *
+ * `fc` 는 실시간 FC 텔레메트리(fcx)가 있을 때 — `[착륙감시]` 줄이 없는 옛 스크립트에서도 같은 판정을 하게. LAND 전(이륙 전 지상)을
+ * 착륙으로 읽지 않도록, FC 값은 미션이 끝났거나 `[착륙감시]` 가 시작된 뒤에만 본다.
+ */
+export type Landing = 'none' | 'missionDone' | 'onGround' | 'disarmed' | 'confirmed';
+
+export function landingOf(progress: FlightProgress, fc: { landedState: string | null; armed: boolean | null } | null = null): Landing {
+  if (progress.phase === 'landed') return 'confirmed';
+  if (!progress.missionDone && !progress.landWatch.seen) return 'none';
+  const watch = progress.landWatch;
+  const landed = watch.landed ?? fc?.landedState ?? null;
+  const inAir = watch.inAir;
+  const armed = watch.armed ?? fc?.armed ?? null;
+  const onGround = landed === 'ON_GROUND' || inAir === false;
+  if (onGround && armed === false) return 'disarmed';
+  if (onGround) return 'onGround';
+  return progress.missionDone ? 'missionDone' : 'none';
+}
 
 const TIME_PREFIX = /^\[\d+(?:\.\d+)?\]\s?/;
 
@@ -209,6 +276,8 @@ export function readProgress(lines: readonly RunLine[]): FlightProgress {
   const problems: string[] = [];
   let warnings = 0;
   let ended = false;
+  let liveItem: number | null = null;
+  const landWatch: LandWatch = { seen: false, inAir: null, landed: null, armed: null, mode: null, overlapS: null };
   for (const { text: raw } of lines) {
     const text = stripTime(raw).trim();
     let match: RegExpMatchArray | null;
@@ -219,6 +288,7 @@ export function readProgress(lines: readonly RunLine[]): FlightProgress {
     else if ((match = text.match(/^\[미션\] 진행 #(\d+)\s*(.*)$/)) !== null) {
       phase = advance(phase, 'mission');
       itemCur = Number(match[1]);
+      liveItem = itemCur;
       itemText = match[2].trim() || null;
     } else if ((match = text.match(/^\[미션\] #(\d+)\s/)) !== null) {
       itemsTotal = Math.max(itemsTotal ?? 0, Number(match[1]) + 1);
@@ -232,12 +302,14 @@ export function readProgress(lines: readonly RunLine[]): FlightProgress {
     else if ((match = text.match(/^PASS (\d+) END\b/)) !== null) {
       passesDone = Math.max(passesDone, Number(match[1]));
       if (capturing === Number(match[1])) capturing = null;
-    } else if (/^#\d+ 진행/.test(text)) live = text;
+    } else if ((match = text.match(/^#(\d+) 진행/)) !== null) { live = text; liveItem = Number(match[1]); }
     else if (/^\[종료\]$/.test(text)) ended = true;
+    else if (LAND_WATCH.test(text)) readLandWatch(text, landWatch);
     if (/^\[중단\]/.test(text) || /^\[오류\]/.test(text)) problems.push(text);
     if (/^\[경고\]/.test(text)) warnings += 1;
   }
-  return { phase, itemsTotal, itemCur, itemText, capturing, passesDone, live, problems, warnings, ended };
+  const missionDone = phase === 'mission' && itemsTotal !== null && liveItem !== null && liveItem >= itemsTotal;
+  return { phase, itemsTotal, itemCur, itemText, capturing, passesDone, live, problems, warnings, ended, missionDone, liveItem, landWatch };
 }
 
 export type LineTone = 'bad' | 'warn' | 'ok' | 'pass' | '';

@@ -9,6 +9,8 @@
 //  4. dry-run 짝 — 같은 설정 · 내 command_id · 종료 코드 0 일 때만 비행이 열리는가
 //  5. 스크립트 고르기 (261022) — RTK 보정이 없으면 실행기가 `test_sar.py` 를 띄운다. 화면이 보정 상태로 그것을
 //     짐작하고, 돌아온 `run.script` 를 읽고, `test_sar.py` 명령줄에서 RTK 옵션을 빼는가
+//  6. 착륙 상태 (261111) — 11/9 실기처럼 스크립트가 착륙 완료를 못 찍어도, 진행 번호가 항목 수에 닿으면 「FC 미션 완료」,
+//     `[착륙감시]` 줄(또는 FC 텔레메트리)이 땅 위 · 무장 해제를 말하면 그것으로 가르는가. 이륙 전 지상은 착륙이 아니다
 //
 // 대조군 — 모양이 틀린 보고는 버려야 하고, 남이 보낸 dry-run 은 내 것으로 치면 안 된다.
 
@@ -237,9 +239,50 @@ const report = (lines, extra = {}) => ({
   if (feed.parseFlightRun(body({ rtk: null }))?.run?.rtk !== null) failures.push('run.rtk 가 null 인데 값을 지어냈다');
 }
 
+// ── 6. 착륙 상태 (261111) ────────────────────────────────────────────────
+{
+  const L = (text, seq) => ({ seq, text });
+  // 11/9 실기 모양 — 항목 13개, LAND(#12) 뒤 진행 번호가 13 으로 넘어가고 착륙 완료 줄은 없다
+  const base = [
+    ...Array.from({ length: 13 }, (_, i) => `[1794196110.842] [미션] #${i}  ${i === 12 ? 'LAND     착륙' : 'WAYPOINT x'}`),
+    '[1794196111.034] [명령] arm', '[1794196111.077] [명령] 미션 시작 — 이제부터 FC 가 이륙·왕복·착륙을 스스로 진행한다',
+    '[1794196151.574] [미션] 진행 #12 LAND     착륙             36.5609065, 128.5593643  고도 0m  헤딩 288.3°',
+    '[1794196153.489]        #12 진행  -0.1m  속도  0.0m/s  고도   0.9m  헤딩 288.0°',
+  ];
+  const before = feed.readProgress(base.map(L));
+  if (before.missionDone || feed.landingOf(before) !== 'none') failures.push('LAND 진행 중(#12)을 미션 완료로 봤다');
+  // 이륙 전 지상: FC 가 ON_GROUND · 무장 해제여도 미션이 안 끝났으면 착륙이 아니다
+  if (feed.landingOf(before, { landedState: 'ON_GROUND', armed: false }) !== 'none') failures.push('미션이 안 끝났는데 FC 지상 값으로 착륙이라 했다');
+  else controls.push('이륙 전 지상을 착륙으로 안 본다');
+
+  const done = feed.readProgress([...base, '[1794196157.525]        #13 진행  -0.0m  속도  0.0m/s  고도  -0.7m  헤딩 289.9°'].map(L));
+  if (!done.missionDone || done.liveItem !== 13 || feed.landingOf(done) !== 'missionDone') failures.push(`진행 #13/13 을 FC 미션 완료로 못 봤다: ${feed.landingOf(done)}`);
+  if (feed.landingOf(done, { landedState: 'ON_GROUND', armed: true }) !== 'onGround') failures.push('FC 텔레메트리 ON_GROUND 를 착지로 못 봤다');
+  if (feed.landingOf(done, { landedState: 'ON_GROUND', armed: false }) !== 'disarmed') failures.push('FC 텔레메트리 무장 해제를 못 봤다');
+
+  // `[착륙감시]` 줄 — 변화 줄과 요약 줄(판정창의 cur=12∧in_air=False 는 지금 값이 아니다 — 「끝 …」이 지금 값)
+  const watch = feed.readProgress([...base,
+    '[1794196155.100] [착륙감시] 변화 in_air True→False t=+2.556 | cur=12/13 in_air=False landed=ON_GROUND armed=True mode=MISSION',
+    '[1794196205.600] [착륙감시] 요약 판정창(cur=12∧in_air=False) 겹침=0.000s/0회 | cur 12→13 t=+2.536 | 끝 cur=13/13 in_air=False landed=ON_GROUND armed=False mode=RETURN_TO_LAUNCH',
+  ].map(L));
+  const w = watch.landWatch;
+  if (!w.seen || w.inAir !== false || w.landed !== 'ON_GROUND' || w.armed !== false || w.mode !== 'RETURN_TO_LAUNCH' || w.overlapS !== 0) failures.push(`[착륙감시] 줄을 잘못 읽었다: ${JSON.stringify(w)}`);
+  if (feed.landingOf(watch) !== 'disarmed') failures.push(`[착륙감시] 가 무장 해제를 말하는데 ${feed.landingOf(watch)}`);
+  // [착륙감시] 줄이 다른 판정 줄을 건드리지 않는다 — 진행 · 문제 · 경고 · 끝
+  if (watch.live !== before.live || watch.problems.length !== 0 || watch.warnings !== 0 || watch.ended || watch.phase !== 'mission') failures.push('[착륙감시] 줄이 다른 판정을 바꿨다');
+  if (feed.lineTone('[1794196205.600] [착륙감시] 요약 판정창 …') !== '') failures.push('[착륙감시] 줄에 색을 칠했다');
+
+  // 정상 — 착륙 완료 줄이 있으면 그것이 이긴다
+  const ok = feed.readProgress([...base, '[1794196157.000] [확인] 착륙 완료 ✔'].map(L));
+  if (feed.landingOf(ok) !== 'confirmed') failures.push('착륙 완료 줄을 confirmed 로 안 봤다');
+  // 대조군 — 진행 번호만 보던 옛 판정(LAND 항목 번호 == 착륙)은 #12 진행 중을 착륙으로 잘못 본다
+  const naive = (p) => p.liveItem !== null && p.itemsTotal !== null && p.liveItem >= p.itemsTotal - 1;
+  if (naive(before)) controls.push('「#12 = 착륙」 옛 판정은 LAND 진행 중을 착륙으로 본다'); else failures.push('대조군(#12 = 착륙)이 안 걸렸다');
+}
+
 if (failures.length > 0) {
   console.error('❌ verify:flight-run');
   for (const failure of failures) console.error('  - ' + failure);
   process.exit(1);
 }
-console.log(`✅ 통과 — 예상 시간 · 파라미터 · 출력 읽기 · dry-run 짝 · 스크립트 고르기 (대조군 ${controls.length}개: ${controls.join(' / ')})`);
+console.log(`✅ 통과 — 예상 시간 · 파라미터 · 출력 읽기 · dry-run 짝 · 스크립트 고르기 · 착륙 상태(FC 미션 완료 · [착륙감시]) (대조군 ${controls.length}개: ${controls.join(' / ')})`);
