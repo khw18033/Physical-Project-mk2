@@ -142,6 +142,7 @@
     "verify:gen-prompt": "node scripts/verify-gen-prompt.mjs",
     "verify:goldset-en": "node scripts/verify-goldset-en.mjs",
     "verify:sar": "node scripts/verify-sar.mjs",
+    "verify:arm-keys": "node scripts/verify-arm-keys.mjs",
     "verify:manual-control": "node scripts/verify-manual-control.mjs",
     "verify:video-records": "node scripts/verify-video-records.mjs",
     "test:drone": "cd drone && .venv/bin/python -m pytest -q",

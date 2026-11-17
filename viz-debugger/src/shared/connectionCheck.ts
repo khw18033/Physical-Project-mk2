@@ -116,13 +116,14 @@ async function waitForRobot(get: (() => RobotFacts | null) | null, timeoutMs = 6
  */
 export async function checkPhysicalAll(
   clients: readonly { probe: PhysicalProbe; address: string }[],
-  robotSource: RobotFacts | (() => RobotFacts | null) | null = null,
+  robotSource: RobotFacts | ((address?: string) => RobotFacts | null) | null = null,
 ): Promise<readonly HealthLine[]> {
-  if (clients.length === 0) return checkPhysical(null, robotSource);
+  if (clients.length === 0) return checkPhysical(null, typeof robotSource === 'function' ? () => robotSource() : robotSource);
   const out: HealthLine[] = [];
   for (const { probe, address } of clients) {
     // **한 줄로 합치지 않는다.** 하나가 죽어도 나머지 주소의 결과는 그대로 보여야 한다.
-    const lines = await checkPhysical(probe, robotSource);
+    // 로봇 줄은 **그 브로커의 장비**로 칠한다(261117) — 주소를 넘긴다. 안 넘기면 모든 줄이 같은 한 대를 본다.
+    const lines = await checkPhysical(probe, typeof robotSource === 'function' ? () => robotSource(address) : robotSource);
     for (const row of lines) {
       out.push(clients.length === 1 ? row : { ...row, id: `${row.id}@${address}`, scope: address });
     }
@@ -469,7 +470,7 @@ export async function checkGenerate(): Promise<readonly HealthLine[]> {
 export async function checkTarget(
   target: ConnectionTargetId,
   physical: PhysicalProbe | null,
-  robot: RobotFacts | (() => RobotFacts | null) | null = null,
+  robot: RobotFacts | ((address?: string) => RobotFacts | null) | null = null,
   nav: NavProbe | null = null,
   /**
    * **주소가 여럿일 때의 상대들** (260922). 주면 이쪽이 이긴다 — `physical` 인자는 상대가
@@ -481,7 +482,7 @@ export async function checkTarget(
   try {
     if (target === 'physical') {
       setHealth(target, physicalAll === null
-        ? await checkPhysical(physical, robot)
+        ? await checkPhysical(physical, typeof robot === 'function' ? () => robot() : robot)
         : await checkPhysicalAll(physicalAll, robot));
     }
     // 261002 — 고정 카메라. 카메라마다 이미지 한 장이 받아지는가(`src/fixedcam/`).

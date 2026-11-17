@@ -33,6 +33,7 @@ import {
   approachWords, canApproach, emergencyStop, issueApproach, pauseMission, resumeMission,
 } from './robotCommands.ts';
 import { robotClient } from './robotClient.ts';
+import { stopAllArms } from './armKeys.ts';
 import { approachIsAuto, useApproachNeedsApproval, useAutoApproach } from './approachAuto.ts';
 import { markStarted, robotSession, useRobotSession } from './robotSession.ts';
 import { useDetect } from '../detect/store.ts';
@@ -56,7 +57,8 @@ export function StopButton() {
     // **비활성화하지 않는다.** 연결이 없어도 누를 수 있어야 한다 — 2·3·4 는 그래도 일어난다.
     // 자율주행 편(pi1 중계)은 pi7 로 abort 를 보내지 않는다 — 엉뚱한 로봇이 선다 (`navControl.ts` · 260915).
     // 장치 두 대 편(260927)은 화면이 모는 판을 세운다 — 그 편은 pi7 에 아무것도 안 보냈다.
-    onClick={() => void (local ? stopLocalRun() : relayDriven(currentMission().missionId) ? stopRelayRun() : emergencyStop(robotClient()))}
+    // 261117 — 로봇팔은 어느 갈래든 따로 세운다(`stopAllArms`). 팔의 정지는 `abort` 가 아니라 `stop` 이고, 첫 브로커에 없을 수 있다.
+    onClick={() => { stopAllArms(); void (local ? stopLocalRun() : relayDriven(currentMission().missionId) ? stopRelayRun() : emergencyStop(robotClient())); }}
     title={t('stop.stopTitle')}
   >
     {t('stop.stop')}

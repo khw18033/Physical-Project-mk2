@@ -55,12 +55,15 @@ import { DroneDetailModal, useIsDrone } from './DroneDetailModal.tsx';
 import { deviceCandidates, subscribeDeviceIdentity } from '../physical/deviceIdentity.ts';
 import { isManualRobot } from '../physical/manualControl.ts';
 import { ManualControlTab } from './ManualControlTab.tsx';
+import { ArmControlTab } from './ArmControlTab.tsx';
+import { isArmDevice } from '../physical/armControl.ts';
+import { useDeviceTelemetry } from '../shared/deviceTelemetry.ts';
 
 /**
  * 탭 (261111). 드론이 아닌 장비(Go1 등)는 **상태와 카메라를 가른다** — 한 판에 상태 그래프와 영상 셋이 함께 서면
  * 상태를 보려 해도 영상이 길게 밀고 내려왔다. 수동 제어는 로봇일 때만.
  */
-const DEVICE_TABS = ['status', 'camera', 'manual'] as const;
+const DEVICE_TABS = ['status', 'camera', 'manual', 'arm'] as const;
 type DeviceTab = (typeof DEVICE_TABS)[number];
 
 export function DeviceStatusOverlay({ deviceId, device, source, onClose }: {
@@ -107,9 +110,15 @@ export function DeviceStatusOverlay({ deviceId, device, source, onClose }: {
   const facts = useSyncExternalStore(subscribeDeviceIdentity,
     () => deviceCandidates().find((candidate) => candidate.deviceId === deviceId) ?? null);
   const robot = isManualRobot(facts, { drone, fixedCamera: viewOnly });
+  /**
+   * **로봇팔이면 로봇팔 제어 탭** (261117 — MT4). 팔은 `actuator` 로 자기를 소개해 위 판정에 안 걸린다. 팔 동작을 선언했거나
+   * 상태에 `arm_state` 를 싣는 장비다(`isArmDevice`). 상태는 5초마다 오므로 그것을 따라 다시 그린다.
+   */
+  useDeviceTelemetry();
+  const arm = !drone && !viewOnly && isArmDevice(facts?.actions ?? null, deviceId);
   const [tab, setTab] = useState<DeviceTab>('status');
   // 고정 카메라 · 3D 가상환경은 보기만 하는 한 판이라 탭이 없다.
-  const tabs = viewOnly ? [] : DEVICE_TABS.filter((item) => item !== 'manual' || robot);
+  const tabs = viewOnly ? [] : DEVICE_TABS.filter((item) => (item !== 'manual' || robot) && (item !== 'arm' || arm));
   // 여는 길이 둘(더블클릭·앞으로 늘 수 있는 다른 경로)이면 닫는 길도 둘 이상이어야 한다.
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') onClose(); };
@@ -131,7 +140,7 @@ export function DeviceStatusOverlay({ deviceId, device, source, onClose }: {
         </nav>}
         <button onClick={onClose}>{t('dso.1')}</button>
       </header>
-      {robot && tab === 'manual' ? <ManualControlTab deviceId={deviceId} /> : <>
+      {robot && tab === 'manual' ? <ManualControlTab deviceId={deviceId} /> : arm && tab === 'arm' ? <ArmControlTab deviceId={deviceId} /> : <>
       {/* **오는 값만 적는다** (260910). 안 오는 칸은 자리표시로 채우지 않고 아예 안 그린다. */}
       {/* 261110 — 드론이 아닌 장비(Go1 등)는 드론 상태판과 같은 모양(`GroundDash`). 값의 출처는 `DeviceFacts` 와 같다. */}
       {twin ? <TwinSection entityId={deviceId} /> : fixedCamera ? <FixedCameraSection entityId={deviceId} /> : tab === 'status' && <GroundDash entityId={deviceId} />}

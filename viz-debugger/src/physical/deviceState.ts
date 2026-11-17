@@ -76,6 +76,17 @@ export function parseTopic(topic: string): { zone: string; entityType: string; e
   return { zone, entityType, entityId, channel };
 }
 
+/**
+ * **`link` 가 없는 장비의 내부 링크 — 시리얼** (261117 — 로봇팔 MT4).
+ *
+ * `link` 는 「파이 너머의 그 장비 자신이 붙어 있는가」(Go1 은 로봇 ↔ 파이)다. MT4 는 같은 물음의 답을 `serial_ok`
+ * (팔 ↔ 파이 시리얼)로 보낸다. 그것이 없으면 연결 관리의 로봇 줄이 늘 「내부 링크 값이 안 왔습니다 · ?」였다.
+ * 장비가 보낸 값만 옮긴다 — `serial_ok` 가 없으면 `null`(모른다)이다.
+ */
+function serialLink(body: Record<string, unknown>): string | null {
+  return body.serial_ok === true ? 'ok' : body.serial_ok === false ? 'serial_lost' : null;
+}
+
 const num = (value: unknown): number | null => (typeof value === 'number' && Number.isFinite(value) ? value : null);
 const str = (value: unknown): string | null => (typeof value === 'string' && value !== '' ? value : null);
 
@@ -105,7 +116,7 @@ export function applyDeviceMessage(
     // 끊기면 LWT 가 offline 을 대신 넣는다 — 그 사실이 이 한 줄이다.
     if (typeof body.status === 'string') merged.online = body.status === 'online';
     merged.health = str(body.device_status) ?? merged.health;
-    merged.link = str(body.link) ?? merged.link;
+    merged.link = str(body.link) ?? serialLink(body) ?? merged.link;
     merged.mode = str(body.robot_mode) ?? merged.mode;
     if (typeof body.in_mission === 'boolean') merged.inMission = body.in_mission;
     merged.batteryPct = num(body.battery_pct) ?? merged.batteryPct;
@@ -122,6 +133,7 @@ export function applyDeviceMessage(
     merged.health = str(body.device_status) ?? merged.health;
     merged.mode = str(body.robot_mode) ?? merged.mode;
     merged.speedMps = num(body.speed_mps) ?? merged.speedMps;
+    merged.link = str(body.link) ?? serialLink(body) ?? merged.link;
     const position = body.position as Record<string, unknown> | undefined;
     if (position !== undefined) {
       const x = num(position.x);

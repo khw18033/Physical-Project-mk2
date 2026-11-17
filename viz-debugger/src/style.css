@@ -1490,3 +1490,23 @@ button.flight-armed:not(:disabled){color:#fff!important;border-color:#8f1d22!imp
 .seq-map__north path{fill:#6a7686}
 .seq-map__north text{fill:#6a7686;font-size:9px;text-anchor:middle}
 .seq-map__scale{fill:#8a95a3;font-size:9px}
+
+/* 261117 — 로봇팔 제어 탭 (ArmControlTab) */
+.arm-buttons,.arm-tools__row,.arm-jog__row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.arm-btn{padding:7px 14px;border:1px solid #9fb0c4;border-radius:var(--radius-sm);background:#f5f8fc;font-weight:700}
+.arm-btn:disabled{opacity:.45;cursor:not-allowed}
+.arm-btn--stop{color:#fff;border-color:#c0392b;background:#c0392b}
+.arm-btn--danger{color:#a33a3a;border-color:#e15a5a;background:#fff}
+.arm-jog{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px}
+.arm-jog__row b,.arm-tools__row b{min-width:48px}
+.arm-jog__row small,.arm-tools__row small{color:#6a7686;font-size:12px}
+.arm-tools{display:grid;gap:8px}
+.arm-move{display:grid;gap:10px}
+.arm-inline{display:flex;align-items:center;gap:6px;font-size:13px}
+.arm-inline input{width:80px;padding:5px 7px;border:1px solid #bec8d5;border-radius:var(--radius-xs)}
+.arm-table td,.arm-table th{text-align:right;font-variant-numeric:tabular-nums}
+.arm-last--ok{color:#1f6b3a}
+.arm-last--bad{color:#a33a3a}
+.arm-last--warn{color:#8a4b00}
+.arm-panes{align-self:flex-start}
+.arm-keymap{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px}

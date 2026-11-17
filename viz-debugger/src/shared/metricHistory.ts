@@ -101,13 +101,24 @@ export const TREND_PATHS = [
   'position.x',
   'position.y',
   'position.heading_deg',
+  // 로봇팔 MT4 (261117) — 관절 · 끝점 · 펌프. 상태 탭의 그래프 타일(`ArmDash.tsx`)
+  'joints_deg.j1',
+  'joints_deg.j2',
+  'joints_deg.j3',
+  'joints_deg.j4',
+  'tcp.x',
+  'tcp.y',
+  'tcp.z',
+  'pump_pwm',
 ] as const;
 
 /**
  * 범주 — 상태 타일 하나하나가 띠 그래프가 된다(261111). 드론 비행 모드 · 무장 · GPS 고정, Go1 생사(`status`) ·
  * 로봇 링크 · 장비 상태 · 로봇 모드 · 임무 중 · 구동 브리지. 참/거짓은 `'true'` · `'false'` 로 적는다.
  */
-const STATE_PATHS = ['flight.mode', 'flight.armed', 'gps.fix', 'robot_mode', 'status', 'link', 'device_status', 'in_mission', 'sdk.ready'] as const;
+const STATE_PATHS = ['flight.mode', 'flight.armed', 'gps.fix', 'robot_mode', 'status', 'link', 'device_status', 'in_mission', 'sdk.ready',
+  // 로봇팔 MT4 (261117)
+  'arm_state', 'homed', 'serial_ok', 'control_locked'] as const;
 /** FC 확장 텔레메트리가 살아 있으면 `/state` 쪽을 안 적는 범주. */
 const FCX_STATES = new Set<string>(['flight.mode', 'flight.armed', 'gps.fix']);
 

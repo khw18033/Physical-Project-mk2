@@ -23,7 +23,7 @@ import { hardwareTarget } from './encode.ts';
 import { isStale, STALE_AFTER_MS, useDeviceStates, type DeviceState } from './deviceState.ts';
 import { useRobotSession } from './robotSession.ts';
 import { connectedDevice, useConnectedDevices } from '../shared/connectedDevices.ts';
-import { isTelemetryStale, TELEMETRY_STALE_MS, useDeviceTelemetry, type DeviceTelemetry } from '../shared/deviceTelemetry.ts';
+import { isTelemetryStale, TELEMETRY_STALE_MS, telemetryValue as telemetryAt, useDeviceTelemetry, type DeviceTelemetry } from '../shared/deviceTelemetry.ts';
 import { mqttFilled, sdkWords, telemetryValue } from './DeviceFacts.tsx';
 import { Compass, Panel, Row, Stat, StatGrid, type Level } from '../dronedash/DroneDash.tsx';
 import { useTick } from '../sar/useTick.ts';
@@ -32,10 +32,12 @@ import { useState } from 'react';
 import { AGE_KEY, metricSeries, rowKey, stateSeries, type MetricPoint } from '../shared/metricHistory.ts';
 import { CellToggles, GraphGrid, GraphStat, TREND_TICK_MS, deltaWords } from '../dronedash/Trend.tsx';
 import '../dronedash/dronedash.css';
+import { ArmInfoPanel, ArmStatusGraphs, armStateLevel } from './ArmDash.tsx';
+import { isArmDevice } from './armControl.ts';
 
 type Source =
   | { kind: 'mqtt'; device: DeviceState }
-  | { kind: 'report'; report: DeviceTelemetry | null; lastSeenMs: number }
+  | { kind: 'report'; entityId: string; report: DeviceTelemetry | null; lastSeenMs: number }
   | { kind: 'none' };
 
 /** 어느 원천으로 그릴지 — `HardwareLink` · `DeviceFacts` 와 같은 갈래. */
@@ -47,7 +49,7 @@ function useGroundSource(entityId: string): Source {
   const report = reports[entityId] ?? null;
   const viaState = connectedDevice(entityId);
   if (!mqttFilled(device) && (viaState !== null || report !== null)) {
-    return { kind: 'report', report, lastSeenMs: viaState?.lastSeenMs ?? report?.receivedAtMs ?? Date.now() };
+    return { kind: 'report', entityId, report, lastSeenMs: viaState?.lastSeenMs ?? report?.receivedAtMs ?? Date.now() };
   }
   if (device === null) return { kind: 'none' };
   return { kind: 'mqtt', device };
@@ -112,8 +114,11 @@ function GroundStatusBar({ source, size }: { source: Source; size: Size }) {
     const stale = source.report !== null && isTelemetryStale(source.report);
     // 카드 몫(`onCard`)만 타일로 — 어느 줄이 카드 몫인지는 줄이 들고 온다(`stateRows.ts`).
     const rows = (source.report?.rows ?? []).filter((row) => row.onCard === true);
+    const armState = isArmDevice(null, source.entityId) ? telemetryAt(source.entityId, 'arm_state') : undefined;
     return <StatGrid size={size}>
       <Stat level={stale ? 'unknown' : 'good'} label={t('df.2')} value={t('hl.connected')} />
+      {/* 로봇팔 (261117) — 팔 상태가 카드에서 바로 보이게. 줄 목록에 없는 값이다(`ArmDash.tsx`). */}
+      {typeof armState === 'string' && <Stat level={stale ? 'unknown' : armStateLevel(armState)} label={t('arm.dash.state')} value={armState} />}
       {rows.map((row, index) => <Stat key={`${row.labelKey ?? row.rawLabel ?? ''}-${index}`} level={stale ? 'unknown' : 'good'}
         label={row.labelKey === null ? (row.rawLabel ?? '') : t(row.labelKey)} value={telemetryValue(row)} />)}
       <Stat level={stale ? 'bad' : 'good'} label={t('df.lastSeen')} value={`${ago(source.lastSeenMs)} s`} />
@@ -155,6 +160,8 @@ function GroundStatusGraphs({ source, historyId, compact }: { source: Source; hi
   const ages = metricSeries(historyId, AGE_KEY);
   if (source.kind === 'none') return <GroundStatusBar source={source} size={compact ? 'compact' : 'full'} />;
   if (source.kind === 'report') {
+    // 로봇팔 (261117) — 줄 목록에 팔 값이 없어 「마지막 수신」만 남던 자리. 팔이면 팔 판이 그린다.
+    if (isArmDevice(null, source.entityId)) return <ArmStatusGraphs entityId={source.entityId} report={source.report} lastSeenMs={source.lastSeenMs} compact={compact} />;
     const stale = source.report !== null && isTelemetryStale(source.report);
     const rows = (source.report?.rows ?? []).filter((row) => row.onCard === true);
     return <GraphGrid compact={compact}>
@@ -243,6 +250,7 @@ export function GroundDash({ entityId, compact = false }: { entityId: string; co
   if (source.kind === 'report') return <div className={`ground-dash${compact ? ' ground-dash--compact' : ' sar-zoom dash-zoom'}`}>
     {toggles}
     {status}
+    {!compact && isArmDevice(null, entityId) && <ArmInfoPanel entityId={entityId} />}
     {(!compact || !flow) && source.report !== null && <Panel title={t('gdash.reported')}><ReportRows report={source.report} /></Panel>}
   </div>;
 

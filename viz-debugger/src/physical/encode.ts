@@ -88,7 +88,12 @@ export type PhysicalAction =
   | 'teleop'
   // 임무용 상대 이동 — 뒤로 · 옆으로 · 대각선 (261005 · pi7 구현, 실물 미시험). `dx_m` 앞 + · `dy_m` 왼쪽 + · `v_mps`.
   // 장비가 `Capability` 에 선언해야 문장 해석이 받는다 — `stepScript.ts`.
-  | 'move_relative';
+  | 'move_relative'
+  // 로봇팔 MT4 (261117 · pi6 `pi/arm/arm_node.py`) — 원점복귀 · 관절/직교 이동 · 조그 · 펌프 · 그리퍼 · 정지/재개/리셋.
+  // 정지 이름이 Go1 의 `abort` 가 아니라 `stop` 이다 — `armControl.ts`.
+  | 'home' | 'move_joint' | 'move_cart' | 'jog_joint' | 'pump' | 'gripper' | 'stop' | 'resume' | 'reset'
+  // 로봇팔 연속 조그 (261117 · pi6 에 요청 중) — vx·vy·vz(mm/s) · vj4(deg/s) · hold_ms. 200ms 유지 신호 — `armKeys.ts`.
+  | 'jog';
 
 /**
  * **장비가 선언한 action 이름 그대로** (261005 · 수동 제어 추가 동작).

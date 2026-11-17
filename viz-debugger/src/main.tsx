@@ -59,6 +59,8 @@ import { startTaskRunner } from './physical/taskRunner.ts';
 import { startApproachAuto } from './physical/approachAuto.ts';
 import { startManualDispatch } from './physical/manualDispatch.ts';
 import { ManualControlBadge } from './views/ManualControlBadge.tsx';
+import { startArmKeys } from './physical/armKeys.ts';
+import { ArmKeysBadge } from './views/ArmKeysBadge.tsx';
 import { FlightRunBadge } from './views/FlightRunBadge.tsx';
 import { RecordingBadge } from './views/RecordingBadge.tsx';
 import { ServerCard } from './shell/ServerCard.tsx';
@@ -609,6 +611,8 @@ export function MissionDebugger({ navigation, planApproval }: { navigation?: Deb
    * 켜 둔 장비를 몰 수 있어야 한다. 켜진 장비가 없으면 키를 하나도 안 가로챈다.
    */
   useEffect(() => startManualDispatch(), []);
+  // 261117 — 로봇팔 키보드 제어. Go1 처리기 뒤에 걸린다 — 같은 키를 Go1 이 가로채도 팔이 받는다(`armKeys.ts`).
+  useEffect(() => startArmKeys(), []);
   /**
    * 하드웨어 카드의 창을 쓸어 준다 (260921). **조용해지는 것은 값이 안 올 때 일어나므로**
    * 아무도 저장소를 안 건드리고, 그러면 꺼진 장비의 카드가 그대로 남는다.
@@ -770,7 +774,7 @@ export function MissionDebugger({ navigation, planApproval }: { navigation?: Deb
 
   const firstFailed = graphTasks.find((task) => folded.tasks[task.id]?.status === 'failed') ?? null;
 
-  return <div className="mission-debugger"><div className="corner-alerts"><FlightRunBadge /><ManualControlBadge /><RecordingBadge /></div>{screen === 'milestones'
+  return <div className="mission-debugger"><div className="corner-alerts"><FlightRunBadge /><ManualControlBadge /><ArmKeysBadge /><RecordingBadge /></div>{screen === 'milestones'
     ? <Milestones view={view} phase={display.phase} milestoneStatuses={milestoneStatuses} assignments={assignments} onAssign={(id, hardware) => {
       // 자리를 쓰는 마일스톤이면 자리에 앉힌다 (260927) — 한 번 앉히면 그 자리를 쓰는 마일스톤 전부가 같은 장비다.
       const slots = view.milestones.find((item) => item.id === id)?.slots;
