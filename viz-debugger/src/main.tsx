@@ -53,6 +53,7 @@ import { robotClient } from './physical/robotClient.ts';
 import { framesUpTo } from './viewpoint/store.ts';
 import { startMissionRecorder } from './record/recorder.ts';
 import { startControlRecorder } from './record/controlRecorder.ts';
+import { startHistoryServerWatch } from './record/historyServer.ts';
 import { startNavLink } from './physical/navLink.ts';
 import { startObstacleWatch } from './autodrive/watch.ts';
 import { startTaskRunner } from './physical/taskRunner.ts';
@@ -588,6 +589,11 @@ export function MissionDebugger({ navigation, planApproval }: { navigation?: Deb
    * 같은 이유로 여기 둔다 — 화면을 옮겨도 키보드 조작은 계속 나간다.
    */
   useEffect(() => startControlRecorder(), []);
+  /**
+   * **임무 이력 서버 확인** (261119). 주소는 임무 이력 탭 맨 위에서 넣지만, 붙었는지는 탭을 안 열어도 알아야 한다 —
+   * 기록기가 도는 동안 서버로도 보낼지가 이것으로 정해진다. 주소가 없으면 아무것도 묻지 않는다.
+   */
+  useEffect(() => startHistoryServerWatch(), []);
 
   /**
    * **pi1 중계 → 자율주행 노드** (260915). 같은 이유로 여기 둔다 — 노드를 눌러 그래프로 들어가도

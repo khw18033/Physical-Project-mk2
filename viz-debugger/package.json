@@ -147,7 +147,11 @@
     "verify:video-records": "node scripts/verify-video-records.mjs",
     "test:drone": "cd drone && .venv/bin/python -m pytest -q",
     "verify:control-record": "node scripts/verify-control-record.mjs",
-    "verify:metric-history": "node scripts/verify-metric-history.mjs"
+    "verify:metric-history": "node scripts/verify-metric-history.mjs",
+    "verify:history-server": "node scripts/verify-history-server.mjs",
+    "history:mock": "node scripts/history-server-mock.mjs",
+    "history:check": "node scripts/check-history-server.mjs",
+    "history:push": "node scripts/push-history-to-server.mjs"
   },
   "dependencies": {
     "mqtt": "^5.15.2",

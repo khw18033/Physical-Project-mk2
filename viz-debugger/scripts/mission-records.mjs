@@ -99,21 +99,33 @@ export function listRuns(root = recordsDir()) {
   return runs.sort((a, b) => `${b.date}/${b.run}`.localeCompare(`${a.date}/${a.run}`));
 }
 
-/** 미들웨어 본체. 내 주소가 아니면 `next()`. */
-export function missionRecordsMiddleware(root = recordsDir()) {
+/**
+ * 창구 경로 (261119). 기본은 개발 서버의 `/mission-records/api/runs` · `/mission-records/files`.
+ * 임무 이력 서버 규약(`/api/v1/runs` · `/api/v1/files`)으로 띄울 때는 가짜 서버(`history-server-mock.mjs`)가
+ * 경로만 바꿔 같은 본체를 쓴다 — 규약 문서의 모양과 이 창구의 모양이 한 벌이다.
+ */
+const LOCAL_ROUTES = { runs: `${RECORDS_URL}/api/runs`, files: `${RECORDS_URL}/files`, dir: null };
+
+/** 미들웨어 본체. 내 주소가 아니면 `next()`. `routes.dir` 이 있으면 목록의 `dir` 자리에 실제 폴더 대신 그 이름을 적는다. */
+export function missionRecordsMiddleware(root = recordsDir(), routes = LOCAL_ROUTES) {
   return async (req, res, next) => {
     const url = (req.url ?? '').split('?')[0];
-    if (!url.startsWith(`${RECORDS_URL}/`)) return next();
-    const parts = url.slice(RECORDS_URL.length + 1).split('/').map((part) => decodeURIComponent(part));
+    const inRuns = url === routes.runs || url.startsWith(`${routes.runs}/`);
+    const inFiles = url.startsWith(`${routes.files}/`);
+    if (!inRuns && !inFiles) return next();
+    const tail = url.slice((inRuns ? routes.runs : routes.files).length + 1);
+    const parts = [...(inRuns ? ['api', 'runs'] : ['files']), ...(tail === '' ? [] : tail.split('/'))]
+      .map((part) => decodeURIComponent(part));
     try {
       if (parts[0] === 'api' && parts[1] === 'runs') {
-        if (parts.length === 2 && req.method === 'GET') return send(res, 200, { dir: root, runs: listRuns(root) });
+        if (parts.length === 2 && req.method === 'GET') return send(res, 200, { dir: routes.dir ?? root, runs: listRuns(root) });
         const [, , date, run, ...rest] = parts;
         if (!DATE.test(date ?? '') || !RUN.test(run ?? '')) return send(res, 400, { error: '날짜·판 이름 형식이 아닙니다' });
         const runDir = join(root, date, run);
         if (rest.length === 1 && JSON_FILE.test(rest[0]) && req.method === 'PUT') {
           const body = await readBody(req);
-          JSON.parse(body.toString('utf8'));        // 깨진 JSON 은 안 쓴다
+          // 깨진 JSON 은 안 쓴다 — 보낸 쪽 잘못이니 400 (261119 · 전에는 500 으로 나갔다).
+          try { JSON.parse(body.toString('utf8')); } catch { return send(res, 400, { error: '깨진 JSON 입니다' }); }
           writeAtomic(join(runDir, rest[0]), body);
           return send(res, 200, { ok: true, path: `${date}/${run}/${rest[0]}` });
         }
