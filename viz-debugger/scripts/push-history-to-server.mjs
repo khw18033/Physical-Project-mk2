@@ -18,7 +18,12 @@
 
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { recordsDir } from './mission-records.mjs';
+
+// DB 가 문자열 속 `\u0000` 을 못 받는다(HTTP 400) — 브라우저 올리기와 같은 함수로 뺀다(`src/record/jsonText.ts`).
+const { stripJsonNul } = await import(pathToFileURL(join(import.meta.dirname, '..', 'src', 'record', 'jsonText.ts')).href);
+const readJson = (file) => stripJsonNul(readFileSync(file, 'utf8'));
 
 const args = process.argv.slice(2);
 const flag = (name) => args.includes(`--${name}`);
@@ -74,15 +79,15 @@ for (const { date, run } of todo) {
     const put = async (url, body, type, method = 'PUT') => {
       const response = await fetch(url, { method, body, headers: { 'Content-Type': type } });
       if (!response.ok) throw new Error(`${method} ${url.slice(API.length)} → HTTP ${response.status} ${await response.text().catch(() => '')}`);
-      bytes += body.length;
+      bytes += typeof body === 'string' ? Buffer.byteLength(body) : body.length;
     };
-    if (existsSync(join(dir, 'progress.json'))) await put(`${base}/progress.json`, readFileSync(join(dir, 'progress.json')), 'application/json');
+    if (existsSync(join(dir, 'progress.json'))) await put(`${base}/progress.json`, readJson(join(dir, 'progress.json')), 'application/json');
     for (const { kind, name } of images) {
       const body = readFileSync(join(dir, 'images', kind, name));
       if (body.length === 0) continue;
       await put(`${base}/images/${kind}/${encodeURIComponent(name)}`, body, name.endsWith('.png') ? 'image/png' : 'image/jpeg', 'POST');
     }
-    await put(`${base}/mission.json`, readFileSync(join(dir, 'mission.json')), 'application/json');
+    await put(`${base}/mission.json`, readJson(join(dir, 'mission.json')), 'application/json');
     sent += 1;
     console.log(`  ok ${date}/${run} · 그림 ${images.length}장`);
   } catch (error) {

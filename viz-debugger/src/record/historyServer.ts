@@ -24,6 +24,7 @@
  */
 
 import { useSyncExternalStore } from 'react';
+import { stripJsonNul } from './jsonText.ts';
 
 export const HISTORY_API_PATH = '/api/v1';
 export const HISTORY_SERVICE = 'mission-history';
@@ -262,6 +263,11 @@ export async function writeToHistoryServer(path: string, method: 'PUT' | 'POST',
   body: string | Blob | Uint8Array): Promise<{ result: 'ok' | 'rejected' | 'failed'; reason: string }> {
   const base = historyApiBase();
   if (base === null) return { result: 'failed', reason: 'no server' };
+  // DB 가 `\u0000` 을 못 받는다(`jsonText.ts`) — JSON 은 어느 길로 오든(기록기 · 대피 판 올리기) 여기서 뺀다.
+  if (contentType === 'application/json') {
+    const text = typeof body === 'string' ? body : body instanceof Blob ? await body.text() : new TextDecoder().decode(body);
+    body = stripJsonNul(text);
+  }
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), WRITE_TIMEOUT_MS);
   try {

@@ -17,7 +17,8 @@
 // - **종료 코드는 없다**(`.out` 에 안 찍힌다) — `exitCode: null`. 대신 스크립트가 찍은 `[중단]` · `[오류]` 줄을 결과로 적는다.
 // - 텔레메트리는 판 시작 ~ 끝을 1.5초(`controlRecorder` 의 주기)마다, 그 시각 이전 5초 안에 온 값만 — 웹 기록기와 같은 규칙.
 //   mav.csv 에 없는 배터리 · 모드 · 무장은 칸을 만들지 않는다. 수신 간격도 브라우저가 잰 값이 아니므로 안 만든다.
-// - NULL 바이트로 깨진 줄은 건너뛴다(README).
+// - NULL 바이트로 깨진 줄은 건너뛴다(README). mav.csv 는 그 줄을 버리고, `.out` 은 NUL 만 지운다
+//   (끝에 붙은 NUL 은 빈 줄이 되어 빠진다).
 //
 // ## 판 나누기 — 웹 기록기와 같은 규칙
 //
@@ -59,7 +60,8 @@ const EPOCH = /^\[(\d+(?:\.\d+)?)\]/;
 function readRun(file) {
   const name = basename(file, '.out');
   const emergency = name.endsWith('-e');
-  const text = readFileSync(file, 'utf8').replace(/\r/g, '');
+  // 전원이 끊긴 판은 끝이 NUL 바이트로 채워진다(20261109_162004.out) — 지운다. 남으면 서버 DB 가 판을 거절한다.
+  const text = readFileSync(file, 'utf8').replace(/\r/g, '').replace(/\u0000/g, '');
   const raw = text.split('\n');
   while (raw.length > 0 && raw.at(-1).trim() === '') raw.pop();
   const lines = raw.map((t, seq) => ({ seq, text: t.trimEnd() }));
