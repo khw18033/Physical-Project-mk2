@@ -32,6 +32,13 @@
  * 탐지가 판을 다시 시작하면(`imageRound`) 같은 이름의 그림을 새로 떠서 덮는다.
  *
  * 다시보기 중에는 아무것도 안 쓴다. 창구가 없으면(단독 빌드 등) 조용히 멈춘다.
+ *
+ * ## 판마다 저장처 하나 (261119 — 임무 이력 서버 2차)
+ *
+ * 폴더를 정할 때 저장처도 정한다(`chooseSink` — 서버가 `연결됨` 이면 서버, 아니면 이 PC). 서버로 쓰던 판이
+ * 실패하면 **그 판은 끝까지 이 PC** 로 옮기고(대피), 서버에 이미 보낸 그림을 원본에서 다시 떠 이 PC 에도 쓴다
+ * — 판 하나가 두 곳에 나뉘면 어디서 열어도 깨진다. 대피한 판은 끝난 뒤 `historyUpload.ts` 가 통째로 올린다.
+ * 서버 주소가 있는데 쓸 곳이 하나도 없으면(이 PC 창구 없는 화면 + 서버 끊김) 멈추지 않고 다음 주기에 다시 고른다.
  */
 
 import { t } from '../i18n/dict.ts';
@@ -56,8 +63,10 @@ import { recordableObstacle } from '../autodrive/obstacle.ts';
 import { detectTargetOf, relayDriven } from '../scenarios/library.ts';
 import { useSyncExternalStore } from 'react';
 import {
-  detectImagePath, postRecordImage, putRecordJson, robotImagePath, runFolderOf, type RecordMissionSummary,
+  chooseSink, detectImagePath, nextSink, postRecordImage, putRecordJson, robotImagePath, runFolderOf,
+  type RecordMissionSummary, type RecordSink,
 } from './recordClient.ts';
+import { registerActiveRecordFolders } from './evacuations.ts';
 import { isReplayingRecord } from './replayMode.ts';
 
 /**
@@ -103,6 +112,10 @@ type Run = {
   imageLog: Record<string, { source: string; savedAtIso: string | null; attempts: number; error: string | null }>;
   /** 자율주행 편 — 이 판에서 중계 판을 연 시각. 안 열었으면 null. */
   navStartedAtMs: number | null;
+  /** 저장처 (261119). 폴더를 정할 때 고른다. null 이면 아직 쓸 곳이 없다 — 다음 주기에 다시 고른다. */
+  sink: RecordSink | null;
+  /** 서버로 보낸 그림 — 대피하면 이것을 원본에서 다시 떠 이 PC 에 쓴다. */
+  serverImages: Map<string, { signature: string; source: string | Uint8Array }>;
 };
 
 type ImageJob = {
@@ -117,12 +130,14 @@ type ImageJob = {
 export type RecorderStatus = {
   state: 'idle' | 'waiting' | 'recording' | 'unavailable';
   folder: string | null;
+  /** 지금 판의 저장처 (261119). 판이 없거나 아직 못 골랐으면 null. */
+  sink: RecordSink | null;
   lastSavedAtIso: string | null;
   lastError: string | null;
 };
 
 let run: Run | null = null;
-let status: RecorderStatus = { state: 'idle', folder: null, lastSavedAtIso: null, lastError: null };
+let status: RecorderStatus = { state: 'idle', folder: null, sink: null, lastSavedAtIso: null, lastError: null };
 const statusListeners = new Set<() => void>();
 const jobs = new Map<string, ImageJob>();
 let writing: Promise<void> = Promise.resolve();
@@ -130,7 +145,7 @@ let jobsRunning = false;
 
 function setStatus(next: Partial<RecorderStatus>): void {
   const merged = { ...status, ...next };
-  if (merged.state === status.state && merged.folder === status.folder
+  if (merged.state === status.state && merged.folder === status.folder && merged.sink === status.sink
     && merged.lastSavedAtIso === status.lastSavedAtIso && merged.lastError === status.lastError) return;
   status = merged;
   for (const listener of statusListeners) listener();
@@ -164,6 +179,8 @@ function currentRun(): Run | null {
       images: new Map(),
       imageLog: {},
       navStartedAtMs: null,
+      sink: null,
+      serverImages: new Map(),
     };
   }
   return run;
@@ -258,25 +275,48 @@ function buildBodies(target: Run): { mission: string; progress: string } {
   return { mission: JSON.stringify(summary, null, 2), progress: JSON.stringify(progress) };
 }
 
+/**
+ * **저장처를 다시 정한다** (261119). 서버로 쓰던 판이 실패하면 이 PC 로 옮긴다(대피). 두 JSON 은 다음 주기에 통째로
+ * 다시 쓰이고(`written` 을 비운다), 서버로 보낸 그림은 원본에서 다시 떠 이 PC 에 쓴다. 원본이 이미 없으면(탐지가 새 판)
+ * 그 그림은 서버에만 남는다. 서버 주소 없이 이 PC 창구가 없으면(404) 예전처럼 멈춘다.
+ */
+function moveSink(target: Run, from: RecordSink | null, error: unknown): void {
+  if (target.sink !== from) return;   // 이미 옮겼다 (그림 · JSON 이 같이 실패한 경우)
+  const next = nextSink(from, error);
+  if (next.stop) { setStatus({ state: 'unavailable', lastError: t('rec.1') }); return; }
+  target.sink = next.sink;
+  target.written = { mission: '', progress: '' };
+  if (next.sink === 'local' && from === 'server') {
+    for (const [path, image] of target.serverImages) {
+      target.images.delete(path);
+      want(target, path, image.signature, image.source);
+    }
+    target.serverImages.clear();
+  }
+  setStatus({ sink: target.sink, lastError: error instanceof Error ? error.message : String(error) });
+}
+
 function write(target: Run, bodies: { mission: string; progress: string }): void {
   const folder = target.folder;
   if (folder === null) return;
+  const sink = target.sink;
+  if (sink === null) return;
   const missionChanged = bodies.mission.replace(/"updatedAtIso": "[^"]*"/, '') !== target.written.mission.replace(/"updatedAtIso": "[^"]*"/, '');
   const progressChanged = bodies.progress.replace(/"updatedAtIso":"[^"]*"/, '') !== target.written.progress.replace(/"updatedAtIso":"[^"]*"/, '');
   if (!missionChanged && !progressChanged) return;
   target.written = bodies;
   // 차례로 쓴다 — 같은 파일을 두 요청이 겹쳐 쓰면 늦게 출발한 것이 먼저 끝날 수 있다.
   writing = writing.then(async () => {
+    // 앞 쓰기가 실패해 저장처가 바뀌었으면 이 본문은 안 보낸다 — 다음 주기가 새 저장처에 통째로 쓴다.
+    if (target.sink !== sink) return;
     try {
-      if (progressChanged) await putRecordJson(folder.date, folder.run, 'progress.json', bodies.progress);
-      await putRecordJson(folder.date, folder.run, 'mission.json', bodies.mission);
-      setStatus({ state: 'recording', folder: `${folder.date}/${folder.run}`, lastSavedAtIso: new Date().toISOString(), lastError: null });
+      if (progressChanged) await putRecordJson(folder.date, folder.run, 'progress.json', bodies.progress, sink);
+      await putRecordJson(folder.date, folder.run, 'mission.json', bodies.mission, sink);
+      setStatus({ state: 'recording', folder: `${folder.date}/${folder.run}`, sink, lastSavedAtIso: new Date().toISOString(), lastError: null });
     } catch (error) {
-      const why = error instanceof Error ? error.message : String(error);
-      // 창구가 아예 없으면(404) 멈춘다 — 매 주기 실패를 쌓지 않는다.
-      if (/ 404$/.test(why)) { setStatus({ state: 'unavailable', lastError: t('rec.1') }); return; }
+      // 창구가 아예 없으면(404 · 서버 주소 없음) 멈춘다 — 매 주기 실패를 쌓지 않는다. 서버 실패면 이 PC 로 대피.
       target.written = { mission: '', progress: '' };   // 다음 주기에 다시 쓴다
-      setStatus({ lastError: why });
+      moveSink(target, sink, error);
     }
   });
 }
@@ -326,13 +366,25 @@ async function runJobs(): Promise<void> {
   jobsRunning = true;
   try {
     for (const [key, job] of [...jobs]) {
+      // 저장처가 아직 없다 — 셈을 안 늘리고 다음 주기에.
+      const sink = job.run.sink;
+      if (sink === null) continue;
       job.attempts += 1;
       const log = job.run.imageLog[job.path];
       try {
         const bytes = typeof job.source === 'string'
           ? await fetchImage(job.source)
           : job.source;
-        await postRecordImage(job.folder.date, job.folder.run, job.path, bytes);
+        try {
+          await postRecordImage(job.folder.date, job.folder.run, job.path, bytes, sink);
+        } catch (error) {
+          // 저장 쪽 실패 — 원본 탓이 아니므로 셈을 되돌리고 저장처를 다시 정한다. 그림은 줄에 남아 새 저장처로 간다.
+          job.attempts -= 1;
+          moveSink(job.run, sink, error);
+          if (status.state === 'unavailable') throw error;
+          continue;
+        }
+        if (sink === 'server') job.run.serverImages.set(job.path, { signature: job.signature, source: job.source });
         job.run.images.set(job.path, job.signature);
         if (log !== undefined) Object.assign(log, { savedAtIso: new Date().toISOString(), attempts: job.attempts, error: null });
         if (jobs.get(key) === job) jobs.delete(key);
@@ -379,6 +431,11 @@ export function recordTick(): void {
     target.folder = runFolderOf(new Date(startedAtMs), target.missionId);
     target.startedAtIso = new Date(startedAtMs).toISOString();
   }
+  // 저장처 (261119) — 판에 한 번. 못 골랐으면(쓸 곳이 없다) 주기마다 다시 고른다.
+  if (target.sink === null) {
+    target.sink = chooseSink();
+    setStatus({ sink: target.sink, ...(target.sink === null ? { lastError: t('hsrv.noSink') } : {}) });
+  }
   wantDetectImages(target);
   write(target, buildBodies(target));
   void runJobs();
@@ -422,6 +479,12 @@ export function noteRobotFrame(message: ScanFeedMessage): void {
   }
 }
 
+/** 지금 쓰고 있는 판 — 폴더가 섰고 아직 안 끝난 판 (261119). */
+export function activeFolders(): string[] {
+  if (run === null || run.folder === null || endOf(run) !== null) return [];
+  return [`${run.folder.date}/${run.folder.run}`];
+}
+
 let refs = 0;
 let stopAll: (() => void) | null = null;
 
@@ -433,7 +496,9 @@ export function startMissionRecorder(): () => void {
     const offSeal = onRunSeal(seal);
     // 끝나면 곧바로 쓴다 — 주기를 기다리는 사이에 「처음부터」를 누르면 끝 표시가 늦는다.
     const offEnd = subscribeMissionHistory(() => recordTick());
-    stopAll = () => { clearInterval(timer); offSeal(); offEnd(); };
+    // 대피 판 올리기에 「아직 쓰고 있는 판」을 알린다 — 끝나기 전에는 안 올린다 (261119).
+    const offActive = registerActiveRecordFolders(activeFolders);
+    stopAll = () => { clearInterval(timer); offSeal(); offEnd(); offActive(); };
   }
   return () => {
     refs -= 1;
@@ -446,7 +511,7 @@ export function resetRecorderForTest(): void {
   run = null;
   jobs.clear();
   writing = Promise.resolve();
-  status = { state: 'idle', folder: null, lastSavedAtIso: null, lastError: null };
+  status = { state: 'idle', folder: null, sink: null, lastSavedAtIso: null, lastError: null };
 }
 
 /** 검사용 — 밀린 쓰기와 그림이 끝날 때까지 기다린다. */

@@ -24,6 +24,7 @@ import { ObservabilityPanel } from './shared/ObservabilityPanel.tsx';
 import { measureFold, startObservability } from './shared/observability.ts';
 import { PendingSource } from './shared/PendingSource.tsx';
 import { MissionHistoryList, useMissionEndWatch } from './views/MissionHistory.tsx';
+import { HistoryServerBar } from './views/HistoryServerBar.tsx';
 import { deviceCardOrigin, hardwareSourceLabel, listRegisteredHardware, useDeviceCardIds } from './shared/registry.ts';
 import { startConnectedSweep } from './shared/connectedDevices.ts';
 import { startMetricSampler } from './shared/metricHistory.ts';
@@ -54,6 +55,7 @@ import { framesUpTo } from './viewpoint/store.ts';
 import { startMissionRecorder } from './record/recorder.ts';
 import { startControlRecorder } from './record/controlRecorder.ts';
 import { startHistoryServerWatch } from './record/historyServer.ts';
+import { startEvacuationUpload } from './record/historyUpload.ts';
 import { startNavLink } from './physical/navLink.ts';
 import { startObstacleWatch } from './autodrive/watch.ts';
 import { startTaskRunner } from './physical/taskRunner.ts';
@@ -501,6 +503,8 @@ function GraphScreen({ screen, view, trace, milestone, tasks, headSec, playing, 
   </nav>;
   return <div className={replay ? 'replay-layout' : ''}>{/* **손으로 쓴 네 줄이 실제 목록이 됐다** (260912 지시). 이 세션에서 끝난 판만
         쌓이고, 그 사실을 목록이 스스로 적는다. */}
+    {/* 261119 — 임무 이력 서버 띠. 상단 바와 목록 · 그래프 칸 사이에 가로로 길게 (지시) — 격자 첫 줄을 통째로 쓴다. */}
+    {replay && <HistoryServerBar />}
     {replay && <aside className="history"><h2>{t('graph.history')}</h2><MissionHistoryList /></aside>}
     {/* 261113 — 조작 판을 열면 그래프 자리에 크게 그린다. 그래프는 닫을 때 그대로 돌아온다. */}
     {controlOpen !== null && <ControlRecordView key={`${controlOpen.date}/${controlOpen.run}`} date={controlOpen.date} run={controlOpen.run} onClose={closeControlView} />}
@@ -594,6 +598,8 @@ export function MissionDebugger({ navigation, planApproval }: { navigation?: Deb
    * 기록기가 도는 동안 서버로도 보낼지가 이것으로 정해진다. 주소가 없으면 아무것도 묻지 않는다.
    */
   useEffect(() => startHistoryServerWatch(), []);
+  /** 대피 판 올리기 (261119 · 2차) — 서버가 안 붙어 이 PC 에 쓴 판을, 끝난 뒤 서버가 안정되면 통째로 올린다. */
+  useEffect(() => startEvacuationUpload(), []);
 
   /**
    * **pi1 중계 → 자율주행 노드** (260915). 같은 이유로 여기 둔다 — 노드를 눌러 그래프로 들어가도

@@ -21,11 +21,12 @@
  * 기록 창구가 없으면(개발 서버 밖) 이 세션에서 끝난 판만 그리고, 새로고침하면 빈다고 적는다.
  * DB 가 보관할 이력은 여전히 남이 줄 값이다(`mission-history` 자리표시).
  *
- * ## 임무 이력 서버 (261119)
+ * ## 임무 이력 서버 (261119 · 2차)
  *
- * 맨 위 서버 칸(`HistoryServerBar`)에 주소를 넣고 붙으면, 목록은 이 PC 파일과 서버를 합친 것이다.
- * 다른 장치에서 돌린 판도 여기 뜨고, 이 PC 에만 있는 판(아직 안 올라간 판)에는 딱지를 붙인다.
- * 서버가 붙어 있는 동안은 자리표시 대신 「어디를 보고 있나」를 적는다.
+ * 화면 위 서버 띠(`HistoryServerBar` — `main.tsx` 가 리플레이 격자 첫 줄에 그린다)에 주소를 넣고 서버가 답하면, 목록은 **서버 목록만**이다(합치지 않는다).
+ * 다른 장치에서 돌린 판도 여기 뜬다. 서버가 안 붙어 있으면 이 PC 목록이고, 그 사실을 적는다.
+ * 서버 목록을 보는 동안은 자리표시 대신 「서버 목록 · N판」을 적는다. 이 PC 에 대피한 판은 목록에 안 넣고
+ * 서버 칸에 개수만 적는다 — 서버로 올라가면 목록에 뜬다.
  */
 
 import { useEffect, useRef, useState } from 'react';
@@ -44,7 +45,6 @@ import {
   isControlSummary, listRecordedRuns, type RecordedRun, type RecordedRunList, type RecordMissionSummary,
 } from '../record/recordClient.ts';
 import { useHistoryServer } from '../record/historyServer.ts';
-import { HistoryServerBar } from './HistoryServerBar.tsx';
 import { useControlRecorderStatus, type ControlRecordSummary } from '../record/controlRecorder.ts';
 import { closeControlView, openControlView, useControlView } from '../record/controlView.ts';
 import { useRecorderStatus } from '../record/recorder.ts';
@@ -108,8 +108,9 @@ function useRecordedRuns(): { runs: RecordedRun[] | null; dir: string; listed: R
     lastRead.current = Date.now();
     void listRecordedRuns().then(setListed);
   };
-  // 처음 한 번 + 서버 주소 · 연결 · 서버 판 수가 바뀔 때.
-  useEffect(refresh, [server.address, server.state === 'connected', server.runCount]);
+  // 처음 한 번 + 서버 주소 · 서버 목록을 읽을 수 있나 · 서버 판 수가 바뀔 때.
+  const readable = server.state === 'connected' || server.state === 'unstable';
+  useEffect(refresh, [server.address, readable, server.runCount]);
   useEffect(() => {
     if (recorder.lastSavedAtIso === null && control.lastSavedAtIso === null) return;
     const wait = Math.max(0, 5000 - (Date.now() - lastRead.current));
@@ -128,8 +129,7 @@ export function MissionHistoryList({ compact = false }: { compact?: boolean }) {
   const entries = useMissionHistory();
   const { runs, dir, listed, refresh } = useRecordedRuns();
   const server = useHistoryServer();
-  // 이 PC 에만 있는 판에 딱지를 붙이는 것은 서버 목록을 읽었을 때뿐이다 — 안 읽었으면 어디에 없는지 모른다.
-  const serverListed = listed?.server === 'ok';
+  const serverListed = listed?.source === 'server';
   const recorder = useRecorderStatus();
   const replaying = useReplayTarget();
   const [opening, setOpening] = useState<string | null>(null);
@@ -154,8 +154,11 @@ export function MissionHistoryList({ compact = false }: { compact?: boolean }) {
     });
   };
 
+  // 서버 주소를 둔 동안은 지금 판이 어디에 쓰이는지 같이 적는다 (261119).
+  const sinkWords = server.state === 'unset' || recorder.sink === null ? ''
+    : recorder.sink === 'server' ? t('hist.recordingTo.server') : t('hist.recordingTo.local');
   const recorderLine = recorder.state === 'recording'
-    ? <>{t('hist.recordingNow')}<code>{recorder.folder}</code></>
+    ? <>{t('hist.recordingNow')}<code>{recorder.folder}</code>{sinkWords}</>
     : recorder.state === 'waiting'
       ? <>{t('hist.approvedRun')}</>
       : recorder.state === 'unavailable'
@@ -163,7 +166,6 @@ export function MissionHistoryList({ compact = false }: { compact?: boolean }) {
         : null;
 
   return <div className="history-list">
-    <HistoryServerBar />
     {replaying !== null && <div className="history-replaying">
       <b>{t('hist.replaying')}</b> <code>{replaying.date}/{replaying.run}</code>
       <button type="button" className="history-action" onClick={() => closeRecordReplay()}>{t('hist.closeReplay')}</button>
@@ -184,10 +186,10 @@ export function MissionHistoryList({ compact = false }: { compact?: boolean }) {
           <h3>{dateWords(date)} <small>{t('hist.runCount', { n: items.length })}</small></h3>
           <ul>
             {items.map((item) => isControlSummary(item.mission)
-              ? <ControlRunLine key={`${item.date}/${item.run}`} item={item} summary={item.mission} compact={compact} serverListed={serverListed}
+              ? <ControlRunLine key={`${item.date}/${item.run}`} item={item} summary={item.mission} compact={compact}
                 recording={controlRecorder.folders.includes(`${item.date}/${item.run}`)}
                 viewing={viewing !== null && viewing.date === item.date && viewing.run === item.run} onOpen={open} />
-              : <RunLine key={`${item.date}/${item.run}`} item={item} compact={compact} serverListed={serverListed}
+              : <RunLine key={`${item.date}/${item.run}`} item={item} compact={compact}
               recordingFolder={recorder.folder}
               replayingKey={replaying === null ? null : `${replaying.date}/${replaying.run}`}
               opening={opening} onOpen={open} />)}
@@ -198,13 +200,11 @@ export function MissionHistoryList({ compact = false }: { compact?: boolean }) {
         261119 — 서버 목록을 읽었으면 자리표시 대신 어디를 합쳐 보고 있는지 적는다. */}
     <p className="history-note">
       {serverListed && listed !== null && <>
-        {t('hsrv.source', { server: listed.serverCount, local: listed.local ? t('hsrv.sourceLocal', { dir }) : t('hsrv.sourceNoLocal') })}
-        {listed.localOnly > 0 && <> · <span className="is-warn">{t('hsrv.localOnlyCount', { n: listed.localOnly })}</span></>}
+        {t('hsrv.listServer', { n: listed.runs.length })}
         <button type="button" className="history-action" onClick={refresh}>{t('hist.refresh')}</button>
-        {listed.localOnly > 0 && <><br /><small>{t('hsrv.pushHint')}<code>npm run history:push</code></small></>}
       </>}
       {!serverListed && runs !== null && <>{t('hist.location')}<code>{dir}</code> <button type="button" className="history-action" onClick={refresh}>{t('hist.refresh')}</button><br /></>}
-      {!serverListed && listed?.server === 'failed' && <><span className="history-why">{t('hsrv.listFailed')}</span><br /></>}
+      {!serverListed && listed?.serverFailed === true && <><span className="history-why">{t('hsrv.listFailed')}</span><br /></>}
       {!serverListed && <PendingSource id="mission-history" inline>
         {runs === null
           ? t('hist.sessionOnly')
@@ -218,11 +218,10 @@ export function MissionHistoryList({ compact = false }: { compact?: boolean }) {
  * **조작 판 한 줄** (261110). 임무 판의 「노드 셈」 자리에 명령 · 거절 · 막힘 셈을, 결과 자리에 판이 닫힌 사유를 적는다.
  * 비행 판이면 실행기 결론(종료 코드 · 도달 단계)을 같이 적는다.
  */
-function ControlRunLine({ item, summary, compact, serverListed, recording, viewing, onOpen }: {
+function ControlRunLine({ item, summary, compact, recording, viewing, onOpen }: {
   item: RecordedRun;
   summary: ControlRecordSummary;
   compact: boolean;
-  serverListed: boolean;
   recording: boolean;
   viewing: boolean;
   onOpen(run: RecordedRun): void;
@@ -242,7 +241,6 @@ function ControlRunLine({ item, summary, compact, serverListed, recording, viewi
     {imported !== null && <span className="history-kind is-imported" title={t('ctl.importedTitle', { from: imported.from })}>{t('ctl.importedBadge')}</span>}
     <b>{summary.deviceId}</b>
     <span className="history-outcome">{closed}</span>
-    {serverListed && item.where?.server === false && <span className="history-kind is-local-only" title={t('hsrv.localOnlyTitle')}>{t('hsrv.localOnly')}</span>}
     <span className="history-count">{imported !== null ? t('ctl.importedCounts', { n: summary.telemetry?.samples ?? 0 }) : t('ctl.counts', summary.counts)}</span>
     <button type="button" className="history-action" onClick={() => onOpen(item)}>{t('ctl.view')}</button>
     {!compact && flight !== null && <small className="history-label">
@@ -259,10 +257,9 @@ function ControlRunLine({ item, summary, compact, serverListed, recording, viewi
   </li>;
 }
 
-function RunLine({ item, compact, serverListed, recordingFolder, replayingKey, opening, onOpen }: {
+function RunLine({ item, compact, recordingFolder, replayingKey, opening, onOpen }: {
   item: RecordedRun;
   compact: boolean;
-  serverListed: boolean;
   recordingFolder: string | null;
   replayingKey: string | null;
   opening: string | null;
@@ -281,7 +278,6 @@ function RunLine({ item, compact, serverListed, recordingFolder, replayingKey, o
     <time>{timeWords(item.run)}</time>
     <b>{mission?.missionId ?? item.run.slice(7)}</b>
     <span className="history-outcome">{outcomeWords}</span>
-    {serverListed && item.where?.server === false && <span className="history-kind is-local-only" title={t('hsrv.localOnlyTitle')}>{t('hsrv.localOnly')}</span>}
     {mission !== null && <span className="history-count">{t('hist.nodes', { done: mission.done, of: mission.of })}</span>}
     <button type="button" className="history-action" disabled={opening !== null || mission === null} onClick={() => onOpen(item)}>
       {opening === key ? t('hist.opening') : current ? t('hist.reload') : t('hist.replay')}

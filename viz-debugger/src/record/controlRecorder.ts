@@ -53,7 +53,8 @@ import { deviceCandidates } from '../physical/deviceIdentity.ts';
 import { flightRuns, landingOf, subscribeFlightRuns, readProgress, runOutcome, type FlightProcess } from '../physical/flightRunFeed.ts';
 import type { UplinkMessage } from '../physical/uplink.ts';
 import { recorderStatus } from './recorder.ts';
-import { putRecordJson, runFolderOf } from './recordClient.ts';
+import { chooseSink, nextSink, putRecordJson, runFolderOf, type RecordSink } from './recordClient.ts';
+import { registerActiveRecordFolders } from './evacuations.ts';
 import { hardwareTarget } from '../physical/encode.ts';
 import { AGE_KEY, lastSeenAt, latestMetric, latestState } from '../shared/metricHistory.ts';
 
@@ -207,6 +208,11 @@ type Session = {
   /** 폴더를 만들 만큼 일어났나 — 명령 · 막힘 · 못 보냄. 켜고 끄기 · 설정만으로는 안 선다. */
   happened: boolean;
   folder: { date: string; run: string } | null;
+  /**
+   * 저장처 (261119 — 임무 이력 서버 2차). 폴더를 정할 때 고르고, 서버가 실패하면 이 판은 끝까지 이 PC 다.
+   * null 이면 아직 쓸 곳이 없다 — 다음 주기에 다시 고른다.
+   */
+  sink: RecordSink | null;
   events: ControlEvent[];
   missions: Map<string, string | null>;
   /** 이 판이 낸 명령 id → 유지 신호인가. 답을 어느 판에 붙일지 찾는다. */
@@ -245,12 +251,13 @@ export type ControlRecorderStatus = {
 // ── 바꿔 끼울 수 있는 것 — 검사가 시계와 창구를 흉내 낸다 ──────────────────────────
 
 let clock: () => number = () => Date.now();
-let store: (date: string, run: string, file: 'mission.json' | 'progress.json', body: string) => Promise<void> = putRecordJson;
+type Store = (date: string, run: string, file: 'mission.json' | 'progress.json', body: string, sink?: RecordSink) => Promise<void>;
+let store: Store = putRecordJson;
 
 /** 검사용. 화면에서는 부르지 않는다. `null` 을 주면 원래 것으로 돌아간다. */
 export function setControlProbes(probes: {
   clock?: (() => number) | null;
-  store?: ((date: string, run: string, file: 'mission.json' | 'progress.json', body: string) => Promise<void>) | null;
+  store?: Store | null;
 }): void {
   if (probes.clock !== undefined) clock = probes.clock ?? (() => Date.now());
   if (probes.store !== undefined) store = probes.store ?? putRecordJson;
@@ -377,7 +384,7 @@ function openSession(deviceId: string, kind: ControlSessionKind, reason: 'manual
   const session: Session = {
     serial, deviceId, kind,
     openedAtMs: now, closedAtMs: null, closeReason: null, lastEventMs: now,
-    happened: false, folder: null,
+    happened: false, folder: null, sink: null,
     events: [{ atMs: now, kind: 'opened', reason }],
     missions: new Map(),
     commandIds: new Map(),
@@ -681,6 +688,10 @@ function write(session: Session, force = false): void {
   if (session.folder === null) {
     session.folder = runFolderOf(new Date(session.openedAtMs), `${session.kind === 'flight' ? 'FLT' : 'CTL'}-${session.deviceId}`);
   }
+  // 저장처 (261119) — 판에 한 번. 못 골랐으면 쓰지 않고 다음 주기에 다시 고른다.
+  if (session.sink === null) session.sink = chooseSink();
+  const sink = session.sink;
+  if (sink === null) return;
   const folder = session.folder;
   const bodies = buildControlBodies(session);
   const strip = (body: string) => body.replace(/"updatedAtIso": ?"[^"]*"/g, '');
@@ -696,14 +707,19 @@ function write(session: Session, force = false): void {
   session.written = bodies;
   // 차례로 쓴다 — 같은 파일을 두 요청이 겹쳐 쓰면 늦게 출발한 것이 먼저 끝날 수 있다.
   writing = writing.then(async () => {
+    // 앞 쓰기가 실패해 저장처가 바뀌었으면 안 보낸다 — 다음 주기가 새 저장처에 통째로 쓴다.
+    if (session.sink !== sink) return;
     try {
-      if (progressChanged) await store(folder.date, folder.run, 'progress.json', bodies.progress);
-      await store(folder.date, folder.run, 'mission.json', bodies.mission);
+      if (progressChanged) await store(folder.date, folder.run, 'progress.json', bodies.progress, sink);
+      await store(folder.date, folder.run, 'mission.json', bodies.mission, sink);
       setStatus({ state: 'recording', lastSavedAtIso: new Date().toISOString(), lastError: null });
     } catch (error) {
       const why = error instanceof Error ? error.message : String(error);
-      // 창구가 아예 없으면(404) 멈춘다 — 매 주기 실패를 쌓지 않는다.
-      if (/ 404$/.test(why)) { setStatus({ state: 'unavailable', lastError: why }); return; }
+      // 저장처를 다시 정한다 — 서버 실패면 이 판은 끝까지 이 PC(대피). 서버 주소 없이 창구가 아예 없으면(404) 멈춘다.
+      const next = nextSink(sink, error);
+      // 검사의 가짜 창구는 형식 없는 오류를 던진다 — 예전 규칙(` 404` 로 끝남)도 같이 본다.
+      if (next.stop || (/ 404$/.test(why) && next.sink === sink && sink === 'local')) { setStatus({ state: 'unavailable', lastError: why }); return; }
+      if (session.sink === sink) session.sink = next.sink;
       session.written = { mission: '', progress: '' };   // 다음 주기에 다시 쓴다
       setStatus({ lastError: why });
     }
@@ -741,8 +757,10 @@ export function startControlRecorder(): () => void {
     // 창을 닫을 때 열린 판을 닫힌 것으로 한 번 더 쓴다 — 못 가도 1.5초 전까지는 남아 있다.
     const onHide = () => { for (const session of [...open.values()]) { sampleTelemetry(session); write(session, true); } };
     if (typeof window !== 'undefined') window.addEventListener('pagehide', onHide);
+    // 대피 판 올리기에 「아직 쓰고 있는 판」(열린 판)을 알린다 — 닫히기 전에는 안 올린다 (261119).
+    const offActive = registerActiveRecordFolders(() => [...open.values()].map(folderWords).filter((f): f is string => f !== null));
     stopAll = () => {
-      clearInterval(timer); offManual(); offFlight();
+      clearInterval(timer); offManual(); offFlight(); offActive();
       if (typeof window !== 'undefined') window.removeEventListener('pagehide', onHide);
     };
   }

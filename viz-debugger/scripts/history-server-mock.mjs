@@ -2,10 +2,14 @@
  * scripts/history-server-mock.mjs (261119 신설 — 임무 이력 서버 DB 연동 준비)
  *
  * **임무 이력 서버의 가짜.** 서버 담당이 만들 서버(`documents/협의/임무이력서버_요청_VZ_261119.md`)와
- * **같은 창구**를 낸다. 진짜 서버가 오기 전까지 가시화 쪽 연결 · 양쪽 저장 · 목록 합치기를 이것으로 시험한다.
+ * **같은 창구**를 낸다. 진짜 서버가 오기 전까지 가시화 쪽 연결 · 서버 우선 저장 · 대피와 올리기를 이것으로 시험한다.
+ *
+ * **포트는 8820** (261119). 처음엔 8790 이었는데 그 번호는 가시화 게이트웨이(`gateway/config.ts`)가 127.0.0.1 에
+ * 잡고 있다. Windows 는 0.0.0.0:8790 을 겹쳐 열어 주고, `localhost` 요청은 게이트웨이가 받아 404 를 냈다
+ * (화면: 「서버 오류 HTTP 404」). 그래서 뜬 뒤 127.0.0.1 로 자기 health 를 물어, 다른 것이 받으면 멈춘다.
  * DB 대신 폴더에 쓴다 — 본체는 개발 서버의 기록 창구(`mission-records.mjs`)이고 경로만 `/api/v1` 로 바꾼다.
  *
- *   npm run history:mock                       → http://0.0.0.0:8790 · 폴더는 OS 임시 폴더 아래
+ *   npm run history:mock                       → http://0.0.0.0:8820 · 폴더는 OS 임시 폴더 아래
  *   npm run history:mock -- --port 9000 --dir D:/history-test
  *
  * 규약 문서가 요구하는 것 중 여기서 내는 것:
@@ -58,9 +62,12 @@ export function historyServerHandler(dir, { label = 'mock' } = {}) {
   };
 }
 
-export function startHistoryServer({ dir, port = 8790, host = '0.0.0.0', label } = {}) {
+export function startHistoryServer({ dir, port = 8820, host = '0.0.0.0', label } = {}) {
   const server = createServer(historyServerHandler(dir, { label }));
-  return new Promise((done) => server.listen(port, host, () => done(server)));
+  return new Promise((done, fail) => {
+    server.once('error', fail);
+    server.listen(port, host, () => done(server));
+  });
 }
 
 if (process.argv[1] !== undefined && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
@@ -69,9 +76,18 @@ if (process.argv[1] !== undefined && resolve(process.argv[1]) === fileURLToPath(
     return at >= 0 && process.argv[at + 1] !== undefined ? process.argv[at + 1] : fallback;
   };
   const dir = resolve(arg('dir', join(tmpdir(), 'viz-history-mock')));
-  const port = Number(arg('port', '8790'));
-  const server = await startHistoryServer({ dir, port, host: arg('host', '0.0.0.0'), label: `mock:${dir}` });
+  const port = Number(arg('port', '8820'));
+  const busy = () => {
+    console.error(`포트 ${port} 를 다른 프로그램이 이미 쓰고 있습니다 (localhost 요청이 이 서버로 안 옵니다).`);
+    console.error(`다른 포트로: npm run history:mock -- --port <번호>   · 누가 쓰는지: Get-NetTCPConnection -LocalPort ${port} -State Listen`);
+    process.exit(1);
+  };
+  const server = await startHistoryServer({ dir, port, host: arg('host', '0.0.0.0'), label: `mock:${dir}` })
+    .catch((error) => (error?.code === 'EADDRINUSE' ? busy() : Promise.reject(error)));
   const at = server.address();
+  // 겹침 점검 — 같은 포트를 다른 프로그램이 127.0.0.1 에 잡고 있으면 `localhost` 요청은 그쪽으로 간다.
+  const self = await fetch(`http://127.0.0.1:${at.port}${HISTORY_API}/health`).then((r) => r.json()).catch(() => null);
+  if (self?.service !== HISTORY_SERVICE || self?.label !== `mock:${dir}`) { server.close(); busy(); }
   console.log(`임무 이력 가짜 서버 — http://${at.address === '0.0.0.0' ? 'localhost' : at.address}:${at.port}  (폴더 ${dir})`);
   console.log('임무 이력 탭 맨 위 서버 칸에 이 주소를 넣으면 붙습니다. 끄려면 Ctrl+C');
 }

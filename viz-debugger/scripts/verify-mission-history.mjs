@@ -56,7 +56,18 @@ const entry = (missionId, outcome, extra = {}) => ({
     if (/MSN-260826-0\d · (실패|완료)/.test(text)) {
       failures.push(`${where} 에 손으로 쓴 임무 이력이 남아 있다 — 돌린 적 없는 판이 목록에 뜬다`);
     }
-    if (!/MissionHistoryList/.test(text)) failures.push(`${where} 이 실제 목록을 안 그린다`);
+  }
+  // 261114 — 목록은 **리플레이 화면 왼쪽 기둥 한 자리**에서만 그린다. 셸의 ◷ 임무 이력 버튼은 그 화면으로 옮기기만
+  // 한다(오른쪽 판에 같은 목록을 한 번 더 띄우던 것은 뺐다). 261119 에 검사를 이 구조로 고쳤다 — 전에는 셸도
+  // 목록을 그려야 한다고 봐서 dd7dbac 이후 늘 실패했다.
+  const shell = src('shell', 'AppShell.tsx');
+  const main = src('main.tsx');
+  if (!/MissionHistoryList/.test(main)) failures.push('main 이 실제 목록을 안 그린다 (리플레이 기둥)');
+  if (/<MissionHistoryList/.test(shell)) failures.push('셸이 목록을 또 그린다 — 리플레이 기둥과 두 자리가 된다');
+  if (!/onClick=\{\(\) => onMissionHistory\(\)\}/.test(shell)) failures.push('셸의 임무 이력 버튼이 리플레이 화면으로 안 옮긴다');
+  // 셸을 거는 두 진입점(통합 · 단독)이 버튼을 리플레이 화면에 잇는다.
+  for (const entry of ['integrated.tsx', 'standalone.tsx']) {
+    if (!/onMissionHistory=\{\(\) => request\('replay'\)\}/.test(src(entry))) failures.push(`${entry} 의 임무 이력 버튼이 리플레이 화면을 안 연다`);
   }
 }
 
@@ -150,7 +161,7 @@ if (failures.length) {
   console.error(`❌ verify:mission-history\n- ${failures.join('\n- ')}`);
   process.exit(1);
 }
-console.log('✅ 손으로 쓴 이력이 사라지고 두 자리(셸 판·리플레이 기둥)가 같은 목록을 그린다');
+console.log('✅ 손으로 쓴 이력이 사라지고 목록은 리플레이 기둥 한 자리에 — 셸의 ◷ 버튼은 그 화면으로 옮긴다');
 console.log('✅ 한 판은 한 줄 — 다시 그려도 안 늘어나고, 새 판이 서면 새 줄이 쌓인다 (최근 것이 위)');
 console.log('✅ 실패는 어느 노드에서 왜인지 로봇이 준 그대로 남고, 초기화하면 목록도 비운다');
 console.log('✅ 목록은 저장된 판을 읽어 다시보기를 달고, DB 이력은 자리표시로 남긴다 — 창구가 없으면 이 세션 것뿐이라고 적는다');

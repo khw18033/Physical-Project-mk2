@@ -21,6 +21,7 @@
  *   PUT  /mission-records/api/runs/<날짜>/<판>/<mission|progress>.json   JSON 본문을 통째로 쓴다
  *   POST /mission-records/api/runs/<날짜>/<판>/images/<detect|robot>/<이름>  그림 바이트를 쓴다
  *   GET  /mission-records/api/runs                                       판 목록 (mission.json 요약)
+ *   GET  /mission-records/api/runs/<날짜>/<판>/files                      그 판의 파일 목록 (261119 — 대피 판을 서버로 올릴 때)
  *   GET  /mission-records/files/<날짜>/<판>/<경로>                        저장된 파일 — 다시보기가 읽는다
  *
  * **이름은 전부 형식을 먼저 본다** — `..` 로 폴더 밖을 쓰거나 읽지 못하게.
@@ -106,6 +107,18 @@ export function listRuns(root = recordsDir()) {
  */
 const LOCAL_ROUTES = { runs: `${RECORDS_URL}/api/runs`, files: `${RECORDS_URL}/files`, dir: null };
 
+/** 판 폴더의 파일 — 두 JSON 과 정해진 그림 폴더의 그림만. 이름 규칙 밖은 안 준다. */
+export function listRunFiles(runDir) {
+  const files = [];
+  for (const name of ['progress.json', 'mission.json']) if (existsSync(join(runDir, name))) files.push(name);
+  for (const kind of ['detect', 'robot']) {
+    const dir = join(runDir, 'images', kind);
+    if (!existsSync(dir)) continue;
+    for (const name of readdirSync(dir).sort()) if (IMAGE_NAME.test(name)) files.push(`images/${kind}/${name}`);
+  }
+  return files;
+}
+
 /** 미들웨어 본체. 내 주소가 아니면 `next()`. `routes.dir` 이 있으면 목록의 `dir` 자리에 실제 폴더 대신 그 이름을 적는다. */
 export function missionRecordsMiddleware(root = recordsDir(), routes = LOCAL_ROUTES) {
   return async (req, res, next) => {
@@ -122,6 +135,10 @@ export function missionRecordsMiddleware(root = recordsDir(), routes = LOCAL_ROU
         const [, , date, run, ...rest] = parts;
         if (!DATE.test(date ?? '') || !RUN.test(run ?? '')) return send(res, 400, { error: '날짜·판 이름 형식이 아닙니다' });
         const runDir = join(root, date, run);
+        if (rest.length === 1 && rest[0] === 'files' && req.method === 'GET') {
+          if (!existsSync(runDir)) return send(res, 404, { error: '없는 판입니다' });
+          return send(res, 200, { files: listRunFiles(runDir) });
+        }
         if (rest.length === 1 && JSON_FILE.test(rest[0]) && req.method === 'PUT') {
           const body = await readBody(req);
           // 깨진 JSON 은 안 쓴다 — 보낸 쪽 잘못이니 400 (261119 · 전에는 500 으로 나갔다).
