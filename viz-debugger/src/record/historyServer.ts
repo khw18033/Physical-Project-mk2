@@ -31,6 +31,15 @@ export const HISTORY_SERVICE = 'mission-history';
 export const CONFORMANCE_DATE = '000101';
 
 const STORAGE_KEY = 'viz.historyServer.v1';
+/**
+ * **기본 주소** (261119 지시) — 서버 담당이 연 임무 이력 서버(회신 `documents/협의/임무이력서버_회신_서버_261119.md`).
+ * Tailscale 안에서만 닿는다. 저장된 값이 **아예 없을 때만** 쓴다 — 사람이 「연결 해제」를 누르면 빈 값을 저장해 두므로
+ * 새로고침해도 기본 주소로 되살아나지 않는다.
+ *
+ * **`let status = initialStatus()` 보다 위에 둔다** — 아래에 두면 모듈을 읽는 순간 아직 안 만들어진 상수를 읽어(TDZ)
+ * `readStored` 의 catch 가 삼키고 주소가 비었다(261119 실측 — 새 브라우저에서 「서버 미설정」).
+ */
+export const DEFAULT_HISTORY_SERVER = 'http://100.102.8.102:8850';
 const POLL_MS = 10_000;
 const HEALTH_TIMEOUT_MS = 4_000;
 /** 서버 쓰기 한 건의 시간 한도. 넘으면 실패로 보고 대피한다. */
@@ -54,8 +63,13 @@ export type HistoryServerStatus = {
   checkedAtIso: string | null;
   lastOkAtIso: string | null;
   latencyMs: number | null;
-  /** 서버가 health 에 적은 판 수. 없으면 null. */
+  /**
+   * 서버가 health 에 적은 판 수. 없으면 null. **화면에 그대로 쓰지 않는다** — 적합성 검사 판(`000101`)까지 센다
+   * (서버 회신 261119 §5). 이 값이 바뀌면 목록을 다시 읽는 신호로만 쓴다.
+   */
   runCount: number | null;
+  /** 화면이 읽은 서버 목록의 판 수 — 검사 판을 뺀 것(`recordClient.listRecordedRuns`). 아직 안 읽었으면 null. 「서버 판 N개」 는 이것이다. */
+  listedRunCount: number | null;
   /** 끊김 · 오류 · 불안정의 사유. */
   detail: string | null;
   /** 불안정에서 돌아오는 중 — 연속 성공 횟수. */
@@ -66,7 +80,7 @@ export type HistoryServerStatus = {
 
 const empty: HistoryServerStatus = {
   address: '', state: 'unset', checkedAtIso: null, lastOkAtIso: null, latencyMs: null,
-  runCount: null, detail: null, okStreak: 0, lastRejected: null,
+  runCount: null, listedRunCount: null, detail: null, okStreak: 0, lastRejected: null,
 };
 
 let status: HistoryServerStatus = initialStatus();
@@ -97,9 +111,14 @@ export function useHistoryServer(): HistoryServerStatus {
   return useSyncExternalStore(subscribeHistoryServer, historyServerStatus, historyServerStatus);
 }
 
+
 function readStored(): string {
   try {
-    return globalThis.localStorage?.getItem(STORAGE_KEY) ?? '';
+    const storage = globalThis.localStorage;
+    // 브라우저 밖(검사 · 노드)에는 저장소가 없다 — 그때는 주소 없음으로 둔다. 기본 주소는 화면에서만.
+    if (storage === undefined) return '';
+    const value = storage.getItem(STORAGE_KEY);
+    return value === null ? DEFAULT_HISTORY_SERVER : value;
   } catch {
     return '';
   }
@@ -107,8 +126,8 @@ function readStored(): string {
 
 function store(address: string): void {
   try {
-    if (address === '') globalThis.localStorage?.removeItem(STORAGE_KEY);
-    else globalThis.localStorage?.setItem(STORAGE_KEY, address);
+    // 빈 값도 적는다 — 「해제했다」를 「한 번도 안 정했다(→ 기본 주소)」와 가른다.
+    globalThis.localStorage?.setItem(STORAGE_KEY, address);
   } catch {
     // 저장소가 막혔다 — 이 탭에서만 쓴다.
   }
@@ -173,6 +192,12 @@ export function noteServerWriteFailed(reason: string): void {
   needsRecovery = true;
   const keep = status.state === 'connected' || status.state === 'unstable' || status.state === 'checking';
   setStatus({ state: keep ? 'unstable' : status.state, detail: reason, okStreak: 0 });
+}
+
+/** 서버 목록을 읽었다 — 검사 판을 뺀 판 수를 적는다 (`recordClient` 가 부른다). */
+export function noteServerListCount(count: number): void {
+  if (status.listedRunCount === count) return;
+  setStatus({ listedRunCount: count });
 }
 
 /** 서버가 거절했다 (4xx) — 우리 쪽 잘못이라 상태는 그대로 두고 사유만 남긴다. */

@@ -25,7 +25,7 @@ import { t } from '../i18n/dict.ts';
 import type { ControlRecordSummary } from './controlRecorder.ts';
 import { noteLocalRecordWrite } from './evacuations.ts';
 import {
-  CONFORMANCE_DATE, historyApiBase, historyServerConnected, historyServerReadable, writeToHistoryServer,
+  CONFORMANCE_DATE, historyApiBase, historyServerConnected, historyServerReadable, noteServerListCount, writeToHistoryServer,
 } from './historyServer.ts';
 
 const BASE = '/mission-records';
@@ -228,6 +228,8 @@ export async function listRecordedRuns(): Promise<RecordedRunList | null> {
     const server = await readList(`${api}/runs`);
     if (server !== null) {
       const runs = server.runs.filter((run) => run.date !== CONFORMANCE_DATE);
+      // 서버 띠의 「서버 판 N개」 — health 의 수는 검사 판까지 세므로 이 수를 쓴다 (261119 서버 회신 §5).
+      noteServerListCount(runs.length);
       for (const run of runs) whereByRun.set(`${run.date}/${run.run}`, 'server');
       return { dir: server.dir, runs, source: 'server', serverFailed: false };
     }

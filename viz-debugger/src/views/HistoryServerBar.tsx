@@ -41,7 +41,7 @@ export function HistoryServerBar() {
     switch (server.state) {
       case 'unset': return t('hsrv.state.unset');
       case 'checking': return t('hsrv.state.checking');
-      case 'connected': return t('hsrv.state.connected', { ms: server.latencyMs ?? 0, n: server.runCount ?? '—' });
+      case 'connected': return t('hsrv.state.connected', { ms: server.latencyMs ?? 0, n: server.listedRunCount ?? '—' });
       case 'unstable': return t('hsrv.state.unstable', { n: server.okStreak });
       case 'unreachable': return t('hsrv.state.unreachable');
       case 'wrong-service': return t('hsrv.state.wrongService');

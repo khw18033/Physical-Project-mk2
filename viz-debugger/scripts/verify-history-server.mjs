@@ -70,6 +70,8 @@ const runNode = async (...args) => {
 };
 
 const hs = await load('src', 'record', 'historyServer.ts');
+// 모듈을 처음 읽은 순간의 주소 — 저장소가 비어 있으니 기본 주소여야 한다(261119 TDZ 실측: 상수가 아래 있어 비었다).
+const firstLoadAddress = hs.historyServerStatus().address;
 const rc = await load('src', 'record', 'recordClient.ts');
 const ev = await load('src', 'record', 'evacuations.ts');
 const up = await load('src', 'record', 'historyUpload.ts');
@@ -119,6 +121,14 @@ try {
 
   // ── 2. 주소 · 상태 ──────────────────────────────────────────────────────────
   {
+    // 기본 주소 (261119 지시) — 한 번도 정한 적 없으면 서버 담당의 서버. 해제하면 새로고침해도 해제 그대로.
+    expect('모듈을 처음 읽을 때(새 브라우저) 기본 주소가 선다', firstLoadAddress === 'http://100.102.8.102:8850', `'${firstLoadAddress}'`);
+    memory.clear();
+    hs.resetHistoryServerForTest();
+    expect('처음 켜면 기본 주소(100.102.8.102:8850)', hs.historyServerStatus().address === hs.DEFAULT_HISTORY_SERVER && hs.DEFAULT_HISTORY_SERVER === 'http://100.102.8.102:8850');
+    hs.setHistoryServerAddress('');
+    hs.resetHistoryServerForTest();
+    expect('연결 해제는 새로고침해도 해제 (기본 주소로 안 돌아감)', hs.historyServerStatus().address === '' && hs.historyServerStatus().state === 'unset');
     const n = hs.normalizeServerAddress;
     expect('주소 고르기 (http:// · 끝 / · /api/v1 · 빈 글자 · 틀 밖)',
       n('100.64.0.5:8790') === 'http://100.64.0.5:8790' && n(' http://h:1/api/v1/ ') === 'http://h:1' && n(' ') === '' && n('ftp://x') === null && n('http://h:1/?q=1') === null);
@@ -231,6 +241,12 @@ try {
     expect('연결됨이면 서버 목록', list?.source === 'server' && keys.includes('261102/090000_MSN-OTHER'));
     expect('서버 목록에 이 PC 에만 있는 판이 안 섞인다', !keys.includes('261101/080000_MSN-LOCALONLY'));
     expect('적합성 검사 판(000101)은 숨긴다', !keys.some((k) => k.startsWith('000101/')));
+    // 서버 회신 261119 §5 — health 의 runCount 는 검사 판까지 센다. 띠의 「서버 판 N개」 는 목록(검사 판 뺀 것)의 수다.
+    await hs.checkHistoryServer();
+    const health = hs.historyServerStatus();
+    expect('「서버 판 N개」 는 검사 판을 뺀 목록 수 (health 의 수가 아니다)',
+      health.listedRunCount === list?.runs.length && health.runCount !== null && health.runCount > health.listedRunCount,
+      `health ${health.runCount} · listed ${health.listedRunCount} · list ${list?.runs.length}`);
     expect('서버 판의 파일 주소는 서버', rc.recordFileUrl('261102', '090000_MSN-OTHER', 'images/detect/a.jpg').startsWith(`${mock.origin}/api/v1/files/`));
     expect('다른 장치의 판을 다시보기로 읽는다', (await rc.fetchRecordJson('261102', '090000_MSN-OTHER', 'progress.json')).trace[0].seq === 7);
     serverDown = true; await hs.checkHistoryServer();

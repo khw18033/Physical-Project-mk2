@@ -50,6 +50,9 @@ const KNOWN_TEMP_PARTS = new Set(['battery', 'board', 'module']);
 const tempLabel = (part: string) => (KNOWN_TEMP_PARTS.has(part) ? t(`ccs.temp.${part}`) : part);
 
 function Tiles({ state, size }: { state: CameraState; size: 'full' | 'compact' | 'card' }) {
+  // `t()` 는 값을 줄 뿐 리렌더를 안 일으킨다 — 컴포넌트마다 건다 (261119 · verify:i18n-no-frozen).
+  // 지금은 부모(`CameraStateDash`)가 걸어 둬서 같이 다시 그려지지만, 감싸거나 다른 곳에서 쓰면 옛 언어로 굳는다.
+  useLang();
   const stale = isCameraStateStale(state);
   const gps = state.gps;
   const hottest = state.temperatures.reduce<[string, number] | null>((top, [k, v]) => (top === null || v > top[1] ? [k, v] : top), null);
