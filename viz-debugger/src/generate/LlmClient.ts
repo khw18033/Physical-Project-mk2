@@ -128,6 +128,11 @@ export type GenerateOptions = {
    * 따로 센다 — 8단계 D 판이 「새 자리를 열면 모델이 그 자리를 채운다」를 보였기 때문이다.
    */
   branch?: boolean;
+  /**
+   * 태스크에 **액션 아이템**까지 내게 할 것인가 (261023 · 생성기 3단계 H 판). `tasks` 위에서만
+   * 뜻이 있다. **화면은 아직 안 켠다** — 받는 쪽은 다음 지시이고, 지금은 측정 경로만 쓴다.
+   */
+  actions?: boolean;
   model?: string;
   /**
    * 임무 식별자. **부르는 쪽이 준다** — 모델이 지어낼 것이 아니다. `audio_ref` 와 같은
@@ -197,6 +202,7 @@ export async function generateMission(utterance: string, options: GenerateOption
     tasks: options.tasks ?? false,
     lang: options.lang ?? 'ko',
     branch: options.branch ?? false,
+    actions: options.actions ?? false,
     model: options.model ?? null,
     mission_id: options.missionId ?? null,
     utterance_meta: options.utteranceMeta ?? null,

@@ -11,6 +11,7 @@
 // | 추상 위반  | 기종·좌표·속도가 제목에 새어 든 건수         | ○ | — |
 // | 노드 문법  | node_kind 라벨이 정답과 맞는가             | — | ○ |
 // | 그래프     | deps 가 만드는 DAG 가 동형인가 · 순환 없나   | — | ○ |
+// | 액션 아이템 | 동작 재현율·**정밀도** · 빈 자리 · 잘못 든 자리 (261023) | — | ○ |
 //
 // **축을 섞으면 실패 원인을 못 가른다.** 「형식 오류인가 내용 오류인가」가 학습 판단의
 // 근거이므로(지시서 §학습 판단 관문) 여기서 갈라 두지 않으면 4단계에서 가를 수 없다.
@@ -38,6 +39,7 @@ import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { dirname, isAbsolute, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { loadContracts, validate } from './lib/json-schema.mjs';
+import { actionPairs, actionVocabulary, inspectActionItems, multisetHits } from './lib/actionItems.mjs';
 
 const vizRoot = join(dirname(fileURLToPath(import.meta.url)), '..');
 const repoRoot = join(vizRoot, '..');
@@ -139,7 +141,9 @@ export function toContract(mission) {
           status: 'pending',
           attempt: 1,
           derived_from: milestone.milestone_id,
-          action_items: [],
+          // 261023 — 정답 액션 아이템(손으로 적은 `goldset/action-items.json` 을 추출기가 합친 것).
+          // 옛 정답셋에는 칸이 없다 — 그때는 빈 배열이 정답이었다.
+          action_items: task.action_items ?? [],
           evaluation: null,
           // 노드 문법 라벨. **계약의 선택 필드다** (§5 에서 올렸다) — 없는 편도 있다.
           ...(task.node_kind === null ? {} : { node_kind: task.node_kind }),
@@ -558,6 +562,83 @@ function hasCycle(tasks) {
   return [...deps.keys()].some((id) => visit(id));
 }
 
+/**
+ * 축 9 — **액션 아이템** (261023 · 생성기 3단계 H). 생성된 임무가 장비에 낼 명령까지 들었는가.
+ *
+ * ## 정밀도가 이 축의 절반이다 — 8단계의 교훈
+ *
+ * 재현율만 보면 **다 적는 쪽이 이긴다.** 8단계 D 판이 종류 목록을 받자 빈 단계를 지어내
+ * 개수만 맞췄고, 동작 목록도 같은 함정이 있다. 그래서 정밀도(낸 동작 중 정답에 있는 비율)를
+ * 같은 칸에 나란히 낸다 — **지어내기를 잡는 자리다.**
+ *
+ * ## 짝짓기는 붙은 대상으로 한다
+ *
+ * (target, action) 쌍이 같으면 맞은 것이다(`lib/actionItems.mjs` 의 `actionPairs`). 두 범위로 낸다.
+ *
+ * | 범위 | 무엇 |
+ * |---|---|
+ * | `milestone` | **주 지표.** 제목으로 짝지은 마일스톤 안에서만 맞춘다 — 같은 명령이라도 엉뚱한 단계에 붙으면 틀린 것이다 |
+ * | `mission` | 임무 전체에서 맞춘다 — 마일스톤 정렬의 흔들림을 걷어 낸 값. 둘의 차이가 「명령은 맞는데 자리가 밀린 것」이다 |
+ *
+ * 낸 동작이 0 이면 정밀도는 **0 이 아니라 null** 이다 — 지어낸 것도 맞힌 것도 없다.
+ */
+function axisActionItems(goldMission, candidate) {
+  const pairs = alignInOrder(goldMission.milestones, candidate.milestones ?? [], (item) => item.title);
+  const goldTasks = goldMission.tasks;
+  const gotTasks = (candidate.milestones ?? []).flatMap((milestone) => milestone.tasks ?? []);
+  const goldAll = actionPairs(goldTasks);
+  const gotAll = actionPairs(gotTasks);
+
+  let scopedHits = 0;
+  for (const pair of pairs) {
+    if (pair.got === null) continue;
+    const goldHere = actionPairs(goldTasks.filter((task) => task.milestone_id === pair.gold.milestone_id));
+    scopedHits += multisetHits(goldHere, actionPairs(pair.got.tasks ?? []));
+  }
+  const missionHits = multisetHits(goldAll, gotAll);
+  const ratio = (hits, of) => (of === 0 ? null : round(hits / of));
+
+  const vocabulary = actionVocabulary(equipmentFile());
+  const got = inspectActionItems(candidate, vocabulary);
+  const gold = inspectActionItems(toContract(goldMission), vocabulary);
+  const left = new Map();
+  for (const key of goldAll) left.set(key, (left.get(key) ?? 0) + 1);
+  const unmatched = [];
+  for (const key of gotAll) {
+    const n = left.get(key) ?? 0;
+    if (n > 0) left.set(key, n - 1); else unmatched.push(key);
+  }
+  return {
+    gold: goldAll.length,
+    produced: gotAll.length,
+    milestone: { hits: scopedHits, recall: ratio(scopedHits, goldAll.length), precision: ratio(scopedHits, gotAll.length) },
+    mission: { hits: missionHits, recall: ratio(missionHits, goldAll.length), precision: ratio(missionHits, gotAll.length) },
+    // 빈 자리 — **정답에도 있다**(장비 없는 act · 동작을 밝히지 않은 센서의 act). 그래서 정답의
+    // 수를 옆에 둔다. 후보가 정답보다 많으면 낼 수 있던 명령을 빠뜨린 것이다.
+    empty_act: got.empty_act.length,
+    empty_act_gold: gold.empty_act.length,
+    misplaced: got.misplaced.length,
+    off_list: got.off_list.length,
+    no_action: got.no_action.length,
+    target_mismatch: got.target_mismatch.length,
+    adapter_set: got.adapter_set.length,
+    // 사람이 읽을 것 — 지어내기가 났으면 **어떤 모양이었는지** 보고서가 이 목록을 본다.
+    unmatched,
+    extra_params: got.extra_params,
+    misplaced_items: got.misplaced,
+    off_list_items: got.off_list,
+  };
+}
+
+/** 장비 어휘 파일 통째로. 동작 표(`actions`)를 읽는 데 쓴다. 못 읽으면 null — 표가 빈 것으로 본다. */
+function equipmentFile() {
+  try {
+    return JSON.parse(readFileSync(join(repoRoot, 'equipment', 'equipment.json'), 'utf8'));
+  } catch {
+    return null;
+  }
+}
+
 // ── 채점 ─────────────────────────────────────────────────────────────────────
 
 export function score(candidates, vocabulary = placeVocabulary(), axes = placeAxes()) {
@@ -581,6 +662,7 @@ export function score(candidates, vocabulary = placeVocabulary(), axes = placeAx
       // 문장이어야 「요구했는가」가 맞는다(변형 발화가 다섯이다). 후보가 utterance 를
       // 안 들면(옛 실행) 정답 원본으로 물러선다.
       plan_shape: axisPlanShape(candidate, candidate.utterance?.text ?? goldMission.utterance.text),
+      action_items: axisActionItems(goldMission, candidate),
     };
   });
 }
@@ -624,6 +706,13 @@ function damaged(kind) {
   if (kind === 'plan_shape' && target.milestones.length > 1) {
     target.milestones[1].branch = { from: target.milestones[0].milestone_id, when: 'pass' };
   }
+  // 액션 아이템 셋 (261023). **정밀도를 반드시 잡아야 한다** — 목록에 있는 동작을 하나 더 지어
+  // 붙인 사본. 재현율은 그대로이고 정밀도만 떨어져야 한다(8단계 함정의 이 층 판).
+  const task = (id) => target.milestones.flatMap((m) => m.tasks).find((t) => t.task_id === id);
+  const item = (t, action) => ({ item_id: `${t.task_id}-x`, target: t.target, adapter: '', params: { action }, status: 'pending', telemetry_ref: null });
+  if (kind === 'action_invented') task('T-11b').action_items.push(item(task('T-11b'), 'scan_mission'));
+  if (kind === 'action_misplaced') task('T-12a').action_items.push(item(task('T-12a'), 'scan_mission'));   // sense 에 단다
+  if (kind === 'action_dropped') task('T-15b').action_items = [];                                            // abort 를 뺀다
   if (kind === 'graph') {
     // 순환을 만든다 — 모델이 deps 를 직접 내면 실제로 나는 실패다.
     const tasks = target.milestones[0].tasks;
@@ -638,7 +727,7 @@ const controls = [];
 // 보는 것은 「채점기의 축이 망가진 입력을 잡는가」이지 「이번 후보가 어떤가」가 아니다.
 // (--candidate 로 임무 일부만 넘기면 그 임무가 후보에 없어 대조군이 통째로 죽는다.)
 const controlBaseline = score(selfCandidates);
-for (const kind of ['schema', 'milestone', 'place_violation', 'target_violation', 'target_mischosen', 'abstraction', 'node_grammar', 'graph', 'plan_shape']) {
+for (const kind of ['schema', 'milestone', 'place_violation', 'target_violation', 'target_mischosen', 'abstraction', 'node_grammar', 'graph', 'plan_shape', 'action_invented', 'action_misplaced', 'action_dropped']) {
   const before = controlBaseline.find((item) => item.mission_id === 'MSN-260831-01');
   const after = score(damaged(kind)).find((item) => item.mission_id === 'MSN-260831-01');
   const caught = {
@@ -656,6 +745,11 @@ for (const kind of ['schema', 'milestone', 'place_violation', 'target_violation'
     node_grammar: () => (after.node_grammar.accuracy ?? 1) < (before.node_grammar.accuracy ?? 0),
     graph: () => !before.graph.has_cycle && after.graph.has_cycle,
     plan_shape: () => after.plan_shape.branch.invented > before.plan_shape.branch.invented,
+    action_invented: () => after.action_items.milestone.precision < before.action_items.milestone.precision
+      && after.action_items.milestone.recall === before.action_items.milestone.recall,
+    action_misplaced: () => after.action_items.misplaced > before.action_items.misplaced,
+    action_dropped: () => after.action_items.milestone.recall < before.action_items.milestone.recall
+      && after.action_items.empty_act > before.action_items.empty_act,
   }[kind]();
   if (caught) controls.push(kind);
   else controlFailures.push(`${kind} 축이 망가뜨린 사본을 잡지 못했다 — 그 축은 무의미하다`);
@@ -680,6 +774,11 @@ for (const kind of ['schema', 'milestone', 'place_violation', 'target_violation'
     if (row.target_violation.count > 0) {
       selfViolations.push(`${row.mission_id}: 정답셋이 장비 어휘 위반으로 잡혔다 — ${JSON.stringify(row.target_violation.items)}`);
     }
+    const act = row.action_items;
+    if (act.misplaced + act.off_list + act.no_action + act.target_mismatch + act.adapter_set > 0
+      || act.milestone.precision !== 1 || act.milestone.recall !== 1) {
+      selfViolations.push(`${row.mission_id}: 정답셋이 액션 아이템 축에서 만점이 아니다 — ${JSON.stringify({ ...act, extra_params: undefined })}`);
+    }
   }
   controlFailures.push(...selfViolations);
   if (selfViolations.length === 0) controls.push('정답셋이 위반 축 둘을 통과함 (탐지기의 타당성 조건)');
@@ -694,7 +793,7 @@ if (asJson) {
   console.log('');
   const cell = (value, width) => (value === null ? '해당없음' : value.toFixed(2)).padStart(width);
   const head = (text, width) => text.padStart(width);
-  console.log('  ' + '임무'.padEnd(16) + head('스키마', 10) + head('마일 개수', 11) + head('마일 순서', 10) + head('장소위반', 9) + head('장비 지/오/총', 14) + head('추상위반', 9) + head('문법', 9) + head('그래프 F1', 10) + head('순환', 7));
+  console.log('  ' + '임무'.padEnd(16) + head('스키마', 10) + head('마일 개수', 11) + head('마일 순서', 10) + head('장소위반', 9) + head('장비 지/오/총', 14) + head('추상위반', 9) + head('문법', 9) + head('그래프 F1', 10) + head('순환', 7) + head('동작 R/P', 12) + head('빈/잘못', 9));
   for (const row of results) {
     if (row.missing) { console.log('  ' + row.mission_id.padEnd(16) + '(결과 없음)'); continue; }
     console.log('  ' + row.mission_id.padEnd(16) +
@@ -706,7 +805,9 @@ if (asJson) {
       String(row.abstraction.count).padStart(9) +
       cell(row.node_grammar.accuracy, 9) +
       cell(row.graph.f1, 10) +
-      (row.graph.has_cycle ? '있음' : '없음').padStart(7));
+      (row.graph.has_cycle ? '있음' : '없음').padStart(7) +
+      `${row.action_items.milestone.recall?.toFixed(2) ?? '—'}/${row.action_items.milestone.precision?.toFixed(2) ?? '—'}`.padStart(12) +
+      `${row.action_items.empty_act}/${row.action_items.misplaced}`.padStart(9));
   }
   console.log('');
   console.log('축별로 못 잰 것 — 0이 아니라 「해당 없음」이다');

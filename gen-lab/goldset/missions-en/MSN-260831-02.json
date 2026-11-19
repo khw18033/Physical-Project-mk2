@@ -100,7 +100,8 @@
       "milestone_id": "MS-A",
       "node_kind": "sense",
       "target": "camera-02",
-      "deps": []
+      "deps": [],
+      "action_items": []
     },
     {
       "task_id": "T-21b",
@@ -110,7 +111,8 @@
       "target": "camera-02",
       "deps": [
         "T-21a"
-      ]
+      ],
+      "action_items": []
     },
     {
       "task_id": "T-22a",
@@ -120,7 +122,8 @@
       "target": "camera-02",
       "deps": [
         "T-21b"
-      ]
+      ],
+      "action_items": []
     },
     {
       "task_id": "T-22b",
@@ -130,7 +133,8 @@
       "target": "camera-02",
       "deps": [
         "T-22a"
-      ]
+      ],
+      "action_items": []
     },
     {
       "task_id": "T-22c",
@@ -140,7 +144,8 @@
       "target": "camera-02",
       "deps": [
         "T-22b"
-      ]
+      ],
+      "action_items": []
     },
     {
       "task_id": "T-23a",
@@ -150,7 +155,8 @@
       "target": "robot-01",
       "deps": [
         "T-22c"
-      ]
+      ],
+      "action_items": []
     },
     {
       "task_id": "T-23b",
@@ -160,6 +166,18 @@
       "target": "robot-01",
       "deps": [
         "T-23a"
+      ],
+      "action_items": [
+        {
+          "item_id": "T-23b-1",
+          "target": "robot-01",
+          "adapter": "",
+          "params": {
+            "action": "move_forward"
+          },
+          "status": "pending",
+          "telemetry_ref": null
+        }
       ]
     },
     {
@@ -170,7 +188,8 @@
       "target": "robot-01",
       "deps": [
         "T-23b"
-      ]
+      ],
+      "action_items": []
     },
     {
       "task_id": "T-24a",
@@ -180,7 +199,8 @@
       "target": "camera-02",
       "deps": [
         "T-23c"
-      ]
+      ],
+      "action_items": []
     },
     {
       "task_id": "T-24b",
@@ -190,7 +210,8 @@
       "target": "camera-02",
       "deps": [
         "T-24a"
-      ]
+      ],
+      "action_items": []
     },
     {
       "task_id": "T-25a",
@@ -200,7 +221,8 @@
       "target": "camera-02",
       "deps": [
         "T-24b"
-      ]
+      ],
+      "action_items": []
     },
     {
       "task_id": "T-25b",
@@ -210,6 +232,18 @@
       "target": "robot-01",
       "deps": [
         "T-25a"
+      ],
+      "action_items": [
+        {
+          "item_id": "T-25b-1",
+          "target": "robot-01",
+          "adapter": "",
+          "params": {
+            "action": "move_forward"
+          },
+          "status": "pending",
+          "telemetry_ref": null
+        }
       ]
     },
     {
@@ -220,7 +254,8 @@
       "target": "robot-01",
       "deps": [
         "T-25b"
-      ]
+      ],
+      "action_items": []
     },
     {
       "task_id": "T-26a",
@@ -230,7 +265,8 @@
       "target": "camera-02",
       "deps": [
         "T-25c"
-      ]
+      ],
+      "action_items": []
     },
     {
       "task_id": "T-26b",
@@ -240,7 +276,8 @@
       "target": "camera-02",
       "deps": [
         "T-26a"
-      ]
+      ],
+      "action_items": []
     },
     {
       "task_id": "T-27a",
@@ -250,7 +287,8 @@
       "target": "camera-02",
       "deps": [
         "T-22c"
-      ]
+      ],
+      "action_items": []
     },
     {
       "task_id": "T-27b",
@@ -260,7 +298,8 @@
       "target": "camera-02",
       "deps": [
         "T-27a"
-      ]
+      ],
+      "action_items": []
     },
     {
       "task_id": "T-27c",
@@ -270,7 +309,8 @@
       "target": "camera-02",
       "deps": [
         "T-27b"
-      ]
+      ],
+      "action_items": []
     }
   ],
   "shape": {
@@ -295,7 +335,7 @@
     "events": "실행 기록 — 생성기가 만들 것이 아니라 실행이 만든다",
     "worldTimeline": "세계 값 — 위와 같다",
     "params": "편별 상수(위험 수위 등) — 임무 설계가 아니라 환경 설정이다",
-    "actionItems": "어댑터 전개 결과 — VZ-G-04 의 몫이다",
+    "actionItems": "대본의 것은 실제로 나간 명령이라 안 뽑는다 — 정답 액션 아이템은 goldset/action-items.json 에 손으로 적었다 (261023)",
     "refEdges": "태스크 단위 참조 엣지는 안 뽑는다 — **마일스톤 단위(milestones[].repeat_of)로 올렸다** (260908). 태스크 엣지는 규칙(solveDeps)이 그 주석에서 편다"
   },
   "lang": "en",

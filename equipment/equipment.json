@@ -3,10 +3,13 @@
   "extracted_from": {
     "registry": "web-dashboard/mock-gateway/registry.json",
     "goldset": "gen-lab/goldset/missions/*.json 의 assigned_targets",
-    "script": "scripts/extract-equipment.mjs"
+    "script": "scripts/extract-equipment.mjs",
+    "actions_actuator": "viz-debugger/gateway/commands.ts 의 ACTION_CATALOG",
+    "actions_robot": "viz-debugger/src/physical/encode.ts 의 PhysicalAction 중 임무가 로봇을 움직이는 넷 (정지 이름은 presets.ts 의 STOP_ACTION)"
   },
   "note": "손으로 고치지 마라 — 원천은 레지스트리와 정답셋이고 `npm run extract:equipment` 로 다시 뽑는다. 레지스트리에 없는 식별자는 label·kind 가 null 이다: 이름을 지어내지 않는다.",
   "vocabulary_note": "프롬프트에 싣는 목록은 채점 어휘(정답셋 assigned_targets 합집합 4건)보다 **넓어야 한다.** 같아지면 오답 선택지가 없는 시험이 되어 이 축이 자기 자신을 채점한다. verify:no-leak 이 검사한다.",
+  "actions_note": "생성 어휘다 — 생성기가 액션 아이템의 params.action 에 쓸 이름. **발행 시점의 확인과는 다른 자리다**: 9월에 「장비 종류·명령은 장비가 밝힌다」고 한 것은 발행의 이야기이고, 발행은 여전히 장비가 밝힌 Capability 로 확인해 모르는 명령을 거부한다. 여기 없는 장비(센서·카메라·엣지 노드)는 켜 두면 도는 서비스라 지정할 행동이 없다. 장비 계약이 항목에 additionalProperties:false 라 항목 밖 표로 둔다.",
   "counts": {
     "total": 10,
     "registry": 10,
@@ -160,5 +163,33 @@
       "kind": "sensor",
       "zone_id": "zone-503"
     }
-  ]
+  ],
+  "actions": {
+    "actuator-01": [
+      "open_gate",
+      "close_gate"
+    ],
+    "actuator-02": [
+      "open_gate",
+      "close_gate"
+    ],
+    "robot-01": [
+      "scan_mission",
+      "turn",
+      "move_forward",
+      "abort"
+    ],
+    "robot-02": [
+      "scan_mission",
+      "turn",
+      "move_forward",
+      "abort"
+    ],
+    "robot-03": [
+      "scan_mission",
+      "turn",
+      "move_forward",
+      "abort"
+    ]
+  }
 }

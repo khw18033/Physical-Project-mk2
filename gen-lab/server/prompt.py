@@ -145,6 +145,44 @@ TASK_RULES = [
 NO_TASK_RULE_PREFIX = "tasks 는 빈 배열"
 
 
+#: 액션 아이템까지 내게 하는 판 (261023 · 생성기 3단계 H). **태스크 판 위에서만 켜진다.**
+#:
+#: 1단계가 `tasks 는 []` 로 두고 2단계가 채운 것과 같은 모양이다 — 2단계가 「action_items 는
+#: [] 로 둔다」고 시켰고, 3단계가 그 줄을 **갈아 끼운다.** 두 줄을 같이 두면 서로 반대되는
+#: 지시가 되고, 10단계 E 판에서 그러면 어느 쪽이 이겼는지 못 가른다는 것을 이미 봤다.
+#:
+#: ## 첫 줄이 원칙이다 — 「act 에만」의 **뜻**을 적는다
+#:
+#: 「act 에만 적는다」만 쓰면 모델은 왜인지 모르고 흔들린다 — `sense` 인 「칸 스캔」에 로봇이
+#: 움직이니 `scan_mission` 을 달고 싶어진다. 그래서 액션 아이템이 **장비에게 어떻게 하라고
+#: 지정하는 자리**라는 것과, 탐지 같은 서비스는 켜 두면 입력이 오는 대로 돌아 **지정할 행동이
+#: 없다**는 것을 함께 준다. 범위는 그 뜻에서 나온다.
+#:
+#: ## 둘째 셋째 줄이 지어내기를 막는다 — 8단계의 교훈
+#:
+#: 8단계 D 판이 종류 목록을 받자 **빈 단계를 지어내 개수만 맞췄다.** 동작 목록도 같은 함정이
+#: 있다: 목록을 주면 필요 없는 명령을 지어낼 수 있다. 그래서 「다 쓰지 않는다」·「모르면
+#: 비운다」를 규칙에 박고, 채점이 **동작 정밀도**를 따로 낸다 — 재현율만 보면 다 적는 쪽이 이긴다.
+#:
+#: ## `adapter` 는 빈 문자열이다 — 결정 ① (261023)
+#:
+#: 어댑터는 **배포가 고른다**(`verify:adapter-swap` 이 지키는 것이 「같은 임무가 어댑터를 바꿔도
+#: 돈다」다). 장비 목록에 어댑터 이름을 실을 원천도 없다 — 실으려면 이름을 지어야 한다.
+#: 문법이 칸을 required 로 강제하므로 `status` 와 같은 수법으로 값을 못박는다.
+ACTION_RULES = [
+    "action_items 는 **장비에 주는 자세한 행동강령**이다 — 그 태스크가 장비에게 무엇을 어떻게 하라고 지정하는 자리다. 그래서 node_kind 가 act 인 태스크에만 적는다. sense · decide · verify · report 는 action_items 를 [] 로 둔다: 탐지·관측 같은 서비스는 켜 두면 입력이 오는 대로 돌아서 지정할 행동이 없고, 판정·검증·보고는 장비에 내는 명령이 아니다.",
+    "액션 아이템 하나는 명령 하나다. params.action 에는 아래 [장비] 목록에서 **그 태스크 target 의 「동작」에 있는 이름만** 쓴다. 동작이 적혀 있지 않은 장비나 target 이 null 인 태스크에는 액션 아이템을 달지 않는다.",
+    "그 태스크가 **실제로 내야 하는 명령만** 적는다. 목록의 동작을 다 쓰지 않는다 — 목록은 고를 수 있는 이름이지 채워야 할 칸이 아니다. 명령이 여럿 필요하면 여럿 적는다(예: 회전 뒤 직진). 억지로 하나로 줄이지 않는다.",
+    "**무엇을 낼지 모르면 action_items 를 [] 로 둔다.** 지어내는 것보다 비우는 것이 낫다.",
+    "params 에는 action 과 **발화가 요구한 값**(예: 「2 m 앞으로」의 distance_m)만 적는다. 발화에 없는 속도·시간 제한·거리를 기본값으로 지어 넣지 않는다 — 그것은 실행이 정한다.",
+    "item_id 는 그 태스크의 task_id 뒤에 -1, -2 … 를 붙여 짓는다. target 은 그 태스크의 target 과 같다. adapter 는 빈 문자열 \"\" 로 둔다 — 어댑터는 배포가 고른다. status 는 \"pending\", telemetry_ref 는 null 로 둔다.",
+]
+
+#: 3단계가 갈아 끼우는 2단계 규칙의 머리. 그 줄에서 `action_items 는 []` 만 빠진다.
+ACTION_ANCHOR_PREFIX = "status 는 \"pending\", attempt 는 1"
+ACTION_STATUS_RULE = "status 는 \"pending\", attempt 는 1, derived_from 은 null, evaluation 은 null 로 둔다. 그 자리는 실행이 채운다."
+
+
 #: 분기와 되풀이를 적게 하는 판 (분기와루프 3단계 G). **태스크 규칙 뒤에 붙는다** —
 #: 마일스톤 층의 이야기지만 태스크를 낸 뒤에 읽어야 「무엇이 판정인가」가 이미 나와 있다.
 #:
@@ -220,6 +258,18 @@ TASK_RULES_EN = [
     "Write node_kind only in its own field. Do not append the kind to the title, such as \"(sense)\" or \"(check)\".",
 ]
 
+ACTION_RULES_EN = [
+    "action_items are **detailed instructions given to equipment** — the place where a task tells a device what to do and how. So write them only on tasks whose node_kind is act. Leave action_items as [] on sense · decide · verify · report: services such as detection and observation run on whatever input arrives once switched on, so there is no action to specify, and judging, checking and reporting are not commands to a device.",
+    "One action item is one command. params.action may use **only a name listed under \"actions\" for that task's target** in the [Equipment] list below. Do not attach action items to equipment with no actions listed or to tasks whose target is null.",
+    "Write **only the commands the task actually has to issue**. Do not use every action in the list — the list is names you may choose from, not slots to fill. If several commands are needed, write several (for example turn, then move forward). Do not force them into one.",
+    "**If you do not know what to issue, leave action_items as [].** Leaving it empty is better than inventing.",
+    "params holds action and **only the values the utterance asked for** (for example distance_m in \"2 m forward\"). Do not invent defaults for speed, time limits or distance the utterance did not give — execution decides those.",
+    "Make item_id from the task's task_id followed by -1, -2 …. target is the same as the task's target. Leave adapter as the empty string \"\" — deployment chooses the adapter. Set status to \"pending\" and telemetry_ref to null.",
+]
+
+ACTION_ANCHOR_PREFIX_EN = "Set status to \"pending\", attempt to 1"
+ACTION_STATUS_RULE_EN = "Set status to \"pending\", attempt to 1, derived_from to null, and evaluation to null. Execution fills those in."
+
 BRANCH_RULES_EN = [
     "Split milestones into branches **only when the utterance asks to choose one of two**. A branched milestone carries branch — from is the id of the milestone that judged, and when says whether this is the pass side or the fail side.",
     "Milestones branched from the same judgement run **only one of the two**. Doing both is not a branch, so do not write branch.",
@@ -236,9 +286,10 @@ SYSTEM_EN = (
 #: 규칙을 끼우는 자리. **번호가 아니라 문장 머리**로 찾는다 (한국어 쪽과 같은 이유).
 ANCHORS = {
     "ko": {"split": "마일스톤은 여러 개다", "places": "장소는", "no_task": NO_TASK_RULE_PREFIX,
-           "branch": BRANCH_ANCHOR_PREFIX},
+           "branch": BRANCH_ANCHOR_PREFIX, "actions": ACTION_ANCHOR_PREFIX},
     "en": {"split": "There are several milestones", "places": "Use only place names",
-           "no_task": "Leave tasks as an empty array", "branch": "Write node_kind only in its own field"},
+           "no_task": "Leave tasks as an empty array", "branch": "Write node_kind only in its own field",
+           "actions": ACTION_ANCHOR_PREFIX_EN},
 }
 
 #: 절 이름과 맺음말. 한국어 쪽 글자는 기존 코드에 그대로 남아 있다.
@@ -246,6 +297,8 @@ LABELS = {
     "ko": {
         "rules": "[규칙]", "places": "[장소] 이 목록 밖의 장소를 만들면 실패다.",
         "equipment": "[장비] assigned_targets 에는 이 목록의 id 만 쓴다.",
+        "equipment_actions": "[장비] assigned_targets 에는 이 목록의 id 만, params.action 에는 그 장비의 「동작」에 있는 이름만 쓴다.",
+        "actions": "동작",
         "examples": "[예시] {n}편. 같은 형식으로 낸다.", "request": "[요청]",
         "utterance": "발화", "output": "출력", "ask": "위 발화의 마일스톤을 JSON 으로 내라.",
         "no_places": "(장소 목록이 주어지지 않았습니다 — 그라운딩 없이 돕니다.)",
@@ -255,6 +308,8 @@ LABELS = {
     "en": {
         "rules": "[Rules]", "places": "[Places] Inventing a place outside this list is a failure.",
         "equipment": "[Equipment] assigned_targets may use only ids from this list.",
+        "equipment_actions": "[Equipment] assigned_targets may use only ids from this list, and params.action only names under that device's \"actions\".",
+        "actions": "actions",
         "examples": "[Examples] {n}. Produce the same shape.", "request": "[Request]",
         "utterance": "Utterance", "output": "Output",
         "ask": "Produce the milestones for the utterance above as JSON.",
@@ -293,6 +348,7 @@ def rules_for(
     tasks: bool = False,
     branch: bool = False,
     lang: str = "ko",
+    actions: bool = False,
 ) -> list[str]:
     """이 요청에 실제로 적용되는 규칙. **화면에도 보고서에도 이 목록 그대로 쓴다.**
 
@@ -307,6 +363,10 @@ def rules_for(
         rules = _insert_after(rules, at["split"], bundle["node_kind"])
     if tasks:
         rules = _replace_rule(rules, at["no_task"], bundle["tasks"])
+        # 3단계는 **태스크 판 위에서만** 켜진다 — 갈아 끼울 줄(「action_items 는 []」)이
+        # 태스크 규칙 안에 있다. 태스크를 안 내는 판에서 켜면 붙을 자리가 없다.
+        if actions:
+            rules = _replace_rule(rules, at["actions"], [bundle["action_status"], *bundle["actions"]])
     if branch:
         # 태스크 판에서는 태스크 규칙 뒤, 아니면 분할 규칙 뒤. **어느 쪽이든 한 곳에서
         # 정해진다** — 자리를 부르는 쪽이 정하면 판마다 프롬프트가 달라진다.
@@ -366,7 +426,7 @@ def render_places(places: Any, lang: str = "ko") -> str:
     return "\n".join(lines)
 
 
-def render_equipment(equipment: Any, lang: str = "ko") -> str:
+def render_equipment(equipment: Any, lang: str = "ko", actions: bool = False) -> str:
     """`equipment.json` → 프롬프트에 실을 장비 어휘 (7단계).
 
     ## 왜 이 함수가 생겼나
@@ -390,11 +450,19 @@ def render_equipment(equipment: Any, lang: str = "ko") -> str:
     `equipment_id` · `label` · `kind` · `aliases` 넷만 편다. 추출기가 파일에 남기는
     출처·집계는 **모델이 볼 것이 아니다** — 어느 장비가 정답셋에서 왔는지가 새면 그것이
     곧 정답 누출이다. 그래서 통째로 돌리지 않고 항목을 하나씩 집는다.
+
+    ## 동작은 3단계 판에서만 붙는다 (261023)
+
+    `actions` 를 켜면 파일 최상위 `actions` 표에서 그 장비의 동작 이름을 줄 끝에 붙인다.
+    **끈 판은 한 글자도 안 달라진다** — 2단계까지의 숫자가 그 프롬프트로 나왔다
+    (`verify:gen-prompt` 가 떠 둔 한국어 판과 대조한다). 동작이 없는 장비는 아무것도 안 붙인다:
+    「동작: 없음」이라고 적으면 그 말이 채울 칸처럼 읽힌다.
     """
     say = labels(lang)
     if not equipment:
         return say["no_equipment"]
     entries = equipment.get("equipment", []) if isinstance(equipment, dict) else list(equipment)
+    table = (equipment.get("actions") or {}) if (actions and isinstance(equipment, dict)) else {}
     lines = []
     for entry in entries:
         label = _name(entry, lang) or None
@@ -409,6 +477,9 @@ def render_equipment(equipment: Any, lang: str = "ko") -> str:
         alias = [a for a in _aliases(entry, lang) if a and a != label]
         if alias:
             head += f" [{say['alias']}: {', '.join(alias)}]"
+        names = table.get(entry["equipment_id"]) or []
+        if names:
+            head += f" {say['actions']}: {' · '.join(names)}"
         lines.append(f"- {head}")
     return "\n".join(lines)
 
@@ -443,9 +514,11 @@ SYSTEM = (
 #: 「한국어 판과 영어 판은 언어만 다르다」가 주장이 아니라 확인이 된다.
 PHRASING = {
     "ko": {"rules": RULES, "equipment": EQUIPMENT_RULE, "node_kind": NODE_KIND_RULE,
-           "tasks": TASK_RULES, "branch": BRANCH_RULES, "system": SYSTEM},
+           "tasks": TASK_RULES, "branch": BRANCH_RULES, "system": SYSTEM,
+           "actions": ACTION_RULES, "action_status": ACTION_STATUS_RULE},
     "en": {"rules": RULES_EN, "equipment": EQUIPMENT_RULE_EN, "node_kind": NODE_KIND_RULE_EN,
-           "tasks": TASK_RULES_EN, "branch": BRANCH_RULES_EN, "system": SYSTEM_EN},
+           "tasks": TASK_RULES_EN, "branch": BRANCH_RULES_EN, "system": SYSTEM_EN,
+           "actions": ACTION_RULES_EN, "action_status": ACTION_STATUS_RULE_EN},
 }
 
 
@@ -474,6 +547,7 @@ def build(
     tasks: bool = False,
     branch: bool = False,
     lang: str = "ko",
+    actions: bool = False,
 ) -> dict[str, str]:
     """(system, user) 두 문자열. **엔진의 대화 틀은 엔진이 씌운다** (`engines/`).
 
@@ -485,6 +559,10 @@ def build(
     규칙 문장 안에 들어 있다. `[장비]` 처럼 절을 만들면 「목록에서 골라 채워라」로 읽히고,
     그것이 개수만 부풀리는 실패다(8단계 §「읽는 법」 둘째 줄).
 
+    `actions` 는 생성기 3단계 H 판의 축이다(261023). **`tasks` 위에서만 뜻이 있다** — 갈아 끼울
+    규칙이 태스크 규칙 안에 있고, 장비 목록 줄 끝에 동작 이름이 붙는다. 예시도 액션 아이템을 든
+    모양으로 부르는 쪽이 함께 바꾼다(`lib/fewshot.mjs`) — 규칙만 바꾸면 예시가 이긴다.
+
     `tasks` 는 10단계 E 판의 축이다. **규칙을 더하는 것이 아니라 갈아 끼운다** —
     「tasks 는 빈 배열로 둔다」와 정면으로 부딪히므로 둘을 같이 둘 수 없다.
     예시는 여전히 마일스톤까지만 보인다(`lib/fewshot.mjs`) — 태스크를 예시로 보이면
@@ -494,13 +572,14 @@ def build(
     say = labels(lang)
     parts = [
         say["rules"],
-        "\n".join(f"{i + 1}. {rule}" for i, rule in enumerate(rules_for(equipment, node_kinds, tasks, branch, lang))),
+        "\n".join(f"{i + 1}. {rule}" for i, rule in enumerate(rules_for(equipment, node_kinds, tasks, branch, lang, actions))),
         "",
         say["places"],
         render_places(places, lang),
     ]
     if equipment:
-        parts += ["", say["equipment"], render_equipment(equipment, lang)]
+        with_actions = actions and tasks
+        parts += ["", say["equipment_actions" if with_actions else "equipment"], render_equipment(equipment, lang, with_actions)]
     if examples:
         parts += ["", say["examples"].format(n=len(examples))]
         parts += [render_example(example, lang) for example in examples]

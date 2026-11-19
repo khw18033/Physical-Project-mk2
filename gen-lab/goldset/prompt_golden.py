@@ -42,6 +42,8 @@ CASES = [
     ("branch", {"branch": True, "equipment": True}),
     ("tasks_branch", {"tasks": True, "branch": True, "equipment": True}),
     ("all", {"equipment": True, "node_kinds": True, "tasks": True, "branch": True}),
+    # 261023 · 생성기 3단계 H — 액션 아이템 판. 장비 목록 줄 끝에 동작이 붙는다.
+    ("tasks_actions", {"tasks": True, "equipment": True, "actions": True}),
 ]
 
 UTTERANCE = "503호에서 복도에 있는 엘리베이터 앞까지 이동해줘."
@@ -76,6 +78,7 @@ def built() -> dict:
             node_kinds=flags.get("node_kinds", False),
             tasks=flags.get("tasks", False),
             branch=flags.get("branch", False),
+            actions=flags.get("actions", False),
         )
     return out
 

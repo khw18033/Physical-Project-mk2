@@ -35,10 +35,32 @@
  *
  * 그래서 그때도 **식별자만 싣고 label·kind 는 null 로 둔다.** 없는 것은 없는 대로 둔다 —
  * `places.json` 의 자리표시와 같은 원칙이고, 그 자리는 지금 비어 있어도 열어 둔다.
+ *
+ * ## 동작 어휘 — 생성기가 액션 아이템에 쓸 이름 (261023 · 생성기 3단계)
+ *
+ * 장비마다 **임무가 낼 수 있는 명령 이름**을 `actions` 표로 싣는다. 7단계에 장비 목록을
+ * 주자 지어낸 장비가 20건 → 0건이 됐다 — 같은 처방을 동작에 준다.
+ *
+ * **9월 판단과 어긋나지 않는다.** 그때 「장비 종류를 우리가 목록으로 정하지 않는다, 장비가
+ * 밝힌다」고 한 것은 **발행 시점**의 이야기다. 여기 싣는 것은 **생성 어휘**다 — 생성기는 이
+ * 목록을 보고 쓰고, 발행은 장비가 밝힌 `Capability` 로 다시 확인해 모르는 명령을 거부한다
+ * (그 거부 경로는 이미 있다). 이 표가 틀려도 장비에 엉뚱한 명령이 나가지 않는다.
+ *
+ * 원천은 둘이고 **둘 다 우리가 이미 내고 있는 이름**이다. 새로 짓지 않는다.
+ *   - 수문 — `gateway/commands.ts` 의 `ACTION_CATALOG` 를 그대로 읽는다(장비 id 별)
+ *   - 로봇 — `src/physical/encode.ts` 의 `PhysicalAction` 중 **임무가 로봇을 움직이는 넷**.
+ *     정지 이름은 `presets.ts` 의 `STOP_ACTION` 에서 끌어온다. 빼는 것은 정비 명령
+ *     (`ping`·`diag`·`sdk_*`)과 화면 쪽 신호(`scan_continue`) · 장비가 선언해야만 쓰는 것
+ *     (`teleop`·`move_relative`·드론 SAR) — 임무 생성이 고를 명령이 아니거나, 장비가
+ *     밝혔는지 생성 시점에 모른다
+ *   - 센서·카메라·엣지 노드 — **싣지 않는다.** 켜 두면 값이 오는 서비스라 지정할 행동이 없다
+ *
+ * 장비 계약(`equipment.schema.json`)은 항목에 `additionalProperties: false` 라 항목 안에
+ * 넣지 않고 파일 최상위에 id → 이름 표로 둔다. **계약은 안 바꾼다.**
  */
 import { readFileSync, readdirSync, mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { loadContracts, validate } from './lib/json-schema.mjs';
 
 const vizRoot = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -91,6 +113,20 @@ for (const id of [...new Set([...fromRegistry.keys(), ...goldTargets])].sort()) 
   });
 }
 
+// ── 동작 어휘 (261023) ───────────────────────────────────────────────────────
+//
+// 머리말의 「동작 어휘」. **id 별로** 싣는다 — 같은 종류라도 장비마다 밝히는 명령이 다를 수
+// 있고, 수문의 원천(`ACTION_CATALOG`)이 이미 id 별이다.
+const { ACTION_CATALOG } = await import(pathToFileURL(join(vizRoot, 'gateway', 'commands.ts')).href);
+const { STOP_ACTION } = await import(pathToFileURL(join(vizRoot, 'src', 'physical', 'presets.ts')).href);
+const ROBOT_MISSION_ACTIONS = ['scan_mission', 'turn', 'move_forward', STOP_ACTION];
+const actions = {};
+for (const entry of equipment) {
+  const fromCatalog = ACTION_CATALOG[entry.equipment_id];
+  if (fromCatalog !== undefined) actions[entry.equipment_id] = fromCatalog.map((spec) => spec.action);
+  else if (entry.kind === 'robot') actions[entry.equipment_id] = [...ROBOT_MISSION_ACTIONS];
+}
+
 // ── 계약 ─────────────────────────────────────────────────────────────────────
 //
 // 쓰기 전에 검사한다. 계약을 어긴 파일을 남기면 그것을 읽는 쪽이 먼저 깨지고,
@@ -113,11 +149,15 @@ writeFileSync(join(outDir, 'equipment.json'), JSON.stringify({
     registry: registryRel,
     goldset: 'gen-lab/goldset/missions/*.json 의 assigned_targets',
     script: 'scripts/extract-equipment.mjs',
+    actions_actuator: 'viz-debugger/gateway/commands.ts 의 ACTION_CATALOG',
+    actions_robot: 'viz-debugger/src/physical/encode.ts 의 PhysicalAction 중 임무가 로봇을 움직이는 넷 (정지 이름은 presets.ts 의 STOP_ACTION)',
   },
   note: '손으로 고치지 마라 — 원천은 레지스트리와 정답셋이고 `npm run extract:equipment` 로 다시 뽑는다. 레지스트리에 없는 식별자는 label·kind 가 null 이다: 이름을 지어내지 않는다.',
   vocabulary_note: `프롬프트에 싣는 목록은 채점 어휘(정답셋 assigned_targets 합집합 ${goldTargets.size}건)보다 **넓어야 한다.** 같아지면 오답 선택지가 없는 시험이 되어 이 축이 자기 자신을 채점한다. verify:no-leak 이 검사한다.`,
+  actions_note: '생성 어휘다 — 생성기가 액션 아이템의 params.action 에 쓸 이름. **발행 시점의 확인과는 다른 자리다**: 9월에 「장비 종류·명령은 장비가 밝힌다」고 한 것은 발행의 이야기이고, 발행은 여전히 장비가 밝힌 Capability 로 확인해 모르는 명령을 거부한다. 여기 없는 장비(센서·카메라·엣지 노드)는 켜 두면 도는 서비스라 지정할 행동이 없다. 장비 계약이 항목에 additionalProperties:false 라 항목 밖 표로 둔다.',
   counts: { total: equipment.length, registry: fromRegistry.size, goldset_targets: goldTargets.size, wider_by: equipment.length - goldTargets.size },
   equipment,
+  actions,
 }, null, 2) + '\n', 'utf8');
 
 const kinds = [...new Set(equipment.map((entry) => entry.kind).filter(Boolean))].sort();
@@ -125,3 +165,4 @@ console.log(`장비 ${equipment.length}건 — 레지스트리 ${fromRegistry.si
 console.log(`채점 어휘보다 ${equipment.length - goldTargets.size}건 넓다 — 오답 선택지: ${registryOnly.map((entry) => entry.equipment_id).join(' · ') || '없다(축이 죽는다)'}`);
 console.log(`이름을 모르는 식별자 ${goldOnly.length}건 (label·kind = null): ${goldOnly.map((entry) => entry.equipment_id).join(' · ') || '없다'}`);
 console.log(`종류 ${kinds.length}종 — ${kinds.join(' · ')}  (레지스트리의 entity_type 을 그대로 옮긴다)`);
+console.log(`동작 어휘 ${Object.keys(actions).length}대 — ${Object.entries(actions).map(([id, names]) => `${id}: ${names.join('·')}`).join(' / ')}`);

@@ -21,8 +21,13 @@
  * 실행이 채우는 자리(`status`·`attempt`·`derived_from`·`action_items`·`evaluation`)는
  * 프롬프트 규칙이 못박은 값 그대로 보인다. 예시와 규칙이 어긋나면 예시가 이긴다 —
  * 10단계 E 판이 그것을 15건 중 10건으로 보였다.
+ *
+ * **`action_items` 만은 판이 정한다** (261023 · 생성기 3단계 H). 액션 아이템 판에서는 규칙이
+ * 「act 에 명령을 적어라」로 갈리므로 예시도 정답의 액션 아이템을 든다 — 위와 같은 이유로,
+ * 규칙만 바꾸면 예시가 이긴다. 정답은 손으로 적은 `goldset/action-items.json` 에서 왔고
+ * sense · decide · verify · report 는 빈 배열이다(추출기가 막는다).
  */
-function taskAsExample(task) {
+function taskAsExample(task, actions = false) {
   return {
     task_id: task.task_id,
     title: task.title,
@@ -32,7 +37,7 @@ function taskAsExample(task) {
     derived_from: null,
     ...(task.node_kind == null ? {} : { node_kind: task.node_kind }),
     ...(task.target === undefined ? {} : { target: task.target }),
-    action_items: [],
+    action_items: actions ? (task.action_items ?? []) : [],
     evaluation: null,
   };
 }
@@ -53,7 +58,7 @@ function taskAsExample(task) {
  * 항목 순서는 **계약의 차례대로** 둔다. 문법이 그 순서를 고정하므로(`gbnf.ts`),
  * 예시가 다른 순서면 모델이 예시와 문법 사이에서 싸운다.
  */
-export function asExample(mission, { tasks = false, branch = false } = {}) {
+export function asExample(mission, { tasks = false, branch = false, actions = false } = {}) {
   return {
     mission_id: mission.mission_id,
     utterance: mission.utterance,
@@ -63,7 +68,7 @@ export function asExample(mission, { tasks = false, branch = false } = {}) {
       order: milestone.order,
       status: 'pending',
       tasks: tasks
-        ? (mission.tasks ?? []).filter((task) => task.milestone_id === milestone.milestone_id).map(taskAsExample)
+        ? (mission.tasks ?? []).filter((task) => task.milestone_id === milestone.milestone_id).map((task) => taskAsExample(task, actions))
         : [],
       assigned_targets: milestone.assigned_targets,
       // 분기·되풀이 주석 (260908 · 3단계). **판이 켜졌을 때만 보인다** — 규칙만 바꾸고
@@ -92,14 +97,14 @@ export const SHOT_MODES = /** @type {const} */ (['leave-one-out', 'none']);
  * @param missions  정답셋 전부.
  * @param shots     `'leave-one-out'`(기본) 또는 `'none'`(예시 0편 · 7단계 C 판).
  */
-export function examplesFor(missionId, missions, shots = 'leave-one-out', { tasks = false, branch = false } = {}) {
+export function examplesFor(missionId, missions, shots = 'leave-one-out', { tasks = false, branch = false, actions = false } = {}) {
   if (!SHOT_MODES.includes(shots)) throw new Error(`모르는 예시 방식: ${shots} — ${SHOT_MODES.join(' 또는 ')}`);
   // 0편은 **예시를 안 주는 것**이지 「없는 예시를 골랐다」가 아니다. 그래서 필터가 아니라
   // 이른 반환으로 가른다 — 정답셋이 1편이 되어도 0편은 0편이다.
   if (shots === 'none') return [];
   return missions
     .filter((mission) => mission.mission_id !== missionId)
-    .map((mission) => asExample(mission, { tasks, branch }));
+    .map((mission) => asExample(mission, { tasks, branch, actions }));
 }
 
 /**

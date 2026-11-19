@@ -90,7 +90,8 @@
       "milestone_id": "MS-A",
       "node_kind": "sense",
       "target": "sensor-01",
-      "deps": []
+      "deps": [],
+      "action_items": []
     },
     {
       "task_id": "T-41b",
@@ -100,7 +101,8 @@
       "target": "sensor-01",
       "deps": [
         "T-41a"
-      ]
+      ],
+      "action_items": []
     },
     {
       "task_id": "T-42a",
@@ -110,7 +112,8 @@
       "target": "sensor-01",
       "deps": [
         "T-41b"
-      ]
+      ],
+      "action_items": []
     },
     {
       "task_id": "T-42b",
@@ -120,7 +123,8 @@
       "target": "sensor-01",
       "deps": [
         "T-42a"
-      ]
+      ],
+      "action_items": []
     },
     {
       "task_id": "T-42c",
@@ -130,7 +134,8 @@
       "target": "sensor-01",
       "deps": [
         "T-42b"
-      ]
+      ],
+      "action_items": []
     },
     {
       "task_id": "T-43a",
@@ -140,7 +145,8 @@
       "target": "sensor-01",
       "deps": [
         "T-42c"
-      ]
+      ],
+      "action_items": []
     },
     {
       "task_id": "T-43b",
@@ -150,7 +156,8 @@
       "target": "sensor-01",
       "deps": [
         "T-43a"
-      ]
+      ],
+      "action_items": []
     },
     {
       "task_id": "T-43c",
@@ -160,6 +167,18 @@
       "target": "actuator-01",
       "deps": [
         "T-43b"
+      ],
+      "action_items": [
+        {
+          "item_id": "T-43c-1",
+          "target": "actuator-01",
+          "adapter": "",
+          "params": {
+            "action": "close_gate"
+          },
+          "status": "pending",
+          "telemetry_ref": null
+        }
       ]
     },
     {
@@ -170,7 +189,8 @@
       "target": "actuator-01",
       "deps": [
         "T-43c"
-      ]
+      ],
+      "action_items": []
     },
     {
       "task_id": "T-43e",
@@ -180,7 +200,8 @@
       "target": "actuator-01",
       "deps": [
         "T-43d"
-      ]
+      ],
+      "action_items": []
     },
     {
       "task_id": "T-44a",
@@ -190,7 +211,8 @@
       "target": "sensor-01",
       "deps": [
         "T-43e"
-      ]
+      ],
+      "action_items": []
     },
     {
       "task_id": "T-44b",
@@ -200,7 +222,8 @@
       "target": "sensor-01",
       "deps": [
         "T-44a"
-      ]
+      ],
+      "action_items": []
     },
     {
       "task_id": "T-44c",
@@ -210,6 +233,18 @@
       "target": "actuator-01",
       "deps": [
         "T-44b"
+      ],
+      "action_items": [
+        {
+          "item_id": "T-44c-1",
+          "target": "actuator-01",
+          "adapter": "",
+          "params": {
+            "action": "open_gate"
+          },
+          "status": "pending",
+          "telemetry_ref": null
+        }
       ]
     },
     {
@@ -220,7 +255,8 @@
       "target": "actuator-01",
       "deps": [
         "T-44c"
-      ]
+      ],
+      "action_items": []
     },
     {
       "task_id": "T-44e",
@@ -230,7 +266,8 @@
       "target": "actuator-01",
       "deps": [
         "T-44d"
-      ]
+      ],
+      "action_items": []
     },
     {
       "task_id": "T-44f",
@@ -240,7 +277,8 @@
       "target": "sensor-01",
       "deps": [
         "T-44e"
-      ]
+      ],
+      "action_items": []
     }
   ],
   "shape": {
@@ -264,7 +302,7 @@
     "events": "실행 기록 — 생성기가 만들 것이 아니라 실행이 만든다",
     "worldTimeline": "세계 값 — 위와 같다",
     "params": "편별 상수(위험 수위 등) — 임무 설계가 아니라 환경 설정이다",
-    "actionItems": "어댑터 전개 결과 — VZ-G-04 의 몫이다",
+    "actionItems": "대본의 것은 실제로 나간 명령이라 안 뽑는다 — 정답 액션 아이템은 goldset/action-items.json 에 손으로 적었다 (261023)",
     "refEdges": "태스크 단위 참조 엣지는 안 뽑는다 — **마일스톤 단위(milestones[].repeat_of)로 올렸다** (260908). 태스크 엣지는 규칙(solveDeps)이 그 주석에서 편다"
   }
 }

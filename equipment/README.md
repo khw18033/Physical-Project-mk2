@@ -48,6 +48,24 @@
 `npm run extract:equipment` 로 다시 뽑는다. **손으로 고치지 마라** — 원천은
 레지스트리와 정답셋이다.
 
+## 동작 어휘 — `actions` 표 (261023 · 생성기 3단계)
+
+장비 id → 그 장비에 **임무가 낼 수 있는 명령 이름**. 생성기가 액션 아이템의 `params.action` 을
+여기서 고른다. 장비 목록을 주자 지어낸 장비가 20건 → 0건이 된 것과 같은 처방이다.
+
+| 장비 | 동작 | 원천 |
+|---|---|---|
+| `actuator-01` · `actuator-02` | `open_gate` · `close_gate` | `viz-debugger/gateway/commands.ts` 의 `ACTION_CATALOG` |
+| `robot-01` · `02` · `03` | `scan_mission` · `turn` · `move_forward` · `abort` | `src/physical/encode.ts` 의 `PhysicalAction` 중 임무가 로봇을 움직이는 넷 (정지 이름은 `STOP_ACTION`) |
+| 센서 · 카메라 · 엣지 노드 | 없다 | 켜 두면 값이 오는 서비스라 지정할 행동이 없다 |
+
+**9월 판단과 어긋나지 않는다.** 그때 「장비 종류를 우리가 목록으로 정하지 않는다, 장비가
+밝힌다」고 한 것은 **발행 시점**의 이야기다. 이 표는 **생성 어휘**다 — 생성기는 이 목록을
+보고 쓰고, 발행은 장비가 밝힌 `Capability` 로 다시 확인해 모르는 명령을 거부한다.
+
+장비 계약(`contracts/equipment.schema.json`)이 항목에 `additionalProperties: false` 라
+항목 안이 아니라 파일 최상위 표로 둔다. **계약은 안 바꿨다.**
+
 ## 레지스트리를 복사하지 않는다
 
 `gateway/hub.ts` 와 `stt/vocab.py` 가 같은 `registry.json` 을 읽는다. 복사본을 두면

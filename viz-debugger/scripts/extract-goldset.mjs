@@ -31,6 +31,16 @@
 //
 // 사이드카에 없는 문장이 하나라도 있으면 **큰 소리로 멈춘다.** 조용히 한국어를 남기면
 // 영어 판 정답셋에 한국어 제목이 섞이고, 그 편의 점수는 아무 뜻이 없다.
+//
+// ## 액션 아이템은 손으로 적은 파일에서 합친다 (261023 · 생성기 3단계)
+//
+// `goldset/action-items.json` — 발화 변형처럼 **대본에 없는 것**이라 이 스크립트가 만들지
+// 않는다. 대본의 `actionItems` 는 여전히 안 뽑는다: 그것은 실제로 나간 명령(실행 뒤에 손으로
+// 채운 것)이고, 정답은 **생성 시점에 적어야 할 것**이다. 둘은 다를 수 있다.
+//
+// 여기서는 검사하고 합치기만 한다 — act 태스크에만 있는가 · act 는 빠짐없이 적혔는가(빈 배열도
+// 적은 것이다) · 동작이 그 장비의 생성 어휘(`equipment.json` 의 `actions`)에 있는가.
+// 어기면 멈춘다. 정답이 원칙을 어기면 채점이 그 원칙을 거꾸로 가르친다.
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -42,6 +52,36 @@ const outDir = join(repoRoot, 'gen-lab', 'goldset');
 
 /** 뽑는 편. 순서는 보고서 표의 순서다. */
 const MISSIONS = ['MSN-260831-01', 'MSN-260831-02', 'MSN-260831-03'];
+
+/** 손으로 적은 액션 아이템 정답 (머리말). 동작 이름의 어휘는 장비 추출기가 낸 표다. */
+const handActions = JSON.parse(readFileSync(join(outDir, 'action-items.json'), 'utf8'));
+const actionVocabulary = JSON.parse(readFileSync(join(repoRoot, 'equipment', 'equipment.json'), 'utf8')).actions ?? {};
+const actionProblems = [];
+
+/**
+ * 태스크 하나의 정답 액션 아이템 — **계약(`action-item.schema.json`) 모양으로 편다.**
+ *
+ * `adapter` 는 빈 문자열이다(결정 ① · 261023): 어댑터는 배포가 고르는 것이라 임무의 일이 아니다.
+ * `status`·`telemetry_ref` 는 실행이 채우는 자리라 생성기가 내는 값 그대로다.
+ */
+function goldActionItems(missionId, task) {
+  const entry = handActions.missions?.[missionId]?.[task.id];
+  if (task.nodeKind !== 'act') {
+    if (entry !== undefined) actionProblems.push(`${missionId} ${task.id}: ${task.nodeKind} 태스크에 액션 아이템이 적혔다 — act 에만 적는다`);
+    return [];
+  }
+  if (entry === undefined) {
+    actionProblems.push(`${missionId} ${task.id}: act 태스크인데 action-items.json 에 없다 — 명령이 없으면 빈 배열로 적고 why 를 남겨라`);
+    return [];
+  }
+  const allowed = actionVocabulary[task.target] ?? [];
+  return entry.actions.map((params, index) => {
+    if (!allowed.includes(params.action)) {
+      actionProblems.push(`${missionId} ${task.id}: ${params.action} 은 ${task.target} 의 생성 어휘(${allowed.join('·') || '없음'})에 없다`);
+    }
+    return { item_id: `${task.id}-${index + 1}`, target: task.target, adapter: '', params, status: 'pending', telemetry_ref: null };
+  });
+}
 
 /**
  * **뺀 편과 그 이유.** 지운 것이 아니라 뽑지 않는 것이다 —
@@ -195,6 +235,7 @@ for (const id of MISSIONS) {
       node_kind: task.nodeKind ?? null,
       target: task.target ?? null,
       deps: task.deps ?? [],
+      action_items: goldActionItems(raw.missionId, task),
     })),
     shape,
     /** 뽑지 않은 것과 그 이유. 나중에 「왜 없지」를 다시 묻지 않게 파일에 적어 둔다. */
@@ -202,7 +243,7 @@ for (const id of MISSIONS) {
       events: '실행 기록 — 생성기가 만들 것이 아니라 실행이 만든다',
       worldTimeline: '세계 값 — 위와 같다',
       params: '편별 상수(위험 수위 등) — 임무 설계가 아니라 환경 설정이다',
-      actionItems: '어댑터 전개 결과 — VZ-G-04 의 몫이다',
+      actionItems: '대본의 것은 실제로 나간 명령이라 안 뽑는다 — 정답 액션 아이템은 goldset/action-items.json 에 손으로 적었다 (261023)',
       refEdges: '태스크 단위 참조 엣지는 안 뽑는다 — **마일스톤 단위(milestones[].repeat_of)로 올렸다** (260908). 태스크 엣지는 규칙(solveDeps)이 그 주석에서 편다',
     },
   };
@@ -213,6 +254,19 @@ for (const id of MISSIONS) {
     milestones: mission.milestones.length,
     ...shape,
   });
+}
+
+// 손으로 적은 파일에 있는데 대본에 없는 태스크 — 옮겨 적다 이름이 틀린 것이다.
+for (const [missionId, byTask] of Object.entries(handActions.missions ?? {})) {
+  const mission = missions.find((item) => item.mission_id === missionId);
+  for (const taskId of Object.keys(byTask)) {
+    if (!mission?.tasks.some((task) => task.task_id === taskId)) actionProblems.push(`action-items.json: ${missionId} ${taskId} 는 정답셋에 없는 태스크다`);
+  }
+}
+if (actionProblems.length > 0) {
+  console.error(`❌ 정답 액션 아이템이 원칙을 어긴다 — ${actionProblems.length}건`);
+  for (const line of actionProblems) console.error('  - ' + line);
+  process.exit(1);
 }
 
 // ── 발화 변형 검사 ───────────────────────────────────────────────────────────

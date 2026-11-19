@@ -111,6 +111,7 @@ npm run baseline:run -- --model Qwen3-8B-Q4_K_M --no-equipment # 장비 목록 �
 npm run baseline:run -- --model Qwen3-8B-Q4_K_M --no-examples  # 예시 0편 (7단계 C)
 npm run baseline:run -- --model Qwen3-8B-Q4_K_M --node-kinds   # 노드 문법 5종 규칙 (8단계 D)
 npm run baseline:run -- --model Qwen3-8B-Q4_K_M --tasks        # 태스크까지 낸다 (10단계 E)
+npm run baseline:run -- --model Qwen3-8B-Q4_K_M --tasks --actions  # 액션 아이템까지 (생성기 3단계 H · 261023)
 npm run baseline:run -- --rescore                    # 출력은 그대로, 채점만 다시
 npm run baseline:report                              # 모델을 한 표에 놓는다
 ```
@@ -119,6 +120,9 @@ npm run baseline:report                              # 모델을 한 표에 놓�
 돌릴 수 없다. 앞 셋은 기본이 켜짐이라 **끄는** 스위치이고 `--node-kinds` 만 **켜는**
 스위치다 — `--node-kinds` 는 8단계에서 재고 **채택하지 않았고**, `--tasks` 는 10단계에서
 재고 **채택했다**(화면 기본 켜짐).
+`--actions` 는 `--tasks` 위에서만 켜진다(261023). act 태스크가 장비에 낼 명령(`params.action`)을
+들고 나온다 — 동작 이름은 `equipment.json` 의 `actions` 표에서 고르고, `adapter` 는 빈 문자열이다
+(어댑터는 배포가 고른다). **화면은 아직 안 켠다** — 받는 쪽은 다음 지시다.
 
 `--tasks` 는 예시도 함께 바꾼다 — 규칙만 바꾸고 예시를 그대로 두면 프롬프트가 서로
 반대되는 지시 둘을 들고, 실측에서 **예시가 이겼다**(15건 중 10건이 규칙을 무시했다).
