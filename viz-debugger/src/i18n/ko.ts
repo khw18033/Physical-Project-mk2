@@ -2231,6 +2231,7 @@ export const ko: Record<string, string> = {
   'hsrv.listFailed': '서버는 붙었는데 판 목록을 못 읽었습니다. 이 PC 기록만 보여 줍니다',
   'hsrv.fileFallbackServerDown': '임무 이력 서버에 안 붙어 있어 이 PC 파일만 보여 줍니다. 서버가 다시 붙으면 서버 목록으로 바뀝니다',
   'rec.imageFailed': '그림을 못 받았습니다: {status}',
+  'rec.traceShrunk': '기록 열이 줄었습니다({before} → {now}건) — 이 판 폴더에 더 쓰지 않습니다. 이미 쓴 기록은 그대로 있습니다',
   'rec.emptyImage': '빈 그림',
   'ws.noReason': '사유 없음',
   'ws.planRejected': '계획 승인이 거절됐습니다: {why}. 다시 요청해 새 계획을 받으세요',

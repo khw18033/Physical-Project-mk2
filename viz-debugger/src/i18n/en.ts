@@ -2208,6 +2208,7 @@ export const en: Record<string, string> = {
   'hsrv.listFailed': 'The server is connected but its run list could not be read. Showing this PC only',
   'hsrv.fileFallbackServerDown': 'Not connected to the mission history server, so only this PC’s files are shown. The server list comes back once it reconnects',
   'rec.imageFailed': 'Could not fetch the image: {status}',
+  'rec.traceShrunk': 'The trace shrank ({before} → {now} events) — no more writes to this run folder. What was already written stays as it is',
   'rec.emptyImage': 'empty image',
   'ws.noReason': 'no reason given',
   'ws.planRejected': 'The plan approval was rejected: {why}. Ask again to get a new plan',

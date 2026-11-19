@@ -128,6 +128,7 @@
     "verify:scan-hold": "node scripts/verify-scan-hold.mjs",
     "verify:mission-history": "node scripts/verify-mission-history.mjs",
     "verify:mission-record": "node scripts/verify-mission-record.mjs",
+    "verify:trace-shrink-guard": "node scripts/verify-trace-shrink-guard.mjs",
     "verify:notifications": "node scripts/verify-notifications.mjs",
     "verify:i18n-scope-leak": "node scripts/verify-i18n-scope-leak.mjs",
     "verify:i18n-data": "node scripts/verify-i18n-data.mjs",

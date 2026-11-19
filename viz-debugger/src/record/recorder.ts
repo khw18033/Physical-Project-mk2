@@ -105,6 +105,8 @@ type Run = {
   startedAtIso: string | null;
   /** 마지막으로 쓴 본문 — 같으면 안 쓴다. */
   written: { mission: string; progress: string };
+  /** 이 판에서 지금까지 쓴 기록 열의 최대 길이 — 열이 이보다 짧아지면 안 쓴다(`recordTick`). */
+  traceHigh: number;
   robotFrames: RecordedRobotFrame[];
   /** 저장한 그림: 경로 → 서명(판 번호 등). 서명이 바뀌면 다시 뜬다. */
   images: Map<string, string>;
@@ -175,6 +177,7 @@ function currentRun(): Run | null {
       folder: null,
       startedAtIso: null,
       written: { mission: '', progress: '' },
+      traceHigh: 0,
       robotFrames: [],
       images: new Map(),
       imageLog: {},
@@ -436,6 +439,26 @@ export function recordTick(): void {
     target.sink = chooseSink();
     setStatus({ sink: target.sink, ...(target.sink === null ? { lastError: t('hsrv.noSink') } : {}) });
   }
+  /**
+   * **같은 판 안에서 기록 열이 줄어들면 쓰지 않는다** (261026 — 기록 열 덮어쓰기).
+   *
+   * 기록은 덧붙이기만 한다(§4-2) — 그래서 같은 판의 열은 줄어들 수 없다. 줄었다면 판이 바뀐 것이 아니라 저장소가
+   * 깨진 것이다. 열을 정당하게 비우는 길(새 임무 · 생성 임무 · 미리보기 · 초기화 · 처음부터)은 전부 비우기 **전에**
+   * `sealRun()` 을 부르고, 그때 `seal()` 이 이 판을 놓아 새 `Run`(높이 0)과 새 폴더가 선다 — 그 길은 안 막힌다.
+   *
+   * 261026 03:29 `024124` 판이 이것으로 지워졌다. `src` 를 고치자 핫 리로드가 저장소를 비웠고, 이 기록기는 같은 판을
+   * 쥔 채 다음 틱에 빈 열(101 → 0)을 덮어썼다. 빈 열만 막으면 101 → 3 은 못 막는다.
+   *
+   * 막으면 **그 틱을 통째로 건너뛴다** — `mission.json` 만 쓰면 둘이 어긋난다. 그리고 조용히 넘어가지 않는다.
+   */
+  const traceLength = traceEvents().length;
+  if (traceLength < target.traceHigh) {
+    const reason = t('rec.traceShrunk', { before: target.traceHigh, now: traceLength });
+    if (status.lastError !== reason) console.warn(`[recorder] ${target.folder.date}/${target.folder.run} — ${reason}`);
+    setStatus({ lastError: reason });
+    return;
+  }
+  target.traceHigh = traceLength;
   wantDetectImages(target);
   write(target, buildBodies(target));
   void runJobs();
