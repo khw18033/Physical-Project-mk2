@@ -34,6 +34,7 @@ from mission_runtime.runtime.mlops_pipeline import (
     REFUSE_NO_CONTROL_PLANE,
     REFUSE_NO_LAST_KNOWN_GOOD,
     REFUSE_NOT_APPROVED,
+    REFUSE_LINEAGE_MISMATCH,
     REFUSE_NOT_VALIDATED,
     REFUSE_TERMINAL,
     REFUSE_VERIFICATION_NOT_MET,
@@ -65,15 +66,20 @@ KIND = "object_detection"
 # --- helpers ---------------------------------------------------------------
 
 
-def approved_lineage(lineage_id: str = "lin-1") -> LearningLineage:
+def approved_lineage(lineage_id: str = "lin-1", *, cites: str = "1") -> LearningLineage:
     """AI-L-05 검증과 AI-L-06 승인을 모두 통과한 계보.
 
     각 전이가 actor·근거를 요구하므로 여기서도 생략할 수 없다 — 그 강제가
     `continual/lineage.py`의 것이고 이 경로가 우회하지 않는다는 점이 요지다.
+
+    `cites` 를 받는 이유: 전에는 `"ev-0"` 을 인용했고, 그것은 **아무 버전에 대한
+    것도 아닌 계보**였다. 그 상태로는 "계보 A, 버전 B" 를 거절하는 시험을 쓸 수
+    없다 — 모든 짝이 어긋난 짝이기 때문이다. 기본값이 배정기가 고르는 버전과
+    같아서 기존 호출은 그대로 통과한다.
     """
-    lineage = LearningLineage(lineage_id, actor="op", evidence_ref="ev-0", reason="candidate")
+    lineage = LearningLineage(lineage_id, actor="op", evidence_ref=cites, reason="candidate")
     while lineage.state is not LearningState.APPROVED:
-        lineage.advance(actor="op", evidence_ref="ev-0", reason="stage")
+        lineage.advance(actor="op", evidence_ref=cites, reason="stage")
     return lineage
 
 
@@ -109,12 +115,12 @@ REQUIREMENT = MissionRequirement("mission-1", KIND, min_quality=0.5, max_latency
 
 def submit(pipeline: MlopsPipeline, *, deployable: Deployable = DEPLOYABLE,
            device: DeviceProfile = DEVICE, requirement: MissionRequirement = REQUIREMENT,
-           lineage: LearningLineage | None = None):
+           lineage: LearningLineage | None = None, cites: str = "1"):
     return pipeline.submit(
         deployable,
         device,
         requirement,
-        lineage=lineage or approved_lineage(),
+        lineage=lineage or approved_lineage(cites=cites),
         actor="operator",
         evidence_ref="ev-deploy",
     )
@@ -165,6 +171,38 @@ def test_a_deployment_without_a_lineage_is_not_a_shortcut():
     plan = pipeline.plan(DEPLOYABLE, DEVICE, REQUIREMENT, lineage=None)
     assert plan.refusal_reason == REFUSE_NOT_VALIDATED
     assert plan.would_place is False
+
+
+def test_an_approval_for_another_version_is_not_an_approval_for_this_one():
+    """AI-L-08: 승인은 받았으나 **다른 버전에 대한** 승인이면 통과시키지 않는다.
+
+    이 관문이 없을 때가 더 나빴다 — 계보는 `"ev"` 를, 버전은 `"det@1"` 을 쓰고
+    있어서 두 이름이 **아예 만날 수 없었다**. 그래서 어긋난 짝을 쓰는 시험을
+    적을 수조차 없었고, 짝이 맞는지 아무도 보지 않은 채 전부 통과했다.
+    """
+    pipeline = edge_pipeline()
+    pipeline.register_version(version("det", "2"))
+
+    plan = pipeline.plan(
+        DEPLOYABLE, DEVICE, REQUIREMENT, lineage=approved_lineage(cites="1")
+    )
+
+    assert plan.refusal_reason == REFUSE_LINEAGE_MISMATCH
+    assert plan.would_place is False
+    # 버전이 없는 것과는 다른 사유다 — 승인 자체는 있었다.
+    assert plan.refusal_reason != REFUSE_NOT_VALIDATED
+
+
+def test_the_lineage_may_cite_either_the_version_or_its_reference():
+    """`"2"` 와 `"det@2"` 는 같은 것을 가리키는 두 표기다."""
+    for cited in ("2", "det@2"):
+        pipeline = edge_pipeline()
+        pipeline.register_version(version("det", "2"))
+        plan = pipeline.plan(
+            DEPLOYABLE, DEVICE, REQUIREMENT, lineage=approved_lineage(cites=cited)
+        )
+        assert plan.refusal_reason is None, cited
+        assert plan.would_place is True
 
 
 # --- 이름으로 분기하지 않는다 (AI-L-10) -----------------------------------
@@ -422,7 +460,7 @@ def test_the_incumbent_keeps_running_while_the_candidate_is_in_verification_scop
         first = pipeline.widen(first.deployment_id, actor="op", evidence_ref="ev")
 
     pipeline.register_version(version("det", "2", quality=0.95))
-    second = submit(pipeline)
+    second = submit(pipeline, cites="2")
 
     assert second.version_reference == "det@2"
     assert pipeline.status(first.deployment_id).unit_status is TargetStatus.RUNNING
@@ -447,7 +485,7 @@ def test_rollback_returns_to_the_last_known_good_and_records_it_in_the_lineage()
         first = pipeline.widen(first.deployment_id, actor="op", evidence_ref="ev")
 
     pipeline.register_version(version("det", "2", quality=0.95))
-    candidate_lineage = approved_lineage("lin-2")
+    candidate_lineage = approved_lineage("lin-2", cites="2")
     second = submit(pipeline, lineage=candidate_lineage)
     for _ in range(2):
         second = pipeline.widen(second.deployment_id, actor="op", evidence_ref="ev")
@@ -497,7 +535,7 @@ def test_rollback_during_verification_scope_leaves_the_incumbent_untouched():
     )
 
     pipeline.register_version(version("det", "2", quality=0.95))
-    candidate = submit(pipeline)
+    candidate = submit(pipeline, cites="2")
     rolled = pipeline.rollback(
         candidate.deployment_id, actor="op", evidence_ref="ev", reason="shadow_regression"
     )
@@ -540,7 +578,7 @@ def test_a_mission_in_flight_is_handed_over_when_its_unit_is_replaced():
     )
 
     pipeline.register_version(version("det", "2", quality=0.95))
-    second = submit(pipeline)
+    second = submit(pipeline, cites="2")
     # 검증 모드에서는 끊긴 것이 없다 — 기존 단위가 그대로 돌고 있다.
     assert pipeline.transfers(second.deployment_id) == ()
 
@@ -569,7 +607,7 @@ def test_a_mission_that_cannot_be_resumed_is_terminated_through_a_defined_outcom
     )
 
     pipeline.register_version(version("det", "2", quality=0.95))
-    second = submit(pipeline)
+    second = submit(pipeline, cites="2")
     for _ in range(2):
         second = pipeline.widen(second.deployment_id, actor="op", evidence_ref="ev")
 
@@ -590,7 +628,7 @@ def test_rollback_hands_a_mission_back_to_the_restored_unit():
         first = pipeline.widen(first.deployment_id, actor="op", evidence_ref="ev")
 
     pipeline.register_version(version("det", "2", quality=0.95))
-    second = submit(pipeline)
+    second = submit(pipeline, cites="2")
     for _ in range(2):
         second = pipeline.widen(second.deployment_id, actor="op", evidence_ref="ev")
     pipeline.declare_in_flight(InFlightMission("survey-2", KIND, second.unit_id))
@@ -622,7 +660,7 @@ def test_deployment_status_device_availability_and_mission_outcome_are_three_val
     )
 
     pipeline.register_version(version("det", "2", quality=0.95))
-    second = submit(pipeline)
+    second = submit(pipeline, cites="2")
     for _ in range(2):
         second = pipeline.widen(second.deployment_id, actor="op", evidence_ref="ev")
 
@@ -778,7 +816,9 @@ def test_the_dry_run_projects_which_missions_would_be_affected():
     )
     pipeline.register_version(version("det", "2", quality=0.95))
 
-    plan = pipeline.plan(DEPLOYABLE, DEVICE, REQUIREMENT, lineage=approved_lineage())
+    plan = pipeline.plan(
+        DEPLOYABLE, DEVICE, REQUIREMENT, lineage=approved_lineage(cites="2")
+    )
 
     assert [t.outcome for t in plan.mission_transfers] == [MissionTransferOutcome.TERMINATED]
     assert pipeline.in_flight()[0].mission_id == "m"  # 투영은 상태를 바꾸지 않는다
@@ -913,7 +953,7 @@ def test_real_orchestrator_place_replace_and_rollback():
             first = pipeline.widen(first.deployment_id, actor="op", evidence_ref="ev")
 
         pipeline.register_version(candidate)
-        second = submit(pipeline, deployable=deployable)
+        second = submit(pipeline, deployable=deployable, cites="2")
         assert second.version_reference == "det@2"
         assert provider.wait_ready(second.unit_id, timeout_s=120)
         # 검증 모드에서는 둘이 나란히 돈다(AI-L-07).

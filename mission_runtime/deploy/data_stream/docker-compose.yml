@@ -1,0 +1,20 @@
+# data_stream 이 프레임을 넣는 **전용 Redis**. 가시화 명령으로 뜬다
+# (config/stack_units.example.json 의 `data-stream-redis`).
+#
+# 왜 별도 파일인가: deploy/integration/ 의 묶음은 전송·관측 스택(mosquitto · kafka ·
+# otel)이고 이것은 **실증 스트림의 버퍼**다. 한 파일에 합치면 전송 스택을 내릴 때
+# 스트림 버퍼도 함께 내려간다 — 서로 다른 이유로 뜨고 내려가는 것을 한 단위에 묶지
+# 않는다(AI-B-05 의 기능 단위 격리).
+#
+# 주소: 이 Redis 는 **한 기계 안에서만** 쓰인다. data_stream 서버가 같은 기계에서
+# 붙으므로 127.0.0.1 로 묶고, 다른 기계가 읽어야 하면 그 주소는 오버레이 주소로
+# 선언해야 한다(원칙 #10) — 그 선언은 이 파일이 아니라 게이트웨이의 끝점 선언이다.
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: mission-runtime-data-stream-redis
+    command: ["redis-server", "--port", "6380", "--maxmemory", "4gb",
+              "--maxmemory-policy", "allkeys-lru", "--save", ""]
+    ports:
+      - "127.0.0.1:6380:6380"
+    restart: unless-stopped

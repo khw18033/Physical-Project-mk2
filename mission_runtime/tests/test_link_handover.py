@@ -1,4 +1,4 @@
-"""implements: AI-N-03, AI-C-11, AI-C-13
+"""implements: AI-N-03, AI-C-05, AI-C-13
 tests: predictive reduction, asymmetric restoration, peer switching,
        link state reported separately, no radio/metric names leak
 """

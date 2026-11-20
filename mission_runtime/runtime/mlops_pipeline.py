@@ -62,6 +62,8 @@ from mission_runtime.continual.lineage import LearningLineage, LearningState
 from mission_runtime.execution.control import TargetStatus
 from mission_runtime.execution.mission import MissionStatus
 from mission_runtime.runtime.airgap import AirgapPolicy, ExternalDependency, PlacementVerdict
+from mission_runtime.providers.durable_store import DurableStoreProvider
+from mission_runtime.runtime.reservation import Lease, ReservationLedger
 from mission_runtime.runtime.clusters import (
     ClusterBinding,
     MultiClusterControlProvider,
@@ -89,6 +91,12 @@ REFUSE_NOT_VALIDATED = "candidate_not_validated"
 REFUSE_NOT_APPROVED = "candidate_not_approved"
 #: 이미 배포된/되돌려진 계보를 다시 배포 요청했다.
 REFUSE_LINEAGE_SPENT = "candidate_lineage_already_resolved"
+#: 들고 온 계보가 **올라갈 버전을 든 적이 없다.** 콘솔 경로는 이미 둘째 칸을 없애
+#: 이 상태를 표현할 수 없게 했지만(`ModelDesk.apply(version_reference=…)`), 이
+#: 모듈은 라이브러리 API 라서 호출자가 여전히 짝을 들고 올 수 있다. 그리고 여기가
+#: 둘이 **마지막으로 만나는 자리**다 — 계보 사건을 쓰는 것이 이 모듈이므로,
+#: 어긋난 짝으로 쓰이면 적용된 버전에서 역추적이 다른 산출물에 닿는다(AI-L-08).
+REFUSE_LINEAGE_MISMATCH = "lineage_never_cited_this_version"
 #: 조건에 맞는 버전이 없다. 자세한 탈락 사유는 `plan.assignment.rejected`에 있다.
 REFUSE_NO_ASSIGNMENT = "no_assignment_for_conditions"
 #: 쓸 수 있는 제어면이 없다. `clusters.py`의 토큰과 같은 값이다.
@@ -105,12 +113,32 @@ REFUSE_VERIFICATION_NOT_MET = "operational_verification_not_met"
 REFUSE_ALREADY_OPERATIONAL = "scope_already_operational"
 #: 끝난 배포에 대한 조작.
 REFUSE_TERMINAL = "deployment_already_terminal"
+#: 이미지가 **배정된 버전이 아닌 것을 싣는다고 선언했다.** 배포는 성공하고 올라간
+#: 모델만 다른 상태가 되므로, 그 뒤의 모든 측정·계보·목표 판정이 엉뚱한 버전에
+#: 붙는다. 계보 검증(`REFUSE_LINEAGE_MISMATCH`)은 **기록**을 지키고 이것은 **짐**을
+#: 지킨다 — 둘 다 필요하다.
+REFUSE_IMAGE_VERSION_MISMATCH = "image_does_not_carry_assigned_version"
+
+#: 이미지가 그 버전을 싣는지 **확인했는가**. 세 값이다 — 확인됨 / 선언 없음 / 불일치.
+#: "선언 없음" 을 "맞다" 로 적으면 확인하지 않은 것이 확인된 것으로 읽힌다(AI-B-01 의
+#: "미측정 항목은 구분해야 한다" 와 같은 규칙).
+CARRIAGE_VERIFIED = "verified"
+CARRIAGE_NOT_DECLARED = "not_declared"
+CARRIAGE_MISMATCH = "mismatch"
+#: 선언은 배정과 맞지만 **이미지가 움직이는 태그**다. 실제 k3s 클러스터로 한 번
+#: 돌려 보고 알았다(2026-11-20): `mission-runtime:cpu` 태그로 올린 pod 안의 패키지가
+#: 어제의 빌드였다 — 선언은 맞았고 짐은 달랐다. 태그는 같은 이름으로 다른 내용을
+#: 가리킬 수 있으므로 "맞다" 가 아니라 **확인할 수 없다** 가 정직하다. 배포 묶음
+#: 선언을 거치면 digest 고정이 강제되지만(`image_not_pinned_to_digest`),
+#: `control_params` 로 이미지를 직접 주는 경로는 그 검사를 지나친다.
+CARRIAGE_UNPINNED = "declared_but_image_not_pinned"
 
 DEPLOYMENT_REASONS: tuple[str, ...] = (
     REASON_ASSIGNED,
     REFUSE_NOT_VALIDATED,
     REFUSE_NOT_APPROVED,
     REFUSE_LINEAGE_SPENT,
+    REFUSE_LINEAGE_MISMATCH,
     REFUSE_NO_ASSIGNMENT,
     REFUSE_NO_CONTROL_PLANE,
     REFUSE_EGRESS_REQUIRED,
@@ -255,6 +283,10 @@ class Deployable:
     control_params: Mapping[str, object] = field(default_factory=dict)
     #: 핵심 기능인가. 후보가 없을 때 DISABLED(핵심)와 DEGRADED(선택)를 가른다.
     core: bool = False
+    #: **이 이미지가 싣는다고 선언한 모델 버전 참조**(`det@v1`). 선언이고 관측이
+    #: 아니다 — 이미지 안을 들여다보지 않는다. `None` 은 "그 이미지가 어느 버전을
+    #: 싣는지 말하지 않았다" 이고 "아무 버전도 싣지 않는다" 가 아니다.
+    carries_model: str | None = None
 
     def __post_init__(self) -> None:
         if not self.deployable_id or not self.capability_kind:
@@ -321,6 +353,8 @@ class DeploymentPlan:
     mission_transfers: tuple[MissionTransfer, ...] = ()
     #: 폐쇄망에서 꺼지는 선택 외부 의존. 거부가 아니라 축소다(AI-C-16).
     disabled_optional: tuple[str, ...] = ()
+    #: 이미지가 배정된 버전을 싣는지 확인한 결과(세 값).
+    version_carriage: str = CARRIAGE_NOT_DECLARED
 
     @property
     def would_place(self) -> bool:
@@ -358,6 +392,73 @@ class DeploymentStatus:
     version_reference: str | None
     reason: str | None
     mission_transfers: tuple[MissionTransfer, ...] = ()
+    #: 이미지가 그 버전을 싣는지 확인한 결과(세 값). `not_declared` 는 **확인하지
+    #: 않았다**는 사실이고 통과가 아니다.
+    version_carriage: str | None = None
+
+
+@dataclass(frozen=True)
+class FleetRequest:
+    """한 장치에 올릴 실행 단위 하나.
+
+    **장치마다 계보가 따로다.** 한 계보를 N 번 전진시키면 어느 장치의 배포가 어느
+    승인에 기댔는지 되짚을 수 없고(AI-L-08), 장치마다 배정되는 버전이 다를 수
+    있으므로 하나의 계보가 모두를 정직하게 가리킬 수도 없다.
+    """
+
+    device: DeviceProfile
+    deployable: Deployable
+    lineage: LearningLineage
+
+
+@dataclass(frozen=True)
+class FleetEntry:
+    """함대 배포 한 건의 결과. 장치와 단위를 **함께** 들고 있다 —
+    `DeploymentStatus` 는 장치를 모르고, 그것이 그 자료형의 경계다."""
+
+    device_id: str
+    deployable_id: str
+    status: DeploymentStatus
+
+    @property
+    def placed(self) -> bool:
+        return self.status.phase is not DeploymentPhase.REFUSED
+
+
+@dataclass(frozen=True)
+class FleetOutcome:
+    """여러 장치에 한 번에 요청한 결과.
+
+    **부분 실패가 정상이다.** 통행 예약(`runtime/space_reservation.py`)이 경로를
+    전부 아니면 전무로 잡는 것과 반대인데, 이유가 다르기 때문이다: 통행은 한
+    로봇의 한 경로라 절반만 쥐면 교착이 생기고, 함대 배포는 **서로 다른 장치의
+    독립 기능**이라 하나가 못 올라가도 나머지가 올라가는 것이 정상 축소다
+    (AI-C-05). 한 대 때문에 전부 되돌리면 그것이 장애 전파다.
+    """
+
+    entries: tuple[FleetEntry, ...] = ()
+
+    @property
+    def placed(self) -> tuple[FleetEntry, ...]:
+        return tuple(entry for entry in self.entries if entry.placed)
+
+    @property
+    def refused(self) -> tuple[FleetEntry, ...]:
+        return tuple(entry for entry in self.entries if not entry.placed)
+
+    def for_device(self, device_id: str) -> tuple[FleetEntry, ...]:
+        return tuple(entry for entry in self.entries if entry.device_id == device_id)
+
+    def reasons(self) -> dict[str, str | None]:
+        """단위별 사유. **거절만 모으지 않는다** — 올라간 것의 사유(`assigned`)도
+        같은 표에 있어야 "왜 이 버전인가" 를 한 자리에서 읽는다(AI-C-13)."""
+        return {entry.deployable_id: entry.status.reason for entry in self.entries}
+
+    def versions(self) -> dict[str, str | None]:
+        """단위별로 **실제 배정된 버전**. 여러 모델을 한 함대에 섞어 올린 결과가
+        여기서 드러난다(AI-L-10)."""
+        return {entry.deployable_id: entry.status.version_reference
+                for entry in self.entries}
 
 
 @dataclass
@@ -381,6 +482,17 @@ class _Record:
 
 
 _UNSAFE = re.compile(r"[^a-z0-9]+")
+
+
+def _image_pinned(image: object) -> bool:
+    """그 이미지 참조가 **변하지 않는 것**을 가리키나(digest 고정).
+
+    맞춤법은 `runtime/deployment_bundle.py::ImageRef.pinned` 와 같고, 그 자료형을
+    import 하지 않는 이유는 그 모듈이 이 모듈의 `Deployable` 을 import 하기 때문이다
+    (순환이 된다). 글자가 둘로 갈라지지 않게 **같은 한 가지**만 본다 —
+    `providers/k3s.py` 의 `require_image_digest` 검사도 같은 글자다.
+    """
+    return isinstance(image, str) and "@sha256:" in image
 
 
 def unit_id_for(deployable_id: str, version: ModelVersion) -> str:
@@ -416,6 +528,8 @@ class MlopsPipeline:
         airgap: AirgapPolicy | None = None,
         availability_source: Callable[[str], object] | None = None,
         observability: object | None = None,
+        store: DurableStoreProvider | None = None,
+        reservations: ReservationLedger | None = None,
         requested_by: str = "mlops_pipeline",
     ) -> None:
         self._areas: list[ClusterBinding] = list(areas)
@@ -424,6 +538,13 @@ class MlopsPipeline:
         self._airgap = airgap
         self._availability = availability_source
         self._observability = observability
+        #: 내구 저장(AI-B-05 · AI-L-08). **없으면 축소다** — 판정은 그대로이고
+        #: 재시작을 넘지 못할 뿐이며, 그 사실은 `durability` 가 말한다(AI-C-05).
+        self._store = store
+        #: 자원 예약(AI-B-04 · AI-L-10). 없으면 선점 없이 배정만 한다 — 단일 노드
+        #: 배치의 정상 동작이고, 다중 노드에서는 주는 것이 맞다.
+        self._reservations = reservations
+        self._leases: dict[str, Lease] = {}
         self._requested_by = requested_by
         self._records: dict[str, _Record] = {}
         self._in_flight: dict[str, InFlightMission] = {}
@@ -493,6 +614,31 @@ class MlopsPipeline:
             refusal = REFUSE_NO_ASSIGNMENT
 
         version = assignment.assigned
+        # 버전이 정해진 **뒤에** 짝을 본다. 배정 전에는 무엇과 견줄지 모른다.
+        # 유도로 바꿀 수 없는 이유: 버전은 배정기가 고르고 계보는 호출자가 들고
+        # 오며, 그 버전의 승격 기록은 이 모듈이 소유하지 않는다. 그래서 여기서는
+        # 검증이 유일한 길이고, `capability_kind` 불일치를 이미 거절하는 것과
+        # 같은 자리에 둔다.
+        if refusal is None and lineage is not None and version is not None:
+            if not (lineage.cites(version.version) or lineage.cites(version.reference)):
+                refusal = REFUSE_LINEAGE_MISMATCH
+
+        # **이미지가 그 버전을 싣는지 본다.** 배정기는 "어느 버전이 조건에 맞는가" 를
+        # 답하고 이미지는 "무엇이 실제로 올라가는가" 다 — 둘이 어긋나면 배포는
+        # 성공하고 올라간 모델만 다르다. 선언이 없으면 확인할 수 없고, 확인할 수
+        # 없는 것을 "맞다" 로 적지 않는다.
+        carriage = CARRIAGE_NOT_DECLARED
+        if version is not None and deployable.carries_model:
+            if deployable.carries_model != version.reference:
+                carriage = CARRIAGE_MISMATCH
+                if refusal is None:
+                    refusal = REFUSE_IMAGE_VERSION_MISMATCH
+            elif _image_pinned(deployable.control_params.get("image")):
+                carriage = CARRIAGE_VERIFIED
+            else:
+                # 선언은 맞는데 태그가 움직인다 — **거절하지는 않는다**(태그 배포가
+                # 정상인 배치가 있다). 다만 확인된 것으로 적지 않는다.
+                carriage = CARRIAGE_UNPINNED
         unit_id = unit_id_for(deployable.deployable_id, version) if version else None
 
         egress = self._egress_verdict(deployable)
@@ -515,6 +661,7 @@ class MlopsPipeline:
             refusal_reason=refusal,
             mission_transfers=self._projected_transfers(deployable, unit_id),
             disabled_optional=egress.disabled_optional,
+            version_carriage=carriage,
         )
 
     # --- 배포 --------------------------------------------------------------
@@ -544,6 +691,13 @@ class MlopsPipeline:
         version = plan.assignment.assigned
         assert version is not None and plan.unit_id is not None  # would_place가 보장한다
 
+        # **올리기 전에 잡는다.** 순서를 뒤집으면 둘이 같은 가속기에 올라가고,
+        # 그 실패는 배정 로그 어디에도 이유가 없다(AI-B-04 · AI-L-10).
+        lease = self._reserve(plan, deployment_id)
+        if lease is not None and not hasattr(lease, "token"):
+            reason = f"{REFUSE_CONTROL_REJECTED}:{getattr(lease, 'reason', 'reservation_refused')}"
+            return self._refuse(deployment_id, deployable, device, plan, reason)
+
         result = self._router.request(
             "start",
             plan.unit_id,
@@ -551,6 +705,7 @@ class MlopsPipeline:
             requested_by=self._requested_by,
         )
         if not result.accepted:
+            self._unreserve(deployment_id)        # 못 올렸으면 쥐고 있을 이유가 없다
             reason = f"{REFUSE_CONTROL_REJECTED}:{result.rejection_reason}"
             return self._refuse(deployment_id, deployable, device, plan, reason)
 
@@ -580,6 +735,62 @@ class MlopsPipeline:
         self._records[deployment_id] = record
         self._event("mlops.deployment.placed", "info", record)
         return self.status(deployment_id)
+
+    # --- 함대: 여러 모델 × 여러 노드 (AI-L-10 · AI-B-04 · AI-B-11) ---------
+    def plan_fleet(
+        self,
+        requests: Sequence[FleetRequest],
+        requirement: MissionRequirement,
+    ) -> dict[str, DeploymentPlan]:
+        """커밋하지 않고 **함대 전체**를 본다. `submit_fleet` 과 같은 계산이다.
+
+        운영자가 "지금 올리면 몇 대가 되고 어느 대가 왜 안 되는가" 를 커밋 전에
+        봐야 한다(AI-C-13). dry run 과 실제가 따로 계산되면 둘이 조용히 갈라지고,
+        그때 틀리는 쪽은 언제나 화면이다.
+        """
+        return {request.deployable.deployable_id:
+                self.plan(request.deployable, request.device, requirement,
+                          lineage=request.lineage)
+                for request in self._ordered(requests)}
+
+    def submit_fleet(
+        self,
+        requests: Sequence[FleetRequest],
+        requirement: MissionRequirement,
+        *,
+        actor: str,
+        evidence_ref: str,
+    ) -> FleetOutcome:
+        """여러 장치에 한 번에 배포한다. **하나가 거절돼도 나머지는 계속한다.**
+
+        순서는 입력 순서가 아니라 `(device_id, deployable_id)` 정렬 순이다 — 같은
+        입력에 같은 결과여야 하고, 자원이 하나뿐일 때 "누가 먼저 잡는가" 가 호출
+        순서에 따라 달라지면 재현할 수 없는 배포가 된다(AI-L-10 의 "같은 입력에
+        같은 순서").
+
+        예약 장부가 있으면 선점은 `submit()` 안에서 일어난다 — 여기서 다시 잡지
+        않는다. 같은 실행영역을 두 단위가 노리면 둘째는 사유와 함께 거절되고
+        첫째는 그대로 돈다.
+        """
+        seen: set[str] = set()
+        entries: list[FleetEntry] = []
+        for request in self._ordered(requests):
+            unit = request.deployable.deployable_id
+            if unit in seen:
+                # 같은 id 로 둘을 올리면 **뒤의 것이 앞의 것을 가린다** — 그것은
+                # 축소가 아니라 선언 오류이므로 조용히 넘기지 않는다.
+                raise ValueError(f"duplicate deployable_id in fleet request: {unit!r}")
+            seen.add(unit)
+            status = self.submit(request.deployable, request.device, requirement,
+                                 lineage=request.lineage, actor=actor,
+                                 evidence_ref=evidence_ref)
+            entries.append(FleetEntry(request.device.device_id, unit, status))
+        return FleetOutcome(tuple(entries))
+
+    @staticmethod
+    def _ordered(requests: Sequence[FleetRequest]) -> list[FleetRequest]:
+        return sorted(requests, key=lambda r: (r.device.device_id,
+                                               r.deployable.deployable_id))
 
     # --- 단계적 적용 (AI-L-07) --------------------------------------------
     def widen(
@@ -659,6 +870,7 @@ class MlopsPipeline:
         ):
             record.lineage.rollback(actor=actor, evidence_ref=evidence_ref, reason=reason)
 
+        self._unreserve(deployment_id)            # 되돌렸으면 자원을 놓는다
         retired_unit = record.unit_id
         if retired_unit:
             record.transfers.extend(
@@ -894,6 +1106,7 @@ class MlopsPipeline:
             version_reference=record.version.reference if record.version else None,
             reason=reason,
             mission_transfers=tuple(record.transfers),
+            version_carriage=record.plan.version_carriage if record.plan else None,
         )
 
     def _unit_status(self, record: _Record) -> TargetStatus | None:
@@ -932,6 +1145,7 @@ class MlopsPipeline:
         return None
 
     def _event(self, name: str, severity: str, record: _Record) -> None:
+        self._persist(name, record)
         sink = getattr(self._observability, "record_event", None)
         if sink is None:
             return
@@ -951,6 +1165,58 @@ class MlopsPipeline:
             )
         except Exception:
             # 관측 경로 장애가 배포를 멈추지 않는다(AI-O-01/02).
+            pass
+
+    def _reserve(self, plan, deployment_id: str):
+        """실행영역을 잡는다. 예약 장부가 없으면 `None` — **선점 없는 배정은 정상이다**.
+
+        잡는 대상이 `area_id` 인 이유: 지금 계약에서 "어디에 올리는가" 의 단위가
+        그것이다. 가속기 개체까지 좁히려면 장부에 그 id 로 자원을 선언하고 계획이
+        그것을 들고 오면 되며, **이 코드는 바뀌지 않는다**(자원 id 는 데이터다).
+        """
+        if self._reservations is None or not plan.area_id:
+            return None
+        outcome = self._reservations.acquire(plan.area_id, holder=deployment_id)
+        if hasattr(outcome, "token"):
+            confirmed = self._reservations.confirm(outcome)
+            self._leases[deployment_id] = confirmed
+            return confirmed
+        return outcome
+
+    def _unreserve(self, deployment_id: str) -> None:
+        lease = self._leases.pop(deployment_id, None)
+        if lease is not None and self._reservations is not None:
+            self._reservations.release(lease)
+
+    def lease_of(self, deployment_id: str) -> Lease | None:
+        """이 배포가 쥔 lease. fencing token 을 실행 쪽에 넘길 때 쓴다."""
+        return self._leases.get(deployment_id)
+
+    def _persist(self, name: str, record: _Record) -> None:
+        """사실과 그 발행 예약을 **한 커밋**으로. 저장 장애는 배포를 멈추지 않는다.
+
+        여기 한 곳인 이유: 사건이 나가는 자리가 `_event` 하나이므로 그 옆에 두면
+        배포·되돌림·거부·승계 **모든 경로**가 자동으로 남는다. 경로마다 따로 적으면
+        언젠가 한 곳을 빠뜨리고, 빠뜨린 그 경로가 하필 사후에 궁금한 것이 된다.
+        """
+        if self._store is None:
+            return
+        payload = {
+            "deployment_id": record.deployment_id,
+            "deployable_id": record.deployable.deployable_id,
+            "phase": record.phase.value,
+            "scope": record.scope.value,
+            "area_id": record.area_id,
+            "unit_id": record.unit_id,
+            "reason": record.reason,
+            "version": record.version.reference if record.version else None,
+            "supersedes": record.supersedes,
+        }
+        try:
+            with self._store.transaction() as tx:
+                tx.put("deployment", record.deployment_id, payload)
+                tx.enqueue(name, aggregate_id=record.deployment_id, payload=payload)
+        except Exception:
             return
 
 

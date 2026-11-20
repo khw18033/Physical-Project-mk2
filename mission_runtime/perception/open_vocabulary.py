@@ -1,6 +1,6 @@
 """OWL-ViT-backed open-vocabulary PerceptionProvider (AI-E-01, AI-S-04).
 
-implements: AI-E-01, AI-S-04, AI-B-08, AI-B-09, AI-C-11
+implements: AI-E-01, AI-S-04, AI-B-08, AI-B-09, AI-C-05
 
 과거 0B/0C 실험(실행 코드는 이후 정리 과정에서 저장소에서 제거됨)에서 실측
 검증된 결과를 실제 framework 코드로 옮긴 것이다(회귀 없음 확인: TAO 6비디오에서
@@ -18,7 +18,7 @@ known recall 0.757, unknown recall 0.392, 20260901 재현). 두 가지 실측 �
    기록**한다 — 서로 다른 provider로 낸 결과를 같은 실험에서 섞으면 안 된다.
 
 onnxruntime/tokenizers/cv2/numpy는 모듈 최상단이 아니라 생성자 안에서
-지연 import한다(AI-C-11: 이 optional 의존성이 없는 노드도 이 모듈 자체는
+지연 import한다(AI-C-05: 이 optional 의존성이 없는 노드도 이 모듈 자체는
 계속 import할 수 있어야 다른 capability가 함께 죽지 않는다 — providers/compute.py
 의 `_cv2()` 패턴과 동일).
 """
@@ -69,6 +69,21 @@ class RawVocabScores:
     execution_provider: str
 
 
+#: 가속기를 쓰지 않기로 선언한 프로세스에서는 CUDA 를 **후보에서 뺀다**.
+#:
+#: 뒤에 두는 것(`("CPU", "CUDA")`)으로는 부족하다 — onnxruntime 은 목록에 있는
+#: 가속기를 쓸 수 있으면 쓴다. 그래서 목록에서 빼야 하고, 이것은 "이 기계에
+#: GPU 가 없다" 가 아니라 "이번에는 쓰지 않는다" 다. 노드 태그는 그대로
+#: 가속기가 있다고 보고한다(`ondevice/rpn_propose.py::NO_GPU_ENV` 주석 참조).
+def default_execution_providers() -> tuple[str, ...]:
+    """이 프로세스가 쓸 실행 제공자 순서. 선언이 있으면 CPU 만."""
+    from mission_runtime.ondevice.rpn_propose import gpu_use_declined
+
+    if gpu_use_declined():
+        return ("CPUExecutionProvider",)
+    return ("CUDAExecutionProvider", "CPUExecutionProvider")
+
+
 class OwlVitPerceptionProvider:
     """OWL-ViT(quantized ONNX) 기반 넓은-어휘 open-vocabulary 검출.
 
@@ -84,10 +99,13 @@ class OwlVitPerceptionProvider:
         vocab: list[str],
         *,
         score_thr: float = 0.10,
-        execution_providers: tuple[str, ...] = ("CUDAExecutionProvider", "CPUExecutionProvider"),
+        execution_providers: tuple[str, ...] | None = None,
     ) -> None:
         if not vocab:
             raise ValueError("vocab must be non-empty — an empty vocabulary can never match anything")
+
+        if execution_providers is None:
+            execution_providers = default_execution_providers()
 
         import onnxruntime as ort
         from tokenizers import Tokenizer

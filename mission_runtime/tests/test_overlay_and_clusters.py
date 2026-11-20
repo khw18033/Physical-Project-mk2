@@ -1,4 +1,4 @@
-"""implements: AI-C-17, AI-B-11, AI-O-04, AI-C-12
+"""implements: AI-C-04, AI-B-11, AI-O-04
 covers: overlay abstraction and separate signal, server/edge control planes
         behind one contract, control-plane loss does not stop the rest
 """
@@ -22,7 +22,7 @@ from mission_runtime.runtime.clusters import ClusterBinding, MultiClusterControl
 
 PACKAGE_DIR = Path(__file__).resolve().parents[1]
 
-# --- AI-C-17 overlay abstraction ------------------------------------------
+# --- AI-C-04 overlay abstraction ------------------------------------------
 
 
 def test_both_overlay_implementations_satisfy_the_protocol():
@@ -31,7 +31,7 @@ def test_both_overlay_implementations_satisfy_the_protocol():
 
 
 def test_overlay_product_name_appears_only_in_its_own_module():
-    """AI-C-17: 상위 코드는 특정 오버레이 제품 API에 의존하지 않는다."""
+    """AI-C-04: 상위 코드는 특정 오버레이 제품 API에 의존하지 않는다."""
     from conftest import package_py_files
 
     offenders = []
@@ -196,3 +196,79 @@ def test_kubectl_context_targeting_keeps_clusters_independent():
 
     assert server_plane._namespace != edge_plane._namespace
     assert server_plane.is_available() is False  # 없는 CLI -> 예외 아닌 False
+
+
+# --------------------------------------------------------------- 안내할 주소
+# `--host 0.0.0.0` 으로 열어 둔 게이트웨이가 안내문에도 `0.0.0.0` 을 적으면 다른
+# 노트북이 그 주소로 붙을 수 없다(2026-11-20 실측 — 안내문을 그대로 따르면 실패한다).
+
+def test_a_concrete_bind_address_is_advertised_as_it_is():
+    from mission_runtime.providers.overlay import advertised_host
+
+    assert advertised_host("127.0.0.1") == ("127.0.0.1", None)
+    assert advertised_host("192.168.1.10") == ("192.168.1.10", None)
+
+
+def test_a_wildcard_bind_is_advertised_as_the_overlay_address():
+    """듣는 주소가 아니라 **붙는 주소**를 적는다. 그 주소를 아는 쪽은 오버레이다."""
+    from mission_runtime.providers.overlay import (
+        StaticOverlayProvider,
+        advertised_host,
+    )
+
+    overlay = StaticOverlayProvider(addresses=("100.83.37.9", "fd7a:115c::1"))
+    assert advertised_host("0.0.0.0", overlay) == ("100.83.37.9", "overlay")
+
+
+def test_ipv4_comes_first_and_ipv6_is_bracketed():
+    from mission_runtime.providers.overlay import (
+        StaticOverlayProvider,
+        advertised_host,
+    )
+
+    only_v6 = StaticOverlayProvider(addresses=("fd7a:115c::1",))
+    assert advertised_host("::", only_v6) == ("[fd7a:115c::1]", "overlay")
+
+
+def test_without_an_overlay_no_address_is_invented():
+    """오버레이 제품이 없는 배치는 정상이다(AI-C-05). 그때 주소를 **지어내면**
+    운영자가 공개 인터넷 쪽 주소로 붙을 수 있다(원칙 #10)."""
+    from mission_runtime.providers.overlay import (
+        HOST_UNKNOWN,
+        StaticOverlayProvider,
+        advertised_host,
+    )
+
+    assert advertised_host("0.0.0.0") == (HOST_UNKNOWN, None)
+    assert advertised_host("0.0.0.0", StaticOverlayProvider()) == (HOST_UNKNOWN, None)
+
+
+def test_an_overlay_that_cannot_be_asked_is_unknown_not_empty():
+    """물어볼 수 없는 것은 "주소가 없다" 가 아니라 "모른다" 다."""
+    from mission_runtime.providers.overlay import HOST_UNKNOWN, advertised_host
+
+    class Exploding:
+        def self_addresses(self):
+            raise OSError("tailscaled 가 죽었다")
+
+    assert advertised_host("0.0.0.0", Exploding()) == (HOST_UNKNOWN, None)
+
+
+def test_the_tailscale_provider_reads_its_addresses_from_the_status_it_already_parses():
+    """`ip addr` 를 따로 읽지 않는다 — 같은 사실의 주인이 둘이 되면 한쪽이
+    오버레이 밖 주소를 안내한다."""
+    from mission_runtime.providers.overlay import TailscaleOverlayProvider
+
+    provider = TailscaleOverlayProvider()
+    provider._status = lambda: {                      # noqa: SLF001
+        "Self": {"HostName": "box",
+                 "TailscaleIPs": ["fd7a:115c::1", "100.83.37.9"]}}
+    assert provider.self_addresses() == ("100.83.37.9", "fd7a:115c::1")
+
+
+def test_an_unavailable_tailscale_reports_no_address_rather_than_raising():
+    from mission_runtime.providers.overlay import TailscaleOverlayProvider
+
+    provider = TailscaleOverlayProvider(binary="tailscale-not-installed")
+    provider._status = lambda: None                   # noqa: SLF001
+    assert provider.self_addresses() == ()

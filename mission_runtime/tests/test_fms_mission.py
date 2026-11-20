@@ -21,8 +21,8 @@ from mission_runtime.planning.decomposition import (
     TaskTemplateLibrary,
 )
 from mission_runtime.registry.capability_registry import CapabilityRegistry, ProviderRegistration
-from mission_runtime.tools.fms_console.handover import ZoneRadioMap, ZoneTransitRuntime
-from mission_runtime.tools.fms_console.mission import (
+from mission_runtime.tools.view_service.handover import ZoneRadioMap, ZoneTransitRuntime
+from mission_runtime.tools.view_service.mission import (
     MISSION_COMPLETED,
     MISSION_NOT_STARTED,
     MISSION_STOPPED,
@@ -34,7 +34,7 @@ from mission_runtime.tools.fms_console.mission import (
     derive_zone_order,
     plan_states,
 )
-from mission_runtime.tools.fms_console.subtasks import load_goal_kinds
+from mission_runtime.tools.view_service.subtasks import load_goal_kinds
 
 PROFILE = Path(__file__).resolve().parents[1] / "profiles" / "domains.example.json"
 GOAL_KINDS = Path(__file__).resolve().parents[1] / "profiles" / "goal_kinds.example.json"

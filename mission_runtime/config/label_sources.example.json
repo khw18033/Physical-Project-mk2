@@ -93,6 +93,18 @@
       "license": "unknown",
       "redistributable": false,
       "note": "출처가 확인되지 않았다. 모르는 것을 '공개'로 적지 않는다 — 확인 전까지 재배포 불가로 둔다."
+    },
+    {
+      "source_id": "pi6-realsense-261111",
+      "kind": "device_capture",
+      "path": "datasets/261111_realsense/frames",
+      "device_id": "pi6",
+      "label": {
+        "ko": "pi6 리얼센스 D455 컬러 · 2026-11-11 18:42 (고정 거치, 실내)",
+        "en": "pi6 RealSense D455 color, 2026-11-11 18:42 (fixed mount, indoor)"
+      },
+      "captured_at": "2026-11-11T18:42:35+09:00",
+      "note": "data_stream 소스 realsense(:10005) 가 받은 실행 20261111_184235 다. **깊이가 아니라 컬러**다(UVC Z16 은 따로 있고 이 경로로 나르지 않는다). 고정 거치라 같은 그림이 많다 — still.py 로 변화 없는 604/1193 을 가렸다(local/label_still/rs-261111.json, --min-diff 1.0). overlay/ 는 검수 대상이 아니다(상자가 그려진 그림이라 사람을 끌고 간다) — path 가 frames/ 를 가리킨다."
     }
   ]
 }

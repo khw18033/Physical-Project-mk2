@@ -1,6 +1,6 @@
 """implements: AI-C-05, AI-B-04, AI-B-09
 reproduces (architectural claim, not the training procedure): HEAL, ICLR 2024
-(docs/obsidian/papers/heal.md)
+(internal/docs-dev/obsidian/papers/heal.md)
 tests: a new heterogeneous provider joining a capability kind that already has
        collaborating providers never mutates their registrations, and is
        immediately usable alongside them

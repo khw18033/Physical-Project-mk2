@@ -12,6 +12,7 @@ AI-C-20 이 구분하라고 못 박은 바로 그 지점이 조용히 붕괴했�
 
 import pytest
 
+from mission_runtime.contracts.capability_contract import DeclarationBasis
 from mission_runtime.contracts.physical_command import (
     CancelCommandRequest,
     CancelCommandResponse,
@@ -405,3 +406,58 @@ def test_descriptor_bytes_match_the_canonical_schema():
         "와이어 모양이 바뀌었다. 정본과 맞춘 변경이면 이 값을 갱신하고, "
         "아니면 필드를 되돌려라 — 사본이 먼저 어긋나면 로봇이 다른 메시지를 읽는다."
     )
+
+
+# --- AI-C-18 선언 손실을 **항목 단위로** 센다 (spec §8-3 P7) ------------------
+
+
+def test_a_declaration_that_says_cancel_is_not_supported_is_still_counted():
+    """False 는 **선언된 값**이다. 조용히 사라지면 받는 쪽은 "취소 불가" 선언과
+    미선언을 구분할 수 없다 — 그 둘을 가르는 것이 이번 변경의 전부다."""
+    serializer = _serializer()
+    serializer.encode(Capability(name="stop", cancel_supported=False, idempotent=False))
+    assert serializer.wire_gaps["capability.cancel_supported"] == 1
+    assert serializer.wire_gaps["capability.idempotent"] == 1
+
+
+def test_an_unstated_item_is_not_counted_as_a_loss_because_there_was_nothing_to_lose():
+    serializer = _serializer()
+    serializer.encode(Capability(name="stop"))
+    assert serializer.wire_gaps["capability.cancel_supported"] == 0
+    assert serializer.wire_gaps["capability.idempotent"] == 0
+
+
+def test_every_declaration_item_the_contract_owns_is_either_on_the_wire_or_counted():
+    """목록을 손으로 적지 않는다. 계약에 필드를 더하고 이 경계를 잊으면 그
+    항목만 조용히 사라지므로, 와이어가 싣는 셋을 뺀 **전부**를 센다."""
+    from dataclasses import fields
+
+    serializer = _serializer()
+    declared = Capability(
+        name="navigate.relative", version="1", parameter_schema="p", result_schema="r",
+        cancel_supported=True, required_resources=("mobility.base",),
+        optional_resources=("accel.npu",), idempotent=True, invocation="asynchronous",
+        basis=DeclarationBasis(units={"distance_m": "m"}, reference_frame="device-local",
+                               time_basis="backend_ntp"),
+        scope_tags=("zone.a",), execution_profile_ref="profile://nav/1",
+    )
+    serializer.encode(declared)
+    for f in fields(Capability):
+        if f.name == "name":
+            continue  # 와이어가 유일하게 싣는 칸
+        assert serializer.wire_gaps[f"capability.{f.name}"] == 1, f.name
+
+
+def test_a_decoded_announcement_names_every_item_it_could_not_carry():
+    """빈 칸을 기본값으로 채우지 않는 대신 **이름으로** 남긴다. 그래야 받는
+    쪽이 "장치가 그렇다고 선언했다" 와 "와이어에 자리가 없어 못 왔다" 를
+    구분한다(AI-C-18)."""
+    serializer = _serializer()
+    decoded = serializer.decode(serializer.encode(Capability(name="stop")))
+    items = decoded["payload"]["undeclared_items"]
+
+    assert "cancellable" in items and "idempotent" in items
+    assert "basis" in items and "scope" in items
+    # 그 수가 곧 P7 의 크기다 — 항목마다 따로 센다.
+    assert serializer.wire_gaps["capability.undeclared.cancellable"] == 1
+    assert decoded["payload"]["declaration_scope"] == "actions_only"

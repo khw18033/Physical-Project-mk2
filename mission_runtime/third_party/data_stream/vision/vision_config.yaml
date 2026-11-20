@@ -1,0 +1,740 @@
+# =============================================================================
+# vision_config.yaml — vision_infer.py 설정
+#
+# 입력 : live (기본)  Redis camera_stream:<기기> 의 최신 프레임 (server_stream_multi_source.py 가 흘림)
+#        저장된 이미지   <data_root>/<기기>/<실행 YYYYMMDD_HHMMSS>/frames/*.jpg  (+ frames.jsonl)
+#        원본은 읽기만 한다.
+# 출력 : Redis vision_stream:<기기>:<모델> · vision_depth:<기기>:<모델>  (live 만)
+#        <data_root>/<기기>/<실행>/<output.dirname>/<모델>/          (두 모드 같은 형식)
+#            results.jsonl          한 장 = 한 줄 (검출 결과 / depth 통계·내부파라미터 / 검출별 거리·GPS)
+#            overlay/<번호>.jpg      오버레이 시각화
+#            depth/<번호>.npy        depth 모델만. 미터 단위, 0 = 무효 픽셀
+#
+# 명령행 옵션(--devices / --models / --runs ...)이 여기 값보다 우선한다.
+# =============================================================================
+
+data_root: ../stream_data        # 상대 경로면 이 config 파일 위치 기준. 서버 --save 와 같아야 live 결과가 디스크에 저장된다
+
+# 명령행에서 안 고르면 쓰는 기본값
+defaults:
+  devices: [cam360, drone, robot1, robot2, realsense]
+  models: [yoloe]                 # yoloe | river | unidepth | moge2_aerial
+  runs: live                      # live = 실시간 스트림 최신 프레임 / 저장된 이미지: all | latest | 실행 폴더 이름 목록
+
+runtime:
+  device: cuda:0
+  watch_interval_s: 2.0           # --watch 일 때 새 프레임을 확인하는 간격
+
+# ── live (실시간) ───────────────────────────────────────────────────────────
+# 기기마다 Redis 의 가장 최근 프레임만 추론한다. 추론하는 사이 들어온 프레임은 건너뛴다.
+# 건너뛴 프레임은 나중에 --runs all|latest|<실행> 으로 채운다.
+# Redis 는 최근 것만 들고 있으면 된다 (전부 디스크에 저장). 아래 개수 × 크기가 메모리를 정한다.
+#   overlay JPEG 약 50~200KB · depth 원본 1280×720 float16 약 1.8MB
+live:
+  redis: redis://127.0.0.1:6380/0  # 서버 --redis 와 같게
+  maxlen: 300                     # vision_stream:<기기>:<모델> 에 남길 개수
+  depth_maxlen: 30                # vision_depth:<기기>:<모델> 에 남길 개수 (depth 원본이라 크다)
+  max_age_s: 5.0                  # 이보다 오래된 프레임은 처리하지 않는다 (서버가 멈췄거나 이전 실행의 것)
+  max_fps: null                   # 기기별 처리 상한. null = 가능한 만큼 / 숫자 / {drone: 2, robot1: 5}
+  save: true                      # 디스크에도 저장 (오프라인과 같은 형식)
+  report_interval_s: 10.0
+
+output:
+  dirname: vision                 # 실행 폴더 아래 만들 하위 폴더 이름
+  jpeg_quality: 90
+
+# ── 기기별 카메라 정보 ─────────────────────────────────────────────────────
+# fov_x_deg : depth 모델에 줄 수평 화각(도).
+#   null   → 모델이 스스로 추정
+#   숫자   → 그 값 사용
+#   meta   → frames.jsonl 의 sender.camera.hfov_deg 사용 (드론 agent 가 붙여 줌)
+# cam360 은 파노라마(등장방형)일 수 있다. 단안 depth 모델은 핀홀 영상 기준이라
+# 파노라마에서는 거리값을 그대로 믿지 않는다.
+devices:
+  cam360: {fov_x_deg: null}
+  # ds5 에 USB 로 붙은 RealSense D455 의 **컬러** 스트림(1280x720). 깊이가 아니다 —
+  # D455 는 UVC 라 컬러만 /dev/video* 로 나온다. hfov 90 은 **제원값**이고 관측이 아니다:
+  # 보정 전에는 거리·좌표의 확정 근거로 쓰지 않는다(선언된 사전정보와 측정값을 구분한다).
+  realsense: {fov_x_deg: 90.0}
+  # 360 슬라이스(DS 10006, e2p/slice360_live.py). 파노라마를 90도 시야로 잘라 만든 사진이라 가로 시야는
+  # 추정이 아니라 **자른 값 그대로** 90 이다 (slice360_live --fov 를 바꾸면 여기도 같이 바꾼다).
+  # defaults.devices 에는 넣지 않았다 — 필요할 때 --devices cam360_slice 로 켠다.
+  cam360_slice: {fov_x_deg: 90.0}
+  drone:  {fov_x_deg: meta}
+  # 둘째 드론 (DS 10012, ds5 x500-002). drone 과 같은 drone-agent 라 meta 에 camera.hfov_deg 가 온다
+  drone2: {fov_x_deg: meta}
+  robot1: {fov_x_deg: null}
+  robot2: {fov_x_deg: null}
+  # Unitree A2 (DS 10007). 1920x1080, 가로 시야 모름 — 확인 전까지 null. defaults.devices 에는 아직 안 넣음
+  a2:     {fov_x_deg: null}
+  # 모듈 카메라 파이 (DS 10008·10009). imx708 1280x720 — **제원을 적지 않는다.** 렌즈가
+  # 표준인지 wide 인지에 따라 가로 시야가 66도와 102도로 갈리고, 둘 다 선언이지 관측이
+  # 아니다. 보정판으로 재서 넣는다 (AI-S-08 — 사전정보와 측정값을 구분한다)
+  pi11:   {fov_x_deg: null}
+  pi12:   {fov_x_deg: null}
+  pi13:   {fov_x_deg: null}
+
+models:
+  # ── YOLOE prompt-free (내장 어휘 4585종, 텍스트 프롬프트·mobileclip 불필요) ──
+  # ── YOLOE (기본 prompt-free, 내장 어휘 4585종) ─────────────────────────────
+  yoloe:
+    weight: /home/khw67/data_stream/models/yoloe-11l-seg-pf.pt   # prompt-free 가중치. 경량: yoloe-11s-seg-pf.pt
+    conf: 0.25
+    iou: 0.5
+    imgsz: 640
+    max_det: 100
+    half: true
+    save_polygons: true           # 검출마다 마스크 외곽선(픽셀 좌표)을 results.jsonl 에 남긴다
+    max_area_ratio: null          # 예) 0.5 — 박스가 화면의 이 비율보다 크면 버린다 (장면·어둠 같은 전체 화면 검출). null = 끔
+    area_exempt: [person]         # 가까이 와서 화면을 덮어도 남길 클래스
+    prompt:
+      mode: free                  # free = prompt-free 내장 어휘 / text = 아래 classes 만 텍스트 프롬프트로 찾는다
+      # free 모드 — 내장 어휘 이름(영어, 대소문자 무시). 어휘에 없는 이름은 시작할 때 알려 주고 무시한다
+      include: []                 # 비우면 전부. 주면 이 클래스만
+      # 마지막 단어(중심 명사)가 이것이면 뺀다 — dance floor·night view·street light 는 빠지고 floor fan·room divider 는 남는다
+      exclude_heads: []            # 예시 목록은 아래 주석 (켜면 장면·조명·구조물 이름 389종이 빠진다)
+      # exclude_heads: [
+      #   floor, ceiling, wall, window, door, archway, arch, siding, skylight,                     # 구조물 (트윈 맵에 이미 있음)
+      #   light, lights, lighting, lamp, chandelier, flare, spotlight,                            # 조명
+      #   sky, night, darkness, evening, dusk, dawn, twilight, sunset, sunrise, morning, afternoon,
+      #   weather, fog, mist, rainbow, cloud, clouds, lightning,                                  # 하늘·시간·날씨
+      #   view, scenery, landscape, nature, countryside, panorama, horizon,                       # 풍경
+      #   room, playroom, office, kitchen, bathroom, bedroom, hall, lobby, corridor, hallway, studio, gym,
+      #   showroom, terminal, station, hangar, garage, warehouse, factory,                        # 실내 장소
+      #   site, yard, backyard, courtyard, court, park, garden, farm, plantation, orchard, field, snowfield,
+      #   meadow, forest, woodland, jungle, thicket, dock, harbor, port, pier, boardwalk, deck, beach, coast,
+      #   shore, sea, ocean, lake, river, waterway, pond, stream, waterfall, mountain, hill, valley, ravine,
+      #   canyon, cliff, desert, quarry, cave, city, town, village, street, road, highway, overpass, bridge,
+      #   tunnel, square, plaza, market, mall, store, shop, restaurant, cafe, bar, nightclub, club,  # 실외 장소
+      #   stage, arena, stadium, theater, concert, festival, performance, show, event, activity, stunt, course, rink,
+      #   surface, reflection, shadow, silhouette, close-up, composition, overlay, texture, pattern, background]
+      exclude: []                 # 뺄 클래스. 예) [darkness, water feature, ceiling fan, air conditioner]
+      # text 모드 — 원하는 클래스를 자유 문구로. 시작할 때 MobileCLIP 으로 한 번 임베딩한다 (추론 속도는 같음)
+      classes: [person, boat, life jacket, car]
+      text_weight: /home/khw67/data_stream/models/yoloe-11l-seg.pt   # -pf 가 아닌 가중치. 경량: yoloe-11s-seg.pt
+      text_encoder_dir: /home/khw67/data_stream/models               # mobileclip_blt.ts 가 있는 폴더 (없으면 여기로 받는다)
+
+  # ── river — 하천 떠내려가는 물체, **학습 없이** 제로샷 ──────────────────────
+  # 안동 자료는 현장 1곳·날짜 1일·촬영 1회다(인접 프레임 평균차가 go1 50프레임 간격에도
+  # 0.30). 가중치를 학습하면 그 한 장면을 외운다. 그래서 가중치는 건드리지 않고
+  # 제로샷 모델의 어휘와 임계값만 쓴다.
+  #
+  # **어휘와 출력 이름은 다르다.** prompts 는 클래스당 문구를 여럿 받고, 어느 문구로
+  # 잡혀도 결과에 적히는 이름은 클래스 하나다. 검출마다 어느 문구가 말했는지가
+  # prompts 로 남는다.
+  #
+  # 아래 값은 `local/consensus/dataset.json` 의 **tune 쪽에서만** 고른 것이다
+  # (split_id 0b525ed3e68a · seed andong-2026119 · 카메라 층화).
+  # 사전 등록 local/consensus/prereg_yoloe_prompts.md · 측정 eval_prompts_{tune,test}.json.
+  #
+  #   안동 1현장·1일 · tune 117장/267박스 · test 102장/216박스 (IoU 0.5)
+  #   주지표는 **macro F1**(클래스 5개 F1 평균) — micro 는 물통+스티로폼(483 중 407)이
+  #   결정해 소수 클래스가 0 이 되어도 안 보인다
+  #
+  #   yoloe 단독 전역 conf 0.05      test macro 0.440 · micro 0.523 · 오검출/장 1.57
+  #   yoloe 단독 + 클래스별 임계(이 설정)  test macro 0.441 · micro 0.543 · 오검출/장 1.17
+  #   (참조) 4모델 동의 k=3 conf 0.25   test macro 0.458 · micro 0.599 · 오검출/장 0.45
+  #
+  # **클래스별 임계값은 주지표를 올리지 못했다** (macro +0.001). 올린 것은 micro
+  # (+0.020)와 오검출(1.57 → 1.17 장당)이고, 내린 것은 재현율(0.616 → 0.579)이다.
+  # 정밀도와 재현율을 맞바꾼 것이며 정확도가 올라간 것이 아니다. 사전 등록한 선정
+  # 규칙이 tune 에서 이 칸을 골랐기 때문에 기본값으로 둔다. 전역 하나로 돌리려면
+  # class_conf 를 지운다 — 그러면 위 첫 줄 숫자가 된다.
+  #
+  # **문구를 늘린 것은 졌다.** 클래스당 문구 4개(19문구)로 늘린 어휘는 tune macro 가
+  # 모든 전역 conf 에서 더 낮았고(최고 0.230 vs 0.262) 오검출이 장당 7.31 까지
+  # 늘었다. YOLOE 는 어휘 전체에 대한 argmax 로 **한 박스에 이름 하나**를 붙이므로
+  # 문구들이 서로 표를 빼앗는다("styrofoam box" 가 3건으로 줄고 "white insulated
+  # box" 가 439건을 가져갔다). 그래서 기본 어휘는 클래스당 1개다. 졌다는 기록은
+  # 지우지 않는다 — 어휘를 늘리면 나아진다는 추측을 다시 하지 않기 위해서다.
+  #
+  # 속도: 어휘를 5 → 19 문구로 늘려도 한 장 164.6 → 166.2 ms (1%)다. 비싼 것은
+  # 문구가 아니라 **모델 수**다 — 4 arm 동의는 한 장 3.33 s (48배).
+  #
+  # **클래스가 고르지 않다.** 이 설정의 test 클래스별 recall: water_jug 0.644 ·
+  # styrofoam_box 0.606 · beverage_can 0.500 · wooden_box 0.474 ·
+  # butane_canister 0.286. 부탄은 위험물인데 일곱 중 둘이다 — 이 작동점을 위험물
+  # 경보의 **유일한** 근거로 쓰면 안 된다.
+  river:
+    # **표적은 둘뿐이다** (2026-11-13): 목함지뢰(`wooden_box_mine`)와 부탄가스.
+    # 스티로폼·물통은 표적이 아니다. 그러나 **어휘에서 빼지 않는다** — 열린어휘
+    # 탐지기는 어휘 전체의 argmax 로 한 박스에 이름 하나를 붙이므로, 그 낱말을 없애면
+    # 스티로폼 상자의 표가 `wooden_box_mine` 으로 넘어온다(미끼 측정에서 본 현상).
+    # 그래서 `decoys` 로 내려 **잡되 버린다.** 출력에는 나오지 않는다.
+    #
+    # `wooden_box` → `wooden_box_mine` 개명. **문구는 바꾸지 않았다** — `wooden ammunition box`
+    # 안은 이미 쟀고 **졌다**(dev 위험물 점수 0.4886 → 0.4646 · 나무 재현율 0.579 →
+    # 0.526, prereg_hazard_precision.md). 문구는 탐지기 손잡이이고 이름은 사람이 읽는
+    # 것이다. 둘을 같이 바꾸면 앞 측정과의 연결이 끊긴다.
+    classes: [wooden_box_mine, butane_canister, beverage_can, unconfirmed]
+    # 클래스 → 찾을 문구들. 평면 목록(클래스당 1개)도 받는다. 같은 문구를 두 클래스가
+    # 쓰면 거절한다 — 돌아온 문구로 클래스를 되짚을 수 없다.
+    prompts:
+      butane_canister: ["butane gas canister"]
+      beverage_can:    ["beverage can"]
+      wooden_box_mine:        ["wooden block"]
+      unconfirmed:                  # **null — 텍스트 문구를 두지 않는다.** 아래 프리
+                                    # 프롬프트 arm 만 채우는 가설 칸이다. 문구를 주면 그
+                                    # 낱말이 어휘 전체 argmax 에서 표를 빼앗아 진짜 물체를
+                                    # 지운다(미끼 문구가 현장에서 진 자리가 그것이다)
+    # 캔 종류는 전부 부탄으로 본다. **병합 전**에 이름을 바꾸므로 한 물체에 캔과 부탄이
+    # 따로 붙은 자리가 하나로 접힌다(`sample` 프레임이 그 모양이었다). 근거: tune 에서
+    # 부탄 정답 8 중 1 이 `beverage_can` 으로 잡혔고 test 21 중 2 가 그랬다 —
+    # **이름을 고쳐 되찾는 것은 그만큼**이고, 나머지(tune 4/8 · test 11/21)는 아예
+    # 못 본 것이라 합쳐도 돌아오지 않는다. 합침은 재현율을 올리지 못하고(tune 0.125 →
+    # 0.125, 같은 임계) 정밀도를 올린다(0.143 → 0.222). 자세한 것은
+    # local/consensus/prereg_merge_cans.md · eval_merge_cans.json.
+    # 되돌리려면 이 두 줄을 지운다 — 그러면 beverage_can 이 다시 따로 나온다.
+    merge_classes:
+      beverage_can: butane_canister
+    # **미끼 문구** — 어휘에만 넣고 출력에서는 버린다.
+    # 열린어휘 탐지기는 어휘 전체의 argmax 로 한 박스에 이름 하나를 붙인다. 배경에 실제로
+    # 있는 것을 어휘에 넣어 두면 둔치의 판자가 wooden_box 가 아니라 wooden plank 로 불려
+    # **사라진다**. 모델을 바꾸지 않고 어휘만 바꾸는 수다.
+    # 근거: 안동 라벨에서 오검출 357 중 215(60%)가 **정답이 없는 배경**에 찍힌
+    # wooden_box(113)·styrofoam_box(102)였다. 라벨된 물체끼리의 혼동은 193 중 4 건뿐이다.
+    # 고른 자리는 안동이 아니라 **웹 수집본**(위키미디어 CC 180장, local/webset)이다 —
+    # 안동 라벨은 전부 test 라 거기서 고르지 않는다. 배경 발화 0.159 → 0.091(-43%),
+    # 위험물(나무상자·부탄) 점수 0.489 → 0.494 로 재현율을 잃지 않았다.
+    # 사전 등록 local/consensus/prereg_hazard_precision.md · 측정 local/webset/eval_web.json
+    # **비워 둔다 — 재 보니 현장에서 졌다.** 웹 수집본(dev)에서는 배경 발화가
+    # 0.159 → 0.091 로 줄고 위험물 점수가 유지됐는데(0.489 → 0.494), **안동 홀드아웃
+    # 에서는** macro 0.453 → 0.426, 스티로폼 재현율 0.775 → 0.575, 나무상자
+    # 0.667 → 0.515 였다. 나무상자 정밀도는 0.158 → 0.156 으로 **나아지지도** 않았고
+    # 부탄은 한 자리도 안 바뀌었다(0.558/0.338 그대로). 미끼가 배경이 아니라
+    # **진짜 물체의 표**를 빼앗았다 — 강물에 뜬 스티로폼이 water foam/plastic sheet 로
+    # 넘어간 것이다. 사전 등록한 세 결과 중 3번(재현율이 깎인다)이고 규칙대로 되돌린다.
+    # 측정 local/webset/eval_web.json(dev) · local/consensus/eval_shipped.json(test)
+    decoys: ["styrofoam box", "plastic water jug",
+             # 표적이 아닌 것들. **잡되 버린다** — 어휘에 남겨야 이들의 표가
+             # 목함지뢰·부탄으로 넘어오지 않는다.
+             "cardboard box", "wooden plank", "driftwood", "plastic sheet",
+             "rock", "concrete wall", "grass", "soil"]
+    conf: 0.05                    # **전역 하한 하나.** 운영자가 정하는 값이고 자료에서 고른
+                                  # 값이 아니다 — 라벨 219장은 전부 test 라 거기서 고르면
+                                  # 그 다섯 기기의 값이 된다(아래 머리글). 기본은 재현율
+                                  # 우선(위험물을 놓치지 않는 쪽)으로 arm 하한과 같게 둔다
+    # **부탄만 엄하게.** 요구(2026-11-13): "부탄가스 오검출이 많음."
+    # 격자 돌리기 전에 오검출의 모양부터 쟀더니 **작고 흐렸다** — 최소변 중앙 32 px
+    # (실내)·14 px(하천), 89~100% 가 64 px 미만, conf 중앙 0.18. 확신값만 올리면 큰
+    # 오검출은 남고 작은 진짜가 같이 죽으므로 **크기와 하한을 따로** 건다.
+    #
+    # 측정 local/consensus/eval_butane_strict.json · 사전 등록 prereg_butane_strict.md
+    #   dev2 실내 부탄 오검출 **장당 0.680 → 0.040** (검출 17 → 1)
+    #   dev1 웹 부탄 재현율 0.600 → 0.543 (사전 등록 하한 0.500 안) · 정밀도 0.525 → 0.613
+    #   dev1 헛발화율(부탄 없는 그림 145장) 0.131 → 0.083
+    # 안동 219장(test)은 열지 않았다.
+    #
+    # **재 보고 버린 두 가지** — 그럴듯했지만 숫자가 아니라고 했다:
+    #   min_arms 2(두 arm 동의 요구): 재현율 0.600 → **0.029**. 열린 어휘는 한 박스에
+    #     이름 하나라 두 arm 이 같은 이름을 다는 일이 거의 없다
+    #   캔 합치기 해제: 재현율 0.600 → 0.343 인데 dev2 오검출은 0.680 그대로다.
+    #     합치기는 오검출의 원인이 아니다 — 되돌리면 놓치기만 한다
+    class_rules:
+      butane_canister:
+        min_short_px: 48          # 이보다 얇으면 부탄과 음료캔을 가를 형상이 없다.
+                                  # **놓침이 아니라 보류다** — 가까이서 다시 보면 걸린다
+    class_conf:                   # 클래스별 하한. **다섯 클래스에는 쓰지 않는다** — 앞서
+                                  # tune 에서 고른 값(butane .10 · wooden .15)이 있었으나
+                                  # ① 주지표를 올리지 못했고(macro +0.001) ② 부탄 재현율을
+                                  # 오히려 내렸으며(0.333 → 0.286, 정답 8개로 고른 값이다)
+                                  # ③ 라벨 전체가 test 가 된 뒤로는 고를 자료가 없다.
+      # **가설 칸만 예외다.** 이 값은 자료에서 고른 것이 아니라 사람 앞에 몇 개를 올릴지의
+      # 운영값이다 — arm 하한 0.05 로 두면 프리 프롬프트가 내는 장당 72.5 상자의 상당수가
+      # 그대로 검수 대기로 간다. 올리면 후보가 줄고 내리면 놓치는 것이 줄어든다.
+      # **0.25 → 0.10**(2026-11-13). 이제 가설 칸은 사람 앞에 바로 가지 않고 **점수로
+      # 걸러진다**(assess) — 후보를 더 내고 단서 점수가 위험물을 고르게 한다(재현율 우선).
+      # 그림에는 의심한 것과 확신 0.25(overlay.min_conf) 이상만 그려진다.
+      unconfirmed: 0.10
+      # **부탄만 엄하게.** 다섯 클래스에 하한을 두지 않는다는 위 규칙의 예외이고,
+      # 고른 자리를 적는다 — 0.05 는 dev2 에서 오검출 장당 0.680 이었다.
+      butane_canister: 0.10
+    prompt_conf: {}               # 문구별 하한 — **병합 전**에 쓴다. 같은 이유로 비어 있다
+    arm_conf: 0.05                # arm 각자의 하한. 어떤 임계값도 이보다 낮으면 거절한다
+    min_arms: 1                   # **동의를 요구하지 않는다.** arm 이 둘이 됐지만 둘은
+                                  # 서로 다른 일을 한다 — 텍스트 arm 은 이름을 대고 프리
+                                  # arm 은 자리를 낸다. 2 로 올리면 두 arm 이 같은 이름을
+                                  # 말해야 하는데 프리 어휘는 우리 이름을 말하지 않으므로
+                                  # (지도에 든 재질 낱말 말고는) 검출이 거의 0 이 된다
+    min_prompts: 1                # 한 물체를 서로 다른 문구 이만큼이 가리켜야 받는다.
+                                  # 1 만 쓴다 — 한 모델은 한 박스에 이름 하나를 붙여서
+                                  # (어휘 전체의 argmax) tune 에서 검출이 0 이었다
+    merge_iou: 0.5                # 같은 클래스가 이만큼 겹치면 같은 물체. 다른 클래스는 합치지 않는다
+    # **크기별 하한 — 상수 하나가 현장을 하나로 묶고 있었다.**
+    # 전에는 `max_area_ratio: 0.08`(화면의 8% 넘는 박스는 장면 검출로 버린다) 하나였다.
+    # 그것은 "버릴 만큼 큰가" 가 아니라 **하천의 물체 크기를 가정한 값**이다. 두 현장의
+    # 정답 크기를 재니 겹치지 않았다 — 안동 하천 GT 는 가장 큰 것이 화면의 0.006 이고
+    # (51 상자, 0.08 초과 0%) 실내 근접의 나무 상자는 중앙 0.090 · 최대 0.386 이다
+    # (65 상자, 0.08 초과 **88%**). 하천에서는 한 번도 켜지지 않고 실내에서는 위험물
+    # 정답의 88% 를 **잡아 놓고 버렸다** — 오버레이에서 코앞의 나무 상자가 wooden_box
+    # 0.50(그 장면 최고값)으로 잡히고 면적 때문에 사라졌다.
+    #
+    # 그래서 기준을 **얼마나 큰가**에서 **얼마나 확신해야 받는가**로 옮긴다. 멀리 있는
+    # 흐릿한 물체와 코앞의 흐릿한 물체는 같은 사실이 아니다.
+    #   첫 칸(<=0.01)은 **오늘 값 그대로 0.05** 다 — 하천 GT 가 전부 여기 들어오므로
+    #   하천 작동점은 바뀌지 않는다. 둘째 칸이 새로 생긴 근접 구간이고, 0.40 을 넘는
+    #   박스만 장면 검출로 버린다.
+    # 적은 것이 안 적은 것을 이긴다: class_conf 를 적어 둔 클래스는 크기별 하한을 받지
+    # 않는다(위험물에 낮은 하한을 적어 두면 코앞의 큰 위험물도 그 하한으로 받는다).
+    #
+    # 측정 local/consensus/eval_area_bands.json · 사전 등록 prereg_area_bands.md
+    #   dev1 웹 수집본 180장: 위험물 점수 0.496 → **0.573** (재현율 0.558 → 0.655)
+    #   dev2 실내 판정 76상자: 위험물 재현율 0.061 → **0.500**
+    #   하천 위험(미판정 300장, 라벨 안 봄): 새로 살아나는 검출 **장당 0.010** (한도 0.5)
+    # 안동 219장(test)은 열지 않았다 — 한 번 열었고 새 구성은 새 비교다.
+    # **세 번째 현장이 또 다른 크기면 또 안 맞는다.** 상수를 없앤 것이 아니라 선언으로
+    # 옮긴 것이고, 현장이 다르면 배포 프로파일에서 다시 적는다(AI-C-15).
+    area_bands:
+      - {upto: 0.01, conf: 0.05}  # 멀리 — 하천 GT 전부(최대 0.006)가 여기. 오늘 값 그대로
+      - {upto: 0.90, conf: 0.10}  # 근접 — 실내 GT 전부(0.010~0.386)가 여기. **상한 0.40 → 0.90**
+                                  # (2026-11-13): 가까이 다가가면 물체가 화면 대부분을 채운다.
+                                  # **거의 화면 전체**(90% 초과)를 덮는 상자만 장면 검출로 버린다
+    # max_area_ratio 는 area_bands 와 함께 적을 수 없다(상한의 주인이 둘이 된다).
+    # 마지막 band 의 upto 가 상한이다 — 텍스트 arm·프리 arm 모두에 걸린다.
+    max_det: 100
+    imgsz: 1920                   # arm 마다 imgsz 로 덮을 수 있다
+    assess: true                  # **점수로 견준다**(2026-11-13). 후보(위험물 이름 + unconfirmed)
+                                  # 마다 위험물 클래스 전부에 대해 같은 단서(match·material·
+                                  # structure·class — size 는 뺐다)를 **중요도 무게로** 재고, 가장 높은
+                                  # 클래스가 하한 이상이면 그 이름으로 의심한다. 하한은
+                                  # vision/assets/hazard_cues.json decision.min_score
+    group_split:                  # **붙은 물체 묶음 상자를 뺀다**(2026-11-13): 다른 후보 둘 이상이
+      member_min: 0.15            # 각각 이 상자 넓이의 15% 이상이고 80% 이상 안에 들며
+      inside: 0.8
+      cover: 0.5                  # 함께 상자의 50% 이상을 덮으면 그 상자는 물체가 아니라 묶음이다
+    assess_smooth:                # **판정이 장마다 흔들리지 않게**(2026-11-13): 트랙마다 점수 지수 평균,
+      alpha: 0.4                  # 의심은 하한에서 들어가고 하한-hysteresis 에서 나온다
+      hysteresis: 5
+      max_missed: 15              # 이 장 수만큼 안 보인 트랙은 잊는다
+    nest_ratio: 0.7               # **부품은 전체에 접는다**(2026-11-13). 작은 상자가 큰 상자 안에
+                                  # 이 비율 이상 들어가면 큰 것 하나만 남긴다(부탄 통 안의 뚜껑·
+                                  # 라벨·마개). 작은 쪽이 **다른** 위험물로 의심되면 남긴다. null = 끔
+    on_missing_arm: degrade       # arm 이 둘이 됐다 — 한쪽 가중치가 없는 기계에서는 그
+                                  # arm 만 빼고 돈다(AI-C-05). **빠진 사실은 기록에
+                                  # 남는다**(`missing_arms` · `min_arms_applied`) —
+                                  # 텍스트 arm 이 빠지면 이름을 대는 쪽이 없어져 위험물이
+                                  # 재질 낱말로만 올라오니 그 기록을 보고 판단한다
+    # 런타임에 받지 않는다 (AI-C-16 폐쇄망)
+    # **거리 — 주기로 재고 트랙으로 나른다.**
+    # metric depth 는 한 장에 수십 ms 다. 매 장 돌리면 탐지기보다 비싸진다. 그런데
+    # 거리는 장마다 새로 생기는 사실이 아니라 트랙 위에서 이어진다. 그래서 `period`
+    # 장마다 재고, 사이는 트랙으로 나르며 **겉보기 크기로 고친다**(핀홀: 상자가 s 배
+    # 커졌으면 거리는 대략 d/s). 처음 보는 트랙이 있으면 주기를 **당겨서** 바로 잰다 —
+    # 새 위험물이 다음 주기까지 거리 없이 떠 있으면 안 된다.
+    #   실측(GPU): Depth-Anything-V2-Metric-Outdoor 266px **40.8 ms** · 518px 127.9 ms
+    #   주기 5 면 장당 평균 8 ms 쯤이고, 나른 값에는 **나이(age)** 가 붙어 나간다
+    # 값은 **기준을 들고 다닌다**(`space`). 상대 깊이를 미터처럼 쓰지 않는다(AI-C-02).
+    #
+    # UniDepth V2 를 쓰려면 `einops`·`timm` 을 내부에 스테이징해야 한다(런타임에 받지
+    # 않는다, AI-C-16). 그때는 kind 를 바꿔 끼우면 되고 이 파일 밖은 안 바뀐다(AI-C-04).
+    depth:
+      enabled: true
+      # **UniDepth V2 를 쓴다.** 같은 metric 인데 Depth-Anything 과 달리 **내부파라미터
+      # (fx)를 함께 낸다** — 그래야 픽셀 폭이 실물 mm 가 되고, "저게 137 mm 인가
+      # 200 mm 인가" 를 물을 수 있다. 목함지뢰를 가려내는 힘의 대부분이 그 치수다.
+      #   실측(GPU, 1080x1920): **114.1 ms** · 1.9~257.9 m · fx 952.2
+      #   Depth-Anything-Metric-Outdoor 266px 는 40.8 ms 지만 fx 가 없고,
+      #   **Outdoor 학습이라 실내에서 틀린 미터를 냈다**(코앞 상자를 5.0 m).
+      # 소스는 내부 경로에서 import 한다. `wandb` 는 학습 로깅용이라 설치하지 않고 막는다.
+      kind: unidepth              # unidepth | hf_metric | onnx_relative
+      model_id: lpiccinelli/unidepth-v2-vitb14
+      source: /home/khw67/data_stream/external/UniDepth
+      device: cuda:0
+      period: 5                   # 이 장마다 실제로 잰다. 사이는 트랙이 나른다
+      max_age: 30                 # 이보다 오래 나른 값은 **버린다** — 모르면 모른다고 한다
+      percentile: 40              # 상자 안 depth 의 이 백분위를 물체 거리로 본다
+      iou_match: 0.5              # track_id 가 없을 때의 차선책
+      classes: [wooden_box_mine, butane_canister, unconfirmed]   # unconfirmed 도 — 크기 단서에 거리가 필요하다
+
+    # **위험물 후보 검증 — 라벨 없이, 학습 없이.**
+    # 운영 영상에 이 두 물체의 정답이 사실상 없다(하천 부탄 0 · 실내 1 은 오라벨).
+    # 지도학습이 설 자리가 없어 **one-shot 프로토타입 검색**을 쓴다 — 기준 사진에서 만든
+    # crop 을 임베딩해 두고 후보와 코사인 유사도를 잰다. 경사하강이 없다.
+    #   점수 = pos − neg (그 클래스 기준과의 최대 유사도 − 음성 기준과의 최대 유사도).
+    #   유사도 자체를 쓰면 "무엇과도 비슷한" 흐릿한 crop 이 높게 나온다.
+    # 프로토타입은 **기준 사진에서만** 만든다 — 운영 영상은 시험 자료다.
+    #
+    # 실시간: 전 화면이 아니라 **위험물 후보 crop 에만**, 한 장의 후보를 한 번에 묶어
+    # 넣고, 앞 장과 겹치는 같은 클래스는 다시 재지 않는다. 후보가 없으면 비용 0.
+    #   실측(CPU, 8스레드): clip_b32 양자화 11 ms/장(묶음 6) · 후보 0 개면 0 ms
+    #   mobileclip_s0 는 45 ms/장이라 **기본에서 뺐다** — 느린 쪽이 예산을 다 먹는다
+    #   CUDA EP 는 이 기계에서 cuBLAS 판이 안 맞아 못 선다. 서면 더 빨라진다
+    # 검증은 **검출을 지우지 않는다** — 근거만 붙인다(AI-S-04, AI-C-19).
+    verify:
+      enabled: true
+      classes: [butane_canister, wooden_box_mine]
+      candidates: [unconfirmed]   # 이름 없는 후보도 위 두 클래스 **모두에 대해** 잰다(assess 가 견준다)
+      prototypes: /home/khw67/data_stream/models/butane_ref/prototypes.npz
+      threads: 8
+      min_px: 48                  # crop 짧은 변이 이보다 작으면 임베딩하지 않는다(외형 단서 '못 잼')
+      max_per_frame: 12            # 이 장의 예산. 넘으면 **확신 낮은 쪽**이 다음 장으로
+      cache_iou: 0.7              # 앞 장과 이만큼 겹치는 같은 클래스는 다시 재지 않는다
+      structure: true             # 학습하지 않은 구조 서명을 함께 센다(설명 가능한 신호)
+      # **글 설명 비교**(semantic, 2026-11-13). crop 을 위험물 묘사 문장과, **장면을 모른 채 쓴**
+      # 일반 문장과 견줘 확률을 낸다. 일반 문장에 **장면에 있는 물건 이름을 넣지 않는다** —
+      # 넣으면 그 장면에만 맞는다(pi13 실측은 수첩·충전기·줄자 이름 없이 쟀다).
+      # 넣은 '헷갈리는 물건'(병·골판지 상자·플라스틱 상자)은 위험물마다 알려진 혼동 범주다.
+      semantic:
+        enabled: true
+        encoder: clip_b32         # 사진 임베딩은 아래 같은 이름의 모델 것을 쓴다
+        text_model: /home/khw67/data_stream/models/clip-vit-base-patch32/onnx/text_model.onnx
+        tokenizer: /home/khw67/data_stream/models/clip-vit-base-patch32/tokenizer.json
+        temperature: 100          # CLIP 의 logit 배율
+        prompts:
+          butane_canister:
+            - a photo of a portable butane gas canister
+            - a metal aerosol spray can with a plastic cap
+            - a cylindrical gas cartridge for a camping stove
+            - a butane gas can lying on the ground
+          wooden_box_mine:
+            - a photo of a small wooden box
+            - a rectangular plain wooden crate
+            - a wooden box mine
+            - a small wooden box lying on the ground
+        negatives:
+          - a photo of an object
+          - a household item
+          - a piece of trash
+          - a plastic object
+          - a rock
+          - the ground
+          - a toy
+          - an electronic device
+          - a paper product
+          - a bottle
+          - a cardboard box
+          - a plastic box
+          - a plant
+          - water
+      models:
+        - name: clip_b32
+          # **fp32 를 GPU 에서**(2026-11-13). int8 양자화본은 CPU 에서 12 crop 542 ms 였고(GPU 에서는
+          # int8 연산이 CPU 로 오가 더 느리다), fp32 는 CUDA 에서 19.5 ms. 프로토타입은 양자화본으로
+          # 만든 것이라 임베딩이 cos 0.93 으로 어긋나지만, pi13 정답 crop 에서 match 단서가 오히려
+          # 더 잘 갈랐다(목함지뢰 match: 상자 79 · 통 31 · 기타 63 ← 양자화본 63 · 24 · 57).
+          # 기준 crop 이 생기면 이 모델로 프로토타입을 다시 만든다(assets/butane_ref/README.md)
+          path: /home/khw67/data_stream/models/clip-vit-base-patch32/onnx/vision_model.onnx
+          size: 224
+          mean: [0.48145466, 0.4578275, 0.40821073]
+          std:  [0.26862954, 0.26130258, 0.27577711]
+        # 두 번째 학습 모델은 **선언만 해 두고 기본에서 끈다** — 45 ms/장이다.
+        # 지연 예산이 남는 배치에서 주석을 풀면 그대로 돈다(AI-C-05: 없으면 그것만 빠진다).
+        # - name: mobileclip_s0
+        #   path: /home/khw67/data_stream/models/mobileclip_s0/onnx/vision_model_quantized.onnx
+        #   size: 256
+    arms:
+      - kind: yoloe               # YOLOE-11l-seg · O365+GoldG+LVIS · MobileCLIP 텍스트 타워
+        weight: /home/khw67/data_stream/models/yoloe-11l-seg.pt
+        text_encoder_dir: /home/khw67/data_stream/models    # mobileclip_blt.ts 가 있는 폴더
+        imgsz_follow_frame: true  # **프레임 크기 근처로**(2026-11-13): imgsz(1920)를 상한으로 프레임 긴 변
+                                  # (32 배수)을 쓴다. GO1 464×400 → 480, 1280×720 → 1280. 키워 돌리면
+                                  # 느리기만 했다(robot1 275 ms). 작은 먼 물체가 걱정되면 false
+      # **자리를 내는 arm**(2026-11-12 추가). 이름을 대지 않는다 — 지도에 든 재질 낱말만
+      # 우리 클래스로 올리고 나머지는 전부 `unconfirmed` 다.
+      #
+      # 왜 더하는가: 다섯 문구로 좁힌 어휘는 실내 검수 27 정답에서 **자리를 0 개** 잡았다.
+      # 같은 장을 프리 프롬프트로 보면 **27/27**(IoU>=0.7 에서 26/27)이고 안동 홀드아웃
+      # 에서도 나무 23/33 · 부탄 35/43 을 잡는다. 자리를 못 찾은 것은 모델이 못 본 탓이
+      # 아니라 어휘를 좁힌 탓이었다.
+      #
+      # 무엇을 기대하고 무엇을 기대하지 않는가. **기대하는 것은 자리와 학습 후보다** —
+      # 이름 없는 자리가 `unconfirmed` 로 나오고 그것이 곧 검수·학습 후보다(AI-S-04,
+      # AI-L-01). **기대하지 않는 것은 위험물 이름의 정확도다**: 재질 낱말만으로 이름을
+      # 세우는 경로는 안동에서 macro2 0.032 였고 나무상자 F1 은 0.000 이었다(측정
+      # local/consensus/unsup/result_test.json). 그래서 다섯 클래스의 이름은 여전히
+      # **텍스트 arm 이** 댄다. 이 arm 이 거기에 더하는 FP 는 재질 낱말이 붙은 자리만큼이다.
+      #
+      # 값: 한 장 +74.7 ms (1280). 텍스트 arm 55.6 ms 와 합쳐 약 130 ms/장 (7.7 fps).
+      # 자리만 필요하고 비용이 아까우면 이 arm 을 지운다 — 다섯 문구 구성으로 되돌아간다.
+      - kind: yoloe_free          # YOLOE-11s-seg-pf · 내장 어휘 4585종 · 문구 없음
+        weight: /home/khw67/data_stream/models/yoloe-11s-seg-pf.pt
+        imgsz: 1280               # 측정한 자리다(1920 은 113.6 ms 로 +39 ms)
+        conf: 0.05
+        # max_area_ratio: 이 arm 만의 크기 상한(선택). **두지 않는다** — 가까운 물체는 화면
+        # 대부분을 채울 수 있다. 전체 화면 상자는 위 area_bands 상한(0.90)이 막는다.
+        # **장면 낱말**(2026-11-13): 이 이름이 화면의 scene_min_area 이상을 덮으면 버린다.
+        # pi13 실내 192장에서 크기로만 거르면 'studio shot'(화면 64%) · 'restroom'(64%) ·
+        # 'kitchen floor'(46%) 가 장당 2개씩 위험물로 의심됐다. 실제 물체는 최대 17%.
+        # 이름과 크기를 **함께** 봐서 가까운 물체(이름이 물체 이름)는 크기와 상관없이 남긴다.
+        # 넣지 않은 것: wood floor · hardwood floor · tile · concrete · sand · mud(물체
+        # 재질과 겹친다), close-up · texture · pattern · surface(가까운 물체에 붙을 수 있다)
+        scene_words: [studio shot, restroom, kitchen floor, tile wall, floor, wall, room,
+                      bathroom, bedroom, living room, kitchen, office, hallway, corridor,
+                      ceiling, road, sky, field, grass, lawn, indoor, outdoor, scene, landscape,
+                      carpet, pavement, river, water, lake, sea, beach, shore, stream, forest]
+        scene_min_area: 0.10
+        # 프리 어휘 이름 → 우리 클래스. **재질을 말하는 이름만 넣는다.** 같은 나무판에
+        # 프리 어휘가 붙인 이름은 breadbox 7 · hassock 6 · plywood 5 · podium 4 ·
+        # harpsichord 2 였다 — 이 중 재질을 말하는 것은 plywood 뿐이고, 모양 이름은
+        # 골판지 상자·책과 구분하지 못한다(그것이 하천 wooden_box 정밀도 0.158 의 정체다).
+        vocab_map:
+          wooden_box_mine:              [wood, plywood, hardwood, plank, lumber, driftwood]
+            # 일부러 뺀 것: log·oak·pine·redwood·bamboo — 하천변 나무에 붙어 FP 가 된다.
+            #              crate — 나무일 때가 많지만 플라스틱도 crate 다(재질을 말하지 않는다)
+          butane_canister:       [can, beer can, spray can, milk can]
+            # 어휘 4585종에 butane·propane·canister·aerosol 이 **없다.** "캔"까지만
+            # 말할 수 있고 부탄인지는 가리지 못한다. 뺀 것: cylinder·tank — 너무 넓다
+        unconfirmed_class: unconfirmed   # 지도 밖 이름은 **버리지 않고** 여기로 온다
+    #
+    # 4모델 동의 구성 — test micro 0.599 · 오검출/장 0.45 지만 한 장 3.33 s (48배).
+    # 속도를 포기할 수 있을 때(요청 기반 조회, 사후 분석) 아래로 바꾼다.
+    # min_arms: 3 · conf: 0.25 · class_conf 는 지운다(그 작동점에서 재지 않았다).
+    #   arms:
+    #     - kind: yoloe
+    #       weight: /home/khw67/data_stream/models/yoloe-11l-seg.pt
+    #       text_encoder_dir: /home/khw67/data_stream/models
+    #     - kind: yoloworld       # YOLOv8s-worldv2 · O365+GoldG+CC3M · CLIP
+    #       weight: /home/khw67/data_stream/models/yolov8s-worldv2.pt
+    #     - kind: gdino           # Grounding DINO tiny · COCO+O365+GoldG+Cap4M · BERT
+    #       model: IDEA-Research/grounding-dino-tiny
+    #       text_threshold: 0.2
+    #     - kind: owlv2           # OWLv2-large-patch14-ensemble · WebLI self-training
+    #       model: google/owlv2-large-patch14-ensemble
+
+  # ── river_open — **자리는 프리 프롬프트, 이름은 재질로** (2026-11-12) ──────
+  #
+  # 왜 river 를 두고 하나 더 두는가. 측정이 두 문제를 갈라 놓았다.
+  #
+  #   실내 rs-261111 검수 27 정답   river(5종 텍스트) 자리 재현율 **0/27**
+  #                                 프리 프롬프트     자리 재현율 **27/27** (IoU>=0.7 26/27)
+  #   하천 안동 219장               river wooden_box R 0.667 · **P 0.158**
+  #                                       butane_canister R 0.558 · **P 0.338**
+  #
+  # 자리를 못 찾는 것은 어휘를 5개로 좁힌 탓이다 — 프리 프롬프트는 같은 장에서
+  # 전부 찾는다. 이름을 틀리는 것은 어휘를 바꿔도 안 풀렸다: 동의어 늘리기,
+  # min_prompts>=2, 미끼 문구 — **어휘 쪽으로 세 번 시도해 세 번 졌다**
+  # (local/consensus/prereg_hazard_material.md §0). 그래서 결정을 어휘 밖으로 꺼낸다.
+  #
+  # **위험물은 재질 낱말이 있을 때만 받는다.** 같은 나무판에 프리 어휘가 붙인 이름은
+  # breadbox 7 · hassock 6 · plywood 5 · podium 4 · harpsichord 2 · exhaust hood 2 ·
+  # block 1 이었다. 이 중 재질을 말하는 것은 plywood 뿐이다. 나머지는 모양·가구
+  # 이름이라 **골판지 상자·책과 구분하지 못한다** — 그것이 하천 P 0.158 의 정체다.
+  # 그래서 모양만 말하는 이름은 `unconfirmed` 로 남기고 1위를 고르지 않는다(AI-S-04).
+  # 그 `unconfirmed` 가 곧 학습 후보다(AI-L-01) — 재질 판정의 비지도 경로는
+  # prereg_hazard_material.md §3 에 적었고 **아직 돌리지 않았다.**
+  #
+  # **부탄은 어휘로 못 푼다.** 내장 어휘 4585종에 butane·propane·canister·aerosol 이
+  # 없다. 있는 것은 can · beer can · spray can · milk can 뿐이라 "캔"까지만 말할 수
+  # 있다(캔→부탄 합침은 유지). 가스통 재질·종류 판정은 B 단계가 필요하다.
+  #
+  # 값: 프리 프롬프트는 장당 72.5 상자를 낸다(river 6.5). 이 비용을 숨기지 않는다.
+  # ** 2026-11-12 측정: 하천에서는 이것을 쓰지 않는다. **
+  #   안동 219장 위험물 2종 macro2 — river 0.338 vs 이 구성 + 재질 판정 0.127(최고).
+  #   원인은 크기다. 위험물 정답 크기 중앙값이 화면 한 변의 0.053(1920 에서 60 px)이고
+  #   60 px crop 에는 재질 정보가 없다 — 나무 정답 23개에 CLIP 은 23개 전부 '모르겠다'
+  #   를 냈다. 비용도 2.3~6.6 배다(365.6 vs 55.6 ms/장).
+  #   **실내·근거리에서는 반대로 크게 이긴다**(자리 재현 0/27 → 26/27). 그래서 지우지
+  #   않고 배치 프로파일로 가른다(AI-C-15) — 검수 초안·장치 조인·로봇 근접 작업용이다.
+  #   결과: internal/reports/2026-11-12_1609_비지도_재질판정_결과.md
+  #
+  # **2026-11-12 이후: 이 arm 은 `river` 안에도 있다.** 위 측정은 "프리 프롬프트 **단독**
+  # + 재질 판정" 이 하천에서 진다는 것이고, `river` 는 그렇게 쓰지 않는다 — 다섯 클래스의
+  # 이름은 텍스트 arm 이 대고 프리 arm 은 **자리와 가설**을 더한다. 이 블록은 텍스트 arm
+  # 이 아예 없는 구성이고 실내·근거리 전용으로 남긴다.
+  river_open:
+    classes: [styrofoam_box, water_jug, butane_canister, beverage_can, wooden_box, unconfirmed]
+    # prompts 를 적지 않는다 — arm 이 프리 프롬프트라 텍스트 문구를 쓰지 않는다
+    merge_classes: {beverage_can: butane_canister}
+    conf: 0.05
+    arm_conf: 0.05
+    merge_iou: 0.5
+    imgsz: 1280
+    max_det: 100
+    min_arms: 1
+    min_prompts: 1
+    class_conf:
+      # 가설은 **확신 있는 것만** 후보로 올린다. 0.05 로 두면 장당 70개가 사람 앞에 간다
+      unconfirmed: 0.25
+    arms:
+      - kind: yoloe_free
+        # 경로는 **이 PC(jin24) 기준**이다 — 검수 초안 도구가 이 블록을 쓴다.
+        # 다른 기계에서는 `river` 쪽 arm 처럼 models/ 로 바꾼다
+        weight: /home/jin24/Physical-Project-mk2-jny-backup/local/yoloe-11s-seg-pf.pt
+        conf: 0.05
+        # 프리 어휘 이름 → 우리 클래스. **지도에 없는 이름은 unconfirmed 로 간다.**
+        vocab_map:
+          wooden_box:            # 재질을 말하는 이름만. 모양 이름(box·crate·breadbox)은 넣지 않는다
+            [wood, plywood, hardwood, plank, lumber, driftwood]
+            # 일부러 뺀 것: log·oak·pine·redwood·bamboo — 하천변 나무에 붙어 FP 가 된다.
+            #              crate — 나무일 때가 많지만 플라스틱도 crate 다(재질을 말하지 않는다)
+          butane_canister:       # 어휘가 "캔"까지만 말한다. 부탄인지는 B 단계가 정한다
+            [can, beer can, spray can, milk can]
+            # 일부러 뺀 것: cylinder·tank — 너무 넓다(기둥·물탱크·전차가 다 들어온다)
+          styrofoam_box: [foam, cooler]
+          water_jug: [jug, bottle, glass bottle, thermos bottle, canteen, flask]
+        unconfirmed_class: unconfirmed
+
+  # ── UniDepth V2 (metric depth, m) ─────────────────────────────────────────
+  unidepth:
+    repo_path: /home/khw67/data_stream/external/UniDepth
+    model_name: /home/khw67/data_stream/models/unidepth-v2-vitl14   # vits14 / vitb14 / vitl14
+    resolution_level: 9           # 0~9, 높을수록 정밀·느림
+    infer_long_side: null         # 숫자면 긴 변을 이 크기로 줄여 추론 후 원본 크기로 되돌림
+    use_fp16: true
+    save_depth: true
+    depth_dtype: float16          # float16 | float32
+
+  # ── MoGe2-Aerial (MoGe-2 ViT-L + LoRA r=96, AerialMetric ECCV 2026) ──────
+  moge2_aerial:
+    repo_path: /home/khw67/data_stream/external/AerialMetric/MoGe
+    extra_sys_path: [/home/khw67/data_stream/external/AerialMetric/pydeps]   # utils3d, peft
+    checkpoint: /home/khw67/data_stream/external/AerialMetric/weights/Moge2-Aerial.pt
+    lora_rank: 96
+    resolution_level: 9           # 0~9
+    force_projection: true
+    apply_mask: true              # 하늘 등 무효 영역은 depth 0
+    infer_long_side: null
+    use_fp16: true
+    save_depth: true
+    depth_dtype: float16
+
+# ── 검출 안정화 (yoloe 검출, 기기·실행 폴더마다) ───────────────────────────
+# 프레임 사이 같은 물체(IoU)를 이어 붙여 track_id 를 주고, 박스·이름·거리가 장마다 튀지 않게 한다.
+stabilize:
+  enabled: false                  # true 면 아래 값으로 안정화
+  # 모델마다 흔들리는 모양이 다르다 — stabilize.<model> 로 바탕값 위에 얹는다.
+  # river: 수십 px 짜리가 장마다 들락거린다. 값은 **자료가 아니라 프레임율과 물체
+  # 크기**에서 정했다(local/consensus/prereg_tracking.md §2) — 라벨 219장이 전부
+  # test 라 거기서 고르면 그 다섯 기기의 값이 된다.
+  river:
+    # **켠다. 다만 거르는 층이 아니라 번호를 붙이는 층이다.**
+    #
+    # 처음에는 우리 Stabilizer 를 모든 검출에 걸었고 55칸이 전부 off 보다 나빴다
+    # (연속 150장 macro: off 0.290 · 최악 0.082). conf 0.05 짜리 하나하나가 track 을
+    # 시작해 쓰레기를 이어 붙인 뒤 hold 로 더 오래 띄운 설계였다.
+    #
+    # 기성 트래커(ultralytics 8.4.155 에 여섯이 **이미 들어 있다**)는 이 축이 설계에
+    # 있다: new_track_thresh(0.25) 위의 **잘 잡힌** 검출로만 track 을 시작하고, 약한
+    # 검출은 이미 있는 track 을 되찾는 데만 쓴다. 재 보니 그렇게 이어진 것은 정확하다
+    # — bytetrack precision 0.778 (off 는 0.393). 그런데 우리 작동점에서 그 문턱을
+    # 넘는 검출이 **1/8 뿐**이라, 넘지 못한 것을 버리면 재현율이 0.640 → 0.024 다.
+    #
+    # 그래서 on_untracked: keep 이다. 잘 잡힌 것은 번호를 받고 나머지는 번호 없이
+    # 그대로 나간다. 이 모드의 탐지 점수는 off 와 **수치까지 같다**(0.290/0.487/
+    # 0.393/0.640 — 쟀다). 잃는 것 없이 번호가 붙는다.
+    #
+    # 측정 local/consensus/eval_vendor_tracker.json · 사전 등록 prereg_vendor_tracker.md
+    enabled: true
+    backend: bytetrack            # bytetrack | botsort | ocsort | deepocsort | fasttrack | builtin
+                                  # botsort 는 카메라 움직임 보정이 붙어 번호를 더 많이
+                                  # 단다(17.7% vs 12.7%). 다만 보정이 **그림 크기가 장마다
+                                  # 같아야** 돌아간다 — 우리 sample 묶음처럼 크기가 섞이면
+                                  # 조용히 항등으로 떨어진다. 영상 스트림에서는 쓸 만하다
+    on_untracked: keep            # keep = 번호 못 받은 검출도 그대로 낸다 (**기본**)
+                                  # drop = 이어진 것만 낸다. 재현율 0.640 → 0.024 다
+    keep_boxes: detection         # detection = 탐지기 박스 그대로 (칼만 박스는 수십 px
+                                  # 짜리를 늦춰 IoU 0.5 를 못 넘는 것을 쟀다)
+    reset_gap_s: 2.0              # 프레임 시각이 이보다 벌어지면 트래커를 새로 세운다
+    #
+    # **이름 깜빡임.** 같은 물체의 이름이 장마다 뒤집힌다 — 쟀더니 장 사이 전이의
+    # **29.4%** 다(연속 촬영 drone+dji, track 2947). 가장 잦은 쌍은
+    # styrofoam_box↔water_jug(302) · styrofoam_box↔wooden_box(70) 다.
+    # 기성 트래커는 new_track_thresh 위의 잘 잡힌 검출만 잇는데 **뒤집히는 것은 바로
+    # 신뢰도가 낮은 검출들**이라 그 쪽으로는 손댈 수 없다. 그래서 이름 안정화는
+    # 모든 검출을 보는 자기 짝짓기를 따로 쓴다(박스는 건드리지 않는다).
+    #
+    # 대가를 숨기지 않는다 — 라벨 150장에서:
+    #   raw     깜빡임 0.2940          macro 0.290 · R 0.640   (아무것도 안 함)
+    #   hyst-2  깜빡임 0.0553 (-81%)   macro 0.243 · R 0.531
+    #   hyst-3  깜빡임 0.0141 (-95%)   macro 0.228 · R 0.497
+    # 이름을 붙들면 바뀌어야 할 때도 늦는다. 그래서 **버리는 것이 없게** 한다:
+    # 이 장의 원래 이름은 label_raw, 흔들린다는 사실은 label_stable: false,
+    # 후보는 label_candidates 로 함께 나간다. 프레임별 진실이 필요한 소비자는
+    # label_raw 를 본다. 끄려면 raw 로 둔다.
+    label_policy: hyst-2          # raw = 그대로 / hyst-<k> = 다른 이름이 k 장 연속 이겨야 바꾼다
+    label_margin: 0.6             # 1위 표 비율이 이보다 낮으면 label_stable: false
+    label_max_missed: 5           # 이보다 오래 안 보이면 그 이름을 잊는다
+    # 트래커 자체 값(track_high_thresh 등)은 **패키지 기본값 그대로** 쓴다. 여기서
+    # 고치면 그 값은 이 현장 다섯 기기의 값이 된다 — 라벨 219장이 전부 test 인 이유다.
+    #
+    # 폐쇄망: 연관에 `lap` 이 필요하다. 없으면 ultralytics 가 **런타임에 받으려 한다** —
+    # 코드가 먼저 거절하고 트래킹만 끈다. 미리 `pip install 'lap>=0.5.12'` 한다.
+    # ReID(with_reid)는 외모 인코더 조달이 선행이라 켜지 않았다.
+    #
+    # 우리 Stabilizer 를 쓰려면 backend: builtin (아래 값이 그때 쓰인다).
+    # 재 보니 번호만 붙이는 구성(box_alpha 1.0·min_hits 1·hold 0)도 0.290 → 0.266 이었다.
+    iou_match: 0.2
+    center_dist: 1.0              # **고정 카메라·느린 프레임용**(backend: builtin 에서만).
+                                  # IoU 만으로는 상자가 겹칠 때만 이어진다 — 물체가 자기
+                                  # 폭보다 멀리 움직이면 겹침이 0 이고 track 이 끊긴다
+    min_hits: 2
+    hold_missed: 2
+  # 1 fps 로 찍는 카메라에서는 min_hits 2 가 **1초 지연**이다. 그런 배치는
+  # min_hits 1 · reset_gap_s 를 프레임 간격보다 크게 둔다
+  iou_match: 0.3                  # 이전 장 물체와 이만큼 겹치면 같은 물체 (이름은 안 본다)
+  box_alpha: 0.5                  # 박스·신뢰도 EMA. 낮을수록 안정적, 반응은 느리다
+  label_decay: 0.8                # 이름 다수결: 장마다 이전 표를 이만큼 줄이고 이번 신뢰도를 더한다
+  min_hits: 2                     # 이만큼 연속 잡혀야 내보낸다 (한 장짜리 오검출 제거)
+  hold_missed: 2                  # 못 잡은 장이 이만큼까지는 마지막 박스로 유지 (held: true)
+  max_missed: 5                   # 이보다 오래 안 보이면 물체를 잊는다 (돌아오면 새 track_id)
+  depth_window: 5                 # 거리 = 최근 이만큼의 중앙값
+  reset_gap_s: 2.0                # 프레임 시각이 이보다 벌어지면 처음부터
+
+# ── depth 시각화 / YOLOE 결합 ──────────────────────────────────────────────
+depth_vis:
+  mode: blend                     # blend = 원본 위에 컬러맵 / side = 원본 | 컬러맵 나란히
+  alpha: 0.6                      # blend 비율 (컬러맵 쪽)
+  colormap: turbo                 # turbo | jet | inferno | magma | viridis | plasma
+  near_is_warm: true              # 가까울수록 빨강
+  range_percentile: [2, 98]       # 색 범위를 이 백분위로 자름
+  colorbar: true
+
+# depth 모델을 돌리면 yoloe 검출에 검출별 거리를 붙이고 depth 오버레이에 박스 + 거리를 그린다.
+# --models 에 yoloe 가 없어도 결합용으로 yoloe 를 적재한다 (그때 yoloe 결과 자체는 저장하지 않음).
+fusion:
+  enabled: true
+  detector: yoloe                 # 검출 모델을 안 골랐는데 depth 를 골랐을 때 결합용으로 적재할 것 (yoloe | river)
+  depth_percentile: 40            # 마스크 안 depth 의 이 백분위를 물체 거리로 본다
+  mask_erode_px: 3                # 경계 배경 혼입을 줄이려고 마스크를 깎는다
+  min_valid_ratio: 0.2            # 마스크 안 유효 depth 비율이 이보다 낮으면 거리 null
+
+# ── 검출 GPS 좌표 (depth 모델 + 결합 때, geo.py) ─────────────────────────────
+# 검출마다  depth_m(광축 Z) · uv(마스크 무게중심) · range_m(직선거리) · cam_xyz_m · ned_m[북,동,아래]
+#          · lat · lon (도, WGS84) · alt_m (해발) 을 results.jsonl 과 vision_stream result 에 붙인다.
+# 프레임마다 pose(쓴 드론 위치·자세 + dt_s) · frame_ts · geo_status 도 붙인다.
+#   geo_status: ok | no_fix (gps.fix_type < min_fix_type → ned_m 까지만) | no_attitude | no_state | stale_state
+# 위치·자세: 브리지 MQTT state (도·m·도, GPS_단위_정리_261002.md). 프레임 sender.ts 와 ts 가 가장 가까운 것
+#   live = Redis state_stream:<기기> · 저장된 이미지 = <실행>/states.jsonl
+geo:
+  enabled: true
+  min_fix_type: 2                 # 미만이면 위도·경도 null (fix 없는 0,0 을 좌표로 쓰지 않는다)
+  max_state_dt_s: 0.5             # 프레임과 state 시각 차이가 이보다 크면 쓰지 않는다 (stale_state)
+  redis_scan: 64                  # live: state_stream 최근 몇 개에서 찾을지 (state 약 8건/초)
+  devices:                        # 여기 있는 기기만 계산한다. 카메라 장착 (기체 FRD 기준)
+    drone:
+      pitch_down_deg: 45          # 정면에서 아래로 숙인 각 (수직 하방 = 90)
+      yaw_deg: 0                  # 오른쪽으로 돌린 각
+      roll_deg: 0                 # 광축 둘레로 돌린 각
+      lever_arm_m: [0, 0, 0]      # 기체 원점(FC) → 카메라 [앞, 오른쪽, 아래] m
+
+# ── 오버레이 표시 (yoloe · depth 공통) ─────────────────────────────────────
+# label: 박스 위에 쓸 줄 목록. 한 줄 = 항목 목록. 값이 없는 항목은 빠진다
+#   name 클래스 이름 · conf 신뢰도 · cls 클래스 번호 · id track_id · depth 광축 거리 Z · range 직선거리
+#   gps 위도,경도 · alt 해발고도 · ned 드론 기준 북·동·아래 오프셋(m)
+# river 는 overlay.river 가 없으면 overlay.yoloe 설정을 같이 쓴다.
+overlay:
+  min_conf: 0.25                  # 그릴 최소 신뢰도. null = 다 그림. 그림에서만 거른다 (results 에는 전부 남음)
+  line_width: null                # null = 이미지 크기에 맞춰 자동
+  font_scale: null                # null = 자동
+  title: true                     # 영상 위 띠에 모델·기기·번호
+  gps_decimals: 6                 # 위도·경도 표시 자리수 (6 ≈ 0.1 m). 저장값은 8자리
+  yoloe:
+    label: [[name, conf]]
+  river:
+    # **이긴 낱말을 함께 쓴다.** 가설 칸은 이름이 전부 `unconfirmed` 라 그것만 쓰면
+    # 화면에 같은 글자가 스물세 개 뜬다. `lead` 는 클래스 이름과 같으면 저절로 빠진다.
+    # `name` 을 빼고 `lead` 만 둔다 — 가설 칸의 "unconfirmed" 글자가 사라지고 이긴
+    # 낱말만 남는다. lead 는 낱말이 없으면 클래스 이름으로 물러선다.
+    label: [[lead, dist]]         # 쓸 수 있는 항목: name lead conf cls id depth range dist gps alt ned
+    # **근거 카드를 오버레이에 그린다.** 위험물 후보가 있는 장에만 그려지고 없으면
+    # 비용 0 이다(실측 카드 1개 8.4 ms · 3개 12.7 ms · 전체 200 ms 대비).
+    # 끄면 위 label 한 줄만 남는 예전 화면이 된다.
+    # 그리는 코드의 주인은 `hazard_overlay.py` 하나이고 검수 도구도 그것을 불러 쓴다 —
+    # 두 화면이 같은 검출을 각자 조립하면 어느 날 둘이 다른 말을 한다.
+    cards: false                  # **그림에 카드를 넣지 않는다**(2026-11-13) — 카드가 검출을 가렸다.
+                                  # 오버레이는 "이름 거리 점수" 만, 근거 카드는 웹 /vision/view 에서
+                                  # 마우스를 올리면 보인다(클릭 고정 · X 닫기)
+    cues: null                    # 단서 선언 자리. null = vision/assets/hazard_cues.json
+  depth:
+    label: [[name, conf, range], [gps]]
+    pose: true                    # 영상 위 띠에 드론 GPS·고도·자세·state 시각 차이 한 줄

@@ -1,4 +1,4 @@
-"""implements: AI-C-01/03/06/07, AI-R-03, AI-O-02, HW-R-10, VZ-I-07/08/10"""
+"""implements: AI-C-01/03/06/07, AI-R-02, AI-O-02, HW-R-10, VZ-I-07/08/10"""
 
 from __future__ import annotations
 

@@ -1,4 +1,8 @@
-"""implements: AI-R-04"""
+"""implements: AI-S-05, AI-R-02
+
+구 AI-R-04 는 CLAUDE.md §5 에서 AI-R-02 와 신규 AI-C-19 로 흡수되어 사라진 번호다.
+폐기된 ID 를 유일한 근거로 적으면 어느 살아 있는 요구사항의 시험인지 추적되지 않는다.
+"""
 
 from mission_runtime.contracts.capability import CapabilityRequirement
 from mission_runtime.contracts.profile import CompatibilityProfile, ResourceBudget, ResourceCost

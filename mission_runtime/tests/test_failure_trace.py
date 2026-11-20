@@ -962,7 +962,11 @@ def test_a_real_collector_round_trip_feeds_the_attribution():
             break
         time.sleep(0.25)
     else:
-        pytest.fail("collector 가 이 실행의 구간을 파일로 내보내지 않았다")
+        pytest.fail(
+            "collector 가 이 실행의 구간을 파일로 내보내지 않았다.\n"
+            f"읽은 파일: {COLLECTOR_OUTPUT}\n"
+            "**이 파일이 지금 도는 collector 의 것인지 먼저 본다** — 자세한 사정은"
+            " 아래 사건 시험의 같은 자리에 적었다.")
 
     report = FailureTraceService(reader).attribute(
         FailureQuery(
@@ -1041,7 +1045,14 @@ def test_a_real_collector_export_file_carries_individual_fatal_events():
             break
         time.sleep(0.25)
     else:
-        pytest.fail("collector 가 이 실행의 사건을 파일로 내보내지 않았다")
+        pytest.fail(
+            "collector 가 이 실행의 사건을 파일로 내보내지 않았다.\n"
+            f"읽은 파일: {COLLECTOR_OUTPUT}\n"
+            "**이 파일이 지금 도는 collector 의 것인지 먼저 본다** — 포트가 열려 있고"
+            " 파일이 있어도 둘이 서로 다른 트리일 수 있다(실측 2026-11-20: 트리를"
+            " 복사해 돌렸더니 collector 는 원래 트리의 파일에 쓰고 사본의 옛 파일을"
+            " 읽었다). 복사한 트리라면 이 파일은 추적되지 않는 실행 산출물이므로"
+            " git clone 한 트리에는 없고 그때 이 시험은 skip 된다.")
 
     # 치명 하나만 치명으로 올라오고 일반 하나는 섞이지 않는다.
     assert [e.name for e in view.fatal()] == [f"{marker}.device_death"]

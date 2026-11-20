@@ -267,7 +267,7 @@ def test_a_catalog_without_the_proxies_key_is_rejected(tmp_path):
 
 
 def test_the_asset_root_convention_is_the_shared_one(tmp_path, monkeypatch):
-    """`tests/conftest.py::asset_root()` · `tools/fms_console` 와 같은 환경변수다."""
+    """`tests/conftest.py::asset_root()` · `tools/view_service` 와 같은 환경변수다."""
     monkeypatch.setenv(ASSET_ROOT_ENV, str(tmp_path / "elsewhere"))
 
     # 환경변수가 가리키는 자리가 없어도 그대로 쓴다 — 조용히 다른 곳을 집으면 "왜 못

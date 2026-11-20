@@ -3,7 +3,7 @@ correspondences (AI-E-02).
 
 implements: AI-E-02
 
-Design reference: docs/obsidian/papers/anycalib.md (AnyCalib, ICCV 2025,
+Design reference: internal/docs-dev/obsidian/papers/anycalib.md (AnyCalib, ICCV 2025,
 Tirado-Garín & Civera). AnyCalib's actual novel contribution is a *learned*
 neural network that regresses a per-pixel "FoV field" (a tangent-plane
 coordinate on S^2 that is bijective to a per-pixel ray direction) from a

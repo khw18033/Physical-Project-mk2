@@ -1,4 +1,4 @@
-"""implements: AI-C-20, AI-C-06, AI-C-10, AI-C-11
+"""implements: AI-C-20, AI-C-06, AI-C-10, AI-C-05
 covers: terminal/<device-id>/{downlink,uplink} wire round-trip, async
         result tracking, rejection without a following CommandResult,
         Capability -> CapabilityRegistry bridging, malformed-uplink
@@ -14,6 +14,7 @@ import time
 
 import pytest
 
+from mission_runtime.contracts.capability_contract import DeclarationBasis
 from mission_runtime.contracts.physical_command import (
     CancelCommandRequest,
     CancelCommandResponse,
@@ -276,3 +277,110 @@ def test_real_mqtt_broker_round_trip():
     finally:
         edge.close()
         device.close()
+
+
+# --- 선언이 레지스트리까지 **읽히는가** (AI-C-18) ---------------------------
+
+
+def test_a_wire_arrived_declaration_leaves_cancel_support_unknown_not_refused():
+    """지금 와이어는 취소 가능 여부를 싣지 못한다(spec §8-3 P7). 그때 답은
+    "모른다" 여야 한다 — False 로 접으면 모든 장치가 취소를 거부하는 장치가
+    되고, 상위 기능은 보내 보지도 않는다."""
+    transport = InMemoryTransportProvider()
+    gateway = _gateway(transport)
+    gateway.attach("robot1")
+
+    _device_reply(transport, "robot1", Capability(name="stop", cancel_supported=True))
+
+    # 장치는 True 를 선언했지만 와이어가 싣지 못했다. 그 사실이 None 으로 남는다.
+    assert gateway.declared_cancel_support("robot1", "stop") is None
+    assert gateway.declared_cancel_support("robot1", "never_announced") is None
+    missing = gateway.undeclared_declaration_items("robot1")["stop"]
+    assert "cancellable" in missing and "idempotent" in missing
+
+
+def test_a_rich_announcement_reaches_the_registry_and_keeps_every_item():
+    """내부 호출 경로(와이어를 거치지 않는)로 온 풍부한 선언은 레지스트리까지
+    간다. 이 길이 없으면 선언이 게이트웨이 안에만 남고, 기능을 고르는 쪽은
+    취소 가능 여부·멱등성을 선언에서 알 수 없다."""
+    registry = CapabilityRegistry()
+    gateway = _gateway(registry=registry)
+    gateway._on_capability("robot1", {
+        "name": "navigate.relative", "version": "1.0",
+        "parameter_schema": "schema://p", "result_schema": "schema://r",
+        "cancel_supported": False, "required_resources": ["mobility.base"],
+        "optional_resources": ["accel.npu"], "idempotent": True,
+        "invocation": "asynchronous",
+        "basis": {"units": {"distance_m": "m"}, "reference_frame": "device-local",
+                  "time_basis": "backend_ntp"},
+        "scope_tags": ["zone.a"], "execution_profile_ref": "profile://nav/1",
+    })
+
+    declared = gateway.known_capabilities("robot1")[0]
+    assert declared.cancel_supported is False and declared.idempotent is True
+    assert declared.basis == DeclarationBasis(
+        units={"distance_m": "m"}, reference_frame="device-local", time_basis="backend_ntp")
+    assert declared.scope_tags == ("zone.a",)
+    assert gateway.declared_cancel_support("robot1", "navigate.relative") is False
+
+    reg = registry.available_providers("hardware.action.navigate.relative")[0]
+    assert reg.declaration is not None
+    assert reg.declaration.cancellable is False
+    assert reg.declaration.idempotent is True
+    assert reg.declared_items_missing() == ()
+
+
+def test_an_announcement_without_a_basis_does_not_get_an_empty_one():
+    """빈 기준 객체를 만들면 "기준을 선언했다" 가 되어 미선언과 구분되지 않는다."""
+    gateway = _gateway()
+    gateway._on_capability("robot1", {"name": "stop"})
+    assert gateway.known_capabilities("robot1")[0].basis is None
+
+
+def test_the_registry_splits_declared_support_from_undeclared_support():
+    """선택에서 미선언을 거부로 접지도, 충족으로 세지도 않는다 — 둘 다 없는
+    선언을 지어내는 것이다(AI-C-18)."""
+    registry = CapabilityRegistry()
+    gateway = _gateway(registry=registry)
+    gateway._on_capability("robot1", {"name": "stop", "cancel_supported": True})
+    gateway._on_capability("robot2", {"name": "stop", "cancel_supported": False})
+    gateway._on_capability("robot3", {"name": "stop"})
+
+    supports, unknown = registry.providers_declaring(
+        "hardware.action.stop", "cancellable")
+    assert [r.provider_id for r in supports] == ["robot1"]
+    assert [r.provider_id for r in unknown] == ["robot3"]  # robot2 는 어긋난 후보
+
+
+def test_a_declared_optional_condition_ranks_but_never_excludes_the_provider():
+    """선언된 **선택** 실행 조건이 실제 선택까지 닿는지 — 저장만 되고 아무도
+    읽지 않으면 그 항목은 선언된 것이 아니다.
+
+    선택 조건의 결손은 자격을 바꾸지 않고 순위만 바꾼다(AI-B-04 "선호 자원이
+    없으면 호환 가능한 일반 자원으로 대체", AI-C-05).
+    """
+    from mission_runtime.contracts.profile import ResourceBudget
+    from mission_runtime.selection.selector import CapabilitySelector
+
+    registry = CapabilityRegistry()
+    gateway = _gateway(registry=registry)
+    gateway._on_capability("robot-npu", {"name": "detect",
+                                         "required_resources": ["sensor.camera"],
+                                         "optional_resources": ["accel.npu"]})
+    gateway._on_capability("robot-plain", {"name": "detect",
+                                           "required_resources": ["sensor.camera"]})
+
+    # 선언이 배치 계약까지 옮겨졌는가 — 필수는 자격, 선택은 순위.
+    npu_reg = next(r for r in registry.available_providers("hardware.action.detect")
+                   if r.provider_id == "robot-npu")
+    assert npu_reg.compatibility.required_runtime_tags == ("sensor.camera",)
+    assert npu_reg.compatibility.unmet_preferences({"sensor.camera"}) == ("accel.npu",)
+
+    selector = CapabilitySelector(registry)
+    without_npu = selector.select("hardware.action.detect",
+                                  {"sensor.camera"}, ResourceBudget(10.0, 4096))
+
+    # 선호 자원이 없는 노드에서는 그것을 선언한 쪽이 **뒤로 밀리지만**
+    # 배제되지는 않는다 — 등록 순서상 앞에 있었는데도 뒤로 간다.
+    assert without_npu.provider.provider_id == "robot-plain"
+    assert "robot-npu" in {c.provider_id for c in without_npu.alternatives}

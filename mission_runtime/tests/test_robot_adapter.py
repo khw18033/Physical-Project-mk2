@@ -16,6 +16,7 @@ import threading
 import pytest
 
 from mission_runtime.contracts import data_dictionary as dd
+from mission_runtime.contracts.capability_contract import DeclarationBasis
 from mission_runtime.contracts.physical_command import (
     CancelCommandRequest,
     Capability,
@@ -721,7 +722,30 @@ def test_the_reason_field_is_in_the_dictionary():
 
 
 def test_capability_declared_by_the_backend_is_passed_through_unchanged():
-    declared = (Capability(name="move", version="3", parameter_schema="p", result_schema="r"),)
-    a = adapter(FakeRobotBackend(actions=declared))
-    assert a.capabilities() == declared
+    """선언을 **그대로** 들고 나온다. 그리고 그 선언이 AI-C-18 항목을 하나도
+    빼지 않았을 때만 under-declared 로 세지 않는다.
+
+    2026-11-04 이전에는 version/schema 셋만 채우면 "다 선언됐다" 였다. 그
+    선언에는 취소 가능 여부도 멱등성도 없는데 센 쪽은 0 이었다 — 빠진 항목이
+    보이지 않았다는 뜻이다.
+    """
+    full = Capability(
+        name="move", version="3", parameter_schema="p", result_schema="r",
+        cancel_supported=True, required_resources=("robot.base",), idempotent=False,
+        invocation="asynchronous", basis=DeclarationBasis(time_basis="device_monotonic"),
+        scope_tags=(), execution_profile_ref="profile://move/1",
+    )
+    a = adapter(FakeRobotBackend(actions=(full,)))
+    assert a.capabilities() == (full,)
     assert a.wire_gaps[ra.WIRE_GAP_CAPABILITY_UNDER_DECLARED] == 0
+
+
+def test_a_version_and_schema_only_declaration_is_counted_as_under_declared():
+    """취소 가능 여부·멱등성·단위 기준을 아무도 말하지 않은 선언은 "다 선언됐다"
+    가 아니다 — 모른다와 안 된다를 가르려면 모른다는 사실이 먼저 보여야 한다."""
+    partial = Capability(name="move", version="3", parameter_schema="p", result_schema="r")
+    a = adapter(FakeRobotBackend(actions=(partial,)))
+    a.capabilities()
+    assert a.wire_gaps[ra.WIRE_GAP_CAPABILITY_UNDER_DECLARED] == 1
+    assert "cancellable" in partial.undeclared_items()
+    assert "idempotent" in partial.undeclared_items()

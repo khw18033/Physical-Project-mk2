@@ -139,7 +139,7 @@ def _load_by_path(name: str, path: Path):
 def overlay_module():
     return _load_by_path(
         "fms_overlay_under_packaging_test",
-        PACKAGE_DIR / "tools" / "fms_console" / "overlay.py")
+        PACKAGE_DIR / "tools" / "view_service" / "overlay.py")
 
 
 def test_operator_edits_default_to_a_place_outside_the_install_tree(overlay_module, monkeypatch):
@@ -182,8 +182,8 @@ def test_an_absent_ledger_is_an_empty_ledger_not_an_error(overlay_module, tmp_pa
 @pytest.fixture(scope="module")
 def console_module():
     return _load_by_path(
-        "fms_console_serve_under_packaging_test",
-        PACKAGE_DIR / "tools" / "fms_console" / "serve.py")
+        "view_service_serve_under_packaging_test",
+        PACKAGE_DIR / "tools" / "view_service" / "service.py")
 
 
 def test_the_asset_root_is_not_guessed_from_the_parent_directory(console_module, monkeypatch):
@@ -304,3 +304,77 @@ def test_the_test_suite_does_not_write_to_the_real_user_state_directory():
     root = os.environ.get("MISSION_RUNTIME_STATE")
     assert root, "conftest 의 `_isolated_state_root` 가 걸리지 않았다"
     assert Path.home() / ".local" / "state" / "mission_runtime" != Path(root)
+
+# ---------------------------------------------------------------------------
+# compose 가 **있는 깃발**을 부르는가 (2026-11-05)
+# ---------------------------------------------------------------------------
+
+
+def test_every_compose_command_parses_against_the_real_entrypoint():
+    """`docker compose up` 이 argparse 에서 죽지 않는지.
+
+    **이 시험이 생긴 계기**: compose 의 세 서비스가 `--ui-config` 와
+    `--zone-profile` 을 넘기고 있었는데 **그런 깃발은 존재한 적이 없다.** 셋 다
+    `exit 2` 였고, README 는 `docker compose up` 을 "가장 짧은 길" 로 적고
+    CLAUDE.md 는 이미지가 "실제로 빌드·실행되는지 확인됨" 이라고 적고 있었다 —
+    빌드는 됐고 **실행은 안 됐다**. 이미지를 돌리지 않고도 잡을 수 있던 결함이다.
+
+    여기서 도커를 띄우지 않는다. compose 의 `command` 를 읽어 그 진입점의
+    **파서에 그대로 먹여** 본다.
+    """
+    import importlib.util
+    import shlex
+
+    compose = (PACKAGE_DIR / "docker-compose.yml").read_text(encoding="utf-8")
+
+    # `command: >` 접힌 블록을 읽는다. YAML 파서를 끌어오지 않는다 — 이 시험이
+    # 보는 것은 "그 글자가 파서를 통과하는가" 하나다.
+    commands, lines = [], compose.split("\n")
+    for i, line in enumerate(lines):
+        if line.strip() not in ("command: >", "command: >-"):
+            continue
+        indent = len(line) - len(line.lstrip())
+        parts = []
+        for nxt in lines[i + 1:]:
+            if not nxt.strip():
+                break
+            if len(nxt) - len(nxt.lstrip()) <= indent:
+                break
+            parts.append(nxt.strip())
+        if parts:
+            commands.append(" ".join(parts))
+
+    assert commands, "compose 에서 command 블록을 하나도 읽지 못했다"
+
+    parsers: dict = {}
+    checked = 0
+    for raw in commands:
+        argv = shlex.split(raw)
+        # `python …/x.py` 꼴만 본다. 그 밖은 이 시험의 대상이 아니다.
+        script = next((a for a in argv if a.endswith(".py")), None)
+        if script is None:
+            continue
+        path = PACKAGE_DIR / script
+        assert path.is_file(), f"compose 가 없는 파일을 부른다 — {script}"
+        if script not in parsers:
+            name = "compose_entry_" + script.replace("/", "_").replace(".", "_")
+            spec = importlib.util.spec_from_file_location(name, path)
+            assert spec is not None and spec.loader is not None
+            module = importlib.util.module_from_spec(spec)
+            import sys as _sys
+            _sys.modules[name] = module
+            spec.loader.exec_module(module)
+            parsers[script] = module
+        module = parsers[script]
+        build = getattr(module, "build_parser", None)
+        if build is None:
+            # 파서를 따로 내주지 않는 진입점은 `main` 을 통해서만 잴 수 있고,
+            # 그것은 서버를 띄운다 — 여기서는 하지 않고 건너뛴다.
+            continue
+        rest = argv[argv.index(script) + 1:]
+        build().parse_args(rest)          # 모르는 깃발이면 SystemExit(2)
+        checked += 1
+
+    assert checked, (
+        "compose 의 어떤 command 도 검사되지 않았다 — 진입점이 "
+        "`build_parser()` 를 내주지 않으면 이 시험은 아무것도 지키지 못한다")

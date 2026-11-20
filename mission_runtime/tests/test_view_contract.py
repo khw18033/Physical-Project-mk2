@@ -16,11 +16,11 @@ tests: (a) 실제 서비스의 실제 GET 응답이 `schemas/view_*.schema.json`
 고정되어 있어야 한다. 문서만 있으면 코드가 조용히 멀어지고, 시험만 있으면 바깥 팀이
 무엇을 믿어도 되는지 알 수 없다.
 
-서비스는 `tools/fms_console/serve.py::build_service` 가 쓰는 것과 **같은 실제 설정**
+서비스는 `tools/view_service/service.py::build_service` 가 쓰는 것과 **같은 실제 설정**
 으로 세우고 가짜 payload 를 만들지 않는다 — 계약이 지키는 대상은 실제로 나가는 응답
-이기 때문이다. `tools/status_ui/serve.py` 와 `tools/fms_console/serve.py` 는 진입 파일
+이기 때문이다. `tools/status_ui/serve.py` 와 `tools/view_service/service.py` 는 진입 파일
 이름이 둘 다 `serve.py` 라서 `import serve` 는 먼저 올라온 쪽을 집는다. 그래서 이름이
-아니라 **경로로** 싣는다(fms_console 쪽 `_load_status_ui()` 와 같은 수법).
+아니라 **경로로** 싣는다(view_service 쪽 `_load_status_ui()` 와 같은 수법).
 """
 
 from __future__ import annotations
@@ -33,6 +33,7 @@ import sys
 import threading
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from http.server import ThreadingHTTPServer
 from pathlib import Path
@@ -43,7 +44,7 @@ from referencing import Registry, Resource
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 SCHEMA_DIR = PROJECT_ROOT / "schemas"
-CONSOLE_SERVE = PROJECT_ROOT / "tools" / "fms_console" / "serve.py"
+CONSOLE_SERVE = PROJECT_ROOT / "tools" / "view_service" / "service.py"
 UI_CONFIG = PROJECT_ROOT / "config" / "status_ui.fms.example.json"
 DOMAIN_PROFILE = PROJECT_ROOT / "profiles" / "domains.example.json"
 GOAL_KINDS = PROJECT_ROOT / "profiles" / "goal_kinds.example.json"
@@ -66,8 +67,8 @@ from accounts import Caller  # noqa: E402
 
 
 def _load_console_serve():
-    """`tools/fms_console/serve.py` 를 경로로 싣는다(이름 충돌을 피한다)."""
-    name = "fms_console_serve_under_view_contract_test"
+    """`tools/view_service/service.py` 를 경로로 싣는다(이름 충돌을 피한다)."""
+    name = "view_service_serve_under_view_contract_test"
     if name in sys.modules:
         return sys.modules[name]
     for candidate in (PROJECT_ROOT.parent,):
@@ -103,23 +104,50 @@ def service(console):
 @pytest.fixture(scope="module")
 def base_url(console, service):
     """실제 HTTP 로 띄운다 — 조회·제어 분리는 메서드와 상태 코드의 성질이라
-    서비스 객체를 직접 부르면 확인할 수 없다."""
-    console.FmsHandler.service = service
-    httpd = ThreadingHTTPServer(("127.0.0.1", 0), console.FmsHandler)
-    thread = threading.Thread(target=httpd.serve_forever, daemon=True)
-    thread.start()
+    서비스 객체를 직접 부르면 확인할 수 없다.
+
+    **2026-11-05: 세우는 것이 FMS 콘솔에서 가시화 게이트웨이로 바뀌었다.** FMS 를
+    별도 웹으로 두지 않기로 했으므로 콘솔 `FmsHandler` 는 지웠고, 이 계약을 실제로
+    내보내는 자리는 가시화 앱이 보는 게이트웨이다. 검사 대상이 **실물로** 옮겨진
+    것이고 계약 본문은 그대로다 — 조회와 쓰기는 여기서도 다른 계약이다(AI-O-06).
+    """
+    from integration.fms_view_api import FmsViewApi, _view_caller
+    from integration.fms_write_api import build_write_api
+    from providers.ws_server import WsHttpServer
+
+    view_api = FmsViewApi(service=service, view_payload=console.view_payload,
+                          api_error=console.ApiError,
+                          not_a_view_route=console.NotAViewRoute,
+                          caller=_view_caller(console, service),
+                          module=console)
+    write_api = build_write_api(service, console)
+
+    def http_get(path, headers=None):
+        if view_api.handles(path):
+            parsed = urllib.parse.urlparse(path)
+            status, body = view_api.answer(
+                parsed.path, urllib.parse.parse_qs(parsed.query), headers)
+            return status, "application/json; charset=utf-8", body
+        status, body = view_api.unknown_path()
+        return status, "application/json; charset=utf-8", body
+
+    def http_post(path, body, headers):
+        status, payload = write_api.answer(path, body, headers)
+        return status, "application/json; charset=utf-8", payload
+
+    server = WsHttpServer("127.0.0.1", 0, on_message=lambda *a: None,
+                          http_get=http_get, http_post=http_post,
+                          server_name=view_api.server_name())
+    port = server.start()
     try:
-        host, port = httpd.server_address[0], httpd.server_address[1]
-        base = f"http://{host}:{port}"
-        # 조회에도 권한이 필요해졌으므로 시험은 실제 문으로 들어와 둔다. 계정 파일이
-        # 없는 예시 자세라 비밀번호 없이 역할을 고를 수 있다.
+        base = f"http://127.0.0.1:{port}"
+        # 조회에도 권한이 필요하므로 시험은 실제 문으로 들어와 둔다. 계정 파일이
+        # 없는 예시 자세라 비밀번호 없이 계정을 고를 수 있다.
         _SESSION.clear()
         _assume(base, "admin")
         yield base
     finally:
-        httpd.shutdown()
-        httpd.server_close()
-        thread.join(timeout=5)
+        server.stop()
 
 
 # ---------------------------------------------------------------------------
@@ -144,11 +172,14 @@ def _assume(base: str, account_id: str) -> str:
     status, headers, body = _request("POST", f"{base}/api/assume",
                                      {"account": account_id}, token="")
     assert status == 200, (status, body)
-    # 토큰은 **본문에 담기지 않는다** — 쿠키로만 나간다. 본문에 실으면 페이지
-    # 스크립트가 읽을 수 있고, HttpOnly 로 막은 의미가 사라진다.
-    cookie = headers.get("Set-Cookie") or ""
-    token = cookie.split(";", 1)[0].partition("=")[2]
-    assert token, f"Set-Cookie 에 토큰이 없다: {cookie!r}"
+    # **토큰은 본문에서 온다.** 콘솔 페이지 시절에는 같은 출처라 HttpOnly 쿠키가
+    # 맞았다. 지금 이 계약을 읽는 것은 다른 출처에서 도는 가시화 앱이고, 교차 출처
+    # 쿠키를 허용하려면 자격증명을 열어야 해서 CSRF 가 열린다 — 그래서 Bearer 다
+    # (`integration/fms_write_api.py` 머리글).
+    token = (body or {}).get("session_token") or ""
+    assert token, f"응답 본문에 session_token 이 없다: {body!r}"
+    assert "Set-Cookie" not in headers, (
+        "교차 출처 자리에서 쿠키를 내보내면 안 된다")
     _SESSION["token"] = token
     return token
 
@@ -186,6 +217,12 @@ def _get(base: str, path: str, **query):
 def validators() -> dict[str, Draft202012Validator]:
     registry = Registry()
     schemas = {}
+    # 구역 B~I 의 모양은 **채널 본문 스키마**가 소유한다(`schemas/ai/`). 뷰 계약은
+    # 그것을 가리키므로 레지스트리에 함께 올려야 참조가 풀린다 — 모양을 두 곳에 적지
+    # 않기로 한 대가이고, 바깥 뷰어도 같은 두 파일을 올린다(계약 §11).
+    for path in sorted((SCHEMA_DIR / "ai").glob("*.schema.json")):
+        schema = json.loads(path.read_text(encoding="utf-8"))
+        registry = registry.with_resource(schema["$id"], Resource.from_contents(schema))
     for path in sorted(SCHEMA_DIR.glob("view_*.schema.json")):
         schema = json.loads(path.read_text(encoding="utf-8"))
         schemas[path.name.removeprefix("view_").removesuffix(".schema.json")] = schema
@@ -247,6 +284,10 @@ def payloads(base_url, service) -> dict[str, object]:
             assert status == 200, (node_id, goal_kind, body)
             graphs[f"{node_id}|{goal_kind}"] = body
 
+    status, _, dashboard = _get(base_url, "/api/dashboard")
+    assert status == 200, dashboard
+    out["dashboard"] = dashboard
+
     out["domains"] = domains
     out["zones"] = zones
     out["robots"] = robots
@@ -265,6 +306,7 @@ def test_every_get_payload_satisfies_its_published_schema(payloads, validators):
     갈라지면 그 팀의 뷰어가 우리 쪽 변경 없이 깨진다 — 그 틈을 여기서 막는다."""
     _assert_valid(validators["bootstrap"], payloads["bootstrap"], "/api/bootstrap")
     _assert_valid(validators["scene"], payloads["scene"], "/api/scene")
+    _assert_valid(validators["dashboard"], payloads["dashboard"], "/api/dashboard")
     for domain_id, body in payloads["domains"].items():
         _assert_valid(validators["domain"], body, f"/api/domain?id={domain_id}")
     for zone_id, body in payloads["zones"].items():
@@ -285,6 +327,7 @@ def test_the_whole_view_assembles_into_one_snapshot(payloads, validators, hub):
         "view_contract_version": hub["x-view-contract-version"],
         "bootstrap": payloads["bootstrap"],
         "scene": payloads["scene"],
+        "dashboard": payloads["dashboard"],
         "domains": list(payloads["domains"].values()),      # type: ignore[union-attr]
         "zones": list(payloads["zones"].values()),          # type: ignore[union-attr]
         "robots": list(payloads["robots"].values()),        # type: ignore[union-attr]
@@ -352,7 +395,7 @@ _GET_PATHS = ("/api/bootstrap", "/api/scene", "/api/domain", "/api/zone", "/api/
               "/api/recommend", "/api/subtasks", "/api/explain", "/api/twin", "/api/object",
               "/api/candidates", "/api/transit", "/api/mission", "/api/failure",
               "/api/spatial", "/api/overlay", "/api/lineage", "/api/deployment",
-              "/api/calibration", "/api/approval")
+              "/api/calibration", "/api/approval", "/api/dashboard", "/api/trial")
 
 
 @pytest.mark.parametrize("path", _GET_PATHS)
@@ -388,6 +431,22 @@ def test_control_is_a_separate_explicitly_listed_set_of_calls(base_url, console)
         # 겹치지 않는 것이 요점이다 — 읽는 이름과 쓰는 이름이 같으면 위의 405 보장이
         # 그 경로에서 사라진다.
         "/api/mission-run",
+        # 모델을 **돌려 보는** 길. 조회(`GET /api/trial` — 무엇을 돌려 볼 수
+        # 있는가)와 이름이 겹치지 않는다. 추론을 돌리는 것은 상태를 바꾸지 않지만
+        # 연산을 쓰고 사람 선택을 받으므로 조회 계약에 두지 않는다 — 조회에 두면
+        # 화면이 새로 그려질 때마다 모델이 돈다.
+        "/api/trial-run",
+        # 돌려 본 임계값을 **적용하는** 길. 시도(`/api/trial-run`)와 **다른 경로이고
+        # 다른 권한**이다 — 시도는 추론만 돌리지만 적용은 운영 중인 탐지가 무엇을
+        # 내보내는지를 바꾼다. 선언 파일(`config/detection_thresholds.example.json`)은
+        # 이 경로로도 바뀌지 않고 운영자 수정만 장부에 쌓인다(AI-L-03).
+        "/api/threshold",
+        # 선언된 실행 단위를 **세우고 내리는** 길(AI-B-03). 조회(`/api/services` —
+        # 지금 서 있는가)와 이름이 겹치지 않는다. 받는 것은 **단위 이름뿐**이고
+        # 명령줄은 기계의 선언에만 있다 — 명령줄을 받으면 쓰기 계약 하나가 원격
+        # 코드 실행 창구가 된다. 물리 명령과도 다른 칸이다(AI-C-19): 프로세스를
+        # 띄우는 것과 로봇을 움직이는 것은 같은 권한이 아니다.
+        "/api/stack",
     }
     assert not set(console._ROUTES_POST) & set(_GET_PATHS)
 
@@ -458,6 +517,7 @@ def _iter_payloads(payloads: dict[str, object]):
     kind 를 이어 붙인 시험용 이름)는 응답의 일부가 아니므로 훑지 않는다."""
     yield "/api/bootstrap", payloads["bootstrap"]
     yield "/api/scene", payloads["scene"]
+    yield "/api/dashboard", payloads["dashboard"]
     for group, path in (("domains", "/api/domain"), ("zones", "/api/zone"),
                         ("robots", "/api/robot"), ("recommendations", "/api/recommend"),
                         ("subtask_graphs", "/api/subtasks")):
@@ -926,3 +986,110 @@ def test_an_absent_path_is_announced_as_absent_not_as_an_error(base_url, payload
     assert status == 404, (status, body)
     assert body["error"] == "unknown_path"
     _assert_valid(validators["error"], body, "unknown path body")
+
+
+# ---------------------------------------------------------------------------
+# (i) 종합상황정보 구역 B~I — 실제 현장 설정에서 본다
+# ---------------------------------------------------------------------------
+
+
+def test_the_dashboard_regions_all_have_a_place_in_one_read(payloads):
+    """구역별로 따로 조회하지 않는다 (기능정의서 §3 요구사항 1, AI-O-06).
+
+    아홉 구역(B~I, E′ 포함)이 한 응답에서 자리를 갖고, A 는 문서가 정의 범위 외로
+    두므로 없다. 구역이 빠진 응답을 받으면 화면은 그 구역을 **지워야** 하는데,
+    문서는 반대를 요구한다 — 비었으면 비었다는 사실을 적는다.
+    """
+    body = payloads["dashboard"]
+    assert {region["region_id"] for region in body["regions"]} == {
+        "B", "C", "D", "E", "E_PRIME", "F", "G", "H", "I"
+    }
+    assert "A" not in {region["region_id"] for region in body["regions"]}
+
+
+def test_an_empty_dashboard_region_says_why_instead_of_claiming_it_is_fine(payloads):
+    """실제 현장 설정에는 `dashboard` 선언이 없다 — 그것이 정상 배치다(AI-C-05).
+
+    그 배치에서 요구되는 것은 구역을 지우는 것도, 0 으로 채우는 것도 아니고 **비었다는
+    사실과 사유**다(§3 요구사항 5: "해당 구역은 데이터 미수신 상태를 명시해야 한다").
+    빈 목록을 내보내면서 `region_available: true` 라고 적으면 화면은 빈 칸을 그리면서
+    왜 비었는지 말할 근거를 잃는다.
+    """
+    body = payloads["dashboard"]
+    states = {region["region_id"]: region for region in body["regions"]}
+    for region_id, state in states.items():
+        if state["region_available"]:
+            continue
+        assert state["region_reason"] in {"source_not_received", "no_data_yet"}, region_id
+
+    # 자원 계층에 사실이 하나도 없으면 [E]·[E′] 는 비었다고 적는다. 0 을 채우지 않는다.
+    if not body["accelerators"] and not body["services"]:
+        assert states["E"]["region_available"] is False
+        assert states["E"]["region_reason"] == "no_data_yet"
+        assert states["E_PRIME"]["region_available"] is False
+        for slot in ("memory_utilization", "power"):
+            assert "value" not in body["board"][slot], slot
+
+
+def test_a_probe_nobody_declared_is_reported_instead_of_dropped(payloads):
+    """계측기가 찾았는데 선언에 없는 가속기는 **사실로 남는다** (AI-O-05).
+
+    목록의 주인은 선언이고 계측이 개체를 더하지 않는다(§3 요구사항 2). 그러나 조용히
+    버리면 "이 기계에 가속기가 없다"와 "있는데 아무도 선언하지 않았다"가 같아지고,
+    §4.4 가 요구하는 목록의 완전성을 판단할 수 없다. 그래서 늘리지 않고 적는다.
+    """
+    derived = payloads["dashboard"]["derived"]
+    declared = {a["accelerator_instance_id"] for a in payloads["dashboard"]["accelerators"]}
+    undeclared = derived["undeclared_accelerator_probe_ids"]
+    assert isinstance(undeclared, list)
+    # 선언된 개체 목록과 섞이지 않는다 — 다른 축이다(계측 지점 id ≠ 선언된 개체 id).
+    assert not (set(undeclared) & declared) or declared
+    # 계측기가 읽은 사유 토큰이 함께 온다. 못 읽은 것은 0 이 아니라 사유다.
+    assert isinstance(derived["host_probe_status"], dict)
+    for probe_id in undeclared:
+        assert any(key.startswith(probe_id) for key in derived["host_probe_status"]), probe_id
+
+
+def test_the_dashboard_ships_the_baseline_so_the_screen_need_not_hardcode_it(payloads):
+    """§3 요구사항 3: 판정 기준값은 "화면에 하드코딩되지 않아야 한다."
+
+    기준을 보내지 않으면 화면은 임계 초과를 스스로 정할 수밖에 없고, 그 순간 기준이
+    두 곳에 살게 된다. 그래서 측정값·기준·3값 판정이 같은 칸에 함께 온다. 감시가
+    선언되지 않은 배치에서는 빈 목록이고 그것도 정상이다.
+    """
+    body = payloads["dashboard"]
+    assert isinstance(body["resource_watch"], list)
+    for row in body["resource_watch"]:
+        assert row["target"]["unit"] == row["measurement"]["unit"]
+        assert row["target_meet_state"] in {"MET", "UNMET", "NOT_MEASURED"}
+        if row["target_meet_state"] == "NOT_MEASURED":
+            # 미측정은 미달이 아니다 — 값 칸이 없고 0 이 아니다(§4.4·§4.5).
+            assert "value" not in row["measurement"]
+    for service in body["services"]:
+        for indicator in service.get("indicators", ()):
+            assert indicator["target_meet_state"] in {"MET", "UNMET", "NOT_MEASURED"}
+            if indicator["target_meet_state"] == "NOT_MEASURED":
+                assert "value" not in indicator["measurement"]
+
+
+def test_pinning_the_focus_node_is_a_read_not_a_change(base_url, validators, payloads):
+    """§2: 기준 노드는 자동 추종(기본)과 수동 고정 둘로 정해지고 현재 모드가 드러난다.
+
+    고정은 **관찰 방식의 변경**이므로 조회에 남는다(§1.1). 모르는 노드를 가리킨 고정은
+    404 다 — 조회가 조용히 다른 노드로 옮겨 가면 화면은 자기가 무엇을 보고 있는지
+    모른다.
+    """
+    status, _, body = _get(base_url, "/api/dashboard")
+    assert status == 200
+    assert body["focus"]["focus_pinned"] is False
+    assert body["focus"]["focus_reason"].startswith("focus_")
+
+    status, _, body = _get(base_url, "/api/dashboard", pin="no-such-node")
+    assert status == 404, (status, body)
+    assert body["error"] == "unknown_task_node"
+    _assert_valid(validators["error"], body, "/api/dashboard?pin=unknown")
+
+    # 고정 해제(빈 값)는 자동 추종으로의 복귀이고 거부가 아니다.
+    status, _, body = _get(base_url, "/api/dashboard", pin="")
+    assert status == 200, (status, body)
+    assert body["focus"]["focus_pinned"] is False

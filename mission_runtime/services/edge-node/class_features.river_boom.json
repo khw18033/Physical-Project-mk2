@@ -8,7 +8,7 @@
     "status": "사람이 쓴 씨앗. LLM 생성 항목은 메모리에만 올라가며 _verified=false다(AI-L-02).",
     "detection_scope": "**목적: 쓰레기 검출**(사용자 2026-09-21). 검출 대상은 인공 폐기물 + 부유목·잔가지. 그 외 상시 설치물(boom·부표·난간·기둥)과 자연 배경(수면·물거품·제방·원경)과 카메라 오버레이는 전부 배경이다. 배경도 아니고 알려진 쓰레기도 아닌 것은 `unidentified`로 crop 저장 + CLIP 추론 + 가시화로 올라간다 — 갑자기 나타난 위험물이나 모르는 쓰레기가 이 경로로 잡힌다.",
     "driftwood_toggle": "`driftwood_pile`/`branch_debris`는 지금 검출 대상(background: false)이다. 수거량 산정이 아니라 '인공 폐기물만' 보고 싶으면 그 두 항목의 background를 true로 바꾸면 된다 — 한 줄이고 코드는 손대지 않는다. 배경으로 돌리면 더미가 조용히 빠지는 대신 그 위 쓰레기만 남는다.",
-    "class_legend_note": "KICT 범례 8종(Water/Plastic container/Plastic bottle/Buoy/Human/White Styrofoam box/Floating wood debris/Gas cylinder) — class_id 매핑은 **추정이며 확정이 아니다**(docs/obsidian/papers/kict-river-floating-waste-dataset.md). 범례에 Water·Buoy가 함께 있으므로 '라벨한 것'이지 '쓰레기'가 아니다. 이 사전의 대상 선정은 범례가 아니라 목적에서 나왔다."
+    "class_legend_note": "KICT 범례 8종(Water/Plastic container/Plastic bottle/Buoy/Human/White Styrofoam box/Floating wood debris/Gas cylinder) — class_id 매핑은 **추정이며 확정이 아니다**(internal/docs-dev/obsidian/papers/kict-river-floating-waste-dataset.md). 범례에 Water·Buoy가 함께 있으므로 '라벨한 것'이지 '쓰레기'가 아니다. 이 사전의 대상 선정은 범례가 아니라 목적에서 나왔다."
   },
   "water_surface": {
     "background": true,

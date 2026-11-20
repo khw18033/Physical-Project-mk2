@@ -5,6 +5,7 @@
 
 | 디렉터리 | 무엇 | 출처 | 라이선스 |
 |---|---|---|---|
+| `data_stream/` | 실증 배치의 **입력·추론단** — 소스별 수집(10001~10012) · Redis(`camera_stream:*` · `vision_stream:*`) · 디스크 기록 · `vision/vision_infer.py` | `github.com/JNY03/physical_demo` · `data_stream` @ `b8a7fbe` (2026-11-20 복사) | **미정** — 상위 저장소에 라이선스 파일이 없다(아래) |
 | `vz-web-dashboard/` | 가시화 파트의 운영 콘솔(React + Vite + 목 게이트웨이) | `github.com/choBottle/Physical-Project-mk2` · `main` @ `30f5ee9` · `visualization/web-dashboard` (2026-11-02 clone) | **MIT** — © 2026 Sysailab, Hanbat National University, and Physical-Project-mk2 contributors. 전문은 [`vz-web-dashboard/LICENSE`](vz-web-dashboard/LICENSE) |
 
 ## 라이선스 고지 (2026-11-03 복원)
@@ -56,3 +57,31 @@ npm run dev          # 목 게이트웨이 + Vite 동시 기동 → http://local
 
 통합 저장소에서는 이 앱이 `visualization/web-dashboard` 에 있다. 그때 이 디렉터리는
 지우고 그쪽을 직접 참조한다 — 사본을 두 곳에 남기면 언젠가 어긋난다.
+
+## `data_stream/` 을 왜 여기 두나 (2026-11-20)
+
+역할이 갈렸다. **입력과 추론은 그쪽이 이미 완성했고**, 이 저장소가 더하는 것은 그 위의
+MLOps 다 — 모델을 컨테이너로 싸서 여러 노드에 배정·배포·롤백하는 일. 백엔드 노트북
+하나에 둘이 함께 도는 구성이므로, `git pull` 한 번에 둘 다 오도록 **코드만 복사**해
+두었다(히스토리는 251MB 이고 작업 트리는 1.2MB 다).
+
+규칙은 다른 벤더 트리와 같다 — **내용을 고치지 않는다.** 고쳐야 할 이유가 생기면
+상위 저장소에 요청하고, 여기 사본을 그 커밋으로 다시 맞춘다.
+
+우리 쪽에서 이 트리를 부르는 자리는 셋이고 전부 `PD_DATA_STREAM` 으로 자리를 푼다 —
+`tools/hazard_card.py` · `tools/label_review/draft_vision.py` · `tools/label_review/propagate.py`.
+
+**라이선스가 아직 없다.** 상위 저장소는 public 이지만 `LICENSE` 파일이 없어서, 기본
+저작권 아래에 있다(= 명시적 허락 없이는 재배포 권리가 없다). 소유자가 같은 사람이므로
+막는 것은 아니지만, **공개 배포 전에 상위 저장소에 라이선스를 정해야 한다.** 그 전까지
+이 디렉터리는 배포물에서 뺀다(`.dockerignore` · `MANIFEST.in`).
+
+### 공개 검사에서 벤더 트리를 빼는 이유
+
+`tests/test_publishable_surface.py` 의 **홈 경로·개인 메일** 검사는 벤더 트리를 보지
+않는다. 그 안에는 `/home/khw67/data_stream/models/…` 처럼 만든 쪽 기계의 경로가 있고
+(`vision/vision_config.yaml`), 우리는 그것을 **고칠 수 없다** — 고치는 순간 사본이
+상위와 달라진다. 고칠 수 없는 것을 실패로 두면 시험이 무시된다. 대신 그 사실을 여기
+적어 두고, 받는 쪽은 자기 기계의 자리로 그 설정을 바꾼다(그쪽 `배포_가이드.md`).
+비밀값·비공개 트리 검사는 **벤더 트리에도 그대로 적용된다** — 그것은 고칠 수 없는
+것이 아니라 애초에 들어오면 안 되는 것이다.

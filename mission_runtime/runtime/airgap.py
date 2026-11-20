@@ -1,7 +1,7 @@
 """Air-gapped (폐쇄망) operating boundary: no public-internet egress is a
 precondition for anything the system must be able to do.
 
-implements: AI-C-16, AI-B-09, AI-C-09
+implements: AI-C-16, AI-B-09, AI-C-04
 
 원칙 #18: 실행에 필요한 이미지·모델·패키지·규칙은 내부 저장소에서 조달하고,
 공개 인터넷에 대한 나가는 연결을 기능 동작의 전제로 두지 않는다.
@@ -89,6 +89,15 @@ class AssetResolver:
         if not host:
             return True  # a bare path is local by construction
         if host in INTERNAL_MARKERS or host in self.internal_hosts:
+            return True
+        # A container registry is normally written with its port
+        # (`registry.internal:5000`), and `hostname` drops it. Without this the
+        # declaration `internal_hosts={"registry.internal:5000"}` never matched
+        # anything it was written for: the check failed closed, so the symptom
+        # was a refusal that looked like a policy decision rather than a
+        # vocabulary mismatch. `EgressGate.is_internal` already accepts both
+        # forms; this keeps the two spellings of the same rule in agreement.
+        if parsed.port is not None and f"{host}:{parsed.port}" in self.internal_hosts:
             return True
         return any(host.endswith(suffix) for suffix in self.internal_suffixes)
 

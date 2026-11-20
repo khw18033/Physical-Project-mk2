@@ -1,0 +1,2266 @@
+diff --git a/viz-debugger/scripts/verify-view-nodes.mjs b/viz-debugger/scripts/verify-view-nodes.mjs
+index f0f6dcd..dc5b6bf 100644
+--- a/viz-debugger/scripts/verify-view-nodes.mjs
++++ b/viz-debugger/scripts/verify-view-nodes.mjs
+@@ -116,8 +116,16 @@ const CANVAS_FILES = ['types.ts', 'registry.ts', 'scope.ts', 'persist.ts', 'defa
+   // 260929 — `virtual-3d`(3D 가상환경). 연결 관리의 주소를 틀에 띄우고, 모든 편 팔레트에 선다.
+   // 261001 — `vision-stream`(객체 탐지 추론 영상). 스트림 서버의 모델별 오버레이이고, 모든 편 팔레트에 선다.
+   // 261002 — 드론 파트 셋(`drone-rtk` · `sar-pass` · `drone-dash`). 드론이 미는 값이고, 모든 편 팔레트에 선다.
++  // 261105 — FMS 다섯(`fms-twin` · `fms-recommend` · `fms-subtasks` · `fms-tiers` ·
++  // `fms-deployment`). AI 파트의 관제 웹이 지워지고 그 조회 계약이 게이트웨이로 왔다 —
++  // 261120 — `fms-stack`. 여섯째이고 **쓰기 계약을 쓰는 첫 FMS 노드**다: 저쪽 기계의
++  // 선언된 실행 단위를 여기서 세우고 내린다(`POST /api/stack`). 보내는 것은 단위
++  // 이름뿐이고 명령줄을 보내는 길은 계약에 없다.
++  // 그 화면이 이 앱 안에 선다. 모든 편 팔레트에 서고(현장이 돌면 읽힌다) 축 표에는
++  // 안 들어간다(대본이 아니라 AI 서버가 내는 값이다).
+   const EXPECTED = [
+-    'autodrive-cam', 'control', 'detect-cam', 'detect-map', 'detect-reason', 'device-cam', 'device-risk', 'drone-dash', 'drone-rtk', 'metrics',
++    'autodrive-cam', 'control', 'detect-cam', 'detect-map', 'detect-reason', 'device-cam', 'device-risk', 'drone-dash', 'drone-rtk',
++    'fms-deployment', 'fms-recommend', 'fms-stack', 'fms-subtasks', 'fms-tiers', 'fms-twin', 'metrics',
+     'obstacle-log', 'recon-3d', 'robot', 'sar', 'sar-pass', 'video', 'virtual-3d', 'virtual-map', 'vision-stream',
+   ];
+   check(
+diff --git a/viz-debugger/src/fms/fms.css b/viz-debugger/src/fms/fms.css
+new file mode 100644
+index 0000000..5d47fa5
+--- /dev/null
++++ b/viz-debugger/src/fms/fms.css
+@@ -0,0 +1,86 @@
++/* src/fms/fms.css (261105 — FMS 노드 다섯)
++ *
++ * 표현은 **이 파일에만** 있다. 서버 응답에는 색·픽셀·폰트가 없다
++ * (AI 쪽 `docs/view-contract.md` §3 — 데이터와 렌더러가 갈려 있다).
++ *
++ * 색판은 이 앱의 밝은 테마를 따른다 — `src/sar/sar.css` 의 배지와 **같은 값**이다.
++ * 자기 색을 따로 쓰면 같은 화면 안에서 초록이 두 가지가 된다.
++ */
++
++.fms-card { display: flex; flex-direction: column; gap: 4px; font-size: 12px; }
++.fms-card__line { display: flex; gap: 6px; align-items: baseline; flex-wrap: wrap; }
++.fms-card__line b { font-weight: 600; color: #3d4756; }
++.fms-num { font-variant-numeric: tabular-nums; font-weight: 600; }
++
++/* 세 상태를 색만이 아니라 **글자로도** 가른다 — 색을 못 가리는 사람에게 구분이
++ * 사라지면 안 된다. 미측정은 0 도 미달도 아니라서 **테두리까지 다르다**(점선). */
++.fms-state { display: inline-block; margin-left: 5px; padding: 0 5px; border: 1px solid;
++             border-radius: 3px; font-size: 11px; white-space: nowrap; }
++/* 칸의 맨 앞에 혼자 서는 조각은 붙여 둔다 — 글자 뒤에 붙을 때만 띄운다. */
++.fms-table td > .fms-state:first-child, .fms-card__line > .fms-state:first-child { margin-left: 0; }
++.fms-state--ok { color: #125c33; background: #d8f0e2; border-color: #1f8a4d; }
++.fms-state--warn { color: #7a4a07; background: #fdf1d8; border-color: #d39b2a; }
++.fms-state--bad { color: #a33a3a; background: #fbe3e3; border-color: #e15a5a; }
++.fms-state--unmeasured { color: #6b7888; background: #fff; border-color: #cbd3dc; border-style: dashed; font-style: italic; }
++
++.fms-empty { color: #6b7888; font-size: 12px; margin: 0; }
++.fms-error { color: #a33a3a; font-size: 12px; margin: 0; word-break: break-all; }
++.fms-hint { color: #8a94a2; font-size: 11px; margin: 2px 0 0; }
++
++.fms-zoom { display: flex; flex-direction: column; gap: 10px; font-size: 13px; }
++/* 확대 본문. 겉 `.fms-zoom` 안에 들어가므로 묶음을 또 만들지 않는다 — 두 겹이면
++ * 사이 여백이 두 번 들어간다. */
++.fms-zoom__body { display: contents; }
++.fms-zoom__head { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
++.fms-zoom__head h3 { margin: 0; font-size: 14px; }
++.fms-zoom section { border: 1px solid #dfe3e8; border-radius: 4px; padding: 8px; background: #fff; }
++.fms-zoom section > h4 { margin: 0 0 6px; font-size: 12px; color: #3d4756; }
++
++.fms-table { width: 100%; border-collapse: collapse; font-size: 12px; }
++.fms-table th, .fms-table td { text-align: left; padding: 3px 6px; border-bottom: 1px solid #eef1f4; vertical-align: top; }
++.fms-table th { color: #6b7888; font-weight: 500; }
++.fms-table tbody tr.is-blocked td { background: #fdf4f4; }
++
++.fms-chips { display: flex; gap: 4px; flex-wrap: wrap; margin: 0; padding: 0; list-style: none; }
++.fms-chips li { background: #f2f4f6; border: 1px solid #dfe3e8; border-radius: 3px; padding: 1px 5px; font-size: 11px; }
++.fms-chips li.is-missing { background: #fbe3e3; border-color: #e15a5a; color: #a33a3a; }
++
++/* 한 칸 안에 여럿이 들어갈 때 쓰는 낱개 조각(가속기에 배치된 서비스 이름 등). */
++.fms-chip { display: inline-block; background: #f2f4f6; border: 1px solid #dfe3e8; border-radius: 3px;
++            padding: 0 5px; margin: 0 3px 2px 0; font-size: 11px; }
++/* 서비스 줄 안의 지표 표. 바깥 표의 줄과 섞이지 않게 테두리를 지운다. */
++.fms-table--inner { font-size: 11px; }
++.fms-table--inner th, .fms-table--inner td { border-bottom: none; padding: 1px 6px 1px 0; }
++.fms-table--inner th { font-weight: 400; color: #55606e; }
++
++.fms-actions { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
++.fms-actions select, .fms-actions button, .fms-actions input { font: inherit; font-size: 12px; }
++
++/* 맵은 **데이터와 렌더러가 분리**되어 있다. 지금은 사각형 도면이고, 3D 뷰어가 생기면
++ * 이 블록만 바뀐다 — 서버 응답은 그대로다. */
++/* **높이를 묶는다.** 묶지 않으면 세로로 긴 도면이 화면을 통째로 밀어낸다 —
++ * 52 m × 46 m 구역 하나가 1,300 px 짜리 벽이 됐다. */
++.fms-map { width: 100%; max-height: 360px; background: #f7f9fb; border: 1px solid #dfe3e8; border-radius: 4px; }
++.fms-map__zone { fill: #e7f0fb; stroke: #4a8fd4; }
++/* 점선 간격은 도면 크기에 비례해 인라인으로 준다 — 고정값은 50 m 도면에서 사라진다. */
++.fms-map__zone--unverified { opacity: .85; }
++.fms-map__robot { fill: #1f8a4d; stroke: none; }
++/* **선언된 자리**는 속이 빈 점선이다. 채워 그리면 「장치가 거기 있다고 보고했다」로
++ * 읽힌다 — 선언과 관측은 다른 사실이다(AI-C-02). */
++.fms-map__robot--declared { fill: none; stroke: #1f8a4d; stroke-dasharray: 2 1.5; }
++.fms-map__robot--absent { fill: #aab4c0; stroke: #aab4c0; }
++.fms-map__robot--declared.fms-map__robot--absent { fill: none; }
++.fms-map__label { fill: #3d4756; }
++
++/* 실행 단위 한 줄(261120 — FmsStack). 단추가 **줄 안에** 있다: 목록과 조작을 다른
++ * 칸에 두면 어느 줄을 켜는지 눈이 한 번 더 찾아야 하고, 그 찾기가 틀리면 다른
++ * 단위를 켠다. 색만으로 상태를 말하지 않는 규칙은 위 `.fms-state` 와 같다. */
++.fms-row { border: 1px solid #dfe3e8; border-radius: 4px; padding: 8px; background: #fff;
++           display: flex; flex-direction: column; gap: 4px; }
++.fms-row__head { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
++.fms-row__state { display: flex; gap: 6px; align-items: baseline; flex-wrap: wrap; }
++.fms-row__acts { display: flex; gap: 6px; margin-top: 2px; }
++/* 멈춘 이유는 **한 줄**로만 보인다 — 로그를 여는 창구를 만들지 않는다(파일을 여는
++ * 길을 열면 그 길로 다른 파일도 열린다). 길면 자른다. */
++.fms-row__log { font-family: ui-monospace, monospace; white-space: nowrap; overflow: hidden;
++                text-overflow: ellipsis; }
+diff --git a/viz-debugger/src/fms/fmsApi.ts b/viz-debugger/src/fms/fmsApi.ts
+new file mode 100644
+index 0000000..fece6c5
+--- /dev/null
++++ b/viz-debugger/src/fms/fmsApi.ts
+@@ -0,0 +1,297 @@
++/**
++ * src/fms/fmsApi.ts (261105 신설 — FMS 관제 화면을 이 앱 안으로)
++ *
++ * **AI 파트의 조회 계약을 읽는다.** 디지털 트윈 맵 · 추천 임무 · 서브태스크 접지 ·
++ * 계층별 지표 · 장치 관리는 전에 AI 쪽 **별도 웹**(FMS 콘솔)에 있었다. 그 웹이
++ * 2026-11-05 에 지워지고 같은 계약이 **게이트웨이**로 왔다 — 즉 이 앱이 이미 보는
++ * 주소다(`/registry` 와 같은 포트).
++ *
++ * ## 새 주소를 만들지 않는다
++ *
++ * `GATEWAY.http` 를 그대로 쓴다. 연결 관리에 창구를 하나 더 만들면 같은 서버의
++ * 주소가 화면에 둘이 되고, 하나만 고친 날 「/registry 는 되는데 FMS 는 안 된다」가
++ * 된다. 게이트웨이는 하나다(`verify:one-gateway` 와 같은 이유).
++ *
++ * ## 폴링하지 않는다
++ *
++ * 노드를 놓거나 열 때 한 번 읽고, 그 뒤는 **사람이 다시 읽기를 누를 때**만 읽는다.
++ * 저쪽 계약의 규칙이기도 하다 — 아무도 보지 않는 구역을 상시 갱신하면 그 구역의
++ * 추론·전송까지 계속 돈다(AI-C-13 · AI-O-01). 카드를 넷 놓았다고 폴링이 넷 돌지
++ * 않는다.
++ *
++ * ## 세션은 쿠키가 아니라 Bearer 다
++ *
++ * 우리는 저쪽과 **다른 출처**다. 교차 출처 쿠키를 허용하려면 자격증명을 열어야 하고,
++ * 그 순간 운영자가 방문한 아무 사이트가 그 브라우저로 명령을 보낼 수 있다(CSRF).
++ * 그래서 토큰은 `/api/login`·`/api/assume` 응답 **본문**에서 받아 머리에 붙인다.
++ *
++ * 토큰이 없어도 조회 21개는 열려 있다. 권한이 걸린 일곱(`/api/object` 추론 근거 ·
++ * `/api/failure` · `/api/overlay` · `/api/lineage` · `/api/accounts` ·
++ * `/api/label/tasks` · `/api/label/task`)만 403 이고, 그 사유에 **어느 능력이
++ * 필요한지**가 적혀 온다.
++ */
++
++import { GATEWAY } from '../transport/index.ts';
++import { t } from '../i18n/dict.ts';
++
++/** 저쪽이 공표하는 계약 판. 응답 머리에서 읽는다 — 문서에만 있으면 맞출 길이 없다. */
++let contractVersion: string | null = null;
++
++export function fmsContractVersion(): string | null {
++  return contractVersion;
++}
++
++const TOKEN_KEY = 'fms.session';
++
++/** 세션 토큰. 새로고침에도 남는다 — 매번 다시 들어오게 하지 않는다. */
++function storedToken(): string | null {
++  try {
++    const raw = globalThis.localStorage?.getItem(TOKEN_KEY);
++    return raw === null || raw === '' ? null : raw;
++  } catch {
++    return null;                 // 사생활 보호 모드 등 — 없는 것으로 본다
++  }
++}
++
++function storeToken(token: string | null): void {
++  try {
++    if (token === null) globalThis.localStorage?.removeItem(TOKEN_KEY);
++    else globalThis.localStorage?.setItem(TOKEN_KEY, token);
++  } catch {
++    /* 저장하지 못해도 이번 세션은 돈다 */
++  }
++}
++
++let token: string | null = storedToken();
++
++export function fmsToken(): string | null {
++  return token;
++}
++
++/** 조회의 결과. **사유를 버리지 않는다** — 빈 화면은 「없다」와 「못 읽었다」를 섞는다. */
++export type FmsRead<T> =
++  | { ok: true; body: T }
++  | { ok: false; status: number; error: string; needs: string | null };
++
++/** `missing_permission:<능력>` 에서 능력 이름만 꺼낸다. 아니면 null. */
++function neededCapability(error: string): string | null {
++  const marker = 'missing_permission:';
++  return error.startsWith(marker) ? error.slice(marker.length) : null;
++}
++
++function base(): string {
++  return GATEWAY.http.trim().replace(/\/+$/, '');
++}
++
++/**
++ * 조회 한 건. 경로는 `/api/...` 그대로 주고, 질의는 호출자가 만든다.
++ *
++ * **조용히 성공하지 않는다** — 4xx·5xx 는 본문의 통제 어휘 토큰을 그대로 들고 온다
++ * (`schemas/view_error.schema.json` — `{"error": "<토큰>"}` 하나다).
++ */
++export async function readFms<T>(path: string, signal?: AbortSignal): Promise<FmsRead<T>> {
++  const address = base();
++  if (address === '') return { ok: false, status: 0, error: t('fms.noAddress'), needs: null };
++  const headers: Record<string, string> = {};
++  if (token !== null) headers.Authorization = `Bearer ${token}`;
++  let response: Response;
++  try {
++    response = await fetch(address + path, { headers, signal });
++  } catch (error) {
++    // CORS · 주소 오류 · 꺼진 서버가 모두 여기로 온다. 사유를 그대로 보인다.
++    return {
++      ok: false, status: 0, needs: null,
++      error: error instanceof Error ? error.message : String(error),
++    };
++  }
++  const announced = response.headers.get('Server');
++  if (announced !== null && /^FMS\//.test(announced)) contractVersion = announced;
++  let body: unknown = null;
++  try {
++    body = await response.json();
++  } catch {
++    body = null;
++  }
++  if (!response.ok) {
++    const reason = typeof (body as { error?: unknown } | null)?.error === 'string'
++      ? (body as { error: string }).error
++      : t('fms.status', { status: response.status });
++    return { ok: false, status: response.status, error: reason, needs: neededCapability(reason) };
++  }
++  return { ok: true, body: body as T };
++}
++
++export type FmsIdentity = {
++  actor: string;
++  authenticated: boolean;
++  permissions: readonly string[];
++  selectable_accounts: readonly { account_id: string; display_name: string; role: string }[];
++  unconfigured?: boolean;
++  session_token?: string;
++  error?: string;
++};
++
++/** 쓰기 한 건. 이 파일에서 쓰는 것은 **들어오고 나가는 것**뿐이다(§AI-C-19). */
++async function write(path: string, payload: unknown): Promise<FmsRead<FmsIdentity>> {
++  const address = base();
++  if (address === '') return { ok: false, status: 0, error: t('fms.noAddress'), needs: null };
++  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
++  if (token !== null) headers.Authorization = `Bearer ${token}`;
++  let response: Response;
++  try {
++    response = await fetch(address + path, { method: 'POST', headers, body: JSON.stringify(payload) });
++  } catch (error) {
++    return {
++      ok: false, status: 0, needs: null,
++      error: error instanceof Error ? error.message : String(error),
++    };
++  }
++  let body: unknown = null;
++  try {
++    body = await response.json();
++  } catch {
++    body = null;
++  }
++  if (!response.ok) {
++    const reason = typeof (body as { error?: unknown } | null)?.error === 'string'
++      ? (body as { error: string }).error
++      : t('fms.status', { status: response.status });
++    return { ok: false, status: response.status, error: reason, needs: neededCapability(reason) };
++  }
++  const identity = body as FmsIdentity;
++  if (typeof identity.session_token === 'string' && identity.session_token !== '') {
++    token = identity.session_token;
++    storeToken(token);
++  }
++  return { ok: true, body: identity };
++}
++
++/**
++ * 선언된 실행 단위 하나(`GET /api/services` 의 한 줄).
++ *
++ * **`ready` 는 세 값이다** — true · false · null(묻지 않았다). `status` 와 다른
++ * 축인 것이 요점이다: 떠 있는데(RUNNING) 준비되지 않은 상태가 정상으로 존재한다.
++ * `exit_code: null` 은 「돌고 있다」 또는 「띄운 적 없다」이고 0 이 아니다 — 0 은
++ * 「정상으로 끝났다」다.
++ */
++export type FmsUnit = {
++  unit_id: string;
++  kind: string;
++  label?: Record<string, string>;
++  status: string;
++  ready: boolean | null;
++  ready_port: number | null;
++  depends_on: readonly string[];
++  log_path: string | null;
++  exit_code: number | null;
++  last_output: string | null;
++  note?: string;
++};
++
++export type FmsServices = {
++  units: readonly FmsUnit[];
++  /** 거짓이면 이 설치는 **띄우지 않는다**(선언 파일이 없다). 빈 목록과 다른 사실이다. */
++  configured: boolean;
++  reason: string | null;
++};
++
++export type FmsStackOutcome = {
++  unit_id: string;
++  action: string;
++  accepted: boolean;
++  status: string | null;
++  /** 거절 사유 토큰. `dependency_not_running:<단위>` 처럼 **무엇이** 막았는지 적힌다. */
++  reason: string | null;
++  actor: string;
++};
++
++/**
++ * 단위 하나를 세우거나 내린다(`POST /api/stack`).
++ *
++ * **단위 이름만 보낸다.** 저쪽은 명령줄을 받지 않는다 — 받으면 쓰기 계약 하나가
++ * 원격 코드 실행 창구가 된다. 무엇을 띄울 수 있는지는 저쪽 기계의 선언이 정하고,
++ * 우리는 그 목록에서 고르기만 한다.
++ */
++export async function fmsStack(
++  unitId: string, action: 'start' | 'stop' | 'restart',
++): Promise<FmsRead<FmsStackOutcome>> {
++  return writeJson<FmsStackOutcome>('/api/stack', { unit_id: unitId, action });
++}
++
++/**
++ * 세션이 아닌 쓰기. `write()` 와 나눠 둔 이유: 그쪽은 **토큰을 받아 저장하는**
++ * 경로이고(로그인·자세), 이쪽은 토큰을 **쓰는** 경로다. 한 함수로 합치면 아무
++ * 응답에서나 토큰을 주워 저장하게 된다.
++ */
++async function writeJson<T>(path: string, payload: unknown): Promise<FmsRead<T>> {
++  const address = base();
++  if (address === '') return { ok: false, status: 0, error: t('fms.noAddress'), needs: null };
++  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
++  if (token !== null) headers.Authorization = `Bearer ${token}`;
++  let response: Response;
++  try {
++    response = await fetch(address + path, { method: 'POST', headers, body: JSON.stringify(payload) });
++  } catch (error) {
++    return {
++      ok: false, status: 0, needs: null,
++      error: error instanceof Error ? error.message : String(error),
++    };
++  }
++  let body: unknown = null;
++  try {
++    body = await response.json();
++  } catch {
++    body = null;
++  }
++  if (!response.ok) {
++    const reason = typeof (body as { error?: unknown } | null)?.error === 'string'
++      ? (body as { error: string }).error
++      : t('fms.status', { status: response.status });
++    return { ok: false, status: response.status, error: reason, needs: neededCapability(reason) };
++  }
++  return { ok: true, body: body as T };
++}
++
++/** 누구로 와 있는지. 권한이 필요 없다 — 답이 「아무도 아니다」일 수 있어야 한다. */
++export function fmsIdentity(signal?: AbortSignal): Promise<FmsRead<FmsIdentity>> {
++  return readFms<FmsIdentity>('/api/identity', signal);
++}
++
++/** 예시 계정을 골라 들어온다. 계정 파일이 있는 설치에서는 저쪽이 403 으로 거절한다. */
++export function fmsAssume(accountId: string): Promise<FmsRead<FmsIdentity>> {
++  return write('/api/assume', { account: accountId });
++}
++
++/** 계정으로 들어온다. */
++export function fmsLogin(accountId: string, password: string): Promise<FmsRead<FmsIdentity>> {
++  return write('/api/login', { account_id: accountId, password });
++}
++
++/** 나간다. 토큰을 버리는 것은 응답과 무관하게 **여기서** 한다. */
++export async function fmsLogout(): Promise<void> {
++  await write('/api/logout', {});
++  token = null;
++  storeToken(null);
++}
++
++/**
++ * **`label` 은 두 모양이다** — 계약이 그렇게 적는다(view-contract §8).
++ *
++ *   도메인 · 구역 · 층 · 현장   `{"ko": "...", "en": "..."}`  배치 데이터의 언어별 이름
++ *   로봇                        평평한 문자열                  번역이 없다
++ *
++ * 묶음 쪽을 그대로 그리면 React 가 「객체는 자식이 될 수 없다」로 터진다. 실제로
++ * 그렇게 터뜨렸다. 고른 locale 을 먼저 찾고 없으면 **아무 하나**를 쓴다 — 빈칸을
++ * 그리지 않는 것이 계약이 요구하는 쪽이다.
++ */
++export function localized(value: unknown, lang: string): string | null {
++  if (typeof value === 'string') return value === '' ? null : value;
++  if (value === null || typeof value !== 'object') return null;
++  const table = value as Record<string, unknown>;
++  const picked = table[lang];
++  if (typeof picked === 'string' && picked !== '') return picked;
++  for (const candidate of Object.values(table)) {
++    if (typeof candidate === 'string' && candidate !== '') return candidate;
++  }
++  return null;
++}
+diff --git a/viz-debugger/src/fms/useFms.ts b/viz-debugger/src/fms/useFms.ts
+new file mode 100644
+index 0000000..86cc8a2
+--- /dev/null
++++ b/viz-debugger/src/fms/useFms.ts
+@@ -0,0 +1,67 @@
++/**
++ * src/fms/useFms.ts (261105 — FMS 조회를 노드가 쓰는 꼴로)
++ *
++ * **열 때 한 번, 그 뒤는 누를 때만.** 간격 폴링을 두지 않는다 — 저쪽 계약의 규칙과
++ * 같다(AI-C-13: 아무도 보지 않는 구역을 상시 갱신하면 그 구역의 추론·전송까지 계속
++ * 돈다). 카드를 넷 놓았다고 폴링이 넷 돌지 않는다.
++ *
++ * **마지막으로 읽은 시각을 들고 있는다.** 「한 번도 못 읽었다」와 「읽었지만
++ * 오래됐다」는 다른 상태이고, 화면이 그 둘을 같은 빈칸으로 그리면 안 된다.
++ */
++
++import { useCallback, useEffect, useRef, useState } from 'react';
++import { readFms, type FmsRead } from './fmsApi.ts';
++
++export type FmsState<T> = {
++  /** 받은 본문. 한 번도 못 받았으면 null. */
++  body: T | null;
++  /** 실패 사유(통제 어휘 토큰). 성공했으면 null. */
++  error: string | null;
++  /** `missing_permission:<능력>` 이었을 때 그 능력 이름. */
++  needs: string | null;
++  status: number | null;
++  loading: boolean;
++  /** 마지막으로 **성공한** 읽기 시각(ms). 한 번도 없으면 null. */
++  readAt: number | null;
++  reload: () => void;
++};
++
++/**
++ * `path` 가 null 이면 읽지 않는다 — 인자가 아직 안 정해진 노드(로봇을 안 고른 추천
++ * 카드 등)가 **없는 질의를 던지지 않게** 한다. 그 자리에는 「무엇을 골라야 하는지」가
++ * 뜨고, 「읽기 실패」가 뜨지 않는다.
++ */
++export function useFms<T>(path: string | null): FmsState<T> {
++  const [state, setState] = useState<Omit<FmsState<T>, 'reload'>>({
++    body: null, error: null, needs: null, status: null, loading: path !== null, readAt: null,
++  });
++  const [nonce, setNonce] = useState(0);
++  const alive = useRef(true);
++
++  useEffect(() => {
++    alive.current = true;
++    return () => { alive.current = false; };
++  }, []);
++
++  useEffect(() => {
++    if (path === null) {
++      setState({ body: null, error: null, needs: null, status: null, loading: false, readAt: null });
++      return;
++    }
++    const abort = new AbortController();
++    setState((prev) => ({ ...prev, loading: true }));
++    void (async () => {
++      const outcome: FmsRead<T> = await readFms<T>(path, abort.signal);
++      if (!alive.current || abort.signal.aborted) return;
++      setState((prev) => outcome.ok
++        ? { body: outcome.body, error: null, needs: null, status: 200, loading: false, readAt: Date.now() }
++        // **마지막으로 읽은 것을 버리지 않는다.** 한 번 실패했다고 화면이 비면
++        // 「끊겼다」와 「없다」가 같아진다.
++        : { body: prev.body, error: outcome.error, needs: outcome.needs, status: outcome.status, loading: false, readAt: prev.readAt });
++    })();
++    return () => { abort.abort(); };
++  }, [path, nonce]);
++
++  const reload = useCallback(() => { setNonce((n) => n + 1); }, []);
++  return { ...state, reload };
++}
+diff --git a/viz-debugger/src/fms/views/FmsMission.tsx b/viz-debugger/src/fms/views/FmsMission.tsx
+new file mode 100644
+index 0000000..022085b
+--- /dev/null
++++ b/viz-debugger/src/fms/views/FmsMission.tsx
+@@ -0,0 +1,253 @@
++/**
++ * src/fms/views/FmsMission.tsx (261105 — 추천 임무 · 서브태스크 접지)
++ *
++ * **AI 는 후보와 사유만 낸다.** 임무 발령과 실행은 우리 것이 아니고(AI-C-19) 이 노드도
++ * 발령 단추를 두지 않는다 — 조회만이다. 발령은 제어 계약을 거친다.
++ *
++ * 두 노드가 한 파일에 있는 이유: 추천이 내는 `goal_kind` 가 그대로 서브태스크의
++ * 질의 인자다. 같은 어휘를 두 파일에 적으면 한쪽만 고쳐지는 날이 온다.
++ */
++
++import { useState, type ReactElement } from 'react';
++import { useLang } from '../../shared/language.ts';
++import { t } from '../../i18n/dict.ts';
++import { useFms } from '../useFms.ts';
++import { FmsBody, FmsHead, FmsNone } from './FmsShell.tsx';
++
++type Recommendation = {
++  mission_kind: string;
++  title?: string | null;
++  goal_kind: string;
++  recommended: boolean;
++  reason: string;
++  matched_triggers?: readonly string[];
++  missing_capabilities?: readonly string[];
++  subjects?: readonly unknown[];
++  priority?: number | null;
++};
++
++type Recommendations = { recommendations?: readonly Recommendation[] };
++
++type Binding = { capability_kind: string; provider_id?: string | null; source?: string | null; optional?: boolean };
++
++type SubtaskNode = {
++  subtask_id: string;
++  action: string;
++  order_index?: number;
++  state?: string | null;
++  executable?: boolean;
++  runs_on?: readonly string[];
++  bindings?: readonly Binding[];
++  missing_required?: readonly string[];
++  missing_optional?: readonly string[];
++  unverified_preconditions?: readonly string[];
++  violated_forbidden?: readonly string[];
++  unmet_inputs?: readonly string[];
++  cost?: { compute_units?: number; memory_mb?: number } | null;
++};
++
++type Plan = {
++  plan_id?: string;
++  goal_kind?: string;
++  zone_id?: string | null;
++  robot_id?: string | null;
++  generator?: string | null;
++  template_version?: string | null;
++  reason?: string | null;
++  executor?: { executor_id?: string | null; state?: string | null; reason?: string | null } | null;
++  nodes?: readonly SubtaskNode[];
++  edges?: readonly unknown[];
++  escalation_capabilities?: readonly string[];
++  cost_total?: { compute_units?: number; memory_mb?: number } | null;
++};
++
++/** 로봇을 고르는 줄. 고르지 않았으면 **읽지 않는다** — 없는 질의를 던지지 않는다. */
++function useRobotChoice(): { robot: string | null; picker: ReactElement } {
++  useLang();
++  const scene = useFms<{ domains?: readonly { domain_id: string }[] }>('/api/scene');
++  const domainId = scene.body?.domains?.[0]?.domain_id ?? null;
++  const domain = useFms<{ zones?: readonly { zone_id: string; robots?: readonly { node_id: string; label?: string | null }[] }[] }>(
++    domainId === null ? null : `/api/domain?id=${encodeURIComponent(domainId)}`);
++  const robots = (domain.body?.zones ?? []).flatMap((z) => (z.robots ?? []).map((r) => ({ ...r, zone: z.zone_id })));
++  const [picked, setPicked] = useState<string | null>(null);
++  const robot = picked ?? robots[0]?.node_id ?? null;
++  const picker = <select value={robot ?? ''} onChange={(e) => setPicked(e.target.value)}>
++    {robots.length === 0 && <option value="">{t('fms.noRobot')}</option>}
++    {robots.map((r) => <option key={r.node_id} value={r.node_id}>{r.label ?? r.node_id}</option>)}
++  </select>;
++  return { robot, picker };
++}
++
++export function FmsRecommendCard() {
++  useLang();
++  const { robot } = useRobotChoice();
++  const state = useFms<Recommendations>(robot === null ? null : `/api/recommend?robot=${encodeURIComponent(robot)}`);
++  return <FmsBody state={state} card>{(body) => {
++    const all = body.recommendations ?? [];
++    const on = all.filter((r) => r.recommended);
++    const blocked = all.filter((r) => !r.recommended);
++    return <>
++      <div className="fms-card__line">
++        <b>{t('fms.recommend.on')}</b><span className="fms-num">{on.length}</span>
++        {/* 막힌 후보를 감추지 않는다 — 다음에 무엇을 보완해야 하는지가 거기 있다(AI-B-15). */}
++        <b>{t('fms.recommend.blocked')}</b><span className="fms-num">{blocked.length}</span>
++      </div>
++      {on[0] !== undefined && <div className="fms-card__line">
++        <span>{on[0].title ?? on[0].mission_kind}</span>
++        <span className="fms-state fms-state--ok">{on[0].reason}</span>
++      </div>}
++      {blocked[0] !== undefined && <div className="fms-card__line">
++        <span>{blocked[0].title ?? blocked[0].mission_kind}</span>
++        <span className="fms-state fms-state--bad">{blocked[0].reason}</span>
++      </div>}
++      {all.length === 0 && <FmsNone messageKey="fms.recommend.none" />}
++    </>;
++  }}</FmsBody>;
++}
++
++export function FmsRecommendZoom() {
++  useLang();
++  const { robot, picker } = useRobotChoice();
++  const state = useFms<Recommendations>(robot === null ? null : `/api/recommend?robot=${encodeURIComponent(robot)}`);
++  return <div className="fms-zoom">
++    <FmsHead titleKey="viewnode.fmsRecommend" state={state} extra={<span className="fms-actions">{picker}</span>} />
++    <FmsBody state={state}>{(body) => {
++      const all = [...(body.recommendations ?? [])].sort((a, b) => (b.priority ?? 0) - (a.priority ?? 0));
++      if (all.length === 0) return <FmsNone messageKey="fms.recommend.none" />;
++      return <section>
++        <h4>{t('fms.recommend.title')}</h4>
++        <table className="fms-table">
++          <thead><tr>
++            <th>{t('fms.recommend.mission')}</th><th>{t('fms.recommend.verdict')}</th>
++            <th>{t('fms.recommend.triggers')}</th><th>{t('fms.recommend.missing')}</th>
++          </tr></thead>
++          <tbody>{all.map((r) => <tr key={r.mission_kind} className={r.recommended ? '' : 'is-blocked'}>
++            <td>{r.title ?? r.mission_kind}<br /><span className="fms-hint">{r.goal_kind}</span></td>
++            <td><span className={`fms-state fms-state--${r.recommended ? 'ok' : 'bad'}`}>{r.reason}</span></td>
++            <td><ul className="fms-chips">{(r.matched_triggers ?? []).map((x) => <li key={x}>{x}</li>)}</ul></td>
++            <td><ul className="fms-chips">{(r.missing_capabilities ?? []).map((x) => <li key={x} className="is-missing">{x}</li>)}</ul></td>
++          </tr>)}</tbody>
++        </table>
++        {/* 발령 단추를 두지 않는다 — AI 는 후보와 사유만 낸다(AI-C-19). */}
++        <p className="fms-hint">{t('fms.recommend.notAnOrder')}</p>
++      </section>;
++    }}</FmsBody>
++  </div>;
++}
++
++/** 단계 하나가 막힌 이유를 **종류별로** 모은다. 한 칸에 뭉치면 무엇이 없는지 사라진다. */
++function blockers(node: SubtaskNode): { key: string; items: readonly string[] }[] {
++  return [
++    { key: 'fms.subtasks.missingRequired', items: node.missing_required ?? [] },
++    { key: 'fms.subtasks.unmetInputs', items: node.unmet_inputs ?? [] },
++    { key: 'fms.subtasks.unverified', items: node.unverified_preconditions ?? [] },
++    { key: 'fms.subtasks.forbidden', items: node.violated_forbidden ?? [] },
++  ].filter((group) => group.items.length > 0);
++}
++
++export function FmsSubtasksCard() {
++  useLang();
++  const { robot } = useRobotChoice();
++  const recommend = useFms<Recommendations>(robot === null ? null : `/api/recommend?robot=${encodeURIComponent(robot)}`);
++  const goal = recommend.body?.recommendations?.find((r) => r.recommended)?.goal_kind
++    ?? recommend.body?.recommendations?.[0]?.goal_kind ?? null;
++  const state = useFms<Plan>(robot === null || goal === null
++    ? null
++    : `/api/subtasks?robot=${encodeURIComponent(robot)}&function=${encodeURIComponent(goal)}`);
++  return <FmsBody state={state} card>{(body) => {
++    const nodes = body.nodes ?? [];
++    const runnable = nodes.filter((n) => n.executable === true).length;
++    const cost = body.cost_total;
++    return <>
++      <div className="fms-card__line">
++        <b>{t('fms.subtasks.steps')}</b><span className="fms-num">{nodes.length}</span>
++        <span className={`fms-state fms-state--${runnable === nodes.length && nodes.length > 0 ? 'ok' : 'bad'}`}>
++          {t('fms.subtasks.runnable', { runnable, total: nodes.length })}
++        </span>
++      </div>
++      <div className="fms-card__line">
++        <b>{t('fms.subtasks.verdict')}</b><span>{body.reason ?? '—'}</span>
++      </div>
++      <div className="fms-card__line">
++        <b>{t('fms.subtasks.cost')}</b>
++        {cost === null || cost === undefined
++          ? <span className="fms-state fms-state--unmeasured">{t('fms.unmeasured')}</span>
++          : <span className="fms-num">{t('fms.subtasks.costValue', {
++            cu: (cost.compute_units ?? 0).toFixed(1), mb: (cost.memory_mb ?? 0).toFixed(0),
++          })}</span>}
++      </div>
++      {nodes.length === 0 && <FmsNone messageKey="fms.subtasks.none" />}
++    </>;
++  }}</FmsBody>;
++}
++
++export function FmsSubtasksZoom() {
++  useLang();
++  const { robot, picker } = useRobotChoice();
++  const recommend = useFms<Recommendations>(robot === null ? null : `/api/recommend?robot=${encodeURIComponent(robot)}`);
++  const options = recommend.body?.recommendations ?? [];
++  const [picked, setPicked] = useState<string | null>(null);
++  const goal = picked ?? options.find((r) => r.recommended)?.goal_kind ?? options[0]?.goal_kind ?? null;
++  const state = useFms<Plan>(robot === null || goal === null
++    ? null
++    : `/api/subtasks?robot=${encodeURIComponent(robot)}&function=${encodeURIComponent(goal)}`);
++  return <div className="fms-zoom">
++    <FmsHead titleKey="viewnode.fmsSubtasks" state={state} extra={<span className="fms-actions">
++      {picker}
++      <select value={goal ?? ''} onChange={(e) => setPicked(e.target.value)}>
++        {options.length === 0 && <option value="">{t('fms.subtasks.noGoal')}</option>}
++        {options.map((r) => <option key={r.goal_kind} value={r.goal_kind}>{r.title ?? r.goal_kind}</option>)}
++      </select>
++    </span>} />
++    <FmsBody state={state}>{(body) => {
++      const nodes = [...(body.nodes ?? [])].sort((a, b) => (a.order_index ?? 0) - (b.order_index ?? 0));
++      return <>
++        <section>
++          <h4>{t('fms.subtasks.plan')}</h4>
++          <table className="fms-table"><tbody>
++            <tr><th>{t('fms.subtasks.generator')}</th><td>{body.generator ?? '—'}{body.template_version === null || body.template_version === undefined ? '' : ` · ${body.template_version}`}</td></tr>
++            <tr><th>{t('fms.subtasks.verdict')}</th><td>{body.reason ?? '—'}</td></tr>
++            <tr><th>{t('fms.subtasks.executor')}</th><td>
++              {body.executor?.executor_id ?? '—'}
++              {body.executor?.state !== undefined && body.executor?.state !== null
++                && <span className={`fms-state fms-state--${body.executor.state === 'ACTIVE' ? 'ok' : body.executor.state === 'DEGRADED' ? 'warn' : 'bad'}`}>{body.executor.state}</span>}
++              {body.executor?.reason !== undefined && body.executor?.reason !== null && <span className="fms-hint"> {body.executor.reason}</span>}
++            </td></tr>
++            <tr><th>{t('fms.subtasks.escalation')}</th><td>
++              {/* 어휘 밖 기능을 가리킨 단계는 거부되고 그 이름이 보존된다 — 그것이
++                  수행 불가 기능의 외부 개발 요청으로 이어진다(AI-B-14 · AI-B-13). */}
++              {(body.escalation_capabilities ?? []).length === 0
++                ? <span className="fms-hint">{t('fms.subtasks.noEscalation')}</span>
++                : <ul className="fms-chips">{(body.escalation_capabilities ?? []).map((c) => <li key={c} className="is-missing">{c}</li>)}</ul>}
++            </td></tr>
++          </tbody></table>
++        </section>
++        <section>
++          <h4>{t('fms.subtasks.steps')}</h4>
++          {nodes.length === 0 ? <FmsNone messageKey="fms.subtasks.none" /> : <table className="fms-table">
++            <thead><tr>
++              <th>#</th><th>{t('fms.subtasks.action')}</th><th>{t('fms.subtasks.runsOn')}</th>
++              <th>{t('fms.subtasks.bindings')}</th><th>{t('fms.subtasks.blocked')}</th>
++            </tr></thead>
++            <tbody>{nodes.map((n) => <tr key={n.subtask_id} className={n.executable === true ? '' : 'is-blocked'}>
++              <td className="fms-num">{(n.order_index ?? 0) + 1}</td>
++              <td>{n.action}
++                <span className={`fms-state fms-state--${n.state === 'ACTIVE' ? 'ok' : n.state === 'DEGRADED' ? 'warn' : 'bad'}`}>{n.state ?? '—'}</span>
++              </td>
++              <td><ul className="fms-chips">{(n.runs_on ?? []).map((x) => <li key={x}>{x}</li>)}</ul></td>
++              <td><ul className="fms-chips">{(n.bindings ?? []).map((b) => <li key={b.capability_kind}>
++                {b.capability_kind}{b.provider_id === null || b.provider_id === undefined ? '' : ` → ${b.provider_id}`}
++                {b.optional === true ? ` (${t('fms.subtasks.optional')})` : ''}
++              </li>)}</ul></td>
++              <td>{blockers(n).length === 0 ? <span className="fms-hint">—</span>
++                : blockers(n).map((group) => <div key={group.key}>
++                  <span className="fms-hint">{t(group.key)}</span>
++                  <ul className="fms-chips">{group.items.map((x) => <li key={x} className="is-missing">{x}</li>)}</ul>
++                </div>)}</td>
++            </tr>)}</tbody>
++          </table>}
++        </section>
++      </>;
++    }}</FmsBody>
++  </div>;
++}
+diff --git a/viz-debugger/src/fms/views/FmsShell.tsx b/viz-debugger/src/fms/views/FmsShell.tsx
+new file mode 100644
+index 0000000..fbc8bca
+--- /dev/null
++++ b/viz-debugger/src/fms/views/FmsShell.tsx
+@@ -0,0 +1,107 @@
++/**
++ * src/fms/views/FmsShell.tsx (261105 — FMS 노드 다섯의 공통 틀)
++ *
++ * **비는 이유를 네 가지로 가른다.** 하나로 뭉치면 운영자가 다음에 무엇을 해야 하는지
++ * 알 수 없다.
++ *
++ *   주소 없음      연결 관리에 게이트웨이 주소가 비어 있다
++ *   못 읽었다      주소는 있는데 닿지 않거나 서버가 사유를 돌려줬다
++ *   권한 없다      닿았고 답도 받았는데 **그 일을 할 능력이 없다**(403 + 능력 이름)
++ *   받았는데 없다  정상이다 — 그 배치에 그 항목이 없다
++ *
++ * 마지막 하나를 「고장」으로 그리면 멀쩡한 배치가 깨진 것으로 보인다(AI-C-05).
++ */
++
++import { useLang } from '../../shared/language.ts';
++import { t } from '../../i18n/dict.ts';
++import type { ReactNode } from 'react';
++import type { FmsState } from '../useFms.ts';
++import { fmsContractVersion } from '../fmsApi.ts';
++import '../fms.css';
++
++/**
++ * 값 하나를 **안전하게** 그린다.
++ *
++ * **왜 있나**: 계약의 어떤 칸은 문자열처럼 보이지만 묶음이다 —
++ * `model.devices[].applied` 는 기능별 적용 버전의 **표**이고, 그것을 `{value}` 로
++ * 그렸더니 React 가 「객체는 자식이 될 수 없다」로 터져 **확대 전체가 빈 화면**이
++ * 됐다. 한 칸의 모양을 잘못 읽은 것이 화면 하나를 통째로 날린 것이다.
++ *
++ * 그래서 스칼라가 아니면 그리지 않고 `fallback` 을 낸다. 모양을 모르는 칸을
++ * 만나도 화면이 서 있는 쪽이, 터져서 아무것도 안 보이는 쪽보다 낫다.
++ */
++export function Scalar({ value, fallback }: { value: unknown; fallback?: ReactNode }) {
++  if (typeof value === 'string') return value === '' ? <>{fallback ?? '—'}</> : <>{value}</>;
++  if (typeof value === 'number' && Number.isFinite(value)) return <>{value}</>;
++  if (typeof value === 'boolean') return <>{String(value)}</>;
++  return <>{fallback ?? '—'}</>;
++}
++
++/** 경과를 사람이 읽는 꼴로. **한 번도 못 읽은 것과 오래된 것을 가른다.** */
++export function FmsAge({ readAt }: { readAt: number | null }) {
++  useLang();
++  if (readAt === null) return <span className="fms-state fms-state--unmeasured">{t('fms.neverRead')}</span>;
++  const age = Math.max(0, Math.round((Date.now() - readAt) / 1000));
++  return <span className="fms-hint">{t('fms.readAgo', { sec: age })}</span>;
++}
++
++/**
++ * 읽기 상태를 그린다. 본문이 있으면 `children` 을 부르고, 없으면 **그 이유**를 적는다.
++ *
++ * 본문이 있는데 사유도 있는 경우(한 번 받았고 다음 읽기가 실패) 둘을 **함께** 보인다 —
++ * 값을 지우면 「끊겼다」와 「없다」가 같아진다.
++ */
++export function FmsBody<T>({ state, children, card }: {
++  state: FmsState<T>;
++  children: (body: T) => ReactNode;
++  card?: boolean;
++}) {
++  useLang();
++  // 확대 쪽은 **겉 div 가 이미 `fms-zoom`** 이다. 여기서 또 `fms-zoom` 을 쓰면
++  // flex 묶음이 두 겹이 되고 사이 여백이 두 번 들어간다. 안쪽은 제 이름을 쓴다.
++  const wrap = card ? 'fms-card' : 'fms-zoom__body';
++  if (state.body === null) {
++    if (state.loading) return <div className={wrap}><p className="fms-empty">{t('fms.loading')}</p></div>;
++    if (state.needs !== null) {
++      return <div className={wrap}>
++        <p className="fms-empty">{t('fms.needsCapability', { cap: state.needs })}</p>
++        <p className="fms-hint">{t('fms.needsCapability.hint')}</p>
++      </div>;
++    }
++    if (state.error !== null) {
++      return <div className={wrap}>
++        <p className="fms-error">{state.error}</p>
++        <button type="button" onClick={state.reload}>{t('fms.reload')}</button>
++      </div>;
++    }
++    return <div className={wrap}><p className="fms-empty">{t('fms.noQuery')}</p></div>;
++  }
++  return <div className={wrap}>
++    {state.error !== null && <p className="fms-error">{t('fms.staleAfterError', { reason: state.error })}</p>}
++    {children(state.body)}
++  </div>;
++}
++
++/** 확대 머리 — 제목 · 계약 판 · 마지막 읽기 · 다시 읽기. */
++export function FmsHead<T>({ titleKey, state, extra }: {
++  titleKey: string; state: FmsState<T>; extra?: ReactNode;
++}) {
++  useLang();
++  const version = fmsContractVersion();
++  return <header className="fms-zoom__head">
++    <h3>{t(titleKey)}</h3>
++    {version !== null && <span className="fms-state fms-state--ok">{version}</span>}
++    <FmsAge readAt={state.readAt} />
++    <button type="button" onClick={state.reload} disabled={state.loading}>{t('fms.reload')}</button>
++    {extra}
++  </header>;
++}
++
++/**
++ * 「받았는데 없다」를 사유와 함께 적는다. 빈 목록을 그냥 비우면 **없는 것**과
++ * **볼 수 없는 것**이 구분되지 않는다.
++ */
++export function FmsNone({ messageKey }: { messageKey: string }) {
++  useLang();
++  return <p className="fms-empty">{t(messageKey)}</p>;
++}
+diff --git a/viz-debugger/src/fms/views/FmsStack.tsx b/viz-debugger/src/fms/views/FmsStack.tsx
+new file mode 100644
+index 0000000..a176504
+--- /dev/null
++++ b/viz-debugger/src/fms/views/FmsStack.tsx
+@@ -0,0 +1,141 @@
++/**
++ * src/fms/views/FmsStack.tsx (261120 신설 — 백엔드 스택을 **여기서** 켠다)
++ *
++ * ## 왜 있나
++ *
++ * 지금까지 운영은 이렇게 돌았다 — 이 화면에서 결정하고, **백엔드 기계 앞에 앉은
++ * 사람이** `make up` 과 `python server_stream_multi_source.py` 를 손으로 친다.
++ * 운영자가 둘이 되고, 둘 중 한 명은 화면을 보지 못한다.
++ *
++ * 그 기계에서 사람이 하는 일은 이제 하나다: **백엔드를 켜 두는가.** 그 다음의
++ * 전송 스택·실증 스트림·추론은 여기서 켜고 끈다(`POST /api/stack`).
++ *
++ * ## 보내는 것은 **이름뿐**이다
++ *
++ * 저쪽은 명령줄을 받지 않는다. 받으면 쓰기 계약 하나가 원격 코드 실행 창구가 되기
++ * 때문이고, 그래서 이 화면에도 "명령을 입력" 하는 칸이 없다 — 저쪽 기계의 선언에
++ * 적힌 단위를 **고르기만** 한다. 목록에 없는 것은 여기서 만들 수 없다.
++ *
++ * ## 네 가지를 각각 그린다
++ *
++ *   status      제어면이 본 프로세스 상태(RUNNING · STOPPED)
++ *   ready       **그것과 다른 축이다** — 떠 있지만 준비 안 된 상태가 정상으로 있다.
++ *               `null` 은 묻지 않았다(포트를 선언하지 않은 단위)이고 거짓이 아니다
++ *   exit_code   끝났으면 그 코드. `null` 은 돌고 있다 **또는** 띄운 적 없다이고 0 이 아니다
++ *   last_output 왜 멈췄는지. 이것이 없으면 "눌렀는데 아무 일도 없다" 만 보이고
++ *               사유는 저쪽 기계의 로그 파일 안에 남는다 — 그 기계에 들어가지
++ *               않으려고 만든 계약이 그 기계에 들어가게 만든다
++ */
++
++import { useCallback, useState } from 'react';
++import { useLang } from '../../shared/language.ts';
++import { t } from '../../i18n/dict.ts';
++import { useFms } from '../useFms.ts';
++import { fmsStack, localized, type FmsServices, type FmsUnit } from '../fmsApi.ts';
++import { FmsAge, FmsBody, FmsHead } from './FmsShell.tsx';
++import '../fms.css';
++
++/** 상태 한 칸. **세 값을 세 가지로** 그린다 — 미측정을 거짓으로 칠하지 않는다. */
++function Ready({ value }: { value: boolean | null }) {
++  useLang();
++  if (value === null) {
++    return <span className="fms-state fms-state--unmeasured">{t('fms.stack.unmeasured')}</span>;
++  }
++  return <span className={value ? 'fms-state fms-state--ok' : 'fms-state fms-state--warn'}>
++    {value ? t('fms.stack.ready') : t('fms.stack.notReady')}
++  </span>;
++}
++
++function UnitRow({ unit, onDone }: { unit: FmsUnit; onDone: () => void }) {
++  const lang = useLang();
++  const [busy, setBusy] = useState<string | null>(null);
++  const [said, setSaid] = useState<string | null>(null);
++  const running = unit.status === 'RUNNING';
++
++  const operate = useCallback(async (action: 'start' | 'stop' | 'restart') => {
++    setBusy(action);
++    setSaid(null);
++    const outcome = await fmsStack(unit.unit_id, action);
++    setBusy(null);
++    if (!outcome.ok) {
++      setSaid(outcome.error);
++      return;
++    }
++    // **수락은 성공이고 거절도 답이다.** 사유 토큰을 그대로 보인다 — 번역해 뭉개면
++    // `dependency_not_running:data-stream-redis` 의 뒷부분(무엇이 막았나)이 사라진다.
++    setSaid(outcome.body.accepted ? null : outcome.body.reason);
++    onDone();
++  }, [unit.unit_id, onDone]);
++
++  return <div className="fms-row">
++    <div className="fms-row__head">
++      <strong>{localized(unit.label, lang) ?? unit.unit_id}</strong>
++      <span className="fms-hint">{unit.unit_id} · {unit.kind}</span>
++    </div>
++    <div className="fms-row__state">
++      <span className={running ? 'fms-state fms-state--ok' : 'fms-state'}>{unit.status}</span>
++      <Ready value={unit.ready} />
++      {unit.exit_code !== null && <span className="fms-hint">exit {unit.exit_code}</span>}
++      {unit.depends_on.length > 0
++        && <span className="fms-hint">{t('fms.stack.needs', { units: unit.depends_on.join(', ') })}</span>}
++    </div>
++    {unit.last_output !== null && <p className="fms-hint fms-row__log">{unit.last_output}</p>}
++    {said !== null && <p className="fms-error">{said}</p>}
++    <div className="fms-row__acts">
++      <button type="button" disabled={busy !== null || running}
++              onClick={() => void operate('start')}>
++        {busy === 'start' ? t('fms.stack.working') : t('fms.stack.start')}
++      </button>
++      <button type="button" disabled={busy !== null || !running}
++              onClick={() => void operate('stop')}>
++        {busy === 'stop' ? t('fms.stack.working') : t('fms.stack.stop')}
++      </button>
++      <button type="button" disabled={busy !== null}
++              onClick={() => void operate('restart')}>
++        {t('fms.stack.restart')}
++      </button>
++    </div>
++  </div>;
++}
++
++function Units({ body, onDone }: { body: FmsServices; onDone: () => void }) {
++  useLang();
++  if (!body.configured) {
++    // **빈 목록과 다른 사실이다.** "띄울 것이 없다" 와 "이 설치는 띄우지 않는다" 를
++    // 같게 그리면 운영자가 선언 파일을 찾아 헤맨다.
++    return <p className="fms-empty">{t('fms.stack.notConfigured', { reason: body.reason ?? '—' })}</p>;
++  }
++  if (body.units.length === 0) return <p className="fms-empty">{t('fms.stack.none')}</p>;
++  return <>{body.units.map((unit) => (
++    <UnitRow key={unit.unit_id} unit={unit} onDone={onDone} />
++  ))}</>;
++}
++
++export function FmsStackCard() {
++  useLang();
++  const state = useFms<FmsServices>('/api/services');
++  return <FmsBody state={state} card>{(body) => <>
++    <div className="fms-card__line">
++      <b>{t('viewnode.fmsStack')}</b>
++      <FmsAge readAt={state.readAt} />
++    </div>
++    {!body.configured
++      ? <p className="fms-empty">{t('fms.stack.notConfigured', { reason: body.reason ?? '—' })}</p>
++      : <div className="fms-card__line">
++          <span className="fms-num">{body.units.filter((u) => u.status === 'RUNNING').length}</span>
++          <span className="fms-hint">{t('fms.stack.summary', { all: body.units.length })}</span>
++        </div>}
++  </>}</FmsBody>;
++}
++
++export function FmsStackZoom() {
++  useLang();
++  const state = useFms<FmsServices>('/api/services');
++  return <div className="fms-zoom">
++    <FmsHead titleKey="viewnode.fmsStack" state={state} />
++    <FmsBody state={state}>{(body) => (
++      <Units body={body} onDone={state.reload} />
++    )}</FmsBody>
++    <p className="fms-hint">{t('fms.stack.boundary')}</p>
++  </div>;
++}
+diff --git a/viz-debugger/src/fms/views/FmsTiers.tsx b/viz-debugger/src/fms/views/FmsTiers.tsx
+new file mode 100644
+index 0000000..9677a98
+--- /dev/null
++++ b/viz-debugger/src/fms/views/FmsTiers.tsx
+@@ -0,0 +1,461 @@
++/**
++ * src/fms/views/FmsTiers.tsx (261105 — 계층별 자원·서비스 지표 · 장치 관리)
++ *
++ * **미측정은 0 도 미달도 아니다**(AI-O-05). 측정값이 없는 자리에 0 을 채우면 유휴와
++ * 고장이 같아지고, 배치된 기능이 없는 가속기를 목록에서 빼면 「없는 것」과 「쉬는
++ * 것」이 같아진다. 그래서 값이 없으면 **없다고 적는다.**
++ *
++ * 하드웨어 계층과 서비스 계층을 **한 목록에 섞지 않는다.** 서비스 줄에는 그것이 도는
++ * 가속기를 함께 적는다.
++ */
++
++import { useLang } from '../../shared/language.ts';
++import { t } from '../../i18n/dict.ts';
++import { useFms } from '../useFms.ts';
++import { FmsBody, FmsHead, FmsNone, Scalar } from './FmsShell.tsx';
++
++/**
++ * **칸 이름은 짐작하지 않는다.** 아래 모양의 정본은
++ * `schemas/ai/status-snapshot.schema.json`(허브 `view_snapshot` 이 그것을 참조한다)
++ * 이고, 여기 적힌 이름은 거기서 그대로 가져온 것이다.
++ *
++ * 2026-11-06 에 실제로 틀렸던 자리를 남겨 둔다 — 이 파일은 `accelerator_id` ·
++ * `temperature_c` · `node_id` · `service_count` · `latency_ms` 를 읽고 있었고
++ * **그런 칸은 계약에 없다.** 오류도 경고도 나지 않고 표만 전부 「미측정」·빈칸이
++ * 됐다. 200 · 시험 통과 · 빈 화면이 함께 나는 그 갈래다.
++ */
++type Measurement = {
++  /** **칸이 없으면 측정 없음**이다. 0 을 넣으면 "쟀더니 0" 과 구분되지 않는다. */
++  value?: number | null;
++  unit?: string | null;
++  measured_at?: string | null;
++  /** `measured` · `declared` · `unavailable`. 서버가 덧붙이는 칸이다. */
++  measurement_source?: string | null;
++};
++
++type Accelerator = {
++  accelerator_instance_id: string;
++  accelerator_kind: string;
++  accelerator_attachment?: string | null;
++  accelerator_vendor_label?: string | null;
++  utilization?: Measurement | null;
++  temperature?: Measurement | null;
++};
++
++type Indicator = {
++  indicator_name: string;
++  measurement?: Measurement | null;
++  target?: { value?: number | null; unit?: string | null; direction?: string | null } | null;
++  target_meet_state?: string | null;
++};
++
++type ServiceRow = {
++  service_id: string;
++  accelerator_instance_id?: string | null;
++  service_role?: string | null;
++  model?: string | null;
++  model_version?: string | null;
++  indicators?: readonly Indicator[];
++};
++
++/** 보드는 **이름 있는 두 칸**이다. `host_probe_id` 는 계측 지점의 이름이고 측정이 아니다. */
++type Board = {
++  memory_utilization?: Measurement | null;
++  power?: Measurement | null;
++  host_probe_id?: string | null;
++};
++
++type Region = { region_id: string; region_available?: boolean | null; region_reason?: string | null; missing_sources?: readonly string[] | null };
++
++/**
++ * 세면 나오는 값들. **화면이 다시 세지 않는다**(view-contract §3.6 — 한 사실에
++ * 주인은 하나). 특히 실측·선언·미측정 셋은 서로의 여집합이 아니다: 선언된 숫자만
++ * 있는 개체는 실측 목록에도 미측정 목록에도 들지 않는다.
++ */
++type Derived = {
++  accelerator_placement?: Record<string, readonly string[]> | null;
++  idle_accelerator_instance_ids?: readonly string[] | null;
++  unmeasured_accelerator_instance_ids?: readonly string[] | null;
++  measured_accelerator_instance_ids?: readonly string[] | null;
++  not_measured_indicator_names?: readonly string[] | null;
++  unmet_indicator_names?: readonly string[] | null;
++};
++
++type Dashboard = {
++  accelerators?: readonly Accelerator[];
++  services?: readonly ServiceRow[];
++  regions?: readonly Region[];
++  board?: Board | null;
++  derived?: Derived | null;
++  sources?: readonly { source_id: string; received?: boolean | null; last_seen_age_s?: number | null }[];
++  task_nodes?: readonly unknown[];
++};
++
++/** 세 상태. **값이 없는 것이 세 번째다** — `null` 을 0 으로 접지 않는다. */
++function MeasureCell({ measure }: { measure: Measurement | null | undefined }) {
++  useLang();
++  if (measure === null || measure === undefined || measure.value === null || measure.value === undefined) {
++    return <span className="fms-state fms-state--unmeasured">{t('fms.unmeasured')}</span>;
++  }
++  const unit = measure.unit ?? '';
++  return <span className="fms-num">{measure.value.toFixed(unit === 'ratio' ? 2 : 1)}{unit === '' ? '' : ` ${unit}`}</span>;
++}
++
++/**
++ * 이 숫자가 **어디서 왔는지**를 적는다. 목 선언과 실측을 같은 글씨로 그리면
++ * 화면은 채워지지만 무엇이 실제로 측정된 값인지 알 수 없다(AI-O-05·AI-B-01).
++ */
++function SourceChip({ id, derived }: { id: string; derived: Derived }) {
++  useLang();
++  if ((derived.measured_accelerator_instance_ids ?? []).includes(id)) {
++    return <span className="fms-state fms-state--ok">{t('fms.tiers.measured')}</span>;
++  }
++  if ((derived.unmeasured_accelerator_instance_ids ?? []).includes(id)) {
++    return <span className="fms-state fms-state--unmeasured">{t('fms.unmeasured')}</span>;
++  }
++  return <span className="fms-state fms-state--warn">{t('fms.tiers.declared')}</span>;
++}
++
++/** `MET` · `UNMET` · `NOT_MEASURED`. **미측정은 미달이 아니다**(§4.5). */
++function MeetChip({ meet }: { meet: string | null | undefined }) {
++  useLang();
++  if (meet === 'MET') return <span className="fms-state fms-state--ok">{t('fms.tiers.meets')}</span>;
++  if (meet === 'UNMET') return <span className="fms-state fms-state--bad">{t('fms.tiers.misses')}</span>;
++  return <span className="fms-state fms-state--unmeasured">{t('fms.unmeasured')}</span>;
++}
++
++export function FmsTiersCard() {
++  useLang();
++  const state = useFms<Dashboard>('/api/dashboard');
++  return <FmsBody state={state} card>{(body) => {
++    const accelerators = body.accelerators ?? [];
++    const services = body.services ?? [];
++    const regions = body.regions ?? [];
++    const derived = body.derived ?? {};
++    // **세지 않고 받는다.** 서버가 이미 센 값이 있고, 화면이 다시 세면 두 곳이
++    // 갈라진다(view-contract §3.6). 그리고 셋은 서로의 여집합이 **아니다** —
++    // 선언만 있는 개체는 실측에도 미측정에도 들지 않는다.
++    const measured = (derived.measured_accelerator_instance_ids ?? []).length;
++    const unmeasured = (derived.unmeasured_accelerator_instance_ids ?? []).length;
++    const declared = Math.max(0, accelerators.length - measured - unmeasured);
++    const idle = (derived.idle_accelerator_instance_ids ?? []).length;
++    const missing = regions.filter((r) => r.region_available === false).length;
++    return <>
++      <div className="fms-card__line">
++        <b>{t('fms.tiers.accelerators')}</b><span className="fms-num">{accelerators.length}</span>
++        <span className="fms-state fms-state--ok">{t('fms.tiers.measuredN', { n: measured })}</span>
++        {declared > 0 && <span className="fms-state fms-state--warn">{t('fms.tiers.declaredN', { n: declared })}</span>}
++        {unmeasured > 0 && <span className="fms-state fms-state--unmeasured">{t('fms.tiers.unmeasuredN', { n: unmeasured })}</span>}
++      </div>
++      <div className="fms-card__line">
++        <b>{t('fms.tiers.services')}</b><span className="fms-num">{services.length}</span>
++        {/* 배치가 없는 가속기를 **목록에서 빼지 않는다** — 유휴와 없음은 다르다. */}
++        {idle > 0 && <span className="fms-hint">{t('fms.tiers.idleN', { n: idle })}</span>}
++      </div>
++      <div className="fms-card__line">
++        <b>{t('fms.tiers.regions')}</b>
++        <span className="fms-num">{regions.length}</span>
++        {missing > 0 && <span className="fms-state fms-state--bad">{t('fms.tiers.regionsMissing', { n: missing })}</span>}
++      </div>
++      {accelerators.length === 0 && services.length === 0 && <FmsNone messageKey="fms.tiers.none" />}
++    </>;
++  }}</FmsBody>;
++}
++
++export function FmsTiersZoom() {
++  useLang();
++  const state = useFms<Dashboard>('/api/dashboard');
++  return <div className="fms-zoom">
++    <FmsHead titleKey="viewnode.fmsTiers" state={state} />
++    <FmsBody state={state}>{(body) => {
++      const accelerators = body.accelerators ?? [];
++      const services = body.services ?? [];
++      const regions = body.regions ?? [];
++      const board = body.board ?? {};
++      const derived = body.derived ?? {};
++      const placement = derived.accelerator_placement ?? {};
++      return <>
++        <section>
++          <h4>{t('fms.tiers.l1')}</h4>
++          {accelerators.length === 0 ? <FmsNone messageKey="fms.tiers.noAccelerators" /> : <table className="fms-table">
++            <thead><tr>
++              <th>{t('fms.tiers.accelerator')}</th><th>{t('fms.tiers.source')}</th>
++              <th>{t('fms.tiers.utilization')}</th><th>{t('fms.tiers.temperature')}</th>
++              <th>{t('fms.tiers.serviceCount')}</th>
++            </tr></thead>
++            {/* 배치된 기능이 없는 가속기도 **빼지 않는다** — 유휴와 없음은 다르다. */}
++            <tbody>{accelerators.map((a) => {
++              const on = placement[a.accelerator_instance_id] ?? [];
++              return <tr key={a.accelerator_instance_id}>
++                <td>
++                  <b>{a.accelerator_instance_id}</b>
++                  {/* 같은 kind 가 여럿이어도 개체로 갈린다(AI-O-05) — kind 는 라벨이다. */}
++                  <span className="fms-hint"> {a.accelerator_kind}</span>
++                  {typeof a.accelerator_attachment === 'string' && <span className="fms-hint"> · {a.accelerator_attachment}</span>}
++                  {typeof a.accelerator_vendor_label === 'string' && a.accelerator_vendor_label !== '' &&
++                    <span className="fms-hint"> · {a.accelerator_vendor_label}</span>}
++                </td>
++                <td><SourceChip id={a.accelerator_instance_id} derived={derived} /></td>
++                <td><MeasureCell measure={a.utilization} /></td>
++                <td><MeasureCell measure={a.temperature} /></td>
++                <td>{on.length === 0
++                  ? <span className="fms-hint">{t('fms.tiers.idle')}</span>
++                  : on.map((id) => <span key={id} className="fms-chip">{id}</span>)}</td>
++              </tr>;
++            })}</tbody>
++          </table>}
++        </section>
++        <section>
++          <h4>{t('fms.tiers.l2')}</h4>
++          {services.length === 0 ? <FmsNone messageKey="fms.tiers.noServices" /> : <table className="fms-table">
++            <thead><tr>
++              <th>{t('fms.tiers.service')}</th><th>{t('fms.tiers.onAccelerator')}</th>
++              <th>{t('fms.tiers.indicators')}</th>
++            </tr></thead>
++            <tbody>{services.map((s) => <tr key={s.service_id}>
++              <td>
++                <b>{s.service_id}</b>
++                {typeof s.service_role === 'string' && <span className="fms-hint"> {s.service_role}</span>}
++                {typeof s.model === 'string' && s.model !== '' && <span className="fms-hint"> · {s.model}
++                  {typeof s.model_version === 'string' ? ` ${s.model_version}` : ''}</span>}
++              </td>
++              {/* 서비스 줄에 **그것이 도는 가속기**를 함께 적는다(AI-O-05). */}
++              <td><Scalar value={s.accelerator_instance_id}
++                          fallback={<span className="fms-state fms-state--unmeasured">{t('fms.unmeasured')}</span>} /></td>
++              <td>{(s.indicators ?? []).length === 0
++                ? <span className="fms-hint">{t('fms.tiers.noIndicators')}</span>
++                : <table className="fms-table fms-table--inner"><tbody>{(s.indicators ?? []).map((ind) => <tr key={ind.indicator_name}>
++                    <th>{ind.indicator_name}</th>
++                    <td><MeasureCell measure={ind.measurement} /></td>
++                    <td>{ind.target !== null && ind.target !== undefined && typeof ind.target.value === 'number'
++                      ? <span className="fms-hint">{t('fms.tiers.target', {
++                          dir: ind.target.direction ?? '', value: ind.target.value.toFixed(1), unit: ind.target.unit ?? '' })}</span>
++                      : <span className="fms-hint">—</span>}</td>
++                    <td><MeetChip meet={ind.target_meet_state} /></td>
++                  </tr>)}</tbody></table>}</td>
++            </tr>)}</tbody>
++          </table>}
++        </section>
++        <section>
++          <h4>{t('fms.tiers.board')}</h4>
++          {/* **이름 있는 두 칸만** 측정이다. 예전엔 `Object.entries(board)` 로 돌려
++              `host_probe_id`(계측 지점 이름)까지 측정 줄로 그렸고, 그래서 문자열 하나가
++              「미측정」으로 보였다. */}
++          <table className="fms-table"><tbody>
++            <tr><th>{t('fms.tiers.memory')}</th><td><MeasureCell measure={board.memory_utilization} /></td></tr>
++            <tr><th>{t('fms.tiers.power')}</th><td><MeasureCell measure={board.power} /></td></tr>
++            {typeof board.host_probe_id === 'string' && board.host_probe_id !== '' && <tr>
++              <th>{t('fms.tiers.hostProbe')}</th><td><span className="fms-hint">{board.host_probe_id}</span></td>
++            </tr>}
++          </tbody></table>
++        </section>
++        <section>
++          <h4>{t('fms.tiers.regions')}</h4>
++          {regions.length === 0 ? <FmsNone messageKey="fms.tiers.noRegions" /> : <table className="fms-table">
++            <thead><tr><th>{t('fms.tiers.region')}</th><th>{t('fms.tiers.available')}</th><th>{t('fms.tiers.reason')}</th></tr></thead>
++            <tbody>{regions.map((r) => <tr key={r.region_id} className={r.region_available === false ? 'is-blocked' : ''}>
++              <td>{r.region_id}</td>
++              <td><span className={`fms-state fms-state--${r.region_available === true ? 'ok' : r.region_available === false ? 'bad' : 'unmeasured'}`}>
++                {r.region_available === true ? t('fms.yes') : r.region_available === false ? t('fms.no') : t('fms.unmeasured')}
++              </span></td>
++              {/* 「한 번도 받지 않음」과 「받았는데 비었다」는 서버가 사유 토큰으로 가른다. */}
++              <td>{typeof r.region_reason === 'string' && r.region_reason !== ''
++                ? <span className="fms-hint">{r.region_reason}
++                    {(r.missing_sources ?? []).length > 0 && ` · ${(r.missing_sources ?? []).join(', ')}`}</span>
++                : <span className="fms-hint">—</span>}</td>
++            </tr>)}</tbody>
++          </table>}
++        </section>
++      </>;
++    }}</FmsBody>
++  </div>;
++}
++
++// ── 장치 관리(배포) ──────────────────────────────────────────────────────────
++
++type Deployment = {
++  permissions?: Record<string, string>;
++  join?: { joined?: readonly unknown[]; steps?: readonly string[]; pending?: Record<string, unknown>; refused?: readonly unknown[]; may_submit?: boolean; known_device_ids?: readonly string[] } | null;
++  calibration?: { cameras?: readonly { device_id: string; state?: string | null; views?: number | null; reason?: string | null }[]; frames_root_present?: boolean; min_views?: number; may_submit?: boolean } | null;
++  training?: {
++    /** 조건 묶음별 후보 수. **확인된 수와 전체 수를 갈라서** 온다(AI-L-02). */
++    groups?: readonly {
++      group_key: string; device_id?: string | null; camera_id?: string | null;
++      accelerator_id?: string | null; total?: number | null; confirmed?: number | null;
++      labels?: readonly string[] | null; base_version?: string | null;
++      trainable?: boolean | null; min_samples?: number | null;
++    }[];
++    candidates?: readonly unknown[];
++    /** **거짓이면 「없다」가 아니라 「볼 수 없다」다** — 서버가 권한 없는 호출에
++        빈 목록을 돌려주기 때문이다. 둘을 같은 빈칸으로 그리면 운영자가 다음에 무엇을
++        해야 하는지 알 수 없다. */
++    may_submit?: boolean;
++  } | null;
++  model?: {
++    versions?: readonly { reference?: string; model_id?: string; version?: string; capability_kind?: string; verified_hw_tags?: readonly string[]; quality?: number | null; latency_ms?: number | null }[];
++    devices?: readonly {
++      device_id: string;
++      hw_tags?: readonly string[];
++      memory_mb?: number | null;
++      /** **기능별 적용 버전의 표다** — 문자열이 아니다. 비어 있으면 적용 없음. */
++      applied?: Record<string, unknown> | null;
++    }[];
++    deployments?: readonly unknown[];
++    capability_kinds?: readonly string[];
++    may_submit?: boolean;
++  } | null;
++};
++
++/** 네 가지가 **실제 순서대로** 선다 — 들이기 · 보정 · 학습 · 모델 교체. */
++const STAGES = [
++  { key: 'fms.deploy.join', perm: 'join' },
++  { key: 'fms.deploy.calibration', perm: 'calibration' },
++  { key: 'fms.deploy.training', perm: 'training' },
++  { key: 'fms.deploy.model', perm: 'model' },
++] as const;
++
++export function FmsDeploymentCard() {
++  useLang();
++  const state = useFms<Deployment>('/api/deployment');
++  return <FmsBody state={state} card>{(body) => {
++    const joined = body.join?.joined?.length ?? 0;
++    const known = body.join?.known_device_ids?.length ?? 0;
++    const cameras = body.calibration?.cameras?.length ?? 0;
++    const candidates = body.training?.candidates?.length ?? 0;
++    const versions = body.model?.versions?.length ?? 0;
++    return <>
++      <div className="fms-card__line">
++        <b>{t('fms.deploy.join')}</b><span className="fms-num">{t('fms.deploy.joinedOf', { joined, known })}</span>
++      </div>
++      <div className="fms-card__line">
++        <b>{t('fms.deploy.calibration')}</b><span className="fms-num">{cameras}</span>
++        {body.calibration?.frames_root_present === false
++          && <span className="fms-state fms-state--unmeasured">{t('fms.deploy.noFrames')}</span>}
++      </div>
++      <div className="fms-card__line">
++        <b>{t('fms.deploy.training')}</b><span className="fms-num">{candidates}</span>
++        <b>{t('fms.deploy.model')}</b><span className="fms-num">{versions}</span>
++      </div>
++      {/* 권한이 없는 자리는 비는 대신 **무슨 능력이 필요한지**를 적는다 — 빈 목록은
++          「할 일이 없다」와 「볼 수 없다」를 구분하지 못한다. */}
++      <ul className="fms-chips">{STAGES.map((stage) => {
++        const permission = body.permissions?.[stage.perm];
++        return <li key={stage.perm}>{t(stage.key)}: {permission ?? '—'}</li>;
++      })}</ul>
++    </>;
++  }}</FmsBody>;
++}
++
++export function FmsDeploymentZoom() {
++  useLang();
++  const state = useFms<Deployment>('/api/deployment');
++  return <div className="fms-zoom">
++    <FmsHead titleKey="viewnode.fmsDeployment" state={state} />
++    <FmsBody state={state}>{(body) => <>
++      <section>
++        <h4>{t('fms.deploy.join')}</h4>
++        <table className="fms-table"><tbody>
++          <tr><th>{t('fms.deploy.joined')}</th><td className="fms-num">{body.join?.joined?.length ?? 0}</td></tr>
++          <tr><th>{t('fms.deploy.known')}</th><td><ul className="fms-chips">
++            {(body.join?.known_device_ids ?? []).map((id) => <li key={id}>{id}</li>)}
++          </ul></td></tr>
++          <tr><th>{t('fms.deploy.steps')}</th><td><ul className="fms-chips">
++            {(body.join?.steps ?? []).map((s) => <li key={s}>{s}</li>)}
++          </ul></td></tr>
++          <tr><th>{t('fms.deploy.refused')}</th><td className="fms-num">{body.join?.refused?.length ?? 0}</td></tr>
++        </tbody></table>
++      </section>
++      <section>
++        <h4>{t('fms.deploy.calibration')}</h4>
++        {/* 선언한 카메라 제원은 **관측이 아니라 사전정보**라 그것만으로 활성 프로파일이
++            되지 못한다 — 보정판이 측정한 값과 비교되는 기준이 된다(AI-S-08). */}
++        <p className="fms-hint">{t('fms.deploy.declaredIsNotMeasured')}</p>
++        {(body.calibration?.cameras ?? []).length === 0
++          ? <FmsNone messageKey="fms.deploy.noCameras" />
++          : <table className="fms-table">
++            <thead><tr><th>{t('fms.deploy.device')}</th><th>{t('fms.tiers.state')}</th><th>{t('fms.deploy.views')}</th></tr></thead>
++            <tbody>{(body.calibration?.cameras ?? []).map((c) => <tr key={c.device_id}>
++              <td><Scalar value={c.device_id} />{c.reason !== null && c.reason !== undefined && <span className="fms-hint"> <Scalar value={c.reason} /></span>}</td>
++              <td><Scalar value={c.state} /></td>
++              <td className="fms-num">{c.views ?? 0} / {body.calibration?.min_views ?? '—'}</td>
++            </tr>)}</tbody>
++          </table>}
++      </section>
++      <section>
++        <h4>{t('fms.deploy.training')}</h4>
++        {/* **네 단계 중 하나가 통째로 빠져 있었다**(2026-11-06 실측) — 카드는
++            「학습 0」을 세는데 확대에는 그 구역이 없어서, 비개발자가 학습이 왜 비어
++            있는지 볼 길이 없었다. 비어 있는 이유를 가르는 것이 이 화면의 일이다. */}
++        {body.training?.may_submit !== true
++          ? <p className="fms-empty">{t('fms.deploy.trainingNoPermission')}</p>
++          : (body.training?.groups ?? []).length === 0
++            ? <FmsNone messageKey="fms.deploy.noTrainingGroups" />
++            : <table className="fms-table">
++              <thead><tr>
++                <th>{t('fms.deploy.group')}</th><th>{t('fms.deploy.device')}</th>
++                <th>{t('fms.deploy.confirmedOfTotal')}</th><th>{t('fms.deploy.labels')}</th>
++                <th>{t('fms.deploy.baseVersion')}</th><th>{t('fms.deploy.trainable')}</th>
++              </tr></thead>
++              <tbody>{(body.training?.groups ?? []).map((g) => <tr key={g.group_key}>
++                <td>{g.group_key}</td>
++                <td><Scalar value={g.device_id} />
++                  {typeof g.camera_id === 'string' && <span className="fms-hint"> · {g.camera_id}</span>}</td>
++                {/* 확인된 것과 모은 것은 다른 수다 — 검증되지 않은 추론 결과를
++                    확정 정답으로 올리지 않는다(AI-L-02). */}
++                <td className="fms-num">{g.confirmed ?? 0} / {g.total ?? 0}</td>
++                <td><ul className="fms-chips">{(g.labels ?? []).map((x) => <li key={x}>{x}</li>)}</ul></td>
++                <td><Scalar value={g.base_version} /></td>
++                {/* 누를 수 있는지는 **서버가** 말한다. 화면이 최소 표본 수를 따로
++                    알고 있으면 둘이 어긋난다. */}
++                <td>{g.trainable === true
++                  ? <span className="fms-state fms-state--ok">{t('fms.yes')}</span>
++                  : <span className="fms-state fms-state--unmeasured">
++                      {t('fms.deploy.needsSamples', { n: g.min_samples ?? 0 })}</span>}</td>
++              </tr>)}</tbody>
++            </table>}
++      </section>
++      <section>
++        <h4>{t('fms.deploy.model')}</h4>
++        {(body.model?.versions ?? []).length === 0 ? <FmsNone messageKey="fms.deploy.noVersions" /> : <table className="fms-table">
++          <thead><tr>
++            <th>{t('fms.deploy.version')}</th><th>{t('fms.deploy.capability')}</th>
++            <th>{t('fms.deploy.verifiedTags')}</th><th>{t('fms.deploy.quality')}</th><th>{t('fms.tiers.latency')}</th>
++          </tr></thead>
++          <tbody>{(body.model?.versions ?? []).map((v) => <tr key={v.reference ?? `${v.model_id}@${v.version}`}>
++            <td><Scalar value={v.reference} fallback={`${v.model_id ?? '—'}@${v.version ?? '—'}`} /></td>
++            <td><Scalar value={v.capability_kind} /></td>
++            <td><ul className="fms-chips">{(v.verified_hw_tags ?? []).map((x) => <li key={x}>{x}</li>)}</ul></td>
++            {/* 재지 않은 값에 숫자를 지어 넣지 않는다(AI-B-01). */}
++            <td>{v.quality === null || v.quality === undefined
++              ? <span className="fms-state fms-state--unmeasured">{t('fms.unmeasured')}</span>
++              : <span className="fms-num">{v.quality.toFixed(3)}</span>}</td>
++            <td>{v.latency_ms === null || v.latency_ms === undefined
++              ? <span className="fms-state fms-state--unmeasured">{t('fms.unmeasured')}</span>
++              : <span className="fms-num">{v.latency_ms.toFixed(0)}ms</span>}</td>
++          </tr>)}</tbody>
++        </table>}
++      </section>
++      <section>
++        <h4>{t('fms.deploy.devices')}</h4>
++        {(body.model?.devices ?? []).length === 0 ? <FmsNone messageKey="fms.deploy.noDevices" /> : <table className="fms-table">
++          <thead><tr><th>{t('fms.deploy.device')}</th><th>{t('fms.deploy.hwTags')}</th><th>{t('fms.deploy.memoryBudget')}</th><th>{t('fms.deploy.applied')}</th></tr></thead>
++          <tbody>{(body.model?.devices ?? []).map((d) => <tr key={d.device_id}>
++            <td><Scalar value={d.device_id} /></td>
++            <td><ul className="fms-chips">{(d.hw_tags ?? []).map((x) => <li key={x}>{x}</li>)}</ul></td>
++            {/* **설치 용량이 아니라 선언된 예산이다.** 선언이 없는 노드는 서버가
++                0 으로 낸다(`ResourceBudget(memory_mb=0.0)`) — 그 0 은 "0MB 짜리
++                기계" 가 아니라 "예산을 선언하지 않았다" 는 뜻이고, 배치 계산에서는
++                아무것도 들어가지 못한다는 뜻이 된다. 여기서 그 0 을 「미선언」으로
++                바꿔 적지 않는다 — 그 사실의 주인은 서버다(view-contract §3.6). */}
++            <td className="fms-num"><Scalar value={d.memory_mb} /></td>
++            <td>{Object.keys(d.applied ?? {}).length === 0
++              ? <span className="fms-hint">{t('fms.deploy.notApplied')}</span>
++              : <ul className="fms-chips">{Object.entries(d.applied ?? {}).map(([kind, ref]) => <li key={kind}>
++                  {kind}: <Scalar value={ref} />
++                </li>)}</ul>}</td>
++          </tr>)}</tbody>
++        </table>}
++      </section>
++    </>}</FmsBody>
++  </div>;
++}
+diff --git a/viz-debugger/src/fms/views/FmsTwin.tsx b/viz-debugger/src/fms/views/FmsTwin.tsx
+new file mode 100644
+index 0000000..8fd0a2e
+--- /dev/null
++++ b/viz-debugger/src/fms/views/FmsTwin.tsx
+@@ -0,0 +1,283 @@
++/**
++ * src/fms/views/FmsTwin.tsx (261105 — 디지털 트윈 맵 노드)
++ *
++ * **맵은 데이터와 렌더러가 갈려 있다.** 서버 응답(`/api/scene` · `/api/domain` ·
++ * `/api/zone`)에는 색·픽셀·폰트가 없고 자리와 상태만 있다. 이 파일이 렌더러 하나이고,
++ * 3D 뷰어가 생기면 **같은 응답을 읽어** 그리면 된다.
++ *
++ * 드릴은 현장 → 도메인 → 구역이다. 요약 카드는 **확대하지 않고도 이상함을 알아챌 수
++ * 있는 값**을 담는다 — 도메인 수가 아니라 「공지로 탐지된 로봇 n/N」과 「도면이
++ * 검증되지 않은 구역 수」다.
++ */
++
++import { useState } from 'react';
++import { useLang } from '../../shared/language.ts';
++import { t } from '../../i18n/dict.ts';
++import { useFms } from '../useFms.ts';
++import { FmsBody, FmsHead, FmsNone } from './FmsShell.tsx';
++import { localized } from '../fmsApi.ts';
++
++/**
++ * 구역·도메인 한 칸의 자리. **이름은 `w`·`h` 다** — `width`·`height` 가 아니다
++ * (`schemas/view_snapshot.schema.json` 의 `rect` 가 `["x","y","w","h"]` 를 required 로
++ * 적는다). 처음에 `width`/`height` 로 읽어서 `<rect>` 에 `undefined` 가 들어갔고,
++ * 도면이 **아무 오류 없이 빈 상자**로 나왔다 — 계약의 이름을 지어내면 이렇게
++ * 조용히 틀린다.
++ */
++type Rect = { x: number; y: number; w: number; h: number };
++
++type SceneDomain = {
++  domain_id: string;
++  /** **묶음일 수 있다** — 계약이 도메인·구역의 `label` 을 언어별로 적는다. */
++  label?: unknown;
++  site?: string | null;
++  example?: boolean;
++  rect?: Rect | null;
++};
++
++type Scene = {
++  space?: { origin?: { x: number; y: number }; width?: number; height?: number; unit?: string; datum_id?: string | null } | null;
++  domains?: readonly SceneDomain[];
++  map_tiles?: { declared?: boolean; closed_network?: boolean; layers?: readonly { layer_id: string; label?: string | null; enabled?: boolean; available?: boolean; requires_external_connection?: boolean }[] } | null;
++};
++
++type ZoneRobot = {
++  node_id: string;
++  role?: string | null;
++  /** 로봇의 `label` 은 **평평한 문자열**이다(view-contract §8) — 묶음이 아니다. */
++  label?: string | null;
++  presence?: string | null;
++  last_seen_age_s?: number | null;
++  verified?: boolean;
++  /** 자리. **없을 수 있다**(`null`) — 그때는 그리지 않는다. */
++  at?: { x?: number; y?: number } | null;
++  /** 그 자리가 **어디서 왔나**. 칸이 없으면 선언이다(AI-C-02). */
++  at_origin?: string | null;
++  /** 지금 `at` 에 든 값을 **무엇이 만들었나**. `null` 이면 선언이다. */
++  position_source?: string | null;
++};
++
++type Zone = {
++  zone_id: string;
++  /** 묶음일 수 있다(§8). */
++  label?: unknown;
++  level_id?: string | null;
++  state?: string | null;
++  reachable?: boolean | null;
++  verified?: boolean;
++  declared_count?: number;
++  discovered_count?: number;
++  unexpected_count?: number;
++  rect?: Rect | null;
++  robots?: readonly ZoneRobot[];
++  infrastructure?: readonly { kind?: string | null; label?: string | null; presence?: string | null }[];
++  usable_functions?: readonly string[];
++};
++
++type Domain = { domain_id: string; label?: unknown; zones?: readonly Zone[]; site?: string | null };
++
++/**
++ * 존재는 **세 값이다** — `discovered`(선언됐고 공지도 왔다) · `declared`(선언만
++ * 있다) · `unexpected`(공지는 왔는데 선언에 없다). 선언을 탐지로 바꿔 읽지 않는다.
++ */
++const PRESENCE_TONE: Record<string, 'ok' | 'warn' | 'bad'> = {
++  discovered: 'ok', declared: 'warn', unexpected: 'bad',
++};
++
++/**
++ * **서버가 이미 센 것을 쓴다.** 여기서 로봇을 다시 세면 같은 사실에 주인이 둘이
++ * 되고, 실제로 그렇게 어긋났다 — 카드는 「탐지 0」인데 바로 아래 표는 「탐지 2」였다
++ * (내 쪽 어휘가 `present` 였다). 세는 규칙은 저쪽 것 하나다.
++ */
++function zoneTotals(zones: readonly Zone[]): { seen: number; declared: number } {
++  let seen = 0;
++  let declared = 0;
++  for (const zone of zones) {
++    seen += zone.discovered_count ?? 0;
++    declared += zone.declared_count ?? 0;
++  }
++  return { seen, declared };
++}
++
++export function FmsTwinCard() {
++  useLang();
++  const scene = useFms<Scene>('/api/scene');
++  return <FmsBody state={scene} card>{(body) => {
++    const domains = body.domains ?? [];
++    const tiles = body.map_tiles;
++    const layers = tiles?.layers ?? [];
++    const usable = layers.filter((l) => l.available === true).length;
++    const datum = body.space?.datum_id ?? null;
++    return <>
++      <div className="fms-card__line">
++        <b>{t('fms.twin.domains')}</b>
++        <span className="fms-num">{domains.length}</span>
++        {domains.some((d) => d.example === true) && <span className="fms-state fms-state--warn">{t('fms.twin.hasExample')}</span>}
++      </div>
++      <div className="fms-card__line">
++        <b>{t('fms.twin.tiles')}</b>
++        {tiles?.declared === true
++          ? <span className="fms-num">{t('fms.twin.tileCount', { usable, total: layers.length })}</span>
++          : <span className="fms-state fms-state--unmeasured">{t('fms.twin.noTiles')}</span>}
++        {tiles?.closed_network === true && <span className="fms-state fms-state--ok">{t('fms.twin.closed')}</span>}
++      </div>
++      <div className="fms-card__line">
++        <b>{t('fms.twin.datum')}</b>
++        {/* datum 이 없는 현장은 **정상 상태**다 — 전역 계층만 비활성이고 로컬 판단은
++            그대로 돈다(AI-C-02). 「없음」을 고장으로 그리지 않는다. */}
++        {datum === null || datum === ''
++          ? <span className="fms-state fms-state--unmeasured">{t('fms.twin.noDatum')}</span>
++          : <span>{datum}</span>}
++      </div>
++      {domains.length === 0 && <FmsNone messageKey="fms.twin.none" />}
++    </>;
++  }}</FmsBody>;
++}
++
++export function FmsTwinZoom() {
++  const lang = useLang();
++  const scene = useFms<Scene>('/api/scene');
++  const [domainId, setDomainId] = useState<string | null>(null);
++  const first = scene.body?.domains?.[0]?.domain_id ?? null;
++  const chosen = domainId ?? first;
++  const domain = useFms<Domain>(chosen === null ? null : `/api/domain?id=${encodeURIComponent(chosen)}`);
++  const [zoneId, setZoneId] = useState<string | null>(null);
++  const zones = domain.body?.zones ?? [];
++  const chosenZone = zoneId ?? zones[0]?.zone_id ?? null;
++  const zone = useFms<Zone>(chosenZone === null ? null : `/api/zone?id=${encodeURIComponent(chosenZone)}`);
++
++  return <div className="fms-zoom">
++    <FmsHead titleKey="viewnode.fmsTwin" state={scene} extra={
++      <span className="fms-actions">
++        <select value={chosen ?? ''} onChange={(e) => { setDomainId(e.target.value); setZoneId(null); }}>
++          {(scene.body?.domains ?? []).map((d) => <option key={d.domain_id} value={d.domain_id}>
++            {localized(d.label, lang) ?? d.domain_id}{d.example === true ? ` (${t('fms.twin.example')})` : ''}
++          </option>)}
++        </select>
++        <select value={chosenZone ?? ''} onChange={(e) => setZoneId(e.target.value)}>
++          {zones.map((z) => <option key={z.zone_id} value={z.zone_id}>{localized(z.label, lang) ?? z.zone_id}</option>)}
++        </select>
++      </span>
++    } />
++
++    <FmsBody state={domain}>{(body) => {
++      const list = body.zones ?? [];
++      const { seen, declared } = zoneTotals(list);
++      return <section>
++        <h4>{t('fms.twin.zones')}</h4>
++        <p className="fms-card__line">
++          <span>{t('fms.twin.zoneCount', { n: list.length })}</span>
++          <span>{t('fms.twin.seenOfDeclared', { seen, declared })}</span>
++        </p>
++        <ZoneMap zones={list} />
++        {withoutPlace(list).missing > 0 && <p className="fms-hint">
++          {t('fms.twin.noPositions', withoutPlace(list))}
++        </p>}
++        <table className="fms-table">
++          <thead><tr>
++            <th>{t('fms.twin.zone')}</th><th>{t('fms.twin.state')}</th>
++            <th>{t('fms.twin.declared')}</th><th>{t('fms.twin.discovered')}</th>
++            <th>{t('fms.twin.unexpected')}</th>
++          </tr></thead>
++          <tbody>{list.map((z) => <tr key={z.zone_id} className={z.unexpected_count ? 'is-blocked' : ''}>
++            <td>{localized(z.label, lang) ?? z.zone_id}{z.verified === false && <em> {t('fms.twin.unverified')}</em>}</td>
++            <td>{z.state ?? '—'}</td>
++            <td className="fms-num">{z.declared_count ?? '—'}</td>
++            <td className="fms-num">{z.discovered_count ?? '—'}</td>
++            <td className="fms-num">{z.unexpected_count ?? '—'}</td>
++          </tr>)}</tbody>
++        </table>
++        {list.length === 0 && <FmsNone messageKey="fms.twin.noZones" />}
++      </section>;
++    }}</FmsBody>
++
++    <FmsBody state={zone}>{(body) => {
++      const robots = body.robots ?? [];
++      return <section>
++        <h4>{localized(body.label, lang) ?? body.zone_id}</h4>
++        {robots.length === 0 ? <FmsNone messageKey="fms.twin.noRobots" /> : <table className="fms-table">
++          <thead><tr>
++            <th>{t('fms.twin.robot')}</th><th>{t('fms.twin.role')}</th>
++            <th>{t('fms.twin.presence')}</th><th>{t('fms.twin.lastSeen')}</th>
++          </tr></thead>
++          <tbody>{robots.map((r) => <tr key={r.node_id}>
++            <td>{r.label ?? r.node_id}</td>
++            <td>{r.role ?? '—'}</td>
++            <td><span className={`fms-state fms-state--${
++              r.presence === undefined || r.presence === null ? 'unmeasured'
++                : PRESENCE_TONE[r.presence] ?? 'warn'}`}>
++              {r.presence ?? t('fms.unmeasured')}
++            </span></td>
++            {/* 한 번도 공지하지 않은 것과 오래된 것은 다른 상태다(AI-O-05). */}
++            <td>{r.last_seen_age_s === null || r.last_seen_age_s === undefined
++              ? <span className="fms-state fms-state--unmeasured">{t('fms.neverRead')}</span>
++              : t('fms.ageSec', { sec: r.last_seen_age_s.toFixed(0) })}</td>
++          </tr>)}</tbody>
++        </table>}
++        <ul className="fms-chips">
++          {(body.usable_functions ?? []).map((f) => <li key={f}>{f}</li>)}
++        </ul>
++      </section>;
++    }}</FmsBody>
++  </div>;
++}
++
++/**
++ * 구역 도면. **서버가 준 사각형을 그대로 쓴다** — 자리를 여기서 계산하면 같은 사실에
++ * 주인이 둘이 된다. 좌표계는 구역 로컬이고 전역 값과 같은 칸에 담지 않는다(AI-C-02).
++ */
++function ZoneMap({ zones }: { zones: readonly Zone[] }) {
++  const lang = useLang();
++  const boxes = zones.filter((z): z is Zone & { rect: Rect } => z.rect !== null && z.rect !== undefined);
++  if (boxes.length === 0) return <p className="fms-hint">{t('fms.twin.noRect')}</p>;
++  const minX = Math.min(...boxes.map((z) => z.rect.x));
++  const minY = Math.min(...boxes.map((z) => z.rect.y));
++  const maxX = Math.max(...boxes.map((z) => z.rect.x + z.rect.w));
++  const maxY = Math.max(...boxes.map((z) => z.rect.y + z.rect.h));
++  // 여백은 도면 크기에 비례해야 한다 — 고정 2 m 는 50 m 구역에서는 보이지도 않고
++  // 5 m 구역에서는 그림을 반으로 줄인다.
++  const pad = Math.max(1, (maxX - minX + maxY - minY) * 0.02);
++  const span = Math.max(maxX - minX, maxY - minY);
++  const dot = Math.max(0.6, span * 0.018);
++  return <svg className="fms-map" viewBox={`${minX - pad} ${minY - pad} ${maxX - minX + pad * 2} ${maxY - minY + pad * 2}`}
++       role="img" aria-label={t('fms.twin.mapLabel')}>
++    {boxes.map((z) => <g key={z.zone_id}>
++      <rect className={`fms-map__zone${z.verified === false ? ' fms-map__zone--unverified' : ''}`}
++            strokeWidth={Math.max(0.2, span * 0.004)}
++            strokeDasharray={z.verified === false ? `${span * 0.02} ${span * 0.012}` : undefined}
++            x={z.rect.x} y={z.rect.y} width={z.rect.w} height={z.rect.h} />
++      <text className="fms-map__label" x={z.rect.x + pad} y={z.rect.y + pad * 3}
++            style={{ fontSize: `${Math.max(1.2, span * 0.03)}px` }}>{localized(z.label, lang) ?? z.zone_id}</text>
++      {/* **자리가 없는 로봇은 그리지 않는다.** 전에는 구역 안에 차례로 찍었는데,
++          그것은 보고되지 않은 자리를 지어내는 것이다 — 보는 사람은 그 점을 실제
++          위치로 읽는다(AI-C-02: 없으면 없다고 둔다).
++
++          그리는 것도 **선언된 자리와 보고된 자리를 가른다.** `position_source` 가
++          없으면 그 값은 선언에서 온 것이고, 그것을 채운 점으로 그리면 「장치가
++          거기 있다고 보고했다」로 읽힌다 — AI-C-02 가 이름 붙인 바로 그 결함이다.
++          선언은 속이 빈 점선 동그라미다. */}
++      {(z.robots ?? []).map((r) => {
++        if (r.at?.x === undefined || r.at?.y === undefined) return null;
++        const reported = r.position_source !== null && r.position_source !== undefined;
++        return <circle key={r.node_id}
++          className={'fms-map__robot'
++            + (reported ? '' : ' fms-map__robot--declared')
++            + (r.presence === 'discovered' ? '' : ' fms-map__robot--absent')}
++          cx={r.at.x} cy={r.at.y} r={dot} strokeWidth={dot / 2.5}>
++          <title>{(r.label ?? r.node_id) + ' · ' + (reported ? r.position_source : t('fms.twin.declaredPlace'))}</title>
++        </circle>;
++      })}
++    </g>)}
++  </svg>;
++}
++
++/**
++ * 도면에 점이 없는 로봇이 몇인지. **표에는 둘인데 점이 하나면 설명이 필요하다** —
++ * 설명이 없으면 보는 사람은 없는 점을 「사라진 로봇」으로 읽는다. 「자리를 모른다」와
++ * 「로봇이 없다」는 다른 사실이다.
++ */
++function withoutPlace(zones: readonly Zone[]): { missing: number; total: number } {
++  const robots = zones.flatMap((z) => z.robots ?? []);
++  const missing = robots.filter((r) => r.at?.x === undefined || r.at?.y === undefined).length;
++  return { missing, total: robots.length };
++}
+diff --git a/viz-debugger/src/i18n/en.ts b/viz-debugger/src/i18n/en.ts
+index 0f4833c..68f7440 100644
+--- a/viz-debugger/src/i18n/en.ts
++++ b/viz-debugger/src/i18n/en.ts
+@@ -3729,4 +3729,183 @@ export const en: Record<string, string> = {
+   'seq.progress.exit': 'Exit',
+   'seq.progress.capOn': 'capturing',
+   'seq.badge.line': '{id} multi-step mission',
++
++  // 261105 — FMS 노드 다섯(디지털 트윈 맵 · 추천 임무 · 서브태스크 접지 ·
++  // 계층별 지표 · 장치 관리). AI 쪽 별도 웹이 지워지고 그 계약이 게이트웨이로
++  // 왔으므로, 그 화면이 이 앱 안에 선다.
++  'viewnode.fmsTwin': 'Digital twin map',
++  'viewnode.fmsTwin.hint': 'AI read contract: site → domain → zone drill. Declared and announced are kept apart',
++  'viewnode.fmsRecommend': 'Suggested missions',
++  'viewnode.fmsRecommend.hint': 'Mission candidates worth doing now with their triggers; blocked ones show why',
++  'viewnode.fmsSubtasks': 'Subtask grounding',
++  'viewnode.fmsSubtasks.hint': 'Whether each generated step grounds to a capability that has a provider; refusals are kept per step',
++  'viewnode.fmsStack': 'Backend stack',
++  'viewnode.fmsStack.hint': 'Start and stop transport, demo stream and inference from here; only unit names are sent',
++  'fms.stack.start': 'Start',
++  'fms.stack.stop': 'Stop',
++  'fms.stack.restart': 'Restart',
++  'fms.stack.working': '…',
++  'fms.stack.ready': 'ready',
++  'fms.stack.notReady': 'not ready',
++  'fms.stack.unmeasured': 'not asked',
++  'fms.stack.needs': 'needs first: {units}',
++  'fms.stack.summary': '/ {all} units up',
++  'fms.stack.none': 'No unit is declared.',
++  'fms.stack.notConfigured': 'This install does not start units ({reason}) - the backend has no --stack-units declaration.',
++  'fms.stack.boundary': 'Starting a process is not a physical command - moving a robot is a different path and a different permission.',
++  'viewnode.fmsTiers': 'Tiered metrics',
++  'viewnode.fmsTiers.hint': 'Hardware tier per accelerator instance, kept apart from the service tier. Unmeasured is not zero',
++  'viewnode.fmsDeployment': 'Device management',
++  'viewnode.fmsDeployment.hint': 'The four stages — onboarding, calibration, training, model swap — with the capability each needs',
++  'fms.noAddress': 'No gateway address is set in connection settings',
++  'fms.status': 'HTTP {status}',
++  'fms.loading': 'Reading…',
++  'fms.reload': 'Reload',
++  'fms.neverRead': 'never received',
++  'fms.readAgo': 'read {sec}s ago',
++  'fms.ageSec': '{sec}s ago',
++  'fms.unmeasured': 'unmeasured',
++  'fms.yes': 'yes',
++  'fms.no': 'no',
++  'fms.noQuery': 'Nothing selected to look at yet',
++  'fms.noRobot': 'No robot is declared',
++  'fms.needsCapability': 'Seeing this needs the ‘{cap}’ capability',
++  'fms.needsCapability.hint': 'Signing in opens exactly what that account is allowed to see',
++  'fms.staleAfterError': 'The values below are the last ones received; this read failed ({reason})',
++  'fms.twin.domains': 'Domains',
++  'fms.twin.hasExample': 'includes examples',
++  'fms.twin.example': 'example',
++  'fms.twin.tiles': 'Background tiles',
++  'fms.twin.tileCount': '{usable} of {total} usable',
++  'fms.twin.noTiles': 'none declared',
++  'fms.twin.closed': 'closed network',
++  'fms.twin.datum': 'Site datum',
++  'fms.twin.noDatum': 'none — only the global layer is off',
++  'fms.twin.none': 'No domain is declared',
++  'fms.twin.zones': 'Zones',
++  'fms.twin.zone': 'Zone',
++  'fms.twin.zoneCount': '{n} zones',
++  'fms.twin.seenOfDeclared': '{seen} announced of {declared} declared',
++  'fms.twin.state': 'State',
++  'fms.twin.declared': 'Declared',
++  'fms.twin.discovered': 'Announced',
++  'fms.twin.unexpected': 'Unexpected',
++  'fms.twin.unverified': '(plan unverified)',
++  'fms.twin.noZones': 'This domain declares no zone',
++  'fms.twin.noRobots': 'No robot is declared in this zone',
++  'fms.twin.robot': 'Robot',
++  'fms.twin.role': 'Role',
++  'fms.twin.presence': 'Presence',
++  'fms.twin.lastSeen': 'Last announced',
++  'fms.twin.noRect': 'No plan rectangle is declared, so there is nothing to draw',
++  'fms.twin.mapLabel': 'Zone plan',
++  'fms.recommend.title': 'Mission candidates',
++  'fms.recommend.on': 'Suggested',
++  'fms.recommend.blocked': 'Blocked',
++  'fms.recommend.none': 'No candidate has its trigger satisfied',
++  'fms.recommend.mission': 'Mission',
++  'fms.recommend.verdict': 'Verdict',
++  'fms.recommend.triggers': 'Triggers',
++  'fms.recommend.missing': 'Missing capabilities',
++  'fms.recommend.notAnOrder': 'Only candidates and reasons appear here; ordering a mission goes through the control contract',
++  'fms.subtasks.plan': 'Plan',
++  'fms.subtasks.steps': 'Steps',
++  'fms.subtasks.runnable': '{runnable} of {total} executable',
++  'fms.subtasks.verdict': 'Verdict',
++  'fms.subtasks.cost': 'Total cost',
++  'fms.subtasks.costValue': '{cu} CU · {mb} MB',
++  'fms.subtasks.none': 'No step was produced',
++  'fms.subtasks.noGoal': 'No function candidate',
++  'fms.subtasks.generator': 'Generator',
++  'fms.subtasks.executor': 'Executor',
++  'fms.subtasks.escalation': 'Escalated to external development',
++  'fms.subtasks.noEscalation': 'none — no step pointed outside the vocabulary',
++  'fms.subtasks.action': 'Action',
++  'fms.subtasks.runsOn': 'Runs on',
++  'fms.subtasks.bindings': 'Grounded capabilities',
++  'fms.subtasks.blocked': 'Why blocked',
++  'fms.subtasks.optional': 'optional',
++  'fms.subtasks.missingRequired': 'required capability missing',
++  'fms.subtasks.unmetInputs': 'inputs unmet',
++  'fms.subtasks.unverified': 'preconditions unverified',
++  'fms.subtasks.forbidden': 'forbidden condition violated',
++  'fms.tiers.accelerators': 'Accelerators',
++  'fms.tiers.accelerator': 'Accelerator',
++  'fms.tiers.services': 'Services',
++  'fms.tiers.service': 'Service',
++  'fms.tiers.regions': 'Regions',
++  'fms.tiers.region': 'Region',
++  'fms.tiers.regionsMissing': '{n} not received',
++  'fms.tiers.measuredOf': '{measured} of {total} measured',
++  'fms.tiers.none': 'This deployment declares no accelerator or service',
++  'fms.tiers.l1': 'Hardware tier',
++  'fms.tiers.l2': 'Service tier',
++  'fms.tiers.board': 'Board',
++  'fms.tiers.node': 'Node',
++  'fms.tiers.utilization': 'Utilization',
++  'fms.tiers.temperature': 'Temperature',
++  'fms.tiers.serviceCount': 'Functions placed',
++  'fms.tiers.onAccelerator': 'On accelerator',
++  'fms.tiers.state': 'State',
++  'fms.tiers.latency': 'Latency',
++  'fms.tiers.throughput': 'Throughput',
++  'fms.tiers.baseline': 'baseline {value}',
++  'fms.tiers.meets': 'meets',
++  'fms.tiers.misses': 'misses',
++  'fms.tiers.available': 'Available',
++  'fms.tiers.lastSeen': 'Last received',
++  'fms.tiers.noAccelerators': 'No accelerator is declared',
++  'fms.tiers.noServices': 'No service is placed',
++  'fms.tiers.noRegions': 'The region list is empty',
++  'fms.deploy.trainingNoPermission': 'Training candidates need permission — the server returns an empty list to callers without it',
++  'fms.deploy.noTrainingGroups': 'No training candidate groups',
++  'fms.deploy.group': 'Group',
++  'fms.deploy.confirmedOfTotal': 'Confirmed / collected',
++  'fms.deploy.labels': 'Labels',
++  'fms.deploy.baseVersion': 'Base version',
++  'fms.deploy.trainable': 'Trainable',
++  'fms.deploy.needsSamples': 'needs {n} samples',
++  'fms.deploy.memoryBudget': 'Memory budget (MB)',
++  'fms.tiers.measured': 'measured',
++  'fms.tiers.declared': 'declared',
++  'fms.tiers.source': 'Source',
++  'fms.tiers.measuredN': 'measured {n}',
++  'fms.tiers.declaredN': 'declared {n}',
++  'fms.tiers.unmeasuredN': 'unmeasured {n}',
++  'fms.tiers.idleN': '{n} idle',
++  'fms.tiers.idle': 'idle',
++  'fms.tiers.indicators': 'Indicators',
++  'fms.tiers.noIndicators': 'no indicators',
++  'fms.tiers.target': 'target {dir} {value}{unit}',
++  'fms.tiers.memory': 'Memory utilization',
++  'fms.tiers.power': 'Power',
++  'fms.tiers.hostProbe': 'Host probe',
++  'fms.tiers.reason': 'Reason',
++  'fms.deploy.join': 'Onboarding',
++  'fms.deploy.calibration': 'Calibration',
++  'fms.deploy.training': 'Training',
++  'fms.deploy.model': 'Model swap',
++  'fms.deploy.joinedOf': '{joined} of {known} declared',
++  'fms.deploy.joined': 'Joined',
++  'fms.deploy.known': 'Declared devices',
++  'fms.deploy.steps': 'Remaining steps',
++  'fms.deploy.refused': 'Refused',
++  'fms.deploy.noFrames': 'no board capture',
++  'fms.deploy.declaredIsNotMeasured': 'Camera specs typed in are prior information, not an observation — on their own they do not become an active calibration profile',
++  'fms.deploy.noCameras': 'No camera is up for calibration',
++  'fms.deploy.device': 'Device',
++  'fms.deploy.views': 'Views collected',
++  'fms.deploy.noVersions': 'No model version is declared',
++  'fms.deploy.version': 'Version',
++  'fms.deploy.capability': 'Capability',
++  'fms.deploy.verifiedTags': 'Verified hardware',
++  'fms.deploy.quality': 'Quality',
++  'fms.deploy.devices': 'Per-device assignment',
++  'fms.deploy.hwTags': 'Hardware tags',
++  'fms.deploy.memory': 'Memory (MB)',
++  'fms.deploy.applied': 'Applied version',
++  'fms.deploy.notApplied': 'none applied',
++  'fms.deploy.noDevices': 'No device is up for assignment',
++  'fms.twin.noPositions': '{missing} of {total} robots report no position, so they have no dot — that means ‘position unknown’, not ‘no robot’. A dashed circle is a declared place, not an observation',
++  'fms.twin.declaredPlace': 'declared place (not an observation)',
+ };
+diff --git a/viz-debugger/src/i18n/ko.ts b/viz-debugger/src/i18n/ko.ts
+index b630c65..34abb02 100644
+--- a/viz-debugger/src/i18n/ko.ts
++++ b/viz-debugger/src/i18n/ko.ts
+@@ -3754,4 +3754,183 @@ export const ko: Record<string, string> = {
+   'seq.progress.exit': '종료',
+   'seq.progress.capOn': 'CAP 중',
+   'seq.badge.line': '{id} 복합 미션',
++
++  // 261105 — FMS 노드 다섯(디지털 트윈 맵 · 추천 임무 · 서브태스크 접지 ·
++  // 계층별 지표 · 장치 관리). AI 쪽 별도 웹이 지워지고 그 계약이 게이트웨이로
++  // 왔으므로, 그 화면이 이 앱 안에 선다.
++  'viewnode.fmsTwin': '디지털 트윈 맵',
++  'viewnode.fmsTwin.hint': 'AI 조회 계약의 현장 → 도메인 → 구역 드릴. 선언과 공지를 섞지 않는다',
++  'viewnode.fmsRecommend': '추천 임무',
++  'viewnode.fmsRecommend.hint': '지금 할 가치가 있는 임무 후보와 촉발 근거. 막힌 후보도 사유와 함께 보인다',
++  'viewnode.fmsSubtasks': '서브태스크 접지',
++  'viewnode.fmsSubtasks.hint': '생성된 단계가 현재 제공자가 있는 기능으로 접지되는지. 거부 사유가 단계마다 남는다',
++  'viewnode.fmsStack': '백엔드 스택',
++  'viewnode.fmsStack.hint': '전송·실증 스트림·추론을 **여기서** 켜고 끈다. 보내는 것은 단위 이름뿐이다',
++  'fms.stack.start': '세운다',
++  'fms.stack.stop': '내린다',
++  'fms.stack.restart': '다시 세운다',
++  'fms.stack.working': '…',
++  'fms.stack.ready': '준비됨',
++  'fms.stack.notReady': '준비 안 됨',
++  'fms.stack.unmeasured': '묻지 않았다',
++  'fms.stack.needs': '먼저 서야 한다: {units}',
++  'fms.stack.summary': '/ {all} 단위가 서 있다',
++  'fms.stack.none': '선언된 단위가 없다.',
++  'fms.stack.notConfigured': '이 설치는 스택을 띄우지 않는다 ({reason}) — 백엔드에 --stack-units 선언이 없다.',
++  'fms.stack.boundary': '프로세스를 띄우는 것은 물리 명령이 아니다 — 로봇을 움직이는 명령은 다른 경로·다른 권한이다.',
++  'viewnode.fmsTiers': '계층별 지표',
++  'viewnode.fmsTiers.hint': '가속기 개체별 하드웨어 계층과 서비스 계층을 섞지 않고. 미측정은 0 이 아니다',
++  'viewnode.fmsDeployment': '장치 관리',
++  'viewnode.fmsDeployment.hint': '들이기 · 보정 · 학습 · 모델 교체 네 단계의 상태와 필요한 능력',
++  'fms.noAddress': '연결 관리에 게이트웨이 주소가 비어 있습니다',
++  'fms.status': 'HTTP {status}',
++  'fms.loading': '읽는 중…',
++  'fms.reload': '다시 읽기',
++  'fms.neverRead': '한 번도 받지 않음',
++  'fms.readAgo': '{sec}초 전에 읽음',
++  'fms.ageSec': '{sec}초 전',
++  'fms.unmeasured': '미측정',
++  'fms.yes': '예',
++  'fms.no': '아니오',
++  'fms.noQuery': '무엇을 볼지 아직 고르지 않았습니다',
++  'fms.noRobot': '선언된 로봇이 없습니다',
++  'fms.needsCapability': '이 값을 보려면 ‘{cap}’ 능력이 필요합니다',
++  'fms.needsCapability.hint': '계정으로 들어오면 그 계정이 가진 능력만큼 열립니다',
++  'fms.staleAfterError': '아래 값은 마지막으로 받은 것입니다 — 이번 읽기는 실패했습니다({reason})',
++  'fms.twin.domains': '도메인',
++  'fms.twin.hasExample': '예시 포함',
++  'fms.twin.example': '예시',
++  'fms.twin.tiles': '배경 타일',
++  'fms.twin.tileCount': '{usable} / {total} 사용 가능',
++  'fms.twin.noTiles': '선언 없음',
++  'fms.twin.closed': '폐쇄망',
++  'fms.twin.datum': '전역 기준점',
++  'fms.twin.noDatum': '없음 — 전역 계층만 비활성',
++  'fms.twin.none': '도메인 선언이 없습니다',
++  'fms.twin.zones': '구역',
++  'fms.twin.zone': '구역',
++  'fms.twin.zoneCount': '구역 {n}개',
++  'fms.twin.seenOfDeclared': '공지로 탐지 {seen} / 선언 {declared}',
++  'fms.twin.state': '상태',
++  'fms.twin.declared': '선언',
++  'fms.twin.discovered': '탐지',
++  'fms.twin.unexpected': '예상 밖',
++  'fms.twin.unverified': '(도면 미검증)',
++  'fms.twin.noZones': '이 도메인에 구역 선언이 없습니다',
++  'fms.twin.noRobots': '이 구역에 선언된 로봇이 없습니다',
++  'fms.twin.robot': '로봇',
++  'fms.twin.role': '역할',
++  'fms.twin.presence': '존재',
++  'fms.twin.lastSeen': '마지막 공지',
++  'fms.twin.noRect': '도면 사각형이 선언되지 않아 그릴 자리가 없습니다',
++  'fms.twin.mapLabel': '구역 도면',
++  'fms.recommend.title': '임무 후보',
++  'fms.recommend.on': '권함',
++  'fms.recommend.blocked': '막힘',
++  'fms.recommend.none': '촉발 근거가 성립한 후보가 없습니다',
++  'fms.recommend.mission': '임무',
++  'fms.recommend.verdict': '판정',
++  'fms.recommend.triggers': '촉발 근거',
++  'fms.recommend.missing': '없는 기능',
++  'fms.recommend.notAnOrder': '후보와 사유만 나옵니다 — 임무 발령은 제어 계약을 거칩니다',
++  'fms.subtasks.plan': '계획',
++  'fms.subtasks.steps': '단계',
++  'fms.subtasks.runnable': '실행 가능 {runnable} / {total}',
++  'fms.subtasks.verdict': '판정',
++  'fms.subtasks.cost': '비용 합',
++  'fms.subtasks.costValue': '{cu} CU · {mb} MB',
++  'fms.subtasks.none': '단계가 산출되지 않았습니다',
++  'fms.subtasks.noGoal': '기능 후보가 없습니다',
++  'fms.subtasks.generator': '생성 주체',
++  'fms.subtasks.executor': '수행 주체',
++  'fms.subtasks.escalation': '외부 개발 요청 대상',
++  'fms.subtasks.noEscalation': '없음 — 어휘 밖 기능을 가리킨 단계가 없습니다',
++  'fms.subtasks.action': '행위',
++  'fms.subtasks.runsOn': '실행 위치',
++  'fms.subtasks.bindings': '접지된 기능',
++  'fms.subtasks.blocked': '막힌 이유',
++  'fms.subtasks.optional': '선택',
++  'fms.subtasks.missingRequired': '필수 기능 없음',
++  'fms.subtasks.unmetInputs': '입력 미충족',
++  'fms.subtasks.unverified': '전제 미검증',
++  'fms.subtasks.forbidden': '금지 조건 위반',
++  'fms.tiers.accelerators': '가속기',
++  'fms.tiers.accelerator': '가속기',
++  'fms.tiers.services': '서비스',
++  'fms.tiers.service': '서비스',
++  'fms.tiers.regions': '구역',
++  'fms.tiers.region': '구역',
++  'fms.tiers.regionsMissing': '미수신 {n}',
++  'fms.tiers.measuredOf': '실측 {measured} / {total}',
++  'fms.tiers.none': '이 배치에는 가속기·서비스 선언이 없습니다',
++  'fms.tiers.l1': '하드웨어 계층',
++  'fms.tiers.l2': '서비스 계층',
++  'fms.tiers.board': '보드',
++  'fms.tiers.node': '노드',
++  'fms.tiers.utilization': '사용률',
++  'fms.tiers.temperature': '온도',
++  'fms.tiers.serviceCount': '배치된 기능',
++  'fms.tiers.onAccelerator': '도는 가속기',
++  'fms.tiers.state': '상태',
++  'fms.tiers.latency': '지연',
++  'fms.tiers.throughput': '처리량',
++  'fms.tiers.baseline': '기준선 {value}',
++  'fms.tiers.meets': '충족',
++  'fms.tiers.misses': '미달',
++  'fms.tiers.available': '가용',
++  'fms.tiers.lastSeen': '마지막 수신',
++  'fms.tiers.noAccelerators': '가속기 선언이 없습니다',
++  'fms.tiers.noServices': '배치된 서비스가 없습니다',
++  'fms.tiers.noRegions': '구역 목록이 비어 있습니다',
++  'fms.deploy.trainingNoPermission': '학습 후보는 권한이 있어야 보입니다 — 서버가 권한 없는 호출에 빈 목록을 돌려줍니다',
++  'fms.deploy.noTrainingGroups': '학습 후보 묶음이 없습니다',
++  'fms.deploy.group': '묶음',
++  'fms.deploy.confirmedOfTotal': '확인 / 모음',
++  'fms.deploy.labels': '라벨',
++  'fms.deploy.baseVersion': '기준 버전',
++  'fms.deploy.trainable': '학습 가능',
++  'fms.deploy.needsSamples': '표본 {n} 필요',
++  'fms.deploy.memoryBudget': '메모리 예산(MB)',
++  'fms.tiers.measured': '실측',
++  'fms.tiers.declared': '선언',
++  'fms.tiers.source': '출처',
++  'fms.tiers.measuredN': '실측 {n}',
++  'fms.tiers.declaredN': '선언 {n}',
++  'fms.tiers.unmeasuredN': '미측정 {n}',
++  'fms.tiers.idleN': '유휴 {n}',
++  'fms.tiers.idle': '유휴',
++  'fms.tiers.indicators': '지표',
++  'fms.tiers.noIndicators': '지표 없음',
++  'fms.tiers.target': '기준 {dir} {value}{unit}',
++  'fms.tiers.memory': '메모리 사용률',
++  'fms.tiers.power': '전력',
++  'fms.tiers.hostProbe': '계측 지점',
++  'fms.tiers.reason': '사유',
++  'fms.deploy.join': '들이기',
++  'fms.deploy.calibration': '보정',
++  'fms.deploy.training': '학습',
++  'fms.deploy.model': '모델 교체',
++  'fms.deploy.joinedOf': '{joined} / 선언 {known}',
++  'fms.deploy.joined': '조인됨',
++  'fms.deploy.known': '선언된 장치',
++  'fms.deploy.steps': '남은 할 일',
++  'fms.deploy.refused': '거절됨',
++  'fms.deploy.noFrames': '보정판 캡처 없음',
++  'fms.deploy.declaredIsNotMeasured': '적어 넣은 카메라 제원은 관측이 아니라 사전정보입니다 — 그것만으로 활성 보정 프로파일이 되지 않습니다',
++  'fms.deploy.noCameras': '보정 대상 카메라가 없습니다',
++  'fms.deploy.device': '장치',
++  'fms.deploy.views': '확보한 장면',
++  'fms.deploy.noVersions': '모델 버전 선언이 없습니다',
++  'fms.deploy.version': '버전',
++  'fms.deploy.capability': '기능',
++  'fms.deploy.verifiedTags': '검증된 하드웨어',
++  'fms.deploy.quality': '품질',
++  'fms.deploy.devices': '기기별 적용',
++  'fms.deploy.hwTags': '하드웨어 태그',
++  'fms.deploy.memory': '메모리(MB)',
++  'fms.deploy.applied': '적용된 버전',
++  'fms.deploy.notApplied': '적용 없음',
++  'fms.deploy.noDevices': '배정 대상 장치가 없습니다',
++  'fms.twin.noPositions': '로봇 {total}대 중 {missing}대는 자리를 보고하지 않아 도면에 점이 없습니다 — 「자리를 모른다」이지 「로봇이 없다」가 아닙니다. 점선 동그라미는 선언된 자리이고 관측이 아닙니다',
++  'fms.twin.declaredPlace': '선언된 자리 (관측 아님)',
+ };
+diff --git a/viz-debugger/src/scenarios/axes.ts b/viz-debugger/src/scenarios/axes.ts
+index fe4b9e5..22456be 100644
+--- a/viz-debugger/src/scenarios/axes.ts
++++ b/viz-debugger/src/scenarios/axes.ts
+@@ -97,12 +97,20 @@ export type ViewNodeKindId =
+   | 'sar' | 'recon-3d' | 'virtual-3d'
+   | 'vision-stream'
+   // 261002 — 드론 파트. 대본이 아니라 드론이 미는 값이라 축 표(`AXIS_NODES`)에 없다.
+-  | 'drone-rtk' | 'sar-pass' | 'drone-dash';
++  | 'drone-rtk' | 'sar-pass' | 'drone-dash'
++  // 261105 — FMS 다섯. AI 파트의 관제 웹이 지워지고 그 조회 계약이 게이트웨이로 왔다.
++  // 드론 셋과 같은 이유로 축 표에 **없다** — 대본이 아니라 AI 서버가 내는 값이다.
++  | 'fms-twin' | 'fms-recommend' | 'fms-subtasks' | 'fms-tiers' | 'fms-deployment'
++  // 261120 — 백엔드 스택을 여기서 켠다. 쓰기 계약(`POST /api/stack`)을 쓰는 **첫**
++  // FMS 노드다: 나머지 다섯은 조회만 한다.
++  | 'fms-stack';
+ 
+ /** 표에 등장하는 종류들. 등록된 렌더러와 어긋나면 `verify:node-scope` 가 잡는다. */
+ export const SCENARIO_NODE_KINDS: readonly ViewNodeKindId[] =
+   ['device-risk', 'control', 'metrics', 'video', 'robot', 'detect-cam', 'detect-reason', 'detect-map', 'autodrive-cam',
+-    'virtual-map', 'device-cam', 'obstacle-log', 'sar', 'recon-3d', 'virtual-3d', 'vision-stream', 'drone-rtk', 'sar-pass', 'drone-dash'];
++    'virtual-map', 'device-cam', 'obstacle-log', 'sar', 'recon-3d', 'virtual-3d', 'vision-stream', 'drone-rtk', 'sar-pass', 'drone-dash',
++    'fms-twin', 'fms-recommend', 'fms-subtasks', 'fms-tiers', 'fms-deployment',
++    'fms-stack'];
+ 
+ // `robot` 은 **축 표(`AXIS_NODES`)에 없다** — 일부러다 (260910).
+ //
+diff --git a/viz-debugger/src/tabs/viewNodes.tsx b/viz-debugger/src/tabs/viewNodes.tsx
+index 9c39eee..fc8b166 100644
+--- a/viz-debugger/src/tabs/viewNodes.tsx
++++ b/viz-debugger/src/tabs/viewNodes.tsx
+@@ -78,6 +78,14 @@ import { DeviceCamera } from '../media/views/DeviceCamera.tsx';
+ import { resolveSlot } from '../data/slots.ts';
+ import { directCameraPositions, useDirectCameraSources } from '../physical/cameraView.ts';
+ import { AttachedImage } from '../imagery/AttachedImage.tsx';
++import { FmsTwinCard, FmsTwinZoom } from '../fms/views/FmsTwin.tsx';
++import {
++  FmsRecommendCard, FmsRecommendZoom, FmsSubtasksCard, FmsSubtasksZoom,
++} from '../fms/views/FmsMission.tsx';
++import {
++  FmsDeploymentCard, FmsDeploymentZoom, FmsTiersCard, FmsTiersZoom,
++} from '../fms/views/FmsTiers.tsx';
++import { FmsStackCard, FmsStackZoom } from '../fms/views/FmsStack.tsx';
+ import { RtkCard, RtkZoom } from '../sar/RtkView.tsx';
+ import { SarPassCard, SarPassZoom } from '../sar/SarPassView.tsx';
+ import { DroneDashCard, DroneDashZoom } from '../dronedash/DroneDash.tsx';
+@@ -337,6 +345,78 @@ const onlySlots = (missionId: string) => slotDriven(missionId);
+ const withFloorPlan = (missionId: string) => notRelay(missionId) && usesFloorPlan(missionId);
+ 
+ export const VIEW_NODE_RENDERERS: readonly ViewNodeEntry[] = [
++  {
++    // 261105 — **FMS 노드 다섯.** AI 파트의 관제 웹이 지워지고 그 조회 계약이
++    // 게이트웨이로 왔다(`/registry` 와 같은 포트). 화면이 둘이면 운영자가 두 곳을
++    // 오가고, 같은 사실을 두 곳이 각자 조립하는 날 둘이 다른 답을 말한다.
++    //
++    // 자리표시로 감싸지 않는다 — **AI 서버가 실제로 내는 값**이다(`obstacle-log` 와
++    // 같은 규칙). 모든 편 팔레트에 선다: 대본과 무관하게 현장이 돌고 있으면 읽힌다.
++    //
++    // 폴링하지 않는다. 열 때 한 번 읽고 그 뒤는 사람이 「다시 읽기」를 누를 때만이다 —
++    // 저쪽 계약의 규칙과 같다(아무도 보지 않는 구역을 상시 갱신하면 그 구역의
++    // 추론·전송까지 계속 돈다).
++    kind: 'fms-twin',
++    shape: 'media',
++    labelKey: 'viewnode.fmsTwin',
++    hintKey: 'viewnode.fmsTwin.hint',
++    summary: () => <NodeGate card kind="fms-twin"><FmsTwinCard /></NodeGate>,
++    zoom: () => <NodeGate kind="fms-twin"><FmsTwinZoom /></NodeGate>,
++  },
++  {
++    // 261105 — 추천 임무. **후보와 사유만 나온다** — 발령 단추를 두지 않는다(AI-C-19).
++    // 막힌 후보를 감추지 않는 것이 요점이다: 다음에 무엇을 보완해야 하는지가 거기 있다.
++    kind: 'fms-recommend',
++    labelKey: 'viewnode.fmsRecommend',
++    hintKey: 'viewnode.fmsRecommend.hint',
++    summary: () => <NodeGate card kind="fms-recommend"><FmsRecommendCard /></NodeGate>,
++    zoom: () => <NodeGate kind="fms-recommend"><FmsRecommendZoom /></NodeGate>,
++  },
++  {
++    // 261105 — 서브태스크 접지. 그럴듯한 단계와 **실제로 실행 가능한** 단계는 다른
++    // 문제이고, 둘을 구분하지 않으면 계획은 통과하고 실행만 실패한다. 거부 사유는
++    // 단계마다 종류별로 남는다(없는 기능 · 입력 미충족 · 전제 미검증 · 금지 위반).
++    kind: 'fms-subtasks',
++    labelKey: 'viewnode.fmsSubtasks',
++    hintKey: 'viewnode.fmsSubtasks.hint',
++    summary: () => <NodeGate card kind="fms-subtasks"><FmsSubtasksCard /></NodeGate>,
++    zoom: () => <NodeGate kind="fms-subtasks"><FmsSubtasksZoom /></NodeGate>,
++  },
++  {
++    // 261120 — **백엔드 스택을 여기서 켠다.** 그 전까지 운영은 둘로 나뉘어 있었다:
++    // 이 화면에서 결정하고 백엔드 기계 앞에 앉은 사람이 `make up` 과
++    // `server_stream_multi_source.py` 를 손으로 쳤다. 그 기계에서 사람이 하는 일은
++    // 이제 하나다 — 백엔드를 켜 두는가.
++    //
++    // **보내는 것은 단위 이름뿐이다.** 명령을 입력하는 칸이 없는 것이 요점이다:
++    // 저쪽은 명령줄을 받지 않고, 받으면 쓰기 계약 하나가 원격 코드 실행 창구가 된다.
++    kind: 'fms-stack',
++    labelKey: 'viewnode.fmsStack',
++    hintKey: 'viewnode.fmsStack.hint',
++    summary: () => <NodeGate card kind="fms-stack"><FmsStackCard /></NodeGate>,
++    zoom: () => <NodeGate kind="fms-stack"><FmsStackZoom /></NodeGate>,
++  },
++  {
++    // 261105 — 계층별 지표. 하드웨어 계층과 서비스 계층을 **한 목록에 섞지 않고**,
++    // 서비스 줄에는 그것이 도는 가속기를 적는다. **미측정은 0 도 미달도 아니다** —
++    // 값이 없으면 없다고 적고, 배치된 기능이 없는 가속기도 목록에서 빼지 않는다.
++    kind: 'fms-tiers',
++    labelKey: 'viewnode.fmsTiers',
++    hintKey: 'viewnode.fmsTiers.hint',
++    summary: () => <NodeGate card kind="fms-tiers"><FmsTiersCard /></NodeGate>,
++    zoom: () => <NodeGate kind="fms-tiers"><FmsTiersZoom /></NodeGate>,
++  },
++  {
++    // 261105 — 장치 관리. 비개발자가 하는 네 가지가 실제 순서대로 선다(들이기 ·
++    // 보정 · 학습 · 모델 교체). 권한이 없는 자리는 비는 대신 **무슨 능력이
++    // 필요한지**를 적는다 — 빈 목록은 「할 일이 없다」와 「볼 수 없다」를 구분하지
++    // 못한다. 적어 넣은 카메라 제원은 관측이 아니라 사전정보라고 화면이 직접 적는다.
++    kind: 'fms-deployment',
++    labelKey: 'viewnode.fmsDeployment',
++    hintKey: 'viewnode.fmsDeployment.hint',
++    summary: () => <NodeGate card kind="fms-deployment"><FmsDeploymentCard /></NodeGate>,
++    zoom: () => <NodeGate kind="fms-deployment"><FmsDeploymentZoom /></NodeGate>,
++  },
+   {
+     // 장치 두 대 편 (260927). **Unity 인지 2D 맵인지는 연결 관리가 정한다** — 버튼을 둘로 늘리지 않는다.
+     // 재생 머리를 넘긴다 — 장치 위치와 경로가 되감기를 따라간다.

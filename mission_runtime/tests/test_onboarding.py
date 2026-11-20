@@ -7,7 +7,10 @@ import pytest
 
 from mission_runtime.contracts.profile import ResourceBudget
 from mission_runtime.providers.overlay import StaticOverlayProvider
+from mission_runtime.contracts.capability_contract import DeclarationBasis
+from mission_runtime.contracts.physical_command import Capability
 from mission_runtime.registry.onboarding import (
+    ALL_DECLARATION_ITEMS,
     APPEARANCE_ASSET_TEMPLATE,
     JOIN_CONTRACT_VERSION,
     JoinRejection,
@@ -238,3 +241,72 @@ def test_a_manifest_can_be_built_directly_without_the_wire_form():
                                 budget=ResourceBudget(compute_units=1.0, memory_mb=512.0))
 
     assert manifest.contract_version == JOIN_CONTRACT_VERSION
+
+
+# --- 공지가 적지 않은 AI-C-18 항목이 보이는가 -------------------------------
+# 조인을 거절하지 않는다(덜 찬 선언도 유효한 선언이다). 적어 두는 이유는 그
+# 사실이 보이지 않으면 "선언이 다 왔다" 와 구분되지 않기 때문이다.
+
+
+def test_a_name_only_announcement_is_accepted_and_every_item_is_recorded_as_missing():
+    outcome = onboarding().submit(manifest_from_dict(GOOD),
+                                  announced_actions=["move_forward", "turn", "stop"])
+
+    assert outcome.accepted is True
+    assert set(outcome.under_declared_actions) == {"move_forward", "turn", "stop"}
+    assert outcome.under_declared_actions["stop"] == ALL_DECLARATION_ITEMS
+    assert "cancellable" in ALL_DECLARATION_ITEMS and "idempotent" in ALL_DECLARATION_ITEMS
+
+
+def test_a_rich_announcement_records_only_what_it_actually_left_out():
+    outcome = onboarding().submit(manifest_from_dict(GOOD), announced_actions=[
+        Capability(name="move_forward", version="1", parameter_schema="p",
+                   result_schema="r", required_resources=("locomotion.legged",),
+                   cancel_supported=True, idempotent=False, invocation="asynchronous",
+                   basis=DeclarationBasis(units={"distance_m": "m"},
+                                          reference_frame="device-local",
+                                          time_basis="device_monotonic"),
+                   scope_tags=(), execution_profile_ref="profile://move/1"),
+        Capability(name="turn", cancel_supported=False),
+        "stop",
+    ])
+
+    # 다 적은 선언은 목록에서 아예 빠진다(빈 묶음은 담지 않는다).
+    assert "move_forward" not in outcome.under_declared_actions
+    # "취소 불가" 를 선언한 action 은 그 항목만 빠지고 나머지는 남는다 —
+    # 선언했다는 사실과 선언 내용이 섞이지 않는다.
+    assert "cancellable" not in outcome.under_declared_actions["turn"]
+    assert "idempotent" in outcome.under_declared_actions["turn"]
+    assert outcome.under_declared_actions["stop"] == ALL_DECLARATION_ITEMS
+    assert outcome.as_dict()["under_declared_actions"]["stop"] == list(ALL_DECLARATION_ITEMS)
+
+
+def test_the_real_fleet_declaration_joins_with_its_gap_named(tmp_path):
+    """**실제 선언**으로 확인한다. `config/status_ui.json` 의 go1-001 · ep-001 은
+    하드웨어 파트의 조인 선언이 정본이고 거기에는 action **이름**만 있다 — 그래서
+    AI-C-18 항목 전부가 미선언으로 남는 것이 지금의 정상 상태이고, 그 상태가
+    조인을 막지 않는다(spec §8-3 P7, docs/integration-handover.md §1-다).
+    """
+    import json
+    from pathlib import Path
+
+    config = json.loads(
+        (Path(__file__).resolve().parents[1] / "config" / "status_ui.json").read_text())
+    real = [node for node in config["nodes"] if node.get("declared_actions")]
+    assert real, "실제 선언이 하나는 있어야 이 시험이 뜻을 가진다"
+
+    ob = NodeOnboarding(overlay=None)
+    for node in real:
+        outcome = ob.submit(
+            NodeJoinManifest(
+                device_id=node["node_id"], role=node["role"],
+                node_tags=frozenset(node["tags"]),
+                budget=ResourceBudget(**node["budget"]) if node.get("budget") else None,
+                declared_actions=tuple(node["declared_actions"]),
+            ),
+            announced_actions=node["declared_actions"],
+        )
+        assert outcome.accepted is True, outcome.rejections
+        assert outcome.unannounced_declarations == ()
+        for action in node["declared_actions"]:
+            assert outcome.under_declared_actions[action] == ALL_DECLARATION_ITEMS

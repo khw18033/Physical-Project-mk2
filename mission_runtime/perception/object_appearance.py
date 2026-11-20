@@ -85,7 +85,7 @@ REQUIREMENT = CapabilityRequirement(
               "perception.depth", "reference.site_datum"),
 )
 
-#: 자산 뿌리의 환경변수. `tests/conftest.py::asset_root()` · `tools/fms_console` 와
+#: 자산 뿌리의 환경변수. `tests/conftest.py::asset_root()` · `tools/view_service` 와
 #: **같은 규약**이다 — 자리를 모듈마다 따로 적으면 재분류가 또 있을 때 어떤 쪽은
 #: 조용히 '자산 없음' 이 된다.
 ASSET_ROOT_ENV = "MISSION_RUNTIME_ASSETS"
@@ -165,7 +165,7 @@ GROUP_KEYS: tuple[str, ...] = ("grounds", "placement", "size_fit", "superseded")
 REFUSE_UNKNOWN_FRAME = "unregistered_frame"
 #: 전역 프레임 값이 들어왔다. 전역 변환은 검증된 site datum 을 가진 계층의 일이고
 #: (`perception/twin_map.py`) 이 모듈은 변환을 하지 않는다 — 공개 상태 계약은 아직
-#: 전역 좌표 칸을 내지 않는다(`tools/fms_console/fleet.py::global_release()` 가 그 게이트다).
+#: 전역 좌표 칸을 내지 않는다(`tools/view_service/fleet.py::global_release()` 가 그 게이트다).
 REFUSE_GLOBAL_FRAME = "global_value_not_owned_here"
 #: 자리를 아직 관측하지 못했다. 모름이고 0 좌표가 아니다.
 REFUSE_POSITION_UNKNOWN = "position_not_observed"
@@ -187,7 +187,7 @@ def identity_fields(payload: Mapping[str, Any]) -> tuple[str, ...]:
 
 
 def default_asset_root() -> Path | None:
-    """자산이 사는 자리. `tests/conftest.py` · `tools/fms_console` 와 같은 규약.
+    """자산이 사는 자리. `tests/conftest.py` · `tools/view_service` 와 같은 규약.
 
     환경변수가 있으면 없는 자리라도 그대로 쓴다(조용히 다른 곳을 집으면 "왜 못
     찾느냐" 를 추적할 수 없다). 없으면 개발 배치의 `../local` 이고, 그것도 없으면

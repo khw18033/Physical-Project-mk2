@@ -1,6 +1,6 @@
 """Collecting experiment data from live heterogeneous perception execution.
 
-implements: AI-S-06, AI-O-01, AI-O-03, AI-C-08, AI-C-11, AI-C-14
+implements: AI-S-06, AI-O-01, AI-O-03, AI-C-08, AI-C-05, AI-C-06
 
 This runs the real thing and writes down what happened. Frames come from a
 media source, every registered perception worker runs on the same frame, and
@@ -14,9 +14,9 @@ What the session guarantees:
 * Workers run concurrently and results are consumed **in completion order**,
   so a slow worker delays only its own evidence.
 * A worker that fails or is unavailable produces no evidence and does not stop
-  the frame, the other workers, or the session (AI-C-11).
+  the frame, the other workers, or the session (AI-C-05).
 * Frames are pulled through a MediaSourceProvider and pixels are never written
-  into the run bundle — only regions, labels and references (AI-C-08, AI-C-14).
+  into the run bundle — only regions, labels and references (AI-C-08, AI-C-06).
 * Every run records the conditions it ran under, so a bundle can be compared
   against another run or replayed offline (AI-O-03).
 """

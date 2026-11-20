@@ -153,6 +153,19 @@ def published_texts(published_paths: list[str]) -> list[tuple[str, str]]:
     return out
 
 
+#: 벤더 트리 — 우리가 쓴 코드가 아니고 **고치지 않는다**(`third_party/README.md`).
+#: 그 안의 만든 쪽 기계 경로·연락처는 우리가 고칠 수 없으므로 실패로 두지 않는다 —
+#: 고칠 수 없는 것을 실패로 두면 시험 자체가 무시된다. 대신 그 사실을 벤더 README 가
+#: 적고, 받는 쪽은 자기 자리로 설정을 바꾼다. **비밀값·비공개 트리 검사는 벤더 트리에도
+#: 그대로 적용된다** — 그것은 고칠 수 없는 것이 아니라 들어오면 안 되는 것이다.
+VENDORED_PREFIX = f"{PUBLISHED_PREFIX}third_party/"
+
+
+def _ours(texts):
+    """우리가 고칠 수 있는 것만. 벤더 트리를 뺀다."""
+    return [(rel, text) for rel, text in texts if not rel.startswith(VENDORED_PREFIX)]
+
+
 def _hits(texts, pattern: re.Pattern[str], *, accept=lambda m: True) -> dict[str, int]:
     """패턴에 걸린 파일 → 첫 줄 번호."""
     found: dict[str, int] = {}
@@ -191,7 +204,7 @@ def test_no_new_developer_home_path_is_published(published_texts):
     def not_a_placeholder(match: re.Match[str]) -> bool:
         return match.group(1) not in HOME_PATH_PLACEHOLDERS
 
-    found = _hits(published_texts, HOME_PATH, accept=not_a_placeholder)
+    found = _hits(_ours(published_texts), HOME_PATH, accept=not_a_placeholder)
     new = {k: v for k, v in found.items() if k not in _PENDING_HOME_PATHS}
     assert not new, (
         "개발 기계의 홈 경로가 새로 들어왔다. 상대 경로나 설정값으로 바꾼다: " + repr(new)
@@ -200,7 +213,7 @@ def test_no_new_developer_home_path_is_published(published_texts):
 
 def test_no_new_personal_email_is_published(published_texts):
     """공개 저장소의 개인 주소는 수집 대상이 된다 — 프로젝트 연락처를 쓴다."""
-    found = _hits(published_texts, PERSONAL_EMAIL)
+    found = _hits(_ours(published_texts), PERSONAL_EMAIL)
     new = {k: v for k, v in found.items() if k not in _PENDING_PERSONAL_EMAILS}
     assert not new, "개인 메일 주소가 새로 들어왔다: " + repr(new)
 

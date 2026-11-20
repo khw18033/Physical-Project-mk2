@@ -33,3 +33,18 @@ fms_overlay
 # 시험과 콘솔이 `config/*.example.json` 을 읽는다.
 config/*credentials*.json
 !config/*.example.json
+
+# 실제 현장 선언은 이미지에 굽지 않는다. 자격증명과 같은 이유이고, 같은 모양으로
+# 막는다 — `.example` 은 남기고 현장 것만 뺀다.
+#
+# 이미지에 들어가면 받는 사람이 **우리 현장의 구역·좌표·장치 식별자**를 함께 받는다.
+# 선언은 배치가 공급하는 자료이지 배포물의 일부가 아니다(AI-C-15). 콘솔은
+# `--ui-config`·`--zone-profile` 로 자기 선언을 가리키고, compose 가 예시를 명시로
+# 넘긴다 — 기본값에 기대지 않는 이유는 기본값이 아직 현장 파일을 가리키기 때문이다.
+profiles/domains.json
+profiles/defense.json
+profiles/robot.json
+config/status_ui.json
+config/devices.json
+!profiles/*.example.json
+!config/*.example.json

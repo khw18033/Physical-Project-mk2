@@ -1,7 +1,7 @@
 """implements: AI-B-10, AI-E-01, AI-B-09
 
 ultralytics/가중치가 없는 노드에서는 이 optional provider의 실물 추론
-테스트만 skip된다 — 다른 capability의 검증을 막지 않는다(AI-C-11).
+테스트만 skip된다 — 다른 capability의 검증을 막지 않는다(AI-C-05).
 """
 from pathlib import Path
 
@@ -24,7 +24,7 @@ def _ultralytics_importable() -> bool:
 
 pytestmark = pytest.mark.skipif(
     not (_ultralytics_importable() and WEIGHTS_PATH.exists()),
-    reason="ultralytics 미설치 또는 yolov8n.pt 가중치 없음 (AI-C-11: 이 provider만 skip)",
+    reason="ultralytics 미설치 또는 yolov8n.pt 가중치 없음 (AI-C-05: 이 provider만 skip)",
 )
 
 
@@ -60,12 +60,11 @@ def test_detect_returns_class_agnostic_proposals_on_a_blank_frame():
 
 
 def test_device_defaults_to_a_probed_tag_not_a_hardcoded_vendor():
-    from mission_runtime.ondevice.rpn_propose import RpnProposalProvider
-    from mission_runtime.providers.compute import discover_node_tags
+    from mission_runtime.ondevice.rpn_propose import RpnProposalProvider, default_device
 
     provider = RpnProposalProvider(WEIGHTS_PATH)
 
-    from mission_runtime.providers.compute import TAG_GPU
-
-    expected = "cuda" if TAG_GPU in discover_node_tags() else "cpu"
-    assert provider.device == expected
+    # 규칙은 운영 코드가 소유한다 — 여기서 다시 유도하면 가속기를 쓰지 않기로 한
+    # 선언이 시험만 비껴간다(실제로 그래서 이 시험 넷이 한 번 깨졌다).
+    assert provider.device == default_device()
+    assert provider.device in ("cpu", "cuda"), "벤더 문자열을 박아 두지 않는다"

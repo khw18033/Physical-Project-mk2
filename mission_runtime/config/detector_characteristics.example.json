@@ -1,0 +1,346 @@
+{
+  "$comment": "zero-shot 탐지기의 **행동 특성 선언** — 예시 설정. 네 번째 탐지기를 더하는 것은 이 파일에 항목 하나를 더하는 것이고 코드 변경이 아니다(AI-C-15, 원칙 #1·#7). 값은 전부 자유 문자열 태그이고 벤더 enum 이 아니다 — `edge/detector_catalog.py` 는 어떤 값도 화이트리스트로 검사하지 않는다. 여기 적는 것은 **어디서 돌려도 그 모델에 대해 참인 사실**뿐이다: 어휘를 어떻게 주는가, 어휘를 바꾸는 값이 무엇인가, 무엇을 내주지 않는가, 가중치 파일이 무엇이고 얼마나 큰가. 품질·지연·메모리 수치는 **여기 적지 않는다** — 그것은 실행 구성마다 다시 재는 값이고 `contracts/profile.py` 의 `MeasurementSet`/`VerifiedExecutionProfile`(AI-B-01)과 `config/model_versions.example.json` 이 주인이다. 같은 사실의 주인을 둘로 만들면 두 화면이 서로 다른 답을 말한다. 경로는 자산 뿌리(`tests/conftest.py::asset_root()`, 기본 `local/`) 기준 상대경로다 — 기계마다 다른 절대경로를 선언에 박지 않는다. 가중치가 이 노드에 **있는지 없는지**는 선언이 아니라 관측이라 파일에 적지 않고 로더가 자산 뿌리를 받아 계산한다.",
+  "detectors": [
+    {
+      "$comment": "텍스트 프롬프트를 `set_classes` 로 심는 계열. provider 가 어휘를 생성자에서 고정하므로(그 docstring: '어휘를 바꾸려면 새 provider 인스턴스를 만든다') 운영자가 어휘를 바꾸는 값은 인스턴스 하나다. 모델도 per-call 프롬프트를 받지 못한다 — `set_classes` 가 CLIP 텍스트 인코더를 한 번 더 돌려 임베딩을 다시 심기 때문이다. 그래서 어휘 변경이 '싼' 쪽이 아니고, 콘솔은 그것을 미리 알아야 한다.",
+      "detector_id": "yolo-world-v2-s",
+      "display_name": "YOLO-World v2 (small)",
+      "capability_kind": "perception.detect_ovd",
+      "provider_path": "mission_runtime.edge.yolo_world_provider:YoloWorldPerceptionProvider",
+      "tags": [
+        "zeroshot",
+        "open_vocabulary",
+        "runtime.ultralytics",
+        "tier.edge"
+      ],
+      "prompting": {
+        "vocabulary_channel": "set_classes",
+        "prompt_required": true,
+        "prompt_syntax": "class_name_list",
+        "model_supports_per_call_prompt": false,
+        "provider_fixes_prompt_at_construction": true,
+        "vocabulary_change_requires": [
+          "new_provider_instance",
+          "model_reload",
+          "text_encoder_pass"
+        ],
+        "vocabulary_change_invalidates_results": true,
+        "builtin_vocabulary_size": null,
+        "label_namespace": "operator_vocabulary",
+        "label_prefix": null,
+        "taxonomy_vocabulary": "zeroshot"
+      },
+      "outputs": {
+        "provided": [
+          "box_xyxy",
+          "label",
+          "score"
+        ],
+        "not_surfaced": [],
+        "missing": [
+          "instance_mask",
+          "depth_m",
+          "intrinsics_fx_cx",
+          "global_pose"
+        ]
+      },
+      "weights": {
+        "source": "local_file",
+        "path": "weights/yolo/yolov8s-worldv2.pt",
+        "size_bytes": 25923032,
+        "outbound_network_if_absent": true
+      },
+      "external_assets": [
+        {
+          "$comment": "`WorldModel.set_classes` → `get_text_pe` 가 `clip:ViT-B/32` 를 세우고, ultralytics 는 그것을 자기 weights_dir 의 `clip/` 아래에서 찾거나 받는다. 이 노드에는 실재한다.",
+          "asset_id": "clip-vit-b32-text-encoder",
+          "path": "weights/clip/ViT-B-32.pt",
+          "size_bytes": 353976522,
+          "required_for": [
+            "vocabulary_set",
+            "vocabulary_change"
+          ],
+          "outbound_network_if_absent": true
+        }
+      ],
+      "construction": {
+        "$comment": "조립 규약도 선언이다 — `provider_for()` 가 탐지기 이름으로 분기하지 않으려면 '어휘가 들어가는 인자 이름'과 '가중치가 들어가는 인자 이름'을 데이터로 알아야 한다. param_kwargs 는 운영자 파라미터 → 생성자 인자다.",
+        "weights_kwarg": "weights_path",
+        "vocabulary_kwarg": "class_names",
+        "param_kwargs": {
+          "conf": "conf",
+          "device": "device"
+        },
+        "fixed_kwargs": {}
+      }
+    },
+    {
+      "$comment": "프롬프트를 **문자열 한 줄**로 받는 계열. 모델 자체는 호출마다 다른 프롬프트를 받을 수 있다(텍스트가 forward 입력이다) — 어휘를 바꾸는 것이 원리상 싸다. 다만 우리 provider 는 다른 둘과 같은 관례로 생성자에서 고정하므로 지금 값은 인스턴스 하나다. 두 사실을 따로 적는다: 바꾸는 게 원리상 싼지(`model_supports_per_call_prompt`)와 지금 코드가 무엇을 요구하는지(`vocabulary_change_requires`)는 다른 질문이고, 콘솔의 비교 경로가 전자를 보고 후자를 고칠 수 있다. 가중치는 로컬 파일이 아니라 HF Hub 스냅샷이라 크기를 선언하지 않는다 — 모르는 값을 0 으로 채우지 않는다.",
+      "detector_id": "grounding-dino-tiny",
+      "display_name": "GroundingDINO (tiny)",
+      "capability_kind": "perception.detect_ovd",
+      "provider_path": "mission_runtime.edge.grounding_dino_provider:GroundingDinoPerceptionProvider",
+      "tags": [
+        "zeroshot",
+        "open_vocabulary",
+        "runtime.transformers",
+        "tier.edge"
+      ],
+      "prompting": {
+        "vocabulary_channel": "text_prompt_string",
+        "prompt_required": true,
+        "prompt_syntax": "dot_joined_lowercase_phrases",
+        "model_supports_per_call_prompt": true,
+        "provider_fixes_prompt_at_construction": true,
+        "vocabulary_change_requires": [
+          "new_provider_instance"
+        ],
+        "vocabulary_change_invalidates_results": true,
+        "builtin_vocabulary_size": null,
+        "label_namespace": "operator_vocabulary",
+        "label_prefix": null,
+        "taxonomy_vocabulary": "zeroshot"
+      },
+      "outputs": {
+        "provided": [
+          "box_xyxy",
+          "label",
+          "score"
+        ],
+        "not_surfaced": [],
+        "missing": [
+          "instance_mask",
+          "depth_m",
+          "intrinsics_fx_cx",
+          "global_pose"
+        ]
+      },
+      "weights": {
+        "source": "model_hub",
+        "path": null,
+        "size_bytes": null,
+        "outbound_network_if_absent": true
+      },
+      "external_assets": [],
+      "construction": {
+        "$comment": "가중치 인자가 **없다**(Hub 스냅샷을 모델 id 로 받는다). 점수 하한의 이름도 다르다 — 운영자의 `conf` 는 이 모델에서 `box_threshold` 다. 이 차이를 코드에 분기로 적으면 네 번째 탐지기가 코드 변경이 된다.",
+        "weights_kwarg": null,
+        "vocabulary_kwarg": "class_names",
+        "param_kwargs": {
+          "conf": "box_threshold",
+          "text_conf": "text_threshold",
+          "device": "device"
+        },
+        "fixed_kwargs": {}
+      }
+    },
+    {
+      "$comment": "YOLOE 텍스트 프롬프트 가중치(small). YOLO-World 와 같은 축이지만 임베딩을 **호출자가 넘긴다**(`set_classes(names, get_text_pe(names))`) — 그 `get_text_pe` 가 MobileCLIP 텍스트 인코더를 요구하고, 그것이 없으면 ultralytics 가 공개 인터넷에서 572 MB 를 받으려 한다. 폐쇄망 배치에서 배치 전에 드러나야 하는 사실이라(AI-C-16) 선언으로 적는다. 가중치는 seg 라 모델이 인스턴스 마스크를 **계산한다** — 다만 `perception/detection.py::PerceptionResult` 에 그 칸이 없어 실어 보내지 못한다. '없다'와 '못 싣는다'는 다른 사실이라 `missing` 과 `not_surfaced` 를 가른다.",
+      "detector_id": "yoloe-11s-seg-prompted",
+      "display_name": "YOLOE 11s-seg (text-prompted)",
+      "capability_kind": "perception.detect_ovd",
+      "provider_path": "mission_runtime.edge.yoloe_provider:YoloePerceptionProvider",
+      "tags": [
+        "zeroshot",
+        "open_vocabulary",
+        "runtime.ultralytics",
+        "tier.edge",
+        "segmentation_weights"
+      ],
+      "prompting": {
+        "vocabulary_channel": "set_classes_with_text_embeddings",
+        "prompt_required": true,
+        "prompt_syntax": "class_name_list",
+        "model_supports_per_call_prompt": false,
+        "provider_fixes_prompt_at_construction": true,
+        "vocabulary_change_requires": [
+          "new_provider_instance",
+          "model_reload",
+          "text_encoder_pass"
+        ],
+        "vocabulary_change_invalidates_results": true,
+        "builtin_vocabulary_size": null,
+        "label_namespace": "operator_vocabulary",
+        "label_prefix": null,
+        "taxonomy_vocabulary": "zeroshot"
+      },
+      "outputs": {
+        "provided": [
+          "box_xyxy",
+          "label",
+          "score"
+        ],
+        "not_surfaced": [
+          "instance_mask"
+        ],
+        "missing": [
+          "depth_m",
+          "intrinsics_fx_cx",
+          "global_pose"
+        ]
+      },
+      "weights": {
+        "source": "local_file",
+        "path": "yoloe-11s-seg.pt",
+        "size_bytes": 27803986,
+        "outbound_network_if_absent": true
+      },
+      "external_assets": [
+        {
+          "$comment": "`MobileCLIPTS(weight='mobileclip_blt.ts')`. ultralytics 가 작업 디렉터리나 자기 weights_dir 에서 찾고 없으면 받는다 — 자리 보장은 배치 작업이고, 여기 적는 것은 그 **요구가 있다는 사실**이다.",
+          "asset_id": "mobileclip-blt-text-encoder",
+          "path": "mobileclip_blt.ts",
+          "size_bytes": 599764649,
+          "required_for": [
+            "vocabulary_set",
+            "vocabulary_change"
+          ],
+          "outbound_network_if_absent": true
+        }
+      ],
+      "construction": {
+        "$comment": "조립 규약도 선언이다 — `provider_for()` 가 탐지기 이름으로 분기하지 않으려면 '어휘가 들어가는 인자 이름'과 '가중치가 들어가는 인자 이름'을 데이터로 알아야 한다. param_kwargs 는 운영자 파라미터 → 생성자 인자다.",
+        "weights_kwarg": "weights_path",
+        "vocabulary_kwarg": "class_names",
+        "param_kwargs": {
+          "conf": "conf",
+          "device": "device"
+        },
+        "fixed_kwargs": {}
+      }
+    },
+    {
+      "$comment": "같은 계열의 large 가중치. 행동 특성은 small 과 같고 **가중치 파일만 다르다** — 다른 파일은 다른 실행 구성이고(AI-B-01) 이 노드에 있는지도 따로 묻는다. 품질이 더 좋다는 말은 여기 적지 않는다: 그것은 측정이고 주인이 다른 곳에 있다.",
+      "detector_id": "yoloe-11l-seg-prompted",
+      "display_name": "YOLOE 11l-seg (text-prompted)",
+      "capability_kind": "perception.detect_ovd",
+      "provider_path": "mission_runtime.edge.yoloe_provider:YoloePerceptionProvider",
+      "tags": [
+        "zeroshot",
+        "open_vocabulary",
+        "runtime.ultralytics",
+        "tier.edge",
+        "segmentation_weights"
+      ],
+      "prompting": {
+        "vocabulary_channel": "set_classes_with_text_embeddings",
+        "prompt_required": true,
+        "prompt_syntax": "class_name_list",
+        "model_supports_per_call_prompt": false,
+        "provider_fixes_prompt_at_construction": true,
+        "vocabulary_change_requires": [
+          "new_provider_instance",
+          "model_reload",
+          "text_encoder_pass"
+        ],
+        "vocabulary_change_invalidates_results": true,
+        "builtin_vocabulary_size": null,
+        "label_namespace": "operator_vocabulary",
+        "label_prefix": null,
+        "taxonomy_vocabulary": "zeroshot"
+      },
+      "outputs": {
+        "provided": [
+          "box_xyxy",
+          "label",
+          "score"
+        ],
+        "not_surfaced": [
+          "instance_mask"
+        ],
+        "missing": [
+          "depth_m",
+          "intrinsics_fx_cx",
+          "global_pose"
+        ]
+      },
+      "weights": {
+        "source": "local_file",
+        "path": "yoloe-11l-seg.pt",
+        "size_bytes": 70982416,
+        "outbound_network_if_absent": true
+      },
+      "external_assets": [
+        {
+          "asset_id": "mobileclip-blt-text-encoder",
+          "path": "mobileclip_blt.ts",
+          "size_bytes": 599764649,
+          "required_for": [
+            "vocabulary_set",
+            "vocabulary_change"
+          ],
+          "outbound_network_if_absent": true
+        }
+      ],
+      "construction": {
+        "$comment": "조립 규약도 선언이다 — `provider_for()` 가 탐지기 이름으로 분기하지 않으려면 '어휘가 들어가는 인자 이름'과 '가중치가 들어가는 인자 이름'을 데이터로 알아야 한다. param_kwargs 는 운영자 파라미터 → 생성자 인자다.",
+        "weights_kwarg": "weights_path",
+        "vocabulary_kwarg": "class_names",
+        "param_kwargs": {
+          "conf": "conf",
+          "device": "device"
+        },
+        "fixed_kwargs": {}
+      }
+    },
+    {
+      "$comment": "**어휘를 받지 않는** 가중치(pf = prompt-free). `set_classes` 는 ultralytics 가 AssertionError 로 거절한다('Prompt-free model does not support setting classes') — 프롬프트를 받지 않는다는 것이 우리 선언이 아니라 모델이 강제하는 계약이다. 그래서 운영자가 고를 어휘가 없고, 어휘를 바꾸는 값도 없다. 대신 모델 내장 4585 범주에서 이름이 나오므로 그 이름은 **어휘 매칭이 아니다** — `label_prefix` 로 이름 공간을 갈라 `perception/obstacle_taxonomy.py::classify` 가 어떤 어휘 키와도 같아지지 않게 한다(결과: UNKNOWN_OBSTACLE + unmapped_label + hypothesis, 즉 미확인 객체·학습 후보 경로). `taxonomy_vocabulary` 가 null 인 것은 '어휘를 모른다'가 아니라 **선언된 어떤 어휘에도 속하지 않는다**는 뜻이다. 텍스트 인코더를 요구하지 않는 것이 이 모드의 실질적 이점이다 — 572 MB 자산도, 나가는 연결도 필요 없다(AI-C-16).",
+      "detector_id": "yoloe-11s-seg-prompt-free",
+      "display_name": "YOLOE 11s-seg-pf (prompt-free)",
+      "capability_kind": "perception.detect_ovd",
+      "provider_path": "mission_runtime.edge.yoloe_provider:YoloePerceptionProvider",
+      "tags": [
+        "zeroshot",
+        "prompt_free",
+        "runtime.ultralytics",
+        "tier.edge",
+        "segmentation_weights"
+      ],
+      "prompting": {
+        "vocabulary_channel": "builtin_vocabulary",
+        "prompt_required": false,
+        "prompt_syntax": null,
+        "model_supports_per_call_prompt": false,
+        "provider_fixes_prompt_at_construction": false,
+        "vocabulary_change_requires": [],
+        "vocabulary_change_invalidates_results": false,
+        "builtin_vocabulary_size": 4585,
+        "label_namespace": "model_builtin_vocabulary",
+        "label_prefix": "promptfree:",
+        "taxonomy_vocabulary": null
+      },
+      "outputs": {
+        "provided": [
+          "box_xyxy",
+          "label",
+          "score"
+        ],
+        "not_surfaced": [
+          "instance_mask"
+        ],
+        "missing": [
+          "depth_m",
+          "intrinsics_fx_cx",
+          "global_pose"
+        ]
+      },
+      "weights": {
+        "source": "local_file",
+        "path": "yoloe-11s-seg-pf.pt",
+        "size_bytes": 27948751,
+        "outbound_network_if_absent": true
+      },
+      "external_assets": [],
+      "construction": {
+        "$comment": "어휘가 들어가는 인자가 **없다** — 이 모델은 어휘를 받지 않는다. 운영자가 어휘를 넣어도 전달되지 않고, 그 사실은 `prompt_required: false` 로 고르기 전에 드러난다(조용히 버리는 것과 다르다).",
+        "weights_kwarg": "weights_path",
+        "vocabulary_kwarg": null,
+        "param_kwargs": {
+          "conf": "conf",
+          "device": "device"
+        },
+        "fixed_kwargs": {}
+      }
+    }
+  ]
+}

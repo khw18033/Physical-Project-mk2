@@ -1,6 +1,6 @@
 """Real Kafka `TransportProvider` for the 구역 엣지 ↔ 서버 backbone.
 
-implements: AI-C-06, AI-C-04, AI-C-12, AI-C-14, AI-O-03
+implements: AI-C-06, AI-C-04, AI-O-03
 
 원칙 #11: 엣지에는 Kafka 서버를 설치하지 않는다. This module is a Kafka
 *client*, used by edge processes to talk to the server's broker (and by
@@ -45,7 +45,7 @@ class KafkaTransportProvider:
     """TransportProvider backed by a Kafka broker.
 
     Failures never propagate to callers: a backbone outage degrades the
-    edge to local operation, it does not crash it (AI-C-11, AI-N-01).
+    edge to local operation, it does not crash it (AI-C-05, AI-N-01).
     """
 
     def __init__(
@@ -171,7 +171,7 @@ class KafkaTransportProvider:
                             consumer.commit()
                         except Exception:
                             # One subscriber failing must not stop the others
-                            # or the transport itself (AI-C-11).
+                            # or the transport itself (AI-C-05).
                             continue
                 except Exception:
                     break
@@ -201,7 +201,7 @@ class KafkaTransportProvider:
 
     # --- data-plane guard ----------------------------------------------
     def publish_task_data(self, topic: str, payload: bytes, kind: DataKind) -> None:
-        """Publish with an explicit plane check (AI-C-14).
+        """Publish with an explicit plane check (AI-C-06).
 
         Media payloads are refused outright — 영상 픽셀은 별도 미디어 경로를
         사용한다 (금지 사항).

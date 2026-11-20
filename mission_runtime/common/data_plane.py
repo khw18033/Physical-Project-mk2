@@ -1,9 +1,9 @@
 """Classifies produced data into task / observability / media planes, and
 marks control data as the special task subtype with stricter policy.
 
-implements: AI-C-14
+implements: AI-C-06
 
-AI-C-14: "AI에서 발생하는 데이터는 업무 데이터와 시스템 관측 데이터로 구분하고,
+AI-C-06: "AI에서 발생하는 데이터는 업무 데이터와 시스템 관측 데이터로 구분하고,
 영상 등 대용량 데이터는 별도 미디어 경로로 처리해야 한다. 물리 제어 명령은 업무
 데이터에 포함하되 전달 보장, 순서, 실행 결과와 책임 추적이 필요한 제어 데이터로
 별도 정책을 적용해야 한다. AI 기능은 데이터의 의미만 생산하고 실제 경로 선택은
@@ -11,7 +11,7 @@ AI-C-14: "AI에서 발생하는 데이터는 업무 데이터와 시스템 관�
 
 This module therefore returns a *plane and policy*, never a topic name,
 broker address or protocol — which concrete adapter serves each plane is
-the deployment profile's business (AI-C-12).
+the deployment profile's business (AI-C-04).
 """
 
 from __future__ import annotations
@@ -48,7 +48,7 @@ class RoutingPolicy:
 
     Control data lives on the task plane but demands delivery guarantee,
     ordering, a returned execution result and an audit trail — hence the
-    separate flags rather than a separate plane (AI-C-14, AI-B-03).
+    separate flags rather than a separate plane (AI-C-06, AI-B-03).
     """
 
     plane: DataPlane

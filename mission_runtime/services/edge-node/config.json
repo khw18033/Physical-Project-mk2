@@ -273,7 +273,7 @@
     }
   },
   "object_tracks": {
-    "$comment": "지속 객체 레코드. docs/obsidian/ideas/progressive-object-record.pdf §3 구현 — 근거를 관측 내에서 클러스터링하고, 의미는 source group 지지로 해소하며(확립된 클래스는 '엄격히 더 많은' 지지가 있을 때만 교체), 노출 상태 V는 lifecycle·클래스·기하뿐이라 confidence만 바뀌면 갱신하지 않는다. 표시 대상의 정체성을 RPN 후보에서 빌리면 후보 구성이 매 프레임 바뀌어 근거가 흩어진다 — RPN은 말단의 시점 반영 앵커 전용이다.",
+    "$comment": "지속 객체 레코드. internal/docs-dev/obsidian/ideas/progressive-object-record.pdf §3 구현 — 근거를 관측 내에서 클러스터링하고, 의미는 source group 지지로 해소하며(확립된 클래스는 '엄격히 더 많은' 지지가 있을 때만 교체), 노출 상태 V는 lifecycle·클래스·기하뿐이라 confidence만 바뀌면 갱신하지 않는다. 표시 대상의 정체성을 RPN 후보에서 빌리면 후보 구성이 매 프레임 바뀌어 근거가 흩어진다 — RPN은 말단의 시점 반영 앵커 전용이다.",
     "assoc_iou": 0.3,
     "track_iou": 0.2,
     "init_conf": 0.15,

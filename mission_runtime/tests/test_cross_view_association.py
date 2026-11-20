@@ -1,5 +1,5 @@
 """implements: AI-S-02
-reproduces (decision shape only): GMT, CVPR 2026 (docs/obsidian/papers/gmt.md)
+reproduces (decision shape only): GMT, CVPR 2026 (internal/docs-dev/obsidian/papers/gmt.md)
 tests: cross-view aggregation merges same-object evidence into one global
        trajectory; a noisy single contributing view fails to match a new
        observation on its own but the trajectory's rolling AGGREGATE across

@@ -1,6 +1,6 @@
 """Provider-neutral model deployment lifecycle for hardware integration.
 
-implements: HW-R-10, AI-B-05, AI-B-07, AI-B-08, AI-C-16
+implements: HW-R-10, AI-B-05,  AI-B-08, AI-C-16
 
 The coordinator never assumes a Raspberry Pi path, model file format, or
 runtime reload command. Those details belong to ModelDeploymentProvider.

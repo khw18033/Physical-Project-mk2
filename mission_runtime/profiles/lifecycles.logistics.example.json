@@ -1,0 +1,67 @@
+{
+  "$comment": "선언된 업무 수명주기의 예시 한 장(contracts/declared_lifecycle.py 가 읽는다). **코어에는 이 파일의 어떤 상태·전이 이름도 없다** — 새 현장의 업무 흐름은 이런 파일을 한 장 더 두는 일이고 코드 변경이 아니다(AI-C-15). 요청과 자산을 **두 수명주기로** 선언한 것이 요점이다: 요청이 종결돼도 물건은 그 자리에 있고, 물건이 점검에 들어가도 요청은 끝난 채 남는다. 실존하지 않는 예시 현장이다.",
+  "lifecycles": [
+    {
+      "lifecycle_id": "outbound_request",
+      "label": {"ko": "출고 요청", "en": "Outbound request"},
+      "initial": "requested",
+      "states": ["requested", "approved", "picking", "shipped", "closed", "rejected"],
+      "terminal": ["closed", "rejected"],
+      "transitions": [
+        {
+          "name": "approve",
+          "from": "requested",
+          "to": "approved",
+          "requires_approval": true,
+          "requires": ["asset_ref"],
+          "label": {"ko": "승인", "en": "Approve"},
+          "$note": "승인은 상태가 아니라 이 전이에 걸린 문이다. 요청자 자신은 승인할 수 없다(AI-C-19). 어느 자산에 대한 요청인지(asset_ref)를 들고 와야 승인된다 — 대상이 없는 승인은 무엇을 승인한 것인지 사후에 알 수 없다."
+        },
+        {
+          "name": "reject",
+          "from": "requested",
+          "to": "rejected",
+          "requires_approval": true,
+          "requires": ["reason_text"],
+          "label": {"ko": "반려", "en": "Reject"},
+          "$note": "반려는 되돌림이 아니라 **다른 전이**다. 상태를 뒤로 돌리면 반려된 요청과 아직 올라오지 않은 요청이 같아 보인다."
+        },
+        {
+          "name": "pick",
+          "from": "approved",
+          "to": "picking",
+          "label": {"ko": "집품 시작", "en": "Start picking"}
+        },
+        {
+          "name": "ship",
+          "from": "picking",
+          "to": "shipped",
+          "requires": ["carrier"],
+          "label": {"ko": "출하", "en": "Ship"}
+        },
+        {
+          "name": "close",
+          "from": "shipped",
+          "to": "closed",
+          "label": {"ko": "종결", "en": "Close"}
+        }
+      ]
+    },
+    {
+      "lifecycle_id": "pallet_asset",
+      "label": {"ko": "파렛트 자산", "en": "Pallet asset"},
+      "initial": "stored",
+      "states": ["stored", "allocated", "in_transit", "received", "inspection", "retired"],
+      "terminal": ["retired"],
+      "transitions": [
+        {"name": "allocate", "from": "stored", "to": "allocated", "requires": ["request_ref"], "label": {"ko": "할당", "en": "Allocate"}},
+        {"name": "dispatch", "from": "allocated", "to": "in_transit", "label": {"ko": "출발", "en": "Dispatch"}},
+        {"name": "arrive", "from": "in_transit", "to": "received", "label": {"ko": "도착", "en": "Arrive"}},
+        {"name": "inspect", "from": "received", "to": "inspection", "label": {"ko": "점검", "en": "Inspect"}},
+        {"name": "restock", "from": "inspection", "to": "stored", "label": {"ko": "재입고", "en": "Restock"}},
+        {"name": "retire", "from": "inspection", "to": "retired", "requires": ["reason_text"], "label": {"ko": "폐기", "en": "Retire"}}
+      ],
+      "$note": "자산에는 승인 문이 없다. 승인은 요청의 규칙이고 자산의 규칙이 아니다 — 둘을 한 수명주기로 합치면 이 차이를 적을 칸이 없어진다."
+    }
+  ]
+}

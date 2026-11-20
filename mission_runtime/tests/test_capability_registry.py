@@ -1,4 +1,4 @@
-"""implements: AI-C-10, AI-C-11, AI-B-07"""
+"""implements: AI-C-10, AI-C-05, AI-B-05"""
 
 from mission_runtime.contracts.capability import CapabilityRequirement
 from mission_runtime.contracts.profile import CompatibilityProfile
@@ -56,7 +56,7 @@ def test_health_check_raising_is_treated_as_unhealthy():
     )
 
     # A provider's own health probe failing must not crash the registry
-    # (AI-B-07) -- it is simply excluded from the available list.
+    # (AI-B-05) -- it is simply excluded from the available list.
     assert registry.available_providers("perception.distance") == []
 
 

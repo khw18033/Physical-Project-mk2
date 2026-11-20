@@ -40,7 +40,7 @@ from pathlib import Path
 import pytest
 
 PROJECT_DIR = Path(__file__).resolve().parents[1]
-CONSOLE_DIR = PROJECT_DIR / "tools" / "fms_console"
+CONSOLE_DIR = PROJECT_DIR / "tools" / "view_service"
 STATUS_UI_DIR = PROJECT_DIR / "tools" / "status_ui"
 AUTHORING_DIR = PROJECT_DIR / "tools" / "profiles"
 for _candidate in (CONSOLE_DIR, STATUS_UI_DIR, AUTHORING_DIR):
@@ -50,7 +50,7 @@ for _candidate in (CONSOLE_DIR, STATUS_UI_DIR, AUTHORING_DIR):
 from accounts import Caller  # noqa: E402
 
 import author_zones as az  # noqa: E402
-from strings import LOCALES, STRINGS  # noqa: E402  (tools/fms_console/strings.py)
+from strings import LOCALES, STRINGS  # noqa: E402  (tools/view_service/strings.py)
 
 from mission_runtime.contracts.profile import ResourceBudget  # noqa: E402
 from mission_runtime.perception import spatial_evidence as se  # noqa: E402
@@ -84,9 +84,9 @@ NODE_WITHOUT_TAG = "pi6"
 
 
 def _load_module(name: str, path: Path):
-    """경로로 싣는다 — `tools/fms_console/serve.py` 와 `tools/status_ui/serve.py` 가
+    """경로로 싣는다 — `tools/view_service/service.py` 와 `tools/status_ui/serve.py` 가
     모듈 이름이 같아서 `import serve` 는 먼저 올라온 쪽을 집는다
-    (`tests/test_fms_console_wiring.py` 와 같은 이유·같은 방법)."""
+    (`tests/test_view_service_wiring.py` 와 같은 이유·같은 방법)."""
     spec = importlib.util.spec_from_file_location(name, path)
     module = importlib.util.module_from_spec(spec)
     sys.modules[spec.name] = module
@@ -94,7 +94,7 @@ def _load_module(name: str, path: Path):
     return module
 
 
-console = _load_module("fms_console_serve_walkthrough", CONSOLE_DIR / "serve.py")
+console = _load_module("view_service_serve_walkthrough", CONSOLE_DIR / "service.py")
 status_ui = _load_module("status_ui_serve_walkthrough", STATUS_UI_DIR / "serve.py")
 
 
@@ -597,10 +597,21 @@ def test_the_server_refuses_a_locale_it_does_not_know():
     모르는 값을 조용히 기본 언어로 바꿔 주면 뷰어는 자기 표가 쓰이고 있다고
     착각한다.
     """
+    # 거절하는 자리가 **handler 에서 조회 API 로** 옮겼다(2026-11-05) — FMS 콘솔을
+    # 지웠으므로 이 계약을 실제로 내보내는 것은 게이트웨이의 조회 API 다. 표는
+    # 여전히 서비스의 `STRINGS` 하나이고 이 자리가 그것을 베끼지 않는다.
+    from integration.fms_view_api import FmsViewApi
+
+    api = FmsViewApi(service=None, view_payload=console.view_payload,
+                     api_error=console.ApiError,
+                     not_a_view_route=console.NotAViewRoute, module=console)
     with pytest.raises(console.ApiError) as raised:
-        console.FmsHandler._locale(None, {"locale": ["ja"]})
+        api.locale_for({"locale": ["ja"]})
     assert raised.value.status == 400
     assert raised.value.reason == "unknown_locale"
+    # 아는 언어는 그대로 통과하고, 묻지 않으면 기본 언어다.
+    assert api.locale_for({"locale": ["en"]}) == "en"
+    assert api.locale_for({}) == api.locale
 
 
 def test_state_tokens_are_part_of_the_key_so_a_new_state_needs_no_branch():

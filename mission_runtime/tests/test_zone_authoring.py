@@ -18,7 +18,7 @@ import pytest
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 TOOL_DIR = PROJECT_ROOT / "tools" / "profiles"
-CONSOLE_DIR = PROJECT_ROOT / "tools" / "fms_console"
+CONSOLE_DIR = PROJECT_ROOT / "tools" / "view_service"
 for _dir in (TOOL_DIR, CONSOLE_DIR):
     if str(_dir) not in sys.path:
         sys.path.insert(0, str(_dir))

@@ -1,6 +1,6 @@
 """Progressive object record construction from heterogeneous evidence.
 
-implements: AI-S-01, AI-S-02, AI-S-03, AI-S-04, AI-C-02, AI-C-03, AI-C-11
+implements: AI-S-01, AI-S-02, AI-S-03, AI-S-04, AI-C-02, AI-C-03, AI-C-05
 
 This is the element technology behind the digital-twin object state: results
 from perception providers that finish at different times are folded into one
@@ -11,11 +11,11 @@ Framework boundary notes:
 * No concrete model, runtime or camera appears here. Evidence carries only a
   ``source_group`` — an opaque provenance label supplied by whoever registered
   the provider — so adding a model means registering a provider, never editing
-  this module (AI-C-04, AI-C-12).
+  this module (AI-C-04, AI-C-04).
 * Resolution is evaluated against the source groups that are *currently
   available*. A source that disappears contributes no evidence; it must not be
   read as evidence against the current state. This is what keeps a capability
-  loss from rewriting an object that nothing new was observed about (AI-C-11).
+  loss from rewriting an object that nothing new was observed about (AI-C-05).
 * Confidence and evidence sufficiency are reported separately, never merged
   into a single score (AI-S-03).
 * Geometry stays in the frame it was observed in; no global transform is
@@ -31,7 +31,7 @@ from mission_runtime.contracts.capability import CapabilityRequirement, Capabili
 
 #: Required/optional dependencies of this capability. Only a spatial evidence
 #: source is required; semantic and mask sources merely improve the record,
-#: so losing them degrades rather than disables (AI-C-11).
+#: so losing them degrades rather than disables (AI-C-05).
 REQUIREMENT = CapabilityRequirement(
     required=("perception.detect",),
     optional=("perception.segment", "perception.classify", "perception.depth"),
@@ -193,7 +193,7 @@ class RecordResolver:
         groups backing `person` and then going away would leave the held class
         with zero counted support, letting a single surviving group flip the
         record with one vote — a state change caused by a source vanishing
-        rather than by anything observed (AI-C-11).
+        rather than by anything observed (AI-C-05).
         """
         votes: dict[str, tuple[str, float]] = dict(standing or {})
         for e in usable:
@@ -264,7 +264,7 @@ class ProgressiveRecordBuilder:
             # judged once, here, and never re-judged later — re-filtering this
             # set against a *current* availability snapshot would let a group's
             # disappearance un-confirm what it already backed, which is exactly
-            # what AI-C-11 forbids (a capability transition is not an
+            # what AI-C-05 forbids (a capability transition is not an
             # observation).
             seen.add(evidence.source_group)
 

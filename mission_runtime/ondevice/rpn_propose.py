@@ -1,6 +1,6 @@
 """Class-agnostic region proposal on-device (AI-B-10, AI-N-01 sibling capability).
 
-implements: AI-B-10, AI-E-01, AI-B-09, AI-C-11
+implements: AI-B-10, AI-E-01, AI-B-09, AI-C-05
 
 2026-09-16 door/pedestal 랜드마크 통합 설계(계획 문서 "데모 파이프라인의
 mission_runtime 통합 설계" 참고): 검증된 PoC(demo/test/class_finder_service.py
@@ -20,9 +20,9 @@ Go1은 MQTT 구독 전용 릴레이일 뿐 온보드 연산이 없다) 당분간
 실제 로봇 하드웨어가 생기면 `git pull` + 배포 설정(`CompatibilityProfile`/모델
 config 파일)만 바꿔서 이식하면 되고, 이 모듈 자체는 코드 변경이 필요 없다.
 
-`ultralytics`는 모듈 최상단이 아니라 생성자 안에서 지연 import한다(AI-C-11:
+`ultralytics`는 모듈 최상단이 아니라 생성자 안에서 지연 import한다(AI-C-05:
 이 optional 의존성이 없는 노드도 이 모듈 자체는 계속 import할 수 있어야 한다 —
-`open_vocabulary.py::OwlVitPerceptionProvider`와 동일 패턴).
+`perception/open_vocabulary.py::OwlVitPerceptionProvider`와 동일 패턴).
 """
 
 from __future__ import annotations
@@ -42,14 +42,51 @@ DEFAULT_TOP_N = 1000
 PROPOSAL_LABEL = "region_proposal"
 
 
+#: 이 프로세스가 가속기를 **쓰지 않기로** 선언하는 환경변수. 다른 세션이 GPU 를
+#: 점유한 동안 같은 기계에서 통합 작업을 계속할 때 쓴다.
+#:
+#: 태그 탐색(`discover_node_tags`)은 **건드리지 않는다.** 가속기가 있는데 태그에
+#: 없다고 적으면 그것은 배치 판정에 들어가는 거짓이 되고, "이 노드에 GPU 가 없다"
+#: 와 "지금 쓰지 않기로 했다" 는 다른 사실이다. 그래서 이 변수는 **고르는 쪽**만
+#: 바꾼다 — 노드가 무엇을 할 수 있는지는 그대로 보고된다.
+#:
+#: `CUDA_VISIBLE_DEVICES=""` 로 숨기는 쪽을 쓰지 않는 이유: 이 기계에서 그렇게 하면
+#: NVBLAS 가 CPU BLAS 를 가로채 **예외 없이 틀린 값**을 낸다(local/demo/CLAUDE.md
+#: 가 실측으로 기록). 조용히 틀린 수는 느린 수보다 나쁘다.
+NO_GPU_ENV = "MISSION_RUNTIME_NO_GPU"
+
+
+def gpu_use_declined() -> bool:
+    """이 프로세스가 가속기를 쓰지 않기로 선언했는가."""
+    import os
+
+    return os.environ.get(NO_GPU_ENV, "").strip().lower() in {"1", "true", "yes"}
+
+
+def default_device() -> str:
+    """이 프로세스가 **기본으로 쓸** 가속기. 선언·태그를 함께 반영한 결과다.
+
+    공개 함수인 이유: 설치 자가 점검(`tools/preflight.py`)과 운영 화면이 "지금
+    무엇으로 돌 것인가" 를 물어야 하고, 그 답을 각자 다시 유도하면 provider 가
+    실제로 고르는 것과 화면이 말하는 것이 갈린다.
+    """
+    return _resolve_device(None)
+
+
 def _resolve_device(device: str | None) -> str:
     """`device`가 명시되지 않으면 이 노드를 실측 프로브해서 고른다.
 
     GPU가 없다고 실패하지 않는다(금지 사항: GPU/NPU가 항상 존재한다고 가정하지
     않는다) — 태그가 없으면 그냥 "cpu"다.
+
+    명시한 device 는 그대로 쓴다. 명시하지 않았고 이 프로세스가 가속기를 쓰지
+    않기로 선언했으면 "cpu" 다 — 명시를 덮지 않는 이유는 그것이 호출자의 결정이고,
+    선언은 **기본값에 대한 제약**이기 때문이다.
     """
     if device is not None:
         return device
+    if gpu_use_declined():
+        return "cpu"
     from mission_runtime.providers.compute import TAG_GPU, discover_node_tags
 
     return "cuda" if TAG_GPU in discover_node_tags() else "cpu"

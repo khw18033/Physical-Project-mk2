@@ -66,7 +66,21 @@
         "compute.cpu",
         "tier.edge",
         "media.ingest"
-      ]
+      ],
+      "$comment_attachment": "2026-11-05 실측으로 적는다. pi7 은 go1-001 에 **실려 있다**(랜선) — 로봇과 온디바이스를 분리해 관리하지 않는다는 결정이고, 와이어가 이미 그렇게 말한다(`zoneA/robot/go1-001/*` 의 모든 봉투가 `source_id: go1-001` · `node_id: pi7` 을 함께 담고 `registration` 도 둘을 한 자리에 적는다). 실린 노드는 **움직인다** — 배치가 그것을 모르면 구역 엣지 몫을 걸어가는 로봇에 올린다.",
+      "device_attachment": {
+        "attachment": "carried_by",
+        "carrier_id": "go1-001",
+        "link": "ethernet",
+        "reaches": [
+          {
+            "capability_kind": "media.video_input",
+            "reach": "robot_sdk",
+            "unit_id": "go1_cam1",
+            "notes": "로봇 자체 카메라. 상태가 codec 을 `h264/rtp(passthrough)` 로 적는다(실측 2026-11-05)."
+          }
+        ]
+      }
     },
     {
       "node_id": "pi1",
@@ -320,5 +334,52 @@
       "perception.segment"
     ],
     "closed_network": false
-  }
+  },
+  "$comment_carried": "실린 노드가 들 수 없는 역할 태그. `tier.edge` 는 **고정 노드를 전제한다** — 브로커·수집기 급 몫이 그 위에 올라가기 때문이다(AI-B-10). 실려 있는 노드가 이 태그를 들고 있으면 `runtime/environment_profile.py::report_attachment_conflicts` 가 보고한다. 보고이고 거절이 아니다 — 노드 선언은 그 노드가 원래 무엇인지에 대한 정본이다. 이 줄이 없으면 그 검사는 `checked=False`(판단하지 못했다)이고 '충돌 없음'이 아니다.",
+  "carried_node_excluded_tags": [
+    "tier.edge",
+    "tier.server"
+  ],
+  "$comment_brokers": "브로커 **주소는 선언이다** (2026-11-05). 가시화 앱이 주소를 코드에 박고 있어서 로봇 한 대 늘면 코드를 고쳐야 했다 — 「장치 추가는 코드 변경이 아니다」가 거기서 깨졌다(AI-C-15, 원칙 #7). `scope` 는 그 주소가 **어디서 풀리는가**이고, 오버레이 주소가 밖에서 안 풀리는 것은 고장이 아니라 그 주소의 성질이다(원칙 #10). **닿는가는 여기 없다** — 보는 자리마다 다른 관측이라 `integration/broker_endpoints.py` 가 자리별로 따로 담는다. `loopback`(개발용 다리)은 기계마다 다르므로 여기 적지 않고 런타임에 `--viewer-bridge` 로 붙인다.",
+  "broker_endpoints": [
+    {
+      "node_id": "pi7",
+      "url": "ws://pi7.tailcb6bfb.ts.net:9001/mqtt",
+      "scope": "overlay",
+      "transport": "mqtt-ws",
+      "serves": [
+        "go1-001",
+        "pi7",
+        "wl-001"
+      ],
+      "label": "Go1 구역 브로커 — 테일넷 이름",
+      "note": "MagicDNS 로 풀린다. 오버레이 밖에서는 이름도 IP 도 풀리지 않는다"
+    },
+    {
+      "node_id": "pi7",
+      "url": "ws://100.72.109.9:9001/mqtt",
+      "scope": "overlay",
+      "transport": "mqtt-ws",
+      "serves": [
+        "go1-001",
+        "pi7",
+        "wl-001"
+      ],
+      "label": "Go1 구역 브로커 — 테일넷 IP",
+      "note": "MagicDNS 가 풀리지 않을 때. 이름과 **같은 기계다**"
+    },
+    {
+      "node_id": "pi7",
+      "url": "mqtt://100.72.109.9:1883",
+      "scope": "overlay",
+      "transport": "mqtt-tcp",
+      "serves": [
+        "go1-001",
+        "pi7",
+        "wl-001"
+      ],
+      "label": "Go1 구역 브로커 — 평문 TCP",
+      "note": "서버·엣지 쪽이 쓴다. **브라우저는 못 쓴다** — 화면 후보에 섞이지 않는다"
+    }
+  ]
 }

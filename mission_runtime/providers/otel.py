@@ -1,6 +1,6 @@
 """Real OpenTelemetry `ObservabilityProvider` (OTLP export).
 
-implements: AI-O-01, AI-O-02, AI-C-12, AI-C-14
+implements: AI-O-01, AI-O-02, AI-C-04, AI-C-06
 
 원칙 #10: metric·log·trace는 OpenTelemetry 기반 관측 경로를 사용한다. 다만
 AI 코드가 이 구현 기술의 API에 직접 의존해서는 안 되므로 `opentelemetry` 는
@@ -39,7 +39,7 @@ class OtelConfig:
     """Endpoint/service identity for this deployment.
 
     Values come from the deployment profile, never hardcoded upstream
-    (AI-C-12).
+    (AI-C-04).
     """
 
     endpoint: str = "http://127.0.0.1:4317"

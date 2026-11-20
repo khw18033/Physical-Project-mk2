@@ -1,7 +1,7 @@
 """Mission-level outcome judgment: aggregates per-item results into one
 verdict that records *what was given up* on the way to success.
 
-implements: AI-C-05, AI-C-11, AI-C-13, AI-B-06
+implements: AI-C-05,  AI-C-13, AI-B-06
 
 AI-C-05: "선택 기능이 추가·제거·고장 나면 해당 기능만 활성·축소·비활성화하고
 나머지 기능은 계속 실행해야 한다."
@@ -177,7 +177,7 @@ class MissionSpec:
                     failed_req.append(item.item_id)
             else:
                 # A missing optional outcome is treated as not achieved,
-                # never as a mission-blocking gap (AI-C-11).
+                # never as a mission-blocking gap (AI-C-05).
                 if outcome is not None and outcome.is_success:
                     satisfied_opt.append(item.item_id)
                 else:

@@ -1,4 +1,4 @@
-"""implements: AI-C-16, AI-C-11, AI-B-04
+"""implements: AI-C-16, AI-C-05, AI-B-04
 covers: egress declared in registration information, closed-network
         profile filters egress providers before placement, connected
         profile keeps them, unrelated capabilities unaffected by the
@@ -108,7 +108,7 @@ def test_egress_provider_is_dropped_but_a_local_peer_still_wins_the_same_kind():
     assert result.provider.provider_id == "local-vlm"
 
 
-# --- isolation: only the egress capability is disabled (AI-C-11) ----------
+# --- isolation: only the egress capability is disabled (AI-C-05) ----------
 def test_excluding_an_egress_provider_does_not_block_unrelated_capabilities():
     gate = EgressGate(closed_network=True)
     registry = registry_with(

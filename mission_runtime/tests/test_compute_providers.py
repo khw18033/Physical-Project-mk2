@@ -1,4 +1,4 @@
-"""implements: AI-B-01, AI-B-04, AI-B-08, AI-C-12
+"""implements: AI-B-01, AI-B-04, AI-B-08, AI-C-04
 covers: vendor-neutral accelerator discovery, CPU/OpenCL provider swap,
         automatic fallback when no accelerator exists
 

@@ -29,7 +29,7 @@ from pathlib import Path
 
 import pytest
 
-from mission_runtime.tools.fms_console.fleet import (
+from mission_runtime.tools.view_service.fleet import (
     ACCURACY_DECLARED,
     ACCURACY_UNMEASURED,
     AGREEMENT_PARTY_AI,

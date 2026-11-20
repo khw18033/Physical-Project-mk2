@@ -12,7 +12,7 @@ tests: tests/test_evidence_kinds.py
 (`device_identity.py`), 장치가 스스로 공지한 action 어휘와 자원 태그
 (`device_class_estimator.py`), GPS·깊이·점군·열린 어휘·선언 인프라·사람이 잰 실측값
 (`spatial_evidence.py`), 여러 장치가 같은 객체에 올린 투영과 클래스 표
-(`tools/fms_console/twin.py`), 환경 사전정보(`environment_prior.py`).
+(`tools/view_service/twin.py`), 환경 사전정보(`environment_prior.py`).
 
 모듈마다 자기 모양으로 근거를 들고 있어서, 화면은 그중 **하나**만 그릴 수 있었다. 이
 모듈은 그 모양들을 한 계약으로 옮기고, 그 위에서 "지금 결론을 낼 만큼 근거가 있는가"를
@@ -65,7 +65,7 @@ tests: tests/test_evidence_kinds.py
 근거를 만드는 규칙(무엇이 식별력 있는 단서인가, 유사도를 어떻게 재는가)은 전부 각 주인
 모듈의 것이다. 최종 "이 track 은 이 장치다" 라는 권위 있는 결속과 장치의 최종 가용성,
 물리 명령 발급은 백엔드·하드웨어의 몫이고(AI-C-19), 좌표는 로컬에 머문다(AI-C-02).
-`tools/fms_console/twin.py` 는 패키지 밖이므로 import 하지 않고 **덕 타이핑**으로 읽는다 —
+`tools/view_service/twin.py` 는 패키지 밖이므로 import 하지 않고 **덕 타이핑**으로 읽는다 —
 공개 패키지가 도구 디렉터리를 의존하면 그 도구 없이는 패키지가 import 되지 않는다.
 """
 
@@ -127,7 +127,7 @@ ORIGIN_DEVICE_CLASS_ESTIMATOR = "perception.device_class_estimator"
 ORIGIN_SPATIAL_EVIDENCE = "perception.spatial_evidence"
 ORIGIN_OBJECT_RECORD = "perception.object_record"
 ORIGIN_ENVIRONMENT_PRIOR = "perception.environment_prior"
-ORIGIN_TWIN_LEDGER = "tools.fms_console.twin"
+ORIGIN_TWIN_LEDGER = "tools.view_service.twin"
 
 # appearance_classifier.py — 참조영상별 유사도
 KIND_APPEARANCE_REFERENCE_SIMILARITY = "appearance_reference_similarity"
@@ -439,7 +439,7 @@ def default_kind_registry() -> EvidenceKindRegistry:
             capability_kind="reference.zone_profile",
             note="관측이 아닌 사전정보. 실제 관측과 충돌하는 사전정보만으로 확정해서는 "
                  "안 된다(AI-S-08) — 비식별 선언이라는 두 칸이 그 금지의 코드상 표현이다."),
-        # -- tools/fms_console/twin.py ------------------------------------
+        # -- tools/view_service/twin.py ------------------------------------
         EvidenceKindSpec(
             KIND_ZONE_REGION_PROJECTION, TIER_ESTIMATED, False, ORIGIN_TWIN_LEDGER,
             capability_kind="perception.detect",
@@ -831,7 +831,7 @@ def from_twin_evidence_rows(
     *,
     producer: str = ORIGIN_TWIN_LEDGER,
 ) -> EvidenceBatch:
-    """`tools/fms_console/twin.py` 의 `ContributedEvidence` 원장을 근거로 옮긴다.
+    """`tools/view_service/twin.py` 의 `ContributedEvidence` 원장을 근거로 옮긴다.
 
     **덕 타이핑으로 읽는다** — 공개 패키지가 도구 디렉터리를 import 하면 그 도구가 없는
     배포에서 패키지가 import 되지 않는다.

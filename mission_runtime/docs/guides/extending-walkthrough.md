@@ -37,7 +37,7 @@ PY=../.venv/bin/python
 
 ## 1. 새 도메인과 그 구역들
 
-**목표**: 다섯째 도메인을 두 층·두 구역·자기 RF 모델로 더하고, 콘솔에서 메인 맵·구역
+**목표**: 다섯째 도메인을 두 층·두 구역·자기 RF 모델로 더하고, 계약에서 도메인·구역
 상세·로봇 패널이 도는지 확인한다.
 
 ### 1-1. 선언 파일 하나를 쓴다
@@ -89,21 +89,23 @@ $PY tools/profiles/author_zones.py --check \
 `0 error(s)` 가 나와야 한다. 남는 경고 5건은 **원래 있던** 것이다(옥외 구역이 한 AP 의
 핸드오버 반경보다 넓은 자리 등) — 경고는 "틀렸다" 가 아니라 "확인되지 않았다" 다.
 
-### 1-4. 콘솔에서 연다
+### 1-4. 계약에서 확인한다
+
+**별도 웹은 없다**(2026-11-05). FMS 관제 콘솔을 지웠고 조회·쓰기 계약은 가시화 앱이
+보는 게이트웨이에서 나온다. 걷기 길에서 쓰는 예시 설정을 그 자리에 물린다:
 
 ```bash
-$PY tools/fms_console/serve.py \
+$PY tools/vz_gateway/serve.py --port 8899 \
     --domains profiles/domains.walkthrough.example.json \
     --config  config/status_ui.walkthrough.example.json
 ```
 
-기본 포트는 8800 이다(`--port` 로 바꾼다). 열어서 확인한 것: 메인 맵에 다섯째 타일이
-나오고(상태 `idle`, `example` 표시), 도메인을 열면 두 구역이 두 층으로 나오고, 구역
-상세에 AP·엣지 노드·고정 인프라가 나오고, 선언한 로봇의 패널에 자원·태그·기능 목록이
-나온다. 화면을 띄우지 않고 같은 것을 보려면:
+확인한 것: `/api/scene` 에 다섯째 도메인이 나오고(상태 `idle`, `example` 표시),
+`/api/domain` 에 두 구역이 두 층으로, `/api/zone` 에 AP·엣지 노드·고정 인프라가,
+`/api/robot` 에 선언한 로봇의 자원·태그·기능 목록이 나온다.
 
 ```bash
-curl -s 'http://127.0.0.1:8800/api/scene' \
+curl -s 'http://127.0.0.1:8899/api/scene' \
   | $PY -c 'import json,sys; print([d["domain_id"] for d in json.load(sys.stdin)["domains"]])'
 # -> ['college', 'river', 'facility', 'defense', 'transit']
 ```
@@ -189,7 +191,7 @@ row = node_config_entry(manifest)   # -> config/status_ui*.json 의 nodes[] 한 
 
 ### 2-5. 세우고 확인한다 — **여기서 약속이 한 번 꺾인다**
 
-`tools/fms_console/fleet_runtime.py` 가 장치를 정본 물리 명령 wire 위에 세운다. 그
+`tools/view_service/fleet_runtime.py` 가 장치를 정본 물리 명령 wire 위에 세운다. 그
 파일의 `build_runtime()` 은 장치의 명령 어휘를 **역할로** 찾는다:
 
 ```python
@@ -200,7 +202,7 @@ ROLE_ACTIONS: dict[str, tuple[str, ...]] = {
 }
 ```
 
-이 표에 `rail_crawler` 가 없으므로 콘솔은 새 로봇을 **아예 세우지 않는다.** 확인된 결과:
+이 표에 `rail_crawler` 가 없으므로 장치 러너는 새 로봇을 **아예 세우지 않는다.** 확인된 결과:
 
 | 확인한 것 | 결과 |
 |---|---|
@@ -223,8 +225,8 @@ runtime.announce_all()
 `{"error": "action_not_announced"}` 로 거절된다.
 
 > **이 확장의 비용**: 만든 파일 0개(설정 줄은 3번 걸음의 사본들에 들어갔다),
-> 고친 기존 파일 0개 — **단, 콘솔이 이 로봇을 세우게 하려면
-> `tools/fms_console/fleet_runtime.py` 를 고쳐야 한다.** 그 파일은 역할→어휘 표를
+> 고친 기존 파일 0개 — **단, 장치 러너가 이 로봇을 세우게 하려면
+> `tools/view_service/fleet_runtime.py` 를 고쳐야 한다.** 그 파일은 역할→어휘 표를
 > 파이썬으로 들고 있고, 주석은 그것을 "데이터다" 라고 적지만 데이터 파일에 있지 않다.
 > 같은 자리에 이미 걸려 있는 장치가 하나 더 있다 — 배포된 설정의 `mt4`(역할
 > `fixed_manipulator`)도 표에 없어 세워지지 않는다.
@@ -392,7 +394,7 @@ rejected: lidar:gate-cam  lidar_sweep  unregistered_kind
 
 ---
 
-## 5. 콘솔의 새 언어
+## 5. 새 언어
 
 `docs/view-contract.md` §8 은 뷰어가 **파이썬을 고치지 않고** 언어를 늘릴 수 있다고
 적는다. 권하는 길은 이렇다 — 서버에는 서버가 아는 언어로 물어 키 집합을 받고, 그 키들을
@@ -401,7 +403,7 @@ rejected: lidar:gate-cam  lidar_sweep  unregistered_kind
 ### 5-1. 키 집합을 받는다
 
 ```bash
-curl -s 'http://127.0.0.1:8800/api/bootstrap?locale=en' \
+curl -s 'http://127.0.0.1:8899/api/bootstrap?locale=en' \
   | $PY -c 'import json,sys; print("\n".join(sorted(json.load(sys.stdin)["strings"])))'
 ```
 
@@ -429,7 +431,7 @@ curl -s 'http://127.0.0.1:8800/api/bootstrap?locale=en' \
 
 ```bash
 $PY - <<'PY'
-import json, sys; sys.path.insert(0, "tools/fms_console")
+import json, sys; sys.path.insert(0, "tools/view_service")
 from strings import STRINGS, LOCALES
 ja = json.load(open("config/strings.ja.walkthrough.json"))["strings"]
 print("locales on the server:", LOCALES)
@@ -442,7 +444,7 @@ PY
 없다. `?locale=ja` 로 서버에 물으면 400 `unknown_locale` 인데, 그것이 계약이 말한 대로다 —
 모르는 값을 조용히 기본 언어로 바꿔 주면 뷰어는 자기 표가 쓰이고 있다고 착각한다.
 
-서버 표에 직접 더하는 두 번째 길도 있다(`tools/fms_console/strings.py` 의 `STRINGS` 에
+서버 표에 직접 더하는 두 번째 길도 있다(`tools/view_service/strings.py` 의 `STRINGS` 에
 locale 키를 더한다). 그쪽은 모든 뷰어가 함께 쓰게 되지만 **저장소 변경**이고, 두 언어의
 키 집합이 같아야 한다는 불변조건을 시험이 지킨다.
 
@@ -457,7 +459,7 @@ locale 키를 더한다). 그쪽은 모든 뷰어가 함께 쓰게 되지만 **�
 | 확장 | 만든 파일 | 고친 기존 파일 | 핵심 코드 수정 |
 |---|---|---|---|
 | 1. 새 도메인·구역 | 2 (현장이면 1) | 0 (현장이면 데이터 1) | 없음 |
-| 2. 새 로봇 | 0 | 0 | **필요하다** — `tools/fms_console/fleet_runtime.py` |
+| 2. 새 로봇 | 0 | 0 | **필요하다** — `tools/view_service/fleet_runtime.py` |
 | 3. 새 capability kind·provider | 3 (현장이면 0) | 0 (현장이면 데이터 3) | 없음 |
 | 4. 새 공간 근거 종류 | 0 | 0 | 없음 |
 | 5. 새 언어 | 1 | 0 | 없음 |

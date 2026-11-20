@@ -1,0 +1,130 @@
+{
+ "_doc": [
+  "위험물 근거 카드의 단서 선언. tools/hazard_card.py --cues 로 준다.",
+  "단서를 끄거나(enabled) 수식의 상수를 바꿀 수 있다. **식의 모양은 코드가 소유하고",
+  "그 상수는 여기가 소유한다** — 식 자체를 문자열로 두면 무엇이 돌았는지 뒤에서",
+  "설명할 수 없고, 상수만 두면 바뀐 것이 기록에 남는다.",
+  "퍼센트는 **확률이 아니다**. 어느 단서가 약한지 보라고 둔 공통 자다."
+ ],
+ "objects": {
+  "wooden_box_mine": {
+   "shown": "wooden box mine",
+   "size_mm": [
+    140,
+    80,
+    60
+   ],
+   "_note": [
+    "**시연용 상자의 실측값**(2026-11-13 사용자 측정: 가로 14 · 세로 8 · 높이 6 cm).",
+    "실제 목함지뢰(PMD-6/KPA 형)는 200 x 90 x 45~65 mm 로 **더 크다**.",
+    "지금 이 값은 '시연 상자를 잘 맞히는' 쪽으로 size 단서를 맞춘 것이고,",
+    "실물을 찾는 배치에서는 [200, 90, 55] 로 바꿔야 한다. 그대로 두면 실물",
+    "목함지뢰가 size 에서 낮은 점수를 받는다 — 20/14 = 1.43 배다."
+   ]
+  },
+  "butane_canister": {
+   "shown": "butane canister",
+   "size_mm": [
+    210,
+    70,
+    70
+   ],
+   "_note": "세로형 카세트 부탄 실측(지름 7 · 높이 21 cm). EN 417 급 220 g 과 같은 계열."
+  }
+ },
+ "cues": {
+  "semantic": {
+   "enabled": true,
+   "_note": "CLIP 글 설명 비교 — 문장·일반 문장은 vision_config.yaml verify.semantic. 장면 물건 이름을 일반 문장에 넣지 않는다"
+  },
+  "shape": {
+   "enabled": true,
+   "_note": "분할 마스크의 종횡비·볼록 채움·사각형 채움. 범위는 이 파일 shape.<클래스> (없으면 코드 SHAPE_DEFAULT, 실물 치수에서 잡음)"
+  },
+  "appearance": {
+   "min_px": 48,
+   "_note": "crop 짧은 변이 이보다 작으면 semantic·match·material 을 '못 잼' 으로 둔다(0 점이 아니다) — 원거리에서 틀린 확신을 내지 않게"
+  },
+  "class": {
+   "enabled": true,
+   "max_candidates": 4,
+   "_formula": "pct = confidence x 100"
+  },
+  "size": {
+   "enabled": false,
+   "_off": "2026-11-13 끔 — 비스듬한 물체에서 박스가 실물보다 커져 실제 물체에서도 거의 늘 0 이었다(점수만 깎았다)",
+   "tolerance_octaves": 1.0,
+   "_formula": "off = |log2(실측mm / 규격mm)| ; pct = (1 - max(off_긴변, off_짧은변) / tolerance_octaves) x 100",
+   "_note": "두 축 중 **나쁜 쪽**이 점수를 정한다. 긴 변만 보면 225x194 mm 덩어리가 통과한다."
+  },
+  "material": {
+   "enabled": true,
+   "confidence_px": 64,
+   "coverage_full": 0.35,
+   "wood_saturation_penalty": 0.5,
+   "butane_livery_weight": 0.6,
+   "butane_metal_full": 0.3,
+   "_formula": [
+    "목함지뢰  cov = (목질색비율 - wood_saturation_penalty x 채도비율) / coverage_full",
+    "부탄      cov = butane_livery_weight x max(빨강,파랑)/coverage_full",
+    "                + (1-butane_livery_weight) x 무채색밝음/butane_metal_full",
+    "pct = min(1, max(0, cov)) x 100 ; confidence = min(1, 짧은변 / confidence_px)"
+   ],
+   "_note": "confidence 는 점수가 아니라 **이 줄의 무게**다. 못 묻는 crop 과 틀린 crop 은 다르다."
+  },
+  "match": {
+   "enabled": true,
+   "margin_span": 0.2,
+   "_formula": "pct = clamp(0.5 + margin / (2 x margin_span)) x 100",
+   "_note": "margin = (기준과의 최대 유사도) - (음성 기준과의 최대 유사도)."
+  },
+  "structure": {
+   "enabled": true,
+   "_note": "부탄만 난다. 목함지뢰는 독립적인 형상 단서를 못 찾아 내지 않는다."
+  },
+  "distance": {
+   "enabled": true,
+   "_note": "**점수로 세지 않는다.** 깊이 지도가 없다는 사실은 증거가 아니다. 없으면 줄도 안 난다."
+  }
+ },
+ "card": {
+  "thumbnail_below_frame_ratio": 0.02,
+  "_note": [
+   "**작아서 눈으로 못 보는 것만** 확대 crop 을 붙인다. 화면에서 이 비율보다 크게",
+   "보이는 물체는 원본에서 이미 보이므로 썸네일이 자리만 먹는다.",
+   "실측: 66점 나무 상자 486x163 px = 화면의 8.6% (붙이지 않음),",
+   "      9점 오검출 50x58 px = 0.3% (붙인다).",
+   "0 으로 두면 전부 붙이지 않고, 1 로 두면 전부 붙인다.",
+   "max_cards: 한 장에 점수 높은 것부터 이만큼만. 카드가 많으면 장면이 사라진다."
+  ],
+  "max_cards": 5
+ },
+ "decision": {
+  "_note": [
+   "위험물로 **의심**한다고 말할 점수 하한(0~100)과 단서 무게. 후보마다 위험물 클래스 전부에 대해",
+   "같은 단서를 재고 **무게를 곱한 평균**을 낸다. 못 잰 단서는 빠지고 남은 무게로 다시 나눈다.",
+   "가장 높은 클래스의 점수가 min_score 이상이면 그 이름으로 의심한다(vision/hazard_overlay.py assess).",
+   "무게(2026-11-13 다시): semantic 0.30 · match 0.20 · shape 0.15 · class 0.15 · material 0.10 · structure 0.10.",
+   "  **환경이 바뀌어도 덜 흔들리는 단서를 높게** — 색 규칙(material)은 카메라 색감·조명에 가장 먼저 흔들리고,",
+   "  검출기 이름(class)은 도메인이 바뀌면 낱말이 흔들린다. 잰 단서의 무게 합으로 나눈다.",
+   "size 는 **뺐다**(2026-11-13): 비스듬한 물체에서 박스가 실물보다 커져 실제 물체에서도 거의 늘 0 이었다.",
+   "  검출기가 댄 이름(class)은 덜 믿는다 — 도메인이 바뀌면 낱말이 먼저 흔들리고 이름 없는 후보는 늘 0 이다.",
+   "min_score 45 (2026-11-13 사용자 지정, 30 에서 올림). 아래 측정에서 45 도 재현율 99~100% 였지만",
+   "  실제 물체 최고점 p5 가 47 이라 **여유가 2 점뿐**이다 — 도메인이 바뀌면 먼저 놓친다.",
+   "이전 값 30 의 근거 — **재현율 우선**. pi13 실내 192장(부탄 2 · 나무상자 2)에서",
+   "  size 를 뺀 뒤 실제 물체 넷의 최고점은 95% 장에서 47 이상(중앙 49~64). 하한을 17 점 이상 아래에 둬",
+   "  도메인이 바뀌어 점수가 떨어져도 놓치지 않게 한다. 장면 낱말 거르기·부품 접기(nest_ratio) 뒤 25~45 모두",
+   "  재현율 99~100% · 오검출 장당 0.01 (접기 전 30 에서 5.9). 쉬운 장면에서 고른 값이라 현장 자료로 다시 본다."
+  ],
+  "weights": {"semantic": 0.30, "match": 0.20, "shape": 0.15, "class": 0.15, "material": 0.10, "structure": 0.10},
+  "min_evidence": 0.45,
+  "_min_evidence": "잰 단서 무게 / 전체 무게가 이보다 작으면 의심하지 않는다 — 작은 부품이 이름 0 · 형상 100 만으로 50 점이 됐다",
+  "min_score": 45,
+  "min_score_by_class": {"butane_canister": 60, "wooden_box_mine": 45},
+  "_min_score_by_class": [
+   "클래스별 하한(2026-11-13). pi13 두 장면(부탄 4 · 상자 4, 492 장)의 평활 점수: 부탄 통 p5 64 · p50 72,",
+   "줄자(부탄과 닮은 노란 원통) p95 55 → 부탄 60. 상자 p5 54(장면1) · 88(장면2), 수첩 p95 38 → 목함지뢰 45.",
+   "**부탄의 여유는 4 점뿐**이다 — 다른 환경에서 통 점수가 떨어지면 먼저 놓친다. 현장 자료로 다시 본다."
+  ]
+ }
+}

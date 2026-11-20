@@ -1,0 +1,42 @@
+{
+  "$comment": "가시화 명령으로 뜨고 내려가는 **선언된 실행 단위**(providers/process_control.py 가 읽는다). 백엔드 기계 앞에서 사람이 하는 일은 '백엔드를 켜 두는가' 하나이고, 그 다음은 전부 가시화의 쓰기 계약(POST /api/stack)이 시킨다. **명령줄은 이 파일에만 있다** — 망에서 오지 않는다. 그래서 이 파일이 곧 '그 기계에서 띄울 수 있는 것의 전부' 이고, 늘리는 것은 선언 한 줄이지 코드 변경이 아니다. 자리는 모두 이 패키지 뿌리 기준 상대 경로이므로 기계를 옮겨도 그대로 돈다. 실제 현장 값은 config/stack_units.json 에 둔다(이 파일은 예시다).",
+  "units": [
+    {
+      "unit_id": "integration-stack",
+      "kind": "compose",
+      "label": {"ko": "전송·관측 스택 (mosquitto · kafka · otel)", "en": "Transport and observability stack"},
+      "compose_file": "deploy/integration/docker-compose.yml",
+      "ready_port": 1883,
+      "note": "말단↔엣지 MQTT · 엣지↔서버 Kafka · OTel Collector. 엣지에는 Kafka 를 두지 않는다는 규칙(원칙 #11)은 배치가 지키고 이 단위는 개발 기계의 묶음이다."
+    },
+    {
+      "unit_id": "data-stream-redis",
+      "kind": "compose",
+      "label": {"ko": "실증 스트림 버퍼 (Redis :6380)", "en": "Demo stream buffer (Redis :6380)"},
+      "compose_file": "deploy/data_stream/docker-compose.yml",
+      "ready_port": 6380,
+      "note": "data_stream 이 프레임을 넣는 자리이고 우리는 integration/vz_redis_source.py 로 **읽기만** 한다. 한 기계 안에서만 쓰이므로 loopback 으로 묶는다."
+    },
+    {
+      "unit_id": "data-stream-server",
+      "kind": "process",
+      "label": {"ko": "실증 스트림 수집 서버", "en": "Demo stream collector"},
+      "argv": ["${python}", "third_party/data_stream/server_stream_multi_source.py",
+               "--no-vision", "--redis", "redis://127.0.0.1:6380/0"],
+      "cwd": ".",
+      "depends_on": ["data-stream-redis"],
+      "ready_port": 10001,
+      "env": {},
+      "note": "소스 주소(robot/pi11/drone…)는 **그쪽 선언**이 정한다 — 우리가 베끼지 않는다. 자리 두 곳 중 하나다: data_stream 의 hosts.local.json, 또는 이 단위의 `env` 에 PD_HOST_ROBOT1 처럼 적는다. **전부 오버레이 주소여야 한다**(원칙 #10) — 랜 주소를 적으면 다른 기계에서 풀리지 않는다. 예시에서 비워 둔 것은 현장 주소를 지어내지 않기 때문이고, 비어 있으면 이 단위는 뜨자마자 '주소가 없습니다' 를 로그에 남기고 멈춘다(그 줄이 /api/services 의 last_output 으로 보인다). --no-vision 인 이유: 추론은 다음 단위가 따로 들고, 한 프로세스에 묶으면 추론을 끄려고 수집까지 내려야 한다."
+    },
+    {
+      "unit_id": "data-stream-vision",
+      "kind": "process",
+      "label": {"ko": "실증 스트림 추론 (YOLOE · UniDepth · MoGe2)", "en": "Demo stream inference"},
+      "argv": ["${python}", "third_party/data_stream/vision/vision_infer.py"],
+      "cwd": ".",
+      "depends_on": ["data-stream-redis"],
+      "note": "**우리가 같은 프레임에 추론기를 두 번 돌리지 않는다**(AI-C-19) — 이 단위가 추론의 주인이고 우리는 Redis 에서 결과를 읽는다. 가중치·GPU 가 없는 기계에서는 뜨자마자 사유를 로그에 남기고 멈춘다. 그 사실이 /api/services 의 status 로 보인다."
+    }
+  ]
+}

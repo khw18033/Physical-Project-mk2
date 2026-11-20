@@ -2,7 +2,7 @@
 
 implements: AI-L-04, AI-L-05
 
-docs/obsidian/papers/p2iod.md 검증 근거(§3 "Parameterized Prompt Fusion",
+internal/docs-dev/obsidian/papers/p2iod.md 검증 근거(§3 "Parameterized Prompt Fusion",
 수식 (8)): task vector v_t = theta_t - theta_{t-1}^f 를 magnitude mu_t = |v_t|와
 sign gamma_t = sgn(v_t)로 분해한 뒤 (i) magnitude 상위 top-k/l 파라미터는 새 task
 값으로 우선 보존, (ii) 부호가 이전과 일치하는 나머지는 평균, (iii) 그 외(부호 충돌)는

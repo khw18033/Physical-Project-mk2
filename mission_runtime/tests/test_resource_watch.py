@@ -28,6 +28,8 @@ from mission_runtime.observability.resource_watch import (
     ResourceWatch,
     WatchTarget,
     WatchTargetInvalid,
+    threshold_events,
+    with_measured_resource_conditions,
 )
 
 AT = 1000.0
@@ -189,3 +191,73 @@ def test_no_targets_means_no_opinion():
     assert watch.evaluate(_view()) == ()
     assert watch.conditions(_view()) == ()
     assert watch.events(_view()) == ()
+
+
+# -- [G] 자원 축은 계측이 소유한다 (§4.7 일관성) ------------------------------
+
+
+def test_a_declared_resource_condition_is_replaced_by_the_measured_verdict():
+    """선언이 적어 둔 `satisfied` 가 계측 판정으로 바뀐다.
+
+    기능정의서 §4.7: "자원 조건은 리소스 현황(E)의 Layer 1 계측값과 **일관되어야**
+    한다." 선언이 충족 여부까지 적으면 그 칸은 선언값이 측정값 자리에 앉은 것이고,
+    [E] 가 임계 초과를 칠하는 동안 [G] 는 정상이라고 적는 날이 온다. 어떤 조건이
+    걸리는지는 선언이, 지금 성립하는지는 계측이 소유한다.
+    """
+    from mission_runtime.observability.dashboard_view import ConditionItem, NodeVerdict
+
+    watch = ResourceWatch.of([
+        WatchTarget("thermal_ok", "temperature",
+                    TargetBaseline(60.0, Direction.AT_MOST, "celsius"), "hot"),
+    ])
+    conditions = watch.conditions(_view())
+    verdict = NodeVerdict(
+        node_id="n1",
+        completion=(ConditionItem("arrived", True),),
+        resource=(ConditionItem("thermal_ok", True), ConditionItem("disk_ok", True)),
+    )
+
+    merged = with_measured_resource_conditions(verdict, conditions)
+    by_id = {item.item_id: item for item in merged.resource}
+    # 계측이 뒤집는다 — 71.0 celsius 는 기준 60.0 을 넘는다.
+    assert by_id["thermal_ok"].satisfied is False
+    assert by_id["thermal_ok"].reason_token == REASON_OVER_THRESHOLD
+    # 감시 대상이 아닌 조건은 그대로다 — 감시가 노드의 조건 목록을 바꾸지 않는다.
+    assert by_id["disk_ok"].satisfied is True
+    # 다른 축은 건드리지 않는다.
+    assert merged.completion == verdict.completion
+    # 감시 대상에만 있고 노드가 선언하지 않은 조건을 더하지도 않는다.
+    assert set(by_id) == {"thermal_ok", "disk_ok"}
+
+
+def test_merging_nothing_returns_the_same_verdict():
+    """감시가 없거나 겹치는 조건이 없으면 판정은 그대로다 (AI-C-05)."""
+    from mission_runtime.observability.dashboard_view import ConditionItem, NodeVerdict
+
+    verdict = NodeVerdict(node_id="n1", resource=(ConditionItem("disk_ok", True),))
+    assert with_measured_resource_conditions(verdict, ()) is verdict
+    assert with_measured_resource_conditions(
+        verdict, (ConditionItem("other", False),)) is verdict
+
+
+def test_events_are_built_from_an_already_made_judgement():
+    """판정을 두 번 하지 않는다 (AI-O-06 상태 일관성).
+
+    같은 입력을 두 번 평가하면 두 출력이 어긋날 자리가 생긴다. 그래서 사건은 평가
+    결과를 받아 옮기기만 하고, `ResourceWatch.events` 도 같은 함수를 쓴다.
+    """
+    watch = ResourceWatch.of([
+        WatchTarget("thermal_ok", "temperature",
+                    TargetBaseline(60.0, Direction.AT_MOST, "celsius"), "hot"),
+        WatchTarget("calm_ok", "temperature",
+                    TargetBaseline(60.0, Direction.AT_MOST, "celsius"), "calm"),
+        WatchTarget("quiet_ok", "temperature",
+                    TargetBaseline(60.0, Direction.AT_MOST, "celsius"), "quiet"),
+    ])
+    results = watch.evaluate(_view())
+    events = threshold_events(results, at=AT)
+    assert [e.kind for e in events] == [EventKind.RESOURCE]
+    assert events[0].severity is Severity.WARN
+    assert "hot" in events[0].message
+    # 같은 결과에서 나오므로 두 길이 같다.
+    assert events == watch.events(_view(), at=AT)

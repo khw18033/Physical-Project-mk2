@@ -16,7 +16,7 @@ from pathlib import Path
 import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "tools" / "fms_console"))
+sys.path.insert(0, str(ROOT / "tools" / "view_service"))
 
 from visualisation import ROLE_TO_KIND, equipment_entry  # noqa: E402
 

@@ -1,4 +1,4 @@
-"""implements: AI-S-02, AI-C-11
+"""implements: AI-S-02, AI-C-05
 tests: capability-gated evidence masking, single-source deployment, no-evidence fallback
 """
 

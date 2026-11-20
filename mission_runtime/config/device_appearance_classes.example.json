@@ -34,7 +34,7 @@
       "purpose": "다중 단서 기종 추정(perception/device_class_estimator.py)이 읽는 값들. 기종이 무엇으로 드러나는지는 **데이터**여야 새 하드웨어가 핵심 코드를 건드리지 않고 들어온다(원칙 #1, #7).",
       "declared_from": [
         "config/status_ui.fms.example.json 의 nodes[] — 역할과 자원 태그",
-        "tools/fms_console/fleet_runtime.py 의 ROLE_ACTIONS — 역할별 action 어휘"
+        "tools/view_service/fleet_runtime.py 의 ROLE_ACTIONS — 역할별 action 어휘"
       ],
       "exclusive_tag_families": {
         "platform": [

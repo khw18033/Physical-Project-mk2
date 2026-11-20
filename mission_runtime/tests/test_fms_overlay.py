@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pytest
 
-CONSOLE_DIR = Path(__file__).resolve().parents[1] / "tools" / "fms_console"
+CONSOLE_DIR = Path(__file__).resolve().parents[1] / "tools" / "view_service"
 if str(CONSOLE_DIR) not in sys.path:
     sys.path.insert(0, str(CONSOLE_DIR))
 
@@ -20,6 +20,7 @@ from overlay import (  # noqa: E402
     KIND_PLACEMENT,
     KIND_SURVEY,
     KNOWN_KINDS,
+    OVERLAY_FILE_NAME,
     OVERLAY_FORMAT_VERSION,
     EditEntry,
     OperatorOverlay,
@@ -192,3 +193,34 @@ def test_deferred_writes_only_touch_the_disk_on_flush(tmp_path):
     assert board.stats()["pending_write"] is True
     board.flush()
     assert path.exists() is True
+
+
+# -- 장부의 자리 -------------------------------------------------------------
+#
+# 깃발 하나를 문서대로 넘기면 기능 하나가 말없이 사라지던 자리다(2026-11-06 실측):
+# `--overlay ../local/fms_overlay` 는 CLAUDE.md 가 적어 온 꼴인데 받는 쪽이 파일만
+# 기대해 `IsADirectoryError` 였고, 게이트웨이는 그것을 조각 장애로 받아 **FMS 조회·쓰기
+# 계약을 세우지 않은 채** 나머지는 멀쩡하다고 보고했다.
+
+
+def test_a_directory_means_the_ledger_inside_it(tmp_path):
+    """자리(디렉터리)를 주면 그 안의 장부를 쓴다 — 터지지 않는다."""
+    room = tmp_path / "fms_overlay"
+    room.mkdir()
+    ledger = OperatorOverlay(path=room, clock=lambda: 1000.0)
+    assert ledger.path == room / OVERLAY_FILE_NAME
+    ledger.record(KIND_PLACEMENT, "mt4", {"at": {"x": 1.0, "y": 2.0}},
+                  actor="admin", reason="시험")
+    assert (room / OVERLAY_FILE_NAME).is_file()
+
+
+def test_a_trailing_separator_is_a_directory_even_before_it_exists(tmp_path):
+    """끝이 구분자면 디렉터리로 읽는다 — 아직 없는 자리도 같다."""
+    ledger = OperatorOverlay(path=f"{tmp_path / 'not-yet'}/", clock=lambda: 1.0)
+    assert ledger.path == tmp_path / "not-yet" / OVERLAY_FILE_NAME
+
+
+def test_a_plain_path_that_does_not_exist_is_still_a_file(tmp_path):
+    """장부가 아직 없는 첫 실행이 정상이다 — 없는 경로를 디렉터리로 바꾸지 않는다."""
+    wanted = tmp_path / "somewhere" / "edits.json"
+    assert OperatorOverlay(path=wanted, clock=lambda: 1.0).path == wanted

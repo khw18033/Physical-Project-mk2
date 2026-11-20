@@ -31,7 +31,7 @@ from pathlib import Path
 
 import pytest
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tools" / "fms_console"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tools" / "view_service"))
 
 from fleet import plane_of, static_image_for  # noqa: E402
 

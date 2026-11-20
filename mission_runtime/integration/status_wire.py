@@ -130,6 +130,10 @@ def accelerator_to_wire(accelerator: AcceleratorInstance) -> dict:
         "accelerator_attachment": accelerator.attachment,
         "accelerator_vendor_label": accelerator.vendor_label,
         "utilization": measurement_to_wire(accelerator.utilization),
+        # 사용률 추이는 전력 추이와 **같은 요구**다(§4.4). 표본이 없으면 칸이
+        # 없다 — 빈 배열을 보내면 "쟀는데 아무것도 없었다" 로 읽힌다.
+        "utilization_trend": ([measurement_to_wire(s) for s in accelerator.utilization_trend]
+                              if accelerator.utilization_trend else None),
         "temperature": measurement_to_wire(accelerator.temperature),
     })
 

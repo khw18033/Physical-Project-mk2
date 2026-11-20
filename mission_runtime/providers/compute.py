@@ -1,7 +1,7 @@
 """Vendor-neutral accelerator discovery and two interchangeable image
 runtime providers (CPU and OpenCL) for the same capability kind.
 
-implements: AI-B-01, AI-B-04, AI-B-08, AI-C-04, AI-C-12
+implements: AI-B-01, AI-B-04, AI-B-08, AI-C-04
 
 Purpose is to *prove* the vendor-independence the requirements demand
 (원칙 #1, AI-B-08: "특정 모델 파일 형식, 추론 엔진, 가속기 API ... 에 직접
@@ -29,7 +29,7 @@ TAG_HW_VIDEO_DECODE = "media.hw_decode"
 
 def _cv2():
     """Imported lazily so a node without OpenCV can still import this
-    module and simply report fewer tags (AI-C-11 격리)."""
+    module and simply report fewer tags (AI-C-05 격리)."""
     import cv2
 
     return cv2

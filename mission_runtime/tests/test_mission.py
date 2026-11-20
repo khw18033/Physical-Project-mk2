@@ -1,4 +1,4 @@
-"""implements: AI-C-05, AI-C-11, AI-C-13
+"""implements: AI-C-05,  AI-C-13
 tests: optional-item loss keeps mission SUCCESS, required-item loss fails the
 mission, sacrificed optional items are recorded, domain neutrality of the spec
 
@@ -123,7 +123,7 @@ def test_unreported_optional_item_is_sacrificed_not_blocking():
 
 
 def test_unavailable_required_item_fails_like_a_failure():
-    """필수 capability 부재는 축소가 아니라 임무 실패다(AI-C-11)."""
+    """필수 capability 부재는 축소가 아니라 임무 실패다(AI-C-05)."""
     verdict = _spec().evaluate(
         {"observe.area_a": OK, "observe.area_b": OK, "confirm.hazard": GONE}
     )

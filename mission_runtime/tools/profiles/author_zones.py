@@ -437,12 +437,12 @@ def build_domain(declaration: Mapping[str, Any]) -> dict:
 
 
 def _load_domain_profile_checker():
-    """`tools/fms_console/fleet.load_domain_profile` 를 쓸 수 있으면 가져온다.
+    """`tools/view_service/fleet.load_domain_profile` 를 쓸 수 있으면 가져온다.
 
     못 가져와도 검증은 계속한다 — 콘솔 도구 하나가 없다고 현장 선언을 검사하지 못하면
     선택 구성요소의 결손이 핵심 작업을 막는 것이다(AI-C-05).
     """
-    console = PROJECT_ROOT / "tools" / "fms_console"
+    console = PROJECT_ROOT / "tools" / "view_service"
     if str(console) not in sys.path:
         sys.path.insert(0, str(console))
     try:

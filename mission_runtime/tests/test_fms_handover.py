@@ -23,8 +23,8 @@ from mission_runtime.ondevice.zone_handover import (
     ZoneHandoverPolicy,
 )
 from mission_runtime.providers.rssi_link_quality import DEFAULT_MAPPING
-from mission_runtime.tools.fms_console.fleet import FleetModel, load_domain_profile
-from mission_runtime.tools.fms_console.handover import (
+from mission_runtime.tools.view_service.fleet import FleetModel, load_domain_profile
+from mission_runtime.tools.view_service.handover import (
     REQUESTED_BY_LINK,
     REQUESTED_BY_POSITION,
     TRANSIT_NOT_REQUESTED,

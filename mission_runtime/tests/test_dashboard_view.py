@@ -6,6 +6,8 @@ tests: single integrated snapshot, derived counts never disagree, per-source
 
 from __future__ import annotations
 
+from dataclasses import replace
+
 import pytest
 
 from mission_runtime.execution.external_request import (
@@ -30,6 +32,7 @@ from mission_runtime.observability.dashboard_view import (
 )
 from mission_runtime.observability.layered_metrics import (
     AcceleratorInstance,
+    BoardResources,
     Direction,
     Indicator,
     LayeredResourceView,
@@ -432,3 +435,35 @@ def test_task_node_identifier_is_registered_apart_from_the_physical_node_id():
 
     assert dd.DATA_DICTIONARY["task_node_id"].meaning != dd.DATA_DICTIONARY["node_id"].meaning
     assert "물리" in dd.DATA_DICTIONARY["node_id"].meaning
+
+
+def test_an_empty_resource_layer_is_no_data_not_available():
+    """[E]·[E′] 도 [C]·[G] 와 같은 규칙을 받는다 (문서 §3 요구사항 5).
+
+    자원 계층에 사실이 하나도 없는데 구역을 "표시 가능"으로 적으면 화면은 빈 칸을
+    그리면서 **왜 비었는지 말할 근거를 잃는다** — 가속기 선언이 없는 배치와 계측이
+    끊긴 배치가 같아 보인다. 구역을 지우지 않는 것과 비었다는 사실을 적는 것은
+    함께 가야 한다(AI-C-05).
+    """
+    bare = DashboardSnapshot(
+        mission=MissionSummary(MISSION),
+        graph=TaskGraph(mission_id=MISSION, nodes=()),
+    )
+    resources = bare.region_state(Region.RESOURCES)
+    assert resources.available is False
+    assert resources.reason_token == REASON_NO_DATA
+    indicators = bare.region_state(Region.INDICATORS)
+    assert indicators.available is False
+    assert indicators.reason_token == REASON_NO_DATA
+    # 구역은 사라지지 않는다 — 아홉 개가 그대로 있고 사유만 붙는다.
+    assert len(bare.region_states()) == len(tuple(Region))
+
+    # 보드 값 하나만 있어도 [E] 는 비지 않는다 — 보드 메모리·전력은 [E] 가 요구하는
+    # L1 계측이다(§4.4). 값이 없는 칸은 "받았다"로 세지 않는다.
+    with_board = replace(bare, resources=LayeredResourceView(
+        board=BoardResources(memory_utilization=Measurement(0.42, "ratio", 10.0))))
+    assert with_board.region_state(Region.RESOURCES).available is True
+    assert with_board.resources.is_empty is False
+    unit_only = replace(bare, resources=LayeredResourceView(
+        board=BoardResources(memory_utilization=Measurement(None, "ratio"))))
+    assert unit_only.resources.is_empty is True

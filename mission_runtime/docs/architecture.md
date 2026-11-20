@@ -36,6 +36,7 @@ Cross-part Wire Contract                                <- schemas/ai/*.schema.j
 |---|---|---|
 | `CapabilityState` (ACTIVE/DEGRADED/DISABLED) | `contracts/capability.py` | AI-C-05 |
 | `CapabilityRequirement` (required/optional 선언 + 평가) | `contracts/capability.py` | AI-C-05 |
+| 5계층 선언 계약 `Capability`/`Implementation`/`ExecutionProfile`/`RuntimeInstance`/`TaskIntent` + `DeclarationBasis`(단위·좌표·시간 기준) + 항목표 `CAPABILITY_DECLARATION_ITEMS`·`DECLARATION_ITEM_OWNERS`. 취소 가능 여부·멱등성은 **3값**(모름 ≠ 안 됨) | `contracts/capability_contract.py` | AI-C-18, AI-B-01, AI-C-05 |
 | `CompatibilityProfile`, `ResourceCost`, `ResourceBudget` | `contracts/profile.py` | AI-B-01, AI-B-04, AI-C-13 |
 | `DeploymentProfile` (도메인 = 데이터) | `contracts/profile.py` | AI-C-15 |
 | `FieldSpec` / `DATA_DICTIONARY` | `contracts/data_dictionary.py` | AI-C-01, AI-C-06 |
@@ -100,24 +101,39 @@ Cross-part Wire Contract                                <- schemas/ai/*.schema.j
     명시적 상태로 기록한다. 활성화가 실패하면 provider의 이전 버전으로 롤백하고 결과를
     `model_deployment_result` 채널 계약으로 외부에 전달할 수 있다.
 
-## 관제 콘솔과 그 뒤의 하위 시스템 (2026-11)
+## 조회·쓰기 계약과 그 뒤의 하위 시스템 (2026-11)
 
-처음 읽는 사람이 가장 먼저 띄워 보는 것은 관제 콘솔이다. 한 명령으로 뜬다.
+**웹은 하나다 — 가시화 앱이다**(2026-11-05). 그 전까지는 FMS 관제 콘솔이 자기 포트에
+자기 페이지로 떠 있었다. 그것을 지운 이유는 두 가지다: 운영자가 두 화면을 오가야 했고,
+같은 사실을 두 곳이 각자 조립하면 어느 날 둘이 다른 답을 말한다.
+
+지금 이 계약을 내보내는 자리는 가시화 앱이 이미 보던 게이트웨이다. 한 명령으로 뜬다.
 
 ```bash
-python tools/fms_console/serve.py        # http://127.0.0.1:8800/
+python tools/vz_gateway/serve.py --port 8899
+#   FMS 조회 계약 — 조회 경로 28개
+#   FMS 쓰기 계약 — 쓰기 경로 19개 · Bearer 세션
 ```
 
-콘솔은 **판정을 하지 않는다.** 다른 모듈이 이미 내는 값을 모아 한 스냅샷으로 낼 뿐이다.
-배치의 정본은 `tools/status_ui/serve.py` 의 `StatusService.fleet()` 이고(provider manifest 를
-노드 태그와 **누적 예산**에 맞춰 해소한다), 콘솔이 같은 판정을 다시 하면 두 화면이 서로
-다른 답을 말한다. 그래서 `tools/fms_console/` 안에는 조립과 직렬화만 있다.
+이 계층은 **판정을 하지 않는다.** 다른 모듈이 이미 내는 값을 모아 한 스냅샷으로 낼
+뿐이다. 배치의 정본은 `tools/status_ui/serve.py` 의 `StatusService.fleet()` 이고(provider
+manifest 를 노드 태그와 **누적 예산**에 맞춰 해소한다), 여기서 같은 판정을 다시 하면 두
+화면이 서로 다른 답을 말한다. 그래서 `tools/view_service/` 안에는 조립과 직렬화만 있다.
 
-탭은 드릴의 칸이 아니라 **하는 일**로 갈린다 — 디지털 트윈 맵 · 임무 명령 · 모니터링 ·
-로봇 운영 · 계정 관리 다섯이고, 도메인 → 구역 → 로봇 → 기능 → 서브태스크 드릴은 부모를
-가리키는 선으로 이어진 팝업이 맡는다(탭 하나가 드릴 한 칸이면 탭을 갈아타는 것이 곧
-어디서 왔는지를 잃는 것이다). 탭과 쓰기 단추는 계정이 가진 **능력**으로 열린다 — 능력이
-없는 사람에게는 그려지지 않는다. 눌러서 403 을 받는 단추는 알려 주는 것이 없다.
+조회와 쓰기는 **같은 포트의 다른 계약이다**(AI-O-06 — 관찰이 실행에 개입하지 않는다).
+경로 이름이 겹치지 않고, 조회 경로로 들어온 POST 는 본문을 읽기 전에 405 다. 표는 각각
+한 곳에 있다 — `view_payload()` 와 `write_payload()` 이고, 둘 다 HTTP 를 모른다. 선언
+목록(`VIEW_ROUTES`·`WRITE_ROUTES`)이 그 표와 어긋나면 API 를 **세우지 않는다**: 조용히
+좁은 쪽을 쓰면 기능 하나가 말없이 사라지고, 실제로 넷(`/api/samples` ·
+`/api/label/tasks` · `/api/label/task` · `/api/accounts`)이 그렇게 빠져 있었다.
+
+세션은 쿠키가 아니라 `Authorization: Bearer` 다. 가시화 앱은 **다른 출처**에서 돌고,
+교차 출처 쿠키를 허용하려면 자격증명을 열어야 해서 운영자가 방문한 아무 사이트가 그
+브라우저로 명령을 보낼 수 있다(CSRF). Bearer 토큰은 그 사이트가 얻을 수 없다.
+
+권한은 역할 이름이 아니라 **능력**이고 요청마다 푼다 — 기동 시점에 굳히면 로그인한
+사람도 영원히 403 이다(실제로 그랬다). 능력이 없는 자리는 비는 대신 **무슨 능력이
+필요한지**를 적는다. 눌러서 403 을 받는 단추는 알려 주는 것이 없다.
 
 화면에 숫자가 없는 자리가 있는 것은 미완성이 아니다. 배터리·전압·CPU·메모리·지연을 이
 저장소는 **아직 측정하지 않으므로** 그 자리에는 점선과 "미측정" 이 들어가고, 같은 칸에
@@ -127,22 +143,26 @@ python tools/fms_console/serve.py        # http://127.0.0.1:8800/
 
 | 하위 시스템 | 하는 일 | 요구사항 |
 |---|---|---|
-| `tools/fms_console/serve.py`, `index.html` | 조회 전용 상태 뷰 + 분리된 제어 계약. 드릴은 연결된 팝업이 맡는다 | AI-O-06, AI-C-19 |
-| `tools/fms_console/accounts.py` | 누가 와 있고 무엇을 해도 되는가. 권한은 역할 이름이 아니라 **능력**이며, 계정 파일이 하나 생기는 순간 비밀번호 없는 예시 자세가 닫힌다 | AI-C-19, AI-B-02 |
+| `tools/view_service/service.py` | 조회 28(`view_payload`)·쓰기 19(`write_payload`)의 정본 표. HTTP 를 모른다 — 웹이 바뀌어도 이 표는 그대로다 | AI-O-06, AI-C-19 |
+| `integration/fms_view_api.py`, `fms_write_api.py` | 그 표에 HTTP 를 입힌다. 조회는 요청마다 호출자·언어를 풀고, 쓰기는 Bearer 만 받는다 | AI-O-06, AI-C-06, AI-C-19 |
+| `tools/vz_gateway/serve.py` | 가시화 앱이 보는 **유일한 포트**. `/registry` 와 채널, 그리고 위 두 계약을 같은 자리에서 낸다 | AI-O-06, AI-C-06 |
+| `tools/view_service/accounts.py` | 누가 와 있고 무엇을 해도 되는가. 권한은 역할 이름이 아니라 **능력**이며, 계정 파일이 하나 생기는 순간 비밀번호 없는 예시 자세가 닫힌다 | AI-C-19, AI-B-02 |
 | `tools/status_ui/serve.py` | 배치 판정의 정본(`StatusService.fleet()`) + `/api/dashboard` 한 장 — 가속기 **개체별** L1 · 서비스 L2 · 작업 그래프 L3 를 섞지 않고 낸다 | AI-O-05, AI-O-06, AI-B-12, AI-B-13 |
-| `tools/fms_console/fleet.py` | 선언(프로파일)과 탐지(공지)를 섞지 않고 구역·로봇·기능 가용성을 조립 | AI-C-10, AI-C-18, AI-C-05 |
-| `tools/fms_console/subtasks.py` | 기능 클릭 → 서브태스크 그래프. 간선은 자료 흐름에서 유도하고 분해는 `planning/decomposition.py` 에 위임 | AI-B-12, AI-B-14 |
-| `tools/fms_console/twin.py` | 여러 장치의 탐지를 지속 객체로 융합. 출처를 하나도 버리지 않고, 틀린 값의 원인을 leave-one-out 으로 매긴다 | AI-S-02, AI-S-06, AI-L-01/03 |
-| `tools/fms_console/handover.py`, `mission.py` | 자리·AP 선언에서 RSSI 를 같은 모델로 다시 계산해 구역 전환을 판단하고, 다중 구역 임무를 순서대로 수행 | AI-N-03, AI-N-02, AI-B-12 |
-| `tools/fms_console/overlay.py` | 운영자가 고친 값을 선언 위에 덧대는 append-only 장부 | AI-L-03, AI-S-08 |
-| `tools/fms_console/labeling.py` | 저장된 프레임에 사람이 상자를 그려 정답을 만들고, 모델과 다른 답만 학습 후보로 올린다 | AI-L-01/02/03 |
-| `tools/fms_console/deployment.py` | 비개발자가 웹에서 하는 네 가지 — 들이기·보정·학습·모델 교체. 판정은 각자 주인에게 넘기고 입력만 그 계약의 자료형으로 옮긴다 | AI-B-09, AI-E-02, AI-L-09, AI-L-10 |
+| `tools/view_service/fleet.py` | 선언(프로파일)과 탐지(공지)를 섞지 않고 구역·로봇·기능 가용성을 조립 | AI-C-10, AI-C-18, AI-C-05 |
+| `tools/view_service/subtasks.py` | 기능 클릭 → 서브태스크 그래프. 간선은 자료 흐름에서 유도하고 분해는 `planning/decomposition.py` 에 위임 | AI-B-12, AI-B-14 |
+| `tools/view_service/twin.py` | 여러 장치의 탐지를 지속 객체로 융합. 출처를 하나도 버리지 않고, 틀린 값의 원인을 leave-one-out 으로 매긴다 | AI-S-02, AI-S-06, AI-L-01/03 |
+| `tools/view_service/handover.py`, `mission.py` | 자리·AP 선언에서 RSSI 를 같은 모델로 다시 계산해 구역 전환을 판단하고, 다중 구역 임무를 순서대로 수행 | AI-N-03, AI-N-02, AI-B-12 |
+| `tools/view_service/overlay.py` | 운영자가 고친 값을 선언 위에 덧대는 append-only 장부 | AI-L-03, AI-S-08 |
+| `tools/view_service/labeling.py` | 저장된 프레임에 사람이 상자를 그려 정답을 만들고, 모델과 다른 답만 학습 후보로 올린다 | AI-L-01/02/03 |
+| `tools/view_service/deployment.py` | 비개발자가 웹에서 하는 네 가지 — 들이기·보정·학습·모델 교체. 판정은 각자 주인에게 넘기고 입력만 그 계약의 자료형으로 옮긴다 | AI-B-09, AI-E-02, AI-L-09, AI-L-10 |
 | `perception/device_identity.py` | 같은 기종 두 대를 가리는 문제. 식별력 있는 단서와 없는 단서를 구조로 분리 | AI-S-02, AI-S-04 |
 | `perception/appearance_classifier.py` | 외형 class 추정과 그 근거(참조별 유사도·게이트) | AI-E-01, AI-S-04 |
 | `perception/spatial_evidence.py` | GPS·depth·point cloud·zero-shot·선언·사람이 잰 값을 한 계약으로 융합 | AI-S-06, AI-S-08, AI-C-02 |
 | `perception/evidence_kinds.py` | 모듈마다 자기 모양으로 들고 있던 근거 25 종을 한 계약으로 모은다. 충분도는 점수 합이 아니라 **구조**가 판정한다 | AI-S-03, AI-S-05, AI-S-06 |
 | `registry/onboarding.py` | 장치 추가를 코드 변경이 아니라 선언 네 가지로 | AI-B-09, AI-C-18 |
+| `registry/capability_proposal.py` | **기능** 추가도 코드 변경이 아니라 선언 두 줄로 — 되는지·어디에·안 되면 무엇이 더 필요한지를 적용 **전에** 답한다. 판정은 배치 정본에 위임하고(`PlacementOracle`), 비용 미측정은 거절이 아니라 "재야 한다" 다 | AI-B-09, AI-B-04, AI-C-18 |
 | `runtime/refresh.py` | 반영을 요청으로만 일으키는 장부. 상시 폴링 없음 | AI-C-13, AI-O-01 |
+| `runtime/perception_loop.py` | 레코드가 **확정으로 승격되는 한 자리**. 융합·추적·충분도·요청 선택·보조 실행·수준 조정의 **순서만** 잡고 어느 판정도 다시 하지 않는다. 없는 단계는 사유와 함께 축소된다. 주기는 `runtime/refresh.py` 가 소유하고 이 모듈에는 타이머가 없다 | AI-S-03, AI-S-05, AI-E-04, AI-C-05, AI-C-19 |
 | `runtime/environment_profile.py` | 실행 환경(가속기 가용성 등)을 코드 분기가 아니라 선언 프로파일로 해소. 새 환경은 선언 한 건이고 이 모듈을 고치지 않는다 | AI-B-04, AI-C-15, AI-C-05, AI-B-01 |
 | `runtime/mlops_pipeline.py` | 검증된 모델 버전을 실행영역에 하나의 계약으로 배포·확대·롤백 | AI-L-10, AI-L-07, AI-B-11 |
 | `observability/failure_trace.py`, `providers/observability_query.py` | 실패한 단계의 원인 후보를 순위와 근거로. 미측정과 정상을 섞지 않는다 | AI-O-02/03/05 |
@@ -185,7 +205,7 @@ AI-L-05 검증과 AI-L-07 단계 적용을 지나야 하고, 센서가 말한 �
 레이어를 켜는 선언 자체가 거절된다.
 
 전역 좌표 **숫자**가 뷰 계약으로 나가는가는 코드 상수가 아니라 **현장마다의 선언**이
-정한다. `tools/fms_console/fleet.py::global_release()` 한 곳이 네 조건을 차례로 본다 —
+정한다. `tools/view_service/fleet.py::global_release()` 한 곳이 네 조건을 차례로 본다 —
 datum 이 있는가 · 검증됐는가 · 정확도가 선언됐는가(미측정은 0 이 아니다) · 전역 상태의
 authoritative 주인을 다른 파트와 **재합의한 기록**(`site.boundary_agreement`)이 있는가.
 하나라도 없으면 숫자는 나가지 않고 그 자리에 첫 번째로 걸린 사유가 남는다

@@ -1,6 +1,6 @@
 """Capability-gated cross-source track linking (AI-S-02).
 
-implements: AI-S-02, AI-C-10, AI-C-11
+implements: AI-S-02, AI-C-10, AI-C-05
 tests: tests/test_multisource.py, scenarios/multisource (SURV-11, SURV-12)
 
 `MultiObservationAssociator` (association.py) answers one question about
@@ -13,7 +13,7 @@ That decision is what this module owns:
 
 * 시간 동기화, 전역 좌표, 외형(ReID) 은 모두 **선택 capability** 다. 등록되어
   있지 않으면 그 근거는 트랙이 값을 들고 있더라도 사용하지 않는다
-  (AI-C-11: 선택 조건이 없어지면 축소 모드로 전환한다).
+  (AI-C-05: 선택 조건이 없어지면 축소 모드로 전환한다).
 * 근거가 하나도 없으면 연계만 비활성화되고, 소스별 추적 결과는 입력 그대로
   반환된다 (AI-S-02: "하나라도 없다고 전체 추적을 중단해서는 안 된다.
   필요한 근거가 부족하면 관측 소스별 추적을 독립적으로 유지해야 한다").

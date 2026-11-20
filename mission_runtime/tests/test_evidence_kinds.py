@@ -61,7 +61,7 @@ from mission_runtime.perception.spatial_evidence import (
 
 DICTIONARY_PATH = PACKAGE_DIR / "config" / "device_appearance_classes.example.json"
 
-CONSOLE_DIR = PACKAGE_DIR / "tools" / "fms_console"
+CONSOLE_DIR = PACKAGE_DIR / "tools" / "view_service"
 if str(CONSOLE_DIR) not in sys.path:
     sys.path.insert(0, str(CONSOLE_DIR))
 

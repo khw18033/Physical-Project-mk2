@@ -1,6 +1,6 @@
 """Common provider interfaces (adapters) between AI logic and infrastructure.
 
-implements: AI-C-04, AI-C-06, AI-C-07, AI-C-08, AI-C-09, AI-C-12, AI-B-03, AI-B-08, AI-C-20
+implements: AI-C-04, AI-C-06, AI-C-07, AI-C-08, AI-B-03, AI-B-08, AI-C-20
 
 절대 준수 원칙 #1, #2, #10: 특정 센서·프로토콜·직렬화·러ntime·오케스트레이터를
 프레임워크 핵심 코드에 하드코딩하지 않는다. 상위 인지·판단·위험 분석·실행관리
@@ -179,7 +179,7 @@ class RobotControlBackend(Protocol):
 
 @runtime_checkable
 class ObservabilityProvider(Protocol):
-    """Metric/log/trace/event sink (AI-O-01, AI-O-02, AI-C-12).
+    """Metric/log/trace/event sink (AI-O-01, AI-O-02, AI-C-04).
 
     `record_event` is for structured, individually-significant events
     (device death, fatal error) that must not be lost inside a metric
@@ -196,7 +196,7 @@ class ObservabilityProvider(Protocol):
 @runtime_checkable
 class NetworkOverlayProvider(Protocol):
     """Secure overlay linking 구역 엣지 and 서버 without public internet
-    exposure (AI-C-17, 원칙 #10).
+    exposure (AI-C-04, 원칙 #10).
 
     Upper-layer code asks only two questions — can I reach that peer, and
     what is the overlay's own state — so the current implementation

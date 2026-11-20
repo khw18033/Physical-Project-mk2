@@ -1,7 +1,7 @@
 """언제 멈출 것인가 — 그리고 **틀리게 멈춘 대가를 센다.**
 
 implements: AI-S-03, AI-S-04, AI-O-02, AI-C-13
-근거: docs/obsidian/ideas/evidence-driven-orchestration-plan.md §3 S4, §7-2
+근거: internal/docs-dev/obsidian/ideas/evidence-driven-orchestration-plan.md §3 S4, §7-2
 
 조기 정지가 자원을 아끼는 메커니즘이고, 그 대가는 **틀린 확정**이다. 그래서 정지
 규칙과 그 회계를 한 모듈에 둔다 — 아끼기만 하고 대가를 세지 않으면 비교가 성립하지

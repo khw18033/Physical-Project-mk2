@@ -5,7 +5,7 @@ tests: required vs preferred separation, tolerance decides sufficiency, semantic
        sufficiency counts independent sources (not confidence), unobtainable is a
        degradation path rather than an endless request, gap ordering
 
-근거: docs/obsidian/ideas/evidence-driven-orchestration-plan.md §3 S1·S2
+근거: internal/docs-dev/obsidian/ideas/evidence-driven-orchestration-plan.md §3 S1·S2
 """
 
 from __future__ import annotations

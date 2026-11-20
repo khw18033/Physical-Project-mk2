@@ -21,8 +21,17 @@ import numpy as np
 
 @dataclass(frozen=True)
 class CalibrationEstimate:
+    """보정 추정 1건. 아직 프로파일이 아니다.
+
+    `dist_coeffs` 가 None 인 것은 **"이 방법이 왜곡을 추정하지 않았다"** 는 뜻이고
+    "왜곡이 없다" 가 아니다 — 0 벡터로 채우면 그 구분이 사라지고, 사라진 자리에서
+    광각 렌즈의 왜곡이 "측정해 보니 없었다" 로 읽힌다(AI-B-01: 미측정 항목은 구분한다).
+    보정판 없는 자기보정(`edge/auto_calibration.py`)이 그 경우다.
+    `reprojection_error_rms` 도 같은 규칙을 따른다: 재지 않은 축은 NaN 이고 0 이 아니다.
+    """
+
     camera_matrix: np.ndarray
-    dist_coeffs: np.ndarray
+    dist_coeffs: np.ndarray | None
     reprojection_error_rms: float
     stable: bool
 

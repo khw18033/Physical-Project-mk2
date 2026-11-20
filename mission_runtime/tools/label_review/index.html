@@ -1,0 +1,628 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>GT 검수</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="data:,">  <!-- 빈 favicon. 없으면 콘솔이 404 로 시끄럽고,
+     진짜 404(없는 프레임·없는 출처)가 그 소음에 묻힌다. -->
+<!-- 화면은 표현만 한다. 판정 규칙(작성자 필수, 미검수는 GT 아님, 거짓 양성은 상자
+     없음)은 tools/view_service/labeling.py 가 소유하고 서버가 거절한다 — 여기서
+     다시 판정하지 않는다(AI-C-19). -->
+<style>
+:root{
+  --bg:#12151a; --panel:#1a1f27; --line:#2b323d; --fg:#e7ecf3; --muted:#92a0b4;
+  --accent:#5aa9ff; --ok:#49c17a; --warn:#e8b23a; --bad:#e8604c; --add:#b57bff;
+  --c0:#5aa9ff; --c1:#49c17a; --c2:#e8604c; --c3:#e8b23a; --c4:#b57bff;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);
+  font:14px/1.45 ui-sans-serif,system-ui,"Noto Sans KR",sans-serif;height:100vh;
+  display:grid;grid-template-columns:230px 1fr 290px;overflow:hidden}
+@media (max-width:900px){body{grid-template-columns:1fr;grid-template-rows:auto 1fr auto;overflow:auto}}
+aside,section{min-height:0}
+aside{background:var(--panel);border-right:1px solid var(--line);display:flex;flex-direction:column}
+#right{border-right:none;border-left:1px solid var(--line)}
+h2{font-size:.76rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);
+  margin:0;padding:12px 14px 8px}
+.scroll{overflow:auto;flex:1}
+.frame{display:flex;gap:8px;align-items:center;padding:6px 14px;cursor:pointer;
+  border-left:3px solid transparent;font-size:.82rem}
+.frame:hover{background:#222935}
+.frame.on{background:#263142;border-left-color:var(--accent)}
+.frame .nm{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dot{width:8px;height:8px;border-radius:50%;background:#44506080;flex:none}
+.dot.done{background:var(--ok)}
+.dot.draft{background:var(--warn)}
+#stage{position:relative;display:flex;flex-direction:column;background:#0d1014}
+#canvasWrap{flex:1;position:relative;overflow:hidden;display:flex;
+  align-items:center;justify-content:center}
+canvas{max-width:100%;max-height:100%;cursor:crosshair;touch-action:none}
+#bar{display:flex;gap:10px;align-items:center;padding:8px 14px;
+  border-top:1px solid var(--line);background:var(--panel);flex-wrap:wrap}
+button{background:#232b36;color:var(--fg);border:1px solid var(--line);
+  border-radius:6px;padding:5px 10px;cursor:pointer;font:inherit;font-size:.82rem}
+button:hover{background:#2c3644}
+button.p{background:var(--accent);border-color:var(--accent);color:#06101d;font-weight:600}
+button.bad{background:var(--bad);border-color:var(--bad);color:#2a0a06;font-weight:600}
+button.add{background:var(--add);border-color:var(--add);color:#1c0a30;font-weight:600}
+button:disabled{opacity:.4;cursor:not-allowed}
+.rowline{padding:8px 14px;border-bottom:1px solid var(--line)}
+.box-item{padding:7px 14px;border-bottom:1px solid var(--line);cursor:pointer;font-size:.82rem}
+.box-item:hover{background:#222935}
+.box-item.on{background:#263142}
+.box-item .top{display:flex;gap:6px;align-items:center}
+.swatch{width:10px;height:10px;border-radius:2px;flex:none}
+.meta{color:var(--muted);font-size:.74rem;margin-top:2px}
+.grounds{color:#cfe3ff}
+.dim{color:var(--muted)}
+.arm{font-size:.66rem;padding:0 5px;border-radius:3px;border:1px solid var(--line);
+  margin-left:4px;color:var(--muted)}
+.arm.both{color:var(--ok);border-color:var(--ok)}
+.arm.only{color:var(--warn);border-color:var(--warn)}
+.v{font-size:.68rem;padding:1px 6px;border-radius:999px;border:1px solid var(--line)}
+.v.confirmed{color:var(--ok);border-color:var(--ok)}
+.v.adjusted,.v.relabeled{color:var(--warn);border-color:var(--warn)}
+.v.rejected{color:var(--bad);border-color:var(--bad)}
+.v.added{color:var(--add);border-color:var(--add)}
+select,input[type=text]{background:#161b22;color:var(--fg);border:1px solid var(--line);
+  border-radius:6px;padding:5px 8px;font:inherit;font-size:.82rem;width:100%}
+label{display:block;font-size:.74rem;color:var(--muted);margin:8px 14px 3px}
+.pad{padding:0 14px}
+kbd{background:#232b36;border:1px solid var(--line);border-radius:4px;
+  padding:0 4px;font-size:.72rem;color:var(--muted)}
+#msg{font-size:.78rem;color:var(--muted);min-height:1.2em;padding:0 14px 10px}
+#msg.err{color:var(--bad)}
+.tally{display:flex;gap:6px;flex-wrap:wrap;padding:0 14px 10px;font-size:.72rem;color:var(--muted)}
+</style>
+
+<aside id="left">
+  <h2>출처</h2>
+  <div class="pad"><select id="source"></select></div>
+  <h2 id="frameHead">프레임</h2>
+  <div class="scroll" id="frames"></div>
+</aside>
+
+<section id="stage">
+  <div id="canvasWrap"><canvas id="cv"></canvas></div>
+  <div id="bar">
+    <button id="prev">← 이전</button>
+    <button id="next">다음 →</button>
+    <span id="pos" style="color:var(--muted);font-size:.8rem"></span>
+    <span style="flex:1"></span>
+    <button id="confirm" class="p">확인 <kbd>Space</kbd></button>
+    <button id="reject" class="bad">거부 <kbd>X</kbd></button>
+    <button id="addMode" class="add">추가 그리기 <kbd>A</kbd></button>
+    <button id="undo">되돌림 기록</button>
+    <span style="width:10px"></span>
+    <button id="zout">−</button><span id="zoomv" style="color:var(--muted);font-size:.78rem;min-width:44px;text-align:center">100%</span><button id="zin">+</button>
+    <button id="zfit">맞춤</button>
+    <button id="lbl">라벨 <kbd>L</kbd></button>
+  </div>
+</section>
+
+<aside id="right">
+  <h2>상자</h2>
+  <div class="scroll" id="boxes"></div>
+  <label for="cls">종류 <kbd>1</kbd>..<kbd>5</kbd></label>
+  <div class="pad"><select id="cls"></select></div>
+  <div id="idwrap" style="display:none">
+    <label for="oid">개체 <span style="color:var(--muted);font-weight:400">(종류와 다른 축이다)</span></label>
+    <div class="pad"><select id="oid"></select></div>
+  </div>
+  <div class="pad"><button id="hold" style="width:100%">값 고정 <kbd>H</kbd></button></div>
+  <div style="color:var(--muted);font-size:.72rem;padding:0 10px 6px">
+    끄면 장을 넘길 때마다 종류·개체가 <b>저장된 값으로 되돌아간다</b>.
+    한 물체를 여러 장에 걸쳐 적을 때는 켠다.
+  </div>
+  <label for="note">메모</label>
+  <div class="pad"><input type="text" id="note" placeholder="왜 그렇게 판정했는가"></div>
+  <label for="author">작성자 (없으면 거절된다)</label>
+  <div class="pad"><input type="text" id="author"></div>
+  <div class="tally" id="tally"></div>
+  <div id="msg"></div>
+</aside>
+
+<script>
+// canvas 는 CSS 변수를 못 읽는다 — strokeStyle 에 var(--c0) 를 주면 조용히 검정이
+// 된다(실제로 그렇게 나왔다). 그래서 실제 값을 여기 두고, CSS 쪽 --c0..--c4 와
+// **같은 값**을 쓴다. 한 자리에서 읽도록 :root 에서 꺼내 온다.
+const CSSV = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const CLS_COLORS = ['--c0','--c1','--c2','--c3','--c4'].map(CSSV);
+const COL_MUTED = CSSV('--muted'), COL_BAD = CSSV('--bad'), COL_ADD = CSSV('--add');
+const S = {
+  source:null, classes:[], author:'', frames:[], idx:0,
+  boxes:[],          // {box_id, box:[x1,y1,x2,y2], semantic_class, confidence, verdict, corrected_box, corrected_class, origin}
+  sel:-1, img:null, drawing:null, drag:null, addMode:false,
+  // 보기 변환. 3840x1920 equirect 를 화면에 맞추면 100px 물체가 40px 이 되고
+  // 라벨이 그 물체를 덮는다 — 실제로 360 검수가 12장 중 1장에서 멈췄다.
+  view:{z:1, ox:0, oy:0}, labels:true,
+  // 동일성 이름 공간. **출처마다 다르고 없을 수 있다** — 없으면 그 칸을 내지 않는다
+  // (쓸 수 없는 칸을 보여 주면 적어 놓고 거절당한다).
+  identity:null, identityBySource:{},
+  // 고르개를 **상자마다 되맞추지 않는다.** 끄면 장을 넘길 때마다 저장된 값(대개
+  // 자동 제안)으로 되돌아가고, 사람이 고친 값이 다음 장에서 사라진다 — 실제로
+  // 2026-11-18 검수에서 한 사슬이 두 개체로 갈려 적혔다. 켜는 것은 **명시적**이고
+  // 켜져 있다는 것이 화면에 보인다(자동으로 끌고 가면 그것이 가장 조용한 오류다).
+  hold:false,
+};
+const $ = s => document.querySelector(s);
+const cv = $('#cv'), ctx = cv.getContext('2d');
+
+function say(text, isErr){ const m=$('#msg'); m.textContent=text; m.className = isErr?'err':''; }
+function colorOf(cls){ const i=S.classes.indexOf(cls); return i<0 ? COL_MUTED : CLS_COLORS[i%5]; }
+
+async function boot(){
+  const r = await (await fetch('/api/review/sources')).json();
+  S.classes = r.classes; S.author = r.author || '';
+  $('#author').value = S.author;
+  $('#cls').innerHTML = S.classes.map((c,i)=>`<option value="${c}">${i+1}. ${c}</option>`).join('');
+  $('#source').innerHTML = r.sources.map(s=>
+    `<option value="${s.source_id}">${s.source_id} (${s.reviewed}/${s.frames})</option>`).join('');
+  if(!r.sources.length){ say('출처가 없다', true); return; }
+  for(const s of r.sources) S.identityBySource[s.source_id] = s.identity || null;
+  S.source = r.sources[0].source_id;
+  syncIdentityPicker();
+  await loadFrames();
+}
+
+// 개체 고르개. 선언된 명부만 내고 **직접 적게 하지 않는다** — 자유 입력은
+// `river3-01` 같은 오타로 없는 개체를 만들고, 그 개체는 한 카메라에서만 보이므로
+// 교차 카메라 정답에서 조용히 빠진다(빠진 것은 0 점이 아니라 아예 세어지지 않는다).
+//
+// 쌍둥이 묶음을 함께 내는 이유: 눈으로 갈리지 않는 둘에서 한쪽을 찍으라고 하면
+// 사람은 찍는다. 그 정답은 틀린 정답이고 없는 정답보다 나쁘다. "둘 중 하나" 를
+// 고를 수 있어야 가리지 않은 것을 가리지 않았다고 적을 수 있다(AI-S-03·AI-S-04).
+function syncIdentityPicker(){
+  S.identity = S.identityBySource[S.source] || null;
+  $('#idwrap').style.display = S.identity ? '' : 'none';
+  if(!S.identity) return;
+  const roster = S.identity.roster || {};
+  const kindOf = m => (roster[m] || {}).declared_kind || '';
+  const opts = ['<option value="">(적지 않음)</option>'];
+  for(const m of S.identity.members)
+    opts.push(`<option value="${m}">${m}${kindOf(m) ? ' · ' + kindOf(m) : ''}</option>`);
+  // 선언된 쌍둥이 쌍을 묶음 후보로. `twin_of` 는 선언이고 관측이 아니다 — 명부가
+  // 그렇게 적혀 있다는 사실만 쓴다.
+  const pairs = new Set();
+  for(const [m, info] of Object.entries(roster)){
+    const other = info.twin_of;
+    if(other && roster[other]) pairs.add([m, other].sort().join(','));
+  }
+  for(const pair of [...pairs].sort()){
+    const [a,b] = pair.split(',');
+    opts.push(`<option value="?${pair}">둘 중 하나: ${a} / ${b}`
+              + `${kindOf(a) ? ' · ' + kindOf(a) : ''}</option>`);
+  }
+  $('#oid').innerHTML = opts.join('');
+}
+
+// 상자가 들고 있는 동일성을 고르개에 맞춘다. 상자를 바꿀 때 앞 상자의 번호가 남아
+// 있으면 그 번호가 다음 상자에 적힌다 — 그것이 가장 조용한 라벨 오류다.
+function syncIdentityFor(b){
+  if(!S.identity || S.hold) return;
+  const v = !b ? '' :
+    b.object_id ? b.object_id :
+    (b.object_id_candidates && b.object_id_candidates.length)
+      ? '?' + [...b.object_id_candidates].sort().join(',') : '';
+  $('#oid').value = [...$('#oid').options].some(o=>o.value===v) ? v : '';
+}
+
+async function loadFrames(){
+  const r = await (await fetch(`/api/review/tasks?source=${encodeURIComponent(S.source)}`)).json();
+  S.frames = r.frames;
+  $('#frameHead').textContent = `프레임 (${r.frames.filter(f=>f.reviewed).length}/${r.frames.length} 검수)`;
+  renderTally(r.tally);
+  $('#frames').innerHTML = S.frames.map((f,i)=>
+    `<div class="frame" data-i="${i}"><span class="dot ${f.reviewed?'done':(f.predicted?'draft':'')}"></span>
+     <span class="nm">${f.frame}</span><span style="color:var(--muted)">${f.predicted||''}</span></div>`).join('');
+  $('#frames').querySelectorAll('.frame').forEach(el=>
+    el.onclick = ()=> goto(+el.dataset.i));
+  goto(Math.min(S.idx, S.frames.length-1));
+}
+
+function renderTally(t){
+  const order=['confirmed','adjusted','relabeled','rejected','added'];
+  $('#tally').innerHTML = order.filter(k=>t[k]).map(k=>
+    `<span class="v ${k}">${k} ${t[k]}</span>`).join('') || '<span>판정 없음</span>';
+}
+
+async function goto(i){
+  if(i<0 || i>=S.frames.length) return;
+  S.idx = i; S.sel = -1; S.addMode=false;
+  document.querySelectorAll('.frame').forEach(el=>{
+    const on = +el.dataset.i===i;
+    el.classList.toggle('on', on);
+    if(on) el.scrollIntoView({block:'nearest'});
+  });
+  const f = S.frames[i].frame;
+  $('#pos').textContent = `${i+1} / ${S.frames.length}  ·  ${f}`;
+  const t = await (await fetch(
+    `/api/review/task?source=${encodeURIComponent(S.source)}&frame=${encodeURIComponent(f)}`)).json();
+
+  const byId = {};
+  for(const p of t.predicted) byId[p.box_id] = {...p, origin:'model', verdict:null,
+                                               arms: p.arms || []};
+  for(const v of t.verdicts){
+    const base = byId[v.box_id] || {box_id:v.box_id, origin:'human',
+      box:v.final_box || [0,0,0.01,0.01], semantic_class:null, confidence:null};
+    base.verdict = v.verdict;
+    base.corrected_box = v.final_box || null;
+    base.corrected_class = v.final_class || null;
+    base.object_id = v.object_id || '';
+    base.object_id_candidates = v.object_id_candidates || [];
+    // **누가 적었는가.** 자동 제안과 사람이 확인한 것이 화면에서 같아 보이면,
+    // 검수자는 이미 본 것과 아직 안 본 것을 구분할 수 없다(AI-L-02).
+    base.labeled_by = v.labeled_by || '';
+    byId[v.box_id] = base;
+  }
+  S.boxes = Object.values(byId);
+
+  const im = new Image();
+  im.onload = ()=>{ S.img = im; fitCanvas(); draw(); renderBoxes(); updateZoomLabel(); };
+  im.src = `/api/review/media?source=${encodeURIComponent(S.source)}&frame=${encodeURIComponent(f)}`;
+}
+
+function fitCanvas(){
+  const wrap = $('#canvasWrap');
+  cv.width = Math.max(32, wrap.clientWidth);
+  cv.height = Math.max(32, wrap.clientHeight);
+  resetView();
+}
+// 이미지 전체가 보이는 기본 배율
+function baseScale(){
+  return Math.min(cv.width / S.img.width, cv.height / S.img.height);
+}
+function resetView(){ S.view = {z:1, ox:0, oy:0}; clampView(); }
+// 이미지 정규화 좌표(0..1) → 캔버스 픽셀
+function toCanvas(nx, ny){
+  const s = baseScale() * S.view.z;
+  const w = S.img.width * s, h = S.img.height * s;
+  return [S.view.ox + (cv.width - w)/2 + nx*w, S.view.oy + (cv.height - h)/2 + ny*h];
+}
+function toImage(cx, cy){
+  const s = baseScale() * S.view.z;
+  const w = S.img.width * s, h = S.img.height * s;
+  return [(cx - S.view.ox - (cv.width - w)/2)/w, (cy - S.view.oy - (cv.height - h)/2)/h];
+}
+function clampView(){
+  const s = baseScale() * S.view.z;
+  const w = S.img.width * s, h = S.img.height * s;
+  const mx = Math.max(0, (w - cv.width)/2), my = Math.max(0, (h - cv.height)/2);
+  S.view.ox = Math.min(mx, Math.max(-mx, S.view.ox));
+  S.view.oy = Math.min(my, Math.max(-my, S.view.oy));
+}
+function zoomAt(cx, cy, factor){
+  const [nx, ny] = toImage(cx, cy);
+  S.view.z = Math.min(16, Math.max(1, S.view.z * factor));
+  const [px, py] = toCanvas(nx, ny);
+  S.view.ox += cx - px; S.view.oy += cy - py;
+  clampView(); draw(); updateZoomLabel();
+}
+function updateZoomLabel(){ $('#zoomv').textContent = `${(S.view.z*100).toFixed(0)}%`; }
+
+function shown(b){ return (b.corrected_box || b.box); }
+
+function draw(){
+  if(!S.img) return;
+  ctx.clearRect(0,0,cv.width,cv.height);
+  const [x0,y0] = toCanvas(0,0), [x1,y1] = toCanvas(1,1);
+  ctx.drawImage(S.img, x0, y0, x1-x0, y1-y0);
+  S.boxes.forEach((b,i)=>{
+    if(b.verdict === 'rejected'){ drawBox(b, i, COL_BAD, true); return; }
+    const cls = b.corrected_class || b.semantic_class;
+    drawBox(b, i, colorOf(cls), false);
+  });
+  if(S.drawing) {
+    const [a,b] = toCanvas(S.drawing[0], S.drawing[1]);
+    const [c,d] = toCanvas(S.drawing[2], S.drawing[3]);
+    ctx.save(); ctx.setLineDash([5,4]); ctx.strokeStyle=COL_ADD; ctx.lineWidth=2;
+    ctx.strokeRect(a, b, c-a, d-b); ctx.restore();
+  }
+}
+
+function drawBox(b, i, color, struck){
+  const [x1,y1,x2,y2] = shown(b);
+  const [cx1,cy1] = toCanvas(x1,y1), [cx2,cy2] = toCanvas(x2,y2);
+  const X=cx1, Y=cy1, W=cx2-cx1, H=cy2-cy1;
+  if(cx2 < -40 || cx1 > cv.width+40 || cy2 < -40 || cy1 > cv.height+40) return;
+  ctx.save();
+  ctx.strokeStyle = color; ctx.lineWidth = (i===S.sel) ? 3 : 1.6;
+  if(struck) ctx.setLineDash([4,4]);
+  ctx.strokeRect(X, Y, W, H);
+  if(i===S.sel){
+    ctx.fillStyle = color; ctx.globalAlpha = .12; ctx.fillRect(X,Y,W,H); ctx.globalAlpha = 1;
+    for(const [hx,hy] of [[X,Y],[X+W,Y],[X,Y+H],[X+W,Y+H]])
+      ctx.fillRect(hx-4, hy-4, 8, 8);
+  }
+  if(!S.labels && i!==S.sel){ ctx.restore(); return; }
+  // 장변 px — §2-3 픽셀 하한을 이 숫자로 정한다. 화면 크기가 아니라 **원본** px 다.
+  const longPx = Math.round(Math.max((x2-x1)*S.img.width, (y2-y1)*S.img.height));
+  const cls = b.corrected_class || b.semantic_class || '?';
+  // 미확정 칸은 이름이 전부 같다 — 그 자리를 이긴 낱말을 보여 주지 않으면
+  // 화면에 `unconfirmed` 만 스물세 개 뜬다.
+  const word = (!b.corrected_class && b.prompt_label && b.prompt_label !== cls)
+               ? ` ‹${b.prompt_label}›` : '';
+  const conf = b.confidence!=null ? ` ${b.confidence.toFixed(2)}` : '';
+  const text = `${i+1}. ${idTag(b)}${cls}${word}${conf}  ${longPx}px`;
+  ctx.font = '600 12px ui-sans-serif,system-ui,sans-serif';
+  const tw = ctx.measureText(text).width + 8;
+  // 상자가 작으면 라벨이 그 물체를 덮는다 — 위가 좁으면 아래에 붙인다.
+  const ly = (Y > 18) ? Y-16 : (Y+H+2);
+  ctx.fillStyle = color; ctx.fillRect(X, ly, tw, 16);
+  ctx.fillStyle = '#06101d'; ctx.fillText(text, X+4, ly+12);
+  ctx.restore();
+}
+
+// 번호를 라벨 앞에 붙인다. 쌍둥이 묶음은 `?` 로 적어 **확정과 눈으로 갈린다** —
+// 같은 모양으로 보이면 가린 것과 못 가린 것이 화면에서 같아 보인다.
+function idTag(b){
+  if(b.object_id) return `[${b.object_id.replace(/^river3-/, '')}] `;
+  const c = b.object_id_candidates || [];
+  if(c.length) return `[?${c.map(x=>x.replace(/^river3-/, '')).join('/')}] `;
+  return '';
+}
+
+function renderBoxes(){
+  if(!S.boxes.length){ $('#boxes').innerHTML =
+    '<div class="rowline" style="color:var(--muted)">초안 상자가 없다. <kbd>A</kbd> 로 직접 그린다.</div>'; return; }
+  $('#boxes').innerHTML = S.boxes.map((b,i)=>{
+    const [x1,y1,x2,y2] = shown(b);
+    const longPx = Math.round(Math.max((x2-x1)*S.img.width, (y2-y1)*S.img.height));
+    const base = b.corrected_class || b.semantic_class || '?';
+    const cls = (!b.corrected_class && b.prompt_label && b.prompt_label !== base)
+                ? `${base} ‹${b.prompt_label}›` : base;
+    const proposed = (b.labeled_by || '').startsWith('proposed:');
+    const v = b.verdict ? `<span class="v ${b.verdict}">${b.verdict}</span>` :
+                          `<span class="v">미검수</span>`
+            + (proposed ? `<span class="v" title="${b.labeled_by}">제안</span>` : '');
+    return `<div class="box-item ${i===S.sel?'on':''}" data-i="${i}">
+      <div class="top"><span class="swatch" style="background:${colorOf(cls)}"></span>
+        <strong>${i+1}. ${idTag(b)}${cls}</strong>${v}</div>
+      <div class="meta">${longPx}px · ${b.origin==='model'
+        ? `모델 ${b.confidence!=null?b.confidence.toFixed(2):'—'}` : '사람이 그림'}${armBadge(b)}</div>
+      ${groundLine(b)}
+    </div>`;
+  }).join('');
+  $('#boxes').querySelectorAll('.box-item').forEach(el=>
+    el.onclick = ()=>{ S.sel = +el.dataset.i; syncClassPicker();
+      syncIdentityFor(S.boxes[S.sel]); draw(); renderBoxes(); });
+}
+
+// 운영 근거 카드와 **같은 값**을 한 줄로. 측정이 없는 칸은 0 이 아니라
+// 아예 빼서, 유휴와 미달이 섞이지 않게 한다(AI-O-05).
+function groundLine(b){
+  const bits = [];
+  const v = b.verify || null;
+  if(v && v.margin != null)
+    bits.push(`재질 ${(Math.max(0, Math.min(1, v.margin))*100).toFixed(0)}%` +
+              (v.models ? ` <span class="dim">(${v.models}개)</span>` : ''));
+  const d = b.dist || null;
+  if(d && d.value != null)
+    bits.push(`거리 ${d.value.toFixed(2)} m` +
+              (d.source && d.source !== 'measured' ? ` <span class="dim">(${d.source})</span>` : ''));
+  const r = b.real_mm || null;
+  if(r && r.long != null && r.short != null)
+    bits.push(`크기 ${(r.long/10).toFixed(0)} x ${(r.short/10).toFixed(0)} cm`);
+  if(!bits.length) return '';
+  return `<div class="meta grounds">${bits.join(' · ')}</div>`;
+}
+
+// 몇 개 모델이 동의했는가. holdout 측정에서 4개 동의는 FP 0(n=23)이었고 1개만
+// 본 상자는 대부분 거부됐다 — 시간을 어디에 쓸지가 이 숫자로 갈린다.
+// 이름도 함께 보인다: 어느 모델이 혼자 본 것인지가 그 상자의 성격을 말한다.
+function armBadge(b){
+  const a = b.arms || [];
+  if(!a.length) return '';
+  const cls = a.length >= 3 ? 'both' : (a.length === 1 ? 'only' : '');
+  return `<span class="arm ${cls}" title="${a.join(', ')}">${a.length}개 · ${a.join('+')}</span>`;
+}
+
+function syncClassPicker(){
+  if(S.hold) return;              // 고정 중에는 사람이 고른 값을 지킨다
+  const b = S.boxes[S.sel];
+  if(!b) return;
+  const cls = b.corrected_class || b.semantic_class;
+  if(cls && S.classes.includes(cls)) $('#cls').value = cls;
+}
+
+/* ---- 마우스: 선택 · 이동 · 모서리 크기조절 · 새 상자 ---- */
+function pt(e){
+  const r = cv.getBoundingClientRect();
+  return toImage((e.clientX-r.left) * cv.width/r.width,
+                 (e.clientY-r.top) * cv.height/r.height);
+}
+function clientPx(e){
+  const r = cv.getBoundingClientRect();
+  return [(e.clientX-r.left) * cv.width/r.width, (e.clientY-r.top) * cv.height/r.height];
+}
+function hitHandle(b, x, y){
+  const [x1,y1,x2,y2] = shown(b);
+  // 손잡이 반경은 **화면 10px**이다. 확대하면 이미지 좌표로는 작아져야 한다 —
+  // 고정값을 쓰면 확대할수록 손잡이가 상자보다 커져 상자를 고를 수 없다.
+  const s = baseScale() * S.view.z;
+  const tx = 10/(S.img.width * s), ty = 10/(S.img.height * s);
+  const corners = {nw:[x1,y1], ne:[x2,y1], sw:[x1,y2], se:[x2,y2]};
+  for(const [k,[cx,cy]] of Object.entries(corners)){
+    if(Math.abs(x-cx)<tx && Math.abs(y-cy)<ty) return k;
+  }
+  return null;
+}
+cv.addEventListener('pointerdown', e=>{
+  if(!S.img) return;
+  cv.setPointerCapture(e.pointerId);
+  const [x,y] = pt(e);
+  if(S.addMode){ S.drawing = [x,y,x,y]; return; }
+  if(S.sel>=0){
+    const h = hitHandle(S.boxes[S.sel], x, y);
+    if(h){ S.drag = {kind:'resize', corner:h, start:[x,y]}; return; }
+  }
+  const hit = S.boxes.findIndex(b=>{
+    const [x1,y1,x2,y2] = shown(b); return x>=x1&&x<=x2&&y>=y1&&y<=y2; });
+  S.sel = hit; syncClassPicker(); syncIdentityFor(S.boxes[S.sel]); renderBoxes(); draw();
+  if(hit>=0) S.drag = {kind:'move', start:[x,y], orig:[...shown(S.boxes[hit])]};
+  else if(S.view.z > 1) S.drag = {kind:'pan', start:clientPx(e),
+                                  orig:[S.view.ox, S.view.oy]};
+});
+cv.addEventListener('pointermove', e=>{
+  if(!S.img) return;
+  const [x,y] = pt(e);
+  if(S.drawing){ S.drawing[2]=x; S.drawing[3]=y; draw(); return; }
+  if(S.drag && S.drag.kind==='pan'){
+    const [px,py] = clientPx(e);
+    S.view.ox = S.drag.orig[0] + (px - S.drag.start[0]);
+    S.view.oy = S.drag.orig[1] + (py - S.drag.start[1]);
+    clampView(); draw(); return;
+  }
+  if(!S.drag || S.sel<0) return;
+  const b = S.boxes[S.sel];
+  let box = [...shown(b)];
+  if(S.drag.kind==='move'){
+    const dx = x-S.drag.start[0], dy = y-S.drag.start[1], o=S.drag.orig;
+    box = [o[0]+dx, o[1]+dy, o[2]+dx, o[3]+dy];
+  } else {
+    const c = S.drag.corner;
+    if(c.includes('n')) box[1]=y; if(c.includes('s')) box[3]=y;
+    if(c.includes('w')) box[0]=x; if(c.includes('e')) box[2]=x;
+  }
+  b.corrected_box = clampBox(box);
+  draw();
+});
+cv.addEventListener('pointerup', async e=>{
+  if(S.drawing){
+    const box = clampBox([Math.min(S.drawing[0],S.drawing[2]), Math.min(S.drawing[1],S.drawing[3]),
+                          Math.max(S.drawing[0],S.drawing[2]), Math.max(S.drawing[1],S.drawing[3])]);
+    S.drawing = null; S.addMode = false; $('#addMode').classList.remove('p');
+    if((box[2]-box[0])*cv.width > 4 && (box[3]-box[1])*cv.height > 4){
+      const id = 'h' + Date.now().toString(36);
+      S.boxes.push({box_id:id, box, corrected_box:box, origin:'human',
+                    semantic_class:$('#cls').value, confidence:null, verdict:null});
+      S.sel = S.boxes.length-1;
+      await send('added');
+    } else { draw(); }
+    return;
+  }
+  if(S.drag && S.drag.kind!=='pan' && S.sel>=0) await send(verdictFor(S.boxes[S.sel]));
+  S.drag = null;
+});
+function clampBox(b){
+  let [x1,y1,x2,y2] = b.map(v=>Math.min(1, Math.max(0, v)));
+  if(x2<x1) [x1,x2]=[x2,x1];
+  if(y2<y1) [y1,y2]=[y2,y1];
+  return [x1,y1,Math.max(x2,x1+0.002),Math.max(y2,y1+0.002)];
+}
+
+/* ---- 판정 전송 ---- */
+// 무엇을 고쳤는지는 **버튼이 아니라 상자가** 말한다. 확인 버튼이 늘 'confirmed' 를
+// 보내면 종류를 바꾸고 확인한 것이 "모델이 맞았다" 로 기록된다 — 실제로 그렇게
+// 기록됐다. 자리를 고친 것과 이름을 고친 것은 학습 가치가 다르므로 가른다.
+function verdictFor(b){
+  if(!b) return 'confirmed';
+  if(b.origin === 'human') return 'added';
+  const chosen = $('#cls').value;
+  if(chosen !== b.semantic_class) return 'relabeled';
+  if(b.corrected_box && b.box &&
+     b.corrected_box.some((v,i)=>Math.abs(v-b.box[i]) > 1e-6)) return 'adjusted';
+  return 'confirmed';
+}
+// 고르개의 값 하나를 상자의 두 칸으로 나눈다. `?a,b` 가 묶음이고 나머지는 확정이다.
+// 둘을 한 칸에 담지 않는 이유: 확정과 "둘 중 하나" 를 같은 칸에 넣으면 읽는 쪽이
+// 어느 쪽인지 고르게 되고, 그 선택이 정답에 섞인다.
+function applyIdentity(b, value){
+  if(value && value[0] === '?'){
+    b.object_id = ''; b.object_id_candidates = value.slice(1).split(',');
+  } else {
+    b.object_id = value || ''; b.object_id_candidates = [];
+  }
+}
+
+async function send(verdict){
+  const b = S.boxes[S.sel];
+  if(!b){ say('상자를 먼저 고른다', true); return; }
+  const chosen = $('#cls').value;
+  const body = {
+    source_id:S.source, frame:S.frames[S.idx].frame, box_id:b.box_id, verdict,
+    labeled_by: $('#author').value.trim(), note: $('#note').value.trim(),
+  };
+  if(verdict!=='rejected'){
+    body.corrected_class = chosen;
+    if(b.corrected_box) body.corrected_box = b.corrected_box;
+    else if(b.origin==='human') body.corrected_box = b.box;
+    // 없는 것을 봤다는 판정에는 가리킬 개체가 없다 — 그래서 거절 쪽에는 싣지 않는다.
+    if(S.identity){
+      applyIdentity(b, $('#oid').value);
+      body.identity_scope = S.identity.scope_id;
+      if(b.object_id) body.object_id = b.object_id;
+      if(b.object_id_candidates && b.object_id_candidates.length)
+        body.object_id_candidates = b.object_id_candidates;
+    }
+  }
+  const r = await fetch('/api/review/verdict', {method:'POST',
+    headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)});
+  const out = await r.json();
+  if(!r.ok){ say(`거절됨: ${out.detail || out.error}`, true); return; }
+  b.verdict = verdict;
+  if(verdict!=='rejected') b.corrected_class = chosen;
+  say(`${b.box_id} → ${verdict}`);
+  $('#note').value = '';
+  renderBoxes(); draw(); refreshCounts();
+}
+async function refreshCounts(){
+  const r = await (await fetch(`/api/review/tasks?source=${encodeURIComponent(S.source)}`)).json();
+  S.frames = r.frames; renderTally(r.tally);
+  $('#frameHead').textContent = `프레임 (${r.frames.filter(f=>f.reviewed).length}/${r.frames.length} 검수)`;
+  document.querySelectorAll('.frame').forEach(el=>{
+    const f = S.frames[+el.dataset.i];
+    el.querySelector('.dot').className = 'dot ' + (f.reviewed?'done':(f.predicted?'draft':''));
+  });
+}
+
+/* ---- 버튼 · 키 ---- */
+$('#zin').onclick = ()=>zoomAt(cv.width/2, cv.height/2, 1.4);
+$('#zout').onclick = ()=>zoomAt(cv.width/2, cv.height/2, 1/1.4);
+$('#zfit').onclick = ()=>{ resetView(); draw(); updateZoomLabel(); };
+$('#lbl').onclick = ()=>{ S.labels=!S.labels; $('#lbl').classList.toggle('p', !S.labels);
+  say(S.labels ? '' : '라벨 숨김 — 고른 상자만 보인다'); draw(); };
+$('#prev').onclick = ()=>goto(S.idx-1);
+$('#next').onclick = ()=>goto(S.idx+1);
+$('#confirm').onclick = ()=>send(verdictFor(S.boxes[S.sel]));
+$('#reject').onclick = ()=>send('rejected');
+$('#undo').onclick = ()=>send('unreviewed');
+$('#addMode').onclick = ()=>{ S.addMode=!S.addMode; $('#addMode').classList.toggle('p', S.addMode);
+  say(S.addMode ? '드래그해서 상자를 그린다' : ''); };
+$('#source').onchange = async e=>{ S.source = e.target.value; S.idx = 0;
+  syncIdentityPicker(); await loadFrames(); };
+$('#hold').onclick = ()=>{ S.hold=!S.hold; $('#hold').classList.toggle('p', S.hold);
+  $('#hold').textContent = S.hold ? '값 고정 중 — 끄기' : '값 고정';
+  if(!S.hold){ syncClassPicker(); syncIdentityFor(S.boxes[S.sel]); }
+  say(S.hold ? '종류·개체를 고정했다 — 장을 넘겨도 그대로다' : '고정 해제'); };
+$('#oid').onchange = ()=>{ const b=S.boxes[S.sel]; if(!b) return;
+  applyIdentity(b, $('#oid').value); draw(); renderBoxes(); };
+$('#cls').onchange = ()=>{ const b=S.boxes[S.sel]; if(b){ b.corrected_class=$('#cls').value;
+  draw(); renderBoxes(); } };
+cv.addEventListener('wheel', e=>{
+  if(!S.img) return;
+  e.preventDefault();
+  const [px,py] = clientPx(e);
+  zoomAt(px, py, e.deltaY < 0 ? 1.2 : 1/1.2);
+}, {passive:false});
+addEventListener('resize', ()=>{ if(S.img){ fitCanvas(); draw(); } });
+addEventListener('keydown', e=>{
+  if(e.target.tagName==='INPUT' || e.target.tagName==='SELECT') return;
+  if(e.key==='ArrowLeft') goto(S.idx-1);
+  else if(e.key==='ArrowRight') goto(S.idx+1);
+  else if(e.key===' '){ e.preventDefault(); $('#confirm').click(); }
+  else if(e.key.toLowerCase()==='x') $('#reject').click();
+  else if(e.key.toLowerCase()==='a') $('#addMode').click();
+  else if(e.key.toLowerCase()==='l') $('#lbl').click();
+  else if(e.key.toLowerCase()==='h') $('#hold').click();
+  else if(e.key==='+' || e.key==='=') $('#zin').click();
+  else if(e.key==='-') $('#zout').click();
+  else if(e.key==='0') $('#zfit').click();
+  else if(e.key>='1' && e.key<='9'){
+    const i = +e.key-1;
+    if(i < S.classes.length){ $('#cls').value = S.classes[i]; $('#cls').onchange(); }
+  } else if(e.key==='Tab'){ e.preventDefault();
+    if(S.boxes.length){ S.sel=(S.sel+1)%S.boxes.length; syncClassPicker();
+      syncIdentityFor(S.boxes[S.sel]); draw(); renderBoxes(); } }
+});
+boot();
+</script>

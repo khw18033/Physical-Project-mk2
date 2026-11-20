@@ -432,7 +432,11 @@
           "minLength": 1
         },
         "cancel_supported": {
-          "type": "boolean"
+          "type": [
+            "boolean",
+            "null"
+          ],
+          "description": "true/false/null(미선언). null 을 false 로 접지 않는다."
         },
         "required_resources": {
           "type": "array",
@@ -440,6 +444,83 @@
             "type": "string"
           },
           "uniqueItems": true
+        },
+        "idempotent": {
+          "type": [
+            "boolean",
+            "null"
+          ],
+          "description": "동일 입력 반복 호출 특성. null 은 미선언이고 '멱등하지 않다' 가 아니다."
+        },
+        "invocation": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "enum": [
+            "synchronous",
+            "asynchronous",
+            null
+          ],
+          "description": "동기·비동기 특성. null 은 미선언."
+        },
+        "optional_resources": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "uniqueItems": true,
+          "description": "선택 실행 조건. 결손은 DEGRADED 까지만(AI-C-05)."
+        },
+        "basis": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": false,
+          "description": "단위·좌표·시간 기준(AI-C-18). null 은 기준을 선언하지 않은 것이고 '기준이 없다' 가 아니다.",
+          "properties": {
+            "units": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "string"
+              },
+              "description": "매개변수·결과 이름 -> 단위 기호. 적지 않은 이름은 단위를 모르는 것이다."
+            },
+            "reference_frame": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "description": "공간 값의 기준 좌표계(AI-C-02). 로컬과 전역을 같은 칸에 담지 않는다."
+            },
+            "time_basis": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "description": "시각 값의 기준(AI-C-03)."
+            }
+          }
+        },
+        "scope_tags": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "string"
+          },
+          "uniqueItems": true,
+          "description": "수행·관측 범위. null(미선언)과 [](제약 없음 선언)은 다른 값이다."
+        },
+        "execution_profile_ref": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "minLength": 1,
+          "description": "품질·지연·자원 실측 근거(AI-B-01 ExecutionProfile) 참조. 숫자를 베껴 두지 않는다."
         }
       }
     },
@@ -463,6 +544,27 @@
         },
         "declaration_scope": {
           "const": "actions_only"
+        },
+        "undeclared_items": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "meaning",
+              "input_schema",
+              "output_schema",
+              "basis",
+              "execution_conditions",
+              "cancellable",
+              "idempotent",
+              "invocation",
+              "scope",
+              "state",
+              "version",
+              "performance"
+            ]
+          },
+          "description": "이 공지가 적지 못한 AI-C-18 항목들. 빈 칸을 기본값으로 채워 보내지 않는 대신 **이름으로** 남긴다 — 받는 쪽이 '장치가 그렇다고 선언했다' 와 '와이어에 자리가 없어 못 왔다' 를 구분할 수 있어야 한다(spec §8-3 P7)."
         }
       }
     }

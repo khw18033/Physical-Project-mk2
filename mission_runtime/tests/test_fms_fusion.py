@@ -21,7 +21,7 @@ from pathlib import Path
 import pytest
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-CONSOLE_DIR = PROJECT_ROOT / "tools" / "fms_console"
+CONSOLE_DIR = PROJECT_ROOT / "tools" / "view_service"
 if str(CONSOLE_DIR) not in sys.path:
     sys.path.insert(0, str(CONSOLE_DIR))
 

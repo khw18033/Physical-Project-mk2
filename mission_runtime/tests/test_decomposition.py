@@ -1,4 +1,4 @@
-"""implements: AI-D-03 인접 (Milestone -> Task 분해, mission_runtime.planning 참고)
+"""implements: AI-B-14 (Milestone -> Task 분해, mission_runtime.planning 참고)
 tests: template materialization, missing required/optional capability,
        executor selection with DEGRADED-only fallback, unverifiable
        preconditions, resource floor, determinism of re-runs
@@ -166,7 +166,7 @@ def test_degraded_only_executor_is_accepted_as_reduced_execution():
 
     plan = TaskDecomposer(edge_registry(), library()).decompose(context(), [degraded])
 
-    # AI-C-11: 선택 조건 결손은 비활성이 아니라 축소 실행이다.
+    # AI-C-05: 선택 조건 결손은 비활성이 아니라 축소 실행이다.
     assert plan.executor.executor_id == "a-unit"
     assert plan.executor.state is CapabilityState.DEGRADED
     assert plan.executor.reason == "selected_degraded"

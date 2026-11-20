@@ -1,7 +1,7 @@
 """CLIP text-feature dictionary matching for pre-proposed candidate boxes
-(AI-E-04, AI-S-04, AI-S-06, AI-C-11).
+(AI-E-04, AI-S-04, AI-S-06, AI-C-05).
 
-implements: AI-E-04, AI-S-04, AI-S-06, AI-B-09, AI-C-11
+implements: AI-E-04, AI-S-04, AI-S-06, AI-B-09, AI-C-05
 
 2026-09-16 door/pedestal 랜드마크 통합 설계. 검증된 PoC(demo/test/
 class_finder_service.py의 `BatchClipEngine`/`_dictionary_gate_and_score`)를
@@ -32,11 +32,11 @@ CLIP 자체는 region-proposal 모델이 아니다 — 후보 박스는
 `ondevice/rpn_propose.py`(class-agnostic RPN)가 낸 것을 받아서 그 각각을
 텍스트 특징과 비교(gate + score)할 뿐이다. 그래서 `detect(frame)` 대신
 `score_candidates(frame, candidate_boxes)`를 쓴다. 이 provider 하나가 클래스
-하나(예: "door")에 바인딩된다 — `open_vocabulary.py::OwlVitPerceptionProvider`가
+하나(예: "door")에 바인딩된다 — `perception/open_vocabulary.py::OwlVitPerceptionProvider`가
 `vocab`을 생성 시점에 고정하는 것과 같은 패턴이다.
 
 `onnxruntime`/`tokenizers`/`cv2`/`numpy`는 모듈 최상단이 아니라 필요한 지점에서
-지연 import한다(AI-C-11).
+지연 import한다(AI-C-05).
 """
 
 from __future__ import annotations
@@ -120,7 +120,13 @@ class ClipEngine:
         from tokenizers import Tokenizer
 
         so = ort.SessionOptions()
-        providers = ["CUDAExecutionProvider", "CPUExecutionProvider"]
+        # 실행 제공자 순서는 **한 자리**가 정한다. 여기 목록을 따로 적으면 가속기를
+        # 쓰지 않기로 한 선언이 이 provider 만 비껴간다.
+        from mission_runtime.perception.open_vocabulary import (  # noqa: PLC0415
+            default_execution_providers,
+        )
+
+        providers = list(default_execution_providers())
         self.vision = ort.InferenceSession(str(vision_model_path), sess_options=so, providers=providers)
         self.text = ort.InferenceSession(str(text_model_path), sess_options=so, providers=providers)
         tok = Tokenizer.from_file(str(tokenizer_path))

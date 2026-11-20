@@ -1,6 +1,6 @@
 """Edge-side half of the physical command wire contract.
 
-implements: AI-C-20, AI-C-06, AI-C-10, AI-C-11
+implements: AI-C-20, AI-C-06, AI-C-10, AI-C-05
 tests: tests/test_physical_command_gateway.py
 
 This is the code that actually speaks `specs/
@@ -52,6 +52,7 @@ import threading
 from dataclasses import dataclass, field
 from typing import Any, Callable
 
+from mission_runtime.contracts.capability_contract import DeclarationBasis
 from mission_runtime.contracts.physical_command import (
     CancelCommandRequest,
     CancelCommandResponse,
@@ -65,6 +66,22 @@ from mission_runtime.contracts.physical_command import (
     Rejection,
 )
 from mission_runtime.registry.capability_registry import CapabilityRegistry, ProviderRegistration
+
+
+def _basis_from(raw: Any) -> DeclarationBasis | None:
+    """선언된 단위·좌표·시간 기준을 계약 객체로. 없으면 **만들지 않는다** —
+    빈 객체를 만들면 "기준을 선언했다" 가 되어 미선언과 구분되지 않는다."""
+    if raw is None:
+        return None
+    if isinstance(raw, DeclarationBasis):
+        return raw
+    if not isinstance(raw, dict):
+        return None
+    return DeclarationBasis(
+        units={str(k): str(v) for k, v in (raw.get("units") or {}).items()},
+        reference_frame=raw.get("reference_frame"),
+        time_basis=raw.get("time_basis"),
+    )
 
 
 def downlink_topic(device_id: str) -> str:
@@ -159,6 +176,26 @@ class PhysicalCommandGateway:
     def known_capabilities(self, device_id: str) -> tuple[Capability, ...]:
         return tuple(self._capabilities.get(device_id, ()))
 
+    def declared_cancel_support(self, device_id: str, action: str) -> bool | None:
+        """그 장치가 그 action 의 **취소 가능 여부를 선언했는가, 뭐라고 했는가**.
+
+        세 답이다: True / False / None(그 action 을 모르거나 아무도 선언하지
+        않았다). 호출자가 None 을 False 로 접으면 안 되는 이유는 하나다 — 지금
+        와이어(spec §8-3 P7)로 온 선언은 **전부** None 이고, 접는 순간 모든
+        장치가 "취소를 거부하는 장치" 가 된다. 이 게이트웨이는 답만 주고
+        취소를 보낼지는 정하지 않는다(AI-C-19).
+        """
+        for capability in self._capabilities.get(device_id, ()):
+            if capability.name == action:
+                return capability.cancel_supported
+        return None
+
+    def undeclared_declaration_items(self, device_id: str) -> dict[str, tuple[str, ...]]:
+        """action -> 그 선언이 적지 않은 AI-C-18 항목들. 운영 화면과 협의
+        문서가 "무엇이 아직 안 오는가" 를 셀 때 보는 자리다."""
+        return {capability.name: capability.undeclared_items()
+                for capability in self._capabilities.get(device_id, ())}
+
     def unregister_device(self, device_id: str) -> None:
         """Drop this device's capabilities from the local registry. Call
         this only once availability information from elsewhere (AI-O-04)
@@ -200,7 +237,7 @@ class PhysicalCommandGateway:
         except Exception:
             # A malformed *or contract-violating* wire message from one device
             # must never take down the gateway or any other device's tracking
-            # (AI-C-11). The serializer rejects e.g. a terminal state sent as
+            # (AI-C-05). The serializer rejects e.g. a terminal state sent as
             # CommandStatus (spec §4) by raising - that rejection is contained
             # here rather than propagating into the transport callback.
             return
@@ -261,12 +298,25 @@ class PhysicalCommandGateway:
         declared = body.get("actions")
         if declared is None:  # 선언 항목이 풍부한 미래 와이어 / 내부 호출 경로
             declared = [body["name"]]
+            basis = body.get("basis")
+            scope = body.get("scope_tags")
             capabilities = [Capability(
                 name=body["name"], version=body.get("version"),
                 parameter_schema=body.get("parameter_schema"),
                 result_schema=body.get("result_schema"),
-                cancel_supported=body.get("cancel_supported", False),
+                # **기본값을 주지 않는다.** `.get(..., False)` 였던 자리다 — 선언하지
+                # 않은 장치가 "취소를 거부한다" 로 읽혔다(AI-C-18 "모든 항목이 항상
+                # 존재한다고 가정해서는 안 된다"). 없으면 None 으로 남긴다.
+                cancel_supported=body.get("cancel_supported"),
                 required_resources=tuple(body.get("required_resources", ())),
+                optional_resources=tuple(body.get("optional_resources", ())),
+                idempotent=body.get("idempotent"),
+                invocation=body.get("invocation"),
+                basis=_basis_from(basis),
+                # None 과 `()` 가 다르다 — 범위를 선언하지 않은 것과 "제약 없음"을
+                # 선언한 것은 같은 값이 아니다.
+                scope_tags=None if scope is None else tuple(scope),
+                execution_profile_ref=body.get("execution_profile_ref"),
             )]
         else:
             capabilities = [Capability(name=str(action)) for action in declared]
@@ -293,4 +343,9 @@ class PhysicalCommandGateway:
                 compatibility=capability.compatibility_profile(),
                 supported_inputs=(capability.parameter_schema,) if capability.parameter_schema else (),
                 supported_outputs=(capability.result_schema,) if capability.result_schema else (),
+                # 선언의 **성질** 칸들을 레지스트리까지 들려 보낸다. 이것이 없으면
+                # 선언이 이 게이트웨이 안에만 남고, 기능을 고르는 쪽은 취소 가능
+                # 여부·멱등성·동기성을 선언에서 알 수 없다(AI-C-18 "상위 기능은
+                # 필요한 capability 와 조건을 기준으로 탐색·사용").
+                declaration=capability.to_declaration(),
             ))

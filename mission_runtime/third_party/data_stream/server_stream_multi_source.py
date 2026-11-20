@@ -1,0 +1,1961 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+server_stream_multi_source.py — 로봇·드론·360 카메라 데이터 스트림 (서버·엣지 공통)
+================================================================================
+2026-10-01 · 하천 실측 대비
+2026-10-14 · 통합데이터규약 v2 (데이터 규약 v2) — DS-01 ~ DS-05 · DS-08
+  기록(frames.jsonl · states.jsonl · Redis header) 이름: source → stream · file → frame_file · host → received_by,
+  받은 시각 received_at(ISO 밀리초 +09:00) 추가, JSON 상태는 payload 를 객체 그대로(enc "json"),
+  업로드 폼의 _file 은 붙이지 않고 JSON 칸(meta)이 같은 이름의 글자 칸을 이긴다, GO1 MJPEG 의 Frame-Meta 를 sender 로,
+  드론 롱폴은 sequence_id 를 먼저 본다(없으면 옛 frame_seq). 새 이름을 먼저 읽고, 없으면 옛 이름을 읽는다.
+  /health · 업로드 응답 · /push 응답의 source · host 는 그대로 둔다(V2 — VZ 비전 카드가 그 모양을 읽는다).
+2026-11-15 · 둘째 드론 drone2(10012). ds5 의 drone-agent(x500-002)가 pi3 와 같은 모양(:8890/api/frame · MQTT 1883)으로
+  내므로 drone_video_loop · start_mqtt 를 그대로 쓴다. ds5 는 리얼센스(10005)와 같은 기기다 — 포트가 달라 겹치지 않는다.
+2026-11-13 · 모듈 카메라 파이 셋째 pi13(10011 — 10010 은 다른 프로그램이 쓰고 있었다). pi11·pi12 와 같은 기기·같은 파일이다.
+2026-11-12 · 모듈 카메라 파이 둘 pi11(10008) · pi12(10009). CSI 라 /dev/video* 가 베이어 RAW 이고
+  cv2.VideoCapture 로 못 받는다 — 파이 쪽 rpicam-vid 가 MJPEG 로 내므로 robot_video_loop 를 그대로 쓴다.
+  브로커가 없어 STATE_SOURCES 에 넣지 않는다(영상만). picam_work/README.md.
+2026-11-12 · 새 로봇 a2 (Unitree A2, 포트 10007). a2-bridge 가 로봇과 같은 모양(:8090/stream/1 MJPEG · MQTT 1883)으로
+  내므로 robot_video_loop · start_mqtt 를 그대로 쓴다. 프레임에 Frame-Meta 는 아직 없다(칸 머리 그대로 저장),
+  상태 position 은 GPS 가 아니라 실내 x·y(m)다.
+2026-11-11 · 360 슬라이스 소스 cam360_slice (포트 10006, 받기만). e2p/slice360_live.py 가 넣는다.
+  PUSH_ONLY(가져오지 않는 소스)를 두고, 10초 보고의 상태 칸은 상태를 받는 소스(REPORT_STATE)만 보인다
+  — cam360 도 POST /state 로 상태를 받으므로 이제 상태 칸이 보인다.
+
+하는 일
+  소스(로봇 2대 · 드론 · 360 카메라)가 주는 영상과 상태를 받아서
+    1) 이 파일을 실행한 기기의 Redis Stream 으로 흘린다  (AI 는 이 스트림을 읽는다)
+    2) 같은 기기 디스크에 전부 파일로 저장한다
+  받은 데이터는 손대지 않는다. 시각·번호 같은 정보는 보내는 쪽이 붙인 것을 그대로 옮기고,
+  안 붙어 와도 그대로 흘린다. 이 파일이 붙이는 것은 저장 번호뿐이다.
+
+포트 = 소스  (어느 경로로 들어오든 그 포트로 들어오면 그 소스다)
+  10001 cam360  영상: 카메라 노트북의 stream_to_server.py 가 POST 로 보낸다 (/upload_pano)
+  10002 drone   영상: pi3 :8890/api/frame?cam=0 (Arducam) 롱폴   상태: pi3 MQTT :1883 전체 구독
+  10003 robot1  영상: pi7 :8090/stream/1 을 계속 읽는다        상태: pi7 MQTT :1883 전체 구독
+  10004 robot2  영상: pi1 :8090/stream/1 을 계속 읽는다        상태: pi1 MQTT :1883 전체 구독
+  10005 realsense 영상: ds5 :8090/stream/1 을 계속 읽는다      상태: 없음 (리얼센스 쪽은 상태를 내지 않는다)
+                  ds5 에 USB 로 붙은 RealSense D455 의 **컬러** 스트림이다(깊이가 아니다).
+                  깊이도 UVC 로는 나온다(/dev/video0 의 Z16). 다만 단위·내부/외부 파라미터·
+                  두 스트림 짝맞춤이 스트림에 실려 오지 않아 librealsense 가 있어야 쓸 수 있고,
+                  16비트라 이 JPEG 경로로는 못 나른다 — realsense_work/README.md 를 본다
+  10006 cam360_slice 영상: 같은 기기의 e2p/slice360_live.py 가 POST 로 보낸다 (/upload)  상태: 없음
+                  Redis camera_stream:cam360 의 파노라마를 정한 각도(u · v)로 잘라 90도 원근 사진으로 넣는다.
+                  파노라마 원본(10001)은 손대지 않는다. 각도 고르기는 e2p/sweep_latest.py (2026-11-11)
+  10007 a2      영상: pi10 :8090/stream/1 (a2-bridge, MJPEG 1920x1080 약 10fps)   상태: pi10 MQTT :1883 전체 구독
+                  토픽 zoneA/robot/a2-001/{status,state,heartbeat} (JSON) · terminal/a2-001/uplink (protobuf → base64 로 저장)
+                  스냅샷 한 장은 :8090/snapshot/1. 같은 브로커의 9001 은 브라우저용(ws://…:9001/mqtt) — 영상은 MQTT 로 안 온다
+  10008 pi11    영상: pi11 :8090/stream/1 을 계속 읽는다      상태: 없음 (pi11 에 브로커가 없다)
+                  pi11 의 **모듈 카메라**(CSI imx708, Camera Module 3)다. D455 와 달리 UVC 가
+                  아니라 /dev/video* 가 베이어 RAW 라 cv2.VideoCapture 로는 못 받는다 —
+                  파이 쪽에서 rpicam-vid 가 MJPEG 로 내고 모양만 로봇과 같다.
+                  picam_work/README.md 를 본다
+  10009 pi12    영상: pi12 :8090/stream/1 을 계속 읽는다      상태: 없음 (pi12 에 브로커가 없다)
+                  pi11 과 같은 기기·같은 카메라다(Pi 3 Model B · imx708). 같은 picam_mjpeg.py 를 쓴다.
+  10011 pi13    영상: pi13 :8090/stream/1 을 계속 읽는다      상태: 없음 (pi13 에 브로커가 없다)
+                  10010 을 건너뛴 것은 실수가 아니다 — 개발 기계에서 그 포트를 다른 프로그램이
+                  이미 쓰고 있었다(127.0.0.1:10010). 번호의 구멍은 공짜고 충돌은 서버를 못 띄운다.
+                  pi11·pi12 와 같다. 리본이 접촉 불량이면 센서가 아예 안 보이거나
+                  보이고도 스트리밍만 실패한다 — picam_work/README.md 의 증상 표를 본다.
+  10012 drone2  영상: ds5 :8890/api/frame?cam=0 롱폴            상태: ds5 MQTT :1883 전체 구독
+                  둘째 드론(x500-002). drone 과 같은 drone-agent · 같은 모양이다. ds5 는 리얼센스(10005)도
+                  내는 기기라 주소가 같다 — 리얼센스는 :8090, 드론은 :8890 이라 겹치지 않는다.
+
+각 포트에 열리는 주소
+  POST /upload_pano   360 업로드 (pano_receiver 와 같은 모양: 폼 칸 + file)
+  POST /upload        server_stream_depth_v2 와 같은 모양 (file + camera_id 등)
+  POST /push          다른 기기에서 도는 이 파일이 넘겨 준 영상·상태 묶음 (--forward)
+  POST /state         상태 한 건 (JSON {"topic": ..., "payload": {...}}). 360 노트북이 GPS·배터리·온도를 1초마다 보낸다
+  GET  /state         그 소스의 최신 상태 (JSON). 가시화가 1초마다 읽어 가면 된다 — 영상은 /stream
+  GET  /frame         최신 한 장 + 그 순간의 최신 상태를 한 번에 (가시화용). 본문 = JPEG,
+                      헤더 X-Frame-N(번호) · X-Frame-Meta(보낸 쪽 프레임 헤더 JSON) · X-State(최신 상태 payload JSON)
+                      ?since=<받은 X-Frame-N> 이면 새 장이 올 때까지 최대 ?wait=초(기본 2, 최대 10) 기다린다 (없으면 204)
+                      ?format=json 이면 {"n", "meta", "state", "image_b64"} JSON 하나로 준다
+  GET  /              원본 영상 + 비전 결과를 한 화면에
+  GET  /stream        그 소스 영상을 브라우저로 본다 (MJPEG)
+  GET  /vision?model=yoloe   비전 오버레이 (MJPEG). vision_infer.py live 가 Redis 에 넣은 것을 보여 준다
+  GET  /vision/frame?model=river[&since=<seq>&wait=<초>&image=0]
+                             최신 오버레이 한 장 + 같은 장의 검출(river 는 근거 카드 assess 포함) JSON.
+                             image=0 이면 검출만 — 가시화 앱이 MJPEG 위에 카드를 얹을 때 쓴다 (2026-11-13)
+  GET  /vision/view?model=river   위 둘로 그린 독립 화면 — 물체에 마우스 → 카드 · 클릭 → 고정 · ✕ 닫기
+  GET  /health        받은 개수 · 연결 상태 · 비전 모델별 결과 수/지연 (JSON)
+
+Redis Stream (최근 --maxlen 개만 유지, 기본 300)
+  camera_stream:<소스>  image   = 받은 이미지 바이트 그대로
+                        header  = 헤더 JSON (아래)
+                        그 밖에  보내는 쪽이 준 정보 한 칸씩 (v2 장비는 프레임 헤더 칸 — camera_id ·
+                                sequence_id · timestamp(ISO) 등, 옛 장비는 360 의 seq · 드론 meta 의 frame_seq 등)
+  state_stream:<소스>   topic, payload = 받은 바이트 그대로, header = 헤더 JSON (states.jsonl 한 줄에서 payload · enc 를 뺀 것)
+  AI 기존 코드(unidepth_dual_yolo.py)는 Redis 주소와 스트림 이름만 바꾸면 읽는다 (image · timestamp 칸.
+  timestamp 는 보내는 쪽이 붙여 줄 때만 있다).
+  vision_stream:<소스>:<모델> · vision_depth:<소스>:<모델>   추론 결과 (아래 "추론 결과 스트림")
+  Redis 메모리: 한도가 없으면 시작할 때 --redis-maxmemory (기본 4gb, allkeys-lru) 를 걸고,
+               Redis 가 재시작해 한도가 풀리면 10초 보고 때 다시 건다. 이미 걸린 한도는 건드리지 않는다.
+               전부 디스크에 저장하므로 Redis 는 최근 것만 들고 있으면 된다 (넘치면 오래 안 쓴 키부터 버림).
+
+추론 결과 스트림 (vision)
+  만드는 쪽  vision/vision_infer.py (기본 live 모드, GPU 기기에서 별도 프로세스)
+             camera_stream:<소스> 에서 소스마다 가장 최근 프레임만 꺼내 추론한다. 추론하는 사이 들어온
+             프레임은 건너뛴다 (실시간 우선, 건너뛴 프레임은 나중에 --runs <실행> 으로 디스크에서 처리).
+             모델: yoloe (YOLOE prompt-free 검출·분할) · unidepth · moge2_aerial (metric depth, m)
+             예) python vision/vision_infer.py                                  전 소스 yoloe (기본)
+                 python vision/vision_infer.py --devices drone --models unidepth  드론에 depth 추가
+  이 파일    vision_stream 을 읽어 /vision · / · /health · 10초 보고로 보여 주기만 한다 (쓰지 않는다).
+             비전이 안 돌거나 못 읽어도 받기·저장·흘리기에는 영향이 없다. --no-vision 이면 읽지도 않는다.
+
+  vision_stream:<소스>:<모델>   한 장 = 한 항목 (최근 300개, vision_config.yaml live.maxlen)
+      result   JSON — 디스크 <실행>/vision/<모델>/results.jsonl 한 줄과 같은 내용 (v2 비전 결과, 규약 §3-6)
+                 공통 머리  schema_version "2.0" · source_id "ds-vision" · node_id(돌린 기기) · zone_id ·
+                            timestamp = 원본 프레임 시각 · frame_ref{camera_id, sequence_id, timestamp}(보낸 쪽이 v2 일 때)
+                 공통   emitted_at(결과가 나온 순간) · producer{tier, kind} · n · frame_file("frames/<번호>.jpg") ·
+                        stream · run · model · model_file · width · height · infer_ms · live
+                 yoloe  detections: [{class_id, label, confidence, bbox:[x1,y1,x2,y2], polygon:[[x,y],...]}]
+                 depth  depth_stats {min, p5, median, p95, max, valid_ratio} (m) · intrinsics (픽셀 K 3x3)
+                        fov_x_deg · fov_x_given · detections: [{class_id, label, confidence, bbox, depth_m, uv}]
+                        드론은 검출별 GPS 도: range_m · ned_m · lat · lon · alt_m, 프레임 pose{timestamp, …} · geo_status
+                        (vision/geo.py, vision_config.yaml geo)
+                 (옛 이름 source_id(Redis 항목 번호) · recv_ms · done_ms · lag_ms · header 복사본은 결과에서 뺐다)
+      overlay  오버레이 JPEG 바이트 (yoloe: 박스·라벨, min_conf 이상만 / depth: 컬러맵 + 검출별 거리 + 색 막대)
+      header   {"stream", "model", "n", "run", "frame_file", "stream_entry_id", "lag_ms"}
+               stream_entry_id = 원본 camera_stream:<소스> 항목 ID (이 값으로 원본 이미지를 찾는다)
+               lag_ms = 결과가 나온 순간 - 원본이 Redis 에 들어간 순간 (ms) — /health 와 10초 보고가 읽는다
+  vision_depth:<소스>:<모델>    depth 모델만, 한 장 = 한 항목 (최근 30개, live.depth_maxlen — 한 장 약 1.8MB)
+      depth    depth 원본 바이트 (미터, 0 = 무효 픽셀). 디스크 vision/<모델>/depth/<번호>.npy 와 같은 값
+      dtype    "<f2" (float16)   shape  "H,W"   unit  "m"   header  vision_stream 과 같은 요약
+
+  읽는 예 (파이썬)
+      r = redis.Redis(port=6380)      # 다른 기기: redis.Redis(host="100.114.96.78", port=6380)
+      eid, f = r.xrevrange("vision_stream:drone:yoloe", count=1)[0]          # 최신 결과
+      res = json.loads(f[b"result"])                                          # 검출 목록 등
+      h = json.loads(f[b"header"])
+      img = r.xrange("camera_stream:drone", h["stream_entry_id"], h["stream_entry_id"])  # 그 결과의 원본 프레임
+      eid, f = r.xrevrange("vision_depth:drone:unidepth", count=1)[0]
+      depth = np.frombuffer(f[b"depth"], f[b"dtype"].decode()).reshape(
+          [int(x) for x in f[b"shape"].split(b",")])                         # (H, W) 미터
+      새 결과를 기다리며 받기: r.xread({"vision_stream:drone:yoloe": "$"}, block=1000)
+
+  보기  GET /vision?model=<모델>   그 소스의 최신 오버레이 MJPEG (model 을 빼면 결과가 있는 첫 모델)
+        GET /                     원본 + 결과가 있는 모델 오버레이를 한 화면에 (새 모델은 새로고침)
+        GET /health  "vision": {모델: {results, n, run, lag_ms, infer_ms, detections, age_s}}
+                     "vision_error": 결과 스트림을 못 읽을 때 이유
+        10초 보고    "비전 yoloe 6.4장/초 지연 0.07s" (30초 넘게 결과가 없는 모델은 안 찍는다)
+
+헤더 (영상 한 장마다 — frames.jsonl 한 줄 = Redis camera_stream 의 header, 규약 §3-7)
+  {"stream": "robot1", "n": 15, "frame_file": "robot1/20261001_123152/frames/000000015.jpg",
+   "via": "pull:http://.../stream/1", "received_by": "<받은 기기 이름>",
+   "received_at": "2026-10-14T12:00:00.190+09:00",
+   "sender": { 보내는 쪽이 준 정보 그대로 (v2 장비는 프레임 헤더 §3-5) },
+   "edge": { 다른 기기의 이 파일이 넘겨 준 경우 그쪽의 n · frame_file · via · received_by · received_at } }
+  frame_file 은 저장 폴더(--save) 기준 경로다 (비전 결과의 frame_file 은 실행 폴더 기준).
+
+상태 (한 건마다 — states.jsonl 한 줄)
+  {"stream": "drone", "n": 1, "topic": "zoneA/drone/x500-001/state", "qos": 1, "retain": false,
+   "via": "mqtt:<드론 브로커>", "received_by": "<받은 기기 이름>", "received_at": "…+09:00",
+   "payload": { JSON 이면 객체 그대로 }, "enc": "json"}       (JSON 이 아니면 글자 "utf8" 또는 "base64")
+
+저장 (전부, 지우지 않는다)
+  <--save>/<소스>/<실행 시작 YYYYMMDD_HHMMSS>/
+      frames/
+          000000001.jpg, 000000002.jpg, ...  받은 JPEG 바이트를 그대로 저장
+      frames.jsonl                           영상 메타데이터 한 장 = 한 줄
+      states.jsonl                           상태 한 건 = 한 줄
+  - 실행할 때마다 새 폴더를 만든다. 같은 이름이 있으면 _2, _3 을 붙인다.
+    파일은 새로 만들기만 하고 덮어쓰지 않는다.
+  - frames.jsonl 의 frame_file 필드는 같은 실행 폴더 아래 frames/<번호>.jpg 를 가리킨다 (저장 폴더 기준 경로).
+  - --unpack 은 예전 .frm 저장본을 변환할 때만 남겨 둔 호환 기능이다.
+
+실행 (같은 파일, 값만 다르게)
+  말단 → 서버          python3 server_stream_multi_source.py
+  말단 → 엣지(노트북)   python server_stream_multi_source.py
+  말단 → 엣지 → 서버    노트북: ... --forward <서버 주소>      서버: ... --no-pull
+  소스 골라 켜기       ... --on robot1 drone              (노트북 3대 폴백도 이걸로)
+  현장 IP 로 바꾸기     ... --robot1 192.168.0.11 --drone 192.168.0.13
+  360 카메라 노트북     stream_to_server.py --upload http://<이 파일이 도는 기기>:10001/upload_pano
+                       (같은 노트북이면 http://127.0.0.1:10001/upload_pano)
+  실시간 비전 (GPU 서버, 다른 터미널)
+                       /home/dg/capstone-db/venv_image/bin/python vision/vision_infer.py   (기본: 전 기기 yoloe)
+
+준비
+  pip install redis paho-mqtt        (파이썬 3.8 이상)
+  Redis 5.0 이상 (Stream 기능). 기본으로 이 기기 127.0.0.1:6380 의 전용 Redis 에 넣는다 (--redis 로 바꿈).
+  tailnet 의 다른 기기도 구독하려면 Redis 를 tailscale 주소에도 묶는다 (띄우는 명령은 vision/vision_infer.py 맨 위).
+    다른 기기에서: redis.Redis.from_url("redis://100.114.96.78:6380/0")   (100.114.96.78 = 이 PC tailscale 주소)
+  Redis 나 paho-mqtt 가 없어도 멈추지 않는다. 저장은 계속하고 경고만 낸다.
+
+주소 설정: 기기 주소(테일넷 IP)는 코드에 두지 않는다. hosts.example.json 을 hosts.local.json 으로
+  복사해 채우거나 환경변수 PD_HOST_ROBOT1 / PD_HOST_ROBOT2 / PD_HOST_DRONE /
+  PD_HOST_REALSENSE / PD_HOST_A2 를 쓴다.
+  hosts.local.json 은 .gitignore 대상 — 공개 저장소에 올리지 않는다.
+"""
+import argparse
+import base64
+import http.client
+import json
+import os
+import signal
+import socket
+import socketserver
+import sys
+import threading
+import time
+from collections import deque
+from datetime import datetime, timedelta, timezone
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
+from urllib.parse import parse_qs, urlsplit
+
+try:
+    import redis
+except ImportError:
+    redis = None
+
+try:
+    import paho.mqtt.client as mqtt
+except ImportError:
+    mqtt = None
+
+
+# ---------------------------------------------------------------- 고정값
+SOURCES = {"cam360": 10001, "drone": 10002, "robot1": 10003, "robot2": 10004,
+           "realsense": 10005, "cam360_slice": 10006, "a2": 10007,
+           "pi11": 10008, "pi12": 10009, "pi13": 10011,
+           "drone2": 10012}
+ALIASES = {"cam360": "cam360", "camera": "cam360", "360": "cam360",
+           "drone": "drone", "drone2": "drone2", "x500-002": "drone2", "robot1": "robot1", "robot2": "robot2",
+           "realsense": "realsense", "pi6": "realsense", "ds5": "realsense", "rs": "realsense",
+           "d455": "realsense",
+           "cam360_slice": "cam360_slice", "slice": "cam360_slice",
+           "a2": "a2", "unitree_a2": "a2",
+           "pi11": "pi11", "picam": "pi11", "pi12": "pi12", "pi13": "pi13"}
+#: 라즈베리파이 모듈 카메라(CSI imx708) 소스. 같은 picam_mjpeg.py 가 같은 모양으로 내므로
+#: 가져오는 쪽은 하나다 — 기기를 더할 때 여기와 SOURCES·DEFAULT_HOST·--piNN 만 늘린다.
+PICAM_SOURCES = ("pi11", "pi12", "pi13")
+#: MQTT 로 상태를 받는 소스. 여기 없는 소스는 영상만 받는다 — 브로커가 없는 기기에
+#: 붙으러 가면 끝없이 재접속만 하고 로그가 그 경고로 덮인다.
+STATE_SOURCES = {"drone", "drone2", "robot1", "robot2", "a2"}
+#: drone-agent(/api/frame 롱폴)로 영상을 내는 드론 소스. 가져오는 쪽은 drone_video_loop 하나다.
+DRONE_SOURCES = ("drone", "drone2")
+#: 가져오지 않고 POST 로 받기만 하는 소스 (기기 주소 · 가져오기 스레드 없음).
+#: 상태가 있는지와는 상관없다 — cam360 은 받기만 하지만 POST /state 로 상태도 받는다.
+PUSH_ONLY = ("cam360", "cam360_slice")
+#: 10초 보고에 상태 칸을 보이는 소스 (MQTT 로 받는 것 + POST /state 로 받는 cam360)
+REPORT_STATE = STATE_SOURCES | {"cam360"}
+HOSTS_FILE = Path(__file__).resolve().parent / "hosts.local.json"   # 실제 주소는 여기에 (깃에 올리지 않음)
+
+
+def load_default_hosts():
+    """기본 주소: 환경변수 PD_HOST_<소스> > hosts.local.json > 없음. 명령행 --robot1 / --robot2 / --drone 이 가장 우선."""
+    hosts = {"robot1": None,         # pi7 (go1-camview 8090 · mosquitto 1883)
+             "robot2": None,         # pi1 (go1-camview 8090 · mosquitto 1883)
+             "drone": None,          # pi3 (drone-agent 8890 · mosquitto 1883)
+             "drone2": None,         # ds5 (drone-agent 8890 · mosquitto 1883 — x500-002)
+             "realsense": None,      # ds5 (realsense_mjpeg.py 8090 · 상태 없음)
+             "a2": None,             # pi10 (a2-bridge 카메라 8090 · mosquitto 1883/9001)
+             "pi11": None,           # pi11 (picam_mjpeg.py 8090 · 브로커 없음)
+             "pi12": None,           # pi12 (picam_mjpeg.py 8090 · 브로커 없음)
+             "pi13": None}           # pi13 (picam_mjpeg.py 8090 · 브로커 없음)
+    if HOSTS_FILE.is_file():
+        try:
+            data = json.loads(HOSTS_FILE.read_text(encoding="utf-8"))
+        except ValueError as e:
+            raise SystemExit("%s 을 못 읽었습니다: %s" % (HOSTS_FILE.name, e))
+        hosts.update((k, data[k]) for k in hosts if data.get(k))
+    for k in hosts:
+        v = os.environ.get("PD_HOST_" + k.upper())
+        if v:
+            hosts[k] = v
+    return hosts
+
+
+DEFAULT_HOST = load_default_hosts()
+ROBOT_VIDEO_PORT = 8090      # go1_cam_view.py — GET /stream/<카메라 번호> (MJPEG, VZ 카드가 쓰는 주소)
+DRONE_VIDEO_PORT = 8890      # 드론 agent    — GET /api/frame?cam=&since=&wait= (meta JSON + JPEG)
+DRONE_MJPEG_PORT = 8080      # pi3 cam-stream.service (~/cam_stream.py 0 1) — GET /cam<번호>.mjpg (MJPEG)
+MQTT_PORT = 1883             # 파이 mosquitto (프로그램용 입구. 9001 은 같은 브로커의 브라우저용 입구)
+DRONE_CAM = 0                # drone agent 카메라 번호: 0 = Arducam(AR0234, CAM0) · 1 = imx708 wide
+DRONE_ARDUCAM = False        # True: drone agent 대신 cam-stream.service :8080/cam<DRONE_ARDUCAM_CAM>.mjpg 에서 받는다
+DRONE_ARDUCAM_CAM = 0        #       (둘은 Conflicts 라 한쪽만 돈다. MJPEG 에는 hfov 등 메타가 없다)
+DRONE_WAIT_S = 2             # 드론 롱폴: 새 장이 없으면 이만큼 기다렸다가 204 로 답한다
+MAX_BODY = 64 * 1024 * 1024  # POST 한 번에 받는 최대 크기
+FORWARD_QUEUE = 300          # 넘기기 대기열. 넘치면 오래된 것부터 버린다 (이 기기 디스크에는 남아 있다)
+FORWARD_BATCH = 4 * 1024 * 1024   # 밀린 것을 한 번에 묶어 보내는 최대 크기
+RESERVED = ("image", "header")
+
+HOSTNAME = socket.gethostname()
+STOP = threading.Event()
+KST = timezone(timedelta(hours=9))
+
+
+def received_now():
+    """이 기기가 받은 순간 — ISO 밀리초 +09:00 (규약 §2-2 iso_ms 와 같은 꼴, 밀리초 아래는 버린다)."""
+    return datetime.fromtimestamp(time.time(), KST).isoformat(timespec="milliseconds")
+
+
+# ---------------------------------------------------------------- 출력
+_warn_at = {}
+_warn_lock = threading.Lock()
+_print_lock = threading.Lock()
+
+
+def log(msg):
+    with _print_lock:                       # 여러 스레드의 줄이 섞이지 않게
+        sys.stdout.write(time.strftime("[%H:%M:%S] ") + msg + "\n")
+        sys.stdout.flush()
+
+
+def warn(key, msg, every=10.0):
+    """같은 종류의 경고는 every 초에 한 번만 찍는다."""
+    now = time.time()
+    with _warn_lock:
+        if now - _warn_at.get(key, 0.0) < every:
+            return
+        _warn_at[key] = now
+    log(msg)
+
+
+def human_bytes(n):
+    for unit in ("B", "KB", "MB", "GB"):
+        if n < 1024 or unit == "GB":
+            return ("%d%s" % (n, unit)) if unit == "B" else ("%.1f%s" % (n, unit))
+        n /= 1024.0
+
+
+def describe(e):
+    return ("%s: %s" % (type(e).__name__, e))[:200]
+
+
+# ---------------------------------------------------------------- 영상 파일 형식 (.frm)
+def pack_frame(header, image):
+    """[헤더 길이 4바이트][헤더 JSON][이미지 바이트 그대로]"""
+    h = json.dumps(header, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+    return len(h).to_bytes(4, "big") + h + image
+
+
+def unpack_frame(data):
+    if len(data) < 4:
+        raise ValueError("너무 짧음")
+    n = int.from_bytes(data[:4], "big")
+    if 4 + n > len(data):
+        raise ValueError("헤더 길이가 맞지 않음")
+    return json.loads(data[4:4 + n].decode("utf-8")), data[4 + n:]
+
+
+def image_ext(image):
+    if image[:3] == b"\xff\xd8\xff":
+        return ".jpg"
+    if image[:8] == b"\x89PNG\r\n\x1a\n":
+        return ".png"
+    return ".bin"
+
+
+# ---------------------------------------------------------------- multipart
+def header_value(headers, name):
+    name = name.lower()
+    for k, v in headers.items():
+        if k.lower() == name:
+            return v
+    return None
+
+
+def content_type_param(ctype, name):
+    """'multipart/form-data; boundary=xyz' → 'xyz'"""
+    for piece in (ctype or "").split(";")[1:]:
+        k, _, v = piece.strip().partition("=")
+        if k.strip().lower() == name:
+            return v.strip().strip('"')
+    return None
+
+
+def disposition(value):
+    """'form-data; name="meta"; filename="a.jpg"' → {'name': 'meta', 'filename': 'a.jpg'}"""
+    out = {}
+    for piece in (value or "").split(";")[1:]:
+        k, _, v = piece.strip().partition("=")
+        out[k.strip().lower()] = v.strip().strip('"')
+    return out
+
+
+def parse_header_lines(block):
+    headers = {}
+    for line in block.split(b"\r\n"):
+        k, sep, v = line.decode("utf-8", "replace").partition(":")
+        if sep:
+            headers[k.strip()] = v.strip()
+    return headers
+
+
+def split_multipart(body, boundary):
+    """multipart 본문 → [(칸 머리 dict, 칸 내용 bytes)]"""
+    delim = b"\r\n--" + boundary.encode("latin-1")
+    pieces = (b"\r\n" + body).split(delim)
+    parts = []
+    for piece in pieces[1:]:
+        if piece.startswith(b"--"):              # 끝 표시
+            break
+        nl = piece.find(b"\r\n")
+        if nl < 0:
+            continue
+        rest = piece[nl + 2:]
+        if rest.startswith(b"\r\n"):             # 머리 없는 칸
+            parts.append(({}, rest[2:]))
+            continue
+        end = rest.find(b"\r\n\r\n")
+        if end < 0:
+            continue
+        parts.append((parse_header_lines(rest[:end]), rest[end + 4:]))
+    return parts
+
+
+def form_to_frame(parts):
+    """multipart 칸들 → (보내는 쪽 정보, 이미지 바이트). 이미지는 첫 파일 칸(또는 image/* 칸).
+
+    JSON 칸(드론 meta · 360 meta)의 항목이 같은 이름의 글자 칸을 이긴다 — 타입이 있는 쪽이 맞다(DS-04).
+    이미지 칸의 파일 정보(_file)는 붙이지 않는다 — 늘 같은 값이었다(P2)."""
+    sender, image = {}, None
+    for headers, content in parts:
+        disp = disposition(header_value(headers, "content-disposition"))
+        name = disp.get("name") or ""
+        ctype = header_value(headers, "content-type") or ""
+        if image is None and ("filename" in disp or ctype.lower().startswith("image/")):
+            image = content
+            continue
+        try:
+            text = content.decode("utf-8")
+        except UnicodeDecodeError:
+            sender[name] = {"base64": base64.b64encode(content).decode("ascii")}
+            continue
+        if ctype.lower().startswith("application/json"):
+            try:
+                value = json.loads(text)
+            except ValueError:
+                value = text
+            if isinstance(value, dict):
+                for k, v in value.items():       # 드론 meta 처럼 JSON 칸이면 안의 항목을 그대로 펼친다 — 글자 칸을 이긴다
+                    sender[str(k)] = v
+                continue
+            sender[name] = value
+        else:
+            sender.setdefault(name, text)        # 같은 이름의 JSON 항목이 이미 있으면 그것을 둔다
+    return sender, image
+
+
+# ---------------------------------------------------------------- Redis
+def frame_fields(image, header):
+    """Redis 항목: image, header, 그리고 보내는 쪽 정보 한 칸씩"""
+    fields = {"image": image, "header": json.dumps(header, ensure_ascii=False)}
+    for k, v in (header.get("sender") or {}).items():
+        k = str(k)
+        if not k or k in RESERVED:
+            continue
+        fields[k] = v if isinstance(v, str) else json.dumps(v, ensure_ascii=False)
+    return fields
+
+
+class RedisSink:
+    """Redis 에 못 넣어도 예외를 올리지 않는다 (저장이 먼저다). 실패하면 2초 동안은 다시 시도하지 않는다."""
+
+    def __init__(self, url, maxlen):
+        self.url, self.maxlen = url, maxlen
+        self.maxmemory = None                    # 걸어 둘 메모리 한도 (--redis-maxmemory). Redis 가 재시작해도 다시 건다
+        self.client, self.err = None, None
+        self.pause_until = 0.0
+        if redis is None:
+            self.err = "redis 패키지가 없음 (pip install redis)"
+            return
+        try:
+            self.client = redis.Redis.from_url(url, socket_connect_timeout=2, socket_timeout=3)
+        except Exception as e:
+            self.err = describe(e)
+
+    def ping(self):
+        if self.client is None:
+            return False
+        try:
+            self.client.ping()
+            self.err = None
+            return True
+        except Exception as e:
+            self.err = describe(e)
+            return False
+
+    def ensure_maxmemory(self, limit, policy="allkeys-lru"):
+        """Redis 에 메모리 한도가 없으면 건다 (이미 걸려 있으면 그대로 둔다). 결과 문구를 돌려준다.
+        전부 디스크에 저장하므로 Redis 는 최근 것만 있으면 된다 — 넘치면 오래 안 쓴 키부터 버린다.
+        noeviction 은 쓰지 않는다: 한도에 닿으면 XADD 가 실패해 스트림이 줄지도 않고 멈춘다."""
+        if self.client is None or str(limit).strip().lower() in ("", "0", "off", "none"):
+            return "한도 안 건드림"
+        self.maxmemory = limit
+        try:
+            cur = int(self.client.config_get("maxmemory").get("maxmemory", 0))
+            if cur:
+                return "한도 %s (이미 걸려 있음, %s)" % (human_bytes(cur),
+                                                  self.client.config_get("maxmemory-policy").get("maxmemory-policy"))
+            self.client.config_set("maxmemory", limit)
+            self.client.config_set("maxmemory-policy", policy)
+            return "한도 %s 걸었음 (%s)" % (limit, policy)
+        except Exception as e:
+            return "한도를 못 걸었음 (%s) — Redis 설정에서 maxmemory 를 직접 거세요" % describe(e)
+
+    def memory(self):
+        """(사용, 한도) 바이트. 못 읽으면 None"""
+        if self.client is None or time.time() < self.pause_until:
+            return None
+        try:
+            m = self.client.info("memory")
+            return int(m.get("used_memory", 0)), int(m.get("maxmemory", 0))
+        except Exception:
+            return None
+
+    def add(self, key, fields):
+        if self.client is None:
+            return False
+        now = time.time()
+        if now < self.pause_until:
+            return False
+        try:
+            self.client.xadd(key, fields, maxlen=self.maxlen, approximate=True)
+        except Exception as e:
+            self.err = describe(e)
+            self.pause_until = now + 2.0
+            warn("redis", "Redis 에 못 넣음 (%s) — 파일 저장은 계속합니다" % self.err)
+            return False
+        if self.err is not None:
+            self.err = None
+            log("Redis 다시 됨 — 스트림 재개")
+        return True
+
+
+# ---------------------------------------------------------------- 비전 결과 보기 (vision_infer.py live 가 Redis 에 넣은 것)
+#: /vision/frame 이 넘기는 검출 칸 — 화면이 그리는 데 쓰는 것만(근거 카드 포함)
+VIEW_DET_KEYS = ("bbox", "label", "lead", "confidence", "track_id", "dist", "assess", "votes", "arms")
+
+
+def view_result(res):
+    """비전 결과에서 웹 화면(/vision/view)이 쓰는 칸만 남긴다."""
+    return {"n": res.get("n"), "width": res.get("width"), "height": res.get("height"),
+            "model": res.get("model"),
+            "detections": [{k: d.get(k) for k in VIEW_DET_KEYS if k in d}
+                           for d in (res.get("detections") or [])]}
+
+
+#: GET /vision/view — 비전 오버레이 + **근거 카드**(2026-11-13). 물체 위에 마우스를 올리면
+#: 카드가 보이고, 클릭하면 그 물체 옆에 고정되며(track_id 로 따라간다) ✕ 로 닫는다.
+#: 오버레이 그림에는 "이름 거리 점수" 만 있고 카드는 여기서만 보인다 — 카드가 검출을
+#: 가리지 않게 하려는 것이다. 데이터는 /vision/frame(그림 + 같은 장의 검출) 하나에서 온다.
+VISION_VIEW_HTML = r"""<!doctype html><html lang="ko"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>__SRC__ 비전</title>
+<style>
+:root{--bg:#111;--panel:#181b21;--line:#2c313a;--fg:#e6e6e6;--mute:#9aa3b2;--haz:#ffc83c;--oth:#969ba5;
+--hi:#5aa0ff;--mid:#ff963c;--lo:#ff6e64;--bar:#3a3e46}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:13px/1.45 system-ui,"Malgun Gothic",sans-serif}
+header{display:flex;gap:10px;align-items:center;padding:6px 10px;border-bottom:1px solid var(--line)}
+header .m{color:var(--mute)} header select{background:#222;color:var(--fg);border:1px solid var(--line)}
+main{display:flex;gap:10px;padding:8px;align-items:flex-start}
+#stage{position:relative;flex:1 1 auto;min-width:0;cursor:crosshair}
+#img{display:block;width:100%;height:auto;user-select:none}
+#marks{position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none}
+.mk{position:absolute;border:3px solid var(--hi);border-radius:2px;box-shadow:0 0 0 1px #000a}
+.mk.pin{border-style:dashed}
+.card{background:var(--panel);border:2px solid var(--oth);border-radius:6px;padding:9px 11px;width:340px}
+.pinned{position:absolute;z-index:5;box-shadow:0 4px 14px #000c}
+.card.haz{border-color:var(--haz)}
+.card h3{margin:0 0 4px;font-size:15px;display:flex;gap:8px;align-items:baseline}
+.card h3 .nm{color:var(--oth)} .card.haz h3 .nm{color:var(--haz)}
+.card h3 .x{margin-left:auto;cursor:pointer;color:var(--mute);border:0;background:none;font-size:17px;line-height:1}
+.card h3 .x:hover{color:#fff}
+.sc.hi{color:var(--hi)} .sc.mid{color:var(--mid)} .sc.lo{color:var(--lo)}
+.cmp{color:var(--mute);margin-bottom:6px}
+.row{display:grid;grid-template-columns:72px 70px 40px 1fr;gap:6px;align-items:center}
+.bar{height:9px;background:var(--bar);border-radius:2px;overflow:hidden}.bar i{display:block;height:100%;background:#fff}
+.pct{text-align:right;font-variant-numeric:tabular-nums}.txt{color:var(--mute);overflow-wrap:anywhere}
+.kv{display:grid;grid-template-columns:72px 1fr;gap:6px}.kv .txt{grid-column:2}
+.gone{opacity:.55}.gone h3::after{content:"이 장에서 안 보임";font-size:11px;color:var(--mute)}
+#tip{position:fixed;z-index:9;pointer-events:none;display:none}
+.hint{color:var(--mute);font-size:12px}
+</style></head><body>
+<header><b>__SRC__</b><span class="m">비전</span><select id="model"></select>
+<span class="hint">물체 위에 마우스 → 근거 카드 · 클릭 → 고정 · ✕ 닫기</span><span id="st" class="m" style="margin-left:auto"></span></header>
+<main><div id="stage"><img id="img" alt=""><div id="marks"></div></div></main>
+<div id="tip"></div>
+<script>
+(function(){
+var MODEL=__MODEL__, seq=-1, cur=null, natW=0, natH=0, mouse=null, hoverKey=null;
+var pins=new Map();                          // key → {el, det}
+var SHOWN={wooden_box_mine:"목함지뢰 (wooden box mine)",butane_canister:"부탄가스 (butane canister)"};
+var CUE={semantic:"글 설명",shape:"형상",class:"이름",material:"재질",structure:"모양",match:"기준 사진",size:"크기",distance:"거리"};
+var img=document.getElementById("img"), marks=document.getElementById("marks"),
+    tip=document.getElementById("tip"),
+    st=document.getElementById("st"), sel=document.getElementById("model"),
+    stage=document.getElementById("stage");
+if(/[?&]embed=1/.test(location.search)){document.querySelector("header").style.display="none"}
+function esc(s){return String(s==null?"":s).replace(/[&<>"]/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]})}
+function keyOf(d,i){return d.track_id!=null?"t"+d.track_id:"i"+i+"@"+seq}
+function band(){return cur&&cur.height?Math.max(0,natH-cur.height):0}
+function dist(d){var v=d.dist;if(!v)return"";if(typeof v==="number")return v.toFixed(1)+" m";
+  if(v.space==="metric")return v.value.toFixed(1)+" m";return v.value.toFixed(3)+" (상대 깊이)"}
+function cls(s){return s>=60?"hi":(s>=40?"mid":"lo")}
+function title(d){var a=d.assess;if(a&&a.suspect)return SHOWN[a.suspect]||a.suspect;return d.lead||d.label||"?"}
+function cardHTML(d,closable){
+  var a=d.assess,h="",haz=!!(a&&a.suspect);
+  var x=closable?'<button class="x" title="닫기">✕</button>':"";
+  if(!a){
+    h+='<h3><span class="nm">'+esc(title(d))+'</span>'+x+'</h3>';
+    h+='<div class="kv"><span>이름</span><span class="txt">'+esc(d.label)+'</span>'+
+       '<span>확신</span><span class="txt">'+(d.confidence!=null?(+d.confidence).toFixed(2):"-")+'</span>'+
+       (dist(d)?'<span>거리</span><span class="txt">'+esc(dist(d))+'</span>':"")+'</div>';
+    return {html:h,haz:false};
+  }
+  var best=a.suspect;
+  if(!best){var ks=Object.keys(a.scores);best=ks.sort(function(p,q){return(a.scores[q]||-1)-(a.scores[p]||-1)})[0]}
+  var c=a.cards[best]||{rows:[]};
+  h+='<h3><span class="nm">'+esc(haz?SHOWN[best]||best:(d.lead||d.label))+'</span>'+
+     (c.score!=null?'<span class="sc '+cls(c.score)+'">'+Math.round(c.score)+'/100</span>':"")+x+'</h3>';
+  var cmp=Object.keys(a.scores).map(function(k){return esc((SHOWN[k]||k).split(" (")[0])+" "+(a.scores[k]==null?"-":a.scores[k].toFixed(1))}).join(" · ");
+  h+='<div class="cmp">'+cmp+' · 하한 '+a.min_score+(haz?"":" → <b>의심 아님</b> (아래는 가장 높은 "+esc((SHOWN[best]||best).split(" (")[0])+" 기준)")+'</div>';
+  c.rows.forEach(function(r){
+    if(r[1]==null){h+='<div class="kv"><span>'+esc(CUE[r[0]]||r[0])+'</span><span class="txt">'+esc(r[2])+'</span></div>';return}
+    h+='<div class="row"><span>'+esc(CUE[r[0]]||r[0])+'</span><span class="bar"><i style="width:'+Math.max(0,Math.min(100,r[1]))+'%"></i></span>'+
+       '<span class="pct">'+Math.round(r[1])+'%</span><span class="txt">'+esc(r[2])+'</span></div>';
+  });
+  if(dist(d)&&!c.rows.some(function(r){return r[0]==="distance"}))h+='<div class="kv"><span>거리</span><span class="txt">'+esc(dist(d))+'</span></div>';
+  if(c.source)h+='<div class="kv"><span>출처</span><span class="txt">'+esc(c.source)+'</span></div>';
+  return {html:h,haz:haz};
+}
+function hitAt(px,py){                        // 이미지 좌표 → 가장 작은 박스
+  if(!cur)return null;var best=null,ba=1e18;
+  (cur.detections||[]).forEach(function(d,i){var b=d.bbox;if(!b)return;
+    if(px>=b[0]&&px<=b[2]&&py>=b[1]&&py<=b[3]){var ar=(b[2]-b[0])*(b[3]-b[1]);if(ar<ba){ba=ar;best={d:d,i:i}}}});
+  return best;
+}
+function toImg(ev){var r=img.getBoundingClientRect();if(!r.width||!natW)return null;
+  return {x:(ev.clientX-r.left)*natW/r.width,y:(ev.clientY-r.top)*natH/r.height-band(),cx:ev.clientX,cy:ev.clientY}}
+function placeTip(cx,cy){var w=tip.offsetWidth,h=tip.offsetHeight,vw=innerWidth,vh=innerHeight;
+  var x=cx+18,y=cy+18;if(x+w>vw-8)x=cx-w-18;if(y+h>vh-8)y=vh-h-8;tip.style.left=Math.max(8,x)+"px";tip.style.top=Math.max(8,y)+"px"}
+function showTip(){
+  if(!mouse){tip.style.display="none";hoverKey=null;return}
+  var p=hitAt(mouse.x,mouse.y);
+  if(!p){tip.style.display="none";hoverKey=null;stage.style.cursor="crosshair";return}
+  hoverKey=keyOf(p.d,p.i);stage.style.cursor="pointer";
+  var c=cardHTML(p.d,false);tip.innerHTML='<div class="card'+(c.haz?" haz":"")+'">'+c.html+'</div>';
+  tip.style.display="block";placeTip(mouse.cx,mouse.cy);
+}
+function drawMarks(){
+  marks.innerHTML="";if(!cur||!natW)return;var bd=band();
+  (cur.detections||[]).forEach(function(d,i){var k=keyOf(d,i);if(k!==hoverKey&&!pins.has(k))return;var b=d.bbox;
+    var e=document.createElement("div");e.className="mk"+(pins.has(k)?" pin":"");
+    e.style.left=(b[0]/natW*100)+"%";e.style.top=((b[1]+bd)/natH*100)+"%";
+    e.style.width=((b[2]-b[0])/natW*100)+"%";e.style.height=((b[3]-b[1])/natH*100)+"%";marks.appendChild(e)});
+}
+function boxPx(d){var r=img.getBoundingClientRect(),s=stage.getBoundingClientRect(),b=d.bbox,k=r.width/natW,bd=band();
+  return {x1:r.left-s.left+b[0]*k,y1:r.top-s.top+(b[1]+bd)*k,x2:r.left-s.left+b[2]*k,y2:r.top-s.top+(b[3]+bd)*k}}
+function layoutPins(){                       // 고정 카드: 물체 옆(오른쪽 → 왼쪽 → 아래 → 위), 서로 안 겹치게
+  if(!natW)return;var W=stage.clientWidth,H=stage.clientHeight,placed=[],G=8;
+  function clash(r){return placed.some(function(q){return!(r.x+r.w<=q.x||q.x+q.w<=r.x||r.y+r.h<=q.y||q.y+q.h<=r.y)})}
+  pins.forEach(function(p){var b=boxPx(p.det),w=p.el.offsetWidth,h=p.el.offsetHeight;
+    var cand=[{x:b.x2+G,y:b.y1},{x:b.x1-w-G,y:b.y1},{x:b.x1,y:b.y2+G},{x:b.x1,y:b.y1-h-G}].map(function(c){
+      return {x:Math.max(0,Math.min(c.x,W-w)),y:Math.max(0,Math.min(c.y,H-h)),w:w,h:h}});
+    var pick=null;for(var i=0;i<cand.length&&!pick;i++)if(!clash(cand[i]))pick=cand[i];
+    if(!pick){pick=cand[0];for(var n=0;n<40&&clash(pick);n++)pick={x:pick.x,y:Math.min(H-h,pick.y+24),w:w,h:h}}
+    placed.push(pick);p.el.style.left=pick.x+"px";p.el.style.top=pick.y+"px"})}
+function renderPin(k){var p=pins.get(k);var c=cardHTML(p.det,true);
+  p.el.className="card pinned"+(c.haz?" haz":"")+(p.seen?"":" gone");p.el.innerHTML=c.html;
+  p.el.querySelector(".x").onclick=function(ev){ev.stopPropagation();p.el.remove();pins.delete(k);hoverKey=null;drawMarks()};
+  p.el.onclick=function(ev){ev.stopPropagation()};p.el.onmousemove=function(ev){ev.stopPropagation();tip.style.display="none"};
+  p.el.onmouseenter=function(){hoverKey=k;drawMarks()};p.el.onmouseleave=function(){hoverKey=null;drawMarks()};}
+function updatePins(){var seen={};(cur.detections||[]).forEach(function(d,i){seen[keyOf(d,i)]=d});
+  pins.forEach(function(p,k){if(seen[k]){p.det=seen[k];p.seen=true}else p.seen=false;renderPin(k)});layoutPins()}
+stage.addEventListener("mousemove",function(ev){mouse=toImg(ev);showTip();drawMarks()});
+stage.addEventListener("mouseleave",function(){mouse=null;showTip();drawMarks()});
+stage.addEventListener("click",function(ev){var m=toImg(ev);if(!m)return;var p=hitAt(m.x,m.y);if(!p)return;
+  var k=keyOf(p.d,p.i);if(pins.has(k))return;
+  var el=document.createElement("div");stage.appendChild(el);pins.set(k,{el:el,det:p.d,seen:true});renderPin(k);layoutPins();
+  tip.style.display="none";drawMarks()});
+addEventListener("resize",layoutPins);
+function loop(){
+  var u="/vision/frame?since="+seq+"&wait=5"+(MODEL?"&model="+encodeURIComponent(MODEL):"");
+  fetch(u,{cache:"no-store"}).then(function(r){if(r.status===204)return null;
+    if(!r.ok)return r.json().then(function(j){st.textContent=j.detail||("HTTP "+r.status);return null});return r.json()})
+  .then(function(j){
+    if(j){seq=j.seq;if(!MODEL)MODEL=j.model;
+      if(sel.options.length!==(j.models||[]).length){sel.innerHTML=(j.models||[]).map(function(m){return"<option>"+esc(m)+"</option>"}).join("")}
+      sel.value=j.model;
+      var im=new Image();im.onload=function(){natW=im.naturalWidth;natH=im.naturalHeight;cur=j;img.src=im.src;
+        updatePins();if(mouse)showTip();drawMarks()};
+      im.src="data:image/jpeg;base64,"+j.image_b64;
+      st.textContent="#"+(j.n==null?"-":j.n)+" · 검출 "+((j.detections||[]).length);
+    }
+    setTimeout(loop,j?0:500);
+  }).catch(function(){st.textContent="연결 끊김 — 다시 시도";setTimeout(loop,1500)});
+}
+sel.onchange=function(){MODEL=sel.value;seq=-1;pins.forEach(function(p){p.el.remove()});pins.clear();
+  history.replaceState(null,"","?model="+encodeURIComponent(MODEL))};
+loop();
+})();
+</script></body></html>
+"""
+
+
+class VisionView:
+    """vision_stream:<소스>:<모델> 을 읽어 모델마다 최신 오버레이와 요약을 들고 있는다 (/vision · /health · 보고용).
+    비전이 안 돌거나 Redis 가 없어도 받기·저장·흘리기에는 아무 영향이 없다 (따로 도는 스레드, 따로 연결)."""
+
+    def __init__(self, url, names):
+        self.url, self.names = url, list(names)
+        self.client, self.err = None, None
+        self.ids = {}                            # 읽는 키 → 마지막 항목 ID
+        self.cv = threading.Condition()
+        self.latest = {}                         # (소스, 모델) → (번호, JPEG)
+        self.result = {}                         # (소스, 모델) → (번호, 결과 요약) — 같은 번호의 오버레이와 짝
+        self.info = {}                           # (소스, 모델) → 요약
+        self.seq = 0
+        if redis is None:
+            self.err = "redis 패키지가 없음"
+            return
+        threading.Thread(target=self._run, daemon=True).start()
+
+    def _take(self, key, entries):
+        _, src, model = key.split(":", 2)
+        eid, f = entries[-1]
+        try:
+            res = json.loads(f.get(b"result") or b"{}")
+        except ValueError:
+            res = {}
+        try:
+            h = json.loads(f.get(b"header") or b"{}")     # v2: lag_ms 는 결과가 아니라 항목 header 에 있다(DS-06 · DS-08)
+        except ValueError:
+            h = {}
+        if not isinstance(h, dict):
+            h = {}
+        with self.cv:
+            i = self.info.setdefault((src, model), {"results": 0})
+            i["results"] += len(entries)
+            i.update(n=res.get("n"), run=res.get("run"), lag_ms=h.get("lag_ms", res.get("lag_ms")), infer_ms=res.get("infer_ms"),
+                     detections=len(res.get("detections") or []), at=time.time())
+            jpg = f.get(b"overlay")
+            if jpg:
+                self.seq += 1
+                self.latest[(src, model)] = (self.seq, jpg)
+                self.result[(src, model)] = (self.seq, view_result(res))
+                self.cv.notify_all()
+
+    def _run(self):
+        next_scan = 0.0
+        while not STOP.is_set():
+            try:
+                if self.client is None:
+                    self.client = redis.Redis.from_url(self.url, socket_connect_timeout=2, socket_timeout=5)
+                if time.time() >= next_scan:     # 새로 생긴 모델 스트림 찾기
+                    for nm in self.names:
+                        for k in self.client.scan_iter(match="vision_stream:%s:*" % nm, count=100):
+                            k = k.decode()
+                            if k not in self.ids:
+                                last = self.client.xrevrange(k, "+", "-", count=1)
+                                self.ids[k] = last[0][0] if last else "0"
+                                if last:
+                                    self._take(k, last)
+                    next_scan = time.time() + 3.0
+                if not self.ids:
+                    STOP.wait(1.0)
+                    continue
+                for key, entries in self.client.xread(self.ids, block=1000) or []:
+                    key = key.decode()
+                    self.ids[key] = entries[-1][0]
+                    self._take(key, entries)
+                if self.err is not None:
+                    self.err = None
+                    log("비전 결과 다시 읽음")
+            except Exception as e:
+                self.err = describe(e)
+                self.client = None
+                warn("vision", "비전 결과를 못 읽음 (%s) — 받기·저장은 계속합니다" % self.err, every=30)
+                STOP.wait(2.0)
+
+    def models(self, src):
+        with self.cv:
+            return sorted(m for s, m in self.info if s == src)
+
+    def wait_latest(self, src, model, last, timeout):
+        with self.cv:
+            cur = self.latest.get((src, model), (0, None))
+            if cur[0] == last:
+                self.cv.wait(timeout)
+                cur = self.latest.get((src, model), (0, None))
+            return cur
+
+    def health(self, src):
+        now = time.time()
+        with self.cv:
+            out = {}
+            for (s, m), i in self.info.items():
+                if s == src:
+                    d = dict(i)
+                    d["age_s"] = round(now - d.pop("at"), 1)
+                    out[m] = d
+            return out
+
+    def counts(self):
+        with self.cv:
+            return dict((k, v["results"]) for k, v in self.info.items())
+
+
+# ---------------------------------------------------------------- 넘기기 (엣지 → 서버)
+def pack_records(items):
+    """넘기기 묶음: ([종류 1바이트 F=영상 · S=상태][길이 4바이트][내용]) 반복"""
+    return b"".join(kind + len(data).to_bytes(4, "big") + data for kind, data in items)
+
+
+def unpack_records(body):
+    i = 0
+    while i < len(body):
+        kind, n = body[i:i + 1], int.from_bytes(body[i + 1:i + 5], "big")
+        data = body[i + 5:i + 5 + n]
+        if len(data) != n:
+            raise ValueError("묶음이 잘림")
+        yield kind, data
+        i += 5 + n
+
+
+class Forwarder:
+    """받은 것을 다른 기기의 같은 포트(POST /push)로 넘긴다.
+    연결 하나를 열어 두고, 밀린 것은 한 번에 묶어 보낸다 — 한 장씩 주고받으면 왕복 지연만큼 느려진다."""
+
+    def __init__(self, host, port):
+        self.host, self.port = host, port
+        self.q = deque()
+        self.cv = threading.Condition()
+        self.inflight = 0
+        self.sent = self.dropped = self.rejected = 0
+        self.err = None
+        threading.Thread(target=self._run, daemon=True).start()
+
+    def put(self, kind, data):
+        with self.cv:
+            self.q.append((kind, data))
+            while len(self.q) > FORWARD_QUEUE:        # 넘치면 오래된 것부터 버린다 (이 기기 디스크에는 있다)
+                self.q.popleft()
+                self.dropped += 1
+            self.cv.notify()
+
+    def pending(self):
+        with self.cv:
+            return len(self.q) + self.inflight
+
+    def _take(self):
+        with self.cv:
+            while not self.q and not STOP.is_set():
+                self.cv.wait(1.0)
+            batch, size = [], 0
+            while self.q and (not batch or (len(batch) < 200 and size + len(self.q[0][1]) <= FORWARD_BATCH)):
+                item = self.q.popleft()
+                batch.append(item)
+                size += len(item[1])
+            self.inflight = len(batch)
+            return batch
+
+    def _give_back(self, batch):
+        with self.cv:
+            self.q.extendleft(reversed(batch))
+            while len(self.q) > FORWARD_QUEUE:
+                self.q.popleft()
+                self.dropped += 1
+            self.inflight = 0
+
+    def _run(self):
+        conn, fails = None, 0
+        while not STOP.is_set():
+            batch = self._take()
+            if not batch:
+                continue
+            try:
+                if conn is None or conn.sock is None:
+                    conn = http.client.HTTPConnection(self.host, self.port, timeout=15)
+                    conn.connect()
+                    conn.sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+                conn.request("POST", "/push", body=pack_records(batch),
+                             headers={"Content-Type": "application/octet-stream"})
+                resp = conn.getresponse()
+                answer = resp.read()
+                status = resp.status
+            except Exception as e:
+                if conn is not None:
+                    conn.close()
+                conn = None
+                fails += 1
+                self.err = describe(e)
+                warn("fwd-%d" % self.port, "넘기기 안 됨 → %s:%d (%s) — 이 기기 저장은 계속합니다"
+                     % (self.host, self.port, self.err))
+                self._give_back(batch)             # 다시 보낸다
+                STOP.wait(min(5.0, 0.5 * fails))
+                continue
+            with self.cv:
+                self.inflight = 0
+            fails = 0
+            if status == 200:
+                self.sent += len(batch)
+                if self.err is not None:
+                    self.err = None
+                    log("넘기기 다시 됨 → %s:%d" % (self.host, self.port))
+            else:
+                self.rejected += len(batch)
+                warn("fwd-rej-%d" % self.port, "넘긴 곳이 거절함 %s:%d — HTTP %d %s"
+                     % (self.host, self.port, status, answer[:200]))
+
+
+# ---------------------------------------------------------------- 소스 (포트 하나)
+class Source:
+    def __init__(self, name, port, folder, rel, sink, forwarder):
+        self.name, self.port = name, port
+        self.dir, self.rel = folder, rel        # 저장 폴더 / 헤더에 적는 상대 경로
+        self.sink, self.fwd = sink, forwarder
+        self.lock = threading.Lock()
+        self.n_frame = 0                        # 마지막으로 쓴 영상 번호
+        self.n_state = 0
+        self.got_frames = self.got_states = 0
+        self.save_fail = self.redis_fail = 0
+        self.status = {}
+        self.frame_fh = None
+        self.state_fh = None
+        self.cv = threading.Condition()
+        self.latest = (0, None)                 # /stream 으로 보여 줄 최신 한 장
+        self.latest_sender = None               # 그 장의 보낸 쪽 프레임 헤더 (GET /frame)
+        self.latest_state = {}                  # GET /state 로 보여 줄 토픽별 최신 상태 한 건
+
+    def _open_new(self):
+        """다음 번호의 frames/<번호>.jpg 를 새로 만든다. 기존 파일은 절대 덮어쓰지 않는다."""
+        frames_dir = self.dir / "frames"
+        made_dir = False
+        while True:
+            self.n_frame += 1
+            fname = "%09d.jpg" % self.n_frame
+            try:
+                return open(frames_dir / fname, "xb"), fname, None
+            except FileExistsError:
+                continue
+            except FileNotFoundError as e:      # 실행 중에 폴더가 지워졌으면 다시 만든다
+                if made_dir:
+                    return None, fname, e
+                made_dir = True
+                self.n_frame -= 1
+                try:
+                    frames_dir.mkdir(parents=True, exist_ok=True)
+                except OSError as e2:
+                    self.n_frame += 1
+                    return None, fname, e2
+            except OSError as e:
+                return None, fname, e
+
+    def add_frame(self, image, sender, via, edge=None):
+        received_at = received_now()                    # 잠금·디스크 쓰기 전에 잰다
+        with self.lock:
+            fh, fname, err = self._open_new()
+            n = self.n_frame
+            header = {"stream": self.name, "n": n,
+                      "frame_file": self.rel + "/frames/" + fname,
+                      "via": via, "received_by": HOSTNAME, "received_at": received_at,
+                      "sender": sender}
+            if edge:
+                header["edge"] = edge
+
+            image_saved = False
+            meta_saved = False
+            if fh is not None:
+                try:
+                    with fh:
+                        fh.write(image)                 # 받은 JPEG 바이트를 그대로 저장
+                    image_saved = True
+                except OSError as e:
+                    err = e
+                    try:
+                        os.remove(str(self.dir / "frames" / fname))
+                    except OSError:
+                        pass
+
+            if image_saved:
+                try:
+                    if self.frame_fh is None:
+                        self.dir.mkdir(parents=True, exist_ok=True)
+                        self.frame_fh = open(self.dir / "frames.jsonl", "ab")
+                    line = (json.dumps(header, ensure_ascii=False) + "\n").encode("utf-8")
+                    self.frame_fh.write(line)
+                    self.frame_fh.flush()
+                    meta_saved = True
+                except OSError as e:
+                    err = e
+                    try:
+                        self.frame_fh.close()
+                    except Exception:
+                        pass
+                    self.frame_fh = None
+
+            saved = image_saved and meta_saved
+            if not saved:
+                self.save_fail += 1
+                warn("save-" + self.name, "%s 영상 저장 실패 (%s) — 스트림은 계속합니다" % (self.name, describe(err)))
+                if not image_saved:
+                    header["frame_file"] = None
+
+            # 엣지→서버 전송 형식은 기존 .frm 패킹을 그대로 사용하되, 디스크에는 저장하지 않는다.
+            packed = pack_frame(header, image)
+            if not self.sink.add("camera_stream:" + self.name, frame_fields(image, header)):
+                self.redis_fail += 1
+            self.got_frames += 1
+        with self.cv:
+            self.latest = (n, image)
+            self.latest_sender = sender
+            self.cv.notify_all()
+        if self.fwd is not None and not via.startswith("push"):   # 넘겨받은 것은 다시 넘기지 않는다 (고리 방지)
+            self.fwd.put(b"F", packed)
+        return {"status": "saved" if saved else "not_saved", "source": self.name, "n": n}
+
+    def add_state(self, topic, payload, qos, retain, via, edge=None):
+        received_at = received_now()
+        with self.lock:
+            self.n_state += 1
+            rec = {"stream": self.name, "n": self.n_state, "topic": topic, "qos": qos, "retain": retain,
+                   "via": via, "received_by": HOSTNAME, "received_at": received_at}
+            if edge:
+                rec["edge"] = edge
+            try:
+                text = payload.decode("utf-8")
+                try:
+                    obj = json.loads(text)
+                except ValueError:
+                    obj = None
+                if isinstance(obj, (dict, list)):
+                    rec["payload"], rec["enc"] = obj, "json"          # JSON 은 객체 그대로 — 후처리가 한 번 더 풀지 않게
+                else:
+                    rec["payload"], rec["enc"] = text, "utf8"
+            except UnicodeDecodeError:
+                rec["payload"], rec["enc"] = base64.b64encode(payload).decode("ascii"), "base64"
+            line = (json.dumps(rec, ensure_ascii=False) + "\n").encode("utf-8")
+            saved = False
+            try:
+                if self.state_fh is None:
+                    self.dir.mkdir(parents=True, exist_ok=True)
+                    self.state_fh = open(self.dir / "states.jsonl", "ab")
+                self.state_fh.write(line)
+                self.state_fh.flush()
+                saved = True
+            except OSError as e:
+                self.save_fail += 1
+                warn("save-" + self.name, "%s 상태 저장 실패 (%s) — 스트림은 계속합니다" % (self.name, describe(e)))
+                try:
+                    self.state_fh.close()
+                except Exception:
+                    pass
+                self.state_fh = None
+            header = dict((k, v) for k, v in rec.items() if k not in ("payload", "enc"))   # stream 이 맨 앞(옛 source)
+            if not self.sink.add("state_stream:" + self.name,
+                                 {"topic": topic, "payload": payload,
+                                  "header": json.dumps(header, ensure_ascii=False)}):
+                self.redis_fail += 1
+            self.got_states += 1
+            self.latest_state[topic] = rec
+        if self.fwd is not None and not via.startswith("push"):
+            self.fwd.put(b"S", line)
+        return {"status": "saved" if saved else "not_saved", "source": self.name, "n": rec["n"]}
+
+    def wait_latest(self, last, timeout):
+        with self.cv:
+            if self.latest[0] == last:
+                self.cv.wait(timeout)
+            return self.latest
+
+    def state_snapshot(self):
+        """GET /state — latest = 토픽이 /state 로 끝나는 것 중 가장 최근 것 (없으면 아무 토픽이나 가장 최근)"""
+        with self.lock:
+            by_topic = dict(self.latest_state)
+        recs = sorted(by_topic.values(), key=lambda r: r["n"])
+        main = [r for r in recs if str(r.get("topic", "")).endswith("/state")] or recs
+        return {"source": self.name, "latest": main[-1] if main else None, "by_topic": by_topic}
+
+    def set_status(self, key, text):
+        self.status[key] = text
+
+    def close(self):
+        with self.lock:
+            if self.frame_fh is not None:
+                try:
+                    self.frame_fh.close()
+                except Exception:
+                    pass
+                self.frame_fh = None
+            if self.state_fh is not None:
+                try:
+                    self.state_fh.close()
+                except Exception:
+                    pass
+                self.state_fh = None
+
+    def health(self):
+        h = {"source": self.name, "port": self.port, "host": HOSTNAME, "folder": str(self.dir),
+             "frames": self.got_frames, "states": self.got_states,
+             "save_fail": self.save_fail, "redis_fail": self.redis_fail,
+             "redis_error": self.sink.err, "status": dict(self.status)}
+        if self.fwd is not None:
+            h["forward"] = {"to": "%s:%d" % (self.fwd.host, self.fwd.port), "sent": self.fwd.sent,
+                            "pending": self.fwd.pending(), "dropped": self.fwd.dropped,
+                            "rejected": self.fwd.rejected, "error": self.fwd.err}
+        return h
+
+
+# ---------------------------------------------------------------- 받는 쪽 (포트마다 HTTP)
+def read_exact(f, n):
+    buf = bytearray()
+    while len(buf) < n:
+        chunk = f.read(n - len(buf))
+        if not chunk:
+            return None
+        buf += chunk
+    return bytes(buf)
+
+
+class Server(ThreadingHTTPServer):
+    daemon_threads = True
+    allow_reuse_address = os.name != "nt"     # 윈도우에서는 같은 포트를 두 프로그램이 잡게 되므로 끈다
+
+    def server_bind(self):
+        if os.name == "nt" and hasattr(socket, "SO_EXCLUSIVEADDRUSE"):
+            self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
+        socketserver.TCPServer.server_bind(self)  # HTTPServer 의 getfqdn(느릴 수 있음)을 건너뛴다
+        host, port = self.server_address[:2]
+        self.server_name, self.server_port = str(host), port
+
+
+def make_handler(src, vision=None):
+    class Handler(BaseHTTPRequestHandler):
+        protocol_version = "HTTP/1.1"
+        server_version = "data-stream"
+        sys_version = ""
+        disable_nagle_algorithm = True          # 작은 응답이 40ms 씩 묶여 늦어지지 않게
+
+        def log_message(self, *args):
+            pass
+
+        def _send(self, code, body, ctype):
+            self.send_response(code)
+            self.send_header("Content-Type", ctype)
+            self.send_header("Content-Length", str(len(body)))
+            self.send_header("Cache-Control", "no-store")
+            self.send_header("Access-Control-Allow-Origin", "*")   # 다른 주소의 가시화 웹이 /state 를 fetch 할 수 있게
+            self.end_headers()
+            self.wfile.write(body)
+
+        def _json(self, code, obj):
+            self._send(code, json.dumps(obj, ensure_ascii=False).encode("utf-8"), "application/json; charset=utf-8")
+
+        def do_GET(self):
+            path, _, query = self.path.partition("?")
+            path = path.rstrip("/") or "/"
+            if path == "/stream":
+                return self._mjpeg()
+            if path == "/vision":
+                return self._vision(parse_qs(query).get("model", [None])[0])
+            if path == "/vision/frame":
+                return self._vision_frame(parse_qs(query))
+            if path == "/vision/view":
+                model = parse_qs(query).get("model", [""])[0]
+                page = VISION_VIEW_HTML.replace("__SRC__", src.name).replace(
+                    "__MODEL__", json.dumps(model))
+                return self._send(200, page.encode("utf-8"), "text/html; charset=utf-8")
+            if path == "/state":
+                return self._json(200, src.state_snapshot())
+            if path == "/frame":
+                return self._frame(parse_qs(query))
+            if path == "/health":
+                h = src.health()
+                if vision is not None:
+                    h["vision"] = vision.health(src.name)
+                    h["vision_error"] = vision.err
+                return self._json(200, h)
+            if path == "/":
+                models = vision.models(src.name) if vision is not None else []
+                cells = ["<figure style='margin:4px'><figcaption>원본</figcaption>"
+                         "<img src='/stream' style='max-width:100%%'></figure>"]
+                cells += ["<figure style='margin:4px'><figcaption>%s</figcaption>"
+                          "<img src='/vision?model=%s' style='max-width:100%%'></figure>" % (m, m) for m in models]
+                note = "" if models else " · 비전 결과 없음 (vision_infer.py 가 돌면 새로고침)"
+                cells.append("<figure style='margin:4px'><figcaption>상태 (<a style='color:#9cf' href='/state'>/state</a>)"
+                             "</figcaption><pre id='st' style='font-size:12px;white-space:pre-wrap'>-</pre></figure>"
+                             "<script>setInterval(function(){fetch('/state').then(function(r){return r.json()})"
+                             ".then(function(j){var l=j.latest;document.getElementById('st').textContent="
+                             "l?JSON.stringify(l.payload,null,1):'아직 상태 없음'})},1000)</script>")
+                page = ("<!doctype html><meta charset='utf-8'><title>%s</title>"
+                        "<body style='margin:0;background:#111;color:#ddd;font-family:sans-serif'>"
+                        "<p style='margin:8px'>%s :%d · <a style='color:#9cf' href='/health'>health</a>%s</p>"
+                        "<div style='display:grid;grid-template-columns:repeat(auto-fit,minmax(420px,1fr))'>%s</div>"
+                        "</body>" % (src.name, src.name, src.port, note, "".join(cells)))
+                return self._send(200, page.encode("utf-8"), "text/html; charset=utf-8")
+            self._json(404, {"status": "error", "detail": "없는 주소"})
+
+        def _frame(self, q):
+            """최신 한 장 + 최신 상태. since 를 주면 그보다 새 장이 올 때까지 wait 초 기다린다"""
+            def arg(name, default):
+                try:
+                    return float(q.get(name, [default])[0])
+                except (TypeError, ValueError):
+                    return default
+            since = int(arg("since", -1))
+            deadline = time.time() + max(0.0, min(10.0, arg("wait", 2.0)))
+            n, img = src.latest
+            while (img is None or n == since) and not STOP.is_set():
+                left = deadline - time.time()
+                if left <= 0:
+                    break
+                n, img = src.wait_latest(n if img is not None else 0, min(left, 1.0))
+            if img is None or n == since:
+                self.send_response(204)
+                self.send_header("Access-Control-Allow-Origin", "*")
+                self.send_header("Content-Length", "0")
+                self.end_headers()
+                return
+            meta = src.latest_sender if src.latest[0] == n else None
+            latest = src.state_snapshot()["latest"]
+            state = latest.get("payload") if latest else None
+            if (q.get("format") or [""])[0] == "json":
+                return self._json(200, {"source": src.name, "n": n, "meta": meta, "state": state,
+                                        "image_b64": base64.b64encode(img).decode("ascii")})
+            self.send_response(200)
+            self.send_header("Content-Type", "image/jpeg")
+            self.send_header("Content-Length", str(len(img)))
+            self.send_header("Cache-Control", "no-store")
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.send_header("Access-Control-Expose-Headers", "X-Frame-N, X-Frame-Meta, X-State")
+            self.send_header("X-Frame-N", str(n))
+            self.send_header("X-Frame-Meta", json.dumps(meta, separators=(",", ":")))    # ensure_ascii — 헤더는 ASCII
+            self.send_header("X-State", json.dumps(state, separators=(",", ":")))
+            self.end_headers()
+            self.wfile.write(img)
+
+        def _vision_frame(self, q):
+            """최신 비전 오버레이 한 장 + **같은 장의** 검출(근거 카드 포함) JSON.
+            since 를 주면 그보다 새 장이 올 때까지 wait 초(최대 10) 기다린다 — /vision/view 가 쓴다.
+            image=0 이면 검출만(가시화 앱이 MJPEG 위에 카드를 얹을 때)"""
+            if vision is None or vision.err == "redis 패키지가 없음":
+                return self._json(503, {"status": "error", "detail": "Redis 를 못 써서 비전 결과를 못 읽음"})
+            models = vision.models(src.name)
+            model = (q.get("model") or [""])[0] or (models[0] if models else None)
+            if model is None:
+                return self._json(404, {"status": "error", "source": src.name, "models": models,
+                                        "detail": "비전 결과 없음 — vision_infer.py 가 이 소스를 처리하고 있어야 함"})
+            try:
+                since = int((q.get("since") or ["-1"])[0])
+                wait = max(0.0, min(10.0, float((q.get("wait") or ["2"])[0])))
+            except ValueError:
+                since, wait = -1, 2.0
+            deadline = time.time() + wait
+            seq, img = vision.wait_latest(src.name, model, since, 0)
+            while (img is None or seq == since) and time.time() < deadline and not STOP.is_set():
+                seq, img = vision.wait_latest(src.name, model, since, min(1.0, deadline - time.time()))
+            if img is None or seq == since:
+                self.send_response(204)
+                self.send_header("Access-Control-Allow-Origin", "*")
+                self.send_header("Content-Length", "0")
+                self.end_headers()
+                return
+            with vision.cv:
+                rseq, res = vision.result.get((src.name, model), (None, {}))
+            out = dict(res if rseq == seq else {}, seq=seq, model=model, models=models,
+                       source=src.name, overlay_bytes=len(img))
+            # image=0 이면 그림을 빼고 검출만 준다 — 그림은 /vision MJPEG 로 이미 보고 있는
+            # 화면(가시화)이 카드만 얹을 때 쓴다
+            if (q.get("image") or ["1"])[0] != "0":
+                out["image_b64"] = base64.b64encode(img).decode("ascii")
+            return self._json(200, out)
+
+        def _vision(self, model):
+            """비전 오버레이 MJPEG. model 을 안 주면 결과가 있는 첫 모델"""
+            if vision is None or vision.err == "redis 패키지가 없음":
+                return self._json(503, {"status": "error", "detail": "Redis 를 못 써서 비전 결과를 못 읽음"})
+            models = vision.models(src.name)
+            model = model or (models[0] if models else None)
+            if model is None:
+                return self._json(404, {"status": "error", "source": src.name,
+                                        "detail": "비전 결과 없음 — vision_infer.py 가 이 소스를 처리하고 있어야 함"})
+            self.send_response(200)
+            self.send_header("Content-Type", "multipart/x-mixed-replace; boundary=frame")
+            self.send_header("Cache-Control", "no-cache, private")
+            self.send_header("Connection", "close")
+            self.end_headers()
+            self.close_connection = True
+            last = -1
+            try:
+                while not STOP.is_set():
+                    seq, img = vision.wait_latest(src.name, model, last, 1.0)
+                    if img is None or seq == last:
+                        continue
+                    last = seq
+                    self.wfile.write(b"--frame\r\nContent-Type: image/jpeg\r\nContent-Length: "
+                                     + str(len(img)).encode() + b"\r\n\r\n" + img + b"\r\n")
+            except OSError:
+                pass                              # 보던 쪽이 닫음
+
+        def _mjpeg(self):
+            self.send_response(200)
+            self.send_header("Content-Type", "multipart/x-mixed-replace; boundary=frame")
+            self.send_header("Cache-Control", "no-cache, private")
+            self.send_header("Connection", "close")
+            self.end_headers()
+            self.close_connection = True
+            last = -1
+            try:
+                while not STOP.is_set():
+                    seq, img = src.wait_latest(last, 1.0)
+                    if img is None or seq == last:
+                        continue
+                    last = seq
+                    self.wfile.write(b"--frame\r\nContent-Type: image/jpeg\r\nContent-Length: "
+                                     + str(len(img)).encode() + b"\r\n\r\n" + img + b"\r\n")
+            except OSError:
+                pass                              # 보던 쪽이 닫음
+
+        def do_POST(self):
+            path = self.path.split("?", 1)[0].rstrip("/")
+            length = self.headers.get("Content-Length")
+            if length is None or not length.strip().isdigit():
+                self.close_connection = True
+                return self._json(411, {"status": "error", "detail": "Content-Length 필요"})
+            length = int(length)
+            if length > MAX_BODY:
+                self.close_connection = True
+                return self._json(413, {"status": "error", "detail": "너무 큼"})
+            body = read_exact(self.rfile, length)
+            if body is None:
+                self.close_connection = True
+                return
+            try:
+                if path in ("/upload_pano", "/upload"):
+                    ctype = self.headers.get("Content-Type", "")
+                    boundary = content_type_param(ctype, "boundary")
+                    if not ctype.lower().startswith("multipart/") or not boundary:
+                        return self._json(400, {"status": "error", "detail": "multipart/form-data 로 보내야 함"})
+                    sender, image = form_to_frame(split_multipart(body, boundary))
+                    if image is None:
+                        return self._json(400, {"status": "error", "detail": "파일 칸이 없음"})
+                    key = "video" if src.name in PUSH_ONLY else "upload"   # 가져오는 포트는 가져오기 상태를 덮지 않는다
+                    text = "받는 중 (%s ← %s)" % (path, self.client_address[0])
+                    if src.status.get(key) != text:
+                        src.set_status(key, text)
+                        log("%s 영상 받는 중 — %s 로 %s 에서 올라옴" % (src.name, path, self.client_address[0]))
+                    res = src.add_frame(image, sender, "upload:" + path)
+                elif path == "/state":                # 상태 한 건 (360 노트북의 GPS·배터리·온도)
+                    try:
+                        rec = json.loads(body.decode("utf-8"))
+                    except ValueError:
+                        return self._json(400, {"status": "error", "detail": "JSON 이 아님"})
+                    if not isinstance(rec, dict) or not rec.get("topic") or "payload" not in rec:
+                        return self._json(400, {"status": "error", "detail": "topic · payload 칸이 필요함"})
+                    raw = rec["payload"]
+                    payload = (json.dumps(raw, ensure_ascii=False) if isinstance(raw, (dict, list))
+                               else str(raw)).encode("utf-8")
+                    key = "state" if src.name == "cam360" else "upload_state"
+                    text = "받는 중 (/state ← %s)" % self.client_address[0]
+                    if src.status.get(key) != text:
+                        src.set_status(key, text)
+                        log("%s 상태 받는 중 — /state 로 %s 에서 올라옴" % (src.name, self.client_address[0]))
+                    res = src.add_state(str(rec["topic"]), payload, rec.get("qos"), rec.get("retain"), "upload:/state")
+                elif path == "/push":                 # 다른 기기의 이 파일이 넘겨 준 묶음
+                    res = {"status": "saved", "source": src.name, "frames": 0, "states": 0, "bad": 0}
+                    for kind, data in unpack_records(body):
+                        try:
+                            if kind == b"F":
+                                header, image = unpack_frame(data)
+                                edge = {"n": header.get("n"),            # 넘겨준 기기의 기록 (옛 판이 넘긴 것도 읽는다)
+                                        "frame_file": header.get("frame_file", header.get("file")),
+                                        "via": header.get("via"),
+                                        "received_by": header.get("received_by", header.get("host")),
+                                        "received_at": header.get("received_at")}   # 넘겨준 기기가 처음 받은 시각
+                                src.add_frame(image, header.get("sender") or {}, "push", edge=edge)
+                                res["frames"] += 1
+                            elif kind == b"S":
+                                rec = json.loads(data.decode("utf-8"))
+                                raw = rec.get("payload")
+                                if rec.get("enc") == "base64":
+                                    payload = base64.b64decode(raw or "")
+                                elif rec.get("enc") == "json" or isinstance(raw, (dict, list)):
+                                    payload = json.dumps(raw, ensure_ascii=False).encode("utf-8")
+                                else:
+                                    payload = (raw or "").encode("utf-8")
+                                edge = {"n": rec.get("n"), "via": rec.get("via"),
+                                        "received_by": rec.get("received_by", rec.get("host")),
+                                        "received_at": rec.get("received_at")}
+                                src.add_state(rec.get("topic", ""), payload, rec.get("qos"), rec.get("retain"),
+                                              "push", edge=edge)
+                                res["states"] += 1
+                            else:
+                                res["bad"] += 1
+                        except Exception as e:
+                            res["bad"] += 1
+                            warn("push-bad-" + src.name, "%s 넘겨받은 것 중 못 읽은 것 (%s)" % (src.name, describe(e)))
+                else:
+                    return self._json(404, {"status": "error", "detail": "없는 주소"})
+            except Exception as e:
+                return self._json(400, {"status": "error", "detail": describe(e)})
+            self._json(200, res)
+
+    return Handler
+
+
+# ---------------------------------------------------------------- 가져오는 쪽: 로봇 영상 (MJPEG)
+def read_mjpeg(resp, boundary):
+    """multipart/x-mixed-replace 를 한 장씩 (칸 머리, 바이트) 로 낸다. 칸 머리에 길이가 없어도 읽는다."""
+    b = boundary.encode("latin-1")
+    markers = (b"--" + b, b) if b.startswith(b"--") else (b"--" + b,)
+
+    def is_marker(line):
+        s = line.strip()
+        return any(s.startswith(m) for m in markers)
+
+    while True:                                   # 첫 경계까지 건너뛴다
+        line = resp.readline()
+        if not line:
+            return
+        if is_marker(line):
+            break
+    while not STOP.is_set():
+        if any(line.strip() == m + b"--" for m in markers):
+            return                                # 끝 표시
+        headers = {}
+        while True:
+            h = resp.readline()
+            if not h:
+                return
+            h = h.rstrip(b"\r\n")
+            if not h:
+                break
+            k, sep, v = h.decode("latin-1").partition(":")
+            if sep:
+                headers[k.strip()] = v.strip()
+        length = header_value(headers, "content-length")
+        if length is not None and length.strip().isdigit():
+            data = read_exact(resp, int(length))
+            if data is None:
+                return
+            yield headers, data
+            while True:                           # 다음 경계 줄까지
+                line = resp.readline()
+                if not line:
+                    return
+                if is_marker(line):
+                    break
+        else:
+            chunks = []
+            while True:
+                line = resp.readline()
+                if not line:
+                    return
+                if is_marker(line):
+                    break
+                chunks.append(line)
+            data = b"".join(chunks)
+            if data.endswith(b"\r\n"):            # 경계 앞의 줄바꿈은 경계에 속한다
+                data = data[:-2]
+            elif data.endswith(b"\n"):
+                data = data[:-1]
+            yield headers, data
+
+
+def robot_video_loop(src, host, cam, port=ROBOT_VIDEO_PORT, path=None):
+    path = path or "/stream/%d" % cam              # 드론 Arducam 도 같은 MJPEG 라 port·path 만 바꿔 쓴다
+    url = "http://%s:%d%s" % (host, port, path)
+    fails, receiving = 0, False
+    src.set_status("video", "붙는 중 " + url)
+    while not STOP.is_set():
+        conn = None
+        try:
+            conn = http.client.HTTPConnection(host, port, timeout=10)
+            conn.request("GET", path)
+            resp = conn.getresponse()
+            if resp.status != 200:
+                raise RuntimeError("HTTP %d" % resp.status)
+            ctype = resp.getheader("Content-Type", "")
+            boundary = content_type_param(ctype, "boundary")
+            if not boundary:
+                raise RuntimeError("MJPEG 가 아님: " + ctype)
+            for part_headers, data in read_mjpeg(resp, boundary):
+                if STOP.is_set():
+                    break
+                if not receiving:
+                    receiving, fails = True, 0
+                    src.set_status("video", "받는 중 " + url)
+                    log("%s 영상 받는 중 — %s" % (src.name, url))
+                meta = header_value(part_headers, "frame-meta")      # v2 pi7 은 프레임 헤더를 이 한 줄에 싣는다(DS-03)
+                sender = part_headers                                  # 없으면 옛 pi7 — 칸 머리 사전 그대로
+                if meta:
+                    try:
+                        sender = json.loads(meta)
+                    except ValueError:
+                        warn(src.name + "-meta", "%s Frame-Meta 를 못 풀었음 — 칸 머리 그대로 저장" % src.name)
+                src.add_frame(data, sender, "pull:" + url)
+            if not STOP.is_set():
+                raise RuntimeError("영상 스트림이 끝남")
+        except Exception as e:
+            if STOP.is_set():
+                break
+            receiving = False
+            fails += 1
+            src.set_status("video", "끊김 (%s) — 다시 붙는 중" % describe(e))
+            warn(src.name + "-video", "%s 영상 안 됨 %s (%s) — 다시 붙는 중" % (src.name, url, describe(e)))
+            STOP.wait(min(5.0, 0.5 * fails))
+        finally:
+            if conn is not None:
+                conn.close()
+
+
+# ---------------------------------------------------------------- 가져오는 쪽: 드론 영상 (/api/frame 롱폴)
+def drone_video_loop(src, host, cam):
+    base = "http://%s:%d" % (host, DRONE_VIDEO_PORT)
+    via = "pull:%s/api/frame?cam=%d" % (base, cam)
+    since, last_seq, last_img = 0, None, None
+    fails, receiving = 0, False
+    conn = None
+    src.set_status("video", "붙는 중 " + base)
+    while not STOP.is_set():
+        path = "/api/frame?cam=%d&since=%d&wait=%d" % (cam, since, DRONE_WAIT_S)
+        try:
+            if conn is None:                       # 연결은 열어 두고 계속 쓴다 (매번 새로 열면 느려진다)
+                conn = http.client.HTTPConnection(host, DRONE_VIDEO_PORT, timeout=DRONE_WAIT_S + 8)
+            conn.request("GET", path)
+            resp = conn.getresponse()
+            body = resp.read()
+            if resp.status == 204:                 # 기다리는 동안 새 장이 없었다
+                fails = 0
+                since = 0                          # 다음엔 최신 장을 그냥 묻는다 — 드론이 다시 켜져 번호가
+                continue                           # 처음부터 시작해도 받게 (같은 장이면 아래에서 거른다)
+            if resp.status != 200:
+                raise RuntimeError("HTTP %d" % resp.status)
+            boundary = content_type_param(resp.getheader("Content-Type", ""), "boundary")
+            if not boundary:
+                raise RuntimeError("multipart 가 아님: %s" % resp.getheader("Content-Type", ""))
+            sender, image = form_to_frame(split_multipart(body, boundary))
+            if image is None:
+                raise RuntimeError("응답에 이미지 칸이 없음")
+            fails = 0
+            try:
+                seq = int(sender.get("sequence_id", sender.get("frame_seq")))   # v2 먼저, 옛 드론은 frame_seq
+            except (TypeError, ValueError):
+                seq = None
+            if seq is not None:
+                if seq == last_seq:                # since 를 0 으로 되돌렸을 때 받은 같은 장
+                    since = seq
+                    continue
+                since = last_seq = seq
+            elif image == last_img:                # 번호가 없으면 같은 바이트만 거른다
+                STOP.wait(0.05)
+                continue
+            last_img = image
+            if not receiving:
+                receiving = True
+                src.set_status("video", "받는 중 " + base)
+                log("%s 영상 받는 중 — %s/api/frame?cam=%d" % (src.name, base, cam))
+            src.add_frame(image, sender, via)
+        except Exception as e:
+            if conn is not None:
+                conn.close()
+            conn = None
+            if STOP.is_set():
+                break
+            receiving = False
+            fails += 1
+            src.set_status("video", "끊김 (%s) — 다시 붙는 중" % describe(e))
+            warn(src.name + "-video", "%s 영상 안 됨 %s (%s) — 다시 붙는 중" % (src.name, base, describe(e)))
+            STOP.wait(min(5.0, 0.5 * fails))
+    if conn is not None:
+        conn.close()
+
+
+# ---------------------------------------------------------------- 가져오는 쪽: 상태 (파이 MQTT 전체 구독)
+def _rc_failed(rc):
+    failed = getattr(rc, "is_failure", None)
+    if failed is not None:
+        return bool(failed)
+    return rc != 0
+
+
+def start_mqtt(src, host):
+    url = "mqtt://%s:%d" % (host, MQTT_PORT)
+    if mqtt is None:
+        src.set_status("state", "paho-mqtt 패키지 없음 (pip install paho-mqtt)")
+        log("%s 상태: paho-mqtt 가 없어 상태는 받지 않습니다 (pip install paho-mqtt)" % src.name)
+        return None
+    cid = "stream-%s-%s-%d" % (HOSTNAME, src.name, os.getpid())
+    if hasattr(mqtt, "CallbackAPIVersion"):       # paho-mqtt 2.x
+        cli = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2, client_id=cid, clean_session=True)
+    else:                                         # paho-mqtt 1.x
+        cli = mqtt.Client(client_id=cid, clean_session=True)
+    via = "pull:" + url
+
+    def on_connect(client, userdata, flags, rc, *rest):
+        try:
+            if _rc_failed(rc):
+                src.set_status("state", "접속 거부 (%s)" % rc)
+                warn(src.name + "-mqtt", "%s 상태 %s 접속 거부 (%s)" % (src.name, url, rc))
+                return
+            client.subscribe("#", qos=1)
+            src.set_status("state", "받는 중 " + url)
+            log("%s 상태 받는 중 — %s 전체 토픽(#)" % (src.name, url))
+        except Exception as e:
+            log("%s 상태 구독 오류 (%s)" % (src.name, describe(e)))
+
+    def on_disconnect(client, userdata, *rest):
+        if not STOP.is_set():
+            src.set_status("state", "끊김 — 다시 붙는 중")
+            warn(src.name + "-mqtt", "%s 상태 %s 끊김 — 다시 붙는 중" % (src.name, url))
+
+    def on_message(client, userdata, msg):
+        try:
+            src.add_state(msg.topic, bytes(msg.payload), msg.qos, bool(msg.retain), via)
+        except Exception as e:
+            warn(src.name + "-mqtt-msg", "%s 상태 처리 오류 (%s)" % (src.name, describe(e)))
+
+    cli.on_connect = on_connect
+    cli.on_disconnect = on_disconnect
+    cli.on_message = on_message
+    cli.reconnect_delay_set(min_delay=1, max_delay=10)
+    src.set_status("state", "붙는 중 " + url)
+    try:
+        cli.connect_async(host, MQTT_PORT, keepalive=30)
+        cli.loop_start()
+    except Exception as e:
+        src.set_status("state", "시작 실패 (%s)" % describe(e))
+        log("%s 상태 %s 시작 실패 (%s)" % (src.name, url, describe(e)))
+        return None
+    return cli
+
+
+# ---------------------------------------------------------------- 저장 폴더
+def make_run_dirs(save_root, names):
+    """<저장폴더>/<소스>/<YYYYMMDD_HHMMSS>/ — 이미 있으면 _2, _3 … (켜진 소스 모두 같은 이름)"""
+    stamp = time.strftime("%Y%m%d_%H%M%S")
+    k = 1
+    while True:
+        run = stamp if k == 1 else "%s_%d" % (stamp, k)
+        dirs = dict((nm, save_root / nm / run) for nm in names)
+        if not any(d.exists() for d in dirs.values()):
+            try:
+                for d in dirs.values():
+                    d.mkdir(parents=True, exist_ok=False)
+                return run, dirs
+            except FileExistsError:
+                pass
+        k += 1
+
+
+def unpack(folder):
+    """.frm → 같은 이름의 이미지 + .json (원본은 그대로 두고 <폴더>_unpacked 에 쓴다)"""
+    root = Path(folder).expanduser().resolve()
+    if not root.is_dir():
+        print("폴더가 아닙니다: %s" % root)
+        return 1
+    out_root = root.parent / (root.name + "_unpacked")
+    done = skipped = bad = 0
+    for p in sorted(root.rglob("*.frm")):
+        out_dir = out_root / p.parent.relative_to(root)
+        try:
+            header, image = unpack_frame(p.read_bytes())
+        except Exception as e:
+            bad += 1
+            print("  읽기 실패 %s (%s)" % (p, describe(e)))
+            continue
+        img_path = out_dir / (p.stem + image_ext(image))
+        json_path = out_dir / (p.stem + ".json")
+        if img_path.exists() or json_path.exists():
+            skipped += 1
+            continue
+        out_dir.mkdir(parents=True, exist_ok=True)
+        img_path.write_bytes(image)
+        json_path.write_text(json.dumps(header, ensure_ascii=False, indent=1), encoding="utf-8")
+        done += 1
+    print("풀기 끝 — %d장 → %s  (이미 있어서 건너뜀 %d, 읽기 실패 %d)" % (done, out_root, skipped, bad))
+    return 0
+
+
+# ---------------------------------------------------------------- 실행
+def clean_host(text, what):
+    s = text.strip()
+    u = urlsplit(s if "://" in s else "http://" + s)
+    if not u.hostname:
+        raise SystemExit("%s 주소를 못 읽었습니다: %r" % (what, text))
+    try:
+        has_port = u.port is not None
+    except ValueError:
+        has_port = True
+    if has_port:
+        print("참고: %s 에 적은 포트는 쓰지 않습니다 (포트는 정해져 있음) — 주소만 씁니다: %s" % (what, u.hostname))
+    return u.hostname
+
+
+def report_loop(sources, sink, vision=None, every=10.0):
+    prev = dict((s.name, (s.got_frames, s.got_states)) for s in sources)
+    prev_v = vision.counts() if vision is not None else {}
+    t_prev = time.time()
+    while not STOP.wait(every):
+        now = time.time()
+        dt, t_prev = max(now - t_prev, 1e-6), now
+        lines = []
+        for s in sources:
+            f0, s0 = prev[s.name]
+            prev[s.name] = (s.got_frames, s.got_states)
+            line = "  %-6s 영상 %5.1f장/초 (누적 %d)" % (s.name, (s.got_frames - f0) / dt, s.got_frames)
+            if s.name in REPORT_STATE:              # realsense · cam360_slice 는 상태가 없다
+                line += "  상태 %5.1f건/초 (누적 %d)" % ((s.got_states - s0) / dt, s.got_states)
+            extra = []
+            if s.save_fail:
+                extra.append("저장 실패 %d" % s.save_fail)
+            if s.redis_fail:
+                extra.append("Redis 못 넣음 %d" % s.redis_fail)
+            if s.fwd is not None:
+                extra.append("넘김 %d · 대기 %d · 버림 %d" % (s.fwd.sent, s.fwd.pending(), s.fwd.dropped))
+            if extra:
+                line += "  [" + " · ".join(extra) + "]"
+            lines.append(line)
+            if vision is not None:                  # vision_infer.py live 결과
+                vh = vision.health(s.name)
+                parts = []
+                for m in sorted(vh):
+                    v = vh[m]
+                    if v["age_s"] > 30:
+                        continue                    # 멈춘 모델은 안 찍는다 (/health 에는 남음)
+                    rate = (v["results"] - prev_v.get((s.name, m), 0)) / dt
+                    parts.append("%s %.1f장/초 지연 %s" % (m, rate, "%.2fs" % (v["lag_ms"] / 1000.0)
+                                                         if v.get("lag_ms") is not None else "-"))
+                if parts:
+                    lines.append("  %-6s 비전 %s" % ("", " · ".join(parts)))
+        if vision is not None:
+            prev_v = vision.counts()
+        mem = sink.memory()
+        if mem and not mem[1] and sink.maxmemory:     # Redis 가 재시작하면 한도가 풀린다 → 다시 건다
+            log("Redis 메모리 " + sink.ensure_maxmemory(sink.maxmemory))
+            mem = sink.memory()
+        if mem:
+            lines.append("  Redis  %s / %s" % (human_bytes(mem[0]), human_bytes(mem[1]) if mem[1] else "한도 없음"))
+        log("받은 양\n" + "\n".join(lines))
+
+
+def main():
+    try:
+        sys.stdout.reconfigure(errors="replace")     # 윈도우 콘솔에서 못 찍는 글자 때문에 멈추지 않게
+    except Exception:
+        pass
+
+    ap = argparse.ArgumentParser(
+        description="로봇·드론·360 카메라 데이터를 받아 Redis Stream 으로 흘리고 전부 파일로 저장한다.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="포트: cam360 10001 · drone 10002 · robot1 10003 · robot2 10004 · realsense 10005 · "
+               "cam360_slice 10006 · a2 10007 · pi11 10008 · pi12 10009 · pi13 10011 · drone2 10012\n"
+               "자세한 설명은 파일 맨 위 주석.")
+    ap.add_argument("--on", nargs="+", metavar="소스",
+                    help="켤 소스만 고른다: cam360 drone robot1 robot2 realsense cam360_slice a2 "
+                         "pi11 pi12 pi13 drone2 (안 주면 전부)")
+    ap.add_argument("--robot1", default=DEFAULT_HOST["robot1"], metavar="주소",
+                    help="로봇1 파이(pi7) 주소. 기본 hosts.local.json / PD_HOST_* 값")
+    ap.add_argument("--robot2", default=DEFAULT_HOST["robot2"], metavar="주소",
+                    help="로봇2 파이(pi1) 주소. 기본 hosts.local.json / PD_HOST_* 값")
+    ap.add_argument("--realsense", default=DEFAULT_HOST["realsense"], metavar="주소",
+                    help="ds5 리얼센스 주소 (없으면 hosts.local.json / PD_HOST_REALSENSE)")
+    ap.add_argument("--realsense-cam", type=int, default=1, metavar="번호",
+                    help="리얼센스 MJPEG 경로 번호 (기본 1 — 리얼센스 쪽은 번호를 무시한다)")
+    ap.add_argument("--a2", default=DEFAULT_HOST["a2"], metavar="주소",
+                    help="새 로봇 a2(Unitree A2, a2-bridge) 주소. 기본 hosts.local.json / PD_HOST_A2 값")
+    ap.add_argument("--pi11", default=DEFAULT_HOST["pi11"], metavar="주소",
+                    help="pi11 모듈 카메라 주소 (없으면 hosts.local.json / PD_HOST_PI11)")
+    ap.add_argument("--pi11-cam", type=int, default=1, metavar="번호",
+                    help="pi11 MJPEG 경로 번호 (기본 1 — pi11 쪽은 번호를 무시한다)")
+    ap.add_argument("--pi12", default=DEFAULT_HOST["pi12"], metavar="주소",
+                    help="pi12 모듈 카메라 주소 (없으면 hosts.local.json / PD_HOST_PI12)")
+    ap.add_argument("--pi12-cam", type=int, default=1, metavar="번호",
+                    help="pi12 MJPEG 경로 번호 (기본 1 — pi12 쪽은 번호를 무시한다)")
+    ap.add_argument("--pi13", default=DEFAULT_HOST["pi13"], metavar="주소",
+                    help="pi13 모듈 카메라 주소 (없으면 hosts.local.json / PD_HOST_PI13)")
+    ap.add_argument("--pi13-cam", type=int, default=1, metavar="번호",
+                    help="pi13 MJPEG 경로 번호 (기본 1 — pi13 쪽은 번호를 무시한다)")
+    ap.add_argument("--drone", default=DEFAULT_HOST["drone"], metavar="주소",
+                    help="드론 파이(pi3) 주소. 기본 hosts.local.json / PD_HOST_* 값")
+    ap.add_argument("--drone2", default=DEFAULT_HOST["drone2"], metavar="주소",
+                    help="둘째 드론 파이(ds5, x500-002) 주소. 기본 hosts.local.json / PD_HOST_DRONE2 값")
+    ap.add_argument("--robot-cam", type=int, default=1, choices=range(1, 6), metavar="번호",
+                    help="로봇 카메라: 1 정면 · 2 턱 · 3 왼쪽 · 4 오른쪽 · 5 배 (기본 1)")
+    ap.add_argument("--save", default=str(Path(__file__).resolve().parent / "stream_data"), metavar="폴더",
+                    help="저장 폴더 (기본: 이 파일 옆 stream_data)")
+    ap.add_argument("--redis", default="redis://127.0.0.1:6380/0", metavar="주소",
+                    help="흘려 넣을 Redis (기본 %(default)s)")
+    ap.add_argument("--maxlen", type=int, default=300, help="Redis 스트림에 남길 개수 (기본 300)")
+    ap.add_argument("--redis-maxmemory", default="4gb", metavar="크기",
+                    help="Redis 에 메모리 한도가 없으면 시작할 때 건다 (기본 %(default)s, 넘치면 오래 안 쓴 키부터 버림). "
+                         "0 = 안 건드림. 이미 걸려 있으면 그대로 둔다")
+    ap.add_argument("--no-vision", action="store_true",
+                    help="vision_infer.py 결과(vision_stream:*)를 읽지 않는다 (/vision 끔)")
+    ap.add_argument("--forward", metavar="서버주소",
+                    help="받은 것을 그 기기의 같은 포트로도 넘긴다 (말단 → 엣지 → 서버)")
+    ap.add_argument("--no-pull", action="store_true",
+                    help="파이에서 가져오지 않고 포트로 들어오는 것만 받는다 (엣지가 넘겨 줄 때 서버 쪽)")
+    ap.add_argument("--bind", default="0.0.0.0", metavar="주소", help="포트를 열 주소 (기본 0.0.0.0 = 전부)")
+    ap.add_argument("--unpack", metavar="폴더", help="저장된 .frm 을 .jpg + .json 으로 풀고 끝낸다")
+    args = ap.parse_args()
+
+    if args.unpack:
+        return unpack(args.unpack)
+
+    if args.on:
+        names = []
+        for x in args.on:
+            nm = ALIASES.get(x.strip().lower())
+            if nm is None:
+                raise SystemExit("모르는 소스: %s  (%s)" % (x, " · ".join(sorted(SOURCES))))
+            if nm not in names:
+                names.append(nm)
+        names.sort(key=lambda nm: SOURCES[nm])
+    else:
+        names = sorted(SOURCES, key=lambda nm: SOURCES[nm])
+    hosts = {}
+    for k in DEFAULT_HOST:
+        if getattr(args, k):
+            hosts[k] = clean_host(getattr(args, k), "--" + k)
+        elif k in names and not args.no_pull:
+            raise SystemExit("%s 주소가 없습니다: --%s 로 주거나 hosts.local.json / PD_HOST_%s 에 적으세요"
+                             % (k, k, k.upper()))
+    fwd_host = clean_host(args.forward, "--forward") if args.forward else None
+
+    sink = RedisSink(args.redis, args.maxlen)
+    redis_ok = sink.ping()
+    redis_mem = sink.ensure_maxmemory(args.redis_maxmemory) if redis_ok else None
+    if not redis_ok and str(args.redis_maxmemory).strip().lower() not in ("", "0", "off", "none"):
+        sink.maxmemory = args.redis_maxmemory      # 나중에 붙으면 보고 때 건다
+    sources = [Source(nm, SOURCES[nm], None, None, sink, None) for nm in names]
+
+    vision = None if args.no_vision else VisionView(args.redis, names)
+    servers = []                                   # 포트부터 잡는다 — 못 잡으면 폴더를 만들기 전에 끝낸다
+    for s in sources:
+        try:
+            servers.append(Server((args.bind, s.port), make_handler(s, vision)))
+        except OSError as e:
+            for srv in servers:
+                srv.server_close()
+            raise SystemExit("포트 %d (%s) 를 못 엽니다: %s\n이미 이 파일이 떠 있거나 다른 프로그램이 쓰고 있습니다."
+                             % (s.port, s.name, describe(e)))
+
+    save_root = Path(args.save).expanduser().resolve()
+    try:
+        run, dirs = make_run_dirs(save_root, names)
+    except OSError as e:
+        raise SystemExit("저장 폴더를 못 만듭니다: %s (%s)" % (save_root, describe(e)))
+    for s in sources:
+        s.dir, s.rel = dirs[s.name], s.name + "/" + run
+        (s.dir / "frames").mkdir(parents=True, exist_ok=True)
+        (s.dir / "frames.jsonl").touch(exist_ok=True)
+        (s.dir / "states.jsonl").touch(exist_ok=True)
+        if fwd_host:
+            s.fwd = Forwarder(fwd_host, s.port)
+    for srv in servers:
+        threading.Thread(target=srv.serve_forever, kwargs={"poll_interval": 0.5}, daemon=True).start()
+
+    try:
+        signal.signal(signal.SIGTERM, lambda *a: STOP.set())
+    except (ValueError, AttributeError, OSError):
+        pass
+
+    bar = "=" * 72
+    print(bar)
+    print("데이터 스트림 — 실행 %s · 이 기기 %s" % (run, HOSTNAME))
+    print("  저장   %s" % (save_root / "<소스>" / run))
+    print("  Redis  %s  %s" % (args.redis, ("연결됨 · " + redis_mem) if redis_ok
+                                else "안 됨 — 저장만 합니다 (%s)" % sink.err))
+    if fwd_host:
+        print("  넘기기 %s 의 같은 포트로 (/push)" % fwd_host)
+    print("  " + "-" * 70)
+
+    pulls = []                                     # 요약을 다 찍은 뒤에 시작한다
+    for s in sources:
+        if s.name == "cam360":
+            s.set_status("video", "기다림 (stream_to_server.py 가 보내야 옴)")
+            print("  cam360 :%d  영상 ← stream_to_server.py --upload http://<이 기기>:%d/upload_pano"
+                  % (s.port, s.port))
+        elif s.name == "cam360_slice":
+            s.set_status("video", "기다림 (e2p/slice360_live.py 가 보내야 옴)")
+            print("  cam360_slice :%d  영상 ← e2p/slice360_live.py (이 기기 Redis 의 cam360 파노라마를 잘라 /upload)"
+                  % s.port)
+        elif s.name in PUSH_ONLY:
+            s.set_status("video", "기다림 (POST 로 보내야 옴)")
+            print("  %-9s :%d  받기만" % (s.name, s.port))
+        elif args.no_pull:
+            s.set_status("video", "기다림 (--no-pull: 넘겨 오는 것만 받음)")
+            print("  %-6s :%d  받기만 (--no-pull)" % (s.name, s.port))
+        else:
+            host = hosts[s.name]
+            if s.name == "drone" and DRONE_ARDUCAM:
+                path = "/cam%d.mjpg" % DRONE_ARDUCAM_CAM
+                video = "http://%s:%d%s" % (host, DRONE_MJPEG_PORT, path)
+                pulls.append((robot_video_loop, (s, host, DRONE_ARDUCAM_CAM, DRONE_MJPEG_PORT, path), s, host))
+            elif s.name in DRONE_SOURCES:          # drone2(ds5) 도 같은 drone-agent 다 — DRONE_ARDUCAM 은 pi3 만
+                video = "http://%s:%d/api/frame?cam=%d" % (host, DRONE_VIDEO_PORT, DRONE_CAM)
+                pulls.append((drone_video_loop, (s, host, DRONE_CAM), s, host))
+            elif s.name == "realsense":
+                # ds5 의 realsense_mjpeg.py 가 로봇과 **같은 모양**으로 낸다 — 풀러를 새로 만들지 않는다
+                cam = args.realsense_cam
+                video = "http://%s:%d/stream/%d" % (host, ROBOT_VIDEO_PORT, cam)
+                pulls.append((robot_video_loop, (s, host, cam), s, host))
+            elif s.name == "a2":
+                # a2-bridge 카메라는 /stream/1 하나뿐이다 (GO1 의 --robot-cam 1~5 와 무관)
+                video = "http://%s:%d/stream/1" % (host, ROBOT_VIDEO_PORT)
+                pulls.append((robot_video_loop, (s, host, 1), s, host))
+            elif s.name in PICAM_SOURCES:
+                # 모듈 카메라 파이의 picam_mjpeg.py 도 같은 모양으로 낸다 — 여기도 풀러를 만들지 않는다.
+                # 기기가 셋이 됐으니 삼항으로 고르지 않는다 — 넷째를 더할 때 여기를 또 고치게 된다.
+                cam = getattr(args, s.name + "_cam")
+                video = "http://%s:%d/stream/%d" % (host, ROBOT_VIDEO_PORT, cam)
+                pulls.append((robot_video_loop, (s, host, cam), s, host))
+            else:
+                video = "http://%s:%d/stream/%d" % (host, ROBOT_VIDEO_PORT, args.robot_cam)
+                pulls.append((robot_video_loop, (s, host, args.robot_cam), s, host))
+            print("  %-9s :%d  영상 ← %s" % (s.name, s.port, video))
+            if s.name in STATE_SOURCES:
+                print("  %-9s %6s  상태 ← mqtt://%s:%d (전체 토픽)" % ("", "", host, MQTT_PORT))
+            else:
+                print("  %-9s %6s  상태 없음 (이 기기에 브로커가 없다)" % ("", ""))
+    print("  " + "-" * 70)
+    print("  보기   http://<이 기기>:<포트>/  (원본 + 비전)  ·  /stream  ·  /vision?model=<모델>  ·  /frame  ·  /state  ·  /health")
+    print("Ctrl+C 로 끝냅니다. 10초마다 받은 양을 찍습니다.")
+    print(bar, flush=True)
+
+    clients = []
+    for loop, loop_args, s, host in pulls:
+        threading.Thread(target=loop, args=loop_args, daemon=True).start()
+        clients.append(start_mqtt(s, host) if s.name in STATE_SOURCES else None)
+    threading.Thread(target=report_loop, args=(sources, sink, vision), daemon=True).start()
+    try:
+        while not STOP.is_set():
+            time.sleep(0.5)
+    except KeyboardInterrupt:
+        pass
+    STOP.set()
+    print("\n끝내는 중…", flush=True)
+    for cli in clients:
+        if cli is not None:
+            try:
+                cli.disconnect()
+                cli.loop_stop()
+            except Exception:
+                pass
+    for srv in servers:
+        try:
+            srv.shutdown()
+            srv.server_close()
+        except Exception:
+            pass
+    print(bar)
+    print("끝 — 실행 %s" % run)
+    for s in sources:
+        s.close()
+        tail = ""
+        if s.fwd is not None:
+            tail = " · 넘김 %d (못 넘기고 버림 %d, 남은 대기 %d)" % (s.fwd.sent, s.fwd.dropped, s.fwd.pending())
+        print("  %-6s 영상 %d장 · 상태 %d건%s  → %s" % (s.name, s.got_frames, s.got_states, tail, s.dir))
+    print(bar, flush=True)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -1,6 +1,10 @@
 # Edge box bring-up in one command each. Shell + docker compose + kubectl only —
 # no extra tooling (docs/ai/design/hardware-capability-contract-and-bringup-plan.md §4).
 #
+#   make install   받은 폴더 하나로 설치·점검·시험·기동까지 (docs/guides/deployment.md)
+#   make serve     백엔드를 세운다 — 조회 28 · 쓰기 19 (127.0.0.1:8899)
+#   make open      같은 백엔드를 **다른 기계에서 붙을 수 있게** (0.0.0.0, 안내는 오버레이 주소)
+#   make dist      배포 브랜치에 담을 것을 본다 (옮기려면 ARGS=--write)
 #   make up        start mosquitto / kafka / otel-collector (dev: loopback; edge: AIF_BIND=<ip>)
 #   make label     label this K3s node with its measured hardware tags (+ TAGS="tier.edge")
 #   make smoke     probe registered devices, LEVEL=1|2|3 ARGS='--only pi6 --address-override pi6=pi6.example.ts.net'
@@ -19,6 +23,10 @@ PY        ?= $(shell test -x .venv/bin/python && echo "$(CURDIR)/.venv/bin/pytho
 COMPOSE   ?= docker compose -f deploy/integration/docker-compose.yml
 KUBECONFIG ?= $(HOME)/.kube/config
 CONFIG    ?= config/status_ui.example.json
+PORT      ?= 8899
+DOMAINS   ?= profiles/domains.example.json
+UICONFIG  ?= config/status_ui.fms.example.json
+ARGS      ?=
 LEVEL     ?= 1
 TAGS      ?=
 DEVICE    ?=
@@ -26,10 +34,31 @@ PYTEST    = PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 $(PY) -m pytest -q -p no:cacheprovi
 
 export KUBECONFIG
 
-.PHONY: up down ps label smoke check ui view view-solo preview bootstrap test help
+.PHONY: install serve open dist up down ps label smoke check ui view view-solo preview bootstrap test help
 
 help:
-	@sed -n '2,12p' Makefile
+	@sed -n '2,16p' Makefile
+
+# 받은 폴더 하나로 끝까지 — 가상환경·설치·자가점검·시험·기동 확인. 판정은 각 단계가
+# 하고 이 목표는 순서만 잡는다(docs/guides/deployment.md).
+install:
+	bash tools/install_check.sh $(ARGS)
+
+# 백엔드 한 줄. 선언은 예시 현장이고 자기 현장은 두 깃발을 바꾼다.
+serve:
+	$(PY) tools/vz_gateway/serve.py --port $(PORT) \
+	    --domains $(DOMAINS) --config $(UICONFIG)
+
+# 프론트가 다른 노트북일 때. 듣는 주소는 모든 인터페이스이고 **안내문에 적히는
+# 주소는 오버레이가 말하는 이 기계**다 — 0.0.0.0 을 안내하면 붙을 수 없다.
+open:
+	$(PY) tools/vz_gateway/serve.py --host 0.0.0.0 --port $(PORT) \
+	    --domains $(DOMAINS) --config $(UICONFIG)
+
+# 배포 브랜치(jny_opensource-dist)에 담을 것. 기본은 보기만 하고, 옮기려면
+# `make dist ARGS=--write` 다. 푸시는 사람이 한다.
+dist:
+	$(PY) tools/release/make_dist.py $(ARGS)
 
 up:
 	mkdir -p deploy/integration/artifacts

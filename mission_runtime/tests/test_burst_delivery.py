@@ -1,5 +1,6 @@
 """implements: AI-C-06, AI-O-03
 """
+import importlib.util
 import socket
 import threading
 import time
@@ -18,7 +19,13 @@ def _kafka_up() -> bool:
         return False
 
 
-needs_kafka = pytest.mark.skipif(not _kafka_up(), reason="no Kafka broker on :9092")
+#: 브로커가 떠 있어도 **클라이언트가 없으면 돌지 않는다.** 서버만 보고 건너뛰면 그
+#: 조합에서 skip 대신 실패가 나고, 그 실패는 받는 쪽 환경 탓처럼 보이지만 우리 쪽
+#: 결함이다(AI-C-05). `tests/test_kafka_bridge.py` 와 같은 규칙으로 둘을 함께 본다.
+needs_kafka = pytest.mark.skipif(
+    not (importlib.util.find_spec("kafka") and _kafka_up()),
+    reason="no Kafka broker on :9092, or the kafka client extra is not installed",
+)
 
 
 def test_s15_slow_consumer_does_not_block_the_other_consumers_in_process():

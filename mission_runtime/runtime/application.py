@@ -1,6 +1,6 @@
 """The single application assembly every domain runs on.
 
-implements: AI-C-05, AI-C-11, AI-C-13, AI-C-15, AI-C-16, AI-B-06
+implements: AI-C-05,  AI-C-13, AI-C-15, AI-C-16, AI-B-06
 
 This is the module that must stay identical whether the deployment is a
 robot, a facility or a river (원칙 #3, AI-C-15). It contains no domain

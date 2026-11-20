@@ -218,7 +218,7 @@ def test_a_new_model_version_is_one_line_and_unmeasured_stays_ineligible(tmp_pat
     항목을 구분하라고 한다. 둘을 함께 고정한다: 새 줄은 **코드 변경 없이** 후보가
     되고, 수치 없는 줄은 후보 목록에 **사유와 함께** 남는다(0 으로 메우지 않는다).
     """
-    sys.path.insert(0, str(FRAMEWORK_DIR / "tools" / "fms_console"))
+    sys.path.insert(0, str(FRAMEWORK_DIR / "tools" / "view_service"))
     import deployment as D  # noqa: PLC0415 — 도구 모듈을 경로로 싣는다
 
     from mission_runtime.runtime.model_assignment import DeviceProfile, MissionRequirement

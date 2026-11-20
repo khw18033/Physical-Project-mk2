@@ -1,6 +1,6 @@
 """GroundingDINO(zero-shot open-vocabulary detector)-backed 인지 provider (AI-E-01, AI-E-04).
 
-implements: AI-E-01, AI-B-09, AI-C-11
+implements: AI-E-01, AI-B-09, AI-C-05
 
 검증된 PoC(demo/test/class_finder_service.py의 `GroundingDinoProvider`)를 이
 프레임워크의 provider 계약으로 옮긴다. GroundingDINO는 무거운 zero-shot
@@ -11,12 +11,12 @@ open-vocabulary detector라 AI-E-04("선택형 보조 기능")가 요구하는 �
 PoC와의 인터페이스 차이: PoC의 `detect(bgr, class_names)`는 호출마다 어휘를
 바꿀 수 있었지만, 이 프레임워크의 `PerceptionProvider.detect(frame)`
 (`perception/detection.py`)는 인자가 frame 하나뿐이다 — 그래서 `class_names`는
-생성자 인자가 된다(`open_vocabulary.py::OwlVitPerceptionProvider`가 `vocab`을
+생성자 인자가 된다(`perception/open_vocabulary.py::OwlVitPerceptionProvider`가 `vocab`을
 생성자에서 한 번만 받는 것과 동일 패턴). 어휘를 바꾸려면 새 provider 인스턴스를
 만든다.
 
 `transformers`/`torch`/`cv2`는 모듈 최상단이 아니라 생성자/메서드 안에서 지연
-import한다(AI-C-11: 이 optional 의존성이 없는 노드도 이 모듈 자체는 계속
+import한다(AI-C-05: 이 optional 의존성이 없는 노드도 이 모듈 자체는 계속
 import할 수 있어야 다른 capability가 함께 죽지 않는다 — `rpn_propose.py`/
 `open_vocabulary.py`와 동일 패턴). 이 모델은 로컬 가중치 파일이 아니라
 HuggingFace Hub에서 최초 사용 시 다운로드되므로(model_id=

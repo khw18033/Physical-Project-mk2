@@ -15,7 +15,15 @@ dev = ["pytest>=7.4"]
 # (AI-C-06, AI-C-12). 미설치 시 관련 provider만 비활성화된다 (AI-C-11).
 mqtt = ["paho-mqtt>=2.1"]
 kafka = ["kafka-python-ng>=2.2"]
+# 실증 배치의 데이터 스트림 버스(physical_demo 의 server_stream_multi_source.py 가
+# camera_stream:* · vision_stream:* 로 흘린다). 미설치 시 그 소스만 비활성화된다.
+redis = ["redis>=5.0"]
 otel = ["opentelemetry-sdk>=1.20", "opentelemetry-exporter-otlp-proto-grpc>=1.20"]
+# 호스트 자원 **실측**(CPU 사용률·보드 메모리·프로세스 RSS). 미설치 시
+# `observability/host_resources.py`·`collection/sampler.py` 가 그 값을 0 이 아니라
+# **미측정**으로 둔다(AI-O-05) — 선언되지 않은 전제로 두면 받는 쪽이 "왜 값이 없나"
+# 를 추적할 수 없어서 extra 로 적는다(AI-C-18).
+metrics = ["psutil>=5.9"]
 # K3s provider는 추가 파이썬 의존성 없이 kubectl CLI만 사용한다 (AI-B-10, 원칙 #12).
 
 # 이 디렉터리가 프로젝트 루트이면서 패키지 루트다 — `mission_runtime/mission_runtime`

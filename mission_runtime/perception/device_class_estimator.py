@@ -449,7 +449,7 @@ def resource_tag_cue(tags: Iterable[str], profiles: ClassProfiles, *,
 def apparent_size_m(bbox: Sequence[float], *, range_m: float, focal_px: float) -> float | None:
     """박스와 거리에서 실제 크기(m)를 뽑는다. 거리가 없으면 **None 이고 끝이다**.
 
-    없는 거리를 지어내 확정 판단에 쓰지 않는다 — `tools/fms_console/twin.py` 의
+    없는 거리를 지어내 확정 판단에 쓰지 않는다 — `tools/view_service/twin.py` 의
     `DeviceDetection.range_m` 가 None 일 때와 같은 규칙이다(AI-R-02 와 같은 이유).
     """
     if range_m is None or range_m <= 0 or focal_px <= 0:

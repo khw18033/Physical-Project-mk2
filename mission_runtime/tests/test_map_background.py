@@ -13,7 +13,7 @@ from pathlib import Path
 
 import pytest
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tools" / "fms_console"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tools" / "view_service"))
 
 from fleet import (  # noqa: E402
     TILE_KIND_STATIC_IMAGE,
