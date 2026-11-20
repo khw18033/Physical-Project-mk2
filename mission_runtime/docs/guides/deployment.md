@@ -7,10 +7,12 @@
 이 폴더가 오는 길은 둘이다.
 
 ```bash
-git clone -b jny_opensource-dist <원격> mission-runtime && cd mission-runtime/mission_runtime
+git clone -b jny_AI <팀 저장소> mission-runtime && cd mission-runtime/mission_runtime
 ```
 
-그 브랜치는 **이 폴더 하나만** 담는다(상위에 `internal/` · `local/` 이 없다). 보내는
+그 브랜치는 **이 폴더 하나만** 담는다(상위에 `internal/` · `local/` 이 없다) — 작업
+저장소의 같은 이름 브랜치와 달리 공개 범위만 들어 있고, 그 모양을 만드는 것이 아래
+도구다. 보내는
 쪽에서 그 브랜치를 만드는 것도 손이 아니라 도구다 — 공개 목록의 정본은
 `git ls-files mission_runtime` 이고 `tools/release/make_dist.py` 가 그것을 그대로
 옮긴다. 커밋되지 않은 변경이 공개 폴더에 남아 있으면 **거절한다**: 그대로 올리면 그

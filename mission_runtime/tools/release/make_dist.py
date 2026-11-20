@@ -1,4 +1,4 @@
-"""배포 브랜치(`jny_opensource-dist`)를 **현재 공개 범위 그대로** 만든다.
+"""배포 브랜치를 **현재 공개 범위 그대로** 만든다.
 
 implements: AI-B-02 (실행환경 패키징·재현성), AI-C-16 (폐쇄망 조달 — 받는 쪽이
             외부 연결 없이 트리를 갖는다)
@@ -53,7 +53,13 @@ from pathlib import Path
 
 #: 공개 대상 폴더. 하나다 — 늘어나면 CLAUDE.md §0 의 푸시 범위가 먼저 바뀐다.
 PUBLIC_DIR = "mission_runtime"
-DEFAULT_BRANCH = "jny_opensource-dist"
+#: 공개 트리가 올라가는 브랜치. 팀 저장소의 `jny_AI` 가 **`mission_runtime/` 하나만**
+#: 담고 있고, 이 도구가 그 모양 그대로 새 커밋을 올린다. 2026-11-20 까지는 별도
+#: `jny_opensource-dist` 브랜치가 그 일을 했는데, 같은 트리를 담는 브랜치가 둘이면
+#: 받는 쪽이 어느 것을 봐야 하는지 알 수 없어서 지웠다 — 받는 쪽은 `jny_AI` 하나다.
+#: 로컬에서는 그 원격 브랜치를 가리키는 이름을 쓴다(`git branch upstream-jny_AI
+#: upstream/jny_AI`).
+DEFAULT_BRANCH = "upstream-jny_AI"
 
 #: 거절 사유. 문구가 아니라 토큰이다.
 REASON_DIRTY = "uncommitted_changes_in_public_tree"

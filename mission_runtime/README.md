@@ -145,8 +145,11 @@ make serve                        # 백엔드 한 줄 (127.0.0.1:8899)
 make open                         # 프론트가 **다른 노트북**일 때 (0.0.0.0, 안내는 오버레이 주소)
 ```
 
-이 폴더는 `jny_opensource-dist` 브랜치로 온다 — 그 브랜치는 이 폴더 하나만 담고,
-보내는 쪽에서 만드는 것도 손이 아니라 `make dist`(= `tools/release/make_dist.py`)다.
+이 폴더는 팀 저장소의 `jny_AI` 브랜치로 온다 — 그 브랜치는 **이 폴더 하나만** 담고
+(상위에 `internal/` 도 `local/` 도 없다), 보내는 쪽에서 만드는 것도 손이 아니라
+`make dist`(= `tools/release/make_dist.py`)다. 같은 트리를 담는 브랜치를 둘 두지
+않는다 — 받는 쪽이 어느 것을 봐야 하는지 알 수 없어진다(옛 `jny_opensource-dist`
+브랜치는 2026-11-20 에 지웠다).
 
 ```bash
 python -m venv .venv && . .venv/bin/activate      # Python >= 3.10
