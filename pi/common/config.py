@@ -125,6 +125,34 @@ EP_BATTERY_STALE_S = _f("EP_BATTERY_STALE_S", 15.0)
 EP_MISSION_SPEED = _f("EP_MISSION_SPEED", 0.3)  # start_mission 기본 전진 속도
 EP_MAX_SPEED = _f("EP_MAX_SPEED", 0.5)        # 링크 클램프 상한. 상위가 뭘 보내든 이 값
 EP_CMD_TIMEOUT_S = _f("EP_CMD_TIMEOUT_S", 1.0)  # 워치독 — 갱신 없으면 정지
+EP_TURN_RATE_DPS = _f("EP_TURN_RATE_DPS", 45.0)   # 수동 회전 기본 각속도(도/초)
+# wz 상한. ep_link.send_command 는 vx·vy 만 클램프하고 wz 는 그대로 SDK 로 넘긴다 —
+# 상위가 실수로 큰 값을 보내면 제자리에서 팽이가 된다. 그래서 여기서 한 번 더 막는다.
+EP_MAX_TURN_RATE_DPS = _f("EP_MAX_TURN_RATE_DPS", 90.0)
+# 목표 근처 감속. 등속으로 몰면 멈춘 뒤 관성으로 지나친다 — 실측(pi1 + EP, 2026-11-20):
+# 10도 목표에 17.1도, 0.10m 목표에 0.153m. 남은 양이 taper 안에 들면 그 비율로 줄이고,
+# min 밑으로는 내리지 않는다(너무 느리면 정지마찰로 아예 안 움직인다).
+EP_MOVE_TAPER_M = _f("EP_MOVE_TAPER_M", 0.30)
+EP_MOVE_MIN_MPS = _f("EP_MOVE_MIN_MPS", 0.08)
+EP_TURN_TAPER_DEG = _f("EP_TURN_TAPER_DEG", 25.0)
+EP_TURN_MIN_DPS = _f("EP_TURN_MIN_DPS", 10.0)
+# 멈춘 뒤 관성이 가라앉기를 기다리는 시간. 이만큼 뒤에 다시 재서 결과로 보고한다.
+EP_SETTLE_S = _f("EP_SETTLE_S", 0.4)
+# 카메라 중계(robot/ep_camera.py). 관제 웹의 「영상 소켓」이 붙는 자리다:
+#   ws://<파이 주소>:EP_CAM_PORT/ws/<EP_CAM_KEY>
+# 끄려면 EP_CAM_ENABLE=0. 해상도를 낮추면 대역폭이 준다(720p 실측 2.94 Mbps).
+EP_CAM_ENABLE = _b("EP_CAM_ENABLE", "1")
+EP_CAM_PORT = _i("EP_CAM_PORT", 8091)   # 8090 은 bench/go1_cam_view 가 쓴다
+EP_CAM_KEY = _s("EP_CAM_KEY", "")        # 비우면 entity_id 를 쓴다
+EP_CAM_RESOLUTION = _s("EP_CAM_RESOLUTION", "720p")   # 360p | 540p | 720p
+# 상태(media)에 실어 보낼 공개 주소. 비워 두면 port·path 만 알리고 호스트는 상위가
+# **브로커와 같은 주소**로 채운다 — 관제 웹이 "주소가 같은 소스" 로 다루는 방식이다.
+# 현장값이므로 저장소에 적지 않고 /etc/hw-node.env 에 넣는다.
+EP_CAM_ADVERTISE_HOST = _s("EP_CAM_ADVERTISE_HOST", "")
+# 상태에 알릴 **공개 포트**. 중계가 듣는 포트(EP_CAM_PORT)와 다를 수 있다 —
+# 앞에 프록시를 두거나 포트를 전달하는 구성이 그렇다. 0 이면 EP_CAM_PORT 를 그대로
+# 알린다. 상위에게는 **붙을 수 있는** 포트를 줘야 한다: 듣는 포트를 알리면 못 붙는다.
+EP_CAM_PUBLIC_PORT = _i("EP_CAM_PUBLIC_PORT", 0)
 
 # --- 구동 브리지 온디맨드 기동 (HW-R-06) ---
 # 평시에는 브리지를 내려 두고 "연결만 된 상태"로 있다가 이동 명령이 올 때 띄운다.

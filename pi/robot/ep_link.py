@@ -30,6 +30,7 @@ Go1Link 는 `send_command()` 를 의도적으로 막아 두었다. sport mode �
 `0.0` 이 아니다. 0 을 넣으면 "방전 직전"과 구별되지 않아 배터리 경보가 오발동하고
 임무가 `battery_too_low` 로 거부된다(Go1 에서 실제로 겪은 실패다).
 """
+import math
 import threading
 import time
 
@@ -202,6 +203,10 @@ class EpLink(ControllerLink):
 
         if action == "drive":
             # 연속 제어. 워치독을 살리려면 EP_CMD_TIMEOUT_S 안에 계속 불러야 한다.
+            #
+            # ⚠ 이 어휘는 **EP 원본 단위**다 — vy 는 우(+), wz 는 시계(+) deg/s.
+            # 규약 단위(좌+, rad/s)로 몰고 싶으면 아래 "teleop" 을 쓴다. 둘을 섞으면
+            # 좌우가 뒤집히고 회전은 57배로 돈다(rad 를 deg 로 읽으므로).
             vx = self._clamp(params.get("vx") or 0.0)
             vy = self._clamp(params.get("vy") or 0.0)
             wz = float(params.get("wz") or 0.0)
@@ -209,6 +214,37 @@ class EpLink(ControllerLink):
                 self._mission = abs(vx) + abs(vy) + abs(wz) > 0
                 self._last_cmd_at = time.time()
             self._drive(vx, vy, wz)
+            return
+
+        if action == "teleop":
+            # 규약 어휘(HW-interface/bridge-contract.md §3.1):
+            #   vx = 전진(+)/후진(−) m/s, vy = 좌(+)/우(−) m/s, wz = 좌회전(+) rad/s
+            # EP 섀시는 vy 가 우(+), z 가 시계(+) **deg/s** 다. 그래서 둘 다 여기서
+            # 돌린다 — 어댑터가 계약을 지키는 자리다(_on_position 이 y 를 뒤집는 것과
+            # 같은 이유다. 하류에 EP 사정을 흘리면 다른 기종이 틀어진다).
+            if float(params.get("estop") or 0.0) >= 1.0:
+                with self._lock:
+                    self._mission = False
+                self._drive(0.0, 0.0, 0.0)
+                return
+            # 각속도 키가 둘이다. 웹(관제)은 `vyaw` 로 보내고, bridge-contract §3.1 은
+            # `wz` 라 부른다 — 같은 뜻이므로 둘 다 받는다. 하나만 받으면 둘 중 한쪽이
+            # 조용히 0 이 되어 회전만 안 먹는다(실측 2026-11-20: Q/E 무반응이 이것이었다).
+            yaw = params.get("vyaw")
+            if yaw is None:
+                yaw = params.get("wz")
+            vx = self._clamp(params.get("vx") or 0.0)
+            vy = self._clamp(-float(params.get("vy") or 0.0))        # 좌(+) → 우(+)
+            wz = -math.degrees(float(yaw or 0.0))                    # 좌(+)rad/s → 시계(+)deg/s
+            lim = config.EP_MAX_TURN_RATE_DPS
+            wz = max(-lim, min(lim, wz))     # _clamp 는 m/s 용이라 각속도는 따로 막는다
+            # 상위가 "이만큼만 굴려라"를 hold_ms 로 준다. 없으면 링크 기본 워치독.
+            hold = float(params.get("hold_ms") or 0.0) / 1000.0
+            hold = min(2.0, max(0.1, hold)) if hold > 0 else config.EP_CMD_TIMEOUT_S
+            with self._lock:
+                self._mission = abs(vx) + abs(vy) + abs(wz) > 0
+                self._last_cmd_at = time.time()
+            self._drive(vx, vy, wz, timeout=hold)
             return
 
         raise NotImplementedError(f"ep_action_not_supported: {action}")
@@ -233,9 +269,13 @@ class EpLink(ControllerLink):
         lim = config.EP_MAX_SPEED
         return max(-lim, min(lim, v))
 
-    def _drive(self, vx, vy, wz):
+    def _drive(self, vx, vy, wz, timeout=None):
+        # timeout 은 **섀시가 스스로 거는** 정지 타이머다(SDK: 지정 시간 안에 다음
+        # 명령이 없으면 멈춘다). 파이썬 워치독보다 아래에 있어 우리 프로세스가 죽어도
+        # 듣는다 — 상위가 보낸 hold_ms 를 여기로 그대로 내려보내는 이유다.
         try:
-            self._ep.chassis.drive_speed(x=vx, y=vy, z=wz, timeout=config.EP_CMD_TIMEOUT_S)
+            self._ep.chassis.drive_speed(x=vx, y=vy, z=wz,
+                                         timeout=timeout or config.EP_CMD_TIMEOUT_S)
         except Exception as e:
             print(f"[EP] 구동 명령 실패: {type(e).__name__}: {e}")
             with self._lock:
