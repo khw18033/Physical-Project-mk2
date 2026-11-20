@@ -216,3 +216,47 @@ def test_the_shipped_declaration_can_be_served_through_the_builder(tmp_path):
     provider = _stack_provider(_PKG / "config" / "stack_units.example.json")
     assert provider is not None
     assert "data-stream-server" in provider.declared()
+
+
+# --------------------------------------------------------------- 누구로 왔나
+
+def test_identity_is_readable_without_a_token_because_the_answer_can_be_nobody():
+    """능력을 걸면 들어올 길이 없다 — 로그인 경로를 세션으로 막지 않는 것과 같다."""
+    from integration.fms_view_api import _load_console
+
+    console = _load_console()
+    assert "/api/identity" in console._ROUTES_GET
+    assert "/api/identity" not in console._ROUTES_POST
+
+
+def test_identity_comes_from_the_account_store_not_a_second_assembly():
+    """로그인 직후와 새로고침 뒤의 모양이 달라지면 앱은 그 둘을 같은 자료형으로
+    읽으면서 다른 값을 본다."""
+    import inspect
+
+    from mission_runtime.tools.view_service.service import FmsService
+
+    source = inspect.getsource(FmsService.identity)
+    assert "self.accounts.identify(token)" in source
+    assert "permissions" not in source.split('"""')[-1], "여기서 다시 조립하지 않는다"
+
+
+def test_identity_says_whether_the_caller_may_operate_the_stack(tmp_path):
+    """새로고침한 앱이 **단추를 그려도 되는지** 알 수 있어야 한다. 모르면 눌러 보고
+    403 을 받는다."""
+    from mission_runtime.tools.view_service.accounts import AccountStore
+    from mission_runtime.tools.view_service.service import FmsService
+
+    service = FmsService.__new__(FmsService)
+    service.accounts = AccountStore(path=tmp_path / "accounts.json")
+
+    anonymous = service.identity(token=None)
+    assert PERM_OPERATE_STACK not in anonymous["permissions"]
+    assert anonymous["auth_mode"] == "demo_roles"
+    assert [row["account_id"] for row in anonymous["selectable_accounts"]][:1] == ["admin"]
+
+    session, _reason = service.accounts.assume_account("admin")
+    assert session is not None
+    mine = service.identity(token=session.token)
+    assert PERM_OPERATE_STACK in mine["permissions"]
+    assert mine["session_expires_in_s"] is not None

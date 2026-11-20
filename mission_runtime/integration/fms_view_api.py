@@ -39,6 +39,10 @@ VIEW_ROUTES: tuple[str, ...] = (
     # 선언된 실행 단위가 **지금 서 있는가**. 조회 전용이고 바꾸는 것은
     # `/api/stack`(쓰기)이다 — 읽는 이름과 쓰는 이름이 겹치지 않는다(AI-O-06).
     "/api/services",
+    # 지금 누구로 들어와 있는가. **권한을 요구하지 않는다** — 답이 "아무도 아니다"
+    # 일 수 있어야 한다. 토큰은 새로고침을 넘어 남는데 능력 목록은 로그인 응답에만
+    # 있었으므로, 새로고침한 앱이 자기가 무엇을 할 수 있는지 모르는 상태가 됐다.
+    "/api/identity",
     "/api/bootstrap", "/api/scene", "/api/domain", "/api/zone", "/api/robot",
     "/api/recommend", "/api/subtasks", "/api/explain", "/api/twin",
     "/api/object", "/api/candidates", "/api/transit", "/api/mission",
@@ -164,9 +168,11 @@ class FmsViewApi:
         """
         route = path.split("?")[0]
         try:
+            from integration.fms_write_api import token_from  # noqa: PLC0415
             body = self.view_payload(self.service, _Parsed(route), query,
                                      caller=self.caller_for(headers),
-                                     locale=self.locale_for(query))
+                                     locale=self.locale_for(query),
+                                     token=token_from(headers or {}))
         except self.not_a_view_route:
             return 404, self._error("unknown_route", route)
         except self.api_error as error:                         # noqa: BLE001

@@ -143,7 +143,7 @@ manifest 를 노드 태그와 **누적 예산**에 맞춰 해소한다), 여기�
 
 | 하위 시스템 | 하는 일 | 요구사항 |
 |---|---|---|
-| `tools/view_service/service.py` | 조회 28(`view_payload`)·쓰기 19(`write_payload`)의 정본 표. HTTP 를 모른다 — 웹이 바뀌어도 이 표는 그대로다 | AI-O-06, AI-C-19 |
+| `tools/view_service/service.py` | 조회 30(`view_payload`)·쓰기 20(`write_payload`)의 정본 표. HTTP 를 모른다 — 웹이 바뀌어도 이 표는 그대로다 | AI-O-06, AI-C-19 |
 | `integration/fms_view_api.py`, `fms_write_api.py` | 그 표에 HTTP 를 입힌다. 조회는 요청마다 호출자·언어를 풀고, 쓰기는 Bearer 만 받는다 | AI-O-06, AI-C-06, AI-C-19 |
 | `tools/vz_gateway/serve.py` | 가시화 앱이 보는 **유일한 포트**. `/registry` 와 채널, 그리고 위 두 계약을 같은 자리에서 낸다 | AI-O-06, AI-C-06 |
 | `tools/view_service/accounts.py` | 누가 와 있고 무엇을 해도 되는가. 권한은 역할 이름이 아니라 **능력**이며, 계정 파일이 하나 생기는 순간 비밀번호 없는 예시 자세가 닫힌다 | AI-C-19, AI-B-02 |

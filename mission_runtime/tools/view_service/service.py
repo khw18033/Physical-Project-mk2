@@ -2640,6 +2640,24 @@ class FmsService:
                                 actor=caller.actor, reason=reason)
         return {"step": step, **result, "deployments": models.deployments()}
 
+    def identity(self, *, token: str | None) -> dict:
+        """지금 **누구로 들어와 있는가**. 권한을 요구하지 않는다.
+
+        답이 "아무도 아니다" 일 수 있어야 하므로 능력을 걸 수 없다 — 걸면 들어올
+        길이 없다(로그인 경로를 세션으로 막지 않는 것과 같은 이유).
+
+        **판정을 새로 만들지 않는다**: `AccountStore.identify()` 가 이미 그 묶음을
+        내고 `/api/login`·`/api/assume` 응답도 같은 것을 쓴다. 여기서 따로 조립하면
+        로그인 직후와 새로고침 뒤의 모양이 달라지고, 앱은 그 둘을 같은 자료형으로
+        읽는다.
+
+        이 경로가 왜 필요한가: 토큰은 새로고침을 넘어 남는다(앱이 저장한다). 그런데
+        능력 목록은 로그인 응답에만 있었으므로, 새로고침한 앱은 **토큰은 있는데
+        자기가 무엇을 할 수 있는지 모르는** 상태가 됐다. 그 상태에서 단추를 그리면
+        눌러 보고 403 을 받는다.
+        """
+        return self.accounts.identify(token)
+
     # -- 선언된 실행 단위 (AI-B-03) -----------------------------------------
 
     def services(self) -> dict:
@@ -2768,7 +2786,7 @@ _ROUTES_GET = ("/api/bootstrap", "/api/scene", "/api/domain", "/api/zone", "/api
                # `tests/test_view_contract.py` 가 이제 둘이 어긋나면 거절한다.
                "/api/samples", "/api/label/tasks", "/api/label/task",
                # 선언된 실행 단위가 지금 서 있는가(AI-B-03). 조회 전용이다.
-               "/api/services",
+               "/api/services", "/api/identity",
                "/api/accounts")
 _ROUTES_POST = ("/api/login", "/api/logout", "/api/assume", "/api/account",
                 "/api/command", "/api/correction", "/api/placement", "/api/survey",
@@ -3018,7 +3036,7 @@ def write_payload(service, parsed, body, *, token, locale):
     return WriteOutcome(202, service.correction(caller=caller, body=body))
 
 
-def view_payload(service, parsed, query, *, caller, locale):
+def view_payload(service, parsed, query, *, caller, locale, token=None):
     """조회 경로 하나의 **본문**을 낸다. HTTP 를 모른다.
 
     이 표가 콘솔과 게이트웨이 **양쪽의 정본이다**(2026-11-05). 전에는 콘솔의
@@ -3034,6 +3052,10 @@ def view_payload(service, parsed, query, *, caller, locale):
     """
     if parsed.path == "/api/services":
         return _ok(service.services())
+    if parsed.path == "/api/identity":
+        # 토큰을 받는 **유일한 조회 경로**다. 남은 세션 시간과 고를 수 있는 예시
+        # 계정은 그 토큰 없이는 답할 수 없다.
+        return _ok(service.identity(token=token))
     if parsed.path == "/api/bootstrap":
         return _ok(service.bootstrap(caller=caller, locale=locale))
     if parsed.path == "/api/scene":
@@ -3196,7 +3218,7 @@ def view_payload(service, parsed, query, *, caller, locale):
 # 둘 다 지웠다.
 #
 # 이 모듈은 이제 **서비스 계층이다**: `FmsService` 가 판정을 모으고,
-# `view_payload`(조회 28) 와 `write_payload`(쓰기 19) 가 그 계약의 정본 표이며,
+# `view_payload`(조회 30) 와 `write_payload`(쓰기 20) 가 그 계약의 정본 표이며,
 # HTTP 를 입히는 것은 `integration/fms_view_api.py` · `integration/fms_write_api.py`
 # 와 그것을 거는 `tools/vz_gateway/serve.py` 다.
 #

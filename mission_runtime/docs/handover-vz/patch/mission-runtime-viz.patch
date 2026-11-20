@@ -114,10 +114,10 @@ index 0000000..5d47fa5
 +                text-overflow: ellipsis; }
 diff --git a/viz-debugger/src/fms/fmsApi.ts b/viz-debugger/src/fms/fmsApi.ts
 new file mode 100644
-index 0000000..fece6c5
+index 0000000..458cbfe
 --- /dev/null
 +++ b/viz-debugger/src/fms/fmsApi.ts
-@@ -0,0 +1,297 @@
+@@ -0,0 +1,299 @@
 +/**
 + * src/fms/fmsApi.ts (261105 신설 — FMS 관제 화면을 이 앱 안으로)
 + *
@@ -244,6 +244,8 @@ index 0000000..fece6c5
 +export type FmsIdentity = {
 +  actor: string;
 +  authenticated: boolean;
++  /** `demo_roles`(계정 파일 없음 — 예시 자세) 또는 `accounts`(비밀번호 로그인). */
++  auth_mode?: string;
 +  permissions: readonly string[];
 +  selectable_accounts: readonly { account_id: string; display_name: string; role: string }[];
 +  unconfigured?: boolean;
@@ -862,10 +864,10 @@ index 0000000..fbc8bca
 +}
 diff --git a/viz-debugger/src/fms/views/FmsStack.tsx b/viz-debugger/src/fms/views/FmsStack.tsx
 new file mode 100644
-index 0000000..a176504
+index 0000000..caf1860
 --- /dev/null
 +++ b/viz-debugger/src/fms/views/FmsStack.tsx
-@@ -0,0 +1,141 @@
+@@ -0,0 +1,218 @@
 +/**
 + * src/fms/views/FmsStack.tsx (261120 신설 — 백엔드 스택을 **여기서** 켠다)
 + *
@@ -899,7 +901,10 @@ index 0000000..a176504
 +import { useLang } from '../../shared/language.ts';
 +import { t } from '../../i18n/dict.ts';
 +import { useFms } from '../useFms.ts';
-+import { fmsStack, localized, type FmsServices, type FmsUnit } from '../fmsApi.ts';
++import {
++  fmsAssume, fmsLogin, fmsStack, localized,
++  type FmsIdentity, type FmsServices, type FmsUnit,
++} from '../fmsApi.ts';
 +import { FmsAge, FmsBody, FmsHead } from './FmsShell.tsx';
 +import '../fms.css';
 +
@@ -914,7 +919,9 @@ index 0000000..a176504
 +  </span>;
 +}
 +
-+function UnitRow({ unit, onDone }: { unit: FmsUnit; onDone: () => void }) {
++function UnitRow({ unit, onDone, may }: {
++  unit: FmsUnit; onDone: () => void; may: boolean;
++}) {
 +  const lang = useLang();
 +  const [busy, setBusy] = useState<string | null>(null);
 +  const [said, setSaid] = useState<string | null>(null);
@@ -950,15 +957,15 @@ index 0000000..a176504
 +    {unit.last_output !== null && <p className="fms-hint fms-row__log">{unit.last_output}</p>}
 +    {said !== null && <p className="fms-error">{said}</p>}
 +    <div className="fms-row__acts">
-+      <button type="button" disabled={busy !== null || running}
++      <button type="button" disabled={!may || busy !== null || running}
 +              onClick={() => void operate('start')}>
 +        {busy === 'start' ? t('fms.stack.working') : t('fms.stack.start')}
 +      </button>
-+      <button type="button" disabled={busy !== null || !running}
++      <button type="button" disabled={!may || busy !== null || !running}
 +              onClick={() => void operate('stop')}>
 +        {busy === 'stop' ? t('fms.stack.working') : t('fms.stack.stop')}
 +      </button>
-+      <button type="button" disabled={busy !== null}
++      <button type="button" disabled={!may || busy !== null}
 +              onClick={() => void operate('restart')}>
 +        {t('fms.stack.restart')}
 +      </button>
@@ -966,7 +973,72 @@ index 0000000..a176504
 +  </div>;
 +}
 +
-+function Units({ body, onDone }: { body: FmsServices; onDone: () => void }) {
++/** 이 일에 필요한 능력. 서버가 거절할 때 쓰는 이름과 **같은 글자**다. */
++const NEEDS = 'may_operate_stack';
++
++/**
++ * 능력이 없으면 **들어가는 길을 그 자리에 둔다.**
++ *
++ * 전에는 단추만 있었고 누르면 `missing_permission:may_operate_stack` 이 떴다 — 운영자가
++ * 할 수 있는 일이 "어딘가에서 로그인한다" 밖에 없고, 그 어딘가가 화면에 없었다.
++ * 토큰은 새로고침을 넘어 남으므로 한 번 들어오면 계속 쓴다.
++ */
++function SignIn({ identity, onDone }: { identity: FmsIdentity; onDone: () => void }) {
++  useLang();
++  const [busy, setBusy] = useState(false);
++  const [said, setSaid] = useState<string | null>(null);
++  const [account, setAccount] = useState('');
++  const [password, setPassword] = useState('');
++
++  const after = useCallback((error: string | null) => {
++    setBusy(false);
++    setSaid(error);
++    if (error === null) onDone();
++  }, [onDone]);
++
++  const assume = useCallback(async (accountId: string) => {
++    setBusy(true);
++    const outcome = await fmsAssume(accountId);
++    after(outcome.ok ? null : outcome.error);
++  }, [after]);
++
++  const login = useCallback(async () => {
++    setBusy(true);
++    const outcome = await fmsLogin(account, password);
++    after(outcome.ok ? null : outcome.error);
++  }, [account, password, after]);
++
++  return <div className="fms-row">
++    <div className="fms-row__head">
++      <strong>{t('fms.stack.needsSignIn', { cap: NEEDS })}</strong>
++      <span className="fms-hint">{t('fms.stack.actorNow', { actor: identity.actor })}</span>
++    </div>
++    {identity.selectable_accounts.length > 0
++      // 계정 파일이 없는 설치다 — 예시 자세를 고른다. 역할이 아니라 **계정**이라
++      // 관리자가 한 사람에게 준 능력이 그 사람에게 그대로 생긴다.
++      ? <div className="fms-row__acts">
++          {identity.selectable_accounts.map((row) => (
++            <button key={row.account_id} type="button" disabled={busy}
++                    onClick={() => void assume(row.account_id)}>
++              {t('fms.stack.assume', { account: row.display_name, role: row.role })}
++            </button>
++          ))}
++        </div>
++      : <div className="fms-row__acts">
++          <input type="text" value={account} placeholder={t('fms.stack.account')}
++                 onChange={(e) => setAccount(e.target.value)} />
++          <input type="password" value={password} placeholder={t('fms.stack.password')}
++                 onChange={(e) => setPassword(e.target.value)} />
++          <button type="button" disabled={busy || account === ''}
++                  onClick={() => void login()}>{t('fms.stack.signIn')}</button>
++        </div>}
++    {said !== null && <p className="fms-error">{said}</p>}
++  </div>;
++}
++
++function Units({ body, onDone, may }: {
++  body: FmsServices; onDone: () => void; may: boolean;
++}) {
 +  useLang();
 +  if (!body.configured) {
 +    // **빈 목록과 다른 사실이다.** "띄울 것이 없다" 와 "이 설치는 띄우지 않는다" 를
@@ -975,7 +1047,7 @@ index 0000000..a176504
 +  }
 +  if (body.units.length === 0) return <p className="fms-empty">{t('fms.stack.none')}</p>;
 +  return <>{body.units.map((unit) => (
-+    <UnitRow key={unit.unit_id} unit={unit} onDone={onDone} />
++    <UnitRow key={unit.unit_id} unit={unit} onDone={onDone} may={may} />
 +  ))}</>;
 +}
 +
@@ -999,10 +1071,17 @@ index 0000000..a176504
 +export function FmsStackZoom() {
 +  useLang();
 +  const state = useFms<FmsServices>('/api/services');
++  // **누구로 왔는지 먼저 묻는다.** 토큰은 새로고침을 넘어 남지만 능력 목록은 로그인
++  // 응답에만 있었으므로, 묻지 않으면 "토큰은 있는데 무엇을 할 수 있는지 모르는"
++  // 상태로 단추를 그리고 눌러 보고 403 을 받는다.
++  const who = useFms<FmsIdentity>('/api/identity');
++  const may = who.body !== null && who.body.permissions.includes(NEEDS);
++  const again = useCallback(() => { who.reload(); state.reload(); }, [who, state]);
 +  return <div className="fms-zoom">
 +    <FmsHead titleKey="viewnode.fmsStack" state={state} />
++    {who.body !== null && !may && <SignIn identity={who.body} onDone={again} />}
 +    <FmsBody state={state}>{(body) => (
-+      <Units body={body} onDone={state.reload} />
++      <Units body={body} onDone={state.reload} may={may} />
 +    )}</FmsBody>
 +    <p className="fms-hint">{t('fms.stack.boundary')}</p>
 +  </div>;
@@ -1764,10 +1843,10 @@ index 0000000..8fd0a2e
 +  return { missing, total: robots.length };
 +}
 diff --git a/viz-debugger/src/i18n/en.ts b/viz-debugger/src/i18n/en.ts
-index 0f4833c..68f7440 100644
+index 0f4833c..0a8af67 100644
 --- a/viz-debugger/src/i18n/en.ts
 +++ b/viz-debugger/src/i18n/en.ts
-@@ -3729,4 +3729,183 @@ export const en: Record<string, string> = {
+@@ -3729,4 +3729,189 @@ export const en: Record<string, string> = {
    'seq.progress.exit': 'Exit',
    'seq.progress.capOn': 'capturing',
    'seq.badge.line': '{id} multi-step mission',
@@ -1794,6 +1873,12 @@ index 0f4833c..68f7440 100644
 +  'fms.stack.summary': '/ {all} units up',
 +  'fms.stack.none': 'No unit is declared.',
 +  'fms.stack.notConfigured': 'This install does not start units ({reason}) - the backend has no --stack-units declaration.',
++  'fms.stack.needsSignIn': 'This needs the {cap} capability',
++  'fms.stack.actorNow': 'now: {actor}',
++  'fms.stack.assume': 'Enter as {account} ({role})',
++  'fms.stack.account': 'account',
++  'fms.stack.password': 'password',
++  'fms.stack.signIn': 'Sign in',
 +  'fms.stack.boundary': 'Starting a process is not a physical command - moving a robot is a different path and a different permission.',
 +  'viewnode.fmsTiers': 'Tiered metrics',
 +  'viewnode.fmsTiers.hint': 'Hardware tier per accelerator instance, kept apart from the service tier. Unmeasured is not zero',
@@ -1952,10 +2037,10 @@ index 0f4833c..68f7440 100644
 +  'fms.twin.declaredPlace': 'declared place (not an observation)',
  };
 diff --git a/viz-debugger/src/i18n/ko.ts b/viz-debugger/src/i18n/ko.ts
-index b630c65..34abb02 100644
+index b630c65..dfd5c50 100644
 --- a/viz-debugger/src/i18n/ko.ts
 +++ b/viz-debugger/src/i18n/ko.ts
-@@ -3754,4 +3754,183 @@ export const ko: Record<string, string> = {
+@@ -3754,4 +3754,189 @@ export const ko: Record<string, string> = {
    'seq.progress.exit': '종료',
    'seq.progress.capOn': 'CAP 중',
    'seq.badge.line': '{id} 복합 미션',
@@ -1982,6 +2067,12 @@ index b630c65..34abb02 100644
 +  'fms.stack.summary': '/ {all} 단위가 서 있다',
 +  'fms.stack.none': '선언된 단위가 없다.',
 +  'fms.stack.notConfigured': '이 설치는 스택을 띄우지 않는다 ({reason}) — 백엔드에 --stack-units 선언이 없다.',
++  'fms.stack.needsSignIn': '이 일에는 {cap} 능력이 필요하다',
++  'fms.stack.actorNow': '지금: {actor}',
++  'fms.stack.assume': '{account}({role}) 로 들어간다',
++  'fms.stack.account': '계정',
++  'fms.stack.password': '비밀번호',
++  'fms.stack.signIn': '들어간다',
 +  'fms.stack.boundary': '프로세스를 띄우는 것은 물리 명령이 아니다 — 로봇을 움직이는 명령은 다른 경로·다른 권한이다.',
 +  'viewnode.fmsTiers': '계층별 지표',
 +  'viewnode.fmsTiers.hint': '가속기 개체별 하드웨어 계층과 서비스 계층을 섞지 않고. 미측정은 0 이 아니다',

@@ -95,7 +95,7 @@ tests/         (171) 시험 (실제 모델·브로커·클러스터로 도는 �
 | **MLOps 루프** | 학습 후보 선별 → 격리·검수 → 회귀·호환성 검증 → 관리자 판단 정보 → 단계적 적용 → 계보 역추적 | `continual/` `runtime/` |
 | **통행·충전 예약** | 공간 그래프의 자리·구간을 **방향까지** 잡는다(전부 아니면 전무, 정렬 순으로 잡아 교착 없음) | `runtime/space_reservation.py` |
 | **관측** | 계층별 자원 지표(가속기 개체 단위), 임계 세 값 판정, 치명 사건 즉시, 정량 목표(SLO)와 **미측정** 구분 | `observability/` |
-| **운영 화면 계약** | 한 포트에 조회 29(GET) · 쓰기 20(POST). 조회 경로의 POST 는 본문 읽기 전에 405 | `integration/fms_*_api.py` `tools/view_service/` |
+| **운영 화면 계약** | 한 포트에 조회 30(GET) · 쓰기 20(POST). 조회 경로의 POST 는 본문 읽기 전에 405 | `integration/fms_*_api.py` `tools/view_service/` |
 | **가시화 명령으로 스택 기동** | 전송 스택 · 실증 스트림(`data_stream`) · 추론을 화면에서 켜고 끈다. **보내는 것은 선언된 단위 이름뿐** | `providers/process_control.py` `config/stack_units.example.json` |
 | **장치 들이기** | 조인 선언 1 건 + capability 공지 + 어댑터 네 메서드. 코드 변경이 아니다 | `registry/onboarding.py` |
 | **보정 lifecycle** | 선언된 카메라 제원은 사전정보일 뿐이고, 측정된 보정판과 비교되어 승격된다 | `edge/` |
@@ -298,7 +298,7 @@ MISSION_RUNTIME_NO_GPU=1 pytest -q    # 고르는 쪽만 바꾼다. 계산을 �
 
 ```bash
 python tools/vz_gateway/serve.py --port 8899
-#   vz_gateway: FMS 조회 계약 — 조회 경로 29개
+#   vz_gateway: FMS 조회 계약 — 조회 경로 30개
 #   vz_gateway: FMS 쓰기 계약 — 쓰기 경로 20개 · Bearer 세션
 #   (자산이 없으면) evidence path: disabled (no_embedding_model_available)
 ```
