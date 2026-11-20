@@ -87,7 +87,8 @@ class PhysicalCommandServer:
         self.log = log
         # publish(topic, payload_bytes, qos)/subscribe(topic, qos) — 없으면 client 사용.
         # 재접속으로 client 가 갈릴 수 있으므로 노드는 항상 어댑터를 넘긴다.
-        self._publish = publish or (lambda t, p, qos: client.publish(t, p, qos=qos))
+        self._publish = publish or (
+            lambda t, p, qos, retain=False: client.publish(t, p, qos=qos, retain=retain))
         self._subscribe = subscribe or (lambda t, qos: client.subscribe(t, qos=qos))
         self.downlink = f"terminal/{device_id}/downlink"
         self.uplink = f"terminal/{device_id}/uplink"
@@ -102,14 +103,21 @@ class PhysicalCommandServer:
         self.log(f"[규약] downlink 구독 {self.downlink}, Capability 발행")
 
     def publish_capability(self):
+        """어휘 선언은 **retain 으로** 올린다.
+
+        접속 직후 한 번만 보내면, 그 순간 붙어 있지 않은 상위는 영영 못 받는다.
+        관제 웹이 새로고침할 때마다 "이 장치는 그 동작을 지원하지 않는다"로 되돌아가는
+        증상이 그것이었다(실측 2026-11-20) — 로봇은 멀쩡히 선언했는데 들을 사람이
+        그 순간에 없었을 뿐이다. 장치가 스스로를 설명하는 문장이라 늦게 붙은 쪽도
+        읽을 수 있어야 하고, 그게 retain 이 있는 이유다."""
         env = PB()
         env.capability.device_id = self.device_id
         env.capability.actions.extend(sorted(self.owner.ACTIONS.keys()))
-        self._send(env)
+        self._send(env, retain=True)
 
     # ---------- 송신 ----------
-    def _send(self, env):
-        self._publish(self.uplink, env.SerializeToString(), 1)
+    def _send(self, env, retain=False):
+        self._publish(self.uplink, env.SerializeToString(), 1, retain)
 
     def _send_bytes(self, payload):
         self._publish(self.uplink, payload, 1)

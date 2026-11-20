@@ -77,13 +77,17 @@ class FakeClient:
     """서버의 uplink publish 를 가로채 봉투로 보관한다."""
     def __init__(self):
         self.uplink = []          # PhysicalCommandEnvelope 목록
+        self.retained = []        # retain=True 로 나간 것만 따로 — Capability 가 여기 들어와야 한다
         self.lock = threading.Lock()
 
     def subscribe(self, topic, qos=0):
         pass
 
-    def publish(self, topic, payload, qos=0):
+    def publish(self, topic, payload, qos=0, retain=False):
         env = PB(); env.ParseFromString(payload)
+        if retain:
+            with self.lock:
+                self.retained.append(env)
         with self.lock:
             self.uplink.append(env)
 
@@ -140,6 +144,13 @@ def main():
         caps = [e for e in cli.uplink if e.WhichOneof("body") == "capability"]
     assert caps and set(caps[0].capability.actions) == {"navigate.relative", "jam"}, "Capability 미발행/불일치"
     print(f"  Capability: start 시 지원 action {list(caps[0].capability.actions)} 발행 ✓")
+
+    # Capability 는 **retain** 이어야 한다. 접속 순간에만 보내면 나중에 붙은 상위는
+    # 영영 못 받고, 관제 화면은 "지원하지 않는 동작"으로 되돌아간다(실측 2026-11-20).
+    with cli.lock:
+        ret = [e for e in cli.retained if e.WhichOneof("body") == "capability"]
+    assert ret, "Capability 가 retain 으로 나가지 않았다"
+    print(f"  Capability: retain 으로 발행 — 늦게 붙은 상위도 읽는다 ✓")
 
     # 6(a) 정상 성공
     srv.on_message(cmd_env("c-1", "navigate.relative", params={"distance": 1.0}).SerializeToString())
