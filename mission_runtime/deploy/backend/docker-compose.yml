@@ -1,0 +1,91 @@
+# 백엔드 **그 자체**를 컨테이너로 띄운다 — `bash tools/backend.sh start` 가 이것을 쓴다.
+#
+# implements: AI-B-02(실행환경 패키징·재현성), AI-B-05(health·복구), AI-C-16(폐쇄망)
+#
+# ## 왜 컨테이너인가
+#
+# 받는 쪽 기계마다 파이썬 판과 깔린 패키지가 다르다. 그 차이를 사람이 맞추면 "내
+# 기계에서는 되는데" 가 생기고, 그 말이 나오는 순간 배포는 재현 가능하지 않다.
+# 이미지는 **같은 소스에서 같은 것**을 만든다(AI-B-02). 도커가 없는 기계도 정상이다 —
+# `tools/backend.sh` 가 그때는 프로세스로 띄우고 **그렇다고 말한다**(AI-C-05).
+#
+# ## 상시 실행
+#
+# `restart: unless-stopped` 다. 기계를 다시 켜도 도커가 다시 띄우므로 터미널을 열어
+# 둘 필요가 없다 — "명령어 하나로 상시 실행" 이 뜻하는 것이 이것이다. 내리는 것도
+# 한 줄(`backend.sh stop` = `compose down`)이고, 그때는 다시 뜨지 않는다.
+#
+# ## 선언은 **이미지 밖에서** 온다
+#
+# 코드는 이미지 안에 있지만 현장 선언(`config/` · `profiles/`)은 볼륨으로 얹는다.
+# 현장 값을 바꾸려고 이미지를 다시 굽지 않는다 — 그리고 비밀은 이미지에 넣지
+# 않는다는 규칙(AI-B-02)이 선언에도 그대로 간다.
+#
+# ## 가시화는 **읽기만** 한다
+#
+# 여기서 여는 것은 두 포트뿐이고 둘 다 가시화가 읽는 자리다:
+#   8899  /registry · WS 채널 · FMS 조회 30 (쓰기 20 은 Bearer 가 있어야 한다)
+#   8765  capability — 가시화 「기능」 카드의 원천(config · labels · functions)
+# 가시화가 우리 쪽으로 무엇을 밀어 넣지 않는다. 그쪽은 떠 있는 것을 읽어 간다.
+
+name: mission-runtime-backend
+
+x-common: &common
+  image: mission-runtime:cpu
+  build:
+    context: ../..
+    target: cpu
+  restart: unless-stopped
+  # 선언만 얹는다. 코드는 이미지 안의 것을 쓴다 — 두 벌이 되면 어느 쪽이 도는지
+  # 알 수 없다.
+  volumes:
+    - ../../config:/app/config:ro
+    - ../../profiles:/app/profiles:ro
+  environment:
+    PYTHONUNBUFFERED: "1"
+
+services:
+  gateway:
+    <<: *common
+    container_name: mission-runtime-gateway
+    command:
+      - python
+      - tools/vz_gateway/serve.py
+      - --host=0.0.0.0
+      - --port=8899
+      - --domains=profiles/domains.example.json
+      - --config=config/status_ui.fms.example.json
+      # 선언된 실행 단위. 컨테이너 안에서는 docker 를 부르지 않으므로 compose 단위는
+      # 거절되고(`docker_not_available`) 그 사유가 화면에 그대로 뜬다 — 조용히
+      # 빠지지 않는다. 호스트의 docker 를 쓰려면 소켓을 얹어야 하고, 그것은
+      # **컨테이너에 호스트 전체 권한을 주는 일**이라 기본으로 하지 않는다.
+      - --stack-units=config/stack_units.example.json
+    ports:
+      - "8899:8899"
+    healthcheck:
+      test: ["CMD", "python", "-c",
+             "import urllib.request;urllib.request.urlopen('http://127.0.0.1:8899/registry',timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+
+  status-ui:
+    <<: *common
+    container_name: mission-runtime-status-ui
+    command:
+      - python
+      - tools/status_ui/serve.py
+      - --config=config/status_ui.fms.example.json
+      - --host=0.0.0.0
+      - --port=8765
+      - --control=local
+    ports:
+      - "8765:8765"
+    healthcheck:
+      test: ["CMD", "python", "-c",
+             "import urllib.request;urllib.request.urlopen('http://127.0.0.1:8765/api/functions',timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s

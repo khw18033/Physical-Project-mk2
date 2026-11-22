@@ -137,6 +137,74 @@ vz_gateway: FMS 조회 계약 — 세우지 못했다 — FileNotFoundError: …
     --domains profiles/domains.example.json --config config/status_ui.fms.example.json
 ```
 
+### 3-0. 한 줄로 세우고 한 줄로 내린다 (받은 기계에서 쓰는 길)
+
+```bash
+make backend          # = bash tools/backend.sh start
+make backend-status   # 주소와 상태
+make backend-stop     # 내린다
+```
+
+**도커가 있으면 컨테이너로 세운다**(`deploy/backend/docker-compose.yml`) —
+`restart: unless-stopped` 라 터미널을 닫아도, 기계를 다시 켜도 돈다. 도커가 없는
+기계도 정상이다: 그때는 프로세스로 띄우고 **그렇다고 말한다**(AI-C-05).
+`AIF_MODE=bare` 로 강제할 수 있다.
+
+**세우는 것은 둘이다** — 가시화가 읽는 자리가 둘이기 때문이다.
+
+| 포트 | 무엇 | 없으면 화면에서 |
+|---|---|---|
+| 8899 | `/registry` · WS 채널 · FMS 조회 30(쓰기 20 은 Bearer) | 「게이트웨이 연결 안 됨」 |
+| 8765 | capability — `config` · `labels` · `functions` · `functions/whatif` | 「기능 · HTTP 502」 ← 실제로 이 증상이 있었다 |
+
+이미지는 **소스보다 오래되면 다시 굽는다**. 태그만 보면 2 주 전 이미지로 오늘
+코드를 돌리게 되고, 그때 컨테이너는 모르는 깃발로 재시작 루프에 빠진다(실측).
+받는 쪽에서는 더 조용히 틀린다 — 옛 계약을 내면서 멀쩡히 돈다.
+
+pid·로그는 설치 트리가 아니라 상태 뿌리(`~/.local/state/mission_runtime/backend/`)다.
+`git pull` 이 충돌하지 않는다.
+
+#### 호스트의 docker·k3s 를 몰아야 한다면
+
+컨테이너 안에서는 `docker` 도 `kubectl` 도 없다. `POST /api/stack` 의 compose 단위는
+`docker_not_available` 로 거절되고 **그 사유가 화면에 그대로 뜬다**(조용히 빠지지
+않는다). 그 기능까지 쓰려면 둘 중 하나다.
+
+```bash
+AIF_MODE=bare bash tools/backend.sh start          # 호스트에서 프로세스로 (개발 기계에 간단)
+AIF_HOST_CONTROL=1 bash tools/backend.sh start     # 컨테이너에 호스트 docker·kubeconfig 를 얹는다
+```
+
+뒤쪽은 **권한을 주는 일**이다 — 소켓을 얹은 컨테이너는 호스트에서 아무 컨테이너나
+띄울 수 있다(사실상 호스트 root). 그래서 기본이 아니고, 쓰는 쪽이 한 번 더 말해야 붙는다.
+
+---
+
+### 3-0-1. 원본 가시화(khw_VZ)가 우리에게서 **읽어 가는 것**
+
+가시화를 고치지 않는 구성에서, 그쪽이 백엔드에 거는 창구는 아래가 전부다. 앱은
+우리 쪽으로 무엇을 밀어 넣지 않는다 — **떠 있는 것을 읽어 간다**(`data_stream` 과
+같은 모양이다).
+
+| 가시화가 읽는 것 | 어디서 고르나 | 우리가 내나 |
+|---|---|---|
+| WS 채널 구독 (`subscribe`·`unsubscribe`·`role`) | `VITE_GATEWAY_WS` · 연결 관리 | **낸다** (8899) |
+| `GET /registry` | `VITE_GATEWAY_HTTP` | **낸다** |
+| `GET /actions?entity=` | 같은 주소 | **없다**(404) — 명령 센터의 action 목록이 빈다 |
+| `GET /audit?` | 같은 주소 | **없다** — 데이터 탭의 감사·음성 감사 |
+| `GET /insight/<id>` | 같은 주소 | **없다** — 위험 패널의 설명 |
+| `GET /server-metrics` | 같은 주소 | **없다** — 셸의 서버 상태 카드 |
+| `POST /observability/client-metrics` | 같은 주소 | **없다** — 앱의 자기 관측 적재 |
+| capability `config`·`labels`·`functions` | `VITE_CAPABILITY_URL`(기본 `http://127.0.0.1:8765`) | **낸다** (`/api/...`) |
+| capability `POST functions/whatif` | 같은 주소 | **낸다** (계산만 한다) |
+| 장치 WS(MQTT) · 미디어 · 탐지 · STT · 생성 | `VITE_PHYSICAL_WS` · `VITE_MEDIA_WS` · `VITE_DETECT_URL` · 8801 · 8802 | **우리 것이 아니다** — 브로커·미디어 경로·`data_stream` 추론·가시화 자체 서비스 |
+
+**없는 다섯은 화면을 깨뜨리지 않는다.** 그 카드만 비거나 사유가 뜨고 나머지는 돈다
+(그쪽 앱이 결손을 축소로 그린다). 채우려면 게이트웨이에 그 다섯 경로를 더하면 되고,
+그것은 우리 조회 계약(30)과 **다른 이름 공간**이라 섞이지 않는다.
+
+---
+
 ### 3-2-1. 프론트가 다른 기계일 때 (가시화 앱)
 
 백엔드와 가시화 앱이 서로 다른 노트북이면 세 가지만 다르다.

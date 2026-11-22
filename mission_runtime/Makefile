@@ -2,7 +2,8 @@
 # no extra tooling (docs/ai/design/hardware-capability-contract-and-bringup-plan.md §4).
 #
 #   make install   받은 폴더 하나로 설치·점검·시험·기동까지 (docs/guides/deployment.md)
-#   make serve     백엔드를 세운다 — 조회 28 · 쓰기 19 (127.0.0.1:8899)
+#   make backend   백엔드 **한 줄** — 컨테이너로 세운다(상시 실행). 내리기 backend-stop
+#   make serve     백엔드를 세운다 — 조회 30 · 쓰기 20 (127.0.0.1:8899)
 #   make open      같은 백엔드를 **다른 기계에서 붙을 수 있게** (0.0.0.0, 안내는 오버레이 주소)
 #   make dist      배포 브랜치에 담을 것을 본다 (옮기려면 ARGS=--write)
 #   make up        start mosquitto / kafka / otel-collector (dev: loopback; edge: AIF_BIND=<ip>)
@@ -34,17 +35,28 @@ PYTEST    = PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 $(PY) -m pytest -q -p no:cacheprovi
 
 export KUBECONFIG
 
-.PHONY: install serve open dist up down ps label smoke check ui view view-solo preview bootstrap test help
+.PHONY: install backend backend-stop backend-status serve open dist up down ps label smoke check ui view view-solo preview bootstrap test help
 
 help:
-	@sed -n '2,16p' Makefile
+	@sed -n '2,18p' Makefile
 
 # 받은 폴더 하나로 끝까지 — 가상환경·설치·자가점검·시험·기동 확인. 판정은 각 단계가
 # 하고 이 목표는 순서만 잡는다(docs/guides/deployment.md).
 install:
 	bash tools/install_check.sh $(ARGS)
 
-# 백엔드 한 줄. 선언은 예시 현장이고 자기 현장은 두 깃발을 바꾼다.
+# **받은 기계에서 한 줄.** 도커가 있으면 컨테이너로(기계를 다시 켜도 돈다), 없으면
+# 프로세스로 띄우고 그렇다고 말한다. 가시화가 읽는 자리 둘(8899 · 8765)을 함께 세운다.
+backend:
+	bash tools/backend.sh start
+
+backend-stop:
+	bash tools/backend.sh stop
+
+backend-status:
+	bash tools/backend.sh status
+
+# 게이트웨이 하나만 앞에서 띄운다(개발용). 선언은 예시 현장이고 자기 현장은 두 깃발을 바꾼다.
 serve:
 	$(PY) tools/vz_gateway/serve.py --port $(PORT) \
 	    --domains $(DOMAINS) --config $(UICONFIG)
