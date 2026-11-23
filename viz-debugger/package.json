@@ -109,6 +109,7 @@
     "verify:stop-recorded": "node scripts/verify-stop-recorded.mjs",
     "verify:human-layer-pure": "node scripts/verify-human-layer-pure.mjs",
     "verify:action-item-shape": "node scripts/verify-action-item-shape.mjs",
+    "verify:generated-run": "node scripts/verify-generated-run.mjs",
     "verify:action-time": "node scripts/verify-action-time.mjs",
     "verify:layer-time-agree": "node scripts/verify-layer-time-agree.mjs",
     "verify:action-replay-generated": "node scripts/verify-action-replay-generated.mjs",

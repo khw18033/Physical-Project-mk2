@@ -73,6 +73,8 @@ import { useReplayTarget } from './record/replayMode.ts';
 import { closeControlView, useControlView } from './record/controlView.ts';
 import { ControlRecordView } from './views/ControlRecordView.tsx';
 import { dropOnSlots, holdSlotsFor, useSlotBindings } from './data/slots.ts';
+import { GeneratedRunProposal, GeneratedRunStatus, generatedApproval } from './views/GeneratedRunCard.tsx';
+import { useFillValues } from './generate/runFill.ts';
 
 type Screen = 'milestones' | 'graph' | 'detail' | 'replay' | 'failure';
 
@@ -174,6 +176,9 @@ function Milestones({ view, phase, milestoneStatuses, assignments, onAssign, onO
    * 골랐습니다」라고 적으면 거짓말이고, 「모델이 만들었습니다」는 더 나쁘다.
    */
   const stepProposal = mission.proposal?.origin === 'steps' ? mission.proposal : null;
+  /** 모델이 낸 임무의 승인 조건 (261123). 값 표는 늘 구독한다 — 훅은 조건 없이 불러야 한다. */
+  const aiValues = useFillValues(aiProposal?.view.missionId ?? '');
+  const aiGate = aiProposal === null ? null : generatedApproval(aiProposal.view, aiValues);
   /**
    * **게이트웨이를 안 거친 제안은 화면이 승인한다** (260928 — 「정량 명령 임무가 시작이 안 된다」).
    *
@@ -188,7 +193,8 @@ function Milestones({ view, phase, milestoneStatuses, assignments, onAssign, onO
         영어 어순에서 이을 방법이 없다 — 갈래가 셋이므로 키도 셋이다 (지시서 §1). */}
     <p><Rich id={stepProposal ? 'prop.fallbackSteps' : aiProposal ? 'prop.fallbackAi' : 'prop.fallbackScript'} vars={{ id: mission.proposal.missionId }} /></p>
     {/* **승인의 문은 하나다** (`acceptProposal`). 종류마다 부르는 곳이 다르면 언젠가 한쪽만 검사가 붙는다. */}
-    <button onClick={() => acceptProposal('local')}>{t(stepProposal ? 'prop.approveSteps' : aiProposal ? 'prop.approveCanvas' : 'prop.approvePlay')}</button>
+    {/* 모델이 낸 임무가 실행 가능하면 문구가 「실행 준비」로 바뀌고, 값이 덜 채워졌으면 버튼이 막힌다 (261123). */}
+    <button disabled={aiGate?.blocked === true} onClick={() => acceptProposal('local')}>{t(stepProposal ? 'prop.approveSteps' : aiProposal ? (aiGate?.plan.runnable ? 'grun.approveRun' : 'prop.approveCanvas') : 'prop.approvePlay')}</button>
     <button onClick={() => rejectProposal()}>{t('prop.reject')}</button>
   </div>);
   const showApproval = phase === 'proposal' || planApproval !== undefined;
@@ -206,6 +212,8 @@ function Milestones({ view, phase, milestoneStatuses, assignments, onAssign, onO
     : (assignments[item.id] ?? item.assignedTargets).join(' · ') || t('ms.unassigned'));
   return <div className="milestone-layout"><UtterancePanel fallbackText={view.utteranceText} /><section className="milestone-panel"><h2>{t('ms.count', { n: view.milestones.length })}</h2>
     <RobotPanel client={robotClient()} />
+    {/* 승인된 생성 임무의 진행 · 사람 확인 (261123). 걸음이 실린 생성 임무가 아니면 아무것도 안 그린다. */}
+    <GeneratedRunStatus />
     {showApproval && <div className="proposal-card">
       {phase === 'proposal' && (stepProposal
         ? <p className="proposal-note proposal-steps"><Rich id="ms.stepProposal" vars={{ sentence: stepProposal.sentence, n: stepProposal.view.tasks.length }} /></p>
@@ -213,6 +221,8 @@ function Milestones({ view, phase, milestoneStatuses, assignments, onAssign, onO
         ? <p className="proposal-note proposal-ai"><Rich id="ms.aiProposal" vars={{ model: aiProposal.provenance.model, id: view.missionId, label: view.label }} />
             <small>{t('ms.aiMeta', { rules: aiProposal.provenance.rules?.length ?? 0, digest: aiProposal.provenance.promptDigest ?? t('ms.promptNone') })}</small></p>
         : <p className="proposal-note"><Rich id="ms.scriptProposal" vars={{ id: view.missionId, label: view.label }} />{mission.proposal?.origin === 'script' && mission.proposal.keywords.length ? <small>{t('ms.matchedKeywords', { words: mission.proposal.keywords.join(' · ') })}</small> : null}</p>)}
+      {/* 모델이 낸 임무의 실행 계획 · 사람이 채울 값 (261123). 승인 버튼은 아래 같은 자리에 있다. */}
+      {phase === 'proposal' && aiProposal && <GeneratedRunProposal view={aiProposal.view} />}
       {approvalSlot}
     </div>}
     <div className="milestone-list">{view.milestones.map((item) => <button key={item.id} className={`milestone state-${milestoneStatuses[item.id] ?? 'pending'}`} onClick={() => onOpen(item.id)} onDragOver={(event) => event.preventDefault()} onDrop={(event) => { if (item.feed === undefined) onAssign(item.id, event.dataTransfer.getData('text/plain')); }}><b>{item.id}</b><strong>{item.title}</strong><span>{assignedLine(item)}</span><small>{t('ms.clickToGraph')}</small></button>)}</div></section>

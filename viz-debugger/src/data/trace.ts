@@ -98,6 +98,17 @@ export const LIVE_ACTION_SEQ_BASE = 1_750_000;
  */
 export const PLAN_SEQ_BASE = 2_000_000;
 
+/**
+ * **생성 임무 실행기가 민 사건의 `seq` 대역** (261123 — AI 생성 임무 실행기).
+ *
+ * 명령이 없는 과업(sense · decide · verify · report)의 차례가 오면 실행기가 그 노드를 「사람 확인 대기」로 세운다.
+ * 그 값은 화면이 실행 순서로 정한 것이라 주체가 `backend` 다 — 로봇도 사람도 아니다. 사람이 「확인」을 누른 사건은
+ * 이 대역이 아니라 사람 대역(`appendHuman`)이다.
+ *
+ * 7,000,000 은 비어 있다(위 `PLAN_SEQ_BASE` 의 목록 — 6,000,000 중계 다음).
+ */
+export const RUNNER_SEQ_BASE = 7_000_000;
+
 /** 아무 임무도 안 올라온 상태. 기동 직후와 임무 교체 사이의 한순간이다. */
 const NO_MISSION = '';
 
@@ -105,6 +116,7 @@ let column = new TraceStore(NO_MISSION);
 let humanCount = 0;
 let aiCount = 0;
 let liveActionCount = 0;
+let runnerCount = 0;
 
 /**
  * 임무가 바뀌면 **새 열**이다. 지우는 것이 아니라 새로 만드는 것이다 —
@@ -115,6 +127,7 @@ export function resetTrace(missionId: string): void {
   humanCount = 0;
   aiCount = 0;
   liveActionCount = 0;
+  runnerCount = 0;
 }
 
 /** 지금 열이 누구의 기록인가. */
@@ -164,12 +177,17 @@ export function appendHuman(
   nodeId: string,
   atSec: number,
   payload: Record<string, unknown> = {},
+  /**
+   * 이 조작이 그 노드를 어느 상태로 두는가 (261123 — AI 생성 임무 실행기). 기본값은 지금까지와 같은 `rerunning` 이다.
+   * 사람이 「확인」 · 「실패로 닫기」로 과업을 닫을 때만 `done` · `failed` 를 준다 — 그 판정을 한 것이 사람이다.
+   */
+  status: ScenarioEvent['status'] = 'rerunning',
 ): ScenarioEvent | null {
   const event: ScenarioEvent = {
     seq: HUMAN_SEQ_BASE + humanCount,
     atSec,
     nodeId,
-    status: 'rerunning',
+    status,
     kind,
     // 이 한 줄이 `VZ-D-08` 이다. 여기가 아닌 곳에서 사람 사건을 만들면 그 규칙이 갈라진다.
     producedBy: 'human',
@@ -212,6 +230,29 @@ export function appendAction(
   const event = make(LIVE_ACTION_SEQ_BASE + liveActionCount);
   if (!appendTrace(missionId, event)) return null;
   liveActionCount += 1;
+  return event;
+}
+
+/** 생성 임무 실행기가 노드를 세운 사건 (`RUNNER_SEQ_BASE` 주석). 주체는 `backend` 다. */
+export function appendRunner(
+  missionId: string,
+  nodeId: string,
+  atSec: number,
+  status: ScenarioEvent['status'],
+  kind: string,
+  payload: Record<string, unknown> = {},
+): ScenarioEvent | null {
+  const event: ScenarioEvent = {
+    seq: RUNNER_SEQ_BASE + runnerCount,
+    atSec,
+    nodeId,
+    status,
+    kind,
+    producedBy: 'backend',
+    payload,
+  };
+  if (!appendTrace(missionId, event)) return null;
+  runnerCount += 1;
   return event;
 }
 

@@ -179,6 +179,22 @@ main:has(.milestone-layout) .milestone-layout{flex:1;min-height:0}
 .proposal-fallback{margin-top:12px;padding:10px;border:1px solid #7aa7d9;background:#f0f6fd;font-size:13px}
 .proposal-fallback p{margin:0 0 8px;line-height:1.5}
 .proposal-fallback button{margin-right:6px;padding:6px 12px;border:1px solid #4c8fe8;border-radius:var(--radius-sm);background:#fff;cursor:pointer}
+.proposal-fallback button:disabled{opacity:.5;cursor:not-allowed}
+/* AI 생성 임무 실행기 (261123) — 승인 전 실행 계획 · 승인 뒤 진행 */
+.grun-card{margin:0 0 10px;padding:8px 10px;border:1px solid #c9d9ec;background:#fff;font-size:13px;line-height:1.5}
+.grun-card p{margin:0 0 6px}
+.grun-card h4{margin:8px 0 4px;font-size:13px}
+.grun-card ul{margin:0;padding-left:18px}
+.grun-fill label{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.grun-fill input{width:90px;padding:2px 6px}
+.grun-fill small{display:block;color:#5b7797;font-size:12px}
+.grun-note{color:#5b7797}
+.grun-problem{color:#b3261e}
+.grun-status{margin:8px 0;padding:8px 10px;border:1px solid #7aa7d9;background:#f0f6fd;font-size:13px}
+.grun-status p{margin:0 0 6px}
+.grun-status button{margin-right:6px;padding:6px 12px;border:1px solid #4c8fe8;border-radius:var(--radius-sm);background:#fff;cursor:pointer}
+.grun-waiting{border-color:#e0a100;background:#fff8e1}
+.grun-failed{border-color:#b3261e;background:#fdecea}
 .proposal-fallback button:first-of-type{background:#4c8fe8;color:#fff}
 .follow-live{margin-left:10px;padding:3px 8px;border:1px solid #4f9e7d;border-radius:var(--radius-sm);background:#eef8f3;color:#20654a;font-size:12px;cursor:pointer}
 b.follow-live{cursor:default}

@@ -130,7 +130,8 @@ export type GenerateOptions = {
   branch?: boolean;
   /**
    * 태스크에 **액션 아이템**까지 내게 할 것인가 (261023 · 생성기 3단계 H 판). `tasks` 위에서만
-   * 뜻이 있다. **화면은 아직 안 켠다** — 받는 쪽은 다음 지시이고, 지금은 측정 경로만 쓴다.
+   * 뜻이 있다. 화면은 발화 판의 「액션 아이템까지」 스위치로 켠다(261123 — 기본 꺼짐). 받는 쪽은 AI 생성 임무 실행기
+   * (`generate/actionCommands.ts`)다.
    */
   actions?: boolean;
   model?: string;

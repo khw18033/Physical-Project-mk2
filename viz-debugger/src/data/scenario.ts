@@ -44,7 +44,8 @@ import { fillPayload, fillText } from '../scenarios/target.ts';
 import { useSyncExternalStore } from 'react';
 import { foldStatuses, type FoldedStatuses } from './fold.ts';
 import { MergeScheduler } from './mergeScheduler.ts';
-import { appendAction, appendGenerated, appendHuman, appendTrace, ACTION_SEQ_BASE, PLAN_SEQ_BASE, resetTrace, traceEvents, traceMissionId } from './trace.ts';
+import { appendAction, appendGenerated, appendHuman, appendRunner, appendTrace, ACTION_SEQ_BASE, PLAN_SEQ_BASE, resetTrace, traceEvents, traceMissionId } from './trace.ts';
+import type { FillSlot, RunItem } from '../generate/actionCommands.ts';
 import { actionItemEvents, adjustedEvent, answeredEvent, commandedEvent, expiredEvent, foldActions, type AnswerKind, type FoldedAction } from './actionTrace.ts';
 import { scriptFrames } from '../viewpoint/source.ts';
 import { appendViewpoint, resetViewpoint, type ArrivedFrame } from '../viewpoint/store.ts';
@@ -951,6 +952,38 @@ export function acceptProposal(mode: 'remote' | 'local' = 'local'): boolean {
 }
 
 /**
+ * **모델이 낸 임무 → 굳힌 걸음** (261123 — AI 생성 임무 실행기).
+ *
+ * - 실행 불가(`runnable` 아님)면 `items: null` — 계획만 선다.
+ * - 실행 가능인데 값이 덜 채워졌거나 범위 밖이면 `blocked` — 승인하지 않는다.
+ * - 아니면 사람이 채운 값으로 굳힌 실행 목록.
+ */
+export type GeneratedRunResolution = {
+  items: RunItem[] | null;
+  blocked: boolean;
+  fills: { slot: FillSlot; value: number | undefined }[];
+};
+
+/**
+ * **계산은 등록받는다** — 이 파일이 실행 계획 모듈을 직접 import 하지 않는다.
+ *
+ * 직접 끌어오면 고리가 생긴다: `physical/presets.ts` → `detect/store.ts` → `detect/detectTrace.ts` → 이 파일 →
+ * `generate/actionCommands.ts` → `physical/stepScript.ts` → `physical/presets.ts`(아직 덜 읽힘). 그러면 `stepScript.ts` 의
+ * 최상위 `STEP_VX = APPROACH_VX` 가 초기화 전 값을 읽어 깨진다(261123 실측 — `verify:no-physical` 외 여럿).
+ * 그래서 `generate/runFill.ts` 가 읽힐 때 여기에 등록한다. **등록이 없으면 계획만 선다** — 걸음이 안 실리고 관문도 안 열린다.
+ * 모르는 채로 내는 쪽보다 안 내는 쪽이 안전하다.
+ */
+let resolveGeneratedRun: ((view: MissionView) => GeneratedRunResolution) | null = null;
+
+export function registerGeneratedRunResolver(resolver: ((view: MissionView) => GeneratedRunResolution) | null): void {
+  resolveGeneratedRun = resolver;
+}
+
+function generatedRunFor(view: MissionView): GeneratedRunResolution {
+  return resolveGeneratedRun?.(view) ?? { items: null, blocked: false, fills: [] };
+}
+
+/**
  * 모델이 낸 제안의 승인 (260907 · 9단계).
  *
  * `activateMission` 과 갈라지는 곳은 둘뿐이다.
@@ -971,6 +1004,16 @@ export function acceptProposal(mode: 'remote' | 'local' = 'local'): boolean {
  * (`VZ-G-01` 의 「역추적이 맨 위까지 닿는다」).
  */
 function activateGenerated(proposal: AiProposal | StepProposal): boolean {
+  /**
+   * **모델이 낸 임무의 걸음** (261123 — AI 생성 임무 실행기). 실행 가능한 임무면 사람이 채운 값으로 걸음을 굳혀 임무에 싣는다
+   * (`params.generated_run`). 실행 가능한데 값이 덜 채워졌으면 **승인하지 않는다** — 승인 칸이 버튼을 막지만, 문이
+   * 하나인 이상 문도 스스로 막는다. 실행 불가(거부가 있거나 명령 과업이 없다)면 지금까지처럼 계획만 선다.
+   */
+  const run = proposal.origin === 'ai' ? generatedRunFor(proposal.view) : null;
+  if (run !== null && run.blocked) return false;
+  const activated = run === null || run.items === null
+    ? proposal.view
+    : { ...proposal.view, params: { ...proposal.view.params, generated_run: run.items } };
   beforeNewRun();
   stopLocalTimer();
   resetTrace(proposal.view.missionId);
@@ -979,9 +1022,10 @@ function activateGenerated(proposal: AiProposal | StepProposal): boolean {
   localCursor = 0;
   localViewpointCursor = 0;
   localActionCursor = 0;
-  commitNow({ current: proposal.view, proposal: null, headSec: 0, playing: false, activatedBy: 'approval' });
+  commitNow({ current: activated, proposal: null, headSec: 0, playing: false, activatedBy: 'approval' });
   // 생성 임무는 대본 사건이 없다 — 태스크마다 지어 넣는다. **값을 정한 쪽이 주체다**: 정량 명령은 사람이 숫자로 적었고
   // 규칙은 옮기기만 했으므로 `human`, 모델 제안은 `ai` (261025 결정 ②).
+  // 과업 목록은 같다 — 걸음(`params.generated_run`)이 실렸어도 심는 「생성됨」 사건은 원본 제안의 것 그대로다.
   seedPlan(proposal.view, proposal.origin === 'steps' ? 'human' : 'ai');
   /**
    * **정량 명령은 승인이 로봇 관문을 연다** (260928 — 「정량 명령 임무가 시작이 안 된다」).
@@ -990,10 +1034,12 @@ function activateGenerated(proposal: AiProposal | StepProposal): boolean {
    * `markStarted()` 가 첫 줄(「승인 없이는 시작도 없다」)에서 돌아가 「임무 시작」이 아무 일도 안 했다.
    * 걸음은 여전히 「임무 시작」 뒤에 나간다(`shouldIssueStepMission` — 승인 **그리고** 시작).
    *
-   * **모델이 낸 임무는 열지 않는다.** 그 임무에는 로봇에 보낼 걸음이 없고, 관문이 열린 채 「임무 시작」을 누르면
-   * 발행 배선이 문 찾기 편의 스캔 조건을 보게 된다 — 모델이 만든 계획에 스캔이 따라 나가면 안 된다.
+   * **모델이 낸 임무는 걸음이 굳었을 때만 연다** (261123). 전에는 아예 안 열었다 — 그 임무에는 로봇에 보낼 걸음이 없고,
+   * 관문이 열린 채 「임무 시작」을 누르면 발행 배선이 문 찾기 편의 스캔 조건을 보게 된다. 이제 걸음이 있으면 연다.
+   * 스캔은 여전히 안 따라 나간다: 생성 임무 실행기는 `scan_mission` 을 거부하고(`generate/actionCommands.ts`),
+   * 발행 배선(`robotClient.ts`)은 걸음이 실린 임무를 스캔 갈래보다 먼저 받아 거기서 끝낸다.
    */
-  if (proposal.origin === 'steps') markApproved();
+  if (proposal.origin === 'steps' || (run !== null && run.items !== null)) markApproved();
   /**
    * **근거를 적는 자리는 하나지만 근거는 같지 않다** (260922).
    *
@@ -1010,6 +1056,16 @@ function activateGenerated(proposal: AiProposal | StepProposal): boolean {
       ? provenancePayload(proposal.provenance)
       : { origin: 'steps', sentence: proposal.sentence, read_by: 'rules' },
   );
+  // **사람이 채운 값** (261123). 모델이 낸 것과 사람이 채운 것이 기록에서 갈려야 한다 — 승인보다 먼저 적는다.
+  for (const filled of run?.items != null ? run.fills : []) {
+    recordHuman('action_params_filled', filled.slot.taskId, {
+      item_id: filled.slot.itemId,
+      action: filled.slot.action,
+      param: filled.slot.param,
+      value: filled.value ?? null,
+      preset: filled.slot.preset,
+    });
+  }
   // 승인도 사람 조작이다 — `VZ-D-08` 은 예외를 두지 않는다.
   recordHuman('proposal_accepted', proposal.view.missionId, {
     origin: proposal.origin,
@@ -1224,6 +1280,40 @@ export function recordHuman(kind: string, nodeId = state.current.missionId, payl
   );
   // 열이 자랐으면 화면을 다시 그린다 — 되감기 타임라인에 그 조작이 떠야 한다.
   if (event !== null) commitNow({});
+  return event;
+}
+
+/**
+ * **사람이 과업을 닫았다** (261123 — AI 생성 임무 실행기). 명령이 없는 과업의 「확인」 · 「실패로 닫기」다.
+ *
+ * `recordHuman` 과 같은 사람 대역 · 같은 시각 규칙이고, 다른 것은 **그 노드의 상태를 정한다**는 것 하나다 —
+ * 판정을 한 것이 사람이므로 그 상태의 주체도 사람이다. 머리를 그 시각까지 민다: 안 밀면 접기가 그 사건을 아직 안 읽는다.
+ */
+export function recordHumanVerdict(taskId: string, verdict: 'done' | 'failed'): ScenarioEvent | null {
+  if (isReplayingRecord()) return null;
+  /**
+   * **그 노드의 마지막 사건보다 뒤에 놓는다.** 열은 `(atSec, seq)` 순이고 실행기 대역(7,000,000)이 사람 대역보다 위라,
+   * 시계가 안 흐른 판에서 대기와 확인이 같은 시각이면 대기가 뒤로 읽혀 확인을 덮는다. 같으면 1 ms 뒤로 민다.
+   */
+  const last = traceEvents().filter((event) => event.nodeId === taskId).reduce((latest, event) => Math.max(latest, event.atSec), -Infinity);
+  const now = liveNowSec();
+  const event = appendHuman(
+    state.current.missionId,
+    verdict === 'done' ? 'human_confirmed' : 'human_failed',
+    taskId,
+    now > last ? now : last + 0.001,
+    {},
+    verdict,
+  );
+  if (event !== null) commitNow({ headSec: Math.max(state.headSec, event.atSec) });
+  return event;
+}
+
+/** **실행기가 그 과업을 사람 확인 대기로 세웠다** (261123). 주체는 `backend` 다 — 차례를 정한 것은 화면이다. */
+export function recordRunnerWait(taskId: string): ScenarioEvent | null {
+  if (isReplayingRecord()) return null;
+  const event = appendRunner(state.current.missionId, taskId, liveNowSec(), 'awaiting_evaluation', 'awaiting_human');
+  if (event !== null) commitNow({ headSec: Math.max(state.headSec, event.atSec) });
   return event;
 }
 

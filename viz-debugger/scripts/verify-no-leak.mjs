@@ -270,8 +270,8 @@ let equipmentLine = null;
       failures.push(`정답셋의 ${mission.mission_id} 이 대본 라이브러리에 없다 — 화면은 이 편을 예시로 실을 수 없다`);
       continue;
     }
-    // **두 판을 다 대조한다.** 태스크 판만 갈라져도 화면과 표가 다른 프롬프트로 돈다.
-    for (const options of [{ tasks: false }, { tasks: true }]) {
+    // **세 판을 다 대조한다.** 태스크 판 · 액션 아이템 판(261123)만 갈라져도 화면과 표가 다른 프롬프트로 돈다.
+    for (const options of [{ tasks: false }, { tasks: true }, { tasks: true, actions: true }]) {
       const fromScreen = JSON.stringify(scriptAsExample(entry.script, options));
       const fromMeasurement = JSON.stringify(asExample(mission, options));
       if (fromScreen !== fromMeasurement) {
@@ -288,6 +288,15 @@ let equipmentLine = null;
   const shown = examplesForUtterance(SCRIPT_LIBRARY, target).map((example) => example.mission_id);
   if (shown.includes(target)) {
     failures.push(`화면이 맞은 편(${target})을 예시로 싣는다 — 정답을 주고 정답을 맞히라고 하는 것이다`);
+  }
+  // **예시는 2편이고 정답셋 안에서만 고른다** (261123). 대본이 아홉 편으로 늘자 화면만 예시를 아홉 편 싣고 프롬프트가
+  // 컨텍스트를 넘었다 — 측정한 조건(2편)에서 조용히 벗어난 것이다. 맞은 편이 있을 때도 없을 때도 2편이어야 한다.
+  const goldIds = new Set(gold.map((mission) => mission.mission_id));
+  for (const [label, exclude] of [['맞은 편 있음', target], ['맞은 편 없음', null], ['정답셋 밖의 편이 맞음', 'MSN-260909-01']]) {
+    const ids = examplesForUtterance(SCRIPT_LIBRARY, exclude, { tasks: true }).map((example) => example.mission_id);
+    if (ids.length !== 2) failures.push(`화면 예시가 ${ids.length}편이다 (${label}) — 측정 조건은 2편이다`);
+    const outside = ids.filter((id) => !goldIds.has(id));
+    if (outside.length > 0) failures.push(`화면 예시에 정답셋 밖의 편이 있다 (${label}): ${outside.join(', ')} — 측정한 적 없는 예시다`);
   }
   // 옛 편은 애초에 안 실린다 — 그 편의 장소(415호)가 지금 지도에 없다.
   const legacy = SCRIPT_LIBRARY.filter((item) => item.world === 'legacy').map((item) => item.missionId);
@@ -311,7 +320,7 @@ if (failures.length) {
 console.log(`✅ leave-one-out — 정답셋 ${gold.length}편, 예시는 ${allowedExampleCounts(gold.length).join('편 또는 ')}편이고 채점 대상 편은 어느 쪽에서도 빠진다`);
 console.log('✅ 실행 기록의 examples_used 에 자기 자신이 없다 — 함수가 아니라 남은 기록을 봤다');
 console.log('✅ 예시를 고르는 것은 부르는 쪽이다 — 서비스는 정답셋을 열지 않는다');
-console.log('✅ 화면이 만드는 예시가 측정 경로의 예시와 글자까지 같다 (두 판 모두) — 화면도 맞은 편을 뺀다 (leave-one-out)');
+console.log('✅ 화면이 만드는 예시가 측정 경로의 예시와 글자까지 같다 (마일스톤 · 태스크 · 액션 아이템 세 판) — 화면도 맞은 편을 빼고 정답셋 안에서 2편만 싣는다');
 console.log('✅ 태스크 판의 예시는 태스크를 보이되 deps 는 비어 있다 — 의존은 예시가 아니라 규칙이 만든다');
 if (equipmentLine !== null) console.log(`✅ ${equipmentLine} — 목록이 채점 어휘보다 넓다`);
 console.log(`✅ 대조군 ${controls.length}건 — ${controls.join(' · ')}`);

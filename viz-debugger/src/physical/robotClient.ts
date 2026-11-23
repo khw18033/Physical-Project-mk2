@@ -11,6 +11,8 @@
 import { t } from '../i18n/dict.ts';
 import { PhysicalClient, physicalWsUrls } from './PhysicalClient.ts';
 import { stepCommandsOf } from './stepScript.ts';
+import { generatedRunOf } from '../generate/actionCommands.ts';
+import { startGeneratedRun, undeclaredActions } from './generatedRun.ts';
 import { issuePing, issueScan, shouldIssueScan, issueStepMission, wantsStepMission } from './robotCommands.ts';
 import { robotSession, setConnection, subscribeRobot } from './robotSession.ts';
 import { currentMission } from '../data/scenario.ts';
@@ -209,6 +211,33 @@ function attachDriver(url: string | null): void {
        * 관문을 쓰고 같은 자리에서 나간다 — 승인 뒤 한 번, 시작을 누른 뒤에.
        */
       const stepParams = currentMission().params;
+      /**
+       * **승인된 생성 임무면 그 걸음을 낸다** (261123 — AI 생성 임무 실행기). 정량 명령과 같은 관문 · 같은 장비 고르기다.
+       * 여기서 끝낸다 — 아래 스캔 갈래로 흘러가지 않는다(모델이 만든 계획에 스캔이 따라 나가면 안 된다).
+       */
+      const generated = generatedRunOf(stepParams);
+      if (generated.length > 0) {
+        if (!wantsStepMission()) return;
+        const attempt = `generated|${robotSession().startedAtMs ?? 0}`;
+        if (attempt === lastScanAttempt) return;
+        const walker = walkingClient();
+        if (walker.client === null) {
+          noteIssue('steps', 'robot', walker.reason);
+          return;
+        }
+        lastScanAttempt = attempt;
+        const missing = undeclaredActions(walker.client, generated);
+        if (missing.length > 0) {
+          noteIssue('steps', 'robot', t('grun.undeclared', { actions: missing.join(' · ') }));
+          return;
+        }
+        void startGeneratedRun(walker.client, generated).then((outcome) => {
+          if (outcome.ended === 'failed' && outcome.reason !== 'human') {
+            noteIssue('steps', 'robot', t('robot.stepsNotSent', { reason: outcome.reason || t('robot.noReason') }));
+          }
+        });
+        return;
+      }
       if (stepCommandsOf(stepParams).length > 0) {
         if (!wantsStepMission()) return;
         const attempt = `steps|${robotSession().startedAtMs ?? 0}`;

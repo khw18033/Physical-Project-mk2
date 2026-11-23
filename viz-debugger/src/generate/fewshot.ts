@@ -31,6 +31,27 @@
  */
 
 import type { ScriptLibraryEntry, ScriptScenario } from '../scenarios/types.ts';
+import handActions from '../../../gen-lab/goldset/action-items.json' with { type: 'json' };
+
+/**
+ * **예시를 고르는 편 — 정답셋 셋** (261123).
+ *
+ * 처음(260907)에는 registry 대본이 이 셋뿐이라 「맞은 편을 뺀 대본 전부」가 곧 「예시 2편」이었다. 그 뒤 대본이 아홉 편으로
+ * 늘면서 화면만 예시를 아홉 편까지 싣게 됐고, 태스크 판 프롬프트가 약 2만 토큰이 되어 컨텍스트(16384)를 넘었다
+ * (261112 · 261123 실측). **측정한 조건(예시 2편)에서 조용히 벗어난 것이다.** 그래서 고르는 편을 측정 경로와 같은
+ * 정답셋 셋(`gen-lab/goldset/missions/`)으로 묶는다.
+ */
+export const EXAMPLE_MISSION_IDS: readonly string[] = ['MSN-260831-01', 'MSN-260831-02', 'MSN-260831-03'];
+
+/**
+ * **예시는 2편이다.** 측정 경로는 셋 중 채점 대상을 빼서 언제나 2편이다(`scripts/lib/fewshot.mjs` leave-one-out).
+ * 화면에서 발화가 셋 중 어느 편에도 안 맞으면 빼는 편이 없어 셋이 남는데, 그때도 앞의 2편만 싣는다 — 잰 적 없는 3편
+ * 조건으로 돌지 않게.
+ */
+export const EXAMPLE_COUNT = 2;
+
+/** 정답 액션 아이템(손으로 적은 것). 측정 경로의 `extract-goldset.mjs` 가 읽는 파일과 같다. */
+const GOLD_ACTIONS = (handActions as { missions?: Record<string, Record<string, { actions: Array<Record<string, unknown>> }>> }).missions ?? {};
 
 /**
  * 프롬프트에 실리는 예시 한 편. **계약(`mission.schema.json`)의 표기와 차례를 따른다** —
@@ -70,9 +91,33 @@ export type MissionExampleTask = {
   derived_from: null;
   node_kind?: string;
   target?: string | null;
-  action_items: [];
+  /** 액션 아이템 판에서만 차고, 그 밖에는 빈 배열이다 (`scriptAsExample` 의 `actions`). */
+  action_items: ExampleActionItem[];
   evaluation: null;
 };
+
+/** 예시의 액션 아이템 하나. 정답셋의 모양 그대로다(`extract-goldset.mjs` 의 `goldActionItems`). */
+export type ExampleActionItem = {
+  item_id: string;
+  target: string | null | undefined;
+  adapter: '';
+  params: Record<string, unknown>;
+  status: 'pending';
+  telemetry_ref: null;
+};
+
+/**
+ * 그 과업의 정답 액션 아이템. **`extract-goldset.mjs` 의 `goldActionItems` 와 같은 규칙**이다 — act 가 아니거나 적힌 것이
+ * 없으면 빈 배열. 두 벌이 글자까지 같은지는 `verify:no-leak` 6번이 액션 아이템 판까지 대조한다.
+ */
+function goldActionItems(missionId: string, task: { id: string; nodeKind?: string | null; target?: string | null }): ExampleActionItem[] {
+  if (task.nodeKind !== 'act') return [];
+  const entry = GOLD_ACTIONS[missionId]?.[task.id];
+  if (entry === undefined) return [];
+  return entry.actions.map((params, index) => ({
+    item_id: `${task.id}-${index + 1}`, target: task.target, adapter: '', params, status: 'pending', telemetry_ref: null,
+  }));
+}
 
 /**
  * 대본 한 편 → 예시 한 편. `order` 는 대본에 없다 — 배열 차례가 곧 그것이다.
@@ -94,7 +139,7 @@ export type MissionExampleTask = {
  * 문법 사이에서 싸운다」고 적어 둔 바로 그 상황이 `utterance` 안쪽에서 일어나고 있다.
  * 고치려면 프롬프트가 바뀌므로 **다시 재야 한다.** 짐작으로 고치지 않는다.
  */
-export function scriptAsExample(script: ScriptScenario, options: { tasks?: boolean; branch?: boolean } = {}): MissionExample {
+export function scriptAsExample(script: ScriptScenario, options: { tasks?: boolean; branch?: boolean; actions?: boolean } = {}): MissionExample {
   /**
    * 대본의 **태스크 단위** 되돌아감을 마일스톤 단위로 올린다 — 측정 경로의
    * `extract-goldset.mjs` 가 정답셋에 하는 것과 **같은 파생**이고, `when` 을 `fail` 로
@@ -131,7 +176,9 @@ export function scriptAsExample(script: ScriptScenario, options: { tasks?: boole
           derived_from: null,
           ...(task.nodeKind == null ? {} : { node_kind: task.nodeKind }),
           ...(task.target === undefined ? {} : { target: task.target }),
-          action_items: [] as [],
+          // 액션 아이템 판에서는 정답의 것을 든다 — 규칙만 「act 에 명령을 적어라」로 바꾸고 예시가 빈 배열이면 예시가 이긴다
+          // (측정 경로 `lib/fewshot.mjs` 의 `taskAsExample` 과 같은 이유 · 261123).
+          action_items: options.actions === true ? goldActionItems(script.missionId, task) : [],
           evaluation: null,
         }))
         : [],
@@ -154,10 +201,13 @@ export function scriptAsExample(script: ScriptScenario, options: { tasks?: boole
 export function examplesForUtterance(
   library: readonly ScriptLibraryEntry[],
   excludeMissionId: string | null,
-  options: { tasks?: boolean; branch?: boolean } = {},
+  options: { tasks?: boolean; branch?: boolean; actions?: boolean } = {},
 ): MissionExample[] {
   return library
     .filter((entry) => entry.world === 'registry' && entry.script !== null)
+    // 정답셋 셋 안에서만 고른다 — 측정한 조건 (위 `EXAMPLE_MISSION_IDS` 주석).
+    .filter((entry) => EXAMPLE_MISSION_IDS.includes(entry.missionId))
     .filter((entry) => entry.missionId !== excludeMissionId)
+    .slice(0, EXAMPLE_COUNT)
     .map((entry) => scriptAsExample(entry.script as ScriptScenario, options));
 }

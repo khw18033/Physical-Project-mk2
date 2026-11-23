@@ -23,12 +23,39 @@
 
 import type { MissionView } from '../data/scenario.ts';
 import type { AiProvenance, OverwrittenField } from '../shared/provenance.ts';
-import type { NodeKind, Task } from '../model/types.ts';
+import type { ActionItem, NodeKind, Task } from '../model/types.ts';
 import { planShapeWarnings } from './planShape.ts';
 import { solveDeps, type GeneratedNode, type MilestonePlan, type SolvedRefEdge } from './solveDeps.ts';
 import type { GeneratedMission, GenerateResult } from './types.ts';
 
 const NODE_KINDS: readonly NodeKind[] = ['sense', 'decide', 'act', 'verify', 'report'];
+
+/**
+ * **생성기가 낸 액션 아이템을 화면 모양으로** (261123 — AI 생성 임무 실행기).
+ *
+ * 전에는 여기서 통째로 비웠다(`actionItems: []`). 실행기가 그 값을 읽어 걸음을 만들므로 이제 싣는다.
+ * **고치지 않고 옮기기만 한다** — 모양이 틀린 줄도 버리지 않는다. 동작 이름이 없으면 `label` 이 빈 문자열이고,
+ * 그 줄을 거부할지는 실행 계획(`generate/actionCommands.ts`)이 정한다. 여기서 버리면 「모델이 무엇을 냈나」가 사라진다.
+ * 값은 글자 · 숫자만 남긴다 — 화면 모양(`ActionItem.params`)이 그 둘만 받는다.
+ */
+function actionItemsOf(raw: unknown, taskId: string, taskTarget: string | null): ActionItem[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.map((item, index) => {
+    const record = typeof item === 'object' && item !== null ? (item as Record<string, unknown>) : {};
+    const source = typeof record.params === 'object' && record.params !== null ? (record.params as Record<string, unknown>) : {};
+    const params: Record<string, string | number> = {};
+    for (const [key, value] of Object.entries(source)) {
+      if (typeof value === 'string' || (typeof value === 'number' && Number.isFinite(value))) params[key] = value;
+    }
+    return {
+      id: str(record.item_id) ?? `${taskId}-${index + 1}`,
+      label: typeof params.action === 'string' ? params.action : '',
+      params,
+      status: 'pending',
+      target: str(record.target) ?? taskTarget,
+    };
+  });
+}
 
 /** `extra` 는 서비스가 그대로 넘긴 자루다. 없는 칸을 지어내지 않고 타입만 좁힌다. */
 function str(value: unknown): string | null {
@@ -193,7 +220,7 @@ export function tasksFromGenerated(mission: GeneratedMission): {
         title: task.title,
         deps: solved.deps[task.task_id] ?? [],
         target: (task as { target?: string | null }).target ?? null,
-        actionItems: [],
+        actionItems: actionItemsOf(task.action_items, task.task_id, (task as { target?: string | null }).target ?? null),
         milestone: milestone.milestone_id,
         ...(NODE_KINDS.includes(task.node_kind as NodeKind) ? { nodeKind: task.node_kind as NodeKind } : {}),
       });

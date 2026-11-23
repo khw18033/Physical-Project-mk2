@@ -369,6 +369,11 @@ export function UtterancePanel({ fallbackText }: { fallbackText: string }) {
    * 있다(10단계 보고서). 켠 근거는 **형식이 안정적이고 제안일 뿐**이라는 것이다.
    */
   const [genTasks, setGenTasks] = useState(true);
+  /**
+   * 액션 아이템까지 낼 것인가 (261123 — AI 생성 임무 실행기). **기본은 꺼짐이다** — 켜면 프롬프트 규칙이 바뀐다
+   * (gen-lab `actions` 스위치). 태스크가 꺼져 있으면 붙을 자리가 없어 같이 꺼진다. 켜야 생성 임무에 걸음이 생긴다.
+   */
+  const [genActions, setGenActions] = useState(false);
   const [genPhase, setGenPhase] = useState<'idle' | 'running' | 'done' | 'failed'>('idle');
   /** 진행 표시 — 최대 12.2초다. 그동안 화면이 멎으면 안 된다(지시서 §6). */
   const [genElapsed, setGenElapsed] = useState(0);
@@ -564,8 +569,9 @@ export function UtterancePanel({ fallbackText }: { fallbackText: string }) {
         equipment: equipmentVocabulary,
         // **규칙과 예시를 함께 켠다.** 규칙만 바꾸고 예시를 그대로 두면 프롬프트가 서로
         // 반대되는 지시 둘을 들고, 실측에서 예시가 이겼다 (10단계 E 판 15건 중 10건).
-        examples: examplesForUtterance(SCRIPT_LIBRARY, matchedMissionId, { tasks: genTasks }),
+        examples: examplesForUtterance(SCRIPT_LIBRARY, matchedMissionId, { tasks: genTasks, actions: genTasks && genActions }),
         tasks: genTasks,
+        actions: genTasks && genActions,
         model: genModel,
         missionId,
         utteranceMeta,
@@ -594,7 +600,7 @@ export function UtterancePanel({ fallbackText }: { fallbackText: string }) {
       if (unavailable && caught.kind === 'offline') setGenStatus('unavailable');
       setGenPhase('failed');
     }
-  }, [genAble.canGenerate, genModel, genTasks]);
+  }, [genAble.canGenerate, genModel, genTasks, genActions]);
 
   /** 나란히 뜬 AI 결과를 제안으로 올린다. **여전히 승인 앞이다** — 올리는 것과 승인은 다르다. */
   const switchToGenerated = useCallback(() => {
@@ -801,6 +807,12 @@ export function UtterancePanel({ fallbackText }: { fallbackText: string }) {
             <input type="checkbox" checked={genTasks} disabled={genPhase === 'running'}
               onChange={(event) => setGenTasks(event.target.checked)} />
             {t('gen.withTasks')} <small>{t('gen.withTasksHint', { sec: GENERATE_MAX_SEC_TASKS })}</small>
+          </label>
+          {/* 액션 아이템까지 (261123). 켜야 승인 뒤 로봇에 걸음이 나간다 — 값은 승인 칸에서 사람이 채운다. */}
+          <label className="gen-model">
+            <input type="checkbox" checked={genTasks && genActions} disabled={genPhase === 'running' || !genTasks}
+              onChange={(event) => setGenActions(event.target.checked)} />
+            {t('gen.withActions')} <small>{t('gen.withActionsHint')}</small>
           </label>
         </p>
       )}

@@ -434,6 +434,18 @@ export function turnStepCommands(deg: number, taskId: string): { steps: TaskComm
 }
 
 /**
+ * **한 번 곧게 간다** (261123 — AI 생성 임무 실행기). 사람이 승인 칸에 채운 거리를 정량 명령과 **같은 함수**로 자른다 —
+ * 0.05 m 미만이면 안 내고(빈 목록), 시한 안에 못 끝나면 고르게 나눈다.
+ */
+export function forwardStepCommands(metres: number, taskId: string, vx: number = STEP_VX): { steps: TaskCommand[]; reads: string[]; notes: { key: string; vars?: Record<string, string | number> }[] } {
+  const steps: TaskCommand[] = [];
+  const reads: string[] = [];
+  const notes: { key: string; vars?: Record<string, string | number> }[] = [];
+  pushForward(metres, vx, forwardChunkM(vx), steps, reads, notes);
+  return { steps: steps.map((step) => ({ ...step, taskId })), reads, notes };
+}
+
+/**
  * **가상 맵의 경로를 걸음으로 푼다** (260927 — 장치 두 대 편 · Go1 실동작).
  *
  * 경로는 꼭짓점 목록이고(site-global · m), 로봇이 받는 말은 「돌아라 · 가라」뿐이다. 그래서 구간마다

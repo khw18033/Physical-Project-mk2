@@ -37,7 +37,11 @@ export type ActionItemCommand = {
   /** **기다림이 끝났다.** 이 칸이 있으면 「영영 안 왔다」, 없으면 「아직 기다리는 중」이다. */
   expired?: { atSec: number; waitedMs: number; reason: string };
 };
-export type ActionItem = { id: string; label: string; params: Record<string, string | number>; status: TaskStatus; command?: ActionItemCommand };
+/**
+ * `target` (261123 — AI 생성 임무 실행기): 생성기가 그 액션 아이템에 적은 장비(레지스트리 이름). 생성 임무에서만 온다 —
+ * 대본 편의 액션 아이템에는 없고, 없으면 태스크의 `target` 을 본다.
+ */
+export type ActionItem = { id: string; label: string; params: Record<string, string | number>; status: TaskStatus; command?: ActionItemCommand; target?: string | null };
 /**
  * 대본 재생(260831) 확장 — 대체가 아니다.
  *  - `target`: 대상 장비가 없는 태스크(임무 종료 처리)는 null. 옛 파일은 전부 문자열이다.
