@@ -741,8 +741,6 @@ button.robot-stop:hover{background:#b8271f}
 .scan-strip__cell.scan-angle--found{border-color:#2e7d32}
 .scan-strip__cell.scan-angle--missed{border-color:#e08a1e}
 .scan-strip__cell.is-focus{outline:2px solid #1d4f91;outline-offset:1px}
-.conn-source{display:flex;align-items:center;gap:6px;margin:4px 0 6px;font-size:13px}
-.conn-source small{color:#4a5666}
 .conn-sub{margin-top:8px;padding:6px 8px;border-left:3px solid #b9c6d6}
 .conn-sub h4{margin:0 0 4px;font-size:13px}
 .conn-sub--idle{opacity:.55}

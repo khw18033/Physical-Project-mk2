@@ -2469,7 +2469,7 @@ export const en: Record<string, string> = {
   'sd.source.title': "Which of the two missions with the same sentence (old detector or data_stream) the utterance matches. Cannot change while a mission runs",
   'sd.source.legacy': "Old detector (:8000)",
   'sd.source.datastream': "data_stream",
-  'sd.source.local': "(gateway unreachable — this screen only)",
+  'sd.source.local': "The gateway is unreachable — applied to this screen only",
   'sd.source.blockedRunning': "Not changed — a mission is running",
   'sd.legacyBlock': "Old detector (:8000) — used by the old missions (door · box · @)",
   'sd.cue.detector': "Detector",

@@ -2494,7 +2494,7 @@ export const ko: Record<string, string> = {
   'sd.source.title': "같은 문장의 옛 탐지기 편과 data_stream 편 중 어느 쪽이 발화에 맞춰지는가. 임무가 도는 중에는 바꾸지 못합니다",
   'sd.source.legacy': "옛 탐지기 (:8000)",
   'sd.source.datastream': "data_stream",
-  'sd.source.local': "(게이트웨이에 못 닿아 이 화면만)",
+  'sd.source.local': "게이트웨이에 못 닿아 이 화면에만 적용했습니다",
   'sd.source.blockedRunning': "임무가 도는 중이라 바꾸지 못했습니다",
   'sd.legacyBlock': "옛 탐지기 (:8000) — 옛 편(문 · 박스 · @)에서 씁니다",
   'sd.cue.detector': "탐지기",

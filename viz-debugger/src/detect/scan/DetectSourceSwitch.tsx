@@ -15,12 +15,16 @@ export function DetectSourceSwitch() {
   const mode = useDetectSource();
   const sync = useDetectSourceSync();
   useEffect(() => { void pullDetectSource(); }, []);
-  return <label className="conn-source" title={t('sd.source.title')}>
-    {t('sd.source.label')}{' '}
-    <select value={mode} onChange={(event) => { void changeDetectSource(event.target.value as DetectSourceMode); }}>
-      {DETECT_SOURCE_MODES.map((option) => <option key={option} value={option}>{t(`sd.source.${option}`)}</option>)}
-    </select>
-    {!sync.synced && <small> {t('sd.source.local')}</small>}
-    {sync.blockedKey !== null && <small> {t(sync.blockedKey)}</small>}
-  </label>;
+  // 연결 판의 다른 칸과 같은 모양 — 왼쪽 칸 이름 · 같은 선택 상자(`conn-preset`). 알림은 그 아래 한 줄.
+  return <>
+    <label title={t('sd.source.title')}>
+      <span>{t('sd.source.label')}</span>
+      <select className="conn-preset" value={mode} onChange={(event) => { void changeDetectSource(event.target.value as DetectSourceMode); }}>
+        {DETECT_SOURCE_MODES.map((option) => <option key={option} value={option}>{t(`sd.source.${option}`)}</option>)}
+      </select>
+    </label>
+    {(!sync.synced || sync.blockedKey !== null) && <p className="conn-unsaved">
+      {sync.blockedKey !== null ? t(sync.blockedKey) : t('sd.source.local')}
+    </p>}
+  </>;
 }
