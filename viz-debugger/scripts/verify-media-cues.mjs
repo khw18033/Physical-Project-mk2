@@ -21,9 +21,10 @@ const controls = [];
 {
   const { CONNECTION_TARGETS } = await load('src', 'shared', 'connections.ts');
   const v3d = CONNECTION_TARGETS.find((item) => item.id === 'virtual-3d');
-  if (!v3d?.fields.some((field) => field.key === 'video' && field.video === true)) failures.push('3D 가상환경에 동영상 칸이 없다');
+  // 261123 지시 — **동영상 칸을 연결 관리에서 뺐다**(일회용 시연용). 칸이 다시 생기면 안 된다. 노드가 이미 저장된 영상을 읽는 길(아래 4)은 남는다.
+  if (v3d?.fields.some((field) => field.video === true)) failures.push('3D 가상환경에 동영상 칸이 남아 있다 — 261123 지시로 뺐다');
   const ai = CONNECTION_TARGETS.find((item) => item.id === 'autodrive-ai');
-  if (ai?.fields.find((field) => field.key === 'base')?.videoPerRow !== true) failures.push('장애물 탐지 영상 주소마다 동영상 칸이 없다');
+  if (ai?.fields.some((field) => field.videoPerRow === true)) failures.push('장애물 탐지 영상에 주소마다 동영상 칸이 남아 있다 — 261123 지시로 뺐다');
   const panel = read('src', 'shell', 'ConnectionsPanel.tsx');
   if (!/field\.videoPerRow === true && splitAddressList\(current\[key\]/.test(panel)) failures.push('동영상 칸이 저장된 주소마다 그려지지 않는다');
   if (!/storageKey=\{`\$\{target\.id\}\.video@\$\{row/.test(panel)) failures.push('주소마다 다른 키로 저장하지 않는다 — 한 영상이 모든 주소에 쓰인다');
@@ -45,7 +46,8 @@ const controls = [];
   }
   const { CONNECTION_TARGETS } = await load('src', 'shared', 'connections.ts');
   const v3d = CONNECTION_TARGETS.find((item) => item.id === 'virtual-3d');
-  if (JSON.stringify(v3d?.fields.filter((f) => f.video === true).map((f) => f.key)) !== '["video","video2"]') failures.push('3D 가상환경에 동영상 칸이 둘(모니터링 · 두 번째 장치 이동)이 아니다');
+  // 261123 지시 — 동영상 칸을 뺐으므로 둘이 아니라 0 이다(재생 시점 선언은 대본에 남아 있다).
+  if ((v3d?.fields.filter((f) => f.video === true).length ?? 0) !== 0) failures.push('3D 가상환경에 동영상 칸이 남아 있다 — 261123 지시로 뺐다');
 }
 
 // ── 3. 위치 규칙 ────────────────────────────────────────────────────────────────
@@ -90,7 +92,7 @@ if (failures.length) {
   console.error(`❌ verify:media-cues\n- ${failures.join('\n- ')}`);
   process.exit(1);
 }
-console.log('✅ 칸 — 3D 가상환경 한 칸 · 장애물 탐지 영상은 저장된 주소마다 한 칸(키가 주소별)');
+console.log('✅ 칸 — 연결 관리에 동영상 칸 없음(261123 지시) · 패널의 동영상 칸 그리기는 주소별 키로 남아 있다');
 console.log('✅ 시점 — 이상 탐지 편에만: 탐지 영상은 첫 번째 장치 이동 · 3D 가상환경은 두 번째 장치 이동');
 console.log('✅ 위치 — 시작 전 0 에서 멈춤 · 시작 뒤 머리 − 시작 · 판이 멈추면 멈춤 · 안 붙였으면 실시간 그대로');
 console.log(`✅ 대조군 ${controls.length}건 — ${controls.join(' · ')}`);

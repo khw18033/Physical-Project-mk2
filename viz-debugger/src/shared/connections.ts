@@ -139,15 +139,20 @@ export type ConnectionTarget = {
   live: boolean;
   /** `live: false` 의 사유 — **사전 키**. 있는 것만 적는다. */
   pendingKey?: string;
+  /**
+   * **연결 관리 판에 안 그린다** (261123 지시). 대상과 저장 키는 남는다 — 그 값을 읽는 기능 · 확인 · 검사가 목록을 본다.
+   * 주소를 따로 받는 자리가 있는 대상(생성 서비스 — `views/GenerateAddress.tsx`)이나 지금 안 쓰는 대상이다.
+   */
+  hidden?: true;
 };
 
 /** **대상 목록의 유일한 원천.** 화면은 이것을 그린다. */
 /**
  * **대상 목록의 유일한 원천.** 화면은 이것을 그린다.
  *
- * **순서가 화면의 순서다** (260912 지시). 지금 실제로 쓰는 둘 — 로봇과 객체 탐지 — 이
- * 맨 위다. 시연 직전에 확인해야 하는 것이 그 둘이고, 아래로 내려가면 스크롤한 만큼
- * 늦게 눈에 들어온다. 나머지는 쓰던 순서 그대로 뒤에 선다.
+ * **순서가 화면의 순서다** (260912 지시). 261123 지시로 맨 위 여섯을 정했다 — 로봇 · 카메라 · 객체 탐지 추론 스트림 ·
+ * 3D 가상환경 · 가상 맵 · 장애물 탐지 영상. 나머지는 그 뒤에 쓰던 순서대로 선다. 옛 「객체 탐지」(`detect`)는 판에서
+ * 「객체 탐지 추론 스트림」 칸 안에 그린다(`shell/ConnectionsPanel.tsx`). `hidden` 인 대상은 판에 안 그린다.
  */
 export const CONNECTION_TARGETS: readonly ConnectionTarget[] = [
   {
@@ -176,6 +181,60 @@ export const CONNECTION_TARGETS: readonly ConnectionTarget[] = [
     fields: [{ key: 'url', labelKey: 'conn.field.imageLink', fallback: '', list: true, addKey: 'conn.addCamera', rowLabelKey: 'conn.cameraRow' }],
   },
   {
+    // 261001 — 객체 탐지 추론 스트림(`server_stream_multi_source.py` · `vision_infer.py`). 포트 하나가 소스 하나라
+    // **줄마다 포트 하나**다. 장애물 탐지(`autodrive-ai`) · 문 찾기(`detect`)와 다른 서버다.
+    // 주소는 여기 적지 않는다 — 기본값은 `src/vision/visionClient.ts` 가 심는다.
+    // **IP 와 포트를 가른다** (261001 지시) — IP 만 바뀌고 포트는 그대로인 일이 있다. IP 칸 하나를 고치면 포트 줄이 다 따라간다.
+    id: 'vision',
+    labelKey: 'conn.target.vision',
+    whatKey: 'conn.target.vision.what',
+    live: true,
+    fields: [
+      { key: 'host', labelKey: 'conn.field.host', fallback: '' },
+      { key: 'ports', labelKey: 'conn.field.ports', fallback: '', list: true, addKey: 'conn.addPort' },
+    ],
+  },
+  {
+    /**
+     * 260929 — **3D 가상환경.** 3D 디지털트윈 가상환경 화면의 주소다. 모든 편의 「3D 가상환경」 노드가 이 칸을 읽는다.
+     * 기본값은 사용자가 준 주소이고, 환경변수(`VITE_VIRTUAL_3D_BASE`)가 있으면 그것이 이긴다.
+     */
+    id: 'virtual-3d',
+    labelKey: 'conn.target.virtual3d',
+    whatKey: 'conn.target.virtual3d.what',
+    live: true,
+    fields: [
+      { key: 'base', labelKey: 'conn.field.base', fallback: 'http://100.68.72.33:8080/' },
+      // 261123 — 동영상 두 칸(`video` · `video2`)을 뺐다. 일회용 시연용이었다(지시 2).
+    ],
+  },
+  {
+    /**
+     * 260927 — **가상 맵.** 전까지 자리만 잡아 둔 「디지털 트윈」이었다(상대 없음). 장치 두 대 편의
+     * 가상 맵 노드가 이 칸을 읽는다: Unity 화면 주소(WebGL 빌드 · 스트리밍 페이지)를 넣으면 그것을 띄우고,
+     * **비워 두면 2D 맵을 그린다.** 노드 버튼을 Unity · 2D 둘로 늘리지 않고 여기서 가른다(260927 지시).
+     *
+     * id 는 그대로 둔다 — 저장된 설정(`viz.connections.v1`)의 키가 이 id 로 만들어져 있다.
+     * 화면은 이 주소를 틀에 띄우기만 하고 Unity 와 말을 주고받지 않는다 — 명령 출구는 여전히 하나다.
+     */
+    id: 'digital-twin',
+    labelKey: 'conn.target.digitalTwin',
+    whatKey: 'conn.target.digitalTwin.what',
+    live: true,
+    fields: [{ key: 'base', labelKey: 'conn.field.unity', fallback: '' }],
+  },
+  {
+    // 260915 — 자율주행 편의 AI 서버(로봇 앞 카메라). 문 찾기 시연의 객체 탐지(`detect`)와 **다른 서버**다.
+    // 주소는 여기 적지 않는다 — 기본값은 `src/autodrive/aiClient.ts` 가 심는다.
+    id: 'autodrive-ai',
+    labelKey: 'conn.target.autodriveAi',
+    whatKey: 'conn.target.autodriveAi.what',
+    live: true,
+    // 260929 — **둘 이상 동시에.** 로봇 브로커와 같은 목록 칸이다. 첫 줄이 기본이고, 탐지 영상 · 객체 탐지 로그
+    // 노드가 확대에서 주소를 고른다. 한 줄만 적힌 옛 설정은 그대로 첫 줄이 된다 — 옮길 것이 없다.
+    fields: [{ key: 'base', labelKey: 'conn.field.base', fallback: '', list: true }],
+  },
+  {
     id: 'detect',
     labelKey: 'conn.target.detect',
     live: true,
@@ -190,35 +249,12 @@ export const CONNECTION_TARGETS: readonly ConnectionTarget[] = [
     // 260915 — 자율주행 편. 문 찾기 시연(`physical`, pi7)과 **기계도 브로커도 다르다.**
     // 주소는 여기 적지 않는다 — 기본값은 `src/physical/NavClient.ts` 가 심는다(로봇과 같은 규칙).
     id: 'autodrive',
+    // 261123 — 연결 관리에서 뺐다(지시 3 · 4). 저장된 값과 기본값은 그대로 읽힌다 — 판에만 안 그린다.
+    hidden: true,
     labelKey: 'conn.target.autodrive',
     whatKey: 'conn.target.autodrive.what',
     live: true,
     fields: [{ key: 'ws', labelKey: 'conn.field.ws', fallback: '' }],
-  },
-  {
-    // 260915 — 자율주행 편의 AI 서버(로봇 앞 카메라). 문 찾기 시연의 객체 탐지(`detect`)와 **다른 서버**다.
-    // 주소는 여기 적지 않는다 — 기본값은 `src/autodrive/aiClient.ts` 가 심는다.
-    id: 'autodrive-ai',
-    labelKey: 'conn.target.autodriveAi',
-    whatKey: 'conn.target.autodriveAi.what',
-    live: true,
-    // 260929 — **둘 이상 동시에.** 로봇 브로커와 같은 목록 칸이다. 첫 줄이 기본이고, 탐지 영상 · 객체 탐지 로그
-    // 노드가 확대에서 주소를 고른다. 한 줄만 적힌 옛 설정은 그대로 첫 줄이 된다 — 옮길 것이 없다.
-    fields: [{ key: 'base', labelKey: 'conn.field.base', fallback: '', list: true, videoPerRow: true }],
-  },
-  {
-    // 261001 — 객체 탐지 추론 스트림(`server_stream_multi_source.py` · `vision_infer.py`). 포트 하나가 소스 하나라
-    // **줄마다 포트 하나**다. 장애물 탐지(`autodrive-ai`) · 문 찾기(`detect`)와 다른 서버다.
-    // 주소는 여기 적지 않는다 — 기본값은 `src/vision/visionClient.ts` 가 심는다.
-    // **IP 와 포트를 가른다** (261001 지시) — IP 만 바뀌고 포트는 그대로인 일이 있다. IP 칸 하나를 고치면 포트 줄이 다 따라간다.
-    id: 'vision',
-    labelKey: 'conn.target.vision',
-    whatKey: 'conn.target.vision.what',
-    live: true,
-    fields: [
-      { key: 'host', labelKey: 'conn.field.host', fallback: '' },
-      { key: 'ports', labelKey: 'conn.field.ports', fallback: '', list: true, addKey: 'conn.addPort' },
-    ],
   },
   {
     // 260920 — 기능 상태 서비스(`perception-framework/tools/status_ui`). **실제 배치는 k3s 안이라
@@ -289,6 +325,8 @@ export const CONNECTION_TARGETS: readonly ConnectionTarget[] = [
   },
   {
     id: 'generate',
+    // 261123 — 연결 관리에서 뺐다(지시 3 · 4). 저장된 값과 기본값은 그대로 읽힌다 — 판에만 안 그린다.
+    hidden: true,
     labelKey: 'conn.target.generate',
     whatKey: 'conn.target.generate.what',
     live: true,
@@ -304,57 +342,28 @@ export const CONNECTION_TARGETS: readonly ConnectionTarget[] = [
   },
   {
     /**
-     * 260927 — **가상 맵.** 전까지 자리만 잡아 둔 「디지털 트윈」이었다(상대 없음). 장치 두 대 편의
-     * 가상 맵 노드가 이 칸을 읽는다: Unity 화면 주소(WebGL 빌드 · 스트리밍 페이지)를 넣으면 그것을 띄우고,
-     * **비워 두면 2D 맵을 그린다.** 노드 버튼을 Unity · 2D 둘로 늘리지 않고 여기서 가른다(260927 지시).
-     *
-     * id 는 그대로 둔다 — 저장된 설정(`viz.connections.v1`)의 키가 이 id 로 만들어져 있다.
-     * 화면은 이 주소를 틀에 띄우기만 하고 Unity 와 말을 주고받지 않는다 — 명령 출구는 여전히 하나다.
-     */
-    id: 'digital-twin',
-    labelKey: 'conn.target.digitalTwin',
-    whatKey: 'conn.target.digitalTwin.what',
-    live: true,
-    fields: [{ key: 'base', labelKey: 'conn.field.unity', fallback: '' }],
-  },
-  {
-    /**
-     * 260929 — **3D 가상환경.** 3D 디지털트윈 가상환경 화면의 주소다. 모든 편의 「3D 가상환경」 노드가 이 칸을 읽는다.
-     * 기본값은 사용자가 준 주소이고, 환경변수(`VITE_VIRTUAL_3D_BASE`)가 있으면 그것이 이긴다.
-     */
-    id: 'virtual-3d',
-    labelKey: 'conn.target.virtual3d',
-    whatKey: 'conn.target.virtual3d.what',
-    live: true,
-    fields: [
-      { key: 'base', labelKey: 'conn.field.base', fallback: 'http://100.68.72.33:8080/' },
-      // 260929 — 영상 둘. 어느 노드가 시작될 때 틀지는 대본(`params.media_cues`)이 정하고, 칸 이름이 그것을 사람에게 말한다.
-      { key: 'video', labelKey: 'conn.field.video3dMonitor', fallback: '', video: true },
-      { key: 'video2', labelKey: 'conn.field.video3dMove', fallback: '', video: true },
-    ],
-  },
-  {
-    /**
      * 260929 — **SAR 노드가 띄울 것.** 지금은 이미지 한 장을 붙인다(`imageStore.ts` — 이 브라우저 안). 주소 칸에
      * 이미지 주소를 넣으면 그 주소가 이긴다 — 서비스가 생기면 주소만 넣으면 되고 이 판을 다시 만들지 않는다.
      */
     id: 'sar',
+    // 261123 — 연결 관리에서 뺐다(지시 3 · 4). 저장된 값과 기본값은 그대로 읽힌다 — 판에만 안 그린다.
+    hidden: true,
     labelKey: 'conn.target.sar',
     whatKey: 'conn.target.sar.what',
     live: true,
     fields: [
-      { key: 'image', labelKey: 'conn.field.image', fallback: '', image: true },
       { key: 'base', labelKey: 'conn.field.imageUrl', fallback: '' },
     ],
   },
   {
     /** 260929 — **3D 복원 노드가 띄울 것.** SAR 과 같은 규칙이다. */
     id: 'recon-3d',
+    // 261123 — 연결 관리에서 뺐다(지시 3 · 4). 저장된 값과 기본값은 그대로 읽힌다 — 판에만 안 그린다.
+    hidden: true,
     labelKey: 'conn.target.recon3d',
     whatKey: 'conn.target.recon3d.what',
     live: true,
     fields: [
-      { key: 'image', labelKey: 'conn.field.image', fallback: '', image: true },
       { key: 'base', labelKey: 'conn.field.imageUrl', fallback: '' },
     ],
   },

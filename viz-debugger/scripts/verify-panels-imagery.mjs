@@ -49,7 +49,9 @@ const panelSource = read('src', 'shell', 'ConnectionsPanel.tsx');
   for (const id of ['sar', 'recon-3d']) {
     const target = CONNECTION_TARGETS.find((item) => item.id === id);
     if (target === undefined || !target.live) { failures.push(`연결 관리에 ${id} 대상이 없다`); continue; }
-    if (!target.fields.some((field) => field.image === true)) failures.push(`${id} 에 이미지 칸이 없다`);
+    // 261123 지시 — SAR 영상 · 3D 복원은 연결 관리에서 뺐고(hidden) 이미지 칸도 없앴다. 저장된 값은 노드가 그대로 읽는다.
+    if (target.fields.some((field) => field.image === true)) failures.push(`${id} 에 이미지 칸이 남아 있다 — 261123 지시로 뺐다`);
+    if (target.hidden !== true) failures.push(`${id} 가 연결 관리에 그려진다 — 261123 지시로 뺐다`);
     if (!target.fields.some((field) => field.key === 'base' && field.image !== true)) failures.push(`${id} 에 이미지 주소 칸이 없다 — 서비스가 생기면 판을 다시 만들어야 한다`);
   }
   if (!/field\.image === true\) return <ImageField/.test(panelSource)) failures.push('연결 관리가 이미지 칸을 파일 칸으로 안 그린다');

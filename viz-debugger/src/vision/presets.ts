@@ -28,13 +28,24 @@ export const VISION_STREAM_PORTS: readonly { port: number; source: string }[] = 
   { port: 10002, source: 'drone' },
   { port: 10003, source: 'robot1' },
   { port: 10004, source: 'robot2' },
+  // 261123 — data_stream `70da254` 의 `SOURCES` 에 있는데 여기 빠져 있던 넷(realsense · cam360_slice · a2 · drone2)을 더했다.
+  { port: 10005, source: 'realsense' },
+  { port: 10006, source: 'cam360_slice' },
+  { port: 10007, source: 'a2' },
   // 261113 — 모듈 카메라 파이 셋(CSI imx708 · 영상만, 상태 없음). 10010 은 서버 기계에서 다른 프로그램이 쓰고 있어 건너뛴다
   { port: 10008, source: 'pi11' },
   { port: 10009, source: 'pi12' },
   { port: 10011, source: 'pi13' },
+  { port: 10012, source: 'drone2' },
 ];
 
-export const VISION_DEFAULT_PORTS: readonly string[] = VISION_STREAM_PORTS.map(({ port }) => String(port));
+/**
+ * **처음 깔리는 포트 줄** — 고를 수 있는 것(위 표)과 따로 둔다. 261123 에 더한 넷은 고르기에만 넣고 기본 줄에는 안 넣었다 —
+ * 줄마다 `/health` 를 1초마다 묻고, 연결 관리를 안 열어 본 사람의 화면에 안 쓰는 장비 카드가 늘어난다.
+ */
+const DEFAULT_SOURCES = ['cam360', 'drone', 'robot1', 'robot2', 'pi11', 'pi12', 'pi13'];
+export const VISION_DEFAULT_PORTS: readonly string[] = VISION_STREAM_PORTS
+  .filter(({ source }) => DEFAULT_SOURCES.includes(source)).map(({ port }) => String(port));
 
 /** IP 칸에서 고르는 것. */
 export const VISION_HOST_PRESETS: readonly VisionPreset[] = [

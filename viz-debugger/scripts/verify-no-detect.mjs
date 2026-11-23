@@ -46,9 +46,11 @@ const controls = [];
   }
   // **지금 쓰는 둘이 맨 위다** (260912 지시). 시연 직전에 확인하는 것이 로봇과 탐지다.
   // 261002 지시 — 고정 카메라는 **로봇 바로 아래**다. 그래서 맨 위 셋이 로봇 · 고정 카메라 · 탐지다.
-  const top = CONNECTION_TARGETS.slice(0, 3).map((t) => t.id).join(',');
-  if (top !== 'physical,fixed-camera,detect') {
-    failures.push(`연결 관리 맨 위 셋이 [${top}] 다 — physical,fixed-camera,detect 여야 한다`);
+  // 261123 지시 — 맨 위 여섯: 로봇 · 카메라 · 객체 탐지 추론 스트림 · 3D 가상환경 · 가상 맵 · 장애물 탐지 영상.
+  // 옛 「객체 탐지」(detect)는 「객체 탐지 추론 스트림」 칸 안에 그려진다(`ConnectionsPanel.tsx`).
+  const top = CONNECTION_TARGETS.slice(0, 6).map((t) => t.id).join(',');
+  if (top !== 'physical,fixed-camera,vision,virtual-3d,digital-twin,autodrive-ai') {
+    failures.push(`연결 관리 맨 위 여섯이 [${top}] 다 — physical,fixed-camera,vision,virtual-3d,digital-twin,autodrive-ai 여야 한다`);
   }
 }
 
@@ -158,7 +160,7 @@ if (failures.length) {
   console.error(`❌ verify:no-detect\n- ${failures.join('\n- ')}`);
   process.exit(1);
 }
-console.log('✅ detect 자리가 맨 위(로봇 · 고정 카메라 다음)에 있고, 늘 떠 있는 설명 없이 상태 줄이 그때 사유를 말한다');
+console.log('✅ 맨 위 여섯이 로봇 · 카메라 · 객체 탐지 추론 스트림 · 3D 가상환경 · 가상 맵 · 장애물 탐지 영상(261123), detect 는 늘 떠 있는 설명 없이 상태 줄이 그때 사유를 말한다');
 console.log('✅ detect 확인이 던지지 않는다 — 눌러도 팝업이 안 날아간다');
 console.log('✅ 상대 없는 detect 가 나머지 셋을 안 끌어내린다 — 표시등이 아무도 안 짚는다 (모름은 끊김이 아니다)');
 console.log('✅ 탐지 없이도 대본으로 뷰포인트가 찬다 · 테스트를 켜면 받아 둔 실제 산출물로 돈다');

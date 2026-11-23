@@ -363,7 +363,7 @@ export function ConnectionsPanel({ onClose, physical }: { onClose(): void; physi
       (옛 탐지기 / data_stream)을 그 칸 맨 위에서 고르고 옛 탐지기 주소 · 확인은 그 칸 안에 함께 둔다. 대상 목록
       (`CONNECTION_TARGETS`)과 저장 키(`detect.base`)는 그대로다 — 저장된 주소와 확인 · 머리줄 표시등이 그 목록을 본다.
     */}
-    {CONNECTION_TARGETS.map((target) => target.id === 'detect' ? null : <section key={target.id} className={`conn-target${target.live ? '' : ' conn-target--pending'}`}>
+    {CONNECTION_TARGETS.map((target) => target.id === 'detect' || target.hidden === true ? null : <section key={target.id} className={`conn-target${target.live ? '' : ' conn-target--pending'}`}>
       {/* 대상 이름·설명은 `shared/connections.ts` 가 **키로** 들고 있다 — 여기서 푼다.
           그 파일에서 t() 를 부르면 모듈 최상위 상수라 언어가 로드 시점에 굳는다 (260918). */}
       <h3>{t(target.labelKey)}{target.live ? null : <em>{t('conn.pendingBadge')}</em>}</h3>
