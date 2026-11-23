@@ -13,6 +13,7 @@
  * 단서 이름은 data_stream 이 영어로 주므로, 사전에 있는 이름만 옮기고 없으면 영어 그대로 둔다.
  */
 
+import { useState } from 'react';
 import { t } from '../../i18n/dict.ts';
 import { getLang, useLang } from '../../shared/language.ts';
 import { issueScanApproach, useScanApproach } from '../../physical/scanDetectLink.ts';
@@ -131,4 +132,48 @@ export function ScanDetectFacts({ taskId }: { taskId: string }) {
     {failure}
     {body}
   </section>;
+}
+
+// ── 팔레트 뷰 노드 (`detect-cam` · `detect-reason` — 새 흐름 편에서) ──────────────────
+
+/** 크게 볼 각도: 고른 것 > 결과의 best > 마지막으로 수집한 각도. */
+function focusAngle(run: ScanRunState, picked: number | null): ScanAngle | null {
+  if (picked !== null && run.angles[picked] !== undefined) return run.angles[picked];
+  const best = run.result?.best ?? null;
+  if (best !== null) return run.angles.find((angle) => angle.deg === best.rotation_deg) ?? null;
+  const seen = run.angles.filter((angle) => angle.captured !== null);
+  return seen.length > 0 ? seen[seen.length - 1] : null;
+}
+
+/** 탐지 영상 노드 — 지금 보는(또는 찾은) 각도를 크게, 아래에 여덟 각도. 각도를 누르면 그 각도를 크게, 한 번 더 누르면 원래대로. */
+export function ScanSweepNode({ zoom = false }: { zoom?: boolean }) {
+  useLang();
+  const run = useScanRun();
+  const [picked, setPicked] = useState<number | null>(null);
+  if (run === null) return <p className="scan-facts__wait">{t('sd.notStarted')}</p>;
+  const focus = focusAngle(run, picked);
+  return <div className={`scan-node${zoom ? ' scan-node--zoom' : ''}`}>
+    {focus === null ? <p className="scan-facts__wait">{t('sd.angle.empty')}</p> : <Angle run={run} index={focus.index} />}
+    <div className="scan-strip">
+      {run.angles.map((angle) => {
+        const view = angleImage(run, angle);
+        return <button key={angle.index} type="button" className={`scan-strip__cell scan-angle--${view.tone}${focus?.index === angle.index ? ' is-focus' : ''}`}
+          title={`${angle.deg}° · ${view.label}`} onClick={() => setPicked(picked === angle.index ? null : angle.index)}>
+          {view.url !== null ? <img src={view.url} alt={t('sd.angle.alt', { deg: angle.deg })} /> : <span>{angle.deg}°</span>}
+        </button>;
+      })}
+    </div>
+    {run.failure !== null && <p className="scan-facts__bad">{t('sd.failed', { stage: run.failure.stage, code: run.failure.code, detail: run.failure.detail })}</p>}
+  </div>;
+}
+
+/** 판단 근거 노드 — 위치 · 단서 표 · 대상 그림. */
+export function ScanReasonNode({ zoom = false }: { zoom?: boolean }) {
+  useLang();
+  const run = useScanRun();
+  if (run === null) return <p className="scan-facts__wait">{t('sd.notStarted')}</p>;
+  return <div className={`scan-node${zoom ? ' scan-node--zoom' : ''}`}>
+    {run.failure !== null && <p className="scan-facts__bad">{t('sd.failed', { stage: run.failure.stage, code: run.failure.code, detail: run.failure.detail })}</p>}
+    <Evidence run={run} />
+  </div>;
 }

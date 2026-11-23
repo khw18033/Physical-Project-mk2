@@ -33,7 +33,8 @@ import { chosenFrame, gateWords, indexOfRotation, judgeScore, scoreLabelKey, spl
 import { fallBackFrameImage, frameImageSrc, useFrameImageFallbacks } from '../frameImage.ts';
 import { sweepDone } from '../detectBridge.ts';
 import { useDetect } from '../store.ts';
-import { detectTargetOf } from '../../scenarios/library.ts';
+import { detectTargetOf, scanDetectFlow } from '../../scenarios/library.ts';
+import { ScanReasonNode, ScanSweepNode } from '../scan/ScanDetectViews.tsx';
 import { noteScanImageFailed, noteScanImageShown, registerScanImageView } from '../../physical/scanGate.ts';
 import type { DetectFrame, DetectGate } from '../types.ts';
 
@@ -80,7 +81,16 @@ function viewpointCountOf(): number {
  * 스캔이 도는 동안에는 **마지막으로 본 각도**를 보여 준다 — 그래야 「지금 어디를 보고
  * 있나」가 화면에 남는다. 다 돌고 나면 고른 각도에 머문다.
  */
+/**
+ * **data_stream 스캔 흐름 편은 data_stream 그림을 그린다** (261123). 노드 종류(`detect-cam`)는 같고 원천만 다르다 — 옛 탐지기(`:8000`)
+ * 대신 data_stream 창구의 각도별 대표 프레임이다. 갈래를 컴포넌트로 나눠 훅 차례가 편마다 바뀌지 않게 한다.
+ */
 export function DetectCam({ zoom = false }: { zoom?: boolean }) {
+  const mission = useMission();
+  return scanDetectFlow(mission.current.missionId) ? <ScanSweepNode zoom={zoom} /> : <LegacyDetectCam zoom={zoom} />;
+}
+
+function LegacyDetectCam({ zoom = false }: { zoom?: boolean }) {
   useLang();
   const state = useDetect();
   useFrameImageFallbacks();   // 앞 그림이 안 떠 다음 주소로 넘어가면 다시 그린다
@@ -137,7 +147,13 @@ export function DetectCam({ zoom = false }: { zoom?: boolean }) {
  *
  * 찾았다는 판정은 **점수가 아니라 관문이 정한다.** 그래서 관문을 먼저, 점수를 뒤에 적는다.
  */
+/** 근거도 같은 갈래다 (261123) — data_stream 편은 그 결과의 위치 · 단서 표 · 대상 그림. */
 export function DetectReason({ zoom = false, count = 8 }: { zoom?: boolean; count?: number }) {
+  const mission = useMission();
+  return scanDetectFlow(mission.current.missionId) ? <ScanReasonNode zoom={zoom} /> : <LegacyDetectReason zoom={zoom} count={count} />;
+}
+
+function LegacyDetectReason({ zoom = false, count = 8 }: { zoom?: boolean; count?: number }) {
   useLang();
   const state = useDetect();
   const source = viewSourceOf(state);

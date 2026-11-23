@@ -14,13 +14,13 @@
 | S2 흐름 갈래 | 됨 — `scanDetectFlow()` · `scanFlow()` · `scanTargetOf()`. 관문 · 준비 · 이동 전 승인은 `scanFlow()`, 로봇 전용 옛 부품은 `doorScanFlow()` 그대로 | `src/scenarios/library.ts` |
 | S3 실행기 | 됨 — 순서는 `physical/scanDetectRun.ts`(순수), 실물 연결은 `physical/scanDetectLink.ts` (turn 은 `issueStepsToEnd`, 노드 seq 6M 대역) | |
 | S4 상태 | 됨 | `src/detect/scan/scanStore.ts` |
-| S5 각도 칸 | **일부** — 노드 상세(T-A3 · T-A4-n)에 각도 그림. 팔레트 뷰 노드(옛 `DetectCam` 자리)는 아직 | `src/detect/scan/ScanDetectViews.tsx` |
+| S5 각도 칸 | 됨 — 노드 상세(T-A3 · T-A4-n)와 팔레트 뷰 노드. 뷰 노드는 새 종류를 만들지 않고 `detect-cam` · `detect-reason` 이 새 흐름 편에서 data_stream 그림 · 근거를 그린다 | `src/detect/scan/ScanDetectViews.tsx` · `detect/views/DetectViews.tsx` |
 | S6 경로 | 됨 — 방위 부호는 `HEADING_TURN_SIGN = 1`(가짜 장치 기준, 실물 확인 필요) | `src/physical/scanApproach.ts` |
 | S7 근거 카드 | 됨 — 노드 상세(T-A5 · T-A6) | `ScanDetectViews.tsx` |
 | S8 편 셋 | 됨 — `MSN-261123-01~03` (+ `.en.json`), 옛 셋에 `detectSource: "legacy"` | `scenarios/` |
 | S9 탐지 방식 | 됨 — 매처가 거른다(호출부 무수정). 게이트웨이 `GET/POST /scan-detect-source` · 기동 값 `SCAN_DETECT_SOURCE`, 연결 판 「탐지」 줄에 고르기 | `scenarios/detectSource.ts` · `detect/scan/detectSourceSync.ts` |
 | S10 정지 · 기록 · 문구 | 됨 — 정지 → cancel, data_stream 요청을 명령 기록에(`data_stream.prepare` 등), 문구 `sd.*` 한 · 영 | |
-| S11 검사 | 됨 (`verify-scan-detect.mjs`) — 가짜 장치(`fakeDevice.ts`)로 끝까지 도는 화면 연결 검사는 아직 | |
+| S11 검사 | 됨 — `verify:scan-detect`(실행기 순서) · `verify:scan-detect-link`(승인 · 시작부터 이동까지 화면 연결, 회전 오차 8° 보정 · 찾지 못함 · 정지 · 옛 편 대조). 둘 다 돌연변이로 검사를 확인했다 | `npm run scan:mock` 으로 가짜 창구 |
 | @ 영어 옮기기 | 됨 — gen-lab `POST /generate/name_en`(문법으로 영어 소문자 1~4 낱말), 화면 `src/generate/nameEn.ts`. 실패하면 prepare 를 안 보낸다 | |
 
 ### data_stream 쪽에서 바뀐 것 (2026-11-23, `6013c10` ~ `70da254`)
