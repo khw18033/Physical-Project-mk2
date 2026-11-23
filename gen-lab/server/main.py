@@ -54,13 +54,20 @@ CONTRACTS_DIR = REPO_ROOT / "contracts"
 GOLDSET_DIR = LAB_ROOT / "goldset"
 PORT = int(os.environ.get("VIZ_GENERATE_PORT", "8802"))
 
+#: 듣는 주소 (261123). **기본은 이 장비 안에서만**(127.0.0.1)이다. GPU 가 큰 다른 PC 에 생성을 맡길 때만 그 PC 에서
+#: `GEN_LAB_HOST` 를 준다 — Tailscale 주소(예: 100.125.71.51)를 주면 tailnet 안에서만, 0.0.0.0 이면 모든 망에서 받는다.
+#: 인증이 없는 서비스라 넓게 열수록 아무나 GPU 를 쓸 수 있다. Tailscale 주소를 권한다.
+HOST = os.environ.get("GEN_LAB_HOST", "127.0.0.1")
+
 # 브라우저에서 직접 부른다. 개발 서버(5174)와 포트가 다르므로 출처를 열어 둔다.
-# 127.0.0.1 바인딩이라 이 목록 밖에서는 애초에 닿지 않는다.
+# 다른 PC 의 화면이 부를 때도 그 화면을 `localhost:5174` 로 열었다면 출처는 아래 목록 그대로다 — 출처는 **화면을 연 주소**이지
+# gen-lab 의 주소가 아니다. 화면을 다른 주소로 열었으면 `GEN_LAB_ORIGINS` 에 쉼표로 더한다.
 ALLOWED_ORIGINS = [
     "http://127.0.0.1:5174",
     "http://localhost:5174",
     "http://127.0.0.1:5173",
     "http://localhost:5173",
+    *[origin.strip() for origin in os.environ.get("GEN_LAB_ORIGINS", "").split(",") if origin.strip()],
 ]
 
 app = FastAPI(title="gen-lab", version="0.1.0")
@@ -586,4 +593,4 @@ def generate_mission(request: GenerateRequest) -> JSONResponse:
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run(app, host="127.0.0.1", port=PORT)
+    uvicorn.run(app, host=HOST, port=PORT)

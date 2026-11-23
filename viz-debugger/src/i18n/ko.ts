@@ -3788,4 +3788,10 @@ export const ko: Record<string, string> = {
   'grun.undeclared': "장비가 밝히지 않은 동작이 있어 내지 않습니다: {actions}",
   'gen.withActions': "액션 아이템까지 낸다",
   'gen.withActionsHint': "켜면 승인 뒤 로봇에 걸음이 나갑니다. 거리 · 각도는 승인 칸에서 사람이 채웁니다",
+  'plan.supersededByAi': "같은 발화의 AI 생성 임무를 골랐다 — 대본 계획은 쓰지 않는다",
+  'gen.address': "생성 서비스 주소",
+  'gen.address.apply': "적용",
+  'gen.address.local': "이 PC",
+  'gen.address.gpuPc': "GPU PC (100.125.71.51)",
+  'gen.address.invalid': "http:// 또는 https:// 로 시작하는 주소를 넣으세요",
 };

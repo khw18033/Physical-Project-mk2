@@ -75,6 +75,7 @@ import { ControlRecordView } from './views/ControlRecordView.tsx';
 import { dropOnSlots, holdSlotsFor, useSlotBindings } from './data/slots.ts';
 import { GeneratedRunProposal, GeneratedRunStatus, generatedApproval } from './views/GeneratedRunCard.tsx';
 import { useFillValues } from './generate/runFill.ts';
+import { chooseGeneratedOverScript } from './shell/missionBridge.ts';
 
 type Screen = 'milestones' | 'graph' | 'detail' | 'replay' | 'failure';
 
@@ -194,7 +195,8 @@ function Milestones({ view, phase, milestoneStatuses, assignments, onAssign, onO
     <p><Rich id={stepProposal ? 'prop.fallbackSteps' : aiProposal ? 'prop.fallbackAi' : 'prop.fallbackScript'} vars={{ id: mission.proposal.missionId }} /></p>
     {/* **승인의 문은 하나다** (`acceptProposal`). 종류마다 부르는 곳이 다르면 언젠가 한쪽만 검사가 붙는다. */}
     {/* 모델이 낸 임무가 실행 가능하면 문구가 「실행 준비」로 바뀌고, 값이 덜 채워졌으면 버튼이 막힌다 (261123). */}
-    <button disabled={aiGate?.blocked === true} onClick={() => acceptProposal('local')}>{t(stepProposal ? 'prop.approveSteps' : aiProposal ? (aiGate?.plan.runnable ? 'grun.approveRun' : 'prop.approveCanvas') : 'prop.approvePlay')}</button>
+    {/* AI 제안을 승인하면 같은 발화의 대본 계획을 닫는다 — 남겨 두면 「임무 승인」 창에서 대본이 덮어쓴다 (261123). */}
+    <button disabled={aiGate?.blocked === true} onClick={() => { if (aiProposal) chooseGeneratedOverScript(); acceptProposal('local'); }}>{t(stepProposal ? 'prop.approveSteps' : aiProposal ? (aiGate?.plan.runnable ? 'grun.approveRun' : 'prop.approveCanvas') : 'prop.approvePlay')}</button>
     <button onClick={() => rejectProposal()}>{t('prop.reject')}</button>
   </div>);
   const showApproval = phase === 'proposal' || planApproval !== undefined;

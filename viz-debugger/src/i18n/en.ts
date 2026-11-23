@@ -3763,4 +3763,10 @@ export const en: Record<string, string> = {
   'grun.undeclared': "Not sent: the device does not declare these actions: {actions}",
   'gen.withActions': "Include action items",
   'gen.withActionsHint': "When on, approved missions send steps to the robot. Distances and angles are filled in at approval",
+  'plan.supersededByAi': "The AI-generated mission for the same utterance was chosen; the script plan is not used",
+  'gen.address': "Generation service address",
+  'gen.address.apply': "Apply",
+  'gen.address.local': "This PC",
+  'gen.address.gpuPc': "GPU PC (100.125.71.51)",
+  'gen.address.invalid': "Enter an address that starts with http:// or https://",
 };

@@ -195,6 +195,13 @@ main:has(.milestone-layout) .milestone-layout{flex:1;min-height:0}
 .grun-status button{margin-right:6px;padding:6px 12px;border:1px solid #4c8fe8;border-radius:var(--radius-sm);background:#fff;cursor:pointer}
 .grun-waiting{border-color:#e0a100;background:#fff8e1}
 .grun-failed{border-color:#b3261e;background:#fdecea}
+/* 생성 서비스 주소 칸 (261123) */
+.gen-address{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:6px 0;font-size:13px}
+.gen-address input{flex:1 1 220px;min-width:0;padding:3px 6px;font-family:var(--font-mono, monospace)}
+.gen-address input[aria-invalid="true"]{border-color:#b3261e}
+.gen-address button{padding:3px 10px;border:1px solid #4c8fe8;border-radius:var(--radius-sm);background:#fff;cursor:pointer}
+.gen-address button:disabled{opacity:.5;cursor:default}
+.gen-address__bad{flex-basis:100%;color:#b3261e}
 .proposal-fallback button:first-of-type{background:#4c8fe8;color:#fff}
 .follow-live{margin-left:10px;padding:3px 8px;border:1px solid #4f9e7d;border-radius:var(--radius-sm);background:#eef8f3;color:#20654a;font-size:12px;cursor:pointer}
 b.follow-live{cursor:default}

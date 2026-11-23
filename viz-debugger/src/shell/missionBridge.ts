@@ -30,7 +30,8 @@
  */
 
 import { useEffect } from 'react';
-import { activateMission, proposeMission, receiveTrace, rejectProposal, viewForMission } from '../data/scenario.ts';
+import { activateMission, getMissionState, proposeMission, receiveTrace, rejectProposal, viewForMission } from '../data/scenario.ts';
+import { t } from '../i18n/dict.ts';
 import { libraryEntry, opensRobotGate, scriptDriven } from '../scenarios/library.ts';
 import { axesOfMission } from '../scenarios/scriptScope.ts';
 import { observeConnection, observeEnvelope, updateClientHealth } from '../shared/observability.ts';
@@ -63,6 +64,34 @@ type WireTrace = {
 let started = false;
 /** 승인 반영은 계획당 한 번 — 승인 뒤에도 plan 봉투가 여러 번 오지만(중계 단계) 재생을 다시 세우면 안 된다. */
 const activatedPlans = new Set<string>();
+
+/**
+ * **AI 결과를 고르면 그 발화의 대본 계획을 닫는다** (261123 — AI 생성 임무 실행기 실측).
+ *
+ * 발화가 대본에 맞으면 게이트웨이도 그 대본으로 승인 대기 계획을 만든다. 사람이 화면에서 AI 결과를 골라 승인해도
+ * 그 계획은 대기로 남아 「임무 승인」 창에 떴고, 거기서 승인하면 대본 임무가 AI 임무를 **덮어썼다.**
+ * 그래서 AI 결과를 고른 순간 대기 중인 대본 계획을 거부로 닫고, 같은 발화로 늦게 오는 대본 계획도 받지 않는다.
+ * 새 발화를 내면(`noteNewUtterance`) 이 표시를 내린다.
+ */
+const waitingScriptPlans = new Set<string>();
+let generatedChosen = false;
+
+function supersede(planId: string): void {
+  getTransport().decidePlan(planId, 'reject', t('plan.supersededByAi'));
+}
+
+/** 사람이 이 발화의 AI 결과를 골랐다 — 제안으로 올렸거나 승인했다. */
+export function chooseGeneratedOverScript(): void {
+  generatedChosen = true;
+  for (const planId of waitingScriptPlans) supersede(planId);
+  waitingScriptPlans.clear();
+}
+
+/** 새 발화를 냈다 — 지난 발화에서 고른 것이 이번 발화의 대본 계획을 막지 않게. */
+export function noteNewUtterance(): void {
+  generatedChosen = false;
+  waitingScriptPlans.clear();
+}
 
 export function startMissionBridge(): () => void {
   if (started) return () => undefined;
@@ -145,6 +174,12 @@ function applyPlan(envelope: Envelope): void {
    */
   if (!humanActed()) return;
   if (plan.decision === 'pending') {
+    // AI 결과를 이미 골랐으면 이 대본 계획은 받지 않고 닫는다 (위 `generatedChosen` 주석).
+    if (generatedChosen) {
+      supersede(plan.plan_id);
+      return;
+    }
+    waitingScriptPlans.add(plan.plan_id);
     proposeMission({
       origin: 'script',
       missionId: plan.script.mission_id,
@@ -155,6 +190,7 @@ function applyPlan(envelope: Envelope): void {
     });
     return;
   }
+  waitingScriptPlans.delete(plan.plan_id);
   if (plan.decision === 'approved') {
     if (activatedPlans.has(plan.plan_id)) return;
     activatedPlans.add(plan.plan_id);
@@ -195,7 +231,10 @@ function applyPlan(envelope: Envelope): void {
     }
     return;
   }
-  rejectProposal(); // 거부하면 아무것도 재생되지 않는다.
+  // 거부하면 아무것도 재생되지 않는다. **그 대본의 제안일 때만 지운다** (261123) — AI 결과를 골라 대본 계획을
+  // 닫았을 때, 그 거부가 돌아와 사람이 고른 AI 제안까지 지우면 안 된다.
+  const proposal = getMissionState().proposal;
+  if (proposal?.origin === 'script' && proposal.missionId === plan.script.mission_id) rejectProposal();
 }
 
 /**

@@ -64,6 +64,9 @@ import { Explain } from '../shared/Explain.tsx';
 import placesTopology from '../../../places/places.json';
 import equipmentVocabulary from '../../../equipment/equipment.json';
 import { noteHumanAction } from '../shared/humanAction.ts';
+import { chooseGeneratedOverScript, noteNewUtterance } from '../shell/missionBridge.ts';
+import { GenerateAddress } from './GenerateAddress.tsx';
+import { useConnections } from '../shared/connections.ts';
 import { MOVE_RELATIVE_ACTION, parseStepScript, stepMissionView } from '../physical/stepScript.ts';
 import { someDeviceDeclares } from '../physical/deviceIdentity.ts';
 import { proposeSteps, rejectProposal } from '../data/scenario.ts';
@@ -388,6 +391,9 @@ export function UtterancePanel({ fallbackText }: { fallbackText: string }) {
   const able = capabilities(status, mediaRecorderSupported(), sttReason);
   const fileDisabled = !able.canTranscribe || phase === 'transcribing';
   const genAble = generateCapabilities(genStatus, genReason);
+  /** 지금 생성 서비스 주소. 바뀌면 아래 probe 가 다시 돈다 (261123). */
+  useConnections();
+  const generateAddress = generateBaseUrl();
 
   useEffect(() => {
     const controller = new AbortController();
@@ -430,9 +436,13 @@ export function UtterancePanel({ fallbackText }: { fallbackText: string }) {
       const free = byCapacity.filter((entry) => entry.licenseFile === null);
       setGenModel(result.loaded ?? free[0]?.id ?? byCapacity[0]?.id ?? null);
     });
+    // 주소가 바뀌었으면 지난 서비스의 상태 · 가중치 목록을 들고 있지 않는다 — 새로 물어볼 때까지 「확인 중」이다.
+    setGenStatus('probing');
     check();
     return () => { controller.abort(); clearTimeout(retry); };
-  }, []);
+    // **주소가 바뀌면 다시 묻는다** (261123 — 생성 서비스 주소 칸). 전에는 처음 한 번만 물어서, 주소를 바꿔도
+    // 새로고침 전까지 옛 서비스의 상태가 남았다.
+  }, [generateAddress]);
 
   /** 도는 동안 경과를 민다. 멈춰 있는 화면과 죽은 화면은 사용자에게 같아 보인다. */
   useEffect(() => {
@@ -607,6 +617,9 @@ export function UtterancePanel({ fallbackText }: { fallbackText: string }) {
     setGenOutcome((current) => {
       if (current === null || current.proposed) return current;
       if (!proposeGenerated(current.view, current.provenance)) return current;
+      // **대본 대신 AI 결과를 골랐다** (261123). 게이트웨이에 남은 그 발화의 대본 계획을 닫는다 — 안 닫으면 「임무 승인」
+      // 창에 떠서, 거기서 승인하면 대본이 AI 임무를 덮어쓴다(`shell/missionBridge.ts`). 두 번 불려도 같다.
+      chooseGeneratedOverScript();
       return { ...current, proposed: true };
     });
   }, []);
@@ -623,6 +636,7 @@ export function UtterancePanel({ fallbackText }: { fallbackText: string }) {
       // **사람이 냈다.** 이 뒤부터 계획 채널을 받는다 — 열자마자 캐시된 계획이
       // 화면을 채우지 않게 하는 빗장이다(`missionBridge.noteHumanAction`).
       noteHumanAction();
+      noteNewUtterance();   // 새 발화 — 지난 발화에서 AI 결과를 고른 것이 이번 대본 계획을 막지 않게 (261123)
       await issueCommand({
         action: 'mission_from_utterance',
         params: { text: edited.trim(), verdict: decision.verdict, threshold_status: PROVISIONAL_NOTE },
@@ -663,6 +677,7 @@ export function UtterancePanel({ fallbackText }: { fallbackText: string }) {
     setScriptMatch(matched);
     try {
       noteHumanAction();   // 사람이 냈다 — 이 뒤부터 계획 채널을 받는다
+      noteNewUtterance();   // 새 발화 (261123 — 위와 같은 이유)
       await issueCommand({ action: 'mission_from_utterance', params: { text: manual.trim(), source: 'manual_text' }, inputModality: 'pointer' });
       setIssued(t('utter.issuedManual'));
     } catch (caught) {
@@ -779,6 +794,8 @@ export function UtterancePanel({ fallbackText }: { fallbackText: string }) {
       </div>
       </details>
 
+      {/* 생성 서비스 주소 (261123) — GPU 가 큰 PC 의 gen-lab 으로 바꾸는 자리. 생성 중에는 못 바꾼다. */}
+      <GenerateAddress disabled={genPhase === 'running'} />
       {/* 생성 서비스가 없으면 **이 경로만** 꺼진다. 문구를 감추지 않는다 (`verify:no-llm`). */}
       {genAble.noteKey && <p className="gen-note">{[t(genAble.noteKey), genAble.noteDetail].filter((v) => v).join(' ')}</p>}
       {genStatus === 'ready' && genEngine !== null && genEngine !== 'stub' && (
