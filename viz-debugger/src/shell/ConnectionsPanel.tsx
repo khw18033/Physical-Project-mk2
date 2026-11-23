@@ -181,7 +181,7 @@ export function ConnectionsPanel({ onClose, physical }: { onClose(): void; physi
     heldManual = latest.current.manual;
   }, []);
   const [note, setNote] = useState<string | null>(null);
-  // 261123 — 옛 탐지기 칸은 「객체 탐지 추론 스트림」 안에 그린다. 탐지 방식이 data_stream 이면 흐리게.
+  // 261123 — 옛 탐지기 칸은 「객체 탐지 추론 스트림」 안에 그린다. 탐지 방식이 data_stream 이면 안 그린다.
   const detectMode = useDetectSource();
   const legacyDetect = CONNECTION_TARGETS.find((target) => target.id === 'detect');
   // 언어가 바뀌면 다시 그린다 — `t()` 는 값을 줄 뿐 리렌더를 일으키지 않는다 (§4).
@@ -369,9 +369,9 @@ export function ConnectionsPanel({ onClose, physical }: { onClose(): void; physi
       <h3>{t(target.labelKey)}{target.live ? null : <em>{t('conn.pendingBadge')}</em>}</h3>
       {target.id === 'vision' && <DetectSourceSwitch />}
       {renderBody(target)}
-      {target.id === 'vision' && legacyDetect !== undefined && <div className={`conn-sub${detectMode === 'legacy' ? '' : ' conn-sub--idle'}`}>
+      {/* 옛 탐지기 묶음은 탐지 방식이 「옛 탐지기」일 때만 그린다(261123 지시 — data_stream 이면 아예 안 보인다). */}
+      {target.id === 'vision' && legacyDetect !== undefined && detectMode === 'legacy' && <div className="conn-sub">
         <h4>{t('sd.legacyBlock')}</h4>
-        {detectMode !== 'legacy' && <p className="conn-sub__note">{t('sd.legacyIdle')}</p>}
         {renderBody(legacyDetect)}
       </div>}
     </section>)}

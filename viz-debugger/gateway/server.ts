@@ -207,7 +207,7 @@ setInterval(() => publishRisk(currentRiskLevel), 5_000);
 
 // ── HTTP ─────────────────────────────────────────────────────────────────────
 
-// 261123 — 탐지 방식 기동 값. 없으면 `legacy`(옛 탐지기 편). `SCAN_DETECT_SOURCE=datastream npm run dev` 면 data_stream 편이 선다.
+// 261123 — 탐지 방식 기동 값. 없으면 `datastream`(data_stream 편). `SCAN_DETECT_SOURCE=legacy npm run dev` 면 옛 탐지기 편이 선다.
 {
   const boot = process.env.SCAN_DETECT_SOURCE;
   if (isDetectSourceMode(boot)) setDetectSource(boot);

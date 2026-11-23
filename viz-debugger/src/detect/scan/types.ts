@@ -94,6 +94,8 @@ export type ScanResult = {
   reason: string;
   model: string | null;
   profile_version: number | null;
+  /** `score` · `cues` 가 그 장 값(`frame`)인가 트랙 평균(`track`)인가. 모르면 null (요청 문서 §3-5). */
+  score_basis: 'frame' | 'track' | null;
   computed_at: string | null;
   error: string | null;
 };

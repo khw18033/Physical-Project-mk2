@@ -21,8 +21,8 @@ export type DetectSourceMode = 'legacy' | 'datastream';
 
 export const DETECT_SOURCE_MODES: readonly DetectSourceMode[] = ['legacy', 'datastream'];
 
-/** 처음 기본값 — 실물로 새 편 셋이 한 번씩 통과한 뒤 바꾼다(계획서 §7-4). */
-export const DETECT_SOURCE_DEFAULT: DetectSourceMode = 'legacy';
+/** 처음 기본값 — data_stream (261123 사용자 결정). 옛 탐지기 편은 연결 관리에서 「옛 탐지기」를 고르면 선다. */
+export const DETECT_SOURCE_DEFAULT: DetectSourceMode = 'datastream';
 
 let mode: DetectSourceMode = DETECT_SOURCE_DEFAULT;
 const listeners = new Set<() => void>();

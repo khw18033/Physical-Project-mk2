@@ -18,7 +18,7 @@
 | S6 경로 | 됨 — 방위 부호는 `HEADING_TURN_SIGN = 1`(가짜 장치 기준, 실물 확인 필요) | `src/physical/scanApproach.ts` |
 | S7 근거 카드 | 됨 — 노드 상세(T-A5 · T-A6) | `ScanDetectViews.tsx` |
 | S8 편 셋 | 됨 — `MSN-261123-01~03` (+ `.en.json`), 옛 셋에 `detectSource: "legacy"` | `scenarios/` |
-| S9 탐지 방식 | 됨 — 매처가 거른다(호출부 무수정). 게이트웨이 `GET/POST /scan-detect-source` · 기동 값 `SCAN_DETECT_SOURCE`, 연결 판 「탐지」 줄에 고르기 | `scenarios/detectSource.ts` · `detect/scan/detectSourceSync.ts` |
+| S9 탐지 방식 | 됨 — 매처가 거른다(호출부 무수정). 게이트웨이 `GET/POST /scan-detect-source` · 기동 값 `SCAN_DETECT_SOURCE`(없으면 `datastream`), 연결 관리 「객체 탐지 추론 스트림」 칸 맨 위에 고르기 | `scenarios/detectSource.ts` · `detect/scan/detectSourceSync.ts` |
 | S10 정지 · 기록 · 문구 | 됨 — 정지 → cancel, data_stream 요청을 명령 기록에(`data_stream.prepare` 등), 문구 `sd.*` 한 · 영 | |
 | S11 검사 | 됨 — `verify:scan-detect`(실행기 순서) · `verify:scan-detect-link`(승인 · 시작부터 이동까지 화면 연결, 회전 오차 8° 보정 · 찾지 못함 · 정지 · 옛 편 대조). 둘 다 돌연변이로 검사를 확인했다 | `npm run scan:mock` 으로 가짜 창구 |
 | @ 영어 옮기기 | 됨 — gen-lab `POST /generate/name_en`(문법으로 영어 소문자 1~4 낱말), 화면 `src/generate/nameEn.ts`. 실패하면 prepare 를 안 보낸다 | |
@@ -46,6 +46,7 @@
 | 10 | @ 질의는 **LLM 으로 영어로 옮겨** `query` 에, 원문은 `query_ko` 에. |
 | 11 | **가시화는 `/scan/*` 명령만 보낸다.** `profile.json` 을 판 동안 바꿨다 되돌리는 일은 data_stream 쪽(창구)이 한다. |
 | 12 | 창구는 **data_stream 소스 서버**(`server_stream_multi_source.py`)에 붙는다. 가시화는 장치의 소스 포트(`robot1` `:10003` 등)로 부른다. |
+| 13 | **탐지 방식 기본값은 `datastream`** (261123). 연결 관리 「객체 탐지 추론 스트림」 칸 맨 위에서 고르고, 「옛 탐지기」를 고를 때만 옛 탐지기 주소 칸이 나타난다. 「객체 탐지」 줄은 따로 없다. |
 
 ## 1. 지금 구조 (바꾸기 전)
 
@@ -122,8 +123,8 @@ forward_m    = best.distance_m − params.stop_distance_max_m
 
 | 설정 `scanDetectSource` | 매칭에 서는 편 | 목록(라이브러리) |
 |---|---|---|
-| `legacy` (처음 기본값) | 옛 셋 | 여섯 다 보임 — 새 셋에 「data_stream」 딱지 |
-| `datastream` | 새 셋 | 여섯 다 보임 — 옛 셋에 「옛 탐지기」 딱지 |
+| `legacy` | 옛 셋 | 여섯 다 보임 |
+| `datastream` (기본값 — 결정 13) | 새 셋 | 여섯 다 보임 |
 
 - 대본 파일에 `detectSource: 'legacy' | 'datastream'` 을 적는다(옛 편은 안 적으면 `legacy`). 탐지와 상관없는 편(정량 명령 · 자율주행 등)은 설정과 상관없이 늘 선다.
 - **매칭은 게이트웨이(`script-engine.ts`)와 브라우저가 같은 `matcher.ts` 를 쓴다.** 그래서 설정은 게이트웨이가 들고 있고, 브라우저는 게이트웨이에서 읽는다. 브라우저 혼자 들고 있으면 둘이 다른 편을 고른다.
@@ -181,6 +182,6 @@ forward_m    = best.distance_m − params.stop_distance_max_m
 | 1 | 판 동안 런처가 `profile.json` 을 바꾸면 | data_stream 쪽 회신을 본다(요청 문서 §8-1 의 1). 가시화는 결과의 `profile_version` 이 판 중에 바뀌면 `failed` 로 받아 멈춘다. 창구가 생기기 전까지 S0 가짜 창구로 진행한다. |
 | 2 | @ 옮기기 LLM 요청 모양 | 영어 이름 하나만 돌려받는 짧은 요청. 생성 창구에 붙일지 따로 둘지는 S8 구현 때 정한다. |
 | 3 | 정지 거리 | 옛 두 편의 `stop_distance_max_m` 0.9 m 를 그대로 쓴다. 지금은 탐지기가 `standoff_cm` 를 줬는데, 새 흐름은 대본 값이다. |
-| 4 | 탐지 방식 기본값을 언제 `datastream` 으로 바꾸나 | 실물로 세 편이 한 번씩 통과한 뒤. |
+| 4 | ~~탐지 방식 기본값을 언제 `datastream` 으로 바꾸나~~ | **정함 — 처음부터 `datastream` (결정 13).** 실물에서 문제가 나면 연결 관리에서 「옛 탐지기」로 돌린다. |
 | 5 | `mark` 뒤 기다리는 시간 | 0.5초로 시작해 실물에서 흔들림을 보고 맞춘다(요청 문서 §2). |
 | 6 | GO1 아닌 장치의 하한 · 거리 | data_stream 값은 Go1 카메라에서 잰 `provisional`. 다른 장치로 돌리면 결과를 믿을 수 있는지 요청 문서 §8-1 의 3 회신을 본다. |

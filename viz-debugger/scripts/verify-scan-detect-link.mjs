@@ -30,6 +30,7 @@ const { setVisionBinding } = await load('src', 'vision', 'binding.ts');
 const scenario = await load('src', 'data', 'scenario.ts');
 const session = await load('src', 'physical', 'robotSession.ts');
 const link = await load('src', 'physical', 'scanDetectLink.ts');
+const approachRun = await load('src', 'physical', 'scanApproachRun.ts');
 const { resetScanRun, scanRunState } = await load('src', 'detect', 'scan', 'scanStore.ts');
 const { startScanMock } = await load('scripts', 'scan-detect-mock.mjs');
 
@@ -100,7 +101,7 @@ async function runCase({ missionId, mode = 'ok', stopAfterTurns = null, waitMs =
 
   const until = Date.now() + waitMs;
   const done = () => sent.some((s) => s.action === 'abort') || scanRunState()?.failure != null
-    || (scanRunState()?.result != null && link.scanApproachState() !== null && !link.scanApproachState().plan.ok);
+    || (scanRunState()?.result != null && approachRun.scanApproachState() !== null && !approachRun.scanApproachState().plan.ok);
   while (Date.now() < until && !done()) {
     await sleep(50);
     report();

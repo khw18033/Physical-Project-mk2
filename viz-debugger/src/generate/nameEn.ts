@@ -8,7 +8,13 @@
  * 사유를 돌려준다. 부르는 쪽(스캔 실행기)은 그때 `prepare` 를 보내지 않고 멈춘다.
  */
 
-import { generateBaseUrl } from './LlmClient.ts';
+import { connectionAddress } from '../shared/connections.ts';
+
+/**
+ * 생성 서비스 주소. `LlmClient.ts` 의 `generateBaseUrl()` 과 같은 값이지만 그 파일을 import 하지 않는다 — 그 파일은 계약
+ * (`../../../contracts/*.json`)을 끌어와, 스캔 화면(노드 상세 · 정지 버튼)을 묶을 때 `src/` 밖까지 딸려 온다. 기본값은 `LlmClient.ts` 가 심는다.
+ */
+const generateBaseUrl = (): string => connectionAddress('generate', 'base');
 
 export type NameEnAnswer = { ok: true; nameEn: string; model: string | null } | { ok: false; reason: string };
 

@@ -10,14 +10,12 @@
  *   기록     data_stream 요청도 명령 기록 열에 남긴다(노드 T-A0 · T-A4-n · T-A5)
  *
  * 승인(로봇 관문) + 「임무 시작」이 되면 **판마다 한 번** 돈다. 결과가 오면 T-A5 · T-A6 · T-B1 을 칠하고 이동 명령을 낸다.
- * T-B2 의 「이동 전 승인」이 켜진 편은 사람이 누를 때까지 기다린다(`issueScanApproach`).
+ * T-B2 의 「이동 전 승인」이 켜진 편은 사람이 누를 때까지 기다린다(`scanApproachRun.ts` 의 `issueScanApproach`).
  * 옛 흐름의 로봇 전용 부품(`scan_mission` · `:8000` 폴링 · scanGate)은 이 편에서 돌지 않는다 — `doorScanFlow()` 가 지킨다.
  */
 
-import { useSyncExternalStore } from 'react';
 import { t } from '../i18n/dict.ts';
-import { currentMission, receiveRobotProgress, recordAnswered, recordCommanded } from '../data/scenario.ts';
-import type { ScenarioEvent, TaskStatus } from '../model/types.ts';
+import { currentMission, recordAnswered, recordCommanded } from '../data/scenario.ts';
 import { scanDetectFlow, scanTargetOf } from '../scenarios/library.ts';
 import { scanClient, newScanId } from '../detect/scan/ScanClient.ts';
 import { scanBaseFor } from '../detect/scan/scanAddress.ts';
@@ -29,29 +27,17 @@ import { hardwareTarget } from './encode.ts';
 import { approachNeedsApproval } from './approachAuto.ts';
 import { prepState, subscribePrep } from './prepStage.ts';
 import { issueStepsToEnd } from './robotCommands.ts';
+import { emitScanNode as emit, issueScanApproach, setScanApproach as setApproach } from './scanApproachRun.ts';
 import { robotClient } from './robotClient.ts';
-import { elapsedSec, markApproachIssued, robotSession, subscribeRobot } from './robotSession.ts';
-import { planScanApproach, type ScanApproachPlan } from './scanApproach.ts';
+import { robotSession, subscribeRobot } from './robotSession.ts';
+import { planScanApproach } from './scanApproach.ts';
 import { profileChanged, runScanDetect, type ScanCallRecord, type ScanRunOutcome } from './scanDetectRun.ts';
 
 const ROBOT_ENTITY = 'robot-01';
 /** T-A2 방위를 기다리는 한도. 못 주는 장치면 이 뒤 「모름」으로 돈다(계획서 §2-2). */
 const HEADING_WAIT_MS = 10_000;
 
-let seq = 6_000_000;
 let callSeq = 0;
-
-function emit(missionId: string, nodeId: string, status: TaskStatus, payload?: Record<string, unknown>): void {
-  const session = robotSession();
-  if (session.stopped !== null && status !== 'failed') return;
-  seq += 1;
-  receiveRobotProgress(missionId, {
-    seq, atSec: elapsedSec(), nodeId, status,
-    kind: status === 'done' || status === 'failed' ? 'evaluated' : 'started',
-    producedBy: 'backend',
-    ...(payload === undefined ? {} : { payload }),
-  } as ScenarioEvent);
-}
 
 /** data_stream 요청 한 건을 명령 기록 열에 — MQTT 명령이 아니므로 id 를 따로 만든다. */
 function record(entry: ScanCallRecord): void {
@@ -84,32 +70,6 @@ function waitHeading(runKey: number): Promise<number | null> {
 
 function headingNow(): number | null {
   return deviceState(hardwareTarget(ROBOT_ENTITY))?.position?.headingDeg ?? null;
-}
-
-// ── 이동 계획 (승인 대기 포함) ───────────────────────────────────────────
-
-export type ScanApproachState = { scanId: string; missionId: string; plan: ScanApproachPlan; issued: boolean; waitingApproval: boolean } | null;
-let approach: ScanApproachState = null;
-const approachListeners = new Set<() => void>();
-function setApproach(next: ScanApproachState): void {
-  approach = next;
-  for (const listener of approachListeners) listener();
-}
-export function scanApproachState(): ScanApproachState { return approach; }
-export function useScanApproach(): ScanApproachState {
-  return useSyncExternalStore((l) => { approachListeners.add(l); return () => { approachListeners.delete(l); }; }, () => approach, () => approach);
-}
-
-/** 계획대로 이동 명령을 낸다. 승인 대기 중이면 사람이 이것을 누른다. */
-export async function issueScanApproach(): Promise<boolean> {
-  const current = approach;
-  if (current === null || current.issued || !current.plan.ok) return false;
-  if (robotSession().stopped !== null) return false;
-  setApproach({ ...current, issued: true, waitingApproval: false });
-  markApproachIssued();
-  const outcome = await issueStepsToEnd(robotClient(), current.plan.steps);
-  if (!outcome.sent) emit(current.missionId, 'T-B2', 'failed', { reason: outcome.reason ?? '' });
-  return outcome.sent;
 }
 
 function onResult(missionId: string, outcome: ScanRunOutcome & { ok: true }, scanId: string): void {

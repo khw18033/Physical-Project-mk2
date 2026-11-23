@@ -38,7 +38,8 @@ const library = [
   { missionId: LEGACY_ID, match: JSON.parse(read('scenarios', `${LEGACY_ID}.match.json`)).match },
 ];
 const matchOf = (sentence) => {
-  const outcome = matchLibrary(sentence, library, 'ko');
+  // 261123 — 탐지 방식 기본값이 data_stream 이 됐다. 이 검사는 옛 편(옛 탐지기 · 자리 편)의 문장을 보므로 「옛 탐지기」 설정에서 대조한다.
+  const outcome = matchLibrary(sentence, library, 'ko', 'legacy');
   return outcome.kind === 'matched' ? outcome.entry.missionId : outcome.kind;
 };
 for (const sentence of ['장치 두 가지를 @까지 이동시켜', '장치 두 가지를 문까지 이동시켜', '장치 두 가지를 문 앞까지 이동시켜', '장치 2개를 빨간 의자까지 옮겨', '두 장치를 소화기까지 보내']) {

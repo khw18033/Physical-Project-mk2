@@ -15,7 +15,7 @@ export function DetectSourceSwitch() {
   const mode = useDetectSource();
   const sync = useDetectSourceSync();
   useEffect(() => { void pullDetectSource(); }, []);
-  return <label className="conn-test" title={t('sd.source.title')}>
+  return <label className="conn-source" title={t('sd.source.title')}>
     {t('sd.source.label')}{' '}
     <select value={mode} onChange={(event) => { void changeDetectSource(event.target.value as DetectSourceMode); }}>
       {DETECT_SOURCE_MODES.map((option) => <option key={option} value={option}>{t(`sd.source.${option}`)}</option>)}

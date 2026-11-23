@@ -182,7 +182,8 @@ function control(name, hit) {
 {
   // 새 편의 must 를 「문」 하나로 넓히면 3편과 겹친다 — 그것이 잡히는가.
   const wide = library.map((e) => (e.missionId === DOOR_ID ? { ...e, match: { ...e.match, must: [['문']] } } : e));
-  const outcome = matchLibrary('수문을 가동해', wide);
+  // 261123 — 탐지 방식 기본값이 data_stream 이 됐다. 이 검사는 옛 편(옛 탐지기 · 자리 편)의 문장을 보므로 「옛 탐지기」 설정에서 대조한다.
+  const outcome = matchLibrary('수문을 가동해', wide, undefined, 'legacy');
   control('must 를 「문」으로 넓힘(3편과 모호)', outcome.kind === 'ambiguous');
 }
 {

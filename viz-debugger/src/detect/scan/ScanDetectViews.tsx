@@ -16,7 +16,7 @@
 import { useState } from 'react';
 import { t } from '../../i18n/dict.ts';
 import { getLang, useLang } from '../../shared/language.ts';
-import { issueScanApproach, useScanApproach } from '../../physical/scanDetectLink.ts';
+import { issueScanApproach, useScanApproach } from '../../physical/scanApproachRun.ts';
 import { scanClient } from './ScanClient.ts';
 import { frameResultAt, useScanRun, type ScanAngle, type ScanRunState } from './scanStore.ts';
 
@@ -94,6 +94,7 @@ function Evidence({ run }: { run: ScanRunState }) {
         <dt>{t('sd.f.bearing')}</dt><dd>{fmt(best.bearing_deg)}° ({t('sd.f.atAngle', { deg: best.rotation_deg })})</dd>
         <dt>{t('sd.f.distance')}</dt><dd>{fmt(best.distance_m, 2)} m · {best.distance_source ?? '–'}{!best.distance_valid && ` · ${t('sd.f.distanceInvalid')}${best.distance_note ? ` (${best.distance_note})` : ''}`}</dd>
         {best.provisional && <><dt>{t('sd.f.threshold')}</dt><dd>{t('sd.f.provisional')}</dd></>}
+        {result.score_basis !== null && <><dt>{t('sd.f.basis')}</dt><dd>{t(`sd.f.basis.${result.score_basis}`)}</dd></>}
       </dl>}
     {result.cues.length > 0 && <table className="scan-cues">
       <tbody>{result.cues.map((cue, i) => <tr key={i}><th>{cueName(cue.name)}</th><td>{fmt(cue.value, 2)}</td><td>{cue.note}</td></tr>)}</tbody>

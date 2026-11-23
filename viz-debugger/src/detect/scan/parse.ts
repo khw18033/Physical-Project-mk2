@@ -106,6 +106,7 @@ export function parseResult(body: unknown): ScanResult | null {
     frames: frames.filter((frame): frame is ScanFrameResult => frame !== null),
     best: best ?? null, cues: parseCues(evidence.cues), enough: evidence.enough === true,
     reason: str(body.reason) ?? '', model: str(body.model), profile_version: num(body.profile_version),
+    score_basis: body.score_basis === 'frame' || body.score_basis === 'track' ? body.score_basis : null,
     computed_at: str(body.computed_at), error: str(body.error),
   };
 }

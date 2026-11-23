@@ -127,7 +127,7 @@ export function scanMockHandler(options = {}) {
         : { cues: [['OVD pair IoU', 1, '0.61 >= 0.42'], ['CLIP colour', 1, 'light blue pass'], ['aspect', 0.8, 'h/w 2.1 >= 1.5']], enough: true },
       reason: hit === null ? `no ${scan.targets.join(', ')} found in ${frames.length} angles` : `found ${scan.targets[0]} at ${hit.rotation_deg}° — gates passed`,
       model: 'targeted', profile_version: opt.mode === 'profile-changed' ? scan.profile_version + 1 : scan.profile_version,
-      computed_at: new Date().toISOString(), error: scan.error ?? null,
+      score_basis: 'frame', computed_at: new Date().toISOString(), error: scan.error ?? null,
     };
   }
 
