@@ -14,7 +14,7 @@ export const SCAN_TERMINAL: readonly ScanState[] = ['done', 'failed', 'cancelled
 
 export type ScanPrepareRequest = {
   scan_id: string;
-  /** 장치 id (`go1-001` 등). data_stream 이 소스로 바꾼다. */
+  /** 장치가 스스로 밝힌 하드웨어 id (`physical/` 이 정한다). data_stream 이 소스로 바꾼다. */
   device: string;
   target: ScanTarget;
   /** `object` 일 때만 — 영어 이름(가시화가 LLM 으로 옮긴 것). */
