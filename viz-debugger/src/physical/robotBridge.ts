@@ -13,7 +13,8 @@ import { useEffect } from 'react';
 import { appendViewpoint } from '../viewpoint/store.ts';
 import { hasResults } from '../detect/detectBridge.ts';
 import { effectsOf, NO_NODE, type LinkEffect } from './missionLink.ts';
-import type { PhysicalClient } from './PhysicalClient.ts';
+import { physicalWsUrls, type PhysicalClient } from './PhysicalClient.ts';
+import { useConnections } from '../shared/connections.ts';
 import { advanceRobotHead, receiveRobotProgress, recordAnswered } from '../data/scenario.ts';
 import { noteIssue } from '../shared/notifications.ts';
 import type { ScenarioEvent } from '../model/types.ts';
@@ -336,6 +337,16 @@ function seenYawOf(index: number): number {
  * 스캔 발행도 같이 옮겼다 — 승인 직후에 화면을 옮기면 명령이 아예 안 나갔다.
  */
 export function useRobotUplink(missionId: string, params: Record<string, unknown> | null): void {
+  /**
+   * **연결이 바뀌면 다시 붙는다** (261123 실측 — 생성 임무 판 둘에서 명령 노드가 안 칠해졌다).
+   *
+   * 전에는 임무 id 가 바뀔 때만 다시 붙었다. 생성 임무는 **제안이 뜬 순간부터** 같은 임무 id 로 화면에 서서, 그때 있던
+   * 로봇 연결에만 귀가 열렸다. 그 뒤에 연결 관리에서 로봇(가짜 Go1 등)을 붙이고 승인 · 시작하면 걸음은 새 연결로 나가고
+   * 실행기는 그 응답을 받는데(`robotCommands.ts` 의 `terminalAnswer` 는 제 연결에 직접 귀를 연다), **이 화면 기록은 한 줄도
+   * 못 받아** 명령 노드가 대기에 남았다. 서버 판 `261123/162408` · `173347` 이 그것이다.
+   */
+  useConnections();
+  const urls = physicalWsUrls().join('\n');
   useEffect(() => {
     /**
      * **붙은 브로커 전부에서 듣는다** (260928). 전에는 첫 줄 하나뿐이라, 정량 명령이 첫 줄이 아닌 Go1 브로커로
@@ -346,7 +357,7 @@ export function useRobotUplink(missionId: string, params: Record<string, unknown
       receiveUplink(message, missionId, elapsedSec());
     }));
     return () => { for (const off of offs) off(); };
-  }, [missionId]);
+  }, [missionId, urls]);
 
   // **스캔 발행은 여기 없다** (260911). 그리기 타이밍에 매이면 두 판째에 안 나간다 —
   // 같은 임무를 다시 올릴 때 `approved` 가 한 틱 안에 true → false → true 로 오가서,
