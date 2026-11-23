@@ -41,7 +41,7 @@ async function withMock(options, body) {
 }
 
 /** 실행기 한 판. 회전 · 노드 · 사건 · 기록을 전부 모아 돌려준다. */
-async function runOnce(base, { turnFails = null, stopAfterTurns = null, heading = [0, 3.5], target = 'door', query = null, limits = {}, scanId } = {}) {
+async function runOnce(base, { turnFails = null, stopAfterTurns = null, heading = [0, -3.5], target = 'door', query = null, limits = {}, scanId } = {}) {
   const timeline = [];
   const emits = [];
   const events = [];
@@ -121,13 +121,14 @@ await withMock({ mode: 'ok' }, async (base, log) => {
     check(plan.ok, `정상 판에서 이동 계획이 안 섰다: ${JSON.stringify(plan)}`);
     if (plan.ok) {
       check(plan.steps.map((s) => s.action).join(',') === 'turn,move_forward,abort', `이동 명령 차례가 틀리다: ${plan.steps.map((s) => s.action)}`);
+      // 끝 방위 −3.5 는 반시계 + 기준으로 오른쪽 3.5° 더 돈 것(실물 GO1 · 261123) — 그만큼 뺀다.
       check(Math.abs(plan.turnDeg - (96.4 - 3.5)) < 1e-9, `회전 오차 보정이 틀리다 (${plan.turnDeg})`);
       check(Math.abs(plan.issuedForwardM - (2.35 - 0.9)) < 1e-9, `직진 거리가 틀리다 (${plan.issuedForwardM})`);
     }
     // 상태 저장소 — 사건을 접으면 각도 8칸이 전부 수집됨이고 결과가 들어 있다.
     const folded = run.events.reduce((state, event) => reduceScan(state, event), null);
     check(folded?.angles.every((a) => a.captured === true) && folded.result?.state === 'done', '저장소가 각도 · 결과를 접지 못했다');
-    check(folded?.headingStartDeg === 0 && folded.headingEndDeg === 3.5, '저장소에 시작 · 끝 방위가 없다');
+    check(folded?.headingStartDeg === 0 && folded.headingEndDeg === -3.5, '저장소에 시작 · 끝 방위가 없다');
   }
 });
 
@@ -231,9 +232,12 @@ await withMock({ mode: 'ok' }, async (base, log) => {
   check(p2.ok && p2.steps[0].action === 'move_forward' && p2.notes.some((n) => n.key === 'sd.plan.turnTooSmall'), '5° 미만 회전을 냈다');
   check(!plan(best(30, 0.93)).ok, '0.05 m 미만 직진에 계획이 섰다');
   check(!plan(best(30, 12)).ok, '이동 상한을 넘었는데 계획이 섰다');
+  // 방위는 실물 GO1 처럼 **반시계 +** 다(261123 실측 · `HEADING_TURN_SIGN = −1`). 시작 −175 → 끝 178 은 반시계로 −7°(= 오른쪽 +7° 더 돎)…가 아니라
+  // 178 − (−175) = 353 → 감으면 −7 → 반시계 −7 = 시계 +7 — 오른쪽으로 7° 더 돌았다. 그만큼 뺀다.
   const p3 = plan(best(170, 3), { headingStartDeg: -175, headingEndDeg: 178 });
-  check(p3.ok && Math.abs(p3.driftDeg - (-7)) < 1e-9 && Math.abs(p3.turnDeg - 177) < 1e-9, `회전 오차 감기가 틀리다 (${p3.ok ? `${p3.driftDeg} ${p3.turnDeg}` : p3.reason.key})`);
-  const p4 = plan(best(178, 3), { headingStartDeg: 0, headingEndDeg: -5 });
+  check(p3.ok && Math.abs(p3.driftDeg - 7) < 1e-9 && Math.abs(p3.turnDeg - 163) < 1e-9, `회전 오차 감기가 틀리다 (${p3.ok ? `${p3.driftDeg} ${p3.turnDeg}` : p3.reason.key})`);
+  // 끝이 반시계로 +5 → 왼쪽으로 5° 덜 돈 것(오른쪽 −5) → 178 − (−5) = 183 → −177 로 감긴다.
+  const p4 = plan(best(178, 3), { headingStartDeg: 0, headingEndDeg: 5 });
   check(p4.ok && Math.abs(p4.turnDeg - (-177)) < 1e-9, `−180~180 감기가 틀리다 (${p4.ok ? p4.turnDeg : ''})`);
   check(scanDrift(null, 3) === null, '시작 방위가 없는데 보정했다');
   const p5 = plan(best(30, 3), { testMode: true });

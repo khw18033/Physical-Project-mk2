@@ -78,7 +78,8 @@ async function runCase({ missionId, mode = 'ok', stopAfterTurns = null, waitMs =
       setTimeout(() => {
         if (action === 'turn') {
           turns += 1;
-          heading += Number(parameters?.deg ?? 0) + (turns <= 8 ? DRIFT_PER_TURN : 0);
+          // 실물 GO1 처럼 방위는 **반시계 +** — 오른쪽 + 인 turn 만큼 줄어든다(261123 실측). 한 번에 1° 더 오른쪽으로 돈다.
+          heading -= Number(parameters?.deg ?? 0) + (turns <= 8 ? DRIFT_PER_TURN : 0);
           report();
           if (stopAfterTurns !== null && turns === stopAfterTurns) session.lockStopped(true, null);
         }
@@ -144,7 +145,7 @@ const statusOf = (trace, id) => [...trace].reverse().find((e) => e.nodeId === id
   for (const id of ['T-A0', 'T-A2', 'T-A3', 'T-A4-0', 'T-A4-7', 'T-A5', 'T-A6', 'T-B1']) {
     check(statusOf(trace, id) === 'done', `${id} 가 끝남으로 칠해지지 않았다 (${statusOf(trace, id)})`);
   }
-  check(run?.headingStartDeg === 0 && run.headingEndDeg === 8, `시작 · 끝 방위가 ${run?.headingStartDeg} · ${run?.headingEndDeg} — 0 · 8 이어야 한다`);
+  check(run?.headingStartDeg === 0 && run.headingEndDeg === -8, `시작 · 끝 방위가 ${run?.headingStartDeg} · ${run?.headingEndDeg} — 0 · −8(반시계 +) 이어야 한다`);
   check(run?.angles.every((a) => a.captured === true), '각도 여덟이 다 수집됨이 아니다');
 }
 

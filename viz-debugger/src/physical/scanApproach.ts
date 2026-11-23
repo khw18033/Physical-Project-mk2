@@ -23,9 +23,15 @@ import type { ScanBest } from '../detect/scan/types.ts';
 
 /**
  * 장치가 보고한 방위가 `turn` 의 오른쪽 + 와 같은 방향으로 늘면 1, 반대면 −1.
- * 가짜 장치(`fakeDevice.ts`)는 `turn +45` 에 heading 이 +45 된다 — 1 이다. **실물 GO1 은 시험에서 확인한다.**
+ *
+ * **실물 GO1 은 −1 이다** (261123 실측). 화면이 읽는 방위는 MQTT 상태의 `position.heading_deg` 이고 **반시계 +** 다
+ * (`navFeed.ts` 주석과 같다). 왼쪽 90° 명령(`turn −90`)에 그 값이 +83 → +172(+89)로 늘었다. `turn` 은 오른쪽 + 라 부호가 반대다.
+ * (같은 실측에서 SDK ACK 의 `yaw_deg`(`yaw_unity`)는 시계 + 로 −90 이었다 — 그 값은 여기서 안 읽는다.)
+ *
+ * 가짜 장치(`fakeDevice.ts`)는 `turn +45` 에 heading 을 +45 올려 실물과 반대다 — 화면 연결 검사(`verify:scan-detect-link`)는
+ * 실물처럼 반시계 + 로 보고하는 가짜를 따로 쓴다.
  */
-export const HEADING_TURN_SIGN = 1;
+export const HEADING_TURN_SIGN = -1;
 
 export type ScanPlanKey = { key: string; vars?: Record<string, string | number> };
 

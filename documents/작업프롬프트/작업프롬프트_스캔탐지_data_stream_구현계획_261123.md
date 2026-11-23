@@ -15,7 +15,7 @@
 | S3 실행기 | 됨 — 순서는 `physical/scanDetectRun.ts`(순수), 실물 연결은 `physical/scanDetectLink.ts` (turn 은 `issueStepsToEnd`, 노드 seq 6M 대역) | |
 | S4 상태 | 됨 | `src/detect/scan/scanStore.ts` |
 | S5 각도 칸 | 됨 — 노드 상세(T-A3 · T-A4-n)와 팔레트 뷰 노드. 뷰 노드는 새 종류를 만들지 않고 `detect-cam` · `detect-reason` 이 새 흐름 편에서 data_stream 그림 · 근거를 그린다 | `src/detect/scan/ScanDetectViews.tsx` · `detect/views/DetectViews.tsx` |
-| S6 경로 | 됨 — 방위 부호는 `HEADING_TURN_SIGN = 1`(가짜 장치 기준, 실물 확인 필요) | `src/physical/scanApproach.ts` |
+| S6 경로 | 됨 — 방위 부호 `HEADING_TURN_SIGN = −1` (261123 실물 GO1 실측: MQTT 상태 방위는 반시계 +, `turn` 은 오른쪽 + — 왼쪽 90° 명령에 상태 방위 +89) | `src/physical/scanApproach.ts` |
 | S7 근거 카드 | 됨 — 노드 상세(T-A5 · T-A6) | `ScanDetectViews.tsx` |
 | S8 편 셋 | 됨 — `MSN-261123-01~03` (+ `.en.json`), 옛 셋에 `detectSource: "legacy"` | `scenarios/` |
 | S9 탐지 방식 | 됨 — 매처가 거른다(호출부 무수정). 게이트웨이 `GET/POST /scan-detect-source` · 기동 값 `SCAN_DETECT_SOURCE`(없으면 `datastream`), 연결 관리 「객체 탐지 추론 스트림」 칸 맨 위에 고르기 | `scenarios/detectSource.ts` · `detect/scan/detectSourceSync.ts` |
