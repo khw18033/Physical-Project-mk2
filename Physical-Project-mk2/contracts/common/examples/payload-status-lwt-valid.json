@@ -1,0 +1,13 @@
+{
+  "_why_valid": "브로커가 대신 발행하는 급사 신호(Last Will). 본문에 registration 도 buffer 도 uptime_s 도 없고 sequence_id 도 없다 — HW node.py:92-94 가 만드는 그대로다. status 스키마의 필수를 event·status 둘로만 잡은 이유가 이것이며, 세게 걸면 **가장 중요한 급사 신호가 격리된다.** 이 fixture 가 그 자리를 지킨다.",
+  "schema_version": "1.0",
+  "source_id": "wl-001",
+  "node_id": "pi7",
+  "zone_id": "zoneA",
+  "timestamp": "2026-09-10T08:41:07+09:00",
+  "channel": "status",
+  "event": "death",
+  "status": "offline",
+  "device_status": "fault",
+  "reason": "lwt"
+}

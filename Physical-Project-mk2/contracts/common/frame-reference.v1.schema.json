@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/khw18033/Physical-Project-mk2/contracts/common/frame-reference.v1.schema.json",
+  "title": "프레임 참조 (Frame Reference) — v1 (과도기)",
+  "description": "인지·추적·판단 결과가 원본 관측 프레임으로 역추적되도록 하는 참조. 백엔드가 단일 규약으로 정의하고 전 파트가 따른다(BE-C-03). frame_ref는 엣지가 프레임 경계를 확정하는 시점(액세스 유닛 재조립 또는 디코드)에 단 한 번 부여하고, 그 프레임에서 파생된 영상·탐지가 모두 그 값을 전파한다 — 서버·AI는 새 번호를 재생성하지 않는다(단일 출처). 말단(온디바이스)은 부여하지 않는다. 이 단일 출처 규칙이 탐지 오버레이 정합의 성립 조건이다. 가시화의 탐지 박스는 영상(미디어 경로)과 탐지(업무 경로)가 뷰어에서 합류할 때 이 값이 F==F로 맞아야 정확히 겹쳐진다. 상관키(어느 명령의 산출인가)는 이 객체 밖 — 공통 헤더·미디어 헤더의 correlation_id 가 담는다(2026-09-18 결정 2, 구조 무개정).",
+  "$comment": "과도기 사본(2026-10-13 통합데이터규약 BE-02 · BE-03). 엣지(HW 홉2 송신기 — EDGEHW-01)가 아직 옛 헤더(frame_ref 묶음)를 보내는 동안 서버가 그것도 받으려고 둔다(backend/gateway/media.py — 헤더에 frame_ref 가 있으면 이 판으로 검증). $id 가 원본과 겹치면 레지스트리(backend/ingest/envelope.py build_registry)가 깨지므로 끝을 .v1 로 바꿨다. 모든 파트의 생산자가 v2 를 배포한 뒤(단계 5) 지운다 — 고치지 않는다.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "source_id",
+    "capture_timestamp",
+    "sequence_id"
+  ],
+  "properties": {
+    "source_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "프레임을 취득한 카메라의 논리 식별자. 카메라가 둘 이상이면 같은 sequence_id가 생길 수 있으므로, source_id와 sequence_id의 조합으로만 프레임이 유일해진다. 봉투의 source_id와 같은 식별 체계를 쓴다(BE-C-02).",
+      "examples": [
+        "robot1_front",
+        "cctv-zoneA-03"
+      ]
+    },
+    "capture_timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "엣지가 프레임 경계를 확정한 시각(도착)이며 촬영 시각이 아니다. 말단 내부 지연이 포함되고 보정되지 않았다(크기 근거로만: HW 실측 1회 ≈0.3초 — 상수가 아니며 이 숫자를 규격값으로 쓰지 않는다. 소스별 촬영 시각 보정은 Phase 7). NTP 기준 ISO-8601 date-time 문자열(BE-C-03, HW-S-08) — epoch ms 정수가 아니다(2026-09-18 결정 2, 우리 문서 쪽 불일치를 이 파일 기준으로 정정했다). 프레임 정지(staleness) 감지의 기준(도착 기준)이며, 여러 노드 결과 병합 시 공통 시간 기준이 된다. 상태 채널의 발행 timestamp 와 같은 시각 축(UTC 기준 절대 시각)이다.",
+      "examples": [
+        "2026-08-31T09:00:00.123+09:00"
+      ]
+    },
+    "sequence_id": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "소스별 단조 증가 프레임 순번. frame_ref를 단일 frame 번호로 축약하지 않는 이유가 이것과 source_id의 조합 필요성 때문이다 — 재접속 시 번호가 초기화돼도 source_id와 함께 쓰면 오버레이 정합이 안 깨진다.",
+      "examples": [
+        4837
+      ]
+    },
+    "frame_id": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "선택. 프레임의 문자열 식별자가 별도로 필요한 경우 사용(없으면 null). source_id+sequence_id 조합이 1차 키이며 이 필드는 보조.",
+      "examples": [
+        null
+      ]
+    },
+    "time_sync_state": {
+      "type": "string",
+      "enum": [
+        "SYNCED",
+        "DEGRADED"
+      ],
+      "description": "선택. 프레임 취득 시점의 시간 동기 상태. SYNCED=NTP 동기 정상, DEGRADED=동기 저하(단일 노드 로컬 순서는 유지하되 노드 간 정합 정확도 저하, AI-C-03). 시간 동기 감시가 부여한다.",
+      "examples": [
+        "SYNCED"
+      ]
+    }
+  }
+}

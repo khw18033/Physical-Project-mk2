@@ -1,0 +1,20 @@
+39-validator-0.1.4 rpds-py-2026.9.1 six-1.17.0 typing-extensions-4.16.0
+C:\mk2_edge\venv\Scripts\python.exe :
+위치 줄:10 문자:3
++   C:\mk2_edge\venv\Scripts\python.exe -m pip install "paho-mqtt>=2.0" ...
++   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+
+[notice] A new release of pip is available: 25.0.1 -> 26.3
+[notice] To update, run: C:\mk2_edge\venv\Scripts\python.exe -m pip install --upgrade pip
+--- 11-13 판인가 (_produce_after_purge 줄이 나와야 한다)
+
+backend\ingest\bridge.py:321:            if not self._produce_after_purge(topic, key=key, value=value, headers=headers)
+:
+backend\ingest\bridge.py:336:    def _produce_after_purge(self, topic: str, *, key: bytes, value: bytes, headers: Heade
+rs) -> bool:
+Python 3.12.10
+bridge import + contract load OK
+..............                                                           [100%]
+14 passed in 3.97s

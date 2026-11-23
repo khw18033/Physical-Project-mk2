@@ -1,0 +1,105 @@
+{
+  "schema_version": "2.0",
+  "source_id": "ds-vision",
+  "node_id": "sysai-server2",
+  "zone_id": "zoneA",
+  "timestamp": "2026-10-02T13:06:40.499+09:00",
+  "frame_ref": {
+    "camera_id": "x500-001_front",
+    "sequence_id": 2246,
+    "timestamp": "2026-10-02T13:06:40.499+09:00"
+  },
+  "emitted_at": "2026-10-02T13:06:41.018+09:00",
+  "producer": {
+    "tier": "server",
+    "kind": "precise"
+  },
+  "alignment": "frame",
+  "model": "moge2_aerial",
+  "model_file": "Moge2-Aerial.pt",
+  "infer_ms": 152.6,
+  "width": 1280,
+  "height": 720,
+  "stream": "drone",
+  "run": "20261002_040640",
+  "n": 873,
+  "frame_file": "frames/000000873.jpg",
+  "live": true,
+  "overlay_file": "overlay/000000873.jpg",
+  "depth_file": "depth/000000873.npy",
+  "depth_stats": {
+    "min": 0.468,
+    "p5": 0.514,
+    "median": 0.826,
+    "p95": 1.445,
+    "max": 1.652,
+    "valid_ratio": 1.0
+  },
+  "intrinsics": [
+    [
+      594.725,
+      0.0,
+      640.0
+    ],
+    [
+      0.0,
+      594.725,
+      360.0
+    ],
+    [
+      0.0,
+      0.0,
+      1.0
+    ]
+  ],
+  "fov_x_deg": 94.2,
+  "fov_x_given": 94.2,
+  "pose": {
+    "timestamp": "2026-10-02T13:06:40.499+09:00",
+    "lat": 36.0,
+    "lon": 127.0,
+    "fix_type": 3,
+    "satellites": 25,
+    "amsl_m": 122.57,
+    "relative_m": 2.5,
+    "roll_deg": -2.63,
+    "pitch_deg": 1.01,
+    "yaw_deg": -7.99,
+    "att_age_s": 0.41,
+    "gps_age_s": 0.71,
+    "dt_s": 0.0
+  },
+  "geo_status": "ok",
+  "detections": [
+    {
+      "bbox": [
+        253.1,
+        112.5,
+        376.1,
+        438.5
+      ],
+      "label": "person",
+      "class_id": 0,
+      "confidence": 0.8123,
+      "depth_m": 12.4,
+      "uv": [
+        314.6,
+        275.5
+      ],
+      "range_m": 14.1,
+      "cam_xyz_m": [
+        1.2,
+        3.4,
+        12.4
+      ],
+      "ned_m": [
+        10.1,
+        -2.3,
+        9.8
+      ],
+      "lat": 36.00009,
+      "lon": 126.99997,
+      "alt_m": 112.8
+    }
+  ]
+}

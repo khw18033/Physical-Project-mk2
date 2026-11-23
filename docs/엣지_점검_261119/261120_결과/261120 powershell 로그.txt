@@ -1,0 +1,71 @@
+
+관리자 powershell
+
+Windows PowerShell 5.1
+Copyright (C) Microsoft Corporation. All rights reserved.
+
+PS C:\WINDOWS\system32> $EXE = "$env:USERPROFILE\Downloads\mosquitto-2.1.2-install-windows-x64.exe"
+PS C:\WINDOWS\system32> $MQ  = "C:\Program Files\mosquitto"
+PS C:\WINDOWS\system32> (Get-FileHash $EXE -Algorithm SHA256).Hash     # B-0 의 SHA256 과 같아야 한다(대문자로 나온다)
+58008AD7A22ADA0B4073AFA415801746E027C5F583E4FA52D0F4E9193B98D6AA
+PS C:\WINDOWS\system32> Unblock-File $EXE
+PS C:\WINDOWS\system32> Start-Process -FilePath $EXE -ArgumentList "/S" -Wait
+PS C:\WINDOWS\system32> Test-Path "$MQ\mosquitto.exe"                  # True
+True
+PS C:\WINDOWS\system32> Stop-Service mosquitto -ErrorAction SilentlyContinue
+PS C:\WINDOWS\system32> Set-Service mosquitto -StartupType Manual
+PS C:\WINDOWS\system32> Get-Service mosquitto | Format-Table Name,Status,StartType     # Stopped · Manual
+
+Name       Status StartType
+----       ------ ---------
+mosquitto Stopped    Manual
+
+
+PS C:\WINDOWS\system32>
+PS C:\WINDOWS\system32>
+PS C:\WINDOWS\system32> [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+PS C:\WINDOWS\system32> $RES  = "C:\Users\khw67\Desktop\Github\physical mk2_261120\Claude outputs\261021_실측재개\261119 엣지 점검\261120_결과"
+PS C:\WINDOWS\system32> $LOGB = "C:\mk2_edge\logs\install_$(Get-Date -Format yyMMdd).txt"
+PS C:\WINDOWS\system32> $SERVER  = "100.102.8.102"
+PS C:\WINDOWS\system32> $PI_TAIL = "100.72.109.9", "100.83.132.16", "100.85.243.54", "100.73.160.108", "100.114.142.85"   # pi7 · pi1 · pi3 · ds5 · pi10 — DS 주소 파일
+PS C:\WINDOWS\system32> $PI_LAB  = "192.168.50.172", "192.168.50.243", "192.168.50.254"                                       # pi7 · pi1 · pi3 실험실 망 — 문서상 값(미확인)
+PS C:\WINDOWS\system32> $rules = @(
+>>   @{ Name = "MK2 edge mosquitto 1883";           Port = 1883; Remote = $PI_TAIL + $PI_LAB + $SERVER; Prog = "C:\Program Files\mosquitto\mosquitto.exe" },
+>>   @{ Name = "MK2 edge otelcol 4317 (terminals)"; Port = 4317; Remote = $PI_TAIL + $PI_LAB;           Prog = "C:\mk2_edge\obs\otelcol-contrib.exe" },
+>>   @{ Name = "MK2 edge prometheus 9090 (server)"; Port = 9090; Remote = $SERVER;                      Prog = "C:\mk2_edge\obs\prometheus-3.9.1.windows-amd64\prometheus.exe" }
+>> )
+PS C:\WINDOWS\system32> & {
+>>   "== B-6 엣지 방화벽 — $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')"
+>>   Get-NetFirewallProfile | Format-Table Name, Enabled, DefaultInboundAction
+>>   foreach ($r in $rules) {
+>>     if (Get-NetFirewallRule -DisplayName $r.Name -ErrorAction SilentlyContinue) { "이미 있다 — 건너뜀: $($r.Name)"; continue }
+>>     New-NetFirewallRule -DisplayName $r.Name -Direction Inbound -Action Allow -Protocol TCP -LocalPort $r.Port `
+>>       -RemoteAddress $r.Remote -Program $r.Prog -Profile Any | Out-Null
+>>     "넣음: $($r.Name)"
+>>   }
+>>   Get-NetFirewallRule -DisplayName "MK2 edge *" | ForEach-Object {
+>>     $x = $_; $a = $x | Get-NetFirewallAddressFilter; $pf = $x | Get-NetFirewallPortFilter; $ap = $x | Get-NetFirewallApplicationFilter
+>>     "{0,-36} {1,-8} {2,-6} {3,-6} port={4} remote={5} program={6}" -f $x.DisplayName, $x.Direction, $x.Action, $x.Enabled, ($pf.LocalPort -join ','), ($a.RemoteAddress -join ','), $ap.Program }
+>> } *>&1 | Tee-Object -Append -FilePath $LOGB
+== B-6 엣지 방화벽 — 2026-11-20 19:39:40
+
+Name    Enabled DefaultInboundAction
+----    ------- --------------------
+Domain     True        NotConfigured
+Private   False        NotConfigured
+Public    False        NotConfigured
+
+
+넣음: MK2 edge mosquitto 1883
+넣음: MK2 edge otelcol 4317 (terminals)
+넣음: MK2 edge prometheus 9090 (server)
+MK2 edge mosquitto 1883              Inbound  Allow  True   port=1883 remote=100.72.109.9,100.83.132.16,100.85.243.54,100.73.160.108,100.114.142.85,192.168.50.172,192.168.50.243,192.168.50.254,100.102.8.102 program=C:\Program Files\mosquitto\mosquitto.exe
+MK2 edge otelcol 4317 (terminals)    Inbound  Allow  True   port=4317 remote=100.72.109.9,100.83.132.16,100.85.243.54,100.73.160.108,100.114.142.85,192.168.50.172,192.168.50.243,192.168.50.254 program=C:\mk2_edge\obs\otelcol-contrib.exe
+MK2 edge prometheus 9090 (server)    Inbound  Allow  True   port=9090 remote=100.102.8.102 program=C:\mk2_edge\obs\prometheus-3.9.1.windows-amd64\prometheus.exe
+PS C:\WINDOWS\system32> Copy-Item $LOGB $RES -Force
+PS C:\WINDOWS\system32>
+PS C:\WINDOWS\system32>
+
+=============
+powershell 1
+

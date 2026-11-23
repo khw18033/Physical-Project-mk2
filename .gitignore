@@ -1,0 +1,23 @@
+# MK2 edge (C:\mk2_edge) -> GitHub khw18033/Physical-Project-mk2 branch edge_data
+# Everything here is uploaded EXCEPT the lines below (manual v2, appendix F-4).
+
+# Executables - over GitHub's 100MB file limit. Re-download: manual appendix D-0 (URL + SHA256).
+obs/otelcol-contrib.exe
+obs/prometheus-3.9.1.windows-amd64/
+
+# Python virtual environments - machine-specific paths. Rebuild: requirements_edge.txt / requirements_probe.txt (appendix D-5).
+venv/
+venv_probe/
+
+# Runtime data
+obs/prom_data/
+otel_queue/
+
+# Logs that grow without bound (11-20 copies are in docs/엣지_점검_261119/261120_결과/)
+logs/mosquitto.log
+logs/otel_*.jsonl*
+
+# Python caches
+__pycache__/
+*.pyc
+.pytest_cache/

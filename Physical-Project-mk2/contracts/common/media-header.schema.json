@@ -1,0 +1,140 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/khw18033/Physical-Project-mk2/contracts/common/media-header.schema.json",
+  "title": "프레임 헤더 (Media Header) — 방식 B 메시지의 JSON 헤더",
+  "description": "영상 한 장에 붙는 JSON 헤더(통합데이터규약 §3-5 프레임 헤더). 그릇은 경로마다 다르지만(방식 B `[4바이트 빅엔디언 헤더 길이][JSON 헤더(UTF-8)][페이로드 바이트]` · GO1 MJPEG Frame-Meta · 드론 /api/frame meta · 360 업로드 meta) 내용은 하나다. 방식 B 에서는 한 메시지 = 한 프레임(H.264 면 한 액세스 유닛)이고 페이로드는 소스 native 코덱 바이트 그대로다(디코드·재인코딩·트랜스코딩 없음 — 02-media-path §1-3-3). 공통 머리 일곱 칸으로 시작해 상태·비전 결과와 바로 맞댈 수 있다. 번호(sequence_id)와 시각(timestamp)은 프레임을 처음 손에 넣은 기기가 손에 넣는 순간 한 번 붙이고 서버는 바이트 그대로 전파한다(원칙 10). 헤더의 camera_id 는 입구 쿼리의 camera_id 와 같아야 한다 — 다르면 서버가 거부한다(둘 중 하나를 믿고 나머지를 무시하면 조용히 엉뚱한 뷰어로 간다). 프레임이 자기 자신을 frame_ref 로 감쌀 이유가 없어 frame_ref 묶음은 없다 — 과도기 동안 옛 헤더(frame_ref 묶음)는 media-header.v1.schema.json 이 받는다. 근거: BE-T-07(미디어 뷰어 중계) · BE-C-03(프레임 참조·시간 규약).",
+  "$comment": "서버(중계 경로)는 이 헤더의 필수·타입만 검증하고 값 어휘를 보지 않는다. 페이로드는 열지 않는다. 알려진 값 목록(encoding 등)은 생산자 어휘이므로 enum 으로 고정하지 않는다 — contracts/common/README.md 「느슨한 2단」과 같은 규칙. additionalProperties 를 false 로 두지 않는다(생산자가 필드를 하나 더해 전량 거부되는 사고를 만들지 않는다 — 드론 frame_id · camera_index · input_crop · camera{} · flow · obstacles 같은 장비 내부 칸이 그대로 실린다). 공통 머리 칸은 message.schema.json 을 칸마다 $ref 한다 — 정의를 한 곳에 두어 공통 헤더 형식이 바뀌면 프레임 헤더도 같이 따라가게 한다(2026-10-14 결정). 메시지 규격 전체를 allOf 로 가져오지 않는다(correlation_id 처럼 프레임 헤더에서 지운 칸 정의까지 딸려 온다). 2026-10-13 통합데이터규약(BE-03)으로 frame_ref 묶음을 풀어 맨 위로 올리고(camera_id · sequence_id · timestamp), 공통 머리를 더하고, correlation_id(명령 사슬용 — 프레임에 쓸 일이 없다)를 지웠다.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "source_id",
+    "node_id",
+    "zone_id",
+    "timestamp",
+    "sequence_id",
+    "session_id",
+    "camera_id",
+    "encoding",
+    "width",
+    "height"
+  ],
+  "properties": {
+    "schema_version": {
+      "$ref": "message.schema.json#/properties/schema_version",
+      "description": "규약 판. v2 를 적용한 생산자는 \"2.0\"."
+    },
+    "source_id": {
+      "$ref": "message.schema.json#/properties/source_id",
+      "description": "카메라가 달린 장비(통합데이터규약 §2-3). 예: go1-001 · x500-001 · cam360-001."
+    },
+    "node_id": {
+      "$ref": "message.schema.json#/properties/node_id",
+      "description": "이 프레임을 만든 컴퓨터(pi7 · pi3 · 360 노트북 hostname · HW 엣지 이름)."
+    },
+    "zone_id": {
+      "$ref": "message.schema.json#/properties/zone_id"
+    },
+    "timestamp": {
+      "$ref": "message.schema.json#/properties/timestamp",
+      "description": "데이터 시각 — 그 그림을 손에 넣은 순간(D3 · D4). 메시지를 보낸 순간이 아니다. 생산자 규칙은 밀리초 3자리 · +09:00(R5)."
+    },
+    "sequence_id": {
+      "$ref": "message.schema.json#/properties/sequence_id",
+      "description": "카메라마다 세는 프레임 순번. 그 그림을 **손에 넣는 순간** 매긴다(보내는 순간이 아니다). 재기동하면 처음부터 다시 센다 — 경계는 session_id."
+    },
+    "session_id": {
+      "$ref": "message.schema.json#/properties/session_id",
+      "description": "만든 프로세스의 1회 기동 ID(12자리 hex). sequence_id 가 다시 시작되는 경계."
+    },
+    "sent_at": {
+      "$ref": "message.schema.json#/properties/sent_at",
+      "description": "선택. 보낸 순간 — 지금은 싣는 생산자가 없다(D7-1 · P5)."
+    },
+    "camera_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "카메라. 값의 꼴은 `<장비 source_id>_<위치>`(§2-3, 예 go1-001_front). 서버 입구 쿼리(/ingest?camera_id=…)의 값과 같아야 한다 — 다르면 거부한다(stage=schema). 이 프레임을 가리키는 비전 결과·state 의 frame_ref.camera_id 도 같은 값이다.",
+      "examples": [
+        "go1-001_front",
+        "x500-001_front",
+        "cam360-001_main"
+      ]
+    },
+    "encoding": {
+      "type": "string",
+      "minLength": 1,
+      "description": "페이로드의 코덱 선언. 서버는 이 값을 drop-old 의 keyframe 기본값(아래)에만 쓰고, 뷰어가 디코더를 고르는 데 쓴다.",
+      "$comment": "알려진 값: h264 · jpeg. 생산자 어휘이므로 고정하지 않는다(enum 아님). 현재 배포 프로파일 = 로봇 H.264 종단 / 고정 CCTV JPEG 종단(결정 1 — 소스 native 코덱을 그대로 중계). 모르는 값은 서버가 통과시키고 뷰어는 디코드하지 않고 상태로 표시한다.",
+      "examples": [
+        "h264",
+        "jpeg"
+      ]
+    },
+    "keyframe": {
+      "type": "boolean",
+      "description": "이 프레임이 독립 디코드 가능한가(H.264 IDR = 액세스 유닛 안에 NAL 타입 5 가 있는가). **H.264 면 필수**(아래 if/then). JPEG 는 늘 키프레임이라 싣지 않는다 — 서버는 이 칸이 없고 encoding 이 jpeg 면 키프레임으로 본다. 서버가 drop-old 상태 기계에 쓰는 값이다 — 새 뷰어의 첫 전송과 드롭 뒤 재개는 반드시 keyframe 이어야 한다.",
+      "examples": [
+        true
+      ]
+    },
+    "width": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "이 그림의 가로 화소. 자른 경우 자른 뒤 크기. 이 프레임 위에 그릴 비전 결과의 width(박스 기준 해상도)와 같은 값 — 프레임과 탐지가 같은 기준을 공유해야 같은 화면에 겹쳐진다. 해상도 변경은 스트림 재개 사건이다(결정 8-1).",
+      "examples": [
+        464
+      ]
+    },
+    "height": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "이 그림의 세로 화소. 비전 결과의 height 와 같은 값.",
+      "examples": [
+        400
+      ]
+    },
+    "codec": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "RFC 6381 코덱 문자열(예 avc1.42E01E). **H.264 면 필수**(아래 if/then) — 뷰어 WebCodecs configure() 가 쓴다. 서버는 읽지 않는다.",
+      "$comment": "값 어휘를 고정하지 않는다(enum 아님).",
+      "examples": [
+        "avc1.42E01E"
+      ]
+    },
+    "sha1": {
+      "type": "string",
+      "minLength": 1,
+      "description": "선택. 그림 바이트 SHA-1 앞 16자. 번호가 달라도 같은 그림인지 가른다(GO1 은 싣는다 — P5).",
+      "examples": [
+        "cb83195c76df309d"
+      ]
+    },
+    "bytes": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "선택. 그림 크기. 그릇에 길이가 따로 있으면(HTTP Content-Length · 방식 B 메시지 길이) 싣지 않는다(P1).",
+      "examples": [
+        13457
+      ]
+    }
+  },
+  "if": {
+    "properties": {
+      "encoding": {
+        "const": "h264"
+      }
+    },
+    "required": [
+      "encoding"
+    ]
+  },
+  "then": {
+    "required": [
+      "keyframe",
+      "codec"
+    ]
+  }
+}

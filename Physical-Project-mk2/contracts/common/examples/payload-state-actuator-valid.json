@@ -1,0 +1,18 @@
+{
+  "schema_version": "1.0",
+  "source_id": "gate-01",
+  "node_id": "pi-act-1",
+  "zone_id": "zoneA",
+  "timestamp": "2026-09-10T09:00:00+09:00",
+  "sequence_id": 7,
+  "channel": "state",
+  "reason": "progress",
+  "actuator_state": "moving",
+  "position": "close",
+  "progress": 0.42,
+  "feedback_ok": true,
+  "control_locked": false,
+  "lock_reason": null,
+  "device_status": "ok",
+  "detail": "close -> open"
+}

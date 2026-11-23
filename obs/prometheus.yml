@@ -1,0 +1,14 @@
+# MK2 edge Prometheus - base: _serverinfo/edge_probe_260919/prometheus.yml (phase3 step 8-4)
+# BE-S-06: external_labels agg_layer=edge. server federation keeps it with honor_labels.
+global:
+  scrape_interval: 15s
+  external_labels:
+    zone_id: zoneA
+    agg_layer: edge
+scrape_configs:
+  - job_name: 'edge_collector'
+    static_configs:
+      - targets: ['localhost:8889']
+  - job_name: 'edge_availability'
+    static_configs:
+      - targets: ['localhost:9105']

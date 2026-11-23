@@ -1,0 +1,18 @@
+# C:\mk2_edge\venv - edge bridge (E2) + availability (E8). Installed 2026-11-20 on BOOK-4VG1EDPVI5 (Python 3.12.10).
+# py -3.12 -m venv C:\mk2_edge\venv ; C:\mk2_edge\venv\Scripts\python.exe -m pip install -r C:\mk2_edge\requirements_edge.txt
+attrs==26.1.0
+colorama==0.4.6
+confluent-kafka==2.16.2
+iniconfig==2.3.1
+jsonschema==4.26.0
+jsonschema-specifications==2025.9.1
+packaging==26.3
+paho-mqtt==2.2.0
+pluggy==1.7.0
+pygments==2.21.0
+pytest==9.2.0
+referencing==0.37.0
+rfc3339-validator==0.1.4
+rpds-py==2026.9.1
+six==1.17.0
+typing-extensions==4.16.0

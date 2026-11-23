@@ -1,0 +1,17 @@
+{
+  "_why_valid": "규격 1.1에서 추가된 선택 필드 session_id가 실린 형태. envelope-valid.json과 이 파일의 차이는 session_id 하나뿐이며, 둘 다 통과해야 한다 — 선택 필드이므로 보내는 생산자와 안 보내는 생산자가 공존하는 혼재 기간이 정상 상태다(HW는 아직 보내지 않는다).",
+  "schema_version": "1.1",
+  "source_id": "wl-001",
+  "entity_id": "wl-001",
+  "node_id": "pi7",
+  "zone_id": "zoneA",
+  "timestamp": "2026-08-31T09:00:00+09:00",
+  "sequence_id": 4837,
+  "session_id": "9f2c1a7b04e6",
+  "origin_kind": "real",
+  "channel": "state",
+  "water_level_m": 2.53,
+  "unit": "m",
+  "alert": false,
+  "reason": "periodic"
+}

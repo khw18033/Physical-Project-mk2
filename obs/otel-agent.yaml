@@ -1,0 +1,43 @@
+# MK2 edge Collector (Agent) - edge-only (no server). 2026-11-20 handoff.
+# base: _serverinfo/edge_probe_260919/otel-agent.yaml + phase3 step 8-3, 8-7(c)
+# metric -> 127.0.0.1:8889 (edge Prometheus scrapes it). logs/traces -> local files.
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: "0.0.0.0:4317"
+processors:
+  batch:
+    timeout: 5s
+exporters:
+  prometheus:
+    endpoint: "127.0.0.1:8889"
+  file/logs:
+    path: "C:/mk2_edge/logs/otel_logs.jsonl"
+    rotation:
+      max_megabytes: 100
+      max_backups: 10
+  file/traces:
+    path: "C:/mk2_edge/logs/otel_traces.jsonl"
+    rotation:
+      max_megabytes: 100
+      max_backups: 10
+  # server stage (S2): uncomment, then put otlp_grpc in the logs/traces pipelines
+  # otlp_grpc:
+  #   endpoint: "100.102.8.102:4316"
+  #   tls:
+  #     insecure: true
+service:
+  pipelines:
+    metrics:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [prometheus]
+    logs:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [file/logs]
+    traces:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [file/traces]

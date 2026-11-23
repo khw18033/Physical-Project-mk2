@@ -1,0 +1,29 @@
+{
+  "schema_version": "1.0",
+  "source_id": "wl-001",
+  "node_id": "pi7",
+  "zone_id": "zoneA",
+  "timestamp": "2026-09-10T09:00:00+09:00",
+  "channel": "status",
+  "event": "birth",
+  "status": "online",
+  "device_status": "ok",
+  "registration": {
+    "entity_id": "wl-001",
+    "node_id": "pi7",
+    "zone_id": "zoneA",
+    "entity_type": "sensor",
+    "device_type": "water_level",
+    "fw_version": "0.3.0",
+    "mac": "b8:27:eb:aa:bb:cc",
+    "ip": "192.168.50.31"
+  },
+  "uptime_s": 0.3,
+  "buffer": { "pending": 0, "dropped": 0, "thinned": 0 },
+  "publish_failures": 0,
+  "mode": "normal",
+  "mode_source": "auto",
+  "report_interval_s": 60.0,
+  "alert": false,
+  "last_value": 2.53
+}

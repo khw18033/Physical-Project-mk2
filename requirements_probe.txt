@@ -1,0 +1,13 @@
+# C:\mk2_edge\venv_probe - fake B-layer observation sender (tests\edge_probe_publisher.py). Installed 2026-11-20 on BOOK-4VG1EDPVI5 (Python 3.12.10).
+# py -3.12 -m venv C:\mk2_edge\venv_probe ; C:\mk2_edge\venv_probe\Scripts\python.exe -m pip install -r C:\mk2_edge\requirements_probe.txt
+googleapis-common-protos==1.76.0
+grpcio==1.85.3
+opentelemetry-api==1.44.0
+opentelemetry-exporter-otlp-proto-common==1.44.0
+opentelemetry-exporter-otlp-proto-grpc==1.44.0
+opentelemetry-proto==1.44.0
+opentelemetry-sdk==1.44.0
+opentelemetry-semantic-conventions==0.65b0
+protobuf==7.36.2
+psutil==7.2.2
+typing-extensions==4.16.0

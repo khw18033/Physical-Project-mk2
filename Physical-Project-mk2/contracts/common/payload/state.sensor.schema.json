@@ -1,0 +1,76 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/khw18033/Physical-Project-mk2/contracts/common/payload/state.sensor.schema.json",
+  "title": "채널 본문 — state / sensor",
+  "description": "센서 노드가 `{zone}/sensor/{eid}/state` 로 발행하는 본문. 공통 헤더 위에 얹히며, 검증은 공통 헤더 → 본문 2단으로 이뤄진다. 실물 근거: HW `pi/sensor/sensor_node.py` on_sample() 의 payload.update({...}).",
+  "type": "object",
+  "required": [
+    "reason",
+    "device_status",
+    "water_level_m",
+    "unit",
+    "alert",
+    "mode"
+  ],
+  "properties": {
+    "reason": {
+      "type": "string",
+      "minLength": 1,
+      "description": "이 메시지를 발행한 사유. 저장 층이 `periodic`(연속 표본)을 다운샘플 대상으로 구분하는 근거다 — 재전송 구간의 성긴 periodic 은 유실이 아니라 솎인 것이다.",
+      "$comment": "관측 신호 힌트: log/event. 관측된 어휘는 periodic · threshold_exceeded · threshold_cleared · rapid_change 4종이다(sensor_node.py:84-87). **enum 으로 고정하지 않는다** — 어휘가 늘 때 전량 격리되는 사고를 만들지 않기 위해서다. 확정·확장 계획은 하드웨어 회신 항목이다.",
+      "examples": ["periodic", "threshold_exceeded", "threshold_cleared", "rapid_change"]
+    },
+    "device_status": {
+      "type": "string",
+      "minLength": 1,
+      "description": "장치 자기보고 상태. 백엔드가 판정하는 최종 가용성(availability)과는 **다른 층**이다(상태 3층: 자기보고·서버판정·오케스트레이터).",
+      "$comment": "관측 신호 힌트: log/event. 관측된 어휘는 ok · degraded · fault 3종(schema.py STATUS_*). enum 으로 고정하지 않는 이유는 reason 과 같다.",
+      "examples": ["ok", "degraded", "fault"]
+    },
+    "water_level_m": {
+      "x-mk2-absence": "stateful",
+      "description": "수위 계측값(m). **부재 사유를 구분해야 하는 항목이다** — 센서 읽기가 실패하면 발행 자체가 되지 않고(sensor_node.py:69-72 의 except → return), 3회 연속 실패하면 device_status 가 fault 가 된다(:150-151). 화면은 '센서 없음(unsupported)'과 '센서 고장(unavailable)'을 달리 그려야 하므로 두 형태를 모두 허용한다.",
+      "$comment": "관측 신호 힌트: gauge. 범위(min/max)를 강제하지 않는다 — 재난 구간의 이상값이 격리되면 안 된다.",
+      "oneOf": [
+        { "type": "number" },
+        { "type": "null" },
+        {
+          "type": "object",
+          "required": ["value", "state"],
+          "properties": {
+            "value": { "type": ["number", "null"] },
+            "state": { "enum": ["unsupported", "unavailable"] }
+          }
+        }
+      ],
+      "examples": [2.53, null, { "value": null, "state": "unavailable" }]
+    },
+    "unit": {
+      "type": ["string", "null"],
+      "description": "계측값의 단위. 값과 단위를 함께 보내 소비자가 단위를 추측하지 않게 한다.",
+      "examples": ["m"]
+    },
+    "alert": {
+      "type": ["boolean", "null"],
+      "description": "임계 초과 상태인가. 임계 판정은 말단이 스스로 한다(로컬 자율 1순위) — 브로커·엣지가 죽어도 경보가 유지되는 구조다.",
+      "$comment": "관측 신호 힌트: log/event",
+      "examples": [false]
+    },
+    "mode": {
+      "type": ["string", "null"],
+      "description": "보고 주기 모드. normal(평시 저주기) | event(사건 1Hz) | custom(명령 지정).",
+      "examples": ["normal", "event", "custom"]
+    },
+    "replayed": {
+      "type": ["boolean", "null"],
+      "description": "두절 후 재전송된 메시지인가. **지연 도착 판정의 유일한 근거로 쓰지 않는다** — status·heartbeat 는 spool 을 타지 않아 지연돼도 이 표식이 없고, 다운샘플로 솎인 표본은 아예 사라진다. 판정은 저장 층의 lag_s 로 한다.",
+      "examples": [true]
+    },
+    "channel": {
+      "type": ["string", "null"],
+      "description": "생산자가 스스로 붙이는 채널 이름. **백엔드는 이 값을 검증하지 않는다** — 라우팅은 MQTT 토픽 기준이다. 증강 분석이 토픽 state 에 본문 channel: \"analysis\" 를 보내고 있어(analyzer.py:126·136) 일치를 강제하면 가동 중인 생산자가 격리된다. 불일치는 기록만 한다.",
+      "examples": ["state"]
+    }
+  },
+  "$comment": "additionalProperties 를 false 로 두지 않는다. 하드웨어가 필드를 하나 추가하는 순간 전량 격리되는 사고를 만들지 않기 위해서다 — status_extra() 처럼 노드마다 다른 필드를 반환하도록 설계된 훅이 있어 필드가 느는 것이 정상 동작이다. 모르는 필드는 통과시키고 원본 그대로 저장한다."
+}

@@ -1,0 +1,15 @@
+{
+  "schema_version": "2.0",
+  "source_id": "cctv-zoneA-03",
+  "node_id": "edge-zoneA-01",
+  "zone_id": "zoneA",
+  "camera_id": "cctv-zoneA-03_main",
+  "sequence_id": 0,
+  "session_id": "0f1e2d3c4b5a",
+  "timestamp": "2026-09-18T03:00:00.500Z",
+  "encoding": "av1",
+  "keyframe": true,
+  "width": 1280,
+  "height": 720,
+  "producer_extra": "생산자가 더한 필드 — 헤더 바깥은 통과한다"
+}

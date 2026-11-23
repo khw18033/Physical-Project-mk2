@@ -1,0 +1,434 @@
+2026-11-20T19:55:24: mosquitto version 2.1.2 starting
+2026-11-20T19:55:24: Config loaded from .\mosquitto_edge.conf.
+2026-11-20T19:55:24: Bridge support available.
+2026-11-20T19:55:24: Persistence support available.
+2026-11-20T19:55:24: TLS support available.
+2026-11-20T19:55:24: TLS-PSK support available.
+2026-11-20T19:55:24: Websockets support available.
+2026-11-20T19:55:24: Opening ipv4 listen socket on port 1883.
+2026-11-20T19:55:24: Connecting bridge pi7 (100.72.109.9:1883)
+2026-11-20T19:55:24: Bridge edge-book4vg1edpvi5-pi7 sending CONNECT
+2026-11-20T19:55:24: Connecting bridge pi1 (100.83.132.16:1883)
+2026-11-20T19:55:24: Bridge edge-book4vg1edpvi5-pi1 sending CONNECT
+2026-11-20T19:55:24: Connecting bridge pi3 (100.85.243.54:1883)
+2026-11-20T19:55:24: Bridge edge-book4vg1edpvi5-pi3 sending CONNECT
+2026-11-20T19:55:24: Connecting bridge ds5 (100.73.160.108:1883)
+2026-11-20T19:55:24: Bridge edge-book4vg1edpvi5-ds5 sending CONNECT
+2026-11-20T19:55:24: Connecting bridge pi10 (100.114.142.85:1883)
+2026-11-20T19:55:24: Bridge edge-book4vg1edpvi5-pi10 sending CONNECT
+2026-11-20T19:55:24: mosquitto version 2.1.2 running
+2026-11-20T19:55:45: Client local.edge-book4vg1edpvi5-pi7 [(null):0] disconnected: connection closed by client.
+2026-11-20T19:55:45: Bridge pi7 next backoff will be 5173 ms
+2026-11-20T19:55:45: Client local.edge-book4vg1edpvi5-pi1 [(null):0] disconnected: connection closed by client.
+2026-11-20T19:55:45: Client local.edge-book4vg1edpvi5-pi3 [(null):0] disconnected: connection closed by client.
+2026-11-20T19:55:45: Client local.edge-book4vg1edpvi5-ds5 [(null):0] disconnected: connection closed by client.
+2026-11-20T19:55:45: Client local.edge-book4vg1edpvi5-pi10 [(null):0] disconnected: connection closed by client.
+2026-11-20T19:55:45: Bridge pi1 next backoff will be 6822 ms
+2026-11-20T19:55:45: Bridge pi3 next backoff will be 9459 ms
+2026-11-20T19:55:45: Bridge ds5 next backoff will be 6769 ms
+2026-11-20T19:55:45: Bridge pi10 next backoff will be 7383 ms
+2026-11-20T19:55:51: Connecting bridge pi7 (100.72.109.9:1883)
+2026-11-20T19:55:51: Bridge edge-book4vg1edpvi5-pi7 sending CONNECT
+2026-11-20T19:55:52: Connecting bridge pi1 (100.83.132.16:1883)
+2026-11-20T19:55:52: Bridge edge-book4vg1edpvi5-pi1 sending CONNECT
+2026-11-20T19:55:52: Connecting bridge ds5 (100.73.160.108:1883)
+2026-11-20T19:55:52: Bridge edge-book4vg1edpvi5-ds5 sending CONNECT
+2026-11-20T19:55:53: Connecting bridge pi10 (100.114.142.85:1883)
+2026-11-20T19:55:53: Bridge edge-book4vg1edpvi5-pi10 sending CONNECT
+2026-11-20T19:55:55: Connecting bridge pi3 (100.85.243.54:1883)
+2026-11-20T19:55:55: Bridge edge-book4vg1edpvi5-pi3 sending CONNECT
+2026-11-20T19:56:12: Client local.edge-book4vg1edpvi5-pi7 [(null):0] disconnected: connection closed by client.
+2026-11-20T19:56:12: Bridge pi7 next backoff will be 10733 ms
+2026-11-20T19:56:13: Client local.edge-book4vg1edpvi5-pi1 [(null):0] disconnected: connection closed by client.
+2026-11-20T19:56:13: Client local.edge-book4vg1edpvi5-ds5 [(null):0] disconnected: connection closed by client.
+2026-11-20T19:56:13: Bridge pi1 next backoff will be 11836 ms
+2026-11-20T19:56:13: Bridge ds5 next backoff will be 13784 ms
+2026-11-20T19:56:14: Client local.edge-book4vg1edpvi5-pi10 [(null):0] disconnected: connection closed by client.
+2026-11-20T19:56:14: Bridge pi10 next backoff will be 11405 ms
+2026-11-20T19:56:16: Client local.edge-book4vg1edpvi5-pi3 [(null):0] disconnected: connection closed by client.
+2026-11-20T19:56:16: Bridge pi3 next backoff will be 22619 ms
+2026-11-20T19:56:23: Connecting bridge pi7 (100.72.109.9:1883)
+2026-11-20T19:56:23: Bridge edge-book4vg1edpvi5-pi7 sending CONNECT
+2026-11-20T19:56:25: Connecting bridge pi1 (100.83.132.16:1883)
+2026-11-20T19:56:25: Bridge edge-book4vg1edpvi5-pi1 sending CONNECT
+2026-11-20T19:56:26: Connecting bridge pi10 (100.114.142.85:1883)
+2026-11-20T19:56:26: Bridge edge-book4vg1edpvi5-pi10 sending CONNECT
+2026-11-20T19:56:27: Connecting bridge ds5 (100.73.160.108:1883)
+2026-11-20T19:56:27: Bridge edge-book4vg1edpvi5-ds5 sending CONNECT
+2026-11-20T19:56:39: Connecting bridge pi3 (100.85.243.54:1883)
+2026-11-20T19:56:39: Bridge edge-book4vg1edpvi5-pi3 sending CONNECT
+2026-11-20T19:56:44: Client local.edge-book4vg1edpvi5-pi7 [(null):0] disconnected: connection closed by client.
+2026-11-20T19:56:44: Bridge pi7 next backoff will be 9153 ms
+2026-11-20T19:56:46: Client local.edge-book4vg1edpvi5-pi1 [(null):0] disconnected: connection closed by client.
+2026-11-20T19:56:46: Bridge pi1 next backoff will be 24165 ms
+2026-11-20T19:56:47: Client local.edge-book4vg1edpvi5-pi10 [(null):0] disconnected: connection closed by client.
+2026-11-20T19:56:47: Bridge pi10 next backoff will be 28938 ms
+2026-11-20T19:56:48: Client local.edge-book4vg1edpvi5-ds5 [(null):0] disconnected: connection closed by client.
+2026-11-20T19:56:48: Bridge ds5 next backoff will be 30000 ms
+2026-11-20T19:56:54: Connecting bridge pi7 (100.72.109.9:1883)
+2026-11-20T19:56:54: Bridge edge-book4vg1edpvi5-pi7 sending CONNECT
+2026-11-20T19:57:00: Client local.edge-book4vg1edpvi5-pi3 [(null):0] disconnected: connection closed by client.
+2026-11-20T19:57:00: Bridge pi3 next backoff will be 30000 ms
+2026-11-20T19:57:11: Connecting bridge pi1 (100.83.132.16:1883)
+2026-11-20T19:57:11: Bridge edge-book4vg1edpvi5-pi1 sending CONNECT
+2026-11-20T19:57:15: Client local.edge-book4vg1edpvi5-pi7 [(null):0] disconnected: connection closed by client.
+2026-11-20T19:57:15: Bridge pi7 next backoff will be 9489 ms
+2026-11-20T19:57:16: Connecting bridge pi10 (100.114.142.85:1883)
+2026-11-20T19:57:16: Bridge edge-book4vg1edpvi5-pi10 sending CONNECT
+2026-11-20T19:57:18: Connecting bridge ds5 (100.73.160.108:1883)
+2026-11-20T19:57:18: Bridge edge-book4vg1edpvi5-ds5 sending CONNECT
+2026-11-20T19:57:25: Connecting bridge pi7 (100.72.109.9:1883)
+2026-11-20T19:57:25: Bridge edge-book4vg1edpvi5-pi7 sending CONNECT
+2026-11-20T19:57:30: Connecting bridge pi3 (100.85.243.54:1883)
+2026-11-20T19:57:30: Bridge edge-book4vg1edpvi5-pi3 sending CONNECT
+2026-11-20T19:57:32: Client local.edge-book4vg1edpvi5-pi1 [(null):0] disconnected: connection closed by client.
+2026-11-20T19:57:32: Bridge pi1 next backoff will be 14186 ms
+2026-11-20T19:57:37: Client local.edge-book4vg1edpvi5-pi10 [(null):0] disconnected: connection closed by client.
+2026-11-20T19:57:37: Bridge pi10 next backoff will be 30000 ms
+2026-11-20T19:57:39: Client local.edge-book4vg1edpvi5-ds5 [(null):0] disconnected: connection closed by client.
+2026-11-20T19:57:39: Bridge ds5 next backoff will be 23640 ms
+2026-11-20T19:57:46: Client local.edge-book4vg1edpvi5-pi7 [(null):0] disconnected: connection closed by client.
+2026-11-20T19:57:46: Bridge pi7 next backoff will be 14647 ms
+2026-11-20T19:57:47: Connecting bridge pi1 (100.83.132.16:1883)
+2026-11-20T19:57:47: Bridge edge-book4vg1edpvi5-pi1 sending CONNECT
+2026-11-20T19:57:51: Client local.edge-book4vg1edpvi5-pi3 [(null):0] disconnected: connection closed by client.
+2026-11-20T19:57:51: Bridge pi3 next backoff will be 13171 ms
+2026-11-20T19:58:01: Connecting bridge pi7 (100.72.109.9:1883)
+2026-11-20T19:58:01: Bridge edge-book4vg1edpvi5-pi7 sending CONNECT
+2026-11-20T19:58:03: Connecting bridge ds5 (100.73.160.108:1883)
+2026-11-20T19:58:03: Bridge edge-book4vg1edpvi5-ds5 sending CONNECT
+2026-11-20T19:58:05: Connecting bridge pi3 (100.85.243.54:1883)
+2026-11-20T19:58:05: Bridge edge-book4vg1edpvi5-pi3 sending CONNECT
+2026-11-20T19:58:07: Connecting bridge pi10 (100.114.142.85:1883)
+2026-11-20T19:58:07: Bridge edge-book4vg1edpvi5-pi10 sending CONNECT
+2026-11-20T19:58:08: Client local.edge-book4vg1edpvi5-pi1 [(null):0] disconnected: connection closed by client.
+2026-11-20T19:58:08: Bridge pi1 next backoff will be 30000 ms
+2026-11-20T19:58:22: Client local.edge-book4vg1edpvi5-pi7 [(null):0] disconnected: connection closed by client.
+2026-11-20T19:58:22: Bridge pi7 next backoff will be 30000 ms
+2026-11-20T19:58:24: Client local.edge-book4vg1edpvi5-ds5 [(null):0] disconnected: connection closed by client.
+2026-11-20T19:58:24: Bridge ds5 next backoff will be 20053 ms
+2026-11-20T19:58:26: Client local.edge-book4vg1edpvi5-pi3 [(null):0] disconnected: connection closed by client.
+2026-11-20T19:58:26: Bridge pi3 next backoff will be 15659 ms
+2026-11-20T19:58:28: Client local.edge-book4vg1edpvi5-pi10 [(null):0] disconnected: connection closed by client.
+2026-11-20T19:58:28: Bridge pi10 next backoff will be 30000 ms
+2026-11-20T19:58:38: Connecting bridge pi1 (100.83.132.16:1883)
+2026-11-20T19:58:38: Bridge edge-book4vg1edpvi5-pi1 sending CONNECT
+2026-11-20T19:58:42: Connecting bridge pi3 (100.85.243.54:1883)
+2026-11-20T19:58:42: Bridge edge-book4vg1edpvi5-pi3 sending CONNECT
+2026-11-20T19:58:45: Connecting bridge ds5 (100.73.160.108:1883)
+2026-11-20T19:58:45: Bridge edge-book4vg1edpvi5-ds5 sending CONNECT
+2026-11-20T19:58:52: Connecting bridge pi7 (100.72.109.9:1883)
+2026-11-20T19:58:52: Bridge edge-book4vg1edpvi5-pi7 sending CONNECT
+2026-11-20T19:58:58: Connecting bridge pi10 (100.114.142.85:1883)
+2026-11-20T19:58:58: Bridge edge-book4vg1edpvi5-pi10 sending CONNECT
+2026-11-20T19:58:59: Client local.edge-book4vg1edpvi5-pi1 [(null):0] disconnected: connection closed by client.
+2026-11-20T19:58:59: Bridge pi1 next backoff will be 30000 ms
+2026-11-20T19:59:03: Client local.edge-book4vg1edpvi5-pi3 [(null):0] disconnected: connection closed by client.
+2026-11-20T19:59:03: Bridge pi3 next backoff will be 30000 ms
+2026-11-20T19:59:06: Client local.edge-book4vg1edpvi5-ds5 [(null):0] disconnected: connection closed by client.
+2026-11-20T19:59:06: Bridge ds5 next backoff will be 30000 ms
+2026-11-20T19:59:13: Client local.edge-book4vg1edpvi5-pi7 [(null):0] disconnected: connection closed by client.
+2026-11-20T19:59:13: Bridge pi7 next backoff will be 30000 ms
+2026-11-20T19:59:19: Client local.edge-book4vg1edpvi5-pi10 [(null):0] disconnected: connection closed by client.
+2026-11-20T19:59:19: Bridge pi10 next backoff will be 24147 ms
+2026-11-20T19:59:29: Connecting bridge pi1 (100.83.132.16:1883)
+2026-11-20T19:59:29: Bridge edge-book4vg1edpvi5-pi1 sending CONNECT
+2026-11-20T19:59:33: Connecting bridge pi3 (100.85.243.54:1883)
+2026-11-20T19:59:33: Bridge edge-book4vg1edpvi5-pi3 sending CONNECT
+2026-11-20T19:59:36: Connecting bridge ds5 (100.73.160.108:1883)
+2026-11-20T19:59:36: Bridge edge-book4vg1edpvi5-ds5 sending CONNECT
+2026-11-20T19:59:43: Connecting bridge pi7 (100.72.109.9:1883)
+2026-11-20T19:59:43: Bridge edge-book4vg1edpvi5-pi7 sending CONNECT
+2026-11-20T19:59:44: Connecting bridge pi10 (100.114.142.85:1883)
+2026-11-20T19:59:44: Bridge edge-book4vg1edpvi5-pi10 sending CONNECT
+2026-11-20T19:59:50: Client local.edge-book4vg1edpvi5-pi1 [(null):0] disconnected: connection closed by client.
+2026-11-20T19:59:50: Bridge pi1 next backoff will be 30000 ms
+2026-11-20T19:59:54: Client local.edge-book4vg1edpvi5-pi3 [(null):0] disconnected: connection closed by client.
+2026-11-20T19:59:54: Bridge pi3 next backoff will be 11074 ms
+2026-11-20T19:59:57: Client local.edge-book4vg1edpvi5-ds5 [(null):0] disconnected: connection closed by client.
+2026-11-20T19:59:57: Bridge ds5 next backoff will be 17964 ms
+2026-11-20T20:00:04: Client local.edge-book4vg1edpvi5-pi7 [(null):0] disconnected: connection closed by client.
+2026-11-20T20:00:04: Bridge pi7 next backoff will be 10280 ms
+2026-11-20T20:00:05: Client local.edge-book4vg1edpvi5-pi10 [(null):0] disconnected: connection closed by client.
+2026-11-20T20:00:05: Bridge pi10 next backoff will be 30000 ms
+2026-11-20T20:00:06: Connecting bridge pi3 (100.85.243.54:1883)
+2026-11-20T20:00:06: Bridge edge-book4vg1edpvi5-pi3 sending CONNECT
+2026-11-20T20:00:15: Connecting bridge pi7 (100.72.109.9:1883)
+2026-11-20T20:00:15: Bridge edge-book4vg1edpvi5-pi7 sending CONNECT
+2026-11-20T20:00:15: Connecting bridge ds5 (100.73.160.108:1883)
+2026-11-20T20:00:15: Bridge edge-book4vg1edpvi5-ds5 sending CONNECT
+2026-11-20T20:00:20: Connecting bridge pi1 (100.83.132.16:1883)
+2026-11-20T20:00:20: Bridge edge-book4vg1edpvi5-pi1 sending CONNECT
+2026-11-20T20:00:27: Client local.edge-book4vg1edpvi5-pi3 [(null):0] disconnected: connection closed by client.
+2026-11-20T20:00:27: Bridge pi3 next backoff will be 9149 ms
+2026-11-20T20:00:35: Connecting bridge pi10 (100.114.142.85:1883)
+2026-11-20T20:00:35: Bridge edge-book4vg1edpvi5-pi10 sending CONNECT
+2026-11-20T20:00:36: Client local.edge-book4vg1edpvi5-pi7 [(null):0] disconnected: connection closed by client.
+2026-11-20T20:00:36: Bridge pi7 next backoff will be 25859 ms
+2026-11-20T20:00:36: Client local.edge-book4vg1edpvi5-ds5 [(null):0] disconnected: connection closed by client.
+2026-11-20T20:00:36: Bridge ds5 next backoff will be 30000 ms
+2026-11-20T20:00:37: Connecting bridge pi3 (100.85.243.54:1883)
+2026-11-20T20:00:37: Bridge edge-book4vg1edpvi5-pi3 sending CONNECT
+2026-11-20T20:00:41: Client local.edge-book4vg1edpvi5-pi1 [(null):0] disconnected: connection closed by client.
+2026-11-20T20:00:41: Bridge pi1 next backoff will be 30000 ms
+2026-11-20T20:00:56: Client local.edge-book4vg1edpvi5-pi10 [(null):0] disconnected: connection closed by client.
+2026-11-20T20:00:56: Bridge pi10 next backoff will be 20995 ms
+2026-11-20T20:00:58: Client local.edge-book4vg1edpvi5-pi3 [(null):0] disconnected: connection closed by client.
+2026-11-20T20:00:58: Bridge pi3 next backoff will be 17979 ms
+2026-11-20T20:01:02: Connecting bridge pi7 (100.72.109.9:1883)
+2026-11-20T20:01:02: Bridge edge-book4vg1edpvi5-pi7 sending CONNECT
+2026-11-20T20:01:06: Connecting bridge ds5 (100.73.160.108:1883)
+2026-11-20T20:01:06: Bridge edge-book4vg1edpvi5-ds5 sending CONNECT
+2026-11-20T20:01:11: Connecting bridge pi1 (100.83.132.16:1883)
+2026-11-20T20:01:11: Bridge edge-book4vg1edpvi5-pi1 sending CONNECT
+2026-11-20T20:01:16: Connecting bridge pi3 (100.85.243.54:1883)
+2026-11-20T20:01:16: Bridge edge-book4vg1edpvi5-pi3 sending CONNECT
+2026-11-20T20:01:17: Connecting bridge pi10 (100.114.142.85:1883)
+2026-11-20T20:01:17: Bridge edge-book4vg1edpvi5-pi10 sending CONNECT
+2026-11-20T20:01:23: Client local.edge-book4vg1edpvi5-pi7 [(null):0] disconnected: connection closed by client.
+2026-11-20T20:01:23: Bridge pi7 next backoff will be 8229 ms
+2026-11-20T20:01:27: Client local.edge-book4vg1edpvi5-ds5 [(null):0] disconnected: connection closed by client.
+2026-11-20T20:01:27: Bridge ds5 next backoff will be 30000 ms
+2026-11-20T20:01:32: Connecting bridge pi7 (100.72.109.9:1883)
+2026-11-20T20:01:32: Bridge edge-book4vg1edpvi5-pi7 sending CONNECT
+2026-11-20T20:01:32: Client local.edge-book4vg1edpvi5-pi1 [(null):0] disconnected: connection closed by client.
+2026-11-20T20:01:32: Bridge pi1 next backoff will be 30000 ms
+2026-11-20T20:01:37: Client local.edge-book4vg1edpvi5-pi3 [(null):0] disconnected: connection closed by client.
+2026-11-20T20:01:37: Bridge pi3 next backoff will be 15071 ms
+2026-11-20T20:01:38: Client local.edge-book4vg1edpvi5-pi10 [(null):0] disconnected: connection closed by client.
+2026-11-20T20:01:38: Bridge pi10 next backoff will be 15038 ms
+2026-11-20T20:01:45: New connection from 127.0.0.1:63405 on port 1883.
+2026-11-20T20:01:45: New client connected from 127.0.0.1:63405 as edge-availability (p4, c1, k30).
+2026-11-20T20:01:45: No will message specified.
+2026-11-20T20:01:45: Sending CONNACK to edge-availability (0, 0)
+2026-11-20T20:01:45: Received SUBSCRIBE from edge-availability
+2026-11-20T20:01:45: 	+/+/+/heartbeat (QoS 1)
+2026-11-20T20:01:45: edge-availability 1 +/+/+/heartbeat
+2026-11-20T20:01:45: Sending SUBACK to edge-availability
+2026-11-20T20:01:45: Received SUBSCRIBE from edge-availability
+2026-11-20T20:01:45: 	+/+/+/status (QoS 1)
+2026-11-20T20:01:45: edge-availability 1 +/+/+/status
+2026-11-20T20:01:45: Sending SUBACK to edge-availability
+2026-11-20T20:01:53: Connecting bridge pi3 (100.85.243.54:1883)
+2026-11-20T20:01:53: Bridge edge-book4vg1edpvi5-pi3 sending CONNECT
+2026-11-20T20:01:53: Client local.edge-book4vg1edpvi5-pi7 [(null):0] disconnected: connection closed by client.
+2026-11-20T20:01:53: Bridge pi7 next backoff will be 7285 ms
+2026-11-20T20:01:54: Connecting bridge pi10 (100.114.142.85:1883)
+2026-11-20T20:01:54: Bridge edge-book4vg1edpvi5-pi10 sending CONNECT
+2026-11-20T20:01:57: Connecting bridge ds5 (100.73.160.108:1883)
+2026-11-20T20:01:57: Bridge edge-book4vg1edpvi5-ds5 sending CONNECT
+2026-11-20T20:02:01: Connecting bridge pi7 (100.72.109.9:1883)
+2026-11-20T20:02:01: Bridge edge-book4vg1edpvi5-pi7 sending CONNECT
+2026-11-20T20:02:02: Connecting bridge pi1 (100.83.132.16:1883)
+2026-11-20T20:02:02: Bridge edge-book4vg1edpvi5-pi1 sending CONNECT
+2026-11-20T20:02:14: Client local.edge-book4vg1edpvi5-pi3 [(null):0] disconnected: connection closed by client.
+2026-11-20T20:02:14: Bridge pi3 next backoff will be 9686 ms
+2026-11-20T20:02:15: Received PINGREQ from edge-availability
+2026-11-20T20:02:15: Sending PINGRESP to edge-availability
+2026-11-20T20:02:15: Client local.edge-book4vg1edpvi5-pi10 [(null):0] disconnected: connection closed by client.
+2026-11-20T20:02:15: Bridge pi10 next backoff will be 22864 ms
+2026-11-20T20:02:18: Client local.edge-book4vg1edpvi5-ds5 [(null):0] disconnected: connection closed by client.
+2026-11-20T20:02:18: Bridge ds5 next backoff will be 30000 ms
+2026-11-20T20:02:22: Client local.edge-book4vg1edpvi5-pi7 [(null):0] disconnected: connection closed by client.
+2026-11-20T20:02:22: Bridge pi7 next backoff will be 5491 ms
+2026-11-20T20:02:23: Client local.edge-book4vg1edpvi5-pi1 [(null):0] disconnected: connection closed by client.
+2026-11-20T20:02:23: Bridge pi1 next backoff will be 12625 ms
+2026-11-20T20:02:24: Connecting bridge pi3 (100.85.243.54:1883)
+2026-11-20T20:02:24: Bridge edge-book4vg1edpvi5-pi3 sending CONNECT
+2026-11-20T20:02:28: Connecting bridge pi7 (100.72.109.9:1883)
+2026-11-20T20:02:28: Bridge edge-book4vg1edpvi5-pi7 sending CONNECT
+2026-11-20T20:02:36: Connecting bridge pi1 (100.83.132.16:1883)
+2026-11-20T20:02:36: Bridge edge-book4vg1edpvi5-pi1 sending CONNECT
+2026-11-20T20:02:38: Connecting bridge pi10 (100.114.142.85:1883)
+2026-11-20T20:02:38: Bridge edge-book4vg1edpvi5-pi10 sending CONNECT
+2026-11-20T20:02:45: Client local.edge-book4vg1edpvi5-pi3 [(null):0] disconnected: connection closed by client.
+2026-11-20T20:02:45: Bridge pi3 next backoff will be 18003 ms
+2026-11-20T20:02:45: Received PINGREQ from edge-availability
+2026-11-20T20:02:45: Sending PINGRESP to edge-availability
+2026-11-20T20:02:48: Connecting bridge ds5 (100.73.160.108:1883)
+2026-11-20T20:02:48: Bridge edge-book4vg1edpvi5-ds5 sending CONNECT
+2026-11-20T20:02:49: Client local.edge-book4vg1edpvi5-pi7 [(null):0] disconnected: connection closed by client.
+2026-11-20T20:02:49: Bridge pi7 next backoff will be 11547 ms
+2026-11-20T20:02:57: Client local.edge-book4vg1edpvi5-pi1 [(null):0] disconnected: connection closed by client.
+2026-11-20T20:02:57: Bridge pi1 next backoff will be 27680 ms
+2026-11-20T20:02:59: Client local.edge-book4vg1edpvi5-pi10 [(null):0] disconnected: connection closed by client.
+2026-11-20T20:02:59: Bridge pi10 next backoff will be 30000 ms
+2026-11-20T20:03:01: Connecting bridge pi7 (100.72.109.9:1883)
+2026-11-20T20:03:01: Bridge edge-book4vg1edpvi5-pi7 sending CONNECT
+2026-11-20T20:03:04: Connecting bridge pi3 (100.85.243.54:1883)
+2026-11-20T20:03:04: Bridge edge-book4vg1edpvi5-pi3 sending CONNECT
+2026-11-20T20:03:09: Client local.edge-book4vg1edpvi5-ds5 [(null):0] disconnected: connection closed by client.
+2026-11-20T20:03:09: Bridge ds5 next backoff will be 30000 ms
+2026-11-20T20:03:16: Received PINGREQ from edge-availability
+2026-11-20T20:03:16: Sending PINGRESP to edge-availability
+2026-11-20T20:03:22: Client local.edge-book4vg1edpvi5-pi7 [(null):0] disconnected: connection closed by client.
+2026-11-20T20:03:22: Bridge pi7 next backoff will be 17871 ms
+2026-11-20T20:03:25: Connecting bridge pi1 (100.83.132.16:1883)
+2026-11-20T20:03:25: Bridge edge-book4vg1edpvi5-pi1 sending CONNECT
+2026-11-20T20:03:25: Client local.edge-book4vg1edpvi5-pi3 [(null):0] disconnected: connection closed by client.
+2026-11-20T20:03:25: Bridge pi3 next backoff will be 12068 ms
+2026-11-20T20:03:29: Connecting bridge pi10 (100.114.142.85:1883)
+2026-11-20T20:03:29: Bridge edge-book4vg1edpvi5-pi10 sending CONNECT
+2026-11-20T20:03:38: Connecting bridge pi3 (100.85.243.54:1883)
+2026-11-20T20:03:38: Bridge edge-book4vg1edpvi5-pi3 sending CONNECT
+2026-11-20T20:03:39: Connecting bridge ds5 (100.73.160.108:1883)
+2026-11-20T20:03:39: Bridge edge-book4vg1edpvi5-ds5 sending CONNECT
+2026-11-20T20:03:40: Connecting bridge pi7 (100.72.109.9:1883)
+2026-11-20T20:03:40: Bridge edge-book4vg1edpvi5-pi7 sending CONNECT
+2026-11-20T20:03:46: Received PINGREQ from edge-availability
+2026-11-20T20:03:46: Sending PINGRESP to edge-availability
+2026-11-20T20:03:46: Client local.edge-book4vg1edpvi5-pi1 [(null):0] disconnected: connection closed by client.
+2026-11-20T20:03:46: Bridge pi1 next backoff will be 30000 ms
+2026-11-20T20:03:50: Client local.edge-book4vg1edpvi5-pi10 [(null):0] disconnected: connection closed by client.
+2026-11-20T20:03:50: Bridge pi10 next backoff will be 30000 ms
+2026-11-20T20:03:59: Client local.edge-book4vg1edpvi5-pi3 [(null):0] disconnected: connection closed by client.
+2026-11-20T20:03:59: Bridge pi3 next backoff will be 19568 ms
+2026-11-20T20:04:00: Client local.edge-book4vg1edpvi5-ds5 [(null):0] disconnected: connection closed by client.
+2026-11-20T20:04:00: Bridge ds5 next backoff will be 30000 ms
+2026-11-20T20:04:01: Client local.edge-book4vg1edpvi5-pi7 [(null):0] disconnected: connection closed by client.
+2026-11-20T20:04:01: Bridge pi7 next backoff will be 25987 ms
+2026-11-20T20:04:16: Received PINGREQ from edge-availability
+2026-11-20T20:04:16: Sending PINGRESP to edge-availability
+2026-11-20T20:04:16: Connecting bridge pi1 (100.83.132.16:1883)
+2026-11-20T20:04:16: Bridge edge-book4vg1edpvi5-pi1 sending CONNECT
+2026-11-20T20:04:19: Connecting bridge pi3 (100.85.243.54:1883)
+2026-11-20T20:04:19: Bridge edge-book4vg1edpvi5-pi3 sending CONNECT
+2026-11-20T20:04:20: Connecting bridge pi10 (100.114.142.85:1883)
+2026-11-20T20:04:20: Bridge edge-book4vg1edpvi5-pi10 sending CONNECT
+2026-11-20T20:04:27: Connecting bridge pi7 (100.72.109.9:1883)
+2026-11-20T20:04:27: Bridge edge-book4vg1edpvi5-pi7 sending CONNECT
+2026-11-20T20:04:30: Connecting bridge ds5 (100.73.160.108:1883)
+2026-11-20T20:04:30: Bridge edge-book4vg1edpvi5-ds5 sending CONNECT
+2026-11-20T20:04:37: Client local.edge-book4vg1edpvi5-pi1 [(null):0] disconnected: connection closed by client.
+2026-11-20T20:04:37: Bridge pi1 next backoff will be 23772 ms
+2026-11-20T20:04:40: Client local.edge-book4vg1edpvi5-pi3 [(null):0] disconnected: connection closed by client.
+2026-11-20T20:04:40: Bridge pi3 next backoff will be 30000 ms
+2026-11-20T20:04:41: Client local.edge-book4vg1edpvi5-pi10 [(null):0] disconnected: connection closed by client.
+2026-11-20T20:04:41: Bridge pi10 next backoff will be 24099 ms
+2026-11-20T20:04:46: Received PINGREQ from edge-availability
+2026-11-20T20:04:46: Sending PINGRESP to edge-availability
+2026-11-20T20:04:48: Client local.edge-book4vg1edpvi5-pi7 [(null):0] disconnected: connection closed by client.
+2026-11-20T20:04:48: Bridge pi7 next backoff will be 30000 ms
+2026-11-20T20:04:51: Client local.edge-book4vg1edpvi5-ds5 [(null):0] disconnected: connection closed by client.
+2026-11-20T20:04:51: Bridge ds5 next backoff will be 30000 ms
+2026-11-20T20:05:01: Connecting bridge pi1 (100.83.132.16:1883)
+2026-11-20T20:05:01: Bridge edge-book4vg1edpvi5-pi1 sending CONNECT
+2026-11-20T20:05:06: Connecting bridge pi10 (100.114.142.85:1883)
+2026-11-20T20:05:06: Bridge edge-book4vg1edpvi5-pi10 sending CONNECT
+2026-11-20T20:05:10: Connecting bridge pi3 (100.85.243.54:1883)
+2026-11-20T20:05:10: Bridge edge-book4vg1edpvi5-pi3 sending CONNECT
+2026-11-20T20:05:17: Received PINGREQ from edge-availability
+2026-11-20T20:05:17: Sending PINGRESP to edge-availability
+2026-11-20T20:05:18: Connecting bridge pi7 (100.72.109.9:1883)
+2026-11-20T20:05:18: Bridge edge-book4vg1edpvi5-pi7 sending CONNECT
+2026-11-20T20:05:21: Connecting bridge ds5 (100.73.160.108:1883)
+2026-11-20T20:05:21: Bridge edge-book4vg1edpvi5-ds5 sending CONNECT
+2026-11-20T20:05:22: Client local.edge-book4vg1edpvi5-pi1 [(null):0] disconnected: connection closed by client.
+2026-11-20T20:05:22: Bridge pi1 next backoff will be 30000 ms
+2026-11-20T20:05:27: Client local.edge-book4vg1edpvi5-pi10 [(null):0] disconnected: connection closed by client.
+2026-11-20T20:05:27: Bridge pi10 next backoff will be 30000 ms
+2026-11-20T20:05:31: Client local.edge-book4vg1edpvi5-pi3 [(null):0] disconnected: connection closed by client.
+2026-11-20T20:05:31: Bridge pi3 next backoff will be 30000 ms
+2026-11-20T20:05:39: Client local.edge-book4vg1edpvi5-pi7 [(null):0] disconnected: connection closed by client.
+2026-11-20T20:05:39: Bridge pi7 next backoff will be 5642 ms
+2026-11-20T20:05:42: Client local.edge-book4vg1edpvi5-ds5 [(null):0] disconnected: connection closed by client.
+2026-11-20T20:05:42: Bridge ds5 next backoff will be 30000 ms
+2026-11-20T20:05:45: Connecting bridge pi7 (100.72.109.9:1883)
+2026-11-20T20:05:45: Bridge edge-book4vg1edpvi5-pi7 sending CONNECT
+2026-11-20T20:05:47: Received PINGREQ from edge-availability
+2026-11-20T20:05:47: Sending PINGRESP to edge-availability
+2026-11-20T20:05:52: Connecting bridge pi1 (100.83.132.16:1883)
+2026-11-20T20:05:52: Bridge edge-book4vg1edpvi5-pi1 sending CONNECT
+2026-11-20T20:05:57: Connecting bridge pi10 (100.114.142.85:1883)
+2026-11-20T20:05:57: Bridge edge-book4vg1edpvi5-pi10 sending CONNECT
+2026-11-20T20:06:01: Connecting bridge pi3 (100.85.243.54:1883)
+2026-11-20T20:06:01: Bridge edge-book4vg1edpvi5-pi3 sending CONNECT
+2026-11-20T20:06:06: Client local.edge-book4vg1edpvi5-pi7 [(null):0] disconnected: connection closed by client.
+2026-11-20T20:06:06: Bridge pi7 next backoff will be 6260 ms
+2026-11-20T20:06:12: Connecting bridge ds5 (100.73.160.108:1883)
+2026-11-20T20:06:12: Bridge edge-book4vg1edpvi5-ds5 sending CONNECT
+2026-11-20T20:06:13: Client local.edge-book4vg1edpvi5-pi1 [(null):0] disconnected: connection closed by client.
+2026-11-20T20:06:13: Connecting bridge pi7 (100.72.109.9:1883)
+2026-11-20T20:06:13: Bridge edge-book4vg1edpvi5-pi7 sending CONNECT
+2026-11-20T20:06:13: Bridge pi1 next backoff will be 23622 ms
+2026-11-20T20:06:17: Received PINGREQ from edge-availability
+2026-11-20T20:06:17: Sending PINGRESP to edge-availability
+2026-11-20T20:06:18: Client local.edge-book4vg1edpvi5-pi10 [(null):0] disconnected: connection closed by client.
+2026-11-20T20:06:18: Bridge pi10 next backoff will be 8821 ms
+2026-11-20T20:06:22: Client local.edge-book4vg1edpvi5-pi3 [(null):0] disconnected: connection closed by client.
+2026-11-20T20:06:22: Bridge pi3 next backoff will be 11999 ms
+2026-11-20T20:06:27: Connecting bridge pi10 (100.114.142.85:1883)
+2026-11-20T20:06:27: Bridge edge-book4vg1edpvi5-pi10 sending CONNECT
+2026-11-20T20:06:33: Client local.edge-book4vg1edpvi5-ds5 [(null):0] disconnected: connection closed by client.
+2026-11-20T20:06:33: Bridge ds5 next backoff will be 19040 ms
+2026-11-20T20:06:34: Client local.edge-book4vg1edpvi5-pi7 [(null):0] disconnected: connection closed by client.
+2026-11-20T20:06:34: Bridge pi7 next backoff will be 17827 ms
+2026-11-20T20:06:34: Connecting bridge pi3 (100.85.243.54:1883)
+2026-11-20T20:06:34: Bridge edge-book4vg1edpvi5-pi3 sending CONNECT
+2026-11-20T20:06:37: Connecting bridge pi1 (100.83.132.16:1883)
+2026-11-20T20:06:37: Bridge edge-book4vg1edpvi5-pi1 sending CONNECT
+2026-11-20T20:06:47: Received PINGREQ from edge-availability
+2026-11-20T20:06:47: Sending PINGRESP to edge-availability
+2026-11-20T20:06:48: Client local.edge-book4vg1edpvi5-pi10 [(null):0] disconnected: connection closed by client.
+2026-11-20T20:06:48: Bridge pi10 next backoff will be 19473 ms
+2026-11-20T20:06:52: Connecting bridge pi7 (100.72.109.9:1883)
+2026-11-20T20:06:52: Bridge edge-book4vg1edpvi5-pi7 sending CONNECT
+2026-11-20T20:06:53: Connecting bridge ds5 (100.73.160.108:1883)
+2026-11-20T20:06:53: Bridge edge-book4vg1edpvi5-ds5 sending CONNECT
+2026-11-20T20:06:55: Client local.edge-book4vg1edpvi5-pi3 [(null):0] disconnected: connection closed by client.
+2026-11-20T20:06:55: Bridge pi3 next backoff will be 12086 ms
+2026-11-20T20:06:58: Client local.edge-book4vg1edpvi5-pi1 [(null):0] disconnected: connection closed by client.
+2026-11-20T20:06:58: Bridge pi1 next backoff will be 24264 ms
+2026-11-20T20:07:08: Connecting bridge pi3 (100.85.243.54:1883)
+2026-11-20T20:07:08: Bridge edge-book4vg1edpvi5-pi3 sending CONNECT
+2026-11-20T20:07:08: Connecting bridge pi10 (100.114.142.85:1883)
+2026-11-20T20:07:08: Bridge edge-book4vg1edpvi5-pi10 sending CONNECT
+2026-11-20T20:07:13: Client local.edge-book4vg1edpvi5-pi7 [(null):0] disconnected: connection closed by client.
+2026-11-20T20:07:13: Bridge pi7 next backoff will be 16031 ms
+2026-11-20T20:07:14: Client local.edge-book4vg1edpvi5-ds5 [(null):0] disconnected: connection closed by client.
+2026-11-20T20:07:14: Bridge ds5 next backoff will be 30000 ms
+2026-11-20T20:07:18: Received PINGREQ from edge-availability
+2026-11-20T20:07:18: Sending PINGRESP to edge-availability
+2026-11-20T20:07:23: Connecting bridge pi1 (100.83.132.16:1883)
+2026-11-20T20:07:23: Bridge edge-book4vg1edpvi5-pi1 sending CONNECT
+2026-11-20T20:07:29: Client local.edge-book4vg1edpvi5-pi3 [(null):0] disconnected: connection closed by client.
+2026-11-20T20:07:29: Client local.edge-book4vg1edpvi5-pi10 [(null):0] disconnected: connection closed by client.
+2026-11-20T20:07:29: Bridge pi3 next backoff will be 28267 ms
+2026-11-20T20:07:29: Bridge pi10 next backoff will be 13357 ms
+2026-11-20T20:07:30: Connecting bridge pi7 (100.72.109.9:1883)
+2026-11-20T20:07:30: Bridge edge-book4vg1edpvi5-pi7 sending CONNECT
+2026-11-20T20:07:38: New connection from 127.0.0.1:54751 on port 1883.
+2026-11-20T20:07:38: New client connected from 127.0.0.1:54751 as auto-51658C87-1B92-807F-C5AC-30D193768A72 (p4, c1, k60).
+2026-11-20T20:07:38: No will message specified.
+2026-11-20T20:07:38: Sending CONNACK to auto-51658C87-1B92-807F-C5AC-30D193768A72 (0, 0)
+2026-11-20T20:07:38: Received SUBSCRIBE from auto-51658C87-1B92-807F-C5AC-30D193768A72
+2026-11-20T20:07:38: 	$SYS/broker/connection/# (QoS 0)
+2026-11-20T20:07:38: auto-51658C87-1B92-807F-C5AC-30D193768A72 0 $SYS/broker/connection/#
+2026-11-20T20:07:38: Sending SUBACK to auto-51658C87-1B92-807F-C5AC-30D193768A72
+2026-11-20T20:07:38: Sending PUBLISH to auto-51658C87-1B92-807F-C5AC-30D193768A72 (d0, q0, r1, m0, '$SYS/broker/connection/edge-book4vg1edpvi5-pi7/state', ... (1 bytes))
+2026-11-20T20:07:38: Sending PUBLISH to auto-51658C87-1B92-807F-C5AC-30D193768A72 (d0, q0, r1, m0, '$SYS/broker/connection/edge-book4vg1edpvi5-pi1/state', ... (1 bytes))
+2026-11-20T20:07:38: Sending PUBLISH to auto-51658C87-1B92-807F-C5AC-30D193768A72 (d0, q0, r1, m0, '$SYS/broker/connection/edge-book4vg1edpvi5-pi3/state', ... (1 bytes))
+2026-11-20T20:07:38: Sending PUBLISH to auto-51658C87-1B92-807F-C5AC-30D193768A72 (d0, q0, r1, m0, '$SYS/broker/connection/edge-book4vg1edpvi5-ds5/state', ... (1 bytes))
+2026-11-20T20:07:38: Sending PUBLISH to auto-51658C87-1B92-807F-C5AC-30D193768A72 (d0, q0, r1, m0, '$SYS/broker/connection/edge-book4vg1edpvi5-pi10/state', ... (1 bytes))
+2026-11-20T20:07:41: Received DISCONNECT from auto-51658C87-1B92-807F-C5AC-30D193768A72
+2026-11-20T20:07:41: Client auto-51658C87-1B92-807F-C5AC-30D193768A72 [127.0.0.1:54751] disconnected.
+2026-11-20T20:07:41: New connection from 127.0.0.1:54754 on port 1883.
+2026-11-20T20:07:41: New client connected from 127.0.0.1:54754 as auto-983A3C1E-061B-2626-BB48-3C9AF666F7BD (p4, c1, k60).
+2026-11-20T20:07:41: No will message specified.
+2026-11-20T20:07:41: Sending CONNACK to auto-983A3C1E-061B-2626-BB48-3C9AF666F7BD (0, 0)
+2026-11-20T20:07:41: Received SUBSCRIBE from auto-983A3C1E-061B-2626-BB48-3C9AF666F7BD
+2026-11-20T20:07:41: 	+/+/+/state (QoS 0)
+2026-11-20T20:07:41: auto-983A3C1E-061B-2626-BB48-3C9AF666F7BD 0 +/+/+/state
+2026-11-20T20:07:41: 	+/+/+/status (QoS 0)
+2026-11-20T20:07:41: auto-983A3C1E-061B-2626-BB48-3C9AF666F7BD 0 +/+/+/status
+2026-11-20T20:07:41: 	+/+/+/heartbeat (QoS 0)
+2026-11-20T20:07:41: auto-983A3C1E-061B-2626-BB48-3C9AF666F7BD 0 +/+/+/heartbeat
+2026-11-20T20:07:41: Sending SUBACK to auto-983A3C1E-061B-2626-BB48-3C9AF666F7BD
+2026-11-20T20:07:43: Connecting bridge pi10 (100.114.142.85:1883)
+2026-11-20T20:07:43: Bridge edge-book4vg1edpvi5-pi10 sending CONNECT
+2026-11-20T20:07:44: Connecting bridge ds5 (100.73.160.108:1883)
+2026-11-20T20:07:44: Bridge edge-book4vg1edpvi5-ds5 sending CONNECT
+2026-11-20T20:07:44: Client local.edge-book4vg1edpvi5-pi1 [(null):0] disconnected: connection closed by client.
+2026-11-20T20:07:44: Bridge pi1 next backoff will be 30000 ms
+2026-11-20T20:07:46: Received DISCONNECT from auto-983A3C1E-061B-2626-BB48-3C9AF666F7BD
+2026-11-20T20:07:46: Client auto-983A3C1E-061B-2626-BB48-3C9AF666F7BD [127.0.0.1:54754] disconnected.

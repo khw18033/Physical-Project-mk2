@@ -1,0 +1,18 @@
+{
+  "_why_valid": "규격에 없는 필드(experimental_torque_nm)가 실려 있지만 **통과해야 한다**(양성 fixture). 느슨한 2단 검증의 핵심이다 — additionalProperties 를 false 로 두면 하드웨어가 필드를 하나 추가하는 순간 전량 격리된다. status_extra() 처럼 노드마다 다른 필드를 반환하도록 설계된 훅이 있어 필드가 느는 것이 정상 동작이다. 모르는 필드는 통과시키고 원본 그대로 저장한다.",
+  "schema_version": "1.0",
+  "source_id": "rb-01",
+  "node_id": "pi-robot-1",
+  "zone_id": "zoneA",
+  "timestamp": "2026-09-10T09:00:00+09:00",
+  "sequence_id": 0,
+  "channel": "state",
+  "reason": "periodic",
+  "battery_pct": 87.5,
+  "position": { "x": 12.34, "y": -3.5, "heading_deg": 91.2 },
+  "speed_mps": 0.42,
+  "robot_mode": "mission",
+  "internal_seq": 15832,
+  "device_status": "ok",
+  "experimental_torque_nm": 3.14
+}

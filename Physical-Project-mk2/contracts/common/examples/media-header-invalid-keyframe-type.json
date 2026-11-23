@@ -1,0 +1,15 @@
+{
+  "schema_version": "2.0",
+  "source_id": "go1-001",
+  "node_id": "hw-edge",
+  "zone_id": "zoneA",
+  "camera_id": "go1-001_front",
+  "sequence_id": 4839,
+  "session_id": "a1b2c3d4e5f6",
+  "timestamp": "2026-09-18T12:00:00.189+09:00",
+  "encoding": "h264",
+  "keyframe": "true",
+  "width": 464,
+  "height": 400,
+  "codec": "avc1.42E01E"
+}

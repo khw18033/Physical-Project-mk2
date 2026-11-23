@@ -1,0 +1,18 @@
+# MK2 edge (C:\mk2_edge) - line endings
+* text=auto
+# Windows PowerShell scripts stay CRLF (UTF-8 BOM is kept as is)
+*.ps1 text eol=crlf
+# Files that run on Linux (pi / server) stay LF even when checked out on Windows
+*.sh   text eol=lf
+*.py   text eol=lf
+*.yml  text eol=lf
+*.yaml text eol=lf
+*.service text eol=lf
+*.conf text eol=lf
+# Binary
+*.png  binary
+*.jpg  binary
+*.exe  binary
+*.zip  binary
+*.gz   binary
+*.pyc  binary

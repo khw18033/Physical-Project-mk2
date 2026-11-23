@@ -1,0 +1,106 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/khw18033/Physical-Project-mk2/contracts/common/payload/status.schema.json",
+  "title": "채널 본문 — status (등록·상태 요약·종료·급사)",
+  "description": "모든 말단 노드가 `{zone}/{etype}/{eid}/status` 로 발행하는 본문. 타입에 무관한 하나의 스키마다. 실물 근거: HW `pi/common/node.py` publish_status() 와 LWT 설정부(:92-96).\n\nretained 로 발행되므로 늦게 붙은 구독자도 구독 즉시 현재 상태 1건을 받는다. 저장 소비자가 재기동하면 옛 status 를 다시 읽으므로, 레지스트리 갱신에는 시각 가드가 필요하다.",
+  "type": "object",
+  "required": [
+    "event",
+    "status"
+  ],
+  "properties": {
+    "event": {
+      "type": "string",
+      "minLength": 1,
+      "description": "상태 사건의 종류. **정상 종료(shutdown)와 급사(death)가 구분되어야** 화면이 '장애'와 '의도적 미배포'를 나눌 수 있다(VZ-U-01).",
+      "$comment": "관측 신호 힌트: log/event. 관측된 어휘는 birth · summary · rebirth · shutdown · death 5종(node.py:123·313·260·335, LWT :93). enum 으로 고정하지 않는다.",
+      "examples": ["birth", "summary", "rebirth", "shutdown", "death"]
+    },
+    "status": {
+      "type": "string",
+      "minLength": 1,
+      "description": "노드가 스스로 보고하는 접속 상태. 백엔드가 판정하는 최종 가용성이 아니다(판정은 Phase 5, 단일 지점).",
+      "$comment": "관측 신호 힌트: log/event",
+      "examples": ["online", "offline"]
+    },
+    "device_status": {
+      "type": ["string", "null"],
+      "description": "장치 자기보고 상태(ok · degraded · fault).",
+      "$comment": "관측 신호 힌트: log/event",
+      "examples": ["ok", "degraded", "fault"]
+    },
+    "registration": {
+      "x-mk2-absence": "stateful",
+      "description": "장치 등록 정보. 레지스트리 관측 축이 이 블록으로 채워진다. **부재 사유를 구분해야 하는 항목이다** — LWT 에는 원래 없고(unsupported), 정상 status 인데 없으면 이상 상황이다(unavailable). 두 경우를 뭉치면 화면이 구분하지 못한다.",
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "entity_id":   { "type": ["string", "null"] },
+            "node_id":     { "type": ["string", "null"] },
+            "zone_id":     { "type": ["string", "null"] },
+            "entity_type": { "type": ["string", "null"] },
+            "device_type": { "type": ["string", "null"] },
+            "fw_version":  { "type": ["string", "null"] },
+            "mac":         { "type": ["string", "null"], "description": "⚠ 빈 문자열이 올 수 있다(증강 분석이 Identity(..., \"\", \"\", ...) 로 만든다). 레지스트리는 빈 문자열로 기존 값을 덮지 않는다." },
+            "ip":          { "type": ["string", "null"], "description": "위와 같음. MAC·IP 는 도달성 정보이지 개체 정체성이 아니다(BE-C-02)." }
+          }
+        },
+        { "type": "null" },
+        {
+          "type": "object",
+          "required": ["value", "state"],
+          "properties": {
+            "value": { "type": ["object", "null"] },
+            "state": { "enum": ["unsupported", "unavailable"] }
+          }
+        }
+      ]
+    },
+    "uptime_s": {
+      "type": ["number", "null"],
+      "description": "프로세스 기동 후 경과 시간(초).",
+      "$comment": "관측 신호 힌트: gauge",
+      "examples": [3612.4]
+    },
+    "buffer": {
+      "type": ["object", "null"],
+      "description": "두절 대비 버퍼(spool) 상태. **기본형(null)으로 둔다** — 공통 코어에서 항상 채워지고 빠지는 경우가 LWT 뿐이라 registration 의 부재 사유와 중복이다.",
+      "properties": {
+        "pending": {
+          "type": ["integer", "null"],
+          "description": "재전송 대기 건수.",
+          "$comment": "관측 신호 힌트: gauge"
+        },
+        "dropped": {
+          "type": ["integer", "null"],
+          "description": "상한 초과로 **노드가 스스로 버린** 건수. 이 값이 늘어난 구간의 갭은 진짜 손실이며 원인이 네트워크가 아니라 버퍼 고갈이다 — 갭 조회 결과를 이 값과 대조해야 원인이 갈린다.",
+          "$comment": "관측 신호 힌트: counter"
+        },
+        "thinned": {
+          "type": ["integer", "null"],
+          "description": "다운샘플로 솎아낸 건수. **버린 것과 구분해서 보고된다** — 솎인 것은 유실이 아니다.",
+          "$comment": "관측 신호 힌트: counter"
+        }
+      },
+      "examples": [{ "pending": 0, "dropped": 0, "thinned": 0 }]
+    },
+    "publish_failures": {
+      "type": ["integer", "null"],
+      "description": "발행 실패 누적 건수.",
+      "$comment": "관측 신호 힌트: counter",
+      "examples": [0]
+    },
+    "reason": {
+      "type": ["string", "null"],
+      "description": "사건의 사유. LWT 는 \"lwt\", 정상 종료는 \"graceful_shutdown\" 으로 온다 — 이 구분이 급사와 계획 종료를 가른다(VZ-U-01).",
+      "examples": ["lwt", "graceful_shutdown"]
+    },
+    "channel": {
+      "type": ["string", "null"],
+      "description": "생산자가 붙이는 채널 이름. 백엔드는 검증하지 않는다.",
+      "examples": ["status"]
+    }
+  },
+  "$comment": "⚠ **필수를 event·status 둘로만 잡는 이유는 LWT 다.** 급사 신호(브로커가 대신 발행하는 Last Will)의 본문에는 registration 도 buffer 도 uptime_s 도 없다(node.py:92-94). 여기를 세게 걸면 **가장 중요한 급사 신호가 격리된다.** 또한 노드마다 status_extra() 로 고유 필드를 덧붙이므로(센서는 mode·alert·last_value, 로봇은 in_mission·link·media, 액추에이터는 control_locked·lock_reason) additionalProperties 를 false 로 두지 않는다. ⚠ status 에는 sequence_id 가 없다 — 순번 기반 유실 검출 대상이 아니며, 신구 판정은 공통 헤더 timestamp 로 한다."
+}

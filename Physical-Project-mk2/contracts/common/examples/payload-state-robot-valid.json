@@ -1,0 +1,22 @@
+{
+  "schema_version": "1.0",
+  "source_id": "rb-01",
+  "node_id": "pi-robot-1",
+  "zone_id": "zoneA",
+  "timestamp": "2026-09-10T09:00:00+09:00",
+  "sequence_id": 0,
+  "channel": "state",
+  "reason": "periodic",
+  "battery_pct": 87.5,
+  "position": { "x": 12.34, "y": -3.5, "heading_deg": 91.2 },
+  "speed_mps": 0.42,
+  "robot_mode": "mission",
+  "internal_seq": 15832,
+  "device_status": "ok",
+  "mission": {
+    "mission_id": "m-2026-0910-001",
+    "subtask": "patrol-A",
+    "status": "executing",
+    "started_at": "2026-09-10T08:58:12+09:00"
+  }
+}

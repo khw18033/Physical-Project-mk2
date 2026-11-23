@@ -1,0 +1,67 @@
+{
+  "_why_valid": "통합데이터규약 §3-4 드론 state (데이터 규약 v2, 2026-10-13). reason=frame state 가 짝인 프레임을 frame_ref 로 가리키고 머리 timestamp 가 frame_ref.timestamp 와 같다(R12 예외). flight 에 system_status 가 없고(P3) 선택 rtk 가 있다. 위경도 · rtk 값은 꼴을 보여 주는 예시다.",
+  "schema_version": "2.0",
+  "source_id": "x500-001",
+  "node_id": "pi3",
+  "zone_id": "zoneA",
+  "timestamp": "2026-10-02T13:06:40.374+09:00",
+  "sequence_id": 2211,
+  "session_id": "1c55cc3a8a2f",
+  "channel": "state",
+  "reason": "frame",
+  "frame_ref": {
+    "camera_id": "x500-001_front",
+    "sequence_id": 2245,
+    "timestamp": "2026-10-02T13:06:40.374+09:00"
+  },
+  "device_status": "ok",
+  "link": "ok",
+  "fc_link": true,
+  "fc_link_age_s": 0.34,
+  "router_mode": "drone",
+  "battery": {
+    "voltage_v": 12.5,
+    "current_a": 9.47,
+    "remaining_pct": 0.0,
+    "consumed_mah": 816.0,
+    "source": "SYS_STATUS",
+    "age_s": 2.97
+  },
+  "flight": {
+    "armed": false,
+    "mode": "POSCTL",
+    "custom_mode": 196608,
+    "base_mode": 81,
+    "landed_state": "ON_GROUND",
+    "age_s": 0.34
+  },
+  "gps": {
+    "fix_type": 3,
+    "fix": "3D",
+    "satellites": 24,
+    "lat": 36.0,
+    "lon": 127.0,
+    "eph_m": 0.69,
+    "age_s": 0.67
+  },
+  "rtk": {
+    "corrections": true,
+    "rtcm_age_s": 0.4,
+    "rtcm_msgs_per_s": 7.5,
+    "rtcm_bytes_per_s": 820.0,
+    "rtcm_source": "255/190",
+    "fix": "RTK_FIXED"
+  },
+  "attitude": {
+    "roll_deg": -2.61,
+    "pitch_deg": 0.99,
+    "yaw_deg": -7.73,
+    "age_s": 0.38
+  },
+  "altitude": {
+    "relative_m": 3.95,
+    "amsl_m": 124.03,
+    "age_s": 2.98
+  },
+  "warnings": []
+}

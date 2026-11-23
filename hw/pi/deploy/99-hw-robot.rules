@@ -1,0 +1,8 @@
+# RoboMaster EP 착탈 시 즉시 맞춘다. 타이머(10초)를 기다리지 않게 하는 것이 목적이고,
+# 판정 자체는 스크립트가 다시 한다(케이블만 꽂히고 로봇 전원이 꺼져 있을 수 있다).
+#
+#   2ca3:001f — DJI. lsusb 실측값(pi1, 2026-09-14)
+#
+# 설치: sudo cp 99-hw-robot.rules /etc/udev/rules.d/ && sudo udevadm control --reload
+ACTION=="add",    SUBSYSTEM=="usb", ATTR{idVendor}=="2ca3", ATTR{idProduct}=="001f", TAG+="systemd", RUN+="/bin/systemctl start --no-block robot-autoselect.service"
+ACTION=="remove", SUBSYSTEM=="usb", ENV{PRODUCT}=="2ca3/1f/*", TAG+="systemd", RUN+="/bin/systemctl start --no-block robot-autoselect.service"

@@ -1,0 +1,51 @@
+# MK2 엣지 점검 2-3 — 2026-11-20 17:47:40
+== 0 기기 · 주소
+BOOK-4VG1EDPVI5
+Ubuntu 26.04.1 LTS
+100.125.104.23
+lo 10.255.255.254/32
+eth0 172.27.95.5/20
+tailscale0 100.125.104.23/32
+== 1 듣는 포트 (1883 · 9001 · 4317 · 4318 · 8888 · 8889 · 9090 · 9105 · 6443 · udp 5004)
+(없음)
+== 2 서비스
+mosquitto        enabled=not-found
+- active=inactive
+-
+otelcol-contrib  enabled=not-found
+- active=inactive
+-
+otelcol          enabled=not-found
+- active=inactive
+-
+prometheus       enabled=not-found
+- active=inactive
+-
+k3s              enabled=not-found
+- active=inactive
+-
+k3s-agent        enabled=not-found
+- active=inactive
+-
+== 3 실행 파일
+mosquitto        없음
+mosquitto_sub    없음
+otelcol-contrib  없음
+otelcol          없음
+prometheus       없음
+k3s              없음
+kubectl          없음
+docker           없음
+== 4 도는 프로세스
+    168 Fri Nov 20 17:46:36 2026 /usr/bin/python3 /usr/bin/networkd-dispatcher --run-startup-triggers
+    263 Fri Nov 20 17:46:36 2026 /usr/bin/python3 /usr/share/unattended-upgrades/unattended-upgrade-shutdown --wait-for-signal
+== 5 Mosquitto 설정 (주석 · 빈 줄 뺀 것)
+== 6 Collector · Prometheus 설정 파일
+== 7 파이썬 패키지
+== 8 프로그램 사본
+== 9 K3s
+sudo: 'k3s': command not found
+== 10 살아 있나 — 30초 MQTT 토픽별 건수 · Prometheus · Collector · 가용성
+9090 응답 없음
+대상 목록 못 읽음
+# 끝 17:47:42
