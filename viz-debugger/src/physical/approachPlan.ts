@@ -31,9 +31,9 @@ import { APPROACH_VX, STOP_ACTION as ARRIVAL_STOP, STOP_REASON as STOP_WHY, TEST
 import { robotSession } from './robotSession.ts';
 
 /** 로봇이 받는 회전·직진 범위 (연동 가이드 §4-2). */
-const TURN_MIN_DEG = 5;
-const FORWARD_MIN_M = 0.05;
-const FORWARD_MAX_M = 10;
+export const TURN_MIN_DEG = 5;
+export const FORWARD_MIN_M = 0.05;
+export const FORWARD_MAX_M = 10;
 
 /** (-180, 180] 로 감는다. */
 export function wrapDeg(deg: number): number {
