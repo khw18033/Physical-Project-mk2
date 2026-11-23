@@ -47,7 +47,23 @@ const MAY_WRITE = [
   join('src', 'physical', 'PhysicalClient.ts'),   // 기본값을 심는다(registerConnectionDefault)
   join('src', 'stt', 'SttClient.ts'),
   join('src', 'generate', 'LlmClient.ts'),
+  // 생성 서비스 주소 칸 (261123). 연결 관리에서 「생성 서비스」 줄을 숨겼기 때문에
+  // (d8b60fa, hidden: true) 생성 주소를 화면에서 바꾸는 곳은 여기 하나다. 저장소는
+  // 연결 관리와 같은 것을 쓰고, 바꾸는 칸은 'generate.base' 하나뿐이다 — 아래 1-1 에서 본다.
+  join('src', 'views', 'GenerateAddress.tsx'),
 ];
+
+// ── 1-1. 생성 주소 칸은 생성 칸 하나만 바꾸는가 ─────────────────────────────
+{
+  const source = readFileSync(join(srcDir, 'views', 'GenerateAddress.tsx'), 'utf8');
+  const keys = [...source.matchAll(/connectionKey\(\s*'([^']+)'\s*,\s*'([^']+)'\s*\)/g)].map(m => `${m[1]}.${m[2]}`);
+  if (keys.length === 0 || keys.some(k => k !== 'generate.base')) {
+    failures.push(`src/views/GenerateAddress.tsx: 생성 칸('generate.base') 밖의 주소를 건드린다 — ${keys.join(', ') || '키 없음'}`);
+  }
+  if ((source.match(/saveConnections\s*\(/g) ?? []).length !== 1) {
+    failures.push('src/views/GenerateAddress.tsx: 주소 저장은 한 자리여야 한다');
+  }
+}
 
 // ── 1. 주소를 바꾸는 코드가 연결 관리 밖에 없는가 ────────────────────────────
 {
