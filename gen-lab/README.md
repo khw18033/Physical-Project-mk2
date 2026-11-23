@@ -103,6 +103,9 @@ py -3.10 -m venv .venv
 llama-server 응답 한도(600초)를 넘겨 쓸 수 없다 — 같은 판이 GPU 7 GB 장비에서는 25~38초였다.
 그래서 큰 PC 에서 gen-lab 만 띄우고, 노트북 화면이 그쪽을 부르게 한다.
 
+**가장 쉬운 길:** 큰 PC 의 저장소 최상단에서 `gen-lab-server.exe` 를 더블클릭한다. 준비(`.venv` · llama.cpp · 가중치)와
+Tailscale 주소 찾기를 대신 하고, 노트북에 넣을 주소를 창에 보여 준다. 손으로 띄우려면 아래처럼 한다.
+
 큰 PC (`gen-lab/` 에서 — 위 「받을 것 둘」과 `.venv` 가 준비돼 있어야 한다):
 
 ```powershell

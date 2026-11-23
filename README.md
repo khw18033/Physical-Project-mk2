@@ -46,6 +46,11 @@ STT·생성은 **파이썬 환경이 있을 때만** 뜨고, 없으면 콘솔에
 건너뛴다. `viz-dev.exe` 는 저장소 최상단에 빌드본이 올라가 있어 받은 그대로 더블클릭하면 된다
 (Node.js 는 미리 설치). 소스를 고쳤으면 `viz-debugger/scripts/launcher/VizDev.cs` 머리의 한 줄로 다시 빌드해 같이 올린다.
 
+**`gen-lab-server.exe` 는 생성 서비스(8802)만 띄운다** (261123) — GPU 가 큰 PC 에 생성을 맡길 때 그 PC 에서 더블클릭한다.
+`.venv` · llama.cpp · 가중치를 같은 방식으로 준비하고(가중치는 GPU 메모리 8 GB 이상이면 Qwen3 8B, 아니면 4B),
+그 PC 의 Tailscale 주소로 연 뒤 **노트북 화면에 넣을 주소**를 창에 보여 준다. 노트북은 발화 판의 「생성 서비스 주소」 칸에 그 주소를 넣는다.
+같은 PC 에서 `viz-dev.exe` 와 함께 켜면 8802 가 겹친다 — 둘 중 하나만 켠다. 소스는 `viz-debugger/scripts/launcher/GenLab.cs`.
+
 아래 명령은 **cmd 와 PowerShell 양쪽에서 그대로 된다.** 셸마다 모양이 다른 것(환경변수·프로세스
 종료)만 둘을 나란히 적었다. PowerShell 에서 `curl` 은 다른 명령의 별칭이라 반드시 `curl.exe` 로 쓴다.
 
