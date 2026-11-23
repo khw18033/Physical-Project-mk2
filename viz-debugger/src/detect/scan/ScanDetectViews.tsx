@@ -52,6 +52,7 @@ function angleImage(run: ScanRunState, angle: ScanAngle): { url: string | null; 
 const fmt = (value: number | null | undefined, digits = 1) => (value === null || value === undefined ? '–' : value.toFixed(digits));
 
 function Prepare({ run }: { run: ScanRunState }) {
+  useLang();
   return <dl className="scan-facts">
     <dt>{t('sd.f.base')}</dt><dd><code>{run.base || '–'}</code></dd>
     <dt>{t('sd.f.stream')}</dt><dd>{run.stream ?? '–'}</dd>
@@ -62,6 +63,7 @@ function Prepare({ run }: { run: ScanRunState }) {
 }
 
 function Angle({ run, index }: { run: ScanRunState; index: number }) {
+  useLang();
   const angle = run.angles[index];
   if (angle === undefined) return null;
   const view = angleImage(run, angle);
@@ -72,12 +74,14 @@ function Angle({ run, index }: { run: ScanRunState; index: number }) {
 }
 
 function Sweep({ run }: { run: ScanRunState }) {
+  useLang();
   return <div className="scan-sweep">
     {run.angles.map((angle) => <Angle key={angle.index} run={run} index={angle.index} />)}
   </div>;
 }
 
 function Evidence({ run }: { run: ScanRunState }) {
+  useLang();
   const result = run.result;
   if (result === null) return <p className="scan-facts__wait">{t('sd.waitResult')}</p>;
   const best = result.best;
@@ -99,6 +103,7 @@ function Evidence({ run }: { run: ScanRunState }) {
 }
 
 function Approach() {
+  useLang();
   const approach = useScanApproach();
   if (approach === null) return <p className="scan-facts__wait">{t('sd.waitPlan')}</p>;
   const { plan } = approach;
