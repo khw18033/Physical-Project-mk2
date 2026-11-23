@@ -28,8 +28,8 @@ import type { ScanBest } from '../detect/scan/types.ts';
  * (`navFeed.ts` 주석과 같다). 왼쪽 90° 명령(`turn −90`)에 그 값이 +83 → +172(+89)로 늘었다. `turn` 은 오른쪽 + 라 부호가 반대다.
  * (같은 실측에서 SDK ACK 의 `yaw_deg`(`yaw_unity`)는 시계 + 로 −90 이었다 — 그 값은 여기서 안 읽는다.)
  *
- * 가짜 장치(`fakeDevice.ts`)는 `turn +45` 에 heading 을 +45 올려 실물과 반대다 — 화면 연결 검사(`verify:scan-detect-link`)는
- * 실물처럼 반시계 + 로 보고하는 가짜를 따로 쓴다.
+ * 가짜 장치(`fakeDevice.ts`)도 같다 — `turn +45` 에 상태 방위가 −45 된다. 화면 연결 검사(`verify:scan-detect-link`)의 가짜 응답도
+ * 반시계 + 로 보고한다.
  */
 export const HEADING_TURN_SIGN = -1;
 

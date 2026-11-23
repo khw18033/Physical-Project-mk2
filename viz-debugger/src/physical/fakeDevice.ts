@@ -282,7 +282,13 @@ class FakeGo1 extends FakeDevice {
 
   private finish(commandId: string): void {
     this.move = null;
-    this.uplink(resultBytes(commandId, { x: this.x, y: this.y, heading_deg: this.heading }));
+    /**
+     * **결과의 방위는 실물처럼 둘이다** (261123 실물 GO1 실측). 상태(`state.position.heading_deg`)는 반시계 + 이고,
+     * SDK 의 ACK · turn 결과 `yaw_deg`(`yaw_unity`)는 **시계 +** 다 — 왼쪽 90° 에 상태는 +89, `yaw_deg` 는 −90.
+     * `heading_deg` 는 전부터 싣던 반시계 + 값 그대로 두고, 실물의 `yaw_deg` 를 부호를 뒤집어 함께 싣는다.
+     */
+    const wrapped = ((this.heading + 180) % 360 + 360) % 360 - 180;
+    this.uplink(resultBytes(commandId, { x: this.x, y: this.y, heading_deg: this.heading, yaw_deg: round(-wrapped, 1) }));
   }
 
   protected handle(commandId: string, action: string, params: Params): void {
@@ -313,7 +319,8 @@ class FakeGo1 extends FakeDevice {
       const dy = params.dy_m ?? 0;
       this.move = { commandId, kind: 'line', dx, dy, left: Math.hypot(dx, dy), speed: Math.abs(params.v_mps ?? 0.3) || 0.3 };
     } else {
-      // turn: deg + 는 오른쪽(시계) — 수동 제어의 회전 키와 같은 뜻이다.
+      // turn: deg + 는 오른쪽(시계) — 수동 제어의 회전 키와 같은 뜻이다. 방위(`heading`)는 반시계 + 라 부호를 뒤집어 돈다 —
+      // 실물 GO1 과 같다(261123 실측: `turn −90` 에 상태 방위 +89).
       this.move = { commandId, kind: 'turn', leftDeg: -(params.deg ?? params.angle_deg ?? 45), rate: 45 };
     }
     if (this.move.kind === 'line' && this.move.left <= 1e-3) this.finish(commandId);
