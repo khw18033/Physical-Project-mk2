@@ -50,6 +50,8 @@ import {
 import { setVisionNodeChoice, useVisionNodeChoice, type VisionNodeChoice } from '../nodeChoice.ts';
 import { isFixedCamera } from '../../fixedcam/fixedCamera.ts';
 import { VisionCards } from './VisionCards.tsx';
+import { VisionRoi } from './VisionRoi.tsx';
+import { VisionReid } from './VisionReid.tsx';
 
 /** 접힌 카드가 새 한 장을 받는 주기 — 탐지 영상 노드와 같다. */
 export const VISION_STILL_MS = 2000;
@@ -147,7 +149,11 @@ function VisionCell({ base, model, summary, rate, zoom, lagMs, framesNow, gapFra
       ? <RecordFrame label={recordLabel}><img ref={imgRef} src={url} alt={model ?? t('vis.raw')}
           onLoad={() => { setFailed(null); setLoaded(url); }}
           onError={() => setFailed(t('vis.streamFailed', { url }))} />
-          {model !== null && <VisionCards base={base} model={model} imgRef={imgRef} />}</RecordFrame>
+          {model !== null && <VisionCards base={base} model={model} imgRef={imgRef} />}
+          {/* 261123 — 탐지 영역 층(영역 지정 → 끌기 · ✕ · 영역 취소). 영역의 주인은 데이터 스트림 /control/roi */}
+          {model !== null && <VisionRoi base={base} model={model} imgRef={imgRef} />}
+          {/* 261123 — 객체 재식별 층(재식별 선택 → 상자 클릭 · 재식별 취소). 따라가기는 데이터 스트림 vision/reid.py */}
+          {model !== null && <VisionReid base={base} model={model} imgRef={imgRef} />}</RecordFrame>
       : <Still base={base} model={model} />}
     {failed !== null && <small className="vn-warn">{failed}</small>}
     {available && zoom && failed === null && loaded !== url && <small className="vn-dim">{t('vis.streamOpening', { url })}</small>}

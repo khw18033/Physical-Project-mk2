@@ -46,7 +46,8 @@ const CARD_W = 300;
 const GAP = 8;
 
 const keyOf = (d: Det, i: number, seq: number) => (d.track_id != null ? `t${d.track_id}` : `i${i}@${seq}`);
-const shown = (cls: string) => t(`vis.card.cls.${cls}`);
+// 261123 — 사전에 없는 클래스(지정 클래스 직접 입력)는 이름 그대로
+const shown = (cls: string) => { const v = t(`vis.card.cls.${cls}`); return v === `vis.card.cls.${cls}` ? cls : v; };
 const scoreTone = (s: number) => (s >= 60 ? 'hi' : s >= 40 ? 'mid' : 'lo');
 
 function distText(d: Det): string | null {

@@ -1481,6 +1481,23 @@ button.flight-armed:not(:disabled){color:#fff!important;border-color:#8f1d22!imp
 
 /* 261113 — 추론 영상의 위험물 근거 카드(src/vision/views/VisionCards.tsx). 영상 칸 모양은 그대로, 위에 얹기만 한다 */
 .vcard-layer{position:absolute;z-index:1}
+/* 261123 — 탐지 영역 층(src/vision/views/VisionRoi.tsx). 지정 모드가 아니면 마우스를 받지 않는다(카드 층이 받는다) */
+.vroi-layer{position:absolute;z-index:2;pointer-events:none}
+.vroi-layer--on{pointer-events:auto;cursor:crosshair}
+.vroi-rect{position:absolute;border:2px solid #00c8c8;background:#00c8c833;box-shadow:0 0 0 1px #0008}
+.vroi-rect--live{background:#00c8c844;pointer-events:none}
+.vroi-rect__x{position:absolute;right:-1px;top:-1px;pointer-events:auto;cursor:pointer;background:#000c;color:#fff;border:0;font-size:12px;line-height:1;padding:3px 5px}
+.vroi-bar{position:absolute;z-index:4;transform:translateX(-100%);display:flex;gap:6px;align-items:center}
+.vroi-bar button{background:#000b;color:#fff;border:1px solid #fff6;border-radius:4px;padding:3px 9px;cursor:pointer;font-size:12px}
+.vroi-bar button.is-on{background:#00c8c8;color:#000;border-color:#00c8c8}
+.vroi-bar__err{background:#000b;color:#ff8a80;padding:2px 6px;border-radius:4px}
+/* 261123 — 객체 재식별 층(src/vision/views/VisionReid.tsx). 선택 모드에서만 클릭을 받는다 */
+.vreid-layer{position:absolute;z-index:3;cursor:crosshair}
+.vreid-bar{position:absolute;z-index:4;transform:translateX(-100%);display:flex;flex-direction:column;align-items:flex-end;gap:4px}
+.vreid-bar button{background:#000b;color:#fff;border:1px solid #fff6;border-radius:4px;padding:3px 9px;cursor:pointer;font-size:12px}
+.vreid-bar button.is-on{background:#ff00ff;color:#fff;border-color:#ff00ff}
+.vreid-bar__item{background:#000b;color:#ff9dff;padding:2px 6px;border-radius:4px;font-size:11px}
+.vreid-bar__err{background:#000b;color:#ff8a80;padding:2px 6px;border-radius:4px}
 .vcard-layer--hit{cursor:pointer}
 .vcard-mark{position:absolute;border:2px solid #5aa0ff;border-radius:2px;box-shadow:0 0 0 1px #0008;pointer-events:none}
 .vcard-mark--pin{border-style:dashed}
