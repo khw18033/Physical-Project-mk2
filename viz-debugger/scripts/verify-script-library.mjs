@@ -345,12 +345,14 @@ if ('match' in legacy || 'world' in legacy || 'cast' in legacy) {
 
 // ── 매칭 — 각 문장이 자기 대본에만 맞는가 ─────────────────────────────────────
 const library = [
-  ...scripts.map((s) => ({ missionId: s.missionId, match: s.match })),
+  ...scripts.map((s) => ({ missionId: s.missionId, match: s.match, script: s })),
   { missionId: legacy.missionId, match: legacySidecar.match },
 ];
 
-function expectOnly(sentence, wantedId) {
-  const outcome = matchLibrary(sentence, library);
+// 261123 — 편 항목에 대본을 싣는다: 매처가 탐지 방식 설정(`detectSource.ts`)으로 거르므로 실제 라이브러리와 같아야 한다.
+// 새 편(data_stream)의 문장은 그 설정에서 본다 — 옛 편과 문장이 같아서 설정마다 정확히 한 편에만 맞아야 한다.
+function expectOnly(sentence, wantedId, source = 'legacy') {
+  const outcome = matchLibrary(sentence, library, 'ko', source);
   if (wantedId === null) {
     if (outcome.kind !== 'none') {
       failures.push(`「${sentence}」가 거부되지 않았다 (${outcome.kind}) — 아무 대본에도 맞으면 안 된다`);
@@ -363,7 +365,7 @@ function expectOnly(sentence, wantedId) {
   }
 }
 
-for (const s of scripts) expectOnly(s.utterance.text, s.missionId);
+for (const s of scripts) expectOnly(s.utterance.text, s.missionId, s.detectSource ?? 'legacy');
 // 빈칸을 채운 문장도 그 편에만 맞아야 한다 (260927) — 「문 앞까지」가 문 찾기 편과 겹쳐 모호 거부되면 시연이 선다.
 if ('MSN-260927-01' in byId) {
   expectOnly('장치 두 가지를 문까지 이동시켜', 'MSN-260927-01');

@@ -2,6 +2,7 @@
   "missionId": "MSN-261027-01",
   "title": "박스 앞까지 이동",
   "world": "registry",
+  "detectSource": "legacy",
   "robotFlow": "door-scan",
   "utterance": {
     "text": "박스 앞까지 이동해",

@@ -44,7 +44,7 @@ const legacySidecar = JSON.parse(readFileSync(join(root, 'scenarios', `${LEGACY_
 
 /** 라이브러리 전체 — 발화가 **이 편에만** 맞는지 보려면 나머지 편이 다 있어야 한다. */
 const library = [
-  ...SCRIPT_IDS.map((id) => ({ missionId: id, match: read(id).match })),
+  ...SCRIPT_IDS.map((id) => ({ missionId: id, match: read(id).match, script: read(id) })),
   { missionId: LEGACY_ID, match: legacySidecar.match },
 ];
 
@@ -61,8 +61,8 @@ const VARIANTS = [
   '문앞으로 이동해줘',
 ];
 
-function matchOf(sentence) {
-  const outcome = matchLibrary(sentence, library);
+function matchOf(sentence, source = 'legacy') {
+  const outcome = matchLibrary(sentence, library, undefined, source);
   return outcome.kind === 'matched' ? outcome.entry.missionId : outcome.kind;
 }
 
@@ -84,7 +84,8 @@ if (matchOf(VARIANTS[0]) !== matchOf(VARIANTS[0].replace(/\s+/g, ''))) {
 for (const id of SCRIPT_IDS) {
   if (id === DOOR_ID) continue;
   const s = read(id);
-  const got = matchOf(s.utterance.text);
+  // 261123 — data_stream 편은 그 설정에서 본다(옛 편과 문장이 같다 · `detectSource.ts`).
+  const got = matchOf(s.utterance.text, s.detectSource ?? 'legacy');
   if (got !== id) failures.push(`기존 편 문장 「${s.utterance.text}」 → ${got} — 새 편이 ${id} 을 빼앗았다`);
 }
 for (const sentence of ['수문을 가동해', '수문 개폐해줘']) {

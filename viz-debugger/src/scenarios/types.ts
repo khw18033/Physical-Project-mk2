@@ -218,7 +218,18 @@ export type ScriptScenario = {
    * 없는 편이 전부 그 흐름을 탔고, 그래서 다른 임무의 「임무 시작」에도 실물 로봇이 문 찾기 스캔을 돌 수 있었다.
    * 가르는 자리는 `library.ts` 의 `doorScanFlow()` 하나다.
    */
-  robotFlow?: 'door-scan';
+  robotFlow?: 'door-scan' | 'scan-detect';
+  /**
+   * **data_stream 스캔 흐름이 무엇을 찾는가** (261123 — `robotFlow: 'scan-detect'` 일 때만). data_stream 창구에 보내는
+   * `target` 이다 — `door` 는 `demo_door`, `box` 는 `demo_box`, `object` 는 발화의 `@` 를 영어로 옮긴 이름으로 찾는다.
+   */
+  scanTarget?: 'door' | 'box' | 'object';
+  /**
+   * **이 편이 어느 탐지 방식의 편인가** (261123). 같은 문장의 옛 편(`legacy`, `:8000` 탐지기)과 새 편(`datastream`)이 함께 있으면
+   * 매칭이 모호 거부되므로, 게이트웨이가 든 **탐지 방식 설정**에 맞는 편만 매칭에 선다(`scenarios/detectSource.ts`).
+   * 없으면 탐지와 상관없는 편이다 — 설정과 상관없이 늘 선다.
+   */
+  detectSource?: 'legacy' | 'datastream';
   /**
    * **문 찾기 흐름이 무엇을 찾는가** (261027 — 박스 편). 없으면 `'door'` 다. 탐지 서비스에 묻는 `target` 이 이것이다.
    *

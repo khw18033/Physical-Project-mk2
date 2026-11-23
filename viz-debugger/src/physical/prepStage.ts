@@ -28,7 +28,7 @@
 import { t } from '../i18n/dict.ts';
 import { useSyncExternalStore } from 'react';
 import { currentMission, receiveRobotProgress } from '../data/scenario.ts';
-import { doorScanFlow, usesFloorPlan } from '../scenarios/library.ts';
+import { scanFlow, usesFloorPlan } from '../scenarios/library.ts';
 import { floorPlanUrls, isBundledFloorPlan, sourceOf } from '../detect/DetectClient.ts';
 import { appendDetectLog, DETECT_TASKS, resetDetectLog } from '../detect/detectLog.ts';
 import { DOOR_PX, doorCm } from '../detect/floorPlan.ts';
@@ -233,7 +233,8 @@ function checkSession(): void {
    * **문 찾기 흐름을 선언한 편에서만 돈다** (260928 — 귀속을 걷는다). 이 단계는 문 찾기 편의 `T-A1`(도면)·`T-A2`(방위)
    * 이고, 다른 임무에서 돌면 탐지 서비스를 두드려 「탐지 서비스에 못 닿습니다」가 뜨고 없는 노드를 칠한다.
    */
-  if (!doorScanFlow(currentMission().missionId)) return;
+  // 261123 — data_stream 스캔 흐름(`scan-detect`)도 방위(T-A2)를 받는다. 도면은 안 받는다(`usesFloorPlan()` 이 거짓).
+  if (!scanFlow(currentMission().missionId)) return;
 
   const runKey = session.startedAtMs;
   /**

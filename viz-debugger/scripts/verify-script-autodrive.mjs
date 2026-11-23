@@ -45,11 +45,11 @@ const auto = readScript(AUTO_ID);
 const door = readScript(DOOR_ID);
 const legacySidecar = JSON.parse(read('scenarios', `${LEGACY_ID}.match.json`));
 const library = [
-  ...SCRIPT_IDS.map((id) => ({ missionId: id, match: readScript(id).match })),
+  ...SCRIPT_IDS.map((id) => ({ missionId: id, match: readScript(id).match, script: readScript(id) })),
   { missionId: LEGACY_ID, match: legacySidecar.match },
 ];
-const matchOf = (sentence, lib = library) => {
-  const outcome = matchLibrary(sentence, lib);
+const matchOf = (sentence, lib = library, source = 'legacy') => {
+  const outcome = matchLibrary(sentence, lib, undefined, source);
   return outcome.kind === 'matched' ? outcome.entry.missionId : outcome.kind;
 };
 
@@ -73,7 +73,8 @@ for (const sentence of ['저기 문 쪽으로 가', '문 쪽으로 가', '문으
   if (got !== DOOR_ID) failures.push(`시연 문장 「${sentence}」 → ${got} — 새 편이 시연 편을 빼앗았다`);
 }
 for (const id of SCRIPT_IDS) {
-  const got = matchOf(readScript(id).utterance.text);
+  // 261123 — data_stream 편은 그 설정에서 본다(옛 편과 문장이 같다 · `detectSource.ts`).
+  const got = matchOf(readScript(id).utterance.text, library, readScript(id).detectSource ?? 'legacy');
   if (got !== id) failures.push(`기존 편 문장 「${readScript(id).utterance.text}」 → ${got} — ${id} 이어야 한다`);
 }
 if (matchOf('안녕하세요') !== 'none') failures.push('「안녕하세요」가 거부되지 않았다');
@@ -87,7 +88,8 @@ if (JSON.stringify(door.match.not) !== JSON.stringify(DOOR_NOT)) {
 }
 // 261027 — 박스 편(`MSN-261027-01`)은 문 찾기 흐름의 대상만 바꾼 복사본이라 같은 까닭으로 같은 제외어를 든다:
 // 「장치 하나를 박스 앞까지」가 8편과 박스 편 둘에 걸려 둘 다 못 쓰게 된다. **문 편과 글자까지 같아야 한다.**
-const DOOR_FAMILY = ['MSN-261027-01'];
+// 261123 — data_stream 문 · 박스 편(`MSN-261123-01` · `-02`)도 그 두 편에서 뽑아 같은 제외어를 든다. @ 편(`-03`)은 8편의 규칙을 든다.
+const DOOR_FAMILY = ['MSN-261027-01', 'MSN-261123-01', 'MSN-261123-02'];
 for (const id of SCRIPT_IDS) {
   if (id === DOOR_ID) continue;
   const not = readScript(id).match.not;
@@ -160,7 +162,8 @@ for (const id of [...SCRIPT_IDS.filter((id) => id !== AUTO_ID && readScript(id).
   if (scriptDriven(id) || relayDriven(id)) failures.push(`${id} 가 대본·중계 편으로 읽힌다 — 선언 없는 편은 그대로여야 한다`);
   // 260928 — **선언 없는 편은 관문을 안 연다.** 전에는 반대였고, 그래서 체계 전체가 문 찾기 편에 귀속돼 있었다.
   // 관문을 여는 것은 `robotFlow: 'door-scan'` 을 선언한 편(지금은 시연 편 하나)뿐이다.
-  const wants = readScript(id)?.robotFlow === 'door-scan';
+  // 261123 — data_stream 스캔 흐름(`scan-detect`)도 로봇 관문을 연다(`scanFlow()`).
+  const wants = readScript(id)?.robotFlow === 'door-scan' || readScript(id)?.robotFlow === 'scan-detect';
   if (opensRobotGate(id) !== wants) failures.push(`opensRobotGate() 가 ${id} 에서 ${opensRobotGate(id)} — 문 찾기 흐름을 선언한 편만 연다`);
 }
 

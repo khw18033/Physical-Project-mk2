@@ -21,10 +21,13 @@ import script06 from '../../scenarios/MSN-260927-01.json' with { type: 'json' };
 import script07 from '../../scenarios/MSN-260929-01.json' with { type: 'json' };
 import script08 from '../../scenarios/MSN-260929-02.json' with { type: 'json' };
 import script09 from '../../scenarios/MSN-261027-01.json' with { type: 'json' };
+import script10 from '../../scenarios/MSN-261123-01.json' with { type: 'json' };
+import script11 from '../../scenarios/MSN-261123-02.json' with { type: 'json' };
+import script12 from '../../scenarios/MSN-261123-03.json' with { type: 'json' };
 import { LEGACY_ID, SCRIPT_IDS } from './manifest.ts';
 import type { ScriptLibraryEntry, ScriptScenario } from './types.ts';
 
-const scripts = [script01, script02, script03, script04, script05, script06, script07, script08, script09] as unknown as ScriptScenario[];
+const scripts = [script01, script02, script03, script04, script05, script06, script07, script08, script09, script10, script11, script12] as unknown as ScriptScenario[];
 
 // 목록(manifest)과 실물(import)의 대조 — 대본을 더할 때 한쪽만 늘면 여기서 즉시 죽는다.
 {
@@ -107,7 +110,7 @@ export function slotDriven(missionId: string): boolean {
  * 것이라, 자기 방식으로 도는 편(`script` · `relay`)에서는 열지 않는다. 선언 없는 편은 그대로 연다.
  */
 export function opensRobotGate(missionId: string): boolean {
-  return doorScanFlow(missionId);
+  return scanFlow(missionId);
 }
 
 /**
@@ -119,6 +122,30 @@ export function opensRobotGate(missionId: string): boolean {
  */
 export function doorScanFlow(missionId: string): boolean {
   return libraryEntry(missionId)?.script?.robotFlow === 'door-scan';
+}
+
+/**
+ * **data_stream 스캔 흐름을 쓰는 편인가** (261123). 대본이 `robotFlow: 'scan-detect'` 를 선언했을 때만 참이다.
+ *
+ * 회전은 `scan_mission` 이 아니라 `turn 45°` 여러 번이고, 각 회전 뒤 data_stream 에 각도를 표시한다(`physical/scanDetectRun.ts`).
+ * 옛 흐름의 부품 중 **로봇 전용**(스캔 발행 · `:8000` 탐지 폴링 · scanGate)은 이 편에서 안 돈다 — 그 자리는 `doorScanFlow()` 가 지킨다.
+ */
+export function scanDetectFlow(missionId: string): boolean {
+  return libraryEntry(missionId)?.script?.robotFlow === 'scan-detect';
+}
+
+/**
+ * **두 흐름 중 하나인가** (261123). 두 흐름이 같이 쓰는 자리 — 승인이 로봇 관문을 여는가, 준비 단계(방위)가 도는가,
+ * T-B2 의 「이동 전 승인」 — 가 이것을 본다.
+ */
+export function scanFlow(missionId: string): boolean {
+  return doorScanFlow(missionId) || scanDetectFlow(missionId);
+}
+
+/** **data_stream 에 보내는 대상** (261123). 새 흐름이 아니면 null. 선언이 없으면 문이다. */
+export function scanTargetOf(missionId: string): 'door' | 'box' | 'object' | null {
+  if (!scanDetectFlow(missionId)) return null;
+  return libraryEntry(missionId)?.script?.scanTarget ?? 'door';
 }
 
 /** **문 찾기 흐름이 탐지 서비스에 묻는 대상** (261027 — 박스 편). 선언이 없으면 문이다. */
@@ -133,6 +160,8 @@ export function detectTargetOf(missionId: string): 'door' | 'box' {
  * **탐지 결과만으로 낸 것**(`path_mode` 가 `map` 이 아닌 것)만 받는다. 문 찾기 흐름이 아닌 편은 참이다 — 거기서는 이 물음이 없다.
  */
 export function usesFloorPlan(missionId: string): boolean {
+  // 새 흐름은 도면을 안 쓴다(결정 3) — 준비 단계가 방위 하나로 끝나고, 2D 맵 뷰 노드가 안 선다.
+  if (scanDetectFlow(missionId)) return false;
   if (!doorScanFlow(missionId)) return true;
   return libraryEntry(missionId)?.script?.tasks.some((task) => task.id === 'T-A1') ?? true;
 }

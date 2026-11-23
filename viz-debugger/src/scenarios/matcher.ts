@@ -19,6 +19,7 @@
 import { getLang, type Lang } from '../shared/language.ts';
 import { matchEnOf } from './phrases.ts';
 import { tIn } from '../i18n/dict.ts';
+import { detectSource, standsUnder, type DetectSourceMode } from './detectSource.ts';
 import type { ScriptLibraryEntry, ScriptMatch } from './types.ts';
 
 export function normalize(text: string): string {
@@ -91,9 +92,15 @@ function ruleSets(entry: ScriptLibraryEntry, lang: Lang): readonly (ScriptMatch 
  */
 export function matchLibrary(
   sentence: string,
-  library: readonly ScriptLibraryEntry[],
+  all: readonly ScriptLibraryEntry[],
   lang: Lang = getLang(),
+  /**
+   * **탐지 방식 설정** (261123 — `detectSource.ts`). 옛 편과 새 편이 같은 문장을 들고 있어서, 설정에 맞는 편만 대조한다.
+   * 호출부를 하나도 안 고치려고 여기서 거른다 — 게이트웨이와 화면이 같은 자리에서 같은 값으로 거른다.
+   */
+  source: DetectSourceMode = detectSource(),
 ): MatchOutcome {
+  const library = all.filter((entry) => standsUnder(entry, source));
   // 규칙 벌 차례대로 — 영어로 하나가 맞으면 한국어 규칙은 안 본다.
   const passes = lang === 'en' ? [0, 1] : [0];
   let hits: readonly ScriptLibraryEntry[] = [];

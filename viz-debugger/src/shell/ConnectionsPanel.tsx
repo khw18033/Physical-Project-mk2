@@ -53,6 +53,7 @@ import { armLinkWatch } from '../physical/linkWatch.ts';
 import { navProbe } from '../physical/NavClient.ts';
 import { robotProbe, robotProbes } from '../physical/robotClient.ts';
 import { setTestMode, useDetect } from '../detect/store.ts';
+import { DetectSourceSwitch } from '../detect/scan/DetectSourceSwitch.tsx';
 import { CAPABILITY_PRESETS, capabilityPresetReady } from '../capability/presets.ts';
 import { MEDIA_PRESETS, mediaPresetReady } from '../media/presets.ts';
 import { AI_PRESETS, aiPresetReady } from '../autodrive/presets.ts';
@@ -453,6 +454,8 @@ function HealthRow({ target, physical, onCommit }: {
 
       **끄면 읽어 둔 것도 같이 버린다.** 시료가 실제 결과로 남아 있으면 안 된다.
     */}
+    {/* 261123 — 탐지 방식(옛 탐지기 / data_stream). 같은 문장의 두 편 중 어느 쪽이 매칭에 서는가. */}
+    {target === 'detect' && <DetectSourceSwitch />}
     {toggle !== undefined && <label className="conn-test" title={t(toggle.titleKey)}>
       <input type="checkbox" checked={toggle.on} onChange={(event) => toggle.set(event.target.checked)} />
       {t('conn.test')}

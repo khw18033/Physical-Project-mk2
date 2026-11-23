@@ -226,7 +226,8 @@ for (const width of WIDTHS) {
   const { SCRIPT_IDS } = await load('src', 'scenarios', 'manifest.ts');
   for (const id of SCRIPT_IDS) {
     // 261027 — 박스 편(`MSN-261027-01`)은 문 편과 같은 시점 선언을 든다. 선언한 편은 위에서 따로 잰다.
-    if (id === 'MSN-260909-01' || id === 'MSN-261027-01') continue;
+    // 261123 — data_stream 편 셋도 그 두 편에서 뽑아 같은 선언을 든다.
+    if (['MSN-260909-01', 'MSN-261027-01', 'MSN-261123-01', 'MSN-261123-02', 'MSN-261123-03'].includes(id)) continue;
     const script = JSON.parse(readFileSync(join(root, 'scenarios', `${id}.json`), 'utf8'));
     const base = dagLayout(script.tasks, 1440);
     const same = applyFanLayout(base, script.viewpoints ?? null);

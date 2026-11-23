@@ -46,6 +46,7 @@ import { deriveCatalog } from './pipeline-catalog.ts';
 import { startMissionTrace } from './mission-trace.ts';
 // 대본 재생(260831) — 발화 → 대본 매칭 → 승인 → 재생. 매처는 브라우저와 같은 파일이다.
 import { ScriptEngine } from './script-engine.ts';
+import { detectSource, isDetectSourceMode, setDetectSource, DETECT_SOURCE_MODES } from '../src/scenarios/detectSource.ts';
 import type { NodeLayout } from '../src/shared/pipeline-contract.ts';
 import type {
   ClientMessage,
@@ -205,6 +206,12 @@ publishRisk('normal');
 setInterval(() => publishRisk(currentRiskLevel), 5_000);
 
 // ── HTTP ─────────────────────────────────────────────────────────────────────
+
+// 261123 — 탐지 방식 기동 값. 없으면 `legacy`(옛 탐지기 편). `SCAN_DETECT_SOURCE=datastream npm run dev` 면 data_stream 편이 선다.
+{
+  const boot = process.env.SCAN_DETECT_SOURCE;
+  if (isDetectSourceMode(boot)) setDetectSource(boot);
+}
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -469,6 +476,26 @@ const http = createServer((req, res) => {
     return;
   }
 
+  /**
+   * 261123 — **탐지 방식 설정** (`src/scenarios/detectSource.ts`). 옛 탐지기 편과 data_stream 편이 같은 문장을 들고 있어서,
+   * 매칭(`matcher.ts`)이 이 값에 맞는 편만 본다. 원천은 이 프로세스이고 브라우저는 받아 간다. 기동 값은 `SCAN_DETECT_SOURCE`.
+   * 임무가 도는 중에 막는 것은 브라우저가 한다(이 프로세스는 로봇 판을 모른다).
+   */
+  if (url.pathname === '/scan-detect-source' && req.method === 'GET') {
+    json(200, { mode: detectSource(), modes: DETECT_SOURCE_MODES });
+    return;
+  }
+  if (url.pathname === '/scan-detect-source' && req.method === 'POST') {
+    void readJsonBody(req).then((body) => {
+      const mode = (body as { mode?: unknown } | null)?.mode;
+      if (!isDetectSourceMode(mode)) { json(400, { error: 'mode must be legacy | datastream', modes: DETECT_SOURCE_MODES }); return; }
+      setDetectSource(mode);
+      log('탐지 방식 → ' + mode);
+      json(200, { mode: detectSource(), modes: DETECT_SOURCE_MODES });
+    }, () => json(400, { error: 'invalid json' }));
+    return;
+  }
+
   /** VZ-C-01 · VZ-C-04 — 역할·범위 조회. WS의 role 메시지와 같은 값을 준다. */
   if (url.pathname === '/role') {
     json(200, currentRole());
@@ -526,7 +553,7 @@ const http = createServer((req, res) => {
 
   json(404, {
     error: 'not found',
-    paths: ['/registry', '/scenarios', '/scenario/:name', '/insight/:name', '/observability/client-metrics', '/pipelines/catalog', '/pipelines/state', '/pipelines/observation', '/pipelines/validate', '/pipelines/test', '/pipelines/commit', '/pipelines/rollback', '/audit', '/actions', '/role', '/metrics/query', '/health'],
+    paths: ['/registry', '/scenarios', '/scenario/:name', '/insight/:name', '/observability/client-metrics', '/pipelines/catalog', '/pipelines/state', '/pipelines/observation', '/pipelines/validate', '/pipelines/test', '/pipelines/commit', '/pipelines/rollback', '/audit', '/actions', '/role', '/metrics/query', '/scan-detect-source', '/health'],
   });
 });
 

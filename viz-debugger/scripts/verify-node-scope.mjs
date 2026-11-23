@@ -163,6 +163,10 @@ const EXPECTED = {
   'MSN-260929-02': [],
   // 10편(261027 박스 앞까지) — 문 편의 복사본이라 같은 축(자리 · 속도)만 몬다.
   'MSN-261027-01': ['device-risk', 'metrics'],
+  // 11~13편(261123 data_stream 문 · 박스 · @) — 문 · 박스 편에서 뽑았다. 세계 채널도 그대로라 같은 축이다.
+  'MSN-261123-01': ['device-risk', 'metrics'],
+  'MSN-261123-02': ['device-risk', 'metrics'],
+  'MSN-261123-03': ['device-risk', 'metrics'],
 };
 function checkScripts(list) {
   const f = [];
@@ -197,6 +201,9 @@ const PANEL_EXPECTED = {
   'MSN-260929-01': ['risk', 'zone-map', 'device-grid', 'control', 'metrics-query', 'metrics-push', 'video'],
   'MSN-260929-02': ['risk', 'zone-map', 'device-grid', 'control', 'metrics-query', 'metrics-push', 'video'],
   'MSN-261027-01': ['risk', 'control', 'metrics-push', 'video'],
+  'MSN-261123-01': ['risk', 'control', 'metrics-push', 'video'],
+  'MSN-261123-02': ['risk', 'control', 'metrics-push', 'video'],
+  'MSN-261123-03': ['risk', 'control', 'metrics-push', 'video'],
 };
 for (const script of scripts) {
   const got = collapsedPanels(script).sort();

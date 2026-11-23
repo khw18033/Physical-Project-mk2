@@ -5,6 +5,24 @@
 > 상태: **계획.** 구현하지 않았다. 창구는 data_stream 소스 서버에 붙고 대상 바꾸기도 data_stream 쪽이 한다(결정 9~12). 남은 상의는 요청 문서 §8-1.
 > data_stream 기준: `data_stream` 브랜치 `70da254` (2026-11-23) — 지정 클래스 탐지(`targeted`)가 들어온 판. 무엇이 있고 없는지는 요청 문서 §0-1.
 
+### 구현 상태 (2026-11-23)
+
+| 단계 | 상태 | 자리 |
+|---|---|---|
+| S0 가짜 창구 | 됨 | `scripts/scan-detect-mock.mjs` (`--mode` 11가지) |
+| S1 연결 | 됨 — **주소 칸을 따로 두지 않았다.** 창구 = 그 장치의 추론 스트림 포트(연결 관리 「추론 스트림」 + 하드웨어 카드 포트 묶음, `vision/binding.ts`) | `src/detect/scan/ScanClient.ts` · `scanAddress.ts` |
+| S2 흐름 갈래 | 됨 — `scanDetectFlow()` · `scanFlow()` · `scanTargetOf()`. 관문 · 준비 · 이동 전 승인은 `scanFlow()`, 로봇 전용 옛 부품은 `doorScanFlow()` 그대로 | `src/scenarios/library.ts` |
+| S3 실행기 | 됨 — 순서는 `physical/scanDetectRun.ts`(순수), 실물 연결은 `physical/scanDetectLink.ts` (turn 은 `issueStepsToEnd`, 노드 seq 6M 대역) | |
+| S4 상태 | 됨 | `src/detect/scan/scanStore.ts` |
+| S5 각도 칸 | **일부** — 노드 상세(T-A3 · T-A4-n)에 각도 그림. 팔레트 뷰 노드(옛 `DetectCam` 자리)는 아직 | `src/detect/scan/ScanDetectViews.tsx` |
+| S6 경로 | 됨 — 방위 부호는 `HEADING_TURN_SIGN = 1`(가짜 장치 기준, 실물 확인 필요) | `src/physical/scanApproach.ts` |
+| S7 근거 카드 | 됨 — 노드 상세(T-A5 · T-A6) | `ScanDetectViews.tsx` |
+| S8 편 셋 | 됨 — `MSN-261123-01~03` (+ `.en.json`), 옛 셋에 `detectSource: "legacy"` | `scenarios/` |
+| S9 탐지 방식 | 됨 — 매처가 거른다(호출부 무수정). 게이트웨이 `GET/POST /scan-detect-source` · 기동 값 `SCAN_DETECT_SOURCE`, 연결 판 「탐지」 줄에 고르기 | `scenarios/detectSource.ts` · `detect/scan/detectSourceSync.ts` |
+| S10 정지 · 기록 · 문구 | 됨 — 정지 → cancel, data_stream 요청을 명령 기록에(`data_stream.prepare` 등), 문구 `sd.*` 한 · 영 | |
+| S11 검사 | 됨 (`verify-scan-detect.mjs`) — 가짜 장치(`fakeDevice.ts`)로 끝까지 도는 화면 연결 검사는 아직 | |
+| @ 영어 옮기기 | 됨 — gen-lab `POST /generate/name_en`(문법으로 영어 소문자 1~4 낱말), 화면 `src/generate/nameEn.ts`. 실패하면 prepare 를 안 보낸다 | |
+
 ### data_stream 쪽에서 바뀐 것 (2026-11-23, `6013c10` ~ `70da254`)
 
 - 옛 탐지기의 문 · 박스 판정이 `targeted` 대상 **`demo_door`**(main 문 근거 그대로) · **`demo_box`**(Box_Detection v9)로 옮겨졌다. 임의 물체는 **직접 입력(제로샷)** 대상으로 된다. 그래서 창구는 새 모델이 아니라 `targeted` live 결과를 **각도별로 묶고 모으는 얇은 층**이면 된다.

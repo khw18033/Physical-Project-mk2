@@ -60,6 +60,8 @@ import { startNavLink } from './physical/navLink.ts';
 import { startObstacleWatch } from './autodrive/watch.ts';
 import { startTaskRunner } from './physical/taskRunner.ts';
 import { startApproachAuto } from './physical/approachAuto.ts';
+import { startScanDetectLink } from './physical/scanDetectLink.ts';
+import { pullDetectSource } from './detect/scan/detectSourceSync.ts';
 import { startManualDispatch } from './physical/manualDispatch.ts';
 import { ManualControlBadge } from './views/ManualControlBadge.tsx';
 import { startArmKeys } from './physical/armKeys.ts';
@@ -630,6 +632,12 @@ export function MissionDebugger({ navigation, planApproval }: { navigation?: Deb
    * 켜 둔 편은 제외). 같은 이유로 여기 둔다 — 화면을 옮겨도 경로가 나오는 순간을 놓치면 안 된다.
    */
   useEffect(() => startApproachAuto(), []);
+  /**
+   * **data_stream 스캔 흐름** (261123). 새 편(`scan-detect`)을 승인하고 「임무 시작」을 누르면 준비 → 회전 · 각도 표시 → 산출 →
+   * 이동을 몬다. 탐지 방식 설정은 기동 때 게이트웨이에서 받아 온다 — 화면과 게이트웨이가 같은 편을 고르게.
+   */
+  useEffect(() => startScanDetectLink(), []);
+  useEffect(() => { void pullDetectSource(); }, []);
   /**
    * **로봇 수동 제어의 키 처리기** (261005). 카드 창이 아니라 여기 건다 — 카드를 닫고 카메라 화면을 보면서도
    * 켜 둔 장비를 몰 수 있어야 한다. 켜진 장비가 없으면 키를 하나도 안 가로챈다.

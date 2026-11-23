@@ -590,6 +590,52 @@ def generate_mission(request: GenerateRequest) -> JSONResponse:
     return JSONResponse(body, status_code=200)
 
 
+# ── 물체 이름 영어로 (261123 — 스캔 탐지를 data_stream 으로) ─────────────────────────
+#
+# data_stream 의 지정 클래스 탐지(`targeted`)는 대상 이름을 YOLOE 텍스트 문구 · `a photo of a {이름}` · OVD 라벨로
+# **그대로** 쓴다. 그래서 「장치 하나를 @까지」의 @(한국어)를 영어 이름으로 옮겨 보내기로 했다(결정 10).
+# 짧은 일이라 임무 생성과 같은 엔진을 쓰되, **문법으로 출력을 영어 소문자 낱말 1~4개로 묶는다** — 문장 · 따옴표 · 설명이
+# 붙어 나오면 그것이 그대로 탐지 문구가 된다. 엔진이 없으면 지어내지 않고 503 이다(스텁 없음 — 틀린 이름으로 찾느니 멈춘다).
+
+NAME_EN_GRAMMAR = 'root ::= word (" " word){0,3}\nword ::= [a-z]{1,20}\n'
+NAME_EN_SYSTEM = (
+    "You translate the name of a physical object from Korean to English for an open-vocabulary object detector. "
+    "Answer with the common English noun phrase only, lowercase, 1 to 4 words, no article, no punctuation."
+)
+
+
+class NameEnRequest(BaseModel):
+    text: str
+    model: Optional[str] = None
+
+
+@app.post("/generate/name_en")
+def generate_name_en(request: NameEnRequest) -> JSONResponse:
+    """한국어 물체 이름 하나 → 영어 이름 하나. 탐지 문구로 바로 쓴다."""
+    started = time.perf_counter()
+    text = request.text.strip()
+    if not text or len(text) > 40:
+        return JSONResponse({"error": "text must be 1~40 chars"}, status_code=400)
+    engine = engines.get_engine(None)
+    usable = engine is not None and bool(engine.models()) and engine.status().get("binary_present", False)
+    if not usable:
+        return JSONResponse({"error": "no engine", "text": text}, status_code=503)
+    try:
+        output = engine.generate(f"Korean: {text}\nEnglish:", GenerateOptions(
+            model=request.model, system=NAME_EN_SYSTEM, grammar=NAME_EN_GRAMMAR,
+            max_tokens=16, temperature=0.0, seed=0,
+        ))
+    except Exception as exc:  # 엔진 실패를 삼키지 않는다
+        return JSONResponse({"error": f"{type(exc).__name__}: {exc}", "text": text}, status_code=502)
+    name = " ".join(output.text.strip().lower().split())
+    if not name or not all(word.isascii() and word.isalpha() for word in name.split(" ")) or len(name.split(" ")) > 4:
+        return JSONResponse({"error": "bad output", "text": text, "raw_text": output.text}, status_code=502)
+    return JSONResponse({
+        "text": text, "name_en": name, "engine": output.engine, "model": output.model,
+        "grammar_enforced": output.grammar_enforced, "elapsed_sec": round(time.perf_counter() - started, 6),
+    }, status_code=200)
+
+
 if __name__ == "__main__":
     import uvicorn
 

@@ -34,7 +34,7 @@ const script = readScript(ID);
 
 // ── 1. 문장 — 이 편에만 맞고, 시연 편을 빼앗지 않는다 ───────────────────────────
 const library = [
-  ...SCRIPT_IDS.map((id) => ({ missionId: id, match: readScript(id).match })),
+  ...SCRIPT_IDS.map((id) => ({ missionId: id, match: readScript(id).match, script: readScript(id) })),
   { missionId: LEGACY_ID, match: JSON.parse(read('scenarios', `${LEGACY_ID}.match.json`)).match },
 ];
 const matchOf = (sentence) => {
