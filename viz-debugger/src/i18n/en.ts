@@ -2468,6 +2468,8 @@ export const en: Record<string, string> = {
   'sd.source.datastream': "data_stream",
   'sd.source.local': "(gateway unreachable — this screen only)",
   'sd.source.blockedRunning': "Not changed — a mission is running",
+  'sd.legacyBlock': "Old detector (:8000) — used by the old missions (door · box · @)",
+  'sd.legacyIdle': "Not used now — detection is data_stream, and its scan connects through the ports above",
   'sd.cue.detector': "Detector",
   'sd.cue.semantic': "Text description",
   'sd.cue.dict': "Feature dictionary",

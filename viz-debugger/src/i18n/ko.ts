@@ -2493,6 +2493,8 @@ export const ko: Record<string, string> = {
   'sd.source.datastream': "data_stream",
   'sd.source.local': "(게이트웨이에 못 닿아 이 화면만)",
   'sd.source.blockedRunning': "임무가 도는 중이라 바꾸지 못했습니다",
+  'sd.legacyBlock': "옛 탐지기 (:8000) — 옛 편(문 · 박스 · @)에서 씁니다",
+  'sd.legacyIdle': "탐지 방식이 data_stream 이라 지금은 쓰지 않습니다. data_stream 스캔은 위 포트로 붙습니다",
   'sd.cue.detector': "탐지기",
   'sd.cue.semantic': "글 설명",
   'sd.cue.dict': "특징 사전",

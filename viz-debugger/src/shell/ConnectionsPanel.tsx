@@ -54,6 +54,7 @@ import { navProbe } from '../physical/NavClient.ts';
 import { robotProbe, robotProbes } from '../physical/robotClient.ts';
 import { setTestMode, useDetect } from '../detect/store.ts';
 import { DetectSourceSwitch } from '../detect/scan/DetectSourceSwitch.tsx';
+import { useDetectSource } from '../detect/scan/detectSourceSync.ts';
 import { CAPABILITY_PRESETS, capabilityPresetReady } from '../capability/presets.ts';
 import { MEDIA_PRESETS, mediaPresetReady } from '../media/presets.ts';
 import { AI_PRESETS, aiPresetReady } from '../autodrive/presets.ts';
@@ -180,6 +181,9 @@ export function ConnectionsPanel({ onClose, physical }: { onClose(): void; physi
     heldManual = latest.current.manual;
   }, []);
   const [note, setNote] = useState<string | null>(null);
+  // 261123 — 옛 탐지기 칸은 「객체 탐지 추론 스트림」 안에 그린다. 탐지 방식이 data_stream 이면 흐리게.
+  const detectMode = useDetectSource();
+  const legacyDetect = CONNECTION_TARGETS.find((target) => target.id === 'detect');
   // 언어가 바뀌면 다시 그린다 — `t()` 는 값을 줄 뿐 리렌더를 일으키지 않는다 (§4).
   useLang();
   const writable = connectionsWritable();
@@ -214,21 +218,10 @@ export function ConnectionsPanel({ onClose, physical }: { onClose(): void; physi
     setNote(t('conn.restored'));
   };
 
-  return <aside className="global-panel global-panel--connections">
-    <header><b>{t('conn.title')}</b><button onClick={onClose}>{t('conn.close')}</button></header>
-    {/* **최상단 안내를 뺐다** (260913 지시). 여기 있던 세 줄은 이 판을 처음 여는 사람에게
-        필요한 말이고, 시연 직전에 여는 사람에게는 매번 같은 자리를 차지할 뿐이었다.
-        규칙 자체는 그대로다 — 환경변수가 기본값이고 여기서 넣은 값이 이긴다. */}
-    {/* 시범 키 ③ 긴 오류 문장 (영문화 1단계 §4). 좁은 판이라 **줄바꿈이 레이아웃을 깨는지**를
-        여기서 본다 — 영어가 한국어보다 길다. 2단계에 미리 알아야 할 것이 이런 자리다. */}
-    {!writable && <p className="connections__warn">
-      {t('conn.storageBlocked')}
-    </p>}
-    {/* 목록을 그린다. 대상이 늘면 이 파일이 아니라 shared/connections.ts 가 바뀐다. */}
-    {CONNECTION_TARGETS.map((target) => <section key={target.id} className={`conn-target${target.live ? '' : ' conn-target--pending'}`}>
-      {/* 대상 이름·설명은 `shared/connections.ts` 가 **키로** 들고 있다 — 여기서 푼다.
-          그 파일에서 t() 를 부르면 모듈 최상위 상수라 언어가 로드 시점에 굳는다 (260918). */}
-      <h3>{t(target.labelKey)}{target.live ? null : <em>{t('conn.pendingBadge')}</em>}</h3>
+  /**
+   * 대상 하나의 본문(설명 · 칸 · 확인). 261123 — 「객체 탐지 추론 스트림」 칸이 옛 탐지기(`detect`)의 본문을 안에 함께 그리므로 함수로 뺐다.
+   */
+  const renderBody = (target: ConnectionTarget) => <>
       {/* 설명이 없는 대상도 있다 (260913 지시 — 로봇·객체 탐지). 늘 쓰는 둘이라
           매번 읽을 문장이 아니다. 자리도 그만큼 줄어든다. */}
       {target.whatKey !== undefined && <p>{t(target.whatKey)}</p>}
@@ -352,6 +345,35 @@ export function ConnectionsPanel({ onClose, physical }: { onClose(): void; physi
         physical={target.id === 'physical' ? (physical ?? null) : null}
         onCommit={() => commit(target)}
       />}
+  </>;
+
+  return <aside className="global-panel global-panel--connections">
+    <header><b>{t('conn.title')}</b><button onClick={onClose}>{t('conn.close')}</button></header>
+    {/* **최상단 안내를 뺐다** (260913 지시). 여기 있던 세 줄은 이 판을 처음 여는 사람에게
+        필요한 말이고, 시연 직전에 여는 사람에게는 매번 같은 자리를 차지할 뿐이었다.
+        규칙 자체는 그대로다 — 환경변수가 기본값이고 여기서 넣은 값이 이긴다. */}
+    {/* 시범 키 ③ 긴 오류 문장 (영문화 1단계 §4). 좁은 판이라 **줄바꿈이 레이아웃을 깨는지**를
+        여기서 본다 — 영어가 한국어보다 길다. 2단계에 미리 알아야 할 것이 이런 자리다. */}
+    {!writable && <p className="connections__warn">
+      {t('conn.storageBlocked')}
+    </p>}
+    {/* 목록을 그린다. 대상이 늘면 이 파일이 아니라 shared/connections.ts 가 바뀐다. */}
+    {/*
+      261123 — **「객체 탐지」 줄을 따로 그리지 않는다.** data_stream 스캔 창구도 「객체 탐지 추론 스트림」의 포트로 붙으므로, 탐지 방식
+      (옛 탐지기 / data_stream)을 그 칸 맨 위에서 고르고 옛 탐지기 주소 · 확인은 그 칸 안에 함께 둔다. 대상 목록
+      (`CONNECTION_TARGETS`)과 저장 키(`detect.base`)는 그대로다 — 저장된 주소와 확인 · 머리줄 표시등이 그 목록을 본다.
+    */}
+    {CONNECTION_TARGETS.map((target) => target.id === 'detect' ? null : <section key={target.id} className={`conn-target${target.live ? '' : ' conn-target--pending'}`}>
+      {/* 대상 이름·설명은 `shared/connections.ts` 가 **키로** 들고 있다 — 여기서 푼다.
+          그 파일에서 t() 를 부르면 모듈 최상위 상수라 언어가 로드 시점에 굳는다 (260918). */}
+      <h3>{t(target.labelKey)}{target.live ? null : <em>{t('conn.pendingBadge')}</em>}</h3>
+      {target.id === 'vision' && <DetectSourceSwitch />}
+      {renderBody(target)}
+      {target.id === 'vision' && legacyDetect !== undefined && <div className={`conn-sub${detectMode === 'legacy' ? '' : ' conn-sub--idle'}`}>
+        <h4>{t('sd.legacyBlock')}</h4>
+        {detectMode !== 'legacy' && <p className="conn-sub__note">{t('sd.legacyIdle')}</p>}
+        {renderBody(legacyDetect)}
+      </div>}
     </section>)}
     <footer className="connections__actions">
       {note && <span className="connections__note">{note}</span>}
@@ -454,8 +476,6 @@ function HealthRow({ target, physical, onCommit }: {
 
       **끄면 읽어 둔 것도 같이 버린다.** 시료가 실제 결과로 남아 있으면 안 된다.
     */}
-    {/* 261123 — 탐지 방식(옛 탐지기 / data_stream). 같은 문장의 두 편 중 어느 쪽이 매칭에 서는가. */}
-    {target === 'detect' && <DetectSourceSwitch />}
     {toggle !== undefined && <label className="conn-test" title={t(toggle.titleKey)}>
       <input type="checkbox" checked={toggle.on} onChange={(event) => toggle.set(event.target.checked)} />
       {t('conn.test')}
