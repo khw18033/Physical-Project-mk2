@@ -45,6 +45,11 @@ export type ScanRunState = {
   result: ScanResult | null;
   failure: ScanFailureInfo | null;
   cancelled: boolean;
+  /**
+   * **임무 이력에서 연 판이면 그 기록 폴더** (261124). 그림을 data_stream 창구가 아니라 기록 폴더에서 읽는다 —
+   * 창구는 끝난 판을 최근 몇 개만 들고, 다른 PC 에서는 닿지도 않는다. 지금 도는 판이면 null.
+   */
+  recorded: { date: string; run: string } | null;
 };
 
 export type ScanEvent =
@@ -72,7 +77,7 @@ export function reduceScan(state: ScanRunState | null, event: ScanEvent): ScanRu
       scanId: event.scanId, missionId: event.missionId, device: event.device, base: event.base, target: event.target,
       query: event.query, queryKo: event.queryKo, targets: [], stream: null, serverState: null, profileVersion: null,
       angles: Array.from({ length: event.steps }, (_, index) => ({ index, deg: index * event.stepDeg, captured: null, frameN: null, capturedAt: null })),
-      headingStartDeg: null, headingEndDeg: null, result: null, failure: null, cancelled: false,
+      headingStartDeg: null, headingEndDeg: null, result: null, failure: null, cancelled: false, recorded: null,
     };
   }
   if (state === null || state.scanId !== event.scanId) return state;
@@ -108,6 +113,22 @@ export function applyScanEvent(event: ScanEvent): void {
 
 export function scanRunState(): ScanRunState | null {
   return current;
+}
+
+/** 임무 이력에 싣는 모양 — 지금 상태 그대로(기록 폴더 표시는 뺀다). */
+export function recordableScanRun(): ScanRunState | null {
+  return current === null ? null : { ...current, recorded: null };
+}
+
+/**
+ * 임무 이력에서 판을 열 때 되살린다. 모양이 틀리거나 없으면(옛 편 · 스캔 전 기록) 비운다 — 지금 판의 상태가
+ * 지난 판 자리에 남으면 안 된다.
+ */
+export function restoreScanRun(saved: unknown, recorded: { date: string; run: string }): void {
+  const ok = saved !== null && typeof saved === 'object'
+    && typeof (saved as ScanRunState).scanId === 'string' && typeof (saved as ScanRunState).missionId === 'string'
+    && Array.isArray((saved as ScanRunState).angles);
+  publish(ok ? { ...(saved as ScanRunState), recorded } : null);
 }
 
 export function resetScanRun(): void {

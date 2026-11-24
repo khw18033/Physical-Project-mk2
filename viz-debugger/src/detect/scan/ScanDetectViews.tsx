@@ -21,6 +21,9 @@ import {
   SCAN_STOP_RANGE, issueScanApproach, scanStopDistance, scanStopEdited, setScanStopDistance, useScanApproach, useScanStopVersion,
 } from '../../physical/scanApproachRun.ts';
 import { scanClient } from './ScanClient.ts';
+import { recordFileUrl, scanImagePath } from '../../record/recordClient.ts';
+import { isReplayingRecord } from '../../record/replayMode.ts';
+import type { ScanImageKind } from './types.ts';
 import { frameResultAt, useScanRun, type ScanAngle, type ScanRunState } from './scanStore.ts';
 
 const ANGLE_TASK = /^T-A4-(\d+)$/;
@@ -40,16 +43,21 @@ function cueName(name: string): string {
   return key === undefined ? name : t(key);
 }
 
+/** 그 각도 그림의 주소 — 지금 판은 data_stream 창구, 임무 이력에서 연 판은 그 기록 폴더(기록기가 떠 둔 것 · 261124). */
+function scanImageUrl(run: ScanRunState, deg: number, kind: ScanImageKind): string {
+  if (run.recorded !== null) return recordFileUrl(run.recorded.date, run.recorded.run, scanImagePath(deg, kind));
+  return scanClient(run.base).frameUrl(run.scanId, deg, kind);
+}
+
 function angleImage(run: ScanRunState, angle: ScanAngle): { url: string | null; tone: string; label: string } {
   if (angle.captured === null) return { url: null, tone: 'empty', label: t('sd.angle.empty') };
   if (angle.captured === false) return { url: null, tone: 'missed', label: t('sd.angle.missed') };
-  const client = scanClient(run.base);
   const frame = frameResultAt(run, angle.deg);
-  if (frame === null) return { url: client.frameUrl(run.scanId, angle.deg, 'original'), tone: 'captured', label: t('sd.angle.captured') };
+  if (frame === null) return { url: scanImageUrl(run, angle.deg, 'original'), tone: 'captured', label: t('sd.angle.captured') };
   if (frame.found) {
-    return { url: client.frameUrl(run.scanId, angle.deg, 'overlay'), tone: 'found', label: t('sd.angle.found', { score: frame.score ?? '–' }) };
+    return { url: scanImageUrl(run, angle.deg, 'overlay'), tone: 'found', label: t('sd.angle.found', { score: frame.score ?? '–' }) };
   }
-  return { url: client.frameUrl(run.scanId, angle.deg, 'original'), tone: 'not', label: frame.reason ?? t('sd.angle.notFound') };
+  return { url: scanImageUrl(run, angle.deg, 'original'), tone: 'not', label: frame.reason ?? t('sd.angle.notFound') };
 }
 
 const fmt = (value: number | null | undefined, digits = 1) => (value === null || value === undefined ? '–' : value.toFixed(digits));
@@ -88,7 +96,6 @@ function Evidence({ run }: { run: ScanRunState }) {
   const result = run.result;
   if (result === null) return <p className="scan-facts__wait">{t('sd.waitResult')}</p>;
   const best = result.best;
-  const client = scanClient(run.base);
   return <div className="scan-evidence">
     <p>{result.reason}</p>
     {best === null
@@ -102,7 +109,7 @@ function Evidence({ run }: { run: ScanRunState }) {
     {result.cues.length > 0 && <table className="scan-cues">
       <tbody>{result.cues.map((cue, i) => <tr key={i}><th>{cueName(cue.name)}</th><td>{fmt(cue.value, 2)}</td><td>{cue.note}</td></tr>)}</tbody>
     </table>}
-    {best !== null && <img className="scan-evidence__crop" src={client.frameUrl(run.scanId, best.rotation_deg, 'crop')} alt={t('sd.cropAlt')} />}
+    {best !== null && <img className="scan-evidence__crop" src={scanImageUrl(run, best.rotation_deg, 'crop')} alt={t('sd.cropAlt')} />}
   </div>;
 }
 
@@ -110,10 +117,16 @@ function Evidence({ run }: { run: ScanRunState }) {
  * **정지 거리 칸** (261124 — 실물 Go1 시험). 대상 앞 몇 m 에서 설지. 결과 전에 바꿔 두면 그 값으로 세고, 결과 뒤(이동 전)에
  * 바꾸면 그 자리에서 다시 센다 — 다시 센 경로는 「이 경로로 이동」을 눌러야 나간다. 이동이 나간 뒤에는 잠근다.
  */
-function StopDistanceField({ missionId, locked }: { missionId: string; locked: boolean }) {
+function StopDistanceField({ missionId, locked: lockedByRun }: { missionId: string; locked: boolean }) {
   useLang();
   useScanStopVersion();
-  const value = scanStopDistance(missionId, (currentMission().params as Record<string, unknown>).stop_distance_max_m);
+  const approach = useScanApproach();
+  // 임무 이력에서 연 판은 고칠 것이 없다 — 그 판에 쓴 값을 보여 주고 잠근다(261124).
+  const replay = isReplayingRecord();
+  const locked = lockedByRun || replay;
+  const used = approach !== null && approach.missionId === missionId ? approach.input.stopDistanceM : null;
+  const value = replay && used !== null ? used
+    : scanStopDistance(missionId, (currentMission().params as Record<string, unknown>).stop_distance_max_m);
   const [text, setText] = useState<string | null>(null);
   const [bad, setBad] = useState(false);
   const apply = () => {
@@ -124,7 +137,7 @@ function StopDistanceField({ missionId, locked }: { missionId: string; locked: b
     if (ok) setText(null);
   };
   return <div className="scan-stop">
-    <label title={locked ? t('sd.stop.locked') : t('sd.stop.title')}>
+    <label title={replay ? t('sd.stop.replay') : locked ? t('sd.stop.locked') : t('sd.stop.title')}>
       <span>{t('sd.stop.label')}</span>
       <input
         type="number" inputMode="decimal" step={0.05} min={SCAN_STOP_RANGE.min} max={SCAN_STOP_RANGE.max} disabled={locked}
@@ -133,7 +146,7 @@ function StopDistanceField({ missionId, locked }: { missionId: string; locked: b
         onBlur={apply}
         onKeyDown={(event) => { if (event.key === 'Enter') apply(); }}
       /> m
-      {scanStopEdited(missionId) && <small>{t('sd.stop.edited')}</small>}
+      {!replay && scanStopEdited(missionId) && <small>{t('sd.stop.edited')}</small>}
     </label>
     {bad && <p className="scan-facts__bad">{t('sd.stop.bad', { min: SCAN_STOP_RANGE.min, max: SCAN_STOP_RANGE.max })}</p>}
   </div>;

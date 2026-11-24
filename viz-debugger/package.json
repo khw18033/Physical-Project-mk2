@@ -50,6 +50,7 @@
     "verify:script-box": "node scripts/verify-script-box.mjs",
     "verify:scan-detect": "node scripts/verify-scan-detect.mjs",
     "verify:scan-detect-link": "node scripts/verify-scan-detect-link.mjs",
+    "verify:scan-record": "node scripts/verify-scan-record.mjs",
     "scan:mock": "node scripts/scan-detect-mock.mjs",
     "verify:panels-imagery": "node scripts/verify-panels-imagery.mjs",
     "verify:obstacle-sources": "node scripts/verify-obstacle-sources.mjs",

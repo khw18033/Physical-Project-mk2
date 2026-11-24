@@ -2457,6 +2457,7 @@ export const ko: Record<string, string> = {
   'sd.stop.label': "정지 거리",
   'sd.stop.title': "대상 앞 몇 m 에서 설지 — 바꾸면 경로를 다시 셉니다. 다시 센 경로는 「이 경로로 이동」을 눌러야 출발합니다",
   'sd.stop.locked': "이동이 이미 나가 이번 판에는 바꿀 수 없습니다 — 다음 판부터 씁니다",
+  'sd.stop.replay': "임무 이력의 판 — 그 판에 쓴 정지 거리입니다",
   'sd.stop.edited': "바꾼 값",
   'sd.stop.bad': "{min}~{max} m 사이 숫자를 넣어 주세요",
   'sd.approve': "이 경로로 이동",

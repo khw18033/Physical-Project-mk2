@@ -51,6 +51,8 @@ import { scriptFrames } from '../viewpoint/source.ts';
 import { appendViewpoint, resetViewpoint, type ArrivedFrame } from '../viewpoint/store.ts';
 import { clearStarted, commandClockSec, markApproved, resetRobotSession, robotDrives } from '../physical/robotSession.ts';
 import { resetDetect } from '../detect/store.ts';
+// 스캔 탐지(data_stream) 판도 탐지 상태와 같이 비운다 (261124) — 임무 이력에서 연 판이 지금 화면에 남지 않게.
+import { resetScanRun } from '../detect/scan/scanStore.ts';
 import { armMissionHistory, resetMissionHistory, sealRun } from './missionHistory.ts';
 import { isReplayingRecord, leaveRecordReplay } from '../record/replayMode.ts';
 import { armNotifications, resetNotifications } from '../shared/notifications.ts';
@@ -638,6 +640,7 @@ export function activateMission(missionId: string, mode: 'remote' | 'local', tar
   // 탐지도 같이 비운다 (260912) — 지난 판의 각도와 「이미 끝났다」는 기억이 남으면
   // 새 판이 처음부터 다 끝난 채로 뜬다.
   resetDetect();
+  resetScanRun();
   localCursor = 0;
   localViewpointCursor = 0;
   localActionCursor = 0;
@@ -1203,6 +1206,7 @@ function beforeNewRun(): void {
   leaveRecordReplay();
   resetRobotSession();
   resetDetect();
+  resetScanRun();
   // 다시보기가 채운 자율주행 기록도 걷는다 (260915) — 지난 판의 경로 사건·장애물 값이 새 판에 남으면 안 된다.
   resetNavFeed();
   clearObstacleData();
@@ -1468,6 +1472,7 @@ export function resetMission(): void {
   resetViewpoint(NO_MISSION);
   resetRobotSession();
   resetDetect();
+  resetScanRun();
   // 「초기화」는 화면을 처음 상태로 되돌리는 것이라 이력도 알림도 같이 비운다.
   resetMissionHistory();
   resetNotifications();
@@ -1578,6 +1583,7 @@ export function closeRecordReplay(): void {
   resetViewpoint(NO_MISSION);
   resetRobotSession();
   resetDetect();
+  resetScanRun();
   resetNavFeed();
   clearObstacleData();
   commitNow({ current: emptyView(), proposal: null, headSec: 0, playing: false, activatedBy: 'boot' });

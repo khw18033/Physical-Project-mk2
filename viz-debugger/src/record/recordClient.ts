@@ -191,6 +191,15 @@ export function detectImagePath(name: 'path_overlay' | 'map' | { frame: string; 
   return `images/detect/${stem}_${name.kind}.jpg`;
 }
 
+/**
+ * 스캔 탐지(data_stream) 각도 그림의 저장 이름 (261124) — 기록기와 다시보기가 같은 함수를 쓴다.
+ * 기록 창구 · 이력 서버가 그림 폴더를 `detect` · `robot` 둘만 받으므로 `detect` 안에 `scan_` 이름으로 둔다.
+ */
+export function scanImagePath(rotationDeg: number, kind: 'original' | 'overlay' | 'crop'): string {
+  const deg = ((Math.round(rotationDeg) % 360) + 360) % 360;
+  return `images/detect/scan_rot_${String(deg).padStart(3, '0')}_${kind}.jpg`;
+}
+
 /** 로봇 원본의 저장 이름 — 각도 세 자리. */
 export function robotImagePath(rotationDeg: number): string {
   const deg = ((Math.round(rotationDeg) % 360) + 360) % 360;

@@ -2432,6 +2432,7 @@ export const en: Record<string, string> = {
   'sd.stop.label': "Stop distance",
   'sd.stop.title': "How far in front of the target to stop. Changing it recomputes the path; a recomputed path starts only when you press “Move along this path”",
   'sd.stop.locked': "The move has already been sent, so it cannot change for this run. It applies from the next run",
+  'sd.stop.replay': "A run from mission history — the stop distance used in that run",
   'sd.stop.edited': "edited",
   'sd.stop.bad': "Enter a number between {min} and {max} m",
   'sd.approve': "Move along this path",

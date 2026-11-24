@@ -21,6 +21,8 @@ import { sealRun } from '../data/missionHistory.ts';
 import { floorPlanUrls } from '../detect/DetectClient.ts';
 import { restoreDetectLog, type DetectLogLine } from '../detect/detectLog.ts';
 import { restoreDetect, type RecordedDetect } from '../detect/store.ts';
+import { restoreScanRun } from '../detect/scan/scanStore.ts';
+import { restoreScanApproach } from '../physical/scanApproachRun.ts';
 import type { ScenarioEvent } from '../model/types.ts';
 import { restorePrepStage, type PrepState } from '../physical/prepStage.ts';
 import { restoreRobotSession, type RecordedRobotSession } from '../physical/robotSession.ts';
@@ -40,6 +42,9 @@ type ProgressFile = {
   detect?: Partial<RecordedDetect>;
   detectLog?: DetectLogLine[];
   prep?: PrepState;
+  /** 스캔 탐지 편 (261124) — data_stream 판의 상태 · 이동 계획. 다른 편 기록에는 없다. */
+  scan?: unknown;
+  scanApproach?: unknown;
   /** 자율주행 편 (260915) — pi1 중계 상태·사건. 문 찾기 편 기록에는 없다. */
   nav?: Partial<RecordedNavFeed>;
   /** 자율주행 편 (260915) — AI 서버 장애물 기록. */
@@ -68,6 +73,9 @@ export async function openRecordedRun(date: string, run: string): Promise<OpenRe
     restoreRobotSession(progress.robot ?? {});
     restoreDetect(progress.detect ?? {}, { date, run });
     restoreDetectLog(progress.detectLog ?? []);
+    // 스캔 탐지 편 — 없으면 비운다. 그림은 그 판 폴더에서 읽는다(`scanStore.ts` 의 `recorded`).
+    restoreScanRun(progress.scan ?? null, { date, run });
+    restoreScanApproach(progress.scanApproach ?? null);
     // 자율주행 편 — 없으면(문 찾기 편 기록) 비운다. 지금 받고 있던 값이 지난 판 자리에 남으면 안 된다.
     restoreNavFeed(progress.nav);
     restoreObstacle(progress.obstacle);

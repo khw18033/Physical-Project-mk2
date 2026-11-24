@@ -11,6 +11,7 @@
  *   progress.json   어떻게 진행됐나 — 기록 열 · 뷰포인트 프레임 · 로봇 명령과 응답 로그 · 탐지 결과와
  *                   근거 · 탐지 로그 · 준비 단계 값 · 알림 · 로봇 촬영 목록
  *   images/detect   탐지가 내준 그림 — 각도 원본 · 상자 입힌 것 · 잘라낸 것 · 경로 그림 · 도면
+ *                   (스캔 탐지 data_stream 편은 `scan_rot_<각도>_<종류>.jpg` — 261124)
  *   images/robot    로봇이 찍어 보낸 원본 (각도별)
  *
  * 다시보기(`loadRecord.ts`)가 이 둘을 도로 채워 **같은 화면**으로 그린다. 그래서 여기서 쓰는 모양이
@@ -60,10 +61,13 @@ import { arrivedFrames } from '../viewpoint/store.ts';
 import { recordableNavFeed } from '../physical/navFeed.ts';
 import { navRun } from '../physical/navRun.ts';
 import { recordableObstacle } from '../autodrive/obstacle.ts';
+import { scanClient } from '../detect/scan/ScanClient.ts';
+import { frameResultAt, recordableScanRun, scanRunState } from '../detect/scan/scanStore.ts';
+import { recordableScanApproach } from '../physical/scanApproachRun.ts';
 import { detectTargetOf, relayDriven } from '../scenarios/library.ts';
 import { useSyncExternalStore } from 'react';
 import {
-  chooseSink, detectImagePath, nextSink, postRecordImage, putRecordJson, robotImagePath, runFolderOf,
+  chooseSink, detectImagePath, nextSink, postRecordImage, putRecordJson, robotImagePath, runFolderOf, scanImagePath,
   type RecordMissionSummary, type RecordSink,
 } from './recordClient.ts';
 import { registerActiveRecordFolders } from './evacuations.ts';
@@ -270,6 +274,11 @@ function buildBodies(target: Run): { mission: string; progress: string } {
     images: target.imageLog,
     // 자율주행 편 (260915) — pi1 중계가 준 상태·사건과 AI 서버의 장애물 기록. 판이 안 열렸으면 사건은 비어 있다.
     // 중계 판의 임무에서만 싣는다 — 문 찾기 편 기록에 남의 판 값이 섞이면 안 된다.
+    // 스캔 탐지 편 (261124) — data_stream 판의 상태와 이동 계획. 이 임무의 판일 때만 싣는다.
+    ...(scanRunState()?.missionId === view.missionId ? {
+      scan: recordableScanRun(),
+      scanApproach: recordableScanApproach()?.missionId === view.missionId ? recordableScanApproach() : null,
+    } : {}),
     ...(relayDriven(view.missionId) ? {
       nav: recordableNavFeed(navRun()?.startedAtMs ?? target.navStartedAtMs),
       obstacle: recordableObstacle(),
@@ -362,6 +371,26 @@ function wantDetectImages(target: Run): void {
   if (map.url !== null && !map.bundled) {
     want(target, detectImagePath('map'), `${prepState().runKey ?? ''}:${map.url}`, roundedImageUrl(mapImageUrl(source), detect.imageRound));
   }
+}
+
+/**
+ * **스캔 탐지(data_stream) 각도 그림을 떠 둔다** (261124). 화면은 창구(`/scan/frame`)에서 그때그때 받아 그리는데, 창구는 끝난 판을
+ * 최근 몇 개만 들고 다른 PC 에서는 닿지도 않는다. 그래서 받은 각도마다 원본을, 결과가 오면 찾은 각도의 상자 그림과 대상의
+ * 잘라낸 그림을 이 판 폴더에 둔다. 다시보기의 각도 칸 · 근거 카드가 화면에 뜬 것과 같은 그림을 여기서 읽는다.
+ */
+function wantScanImages(target: Run): void {
+  const run = scanRunState();
+  if (run === null || run.recorded !== null || run.missionId !== target.missionId || run.base === '') return;
+  const client = scanClient(run.base);
+  for (const angle of run.angles) {
+    if (angle.captured !== true) continue;
+    want(target, scanImagePath(angle.deg, 'original'), run.scanId, client.frameUrl(run.scanId, angle.deg, 'original'));
+    if (frameResultAt(run, angle.deg)?.found === true) {
+      want(target, scanImagePath(angle.deg, 'overlay'), run.scanId, client.frameUrl(run.scanId, angle.deg, 'overlay'));
+    }
+  }
+  const best = run.result?.best ?? null;
+  if (best !== null) want(target, scanImagePath(best.rotation_deg, 'crop'), run.scanId, client.frameUrl(run.scanId, best.rotation_deg, 'crop'));
 }
 
 async function runJobs(): Promise<void> {
@@ -460,6 +489,7 @@ export function recordTick(): void {
   }
   target.traceHigh = traceLength;
   wantDetectImages(target);
+  wantScanImages(target);
   write(target, buildBodies(target));
   void runJobs();
 }

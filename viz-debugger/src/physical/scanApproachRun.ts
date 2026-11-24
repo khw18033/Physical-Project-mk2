@@ -108,6 +108,22 @@ export function setScanStopDistance(missionId: string, meters: number): boolean 
   return true;
 }
 
+/** 임무 이력에 싣는 모양 (261124). */
+export function recordableScanApproach(): Omit<NonNullable<ScanApproachState>, 'waitingApproval'> | null {
+  if (approach === null) return null;
+  const { waitingApproval: _waiting, ...rest } = approach;
+  return rest;
+}
+
+/** 임무 이력에서 되살린다 — 다시보기에서는 누를 것이 없다(승인 대기 끔). 모양이 틀리면 비운다. */
+export function restoreScanApproach(saved: unknown): void {
+  const ok = saved !== null && typeof saved === 'object'
+    && typeof (saved as { missionId?: unknown }).missionId === 'string'
+    && typeof (saved as { plan?: { ok?: unknown } }).plan?.ok === 'boolean'
+    && typeof (saved as { input?: unknown }).input === 'object';
+  setScanApproach(ok ? { ...(saved as NonNullable<ScanApproachState>), waitingApproval: false } : null);
+}
+
 /** 계획대로 이동 명령을 낸다. 승인 대기 중이면 사람이 이것을 누른다. */
 export async function issueScanApproach(): Promise<boolean> {
   const current = approach;
