@@ -290,6 +290,8 @@ export const en: Record<string, string> = {
   'preset.broker.fakeGo1.why': 'Simulates a Go1 inside the page, no broker — for checking the card and manual control tab. Move commands change its position',
   'preset.broker.fakeDrone': 'Fake drone (no hardware)',
   'preset.broker.fakeDrone.why': 'Simulates a drone and its flight runner inside the page, no broker — for checking the status board and flight control tab. Nothing actually flies',
+  'preset.broker.fakeEp': 'Fake EP (no hardware)',
+  'preset.broker.fakeEp.why': 'Simulates a RoboMaster EP inside the page, no broker — connect it with the fake Go1 to check multi-robot missions. Turn and forward commands change its position; there is no camera',
   'preset.broker.droneTailscale.why': 'The drone Raspberry Pi (pi3). If the name does not resolve, enter the tailnet IP under Manual',
   'preset.broker.a2Tailscale': 'Tailscale (A2-W)',
   'preset.broker.a2Tailscale.why': 'The Raspberry Pi on the A2-W (pi10). The camera comes through this address too. If you are wired straight to the robot, enter ws://192.168.124.162:9001/mqtt under Manual',

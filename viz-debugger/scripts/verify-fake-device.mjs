@@ -7,6 +7,7 @@
 //     `move_forward` 를 보내면 받아들이고, 끝나면 결과가 오고, 위치가 실제로 바뀐다.
 //  2. 가짜 드론 — fcx 가 온다. dry-run 은 「대조 일치 → dry-run 끝」으로 코드 0. 확인 없는 비행은 거절.
 //     짧은 비행은 이륙 → 패스 → 착륙 단계를 지나 코드 0. 비행 중 중단은 코드 1 과 「사용자 중단」.
+//  2-1. 가짜 EP(261124) — 규약 부록 A 어휘 · turn + 는 오른쪽 · 범위 밖 거절 · 이동 중 거절 · abort.
 //  3. 모르는 가짜 이름은 붙지 않고 사유를 말한다(대조군).
 
 import { join } from 'node:path';
@@ -118,6 +119,64 @@ async function command(c, action, params, waitResult = true, ms = 4000) {
   drone.disconnect();
 }
 
+// ── 2-1. 가짜 EP (261124) — 규약 부록 A 의 어휘 · 범위 · 부호 ─────────────────
+{
+  const ep = client('fake:ep');
+  const status = await ep.connect(2000);
+  if (status.state !== 'open') failures.push(`가짜 EP 에 못 붙었다: ${JSON.stringify(status)}`);
+  const who = await until('가짜 EP 자기소개', () => {
+    const id = deviceIdentityFor('fake:ep');
+    return id?.deviceType ? id : null;
+  }, 3000);
+  if (who !== null) {
+    if (who.deviceId !== 'ep-fake' || who.kind !== 'robot' || who.deviceType !== 'robomaster_ep') failures.push(`가짜 EP 정체성: ${JSON.stringify(who)}`);
+    const want = ['ping', 'diag', 'turn', 'move_forward', 'abort'];
+    if (JSON.stringify([...(who.actions ?? [])].sort()) !== JSON.stringify([...want].sort())) failures.push(`가짜 EP 어휘: ${JSON.stringify(who.actions)}`);
+  }
+  await until('가짜 EP 상태', () => deviceStates()['ep-fake']?.position, 3000);
+  if (deviceStates()['ep-fake']?.simulated !== true) failures.push('가짜 EP 에 「목」 표시(simulated)가 없다');
+
+  // turn +90 = 오른쪽 → 방위(반시계 +)는 −90
+  const turn = await command(ep, 'turn', { deg: 90 }, true, 4000);
+  const turned = turn.seen.find((m) => m.kind === 'result');
+  if (turned?.status !== 'SUCCEEDED' || turned.result?.deg !== 90) failures.push(`turn 90 결과: ${JSON.stringify(turned)}`);
+  await sleep(300);
+  const heading = deviceStates()['ep-fake']?.position?.headingDeg;
+  if (heading === undefined || Math.abs(heading + 90) > 1) failures.push(`turn +90(오른쪽) 뒤 방위가 ${heading} — −90 이어야 한다`);
+
+  // 오른쪽을 본 채 0.3 m 직진 → y 가 −0.3
+  const y0 = deviceStates()['ep-fake']?.position?.y ?? 0;
+  const go = await command(ep, 'move_forward', { distance_m: 0.3, vx: 0.3 }, true, 4000);
+  const went = go.seen.find((m) => m.kind === 'result');
+  if (went?.status !== 'SUCCEEDED' || Math.abs((went.result?.odo_m ?? 0) - 0.3) > 0.01) failures.push(`move_forward 결과: ${JSON.stringify(went)}`);
+  await sleep(300);
+  const y1 = deviceStates()['ep-fake']?.position?.y ?? 0;
+  if (Math.abs(y1 - y0 + 0.3) > 0.03) failures.push(`오른쪽을 보고 0.3m 직진 뒤 y 가 ${y0} → ${y1}`);
+
+  // 범위 밖은 거절(조용히 고치지 않는다)
+  for (const [action, params] of [['move_forward', { distance_m: -1 }], ['move_forward', { distance_m: 1, vx: 0.6 }], ['turn', { deg: 2 }]]) {
+    const r = await command(ep, action, params, false);
+    if (!r.seen.some((m) => m.kind === 'acceptance' && !m.accepted && m.code === 'INVALID_ARGUMENT')) failures.push(`${action} ${JSON.stringify(params)} 를 INVALID_ARGUMENT 로 거절하지 않았다`);
+  }
+  // Go1 전용은 선언하지 않는다
+  const nope = await command(ep, 'teleop', { vx: 0.2 }, false);
+  if (!nope.seen.some((m) => m.kind === 'acceptance' && !m.accepted && m.code === 'UNIMPLEMENTED')) failures.push('가짜 EP 가 teleop 을 거절하지 않았다');
+
+  // 이동 중 둘째 이동 → mission_in_progress, abort → 돌던 것은 ABORTED
+  const long = { seen: [] };
+  const offLong = ep.onMessage((m) => long.seen.push(m));
+  const first = ep.send('move_forward', { distance_m: 5, vx: 0.15 });
+  await sleep(200);
+  const second = await command(ep, 'turn', { deg: 45 }, false);
+  if (!second.seen.some((m) => m.kind === 'acceptance' && !m.accepted && m.message === 'mission_in_progress')) failures.push('이동 중 둘째 이동을 거절하지 않았다');
+  await command(ep, 'abort', { reason: 1 });
+  await until('abort 뒤 돌던 명령 종료', () => long.seen.find((m) => m.commandId === first.commandId && m.kind === 'result'), 2000);
+  offLong();
+  const cut = long.seen.find((m) => m.commandId === first.commandId && m.kind === 'result');
+  if (cut !== undefined && cut.status !== 'ABORTED') failures.push(`abort 뒤 돌던 명령이 ${cut.status}`);
+  ep.disconnect();
+}
+
 // ── 3. 대조군 — 모르는 가짜 이름 ─────────────────────────────────────────
 {
   const bad = client('fake:submarine');
@@ -131,5 +190,5 @@ if (failures.length > 0) {
   for (const failure of failures) console.error('  - ' + failure);
   process.exit(1);
 }
-console.log(`✅ 통과 — 가짜 Go1(정체성 · 목 표시 · 이동 · 거절) · 가짜 드론(fcx · dry-run · 거절 · 비행 · 중단) (대조군 ${controls.length}개: ${controls.join(' / ')})`);
+console.log(`✅ 통과 — 가짜 Go1(정체성 · 목 표시 · 이동 · 거절) · 가짜 드론(fcx · dry-run · 거절 · 비행 · 중단) · 가짜 EP(정체성 · 부호 · 범위 거절 · 이동 중 거절 · 정지) (대조군 ${controls.length}개: ${controls.join(' / ')})`);
 process.exit(0);

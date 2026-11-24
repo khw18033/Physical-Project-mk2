@@ -28,7 +28,7 @@
 import { t } from '../i18n/dict.ts';
 import { useSyncExternalStore } from 'react';
 import { currentMission, receiveRobotProgress } from '../data/scenario.ts';
-import { scanFlow, usesFloorPlan } from '../scenarios/library.ts';
+import { doorScanFlow, scanFlow, usesFloorPlan } from '../scenarios/library.ts';
 import { floorPlanUrls, isBundledFloorPlan, sourceOf } from '../detect/DetectClient.ts';
 import { appendDetectLog, DETECT_TASKS, resetDetectLog } from '../detect/detectLog.ts';
 import { DOOR_PX, doorCm } from '../detect/floorPlan.ts';
@@ -117,17 +117,17 @@ export function usePrepStage(): PrepState {
 /** `seq` 대역 — 사람(1M)·생성(2M)·로봇(3M)·탐지(4M)와 겹치지 않게 5,000,000 부터. */
 let seq = 5_000_000;
 
-function emit(nodeId: string, status: 'running' | 'done', payload?: Record<string, unknown>): void {
-  // **멈춘 뒤에는 칠하지 않는다.** 정지를 눌렀는데 노드가 더 차면 「멈췄는데 왜 가지」가 된다.
+function emit(nodeId: string, status: 'running' | 'done' | 'failed', payload?: Record<string, unknown>): void {
+  // **멈춘 뒤에는 칠하지 않는다.** 정지를 눌렀는데 노드가 더 차면 「멈췄는데 왜 가지」가 된다. 실패는 예외다 — 「진행」으로 남는 것이 더 나쁘다.
   const session = robotSession();
-  if (session.stopped !== null || session.paused !== null) return;
+  if ((session.stopped !== null || session.paused !== null) && status !== 'failed') return;
   seq += 1;
   receiveRobotProgress(currentMission().missionId, {
     seq,
     atSec: elapsedSec(),
     nodeId,
     status,
-    kind: status === 'done' ? 'evaluated' : 'started',
+    kind: status === 'running' ? 'started' : 'evaluated',
     // **화면이 받아 온 값으로 끝낸 것이다** — 도면은 탐지 창구(또는 사본), 방위는 로봇이 보냈다.
     producedBy: 'backend',
     ...(payload === undefined ? {} : { payload }),
@@ -193,16 +193,25 @@ async function loadFloorPlan(runKey: number): Promise<void> {
  * **방위를 읽을 장비** (261124). 스캔을 모는 로봇과 같아야 한다 — 로봇이 둘이면 옛 표(`go1-001`)로 물러서서
  * 가만히 있는 Go1 의 방위로 EP 의 회전을 셈했다. 이 판에 박힌 로봇 > 지금 고를 수 있는 로봇 > 옛 표.
  */
+/**
+ * **판정에 쓰는 action — 그 편의 실행기와 같아야 한다.** 옛 문 찾기(`door-scan`)는 `scan_mission` 으로 고르고
+ * (`robotClient.ts`), data_stream 스캔은 `turn` 으로 고른다(`scanDetectLink.ts`). 다르게 고르면 Go1(scan_mission 있음)
+ * + EP(없음)에서 스캔은 Go1 로 도는데 방위 노드만 「로봇이 둘」로 실패한다.
+ */
+function poseAction(): string {
+  return doorScanFlow(currentMission().missionId) ? 'scan_mission' : 'turn';
+}
+
 function poseDeviceId(): string {
   const pinned = pinnedMissionRobot();
   if (pinned !== null && pinned.runKey === state.runKey) return pinned.deviceId;
-  const pick = pickMissionRobot('turn');
+  const pick = pickMissionRobot(poseAction());
   return pick.ok ? pick.deviceId : hardwareTarget(ROBOT_ENTITY);
 }
 
 /** **T-A2 — 로봇이 보고한 지금 방위.** 시작 무렵 한 주기 안에 온 state 만 친다. */
 function checkPose(): void {
-  if (state.runKey === null || state.pose.step === 'done' || isReplayingRecord()) return;
+  if (state.runKey === null || state.pose.step === 'done' || state.pose.step === 'failed' || isReplayingRecord()) return;
   const device = deviceState(poseDeviceId());
   const position = device?.position ?? null;
   const at = device?.positionAtMs ?? null;
@@ -269,9 +278,21 @@ function checkSession(): void {
     detail: '', tasks: withMap ? [DETECT_TASKS.map, DETECT_TASKS.pose] : [DETECT_TASKS.pose],
   });
   if (withMap) void loadFloorPlan(runKey);
+  /**
+   * **방위를 읽을 로봇을 못 고르면 실패로 닫는다** (261124). 로봇이 둘인데 끌어 놓은 카드가 없거나, 끌어 놓은 로봇이 꺼졌다.
+   * 전에는 옛 표(`go1-001`)의 state 를 기다리며 「진행」으로 남았다 — 스캔 실행기는 같은 판정으로 이미 T-A0 을 실패로 닫았는데.
+   * 알림은 스캔 실행기가 띄운다(`scan-detect`). 여기서는 노드와 기록 줄만. 하나도 없으면(`none`) 전처럼 기다린다.
+   */
+  const pick = pickMissionRobot(poseAction());
+  if (!pick.ok && pick.how !== 'none') {
+    commit({ ...state, pose: { ...state.pose, step: 'failed', reason: pick.reason } });
+    appendDetectLog({ lane: 'screen', level: 'error', text: pick.reason, detail: '', tasks: [DETECT_TASKS.pose] });
+    emit(DETECT_TASKS.pose, 'failed', { code: 'robot_choice', detail: pick.reason });
+    return;
+  }
   checkPose();
   const timer = setTimeout(() => {
-    if (state.runKey !== runKey || state.pose.step === 'done') return;
+    if (state.runKey !== runKey || state.pose.step === 'done' || state.pose.step === 'failed') return;
     const reason = t('ps.poseStale', { sec: POSE_WAIT_WARN_MS / 1000 });
     commit({ ...state, pose: { ...state.pose, reason } });
     appendDetectLog({ lane: 'screen', level: 'warn', text: reason, detail: '', tasks: [DETECT_TASKS.pose] });

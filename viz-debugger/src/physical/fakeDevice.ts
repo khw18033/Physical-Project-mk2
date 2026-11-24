@@ -16,6 +16,11 @@
  *                           모드가 실제로 이륙 → 왕복 → 착륙을 그린다. RTK 대기는 3초로 줄였다.
  *                           복합 이동 미션(261113 · `MISSION_SEQ_요청_VZ.md`)도 — `seq_mission_start` · `seq_mission_stop` 을
  *                           선언하고 `mission_seq.py` 와 같은 모양의 출력 · `[계획]` 을 `mission_run` 으로 낸다.
+ *   가짜 EP (`ep-fake`)     261124 — 다기종 임무를 실물 없이 보려고. 규약 부록 A(`장치연동_부록A_로보마스터EP_260924.md`)의
+ *                           어휘 그대로: Capability(ping · diag · turn · move_forward · abort), `device_type: robomaster_ep`.
+ *                           범위 밖 값은 `INVALID_ARGUMENT` 로 거절하고(조용히 고치지 않는다), 이동 중 둘째 이동은
+ *                           `mission_in_progress`. 상태는 평시 5초 · 움직이는 동안 5 Hz. Go1 에만 있는 것(teleop ·
+ *                           move_relative · scan_mission …)은 선언하지 않는다 — 실물 EP 처럼 `UNIMPLEMENTED` 로 거절된다.
  *
  * ## 가짜임을 숨기지 않는다
  *
@@ -33,20 +38,23 @@ import { bodyToNe, missionKey, previewOf, seqProblems, STEP_KINDS, stepClass, ty
 export const FAKE_PREFIX = 'fake:';
 export const FAKE_GO1 = 'fake:go1';
 export const FAKE_DRONE = 'fake:drone';
+export const FAKE_EP = 'fake:ep';
 
 export function isFakeAddress(url: string): boolean {
   return url.trim().startsWith(FAKE_PREFIX);
 }
 
 const ZONE = 'zoneA';
-type Kind = 'go1' | 'drone';
+type Kind = 'go1' | 'drone' | 'ep';
 type Handler = (...args: never[]) => void;
 type Params = Record<string, number>;
 
 /** 주소 → 가짜 클라이언트. 모르는 이름이면 곧바로 `error` 를 낸다(연결 관리에 사유가 뜬다). */
 export function fakeMqtt(url: string): MqttLike {
   const name = url.trim().slice(FAKE_PREFIX.length).toLowerCase();
-  const kind: Kind | null = name === 'go1' || name === 'robot' ? 'go1' : name === 'drone' || name === 'x500' ? 'drone' : null;
+  const kind: Kind | null = name === 'go1' || name === 'robot' ? 'go1'
+    : name === 'drone' || name === 'x500' ? 'drone'
+    : name === 'ep' || name === 'robomaster' ? 'ep' : null;
   return new FakeBroker(kind, url);
 }
 
@@ -78,7 +86,7 @@ class FakeBroker implements MqttLike {
   private handlers = new Map<string, Set<Handler>>();
   private timers: ReturnType<typeof setInterval>[] = [];
   private closed = false;
-  private device: FakeGo1 | FakeDrone | null = null;
+  private device: FakeGo1 | FakeDrone | FakeEp | null = null;
 
   private readonly kind: Kind | null;
   private readonly url: string;
@@ -89,7 +97,7 @@ class FakeBroker implements MqttLike {
     setTimeout(() => {
       if (this.closed) return;
       if (this.kind === null) {
-        this.emit('error', new Error(`unknown fake device "${this.url}" — use ${FAKE_GO1} or ${FAKE_DRONE}`));
+        this.emit('error', new Error(`unknown fake device "${this.url}" — use ${FAKE_GO1}, ${FAKE_DRONE} or ${FAKE_EP}`));
         return;
       }
       this.emit('connect');
@@ -121,7 +129,7 @@ class FakeBroker implements MqttLike {
       done?.();
       // 명령 응답 귀가 서면 장비가 깨어난다 — 실물도 그 뒤에 Capability 를 낸다.
       if (topic.startsWith('terminal/') && this.device === null && this.kind !== null) {
-        this.device = this.kind === 'go1' ? new FakeGo1(this) : new FakeDrone(this);
+        this.device = this.kind === 'go1' ? new FakeGo1(this) : this.kind === 'ep' ? new FakeEp(this) : new FakeDrone(this);
       }
     }, 10);
   }
@@ -170,7 +178,16 @@ abstract class FakeDevice {
     this.publishStatus();
     this.publishState();
     this.broker.every(5000, () => { this.publishStatus(); this.publishJson('heartbeat', { ...this.head('heartbeat') }); });
-    this.broker.every(1000, () => this.publishState());
+    this.broker.every(this.statePeriodMs(), () => this.publishState());
+  }
+
+  /** 평시 state 주기. EP 는 규약대로 5초다(움직이는 동안은 따로 더 자주 낸다). */
+  protected statePeriodMs(): number {
+    return 1000;
+  }
+
+  protected pingResult(): Params {
+    return { uptime_s: (Date.now() - this.bornMs) / 1000, fc_link: 1, fc_link_age_s: 0.1 };
   }
 
   stop(): void {
@@ -212,7 +229,7 @@ abstract class FakeDevice {
     }
     if (action === 'ping') {
       this.uplink(acceptBytes(commandId));
-      this.uplink(resultBytes(commandId, { uptime_s: (Date.now() - this.bornMs) / 1000, fc_link: 1, fc_link_age_s: 0.1 }));
+      this.uplink(resultBytes(commandId, this.pingResult()));
       return;
     }
     this.handle(commandId, action, params);
@@ -344,6 +361,160 @@ class FakeGo1 extends FakeDevice {
     });
   }
 }
+
+// ── 가짜 RoboMaster EP (261124) ─────────────────────────────────────────
+
+type EpMove = { commandId: string; kind: 'line'; left: number; speed: number; distance: number; startedMs: number }
+  | { commandId: string; kind: 'turn'; leftDeg: number; deg: number; startedMs: number };
+
+/** 규약 부록 A §3 의 범위. 밖이면 거절한다 — 웹이 맞춘다. */
+const EP_TURN_DEG = { min: 5, max: 360 } as const;
+const EP_DISTANCE_M = { min: 0.05, max: 10 } as const;
+const EP_VX = { min: 0.05, max: 0.3, fallback: 0.15 } as const;
+/** 섀시 회전 속도(도/초). 실측 전이라 어림값이다. */
+const EP_TURN_RATE = 60;
+const EP_LOW_BATTERY = 15;
+
+class FakeEp extends FakeDevice {
+  readonly id = 'ep-fake';
+  readonly type = 'robot';
+  readonly deviceType = 'robomaster_ep';
+  readonly actions = ['ping', 'diag', 'turn', 'move_forward', 'abort'] as const;
+  /** 원점은 노드 기동 시 위치. x 앞 · y 왼쪽 · heading 반시계 + (부록 A §4 가 바라는 ROS 관례). */
+  private x = 0;
+  private y = 0;
+  private heading = 0;
+  private battery = 88;
+  private move: EpMove | null = null;
+  private lastStateMs = 0;
+
+  constructor(broker: FakeBroker) {
+    super(broker);
+    this.start();
+    let last = Date.now();
+    broker.every(100, () => {
+      const now = Date.now();
+      this.tick((now - last) / 1000);
+      last = now;
+      // 움직이는 동안은 5 Hz (부록 A §4).
+      if (this.move !== null && now - this.lastStateMs >= 200) this.publishState();
+    });
+  }
+
+  protected statePeriodMs(): number {
+    return 5000;
+  }
+
+  protected pingResult(): Params {
+    return { uptime_s: (Date.now() - this.bornMs) / 1000, ep_link: 1 };
+  }
+
+  private tick(dt: number): void {
+    this.battery = Math.max(5, this.battery - dt * (this.move !== null ? 0.03 : 0.002));
+    const move = this.move;
+    if (move === null) return;
+    if (move.kind === 'line') {
+      const step = Math.min(move.left, move.speed * dt);
+      const h = (this.heading * Math.PI) / 180;
+      this.x += Math.cos(h) * step;
+      this.y += Math.sin(h) * step;
+      move.left -= step;
+      if (move.left <= 1e-3) this.finish();
+    } else {
+      const step = Math.sign(move.leftDeg) * Math.min(Math.abs(move.leftDeg), EP_TURN_RATE * dt);
+      this.heading += step;
+      move.leftDeg -= step;
+      if (Math.abs(move.leftDeg) <= 1e-3) this.finish();
+    }
+  }
+
+  private finish(): void {
+    const move = this.move;
+    if (move === null) return;
+    this.move = null;
+    const duration = round((Date.now() - move.startedMs) / 1000, 2);
+    // 규약: turn → deg · duration_s (yaw_deg 는 「알면」 — 실물 부호를 아직 안 쟀으므로 싣지 않는다),
+    //       move_forward → distance_m · odo_m · duration_s.
+    this.uplink(resultBytes(move.commandId, move.kind === 'turn'
+      ? { deg: move.deg, duration_s: duration }
+      : { distance_m: move.distance, odo_m: round(move.distance - move.left, 3), duration_s: duration }));
+    this.publishState();
+  }
+
+  protected handle(commandId: string, action: string, params: Params): void {
+    if (action === 'abort') {
+      const was = this.move;
+      this.move = null;
+      this.uplink(acceptBytes(commandId));
+      if (was !== null) {
+        this.uplink(encode({ result: {
+          commandId: was.commandId, status: physical.TerminalStatus.ABORTED, result: {},
+          failure: { code: 'aborted', message: 'abort received' },
+        } }));
+      }
+      this.uplink(resultBytes(commandId, {}));
+      this.publishState();
+      return;
+    }
+    if (action === 'diag') {
+      this.uplink(acceptBytes(commandId));
+      this.uplink(resultBytes(commandId, {
+        battery_pct: Math.round(this.battery), ep_link: 1, uptime_s: (Date.now() - this.bornMs) / 1000, in_mission: this.move !== null ? 1 : 0,
+      }));
+      return;
+    }
+    // 이동 — turn · move_forward. 한 번에 하나만(부록 A §3-2).
+    if (this.move !== null) { this.uplink(rejectBytes(commandId, 'FAILED_PRECONDITION', 'mission_in_progress')); return; }
+    if (this.battery < EP_LOW_BATTERY) { this.uplink(rejectBytes(commandId, 'FAILED_PRECONDITION', 'battery_too_low')); return; }
+    const now = Date.now();
+    if (action === 'turn') {
+      const deg = params.deg;
+      if (deg === undefined || !Number.isFinite(deg) || Math.abs(deg) < EP_TURN_DEG.min || Math.abs(deg) > EP_TURN_DEG.max) {
+        this.uplink(rejectBytes(commandId, 'INVALID_ARGUMENT', `deg out of range (|deg| ${EP_TURN_DEG.min}~${EP_TURN_DEG.max})`));
+        return;
+      }
+      this.uplink(acceptBytes(commandId));
+      this.uplink(statusBytes(commandId, 'executing'));
+      // deg + 는 오른쪽(시계). 방위는 반시계 + 라 부호를 뒤집어 돈다.
+      this.move = { commandId, kind: 'turn', leftDeg: -deg, deg, startedMs: now };
+    } else {
+      const distance = params.distance_m;
+      const vx = params.vx ?? EP_VX.fallback;
+      if (distance === undefined || !Number.isFinite(distance) || distance < EP_DISTANCE_M.min || distance > EP_DISTANCE_M.max) {
+        this.uplink(rejectBytes(commandId, 'INVALID_ARGUMENT', `distance_m out of range (${EP_DISTANCE_M.min}~${EP_DISTANCE_M.max})`));
+        return;
+      }
+      if (!Number.isFinite(vx) || vx < EP_VX.min || vx > EP_VX.max) {
+        this.uplink(rejectBytes(commandId, 'INVALID_ARGUMENT', `vx out of range (${EP_VX.min}~${EP_VX.max})`));
+        return;
+      }
+      this.uplink(acceptBytes(commandId));
+      this.uplink(statusBytes(commandId, 'executing'));
+      this.move = { commandId, kind: 'line', left: distance, speed: vx, distance, startedMs: now };
+    }
+    this.publishState();
+  }
+
+  protected publishStatus(): void {
+    this.publishJson('status', {
+      ...this.head('status'), event: 'summary', status: 'online', device_status: 'ok', link: 'ok',
+      robot_mode: this.move !== null ? 'moving' : 'idle', in_mission: this.move !== null, battery_pct: Math.round(this.battery),
+      registration: this.registration(),
+    });
+  }
+
+  protected publishState(): void {
+    this.lastStateMs = Date.now();
+    const speed = this.move?.kind === 'line' ? this.move.speed : 0;
+    this.publishJson('state', {
+      ...this.head('state'), reason: this.move !== null ? 'moving' : 'periodic', battery_pct: round(this.battery, 1),
+      position: { x: round(this.x, 3), y: round(this.y, 3), heading_deg: round(((this.heading + 180) % 360 + 360) % 360 - 180, 1) },
+      speed_mps: round(speed, 2), robot_mode: this.move !== null ? 'moving' : 'idle', in_mission: this.move !== null,
+      device_status: 'ok', link: 'ok',
+    });
+  }
+}
+
 
 // ── 가짜 드론 ───────────────────────────────────────────────────────────
 

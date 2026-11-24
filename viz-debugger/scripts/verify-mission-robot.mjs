@@ -8,7 +8,7 @@
 // 장치: 브로커 둘(첫 줄 pi1 = EP, 둘째 줄 pi7 = Go1). `PhysicalClient.prototype.send` 를 가로채 **어느 소켓으로 나갔는지**를 적는다.
 // 창구: `scan-detect-mock.mjs` 둘 — Go1 포트 · EP 포트. 어느 쪽에 `/scan/prepare` 가 닿았는지 본다.
 //
-//   1. 끌어 놓은 것 없음 → 고르지 않는다: 회전 0 · 창구 0 · T-A0 실패(`robot_choice`) · 알림
+//   1. 끌어 놓은 것 없음 → 고르지 않는다: 회전 0 · 창구 0 · T-A0 · T-A2 실패(`robot_choice`) · 알림
 //   2. Go1 을 끌어 놓음 → 회전 · 직진이 전부 pi7 · prepare 가 Go1 포트에 device=go1-001 · 방위는 Go1 의 것
 //   3. EP 를 끌어 놓음 → 전부 pi1 · EP 포트
 //   4. 끌어 놓은 Go1 이 꺼짐 → EP 로 물러서지 않는다(`assignedAway`)
@@ -145,11 +145,14 @@ const moving = (sent) => sent.filter((s) => s.action === 'turn' || s.action === 
   const a0 = lastOf(trace, 'T-A0');
   check(a0?.status === 'failed' && a0.payload?.code === 'robot_choice', `T-A0 가 robot_choice 실패가 아니다 (${JSON.stringify(a0?.payload)})`);
   check(notes.some((m) => m.includes(GO1) && m.includes(EP)), `알림에 두 로봇 이름이 없다 (${notes.join(' | ')})`);
+  // 261124 — 방위 노드(T-A2)도 같은 사유로 실패로 닫힌다. 전에는 옛 표(go1-001)의 state 를 기다리며 「진행」으로 남았다.
+  const a2 = lastOf(trace, 'T-A2');
+  check(a2?.status === 'failed' && a2.payload?.code === 'robot_choice', `T-A2 가 실패로 닫히지 않았다 (${a2?.status} ${JSON.stringify(a2?.payload)})`);
 }
 
 // ── 2. Go1 을 끌어 놓음 — 전부 Go1 ───────────────────────────────────────
 {
-  const { sent, logGo1, logEp, run } = await runCase({ assign: GO1 });
+  const { sent, logGo1, logEp, run, trace } = await runCase({ assign: GO1 });
   const moves = moving(sent);
   check(moves.filter((s) => s.action === 'turn').length >= 8, `Go1 판에서 회전이 ${moves.length}번뿐 (${sent.map((s) => s.action).join(',')})`);
   check(moves.length > 0 && moves.every((s) => s.via === PI7), `Go1 을 끌어 놓았는데 다른 소켓으로 나갔다 (${moves.map((s) => `${s.action}@${s.via}`).join(',')})`);
@@ -158,6 +161,7 @@ const moving = (sent) => sent.filter((s) => s.action === 'turn' || s.action === 
   check(prep?.body.device === GO1, `Go1 포트의 prepare 가 틀리다 ${JSON.stringify(prep?.body)}`);
   check(logEp.length === 0, `EP 포트를 두드렸다 (${logEp.map((r) => r.path).join(',')})`);
   check(run?.headingStartDeg === 30, `시작 방위가 ${run?.headingStartDeg} — Go1 의 30 이어야 한다`);
+  check(lastOf(trace, 'T-A2')?.status === 'done', `Go1 을 끌어 놓았는데 T-A2 가 ${lastOf(trace, 'T-A2')?.status}`);
 }
 
 // ── 3. EP 를 끌어 놓음 — 전부 EP ─────────────────────────────────────────
@@ -176,6 +180,7 @@ const moving = (sent) => sent.filter((s) => s.action === 'turn' || s.action === 
   check(moving(sent).length === 0 && logEp.length === 0, `끌어 놓은 Go1 이 꺼졌는데 EP 가 돌았다 (${moving(sent).map((s) => s.via).join(',')})`);
   const a0 = lastOf(trace, 'T-A0');
   check(a0?.status === 'failed' && String(a0.payload?.detail ?? '').includes(GO1), `T-A0 사유에 ${GO1} 이 없다 (${JSON.stringify(a0?.payload)})`);
+  check(lastOf(trace, 'T-A2')?.status === 'failed', `끌어 놓은 Go1 이 꺼졌는데 T-A2 가 ${lastOf(trace, 'T-A2')?.status}`);
 }
 
 // ── 대조: 로봇이 하나(EP 만) — 끌어 놓지 않아도 그것 ─────────────────────────
@@ -238,6 +243,39 @@ const moving = (sent) => sent.filter((s) => s.action === 'turn' || s.action === 
   // 경고 뒤에 return 이 없어야 한다 — 막지 않는다.
   const after = branch.slice(branch.indexOf("t('grun.targetAway'"));
   check(/^t\('grun\.targetAway'[^\n]*\}\)\);\n\s*const missing = undeclaredActions/.test(after), '계획 장비 경고 뒤에 실행이 이어지지 않는다(막으면 안 된다)');
+}
+
+// ── 7. 옛 문 찾기 편 — 방위 노드(T-A2)는 실행기와 같은 action(`scan_mission`)으로 고른다 (261124) ──────────
+// Go1 만 scan_mission 을 밝히고 EP 는 turn 만이면 스캔은 Go1 로 돈다. 방위 노드가 turn 으로 고르면 「로봇이 둘」로 실패한다.
+{
+  const { noteCapability } = await load('src', 'physical', 'deviceIdentity.ts');
+  const { prepState } = await load('src', 'physical', 'prepStage.ts');
+  const original = PhysicalClient.prototype.send;
+  PhysicalClient.prototype.send = () => ({ sent: false, reason: 'test' });
+  for (const [label, go1Actions, epActions, wantFailed] of [
+    ['Go1 만 scan_mission', ['turn', 'scan_mission'], ['turn', 'move_forward'], false],
+    ['둘 다 scan_mission', ['turn', 'scan_mission'], ['turn', 'scan_mission'], true],
+  ]) {
+    resetDevices(); resetDeviceIdentity(); resetAssignments(); resetNotifications(); scenario.resetMission();
+    if (session.robotSession().stopped !== null) session.releaseStopped();
+    session.setConnection({ state: 'open' });
+    noteCapability(GO1, go1Actions, PI7);
+    noteCapability(EP, epActions, PI1);
+    for (const [id, origin, type] of [[GO1, PI7, 'go1_robot'], [EP, PI1, 'robomaster_ep']]) {
+      receiveDeviceMessage(`zoneA/robot/${id}/status`, {
+        channel: 'status', status: 'online', link: 'ok', registration: { entity_id: id, entity_type: 'robot', device_type: type },
+      }, origin);
+      receiveDeviceMessage(`zoneA/robot/${id}/state`, { channel: 'state', link: 'ok', position: { x: 0, y: 0, heading_deg: 10 } }, origin);
+    }
+    scenario.proposeMission({ origin: 'script', missionId: 'MSN-261027-01', title: 'door', keywords: [], planId: null, world: 'registry' });
+    scenario.acceptProposal('remote');
+    session.markStarted();
+    await sleep(200);
+    const pose = prepState().pose.step;
+    check(wantFailed ? pose === 'failed' : pose !== 'failed', `옛 문 찾기 편 · ${label}: 방위 노드가 ${pose}`);
+  }
+  PhysicalClient.prototype.send = original;
+  scenario.resetMission();
 }
 
 stopLink();

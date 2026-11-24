@@ -209,10 +209,12 @@ export const BROKER_PRESETS: readonly BrokerPreset[] = [
   { id: 'ep-tailscale', labelKey: 'preset.broker.epTailscale', url: 'ws://pi1.tailcb6bfb.ts.net:9001/mqtt', whyKey: 'preset.broker.epTailscale.why' },
   /**
    * **가짜 장비** (261014). 실물을 못 띄울 때 하드웨어 카드 · 상세창을 보려고 둔다 — 브로커 없이 화면 안에서 흉내 낸다
-   * (`fakeDevice.ts`). 카드에 「목」 배지가 뜨고 장비 id 가 실물과 다르다(`go1-fake` · `x500-fake`).
+   * (`fakeDevice.ts`). 카드에 「목」 배지가 뜨고 장비 id 가 실물과 다르다(`go1-fake` · `x500-fake` · `ep-fake`).
    */
   { id: 'fake-go1', labelKey: 'preset.broker.fakeGo1', url: 'fake:go1', whyKey: 'preset.broker.fakeGo1.why' },
   { id: 'fake-drone', labelKey: 'preset.broker.fakeDrone', url: 'fake:drone', whyKey: 'preset.broker.fakeDrone.why' },
+  /** 261124 — 다기종 임무(Go1 + EP)를 실물 없이 보려고. 장비 id `ep-fake`, 어휘는 규약 부록 A 그대로. */
+  { id: 'fake-ep', labelKey: 'preset.broker.fakeEp', url: 'fake:ep', whyKey: 'preset.broker.fakeEp.why' },
   { id: 'manual', labelKey: 'preset.manual', url: '', whyKey: 'preset.manual.why' },
 ];
 

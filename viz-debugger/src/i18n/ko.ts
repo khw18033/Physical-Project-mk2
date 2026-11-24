@@ -290,6 +290,8 @@ export const ko: Record<string, string> = {
   'preset.broker.fakeGo1.why': '브로커 없이 화면 안에서 Go1 을 흉내 냅니다 — 카드 · 수동 제어 탭 확인용. 이동 명령에 위치가 바뀝니다',
   'preset.broker.fakeDrone': '가짜 드론 (실물 없이 화면 확인)',
   'preset.broker.fakeDrone.why': '브로커 없이 화면 안에서 드론과 비행 실행기를 흉내 냅니다 — 상태판 · 비행 제어 탭 확인용. 실제로 아무것도 날지 않습니다',
+  'preset.broker.fakeEp': '가짜 EP (실물 없이 화면 확인)',
+  'preset.broker.fakeEp.why': '브로커 없이 화면 안에서 RoboMaster EP 를 흉내 냅니다 — 가짜 Go1 과 함께 붙여 다기종 임무 확인용. 회전 · 직진에 위치가 바뀌고, 카메라는 없습니다',
   'preset.broker.droneTailscale.why': '드론 라즈베리파이(pi3). 이름이 안 풀리면 직접 입력에 테일넷 IP 를 넣으세요',
   'preset.broker.a2Tailscale': 'Tailscale (A2-W)',
   'preset.broker.a2Tailscale.why': 'A2-W 위 라즈베리파이(pi10). 카메라도 이 주소로 받습니다. 로봇에 직접 꽂았으면 직접 입력에 ws://192.168.124.162:9001/mqtt',
