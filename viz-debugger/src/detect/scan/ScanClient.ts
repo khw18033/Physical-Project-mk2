@@ -22,8 +22,11 @@ export type ScanFetch = (url: string, init?: { method?: string; headers?: Record
 
 export type ScanFailure = {
   ok: false;
-  /** network 못 닿음 · timeout 시간 넘김 · http 오류 응답 · shape 응답 모양이 다름 · busy 다른 판이 도는 중(409) */
-  code: 'network' | 'timeout' | 'http' | 'shape' | 'busy';
+  /**
+   * network 못 닿음 · timeout 시간 넘김 · http 오류 응답 · shape 응답 모양이 다름 · busy 다른 판이 도는 중(409) ·
+   * bad_query 찾을 이름을 data_stream 이 못 받았다(400, 261124) — `detail` 을 사람에게 보이고 이름을 다시 받는다
+   */
+  code: 'network' | 'timeout' | 'http' | 'shape' | 'busy' | 'bad_query';
   status: number | null;
   detail: string;
   /** busy 일 때 진행 중인 판. */
@@ -63,6 +66,10 @@ async function call<T>(
     if (response.status === 409 && (said.error === undefined || said.error === 'busy' || typeof said.busy_scan_id === 'string')) {
       const busy = typeof said.busy_scan_id === 'string' ? said.busy_scan_id : typeof said.scan_id === 'string' ? said.scan_id : null;
       return fail('busy', 'HTTP 409', 409, busy);
+    }
+    // 400 bad_query — 찾을 이름을 못 받았다(261124 · 요청 C). 사유는 data_stream 이 준 `detail` 그대로 사람에게 간다.
+    if (response.status === 400 && said.error === 'bad_query') {
+      return fail('bad_query', typeof said.detail === 'string' && said.detail !== '' ? said.detail : 'bad_query', 400);
     }
     if (!response.ok) {
       const words = [said.error, said.detail, typeof said.stream === 'string' ? `stream ${said.stream}` : undefined]

@@ -17,9 +17,15 @@ export type ScanPrepareRequest = {
   /** 장치가 스스로 밝힌 하드웨어 id (`physical/` 이 정한다). data_stream 이 소스로 바꾼다. */
   device: string;
   target: ScanTarget;
-  /** `object` 일 때만 — 영어 이름(가시화가 LLM 으로 옮긴 것). */
+  /**
+   * `object` 일 때만 — 영어 이름(가시화가 LLM 으로 옮긴 것). 번역이 실패했거나 검사(`nameEn.ts` 의 `sendableQuery`)에 어긋나면
+   * **null 로 보낸다** — 깨진 이름(「ionalescrollingtext uebaa」)을 보내지 않는다(261124).
+   */
   query: string | null;
-  /** `object` 일 때만 — 발화 원문. 기록용. */
+  /**
+   * `object` 일 때만 — 발화의 대상 낱말(한국어). **늘 같이 보낸다** (261124 — 요청 C). data_stream 이 아는 낱말(사람 · 문 · 의자 ·
+   * 책상 · 소화기 등 약 30개)이면 번역보다 이것을 먼저 쓴다. 모르는 낱말이고 query 도 없으면 400 `bad_query` 가 온다.
+   */
   query_ko: string | null;
   steps: number;
   step_deg: number;
@@ -64,6 +70,12 @@ export type ScanFrameResult = {
   distance_m: number | null;
   distance_valid: boolean | null;
   distance_source: string | null;
+  /**
+   * 방위 ±20° 안에서 같이 보인 각도 목록 (261124 — data_stream `a1e43f8`). 모르는 옛 창구면 빈 목록.
+   * 한 각도에서만 보였으면 `isolated` 가 참이다 — 한 장만으로 잡은 검출은 믿기 어렵다(11:06 박스 판의 컴퓨터 본체).
+   */
+  seen_at: number[];
+  isolated: boolean | null;
 };
 
 export type ScanBest = {
@@ -82,6 +94,13 @@ export type ScanBest = {
   bearing_note: string | null;
   /** 그 대상의 판정 하한이 측정 전 값인가. */
   provisional: boolean;
+  /**
+   * **한 각도에서만 보였는가** (261124). 참이면 바로 주행하지 않는다 — 사람이 그림을 보고 눌러야 간다(`scanApproach.ts`).
+   * data_stream 은 다른 각도에서도 확인된 검출을 먼저 고르므로, 이것이 참이면 다른 후보가 없었다는 뜻이다.
+   */
+  isolated: boolean;
+  /** 방위 ±20° 안에서 같이 보인 각도 목록. */
+  seen_at: number[];
 };
 
 /** 근거 한 줄 — `[단서 이름, 0~1, 설명]`. 이름은 data_stream 이 영어로 준다. */
@@ -92,6 +111,12 @@ export type ScanResult = {
   state: ScanState;
   target: ScanTarget | null;
   query: string | null;
+  /**
+   * **실제로 찾은 이름과 그 출처** (261124 — 요청 C). data_stream 은 아는 한국어 낱말(`query_ko`)이면 번역보다 그것을 먼저 쓴다.
+   * 화면이 「무엇을 찾았는지」를 이것으로 보인다. 옛 창구면 null.
+   */
+  query_used: string | null;
+  query_source: string | null;
   targets: string[];
   frames: ScanFrameResult[];
   best: ScanBest | null;

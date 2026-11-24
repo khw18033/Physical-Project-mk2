@@ -41,7 +41,7 @@ async function withMock(options, body) {
 }
 
 /** 실행기 한 판. 회전 · 노드 · 사건 · 기록을 전부 모아 돌려준다. */
-async function runOnce(base, { turnFails = null, stopAfterTurns = null, heading = [0, -3.5], target = 'door', query = null, limits = {}, scanId } = {}) {
+async function runOnce(base, { turnFails = null, stopAfterTurns = null, heading = [0, -3.5], target = 'door', query = null, queryKo, limits = {}, scanId } = {}) {
   const timeline = [];
   const emits = [];
   const events = [];
@@ -69,7 +69,8 @@ async function runOnce(base, { turnFails = null, stopAfterTurns = null, heading 
     now: () => Date.now(),
   };
   const outcome = await runScanDetect({
-    scanId: scanId ?? newScanId('MSN-261123-01'), missionId: 'MSN-261123-01', device: 'go1-001', target, query, queryKo: query === null ? null : '소화기',
+    scanId: scanId ?? newScanId('MSN-261123-01'), missionId: 'MSN-261123-01', device: 'go1-001', target, query,
+    queryKo: queryKo !== undefined ? queryKo : query === null ? null : '소화기',
     steps: 8, stepDeg: 45, pollMs: 40, ...limits,
   }, deps);
   return { outcome, timeline, emits, events, records, turns };
@@ -123,7 +124,8 @@ await withMock({ mode: 'ok' }, async (base, log) => {
       check(plan.steps.map((s) => s.action).join(',') === 'turn,move_forward,abort', `이동 명령 차례가 틀리다: ${plan.steps.map((s) => s.action)}`);
       // 끝 방위 −3.5 는 반시계 + 기준으로 오른쪽 3.5° 더 돈 것(실물 GO1 · 261123) — 그만큼 뺀다.
       check(Math.abs(plan.turnDeg - (96.4 - 3.5)) < 1e-9, `회전 오차 보정이 틀리다 (${plan.turnDeg})`);
-      check(Math.abs(plan.issuedForwardM - (2.35 - 0.9)) < 1e-9, `직진 거리가 틀리다 (${plan.issuedForwardM})`);
+      // 261124 — 거리의 85% 만 믿는다(SCAN_DISTANCE_TRUST): 2.35 × 0.85 − 0.9
+      check(Math.abs(plan.issuedForwardM - (2.35 * 0.85 - 0.9)) < 1e-9, `직진 거리가 틀리다 (${plan.issuedForwardM})`);
     }
     // 상태 저장소 — 사건을 접으면 각도 8칸이 전부 수집됨이고 결과가 들어 있다.
     const folded = run.events.reduce((state, event) => reduceScan(state, event), null);
@@ -231,7 +233,7 @@ await withMock({ mode: 'ok' }, async (base, log) => {
   const p2 = plan(best(3, 3));
   check(p2.ok && p2.steps[0].action === 'move_forward' && p2.notes.some((n) => n.key === 'sd.plan.turnTooSmall'), '5° 미만 회전을 냈다');
   check(!plan(best(30, 0.93)).ok, '0.05 m 미만 직진에 계획이 섰다');
-  check(!plan(best(30, 12)).ok, '이동 상한을 넘었는데 계획이 섰다');
+  check(!plan(best(30, 14)).ok, '이동 상한을 넘었는데 계획이 섰다'); // 14 × 0.85 − 0.9 = 11 > 10
   // 방위는 실물 GO1 처럼 **반시계 +** 다(261123 실측 · `HEADING_TURN_SIGN = −1`). 시작 −175 → 끝 178 은 반시계로 −7°(= 오른쪽 +7° 더 돎)…가 아니라
   // 178 − (−175) = 353 → 감으면 −7 → 반시계 −7 = 시계 +7 — 오른쪽으로 7° 더 돌았다. 그만큼 뺀다.
   const p3 = plan(best(170, 3), { headingStartDeg: -175, headingEndDeg: 178 });
@@ -265,6 +267,99 @@ await withMock({ mode: 'ok' }, async (base, log) => {
   check(noted?.best?.bearing_note === 'no focal length', 'best 의 bearing_note 를 못 읽었다');
   if (parseResult({ scan_id: 'A', state: 'done', frames: [], best: null }) === null) controls.push('대조군: 찾지 못함(best null)을 거부했다');
 }
+
+// ── 6. data_stream 스캔 창구 변경 대응 (261124 — `a1e43f8` · 요청서 「확인 방법 1」) ─────────────────
+{
+  // 요청서의 두 예시 JSON 을 그대로 결과로 읽는다.
+  const fireBody = { scan_id: 'F', state: 'done', frames: [], best: {
+    rotation_deg: 180, bearing_deg: 157.2, bearing_note: 'reference - no fisheye correction',
+    distance_m: 1.686, distance_valid: true, distance_source: 'ground_line', distance_note: null,
+    score: 99.1, box_xyxy: [169.9, 212.0, 181.6, 239.8], provisional: true, isolated: false, seen_at: [135, 180, 225] } };
+  const doorBody = { scan_id: 'D', state: 'done', frames: [], best: {
+    rotation_deg: 45, bearing_deg: 11.2, distance_m: 5.819, distance_valid: false, distance_source: 'measured',
+    distance_note: 'monocular depth on the Go1 fisheye camera is not calibrated - ground line: outside 50-300 cm',
+    isolated: true, seen_at: [45] } };
+  const fire = parseResult(fireBody);
+  const door = parseResult(doorBody);
+  check(fire?.best?.distance_source === 'ground_line' && fire.best.isolated === false && fire.best.seen_at.join(',') === '135,180,225', `소화기 예시를 못 읽었다 (${JSON.stringify(fire?.best)})`);
+  check(door?.best?.isolated === true && door.best.distance_valid === false, `문 예시를 못 읽었다 (${JSON.stringify(door?.best)})`);
+  const at = (b, stop = 0.2) => planScanApproach({ best: b, stopDistanceM: stop, headingStartDeg: 0, headingEndDeg: 0, testMode: false });
+
+  // 소화기 예시 → 전진이 나간다. 거리의 85% − 정지 거리 0.2 = 1.686 × 0.85 − 0.2.
+  const firePlan = at(fire.best);
+  check(firePlan.ok && firePlan.confirm === null, `소화기 예시에 계획이 안 섰거나 확인을 요구했다 (${JSON.stringify(firePlan)})`);
+  if (firePlan.ok) {
+    const fwd = firePlan.steps.find((s) => s.action === 'move_forward')?.parameters.distance_m;
+    check(Math.abs(fwd - Number((1.686 * 0.85 - 0.2).toFixed(3))) < 1e-9, `소화기 예시의 직진이 ${fwd} — 1.686 × 0.85 − 0.2 여야 한다`);
+    check(firePlan.notes.some((n) => n.key === 'sd.plan.trust'), '거리 믿음 비율 메모가 안 붙었다');
+  }
+  // 문 예시 → 전진하지 않는다. 사유에 distance_note 가 실린다.
+  const doorPlan = at(door.best);
+  check(!doorPlan.ok && doorPlan.reason.key === 'sd.plan.distanceInvalid' && String(doorPlan.reason.vars?.note).includes('outside 50-300 cm'),
+    `문 예시에 계획이 섰거나 distance_note 가 빠졌다 (${JSON.stringify(doorPlan)})`);
+  // distance_source 로 갈래를 나누지 않는다 — measured 라도 valid 면 가고, ground_line 이라도 valid 가 아니면 안 간다.
+  check(at({ ...fire.best, distance_source: 'measured' }).ok, 'valid 인 measured 거리를 막았다 — distance_valid 만 봐야 한다');
+  check(!at({ ...fire.best, distance_valid: false }).ok, 'valid 가 아닌 ground_line 거리로 계획이 섰다');
+  // isolated best → 계획은 서되 확인을 요구한다.
+  const lone = at({ ...fire.best, isolated: true, seen_at: [180] });
+  check(lone.ok && lone.confirm === 'isolated' && lone.notes.some((n) => n.key === 'sd.plan.isolated'), `isolated best 가 확인 없이 갈 계획이다 (${JSON.stringify(lone)})`);
+  // 옛 창구(칸 없음)는 지금처럼 — isolated 거짓 · seen_at 빈 목록.
+  const old = parseResult({ scan_id: 'O', state: 'done', frames: [{ rotation_deg: 0, found: true }], best: { rotation_deg: 0, bearing_deg: 0, distance_m: 2, distance_valid: true } });
+  check(old?.best?.isolated === false && old.best.seen_at.length === 0 && old.frames[0].isolated === null && old.query_used === null, '옛 창구 결과의 새 칸 기본값이 틀리다');
+}
+
+// 깨진 번역 — 보내기 전 검사.
+{
+  const { sendableQuery } = await load('src', 'generate', 'nameEn.ts');
+  for (const broken of ['celedar or person orhumanbeingorhumanh', 'ionalescrollingtext uebaa uebaa uebaa', 'Fire Extinguisher', '소화기', 'a'.repeat(41), '', 'chair!']) {
+    check(!sendableQuery(broken).ok, `깨진 이름 ${JSON.stringify(broken)} 을 보내도 된다고 했다`);
+  }
+  for (const good of ['fire extinguisher', 'person', 'traffic-cone', '  chair  ']) {
+    check(sendableQuery(good).ok, `멀쩡한 이름 ${JSON.stringify(good)} 을 막았다`);
+  }
+}
+
+// 400 bad_query — 사유를 따로 받는다.
+{
+  const stub = (status, body) => scanClient('http://stub', async () => ({ ok: status < 400, status, json: async () => body }));
+  const bad = await stub(400, { error: 'bad_query', detail: 'query "uebaa uebaa" is not a known object' }).prepare({ scan_id: 'A' });
+  check(!bad.ok && bad.code === 'bad_query' && bad.detail.includes('not a known object'), `bad_query 를 못 읽었다 (${JSON.stringify(bad)})`);
+  const other = await stub(400, { error: 'bad_request', detail: 'x' }).prepare({ scan_id: 'A' });
+  check(!other.ok && other.code === 'http', '대조군: bad_request 를 bad_query 로 읽었다');
+}
+
+// 가짜 창구 판 — 예시 판 · isolated · @ 이름(아는 낱말 · 모르는 낱말)
+await withMock({ mode: 'extinguisher' }, async (base) => {
+  const run = await runOnce(base);
+  const best = run.outcome.ok ? run.outcome.result.best : null;
+  check(best?.rotation_deg === 180 && best.distance_source === 'ground_line' && best.seen_at.join(',') === '135,180,225', `extinguisher 판의 best 가 틀리다 (${JSON.stringify(best)})`);
+  const lone = run.outcome.ok ? run.outcome.result.frames.filter((f) => f.found && f.isolated === false).length : 0;
+  check(lone === 3, `extinguisher 판의 찾은 각도 셋이 같이 보인 것으로 오지 않았다 (${lone})`);
+});
+await withMock({ mode: 'door-measured' }, async (base) => {
+  const run = await runOnce(base);
+  const best = run.outcome.ok ? run.outcome.result.best : null;
+  check(best?.distance_valid === false && best.isolated === true && run.outcome.result.reason.endsWith('seen at one angle only'), `door-measured 판이 틀리다 (${JSON.stringify(best)})`);
+  check(best !== null && !planScanApproach({ best, stopDistanceM: 0.2, headingStartDeg: 0, headingEndDeg: 0, testMode: false }).ok, 'door-measured 판에 계획이 섰다');
+});
+await withMock({ mode: 'box-ok' }, async (base) => {
+  const run = await runOnce(base, { target: 'box' });
+  const not = run.outcome.ok ? run.outcome.result.frames.find((f) => !f.found) : null;
+  check(not?.reason === 'score 52 < 65 (scan floor)', `박스 점수 하한 사유가 그대로 오지 않았다 (${not?.reason})`);
+});
+await withMock({ mode: 'ok' }, async (base, log) => {
+  // 번역을 버리고 query_ko 만 — 아는 낱말이면 돈다.
+  const run = await runOnce(base, { target: 'object', query: null, queryKo: '소화기' });
+  const prep = log.find((r) => r.path === '/scan/prepare');
+  check(run.outcome.ok && prep?.body.query === null && prep.body.query_ko === '소화기', `query 없이 query_ko 만으로 준비가 안 됐다 (${JSON.stringify(run.outcome)})`);
+  check(run.outcome.ok && run.outcome.result.query_used === 'fire extinguisher' && run.outcome.result.query_source === 'query_ko', 'query_used · query_source 를 못 읽었다');
+});
+await withMock({ mode: 'ok' }, async (base, log) => {
+  // 모르는 낱말 + 이름 없음 → bad_query 로 준비에서 선다. 아무것도 돌지 않는다.
+  const run = await runOnce(base, { target: 'object', query: null, queryKo: '거울' });
+  check(!run.outcome.ok && run.outcome.stage === 'prepare' && run.outcome.code === 'bad_query', `모르는 낱말이 bad_query 로 서지 않았다 (${JSON.stringify(run.outcome)})`);
+  check(!log.some((r) => r.path === '/scan/mark') && run.turns === 0, 'bad_query 뒤에 mark · turn 이 나갔다');
+});
 
 if (controls.length > 0) failures.push(...controls);
 if (failures.length > 0) {

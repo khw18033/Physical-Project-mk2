@@ -734,6 +734,17 @@ button.robot-stop:hover{background:#b8271f}
 .scan-stop label{display:flex;align-items:center;gap:6px;font-size:12px;margin:2px 0 4px}
 .scan-stop input{width:5.5em}
 .scan-stop small{color:#8a5a00}
+/* 261124 — 한 각도에서만 보인 검출(흐리게 · 점선) · 확인 그림 · 찾을 이름 다시 적기 (data_stream 요청 B · C) */
+.scan-angle--isolated img{opacity:.55;border-style:dashed;border-color:#b26a00}
+.scan-strip__cell.scan-angle--isolated{opacity:.6;border-style:dashed;border-color:#b26a00}
+.scan-confirm{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;margin:6px 0}
+.scan-confirm p{grid-column:1/-1;margin:0}
+.scan-confirm img{width:100%;height:auto;border:2px dashed #b26a00;border-radius:var(--radius-xs);background:#11161d}
+.scan-query{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:6px 0;font-size:12px}
+.scan-query p{flex-basis:100%;margin:0}
+.scan-query label{display:flex;align-items:center;gap:6px}
+.scan-query input{width:14em}
+.scan-query button{padding:3px 10px;border:1px solid #1768c5;border-radius:var(--radius-sm);background:#eef5fb;cursor:pointer}
 .scan-approve{margin-top:6px;padding:4px 12px;border:1px solid #2e7d32;border-radius:var(--radius-sm);background:#e8f5e9;cursor:pointer}
 .scan-node{display:grid;gap:6px}
 .scan-node--zoom .scan-angle img{max-height:70vh}

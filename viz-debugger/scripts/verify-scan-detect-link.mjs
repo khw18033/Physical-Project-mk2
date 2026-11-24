@@ -44,7 +44,7 @@ const stopLink = link.startScanDetectLink();
 
 const wrap = (deg) => ((((deg + 180) % 360) + 360) % 360) - 180;
 
-async function runCase({ missionId, mode = 'ok', stopAfterTurns = null, waitMs = 15000, distance = 2.35, after = null }) {
+async function runCase({ missionId, mode = 'ok', stopAfterTurns = null, waitMs = 15000, distance = 2.35, after = null, target = undefined }) {
   const log = [];
   const server = await startScanMock({ port: 0, host: '127.0.0.1', log, mode, distance, loadMs: 100, markMs: 20, resultMs: 100 });
   const port = server.address().port;
@@ -95,14 +95,15 @@ async function runCase({ missionId, mode = 'ok', stopAfterTurns = null, waitMs =
   scenario.resetMission();
   session.setConnection({ state: 'open' });
   report();
-  scenario.proposeMission({ origin: 'script', missionId, title: missionId, keywords: [], planId: null, world: 'registry' });
+  scenario.proposeMission({ origin: 'script', missionId, title: missionId, keywords: [], planId: null, world: 'registry', ...(target === undefined ? {} : { target }) });
   scenario.acceptProposal('remote');
   session.markStarted();
   report();
 
   const until = Date.now() + waitMs;
   const done = () => sent.some((s) => s.action === 'abort') || scanRunState()?.failure != null
-    || (scanRunState()?.result != null && approachRun.scanApproachState() !== null && !approachRun.scanApproachState().plan.ok);
+    || (scanRunState()?.result != null && approachRun.scanApproachState() !== null
+      && (!approachRun.scanApproachState().plan.ok || approachRun.scanApproachState().waitingApproval));
   while (Date.now() < until && !done()) {
     await sleep(50);
     report();
@@ -138,11 +139,11 @@ const statusOf = (trace, id) => [...trace].reverse().find((e) => e.nodeId === id
   const prep = log.find((r) => r.path === '/scan/prepare');
   check(prep?.body.device === GO1 && prep.body.target === 'box' && prep.body.query === null, `prepare 가 틀리다 ${JSON.stringify(prep?.body)}`);
   check(log.findIndex((r) => r.path === '/scan/finish') > log.findLastIndex((r) => r.path === '/scan/mark'), 'finish 가 마지막 mark 뒤가 아니다');
-  // 경로: 방위 96.4 − 회전 오차 8 = 88.4, 직진 2.35 − 정지 거리 0.2(새 편 셋의 기본 · 261124) = 2.15 (테스트 상한이 꺼져 있을 때)
+  // 경로: 방위 96.4 − 회전 오차 8 = 88.4, 직진 2.35 × 0.85(거리 믿음 · 261124) − 정지 거리 0.2(새 편 셋의 기본 · 261124) = 1.7975 → 1.798 (테스트 상한이 꺼져 있을 때)
   const lastTurn = turns[turns.length - 1];
   check(turns.length === 9 && Math.abs(lastTurn.parameters.deg - 88.4) < 0.05, `경로 회전이 ${lastTurn?.parameters.deg} — 96.4 − 8 = 88.4 여야 한다`);
   const forward = sent.find((s) => s.action === 'move_forward');
-  check(forward !== undefined && Math.abs(forward.parameters.distance_m - 2.15) < 1e-6, `직진이 ${forward?.parameters.distance_m} — 2.15 여야 한다`);
+  check(forward !== undefined && Math.abs(forward.parameters.distance_m - 1.798) < 1e-6, `직진이 ${forward?.parameters.distance_m} — 1.798 여야 한다`);
   for (const id of ['T-A0', 'T-A2', 'T-A3', 'T-A4-0', 'T-A4-7', 'T-A5', 'T-A6', 'T-B1']) {
     check(statusOf(trace, id) === 'done', `${id} 가 끝남으로 칠해지지 않았다 (${statusOf(trace, id)})`);
   }
@@ -174,7 +175,7 @@ const statusOf = (trace, id) => [...trace].reverse().find((e) => e.nodeId === id
 }
 
 // ── 5. 정지 거리 바꾸기 (261124) — 너무 가까워 못 간 판을, 정지 거리를 줄여 다시 센다 ─────────────────
-// 대상 0.22 m − 기본 0.2 m = 0.02 m 라 직진 하한(0.05) 밑 → T-B1 실패. 0.1 m 로 바꾸면 0.12 m 경로가 서고,
+// 대상 0.22 m × 0.85(거리 믿음 · 261124) − 기본 0.2 m < 0 이라 직진 하한(0.05) 밑 → T-B1 실패. 0.1 m 로 바꾸면 0.187 − 0.1 = 0.087 m 경로가 서고,
 // **누르기 전에는 나가지 않는다.** 누르면 그 거리로 나간다. 이동이 나간 뒤에는 바꿔도 계획이 그대로다.
 {
   const MISSION = 'MSN-261123-02';
@@ -198,13 +199,95 @@ const statusOf = (trace, id) => [...trace].reverse().find((e) => e.nodeId === id
   });
   check(before?.plan?.ok === false && before.plan.reason.key === 'sd.plan.alreadyClose' && before.moves === 0, `0.22 m 대상에 정지 0.2 m 인데 계획이 섰다 (${JSON.stringify(before)})`);
   check(badRange === false, '범위 밖 정지 거리(5 m)를 받아들였다');
-  check(afterEdit?.ok === true && Math.abs(afterEdit.forward - 0.12) < 1e-9 && afterEdit.waiting === true && afterEdit.moves === 0 && afterEdit.stop === 0.1,
-    `정지 거리 0.1 m 로 다시 센 계획이 틀리다 — 0.12 m · 누르기 대기 · 아직 안 나감 (${JSON.stringify(afterEdit)})`);
-  check(pressed !== null && Math.abs(pressed - 0.12) < 1e-9, `누른 뒤 직진이 ${pressed} — 0.12 여야 한다`);
-  check(locked !== null && Math.abs(locked - 0.12) < 1e-9, `이동이 나간 뒤 정지 거리를 바꾸자 계획이 바뀌었다 (${locked})`);
+  check(afterEdit?.ok === true && Math.abs(afterEdit.forward - 0.087) < 1e-9 && afterEdit.waiting === true && afterEdit.moves === 0 && afterEdit.stop === 0.1,
+    `정지 거리 0.1 m 로 다시 센 계획이 틀리다 — 0.087 m · 누르기 대기 · 아직 안 나감 (${JSON.stringify(afterEdit)})`);
+  check(pressed !== null && Math.abs(pressed - 0.087) < 1e-9, `누른 뒤 직진이 ${pressed} — 0.087 여야 한다`);
+  check(locked !== null && Math.abs(locked - 0.087) < 1e-9, `이동이 나간 뒤 정지 거리를 바꾸자 계획이 바뀌었다 (${locked})`);
   const b1 = [...trace].reverse().find((e) => e.nodeId === 'T-B1');
   check(b1?.payload?.stop_distance_m === 0.1 && b1.payload.stop_distance_edited === true, `T-B1 에 바꾼 정지 거리가 안 실렸다 (${JSON.stringify(b1?.payload)})`);
 }
+
+// ── 6. data_stream 스캔 창구 변경 대응 (261124 — `a1e43f8` · 요청서 「확인 방법 1」) ─────────────────
+const { notificationsNow, resetNotifications } = await load('src', 'shared', 'notifications.ts');
+
+// 문 예시(UniDepth 5.82 m · valid false) — 전진이 안 나가고 사유가 알림으로 뜬다.
+{
+  resetNotifications();
+  // 알림은 판이 닫히기(resetMission 이 알림을 비운다) 전에 본다.
+  let noted = false;
+  const { sent, trace } = await runCase({
+    missionId: 'MSN-261123-01', mode: 'door-measured',
+    async after() { noted = notificationsNow().some((n) => n.message.includes('outside 50-300 cm')); },
+  });
+  check(!sent.some((s) => s.action === 'move_forward'), `거리를 못 믿는 문 판에서 전진이 나갔다 (${sent.map((s) => s.action).join(',')})`);
+  check(statusOf(trace, 'T-B1') === 'failed', `문 판의 T-B1 이 ${statusOf(trace, 'T-B1')} — 실패여야 한다`);
+  check(noted, 'distance_note 가 알림에 안 떴다');
+}
+
+// 소화기 예시(바닥선 1.686 m · 세 각도) — 확인 없이 1.686 × 0.85 − 0.2 를 간다.
+{
+  // 01 편으로 — 5번 검사가 02 편의 정지 거리를 바꿔 두었다(화면이 켜져 있는 동안 남는 값). 01 은 기본 0.2 m 다.
+  const { sent } = await runCase({ missionId: 'MSN-261123-01', mode: 'extinguisher' });
+  const forward = sent.find((s) => s.action === 'move_forward');
+  check(forward !== undefined && Math.abs(forward.parameters.distance_m - Number((1.686 * 0.85 - 0.2).toFixed(3))) < 1e-9,
+    `소화기 예시의 직진이 ${forward?.parameters.distance_m} — 1.686 × 0.85 − 0.2 여야 한다`);
+}
+
+// isolated best — 누르기 전에는 안 가고, 누르면 간다.
+{
+  let before = null;
+  let pressed = null;
+  const { sent } = await runCase({
+    missionId: 'MSN-261123-02', mode: 'isolated',
+    async after({ sent }) {
+      const state = approachRun.scanApproachState();
+      before = { confirm: state?.plan.ok ? state.plan.confirm : null, waiting: state?.waitingApproval, moves: sent.filter((s) => s.action === 'move_forward').length };
+      await approachRun.issueScanApproach();
+      await sleep(300);
+      pressed = sent.filter((s) => s.action === 'move_forward').length;
+    },
+  });
+  check(before?.confirm === 'isolated' && before.waiting === true && before.moves === 0, `isolated best 가 확인 없이 갔다 (${JSON.stringify(before)})`);
+  check(pressed === 1 && sent.some((s) => s.action === 'move_forward'), `isolated best 를 누른 뒤에도 안 갔다 (${pressed})`);
+}
+
+// @ 판 — 번역이 깨졌고 모르는 낱말이면 bad_query 로 서고, 사람이 적은 이름으로 다시 준비해 끝까지 돈다.
+// 번역 서비스는 가짜로 고정한다 — 이 PC 에 생성 서비스가 떠 있으면 진짜가 답해 검사가 환경을 탄다(261124 실측: 「거울」 → `icamente`).
+const realFetch = globalThis.fetch;
+let translateAnswer = { status: 200, body: { name_en: 'celedar or person orhumanbeingorhumanh', model: 'stub' } };
+globalThis.fetch = async (url, init) => {
+  if (String(url).includes('/generate/name_en')) {
+    return { ok: translateAnswer.status < 400, status: translateAnswer.status, json: async () => translateAnswer.body };
+  }
+  return realFetch(url, init);
+};
+for (const [label, answer] of [
+  ['깨진 번역(「or」)', { status: 200, body: { name_en: 'celedar or person orhumanbeingorhumanh', model: 'stub' } }],
+  ['번역 실패(502)', { status: 502, body: { error: '모델을 지정해야 합니다' } }],
+]) {
+  translateAnswer = answer;
+  let retried = null;
+  let badFirst = null;
+  let broken = null;
+  const { sent, log } = await runCase({
+    missionId: 'MSN-261123-03', target: '거울', waitMs: 25000,
+    async after() {
+      badFirst = scanRunState()?.failure ?? null;
+      broken = approachRun.retryScanQuery('ionalescrollingtext uebaa uebaa');
+      retried = approachRun.retryScanQuery('mirror');
+      const until = Date.now() + 15000;
+      while (Date.now() < until && !(scanRunState()?.result != null && approachRun.scanApproachState() !== null)) await sleep(50);
+      await sleep(200);
+    },
+  });
+  const preps = log.filter((r) => r.path === '/scan/prepare').map((r) => r.body);
+  check(badFirst?.stage === 'prepare' && badFirst.code === 'bad_query', `${label}: 모르는 낱말이 bad_query 로 서지 않았다 (${JSON.stringify(badFirst)})`);
+  check(preps[0]?.query === null && preps[0]?.query_ko === '거울', `${label}: 첫 준비가 query 없이 query_ko 만 보내지 않았다 (${JSON.stringify(preps[0])})`);
+  check(broken?.ok === false, `${label}: 깨진 이름으로 다시 준비를 받아들였다`);
+  check(retried?.ok === true && preps.length === 2 && preps[1].query === 'mirror' && preps[1].query_ko === '거울', `${label}: 적은 이름으로 다시 준비하지 않았다 (${JSON.stringify(retried)} · ${JSON.stringify(preps)})`);
+  check(sent.filter((s) => s.action === 'turn').length >= 8, `${label}: 다시 준비한 판이 돌지 않았다 (${sent.map((s) => s.action).join(',')})`);
+}
+globalThis.fetch = realFetch;
 
 // ── 「↻ 처음부터」가 발화의 대상(@)을 지키는가 (261124 — 「장치 하나를 @까지 이동」으로 돌아갔다) ──
 // 승인 뒤에는 제안이 없다. `restartMission` 이 낱말을 안 넘기면 `targetWord` 가 null 이 되고 탐지가 no_query 로 선다.

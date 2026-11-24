@@ -85,8 +85,20 @@ export function scanPlanPayload(plan: ScanApproachPlan, stopDistanceM: number, e
   if (!plan.ok) return { reason: t(plan.reason.key, plan.reason.vars), ...stop };
   return {
     turn_deg: plan.turnDeg, forward_m: plan.issuedForwardM, drift_deg: plan.driftDeg, bearing_deg: plan.bearingDeg,
-    notes: plan.notes.map((note) => t(note.key, note.vars)), ...stop,
+    notes: plan.notes.map((note) => t(note.key, note.vars)), ...(plan.confirm === null ? {} : { confirm: plan.confirm }), ...stop,
   };
+}
+
+// ── 찾을 이름 다시 받기 (261124 — data_stream 요청 C · 400 bad_query) ─────────────────
+//
+// data_stream 이 찾을 이름을 못 받으면(번역이 깨졌거나 모르는 낱말) 판은 준비에서 선다. 사람이 영어 이름을 적어 다시 준비한다.
+// 판을 다시 여는 것은 연결 모듈(`scanDetectLink.ts`)이 한다 — 화면은 그 모듈을 끌어오지 않고 여기 걸린 함수를 부른다(파일 머리 이유).
+
+export type ScanQueryRetry = (query: string) => { ok: true } | { ok: false; reason: string };
+let queryRetry: ScanQueryRetry | null = null;
+export function setScanQueryRetry(next: ScanQueryRetry | null): void { queryRetry = next; }
+export function retryScanQuery(query: string): { ok: true } | { ok: false; reason: string } {
+  return queryRetry === null ? { ok: false, reason: t('sd.query.noRetry') } : queryRetry(query);
 }
 
 /**

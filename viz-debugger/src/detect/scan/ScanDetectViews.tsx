@@ -18,7 +18,7 @@ import { t } from '../../i18n/dict.ts';
 import { getLang, useLang } from '../../shared/language.ts';
 import { currentMission } from '../../data/scenario.ts';
 import {
-  SCAN_STOP_RANGE, issueScanApproach, scanStopDistance, scanStopEdited, setScanStopDistance, useScanApproach, useScanStopVersion,
+  SCAN_STOP_RANGE, issueScanApproach, retryScanQuery, scanStopDistance, scanStopEdited, setScanStopDistance, useScanApproach, useScanStopVersion,
 } from '../../physical/scanApproachRun.ts';
 import { scanClient } from './ScanClient.ts';
 import { recordFileUrl, scanImagePath } from '../../record/recordClient.ts';
@@ -55,22 +55,66 @@ function angleImage(run: ScanRunState, angle: ScanAngle): { url: string | null; 
   const frame = frameResultAt(run, angle.deg);
   if (frame === null) return { url: scanImageUrl(run, angle.deg, 'original'), tone: 'captured', label: t('sd.angle.captured') };
   if (frame.found) {
-    return { url: scanImageUrl(run, angle.deg, 'overlay'), tone: 'found', label: t('sd.angle.found', { score: frame.score ?? '–' }) };
+    // 한 각도에서만 보인 검출은 흐리게 · 「1각도」 (261124 · 요청 B). 같이 보인 각도가 있으면 그 목록을 붙인다.
+    if (frame.isolated === true) {
+      return { url: scanImageUrl(run, angle.deg, 'overlay'), tone: 'found scan-angle--isolated', label: `${t('sd.angle.found', { score: frame.score ?? '–' })} · ${t('sd.angle.isolated')}` };
+    }
+    const seen = frame.seen_at.filter((deg) => deg !== angle.deg);
+    const also = seen.length > 0 ? ` · ${t('sd.angle.seenAt', { degs: seen.map((deg) => `${deg}°`).join(' ') })}` : '';
+    return { url: scanImageUrl(run, angle.deg, 'overlay'), tone: 'found', label: `${t('sd.angle.found', { score: frame.score ?? '–' })}${also}` };
   }
   return { url: scanImageUrl(run, angle.deg, 'original'), tone: 'not', label: frame.reason ?? t('sd.angle.notFound') };
 }
 
 const fmt = (value: number | null | undefined, digits = 1) => (value === null || value === undefined ? '–' : value.toFixed(digits));
 
+/** 실제로 찾은 이름 — 결과의 `query_used` · `query_source` (261124 · 요청 C). 옛 창구면 안 그린다. */
+function QueryUsed({ run }: { run: ScanRunState }) {
+  useLang();
+  const used = run.result?.query_used ?? null;
+  if (used === null) return null;
+  return <><dt>{t('sd.f.queryUsed')}</dt><dd><code>{used}</code>{run.result?.query_source ? ` · ${run.result.query_source}` : ''}</dd></>;
+}
+
 function Prepare({ run }: { run: ScanRunState }) {
   useLang();
-  return <dl className="scan-facts">
-    <dt>{t('sd.f.base')}</dt><dd><code>{run.base || '–'}</code></dd>
-    <dt>{t('sd.f.stream')}</dt><dd>{run.stream ?? '–'}</dd>
-    <dt>{t('sd.f.targets')}</dt><dd>{run.targets.length > 0 ? run.targets.join(', ') : run.target}</dd>
-    {run.queryKo !== null && <><dt>{t('sd.f.query')}</dt><dd>{run.queryKo} → {run.query ?? '…'}</dd></>}
-    <dt>{t('sd.f.state')}</dt><dd>{run.serverState ?? '…'}{run.profileVersion !== null && ` · profile ${run.profileVersion}`}</dd>
-  </dl>;
+  return <>
+    <dl className="scan-facts">
+      <dt>{t('sd.f.base')}</dt><dd><code>{run.base || '–'}</code></dd>
+      <dt>{t('sd.f.stream')}</dt><dd>{run.stream ?? '–'}</dd>
+      <dt>{t('sd.f.targets')}</dt><dd>{run.targets.length > 0 ? run.targets.join(', ') : run.target}</dd>
+      {run.queryKo !== null && <><dt>{t('sd.f.query')}</dt><dd>{run.queryKo} → {run.query ?? (run.queryNote ? t('sd.query.notSent') : '…')}</dd></>}
+      {run.queryNote && <><dt>{t('sd.f.queryDropped')}</dt><dd className="scan-facts__bad">{run.queryNote}</dd></>}
+      <QueryUsed run={run} />
+      <dt>{t('sd.f.state')}</dt><dd>{run.serverState ?? '…'}{run.profileVersion !== null && ` · profile ${run.profileVersion}`}</dd>
+    </dl>
+    {run.target === 'object' && run.failure?.stage === 'prepare' && run.recorded === null && <QueryRetry key={run.scanId} run={run} />}
+  </>;
+}
+
+/**
+ * **찾을 이름 다시 적기** (261124 — 400 `bad_query` · 요청 C). data_stream 이 이름을 못 받았으면 그 사유를 보이고 영어 이름을 받는다.
+ * 적은 이름은 보내기 전에 같은 검사를 지난다(소문자 영어 · 공백 · 하이픈 · 40자 · 「or」 없음).
+ */
+function QueryRetry({ run }: { run: ScanRunState }) {
+  useLang();
+  const [text, setText] = useState(run.query ?? '');
+  const [said, setSaid] = useState<string | null>(null);
+  const submit = () => {
+    const answer = retryScanQuery(text);
+    setSaid(answer.ok ? t('sd.query.retrying') : answer.reason);
+  };
+  return <div className="scan-query">
+    {run.failure?.code === 'bad_query' && <p className="scan-facts__bad">{t('sd.query.badQuery', { detail: run.failure.detail })}</p>}
+    <label>
+      <span>{t('sd.query.label', { ko: run.queryKo ?? '' })}</span>
+      <input type="text" value={text} placeholder="fire extinguisher" spellCheck={false}
+        onChange={(event) => { setText(event.target.value); setSaid(null); }}
+        onKeyDown={(event) => { if (event.key === 'Enter') submit(); }} />
+    </label>
+    <button type="button" onClick={submit}>{t('sd.query.retry')}</button>
+    {said !== null && <small>{said}</small>}
+  </div>;
 }
 
 function Angle({ run, index }: { run: ScanRunState; index: number }) {
@@ -102,7 +146,13 @@ function Evidence({ run }: { run: ScanRunState }) {
       ? <p className="scan-facts__bad">{t('sd.notFound')}</p>
       : <dl className="scan-facts">
         <dt>{t('sd.f.bearing')}</dt><dd>{fmt(best.bearing_deg)}° ({t('sd.f.atAngle', { deg: best.rotation_deg })})</dd>
-        <dt>{t('sd.f.distance')}</dt><dd>{fmt(best.distance_m, 2)} m · {best.distance_source ?? '–'}{!best.distance_valid && ` · ${t('sd.f.distanceInvalid')}${best.distance_note ? ` (${best.distance_note})` : ''}`}</dd>
+        <dt>{t('sd.f.distance')}</dt><dd>{fmt(best.distance_m, 2)} m · {best.distance_source ?? '–'}{!best.distance_valid && ` · ${t('sd.f.distanceInvalid')}`}</dd>
+        {/* 261124 — 거리를 못 믿는 사유는 따로 한 줄. 이 값으로는 전진하지 않는다(요청 A2) */}
+        {!best.distance_valid && best.distance_note && <><dt>{t('sd.f.distanceNote')}</dt><dd className="scan-facts__bad">{best.distance_note}</dd></>}
+        <dt>{t('sd.f.seenAt')}</dt><dd className={best.isolated ? 'scan-facts__bad' : undefined}>
+          {best.isolated ? t('sd.f.isolated') : best.seen_at.length > 0 ? best.seen_at.map((deg) => `${deg}°`).join(' · ') : '–'}
+        </dd>
+        <QueryUsed run={run} />
         {best.provisional && <><dt>{t('sd.f.threshold')}</dt><dd>{t('sd.f.provisional')}</dd></>}
         {result.score_basis !== null && <><dt>{t('sd.f.basis')}</dt><dd>{t(`sd.f.basis.${result.score_basis}`)}</dd></>}
       </dl>}
@@ -155,6 +205,7 @@ function StopDistanceField({ missionId, locked: lockedByRun }: { missionId: stri
 function Approach({ missionId }: { missionId: string }) {
   useLang();
   const approach = useScanApproach();
+  const run = useScanRun();
   const field = <StopDistanceField missionId={missionId} locked={approach?.issued === true} />;
   if (approach === null) return <div>{field}<p className="scan-facts__wait">{t('sd.waitPlan')}</p></div>;
   const { plan } = approach;
@@ -166,7 +217,15 @@ function Approach({ missionId }: { missionId: string }) {
       <dt>{t('sd.f.forward')}</dt><dd>{fmt(plan.issuedForwardM, 2)} m{plan.issuedForwardM !== plan.plannedForwardM && ` (${t('sd.f.planned')} ${fmt(plan.plannedForwardM, 2)} m)`} · vx {plan.forwardVx}</dd>
     </dl>
     {plan.notes.length > 0 && <ul>{plan.notes.map((note, i) => <li key={i}>{t(note.key, note.vars)}</li>)}</ul>}
-    {approach.waitingApproval && !approach.issued && <button type="button" className="scan-approve" onClick={() => { void issueScanApproach(); }}>{t('sd.approve')}</button>}
+    {/* 261124 — 한 각도에서만 보인 검출이면 그 각도의 상자 그림 · 잘라낸 그림을 보이고, 사람이 보고 눌러야 간다(요청 B) */}
+    {plan.confirm === 'isolated' && run !== null && approach.input.best !== null && <div className="scan-confirm">
+      <p className="scan-facts__bad">{t('sd.confirm.isolated', { deg: approach.input.best.rotation_deg })}</p>
+      <img src={scanImageUrl(run, approach.input.best.rotation_deg, 'overlay')} alt={t('sd.angle.alt', { deg: approach.input.best.rotation_deg })} />
+      <img src={scanImageUrl(run, approach.input.best.rotation_deg, 'crop')} alt={t('sd.cropAlt')} />
+    </div>}
+    {approach.waitingApproval && !approach.issued && <button type="button" className="scan-approve" onClick={() => { void issueScanApproach(); }}>
+      {plan.confirm === 'isolated' ? t('sd.approveIsolated') : t('sd.approve')}
+    </button>}
     {approach.issued && <p>{t('sd.issued')}</p>}
   </div>;
 }

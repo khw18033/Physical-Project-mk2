@@ -7,8 +7,19 @@
  *
  * ```
  * turn_deg  = best.bearing_deg − 회전 오차
- * forward_m = best.distance_m − 정지 거리(params.stop_distance_max_m)
+ * forward_m = best.distance_m × 0.85 − 정지 거리(params.stop_distance_max_m)      ← 261124 거리 믿음 비율
  * ```
+ *
+ * ## 거리를 쓰는 규칙 (261124 — data_stream 스캔 창구 변경 대응 요청 A · B)
+ *
+ * 13:30 문 판(5.82 m → 5.62 m 전진)과 13:35 소화기 판(4.29 m, 실제 1.5~2 m)에서 Go1 어안 카메라의 UniDepth 가 거리를
+ * 1.75~2.5배 부풀린 채 valid 로 왔고, 그 값으로 전진했다. 그래서:
+ *
+ *   - **`distance_valid` 만 본다.** 참일 때만 `distance_m` 으로 전진을 만든다. `distance_source` 로 갈래를 나누지 않는다.
+ *     거짓이면 값이 실려 있어도 전진하지 않고 사유(`distance_note`)를 띄운다 — 사람이 판단한다.
+ *   - 바닥선(`ground_line`)은 실제보다 2~15% 길게 나왔다(시연 박스 대조). 그래서 **거리의 85% 만 믿고** 거기서 정지 거리를 뺀다.
+ *   - **한 각도에서만 보인 검출(`best.isolated`)이면 바로 가지 않는다.** 계획은 세우되 사람이 그림을 보고 눌러야 출발한다
+ *     (승인 설정과 상관없이). 11:06 박스 판에서 컴퓨터 본체를 78.7점으로 시연 박스라 잡았다 — 한 각도에서만 보였다.
  *
  * 회전 오차: `turn` 을 여러 번 나눠 돌았으므로 시작 방향과 어긋날 수 있다. 장치가 방위를 주면(시작 · 끝 둘 다)
  * `끝 − 시작` 을 회전 방향(오른쪽 +)으로 바꿔 뺀다. 못 주면 0 이고 그 사실을 적는다.
@@ -33,6 +44,12 @@ import type { ScanBest } from '../detect/scan/types.ts';
  */
 export const HEADING_TURN_SIGN = -1;
 
+/**
+ * **거리를 이만큼만 믿는다** (261124). 바닥선 거리가 실제보다 2~15% 길게 나와(data_stream 시연 박스 대조), 15% 를 깎는다.
+ * 소화기 판(1.686 m)이면 1.686 × 0.85 − 0.2 = 1.23 m 를 간다.
+ */
+export const SCAN_DISTANCE_TRUST = 0.85;
+
 export type ScanPlanKey = { key: string; vars?: Record<string, string | number> };
 
 export type ScanApproachPlan =
@@ -47,6 +64,11 @@ export type ScanApproachPlan =
     forwardVx: number;
     steps: readonly TaskCommand[];
     notes: readonly ScanPlanKey[];
+    /**
+     * **사람이 보고 눌러야 출발하는 사유** (261124). `isolated` — 한 각도에서만 보였다. null 이면 승인 설정대로 간다.
+     * 이 값이 있으면 승인 설정이 꺼져 있어도 저절로 나가지 않는다(`scanDetectLink.ts`).
+     */
+    confirm: 'isolated' | null;
   }
   | { ok: false; reason: ScanPlanKey };
 
@@ -79,10 +101,12 @@ export function planScanApproach(input: ScanPlanInput): ScanApproachPlan {
   const raw = best.bearing_deg - (driftDeg ?? 0);
   const turnDeg = raw > 180 || raw <= -180 ? wrapDeg(raw) : raw;
 
-  const plannedForwardM = best.distance_m - input.stopDistanceM;
+  const trustedM = best.distance_m * SCAN_DISTANCE_TRUST;
+  const plannedForwardM = trustedM - input.stopDistanceM;
   if (plannedForwardM < FORWARD_MIN_M) {
     return { ok: false, reason: { key: 'sd.plan.alreadyClose', vars: { m: best.distance_m.toFixed(2), stop: input.stopDistanceM } } };
   }
+  notes.push({ key: 'sd.plan.trust', vars: { m: best.distance_m.toFixed(2), pct: Math.round(SCAN_DISTANCE_TRUST * 100), trusted: trustedM.toFixed(2) } });
   const issuedForwardM = input.testMode ? Math.min(plannedForwardM, TEST_FORWARD_M) : plannedForwardM;
   if (issuedForwardM > FORWARD_MAX_M) {
     return { ok: false, reason: { key: 'sd.plan.tooFar', vars: { m: issuedForwardM.toFixed(2), max: FORWARD_MAX_M } } };
@@ -90,6 +114,8 @@ export function planScanApproach(input: ScanPlanInput): ScanApproachPlan {
   if (best.provisional) notes.push({ key: 'sd.plan.provisional' });
   // 방위가 참고값(각도 정면으로 대신 · 어안 보정 없음)이면 메모로 띄운다 — 막지는 않는다. Go1 은 늘 붙는다.
   if (best.bearing_note !== null) notes.push({ key: 'sd.plan.bearingNote', vars: { note: best.bearing_note } });
+  const confirm = best.isolated ? 'isolated' as const : null;
+  if (confirm !== null) notes.push({ key: 'sd.plan.isolated', vars: { deg: best.rotation_deg } });
 
   const steps: TaskCommand[] = [];
   if (Math.abs(turnDeg) >= TURN_MIN_DEG) {
@@ -102,6 +128,6 @@ export function planScanApproach(input: ScanPlanInput): ScanApproachPlan {
 
   return {
     ok: true, bearingDeg: best.bearing_deg, driftDeg, turnDeg, plannedForwardM, issuedForwardM,
-    forwardVx: APPROACH_VX, steps, notes,
+    forwardVx: APPROACH_VX, steps, notes, confirm,
   };
 }

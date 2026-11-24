@@ -35,6 +35,8 @@ export type ScanRunSpec = {
   target: ScanTarget;
   query: string | null;
   queryKo: string | null;
+  /** 번역을 버린 사유(261124) — 깨진 번역이라 query 를 비우고 query_ko 만 보냈다. 없으면 null. */
+  queryNote?: string | null;
   steps: number;
   stepDeg: number;
   prepareLimitMs?: number;
@@ -101,7 +103,7 @@ export async function runScanDetect(spec: ScanRunSpec, deps: ScanRunDeps): Promi
 
   deps.event({
     kind: 'begin', scanId, missionId: spec.missionId, device: spec.device, base: client.base, target: spec.target,
-    query: spec.query, queryKo: spec.queryKo, steps: spec.steps, stepDeg: spec.stepDeg,
+    query: spec.query, queryKo: spec.queryKo, queryNote: spec.queryNote ?? null, steps: spec.steps, stepDeg: spec.stepDeg,
   });
 
   // ── T-A0 준비 · T-A2 방위 ───────────────────────────────────────────

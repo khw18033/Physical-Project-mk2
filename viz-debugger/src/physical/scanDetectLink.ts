@@ -15,13 +15,14 @@
  */
 
 import { t } from '../i18n/dict.ts';
+import { noteIssue } from '../shared/notifications.ts';
 import { currentMission, recordAnswered, recordCommanded } from '../data/scenario.ts';
 import { scanDetectFlow, scanTargetOf } from '../scenarios/library.ts';
 import { scanClient, newScanId } from '../detect/scan/ScanClient.ts';
 import { scanBaseFor } from '../detect/scan/scanAddress.ts';
 import { applyScanEvent, scanRunState } from '../detect/scan/scanStore.ts';
 import { detectState } from '../detect/store.ts';
-import { translateObjectName } from '../generate/nameEn.ts';
+import { sendableQuery, translateObjectName } from '../generate/nameEn.ts';
 import { deviceState } from './deviceState.ts';
 import { hardwareTarget } from './encode.ts';
 import { approachNeedsApproval } from './approachAuto.ts';
@@ -29,6 +30,7 @@ import { prepState, subscribePrep } from './prepStage.ts';
 import { issueStepsToEnd } from './robotCommands.ts';
 import {
   emitScanNode as emit, issueScanApproach, scanPlanPayload, scanStopDistance, scanStopEdited, setScanApproach as setApproach,
+  setScanQueryRetry,
 } from './scanApproachRun.ts';
 import { robotClient } from './robotClient.ts';
 import { robotSession, subscribeRobot } from './robotSession.ts';
@@ -99,9 +101,13 @@ function onResult(missionId: string, outcome: ScanRunOutcome & { ok: true }, sca
   emit(missionId, 'T-B1', plan.ok ? 'done' : 'failed', scanPlanPayload(plan, stopDistanceM, scanStopEdited(missionId)));
   if (!plan.ok) {
     setApproach({ scanId, missionId, plan, input, issued: false, waitingApproval: false });
+    // 거리를 못 믿어 서는 것은 사람이 알아야 한다(261124 · 요청 A2) — 노드만 빨갛게 두면 무대에서 못 본다.
+    if (plan.reason.key === 'sd.plan.distanceInvalid') noteIssue('scan-detect', 'robot', t(plan.reason.key, plan.reason.vars));
     return;
   }
-  const waiting = approachNeedsApproval(missionId);
+  // 한 각도에서만 보인 검출은 승인 설정과 상관없이 사람이 그림을 보고 눌러야 간다(261124 · 요청 B).
+  const waiting = approachNeedsApproval(missionId) || plan.confirm !== null;
+  if (plan.confirm !== null) noteIssue('scan-detect', 'robot', t('sd.plan.isolated', { deg: result.best?.rotation_deg ?? '–' }));
   setApproach({ scanId, missionId, plan, input, issued: false, waitingApproval: waiting });
   if (!waiting) void issueScanApproach();
 }
@@ -110,7 +116,15 @@ function onResult(missionId: string, outcome: ScanRunOutcome & { ok: true }, sca
 
 let runningKey: number | null = null;
 
-async function launch(missionId: string, runKey: number): Promise<void> {
+/**
+ * 판 하나. `typedQuery` 는 사람이 다시 적은 영어 이름(261124 — `bad_query` 뒤) — 있으면 번역하지 않고 그것을 보낸다.
+ *
+ * @ 판의 찾을 이름 (261124 · 요청 C):
+ *   - `query_ko`(발화의 대상 낱말)를 **늘 같이 보낸다.** data_stream 이 아는 낱말이면 번역보다 그것을 먼저 쓴다.
+ *   - 번역이 실패하거나 결과가 검사(`sendableQuery`)에 어긋나면 **그 번역은 보내지 않고** `query: null` 로 낸다 —
+ *     아는 낱말이면 그대로 돌고, 모르면 400 `bad_query` 가 와서 사람이 이름을 적는다.
+ */
+async function launch(missionId: string, runKey: number, typedQuery: string | null = null): Promise<void> {
   const target = scanTargetOf(missionId) ?? 'door';
   const device = hardwareTarget(ROBOT_ENTITY);
   const scanId = newScanId(missionId);
@@ -130,16 +144,29 @@ async function launch(missionId: string, runKey: number): Promise<void> {
 
   let query: string | null = null;
   let queryKo: string | null = null;
+  /** 번역을 버린 사유 — 화면 T-A0 에 보인다. */
+  let translateNote: string | null = null;
   if (target === 'object') {
     queryKo = currentMission().targetWord ?? null;
     if (queryKo === null || queryKo.trim() === '' || queryKo.includes('@')) { failEarly('no_query', t('sd.noQuery')); return; }
     emit(missionId, 'T-A0', 'running', { query_ko: queryKo });
-    const named = await translateObjectName(queryKo);
-    if (!named.ok) { failEarly('translate_failed', named.reason); return; }
-    query = named.nameEn;
+    if (typedQuery !== null) {
+      query = typedQuery;
+    } else {
+      const named = await translateObjectName(queryKo);
+      const checked = named.ok ? sendableQuery(named.nameEn) : null;
+      if (checked?.ok === true) {
+        query = checked.query;
+      } else {
+        // 번역을 못 믿는다 — 보내지 않는다. 사유는 T-A0 에 남기고, query_ko 만으로 준비를 청한다.
+        const why = !named.ok ? named.reason : `${JSON.stringify(named.nameEn)} — ${checked !== null && !checked.ok ? t(checked.key, checked.vars) : ''}`;
+        emit(missionId, 'T-A0', 'running', { query_ko: queryKo, translate_dropped: why });
+        translateNote = why;
+      }
+    }
   }
 
-  const outcome = await runScanDetect({ scanId, missionId, device, target, query, queryKo, steps, stepDeg }, {
+  const outcome = await runScanDetect({ scanId, missionId, device, target, query, queryKo, queryNote: translateNote, steps, stepDeg }, {
     client: scanClient(base),
     async turn(deg) {
       // 회전 명령은 T-A3 에 붙는다. 로봇 응답이 T-A3 을 끝냄으로 칠하므로 다시 진행 중으로 돌린다 — 끝은 실행기가 칠한다.
@@ -172,8 +199,28 @@ function check(): void {
 /** 앱이 살아 있는 동안 한 번 건다(`main.tsx`). 돌려준 함수로 푼다. */
 export function startScanDetectLink(): () => void {
   const off = subscribeRobot(check);
+  setScanQueryRetry(retryWithQuery);
   check();
-  return off;
+  return () => { off(); setScanQueryRetry(null); };
+}
+
+/**
+ * **사람이 적은 영어 이름으로 준비를 다시 청한다** (261124 — 400 `bad_query` 뒤 · 요청 C).
+ *
+ * 같은 판 안에서만 받는다 — 이 판이 @ 판이고, 준비 단계에서 섰고(아직 돈 적 없다), 정지되지 않았을 때. 이름은 보내기 전에 검사한다.
+ */
+function retryWithQuery(raw: string): { ok: true } | { ok: false; reason: string } {
+  const session = robotSession();
+  const missionId = currentMission().missionId;
+  const run = scanRunState();
+  if (!scanDetectFlow(missionId) || scanTargetOf(missionId) !== 'object') return { ok: false, reason: t('sd.query.noRetry') };
+  if (run === null || run.failure === null || run.failure.stage !== 'prepare' || session.stopped !== null || session.startedAtMs === null) {
+    return { ok: false, reason: t('sd.query.noRetry') };
+  }
+  const checked = sendableQuery(raw);
+  if (!checked.ok) return { ok: false, reason: t(checked.key, checked.vars) };
+  void launch(missionId, session.startedAtMs, checked.query);
+  return { ok: true };
 }
 
 /** 정지 버튼 — 진행 중인 판이 있으면 data_stream 에도 멈추라고 한다(실행기는 매 걸음 앞에서 정지를 보고 cancel 을 보낸다). */

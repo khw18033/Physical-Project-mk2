@@ -32,6 +32,8 @@ export type ScanRunState = {
   target: ScanTarget;
   query: string | null;
   queryKo: string | null;
+  /** 번역을 버린 사유(261124) — 깨진 번역이라 query 없이 query_ko 만 보냈다. 옛 기록에는 칸이 없다. */
+  queryNote?: string | null;
   /** data_stream 이 고른 `targeted` 대상(`demo_door` 등). */
   targets: string[];
   stream: string | null;
@@ -53,7 +55,7 @@ export type ScanRunState = {
 };
 
 export type ScanEvent =
-  | { kind: 'begin'; scanId: string; missionId: string; device: string; base: string; target: ScanTarget; query: string | null; queryKo: string | null; steps: number; stepDeg: number }
+  | { kind: 'begin'; scanId: string; missionId: string; device: string; base: string; target: ScanTarget; query: string | null; queryKo: string | null; queryNote?: string | null; steps: number; stepDeg: number }
   | { kind: 'prepare'; scanId: string; answer: ScanPrepareAnswer }
   | { kind: 'status'; scanId: string; answer: ScanStatusAnswer }
   | { kind: 'heading'; scanId: string; which: 'start' | 'end'; deg: number | null }
@@ -75,7 +77,7 @@ export function reduceScan(state: ScanRunState | null, event: ScanEvent): ScanRu
   if (event.kind === 'begin') {
     return {
       scanId: event.scanId, missionId: event.missionId, device: event.device, base: event.base, target: event.target,
-      query: event.query, queryKo: event.queryKo, targets: [], stream: null, serverState: null, profileVersion: null,
+      query: event.query, queryKo: event.queryKo, queryNote: event.queryNote ?? null, targets: [], stream: null, serverState: null, profileVersion: null,
       angles: Array.from({ length: event.steps }, (_, index) => ({ index, deg: index * event.stepDeg, captured: null, frameN: null, capturedAt: null })),
       headingStartDeg: null, headingEndDeg: null, result: null, failure: null, cancelled: false, recorded: null,
     };

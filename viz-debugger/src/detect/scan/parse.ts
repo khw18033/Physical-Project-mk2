@@ -59,7 +59,13 @@ function parseFrame(value: unknown): ScanFrameResult | null {
     rotation_deg: deg, frame_n: num(value.frame_n), found: value.found, score: num(value.score), box_xyxy: parseBox(value.box_xyxy),
     reason: str(value.reason), bearing_deg: num(value.bearing_deg), distance_m: num(value.distance_m),
     distance_valid: typeof value.distance_valid === 'boolean' ? value.distance_valid : null, distance_source: str(value.distance_source),
+    seen_at: angles(value.seen_at), isolated: typeof value.isolated === 'boolean' ? value.isolated : null,
   };
+}
+
+/** 각도 목록(`seen_at`, 261124). 숫자가 아닌 것은 버린다 — 없으면 빈 목록. */
+function angles(value: unknown): number[] {
+  return Array.isArray(value) ? value.map(num).filter((v): v is number => v !== null) : [];
 }
 
 /** `best` 는 null(찾지 못함)이거나 이동에 필요한 칸이 다 있는 것. 반쯤 있는 것은 **모양이 틀린 것**이다. */
@@ -73,6 +79,8 @@ function parseBest(value: unknown): ScanBest | null | undefined {
     rotation_deg: deg, bearing_deg: bearing, distance_m: num(value.distance_m), distance_valid: value.distance_valid,
     distance_source: str(value.distance_source), distance_note: str(value.distance_note),
     bearing_note: str(value.bearing_note), provisional: value.provisional === true,
+    // 261124 — 모르는 옛 창구는 칸이 없다. 그때는 isolated 를 거짓으로 읽는다(지금까지와 같은 동작).
+    isolated: value.isolated === true, seen_at: angles(value.seen_at),
   };
 }
 
@@ -103,7 +111,8 @@ export function parseResult(body: unknown): ScanResult | null {
   const evidence = isObj(body.evidence) ? body.evidence : {};
   const target = TARGETS.includes(body.target as ScanTarget) ? body.target as ScanTarget : null;
   return {
-    scan_id: scanId, state: st, target, query: str(body.query), targets: strings(body.targets),
+    scan_id: scanId, state: st, target, query: str(body.query),
+    query_used: str(body.query_used), query_source: str(body.query_source), targets: strings(body.targets),
     frames: frames.filter((frame): frame is ScanFrameResult => frame !== null),
     best: best ?? null, cues: parseCues(evidence.cues), enough: evidence.enough === true,
     reason: str(body.reason) ?? '', model: str(body.model), profile_version: num(body.profile_version),

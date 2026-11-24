@@ -22,6 +22,13 @@
  *   frame-gaps       `--gap-degs`(기본 135,180) 각도의 mark 가 frame_captured false
  *   profile-changed  result 의 profile_version 이 prepare 때와 다르다
  *   result-timeout   finish 뒤 running 에 머문다
+ *   extinguisher     261124 요청서 예시 — 13:35 소화기 판을 지금 규칙으로 다시 판정한 것(180° · 바닥선 1.686 m · valid ·
+ *                    135/180/225 에서 같이 보임)
+ *   door-measured    261124 요청서 예시 — 13:30 문 판(45° · UniDepth 5.819 m · valid false · 한 각도에서만)
+ *   isolated         정상 판인데 best 가 한 각도에서만 보였다(`isolated: true`, reason 끝 「- seen at one angle only」)
+ *
+ * @ 판(`target: object`)의 이름 (261124 · 요청 C): `query_ko` 가 아는 낱말(`KNOWN_KO`)이면 그것을 먼저 쓴다(`query_source: query_ko`).
+ * 모르면 `query` 를 쓰는데, 비었거나 소문자 영어 · 공백 · 하이픈 · 40자 · 「or」 없음에 어긋나면 400 `bad_query`.
  *
  * 그 밖의 손잡이: `--load-ms`(prepare → ready, 기본 1500) · `--mark-ms`(mark 응답 지연, 기본 600) ·
  * `--result-ms`(finish → done, 기본 1500) · `--bearing`(best 방위, 기본 96.4) · `--distance`(기본 2.35).
@@ -37,6 +44,31 @@ import { fileURLToPath } from 'node:url';
 export const SCAN_MOCK_SERVICE = 'scan-detect-mock';
 
 const TARGETS = { door: ['demo_door'], box: ['demo_box'] };
+
+/** data_stream 이 아는 한국어 낱말 일부 (실제는 약 30개). */
+const KNOWN_KO = { 사람: 'person', 문: 'door', 의자: 'chair', 책상: 'desk', 소화기: 'fire extinguisher' };
+const SENDABLE = /^[a-z]+(?:[ -][a-z]+)*$/;
+
+/**
+ * 판마다 미리 정한 결과 (261124 요청서의 두 예시 · isolated). `found` 는 찾은 각도들, `best` 는 best 에 덮을 칸.
+ * best 는 `bestDeg` 각도의 프레임에서 만든다.
+ */
+const PRESETS = {
+  extinguisher: {
+    found: [135, 180, 225], bestDeg: 180,
+    frame: { distance_m: 1.686, distance_valid: true, distance_source: 'ground_line', score: 99.1, box_xyxy: [169.9, 212.0, 181.6, 239.8] },
+    best: { bearing_deg: 157.2, distance_m: 1.686, distance_valid: true, distance_source: 'ground_line', distance_note: null, isolated: false, seen_at: [135, 180, 225] },
+  },
+  'door-measured': {
+    found: [45], bestDeg: 45,
+    frame: { distance_m: 5.819, distance_valid: false, distance_source: 'measured' },
+    best: {
+      bearing_deg: 11.2, distance_m: 5.819, distance_valid: false, distance_source: 'measured',
+      distance_note: 'monocular depth on the Go1 fisheye camera is not calibrated - ground line: outside 50-300 cm',
+      isolated: true, seen_at: [45],
+    },
+  },
+};
 const TERMINAL = new Set(['done', 'failed', 'cancelled']);
 
 function cors(res) {
@@ -101,8 +133,17 @@ export function scanMockHandler(options = {}) {
     return scan.state;
   }
 
+  function foundDegsOf() {
+    if (opt.mode === 'best-null') return [];
+    return PRESETS[opt.mode]?.found ?? [angleOf(opt.foundDeg)];
+  }
+
   function resultOf(scan) {
-    const found = (deg) => opt.mode !== 'best-null' && deg === angleOf(opt.foundDeg);
+    const preset = PRESETS[opt.mode] ?? null;
+    const foundDegs = foundDegsOf();
+    const found = (deg) => foundDegs.includes(deg);
+    // 기본 판(ok)은 한 각도에서 찾지만 isolated 가 아닌 것으로 낸다 — 옛 창구와 같은 동작이다. 미리 정한 판은 그 값대로.
+    const isolated = opt.mode === 'isolated' || preset?.best.isolated === true;
     const frames = [...scan.marks.entries()]
       .filter(([, mark]) => mark.frame_captured)
       .sort(([a], [b]) => a - b)
@@ -111,9 +152,15 @@ export function scanMockHandler(options = {}) {
           rotation_deg: deg, frame_n: mark.frame_n, found: true, score: 71.0, box_xyxy: [412, 96, 598, 470],
           bearing_deg: opt.bearing, distance_m: opt.distance, distance_valid: opt.mode !== 'distance-invalid',
           distance_source: scan.target === 'box' ? 'box_height' : 'unidepth',
+          ...(preset?.frame ?? {}),
+          // 261124 — 방위 ±20° 안에서 같이 보인 각도. 가짜는 「찾은 각도 전부」를 같이 보인 것으로 친다.
+          seen_at: isolated ? [deg] : foundDegs, isolated,
         }
-        : { rotation_deg: deg, frame_n: mark.frame_n, found: false, score: 8.0, box_xyxy: null, reason: 'no candidate' }));
-    const hit = frames.find((frame) => frame.found) ?? null;
+        : {
+          rotation_deg: deg, frame_n: mark.frame_n, found: false, score: scan.target === 'box' ? 52.0 : 8.0, box_xyxy: null,
+          reason: scan.target === 'box' ? 'score 52 < 65 (scan floor)' : 'no candidate',
+        }));
+    const hit = (preset === null ? frames.find((frame) => frame.found) : frames.find((frame) => frame.rotation_deg === preset.bestDeg)) ?? null;
     const best = hit === null ? null : {
       rotation_deg: hit.rotation_deg, bearing_deg: hit.bearing_deg, distance_m: hit.distance_m,
       distance_valid: hit.distance_valid, distance_source: hit.distance_source,
@@ -121,14 +168,21 @@ export function scanMockHandler(options = {}) {
       // 실제 창구는 Go1 에 늘 'reference - no fisheye correction' 을 붙인다(구현 보고 §3-6). 기본은 그 모양, no-focal 은 초점 거리 모름.
       bearing_note: opt.mode === 'no-focal' ? 'no focal length - heading of the scan step' : 'reference - no fisheye correction',
       provisional: true,
+      isolated: hit.isolated, seen_at: hit.seen_at,
+      ...(preset?.best ?? {}),
+    };
+    const reasonOf = () => {
+      if (best === null) return `no ${scan.targets.join(', ')} found in ${frames.length} angles`;
+      return `found ${scan.targets[0]} at ${best.rotation_deg}° — gates passed${best.isolated ? ' - seen at one angle only' : ''}`;
     };
     return {
-      scan_id: scan.scan_id, state: scan.state, target: scan.target, query: scan.query, targets: scan.targets,
+      scan_id: scan.scan_id, state: scan.state, target: scan.target, query: scan.query,
+      query_used: scan.query_used ?? null, query_source: scan.query_source ?? null, targets: scan.targets,
       frames, best,
       evidence: hit === null
         ? { cues: [], enough: false }
         : { cues: [['OVD pair IoU', 1, '0.61 >= 0.42'], ['CLIP colour', 1, 'light blue pass'], ['aspect', 0.8, 'h/w 2.1 >= 1.5']], enough: true },
-      reason: hit === null ? `no ${scan.targets.join(', ')} found in ${frames.length} angles` : `found ${scan.targets[0]} at ${hit.rotation_deg}° — gates passed`,
+      reason: reasonOf(),
       model: 'targeted', profile_version: opt.mode === 'profile-changed' ? scan.profile_version + 1 : scan.profile_version,
       score_basis: 'frame', computed_at: new Date().toISOString(), error: scan.error ?? null,
     };
@@ -165,14 +219,25 @@ export function scanMockHandler(options = {}) {
       if (current !== null) { sendJson(res, 409, { error: 'busy', busy_scan_id: current.scan_id }); return; }
       const target = body.target;
       if (!['door', 'box', 'object'].includes(target)) { sendJson(res, 400, { error: 'unknown target' }); return; }
-      if (target === 'object' && (typeof body.query !== 'string' || body.query.trim() === '')) {
-        sendJson(res, 400, { error: 'query required for object' }); return;
+      // @ 판의 이름 (261124 · 요청 C) — 아는 한국어 낱말이 먼저, 없으면 query 를 검사해서 쓴다. 못 쓰면 400 bad_query.
+      let queryUsed = null;
+      let querySource = null;
+      if (target === 'object') {
+        const ko = typeof body.query_ko === 'string' ? body.query_ko.trim() : '';
+        const en = typeof body.query === 'string' ? body.query.trim() : '';
+        if (KNOWN_KO[ko] !== undefined) { queryUsed = KNOWN_KO[ko]; querySource = 'query_ko'; }
+        else if (en !== '' && en.length <= 40 && SENDABLE.test(en) && !` ${en} `.includes(' or ')) { queryUsed = en; querySource = 'query'; }
+        else {
+          sendJson(res, 400, { error: 'bad_query', detail: en === '' ? `unknown query_ko ${JSON.stringify(ko)} and no query` : `query ${JSON.stringify(en)} is not lowercase English (40 chars, no " or ")` });
+          return;
+        }
       }
       const failure = { 'no-stream': 'no_stream', 'no-vision': 'no_vision', reject: 'profile_rejected: out of GPU memory' }[opt.mode];
       profileVersion += 1;
       const scan = {
-        scan_id: id, device: body.device, target, query: target === 'object' ? body.query : null, query_ko: body.query_ko ?? null,
-        targets: target === 'object' ? [body.query] : TARGETS[target],
+        scan_id: id, device: body.device, target, query: target === 'object' ? body.query ?? null : null, query_ko: body.query_ko ?? null,
+        query_used: queryUsed, query_source: querySource,
+        targets: target === 'object' ? [queryUsed] : TARGETS[target],
         state: failure === undefined ? 'loading' : 'failed', error: failure ?? null,
         readyAt: Date.now() + opt.loadMs, doneAt: Infinity, marks: new Map(), lastFrame: 18300,
         profile_version: profileVersion,
@@ -236,7 +301,7 @@ export function scanMockHandler(options = {}) {
       const kind = url.searchParams.get('kind') ?? 'original';
       const mark = scan.marks.get(deg);
       if (mark === undefined || !mark.frame_captured) { sendJson(res, 404, { error: 'no frame at that angle' }); return; }
-      const found = opt.mode !== 'best-null' && deg === angleOf(opt.foundDeg);
+      const found = foundDegsOf().includes(deg);
       if (kind === 'crop' && !found) { sendJson(res, 404, { error: 'no crop (not found)' }); return; }
       res.statusCode = 200;
       res.setHeader('Content-Type', 'image/svg+xml');
