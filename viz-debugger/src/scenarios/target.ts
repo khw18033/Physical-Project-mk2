@@ -29,10 +29,36 @@ function tidy(raw: string): string {
  * 규칙 벌은 언어마다 따로다. 영어 화면이어도 한국어로 말할 수 있으므로(`matcher.ts` 와 같은 사정)
  * 영어 규칙이 안 맞으면 한국어 규칙으로 한 번 더 본다.
  */
+const escape = (word: string) => word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+/**
+ * 조각 끝의 위치어(「앞 · 쪽 · 근처」)를 뗀다 (261124). 「앞으로」의 「로」만 패턴이 먹으면 「앞으」가 남으므로 「으」도 같이 뗀다.
+ * 떼고 나서 비면 떼지 않는다 — 「앞까지 가」의 「앞」을 지우고 빈칸을 남기는 것보다 그대로 두는 편이 덜 틀린다(어차피 대상이 아니다).
+ */
+function stripSuffix(word: string, suffixes: readonly string[] | undefined): string {
+  if (suffixes === undefined || suffixes.length === 0) return word;
+  const longest = [...suffixes].sort((a, b) => b.length - a.length).map(escape).join('|');
+  // 으 = 「으」 — 화면 글이 아니라 정규식 글자라 이스케이프로 둔다(verify:no-raw-korean).
+  const out = word.replace(new RegExp(`\\s*(?:${longest})\\uC73C?$`), '').trim();
+  return out === '' ? word : out;
+}
+
+/** 영어 조각 앞의 군말(「the」 · 「front of」)을 뗀다. 여러 개가 겹치면 차례로 다 뗀다. */
+function stripPrefix(word: string, prefixes: readonly string[] | undefined): string {
+  if (prefixes === undefined || prefixes.length === 0) return word;
+  const longest = [...prefixes].sort((a, b) => b.length - a.length).map(escape).join('|');
+  const out = word.replace(new RegExp(`^(?:(?:${longest})\\s+)+`, 'i'), '').trim();
+  return out === '' ? word : out;
+}
+
 export function extractTarget(sentence: string, spec: ScriptTarget | undefined, lang: 'ko' | 'en' = 'ko'): string | null {
   if (spec === undefined) return null;
-  const sets = lang === 'en' ? [spec.patterns_en ?? [], spec.patterns] : [spec.patterns];
-  for (const patterns of sets) {
+  const ko = (word: string) => stripSuffix(word, spec.strip_suffix);
+  const en = (word: string) => stripPrefix(word, spec.strip_prefix_en);
+  const sets: [readonly string[], (word: string) => string][] = lang === 'en'
+    ? [[spec.patterns_en ?? [], en], [spec.patterns, ko]]
+    : [[spec.patterns, ko]];
+  for (const [patterns, trim] of sets) {
     for (const source of patterns) {
       let found: RegExpMatchArray | null = null;
       try {
@@ -41,7 +67,7 @@ export function extractTarget(sentence: string, spec: ScriptTarget | undefined, 
         // 대본의 정규식이 깨졌으면 그 줄만 건너뛴다 — 발화 하나 때문에 화면이 멎으면 안 된다.
         continue;
       }
-      const word = found?.[1] === undefined ? '' : tidy(found[1]);
+      const word = found?.[1] === undefined ? '' : trim(tidy(found[1]));
       // 빈칸 그대로 말한 것(「@까지」)은 정한 것이 아니다.
       if (word === '' || word === spec.token) continue;
       return word;

@@ -52,6 +52,7 @@ import { isFixedCamera } from '../../fixedcam/fixedCamera.ts';
 import { VisionCards } from './VisionCards.tsx';
 import { VisionRoi } from './VisionRoi.tsx';
 import { VisionReid } from './VisionReid.tsx';
+import { VisionToolStack } from './VisionToolStack.tsx';
 
 /** 접힌 카드가 새 한 장을 받는 주기 — 탐지 영상 노드와 같다. */
 export const VISION_STILL_MS = 2000;
@@ -131,6 +132,9 @@ function VisionCell({ base, model, summary, rate, zoom, lagMs, framesNow, gapFra
   // 확대 스트림이 첫 장을 받았는가. 안 왔으면 `<img>` 는 높이 0 으로 비어 있고 오류도 안 난다 — 여는 주소를 글로 적는다.
   const [loaded, setLoaded] = useState<string | null>(null);
   const imgRef = useRef<HTMLImageElement | null>(null);
+  // 261124 — 영역 지정 · 재식별 버튼이 함께 서는 자리 하나(`VisionToolStack`). 두 층이 제 줄을 여기에 넣는다.
+  const [toolSlot, setToolSlot] = useState<HTMLDivElement | null>(null);
+  const [bandPx, setBandPx] = useState(0);
   const url = model === null ? rawStreamUrl(base) : overlayStreamUrl(base, model);
   return <figure className="vision-cell">
     <figcaption>
@@ -151,9 +155,11 @@ function VisionCell({ base, model, summary, rate, zoom, lagMs, framesNow, gapFra
           onError={() => setFailed(t('vis.streamFailed', { url }))} />
           {model !== null && <VisionCards base={base} model={model} imgRef={imgRef} />}
           {/* 261123 — 탐지 영역 층(영역 지정 → 끌기 · ✕ · 영역 취소). 영역의 주인은 데이터 스트림 /control/roi */}
-          {model !== null && <VisionRoi base={base} model={model} imgRef={imgRef} />}
+          {model !== null && <VisionRoi base={base} model={model} imgRef={imgRef} slot={toolSlot} onBand={setBandPx} />}
           {/* 261123 — 객체 재식별 층(재식별 선택 → 상자 클릭 · 재식별 취소). 따라가기는 데이터 스트림 vision/reid.py */}
-          {model !== null && <VisionReid base={base} model={model} imgRef={imgRef} />}</RecordFrame>
+          {model !== null && <VisionReid base={base} model={model} imgRef={imgRef} slot={toolSlot} onBand={setBandPx} />}
+          {/* 261124 — 두 층의 버튼 줄이 서는 자리. 그림 오른쪽 위(띠 아래)에 세로로 쌓인다 */}
+          {model !== null && <VisionToolStack imgRef={imgRef} bandPx={bandPx} slotRef={setToolSlot} />}</RecordFrame>
       : <Still base={base} model={model} />}
     {failed !== null && <small className="vn-warn">{failed}</small>}
     {available && zoom && failed === null && loaded !== url && <small className="vn-dim">{t('vis.streamOpening', { url })}</small>}

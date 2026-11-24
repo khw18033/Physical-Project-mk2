@@ -197,7 +197,8 @@ const legacyTitle = () => t('utter.legacyMove');
  * 화면이 못 따라간다. 각 편의 `utterance.text`가 그 대본을 부르는 기준 문장이고,
  * 옛 편(사이드카 — script 없음)은 번들의 옛 시나리오에서 문장을 가져온다.
  */
-const DEMO_SENTENCES = SCRIPT_LIBRARY.map((entry) => ({
+// 261124 — 예시에서 뺀 편(`hideExample`, 옛 @ 편)은 목록에만 안 보인다. 매칭에는 그대로 선다.
+const DEMO_SENTENCES = SCRIPT_LIBRARY.filter((entry) => entry.script?.hideExample !== true).map((entry) => ({
   missionId: entry.missionId,
   title: entry.script?.title ?? legacyTitle(),
   text: entry.script?.utterance.text ?? legacyScenario.utterance.text,

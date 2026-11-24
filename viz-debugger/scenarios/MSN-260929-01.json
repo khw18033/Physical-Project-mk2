@@ -3,6 +3,7 @@
   "title": "장치 하나를 @까지 이동",
   "world": "registry",
   "detectSource": "legacy",
+  "hideExample": true,
   "driver": "local",
   "utterance": {
     "text": "장치 하나를 @까지 이동시켜",

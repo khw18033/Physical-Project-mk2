@@ -20,14 +20,33 @@ import { getLang, type Lang } from '../shared/language.ts';
 import { matchEnOf } from './phrases.ts';
 import { tIn } from '../i18n/dict.ts';
 import { detectSource, standsUnder, type DetectSourceMode } from './detectSource.ts';
+import { extractTarget } from './target.ts';
 import type { ScriptLibraryEntry, ScriptMatch } from './types.ts';
+
+/**
+ * **대상을 반드시 말해야 하는 편인가 — 말했는가** (261124 · `target.required`).
+ *
+ * 「장치 하나를」을 빼고 규칙을 넓힌 @ 편(`MSN-261123-03`)은 「○○ 앞까지 이동해」를 다 받는다. 대상을 못 잘라 온 문장까지
+ * 고르면 승인 뒤 탐지가 `no_query` 로 선다 — 그 문장은 고르지 않고 생성 경로에 넘긴다. 빈칸(`@`)을 그대로 말한 문장(예시)은 받는다.
+ */
+function targetSpoken(sentence: string, entry: ScriptLibraryEntry, lang: Lang): boolean {
+  const spec = entry.script?.target;
+  if (spec?.required !== true) return true;
+  return sentence.includes(spec.token) || extractTarget(sentence, spec, lang) !== null;
+}
 
 export function normalize(text: string): string {
   return String(text).replace(/\s+/g, '').toLowerCase();
 }
 
-/** 문장이 규칙 하나에 맞는가. */
+/** 문장이 규칙 하나에 맞는가. 위 규칙이 안 맞으면 보조 규칙(`also`, 261124)을 본다. */
 export function matchesRule(sentence: string, match: ScriptMatch | undefined): boolean {
+  if (matchesOwn(sentence, match)) return true;
+  return match?.also !== undefined && matchesRule(sentence, match.also);
+}
+
+/** 보조 규칙을 빼고 이 한 벌만. */
+function matchesOwn(sentence: string, match: ScriptMatch | undefined): boolean {
   if (!match || !Array.isArray(match.must) || match.must.length === 0) return false;
   const text = normalize(sentence);
   if (Array.isArray(match.not) && match.not.some((word) => text.includes(normalize(word)))) return false;
@@ -43,6 +62,8 @@ export function matchesRule(sentence: string, match: ScriptMatch | undefined): b
 
 /** 문장에 맞은 must·any 키워드 — 화면이 「어느 키워드가 맞아서 골라졌는지」를 보여줄 재료. */
 export function matchedKeywords(sentence: string, match: ScriptMatch): string[] {
+  // 보조 규칙으로 맞았으면 그 규칙의 키워드를 적는다 — 위 규칙의 낱말을 적으면 「왜 이 대본인가」에 거짓말을 한다.
+  if (!matchesOwn(sentence, match) && match.also !== undefined && matchesRule(sentence, match.also)) return matchedKeywords(sentence, match.also);
   const text = normalize(sentence);
   const hits: string[] = [];
   for (const group of match.must) {
@@ -111,7 +132,7 @@ export function matchLibrary(
     for (const entry of library) {
       const rule = ruleSets(entry, lang)[pass];
       if (rule === undefined) continue;
-      if (matchesRule(sentence, rule)) { found.push(entry); rules.set(entry.missionId, rule); }
+      if (matchesRule(sentence, rule) && targetSpoken(sentence, entry, lang)) { found.push(entry); rules.set(entry.missionId, rule); }
     }
     if (found.length > 0) { hits = found; used = rules; break; }
   }

@@ -23,6 +23,7 @@ const root = join(fileURLToPath(new URL('.', import.meta.url)), '..');
 
 // 매처·목록 — 게이트웨이·브라우저와 같은 원천.
 const { matchLibrary } = await import(pathToFileURL(join(root, 'src', 'scenarios', 'matcher.ts')).href);
+const { extractTarget } = await import(pathToFileURL(join(root, 'src', 'scenarios', 'target.ts')).href);
 const { SCRIPT_IDS: MANIFEST_IDS, LEGACY_ID } = await import(
   pathToFileURL(join(root, 'src', 'scenarios', 'manifest.ts')).href
 );
@@ -371,6 +372,45 @@ if ('MSN-260927-01' in byId) {
   expectOnly('장치 두 가지를 문까지 이동시켜', 'MSN-260927-01');
   expectOnly('장치 두 가지를 문 앞까지 이동시켜', 'MSN-260927-01');
   expectOnly('두 장치를 소화기까지 보내', 'MSN-260927-01');
+}
+// 261124 — @ 편(data_stream) 넓은 인식: 「장치 하나」 없이도 「○○ 앞까지 이동해」를 받고, 이웃 편 문장은 내어 주며,
+// 대상을 못 자르는 문장은 고르지 않는다(`target.required`). 잘라 온 대상은 끝의 「앞 · 쪽 · 근처」를 뗀 이름이어야 한다.
+if ('MSN-261123-03' in byId) {
+  const AT = 'MSN-261123-03';
+  const spec = byId[AT].target;
+  const wantTarget = [
+    ['장치 하나를 @까지 이동시켜', null],
+    ['장치 하나를 의자까지 이동시켜', '의자'],
+    ['장치 하나를 의자 앞까지 이동해', '의자'],
+    ['장치 하나를 문까지 이동시켜', '문'],
+    ['의자 앞까지 이동해', '의자'],
+    ['의자 앞으로 가', '의자'],
+    ['의자까지 가줘', '의자'],
+    ['Go1을 의자 앞까지 이동해', '의자'],
+    ['로봇을 소화기 쪽으로 보내', '소화기'],
+    ['장치 한 대를 의자 앞으로 보내', '의자'],
+    ['책상 근처로 가', '책상'],
+  ];
+  for (const [sentence, word] of wantTarget) {
+    expectOnly(sentence, AT, 'datastream');
+    const got = extractTarget(sentence, spec, 'ko');
+    if (got !== word) failures.push(`「${sentence}」의 대상이 ${got} — ${word} 여야 한다`);
+  }
+  // 이웃 편 문장은 그 편에만 — 넓힌 규칙이 삼키면 모호 거부로 시연이 선다.
+  expectOnly('문 앞까지 이동해', 'MSN-261123-01', 'datastream');
+  expectOnly('문 쪽으로 이동', 'MSN-261123-01', 'datastream');
+  expectOnly('박스 앞까지 이동해', 'MSN-261123-02', 'datastream');
+  expectOnly('상자 쪽으로 가', 'MSN-261123-02', 'datastream');
+  expectOnly('503호에서 복도에 있는 엘리베이터 앞까지 이동해줘.', 'MSN-260831-01', 'datastream');
+  expectOnly('장치 두 가지를 의자까지 이동시켜', 'MSN-260927-01', 'datastream');
+  expectOnly('문 앞까지 자율주행 진행해', 'MSN-260915-01', 'datastream');
+  // 대상이 없거나 방향 · 정량 문장은 대본이 아니다 — 생성 · 정량 경로가 받는다.
+  expectOnly('왼쪽으로 가', null, 'datastream');
+  expectOnly('앞으로 가', null, 'datastream');
+  expectOnly('Go1을 90도 왼쪽으로 회전시킨 후 거울 위치를 탐지한 후 거기까지 이동해', null, 'datastream');
+  // 옛 탐지기 설정에서는 옛 편이 받는다 — 넓힌 규칙은 새 편에만 있다.
+  expectOnly('장치 하나를 의자까지 이동시켜', 'MSN-260929-01', 'legacy');
+  expectOnly('의자 앞까지 이동해', null, 'legacy');
 }
 expectOnly(legacy.utterance.text, legacy.missionId);
 expectOnly('안녕하세요', null);

@@ -206,6 +206,21 @@ const statusOf = (trace, id) => [...trace].reverse().find((e) => e.nodeId === id
   check(b1?.payload?.stop_distance_m === 0.1 && b1.payload.stop_distance_edited === true, `T-B1 에 바꾼 정지 거리가 안 실렸다 (${JSON.stringify(b1?.payload)})`);
 }
 
+// ── 「↻ 처음부터」가 발화의 대상(@)을 지키는가 (261124 — 「장치 하나를 @까지 이동」으로 돌아갔다) ──
+// 승인 뒤에는 제안이 없다. `restartMission` 이 낱말을 안 넘기면 `targetWord` 가 null 이 되고 탐지가 no_query 로 선다.
+{
+  const at03 = 'MSN-261123-03';
+  scenario.resetMission();
+  scenario.proposeMission({ origin: 'script', missionId: at03, title: at03, keywords: [], planId: null, world: 'registry', target: '의자' });
+  scenario.acceptProposal('remote');
+  const approved = scenario.getMissionState().current.targetWord ?? null;
+  scenario.restartMission();
+  const restarted = scenario.getMissionState().current.targetWord ?? null;
+  check(approved === '의자', `@ 편 승인 뒤 대상이 ${approved} — 의자 여야 한다`);
+  check(restarted === '의자', `@ 편 「처음부터」 뒤 대상이 ${restarted} — 의자가 남아야 한다 (빈칸 @ 로 돌아갔다)`);
+  scenario.resetMission();
+}
+
 stopLink();
 if (failures.length > 0) {
   console.error(`❌ verify:scan-detect-link 실패 ${failures.length}건`);

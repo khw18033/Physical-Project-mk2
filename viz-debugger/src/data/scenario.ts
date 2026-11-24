@@ -1519,7 +1519,9 @@ export function restartMission(): boolean {
     return true;
   }
   if (viewForMission(missionId) === null) return false;
-  activateMission(missionId, 'remote');
+  // **발화가 정한 대상을 그대로 넘긴다** (261124 — @ 편에서 「처음부터」를 누르면 「장치 하나를 @까지 이동」으로 돌아갔다).
+  // 안 넘기면 `activateMission` 이 제안에서 찾는데, 승인 뒤라 제안이 없어 낱말이 null 이 되고 탐지가 `no_query` 로 선다.
+  activateMission(missionId, 'remote', state.current.targetWord ?? null);
   if (opensRobotGate(missionId)) markApproved();
   // **시작까지 자동으로 넘어가지 않는다** (260912). 「처음부터」는 판을 비우는 것이고,
   // 로봇을 움직이는 것은 사람이 「임무 시작」을 누르는 일이다 — 관문을 우회하지 않는다.

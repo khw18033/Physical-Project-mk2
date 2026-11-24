@@ -13,6 +13,7 @@
  */
 
 import { useEffect, useRef, useState, type RefObject } from 'react';
+import { createPortal } from 'react-dom';
 import { t } from '../../i18n/dict.ts';
 import { useLang } from '../../shared/language.ts';
 import { trimBase } from '../visionClient.ts';
@@ -31,7 +32,15 @@ function contentBox(img: HTMLImageElement) {
   return { left: img.offsetLeft + (w - nw * s) / 2, top: img.offsetTop + (h - nh * s) / 2, s, nw, nh };
 }
 
-export function VisionReid({ base, model, imgRef }: { base: string; model: string; imgRef: RefObject<HTMLImageElement | null> }) {
+export function VisionReid({ base, model, imgRef, slot, onBand }: {
+  base: string;
+  model: string;
+  imgRef: RefObject<HTMLImageElement | null>;
+  /** 버튼 줄이 설 자리(`VisionToolStack`) — 영역 지정 줄 아래에 쌓인다. 아직 없으면 버튼을 안 그린다. */
+  slot: HTMLElement | null;
+  /** 결과 띠 높이(화면 픽셀)를 버튼 자리에 알린다 — 영역 층을 끈 모델에서도 띠 아래에 서도록. */
+  onBand: (px: number) => void;
+}) {
   useLang();
   const [frame, setFrame] = useState<Frame | null>(null);
   const [items, setItems] = useState<Item[]>([]);
@@ -64,6 +73,11 @@ export function VisionReid({ base, model, imgRef }: { base: string; model: strin
   }, [imgRef]);
 
   const img = imgRef.current;
+  // 결과 띠 높이 — 훅이라 아래의 이른 return 보다 앞에 둔다.
+  const box0 = img !== null && img.naturalWidth > 0 ? contentBox(img) : null;
+  const bandPx = box0 !== null && frame?.height != null && frame.overlay_prefs?.reid ? Math.max(0, box0.nh - frame.height) * box0.s : null;
+  useEffect(() => { if (bandPx !== null) onBand(bandPx); }, [bandPx, onBand]);
+
   if (img === null || !img.naturalWidth || frame?.height == null) return null;
   if (!frame.overlay_prefs?.reid) return null;
   const g = contentBox(img);
@@ -108,11 +122,13 @@ export function VisionReid({ base, model, imgRef }: { base: string; model: strin
         const r = layer.current?.getBoundingClientRect();
         if (r) void pick(event.clientX - r.left, event.clientY - r.top);
       }} />}
-    <div className="vreid-bar" style={{ left: g.left + g.nw * g.s - 8, top: g.top + band * g.s + 40 }}>
+    {/* 261124 — 버튼 줄은 칸의 버튼 자리(`VisionToolStack`)에 영역 지정 줄 아래로 선다. 전에는 고정 간격(+40px)에 따로 서서,
+        좁은 칸에서 세로로 길어진 영역 줄과 겹쳤다. 항목 글은 한 줄로 자르고 전체는 title 로 둔다 */}
+    {slot !== null && createPortal(<div className="vreid-bar">
       <button type="button" className={mode ? 'is-on' : ''} onClick={() => setMode(!mode)}>{t('vis.reid.set')}</button>
       {items.length > 0 && <button type="button" onClick={() => { void clear(); }}>{t('vis.reid.clear')}</button>}
-      {items.map((it) => <small key={it.id} className="vreid-bar__item">{where(it)}</small>)}
-      {error !== null && <small className="vreid-bar__err">{error}</small>}
-    </div>
+      {items.map((it) => <small key={it.id} className="vreid-bar__item" title={where(it)}>{where(it)}</small>)}
+      {error !== null && <small className="vreid-bar__err" title={error}>{error}</small>}
+    </div>, slot)}
   </>;
 }

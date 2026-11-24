@@ -61,6 +61,50 @@
       "twodevices",
       "bothdevices",
       "2devices"
-    ]
+    ],
+    "also": {
+      "must": [
+        [
+          "to",
+          "toward",
+          "frontof"
+        ]
+      ],
+      "any": [
+        "move",
+        "go",
+        "send",
+        "bring",
+        "head",
+        "approach"
+      ],
+      "not": [
+        "self-driving",
+        "selfdriving",
+        "autonomous",
+        "twodevices",
+        "bothdevices",
+        "2devices",
+        "door",
+        "box",
+        "elevator",
+        "lift",
+        "503",
+        "415",
+        "blindspot",
+        "barrier",
+        "floodgate",
+        "anomal",
+        "turn",
+        "rotate",
+        "degree",
+        "forward",
+        "backward",
+        "meter",
+        "left",
+        "right",
+        "there"
+      ]
+    }
   }
 }

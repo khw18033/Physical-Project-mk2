@@ -1490,13 +1490,19 @@ button.flight-armed:not(:disabled){color:#fff!important;border-color:#8f1d22!imp
 .vroi-rect{position:absolute;border:2px solid #00c8c8;background:#00c8c833;box-shadow:0 0 0 1px #0008}
 .vroi-rect--live{background:#00c8c844;pointer-events:none}
 .vroi-rect__x{position:absolute;right:-1px;top:-1px;pointer-events:auto;cursor:pointer;background:#000c;color:#fff;border:0;font-size:12px;line-height:1;padding:3px 5px}
-.vroi-bar{position:absolute;z-index:4;transform:translateX(-100%);display:flex;gap:6px;align-items:center}
+/* 261124 — 영역 · 재식별 버튼이 함께 서는 자리(src/vision/views/VisionToolStack.tsx). 그림 오른쪽 위에서 오른쪽 기준으로 세로로 쌓는다.
+   전에는 두 묶음이 제각기 left+translateX(-100%) 로 서서, 영상이 칸을 꽉 채우면(2열) 폭이 8px 로 눌려 글이 한 자씩 꺾이고 서로 겹쳤다 */
+.vtool-stack{position:absolute;z-index:4;display:flex;flex-direction:column;align-items:flex-end;gap:4px;width:max-content;max-width:calc(100% - 16px);pointer-events:none}
+.vtool-stack>*{pointer-events:auto;max-width:100%}
+.vtool-stack button{white-space:nowrap}
+.vroi-bar{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:6px;align-items:center}
 .vroi-bar button{background:#000b;color:#fff;border:1px solid #fff6;border-radius:4px;padding:3px 9px;cursor:pointer;font-size:12px}
 .vroi-bar button.is-on{background:#00c8c8;color:#000;border-color:#00c8c8}
 .vroi-bar__err{background:#000b;color:#ff8a80;padding:2px 6px;border-radius:4px}
 /* 261123 — 객체 재식별 층(src/vision/views/VisionReid.tsx). 선택 모드에서만 클릭을 받는다 */
 .vreid-layer{position:absolute;z-index:3;cursor:crosshair}
-.vreid-bar{position:absolute;z-index:4;transform:translateX(-100%);display:flex;flex-direction:column;align-items:flex-end;gap:4px}
+.vreid-bar{display:flex;flex-direction:column;align-items:flex-end;gap:4px;min-width:0}
+.vreid-bar :is(.vreid-bar__item,.vreid-bar__err){max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .vreid-bar button{background:#000b;color:#fff;border:1px solid #fff6;border-radius:4px;padding:3px 9px;cursor:pointer;font-size:12px}
 .vreid-bar button.is-on{background:#ff00ff;color:#fff;border-color:#ff00ff}
 .vreid-bar__item{background:#000b;color:#ff9dff;padding:2px 6px;border-radius:4px;font-size:11px}

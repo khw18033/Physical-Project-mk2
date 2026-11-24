@@ -17,6 +17,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState, type MouseEvent, type RefObject } from 'react';
+import { createPortal } from 'react-dom';
 import { t } from '../../i18n/dict.ts';
 import { useLang } from '../../shared/language.ts';
 import { trimBase } from '../visionClient.ts';
@@ -64,7 +65,15 @@ function useRoiState(base: string, model: string) {
   return { roi, setRoi, info, error, setError, refresh };
 }
 
-export function VisionRoi({ base, model, imgRef }: { base: string; model: string; imgRef: RefObject<HTMLImageElement | null> }) {
+export function VisionRoi({ base, model, imgRef, slot, onBand }: {
+  base: string;
+  model: string;
+  imgRef: RefObject<HTMLImageElement | null>;
+  /** 버튼 줄이 설 자리(`VisionToolStack`). 아직 없으면 버튼을 안 그린다 — 칸이 막 선 첫 그림 한 번뿐이다. */
+  slot: HTMLElement | null;
+  /** 결과 띠 높이(화면 픽셀)를 버튼 자리에 알린다. */
+  onBand: (px: number) => void;
+}) {
   useLang();
   const { roi, setRoi, info, error, setError } = useRoiState(base, model);
   const [mode, setMode] = useState(false);
@@ -83,6 +92,11 @@ export function VisionRoi({ base, model, imgRef }: { base: string; model: string
   }, [imgRef]);
 
   const img = imgRef.current;
+  // 결과 띠 높이 — 훅이라 아래의 이른 return 보다 앞에 둔다.
+  const box0 = img !== null && img.naturalWidth > 0 ? contentBox(img) : null;
+  const bandPx = box0 !== null && info?.height != null ? Math.max(0, box0.nh - info.height) * box0.s : null;
+  useEffect(() => { if (bandPx !== null) onBand(bandPx); }, [bandPx, onBand]);
+
   if (img === null || !img.naturalWidth || info?.height == null || info.width == null) return null;
   if (info.overlay_prefs?.roi === false) return null;
   const g = contentBox(img);
@@ -152,10 +166,11 @@ export function VisionRoi({ base, model, imgRef }: { base: string; model: string
       </div>)}
       {live !== null && <div className="vroi-rect vroi-rect--live" style={px(live)} />}
     </div>
-    <div className="vroi-bar" style={{ left: g.left + g.nw * g.s - 8, top: g.top + band * g.s + 8 }}>
+    {/* 261124 — 버튼 줄은 칸의 버튼 자리(`VisionToolStack`)에 선다. 제 자리에 절대 위치로 서면 좁은 칸에서 글이 한 자씩 꺾였다 */}
+    {slot !== null && createPortal(<div className="vroi-bar">
       <button type="button" className={mode ? 'is-on' : ''} onClick={() => setMode(!mode)}>{t('vis.roi.set')}</button>
       {rects.length > 0 && <button type="button" onClick={() => { setMode(false); void send([]); }}>{t('vis.roi.clear')}</button>}
       {error !== null && <small className="vroi-bar__err">{error}</small>}
-    </div>
+    </div>, slot)}
   </>;
 }
