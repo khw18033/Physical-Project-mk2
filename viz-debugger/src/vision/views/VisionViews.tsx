@@ -75,8 +75,8 @@ export function useVisionBinding(entityId: string | null): VisionBinding {
   return resolveVisionBinding(chosen, deviceBrokerHost(entityId), sources, visionBases(), deviceDirectBase(entityId));
 }
 
-/** 2초마다 한 장. 창구가 그 스트림의 첫 JPEG 를 잘라 준다. */
-function Still({ base, model, className }: { base: string; model: string | null; className?: string }) {
+/** 2초마다 한 장. 창구가 그 스트림의 첫 JPEG 를 잘라 준다. 객체 탐지 상태판(261124)의 카드도 쓴다. */
+export function Still({ base, model, className }: { base: string; model: string | null; className?: string }) {
   useLang();
   const [nonce, setNonce] = useState(0);
   const [failed, setFailed] = useState(false);
@@ -300,14 +300,16 @@ export function VisionStream({ entityId, base, model }: { entityId: string; base
 /**
  * **추론 영상 노드.** `taskDeviceId` 는 노드를 붙인 태스크의 장비 — 그 장비에 묶인 포트가 기본이다.
  * `lockSource` 면 포트 고르기를 안 그린다(하드웨어 카드 상세 — 포트는 그 위의 묶음 칸이 정한다).
+ * `fixedBase` 를 주면 그 포트다(객체 탐지 상태판 상세, 261124 — 장비 없이 포트로 연다). 포트 고르기도 안 그린다.
  */
-export function VisionCam({ nodeId, taskDeviceId = null, zoom = false, lockSource = false, compact = false }: {
+export function VisionCam({ nodeId, taskDeviceId = null, zoom = false, lockSource = false, compact = false, fixedBase }: {
   nodeId: string;
   taskDeviceId?: string | null;
   zoom?: boolean;
   lockSource?: boolean;
   /** 요약 표를 뺀다 — 장비 여럿을 나란히 보는 화면(전체 카메라, 261002). 고르는 칸과 영상은 그대로다. */
   compact?: boolean;
+  fixedBase?: string;
 }) {
   useLang();
   useConnections();
@@ -320,7 +322,7 @@ export function VisionCam({ nodeId, taskDeviceId = null, zoom = false, lockSourc
   const autoWhy = binding.base !== null
     ? t('vis.whyDevice', { device: taskDeviceId ?? '' })
     : taskDeviceId === null ? t('vis.whyFirst') : t('vis.whyNoBinding', { device: taskDeviceId });
-  const base = lockSource ? binding.base : (choice.base ?? autoBase);
+  const base = fixedBase !== undefined ? fixedBase : lockSource ? binding.base : (choice.base ?? autoBase);
   useEffect(() => holdVisionSource(base), [base]);
 
   // **다시보기에서는 영상을 띄우지 않는다** — 지금 영상을 지난 판 자리에 띄우면 그때 본 것으로 읽는다.
@@ -333,7 +335,7 @@ export function VisionCam({ nodeId, taskDeviceId = null, zoom = false, lockSourc
   const cells = visionStreamCells(state, choice);
 
   return <div className={`detect-cam vision-cam${zoom ? ' detect-cam--zoom' : ''}`}>
-    {zoom && !lockSource && <SourcePicker nodeId={nodeId} autoBase={autoBase} autoWhy={autoWhy} />}
+    {zoom && !lockSource && fixedBase === undefined && <SourcePicker nodeId={nodeId} autoBase={autoBase} autoWhy={autoWhy} />}
     {zoom && base !== null && <ModelPicker nodeId={nodeId} models={models} />}
     {base === null
       ? <p className="vn-line vn-dim">{taskDeviceId === null ? t('vis.noAddressNode') : t('vis.noBindingNode', { device: taskDeviceId })}</p>

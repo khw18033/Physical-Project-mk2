@@ -119,7 +119,7 @@ controls.push('공통 헤더가 빠진 봉투');
   const main = read('src', 'main.tsx');
   if (!/<ServerCard \/>/.test(main)) failures.push('오른쪽 기둥에 서버 칸이 없다');
   // 261001 — 서버는 장비가 아니라서 하드웨어 패널 **밖**, 오른쪽 기둥의 제 칸이다.
-  const hardwarePanel = main.slice(main.indexOf('<aside className="hardware-panel"'), main.indexOf('<CapabilityPanel />'));
+  const hardwarePanel = main.slice(main.indexOf('<aside className="hardware-panel"'), main.indexOf('<DetectModelPanel'));
   if (/<ServerCard \/>/.test(hardwarePanel)) failures.push('서버 카드가 아직 하드웨어 패널 안에 있다');
   if (!/onDoubleClick=\{\(\) => setOpen\(true\)\}/.test(card)) failures.push('서버 카드를 더블클릭해도 상세가 안 열린다');
   const overlay = read('src', 'shell', 'ServerStatusOverlay.tsx');

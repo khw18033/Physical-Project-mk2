@@ -49,7 +49,9 @@ import { useRobotUplink } from './physical/robotBridge.ts';
 import { useDetectUplink } from './detect/useDetect.tsx';
 import { HardwareLink } from './physical/HardwareLink.tsx';
 import { VisionCardLine } from './vision/views/VisionViews.tsx';
-import { CapabilityPanel } from './capability/views/CapabilityPanel.tsx';
+// 261124 — 「기능」 판(`./capability/views/CapabilityPanel.tsx`)은 화면에서만 뺐다(코드는 그대로). 그 자리에 객체 탐지 상태판.
+import { DetectModelPanel } from './detect/status/views/DetectModelPanel.tsx';
+import { DetectStreamOverlay } from './detect/status/views/DetectStreamOverlay.tsx';
 import { robotClient } from './physical/robotClient.ts';
 import { framesUpTo } from './viewpoint/store.ts';
 import { startMissionRecorder } from './record/recorder.ts';
@@ -164,6 +166,8 @@ function Milestones({ view, phase, milestoneStatuses, assignments, onAssign, onO
   const [statusDeviceId, setStatusDeviceId] = useState<string | null>(null);
   /** 「전체 장치 확인」 판 (261002 전체 카메라 → 261110 카메라 · 장치 상태 탭). 장비 상세와 같이 형제로 얹고, 동시에 하나만 연다. */
   const [allDevicesOpen, setAllDevicesOpen] = useState(false);
+  /** 객체 탐지 상태판 상세 (261124) — 포트 하나 · 연 모델. 위 둘과 형제이고 동시에 하나만 연다. */
+  const [detectOpen, setDetectOpen] = useState<{ base: string; model: string | null } | null>(null);
   // 승인·거부는 **마일스톤 목록 위 제안 카드 안**에 있다 (260901). 통합 빌드는 이 슬롯에
   // PlanApproval(근거 4층 + 승인·거부)이 들어오고, 단독 빌드는 로컬 재생기용 폴백이 들어온다 —
   // **같은 자리**다. 근거의 「구간별 계획」이 「아래 마일스톤과 같음」이라고 적으므로
@@ -242,7 +246,7 @@ function Milestones({ view, phase, milestoneStatuses, assignments, onAssign, onO
     <ServerCard />
     <aside className="hardware-panel"><header className="hardware-panel__head"><h2>{t('ms.hardwareCount', { n: cards.length })}</h2>
       {/* 261002 지시 — 제목 오른쪽 빈자리. 장비가 여럿일 때 카메라 · 상태를 한 번에 본다(261110 — 전체 장치 확인). */}
-      <button type="button" className="hardware-panel__cams" onClick={() => { setStatusDeviceId(null); setAllDevicesOpen(true); }}>{t('acam.open')}</button>
+      <button type="button" className="hardware-panel__cams" onClick={() => { setStatusDeviceId(null); setDetectOpen(null); setAllDevicesOpen(true); }}>{t('acam.open')}</button>
     </header><p><Rich id="ms.hardwareHint" vars={{ source: hardwareSourceLabel() }} /></p>
     {/*
       **목록은 지금 붙어 있는 장비다** (260922 지시 — 「드론 연결했으면 드론 하나만」).
@@ -261,7 +265,7 @@ function Milestones({ view, phase, milestoneStatuses, assignments, onAssign, onO
     {cards.length === 0 && <p className="hardware-panel__none">{t('ms.noConnectedDevice')}</p>}
     {cards.map((id) => {
       const item = hardware.find((row) => row.id === id);
-      return <article key={id} draggable onDragStart={(event) => event.dataTransfer.setData('text/plain', id)} onDoubleClick={() => setStatusDeviceId(id)}>
+      return <article key={id} draggable onDragStart={(event) => event.dataTransfer.setData('text/plain', id)} onDoubleClick={() => { setDetectOpen(null); setStatusDeviceId(id); }}>
         <b className={item?.connection}>{id}</b>
         {/* 대본이 아는 장비는 그 종류를, 붙어서 뜬 것은 **배역인지 연결인지**를 적는다 —
             「연결됨」과 「이번 편 등장」은 다른 말이고, 뭉치면 꺼진 배역을 붙은 것으로 읽는다. */}
@@ -273,8 +277,8 @@ function Milestones({ view, phase, milestoneStatuses, assignments, onAssign, onO
         <VisionCardLine entityId={id} />
       </article>;
     })}</aside>
-    {/* 기능 상태 (260920). 하드웨어와 **완전히 다른 판**이고 자기 스크롤을 갖는다. */}
-    <CapabilityPanel />
+    {/* 객체 탐지 상태 (261124 — 「기능」 판 자리). 하드웨어와 다른 판이고 자기 스크롤을 갖는다. 장비가 없어도 뜬다. */}
+    <DetectModelPanel onOpen={(base, model) => { setStatusDeviceId(null); setAllDevicesOpen(false); setDetectOpen({ base, model }); }} />
     </div>
     {/* 대상 상태 (260904). 목록의 **형제**로 얹힌다 — 뒤의 마일스톤·하드웨어 목록은
         언마운트되지 않으므로 닫으면 정확히 같은 자리다 (VZ-N-05 와 같은 규칙). */}
@@ -283,7 +287,8 @@ function Milestones({ view, phase, milestoneStatuses, assignments, onAssign, onO
       device={hardware.find((item) => item.id === statusDeviceId)}
       source={hardwareSourceLabel()}
       onClose={() => setStatusDeviceId(null)} />}
-    {allDevicesOpen && <AllDevicesOverlay onClose={() => setAllDevicesOpen(false)} />}</div>;
+    {allDevicesOpen && <AllDevicesOverlay onClose={() => setAllDevicesOpen(false)} />}
+    {detectOpen !== null && <DetectStreamOverlay key={`${detectOpen.base}|${detectOpen.model ?? ''}`} base={detectOpen.base} model={detectOpen.model} onClose={() => setDetectOpen(null)} />}</div>;
 }
 
 function ReplayControls({ second, following, playing, onChange, onFollow, view, trace, tasks }: {

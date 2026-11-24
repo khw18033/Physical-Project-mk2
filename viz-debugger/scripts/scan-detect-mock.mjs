@@ -199,9 +199,13 @@ export function scanMockHandler(options = {}) {
 
     if (path === '/health' && req.method === 'GET') {
       const current = busy();
+      // 261124 — 실물(data_stream a1e43f8) 모양에 맞췄다: 스캔 창구는 `vision.targeted.scan` 에 끼어든다(`vision.scan` 이 아니다).
+      // 요약 칸(age_s 등)이 있어야 객체 탐지 상태판이 targeted 를 살아 있는 모델로 센다.
       sendJson(res, 200, {
-        source: opt.stream, service: SCAN_MOCK_SERVICE,
-        vision: { targeted: { results: 1, n: 1 }, scan: { busy_scan_id: current?.scan_id ?? null, devices: { 'go1-001': opt.stream } } },
+        source: opt.stream, port: Number(opt.port) || null, service: SCAN_MOCK_SERVICE, frames: 100 + log.length, states: 0,
+        status: { video: '받는 중 (가짜 창구)', state: null },
+        vision: { targeted: { results: 1 + log.length, n: 99 + log.length, run: 'mock', lag_ms: 120, infer_ms: 90, detections: 1, age_s: 0.4, scan: { busy_scan_id: current?.scan_id ?? null, devices: { 'go1-001': opt.stream } } } },
+        vision_error: null,
       });
       return;
     }
@@ -338,6 +342,7 @@ if (process.argv[1] !== undefined && resolve(process.argv[1]) === fileURLToPath(
     bearing: Number(arg('bearing', '96.4')),
     distance: Number(arg('distance', '2.35')),
     stream: arg('stream', 'robot1'),
+    port,
   };
   const server = await startScanMock({ port, host: arg('host', '0.0.0.0'), ...options }).catch((error) => {
     if (error?.code === 'EADDRINUSE') { console.error(`포트 ${port} 를 다른 프로그램이 쓰고 있습니다. --port 로 바꾸세요.`); process.exit(1); }

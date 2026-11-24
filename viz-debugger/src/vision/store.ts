@@ -8,12 +8,17 @@
  * 같은 포트에 요청이 겹쳐 쌓이지 않게.
  *
  * 처리 속도(장/초)는 **서버가 센 결과 누계의 차이**로 잰다. 서버의 10초 보고와 같은 값을 화면에서도 보려는 것이다.
+ *
+ * **느린 붙잡기** (261124 — 객체 탐지 상태판). 상태판은 늘 떠 있어 포트 전부를 붙잡는데, 1초마다 묻을 까닭이 없다.
+ * `holdAllVisionSources({ slow: true })` 는 2초마다 묻고, 같은 포트를 다른 화면이 1초로 붙잡고 있으면 1초가 이긴다.
  */
 
 import { useSyncExternalStore } from 'react';
 import { fetchStreamHealth, visionBases, type FetchLike, type StreamHealth } from './visionClient.ts';
 
 export const VISION_POLL_MS = 1000;
+/** 느린 붙잡기의 주기 — `VISION_POLL_MS` 의 몇 배인가. */
+export const VISION_SLOW_EVERY = 2;
 
 export type VisionSourceState = {
   health: StreamHealth | null;
@@ -23,6 +28,8 @@ export type VisionSourceState = {
   via: 'relay' | 'direct' | null;
   /** 모델별 처리 속도(장/초). 두 번 받아야 생긴다. */
   rate: Readonly<Record<string, number>>;
+  /** 원본 영상 장/초 · 상태 건/초 (261124) — `frames` · `states` 누계의 차이. 두 번 받아야 생긴다. */
+  sourceRate?: { frames: number | null; states: number | null };
 };
 
 const EMPTY: VisionSourceState = { health: null, receivedAtMs: null, error: null, via: null, rate: {} };
@@ -31,6 +38,8 @@ let sources: Readonly<Record<string, VisionSourceState>> = {};
 const listeners = new Set<() => void>();
 const holds = new Map<string, number>();
 let allHolds = 0;
+let slowAllHolds = 0;
+let tickCount = 0;
 const inFlight = new Set<string>();
 /** 속도를 재는 앞 값 — 포트 · 모델마다 (누계, 받은 시각). */
 const previous = new Map<string, { results: number; atMs: number }>();
@@ -59,11 +68,11 @@ export function useVisionSources(): Readonly<Record<string, VisionSourceState>> 
   return useSyncExternalStore(subscribe, visionSources, visionSources);
 }
 
-/** 지금 묻는 포트들. 붙잡힌 것 ∪ (전부를 붙잡았으면) 연결 관리 목록. */
-function heldBases(): string[] {
+/** 지금 묻는 포트들. 붙잡힌 것 ∪ (전부를 붙잡았으면) 연결 관리 목록. 느린 붙잡기는 `slowTurn` 일 때만 든다. */
+function heldBases(slowTurn = true): string[] {
   const out = new Set<string>();
   for (const [base, count] of holds) if (count > 0) out.add(base);
-  if (allHolds > 0) for (const base of visionBases()) out.add(base);
+  if (allHolds > 0 || (slowAllHolds > 0 && slowTurn)) for (const base of visionBases()) out.add(base);
   return [...out];
 }
 
@@ -91,18 +100,23 @@ export async function pollVisionSource(base: string, nowMs: () => number = Date.
         previous.set(key, { results: model.results, atMs: at });
       }
     }
-    commit(base, { health: got.health, receivedAtMs: at, error: null, via: got.via, rate });
+    const prevAt = before.receivedAtMs;
+    const perSec = (now: number | null, then: number | null | undefined) => (
+      now === null || then === null || then === undefined || prevAt === null || at <= prevAt || now < then ? null : ((now - then) * 1000) / (at - prevAt));
+    const sourceRate = { frames: perSec(got.health.frames, before.health?.frames), states: perSec(got.health.states, before.health?.states) };
+    commit(base, { health: got.health, receivedAtMs: at, error: null, via: got.via, rate, sourceRate });
   } finally {
     inFlight.delete(base);
   }
 }
 
 function tick(): void {
-  for (const base of heldBases()) void pollVisionSource(base);
+  tickCount += 1;
+  for (const base of heldBases(tickCount % VISION_SLOW_EVERY === 1)) void pollVisionSource(base);
 }
 
 function ensureTimer(): void {
-  const busy = allHolds > 0 || [...holds.values()].some((count) => count > 0);
+  const busy = allHolds > 0 || slowAllHolds > 0 || [...holds.values()].some((count) => count > 0);
   if (busy && timer === null) {
     tick();
     timer = setInterval(tick, VISION_POLL_MS);
@@ -123,12 +137,14 @@ export function holdVisionSource(base: string | null): () => void {
   };
 }
 
-/** 연결 관리에 적힌 포트 전부를 붙잡는다 — 장비 맞추기가 쓴다. */
-export function holdAllVisionSources(): () => void {
-  allHolds += 1;
+/** 연결 관리에 적힌 포트 전부를 붙잡는다 — 장비 맞추기가 쓴다. `slow` 면 2초마다(객체 탐지 상태판, 261124). */
+export function holdAllVisionSources(options: { slow?: boolean } = {}): () => void {
+  if (options.slow === true) slowAllHolds += 1;
+  else allHolds += 1;
   ensureTimer();
   return () => {
-    allHolds = Math.max(0, allHolds - 1);
+    if (options.slow === true) slowAllHolds = Math.max(0, slowAllHolds - 1);
+    else allHolds = Math.max(0, allHolds - 1);
     ensureTimer();
   };
 }
@@ -140,6 +156,8 @@ export function resetVisionStore(nextFetcher?: FetchLike): void {
   inFlight.clear();
   holds.clear();
   allHolds = 0;
+  slowAllHolds = 0;
+  tickCount = 0;
   if (timer !== null) { clearInterval(timer); timer = null; }
   fetcher = nextFetcher;
 }

@@ -192,6 +192,8 @@ export const CONNECTION_TARGETS: readonly ConnectionTarget[] = [
     fields: [
       { key: 'host', labelKey: 'conn.field.host', fallback: '' },
       { key: 'ports', labelKey: 'conn.field.ports', fallback: '', list: true, addKey: 'conn.addPort' },
+      // 261124 — 객체 탐지 상태판이 지정 탐지 대상을 읽는 data_stream Redis. 비우면 IP 칸 호스트의 6380(`visionRedisUrl`).
+      { key: 'redis', labelKey: 'conn.field.redis', fallback: '' },
     ],
   },
   {

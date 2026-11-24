@@ -64,6 +64,7 @@ import { recordableObstacle } from '../autodrive/obstacle.ts';
 import { scanClient } from '../detect/scan/ScanClient.ts';
 import { frameResultAt, recordableScanRun, scanRunState } from '../detect/scan/scanStore.ts';
 import { recordableScanApproach } from '../physical/scanApproachRun.ts';
+import { recordableDetectHistory } from '../detect/status/history.ts';
 import { detectTargetOf, relayDriven } from '../scenarios/library.ts';
 import { useSyncExternalStore } from 'react';
 import {
@@ -279,6 +280,8 @@ function buildBodies(target: Run): { mission: string; progress: string } {
       scan: recordableScanRun(),
       scanApproach: recordableScanApproach()?.missionId === view.missionId ? recordableScanApproach() : null,
     } : {}),
+    // 객체 탐지 상태판의 변경 기록 (261124) — 임무 판이 도는 동안만 쌓인다. 사건이 없으면 칸을 안 둔다.
+    ...(recordableDetectHistory() === null ? {} : { detectModels: recordableDetectHistory() }),
     ...(relayDriven(view.missionId) ? {
       nav: recordableNavFeed(navRun()?.startedAtMs ?? target.navStartedAtMs),
       obstacle: recordableObstacle(),

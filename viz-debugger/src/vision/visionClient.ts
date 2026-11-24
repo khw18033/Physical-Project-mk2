@@ -21,7 +21,7 @@ import { t } from '../i18n/dict.ts';
 import { connectionAddress, registerConnectionDefault, splitAddressList } from '../shared/connections.ts';
 import { VISION_DEFAULT_PORTS, VISION_STREAM_HOST } from './presets.ts';
 
-const meta = import.meta as unknown as { env?: { VITE_VISION_STREAM_HOST?: string; VITE_VISION_STREAM_PORTS?: string } };
+const meta = import.meta as unknown as { env?: { VITE_VISION_STREAM_HOST?: string; VITE_VISION_STREAM_PORTS?: string; VITE_VISION_REDIS?: string } };
 
 /**
  * **IP 한 칸 + 포트 목록** (261001 지시). IP 만 바뀌고 포트는 그대로인 일이 있어서, IP 칸 하나를 고치면 포트 줄이
@@ -29,6 +29,14 @@ const meta = import.meta as unknown as { env?: { VITE_VISION_STREAM_HOST?: strin
  */
 registerConnectionDefault('vision', 'host', meta.env?.VITE_VISION_STREAM_HOST ?? VISION_STREAM_HOST);
 registerConnectionDefault('vision', 'ports', meta.env?.VITE_VISION_STREAM_PORTS ?? VISION_DEFAULT_PORTS.join('\n'));
+/**
+ * **Redis 칸** (261124 — 객체 탐지 상태판의 지정 탐지 대상). 비워 두면 IP 칸의 호스트 `:6380` 이다
+ * (data_stream 배포 가이드 — Redis 는 스트림 서버와 같은 기계의 6380 이고 테일넷 IP 에도 묶인다).
+ */
+registerConnectionDefault('vision', 'redis', meta.env?.VITE_VISION_REDIS ?? '');
+
+/** data_stream Redis 의 기본 포트. */
+export const VISION_REDIS_PORT = 6380;
 
 /** 개발 서버 창구 — `scripts/vision-stream-relay.mjs` 의 `VISION_RELAY_URL` 과 같아야 한다. */
 const RELAY = '/vision-stream';
@@ -94,6 +102,30 @@ export function stillUrl(base: string, model: string | null, nonce: number): str
   return `${RELAY}/frame?base=${encodeURIComponent(trimBase(base))}${modelPart}&n=${nonce}`;
 }
 
+/**
+ * **Redis 주소** — `redis://host:port`. Redis 칸이 비었으면 IP 칸의 호스트 + 6380. 둘 다 못 만들면 null.
+ * 칸에 `host:port` · `host` 만 적어도 받는다.
+ */
+export function visionRedisUrl(): string | null {
+  const raw = connectionAddress('vision', 'redis').trim();
+  if (raw === '') {
+    const host = visionHostOrigin(connectionAddress('vision', 'host'));
+    return host === null ? null : `redis://${new URL(host).hostname}:${VISION_REDIS_PORT}`;
+  }
+  try {
+    const url = new URL(/^[a-z][a-z0-9+.-]*:\/\//i.test(raw) ? raw : `redis://${raw}`);
+    if (url.protocol !== 'redis:' || url.hostname === '') return null;
+    return `redis://${url.hostname}:${url.port === '' ? VISION_REDIS_PORT : url.port}`;
+  } catch {
+    return null;
+  }
+}
+
+/** 지정 탐지 대상 — 창구가 Redis 마지막 한 건을 요약해 준다(`scripts/vision-redis-latest.mjs`). */
+export function redisLatestUrl(redis: string, source: string, model: string): string {
+  return `${RELAY}/latest?redis=${encodeURIComponent(redis)}&source=${encodeURIComponent(source)}&model=${encodeURIComponent(model)}`;
+}
+
 export function healthUrl(base: string): string {
   return `${trimBase(base)}/health`;
 }
@@ -127,8 +159,16 @@ export type StreamHealth = {
   upstreamHosts: readonly string[];
   models: readonly VisionModelSummary[];
   visionError: string | null;
+  /**
+   * **스캔 창구 상태** (261124 — data_stream `a1e43f8`). 서버가 `vision.targeted.scan` 에 `{busy_scan_id, devices}` 를 끼워
+   * 넣는다 — `targeted` 가 안 돌아도 그렇다. 창구가 없는 서버면 null.
+   */
+  scan: { busyScanId: string | null } | null;
   raw: unknown;
 };
+
+/** 모델 요약 칸 — 하나도 없으면 모델이 아니다(스캔 창구만 끼워 넣은 빈 `targeted`). */
+const SUMMARY_KEYS = ['results', 'n', 'run', 'lag_ms', 'infer_ms', 'detections', 'age_s'] as const;
 
 const num = (value: unknown): number | null => (typeof value === 'number' && Number.isFinite(value) ? value : null);
 const str = (value: unknown): string | null => (typeof value === 'string' && value !== '' ? value : null);
@@ -154,8 +194,16 @@ export function parseStreamHealth(body: unknown): StreamHealth | null {
   const vision = (record.vision !== null && typeof record.vision === 'object' && !Array.isArray(record.vision))
     ? record.vision as Record<string, unknown>
     : {};
+  // 스캔 창구가 `vision.targeted.scan` 에 끼워 넣은 것(261124). targeted 가 안 돌면 그 칸 하나뿐이라, 걸러 내지 않으면
+  // 결과가 한 번도 없는 「targeted」 모델이 모든 포트에 떠 있었다.
+  const targetedRaw = vision.targeted;
+  const scanRaw = targetedRaw !== null && typeof targetedRaw === 'object' ? (targetedRaw as Record<string, unknown>).scan : undefined;
+  const scan = scanRaw !== null && typeof scanRaw === 'object' && !Array.isArray(scanRaw)
+    ? { busyScanId: str((scanRaw as Record<string, unknown>).busy_scan_id) }
+    : null;
   const models: VisionModelSummary[] = Object.entries(vision)
     .filter(([, value]) => value !== null && typeof value === 'object')
+    .filter(([, value]) => SUMMARY_KEYS.some((key) => key in (value as Record<string, unknown>)))
     .map(([model, value]) => {
       const v = value as Record<string, unknown>;
       return {
@@ -181,6 +229,7 @@ export function parseStreamHealth(body: unknown): StreamHealth | null {
     upstreamHosts: upstreamHostsOf([video, state]),
     models,
     visionError: str(record.vision_error),
+    scan,
     raw: body,
   };
 }
