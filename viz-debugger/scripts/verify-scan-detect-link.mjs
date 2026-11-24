@@ -44,9 +44,9 @@ const stopLink = link.startScanDetectLink();
 
 const wrap = (deg) => ((((deg + 180) % 360) + 360) % 360) - 180;
 
-async function runCase({ missionId, mode = 'ok', stopAfterTurns = null, waitMs = 15000 }) {
+async function runCase({ missionId, mode = 'ok', stopAfterTurns = null, waitMs = 15000, distance = 2.35, after = null }) {
   const log = [];
-  const server = await startScanMock({ port: 0, host: '127.0.0.1', log, mode, loadMs: 100, markMs: 20, resultMs: 100 });
+  const server = await startScanMock({ port: 0, host: '127.0.0.1', log, mode, distance, loadMs: 100, markMs: 20, resultMs: 100 });
   const port = server.address().port;
   registerConnectionDefault('vision', 'host', 'http://127.0.0.1');
   registerConnectionDefault('vision', 'ports', String(port));
@@ -108,6 +108,7 @@ async function runCase({ missionId, mode = 'ok', stopAfterTurns = null, waitMs =
     report();
   }
   await sleep(200);
+  if (after !== null) await after({ sent });
   const trace = [...scenario.traceEvents()];
   const run = scanRunState();
   PhysicalClient.prototype.send = original;
@@ -137,11 +138,11 @@ const statusOf = (trace, id) => [...trace].reverse().find((e) => e.nodeId === id
   const prep = log.find((r) => r.path === '/scan/prepare');
   check(prep?.body.device === GO1 && prep.body.target === 'box' && prep.body.query === null, `prepare 가 틀리다 ${JSON.stringify(prep?.body)}`);
   check(log.findIndex((r) => r.path === '/scan/finish') > log.findLastIndex((r) => r.path === '/scan/mark'), 'finish 가 마지막 mark 뒤가 아니다');
-  // 경로: 방위 96.4 − 회전 오차 8 = 88.4, 직진 2.35 − 0.9 = 1.45 (테스트 상한이 꺼져 있을 때)
+  // 경로: 방위 96.4 − 회전 오차 8 = 88.4, 직진 2.35 − 정지 거리 0.2(새 편 셋의 기본 · 261124) = 2.15 (테스트 상한이 꺼져 있을 때)
   const lastTurn = turns[turns.length - 1];
   check(turns.length === 9 && Math.abs(lastTurn.parameters.deg - 88.4) < 0.05, `경로 회전이 ${lastTurn?.parameters.deg} — 96.4 − 8 = 88.4 여야 한다`);
   const forward = sent.find((s) => s.action === 'move_forward');
-  check(forward !== undefined && Math.abs(forward.parameters.distance_m - 1.45) < 1e-6, `직진이 ${forward?.parameters.distance_m} — 1.45 여야 한다`);
+  check(forward !== undefined && Math.abs(forward.parameters.distance_m - 2.15) < 1e-6, `직진이 ${forward?.parameters.distance_m} — 2.15 여야 한다`);
   for (const id of ['T-A0', 'T-A2', 'T-A3', 'T-A4-0', 'T-A4-7', 'T-A5', 'T-A6', 'T-B1']) {
     check(statusOf(trace, id) === 'done', `${id} 가 끝남으로 칠해지지 않았다 (${statusOf(trace, id)})`);
   }
@@ -170,6 +171,39 @@ const statusOf = (trace, id) => [...trace].reverse().find((e) => e.nodeId === id
 {
   const { log } = await runCase({ missionId: 'MSN-261027-01', waitMs: 1500 });
   check(log.length === 0, `옛 편에서 data_stream 창구를 두드렸다 (${log.map((r) => r.path).join(',')})`);
+}
+
+// ── 5. 정지 거리 바꾸기 (261124) — 너무 가까워 못 간 판을, 정지 거리를 줄여 다시 센다 ─────────────────
+// 대상 0.22 m − 기본 0.2 m = 0.02 m 라 직진 하한(0.05) 밑 → T-B1 실패. 0.1 m 로 바꾸면 0.12 m 경로가 서고,
+// **누르기 전에는 나가지 않는다.** 누르면 그 거리로 나간다. 이동이 나간 뒤에는 바꿔도 계획이 그대로다.
+{
+  const MISSION = 'MSN-261123-02';
+  let before = null; let afterEdit = null; let pressed = null; let locked = null; let badRange = null;
+  const { trace } = await runCase({
+    missionId: MISSION, distance: 0.22,
+    after: async ({ sent }) => {
+      before = { plan: approachRun.scanApproachState()?.plan, moves: sent.filter((s) => s.action === 'move_forward').length };
+      badRange = approachRun.setScanStopDistance(MISSION, 5);
+      approachRun.setScanStopDistance(MISSION, 0.1);
+      const state = approachRun.scanApproachState();
+      afterEdit = { ok: state?.plan.ok, forward: state?.plan.ok ? state.plan.issuedForwardM : null, waiting: state?.waitingApproval,
+        moves: sent.filter((s) => s.action === 'move_forward').length, stop: approachRun.scanStopDistance(MISSION, 0.2) };
+      await approachRun.issueScanApproach();
+      await sleep(300);
+      pressed = sent.find((s) => s.action === 'move_forward')?.parameters.distance_m ?? null;
+      approachRun.setScanStopDistance(MISSION, 0.05);
+      const lockedPlan = approachRun.scanApproachState()?.plan;
+      locked = lockedPlan?.ok ? lockedPlan.issuedForwardM : null;
+    },
+  });
+  check(before?.plan?.ok === false && before.plan.reason.key === 'sd.plan.alreadyClose' && before.moves === 0, `0.22 m 대상에 정지 0.2 m 인데 계획이 섰다 (${JSON.stringify(before)})`);
+  check(badRange === false, '범위 밖 정지 거리(5 m)를 받아들였다');
+  check(afterEdit?.ok === true && Math.abs(afterEdit.forward - 0.12) < 1e-9 && afterEdit.waiting === true && afterEdit.moves === 0 && afterEdit.stop === 0.1,
+    `정지 거리 0.1 m 로 다시 센 계획이 틀리다 — 0.12 m · 누르기 대기 · 아직 안 나감 (${JSON.stringify(afterEdit)})`);
+  check(pressed !== null && Math.abs(pressed - 0.12) < 1e-9, `누른 뒤 직진이 ${pressed} — 0.12 여야 한다`);
+  check(locked !== null && Math.abs(locked - 0.12) < 1e-9, `이동이 나간 뒤 정지 거리를 바꾸자 계획이 바뀌었다 (${locked})`);
+  const b1 = [...trace].reverse().find((e) => e.nodeId === 'T-B1');
+  check(b1?.payload?.stop_distance_m === 0.1 && b1.payload.stop_distance_edited === true, `T-B1 에 바꾼 정지 거리가 안 실렸다 (${JSON.stringify(b1?.payload)})`);
 }
 
 stopLink();

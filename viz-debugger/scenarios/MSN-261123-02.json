@@ -49,7 +49,7 @@
   "durationSec": 48,
   "params": {
     "forward_distance_m": 4.2,
-    "stop_distance_max_m": 0.9,
+    "stop_distance_max_m": 0.2,
     "viewpoint_count": 8,
     "viewpoint_step_deg": 45,
     "door_viewpoint_index": 2,

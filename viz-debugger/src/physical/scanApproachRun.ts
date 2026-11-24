@@ -12,7 +12,8 @@ import type { ScenarioEvent, TaskStatus } from '../model/types.ts';
 import { issueStepsToEnd } from './robotCommands.ts';
 import { robotClient } from './robotClient.ts';
 import { elapsedSec, markApproachIssued, robotSession } from './robotSession.ts';
-import type { ScanApproachPlan } from './scanApproach.ts';
+import { t } from '../i18n/dict.ts';
+import { planScanApproach, type ScanApproachPlan, type ScanPlanInput } from './scanApproach.ts';
 
 let seq = 6_000_000;
 
@@ -31,7 +32,15 @@ export function emitScanNode(missionId: string, nodeId: string, status: TaskStat
 
 // ── 이동 계획 (승인 대기 포함) ───────────────────────────────────────────
 
-export type ScanApproachState = { scanId: string; missionId: string; plan: ScanApproachPlan; issued: boolean; waitingApproval: boolean } | null;
+export type ScanApproachState = {
+  scanId: string;
+  missionId: string;
+  plan: ScanApproachPlan;
+  /** 계획을 다시 셀 재료 — 정지 거리를 바꾸면 이것으로 다시 센다. */
+  input: ScanPlanInput;
+  issued: boolean;
+  waitingApproval: boolean;
+} | null;
 let approach: ScanApproachState = null;
 const approachListeners = new Set<() => void>();
 export function setScanApproach(next: ScanApproachState): void {
@@ -41,6 +50,62 @@ export function setScanApproach(next: ScanApproachState): void {
 export function scanApproachState(): ScanApproachState { return approach; }
 export function useScanApproach(): ScanApproachState {
   return useSyncExternalStore((l) => { approachListeners.add(l); return () => { approachListeners.delete(l); }; }, () => approach, () => approach);
+}
+
+// ── 정지 거리 (261124 — 실물 Go1 시험) ─────────────────────────────────────
+//
+// 대상 앞 몇 m 에서 설지. 편의 `params.stop_distance_max_m` 이 기본이고(새 편 셋은 0.2 m), 「이동 경로 산출」(T-B1) 상세에서
+// 사람이 바꿀 수 있다. 바꾼 값은 **그 편에 이 화면이 켜져 있는 동안** 남는다 — 다음 판도 그 값으로 센다.
+// 0.9 m 였을 때 실물 시험에서 탐지를 해도 대상 가까이 가지 못했다(261124).
+
+/** 편이 값을 안 줄 때의 정지 거리(m). */
+export const SCAN_STOP_DEFAULT_M = 0.2;
+/** 사람이 고를 수 있는 범위(m). */
+export const SCAN_STOP_RANGE = { min: 0, max: 3 } as const;
+
+const stopEdits = new Map<string, number>();
+const stopListeners = new Set<() => void>();
+let stopVersion = 0;
+
+/** 그 편의 정지 거리 — 사람이 바꾼 값 > 편의 값 > 기본. */
+export function scanStopDistance(missionId: string, fromParams: unknown): number {
+  const edited = stopEdits.get(missionId);
+  if (edited !== undefined) return edited;
+  const param = Number(fromParams);
+  return fromParams !== undefined && fromParams !== null && Number.isFinite(param) ? param : SCAN_STOP_DEFAULT_M;
+}
+export function scanStopEdited(missionId: string): boolean { return stopEdits.has(missionId); }
+export function useScanStopVersion(): number {
+  return useSyncExternalStore((l) => { stopListeners.add(l); return () => { stopListeners.delete(l); }; }, () => stopVersion, () => stopVersion);
+}
+
+/** T-B1 노드에 싣는 값 — 처음 셀 때와 다시 셀 때 같은 모양이다. */
+export function scanPlanPayload(plan: ScanApproachPlan, stopDistanceM: number, edited: boolean): Record<string, unknown> {
+  const stop = { stop_distance_m: stopDistanceM, ...(edited ? { stop_distance_edited: true } : {}) };
+  if (!plan.ok) return { reason: t(plan.reason.key, plan.reason.vars), ...stop };
+  return {
+    turn_deg: plan.turnDeg, forward_m: plan.issuedForwardM, drift_deg: plan.driftDeg, bearing_deg: plan.bearingDeg,
+    notes: plan.notes.map((note) => t(note.key, note.vars)), ...stop,
+  };
+}
+
+/**
+ * 정지 거리를 바꾼다. 아직 이동이 안 나간 계획이 있으면 **그 자리에서 다시 세고**, 다시 센 계획은 사람이 「이 경로로 이동」을
+ * 눌러야 출발한다(승인 설정과 상관없이) — 화면에서 손댄 경로가 저절로 나가지 않게. 이미 나갔으면 다음 판부터 쓴다.
+ * 범위 밖이거나 숫자가 아니면 false.
+ */
+export function setScanStopDistance(missionId: string, meters: number): boolean {
+  if (!Number.isFinite(meters) || meters < SCAN_STOP_RANGE.min || meters > SCAN_STOP_RANGE.max) return false;
+  stopEdits.set(missionId, meters);
+  stopVersion += 1;
+  for (const listener of stopListeners) listener();
+  const current = approach;
+  if (current === null || current.issued || current.missionId !== missionId) return true;
+  const input = { ...current.input, stopDistanceM: meters };
+  const plan = planScanApproach(input);
+  setScanApproach({ ...current, plan, input, waitingApproval: plan.ok });
+  emitScanNode(missionId, 'T-B1', plan.ok ? 'done' : 'failed', scanPlanPayload(plan, meters, true));
+  return true;
 }
 
 /** 계획대로 이동 명령을 낸다. 승인 대기 중이면 사람이 이것을 누른다. */

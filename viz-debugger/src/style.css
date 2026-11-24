@@ -731,6 +731,9 @@ button.robot-stop:hover{background:#b8271f}
 .scan-cues{border-collapse:collapse;font-size:12px;margin:4px 0}
 .scan-cues th,.scan-cues td{padding:2px 6px;border-bottom:1px solid #dde3ea;text-align:left;vertical-align:top}
 .scan-evidence__crop{max-width:160px;border-radius:var(--radius-xs)}
+.scan-stop label{display:flex;align-items:center;gap:6px;font-size:12px;margin:2px 0 4px}
+.scan-stop input{width:5.5em}
+.scan-stop small{color:#8a5a00}
 .scan-approve{margin-top:6px;padding:4px 12px;border:1px solid #2e7d32;border-radius:var(--radius-sm);background:#e8f5e9;cursor:pointer}
 .scan-node{display:grid;gap:6px}
 .scan-node--zoom .scan-angle img{max-height:70vh}

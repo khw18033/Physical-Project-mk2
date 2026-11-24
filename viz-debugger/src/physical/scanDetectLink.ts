@@ -27,7 +27,9 @@ import { hardwareTarget } from './encode.ts';
 import { approachNeedsApproval } from './approachAuto.ts';
 import { prepState, subscribePrep } from './prepStage.ts';
 import { issueStepsToEnd } from './robotCommands.ts';
-import { emitScanNode as emit, issueScanApproach, setScanApproach as setApproach } from './scanApproachRun.ts';
+import {
+  emitScanNode as emit, issueScanApproach, scanPlanPayload, scanStopDistance, scanStopEdited, setScanApproach as setApproach,
+} from './scanApproachRun.ts';
 import { robotClient } from './robotClient.ts';
 import { robotSession, subscribeRobot } from './robotSession.ts';
 import { planScanApproach } from './scanApproach.ts';
@@ -86,23 +88,21 @@ function onResult(missionId: string, outcome: ScanRunOutcome & { ok: true }, sca
   if (result.best === null) return;
   emit(missionId, 'T-A6', 'done', { cues: result.cues.map((c) => [c.name, c.value, c.note]), enough: result.enough, reason: result.reason });
 
-  const params = currentMission().params;
-  const stop = Number((params as Record<string, unknown>).stop_distance_max_m ?? 0.9);
-  const plan = planScanApproach({
-    best: result.best, stopDistanceM: Number.isFinite(stop) ? stop : 0.9,
+  const params = currentMission().params as Record<string, unknown>;
+  // 정지 거리 — 사람이 T-B1 에서 바꾼 값 > 편의 `stop_distance_max_m` > 0.2 m (`scanApproachRun.ts`).
+  const stopDistanceM = scanStopDistance(missionId, params.stop_distance_max_m);
+  const input = {
+    best: result.best, stopDistanceM,
     headingStartDeg: outcome.headingStartDeg, headingEndDeg: outcome.headingEndDeg, testMode: detectState().testMode,
-  });
+  };
+  const plan = planScanApproach(input);
+  emit(missionId, 'T-B1', plan.ok ? 'done' : 'failed', scanPlanPayload(plan, stopDistanceM, scanStopEdited(missionId)));
   if (!plan.ok) {
-    emit(missionId, 'T-B1', 'failed', { reason: t(plan.reason.key, plan.reason.vars) });
-    setApproach({ scanId, missionId, plan, issued: false, waitingApproval: false });
+    setApproach({ scanId, missionId, plan, input, issued: false, waitingApproval: false });
     return;
   }
-  emit(missionId, 'T-B1', 'done', {
-    turn_deg: plan.turnDeg, forward_m: plan.issuedForwardM, drift_deg: plan.driftDeg, bearing_deg: plan.bearingDeg,
-    notes: plan.notes.map((note) => t(note.key, note.vars)),
-  });
   const waiting = approachNeedsApproval(missionId);
-  setApproach({ scanId, missionId, plan, issued: false, waitingApproval: waiting });
+  setApproach({ scanId, missionId, plan, input, issued: false, waitingApproval: waiting });
   if (!waiting) void issueScanApproach();
 }
 
