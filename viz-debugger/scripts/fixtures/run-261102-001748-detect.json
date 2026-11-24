@@ -1,0 +1,132 @@
+{
+ "_note": "verify:script-box 고정 자료 — 실물 판 mission-history/261102/001748_MSN-261027-01/progress.json 의 detect 중 frames · evidence · features (261124 기록 서버에서 옮김). mission-history/ 는 git 밖이라 PC 마다 없을 수 있다.",
+ "frames": [
+  {
+   "found": false,
+   "frame": "pi7_go1-001_20261101T151755.561Z_cam1_rot000_seq00_scan-1793546275.jpg",
+   "rotation_deg": 0
+  },
+  {
+   "found": false,
+   "frame": "pi7_go1-001_20261101T151759.912Z_cam1_rot045_seq01_scan-1793546275.jpg",
+   "rotation_deg": 45
+  },
+  {
+   "found": false,
+   "frame": "pi7_go1-001_20261101T151803.253Z_cam1_rot090_seq02_scan-1793546275.jpg",
+   "rotation_deg": 90
+  },
+  {
+   "found": false,
+   "frame": "pi7_go1-001_20261101T151806.629Z_cam1_rot135_seq03_scan-1793546275.jpg",
+   "rotation_deg": 135
+  },
+  {
+   "found": false,
+   "frame": "pi7_go1-001_20261101T151810.537Z_cam1_rot180_seq04_scan-1793546275.jpg",
+   "rotation_deg": 180
+  },
+  {
+   "found": false,
+   "frame": "pi7_go1-001_20261101T151813.897Z_cam1_rot225_seq05_scan-1793546275.jpg",
+   "rotation_deg": 225
+  },
+  {
+   "found": true,
+   "frame": "pi7_go1-001_20261101T151817.254Z_cam1_rot270_seq06_scan-1793546275.jpg",
+   "instances": [
+    {
+     "h_px": 42.59,
+     "score": 0.568,
+     "reason": null,
+     "bearing": {
+      "note": "참고값 -- 어안 보정 미정, 화면 가장자리 정확도 미검증",
+      "formula": "bearing = rotation_deg + atan((cx − W/2) / f),  f = k / 39",
+      "offset_deg": 30.1,
+      "bearing_deg": 300.1,
+      "substituted": "270 + atan((312.4 − 232) / 138.7) = 300.1"
+     },
+     "formula": "distance_cm = k / h_px − c",
+     "box_xyxy": [
+      173.5,
+      125,
+      223.3,
+      167.6
+     ],
+     "distance_cm": 119,
+     "substituted": "5407.9 / 42.59 − 8.0 = 119.0"
+    }
+   ],
+   "distance_cm": 119,
+   "final_score": 0.568,
+   "rotation_deg": 270,
+   "instance_count": 1,
+   "absolute_bearing_deg": 300.1,
+   "in_valid_calibration_range": true
+  },
+  {
+   "found": false,
+   "frame": "pi7_go1-001_20261101T151821.174Z_cam1_rot315_seq07_scan-1793546275.jpg",
+   "rotation_deg": 315
+  }
+ ],
+ "evidence": {
+  "pi7_go1-001_20261101T151817.254Z_cam1_rot270_seq06_scan-1793546275.jpg": {
+   "h_px": 42.59,
+   "frame": "pi7_go1-001_20261101T151817.254Z_cam1_rot270_seq06_scan-1793546275.jpg",
+   "reason": null,
+   "bearing": {
+    "note": "참고값 -- 어안 보정 미정, 화면 가장자리 정확도 미검증",
+    "formula": "bearing = rotation_deg + atan((cx − W/2) / f),  f = k / 39",
+    "offset_deg": 30.1,
+    "bearing_deg": 300.1,
+    "substituted": "270 + atan((312.4 − 232) / 138.7) = 300.1"
+   },
+   "box_xyxy": [
+    173.5,
+    125,
+    223.3,
+    167.6
+   ],
+   "detector": {
+    "run": "yolov8n_graybox_v3",
+    "conf": 0.25,
+    "crop_box": [
+     114,
+     80,
+     351,
+     321
+    ]
+   },
+   "distance_cm": 119,
+   "final_score": 0.568,
+   "distance_fit": {
+    "k": 5407.9,
+    "c_cm": 8,
+    "file": "gray_box_train/distance_fit_gt_yolov8n_graybox_v3.json",
+    "imgsz": 256,
+    "formula": "d = k / h_px - c",
+    "leave_one_distance_out": {
+     "max_abs_cm": 1.1,
+     "mean_abs_cm": 0.5,
+     "mean_abs_pct": 0.7
+    }
+   },
+   "inference_ms": 16.2,
+   "rotation_deg": 270,
+   "instance_count": 1,
+   "mandatory_gates": {},
+   "distance_calculation": {
+    "formula": "distance_cm = k / h_px − c",
+    "substituted": "5407.9 / 42.59 − 8.0 = 119.0"
+   },
+   "feature_similarities": {}
+  }
+ },
+ "features": {
+  "target_class": "box",
+  "features_compared": [],
+  "requested_by_command": true,
+  "is_localization_landmark": false
+ }
+}

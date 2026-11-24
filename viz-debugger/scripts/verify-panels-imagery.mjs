@@ -1,7 +1,7 @@
 // verify:panels-imagery (260929 신설 — 머리줄 판 여닫기 · 연결 관리 이미지 첨부 · SAR / 3D 복원 노드)
 //
 // 보는 것 넷.
-//  1. **머리줄 판 셋(연결 관리 · 이력 · 알림)이 여닫기다** — 버튼을 다시 누르면 닫히고, ESC 로도 닫힌다.
+//  1. **머리줄 판 둘(연결 관리 · 알림)이 여닫기다** (이력은 261114 부터 리플레이 화면 목록으로) — 버튼을 다시 누르면 닫히고, ESC 로도 닫힌다.
 //  2. **닫아도 적던 주소가 남는다** — 저장값과 다른 칸만 들고 있다가 다시 열 때 얹는다(결정 4-B).
 //  3. **SAR · 3D 복원 노드가 연결 관리에 붙인 것을 띄운다** — 주소가 파일보다 먼저, 둘 다 없으면 안내 한 줄.
 //     모든 편 팔레트에 선다(결정 12-A — `showFor` 없음).
@@ -21,9 +21,12 @@ const controls = [];
 
 // ── 1. 여닫기 · ESC ─────────────────────────────────────────────────────────────
 const shell = read('src', 'shell', 'AppShell.tsx');
-for (const which of ['connections', 'history', 'notifications']) {
+for (const which of ['connections', 'notifications']) {
   if (!new RegExp(`togglePanel\\('${which}'\\)`).test(shell)) failures.push(`머리줄 「${which}」 버튼이 여닫기(togglePanel)가 아니다`);
 }
+// 261114(dd7dbac) — 「이력」은 오른쪽 판을 더 안 띄우고 리플레이 화면의 목록으로 간다(같은 목록이 그 화면 왼쪽에 있다).
+if (!/<button onClick=\{\(\) => onMissionHistory\(\)\}>\{t\('bar\.history'\)\}<\/button>/.test(shell)) failures.push('머리줄 「이력」 버튼이 리플레이 화면(onMissionHistory)으로 가지 않는다');
+if (/(togglePanel|setPanel)\('history'\)/.test(shell)) failures.push('머리줄 「이력」이 아직 오른쪽 판을 연다 — 261114 에 리플레이 화면 목록으로 옮겼다');
 if (/setPanel\('(connections|history|notifications)'\)/.test(shell)) failures.push('여는 것만 하는 버튼(setPanel(\'…\'))이 남아 있다');
 if (!/open === which \? null : which/.test(shell)) failures.push('togglePanel 이 열린 판을 닫지 않는다');
 if (!/event\.key === 'Escape'/.test(shell) || !/addEventListener\('keydown'/.test(shell)) failures.push('ESC 로 판을 닫지 않는다');
@@ -114,7 +117,7 @@ if (failures.length) {
   console.error(`❌ verify:panels-imagery\n- ${failures.join('\n- ')}`);
   process.exit(1);
 }
-console.log('✅ 머리줄 판 셋이 여닫기 · ESC 로 닫힘 · 닫아도 저장 안 한 칸은 다시 열 때 그대로');
+console.log('✅ 머리줄 판 둘(연결 관리 · 알림)이 여닫기 · 이력은 리플레이 화면으로 · ESC 로 닫힘 · 닫아도 저장 안 한 칸은 다시 열 때 그대로');
 console.log('✅ SAR · 3D 복원 — 연결 관리에 이미지 칸 + 주소 칸 · 노드는 주소 먼저, 없으면 붙인 파일 · 모든 편 팔레트 · 이미지는 IndexedDB');
 console.log(`✅ 새 문구 ${seen}개 · 새 편 제목에 「시연 · 보여주기 · 데모」 없음 · 거절된 문장이면 앞 제안을 치운다`);
 console.log(`✅ 대조군 ${controls.length}건 — ${controls.join(' · ')}`);

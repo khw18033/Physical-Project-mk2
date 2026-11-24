@@ -219,7 +219,6 @@ const robotState = (heading) => devices.receiveDeviceMessage('zoneA/robot/go1-00
 // `BASELINE` 은 박스 근거 작업 바로 앞 커밋이다. 문 편 카드를 일부러 바꾸면 이 대조가 그 차이를 보여 준다 —
 // 바꾼 것이 맞으면 그때 이 값을 그 커밋으로 옮긴다.
 const BASELINE = '79c54e2';
-const recordRun = (...p) => JSON.parse(readFileSync(join(root, '..', 'mission-history', ...p), 'utf8'));
 {
   const { makeScratch } = await load('scripts', 'lib', 'scratch.mjs');
   const { bundleDetectViews, baselineTree } = await load('scripts', 'lib', 'detectViewsProbe.mjs');
@@ -241,7 +240,8 @@ const recordRun = (...p) => JSON.parse(readFileSync(join(root, '..', 'mission-hi
     };
 
     // 실물 — 261102/001748 판(270°에서 박스 0.568 · 119cm). 관문은 그 판에 없었다(`{}`) — 그대로가 「지난 판」이다.
-    const real = recordRun('261102', '001748_MSN-261027-01', 'progress.json').detect;
+    // 261124 — 판 기록(`mission-history/`)은 git 밖이라 PC 마다 없을 수 있다. 그 판의 detect 를 고정 자료로 옮겨 두고 거기서 읽는다.
+    const real = JSON.parse(readFileSync(join(root, 'scripts', 'fixtures', 'run-261102-001748-detect.json'), 'utf8'));
     const realFrame = real.frames.find((f) => f.found);
     const oldRun = { frames: real.frames, evidence: real.evidence, features: real.features };
     // 계약대로 온 새 판 — 실물 위에 탐지 쪽이 더할 필드를 얹는다.
