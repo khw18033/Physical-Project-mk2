@@ -75,8 +75,9 @@ export type ScanBest = {
   distance_source: string | null;
   distance_note: string | null;
   /**
-   * 방위를 화면 중심 대비 각으로 못 구해 **그 각도의 정면**(`rotation_deg`)으로 대신했을 때의 사유 — 초점 거리를 모를 때
-   * (data_stream 회신 `스캔탐지_창구_계획_261124.md` §4.2). 정확한 방위면 null.
+   * 방위가 **참고값**인 사유. 둘 중 하나다(data_stream 구현 보고 `스캔탐지_창구_구현보고_261124.md` §3-6):
+   * 초점 거리를 몰라 그 각도의 정면(`rotation_deg`)으로 대신했거나, Go1 처럼 어안 보정이 없다
+   * (`"reference - no fisheye correction"` — **Go1 은 늘 붙는다**). 없으면 null.
    */
   bearing_note: string | null;
   /** 그 대상의 판정 하한이 측정 전 값인가. */

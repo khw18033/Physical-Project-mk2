@@ -253,6 +253,14 @@ await withMock({ mode: 'ok' }, async (base, log) => {
 {
   check(parseResult({ scan_id: 'A', state: 'done', frames: [], best: { rotation_deg: 0 } }) === null, '반쯤 있는 best 를 받아들였다');
   check(parseResult({ scan_id: 'A', state: 'running' })?.state === 'running', 'running 결과를 못 읽었다');
+  // 오류 응답 `{error, detail, …}` (data_stream 구현 보고 §3-10) — 409 라도 busy 만 busy 다.
+  const stub = (status, body) => scanClient('http://stub', async () => ({ ok: status < 400, status, json: async () => body }));
+  const badState = await stub(409, { error: 'bad_state', detail: 'not collecting (done)' }).mark('A', 45);
+  check(!badState.ok && badState.code === 'http' && badState.detail.includes('not collecting'), `409 bad_state 를 busy 로 읽었다 (${JSON.stringify(badState)})`);
+  const busy = await stub(409, { error: 'busy', busy_scan_id: 'B' }).prepare({ scan_id: 'A' });
+  check(!busy.ok && busy.code === 'busy' && busy.busyScanId === 'B', `409 busy 를 못 읽었다 (${JSON.stringify(busy)})`);
+  const wrongPort = await stub(400, { error: 'wrong_port', detail: 'go1-001 is not robot2', stream: 'robot1' }).prepare({ scan_id: 'A' });
+  check(!wrongPort.ok && wrongPort.detail.includes('wrong_port') && wrongPort.detail.includes('stream robot1'), `wrong_port 의 맞는 소스가 빠졌다 (${JSON.stringify(wrongPort)})`);
   const noted = parseResult({ scan_id: 'A', state: 'done', frames: [], best: { rotation_deg: 90, bearing_deg: 90, distance_m: 2, distance_valid: true, bearing_note: 'no focal length' } });
   check(noted?.best?.bearing_note === 'no focal length', 'best 의 bearing_note 를 못 읽었다');
   if (parseResult({ scan_id: 'A', state: 'done', frames: [], best: null }) === null) controls.push('대조군: 찾지 못함(best null)을 거부했다');

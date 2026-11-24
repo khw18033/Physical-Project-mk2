@@ -2464,7 +2464,7 @@ export const en: Record<string, string> = {
   'sd.plan.alreadyClose': "Target is {m}m away, inside the stop distance {stop}m — not moving",
   'sd.plan.tooFar': "Forward {m}m exceeds {max}m",
   'sd.plan.provisional': "The threshold is provisional",
-  'sd.plan.bearingNote': "The bearing is the heading of that scan step — the turn may be off if the target was near the image edge ({note})",
+  'sd.plan.bearingNote': "The bearing is a reference value — the turn may be off if the target was near the image edge ({note})",
   'sd.plan.turnTooSmall': "Turn {deg}° is under {min}°, not turning",
   'sd.source.label': "Detection",
   'sd.source.title': "Which of the two missions with the same sentence (old detector or data_stream) the utterance matches. Cannot change while a mission runs",

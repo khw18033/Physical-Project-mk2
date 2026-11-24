@@ -55,15 +55,19 @@ async function call<T>(
     });
     let raw: unknown = null;
     try { raw = await response.json(); } catch { raw = null; }
-    if (response.status === 409) {
-      // data_stream 회신(`스캔탐지_창구_계획_261124.md` §5)은 진행 중인 판을 `busy_scan_id` 로 준다. 요청 문서에 적었던 `scan_id` 도 받는다.
-      const said = raw !== null && typeof raw === 'object' ? raw as { busy_scan_id?: unknown; scan_id?: unknown } : {};
+    // data_stream 오류 응답은 `{error, detail, …}` 다(구현 보고 `스캔탐지_창구_구현보고_261124.md` §3-10).
+    // error: busy · bad_state · unknown_scan · unknown_device · wrong_port(+ stream: 맞는 소스) · bad_request
+    const said = raw !== null && typeof raw === 'object' ? raw as { error?: unknown; detail?: unknown; stream?: unknown; busy_scan_id?: unknown; scan_id?: unknown } : {};
+    // 409 라도 「다른 판이 도는 중」만 busy 다 — `mark` 를 엉뚱한 상태에서 보낸 409(bad_state)는 그냥 오류다.
+    // 진행 중인 판은 `busy_scan_id`(회신 §5)로 오고, 요청 문서에 적었던 `scan_id` 도 받는다.
+    if (response.status === 409 && (said.error === undefined || said.error === 'busy' || typeof said.busy_scan_id === 'string')) {
       const busy = typeof said.busy_scan_id === 'string' ? said.busy_scan_id : typeof said.scan_id === 'string' ? said.scan_id : null;
       return fail('busy', 'HTTP 409', 409, busy);
     }
     if (!response.ok) {
-      const said = raw !== null && typeof raw === 'object' ? (raw as { error?: unknown }).error : null;
-      return fail('http', `HTTP ${response.status}${typeof said === 'string' ? ` ${said}` : ''}`, response.status);
+      const words = [said.error, said.detail, typeof said.stream === 'string' ? `stream ${said.stream}` : undefined]
+        .filter((word): word is string => typeof word === 'string' && word !== '');
+      return fail('http', `HTTP ${response.status}${words.length > 0 ? ` ${words.join(' · ')}` : ''}`, response.status);
     }
     const value = parse(raw);
     return value === null ? fail('shape', url.replace(/^https?:\/\/[^/]+/, ''), response.status) : { ok: true, value };

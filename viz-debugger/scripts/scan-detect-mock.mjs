@@ -118,7 +118,8 @@ export function scanMockHandler(options = {}) {
       rotation_deg: hit.rotation_deg, bearing_deg: hit.bearing_deg, distance_m: hit.distance_m,
       distance_valid: hit.distance_valid, distance_source: hit.distance_source,
       distance_note: hit.distance_valid ? null : 'box touches the top/bottom edge',
-      bearing_note: opt.mode === 'no-focal' ? 'no focal length — heading of the scan step' : null,
+      // 실제 창구는 Go1 에 늘 'reference - no fisheye correction' 을 붙인다(구현 보고 §3-6). 기본은 그 모양, no-focal 은 초점 거리 모름.
+      bearing_note: opt.mode === 'no-focal' ? 'no focal length - heading of the scan step' : 'reference - no fisheye correction',
       provisional: true,
     };
     return {
@@ -184,7 +185,7 @@ export function scanMockHandler(options = {}) {
 
     const scanId = String(body?.scan_id ?? url.searchParams.get('scan_id') ?? '');
     const scan = scans.get(scanId);
-    if (path.startsWith('/scan/') && scan === undefined) { sendJson(res, 404, { error: 'unknown scan_id', scan_id: scanId }); return; }
+    if (path.startsWith('/scan/') && scan === undefined) { sendJson(res, 404, { error: 'unknown_scan', detail: scanId }); return; }
 
     if (path === '/scan/status' && req.method === 'GET') {
       stateOf(scan);
@@ -194,7 +195,7 @@ export function scanMockHandler(options = {}) {
 
     if (path === '/scan/mark' && req.method === 'POST') {
       const state = stateOf(scan);
-      if (state !== 'ready' && state !== 'collecting') { sendJson(res, 409, { error: `not collecting (${state})`, scan_id: scanId }); return; }
+      if (state !== 'ready' && state !== 'collecting') { sendJson(res, 409, { error: 'bad_state', detail: `not collecting (${state})` }); return; }
       scan.state = 'collecting';
       const deg = angleOf(body.rotation_deg);
       await wait(opt.markMs);
@@ -210,7 +211,7 @@ export function scanMockHandler(options = {}) {
 
     if (path === '/scan/finish' && req.method === 'POST') {
       const state = stateOf(scan);
-      if (state !== 'collecting' && state !== 'ready') { sendJson(res, 409, { error: `cannot finish (${state})`, scan_id: scanId }); return; }
+      if (state !== 'collecting' && state !== 'ready') { sendJson(res, 409, { error: 'bad_state', detail: `cannot finish (${state})` }); return; }
       scan.state = 'running';
       scan.doneAt = Date.now() + opt.resultMs;
       sendJson(res, 200, { scan_id: scanId, state: 'running' });
