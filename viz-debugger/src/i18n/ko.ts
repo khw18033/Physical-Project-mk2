@@ -3897,6 +3897,7 @@ export const ko: Record<string, string> = {
   'seq.badge.line': '{id} 복합 미션',
 
   // AI 생성 임무 실행기 (261123)
+  'grun.targetAway': "AI 계획에는 장비가 {plan}(으)로 적혀 있지만 실제로는 {device} 이(가) 움직입니다 — 끌어 놓은 카드 · 붙은 로봇 기준입니다. 계획의 장비 이름은 장비표 이름이라 실제 장비와 다를 수 있습니다. 실행은 그대로 합니다",
   'grun.summary': "실행 계획: 명령 과업 {cmd}개 · 사람 확인 과업 {human}개 · 장비 {target}",
   'grun.planOnly': "실행할 수 없는 계획입니다. 승인하면 캔버스에만 올라가고 로봇에는 아무것도 나가지 않습니다",
   'grun.noCommands': "명령이 있는 과업이 없습니다. 생성 때 액션 아이템을 켜지 않았거나 모델이 적지 않았습니다",

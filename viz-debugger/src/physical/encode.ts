@@ -37,6 +37,11 @@ export const HARDWARE_TARGET = 'go1-001';
 /** 화면·대본의 장비 id → 하드웨어의 장비 id. 지금은 하나뿐이라 표가 짧다. */
 const TARGET_OF: Record<string, string> = { 'robot-01': HARDWARE_TARGET };
 
+/** 화면·대본 id 와 이어진 하드웨어 id. 표에 없으면 null — 짐작하지 않는다(261124 · AI 계획 장비 경고). */
+export function hardwareIdOf(vizEntityId: string): string | null {
+  return TARGET_OF[vizEntityId] ?? null;
+}
+
 /**
  * 화면이 **상태를 찾아볼** 장비 id.
  *

@@ -27,6 +27,7 @@ import { t } from '../i18n/dict.ts';
 import { assignedDeviceIds } from '../data/assignments.ts';
 import { slotBindings } from '../data/slots.ts';
 import { deviceCandidates, liveDevicesFor } from './deviceIdentity.ts';
+import { hardwareIdOf } from './encode.ts';
 
 export type MissionRobotPick =
   | { ok: true; deviceId: string; how: 'assigned' | 'only' }
@@ -53,6 +54,23 @@ export function pickMissionRobot(action: string): MissionRobotPick {
   if (robots.length === 1) return { ok: true, deviceId: robots[0], how: 'only' };
   if (robots.length === 0) return { ok: false, how: 'none', reason: t('mr.none') };
   return { ok: false, how: 'many', reason: t('mr.many', { list: robots.join(' · ') }) };
+}
+
+/**
+ * **AI 계획에 적힌 장비 가운데, 실제로 움직일 장비가 아닌 것** (261124 — 경고만, 실행은 그대로).
+ *
+ * 생성기는 붙은 장비를 모르고 장비표(`equipment.json`)의 이름(`robot-01` · `robot-02` …)으로 적는다. 실제로 움직이는 것은
+ * 끌어 놓은 카드 · 하나뿐인 로봇이다. 둘이 같은 이름이거나 이어진 이름(`robot-01 → go1-001`, `encode.ts`)이면 맞다고 본다.
+ * 그 밖은 전부 「다르다」 — 이어진 표가 없는 이름(`robot-02` 등)도 실제 장비를 가리킨다고 말할 수 없으므로 알린다.
+ */
+export function planTargetsAway(planTargets: readonly (string | null | undefined)[], deviceId: string): string[] {
+  const away: string[] = [];
+  for (const target of planTargets) {
+    if (target === null || target === undefined || target === '' || away.includes(target)) continue;
+    if (target === deviceId || hardwareIdOf(target) === deviceId) continue;
+    away.push(target);
+  }
+  return away;
 }
 
 /**

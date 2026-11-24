@@ -3872,6 +3872,7 @@ export const en: Record<string, string> = {
   'seq.badge.line': '{id} multi-step mission',
 
   // AI 생성 임무 실행기 (261123)
+  'grun.targetAway': "The AI plan names {plan} as the device, but {device} is the one that will move — going by the dragged-in card or the connected robot. Plan device names come from the equipment table and may differ from the real device. The run goes ahead",
   'grun.summary': "Run plan: {cmd} command task(s) · {human} human-check task(s) · device {target}",
   'grun.planOnly': "This plan cannot run. Approving places it on the canvas only; nothing is sent to the robot",
   'grun.noCommands': "No task carries a command. Action items were off at generation, or the model wrote none",

@@ -223,11 +223,28 @@ const moving = (sent) => sent.filter((s) => s.action === 'turn' || s.action === 
   resetAssignments();
 }
 
+// ── 6. AI 계획 장비와 움직일 장비가 다르면 경고만 (261124) ────────────────────────────
+{
+  const { planTargetsAway } = await load('src', 'physical', 'missionRobot.ts');
+  const { readFileSync } = await import('node:fs');
+  const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+  check(same(planTargetsAway(['robot-01', 'robot-01'], GO1), []), 'robot-01 → go1-001 은 같은 장비인데 경고했다');
+  check(same(planTargetsAway(['robot-01'], EP), ['robot-01']), 'robot-01 계획을 EP 가 도는데 경고하지 않았다');
+  check(same(planTargetsAway(['robot-02', null, 'robot-02'], EP), ['robot-02']), '이어진 표가 없는 robot-02 를 한 번만 알려야 한다');
+  check(same(planTargetsAway([EP], EP), []), '같은 이름인데 경고했다');
+  const src = readFileSync(join(root, 'src', 'physical', 'robotClient.ts'), 'utf8');
+  const branch = src.slice(src.indexOf('const generated = generatedRunOf('), src.indexOf('if (stepCommandsOf(stepParams)'));
+  check(/planTargetsAway\(/.test(branch) && /noteIssue\('steps', 'robot', t\('grun\.targetAway'/.test(branch), 'AI 생성 갈래가 계획 장비 경고를 안 낸다');
+  // 경고 뒤에 return 이 없어야 한다 — 막지 않는다.
+  const after = branch.slice(branch.indexOf("t('grun.targetAway'"));
+  check(/^t\('grun\.targetAway'[^\n]*\}\)\);\n\s*const missing = undeclaredActions/.test(after), '계획 장비 경고 뒤에 실행이 이어지지 않는다(막으면 안 된다)');
+}
+
 stopLink();
 if (failures.length > 0) {
   console.error(`❌ verify:mission-robot 실패 ${failures.length}건`);
   for (const failure of failures) console.error(`  - ${failure}`);
   process.exit(1);
 }
-console.log('✅ 통과 — 로봇 둘: 끌어 놓은 것 없으면 안 돈다(알림) · Go1 을 놓으면 회전 · 직진 · 포트 · 방위가 전부 Go1 · EP 를 놓으면 전부 EP · 놓은 로봇이 꺼지면 다른 로봇으로 안 물러선다 · 정량 명령 · AI 생성 · 정지 · 일시정지 · 재개 · 접근도 끌어 놓은/판에 박힌 로봇으로 / 대조: 로봇 하나면 그대로');
+console.log('✅ 통과 — 로봇 둘: 끌어 놓은 것 없으면 안 돈다(알림) · Go1 을 놓으면 회전 · 직진 · 포트 · 방위가 전부 Go1 · EP 를 놓으면 전부 EP · 놓은 로봇이 꺼지면 다른 로봇으로 안 물러선다 · AI 계획 장비가 다르면 경고만 · 정량 명령 · AI 생성 · 정지 · 일시정지 · 재개 · 접근도 끌어 놓은/판에 박힌 로봇으로 / 대조: 로봇 하나면 그대로');
 process.exit(0);

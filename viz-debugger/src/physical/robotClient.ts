@@ -23,7 +23,7 @@ import { noteScanFeed } from '../detect/feedLog.ts';
 import { indexOfRotation } from '../detect/parse.ts';
 import { hardwareTarget } from './encode.ts';
 import { awaitDeviceIdentity, deviceIdentityFor } from './deviceIdentity.ts';
-import { pickMissionRobot, pinMissionRobot, pinnedMissionRobot } from './missionRobot.ts';
+import { pickMissionRobot, pinMissionRobot, pinnedMissionRobot, planTargetsAway } from './missionRobot.ts';
 import { receiveScanCapture } from './robotBridge.ts';
 import { elapsedSec } from './robotSession.ts';
 import { initPrepStage } from './prepStage.ts';
@@ -232,6 +232,14 @@ function attachDriver(url: string | null): void {
         }
         lastScanAttempt = attempt;
         pinMissionRobot(robotSession().startedAtMs ?? 0, walker.deviceId);
+        /**
+         * **계획 장비와 움직일 장비가 다르면 알린다** (261124 — 사용자 결정: 경고만). 계획은 장비표 이름(`robot-0N`)으로 적히고,
+         * 실제로는 끌어 놓은 카드 · 하나뿐인 로봇이 움직인다. 막지 않는다 — 사람이 카드를 끌어 놓아 고른 것일 수 있다.
+         */
+        const tasks = currentMission().tasks;
+        const planTargets = generated.filter((item) => item.kind === 'command').map((item) => tasks.find((task) => task.id === item.taskId)?.target);
+        const away = walker.deviceId === null ? [] : planTargetsAway(planTargets, walker.deviceId);
+        if (away.length > 0) noteIssue('steps', 'robot', t('grun.targetAway', { plan: away.join(' · '), device: walker.deviceId ?? '' }));
         const missing = undeclaredActions(walker.client, generated);
         if (missing.length > 0) {
           noteIssue('steps', 'robot', t('grun.undeclared', { actions: missing.join(' · ') }));
