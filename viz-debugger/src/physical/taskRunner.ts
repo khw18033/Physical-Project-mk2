@@ -230,6 +230,7 @@ type CameraProbe = (source: DirectCameraSource) => Promise<{ ok: boolean; reason
  * 읽는다 — 응답이 왔다는 것까지가 증거다). 드론은 개발 서버 중계가 한 장을 JPEG 로 주므로 그 한 장을 받아 본다.
  */
 const defaultCameraProbe: CameraProbe = async (source) => {
+  if (source.kind === 'h264ws') return socketCameraProbe(source.url);
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), CAMERA_PROBE_MS);
   try {
@@ -250,6 +251,38 @@ const defaultCameraProbe: CameraProbe = async (source) => {
     controller.abort();
   }
 };
+
+/**
+ * **장비가 직접 내는 H.264 소켓** (261124 — EP). 중계는 첫 키프레임 직전에 `hello`(코덱)를 보낸다 — 그것이 오면 상류가
+ * 돌고 있다는 증거다. 붙는 것이 켜기라 상류 기동까지 1초 남짓 걸린다. 받으면 곧바로 끊는다(끊는 것이 끄기다).
+ */
+function socketCameraProbe(url: string): Promise<{ ok: boolean; reason?: string }> {
+  return new Promise((resolve) => {
+    let ws: WebSocket;
+    try {
+      ws = new WebSocket(url);
+    } catch (error) {
+      resolve({ ok: false, reason: String((error as Error)?.message ?? error) });
+      return;
+    }
+    ws.binaryType = 'arraybuffer';
+    let settled = false;
+    const finish = (result: { ok: boolean; reason?: string }) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      ws.onmessage = null;
+      ws.onclose = null;
+      ws.onerror = null;
+      ws.close();
+      resolve(result);
+    };
+    const timer = setTimeout(() => finish({ ok: false, reason: t('runner.cameraTimeout', { sec: CAMERA_PROBE_MS / 1000 }) }), CAMERA_PROBE_MS);
+    ws.onmessage = () => finish({ ok: true });
+    ws.onclose = (event) => finish({ ok: false, reason: `WebSocket ${event.code}` });
+    ws.onerror = () => finish({ ok: false, reason: 'WebSocket error' });
+  });
+}
 
 let cameraProbe: CameraProbe = defaultCameraProbe;
 
@@ -604,7 +637,7 @@ async function cameraJudge(deviceId: string): Promise<Outcome> {
   if (source === null) return { ok: false, reason: t('runner.noCamera', { device: deviceId }) };
   const probe = await cameraProbe(source);
   if (!probe.ok) return { ok: false, reason: t('runner.cameraFailed', { reason: probe.reason ?? t('robot.noReason') }) };
-  return { ok: true, payload: { device: deviceId, camera_frames: true, via: source.kind === 'stream' ? 'stream' : 'frames' } };
+  return { ok: true, payload: { device: deviceId, camera_frames: true, via: source.kind } };
 }
 
 // ── 가상 맵 ───────────────────────────────────────────────────────────────────

@@ -232,11 +232,12 @@ const controls = [];
   const real = BROKER_PRESETS.filter((p) => !p.url.startsWith('fake:'));
   const fake = BROKER_PRESETS.filter((p) => p.url.startsWith('fake:'));
   // 261112 — 기계가 하나 늘었다(A2-W, pi10). 규칙은 그대로 「기계마다 테일넷 하나 + 직접 입력」이다.
-  if (real.length !== 4) {
-    failures.push(`실물 프리셋이 ${real.length}개 — 테일넷 셋(Go1 · 드론 · A2-W) + 직접 입력 넷이어야 한다`);
+  // 261124 — 또 하나(RoboMaster EP, pi1).
+  if (real.length !== 5) {
+    failures.push(`실물 프리셋이 ${real.length}개 — 테일넷 넷(Go1 · 드론 · A2-W · EP) + 직접 입력 다섯이어야 한다`);
   }
   if (fake.some((p) => !p.id.startsWith('fake-'))) failures.push('가짜 프리셋의 id 가 fake- 로 시작하지 않는다');
-  for (const id of ['tailscale', 'drone-tailscale', 'a2-tailscale', 'manual']) {
+  for (const id of ['tailscale', 'drone-tailscale', 'a2-tailscale', 'ep-tailscale', 'manual']) {
     if (!BROKER_PRESETS.some((p) => p.id === id)) failures.push(`프리셋 ${id} 가 없다`);
   }
   /**

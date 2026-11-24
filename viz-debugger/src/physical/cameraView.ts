@@ -18,6 +18,7 @@
 import { useEffect, useSyncExternalStore } from 'react';
 import { clientForDevice } from './robotClient.ts';
 import { deviceIdentityFor } from './deviceIdentity.ts';
+import { deviceMedia, deviceMediaVersion, subscribeDevices } from './deviceState.ts';
 
 /** HW `go1-camview.service` 의 포트. 바뀌면 여기 한 곳만 고친다. */
 export const GO1_CAMVIEW_PORT = 8090;
@@ -33,7 +34,31 @@ export const DRONE_AGENT_PORT = 8890;
  * 받는 방식. Go1 뷰어는 끝나지 않는 MJPEG(`stream`)이고, 드론 말단은 한 번에 한 장(`frames`)이라 화면이 이어서 당긴다.
  * 모양은 `media/views/DeviceCamera.tsx` 의 `DirectSource` 와 같다 — 그쪽이 이 파일을 import 하지 않게 모양으로만 맞춘다.
  */
-export type DirectCameraSource = { url: string; kind: 'stream' | 'frames' };
+export type DirectCameraSource = { url: string; kind: 'stream' | 'frames' | 'h264ws' };
+
+/**
+ * **RoboMaster EP 카메라 중계** (261124 — HW `pi/robot/ep_camera.py`, bfec5dd). 로봇 노드가 같은 프로세스에서
+ * EP 카메라의 H.264 를 풀지 않고 WebSocket 으로 낸다(`kind: 'h264ws'` — 화면이 WebCodecs 로 푼다).
+ *
+ * 주소는 **장비가 알린 것**을 먼저 쓴다 — `status.media` 의 `url`, 없으면 브로커 호스트 + `port` · `path`. 노드가 자기
+ * 공개 주소를 모르는 것이 정상이라(테일넷 · 핫스팟마다 다르다) 호스트는 대개 비어 온다. 블록이 아직 안 왔으면 중계의
+ * 기본값(8091 · `/ws`)으로 붙는다 — 중계는 키 없는 `/ws` 도 같은 영상으로 받는다.
+ * EP 카메라는 정면 하나다.
+ */
+export const EP_CAM_PORT = 8091;
+const EP_CAM_DEFAULT_PATH = '/ws';
+const EP_CAMERA_POSITIONS: readonly string[] = ['front'];
+
+function epCameraUrl(deviceId: string, host: string): string | null {
+  const block = deviceMedia(deviceId);
+  // 노드가 「붙을 수 없다」고 했으면 주소를 짓지 않는다 — 지어 붙이면 「못 붙었습니다」의 원인을 엉뚱한 데서 찾는다.
+  if (block?.available === false) return null;
+  // 다른 영상 경로(옛 ffmpeg RTP 등)를 알리고 있으면 이 길이 아니다.
+  if (block !== null && block.transport !== null && block.transport !== 'websocket') return null;
+  if (block?.url != null && /^wss?:\/\//i.test(block.url)) return block.url;
+  const path = block?.path ?? EP_CAM_DEFAULT_PATH;
+  return `ws://${host}:${block?.port ?? EP_CAM_PORT}${path.startsWith('/') ? path : `/${path}`}`;
+}
 
 /**
  * **A2 카메라 (261112).** PC2 의 `a2-bridge`(`a2_bridge.py`)가 전방 카메라(videohub)를 Go1 뷰어와 같은 모양의 MJPEG 로
@@ -70,6 +95,11 @@ export function directCameraUrl(deviceId: string, position: string): DirectCamer
     const index = A2_CAMERA_INDEX[position];
     return index === undefined ? null : { url: `http://${host}:${A2_CAMVIEW_PORT}/stream/${index}`, kind: 'stream' };
   }
+  if (identity?.deviceType === 'robomaster_ep') {
+    if (!EP_CAMERA_POSITIONS.includes(position)) return null;
+    const url = epCameraUrl(deviceId, host);
+    return url === null ? null : { url, kind: 'h264ws' };
+  }
   /**
    * **드론은 기체에 실린 pi3 의 카메라 모듈이다** (260928 지시 — 「pi3 의 카메라 말단 노드를 활용」). 위치 칸은 뜻이
    * 없다 — 이 함수는 늘 0번을 준다. 카메라가 둘 이상 붙은 것은 `useDirectCameraSources` 가 본다(261019).
@@ -91,6 +121,7 @@ export function directCameraPositions(deviceId: string | null): readonly string[
   const deviceType = deviceIdentityFor(client.address())?.deviceType;
   if (deviceType === 'go1_robot') return Object.keys(GO1_CAMERA_INDEX);
   if (deviceType === 'unitree_a2') return Object.keys(A2_CAMERA_INDEX);
+  if (deviceType === 'robomaster_ep') return EP_CAMERA_POSITIONS;
   return null;
 }
 
@@ -198,6 +229,8 @@ export function useDirectCameraSourcesMany(deviceIds: readonly string[], positio
     return () => { for (const stop of stops) stop(); };
   }, [key]);
   useSyncExternalStore(subscribe, () => version, () => version);
+  // EP 는 주소가 장비 상태(`status.media`)에서 온다 — 그 블록이 바뀌면 다시 짓는다.
+  useSyncExternalStore(subscribeDevices, deviceMediaVersion, deviceMediaVersion);
   const out: Record<string, LabeledCameraSource[]> = {};
   for (const id of deviceIds) out[id] = directCameraSources(id, positions[id] ?? 'front');
   return out;
@@ -208,5 +241,6 @@ export function useDirectCameraSources(deviceId: string | null, position: string
   const base = deviceId === null ? null : droneAgentBase(deviceId);
   useEffect(() => (base === null ? undefined : watchDroneCameras(base)), [base]);
   useSyncExternalStore(subscribe, () => version, () => version);
+  useSyncExternalStore(subscribeDevices, deviceMediaVersion, deviceMediaVersion);
   return deviceId === null ? [] : directCameraSources(deviceId, position);
 }

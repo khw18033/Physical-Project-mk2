@@ -202,6 +202,12 @@ export const BROKER_PRESETS: readonly BrokerPreset[] = [
    */
   { id: 'a2-tailscale', labelKey: 'preset.broker.a2Tailscale', url: 'ws://pi10.tailcb6bfb.ts.net:9001/mqtt', whyKey: 'preset.broker.a2Tailscale.why' },
   /**
+   * **RoboMaster EP** (261124). pi1 이 EP 전용 브로커와 로봇 노드(ep)를 띄우고, 노드가 같은 프로세스에서 EP 카메라를
+   * H.264 WebSocket(:8091)으로 중계한다(HW bfec5dd). 카메라 주소는 노드가 `status.media` 로 알린다(`cameraView.ts`).
+   * 같은 pi1 의 자율주행 브로커(`NavClient.ts`)와 주소가 같다 — 한 기계 한 브로커다.
+   */
+  { id: 'ep-tailscale', labelKey: 'preset.broker.epTailscale', url: 'ws://pi1.tailcb6bfb.ts.net:9001/mqtt', whyKey: 'preset.broker.epTailscale.why' },
+  /**
    * **가짜 장비** (261014). 실물을 못 띄울 때 하드웨어 카드 · 상세창을 보려고 둔다 — 브로커 없이 화면 안에서 흉내 낸다
    * (`fakeDevice.ts`). 카드에 「목」 배지가 뜨고 장비 id 가 실물과 다르다(`go1-fake` · `x500-fake`).
    */

@@ -293,6 +293,8 @@ export const ko: Record<string, string> = {
   'preset.broker.droneTailscale.why': '드론 라즈베리파이(pi3). 이름이 안 풀리면 직접 입력에 테일넷 IP 를 넣으세요',
   'preset.broker.a2Tailscale': 'Tailscale (A2-W)',
   'preset.broker.a2Tailscale.why': 'A2-W 위 라즈베리파이(pi10). 카메라도 이 주소로 받습니다. 로봇에 직접 꽂았으면 직접 입력에 ws://192.168.124.162:9001/mqtt',
+  'preset.broker.epTailscale': 'Tailscale (RoboMaster EP)',
+  'preset.broker.epTailscale.why': 'EP 를 붙인 라즈베리파이(pi1). 카메라는 로봇 노드가 알린 주소(:8091)로 받습니다.',
   'preset.detect.tailscale': 'Tailscale',
   'preset.detect.tailscale.why': '기본값. 탐지 데스크톱의 테일넷 이름',
   'preset.detect.tailscaleIp': 'Tailscale (IP)',
@@ -1140,6 +1142,10 @@ export const ko: Record<string, string> = {
   'dso.drone.camera': '드론 카메라 (기체의 카메라 말단에서 바로)',
   'dso.drone.noCamera': '이 드론의 카메라 주소를 만들 수 없습니다 — 드론 브로커에 붙어 있고 장비가 하나로 정해졌는지 확인하세요.',
   'dcam.directLiveShort': '실시간 · 로봇 노드에서 바로',
+  'dcam.wsLive': '실시간 · EP 카메라 중계에서 바로 (H.264 · {codec} · {fps} fps): {url}',
+  'dcam.wsWaitingKey': '붙었습니다 · 첫 키프레임을 기다리는 중입니다(중계가 카메라를 켜는 데 1~2초): {url}',
+  'dcam.wsFailed': 'EP 카메라 중계에 못 붙었습니다 — 로봇 노드(ep)가 떠 있고 EP_CAM_ENABLE 이 켜져 있는지 보세요. 실시간이면 2초 뒤 다시 붙습니다 ({url}) {reason}',
+  'dcam.wsNoDecoder': '이 브라우저에는 WebCodecs(VideoDecoder)가 없어 H.264 를 풀 수 없습니다 — Chrome 이나 Edge 로 여세요',
   'dcam.fetchAgain': '다시 받기',
   'dcam.error': '못 붙었습니다: {reason}',
   'dcam.closed': '끊겼습니다 (코드 {code})',
@@ -3923,7 +3929,6 @@ export const ko: Record<string, string> = {
   'gen.address.local': "이 PC",
   'gen.address.gpuPc': "GPU PC (100.125.71.51)",
   'gen.address.invalid': "http:// 또는 https:// 로 시작하는 주소를 넣으세요",
-};
   // 261124 — 객체 탐지 상태판 (「기능」 판 자리, src/detect/status/)
   'conn.field.redis': 'Redis (지정 탐지 대상 · 비우면 서버 IP:6380)',
   'dms.title': '객체 탐지 · 모델 {n}',
@@ -3986,3 +3991,4 @@ export const ko: Record<string, string> = {
   'dms.detailTitle': '{name} · 탐지 영상',
   'dms.detailFooter': '조회만 합니다 — 영역 지정 · 재식별은 하드웨어 상세와 같은 데이터 스트림 창구를 씁니다. Esc 로 닫기',
   'dms.usualSource': '보통 {name}',
+};

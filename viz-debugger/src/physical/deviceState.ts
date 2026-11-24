@@ -169,10 +169,83 @@ export function deviceState(entityId: string): DeviceState | null {
   return devices[entityId] ?? null;
 }
 
+// ── 영상 블록 (261124 — RoboMaster EP) ───────────────────────────────────────
+//
+// 로봇 노드는 `status.media` 에 **실제로 도는 영상 경로**를 싣는다(HW bfec5dd `_media_status`). EP 는 H.264 WebSocket
+// 중계이고, 상위는 이 블록만 보고 영상을 찾는다 — 포트를 프록시 뒤로 옮기면(`EP_CAM_PUBLIC_PORT`) 여기가 바뀐다.
+// `DeviceState` 에 넣지 않는다 — 그 칸은 Go1 모양 고정 칸이고, 영상 주소를 쓰는 곳은 `cameraView.ts` 하나다.
+
+/** 우리가 읽는 만큼. */
+export type DeviceMedia = {
+  /** `websocket` · `rtp` … 값 어휘를 거르지 않는다 — 고르는 것은 `cameraView.ts` 다. */
+  transport: string | null;
+  source: string | null;
+  /** 노드가 공개 주소를 알면 싣는 전체 주소(`EP_CAM_ADVERTISE_HOST`). 없으면 브로커와 같은 호스트로 채운다. */
+  url: string | null;
+  port: number | null;
+  path: string | null;
+  /** 붙을 수 있는가. `streaming`(지금 흐르는가)과 다르다 — 보는 사람이 없으면 평소 false 다. */
+  available: boolean | null;
+  streaming: boolean | null;
+  /** WebCodecs 코덱 문자열(`avc1.4d6029`). 상류가 한 번이라도 돈 뒤에만 온다. */
+  avc: string | null;
+  lastError: string | null;
+};
+
+let media: Readonly<Record<string, DeviceMedia>> = {};
+let mediaVersion = 0;
+
+/** `status.media` 를 뜯는다. 객체가 아니면 null — 지어 채우지 않는다. */
+export function parseDeviceMedia(value: unknown): DeviceMedia | null {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return null;
+  const record = value as Record<string, unknown>;
+  const port = num(record.port);
+  return {
+    transport: str(record.transport),
+    source: str(record.source),
+    url: str(record.url),
+    port: port !== null && Number.isInteger(port) && port > 0 && port < 65536 ? port : null,
+    path: str(record.path),
+    available: typeof record.available === 'boolean' ? record.available : null,
+    streaming: typeof record.streaming === 'boolean' ? record.streaming : null,
+    avc: str(record.avc),
+    lastError: str(record.last_error),
+  };
+}
+
+/** 그 장비가 마지막으로 알린 영상 블록. 안 왔으면 null. */
+export function deviceMedia(entityId: string): DeviceMedia | null {
+  return media[entityId] ?? null;
+}
+
+/** 영상 블록이 바뀔 때만 오르는 수 — 화면이 `useSyncExternalStore` 로 본다. */
+export function deviceMediaVersion(): number {
+  return mediaVersion;
+}
+
+function sameMedia(a: DeviceMedia | undefined, b: DeviceMedia): boolean {
+  // 주소를 가르는 칸만 본다. `streaming` · `avc` 는 보는 사람 수에 따라 바뀌는데, 그때마다 주소를 다시 지으면 소켓이 다시 붙는다.
+  return a !== undefined && a.transport === b.transport && a.url === b.url && a.port === b.port && a.path === b.path
+    && a.available === b.available && a.source === b.source;
+}
+
+function noteMedia(parsed: { entityId: string; channel: string }, body: Record<string, unknown>): void {
+  if (parsed.channel !== 'status' || !('media' in body)) return;
+  const next = parseDeviceMedia(body.media);
+  if (next === null) return;
+  // 장비 id 는 자기소개가 이긴다 — `deviceIdentity.ts` 와 같은 규칙이라야 `cameraView.ts` 가 같은 열쇠로 찾는다.
+  const registration = body.registration as Record<string, unknown> | undefined;
+  const id = str(registration?.entity_id) ?? parsed.entityId;
+  const changed = !sameMedia(media[id], next);
+  media = { ...media, [id]: next };
+  if (changed) mediaVersion += 1;
+}
+
 export function receiveDeviceMessage(topic: string, body: Record<string, unknown>, origin = ''): boolean {
   const parsed = parseTopic(topic);
   if (parsed === null) return false;
   devices = { ...devices, [parsed.entityId]: applyDeviceMessage(devices[parsed.entityId], parsed, body) };
+  noteMedia(parsed, body);
   /**
    * **누가 붙어 있는지도 여기서 안다** (260921). 규약의 `Capability` 가 retained 가 아니라
    * 늦게 붙은 웹은 못 받는데(계약 §4), retained `status` 는 구독 즉시 온다 — 그 안의
@@ -215,6 +288,8 @@ export function useDeviceStates(): Readonly<Record<string, DeviceState>> {
 
 export function resetDevices(): void {
   devices = {};
+  media = {};
+  mediaVersion += 1;
   // 장비를 다 잊었으면 「누가 붙어 있나」도 같이 잊는다 — 한쪽만 남으면 없는 장비를 가리킨다.
   resetDeviceIdentity();
   for (const listener of listeners) listener();

@@ -293,6 +293,8 @@ export const en: Record<string, string> = {
   'preset.broker.droneTailscale.why': 'The drone Raspberry Pi (pi3). If the name does not resolve, enter the tailnet IP under Manual',
   'preset.broker.a2Tailscale': 'Tailscale (A2-W)',
   'preset.broker.a2Tailscale.why': 'The Raspberry Pi on the A2-W (pi10). The camera comes through this address too. If you are wired straight to the robot, enter ws://192.168.124.162:9001/mqtt under Manual',
+  'preset.broker.epTailscale': 'Tailscale (RoboMaster EP)',
+  'preset.broker.epTailscale.why': 'The Raspberry Pi wired to the EP (pi1). The camera comes from the address the robot node announces (:8091).',
   'preset.detect.tailscale': 'Tailscale',
   'preset.detect.tailscale.why': 'Default. The tailnet name of the detection desktop',
   'preset.detect.tailscaleIp': 'Tailscale (IP)',
@@ -1125,6 +1127,10 @@ export const en: Record<string, string> = {
   'dso.drone.camera': 'Drone camera (straight from the onboard camera node)',
   'dso.drone.noCamera': 'Cannot build this drone camera address — check that the drone broker is connected and resolves to a single device.',
   'dcam.directLiveShort': 'Live · straight from the robot node',
+  'dcam.wsLive': 'Live · straight from the EP camera relay (H.264 · {codec} · {fps} fps): {url}',
+  'dcam.wsWaitingKey': 'Connected · waiting for the first keyframe (the relay takes 1–2 s to start the camera): {url}',
+  'dcam.wsFailed': 'Could not reach the EP camera relay — check the robot node (ep) is running with EP_CAM_ENABLE on. Live view retries in 2 s ({url}) {reason}',
+  'dcam.wsNoDecoder': 'This browser has no WebCodecs (VideoDecoder), so H.264 cannot be decoded — open in Chrome or Edge',
   'dcam.fetchAgain': 'Fetch again',
   'dcam.error': 'Could not connect: {reason}',
   'dcam.closed': 'Disconnected (code {code})',
@@ -3898,7 +3904,6 @@ export const en: Record<string, string> = {
   'gen.address.local': "This PC",
   'gen.address.gpuPc': "GPU PC (100.125.71.51)",
   'gen.address.invalid': "Enter an address that starts with http:// or https://",
-};
   // 261124 — detection status panel (replaces the Capability panel, src/detect/status/)
   'conn.field.redis': 'Redis (targeted classes · blank = server IP:6380)',
   'dms.title': 'Object detection · {n} models',
@@ -3961,3 +3966,4 @@ export const en: Record<string, string> = {
   'dms.detailTitle': '{name} · detection video',
   'dms.detailFooter': 'View only — region and re-identification use the same data stream endpoints as the device detail. Esc to close',
   'dms.usualSource': 'usually {name}',
+};

@@ -29,6 +29,7 @@ import { useReplayTarget } from '../../record/replayMode.ts';
 import { createDecoder } from '../decode.ts';
 import { mediaBaseUrl, openMedia } from '../MediaClient.ts';
 import { isNewSession, type MediaFrameRef } from '../parse.ts';
+import { isH264SocketUrl, parseH264Frame, parseH264Hello, toMediaFrame, type H264SocketHello } from '../h264Socket.ts';
 import { CAMERA_POSITIONS, cameraKeyOf, setCameraChoice, useCameraChoice, type CameraPosition } from '../cameraChoice.ts';
 import { RecordFrame } from '../../record/RecordFrame.tsx';
 
@@ -146,7 +147,7 @@ function CameraCanvas({ cameraKey, live, nonce, recordLabel }: {
  * 장비에서 바로 받는 길 (260928). `stream` 은 끝나지 않는 MJPEG(Go1 뷰어), `frames` 는 한 번에 한 장(드론 영상 말단 —
  * 화면이 이어서 당긴다). 주소를 만드는 쪽(`physical/cameraView.ts`)과 **모양으로만** 맞춘다 — 이 폴더가 로봇 면을 import 하지 않게.
  */
-export type DirectSource = { url: string; kind: 'stream' | 'frames'; label?: string | null };
+export type DirectSource = { url: string; kind: 'stream' | 'frames' | 'h264ws'; label?: string | null };
 
 /**
  * **바로 받는 카메라 여러 대를 나란히** (261019 — 드론 cam0 · cam1). 한 대면 `DirectCamera` 하나와 같다. 여럿이면 칸마다
@@ -173,13 +174,7 @@ const FRAME_GAP_MS = 100;
 /** 한 장씩 받는 길이 실패했을 때 다시 청하기까지. 매 틱 두드리면 말단이 꺼졌을 때 요청만 쌓인다. */
 const FRAME_RETRY_MS = 2000;
 
-/**
- * **장비에서 바로 받는 영상** (260928 — pi7 실측). 주소는 `src/physical/cameraView.ts` 가 만들어 넘긴다.
- *
- * MJPEG 라 `<img>` 로 받는다. 접힘은 **한 장을 그리고 곧바로 끊는다** — `<img>` 의 주소를 비우면 연결이 닫힌다.
- * 다른 출처라 캔버스에서 픽셀을 읽을 수는 없지만 그리는 것은 된다.
- */
-export function DirectCamera({ url, live, nonce = 0, compact = false, frames = false, recordLabel }: {
+type DirectCameraProps = {
   url: string; live: boolean; nonce?: number;
   /** 261007 — 있으면 실시간 영상 위에 녹화 버튼을 얹는다(파일 이름). 노드 카드처럼 끌어 옮기는 자리는 안 준다. */
   recordLabel?: string;
@@ -187,7 +182,170 @@ export function DirectCamera({ url, live, nonce = 0, compact = false, frames = f
   compact?: boolean;
   /** 한 번에 한 장 주는 길(드론 말단). 실시간이면 그림이 도착할 때마다 다음 장을 청한다. */
   frames?: boolean;
-}) {
+};
+
+/**
+ * **장비에서 바로 받는 영상** (260928 — pi7 실측). 주소는 `src/physical/cameraView.ts` 가 만들어 넘긴다.
+ *
+ * 받는 부품은 **주소의 꼴로** 갈린다 (261124 — RoboMaster EP). `ws://` 는 장비가 직접 내는 H.264 소켓이라
+ * `<img>` 로는 못 받는다 — WebCodecs 로 풀어 캔버스에 그린다(`H264SocketCamera`). 그 밖은 MJPEG · 한 장씩이고 `<img>` 다.
+ * 꼴로 가르면 이 부품을 쓰는 자리(카드 · 상세 · 전체 장치 확인 · 드론 상세 · 고정 카메라)가 아무것도 안 바꿔도 된다.
+ */
+export function DirectCamera(props: DirectCameraProps) {
+  return isH264SocketUrl(props.url) ? <H264SocketCamera {...props} /> : <ImageCamera {...props} />;
+}
+
+/** 재접속까지 쉬는 시간. 중계는 보는 사람이 없으면 상류를 끄고 소켓을 닫는다 — 실시간 칸은 다시 붙는다. */
+const SOCKET_RETRY_MS = 2000;
+
+type SocketView = {
+  phase: 'waiting' | 'opened' | 'painted' | 'timeout' | 'failed' | 'nodecoder';
+  reason: string | null;
+  codec: string | null;
+  fps: number;
+  paintedAt: number | null;
+};
+
+const SOCKET_START: SocketView = { phase: 'waiting', reason: null, codec: null, fps: 0, paintedAt: null };
+
+/**
+ * **장비가 WebSocket 으로 직접 내는 H.264** (261124 — HW `ep_camera.py`, bfec5dd). 포맷은 `media/h264Socket.ts`.
+ *
+ * 디코더는 `/media` 와 같은 것(`decode.ts`)이다 — 최신 프레임만 들고, 큐가 밀리면 버리고, 첫 키프레임까지 안 넣는다.
+ * 접힘은 한 장을 그리고 곧바로 끊는다(`VZ-I-06`). 실시간은 끊기면 다시 붙는다 — 중계가 유휴로 닫은 것도 끊김으로 온다.
+ */
+function H264SocketCamera({ url, live, nonce = 0, compact = false, recordLabel }: DirectCameraProps) {
+  useLang();
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const [view, setView] = useState<SocketView>(SOCKET_START);
+
+  useEffect(() => {
+    setView(SOCKET_START);
+    // WebCodecs 가 없으면 붙지도 않는다 — 붙으면 중계가 상류를 켜고, 그 바이트는 아무도 못 푼다.
+    if (typeof VideoDecoder === 'undefined') { setView({ ...SOCKET_START, phase: 'nodecoder' }); return undefined; }
+    const decoder = createDecoder();
+    let socket: WebSocket | null = null;
+    let hello: H264SocketHello | null = null;
+    let sequence = 0;
+    let stopped = false;
+    let retry: ReturnType<typeof setTimeout> | null = null;
+
+    const connect = () => {
+      if (stopped) return;
+      hello = null;
+      decoder.reset();
+      let ws: WebSocket;
+      try {
+        ws = new WebSocket(url);
+      } catch (error) {
+        setView((v) => ({ ...v, phase: 'failed', reason: String((error as Error)?.message ?? error) }));
+        return;
+      }
+      ws.binaryType = 'arraybuffer';
+      socket = ws;
+      ws.onopen = () => setView((v) => (v.phase === 'painted' ? v : { ...v, phase: 'opened', reason: null }));
+      ws.onmessage = (event: MessageEvent) => {
+        if (typeof event.data === 'string') {
+          const parsed = parseH264Hello(event.data);
+          if (!parsed.ok) return;
+          if (hello !== null && hello.codec !== parsed.hello.codec) decoder.reset();
+          hello = parsed.hello;
+          setView((v) => (v.codec === parsed.hello.codec ? v : { ...v, codec: parsed.hello.codec }));
+          return;
+        }
+        // `hello` 앞의 바이너리는 코덱을 모른다 — 중계가 그 순서를 지키지만, 어긋나면 넣지 않는다.
+        if (hello === null || !(event.data instanceof ArrayBuffer)) return;
+        const parsed = parseH264Frame(event.data);
+        if (!parsed.ok) return;
+        sequence += 1;
+        decoder.push(toMediaFrame(parsed.frame, hello, sequence));
+      };
+      ws.onclose = (event: CloseEvent) => {
+        if (socket === ws) socket = null;
+        if (stopped) return;
+        setView((v) => ({ ...v, phase: 'failed', reason: t('dcam.closed', { code: event.code }) }));
+        if (live) retry = setTimeout(connect, SOCKET_RETRY_MS);
+      };
+    };
+
+    const halt = () => {
+      if (stopped) return;
+      stopped = true;
+      if (retry !== null) clearTimeout(retry);
+      const ws = socket;
+      socket = null;
+      if (ws !== null) { ws.onclose = null; ws.onmessage = null; ws.close(); }
+    };
+
+    connect();
+    const startedAt = Date.now();
+    let tickAt = Date.now();
+    let decodedAt = 0;
+    let lastPainted: unknown = null;
+    const timer = window.setInterval(() => {
+      const painted = decoder.latest();
+      const canvas = canvasRef.current;
+      if (painted !== null && canvas !== null && painted !== lastPainted) {
+        lastPainted = painted;
+        if (canvas.width !== painted.width) canvas.width = painted.width;
+        if (canvas.height !== painted.height) canvas.height = painted.height;
+        canvas.getContext('2d')?.drawImage(painted.bitmap as CanvasImageSource, 0, 0);
+        if (!live) {
+          window.clearInterval(timer);
+          halt();
+          setView((v) => ({ ...v, phase: 'painted', paintedAt: Date.now() }));
+          return;
+        }
+      }
+      // 수는 1초에 한 번만 올린다 — 그림은 매 틱 그리되 React 는 매 틱 다시 그리지 않는다(`VZ-I-06`).
+      const now = Date.now();
+      if (now - tickAt >= 1000) {
+        const decoded = decoder.stats().decoded;
+        const fps = Math.round(((decoded - decodedAt) * 1000) / (now - tickAt));
+        decodedAt = decoded;
+        tickAt = now;
+        if (fps > 0) setView((v) => ({ ...v, phase: 'painted', reason: null, fps, paintedAt: v.paintedAt ?? now }));
+        else setView((v) => (v.fps === 0 ? v : { ...v, fps: 0 }));
+      }
+      if (!live && now - startedAt > STILL_TIMEOUT_MS) {
+        window.clearInterval(timer);
+        halt();
+        setView((v) => (v.phase === 'failed' ? v : { ...v, phase: 'timeout' }));
+      }
+    }, live ? 50 : 250);
+
+    return () => {
+      window.clearInterval(timer);
+      halt();
+      decoder.close();
+    };
+  }, [url, live, nonce]);
+
+  const canvas = <canvas ref={canvasRef} className="device-cam__canvas" />;
+  return <div className={`device-cam__stage${live ? ' device-cam__stage--live' : ''}`}>
+    {live && recordLabel !== undefined ? <RecordFrame label={recordLabel}>{canvas}</RecordFrame> : canvas}
+    <p className="device-cam__meta" title={url}>
+      {view.phase === 'nodecoder'
+        ? <b className="vn-warn">{t('dcam.wsNoDecoder')}</b>
+        : view.phase === 'failed'
+          ? <b className="vn-warn">{t('dcam.wsFailed', { url, reason: view.reason ?? '' })}</b>
+          : view.phase === 'timeout'
+            ? <b className="vn-warn">{t('dcam.directTimeout', { sec: STILL_TIMEOUT_MS / 1000, url })}</b>
+            : view.phase === 'waiting'
+              ? t('dcam.directWaiting', { url })
+              : view.phase === 'opened'
+                ? t('dcam.wsWaitingKey', { url })
+                : !live
+                  ? t('dcam.directStill', { url, clock: clock(view.paintedAt ?? Date.now()) })
+                  : compact
+                    ? t('dcam.directLiveShort')
+                    : t('dcam.wsLive', { url, codec: view.codec ?? '?', fps: view.fps })}
+    </p>
+  </div>;
+}
+
+/** MJPEG(끝나지 않는 영상) · 한 장씩. `<img>` 로 받는다 — 다른 출처라 픽셀은 못 읽지만 그리는 것은 된다. */
+function ImageCamera({ url, live, nonce = 0, compact = false, frames = false, recordLabel }: DirectCameraProps) {
   useLang();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [phase, setPhase] = useState<'waiting' | 'painted' | 'timeout' | 'failed'>('waiting');
