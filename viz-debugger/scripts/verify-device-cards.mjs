@@ -235,7 +235,8 @@ const cast = listCastIds();
   if (!/HardwareLink/.test(main)) failures.push('붙어서 뜬 카드가 살아 있는 줄을 안 그린다');
 
   // ④ 더블클릭으로 상태를 열 수 있다 — **드론을 확인할 방법**이 그것이다 (260922 지시 2).
-  if (!/onDoubleClick=\{\(\) => setStatusDeviceId\(id\)\}/.test(main)) {
+  // 261124 — 탐지 상태판 상세와 하나만 열리게 앞에서 그것을 닫는다(`setDetectOpen(null); setStatusDeviceId(id);`). 어느 모양이든 받는다.
+  if (!/onDoubleClick=\{\(\) => (?:\{[^}]*\bsetStatusDeviceId\(id\);?\s*\}|setStatusDeviceId\(id\))\}/.test(main)) {
     failures.push('카드를 더블클릭해도 상태가 안 열린다 — 드론을 확인할 방법이 없어진다');
   }
 

@@ -10,7 +10,7 @@ import { useSyncExternalStore } from 'react';
 import { receiveRobotProgress } from '../data/scenario.ts';
 import type { ScenarioEvent, TaskStatus } from '../model/types.ts';
 import { issueStepsToEnd } from './robotCommands.ts';
-import { robotClient } from './robotClient.ts';
+import { missionClient } from './robotClient.ts';
 import { elapsedSec, markApproachIssued, robotSession } from './robotSession.ts';
 import { t } from '../i18n/dict.ts';
 import { planScanApproach, type ScanApproachPlan, type ScanPlanInput } from './scanApproach.ts';
@@ -143,7 +143,8 @@ export async function issueScanApproach(): Promise<boolean> {
   if (robotSession().stopped !== null) return false;
   setScanApproach({ ...current, issued: true, waitingApproval: false });
   markApproachIssued();
-  const outcome = await issueStepsToEnd(robotClient(), current.plan.steps);
+  // 스캔을 돈 그 로봇으로 간다(261124 · `missionRobot.ts`) — 첫 줄로 내면 다른 로봇이 걸어 나간다.
+  const outcome = await issueStepsToEnd(missionClient(), current.plan.steps);
   if (!outcome.sent) emitScanNode(current.missionId, 'T-B2', 'failed', { reason: outcome.reason ?? '' });
   return outcome.sent;
 }

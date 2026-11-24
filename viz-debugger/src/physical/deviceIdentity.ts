@@ -167,6 +167,16 @@ export function deviceCandidates(): readonly DeviceIdentity[] {
 }
 
 /**
+ * **그 action 을 받을 수 있는 살아 있는 장비들** (261124 — 임무를 모는 로봇 고르기 · `missionRobot.ts`).
+ * 꺼졌다고 말한 것 · 센서는 뺀다. action 목록을 받았으면 그것으로, 못 받았으면 종류가 `robot` 인지로 본다
+ * (`walkingClient` 와 같은 규칙).
+ */
+export function liveDevicesFor(action: string): readonly DeviceIdentity[] {
+  return Object.values(candidates).filter((c) => c.online !== false && c.kind !== 'sensor'
+    && (c.actions !== null ? c.actions.includes(action) : c.kind === 'robot'));
+}
+
+/**
  * **발행 대상.** 장비가 밝힌 id 가 없으면 `null` 이고, 그러면 명령은 나가지 않는다.
  *
  * 옛 표(`go1-001`)로 물러서지 않는다 — 물러서는 순간 드론에 붙은 채로 Go1 의 토픽에

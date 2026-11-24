@@ -48,7 +48,6 @@ import { RobotPanel } from './physical/RobotPanel.tsx';
 import { useRobotUplink } from './physical/robotBridge.ts';
 import { useDetectUplink } from './detect/useDetect.tsx';
 import { HardwareLink } from './physical/HardwareLink.tsx';
-import { VisionCardLine } from './vision/views/VisionViews.tsx';
 // 261124 — 「기능」 판(`./capability/views/CapabilityPanel.tsx`)은 화면에서만 뺐다(코드는 그대로). 그 자리에 객체 탐지 상태판.
 import { DetectModelPanel } from './detect/status/views/DetectModelPanel.tsx';
 import { DetectStreamOverlay } from './detect/status/views/DetectStreamOverlay.tsx';
@@ -77,6 +76,7 @@ import { useReplayTarget } from './record/replayMode.ts';
 import { closeControlView, useControlView } from './record/controlView.ts';
 import { ControlRecordView } from './views/ControlRecordView.tsx';
 import { dropOnSlots, holdSlotsFor, useSlotBindings } from './data/slots.ts';
+import { assignToMilestone, holdAssignmentsFor, useMilestoneAssignments } from './data/assignments.ts';
 import { GeneratedRunProposal, GeneratedRunStatus, generatedApproval } from './views/GeneratedRunCard.tsx';
 import { useFillValues } from './generate/runFill.ts';
 import { chooseGeneratedOverScript } from './shell/missionBridge.ts';
@@ -139,7 +139,7 @@ function Milestones({ view, phase, milestoneStatuses, assignments, onAssign, onO
   view: MissionView;
   phase: 'proposal' | 'playing' | 'idle';
   milestoneStatuses: Record<string, TaskStatus>;
-  assignments: Record<string, string[]>;
+  assignments: Readonly<Record<string, readonly string[]>>;
   onAssign(id: string, hardware: string): void;
   onOpen(id: string): void;
   planApproval?: ReactNode;
@@ -273,8 +273,8 @@ function Milestones({ view, phase, milestoneStatuses, assignments, onAssign, onO
         {item === undefined
           ? <CardStatusLine entityId={id} />
           : <span><PendingSource id="hardware-pool-status" inline>{item.connection} · {item.battery}% · {item.rssi} dBm</PendingSource></span>}
-        {/* 261001 — 이 장비에 묶인 객체 탐지 추론 스트림. 묶인 포트가 없으면 아무것도 안 그린다. */}
-        <VisionCardLine entityId={id} />
+        {/* 261124 — 추론 스트림 줄(묶인 포트 · 모델 칩 · 작은 한 장)은 뺐다. 아래 객체 탐지 판과 겹친다.
+            묶음 고르기 · 영상은 카드 상세(더블클릭)에 그대로 있다. 부품(`VisionCardLine`)은 남겨 둔다. */}
       </article>;
     })}</aside>
     {/* 객체 탐지 상태 (261124 — 「기능」 판 자리). 하드웨어와 다른 판이고 자기 스크롤을 갖는다. 장비가 없어도 뜬다. */}
@@ -573,13 +573,14 @@ export function MissionDebugger({ navigation, planApproval }: { navigation?: Deb
   const [modalTask, setModalTask] = useState<Task | null>(null);
   /** 되감아 둔 시각 — `GraphScreen` 이 올린다. 명령 표가 그 시점까지만 접는다 (261025 · 액션 층 시각 2부). */
   const [viewSecond, setViewSecond] = useState<number | null>(null);
-  const [assignments, setAssignments] = useState<Record<string, string[]>>({});
+  /** 끌어 놓은 장비 (261124 — 모듈로 옮겼다 · `data/assignments.ts`). 스캔 실행기가 같은 표로 모는 로봇을 고른다. */
+  const assignments = useMilestoneAssignments();
   const [milestoneId, setMilestoneId] = useState<string | null>(null);
   /** 셸이 넣은 「○○ 노드로」 요청. 그래프 화면이 처리한다. */
   const [nodeRequest, setNodeRequest] = useState<{ kind: string; taskId: string | null; requestId: number } | null>(null);
 
   // 임무가 바뀌면(대본 승인) 한 편에 묶였던 화면 상태를 처음으로 되돌린다.
-  useEffect(() => { setScreen('milestones'); setModalTask(null); setAssignments({}); setMilestoneId(null); setScope('milestone'); }, [view.missionId]);
+  useEffect(() => { setScreen('milestones'); setModalTask(null); holdAssignmentsFor(view.missionId); setMilestoneId(null); setScope('milestone'); }, [view.missionId]);
   /**
    * 장치 자리 (260927). 임무가 바뀌면 비우고, **같은 임무면 남긴다** — 제안 중에 카드를 끌어 앉혀 두고
    * 승인하면 그 배정이 그대로 가야 한다(제안과 승인은 같은 임무 id 다).
@@ -816,7 +817,7 @@ export function MissionDebugger({ navigation, planApproval }: { navigation?: Deb
       // 자리를 쓰는 마일스톤이면 자리에 앉힌다 (260927) — 한 번 앉히면 그 자리를 쓰는 마일스톤 전부가 같은 장비다.
       const slots = view.milestones.find((item) => item.id === id)?.slots;
       if (slots !== undefined && slots.length > 0) { dropOnSlots(slots, hardware); return; }
-      setAssignments((current) => ({ ...current, [id]: [...new Set([...(current[id] ?? []), hardware])] }));
+      assignToMilestone(id, hardware);
     }} onOpen={(id) => { setMilestoneId(id); navigate('graph'); }} planApproval={planApproval} />
     : <GraphScreen screen={screen} view={view} trace={trace} milestone={graphMilestone} tasks={graphTasks} headSec={display.headSec} playing={display.phase === 'playing'} scope={scope} onScope={setScope} refEdges={visibleRefEdges} crossing={crossingRefEdges} viewpoints={visibleViewpoints} viewpointFill={viewpointFill} onOpen={openTask}
       // navigate() 를 쓴다 — 그것이 modalTask 정리까지 함께 한다. setScreen 을 직접 부르면 팝업이 남는다.

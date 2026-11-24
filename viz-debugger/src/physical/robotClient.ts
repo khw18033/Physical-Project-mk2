@@ -23,6 +23,7 @@ import { noteScanFeed } from '../detect/feedLog.ts';
 import { indexOfRotation } from '../detect/parse.ts';
 import { hardwareTarget } from './encode.ts';
 import { awaitDeviceIdentity, deviceIdentityFor } from './deviceIdentity.ts';
+import { pickMissionRobot, pinMissionRobot, pinnedMissionRobot } from './missionRobot.ts';
 import { receiveScanCapture } from './robotBridge.ts';
 import { elapsedSec } from './robotSession.ts';
 import { initPrepStage } from './prepStage.ts';
@@ -140,6 +141,27 @@ function makeClient(url: string): PhysicalClient {
     // 장비 상태도 만들 때 잇는다 — 화면 부품이 안 떠 있는 동안의 값을 놓치면
     // 하드웨어 카드가 「모른다」로 남는다.
     singleton.onDevice(receiveDeviceMessage);
+    /**
+     * **로봇 → 탐지 흐름도 만들 때 잇는다** (260914). 탐지 그림이 안 올 때 로봇이 보냈는지를
+     * 화면이 스스로 말할 수 있어야 한다. 각도 → 칸은 지금 올라온 임무의 간격·칸 수로 잡는다.
+     */
+    singleton.onScanFeed((message) => {
+      // 261124 — 소켓마다 달고, 지금 임무를 모는 로봇의 소켓에서 온 것만 받는다(로봇 둘이면 다른 로봇의 촬영이 칸을 켜지 않게).
+      if (missionClient('scan_mission') !== singleton) return;
+      const mission = currentMission();
+      const params = mission.params;
+      const stepDeg = typeof params?.viewpoint_step_deg === 'number' ? params.viewpoint_step_deg : 45;
+      const count = typeof params?.viewpoint_count === 'number' ? params.viewpoint_count : 8;
+      noteScanFeed(message, stepDeg, count);
+      // 로봇이 찍은 원본을 임무 기록에 남긴다 (260914) — 탐지 그림과 견줄 수 있게.
+      noteRobotFrame(message);
+      // **촬영이 그 칸을 켠다** (260914) — 0도 노드는 회전 없이 촬영만 하므로 이것만이 그 칸을 켠다.
+      if (message.kind === 'frame') {
+        const index = indexOfRotation(message.rotationDeg, stepDeg, count);
+        const heading = deviceState(deviceIdentityFor(singleton.address())?.deviceId ?? hardwareTarget('robot-01'))?.position?.headingDeg ?? null;
+        if (index !== null) receiveScanCapture(mission.missionId, elapsedSec(), index, index === 0 ? heading : null);
+      }
+    });
     // **임무 배선은 여기 없다.** 아래 `attachDriver` 가 첫 줄 하나에만 단다 —
     // 모든 클라이언트에 달면 드론에도 스캔 명령이 나간다.
     return singleton;
@@ -165,30 +187,13 @@ function attachDriver(url: string | null): void {
   if (singleton === undefined) return;
   drivingUrl = url;
   {
-    /**
-     * **로봇 → 탐지 흐름도 만들 때 잇는다** (260914). 탐지 그림이 안 올 때 로봇이 보냈는지를
-     * 화면이 스스로 말할 수 있어야 한다. 각도 → 칸은 지금 올라온 임무의 간격·칸 수로 잡는다.
-     */
-    singleton.onScanFeed((message) => {
-      const mission = currentMission();
-      const params = mission.params;
-      const stepDeg = typeof params?.viewpoint_step_deg === 'number' ? params.viewpoint_step_deg : 45;
-      const count = typeof params?.viewpoint_count === 'number' ? params.viewpoint_count : 8;
-      noteScanFeed(message, stepDeg, count);
-      // 로봇이 찍은 원본을 임무 기록에 남긴다 (260914) — 탐지 그림과 견줄 수 있게.
-      noteRobotFrame(message);
-      // **촬영이 그 칸을 켠다** (260914) — 0도 노드는 회전 없이 촬영만 하므로 이것만이 그 칸을 켠다.
-      if (message.kind === 'frame') {
-        const index = indexOfRotation(message.rotationDeg, stepDeg, count);
-        const heading = deviceState(hardwareTarget('robot-01'))?.position?.headingDeg ?? null;
-        if (index !== null) receiveScanCapture(mission.missionId, elapsedSec(), index, index === 0 ? heading : null);
-      }
-    });
+    // 로봇 → 탐지 흐름(`onScanFeed`)은 261124 부터 `makeClient` 가 소켓마다 단다 — 임무를 모는 로봇의 소켓 것만 받는다.
     // **준비 단계(T-A1·T-A2)도 여기서 잇는다** — 스캔 발행과 같은 이유다. 그리기에 매이면
     // 두 판째에 안 돈다.
     initPrepStage();
     // **로봇의 촬영 뒤 대기를 푸는 신호도 여기서 잇는다** (260914) — 그 각도 그림이 화면에 뜨면 다음 회전.
-    initScanContinue(() => singleton);
+    // 261124 — 촬영 뒤 대기 해제도 임무를 모는 로봇으로(첫 줄이 아니라).
+    initScanContinue(() => missionClient('scan_mission'));
     /**
      * **승인이 스캔을 쏘는 자리도 여기다** (260911 — 두 판째에 안 나가던 자리).
      *
@@ -226,6 +231,7 @@ function attachDriver(url: string | null): void {
           return;
         }
         lastScanAttempt = attempt;
+        pinMissionRobot(robotSession().startedAtMs ?? 0, walker.deviceId);
         const missing = undeclaredActions(walker.client, generated);
         if (missing.length > 0) {
           noteIssue('steps', 'robot', t('grun.undeclared', { actions: missing.join(' · ') }));
@@ -254,6 +260,7 @@ function attachDriver(url: string | null): void {
           return;
         }
         lastScanAttempt = attempt;
+        pinMissionRobot(robotSession().startedAtMs ?? 0, walker.deviceId);
         void issueStepMission(walker.client, stepParams).then((outcome) => {
           if (outcome !== null && outcome.sent !== true) noteIssue('steps', 'robot', t('robot.stepsNotSent', { reason: outcome.reason ?? t('robot.noReason') }));
         });
@@ -277,7 +284,16 @@ function attachDriver(url: string | null): void {
       const attempt = `${session.started}|${session.approved}|${session.connection.state}|${session.startedAtMs ?? 0}`;
       if (attempt === lastScanAttempt) return;
       lastScanAttempt = attempt;
-      void issueScan(singleton as PhysicalClient, currentMission().params);
+      /**
+       * **스캔은 임무를 모는 로봇으로** (261124). 전에는 첫 줄(`singleton`)이었다 — 로봇이 둘이면 끌어 놓은 카드와
+       * 상관없이 첫 줄 로봇이 돌았다. `scan_mission` 을 선언한 로봇이 하나면 그것, 둘이면 끌어 놓은 것.
+       */
+      const pick = pickMissionRobot('scan_mission');
+      if (!pick.ok && pick.how !== 'none') { noteIssue('steps', 'robot', pick.reason); return; }
+      const driver = pick.ok ? clientForDevice(pick.deviceId) : singleton;
+      if (driver === null) { noteIssue('steps', 'robot', t('mr.noSocket', { device: pick.ok ? pick.deviceId : '' })); return; }
+      pinMissionRobot(session.startedAtMs ?? 0, pick.ok ? pick.deviceId : null);
+      void issueScan(driver, currentMission().params);
     });
   }
 }
@@ -288,15 +304,40 @@ function attachDriver(url: string | null): void {
  * 장비가 밝힌 action 에 `move_forward` 가 있거나, 목록을 아직 못 받았으면 장비 종류가 `robot` 이다.
  * 그런 것이 **정확히 하나**일 때만 고른다. 없거나 둘 이상이면 고르지 않고 사유를 돌려준다.
  */
-export function walkingClient(): { client: PhysicalClient | null; reason: string } {
-  const walkers = syncRobotClients().filter((client) => {
-    if (client.getStatus().state !== 'open') return false;
-    const identity = deviceIdentityFor(client.address());
-    if (identity === null) return false;
-    return identity.actions !== null ? identity.actions.includes('move_forward') : identity.kind === 'robot';
-  });
-  if (walkers.length === 1) return { client: walkers[0], reason: '' };
-  return { client: null, reason: walkers.length === 0 ? t('robot.noWalker') : t('robot.manyWalkers', { n: walkers.length }) };
+export function walkingClient(): { client: PhysicalClient | null; deviceId: string | null; reason: string } {
+  /**
+   * **261124 — 끌어 놓은 카드를 따른다** (`missionRobot.ts`). 로봇이 둘이어도 카드를 끌어 놓았으면 그 로봇으로 낸다.
+   * 끌어 놓은 것이 없고 걸을 수 있는 로봇이 둘이면 전처럼 안 낸다 — 사유가 「카드를 끌어 놓으세요」로 바뀌었다.
+   */
+  const pick = pickMissionRobot('move_forward');
+  if (!pick.ok) return { client: null, deviceId: null, reason: pick.how === 'none' ? t('robot.noWalker') : pick.reason };
+  const client = clientForDevice(pick.deviceId);
+  if (client === null || client.getStatus().state !== 'open') {
+    return { client: null, deviceId: pick.deviceId, reason: t('mr.noSocket', { device: pick.deviceId }) };
+  }
+  return { client, deviceId: pick.deviceId, reason: '' };
+}
+
+/**
+ * **지금 임무를 모는 로봇의 소켓** (261124). 정지 · 일시정지 · 재개 · 접근 · 촬영 대기 해제가 쓴다 — 전에는 전부 첫 줄이라
+ * 둘째 줄 로봇이 임무를 돌 때 **정지가 다른 로봇으로 갔다.**
+ *
+ *   1. 이 판에 박힌 로봇(`pinMissionRobot` — 판을 연 실행기가 박는다)
+ *   2. 지금 고를 수 있는 로봇(끌어 놓은 것 · 하나뿐인 것)
+ *   3. 첫 줄 — 못 고르면 옛 자리. 붙은 로봇이 하나도 없을 때도 면은 있어야 한다
+ */
+export function missionClient(action = 'turn'): PhysicalClient {
+  const pinned = pinnedMissionRobot();
+  if (pinned !== null && pinned.runKey === robotSession().startedAtMs) {
+    const client = clientForDevice(pinned.deviceId);
+    if (client !== null) return client;
+  }
+  const pick = pickMissionRobot(action);
+  if (pick.ok) {
+    const client = clientForDevice(pick.deviceId);
+    if (client !== null) return client;
+  }
+  return robotClient();
 }
 
 /**

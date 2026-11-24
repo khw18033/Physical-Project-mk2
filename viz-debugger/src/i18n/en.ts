@@ -338,6 +338,12 @@ export const en: Record<string, string> = {
   'robot.noReason': 'no reason given',
   'robot.noWalker': 'No robot that can walk is connected. Check the robot broker (Go1 pi7 · A2-W pi10) under Connections. The quantitative command was not sent',
   'robot.manyWalkers': '{n} robots that can walk are connected, so it cannot tell where to send. The quantitative command was not sent',
+  // Picking the robot that drives the mission (261124 — `missionRobot.ts`)
+  'mr.none': 'No robot that can turn is connected',
+  'mr.many': 'More than one robot is connected ({list}). Drag the hardware card of the robot that should run this mission onto a milestone, then start again. Nothing was moved',
+  'mr.manyAssigned': 'Two robots are dragged in ({list}). One robot runs this mission — keep one and start again',
+  'mr.assignedAway': 'The dragged-in robot {device} cannot take commands right now (disconnected or off). It was not swapped for another robot',
+  'mr.noSocket': 'No broker connection reaches {device} (two robots on one broker are not picked between)',
   'robot.stepsNotSent': 'The quantitative command did not go out: {reason}',
   'robot.notApproved': 'Not approved yet, or stopped',
   'robot.alreadyFired': 'Already fired. One approval fires once',

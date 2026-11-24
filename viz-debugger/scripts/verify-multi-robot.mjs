@@ -130,8 +130,13 @@ const DRONE = 'ws://pi3.example:9001';
   }
   // 만드는 자리에 임무 배선이 있으면 전부에 달린다.
   const make = source.slice(source.indexOf('function makeClient('), source.indexOf('function attachDriver('));
-  for (const wiring of ['onScanFeed', 'initPrepStage', 'initScanContinue', 'issueScan']) {
+  for (const wiring of ['initPrepStage', 'initScanContinue', 'issueScan']) {
     if (make.includes(wiring)) failures.push(`makeClient 에 ${wiring} 가 있다 — 붙는 로봇마다 임무가 걸린다`);
+  }
+  // 261124 — 스캔 수신은 소켓마다 달되, **임무를 모는 로봇의 소켓 것만** 받는다(모는 로봇이 첫 줄이 아닐 수 있다).
+  // 관문 없이 달면 붙는 로봇마다 칸이 켜진다.
+  if (make.includes('onScanFeed') && !/onScanFeed\(\(message\) => \{[\s\S]{0,300}?if \(missionClient\('scan_mission'\) !== singleton\) return;/.test(make)) {
+    failures.push('makeClient 의 onScanFeed 에 「모는 로봇의 소켓만」 관문이 없다 — 붙는 로봇마다 임무가 걸린다');
   }
   // 세션도 모는 쪽만 민다 — 둘이 번갈아 덮어쓰면 「붙었다 끊겼다」가 반복된다.
   if (!/url !== drivingUrl/.test(make)) failures.push('모든 클라이언트가 임무 세션을 덮어쓴다');

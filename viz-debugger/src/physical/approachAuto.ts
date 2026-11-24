@@ -30,7 +30,7 @@ import { appendDetectLog, DETECT_TASKS } from '../detect/detectLog.ts';
 import { subscribeDetect } from '../detect/store.ts';
 import { isReplayingRecord } from '../record/replayMode.ts';
 import { doorScanFlow } from '../scenarios/library.ts';
-import { robotClient } from './robotClient.ts';
+import { missionClient } from './robotClient.ts';
 import { approachWords, canApproach, issueApproach } from './robotCommands.ts';
 import { robotSession, subscribeRobot } from './robotSession.ts';
 
@@ -193,7 +193,7 @@ function check(): void {
     say: { key: 'auto.approachStarted', vars: { route: approachWords() ?? '' } },
     tasks: [DETECT_TASKS.approach],
   });
-  void issueApproach(robotClient(), currentMission().params).then((outcome) => {
+  void issueApproach(missionClient(), currentMission().params).then((outcome) => {
     if (outcome?.sent === true) { setAuto({ phase: 'idle' }); return; }
     const reason = outcome?.reason ?? '';
     appendDetectLog({

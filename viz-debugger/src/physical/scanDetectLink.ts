@@ -32,7 +32,9 @@ import {
   emitScanNode as emit, issueScanApproach, scanPlanPayload, scanStopDistance, scanStopEdited, setScanApproach as setApproach,
   setScanQueryRetry,
 } from './scanApproachRun.ts';
-import { robotClient } from './robotClient.ts';
+import { clientForDevice, robotClient } from './robotClient.ts';
+import { pickMissionRobot, pinMissionRobot } from './missionRobot.ts';
+import type { PhysicalClient } from './PhysicalClient.ts';
 import { robotSession, subscribeRobot } from './robotSession.ts';
 import { planScanApproach } from './scanApproach.ts';
 import { profileChanged, runScanDetect, type ScanCallRecord, type ScanRunOutcome } from './scanDetectRun.ts';
@@ -72,8 +74,8 @@ function waitHeading(runKey: number): Promise<number | null> {
   });
 }
 
-function headingNow(): number | null {
-  return deviceState(hardwareTarget(ROBOT_ENTITY))?.position?.headingDeg ?? null;
+function headingNow(device: string): number | null {
+  return deviceState(device)?.position?.headingDeg ?? null;
 }
 
 function onResult(missionId: string, outcome: ScanRunOutcome & { ok: true }, scanId: string): void {
@@ -126,7 +128,15 @@ let runningKey: number | null = null;
  */
 async function launch(missionId: string, runKey: number, typedQuery: string | null = null): Promise<void> {
   const target = scanTargetOf(missionId) ?? 'door';
-  const device = hardwareTarget(ROBOT_ENTITY);
+  /**
+   * **이 판을 모는 로봇 — 회전 · 방위 · 추론 포트 · 접근 이동이 모두 이 하나** (261124 · `missionRobot.ts`).
+   * 전에는 회전이 첫 줄(EP)로, 포트가 옛 표(`go1-001`)로 갈라져 EP 가 돌고 Go1 의 그림으로 스캔했다.
+   * 못 고르면(`none`) 옛 길 — 첫 줄 · 옛 표 — 로 가고, 그쪽이 「안 붙었다」를 말한다.
+   */
+  const pick = pickMissionRobot('turn');
+  const device = pick.ok ? pick.deviceId : hardwareTarget(ROBOT_ENTITY);
+  const client: PhysicalClient | null = pick.ok ? clientForDevice(device) : robotClient();
+  pinMissionRobot(runKey, pick.ok ? device : null);
   const scanId = newScanId(missionId);
   const params = currentMission().params;
   const steps = Number(params.viewpoint_count ?? 8);
@@ -139,8 +149,13 @@ async function launch(missionId: string, runKey: number, typedQuery: string | nu
     emit(missionId, 'T-A0', 'failed', { code, detail });
   };
 
+  // 로봇이 둘인데 끌어 놓은 것이 없다 · 끌어 놓은 로봇이 안 붙었다 — 아무 쪽이나 돌리지 않는다.
+  if (!pick.ok && pick.how !== 'none') { failEarly('robot_choice', pick.reason); noteIssue('scan-detect', 'robot', pick.reason); return; }
+  if (client === null) { failEarly('robot_socket', t('mr.noSocket', { device })); return; }
+
   const base = scanBaseFor(device);
   if (base === null) { failEarly('no_address', t('sd.noAddress', { device })); return; }
+  emit(missionId, 'T-A0', 'running', { device, device_pick: pick.ok ? pick.how : 'fallback', base });
 
   let query: string | null = null;
   let queryKo: string | null = null;
@@ -170,12 +185,12 @@ async function launch(missionId: string, runKey: number, typedQuery: string | nu
     client: scanClient(base),
     async turn(deg) {
       // 회전 명령은 T-A3 에 붙는다. 로봇 응답이 T-A3 을 끝냄으로 칠하므로 다시 진행 중으로 돌린다 — 끝은 실행기가 칠한다.
-      const issued = await issueStepsToEnd(robotClient(), [{ taskId: 'T-A3', action: 'turn', parameters: { deg } }]);
+      const issued = await issueStepsToEnd(client, [{ taskId: 'T-A3', action: 'turn', parameters: { deg } }]);
       if (issued.sent) emit(missionId, 'T-A3', 'running', {});
       return issued.sent ? { ok: true } : { ok: false, reason: issued.reason ?? t('sd.turnFailed') };
     },
     startHeading: () => waitHeading(runKey),
-    heading: headingNow,
+    heading: () => headingNow(device),
     emit: (taskId, status, payload) => emit(missionId, taskId, status, payload),
     event: applyScanEvent,
     record,

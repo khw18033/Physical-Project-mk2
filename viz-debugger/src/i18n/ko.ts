@@ -339,6 +339,12 @@ export const ko: Record<string, string> = {
   'robot.noReason': '사유 없음',
   'robot.noWalker': '걸을 수 있는 로봇이 붙어 있지 않습니다. 연결 관리에서 로봇 브로커(Go1 pi7 · A2-W pi10)를 「확인」해 주세요. 정량 명령을 보내지 않았습니다',
   'robot.manyWalkers': '걸을 수 있는 로봇이 {n}대 붙어 있어 어느 쪽으로 보낼지 정할 수 없습니다. 정량 명령을 보내지 않았습니다',
+  // 임무를 모는 로봇 고르기 (261124 — `missionRobot.ts`)
+  'mr.none': '회전할 수 있는 로봇이 붙어 있지 않습니다',
+  'mr.many': '로봇이 둘 이상 붙어 있습니다({list}). 이 임무를 몰 로봇의 하드웨어 카드를 마일스톤에 끌어 놓은 뒤 다시 시작해 주세요. 아무 쪽도 돌리지 않았습니다',
+  'mr.manyAssigned': '끌어 놓은 로봇이 둘입니다({list}). 이 임무는 한 대가 몹니다 — 한 대만 남기고 다시 시작해 주세요',
+  'mr.assignedAway': '끌어 놓은 로봇 {device} 이(가) 지금 명령을 받을 수 없습니다(연결 끊김 · 꺼짐). 다른 로봇으로 바꿔 돌리지 않았습니다',
+  'mr.noSocket': '{device} 에 닿는 브로커 연결을 찾지 못했습니다(한 브로커에 로봇이 둘이면 고르지 않습니다)',
   'robot.stepsNotSent': '정량 명령이 나가지 못했습니다: {reason}',
   'robot.notApproved': '승인 전이거나 정지된 상태입니다',
   'robot.alreadyFired': '이미 쐈습니다. 승인 한 번에 한 번만 나갑니다',

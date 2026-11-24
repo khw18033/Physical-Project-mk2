@@ -37,6 +37,7 @@ import type { ScenarioEvent } from '../model/types.ts';
 import { noteIssue } from '../shared/notifications.ts';
 import { deviceState, subscribeDevices } from './deviceState.ts';
 import { hardwareTarget } from './encode.ts';
+import { pickMissionRobot, pinnedMissionRobot } from './missionRobot.ts';
 import { isReplayingRecord, subscribeReplayMode } from '../record/replayMode.ts';
 import {
   elapsedSec, markPrepTasksDone, robotDrives, robotSession, subscribeRobot,
@@ -188,10 +189,21 @@ async function loadFloorPlan(runKey: number): Promise<void> {
   noteIssue('prep-map', 'connection', t('ps.planHold', { reason }));
 }
 
+/**
+ * **방위를 읽을 장비** (261124). 스캔을 모는 로봇과 같아야 한다 — 로봇이 둘이면 옛 표(`go1-001`)로 물러서서
+ * 가만히 있는 Go1 의 방위로 EP 의 회전을 셈했다. 이 판에 박힌 로봇 > 지금 고를 수 있는 로봇 > 옛 표.
+ */
+function poseDeviceId(): string {
+  const pinned = pinnedMissionRobot();
+  if (pinned !== null && pinned.runKey === state.runKey) return pinned.deviceId;
+  const pick = pickMissionRobot('turn');
+  return pick.ok ? pick.deviceId : hardwareTarget(ROBOT_ENTITY);
+}
+
 /** **T-A2 — 로봇이 보고한 지금 방위.** 시작 무렵 한 주기 안에 온 state 만 친다. */
 function checkPose(): void {
   if (state.runKey === null || state.pose.step === 'done' || isReplayingRecord()) return;
-  const device = deviceState(hardwareTarget(ROBOT_ENTITY));
+  const device = deviceState(poseDeviceId());
   const position = device?.position ?? null;
   const at = device?.positionAtMs ?? null;
   if (position === null || at === null || at < state.runKey - POSE_FRESH_MS) return;

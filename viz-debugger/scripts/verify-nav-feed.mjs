@@ -293,10 +293,10 @@ const folded = () => foldStatuses(1e9, scenario.currentMission(), scenario.trace
   session.releaseStopped();
   if (navRunState().armed !== null || navRun() !== null) failures.push('정지를 풀었는데 판이 그대로다 — 다시 승인하지 않고 이어 칠한다');
   if (startArmedNavRun()) failures.push('정지 해제 뒤 승인 없이 「임무 시작」이 판을 열었다');
-  // 머리줄 버튼이 이 편에서 pi7 로 abort 를 보내지 않는다(소스).
+  // 머리줄 버튼이 이 편에서 pi7 로 abort 를 보내지 않는다(소스). 261124 — 다른 편은 첫 줄 대신 임무를 모는 로봇(`missionClient`)으로 간다.
   const buttons = read('src', 'physical', 'StopButton.tsx');
-  if (!/relayDriven\(currentMission\(\)\.missionId\) \? stopRelayRun\(\) : emergencyStop\(robotClient\(\)\)/.test(buttons)) failures.push('정지 버튼이 자율주행 편에서도 pi7 로 abort 를 보낸다');
-  if (!/relayDriven\(currentMission\(\)\.missionId\) \? pauseRelayRun\(\) : pauseMission\(robotClient\(\)\)/.test(buttons)) failures.push('일시정지 버튼이 자율주행 편에서도 pi7 로 보낸다');
+  if (!/relayDriven\(currentMission\(\)\.missionId\) \? stopRelayRun\(\) : emergencyStop\((?:robotClient|missionClient)\(\)\)/.test(buttons)) failures.push('정지 버튼이 자율주행 편에서도 pi7 로 abort 를 보낸다');
+  if (!/relayDriven\(currentMission\(\)\.missionId\) \? pauseRelayRun\(\) : pauseMission\((?:robotClient|missionClient)\(\)\)/.test(buttons)) failures.push('일시정지 버튼이 자율주행 편에서도 pi7 로 보낸다');
   if (!/if \(!started\) \{ startArmedNavRun\(\); return; \}/.test(buttons)) failures.push('임무 시작 버튼이 자율주행 판을 안 연다');
 }
 
