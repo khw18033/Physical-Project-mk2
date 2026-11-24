@@ -2431,7 +2431,7 @@ export const ko: Record<string, string> = {
   'viewnode.visionCam': '추론 영상',
   'viewnode.visionCam.hint': '객체 탐지 추론 영상: 연결 관리 「객체 탐지 추론 스트림」의 포트에서 모델별 결과 영상을 받습니다. 확대에서 포트와 모델(여럿)을 고릅니다',
   'conn.target.vision': '객체 탐지 추론 스트림',
-  'conn.target.vision.what': '스트림 서버의 포트마다 원본 영상과 모델별 추론 결과 영상을 받기만 합니다. 서버 IP 는 한 칸이고 포트 줄이 모두 그 IP 를 씁니다. 포트 하나가 소스 하나(10001 cam360 · 10002 drone · 10003 robot1 · 10004 robot2)이고, 어느 장비의 포트인지는 하드웨어 카드 상세에서 정합니다',
+  'conn.target.vision.what': '스트림 서버의 포트마다 원본 영상과 모델별 추론 결과 영상을 받기만 합니다. 서버 IP 는 한 칸이고 포트 줄이 모두 그 IP 를 씁니다. 포트 하나가 소스 하나(10001 cam360 · 10002 drone · 10003 robot1 · 10004 ep-001)이고, 어느 장비의 포트인지는 하드웨어 카드 상세에서 정합니다',
   'conn.field.host': '서버 IP',
   'conn.field.ports': '포트',
   'conn.addPort': '포트 번호를 더 넣으면 소스가 하나 더 붙습니다',
@@ -2440,7 +2440,7 @@ export const ko: Record<string, string> = {
   'preset.vision.cam360': 'cam360 (10001)',
   'preset.vision.drone': 'drone (10002)',
   'preset.vision.robot1': 'robot1 (10003)',
-  'preset.vision.robot2': 'robot2 (10004)',
+  'preset.vision.ep-001': 'ep-001 (10004 · RoboMaster EP)',
   'preset.vision.pi11': 'pi11 모듈 카메라 (10008)',
   'preset.vision.pi12': 'pi12 모듈 카메라 (10009)',
   // 261123 — 스캔 탐지를 data_stream 으로 (src/detect/scan · physical/scanDetectLink · scanApproach)

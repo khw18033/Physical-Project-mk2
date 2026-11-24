@@ -17,7 +17,7 @@
  *   GET /vision-stream/frame?base=<http://host:port>&model=<모델>   → <base>/vision?model=<모델> 의 **첫 JPEG 한 장**
  *   GET /vision-stream/frame?base=<http://host:port>                → <base>/stream 의 첫 JPEG 한 장 (원본)
  *
- * 포트가 곧 소스다(10001 cam360 · 10002 drone · 10003 robot1 · 10004 robot2). 어느 포트인지는 화면(연결 관리)이
+ * 포트가 곧 소스다(10001 cam360 · 10002 drone · 10003 robot1 · 10004 ep-001 — 261124 옛 robot2). 어느 포트인지는 화면(연결 관리)이
  * 정하므로 `base` 로 받는다. 이 창구가 **아무 데나 두드리는 통로**가 되지 않게 경로는 위 둘만 열고, `base` 는 경로 없는
  * http 주소만 받는다. 응답에 `X-Vision-Relay: 1` 을 붙인다 — 화면이 「중계가 없는 서버(정적 빌드)」와 「중계가 옮긴
  * 실패」를 가른다.

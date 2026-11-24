@@ -150,7 +150,8 @@ const HEALTH_ROBOT1_LIVE = {
 {
   const B = (port) => `http://100.102.8.102:${port}`;
   const state = (body) => ({ health: client.parseStreamHealth(body), receivedAtMs: 0, error: null, via: 'relay', rate: {} });
-  const robot2 = { ...HEALTH_ROBOT1_IDLE, source: 'robot2', port: 10004, status: { state: '붙는 중 mqtt://100.83.132.16:1883' } };
+  // 261124 — 10004 의 소스 이름은 이제 ep-001(data_stream b73fc65). 묶음 규칙은 이름과 상관없다.
+  const robot2 = { ...HEALTH_ROBOT1_IDLE, source: 'ep-001', port: 10004, status: { state: '붙는 중 mqtt://100.83.132.16:1883' } };
   const sources = { [B(10003)]: state(HEALTH_ROBOT1_IDLE), [B(10004)]: state(robot2) };
   const bases = [B(10001), B(10002), B(10003), B(10004)];
 

@@ -2,7 +2,7 @@
  * src/vision/presets.ts (261001 신설 — 객체 탐지 추론 스트림)
  *
  * **스트림 서버의 주소와 포트 넷.** 서버(`server_stream_multi_source.py`)는 포트 하나가 소스 하나다 —
- * 10001 cam360 · 10002 drone · 10003 robot1 · 10004 robot2 · 10008 pi11 · 10009 pi12 · 10011 pi13(261113). 어느 장비가 어느 소스인지는 **여기서 정하지 않는다**
+ * 10001 cam360 · 10002 drone · 10003 robot1 · 10004 ep-001(261124 — 옛 robot2) · 10008 pi11 · 10009 pi12 · 10011 pi13(261113). 어느 장비가 어느 소스인지는 **여기서 정하지 않는다**
  * (`binding.ts` — 서버가 알려 주는 파이 주소와 장비의 브로커 주소를 맞대 본다).
  *
  * **주소와 포트를 칸으로 가른다** (261001 지시). 현장에서는 서버 IP 만 바뀌고 포트는 그대로인 일이 생긴다 —
@@ -30,7 +30,8 @@ export const VISION_STREAM_PORTS: readonly { port: number; source: string }[] = 
   { port: 10001, source: 'cam360' },
   { port: 10002, source: 'drone' },
   { port: 10003, source: 'robot1' },
-  { port: 10004, source: 'robot2' },
+  // 261124 — data_stream `b73fc65`: pi1 이 Go1(robot2)에서 RoboMaster EP 로 바뀌어 소스 이름이 `ep-001` 이 됐다(포트는 그대로).
+  { port: 10004, source: 'ep-001' },
   // 261123 — data_stream `70da254` 의 `SOURCES` 에 있는데 여기 빠져 있던 넷(realsense · cam360_slice · a2 · drone2)을 더했다.
   { port: 10005, source: 'realsense' },
   { port: 10006, source: 'cam360_slice' },
@@ -46,7 +47,7 @@ export const VISION_STREAM_PORTS: readonly { port: number; source: string }[] = 
  * **처음 깔리는 포트 줄** — 고를 수 있는 것(위 표)과 따로 둔다. 261123 에 더한 넷은 고르기에만 넣고 기본 줄에는 안 넣었다 —
  * 줄마다 `/health` 를 1초마다 묻고, 연결 관리를 안 열어 본 사람의 화면에 안 쓰는 장비 카드가 늘어난다.
  */
-const DEFAULT_SOURCES = ['cam360', 'drone', 'robot1', 'robot2', 'pi11', 'pi12', 'pi13'];
+const DEFAULT_SOURCES = ['cam360', 'drone', 'robot1', 'ep-001', 'pi11', 'pi12', 'pi13'];
 export const VISION_DEFAULT_PORTS: readonly string[] = VISION_STREAM_PORTS
   .filter(({ source }) => DEFAULT_SOURCES.includes(source)).map(({ port }) => String(port));
 

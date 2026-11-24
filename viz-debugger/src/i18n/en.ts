@@ -2406,7 +2406,7 @@ export const en: Record<string, string> = {
   'viewnode.visionCam': 'Inference video',
   'viewnode.visionCam.hint': 'Object-detection inference video: per-model result video from a port under “Object-detection inference stream” in Connections. Pick the port and models (several) in the zoomed view',
   'conn.target.vision': 'Object-detection inference stream',
-  'conn.target.vision.what': 'Only receives the raw video and per-model inference video from each port of the stream server. The server IP is one field and every port row uses it. One port is one source (10001 cam360 · 10002 drone · 10003 robot1 · 10004 robot2); which device a port belongs to is set in the hardware card details',
+  'conn.target.vision.what': 'Only receives the raw video and per-model inference video from each port of the stream server. The server IP is one field and every port row uses it. One port is one source (10001 cam360 · 10002 drone · 10003 robot1 · 10004 ep-001); which device a port belongs to is set in the hardware card details',
   'conn.field.host': 'Server IP',
   'conn.field.ports': 'Ports',
   'conn.addPort': 'Add a port number to attach one more source',
@@ -2415,7 +2415,7 @@ export const en: Record<string, string> = {
   'preset.vision.cam360': 'cam360 (10001)',
   'preset.vision.drone': 'drone (10002)',
   'preset.vision.robot1': 'robot1 (10003)',
-  'preset.vision.robot2': 'robot2 (10004)',
+  'preset.vision.ep-001': 'ep-001 (10004 · RoboMaster EP)',
   'preset.vision.pi11': 'pi11 camera module (10008)',
   'preset.vision.pi12': 'pi12 camera module (10009)',
   // 261123 — scan detection via data_stream (src/detect/scan · physical/scanDetectLink · scanApproach)
