@@ -1,0 +1,66 @@
+<!doctype html><html lang="ko"><head><meta charset="utf-8"><style>
+* { box-sizing: border-box; }
+body { margin: 0; padding: 16px; background: #f2f4f8; font-family: "Malgun Gothic", "Segoe UI", sans-serif; color: #1d2330; font-size: 13px; width: 1180px; }
+.panel { background: #fff; border: 1px solid #dfe3ea; border-radius: 12px; padding: 16px; }
+h2 { margin: 0 0 4px; font-size: 18px; }
+.sub { color: #6b7385; margin: 0 0 14px; }
+.cases { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+.case { border: 1px solid #dfe3ea; border-radius: 10px; padding: 12px; display: flex; flex-direction: column; gap: 10px; }
+.case h3 { margin: 0; font-size: 14.5px; }
+.case .n { display: inline-block; width: 22px; height: 22px; border-radius: 50%; background: #2d6fd6; color: #fff; text-align: center; line-height: 22px; font-size: 12px; margin-right: 6px; }
+.lbl { color: #6b7385; font-size: 11.5px; margin-bottom: 4px; }
+.cards { display: flex; gap: 8px; }
+.hw { border: 1px solid #dfe3ea; border-radius: 8px; padding: 6px 9px; font-weight: 700; font-size: 13px; background: #fff; }
+.hw small { display: block; font-weight: 400; color: #6b7385; font-size: 11px; }
+.hw.go1 { color: #2457b5; } .hw.ep { color: #b5531c; }
+.hw.drag { border: 2px dashed #2d6fd6; box-shadow: 0 3px 8px rgba(45,111,214,.25); }
+.ms { border: 1px solid #dfe3ea; border-radius: 8px; padding: 7px 10px; background: #fafbfd; }
+.ms b { color: #6b7385; font-size: 11.5px; margin-right: 6px; } .ms span { display: block; font-size: 12px; color: #3a4150; margin-top: 2px; }
+.ms.on { border: 2px solid #2d6fd6; background: #f4f7fd; }
+.arrow { color: #2d6fd6; font-weight: 700; font-size: 12px; }
+.res { border-radius: 8px; padding: 8px 10px; font-size: 12.5px; line-height: 1.55; }
+.res.ok { background: #e3f5ea; color: #17693b; } .res.bad { background: #fde5e5; color: #9b2222; }
+.foot { margin-top: 14px; display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.note { border: 1px solid #dfe3ea; border-radius: 10px; padding: 10px 12px; line-height: 1.6; }
+.note h3 { margin: 0 0 4px; font-size: 14px; }
+code { font-family: Consolas, monospace; font-size: 11.5px; color: #5a6274; }
+</style></head><body>
+<div class="panel">
+  <h2>하드웨어 카드 끌어 놓기 — 어느 로봇이 움직이나</h2>
+  <p class="sub">한 로봇이 모는 임무(박스 · 문 · @ 스캔 탐지, 정량 명령, AI 생성 임무)에 해당 · 회전 · 방위 · 추론 포트 · 접근 · 정지 · 일시정지 · 재개가 모두 같은 로봇으로 간다</p>
+  <div class="cases">
+    <div class="case">
+      <h3><span class="n">1</span>로봇이 하나</h3>
+      <div><div class="lbl">하드웨어 카드</div><div class="cards"><div class="hw ep">ep-001<small>연결된 장비</small></div></div></div>
+      <div><div class="lbl">마일스톤 (끌어 놓지 않음)</div><div class="ms"><b>MS-A</b>박스 탐지<span>대상: 미배정</span></div></div>
+      <div class="res ok">끌어 놓지 않아도 <b>ep-001</b> 이 움직인다<br>(지금까지와 같다)</div>
+    </div>
+    <div class="case">
+      <h3><span class="n">2</span>로봇이 둘 · 끌어 놓지 않음</h3>
+      <div><div class="lbl">하드웨어 카드</div><div class="cards"><div class="hw go1">go1-001<small>연결된 장비</small></div><div class="hw ep">ep-001<small>연결된 장비</small></div></div></div>
+      <div><div class="lbl">마일스톤 (끌어 놓지 않음)</div><div class="ms"><b>MS-A</b>박스 탐지<span>대상: 미배정</span></div></div>
+      <div class="res bad"><b>아무 로봇도 안 움직인다.</b> 시작 노드가 실패로 칠해지고 알림:<br>「로봇이 둘 이상 붙어 있습니다(go1-001 · ep-001). 이 임무를 몰 로봇의 하드웨어 카드를 마일스톤에 끌어 놓은 뒤 다시 시작해 주세요」</div>
+    </div>
+    <div class="case">
+      <h3><span class="n">3</span>로봇이 둘 · EP 를 끌어 놓음</h3>
+      <div><div class="lbl">하드웨어 카드</div><div class="cards"><div class="hw go1">go1-001<small>연결된 장비</small></div><div class="hw ep drag">ep-001<small>끌어서 ↓</small></div></div></div>
+      <div><div class="lbl">마일스톤 <span class="arrow">← 여기에 놓는다 (어느 마일스톤이든)</span></div><div class="ms on"><b>MS-A</b>박스 탐지<span>대상: ep-001</span></div></div>
+      <div class="res ok"><b>ep-001</b> 이 움직이고, 탐지도 <b>ep-001 의 추론 포트</b>(10004) 영상으로 한다. 정지 버튼도 ep-001 로 간다</div>
+    </div>
+  </div>
+  <div class="foot">
+    <div class="note">
+      <h3>그 밖의 규칙</h3>
+      • 끌어 놓은 로봇이 꺼져 있으면 <b>다른 로봇으로 바꿔 돌리지 않고</b> 알린다<br>
+      • 로봇 두 대를 끌어 놓으면 고르지 않는다(이 임무는 한 대가 몬다)<br>
+      • 판이 시작되면 그 판 동안 로봇이 고정된다 — 도중에 카드를 다시 끌어도 돌던 판은 그대로<br>
+      • 끌어 놓은 로봇에 추론 포트가 묶여 있어야 스캔이 시작된다(카드 더블클릭 → 상세에서 묶음)
+    </div>
+    <div class="note">
+      <h3>AI 생성 임무 · 두 대 편</h3>
+      • AI 계획의 장비 이름(<code>robot-02</code> 등)이 움직일 로봇과 다르면 <b>경고만</b> 띄우고 그대로 돈다<br>
+      • 두 로봇을 <b>같이</b> 쓰는 편(「장치 두 가지를 @까지 이동」)은 자리가 둘이다 — 「첫 번째 장치 연결 확인」에 한 대, 「두 번째 장치 연결 확인」에 한 대를 놓는다
+    </div>
+  </div>
+</div>
+</body></html>
