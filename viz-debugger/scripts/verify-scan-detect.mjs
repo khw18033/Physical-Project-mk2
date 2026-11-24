@@ -224,7 +224,7 @@ await withMock({ mode: 'ok' }, async (base, log) => {
 
 // ── 4. 경로 계산 ──────────────────────────────────────────────────────
 {
-  const best = (bearing, distance, extra = {}) => ({ rotation_deg: 0, bearing_deg: bearing, distance_m: distance, distance_valid: true, distance_source: 'unidepth', distance_note: null, provisional: false, ...extra });
+  const best = (bearing, distance, extra = {}) => ({ rotation_deg: 0, bearing_deg: bearing, distance_m: distance, distance_valid: true, distance_source: 'unidepth', distance_note: null, bearing_note: null, provisional: false, ...extra });
   const plan = (b, extra = {}) => planScanApproach({ best: b, stopDistanceM: 0.9, headingStartDeg: null, headingEndDeg: null, testMode: false, ...extra });
   const p1 = plan(best(-170, 3));
   check(p1.ok && p1.turnDeg === -170 && p1.notes.some((n) => n.key === 'sd.plan.noDrift'), '방위 −170 · 보정 없음 메모가 틀리다');
@@ -243,12 +243,18 @@ await withMock({ mode: 'ok' }, async (base, log) => {
   const p5 = plan(best(30, 3), { testMode: true });
   check(p5.ok && p5.issuedForwardM === 1, '테스트 상한이 안 걸렸다');
   if (plan(best(30, 3, { distance_valid: false })).ok) failures.push('distance_valid false 에 계획이 섰다');
+  // 방위가 각도 정면으로 대신한 값이면 계획은 서되 메모가 붙는다(data_stream 회신 §4.2).
+  const p6 = plan(best(45, 3, { bearing_note: 'no focal length — heading of the scan step' }));
+  check(p6.ok && p6.notes.some((n) => n.key === 'sd.plan.bearingNote' && n.vars?.note.startsWith('no focal')), 'bearing_note 메모가 안 붙었다');
+  check(p1.ok && !p1.notes.some((n) => n.key === 'sd.plan.bearingNote'), '대조군: bearing_note 가 없는데 메모가 붙었다');
 }
 
 // ── 5. 응답 모양 검사 ──────────────────────────────────────────────────
 {
   check(parseResult({ scan_id: 'A', state: 'done', frames: [], best: { rotation_deg: 0 } }) === null, '반쯤 있는 best 를 받아들였다');
   check(parseResult({ scan_id: 'A', state: 'running' })?.state === 'running', 'running 결과를 못 읽었다');
+  const noted = parseResult({ scan_id: 'A', state: 'done', frames: [], best: { rotation_deg: 90, bearing_deg: 90, distance_m: 2, distance_valid: true, bearing_note: 'no focal length' } });
+  check(noted?.best?.bearing_note === 'no focal length', 'best 의 bearing_note 를 못 읽었다');
   if (parseResult({ scan_id: 'A', state: 'done', frames: [], best: null }) === null) controls.push('대조군: 찾지 못함(best null)을 거부했다');
 }
 

@@ -18,6 +18,7 @@
  *   failed           finish 뒤 result 가 failed
  *   best-null        done + best null (찾지 못함)
  *   distance-invalid best 의 distance_valid false
+ *   no-focal         best 에 bearing_note (초점 거리 모름 — 방위가 각도 정면, data_stream 회신 §4.2)
  *   frame-gaps       `--gap-degs`(기본 135,180) 각도의 mark 가 frame_captured false
  *   profile-changed  result 의 profile_version 이 prepare 때와 다르다
  *   result-timeout   finish 뒤 running 에 머문다
@@ -117,6 +118,7 @@ export function scanMockHandler(options = {}) {
       rotation_deg: hit.rotation_deg, bearing_deg: hit.bearing_deg, distance_m: hit.distance_m,
       distance_valid: hit.distance_valid, distance_source: hit.distance_source,
       distance_note: hit.distance_valid ? null : 'box touches the top/bottom edge',
+      bearing_note: opt.mode === 'no-focal' ? 'no focal length — heading of the scan step' : null,
       provisional: true,
     };
     return {

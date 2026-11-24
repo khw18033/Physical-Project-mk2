@@ -74,6 +74,11 @@ export type ScanBest = {
   distance_valid: boolean;
   distance_source: string | null;
   distance_note: string | null;
+  /**
+   * 방위를 화면 중심 대비 각으로 못 구해 **그 각도의 정면**(`rotation_deg`)으로 대신했을 때의 사유 — 초점 거리를 모를 때
+   * (data_stream 회신 `스캔탐지_창구_계획_261124.md` §4.2). 정확한 방위면 null.
+   */
+  bearing_note: string | null;
   /** 그 대상의 판정 하한이 측정 전 값인가. */
   provisional: boolean;
 };

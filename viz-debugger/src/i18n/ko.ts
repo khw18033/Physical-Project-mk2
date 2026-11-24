@@ -2489,6 +2489,7 @@ export const ko: Record<string, string> = {
   'sd.plan.alreadyClose': "대상까지 {m}m 로 정지 거리 {stop}m 안이라 움직이지 않습니다",
   'sd.plan.tooFar': "직진 {m}m 가 {max}m 를 넘습니다",
   'sd.plan.provisional': "판정 하한이 측정 전 값입니다",
+  'sd.plan.bearingNote': "방위를 그 각도의 정면으로 대신했습니다 — 대상이 화면 가장자리에 있었다면 회전이 틀릴 수 있습니다 ({note})",
   'sd.plan.turnTooSmall': "회전 {deg}° 가 {min}° 미만이라 돌지 않습니다",
   'sd.source.label': "탐지 방식",
   'sd.source.title': "같은 문장의 옛 탐지기 편과 data_stream 편 중 어느 쪽이 발화에 맞춰지는가. 임무가 도는 중에는 바꾸지 못합니다",

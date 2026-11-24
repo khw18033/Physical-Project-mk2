@@ -71,7 +71,8 @@ function parseBest(value: unknown): ScanBest | null | undefined {
   if (deg === null || bearing === null || typeof value.distance_valid !== 'boolean') return undefined;
   return {
     rotation_deg: deg, bearing_deg: bearing, distance_m: num(value.distance_m), distance_valid: value.distance_valid,
-    distance_source: str(value.distance_source), distance_note: str(value.distance_note), provisional: value.provisional === true,
+    distance_source: str(value.distance_source), distance_note: str(value.distance_note),
+    bearing_note: str(value.bearing_note), provisional: value.provisional === true,
   };
 }
 

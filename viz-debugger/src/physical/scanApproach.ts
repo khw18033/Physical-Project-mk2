@@ -88,6 +88,8 @@ export function planScanApproach(input: ScanPlanInput): ScanApproachPlan {
     return { ok: false, reason: { key: 'sd.plan.tooFar', vars: { m: issuedForwardM.toFixed(2), max: FORWARD_MAX_M } } };
   }
   if (best.provisional) notes.push({ key: 'sd.plan.provisional' });
+  // 방위가 각도 정면으로 대신한 값이면 ±(화각 절반)까지 틀릴 수 있다 — 막지는 않고 메모로 띄운다.
+  if (best.bearing_note !== null) notes.push({ key: 'sd.plan.bearingNote', vars: { note: best.bearing_note } });
 
   const steps: TaskCommand[] = [];
   if (Math.abs(turnDeg) >= TURN_MIN_DEG) {
