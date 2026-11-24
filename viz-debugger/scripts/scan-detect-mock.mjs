@@ -159,7 +159,7 @@ export function scanMockHandler(options = {}) {
         return;
       }
       const current = busy();
-      if (current !== null) { sendJson(res, 409, { error: 'busy', scan_id: current.scan_id }); return; }
+      if (current !== null) { sendJson(res, 409, { error: 'busy', busy_scan_id: current.scan_id }); return; }
       const target = body.target;
       if (!['door', 'box', 'object'].includes(target)) { sendJson(res, 400, { error: 'unknown target' }); return; }
       if (target === 'object' && (typeof body.query !== 'string' || body.query.trim() === '')) {

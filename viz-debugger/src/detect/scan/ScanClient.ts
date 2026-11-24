@@ -56,8 +56,9 @@ async function call<T>(
     let raw: unknown = null;
     try { raw = await response.json(); } catch { raw = null; }
     if (response.status === 409) {
-      const busy = raw !== null && typeof raw === 'object' && typeof (raw as { scan_id?: unknown }).scan_id === 'string'
-        ? (raw as { scan_id: string }).scan_id : null;
+      // data_stream 회신(`스캔탐지_창구_계획_261124.md` §5)은 진행 중인 판을 `busy_scan_id` 로 준다. 요청 문서에 적었던 `scan_id` 도 받는다.
+      const said = raw !== null && typeof raw === 'object' ? raw as { busy_scan_id?: unknown; scan_id?: unknown } : {};
+      const busy = typeof said.busy_scan_id === 'string' ? said.busy_scan_id : typeof said.scan_id === 'string' ? said.scan_id : null;
       return fail('busy', 'HTTP 409', 409, busy);
     }
     if (!response.ok) {
