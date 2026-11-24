@@ -19,8 +19,11 @@ export type VisionPreset = {
   whyKey: string;
 };
 
-/** 스트림 서버 호스트 (261001 사용자가 준 테일넷 주소). */
-export const VISION_STREAM_HOST = 'http://100.102.8.102';
+/**
+ * 스트림 서버 호스트 (261001 사용자가 준 테일넷 주소 100.102.8.102 → 261124 data_stream 노트북 WSL 의 테일넷 주소로 바꿈 —
+ * data_stream `배포_가이드.md` 의 `100.125.104.23`. Redis 6380 도 이 주소로 열려 있다).
+ */
+export const VISION_STREAM_HOST = 'http://100.125.104.23';
 
 /** 서버가 여는 포트 — 순서가 서버의 `SOURCES` 순서다. */
 export const VISION_STREAM_PORTS: readonly { port: number; source: string }[] = [

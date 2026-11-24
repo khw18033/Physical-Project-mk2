@@ -1,0 +1,81 @@
+<!doctype html><html lang="ko"><head><meta charset="utf-8"><link rel="stylesheet" href="base.css">
+<style>
+body { width: 1180px; }
+.overlay { background: #fff; border: 1px solid #dfe3ea; border-radius: 12px; padding: 16px 18px; box-shadow: 0 8px 30px rgba(20,30,50,.12); }
+.ohead { display: flex; justify-content: space-between; align-items: flex-start; }
+.ohead h2 small { font-weight: 400; color: #6b7385; font-size: 13px; margin-left: 8px; }
+.grid { display: grid; grid-template-columns: 1fr 330px; gap: 16px; margin-top: 12px; }
+.pick { display: flex; gap: 6px; align-items: center; font-size: 12px; color: #6b7385; margin-bottom: 8px; }
+.pick span.opt { border: 1px solid #c9d1de; border-radius: 6px; padding: 3px 9px; color: #3a4150; }
+.pick span.on { background: #2d6fd6; border-color: #2d6fd6; color: #fff; }
+.video { position: relative; height: 400px; border-radius: 8px; background: radial-gradient(ellipse at 40% 60%, #6c7380, #2a2f38 75%); overflow: hidden; }
+.box { position: absolute; border: 2px solid #4fd17f; }
+.box b { position: absolute; top: -20px; left: -2px; background: #4fd17f; color: #102a18; font-size: 11px; padding: 1px 5px; white-space: nowrap; }
+.box.dim2 { border-color: #f6c343; } .box.dim2 b { background: #f6c343; color: #3a2a00; }
+.roi { position: absolute; border: 2px dashed #8fb8ff; background: rgba(120,160,255,.08); }
+.cardpop { position: absolute; left: 420px; top: 130px; width: 210px; background: rgba(255,255,255,.96); border-radius: 8px; padding: 8px 10px; font-size: 11.5px; box-shadow: 0 4px 14px rgba(0,0,0,.3); }
+.tools { position: absolute; right: 10px; top: 10px; display: flex; flex-direction: column; gap: 6px; align-items: flex-end; }
+.tools span { background: rgba(255,255,255,.92); border-radius: 6px; padding: 4px 9px; font-size: 12px; }
+.rec { position: absolute; left: 10px; top: 10px; background: rgba(0,0,0,.55); color: #fff; border-radius: 6px; padding: 4px 9px; font-size: 12px; }
+.rec i { color: #ff5a5a; font-style: normal; }
+table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 12px; }
+td { border-top: 1px solid #edf0f4; padding: 5px 6px; } td:first-child { color: #6b7385; width: 110px; }
+.sec { border: 1px solid #dfe3ea; border-radius: 9px; padding: 10px 12px; margin-bottom: 12px; }
+.sec h3 { margin-bottom: 6px; }
+.kv { display: grid; grid-template-columns: 80px 1fr; gap: 4px 8px; font-size: 12px; }
+.kv span:nth-child(odd) { color: #6b7385; }
+.tl { list-style: none; margin: 0; padding: 0; font-size: 12px; }
+.tl li { padding: 6px 0 6px 14px; border-left: 2px solid #dfe3ea; position: relative; }
+.tl li::before { content: ""; position: absolute; left: -5px; top: 10px; width: 8px; height: 8px; border-radius: 50%; background: #b3b9c6; }
+.tl li.t::before { background: #2d6fd6; } .tl li.a::before { background: #22a35a; } .tl li.r::before { background: #e53e3e; }
+.tl time { color: #8a91a1; font-family: Consolas, monospace; margin-right: 6px; }
+.tl small { display: block; color: #8a91a1; }
+</style></head><body>
+<div class="overlay">
+  <div class="ohead">
+    <h2>robot1 · targeted<small><code>http://100.102.8.102:10003</code> · go1-001 에 묶임</small></h2>
+    <span class="btn">닫기 ✕</span>
+  </div>
+  <div class="grid">
+    <div>
+      <div class="pick">보기 <span class="opt">원본</span><span class="opt on">targeted</span><span class="opt">원본 + targeted 나란히</span>
+        <span style="margin-left:auto">결과 3.9장/초 · 지연 210 ms · 원본보다 4장 늦음</span></div>
+      <div class="video">
+        <span class="rec"><i>●</i> 녹화 · 잘라내기</span>
+        <div class="roi" style="left:180px;top:60px;width:420px;height:300px"></div>
+        <div class="box" style="left:300px;top:90px;width:90px;height:220px"><b>door 2.1 m 0.82</b></div>
+        <div class="box dim2" style="left:520px;top:230px;width:70px;height:80px"><b>chair 3.4 m 0.41</b></div>
+        <div class="cardpop"><b>door · 근거 카드</b><br>탐지기 0.82 · 색상(하늘색) 통과<br>종횡비 2.4 통과 · 바닥 위치 통과<br>거리 2.1 m (바닥선) · 방위 −12°<br><span class="dim">provisional — 이 카메라 하한 측정 전</span></div>
+        <div class="tools"><span>▭ 영역 지정 · 1개</span><span>◎ 재식별</span><span>⤢ 크게</span></div>
+      </div>
+      <table>
+        <tr><td>모델 상태</td><td><span class="dot ok"></span>결과 들어옴 · 0.3초 전 · run live</td></tr>
+        <tr><td>처리</td><td>추론 238 ms · 지연 210 ms · 누계 18,402건</td></tr>
+        <tr><td>마지막 장</td><td>#41,233 · 검출 2 (door 1 · chair 1)</td></tr>
+      </table>
+    </div>
+    <div>
+      <div class="sec">
+        <h3>지정 탐지 — 무엇을 찾고 있나</h3>
+        <div class="kv">
+          <span>대상</span><span><span class="chip tg">door</span></span>
+          <span>까닭</span><span>임무 MSN-261123-01 의 스캔 판<br><code>scan_id 7f3c…</code> · 각도 3/8 수집</span>
+          <span>프로필</span><span>v12 (판이 끝나면 v11 로 돌아감)</span>
+          <span>판 전</span><span>person · chair · door · desk</span>
+          <span>보이는 것</span><span>door 1 · chair 1 (마지막 장)</span>
+        </div>
+      </div>
+      <div class="sec">
+        <h3>변경 기록 <span class="badge">이 소스 · 5건</span></h3>
+        <ul class="tl">
+          <li class="t"><time>14:02:11</time>대상 4개 → <b>door</b><small>스캔 판 시작 · profile v11 → v12</small></li>
+          <li class="a"><time>13:58:40</time>모델 <b>+ targeted</b><small>결과가 처음 들어옴 · run live</small></li>
+          <li class="r"><time>13:58:02</time>모델 <b>− yoloe</b><small>30초 넘게 결과 없음 → 사라짐으로 봄</small></li>
+          <li class="r"><time>13:51:17</time>소스 응답 없음 → 다시 연결<small>끊긴 동안 42초</small></li>
+          <li><time>13:40:05</time>조회 시작 — yoloe<small>이 화면이 연 뒤부터 적는다</small></li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+</body></html>

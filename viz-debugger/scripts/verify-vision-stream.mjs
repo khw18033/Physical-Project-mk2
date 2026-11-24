@@ -126,7 +126,7 @@ const HEALTH_ROBOT1_LIVE = {
 {
   const { saveConnections, connectionKey } = await load('src', 'shared', 'connections.ts');
   const defaults = client.visionBases();
-  if (defaults.join(',') !== ['10001', '10002', '10003', '10004', '10008', '10009', '10011'].map((p) => `http://100.102.8.102:${p}`).join(',')) {
+  if (defaults.join(',') !== ['10001', '10002', '10003', '10004', '10008', '10009', '10011'].map((p) => `http://100.125.104.23:${p}`).join(',')) {
     failures.push(`기본 주소가 테일넷 IP + 포트 넷이 아니다 — ${defaults.join(', ')}`);
   }
   saveConnections({ [connectionKey('vision', 'host')]: '10.0.0.5' });

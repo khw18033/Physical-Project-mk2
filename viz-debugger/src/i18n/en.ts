@@ -2521,7 +2521,7 @@ export const en: Record<string, string> = {
   'preset.vision.cam360_slice': 'cam360_slice 360 slice (10006)',
   'preset.vision.a2': 'a2 Unitree A2 (10007)',
   'preset.vision.drone2': 'drone2 second drone (10012)',
-  'preset.vision.why': 'Tailnet address of the stream server (sysai-server2)',
+  'preset.vision.why': 'Tailnet address of the stream server (data_stream laptop, WSL)',
   'check.line.visionServer': 'Stream server',
   'check.line.visionResult': 'Inference results',
   'check.reason.visionServer': '{source} · {frames} frames received · {video}',

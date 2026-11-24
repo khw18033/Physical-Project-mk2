@@ -2546,7 +2546,7 @@ export const ko: Record<string, string> = {
   'preset.vision.cam360_slice': 'cam360_slice 360 슬라이스 (10006)',
   'preset.vision.a2': 'a2 Unitree A2 (10007)',
   'preset.vision.drone2': 'drone2 둘째 드론 (10012)',
-  'preset.vision.why': '스트림 서버(sysai-server2)의 테일넷 주소',
+  'preset.vision.why': '스트림 서버(data_stream 노트북 WSL)의 테일넷 주소',
   'check.line.visionServer': '스트림 서버',
   'check.line.visionResult': '추론 결과',
   'check.reason.visionServer': '{source} · 받은 영상 {frames}장 · {video}',
