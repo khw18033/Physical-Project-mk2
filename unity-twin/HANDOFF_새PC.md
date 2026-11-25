@@ -40,9 +40,9 @@ Tailscale 주소 (2026-11-25 기준):
 
 1. **Tailscale**: 같은 계정 네트워크에 들어가야 한다. `tailscale status` 에 pi7 과 서버 노트북이 보이는지 확인.
 2. **Python 3.10**: `datastream_front_reader.py` 는 추가 패키지 없이 돈다. `go1_front_guard.py`·`anchor360_local.py` 는 탐지 모델과 가중치가 필요하다 ([`../anchor360/local/README.md`](../anchor360/local/README.md)).
-3. **Unity 프로젝트**: 이 저장소에는 바뀐 소스만 있고 씬·모형·NavMesh 는 없다. 둘 중 하나로 준비한다.
-   - 쉬운 길: 원래 PC 의 `D:\Go1_Unity` 를 통째로 복사한다 (`Library` 폴더는 빼도 된다. Unity 가 다시 만든다).
-   - 다시 만드는 길: 기존 프로젝트에 이 저장소의 `unity-twin/Assets/`, `anchor360/local/unity/` 파일을 같은 위치에 넣고, [`README.md`](README.md) 의 "맵과 프리팹 다시 만들기"를 따른다. 사람 모형·매장 모형 에셋은 따로 받아야 한다.
+3. **Unity 프로젝트**: 원래 PC 의 프로젝트를 복사해 올 수 없다. 이 저장소에는 바뀐 소스만 있고 씬·모형·정책 파일은 없다.
+   무엇을 어디서 받았고 무엇이 직접 만든 것인지는 아래 **6. Unity 프로젝트 구성과 에셋 출처**에 적었다.
+   **Unity 없이도 3-1 과 3-3 의 1·2 번(Redis 읽기, pi7 연결·영상)은 확인할 수 있다.**
 4. Unity 를 창 없이 돌리는 방법 (에디터를 닫고 실행. 그림을 그리는 작업에는 `-nographics` 를 붙이지 않는다):
    ```sh
    Unity.exe -batchmode -projectPath <프로젝트> -executeMethod <클래스.메서드> -quit -logFile <로그>
@@ -129,3 +129,64 @@ Unity 에서 `lab` 씬을 Play 하고 3-1 의 리더를 돌린다. 로봇 앞에
 | `unity-twin/Assets/Editor/TailscaleAddressApplier.cs` | 씬 세 개의 GO1_A 주소를 `100.72.109.9` 로 바꿔 저장. 메뉴 "Tools/Go1/로봇 주소를 Tailscale 로 바꾸기" |
 | `unity-twin/Assets/Editor/RealRunLauncher.cs`, `evaluation/real_run/config.json` | 실주행 도구의 로봇 주소 `100.72.109.9` |
 | `unity-twin/evaluation/real_run/estop.py` | Tailscale·랩 주소 양쪽으로 취소 신호 |
+
+## 6. Unity 프로젝트 구성과 에셋 출처
+
+원래 PC 의 `D:\Go1_Unity` 는 git 저장소가 아니고 원격도 없다. 아래는 2026-11-25 에 그 프로젝트를 조사한 결과다.
+씬 세 개(`lab`·`mall`·`capstone_hall`)와 사람 프리팹이 실제로 쓰는 에셋은 216개, 약 65 MB 다 (Unity 의 의존성 조회로 뽑았다).
+
+### 6-1. 편집기와 패키지 (`Packages/manifest.json`)
+
+Unity **6000.3.5f2**, 템플릿은 URP. Package Manager 에서 아래 버전으로 넣는다.
+
+| 패키지 | 버전 | 쓰는 곳 |
+|---|---|---|
+| `com.unity.render-pipelines.universal` | 17.3.0 | 렌더링 (재질이 모두 URP Lit) |
+| `com.unity.ml-agents` | 4.0.2 | 강화학습 정책 실행 (`GO1Agent`) |
+| `com.unity.ai.navigation` | 2.0.9 | NavMesh 굽기, 장애물 파내기 |
+| `com.unity.cloud.gltfast` | 5.2.0 | Go1 모형 `go1.glb` 불러오기. **없으면 로봇 모형이 안 뜬다** |
+| `com.unity.inputsystem` | 1.17.0 | 키 입력 (M 키 등) |
+| `com.unity.xr.interaction.toolkit` | 3.3.1 | 씬의 XR 리그. 샘플 "Starter Assets" 도 가져와야 한다 |
+| `com.unity.xr.management` / `com.unity.xr.openxr` | 4.5.4 / 1.16.1 | XR |
+| `com.meta.xr.sdk.all` | 85.0.0 | Meta XR (헤드셋용. PC 에서 창으로만 볼 때는 쓰지 않는다) |
+| `com.unity.probuilder` | 6.0.8 | 맵 도형 |
+| `com.unity.ugui`, `com.unity.timeline`, `com.unity.visualscripting` | 2.0.0 / 1.8.10 / 1.9.9 | UI 등 |
+
+- TextMesh Pro: `Window > TextMeshPro > Import TMP Essential Resources` 로 `Assets/TextMesh Pro/` 를 만든다.
+- XRI 샘플: Package Manager 의 XR Interaction Toolkit > Samples > Starter Assets → `Assets/Samples/XR Interaction Toolkit/3.3.1/Starter Assets/`.
+
+### 6-2. 밖에서 가져온 에셋 (다시 받을 수 있다)
+
+| 에셋 | 놓는 위치 | 출처 | 쓰는 곳 | 비고 |
+|---|---|---|---|---|
+| Human Basic Motions FREE 2.4 (Kevin Iglesias) | `Assets/Kevin Iglesias/Human Animations/` | Unity Asset Store (무료) | 사람 모형과 서기·걷기 동작. `HumanM_Model.fbx`, `HumanF_Model.fbx`, `HumanM@Idle01`, `HumanM@Walk01_Forward`, 여성용 같은 이름 | 재배포 불가라 저장소에 넣지 않는다. 받은 뒤 `PersonAssetBuilder.RunBatch` 로 프리팹을 만든다 |
+| Kenney Mini Market 2.1 | `Assets/KenneyMiniMarket/` (FBX 전부와 `Textures/colormap.png`, `License.txt`) | <https://kenney.nl/assets/mini-market> (CC0). 원래 PC 에서는 OpenGameArt 미러에서 받았다 | 쇼핑몰 맵의 진열대·계산대 등 48개 | FBX 만 넣으면 하얗게 나온다. `colormap.png` 를 꼭 같이 넣는다. `MallMapBuilder` 가 공용 재질을 만들어 붙인다 |
+| Unitree Go1 모형 `go1.glb` (7.6 MB) | `Assets/robot-dog-unitree-go1/source/go1.glb`, 텍스처는 `.../textures/` | 폴더 이름이 Sketchfab 내려받기 형식(`robot-dog-unitree-go1/source`, `textures`)이라 Sketchfab 로 보인다. **정확한 주소와 라이선스는 확인하지 못했다. 사용자에게 물을 것** | 세 씬 모두의 로봇 모형 | 이 모형의 앞은 `-transform.right` 다 |
+| Voxel Office Props (Air Dinghy) | `Assets/ADI/Voxel Office Props/` | Unity Asset Store 로 보인다 (동봉 문서의 연락처가 `support@airdinghy.com`). **확인하지 못했다** | 연구실 맵의 의자·키보드·노트북·모니터·PC·프린터 | 연구실 맵에만 쓴다 |
+| 닉스곤폰트 M | `Assets/N4_5F_Corrider/Fonts/닉스곤폰트M TTF SDF.asset` (38 MB) | 닉스곤(NIXGON) 배포 글꼴을 TextMesh Pro 의 Font Asset Creator 로 변환한 것 | 화면 글자 | 없으면 글자가 기본 글꼴로 나오거나 비어 보인다. 동작에는 영향 없다 |
+
+세 씬이 쓰지 않아 없어도 되는 것: `CGIndi/Sea`, `Bitgem/Toilet Paper - Proto Series`, `Procedural Water Shader`, `ocean`, `TestMab`, `Oculus`, `_Recovery`, `Scenes/`·`XRI/`·`N4_5F_Corrider/` 의 다른 씬, `Code/Boat`, `Code/onnx/boat`.
+
+### 6-3. 직접 만든 것 (어디서도 다시 받을 수 없다)
+
+**이 묶음이 없으면 에셋을 다 받아도 연구실 씬을 똑같이 만들 수 없다.** 지금 저장소에는 ★ 표시한 것만 들어 있다.
+
+| 무엇 | 위치 | 설명 |
+|---|---|---|
+| 연구실 씬 | `Assets/lab.unity` (1.1 MB) | 손으로 만든 연구실 모델 (약 7.5 × 9.5 m). **쇼핑몰·발표장 맵 스크립트는 이 씬을 복사해서 시작한다.** 로봇, 수신기, 카메라, 목표 지점 설정이 모두 여기 있다 |
+| 로봇 프리팹 | `Assets/prefab/go1 (1).prefab`, `Assets/prefab/go1 1.prefab`, `Assets/ADI/go1.prefab`, `Assets/prefab/Cube.prefab` | Go1 모형에 스크립트·충돌체·송수신 설정을 붙인 것 |
+| 학습된 정책 | `Assets/Code/onnx/GO1Agent13.onnx` (0.6 MB) | 세 씬이 쓰는 강화학습 경로 생성 정책. 연구실 크기에서 학습했다 |
+| 스크립트 전체 | `Assets/Code/**` (약 2 MB, onnx 제외) | ★ 일부만 저장소에 있다 (`Go1`, `Manager`, `UTM`, `insta360`). 나머지 폴더(`Receiver`, `Json`, `Logging`, `Streaming`, `UI`, `VR`, `YOLO`, `Aruco`, `delete` 등)도 씬이 참조한다 |
+| 편집기 도구 | `Assets/Editor/*.cs` | ★ 저장소에 있다 |
+| 소품 재질 | `Assets/Models/Props/Materials/` | 드론·360° 카메라 소품 재질 |
+| 어안 보정 셰이더 | `Assets/settings 1/` | Go1 카메라 화면용 |
+| 연구실 NavMesh | `Assets/lab/NavMesh-Plane.asset` | 다시 구울 수 있다 |
+| 보정 파일 | `Assets/StreamingAssets/anchor360_calib*.json`, `anchor360_baseline.json` | ★ 저장소 `anchor360/local/unity/` 에 있다 |
+| 프로젝트 설정 | `ProjectSettings/`, `Packages/manifest.json` | 태그(`Obstacle` 등)·레이어·입력 설정. 태그가 없으면 맵 스크립트가 실패한다 |
+| `.meta` 파일 | 위 모든 파일 옆 | 씬과 프리팹은 파일을 GUID 로 가리킨다. **`.meta` 가 바뀌면 참조가 끊어진다.** 밖에서 받은 에셋 가운데 `go1.glb` 처럼 `.meta` 가 딸려 오지 않는 것은 원래 `.meta` 가 있어야 프리팹이 모형을 찾는다 |
+
+### 6-4. 새 PC 에서 할 수 있는 범위
+
+- 직접 만든 묶음(6-3)을 받지 못한 상태: Unity 화면 확인(3-2), 가상 로봇이 실제 자세를 따라오는지(3-3 의 3번), 실주행(3-4)은 **할 수 없다.** Redis 읽기와 pi7 연결·영상 확인까지만 한다.
+- 6-3 묶음을 받은 뒤: 6-1 패키지와 6-2 에셋을 넣고 `PersonAssetBuilder.RunBatch` → `MallMapBuilder.Run` / `CapstoneMapBuilder.Run` 순서로 돌리면 쇼핑몰·발표장 맵이 다시 만들어진다.
+- 6-3 묶음을 새 PC 로 옮기는 방법은 아직 정하지 않았다 (사용자에게 물을 것).
