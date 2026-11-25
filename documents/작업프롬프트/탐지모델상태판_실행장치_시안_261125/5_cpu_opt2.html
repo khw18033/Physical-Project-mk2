@@ -1,0 +1,100 @@
+<!doctype html><html lang="ko"><head><meta charset="utf-8"><link rel="stylesheet" href="base.css">
+<style>
+/* 시안 안 2 — 작업이 만드는 소스 카드에 붙이기 */
+body { width: 1180px; }
+.row { display: flex; gap: 22px; align-items: flex-start; }
+.chip .at { margin-left: 5px; padding-left: 5px; border-left: 1px solid rgba(0,0,0,.15); font-weight: 600; }
+.made { margin-top: 6px; font-size: 12px; background: #f6f1fc; border-left: 3px solid #7a3fb8; padding: 4px 7px; border-radius: 0 5px 5px 0; color: #3a2360; }
+.made b { color: #4d2a80; }
+.overlay { flex: 1; background: #fff; border: 1px solid #dfe3ea; border-radius: 12px; padding: 16px 18px; box-shadow: 0 8px 30px rgba(20,30,50,.12); }
+.ohead { display: flex; justify-content: space-between; align-items: flex-start; }
+.ohead h2 small { font-weight: 400; color: #6b7385; font-size: 13px; margin-left: 8px; }
+.grid { display: grid; grid-template-columns: 1fr 380px; gap: 16px; margin-top: 12px; }
+.video { position: relative; height: 250px; border-radius: 8px; background: radial-gradient(ellipse at 40% 60%, #6c7380, #2a2f38 75%); }
+.video span { position: absolute; left: 10px; bottom: 8px; color: #d9dde5; font-size: 11px; }
+.slices { position: absolute; inset: 14px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.slices i { border: 1px dashed rgba(255,255,255,.35); border-radius: 4px; }
+.sec { border: 1px solid #dfe3ea; border-radius: 9px; padding: 10px 12px; margin-bottom: 12px; }
+.sec h3 { margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; }
+.kv { display: grid; grid-template-columns: 90px 1fr; gap: 5px 8px; font-size: 12px; }
+.kv > span:nth-child(odd) { color: #6b7385; }
+.devhead { display: flex; gap: 10px; align-items: center; background: #f4f7fd; border-radius: 8px; padding: 8px 10px; margin-bottom: 8px; }
+.devhead .ic { width: 34px; height: 34px; border-radius: 8px; background: #2d6fd6; color: #fff; display: grid; place-items: center; font-weight: 700; font-size: 12px; }
+.devhead b { font-size: 14px; } .devhead small { display: block; color: #6b7385; }
+.legend { margin-top: 12px; font-size: 12px; color: #3a4150; background: #fafbfd; border: 1px solid #e6e9ef; border-radius: 9px; padding: 9px 12px; }
+.legend li { margin: 3px 0; }
+.miss { margin-top: 12px; border: 1px dashed #c53030; border-radius: 9px; padding: 9px 12px; font-size: 12px; color: #7a1f1f; background: #fff7f7; }
+.src { margin-top: 8px; font-size: 11px; color: #8a91a1; }
+</style></head><body>
+<div class="row">
+<div class="col">
+  <div class="panel">
+    <div class="head"><h2>객체 탐지 · 모델 3</h2><span class="badge">data_stream 실측</span></div>
+    <p class="hint">소스 3 연결 · 지정 탐지 1 · 장치 1곳 · <b>더블클릭 → 탐지 영상</b></p>
+
+    <div class="card"><div class="name"><span class="dot ok"></span>robot1 <code>:10003</code></div><span class="kind">→ go1-001</span>
+      <div class="line">원본 14.8장/초 · 상태 1.0건/초</div>
+      <div class="chips"><span class="chip ok">targeted · 3.9/s · 210 ms<span class="at">노트북</span></span></div>
+    </div>
+    <div class="card"><div class="name"><span class="dot ok"></span>drone <code>:10002</code></div><span class="kind">→ drone-x500</span>
+      <div class="line">원본 9.6장/초 · 상태 4.0건/초</div>
+      <div class="chips"><span class="chip ok">yoloe · 6.1/s · 140 ms<span class="at">노트북</span></span><span class="chip ok">unidepth · 2.0/s<span class="at">노트북</span></span></div>
+    </div>
+    <div class="card sel new"><span class="tag-new">시안 안 2 — 소스 카드에 붙임</span>
+      <div class="name"><span class="dot ok"></span>cam360_slice <code>:10006</code></div><span class="kind">장비 없음</span>
+      <div class="line">원본 3.0장/초 · 상태 —</div>
+      <div class="made">만드는 곳 <b>노트북</b> · CPU 작업 cam360_slice</div>
+    </div>
+
+    <div class="foot"><span>100.125.104.23 · 포트 3 · 1초 전</span><span class="btn">변경 기록 6</span></div>
+  </div>
+  <div class="legend">
+    <ul style="margin:0;padding-left:16px">
+      <li>작업 → 소스 짝은 이름이 같을 때만 (<code>cam360_slice</code> 작업 ↔ <code>cam360_slice</code> 포트)</li>
+      <li>짝이 되는 카드 안에 보라색 한 줄 — 「만드는 곳」</li>
+      <li>옮겨지면 그 줄이 <b style="color:#7a3fb8">pi13</b> 처럼 바뀌고 「↪ pi6 에서」 를 1분 동안 붙인다</li>
+    </ul>
+  </div>
+  <div class="miss">
+    <b>담지 못하는 것</b> — 출력 포트가 없는 CPU 작업(예: 시험 작업 <code>probe</code> → pi6 → pi13)은 붙일 카드가 없어 판에 안 나온다.
+  </div>
+</div>
+
+<div class="overlay new">
+  <span class="tag-new">시안 안 2 — cam360_slice 카드 더블클릭</span>
+  <div class="ohead">
+    <h2>cam360_slice · 원본<small><code>http://100.125.104.23:10006</code> · 장비 없음</small></h2>
+    <span class="btn">닫기 ✕</span>
+  </div>
+  <div class="grid">
+    <div>
+      <div class="video"><div class="slices"><i></i><i></i><i></i><i></i></div><span>360 영상 → 조각 4장 · 3.0장/초</span></div>
+      <p class="dim" style="font-size:12px;margin:8px 0 0">이 소스엔 탐지 모델이 없다 — 오른쪽 칸은 「이 영상을 만드는 CPU 작업」.</p>
+    </div>
+    <div>
+      <div class="sec">
+        <h3>만드는 작업 — 어디서 도나 <span class="badge">서버 고정</span></h3>
+        <div class="devhead"><span class="ic">CPU</span>
+          <div><b>data_stream 노트북 (WSL)</b><small>노드 <code>book-4vg1edpvi5</code> · role=gpu · local</small></div></div>
+        <div class="kv">
+          <span>작업</span><span>cam360_slice — 360 영상 조각내기 (<code>e2p/slice360_live.py</code>)</span>
+          <span>하드웨어</span><span>x86_64 · 20 스레드 · RAM 15 GB</span>
+          <span>지금</span><span>CPU 23% · 메모리 61%</span>
+          <span>근거</span><span>오케스트레이터 기록 없음 → 런처가 data_stream 기기에서 직접 띄움</span>
+          <span>살아 있나</span><span><span class="dot ok"></span>:10006 원본 3.0장/초로 판단 (끝 기록 없음)</span>
+        </div>
+        <p class="src">출처: /health :10006 · node_resource_stream book-4vg1edpvi5</p>
+      </div>
+      <div class="sec">
+        <h3>오케스트레이터가 옮겼다면 <span class="badge">스트림 확인</span></h3>
+        <div class="kv">
+          <span>실행 장치</span><span><b style="color:#7a3fb8">pi6</b> (k3s 파드) — 같은 칸이 파이로 바뀜</span>
+          <span>이동</span><span>replanned 가 오면 「pi6 → pi13」 줄과 시각</span>
+        </div>
+        <p class="src">※ 지금 cam360_slice 는 image 가 없어 파이로 못 간다 — 미래 예시</p>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+</body></html>

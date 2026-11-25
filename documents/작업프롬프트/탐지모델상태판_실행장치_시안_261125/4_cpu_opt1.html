@@ -1,0 +1,128 @@
+<!doctype html><html lang="ko"><head><meta charset="utf-8"><link rel="stylesheet" href="base.css">
+<style>
+/* 시안 안 1 — 판 아래 「CPU 작업」 묶음 + 작업 상세 */
+body { width: 1180px; }
+.row { display: flex; gap: 22px; align-items: flex-start; }
+.chip .at { margin-left: 5px; padding-left: 5px; border-left: 1px solid rgba(0,0,0,.15); font-weight: 600; }
+.chip .at.pi { color: #7a3fb8; }
+.cpu { margin-top: 4px; border: 1px solid #dfe3ea; border-radius: 9px; padding: 9px 10px; position: relative; }
+.cpu .ttl { display: flex; justify-content: space-between; align-items: center; font-weight: 700; font-size: 13px; }
+.cpu .ttl small { font-weight: 400; color: #6b7385; font-size: 11.5px; }
+.cpu .chips { margin-top: 7px; }
+.chip.cpuc { background: #f0ebf8; color: #4d2a80; }
+.chip.cpuc.ok { background: #e3f5ea; color: #17693b; }
+.chip.cpuc.sel { outline: 2px solid #2d6fd6; outline-offset: 1px; }
+.cpu .moved { margin-top: 6px; font-size: 11.5px; color: #6b7385; }
+.overlay { flex: 1; background: #fff; border: 1px solid #dfe3ea; border-radius: 12px; padding: 16px 18px; box-shadow: 0 8px 30px rgba(20,30,50,.12); }
+.ohead { display: flex; justify-content: space-between; align-items: flex-start; }
+.ohead h2 small { font-weight: 400; color: #6b7385; font-size: 13px; margin-left: 8px; }
+.sec { border: 1px solid #dfe3ea; border-radius: 9px; padding: 10px 12px; margin-top: 12px; }
+.sec h3 { margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; }
+.kv { display: grid; grid-template-columns: 96px 1fr; gap: 5px 8px; font-size: 12px; }
+.kv > span:nth-child(odd) { color: #6b7385; }
+.devhead { display: flex; gap: 10px; align-items: center; background: #f6f1fc; border-radius: 8px; padding: 8px 10px; margin-bottom: 8px; }
+.devhead .ic { width: 34px; height: 34px; border-radius: 8px; background: #7a3fb8; color: #fff; display: grid; place-items: center; font-weight: 700; font-size: 12px; }
+.devhead b { font-size: 14px; } .devhead small { display: block; color: #6b7385; }
+.track { display: flex; align-items: center; gap: 8px; font-size: 12px; margin: 4px 0 10px; }
+.node { border: 1px solid #c9d1de; border-radius: 7px; padding: 5px 9px; text-align: center; }
+.node.gone { color: #8a91a1; border-style: dashed; text-decoration: line-through; }
+.node.now { border: 2px solid #7a3fb8; color: #4d2a80; font-weight: 700; }
+.node small { display: block; font-weight: 400; color: #8a91a1; text-decoration: none; }
+.arrow { color: #7a3fb8; font-size: 12px; }
+table { width: 100%; border-collapse: collapse; font-size: 12px; }
+td { border-top: 1px solid #edf0f4; padding: 4px 6px; vertical-align: top; } td:first-child { width: 64px; } td:nth-child(2) { width: 78px; }
+.ev { font-family: Consolas, monospace; font-size: 11.5px; border-radius: 4px; padding: 0 5px; background: #eef1f6; }
+.ev.rp { background: #f0ebf8; color: #4d2a80; } .ev.dg { background: #fdf2dc; color: #8a5a10; } .ev.ok { background: #e3f5ea; color: #17693b; }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.legend { margin-top: 12px; font-size: 12px; color: #3a4150; background: #fafbfd; border: 1px solid #e6e9ef; border-radius: 9px; padding: 9px 12px; }
+.legend li { margin: 3px 0; }
+.src { margin-top: 8px; font-size: 11px; color: #8a91a1; }
+</style></head><body>
+<div class="row">
+<div class="col">
+  <div class="panel">
+    <div class="head"><h2>객체 탐지 · 모델 3</h2><span class="badge">data_stream 실측</span></div>
+    <p class="hint">소스 3 연결 · 지정 탐지 1 · 장치 2곳 · CPU 작업 2 · <b>더블클릭 → 탐지 영상</b></p>
+
+    <div class="card"><div class="name"><span class="dot ok"></span>robot1 <code>:10003</code></div><span class="kind">→ go1-001</span>
+      <div class="line">원본 14.8장/초 · 상태 1.0건/초</div>
+      <div class="chips"><span class="chip ok">targeted · 3.9/s · 210 ms<span class="at">노트북</span></span></div>
+    </div>
+    <div class="card"><div class="name"><span class="dot ok"></span>drone <code>:10002</code></div><span class="kind">→ drone-x500</span>
+      <div class="line">원본 9.6장/초 · 상태 4.0건/초</div>
+      <div class="chips"><span class="chip ok">yoloe · 6.1/s · 140 ms<span class="at">노트북</span></span><span class="chip ok">unidepth · 2.0/s<span class="at">노트북</span></span></div>
+    </div>
+    <div class="card"><div class="name"><span class="dot ok"></span>cam360_slice <code>:10006</code></div><span class="kind">장비 없음</span>
+      <div class="line">원본 3.0장/초 · 상태 —</div>
+    </div>
+
+    <div class="cpu new"><span class="tag-new">시안 안 1 — CPU 작업 묶음</span>
+      <div class="ttl">CPU 작업 <small>모델이 아닌 전처리 · 2개</small></div>
+      <div class="chips">
+        <span class="chip cpuc ok">cam360_slice · 3.0/s<span class="at">노트북</span></span>
+        <span class="chip cpuc ok sel">probe · running<span class="at pi">pi13</span></span>
+      </div>
+      <div class="moved">↪ probe — pi6 빠짐 → <b style="color:#7a3fb8">pi13</b> 로 옮김 · 20:59:46</div>
+    </div>
+
+    <div class="foot"><span>100.125.104.23 · 포트 3 · 1초 전</span><span class="btn">변경 기록 6</span></div>
+  </div>
+  <div class="legend">
+    <ul style="margin:0;padding-left:16px">
+      <li>칩 꼬리표 규칙은 모델 칩과 같다 — <b>노트북</b> / 파이는 <b style="color:#7a3fb8">노드 이름</b></li>
+      <li><b>cam360_slice</b> — 런처가 직접 띄움(스트림 기록 없음) → 서버 고정 「노트북」. 살아 있는지는 :10006 영상으로</li>
+      <li><b>probe</b> — 오케스트레이터가 둔 작업. <code>applied · running · replanned · stopped</code> 을 따라감</li>
+      <li>옮겨지면 묶음 아래 「↪」 한 줄이 1분 동안 남는다</li>
+      <li class="dim">CPU 작업이 하나도 없으면 묶음째 숨김</li>
+    </ul>
+  </div>
+</div>
+
+<div class="overlay new">
+  <span class="tag-new">시안 안 1 — CPU 작업 칩 더블클릭</span>
+  <div class="ohead">
+    <h2>CPU 작업 · probe<small>단위 <code>cpu-probe-3dd12b</code> · 실행 <code>req-5c1e…</code></small></h2>
+    <span class="btn">닫기 ✕</span>
+  </div>
+  <div class="grid2">
+    <div class="sec">
+      <h3>실행 장치 <span class="badge">스트림 확인 · running</span></h3>
+      <div class="devhead"><span class="ic">Pi</span>
+        <div><b>라즈베리파이 pi13</b><small>노드 <code>pi13</code> · role=small · k3s</small></div></div>
+      <div class="kv">
+        <span>하드웨어</span><span>aarch64 · 4 스레드 · RAM 3.7 GB</span>
+        <span>지금</span><span>CPU 41% · 메모리 58% · 52 °C</span>
+        <span>요청 / 상한</span><span>CPU 250m / 500m · 메모리 128Mi / 256Mi</span>
+        <span>실행 방식</span><span><b>k3s 파드</b> · 우선순위 <code>vision-cpu</code></span>
+        <span>근거</span><span>pi6 이 빠져서 다시 배치(replanned) → pi13</span>
+      </div>
+      <p class="src">출처: orchestration_stream <code>planned.cpu_units</code> · <code>replanned</code> 20:59:46 · <code>running</code> 20:59:53 · node_resource_stream pi13</p>
+    </div>
+    <div class="sec">
+      <h3>어디서 어디로 <span class="badge">이동 1번</span></h3>
+      <div class="track">
+        <div class="node gone">pi6<small>20:59:23 ~ :46</small></div>
+        <span class="arrow">── 노드 빠짐 ──▶</span>
+        <div class="node now">pi13<small>20:59:46 ~</small></div>
+      </div>
+      <table>
+        <tr><td><code>20:59:23</code></td><td><span class="ev">applied</span></td><td>pi6 에 둠 · <code>cpu-probe-25713c</code></td></tr>
+        <tr><td><code>20:59:31</code></td><td><span class="ev ok">running</span></td><td>pi6 에서 돎</td></tr>
+        <tr><td><code>20:59:46</code></td><td><span class="ev rp">replanned</span></td><td>노드 pi6 빠짐 → pi6 에서 pi13 로<br><span class="dim">from 25713c → to 3dd12b</span></td></tr>
+        <tr><td><code>20:59:53</code></td><td><span class="ev ok">running</span></td><td>pi13 에서 돎</td></tr>
+        <tr><td><code>21:00:00</code></td><td><span class="ev dg">degraded</span></td><td>k3s 응답 없음 — 위치는 pi13 그대로, 상태 「확인 불가」</td></tr>
+      </table>
+    </div>
+  </div>
+  <div class="sec">
+    <h3>같은 칸 — cam360_slice 를 골랐을 때 <span class="badge">서버 고정</span></h3>
+    <div class="kv">
+      <span>실행 장치</span><span><b>노트북</b> (data_stream 기기 <code>book-4vg1edpvi5</code> · WSL)</span>
+      <span>근거</span><span>오케스트레이터 기록 없음 → 런처가 data_stream 기기에서 직접 띄움 (자원 배분 없이 띄운 것은 모두 data_stream 서버)</span>
+      <span>살아 있나</span><span><span class="dot ok"></span>:10006 원본 3.0장/초 — 끝 기록이 남지 않아 영상으로 판단</span>
+      <span>만드는 소스</span><span>cam360_slice <code>:10006</code> 카드</span>
+    </div>
+  </div>
+</div>
+</div>
+</body></html>

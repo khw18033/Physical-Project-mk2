@@ -1664,6 +1664,10 @@ button.flight-armed:not(:disabled){color:#fff!important;border-color:#8f1d22!imp
 .dms-chip__at--other{color:#5a6274}
 .dms-place__group+.dms-place__group{margin-top:10px;padding-top:10px;border-top:1px dashed #e1e5ec}
 .dms-place__head{display:flex;justify-content:space-between;align-items:center;gap:8px;margin:0 0 6px;font-size:13px}
+.dms-maker{margin:6px 0 0;font-size:12px;background:#f6f1fc;border-left:3px solid #7a3fb8;padding:4px 7px;border-radius:0 5px 5px 0;color:#3a2360}
+.dms-maker strong,.dms-maker b{color:#4d2a80}
+.dms-maker__moved{margin-left:6px;color:#6b7385}
+.dms-place__src{margin-top:6px;font-size:11px}
 .dms-target{margin:6px 0 0;font-size:12px;background:#f4f7fd;border-left:3px solid #2d6fd6;padding:4px 7px;border-radius:0 5px 5px 0}
 .dms-target--unknown{border-left-color:#b3b9c6;background:#f6f7f9;color:#6d7a8b}
 .dms-target--otherScan{border-left-color:#d69e2e;background:#fdf9ee}

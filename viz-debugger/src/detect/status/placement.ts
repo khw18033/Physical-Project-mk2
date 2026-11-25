@@ -22,8 +22,17 @@
  *   요청별 마지막 기록(`requests`)이 `stopped` 면 그 배치표는 「지난 배치표」로 남고 칩 판단에는 안 쓴다(→ data_stream 기기).
  * - 신구는 기록 시각 `ts` 로 가린다(outbox 로 늦게 쓰인 옛 `planned` 가 새것을 덮지 않게).
  * - 저장본은 Redis 주소마다 따로 둔다 — 다른 data_stream 에 붙으면 옛 서버의 배치표 · 노드가 섞이지 않게.
- * - CPU 작업의 `replanned`(노드 이동)는 반영하지 않는다 — CPU 작업은 탐지 모델 칩이 아니다. 판에 보일 때 같이 붙인다.
  * - 자원 배분이 없을 때는 서버 고정(data_stream 기기 확정)을 유지한다 — host 키를 더하지 않는다(사용자 결정).
+ *
+ * ## 261125 안 2 — CPU 작업은 그 작업이 만드는 소스 카드에 붙인다
+ *
+ * - CPU 작업은 포트별 모델이 아니라서 칩이 없다. **작업 이름과 같은 이름의 소스 카드**(`cam360_slice` 작업 ↔ `cam360_slice`
+ *   포트)에 「만드는 곳」 한 줄로 붙인다. 출력 포트가 없는 작업(시험 `probe` 등)은 붙일 카드가 없어 안 보인다(안 2의 한계).
+ * - 위치는 창구가 단위 기록으로 따라간 `cpuTasks`(applied · running · replanned · stopped · failed)를 쓴다. 기록이 없거나
+ *   끝났으면 **서버 고정** — data_stream 기기. 런처가 `cam360_slice` 를 WSL 에서 바로 띄우고(`Start-Slice`), 오케스트레이터에
+ *   `--cpu-tasks` 를 넘기지 않으므로 지금은 늘 이쪽이다.
+ * - 어느 소스가 CPU 작업의 출력인지는 스트림에 없다(런처로 띄우면 기록이 하나도 없다). 그래서 data_stream 레지스트리의
+ *   `cpu_tasks`(지금 `cam360_slice` 하나)를 `CPU_TASK_SOURCES` 로 적어 두고, 스트림에 기록이 있는 작업은 그 이름도 받는다.
  */
 
 import { useSyncExternalStore } from 'react';
@@ -93,7 +102,43 @@ export type NodeSummary = {
   baselineAtMs: number | null;
 };
 
-export type PlacementSnapshot = { plan: PlanSummary | null; nodes: Readonly<Record<string, NodeSummary>> };
+export type CpuAmount = { cpuM: number | null; memMb: number | null };
+
+export type CpuMove = {
+  from: string | null;
+  to: string;
+  fromNode: string | null;
+  toNode: string | null;
+  reason: string | null;
+  ts: string | null;
+  tsMs?: number | null;
+  atMs: number | null;
+};
+
+/** CPU 작업 하나의 지금 모습 — 창구 `cpuTasksOf` 가 단위 기록을 따라가 만든다. */
+export type CpuTask = {
+  task: string;
+  requestId: string | null;
+  unitId: string | null;
+  node: string | null;
+  state: 'planned' | 'applied' | 'running' | 'stopped' | 'failed';
+  reason: string | null;
+  /** k3s 응답 없음(`degraded`) — 위치는 마지막 값, 상태는 확인 불가. */
+  lost: boolean;
+  requests: CpuAmount | null;
+  limits: CpuAmount | null;
+  moves: readonly CpuMove[];
+  ts: string | null;
+  tsMs?: number | null;
+  atMs: number | null;
+};
+
+export type PlacementSnapshot = {
+  plan: PlanSummary | null;
+  nodes: Readonly<Record<string, NodeSummary>>;
+  /** 옛 저장본에는 없다. */
+  cpuTasks?: Readonly<Record<string, CpuTask>>;
+};
 
 /** 창구 답 — 저장본 모양에 요청별 마지막 기록이 더해진다. */
 export type PlacementReply = PlacementSnapshot & { requests?: Readonly<Record<string, RequestLast>> };
@@ -141,7 +186,30 @@ export function mergePlacement(prev: PlacementSnapshot, got: PlacementReply): Pl
       ? { ...node, baseline: before.baseline, baselineAtMs: before.baselineAtMs }
       : node;
   }
-  return { plan, nodes, planFrom };
+  return { plan, nodes, cpuTasks: mergeCpuTasks(prev.cpuTasks ?? {}, got), planFrom };
+}
+
+/**
+ * CPU 작업 — 받은 것이 더 새(같거나)면 갈아 끼우고, 안 온 작업은 저장본을 남긴다(스트림에서 밀려나도 마지막 모습을 쓴다).
+ * 그 뒤 요청이 `stopped` 로 끝났으면(더 새 기록) 작업도 끝난 것으로 — data_stream 기기에 둔 단위는 끝 기록을 따로 안 남긴다.
+ */
+export function mergeCpuTasks(prev: Readonly<Record<string, CpuTask>>, got: PlacementReply): Record<string, CpuTask> {
+  const out: Record<string, CpuTask> = { ...prev };
+  for (const [task, item] of Object.entries(got.cpuTasks ?? {})) {
+    const before = out[task];
+    if (before === undefined || orderOf(item) >= orderOf(before)) out[task] = item;
+  }
+  for (const [task, item] of Object.entries(out)) {
+    const last = item.requestId === null ? undefined : got.requests?.[item.requestId];
+    if (last?.event === 'stopped' && !cpuEnded(item) && orderOf(last) >= orderOf(item)) {
+      out[task] = { ...item, state: 'stopped', lost: false, reason: last.reason, ts: last.ts, tsMs: last.tsMs ?? null, atMs: last.atMs };
+    }
+  }
+  return out;
+}
+
+export function cpuEnded(item: CpuTask): boolean {
+  return item.state === 'stopped' || item.state === 'failed';
 }
 
 /** data_stream 기기 자신 — 자원 기록기가 `source: local` 로 남긴 노드. 기록기가 꺼져 있으면 null. */
@@ -199,6 +267,55 @@ export function countDevices(placements: readonly Placement[]): number {
   return new Set(placements.map((p) => p.node ?? (p.from === 'dataStream' ? '<data_stream>' : '?'))).size;
 }
 
+/**
+ * data_stream 레지스트리(`ds_resources/registry.json` · `cpu_tasks`)의 CPU 작업 가운데 **같은 이름의 소스 포트로 영상을 내는 것**.
+ * 런처로 띄우면 스트림에 기록이 없어 이 목록으로만 알아본다. 작업이 늘면 여기에 더한다.
+ */
+export const CPU_TASK_SOURCES: readonly string[] = Object.freeze(['cam360_slice']);
+
+/** 작업 이동 줄을 판에 남기는 시간. */
+export const CPU_MOVE_SHOW_MS = 60_000;
+
+export type CpuPlacement = {
+  task: string;
+  /** `stream` = 단위 기록이 지금 위치를 말함, `dataStream` = 기록이 없거나 끝나 data_stream 기기로 확정(서버 고정). */
+  from: 'stream' | 'dataStream';
+  node: string | null;
+  info: NodeSummary | null;
+  kind: DeviceKind;
+  /** 지금 도는 단위 기록(`stream`일 때). */
+  record: CpuTask | null;
+  /** 끝난 지난 기록 — 판단에는 안 쓰고 상세에 한 줄. */
+  ended: CpuTask | null;
+};
+
+/** 소스 카드 → 그 영상을 만드는 CPU 작업의 실행 장치. CPU 작업의 출력이 아니면 null. */
+export function cpuPlacementOf(snapshot: PlacementSnapshot, source: string | null): CpuPlacement | null {
+  if (source === null) return null;
+  const item = snapshot.cpuTasks?.[source];
+  if (item === undefined && !CPU_TASK_SOURCES.includes(source)) return null;
+  const local = localNode(snapshot.nodes);
+  if (item !== undefined && !cpuEnded(item) && item.node !== null) {
+    const info = snapshot.nodes[item.node] ?? null;
+    const kind = item.node === local?.node ? 'laptop' : deviceKind('plan', info);
+    return { task: source, from: 'stream', node: item.node, info, kind, record: item, ended: null };
+  }
+  return { task: source, from: 'dataStream', node: local?.node ?? null, info: local, kind: 'laptop', record: null, ended: item ?? null };
+}
+
+/** 판에 「↪ 어디서」 를 붙일 최근 이동 — `CPU_MOVE_SHOW_MS` 안이면. */
+export function recentMove(placement: CpuPlacement | null, nowMs: number): CpuMove | null {
+  const move = placement?.record?.moves[placement.record.moves.length - 1] ?? null;
+  if (move === null) return null;
+  const at = move.tsMs ?? move.atMs;
+  return at !== null && nowMs - at <= CPU_MOVE_SHOW_MS ? move : null;
+}
+
+/** 작업 칸의 꼬리표 — 모델 칩과 같은 규칙(노트북 / 노드 이름). */
+export function cpuShortTag(placement: CpuPlacement): string {
+  return shortTag({ from: placement.from === 'stream' ? 'plan' : 'dataStream', node: placement.node, unit: null, info: placement.info, kind: placement.kind });
+}
+
 // ── 창구 답 해석 ─────────────────────────────────────────────────────────────
 
 const isObj = (value: unknown): value is Record<string, unknown> => value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -209,7 +326,8 @@ export function parsePlacementReply(body: unknown): PlacementReply | null {
   const plan = body.plan as PlanSummary | null;
   if (plan !== null && (typeof plan.eventId !== 'string' || !Array.isArray(plan.gpuUnits))) return null;
   const requests = isObj(body.requests) ? body.requests as Record<string, RequestLast> : undefined;
-  return { plan, nodes: body.nodes as Record<string, NodeSummary>, ...(requests === undefined ? {} : { requests }) };
+  const cpuTasks = isObj(body.cpuTasks) ? body.cpuTasks as Record<string, CpuTask> : undefined;
+  return { plan, nodes: body.nodes as Record<string, NodeSummary>, ...(requests === undefined ? {} : { requests }), ...(cpuTasks === undefined ? {} : { cpuTasks }) };
 }
 
 // ── 저장 (Redis 주소마다 따로) ───────────────────────────────────────────────
@@ -222,14 +340,14 @@ function loadStored(redis: string | null): PlacementSnapshot {
   try {
     const raw = typeof localStorage === 'undefined' ? null : localStorage.getItem(storageKeyOf(redis));
     const parsed = raw === null ? null : parsePlacementReply(JSON.parse(raw));
-    if (parsed !== null) return { plan: parsed.plan, nodes: parsed.nodes };
+    if (parsed !== null) return { plan: parsed.plan, nodes: parsed.nodes, cpuTasks: parsed.cpuTasks ?? {} };
   } catch { /* 저장소가 막혔거나 깨졌다 — 빈 값으로 시작 */ }
-  return { plan: null, nodes: {} };
+  return { plan: null, nodes: {}, cpuTasks: {} };
 }
 
 function saveStored(redis: string | null, snapshot: PlacementSnapshot): void {
   try {
-    if (typeof localStorage !== 'undefined') localStorage.setItem(storageKeyOf(redis), JSON.stringify({ plan: snapshot.plan, nodes: snapshot.nodes }));
+    if (typeof localStorage !== 'undefined') localStorage.setItem(storageKeyOf(redis), JSON.stringify({ plan: snapshot.plan, nodes: snapshot.nodes, cpuTasks: snapshot.cpuTasks ?? {} }));
   } catch { /* 못 적어도 이번 화면에서는 쓴다 */ }
 }
 

@@ -17,6 +17,11 @@
  * 3. (261125 data_stream 답 뒤 검토) 배치가 바뀔 때마다 스트림이 갱신되므로 화면도 따라간다 — 새 `planned` 는 교체, 실행 끝(`stopped`)은
  *    요청별 마지막 기록(`requests`)으로 저장본에 이어 붙인다. 신구는 기록 시각 `ts` 로 가린다.
  *
+ * 4. (261125 안 2) **CPU 작업이 어디서 도는가**를 단위 기록으로 따라간다(`cpuTasks`). 배치표(`planned.cpu_units`)는 처음 둔
+ *    노드만 말하고, 실행 중 노드 이동은 `replanned` 만 말한다(새 `planned` 없음). 그래서 기록을 **오래된 것부터** 훑으며
+ *    작업마다 지금 단위 · 노드 · 상태 · 이동 기록을 만든다. 작업 이름은 단위 id `cpu-<작업>-<16진 6자>`(data_stream
+ *    `controller.py:251`)에서 읽는다.
+ *
  * 명령은 `XREVRANGE <키> + - COUNT <n>` 하나뿐이고, 키는 위 두 스트림만 받는다. 순수 함수(`entryFields` ·
  * `summarizePlacement`)는 검사(`verify:detect-placement`)가 그대로 부른다.
  */
@@ -132,15 +137,107 @@ function baselineOf(raw) {
   };
 }
 
+/** CPU 단위 id `cpu-<작업>-<16진 6자>` → 작업 이름. CPU 단위가 아니면 null. */
+export function taskOfUnit(unitId) {
+  const m = typeof unitId === 'string' ? /^cpu-(.+)-[0-9a-f]{6}$/.exec(unitId) : null;
+  return m === null ? null : m[1];
+}
+
+const cpuAmount = (raw) => {
+  const o = obj(raw);
+  return o === null ? null : { cpuM: num(o.cpu_m), memMb: num(o.mem_mb) };
+};
+
+/**
+ * CPU 작업마다 지금 모습(261125 안 2). 기록을 **오래된 것부터** 훑는다.
+ *   planned.cpu_units   그 요청이 그 작업을 그 노드에 둠 — 같은 작업의 앞 기록(다른 요청)은 버리고 새로 시작
+ *   applied · running   `detail.unit_id` 의 단위가 `detail.node` 에서 뜸 · 돎
+ *   replanned           `from` 단위 → `to` 단위(`to_node`). 이동 기록에 한 줄
+ *   stopped · failed    지금 단위가 끝남 · 못 뜸
+ *   degraded(상세 없음)  k3s 응답 없음 — 위치는 그대로, `lost` 만 켠다(다음 running 이 끈다)
+ * data_stream 기기에 둔 단위(`status: local`)는 끝 기록을 남기지 않는다 — 그 요청이 `stopped` 로 끝나면 같이 끝난 것으로 본다(화면).
+ */
+export function cpuTasksOf(orch) {
+  const list = [...orch].sort((a, b) => (orderOf(a) - orderOf(b)) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+  const tasks = {};
+  const fresh = (task, rid, entry) => ({
+    task, requestId: rid, unitId: null, node: null, state: 'planned', reason: null, lost: false,
+    requests: null, limits: null, moves: [], ts: entry.fields.ts || null, tsMs: entry.tsMs, atMs: entry.atMs,
+  });
+  const touch = (item, entry) => { item.ts = entry.fields.ts || null; item.tsMs = entry.tsMs; item.atMs = entry.atMs; };
+  for (const entry of list) {
+    const f = entry.fields;
+    const rid = f.request_id || null;
+    const event = f.event;
+    if (event === 'planned') {
+      const plan = obj(json(f.plan));
+      for (const u of (Array.isArray(plan?.cpu_units) ? plan.cpu_units : []).map(obj)) {
+        if (u === null || typeof u.task !== 'string' || typeof u.node !== 'string') continue;
+        const item = tasks[u.task] = fresh(u.task, rid, entry);
+        item.node = u.node;
+        item.requests = cpuAmount(u.requests);
+        item.limits = cpuAmount(u.limits);
+      }
+      continue;
+    }
+    const detail = obj(json(f.detail)) ?? {};
+    if (event === 'replanned') {
+      const task = taskOfUnit(detail.to);
+      if (task === null) continue;
+      const item = tasks[task]?.requestId === rid ? tasks[task] : (tasks[task] = fresh(task, rid, entry));
+      item.moves.push({
+        from: typeof detail.from === 'string' ? detail.from : null,
+        to: detail.to,
+        fromNode: typeof detail.from_node === 'string' ? detail.from_node : item.node,
+        toNode: typeof detail.to_node === 'string' ? detail.to_node : null,
+        reason: f.reason || null, ts: f.ts || null, tsMs: entry.tsMs, atMs: entry.atMs,
+      });
+      item.unitId = detail.to;
+      if (typeof detail.to_node === 'string') item.node = detail.to_node;
+      item.reason = f.reason || null;
+      touch(item, entry);
+      continue;
+    }
+    if (event === 'degraded' && Object.keys(detail).length === 0) {
+      for (const item of Object.values(tasks)) if (item.requestId === rid && (item.state === 'applied' || item.state === 'running')) { item.lost = true; item.reason = f.reason || null; touch(item, entry); }
+      continue;
+    }
+    const task = taskOfUnit(detail.unit_id);
+    if (task === null) continue;
+    if (event === 'applied' || event === 'running') {
+      const item = tasks[task]?.requestId === rid ? tasks[task] : (tasks[task] = fresh(task, rid, entry));
+      item.unitId = detail.unit_id;
+      if (typeof detail.node === 'string') item.node = detail.node;
+      if (cpuAmount(detail.requests) !== null) item.requests = cpuAmount(detail.requests);
+      if (cpuAmount(detail.limits) !== null) item.limits = cpuAmount(detail.limits);
+      item.state = event;
+      item.lost = false;
+      if (event === 'applied') item.reason = f.reason || null;
+      touch(item, entry);
+    } else if (event === 'stopped' || event === 'failed') {
+      const item = tasks[task];
+      // 옮겨 가기 전 단위의 끝 기록은 지금 단위를 닫지 않는다.
+      if (item === undefined || item.requestId !== rid || (item.unitId !== null && item.unitId !== detail.unit_id)) continue;
+      item.state = event;
+      item.lost = false;
+      item.reason = f.reason || null;
+      touch(item, entry);
+    }
+  }
+  return tasks;
+}
+
 /**
  * 두 스트림의 최근 기록(**새것이 앞** — XREVRANGE 순서) → 화면이 쓰는 요약.
  *   plan      가장 새(`ts` 순) `planned` 하나(없으면 null) + 그 요청의 마지막 기록(`last`)
  *   requests  읽은 범위 안 요청마다 마지막 기록 — 화면이 **저장해 둔 배치표**의 끝남(`stopped`)을 따라가는 데 쓴다.
  *             배치표가 스트림에서 밀려난 뒤에 온 `stopped` 도 이것으로 이어 붙는다(261125 검토 A)
+ *   cpuTasks  CPU 작업마다 지금 단위 · 노드 · 상태 · 이동 기록(`cpuTasksOf`)
  *   nodes     노드마다 마지막 기록의 상태 · 사용량, 그리고 가장 최근 baseline(없으면 null)
  */
 export function summarizePlacement(orchEntries, nodeEntries) {
-  const orch = (orchEntries ?? []).map(entryFields).filter((e) => e !== null && e.fields.schema === 'orch/1');
+  const orch = (orchEntries ?? []).map(entryFields).filter((e) => e !== null && e.fields.schema === 'orch/1')
+    .map((e) => ({ ...e, tsMs: tsMs(e.fields.ts) }));
   const requests = {};
   for (const entry of orch) {
     const rid = entry.fields.request_id;
@@ -186,7 +283,7 @@ export function summarizePlacement(orchEntries, nodeEntries) {
       if (baseline !== null) { node.baseline = baseline; node.baselineAtMs = entry.atMs; }
     }
   }
-  return { plan, requests, nodes };
+  return { plan, requests, cpuTasks: cpuTasksOf(orch), nodes };
 }
 
 /**

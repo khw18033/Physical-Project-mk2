@@ -10,7 +10,7 @@ import { useLang } from '../../../shared/language.ts';
 import type { DetectEvent, DetectHistoryState } from '../history.ts';
 import type { TargetInfo } from '../targets.ts';
 import type { DetectSourceRow } from '../summary.ts';
-import { placementOf, planEnded, type NodeSummary, type Placement, type PlacementState } from '../placement.ts';
+import { cpuPlacementOf, placementOf, planEnded, type CpuAmount, type CpuPlacement, type NodeSummary, type Placement, type PlacementState } from '../placement.ts';
 
 const gb = (mb: number | null | undefined) => (mb === null || mb === undefined ? '—' : (mb / 1024).toFixed(1));
 const pct = (value: number | null | undefined) => (value === null || value === undefined ? '—' : String(Math.round(value)));
@@ -21,6 +21,12 @@ function deviceName(placement: Placement): string {
   if (placement.kind === 'pi') return t('dms.pl.piName', { node: placement.node ?? '?' });
   return placement.node ?? '?';
 }
+
+function cpuDeviceName(placement: CpuPlacement): string {
+  return deviceName({ from: placement.from === 'stream' ? 'plan' : 'dataStream', node: placement.node, unit: null, info: placement.info, kind: placement.kind });
+}
+
+const amount = (value: CpuAmount | null, key: keyof CpuAmount) => value?.[key] ?? '—';
 
 function hardwareText(info: NodeSummary | null): { gpu: string | null; cpu: string | null; model: string | null } | null {
   const b = info?.baseline ?? null;
@@ -98,6 +104,66 @@ export function PlacementSection({ row, state }: { row: DetectSourceRow | null; 
     })}
     {state.error !== null && <p className="vn-line vn-warn">{t('dms.pl.readError', { why: state.error })}</p>}
     {state.planFrom === 'stored' && plan !== null && <p className="vn-line vn-dim">{t('dms.pl.stored', { time: hhmm(plan.atMs) })}</p>}
+  </section>;
+}
+
+/**
+ * 상세 창의 「만드는 작업」 칸(261125 안 2) — 이 포트의 영상을 만드는 CPU 작업이 어디서 도나. CPU 작업의 출력 포트가 아니면 안 그린다.
+ * 단위 기록이 지금 위치를 말하면 그 노드(이동 기록 포함), 없거나 끝났으면 data_stream 기기(서버 고정).
+ */
+export function CpuTaskSection({ row, state }: { row: DetectSourceRow | null; state: PlacementState }) {
+  useLang();
+  const placement = cpuPlacementOf(state, row?.source ?? null);
+  if (placement === null) return null;
+  const record = placement.record;
+  const hw = hardwareText(placement.info);
+  const usage = usageText(placement.info);
+  const alive = row !== null && (row.state === 'raw' || row.state === 'models') && row.frameRate !== null && row.frameRate > 0;
+  const ended = placement.ended;
+  const lastMove = record !== null && record.moves.length > 0 ? record.moves[record.moves.length - 1] : null;
+  return <section className="dms-sec dms-place dms-maker-sec">
+    <h3>{t('dms.mk.secTitle')}</h3>
+    <div className="dms-place__group">
+      <p className={`dms-place__head dms-place__head--${placement.kind}`}>
+        <b>{cpuDeviceName(placement)}</b>
+        <span className="dms-badge">{t(placement.from === 'stream' ? 'dms.mk.badgeStream' : 'dms.mk.badgeDs')}</span>
+      </p>
+      <dl className="dms-kv">
+        <dt>{t('dms.mk.task')}</dt><dd>{t('dms.mk.taskText', { task: placement.task })}</dd>
+        <dt>{t('dms.pl.node')}</dt>
+        <dd>{placement.node === null
+          ? <span className="vn-dim">{t('dms.pl.nodeUnknown', { host: row?.host ?? '—' })}</span>
+          : <><code>{placement.node}</code>{placement.info?.role != null && ` · role=${placement.info.role}`}{placement.info?.source != null && ` · ${placement.info.source}`}</>}</dd>
+        <dt>{t('dms.pl.hardware')}</dt>
+        <dd>{hw === null
+          ? <span className="vn-dim">{t('dms.pl.hwUnknown')}</span>
+          : <>{hw.cpu}{hw.model !== null && <><br /><small className="vn-dim">{hw.model}</small></>}</>}</dd>
+        {usage !== null && <><dt>{t('dms.pl.now')}</dt><dd>{usage}</dd></>}
+        {record !== null && <>
+          <dt>{t('dms.mk.unit')}</dt><dd><code>{record.unitId ?? '—'}</code> · <code>{record.requestId ?? '—'}</code></dd>
+          <dt>{t('dms.mk.state')}</dt>
+          <dd>{record.lost
+            ? <span className="vn-warn">{t('dms.mk.lost', { state: record.state, why: record.reason ?? '—' })}</span>
+            : `${record.state} · ${hhmm(record.atMs)}`}</dd>
+          {(record.requests !== null || record.limits !== null) && <><dt>{t('dms.mk.amount')}</dt>
+            <dd>{t('dms.mk.amountText', { reqCpu: amount(record.requests, 'cpuM'), limCpu: amount(record.limits, 'cpuM'), reqMem: amount(record.requests, 'memMb'), limMem: amount(record.limits, 'memMb') })}</dd></>}
+        </>}
+        <dt>{t('dms.pl.why')}</dt>
+        <dd>{record !== null
+          ? t('dms.mk.whyStream', { time: hhmm(record.atMs), reason: lastMove?.reason ?? record.reason ?? record.state })
+          : t('dms.mk.whyDs')}</dd>
+        <dt>{t('dms.mk.alive')}</dt>
+        <dd>{alive
+          ? <><em className="dms-dot dms-dot--ok" aria-hidden="true" />{t('dms.mk.aliveYes', { rate: row?.frameRate?.toFixed(1) ?? '—' })}</>
+          : <span className="vn-warn">{t('dms.mk.aliveNo')}</span>}</dd>
+        {record !== null && record.moves.length > 0 && <><dt>{t('dms.mk.moves')}</dt>
+          <dd>{record.moves.map((move) => <div key={`${move.from ?? ''}>${move.to}`}>{t('dms.mk.move', { time: hhmm(move.tsMs ?? move.atMs), from: move.fromNode ?? '?', to: move.toNode ?? '?' })}</div>)}</dd></>}
+        {ended !== null && <><dt>{t('dms.pl.plan')}</dt>
+          <dd className="vn-dim">{t('dms.mk.ended', { task: ended.task, node: ended.node ?? '?', state: ended.state, time: hhmm(ended.atMs) })}</dd></>}
+      </dl>
+      <p className="vn-line vn-dim dms-place__src">{t(record !== null ? 'dms.mk.src' : 'dms.mk.srcDs')}</p>
+    </div>
+    {state.error !== null && <p className="vn-line vn-warn">{t('dms.pl.readError', { why: state.error })}</p>}
   </section>;
 }
 

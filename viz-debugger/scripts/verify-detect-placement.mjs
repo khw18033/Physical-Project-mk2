@@ -2,7 +2,7 @@
 //
 // **모델 칩이 어느 장치에서 도는지를 data_stream 스트림 두 개로 맞게 가르는가.**
 //
-// 보는 것 여섯.
+// 보는 것 일곱.
 //  1. 창구 경로 — `/vision-stream/placement` 는 redis://host:port 만 받고, 키는 쿼리로 안 받는다
 //  2. 스트림 요약 — 가장 최근 `planned` 하나 · 그 요청의 마지막 기록, 노드마다 마지막 상태 + 가장 최근 baseline
 //  3. 가짜 소켓 — 보낸 명령은 XREVRANGE 둘뿐(두 스트림), 허용 목록 밖의 키는 보내지도 않는다
@@ -10,6 +10,8 @@
 //     옛것은 무시(기록 시각 ts 순), 실행 끝(stopped)은 밀려난 뒤에도 따라가 그 배치표를 칩 판단에서 뺀다
 //  5. (소스, 모델) → 장치 (사용자 결정 2) — 배치표에 있으면 그 노드, 없으면 data_stream 기기로 확정, 칩 꼬리표 · 장치 수
 //  6. 조회 한 번 — 창구 답을 받아 합치고, 실패하면 저장본 그대로 사유만 적는다. 저장 키는 Redis 주소마다
+//  7. CPU 작업 → 만드는 소스 카드 (261125 안 2) — 단위 기록(applied · running · replanned · stopped)을 따라 지금 노드 · 이동,
+//     끝나거나 기록이 없으면 서버 고정(data_stream 기기). 실제 M8 시험 probe 순서를 옮긴 고정 자료
 //
 // 대조군 — 깨진 plan JSON 은 배치표로 안 서고, 옛 planned 가 새 배치표를 덮지 않는다.
 
@@ -228,8 +230,76 @@ const snapA = reader.summarizePlacement(orchNewestFirst.slice(4), []);
   expect('저장 키가 Redis 주소마다 다르다', a !== b && a.startsWith(place.PLACEMENT_STORAGE_KEY) && a.endsWith('100.125.104.23:6380'), `${a} ${b}`);
 }
 
+// ── 7. CPU 작업 → 만드는 소스 카드 (261125 안 2) ────────────────────────────
+// 실제 orchestration_stream(11-24 21:00, M8 시험 probe)의 순서를 그대로 옮기고 작업 이름만 cam360_slice 로 바꿨다.
+{
+  const cpuPlan = { algorithm: 'placement/1', gpu_units: [], refused: [], degraded: [],
+    cpu_units: [{ task: 'cam360_slice', node: 'pi6', requests: { cpu_m: 200, mem_mb: 64 }, limits: { cpu_m: 400, mem_mb: 128 }, priority_class: 'ds-vision-low' }] };
+  const iso = (s) => `2026-11-24T21:${s}+09:00`;
+  const rec = (id, event, rid, ts, extra = {}) => orchRec(id, event, rid, { ts: iso(ts), ...extra });
+  const seq = [
+    rec('1795521644000-0', 'planned', 'req-P', '00:44.704', { plan: cpuPlan }),
+    rec('1795521645000-0', 'applied', 'req-P', '00:45.055', { reason: 'CPU 작업 cam360_slice → pi6', detail: { node: 'pi6', unit_id: 'cpu-cam360_slice-fe58bf', requests: { cpu_m: 200, mem_mb: 64 }, limits: { cpu_m: 400, mem_mb: 128 } } }),
+    rec('1795521652000-0', 'running', 'req-P', '00:52.331', { detail: { node: 'pi6', unit_id: 'cpu-cam360_slice-fe58bf' } }),
+    rec('1795521697000-0', 'applied', 'req-P', '01:37.723', { detail: { node: 'pi13', unit_id: 'cpu-cam360_slice-c3d882' } }),
+    rec('1795521697001-0', 'replanned', 'req-P', '01:37.723', { reason: '노드 pi6 빠짐 → pi6 에서 pi13 로', detail: { from: 'cpu-cam360_slice-fe58bf', from_node: 'pi6', to: 'cpu-cam360_slice-c3d882', to_node: 'pi13' } }),
+    rec('1795521706000-0', 'running', 'req-P', '01:46.174', { detail: { node: 'pi13', unit_id: 'cpu-cam360_slice-c3d882' } }),
+  ];
+  const newestFirst = (list) => [...list].reverse();
+  const nodes = [
+    nodeRec('1795521700000-0', 'book-4vg1edpvi5'),
+    nodeRec('1795521699000-0', 'pi13', { role: 'small', source: 'k3s', gpu: [] }),
+    nodeRec('1795521698000-0', 'pi6', { role: 'sensor', source: 'k3s', gpu: [] }),
+  ];
+  expect('단위 id → 작업', reader.taskOfUnit('cpu-cam360_slice-c3d882') === 'cam360_slice' && reader.taskOfUnit('gpu-49fcb030') === null && reader.taskOfUnit('cpu-x') === null);
+
+  const running = reader.summarizePlacement(newestFirst(seq), nodes);
+  const task = running.cpuTasks.cam360_slice;
+  expect('이동 뒤 지금 단위 · 노드', task?.node === 'pi13' && task.unitId === 'cpu-cam360_slice-c3d882' && task.state === 'running' && task.lost === false, JSON.stringify(task));
+  expect('이동 기록 한 줄', task?.moves.length === 1 && task.moves[0].fromNode === 'pi6' && task.moves[0].toNode === 'pi13');
+  expect('요청 · 상한', task?.requests?.cpuM === 200 && task.limits?.memMb === 128);
+
+  // 판단 — 스트림이 말하는 노드(파이)
+  let snap = place.mergePlacement({ plan: null, nodes: {} }, running);
+  let p = place.cpuPlacementOf(snap, 'cam360_slice');
+  expect('스트림 위치 → pi13', p?.from === 'stream' && p.node === 'pi13' && p.kind === 'pi' && place.cpuShortTag(p) === 'pi13', JSON.stringify(p && { from: p.from, node: p.node, kind: p.kind }));
+  const movedAt = task.moves[0].tsMs;
+  expect('옮긴 뒤 1분 안 「↪」', place.recentMove(p, movedAt + 30_000)?.fromNode === 'pi6' && place.recentMove(p, movedAt + 61_000) === null);
+  expect('모델 소스 카드는 CPU 작업이 아님', place.cpuPlacementOf(snap, 'robot1') === null && place.cpuPlacementOf(snap, null) === null);
+
+  // k3s 응답 없음 — 위치 그대로, 확인 불가
+  const lost = reader.summarizePlacement(newestFirst([...seq, rec('1795521711000-0', 'degraded', 'req-P', '01:51.127', { reason: 'k3s 응답 없음' })]), nodes);
+  expect('k3s 응답 없음 — 위치 그대로', lost.cpuTasks.cam360_slice?.node === 'pi13' && lost.cpuTasks.cam360_slice.lost === true);
+
+  // 옛 단위의 끝 기록은 지금 단위를 닫지 않는다(대조군)
+  const oldStop = reader.summarizePlacement(newestFirst([...seq, rec('1795521712000-0', 'stopped', 'req-P', '01:52.000', { detail: { unit_id: 'cpu-cam360_slice-fe58bf' } })]), nodes);
+  if (oldStop.cpuTasks.cam360_slice?.state === 'running') controls.push('옮기기 전 단위의 stopped 는 지금 단위를 안 닫는다');
+  else failures.push('대조군 실패: 옛 단위의 stopped 로 지금 작업을 닫았다');
+
+  // 끝 — 서버 고정(data_stream 기기)으로 돌아가고 지난 기록은 남는다
+  const stopped = reader.summarizePlacement(newestFirst([...seq, rec('1795521713000-0', 'stopped', 'req-P', '01:53.119', { reason: '시험 끝', detail: { unit_id: 'cpu-cam360_slice-c3d882' } })]), nodes);
+  snap = place.mergePlacement(snap, stopped);
+  p = place.cpuPlacementOf(snap, 'cam360_slice');
+  expect('끝나면 data_stream 기기', p?.from === 'dataStream' && p.node === 'book-4vg1edpvi5' && p.kind === 'laptop' && p.ended?.state === 'stopped', JSON.stringify(p && { from: p.from, node: p.node }));
+
+  // 밀려난 뒤 — 저장본 유지, 그 요청의 stopped 만 오면 끝(data_stream 기기에 둔 단위는 끝 기록이 없다)
+  snap = place.mergePlacement({ plan: null, nodes: {} }, running);
+  const trimmed = { plan: null, nodes: {}, cpuTasks: {}, requests: { 'req-P': { event: 'stopped', reason: '오케스트레이터 끝남', ts: iso('02:00.000'), tsMs: Date.parse(iso('02:00.000')), atMs: 1795521720000 } } };
+  const kept = place.mergePlacement(snap, { plan: null, nodes: {} });
+  expect('밀려나도 저장본 유지', kept.cpuTasks?.cam360_slice?.node === 'pi13');
+  const closed = place.mergePlacement(snap, trimmed);
+  expect('요청 stopped → 작업 끝', closed.cpuTasks?.cam360_slice?.state === 'stopped');
+
+  // 기록이 하나도 없을 때(런처가 직접 띄움 — 지금 방식) — 서버 고정
+  const none = place.cpuPlacementOf({ plan: null, nodes: snap.nodes }, 'cam360_slice');
+  expect('기록 없음 → 서버 고정 노트북', none?.from === 'dataStream' && none.record === null && none.ended === null && none.kind === 'laptop' && place.cpuShortTag(none) === '노트북');
+  // 레지스트리 목록에 없고 기록도 없는 소스는 CPU 작업으로 안 본다(대조군)
+  if (place.cpuPlacementOf({ plan: null, nodes: snap.nodes }, 'drone') === null) controls.push('기록 · 목록에 없는 소스엔 「만드는 곳」을 안 붙인다');
+  else failures.push('대조군 실패: 모델 소스에 만드는 곳을 붙였다');
+}
+
 if (failures.length > 0) {
   console.error(`❌ 모델 실행 장치 — ${failures.length}건\n  - ${failures.join('\n  - ')}`);
   process.exit(1);
 }
-console.log(`✅ 모델 실행 장치 — 창구 경로 · 스트림 요약(최근 planned · 노드 baseline) · XREVRANGE 둘 · 배치표 저장 · 교체 · data_stream 기기 확정 · 꼬리표 · 조회 (대조군 ${controls.length}: ${controls.join(' · ')})`);
+console.log(`✅ 모델 실행 장치 — 창구 경로 · 스트림 요약(최근 planned · 노드 baseline) · XREVRANGE 둘 · 배치표 저장 · 교체 · data_stream 기기 확정 · 꼬리표 · 조회 · CPU 작업 만드는 곳(이동 · 끝 · 서버 고정) (대조군 ${controls.length}: ${controls.join(' · ')})`);

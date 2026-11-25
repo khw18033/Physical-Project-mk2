@@ -34,7 +34,7 @@ import { holdLatest, latestOf, useLatestStates } from '../latestStore.ts';
 import { devicesByBase, modelChipTone, summarizeDetectSources, TARGETED, type DetectSourceRow } from '../summary.ts';
 import { targetInfo, type TargetInfo } from '../targets.ts';
 import { noteDetectRows, useDetectHistory } from '../history.ts';
-import { countDevices, holdPlacement, placementOf, shortTag, usePlacement, type PlacementSnapshot } from '../placement.ts';
+import { countDevices, cpuPlacementOf, cpuShortTag, holdPlacement, placementOf, recentMove, shortTag, usePlacement, type PlacementSnapshot } from '../placement.ts';
 import { DetectHistoryList, TargetLine } from './DetectStatusParts.tsx';
 
 const ms = (value: number | null) => (value === null ? '—' : `${Math.round(value)} ms`);
@@ -92,7 +92,23 @@ function DeviceTag({ snapshot, source, model }: { snapshot: PlacementSnapshot; s
   return <span className={`dms-chip__at dms-chip__at--${placement.kind}`} title={t('dms.at.title', { device: full })}>{shortTag(placement)}</span>;
 }
 
-function SourceCard({ row, info, onOpen, snapshot }: { row: DetectSourceRow; info: TargetInfo | null; onOpen(base: string, model: string | null): void; snapshot: PlacementSnapshot }) {
+/**
+ * 이 포트의 영상을 만드는 CPU 작업이 도는 곳(261125 안 2) — 카드 안 보라색 한 줄. CPU 작업의 출력 포트가 아니면 안 그린다.
+ * 옮겨진 지 1분 안이면 「↪ 어디서」 를 붙인다.
+ */
+function MakerLine({ snapshot, source, nowMs }: { snapshot: PlacementSnapshot; source: string | null; nowMs: number }) {
+  useLang();
+  const placement = cpuPlacementOf(snapshot, source);
+  if (placement === null) return null;
+  const move = recentMove(placement, nowMs);
+  const device = placement.node === null ? t('dms.pl.dsDevice') : placement.node;
+  return <p className={`dms-maker dms-maker--${placement.kind}`} title={t('dms.mk.title', { device })}>
+    <Rich id="dms.mk.line" vars={{ tag: cpuShortTag(placement), task: placement.task }} />
+    {move !== null && <span className="dms-maker__moved">{t('dms.mk.moved', { from: move.fromNode ?? '?' })}</span>}
+  </p>;
+}
+
+function SourceCard({ row, info, onOpen, snapshot, nowMs }: { row: DetectSourceRow; info: TargetInfo | null; onOpen(base: string, model: string | null): void; snapshot: PlacementSnapshot; nowMs: number }) {
   useLang();
   const tone = row.state === 'models' ? 'ok' : row.state === 'down' ? 'bad' : row.state === 'noVideo' ? 'warn' : 'unknown';
   const thumb = row.state === 'models' ? (row.live[0]?.model ?? null) : null;
@@ -124,6 +140,7 @@ function SourceCard({ row, info, onOpen, snapshot }: { row: DetectSourceRow; inf
         <DeviceTag snapshot={snapshot} source={row.source} model={m.model} />
       </button>)}
     </div>}
+    <MakerLine snapshot={snapshot} source={row.source} nowMs={nowMs} />
     {row.visionError !== null && row.state !== 'down' && <p className="dms-card__line vn-warn">{t('dms.visionError', { why: row.visionError })}</p>}
     {info !== null && <TargetLine info={info} compact />}
     {thumb !== null && <Still base={row.base} model={thumb} className="dms-card__thumb" />}
@@ -172,7 +189,7 @@ export function DetectModelPanel({ onOpen }: { onOpen(base: string, model: strin
     <p className="dms-hint"><Rich id="dms.hint" vars={{ connected: totals.connected, down: totals.down, targeted: totals.targeted, devices }} /></p>
     {bases.length === 0 && <p className="hardware-panel__none">{t('dms.noPorts')}</p>}
     <div className="dms-list">
-      {rows.map((row) => <SourceCard key={row.base} row={row} info={infos[row.base] ?? null} onOpen={onOpen} snapshot={placement} />)}
+      {rows.map((row) => <SourceCard key={row.base} row={row} info={infos[row.base] ?? null} onOpen={onOpen} snapshot={placement} nowMs={now} />)}
     </div>
     {showHistory && <DetectHistoryList history={history} base={null} />}
     <footer className="dms-foot">

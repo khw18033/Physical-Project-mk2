@@ -20,8 +20,8 @@ import { VisionCam } from '../../../vision/views/VisionViews.tsx';
 import { useDetectHistory } from '../history.ts';
 import { holdLatest } from '../latestStore.ts';
 import { TARGETED } from '../summary.ts';
-import { holdPlacement, usePlacement } from '../placement.ts';
-import { DetectHistoryList, PlacementSection, TargetLine } from './DetectStatusParts.tsx';
+import { cpuPlacementOf, holdPlacement, usePlacement } from '../placement.ts';
+import { CpuTaskSection, DetectHistoryList, PlacementSection, TargetLine } from './DetectStatusParts.tsx';
 import { useDetectRows } from './DetectModelPanel.tsx';
 
 export function detectNodeId(base: string): string {
@@ -63,7 +63,9 @@ export function DetectStreamOverlay({ base, model, onClose }: { base: string; mo
           <VisionCam nodeId={detectNodeId(base)} fixedBase={base} zoom />
         </div>
         <div className="dms-overlay__side">
-          <PlacementSection row={row} state={placement} />
+          {/* CPU 작업의 출력 포트면 「만드는 작업」 칸(261125 안 2). 그 포트에 모델이 없으면 「실행 장치」 칸은 뺀다. */}
+          <CpuTaskSection row={row} state={placement} />
+          {(cpuPlacementOf(placement, row?.source ?? null) === null || (row?.live.length ?? 0) > 0) && <PlacementSection row={row} state={placement} />}
           {info !== null
             ? <TargetLine info={info} />
             : <section className="dms-sec"><h3>{t('dms.tg.title')}</h3><p className="vn-line vn-dim">{t('dms.tg.none')}</p></section>}
