@@ -53,11 +53,13 @@ import yaml
 
 import stream_to_server as sts      # 카메라 제어 + 최신 프레임 리더
 import anchor360_live as live       # 슬라이스 · 검출 · 바닥투영 · 패킷
+import anchor360_pose as apose      # 수평 · 방위 자동 맞춤
 
 DEF_CFG = r"D:\capstone\unidepth_duel_yolo_config.yaml"
 DEF_CLIP_CWD = r"D:\capstone"       # CLIP 캐시가 CWD/weights/clip 기준
 DEF_OUT_DIR = os.path.join(HERE, "live_out")
 DEF_CALIB = "D:/Go1_Unity/Assets/StreamingAssets/anchor360_calib.json"
+DEF_POSE_REF = os.path.join(HERE, "anchor360_pose_ref.npz")   # 자세 기준(보정 때의 영상에서 만든 것)
 
 _running = True
 REFINED_KEYS = ("pos3d", "dist_m", "size", "oriented", "pos_src", "base_h", "elevated")
@@ -96,6 +98,15 @@ class MultiSlicer:
         self.u_list, self.v_deg, self.size = list(u_list), v_deg, size
         self._samplers = None
         self._hw = None
+        self.R = None          # 보정 좌표계 회전(b_보정 = R b_원본). None 이면 원본 그대로
+        self._maps = None
+
+    def set_rotation(self, R):
+        """수평·방위 맞춤 회전을 건다. 이후 슬라이스는 보정 좌표계에서 뽑힌다."""
+        maps = None
+        if self._hw is not None:
+            maps = apose.slice_maps(self.u_list, self.v_deg, 90.0, self.size, R, self._hw[1], self._hw[0])
+        self._maps, self.R = maps, R
 
     def _build(self, h, w):
         from py360convert.utils import EquirecSampler, mode_to_order
@@ -110,6 +121,13 @@ class MultiSlicer:
 
     def __call__(self, equ):
         h, w = equ.shape[:2]
+        if self.R is not None:
+            maps = self._maps
+            if maps is None or self._hw != (h, w):
+                maps = apose.slice_maps(self.u_list, self.v_deg, 90.0, self.size, self.R, w, h)
+                self._maps, self._hw = maps, (h, w)
+            return [np.ascontiguousarray(cv2.remap(equ, m1, m2, cv2.INTER_LINEAR, borderMode=cv2.BORDER_WRAP))
+                    for m1, m2 in maps]
         if self._hw != (h, w):
             self._build(h, w)
         # EquirecSampler._pad 와 같은 1픽셀 패딩을 3채널 한 번에 (극점 행은 반바퀴 굴리고, 좌우는 이어붙임)
@@ -598,8 +616,17 @@ def main():
     ap.add_argument("--slices", type=int, default=8,
                     help="전방위를 몇 장으로 나눠 볼지. 8=45도 간격(권장), 1=기준 슬라이스 한 장만")
     ap.add_argument("--v", type=float, default=-36.35, help="슬라이스 고저각")
-    ap.add_argument("--pitch", type=float, default=-35.0, help="바닥평면 계산용 하향각(물리값)")
-    ap.add_argument("--cam-h", type=float, default=live.DEF_CAM_H, help="카메라 높이(m)")
+    ap.add_argument("--pitch", type=float, default=None,
+                    help="바닥평면 계산용 하향각. 기본: 자세 맞춤을 쓰면 --v 와 같은 값, 안 쓰면 -35")
+    ap.add_argument("--cam-h", type=float, default=None,
+                    help="카메라 렌즈 높이(m). 기본: 보정 파일의 camH, 없으면 %.2f" % live.DEF_CAM_H)
+    ap.add_argument("--stab", action="store_true",
+                    help="카메라 손떨림 보정을 켠다. 켜면 접속할 때마다 기준 방위가 바뀐다(기본: 끔)")
+    ap.add_argument("--no-level", action="store_true", help="수평·방위 자동 맞춤을 쓰지 않는다")
+    ap.add_argument("--groups", default="HARD_OBSTACLE,AGENT,SOFT_PUSHABLE,LOW_OBSTACLE,THIN_OBSTACLE,GROUND_HAZARD,VEHICLE",
+                    help="보낼 물체 그룹(쉼표 구분). 예전 동작은 HARD_OBSTACLE,AGENT")
+    ap.add_argument("--pose-ref", default=DEF_POSE_REF, help="자세 기준 파일(.npz)")
+    ap.add_argument("--pose-every", type=float, default=600.0, help="자세를 다시 확인하는 간격(초). 0=시작할 때만")
     ap.add_argument("--slice-size", type=int, default=720)
     ap.add_argument("--max-dist", type=float, default=8.0, help="이 거리 초과 검출 제외. 0=제한없음")
     ap.add_argument("--keep-clipped", action="store_true", help="접지점이 잘린 검출도 보낸다")
@@ -650,6 +677,19 @@ def main():
     args = ap.parse_args()
 
     max_dist = args.max_dist if args.max_dist > 0 else None
+    calib_j = {}
+    try:
+        with open(args.calib, encoding="utf-8") as f:
+            calib_j = json.load(f)
+    except Exception:
+        pass
+    level_on = (not args.no_level) and os.path.exists(args.pose_ref)
+    if args.pitch is None:
+        args.pitch = args.v if level_on else -35.0      # 수평을 맞추면 슬라이스 고저각이 곧 물리 하향각이다
+    if args.cam_h is None:
+        args.cam_h = float(calib_j.get("camH", live.DEF_CAM_H)) if level_on else live.DEF_CAM_H
+    args.stabilization = bool(args.stab)
+    live.KEEP_GROUPS = {g.strip() for g in args.groups.split(",") if g.strip()}
     os.makedirs(args.out_dir, exist_ok=True)
     os.chdir(DEF_CLIP_CWD)
 
@@ -730,6 +770,41 @@ def main():
     th = threading.Thread(target=sts.reader, args=(cap, latest, stop, rstat), daemon=True)
     th.start()
 
+    # ── 자세 맞춤: 수직선으로 수평을, 기준 영상과 겹쳐 방위를 맞춘다 ──
+    ref_band = None
+    pose_state = {"busy": False, "t": time.time()}
+
+    def pose_update(fr, first=False):
+        try:
+            R, info = apose.solve_pose(fr, ref_band)
+            old = slicer.R
+            diff = 999.0 if old is None else math.degrees(math.acos(max(-1.0, min(1.0, (np.trace(R @ old.T) - 1) / 2))))
+            if first or diff > 0.15:
+                slicer.set_rotation(R)
+                print("[자세] 기울기 %.2f도  기준 대비 방위 %+.2f도 (겹침 %.2f, 수직선 %d개)%s"
+                      % (info["tilt_deg"], info["heading_deg"], info["corr"] or 0, info["lines"][0],
+                         "" if first else "  ← %.2f도 달라져 다시 맞춤" % diff))
+                if (info["corr"] or 0) < 0.35:
+                    print("[자세] ⚠ 기준 영상과 잘 겹치지 않습니다. 카메라 위치를 옮겼다면 보정을 다시 해야 합니다.")
+        except Exception as e:
+            print("[자세] 맞춤 실패(%s) — 이전 값 유지" % e)
+        finally:
+            pose_state["busy"] = False
+            pose_state["t"] = time.time()
+
+    if level_on:
+        ref_band = np.load(args.pose_ref)["band"]
+        f0, t_w = None, time.time()
+        while f0 is None and time.time() - t_w < 15:
+            f0 = latest.frame
+            time.sleep(0.05)
+        if f0 is None:
+            print("[자세] 첫 프레임을 못 받아 맞춤을 건너뜁니다.")
+        else:
+            pose_update(f0, first=True)
+    else:
+        print("[자세] 자동 맞춤 안 씀 (기준 파일 없음 또는 --no-level)")
+
     def bye(sig, frm):
         global _running
         _running = False
@@ -779,6 +854,11 @@ def main():
                 break
             continue
         t_last_frame = now
+
+        if (level_on and args.pose_every > 0 and not pose_state["busy"]
+                and now - pose_state["t"] > args.pose_every):
+            pose_state["busy"] = True
+            threading.Thread(target=pose_update, args=(frame.copy(),), daemon=True).start()
 
         t0 = time.perf_counter()
         sls = slicer(frame)
@@ -867,7 +947,8 @@ def main():
                 out_s = []
                 for d in dets_s:
                     if str(d.get("pos_src", "")).startswith("depth"):
-                        if d["elevated"] and not args.keep_elevated:
+                        # 사람은 앉아 있으면 다리가 가려져 '바닥에서 뜬 것'으로 보인다 → 가구위 제외를 적용하지 않는다
+                        if d["elevated"] and not args.keep_elevated and d.get("group") != "AGENT":
                             n_elev += 1
                             dropped.append((d, "가구위", d["dist_m"]))
                             continue

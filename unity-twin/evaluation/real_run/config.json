@@ -1,0 +1,19 @@
+{
+  "robotId": "GO1_A",
+  "robotHost": "100.72.109.9",
+  "targetX": 1.74,
+  "targetZ": 6.29,
+  "navMeshPadding": -0.03,
+  "minConf360": 0.3,
+  "maxFootprint360": 0.8,
+  "nearFloor360": 0.3,
+  "useBaseline360": false,
+  "baselineSec": 6,
+  "go1GuardAsObstacle": false,
+  "waitMarkerSec": 240,
+  "waitGoSec": 1800,
+  "missionTimeoutSec": 240,
+  "requireMarker": true,
+  "diagnoseNoRobot": false,
+  "diagnoseForceNoStateDrive": false
+}

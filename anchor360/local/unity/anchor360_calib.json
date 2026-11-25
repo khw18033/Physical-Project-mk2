@@ -1,8 +1,18 @@
 {
-  "anchorX": 3.35,
-  "anchorZ": 6.28,
-  "yawOffsetDeg": 79.2,
-  "distanceScale": 1.075,
+  "anchorX": 3.235,
+  "anchorZ": 6.585,
+  "yawOffsetDeg": 262.62,
+  "distanceScale": 1.0,
   "invertX": false,
-  "note": "2026-11-17 보정. 기준 슬라이스 u=230, cam_h 1.85, pitch -35 기준. 기준점 6개(벽 돌출부 모서리 2, 문 왼쪽 아래, 탁자 다리 1, 탁자 상판 모서리 2)를 lab 씬 좌표에 최소제곱 맞춤, 잔차 3~11cm. 카메라를 옮기면 다시 구해야 함."
+  "camH": 2.0,
+  "showOverlapping": true,
+  "navMeshPadding": -0.03,
+  "range360M": 4.0,
+  "rangeGo1M": 1.5,
+  "note": "2026-11-18 보정. 손떨림 보정 끔 + 수평·방위 자동 맞춤(anchor360_pose_ref.npz) 기준. 기준 슬라이스 u=230, 카메라 높이 2.0 m(문·책상 표준 치수로 추정, 줄자 미확인). 기준점 4개(문틀 좌우 바닥, 벽 돌출부 모서리 2). 카메라 위치를 옮기면 다시 구해야 함.",
+  "minConf360": 0.3,
+  "maxFootprint360": 0.8,
+  "nearFloor360": 0.3,
+  "useBaseline360": 0,
+  "note_1124": "2026-11-24: navMeshPadding -0.1 -> -0.03 (경로 안전 검사 반경 0.20 과 맞춤), 배치 필터 추가(minConf360/maxFootprint360/nearFloor360). useBaseline360=0: 바닥에 원래 놓여 있던 물건도 맵에 없으면 장애물로 둔다. 이전 값은 anchor360_calib.json.bak_1124"
 }

@@ -1,0 +1,20 @@
+{
+  "scene": "Assets/mall.unity",
+  "calibFile": "anchor360_calib_mall.json",
+  "trials": 8, "baseSeed": 8000, "timeScale": 1.0, "detectLatencySec": 0.0, "watchdogMinutes": 120,
+  "debugNavMesh": false, "obstacleSizeXZ": 0.4, "navMeshPadding": -0.03,
+  "obstaclesAsPeople": true,
+  "recordDir": "GO1_Proactive_Evaluation/mall_frames", "recordAutoFrame": true,
+  "scenarios": [ 3.0,  9.0, 13.5,  9.9,
+                 6.0,  9.5,  4.3, 15.0,
+                 6.5,  9.0,  3.0,  5.0,
+                11.0, 11.8, 11.1, 17.0,
+                15.5,  9.0, 11.0,  4.5,
+                14.5, 13.5, 22.0, 16.25,
+                20.5,  9.0, 21.0,  5.2,
+                13.5,  9.9, 22.5,  9.2],
+  "sessions": [
+    { "label": "mall1", "placement": "AlongPath", "noiseSigma": 0.0, "trials": 8,
+      "conditions": ["A_RobotStop", "C_InfraNoStop"] }
+  ]
+}

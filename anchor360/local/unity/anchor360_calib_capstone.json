@@ -1,0 +1,19 @@
+{
+  "anchorX": 18.403,
+  "anchorZ": 17.507,
+  "yawOffsetDeg": 0.0,
+  "distanceScale": 1.0,
+  "invertX": false,
+  "camH": 1.5,
+  "showOverlapping": true,
+  "navMeshPadding": -0.03,
+  "range360M": 4.0,
+  "rangeGo1M": 1.5,
+  "note": "2026-11-18 보정. 손떨림 보정 끔 + 수평·방위 자동 맞춤(anchor360_pose_ref.npz) 기준. 기준 슬라이스 u=230, 카메라 높이 2.0 m(문·책상 표준 치수로 추정, 줄자 미확인). 기준점 4개(문틀 좌우 바닥, 벽 돌출부 모서리 2). 카메라 위치를 옮기면 다시 구해야 함.",
+  "minConf360": 0.3,
+  "maxFootprint360": 0.8,
+  "nearFloor360": 0.3,
+  "useBaseline360": 0,
+  "note_1124": "2026-11-24: navMeshPadding -0.1 -> -0.03 (경로 안전 검사 반경 0.20 과 맞춤), 배치 필터 추가(minConf360/maxFootprint360/nearFloor360). useBaseline360=0: 바닥에 원래 놓여 있던 물건도 맵에 없으면 장애물로 둔다. 이전 값은 anchor360_calib.json.bak_1124",
+  "note_capstone": "캡스톤 발표장(capstone_hall.unity) 전용. 카메라 위치는 배치도에서 잡은 예정 자리이고 yawOffsetDeg 는 0 으로 둔 임시값이다. 현장에 설치한 뒤 위치와 방위를 다시 맞춰야 한다. camH 1.5 = 바닥 삼각대 렌즈 높이 예정값(2026-11-24 사용자 결정), 실측 후 고칠 것. 위의 note/note_1124 는 lab 에서 물려받은 설명이다."
+}

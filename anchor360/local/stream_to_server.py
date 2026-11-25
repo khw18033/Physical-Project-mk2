@@ -118,7 +118,7 @@ def start_preview(args):
         "stiching": {"mode": "pano", "mime": "h264",
                      "width": args.width, "height": args.height,
                      "framerate": 30, "bitrate": args.bitrate},
-        "stabilization": True,
+        "stabilization": bool(getattr(args, "stabilization", True)),
     }
     send("camera._stopPreview", {})          # 남아 있을 수 있으니 먼저 끈다
     time.sleep(1.0)
