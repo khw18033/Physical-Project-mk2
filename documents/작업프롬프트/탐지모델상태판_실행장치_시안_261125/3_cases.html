@@ -1,0 +1,65 @@
+<!doctype html><html lang="ko"><head><meta charset="utf-8"><link rel="stylesheet" href="base.css">
+<style>
+body { width: 1180px; }
+.grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+.sec { background: #fff; border: 1px solid #dfe3ea; border-radius: 9px; padding: 10px 12px; }
+.sec h3 { margin-bottom: 4px; display: flex; justify-content: space-between; align-items: center; }
+.case { font-size: 11.5px; color: #e07a1f; font-weight: 700; margin-bottom: 6px; }
+.kv { display: grid; grid-template-columns: 80px 1fr; gap: 4px 8px; font-size: 12px; }
+.kv > span:nth-child(odd) { color: #6b7385; }
+.chip .at { margin-left: 5px; padding-left: 5px; border-left: 1px solid rgba(0,0,0,.15); font-weight: 600; }
+.chip .at.guess { font-weight: 400; opacity: .75; }
+.chip .at.pi { color: #7a3fb8; }
+.pre { margin: 6px 0 8px; }
+.note { font-size: 11.5px; color: #6b7385; margin-top: 6px; }
+.src { margin-top: 6px; font-size: 11px; color: #8a91a1; }
+</style></head><body>
+<h2 style="margin-bottom:10px">실행 장치 — 경우별 판 칩 · 상세 칸</h2>
+<div class="grid">
+
+  <div class="sec"><div class="case">① 확인됨 — 오케스트레이터 배치표 + running</div>
+    <div class="pre"><span class="chip ok">targeted · 3.9/s · 210 ms<span class="at">노트북</span></span></div>
+    <h3>실행 장치 <span class="badge">확인됨</span></h3>
+    <div class="kv"><span>장치</span><span>data_stream 노트북 (WSL) · <code>book-4vg1edpvi5-wsl</code></span>
+      <span>하드웨어</span><span>RTX 4050 Laptop 6 GB · 20 스레드 · 15 GB</span>
+      <span>방식</span><span>local · live</span></div>
+    <p class="src">orchestration_stream running + planned.gpu_units[].node</p></div>
+
+  <div class="sec"><div class="case">② 추정 — 오케스트레이터 기록 없음</div>
+    <div class="pre"><span class="chip ok">yoloe · 6.1/s · 140 ms<span class="at guess">노트북?</span></span></div>
+    <h3>실행 장치 <span class="badge">추정</span></h3>
+    <div class="kv"><span>장치</span><span>data_stream 기기로 봄 — <code>/health</code> host <code>book-4vg1edpvi5-1</code></span>
+      <span>까닭</span><span>orchestration_stream 에 이 소스·모델을 맡은 실행이 없음 (런처 「자원 배분」 끔, 또는 비전을 손으로 띄움)</span></div>
+    <p class="note">data_stream 계획 §1-2: k3s 가 없거나 오케스트레이터를 안 쓰면 비전은 data_stream 기기에서만 돈다.</p></div>
+
+  <div class="sec"><div class="case">③ 입력 대기 — 띄웠지만 영상이 아직</div>
+    <div class="pre"><span class="dim" style="font-size:12px">(판에는 칩 없음 — 카드는 「모델 없음」)</span></div>
+    <h3>실행 장치 <span class="badge">applied · 입력 대기</span></h3>
+    <div class="kv"><span>장치</span><span>data_stream 노트북 (WSL)</span>
+      <span>상태</span><span>적재됨 — ep-001 영상이 들어오면 바로 처리 (예산 미리 잡음)</span></div>
+    <p class="note">판 카드는 지금 규칙대로 「모델 없음」. 칩은 <code>/health</code> 에 결과가 올 때만 뜬다 — 상세에서만 보인다.</p></div>
+
+  <div class="sec"><div class="case">④ 파이 노드 — k3s 파드 (미래 · CPU 모델)</div>
+    <div class="pre"><span class="chip ok">yoloe · 1.3/s · 96 ms<span class="at pi">pi6</span></span></div>
+    <h3>실행 장치 <span class="badge">확인됨 · k3s</span></h3>
+    <div class="kv"><span>장치</span><span>라즈베리파이 <b>pi6</b> (RealSense 센서 노드) · role=sensor</span>
+      <span>하드웨어</span><span>Raspberry Pi 5 · aarch64 · 4코어 · 8 GB · GPU 없음</span>
+      <span>파드 몫</span><span>requests 800m / 512 MB · limits ×2 · ds-vision-low</span>
+      <span>네트워크</span><span>장당 전송 3.1 ms</span></div>
+    <p class="note">지금 placement/1 은 GPU 모델을 파이에 두지 않는다. CPU 작업(cpu_units)이 탐지 모델이 되면 이 모양.</p></div>
+
+  <div class="sec"><div class="case">⑤ 다시 배치됨 — replanned</div>
+    <div class="pre"><span class="chip ok">yoloe · 1.1/s<span class="at pi">pi1</span></span></div>
+    <h3>실행 장치 <span class="badge warn">다시 배치</span></h3>
+    <div class="kv"><span>장치</span><span><b>pi1</b> ← pi6 에서 옮김</span>
+      <span>까닭</span><span>노드 pi6 빠짐 (Ready 아님 · stale 34초)</span></div>
+    <p class="note">변경 기록에 「실행 장치 pi6 → pi1」 한 줄.</p></div>
+
+  <div class="sec"><div class="case">⑥ 실패 · 거절 — failed</div>
+    <div class="pre"><span class="dim" style="font-size:12px">(판에는 칩 없음)</span></div>
+    <h3>실행 장치 <span class="badge">없음 · 거절</span></h3>
+    <div class="kv"><span>까닭</span><span>GPU 메모리 부족: 필요 3,360 MB &gt; 여유 2,100 MB (book-4vg1edpvi5-wsl)</span></div>
+    <p class="note">칩은 <code>/health</code> 에 모델이 없으니 원래 안 뜬다. 상세의 「실행 장치」 칸에만 마지막 거절 이유를 적는다.</p></div>
+
+</div>
+</body></html>

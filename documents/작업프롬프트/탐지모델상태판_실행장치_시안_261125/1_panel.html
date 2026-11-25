@@ -1,0 +1,55 @@
+<!doctype html><html lang="ko"><head><meta charset="utf-8"><link rel="stylesheet" href="base.css">
+<style>
+/* 시안 — 모델 칩 끝에 붙는 실행 장치 꼬리표 */
+.chip .at { margin-left: 5px; padding-left: 5px; border-left: 1px solid rgba(0,0,0,.15); font-weight: 600; }
+.chip .at.guess { font-weight: 400; opacity: .75; }
+.chip .at.pi { color: #7a3fb8; }
+.legend { width: 330px; margin-top: 14px; font-size: 12px; color: #3a4150; background: #fff; border: 1px solid #dfe3ea; border-radius: 9px; padding: 10px 12px; }
+.legend h3 { margin-bottom: 6px; }
+.legend li { margin: 3px 0; }
+.row { display: flex; gap: 24px; align-items: flex-start; }
+</style></head><body>
+<div class="row">
+<div class="col">
+  <div class="panel new"><span class="tag-new">시안 — 칩에 실행 장치</span>
+    <div class="head"><h2>객체 탐지 · 모델 4</h2><span class="badge">data_stream 실측</span></div>
+    <p class="hint">소스 3 연결 · 1 응답 없음 · 지정 탐지 1 · 장치 2곳 · <b>더블클릭 → 탐지 영상</b></p>
+
+    <div class="card sel"><div class="name"><span class="dot ok"></span>robot1 <code>:10003</code></div><span class="kind">→ go1-001</span>
+      <div class="line">원본 14.8장/초 · 상태 1.0건/초</div>
+      <div class="chips"><span class="chip ok">targeted · 3.9/s · 210 ms<span class="at">노트북</span></span></div>
+      <div class="target">지정 탐지 <b>door</b> · 스캔 판 MSN-261123-01 · 각도 3/8</div>
+      <div class="thumb"><i style="left:22px;top:8px;width:18px;height:26px"></i></div>
+    </div>
+
+    <div class="card"><div class="name"><span class="dot ok"></span>drone <code>:10002</code></div><span class="kind">→ drone-x500</span>
+      <div class="line">원본 9.6장/초 · 상태 4.0건/초</div>
+      <div class="chips"><span class="chip ok">yoloe · 6.1/s · 140 ms<span class="at">노트북</span></span><span class="chip ok">unidepth · 2.0/s<span class="at">노트북</span></span><span class="chip warn">river · 8초 전<span class="at guess">노트북?</span></span></div>
+      <div class="thumb"><i style="left:8px;top:10px;width:14px;height:12px"></i><i style="left:36px;top:18px;width:16px;height:14px"></i></div>
+    </div>
+
+    <div class="card"><div class="name"><span class="dot ok"></span>realsense <code>:10005</code></div><span class="kind">장비 없음</span>
+      <div class="line">원본 1.4장/초 · 상태 —</div>
+      <div class="chips"><span class="chip ok">yoloe · 1.3/s · 96 ms<span class="at pi">pi6</span></span></div>
+    </div>
+
+    <div class="card"><div class="name"><span class="dot bad"></span>ep-001 <code>:10004</code></div><span class="kind">→ ep-001</span>
+      <div class="line bad">응답 없음 — ECONNREFUSED</div></div>
+
+    <div class="foot"><span>100.125.104.23 · 포트 4 · 1초 전</span><span class="btn">변경 기록 6</span></div>
+  </div>
+</div>
+
+<div class="legend">
+  <h3>칩 끝 꼬리표 — 「어디서 도나」를 한 낱말로</h3>
+  <ul>
+    <li><b>노트북</b> — orchestration_stream 배치표가 <code>role=gpu</code> 노드(data_stream 기기 · WSL)에 둠</li>
+    <li><b style="color:#7a3fb8">pi6</b> — 라즈베리파이 노드에 둠 (k3s CPU 파드). 파이는 노드 이름 그대로</li>
+    <li><span class="dim">노트북?</span> — 오케스트레이터 기록이 없어 <b>추정</b>. 자원 배분을 끄고 띄운 비전은 data_stream 기기에서 돈다(계획 §1-2)</li>
+    <li>꼬리표가 없으면 — 응답 없음 · 모델 없음 (지금과 같음)</li>
+  </ul>
+  <p class="dim" style="margin:8px 0 0">※ realsense → pi6 줄은 <b>미래 예시</b>다. data_stream 현재 규칙(placement/1)은 GPU 모델을 파이로 옮기지 않으므로, 지금은 탐지 모델 칩이 모두 「노트북」으로 나온다.</p>
+  <p class="dim" style="margin:6px 0 0">머리 줄의 「장치 2곳」은 살아 있는 칩들의 서로 다른 실행 노드 수.</p>
+</div>
+</div>
+</body></html>

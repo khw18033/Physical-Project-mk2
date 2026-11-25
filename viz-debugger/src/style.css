@@ -1658,6 +1658,12 @@ button.flight-armed:not(:disabled){color:#fff!important;border-color:#8f1d22!imp
 .dms-chip--ok{background:#e7f6ee;color:#125c33}
 .dms-chip--warn{background:#fdf6e3;color:#7a5c12}
 .dms-chip--target{background:#e7effd;color:#1f4fa3;font-weight:600;cursor:default;margin-right:4px}
+/* 261125 — 칩 끝 실행 장치 꼬리표 · 상세 「실행 장치」 칸 */
+.dms-chip__at{margin-left:5px;padding-left:5px;border-left:1px solid rgba(0,0,0,.15);font-weight:600}
+.dms-chip__at--pi,.dms-place__head--pi b{color:#7a3fb8}
+.dms-chip__at--other{color:#5a6274}
+.dms-place__group+.dms-place__group{margin-top:10px;padding-top:10px;border-top:1px dashed #e1e5ec}
+.dms-place__head{display:flex;justify-content:space-between;align-items:center;gap:8px;margin:0 0 6px;font-size:13px}
 .dms-target{margin:6px 0 0;font-size:12px;background:#f4f7fd;border-left:3px solid #2d6fd6;padding:4px 7px;border-radius:0 5px 5px 0}
 .dms-target--unknown{border-left-color:#b3b9c6;background:#f6f7f9;color:#6d7a8b}
 .dms-target--otherScan{border-left-color:#d69e2e;background:#fdf9ee}

@@ -9,6 +9,97 @@ import { Rich } from '../../../i18n/RichText.tsx';
 import { useLang } from '../../../shared/language.ts';
 import type { DetectEvent, DetectHistoryState } from '../history.ts';
 import type { TargetInfo } from '../targets.ts';
+import type { DetectSourceRow } from '../summary.ts';
+import { placementOf, planEnded, type NodeSummary, type Placement, type PlacementState } from '../placement.ts';
+
+const gb = (mb: number | null | undefined) => (mb === null || mb === undefined ? '—' : (mb / 1024).toFixed(1));
+const pct = (value: number | null | undefined) => (value === null || value === undefined ? '—' : String(Math.round(value)));
+const hhmm = (atMs: number | null) => (atMs === null ? '—' : new Date(atMs).toLocaleTimeString([], { hour12: false }));
+
+function deviceName(placement: Placement): string {
+  if (placement.kind === 'laptop') return t('dms.pl.laptopName');
+  if (placement.kind === 'pi') return t('dms.pl.piName', { node: placement.node ?? '?' });
+  return placement.node ?? '?';
+}
+
+function hardwareText(info: NodeSummary | null): { gpu: string | null; cpu: string | null; model: string | null } | null {
+  const b = info?.baseline ?? null;
+  if (b === null) return null;
+  const gpus = b.gpus.filter((g) => g.name !== null).map((g) => (g.memTotalMb === null ? g.name : `${g.name} ${gb(g.memTotalMb)} GB`));
+  return {
+    gpu: gpus.length === 0 ? null : gpus.join(' · '),
+    cpu: t('dms.pl.hwCpu', { arch: b.arch ?? '?', threads: b.cpuCount ?? '?', ram: gb(b.memTotalMb) }),
+    model: b.cpuModel,
+  };
+}
+
+function usageText(info: NodeSummary | null): string | null {
+  if (info === null) return null;
+  const parts: string[] = [];
+  for (const g of info.gpu) parts.push(t('dms.pl.nowGpu', { used: gb(g.memUsedMb), total: gb(g.memTotalMb), util: pct(g.utilPct), temp: pct(g.tempC) }));
+  if (info.cpuPct !== null || info.memPct !== null) parts.push(t('dms.pl.nowCpu', { cpu: pct(info.cpuPct), mem: pct(info.memPct) }));
+  return parts.length === 0 ? null : `${parts.join(' · ')} (${hhmm(info.atMs)})`;
+}
+
+/**
+ * 상세 창의 「실행 장치」 칸(261125) — 이 포트에서 살아 있는 모델마다 어느 장치에서 도는지. 같은 장치는 한 묶음으로.
+ * 배치표에 있으면 그 노드, 없으면 data_stream 기기로 확정한다(`placement.ts` 머리 주석).
+ */
+export function PlacementSection({ row, state }: { row: DetectSourceRow | null; state: PlacementState }) {
+  useLang();
+  const live = row === null || row.state === 'down' ? [] : row.live;
+  const groups = new Map<string, { placement: Placement; models: string[] }>();
+  for (const m of live) {
+    const placement = placementOf(state, row?.source ?? null, m.model);
+    const key = `${placement.from}|${placement.node ?? ''}`;
+    const group = groups.get(key) ?? { placement, models: [] };
+    group.models.push(m.model);
+    groups.set(key, group);
+  }
+  const plan = state.plan;
+  return <section className="dms-sec dms-place">
+    <h3>{t('dms.pl.title')}</h3>
+    {groups.size === 0 && <p className="vn-line vn-dim">{t('dms.pl.none')}</p>}
+    {[...groups.values()].map(({ placement, models }) => {
+      const hw = hardwareText(placement.info);
+      const usage = usageText(placement.info);
+      const unit = placement.unit;
+      const fps = unit !== null && row?.source != null ? unit.fpsCap[row.source] : undefined;
+      return <div key={`${placement.from}|${placement.node ?? ''}`} className="dms-place__group">
+        <p className={`dms-place__head dms-place__head--${placement.kind}`}>
+          <b>{deviceName(placement)}</b>
+          <span className="dms-badge">{t(placement.from === 'plan' ? 'dms.pl.badgePlan' : 'dms.pl.badgeDs')}</span>
+        </p>
+        <dl className="dms-kv">
+          <dt>{t('dms.pl.models')}</dt><dd>{models.join(' · ')}</dd>
+          <dt>{t('dms.pl.node')}</dt>
+          <dd>{placement.node === null
+            ? <span className="vn-dim">{t('dms.pl.nodeUnknown', { host: row?.host ?? '—' })}</span>
+            : <><code>{placement.node}</code>{placement.info?.role != null && ` · role=${placement.info.role}`}{placement.info?.source != null && ` · ${placement.info.source}`}</>}</dd>
+          <dt>{t('dms.pl.hardware')}</dt>
+          <dd>{hw === null
+            ? <span className="vn-dim">{t('dms.pl.hwUnknown')}</span>
+            : <>{hw.gpu !== null && <>{hw.gpu}<br /></>}{hw.cpu}{hw.model !== null && <><br /><small className="vn-dim">{hw.model}</small></>}</>}</dd>
+          {usage !== null && <><dt>{t('dms.pl.now')}</dt><dd>{usage}</dd></>}
+          <dt>{t('dms.pl.why')}</dt>
+          <dd>{placement.from === 'plan'
+            ? t('dms.pl.whyPlan', { time: hhmm(plan?.atMs ?? null), node: placement.node ?? '?' })
+            : t('dms.pl.whyDs')}</dd>
+          {unit !== null && <><dt>{t('dms.pl.share')}</dt>
+            <dd>{t('dms.pl.shareText', { mb: unit.needMb ?? '—', basis: unit.needBasis ?? '—', fps: fps === undefined ? '—' : fps })}</dd></>}
+          {placement.from === 'plan' && plan !== null && <><dt>{t('dms.pl.mode')}</dt>
+            <dd>{t('dms.pl.modeText', { mode: plan.mode ?? '—', basis: plan.basis ?? '—' })}</dd>
+            <dt>{t('dms.pl.plan')}</dt>
+            <dd><code>{plan.requestId ?? '—'}</code>{plan.last !== null && ` · ${t('dms.pl.last', { event: plan.last.event ?? '—', time: hhmm(plan.last.atMs) })}`}</dd></>}
+          {placement.from === 'dataStream' && plan !== null && planEnded(plan) && <><dt>{t('dms.pl.plan')}</dt>
+            <dd className="vn-dim">{t('dms.pl.endedPlan', { request: plan.requestId ?? '—', time: hhmm(plan.last?.atMs ?? null) })}</dd></>}
+        </dl>
+      </div>;
+    })}
+    {state.error !== null && <p className="vn-line vn-warn">{t('dms.pl.readError', { why: state.error })}</p>}
+    {state.planFrom === 'stored' && plan !== null && <p className="vn-line vn-dim">{t('dms.pl.stored', { time: hhmm(plan.atMs) })}</p>}
+  </section>;
+}
 
 const seenText = (seen: Readonly<Record<string, number>> | null) =>
   seen === null ? null : Object.keys(seen).length === 0 ? t('dms.seenNone') : Object.entries(seen).map(([label, n]) => `${label} ${n}`).join(' · ');

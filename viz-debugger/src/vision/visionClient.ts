@@ -126,6 +126,11 @@ export function redisLatestUrl(redis: string, source: string, model: string): st
   return `${RELAY}/latest?redis=${encodeURIComponent(redis)}&source=${encodeURIComponent(source)}&model=${encodeURIComponent(model)}`;
 }
 
+/** 모델 실행 장치 — 창구가 오케스트레이터 배치표 · 노드 정보를 요약해 준다(`scripts/vision-redis-placement.mjs`, 261125). */
+export function redisPlacementUrl(redis: string): string {
+  return `${RELAY}/placement?redis=${encodeURIComponent(redis)}`;
+}
+
 export function healthUrl(base: string): string {
   return `${trimBase(base)}/health`;
 }

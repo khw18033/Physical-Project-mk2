@@ -1,0 +1,86 @@
+<!doctype html><html lang="ko"><head><meta charset="utf-8"><link rel="stylesheet" href="base.css">
+<style>
+body { width: 1180px; }
+.overlay { background: #fff; border: 1px solid #dfe3ea; border-radius: 12px; padding: 16px 18px; box-shadow: 0 8px 30px rgba(20,30,50,.12); }
+.ohead { display: flex; justify-content: space-between; align-items: flex-start; }
+.ohead h2 small { font-weight: 400; color: #6b7385; font-size: 13px; margin-left: 8px; }
+.grid { display: grid; grid-template-columns: 1fr 360px; gap: 16px; margin-top: 12px; }
+.pick { display: flex; gap: 6px; align-items: center; font-size: 12px; color: #6b7385; margin-bottom: 8px; }
+.pick span.opt { border: 1px solid #c9d1de; border-radius: 6px; padding: 3px 9px; color: #3a4150; }
+.pick span.on { background: #2d6fd6; border-color: #2d6fd6; color: #fff; }
+.video { position: relative; height: 330px; border-radius: 8px; background: radial-gradient(ellipse at 40% 60%, #6c7380, #2a2f38 75%); }
+.box { position: absolute; border: 2px solid #4fd17f; }
+.box b { position: absolute; top: -20px; left: -2px; background: #4fd17f; color: #102a18; font-size: 11px; padding: 1px 5px; white-space: nowrap; }
+table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 12px; }
+td { border-top: 1px solid #edf0f4; padding: 5px 6px; } td:first-child { color: #6b7385; width: 110px; }
+.sec { border: 1px solid #dfe3ea; border-radius: 9px; padding: 10px 12px; margin-bottom: 12px; }
+.sec h3 { margin-bottom: 6px; display: flex; justify-content: space-between; align-items: center; }
+.kv { display: grid; grid-template-columns: 86px 1fr; gap: 4px 8px; font-size: 12px; }
+.kv > span:nth-child(odd) { color: #6b7385; }
+.sec.new { outline: 2px dashed #e07a1f; outline-offset: 3px; }
+.devhead { display: flex; gap: 10px; align-items: center; background: #f4f7fd; border-radius: 8px; padding: 8px 10px; margin-bottom: 8px; }
+.devhead .ic { width: 34px; height: 34px; border-radius: 8px; background: #2d6fd6; color: #fff; display: grid; place-items: center; font-weight: 700; font-size: 12px; }
+.devhead b { font-size: 14px; }
+.devhead small { display: block; color: #6b7385; }
+.bar { height: 6px; background: #eef1f6; border-radius: 3px; overflow: hidden; margin-top: 3px; }
+.bar i { display: block; height: 100%; background: #2d6fd6; }
+.src { margin-top: 8px; font-size: 11px; color: #8a91a1; }
+.others { margin-top: 8px; font-size: 12px; }
+.others li { margin: 2px 0; }
+</style></head><body>
+<div class="overlay">
+  <div class="ohead">
+    <h2>robot1 · targeted<small><code>http://100.125.104.23:10003</code> · go1-001 에 묶임</small></h2>
+    <span class="btn">닫기 ✕</span>
+  </div>
+  <div class="grid">
+    <div>
+      <div class="pick">보기 <span class="opt">원본</span><span class="opt on">targeted</span><span class="opt">원본 + targeted 나란히</span>
+        <span style="margin-left:auto">결과 3.9장/초 · 지연 210 ms · 원본보다 4장 늦음</span></div>
+      <div class="video">
+        <div class="box" style="left:300px;top:80px;width:90px;height:200px"><b>door 2.1 m 0.82</b></div>
+      </div>
+      <table>
+        <tr><td>모델 상태</td><td><span class="dot ok"></span>결과 들어옴 · 0.3초 전 · run live</td></tr>
+        <tr><td>처리</td><td>추론 238 ms · 지연 210 ms · 누계 18,402건</td></tr>
+        <tr><td>실행 장치</td><td><b>노트북</b> (book-4vg1edpvi5-wsl · RTX 4050 Laptop) — 오른쪽 「실행 장치」 칸</td></tr>
+      </table>
+    </div>
+    <div>
+      <div class="sec new">
+        <h3>실행 장치 — 이 모델이 어디서 도나 <span class="badge">확인됨 · running</span></h3>
+        <div class="devhead"><span class="ic">GPU</span>
+          <div><b>data_stream 노트북 (WSL)</b><small>노드 <code>book-4vg1edpvi5-wsl</code> · role=gpu · k3s server</small></div></div>
+        <div class="kv">
+          <span>하드웨어</span><span>NVIDIA RTX 4050 Laptop GPU 6 GB<br>x86_64 · 20 스레드 · RAM 15 GB</span>
+          <span>GPU 지금</span><span>3.1 / 6.1 GB · 사용률 64% · 58 °C<div class="bar"><i style="width:51%"></i></div></span>
+          <span>이 단위 몫</span><span>예약 1,880 MB (실측 · measured) · fps 상한 robot1 4.0</span>
+          <span>함께 도는 것</span><span>targeted (robot1) — 같은 프로세스 · GPU 단위 <code>gpu:targeted</code></span>
+          <span>실행 방식</span><span><b>local</b> · 자원 근거 <b>live</b> (k3s 정상이면 <b>k3s</b>)</span>
+          <span>상태</span><span><span class="dot ok"></span>running · 14:02:15 부터 (applied 14:02:11)</span>
+          <span>실행 번호</span><span><code>req-3fa91c02be</code> · <code>exe-7d1e0a44f9</code></span>
+        </div>
+        <ul class="others">
+          <li class="dim">같은 판 다른 모델 — yoloe · unidepth (drone) → 노트북</li>
+        </ul>
+        <p class="src">출처: orchestration_stream <code>planned</code>(배치표 gpu_units) · <code>running</code> 14:02:15 · node_resource_stream <code>baseline</code> 13:40:02 · <code>usage</code> 14:03:10</p>
+      </div>
+      <div class="sec">
+        <h3>지정 탐지 — 무엇을 찾고 있나</h3>
+        <div class="kv">
+          <span>대상</span><span><span class="chip tg">door</span></span>
+          <span>까닭</span><span>임무 MSN-261123-01 의 스캔 판 · 각도 3/8</span>
+        </div>
+      </div>
+      <div class="sec">
+        <h3>변경 기록 <span class="badge">이 소스 · 3건</span></h3>
+        <ul style="margin:0;padding-left:16px;font-size:12px">
+          <li><code>14:02:15</code> 실행 장치 <b>노트북</b> 에서 running <small class="dim">— 새 기록 종류(시안)</small></li>
+          <li><code>14:02:11</code> 대상 4개 → <b>door</b></li>
+          <li><code>13:58:40</code> 모델 <b>+ targeted</b></li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+</body></html>

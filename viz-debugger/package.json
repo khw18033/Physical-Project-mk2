@@ -62,6 +62,7 @@
     "verify:autodrive-ai": "node scripts/verify-autodrive-ai.mjs",
     "verify:vision-stream": "node scripts/verify-vision-stream.mjs",
     "verify:detect-status": "node scripts/verify-detect-status.mjs",
+    "verify:detect-placement": "node scripts/verify-detect-placement.mjs",
     "verify:fixed-camera": "node scripts/verify-fixed-camera.mjs",
     "verify:ep-camera": "node scripts/verify-ep-camera.mjs",
     "verify:server-status": "node scripts/verify-server-status.mjs",

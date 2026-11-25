@@ -20,7 +20,8 @@ import { VisionCam } from '../../../vision/views/VisionViews.tsx';
 import { useDetectHistory } from '../history.ts';
 import { holdLatest } from '../latestStore.ts';
 import { TARGETED } from '../summary.ts';
-import { DetectHistoryList, TargetLine } from './DetectStatusParts.tsx';
+import { holdPlacement, usePlacement } from '../placement.ts';
+import { DetectHistoryList, PlacementSection, TargetLine } from './DetectStatusParts.tsx';
 import { useDetectRows } from './DetectModelPanel.tsx';
 
 export function detectNodeId(base: string): string {
@@ -44,6 +45,9 @@ export function DetectStreamOverlay({ base, model, onClose }: { base: string; mo
   // 판이 내려가 있어도(다른 화면) 대상은 읽는다.
   useEffect(() => holdLatest(base, row?.source ?? null, TARGETED), [base, row?.source]);
   const history = useDetectHistory();
+  // 실행 장치 — 판이 내려가 있어도 읽는다(261125).
+  useEffect(() => holdPlacement(), []);
+  const placement = usePlacement();
 
   return <div className="modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
     <section className="modal dms-overlay" role="dialog" aria-label={t('dms.detailTitle', { name: row?.source ?? base })}>
@@ -59,6 +63,7 @@ export function DetectStreamOverlay({ base, model, onClose }: { base: string; mo
           <VisionCam nodeId={detectNodeId(base)} fixedBase={base} zoom />
         </div>
         <div className="dms-overlay__side">
+          <PlacementSection row={row} state={placement} />
           {info !== null
             ? <TargetLine info={info} />
             : <section className="dms-sec"><h3>{t('dms.tg.title')}</h3><p className="vn-line vn-dim">{t('dms.tg.none')}</p></section>}

@@ -31,9 +31,17 @@
  *   GET /vision-stream/latest?redis=<redis://host:port>&source=<소스>&model=<모델>   → 작은 요약 JSON
  *
  * `redis` 는 경로 없는 `redis://host:port` 만, 소스 · 모델은 이름표 모양만 받는다. 보내는 명령은 XREVRANGE 하나다.
+ *
+ * **261125 — 넷째 경로 `placement`.** 객체 탐지 상태판이 「모델이 어느 장치에서 도나」를 보려고 data_stream 오케스트레이터의
+ * `orchestration_stream`(가장 최근 배치표) · `node_resource_stream`(노드 하드웨어 · 사용량)을 읽는다(`vision-redis-placement.mjs`).
+ *
+ *   GET /vision-stream/placement?redis=<redis://host:port>   → `{ plan, nodes }` 요약 JSON
+ *
+ * 키는 그 두 스트림으로 고정이라 쿼리로 받지 않는다.
  */
 
 import { KEY_PART, readLatest } from './vision-redis-latest.mjs';
+import { readPlacement } from './vision-redis-placement.mjs';
 
 import { firstJpeg } from './autodrive-ai-relay.mjs';
 
@@ -52,9 +60,13 @@ export function visionRelayTarget(url) {
   const [path, query = ''] = String(url).split('?');
   if (!path.startsWith(`${VISION_RELAY_URL}/`)) return null;
   const kind = path.slice(VISION_RELAY_URL.length + 1);
-  if (kind !== 'health' && kind !== 'frame' && kind !== 'latest') return { error: '열린 경로는 health · frame · latest 셋뿐입니다' };
+  if (kind !== 'health' && kind !== 'frame' && kind !== 'latest' && kind !== 'placement') return { error: '열린 경로는 health · frame · latest · placement 넷뿐입니다' };
   const params = new URLSearchParams(query);
   if (kind === 'latest') return redisTarget(params);
+  if (kind === 'placement') {
+    const got = redisAddress(params);
+    return 'error' in got ? got : { kind, ...got };
+  }
   let base;
   try { base = new URL(params.get('base') ?? ''); } catch { return { error: 'base 가 주소가 아닙니다' }; }
   if (base.protocol !== 'http:' && base.protocol !== 'https:') return { error: 'base 는 http(s) 만 받습니다' };
@@ -69,19 +81,26 @@ export function visionRelayTarget(url) {
   return { kind, model, upstream: `${origin}/vision?model=${encodeURIComponent(model)}` };
 }
 
-/** `latest` 의 Redis 주소 · 키. 형식이 안 맞으면 `{ error }`. */
-function redisTarget(params) {
+/** `redis` 쿼리 → `{ host, port }`. 형식이 안 맞으면 `{ error }`. */
+function redisAddress(params) {
   let redis;
   try { redis = new URL(params.get('redis') ?? ''); } catch { return { error: 'redis 가 주소가 아닙니다' }; }
   if (redis.protocol !== 'redis:') return { error: 'redis 는 redis://host:port 만 받습니다' };
   if (redis.username !== '' || redis.password !== '' || (redis.pathname !== '/' && redis.pathname !== '') || redis.search !== '' || redis.hash !== '' || redis.hostname === '') {
     return { error: 'redis 는 경로·계정 없는 redis://host:port 여야 합니다' };
   }
+  const port = redis.port === '' ? 6379 : Number(redis.port);
+  return { host: redis.hostname.replace(/^[|]$/g, ''), port };
+}
+
+/** `latest` 의 Redis 주소 · 키. 형식이 안 맞으면 `{ error }`. */
+function redisTarget(params) {
+  const address = redisAddress(params);
+  if ('error' in address) return address;
   const source = params.get('source') ?? '';
   const model = params.get('model') ?? '';
   if (!KEY_PART.test(source) || !KEY_PART.test(model)) return { error: '소스 · 모델 이름 형식이 아닙니다' };
-  const port = redis.port === '' ? 6379 : Number(redis.port);
-  return { kind: 'latest', host: redis.hostname.replace(/^[|]$/g, ''), port, key: `vision_stream:${source}:${model}` };
+  return { kind: 'latest', ...address, key: `vision_stream:${source}:${model}` };
 }
 
 function send(res, status, body, type) {
@@ -158,13 +177,23 @@ async function relayLatest(res, target, reader) {
   }
 }
 
-/** 미들웨어 본체. `fetcher` · `reader` 는 검사가 갈아 끼운다. */
-export function handleVisionStream(req, res, next, fetcher = globalThis.fetch, reader = readLatest) {
+async function relayPlacement(res, target, placementReader) {
+  try {
+    const got = await placementReader({ host: target.host, port: target.port });
+    send(res, 200, JSON.stringify(got), 'application/json; charset=utf-8');
+  } catch (error) {
+    fail(res, 502, `Redis 를 못 읽었습니다 — ${error instanceof Error ? error.message : String(error)}`);
+  }
+}
+
+/** 미들웨어 본체. `fetcher` · `reader` · `placementReader` 는 검사가 갈아 끼운다. */
+export function handleVisionStream(req, res, next, fetcher = globalThis.fetch, reader = readLatest, placementReader = readPlacement) {
   const target = visionRelayTarget(req.url ?? '');
   if (target === null) return next();
   if ((req.method ?? 'GET') !== 'GET') { fail(res, 405, 'GET 만 받습니다'); return undefined; }
   if ('error' in target) { fail(res, 400, target.error); return undefined; }
   if (target.kind === 'latest') return relayLatest(res, target, reader);
+  if (target.kind === 'placement') return relayPlacement(res, target, placementReader);
   return target.kind === 'health'
     ? relayHealth(res, target.upstream, fetcher)
     : relayFrame(res, target.upstream, fetcher);

@@ -34,6 +34,7 @@ import { holdLatest, latestOf, useLatestStates } from '../latestStore.ts';
 import { devicesByBase, modelChipTone, summarizeDetectSources, TARGETED, type DetectSourceRow } from '../summary.ts';
 import { targetInfo, type TargetInfo } from '../targets.ts';
 import { noteDetectRows, useDetectHistory } from '../history.ts';
+import { countDevices, holdPlacement, placementOf, shortTag, usePlacement, type PlacementSnapshot } from '../placement.ts';
 import { DetectHistoryList, TargetLine } from './DetectStatusParts.tsx';
 
 const ms = (value: number | null) => (value === null ? '—' : `${Math.round(value)} ms`);
@@ -83,7 +84,15 @@ function useHoldTargeted(rows: readonly DetectSourceRow[]): void {
   }, [joined]);
 }
 
-function SourceCard({ row, info, onOpen }: { row: DetectSourceRow; info: TargetInfo | null; onOpen(base: string, model: string | null): void }) {
+/** 칩 끝 실행 장치 꼬리표(261125). 마우스를 올리면 노드 이름까지. */
+function DeviceTag({ snapshot, source, model }: { snapshot: PlacementSnapshot; source: string | null; model: string }) {
+  useLang();
+  const placement = placementOf(snapshot, source, model);
+  const full = placement.node === null ? t('dms.pl.dsDevice') : `${placement.node}${placement.from === 'dataStream' ? ` · ${t('dms.pl.dsDevice')}` : ''}`;
+  return <span className={`dms-chip__at dms-chip__at--${placement.kind}`} title={t('dms.at.title', { device: full })}>{shortTag(placement)}</span>;
+}
+
+function SourceCard({ row, info, onOpen, snapshot }: { row: DetectSourceRow; info: TargetInfo | null; onOpen(base: string, model: string | null): void; snapshot: PlacementSnapshot }) {
   useLang();
   const tone = row.state === 'models' ? 'ok' : row.state === 'down' ? 'bad' : row.state === 'noVideo' ? 'warn' : 'unknown';
   const thumb = row.state === 'models' ? (row.live[0]?.model ?? null) : null;
@@ -112,6 +121,7 @@ function SourceCard({ row, info, onOpen }: { row: DetectSourceRow; info: TargetI
         {modelChipTone(m) === 'warn'
           ? t('dms.chipStale', { model: m.model, age: m.ageS === null ? '—' : Math.round(m.ageS) })
           : t('dms.chip', { model: m.model, rate: perSec(row.rate[m.model]), lag: ms(m.lagMs) })}
+        <DeviceTag snapshot={snapshot} source={row.source} model={m.model} />
       </button>)}
     </div>}
     {row.visionError !== null && row.state !== 'down' && <p className="dms-card__line vn-warn">{t('dms.visionError', { why: row.visionError })}</p>}
@@ -127,6 +137,11 @@ export function DetectModelPanel({ onOpen }: { onOpen(base: string, model: strin
   useEffect(() => holdAllVisionSources({ slow: true }), []);
   const { rows, totals, infos } = useDetectRows();
   useHoldTargeted(rows);
+  // 실행 장치 — 배치표 · 노드 정보를 5초마다(261125).
+  useEffect(() => holdPlacement(), []);
+  const placement = usePlacement();
+  const devices = countDevices(rows.filter((row) => row.state !== 'down')
+    .flatMap((row) => row.live.map((m) => placementOf(placement, row.source, m.model))));
   const recorder = useRecorderStatus();
   const replaying = useReplayTarget();
   const history = useDetectHistory();
@@ -154,10 +169,10 @@ export function DetectModelPanel({ onOpen }: { onOpen(base: string, model: strin
       <h2>{t('dms.title', { n: totals.models })}</h2>
       <span className="dms-badge" title={t('dms.badgeWhy')}>{t('dms.badge')}</span>
     </header>
-    <p className="dms-hint"><Rich id="dms.hint" vars={{ connected: totals.connected, down: totals.down, targeted: totals.targeted }} /></p>
+    <p className="dms-hint"><Rich id="dms.hint" vars={{ connected: totals.connected, down: totals.down, targeted: totals.targeted, devices }} /></p>
     {bases.length === 0 && <p className="hardware-panel__none">{t('dms.noPorts')}</p>}
     <div className="dms-list">
-      {rows.map((row) => <SourceCard key={row.base} row={row} info={infos[row.base] ?? null} onOpen={onOpen} />)}
+      {rows.map((row) => <SourceCard key={row.base} row={row} info={infos[row.base] ?? null} onOpen={onOpen} snapshot={placement} />)}
     </div>
     {showHistory && <DetectHistoryList history={history} base={null} />}
     <footer className="dms-foot">

@@ -35,6 +35,8 @@ export type DetectSourceRow = {
   /** 서버가 밝힌 소스 이름, 모르면 null. */
   source: string | null;
   port: number | null;
+  /** `/health` 의 host — 영상을 받는 data_stream 서버 이름(261125 실행 장치 칸이 이름을 모를 때 쓴다). */
+  host: string | null;
   state: DetectSourceState;
   /** 살아 있는 모델 — 멎은 듯한 것(`modelStale`)도 든다. 이름 순. */
   live: readonly VisionModelSummary[];
@@ -104,6 +106,7 @@ export function summarizeDetectSources(
       base,
       source: health?.source ?? null,
       port: health?.port ?? null,
+      host: health?.host ?? null,
       state: rowState(state),
       live: (health?.models ?? []).filter(modelLive),
       rate: state?.rate ?? {},

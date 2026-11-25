@@ -1,0 +1,34 @@
+* { box-sizing: border-box; }
+body { margin: 0; padding: 14px; background: #f2f4f8; font-family: "Malgun Gothic", "Segoe UI", sans-serif; color: #1d2330; font-size: 13px; }
+.col { width: 330px; display: flex; flex-direction: column; gap: 12px; }
+.panel { background: #fff; border: 1px solid #dfe3ea; border-radius: 12px; padding: 14px; }
+.head { display: flex; justify-content: space-between; align-items: center; }
+h2 { margin: 0; font-size: 17px; }
+h3 { margin: 0; font-size: 14px; }
+.btn { border: 1px solid #b9c4d6; border-radius: 7px; padding: 4px 9px; color: #2457b5; background: #fff; font-size: 12px; }
+.hint { color: #6b7385; font-size: 12px; margin: 8px 0 10px; }
+.hint b { color: #3a4150; }
+.card { border: 1px solid #dfe3ea; border-radius: 9px; padding: 9px 10px; margin-bottom: 8px; position: relative; }
+.card.sel { border: 2px solid #2d6fd6; padding: 8px 9px; }
+.card .name { font-weight: 700; font-size: 14px; }
+.ok { color: #1b8a4c; } .warn { color: #b7791f; } .bad { color: #c53030; } .dim { color: #8a91a1; }
+.card .kind { position: absolute; right: 10px; top: 9px; color: #6b7385; font-size: 12px; }
+.line { margin-top: 4px; font-size: 12px; color: #3a4150; }
+.chips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+.chip { border-radius: 999px; padding: 2px 8px; font-size: 11.5px; background: #eef1f6; color: #3a4150; }
+.chip.ok { background: #e3f5ea; color: #17693b; }
+.chip.warn { background: #fdf2dc; color: #8a5a10; }
+.chip.bad { background: #fde5e5; color: #9b2222; }
+.chip.tg { background: #e7effd; color: #1f4fa3; font-weight: 600; }
+.dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 5px; vertical-align: 1px; }
+.dot.ok { background: #22a35a; } .dot.warn { background: #d69e2e; } .dot.bad { background: #e53e3e; } .dot.dim { background: #b3b9c6; }
+.card:has(.thumb) { padding-right: 84px; }
+.card.sel:has(.thumb) { padding-right: 83px; }
+.thumb { position: absolute; right: 10px; top: 32px; width: 62px; height: 40px; border-radius: 5px; background: linear-gradient(135deg, #59606e, #2c313a); }
+.thumb i { position: absolute; border: 1.5px solid #4fd17f; }
+.target { margin-top: 6px; font-size: 12px; background: #f4f7fd; border-left: 3px solid #2d6fd6; padding: 4px 7px; border-radius: 0 5px 5px 0; }
+.foot { border-top: 1px solid #e6e9ef; margin-top: 8px; padding-top: 8px; display: flex; justify-content: space-between; align-items: center; color: #6b7385; font-size: 11.5px; }
+.badge { border-radius: 999px; padding: 2px 8px; font-size: 11px; background: #eef1f6; color: #5a6274; }
+.new { outline: 2px dashed #e07a1f; outline-offset: 4px; }
+.tag-new { position: absolute; transform: translate(0, -24px); background: #e07a1f; color: #fff; font-size: 11px; padding: 1px 7px; border-radius: 4px; }
+code { font-family: Consolas, monospace; font-size: 11.5px; color: #5a6274; }
