@@ -23,7 +23,7 @@ export type RedisLatest = {
   run: string | null;
   n: number | null;
   emittedAt: string | null;
-  /** 이 장비가 찾는 대상 — `targets_device` 가 있으면 그것, 없으면 `targets` (261126). */
+  /** 이 장비가 찾는 대상 — `targets_device` 가 있으면 그것(빈 목록 = 찾는 대상 없음), 없으면 `targets` (261126). */
   targets: readonly string[] | null;
   /** 비전 프로세스 전체의 대상(`targets` 그대로) — 여러 장비를 맡으면 합친 목록이다. */
   targetsAll: readonly string[] | null;

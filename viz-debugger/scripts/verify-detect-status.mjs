@@ -130,11 +130,13 @@ const reply = Buffer.concat([
   const pi12 = redis.summarizeVisionEntry(entryOf({ ...shared, stream: 'pi12', targets_device: ['chair'] }));
   expect('장비별 대상이 먼저 — go1 은 person 만', go1?.targets?.join() === 'person' && go1.targetScope === 'device' && go1.targetsAll?.join() === 'person,chair' && go1.provisional?.join() === 'person', JSON.stringify(go1));
   expect('장비별 대상이 먼저 — pi12 는 chair 만', pi12?.targets?.join() === 'chair' && pi12.provisional?.join() === 'chair', JSON.stringify(pi12));
-  // 대조군 — 칸이 없거나 빈 옛 판은 예전처럼 targets
-  const old = redis.summarizeVisionEntry(entryOf({ ...shared, stream: 'pi13' }));
+  // 빈 목록 = 찾는 대상 없음 (data_stream 은 그 장비의 검출을 전부 거른다) — 전체 목록으로 내려가면 안 된다
   const blank = redis.summarizeVisionEntry(entryOf({ ...shared, stream: 'pi13', targets_device: [] }));
-  if (old?.targets?.join() === 'person,chair' && old.targetScope === 'all' && blank?.targets?.join() === 'person,chair' && blank.provisional?.join() === 'person,chair') controls.push('targets_device 가 없거나 빈 옛 판은 targets 를 쓴다');
-  else failures.push(`대조군 실패: 옛 판 대상 ${JSON.stringify([old, blank])}`);
+  expect('빈 장비별 대상은 「없음」', Array.isArray(blank?.targets) && blank.targets.length === 0 && blank.targetScope === 'device' && blank.provisional?.length === 0 && blank.targetsAll?.join() === 'person,chair', JSON.stringify(blank));
+  // 대조군 — 칸이 없는 옛 판은 예전처럼 targets
+  const old = redis.summarizeVisionEntry(entryOf({ ...shared, stream: 'pi13' }));
+  if (old?.targets?.join() === 'person,chair' && old.targetScope === 'all' && old.provisional?.join() === 'person,chair') controls.push('targets_device 칸이 없는 옛 판은 targets 를 쓴다');
+  else failures.push(`대조군 실패: 옛 판 대상 ${JSON.stringify(old)}`);
 
   // 가짜 소켓 — 보낸 명령이 XREVRANGE 하나인지, 답을 두 조각으로 받아도 읽는지
   const sent = [];
@@ -168,8 +170,16 @@ const reply = Buffer.concat([
   const a = targets.targetInfo(row, scan, latest);
   expect('이 화면의 판이 이긴다', a?.source === 'mission' && a.targets.join() === 'demo_door' && a.angles.captured === 2 && a.profileVersion === 12, JSON.stringify(a));
   const busyRow = { ...row, busyScanId: 'other' };
-  const b = targets.targetInfo(busyRow, null, latest);
-  expect('남의 판 — 대상은 그 판 결과일 때만', b?.source === 'otherScan' && b.targets === null, JSON.stringify(b));
+  // 남의 판은 **이 장비의 결과가 그 판 것일 때만** (261126) — 판은 서버에 하나, 판 장비는 하나
+  const inOther = { ...latest, latest: { ...latest.latest, targets: ['demo_box'], profile: { label: 'L', version: 7, scanId: 'other' } } };
+  const b = targets.targetInfo(busyRow, null, inOther);
+  expect('남의 판 — 이 장비 결과에 그 판 번호가 있으면 판 대상', b?.source === 'otherScan' && b.targets.join() === 'demo_box' && b.scanId === 'other', JSON.stringify(b));
+  const outside = targets.targetInfo(busyRow, null, latest);
+  expect('남의 판 — 이 장비 결과에 판 번호가 없으면 판 밖, 자기 대상', outside?.source === 'profile' && outside.targets.join() === 'person,chair' && outside.scanId === null, JSON.stringify(outside));
+  // 대조군 — 결과를 못 읽었으면 모르므로 예전처럼 「다른 판 · 대상 모름」
+  const blind = targets.targetInfo(busyRow, null, { latest: null, empty: false, error: 'Redis 를 못 읽었습니다', receivedAtMs: null });
+  if (blind?.source === 'otherScan' && blind.targets === null) controls.push('결과를 못 읽으면 서버의 판을 따른다(대상 모름)');
+  else failures.push(`대조군 실패: 못 읽음 + 판 ${JSON.stringify(blind)}`);
   const c = targets.targetInfo(row, null, latest);
   expect('런처 설정', c?.source === 'profile' && c.targets.join() === 'person,chair' && c.profileVersion === 7 && c.seen.person === 1, JSON.stringify(c));
   const d = targets.targetInfo(row, null, { latest: null, empty: false, error: 'Redis 를 못 읽었습니다', receivedAtMs: null });
@@ -215,6 +225,13 @@ const reply = Buffer.concat([
   const s4 = history.snapshotOf(rows, { [B(10003)]: { targets: null, profileVersion: null } }, s3, 10000);
   if (history.diffDetectSnapshot(s3, s4, 10000).length === 0) controls.push('대상을 못 읽은 순간은 「대상 바뀜」이 아니다');
   else failures.push('대조군 실패: 읽기 실패를 대상 바뀜으로 적었다');
+
+  // 판 시작 · 끝은 이 장비가 판 안일 때만(261126) — 서버에 판이 열려도 판 밖 장비(info.scanId null)는 사건이 없다
+  const busyRows = rows.map((r) => ({ ...r, busyScanId: 'other' }));
+  const outsideSnap = history.snapshotOf(busyRows, { [B(10003)]: { targets: ['person'], profileVersion: 7, scanId: null } }, s3, 11000);
+  const insideSnap = history.snapshotOf(busyRows, { [B(10003)]: { targets: ['demo_box'], profileVersion: 7, scanId: 'other' } }, s3, 11000);
+  expect('판 밖 장비는 판 시작이 없다', history.diffDetectSnapshot(s3, outsideSnap, 11000).length === 0, JSON.stringify(history.diffDetectSnapshot(s3, outsideSnap, 11000)));
+  expect('판 안 장비는 판 시작', history.diffDetectSnapshot(s3, insideSnap, 11000).map((e) => e.kind).join(',') === 'targets,scanStart', JSON.stringify(history.diffDetectSnapshot(s3, insideSnap, 11000)));
 }
 
 // ── 7. 임무 판이 돌 때만 ────────────────────────────────────────────────────

@@ -3970,6 +3970,7 @@ export const ko: Record<string, string> = {
   'dms.tg.title': '지정 탐지 — 무엇을 찾고 있나',
   'dms.tg.targets': '대상',
   'dms.tg.processTargets': '같은 프로세스 전체',
+  'dms.tg.noTargets': '없음 (이 장비는 찾지 않음)',
   'dms.tg.source': '까닭',
   'dms.tg.query': '사람 말',
   'dms.tg.scan': '스캔 판',

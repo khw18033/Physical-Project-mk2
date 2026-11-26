@@ -6,7 +6,9 @@
  * 출처가 넷이고 확실함이 다르다 — 그래서 **출처를 같이 돌려주고 화면이 그것을 적는다** (계획서 §3-4).
  *
  *   mission    이 가시화가 연 스캔 판(`scanStore`) — 임무 · 판 번호 · 각도 · 판 대상
- *   otherScan  스캔 창구가 판을 쥐고 있는데(`/health` 의 `busy_scan_id`) 이 화면의 판이 아니다 — 다른 화면이 열었다
+ *   otherScan  스캔 창구가 판을 쥐고 있는데(`/health` 의 `busy_scan_id`) 이 화면의 판이 아니다 — 다른 화면이 열었다.
+ *              **이 장비의 결과가 그 판 것일 때만**이다(261126) — 판은 서버 전체에 하나지만 판 장비는 하나다. 마지막 결과에 판 번호가
+ *              없으면 이 장비는 판 밖이고 자기 대상을 적는다. 결과를 못 읽었으면(null) 모르므로 「다른 판 · 대상 모름」으로 둔다.
  *   profile    런처 설정 — Redis 마지막 결과의 `targets` · 프로필 이름 · 판
  *   unknown    대상 목록을 못 읽었다 — 마지막 장에 보인 라벨만(있으면)
  *
@@ -52,6 +54,17 @@ function processTargetsOf(last: LatestState['latest']): readonly string[] | null
   return last.targetsAll.length === own.size && last.targetsAll.every((name) => own.has(name)) ? null : last.targetsAll;
 }
 
+/**
+ * **서버에 열린 판이 이 장비의 판인가** (261126). 마지막 결과에 그 판 번호가 붙어 있으면 그렇다. 결과를 못 읽었으면 모르므로
+ * 판 안으로 본다(예전 동작). 결과가 있는데 판 번호가 다르거나 없으면 판 밖이다 — data_stream 이 판 대상을 판 장비에만 걸면
+ * (요청 `스캔판대상_장비별_요청_VZ_261126.md`) 다른 장비의 결과에는 판 번호가 없다.
+ *
+ * 판이 막 열려 판 장비의 첫 결과가 오기 전(2초 남짓)에는 판 장비도 판 밖으로 보인다 — 그 사이는 판 전 대상을 적는다.
+ */
+export function inScan(last: LatestState['latest'], busyScanId: string): boolean {
+  return last === null || last.profile?.scanId === busyScanId;
+}
+
 /** 이 화면의 스캔 판이 지금 이 포트에서 돌고 있나. 기록에서 연 판 · 끝난 판은 아니다. */
 export function liveScanOn(scan: ScanRunState | null, base: string): boolean {
   return scan !== null && scan.recorded === null && scan.base === base && !scan.cancelled && scan.failure === null
@@ -90,7 +103,7 @@ export function targetInfo(row: DetectSourceRow, scan: ScanRunState | null, late
       why: null,
     };
   }
-  if (row.busyScanId !== null) {
+  if (row.busyScanId !== null && inScan(last, row.busyScanId)) {
     // Redis 결과가 그 판의 것이면 대상도 그 판의 것이다.
     const same = last?.profile?.scanId === row.busyScanId;
     return { ...base, source: 'otherScan', scanId: row.busyScanId, targets: same ? (last?.targets ?? null) : null };

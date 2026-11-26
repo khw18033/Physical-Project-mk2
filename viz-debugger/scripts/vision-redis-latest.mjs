@@ -102,10 +102,12 @@ export function summarizeVisionEntry(entry) {
   // **이 장비의 대상이 먼저다** (261126). 한 비전 프로세스가 여러 장비를 맡으면 `targets` · `provisional` 은 그 장비들의
   // 대상을 합친 목록이고, 장비마다 따로 준 대상은 `targets_device` 에 실린다 — 실측: go1(robot1) 에 person, pi12 에 chair 를
   // 주었더니 두 결과 모두 `targets: [person, chair]`, `targets_device` 만 각각 [person] · [chair] 였다.
-  // 칸이 없거나 비었으면(그 칸이 생기기 전 판) 예전처럼 `targets` 를 쓴다.
+  // 칸이 없으면(그 칸이 생기기 전 판 · 장비별 지정이 없는 장비) 예전처럼 `targets` 를 쓴다.
+  // **빈 목록은 「찾는 대상 없음」이다** (261126) — data_stream 은 빈 목록이면 그 장비의 검출을 전부 거른다
+  // (`vision_infer.py` `_detect_one`: `allow is not None` 이면 `name in allow` 만 남김, `fc2340b`). 전체 목록으로 내려가면 화면이 거짓이다.
   const all = strList(result.targets);
   const own = strList(result.targets_device);
-  const byDevice = own !== null && own.length > 0;
+  const byDevice = own !== null;
   out.targets = byDevice ? own : all;
   out.targetsAll = all;
   out.targetScope = byDevice ? 'device' : all !== null ? 'all' : null;

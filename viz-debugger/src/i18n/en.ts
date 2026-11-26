@@ -3945,6 +3945,7 @@ export const en: Record<string, string> = {
   'dms.tg.title': 'Targeted detection — what it is looking for',
   'dms.tg.targets': 'Targets',
   'dms.tg.processTargets': 'Whole process',
+  'dms.tg.noTargets': 'None (this device searches for nothing)',
   'dms.tg.source': 'Why',
   'dms.tg.query': 'Spoken',
   'dms.tg.scan': 'Scan',

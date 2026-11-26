@@ -175,7 +175,8 @@ const whyText = (why: string | null) => (why === null ? '—' : why === 'empty' 
 /** 지정 탐지 — `compact` 면 카드 안의 한 줄, 아니면 상세 창의 칸. 출처를 늘 같이 적는다. */
 export function TargetLine({ info, compact = false }: { info: TargetInfo; compact?: boolean }) {
   useLang();
-  const targets = info.targets === null ? null : info.targets.join(' · ');
+  // 빈 목록 = 이 장비는 아무것도 안 찾는다(장비별 대상을 비움, 261126) — 「모름」과 가른다.
+  const targets = info.targets === null ? null : info.targets.length === 0 ? t('dms.tg.noTargets') : info.targets.join(' · ');
   const line = info.source === 'mission'
     ? <Rich id="dms.tg.mission" vars={{ targets: targets ?? '—', mission: info.missionId ?? '—', c: info.angles?.captured ?? 0, n: info.angles?.total ?? 0 }} />
     : info.source === 'otherScan'
@@ -188,7 +189,9 @@ export function TargetLine({ info, compact = false }: { info: TargetInfo; compac
   return <section className="dms-sec">
     <h3>{t('dms.tg.title')}</h3>
     <dl className="dms-kv">
-      <dt>{t('dms.tg.targets')}</dt><dd>{targets === null ? <span className="vn-dim">{t('dms.tg.unknownTargets')}</span> : info.targets?.map((name) => <span key={name} className="dms-chip dms-chip--target">{name}</span>)}</dd>
+      <dt>{t('dms.tg.targets')}</dt><dd>{targets === null ? <span className="vn-dim">{t('dms.tg.unknownTargets')}</span>
+        : info.targets?.length === 0 ? <span className="vn-warn">{targets}</span>
+        : info.targets?.map((name) => <span key={name} className="dms-chip dms-chip--target">{name}</span>)}</dd>
       {info.processTargets !== null && <><dt>{t('dms.tg.processTargets')}</dt><dd className="vn-dim">{info.processTargets.join(' · ')}</dd></>}
       <dt>{t('dms.tg.source')}</dt><dd>{line}</dd>
       {info.query !== null && <><dt>{t('dms.tg.query')}</dt><dd>{info.query}</dd></>}

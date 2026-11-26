@@ -91,7 +91,8 @@ export function snapshotOf(
       // 대상을 못 읽은 순간(창구 오류)은 앞 값을 든다 — 읽기 실패를 「대상 바뀜」으로 적지 않는다.
       targets: info === null ? null : (info.targets ?? before?.targets ?? null),
       profileVersion: info === null ? null : (info.profileVersion ?? before?.profileVersion ?? null),
-      scanId: row.busyScanId,
+      // 판 시작 · 끝은 이 장비가 판 안일 때만(261126) — 대상 판정(`targetInfo` 의 판 번호)과 같은 기준. targeted 가 안 돌면 서버 값.
+      scanId: info === null ? row.busyScanId : (info.scanId ?? null),
     };
   }
   return out;
