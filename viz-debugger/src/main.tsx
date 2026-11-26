@@ -128,10 +128,12 @@ function aiMarks(trace: readonly ScenarioEvent[]) {
 /**
  * **하드웨어 카드의 살아 있는 줄** (261110). 로봇 · 드론은 상세 · 전체 장치 확인과 같은 **지표 타일**(`GroundDashLine` —
  * 연결 · 링크 · 배터리 · 마지막 수신, 드론은 장비가 카드 몫으로 보낸 줄). 고정 카메라 · 3D 가상환경은 지금까지의 줄(`HardwareLink`).
+ *
+ * 고정 카메라 · 3D 가상환경은 **자기 상태만** 찾는다(`ownStateOnly` · 261126). 안 켜면 붙은 로봇의 배터리가 이 카드에 찍힌다.
  */
 function CardStatusLine({ entityId }: { entityId: string }) {
-  if (isFixedCamera(entityId)) return <><HardwareLink entityId={entityId} /><CameraStateDots entityId={entityId} /></>;
-  if (isTwinDevice(entityId)) return <HardwareLink entityId={entityId} />;
+  if (isFixedCamera(entityId)) return <><HardwareLink entityId={entityId} ownStateOnly /><CameraStateDots entityId={entityId} /></>;
+  if (isTwinDevice(entityId)) return <HardwareLink entityId={entityId} ownStateOnly />;
   return <GroundDashLine entityId={entityId} />;
 }
 

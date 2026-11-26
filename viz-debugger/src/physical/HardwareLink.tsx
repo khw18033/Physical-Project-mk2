@@ -23,14 +23,18 @@
 
 import { useLang } from '../shared/language.ts';
 import { t } from '../i18n/dict.ts';
-import { hardwareTarget } from './encode.ts';
+import { cardStateId } from './encode.ts';
 import { isStale, useDeviceStates, type DeviceState } from './deviceState.ts';
 import { useRobotSession } from './robotSession.ts';
 import { connectedDevice, useConnectedDevices } from '../shared/connectedDevices.ts';
 import { useDeviceTelemetry } from '../shared/deviceTelemetry.ts';
 import { mqttFilled, telemetryValue } from './DeviceFacts.tsx';
 
-export function HardwareLink({ entityId }: { entityId: string }) {
+/**
+ * `ownStateOnly` — 로봇이 아닌 카드(고정 카메라 · 3D 가상환경)가 켠다. 켜면 붙은 로봇으로 바꿔 찾지 않고
+ * 자기 id 로만 찾는다(`cardStateId` · 261126). 안 켜면 지금까지처럼 붙은 로봇을 본다.
+ */
+export function HardwareLink({ entityId, ownStateOnly = false }: { entityId: string; ownStateOnly?: boolean }) {
   useLang();
   const devices = useDeviceStates();
   const session = useRobotSession();
@@ -39,7 +43,7 @@ export function HardwareLink({ entityId }: { entityId: string }) {
   // 그 장비가 **무엇을 보고했는지**도 이 줄에 나온다 (260922).
   const reports = useDeviceTelemetry();
   // 화면 id(`robot-01`) → 하드웨어 id(`go1-001`). 표는 경계 안에 있다.
-  const device: DeviceState | null = devices[hardwareTarget(entityId)] ?? null;
+  const device: DeviceState | null = devices[cardStateId(entityId, ownStateOnly)] ?? null;
 
   /**
    * MQTT 장비 상태가 없다. 두 경우가 섞여 있어 가른다 (260921).

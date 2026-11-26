@@ -57,6 +57,19 @@ export function hardwareTarget(vizEntityId: string): string {
 }
 
 /**
+ * **카드 한 줄이 상태를 찾아볼 id** (261126 — 카메라 카드에 Go1 배터리).
+ *
+ * `hardwareTarget` 은 붙은 로봇이 있으면 **넘겨받은 id 를 안 보고** 그 로봇을 돌려준다. 로봇 카드에는 맞지만,
+ * 고정 카메라 · 3D 가상환경 카드가 그것을 쓰면 **로봇의 온라인 · 배터리가 남의 카드에 찍힌다** — Go1 과 360 카메라를
+ * 같이 붙이자 카메라 카드에 배터리가 둘(카메라 것 · Go1 것) 떴다. 위 「빗나가면 비어 있을 뿐」이 성립하지 않는 경우다.
+ *
+ * 그래서 로봇이 아닌 카드는 **자기 id 로만** 찾는다(`ownOnly`). 그 장비가 MQTT 로 상태를 안 보내면 못 찾고, 그게 맞다.
+ */
+export function cardStateId(vizEntityId: string, ownOnly: boolean): string {
+  return ownOnly ? vizEntityId : hardwareTarget(vizEntityId);
+}
+
+/**
  * 화면·대본 id 를 표로만 바꾼다. **붙은 장비를 보지 않는다.**
  *
  * `hardwareTarget` 과 가르는 이유: 봉투를 만드는 쪽은 이미 정해진 대상을 받는다
