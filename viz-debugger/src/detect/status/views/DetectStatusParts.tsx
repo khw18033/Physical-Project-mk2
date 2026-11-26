@@ -189,6 +189,7 @@ export function TargetLine({ info, compact = false }: { info: TargetInfo; compac
     <h3>{t('dms.tg.title')}</h3>
     <dl className="dms-kv">
       <dt>{t('dms.tg.targets')}</dt><dd>{targets === null ? <span className="vn-dim">{t('dms.tg.unknownTargets')}</span> : info.targets?.map((name) => <span key={name} className="dms-chip dms-chip--target">{name}</span>)}</dd>
+      {info.processTargets !== null && <><dt>{t('dms.tg.processTargets')}</dt><dd className="vn-dim">{info.processTargets.join(' · ')}</dd></>}
       <dt>{t('dms.tg.source')}</dt><dd>{line}</dd>
       {info.query !== null && <><dt>{t('dms.tg.query')}</dt><dd>{info.query}</dd></>}
       {info.scanId !== null && <><dt>{t('dms.tg.scan')}</dt><dd><code>{info.scanId}</code></dd></>}

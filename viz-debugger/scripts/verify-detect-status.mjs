@@ -123,6 +123,19 @@ const reply = Buffer.concat([
   if (broken?.resultError !== null && broken?.targets === null) controls.push('JSON 이 아닌 result 는 대상을 지어내지 않는다');
   else failures.push('대조군 실패: 깨진 result 에서 대상을 냈다');
 
+  // 장비별 대상(261126) — 실측 모양: 한 프로세스가 go1(robot1) · pi12 를 맡아 targets 는 합친 목록, targets_device 만 다르다
+  const entryOf = (result) => [Buffer.from('1-0'), [Buffer.from('result'), Buffer.from(JSON.stringify(result))]];
+  const shared = { model: 'targeted', targets: ['person', 'chair'], provisional: ['person', 'chair'], profile: { label: null, version: 200103 } };
+  const go1 = redis.summarizeVisionEntry(entryOf({ ...shared, stream: 'robot1', targets_device: ['person'] }));
+  const pi12 = redis.summarizeVisionEntry(entryOf({ ...shared, stream: 'pi12', targets_device: ['chair'] }));
+  expect('장비별 대상이 먼저 — go1 은 person 만', go1?.targets?.join() === 'person' && go1.targetScope === 'device' && go1.targetsAll?.join() === 'person,chair' && go1.provisional?.join() === 'person', JSON.stringify(go1));
+  expect('장비별 대상이 먼저 — pi12 는 chair 만', pi12?.targets?.join() === 'chair' && pi12.provisional?.join() === 'chair', JSON.stringify(pi12));
+  // 대조군 — 칸이 없거나 빈 옛 판은 예전처럼 targets
+  const old = redis.summarizeVisionEntry(entryOf({ ...shared, stream: 'pi13' }));
+  const blank = redis.summarizeVisionEntry(entryOf({ ...shared, stream: 'pi13', targets_device: [] }));
+  if (old?.targets?.join() === 'person,chair' && old.targetScope === 'all' && blank?.targets?.join() === 'person,chair' && blank.provisional?.join() === 'person,chair') controls.push('targets_device 가 없거나 빈 옛 판은 targets 를 쓴다');
+  else failures.push(`대조군 실패: 옛 판 대상 ${JSON.stringify([old, blank])}`);
+
   // 가짜 소켓 — 보낸 명령이 XREVRANGE 하나인지, 답을 두 조각으로 받아도 읽는지
   const sent = [];
   const connect = () => {
@@ -165,6 +178,13 @@ const reply = Buffer.concat([
   expect('끝난 판은 이 화면의 판이 아니다', finished?.source === 'profile', finished?.source);
   const noTargeted = targets.targetInfo({ ...row, live: [] }, scan, latest);
   expect('targeted 가 안 돌면 null', noTargeted === null);
+  // 장비별 대상(261126) — 상세에는 프로세스 전체가 따로 보인다. 같으면(장비 하나) 안 적는다
+  const own = { ...latest, latest: { ...latest.latest, targets: ['person'], targetsAll: ['person', 'chair'], targetScope: 'device' } };
+  const e = targets.targetInfo(row, null, own);
+  expect('장비 대상 · 프로세스 전체는 따로', e?.targets.join() === 'person' && e.processTargets?.join() === 'person,chair', JSON.stringify(e));
+  const same = targets.targetInfo(row, null, { ...latest, latest: { ...latest.latest, targets: ['chair', 'person'], targetsAll: ['person', 'chair'], targetScope: 'device' } });
+  if (same?.processTargets === null && c?.processTargets === null && a?.processTargets === null) controls.push('프로세스 전체가 같거나 옛 판 · 이 화면의 판이면 따로 안 적는다');
+  else failures.push(`대조군 실패: 프로세스 전체 ${JSON.stringify([same?.processTargets, c?.processTargets, a?.processTargets])}`);
 }
 
 // ── 6. 변경 기록 비교 ───────────────────────────────────────────────────────

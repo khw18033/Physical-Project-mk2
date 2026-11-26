@@ -36,9 +36,21 @@ export type TargetInfo = {
   profileVersion: number | null;
   /** 하한을 아직 안 잰 대상(`provisional`). */
   provisional: readonly string[] | null;
+  /**
+   * 비전 프로세스 전체의 대상 — **이 장비 대상과 다를 때만** (261126). 한 프로세스가 장비 여럿을 맡으면 합친 목록이라,
+   * 카드에는 안 적고 상세에서만 「같은 프로세스 전체」로 보인다. 이 화면의 판(mission)에서는 null.
+   */
+  processTargets: readonly string[] | null;
   /** 대상 목록을 못 읽은 사유 — Redis 창구의 오류. */
   why: string | null;
 };
+
+/** 프로세스 전체 대상이 이 장비 대상과 다르면 그것, 같거나 모르면 null. */
+function processTargetsOf(last: LatestState['latest']): readonly string[] | null {
+  if (last === null || last.targetScope !== 'device' || last.targetsAll == null || last.targets === null) return null;
+  const own = new Set(last.targets);
+  return last.targetsAll.length === own.size && last.targetsAll.every((name) => own.has(name)) ? null : last.targetsAll;
+}
 
 /** 이 화면의 스캔 판이 지금 이 포트에서 돌고 있나. 기록에서 연 판 · 끝난 판은 아니다. */
 export function liveScanOn(scan: ScanRunState | null, base: string): boolean {
@@ -61,6 +73,7 @@ export function targetInfo(row: DetectSourceRow, scan: ScanRunState | null, late
     profileLabel: last?.profile?.label ?? null,
     profileVersion: last?.profile?.version ?? null,
     provisional: last?.provisional ?? null,
+    processTargets: processTargetsOf(last),
     why: latest.error ?? (latest.empty ? 'empty' : null),
   };
   if (scan !== null && liveScanOn(scan, row.base)) {
@@ -73,6 +86,7 @@ export function targetInfo(row: DetectSourceRow, scan: ScanRunState | null, late
       angles: { captured: scan.angles.filter((angle) => angle.captured === true).length, total: scan.angles.length },
       query: scan.queryKo ?? scan.query,
       profileVersion: scan.profileVersion ?? base.profileVersion,
+      processTargets: null,
       why: null,
     };
   }

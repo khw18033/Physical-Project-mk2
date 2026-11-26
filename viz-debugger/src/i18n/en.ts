@@ -3944,6 +3944,7 @@ export const en: Record<string, string> = {
   'dms.tg.unknownTargets': 'unknown',
   'dms.tg.title': 'Targeted detection — what it is looking for',
   'dms.tg.targets': 'Targets',
+  'dms.tg.processTargets': 'Whole process',
   'dms.tg.source': 'Why',
   'dms.tg.query': 'Spoken',
   'dms.tg.scan': 'Scan',
