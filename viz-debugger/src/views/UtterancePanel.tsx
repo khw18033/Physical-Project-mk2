@@ -198,7 +198,10 @@ const legacyTitle = () => t('utter.legacyMove');
  * 옛 편(사이드카 — script 없음)은 번들의 옛 시나리오에서 문장을 가져온다.
  */
 // 261124 — 예시에서 뺀 편(`hideExample`, 옛 @ 편)은 목록에만 안 보인다. 매칭에는 그대로 선다.
-const DEMO_SENTENCES = SCRIPT_LIBRARY.filter((entry) => entry.script?.hideExample !== true).map((entry) => ({
+// 261127 — 옛 탐지 방식(`detectSource: 'legacy'`, `:8000` 탐지기)의 편도 모두 뺀다. 편과 매칭은 그대로다.
+const DEMO_SENTENCES = SCRIPT_LIBRARY.filter(
+  (entry) => entry.script?.hideExample !== true && entry.script?.detectSource !== 'legacy',
+).map((entry) => ({
   missionId: entry.missionId,
   title: entry.script?.title ?? legacyTitle(),
   text: entry.script?.utterance.text ?? legacyScenario.utterance.text,
