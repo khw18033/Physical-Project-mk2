@@ -101,6 +101,20 @@ const nodesNewestFirst = [
   else failures.push('대조군 실패: 깨진 plan 으로 배치표를 냈다');
   const none = reader.summarizePlacement([], []);
   expect('기록이 없으면 plan null', none.plan === null && Object.keys(none.nodes).length === 0);
+
+  // 실제 실행 위치(261127) — 같은 요청의 GPU applied 의 detail.where. 기록의 mode(k3s)는 배치 계산 방식이라 따로 둔다
+  const where = 'book-4vg1edpvi5 GPU (NVIDIA GeForce RTX 4050 Laptop GPU) — 이 기기 · WSL';
+  const ran = reader.summarizePlacement([
+    orchRec('1764050532000-0', 'applied', 'req-B', { mode: 'k3s', detail: JSON.stringify({ node: 'book-4vg1edpvi5', unit_id: 'gpu-1', where }) }),
+    orchRec('1764050531500-0', 'applied', 'req-B', { mode: 'k3s', detail: JSON.stringify({ node: 'book-4vg1edpvi5', unit_id: 'cpu-x' }) }),
+    orchRec('1764050530000-0', 'planned', 'req-B', { mode: 'k3s', plan: planJson('book-4vg1edpvi5', ['robot1'], ['targeted']) }),
+    orchRec('1764040001000-0', 'applied', 'req-A', { detail: JSON.stringify({ node: 'pi6', unit_id: 'gpu-0', where: 'pi6 GPU' }) }),
+  ], []);
+  expect('실행 위치 — 같은 요청 GPU applied 의 where', ran.plan?.where?.['book-4vg1edpvi5'] === where && ran.plan.mode === 'k3s', JSON.stringify(ran.plan?.where));
+  // 대조군 — 다른 요청의 applied 는 안 섞고, where 가 없는 applied(CPU 작업)는 덮지 않는다
+  if (ran.plan?.where?.pi6 === undefined && Object.keys(ran.plan?.where ?? {}).length === 1) controls.push('다른 요청 · where 없는 applied 는 실행 위치에 안 섞인다');
+  else failures.push(`대조군 실패: 실행 위치 ${JSON.stringify(ran.plan?.where)}`);
+  expect('applied 전이면 실행 위치 없음', Object.keys(s.plan?.where ?? {}).length === 0, JSON.stringify(s.plan?.where));
 }
 
 // ── 3. 가짜 소켓 ────────────────────────────────────────────────────────────

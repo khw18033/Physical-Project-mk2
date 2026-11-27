@@ -71,6 +71,11 @@ export type PlanSummary = {
   refused: readonly { item: string; reason: string }[];
   /** 그 요청의 가장 새 기록(applied · running · stopped · failed …). */
   last: RequestLast | null;
+  /**
+   * 노드 → **실제 실행 위치** 문장(261127) — 같은 요청의 GPU `applied` 기록의 `detail.where`. 아직 안 떴거나 옛 저장본이면 없다.
+   * `mode` 는 배치를 계산한 방식(클러스터 조회가 됐으면 k3s)이라 실행 위치와 다르다.
+   */
+  where?: Readonly<Record<string, string>>;
 };
 
 export type GpuUsage = { name: string | null; memTotalMb: number | null; memUsedMb: number | null; utilPct: number | null; tempC: number | null };

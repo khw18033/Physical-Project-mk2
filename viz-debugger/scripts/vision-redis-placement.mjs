@@ -253,6 +253,18 @@ export function summarizePlacement(orchEntries, nodeEntries) {
   }
   // 같은 요청의 기록 가운데 가장 새것(planned 뒤의 applied · running · stopped · failed …).
   if (plan !== null) plan.last = (plan.requestId !== null ? requests[plan.requestId] : undefined) ?? null;
+  // **실제 실행 위치** (261127) — 같은 요청의 GPU `applied` 기록의 `detail.where`(「book-… GPU (RTX …) — 이 기기 · WSL」).
+  // data_stream `controller.gpu_where(node)` 가 노드로만 정하므로 노드 → 문장. 기록의 `mode`(k3s · local)는 배치를 어떻게
+  // 계산했나(클러스터 조회 성공 여부)이지 실행 방식이 아니다 — 실행 방식은 이 문장이 말한다.
+  if (plan !== null) {
+    plan.where = {};
+    for (const entry of orch) {
+      if (entry.fields.event !== 'applied' || entry.fields.request_id !== plan.requestId) continue;
+      const detail = obj(json(entry.fields.detail));
+      if (detail === null || typeof detail.node !== 'string' || typeof detail.where !== 'string' || detail.where === '') continue;
+      plan.where[detail.node] = detail.where;
+    }
+  }
 
   const nodes = {};
   for (const entry of (nodeEntries ?? []).map(entryFields)) {

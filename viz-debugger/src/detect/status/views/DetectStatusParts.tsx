@@ -93,6 +93,8 @@ export function PlacementSection({ row, state }: { row: DetectSourceRow | null; 
             : t('dms.pl.whyDs')}</dd>
           {unit !== null && <><dt>{t('dms.pl.share')}</dt>
             <dd>{t('dms.pl.shareText', { mb: unit.needMb ?? '—', basis: unit.needBasis ?? '—', fps: fps === undefined ? '—' : fps })}</dd></>}
+          {placement.from === 'plan' && plan !== null && placement.node !== null && plan.where?.[placement.node] !== undefined && <>
+            <dt>{t('dms.pl.runsAt')}</dt><dd>{plan.where[placement.node]}</dd></>}
           {placement.from === 'plan' && plan !== null && <><dt>{t('dms.pl.mode')}</dt>
             <dd>{t('dms.pl.modeText', { mode: plan.mode ?? '—', basis: plan.basis ?? '—' })}</dd>
             <dt>{t('dms.pl.plan')}</dt>
