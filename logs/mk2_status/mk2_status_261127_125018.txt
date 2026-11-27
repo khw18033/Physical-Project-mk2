@@ -1,0 +1,372 @@
+==================== MK2 전체 상태 · 2026-11-27 12:50:48 (30초마다 새로 보고 자동 저장 · v5) ====================
+요약
+  [OK] 노트북 서버   WSL Running · 서비스 3/3 · 임무 이력 응답(VZ 판 343 · 맨 위 261127 124012_CTL-go1-001) · DB 판 343 · 그림 2853 · 마지막 저장 11-27 12:50:31
+  [OK] 엣지 스택     떠 있음 4/4 (브로커 · Collector · Prometheus · 가용성 판정기)
+  [OK] 파이 -> 엣지  브리지 붙음 1/5 · 업무 메시지 1분당 약 36건(5초 3건 · 토픽 3개)
+  [!!] 관측(OTel)    Collector 받은 것 0 · Prometheus 의 OTel 지표 이름 0개   <- 받은 것 없음 - 말단이 관측을 보내지 않는다(파이 무변경이면 0)
+  [OK] Prometheus    대상 up 2/2 · 장치 online 2/2 · 10분 동안 끊김 없이 쌓임 0/2
+
+== A 노트북 서버 - WSL · 서비스(postgresql@18-main · mission-history · 백업 타이머) · 임무 이력 · DB · 백업
+    NAME            STATE           VERSION
+  * Ubuntu-26.04    Running         2
+  서비스: active · active · active
+  health: ok=True · 판 351개(검사 판 000101 포함) · 서버 시각 2026-11-27T03:50:49.369Z
+  최근 판 셋 (임무를 하나 끝내면 맨 위에 그 판이 온다):
+    261127 124012_CTL-go1-001 control
+    261127 110739_MSN-261123-02 mission
+    261127 110634_CTL-go1-001 control
+  DB(검사 판 빼고): 판 343 · 그림 행 2853 · 마지막 저장 2026-11-27T12:50:31+09:00 · DB 크기 15.9 MB
+  마지막 백업: daily_261126_220001
+== B 엣지 스택 - 듣는 포트로 판정
+  떠 있음 :1883  브로커 (Mosquitto + 파이 브리지)
+  떠 있음 :4317  Collector (OpenTelemetry)
+  떠 있음 :9090  엣지 Prometheus
+  떠 있음 :9105  가용성 판정기
+== C 파이 브리지 (1 = 붙음 · 0 = 끊김) · 5초 동안 새로 들어온 업무 메시지
+  pi7 1 · pi1 0 · pi3 0 · ds5 0 · pi10 0
+       1  zoneA/sensor/wl-001/heartbeat
+       1  zoneA/robot/go1-001/heartbeat
+       1  zoneA/robot/go1-001/state
+  보관 메시지 3개(지금 보낸 것 아님 - 예전에 남겨 둔 마지막 값): terminal/go1-sim/sim/state · zoneA/robot/go1-001/status · zoneA/sensor/wl-001/status
+== D Collector (OpenTelemetry) - 켠 뒤 누적
+  (아직 받은 것 없음 - 말단이 관측을 안 보내면 0 이다)
+== E 엣지 Prometheus - 대상 · 장치 판정 · 10분 동안 쌓인 수(15초마다 → 40, 36 이상이면 [끊김 없음]) · 심박 나이
+  대상 edge_availability  up     http://localhost:9105/metrics  마지막 수집 2.4초 전 
+  대상 edge_collector     up     http://localhost:8889/metrics  마지막 수집 14.3초 전 
+  장치 entity_id=go1-001,entity_type=robot,zone=zoneA  up=1 · 판정=0(online) · 10분 동안 2 · 심박 2.1초 전
+  장치 entity_id=wl-001,entity_type=sensor,zone=zoneA  up=1 · 판정=0(online) · 10분 동안 2 · 심박 1.3초 전
+  --- 쌓인 지표 이름 · 시계열 수 (hw_* · system_*)
+  hw_entity_up                                 2
+  hw_availability_state                        2
+  hw_heartbeat_age_seconds                     2
+== F 엣지에 쌓이는 파일
+  mosquitto.log         3,210,062 B  2026-11-26 15:46:30
+  otel_logs.jsonl          15,009 B  2026-11-20 20:06:17
+  otel_traces.jsonl        20,298 B  2026-11-20 20:06:17
+  Prometheus 저장(prom_data) 128.1 MB
+
+==================== MK2 전체 상태 · 2026-11-27 12:51:30 (30초마다 새로 보고 자동 저장 · v5) ====================
+요약
+  [OK] 노트북 서버   WSL Running · 서비스 3/3 · 임무 이력 응답(VZ 판 343 · 맨 위 261127 124012_CTL-go1-001) · DB 판 343 · 그림 2853 · 마지막 저장 11-27 12:50:31
+  [OK] 엣지 스택     떠 있음 4/4 (브로커 · Collector · Prometheus · 가용성 판정기)
+  [OK] 파이 -> 엣지  브리지 붙음 1/5 · 업무 메시지 1분당 약 60건(5초 5건 · 토픽 5개)
+  [!!] 관측(OTel)    Collector 받은 것 0 (지난번 뒤 +0) · Prometheus 의 OTel 지표 이름 0개   <- 받은 것 없음 - 말단이 관측을 보내지 않는다(파이 무변경이면 0)
+  [OK] Prometheus    대상 up 2/2 · 장치 online 2/2 · 10분 동안 끊김 없이 쌓임 0/2
+
+== A 노트북 서버 - WSL · 서비스(postgresql@18-main · mission-history · 백업 타이머) · 임무 이력 · DB · 백업
+    NAME            STATE           VERSION
+  * Ubuntu-26.04    Running         2
+  서비스: active · active · active
+  health: ok=True · 판 351개(검사 판 000101 포함) · 서버 시각 2026-11-27T03:51:31.935Z
+  최근 판 셋 (임무를 하나 끝내면 맨 위에 그 판이 온다):
+    261127 124012_CTL-go1-001 control
+    261127 110739_MSN-261123-02 mission
+    261127 110634_CTL-go1-001 control
+  DB(검사 판 빼고): 판 343 · 그림 행 2853 · 마지막 저장 2026-11-27T12:50:31+09:00 · DB 크기 15.9 MB
+  마지막 백업: daily_261126_220001
+== B 엣지 스택 - 듣는 포트로 판정
+  떠 있음 :1883  브로커 (Mosquitto + 파이 브리지)
+  떠 있음 :4317  Collector (OpenTelemetry)
+  떠 있음 :9090  엣지 Prometheus
+  떠 있음 :9105  가용성 판정기
+== C 파이 브리지 (1 = 붙음 · 0 = 끊김) · 5초 동안 새로 들어온 업무 메시지
+  pi7 1 · pi1 0 · pi3 0 · ds5 0 · pi10 0
+       1  zoneA/sensor/wl-001/status
+       1  zoneA/sensor/wl-001/heartbeat
+       1  zoneA/robot/go1-001/heartbeat
+       1  zoneA/robot/go1-001/status
+       1  zoneA/robot/go1-001/state
+  보관 메시지 3개(지금 보낸 것 아님 - 예전에 남겨 둔 마지막 값): terminal/go1-sim/sim/state · zoneA/robot/go1-001/status · zoneA/sensor/wl-001/status
+== D Collector (OpenTelemetry) - 켠 뒤 누적
+  (아직 받은 것 없음 - 말단이 관측을 안 보내면 0 이다)
+== E 엣지 Prometheus - 대상 · 장치 판정 · 10분 동안 쌓인 수(15초마다 → 40, 36 이상이면 [끊김 없음]) · 심박 나이
+  대상 edge_availability  up     http://localhost:9105/metrics  마지막 수집 14.5초 전 
+  대상 edge_collector     up     http://localhost:8889/metrics  마지막 수집 11.3초 전 
+  장치 entity_id=go1-001,entity_type=robot,zone=zoneA  up=1 · 판정=0(online) · 10분 동안 4 · 심박 2.1초 전
+  장치 entity_id=wl-001,entity_type=sensor,zone=zoneA  up=1 · 판정=0(online) · 10분 동안 4 · 심박 1.3초 전
+  --- 쌓인 지표 이름 · 시계열 수 (hw_* · system_*)
+  hw_entity_up                                 2
+  hw_availability_state                        2
+  hw_heartbeat_age_seconds                     2
+== F 엣지에 쌓이는 파일
+  mosquitto.log         3,210,062 B  2026-11-26 15:46:30
+  otel_logs.jsonl          15,009 B  2026-11-20 20:06:17
+  otel_traces.jsonl        20,298 B  2026-11-20 20:06:17
+  Prometheus 저장(prom_data) 128.1 MB
+
+==================== MK2 전체 상태 · 2026-11-27 12:52:13 (30초마다 새로 보고 자동 저장 · v5) ====================
+요약
+  [OK] 노트북 서버   WSL Running · 서비스 3/3 · 임무 이력 응답(VZ 판 343 · 맨 위 261127 124012_CTL-go1-001) · DB 판 343 · 그림 2853 · 마지막 저장 11-27 12:51:37
+  [OK] 엣지 스택     떠 있음 4/4 (브로커 · Collector · Prometheus · 가용성 판정기)
+  [OK] 파이 -> 엣지  브리지 붙음 1/5 · 업무 메시지 1분당 약 60건(5초 5건 · 토픽 5개)
+  [!!] 관측(OTel)    Collector 받은 것 0 (지난번 뒤 +0) · Prometheus 의 OTel 지표 이름 0개   <- 받은 것 없음 - 말단이 관측을 보내지 않는다(파이 무변경이면 0)
+  [OK] Prometheus    대상 up 2/2 · 장치 online 2/2 · 10분 동안 끊김 없이 쌓임 0/2
+
+== A 노트북 서버 - WSL · 서비스(postgresql@18-main · mission-history · 백업 타이머) · 임무 이력 · DB · 백업
+    NAME            STATE           VERSION
+  * Ubuntu-26.04    Running         2
+  서비스: active · active · active
+  health: ok=True · 판 351개(검사 판 000101 포함) · 서버 시각 2026-11-27T03:52:14.737Z
+  최근 판 셋 (임무를 하나 끝내면 맨 위에 그 판이 온다):
+    261127 124012_CTL-go1-001 control
+    261127 110739_MSN-261123-02 mission
+    261127 110634_CTL-go1-001 control
+  DB(검사 판 빼고): 판 343 · 그림 행 2853 · 마지막 저장 2026-11-27T12:51:37+09:00 · DB 크기 15.9 MB
+  마지막 백업: daily_261126_220001
+== B 엣지 스택 - 듣는 포트로 판정
+  떠 있음 :1883  브로커 (Mosquitto + 파이 브리지)
+  떠 있음 :4317  Collector (OpenTelemetry)
+  떠 있음 :9090  엣지 Prometheus
+  떠 있음 :9105  가용성 판정기
+== C 파이 브리지 (1 = 붙음 · 0 = 끊김) · 5초 동안 새로 들어온 업무 메시지
+  pi7 1 · pi1 0 · pi3 0 · ds5 0 · pi10 0
+       1  zoneA/sensor/wl-001/status
+       1  zoneA/sensor/wl-001/heartbeat
+       1  zoneA/robot/go1-001/heartbeat
+       1  zoneA/robot/go1-001/status
+       1  zoneA/robot/go1-001/state
+  보관 메시지 3개(지금 보낸 것 아님 - 예전에 남겨 둔 마지막 값): terminal/go1-sim/sim/state · zoneA/robot/go1-001/status · zoneA/sensor/wl-001/status
+== D Collector (OpenTelemetry) - 켠 뒤 누적
+  (아직 받은 것 없음 - 말단이 관측을 안 보내면 0 이다)
+== E 엣지 Prometheus - 대상 · 장치 판정 · 10분 동안 쌓인 수(15초마다 → 40, 36 이상이면 [끊김 없음]) · 심박 나이
+  대상 edge_availability  up     http://localhost:9105/metrics  마지막 수집 12.3초 전 
+  대상 edge_collector     up     http://localhost:8889/metrics  마지막 수집 9.2초 전 
+  장치 entity_id=go1-001,entity_type=robot,zone=zoneA  up=1 · 판정=0(online) · 10분 동안 7 · 심박 2.1초 전
+  장치 entity_id=wl-001,entity_type=sensor,zone=zoneA  up=1 · 판정=0(online) · 10분 동안 7 · 심박 1.3초 전
+  --- 쌓인 지표 이름 · 시계열 수 (hw_* · system_*)
+  hw_entity_up                                 2
+  hw_availability_state                        2
+  hw_heartbeat_age_seconds                     2
+== F 엣지에 쌓이는 파일
+  mosquitto.log         3,210,062 B  2026-11-26 15:46:30
+  otel_logs.jsonl          15,009 B  2026-11-20 20:06:17
+  otel_traces.jsonl        20,298 B  2026-11-20 20:06:17
+  Prometheus 저장(prom_data) 128.1 MB
+
+==================== MK2 전체 상태 · 2026-11-27 12:52:55 (30초마다 새로 보고 자동 저장 · v5) ====================
+요약
+  [OK] 노트북 서버   WSL Running · 서비스 3/3 · 임무 이력 응답(VZ 판 343 · 맨 위 261127 124012_CTL-go1-001) · DB 판 343 · 그림 2853 · 마지막 저장 11-27 12:52:37
+  [OK] 엣지 스택     떠 있음 4/4 (브로커 · Collector · Prometheus · 가용성 판정기)
+  [OK] 파이 -> 엣지  브리지 붙음 1/5 · 업무 메시지 1분당 약 36건(5초 3건 · 토픽 3개)
+  [!!] 관측(OTel)    Collector 받은 것 0 (지난번 뒤 +0) · Prometheus 의 OTel 지표 이름 0개   <- 받은 것 없음 - 말단이 관측을 보내지 않는다(파이 무변경이면 0)
+  [OK] Prometheus    대상 up 2/2 · 장치 online 2/2 · 10분 동안 끊김 없이 쌓임 0/2
+
+== A 노트북 서버 - WSL · 서비스(postgresql@18-main · mission-history · 백업 타이머) · 임무 이력 · DB · 백업
+    NAME            STATE           VERSION
+  * Ubuntu-26.04    Running         2
+  서비스: active · active · active
+  health: ok=True · 판 351개(검사 판 000101 포함) · 서버 시각 2026-11-27T03:52:56.485Z
+  최근 판 셋 (임무를 하나 끝내면 맨 위에 그 판이 온다):
+    261127 124012_CTL-go1-001 control
+    261127 110739_MSN-261123-02 mission
+    261127 110634_CTL-go1-001 control
+  DB(검사 판 빼고): 판 343 · 그림 행 2853 · 마지막 저장 2026-11-27T12:52:37+09:00 · DB 크기 15.9 MB
+  마지막 백업: daily_261126_220001
+== B 엣지 스택 - 듣는 포트로 판정
+  떠 있음 :1883  브로커 (Mosquitto + 파이 브리지)
+  떠 있음 :4317  Collector (OpenTelemetry)
+  떠 있음 :9090  엣지 Prometheus
+  떠 있음 :9105  가용성 판정기
+== C 파이 브리지 (1 = 붙음 · 0 = 끊김) · 5초 동안 새로 들어온 업무 메시지
+  pi7 1 · pi1 0 · pi3 0 · ds5 0 · pi10 0
+       1  zoneA/sensor/wl-001/heartbeat
+       1  zoneA/robot/go1-001/heartbeat
+       1  zoneA/robot/go1-001/state
+  보관 메시지 3개(지금 보낸 것 아님 - 예전에 남겨 둔 마지막 값): terminal/go1-sim/sim/state · zoneA/robot/go1-001/status · zoneA/sensor/wl-001/status
+== D Collector (OpenTelemetry) - 켠 뒤 누적
+  (아직 받은 것 없음 - 말단이 관측을 안 보내면 0 이다)
+== E 엣지 Prometheus - 대상 · 장치 판정 · 10분 동안 쌓인 수(15초마다 → 40, 36 이상이면 [끊김 없음]) · 심박 나이
+  대상 edge_availability  up     http://localhost:9105/metrics  마지막 수집 9.2초 전 
+  대상 edge_collector     up     http://localhost:8889/metrics  마지막 수집 6초 전 
+  장치 entity_id=go1-001,entity_type=robot,zone=zoneA  up=1 · 판정=0(online) · 10분 동안 10 · 심박 2.1초 전
+  장치 entity_id=wl-001,entity_type=sensor,zone=zoneA  up=1 · 판정=0(online) · 10분 동안 10 · 심박 1.3초 전
+  --- 쌓인 지표 이름 · 시계열 수 (hw_* · system_*)
+  hw_entity_up                                 2
+  hw_availability_state                        2
+  hw_heartbeat_age_seconds                     2
+== F 엣지에 쌓이는 파일
+  mosquitto.log         3,210,062 B  2026-11-26 15:46:30
+  otel_logs.jsonl          15,009 B  2026-11-20 20:06:17
+  otel_traces.jsonl        20,298 B  2026-11-20 20:06:17
+  Prometheus 저장(prom_data) 128.1 MB
+
+==================== MK2 전체 상태 · 2026-11-27 12:53:37 (30초마다 새로 보고 자동 저장 · v5) ====================
+요약
+  [OK] 노트북 서버   WSL Running · 서비스 3/3 · 임무 이력 응답(VZ 판 343 · 맨 위 261127 124012_CTL-go1-001) · DB 판 343 · 그림 2853 · 마지막 저장 11-27 12:53:21
+  [OK] 엣지 스택     떠 있음 4/4 (브로커 · Collector · Prometheus · 가용성 판정기)
+  [OK] 파이 -> 엣지  브리지 붙음 1/5 · 업무 메시지 1분당 약 36건(5초 3건 · 토픽 3개)
+  [!!] 관측(OTel)    Collector 받은 것 0 (지난번 뒤 +0) · Prometheus 의 OTel 지표 이름 0개   <- 받은 것 없음 - 말단이 관측을 보내지 않는다(파이 무변경이면 0)
+  [OK] Prometheus    대상 up 2/2 · 장치 online 2/2 · 10분 동안 끊김 없이 쌓임 0/2
+
+== A 노트북 서버 - WSL · 서비스(postgresql@18-main · mission-history · 백업 타이머) · 임무 이력 · DB · 백업
+    NAME            STATE           VERSION
+  * Ubuntu-26.04    Running         2
+  서비스: active · active · active
+  health: ok=True · 판 351개(검사 판 000101 포함) · 서버 시각 2026-11-27T03:53:38.531Z
+  최근 판 셋 (임무를 하나 끝내면 맨 위에 그 판이 온다):
+    261127 124012_CTL-go1-001 control
+    261127 110739_MSN-261123-02 mission
+    261127 110634_CTL-go1-001 control
+  DB(검사 판 빼고): 판 343 · 그림 행 2853 · 마지막 저장 2026-11-27T12:53:21+09:00 · DB 크기 15.9 MB
+  마지막 백업: daily_261126_220001
+== B 엣지 스택 - 듣는 포트로 판정
+  떠 있음 :1883  브로커 (Mosquitto + 파이 브리지)
+  떠 있음 :4317  Collector (OpenTelemetry)
+  떠 있음 :9090  엣지 Prometheus
+  떠 있음 :9105  가용성 판정기
+== C 파이 브리지 (1 = 붙음 · 0 = 끊김) · 5초 동안 새로 들어온 업무 메시지
+  pi7 1 · pi1 0 · pi3 0 · ds5 0 · pi10 0
+       1  zoneA/sensor/wl-001/heartbeat
+       1  zoneA/robot/go1-001/heartbeat
+       1  zoneA/robot/go1-001/state
+  보관 메시지 3개(지금 보낸 것 아님 - 예전에 남겨 둔 마지막 값): terminal/go1-sim/sim/state · zoneA/robot/go1-001/status · zoneA/sensor/wl-001/status
+== D Collector (OpenTelemetry) - 켠 뒤 누적
+  (아직 받은 것 없음 - 말단이 관측을 안 보내면 0 이다)
+== E 엣지 Prometheus - 대상 · 장치 판정 · 10분 동안 쌓인 수(15초마다 → 40, 36 이상이면 [끊김 없음]) · 심박 나이
+  대상 edge_availability  up     http://localhost:9105/metrics  마지막 수집 6.4초 전 
+  대상 edge_collector     up     http://localhost:8889/metrics  마지막 수집 3.3초 전 
+  장치 entity_id=go1-001,entity_type=robot,zone=zoneA  up=1 · 판정=0(online) · 10분 동안 13 · 심박 2초 전
+  장치 entity_id=wl-001,entity_type=sensor,zone=zoneA  up=1 · 판정=0(online) · 10분 동안 13 · 심박 1.2초 전
+  --- 쌓인 지표 이름 · 시계열 수 (hw_* · system_*)
+  hw_entity_up                                 2
+  hw_availability_state                        2
+  hw_heartbeat_age_seconds                     2
+== F 엣지에 쌓이는 파일
+  mosquitto.log         3,210,062 B  2026-11-26 15:46:30
+  otel_logs.jsonl          15,009 B  2026-11-20 20:06:17
+  otel_traces.jsonl        20,298 B  2026-11-20 20:06:17
+  Prometheus 저장(prom_data) 128.1 MB
+
+==================== MK2 전체 상태 · 2026-11-27 12:54:19 (30초마다 새로 보고 자동 저장 · v5) ====================
+요약
+  [OK] 노트북 서버   WSL Running · 서비스 3/3 · 임무 이력 응답(VZ 판 343 · 맨 위 261127 124012_CTL-go1-001) · DB 판 343 · 그림 2853 · 마지막 저장 11-27 12:53:21
+  [OK] 엣지 스택     떠 있음 4/4 (브로커 · Collector · Prometheus · 가용성 판정기)
+  [OK] 파이 -> 엣지  브리지 붙음 1/5 · 업무 메시지 1분당 약 48건(5초 4건 · 토픽 4개)
+  [!!] 관측(OTel)    Collector 받은 것 0 (지난번 뒤 +0) · Prometheus 의 OTel 지표 이름 0개   <- 받은 것 없음 - 말단이 관측을 보내지 않는다(파이 무변경이면 0)
+  [OK] Prometheus    대상 up 2/2 · 장치 online 2/2 · 10분 동안 끊김 없이 쌓임 0/2
+
+== A 노트북 서버 - WSL · 서비스(postgresql@18-main · mission-history · 백업 타이머) · 임무 이력 · DB · 백업
+    NAME            STATE           VERSION
+  * Ubuntu-26.04    Running         2
+  서비스: active · active · active
+  health: ok=True · 판 351개(검사 판 000101 포함) · 서버 시각 2026-11-27T03:54:20.693Z
+  최근 판 셋 (임무를 하나 끝내면 맨 위에 그 판이 온다):
+    261127 124012_CTL-go1-001 control
+    261127 110739_MSN-261123-02 mission
+    261127 110634_CTL-go1-001 control
+  DB(검사 판 빼고): 판 343 · 그림 행 2853 · 마지막 저장 2026-11-27T12:53:21+09:00 · DB 크기 15.9 MB
+  마지막 백업: daily_261126_220001
+== B 엣지 스택 - 듣는 포트로 판정
+  떠 있음 :1883  브로커 (Mosquitto + 파이 브리지)
+  떠 있음 :4317  Collector (OpenTelemetry)
+  떠 있음 :9090  엣지 Prometheus
+  떠 있음 :9105  가용성 판정기
+== C 파이 브리지 (1 = 붙음 · 0 = 끊김) · 5초 동안 새로 들어온 업무 메시지
+  pi7 1 · pi1 0 · pi3 0 · ds5 0 · pi10 0
+       1  zoneA/robot/go1-001/state
+       1  zoneA/robot/go1-001/heartbeat
+       1  zoneA/sensor/wl-001/heartbeat
+       1  zoneA/robot/go1-001/status
+  보관 메시지 3개(지금 보낸 것 아님 - 예전에 남겨 둔 마지막 값): terminal/go1-sim/sim/state · zoneA/robot/go1-001/status · zoneA/sensor/wl-001/status
+== D Collector (OpenTelemetry) - 켠 뒤 누적
+  (아직 받은 것 없음 - 말단이 관측을 안 보내면 0 이다)
+== E 엣지 Prometheus - 대상 · 장치 판정 · 10분 동안 쌓인 수(15초마다 → 40, 36 이상이면 [끊김 없음]) · 심박 나이
+  대상 edge_availability  up     http://localhost:9105/metrics  마지막 수집 3.3초 전 
+  대상 edge_collector     up     http://localhost:8889/metrics  마지막 수집 0.1초 전 
+  장치 entity_id=go1-001,entity_type=robot,zone=zoneA  up=1 · 판정=0(online) · 10분 동안 16 · 심박 2.1초 전
+  장치 entity_id=wl-001,entity_type=sensor,zone=zoneA  up=1 · 판정=0(online) · 10분 동안 16 · 심박 1.3초 전
+  --- 쌓인 지표 이름 · 시계열 수 (hw_* · system_*)
+  hw_entity_up                                 2
+  hw_availability_state                        2
+  hw_heartbeat_age_seconds                     2
+== F 엣지에 쌓이는 파일
+  mosquitto.log         3,210,062 B  2026-11-26 15:46:30
+  otel_logs.jsonl          15,009 B  2026-11-20 20:06:17
+  otel_traces.jsonl        20,298 B  2026-11-20 20:06:17
+  Prometheus 저장(prom_data) 128.1 MB
+
+==================== MK2 전체 상태 · 2026-11-27 12:55:01 (30초마다 새로 보고 자동 저장 · v5) ====================
+요약
+  [OK] 노트북 서버   WSL Running · 서비스 3/3 · 임무 이력 응답(VZ 판 343 · 맨 위 261127 124012_CTL-go1-001) · DB 판 343 · 그림 2853 · 마지막 저장 11-27 12:53:21
+  [OK] 엣지 스택     떠 있음 4/4 (브로커 · Collector · Prometheus · 가용성 판정기)
+  [OK] 파이 -> 엣지  브리지 붙음 1/5 · 업무 메시지 1분당 약 60건(5초 5건 · 토픽 5개)
+  [!!] 관측(OTel)    Collector 받은 것 0 (지난번 뒤 +0) · Prometheus 의 OTel 지표 이름 0개   <- 받은 것 없음 - 말단이 관측을 보내지 않는다(파이 무변경이면 0)
+  [OK] Prometheus    대상 up 2/2 · 장치 online 2/2 · 10분 동안 끊김 없이 쌓임 0/2
+
+== A 노트북 서버 - WSL · 서비스(postgresql@18-main · mission-history · 백업 타이머) · 임무 이력 · DB · 백업
+    NAME            STATE           VERSION
+  * Ubuntu-26.04    Running         2
+  서비스: active · active · active
+  health: ok=True · 판 351개(검사 판 000101 포함) · 서버 시각 2026-11-27T03:55:02.168Z
+  최근 판 셋 (임무를 하나 끝내면 맨 위에 그 판이 온다):
+    261127 124012_CTL-go1-001 control
+    261127 110739_MSN-261123-02 mission
+    261127 110634_CTL-go1-001 control
+  DB(검사 판 빼고): 판 343 · 그림 행 2853 · 마지막 저장 2026-11-27T12:53:21+09:00 · DB 크기 15.9 MB
+  마지막 백업: daily_261126_220001
+== B 엣지 스택 - 듣는 포트로 판정
+  떠 있음 :1883  브로커 (Mosquitto + 파이 브리지)
+  떠 있음 :4317  Collector (OpenTelemetry)
+  떠 있음 :9090  엣지 Prometheus
+  떠 있음 :9105  가용성 판정기
+== C 파이 브리지 (1 = 붙음 · 0 = 끊김) · 5초 동안 새로 들어온 업무 메시지
+  pi7 1 · pi1 0 · pi3 0 · ds5 0 · pi10 0
+       1  zoneA/sensor/wl-001/status
+       1  zoneA/sensor/wl-001/heartbeat
+       1  zoneA/robot/go1-001/heartbeat
+       1  zoneA/robot/go1-001/status
+       1  zoneA/robot/go1-001/state
+  보관 메시지 3개(지금 보낸 것 아님 - 예전에 남겨 둔 마지막 값): terminal/go1-sim/sim/state · zoneA/robot/go1-001/status · zoneA/sensor/wl-001/status
+== D Collector (OpenTelemetry) - 켠 뒤 누적
+  (아직 받은 것 없음 - 말단이 관측을 안 보내면 0 이다)
+== E 엣지 Prometheus - 대상 · 장치 판정 · 10분 동안 쌓인 수(15초마다 → 40, 36 이상이면 [끊김 없음]) · 심박 나이
+  대상 edge_availability  up     http://localhost:9105/metrics  마지막 수집 14.3초 전 
+  대상 edge_collector     up     http://localhost:8889/metrics  마지막 수집 11.1초 전 
+  장치 entity_id=go1-001,entity_type=robot,zone=zoneA  up=1 · 판정=0(online) · 10분 동안 18 · 심박 2초 전
+  장치 entity_id=wl-001,entity_type=sensor,zone=zoneA  up=1 · 판정=0(online) · 10분 동안 18 · 심박 1.3초 전
+  --- 쌓인 지표 이름 · 시계열 수 (hw_* · system_*)
+  hw_entity_up                                 2
+  hw_availability_state                        2
+  hw_heartbeat_age_seconds                     2
+== F 엣지에 쌓이는 파일
+  mosquitto.log         3,210,062 B  2026-11-26 15:46:30
+  otel_logs.jsonl          15,009 B  2026-11-20 20:06:17
+  otel_traces.jsonl        20,298 B  2026-11-20 20:06:17
+  Prometheus 저장(prom_data) 128.1 MB
+
+==================== MK2 전체 상태 · 2026-11-27 12:55:18 (30초마다 새로 보고 자동 저장 · v5) ====================
+요약
+  [OK] 노트북 서버   WSL Running · 서비스 3/3 · 임무 이력 응답(VZ 판 343 · 맨 위 261127 124012_CTL-go1-001) · DB 판 343 · 그림 2853 · 마지막 저장 11-27 12:53:21
+  [!!] 엣지 스택     떠 있음 0/4 (브로커 · Collector · Prometheus · 가용성 판정기)   <- 꺼짐: 브로커 (Mosquitto + 파이 브리지), Collector (OpenTelemetry), 엣지 Prometheus, 가용성 판정기
+  [!!] 파이 -> 엣지  브리지 붙음 0/0 · 업무 메시지 1분당 약 0건(5초 0건 · 토픽 0개)   <- 브로커(1883) 꺼짐
+  [!!] 관측(OTel)    Collector 받은 것 0 · Prometheus 의 OTel 지표 이름 0개   <- Collector 꺼짐
+  [!!] Prometheus    대상 up 0/0 · 장치 online 0/0 · 10분 동안 끊김 없이 쌓임 0/0   <- Prometheus 꺼짐
+
+== A 노트북 서버 - WSL · 서비스(postgresql@18-main · mission-history · 백업 타이머) · 임무 이력 · DB · 백업
+    NAME            STATE           VERSION
+  * Ubuntu-26.04    Running         2
+  서비스: active · active · active
+  health: ok=True · 판 351개(검사 판 000101 포함) · 서버 시각 2026-11-27T03:55:19.611Z
+  최근 판 셋 (임무를 하나 끝내면 맨 위에 그 판이 온다):
+    261127 124012_CTL-go1-001 control
+    261127 110739_MSN-261123-02 mission
+    261127 110634_CTL-go1-001 control
+  DB(검사 판 빼고): 판 343 · 그림 행 2853 · 마지막 저장 2026-11-27T12:53:21+09:00 · DB 크기 15.9 MB
+  마지막 백업: daily_261126_220001
+== B 엣지 스택 - 듣는 포트로 판정
+  꺼짐    :1883  브로커 (Mosquitto + 파이 브리지)
+  꺼짐    :4317  Collector (OpenTelemetry)
+  꺼짐    :9090  엣지 Prometheus
+  꺼짐    :9105  가용성 판정기
+== C 파이 브리지 (1 = 붙음 · 0 = 끊김) · 5초 동안 새로 들어온 업무 메시지
+  브로커(1883)가 꺼져 있어 볼 수 없다
+== D Collector (OpenTelemetry) - 켠 뒤 누적
+  8888 응답 없음 - Collector 가 꺼져 있다
+== E 엣지 Prometheus - 대상 · 장치 판정 · 10분 동안 쌓인 수(15초마다 → 40, 36 이상이면 [끊김 없음]) · 심박 나이
+  9090 응답 없음 - Prometheus 가 꺼져 있다
+== F 엣지에 쌓이는 파일
+  mosquitto.log         3,315,329 B  2026-11-27 12:55:15
+  otel_logs.jsonl          15,009 B  2026-11-20 20:06:17
+  otel_traces.jsonl        20,298 B  2026-11-20 20:06:17
+  Prometheus 저장(prom_data) 128.1 MB
+

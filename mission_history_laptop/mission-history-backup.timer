@@ -1,0 +1,15 @@
+# 임무 이력 서버 — 매일 22:00(KST) 백업. 시각을 Asia/Seoul 로 적어 서버 시간대 설정과 상관없다.
+# Persistent=true — 서버가 꺼져 있어 22:00 을 놓쳤으면 다음에 켜질 때 한 번 돈다.
+#
+# 확인:  systemctl list-timers mission-history-backup.timer --no-pager
+
+[Unit]
+Description=Mission history server daily backup at 22:00 KST
+
+[Timer]
+OnCalendar=*-*-* 22:00:00 Asia/Seoul
+Persistent=true
+Unit=mission-history-backup.service
+
+[Install]
+WantedBy=timers.target

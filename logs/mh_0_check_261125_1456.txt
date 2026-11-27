@@ -1,0 +1,116 @@
+# 0 준비 점검 2026-11-25 14:56:35 - 읽기만
+== 누구 · 어디
+khw67
+BOOK-4VG1EDPVI5
+100.125.104.23
+== 묶음 md5 (모두 OK)
+mission_history_server.py: OK
+schema_v2.sql: OK
+laptop_db_init.sql: OK
+backup.sh: OK
+mission-history.service: OK
+mission-history-backup.service: OK
+mission-history-backup.timer: OK
+mission-history.env.example: OK
+check-history-server.mjs: OK
+== 도구
+curl      /usr/bin/curl
+python3   /usr/bin/python3
+psql      no
+sftp      /usr/bin/sftp
+k3s       /usr/local/bin/k3s
+kubectl   /usr/local/bin/kubectl
+iptables  /usr/sbin/iptables
+nft       /usr/sbin/nft
+== 파이썬 venv 를 만들 수 있나
+Python 3.14.4
+python3-venv install ok installed 3.14.3-0ubuntu2
+python3.14-venv install ok installed 3.14.4-1ubuntu0.2
+venv 시험 ok
+== C.UTF-8
+C.utf8
+== 듣는 포트 (기준 - 설치 뒤와 비교)
+State  Recv-Q Send-Q                          Local Address:Port  Peer Address:Port
+LISTEN 0      512                                 127.0.0.1:36221      0.0.0.0:*   
+LISTEN 0      4096                100.125.104.23%tailscale0:50809      0.0.0.0:*   
+LISTEN 0      4096                                127.0.0.1:10258      0.0.0.0:*   
+LISTEN 0      4096                                127.0.0.1:10259      0.0.0.0:*   
+LISTEN 0      4096                                127.0.0.1:10256      0.0.0.0:*   
+LISTEN 0      4096                                127.0.0.1:10257      0.0.0.0:*   
+LISTEN 0      4096                                127.0.0.1:10248      0.0.0.0:*   
+LISTEN 0      4096                                127.0.0.1:10249      0.0.0.0:*   
+LISTEN 0      1000                           10.255.255.254:53         0.0.0.0:*   
+LISTEN 0      512                                 127.0.0.1:42483      0.0.0.0:*   
+LISTEN 0      511                                 127.0.0.1:34755      0.0.0.0:*   
+LISTEN 0      4096                                127.0.0.1:10010      0.0.0.0:*   
+LISTEN 0      511                                 127.0.0.1:33087      0.0.0.0:*   
+LISTEN 0      511                                 127.0.0.1:24002      0.0.0.0:*   
+LISTEN 0      512                                 127.0.0.1:39151      0.0.0.0:*   
+LISTEN 0      511                                 127.0.0.1:6380       0.0.0.0:*   
+LISTEN 0      511                                 127.0.0.1:6379       0.0.0.0:*   
+LISTEN 0      4096                                127.0.0.1:6444       0.0.0.0:*   
+LISTEN 0      511                                 127.0.0.1:39517      0.0.0.0:*   
+LISTEN 0      511                                 127.0.0.1:38241      0.0.0.0:*   
+LISTEN 0      511                            100.125.104.23:6380       0.0.0.0:*   
+LISTEN 0      511                                     [::1]:6379          [::]:*   
+LISTEN 0      4096                                        *:10250            *:*   
+LISTEN 0      4096                                        *:6443             *:*   
+LISTEN 0      4096   [fd7a:115c:a1e0::1c30:6818]%tailscale0:50555         [::]:*   
+== 도는 서비스 (기준)
+chrony.service              loaded active running chrony, an NTP client/server
+cron.service                loaded active running Regular background program processing daemon
+dbus.service                loaded active running D-Bus System Message Bus
+getty@tty1.service          loaded active running Getty on tty1
+k3s.service                 loaded active running Lightweight Kubernetes
+networkd-dispatcher.service loaded active running Dispatcher daemon for systemd-networkd
+polkit.service              loaded active running Authorization Manager
+redis-server.service        loaded active running Advanced key-value store
+rsyslog.service             loaded active running System Logging Service
+systemd-journald.service    loaded active running Journal Service
+systemd-logind.service      loaded active running User Login Management
+systemd-udevd.service       loaded active running Rule-based Manager for Device Events and Files
+tailscaled.service          loaded active running Tailscale node agent
+unattended-upgrades.service loaded active running Unattended Upgrades Shutdown
+user@1000.service           loaded active running User Manager for UID 1000
+== 실패한 유닛
+systemd-resolved.service        loaded failed failed Network Name Resolution
+systemd-resolved-monitor.socket loaded failed failed Resolve Monitor Varlink Socket
+systemd-resolved-varlink.socket loaded failed failed Resolve Service Varlink Socket
+== 쿠버네티스 유닛
+run-k3s-containerd-io.containerd.grpc.v1.cri-sandboxes-724c8c9ab010d541efbe1744b8b2a396ae3e91b2b12cc5453789ff4bf51b2939-shm.mount             loaded active mounted /run/k3s/containerd/io.containerd.grpc.v1.cri/sandboxes/724c8c9ab010d541efbe1744b8b2a396ae3e91b2b12cc5453789ff4bf51b2939/shm
+run-k3s-containerd-io.containerd.grpc.v1.cri-sandboxes-939d32b07d9c742aace3946bee5d8df2c9f66c527d8d2c41c41bcebdba35f26c-shm.mount             loaded active mounted /run/k3s/containerd/io.containerd.grpc.v1.cri/sandboxes/939d32b07d9c742aace3946bee5d8df2c9f66c527d8d2c41c41bcebdba35f26c/shm
+run-k3s-containerd-io.containerd.grpc.v1.cri-sandboxes-97d7014edca74d6f5b2c8cfa6a75940acf32067ebb1dbc5bddcd04d9b5490725-shm.mount             loaded active mounted /run/k3s/containerd/io.containerd.grpc.v1.cri/sandboxes/97d7014edca74d6f5b2c8cfa6a75940acf32067ebb1dbc5bddcd04d9b5490725/shm
+run-k3s-containerd-io.containerd.runtime.v2.task-k8s.io-0e77cea458c04d2646e7532004a22cc923d8e4c905c054034bfcd546db93c8b3-rootfs.mount         loaded active mounted /run/k3s/containerd/io.containerd.runtime.v2.task/k8s.io/0e77cea458c04d2646e7532004a22cc923d8e4c905c054034bfcd546db93c8b3/rootfs
+run-k3s-containerd-io.containerd.runtime.v2.task-k8s.io-409018280fddeb224280931c81954fe789ef3ec548267af2899448e9aad6b7e2-rootfs.mount         loaded active mounted /run/k3s/containerd/io.containerd.runtime.v2.task/k8s.io/409018280fddeb224280931c81954fe789ef3ec548267af2899448e9aad6b7e2/rootfs
+run-k3s-containerd-io.containerd.runtime.v2.task-k8s.io-724c8c9ab010d541efbe1744b8b2a396ae3e91b2b12cc5453789ff4bf51b2939-rootfs.mount         loaded active mounted /run/k3s/containerd/io.containerd.runtime.v2.task/k8s.io/724c8c9ab010d541efbe1744b8b2a396ae3e91b2b12cc5453789ff4bf51b2939/rootfs
+run-k3s-containerd-io.containerd.runtime.v2.task-k8s.io-939d32b07d9c742aace3946bee5d8df2c9f66c527d8d2c41c41bcebdba35f26c-rootfs.mount         loaded active mounted /run/k3s/containerd/io.containerd.runtime.v2.task/k8s.io/939d32b07d9c742aace3946bee5d8df2c9f66c527d8d2c41c41bcebdba35f26c/rootfs
+run-k3s-containerd-io.containerd.runtime.v2.task-k8s.io-97d7014edca74d6f5b2c8cfa6a75940acf32067ebb1dbc5bddcd04d9b5490725-rootfs.mount         loaded active mounted /run/k3s/containerd/io.containerd.runtime.v2.task/k8s.io/97d7014edca74d6f5b2c8cfa6a75940acf32067ebb1dbc5bddcd04d9b5490725/rootfs
+run-k3s-containerd-io.containerd.runtime.v2.task-k8s.io-c86f137bd20402442eb4345b6cbf50e2585e7dc50de3140f45498fd9b272428f-rootfs.mount         loaded active mounted /run/k3s/containerd/io.containerd.runtime.v2.task/k8s.io/c86f137bd20402442eb4345b6cbf50e2585e7dc50de3140f45498fd9b272428f/rootfs
+var-lib-kubelet-pods-61da0c39\x2dce65\x2d4716\x2d9665\x2d2a474fda3656-volumes-kubernetes.io\x7eprojected-kube\x2dapi\x2daccess\x2dqjd9s.mount loaded active mounted /var/lib/kubelet/pods/61da0c39-ce65-4716-9665-2a474fda3656/volumes/kubernetes.io~projected/kube-api-access-qjd9s
+var-lib-kubelet-pods-c2442333\x2d0dc5\x2d44cc\x2db75c\x2de26bafb98ccd-volumes-kubernetes.io\x7eprojected-kube\x2dapi\x2daccess\x2d5qw4w.mount loaded active mounted /var/lib/kubelet/pods/c2442333-0dc5-44cc-b75c-e26bafb98ccd/volumes/kubernetes.io~projected/kube-api-access-5qw4w
+var-lib-kubelet-pods-e8d1932a\x2d2bcd\x2d4b55\x2d8f44\x2d4037cca7da1d-volumes-kubernetes.io\x7eprojected-kube\x2dapi\x2daccess\x2dk4ksj.mount loaded active mounted /var/lib/kubelet/pods/e8d1932a-2bcd-4b55-8f44-4037cca7da1d/volumes/kubernetes.io~projected/kube-api-access-k4ksj
+var-lib-kubelet.mount                                                                                                                         loaded active mounted /var/lib/kubelet
+k3s.service                                                                                                                                   loaded active running Lightweight Kubernetes
+kubepods-besteffort-podc2442333_0dc5_44cc_b75c_e26bafb98ccd.slice                                                                             loaded active active  libcontainer container kubepods-besteffort-podc2442333_0dc5_44cc_b75c_e26bafb98ccd.slice
+kubepods-besteffort.slice                                                                                                                     loaded active active  libcontainer container kubepods-besteffort.slice
+kubepods-burstable-pod61da0c39_ce65_4716_9665_2a474fda3656.slice                                                                              loaded active active  libcontainer container kubepods-burstable-pod61da0c39_ce65_4716_9665_2a474fda3656.slice
+kubepods-burstable-pode8d1932a_2bcd_4b55_8f44_4037cca7da1d.slice                                                                              loaded active active  libcontainer container kubepods-burstable-pode8d1932a_2bcd_4b55_8f44_4037cca7da1d.slice
+kubepods-burstable.slice                                                                                                                      loaded active active  libcontainer container kubepods-burstable.slice
+kubepods.slice                                                                                                                                loaded active active  libcontainer container kubepods.slice
+== 메모리 · 디스크
+               total        used        free      shared  buff/cache   available
+Mem:            15Gi       7.8Gi       3.0Gi       588Mi       5.4Gi       7.6Gi
+Swap:          4.0Gi       372Mi       3.6Gi
+Filesystem      Size  Used Avail Use% Mounted on
+/dev/sdd       1007G  145G  811G  16% /
+== 5432 · 8850 을 가로채는 규칙 (sudo - 읽기만)
+iptables: 없음
+nft: 없음
+== 쿠버네티스 서비스 포트 (sudo - 읽기만)
+NAMESPACE     NAME             TYPE        CLUSTER-IP      EXTERNAL-IP   PORT(S)                  AGE   SELECTOR
+default       kubernetes       ClusterIP   10.43.0.1       <none>        443/TCP                  18h   <none>
+kube-system   kube-dns         ClusterIP   10.43.0.10      <none>        53/UDP,53/TCP,9153/TCP   18h   k8s-app=kube-dns
+kube-system   metrics-server   ClusterIP   10.43.161.117   <none>        443/TCP                  18h   k8s-app=metrics-server
+== 설치 자리 (No such file 이어야 한다)
+ls: cannot access '/home/khw67/mission_history': No such file or directory
+# 끝 14:56:41

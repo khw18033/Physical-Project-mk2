@@ -1,0 +1,142 @@
+# 1-2 설치 2026-11-25 15:31:32
+Reading package lists...
+Building dependency tree...
+Reading state information...
+Solving dependencies...
+The following additional packages will be installed:
+  libicu78 libjson-perl libpq5 liburing2 libxslt1.1 postgresql-18
+  postgresql-client-18 postgresql-client-common postgresql-common ssl-cert
+Suggested packages:
+  libpq-oauth postgresql-doc postgresql-doc-18
+Recommended packages:
+  libjson-xs-perl postgresql-18-jit sysstat
+The following NEW packages will be installed:
+  libicu78 libjson-perl libpq5 liburing2 libxslt1.1 postgresql postgresql-18
+  postgresql-client-18 postgresql-client-common postgresql-common ssl-cert
+0 upgraded, 11 newly installed, 0 to remove and 46 not upgraded.
+Need to get 19.5 MB of archives.
+After this operation, 67.8 MB of additional disk space will be used.
+Get:1 http://archive.ubuntu.com/ubuntu resolute/main amd64 libjson-perl all 4.10000-1 [81.9 kB]
+Get:2 http://archive.ubuntu.com/ubuntu resolute/main amd64 postgresql-client-common all 290ubuntu1 [49.4 kB]
+Get:3 http://archive.ubuntu.com/ubuntu resolute/main amd64 ssl-cert all 1.1.3ubuntu2 [18.8 kB]
+Get:4 http://archive.ubuntu.com/ubuntu resolute/main amd64 postgresql-common all 290ubuntu1 [101 kB]
+Get:5 http://archive.ubuntu.com/ubuntu resolute/main amd64 libicu78 amd64 78.2-2ubuntu1 [11.5 MB]
+Get:6 http://archive.ubuntu.com/ubuntu resolute-updates/main amd64 libpq5 amd64 18.6-0ubuntu0.26.04.1 [163 kB]
+Get:7 http://archive.ubuntu.com/ubuntu resolute/main amd64 liburing2 amd64 2.14-1 [25.4 kB]
+Get:8 http://archive.ubuntu.com/ubuntu resolute/main amd64 libxslt1.1 amd64 1.1.45-0.1 [165 kB]
+Get:9 http://archive.ubuntu.com/ubuntu resolute-updates/main amd64 postgresql-client-18 amd64 18.6-0ubuntu0.26.04.1 [1401 kB]
+Get:10 http://archive.ubuntu.com/ubuntu resolute-updates/main amd64 postgresql-18 amd64 18.6-0ubuntu0.26.04.1 [6002 kB]
+Get:11 http://archive.ubuntu.com/ubuntu resolute/main amd64 postgresql all 18+290ubuntu1 [18.6 kB]
+Preconfiguring packages ...
+/var/cache/debconf/tmp.ci/postgresql.config.FPFIHJ: 12: pg_lsclusters: not found
+Fetched 19.5 MB in 4s (4906 kB/s)
+Selecting previously unselected package libjson-perl.
+(Reading database ... (Reading database ... 5%(Reading database ... 10%(Reading database ... 15%(Reading database ... 20%(Reading database ... 25%(Reading database ... 30%(Reading database ... 35%(Reading database ... 40%(Reading database ... 45%(Reading database ... 50%(Reading database ... 55%(Reading database ... 60%(Reading database ... 65%(Reading database ... 70%(Reading database ... 75%(Reading database ... 80%(Reading database ... 85%(Reading database ... 90%(Reading database ... 95%(Reading database ... 100%(Reading database ... 45237 files and directories currently installed.)
+Preparing to unpack .../00-libjson-perl_4.10000-1_all.deb ...
+Unpacking libjson-perl (4.10000-1) ...
+Selecting previously unselected package postgresql-client-common.
+Preparing to unpack .../01-postgresql-client-common_290ubuntu1_all.deb ...
+Unpacking postgresql-client-common (290ubuntu1) ...
+Selecting previously unselected package ssl-cert.
+Preparing to unpack .../02-ssl-cert_1.1.3ubuntu2_all.deb ...
+Unpacking ssl-cert (1.1.3ubuntu2) ...
+Selecting previously unselected package postgresql-common.
+Preparing to unpack .../03-postgresql-common_290ubuntu1_all.deb ...
+Adding 'diversion of /usr/bin/pg_config to /usr/bin/pg_config.libpq-dev by postgresql-common'
+Unpacking postgresql-common (290ubuntu1) ...
+Selecting previously unselected package libicu78:amd64.
+Preparing to unpack .../04-libicu78_78.2-2ubuntu1_amd64.deb ...
+Unpacking libicu78:amd64 (78.2-2ubuntu1) ...
+Selecting previously unselected package libpq5:amd64.
+Preparing to unpack .../05-libpq5_18.6-0ubuntu0.26.04.1_amd64.deb ...
+Unpacking libpq5:amd64 (18.6-0ubuntu0.26.04.1) ...
+Selecting previously unselected package liburing2:amd64.
+Preparing to unpack .../06-liburing2_2.14-1_amd64.deb ...
+Unpacking liburing2:amd64 (2.14-1) ...
+Selecting previously unselected package libxslt1.1:amd64.
+Preparing to unpack .../07-libxslt1.1_1.1.45-0.1_amd64.deb ...
+Unpacking libxslt1.1:amd64 (1.1.45-0.1) ...
+Selecting previously unselected package postgresql-client-18.
+Preparing to unpack .../08-postgresql-client-18_18.6-0ubuntu0.26.04.1_amd64.deb ...
+Unpacking postgresql-client-18 (18.6-0ubuntu0.26.04.1) ...
+Selecting previously unselected package postgresql-18.
+Preparing to unpack .../09-postgresql-18_18.6-0ubuntu0.26.04.1_amd64.deb ...
+Unpacking postgresql-18 (18.6-0ubuntu0.26.04.1) ...
+Selecting previously unselected package postgresql.
+Preparing to unpack .../10-postgresql_18+290ubuntu1_all.deb ...
+Unpacking postgresql (18+290ubuntu1) ...
+Setting up postgresql-client-common (290ubuntu1) ...
+Setting up libpq5:amd64 (18.6-0ubuntu0.26.04.1) ...
+Setting up libicu78:amd64 (78.2-2ubuntu1) ...
+Setting up ssl-cert (1.1.3ubuntu2) ...
+Created symlink '/etc/systemd/system/multi-user.target.wants/ssl-cert.service' → '/usr/lib/systemd/system/ssl-cert.service'.
+Setting up libjson-perl (4.10000-1) ...
+Setting up libxslt1.1:amd64 (1.1.45-0.1) ...
+Setting up liburing2:amd64 (2.14-1) ...
+Setting up postgresql-client-18 (18.6-0ubuntu0.26.04.1) ...
+update-alternatives: using /usr/share/postgresql/18/man/man1/psql.1.gz to provide /usr/share/man/man1/psql.1.gz (psql.1.gz) in auto mode
+Setting up postgresql-common (290ubuntu1) ...
+Creating config file /etc/postgresql-common/createcluster.conf with new version
+Building PostgreSQL dictionaries from installed myspell/hunspell packages...
+Removing obsolete dictionary files:
+Created symlink '/etc/systemd/system/multi-user.target.wants/postgresql.service' → '/usr/lib/systemd/system/postgresql.service'.
+Setting up postgresql-18 (18.6-0ubuntu0.26.04.1) ...
+Creating new PostgreSQL cluster 18/main ...
+/usr/lib/postgresql/18/bin/initdb -D /var/lib/postgresql/18/main --auth-local peer --auth-host scram-sha-256 --no-instructions
+The files belonging to this database system will be owned by user "postgres".
+This user must also own the server process.
+
+The database cluster will be initialized with locale "C.UTF-8".
+The default database encoding has accordingly been set to "UTF8".
+The default text search configuration will be set to "english".
+
+Data page checksums are enabled.
+
+fixing permissions on existing directory /var/lib/postgresql/18/main ... ok
+creating subdirectories ... ok
+selecting dynamic shared memory implementation ... posix
+selecting default "max_connections" ... 100
+selecting default "shared_buffers" ... 128MB
+selecting default time zone ... Asia/Seoul
+creating configuration files ... ok
+running bootstrap script ... ok
+performing post-bootstrap initialization ... ok
+syncing data to disk ... ok
+Setting up postgresql (18+290ubuntu1) ...
+Processing triggers for man-db (2.13.1-1build1) ...
+Processing triggers for libc-bin (2.43-2ubuntu2.7) ...
+== 깔린 판
+libpq5 18.6-0ubuntu0.26.04.1
+postgresql 18+290ubuntu1
+postgresql-15-pllua 
+postgresql-17-pllua 
+postgresql-18 18.6-0ubuntu0.26.04.1
+postgresql-18-jit 
+postgresql-9.1 
+postgresql-client 
+postgresql-client-18 18.6-0ubuntu0.26.04.1
+postgresql-client-common 290ubuntu1
+postgresql-common 290ubuntu1
+postgresql-contrib 
+postgresql-contrib-18 
+postgresql-doc 
+postgresql-doc-18 
+postgresql-pgmp 
+== 클러스터
+Ver Cluster Port Status Owner    Data directory              Log file
+18  main    5432 online postgres /var/lib/postgresql/18/main /var/log/postgresql/postgresql-18-main.log
+== 유닛
+enabled
+active
+active
+== 듣는 자리 (127.0.0.1 과 ::1 의 5432 만)
+LISTEN 0      200                                 127.0.0.1:5432       0.0.0.0:*   
+localhost
+PostgreSQL 18.6 (Ubuntu 18.6-0ubuntu0.26.04.1) on x86_64-pc-linux-gnu, compiled by gcc (Ubuntu 15.2.0-16ubuntu1) 15.2.0, 64-bit
+== DS 쪽 포트가 그대로인가 (단계 0 의 기준과 같아야)
+LISTEN 0      4096                                127.0.0.1:10010      0.0.0.0:*   
+LISTEN 0      511                                 127.0.0.1:6380       0.0.0.0:*   
+LISTEN 0      511                                 127.0.0.1:6379       0.0.0.0:*   
+LISTEN 0      511                            100.125.104.23:6380       0.0.0.0:*   
+LISTEN 0      511                                     [::1]:6379          [::]:*   
+LISTEN 0      4096                                        *:6443             *:*   

@@ -1,0 +1,7 @@
+# T3 재시작 2026-11-25 18:37:37
+== 전
+{"ok": true, "service": "mission-history", "apiVersion": 1, "serverTime": "2026-11-25T09:37:37.135Z", "runCount": 335}  [200]
+== 프로그램 재시작 뒤
+{"ok": true, "service": "mission-history", "apiVersion": 1, "serverTime": "2026-11-25T09:37:40.692Z", "runCount": 335}  [200]
+== DB 재시작 뒤
+{"ok": true, "service": "mission-history", "apiVersion": 1, "serverTime": "2026-11-25T09:37:48.154Z", "runCount": 335}  [200]

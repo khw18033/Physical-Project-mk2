@@ -1,0 +1,31 @@
+# 2 자리 · 파일 2026-11-25 15:51:13
+mission_history_server.py: OK
+schema_v2.sql: OK
+laptop_db_init.sql: OK
+backup.sh: OK
+mission-history.service: OK
+mission-history-backup.service: OK
+mission-history-backup.timer: OK
+mission-history.env.example: OK
+check-history-server.mjs: OK
+== 놓인 것 (md5 가 MD5SUMS 와 같아야)
+8ed1d6cacd75288070b79502a84e7d73  backup.sh
+6f790a30b0b0fab0389a7ee9296a98c5  laptop_db_init.sql
+6fe2b1d0d405ada33b67a9e26be307bb  mission_history_server.py
+8184236f9d11eeef14af7417468d7349  schema_v2.sql
+/home/khw67/mission_history:
+total 20
+drwxr-x---  5 khw67 khw67 4096 Nov 25 15:51 .
+drwxr-x--- 19 khw67 khw67 4096 Nov 25 15:51 ..
+drwxr-xr-x  2 khw67 khw67 4096 Nov 25 15:51 backups
+drwxr-xr-x  2 khw67 khw67 4096 Nov 25 15:51 images
+drwxr-xr-x  2 khw67 khw67 4096 Nov 25 15:51 server
+
+/home/khw67/mission_history/server:
+total 52
+drwxr-xr-x 2 khw67 khw67  4096 Nov 25 15:51 .
+drwxr-x--- 5 khw67 khw67  4096 Nov 25 15:51 ..
+-rwxr-xr-x 1 khw67 khw67  4342 Nov 25 15:51 backup.sh
+-rw-r--r-- 1 khw67 khw67  3189 Nov 25 15:51 laptop_db_init.sql
+-rw-r--r-- 1 khw67 khw67 26821 Nov 25 15:51 mission_history_server.py
+-rw-r--r-- 1 khw67 khw67  3739 Nov 25 15:51 schema_v2.sql

@@ -1,0 +1,27 @@
+# 6 유닛 2026-11-25 18:23:39
+Created symlink '/etc/systemd/system/multi-user.target.wants/mission-history.service' → '/etc/systemd/system/mission-history.service'.
+Created symlink '/etc/systemd/system/timers.target.wants/mission-history-backup.timer' → '/etc/systemd/system/mission-history-backup.timer'.
+● mission-history.service - Mission history server (VZ mission records, HTTP :8850)
+     Loaded: loaded (/etc/systemd/system/mission-history.service; enabled; preset: enabled)
+     Active: active (running) since Wed 2026-11-25 18:23:39 KST; 3s ago
+ Invocation: aa7cf53e6fae4512849e3e79ce391eb0
+   Main PID: 588736 (python)
+      Tasks: 1 (limit: 18914)
+     Memory: 24.6M (peak: 25.1M)
+        CPU: 115ms
+     CGroup: /system.slice/mission-history.service
+             └─588736 /home/khw67/mission_history/venv/bin/python /home/khw67/mission_history/server/mission_history_server.py
+
+Nov 25 18:23:39 BOOK-4VG1EDPVI5 systemd[1]: Started mission-history.service - Mission history server (VZ mission records, HTTP :8850).
+NEXT                            LEFT LAST PASSED UNIT                         ACTIVATES
+Wed 2026-11-25 22:00:00 KST 3h 36min -         - mission-history-backup.timer mission-history-backup.service
+
+1 timers listed.
+Pass --all to see loaded but inactive timers, too.
+== 켜질 때 같이 뜨나
+enabled
+enabled
+enabled
+== 듣는 자리
+LISTEN 0      5                              100.125.104.23:8850       0.0.0.0:*   
+LISTEN 0      200                                 127.0.0.1:5432       0.0.0.0:*   

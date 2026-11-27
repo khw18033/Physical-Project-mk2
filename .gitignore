@@ -21,3 +21,13 @@ logs/otel_*.jsonl*
 __pycache__/
 *.pyc
 .pytest_cache/
+
+# Laptop server work (2026-11-25~27) - everything is uploaded EXCEPT these:
+# DB account password file (also inside the 261126 zip below - the zip's folders are uploaded as-is instead)
+logs/261125 노트북 db 계정 비번.txt
+261126 노트북 mk2 서버화 관련.zip
+# Copies of other code (VZ branch of this repo / DS team repo) - not ours to re-upload here
+Physical-Project-mk2-khw_VZ/
+Physical-Project-mk2-khw_VZ.zip
+physical_demo-data_stream/
+physical_demo-data_stream (1).zip

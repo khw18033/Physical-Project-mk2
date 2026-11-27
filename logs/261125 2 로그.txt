@@ -1,0 +1,97 @@
+khw67@BOOK-4VG1EDPVI5:~$ 
+khw67@BOOK-4VG1EDPVI5:~$ ( set -e
+  SRC=/mnt/c/mk2_edge/mission_history_laptop; MH=/home/khw67/mission_history
+  echo "# 2 자리 · 파일 $(date '+%F %T')"
+  (cd "$SRC" && md5sum -c MD5SUMS.txt)
+  if [ -e "$MH" ]; then echo "!! $MH 가 이미 있다 - 덮어쓰지 않고 멈춘다"; exit 1; fi
+  mkdir -p "$MH/server" "$MH/images" "$MH/backups"
+  chmod 750 "$MH"
+  install -m 644 "$SRC/mission_history_server.py" "$SRC/schema_v2.sql" "$SRC/laptop_db_init.sql" "$MH/server/"
+  install -m 755 "$SRC/backup.sh" "$MH/server/"
+  echo "== 놓인 것 (md5 가 MD5SUMS 와 같아야)"; (cd "$MH/server" && md5sum *)
+  ls -la "$MH" "$MH/server"
+) 2>&1 | tee /mnt/c/mk2_edge/logs/mh_2_files_$(date +%y%m%d_%H%M).txt
+  if [ -e "$MH" ]; then echo "( echo "# 0 추가 - DS 끄기 스크립트가 무엇을 끄나 (읽기만) $(date '+%F %T')";   T=/home/khw67/data_stream/tools;   ls -la "$T"/ds_run.sh "$T"/ds_stop.sh "$T"/ds_status.sh;   echo "== ds_stop.sh 전문"; cat "$T/ds_stop.sh";   echo "== ds_run.sh 전문"; cat "$T/ds_run.sh"; ) 2>&1 | tee /mnt/c/mk2_edge/logs/mh_0_dsstop_$(date +%y%m%d_%H%M).txt $MH 가 이미 있다 - 덮어쓰지 않고 멈춘다"; exit 1; fi
+bash: syntax error near unexpected token `('
+mkdir: Permission denied
+mkdir: Permission denied
+mkdir: Permission denied
+chmod: cannot access '': No such file or directory
+install: target '/server/' is not a directory
+install: cannot stat '/backup.sh': No such file or directory
+== 놓인 것 (md5 가 MD5SUMS 와 같아야)
+bash: cd: /server: No such file or directory
+ls: cannot access '': No such file or directory
+ls: cannot access '/server': No such file or directory
+bash: syntax error near unexpected token `)'
+khw67@BOOK-4VG1EDPVI5:~$ ( set -e
+  SRC=/mnt/c/mk2_edge/mission_history_laptop; MH=/home/khw67/mission_history
+  echo "# 2 자리 · 파일 $(date '+%F %T')"
+  (cd "$SRC" && md5sum -c MD5SUMS.txt)
+  if [ -e "$MH" ]; then echo "!! $MH 가 이미 있다 - 덮어쓰지 않고 멈춘다"; exit 1; fi
+  mkdir -p "$MH/server" "$MH/images" "$MH/backups"
+  chmod 750 "$MH"
+  install -m 644 "$SRC/mission_history_server.py" "$SRC/schema_v2.sql" "$SRC/laptop_db_init.sql" "$MH/server/"
+  install -m 755 "$SRC/backup.sh" "$MH/server/"
+  echo "== 놓인 것 (md5 가 MD5SUMS 와 같아야)"; (cd "$MH/server" && md5sum *)
+  ls -la "$MH" "$MH/server"
+) 2>&1 | tee /mnt/c/mk2_edge/logs/mh_2_files_$(date +%y%m%d_%H%M).txt
+  if [ -e "$MH" ]; then echo ") 2>&1 | tee /mnt/c/mk2_edge/logs/mh_2_files_$(date +%y%m%d_%H%M).txt $MH 가 이미 있다 - 덮어쓰지 않고 멈춘다"; exit 1; fi
+# 2 자리 · 파일 2026-11-25 15:51:13
+mission_history_server.py: OK
+schema_v2.sql: OK
+laptop_db_init.sql: OK
+backup.sh: OK
+mission-history.service: OK
+mission-history-backup.service: OK
+mission-history-backup.timer: OK
+mission-history.env.example: OK
+check-history-server.mjs: OK
+== 놓인 것 (md5 가 MD5SUMS 와 같아야)
+8ed1d6cacd75288070b79502a84e7d73  backup.sh
+6f790a30b0b0fab0389a7ee9296a98c5  laptop_db_init.sql
+6fe2b1d0d405ada33b67a9e26be307bb  mission_history_server.py
+8184236f9d11eeef14af7417468d7349  schema_v2.sql
+/home/khw67/mission_history:
+total 20
+drwxr-x---  5 khw67 khw67 4096 Nov 25 15:51 .
+drwxr-x--- 19 khw67 khw67 4096 Nov 25 15:51 ..
+drwxr-xr-x  2 khw67 khw67 4096 Nov 25 15:51 backups
+drwxr-xr-x  2 khw67 khw67 4096 Nov 25 15:51 images
+drwxr-xr-x  2 khw67 khw67 4096 Nov 25 15:51 server
+
+/home/khw67/mission_history/server:
+total 52
+drwxr-xr-x 2 khw67 khw67  4096 Nov 25 15:51 .
+drwxr-x--- 5 khw67 khw67  4096 Nov 25 15:51 ..
+-rwxr-xr-x 1 khw67 khw67  4342 Nov 25 15:51 backup.sh
+-rw-r--r-- 1 khw67 khw67  3189 Nov 25 15:51 laptop_db_init.sql
+-rw-r--r-- 1 khw67 khw67 26821 Nov 25 15:51 mission_history_server.py
+-rw-r--r-- 1 khw67 khw67  3739 Nov 25 15:51 schema_v2.sql
+khw67@BOOK-4VG1EDPVI5:~$ 
+khw67@BOOK-4VG1EDPVI5:~$ ( set -e
+  SRC=/mnt/c/mk2_edge/mission_history_laptop; MH=/home/khw67/mission_history
+  echo "# 2 자리 · 파일 $(date '+%F %T')"
+  (cd "$SRC" && md5sum -c MD5SUMS.txt)
+  if [ -e "$MH" ]; then echo "!! $MH 가 이미 있다 - 덮어쓰지 않고 멈춘다"; exit 1; fi
+  mkdir -p "$MH/server" "$MH/images" "$MH/backups"
+  chmod 750 "$MH"
+  install -m 644 "$SRC/mission_history_server.py" "$SRC/schema_v2.sql" "$SRC/laptop_db_init.sql" "$MH/server/"
+  install -m 755 "$SRC/backup.sh" "$MH/server/"
+  echo "== 놓인 것 (md5 가 MD5SUMS 와 같아야)"; (cd "$MH/server" && md5sum *)
+  ls -la "$MH" "$MH/server"
+) 2>&1 | tee /mnt/c/mk2_edge/logs/mh_2_files_$(date +%y%m%d_%H%M).txt
+  if [ -e "$MH" ]; then echo "( set -e;   SRC=/mnt/c/mk2_edge/mission_history_laptop; MH=/home/khw67/mission_history;   echo "# 2 자리 · 파일 $(date '+%F %T')";   (cd "$SRC" && md5sum -c MD5SUMS.txt);   if [ -e "$MH" ]; then echo ") 2>&1 | tee /mnt/c/mk2_edge/logs/mh_2_files_$(date +%y%m%d_%H%M).txt $MH 가 이미 있다 - 덮어쓰지 않고 멈춘다"; exit 1; fi;   mkdir -p "$MH/server" "$MH/images" "$MH/backups";   chmod 750 "$MH";   install -m 644 "$SRC/mission_history_server.py" "$SRC/schema_v2.sql" "$SRC/laptop_db_init.sql" "$MH/server/";   install -m 755 "$SRC/backup.sh" "$MH/server/";   echo "== 놓인 것 (md5 가 MD5SUMS 와 같아야)"; (cd "$MH/server" && md5sum *);   ls -la "$MH" "$MH/server"; ) 2>&1 | tee /mnt/c/mk2_edge/logs/mh_2_files_$(date +%y%m%d_%H%M).txt $MH 가 이미 있다 - 덮어쓰지 않고 멈춘다"; exit 1; fi
+bash: syntax error near unexpected token `)'
+mkdir: Permission denied
+mkdir: Permission denied
+mkdir: Permission denied
+chmod: cannot access '': No such file or directory
+install: target '/server/' is not a directory
+install: cannot stat '/backup.sh': No such file or directory
+== 놓인 것 (md5 가 MD5SUMS 와 같아야)
+bash: cd: /server: No such file or directory
+ls: cannot access '': No such file or directory
+ls: cannot access '/server': No such file or directory
+bash: syntax error near unexpected token `)'
+khw67@BOOK-4VG1EDPVI5:~$ 

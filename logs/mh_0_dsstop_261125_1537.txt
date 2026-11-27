@@ -1,0 +1,58 @@
+# 0 추가 - DS 끄기 스크립트가 무엇을 끄나 (읽기만) 2026-11-25 15:37:15
+-rwxr-xr-x 1 khw67 khw67 1388 Nov 23 14:47 /home/khw67/data_stream/tools/ds_run.sh
+-rwxr-xr-x 1 khw67 khw67  527 Nov 23 14:47 /home/khw67/data_stream/tools/ds_status.sh
+-rwxr-xr-x 1 khw67 khw67 1164 Nov 23 14:47 /home/khw67/data_stream/tools/ds_stop.sh
+== ds_stop.sh 전문
+#!/usr/bin/env bash
+# ds_stop.sh <이름>... — ds_run.sh 로 띄운 묶음을 끈다. SIGINT(Ctrl+C 와 같다) → 기다림 → SIGTERM → SIGKILL.
+# 끄기 전에 그 번호의 명령줄이 이름표에 적힌 명령과 같은지 본다 — 번호가 재사용된 엉뚱한 프로세스를 끄지 않는다.
+set -u
+dir=/tmp/ds_launcher
+wait_s="${DS_STOP_WAIT:-8}"
+for name in "$@"; do
+    f="$dir/$name.pid"
+    [ -f "$f" ] || { echo "$name: 없음"; continue; }
+    pid="$(cut -f1 "$f")"; cmd="$(cut -f2- "$f")"
+    now="$(tr '\0' ' ' < /proc/"$pid"/cmdline 2>/dev/null | sed 's/ $//')"
+    if [ -z "$now" ]; then echo "$name: 이미 끝남"; rm -f "$f"; continue; fi
+    if [ "$now" != "$cmd" ]; then echo "$name: 번호 $pid 가 다른 프로세스 — 건드리지 않음"; rm -f "$f"; continue; fi
+    touch "$dir/$name.stopped"
+    kill -INT -- -"$pid" 2>/dev/null
+    for _ in $(seq 1 $((wait_s * 5))); do kill -0 "$pid" 2>/dev/null || break; sleep 0.2; done
+    if kill -0 "$pid" 2>/dev/null; then kill -TERM -- -"$pid" 2>/dev/null; sleep 2; fi
+    if kill -0 "$pid" 2>/dev/null; then kill -KILL -- -"$pid" 2>/dev/null; fi
+    echo "$name: 끔"
+done
+== ds_run.sh 전문
+#!/usr/bin/env bash
+# ds_run.sh <이름> <명령...> — 런처(launcher.ps1)가 띄우는 창 하나를 **이름표**와 함께 돌린다 (2026-11-23).
+#
+# * 명령은 setsid 로 새 프로세스 묶음에서 돈다. 이름표 /tmp/ds_launcher/<이름>.pid 에 묶음 번호와 명령줄을 적는다
+#   — ds_stop.sh 가 그 묶음만 끄고, 런처를 다시 열면 ds_status.sh 로 이어받는다.
+# * 창에서 Ctrl+C 를 누르면 묶음에 SIGINT 를 넘긴다(예전과 같이 '지금 장까지 저장하고 끝').
+# * 런처가 끈 것이면(<이름>.stopped) 바로 닫히고, 스스로 끝났으면 로그를 보도록 키를 기다린다.
+set -u
+name="$1"; shift
+dir=/tmp/ds_launcher
+mkdir -p "$dir"
+rm -f "$dir/$name.stopped"
+setsid "$@" &
+pid=$!
+printf '%s\t%s\n' "$pid" "$*" > "$dir/$name.pid"
+trap 'kill -INT -- -"$pid" 2>/dev/null' INT
+trap 'kill -TERM -- -"$pid" 2>/dev/null' TERM HUP
+while kill -0 "$pid" 2>/dev/null; do
+    wait "$pid"
+done
+wait "$pid" 2>/dev/null
+rc=$?
+# 이름표가 아직 이 프로세스 것이면 지운다(같은 이름으로 새로 띄운 것을 지우지 않게)
+if [ "$(cut -f1 "$dir/$name.pid" 2>/dev/null)" = "$pid" ]; then rm -f "$dir/$name.pid"; fi
+if [ -f "$dir/$name.stopped" ]; then
+    rm -f "$dir/$name.stopped"
+    exit 0
+fi
+echo
+echo "끝남 (코드 $rc)"
+read -n1 -rsp '아무 키나 누르면 창이 닫힙니다'
+exit "$rc"

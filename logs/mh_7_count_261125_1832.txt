@@ -1,0 +1,8 @@
+# 7-3 판 수 대조 (읽기만) 2026-11-25 18:32:00
+ test_run | count 
+----------+-------
+ f        |   327
+ t        |     8
+(2 rows)
+
+{"ok": true, "service": "mission-history", "apiVersion": 1, "serverTime": "2026-11-25T09:32:00.866Z", "runCount": 335}

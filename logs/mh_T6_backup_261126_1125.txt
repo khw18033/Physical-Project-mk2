@@ -1,0 +1,30 @@
+# T6 자동 백업 2026-11-26 11:25:53
+total 24
+drwxr-xr-x 6 khw67 khw67 4096 Nov 26 11:25 .
+drwxr-x--- 6 khw67 khw67 4096 Nov 25 18:17 ..
+-rw-r--r-- 1 khw67 khw67    0 Nov 26 11:25 .lock
+drwxr-xr-x 2 khw67 khw67 4096 Nov 26 02:07 daily_261126_020712
+drwxr-xr-x 3 khw67 khw67 4096 Nov 25 18:20 from_remote
+drwxr-xr-x 2 khw67 khw67 4096 Nov 25 18:24 manual_261125_182459
+drwxr-xr-x 2 khw67 khw67 4096 Nov 26 11:25 manual_261126_112542
+Nov 26 02:07:12 BOOK-4VG1EDPVI5 systemd[1]: Starting mission-history-backup.service - Mission history server daily backup (DB tables + images)...
+Nov 26 02:07:12 BOOK-4VG1EDPVI5 bash[664373]: 백업 시작: daily_261126_020712
+Nov 26 02:07:14 BOOK-4VG1EDPVI5 bash[664373]: 백업 끝: /home/khw67/mission_history/backups/daily_261126_020712
+Nov 26 02:07:14 BOOK-4VG1EDPVI5 bash[664481]: 백업: daily_261126_020712
+Nov 26 02:07:14 BOOK-4VG1EDPVI5 bash[664481]: 시각(KST): 2026-11-26 02:07:14
+Nov 26 02:07:14 BOOK-4VG1EDPVI5 bash[664481]: 메모: (없음)
+Nov 26 02:07:14 BOOK-4VG1EDPVI5 bash[664481]: 목록에 나오는 판 수: 347
+Nov 26 02:07:14 BOOK-4VG1EDPVI5 bash[664481]: 그림 행 수: 2839
+Nov 26 02:07:14 BOOK-4VG1EDPVI5 bash[664481]: 그림 파일 수: 2839
+Nov 26 02:07:14 BOOK-4VG1EDPVI5 bash[664481]: 291d264ec0179383943a7b3f618366bf  db.dump
+Nov 26 02:07:14 BOOK-4VG1EDPVI5 bash[664481]: d77d68408a8672f22ca8d1f344688fb4  images.tar
+Nov 26 02:07:14 BOOK-4VG1EDPVI5 bash[664481]: -rw-r--r-- 1 khw67 khw67  2777821 Nov 26 02:07 db.dump
+Nov 26 02:07:14 BOOK-4VG1EDPVI5 bash[664481]: -rw-r--r-- 1 khw67 khw67 99225600 Nov 26 02:07 images.tar
+Nov 26 02:07:14 BOOK-4VG1EDPVI5 systemd[1]: mission-history-backup.service: Deactivated successfully.
+Nov 26 02:07:14 BOOK-4VG1EDPVI5 systemd[1]: Finished mission-history-backup.service - Mission history server daily backup (DB tables + images).
+Nov 26 02:07:14 BOOK-4VG1EDPVI5 systemd[1]: mission-history-backup.service: Consumed 1.195s CPU time over 2.526s wall clock time, 216.3M memory peak.
+NEXT                        LEFT LAST                              PASSED UNIT                         ACTIVATES
+Thu 2026-11-26 22:00:00 KST  10h Thu 2026-11-26 02:07:12 KST 1h 39min ago mission-history-backup.timer mission-history-backup.service
+
+1 timers listed.
+Pass --all to see loaded but inactive timers, too.

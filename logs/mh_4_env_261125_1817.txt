@@ -1,0 +1,4 @@
+# 4-2 환경 파일 확인 2026-11-25 18:17:39
+600 khw67 /home/khw67/mission_history/mission-history.env
+비밀번호 줄이 채워졌나(1): 1
+mk2_app|0

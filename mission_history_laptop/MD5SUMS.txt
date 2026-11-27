@@ -1,0 +1,9 @@
+6fe2b1d0d405ada33b67a9e26be307bb  mission_history_server.py
+8184236f9d11eeef14af7417468d7349  schema_v2.sql
+6f790a30b0b0fab0389a7ee9296a98c5  laptop_db_init.sql
+8ed1d6cacd75288070b79502a84e7d73  backup.sh
+1fd8a8a225960dd0471e87e3e8320ec3  mission-history.service
+bf12d7daa52fe0031b6a4f5a27ea543c  mission-history-backup.service
+0158dd3ed54c87a53690a847a55f2fb2  mission-history-backup.timer
+08631f71c09bd978aca939d8d60411bd  mission-history.env.example
+a4ebdba8b39eae87d5807795a75b9999  check-history-server.mjs

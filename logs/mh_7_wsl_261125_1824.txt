@@ -1,0 +1,25 @@
+# 7-1 설치 확인 (WSL) 2026-11-25 18:24:58
+== health
+{"ok": true, "service": "mission-history", "apiVersion": 1, "serverTime": "2026-11-25T09:24:58.922Z", "runCount": 333}  [200 0.010017s]
+== 목록 - 앞 셋
+판 333
+  261124 214827_MSN-261123-02 mission
+  261124 213606_MSN-261123-02 mission
+  261124 185059_MSN-261123-02 mission
+== 옮긴 그림 하나 - API 크기 = 디스크 크기
+  API 200 16378B
+  디스크 16378B
+== 수동 백업
+백업 시작: manual_261125_182459
+백업 끝: /home/khw67/mission_history/backups/manual_261125_182459
+백업: manual_261125_182459
+시각(KST): 2026-11-25 18:24:59
+메모: 노트북 설치 확인
+목록에 나오는 판 수: 333
+그림 행 수: 2788
+그림 파일 수: 2788
+
+e84e4cb37cbef9fe1dbe0dcc6605de39  db.dump
+cce4a51b09717c05692fd39519de406a  images.tar
+-rw-r--r-- 1 khw67 khw67  2666629 Nov 25 18:24 db.dump
+-rw-r--r-- 1 khw67 khw67 98385920 Nov 25 18:24 images.tar

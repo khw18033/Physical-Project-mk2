@@ -1,0 +1,56 @@
+# 3-1 DB · 계정 · 표 2026-11-25 18:10:24
+SET
+CREATE ROLE
+CREATE ROLE
+CREATE DATABASE
+GRANT
+You are now connected to database "mk2" as user "postgres".
+SET
+CREATE TABLE
+CREATE TABLE
+GRANT
+     table_name     | column_name  |        data_type         | len | is_nullable | is_generated 
+--------------------+--------------+--------------------------+-----+-------------+--------------
+ mission_run_images | date         | character                |   6 | NO          | NEVER
+ mission_run_images | run          | character varying        |  90 | NO          | NEVER
+ mission_run_images | kind         | character varying        |   8 | NO          | NEVER
+ mission_run_images | name         | character varying        | 130 | NO          | NEVER
+ mission_run_images | content_type | character varying        |  32 | NO          | NEVER
+ mission_run_images | storage_path | text                     |     | YES         | NEVER
+ mission_run_images | updated_at   | timestamp with time zone |     | NO          | NEVER
+ mission_runs       | date         | character                |   6 | NO          | NEVER
+ mission_runs       | run          | character varying        |  90 | NO          | NEVER
+ mission_runs       | mission_doc  | jsonb                    |     | YES         | NEVER
+ mission_runs       | progress_doc | jsonb                    |     | YES         | NEVER
+ mission_runs       | record_kind  | character varying        |  16 | YES         | ALWAYS
+ mission_runs       | mission_id   | character varying        |  90 | YES         | ALWAYS
+ mission_runs       | created_at   | timestamp with time zone |     | NO          | NEVER
+ mission_runs       | updated_at   | timestamp with time zone |     | NO          | NEVER
+(15 rows)
+
+     table_name     |   mk2_app_privileges   
+--------------------+------------------------
+ mission_run_images | INSERT, SELECT, UPDATE
+ mission_runs       | INSERT, SELECT, UPDATE
+(2 rows)
+
+GRANT
+ grantee |     table_name     |       privileges       
+---------+--------------------+------------------------
+ khw67   | mission_run_images | SELECT
+ khw67   | mission_runs       | SELECT
+ mk2_app | mission_run_images | INSERT, SELECT, UPDATE
+ mk2_app | mission_runs       | INSERT, SELECT, UPDATE
+(4 rows)
+
+ rolname | rolcanlogin | rolsuper | rolcreatedb | rolcreaterole | has_password 
+---------+-------------+----------+-------------+---------------+--------------
+ khw67   | t           | f        | f           | f             | f
+ mk2_app | t           | f        | f           | f             | f
+(2 rows)
+
+ datname | encoding | datcollate 
+---------+----------+------------
+ mk2     | UTF8     | C.UTF-8
+(1 row)
+

@@ -1,0 +1,13 @@
+백업 시작: manual_261126_112542
+백업 끝: /home/khw67/mission_history/backups/manual_261126_112542
+백업: manual_261126_112542
+시각(KST): 2026-11-26 11:25:43
+메모: 실기기 시험 뒤
+목록에 나오는 판 수: 347
+그림 행 수: 2839
+그림 파일 수: 2839
+
+278ea49cac317ef7cd982f6f738698ad  db.dump
+d77d68408a8672f22ca8d1f344688fb4  images.tar
+-rw-r--r-- 1 khw67 khw67  2777821 Nov 26 11:25 db.dump
+-rw-r--r-- 1 khw67 khw67 99225600 Nov 26 11:25 images.tar

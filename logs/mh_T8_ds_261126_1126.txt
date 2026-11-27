@@ -1,0 +1,59 @@
+# T8 DS 그대로인가 2026-11-26 11:26:01
+== 듣는 포트
+State  Recv-Q Send-Q                          Local Address:Port  Peer Address:Port
+LISTEN 0      512                                 127.0.0.1:36221      0.0.0.0:*   
+LISTEN 0      4096                100.125.104.23%tailscale0:50809      0.0.0.0:*   
+LISTEN 0      4096                                127.0.0.1:10258      0.0.0.0:*   
+LISTEN 0      4096                                127.0.0.1:10259      0.0.0.0:*   
+LISTEN 0      4096                                127.0.0.1:10256      0.0.0.0:*   
+LISTEN 0      4096                                127.0.0.1:10257      0.0.0.0:*   
+LISTEN 0      4096                                127.0.0.1:10248      0.0.0.0:*   
+LISTEN 0      4096                                127.0.0.1:10249      0.0.0.0:*   
+LISTEN 0      1000                           10.255.255.254:53         0.0.0.0:*   
+LISTEN 0      5                              100.125.104.23:8850       0.0.0.0:*   
+LISTEN 0      512                                 127.0.0.1:42483      0.0.0.0:*   
+LISTEN 0      511                                 127.0.0.1:34755      0.0.0.0:*   
+LISTEN 0      4096                                127.0.0.1:10010      0.0.0.0:*   
+LISTEN 0      511                                 127.0.0.1:33087      0.0.0.0:*   
+LISTEN 0      511                                 127.0.0.1:24002      0.0.0.0:*   
+LISTEN 0      512                                 127.0.0.1:39151      0.0.0.0:*   
+LISTEN 0      511                                 127.0.0.1:6380       0.0.0.0:*   
+LISTEN 0      511                                 127.0.0.1:6379       0.0.0.0:*   
+LISTEN 0      4096                                127.0.0.1:6444       0.0.0.0:*   
+LISTEN 0      511                                 127.0.0.1:39517      0.0.0.0:*   
+LISTEN 0      200                                 127.0.0.1:5432       0.0.0.0:*   
+LISTEN 0      511                                 127.0.0.1:38241      0.0.0.0:*   
+LISTEN 0      511                            100.125.104.23:6380       0.0.0.0:*   
+LISTEN 0      511                                     [::1]:6379          [::]:*   
+LISTEN 0      4096                                        *:10250            *:*   
+LISTEN 0      4096                                        *:6443             *:*   
+LISTEN 0      4096   [fd7a:115c:a1e0::1c30:6818]%tailscale0:50555         [::]:*   
+== 도는 서비스
+chrony.service              loaded active running chrony, an NTP client/server
+containerd.service          loaded active running containerd container runtime
+cron.service                loaded active running Regular background program processing daemon
+dbus.service                loaded active running D-Bus System Message Bus
+docker.service              loaded active running Docker Application Container Engine
+getty@tty1.service          loaded active running Getty on tty1
+k3s.service                 loaded active running Lightweight Kubernetes
+mission-history.service     loaded active running Mission history server (VZ mission records, HTTP :8850)
+networkd-dispatcher.service loaded active running Dispatcher daemon for systemd-networkd
+polkit.service              loaded active running Authorization Manager
+postgresql@18-main.service  loaded active running PostgreSQL Cluster 18-main
+redis-server.service        loaded active running Advanced key-value store
+rsyslog.service             loaded active running System Logging Service
+systemd-journald.service    loaded active running Journal Service
+systemd-logind.service      loaded active running User Login Management
+systemd-udevd.service       loaded active running Rule-based Manager for Device Events and Files
+tailscaled.service          loaded active running Tailscale node agent
+unattended-upgrades.service loaded active running Unattended Upgrades Shutdown
+user@1000.service           loaded active running User Manager for UID 1000
+wsl-pro.service             loaded active running Bridge to Ubuntu Pro agent on Windows
+== 실패한 유닛 (systemd-resolved 셋 그대로여야)
+systemd-resolved.service        loaded failed failed Network Name Resolution
+systemd-resolved-monitor.socket loaded failed failed Resolve Monitor Varlink Socket
+systemd-resolved-varlink.socket loaded failed failed Resolve Service Varlink Socket
+== 메모리
+               total        used        free      shared  buff/cache   available
+Mem:            15Gi       6.3Gi       3.3Gi       322Mi       6.3Gi       9.1Gi
+Swap:          4.0Gi       4.0Gi        18Mi

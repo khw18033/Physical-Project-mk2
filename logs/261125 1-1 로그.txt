@@ -1,0 +1,27 @@
+(venv) khw67@BOOK-4VG1EDPVI5:~/data_stream$ ( echo "# 1-1 목록 · 흉내 $(date '+%F %T')"
+  sudo apt-get update
+  echo "== 흉내 - 권장 패키지 뺌 (실제로는 아무것도 안 깐다)"
+  LC_ALL=C apt-get -s install --no-install-recommends postgresql | grep -E 'upgraded,|^Inst|^Remv'
+) 2>&1 | tee /mnt/c/mk2_edge/logs/mh_1_sim_$(date +%y%m%d_%H%M).txt
+# 1-1 목록 · 흉내 2026-11-25 15:03:28
+Get:1 https://pkgs.tailscale.com/stable/ubuntu resolute InRelease
+Hit:2 http://security.ubuntu.com/ubuntu resolute-security InRelease
+Hit:3 http://archive.ubuntu.com/ubuntu resolute InRelease
+Hit:4 http://archive.ubuntu.com/ubuntu resolute-updates InRelease
+Hit:5 http://archive.ubuntu.com/ubuntu resolute-backports InRelease
+Fetched 6652 B in 2s (4358 B/s)
+Reading package lists...
+== 흉내 - 권장 패키지 뺌 (실제로는 아무것도 안 깐다)
+0 upgraded, 11 newly installed, 0 to remove and 46 not upgraded.
+Inst libjson-perl (4.10000-1 Ubuntu:26.04/resolute [all])
+Inst postgresql-client-common (290ubuntu1 Ubuntu:26.04/resolute [all])
+Inst ssl-cert (1.1.3ubuntu2 Ubuntu:26.04/resolute [all])
+Inst postgresql-common (290ubuntu1 Ubuntu:26.04/resolute [all])
+Inst libicu78 (78.2-2ubuntu1 Ubuntu:26.04/resolute [amd64])
+Inst libpq5 (18.6-0ubuntu0.26.04.1 Ubuntu:26.04/resolute-updates, Ubuntu:26.04/resolute-security [amd64])
+Inst liburing2 (2.14-1 Ubuntu:26.04/resolute [amd64])
+Inst libxslt1.1 (1.1.45-0.1 Ubuntu:26.04/resolute [amd64])
+Inst postgresql-client-18 (18.6-0ubuntu0.26.04.1 Ubuntu:26.04/resolute-updates, Ubuntu:26.04/resolute-security [amd64])
+Inst postgresql-18 (18.6-0ubuntu0.26.04.1 Ubuntu:26.04/resolute-updates, Ubuntu:26.04/resolute-security [amd64])
+Inst postgresql (18+290ubuntu1 Ubuntu:26.04/resolute [all])
+(venv) khw67@BOOK-4VG1EDPVI5:~/data_stream$ 

@@ -1,0 +1,16 @@
+# 임무 이력 서버 — 매일 백업 한 번 돌리는 일(타이머 mission-history-backup.timer 가 부른다) · 노트북 WSL 판(261125)
+# 원격 서버판(2026-11-19)에서 사용자 · 경로 · 순서(docker → postgresql)만 바꿨다.
+#
+# 설치(WSL 에서 사람이):  sudo install -m 644 mission-history-backup.service mission-history-backup.timer /etc/systemd/system/
+#                        sudo systemctl daemon-reload && sudo systemctl enable --now mission-history-backup.timer
+# 지금 한 번 손으로:     bash /home/khw67/mission_history/server/backup.sh manual "메모"   (이 유닛을 거치지 않는다)
+# 로그:                  journalctl -u mission-history-backup -n 50
+
+[Unit]
+Description=Mission history server daily backup (DB tables + images)
+After=postgresql.service
+
+[Service]
+Type=oneshot
+User=khw67
+ExecStart=/bin/bash /home/khw67/mission_history/server/backup.sh daily
