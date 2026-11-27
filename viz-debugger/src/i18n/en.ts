@@ -3998,6 +3998,7 @@ export const en: Record<string, string> = {
   'dms.pl.nowCpu': 'CPU {cpu}% · memory {mem}%',
   'dms.pl.why': 'Basis',
   'dms.pl.whyPlan': 'orchestrator plan ({time}) put it on {node}',
+  'dms.pl.whyCpu': 'orchestrator plan ({time}) put CPU task {task} on {node}',
   'dms.pl.whyDs': 'not in a running plan → runs on the data_stream machine (without resource allocation all vision runs on the data_stream server)',
   'dms.pl.endedPlan': 'previous plan {request} · ended {time} — not used now',
   'dms.pl.share': 'Unit share',

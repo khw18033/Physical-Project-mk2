@@ -57,7 +57,8 @@ export function PlacementSection({ row, state }: { row: DetectSourceRow | null; 
   const groups = new Map<string, { placement: Placement; models: string[] }>();
   for (const m of live) {
     const placement = placementOf(state, row?.source ?? null, m.model);
-    const key = `${placement.from}|${placement.node ?? ''}`;
+    // GPU 단위와 CPU 작업은 같은 노드여도 근거가 달라 따로 묶는다(261127 — targeted · track 이 한 묶음이면 track 이 GPU 근거로 읽힌다).
+    const key = `${placement.from}|${placement.node ?? ''}|${placement.cpuTask ?? ''}`;
     const group = groups.get(key) ?? { placement, models: [] };
     group.models.push(m.model);
     groups.set(key, group);
@@ -71,7 +72,7 @@ export function PlacementSection({ row, state }: { row: DetectSourceRow | null; 
       const usage = usageText(placement.info);
       const unit = placement.unit;
       const fps = unit !== null && row?.source != null ? unit.fpsCap[row.source] : undefined;
-      return <div key={`${placement.from}|${placement.node ?? ''}`} className="dms-place__group">
+      return <div key={`${placement.from}|${placement.node ?? ''}|${placement.cpuTask ?? ''}`} className="dms-place__group">
         <p className={`dms-place__head dms-place__head--${placement.kind}`}>
           <b>{deviceName(placement)}</b>
           <span className="dms-badge">{t(placement.from === 'plan' ? 'dms.pl.badgePlan' : 'dms.pl.badgeDs')}</span>
@@ -89,11 +90,13 @@ export function PlacementSection({ row, state }: { row: DetectSourceRow | null; 
           {usage !== null && <><dt>{t('dms.pl.now')}</dt><dd>{usage}</dd></>}
           <dt>{t('dms.pl.why')}</dt>
           <dd>{placement.from === 'plan'
-            ? t('dms.pl.whyPlan', { time: hhmm(plan?.atMs ?? null), node: placement.node ?? '?' })
+            ? placement.cpuTask != null
+              ? t('dms.pl.whyCpu', { time: hhmm(plan?.atMs ?? null), task: placement.cpuTask, node: placement.node ?? '?' })
+              : t('dms.pl.whyPlan', { time: hhmm(plan?.atMs ?? null), node: placement.node ?? '?' })
             : t('dms.pl.whyDs')}</dd>
           {unit !== null && <><dt>{t('dms.pl.share')}</dt>
             <dd>{t('dms.pl.shareText', { mb: unit.needMb ?? '—', basis: unit.needBasis ?? '—', fps: fps === undefined ? '—' : fps })}</dd></>}
-          {placement.from === 'plan' && plan !== null && placement.node !== null && plan.where?.[placement.node] !== undefined && <>
+          {placement.from === 'plan' && unit !== null && plan !== null && placement.node !== null && plan.where?.[placement.node] !== undefined && <>
             <dt>{t('dms.pl.runsAt')}</dt><dd>{plan.where[placement.node]}</dd></>}
           {placement.from === 'plan' && plan !== null && <><dt>{t('dms.pl.mode')}</dt>
             <dd>{t('dms.pl.modeText', { mode: plan.mode ?? '—', basis: plan.basis ?? '—' })}</dd>

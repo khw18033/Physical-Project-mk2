@@ -220,6 +220,25 @@ const snapA = reader.summarizePlacement(orchNewestFirst.slice(4), []);
   const longName = place.shortTag({ from: 'plan', node: 'worker-node-long', unit: null, info: null, kind: 'other' });
   expect('긴 이름은 자른다', longName.length <= 8 && longName.endsWith('…'), longName);
   expect('장치 수', place.countDevices([p, ds, pi]) === 2 && place.countDevices([noRecorder, noRecorder]) === 1);
+
+  // CPU 작업으로 배치되는 모델(261127) — 물체 추적 track 은 GPU 단위가 아니라 object_track.server (req-d99d2dce33 실측 모양)
+  const trackPlanJson = (serverNode) => ({
+    ...planJson('book-4vg1edpvi5-wsl', ['robot1'], ['targeted']),
+    cpu_units: [{ task: 'object_track.device@robot1', node: 'pi7' }, { task: 'object_track.server', node: serverNode }],
+  });
+  const trackPlan = (serverNode) => reader.summarizePlacement([orchRec('3-0', 'planned', 'req-T', { plan: trackPlanJson(serverNode) })], []).plan;
+  const task = (over) => ({ task: 'object_track.server', requestId: 'req-T', unitId: 'cpu-object_track.server-1', node: 'book-4vg1edpvi5-wsl', state: 'applied', reason: null, lost: false, requests: null, limits: null, moves: [], ts: null, atMs: 1, ...over });
+  const tr = place.placementOf({ plan: trackPlan('book-4vg1edpvi5-wsl'), nodes: snapB.nodes, cpuTasks: { 'object_track.server': task({}) } }, 'robot1', 'track');
+  expect('track — 배치표 CPU 작업의 노드', tr.from === 'plan' && tr.cpuTask === 'object_track.server' && tr.node === 'book-4vg1edpvi5-wsl' && tr.kind === 'laptop' && tr.unit === null, JSON.stringify(tr));
+  const trPi = place.placementOf({ plan: trackPlan('pi6'), nodes: snapB.nodes, cpuTasks: {} }, 'robot1', 'track');
+  expect('track — 서버 단계가 파이면 파이 이름', trPi.from === 'plan' && trPi.node === 'pi6' && trPi.kind === 'pi' && place.shortTag(trPi) === 'pi6', JSON.stringify(trPi));
+  const tg = place.placementOf({ plan: trackPlan('book-4vg1edpvi5-wsl'), nodes: snapB.nodes }, 'robot1', 'targeted');
+  expect('targeted 는 그대로 GPU 단위', tg.unit !== null && tg.cpuTask === undefined, JSON.stringify(tg));
+  // 대조군 — 못 뜬(failed) 서버 단계는 배치표 근거로 안 쓴다 · CPU 작업 표에 없는 모델은 예전처럼 data_stream 기기
+  const failed = place.placementOf({ plan: trackPlan('pi6'), nodes: snapB.nodes, cpuTasks: { 'object_track.server': task({ node: 'pi6', state: 'failed' }) } }, 'robot1', 'track');
+  const other = place.placementOf({ plan: trackPlan('book-4vg1edpvi5-wsl'), nodes: snapB.nodes }, 'robot1', 'unidepth');
+  if (failed.from === 'dataStream' && failed.kind === 'laptop' && other.from === 'dataStream') controls.push('못 뜬 CPU 작업 · 표에 없는 모델은 배치표 근거로 안 쓴다');
+  else failures.push(`대조군 실패: ${JSON.stringify([failed, other])}`);
 }
 
 // ── 6. 조회 한 번 ───────────────────────────────────────────────────────────

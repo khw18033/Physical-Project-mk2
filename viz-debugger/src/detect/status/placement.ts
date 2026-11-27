@@ -232,9 +232,18 @@ export type Placement = {
   /** 노드 이름. data_stream 기기인데 자원 기록기가 꺼져 이름을 모르면 null. */
   node: string | null;
   unit: GpuUnit | null;
+  /** 배치표의 **CPU 작업**으로 찾았으면 그 작업 이름(261127, 예: `object_track.server`). GPU 단위로 찾았거나 data_stream 기기면 없음. */
+  cpuTask?: string | null;
   info: NodeSummary | null;
   kind: DeviceKind;
 };
+
+/**
+ * **GPU 단위가 아니라 CPU 작업으로 배치되는 모델 → 그 기능** (261127). data_stream 은 이 모델을 GPU 단위의 `models` 에 넣지 않고
+ * 기능 단계 CPU 작업 `<기능>.server` 로 배치한다 — 예: 물체 추적 결과 `vision_stream:<소스>:track` 은 `object_track.server`
+ * (2026-11-27 `req-d99d2dce33` 실측). 서버 단계가 그 결과를 내므로 서버 단계의 자리를 쓴다. 기능이 늘면 여기에 더한다.
+ */
+export const CPU_STAGE_MODELS: Readonly<Record<string, string>> = Object.freeze({ track: 'object_track' });
 
 const PI_ROLES = new Set(['robot', 'sensor', 'small']);
 
@@ -247,16 +256,29 @@ export function deviceKind(from: Placement['from'], info: NodeSummary | null): D
   return 'other';
 }
 
-/** (소스, 모델) → 실행 장치. 배치표에서 못 찾거나 그 배치표가 끝났으면 data_stream 기기. */
+/**
+ * (소스, 모델) → 실행 장치. 배치표의 GPU 단위 → (그 모델이 CPU 작업으로 배치되는 것이면) 배치표의 CPU 작업 순으로 찾는다.
+ * 못 찾거나 그 배치표가 끝났으면 data_stream 기기. CPU 작업은 단위 기록이 못 떴다(failed) · 끝났다(stopped)고 하면 쓰지 않는다.
+ */
 export function placementOf(snapshot: PlacementSnapshot, source: string | null, model: string): Placement {
-  const unit = source === null || snapshot.plan === null || planEnded(snapshot.plan)
-    ? null
-    : snapshot.plan.gpuUnits.find((u) => u.sources.includes(source) && u.models.includes(model)) ?? null;
+  const plan = source === null || snapshot.plan === null || planEnded(snapshot.plan) ? null : snapshot.plan;
+  const unit = plan === null || source === null ? null : plan.gpuUnits.find((u) => u.sources.includes(source) && u.models.includes(model)) ?? null;
   if (unit !== null) {
     const info = snapshot.nodes[unit.node] ?? null;
     return { from: 'plan', node: unit.node, unit, info, kind: deviceKind('plan', info) };
   }
   const local = localNode(snapshot.nodes);
+  const fn = CPU_STAGE_MODELS[model];
+  const task = fn === undefined ? null : `${fn}.server`;
+  const planned = plan === null || task === null ? null : plan.cpuUnits.find((u) => u.task === task) ?? null;
+  const record = task === null ? undefined : snapshot.cpuTasks?.[task];
+  const alive = record === undefined || record.requestId !== plan?.requestId || !cpuEnded(record);
+  if (planned !== null && alive) {
+    const node = (record !== undefined && record.requestId === plan?.requestId ? record.node : null) ?? planned.node;
+    const info = snapshot.nodes[node] ?? null;
+    const kind = node === local?.node ? 'laptop' : deviceKind('plan', info);
+    return { from: 'plan', node, unit: null, cpuTask: task, info, kind };
+  }
   return { from: 'dataStream', node: local?.node ?? null, unit: null, info: local, kind: 'laptop' };
 }
 

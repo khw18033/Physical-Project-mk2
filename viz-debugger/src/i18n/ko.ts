@@ -4023,6 +4023,7 @@ export const ko: Record<string, string> = {
   'dms.pl.nowCpu': 'CPU {cpu}% · 메모리 {mem}%',
   'dms.pl.why': '근거',
   'dms.pl.whyPlan': '오케스트레이터 배치표({time})가 {node} 에 둠',
+  'dms.pl.whyCpu': '오케스트레이터 배치표({time})의 CPU 작업 {task} 가 {node} 에 둠',
   'dms.pl.whyDs': '돌고 있는 배치표에 없음 → data_stream 기기에서 돎 (자원 배분 없이 띄운 비전은 모두 data_stream 서버)',
   'dms.pl.endedPlan': '지난 배치표 {request} · {time} 끝남 — 지금 판단에는 안 씀',
   'dms.pl.share': '이 단위 몫',
